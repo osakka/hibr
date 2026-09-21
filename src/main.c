@@ -261,6 +261,7 @@ int main(int ac, char **av)
 	tr_init(&s);
 	s.t0 = (long)time(0);
 	srand((unsigned)(s.t0 ^ (long)getpid()));
+	hibr_set(&s, "HIBR_VERSION", HIBR_VER, 0);
 	{
 		str b;
 		char *hn = xm(256);

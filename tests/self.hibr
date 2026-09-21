@@ -48,6 +48,9 @@ is "${x//l/L}" "heLLo" "replace all"
 is "$((3 + 4 * 2))" "11" "arithmetic precedence"
 is "$(( (3 + 4) * 2 ))" "14" "arithmetic parens"
 is "$(echo nested $(echo deep))" "nested deep" "nested substitution"
+vok=no
+match "$HIBR_VERSION" "^[0-9]+\.[0-9]+" && vok=yes
+is "$vok" "yes" "HIBR_VERSION names a version"
 
 section "maps and arrays"
 a=(one two three)
