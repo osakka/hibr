@@ -29,6 +29,16 @@ drop www-data
 while accept $LFD C; do serve <&$C >&$C; exec {C}<&-; done
 ```
 
+A coprocess is reached with the same two verbs, because it is the same shape of
+thing — see [0018](adr/0018-a-coprocess-is-an-endpoint.md):
+
+```
+worker() { while recv 0 line; do send 1 "got:$line"; done; }
+coproc cp worker
+send ${cp[out]} hello
+recv ${cp[in]} answer        # ${cp[0]} and ${cp[1]} read the same, for bash
+```
+
 `drop user[:group]` comes from the `sys` module and gives up root for good —
 see [0016](adr/0016-privileges-are-dropped-never-gained.md).
 

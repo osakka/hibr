@@ -33,6 +33,49 @@ void envfree(char **e)
 	free(e);
 }
 
+/* The remembered path for a command name, or null when there is none. */
+const char *hsh_get(sh *s, const char *nm)
+{
+	size_t i, n = strlen(nm);
+	const char *e;
+
+	for (i = 0; i < s->cmds.n; i++) {
+		e = (const char *)s->cmds.p[i];
+		if (!strncmp(e, nm, n) && e[n] == '=')
+			return e + n + 1;
+	}
+	return 0;
+}
+
+/* Forget one remembered command, or all of them. */
+void hsh_clear(sh *s, const char *nm)
+{
+	size_t i, n = nm ? strlen(nm) : 0;
+	const char *e;
+
+	for (i = s->cmds.n; i--;) {
+		e = (const char *)s->cmds.p[i];
+		if (nm && (strncmp(e, nm, n) || e[n] != '='))
+			continue;
+		free(s->cmds.p[i]);
+		s->cmds.p[i] = s->cmds.p[--s->cmds.n];
+	}
+	lg(HIBR_LDBG, "forgot %s", nm ? nm : "every remembered command");
+}
+
+/* Remember where a command was found. */
+void hsh_put(sh *s, const char *nm, const char *path)
+{
+	str b;
+
+	hsh_clear(s, nm);
+	s_init(&b);
+	s_cat(&b, nm);
+	s_ch(&b, '=');
+	s_cat(&b, path);
+	v_add(&s->cmds, b.p);
+}
+
 /* Locate an executable along PATH. */
 char *findx(sh *s, const char *nm)
 {
@@ -42,6 +85,13 @@ char *findx(sh *s, const char *nm)
 
 	if (strchr(nm, '/'))
 		return access(nm, X_OK) == 0 ? xs(nm) : 0;
+	q = hsh_get(s, nm);
+	if (q) {
+		if (access(q, X_OK) == 0)
+			return xs(q);
+		lg(HIBR_LDBG, "%s moved; looking again", nm);
+		hsh_clear(s, nm);
+	}
 	if (!p)
 		p = "/usr/local/bin:/usr/bin:/bin";
 	while (*p) {
@@ -55,8 +105,10 @@ char *findx(sh *s, const char *nm)
 			s_ch(&b, '.');
 		s_ch(&b, '/');
 		s_cat(&b, nm);
-		if (access(b.p, X_OK) == 0)
+		if (access(b.p, X_OK) == 0) {
+			hsh_put(s, nm, b.p);
 			return b.p;
+		}
 		s_free(&b);
 		if (!q)
 			break;
@@ -485,7 +537,7 @@ void asg_push(sh *s, vec *asg, vec *old)
 			continue;
 		*q = 0;
 		asg_keep(s, old, kv);
-		hibr_set(s, kv, q + 1, 0);
+		hibr_set(s, kv, q + 1, 1);
 		*q = '=';
 	}
 }
@@ -679,6 +731,8 @@ int ex_cmd(sh *s, node *n)
 	int ac = 0, st = 0, w2;
 	pid_t pid;
 
+	if (s->dtrap)
+		tr_debug(s, n->tx);
 	for (w = n->aw; w; w = w->nx) {
 		char *mk = 0;
 		v_add(asg, xone_q(s, w, &mk));

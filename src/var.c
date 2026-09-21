@@ -136,9 +136,13 @@ int hibr_set(sh *s, const char *k, const char *v, int ex)
 		v_free_el(e);
 		free(e->v);
 		e->v = xs(v);
-		s_free(&t);
 		if (ex)
 			e->ex = 1;
+		if (e->ex)
+			setenv(k, e->v, 1);
+		if (!strcmp(k, "PATH"))
+			hsh_clear(s, 0);
+		s_free(&t);
 		return HIBR_OK;
 	}
 	e = xm(sizeof *e);
@@ -146,6 +150,8 @@ int hibr_set(sh *s, const char *k, const char *v, int ex)
 	e->k = xs(k);
 	e->v = xs(v);
 	e->ex = ex ? 1 : 0;
+	if (e->ex)
+		setenv(k, e->v, 1);
 	b = vh(k) & (s->tsz - 1);
 	e->nx = s->tab[b];
 	s->tab[b] = e;
@@ -165,6 +171,8 @@ void v_del(sh *s, const char *k)
 	while ((v = *pp)) {
 		if (!strcmp(v->k, k)) {
 			*pp = v->nx;
+			if (v->ex)
+				unsetenv(k);
 			v_free_el(v);
 			free(v->k);
 			free(v->v);
@@ -212,6 +220,20 @@ void v_names(sh *s, const char *pre, vec *out)
 	   pre);
 }
 
+/* True when a name is assigned by one of a command's own assignments. */
+int v_shadowed(vec *extra, const char *k)
+{
+	size_t i, n = strlen(k);
+	const char *e;
+
+	for (i = 0; i < extra->n; i++) {
+		e = (const char *)extra->p[i];
+		if (!strncmp(e, k, n) && e[n] == '=')
+			return 1;
+	}
+	return 0;
+}
+
 /* Build a NULL terminated envp from exported variables plus extras. */
 char **v_envp(sh *s, vec *extra)
 {
@@ -225,6 +247,11 @@ char **v_envp(sh *s, vec *extra)
 		for (v = s->tab[i]; v; v = v->nx) {
 			if (!v->ex)
 				continue;
+			if (extra && v_shadowed(extra, v->k)) {
+				lg(HIBR_LTRC, "%s overridden for this command",
+				   v->k);
+				continue;
+			}
 			s_init(&b);
 			s_cat(&b, v->k);
 			s_ch(&b, '=');
@@ -233,7 +260,8 @@ char **v_envp(sh *s, vec *extra)
 		}
 	if (extra)
 		for (i = 0; i < extra->n; i++)
-			v_add(&o, xs((char *)extra->p[i]));
+			if (strchr((char *)extra->p[i], '='))
+				v_add(&o, xs((char *)extra->p[i]));
 	v_add(&o, 0);
 	r = (char **)o.p;
 	return r;

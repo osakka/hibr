@@ -169,10 +169,12 @@ int b_exp(sh *s, int ac, char **av)
 			continue;
 		}
 		v = v_find(s, av[i]);
-		if (v)
+		if (v) {
 			v->ex = 1;
-		else
+			setenv(av[i], v->v ? v->v : "", 1);
+		} else {
 			hibr_set(s, av[i], "", 1);
+		}
 	}
 	return HIBR_OK;
 }
@@ -990,6 +992,142 @@ int b_local(sh *s, int ac, char **av)
 	return HIBR_OK;
 }
 
+/* Read lines into an array, one element each. */
+int b_mapfile(sh *s, int ac, char **av)
+{
+	str b;
+	vec *el;
+	char c;
+	ssize_t got;
+	const char *nm = "MAPFILE";
+	char *ov;
+	long want = 0, skip = 0, origin = 0, seen = 0;
+	int i = 1, fd = 0, strip = 0, delim = '\n';
+	size_t st;
+
+	for (; i < ac && av[i][0] == '-' && av[i][1]; i++) {
+		if (!strcmp(av[i], "-t")) {
+			strip = 1;
+		} else if (!strncmp(av[i], "-n", 2)) {
+			ov = bi_oval(ac, av, &i, 1);
+			if (!ov)
+				return 2;
+			want = atol(ov);
+		} else if (!strncmp(av[i], "-s", 2)) {
+			ov = bi_oval(ac, av, &i, 1);
+			if (!ov)
+				return 2;
+			skip = atol(ov);
+		} else if (!strncmp(av[i], "-O", 2)) {
+			ov = bi_oval(ac, av, &i, 1);
+			if (!ov)
+				return 2;
+			origin = atol(ov);
+		} else if (!strncmp(av[i], "-u", 2)) {
+			ov = bi_oval(ac, av, &i, 1);
+			if (!ov)
+				return 2;
+			fd = atoi(ov);
+		} else if (!strncmp(av[i], "-d", 2)) {
+			ov = bi_oval(ac, av, &i, 1);
+			if (!ov)
+				return 2;
+			delim = ov[0] ? (unsigned char)ov[0] : 0;
+		} else {
+			lg(HIBR_LERR, "mapfile: %s: unknown option", av[i]);
+			return 2;
+		}
+	}
+	if (i < ac)
+		nm = av[i];
+	el = vb_get(s);
+	if (origin > 0) {
+		vec *cur = vb_get(s);
+		long k;
+		v_list(s, nm, 0, 0, cur, 1);
+		for (k = 0; k < origin; k++)
+			v_add(el, ar_dup(s->xa, "", 0));
+		vb_put(s, cur);
+	}
+	s_init(&b);
+	while ((got = read(fd, &c, 1)) == 1) {
+		if ((unsigned char)c != (unsigned char)delim) {
+			s_ch(&b, c);
+			continue;
+		}
+		seen++;
+		if (seen <= skip) {
+			b.n = 0;
+			continue;
+		}
+		if (!strip)
+			s_ch(&b, c);
+		v_add(el, ar_dup(s->xa, b.p ? b.p : "", b.n));
+		b.n = 0;
+		if (want && (long)el->n - origin >= want)
+			break;
+	}
+	if (b.n && (!want || (long)el->n - origin < want)) {
+		seen++;
+		if (seen > skip)
+			v_add(el, ar_dup(s->xa, b.p, b.n));
+	}
+	s_free(&b);
+	st = el->n;
+	v_arr(s, nm, el);
+	vb_put(s, el);
+	lg(HIBR_LDBG, "mapfile read %lu elements into %s",
+	   (unsigned long)st, nm);
+	return HIBR_OK;
+}
+
+/* Show or forget where commands were found. */
+int b_hash(sh *s, int ac, char **av)
+{
+	int i = 1, n = 0;
+	char *path;
+	size_t j;
+
+	for (; i < ac && av[i][0] == '-' && av[i][1]; i++) {
+		if (!strcmp(av[i], "-r")) {
+			hsh_clear(s, 0);
+			return HIBR_OK;
+		}
+		if (!strcmp(av[i], "-d") && i + 1 < ac) {
+			hsh_clear(s, av[++i]);
+			continue;
+		}
+		lg(HIBR_LERR, "hash: %s: unknown option", av[i]);
+		return 2;
+	}
+	if (i >= ac) {
+		if (!s->cmds.n) {
+			printf("no commands remembered\n");
+			return HIBR_OK;
+		}
+		for (j = 0; j < s->cmds.n; j++) {
+			char *e = (char *)s->cmds.p[j];
+			char *eq = strchr(e, '=');
+			if (!eq)
+				continue;
+			*eq = 0;
+			printf("%-20s %s\n", e, eq + 1);
+			*eq = '=';
+		}
+		return HIBR_OK;
+	}
+	for (; i < ac; i++) {
+		path = findx(s, av[i]);
+		if (!path) {
+			lg(HIBR_LERR, "hash: %s: not found", av[i]);
+			n = 1;
+			continue;
+		}
+		free(path);
+	}
+	return n ? HIBR_FAIL : HIBR_OK;
+}
+
 /* Print the command history. */
 int b_hist(sh *s, int ac, char **av)
 {
@@ -1061,6 +1199,7 @@ const hibr_bi bitab[] = {
 	{ "command", b_command, "run a command, ignoring functions" },
 	{ "connect", b_connect, "open a client connection" },
 	{ "continue", b_cont, "restart enclosing loops" },
+	{ "coproc", b_coproc, "run a command as a coprocess" },
 	{ "declare", b_decl, "declare variables and their attributes" },
 	{ "dirs", b_dirs, "show the directory stack" },
 	{ "disown", b_disown, "forget a job without signalling it" },
@@ -1073,6 +1212,7 @@ const hibr_bi bitab[] = {
 	{ "false", b_false, "fail" },
 	{ "fg", b_fg, "resume a job in the foreground" },
 	{ "getopts", b_getopts, "parse option letters" },
+	{ "hash", b_hash, "show or forget where commands were found" },
 	{ "help", b_help, "list builtins" },
 	{ "history", b_hist, "print the command history" },
 	{ "jobs", b_jobs, "list active jobs" },
@@ -1081,6 +1221,7 @@ const hibr_bi bitab[] = {
 	{ "let", b_let, "evaluate arithmetic expressions" },
 	{ "listen", b_listen, "serve connections, or -b to only bind" },
 	{ "local", b_local, "declare function local variables" },
+	{ "mapfile", b_mapfile, "read lines into an array" },
 	{ "match", b_match, "match a regex and peel out the groups" },
 	{ "mod", b_mod, "load, drop or list modules" },
 	{ "opt", b_opt, "declare an option for args" },
@@ -1089,6 +1230,7 @@ const hibr_bi bitab[] = {
 	{ "pushd", b_pushd, "push a directory and change to it" },
 	{ "pwd", b_pwd, "print the working directory" },
 	{ "read", b_read, "read a line into variables" },
+	{ "readarray", b_mapfile, "read lines into an array" },
 	{ "readonly", b_ro, "make variables readonly" },
 	{ "recv", b_recv, "read from a descriptor" },
 	{ "ret", b_ret, "produce a value and return" },
@@ -1108,6 +1250,7 @@ const hibr_bi bitab[] = {
 	{ "try", b_try, "run a command, catching failure" },
 	{ "type", b_type, "describe a command name" },
 	{ "typeset", b_decl, "declare variables and their attributes" },
+	{ "ulimit", b_ulimit, "read or set a resource limit" },
 	{ "umask", b_umask, "show or set the file creation mask" },
 	{ "unalias", b_unalias, "remove aliases" },
 	{ "unset", b_unset, "remove variables or functions" },

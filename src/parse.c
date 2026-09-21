@@ -762,6 +762,32 @@ node *p_cmd2(lex *l)
 	return n;
 }
 
+/* Attach the 2>&1 that |& stands for to the stage feeding the pipe. */
+void p_errpipe(lex *l, node *n)
+{
+	redir *r, **rt;
+	word *w;
+	part *pt;
+
+	while (n && n->k == N_PIPE && n->r)
+		n = n->r;
+	if (!n)
+		return;
+	r = ar_alloc(l->a, sizeof *r);
+	w = ar_alloc(l->a, sizeof *w);
+	pt = ar_alloc(l->a, sizeof *pt);
+	pt->k = P_TXT;
+	pt->t = ar_dup(l->a, "1", 1);
+	pt->n = 1;
+	w->p = pt;
+	r->k = R_DUP;
+	r->fd = 2;
+	r->w = w;
+	for (rt = &n->rd; *rt; rt = &(*rt)->nx)
+		;
+	*rt = r;
+}
+
 /* Parse a pipeline with optional leading negation. */
 node *p_pipe(lex *l)
 {
@@ -773,7 +799,9 @@ node *p_pipe(lex *l)
 		lx_next(l);
 	}
 	n = p_cmd(l);
-	while (n && l->tk == T_PIPE) {
+	while (n && (l->tk == T_PIPE || l->tk == T_PIPEAMP)) {
+		if (l->tk == T_PIPEAMP)
+			p_errpipe(l, n);
 		lx_next(l);
 		p_nl(l);
 		p = nd(l, N_PIPE);

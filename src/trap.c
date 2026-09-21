@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 volatile sig_atomic_t *tr_pend;
 volatile sig_atomic_t tr_any;
@@ -175,6 +176,35 @@ int b_try(sh *s, int ac, char **av)
 	return s->st = HIBR_OK;
 }
 
+/* Run the debug trap before a command, keeping the shell's state intact. */
+void tr_debug(sh *s, const char *what)
+{
+	char *cmd = s->dtrap;
+	int ost, ostop, obind, oxerr, obrk, ocont, oret;
+
+	if (!cmd)
+		return;
+	ost = s->st;
+	ostop = s->stop;
+	obind = s->bind;
+	oxerr = s->xerr;
+	obrk = s->brk;
+	ocont = s->cont;
+	oret = s->ret;
+	s->dtrap = 0;
+	if (what)
+		hibr_set(s, "CMD", what, 0);
+	hibr_run(s, cmd);
+	s->dtrap = cmd;
+	s->st = ost;
+	s->stop = ostop;
+	s->bind = obind;
+	s->xerr = oxerr;
+	s->brk = obrk;
+	s->cont = ocont;
+	s->ret = oret;
+}
+
 /* Translate a signal name or number, with EXIT as slot zero. */
 int tr_sig(const char *nm)
 {
@@ -186,6 +216,8 @@ int tr_sig(const char *nm)
 		return 0;
 	if (!strcasecmp(nm, "ERR"))
 		return -2;
+	if (!strcasecmp(nm, "DEBUG"))
+		return -3;
 	if (!strncasecmp(nm, "SIG", 3))
 		nm += 3;
 	for (sm = jc_sigs; sm->nm; sm++)
@@ -206,6 +238,8 @@ int b_trap(sh *s, int ac, char **av)
 	if (ac == 1) {
 		if (s->etrap)
 			printf("trap -- '%s' ERR\n", s->etrap);
+		if (s->dtrap)
+			printf("trap -- '%s' DEBUG\n", s->dtrap);
 		for (i = 0; i < tr_n; i++)
 			if (s->trap[i]) {
 				const struct signm *sm;
@@ -231,6 +265,11 @@ int b_trap(sh *s, int ac, char **av)
 		if (sig == -2) {
 			free(s->etrap);
 			s->etrap = reset || !*cmd ? 0 : xs(cmd);
+			continue;
+		}
+		if (sig == -3) {
+			free(s->dtrap);
+			s->dtrap = reset || !*cmd ? 0 : xs(cmd);
 			continue;
 		}
 		if (sig < 0 || sig >= tr_n) {
@@ -433,6 +472,37 @@ int b_printf(sh *s, int ac, char **av)
 				s_add(&o, spec.p, spec.n);
 				s_free(&spec);
 				break;
+			}
+			if (*p == '(') {
+				const char *cl = strchr(p, ')');
+				str fm;
+				time_t tv;
+				struct tm *tmv;
+				size_t got, cap;
+				char *buf;
+				if (!cl || cl[1] != 'T') {
+					s_ch(&o, *p++);
+					s_free(&spec);
+					continue;
+				}
+				s_init(&fm);
+				s_add(&fm, p + 1, (size_t)(cl - p - 1));
+				tv = i < ac ? (time_t)atol(av[i]) : time(0);
+				if (i < ac && !strcmp(av[i], "-1"))
+					tv = time(0);
+				tmv = localtime(&tv);
+				cap = fm.n * 8 + 64;
+				buf = xm(cap);
+				got = strftime(buf, cap, fm.p ? fm.p : "", tmv);
+				s_add(&o, buf, got);
+				free(buf);
+				s_free(&fm);
+				s_free(&spec);
+				if (i < ac)
+					used = 1;
+				i++;
+				p = cl + 2;
+				continue;
 			}
 			if (*p == 'q') {
 				s_cat(&o, xquote(s, i < ac ? av[i] : "", 1));

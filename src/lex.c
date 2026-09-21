@@ -845,6 +845,10 @@ int lx_next(lex *l)
 			l->p++;
 			return l->tk = T_OR;
 		}
+		if (l->p < l->e && *l->p == '&') {
+			l->p++;
+			return l->tk = T_PIPEAMP;
+		}
 		return l->tk = T_PIPE;
 	}
 	if (isdigit(c)) {

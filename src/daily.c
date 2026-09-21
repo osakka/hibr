@@ -467,6 +467,127 @@ void rc_load(sh *s)
 	s_free(&b);
 }
 
+/* The resource a ulimit letter names, or -1 when it names none. */
+int ul_res(int c)
+{
+	switch (c) {
+	case 'c': return RLIMIT_CORE;
+	case 'd': return RLIMIT_DATA;
+	case 'f': return RLIMIT_FSIZE;
+	case 'n': return RLIMIT_NOFILE;
+	case 's': return RLIMIT_STACK;
+	case 't': return RLIMIT_CPU;
+	case 'u': return RLIMIT_NPROC;
+	case 'v': return RLIMIT_AS;
+	case 'l': return RLIMIT_MEMLOCK;
+	}
+	return -1;
+}
+
+/* What a ulimit letter is called, and what it is counted in. */
+const char *ul_name(int c)
+{
+	switch (c) {
+	case 'c': return "core file size (blocks)";
+	case 'd': return "data seg size (kbytes)";
+	case 'f': return "file size (blocks)";
+	case 'n': return "open files";
+	case 's': return "stack size (kbytes)";
+	case 't': return "cpu time (seconds)";
+	case 'u': return "max user processes";
+	case 'v': return "virtual memory (kbytes)";
+	case 'l': return "max locked memory (kbytes)";
+	}
+	return "";
+}
+
+/* Divide a limit into the units ulimit reports it in. */
+long ul_scale(int c)
+{
+	if (c == 'd' || c == 's' || c == 'v' || c == 'l')
+		return 1024;
+	if (c == 'c' || c == 'f')
+		return 512;
+	return 1;
+}
+
+/* Print one limit the way ulimit -a does. */
+void ul_show(int c, int hard, int label)
+{
+	struct rlimit rl;
+	rlim_t v;
+
+	if (getrlimit(ul_res(c), &rl) != 0)
+		return;
+	v = hard ? rl.rlim_max : rl.rlim_cur;
+	if (label)
+		printf("-%c: %-32s ", c, ul_name(c));
+	if (v == RLIM_INFINITY)
+		printf("unlimited\n");
+	else
+		printf("%ld\n", (long)(v / (rlim_t)ul_scale(c)));
+}
+
+/* Read or set a resource limit. */
+int b_ulimit(sh *s, int ac, char **av)
+{
+	int i = 1, hard = 0, c = 0, all = 0, r;
+	struct rlimit rl;
+	const char *val = 0;
+
+	(void)s;
+	for (; i < ac && av[i][0] == '-' && av[i][1]; i++) {
+		char *f;
+		for (f = av[i] + 1; *f; f++) {
+			if (*f == 'H')
+				hard = 1;
+			else if (*f == 'S')
+				hard = 0;
+			else if (*f == 'a')
+				all = 1;
+			else if (ul_res(*f) >= 0)
+				c = *f;
+			else {
+				lg(HIBR_LERR, "ulimit: -%c: unknown limit",
+				   *f);
+				return 2;
+			}
+		}
+	}
+	if (all) {
+		const char *k;
+		for (k = "cdfilnstuv"; *k; k++)
+			if (ul_res(*k) >= 0)
+				ul_show(*k, hard, 1);
+		return HIBR_OK;
+	}
+	if (!c)
+		c = 'f';
+	if (i < ac)
+		val = av[i];
+	if (!val) {
+		ul_show(c, hard, 0);
+		return HIBR_OK;
+	}
+	r = ul_res(c);
+	if (getrlimit(r, &rl) != 0) {
+		lg(HIBR_LERR, "ulimit: %s", strerror(errno));
+		return HIBR_FAIL;
+	}
+	if (!strcmp(val, "unlimited"))
+		rl.rlim_cur = RLIM_INFINITY;
+	else
+		rl.rlim_cur = (rlim_t)atol(val) * (rlim_t)ul_scale(c);
+	if (hard)
+		rl.rlim_max = rl.rlim_cur;
+	if (setrlimit(r, &rl) != 0) {
+		lg(HIBR_LERR, "ulimit: %s", strerror(errno));
+		return HIBR_FAIL;
+	}
+	lg(HIBR_LDBG, "limit -%c set", c);
+	return HIBR_OK;
+}
+
 /* Options that are not negotiable, and why is in the ADRs. */
 int sh_optfix(const char *nm)
 {

@@ -1541,6 +1541,40 @@ void ax_err(struct ax *a, const char *m)
 	a->bad = 1;
 }
 
+/* Read a[...] inside arithmetic, giving the element's value. */
+long ax_elem(struct ax *a, const char *nm)
+{
+	const char *b, *e;
+	const char *t;
+	char *ks[1];
+	str k;
+	long v = 0;
+	int d = 1;
+
+	a->p++;
+	b = a->p;
+	for (e = b; *e && d; e++) {
+		if (*e == '[')
+			d++;
+		else if (*e == ']' && !--d)
+			break;
+	}
+	if (!*e) {
+		ax_err(a, "expected ] after subscript");
+		return 0;
+	}
+	s_init(&k);
+	s_add(&k, b, (size_t)(e - b));
+	a->p = e + 1;
+	ks[0] = xkey(a->s, k.p ? k.p : "");
+	t = hibr_getp(a->s, nm, ks, 1);
+	if (t && *t)
+		v = strtol(t, 0, 0);
+	lg(HIBR_LTRC, "arithmetic read %s[%s] as %ld", nm, k.p ? k.p : "", v);
+	s_free(&k);
+	return v;
+}
+
 /* Read a variable's numeric value. */
 long ax_get(struct ax *a, const char *nm)
 {
@@ -1643,6 +1677,11 @@ long ax_prim(struct ax *a)
 	}
 	s_init(&nm);
 	if (ax_name(a, &nm)) {
+		if (*a->p == '[') {
+			v = ax_elem(a, nm.p);
+			s_free(&nm);
+			return v;
+		}
 		v = ax_get(a, nm.p);
 		ax_ws(a);
 		if ((a->p[0] == '+' && a->p[1] == '+') ||

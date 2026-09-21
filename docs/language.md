@@ -31,6 +31,12 @@ patterns `?(…) *(…) +(…) @(…) !(…)` work in `case`, `[[ ]]` and globbi
 nothing to switch on, which is what bash's parse-time `extglob` cannot manage —
 see [0017](adr/0017-one-namespace-for-options.md).
 
+**Coprocesses and limits.** `coproc [name] cmd` starts a coprocess whose ends
+are `${name[in]}` and `${name[out]}` — and `${name[0]}`/`${name[1]}` for bash —
+spoken to with the same `send` and `recv` as a socket. `mapfile` / `readarray`,
+`wait -n [-p var]`, `trap … DEBUG` (the command is in `$CMD`), `hash`, `ulimit`,
+`|&` and `printf '%(fmt)T'` are all there too.
+
 **Special variables.** `$@ $* $# $? $$ $! $0–$9 $RANDOM $SECONDS $PPID $UID
 $EUID $HOSTNAME $HIBR_VERSION $HIBR_ABI`, plus `$RET`, `$ERRMSG`, `$ERR`, `$ERRSTATUS`,
 `$REMOTE` and `$M`. `$$` is fixed at startup, so it is the same inside every

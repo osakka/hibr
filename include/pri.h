@@ -26,6 +26,7 @@
 #define T_DSEMIAMP 19
 #define T_HERES 20
 #define T_ARITH 21
+#define T_PIPEAMP 22
 
 typedef struct lex lex;
 struct lex {
@@ -42,6 +43,7 @@ unsigned vh(const char *k);
 var *v_find(sh *s, const char *k);
 void v_del(sh *s, const char *k);
 void v_env(sh *s);
+int v_shadowed(vec *extra, const char *k);
 char **v_envp(sh *s, vec *extra);
 void v_names(sh *s, const char *pre, vec *out);
 unsigned v_tycode(const char *nm);
@@ -90,6 +92,7 @@ void xoutq(sh *s, vec *out, vec *outm, const char *t, size_t n);
 void xpad(vec *out, vec *outm);
 char *xone_q(sh *s, word *w, char **mask);
 int w_hasq(word *w);
+char *xnum(sh *s, long v);
 char *xcap(sh *s, const char *src);
 char *xpat(sh *s, word *w);
 char *xone(sh *s, word *w);
@@ -131,6 +134,9 @@ int rd_do(sh *s, redir *r, vec *sv);
 void rd_undo(vec *sv);
 node *fn_find(sh *s, const char *nm);
 int fn_call(sh *s, node *f, int ac, char **av);
+const char *hsh_get(sh *s, const char *nm);
+void hsh_clear(sh *s, const char *nm);
+void hsh_put(sh *s, const char *nm, const char *path);
 char *findx(sh *s, const char *nm);
 
 struct sav { char *k, *v; unsigned ex; };
@@ -149,6 +155,7 @@ extern const struct signm jc_sigs[];
 void tr_init(sh *s);
 void tr_run(sh *s);
 void tr_exit(sh *s);
+void tr_debug(sh *s, const char *what);
 void tr_fork(sh *s);
 void tr_fini(sh *s);
 int tr_pending(void);
@@ -177,6 +184,11 @@ void rc_load(sh *s);
 void al_quote(str *o, const char *a);
 int b_command(sh *s, int ac, char **av);
 int b_shopt(sh *s, int ac, char **av);
+int b_ulimit(sh *s, int ac, char **av);
+int ul_res(int c);
+const char *ul_name(int c);
+long ul_scale(int c);
+void ul_show(int c, int hard, int label);
 int sh_optfix(const char *nm);
 unsigned sh_optbit(const char *nm);
 int *sh_optflag(sh *s, const char *nm);
@@ -204,6 +216,8 @@ int net_dial(const char *host, const char *port, int udp);
 void sc_fini(sh *s);
 int b_connect(sh *s, int ac, char **av);
 int b_listen(sh *s, int ac, char **av);
+int b_coproc(sh *s, int ac, char **av);
+void cp_slot(sh *s, const char *nm, const char *key, int idx, int fd);
 int b_accept(sh *s, int ac, char **av);
 int b_send(sh *s, int ac, char **av);
 int b_recv(sh *s, int ac, char **av);

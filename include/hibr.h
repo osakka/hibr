@@ -4,7 +4,7 @@
 #include <stddef.h>
 
 #ifndef HIBR_ABI
-#define HIBR_ABI 5u
+#define HIBR_ABI 6u
 #endif
 #ifndef HIBR_VER
 #define HIBR_VER "0.21"
@@ -197,13 +197,13 @@ struct var { var *nx; char *k, *v; ent *map; size_t n; short ty; unsigned ex, ro
 struct sh {
 	arena *ar, *xa;
 	vec held, mods, fns, sbf, vbf, hist, jobs, scope, psub;
-	vec als, axp, dirs, schemes, opts;
+	vec als, axp, dirs, schemes, opts, cmds;
 	char *odesc;
 	var **tab;
 	size_t tsz, tn;
 	char **av;
 	int ac, avo;
-	char *arg0, *rty, *etrap;
+	char *arg0, *rty, *etrap, *dtrap;
 	int st, lv, it, dep, nofork, tst, pfs, stop, uset, intry, noclob, noexec, strict, bind, hx, xerr;
 	long t0;
 	char **trap;

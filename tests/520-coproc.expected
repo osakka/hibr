@@ -1,0 +1,12 @@
+0
+named ends: in>=10 1 out>=10 1
+bash style agrees: 1 1
+pid recorded: 1
+round trip: UP:one
+again: UP:two
+two at once: dn:three and UP:four
+keys: in 0 out 1
+default name: 1
+hibr: usage: coproc [name] command [args...]
+default round trip: UP:five
+no command: 2

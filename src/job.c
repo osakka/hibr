@@ -373,6 +373,31 @@ int b_wait(sh *s, int ac, char **av)
 	int w, st = 0;
 	pid_t p;
 
+	if (ac > 1 && (!strcmp(av[1], "-n") || !strcmp(av[1], "-p"))) {
+		const char *nm = 0;
+		int k = 1;
+		for (; k < ac && av[k][0] == '-' && av[k][1]; k++)
+			if (!strcmp(av[k], "-p") && k + 1 < ac)
+				nm = av[++k];
+		p = waitpid(-1, &w, 0);
+		if (p <= 0) {
+			lg(HIBR_LDBG, "wait -n: nothing left to wait for");
+			return s->st = 127;
+		}
+		st = wstat(w);
+		j = jc_bypid(s, (long)p);
+		if (j) {
+			j->ndone++;
+			if (j->ndone >= j->np) {
+				j->state = J_DONE;
+				jc_drop(s, j);
+			}
+		}
+		if (nm)
+			hibr_set(s, nm, xnum(s, (long)p), 0);
+		lg(HIBR_LDBG, "wait -n reaped %ld", (long)p);
+		return s->st = st;
+	}
 	if (ac > 1) {
 		j = av[1][0] == '%' ? jc_find(s, av[1]) : jc_bypid(s, atol(av[1]));
 		if (!j && av[1][0] != '%' && atol(av[1]) > 0) {

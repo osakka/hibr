@@ -547,6 +547,103 @@ void net_q(str *o, const char *a)
 	s_ch(o, '\'');
 }
 
+/* Record one end of a coprocess under a readable key and a bash one. */
+void cp_slot(sh *s, const char *nm, const char *key, int idx, int fd)
+{
+	char *ks[1];
+	str b;
+
+	s_init(&b);
+	s_num(&b, (long)fd);
+	ks[0] = (char *)key;
+	hibr_setp(s, nm, ks, 1, b.p);
+	s_num(&b, 0);
+	b.n = 0;
+	s_num(&b, (long)idx);
+	{
+		char *n2 = xs(b.p);
+		b.n = 0;
+		s_num(&b, (long)fd);
+		ks[0] = n2;
+		hibr_setp(s, nm, ks, 1, b.p);
+		free(n2);
+	}
+	s_free(&b);
+}
+
+/* Start a command as a coprocess, reachable by the same verbs as a socket. */
+int b_coproc(sh *s, int ac, char **av)
+{
+	int in[2], out[2], i = 1;
+	const char *nm = "COPROC";
+	pid_t pid;
+	str cmd, pv;
+
+	if (ac < 2) {
+		lg(HIBR_LERR, "usage: coproc [name] command [args...]");
+		return 2;
+	}
+	if (ac > 2 && isname(av[1]) && !fn_find(s, av[1]) &&
+	    !bi_find(av[1]) && !m_find(s, av[1])) {
+		nm = av[1];
+		i = 2;
+	}
+	if (i >= ac) {
+		lg(HIBR_LERR, "coproc: a command is required");
+		return 2;
+	}
+	if (pipe(in) < 0 || pipe(out) < 0) {
+		lg(HIBR_LERR, "coproc: pipe: %s", strerror(errno));
+		return HIBR_FAIL;
+	}
+	s_init(&cmd);
+	for (; i < ac; i++) {
+		if (cmd.n)
+			s_ch(&cmd, ' ');
+		net_q(&cmd, av[i]);
+	}
+	fflush(0);
+	pid = fork();
+	if (pid < 0) {
+		lg(HIBR_LERR, "coproc: fork: %s", strerror(errno));
+		s_free(&cmd);
+		return HIBR_FAIL;
+	}
+	if (pid == 0) {
+		close(in[1]);
+		close(out[0]);
+		dup2(in[0], 0);
+		dup2(out[1], 1);
+		close(in[0]);
+		close(out[1]);
+		signal(SIGINT, SIG_DFL);
+		s->it = 0;
+		tr_fork(s);
+		hibr_run(s, cmd.p ? cmd.p : "");
+		fflush(0);
+		_exit(s->st);
+	}
+	close(in[0]);
+	close(out[1]);
+	s_free(&cmd);
+	cp_slot(s, nm, "in", 0, fd_high(out[0]));
+	cp_slot(s, nm, "out", 1, fd_high(in[1]));
+	s_init(&pv);
+	s_cat(&pv, nm);
+	s_cat(&pv, "_PID");
+	{
+		str n2;
+		s_init(&n2);
+		s_num(&n2, (long)pid);
+		hibr_set(s, pv.p, n2.p, 0);
+		hibr_set(s, "!", n2.p, 0);
+		s_free(&n2);
+	}
+	s_free(&pv);
+	lg(HIBR_LINF, "coprocess %s is pid %ld", nm, (long)pid);
+	return HIBR_OK;
+}
+
 /* Serve connections, running a handler with the socket as stdin and stdout. */
 int b_listen(sh *s, int ac, char **av)
 {

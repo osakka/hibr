@@ -17,7 +17,7 @@ servers, typed function signatures, result slots (`x := f` without forking),
 declared CLI arguments, and a module ABI that lets modules add *protocols*
 (`/dev/<name>/…`), not just commands.
 
-Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 5).
+Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 6).
 
 ## Build and test
 
@@ -70,7 +70,7 @@ linked, and no OpenSSL headers are needed to build.
 
 | file | role |
 |---|---|
-| `include/hibr.h` | public types, macros and the module ABI (v5) |
+| `include/hibr.h` | public types, macros and the module ABI (v6) |
 | `include/pri.h` | internal declarations, tokens, the `lex` struct |
 | `include/re.h` | our own regex declarations (tcc cannot parse glibc's) |
 | `src/mem.c` | arenas with mark/release, `str`, `vec`, pools, `lg` logging |
@@ -225,6 +225,11 @@ current — this table is a summary, not the source of truth.
   needed, and `tests/470-bash-gaps.t` checks each of the five paths in both
   directions. The exec-in-place path deliberately does neither, as exec
   replaces the process.
+- **An assignment prefix must override, not accompany.** `v_envp` used to append
+  `TZ=UTC` after the exported `TZ`, and the child took the first of the two, so
+  `VAR=x cmd` silently did nothing when `VAR` was already exported. Exported
+  variables also reach the process with `setenv`, or an in-process builtin --
+  and any module -- cannot see `TZ` or `LC_*` at all.
 - **`noclobber` only guards regular files.** bash lets `>` truncate a device,
   so `2>/dev/null` has to keep working under `set -o noclobber`; guarding
   everything made a recorded test capture the wrong behaviour for a while.
