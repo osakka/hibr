@@ -14,32 +14,45 @@ struct ospec {
 
 char *pt_start;
 char *pt_end;
+int pt_taken;
 
 /* Remember the argv/environ region and move environ out of it. */
 void pt_init(int ac, char **av)
 {
 	extern char **environ;
-	char **e, **copy;
-	size_t n = 0, i;
+	char **e;
 	char *last;
 
 	if (!ac || !av[0])
 		return;
 	pt_start = av[0];
 	last = av[ac - 1] + strlen(av[ac - 1]);
-	for (e = environ; e && *e; e++) {
+	for (e = environ; e && *e; e++)
 		if (*e == last + 1 || *e > last)
 			last = *e + strlen(*e);
-		n++;
-	}
 	pt_end = last;
+	lg(HIBR_LTRC, "title region is %lu bytes",
+	   (unsigned long)(pt_end - pt_start));
+}
+
+/* Move the environment off the argv region, so a title may overwrite it. */
+void pt_claim(void)
+{
+	extern char **environ;
+	char **e, **copy;
+	size_t n = 0, i;
+
+	if (pt_taken)
+		return;
+	pt_taken = 1;
+	for (e = environ; e && *e; e++)
+		n++;
 	copy = xm((n + 1) * sizeof *copy);
 	for (i = 0; i < n; i++)
 		copy[i] = xs(environ[i]);
 	copy[n] = 0;
 	environ = copy;
-	lg(HIBR_LTRC, "title region is %lu bytes",
-	   (unsigned long)(pt_end - pt_start));
+	lg(HIBR_LDBG, "environment copied off the argv region");
 }
 
 /* Rename the running process as seen by ps and top. */
@@ -57,6 +70,7 @@ int b_title(sh *s, int ac, char **av)
 		lg(HIBR_LERR, "title: argv region unavailable");
 		return HIBR_FAIL;
 	}
+	pt_claim();
 	s_init(&t);
 	for (i = 1; i < (size_t)ac; i++) {
 		if (t.n)

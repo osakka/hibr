@@ -1289,6 +1289,23 @@ void xwm(sh *s, word *w, vec *out, int fl, vec *outm)
 normal:
 		;
 	}
+	if (w->p && !w->p->nx && w->p->k == P_VAR && !w->p->q && !w->p->arr &&
+	    w->p->op == V_NONE && !s->strict && !s->uset &&
+	    !(fl & (HIBR_XPAT | HIBR_XONE))) {
+		const char *v = xval(s, w->p->t);
+		size_t k, n;
+		if (!v)
+			return;
+		n = strlen(v);
+		for (k = 0; k < n; k++)
+			if (w_meta[(unsigned char)v[k]])
+				break;
+		if (k == n && !hibr_get(s, "IFS")) {
+			if (n)
+				xout(s, out, outm, v, 0, n);
+			return;
+		}
+	}
 	if (w->p && !w->p->nx && w->p->k == P_TXT && !(fl & HIBR_XPAT)) {
 		part *p0 = w->p;
 		size_t k;

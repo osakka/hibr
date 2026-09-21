@@ -1,8 +1,8 @@
 # hibr — Hackable In-process Bash Runtime
 
 **hibr** runs a useful subset of bash syntax in about 13,000 lines of C and a
-313 KB binary, in about a quarter of bash's memory and running tight loops
-twice as fast as bash. It is built with `tcc` and depends on nothing but libc
+313 KB binary, in a little over half of bash's memory and running tight loops
+two and a half times faster than bash. It is built with `tcc` and depends on nothing but libc
 and libdl.
 
 The name says what it is. **Hackable**: the module ABI lets a module add a
@@ -36,23 +36,33 @@ make TLS=0           # build without TLS support
 ## Measurements
 
 Same host; the loop is `while [ $i -lt 50000 ]; do i=$((i+1)); done`. Times are
-the best of nine runs; memory is the shell's own `VmHWM`, read without forking.
+the best of eleven runs. Memory is the shell's own `VmHWM`, read without
+forking, as the median of twenty-five runs — a single reading is worthless
+here, because run-to-run spread is about 180 kB either way.
 
 | | hibr | dash | bash |
 |---|---|---|---|
 | binary, stripped | 313 KB | 122 KB | 1235 KB |
-| resident memory at startup | 1684 kB | 1620 kB | 2880 kB |
-| resident memory after the loop | 1804 kB | 1572 kB | 2868 kB |
-| the loop | 103 ms | 74 ms | 214 ms |
-| 5000 function calls, results via `:=` | **28 ms** | — | — |
-| the same through `$( )` | 1249 ms | 1211 ms | 2360 ms |
-| startup, `-c true` | 0.98 ms | 0.86 ms | 1.72 ms |
+| resident memory at startup | 1792 kB | 1680 kB | 3104 kB |
+| resident memory after the loop | 1796 kB | 1712 kB | 3120 kB |
+| the loop | 90 ms | 76 ms | 233 ms |
+| 5000 function calls, results via `:=` | **23 ms** | — | — |
+| the same through `$( )` | 1218 ms | 1159 ms | 2168 ms |
+| startup, `-c true` | 1.05 ms | 1.01 ms | 2.82 ms |
 
-Read honestly: hibr is about half of bash on memory and twice its speed on a
-tight loop, and **dash is still ahead of hibr on both** — about 1.4x on the
-loop and a little under 100 kB on memory. dash is a far smaller language, and
-closing that is the current work rather than a settled claim; the gap was 1.7x
-before the last round of profiling.
+Read honestly. Against bash hibr is a little over half the memory and two and a
+half times the speed on a tight loop. Against dash it is close on startup and
+within 20% on the loop, and still about 110 kB heavier — and dash is a far
+smaller language, so being close is the claim, not being ahead. The loop gap
+was 1.7x before a round of profiling and is 1.2x now.
+
+Where the memory goes is worth knowing: the heap at startup is only 29 kB of
+that 1792, so memory here means the binary, and the binary means how much
+language there is. There is no allocator trick left that would move it.
+
+The row that is not a near-miss is the fifth. Returning a value through `$( )`
+costs a fork per call in every shell; `:=` costs none, which is where the 53x
+comes from. That is the argument for the whole in-process design, in one line.
 
 The row that is not a near-miss is the fifth. Returning a value through `$( )`
 costs a fork per call in every shell; `:=` costs none, which is where the 45x

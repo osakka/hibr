@@ -253,6 +253,14 @@ were each run and their real output pasted back; keep it that way.
   `ar_drop` now keeps up to `HIBR_ARKEEP` blocks of the standard size for the
   next command and frees anything larger, which costs about 36 kB of resident
   memory and bought 5%. `ar_free` and `ar_reset` must both drain that list.
+- **Two fast paths carry the loop, and both must stay honest.** `xargv` skips
+  brace expansion, `xwm`, splitting and globbing for a word that is one
+  unquoted run of text with no byte in `w_meta`; `xwm` skips building the
+  string and mask pair for a bare `$name` with no operator, subscript or quote
+  whose value has no `w_meta` byte either. Both bail out to the slow path on
+  anything else, both are off under `set -S` and `set -u`, and together they
+  are most of a 30% loop gain. Anything added to expansion has to be reachable
+  from the slow path, or the fast path has to learn to refuse it.
 - **`qsort` is not given a NULL base.** An empty directory leaves `vec.p` NULL,
   and glibc declares the argument non-null, which UBSan reports.
 - **`ob_hex` does not check what follows the digits**, because in `packed-refs`
@@ -288,15 +296,16 @@ were each run and their real output pasted back; keep it that way.
   what they *do* against bash is where the rest is, and it is the method that
   found `${u:?}` not guarding, `trap EXIT` not firing and `TZ=UTC` doing
   nothing.
-- Keep closing the gap to dash on loop throughput, now 1.34x on the benchmark
-  loop (was 1.71x). What is left is still diffuse: 29 `v_add` calls per
-  iteration, 17 of them pool bookkeeping from `vb_put` and `sb_put`. Borrowing
-  fewer scratch vectors is the next move, not a faster `v_add`.
+- Loop throughput is 1.21x behind dash, from 1.71x. What is left is genuinely
+  diffuse and the next step is not obvious; stop before the fast paths grow
+  cases that the slow path would have handled correctly.
 - Shells leak on the way out, about 3.8 kB, and a forked child that `_exit`s
   leaks whatever it held. Both predate this work; measure a leak change against
   the previous commit rather than against zero.
-- hibr no longer uses less memory than dash — 1684 kB against 1620 kB at
-  startup. The README says so plainly now; either close it or keep saying so.
+- hibr uses about 110 kB more than dash, and that is the binary rather than the
+  heap: 29 kB of a 1792 kB resident set is heap, so there is no allocator work
+  left that would move it. Shrinking it means less code. The README says so.
+  Measure memory as a median of many runs; the spread is about 180 kB.
 - A differential fuzzer: `tests/fuzz.py` checks the parser does not crash, but
   every real bug this year came from comparing behaviour, not from parsing.
 - Decide whether `set -S` should become the default.
