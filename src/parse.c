@@ -115,7 +115,7 @@ int p_end(lex *l)
 		return 0;
 	return !strcmp(t, "then") || !strcmp(t, "else") || !strcmp(t, "elif") ||
 	       !strcmp(t, "fi") || !strcmp(t, "do") || !strcmp(t, "done") ||
-	       !strcmp(t, "}");
+	       !strcmp(t, "esac") || !strcmp(t, "}");
 }
 
 /* Map a redirection token to its node kind. */
