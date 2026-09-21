@@ -1,0 +1,12 @@
+0
+hibr: usage: drop user[:group]
+hibr: usage: drop user[:group]
+hibr: drop: only root can give up privileges
+hibr: drop: only root can give up privileges
+hibr: drop: command not found
+drop is a module builtin
+no argument: 2
+too many: 2
+not root: 1
+unknown user, not root: 1
+after unload: 127

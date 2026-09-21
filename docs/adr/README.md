@@ -25,6 +25,7 @@ downside is usually a decision nobody had to make.
 | [0013](0013-prompt-config-uses-the-map-model.md) | Prompt configuration uses the shell's own map model | accepted |
 | [0014](0014-read-git-objects-natively.md) | Read git's object store natively rather than forking git | accepted |
 | [0015](0015-the-name-is-hibr.md) | The name is hibr, read as Hackable In-process Bash Runtime | accepted |
+| [0016](0016-privileges-are-dropped-never-gained.md) | Privileges are given up, never taken | accepted |
 
 ---
 

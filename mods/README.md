@@ -20,10 +20,41 @@ mod load ./build/mods/hello.so;  mod list;  mod drop hello
 
 | module | what it is |
 |---|---|
-| `sys.c` | A minimal example — `epoch`, `sleepms`, `state`, `upper` |
+| `sys.c` | A minimal example — `drop`, `epoch`, `sleepms`, `state`, `upper` |
 | `http.c` | A **scheme**: registers `/dev/http/host/port/path`, so an HTTP body can be read by anything that reads a file |
 | `ls.c` | An in-process `ls` with columns, `-l -a -A -h -t -S -r -d -1 -F` and colour, whose listing also lands in `$RET` |
 | `prompt/` | A segmented prompt, and a native reader for git's object store |
+
+## Naming
+
+The shell is linked `-rdynamic`, so a module function whose name the shell also
+exports is preempted by the shell's. `m_` belongs to `src/mod.c`; a module uses
+its own prefix (`sy_`, `pr_`). A collision is silent until the call, and then it
+is a crash, so it is worth checking:
+
+```
+nm -D build/mods/x.so | awk '$2=="T"{print $3}' | sort -u |
+comm -12 - <(nm -D build/hibr | awk '$2=="T"{print $3}' | sort -u)
+```
+
+## Giving up root
+
+`drop user[:group]` in `sys.c` gives up root for good: supplementary groups
+through `initgroups`, then `setresgid` and `setresuid` so the saved ids go too,
+then a check that the ids took and that `setuid(0)` fails. It refuses unless
+the effective uid is 0, and if it fails once anything has changed it ends the
+shell rather than continue half dropped.
+
+The pattern it is for, since `listen -f` forks before running its handler:
+
+```
+mod load sys
+serve() { drop www-data; ... }
+listen -f 80 serve
+```
+
+Root binds the port, each connection is served unprivileged. The accepting
+parent stays root — see [0016](../docs/adr/0016-privileges-are-dropped-never-gained.md).
 
 ## prompt/
 

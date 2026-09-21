@@ -132,6 +132,9 @@ current — this table is a summary, not the source of truth.
    subscript is a literal key** (`h["content-type"]`); an unquoted one is still
    evaluated arithmetically.
 9. **TLS verifies certificates by default**; `HIBR_TLS_INSECURE=1` to disable.
+   **Privilege only ever goes one way**: `drop` gives up root irreversibly,
+   hibr is never setuid, and root loads modules only from `HIBR_MODDIR` — see
+   `docs/adr/0016`.
 10. **`args` exits the script only at top level**; inside functions or `try` it
     returns 2.
 
@@ -192,6 +195,14 @@ current — this table is a summary, not the source of truth.
   cost 7% on tight loops. A builtin that grows an interest in its arguments'
   quoting has to be added to that list, and `command` must keep forwarding
   `sh.amask + 1` with its shifted `argv`.
+- **A module must not name a function the shell already exports.** The shell is
+  linked `-rdynamic`, so a module's own global symbol is preempted by the
+  shell's of the same name: `sys.c` defining `m_drop` silently bound to
+  `mod.c`'s `m_drop(sh *, const char *)` and crashed on the first call with a
+  signature mismatch. The `m_` prefix is `mod.c`'s, so modules use their own —
+  `sy_`, `pr_`. To check one:
+  `nm -D build/mods/x.so | awk '$2=="T"{print $3}' | sort -u |
+  comm -12 - <(nm -D build/hibr | awk '$2=="T"{print $3}' | sort -u)`
 - **`qsort` is not given a NULL base.** An empty directory leaves `vec.p` NULL,
   and glibc declares the argument non-null, which UBSan reports.
 - **`ob_hex` does not check what follows the digits**, because in `packed-refs`
@@ -233,6 +244,10 @@ current — this table is a summary, not the source of truth.
 - `export`, `read` and `[[ -v ]]` do not parse a subscript at all, quoted or
   not — `export e[k]=v` is silently inert. The argv quote mask (`sh.amask`) is
   already there for whichever of them should grow one; see `docs/adr/0006`.
+- `listen` binds and then loops, so a daemon cannot bind as root, drop, and
+  then accept — only `listen -f` handlers can drop, leaving the parent root.
+  A bind that returns the descriptor would feed the existing `accept` builtin
+  and make the parent unprivileged too; see `docs/adr/0016`.
 - No right-hand or transient prompt; both need `ed_draw` work.
 - Prompt status divergences from git, all deliberate: renames are matched only
   on identical content, submodule working trees are not inspected, and `**` in
