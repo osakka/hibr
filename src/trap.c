@@ -62,6 +62,16 @@ void tr_run(sh *s)
 	s->st = ost;
 }
 
+/* Forget an inherited exit trap in a freshly forked child. */
+void tr_fork(sh *s)
+{
+	if (!s->trap || !s->trap[0])
+		return;
+	lg(HIBR_LDBG, "subshell forgets the inherited exit trap");
+	free(s->trap[0]);
+	s->trap[0] = 0;
+}
+
 /* Run the exit trap, if one is set. */
 void tr_exit(sh *s)
 {

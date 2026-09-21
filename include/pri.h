@@ -77,6 +77,7 @@ char *w_lit(word *w);
 int w_asg(word *w);
 node *hibr_parse(sh *s, const char *src, int *more);
 
+int ax_digit(int c, long base, long *out);
 long ax_run(sh *s, const char *src);
 long ax_text(sh *s, const char *t);
 void xwm(sh *s, word *w, vec *out, int fl, vec *outm);
@@ -132,6 +133,7 @@ extern const struct signm jc_sigs[];
 void tr_init(sh *s);
 void tr_run(sh *s);
 void tr_exit(sh *s);
+void tr_fork(sh *s);
 void tr_fini(sh *s);
 int tr_pending(void);
 int b_trap(sh *s, int ac, char **av);

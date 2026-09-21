@@ -203,6 +203,14 @@ current — this table is a summary, not the source of truth.
   `sy_`, `pr_`. To check one:
   `nm -D build/mods/x.so | awk '$2=="T"{print $3}' | sort -u |
   comm -12 - <(nm -D build/hibr | awk '$2=="T"{print $3}' | sort -u)`
+- **A forked child forgets the inherited exit trap.** `tr_fork` clears slot 0
+  the moment a subshell, command substitution, background job or pipeline
+  element starts, and `tr_exit` runs before each `_exit`. Without the clear the
+  inherited trap fires once per child as well as in the parent; without the
+  `tr_exit` a trap set inside the subshell never fires at all. Both halves are
+  needed, and `tests/470-bash-gaps.t` checks each of the five paths in both
+  directions. The exec-in-place path deliberately does neither, as exec
+  replaces the process.
 - **`qsort` is not given a NULL base.** An empty directory leaves `vec.p` NULL,
   and glibc declares the argument non-null, which UBSan reports.
 - **`ob_hex` does not check what follows the digits**, because in `packed-refs`

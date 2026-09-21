@@ -435,9 +435,12 @@ char *xcap(sh *s, const char *src)
 		close(pf[1]);
 		signal(SIGINT, SIG_DFL);
 		s->it = 0;
+		tr_fork(s);
 		hibr_run(s, src);
+		w = s->st;
+		tr_exit(s);
 		fflush(0);
-		_exit(s->st);
+		_exit(w);
 	}
 	close(pf[1]);
 	s_init(&o);
@@ -508,7 +511,7 @@ void asg_pop(sh *s, vec *old)
 /* Run a process substitution and name the descriptor it reads or writes. */
 char *xpsub(sh *s, part *p)
 {
-	int pf[2], fd;
+	int pf[2], fd, w;
 	int *rec;
 	pid_t pid;
 	str nm;
@@ -538,9 +541,12 @@ char *xpsub(sh *s, part *p)
 		}
 		signal(SIGINT, SIG_DFL);
 		s->it = 0;
+		tr_fork(s);
 		hibr_run(s, p->t);
+		w = s->st;
+		tr_exit(s);
 		fflush(0);
-		_exit(s->st);
+		_exit(w);
 	}
 	if (p->op) {
 		close(pf[1]);
@@ -911,9 +917,11 @@ int ex_pipe(sh *s, node *n)
 			signal(SIGINT, SIG_DFL);
 			s->it = 0;
 			s->errx = 0;
+			tr_fork(s);
 			if (q->k == N_CMD)
 				s->nofork = 1;
 			rc = ex(s, q);
+			tr_exit(s);
 			fflush(0);
 			_exit(rc);
 		}
@@ -971,9 +979,11 @@ int ex_bg(sh *s, node *n)
 		signal(SIGTTIN, SIG_DFL);
 		signal(SIGTTOU, SIG_DFL);
 		s->it = 0;
+		tr_fork(s);
 		if (n->l && n->l->k == N_CMD)
 			s->nofork = 1;
 		w = ex(s, n->l);
+		tr_exit(s);
 		fflush(0);
 		_exit(w);
 	}
@@ -1002,9 +1012,11 @@ int ex_sub(sh *s, node *n)
 	if (pid == 0) {
 		signal(SIGINT, SIG_DFL);
 		s->it = 0;
+		tr_fork(s);
 		if (rd_do(s, n->rd, 0) != HIBR_OK)
 			_exit(HIBR_FAIL);
 		w = ex(s, n->l);
+		tr_exit(s);
 		fflush(0);
 		_exit(w);
 	}

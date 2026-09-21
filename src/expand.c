@@ -395,6 +395,9 @@ void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 			a = xone(s, p->arg);
 			lg(HIBR_LERR, "%s: %s", p->t, *a ? a : "parameter not set");
 			s->st = 1;
+			s->stop = 1;
+			if (!s->it)
+				s->quit = 1;
 			return;
 		}
 		break;
@@ -1285,6 +1288,29 @@ int ax_name(struct ax *a, str *nm)
 	return 1;
 }
 
+/* Value of one digit in a base, using bash's alphabet above ten. */
+int ax_digit(int c, long base, long *out)
+{
+	long v;
+
+	if (isdigit(c))
+		v = c - '0';
+	else if (islower(c))
+		v = c - 'a' + 10;
+	else if (isupper(c))
+		v = base > 36 ? c - 'A' + 36 : c - 'A' + 10;
+	else if (c == '@')
+		v = 62;
+	else if (c == '_')
+		v = 63;
+	else
+		return 0;
+	if (v >= base)
+		return 0;
+	*out = v;
+	return 1;
+}
+
 /* Parse a primary: number, variable with optional postfix step, or group. */
 long ax_prim(struct ax *a)
 {
@@ -1311,6 +1337,22 @@ long ax_prim(struct ax *a)
 	}
 	if (isdigit((unsigned char)*a->p)) {
 		char *e;
+		long base = strtol(a->p, &e, 10), d;
+		if (*e == '#') {
+			if (base < 2 || base > 64) {
+				ax_err(a, "base must be between 2 and 64");
+				return 0;
+			}
+			a->p = e + 1;
+			if (!ax_digit((unsigned char)*a->p, base, &d)) {
+				ax_err(a, "no digits after the base");
+				return 0;
+			}
+			for (v = 0; ax_digit((unsigned char)*a->p, base, &d);
+			     a->p++)
+				v = v * base + d;
+			return v;
+		}
 		v = strtol(a->p, &e, 0);
 		a->p = e;
 		return v;

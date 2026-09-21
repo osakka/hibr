@@ -628,8 +628,9 @@ int b_src(sh *s, int ac, char **av)
 	FILE *f;
 	str b;
 	char *buf;
+	char **oav = 0;
 	size_t n;
-	int oret;
+	int oret, oac = 0, oavo = 0, pos = ac > 2;
 
 	if (ac < 2) {
 		lg(HIBR_LERR, "source: filename required");
@@ -647,7 +648,28 @@ int b_src(sh *s, int ac, char **av)
 	free(buf);
 	fclose(f);
 	oret = s->ret;
+	if (pos) {
+		lg(HIBR_LDBG, "source: %d positional arguments for %s", ac - 2,
+		   av[1]);
+		oav = s->av;
+		oac = s->ac;
+		oavo = s->avo;
+		s->av = av + 2;
+		s->ac = ac - 2;
+		s->avo = 0;
+	}
 	hibr_run(s, b.p ? b.p : "");
+	if (pos) {
+		if (s->avo && s->av) {
+			int i;
+			for (i = 0; i < s->ac; i++)
+				free(s->av[i]);
+			free(s->av);
+		}
+		s->av = oav;
+		s->ac = oac;
+		s->avo = oavo;
+	}
 	s->ret = oret;
 	s_free(&b);
 	return s->st;
