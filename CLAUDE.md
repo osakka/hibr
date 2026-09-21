@@ -203,6 +203,11 @@ current — this table is a summary, not the source of truth.
   `sy_`, `pr_`. To check one:
   `nm -D build/mods/x.so | awk '$2=="T"{print $3}' | sort -u |
   comm -12 - <(nm -D build/hibr | awk '$2=="T"{print $3}' | sort -u)`
+- **An indirect expansion carries its modifier in a flag bit.** `${!ref:-d}`
+  needs both the indirection and the `:-`, and `part` is public, so `V_INDF`
+  (0x100) is ORed into `p->op` rather than a field being added to the struct.
+  Anything comparing `p->op` for equality must therefore not expect to see a
+  flagged op, and `xvar2` is given a copy with the bit stripped.
 - **A forked child forgets the inherited exit trap.** `tr_fork` clears slot 0
   the moment a subshell, command substitution, background job or pipeline
   element starts, and `tr_exit` runs before each `_exit`. Without the clear the

@@ -147,8 +147,18 @@ word *lx_sub(lex *l, const char *b, const char *e)
 	return w;
 }
 
-/* Parse the interior of a brace expansion into a variable part. */
+/* Parse ${...}, keeping any modifier that follows an indirect name. */
 void lx_brace(lex *l, part *p, const char *b, const char *e)
+{
+	int ind = b + 1 < e && *b == '!';
+
+	lx_brace1(l, p, b, e);
+	if (ind && p->op != V_KEYS && p->op != V_NAMES && p->op != V_IND)
+		p->op |= V_INDF;
+}
+
+/* Parse the interior of a brace expansion into a variable part. */
+void lx_brace1(lex *l, part *p, const char *b, const char *e)
 {
 	const char *q = b;
 
@@ -201,8 +211,18 @@ void lx_brace(lex *l, part *p, const char *b, const char *e)
 		return;
 	}
 	if (keyop) {
-		p->op = V_KEYS;
-		return;
+		if (p->arr) {
+			p->op = V_KEYS;
+			return;
+		}
+		if (q < e && (*q == '*' || *q == '@')) {
+			p->op = V_NAMES;
+			return;
+		}
+		if (q >= e) {
+			p->op = V_IND;
+			return;
+		}
 	}
 	if (q >= e)
 		return;
@@ -217,6 +237,25 @@ void lx_brace(lex *l, part *p, const char *b, const char *e)
 	}
 	if (q >= e)
 		return;
+	if (*q == '@' && q + 1 < e) {
+		switch (q[1]) {
+		case 'Q':
+			p->op = V_XQ;
+			return;
+		case 'E':
+			p->op = V_XE;
+			return;
+		case 'U':
+			p->op = V_UPALL;
+			return;
+		case 'L':
+			p->op = V_LOWALL;
+			return;
+		case 'u':
+			p->op = V_UP;
+			return;
+		}
+	}
 	if (*q == '^' || *q == ',') {
 		int dbl = q + 1 < e && q[1] == *q;
 		p->op = *q == '^' ? (dbl ? V_UPALL : V_UP) : (dbl ? V_LOWALL : V_LOW);
@@ -264,6 +303,12 @@ void lx_brace(lex *l, part *p, const char *b, const char *e)
 		if (q < e && *q == '/') {
 			p->op = V_SUBA;
 			q++;
+		} else if (q < e && *q == '#') {
+			p->op = V_SUBP;
+			q++;
+		} else if (q < e && *q == '%') {
+			p->op = V_SUBF;
+			q++;
 		}
 		for (r = q; r < e; r++) {
 			if (*r == '\\') {
@@ -274,8 +319,9 @@ void lx_brace(lex *l, part *p, const char *b, const char *e)
 				break;
 		}
 		p->arg = lx_sub(l, q, r < e ? r : e);
-		if (p->arg)
-			p->arg->nx = r < e ? lx_sub(l, r + 1, e) : 0;
+		if (!p->arg)
+			p->arg = ar_alloc(l->a, sizeof *p->arg);
+		p->arg->nx = r < e ? lx_sub(l, r + 1, e) : 0;
 		return;
 	}
 	default:

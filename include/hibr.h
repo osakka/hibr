@@ -93,6 +93,13 @@
 #define V_UPALL 15
 #define V_LOW 16
 #define V_LOWALL 17
+#define V_SUBP 18
+#define V_SUBF 19
+#define V_IND 20
+#define V_NAMES 21
+#define V_XQ 22
+#define V_XE 23
+#define V_INDF 0x100
 #endif
 
 #ifndef J_STR

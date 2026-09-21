@@ -43,6 +43,7 @@ var *v_find(sh *s, const char *k);
 void v_del(sh *s, const char *k);
 void v_env(sh *s);
 char **v_envp(sh *s, vec *extra);
+void v_names(sh *s, const char *pre, vec *out);
 void v_pos(sh *s, int ac, char **av);
 void v_free_el(var *v);
 void v_arr(sh *s, const char *k, vec *vals);
@@ -71,6 +72,7 @@ word *lx_word(lex *l);
 char *lx_span(lex *l);
 char *lx_arrow(lex *l);
 word *lx_sub(lex *l, const char *b, const char *e);
+void lx_brace1(lex *l, part *p, const char *b, const char *e);
 void lx_here(lex *l, redir *r, word *d);
 
 char *w_lit(word *w);
@@ -90,6 +92,9 @@ char *xpat(sh *s, word *w);
 char *xone(sh *s, word *w);
 char *xkey(sh *s, char *t);
 char *xkey_q(sh *s, char *t, const char *mk);
+char *xquote(sh *s, const char *v, int bs);
+int xqsafe(int c, int first);
+char *xneg(sh *s, const char *nm, char **ks, int lvl);
 char *xpsub(sh *s, part *p);
 void xpsub_done(sh *s);
 char **xargv(sh *s, word *w, int *ac, char ***am);
@@ -112,6 +117,7 @@ char **xargv(sh *s, word *w, int *ac, char ***am);
 	} while (0)
 #endif
 int gmatch(const char *p, const char *t);
+int gcmp(const void *a, const void *b);
 
 int ex(sh *s, node *n);
 int rd_do(sh *s, redir *r, vec *sv);

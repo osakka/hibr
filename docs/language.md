@@ -8,8 +8,12 @@ and the `;&` / `;;&` fallthroughs), functions with recursion, and `local`.
 
 **Expansion.** Single, double and `$'…'` quoting (`\n \t \e \xHH \0NNN`).
 `${x:-d} ${x:=d} ${x:?msg} ${x:+alt}`, `${#x}`, `${x#p} ${x##p} ${x%p} ${x%%p}`,
-`${x/p/r} ${x//p/r}`, `${x:off:len}` with negative offsets, `${x^^} ${x,,} ${x^}
-${x,}`. Command substitution `$( )` and backquotes, arithmetic `$(( ))`, tilde,
+`${x/p/r} ${x//p/r}`, anchored `${x/#p/r}` and `${x/%p/r}`, `${x:off:len}` with
+negative offsets, `${x^^} ${x,,} ${x^} ${x,}`, the transforms `${x@Q} ${x@E}
+${x@U} ${x@L} ${x@u}`, indirection `${!ref}` (which keeps any modifier after
+it, so `${!ref:-d}` works), the names starting with a prefix `${!pre*}` and
+`${!pre@}`, and negative subscripts `${a[-1]}`, counted back from the highest
+key so a sparse array answers the same as bash. Command substitution `$( )` and backquotes, arithmetic `$(( ))`, tilde,
 field splitting on `IFS`, globbing with `*`, `?`, `[…]` and `**` across
 directories, and brace expansion — `{a,b}`, `{1..9}`, `{01..12}`, `{a..e}`,
 `{1..9..2}`, nested and multiplied.

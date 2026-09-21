@@ -137,6 +137,20 @@ void v_env(sh *s)
 	lg(HIBR_LDBG, "imported %lu environment entries", (unsigned long)s->tn);
 }
 
+/* Collect the names of every set variable starting with a prefix. */
+void v_names(sh *s, const char *pre, vec *out)
+{
+	size_t i, n = strlen(pre);
+	var *v;
+
+	for (i = 0; i < s->tsz; i++)
+		for (v = s->tab[i]; v; v = v->nx)
+			if (!strncmp(v->k, pre, n))
+				v_add(out, xs(v->k));
+	lg(HIBR_LTRC, "%lu names start with '%s'", (unsigned long)out->n,
+	   pre);
+}
+
 /* Build a NULL terminated envp from exported variables plus extras. */
 char **v_envp(sh *s, vec *extra)
 {

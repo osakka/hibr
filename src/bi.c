@@ -192,14 +192,19 @@ int b_unset(sh *s, int ac, char **av)
 		if (br) {
 			vec *ks = vb_get(s);
 			const char *mk = s->amask ? s->amask[i] : 0;
-			char *r;
+			char *r, *k;
 			*br = 0;
 			for (r = br + 1; r && *r;) {
 				char *end = strchr(r, ']');
 				if (!end)
 					break;
 				*end = 0;
-				v_add(ks, xkey_q(s, r, mk ? mk + (r - av[i]) : 0));
+				k = xkey_q(s, r, mk ? mk + (r - av[i]) : 0);
+				v_add(ks, k);
+				if (k[0] == '-' && isdigit((unsigned char)k[1]))
+					ks->p[ks->n - 1] =
+						xneg(s, av[i], (char **)ks->p,
+						     (int)ks->n - 1);
 				r = end + 1;
 				if (*r == '[')
 					r++;
@@ -347,13 +352,25 @@ int b_set(sh *s, int ac, char **av)
 	return HIBR_OK;
 }
 
+/* The value of a short option, attached to it or the next argument. */
+char *bi_oval(int ac, char **av, int *i, size_t len)
+{
+	if (av[*i][1 + len])
+		return av[*i] + 1 + len;
+	if (*i + 1 < ac)
+		return av[++*i];
+	return 0;
+}
+
 /* Read a line from standard input into variables. */
 int b_read(sh *s, int ac, char **av)
 {
 	str b;
 	char c;
 	ssize_t n;
-	int i = 1, want = 0, silent = 0, fd = 0;
+	int i = 1, want = 0, silent = 0, fd = 0, delim = '\n';
+	const char *arr = 0;
+	char *ov;
 	long tmo = 0;
 	const char *ifs = hibr_get(s, "IFS");
 	size_t p = 0, st;
@@ -368,15 +385,36 @@ int b_read(sh *s, int ac, char **av)
 			continue;
 		} else if (!strcmp(av[i], "-s")) {
 			silent = 1;
-		} else if (!strcmp(av[i], "-p") && i + 1 < ac) {
-			fputs(av[++i], stderr);
+		} else if (!strncmp(av[i], "-p", 2)) {
+			ov = bi_oval(ac, av, &i, 1);
+			if (!ov)
+				return 2;
+			fputs(ov, stderr);
 			fflush(stderr);
-		} else if (!strcmp(av[i], "-n") && i + 1 < ac) {
-			want = atoi(av[++i]);
-		} else if (!strcmp(av[i], "-t") && i + 1 < ac) {
-			tmo = atol(av[++i]);
-		} else if (!strcmp(av[i], "-u") && i + 1 < ac) {
-			fd = atoi(av[++i]);
+		} else if (!strncmp(av[i], "-n", 2)) {
+			ov = bi_oval(ac, av, &i, 1);
+			if (!ov)
+				return 2;
+			want = atoi(ov);
+		} else if (!strncmp(av[i], "-t", 2)) {
+			ov = bi_oval(ac, av, &i, 1);
+			if (!ov)
+				return 2;
+			tmo = atol(ov);
+		} else if (!strncmp(av[i], "-u", 2)) {
+			ov = bi_oval(ac, av, &i, 1);
+			if (!ov)
+				return 2;
+			fd = atoi(ov);
+		} else if (!strncmp(av[i], "-a", 2)) {
+			arr = bi_oval(ac, av, &i, 1);
+			if (!arr)
+				return 2;
+		} else if (!strncmp(av[i], "-d", 2)) {
+			ov = bi_oval(ac, av, &i, 1);
+			if (!ov)
+				return 2;
+			delim = ov[0] ? (unsigned char)ov[0] : 0;
 		} else {
 			lg(HIBR_LERR, "read: %s: unknown option", av[i]);
 			return 2;
@@ -401,7 +439,7 @@ int b_read(sh *s, int ac, char **av)
 	}
 	s_init(&b);
 	while ((n = read(fd, &c, 1)) == 1) {
-		if (!want && c == '\n')
+		if (!want && (unsigned char)c == (unsigned char)delim)
 			break;
 		s_ch(&b, c);
 		if (want && (int)b.n >= want)
@@ -414,6 +452,23 @@ int b_read(sh *s, int ac, char **av)
 	if (n <= 0 && !b.n) {
 		s_free(&b);
 		return HIBR_FAIL;
+	}
+	if (arr) {
+		vec *el = vb_get(s);
+		while (p < b.n) {
+			while (p < b.n && strchr(ifs, b.p[p]))
+				p++;
+			if (p >= b.n)
+				break;
+			st = p;
+			while (p < b.n && !strchr(ifs, b.p[p]))
+				p++;
+			v_add(el, ar_dup(s->xa, b.p + st, p - st));
+		}
+		v_arr(s, arr, el);
+		vb_put(s, el);
+		s_free(&b);
+		return HIBR_OK;
 	}
 	if (i >= ac) {
 		hibr_set(s, "REPLY", b.p ? b.p : "", 0);

@@ -434,6 +434,15 @@ int b_printf(sh *s, int ac, char **av)
 				s_free(&spec);
 				break;
 			}
+			if (*p == 'q') {
+				s_cat(&o, xquote(s, i < ac ? av[i] : "", 1));
+				s_free(&spec);
+				if (i < ac)
+					used = 1;
+				i++;
+				p++;
+				continue;
+			}
 			if (*p == 'b') {
 				str t;
 				s_init(&t);

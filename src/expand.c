@@ -221,6 +221,46 @@ char *xrepl(sh *s, const char *v, const char *pat, const char *rep, int all)
 	return r;
 }
 
+/* Replace a match anchored at one end of the value, longest first. */
+char *xrepl_a(sh *s, const char *v, const char *pat, const char *rep, int end)
+{
+	size_t n = strlen(v), i, j;
+	str t, out;
+	char *r;
+
+	s_init(&t);
+	s_init(&out);
+	if (!end) {
+		for (j = n + 1; j-- > 0;) {
+			t.n = 0;
+			s_add(&t, v, j);
+			if (gmatch(pat, t.p ? t.p : "")) {
+				s_cat(&out, rep);
+				s_add(&out, v + j, n - j);
+				break;
+			}
+		}
+		if (!out.n && !out.p)
+			s_add(&out, v, n);
+	} else {
+		for (i = 0; i <= n; i++) {
+			t.n = 0;
+			s_add(&t, v + i, n - i);
+			if (gmatch(pat, t.p ? t.p : "")) {
+				s_add(&out, v, i);
+				s_cat(&out, rep);
+				break;
+			}
+		}
+		if (i > n)
+			s_add(&out, v, n);
+	}
+	r = ar_dup(s->xa, out.p ? out.p : "", out.n);
+	s_free(&out);
+	s_free(&t);
+	return r;
+}
+
 /* True when a subscript selects every element. */
 int xall(const char *i)
 {
@@ -255,6 +295,25 @@ char *xkey(sh *s, char *t)
 	return t;
 }
 
+/* Resolve a negative subscript against the highest key at that level. */
+char *xneg(sh *s, const char *nm, char **ks, int lvl)
+{
+	vec *l = vb_get(s);
+	long top = -1, k, want = atol(ks[lvl]);
+	size_t j;
+
+	v_list(s, nm, ks, lvl, l, 1);
+	for (j = 0; j < l->n; j++) {
+		k = atol((char *)l->p[j]);
+		if (k > top)
+			top = k;
+	}
+	vb_put(s, l);
+	k = top + 1 + want;
+	lg(HIBR_LTRC, "subscript %ld counts back to %ld", want, k);
+	return k < 0 ? ks[lvl] : xnum(s, k);
+}
+
 /* Expand a part's subscript chain, dropping a trailing @ or *. */
 int xkeys(sh *s, part *p, char ***out, int *all)
 {
@@ -268,8 +327,11 @@ int xkeys(sh *s, part *p, char ***out, int *all)
 	ks = n ? ar_alloc(s->xa, (size_t)n * sizeof *ks) : 0;
 	for (w = p->idx; w; w = w->nx) {
 		ks[i] = xone(s, w);
-		if (!xall(ks[i]) && !w_hasq(w))
+		if (!xall(ks[i]) && !w_hasq(w)) {
 			ks[i] = xkey(s, ks[i]);
+			if (ks[i][0] == '-' && isdigit((unsigned char)ks[i][1]))
+				ks[i] = xneg(s, p->t, ks, i);
+		}
 		i++;
 	}
 	if (n && xall(ks[n - 1])) {
@@ -357,10 +419,107 @@ void xvar(sh *s, part *p, str *b, str *m)
 		a = xajoin(s, p->t, 0, 0, " ", 1);
 		xput(b, m, a, strlen(a), p->q || s->strict);
 		return;
+	} else if (p->op == V_NAMES) {
+		vec *nm = vb_get(s);
+		str j;
+		size_t i;
+		v_names(s, p->t, nm);
+		if (nm->n > 1)
+			qsort(nm->p, nm->n, sizeof *nm->p, gcmp);
+		s_init(&j);
+		for (i = 0; i < nm->n; i++) {
+			if (i)
+				s_ch(&j, ' ');
+			s_cat(&j, (char *)nm->p[i]);
+			free(nm->p[i]);
+		}
+		xput(b, m, j.p ? j.p : "", j.n, p->q || s->strict);
+		s_free(&j);
+		vb_put(s, nm);
+		return;
+	} else if (p->op & V_INDF) {
+		const char *r = xval(s, p->t);
+		part q2 = *p;
+		q2.op = p->op & ~V_INDF;
+		lg(HIBR_LTRC, "indirect with modifier via %s", p->t);
+		xvar2(s, &q2, b, m, r && *r ? xval(s, r) : 0);
+		return;
+	} else if (p->op == V_IND) {
+		const char *r = xval(s, p->t);
+		if (!r || !*r)
+			return;
+		lg(HIBR_LTRC, "indirect: %s names %s", p->t, r);
+		v = xval(s, r);
+		xvar2(s, p, b, m, v);
+		return;
 	} else {
 		v = xval(s, p->t);
 	}
 	xvar2(s, p, b, m, v);
+}
+
+/* True for a byte that needs no escape in a backslash quoted word. */
+int xqsafe(int c, int first)
+{
+	if (isalnum(c) || strchr("_./-:=@+%", c))
+		return 1;
+	return !first && (c == '~' || c == '#');
+}
+
+/* Quote a value so that reading it back gives the same string. */
+char *xquote(sh *s, const char *v, int bs)
+{
+	str o;
+	const char *p;
+	unsigned c;
+	int ctl = 0;
+	char *r;
+
+	for (p = v; *p; p++)
+		if ((unsigned char)*p < 32 || (unsigned char)*p == 127)
+			ctl = 1;
+	s_init(&o);
+	if (!ctl && bs && *v) {
+		for (p = v; *p; p++) {
+			if (!xqsafe((unsigned char)*p, p == v))
+				s_ch(&o, '\\');
+			s_ch(&o, *p);
+		}
+	} else if (!ctl) {
+		s_ch(&o, '\'');
+		for (p = v; *p; p++) {
+			if (*p == '\'')
+				s_cat(&o, "'\\''");
+			else
+				s_ch(&o, *p);
+		}
+		s_ch(&o, '\'');
+	} else {
+		s_cat(&o, "$'");
+		for (p = v; *p; p++) {
+			c = (unsigned char)*p;
+			if (*p == '\n')
+				s_cat(&o, "\\n");
+			else if (*p == '\t')
+				s_cat(&o, "\\t");
+			else if (*p == '\r')
+				s_cat(&o, "\\r");
+			else if (*p == '\\' || *p == '\'') {
+				s_ch(&o, '\\');
+				s_ch(&o, *p);
+			} else if (c < 32 || c == 127) {
+				s_ch(&o, '\\');
+				s_ch(&o, (char)('0' + ((c >> 6) & 7)));
+				s_ch(&o, (char)('0' + ((c >> 3) & 7)));
+				s_ch(&o, (char)('0' + (c & 7)));
+			} else
+				s_ch(&o, *p);
+		}
+		s_ch(&o, '\'');
+	}
+	r = ar_dup(s->xa, o.p ? o.p : "", o.n);
+	s_free(&o);
+	return r;
 }
 
 /* Apply the parameter modifier to a resolved value. */
@@ -371,6 +530,18 @@ void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 	int ok = set && (!p->col || *v);
 
 	switch (p->op) {
+	case V_XQ:
+		a = xquote(s, v ? v : "", 0);
+		xput(b, m, a, strlen(a), 1);
+		return;
+	case V_XE: {
+		str t;
+		s_init(&t);
+		pf_esc(&t, v ? v : "", 0);
+		xput(b, m, t.p ? t.p : "", t.n, p->q || s->strict);
+		s_free(&t);
+		return;
+	}
 	case V_LEN:
 		a = xnum(s, v ? (long)strlen(v) : 0);
 		xput(b, m, a, strlen(a), 1);
@@ -466,6 +637,15 @@ void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 			return;
 		a = xrepl(s, v, xpat(s, p->arg),
 			  p->arg ? xone(s, p->arg->nx) : "", p->op == V_SUBA);
+		xput(b, m, a, strlen(a), p->q || s->strict);
+		return;
+	case V_SUBP:
+	case V_SUBF:
+		if (!v)
+			return;
+		a = xrepl_a(s, v, xpat(s, p->arg),
+			    p->arg ? xone(s, p->arg->nx) : "",
+			    p->op == V_SUBF);
 		xput(b, m, a, strlen(a), p->q || s->strict);
 		return;
 	}
