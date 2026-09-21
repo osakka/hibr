@@ -352,6 +352,10 @@ update)
 		exit 0
 	fi
 	if [ "$now" = "$was" ]; then
+		if [ "$(field source)" != "$SRC" ]; then
+			step "same build, recording its new source directory"
+			place
+		fi
 		say "hibr $(field version) is already current"
 		exit 0
 	fi
