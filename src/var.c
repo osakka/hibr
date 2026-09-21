@@ -102,6 +102,16 @@ const char *v_coerce(sh *s, var *e, const char *v, str *tmp)
 	return v;
 }
 
+/* The value of IFS, looked up once and kept until it is assigned. */
+const char *sh_ifs(sh *s)
+{
+	if (!s->ifsok) {
+		s->ifsc = hibr_get(s, "IFS");
+		s->ifsok = 1;
+	}
+	return s->ifsc;
+}
+
 /* Store a variable value, optionally marking it exported. */
 int hibr_set(sh *s, const char *k, const char *v, int ex)
 {
@@ -142,6 +152,8 @@ int hibr_set(sh *s, const char *k, const char *v, int ex)
 			setenv(k, e->v, 1);
 		if (!strcmp(k, "PATH"))
 			hsh_clear(s, 0);
+		if (!strcmp(k, "IFS"))
+			s->ifsok = 0;
 		s_free(&t);
 		return HIBR_OK;
 	}
@@ -150,6 +162,8 @@ int hibr_set(sh *s, const char *k, const char *v, int ex)
 	e->k = xs(k);
 	e->v = xs(v);
 	e->ex = ex ? 1 : 0;
+	if (!strcmp(k, "IFS"))
+		s->ifsok = 0;
 	if (e->ex)
 		setenv(k, e->v, 1);
 	b = vh(k) & (s->tsz - 1);
@@ -171,6 +185,7 @@ void v_del(sh *s, const char *k)
 	while ((v = *pp)) {
 		if (!strcmp(v->k, k)) {
 			*pp = v->nx;
+			s->ifsok = 0;
 			if (v->ex)
 				unsetenv(k);
 			v_free_el(v);

@@ -17,12 +17,13 @@ servers, typed function signatures, result slots (`x := f` without forking),
 declared CLI arguments, and a module ABI that lets modules add *protocols*
 (`/dev/<name>/…`), not just commands.
 
-Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 7).
+Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 8).
 
 ## Build and test
 
     make                 # tcc; builds ./build/hibr and mods/*.so
     make TLS=0           # compile TLS out entirely
+    make CC=gcc OPT=-O2  # optimised: 44% smaller text, 44% faster, not the default
     make check           # = tests/run.sh
     make install         # PREFIX=/usr/local, modules to $(PREFIX)/lib/hibr
     ./build/hibr -n script      # parse only
@@ -70,7 +71,7 @@ linked, and no OpenSSL headers are needed to build.
 
 | file | role |
 |---|---|
-| `include/hibr.h` | public types, macros and the module ABI (v7) |
+| `include/hibr.h` | public types, macros and the module ABI (v8) |
 | `include/pri.h` | internal declarations, tokens, the `lex` struct |
 | `include/re.h` | our own regex declarations (tcc cannot parse glibc's) |
 | `src/mem.c` | arenas with mark/release, `str`, `vec`, pools, `lg` logging |
@@ -261,6 +262,11 @@ were each run and their real output pasted back; keep it that way.
   anything else, both are off under `set -S` and `set -u`, and together they
   are most of a 30% loop gain. Anything added to expansion has to be reachable
   from the slow path, or the fast path has to learn to refuse it.
+- **`IFS` is cached on `sh` and invalidated by hand.** Four of every six
+  variable lookups in a tight loop were asking for it -- from `xargv`, from
+  both expansion fast paths and from `xsplit`. `sh_ifs` answers from `ifsc`
+  and anything that sets or removes a variable named `IFS` must clear
+  `ifsok`, including `v_del`, or splitting silently uses a stale separator.
 - **`qsort` is not given a NULL base.** An empty directory leaves `vec.p` NULL,
   and glibc declares the argument non-null, which UBSan reports.
 - **`ob_hex` does not check what follows the digits**, because in `packed-refs`

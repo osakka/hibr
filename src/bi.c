@@ -385,7 +385,7 @@ int b_read(sh *s, int ac, char **av)
 	const char *arr = 0;
 	char *ov;
 	long tmo = 0;
-	const char *ifs = hibr_get(s, "IFS");
+	const char *ifs = sh_ifs(s);
 	size_t p = 0, st;
 	struct termios sv, raw;
 	fd_set rs;

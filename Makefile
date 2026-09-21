@@ -1,6 +1,7 @@
 CC = tcc
 TLS ?= 1
-CFLAGS = -Iinclude -Wall
+OPT ?=
+CFLAGS = -Iinclude -Wall $(OPT)
 LDFLAGS = -rdynamic -ldl
 ifeq ($(TLS),1)
 CFLAGS += -DHIBR_TLS

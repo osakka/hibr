@@ -1143,7 +1143,7 @@ void xfield(sh *s, const char *t, const char *mk, size_t n, vec *out,
 /* Split an expanded buffer into fields on unquoted IFS characters. */
 void xsplit(sh *s, str *b, str *m, vec *out, vec *outm)
 {
-	const char *ifs = hibr_get(s, "IFS");
+	const char *ifs = sh_ifs(s);
 	size_t i = 0, st;
 
 	if (!ifs)
@@ -1300,7 +1300,7 @@ normal:
 		for (k = 0; k < n; k++)
 			if (w_meta[(unsigned char)v[k]])
 				break;
-		if (k == n && !hibr_get(s, "IFS")) {
+		if (k == n && !sh_ifs(s)) {
 			if (n)
 				xout(s, out, outm, v, 0, n);
 			return;
@@ -1320,7 +1320,7 @@ normal:
 		for (k = 0; k < p0->n && plain; k++)
 			if (strchr("*?[~ \t\n", p0->t[k]))
 				plain = 0;
-		if (plain && p0->n && !hibr_get(s, "IFS")) {
+		if (plain && p0->n && !sh_ifs(s)) {
 			xout(s, out, outm, p0->t, 0, p0->n);
 			return;
 		}
@@ -1582,7 +1582,7 @@ char **xargv(sh *s, word *w, int *ac, char ***am)
 	vec *bw;
 	char **r, **q = 0;
 	size_t i;
-	int first = 1, plain = !hibr_get(s, "IFS");
+	int first = 1, plain = !sh_ifs(s);
 
 	for (; w; w = w->nx) {
 		if (plain && w_simple(w)) {

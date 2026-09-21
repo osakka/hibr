@@ -23,15 +23,28 @@ for the capability.
 
 ## Consequences
 
-The whole thing compiles in about a second and the binary is roughly 270 KB.
-Resident memory at startup sits below dash. There is no dependency to audit, no
-version skew, nothing to install first.
+The whole thing compiles in about a second and the binary is roughly 310 KB.
+Resident memory at startup is about 110 kB above dash and a little over half of
+bash. There is no dependency to audit, no version skew, nothing to install
+first.
 
-The cost is real. Anything the standard library lacks has to be written and
-then tested to the standard of the library that was not used — the DEFLATE
-decoder was verified against 32,000 real git objects precisely because there is
-no zlib to fall back on. tcc's optimiser is weaker than gcc's, so some hot
-paths are slower than they would be otherwise. And glibc's `regex.h` cannot be
+The cost is real, and now measured. Building the same source with
+`make CC=gcc OPT=-O2` gives 152 KB of text against tcc's 263 KB and runs the
+benchmark loop in 0.22 s against 0.37 s — 44% smaller and 44% faster, passing
+the same 55 tests and 91 assertions. `OPT=-Os` gives 111 KB, smaller than dash.
+So the price of the decision is about four tenths of the speed and two fifths
+of the size.
+
+It is still the right trade for the default, because what is bought is that
+`make` works in one second on a machine with nothing installed but tcc, which
+is the situation the shell exists for. The optimised build is a documented
+option rather than a requirement, which is what "never as a requirement"
+meant.
+
+The other half of the cost is that anything the standard library lacks has to
+be written, and then tested to the standard of the library that was not used —
+the DEFLATE decoder was verified against 32,000 real git objects precisely
+because there is no zlib to fall back on. And glibc's `regex.h` cannot be
 parsed by tcc at all, which is why `include/re.h` exists.
 
 ---
