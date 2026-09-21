@@ -1,0 +1,16 @@
+0
+== expansion
+hibr: add: q expects int, got 'notanumber'
+hibr: add: missing argument q
+== maps and arrays
+== functions
+== errors
+== text
+== arrays
+== regex
+== json
+== control flow
+== arithmetic and conditionals
+== limits
+
+84 passed, 0 failed

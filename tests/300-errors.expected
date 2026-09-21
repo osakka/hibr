@@ -1,0 +1,11 @@
+0
+msg=[exploded: disk] err=1 status=1
+ok err=0 msg=[]
+ERR trap fired
+continued
+trap cleared
+fail status=7 msg=custom status
+try shields errexit
+huge-fd-prefix status=0
+huge-number-word status=0
+normal fd redirection still parses

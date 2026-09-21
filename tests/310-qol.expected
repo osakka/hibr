@@ -1,0 +1,33 @@
+0
+combined rc=2
+1
+here string works
+hibr: /dev/null: exists (noclobber)
+hibr: /dev/null: File exists
+noclobber blocked=1
+override=0 content=three
+named fd is 1
+via-slot
+raw=[a\b] second=[c]
+chars=[abc]
+timeout=1
+command-bypass
+builtin-bypass
+umask format ok
+flag a
+flag b
+sub: cde efg fg bcde
+slice: [b c] [d e]
+slice fields=2
+case: hello hello Hello HELLO
+special vars ok
+random varies
+local array 3
+outside=[]
+stale=[]
+bind=QUIET
+unset: 1 3 n=2
+printf -v=0042
+esc	ape
+no newline
+wait pid=0

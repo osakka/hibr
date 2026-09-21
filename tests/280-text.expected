@@ -1,0 +1,30 @@
+0
+HELLO WORLD
+mixed
+[padded]
+6
+cde
+hij
+6
+-1
+a+b+c+d
+parts=one two three n=3
+one, two, three
+x....
+....x
+ababab
+starts
+ends
+contains
+no-start status=1
+5
+sorted=4 4 17 30 200
+desc=200 30 17 4 4
+uniq=200 30 17 4
+rev=4 17 30 200
+push=4 17 30 200 999
+pop=999 rest=4 17 30 200
+has 17
+no 5
+map=8 34 60 400
+filter=60 400

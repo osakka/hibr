@@ -1,0 +1,23 @@
+0
+ls -l /tmp
+sudo ls -l /tmp
+/tmp
+echo first
+echo first
+ls -l /tmp
+x=$!
+a != b
+'!!'
+echo "ls -l /tmp"
+missing event status=1
+out of range status=1
+0
+/tmp/hibr-cdp/proj
+/tmp/hibr-cdp/proj
+/tmp/hibr-cdp/proj/deep
+/tmp/hibr-cdp
+/tmp/hibr-cdp/proj
+chose [green] reply=2
+chose [] reply=9
+chose [red] reply=1
+positional choice: two

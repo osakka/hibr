@@ -1,0 +1,57 @@
+#!/usr/bin/env hibr
+# Load the ls module, use it three ways, and unload it.
+
+opt .  "Summarise a source tree using the in-process ls module"
+opt -d --dir   dir  path=.   "Directory to inspect"
+opt -n --top   top  int=3    "How many largest files to show"
+opt -j --json  json          "Emit the summary as JSON"
+args "$@"
+
+# 1. Load the module, and fail cleanly if it is not there.
+try mod load ./mods/ls.so
+if [ "$ERR" -ne 0 ]; then
+  fail "the ls module is not built; run make first"
+  exit 1
+fi
+
+# 2. A listing with no output: the names land straight in an array.
+files := ls -q "$dir"
+echo "$dir holds ${#files[@]} entries"
+
+# 3. Group by extension into a map, no forks, no awk.
+for f in "${files[@]}"; do
+  case "$f" in
+    *.*) match "$f" '\.([a-z]+)$' M; ext=${M[1]} ;;
+    *)   ext=none ;;
+  esac
+  count[$ext]=$(( ${count[$ext]:-0} + 1 ))
+done
+for e in "${!count[@]}"; do
+  str pad "$e" 8 " " pe
+  echo "  $pe ${count[$e]}"
+done
+
+# 4. The largest files: ls sorts, the slot hands them over, arr trims.
+biggest := ls -qS "$dir"
+echo "largest $top:"
+i=0
+for f in "${biggest[@]}"; do
+  [ $i -ge $top ] && break
+  line=$(ls -lh "$dir/$f")
+  match "$line" '^[^ ]+ +[^ ]+ +[^ ]+ +[^ ]+ +([^ ]+)' S
+  echo "  $f  (${S[1]})"
+  i=$((i + 1))
+done
+
+# 5. Optional JSON, with real types.
+if [ "$json" -eq 1 ]; then
+  json parse out '{}'
+  json set out .dir "$dir" -s
+  json set out .entries "${#files[@]}"
+  for e in "${!count[@]}"; do json set out .by_ext.$e "${count[$e]}"; done
+  json emit out -p
+fi
+
+# 6. Done with it.
+mod drop ls
+type ls | head -1

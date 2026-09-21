@@ -1,0 +1,37 @@
+0
+== loose objects, all three deflate block types
+stored   blob 12
+dynamic  blob 5890
+fixed    blob 10
+tree     tree 33
+commit   commit 118
+== loose content
+hello world
+abcabcabc
+== tree content, binary sha rendered as text is not printed
+tree=tree 33
+== packed base, ofs delta, ref delta
+base     blob 790
+ofs      blob 410
+ref      blob 21
+== delta reconstruction is exact
+packed base line 19
+packeDELTA TAIL ofs
+hello DELTA TAIL ref
+== version 1 pack index
+v1 base  blob 470
+v1 delta blob 249
+v1 baV1 DELTA TAIL
+== missing object
+status=1
+hibr: prompt object: 0000000000000000000000000000000000000000 not found
+== malformed argument
+status=2
+hibr: usage: prompt object [-p] <40 hex digits>
+status=2
+== corrupt loose object is refused, not fatal
+status=1
+== truncated pack index is ignored
+status=1
+== the prompt still renders
+prompt=<main >

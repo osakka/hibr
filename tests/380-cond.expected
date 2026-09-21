@@ -1,0 +1,26 @@
+0
+glob match
+quoted is literal
+and
+or
+not
+grouping
+regex fills M: hell world
+regex from variable
+quoted regex
+string less
+not match
+x is set
+nope unset
+empty is false
+unquoted with spaces is one word
+right side skipped
+numeric vs string compare differ
+newer than
+older than
+false status=1
+error status=2
+in if
+in while n=3
+file tests
+multi-line

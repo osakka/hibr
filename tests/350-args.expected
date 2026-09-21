@@ -1,0 +1,22 @@
+0
+1: verbose=0 count=1 out=f.txt tags=[] pos=[]
+2: verbose=1 count=3 out=f.txt tags=[] pos=[a b]
+3: verbose=1 count=3 out=f.txt tags=[x y] pos=[c]
+4: verbose=0 count=1 out=f.txt tags=[] pos=[-literal]
+5: verbose=0 count=7 out=f.txt tags=[] pos=[]
+missing value status=2
+bad type status=2
+unknown status=2
+required status=2
+hibr: unknown option --bogus
+usage: 350-args.t [options] [args...]
+  Frobnicate the widgets
+
+  -v, --verbose      Chatty output
+  -n, --count COUNT  How many times (int, default 1)
+  -o, --output OUT   Where to write (path, required)
+  -t, --tag TAGS     A tag, repeatable (str, repeatable)
+  -h, --help         show this help
+help flag=1
+try caught: err=1 status=2 msg=[bad arguments]
+comm=hibr-worker

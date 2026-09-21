@@ -1,0 +1,14 @@
+0
+admin in London
+users: omar ghina
+fields: role city
+values: admin London
+count: 2
+  omar -> admin
+  ghina -> student
+localhost:8080 as omar
+keys: host port user
+sparse: one two three six keys=0 1 2 5 count=4
+arith subscript: three
+deep: bottom levels=1
+after unset: [] count=0

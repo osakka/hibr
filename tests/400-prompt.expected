@@ -1,0 +1,61 @@
+0
+== literals and escapes
+[plain text]
+[esc $ [ ] ( ) \ end]
+[one
+two	three]
+== unknown variables vanish
+[a b]
+== styles
+[<E>[0;31mred<E>[0m|<E>[0;1;32mbold<E>[0m|<E>[0;38;2;255;136;0mhex<E>[0m|<E>[0;38;5;117mn256<E>[0m|plain]
+[<E>[0;34mouter <E>[0;1;31minner<E>[0m<E>[0;34m back<E>[0m]
+== conditional groups
+[beforeafter]
+[before<!1>after]
+== segment gating and overrides
+[<% >]
+[<<E>[0;1;31m%<E>[0m >]
+[<>]
+== duration
+[<>]
+[<>]
+[<t=1.5s >]
+[<t=45.0s >]
+[<t=1h2m5s >]
+[<t=900ms >]
+== environment segments
+[<><>]
+[<py myproject ><>]
+[<py myproject ><nix pure >]
+== git
+[<feature/x >]
+-- symbol
+[<on feature/x >]
+-- merge
+[<feature/x MERGING >]
+-- rebase with progress
+[<feature/x REBASING 2/5 >]
+-- cherry-pick, revert, bisect
+[<feature/x CHERRY-PICKING >]
+[<feature/x REVERTING >]
+[<feature/x BISECTING >]
+-- detached head
+[<3f78685 >]
+-- stash count
+[<main>]
+[<main stash=3>]
+-- repo relative directory
+[<repo/sub >]
+[<repo/sub/deep >]
+[<…/deep >]
+[<~/sub >]
+-- outside a repository
+[<>after]
+== newline option
+[
+tail]
+== segment list is sorted by use
+  user      bold yellow
+  host      bold green
+  dir       bold cyan
+  git       bold purple

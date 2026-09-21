@@ -1,0 +1,10 @@
+0
+whole=2026-09-20 London
+y=2026 m=09 d=20 where=London
+miss status=1
+all=1 22 333 n=3
+icase ok
+first=hell0 world
+global=hell0 w0rld
+hamdan, omar
+dir=/var/log file=syslog n=1

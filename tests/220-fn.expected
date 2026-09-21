@@ -1,0 +1,14 @@
+0
+hello, omar
+salaam, omar
+sum=5
+type error status=2
+missing arg status=2
+too many status=2
+counts: 4 items -> a b c d
+empty: 0 items -> 
+srv1
+443
+total=15
+bad ret status=2
+untyped still works with yes

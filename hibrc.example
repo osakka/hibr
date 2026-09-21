@@ -1,0 +1,8 @@
+alias ll='ls -lh'
+alias gs='git status -sb'
+PS1='\[[32m\]\u@\h\[[0m\] \w\$ '
+export EDITOR=vim
+
+mod load prompt
+PROMPT[format]='$dir$git$duration$status$char'
+PROMPT[duration][min]=500

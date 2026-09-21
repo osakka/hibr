@@ -1,0 +1,204 @@
+#ifndef HIBR_PRI_H
+#define HIBR_PRI_H
+
+#include "hibr.h"
+#include <stdio.h>
+
+#define T_EOF 0
+#define T_WORD 1
+#define T_NL 2
+#define T_SEMI 3
+#define T_AMP 4
+#define T_PIPE 5
+#define T_AND 6
+#define T_OR 7
+#define T_LP 8
+#define T_RP 9
+#define T_LT 10
+#define T_GT 11
+#define T_APP 12
+#define T_DIN 13
+#define T_DOUT 14
+#define T_RW 15
+#define T_HERE 16
+#define T_DSEMI 17
+#define T_SEMIAMP 18
+#define T_DSEMIAMP 19
+#define T_HERES 20
+#define T_ARITH 21
+
+typedef struct lex lex;
+struct lex {
+	sh *s;
+	arena *a;
+	const char *p, *e, *tkb;
+	word *w;
+	int tk, fd, nb, more, err, dash, both, clob, depth;
+	char *fdvar;
+	vec hq;
+};
+
+unsigned vh(const char *k);
+var *v_find(sh *s, const char *k);
+void v_del(sh *s, const char *k);
+void v_env(sh *s);
+char **v_envp(sh *s, vec *extra);
+void v_pos(sh *s, int ac, char **av);
+void v_free_el(var *v);
+void v_arr(sh *s, const char *k, vec *vals);
+void v_setel(sh *s, const char *k, long i, const char *val);
+const char *v_getel(sh *s, const char *k, long i);
+size_t v_alen(sh *s, const char *k);
+ent *mp_find(ent *m, const char *k);
+ent *v_path(sh *s, const char *nm, char **ks, int nk, int make);
+int b_json(sh *s, int ac, char **av);
+int b_str(sh *s, int ac, char **av);
+int b_arr(sh *s, int ac, char **av);
+ent *mp_add(ent **m, size_t *n, const char *k);
+void mp_free(ent *m);
+const char *v_getp(sh *s, const char *nm, char **ks, int nk);
+void v_setp(sh *s, const char *nm, char **ks, int nk, const char *val);
+size_t v_count(sh *s, const char *nm, char **ks, int nk);
+void v_list(sh *s, const char *nm, char **ks, int nk, vec *out, int keys);
+int v_delp(sh *s, const char *nm, char **ks, int nk);
+void pf_esc(str *o, const char *p, int stop_at_c);
+
+int ismeta(int c);
+int isname(const char *t);
+void lx_init(lex *l, sh *s, const char *src);
+int lx_next(lex *l);
+word *lx_word(lex *l);
+char *lx_span(lex *l);
+char *lx_arrow(lex *l);
+word *lx_sub(lex *l, const char *b, const char *e);
+void lx_here(lex *l, redir *r, word *d);
+
+char *w_lit(word *w);
+int w_asg(word *w);
+node *hibr_parse(sh *s, const char *src, int *more);
+
+long ax_run(sh *s, const char *src);
+long ax_text(sh *s, const char *t);
+void xw(sh *s, word *w, vec *out, int fl);
+char *xcap(sh *s, const char *src);
+char *xpat(sh *s, word *w);
+char *xone(sh *s, word *w);
+char *xkey(sh *s, char *t);
+char *xpsub(sh *s, part *p);
+void xpsub_done(sh *s);
+char **xargv(sh *s, word *w, int *ac);
+int gmatch(const char *p, const char *t);
+
+int ex(sh *s, node *n);
+int rd_do(sh *s, redir *r, vec *sv);
+void rd_undo(vec *sv);
+node *fn_find(sh *s, const char *nm);
+int fn_call(sh *s, node *f, int ac, char **av);
+char *findx(sh *s, const char *nm);
+
+struct sav { char *k, *v; unsigned ex; };
+
+void asg_keep(sh *s, vec *old, const char *k);
+void asg_pop(sh *s, vec *old);
+int b_local(sh *s, int ac, char **av);
+
+struct signm { const char *nm; int sig; };
+extern const struct signm jc_sigs[];
+
+void tr_init(sh *s);
+void tr_run(sh *s);
+void tr_exit(sh *s);
+void tr_fini(sh *s);
+int tr_pending(void);
+int b_trap(sh *s, int ac, char **av);
+int b_fail(sh *s, int ac, char **av);
+int b_try(sh *s, int ac, char **av);
+void tr_err(sh *s, int st);
+int b_printf(sh *s, int ac, char **av);
+int b_match(sh *s, int ac, char **av);
+int b_rsub(sh *s, int ac, char **av);
+int b_ret(sh *s, int ac, char **av);
+char *cwd(void);
+int b_cd(sh *s, int ac, char **av);
+int b_alias(sh *s, int ac, char **av);
+int b_unalias(sh *s, int ac, char **av);
+int b_dirs(sh *s, int ac, char **av);
+int b_pushd(sh *s, int ac, char **av);
+int b_popd(sh *s, int ac, char **av);
+const char *al_get(sh *s, const char *k);
+int al_busy(sh *s, const char *k);
+int al_run(sh *s, const char *body, int ac, char **av);
+void al_fini(sh *s);
+char *pr_make(sh *s, const char *ps);
+char *pr_hook(sh *s);
+void rc_load(sh *s);
+void al_quote(str *o, const char *a);
+int b_command(sh *s, int ac, char **av);
+int b_builtin(sh *s, int ac, char **av);
+int b_umask(sh *s, int ac, char **av);
+int b_time(sh *s, int ac, char **av);
+int b_getopts(sh *s, int ac, char **av);
+int b_disown(sh *s, int ac, char **av);
+int b_let(sh *s, int ac, char **av);
+int t_one(const char *op, const char *a);
+int t_two(const char *a, const char *op, const char *b);
+int b_match(sh *s, int ac, char **av);
+char *hx_expand(sh *s, const char *line, int *changed, int *bad);
+void pt_init(int ac, char **av);
+int b_title(sh *s, int ac, char **av);
+int b_opt(sh *s, int ac, char **av);
+int b_args(sh *s, int ac, char **av);
+void op_clear(sh *s);
+int net_is(sh *s, const char *p);
+int net_open(sh *s, const char *p);
+int net_dial(const char *host, const char *port, int udp);
+void sc_fini(sh *s);
+int b_connect(sh *s, int ac, char **av);
+int b_listen(sh *s, int ac, char **av);
+int b_accept(sh *s, int ac, char **av);
+int b_send(sh *s, int ac, char **av);
+int b_recv(sh *s, int ac, char **av);
+int ed_search(sh *s, str *b, size_t *pos);
+int ty_ok(const char *ty, const char *v);
+void v_copy(sh *s, const char *dst, const char *src);
+
+const hibr_bi *bi_find(const char *nm);
+const hibr_bi *m_find(sh *s, const char *nm);
+int m_load(sh *s, const char *path);
+int m_drop(sh *s, const char *nm);
+void m_list(sh *s);
+void m_fini(sh *s);
+void m_help(sh *s);
+
+int b_src(sh *s, int ac, char **av);
+char *rdline(FILE *f);
+int ed_init(sh *s);
+char *ed_line(sh *s, const char *ps);
+void ed_fini(sh *s);
+void hs_add(sh *s, const char *line);
+
+#define J_RUN 0
+#define J_STOP 1
+#define J_DONE 2
+
+struct job {
+	int id, bg, state, np, ndone, st, fail, note;
+	long pgid, last;
+	char *tx;
+};
+
+void jc_init(sh *s);
+job *jc_new(sh *s, const char *tx, int bg);
+void jc_pid(sh *s, job *j, long p);
+int jc_fg(sh *s, job *j);
+void jc_bgnote(sh *s, job *j);
+void jc_poll(sh *s, int report);
+void jc_fini(sh *s);
+void jc_drop(sh *s, job *j);
+int b_jobs(sh *s, int ac, char **av);
+int b_fg(sh *s, int ac, char **av);
+int b_bg(sh *s, int ac, char **av);
+int b_wait(sh *s, int ac, char **av);
+int b_kill(sh *s, int ac, char **av);
+
+#endif

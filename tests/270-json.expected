@@ -1,0 +1,31 @@
+0
+name=hibr
+version=0.12 type=number
+tag0=shell tag1=tiny
+bool=true type=boolean
+null type=null
+keys=name version tags nested count
+len=2
+subscript=tiny true
+types after set: number string
+{"name":"hibr","version":0.13,"tags":["shell","tiny"],"nested":{"ok":true,"none":null,"added":"hello world"},"count":42,"quoted":"7"}
+{
+  "name": "hibr",
+  "version": 0.13,
+  "tags": [
+    "shell",
+    "tiny"
+  ],
+  "nested": {
+    "ok": true,
+    "none": null,
+    "added": "hello world"
+  },
+  "count": 42,
+  "quoted": "7"
+}
+{}
+nested array: 4 len=3
+[1,2,[3,4]]
+{"s":"line\nbreak\ttab \"quoted\""}
+bad status=1

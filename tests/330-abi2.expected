@@ -1,0 +1,11 @@
+0
+body for GET /hello HTTP/1.0
+second line
+--- as lines:
+[body for GET /second HTTP/1.0]
+[second line]
+after drop: 0
+--- map API:
+42
+slot=42
+err=1 msg=[module says no]

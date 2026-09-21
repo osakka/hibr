@@ -1,0 +1,58 @@
+0
+--- names:
+big
+link
+small
+sub
+--- all:
+.
+..
+.hidden
+big
+link
+small
+sub
+--- almost:
+.hidden
+big
+link
+small
+sub
+--- classify:
+big*
+link@
+small
+sub/
+--- by size:
+sub
+big
+link
+small
+--- reversed:
+sub
+small
+link
+big
+--- long, no user columns:
+-rwxr-xr-x 1 big
+lrwxrwxrwx 1 link -> small
+-rw-r--r-- 1 small
+drwxr-xr-x 2 sub
+--- human size of big:
+2.0K
+--- dir itself:
+sub
+--- slot:
+4: big link small sub
+--- missing:
+rc=1
+--- unknown flag:
+rc=2
+--- two dirs:
+sub:
+
+.:
+big
+link
+small
+sub

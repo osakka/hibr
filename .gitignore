@@ -1,0 +1,26 @@
+# build outputs
+/hibr
+/hibr.*
+*.o
+*.so
+*.a
+
+# sanitizer and profiler artefacts
+gmon.out
+*.asan
+*.prof
+
+# fuzzer findings are kept locally until triaged
+tests/fuzz-crash-*
+tests/fuzz-hang-*
+
+# editor and OS noise
+*.swp
+*~
+.DS_Store
+.vscode/
+.idea/
+
+# local history for manual testing
+.hibr_history
+.moddir

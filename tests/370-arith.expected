@@ -1,0 +1,31 @@
+0
+assign: 6 i=6
+post/pre: 6 7 8 8 8 6 6
+ops: 1 1024 512 16 -1 0
+ternary: 10 20 1
+comma: 12 a=3 b=4
+short and: 0 x=0
+short or: 1 x=0
+no div error when skipped: 0
+compound: 5 3 8
+statement: i=11
+true status
+zero status=1
+nonzero status=0
+let: j=42 k=43
+let zero status=1
+0 1 2 3 
+10 7 4 1 
+infinite with break: m=3
+0134
+((0++)) does not trip set -e
+div by zero aborts the command, status=1
+statement error status=1
+expansion still fine after an error: 7x
+string +=: abcdef
+array +=: 1 2 3 4 n=4
+element +=: xy
+append after sparse: 0 1 7 8
+local +=: 3
+wraps like bash: -9223372036854775808 -9223372036854775808 0 -9223372036854775808
+shift masked: 64

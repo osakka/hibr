@@ -1,0 +1,31 @@
+0
+== clean
+staged 0 modified 0 deleted 0 untracked 0 conflicted 0 renamed 0 ahead 0 behind 0 unborn 0
+== modified
+staged 0 modified 1 deleted 0 untracked 0 conflicted 0 renamed 0 ahead 0 behind 0 unborn 0
+== deleted
+staged 0 modified 0 deleted 1 untracked 0 conflicted 0 renamed 0 ahead 0 behind 0 unborn 0
+== untracked, then ignored
+staged 0 modified 0 deleted 0 untracked 1 conflicted 0 renamed 0 ahead 0 behind 0 unborn 0
+-- u.txt ignored, but .gitignore itself is untracked
+staged 0 modified 0 deleted 0 untracked 1 conflicted 0 renamed 0 ahead 0 behind 0 unborn 0
+-- both ignored
+staged 0 modified 0 deleted 0 untracked 0 conflicted 0 renamed 0 ahead 0 behind 0 unborn 0
+== untracked directory counts once
+staged 0 modified 0 deleted 0 untracked 1 conflicted 0 renamed 0 ahead 0 behind 0 unborn 0
+== staged add
+staged 1 modified 0 deleted 0 untracked 0 conflicted 0 renamed 0 ahead 0 behind 0 unborn 0
+== staged delete
+staged 1 modified 0 deleted 0 untracked 1 conflicted 0 renamed 0 ahead 0 behind 0 unborn 0
+== a moved file is one rename, not an add and a delete
+staged 1 modified 0 deleted 0 untracked 0 conflicted 0 renamed 1 ahead 0 behind 0 unborn 0
+== conflicted path is not also counted as staged
+staged 0 modified 0 deleted 0 untracked 0 conflicted 1 renamed 0 ahead 0 behind 0 unborn 0
+== unborn branch: everything in the index is staged
+staged 2 modified 0 deleted 0 untracked 0 conflicted 0 renamed 0 ahead 0 behind 0 unborn 1
+== ahead and behind
+staged 0 modified 0 deleted 0 untracked 0 conflicted 0 renamed 0 ahead 2 behind 1 unborn 0
+== upstream found through packed-refs
+staged 0 modified 0 deleted 0 untracked 0 conflicted 0 renamed 0 ahead 2 behind 1 unborn 0
+== the rendered segment
+<main ↑2 ↓1 !1 ?1 >

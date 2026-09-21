@@ -1,0 +1,21 @@
+0
+a b c
+pre1post pre2post
+1 2 3 4 5
+01 02 03 04
+a b c d e
+1 4 7
+5 4 3 2 1
+file.c file.h
+ax ay bx by
+{quoted,nope}
+{single}
+{}
+tab	here|AB|octA|esc[0m|
+top.c
+top.c a/one.c a/b/two.c a/b/c/three.c
+each top.c
+each a/one.c
+each a/b/two.c
+each a/b/c/three.c
+a/one.c a/b/two.c a/b/c/three.c
