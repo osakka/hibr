@@ -2,21 +2,86 @@
 
 Sockets are file descriptors, so they work with everything else.
 
-```
-exec 3<>/dev/tcp/127.0.0.1/6379       # also /dev/udp/, /dev/unix/, /dev/tls/
+```sh
+exec 3<>/dev/tcp/127.0.0.1/6379
 printf 'PING\r\n' >&3; read pong <&3
-
-connect host port sock      # -u UDP, -s TLS; sets $sock and $RET
-send [-n|-r] $sock text…    # -r ends with CRLF
-recv [-a|-n bytes] $sock v  # one line by default
-accept $listenfd conn       # sets $conn and $REMOTE
-listen [-f] [-n count] port handler
-listen -b port [var]        # bind only; sets $var (default FD) and $RET
 ```
+
+### Schemes
+
+A scheme works anywhere a filename does — in a redirection, as an argument to
+anything that opens a file.
+
+| scheme | opens |
+|---|---|
+| `/dev/tcp/host/port` | a TCP connection |
+| `/dev/udp/host/port` | a UDP socket |
+| `/dev/tls/host/port` | a TLS session, certificate verified |
+| `/dev/unix/path` | a Unix domain socket |
+| `/dev/<name>/…` | whatever a module registered — the `http` module adds `/dev/http/` |
+
+A scheme that cannot open says why and fails, like any other redirection:
+
+```
+$ hibr -c 'exec 3<>/dev/unix/nosuchsock'
+hibr: connect /nosuchsock: No such file or directory
+```
+
+### The verbs
+
+| form | does |
+|---|---|
+| `connect [-u\|-s] host port [var]` | connect; `-u` UDP, `-s` TLS. Sets `$var` (default `FD`) and `$RET` |
+| `send [-n\|-r] fd text…` | write; `-n` without a trailing newline, `-r` ending CRLF |
+| `recv [-a\|-n bytes] fd [var]` | read one line; `-a` everything to end of stream, `-n` exactly that many bytes |
+| `accept listenfd [var]` | wait for one connection; sets `$var` (default `FD`) and `$REMOTE` |
+| `listen [-f] [-n count] port handler` | serve; `-f` forks per connection, `-n` stops after that many |
+| `listen -b port [var]` | bind only, and hand back the descriptor |
+
+Descriptors come back above 9, so a redirection cannot tread on one. A failure
+says what went wrong and returns non-zero:
+
+```
+$ hibr -c 'connect 127.0.0.1 1 S'
+hibr: connect 127.0.0.1:1: Connection refused
+```
+
+`$REMOTE` is the peer, as `host:port` — `127.0.0.1:39254`.
 
 `listen` calls the handler once per connection with the socket as its standard
 input and output, inside the shell, so the handler can use your functions and
 variables; `-f` forks per connection instead.
+
+### A server and a client, whole
+
+```sh
+port=19700
+listen -b $port LFD
+
+srv() {
+  accept $LFD C
+  echo "server sees REMOTE=$REMOTE"
+  recv $C line
+  send $C "echo:$line"
+  recv -n 4 $C four          # exactly four bytes
+  send $C "got4:$four"
+}
+srv &
+sleep 0.4
+
+connect 127.0.0.1 $port S
+send $S "hello";        recv $S r1; echo "client: $r1"
+send -n $S "abcdefgh";  recv $S r2; echo "client: $r2"
+wait
+```
+
+```
+server sees REMOTE=127.0.0.1:39254
+client: echo:hello
+client: got4:abcd
+```
+
+Two processes, one shell, no external program.
 
 `-b` binds and returns instead of serving, which is what lets a daemon stop
 being root. Only opening the port needs privilege, so bind first, give it up,
@@ -39,8 +104,16 @@ send ${cp[out]} hello
 recv ${cp[in]} answer        # ${cp[0]} and ${cp[1]} read the same, for bash
 ```
 
-`drop user[:group]` comes from the `sys` module and gives up root for good —
-see [0016](adr/0016-privileges-are-dropped-never-gained.md).
+`drop user[:group]` comes from the `sys` module and gives up root for good: it
+replaces the supplementary groups, then sets the real, effective **and saved**
+ids, then checks its own work — the ids must read back as asked and `setuid(0)`
+must fail. If anything fails once a change has been made it ends the shell
+rather than carry on half dropped. See
+[0016](adr/0016-privileges-are-dropped-never-gained.md).
+
+The other shape, when the parent may stay root, is `listen -f`: it forks before
+running the handler, so the handler drops and each connection is served
+unprivileged while the parent keeps accepting.
 
 An HTTPS request, parsed, with no external tools:
 
@@ -60,6 +133,15 @@ and hostnames are verified by default; `HIBR_TLS_INSECURE=1` turns that off.
 libssl is loaded with `dlopen` on the first TLS connection, so a shell that
 never uses TLS pays nothing for it — linking it would have cost 1.6 MB of
 memory in every shell. No OpenSSL headers are needed to build.
+
+## What this replaces
+
+A shell that can open a socket, speak TLS, parse the reply as JSON and serve a
+port needs no `curl`, no `nc`, no `jq` and no `socat` for most of what those get
+used for. [`examples/httpd.hibr`](../examples/httpd.hibr) is a static web server
+in eighty lines that forks for nothing, and
+[`examples/fetch.hibr`](../examples/fetch.hibr) is an HTTP client with declared
+options. More end-to-end recipes are in the [cookbook](cookbook.md).
 
 ---
 

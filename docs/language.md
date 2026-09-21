@@ -60,6 +60,43 @@ noclobber), here-documents `<<` and `<<-`, here-strings `<<<`, named
 descriptors `{fd}>file` and `{fd}>&-`, and process substitution `<( )` and
 `>( )`. Redirections work on commands, groups, conditionals and loops alike.
 
+## Control flow
+
+Everything POSIX has, plus what bash added, plus extended patterns with nothing
+to switch on.
+
+```sh
+for f in a b c; do printf '%s ' "$f"; done           # a b c
+for ((i = 0; i < 3; i++)); do printf '%s ' "$i"; done # 0 1 2
+
+i=0; while [ $i -lt 3 ]; do printf '%s ' "$i"; i=$((i+1)); done  # 0 1 2
+i=0; until [ $i -ge 3 ]; do printf '%s ' "$i"; i=$((i+1)); done  # 0 1 2
+
+m=([a]=1 [b]=2)
+for k in "${!m[@]}"; do printf '%s=%s ' "$k" "${m[$k]}"; done    # a=1 b=2
+```
+
+`break n` and `continue n` reach outward through `n` loops:
+
+```sh
+for x in 1 2 3 4; do
+  [ $x = 2 ] && continue
+  [ $x = 4 ] && break
+  printf '%s ' "$x"
+done                                                  # 1 3
+```
+
+`case` matches patterns, `|` separates alternatives, `;&` falls through to the
+next body and `;;&` re-tests from the next arm. The last arm may omit its `;;`.
+
+```sh
+case foo.log in
+  !(*.txt))  echo "not a text file" ;;      # extended groups need no shopt
+  *.log|*.txt) echo "a log or a text file" ;;
+  *)         echo "something else"
+esac
+```
+
 ## Arithmetic
 
 ```
@@ -111,17 +148,46 @@ unset a[1]
 echo "${a[@]:1:2}"                  # slices
 ```
 
-A subscript made only of digits is a literal key; one containing an operator is
-evaluated arithmetically, so `${a[i+1]}` works; a bare name is used for its
-value when that value is a number and taken literally otherwise, so
-`${cfg[host]}` means the key `host`.
+### What a subscript means
 
-One trap follows from that rule: a hyphen is an operator, so
-`head[content-type]` is read as `content - type` and lands on the key `0`,
-silently and in both directions. Fold hyphens to underscores before using
-text as a key, or reach the value with `json get`. See
-[decision 0006](adr/0006-arrays-are-sparse-maps.md). `"${a[@]}"` gives one field per entry;
-`"${a[*]}"` joins them.
+One syntax serves two purposes, so there is a rule:
+
+| subscript | read as |
+|---|---|
+| all digits — `a[2]` | the literal key `2` |
+| contains an operator — `a[i+1]` | arithmetic |
+| a bare name — `cfg[host]` | its value when that is a number, the literal key otherwise |
+| **quoted** — `h["content-type"]` | **always the literal key** |
+| negative — `a[-1]` | counted back from the highest key |
+
+The quoted form is the escape hatch, and it is the one quoting already implies
+everywhere else. Without it a hyphen is an operator, so an unquoted
+`head[content-type]` reads as `content - type` and lands on the key `0`,
+silently and in both directions:
+
+```sh
+h["content-type"]=applicaton/json
+echo "${h["content-type"]}"   # applicaton/json
+echo "${!h[@]}"               # content-type
+
+h[content-type]=elsewhere     # unquoted: still arithmetic
+echo "${!h[@]}"               # content-type 0
+```
+
+That is why `json parse` can hand back a document with any field name at all and
+every field stays reachable. See
+[decision 0006](adr/0006-arrays-are-sparse-maps.md).
+
+`"${a[@]}"` gives one field per entry; `"${a[*]}"` joins them with the first
+character of `IFS`. Unquoted, both split.
+
+### Reaching a name held in a variable
+
+```sh
+w=w1
+to="$w[out]"
+send "${!to}" hello           # ${!ref} follows subscripts, and nests
+```
 
 ## Functions with real signatures
 
@@ -171,6 +237,15 @@ opt -t --tag      tags   str+     "A tag, repeatable"  # + = collects an array
 args "$@"
 ```
 
+```
+$ prog -vn3 --tag a --tag b x y
+verbose=1 count=3 tags=[a b] rest=[x y] dollar1=x
+$ prog --count=5
+verbose=0 count=5 tags=[] rest=[] dollar1=
+$ prog -t one -t two -- -notanopt
+verbose=0 count=1 tags=[one two] rest=[-notanopt] dollar1=-notanopt
+```
+
 After `args`, `$verbose` is 1 or 0, `$count` has been type-checked, `${tags[@]}`
 holds every `--tag`, and positional arguments are in `${ARGS[@]}` and in `$1
 $2 …`. It accepts `--count=3`, `--count 3`, `-n3`, bundled `-vn3`,
@@ -192,23 +267,68 @@ fn fetch(str url) {
 `fail [-s status] message` sets `$ERRMSG` and returns from the function, as the
 error-shaped twin of `ret`. `try command…` runs a command with failure caught:
 it sets `$ERR` (0 or 1), `$ERRSTATUS` and `$ERRMSG` and always succeeds itself;
-inside it neither `set -e` nor the `ERR` trap fires. `trap 'handler' ERR` runs
-on any failure outside a tested context. `set -e` and `set -u` are supported.
+inside it neither `set -e` nor the `ERR` trap fires.
+
+```sh
+fn risky(str what) { fail "cannot reach $what"; }
+try risky example.com
+echo "ERR=$ERR ERRSTATUS=$ERRSTATUS ERRMSG=$ERRMSG"
+try true
+echo "after success: ERR=$ERR"
+```
+
+```
+ERR=1 ERRSTATUS=1 ERRMSG=cannot reach example.com
+after success: ERR=0
+```
+
+`trap 'handler' ERR` runs on any failure outside a tested context, and
+`trap 'handler' EXIT` runs on the way out — including out of a subshell, a
+command substitution, a background job or a pipeline element, while an
+*inherited* trap still fires only once, in the parent.
+
+Three more things that stop a script rather than letting it limp on: an unset
+variable under `set -u`, a `${x:?message}` guard, and an assignment to a
+readonly or to a declared type that refuses the value. Each prints the reason
+and, in a non-interactive shell, leaves.
+
+**[hibr]** `set -e` is scoped to the tested pipeline and does not reach into the
+bodies of functions it calls, and there is no `pipefail` —
+[0002](adr/0002-errexit-is-scoped.md).
 
 ## Strict expansion
 
 `set -S` changes one rule: the result of an expansion is never split and never
 globbed. What you write splits; what expands does not.
 
+```sh
+count() { echo "$#"; }
+f="my file.txt"; empty=""
+echo "default: $(count $f) $(count $empty)"
+set -S
+echo "strict:  $(count $f) $(count $empty)"
 ```
-f="my file.txt"; g="*.c"
-count $f      # default: 2 arguments      strict: 1
-count $g      # default: every .c file    strict: the literal *.c
-count $empty  # default: no argument      strict: one empty argument
+
 ```
+default: 2 0
+strict:  1 1
+```
+
+A glob behaves the same way: `count $g` with `g="*.c"` counts every `.c` file by
+default and exactly one argument — the literal `*.c` — under `set -S`.
 
 The last line is the deliberate cost, and the point: `rm -rf $dir/*` can no
 longer become `rm -rf /*` because `$dir` was empty. It is off by default.
+
+## Where to go next
+
+| | |
+|---|---|
+| [The grammar](grammar.md) | The formal definition: EBNF, precedence, expansion order |
+| [Builtins](builtins.md) | Every builtin, what it takes and what it gives back |
+| [Text, regex and JSON](data.md) | `str`, `arr`, `json`, `match`, `rsub`, operation by operation |
+| [Cookbook](cookbook.md) | Whole tasks solved end to end |
+| [Decisions](adr/README.md) | Why any of this differs from bash |
 
 ---
 
