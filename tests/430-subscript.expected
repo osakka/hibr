@@ -1,0 +1,21 @@
+0
+quoted write: a-b plain
+quoted read: one
+expanded write: content-type
+expanded read: json
+unquoted stays arithmetic: 0
+quoted unset: plain
+expanded unset: 
+plain unset: y
+digit unset: 0 2 7
+arithmetic subscript: s
+bare name subscript: r
+quoted expansion unset: 
+json key addressable: app/json
+append: xy
+default on missing: fallback
+unset via eval: k
+unset via variable: k
+unset via command: k
+arithmetic survives an alias: 0 2
+quoting does not survive an alias: x-y k

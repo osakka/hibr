@@ -17,7 +17,7 @@ servers, typed function signatures, result slots (`x := f` without forking),
 declared CLI arguments, and a module ABI that lets modules add *protocols*
 (`/dev/<name>/…`), not just commands.
 
-Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 3).
+Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 4).
 
 ## Build and test
 
@@ -70,7 +70,7 @@ linked, and no OpenSSL headers are needed to build.
 
 | file | role |
 |---|---|
-| `include/hibr.h` | public types, macros and the module ABI (v3) |
+| `include/hibr.h` | public types, macros and the module ABI (v4) |
 | `include/pri.h` | internal declarations, tokens, the `lex` struct |
 | `include/re.h` | our own regex declarations (tcc cannot parse glibc's) |
 | `src/mem.c` | arenas with mark/release, `str`, `vec`, pools, `lg` logging |
@@ -128,7 +128,9 @@ current — this table is a summary, not the source of truth.
 5. **`**` globstar is always on**; symlinked directories are not followed.
 6. **Brace expansion is literal-only**: `{$a,$b}` is not expanded.
 7. **`ret` does not print**; functions return through `$RET` / `:=`.
-8. **Arrays are sparse maps**, matching bash's counts and keys.
+8. **Arrays are sparse maps**, matching bash's counts and keys. A **quoted
+   subscript is a literal key** (`h["content-type"]`); an unquoted one is still
+   evaluated arithmetically.
 9. **TLS verifies certificates by default**; `HIBR_TLS_INSECURE=1` to disable.
 10. **`args` exits the script only at top level**; inside functions or `try` it
     returns 2.
@@ -172,6 +174,24 @@ current — this table is a summary, not the source of truth.
 - **The racy-index rule is git's**: an entry is suspect only when the index is
   older than the file, or the same second with `index nsec <= file nsec`. A
   looser rule rehashes the whole tree on every prompt.
+- **Every expanded field leaves `expand.c` through `xout`/`xoutq`**, so the
+  field vector and its parallel quote-mask vector cannot drift apart. A desync
+  would hand a builtin the mask of a different argument and make `unset` delete
+  the wrong key. `xargv` compares the two lengths and drops the mask rather
+  than trust it; glob results are padded with unquoted entries by `xpad`.
+- **`al_quote` escapes, it does not quote.** The arguments it re-emits have
+  already been expanded, so wrapping them in `'…'` would mark every byte as
+  quoted and make a subscript reached through an alias literal —
+  `alias u=unset; u a[i]` would stop resolving `i`. Per-character escaping
+  protects the metacharacters without masking the subscript's own bytes. An
+  argument that is empty or holds a newline still has to be quoted, since
+  `\<newline>` is a line continuation.
+- **Argument masks are gated on the command name.** `xargv` builds them only
+  when the first expanded word names a builtin in `bi_mask`, so an ordinary
+  command pays one `strcmp` and nothing else — building them unconditionally
+  cost 7% on tight loops. A builtin that grows an interest in its arguments'
+  quoting has to be added to that list, and `command` must keep forwarding
+  `sh.amask + 1` with its shifted `argv`.
 - **`qsort` is not given a NULL base.** An empty directory leaves `vec.p` NULL,
   and glibc declares the argument non-null, which UBSan reports.
 - **`ob_hex` does not check what follows the digits**, because in `packed-refs`
@@ -207,11 +227,12 @@ current — this table is a summary, not the source of truth.
 - Decide whether `set -S` should become the default after that.
 - Possibly: `declare`/`typeset`, `shopt`, `set -o` by name, coprocesses, anchored
   `${x/#…}` / `${x/%…}`, a `plan N` count in `self.hibr`.
-- **Decide what a quoted subscript means.** `head[content-type]` is read as
-  subtraction and lands on key `0`, silently, and quoting does not currently
-  help because subscripts are evaluated after expansion. `json parse` can
-  therefore create keys no subscript can address. Found by the first real
-  script written against the shell — see `docs/adr/0006`.
+- A quoted subscript does not survive an alias: `al_quote` escapes rather than
+  quotes, so `alias u=unset; u h["a-b"]` evaluates the subscript. Fixing it
+  needs the alias path to carry masks rather than re-lex text.
+- `export`, `read` and `[[ -v ]]` do not parse a subscript at all, quoted or
+  not — `export e[k]=v` is silently inert. The argv quote mask (`sh.amask`) is
+  already there for whichever of them should grow one; see `docs/adr/0006`.
 - No right-hand or transient prompt; both need `ed_draw` work.
 - Prompt status divergences from git, all deliberate: renames are matched only
   on identical content, submodule working trees are not inspected, and `**` in

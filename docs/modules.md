@@ -1,7 +1,7 @@
 # Modules
 
 Modules are shared objects exporting one `hibr_module` symbol. The ABI version
-(currently 2) is checked when a module loads.
+(currently 4) is checked when a module loads.
 
 ```c
 #include "hibr.h"

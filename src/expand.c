@@ -268,7 +268,7 @@ int xkeys(sh *s, part *p, char ***out, int *all)
 	ks = n ? ar_alloc(s->xa, (size_t)n * sizeof *ks) : 0;
 	for (w = p->idx; w; w = w->nx) {
 		ks[i] = xone(s, w);
-		if (!xall(ks[i]))
+		if (!xall(ks[i]) && !w_hasq(w))
 			ks[i] = xkey(s, ks[i]);
 		i++;
 	}
@@ -739,15 +739,53 @@ void gwalk(sh *s, str *dir, const char *pat, vec *out, int *cnt)
 	v_free(&names);
 }
 
+/* Add one expanded field whose every byte came from a quoted part. */
+void xoutq(sh *s, vec *out, vec *outm, const char *t, size_t n)
+{
+	char *mk;
+
+	if (!outm) {
+		v_add(out, ar_dup(s->xa, t ? t : "", n));
+		return;
+	}
+	mk = ar_alloc(s->xa, n + 1);
+	memset(mk, 1, n);
+	xout(s, out, outm, t, mk, n);
+}
+
+/* Pad a mask vector with unquoted entries until it matches its field vector. */
+void xpad(vec *out, vec *outm)
+{
+	if (!outm)
+		return;
+	while (outm->n < out->n)
+		v_add(outm, 0);
+}
+
+/* Resolve a subscript, treating one holding a quoted byte as a literal key. */
+char *xkey_q(sh *s, char *t, const char *mk)
+{
+	size_t i;
+
+	if (mk)
+		for (i = 0; t[i]; i++)
+			if (mk[i]) {
+				lg(HIBR_LTRC, "subscript '%s' quoted, literal", t);
+				return t;
+			}
+	return xkey(s, t);
+}
+
 /* Expand one field, globbing it when it holds unquoted patterns. */
-void xfield(sh *s, const char *t, const char *mk, size_t n, vec *out)
+void xfield(sh *s, const char *t, const char *mk, size_t n, vec *out,
+	    vec *outm)
 {
 	str pat, dir;
 	size_t i;
 	int meta = 0, cnt = 0;
 
 	if (!xmeta(t, mk, n)) {
-		v_add(out, ar_dup(s->xa, t, n));
+		xout(s, out, outm, t, mk, n);
 		return;
 	}
 	meta = 1;
@@ -758,7 +796,7 @@ void xfield(sh *s, const char *t, const char *mk, size_t n, vec *out)
 		s_ch(&pat, t[i]);
 	}
 	if (!meta) {
-		v_add(out, ar_dup(s->xa, t, n));
+		xout(s, out, outm, t, mk, n);
 		s_free(&pat);
 		return;
 	}
@@ -770,15 +808,17 @@ void xfield(sh *s, const char *t, const char *mk, size_t n, vec *out)
 		gwalk(s, &dir, pat.p, out, &cnt);
 	}
 	if (!cnt)
-		v_add(out, ar_dup(s->xa, t, n));
-	else
+		xout(s, out, outm, t, mk, n);
+	else {
+		xpad(out, outm);
 		lg(HIBR_LTRC, "glob matched %d paths", cnt);
+	}
 	s_free(&dir);
 	s_free(&pat);
 }
 
 /* Split an expanded buffer into fields on unquoted IFS characters. */
-void xsplit(sh *s, str *b, str *m, vec *out)
+void xsplit(sh *s, str *b, str *m, vec *out, vec *outm)
 {
 	const char *ifs = hibr_get(s, "IFS");
 	size_t i = 0, st;
@@ -793,7 +833,7 @@ void xsplit(sh *s, str *b, str *m, vec *out)
 		st = i;
 		while (i < b->n && !(!m->p[i] && *ifs && strchr(ifs, b->p[i])))
 			i++;
-		xfield(s, b->p + st, m->p + st, i - st, out);
+		xfield(s, b->p + st, m->p + st, i - st, out, outm);
 	}
 }
 
@@ -827,7 +867,7 @@ void xtilde(sh *s, word *w, str *b, str *m)
 }
 
 /* Expand a word into zero or more fields. */
-void xw(sh *s, word *w, vec *out, int fl)
+void xwm(sh *s, word *w, vec *out, int fl, vec *outm)
 {
 	str *b, *m;
 	part *p;
@@ -842,8 +882,8 @@ void xw(sh *s, word *w, vec *out, int fl)
 		int i;
 		if (!p0->arr && p0->t[0] == '@' && !p0->t[1]) {
 			for (i = 0; i < s->ac; i++)
-				v_add(out, ar_dup(s->xa, s->av[i],
-						  strlen(s->av[i])));
+				xoutq(s, out, outm, s->av[i],
+				      strlen(s->av[i]));
 			return;
 		}
 		if (p0->arr && p0->op == V_SUBSTR) {
@@ -867,8 +907,8 @@ void xw(sh *s, word *w, vec *out, int fl)
 				off = 0;
 			len = colon ? ax_run(s, colon + 1) : (long)lst->n - off;
 			for (k2 = off; k2 < off + len && k2 < (long)lst->n; k2++)
-				v_add(out, ar_dup(s->xa, (char *)lst->p[k2],
-						  strlen((char *)lst->p[k2])));
+				xoutq(s, out, outm, (char *)lst->p[k2],
+				      strlen((char *)lst->p[k2]));
 			vb_put(s, lst);
 			return;
 		}
@@ -885,8 +925,8 @@ void xw(sh *s, word *w, vec *out, int fl)
 			lst = vb_get(s);
 			v_list(s, p0->t, ks, nk, lst, p0->op == V_KEYS);
 			for (k = 0; k < lst->n; k++)
-				v_add(out, ar_dup(s->xa, (char *)lst->p[k],
-						  strlen((char *)lst->p[k])));
+				xoutq(s, out, outm, (char *)lst->p[k],
+				      strlen((char *)lst->p[k]));
 			vb_put(s, lst);
 			return;
 		}
@@ -900,14 +940,17 @@ normal:
 		size_t k;
 		int plain = 1;
 		if (p0->q || (fl & HIBR_XONE)) {
-			v_add(out, ar_dup(s->xa, p0->t, p0->n));
+			if (p0->q)
+				xoutq(s, out, outm, p0->t, p0->n);
+			else
+				xout(s, out, outm, p0->t, 0, p0->n);
 			return;
 		}
 		for (k = 0; k < p0->n && plain; k++)
 			if (strchr("*?[~ \t\n", p0->t[k]))
 				plain = 0;
 		if (plain && p0->n && !hibr_get(s, "IFS")) {
-			v_add(out, ar_dup(s->xa, p0->t, p0->n));
+			xout(s, out, outm, p0->t, 0, p0->n);
 			return;
 		}
 	}
@@ -931,18 +974,38 @@ normal:
 				s_ch(q, '\\');
 			s_ch(q, b->p[i]);
 		}
-		v_add(out, ar_dup(s->xa, q->p ? q->p : "", q->n));
+		xout(s, out, outm, q->p ? q->p : "", 0, q->n);
 		sb_put(s, q);
-	} else if (fl & HIBR_XONE)
-		v_add(out, ar_dup(s->xa, b->p ? b->p : "", b->n));
-	else if (!b->n) {
+	} else if (fl & HIBR_XONE) {
+		xout(s, out, outm, b->p ? b->p : "", m->p, b->n);
+	} else if (!b->n) {
 		if (w_hasq(w) || (s->strict && w->p && w->p->k != P_TXT))
-			v_add(out, ar_dup(s->xa, "", 0));
+			xout(s, out, outm, "", 0, 0);
 	} else {
-		xsplit(s, b, m, out);
+		xsplit(s, b, m, out, outm);
 	}
 	sb_put(s, m);
 	sb_put(s, b);
+}
+
+/* Expand a word into one field, reporting which of its bytes were quoted. */
+char *xone_q(sh *s, word *w, char **mask)
+{
+	vec *o, *om;
+	char *r;
+
+	*mask = 0;
+	if (!w)
+		return ar_dup(s->xa, "", 0);
+	o = vb_get(s);
+	om = vb_get(s);
+	xwm(s, w, o, HIBR_XONE, om);
+	r = o->n ? (char *)o->p[0] : ar_dup(s->xa, "", 0);
+	if (om->n == o->n && om->n)
+		*mask = (char *)om->p[0];
+	vb_put(s, om);
+	vb_put(s, o);
+	return r;
 }
 
 /* Copy a word, replacing one text part with new text. */
@@ -1121,25 +1184,51 @@ void br_expand(sh *s, word *w, vec *out)
 }
 
 /* Build a NULL terminated argv from a word list. */
-char **xargv(sh *s, word *w, int *ac)
+char **xargv(sh *s, word *w, int *ac, char ***am)
 {
 	vec *o = vb_get(s);
+	vec *om = 0;
 	vec *bw;
-	char **r;
+	char **r, **q = 0;
 	size_t i;
+	int first = 1;
 
 	for (; w; w = w->nx) {
 		bw = vb_get(s);
 		br_expand(s, w, bw);
 		for (i = 0; i < bw->n; i++)
-			xw(s, (word *)bw->p[i], o, 0);
+			xwm(s, (word *)bw->p[i], o, 0, om);
 		vb_put(s, bw);
+		if (om)
+			xpad(o, om);
+		else if (first && o->n && bi_mask((char *)o->p[0])) {
+			lg(HIBR_LDBG, "%s reads argument quoting, masking",
+			   (char *)o->p[0]);
+			om = vb_get(s);
+			xpad(o, om);
+		}
+		first = 0;
+	}
+	if (om && om->n != o->n) {
+		lg(HIBR_LDBG, "argv mask desync (%lu of %lu), dropping",
+		   (unsigned long)om->n, (unsigned long)o->n);
+		vb_put(s, om);
+		om = 0;
 	}
 	r = ar_alloc(s->xa, (o->n + 1) * sizeof *r);
-	for (i = 0; i < o->n; i++)
+	if (om)
+		q = ar_alloc(s->xa, (o->n + 1) * sizeof *q);
+	for (i = 0; i < o->n; i++) {
 		r[i] = (char *)o->p[i];
+		if (q)
+			q[i] = (char *)om->p[i];
+	}
 	r[o->n] = 0;
 	*ac = (int)o->n;
+	if (am)
+		*am = q;
+	if (om)
+		vb_put(s, om);
 	vb_put(s, o);
 	return r;
 }

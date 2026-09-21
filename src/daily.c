@@ -62,14 +62,24 @@ void al_set(sh *s, const char *k, const char *v)
 /* Quote one argument so it survives being re-parsed. */
 void al_quote(str *o, const char *a)
 {
-	s_ch(o, '\'');
-	for (; *a; a++) {
-		if (*a == '\'')
-			s_cat(o, "'\\''");
-		else
-			s_ch(o, *a);
+	const char *p;
+
+	if (!*a || strchr(a, '\n')) {
+		s_ch(o, '\'');
+		for (p = a; *p; p++) {
+			if (*p == '\'')
+				s_cat(o, "'\\''");
+			else
+				s_ch(o, *p);
+		}
+		s_ch(o, '\'');
+		return;
 	}
-	s_ch(o, '\'');
+	for (p = a; *p; p++) {
+		if (!isalnum((unsigned char)*p) && !strchr("_+-%^=./:,@", *p))
+			s_ch(o, '\\');
+		s_ch(o, *p);
+	}
 }
 
 /* Run an alias body with the original arguments appended. */
@@ -472,8 +482,14 @@ int b_command(sh *s, int ac, char **av)
 	b = m_find(s, av[1]);
 	if (!b)
 		b = bi_find(av[1]);
-	if (b)
-		return b->fn(s, ac - 1, av + 1);
+	if (b) {
+		char **oam = s->amask;
+		int st;
+		s->amask = oam ? oam + 1 : 0;
+		st = b->fn(s, ac - 1, av + 1);
+		s->amask = oam;
+		return st;
+	}
 	path = findx(s, av[1]);
 	if (!path) {
 		lg(HIBR_LERR, "command: %s: not found", av[1]);

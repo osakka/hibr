@@ -79,14 +79,37 @@ node *hibr_parse(sh *s, const char *src, int *more);
 
 long ax_run(sh *s, const char *src);
 long ax_text(sh *s, const char *t);
-void xw(sh *s, word *w, vec *out, int fl);
+void xwm(sh *s, word *w, vec *out, int fl, vec *outm);
+void xoutq(sh *s, vec *out, vec *outm, const char *t, size_t n);
+void xpad(vec *out, vec *outm);
+char *xone_q(sh *s, word *w, char **mask);
+int w_hasq(word *w);
 char *xcap(sh *s, const char *src);
 char *xpat(sh *s, word *w);
 char *xone(sh *s, word *w);
 char *xkey(sh *s, char *t);
+char *xkey_q(sh *s, char *t, const char *mk);
 char *xpsub(sh *s, part *p);
 void xpsub_done(sh *s);
-char **xargv(sh *s, word *w, int *ac);
+char **xargv(sh *s, word *w, int *ac, char ***am);
+
+/* Expand a word into fields, with no interest in which bytes were quoted. */
+#ifndef xw
+#define xw(s_, w_, out_, fl_) xwm((s_), (w_), (out_), (fl_), 0)
+#endif
+
+/* Add one expanded field, keeping the parallel mask vector aligned. */
+#ifndef xout
+#define xout(s_, out_, outm_, t_, mk_, n_) \
+	do { \
+		const char *xo_t = (t_), *xo_m = (mk_); \
+		size_t xo_n = (n_); \
+		vec *xo_v = (outm_); \
+		v_add((out_), ar_dup((s_)->xa, xo_t ? xo_t : "", xo_n)); \
+		if (xo_v) \
+			v_add(xo_v, xo_m ? ar_dup((s_)->xa, xo_m, xo_n) : 0); \
+	} while (0)
+#endif
 int gmatch(const char *p, const char *t);
 
 int ex(sh *s, node *n);
@@ -100,6 +123,7 @@ struct sav { char *k, *v; unsigned ex; };
 
 void asg_keep(sh *s, vec *old, const char *k);
 void asg_pop(sh *s, vec *old);
+int bi_mask(const char *nm);
 int b_local(sh *s, int ac, char **av);
 
 struct signm { const char *nm; int sig; };

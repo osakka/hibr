@@ -578,7 +578,7 @@ void xpsub_done(sh *s)
 }
 
 /* Apply a name=value assignment to the shell variable table. */
-void ex_asg(sh *s, char *kv, int ex_flag)
+void ex_asg(sh *s, char *kv, const char *mask, int ex_flag)
 {
 	char *q = strchr(kv, '=');
 	char *br, *r, *plus = 0;
@@ -615,7 +615,7 @@ void ex_asg(sh *s, char *kv, int ex_flag)
 		if (!end)
 			break;
 		*end = 0;
-		v_add(ks, xkey(s, r));
+		v_add(ks, xkey_q(s, r, mask ? mask + (r - kv) : 0));
 		r = end + 1;
 		if (*r == '[')
 			r++;
@@ -657,8 +657,9 @@ int ex_cmd(sh *s, node *n)
 {
 	amark m = ar_mark(s->xa);
 	vec *asg = vb_get(s);
+	vec *asgm = vb_get(s);
 	vec sv = { 0, 0, 0 };
-	char **av, **env;
+	char **av, **env, **am = 0;
 	char *path;
 	job *jb = 0;
 	node *f;
@@ -668,8 +669,11 @@ int ex_cmd(sh *s, node *n)
 	int ac = 0, st = 0, w2;
 	pid_t pid;
 
-	for (w = n->aw; w; w = w->nx)
-		v_add(asg, xone(s, w));
+	for (w = n->aw; w; w = w->nx) {
+		char *mk = 0;
+		v_add(asg, xone_q(s, w, &mk));
+		v_add(asgm, mk);
+	}
 	for (f = n->x; f; f = f->x) {
 		vec *el = vb_get(s);
 		for (w = f->w; w; w = w->nx)
@@ -702,7 +706,7 @@ int ex_cmd(sh *s, node *n)
 		}
 		vb_put(s, el);
 	}
-	av = xargv(s, n->w, &ac);
+	av = xargv(s, n->w, &ac, &am);
 	if (s->xerr) {
 		s->xerr = 0;
 		st = HIBR_FAIL;
@@ -714,7 +718,8 @@ int ex_cmd(sh *s, node *n)
 	}
 	if (!ac) {
 		for (i = 0; i < asg->n; i++)
-			ex_asg(s, (char *)asg->p[i], 0);
+			ex_asg(s, (char *)asg->p[i],
+			       i < asgm->n ? (const char *)asgm->p[i] : 0, 0);
 		if (n->rd && rd_do(s, n->rd, &sv) == HIBR_OK)
 			rd_undo(&sv);
 		else if (n->rd)
@@ -754,9 +759,16 @@ int ex_cmd(sh *s, node *n)
 	if (f || b) {
 		vec old = { 0, 0, 0 };
 		asg_push(s, asg, &old);
-		if (rd_do(s, n->rd, &sv) == HIBR_OK)
-			st = f ? fn_call(s, f, ac, av) : b->fn(s, ac, av);
-		else
+		if (rd_do(s, n->rd, &sv) == HIBR_OK) {
+			if (f) {
+				st = fn_call(s, f, ac, av);
+			} else {
+				char **oam = s->amask;
+				s->amask = am;
+				st = b->fn(s, ac, av);
+				s->amask = oam;
+			}
+		} else
 			st = HIBR_FAIL;
 		rd_undo(&sv);
 		asg_pop(s, &old);
@@ -819,6 +831,7 @@ out:
 		s->bind = 0;
 	}
 	vb_put(s, asg);
+	vb_put(s, asgm);
 	if (s->psub.n)
 		xpsub_done(s);
 	ar_rel(s->xa, m);

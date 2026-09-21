@@ -61,6 +61,16 @@ is "${h[x][y][z]}" "deep" "nested autovivify"
 is "${!h[x][*]}" "y" "nested keys"
 cfg=([host]=srv [port]=80)
 is "${cfg[host]}:${cfg[port]}" "srv:80" "map literal"
+hd["content-type"]=app/json
+is "${!hd[*]}" "content-type" "quoted subscript is literal"
+is "${hd["content-type"]}" "app/json" "quoted subscript reads back"
+ct=content-type
+hv["$ct"]=json
+is "${!hv[*]}" "content-type" "expanded quoted subscript"
+unset hv["$ct"]
+is "${!hv[*]}" "" "unset honours a quoted subscript"
+ar=(p q r)
+is "${ar[1+1]}" "r" "unquoted subscript stays arithmetic"
 
 section "functions"
 fn add(int p, int q) -> int { ret $((p + q)); }

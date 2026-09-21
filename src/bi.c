@@ -174,6 +174,12 @@ int b_exp(sh *s, int ac, char **av)
 	return HIBR_OK;
 }
 
+/* True for a builtin that reads the quote mask of its own arguments. */
+int bi_mask(const char *nm)
+{
+	return !strcmp(nm, "unset") || !strcmp(nm, "command");
+}
+
 /* Remove variables or functions. */
 int b_unset(sh *s, int ac, char **av)
 {
@@ -185,6 +191,7 @@ int b_unset(sh *s, int ac, char **av)
 		char *br = strchr(av[i], '[');
 		if (br) {
 			vec *ks = vb_get(s);
+			const char *mk = s->amask ? s->amask[i] : 0;
 			char *r;
 			*br = 0;
 			for (r = br + 1; r && *r;) {
@@ -192,7 +199,7 @@ int b_unset(sh *s, int ac, char **av)
 				if (!end)
 					break;
 				*end = 0;
-				v_add(ks, xkey(s, r));
+				v_add(ks, xkey_q(s, r, mk ? mk + (r - av[i]) : 0));
 				r = end + 1;
 				if (*r == '[')
 					r++;

@@ -9,12 +9,15 @@
 ## The ABI
 
 `HIBR_ABI` in `hibr.h` is checked when a module loads; a mismatch is refused
-rather than risked. It is currently **3**.
+rather than risked. It is currently **4**.
 
 Changing any public type, the meaning of any public function, or the name of
-any exported symbol means bumping it. The last bump was the rename from `nsh`
-to `hibr`, which changed every exported symbol —
-[0015](../docs/adr/0015-the-name-is-hibr.md).
+any exported symbol means bumping it. The last bump added `amask` to `sh`, the
+quote mask for the current builtin's arguments —
+[0006](../docs/adr/0006-arrays-are-sparse-maps.md). Appending to `sh` leaves
+every existing offset alone, so an old module would still run, but a module
+built against the new header and loaded by an old shell would read past the
+struct; the check is what makes that impossible.
 
 Public macros are guarded with `#ifndef` so a module can override one without
 having to undefine it first.
