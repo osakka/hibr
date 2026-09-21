@@ -45,16 +45,24 @@ then a check that the ids took and that `setuid(0)` fails. It refuses unless
 the effective uid is 0, and if it fails once anything has changed it ends the
 shell rather than continue half dropped.
 
-The pattern it is for, since `listen -f` forks before running its handler:
+Two patterns. `listen -b` binds without serving, so nothing stays root:
 
 ```
 mod load sys
+listen -b 80 LFD
+drop www-data
+while accept $LFD C; do serve <&$C >&$C; exec {C}<&-; done
+```
+
+Or `listen -f`, which forks before running its handler, so the handler drops
+and the accepting parent stays root — the inetd arrangement:
+
+```
 serve() { drop www-data; ... }
 listen -f 80 serve
 ```
 
-Root binds the port, each connection is served unprivileged. The accepting
-parent stays root — see [0016](../docs/adr/0016-privileges-are-dropped-never-gained.md).
+See [0016](../docs/adr/0016-privileges-are-dropped-never-gained.md).
 
 ## prompt/
 

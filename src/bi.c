@@ -836,7 +836,7 @@ const hibr_bi bitab[] = {
 	{ "json", b_json, "parse, query and emit JSON" },
 	{ "kill", b_kill, "signal a job or process" },
 	{ "let", b_let, "evaluate arithmetic expressions" },
-	{ "listen", b_listen, "serve connections with a handler" },
+	{ "listen", b_listen, "serve connections, or -b to only bind" },
 	{ "local", b_local, "declare function local variables" },
 	{ "match", b_match, "match a regex and peel out the groups" },
 	{ "mod", b_mod, "load, drop or list modules" },

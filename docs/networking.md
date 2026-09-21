@@ -11,11 +11,26 @@ send [-n|-r] $sock text…    # -r ends with CRLF
 recv [-a|-n bytes] $sock v  # one line by default
 accept $listenfd conn       # sets $conn and $REMOTE
 listen [-f] [-n count] port handler
+listen -b port [var]        # bind only; sets $var (default FD) and $RET
 ```
 
 `listen` calls the handler once per connection with the socket as its standard
 input and output, inside the shell, so the handler can use your functions and
 variables; `-f` forks per connection instead.
+
+`-b` binds and returns instead of serving, which is what lets a daemon stop
+being root. Only opening the port needs privilege, so bind first, give it up,
+and then serve — the descriptor outlives the privilege that opened it:
+
+```
+mod load sys
+listen -b 80 LFD
+drop www-data
+while accept $LFD C; do serve <&$C >&$C; exec {C}<&-; done
+```
+
+`drop user[:group]` comes from the `sys` module and gives up root for good —
+see [0016](adr/0016-privileges-are-dropped-never-gained.md).
 
 An HTTPS request, parsed, with no external tools:
 

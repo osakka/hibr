@@ -1,0 +1,12 @@
+0
+hibr: usage: listen -b port [var]
+hibr: listen: -b only binds, so -f and -n mean nothing
+hibr: listen: -b only binds, so -f and -n mean nothing
+no port: 2
+with -f: 2
+with -n: 2
+bound: 0
+fd is out of the way: 1
+result slot matches: 1
+client got: echo:through a bound socket
+server done

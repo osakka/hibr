@@ -244,10 +244,6 @@ current — this table is a summary, not the source of truth.
 - `export`, `read` and `[[ -v ]]` do not parse a subscript at all, quoted or
   not — `export e[k]=v` is silently inert. The argv quote mask (`sh.amask`) is
   already there for whichever of them should grow one; see `docs/adr/0006`.
-- `listen` binds and then loops, so a daemon cannot bind as root, drop, and
-  then accept — only `listen -f` handlers can drop, leaving the parent root.
-  A bind that returns the descriptor would feed the existing `accept` builtin
-  and make the parent unprivileged too; see `docs/adr/0016`.
 - No right-hand or transient prompt; both need `ed_draw` work.
 - Prompt status divergences from git, all deliberate: renames are matched only
   on identical content, submodule working trees are not inspected, and `**` in

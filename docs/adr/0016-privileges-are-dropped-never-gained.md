@@ -31,16 +31,25 @@ an informed choice.
 
 ## Consequences
 
-The daemon shape is expressible today with `listen -f`, which forks before
-running the handler: the handler begins with `drop`, so connections are served
-unprivileged, while the accepting parent stays root. That is the inetd
-arrangement, and its limit is the same one inetd has — the parent is still root.
+There are two daemon shapes, and both work.
 
-A cleaner arrangement, where the parent drops immediately after binding and
-keeps only the socket, is not expressible: `net_bind` is reached only from
-`b_listen`, which binds and then loops, so there is no seam between the two.
-Adding one — a bind that returns the descriptor for the existing `accept`
-builtin — would make the parent unprivileged too. It is not done here.
+`listen -f` forks before running its handler, so the handler can begin with
+`drop`: connections are served unprivileged while the accepting parent stays
+root. That is the inetd arrangement, with the same limit inetd has.
+
+`listen -b port [var]` binds without serving and hands back the descriptor, so
+nothing has to stay root at all:
+
+```
+listen -b 80 LFD
+drop www-data
+while accept $LFD C; do serve <&$C >&$C; exec {C}<&-; done
+```
+
+The socket outlives the privilege that opened it, which is the whole point —
+the port was the only thing root was needed for. `net_bind` already returned a
+descriptor above 9, so a redirection cannot tread on it, and `accept` already
+took a listening descriptor; the seam was the only missing piece.
 
 Not being setuid costs nothing, because the alternative never worked. Linux,
 like most Unixes, ignores the setuid bit on `#!` scripts entirely (`execve(2)`

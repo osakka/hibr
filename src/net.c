@@ -552,14 +552,16 @@ int b_listen(sh *s, int ac, char **av)
 {
 	struct sockaddr_storage ss;
 	socklen_t sl;
-	int i = 1, forky = 0, udp = 0, lim = 0, lfd, cfd, served = 0;
+	int i = 1, forky = 0, udp = 0, lim = 0, bnd = 0, lfd, cfd, served = 0;
 	int o0, o1;
 	char *peer;
 	str cmd;
 	pid_t pid;
 
 	for (; i < ac && av[i][0] == '-' && av[i][1]; i++) {
-		if (!strcmp(av[i], "-f"))
+		if (!strcmp(av[i], "-b"))
+			bnd = 1;
+		else if (!strcmp(av[i], "-f"))
 			forky = 1;
 		else if (!strcmp(av[i], "-u"))
 			udp = 1;
@@ -570,13 +572,24 @@ int b_listen(sh *s, int ac, char **av)
 			return 2;
 		}
 	}
-	if (ac - i < 2) {
-		lg(HIBR_LERR, "usage: listen [-f] [-n count] port handler");
+	if (bnd && (forky || lim)) {
+		lg(HIBR_LERR, "listen: -b only binds, so -f and -n mean nothing");
+		return 2;
+	}
+	if (ac - i < (bnd ? 1 : 2)) {
+		lg(HIBR_LERR, bnd ? "usage: listen -b port [var]"
+				  : "usage: listen [-f] [-n count] port handler");
 		return 2;
 	}
 	lfd = net_bind(av[i], udp);
 	if (lfd < 0)
 		return HIBR_FAIL;
+	if (bnd) {
+		lg(HIBR_LINF, "bound port %s as fd %d, not serving", av[i],
+		   lfd);
+		net_slot(s, ac - i > 1 ? av[i + 1] : "FD", lfd);
+		return HIBR_OK;
+	}
 	lg(HIBR_LINF, "serving port %s with %s", av[i], av[i + 1]);
 	for (;;) {
 		sl = sizeof ss;
