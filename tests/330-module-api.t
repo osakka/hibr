@@ -9,7 +9,7 @@ fn serve(peer) {
 port=$(( 19600 + $$ % 300 ))
 listen -n 2 $port serve &
 sleep 0.3
-mod load ./mods/http.so
+mod load ./build/mods/http.so
 cat </dev/http/127.0.0.1/$port/hello
 echo "--- as lines:"
 while read l; do echo "[$l]"; done </dev/http/127.0.0.1/$port/second
@@ -18,7 +18,7 @@ mod drop http
 cat 2>/dev/null </dev/http/127.0.0.1/$port/x | head -1; echo "after drop: $?"
 echo "--- map API:"
 scores=([a]=10 [b]=20 [c]=12)
-mod load ./mods/http.so
+mod load ./build/mods/http.so
 msum scores; echo "slot=$RET"
 try oops "module says no"
 echo "err=$ERR msg=[$ERRMSG]"

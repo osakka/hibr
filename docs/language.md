@@ -78,7 +78,13 @@ echo "${a[@]:1:2}"                  # slices
 A subscript made only of digits is a literal key; one containing an operator is
 evaluated arithmetically, so `${a[i+1]}` works; a bare name is used for its
 value when that value is a number and taken literally otherwise, so
-`${cfg[host]}` means the key `host`. `"${a[@]}"` gives one field per entry;
+`${cfg[host]}` means the key `host`.
+
+One trap follows from that rule: a hyphen is an operator, so
+`head[content-type]` is read as `content - type` and lands on the key `0`,
+silently and in both directions. Fold hyphens to underscores before using
+text as a key, or reach the value with `json get`. See
+[decision 0006](adr/0006-arrays-are-sparse-maps.md). `"${a[@]}"` gives one field per entry;
 `"${a[*]}"` joins them.
 
 ## Functions with real signatures

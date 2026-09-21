@@ -2,9 +2,9 @@
 
 ```
 make check                                 # tests/run.sh: 43 test scripts
-./hibr tests/self.hibr                       # 84 assertions written in hibr
-NSH=./hibr REF=dash tests/run.sh            # compare with another shell
-python3 tests/fuzz.py ./hibr.asan 500       # mutation fuzzing of the parser
+./build/hibr tests/self.hibr                       # 84 assertions written in hibr
+HIBR=./build/hibr REF=dash tests/run.sh            # compare with another shell
+python3 tests/fuzz.py ./build/hibr.asan 500       # mutation fuzzing of the parser
 ```
 
 Each `tests/*.t` is a script. When a matching `.expected` file exists, the test
@@ -21,8 +21,8 @@ The whole suite runs clean under AddressSanitizer and UndefinedBehaviorSanitizer
 
 ```
 gcc -Iinclude -DHIBR_TLS -g -O1 -fsanitize=address,undefined -w -rdynamic \
-    -o hibr.asan src/*.c -ldl
-ASAN_OPTIONS=detect_leaks=0 NSH=./hibr.asan tests/run.sh
+    -o build/hibr.asan src/*.c -ldl
+ASAN_OPTIONS=detect_leaks=0 HIBR=./build/hibr.asan tests/run.sh
 ```
 
 `tests/fuzz.py` mutates the test scripts — byte flips, deletions, inserted

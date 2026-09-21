@@ -56,7 +56,7 @@ def make_delta(base, result):
     return d
 
 out = []
-out.append("mod load ./mods/prompt.so")
+out.append("mod load ./build/mods/prompt.so")
 out.append('d=/tmp/nsh-obj-$$')
 out.append('rm -rf "$d"')
 out.append('mkdir -p "$d/repo/.git/objects/pack" "$d/repo/.git/refs/heads"')

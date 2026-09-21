@@ -2,8 +2,8 @@
 
 ```
 tests/run.sh [-v] [prefix]              # 43 test scripts
-./hibr tests/self.hibr                # 84 assertions, written in hibr
-MIDAD=./hibr REF=dash tests/run.sh     # compare against another shell
+./build/hibr tests/self.hibr                # 84 assertions, written in hibr
+HIBR=./build/hibr REF=dash tests/run.sh     # compare against another shell
 ```
 
 Every `tests/*.t` is a script. How it is judged depends on whether a matching
@@ -50,22 +50,22 @@ arguments, and the assertion silently never runs.
 
 ```
 gcc -Iinclude -DHIBR_TLS -g -O1 -fsanitize=address,undefined \
-    -fno-sanitize-recover=undefined -w -rdynamic -o hibr.asan src/*.c -ldl
-ASAN_OPTIONS=detect_leaks=0 MIDAD=./hibr.asan tests/run.sh
-ASAN_OPTIONS=detect_leaks=1 ./hibr.asan tests/<one>.t
-SEED=7 python3 fuzz.py ./hibr.asan 500
+    -fno-sanitize-recover=undefined -w -rdynamic -o build/hibr.asan src/*.c -ldl
+ASAN_OPTIONS=detect_leaks=0 HIBR=./build/hibr.asan tests/run.sh
+ASAN_OPTIONS=detect_leaks=1 ./build/hibr.asan tests/<one>.t
+SEED=7 python3 fuzz.py ./build/hibr.asan 500
 ```
 
 On a kernel with high ASLR entropy the sanitizer build loops printing
 `AddressSanitizer:DEADLYSIGNAL` instead of running. Wrap it in `setarch -R` and
-point `MIDAD` at the wrapper.
+point `HIBR` at the wrapper.
 
 The prompt module is compiled separately, so sanitizing the shell does not
 sanitize it. To cover it, build it with the same flags and load that copy:
 
 ```
 gcc -Iinclude -g -O1 -fsanitize=address,undefined -w -shared -fPIC \
-    -o prompt-asan.so mods/prompt/*.c
+    -o build/prompt-asan.so mods/prompt/*.c
 ```
 
 More in [the testing documentation](../docs/testing.md).

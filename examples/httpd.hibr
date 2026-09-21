@@ -1,0 +1,116 @@
+#!/usr/bin/env hibr
+# A static web server.
+#
+# Nothing forks. The request is parsed with regex into maps, the file is read
+# through a redirection with `recv -a`, and the response is written straight
+# to the socket. `listen` runs the handler inside this shell, so the handler
+# sees every function and variable declared here.
+
+opt .  "Serve a directory over HTTP"
+opt -p --port   port   int=8080        "Port to listen on"
+opt -d --root   root   path=.          "Directory to serve"
+opt -i --index  index  str=index.html  "File to serve for a directory"
+opt -n --count  count  int=0           "Stop after this many requests"
+opt -q --quiet  quiet                  "Do not log requests"
+opt -f --fork   forky                  "One process per connection"
+args "$@"
+
+mime[html]=text/html
+mime[htm]=text/html
+mime[css]=text/css
+mime[js]=application/javascript
+mime[json]=application/json
+mime[svg]=image/svg+xml
+mime[xml]=application/xml
+mime[txt]=text/plain
+mime[md]=text/plain
+
+fn note(str line) {
+  [ "$quiet" = 1 ] && ret
+  echo "$line" >&2
+}
+
+fn ctype(str path) -> str {
+  ext=""
+  match "$path" '\.([A-Za-z0-9]+)$' E && str lower "${E[1]}" ext
+  ret "${mime[$ext]:-application/octet-stream}"
+}
+
+fn reply(int code, str status, str type, str body) {
+  str len "$body" n
+  send -r 1 "HTTP/1.1 $code $status"
+  send -r 1 "Server: hibr"
+  send -r 1 "Content-Type: $type"
+  send -r 1 "Content-Length: $n"
+  send -r 1 "Connection: close"
+  send -r 1 ""
+  [ "$method" = HEAD ] || send -n 1 "$body"
+}
+
+fn fail_with(int code, str status, str what) {
+  reply "$code" "$status" text/html \
+    "<!doctype html><title>$code $status</title><h1>$code $status</h1><p>$what</p>"
+  note "$REMOTE $method $target -> $code"
+}
+
+fn serve(peer) {
+  method=""; target=""
+
+  recv 0 line || ret
+  match "$line" '^([A-Z]+) ([^ ]+) HTTP/[0-9.]+' R || {
+    method="?"; target="?"
+    fail_with 400 "Bad Request" "the request line could not be parsed"
+    ret
+  }
+  method=${R[1]}
+  target=${R[2]}
+
+  # Headers into a map, lower-cased, until the blank line.
+  unset head
+  while recv 0 h; do
+    str trim "$h" h
+    [ -z "$h" ] && break
+    match "$h" '^([^:]+): *(.*)$' H || continue
+    str lower "${H[1]}" k
+    # A subscript containing an operator is evaluated arithmetically, so a
+    # header name like content-type would be read as subtraction.
+    str replace "$k" "-" "_" k
+    head[$k]=${H[2]}
+  done
+
+  case "$method" in
+  GET | HEAD) ;;
+  *) fail_with 405 "Method Not Allowed" "only GET and HEAD are served"; ret ;;
+  esac
+
+  path=${target%%\?*}
+  case "$path" in
+  */../* | */.. | *//*) fail_with 403 "Forbidden" "that path walks upwards"; ret ;;
+  /*) ;;
+  *) fail_with 400 "Bad Request" "the path must be absolute"; ret ;;
+  esac
+
+  file="$root$path"
+  [ -d "$file" ] && file="${file%/}/$index"
+  if [ ! -f "$file" ] || [ ! -r "$file" ]; then
+    fail_with 404 "Not Found" "no such file: $path"
+    ret
+  fi
+
+  # Read the file without forking: open it on a descriptor and drain it.
+  exec 3<"$file"
+  recv -a 3 body
+  exec 3<&-
+
+  t := ctype "$file"
+  reply 200 OK "$t" "$body"
+  str len "$body" n
+  note "$REMOTE $method $path -> 200 $t ${n}B"
+}
+
+note "hibr httpd: serving $root on port $port"
+if [ "$forky" = 1 ]; then
+  listen -f -n "$count" "$port" serve
+else
+  listen -n "$count" "$port" serve
+fi

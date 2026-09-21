@@ -8,7 +8,7 @@ opt -j --json  json          "Emit the summary as JSON"
 args "$@"
 
 # 1. Load the module, and fail cleanly if it is not there.
-try mod load ./mods/ls.so
+try mod load ./build/mods/ls.so
 if [ "$ERR" -ne 0 ]; then
   fail "the ls module is not built; run make first"
   exit 1

@@ -1,4 +1,4 @@
-mod load ./mods/prompt.so
+mod load ./build/mods/prompt.so
 d=/tmp/nsh-obj-$$
 rm -rf "$d"
 mkdir -p "$d/repo/.git/objects/pack" "$d/repo/.git/refs/heads"

@@ -1,0 +1,91 @@
+#!/usr/bin/env hibr
+# Fetch a URL and, when it is JSON, query it — without curl, without jq.
+#
+# The socket is opened with a redirection, so http and https differ only in
+# which /dev path is used. TLS verifies certificates by default; libssl is
+# loaded on the first TLS connection and never before.
+
+opt .  "Fetch a URL over HTTP or HTTPS"
+opt -q --query    query   str    "A jq-style path into the JSON body, e.g. .items[0].name"
+opt -H --header   headers str+   "An extra request header, repeatable"
+opt -i --headers  showhdr        "Print the response headers"
+opt -s --status   onlystatus     "Print only the status code"
+opt -p --pretty   pretty         "Indent JSON output"
+args "$@"
+
+url=${ARGS[0]}
+[ -n "$url" ] || fail "usage: fetch.hibr [options] URL"
+
+match "$url" '^(https?)://([^/:]+)(:([0-9]+))?(/.*)?$' U ||
+  fail "not a URL I understand: $url"
+
+scheme=${U[1]}
+host=${U[2]}
+port=${U[4]}
+path=${U[5]:-/}
+
+if [ "$scheme" = https ]; then
+  dev=tls
+  [ -n "$port" ] || port=443
+else
+  dev=tcp
+  [ -n "$port" ] || port=80
+fi
+
+exec 3<>/dev/$dev/$host/$port || fail "cannot reach $host:$port over $scheme"
+
+send -r 3 "GET $path HTTP/1.0"
+send -r 3 "Host: $host"
+send -r 3 "User-Agent: hibr-fetch"
+send -r 3 "Accept: */*"
+for h in "${headers[@]}"; do send -r 3 "$h"; done
+send -r 3 ""
+
+recv 3 status
+match "$status" '^HTTP/[0-9.]+ ([0-9]{3})' S || fail "no status line in the reply"
+code=${S[1]}
+
+unset head
+while recv 3 h; do
+  str trim "$h" h
+  [ -z "$h" ] && break
+  match "$h" '^([^:]+): *(.*)$' H || continue
+  str lower "${H[1]}" k
+  # A subscript containing an operator is evaluated arithmetically, so the key
+  # content-type would be read as subtraction. Fold hyphens to underscores.
+  str replace "$k" "-" "_" k
+  head[$k]=${H[2]}
+done
+
+recv -a 3 body
+exec 3<&-
+
+if [ "$onlystatus" = 1 ]; then
+  echo "$code"
+  exit 0
+fi
+
+if [ "$showhdr" = 1 ]; then
+  echo "$status"
+  for k in "${!head[@]}"; do echo "$k: ${head[$k]}"; done
+  echo
+fi
+
+case "${head[content_type]}" in
+*json*)
+  json parse doc "$body" || fail "the body claimed to be JSON but did not parse"
+  if [ -n "$query" ]; then
+    json get doc "$query"
+  elif [ "$pretty" = 1 ]; then
+    json emit doc -p
+  else
+    json emit doc
+  fi
+  ;;
+*)
+  [ -n "$query" ] && fail "--query needs a JSON response, got ${head[content_type]:-no content type}"
+  printf '%s' "$body"
+  ;;
+esac
+
+[ "$code" -lt 400 ] || exit 1

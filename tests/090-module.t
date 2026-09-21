@@ -1,4 +1,4 @@
-mod load ./mods/sys.so
+mod load ./build/mods/sys.so
 mod list
 upper module builtins work
 echo "SYS_MOD=$SYS_MOD"

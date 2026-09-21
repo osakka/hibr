@@ -1,1 +1,1 @@
-exec ./hibr tests/self.hibr
+exec ./build/hibr tests/self.hibr

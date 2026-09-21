@@ -1,4 +1,4 @@
-mod load ./mods/prompt.so
+mod load ./build/mods/prompt.so
 d=/tmp/nsh-stat-$$
 rm -rf "$d"
 mkdir -p "$d/r/.git/refs/heads" "$d/r/.git/refs/remotes/origin"

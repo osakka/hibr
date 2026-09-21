@@ -8,7 +8,7 @@ here=$(cd "$(dirname "$0")" && pwd)
 root=$(dirname "$here")
 cd "$root" || exit 1
 
-NSH=${NSH:-./hibr}
+HIBR=${HIBR:-./build/hibr}
 REF=${REF:-bash}
 verbose=0
 filter=
@@ -18,7 +18,7 @@ for a in "$@"; do
 	-v) verbose=1 ;;
 	-h|--help)
 		echo "usage: tests/run.sh [-v] [name-prefix]"
-		echo "  NSH=path   shell under test   (default ./hibr)"
+		echo "  HIBR=path   shell under test   (default ./build/hibr)"
 		echo "  REF=path   reference shell    (default bash)"
 		exit 0
 		;;
@@ -26,8 +26,8 @@ for a in "$@"; do
 	esac
 done
 
-if [ ! -x "$NSH" ]; then
-	echo "no shell at $NSH -- run make first" >&2
+if [ ! -x "$HIBR" ]; then
+	echo "no shell at $HIBR -- run make first" >&2
 	exit 1
 fi
 
@@ -46,7 +46,7 @@ for t in "$here"/*.t; do
 	fi
 	exp="$here/$name.expected"
 	if [ -f "$exp" ]; then
-		got=$("$NSH" "$t" 2>&1)
+		got=$("$HIBR" "$t" 2>&1)
 		grc=$?
 		want=$(sed -n '2,$p' "$exp")
 		wrc=$(sed -n '1p' "$exp")
@@ -57,7 +57,7 @@ for t in "$here"/*.t; do
 			printf 'SKIP %s (no %s)\n' "$name" "$REF"
 			continue
 		fi
-		got=$("$NSH" "$t" 2>/dev/null)
+		got=$("$HIBR" "$t" 2>/dev/null)
 		grc=$?
 		want=$("$REF" "$t" 2>/dev/null)
 		wrc=$?

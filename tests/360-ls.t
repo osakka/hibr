@@ -1,4 +1,4 @@
-mod load ./mods/ls.so
+mod load ./build/mods/ls.so
 d=/tmp/hibr-ls-test
 rm -rf $d; mkdir -p $d/sub; printf 'x' > $d/small; printf '%02000d' 0 > $d/big
 touch $d/.hidden; ln -s small $d/link; chmod 755 $d/big

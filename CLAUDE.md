@@ -21,27 +21,27 @@ Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 3).
 
 ## Build and test
 
-    make                 # tcc; builds ./hibr and mods/*.so
+    make                 # tcc; builds ./build/hibr and mods/*.so
     make TLS=0           # compile TLS out entirely
     make check           # = tests/run.sh
     make install         # PREFIX=/usr/local, modules to $(PREFIX)/lib/hibr
-    ./hibr -n script      # parse only
+    ./build/hibr -n script      # parse only
 
     tests/run.sh [-v] [prefix]           # C-side harness, 43 tests
-    ./hibr tests/self.hibr                 # suite written in hibr, 84 assertions
-    NSH=./hibr REF=dash tests/run.sh      # compare against another shell
+    ./build/hibr tests/self.hibr                 # suite written in hibr, 84 assertions
+    HIBR=./build/hibr REF=dash tests/run.sh      # compare against another shell
 
 Sanitizers — run both before calling anything done:
 
     gcc -Iinclude -DHIBR_TLS -g -O1 -fsanitize=address,undefined \
-        -fno-sanitize-recover=undefined -w -rdynamic -o hibr.asan src/*.c -ldl
-    ASAN_OPTIONS=detect_leaks=0 NSH=./hibr.asan tests/run.sh
-    ASAN_OPTIONS=detect_leaks=1 ./hibr.asan tests/<one>.t    # leak check
-    SEED=7 python3 tests/fuzz.py ./hibr.asan 500             # parser fuzzing
+        -fno-sanitize-recover=undefined -w -rdynamic -o build/hibr.asan src/*.c -ldl
+    ASAN_OPTIONS=detect_leaks=0 HIBR=./build/hibr.asan tests/run.sh
+    ASAN_OPTIONS=detect_leaks=1 ./build/hibr.asan tests/<one>.t    # leak check
+    SEED=7 python3 tests/fuzz.py ./build/hibr.asan 500             # parser fuzzing
 
 On a kernel with high ASLR entropy the sanitizer build loops printing
 `AddressSanitizer:DEADLYSIGNAL` instead of running a single command. Disable
-randomisation for it — wrap the binary in `setarch -R` and point `NSH` at the
+randomisation for it — wrap the binary in `setarch -R` and point `HIBR` at the
 wrapper script.
 
 Dependencies: libc and libdl only. libssl is `dlopen`ed on first TLS use, never
@@ -207,6 +207,11 @@ current — this table is a summary, not the source of truth.
 - Decide whether `set -S` should become the default after that.
 - Possibly: `declare`/`typeset`, `shopt`, `set -o` by name, coprocesses, anchored
   `${x/#…}` / `${x/%…}`, a `plan N` count in `self.hibr`.
+- **Decide what a quoted subscript means.** `head[content-type]` is read as
+  subtraction and lands on key `0`, silently, and quoting does not currently
+  help because subscripts are evaluated after expansion. `json parse` can
+  therefore create keys no subscript can address. Found by the first real
+  script written against the shell — see `docs/adr/0006`.
 - No right-hand or transient prompt; both need `ed_draw` work.
 - Prompt status divergences from git, all deliberate: renames are matched only
   on identical content, submodule working trees are not inspected, and `**` in

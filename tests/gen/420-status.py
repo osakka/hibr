@@ -66,7 +66,7 @@ c2 = commit(t_ab, [c1], "two", 1700000100)
 c3 = commit(t_ab, [c2], "three", 1700000200)
 r1 = commit(t_ab, [c1], "remote one", 1700000050)
 
-out.append("mod load ./mods/prompt.so")
+out.append("mod load ./build/mods/prompt.so")
 out.append('d=/tmp/nsh-stat-$$')
 out.append('rm -rf "$d"')
 out.append('mkdir -p "$d/r/.git/refs/heads" "$d/r/.git/refs/remotes/origin"')

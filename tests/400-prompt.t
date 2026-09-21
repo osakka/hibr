@@ -1,4 +1,4 @@
-mod load ./mods/prompt.so
+mod load ./build/mods/prompt.so
 root=$(pwd)
 
 fn show() {

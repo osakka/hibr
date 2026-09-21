@@ -1,6 +1,5 @@
 # build outputs
-/hibr
-/hibr.*
+/build/
 *.o
 *.so
 *.a
@@ -23,4 +22,3 @@ tests/fuzz-hang-*
 
 # local history for manual testing
 .hibr_history
-.moddir

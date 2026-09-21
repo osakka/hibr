@@ -13,8 +13,8 @@ HIBR_MODULE("hello", "1.0", "greeting builtins", hello_bi, 0, 0);
 ```
 
 ```
-tcc -Iinclude -shared -o mods/hello.so mods/hello.c
-mod load ./mods/hello.so;  mod list;  mod drop hello
+tcc -Iinclude -shared -o build/mods/hello.so mods/hello.c
+mod load ./build/mods/hello.so;  mod list;  mod drop hello
 ```
 
 A module can reach everything the language can:

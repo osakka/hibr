@@ -20,16 +20,16 @@ that reads git's object store without forking anything — is the reason to use
 it.
 
 ```
-make                 # builds ./hibr and the modules in mods/
+make                 # builds ./build/hibr and the modules in mods/
 make check           # runs the test suite
 ./deploy.sh          # build, test, install, verify, keep current
 make TLS=0           # build without TLS support
 
-./hibr script.sh args...
-./hibr -c 'echo $((6 * 7))'
-./hibr -n script.sh   # parse only: report syntax errors, run nothing
-./hibr -d 3           # log level: 0 error, 1 warn, 2 info, 3 debug, 4 trace
-./hibr --help | --version
+./build/hibr script.sh args...
+./build/hibr -c 'echo $((6 * 7))'
+./build/hibr -n script.sh   # parse only: report syntax errors, run nothing
+./build/hibr -d 3           # log level: 0 error, 1 warn, 2 info, 3 debug, 4 trace
+./build/hibr --help | --version
 ```
 
 ## Measurements
