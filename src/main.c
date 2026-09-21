@@ -274,6 +274,9 @@ int main(int ac, char **av)
 		b.n = 0;
 		s_num(&b, (long)geteuid());
 		hibr_set(&s, "EUID", b.p, 0);
+		b.n = 0;
+		s_num(&b, (long)HIBR_ABI);
+		hibr_set(&s, "HIBR_ABI", b.p, 0);
 		s_free(&b);
 		if (!hibr_get(&s, "HOSTNAME") && gethostname(hn, 255) == 0) {
 			hn[255] = 0;

@@ -19,6 +19,14 @@ every existing offset alone, so an old module would still run, but a module
 built against the new header and loaded by an old shell would read past the
 struct; the check is what makes that impossible.
 
+A running shell reports the same number in `$HIBR_ABI`, so a script can check
+before it loads a module rather than after:
+
+```
+[ "${HIBR_ABI:-0}" = 4 ] || { echo "this module wants ABI 4" >&2; exit 1; }
+mod load mine
+```
+
 Public macros are guarded with `#ifndef` so a module can override one without
 having to undefine it first.
 

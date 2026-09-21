@@ -51,6 +51,9 @@ is "$(echo nested $(echo deep))" "nested deep" "nested substitution"
 vok=no
 match "$HIBR_VERSION" "^[0-9]+\.[0-9]+" && vok=yes
 is "$vok" "yes" "HIBR_VERSION names a version"
+aok=no
+match "$HIBR_ABI" "^[0-9]+$" && aok=yes
+is "$aok" "yes" "HIBR_ABI names an ABI"
 
 section "maps and arrays"
 a=(one two three)

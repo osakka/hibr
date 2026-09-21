@@ -15,7 +15,7 @@ directories, and brace expansion — `{a,b}`, `{1..9}`, `{01..12}`, `{a..e}`,
 `{1..9..2}`, nested and multiplied.
 
 **Special variables.** `$@ $* $# $? $$ $! $0–$9 $RANDOM $SECONDS $PPID $UID
-$EUID $HOSTNAME $HIBR_VERSION`, plus `$RET`, `$ERRMSG`, `$ERR`, `$ERRSTATUS`,
+$EUID $HOSTNAME $HIBR_VERSION $HIBR_ABI`, plus `$RET`, `$ERRMSG`, `$ERR`, `$ERRSTATUS`,
 `$REMOTE` and `$M`. `$$` is fixed at startup, so it is the same inside every
 subshell. `$HIBR_VERSION` holds the version and nothing else does, so it is
 the way to ask which shell is running. It is set at startup over anything
@@ -23,6 +23,9 @@ inherited, so a planted `HIBR_VERSION` in the environment cannot claim a shell
 is hibr when it is not, and it is not exported, so a child shell does not
 inherit a stale answer either. `$SHELL` cannot answer that question at all —
 it is the login shell out of `/etc/passwd`, and no shell sets it.
+`$HIBR_ABI` is the module ABI the shell was built with, so a script can tell
+whether a module it carries will be accepted before it tries to load it; both
+are set the same way and carry the same guarantees.
 
 **Redirection.** `<  >  >>  <>  n>&m  n<&m  &>  &>>  >|` (with `set -C`
 noclobber), here-documents `<<` and `<<-`, here-strings `<<<`, named
