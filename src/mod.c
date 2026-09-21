@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 struct mod {
 	void *h;
@@ -65,13 +66,19 @@ void *m_open(sh *s, const char *path, str *p)
 {
 	const char *mp = hibr_get(s, "HIBR_MODPATH");
 	int so = m_hasso(path);
-	void *h;
+	void *h = 0;
 
 	if (strchr(path, '/'))
 		return m_try(p, 0, path, 0);
-	h = m_try(p, ".", path, 0);
-	if (!h && !so)
-		h = m_try(p, ".", path, 1);
+	if (geteuid() == 0) {
+		lg(HIBR_LDBG, "root: searching only %s for %s", HIBR_MODDIR,
+		   path);
+		mp = 0;
+	} else {
+		h = m_try(p, ".", path, 0);
+		if (!h && !so)
+			h = m_try(p, ".", path, 1);
+	}
 	while (!h && mp && *mp) {
 		const char *e = strchr(mp, ':');
 		size_t n = e ? (size_t)(e - mp) : strlen(mp);
