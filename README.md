@@ -1,8 +1,9 @@
 # hibr — Hackable In-process Bash Runtime
 
 **hibr** runs a useful subset of bash syntax in about 13,000 lines of C and a
-275 KB binary, using less memory than dash and running tight loops faster than
-bash. It is built with `tcc` and depends on nothing but libc and libdl.
+313 KB binary, in about a quarter of bash's memory and running tight loops
+twice as fast as bash. It is built with `tcc` and depends on nothing but libc
+and libdl.
 
 The name says what it is. **Hackable**: the module ABI lets a module add a
 *protocol*, not just a command — register a scheme and `/dev/<name>/…` works
@@ -34,17 +35,27 @@ make TLS=0           # build without TLS support
 
 ## Measurements
 
-Same host; the loop is `while [ $i -lt 50000 ]; do i=$((i+1)); done`.
+Same host; the loop is `while [ $i -lt 50000 ]; do i=$((i+1)); done`. Times are
+the best of nine runs; memory is the shell's own `VmHWM`, read without forking.
 
 | | hibr | dash | bash |
 |---|---|---|---|
-| binary, stripped | 271 KB | 124 KB | 1.2 MB |
-| resident memory at startup | 1808 kB | 1908 kB | 3456 kB |
-| resident memory after the loop | 2060 kB | 1912 kB | 3568 kB |
-| the loop | 86 ms | 61 ms | 152 ms |
-| 5000 function calls, results via `:=` | 33 ms | — | — |
-| the same through `$( )` | 668 ms | 629 ms | 1235 ms |
-| startup, `-c true` | 0.83 ms | 0.80 ms | 1.18 ms |
+| binary, stripped | 313 KB | 122 KB | 1235 KB |
+| resident memory at startup | 1684 kB | 1620 kB | 2880 kB |
+| resident memory after the loop | 1804 kB | 1572 kB | 2868 kB |
+| the loop | 119 ms | 84 ms | 241 ms |
+| 5000 function calls, results via `:=` | **28 ms** | — | — |
+| the same through `$( )` | 1249 ms | 1211 ms | 2360 ms |
+| startup, `-c true` | 0.98 ms | 0.86 ms | 1.72 ms |
+
+Read honestly: hibr is about half of bash on memory and twice its speed on a
+tight loop, and **dash is still ahead of hibr on both** — roughly 1.4x on the
+loop and a little under 100 kB on memory. dash is a far smaller language, and
+closing that is the current work rather than a settled claim.
+
+The row that is not a near-miss is the fifth. Returning a value through `$( )`
+costs a fork per call in every shell; `:=` costs none, which is where the 45x
+comes from. That is the argument for the whole in-process design, in one line.
 
 A full prompt with git branch, working-tree status and upstream distance costs
 35 ms in a 2,600-file repository — against 32 ms for `git status

@@ -1537,6 +1537,26 @@ void br_expand(sh *s, word *w, vec *out)
 	vb_put(s, todo);
 }
 
+/* Bytes that stop a word being its own expansion: patterns, braces, IFS. */
+const char w_meta[256] = {
+	['*'] = 1, ['?'] = 1, ['['] = 1, ['~'] = 1, ['{'] = 1,
+	[' '] = 1, ['\t'] = 1, ['\n'] = 1
+};
+
+/* True for a word that expands to exactly its own text, unchanged. */
+int w_simple(word *w)
+{
+	part *p = w->p;
+	size_t i;
+
+	if (!p || p->nx || p->k != P_TXT || p->q || !p->n)
+		return 0;
+	for (i = 0; i < p->n; i++)
+		if (w_meta[(unsigned char)p->t[i]])
+			return 0;
+	return 1;
+}
+
 /* Build a NULL terminated argv from a word list. */
 char **xargv(sh *s, word *w, int *ac, char ***am)
 {
@@ -1545,14 +1565,18 @@ char **xargv(sh *s, word *w, int *ac, char ***am)
 	vec *bw;
 	char **r, **q = 0;
 	size_t i;
-	int first = 1;
+	int first = 1, plain = !hibr_get(s, "IFS");
 
 	for (; w; w = w->nx) {
-		bw = vb_get(s);
-		br_expand(s, w, bw);
-		for (i = 0; i < bw->n; i++)
-			xwm(s, (word *)bw->p[i], o, 0, om);
-		vb_put(s, bw);
+		if (plain && w_simple(w)) {
+			xout(s, o, om, w->p->t, 0, w->p->n);
+		} else {
+			bw = vb_get(s);
+			br_expand(s, w, bw);
+			for (i = 0; i < bw->n; i++)
+				xwm(s, (word *)bw->p[i], o, 0, om);
+			vb_put(s, bw);
+		}
 		if (om)
 			xpad(o, om);
 		else if (first && o->n && bi_mask((char *)o->p[0])) {
@@ -1812,24 +1836,35 @@ long ax_un(struct ax *a)
 const char *ax_tk[] = { "||", "&&", "|", "^", "&", "==", "!=", "<<", ">>",
 			"<=", ">=", "<", ">", "+", "-", "*", "/", "%", "**", 0 };
 const int ax_pr[] = { 1, 2, 3, 4, 5, 6, 6, 9, 9, 7, 7, 7, 7, 10, 10, 11, 11, 11, 12 };
+const int ax_ln[] = { 2, 2, 1, 1, 1, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 2 };
 
 /* Identify the longest binary operator at the cursor. */
 int ax_op(struct ax *a, int *pr, int *ln)
 {
-	int i, best = -1;
-	size_t bl = 0, n;
+	int best = -1;
+	size_t bl;
+	char c = *a->p, d;
 
-	if (!*a->p || !strchr("|^&=!<>+-*/%", *a->p))
+	if (!c)
 		return -1;
-	for (i = 0; ax_tk[i]; i++) {
-		n = strlen(ax_tk[i]);
-		if (n > bl && !strncmp(a->p, ax_tk[i], n)) {
-			best = i;
-			bl = n;
-		}
+	d = a->p[1];
+	switch (c) {
+	case '|': best = d == '|' ? 0 : 2; break;
+	case '&': best = d == '&' ? 1 : 4; break;
+	case '^': best = 3; break;
+	case '=': best = d == '=' ? 5 : -1; break;
+	case '!': best = d == '=' ? 6 : -1; break;
+	case '<': best = d == '<' ? 7 : d == '=' ? 9 : 11; break;
+	case '>': best = d == '>' ? 8 : d == '=' ? 10 : 12; break;
+	case '+': best = 13; break;
+	case '-': best = 14; break;
+	case '*': best = d == '*' ? 18 : 15; break;
+	case '/': best = 16; break;
+	case '%': best = 17; break;
 	}
 	if (best < 0)
 		return -1;
+	bl = (size_t)ax_ln[best];
 	if (a->p[bl] == '=' && best != 5 && best != 6 && best != 9 && best != 10)
 		return -1;
 	*pr = ax_pr[best];

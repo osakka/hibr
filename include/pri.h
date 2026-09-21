@@ -92,6 +92,8 @@ void xoutq(sh *s, vec *out, vec *outm, const char *t, size_t n);
 void xpad(vec *out, vec *outm);
 char *xone_q(sh *s, word *w, char **mask);
 int w_hasq(word *w);
+int w_simple(word *w);
+int w_simple(word *w);
 char *xnum(sh *s, long v);
 char *xcap(sh *s, const char *src);
 char *xpat(sh *s, word *w);
