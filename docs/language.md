@@ -18,6 +18,19 @@ field splitting on `IFS`, globbing with `*`, `?`, `[…]` and `**` across
 directories, and brace expansion — `{a,b}`, `{1..9}`, `{01..12}`, `{a..e}`,
 `{1..9..2}`, nested and multiplied.
 
+**Declarations.** `declare` / `typeset` take bash's flags — `-i -r -x -a -A -n
+-p -g` — and, instead of them, one of the shell's own type names: `declare int
+n`, `declare num f`, `declare path p`. A flagged `-i` coerces the way bash does,
+turning anything unreadable into `0`; a declared type *validates*, with the same
+check that guards typed function parameters, and a bad value fails loudly and
+stops. `readonly` and `export -p` round out the set.
+
+**Options.** One namespace, reached either way: `set -o nullglob` and
+`shopt -s errexit` both work, and `shopt` alone lists everything. Extended
+patterns `?(…) *(…) +(…) @(…) !(…)` work in `case`, `[[ ]]` and globbing with
+nothing to switch on, which is what bash's parse-time `extglob` cannot manage —
+see [0017](adr/0017-one-namespace-for-options.md).
+
 **Special variables.** `$@ $* $# $? $$ $! $0–$9 $RANDOM $SECONDS $PPID $UID
 $EUID $HOSTNAME $HIBR_VERSION $HIBR_ABI`, plus `$RET`, `$ERRMSG`, `$ERR`, `$ERRSTATUS`,
 `$REMOTE` and `$M`. `$$` is fixed at startup, so it is the same inside every

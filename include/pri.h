@@ -44,6 +44,9 @@ void v_del(sh *s, const char *k);
 void v_env(sh *s);
 char **v_envp(sh *s, vec *extra);
 void v_names(sh *s, const char *pre, vec *out);
+unsigned v_tycode(const char *nm);
+const char *v_tyname(unsigned at);
+const char *v_coerce(sh *s, var *e, const char *v, str *tmp);
 void v_pos(sh *s, int ac, char **av);
 void v_free_el(var *v);
 void v_arr(sh *s, const char *k, vec *vals);
@@ -116,9 +119,13 @@ char **xargv(sh *s, word *w, int *ac, char ***am);
 			v_add(xo_v, xo_m ? ar_dup((s_)->xa, xo_m, xo_n) : 0); \
 	} while (0)
 #endif
+const char *gnext(const char *a, const char *close);
+int gneg(const char *body, const char *close, const char *rest, const char *t);
+int gext(const char *p, const char *t);
 int gmatch(const char *p, const char *t);
 int gcmp(const void *a, const void *b);
 
+int ex_asg(sh *s, char *kv, const char *mask, int ex_flag);
 int ex(sh *s, node *n);
 int rd_do(sh *s, redir *r, vec *sv);
 void rd_undo(vec *sv);
@@ -131,6 +138,9 @@ struct sav { char *k, *v; unsigned ex; };
 void asg_keep(sh *s, vec *old, const char *k);
 void asg_pop(sh *s, vec *old);
 int bi_mask(const char *nm);
+void b_decl1(sh *s, var *v);
+int b_decl(sh *s, int ac, char **av);
+int b_ro(sh *s, int ac, char **av);
 int b_local(sh *s, int ac, char **av);
 
 struct signm { const char *nm; int sig; };
@@ -166,6 +176,13 @@ char *pr_hook(sh *s);
 void rc_load(sh *s);
 void al_quote(str *o, const char *a);
 int b_command(sh *s, int ac, char **av);
+int b_shopt(sh *s, int ac, char **av);
+int sh_optfix(const char *nm);
+unsigned sh_optbit(const char *nm);
+int *sh_optflag(sh *s, const char *nm);
+int sh_optget(sh *s, const char *nm);
+int sh_optset(sh *s, const char *nm, int on);
+void sh_optlist(sh *s, int setstyle);
 int b_builtin(sh *s, int ac, char **av);
 int b_umask(sh *s, int ac, char **av);
 int b_time(sh *s, int ac, char **av);

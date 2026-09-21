@@ -2,8 +2,6 @@
 combined rc=2
 1
 here string works
-hibr: /dev/null: exists (noclobber)
-hibr: /dev/null: File exists
 noclobber blocked=1
 override=0 content=three
 named fd is 1

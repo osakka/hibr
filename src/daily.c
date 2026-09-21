@@ -467,6 +467,170 @@ void rc_load(sh *s)
 	s_free(&b);
 }
 
+/* Options that are not negotiable, and why is in the ADRs. */
+int sh_optfix(const char *nm)
+{
+	if (!strcmp(nm, "extglob") || !strcmp(nm, "globstar") ||
+	    !strcmp(nm, "expand_aliases") || !strcmp(nm, "sourcepath"))
+		return O_FIXON;
+	if (!strcmp(nm, "pipefail"))
+		return O_FIXOFF;
+	return 0;
+}
+
+/* The bit a globbing option occupies, or zero when it is not one. */
+unsigned sh_optbit(const char *nm)
+{
+	if (!strcmp(nm, "nullglob"))
+		return O_NULLGLOB;
+	if (!strcmp(nm, "nocaseglob"))
+		return O_NOCASEGLOB;
+	if (!strcmp(nm, "dotglob"))
+		return O_DOTGLOB;
+	if (!strcmp(nm, "failglob"))
+		return O_FAILGLOB;
+	if (!strcmp(nm, "nocasematch"))
+		return O_NOCASEMATCH;
+	return 0;
+}
+
+/* The shell flag an option controls, or null when it is not one. */
+int *sh_optflag(sh *s, const char *nm)
+{
+	if (!strcmp(nm, "errexit"))
+		return &s->errx;
+	if (!strcmp(nm, "nounset"))
+		return &s->uset;
+	if (!strcmp(nm, "xtrace"))
+		return &s->xtr;
+	if (!strcmp(nm, "noclobber"))
+		return &s->noclob;
+	if (!strcmp(nm, "noexec"))
+		return &s->noexec;
+	if (!strcmp(nm, "histexpand"))
+		return &s->hx;
+	if (!strcmp(nm, "strict"))
+		return &s->strict;
+	return 0;
+}
+
+/* Every option name, in one list, whatever spelling asked for it. */
+const char *sh_optnames[] = { "errexit", "nounset", "xtrace", "noclobber",
+			      "noexec", "histexpand", "strict", "nullglob",
+			      "nocaseglob", "dotglob", "failglob",
+			      "nocasematch", "extglob", "globstar",
+			      "expand_aliases", "pipefail", 0 };
+
+/* Read one option by name, or -1 when there is no such option. */
+int sh_optget(sh *s, const char *nm)
+{
+	int *f = sh_optflag(s, nm);
+	unsigned b;
+
+	if (f)
+		return *f != 0;
+	b = sh_optbit(nm);
+	if (b)
+		return (s->sopt & b) != 0;
+	if (sh_optfix(nm) == O_FIXON)
+		return 1;
+	if (sh_optfix(nm) == O_FIXOFF)
+		return 0;
+	return -1;
+}
+
+/* Set one option by name, refusing the ones that do not move. */
+int sh_optset(sh *s, const char *nm, int on)
+{
+	int *f = sh_optflag(s, nm);
+	int fix = sh_optfix(nm);
+	unsigned b;
+
+	if (fix) {
+		if ((fix == O_FIXON) == (on != 0)) {
+			lg(HIBR_LDBG, "%s is always %s here", nm,
+			   fix == O_FIXON ? "on" : "off");
+			return HIBR_OK;
+		}
+		lg(HIBR_LERR, "%s is always %s in hibr and cannot be changed",
+		   nm, fix == O_FIXON ? "on" : "off");
+		return HIBR_FAIL;
+	}
+	if (f) {
+		*f = on;
+		return HIBR_OK;
+	}
+	b = sh_optbit(nm);
+	if (!b) {
+		lg(HIBR_LERR, "%s: no such option", nm);
+		return HIBR_FAIL;
+	}
+	if (on)
+		s->sopt |= b;
+	else
+		s->sopt &= ~b;
+	return HIBR_OK;
+}
+
+/* Print every option and whether it is on. */
+void sh_optlist(sh *s, int setstyle)
+{
+	int i, v;
+
+	for (i = 0; sh_optnames[i]; i++) {
+		v = sh_optget(s, sh_optnames[i]);
+		if (setstyle)
+			printf("%-16s%s\n", sh_optnames[i], v ? "on" : "off");
+		else
+			printf("%-16s%s\n", sh_optnames[i], v ? "on" : "off");
+	}
+}
+
+/* One namespace of options, reached by shopt or by set -o alike. */
+int b_shopt(sh *s, int ac, char **av)
+{
+	int i = 1, on = -1, quiet = 0, n = 0, v;
+
+	for (; i < ac && av[i][0] == '-' && av[i][1]; i++) {
+		if (!strcmp(av[i], "-s"))
+			on = 1;
+		else if (!strcmp(av[i], "-u"))
+			on = 0;
+		else if (!strcmp(av[i], "-q"))
+			quiet = 1;
+		else if (!strcmp(av[i], "-o"))
+			continue;
+		else {
+			lg(HIBR_LERR, "shopt: %s: unknown option", av[i]);
+			return 2;
+		}
+	}
+	if (i >= ac) {
+		if (on < 0)
+			sh_optlist(s, 0);
+		return HIBR_OK;
+	}
+	for (; i < ac; i++) {
+		if (on < 0) {
+			v = sh_optget(s, av[i]);
+			if (v < 0) {
+				lg(HIBR_LERR, "shopt: %s: no such option",
+				   av[i]);
+				n = 1;
+				continue;
+			}
+			if (!quiet)
+				printf("%-16s%s\n", av[i], v ? "on" : "off");
+			if (!v)
+				n = 1;
+			continue;
+		}
+		if (sh_optset(s, av[i], on) != HIBR_OK)
+			n = 1;
+	}
+	return n ? HIBR_FAIL : HIBR_OK;
+}
+
 /* Run a command, ignoring any function or alias of the same name. */
 int b_command(sh *s, int ac, char **av)
 {

@@ -150,14 +150,17 @@ int b_exp(sh *s, int ac, char **av)
 	var *v;
 	size_t j;
 
-	if (ac == 1) {
+	i = 1;
+	if (ac > 1 && !strcmp(av[1], "-p"))
+		i++;
+	if (i >= ac) {
 		for (j = 0; j < s->tsz; j++)
 			for (v = s->tab[j]; v; v = v->nx)
 				if (v->ex)
-					printf("export %s=%s\n", v->k, v->v);
+					b_decl1(s, v);
 		return HIBR_OK;
 	}
-	for (i = 1; i < ac; i++) {
+	for (; i < ac; i++) {
 		q = strchr(av[i], '=');
 		if (q) {
 			*q = 0;
@@ -342,6 +345,14 @@ int b_set(sh *s, int ac, char **av)
 		} else if (!strcmp(av[i], "-d") && i + 1 < ac) {
 			hibr_lv = atoi(av[++i]);
 			lg(HIBR_LINF, "log level %d", hibr_lv);
+		} else if (!strcmp(av[i], "-o") || !strcmp(av[i], "+o")) {
+			int on = av[i][0] == '-';
+			if (i + 1 >= ac) {
+				sh_optlist(s, 1);
+				continue;
+			}
+			if (sh_optset(s, av[++i], on) != HIBR_OK)
+				return HIBR_FAIL;
 		} else {
 			lg(HIBR_LERR, "set: %s: unknown option", av[i]);
 			return HIBR_FAIL;
@@ -790,6 +801,160 @@ int b_mod(sh *s, int ac, char **av)
 	return HIBR_FAIL;
 }
 
+/* Print one variable the way declare would state it. */
+void b_decl1(sh *s, var *v)
+{
+	const char *ty = v_tyname(v->at);
+	str f;
+
+	(void)s;
+	s_init(&f);
+	if (v->at & A_REF)
+		s_ch(&f, 'n');
+	if (v->at & A_INT)
+		s_ch(&f, 'i');
+	if (v->ro)
+		s_ch(&f, 'r');
+	if (v->ex)
+		s_ch(&f, 'x');
+	if (v->am)
+		s_ch(&f, 'A');
+	if (*ty)
+		printf("declare %s%s%s ", f.n ? "-" : "", f.n ? f.p : "", ty);
+	else
+		printf("declare -%s ", f.n ? f.p : "-");
+	if (v->am)
+		printf("%s=(...)\n", v->k);
+	else
+		printf("%s=\"%s\"\n", v->k, v->v ? v->v : "");
+	s_free(&f);
+}
+
+/* Declare variables, with bash's flags or one of our own type names. */
+int b_decl(sh *s, int ac, char **av)
+{
+	unsigned at = 0, code;
+	int i = 1, ro = 0, ex = 0, pr = 0, map = 0, glob = 0, n = 0;
+	char *q;
+	var *v;
+	size_t j;
+
+	for (; i < ac && av[i][0] == '-' && av[i][1]; i++) {
+		char *f;
+		for (f = av[i] + 1; *f; f++) {
+			switch (*f) {
+			case 'i': at |= A_INT; break;
+			case 'n': at |= A_REF; break;
+			case 'r': ro = 1; break;
+			case 'x': ex = 1; break;
+			case 'a':
+			case 'A': map = 1; break;
+			case 'g': glob = 1; break;
+			case 'p': pr = 1; break;
+			default:
+				lg(HIBR_LERR, "declare: -%c: unknown option",
+				   *f);
+				return 2;
+			}
+		}
+	}
+	if (i < ac && (code = v_tycode(av[i]))) {
+		at |= code << A_TYSH;
+		i++;
+	}
+	if (pr || i >= ac) {
+		if (i >= ac) {
+			for (j = 0; j < s->tsz; j++)
+				for (v = s->tab[j]; v; v = v->nx)
+					b_decl1(s, v);
+			return HIBR_OK;
+		}
+		for (; i < ac; i++) {
+			v = v_find(s, av[i]);
+			if (!v) {
+				lg(HIBR_LERR, "declare: %s: not found", av[i]);
+				n = 1;
+				continue;
+			}
+			b_decl1(s, v);
+		}
+		return n ? HIBR_FAIL : HIBR_OK;
+	}
+	for (; i < ac; i++) {
+		q = strchr(av[i], '=');
+		if (q)
+			*q = 0;
+		if (!isname(av[i])) {
+			lg(HIBR_LERR, "declare: %s: not a valid name", av[i]);
+			if (q)
+				*q = '=';
+			return HIBR_FAIL;
+		}
+		if (!glob && s->scope.n)
+			asg_keep(s, (vec *)s->scope.p[s->scope.n - 1], av[i]);
+		v = v_find(s, av[i]);
+		if (!v) {
+			hibr_set(s, av[i], "", 0);
+			v = v_find(s, av[i]);
+		}
+		if (v) {
+			v->at |= at;
+			if (ex)
+				v->ex = 1;
+			if (map && !v->am)
+				v->am = 1;
+		}
+		if (q && (at & A_REF) && v) {
+			lg(HIBR_LDBG, "%s now refers to %s", av[i], q + 1);
+			free(v->v);
+			v->v = xs(q + 1);
+		} else if (q && hibr_set(s, av[i], q + 1, ex) != HIBR_OK)
+			n = 1;
+		if (ro && (v = v_find(s, av[i])))
+			v->ro = 1;
+		if (q)
+			*q = '=';
+	}
+	return n ? HIBR_FAIL : HIBR_OK;
+}
+
+/* Make variables readonly, or list the ones that are. */
+int b_ro(sh *s, int ac, char **av)
+{
+	int i = 1, n = 0;
+	char *q;
+	var *v;
+	size_t j;
+
+	if (ac > 1 && !strcmp(av[1], "-p"))
+		i++;
+	if (i >= ac) {
+		for (j = 0; j < s->tsz; j++)
+			for (v = s->tab[j]; v; v = v->nx)
+				if (v->ro)
+					b_decl1(s, v);
+		return HIBR_OK;
+	}
+	for (; i < ac; i++) {
+		q = strchr(av[i], '=');
+		if (q) {
+			*q = 0;
+			if (hibr_set(s, av[i], q + 1, 0) != HIBR_OK)
+				n = 1;
+		}
+		v = v_find(s, av[i]);
+		if (!v) {
+			hibr_set(s, av[i], "", 0);
+			v = v_find(s, av[i]);
+		}
+		if (v)
+			v->ro = 1;
+		if (q)
+			*q = '=';
+	}
+	return n ? HIBR_FAIL : HIBR_OK;
+}
+
 /* Declare function local variables. */
 int b_local(sh *s, int ac, char **av)
 {
@@ -896,6 +1061,7 @@ const hibr_bi bitab[] = {
 	{ "command", b_command, "run a command, ignoring functions" },
 	{ "connect", b_connect, "open a client connection" },
 	{ "continue", b_cont, "restart enclosing loops" },
+	{ "declare", b_decl, "declare variables and their attributes" },
 	{ "dirs", b_dirs, "show the directory stack" },
 	{ "disown", b_disown, "forget a job without signalling it" },
 	{ "echo", b_echo, "write arguments" },
@@ -923,6 +1089,7 @@ const hibr_bi bitab[] = {
 	{ "pushd", b_pushd, "push a directory and change to it" },
 	{ "pwd", b_pwd, "print the working directory" },
 	{ "read", b_read, "read a line into variables" },
+	{ "readonly", b_ro, "make variables readonly" },
 	{ "recv", b_recv, "read from a descriptor" },
 	{ "ret", b_ret, "produce a value and return" },
 	{ "return", b_retf, "return from a function" },
@@ -930,6 +1097,7 @@ const hibr_bi bitab[] = {
 	{ "send", b_send, "write to a descriptor" },
 	{ "set", b_set, "set options and parameters" },
 	{ "shift", b_shift, "drop positional parameters" },
+	{ "shopt", b_shopt, "read or set shell options" },
 	{ "source", b_src, "run a file in this shell" },
 	{ "str", b_str, "text operations" },
 	{ "test", b_test, "evaluate a conditional expression" },
@@ -939,6 +1107,7 @@ const hibr_bi bitab[] = {
 	{ "true", b_true, "succeed" },
 	{ "try", b_try, "run a command, catching failure" },
 	{ "type", b_type, "describe a command name" },
+	{ "typeset", b_decl, "declare variables and their attributes" },
 	{ "umask", b_umask, "show or set the file creation mask" },
 	{ "unalias", b_unalias, "remove aliases" },
 	{ "unset", b_unset, "remove variables or functions" },

@@ -448,6 +448,19 @@ word *lx_word(lex *l)
 		}
 		if (!q && !l->nb && c == '\n')
 			break;
+		if (!q && !l->nb && l->p + 1 < l->e && l->p[1] == '(' &&
+		    (c == '?' || c == '*' || c == '+' || c == '@' ||
+		     c == '!')) {
+			const char *ee = sk_bal(l, l->p + 2, '(', ')');
+			if (ee) {
+				lg(HIBR_LTRC, "extended pattern group %.*s",
+				   (int)(ee - l->p + 1), l->p);
+				for (; l->p <= ee; l->p++)
+					lx_ch(l, &b, &t, &cq, 0, *l->p);
+				seen = 1;
+				continue;
+			}
+		}
 		if (!q && !l->nb && (c == ' ' || c == '\t' || ismeta(c)))
 			break;
 		if (c == '\'' && !q) {

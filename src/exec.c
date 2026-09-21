@@ -149,15 +149,17 @@ int rd_do(sh *s, redir *r, vec *sv)
 		case R_IN:
 			fd = open(t, O_RDONLY);
 			break;
-		case R_OUT:
+		case R_OUT: {
+			struct stat rs;
+			int guard = s->noclob && !(r->fl & RF_CLOB) &&
+				    !(stat(t, &rs) == 0 && !S_ISREG(rs.st_mode));
 			fd = open(t, O_WRONLY | O_CREAT | O_TRUNC |
-					    (s->noclob && !(r->fl & RF_CLOB) ?
-						     O_EXCL :
-						     0),
+					    (guard ? O_EXCL : 0),
 				  0666);
-			if (fd < 0 && s->noclob && !(r->fl & RF_CLOB))
+			if (fd < 0 && guard)
 				lg(HIBR_LERR, "%s: exists (noclobber)", t);
 			break;
+		}
 		case R_APP:
 			fd = open(t, O_WRONLY | O_CREAT | O_APPEND, 0666);
 			break;
@@ -584,7 +586,7 @@ void xpsub_done(sh *s)
 }
 
 /* Apply a name=value assignment to the shell variable table. */
-void ex_asg(sh *s, char *kv, const char *mask, int ex_flag)
+int ex_asg(sh *s, char *kv, const char *mask, int ex_flag)
 {
 	char *q = strchr(kv, '=');
 	char *br, *r, *plus = 0;
@@ -592,7 +594,7 @@ void ex_asg(sh *s, char *kv, const char *mask, int ex_flag)
 	str cat;
 
 	if (!q)
-		return;
+		return HIBR_OK;
 	*q = 0;
 	if (q > kv && q[-1] == '+') {
 		plus = q - 1;
@@ -600,19 +602,20 @@ void ex_asg(sh *s, char *kv, const char *mask, int ex_flag)
 	}
 	br = strchr(kv, '[');
 	if (!br) {
+		int rc;
 		if (plus) {
 			const char *old = hibr_get(s, kv);
 			s_init(&cat);
 			s_cat(&cat, old ? old : "");
 			s_cat(&cat, q + 1);
-			hibr_set(s, kv, cat.p, ex_flag);
+			rc = hibr_set(s, kv, cat.p, ex_flag);
 			s_free(&cat);
 			*plus = '+';
 		} else {
-			hibr_set(s, kv, q + 1, ex_flag);
+			rc = hibr_set(s, kv, q + 1, ex_flag);
 		}
 		*q = '=';
-		return;
+		return rc;
 	}
 	ks = vb_get(s);
 	*br = 0;
@@ -642,6 +645,7 @@ void ex_asg(sh *s, char *kv, const char *mask, int ex_flag)
 	vb_put(s, ks);
 	*br = '[';
 	*q = '=';
+	return s->stop ? HIBR_FAIL : HIBR_OK;
 }
 
 /* Print an execution trace line. */
@@ -724,8 +728,10 @@ int ex_cmd(sh *s, node *n)
 	}
 	if (!ac) {
 		for (i = 0; i < asg->n; i++)
-			ex_asg(s, (char *)asg->p[i],
-			       i < asgm->n ? (const char *)asgm->p[i] : 0, 0);
+			if (ex_asg(s, (char *)asg->p[i],
+				   i < asgm->n ? (const char *)asgm->p[i] : 0,
+				   0) != HIBR_OK)
+				st = s->st ? s->st : HIBR_FAIL;
 		if (n->rd && rd_do(s, n->rd, &sv) == HIBR_OK)
 			rd_undo(&sv);
 		else if (n->rd)

@@ -1,0 +1,39 @@
+0
+hibr: extglob is always on in hibr and cannot be changed
+hibr: pipefail is always off in hibr and cannot be changed
+-- extglob needs no shopt, unlike bash --
+at group: match
+at miss: no
+neg group: match
+star: yes
+plus: yes
+plus needs one: yes
+opt: yes
+opt empty: yes
+neg: yes
+neg excludes: yes
+embedded: yes
+embedded miss: yes
+-- one option namespace, reached either way --
+nullglob        on
+nullglob        off
+errexit         on
+errexit         off
+noclobber       off
+-- options that do not move say so --
+unset extglob: 1
+set pipefail: 1
+extglob         on
+globstar        on
+expand_aliases  on
+pipefail        off
+-- nullglob and failglob --
+nullglob count: 0
+without it: 1
+-- declared types validate, where -i coerces --
+bash style -i: 0
+typed ok: 5
+num ok: 1.5
+declare int strict="5"
+a declared type refuses a bad value
+readonly refuses too

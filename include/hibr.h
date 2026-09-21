@@ -4,7 +4,7 @@
 #include <stddef.h>
 
 #ifndef HIBR_ABI
-#define HIBR_ABI 4u
+#define HIBR_ABI 5u
 #endif
 #ifndef HIBR_VER
 #define HIBR_VER "0.21"
@@ -102,6 +102,23 @@
 #define V_INDF 0x100
 #endif
 
+#ifndef A_INT
+#define A_INT 1u
+#define A_REF 2u
+#define A_TYSH 8
+#define A_TYMASK 0xf00u
+#endif
+
+#ifndef O_NULLGLOB
+#define O_NULLGLOB 1u
+#define O_NOCASEGLOB 2u
+#define O_DOTGLOB 4u
+#define O_FAILGLOB 8u
+#define O_NOCASEMATCH 16u
+#define O_FIXON 1
+#define O_FIXOFF 2
+#endif
+
 #ifndef J_STR
 #define J_STR 0
 #define J_NUM 1
@@ -175,7 +192,7 @@ struct word { word *nx; part *p; };
 struct redir { redir *nx; word *w; char *var; int fd; short k, fl; };
 struct node { node *l, *r, *x; word *w, *aw; redir *rd; char *s, *tx, *rt; short k, f; };
 struct ent { ent *nx; char *k, *s; ent *map; size_t n; short ty; };
-struct var { var *nx; char *k, *v; ent *map; size_t n; short ty; unsigned ex, ro, am; };
+struct var { var *nx; char *k, *v; ent *map; size_t n; short ty; unsigned ex, ro, am, at; };
 
 struct sh {
 	arena *ar, *xa;
@@ -195,6 +212,7 @@ struct sh {
 	char *hfile;
 	int ret, brk, cont, quit, keep, xtr, errx;
 	char **amask;
+	unsigned sopt;
 };
 
 typedef int (*hibr_fn)(sh *s, int ac, char **av);

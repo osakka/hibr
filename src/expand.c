@@ -689,10 +689,104 @@ void xpart(sh *s, part *p, str *b, str *m)
 	}
 }
 
+/* The alternative list of an extended group, as a run of patterns. */
+const char *gnext(const char *a, const char *close)
+{
+	int d = 0;
+
+	for (; a < close; a++) {
+		if (*a == '(')
+			d++;
+		else if (*a == ')')
+			d--;
+		else if (*a == '|' && !d)
+			return a;
+	}
+	return close;
+}
+
+/* Match !(list) by finding a split the list does not cover. */
+int gneg(const char *body, const char *close, const char *rest, const char *t)
+{
+	const char *a, *b;
+	size_t i, n = strlen(t);
+	str x;
+	int bad;
+
+	for (i = 0; i <= n; i++) {
+		if (!gmatch(rest, t + i))
+			continue;
+		bad = 0;
+		for (a = body; a <= close && !bad; a = b + 1) {
+			b = gnext(a, close);
+			s_init(&x);
+			s_add(&x, a, (size_t)(b - a));
+			{
+				str y;
+				s_init(&y);
+				s_add(&y, t, i);
+				if (gmatch(x.p ? x.p : "", y.p ? y.p : ""))
+					bad = 1;
+				s_free(&y);
+			}
+			s_free(&x);
+			if (b >= close)
+				break;
+		}
+		if (!bad)
+			return 1;
+	}
+	return 0;
+}
+
+/* Match one extended group -- ?( *( +( @( !( -- and what follows it. */
+int gext(const char *p, const char *t)
+{
+	int op = *p, d = 1, ok = 0;
+	const char *body = p + 2, *close, *rest, *a, *b;
+	str x;
+
+	for (close = body; *close; close++) {
+		if (*close == '(')
+			d++;
+		else if (*close == ')' && !--d)
+			break;
+	}
+	if (!*close)
+		return 0;
+	rest = close + 1;
+	if (op == '!')
+		return gneg(body, close, rest, t);
+	if ((op == '?' || op == '*') && gmatch(rest, t))
+		return 1;
+	for (a = body; a <= close && !ok; a = b + 1) {
+		b = gnext(a, close);
+		if (b > a || op == '?' || op == '@') {
+			s_init(&x);
+			s_add(&x, a, (size_t)(b - a));
+			if ((op == '*' || op == '+') && b > a) {
+				s_ch(&x, '*');
+				s_ch(&x, '(');
+				s_add(&x, body, (size_t)(close - body));
+				s_ch(&x, ')');
+			}
+			s_cat(&x, rest);
+			ok = gmatch(x.p ? x.p : "", t);
+			s_free(&x);
+		}
+		if (b >= close)
+			break;
+	}
+	return ok;
+}
+
 /* Match a pattern against text with escapes, star and class support. */
 int gmatch(const char *p, const char *t)
 {
 	while (*p) {
+		if (p[1] == '(' && (*p == '?' || *p == '*' || *p == '+' ||
+				    *p == '@' || *p == '!'))
+			return gext(p, t);
 		if (*p == '*') {
 			p++;
 			if (!*p)
@@ -797,6 +891,10 @@ int xmeta(const char *t, const char *mk, size_t n)
 	for (i = 0; i < n; i++) {
 		if (mk[i])
 			continue;
+		if ((t[i] == '?' || t[i] == '*' || t[i] == '+' ||
+		     t[i] == '@' || t[i] == '!') && i + 1 < n &&
+		    t[i + 1] == '(' && !mk[i + 1])
+			return 1;
 		if (t[i] == '*' || t[i] == '?')
 			return 1;
 		if (t[i] != '[')
@@ -990,7 +1088,13 @@ void xfield(sh *s, const char *t, const char *mk, size_t n, vec *out,
 	} else {
 		gwalk(s, &dir, pat.p, out, &cnt);
 	}
-	if (!cnt)
+	if (!cnt && (s->sopt & O_FAILGLOB)) {
+		lg(HIBR_LERR, "no match: %.*s", (int)n, t);
+		s->xerr = 1;
+	} else if (!cnt && (s->sopt & O_NULLGLOB))
+		lg(HIBR_LTRC, "no match for %.*s, dropping the word", (int)n,
+		   t);
+	else if (!cnt)
 		xout(s, out, outm, t, mk, n);
 	else {
 		xpad(out, outm);

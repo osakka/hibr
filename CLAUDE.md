@@ -17,7 +17,7 @@ servers, typed function signatures, result slots (`x := f` without forking),
 declared CLI arguments, and a module ABI that lets modules add *protocols*
 (`/dev/<name>/…`), not just commands.
 
-Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 4).
+Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 5).
 
 ## Build and test
 
@@ -70,7 +70,7 @@ linked, and no OpenSSL headers are needed to build.
 
 | file | role |
 |---|---|
-| `include/hibr.h` | public types, macros and the module ABI (v4) |
+| `include/hibr.h` | public types, macros and the module ABI (v5) |
 | `include/pri.h` | internal declarations, tokens, the `lex` struct |
 | `include/re.h` | our own regex declarations (tcc cannot parse glibc's) |
 | `src/mem.c` | arenas with mark/release, `str`, `vec`, pools, `lg` logging |
@@ -132,6 +132,9 @@ current — this table is a summary, not the source of truth.
    subscript is a literal key** (`h["content-type"]`); an unquoted one is still
    evaluated arithmetically.
 9. **TLS verifies certificates by default**; `HIBR_TLS_INSECURE=1` to disable.
+   **Options live in one namespace**: `set -o` and `shopt` reach the same
+   table, extended patterns need no switch, and an option that cannot move
+   says so rather than appearing to succeed — see `docs/adr/0017`.
    **Privilege only ever goes one way**: `drop` gives up root irreversibly,
    hibr is never setuid, and root loads modules only from `HIBR_MODDIR` — see
    `docs/adr/0016`.
@@ -203,6 +206,12 @@ current — this table is a summary, not the source of truth.
   `sy_`, `pr_`. To check one:
   `nm -D build/mods/x.so | awk '$2=="T"{print $3}' | sort -u |
   comm -12 - <(nm -D build/hibr | awk '$2=="T"{print $3}' | sort -u)`
+- **`declare` speaks the shell's own type names.** `declare -i` is bash's, and
+  coerces: garbage becomes 0. `declare int x` is ours, and validates with the
+  same `ty_ok` that checks typed function parameters, so a bad value fails
+  loudly and stops. Do not make the typed form evaluate arithmetic first --
+  that was tried, and `n=abc` quietly became 0 again, which is the behaviour
+  the typed form exists to avoid.
 - **An indirect expansion carries its modifier in a flag bit.** `${!ref:-d}`
   needs both the indirection and the `:-`, and `part` is public, so `V_INDF`
   (0x100) is ORed into `p->op` rather than a field being added to the struct.
@@ -216,6 +225,9 @@ current — this table is a summary, not the source of truth.
   needed, and `tests/470-bash-gaps.t` checks each of the five paths in both
   directions. The exec-in-place path deliberately does neither, as exec
   replaces the process.
+- **`noclobber` only guards regular files.** bash lets `>` truncate a device,
+  so `2>/dev/null` has to keep working under `set -o noclobber`; guarding
+  everything made a recorded test capture the wrong behaviour for a while.
 - **`qsort` is not given a NULL base.** An empty directory leaves `vec.p` NULL,
   and glibc declares the argument non-null, which UBSan reports.
 - **`ob_hex` does not check what follows the digits**, because in `packed-refs`

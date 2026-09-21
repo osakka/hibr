@@ -55,8 +55,51 @@ void v_grow(sh *s)
 const char *hibr_get(sh *s, const char *k)
 {
 	var *v = v_find(s, k);
+	int hop = 0;
 
+	while (v && (v->at & A_REF) && v->v && *v->v && hop++ < 16)
+		v = v_find(s, v->v);
 	return v ? v->v : 0;
+}
+
+/* The declared type names, in the order their codes use. */
+const char *v_tynames[] = { 0, "int", "num", "str", "path", "arr", "map",
+			    "any", 0 };
+
+/* The code for a declared type name, or zero when it is not one. */
+unsigned v_tycode(const char *nm)
+{
+	unsigned i;
+
+	for (i = 1; v_tynames[i]; i++)
+		if (!strcmp(nm, v_tynames[i]))
+			return i;
+	return 0;
+}
+
+/* The declared type of a variable, or an empty string when it has none. */
+const char *v_tyname(unsigned at)
+{
+	unsigned c = (at & A_TYMASK) >> A_TYSH;
+
+	return c && v_tynames[c] ? v_tynames[c] : "";
+}
+
+/* Apply a variable's declared attributes to a value about to be stored. */
+const char *v_coerce(sh *s, var *e, const char *v, str *tmp)
+{
+	const char *ty = v_tyname(e->at);
+
+	if (e->at & A_INT) {
+		s_num(tmp, ax_run(s, v));
+		lg(HIBR_LTRC, "%s takes %s as %s", e->k, v, tmp->p);
+		return tmp->p;
+	}
+	if (*ty && !ty_ok(ty, v)) {
+		lg(HIBR_LERR, "%s: declared %s, got '%s'", e->k, ty, v);
+		return 0;
+	}
+	return v;
 }
 
 /* Store a variable value, optionally marking it exported. */
@@ -69,13 +112,31 @@ int hibr_set(sh *s, const char *k, const char *v, int ex)
 		v_grow(s);
 	e = v_find(s, k);
 	if (e) {
+		str t;
 		if (e->ro) {
 			lg(HIBR_LERR, "%s: readonly variable", k);
+			s->st = 1;
+			s->stop = 1;
+			if (!s->it)
+				s->quit = 1;
+			return HIBR_FAIL;
+		}
+		if (e->at & A_REF)
+			return hibr_set(s, e->v, v, ex);
+		s_init(&t);
+		v = v_coerce(s, e, v, &t);
+		if (!v) {
+			s_free(&t);
+			s->st = 1;
+			s->stop = 1;
+			if (!s->it)
+				s->quit = 1;
 			return HIBR_FAIL;
 		}
 		v_free_el(e);
 		free(e->v);
 		e->v = xs(v);
+		s_free(&t);
 		if (ex)
 			e->ex = 1;
 		return HIBR_OK;
