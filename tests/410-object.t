@@ -1,5 +1,5 @@
 mod load ./mods/prompt.so
-d=/tmp/hibr-obj-$$
+d=/tmp/nsh-obj-$$
 rm -rf "$d"
 mkdir -p "$d/repo/.git/objects/pack" "$d/repo/.git/refs/heads"
 printf 'ref: refs/heads/main\n' > "$d/repo/.git/HEAD"

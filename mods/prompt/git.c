@@ -299,6 +299,10 @@ char *gt_val(pctx *c, const seg *sg, const char *f)
 		return xs(g->branch ? g->branch : (g->sha ? g->sha : "?"));
 	if (!strcmp(f, "state"))
 		return g->state ? xs(g->state) : 0;
+	if (!strcmp(f, "state_style")) {
+		const char *v = pr_cfg(c, "git", "state_style");
+		return xs(v ? v : "bold yellow");
+	}
 	if (!strcmp(f, "stash")) {
 		if (!g->stash)
 			return 0;
@@ -317,15 +321,26 @@ const char *gt_sym(pctx *c, const char *key, const char *dflt)
 	return v ? v : dflt;
 }
 
-/* Append one count to a status summary when it is not zero. */
-void gt_count(pctx *c, str *o, int n, const char *key, const char *dflt)
+/* Append one count to a status summary, in its own colour, when it is not
+   zero. */
+void gt_count(pctx *c, str *o, int n, const char *key, const char *dflt,
+	      const char *skey, const char *sdflt)
 {
+	const char *st = pr_cfg(c, "git", skey);
+	str t;
+	char *w;
+
 	if (!n)
 		return;
 	if (o->n)
 		s_ch(o, ' ');
-	s_cat(o, gt_sym(c, key, dflt));
-	s_num(o, n);
+	s_init(&t);
+	s_cat(&t, gt_sym(c, key, dflt));
+	s_num(&t, n);
+	w = pr_wrap(st ? st : sdflt, t.p);
+	s_cat(o, w);
+	free(w);
+	s_free(&t);
 }
 
 /* Supply the fields that come from the repository status. */
@@ -346,16 +361,25 @@ char *gt_stat(pctx *c, const seg *sg, const char *f)
 		return 0;
 	s_init(&o);
 	if (!strcmp(f, "status")) {
-		gt_count(c, &o, t->conflicted, "conflicted_symbol", "=");
-		gt_count(c, &o, t->staged, "staged_symbol", "+");
-		gt_count(c, &o, t->modified, "modified_symbol", "!");
-		gt_count(c, &o, t->renamed, "renamed_symbol", "\302\273");
-		gt_count(c, &o, t->deleted, "deleted_symbol", "-");
-		gt_count(c, &o, t->untracked, "untracked_symbol", "?");
-		gt_count(c, &o, c->g->stash, "stash_symbol", "$");
+		gt_count(c, &o, t->conflicted, "conflicted_symbol", "=",
+			 "conflicted_style", "bold red");
+		gt_count(c, &o, t->staged, "staged_symbol", "+",
+			 "staged_style", "bold green");
+		gt_count(c, &o, t->modified, "modified_symbol", "!",
+			 "modified_style", "bold yellow");
+		gt_count(c, &o, t->renamed, "renamed_symbol", "\302\273",
+			 "renamed_style", "bold blue");
+		gt_count(c, &o, t->deleted, "deleted_symbol", "-",
+			 "deleted_style", "bold red");
+		gt_count(c, &o, t->untracked, "untracked_symbol", "?",
+			 "untracked_style", "bold cyan");
+		gt_count(c, &o, c->g->stash, "stash_symbol", "$",
+			 "stash_style", "bold purple");
 	} else if (!strcmp(f, "ahead_behind")) {
-		gt_count(c, &o, t->ahead, "ahead_symbol", "\342\206\221");
-		gt_count(c, &o, t->behind, "behind_symbol", "\342\206\223");
+		gt_count(c, &o, t->ahead, "ahead_symbol", "\342\206\221",
+			 "ahead_style", "bold green");
+		gt_count(c, &o, t->behind, "behind_symbol", "\342\206\223",
+			 "behind_style", "bold red");
 	} else {
 		int n = !strcmp(f, "staged")	  ? t->staged
 			: !strcmp(f, "modified")  ? t->modified

@@ -29,3 +29,5 @@ staged 0 modified 0 deleted 0 untracked 0 conflicted 0 renamed 0 ahead 2 behind 
 staged 0 modified 0 deleted 0 untracked 0 conflicted 0 renamed 0 ahead 2 behind 1 unborn 0
 == the rendered segment
 <main ↑2 ↓1 !1 ?1 >
+== each count carries its own colour
+[<main <E>[0;1;32m↑2<E>[0m <E>[0;1;31m↓1<E>[0m <E>[0;1;33m!1<E>[0m <E>[0;1;36m?1<E>[0m >]

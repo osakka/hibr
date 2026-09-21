@@ -1,5 +1,5 @@
 mod load ./mods/prompt.so
-d=/tmp/hibr-stat-$$
+d=/tmp/nsh-stat-$$
 rm -rf "$d"
 mkdir -p "$d/r/.git/refs/heads" "$d/r/.git/refs/remotes/origin"
 mkdir -p "$d/r/.git/objects/4a"
@@ -105,8 +105,30 @@ PROMPT[format]='<$git>'
 PROMPT[git][style]=none
 PROMPT[git][status_style]=none
 PROMPT[git][ahead_behind_style]=none
+PROMPT[git][staged_style]=none
+PROMPT[git][modified_style]=none
+PROMPT[git][deleted_style]=none
+PROMPT[git][untracked_style]=none
+PROMPT[git][conflicted_style]=none
+PROMPT[git][renamed_style]=none
+PROMPT[git][stash_style]=none
+PROMPT[git][ahead_style]=none
+PROMPT[git][behind_style]=none
 printf 'changed\n' > a.txt; printf 'x\n' > u.txt
 p := prompt render
 echo "$p"
+echo "== each count carries its own colour"
+unset PROMPT[git][staged_style]
+unset PROMPT[git][modified_style]
+unset PROMPT[git][deleted_style]
+unset PROMPT[git][untracked_style]
+unset PROMPT[git][conflicted_style]
+unset PROMPT[git][renamed_style]
+unset PROMPT[git][stash_style]
+unset PROMPT[git][ahead_style]
+unset PROMPT[git][behind_style]
+p := prompt render
+str replace "$p" $'\e' "<E>" o
+echo "[$o]"
 cd /
 rm -rf "$d"

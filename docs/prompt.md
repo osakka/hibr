@@ -47,6 +47,20 @@ triple, or a number for the 256-colour palette. `fg:` and `bg:` choose which
 side; a bare colour is the foreground. Styles nest, and the enclosing style is
 restored after an inner one ends.
 
+**Colour.** Every count in the git segment carries its own style, so the
+prompt stays scannable at a glance rather than being one block of colour:
+
+| count | default | count | default |
+|---|---|---|---|
+| `staged_style` | bold green | `untracked_style` | bold cyan |
+| `modified_style` | bold yellow | `conflicted_style` | bold red |
+| `deleted_style` | bold red | `renamed_style` | bold blue |
+| `ahead_style` | bold green | `stash_style` | bold purple |
+| `behind_style` | bold red | `state_style` | bold yellow |
+
+Set any of them to `none` for a monochrome prompt, or to anything the style
+grammar accepts.
+
 **Configuration** is `PROMPT[segment][key]`. Every segment takes `format`,
 `style`, `symbol` and `disabled`; any other key is readable from the segment's
 format as a variable, so `PROMPT[dir][read_only_style]='bold red'` is picked up

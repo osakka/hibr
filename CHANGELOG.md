@@ -21,6 +21,12 @@ fixed along the way: `make install PREFIX=X` produced a binary that could not
 find its own modules, because the module directory is compiled in and changing
 it did not force a rebuild.
 
+Every count in the git segment carries its own colour — staged green, modified
+yellow, untracked cyan, conflicted and deleted red, ahead green, behind red —
+rather than the whole block sharing one style, which it previously did not
+have at all: `status_style`, `ahead_behind_style` and `state_style` had no
+defaults, so the most information-dense part of the prompt rendered plain.
+
 A prompt built in process: `PROMPT_FN` names a function, builtin or module
 builtin whose result slot becomes the prompt, with `$STATUS` and `$DURATION`
 set for it. The `prompt` module renders segments from a `PROMPT[...]` map with
