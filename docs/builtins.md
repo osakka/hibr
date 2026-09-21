@@ -91,7 +91,9 @@ echo "${cfg[items][0][name]}"        # read it with ordinary subscripts
 match "$line" '^([a-z]+)=([0-9]+)$'  # ${M[1]} and ${M[2]}
 ```
 
-See [Text, regex and JSON](data.md) for the whole vocabulary.
+Every operation of each, with examples, is in
+[Text, regex and JSON](data.md); whole tasks built out of them are in the
+[cookbook](cookbook.md).
 
 ## Conditions and flow
 

@@ -13,7 +13,8 @@ exists. These pages are the detail.
 | | |
 |---|---|
 | [The language](language.md) | Syntax, expansion, arithmetic, conditionals, maps and arrays, typed functions, declared arguments, errors, strict expansion |
-| [Text, regex and JSON](data.md) | `str`, `arr`, `match`, `rsub`, and JSON over the map model |
+| [Text, regex and JSON](data.md) | `str`, `arr`, `match`, `rsub`, and JSON over the map model — every operation, with examples |
+| [Cookbook](cookbook.md) | Whole tasks solved: logs, INI files, JSON, coprocesses, daemons, CLI programs |
 | [Networking](networking.md) | Sockets, TLS, `/dev/tcp` and friends, `listen`, coprocesses |
 | [Interactive use](interactive.md) | `~/.hibrc`, line editing, history, completion, job control |
 | [The prompt](prompt.md) | The prompt hook, the segment module, and its git support |

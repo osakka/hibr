@@ -103,7 +103,9 @@ precedence tables and expansion order, all taken from `lex.c` and `parse.c`
 rather than from memory. `docs/builtins.md` covers every builtin.
 `tests/530-docs.t` fails when a builtin is added without a reference entry,
 when an internal link stops resolving, or when a decision record is not
-indexed, so none of it can rot quietly.
+indexed, and `tests/540-examples.t` runs every example in `examples/`, so
+none of it can rot quietly. Examples in `docs/data.md` and `docs/cookbook.md`
+were each run and their real output pasted back; keep it that way.
 
 ## Core model, in brief
 

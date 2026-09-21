@@ -230,7 +230,7 @@ Steps 4 and 5 are skipped where one word is required — an assignment's value, 
 | `${x@Q}` | quoted so reading it back gives the same string |
 | `${x@E}` | with backslash escapes expanded |
 | `${x@U} ${x@L} ${x@u}` | upper, lower, first byte upper |
-| `${!ref}` | the value of the variable *named* by `x`; keeps any modifier |
+| `${!ref}` | the value of the variable *named* by `x`, subscripts and all, keeping any modifier |
 | `${!pre*}` `${!pre@}` | the names that begin with `pre`, sorted |
 | `${a[k]}` | one element; `${a[@]}` all, `${a[*]}` joined |
 | `${!a[@]}` | the keys |

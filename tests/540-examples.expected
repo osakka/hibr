@@ -1,0 +1,8 @@
+0
+every example parses
+every declared program answers --help
+[auth]
+  token = abc123
+8080
+sum of squares: 5
+examples holds 7 entries

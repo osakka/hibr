@@ -443,14 +443,14 @@ void xvar(sh *s, part *p, str *b, str *m)
 		part q2 = *p;
 		q2.op = p->op & ~V_INDF;
 		lg(HIBR_LTRC, "indirect with modifier via %s", p->t);
-		xvar2(s, &q2, b, m, r && *r ? xval(s, r) : 0);
+		xvar2(s, &q2, b, m, r && *r ? xbyname(s, r) : 0);
 		return;
 	} else if (p->op == V_IND) {
 		const char *r = xval(s, p->t);
 		if (!r || !*r)
 			return;
 		lg(HIBR_LTRC, "indirect: %s names %s", p->t, r);
-		v = xval(s, r);
+		v = xbyname(s, r);
 		xvar2(s, p, b, m, v);
 		return;
 	} else {
@@ -521,6 +521,41 @@ char *xquote(sh *s, const char *v, int bs)
 	r = ar_dup(s->xa, o.p ? o.p : "", o.n);
 	s_free(&o);
 	return r;
+}
+
+/* Read the variable a piece of text names, subscripts and all. */
+const char *xbyname(sh *s, const char *r)
+{
+	const char *br = strchr(r, '[');
+	const char *v;
+	vec *ks;
+	str nm;
+	char *q, *end;
+
+	if (!br)
+		return xval(s, r);
+	s_init(&nm);
+	s_add(&nm, r, (size_t)(br - r));
+	ks = vb_get(s);
+	q = (char *)br + 1;
+	while (q && *q) {
+		end = strchr(q, ']');
+		if (!end)
+			break;
+		*end = 0;
+		v_add(ks, xkey(s, ar_dup(s->xa, q, strlen(q))));
+		*end = ']';
+		q = end + 1;
+		if (*q == '[')
+			q++;
+		else
+			break;
+	}
+	v = hibr_getp(s, nm.p ? nm.p : "", (char **)ks->p, (int)ks->n);
+	lg(HIBR_LTRC, "indirect %s reached %s", r, v ? v : "(unset)");
+	vb_put(s, ks);
+	s_free(&nm);
+	return v;
 }
 
 /* Apply the parameter modifier to a resolved value. */

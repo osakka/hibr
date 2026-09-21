@@ -6,6 +6,8 @@ features together rather than demonstrating a single builtin.
 | | |
 |---|---|
 | [`httpd.hibr`](httpd.hibr) | A static web server. Parses requests with regex into maps, reads files through a redirection, and answers — without forking once |
+| [`conf.hibr`](conf.hibr) | Reads an INI file into nested maps in one pass, then queries it or emits it as JSON. No sed, no awk, no jq |
+| [`workers.hibr`](workers.hibr) | A pool of named coprocesses, handed work round robin and reached through indirect expansion |
 | [`fetch.hibr`](fetch.hibr) | An HTTP and HTTPS client that queries JSON responses. No curl, no jq |
 | [`ls-report.hibr`](ls-report.hibr) | Loads a module, uses it through the result slot, and summarises a source tree with declared arguments, maps, regex and JSON |
 | [`hibrc`](hibrc) | A starter `~/.hibrc`, which is what `deploy.sh` writes if you do not already have one |

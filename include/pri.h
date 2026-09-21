@@ -97,6 +97,7 @@ char *xcap(sh *s, const char *src);
 char *xpat(sh *s, word *w);
 char *xone(sh *s, word *w);
 char *xkey(sh *s, char *t);
+const char *xbyname(sh *s, const char *r);
 char *xkey_q(sh *s, char *t, const char *mk);
 char *xquote(sh *s, const char *v, int bs);
 int xqsafe(int c, int first);

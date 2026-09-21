@@ -1,0 +1,41 @@
+#!/usr/bin/env hibr
+# A pool of coprocesses, handed work and asked for it back.
+# bash cannot hold two coprocesses at once; here each has a name.
+
+opt .  "Run work across a pool of coprocesses"
+opt -n --workers  n     int=3   "How many workers"
+opt -j --jobs     jobs  int=9   "How many jobs to hand out"
+args "$@"
+
+# The worker. It reads a number and answers with its square, for ever,
+# talking over descriptors 0 and 1 with the same verbs a socket uses.
+worker() {
+  while recv 0 job; do
+    send 1 "$(( job * job ))"
+  done
+}
+
+# 1. Start the pool. Each coprocess gets its own name, so its ends are
+#    ${w1[in]} and ${w1[out]} rather than a single magic array.
+names=()
+for i in $(seq 1 "$n"); do
+  coproc "w$i" worker
+  arr push names "w$i"
+done
+echo "started $n workers: ${names[*]}"
+
+# 2. Hand work out round robin and collect each answer. Which worker to
+#    use is decided at run time, so its descriptors are reached through
+#    an indirect expansion -- ${!ref} follows a subscript too.
+total=0
+for j in $(seq 1 "$jobs"); do
+  w=${names[$(( (j - 1) % n ))]}
+  to="$w[out]"
+  from="$w[in]"
+  send "${!to}" "$j"
+  recv "${!from}" answer
+  total=$(( total + answer ))
+  printf '%s: %s squared is %s\n' "$w" "$j" "$answer"
+done
+
+echo "sum of squares: $total"

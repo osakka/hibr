@@ -1,0 +1,62 @@
+#!/usr/bin/env hibr
+# Read an INI file into nested maps, then answer questions about it.
+# Nothing here forks: no sed, no awk, no jq.
+
+opt .  "Read an INI file into nested maps and query it"
+opt -f --file  file  path!    "The INI file to read"
+opt -s --section sect str     "Show only this section"
+opt -k --key   key   str      "Show only this key, needs --section"
+opt -j --json  json           "Emit the whole thing as JSON"
+args "$@"
+
+# 1. One pass. A [section] switches context; key = value fills it in.
+cfg=()
+section=main
+while read -r line; do
+  str trim "$line" line
+  [ -z "$line" ] && continue
+  case "$line" in \#*|';'*) continue ;; esac
+  if match "$line" '^\[(.+)\]$'; then
+    section=${M[1]}
+    continue
+  fi
+  match "$line" '^([^=]+)=(.*)$' || continue
+  str trim "${M[1]}" k
+  str trim "${M[2]}" v
+  cfg[$section][$k]=$v
+done < "$file"
+
+# 2. One key.
+if [ -n "$key" ]; then
+  [ -n "$sect" ] || fail "--key needs --section"
+  echo "${cfg[$sect][$key]}"
+  exit 0
+fi
+
+# 3. As JSON, with the nesting carried across intact.
+if [ "$json" -eq 1 ]; then
+  json parse out '{}'
+  for s in "${!cfg[@]}"; do
+    [ -n "$sect" ] && [ "$s" != "$sect" ] && continue
+    for k in "${!cfg[$s][@]}"; do
+      json set out ".$s.$k" "${cfg[$s][$k]}"
+    done
+  done
+  json emit out -p
+  exit 0
+fi
+
+# 4. Or just read it out, widest key first so the columns line up.
+for s in "${!cfg[@]}"; do
+  [ -n "$sect" ] && [ "$s" != "$sect" ] && continue
+  echo "[$s]"
+  w=0
+  for k in "${!cfg[$s][@]}"; do
+    str len "$k" n
+    [ "$n" -gt "$w" ] && w=$n
+  done
+  for k in "${!cfg[$s][@]}"; do
+    str pad "$k" "$w" " " kp
+    echo "  $kp = ${cfg[$s][$k]}"
+  done
+done
