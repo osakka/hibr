@@ -4,7 +4,7 @@
 #include <stddef.h>
 
 #ifndef HIBR_ABI
-#define HIBR_ABI 6u
+#define HIBR_ABI 7u
 #endif
 #ifndef HIBR_VER
 #define HIBR_VER "0.21"
@@ -26,6 +26,7 @@
 #endif
 #ifndef HIBR_ARCH
 #define HIBR_ARCH 4096
+#define HIBR_ARKEEP 4u
 #endif
 #ifndef HIBR_HIST
 #define HIBR_HIST 500
@@ -182,7 +183,7 @@ typedef struct job job;
 typedef struct sh sh;
 
 struct blk { blk *nx; size_t cap, use; char d[]; };
-struct arena { blk *b; size_t ch; };
+struct arena { blk *b, *fr; size_t ch, nfr; };
 struct amark { blk *b; size_t use; };
 struct str { char *p; size_t n, cap; };
 struct vec { void **p; size_t n, cap; };

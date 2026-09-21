@@ -61,6 +61,8 @@ arena *ar_new(size_t ch)
 	arena *a = xm(sizeof *a);
 
 	a->b = 0;
+	a->fr = 0;
+	a->nfr = 0;
 	a->ch = ch ? ch : HIBR_ARCH;
 	return a;
 }
@@ -71,15 +73,33 @@ blk *ar_blk(arena *a, size_t n)
 	size_t c = a->ch;
 	blk *b;
 
-	while (c < n)
-		c <<= 1;
-	b = xm(sizeof *b + c);
-	b->cap = c;
+	if (a->fr && a->fr->cap >= n) {
+		b = a->fr;
+		a->fr = b->nx;
+		a->nfr--;
+	} else {
+		while (c < n)
+			c <<= 1;
+		b = xm(sizeof *b + c);
+		b->cap = c;
+		lg(HIBR_LTRC, "arena block %lu", (unsigned long)c);
+	}
 	b->use = 0;
 	b->nx = a->b;
 	a->b = b;
-	lg(HIBR_LTRC, "arena block %lu", (unsigned long)c);
 	return b;
+}
+
+/* Keep a released block for the next command, or give it back. */
+void ar_drop(arena *a, blk *b)
+{
+	if (a->nfr < HIBR_ARKEEP && b->cap <= a->ch) {
+		b->nx = a->fr;
+		a->fr = b;
+		a->nfr++;
+		return;
+	}
+	free(b);
 }
 
 /* Bump allocate zeroed memory from an arena. */
@@ -124,7 +144,7 @@ void ar_rel(arena *a, amark m)
 
 	while (a->b && a->b != m.b) {
 		n = a->b->nx;
-		free(a->b);
+		ar_drop(a, a->b);
 		a->b = n;
 	}
 	if (a->b)
@@ -138,7 +158,7 @@ void ar_reset(arena *a)
 
 	while (a->b && a->b->nx) {
 		n = a->b->nx;
-		free(a->b);
+		ar_drop(a, a->b);
 		a->b = n;
 	}
 	if (a->b)
@@ -154,6 +174,11 @@ void ar_free(arena *a)
 		n = a->b->nx;
 		free(a->b);
 		a->b = n;
+	}
+	while (a->fr) {
+		n = a->fr->nx;
+		free(a->fr);
+		a->fr = n;
 	}
 	free(a);
 }

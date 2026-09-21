@@ -718,8 +718,8 @@ void ex_trace(char **av, int ac)
 int ex_cmd(sh *s, node *n)
 {
 	amark m = ar_mark(s->xa);
-	vec *asg = vb_get(s);
-	vec *asgm = vb_get(s);
+	vec none = { 0, 0, 0 };
+	vec *asg = &none, *asgm = &none;
 	vec sv = { 0, 0, 0 };
 	char **av, **env, **am = 0;
 	char *path;
@@ -733,10 +733,14 @@ int ex_cmd(sh *s, node *n)
 
 	if (s->dtrap)
 		tr_debug(s, n->tx);
-	for (w = n->aw; w; w = w->nx) {
-		char *mk = 0;
-		v_add(asg, xone_q(s, w, &mk));
-		v_add(asgm, mk);
+	if (n->aw) {
+		asg = vb_get(s);
+		asgm = vb_get(s);
+		for (w = n->aw; w; w = w->nx) {
+			char *mk = 0;
+			v_add(asg, xone_q(s, w, &mk));
+			v_add(asgm, mk);
+		}
 	}
 	for (f = n->x; f; f = f->x) {
 		vec *el = vb_get(s);
@@ -896,8 +900,10 @@ out:
 		v_copy(s, n->s, "RET");
 		s->bind = 0;
 	}
-	vb_put(s, asg);
-	vb_put(s, asgm);
+	if (asg != &none) {
+		vb_put(s, asg);
+		vb_put(s, asgm);
+	}
 	if (s->psub.n)
 		xpsub_done(s);
 	ar_rel(s->xa, m);

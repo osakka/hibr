@@ -9,11 +9,13 @@
 ## The ABI
 
 `HIBR_ABI` in `hibr.h` is checked when a module loads; a mismatch is refused
-rather than risked. It is currently **6**.
+rather than risked. It is currently **7**.
 
 Changing any public type, the meaning of any public function, or the name of
-any exported symbol means bumping it. The last bump added `cmds` to `sh`, where
-the shell remembers what it found on `PATH`. Before that `at` joined `var`, for
+any exported symbol means bumping it. The last bump gave `arena` a short free
+list, so a released block is reused by the next command instead of going back
+to `malloc`. Before that `cmds` joined `sh`, where the shell remembers what it
+found on `PATH`. Before that `at` joined `var`, for
 the attributes `declare` sets, and `amask` joined `sh` —
 [0006](../docs/adr/0006-arrays-are-sparse-maps.md). Appending to `sh` leaves
 every existing offset alone, so an old module would still run, but a module
@@ -24,7 +26,7 @@ A running shell reports the same number in `$HIBR_ABI`, so a script can check
 before it loads a module rather than after:
 
 ```
-[ "${HIBR_ABI:-0}" = 6 ] || { echo "this module wants ABI 6" >&2; exit 1; }
+[ "${HIBR_ABI:-0}" = 7 ] || { echo "this module wants ABI 7" >&2; exit 1; }
 mod load mine
 ```
 

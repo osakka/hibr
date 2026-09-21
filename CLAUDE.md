@@ -17,7 +17,7 @@ servers, typed function signatures, result slots (`x := f` without forking),
 declared CLI arguments, and a module ABI that lets modules add *protocols*
 (`/dev/<name>/…`), not just commands.
 
-Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 6).
+Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 7).
 
 ## Build and test
 
@@ -70,7 +70,7 @@ linked, and no OpenSSL headers are needed to build.
 
 | file | role |
 |---|---|
-| `include/hibr.h` | public types, macros and the module ABI (v6) |
+| `include/hibr.h` | public types, macros and the module ABI (v7) |
 | `include/pri.h` | internal declarations, tokens, the `lex` struct |
 | `include/re.h` | our own regex declarations (tcc cannot parse glibc's) |
 | `src/mem.c` | arenas with mark/release, `str`, `vec`, pools, `lg` logging |
@@ -247,6 +247,12 @@ were each run and their real output pasted back; keep it that way.
   tcc loses to them. A careful `strtol` replacement, verified against libc on
   116 inputs, made the benchmark loop **4.5% slower** and was thrown away. Cut
   the number of calls instead of trying to beat the call.
+- **The expansion arena keeps a few released blocks.** `ar_rel` used to `free`
+  every block past the mark, so once the base block filled, every command
+  malloced a block and freed it again -- three of each per loop iteration.
+  `ar_drop` now keeps up to `HIBR_ARKEEP` blocks of the standard size for the
+  next command and frees anything larger, which costs about 36 kB of resident
+  memory and bought 5%. `ar_free` and `ar_reset` must both drain that list.
 - **`qsort` is not given a NULL base.** An empty directory leaves `vec.p` NULL,
   and glibc declares the argument non-null, which UBSan reports.
 - **`ob_hex` does not check what follows the digits**, because in `packed-refs`
@@ -282,11 +288,13 @@ were each run and their real output pasted back; keep it that way.
   what they *do* against bash is where the rest is, and it is the method that
   found `${u:?}` not guarding, `trap EXIT` not firing and `TZ=UTC` doing
   nothing.
-- Keep closing the gap to dash on loop throughput, now 1.46x after the first
-  pass (was 1.71x). What is left is diffuse: `v_add`, `ar_alloc` and the
-  allocation churn of building argv, roughly 14 arena allocations and 35 vector
-  appends per iteration. The next win is fewer allocations per command, not a
-  faster allocator.
+- Keep closing the gap to dash on loop throughput, now 1.34x on the benchmark
+  loop (was 1.71x). What is left is still diffuse: 29 `v_add` calls per
+  iteration, 17 of them pool bookkeeping from `vb_put` and `sb_put`. Borrowing
+  fewer scratch vectors is the next move, not a faster `v_add`.
+- Shells leak on the way out, about 3.8 kB, and a forked child that `_exit`s
+  leaks whatever it held. Both predate this work; measure a leak change against
+  the previous commit rather than against zero.
 - hibr no longer uses less memory than dash — 1684 kB against 1620 kB at
   startup. The README says so plainly now; either close it or keep saying so.
 - A differential fuzzer: `tests/fuzz.py` checks the parser does not crash, but

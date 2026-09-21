@@ -43,15 +43,16 @@ the best of nine runs; memory is the shell's own `VmHWM`, read without forking.
 | binary, stripped | 313 KB | 122 KB | 1235 KB |
 | resident memory at startup | 1684 kB | 1620 kB | 2880 kB |
 | resident memory after the loop | 1804 kB | 1572 kB | 2868 kB |
-| the loop | 119 ms | 84 ms | 241 ms |
+| the loop | 103 ms | 74 ms | 214 ms |
 | 5000 function calls, results via `:=` | **28 ms** | — | — |
 | the same through `$( )` | 1249 ms | 1211 ms | 2360 ms |
 | startup, `-c true` | 0.98 ms | 0.86 ms | 1.72 ms |
 
 Read honestly: hibr is about half of bash on memory and twice its speed on a
-tight loop, and **dash is still ahead of hibr on both** — roughly 1.4x on the
+tight loop, and **dash is still ahead of hibr on both** — about 1.4x on the
 loop and a little under 100 kB on memory. dash is a far smaller language, and
-closing that is the current work rather than a settled claim.
+closing that is the current work rather than a settled claim; the gap was 1.7x
+before the last round of profiling.
 
 The row that is not a near-miss is the fifth. Returning a value through `$( )`
 costs a fork per call in every shell; `:=` costs none, which is where the 45x
