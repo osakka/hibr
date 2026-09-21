@@ -98,6 +98,13 @@ Each directory carries its own `README.md` with the detail: `src/`, `include/`,
 every deliberate divergence from bash has a record in `docs/adr/`. Keep those
 current — this table is a summary, not the source of truth.
 
+`docs/grammar.md` states the language: lexical structure, an EBNF grammar,
+precedence tables and expansion order, all taken from `lex.c` and `parse.c`
+rather than from memory. `docs/builtins.md` covers every builtin.
+`tests/530-docs.t` fails when a builtin is added without a reference entry,
+when an internal link stops resolving, or when a decision record is not
+indexed, so none of it can rot quietly.
+
 ## Core model, in brief
 
 - **Memory.** `sh.ar` holds the AST; `sh.xa` holds expansion results and is
@@ -263,11 +270,19 @@ current — this table is a summary, not the source of truth.
 
 ## Open items
 
-- Run real scripts under hibr and fix by frequency — the next roadmap should come
-  from that, not from speculation.
-- Decide whether `set -S` should become the default after that.
-- Possibly: `declare`/`typeset`, `shopt`, `set -o` by name, coprocesses, anchored
-  `${x/#…}` / `${x/%…}`, a `plan N` count in `self.hibr`.
+- Run real scripts under hibr **at execution level** and fix by frequency. The
+  parse-level sweep is done: 169 system scripts, all of them parse. Comparing
+  what they *do* against bash is where the rest is, and it is the method that
+  found `${u:?}` not guarding, `trap EXIT` not firing and `TZ=UTC` doing
+  nothing.
+- Profile the loop against dash, which is 1.6x faster on `while [ $i -lt N ]`.
+  Loop throughput is the third priority and the claim is currently only made
+  against bash.
+- A differential fuzzer: `tests/fuzz.py` checks the parser does not crash, but
+  every real bug this year came from comparing behaviour, not from parsing.
+- Decide whether `set -S` should become the default.
+- Possibly: `declare -l`/`-u`, `trap RETURN`, `select` refinements, a `plan N`
+  count in `self.hibr`.
 - A quoted subscript does not survive an alias: `al_quote` escapes rather than
   quotes, so `alias u=unset; u h["a-b"]` evaluates the subscript. Fixing it
   needs the alias path to carry masks rather than re-lex text.

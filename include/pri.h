@@ -171,6 +171,8 @@ char *cwd(void);
 int b_cd(sh *s, int ac, char **av);
 int b_alias(sh *s, int ac, char **av);
 int b_unalias(sh *s, int ac, char **av);
+const char *dir_at(sh *s, long k);
+const char *xtilde1(sh *s, const char *t, size_t n);
 int b_dirs(sh *s, int ac, char **av);
 int b_pushd(sh *s, int ac, char **av);
 int b_popd(sh *s, int ac, char **av);

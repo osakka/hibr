@@ -1,5 +1,10 @@
 # The language
 
+A guided tour. For the formal definition — lexical structure, an EBNF grammar,
+precedence tables and the order expansions happen in — see
+[the grammar](grammar.md); for what each builtin takes, see
+[builtins](builtins.md).
+
 ## Everything you expect from a shell
 
 Pipelines, `&&`, `||`, `!`, `;`, background `&`, subshells `( )`, groups `{ }`,

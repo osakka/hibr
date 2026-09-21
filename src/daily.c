@@ -193,6 +193,18 @@ char *dir_short(sh *s, const char *p)
 	return b.p;
 }
 
+/* The directory stack entry ~N or ~-N names, or null when out of range. */
+const char *dir_at(sh *s, long k)
+{
+	long len = (long)s->dirs.n + 1, i = k < 0 ? len + k : k;
+
+	if (i < 0 || i >= len)
+		return 0;
+	if (!i)
+		return hibr_get(s, "PWD");
+	return (const char *)s->dirs.p[s->dirs.n - (size_t)i];
+}
+
 /* Print the directory stack, newest first. */
 int b_dirs(sh *s, int ac, char **av)
 {

@@ -35,3 +35,11 @@ echo "still normal: $((0xff)) $((0755)) $((42))"
 
 ( echo "${unsetvar:?must be set}"; echo NOT-REACHED ) 2>/dev/null
 echo "guard stopped the subshell"
+
+cd /tmp
+echo "tilde pwd: $(echo ~+)"
+cd /
+echo "tilde old: $(echo ~-)"
+echo "tilde user: $(echo ~root)"
+echo "tilde unknown stays: $(echo ~nosuchuser___)"
+echo "tilde home matches: $([ "$(echo ~)" = "$HOME" ] && echo yes)"

@@ -1,5 +1,6 @@
 #include "pri.h"
 #include <ctype.h>
+#include <pwd.h>
 #include <dirent.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1136,21 +1137,52 @@ int w_hasq(word *w)
 }
 
 /* Expand a leading tilde in place. */
+/* What a ~ prefix names: home, a user, the working directory, the stack. */
+const char *xtilde1(sh *s, const char *t, size_t n)
+{
+	struct passwd *pw;
+	str who;
+	const char *r = 0;
+	long k;
+
+	if (!n)
+		return hibr_get(s, "HOME");
+	if (n == 1 && *t == '+')
+		return hibr_get(s, "PWD");
+	if (n == 1 && *t == '-')
+		return hibr_get(s, "OLDPWD");
+	if (isdigit((unsigned char)*t) || ((*t == '+' || *t == '-') && n > 1)) {
+		int back = *t == '-';
+		k = atol(t + (*t == '+' || *t == '-' ? 1 : 0));
+		return dir_at(s, back ? -(k + 1) : k);
+	}
+	s_init(&who);
+	s_add(&who, t, n);
+	pw = getpwnam(who.p ? who.p : "");
+	if (pw)
+		r = ar_dup(s->xa, pw->pw_dir, strlen(pw->pw_dir));
+	s_free(&who);
+	return r;
+}
+
+/* Expand a leading ~ in a word, if it has one. */
 void xtilde(sh *s, word *w, str *b, str *m)
 {
 	part *p = w->p;
 	const char *h;
+	size_t n = 0;
 
 	if (!p || p->k != P_TXT || p->q || !p->n || p->t[0] != '~')
 		return;
-	if (p->n > 1 && p->t[1] != '/')
-		return;
-	h = hibr_get(s, "HOME");
+	while (1 + n < p->n && p->t[1 + n] != '/')
+		n++;
+	h = xtilde1(s, p->t + 1, n);
 	if (!h)
 		return;
+	lg(HIBR_LTRC, "~%.*s is %s", (int)n, p->t + 1, h);
 	xput(b, m, h, strlen(h), 1);
-	p->t++;
-	p->n--;
+	p->t += 1 + n;
+	p->n -= 1 + n;
 }
 
 /* Expand a word into zero or more fields. */
