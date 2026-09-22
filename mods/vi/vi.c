@@ -768,7 +768,8 @@ int m_vi(sh *s, int ac, char **av)
 
 	dp = (const dp_api *)hibr_require(s, "display", DP_API_VER);
 	if (!dp) {
-		lg(HIBR_LERR, "vi: needs a display; mod load console");
+		lg(HIBR_LERR, "vi: no display is available; nothing on the\n"
+			      "      module path offers one");
 		return HIBR_FAIL;
 	}
 	if (ac > 2) {

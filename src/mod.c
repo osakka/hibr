@@ -260,6 +260,12 @@ void m_probe(sh *s, const char *path, const char *file)
 			s_cat(&bl, ", ");
 		s_cat(&bl, b->nm);
 	}
+	if (d->prov) {
+		if (bl.n)
+			s_cat(&bl, "   ");
+		s_cat(&bl, "offers ");
+		s_cat(&bl, d->prov);
+	}
 	printf("%-12s %-8s %-8s %-10s %s\n", d->nm, d->ver ? d->ver : "-",
 	       ab.p, state, path);
 	if (bl.n)
@@ -385,24 +391,113 @@ int hibr_provide(sh *s, const char *nm, unsigned ver, void *api)
 	return HIBR_OK;
 }
 
-/* Ask for a table another module offered, refusing a version we cannot use. */
-void *hibr_require(sh *s, const char *nm, unsigned ver)
+/* Look for an offer already made. */
+void *m_offered(sh *s, const char *nm, unsigned ver, int *wrong)
 {
 	struct api *a;
 	size_t i;
 
+	*wrong = 0;
 	for (i = 0; i < s->apis.n; i++) {
 		a = (struct api *)s->apis.p[i];
 		if (strcmp(a->nm, nm))
 			continue;
 		if (a->ver != ver) {
+			*wrong = 1;
 			lg(HIBR_LERR, "api %s is v%u, v%u was asked for", nm,
 			   a->ver, ver);
 			return 0;
 		}
 		return a->p;
 	}
-	lg(HIBR_LDBG, "api %s is not offered by any loaded module", nm);
+	return 0;
+}
+
+/* Does the module in this file say it offers that interface? */
+int m_declares(const char *path, const char *iface)
+{
+	void *h = dlopen(path, RTLD_NOW | RTLD_LOCAL);
+	const hibr_mod *d;
+	int yes = 0;
+
+	if (!h)
+		return 0;
+	d = (const hibr_mod *)dlsym(h, "hibr_module");
+	if (d && d->abi == HIBR_ABI && d->prov && !strcmp(d->prov, iface))
+		yes = 1;
+	dlclose(h);
+	return yes;
+}
+
+/* Walk one directory for a module that offers the interface, and load it. */
+int m_seek(sh *s, const char *dir, const char *iface)
+{
+	DIR *dp = opendir(dir);
+	struct dirent *de;
+	vec names;
+	size_t i;
+	int got = 0;
+
+	if (!dp)
+		return 0;
+	names.p = 0;
+	names.n = 0;
+	names.cap = 0;
+	while ((de = readdir(dp)))
+		if (m_hasso(de->d_name))
+			v_add(&names, xs(de->d_name));
+	closedir(dp);
+	if (names.n > 1)
+		qsort(names.p, names.n, sizeof *names.p, m_cmp);
+	for (i = 0; i < names.n && !got; i++) {
+		str full;
+		s_init(&full);
+		s_cat(&full, dir);
+		if (full.n && full.p[full.n - 1] != '/')
+			s_ch(&full, '/');
+		s_cat(&full, (char *)names.p[i]);
+		if (m_declares(full.p, iface)) {
+			lg(HIBR_LINF, "loading %s, which offers %s", full.p,
+			   iface);
+			got = m_load(s, full.p) == HIBR_OK;
+		}
+		s_free(&full);
+	}
+	for (i = 0; i < names.n; i++)
+		free(names.p[i]);
+	v_free(&names);
+	return got;
+}
+
+/* Ask for a table another module offered. When nothing has offered it yet,
+   look along the module path for one that says it would, and load that --
+   so a tool asks for what it needs rather than for the module that has it. */
+void *hibr_require(sh *s, const char *nm, unsigned ver)
+{
+	const char *mp;
+	void *p;
+	int wrong;
+
+	p = m_offered(s, nm, ver, &wrong);
+	if (p || wrong)
+		return p;
+	lg(HIBR_LDBG, "no loaded module offers %s; looking for one", nm);
+	mp = geteuid() == 0 ? 0 : hibr_get(s, "HIBR_MODPATH");
+	if (geteuid() != 0 && m_seek(s, ".", nm))
+		return m_offered(s, nm, ver, &wrong);
+	while (mp && *mp) {
+		const char *e = strchr(mp, ':');
+		size_t n = e ? (size_t)(e - mp) : strlen(mp);
+		if (n) {
+			char *d = ar_dup(s->xa, mp, n);
+			if (m_seek(s, d, nm))
+				return m_offered(s, nm, ver, &wrong);
+		}
+		mp = e ? e + 1 : mp + n;
+	}
+	if (m_seek(s, HIBR_MODDIR, nm))
+		return m_offered(s, nm, ver, &wrong);
+	lg(HIBR_LDBG, "nothing on the module path offers %s", nm);
 	return 0;
 }
 

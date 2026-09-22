@@ -1,0 +1,18 @@
+0
+loaded
+no escapes in a pipe: 0
+-p also plain: 0
+bad option rc=2
+OS present
+Kernel present
+Arch present
+Uptime present
+Shell present
+CPU present
+Memory present
+Disk present
+Load present
+kernel agrees with uname
+arch agrees with uname
+names this shell
+dropped

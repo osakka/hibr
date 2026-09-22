@@ -4,7 +4,7 @@
 #include <stddef.h>
 
 #ifndef HIBR_ABI
-#define HIBR_ABI 12u
+#define HIBR_ABI 13u
 #endif
 #ifndef HIBR_VER
 #define HIBR_VER "0.21"
@@ -249,6 +249,11 @@ typedef struct hibr_mod {
 	const hibr_bi *bi;
 	int (*ini)(sh *s);
 	void (*fin)(sh *s);
+	/* The interface this module offers, if it offers one. Named here as
+	   well as registered in the module's init so that hibr_require can
+	   find a provider that is not loaded yet, without loading every
+	   module to ask. */
+	const char *prov;
 } hibr_mod;
 
 #ifndef HIBR_BI_END
@@ -257,7 +262,11 @@ typedef struct hibr_mod {
 
 #ifndef HIBR_MODULE
 #define HIBR_MODULE(nm_, ver_, dsc_, bi_, ini_, fin_) \
-	const hibr_mod hibr_module = { HIBR_ABI, nm_, ver_, dsc_, bi_, ini_, fin_ }
+	const hibr_mod hibr_module = { HIBR_ABI, nm_, ver_, dsc_, bi_, ini_, \
+				       fin_, 0 }
+#define HIBR_MODULE_P(nm_, ver_, dsc_, bi_, ini_, fin_, prov_) \
+	const hibr_mod hibr_module = { HIBR_ABI, nm_, ver_, dsc_, bi_, ini_, \
+				       fin_, prov_ }
 #endif
 
 extern int hibr_lv;

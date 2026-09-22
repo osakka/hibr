@@ -347,7 +347,8 @@ int m_most(sh *s, int ac, char **av)
 
 	dp = (const dp_api *)hibr_require(s, "display", DP_API_VER);
 	if (!dp) {
-		lg(HIBR_LERR, "most: needs a display; mod load console");
+		lg(HIBR_LERR, "most: no display is available; nothing on the\n"
+			      "      module path offers one");
 		return HIBR_FAIL;
 	}
 	bufs.p = 0;
@@ -642,4 +643,4 @@ const hibr_bi most_bi[] = {
 	HIBR_BI_END
 };
 
-HIBR_MODULE("most", "0.21", "a pager built on the screen module", most_bi, 0, 0);
+HIBR_MODULE("most", "0.21", "a pager on the display interface", most_bi, 0, 0);

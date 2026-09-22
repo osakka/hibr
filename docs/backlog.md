@@ -64,6 +64,124 @@ the pty line editor and the test suite are untested rather than known broken.
 
 ## Wanted
 
+### A visual traceroute with a world map — built
+
+`mods/trace` plus `examples/traceroute.hibr`. The three things that looked hard
+turned out to have light answers, and one of them was not solved at all.
+
+**Getting the hops needs no privilege after all.** The entry used to say this
+needed a raw socket and therefore root. It does not: a UDP socket with
+`IP_RECVERR` set collects the ICMP complaints on its error queue, which
+`recvmsg(MSG_ERRQUEUE)` reads along with the address of the router that
+complained. That is how `tracepath` does it. The cost is that it is Linux's;
+elsewhere the builtin loads and refuses, saying why.
+
+**Setting the hop limit** was said to need a new builtin. It needed
+`setsockopt` inside the module, which is three lines.
+
+**Places need no database.** `/usr/share/zoneinfo/zone1970.tab` is public
+domain, already on every Unix, and holds 312 coordinates. Four capitals that
+tzdata folds into a neighbour's zone — Amsterdam and the Nordic ones — are
+given explicit coordinates rather than approximated by the neighbour, which
+would have been several degrees out.
+
+**The map was the easy part, as predicted, but not the way it was drawn.**
+Hand-drawing it by eye scored 46% — that is, over half of real places fell in
+the sea. The fix was to write the coastlines as longitude ranges per latitude
+band, so they can be checked against an atlas instead of counted in characters,
+and then to score the result against every coordinate in `zone1970.tab`. It is
+now 86%, and every remaining miss is an island smaller than the five degrees of
+longitude one column covers.
+
+**What is honestly not solved: locating an address.** A hop is placed when its
+reverse DNS carries a city name or an airport code. That is a convention, not a
+measurement — a router called `lon` is *said* to be in London by whoever named
+it, and one with no reverse DNS is not placed at all. The script says which
+hops it placed and which it did not, rather than guessing. Real geolocation
+still means a real database, and that remains a thing this does not do.
+
+Two small extras that would be worth having: a `--demo` route exists so the map
+can be seen working when a real path's routers happen to be anonymous, and the
+six-letter backbone codes (`londen`, `frnkge`) are only partly covered.
+
+**The map was not the useful part, and the owner said so.** On a network whose
+carriers publish no reverse DNS there is nothing to place, and what is left is
+a traceroute with an empty map. `trace -l` is the answer: loss, last, average,
+best, worst and jitter per hop with a round-trip history, updating while you
+watch, and needing no geolocation to be worth looking at. It is what `mtr` does
+that `traceroute` does not.
+
+Two things about its probing are not obvious and each looks right alone. A
+round sends every hop limit rather than doing one at a time, because the
+timeout multiplied by the hops is twenty seconds a round; but sent as a burst,
+routers rate limit their ICMP and the queueing lands in the timings — the same
+hop read 35 ms singly and 520 ms in a burst. So the sends are spaced, *and*
+replies are collected between them, because timing a reply when the round ends
+charges the later hops' wait to the earlier ones and a LAN gateway reads
+200 ms.
+
+### A display layer — built
+
+`mods/console` now exists, so the vi, the most and the monitor are no longer
+blocked on it. It was called `screen` until that turned out to shadow
+`/usr/bin/screen` — a module's builtins become commands — and it is the
+*console*, a text display. What it offers other modules is the **display**
+interface in `mods/display.h`, which a framebuffer or SDL backend could offer
+equally well without the tools noticing. It owns the terminal: alternate screen, a cell grid with two
+buffers and a redraw that emits only the difference, panes, colour, and keys
+decoded into names. 2095 bytes to paint an empty eighty by twenty-four screen,
+8 bytes to change one character on it, and nothing at all for a flush with
+nothing new.
+
+What it deliberately does not do is in
+[0019](adr/0019-the-console-display-assumes-xterm.md): no terminfo, no
+ncurses. The guide is [full-screen programs](display.md), the demo is
+`examples/console-demo.hibr`.
+
+Not there yet, and worth adding when something needs it: a scrolling region,
+so a pager can move a screenful without repainting it; and z-ordering for
+panes, which nothing has asked for.
+
+### A system monitor — built
+
+`mods/mon`. Processors with a bar each, memory and swap, network and disk
+rates, and the process table sorted by processor or by size. `p` pauses, `m`
+sorts by memory, `c` by processor.
+
+Everything in `/proc` is a counter since boot, so a rate is the difference
+between two readings over the time between them — which is why the first
+reading shows nothing. The trap worth keeping is in `/proc/[pid]/stat`: field
+three is the process state and it is a *letter*, so a loop that skips fields by
+reading numbers never gets past it and every later field reads zero. That looks
+exactly like an idle machine using no memory, rather than like a parsing bug.
+
+Not there: per-process network or disk, a tree view, sending signals, and
+temperatures.
+
+### A neofetch — built
+
+`mods/sysinfo`. Operating system, kernel, architecture, uptime, shell,
+terminal, processor, memory, disk and load, beside a picture chosen from
+`/etc/os-release`.
+
+It follows the cat's rule rather than the monitor's: colour on a terminal and
+nothing at all in a pipe, so `sysinfo | mail` sends text. Everything comes from
+`/proc`, `uname` and `statvfs`, so it forks for nothing. Three pictures —
+Debian, Alpine, and hibr's own as the fallback.
+
+### Module autoloading — built
+
+A tool asks for an interface and the shell finds something that offers it.
+`hibr_require(s, "display", 1)` with nothing loaded walks the module path,
+reads each module's descriptor *without* initialising it, and loads the first
+that declares it offers `display`. So `mod load most; something | most` works
+with no mention of the console anywhere.
+
+That was the owner's point: being told to `mod load console` when you asked for
+a display is two names for what feels like one thing. `mod avail` now shows
+what each module offers, and the message when nothing does says that rather
+than naming a module that might not be the right one.
+
 ### A vi — built
 
 `mods/vi`, on the display interface.
@@ -153,7 +271,8 @@ be part of `prompt.so` or do without.
 
 ### A shared pty test harness
 
-`tests/editor.py`, `tests/console.py`, `tests/cat.py` and `tests/most.py` each carry their own
+`tests/editor.py`, `tests/console.py`, `tests/cat.py`, `tests/most.py`,
+`tests/vi.py`, `tests/mtr.py` and `tests/mon.py` each carry their own
 twenty-five lines of `pty.fork` boilerplate, because everything interesting
 about a terminal is invisible to `run.sh`. Four copies is three too many. A
 shared `tests/ptyrun.py` would fix it — and must not be called `pty.py` or

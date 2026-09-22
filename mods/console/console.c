@@ -349,6 +349,6 @@ const hibr_bi console_bi[] = {
 	HIBR_BI_END
 };
 
-HIBR_MODULE("console", "0.21",
-	    "a text display: cells, panes and decoded keys", console_bi,
-	    cn_ini, cn_fini);
+HIBR_MODULE_P("console", "0.21",
+	      "a text display: cells, panes and decoded keys", console_bi,
+	      cn_ini, cn_fini, "display");
