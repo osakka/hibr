@@ -279,6 +279,38 @@ int vi_load(vi_buf *b, const char *path)
 	return HIBR_OK;
 }
 
+/* Remember what the file looked like when it was read. */
+int vi_stamp(vi_ed *e)
+{
+	struct stat st;
+
+	if (!e->path || stat(e->path, &st) != 0) {
+		e->ondisk = 0;
+		return HIBR_OK;
+	}
+	e->ondisk = 1;
+	e->mtim = (long)st.st_mtime;
+	e->mtin = (long)HIBR_MTIM(st).tv_nsec;
+	e->fsize = (size_t)st.st_size;
+	return HIBR_OK;
+}
+
+/* True when the file moved underneath us since it was read. */
+int vi_changed(vi_ed *e)
+{
+	struct stat st;
+
+	if (!e->path)
+		return 0;
+	if (stat(e->path, &st) != 0)
+		return e->ondisk;
+	if (!e->ondisk)
+		return 1;
+	return (long)st.st_mtime != e->mtim ||
+	       (long)HIBR_MTIM(st).tv_nsec != e->mtin ||
+	       (size_t)st.st_size != e->fsize;
+}
+
 /* Write the buffer out through a temporary file, so a crash cannot truncate. */
 int vi_save(const vi_buf *b, const char *path)
 {

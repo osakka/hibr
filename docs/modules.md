@@ -90,6 +90,7 @@ its users refuse rather than call into an unloaded object. `most` uses the
 
 Reference modules in `mods/`:
 - **`most`** pages files or a pipe, built on the display interface.
+- **`vi`** a modal editor on the same interface: gap buffer, linear undo.
 - **`trace`** traces a route with no privileges, using `IP_RECVERR` rather than
   a raw socket, and puts the hops in a map. `examples/traceroute.hibr` draws
   them on a world map.

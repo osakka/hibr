@@ -28,12 +28,13 @@ Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 12).
     make install         # PREFIX=/usr/local, modules to $(PREFIX)/lib/hibr
     ./build/hibr -n script      # parse only
 
-    tests/run.sh [-v] [prefix]           # C-side harness, 68 tests
+    tests/run.sh [-v] [prefix]           # C-side harness, 69 tests
     ./build/hibr tests/self.hibr                 # suite in hibr, 91 assertions, planned
     python3 tests/editor.py                      # the line editor, through a pty
     python3 tests/console.py                     # the console display, through a pty
     python3 tests/cat.py                         # the cat module, through a pty
     python3 tests/most.py                        # the pager, through a pty
+    python3 tests/vi.py                          # the editor, through a pty
     python3 tests/diff.py --shell ./build/hibr 250   # snippets, diffed against bash
     python3 tests/corpus.py --list <file>        # real scripts, run under both shells
     HIBR=./build/hibr REF=dash tests/run.sh      # compare against another shell
@@ -103,7 +104,8 @@ linked, and no OpenSSL headers are needed to build.
 | `mods/display.h` | the interface a display backend offers; `console` is the only one so far |
 | `mods/cat/` | `cat` that is byte-identical in a pipe and useful on a terminal — see `mods/cat/README.md` |
 | `mods/trace/` | unprivileged traceroute over UDP with `IP_RECVERR` — see `mods/trace/README.md` |
-| `mods/most/` | a pager built on the screen module, the first to use another module — see `mods/most/README.md` |
+| `mods/most/` | a pager on the display interface, the first module to use another — see `mods/most/README.md` |
+| `mods/vi/` | a modal editor: gap buffer, lazy line index, linear undo — see `mods/vi/README.md` |
 
 Each directory carries its own `README.md` with the detail: `src/`, `include/`,
 `mods/`, `tests/`, `examples/`. User-facing documentation is under `docs/`, and
@@ -279,6 +281,10 @@ were each run and their real output pasted back; keep it that way.
   backend. Do not switch to `RTLD_GLOBAL` to avoid it —
   that makes every module's symbols collide with every other's, which is the
   `m_drop` trap generalised.
+- **Visual mode takes in the character under the cursor.** vi's `v` is
+  inclusive and a naive start-to-cursor range is one character short, which
+  looks right on a long selection and wrong on a short one. `V` is whole lines
+  and does not need it.
 - **A damage-based renderer cannot be tested by grepping its output.** The
   display sends only the cells that changed, so the byte stream holds
   `78-200/200` where the display reads `178-200/200`. `tests/most.py`

@@ -64,110 +64,25 @@ the pty line editor and the test suite are untested rather than known broken.
 
 ## Wanted
 
-### A visual traceroute with a world map — built
+### A vi — built
 
-`mods/trace` plus `examples/traceroute.hibr`. The three things that looked hard
-turned out to have light answers, and one of them was not solved at all.
+`mods/vi`, on the display interface.
 
-**Getting the hops needs no privilege after all.** The entry used to say this
-needed a raw socket and therefore root. It does not: a UDP socket with
-`IP_RECVERR` set collects the ICMP complaints on its error queue, which
-`recvmsg(MSG_ERRQUEUE)` reads along with the address of the router that
-complained. That is how `tracepath` does it. The cost is that it is Linux's;
-elsewhere the builtin loads and refuses, saying why.
+The two hard calls the entry asked for are made and written down. **The buffer
+is a gap buffer**, not a piece table: a piece table earns its complexity by
+making undo a snapshot of the piece list, and undo here records edits, so that
+advantage never arrives. The line index rebuilds from the edit point forward,
+which is the property the 2 GB argument actually needed — on 50 MB, 200 edits
+at the far end with a re-index after each cost 0 ms. **Undo is linear with a
+redo stack**, grouped so that `u` after typing a sentence removes the sentence.
 
-**Setting the hop limit** was said to need a new builtin. It needed
-`setsockopt` inside the module, which is three lines.
+`:w` writes through a temporary file and renames, and refuses when the file
+changed on disk since it was read, with `:w!` to override — vim's behaviour,
+and the owner's call.
 
-**Places need no database.** `/usr/share/zoneinfo/zone1970.tab` is public
-domain, already on every Unix, and holds 312 coordinates. Four capitals that
-tzdata folds into a neighbour's zone — Amsterdam and the Nordic ones — are
-given explicit coordinates rather than approximated by the neighbour, which
-would have been several degrees out.
-
-**The map was the easy part, as predicted, but not the way it was drawn.**
-Hand-drawing it by eye scored 46% — that is, over half of real places fell in
-the sea. The fix was to write the coastlines as longitude ranges per latitude
-band, so they can be checked against an atlas instead of counted in characters,
-and then to score the result against every coordinate in `zone1970.tab`. It is
-now 86%, and every remaining miss is an island smaller than the five degrees of
-longitude one column covers.
-
-**What is honestly not solved: locating an address.** A hop is placed when its
-reverse DNS carries a city name or an airport code. That is a convention, not a
-measurement — a router called `lon` is *said* to be in London by whoever named
-it, and one with no reverse DNS is not placed at all. The script says which
-hops it placed and which it did not, rather than guessing. Real geolocation
-still means a real database, and that remains a thing this does not do.
-
-Two small extras that would be worth having: a `--demo` route exists so the map
-can be seen working when a real path's routers happen to be anonymous, and the
-six-letter backbone codes (`londen`, `frnkge`) are only partly covered.
-
-### A display layer — built
-
-`mods/console` now exists, so the vi, the most and the monitor are no longer
-blocked on it. It was called `screen` until that turned out to shadow
-`/usr/bin/screen` — a module's builtins become commands — and it is the
-*console*, a text display. What it offers other modules is the **display**
-interface in `mods/display.h`, which a framebuffer or SDL backend could offer
-equally well without the tools noticing. It owns the terminal: alternate screen, a cell grid with two
-buffers and a redraw that emits only the difference, panes, colour, and keys
-decoded into names. 2095 bytes to paint an empty eighty by twenty-four screen,
-8 bytes to change one character on it, and nothing at all for a flush with
-nothing new.
-
-What it deliberately does not do is in
-[0019](adr/0019-the-console-display-assumes-xterm.md): no terminfo, no ncurses.
-The guide is [full-screen programs](display.md), the demo is
-`examples/console-demo.hibr`.
-
-Not there yet, and worth adding when something needs it: a scrolling region,
-so a pager can move a screenful without repainting it; and z-ordering for
-panes, which nothing has asked for.
-
-### A system monitor worth looking at
-
-`btop`, but better looking and more useful.
-
-What it needs:
-
-- **A screen layer.** The line editor can move a cursor and knows how wide the
-  terminal is, but there is no full-screen surface — no alternate screen, no
-  region that redraws without flicker, no layout. That is the actual missing
-  piece, and it is reusable: anything full-screen needs it.
-- **Reading the numbers.** `/proc` is text, and hibr parses text in-process
-  without forking — `str`, `match` and the map model are enough for `stat`,
-  `meminfo`, `diskstats` and per-process `status`. This part suits the shell
-  unusually well.
-- **Drawing.** Braille or block-glyph plots, which are arithmetic and a lookup
-  table.
-- **Staying cheap.** A monitor that samples every second must not fork, or it
-  is worse than the thing it replaces. This is the argument for doing it here
-  rather than in a script.
-
-The display layer above is built, so this is now reading `/proc` and drawing.
-
-### A vi
-
-Modal, and actually vi — but with the arrow keys working, and the rest of what
-thirty years added: undo that goes back more than once, visual selection,
-incremental search with highlight, unlimited line length, UTF-8 that is right.
-
-- **The buffer.** A piece table or a gap buffer, not an array of lines. `str`
-  and `vec` and the arena allocator are the right primitives, and the
-  no-fixed-sizes rule means the answer to a 2 GB file is the same as to a
-  20-byte one.
-- **Undo.** The thing vi clones get wrong. Record edits, not snapshots, and
-  decide early whether undo is linear or a tree — retrofitting a tree is a
-  rewrite.
-- **Modes and the key map.** A table, and it should be reachable from the shell
-  so a `.hibrc` can rebind without a recompile.
-- **What it must not become.** Not a second shell. It should call back into
-  hibr for `!` and `:r !cmd` rather than growing its own way to run things.
-
-Big, and the most interesting of these. Everything except the buffer and the
-undo model is the screen layer.
+Not there: counts, `.`, registers, marks, `:s`, and `!` to filter through a
+command. When that last one arrives it must call `hibr_run` rather than
+`popen`, which is the rule about not becoming a second shell.
 
 ### A most — built
 
