@@ -100,6 +100,11 @@ Each directory carries its own `README.md` with the detail: `src/`, `include/`,
 every deliberate divergence from bash has a record in `docs/adr/`. Keep those
 current — this table is a summary, not the source of truth.
 
+Every guide page is now written to the same standard: each claim run before it
+was written down, and the output pasted back. `docs/interactive.md` was the
+last thin one and its key table, completion behaviour and prompt escapes were
+each checked through `tests/editor.py`'s pty before being described.
+
 `docs/grammar.md` states the language: lexical structure, an EBNF grammar,
 precedence tables and expansion order, all taken from `lex.c` and `parse.c`
 rather than from memory. `docs/builtins.md` covers every builtin.

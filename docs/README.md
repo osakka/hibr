@@ -16,7 +16,7 @@ exists. These pages are the detail.
 | [Text, regex and JSON](data.md) | `str`, `arr`, `match`, `rsub`, and JSON over the map model — every operation, with examples |
 | [Cookbook](cookbook.md) | Whole tasks solved: logs, INI files, JSON, coprocesses, daemons, CLI programs |
 | [Networking](networking.md) | Sockets, TLS, `/dev/tcp` and friends, `listen`, coprocesses |
-| [Interactive use](interactive.md) | `~/.hibrc`, line editing, history, completion, job control |
+| [Interactive use](interactive.md) | Prompts including right-hand and transient, line editing, history, completion, jobs |
 | [The prompt](prompt.md) | The prompt hook, the segment module, and its git support |
 
 ## Look it up
