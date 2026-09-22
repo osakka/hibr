@@ -406,8 +406,8 @@ int b_read(sh *s, int ac, char **av)
 	str b;
 	char c;
 	ssize_t n;
-	int i = 1, want = 0, silent = 0, fd = 0, delim = '\n';
-	const char *arr = 0;
+	int i = 1, want = 0, silent = 0, fd = 0, delim = '\n', eof = 0;
+	const char *arr = 0, *prompt = 0;
 	char *ov;
 	long tmo = 0;
 	const char *ifs = sh_ifs(s);
@@ -419,44 +419,57 @@ int b_read(sh *s, int ac, char **av)
 	if (!ifs)
 		ifs = " \t\n";
 	for (; i < ac && av[i][0] == '-' && av[i][1]; i++) {
-		if (!strcmp(av[i], "-r")) {
-			continue;
-		} else if (!strcmp(av[i], "-s")) {
-			silent = 1;
-		} else if (!strncmp(av[i], "-p", 2)) {
-			ov = bi_oval(ac, av, &i, 1);
-			if (!ov)
+		const char *f = av[i] + 1;
+		int taken = 0;
+		while (*f && !taken) {
+			char o = *f++;
+			if (strchr("pntuad", o)) {
+				if (*f) {
+					ov = (char *)f;
+				} else if (i + 1 < ac) {
+					ov = av[++i];
+				} else {
+					lg(HIBR_LERR,
+					   "read: -%c needs a value", o);
+					return 2;
+				}
+				taken = 1;
+			} else {
+				ov = 0;
+			}
+			switch (o) {
+			case 'r':
+				break;
+			case 's':
+				silent = 1;
+				break;
+			case 'p':
+				prompt = ov;
+				break;
+			case 'n':
+				want = atoi(ov);
+				break;
+			case 't':
+				tmo = atol(ov);
+				break;
+			case 'u':
+				fd = atoi(ov);
+				break;
+			case 'a':
+				arr = ov;
+				break;
+			case 'd':
+				delim = ov[0] ? (unsigned char)ov[0] : 0;
+				break;
+			default:
+				lg(HIBR_LERR, "read: -%c: unknown option", o);
 				return 2;
-			fputs(ov, stderr);
-			fflush(stderr);
-		} else if (!strncmp(av[i], "-n", 2)) {
-			ov = bi_oval(ac, av, &i, 1);
-			if (!ov)
-				return 2;
-			want = atoi(ov);
-		} else if (!strncmp(av[i], "-t", 2)) {
-			ov = bi_oval(ac, av, &i, 1);
-			if (!ov)
-				return 2;
-			tmo = atol(ov);
-		} else if (!strncmp(av[i], "-u", 2)) {
-			ov = bi_oval(ac, av, &i, 1);
-			if (!ov)
-				return 2;
-			fd = atoi(ov);
-		} else if (!strncmp(av[i], "-a", 2)) {
-			arr = bi_oval(ac, av, &i, 1);
-			if (!arr)
-				return 2;
-		} else if (!strncmp(av[i], "-d", 2)) {
-			ov = bi_oval(ac, av, &i, 1);
-			if (!ov)
-				return 2;
-			delim = ov[0] ? (unsigned char)ov[0] : 0;
-		} else {
-			lg(HIBR_LERR, "read: %s: unknown option", av[i]);
-			return 2;
+			}
 		}
+	}
+	if (prompt && isatty(fd)) {
+		fputs(prompt, stderr);
+		fflush(stderr);
 	}
 	if (tmo > 0) {
 		FD_ZERO(&rs);
@@ -487,10 +500,7 @@ int b_read(sh *s, int ac, char **av)
 		tcsetattr(fd, TCSADRAIN, &sv);
 		fputc('\n', stderr);
 	}
-	if (n <= 0 && !b.n) {
-		s_free(&b);
-		return HIBR_FAIL;
-	}
+	eof = n <= 0;
 	if (arr) {
 		vec *el = vb_get(s);
 		while (p < b.n) {
@@ -506,12 +516,12 @@ int b_read(sh *s, int ac, char **av)
 		v_arr(s, arr, el);
 		vb_put(s, el);
 		s_free(&b);
-		return HIBR_OK;
+		return eof ? HIBR_FAIL : HIBR_OK;
 	}
 	if (i >= ac) {
 		hibr_set(s, "REPLY", b.p ? b.p : "", 0);
 		s_free(&b);
-		return HIBR_OK;
+		return eof ? HIBR_FAIL : HIBR_OK;
 	}
 	for (; i < ac; i++) {
 		while (p < b.n && strchr(ifs, b.p[p]))
@@ -545,7 +555,7 @@ int b_read(sh *s, int ac, char **av)
 		}
 	}
 	s_free(&b);
-	return HIBR_OK;
+	return eof ? HIBR_FAIL : HIBR_OK;
 }
 
 /* Evaluate arithmetic expressions for their effect. */
