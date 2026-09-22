@@ -113,8 +113,24 @@ check("numbering runs across files, as cat has always done",
 t = tty("cat %s/nosuchfile; echo rc=$?" % D)
 check("a missing file is an error and a status", "rc=1" in t)
 
+blk = write("b.c", "/* opens here\n   keeps going\n   ends */\nint x = 1;\n")
+t = tty("cat %s" % blk)
+check("a block comment carries to the next line",
+      t.count("\x1b[38;5;245;3m") == 3)
+check("and stops where it closes", "\x1b[38;5;110mint\x1b[0m" in t)
+
+tb = write("t.txt", "col1\tcol2\nlonger1\tb\n")
+t = tty("cat %s" % tb)
+check("tabs reach the stop the file means, not the terminal's",
+      "col1    col2" in t and "longer1 b" in t)
+
+bad = write("bad.txt", b"ok \xff\xfe end\n")
+t = tty("cat %s" % bad)
+check("a byte that is not text is shown as itself", "<ff>" in t and "<fe>" in t)
+check("and valid utf-8 beside it is untouched", "ok " in t and " end" in t)
+
 print()
-print("%d passed, %d failed" % (22 - len(FAIL), len(FAIL)))
+print("%d passed, %d failed" % (27 - len(FAIL), len(FAIL)))
 for f in os.listdir(D):
     os.unlink(os.path.join(D, f))
 os.rmdir(D)

@@ -130,6 +130,8 @@ int ct_cook(int fd, ct_opt *o)
 	int r = HIBR_OK, first = 1, bin = 0;
 	const char *lang = o->tty ? ct_lang(o->name) : 0;
 
+	o->blk = CT_BLK_NONE;
+
 	s_init(&in);
 	s_init(&out);
 	for (;;) {
@@ -217,8 +219,9 @@ void ct_line(str *out, const char *p, size_t n, ct_opt *o, const char *lang)
 	} else if (o->f & CT_NUM) {
 		ct_number(out, ++o->n, o->f);
 	}
+	o->col = 0;
 	if (o->f & CT_COLOUR)
-		ct_hl(out, p, n, lang, o->f);
+		ct_hl(out, p, n, lang, o);
 	else if (o->f & (CT_NONPRINT | CT_TABS))
 		for (i = 0; i < n; i++)
 			ct_vis(out, (unsigned char)p[i], o->f);
@@ -246,6 +249,7 @@ int m_cat(sh *s, int ac, char **av)
 	(void)s;
 	memset(&o, 0, sizeof o);
 	o.tty = isatty(1);
+	o.tabw = 8;
 	for (i = 1; i < ac; i++) {
 		const char *a = av[i];
 		if (endopt || a[0] != '-' || !a[1]) {

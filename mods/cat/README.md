@@ -32,10 +32,17 @@ and lexical colour: comments, strings, numbers and a keyword list, for C,
 shell, Python, JSON, Markdown and Makefiles. Binary files are refused with a
 line saying how large they are rather than spewed; `-f` overrides that.
 
+Block comments and triple-quoted strings do carry across lines -- `/* … */`,
+`"""…"""`, and Markdown fences -- because `ct_opt` holds the state between
+lines. Tabs are expanded to the stop the *file* means rather than the one the
+terminal would pick, since the gutter has already moved the terminal's columns
+along. A byte that is not valid UTF-8 is shown as `<ff>` instead of being sent
+for the terminal to turn into a replacement character.
+
 **Lexical, not syntactic.** It does not parse. A `#` inside a string in a
-language whose comments start with `#` will still end the line, and there is no
-multi-line string or comment state. That is the trade for doing it in one pass
-with no forks, and it is stated in the guide rather than hidden.
+language whose comments start with `#` will still end the line, and a `/*`
+inside a string opens a comment. That is the trade for one pass with no forks,
+and it is stated in the guide rather than hidden.
 
 `-p` turns every addition off, for when the output is a terminal but you want
 the bytes.
