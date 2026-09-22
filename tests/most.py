@@ -64,7 +64,7 @@ def run(cmd, keys=(), settle=0.7, rows=24, cols=80):
 class Screen:
     """Just enough terminal to reassemble what the pager actually showed.
 
-    The screen layer sends only the cells that changed, so grepping the byte
+    The display sends only the cells that changed, so grepping the byte
     stream finds fragments like "78-200/200" where the display reads
     "178-200/200". Applying the moves and the text gives the real thing.
     """

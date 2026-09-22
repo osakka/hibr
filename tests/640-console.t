@@ -10,7 +10,7 @@ console flush 2>/dev/null; echo "flush while closed rc=$?"
 console clear 2>/dev/null; echo "clear while closed rc=$?"
 
 # the size is answerable regardless
-s := screen size; echo "size fields=$(set -- $s; echo $#)"
+s := console size; echo "size fields=$(set -- $s; echo $#)"
 
 # argument checking happens without a terminal too
 console 2>/dev/null; echo "no subcommand rc=$?"

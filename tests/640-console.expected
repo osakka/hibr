@@ -5,8 +5,7 @@ open with no terminal rc=1
 put while closed rc=1
 flush while closed rc=1
 clear while closed rc=1
-Must be connected to a terminal.
-size fields=0
+size fields=2
 no subcommand rc=2
 bad subcommand rc=1
 bad colour rc=1

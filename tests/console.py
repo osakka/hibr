@@ -14,7 +14,7 @@ FAIL = []
 
 def run(script, feed=(), after=None, wait=2.5, rows=24, cols=80):
     """Run a script under a pty, optionally feeding keys, and return its output."""
-    path = "/tmp/hibr-screen-%d.hibr" % os.getpid()
+    path = "/tmp/hibr-console-%d.hibr" % os.getpid()
     open(path, "w").write("mod load %s\n%s" % (MOD, script))
     pid, fd = pty.fork()
     if pid == 0:
