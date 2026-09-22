@@ -276,11 +276,14 @@ went in the shell.
   cost 7% on tight loops. A builtin that grows an interest in its arguments'
   quoting has to be added to that list, and `command` must keep forwarding
   `sh.amask + 1` with its shifted `argv`.
-- **An unquoted subscript is looked up as a variable first.** `${TRACE[0][hops]}`
-  reads the *variable* `hops` when one exists and is numeric, so a script with
-  its own `hops=20` silently addresses key 20 instead of key "hops" and gets
-  nothing. Quote every literal subscript — `${TRACE[0]["hops"]}` — which is
-  what ADR 0006 says and what this cost an hour to rediscover.
+- **An unquoted subscript is looked up as a variable first.** The rule is
+  "bare name = its value if numeric, else literal", so `${TRACE[0][hops]}`
+  reads the *variable* `hops` when one exists and is numeric: a script with its
+  own `hops=20` silently addresses key 20 and gets nothing, and `DT[$id][row]`
+  in the window manager addressed key 6 because `local row=$3` is the obvious
+  name for a mouse row. Quote every literal subscript —
+  `${TRACE[0]["hops"]}`, `${DT[$id]["row"]}` — which is what ADR 0006 says and
+  what this has now cost an hour and then an afternoon to rediscover.
 - **`rsub` replaces one match unless given `-g`.** A hostname cleaned with an
   ungreedy `rsub` keeps most of its dots, and the leftover text then reaches an
   arithmetic subscript and errors there, several steps from the cause.
@@ -311,12 +314,6 @@ went in the shell.
   alternate screen unclear; and a four byte read past the end of the mouse
   disable string, which ASan caught only because the mouse decoder was being
   fed malformed reports at the time.
-- **Mouse reporting is off until asked for, and the enable is easy to forget.**
-  The console shipped with the mouse *decoder* written and the *disable* in its
-  leave sequence, but nothing ever sent the enable -- so clicks produced
-  whatever the terminal does by default and the decoder never saw a report.
-  `console mouse click|drag|motion` turns it on; off stays the default because
-  reporting takes click-and-drag text selection away from whoever is watching.
 - **A descriptor lives inside the object, so read it before dlclose.**
   `mod drop all` logged `m->m->nm` after unmapping the module and segfaulted.
   Take a copy of anything needed from the descriptor first.
@@ -519,18 +516,12 @@ went in the shell.
 - **`sh -c cmd name args...` names `$0` with the first operand**, not with the
   shell. hibr used to make it `$1`, so every argument was off by one and `$#`
   one too many. bash and dash agree with each other here; hibr was alone.
-- **A bare subscript is evaluated; quote the ones that are names.**
-  `DT[$id][row]` does not read the key `row` when a variable called `row` holds
-  a number — the rule is "bare name = its value if numeric, else literal", so
-  it silently reads `DT[$id][6]`. Every named field in a map is written
-  `${DT[$id]["row"]}`. This cost an afternoon in the window manager, where
-  `local row=$3` is the obvious name for a mouse row.
-- **Arithmetic never sees the quotes.** `$(( ))` and `(( ))` have their
-  argument expanded with quote removal before the evaluator runs, so
-  `$(( DT[$id]["col"] ))` looks for the key `col`, evaluated, and the trick
-  above does not work there. Read the field into a local first. `let` is the
-  exception, because its argument is a string the shell never unquotes, and
-  `ax_unq` strips the quotes for it.
+- **Arithmetic never sees the quotes**, so quoting a subscript does not save
+  you there. `$(( ))` and `(( ))` have their argument expanded with quote
+  removal before the evaluator runs, so `$(( DT[$id]["col"] ))` looks for the
+  key `col` *evaluated*, exactly as the unquoted form would. Read the field
+  into a local first. `let` is the exception, because its argument is a string
+  the shell never unquotes, and `ax_unq` strips the quotes for it.
 - **Arithmetic reaches subscripts through `bi_keys`, like everything else.**
   `ax_name` swallows the whole `name[i][j]` chain into the name, and `ax_get`
   and `ax_set` split it with the same helper `unset` and `read` use. That is
