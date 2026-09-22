@@ -138,6 +138,8 @@ int ex(sh *s, node *n);
 int rd_do(sh *s, redir *r, vec *sv);
 void rd_undo(vec *sv);
 node *fn_find(sh *s, const char *nm);
+int kw_name(const char *t);
+int cmd_what(sh *s, const char *nm, int vb);
 int fn_call(sh *s, node *f, int ac, char **av);
 const char *hsh_get(sh *s, const char *nm);
 void hsh_clear(sh *s, const char *nm);

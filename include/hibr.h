@@ -118,6 +118,7 @@
 #define O_DOTGLOB 4u
 #define O_FAILGLOB 8u
 #define O_NOCASEMATCH 16u
+#define O_INHERITERR 32u
 #define O_FIXON 1
 #define O_FIXOFF 2
 #endif

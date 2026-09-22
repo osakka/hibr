@@ -494,6 +494,10 @@ char *xcap(sh *s, const char *src)
 		close(pf[1]);
 		signal(SIGINT, SIG_DFL);
 		s->it = 0;
+		if (!(s->sopt & O_INHERITERR)) {
+			lg(HIBR_LDBG, "substitution runs without errexit");
+			s->errx = 0;
+		}
 		tr_fork(s);
 		hibr_run(s, src);
 		w = s->st;

@@ -23,6 +23,8 @@ purpose. Everything else behaves as bash does unless the entry says otherwise.
 | `exec [cmd]` | replace the shell with `cmd`; with none, apply the redirections permanently |
 | `source f [args…]` / `. f [args…]` | run `f` in this shell; extra arguments become its positional parameters |
 | `command [-p] name args…` | run `name` ignoring functions and aliases |
+| `command -v name` | print how `name` would resolve; status 1 if it would not |
+| `command -V name` | the same, in a sentence |
 | `builtin name args…` | run the builtin `name`, ignoring a function of that name |
 | `type name…` | say what each name resolves to |
 | `help` | list every builtin with a one-line description |

@@ -647,6 +647,8 @@ unsigned sh_optbit(const char *nm)
 		return O_FAILGLOB;
 	if (!strcmp(nm, "nocasematch"))
 		return O_NOCASEMATCH;
+	if (!strcmp(nm, "inherit_errexit"))
+		return O_INHERITERR;
 	return 0;
 }
 
@@ -675,7 +677,8 @@ const char *sh_optnames[] = { "errexit", "nounset", "xtrace", "noclobber",
 			      "noexec", "histexpand", "strict", "nullglob",
 			      "nocaseglob", "dotglob", "failglob",
 			      "nocasematch", "extglob", "globstar",
-			      "expand_aliases", "pipefail", 0 };
+			      "expand_aliases", "pipefail", "inherit_errexit",
+			      0 };
 
 /* Read one option by name, or -1 when there is no such option. */
 int sh_optget(sh *s, const char *nm)
@@ -795,6 +798,23 @@ int b_command(sh *s, int ac, char **av)
 	pid_t pid;
 	int w;
 
+	if (ac > 1 && av[1][0] == '-' && av[1][1] && !av[1][2] &&
+	    (av[1][1] == 'v' || av[1][1] == 'V' || av[1][1] == 'p')) {
+		int vb = av[1][1] == 'V', nm = 2;
+		if (av[1][1] == 'p') {
+			if (ac > 2 && !strcmp(av[2], "-v"))
+				nm = 3;
+			else if (ac > 2 && !strcmp(av[2], "-V"))
+				vb = 1, nm = 3;
+			else
+				return b_command(s, ac - 1, av + 1);
+		}
+		if (nm >= ac) {
+			lg(HIBR_LERR, "usage: command -v name");
+			return 2;
+		}
+		return cmd_what(s, av[nm], vb);
+	}
 	if (ac < 2) {
 		lg(HIBR_LERR, "usage: command name [args...]");
 		return 2;
@@ -825,6 +845,61 @@ int b_command(sh *s, int ac, char **av)
 	free(path);
 	waitpid(pid, &w, 0);
 	return WIFEXITED(w) ? WEXITSTATUS(w) : HIBR_FAIL;
+}
+
+/* True if a word is one of the shell's reserved words. */
+int kw_name(const char *t)
+{
+	static const char *k[] = { "!", "[[", "]]", "{", "}", "case", "do",
+				   "done", "elif", "else", "esac", "fi", "for",
+				   "fn", "if", "in", "select", "then", "until",
+				   "while", 0 };
+	int i;
+
+	for (i = 0; k[i]; i++)
+		if (!strcmp(t, k[i]))
+			return 1;
+	return 0;
+}
+
+/* Say what a name resolves to, for command -v and -V. */
+int cmd_what(sh *s, const char *nm, int vb)
+{
+	const char *al;
+	char *path;
+
+	al = al_get(s, nm);
+	if (al) {
+		if (vb)
+			printf("%s is aliased to `%s'\n", nm, al);
+		else
+			printf("alias %s='%s'\n", nm, al);
+		return HIBR_OK;
+	}
+	if (fn_find(s, nm)) {
+		printf(vb ? "%s is a function\n" : "%s\n", nm);
+		return HIBR_OK;
+	}
+	if (kw_name(nm)) {
+		printf(vb ? "%s is a shell keyword\n" : "%s\n", nm);
+		return HIBR_OK;
+	}
+	if (m_find(s, nm) || bi_find(nm)) {
+		printf(vb ? "%s is a shell builtin\n" : "%s\n", nm);
+		return HIBR_OK;
+	}
+	path = findx(s, nm);
+	if (path) {
+		if (vb)
+			printf("%s is %s\n", nm, path);
+		else
+			printf("%s\n", path);
+		free(path);
+		return HIBR_OK;
+	}
+	if (vb)
+		lg(HIBR_LERR, "%s: not found", nm);
+	return HIBR_FAIL;
 }
 
 /* Run a builtin, ignoring functions, aliases and modules. */
