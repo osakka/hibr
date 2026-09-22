@@ -164,14 +164,11 @@ backup() {
 	return 0
 }
 
-# The module names this build produces, in one line.
+# The module names this build makes, asked of the Makefile rather than found
+# by globbing build/mods, which also holds whatever a rename left behind.
 built_mods() {
-	for m in "$SRC"/build/mods/*.so; do
-		[ -f "$m" ] || continue
-		m=${m##*/}
-		printf '%s ' "${m%.so}"
-	done
-	printf '\n'
+	( cd "$SRC" && make -s print-mods PREFIX="$PREFIX" MODDIR="$MODDIR" ) ||
+		printf '\n'
 }
 
 # Take away modules an earlier deploy installed that this build no longer

@@ -70,6 +70,11 @@ $(B)/mods/trace.so: mods/trace/trace.c include/hibr.h | $(B)/mods
 $(B)/mods/%.so: mods/%.c include/hibr.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $<
 
+# The module names this build makes, for deploy.sh to record and compare
+# against. Globbing build/mods would also find ones left over from a rename.
+print-mods:
+	@for m in $(MODS); do b=$${m##*/}; printf '%s ' "$${b%.so}"; done; echo
+
 strip: $(BIN)
 	strip $(BIN) || true
 
