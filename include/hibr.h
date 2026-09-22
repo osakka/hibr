@@ -4,7 +4,7 @@
 #include <stddef.h>
 
 #ifndef HIBR_ABI
-#define HIBR_ABI 11u
+#define HIBR_ABI 12u
 #endif
 #ifndef HIBR_VER
 #define HIBR_VER "0.21"
@@ -201,7 +201,7 @@ struct var { var *nx; char *k, *v; ent *map; size_t n; short ty; unsigned ex, ro
 struct sh {
 	arena *ar, *xa;
 	vec held, mods, fns, sbf, vbf, hist, jobs, scope, psub;
-	vec als, axp, dirs, schemes, opts, cmds;
+	vec als, axp, dirs, schemes, opts, cmds, apis;
 	char *odesc;
 	var **tab;
 	size_t tsz, tn;
@@ -304,6 +304,13 @@ int hibr_dial(const char *host, const char *port, int udp);
 
 typedef int (*hibr_open_fn)(sh *s, const char *rest);
 int hibr_scheme(sh *s, const char *nm, hibr_open_fn fn);
+
+/* One module offers a table of functions under a name and a version; another
+   asks for it. This is the only way for modules to reach each other: they are
+   opened RTLD_LOCAL on purpose, so a symbol in one is invisible to the rest. */
+int hibr_provide(sh *s, const char *nm, unsigned ver, void *api);
+void *hibr_require(sh *s, const char *nm, unsigned ver);
+int hibr_unprovide(sh *s, const char *nm);
 int hibr_unscheme(sh *s, const char *nm);
 
 #endif

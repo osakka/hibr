@@ -64,6 +64,30 @@ void scr_gfree(scr_grid *g);
 int scr_gsize(scr_grid *g, int rows, int cols);
 void scr_cellset(scr_cell *c, unsigned cp, const char *ext, size_t en);
 
+/* The table the screen module offers to other modules. Anything added here
+   is a new version; anything reordered or removed breaks the ones using it. */
+#ifndef SCR_API_VER
+#define SCR_API_VER 1u
+#endif
+
+typedef struct scr_api scr_api;
+struct scr_api {
+	int (*open)(sh *s);
+	void (*close)(sh *s);
+	int (*isopen)(void);
+	void (*size)(int *rows, int *cols);
+	int (*resized)(void);
+	void (*pen)(unsigned fg, unsigned bg, unsigned attr);
+	void (*clear)(void);
+	int (*put)(int row, int col, const char *t);
+	void (*fill)(int row, int col, int h, int w, const char *t);
+	void (*cursor)(int row, int col, int vis);
+	long (*flush)(void);
+	int (*key)(int ms, str *out);
+	int (*colour)(const char *t, unsigned *out);
+	unsigned (*attr)(const char *t);
+};
+
 scr_pane *scr_pfind(const char *nm);
 scr_pane *scr_pset(const char *nm, int row, int col, int h, int w);
 void scr_pclear(void);

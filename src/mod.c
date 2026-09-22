@@ -353,6 +353,91 @@ void m_avail(sh *s)
 	v_free(&seen);
 }
 
+struct api {
+	char *nm;
+	unsigned ver;
+	void *p;
+};
+
+/* Offer a table of functions to other modules, replacing one of the same name. */
+int hibr_provide(sh *s, const char *nm, unsigned ver, void *api)
+{
+	struct api *a;
+	size_t i;
+
+	if (!nm || !*nm || !api)
+		return HIBR_FAIL;
+	for (i = 0; i < s->apis.n; i++) {
+		a = (struct api *)s->apis.p[i];
+		if (strcmp(a->nm, nm))
+			continue;
+		a->ver = ver;
+		a->p = api;
+		lg(HIBR_LDBG, "api %s v%u replaced", nm, ver);
+		return HIBR_OK;
+	}
+	a = xm(sizeof *a);
+	a->nm = xs(nm);
+	a->ver = ver;
+	a->p = api;
+	v_add(&s->apis, a);
+	lg(HIBR_LDBG, "api %s v%u offered", nm, ver);
+	return HIBR_OK;
+}
+
+/* Ask for a table another module offered, refusing a version we cannot use. */
+void *hibr_require(sh *s, const char *nm, unsigned ver)
+{
+	struct api *a;
+	size_t i;
+
+	for (i = 0; i < s->apis.n; i++) {
+		a = (struct api *)s->apis.p[i];
+		if (strcmp(a->nm, nm))
+			continue;
+		if (a->ver != ver) {
+			lg(HIBR_LERR, "api %s is v%u, v%u was asked for", nm,
+			   a->ver, ver);
+			return 0;
+		}
+		return a->p;
+	}
+	lg(HIBR_LDBG, "api %s is not offered by any loaded module", nm);
+	return 0;
+}
+
+/* Withdraw an offer, which a module must do before it is unloaded. */
+int hibr_unprovide(sh *s, const char *nm)
+{
+	struct api *a;
+	size_t i;
+
+	for (i = 0; i < s->apis.n; i++) {
+		a = (struct api *)s->apis.p[i];
+		if (strcmp(a->nm, nm))
+			continue;
+		free(a->nm);
+		free(a);
+		s->apis.p[i] = s->apis.p[--s->apis.n];
+		lg(HIBR_LDBG, "api %s withdrawn", nm);
+		return HIBR_OK;
+	}
+	return HIBR_FAIL;
+}
+
+/* Release every offer, at shutdown. */
+void m_apifree(sh *s)
+{
+	struct api *a;
+
+	while (s->apis.n) {
+		a = (struct api *)s->apis.p[--s->apis.n];
+		free(a->nm);
+		free(a);
+	}
+	v_free(&s->apis);
+}
+
 /* Unload every module at shutdown. */
 void m_fini(sh *s)
 {
@@ -367,6 +452,7 @@ void m_fini(sh *s)
 		free(m);
 	}
 	v_free(&s->mods);
+	m_apifree(s);
 }
 
 /* Print the builtins each loaded module contributes. */

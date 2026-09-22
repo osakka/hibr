@@ -317,6 +317,18 @@ int m_screen(sh *s, int ac, char **av)
 	return HIBR_FAIL;
 }
 
+static const scr_api screen_api = {
+	scr_open, scr_close, scr_isopen, scr_size, scr_resized, scr_pen,
+	scr_clear, scr_put, scr_fill, scr_cursor, scr_flush, scr_key,
+	scr_colour, scr_attr
+};
+
+/* Offer the drawing table to whatever else wants to draw. */
+int scr_ini(sh *s)
+{
+	return hibr_provide(s, "screen", SCR_API_VER, (void *)&screen_api);
+}
+
 /* Put the terminal back and release everything the screen held. */
 void scr_fini(sh *s)
 {
@@ -329,6 +341,7 @@ void scr_fini(sh *s)
 	}
 	s_free(&scr_pend);
 	scr_pendo = 0;
+	hibr_unprovide(s, "screen");
 }
 
 const hibr_bi screen_bi[] = {
@@ -337,4 +350,4 @@ const hibr_bi screen_bi[] = {
 };
 
 HIBR_MODULE("screen", "0.21", "full-screen drawing and key decoding",
-	    screen_bi, 0, scr_fini);
+	    screen_bi, scr_ini, scr_fini);

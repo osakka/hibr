@@ -165,20 +165,36 @@ incremental search with highlight, unlimited line length, UTF-8 that is right.
 Big, and the most interesting of these. Everything except the buffer and the
 undo model is the screen layer.
 
-### A most
+### A most — built
 
-`most`, not `less` and not `more`: several windows on the same or different
-files, horizontal scrolling that works, and a binary mode.
+`mods/most`, and the first module to use another one.
 
-Then the part that makes it worth writing — search that highlights every match
-rather than jumping between them, colour that survives paging, following a file
-as it grows without losing the scroll position, and reading a stream without
-buffering all of it first.
+Two windows, horizontal scrolling, every match highlighted rather than jumped
+between, `F` to follow a growing file, and colour in the input parsed into
+screen-layer pens — so it survives paging *and* sideways scrolling, because the
+escapes are no longer in the text being cut. Lines appear as they arrive rather
+than after the end, so `slow-thing | most` is readable immediately.
 
-One trap to record before it is rediscovered: a pager is nearly always at the
-end of a pipe, so its standard input is the data, not the keyboard. It has to
-open `/dev/tty` for keys. A pager that reads commands from its own input works
-perfectly when tested with a file argument and not at all in real use.
+The trap this entry recorded was the right one: a pager's input is the data,
+not the keyboard, and the screen module already took the terminal from standard
+output. `tests/most.py` covers both shapes and the piped one is the one that
+matters.
+
+Not done: a binary mode beyond noticing and saying so, more than two windows,
+and a mark-and-return.
+
+### The module registry — built
+
+`hibr_provide` and `hibr_require`, modelled exactly on `hibr_scheme`. This was
+the third of the three options costed under the cat, and the one recommended:
+a module offers a named, versioned table of functions in its init and withdraws
+it in its finaliser, and another asks for it by name and version. Modules stay
+`RTLD_LOCAL`, so nothing collides.
+
+It unblocks the vi and the monitor as well. **It does not unblock the cat's git
+gutter** — the git reader inside `prompt.so` is not arranged as a table and
+would have to be given one, which is a separate piece of work on that module
+rather than on the mechanism.
 
 ### A cat — built
 
@@ -210,9 +226,11 @@ out, none free:
   a module publishes a function table into and another looks up by name and
   version. Real design work, and the only one that scales past two modules.
 
-The third is the right answer and it is the owner's call, not something to
-improvise inside a `cat`. Until then, anything wanting git data has to be part
-of `prompt.so` or do without.
+**The third was chosen and built** — see the module registry above. What that
+leaves for the git gutter is not the mechanism but the shape of `prompt.so`:
+its git reader is a set of functions, not a table it offers, so giving it one
+is a piece of work on that module. Until then, anything wanting git data has to
+be part of `prompt.so` or do without.
 
 ### A shared pty test harness
 

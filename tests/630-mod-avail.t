@@ -5,7 +5,7 @@ export HIBR_MODPATH=./build/mods
 
 mod avail | head -1
 
-one() { mod avail | grep "^$1 " | { read -r n v a1 a2 st rest; echo "$n $a1 $a2 $st"; }; }
+one() { mod avail | grep "^$1 " | { read -r n v a1 a2 st rest; echo "$n $a1 N $st"; }; }
 
 echo "--- before loading"
 one sys

@@ -80,7 +80,16 @@ pipelines. The built-in `/dev/tcp/` and `/dev/tls/` use the same mechanism.
 Module builtins take precedence over the built-in ones; lookup order is alias,
 function, module, builtin, `PATH`.
 
+**Modules can offer tables of functions to each other.** They are opened
+`RTLD_LOCAL`, so a symbol in one is invisible to the rest on purpose; the way
+across is `hibr_provide(s, name, version, table)` in the provider's init and
+`hibr_require(s, name, version)` in the user's. The version must match exactly,
+and a provider withdraws its offer in its finaliser so that dropping it makes
+its users refuse rather than call into an unloaded object. `most` uses the
+`screen` module this way.
+
 Reference modules in `mods/`:
+- **`most`** pages files or a pipe, built on `screen` through that mechanism.
 - **`trace`** traces a route with no privileges, using `IP_RECVERR` rather than
   a raw socket, and puts the hops in a map. `examples/traceroute.hibr` draws
   them on a world map.

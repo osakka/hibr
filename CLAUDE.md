@@ -17,7 +17,7 @@ servers, typed function signatures, result slots (`x := f` without forking),
 declared CLI arguments, and a module ABI that lets modules add *protocols*
 (`/dev/<name>/…`), not just commands.
 
-Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 11).
+Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 12).
 
 ## Build and test
 
@@ -28,11 +28,12 @@ Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 11).
     make install         # PREFIX=/usr/local, modules to $(PREFIX)/lib/hibr
     ./build/hibr -n script      # parse only
 
-    tests/run.sh [-v] [prefix]           # C-side harness, 67 tests
+    tests/run.sh [-v] [prefix]           # C-side harness, 68 tests
     ./build/hibr tests/self.hibr                 # suite in hibr, 91 assertions, planned
     python3 tests/editor.py                      # the line editor, through a pty
     python3 tests/screen.py                      # the screen module, through a pty
     python3 tests/cat.py                         # the cat module, through a pty
+    python3 tests/most.py                        # the pager, through a pty
     python3 tests/diff.py --shell ./build/hibr 250   # snippets, diffed against bash
     python3 tests/corpus.py --list <file>        # real scripts, run under both shells
     HIBR=./build/hibr REF=dash tests/run.sh      # compare against another shell
@@ -76,7 +77,7 @@ linked, and no OpenSSL headers are needed to build.
 
 | file | role |
 |---|---|
-| `include/hibr.h` | public types, macros and the module ABI (v11) |
+| `include/hibr.h` | public types, macros and the module ABI (v12) |
 | `include/pri.h` | internal declarations, tokens, the `lex` struct |
 | `include/re.h` | our own regex declarations (tcc cannot parse glibc's) |
 | `src/mem.c` | arenas with mark/release, `str`, `vec`, pools, `lg` logging |
@@ -101,6 +102,7 @@ linked, and no OpenSSL headers are needed to build.
 | `mods/screen/` | the screen layer: alternate screen, cell grid with damage-based redraw, panes, decoded keys — see `mods/screen/README.md` |
 | `mods/cat/` | `cat` that is byte-identical in a pipe and useful on a terminal — see `mods/cat/README.md` |
 | `mods/trace/` | unprivileged traceroute over UDP with `IP_RECVERR` — see `mods/trace/README.md` |
+| `mods/most/` | a pager built on the screen module, the first to use another module — see `mods/most/README.md` |
 
 Each directory carries its own `README.md` with the detail: `src/`, `include/`,
 `mods/`, `tests/`, `examples/`. User-facing documentation is under `docs/`, and
@@ -266,11 +268,20 @@ were each run and their real output pasted back; keep it that way.
   rather than against bash, because bash's `cat` *is* `/bin/cat`. The fast path
   (`ct_raw`) never looks at a byte, which is why 100 MB costs 15 ms against
   `/bin/cat`'s 14; anything that inspects content has to stay off it.
-- **Modules cannot see each other.** `m_open` uses `RTLD_LOCAL`, so `cat.so`
-  cannot call the git reader inside `prompt.so`. There is no module-to-module
-  export mechanism in the ABI, which is why the cat has no git gutter. Do not
-  solve it by moving code into the shell or by switching to `RTLD_GLOBAL` —
-  both have costs recorded in `docs/backlog.md`.
+- **Modules reach each other through the registry, not the linker.** `m_open`
+  uses `RTLD_LOCAL` on purpose, so a symbol in one module is invisible to the
+  rest. `hibr_provide(s, nm, ver, table)` in a provider's init and
+  `hibr_require(s, nm, ver)` in a user's is the way across; the version must
+  match exactly, and the provider must `hibr_unprovide` in its finaliser or a
+  dropped module leaves its users holding a table in an unloaded object.
+  `most` uses `screen` this way. Do not switch to `RTLD_GLOBAL` to avoid it —
+  that makes every module's symbols collide with every other's, which is the
+  `m_drop` trap generalised.
+- **A damage-based renderer cannot be tested by grepping its output.** The
+  screen layer sends only the cells that changed, so the byte stream holds
+  `78-200/200` where the display reads `178-200/200`. `tests/most.py`
+  reassembles the screen from the escapes and asserts on that; four checks
+  looked like real failures until it did.
 - **The `sc_` prefix is `net.c`'s.** The screen module is `scr_`, because
   `src/net.c` already exports `sc_find` and `sc_fini` for schemes — and
   `sc_fini(sh *)` is exactly the signature a module finaliser has, so a screen

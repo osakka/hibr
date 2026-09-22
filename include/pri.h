@@ -144,6 +144,7 @@ void m_probe(sh *s, const char *path, const char *file);
 int m_cmp(const void *a, const void *b);
 void m_scan(sh *s, const char *dir, vec *seen);
 void m_avail(sh *s);
+void m_apifree(sh *s);
 int cmd_what(sh *s, const char *nm, int vb);
 int fn_call(sh *s, node *f, int ac, char **av);
 const char *hsh_get(sh *s, const char *nm);

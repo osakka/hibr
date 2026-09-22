@@ -1,14 +1,14 @@
 0
 NAME         VERSION  ABI      STATE      PATH
 --- before loading
-sys abi 11 available
+sys abi N available
 --- loaded from the file avail found
-sys abi 11 loaded
+sys abi N loaded
 MODULE STILL WORKS
 --- dropped again
-sys abi 11 available
+sys abi N available
 --- loaded from a path outside the search path: not that file
-sys abi 11 elsewhere
+sys abi N elsewhere
 STILL WORKS BY PATH
 --- the suffix is optional in a path
 NO SUFFIX NEEDED
