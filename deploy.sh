@@ -164,13 +164,44 @@ backup() {
 	return 0
 }
 
+# The module names this build produces, in one line.
+built_mods() {
+	for m in "$SRC"/build/mods/*.so; do
+		[ -f "$m" ] || continue
+		m=${m##*/}
+		printf '%s ' "${m%.so}"
+	done
+	printf '\n'
+}
+
+# Take away modules an earlier deploy installed that this build no longer
+# makes. A module renamed or dropped otherwise stays behind for ever, still
+# loadable and still shadowing whatever its name shadows; only names this
+# tool put there are touched, never anything installed by hand.
+sweep() {
+	was=$(field modules || echo "")
+	[ -n "$was" ] || return 0
+	now=" $(built_mods)"
+	for m in $was; do
+		case "$now" in
+		*" $m "*) continue ;;
+		esac
+		[ -f "$MODDIR/$m.so" ] || continue
+		priv rm -f "$MODDIR/$m.so"
+		say "   removed $m, which this build no longer makes"
+	done
+	return 0
+}
+
 # Copy the build into the prefix and record what was installed.
 place() {
 	step "installing into $PREFIX"
+	sweep
 	( cd "$SRC" && priv make install PREFIX="$PREFIX" MODDIR="$MODDIR" ) >/dev/null ||
 		die "install failed"
-	printf 'version=%s\nsrcid=%s\nsource=%s\nprefix=%s\ndate=%s\n' \
-		"$(srcver)" "$(srcid)" "$SRC" "$PREFIX" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" |
+	printf 'version=%s\nsrcid=%s\nsource=%s\nprefix=%s\nmodules=%s\ndate=%s\n' \
+		"$(srcver)" "$(srcid)" "$SRC" "$PREFIX" "$(built_mods)" \
+		"$(date -u '+%Y-%m-%dT%H:%M:%SZ')" |
 		priv tee "$MANIFEST" >/dev/null
 }
 
