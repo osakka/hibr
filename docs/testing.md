@@ -31,6 +31,15 @@ errors and hangs. Parser nesting (`HIBR_DEPTH`), arithmetic nesting
 (`HIBR_AXDEPTH`) and `[[ ]]` grouping are bounded, so deeply nested input
 produces an error rather than a crash.
 
+## The line editor
+
+`tests/run.sh` cannot reach the editor at all, because it only runs when stdin
+is a terminal. `python3 tests/editor.py` starts interactive shells on a pseudo
+terminal, sends keystrokes and checks what was drawn — that the right-hand
+prompt lands on the right column, that it gives way to a long line, that the
+transient prompt replaces an accepted one, and that ordinary editing still
+works underneath. It takes the shell to test as its first argument.
+
 ---
 
 [← documentation index](README.md) · [← project README](../README.md)

@@ -28,8 +28,9 @@ Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 8).
     make install         # PREFIX=/usr/local, modules to $(PREFIX)/lib/hibr
     ./build/hibr -n script      # parse only
 
-    tests/run.sh [-v] [prefix]           # C-side harness, 43 tests
-    ./build/hibr tests/self.hibr                 # suite written in hibr, 84 assertions
+    tests/run.sh [-v] [prefix]           # C-side harness, 55 tests
+    ./build/hibr tests/self.hibr                 # suite written in hibr, 91 assertions
+    python3 tests/editor.py                      # the line editor, through a pty
     HIBR=./build/hibr REF=dash tests/run.sh      # compare against another shell
 
 Sanitizers — run both before calling anything done:
@@ -177,6 +178,11 @@ were each run and their real output pasted back; keep it that way.
   `xone`, or a `$` in a branch name would be expanded.
 - **`ed_pos` counts prompt rows**, so anything that can put a newline or an
   escape sequence in a prompt has to be accounted for there.
+- **The line editor can only be tested through a pty**, which is what
+  `tests/editor.py` is for; `tests/run.sh` cannot reach it, because the editor
+  runs only when stdin is a terminal. Do not name that file `pty.py` or
+  `tty.py` -- either shadows a module `pty` itself imports, and the failure
+  reads as a circular import rather than as a name clash.
 - **Object reads are bounded.** `grepo.omax` caps how large an object may
   inflate to (`PROMPT[git][max_object]`, 4 MB by default), so a crafted object
   cannot make a prompt allocate hundreds of megabytes. Pack entries are bounded
@@ -323,7 +329,6 @@ were each run and their real output pasted back; keep it that way.
 - `export`, `read` and `[[ -v ]]` do not parse a subscript at all, quoted or
   not — `export e[k]=v` is silently inert. The argv quote mask (`sh.amask`) is
   already there for whichever of them should grow one; see `docs/adr/0006`.
-- No right-hand or transient prompt; both need `ed_draw` work.
 - Prompt status divergences from git, all deliberate: renames are matched only
   on identical content, submodule working trees are not inspected, and `**` in
   the middle of a gitignore pattern behaves as `*`.

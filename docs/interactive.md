@@ -4,6 +4,21 @@
 - **Prompts** take `\u \h \H \w \W \s \v \j \$ \n \t \T \@ \d \e \a` and `\[ \]`;
   after the escapes, the prompt goes through normal expansion, so
   `$(git branch --show-current)` works. Colour does not move the cursor.
+  `PS1` is the prompt and `PS2` the continuation.
+- **A right-hand prompt** in `RPS1`, drawn against the right edge of the first
+  row and given the same escapes and expansion as `PS1`. It appears only when
+  the line leaves room for it, so a long command simply takes the space back,
+  and it never moves the cursor.
+
+      RPS1='[\t]'                       # the time, on the right
+      RPS1='$(git branch --show-current)'
+
+- **A transient prompt** in `TPS1`. When a line is accepted it is redrawn with
+  this shorter prompt before the command runs, so scrollback keeps the commands
+  and not the decoration. The right-hand prompt is dropped from that line too.
+
+      PS1='\u@\h \w\$ '                 # what you type at
+      TPS1='\$ '                        # what stays behind
 - **Line editing** handles UTF-8, combining marks (one backspace removes a
   letter with its harakat), wide CJK characters, lines that wrap, and terminal
   resizing. The usual Emacs keys, arrows, Home, End and Delete.

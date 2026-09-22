@@ -18,7 +18,7 @@ struct termios ed_saved;
 int ed_raw;
 
 typedef struct est est;
-struct est { const char *ps; int orows, orow; };
+struct est { const char *ps; char *rps; int orows, orow; };
 
 struct rng { unsigned lo, hi; };
 
@@ -255,6 +255,40 @@ void ed_pos(const char *ps, str *b, size_t pos, int cols, int *rows, int *crow,
 	*ecol = col;
 }
 
+/* Display width of a prompt, counting no escape sequence and no zero width. */
+int ed_width(const char *p)
+{
+	const char *b = p;
+	size_t n = strlen(p);
+	unsigned cp;
+	int col = 0, l;
+
+	while (*p) {
+		if (*p == 27) {
+			p++;
+			if (*p == '[' || *p == ']')
+				p++;
+			while (*p && !(*p >= '@' && *p <= '~'))
+				p++;
+			if (*p)
+				p++;
+			continue;
+		}
+		l = u8dec(p, n - (size_t)(p - b), &cp);
+		col += u8w(cp);
+		p += l;
+	}
+	return col;
+}
+
+/* Expand one of the optional prompts, or give null when it is not set. */
+char *ed_prompt(sh *s, const char *nm)
+{
+	const char *v = hibr_get(s, nm);
+
+	return v && *v ? pr_make(s, v) : 0;
+}
+
 /* Repaint a line that may wrap over several rows, then place the cursor. */
 void ed_draw(est *e, str *b, size_t pos)
 {
@@ -274,6 +308,15 @@ void ed_draw(est *e, str *b, size_t pos)
 	s_cat(&o, "\r\033[0K");
 	s_cat(&o, e->ps);
 	s_add(&o, b->p ? b->p : "", b->n);
+	if (e->rps && rows == 1) {
+		int rw = ed_width(e->rps);
+		if (rw && ecol + rw + 1 < cols) {
+			s_cat(&o, "\033[");
+			s_num(&o, cols - rw);
+			s_ch(&o, 'G');
+			s_cat(&o, e->rps);
+		}
+	}
 	if (pos >= b->n && ecol >= cols) {
 		s_cat(&o, "\n\r");
 		rows++;
@@ -747,14 +790,31 @@ out:
 /* Finish a line: repaint, leave raw mode and hand back the text. */
 char *ed_done(sh *s, est *e, str *b)
 {
-	char *r;
+	char *r, *tp = ed_prompt(s, "TPS1");
 
+	if (tp) {
+		lg(HIBR_LTRC, "transient prompt replaces the line");
+		e->ps = tp;
+		free(e->rps);
+		e->rps = 0;
+		e->orows = 1;
+		e->orow = 0;
+	}
 	ed_draw(e, b, b->n);
+	free(tp);
 	ed_put("\r\n", 2);
 	ed_off();
 	hs_add(s, b->p ? b->p : "");
 	s_ch(b, '\n');
 	r = xs(b->p);
+	return r;
+}
+
+/* Finish with the line editor, letting go of the right prompt. */
+char *ed_ret(est *e, char *r)
+{
+	free(e->rps);
+	e->rps = 0;
 	return r;
 }
 
@@ -781,6 +841,7 @@ char *ed_line(sh *s, const char *ps)
 	s_init(&save);
 	hi = s->hist.n;
 	e.ps = ps;
+	e.rps = ed_prompt(s, "RPS1");
 	ed_fresh(&e);
 	ed_draw(&e, &b, pos);
 	for (;;) {
@@ -800,7 +861,7 @@ char *ed_line(sh *s, const char *ps)
 				ed_off();
 				s_free(&b);
 				s_free(&save);
-				return 0;
+				return ed_ret(&e, 0);
 			}
 			break;
 		}
@@ -847,13 +908,13 @@ char *ed_line(sh *s, const char *ps)
 			r = ed_done(s, &e, &b);
 			s_free(&b);
 			s_free(&save);
-			return r;
+			return ed_ret(&e, r);
 		case 18:
 			if (ed_search(s, &b, &pos)) {
 				r = ed_done(s, &e, &b);
 				s_free(&b);
 				s_free(&save);
-				return r;
+				return ed_ret(&e, r);
 			}
 			ed_fresh(&e);
 			break;
@@ -869,14 +930,14 @@ char *ed_line(sh *s, const char *ps)
 			s_free(&b);
 			s_free(&save);
 			r = xs("\n");
-			return r;
+			return ed_ret(&e, r);
 		case 4:
 			if (!b.n) {
 				ed_put("\r\n", 2);
 				ed_off();
 				s_free(&b);
 				s_free(&save);
-				return 0;
+				return ed_ret(&e, 0);
 			}
 			if (pos < b.n) {
 				size_t k = u8next(&b, pos);
@@ -974,7 +1035,7 @@ char *ed_line(sh *s, const char *ps)
 	r = xs(b.p);
 	s_free(&b);
 	s_free(&save);
-	return r;
+	return ed_ret(&e, r);
 }
 
 /* Expand !!, !$, !n, !-n and !prefix against the history list. */
