@@ -904,40 +904,74 @@ int b_getopts(sh *s, int ac, char **av)
 	int idx = oi && *oi ? atoi(oi) : 1;
 	char **args = ac > 3 ? av + 3 : s->av;
 	int n = ac > 3 ? ac - 3 : s->ac;
-	const char *cur;
-	const char *hit;
+	int quiet = spec[0] == ':';
+	const char *cur, *hit;
+	char c;
 	str one, nx;
 
 	if (ac < 2) {
 		lg(HIBR_LERR, "usage: getopts optstring var [args...]");
 		return 2;
 	}
+	if (quiet)
+		spec++;
+	if (idx != s->optind)
+		s->optpos = 0;
+	hibr_set(s, "OPTARG", "", 0);
 	if (idx > n)
 		return HIBR_FAIL;
 	cur = args[idx - 1];
-	if (!cur || cur[0] != '-' || !cur[1] || !strcmp(cur, "--"))
+	if (!cur || cur[0] != '-' || !cur[1])
 		return HIBR_FAIL;
-	hit = strchr(spec, cur[1]);
-	s_init(&one);
-	s_ch(&one, cur[1]);
-	if (!hit) {
-		hibr_set(s, nm, "?", 0);
-		lg(HIBR_LWRN, "getopts: illegal option -%s", one.p);
-		s_free(&one);
+	if (!strcmp(cur, "--")) {
+		s->optpos = 0;
+		s->optind = idx + 1;
+		s_init(&nx);
+		s_num(&nx, (long)(idx + 1));
+		hibr_set(s, "OPTIND", nx.p, 0);
+		s_free(&nx);
+		return HIBR_FAIL;
+	}
+	if (!s->optpos)
+		s->optpos = 1;
+	c = cur[s->optpos++];
+	hit = c ? strchr(spec, c) : 0;
+	if (!cur[s->optpos]) {
+		s->optpos = 0;
 		idx++;
+	}
+	s_init(&one);
+	s_ch(&one, c);
+	if (!hit || c == ':') {
+		hibr_set(s, nm, quiet ? "?" : "?", 0);
+		if (quiet)
+			hibr_set(s, "OPTARG", one.p, 0);
+		else
+			lg(HIBR_LWRN, "getopts: illegal option -%s", one.p);
+		s_free(&one);
+	} else if (hit[1] == ':') {
+		hibr_set(s, nm, one.p, 0);
+		if (s->optpos) {
+			hibr_set(s, "OPTARG", cur + s->optpos, 0);
+			s->optpos = 0;
+			idx++;
+		} else if (idx <= n) {
+			hibr_set(s, "OPTARG", args[idx - 1], 0);
+			idx++;
+		} else if (quiet) {
+			hibr_set(s, nm, ":", 0);
+			hibr_set(s, "OPTARG", one.p, 0);
+		} else {
+			hibr_set(s, nm, "?", 0);
+			lg(HIBR_LWRN, "getopts: option -%s needs an argument",
+			   one.p);
+		}
+		s_free(&one);
 	} else {
 		hibr_set(s, nm, one.p, 0);
 		s_free(&one);
-		idx++;
-		if (hit[1] == ':') {
-			if (idx > n) {
-				hibr_set(s, nm, ":", 0);
-			} else {
-				hibr_set(s, "OPTARG", args[idx - 1], 0);
-				idx++;
-			}
-		}
 	}
+	s->optind = idx;
 	s_init(&nx);
 	s_num(&nx, (long)idx);
 	hibr_set(s, "OPTIND", nx.p, 0);
