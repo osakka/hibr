@@ -1,23 +1,28 @@
-
 # build outputs
-# editor and OS noise
-# fuzzer findings are kept locally until triaged
-# local history for manual testing
-# sanitizer and profiler artefacts
-*.a
-*.asan
+/build/
 *.o
-*.prof
-*.pyc
 *.so
+*.a
+
+# sanitizer and profiler artefacts
+gmon.out
+*.asan
+*.prof
+
+# python bytecode from the test harnesses
+__pycache__/
+*.pyc
+
+# fuzzer findings are kept locally until triaged
+tests/fuzz-crash-*
+tests/fuzz-hang-*
+
+# editor and OS noise
 *.swp
 *~
 .DS_Store
-.hibr_history
-.idea/
 .vscode/
-/build/
-__pycache__/
-gmon.out
-tests/fuzz-crash-*
-tests/fuzz-hang-*
+.idea/
+
+# local history for manual testing
+.hibr_history
