@@ -353,8 +353,21 @@ part *lx_dol(lex *l, int q)
 			return 0;
 		}
 		p->k = P_CMD;
-		p->t = ar_dup(l->a, b, (size_t)(e - b));
-		p->n = (size_t)(e - b);
+		{
+			str u;
+			const char *r;
+			s_init(&u);
+			for (r = b; r < e; r++) {
+				if (*r == '\\' && r + 1 < e &&
+				    (r[1] == '$' || r[1] == '`' ||
+				     r[1] == '\\' || (q && r[1] == '"')))
+					r++;
+				s_ch(&u, *r);
+			}
+			p->t = ar_dup(l->a, u.p ? u.p : "", u.n);
+			p->n = u.n;
+			s_free(&u);
+		}
 		l->p = e + 1;
 		return p;
 	}

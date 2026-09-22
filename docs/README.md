@@ -34,6 +34,7 @@ exists. These pages are the detail.
 | [Deployment](deployment.md) | `deploy.sh`: install, verify, update, roll back |
 | [Testing](testing.md) | The harness, the recording discipline, sanitizers and fuzzing |
 | [Decisions](adr/README.md) | Why hibr behaves the way it does, one record per decision |
+| [Backlog](backlog.md) | What should exist next, and what each piece actually needs |
 
 ## Where hibr differs from bash on purpose
 
