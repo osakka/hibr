@@ -39,12 +39,14 @@ int b_str(sh *s, int ac, char **av)
 	int rc = HIBR_OK;
 
 	if (ac < 3) {
-		lg(HIBR_LERR, "usage: str len|upper|lower|trim|slice|index|replace|split|join|pad|starts|ends|contains|repeat ...");
+		lg(HIBR_LERR, "usage: str len|width|upper|lower|trim|slice|index|replace|split|join|pad|starts|ends|contains|repeat ...");
 		return 2;
 	}
 	s_init(&o);
 	if (!strcmp(sub, "len")) {
-		rc = sx_num(s, ac > 3 ? av[3] : 0, (long)strlen(a));
+		rc = sx_num(s, ac > 3 ? av[3] : 0, (long)u8n(a, strlen(a)));
+	} else if (!strcmp(sub, "width")) {
+		rc = sx_num(s, ac > 3 ? av[3] : 0, (long)ed_width(a));
 	} else if (!strcmp(sub, "upper") || !strcmp(sub, "lower")) {
 		int up = sub[0] == 'u';
 		s_cat(&o, a);
@@ -65,7 +67,8 @@ int b_str(sh *s, int ac, char **av)
 	} else if (!strcmp(sub, "slice")) {
 		long st = ac > 3 ? atol(av[3]) : 0;
 		long ln;
-		n = strlen(a);
+		size_t bn = strlen(a), bo, be;
+		n = u8n(a, bn);
 		if (st < 0)
 			st += (long)n;
 		if (st < 0)
@@ -78,11 +81,14 @@ int b_str(sh *s, int ac, char **av)
 			ln = (long)n - st;
 		if (ln < 0)
 			ln = 0;
-		s_add(&o, a + st, (size_t)ln);
+		bo = u8off(a, bn, (size_t)st);
+		be = u8off(a, bn, (size_t)(st + ln));
+		s_add(&o, a + bo, be - bo);
 		rc = sx_out(s, ac > 5 ? av[5] : 0, o.p ? o.p : "");
 	} else if (!strcmp(sub, "index")) {
 		char *h = ac > 3 ? strstr(a, av[3]) : 0;
-		rc = sx_num(s, ac > 4 ? av[4] : 0, h ? (long)(h - a) : -1L);
+		rc = sx_num(s, ac > 4 ? av[4] : 0,
+			    h ? (long)u8n(a, (size_t)(h - a)) : -1L);
 	} else if (!strcmp(sub, "replace")) {
 		const char *p = a, *h;
 		size_t ol = ac > 3 ? strlen(av[3]) : 0;
@@ -146,7 +152,7 @@ int b_str(sh *s, int ac, char **av)
 		long w = ac > 3 ? atol(av[3]) : 0;
 		char c = ac > 4 && av[4][0] ? av[4][0] : ' ';
 		long need;
-		n = strlen(a);
+		n = (size_t)ed_width(a);
 		need = (w < 0 ? -w : w) - (long)n;
 		if (need < 0)
 			need = 0;

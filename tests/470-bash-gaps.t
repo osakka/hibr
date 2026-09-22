@@ -43,3 +43,18 @@ echo "tilde old: $(echo ~-)"
 echo "tilde user: $(echo ~root)"
 echo "tilde unknown stays: $(echo ~nosuchuser___)"
 echo "tilde home matches: $([ "$(echo ~)" = "$HOME" ] && echo yes)"
+
+echo "--- declaration words are assignments, not words"
+f() { local t=$1 u=$2 v=$3; echo "[$t][$u][$v]"; }
+f " " "a b" "x*y"
+g() { declare d=$1; export E=$1; readonly R=$1; echo "[$d][$E][$R]"; }
+g "two  spaces"
+h() { local "q"="$1" n=5; echo "[$q][$n]"; }
+h "kept  whole"
+k=to; local_looking=$k; echo "[$local_looking]"
+p() { local a=1 b=$a; echo "[$a][$b]"; }
+p
+
+echo "--- sh -c names \$0 with its first operand"
+"${SH:-bash}" -c 'echo "0=$0 1=$1 2=$2 n=$#"' NAME one two
+"${SH:-bash}" -c 'echo "n=$# 0=$0"' ONLY

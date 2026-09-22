@@ -110,6 +110,56 @@ check("a pane clips what is too wide for it", b"\x1b[6;11Habcdef" in d)
 check("it clips from the pane's own origin", b"\x1b[7;15Hzz" in d)
 check("a row outside the pane draws nothing", b"offpane" not in d)
 
+o, _ = run('console open\nconsole flush\n'
+           'console pane a 5 10 3 20\nconsole pane b 6 15 3 20\n'
+           'l := console pane list\necho "L[$l]"\n'
+           'console pane raise a\nl := console pane list\necho "L[$l]"\n'
+           'console pane lower a\nl := console pane list\necho "L[$l]"\n'
+           'g := console pane b\necho "G[$g]"\nconsole close\n')
+L = [m.decode() for m in re.findall(rb"L\[([^\]]*)\]", o)]
+check("panes list bottom to top in the order they were made",
+      L and L[0] == "a b")
+check("raise moves a pane to the top", len(L) > 1 and L[1] == "b a")
+check("lower moves it back to the bottom", len(L) > 2 and L[2] == "a b")
+check("a pane reports its own geometry",
+      re.search(rb"G\[6 15 3 20\]", o) is not None)
+
+o, _ = run('console open\nconsole flush\n'
+           'console pane a 5 10 3 20\nconsole pane b 6 15 3 20\n'
+           'for r in 4 6 6 6 20; do\n'
+           '  for c in 5 12 17 40 10; do\n'
+           '    h := console hit $r $c\n    echo "H[$r,$c=$h]"\n'
+           '  done\ndone\nconsole close\n')
+H = dict((m.decode().split("=") + [""])[:2]
+         for m in re.findall(rb"H\[([^\]]*)\]", o))
+check("a cell outside every pane hits nothing", H.get("4,5") == "")
+check("a cell in one pane only hits it", H.get("6,12") == "a")
+check("a cell in two hits the topmost", H.get("6,17") == "b")
+check("a cell past the right edge hits nothing", H.get("6,40") == "")
+check("a cell past the bottom edge hits nothing", H.get("20,10") == "")
+
+o, _ = run('console open\nconsole flush\n'
+           'console pane a 5 10 3 20\nconsole pane b 6 15 3 20\n'
+           'console pane raise a\nh := console hit 6 17\necho "H[$h]"\n'
+           'console pane drop a\nl := console pane list\necho "L[$l]"\n'
+           'h := console hit 6 17\necho "H[$h]"\n'
+           'if console pane drop a; then echo "TWICE"; fi\nconsole close\n')
+check("raising changes what a click finds",
+      re.search(rb"H\[a\]", o) is not None)
+check("dropping a pane removes it from the stack",
+      re.search(rb"L\[b\]", o) is not None)
+check("and a click then falls through to what was below",
+      o.count(b"H[b]") == 1)
+check("dropping a pane that is gone fails", b"TWICE" not in o)
+
+o, _ = run('console open\nconsole flush\n'
+           'console pane a 5 10 1 20\nconsole pane b 5 15 1 20\n'
+           'console put -p a 0 0 "aaaaaaaaaa"\n'
+           'console put -p b 0 0 "bbbbb"\n'
+           'console flush\nconsole close\n')
+check("the pane drawn last wins the cells they share",
+      re.search(rb"\x1b\[6;11Haaaaabbbbb", drawn(o)) is not None)
+
 o, _ = run('console open\nconsole flush\nconsole pen red blue bold\n'
            'console put 1 1 "styled"\nconsole flush\nconsole close\n')
 check("the pen becomes one SGR before the run",
@@ -179,5 +229,5 @@ o, _ = run('console open\nconsole flush\nconsole key 3000\nconsole close\n'
 check("a resize interrupts the wait and is reported", counts(o) == [40, 100])
 
 print()
-print("%d passed, %d failed" % (len(WANT) + len(MWANT) + 25 - len(FAIL), len(FAIL)))
+print("%d passed, %d failed" % (len(WANT) + len(MWANT) + 39 - len(FAIL), len(FAIL)))
 sys.exit(1 if FAIL else 0)

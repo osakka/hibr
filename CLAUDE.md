@@ -28,7 +28,7 @@ Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 13).
     make install         # PREFIX=/usr/local, modules to $(PREFIX)/lib/hibr
     ./build/hibr -n script      # parse only
 
-    tests/run.sh [-v] [prefix]           # C-side harness, 72 tests
+    tests/run.sh [-v] [prefix]           # C-side harness, 74 tests
     ./build/hibr tests/self.hibr                 # suite in hibr, 91 assertions, planned
     python3 tests/editor.py                      # the line editor, through a pty
     python3 tests/console.py                     # the console display, through a pty
@@ -147,6 +147,28 @@ were each run and their real output pasted back; keep it that way.
 - **Builtin table is sorted** and searched with `bsearch`. After adding a
   builtin, keep it sorted — `tests/260-builtins.t` fails if a name stops
   resolving.
+
+## What belongs in the shell, and what does not
+
+hibr is a bash replacement first. That is the thing it must not lose, and it is
+easy to lose by accident, one convenient addition at a time.
+
+**The core grows only for things that make it a better shell** — bash
+compatibility, expansion, job control, the module mechanism itself. Everything
+else is a module, and every module is `dlopen`ed on demand: a shell that only
+runs your scripts loads none of them and pays for none of them.
+
+**Tools are modules. Applications are scripts. What the user configures is a
+script of their own** — not a configuration file format. The desktop follows
+X's shape: the display is a module you load and unload, the window manager is a
+script you run and exit, and the session file is the user's. Nothing stays
+resident after it returns.
+
+Something user-facing wanting to be in the core is the signal that it should be
+a module. Measure before believing an addition is needed there: the whole of
+one working day's tools — a pager, an editor, a monitor, a cat, a traceroute, a
+display layer — cost the binary 5.7% and the loop nothing, because none of it
+went in the shell.
 
 ## Design decisions (deliberate divergences from bash)
 
@@ -478,6 +500,29 @@ were each run and their real output pasted back; keep it that way.
   word that is not an operator, and asking twice cost 3.6% on the loop.
 - **`qsort` is not given a NULL base.** An empty directory leaves `vec.p` NULL,
   and glibc declares the argument non-null, which UBSan reports.
+- **Declaration builtins take assignments, not words.** `local`, `declare`,
+  `typeset`, `export` and `readonly` are ordinary builtins, so their arguments
+  went through splitting and globbing like anyone else's, and `local t=$2` with
+  a space in `$2` quietly produced an empty `t`. bash treats a `name=`, `name[i]=`
+  or `name+=` word on those commands as an assignment: expanded, never split,
+  never globbed. `w_assign` tests the *unexpanded* word's leading literal, so
+  `local $x` still splits — only a literal `name=` prefix counts.
+- **The command-name check in `xargv` is one call, not several.** `bi_argk`
+  returns a bitmask for both questions xargv asks about a command name — does
+  it read its arguments' quote mask, does it take assignments — and switches on
+  the first character before any `strcmp`. Two separate functions with five
+  `strcmp`s each cost 1.1% on a loop that never calls either. Anything else
+  that wants to know something about the command name belongs in that bitmask,
+  not in a new call.
+- **`sh -c cmd name args...` names `$0` with the first operand**, not with the
+  shell. hibr used to make it `$1`, so every argument was off by one and `$#`
+  one too many. bash and dash agree with each other here; hibr was alone.
+- **Lengths and slices count characters.** `${#s}`, `${s:i:n}`, `str len`,
+  `str slice` and `str index` all count characters; `str pad` and `str width`
+  count *display columns*, because padding exists to line columns up and `漢`
+  is one character in two of them. See `docs/adr/0021`. The byte-based version
+  drew a box border nine characters long with half a character on the end.
+  Anything new that measures text has to pick one of the two on purpose.
 - **`ob_hex` does not check what follows the digits**, because in `packed-refs`
   an object name is followed by a space. Callers check the length.
 

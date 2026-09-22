@@ -1,6 +1,6 @@
 # 0020 — Windows are drawn back to front, and an app is a hibr file
 
-Status: proposed — one question at the end is the owner's
+Status: accepted
 
 ## Context
 
@@ -23,6 +23,25 @@ doing at all rather than being a second project:
   and the autoloader already finds a provider without being told its name.
 
 What does not exist is z-order, a hit test, and anything that owns a window.
+
+## Three layers, and the owner named them
+
+The shape of this is X's, and the analogy is the owner's: *"that's then closer
+to xinitrc, right"*. It is, and saying so settles several arguments at once.
+
+| X | here | what it is |
+|---|---|---|
+| the server | `mods/console` | owns the terminal, the grid, the mouse, and — after step 1 — the stacking order and the hit test. Knows nothing of windows beyond panes having an order. **A module, loaded and unloaded.** |
+| the window manager | `desktop.hibr` | owns the event loop, focus, dragging, title bars, minimise. **A script, run and exited.** |
+| `~/.xinitrc` | the user's own session file | says which apps to open and where. **Theirs, not ours.** |
+
+So the answer to "is the desktop a module you load and unload?" is no, and the
+reason is worth keeping: **the thing you load and unload is the display**, and
+that is already a module. The desktop is what you *run on it*. When it returns,
+`console close` gives the terminal back and nothing of the desktop is still
+resident — which is more honest to a shell that replaces bash than a module
+would be, because a module stays mapped until it is dropped and a script is
+gone when it returns.
 
 ## Decision
 
@@ -93,8 +112,15 @@ An app is called to draw into a rectangle and to be told about a key; it never
 sees a frame, a border or a stack.
 
 So the calculator, the clock and the control panel are each a few dozen lines
-of hibr, with nothing new in C. That is the point, and it is also a fair test
-of the shell: a desktop written in it is a demanding script.
+of hibr, with nothing new in C.
+
+**There is no performance case for writing it in C**, and that was measured
+rather than assumed. A script redrawing a full screen with one `console put`
+per *cell* — 920 builtin calls a frame, which is the worst any window manager
+would ever do — runs at hundreds of frames per second. Add hit testing on every
+mouse event, a dispatch per key, and three apps doing real work in `draw`, and
+there is still an order of magnitude more headroom than a terminal can visibly
+use. The script was never going to be the slow part; the terminal is.
 
 ### It is cooperative, and says so
 
@@ -172,14 +198,13 @@ the terminal window exists, and after that the only way is to run it inside
 one. None of these is fixable without giving up "apps are hibr functions",
 which is the thing that makes the rest of it small.
 
-## Questions for the owner
+## Questions, both now closed
 
-**Is the desktop a mode you enter, or the shell's interactive mode?** Running
-`desktop` and pressing `q` to come back to the prompt is obviously right for
-the first version. Making it what an interactive hibr *is*, under a flag, is
-probably what "astounding" means in the end — but it decides whether the line
-editor and the desktop have to coexist in one loop, and that is a different
-program. This record assumes the first.
+**Is the desktop a mode you enter, or the shell's interactive mode?** — *a
+mode.* The analogy answers it: `xinit` does not replace your login shell, you
+run it. `desktop` is the same. Anyone who wants it on login puts a line in
+their `.hibrc`, which is their file and their choice, and the line editor and
+the desktop never have to share a loop.
 
 **Where do apps live?** — *closed, by the owner, before this record was
 finished.* They do not live anywhere in particular. An app is a `.hibr` file

@@ -219,11 +219,36 @@ char *bi_keys(sh *s, char *word, const char *mk, vec *ks)
 	return br;
 }
 
+/* What a command name changes about how its own arguments expand:
+   1 = it reads their quote mask, 2 = its name=value words are assignments.
+   One switch, called once per command, because every command pays for it. */
+int bi_argk(const char *nm)
+{
+	switch (*nm) {
+	case 'u':
+		return !strcmp(nm, "unset") ? 1 : 0;
+	case 'c':
+		return !strcmp(nm, "command") ? 1 : 0;
+	case 'r':
+		if (!strcmp(nm, "read"))
+			return 1;
+		return !strcmp(nm, "readonly") ? 2 : 0;
+	case 'l':
+		return !strcmp(nm, "local") ? 2 : 0;
+	case 'd':
+		return !strcmp(nm, "declare") ? 2 : 0;
+	case 't':
+		return !strcmp(nm, "typeset") ? 2 : 0;
+	case 'e':
+		return !strcmp(nm, "export") ? 2 : 0;
+	}
+	return 0;
+}
+
 /* True for a builtin that reads the quote mask of its own arguments. */
 int bi_mask(const char *nm)
 {
-	return !strcmp(nm, "unset") || !strcmp(nm, "command") ||
-	       !strcmp(nm, "read");
+	return bi_argk(nm) & 1;
 }
 
 /* Remove variables or functions. */

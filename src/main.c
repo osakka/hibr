@@ -325,6 +325,11 @@ int main(int ac, char **av)
 		break;
 	}
 	if (src) {
+		if (i < ac) {
+			free(s.arg0);
+			s.arg0 = xs(av[i]);
+			i++;
+		}
 		if (i < ac)
 			v_pos(&s, ac - i, av + i);
 		rc = hibr_run(&s, src);

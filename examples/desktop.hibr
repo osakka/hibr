@@ -1,0 +1,312 @@
+#!/usr/bin/env hibr
+#
+# desktop -- a window manager, written in hibr.
+#
+# This is the middle of the three layers in docs/adr/0020: the console module
+# is the display server, this is the window manager, and the file you write
+# yourself is the session.  Source this, call dt_open, make some windows and
+# call dt_run:
+#
+#     . desktop.hibr
+#     dt_open
+#     dt_new "A window" 10 40 4 8
+#     dt_run
+#
+# Nothing here is C.  Everything below draws with `console put` and reads
+# `console key`, and it redraws every window from the bottom of the stack
+# upwards every frame, because the console only sends the cells that changed.
+
+need display || { echo "desktop: no display available" >&2; exit 1; }
+
+DT_NEXT=1
+DT_FOCUS=
+DT_DRAG=
+DT_DR=0
+DT_DC=0
+DT_QUIT=0
+DT_ROWS=24
+DT_COLS=80
+declare -A DT
+
+DT_WALL="${DT_WALL-#0d1b2a}"
+DT_DOT="${DT_DOT-#16324a}"
+DT_BAR="${DT_BAR-#1b3a5c}"
+DT_ACTIVE="${DT_ACTIVE-#63b3ed}"
+DT_IDLE="${DT_IDLE-#4a5568}"
+DT_FACE="${DT_FACE-#101820}"
+DT_INK="${DT_INK-#cbd5e0}"
+
+# Open the display, take the mouse, and note how big the screen is.
+dt_open() {
+	console open || return 1
+	console mouse drag
+	console cursor 0 0 0
+	dt_size
+}
+
+# Re-read the screen size after a resize.
+dt_size() {
+	local sz
+	sz := console size
+	DT_ROWS=${sz% *}
+	DT_COLS=${sz#* }
+}
+
+# Give the terminal back.
+dt_close() {
+	console mouse off
+	console close
+}
+
+# Make a window and put it on top.  Its id lands in $RET.
+dt_new() {
+	local id=$DT_NEXT
+	DT[$id][title]="$1"
+	DT[$id][h]="$2"
+	DT[$id][w]="$3"
+	DT[$id][row]="$4"
+	DT[$id][col]="$5"
+	DT[$id][app]="${6-}"
+	DT[$id][min]=0
+	DT_NEXT=$((DT_NEXT + 1))
+	console pane "w$id" "$4" "$5" "$2" "$3"
+	DT_FOCUS=$id
+	${DT[$id][app]:+${DT[$id][app]}} open "$id" 2>/dev/null
+	ret "$id"
+}
+
+# Close a window and forget it.
+dt_del() {
+	local id=$1
+	${DT[$id][app]:+${DT[$id][app]}} close "$id" 2>/dev/null
+	console pane drop "w$id"
+	unset "DT[$id]"
+	if [ "$DT_FOCUS" = "$id" ]; then
+		local l
+		l := console pane list
+		l=${l##* }
+		DT_FOCUS=${l#w}
+	fi
+}
+
+# Show or hide a window without destroying it.
+dt_min() {
+	local id=$1
+	if [ "${DT[$id][min]}" = 1 ]; then
+		DT[$id][min]=0
+		console pane "w$id" "${DT[$id][row]}" "${DT[$id][col]}" \
+			"${DT[$id][h]}" "${DT[$id][w]}"
+		console pane raise "w$id"
+		DT_FOCUS=$id
+	else
+		DT[$id][min]=1
+		console pane drop "w$id"
+		if [ "$DT_FOCUS" = "$id" ]; then
+			local l
+			l := console pane list
+			l=${l##* }
+			DT_FOCUS=${l#w}
+		fi
+	fi
+}
+
+# Draw inside a window, in its own coordinates, with the frame allowed for.
+dt_put() {
+	console put -p "w$1" $(($2 + 1)) $(($3 + 1)) "$4"
+}
+
+# Repeat a string until it is n cells wide.
+dt_rep() {
+	local n=$1 t=$2 o=
+	while [ ${#o} -lt "$n" ]; do o="$o$t"; done
+	ret "${o:0:$n}"
+}
+
+# Paint the wallpaper.
+dt_wall() {
+	console pen "$DT_DOT" "$DT_WALL"
+	console fill 0 0 "$DT_ROWS" "$DT_COLS" "·"
+	console pen "$DT_INK" "$DT_BAR"
+	local line
+	line := dt_rep "$DT_COLS" " "
+	console put 0 0 "$line"
+	console put 0 1 "hibr"
+	local n=0 l id
+	l := console pane list
+	for id in $l; do n=$((n + 1)); done
+	console put 0 $((DT_COLS - 22)) "$n window(s)   q to quit"
+}
+
+# Draw one window: its face, then its app, then its frame over the top.
+dt_win() {
+	local id=$1
+	local h=${DT[$id][h]} w=${DT[$id][w]} on=$DT_IDLE
+
+	[ "$DT_FOCUS" = "$id" ] && on=$DT_ACTIVE
+	console pen "$DT_INK" "$DT_FACE"
+	console fill "${DT[$id][row]}" "${DT[$id][col]}" "$h" "$w" " "
+	if [ -n "${DT[$id][app]}" ]; then
+		${DT[$id][app]} draw "$id" $((h - 2)) $((w - 2))
+	fi
+	console pen "$on" "$DT_FACE"
+	local bar edge
+	bar := dt_rep $((w - 2)) "─"
+	console put -p "w$id" 0 0 "┌$bar┐"
+	console put -p "w$id" $((h - 1)) 0 "└$bar┘"
+	local r=1
+	while [ "$r" -lt $((h - 1)) ]; do
+		console put -p "w$id" "$r" 0 "│"
+		console put -p "w$id" "$r" $((w - 1)) "│"
+		r=$((r + 1))
+	done
+	local t=${DT[$id][title]}
+	local room=$((w - 12))
+	[ ${#t} -gt "$room" ] && t="${t:0:$room}"
+	console pen "$on" "$DT_FACE" bold
+	console put -p "w$id" 0 2 "┤ $t ├"
+	console put -p "w$id" 0 $((w - 8)) "┤"
+	console pen "$DT_INK" "$DT_FACE"
+	console put -p "w$id" 0 $((w - 7)) "_"
+	console put -p "w$id" 0 $((w - 5)) "□"
+	console pen "#f56565" "$DT_FACE" bold
+	console put -p "w$id" 0 $((w - 3)) "x"
+	console pen "$on" "$DT_FACE"
+	console put -p "w$id" 0 $((w - 2)) "├"
+}
+
+# One full frame, bottom of the stack upwards.
+dt_draw() {
+	local l id
+	dt_wall
+	l := console pane list
+	for id in $l; do dt_win "${id#w}"; done
+	console flush
+}
+
+# Which title-bar button is at this column, if any.
+dt_btn() {
+	local w=$1 c=$2
+	case $((w - c)) in
+	7) ret min ;;
+	5) ret max ;;
+	3) ret close ;;
+	*) ret "" ;;
+	esac
+}
+
+# Handle one mouse report.
+dt_mouse() {
+	local act=$1 row=$3 col=$4 id b
+
+	case $act in
+	press)
+		id := console hit "$row" "$col"
+		if [ -z "$id" ]; then
+			DT_FOCUS=
+			return 0
+		fi
+		id=${id#w}
+		console pane raise "w$id"
+		DT_FOCUS=$id
+		if [ "$row" -ne "${DT[$id][row]}" ]; then
+			if [ -n "${DT[$id][app]}" ]; then
+				${DT[$id][app]} click "$id" \
+					$((row - DT[$id][row] - 1)) \
+					$((col - DT[$id][col] - 1))
+			fi
+			return 0
+		fi
+		b := dt_btn "${DT[$id][w]}" $((col - DT[$id][col]))
+		case $b in
+		close) dt_del "$id" ;;
+		min) dt_min "$id" ;;
+		max) dt_zoom "$id" ;;
+		*)
+			DT_DRAG=$id
+			DT_DR=$((row - DT[$id][row]))
+			DT_DC=$((col - DT[$id][col]))
+			;;
+		esac
+		;;
+	drag)
+		[ -z "$DT_DRAG" ] && return 0
+		local id=$DT_DRAG r=$((row - DT_DR)) c=$((col - DT_DC))
+		[ "$r" -lt 1 ] && r=1
+		[ "$c" -lt 0 ] && c=0
+		[ $((r + DT[$id][h])) -gt "$DT_ROWS" ] &&
+			r=$((DT_ROWS - DT[$id][h]))
+		[ $((c + DT[$id][w])) -gt "$DT_COLS" ] &&
+			c=$((DT_COLS - DT[$id][w]))
+		DT[$id][row]=$r
+		DT[$id][col]=$c
+		console pane "w$id" "$r" "$c" "${DT[$id][h]}" "${DT[$id][w]}"
+		;;
+	release)
+		DT_DRAG=
+		;;
+	esac
+}
+
+# Fill the screen, or go back to where the window was.
+dt_zoom() {
+	local id=$1
+	if [ -n "${DT[$id][oh]}" ]; then
+		DT[$id][row]=${DT[$id][or]}
+		DT[$id][col]=${DT[$id][oc]}
+		DT[$id][h]=${DT[$id][oh]}
+		DT[$id][w]=${DT[$id][ow]}
+		DT[$id][oh]=
+	else
+		DT[$id][or]=${DT[$id][row]}
+		DT[$id][oc]=${DT[$id][col]}
+		DT[$id][oh]=${DT[$id][h]}
+		DT[$id][ow]=${DT[$id][w]}
+		DT[$id][row]=1
+		DT[$id][col]=0
+		DT[$id][h]=$((DT_ROWS - 1))
+		DT[$id][w]=$DT_COLS
+	fi
+	console pane "w$id" "${DT[$id][row]}" "${DT[$id][col]}" \
+		"${DT[$id][h]}" "${DT[$id][w]}"
+}
+
+# Handle one decoded key or mouse line.
+dt_event() {
+	local k="$1"
+
+	case $k in
+	"mouse "*)
+		set -- $k
+		dt_mouse "$2" "$3" "$4" "$5"
+		return 0
+		;;
+	esac
+	if [ -n "$DT_FOCUS" ] && [ -n "${DT[$DT_FOCUS][app]}" ]; then
+		if ${DT[$DT_FOCUS][app]} key "$DT_FOCUS" "$k"; then
+			return 0
+		fi
+	fi
+	case $k in
+	q) DT_QUIT=1 ;;
+	tab)
+		local l
+		l := console pane list
+		l=${l%% *}
+		[ -n "$l" ] && console pane raise "$l" && DT_FOCUS=${l#w}
+		;;
+	esac
+}
+
+# The event loop.  Draw, wait, dispatch, repeat.
+dt_run() {
+	local k
+	while [ "$DT_QUIT" = 0 ]; do
+		dt_draw
+		k := console key "${DT_TICK-200}"
+		if console resized; then
+			dt_size
+			continue
+		fi
+		[ -n "$k" ] && dt_event "$k"
+	done
+}

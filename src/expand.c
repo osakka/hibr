@@ -97,6 +97,28 @@ void xposlist(sh *s, vec *lst)
 		v_add(lst, (void *)s->av[i]);
 }
 
+/* Count characters rather than bytes, so ${#s} reports what the eye sees. */
+size_t u8n(const char *t, size_t n)
+{
+	size_t i, c = 0;
+
+	for (i = 0; i < n; i++)
+		if (((unsigned char)t[i] & 0xC0) != 0x80)
+			c++;
+	return c;
+}
+
+/* The byte offset at which the cth character starts, clamped to the end. */
+size_t u8off(const char *t, size_t n, size_t c)
+{
+	size_t i = 0;
+
+	while (c-- && i < n)
+		i += (unsigned char)t[i] < 0x80 ? 1 :
+		     (size_t)u8len((unsigned char)t[i]);
+	return i > n ? n : i;
+}
+
 /* Resolve an offset and length against a list, clamped to its bounds. */
 void xslice(sh *s, part *p, size_t n, long *off, long *len)
 {
@@ -604,7 +626,7 @@ void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 		return;
 	}
 	case V_LEN:
-		a = xnum(s, v ? (long)strlen(v) : 0);
+		a = xnum(s, v ? (long)u8n(v, strlen(v)) : 0);
 		xput(b, m, a, strlen(a), 1);
 		return;
 	case V_DEF:
@@ -687,11 +709,17 @@ void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 			s_free(&j);
 			return;
 		}
-		if (!v)
+		if (!v) {
 			return;
-		n = (long)strlen(v);
-		xslice(s, p, (size_t)n, &off, &len);
-		xput(b, m, v + off, (size_t)len, p->q || s->strict);
+		} else {
+			size_t bn = strlen(v), bo, be;
+
+			n = (long)u8n(v, bn);
+			xslice(s, p, (size_t)n, &off, &len);
+			bo = u8off(v, bn, (size_t)off);
+			be = u8off(v, bn, (size_t)(off + len));
+			xput(b, m, v + bo, be - bo, p->q || s->strict);
+		}
 		return;
 	}
 	case V_SUB:
@@ -1616,6 +1644,32 @@ int w_simple(word *w)
 }
 
 /* Build a NULL terminated argv from a word list. */
+/* True for a word that literally starts with name= or name[sub]= or name+=. */
+int w_assign(word *w)
+{
+	part *p = w ? w->p : 0;
+	const char *t;
+	size_t i = 0, n;
+
+	if (!p || p->k != P_TXT || !p->n)
+		return 0;
+	t = p->t;
+	n = p->n;
+	if (!isalpha((unsigned char)t[0]) && t[0] != '_')
+		return 0;
+	while (i < n && (isalnum((unsigned char)t[i]) || t[i] == '_'))
+		i++;
+	if (i < n && t[i] == '[') {
+		while (i < n && t[i] != ']')
+			i++;
+		if (i < n)
+			i++;
+	}
+	if (i < n && t[i] == '+')
+		i++;
+	return i < n && t[i] == '=';
+}
+
 char **xargv(sh *s, word *w, int *ac, char ***am)
 {
 	vec *o = vb_get(s);
@@ -1623,29 +1677,39 @@ char **xargv(sh *s, word *w, int *ac, char ***am)
 	vec *bw;
 	char **r, **q = 0;
 	size_t i;
-	int first = 1, plain = !sh_ifs(s);
+	int first = 1, decl = 0, plain = !sh_ifs(s);
 
 	for (; w; w = w->nx) {
-		if (plain && w_simple(w)) {
+		int fl = decl && w_assign(w) ? HIBR_XONE : 0;
+		if (!fl && plain && w_simple(w)) {
 			xout(s, o, om, w->p->t, 0, w->p->n);
 		} else {
 			bw = vb_get(s);
 			br_expand(s, w, bw);
 			for (i = 0; i < bw->n; i++)
-				xwm(s, (word *)bw->p[i], o, 0, om);
+				xwm(s, (word *)bw->p[i], o, fl, om);
 			vb_put(s, bw);
+		}
+		if (first) {
+			first = 0;
+			if (o->n) {
+				char *c0 = (char *)o->p[0];
+				int k = bi_argk(c0);
+
+				if (k & 2) {
+					lg(HIBR_LDBG, "%s takes assignments, "
+					   "not words", c0);
+					decl = 1;
+				}
+				if ((k & 1) || al_get(s, c0)) {
+					lg(HIBR_LDBG, "%s reads argument "
+					   "quoting, masking", c0);
+					om = vb_get(s);
+				}
+			}
 		}
 		if (om)
 			xpad(o, om);
-		else if (first && o->n &&
-			 (bi_mask((char *)o->p[0]) ||
-			  al_get(s, (char *)o->p[0]))) {
-			lg(HIBR_LDBG, "%s reads argument quoting, masking",
-			   (char *)o->p[0]);
-			om = vb_get(s);
-			xpad(o, om);
-		}
-		first = 0;
 	}
 	if (om && om->n != o->n) {
 		lg(HIBR_LDBG, "argv mask desync (%lu of %lu), dropping",

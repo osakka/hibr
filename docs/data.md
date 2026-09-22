@@ -26,16 +26,17 @@ their **exit status** instead, so they read naturally in `if` and `&&`.
 
 | form | gives |
 |---|---|
-| `str len text [var]` | the length in bytes |
+| `str len text [var]` | the length in characters |
+| `str width text [var]` | the width in terminal columns |
 | `str upper text [var]` | upper case |
 | `str lower text [var]` | lower case |
 | `str trim text [var]` | spaces, tabs, newlines and returns off both ends |
 | `str slice text start [len] [var]` | a substring; a negative start counts from the end, `-` for len means "to the end" |
-| `str index text needle [var]` | the byte offset, or `-1` |
+| `str index text needle [var]` | the character offset, or `-1` |
 | `str replace text old new [var]` | every occurrence, literal not pattern |
 | `str split text sep arrayvar` | split on a literal separator into an array |
 | `str join arrayvar [sep] [var]` | join an array, default separator a space |
-| `str pad text width [char] [var]` | pad to width; a negative width pads on the left |
+| `str pad text width [char] [var]` | pad to width **in columns**; a negative width pads on the left |
 | `str repeat text n [var]` | the text `n` times |
 | `str starts text prefix` | status: does it start with it |
 | `str ends text suffix` | status: does it end with it |
@@ -57,6 +58,10 @@ str repeat ab 3 r              # "ababab"
 
 str starts "$f" / && echo absolute
 str contains "$line" ERROR && echo found
+
+str len "─é漢ab" n            # 5, characters not bytes
+str width "─é漢ab" w          # 6, columns: 漢 takes two
+str pad "漢字" 8 . p          # "漢字...." -- eight columns, not eight characters
 ```
 
 ## `arr`

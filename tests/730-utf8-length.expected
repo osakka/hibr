@@ -1,0 +1,17 @@
+0
+len 5
+slice [─é漢] [漢ab] [é漢] [ab]
+past [] [漢ab] []
+empty 0 []
+ascii 5 [lai]
+str len 5 width 6
+str slice [é漢] [ab]
+str index 2
+pad [漢字....] [ab......] [....漢字]
+bar [──────────] 10
+cut 0 []
+cut 1 [─]
+cut 2 [─é]
+cut 3 [─é漢]
+cut 4 [─é漢a]
+cut 5 [─é漢ab]

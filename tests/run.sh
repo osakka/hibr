@@ -10,6 +10,10 @@ cd "$root" || exit 1
 
 HIBR=${HIBR:-./build/hibr}
 REF=${REF:-bash}
+case $HIBR in
+/*) SH_ABS=$HIBR ;;
+*) SH_ABS=$PWD/$HIBR ;;
+esac
 verbose=0
 filter=
 
@@ -46,7 +50,7 @@ for t in "$here"/*.t; do
 	fi
 	exp="$here/$name.expected"
 	if [ -f "$exp" ]; then
-		got=$("$HIBR" "$t" 2>&1)
+		got=$(SH="$SH_ABS" "$HIBR" "$t" 2>&1)
 		grc=$?
 		want=$(sed -n '2,$p' "$exp")
 		wrc=$(sed -n '1p' "$exp")
@@ -57,9 +61,9 @@ for t in "$here"/*.t; do
 			printf 'SKIP %s (no %s)\n' "$name" "$REF"
 			continue
 		fi
-		got=$("$HIBR" "$t" 2>/dev/null)
+		got=$(SH="$SH_ABS" "$HIBR" "$t" 2>/dev/null)
 		grc=$?
-		want=$("$REF" "$t" 2>/dev/null)
+		want=$(SH="$REF" "$REF" "$t" 2>/dev/null)
 		wrc=$?
 		mode=$REF
 	fi

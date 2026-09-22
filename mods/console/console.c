@@ -58,6 +58,73 @@ void cn_pclear(void)
 	v_free(&cn_panes);
 }
 
+/* Move a pane to the top of the stack, so it is drawn last and hit first. */
+void cn_praise(cn_pane *p)
+{
+	size_t i;
+
+	for (i = 0; i < cn_panes.n; i++)
+		if (cn_panes.p[i] == (void *)p)
+			break;
+	if (i >= cn_panes.n || i == cn_panes.n - 1)
+		return;
+	memmove(cn_panes.p + i, cn_panes.p + i + 1,
+		(cn_panes.n - i - 1) * sizeof *cn_panes.p);
+	cn_panes.p[cn_panes.n - 1] = p;
+	lg(HIBR_LDBG, "pane %s raised to %d", p->nm, (int)cn_panes.n - 1);
+}
+
+/* Move a pane to the bottom of the stack. */
+void cn_plower(cn_pane *p)
+{
+	size_t i;
+
+	for (i = 0; i < cn_panes.n; i++)
+		if (cn_panes.p[i] == (void *)p)
+			break;
+	if (i >= cn_panes.n || i == 0)
+		return;
+	memmove(cn_panes.p + 1, cn_panes.p, i * sizeof *cn_panes.p);
+	cn_panes.p[0] = p;
+	lg(HIBR_LDBG, "pane %s lowered", p->nm);
+}
+
+/* Forget one pane. */
+int cn_pdrop(const char *nm)
+{
+	size_t i;
+	cn_pane *p;
+
+	for (i = 0; i < cn_panes.n; i++) {
+		p = (cn_pane *)cn_panes.p[i];
+		if (strcmp(p->nm, nm))
+			continue;
+		memmove(cn_panes.p + i, cn_panes.p + i + 1,
+			(cn_panes.n - i - 1) * sizeof *cn_panes.p);
+		cn_panes.n--;
+		lg(HIBR_LDBG, "pane %s dropped", nm);
+		free(p->nm);
+		free(p);
+		return 1;
+	}
+	return 0;
+}
+
+/* The topmost pane covering a screen cell, or null. */
+cn_pane *cn_phit(int row, int col)
+{
+	size_t i = cn_panes.n;
+	cn_pane *p;
+
+	while (i--) {
+		p = (cn_pane *)cn_panes.p[i];
+		if (row >= p->row && row < p->row + p->h &&
+		    col >= p->col && col < p->col + p->w)
+			return p;
+	}
+	return 0;
+}
+
 /* Write inside a pane, clipped to it, in the pane's own coordinates. */
 int cn_pput(const cn_pane *p, int row, int col, const char *t)
 {
@@ -171,7 +238,7 @@ int m_console(sh *s, int ac, char **av)
 
 	if (ac < 2) {
 		lg(HIBR_LERR, "usage: console open|close|size|clear|pen|put|"
-			      "fill|cursor|flush|key|pane|mouse");
+			      "fill|cursor|flush|key|pane|hit|mouse");
 		return 2;
 	}
 	if (!strcmp(sub, "open"))
@@ -318,16 +385,87 @@ int m_console(sh *s, int ac, char **av)
 		return r == 1 ? HIBR_OK : HIBR_FAIL;
 	}
 	if (!strcmp(sub, "pane")) {
-		if (ac == 3 && !strcmp(av[2], "clear")) {
+		const char *verb = ac > 2 ? av[2] : "";
+		cn_pane *p;
+		size_t i;
+
+		if (ac == 3 && !strcmp(verb, "clear")) {
 			cn_pclear();
 			return HIBR_OK;
 		}
+		if (ac == 3 && !strcmp(verb, "list")) {
+			s_init(&k);
+			for (i = 0; i < cn_panes.n; i++) {
+				if (i)
+					s_ch(&k, ' ');
+				s_cat(&k, ((cn_pane *)cn_panes.p[i])->nm);
+			}
+			hibr_ret(s, k.p ? k.p : "");
+			if (!s->bind && k.p)
+				printf("%s\n", k.p);
+			s_free(&k);
+			return HIBR_OK;
+		}
+		if (ac == 4 && (!strcmp(verb, "raise") ||
+				!strcmp(verb, "lower") ||
+				!strcmp(verb, "drop"))) {
+			if (!strcmp(verb, "drop"))
+				return cn_pdrop(av[3]) ? HIBR_OK : HIBR_FAIL;
+			p = cn_pfind(av[3]);
+			if (!p) {
+				lg(HIBR_LERR, "console pane %s: %s: no such "
+					      "pane", verb, av[3]);
+				return HIBR_FAIL;
+			}
+			if (!strcmp(verb, "raise"))
+				cn_praise(p);
+			else
+				cn_plower(p);
+			return HIBR_OK;
+		}
+		if (ac == 3) {
+			p = cn_pfind(verb);
+			if (!p)
+				return HIBR_FAIL;
+			s_init(&k);
+			s_num(&k, (long)p->row);
+			s_ch(&k, ' ');
+			s_num(&k, (long)p->col);
+			s_ch(&k, ' ');
+			s_num(&k, (long)p->h);
+			s_ch(&k, ' ');
+			s_num(&k, (long)p->w);
+			hibr_ret(s, k.p);
+			if (!s->bind)
+				printf("%s\n", k.p);
+			s_free(&k);
+			return HIBR_OK;
+		}
 		if (ac < 7) {
-			lg(HIBR_LERR, "usage: console pane name row col h w");
+			lg(HIBR_LERR, "usage: console pane name row col h w, "
+				      "or pane raise|lower|drop name, "
+				      "or pane list|clear");
 			return 2;
 		}
 		cn_pset(av[2], atoi(av[3]), atoi(av[4]), atoi(av[5]),
 			atoi(av[6]));
+		return HIBR_OK;
+	}
+	if (!strcmp(sub, "hit")) {
+		cn_pane *p;
+
+		if (ac < 4) {
+			lg(HIBR_LERR, "usage: console hit row col");
+			return 2;
+		}
+		p = cn_phit(atoi(av[2]), atoi(av[3]));
+		if (!p) {
+			hibr_ret(s, "");
+			return HIBR_FAIL;
+		}
+		hibr_ret(s, p->nm);
+		if (!s->bind)
+			printf("%s\n", p->nm);
 		return HIBR_OK;
 	}
 	lg(HIBR_LERR, "console: %s: unknown subcommand", sub);
