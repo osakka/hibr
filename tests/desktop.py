@@ -8,7 +8,7 @@ with.  Run it directly:  python3 tests/desktop.py [path-to-hibr]
 The pty and the terminal model live in tests/screen.py, which every
 full-screen suite shares.
 """
-import os, sys
+import os, re, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen
@@ -50,8 +50,9 @@ check("the minimise and zoom buttons sit beside it",
       sc.g[6][32] == "┤" and sc.g[6][33] == "_" and
       sc.g[6][35] == "□" and sc.g[6][38] == "├", sc)
 check("the wallpaper is drawn behind it", sc.g[12][2] == "·", sc)
-check("the bar across the top counts the windows",
-      "1 open" in sc.row(0) and "hidden" not in sc.row(0), sc)
+check("the menu bar names hibr, the time and the active application",
+      sc.find("hibr") == (0, 2) and re.search(r"\d\d:\d\d", sc.row(0)) and
+      sc.find("Desktop ▾") is not None, sc)
 check("the alternate screen is left on the way out", b"\x1b[?1049l" in raw)
 check("and the mouse is turned off again",
       b"\x1b[?1002l" in raw or b"\x1b[?1000l" in raw)
@@ -74,31 +75,18 @@ check("nor off the bottom right", sc.g[16][50] == "┌", sc)
 sc, _ = run(ONE, [press(6, 37)])
 check("clicking the close button closes the window",
       sc.find("Hello") is None, sc)
-check("and the count on the bar goes down", "0 open" in sc.row(0), sc)
+check("and nothing is left where it was", sc.g[6][10] == "·", sc)
 
 sc, _ = run(ONE, [press(6, 33)])
 check("minimising takes the window off the screen",
       sc.g[6][10] == "·" and sc.g[10][20] == "·", sc)
-check("but leaves a label for it on the bar",
-      sc.find("[Hello]") == (0, 7) and "0 open, 1 hidden" in sc.row(0), sc)
+sc, _ = run(ONE, [press(6, 33), press(0, 70)])
+check("and it is still listed, marked hidden, in the application menu",
+      sc.find("· Hello") is not None, sc)
 
-sc, _ = run(ONE, [press(6, 33), press(0, 9)])
-check("clicking the label brings the window back",
-      sc.g[6][10] == "┌" and sc.find("┤ Hello ├") == (6, 12) and
-      "1 open" in sc.row(0) and "hidden" not in sc.row(0), sc)
-
-sc, _ = run(ONE, [press(6, 33), b"\x1b"])
-check("and escape restores a minimised window too",
-      sc.g[6][10] == "┌", sc)
-
-sc, _ = run(TWO_DEF, [press(6, 33), press(9, 43)])
-check("two minimised windows each get their own label",
-      sc.find("[Under]") == (0, 7) and sc.find("[Over]") == (0, 15) and
-      "0 open, 2 hidden" in sc.row(0), sc)
-sc, _ = run(TWO_DEF, [press(6, 33), press(9, 43), press(0, 17)])
-check("and clicking the second label restores the right one",
-      sc.find("┤ Over ├") == (9, 22) and sc.find("[Under]") == (0, 7) and
-      "1 open, 1 hidden" in sc.row(0), sc)
+sc, _ = run(ONE, [press(6, 33), press(0, 70), b"\r"])
+check("choosing it there brings it back",
+      sc.g[6][10] == "┌" and sc.find("┤ Hello ├") == (6, 12), sc)
 
 sc, _ = run(ONE, [press(6, 35)])
 check("zooming fills the screen below the bar",
@@ -117,7 +105,8 @@ check("so the one below loses its right edge where they meet",
 check("but keeps the edges the top one does not cover",
       sc.g[10][10] == "│" and sc.g[10][19] == " " and
       sc.g[10][20] == "│", sc)
-check("the bar counts both", "2 open" in sc.row(0), sc)
+check("both are listed in the application menu",
+      run(TWO, [press(0, 70)])[0].find("Under") is not None, sc)
 
 sc, _ = run(TWO, [press(6, 12)])
 check("clicking the lower window raises it",
@@ -173,4 +162,93 @@ check("an app with no key handler cannot swallow one",
       sc.quit and b"\x1b[?1049l" in raw and
       sc.find("no keys here") == (5, 8), sc)
 
-report(39)
+# --- the menu bar ---------------------------------------------------------
+
+MENUS = ('noted_draw() { console put -p "w$1" 1 2 "count $NC"; }\n'
+         'noted_open() { NC=0; }\n'
+         'noted_bump() { NC=$((NC + 1)); }\n'
+         'noted_menus() {\n'
+         '  dt_menu "Count"\n'
+         '  dt_item "Bump" b noted_bump\n'
+         '  dt_sep\n'
+         '  dt_item "Reset" r noted_open\n'
+         '  dt_item "Close" w dt_close_focused\n'
+         '  dt_menu "More"\n'
+         '  dt_item "Bump Twice" t noted_twice\n'
+         '}\n'
+         'noted_twice() { noted_bump; noted_bump; }\n'
+         'dt_app noted "Noted" 6 24\n'
+         'dt_new "Noted" 8 30 6 10 noted\n')
+
+sc, _ = run(MENUS)
+check("an app's own menus are on the bar when it has focus",
+      sc.find("Count") == (0, 8) and sc.find("More") is not None, sc)
+check("and the application menu names it",
+      sc.find("Noted ▾") is not None, sc)
+
+sc, _ = run(MENUS, [press(0, 9)])
+check("clicking a title drops the menu under it",
+      sc.find("Bump") == (1, 8) and sc.find("Reset") == (3, 8), sc)
+check("a separator is drawn between the groups", sc.at(2, 9) == "─", sc)
+check("each item shows the letter that picks it", sc.at(1, 17) == "b" and
+      sc.at(3, 17) == "r", sc)
+
+sc, _ = run(MENUS, [press(0, 9), press(0, 9)])
+check("clicking it again puts it away", sc.find("Bump") is None, sc)
+
+sc, _ = run(MENUS, [press(0, 9), press(15, 60)])
+check("clicking away from an open menu shuts it",
+      sc.find("Bump") is None, sc)
+
+sc, _ = run(MENUS, [press(0, 9), b"b"])
+check("a letter picks the item beside it", sc.find("count 1") is not None
+      and sc.find("Bump") is None, sc)
+
+sc, _ = run(MENUS, [press(0, 9), b"\r"])
+check("enter takes the highlighted one", sc.find("count 1") is not None, sc)
+
+sc, _ = run(MENUS, [press(0, 9), b"\x1b[B", b"\r"])
+check("down steps over the separator to the next real item",
+      sc.find("count 0") is not None and sc.find("Reset") is None, sc)
+
+sc, _ = run(MENUS, [press(0, 9), b"\x1b"])
+check("escape shuts the menu and does nothing else",
+      sc.find("Bump") is None and sc.find("count 0") is not None, sc)
+
+sc, _ = run(MENUS, [b"\x1b[21~"])
+check("f10 opens the bar at the hibr menu",
+      sc.find("About hibr") is not None, sc)
+sc, _ = run(MENUS, [b"\x1b"])
+check("and so does escape", sc.find("About hibr") is not None, sc)
+
+sc, _ = run(MENUS, [b"\x1b[21~", b"\x1b[C"])
+check("right walks to the next menu along",
+      sc.find("Bump") is not None and sc.find("About hibr") is None, sc)
+sc, _ = run(MENUS, [b"\x1b[21~", b"\x1b[C", b"\x1b[C"])
+check("and on to the one after that", sc.find("Bump Twice") is not None, sc)
+sc, _ = run(MENUS, [b"\x1b[21~", b"\x1b[D"])
+check("left from the first wraps round to the application menu",
+      sc.find("Noted") is not None and sc.find("About hibr") is None, sc)
+
+sc, _ = run(MENUS, [b"\x1b[21~", b"\x1b[C", b"\x1b[C", b"t"])
+check("an item in the second menu runs too",
+      sc.find("count 2") is not None, sc)
+
+sc, _ = run(MENUS, [press(0, 2), b"n"])
+check("the hibr menu opens a registered app",
+      sc.find("┤ Noted ├") is not None and
+      sc.find("count 0") is not None, sc)
+
+sc, raw = run(MENUS, [press(0, 2), b"q"])
+check("and quit from the hibr menu ends the session",
+      sc.quit and b"\x1b[?1049l" in raw, sc)
+
+sc, _ = run(MENUS, [press(0, 2), b"a"])
+check("about says what this is", sc.find("a desktop written in the shell")
+      is not None, sc)
+
+sc, _ = run(MENUS, [press(6, 37)])
+check("with no window left the desktop's own menus show",
+      sc.find("Desktop") is not None and sc.find("Count") is None, sc)
+
+report(58)

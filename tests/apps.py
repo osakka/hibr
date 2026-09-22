@@ -220,16 +220,17 @@ DOWN4 = [b"\x1b[B"] * 4
 
 sc = run(*PANEL, feed=DOWN4 + [b"x"], pre=TICK, also=OTHER)
 check("x closes the selected window", sc.find("Other") is None and
-      "1 open" in sc.row(0), sc)
+      sc.find("Panel") is not None, sc)
 
 sc = run(*PANEL, feed=DOWN4 + [b"-"], pre=TICK, also=OTHER)
-check("- hides it, and the bar says so",
-      "1 open, 1 hidden" in sc.row(0) and sc.find("[Other]") is not None, sc)
-check("and the panel marks it hidden", sc.find("hidden") is not None, sc)
+check("- hides it, and the panel says so",
+      sc.find("Other") is not None and sc.find("hidden") is not None, sc)
+check("while the one still showing reads open",
+      "open" in sc.row(11) and "hidden" in sc.row(12), sc)
 
 sc = run(*PANEL, feed=DOWN4 + [b"-", b"\r"], pre=TICK, also=OTHER)
 check("enter on a hidden window brings it back",
-      "2 open" in sc.row(0) and sc.find("hidden") is None, sc)
+      sc.find("hidden") is None and sc.find("Other") is not None, sc)
 
 sc = run(*PANEL, feed=[press(4, 10), press(4, 10)], pre=TICK, also=OTHER)
 check("a click selects and a second click acts",

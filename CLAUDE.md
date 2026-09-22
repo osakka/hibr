@@ -605,6 +605,19 @@ went in the shell.
   reshuffles the list every time something is raised, and raising things is
   what a window list is for — so the row you meant to click moves out from
   under you. `"${!DT[@]}"` gives creation order because the maps are ordered.
+- **The menu bar belongs to the window manager, not to a window.** Menus
+  follow focus, which is System 7's model and the reason it maps onto a
+  window manager at all. An app declares them with `<app>_menus` calling
+  `dt_menu`/`dt_item`/`dt_sep`, the same prefix contract as `_draw`, so an
+  app without menus shows the desktop's.
+- **Nothing is reserved while the menu bar is shut.** F10 or escape opens it,
+  and only then do letters mean anything. Direct modifier shortcuts were
+  considered and rejected: ctrl collides with everything a terminal window
+  will need, and alt with what a program inside one might. A desktop that
+  eats ctrl-c is a desktop nothing can run in.
+- **Two menu items cannot share a letter.** Calculator and Clock both start
+  with a C, so `dt_akey` walks the label for the first letter nothing has
+  taken. An item that cannot be reached is worse than one with no shortcut.
 - **An app is a prefix, not a command.** The window manager calls
   `<app>_draw`, `<app>_key`, `<app>_click`, `<app>_open` and `<app>_close`,
   asking `command -v` once which exist. One function answering a verb was

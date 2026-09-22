@@ -181,6 +181,28 @@ panel_draw() {
 	done
 }
 
+panel_menus() {
+	dt_menu "Settings"
+	dt_item "Next Theme" t cp_theme_next
+	dt_item "Next Wallpaper" p cp_glyph_next
+	dt_sep
+	dt_item "Change" c cp_do 1
+	dt_sep
+	dt_item "Close" w dt_close_focused
+}
+
+cp_theme_next() {
+	local v
+	v := cp_next "$CP_THEME" 1 "${CP_THEMES[@]}"
+	cp_theme "$v"
+}
+
+cp_glyph_next() {
+	local v
+	v := cp_next "$DT_GLYPH" 1 "${CP_GLYPHS[@]}"
+	DT_GLYPH=$v
+}
+
 panel_key() {
 	case $2 in
 	up) cp_move -1 ;;

@@ -112,6 +112,25 @@ calc_draw() {
 	console put -p "w$id" 14 2 "integers only"
 }
 
+# The menus the bar shows while a calculator window has focus.
+calc_menus() {
+	dt_menu "Calc"
+	dt_item "Evaluate" e calc_eval
+	dt_item "Clear" c calc_push c
+	dt_item "Backspace" b calc_push backspace
+	dt_sep
+	dt_item "Copy Answer" y calc_copy
+	dt_sep
+	dt_item "Close" w dt_close_focused
+}
+
+# Put the answer back in the expression, which is what a calculator's memory
+# is for and costs nothing to provide.
+calc_copy() {
+	CALC_IN="$CALC_OUT"
+	CALC_ERR=
+}
+
 calc_key() {
 	case $2 in
 	[0-9] | + | - | "*" | / | % | "(" | ")") calc_push "$2" ;;

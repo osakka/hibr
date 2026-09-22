@@ -73,6 +73,57 @@ is clicked at row 4. There is no separate body coordinate system to convert
 between; the window manager deals with row 0 itself, so an app never sees a
 click on its own title bar.
 
+## The menu bar
+
+Across the top, System 7's: the **hibr menu** on the left where the apple
+went, then the menus of whatever window has focus, then the clock and the
+**application menu** on the right. Windows cannot be dragged over it.
+
+The menus belong to the active application, so they change when you click a
+different window, and when nothing has focus they are the desktop's own.
+
+**F10 or escape opens the bar.** Then the arrows move between menus and
+items, a letter picks the item beside it, enter chooses and escape closes.
+Nothing is reserved while the bar is shut — which is deliberate, and is what
+keeps ctrl-c and the rest free for whatever is running inside a window.
+
+The application menu lists every window, with `•` against the active one and
+`·` against a hidden one; choosing a hidden one brings it back. That is the
+only way back from minimising, and it is where System 7 put it too.
+
+## Menus for an app
+
+An app declares them by providing `<app>_menus`, which calls `dt_menu`,
+`dt_item` and `dt_sep` — the same shape `opt` uses to declare a command line,
+and the same prefix contract as `_draw` and `_key`. An app with no `_menus`
+simply has none, and the desktop's show instead.
+
+```sh
+clock_menus() {
+	dt_menu "Clock"
+	dt_item "Set Alarm"  a  clock_alarm
+	dt_item "12 Hour"    h  clock_ampm
+	dt_sep
+	dt_item "Close"      w  dt_close_focused
+}
+```
+
+`dt_item <label> <key> <command> [args…]` — the key is the letter that picks
+it while the menu is open, and the command is run when it is chosen. Keys
+are the app's own business inside its own menu; in the hibr menu the desktop
+picks them, skipping any already taken, because Calculator and Clock both
+start with a C and a menu where one item cannot be reached is a broken menu.
+
+A session says which apps the hibr menu can open:
+
+```sh
+dt_app files "Files"      12 34
+dt_app calc  "Calculator" 16 24
+```
+
+`dt_app <name> <title> <height> <width>`. Choosing one opens a window,
+stepped down and across so a second does not land exactly on the first.
+
 ## Managing other windows
 
 Most apps mind their own business. One that manages *other* windows — a
@@ -85,6 +136,8 @@ manager's own table:
 | `dt_title <id>` | its title |
 | `dt_hidden <id>` | status: is it minimised |
 | `dt_raise <id>` | put it on top and give it the keyboard; un-minimises first |
+| `dt_close_focused`, `dt_hide_focused`, `dt_zoom_focused` | act on whatever has focus, for menu items |
+| `dt_note <text>` | say something in the middle of the screen until the next key |
 | `dt_min <id>` | minimise it, or restore it if it already is |
 | `dt_del <id>` | close it |
 | `dt_new <title> <h> <w> <row> <col> [app]` | open one; the id lands in `$RET` |

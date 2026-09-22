@@ -41,6 +41,13 @@ clock_draw() {
 
 FB_DIR=$PWD
 
+# What the hibr menu can open.  A session says which apps exist; the window
+# manager does not go looking.
+dt_app files "Files"      12 34
+dt_app calc  "Calculator" 16 24
+dt_app panel "Settings"   14 34
+dt_app clock "Clock"       7 26
+
 dt_open || exit 1
 dt_new "Files"      10 34  1  2 files
 dt_new "Settings"   12 34 12  2 panel

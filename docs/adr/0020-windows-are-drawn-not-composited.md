@@ -180,6 +180,22 @@ That is `mods/term/`, offering a `terminal` interface — `spawn`, `feed`,
 than the window manager and all the other apps together. It is deliberately
 last, so that everything else is working and useful before it starts.
 
+## A menu bar, after the fact
+
+Not in the original record, and added because the owner asked for System 7's
+— which turned out to fit the decision rather than bend it. A menu bar
+belongs to the *active application*, which is a window manager's concern and
+not a window's, so it lives in `desktop.hibr` with everything else, and an
+app declares its menus through the same prefix contract it declares `_draw`
+through.
+
+The one decision worth recording: **there are no modifier shortcuts.** F10 or
+escape opens the bar, and letters only mean something while it is open. Ctrl
+collides with everything a terminal window needs — and a terminal window is
+the next step — and alt with what a program inside one might want. A desktop
+that eats ctrl-c is a desktop nothing can run in. The cost is two keystrokes
+instead of one, and it is worth it.
+
 ## Where the line is
 
 This is a windowing layer, not a widget toolkit. Each app draws its own

@@ -172,6 +172,26 @@ files_draw() {
 	console put -p "w$id" "$h" 1 "$t"
 }
 
+files_menus() {
+	dt_menu "File"
+	dt_item "Open" o fb_open
+	dt_item "Go Up" u fb_go ..
+	dt_item "Home" h fb_home
+	dt_sep
+	dt_item "Close" w dt_close_focused
+	dt_menu "View"
+	dt_item "Hidden Files" d files_hidden
+	dt_item "Refresh" r fb_scan
+	dt_sep
+	dt_item "First" t files_top
+	dt_item "Last" b files_end
+}
+
+fb_home() { fb_go "$HOME"; }
+files_hidden() { FB_HIDDEN=$((1 - FB_HIDDEN)); fb_scan; }
+files_top() { FB_SEL=0; fb_show "$FB_VIS"; }
+files_end() { FB_SEL=$((FB_N - 1)); fb_show "$FB_VIS"; }
+
 files_key() {
 	local vis=$FB_VIS
 

@@ -24,7 +24,7 @@ DT_DRAG=
 DT_DR=0
 DT_DC=0
 DT_QUIT=0
-DT_TABS=
+DT_NOTE=
 DT_ROWS=24
 DT_COLS=80
 declare -A DT
@@ -188,63 +188,11 @@ dt_rep() {
 	ret "$o"
 }
 
-# Paint the wallpaper and the bar across the top.
-#
-# The bar carries a label for every minimised window, and DT_TABS records
-# where each one landed so a click can be turned back into a window id.  It
-# is the only way back from minimising, since a minimised window has no pane.
+# Paint the wallpaper.  The bar is drawn afterwards, over the windows, so a
+# drop-down menu covers them.
 dt_wall() {
-	local line id open=0 mini=0 c t
-
 	console pen "$DT_DOT" "$DT_WALL"
 	console fill 0 0 "$DT_ROWS" "$DT_COLS" "$DT_GLYPH"
-	console pen "$DT_INK" "$DT_BAR"
-	line := dt_rep "$DT_COLS" " "
-	console put 0 0 "$line"
-	console pen "$DT_ACTIVE" "$DT_BAR" bold
-	console put 0 1 "hibr"
-
-	DT_TABS=
-	c=7
-	for id in "${!DT[@]}"; do
-		if [ "${DT[$id]["min"]}" != 1 ]; then
-			open=$((open + 1))
-			continue
-		fi
-		mini=$((mini + 1))
-		t="[${DT[$id]["title"]}]"
-		[ $((c + ${#t} + 1)) -gt $((DT_COLS - 30)) ] && continue
-		console pen "$DT_INK" "$DT_BAR"
-		console put 0 "$c" "$t"
-		DT_TABS="$DT_TABS $id:$c:$((c + ${#t} - 1))"
-		c=$((c + ${#t} + 1))
-	done
-
-	console pen "$DT_INK" "$DT_BAR"
-	if [ "$mini" -gt 0 ]; then
-		console put 0 $((DT_COLS - 28)) "$open open, $mini hidden"
-	else
-		console put 0 $((DT_COLS - 28)) "$open open"
-	fi
-	console put 0 $((DT_COLS - 10)) "q to quit"
-}
-
-# Which minimised window's label is under this column, if any.
-dt_tab() {
-	local e id lo hi
-
-	for e in $DT_TABS; do
-		id=${e%%:*}
-		lo=${e#*:}
-		hi=${lo#*:}
-		lo=${lo%%:*}
-		if [ "$1" -ge "$lo" ] && [ "$1" -le "$hi" ]; then
-			ret "$id"
-			return 0
-		fi
-	done
-	ret ""
-	return 1
 }
 
 # Draw one window: its face, then its app, then its frame over the top.
@@ -282,9 +230,14 @@ dt_win() {
 # One full frame, bottom of the stack upwards.
 dt_draw() {
 	local l id
+
 	dt_wall
 	l := console pane list
 	for id in $l; do dt_win "${id#w}"; done
+	dt_menus
+	dt_bar
+	dt_drop
+	dt_note_draw
 	console flush
 }
 
@@ -329,9 +282,22 @@ dt_mouse() {
 
 	case $act in
 	press)
+		DT_NOTE=
 		if [ "$mr" = 0 ]; then
-			id := dt_tab "$mc"
-			[ -n "$id" ] && dt_min "$id"
+			b := dt_mhit "$mc" || { dt_mclose; return 0; }
+			if [ "$b" = "$MB_OPEN" ]; then
+				dt_mclose
+			else
+				dt_mopen "$b"
+			fi
+			return 0
+		fi
+		if [ "$MB_OPEN" != -1 ]; then
+			if dt_mpick "$mr" "$mc"; then
+				dt_mdo
+			else
+				dt_mclose
+			fi
 			return 0
 		fi
 		id := console hit "$mr" "$mc"
@@ -433,6 +399,17 @@ dt_event() {
 		return 0
 		;;
 	esac
+	DT_NOTE=
+	if [ "$MB_OPEN" != -1 ]; then
+		dt_mkey "$k" && return 0
+		return 0
+	fi
+	case $k in
+	f10 | escape)
+		dt_mopen 0
+		return 0
+		;;
+	esac
 	if [ -n "$DT_FOCUS" ] && [ -n "${DT[$DT_FOCUS]["key"]}" ]; then
 		if ${DT[$DT_FOCUS]["key"]} "$DT_FOCUS" "$k"; then
 			return 0
@@ -440,18 +417,7 @@ dt_event() {
 	fi
 	case $k in
 	q) DT_QUIT=1 ;;
-	escape)
-		local id
-		for id in "${!DT[@]}"; do
-			[ "${DT[$id]["min"]}" = 1 ] && dt_min "$id" && return 0
-		done
-		;;
-	tab)
-		local l
-		l := console pane list
-		l=${l%% *}
-		[ -n "$l" ] && console pane raise "$l" && DT_FOCUS=${l#w}
-		;;
+	tab) dt_cycle ;;
 	esac
 }
 
@@ -467,4 +433,447 @@ dt_run() {
 		fi
 		[ -n "$k" ] && dt_event "$k"
 	done
+}
+
+# --- the menu bar ---------------------------------------------------------
+#
+# System 7's, as closely as a text console allows: the hibr menu on the left
+# where the apple went, then the active application's own menus, then the
+# clock and the application menu on the right.  The menus belong to whatever
+# has focus, so they change when you click a different window, and when
+# nothing has focus they are the desktop's own.
+#
+# An app declares them by providing <app>_menus, which calls dt_menu, dt_item
+# and dt_sep -- the same shape as `opt` declaring a command line, and the
+# same prefix contract as _draw and _key: an app with no _menus simply has
+# none, and the bar shows the desktop's.
+#
+# F10 or escape opens the bar; then the arrows move, a letter picks the item
+# beside it, enter chooses and escape closes.  Nothing is reserved while the
+# bar is shut, which is what keeps ctrl-c free for whatever runs in a window.
+
+declare -A MB
+declare -A MI
+declare -A DT_APPS
+MB_N=0
+MB_OPEN=-1
+MB_SEL=0
+MB_APP=
+MB_IN=0
+
+# Start a menu.  Called from an app's <app>_menus.
+dt_menu() {
+	MB[$MB_N]["title"]="$1"
+	MB[$MB_N]["n"]=0
+	MB[$MB_N]["w"]=0
+	MB_N=$((MB_N + 1))
+}
+
+# Add an item to the menu being declared: label, key, then the command.
+dt_item() {
+	local m=$((MB_N - 1)) n=${MB[$((MB_N - 1))]["n"]} lb=$1 k=$2
+	local wide=$((${#1} + 6))
+
+	shift 2
+	MI[$m][$n]["label"]="$lb"
+	MI[$m][$n]["key"]="$k"
+	MI[$m][$n]["cmd"]="$*"
+	MI[$m][$n]["sep"]=0
+	MB[$m]["n"]=$((n + 1))
+	[ "$wide" -gt "${MB[$m]["w"]}" ] && MB[$m]["w"]=$wide
+}
+
+# Add a dividing line.
+dt_sep() {
+	local m=$((MB_N - 1)) n=${MB[$((MB_N - 1))]["n"]}
+
+	MI[$m][$n]["sep"]=1
+	MI[$m][$n]["label"]=
+	MI[$m][$n]["key"]=
+	MI[$m][$n]["cmd"]=
+	MB[$m]["n"]=$((n + 1))
+}
+
+# Register an app the hibr menu can open: name, title, height, width.
+dt_app() {
+	DT_APPS[$1]["title"]="$2"
+	DT_APPS[$1]["h"]="$3"
+	DT_APPS[$1]["w"]="$4"
+}
+
+# Open a registered app in a fresh window, stepped down and across so a
+# second one does not land exactly on the first.
+dt_launch() {
+	local n=$1 r c
+
+	[ -z "${DT_APPS[$n]["title"]}" ] && return 1
+	r=$((2 + (DT_NEXT * 2) % 6))
+	c=$((4 + (DT_NEXT * 4) % 16))
+	dt_new "${DT_APPS[$n]["title"]}" "${DT_APPS[$n]["h"]}" \
+		"${DT_APPS[$n]["w"]}" "$r" "$c" "$n"
+}
+
+# Rebuild the bar for whatever has focus.  Cheap enough to do every frame:
+# it is a handful of assignments, and it has to follow the focus anyway.
+dt_menus() {
+	local who=${DT_FOCUS:-} ap= n k used
+
+	[ -n "$who" ] && ap=${DT[$who]["app"]}
+	MB_N=0
+
+	dt_menu "hibr"
+	dt_item "About hibr" a dt_about
+	dt_sep
+	used=aq
+	for n in "${!DT_APPS[@]}"; do
+		k := dt_akey "${DT_APPS[$n]["title"]}" "$used"
+		used="$used$k"
+		dt_item "${DT_APPS[$n]["title"]}" "$k" dt_launch "$n"
+	done
+	dt_sep
+	dt_item "Quit" q dt_quit
+
+	if [ -n "$ap" ] && dt_has "${ap}_menus"; then
+		MB_APP=$ap
+		${ap}_menus
+	else
+		MB_APP=
+		dt_menu "Desktop"
+		dt_item "Close Window" w dt_close_focused
+		dt_item "Hide Window" h dt_hide_focused
+		dt_item "Zoom Window" z dt_zoom_focused
+		dt_sep
+		dt_item "Cycle Windows" c dt_cycle
+	fi
+	dt_layout
+}
+
+# Pick an accelerator for a label that nothing else in the menu has taken.
+# Calculator and Clock both start with a C, and a menu where two items
+# answer to the same letter is a menu where one of them cannot be reached.
+dt_akey() {
+	local t=$1 used=$2 i=0 c
+
+	while [ "$i" -lt ${#t} ]; do
+		c=${t:$i:1}
+		c := str lower "$c"
+		case $c in
+		[a-z])
+			case $used in
+			*"$c"*) ;;
+			*) ret "$c"; return 0 ;;
+			esac
+			;;
+		esac
+		i=$((i + 1))
+	done
+	for c in 1 2 3 4 5 6 7 8 9; do
+		case $used in
+		*"$c"*) ;;
+		*) ret "$c"; return 0 ;;
+		esac
+	done
+	ret ""
+}
+
+# Work out where each title sits on the bar.
+dt_layout() {
+	local i=0 c=1 t
+
+	while [ "$i" -lt "$MB_N" ]; do
+		t=${MB[$i]["title"]}
+		MB[$i]["x"]=$c
+		MB[$i]["tw"]=$((${#t} + 2))
+		c=$((c + ${#t} + 2))
+		i=$((i + 1))
+	done
+	MB_AX=$((DT_COLS - 14))
+}
+
+dt_quit() { DT_QUIT=1; }
+dt_about() { dt_note "hibr $HIBR_VERSION — a desktop written in the shell it runs on"; }
+dt_close_focused() { [ -n "$DT_FOCUS" ] && dt_del "$DT_FOCUS"; }
+dt_hide_focused() { [ -n "$DT_FOCUS" ] && dt_min "$DT_FOCUS"; }
+dt_zoom_focused() { [ -n "$DT_FOCUS" ] && dt_zoom "$DT_FOCUS"; }
+
+# Bring the bottom window to the top.
+dt_cycle() {
+	local l
+	l := console pane list
+	l=${l%% *}
+	[ -n "$l" ] && dt_raise "${l#w}"
+}
+
+# Draw the bar itself.
+dt_bar() {
+	local i=0 t line now
+
+	console pen "$DT_INK" "$DT_BAR"
+	line := dt_rep "$DT_COLS" " "
+	console put 0 0 "$line"
+
+	while [ "$i" -lt "$MB_N" ]; do
+		t=${MB[$i]["title"]}
+		if [ "$i" = "$MB_OPEN" ]; then
+			console pen "$DT_BAR" "$DT_ACTIVE" bold
+		elif [ "$i" = 0 ]; then
+			console pen "$DT_ACTIVE" "$DT_BAR" bold
+		else
+			console pen "$DT_INK" "$DT_BAR"
+		fi
+		console put 0 "${MB[$i]["x"]}" " $t "
+		i=$((i + 1))
+	done
+
+	printf -v now "%(%H:%M)T" -1
+	console pen "$DT_INK" "$DT_BAR"
+	console put 0 $((DT_COLS - 19)) "$now"
+	if [ "$MB_OPEN" = app ]; then
+		console pen "$DT_BAR" "$DT_ACTIVE" bold
+	else
+		console pen "$DT_INK" "$DT_BAR"
+	fi
+	t := dt_appname
+	console put 0 "$MB_AX" " ${t:0:11} ▾"
+}
+
+# What to call the active application on the right of the bar.
+dt_appname() {
+	if [ -z "$MB_APP" ]; then
+		ret "Desktop"
+	elif [ -n "${DT_APPS[$MB_APP]["title"]}" ]; then
+		ret "${DT_APPS[$MB_APP]["title"]}"
+	else
+		ret "$MB_APP"
+	fi
+}
+
+# Draw the open menu over everything else.
+dt_drop() {
+	local m=$MB_OPEN i=0 r x w n lb k
+	local rows
+
+	[ "$m" = -1 ] && return 0
+	if [ "$m" = app ]; then
+		dt_drop_apps
+		return 0
+	fi
+	x=${MB[$m]["x"]}
+	w=${MB[$m]["w"]}
+	n=${MB[$m]["n"]}
+	[ "$w" -lt 12 ] && w=12
+	[ $((x + w)) -gt "$DT_COLS" ] && x=$((DT_COLS - w))
+	console pen "$DT_INK" "$DT_FACE"
+	r=1
+	while [ "$i" -lt "$n" ]; do
+		if [ "${MI[$m][$i]["sep"]}" = 1 ]; then
+			console pen "$DT_IDLE" "$DT_FACE"
+			lb := dt_rep "$w" "─"
+			console put "$r" "$x" "$lb"
+		else
+			if [ "$i" = "$MB_SEL" ]; then
+				console pen "$DT_FACE" "$DT_ACTIVE" bold
+			else
+				console pen "$DT_INK" "$DT_FACE"
+			fi
+			lb=${MI[$m][$i]["label"]}
+			k=${MI[$m][$i]["key"]}
+			lb := str pad " $lb" $((w - 3))
+			console put "$r" "$x" "$lb $k "
+		fi
+		r=$((r + 1))
+		i=$((i + 1))
+	done
+	console pen "$DT_IDLE" "$DT_FACE"
+	lb := dt_rep "$w" "─"
+	console put "$r" "$x" "$lb"
+}
+
+# The application menu: every window, the hidden ones marked.
+dt_drop_apps() {
+	local ids id i=0 r=1 x w=18 t mark
+
+	ids := dt_ids
+	x=$((MB_AX - 4))
+	[ $((x + w)) -gt "$DT_COLS" ] && x=$((DT_COLS - w))
+	for id in $ids; do
+		if [ "$i" = "$MB_SEL" ]; then
+			console pen "$DT_FACE" "$DT_ACTIVE" bold
+		else
+			console pen "$DT_INK" "$DT_FACE"
+		fi
+		mark=" "
+		[ "$id" = "$DT_FOCUS" ] && mark="•"
+		dt_hidden "$id" && mark="·"
+		t := dt_title "$id"
+		t := str pad "$mark ${t}" "$w"
+		console put "$r" "$x" "$t"
+		r=$((r + 1))
+		i=$((i + 1))
+	done
+	if [ "$i" = 0 ]; then
+		console pen "$DT_IDLE" "$DT_FACE"
+		t := str pad " no windows" "$w"
+		console put "$r" "$x" "$t"
+		r=$((r + 1))
+	fi
+	console pen "$DT_IDLE" "$DT_FACE"
+	t := dt_rep "$w" "─"
+	console put "$r" "$x" "$t"
+	MB_AN=$i
+}
+
+# How many rows the open menu occupies, and how many items it holds.
+dt_mrows() {
+	if [ "$MB_OPEN" = app ]; then
+		ret "${MB_AN:-0}"
+	else
+		ret "${MB[$MB_OPEN]["n"]}"
+	fi
+}
+
+# Move the highlight, stepping over separators.
+dt_mmove() {
+	local d=$1 n i=$MB_SEL k=0
+
+	n := dt_mrows
+	[ "$n" = 0 ] && return 0
+	while [ "$k" -lt "$n" ]; do
+		i=$(((i + d + n) % n))
+		[ "$MB_OPEN" = app ] && break
+		[ "${MI[$MB_OPEN][$i]["sep"]}" != 1 ] && break
+		k=$((k + 1))
+	done
+	MB_SEL=$i
+}
+
+# Open a menu, closing whatever was open.
+dt_mopen() {
+	MB_OPEN=$1
+	MB_SEL=0
+	[ "$1" != app ] && [ "${MI[$1][0]["sep"]}" = 1 ] && dt_mmove 1
+}
+
+dt_mclose() {
+	MB_OPEN=-1
+	MB_SEL=0
+}
+
+# Choose the highlighted item.
+dt_mdo() {
+	local m=$MB_OPEN i=$MB_SEL ids id n=0 cmd
+
+	dt_mclose
+	if [ "$m" = app ]; then
+		ids := dt_ids
+		for id in $ids; do
+			[ "$n" = "$i" ] && { dt_raise "$id"; return 0; }
+			n=$((n + 1))
+		done
+		return 0
+	fi
+	[ "${MI[$m][$i]["sep"]}" = 1 ] && return 0
+	cmd=${MI[$m][$i]["cmd"]}
+	[ -n "$cmd" ] && $cmd
+}
+
+# Is a click inside the open menu?  Sets the highlight if it is.
+dt_mpick() {
+	local r=$1 c=$2 n x w
+
+	n := dt_mrows
+	[ "$r" -lt 1 ] || [ "$r" -gt "$n" ] && return 1
+	if [ "$MB_OPEN" = app ]; then
+		x=$((MB_AX - 4))
+		w=18
+	else
+		x=${MB[$MB_OPEN]["x"]}
+		w=${MB[$MB_OPEN]["w"]}
+		[ "$w" -lt 12 ] && w=12
+	fi
+	[ $((x + w)) -gt "$DT_COLS" ] && x=$((DT_COLS - w))
+	[ "$c" -lt "$x" ] || [ "$c" -ge $((x + w)) ] && return 1
+	[ "$MB_OPEN" != app ] &&
+		[ "${MI[$MB_OPEN][$((r - 1))]["sep"]}" = 1 ] && return 1
+	MB_SEL=$((r - 1))
+	return 0
+}
+
+# Which menu title is under a column on the bar, if any.
+dt_mhit() {
+	local c=$1 i=0 x w
+
+	[ "$c" -ge "$MB_AX" ] && { ret app; return 0; }
+	while [ "$i" -lt "$MB_N" ]; do
+		x=${MB[$i]["x"]}
+		w=${MB[$i]["tw"]}
+		[ "$c" -ge "$x" ] && [ "$c" -lt $((x + w)) ] &&
+			{ ret "$i"; return 0; }
+		i=$((i + 1))
+	done
+	ret ""
+	return 1
+}
+
+# Keys while the bar has the keyboard.  Returns 1 for a key it does not use.
+dt_mkey() {
+	local k=$1 n i=0 lb
+
+	case $k in
+	escape) dt_mclose; return 0 ;;
+	left)
+		if [ "$MB_OPEN" = app ]; then
+			dt_mopen $((MB_N - 1))
+		elif [ "$MB_OPEN" -gt 0 ]; then
+			dt_mopen $((MB_OPEN - 1))
+		else
+			dt_mopen app
+		fi
+		return 0
+		;;
+	right)
+		if [ "$MB_OPEN" = app ]; then
+			dt_mopen 0
+		elif [ $((MB_OPEN + 1)) -lt "$MB_N" ]; then
+			dt_mopen $((MB_OPEN + 1))
+		else
+			dt_mopen app
+		fi
+		return 0
+		;;
+	up) dt_mmove -1; return 0 ;;
+	down) dt_mmove 1; return 0 ;;
+	enter | " ") dt_mdo; return 0 ;;
+	esac
+	if [ "$MB_OPEN" != app ] && [ ${#k} = 1 ]; then
+		n=${MB[$MB_OPEN]["n"]}
+		while [ "$i" -lt "$n" ]; do
+			if [ "${MI[$MB_OPEN][$i]["key"]}" = "$k" ]; then
+				MB_SEL=$i
+				dt_mdo
+				return 0
+			fi
+			i=$((i + 1))
+		done
+	fi
+	return 1
+}
+
+# A note in the middle of the screen, until the next key.
+dt_note() {
+	DT_NOTE="$1"
+}
+
+dt_note_draw() {
+	local w r c t
+
+	[ -z "$DT_NOTE" ] && return 0
+	w=$((${#DT_NOTE} + 4))
+	r=$((DT_ROWS / 2 - 1))
+	c=$(((DT_COLS - w) / 2))
+	console pen "$DT_INK" "$DT_FACE" bold
+	t := dt_rep "$w" " "
+	console put "$r" "$c" "$t"
+	console put $((r + 1)) "$c" "  $DT_NOTE  "
+	console put $((r + 2)) "$c" "$t"
 }
