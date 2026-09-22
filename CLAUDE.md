@@ -17,7 +17,7 @@ servers, typed function signatures, result slots (`x := f` without forking),
 declared CLI arguments, and a module ABI that lets modules add *protocols*
 (`/dev/<name>/…`), not just commands.
 
-Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 12).
+Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 13).
 
 ## Build and test
 
@@ -28,7 +28,7 @@ Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 12).
     make install         # PREFIX=/usr/local, modules to $(PREFIX)/lib/hibr
     ./build/hibr -n script      # parse only
 
-    tests/run.sh [-v] [prefix]           # C-side harness, 69 tests
+    tests/run.sh [-v] [prefix]           # C-side harness, 71 tests
     ./build/hibr tests/self.hibr                 # suite in hibr, 91 assertions, planned
     python3 tests/editor.py                      # the line editor, through a pty
     python3 tests/console.py                     # the console display, through a pty
@@ -36,6 +36,7 @@ Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 12).
     python3 tests/most.py                        # the pager, through a pty
     python3 tests/vi.py                          # the editor, through a pty
     python3 tests/mtr.py                         # the live traceroute, through a pty
+    python3 tests/mon.py                         # the system monitor, through a pty
     python3 tests/diff.py --shell ./build/hibr 250   # snippets, diffed against bash
     python3 tests/corpus.py --list <file>        # real scripts, run under both shells
     HIBR=./build/hibr REF=dash tests/run.sh      # compare against another shell
@@ -79,7 +80,7 @@ linked, and no OpenSSL headers are needed to build.
 
 | file | role |
 |---|---|
-| `include/hibr.h` | public types, macros and the module ABI (v12) |
+| `include/hibr.h` | public types, macros and the module ABI (v13) |
 | `include/pri.h` | internal declarations, tokens, the `lex` struct |
 | `include/re.h` | our own regex declarations (tcc cannot parse glibc's) |
 | `src/mem.c` | arenas with mark/release, `str`, `vec`, pools, `lg` logging |
@@ -107,6 +108,8 @@ linked, and no OpenSSL headers are needed to build.
 | `mods/trace/` | unprivileged traceroute over UDP with `IP_RECVERR`, one-shot and live — see `mods/trace/README.md` |
 | `mods/most/` | a pager on the display interface, the first module to use another — see `mods/most/README.md` |
 | `mods/vi/` | a modal editor: gap buffer, lazy line index, linear undo — see `mods/vi/README.md` |
+| `mods/mon/` | a system monitor over `/proc` — see `mods/mon/README.md` |
+| `mods/sysinfo/` | what the machine is, with a picture — see `mods/sysinfo/README.md` |
 
 Each directory carries its own `README.md` with the detail: `src/`, `include/`,
 `mods/`, `tests/`, `examples/`. User-facing documentation is under `docs/`, and
@@ -272,6 +275,35 @@ were each run and their real output pasted back; keep it that way.
   rather than against bash, because bash's `cat` *is* `/bin/cat`. The fast path
   (`ct_raw`) never looks at a byte, which is why 100 MB costs 15 ms against
   `/bin/cat`'s 14; anything that inspects content has to stay off it.
+- **A module declares the interface it offers, so it can be found unloaded.**
+  `hibr_require` walks the module path when nothing has offered what was asked
+  for, reads each descriptor's `prov` without calling its init, and loads the
+  first match. That is what lets a tool ask for `"display"` and never mention
+  `console`. A module that registers an interface in its init must also name it
+  in `HIBR_MODULE_P`, or nothing will find it before it is loaded.
+- **tcc accepts a newline inside a string literal; gcc does not.** A generated
+  edit put one there and `make` was clean, because tcc is the default. Anything
+  editing source mechanically wants a `gcc -fsyntax-only` pass as well, which
+  is cheap and catches what tcc waves through.
+- **A sanitizer run can hang and spin.** One was found at 100% of a core after
+  21 hours -- a `tests/120-bg-order.t` under ASan from the previous day. It
+  does not reproduce, so it is intermittent rather than fixed. After sanitizer
+  work: `ps -eo pid,etime,pcpu,comm | grep hibr`.
+- **A live display cannot be sampled mid-frame.** `tests/mon.py` reads the
+  process table from a *paused* monitor, because a running one redraws during
+  the capture and only changed cells are sent -- so the reconstruction can hold
+  one row from before a re-sort and the next from after it. That reads as an
+  ordering bug and is not one. It passed alone and failed once after the other
+  suites, which is how a flake announces itself.
+- **`/proc/[pid]/stat` field three is a letter.** A loop that skips fields by
+  reading numbers never passes the process state, and every field after it
+  reads zero -- which looks like an idle machine rather than a parsing bug. The
+  command name is in brackets and may contain brackets, so it is found from the
+  *last* `)` in the line.
+- **A string index matches a prefix.** `index("### A vi")` found
+  "### A visual traceroute" and an edit anchored on it silently removed three
+  sections of `docs/backlog.md`. Anchor on a whole line, and check the section
+  count before and after.
 - **Modules reach each other through the registry, not the linker.** `m_open`
   uses `RTLD_LOCAL` on purpose, so a symbol in one module is invisible to the
   rest. `hibr_provide(s, nm, ver, table)` in a provider's init and

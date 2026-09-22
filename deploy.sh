@@ -141,7 +141,7 @@ verify() {
 	# The terminal suites make their own pseudo terminals, so they run
 	# headless -- but only where python3 exists, which is not everywhere.
 	command -v python3 >/dev/null 2>&1 || { say "   pty suites skipped, no python3"; return 0; }
-	for t in editor console cat most vi mtr; do
+	for t in editor console cat most vi mtr mon; do
 		[ -f "$SRC/tests/$t.py" ] || continue
 		out=$( cd "$SRC" && python3 "tests/$t.py" 2>&1 ) || {
 			printf '%s\n' "$out" >&2

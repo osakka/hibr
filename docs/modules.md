@@ -80,6 +80,12 @@ pipelines. The built-in `/dev/tcp/` and `/dev/tls/` use the same mechanism.
 Module builtins take precedence over the built-in ones; lookup order is alias,
 function, module, builtin, `PATH`.
 
+**A module names the interface it offers** in `HIBR_MODULE_P`, and the shell
+uses that to find it: `hibr_require(s, "display", 1)` with nothing loaded walks
+the module path, reads each descriptor without initialising it, and loads the
+first that says it offers `display`. So a tool asks for what it needs and never
+has to name the module that has it.
+
 **Modules can offer tables of functions to each other.** They are opened
 `RTLD_LOCAL`, so a symbol in one is invisible to the rest on purpose; the way
 across is `hibr_provide(s, name, version, table)` in the provider's init and
@@ -91,6 +97,8 @@ its users refuse rather than call into an unloaded object. `most` uses the
 Reference modules in `mods/`:
 - **`most`** pages files or a pipe, built on the display interface.
 - **`vi`** a modal editor on the same interface: gap buffer, linear undo.
+- **`mon`** a system monitor over `/proc`, on the display interface.
+- **`sysinfo`** what this machine is, printed once, with a picture.
 - **`trace`** traces a route with no privileges, using `IP_RECVERR` rather than
   a raw socket, and puts the hops in a map. `trace -l` keeps probing and shows
   loss, jitter and a round-trip history per hop on the display.
