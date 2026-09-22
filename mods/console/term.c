@@ -119,6 +119,11 @@ void cn_size(int *rows, int *cols)
 		*cols = w.ws_col;
 		return;
 	}
+	if (ioctl(2, TIOCGWINSZ, &w) == 0 && w.ws_row && w.ws_col) {
+		*rows = w.ws_row;
+		*cols = w.ws_col;
+		return;
+	}
 	*rows = 24;
 	*cols = ed_cols();
 }

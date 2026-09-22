@@ -296,6 +296,7 @@ void jc_pid(sh *s, job *j, long p);
 int jc_fg(sh *s, job *j);
 void jc_bgnote(sh *s, job *j);
 void jc_poll(sh *s, int report);
+long jc_anyone(sh *s, int *w);
 void jc_fini(sh *s);
 void jc_drop(sh *s, job *j);
 int b_jobs(sh *s, int ac, char **av);

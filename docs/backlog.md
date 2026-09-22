@@ -348,6 +348,14 @@ harness has to be the controlling process of a pty: fork a child onto the
 slave, set its window size, write keystrokes to the master and read back what
 was drawn. Nothing in hibr can do any of that, so the harness cannot be hibr.
 
+**Half of it now exists.** `mods/pty/` opens a pseudo terminal, starts a
+program on it with a session and a controlling terminal of its own, and lets
+a script write keys in, read output out, resize, signal and collect the exit
+status — and `tests/750-pty.t` is a *shell* test of terminal handling, run by
+`tests/run.sh` like anything else. What is left before the suites can move is
+the harness itself: a `Screen` equivalent in hibr, and the nine suites
+rewritten against it.
+
 That capability is **already required** by the last step of
 [decision 0020](adr/0020-windows-are-drawn-not-composited.md): a hibr running
 inside a hibr window needs exactly a pty and a child on it. So `mods/term/`

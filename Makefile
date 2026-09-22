@@ -25,9 +25,10 @@ MODS = $(B)/mods/sys.so $(B)/mods/http.so $(B)/mods/ls.so $(B)/mods/prompt.so \
        $(B)/mods/console.so $(B)/mods/cat.so \
        $(B)/mods/trace.so $(B)/mods/most.so \
        $(B)/mods/hvi.so $(B)/mods/mon.so \
-       $(B)/mods/sysinfo.so
+       $(B)/mods/sysinfo.so $(B)/mods/pty.so
 PROMPT_SRC = $(wildcard mods/prompt/*.c)
 CONSOLE_SRC = $(wildcard mods/console/*.c)
+PTY_SRC = $(wildcard mods/pty/*.c)
 CAT_SRC = $(wildcard mods/cat/*.c)
 
 PREFIX ?= /usr/local
@@ -50,6 +51,9 @@ $(BIN): $(SRC) include/hibr.h include/pri.h $(B)/.moddir | $(B)/mods
 
 $(B)/mods/prompt.so: $(PROMPT_SRC) include/hibr.h mods/prompt/pr.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(PROMPT_SRC)
+
+$(B)/mods/pty.so: $(PTY_SRC) include/hibr.h mods/pty/tt.h | $(B)/mods
+	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(PTY_SRC)
 
 $(B)/mods/console.so: $(CONSOLE_SRC) include/hibr.h mods/console/cn.h mods/display.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(CONSOLE_SRC)

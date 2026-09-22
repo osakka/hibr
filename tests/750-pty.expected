@@ -1,0 +1,33 @@
+0
+--- a program gets a terminal of its own
+stdout is a tty
+/dev/pts/N
+status 0
+--- the size is what was asked for, and resize is seen
+12 34
+size says 40 100
+40 100
+--- what is written arrives
+saw it echoed and run: 1
+status 5
+--- a status, a signal and a missing command
+exit 7 gives 7
+killed gives 137
+missing gives 127
+--- alive, list and close
+alive while running
+two open: 2
+none left: []
+--- reading past the end fails rather than blocking
+last
+read past the end fails
+--- an interactive hibr, on a terminal hibr made
+saw the answer: 1
+inner exit 0
+--- and an interactive one, with its line editor running
+drew its own prompt: 1
+inner exit 0
+--- errors
+no command: 2
+no such pty: 1
+bad subcommand: 1

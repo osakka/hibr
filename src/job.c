@@ -94,6 +94,35 @@ void jc_drop(sh *s, job *j)
 }
 
 /* Find the job that owns a process. */
+/* Wait for the next process in any of our own jobs to finish.
+
+   This is what `wait` and `wait -n` used to get from waitpid(-1), which
+   also collected children the shell never started. Polling the groups in
+   turn is a little cruder and correct. */
+long jc_anyone(sh *s, int *w)
+{
+	size_t k;
+	job *j;
+	pid_t p;
+	int any;
+
+	for (;;) {
+		any = 0;
+		for (k = 0; k < s->jobs.n; k++) {
+			j = (job *)s->jobs.p[k];
+			if (j->state == J_DONE)
+				continue;
+			any = 1;
+			p = waitpid(-(pid_t)j->pgid, w, WNOHANG | WUNTRACED);
+			if (p > 0)
+				return (long)p;
+		}
+		if (!any)
+			return -1;
+		usleep(2000);
+	}
+}
+
 job *jc_bypid(sh *s, long p)
 {
 	size_t i;
@@ -220,18 +249,24 @@ void jc_bgnote(sh *s, job *j)
 	(void)s;
 }
 
-/* Reap finished background jobs and report state changes. */
+/* Reap finished background jobs and report state changes.
+
+   Each job is waited on by its own process group, never with -1. A shell
+   that reaps anything reaps a module's children too -- and then throws the
+   status away, because jc_bypid does not know them -- which is how the pty
+   module's exit codes all came back as zero. Whatever forked a child is the
+   thing entitled to its status. */
 void jc_poll(sh *s, int report)
 {
 	int w;
 	pid_t p;
-	size_t i;
+	size_t i, k;
 	job *j;
 
-	while ((p = waitpid(-1, &w, WNOHANG | WUNTRACED)) > 0) {
-		j = jc_bypid(s, (long)p);
-		if (!j)
-			continue;
+	for (k = 0; k < s->jobs.n; k++) {
+		j = (job *)s->jobs.p[k];
+		while ((p = waitpid(-(pid_t)j->pgid, &w,
+				    WNOHANG | WUNTRACED)) > 0) {
 		if (WIFSTOPPED(w)) {
 			if (j->state != J_STOP)
 				j->note = 0;
@@ -246,6 +281,7 @@ void jc_poll(sh *s, int report)
 		if (j->ndone >= j->np) {
 			j->state = J_DONE;
 			j->note = 0;
+		}
 		}
 	}
 	if (!report)
@@ -379,7 +415,7 @@ int b_wait(sh *s, int ac, char **av)
 		for (; k < ac && av[k][0] == '-' && av[k][1]; k++)
 			if (!strcmp(av[k], "-p") && k + 1 < ac)
 				nm = av[++k];
-		p = waitpid(-1, &w, 0);
+		p = jc_anyone(s, &w);
 		if (p <= 0) {
 			lg(HIBR_LDBG, "wait -n: nothing left to wait for");
 			return s->st = 127;
@@ -427,7 +463,7 @@ int b_wait(sh *s, int ac, char **av)
 			jc_drop(s, j);
 		return s->st = st;
 	}
-	while ((p = waitpid(-1, &w, 0)) > 0) {
+	while ((p = jc_anyone(s, &w)) > 0) {
 		j = jc_bypid(s, (long)p);
 		st = wstat(w);
 		if (!j)

@@ -28,7 +28,7 @@ Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 14).
     make install         # PREFIX=/usr/local, modules to $(PREFIX)/lib/hibr
     ./build/hibr -n script      # parse only
 
-    tests/run.sh [-v] [prefix]           # C-side harness, 75 tests
+    tests/run.sh [-v] [prefix]           # C-side harness, 76 tests
     ./build/hibr tests/self.hibr                 # suite in hibr, 91 assertions, planned
     python3 tests/{console,cat,most,hvi,mon,mtr,editor,desktop,apps}.py
                                  # the full-screen suites, each through a pty
@@ -110,6 +110,7 @@ linked, and no OpenSSL headers are needed to build.
 | `mods/hvi/` | hibr's vi: gap buffer, lazy line index, linear undo — see `mods/hvi/README.md` |
 | `mods/mon/` | a system monitor over `/proc` — see `mods/mon/README.md` |
 | `mods/sysinfo/` | what the machine is, with a picture — see `mods/sysinfo/README.md` |
+| `mods/pty/` | pseudo terminals: run a program on one and drive it — see `mods/pty/README.md` |
 
 Each directory carries its own `README.md` with the detail: `src/`, `include/`,
 `mods/`, `tests/`, `examples/`. User-facing documentation is under `docs/`, and
@@ -205,7 +206,13 @@ went in the shell.
 - **`$$` is captured at startup**, not `getpid()` at expansion time.
 - **`R_DUP` with a `{name}` variable** must act on the fd in the variable.
 - **Redirection failure on the exec-in-place path** must `_exit`, not exec.
-- **New `var`/`ent` records must be zeroed** — uninitialised map pointers crash.
+- **`xm` does not zero, so every record it returns must be.** `var` and `ent`
+  crash outright on an uninitialised map pointer, which is how this was first
+  found; a plain struct fails quietly instead. The pty module set five of its
+  eight fields and inherited `done` and `st` from the freed record malloc
+  handed back, so every child reported the *previous* child's exit status and
+  looked plausible doing it. `memset(p, 0, sizeof *p)` after every `xm` of a
+  record.
 - **Bound recursion**: parser `HIBR_DEPTH`, arithmetic `HIBR_AXDEPTH`, `[[ ]]`
   grouping. Deep input must produce an error, never a stack overflow.
 - **Arithmetic overflow** is done in unsigned and cast back; `INT64_MIN / -1`
@@ -611,6 +618,22 @@ went in the shell.
   is one character in two of them. See `docs/adr/0021`. The byte-based version
   drew a box border nine characters long with half a character on the end.
   Anything new that measures text has to pick one of the two on purpose.
+- **A child needs a session and a controlling terminal, not just the fds.**
+  Without `setsid` and `TIOCSCTTY` a shell started on a pty has no terminal,
+  runs no line editor and calls itself non-interactive — which reads as the
+  program being broken rather than the pty being half-made. And a master
+  whose child has gone reads `EIO`, not zero; that is the one place a pty is
+  not a pipe.
+- **The shell must not reap children it did not start.** `waitpid(-1, …)`
+  collects anything, and `jc_poll` then threw away the status of any pid it
+  did not recognise — so every program the pty module ran reported exit 0,
+  plausibly. Job control now waits on each job's own process group, and
+  `jc_anyone` does the same for `wait` and `wait -n`. Whatever forked a child
+  is the thing entitled to its status.
+- **`console size` before `console open` reads the real terminal.** It used
+  to answer a fabricated 24 rows beside a real `ed_cols()` width, so half the
+  answer was true — which is worse than either, and hid a pty resize working
+  correctly for most of an hour.
 - **`ob_hex` does not check what follows the digits**, because in `packed-refs`
   an object name is followed by a space. Callers check the length.
 
