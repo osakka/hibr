@@ -203,6 +203,16 @@ redo stack**, grouped so that `u` after typing a sentence removes the sentence.
 changed on disk since it was read, with `:w!` to override — vim's behaviour,
 and the owner's call.
 
+It is called `hvi`, not `vi`. A module's builtins become commands, and an
+editor that is missing counts, `.`, registers and marks should not be the one
+that answers when somebody types `vi` out of habit. The rule that came out of
+it: **shadow only when the replacement is complete, or when being wrong is
+harmless** — which is why the cat still shadows `cat`.
+
+Syntax colouring is the cat's, asked for through the registry as the
+**highlight** interface rather than copied, so there is one set of language
+tables. hibr has its own entry in them now instead of being treated as `sh`.
+
 Not there: counts, `.`, registers, marks, `:s`, and `!` to filter through a
 command. When that last one arrives it must call `hibr_run` rather than
 `popen`, which is the rule about not becoming a second shell.

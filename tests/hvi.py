@@ -4,13 +4,13 @@
 Checks are mostly on the file that comes out, which is what an editor is for;
 where a message matters the screen is reassembled from the escape stream,
 because the display sends only the cells that changed.
-Run it directly:  python3 tests/vi.py [path-to-hibr]
+Run it directly:  python3 tests/hvi.py [path-to-hibr]
 """
 import fcntl, os, pty, select, struct, sys, tempfile, termios, threading, time
 
 HIBR = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else "./build/hibr")
 CONSOLE = os.path.abspath("./build/mods/console.so")
-VI = os.path.abspath("./build/mods/vi.so")
+HVI = os.path.abspath("./build/mods/hvi.so")
 FAIL = []
 D = tempfile.mkdtemp(prefix="hibr-vi-")
 ROWS, COLS = 10, 60
@@ -21,8 +21,11 @@ def vi(path, keys, wait=0.6, step=0.25):
     pid, fd = pty.fork()
     if pid == 0:
         os.environ["TERM"] = "xterm-256color"
-        os.execv(HIBR, ["hibr", "-c", "mod load %s; mod load %s; vi %s"
-                        % (CONSOLE, VI, path)])
+        # so the colourer can be found without being named: the editor asks
+        # for "highlight" and the shell goes looking for whatever offers it
+        os.environ["HIBR_MODPATH"] = os.path.abspath("./build/mods")
+        os.execv(HIBR, ["hibr", "-c", "mod load %s; mod load %s; hvi %s"
+                        % (CONSOLE, HVI, path)])
     fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", ROWS, COLS, 0, 0))
     out = b""
 
@@ -221,8 +224,20 @@ check("insert mode says so", "-- INSERT --" in screen(t))
 t = vi(p, [b"v"])
 check("visual mode says so", "-- VISUAL --" in screen(t))
 
+# hibr source is coloured, through whatever colourer is loaded -- and the
+# colourer is found and loaded without being asked for by name
+hb = fresh("z.hibr", 'fn greet n {\n  ret "hi $n"   # a note\n}\n')
+t = vi(hb, [Q])
+check("hibr keywords are coloured", "38;5;110" in t)
+check("hibr strings are coloured", "38;5;71" in t)
+check("hibr comments are coloured", "38;5;245" in t)
+pl2 = fresh("z.unknownkind", "just text\n")
+t = vi(pl2, [Q])
+check("a file of no known kind is left plain",
+      "38;5;110" not in t.split("\x1b[2J", 1)[-1])
+
 print()
-print("%d passed, %d failed" % (26 - len(FAIL), len(FAIL)))
+print("%d passed, %d failed" % (30 - len(FAIL), len(FAIL)))
 for f in os.listdir(D):
     os.unlink(os.path.join(D, f))
 os.rmdir(D)

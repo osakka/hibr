@@ -34,7 +34,7 @@ Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 13).
     python3 tests/console.py                     # the console display, through a pty
     python3 tests/cat.py                         # the cat module, through a pty
     python3 tests/most.py                        # the pager, through a pty
-    python3 tests/vi.py                          # the editor, through a pty
+    python3 tests/hvi.py                         # the editor, through a pty
     python3 tests/mtr.py                         # the live traceroute, through a pty
     python3 tests/mon.py                         # the system monitor, through a pty
     python3 tests/diff.py --shell ./build/hibr 250   # snippets, diffed against bash
@@ -107,7 +107,7 @@ linked, and no OpenSSL headers are needed to build.
 | `mods/cat/` | `cat` that is byte-identical in a pipe and useful on a terminal — see `mods/cat/README.md` |
 | `mods/trace/` | unprivileged traceroute over UDP with `IP_RECVERR`, one-shot and live — see `mods/trace/README.md` |
 | `mods/most/` | a pager on the display interface, the first module to use another — see `mods/most/README.md` |
-| `mods/vi/` | a modal editor: gap buffer, lazy line index, linear undo — see `mods/vi/README.md` |
+| `mods/hvi/` | hibr's vi: gap buffer, lazy line index, linear undo — see `mods/hvi/README.md` |
 | `mods/mon/` | a system monitor over `/proc` — see `mods/mon/README.md` |
 | `mods/sysinfo/` | what the machine is, with a picture — see `mods/sysinfo/README.md` |
 
@@ -275,6 +275,9 @@ were each run and their real output pasted back; keep it that way.
   rather than against bash, because bash's `cat` *is* `/bin/cat`. The fast path
   (`ct_raw`) never looks at a byte, which is why 100 MB costs 15 ms against
   `/bin/cat`'s 14; anything that inspects content has to stay off it.
+- **A descriptor lives inside the object, so read it before dlclose.**
+  `mod drop all` logged `m->m->nm` after unmapping the module and segfaulted.
+  Take a copy of anything needed from the descriptor first.
 - **A module declares the interface it offers, so it can be found unloaded.**
   `hibr_require` walks the module path when nothing has offered what was asked
   for, reads each descriptor's `prov` without calling its init, and loads the
@@ -331,6 +334,11 @@ were each run and their real output pasted back; keep it that way.
   `78-200/200` where the display reads `178-200/200`. `tests/most.py`
   reassembles the screen from the escapes and asserts on that; four checks
   looked like real failures until it did.
+- **Shadow a command only when the replacement is complete, or being wrong is
+  harmless.** The cat shadows `cat` on purpose: it is byte-identical in a pipe,
+  so nothing can tell. The editor does not shadow `vi`, because it has no
+  counts, no `.`, no registers and no marks, and somebody reaching for `vi` out
+  of habit would find a different editor holding their file. It is `hvi`.
 - **A module's builtins become commands, so its name shadows one.** The
   display module was called `screen` and `mod load screen` made
   `/usr/bin/screen` unreachable. For the cat that shadowing is the point; here

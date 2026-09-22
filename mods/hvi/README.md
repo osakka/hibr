@@ -1,11 +1,19 @@
-# mods/vi
+# mods/hvi
 
 Modal, and actually vi — but the arrow keys work, undo goes back more than
 once, and UTF-8 is a character rather than a byte.
 
-    mod load console
-    mod load vi
-    vi file
+    mod load hvi
+    hvi file
+
+## Why it is not called `vi`
+
+A module's builtins become commands, so a module called `vi` makes `/usr/bin/vi`
+unreachable. For the cat that shadowing is the point — it is byte-identical in
+a pipe, so nothing can tell. This is not: there are no counts, no `.`, no
+registers and no marks, and somebody reaching for `vi` out of habit would find
+a different editor holding their file. **Shadow only when the replacement is
+complete, or when being wrong is harmless.**
 
 | file | role |
 |---|---|
@@ -72,17 +80,36 @@ notable gap: when it arrives it must call `hibr_run`, not `popen`, so it sees
 the shell's own functions and variables — the editor is not allowed to become a
 second shell.
 
-No syntax highlighting either. The cat has a lexical one; if it belongs here
-too, `hl.c` can be offered through the module registry exactly as the display
-is, rather than copied.
+## Colouring
+
+There is syntax colouring, and it is the cat's — asked for through the module
+registry rather than copied:
+
+```c
+hl = hibr_require(s, "highlight", HL_API_VER);
+```
+
+So the editor never mentions the cat, the shell finds whatever offers
+`highlight` and loads it, and there is one set of language tables rather than
+two that drift. The colourer returns a line with ANSI escapes in it; the editor
+reads those back into display pens, walking the coloured copy alongside the
+buffer so selection and search still paint over the top.
+
+Block state runs from the top of the *file*, not the top of the screen, or a
+comment that opened above the viewport would not colour what is inside it.
+
+hibr has its own language in those tables now, rather than being treated as
+`sh`: `fn`, `ret`, `fail`, `try`, `opt`, `args`, `match`, `rsub`, `str`, `arr`,
+`json`, `mod`, `listen`, `coproc` and the rest, for `.hibr`, `.hibrc` and
+`.t`.
 
 ## Testing
 
-`tests/vi.py` drives it through a pseudo terminal and mostly checks the file
-that comes out, which is what an editor is for. 26 checks.
-`tests/680-vi.t` covers what `run.sh` can reach, which is the argument handling
-and the refusal to start without a display. The gap buffer has its own C test, `tests/vi-buf.c`, which is where the
+`tests/hvi.py` drives it through a pseudo terminal and mostly checks the file
+that comes out, which is what an editor is for. 30 checks.
+`tests/680-hvi.t` covers what `run.sh` can reach, which is the argument handling
+and the refusal to start without a display. The gap buffer has its own C test, `tests/hvi-buf.c`, which is where the
 measurements above come from:
 
-    gcc -Iinclude -Imods/vi -w -o /tmp/vibuf tests/vi-buf.c mods/vi/buf.c src/mem.c
+    gcc -Iinclude -Imods/hvi -w -o /tmp/vibuf tests/hvi-buf.c mods/hvi/buf.c src/mem.c
     /tmp/vibuf

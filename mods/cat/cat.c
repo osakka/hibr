@@ -342,5 +342,5 @@ const hibr_bi cat_bi[] = {
 	HIBR_BI_END
 };
 
-HIBR_MODULE("cat", "0.21", "cat that is plain in a pipe and useful on a tty",
-	    cat_bi, 0, 0);
+HIBR_MODULE_P("cat", "0.21", "cat that is plain in a pipe and useful on a tty",
+	      cat_bi, ct_ini, ct_fini, "highlight");

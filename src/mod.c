@@ -180,6 +180,32 @@ int m_drop(sh *s, const char *nm)
 	return HIBR_FAIL;
 }
 
+/* Unload everything, newest first -- so a module that asked for another's
+   table goes before the one that offered it. Returns how many went. */
+int m_dropall(sh *s)
+{
+	mod *m;
+	int n = 0;
+
+	while (s->mods.n) {
+		char *nm;
+		m = (mod *)s->mods.p[s->mods.n - 1];
+		/* The descriptor lives inside the object, so its name has to
+		   be taken before dlclose unmaps it. */
+		nm = xs(m->m->nm);
+		if (m->m->fin)
+			m->m->fin(s);
+		dlclose(m->h);
+		lg(HIBR_LINF, "dropped module %s", nm);
+		free(nm);
+		free(m->path);
+		free(m);
+		s->mods.n--;
+		n++;
+	}
+	return n;
+}
+
 /* Print the loaded module table. */
 void m_list(sh *s)
 {

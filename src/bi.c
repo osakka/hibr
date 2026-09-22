@@ -966,8 +966,8 @@ int b_type(sh *s, int ac, char **av)
 int b_mod(sh *s, int ac, char **av)
 {
 	if (ac < 2) {
-		lg(HIBR_LERR, "usage: mod load <path|name> | mod drop <name> "
-			      "| mod list | mod avail");
+		lg(HIBR_LERR, "usage: mod load <path|name> | "
+			      "mod drop <name|all> | mod list | mod avail");
 		return HIBR_FAIL;
 	}
 	if (!strcmp(av[1], "load")) {
@@ -979,8 +979,20 @@ int b_mod(sh *s, int ac, char **av)
 	}
 	if (!strcmp(av[1], "drop")) {
 		if (ac < 3) {
-			lg(HIBR_LERR, "mod drop: name required");
+			lg(HIBR_LERR, "mod drop: name required, or 'all'");
 			return HIBR_FAIL;
+		}
+		if (!strcmp(av[2], "all")) {
+			int n = m_dropall(s);
+			str t;
+			s_init(&t);
+			s_num(&t, (long)n);
+			hibr_ret(s, t.p);
+			if (!s->bind)
+				printf("dropped %d module%s\n", n,
+				       n == 1 ? "" : "s");
+			s_free(&t);
+			return HIBR_OK;
 		}
 		return m_drop(s, av[2]);
 	}

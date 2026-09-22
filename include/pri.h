@@ -258,6 +258,7 @@ const hibr_bi *bi_find(const char *nm);
 const hibr_bi *m_find(sh *s, const char *nm);
 int m_load(sh *s, const char *path);
 int m_drop(sh *s, const char *nm);
+int m_dropall(sh *s);
 void m_list(sh *s);
 void m_fini(sh *s);
 void m_help(sh *s);

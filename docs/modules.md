@@ -96,7 +96,8 @@ its users refuse rather than call into an unloaded object. `most` uses the
 
 Reference modules in `mods/`:
 - **`most`** pages files or a pipe, built on the display interface.
-- **`vi`** a modal editor on the same interface: gap buffer, linear undo.
+- **`hvi`** hibr's vi, on the same interface: gap buffer, linear undo, and
+  the cat's colourer asked for through the registry.
 - **`mon`** a system monitor over `/proc`, on the display interface.
 - **`sysinfo`** what this machine is, printed once, with a picture.
 - **`trace`** traces a route with no privileges, using `IP_RECVERR` rather than

@@ -322,10 +322,10 @@ int vi_save(const vi_buf *b, const char *path)
 
 	s_init(&tmp);
 	s_cat(&tmp, path);
-	s_cat(&tmp, ".hibr-vi-tmp");
+	s_cat(&tmp, ".hibr-hvi-tmp");
 	fd = open(tmp.p, O_WRONLY | O_CREAT | O_TRUNC, 0600);
 	if (fd < 0) {
-		lg(HIBR_LERR, "vi: %s: %s", tmp.p, strerror(errno));
+		lg(HIBR_LERR, "hvi: %s: %s", tmp.p, strerror(errno));
 		s_free(&tmp);
 		return HIBR_FAIL;
 	}
@@ -345,7 +345,7 @@ int vi_save(const vi_buf *b, const char *path)
 	if (close(fd) != 0)
 		ok = HIBR_FAIL;
 	if (ok == HIBR_OK && rename(tmp.p, path) != 0) {
-		lg(HIBR_LERR, "vi: %s: %s", path, strerror(errno));
+		lg(HIBR_LERR, "hvi: %s: %s", path, strerror(errno));
 		ok = HIBR_FAIL;
 	}
 	if (ok != HIBR_OK)

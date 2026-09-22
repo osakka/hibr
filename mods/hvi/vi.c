@@ -2,12 +2,15 @@
 
 #include "vi.h"
 #include "../display.h"
+#include "../highlight.h"
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 static const dp_api *dp;
+static const hl_api *hl;
+static const char *lang;
 static vi_ed ed;
 
 /* The column a position sits at on screen, tabs and wide glyphs counted. */
@@ -161,18 +164,95 @@ void vi_scroll(vi_ed *e, int vh)
 		e->top = ln - (size_t)vh + 1;
 }
 
+/* Read one SGR sequence into a pen, so a colourer's output can be drawn on a
+   display that has no notion of escapes. */
+const char *vi_sgr(const char *p, const char *e, unsigned *fg, unsigned *bg,
+		   unsigned *at)
+{
+	long v[8];
+	int n = 0, i;
+
+	p += 2;
+	v[0] = 0;
+	while (p < e && *p != 'm') {
+		if (*p >= '0' && *p <= '9')
+			v[n] = v[n] * 10 + (*p - '0');
+		else if (*p == ';' && ++n >= 8)
+			n = 7;
+		else if (*p == ';')
+			v[n] = 0;
+		p++;
+	}
+	n++;
+	for (i = 0; i < n; i++) {
+		long c = v[i];
+		if (c == 0) {
+			*fg = DP_DEFAULT;
+			*bg = DP_DEFAULT;
+			*at = 0;
+		} else if (c == 1) {
+			*at |= DP_BOLD;
+		} else if (c == 3) {
+			*at |= DP_ITAL;
+		} else if (c == 4) {
+			*at |= DP_UNDER;
+		} else if ((c == 38 || c == 48) && i + 2 < n && v[i + 1] == 5) {
+			*(c == 38 ? fg : bg) = DP_PAL | (unsigned)v[i + 2];
+			i += 2;
+		} else if (c == 39) {
+			*fg = DP_DEFAULT;
+		} else if (c == 49) {
+			*bg = DP_DEFAULT;
+		}
+	}
+	return p < e ? p + 1 : e;
+}
+
+/* Colour a line through whatever colourer is loaded, into a buffer. */
+void vi_colour(vi_ed *e, size_t ln, str *out, int *state)
+{
+	str raw;
+
+	out->n = 0;
+	if (out->p)
+		out->p[0] = 0;
+	if (!hl || !lang)
+		return;
+	s_init(&raw);
+	vi_get(&e->b, vi_lstart(&e->b, ln),
+	       vi_lend(&e->b, ln) - vi_lstart(&e->b, ln), &raw);
+	if (raw.p)
+		raw.p[raw.n] = 0;
+	hl->line(out, raw.p ? raw.p : "", raw.n, lang, state);
+	s_free(&raw);
+}
+
 /* Draw one line of the buffer into a row. */
 void vi_drawline(vi_ed *e, size_t ln, int row, int cols, size_t vs, size_t ve)
 {
 	size_t i = vi_lstart(&e->b, ln), end = vi_lend(&e->b, ln);
 	int col = 0;
-	str t;
-	unsigned fg, bg;
+	str t, cl;
+	const char *cp, *ce;
+	unsigned fg, bg, hfg = DP_DEFAULT, hbg = DP_DEFAULT, hat = 0;
 
 	s_init(&t);
+	s_init(&cl);
+	vi_colour(e, ln, &cl, &e->hlstate);
+	cp = cl.p;
+	ce = cl.p ? cl.p + cl.n : 0;
 	while (i < end && col < cols) {
 		int c = vi_at(&e->b, i), sel, hit = 0;
 		size_t nx = vi_next(&e->b, i);
+		/* Walk the coloured copy alongside the buffer: the escapes set
+		   the pen and the characters line up one for one. */
+		while (cp && cp < ce) {
+			if (*cp == 27 && cp + 1 < ce && cp[1] == '[') {
+				cp = vi_sgr(cp, ce, &hfg, &hbg, &hat);
+				continue;
+			}
+			break;
+		}
 		sel = (e->mode == VI_VISUAL || e->mode == VI_VLINE) &&
 		      i >= vs && i < ve;
 		if (e->find.n) {
@@ -183,9 +263,9 @@ void vi_drawline(vi_ed *e, size_t ln, int row, int cols, size_t vs, size_t ve)
 				hit = 1;
 			s_free(&w);
 		}
-		fg = sel ? DP_PAL | 16u : (hit ? DP_PAL | 16u : DP_DEFAULT);
-		bg = sel ? DP_PAL | 252u : (hit ? DP_PAL | 227u : DP_DEFAULT);
-		dp->pen(fg, bg, 0);
+		fg = sel ? DP_PAL | 16u : (hit ? DP_PAL | 16u : hfg);
+		bg = sel ? DP_PAL | 252u : (hit ? DP_PAL | 227u : hbg);
+		dp->pen(fg, bg, sel || hit ? 0 : hat);
 		if (c == '\t') {
 			int k = 8 - (col % 8);
 			while (k-- && col < cols)
@@ -208,9 +288,13 @@ void vi_drawline(vi_ed *e, size_t ln, int row, int cols, size_t vs, size_t ve)
 				col += dp->put(row, col, t.p);
 			}
 		}
+		if (cp && cp < ce)
+			cp += nx - i < (size_t)(ce - cp) ? nx - i
+							 : (size_t)(ce - cp);
 		i = nx;
 	}
 	s_free(&t);
+	s_free(&cl);
 	dp->pen(DP_DEFAULT, DP_DEFAULT, 0);
 }
 
@@ -232,6 +316,17 @@ void vi_render(vi_ed *e, int rows, int cols)
 	}
 	dp->pen(DP_DEFAULT, DP_DEFAULT, 0);
 	dp->clear();
+	/* Colouring runs from the top of the file, not the top of the screen,
+	   or a block comment that opened above the viewport is not seen. */
+	e->hlstate = 0;
+	if (hl && lang) {
+		str t;
+		size_t k;
+		s_init(&t);
+		for (k = 0; k < e->top && k < nl; k++)
+			vi_colour(e, k, &t, &e->hlstate);
+		s_free(&t);
+	}
 	for (r = 0; r < vh; r++) {
 		ln = e->top + (size_t)r;
 		if (ln < nl) {
@@ -761,19 +856,19 @@ void vi_exkey(vi_ed *e, const char *k)
 }
 
 /* Edit a file. */
-int m_vi(sh *s, int ac, char **av)
+int m_hvi(sh *s, int ac, char **av)
 {
 	int rows, cols, vh, r;
 	str key;
 
 	dp = (const dp_api *)hibr_require(s, "display", DP_API_VER);
 	if (!dp) {
-		lg(HIBR_LERR, "vi: no display is available; nothing on the\n"
+		lg(HIBR_LERR, "hvi: no display is available; nothing on the\n"
 			      "      module path offers one");
 		return HIBR_FAIL;
 	}
 	if (ac > 2) {
-		lg(HIBR_LERR, "usage: vi [file]");
+		lg(HIBR_LERR, "usage: hvi [file]");
 		return 2;
 	}
 	memset(&ed, 0, sizeof ed);
@@ -787,11 +882,15 @@ int m_vi(sh *s, int ac, char **av)
 	if (ac == 2) {
 		ed.path = xs(av[1]);
 		if (vi_load(&ed.b, ed.path) != HIBR_OK) {
-			lg(HIBR_LERR, "vi: %s: cannot read", ed.path);
+			lg(HIBR_LERR, "hvi: %s: cannot read", ed.path);
 			return HIBR_FAIL;
 		}
 		vi_stamp(&ed);
 	}
+	hl = (const hl_api *)hibr_require(s, "highlight", HL_API_VER);
+	lang = hl && ed.path ? hl->lang(ed.path) : 0;
+	if (hl && !lang)
+		lg(HIBR_LDBG, "no colouring: nothing claims this file's kind");
 	if (dp->open(s) != HIBR_OK)
 		return HIBR_FAIL;
 	while (!ed.quit) {
@@ -840,9 +939,10 @@ int m_vi(sh *s, int ac, char **av)
 	return HIBR_OK;
 }
 
-const hibr_bi vi_bi[] = {
-	{ "vi", m_vi, "edit a file" },
+const hibr_bi hvi_bi[] = {
+	{ "hvi", m_hvi, "edit a file" },
 	HIBR_BI_END
 };
 
-HIBR_MODULE("vi", "0.21", "a modal editor on the display interface", vi_bi, 0, 0);
+HIBR_MODULE("hvi", "0.21", "hibr's vi: a modal editor on the display interface",
+	    hvi_bi, 0, 0);

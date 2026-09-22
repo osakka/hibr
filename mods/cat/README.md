@@ -62,6 +62,24 @@ a module-to-module export mechanism to the ABI. The third is the right answer
 and it is a design decision, not something to improvise inside a `cat`. See
 `docs/backlog.md`.
 
+## The colourer is offered to other modules
+
+`cat` registers its lexical colourer as the **highlight** interface, so the
+editor uses this one rather than growing a second copy of the same tables:
+
+```c
+hl = hibr_require(s, "highlight", HL_API_VER);
+hl->line(&out, text, n, hl->lang(filename), &state);
+```
+
+`state` carries what runs across lines — a block comment, a triple-quoted
+string — and the caller keeps it between calls. The interface is in
+`mods/highlight.h`.
+
+hibr has its own entry in the language tables rather than being treated as
+`sh`, with its own words: `fn`, `ret`, `fail`, `try`, `opt`, `args`, `match`,
+`rsub`, `str`, `arr`, `json`, `mod`, `listen`, `coproc`.
+
 ## Testing
 
 `tests/650-cat.t` is the contract: 37 comparisons against `/bin/cat` itself,

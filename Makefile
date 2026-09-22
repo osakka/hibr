@@ -24,7 +24,7 @@ SRC = src/mem.c src/var.c src/lex.c src/parse.c src/expand.c src/exec.c \
 MODS = $(B)/mods/sys.so $(B)/mods/http.so $(B)/mods/ls.so $(B)/mods/prompt.so \
        $(B)/mods/console.so $(B)/mods/cat.so \
        $(B)/mods/trace.so $(B)/mods/most.so \
-       $(B)/mods/vi.so $(B)/mods/mon.so \
+       $(B)/mods/hvi.so $(B)/mods/mon.so \
        $(B)/mods/sysinfo.so
 PROMPT_SRC = $(wildcard mods/prompt/*.c)
 CONSOLE_SRC = $(wildcard mods/console/*.c)
@@ -57,7 +57,7 @@ $(B)/mods/console.so: $(CONSOLE_SRC) include/hibr.h mods/console/cn.h mods/displ
 $(B)/mods/cat.so: $(CAT_SRC) include/hibr.h mods/cat/ct.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(CAT_SRC)
 
-VI_SRC = $(wildcard mods/vi/*.c)
+HVI_SRC = $(wildcard mods/hvi/*.c)
 MON_SRC = $(wildcard mods/mon/*.c)
 
 $(B)/mods/sysinfo.so: mods/sysinfo/sysinfo.c include/hibr.h | $(B)/mods
@@ -66,8 +66,8 @@ $(B)/mods/sysinfo.so: mods/sysinfo/sysinfo.c include/hibr.h | $(B)/mods
 $(B)/mods/mon.so: $(MON_SRC) include/hibr.h mods/mon/mn.h mods/display.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(MON_SRC)
 
-$(B)/mods/vi.so: $(VI_SRC) include/hibr.h mods/vi/vi.h mods/display.h | $(B)/mods
-	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(VI_SRC)
+$(B)/mods/hvi.so: $(HVI_SRC) include/hibr.h mods/hvi/vi.h mods/display.h | $(B)/mods
+	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(HVI_SRC)
 
 $(B)/mods/most.so: mods/most/most.c include/hibr.h mods/display.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ mods/most/most.c

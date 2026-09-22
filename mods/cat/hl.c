@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 
 #include "ct.h"
+#include "../highlight.h"
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,6 +37,19 @@ static const char *ct_py_kw[] = {
 	"while", "with", "yield", 0
 };
 
+/* hibr's own words: the reserved ones, then the builtins that carry the
+   language rather than merely being commands. */
+static const char *ct_hibr_kw[] = {
+	"case", "do", "done", "elif", "else", "esac", "fi", "fn", "for", "if",
+	"in", "select", "then", "until", "while", "function",
+	"local", "return", "ret", "fail", "try", "export", "readonly",
+	"declare", "unset", "shift", "exit", "eval", "exec", "source",
+	"opt", "args", "title", "match", "rsub", "str", "arr", "json",
+	"mod", "listen", "coproc", "dial", "drop", "hash", "mapfile",
+	"shopt", "set", "trap", "ulimit", "read", "printf", "echo",
+	"test", "let", "command", "builtin", "type", "getopts", 0
+};
+
 static const char *ct_json_kw[] = { "true", "false", "null", 0 };
 
 /* Name the language a file is in, from its extension, or null. */
@@ -51,13 +65,16 @@ const char *ct_lang(const char *nm)
 		d = d ? d + 1 : nm;
 		if (!strcmp(d, "Makefile") || !strcmp(d, "makefile"))
 			return "mk";
+		if (!strcmp(d, ".hibrc") || !strcmp(d, "hibrc"))
+			return "hibr";
 		return 0;
 	}
 	d++;
 	if (!strcmp(d, "c") || !strcmp(d, "h"))
 		return "c";
-	if (!strcmp(d, "sh") || !strcmp(d, "hibr") || !strcmp(d, "bash") ||
-	    !strcmp(d, "hibrc") || !strcmp(d, "t"))
+	if (!strcmp(d, "hibr") || !strcmp(d, "hibrc") || !strcmp(d, "t"))
+		return "hibr";
+	if (!strcmp(d, "sh") || !strcmp(d, "bash"))
 		return "sh";
 	if (!strcmp(d, "py"))
 		return "py";
@@ -77,6 +94,8 @@ const char **ct_kw(const char *lang)
 		return 0;
 	if (!strcmp(lang, "c"))
 		return ct_c_kw;
+	if (!strcmp(lang, "hibr"))
+		return ct_hibr_kw;
 	if (!strcmp(lang, "sh") || !strcmp(lang, "mk"))
 		return ct_sh_kw;
 	if (!strcmp(lang, "py"))
@@ -91,7 +110,8 @@ const char *ct_cmt(const char *lang)
 {
 	if (!lang)
 		return 0;
-	if (!strcmp(lang, "sh") || !strcmp(lang, "py") || !strcmp(lang, "mk"))
+	if (!strcmp(lang, "sh") || !strcmp(lang, "py") || !strcmp(lang, "mk") ||
+	    !strcmp(lang, "hibr"))
 		return "#";
 	if (!strcmp(lang, "c"))
 		return "//";
@@ -361,4 +381,32 @@ void ct_hl(str *out, const char *p, size_t n, const char *lang, ct_opt *o)
 		}
 		i += (size_t)ct_put(out, p + i, n - i, o);
 	}
+}
+
+/* Colour one line for another module, with the block state kept outside. */
+void ct_hlapi(str *out, const char *p, size_t n, const char *lang, int *state)
+{
+	ct_opt o;
+
+	memset(&o, 0, sizeof o);
+	o.f = CT_COLOUR;
+	o.tabw = 8;
+	o.blk = state ? *state : 0;
+	ct_hl(out, p, n, lang, &o);
+	if (state)
+		*state = o.blk;
+}
+
+static const hl_api ct_api = { ct_lang, ct_hlapi };
+
+/* Offer the colourer to whatever else draws text. */
+int ct_ini(sh *s)
+{
+	return hibr_provide(s, "highlight", HL_API_VER, (void *)&ct_api);
+}
+
+/* Withdraw it. */
+void ct_fini(sh *s)
+{
+	hibr_unprovide(s, "highlight");
 }

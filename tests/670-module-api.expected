@@ -1,7 +1,10 @@
 0
-most loads on its own
-most without a display rc=1
-console loads and offers a display
-console dropped
-most after the offer is withdrawn rc=1
-most dropped
+most loaded on its own
+nothing offers a display yet: 0
+most without a terminal rc=1
+a display was found and loaded: 1
+1
+provider dropped
+most again rc=1
+found again: 1
+all dropped: 0
