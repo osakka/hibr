@@ -681,16 +681,6 @@ int t_two(const char *a, const char *op, const char *b)
 		return strcmp(a, b) < 0;
 	if (!strcmp(op, ">"))
 		return strcmp(a, b) > 0;
-	if (!strcmp(op, "-ef") || !strcmp(op, "-nt") || !strcmp(op, "-ot")) {
-		struct stat sa, sb;
-		int ha = stat(a, &sa) == 0, hb = stat(b, &sb) == 0;
-		if (!strcmp(op, "-ef"))
-			return ha && hb && sa.st_dev == sb.st_dev &&
-			       sa.st_ino == sb.st_ino;
-		if (!strcmp(op, "-nt"))
-			return ha && (!hb || sa.st_mtime > sb.st_mtime);
-		return hb && (!ha || sa.st_mtime < sb.st_mtime);
-	}
 	x = strtol(a, 0, 10);
 	y = strtol(b, 0, 10);
 	if (!strcmp(op, "-eq"))
@@ -705,6 +695,16 @@ int t_two(const char *a, const char *op, const char *b)
 		return x > y;
 	if (!strcmp(op, "-ge"))
 		return x >= y;
+	if (!strcmp(op, "-ef") || !strcmp(op, "-nt") || !strcmp(op, "-ot")) {
+		struct stat sa, sb;
+		int ha = stat(a, &sa) == 0, hb = stat(b, &sb) == 0;
+		if (!strcmp(op, "-ef"))
+			return ha && hb && sa.st_dev == sb.st_dev &&
+			       sa.st_ino == sb.st_ino;
+		if (!strcmp(op, "-nt"))
+			return ha && (!hb || sa.st_mtime > sb.st_mtime);
+		return hb && (!ha || sa.st_mtime < sb.st_mtime);
+	}
 	return -1;
 }
 
@@ -809,12 +809,11 @@ int b_test(sh *s, int ac, char **av)
 			return *av[2] ? HIBR_FAIL : HIBR_OK;
 		r = t_one(av[1], av[2]);
 	} else if (ac == 4) {
-		if (t_isbin(av[2]))
-			r = t_two(av[1], av[2], av[3]);
-		else if (!strcmp(av[1], "!"))
+		r = t_two(av[1], av[2], av[3]);
+		if (r < 0 && !strcmp(av[1], "!"))
 			r = t_one(av[2], av[3]) < 0 ? -1 :
 			    !t_one(av[2], av[3]);
-		else if (!strcmp(av[1], "(") && !strcmp(av[3], ")"))
+		else if (r < 0 && !strcmp(av[1], "(") && !strcmp(av[3], ")"))
 			return *av[2] ? HIBR_OK : HIBR_FAIL;
 	} else if (ac == 5) {
 		if (!strcmp(av[1], "!") && t_isbin(av[3]))
