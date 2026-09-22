@@ -184,8 +184,13 @@ check("? lists the keys", "q" in t and "tab" in t)
 t = run("most %s/nosuchfile; echo rc=$?" % D, settle=0.5)
 check("a missing file is refused", "rc=" in t)
 
+tabs = write("tab.txt", "col\tA\nlonger\tB\n")
+v = screen_of(run("most %s" % tabs))
+check("tabs reach their stop rather than showing as ^I",
+      "col     A" in v and "longer  B" in v and "^I" not in v)
+
 print()
-print("%d passed, %d failed" % (20 - len(FAIL), len(FAIL)))
+print("%d passed, %d failed" % (21 - len(FAIL), len(FAIL)))
 for f in os.listdir(D):
     os.unlink(os.path.join(D, f))
 os.rmdir(D)

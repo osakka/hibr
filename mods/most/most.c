@@ -248,7 +248,7 @@ void ms_draw(ms_win *w, int row, int cols, const char *find, int fold,
 	ms_line *l;
 	const char *p, *e, *hit;
 	unsigned fg = SCR_DEFAULT, bg = SCR_DEFAULT, at = 0;
-	int col = 0, skip = w->hoff;
+	int col = 0, skip = w->hoff, lcol = 0;
 	size_t off;
 	char one[8];
 	int len;
@@ -282,11 +282,27 @@ void ms_draw(ms_win *w, int row, int cols, const char *find, int fold,
 			unsigned cp;
 			len = u8dec(p, (size_t)(e - p), &cp);
 		}
+		if (*p == '\t') {
+			int k = 8 - (lcol % 8);
+			while (k--) {
+				if (skip > 0) {
+					skip--;
+				} else if (col < cols) {
+					sc->pen(fg, bg, at);
+					col += sc->put(row, col, " ");
+				}
+				lcol++;
+			}
+			p++;
+			continue;
+		}
 		if (skip > 0) {
 			skip--;
+			lcol++;
 			p += len;
 			continue;
 		}
+		lcol++;
 		if (hit) {
 			size_t fn = strlen(find);
 			sc->pen(mfg, mbg, SCR_BOLD);
