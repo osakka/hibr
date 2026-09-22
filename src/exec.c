@@ -510,6 +510,7 @@ char *xcap(sh *s, const char *src)
 	close(pf[0]);
 	waitpid(pid, &w, 0);
 	s->st = wstat(w);
+	s->ncap++;
 	while (o.n && o.p[o.n - 1] == '\n')
 		o.n--;
 	r = ar_dup(s->xa, o.p ? o.p : "", o.n);
@@ -734,6 +735,7 @@ int ex_cmd(sh *s, node *n)
 	word *w;
 	size_t i;
 	int ac = 0, st = 0, w2;
+	unsigned ncap0 = s->ncap;
 	pid_t pid;
 
 	if (s->dtrap)
@@ -790,11 +792,16 @@ int ex_cmd(sh *s, node *n)
 		goto out;
 	}
 	if (!ac) {
+		int bad = 0;
 		for (i = 0; i < asg->n; i++)
 			if (ex_asg(s, (char *)asg->p[i],
 				   i < asgm->n ? (const char *)asgm->p[i] : 0,
 				   0) != HIBR_OK)
-				st = s->st ? s->st : HIBR_FAIL;
+				bad = 1;
+		if (bad)
+			st = s->st ? s->st : HIBR_FAIL;
+		else if (s->ncap != ncap0)
+			st = s->st;
 		if (n->rd && rd_do(s, n->rd, &sv) == HIBR_OK)
 			rd_undo(&sv);
 		else if (n->rd)
@@ -921,7 +928,7 @@ int ex_chk(sh *s, int st, int tested)
 {
 	if (st && !tested && !s->stop)
 		tr_err(s, st);
-	if (!st || !s->errx || tested || s->stop || s->intry)
+	if (!st || !s->errx || tested || s->stop || s->intry || s->quit)
 		return st;
 	lg(HIBR_LERR, "errexit: command failed with status %d", st);
 	s->stop = 1;

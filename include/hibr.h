@@ -4,7 +4,7 @@
 #include <stddef.h>
 
 #ifndef HIBR_ABI
-#define HIBR_ABI 10u
+#define HIBR_ABI 11u
 #endif
 #ifndef HIBR_VER
 #define HIBR_VER "0.21"
@@ -219,6 +219,7 @@ struct sh {
 	const char *ifsc;
 	unsigned ifsok;
 	int optpos, optind;
+	unsigned ncap;
 };
 
 typedef int (*hibr_fn)(sh *s, int ac, char **av);
