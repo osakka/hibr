@@ -26,5 +26,9 @@ V=$((1+1));        echo "arith       $?"
 (set -e; V=$(exit 1); echo "errexit did not fire") 2>/dev/null; echo "errexit     $?"
 (set -e; V=$(exit 0); echo "zero is fine"); echo "zero        $?"
 
+# an array assignment is still a command with no command word
+a=($(exit 3));             echo "array       $?"
+b=($(echo x; exit 4));     echo "array2      $? [${b[*]}]"
+
 # and the value still lands
 V=$(echo hello; exit 4); echo "value [$V] status $?"

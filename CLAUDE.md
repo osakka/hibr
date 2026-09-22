@@ -17,7 +17,7 @@ servers, typed function signatures, result slots (`x := f` without forking),
 declared CLI arguments, and a module ABI that lets modules add *protocols*
 (`/dev/<name>/…`), not just commands.
 
-Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 9).
+Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 11).
 
 ## Build and test
 
@@ -28,10 +28,11 @@ Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 9).
     make install         # PREFIX=/usr/local, modules to $(PREFIX)/lib/hibr
     ./build/hibr -n script      # parse only
 
-    tests/run.sh [-v] [prefix]           # C-side harness, 55 tests
+    tests/run.sh [-v] [prefix]           # C-side harness, 62 tests
     ./build/hibr tests/self.hibr                 # suite in hibr, 91 assertions, planned
     python3 tests/editor.py                      # the line editor, through a pty
-    python3 tests/diff.py 250                    # snippets, diffed against bash
+    python3 tests/diff.py --shell ./build/hibr 250   # snippets, diffed against bash
+    python3 tests/corpus.py --list <file>        # real scripts, run under both shells
     HIBR=./build/hibr REF=dash tests/run.sh      # compare against another shell
 
 Sanitizers — run both before calling anything done:
@@ -73,7 +74,7 @@ linked, and no OpenSSL headers are needed to build.
 
 | file | role |
 |---|---|
-| `include/hibr.h` | public types, macros and the module ABI (v9) |
+| `include/hibr.h` | public types, macros and the module ABI (v11) |
 | `include/pri.h` | internal declarations, tokens, the `lex` struct |
 | `include/re.h` | our own regex declarations (tcc cannot parse glibc's) |
 | `src/mem.c` | arenas with mark/release, `str`, `vec`, pools, `lg` logging |
@@ -148,7 +149,9 @@ were each run and their real output pasted back; keep it that way.
 8. **Arrays are sparse maps**, matching bash's counts and keys. A **quoted
    subscript is a literal key** (`h["content-type"]`); an unquoted one is still
    evaluated arithmetically.
-9. **TLS verifies certificates by default**; `HIBR_TLS_INSECURE=1` to disable.
+9. **A command substitution does not inherit errexit**, matching bash's
+   default; `shopt -s inherit_errexit` restores the POSIX behaviour dash has.
+   **TLS verifies certificates by default**; `HIBR_TLS_INSECURE=1` to disable.
    **Options live in one namespace**: `set -o` and `shopt` reach the same
    table, extended patterns need no switch, and an option that cannot move
    says so rather than appearing to succeed — see `docs/adr/0017`.
@@ -298,6 +301,28 @@ were each run and their real output pasted back; keep it that way.
   both expansion fast paths and from `xsplit`. `sh_ifs` answers from `ifsc`
   and anything that sets or removes a variable named `IFS` must clear
   `ifsok`, including `v_del`, or splitting silently uses a stale separator.
+- **A command with no command word takes its substitution's status.** `V=$(cmd)`
+  reports `cmd`'s status, not 0, which is what makes `V=`getopt -T`; test $? -eq
+  4` work -- the idiom fakeroot and half of `/usr/bin` use to detect GNU getopt.
+  `xcap` counts substitutions in `sh.ncap` and `ex_cmd` compares it across the
+  whole expansion, because "the last substitution performed" has to include the
+  ones in a word that expanded to nothing. A command word means the command's
+  status instead, so `local x=$(cmd)` still masks it exactly as in bash.
+- **An explicit `exit` is not an errexit failure.** `ex_chk` checks `s->quit`
+  along with `s->stop`, or a `$(exit 1)` child under `set -e` prints a
+  diagnostic for a status its own script asked for.
+- **`getopts` keeps a position inside the argument**, in `sh.optpos`, reset when
+  `OPTIND` is assigned from outside -- the only signal a script gives that it is
+  restarting. Without it `-abc` is one option and `-c5` takes the next word.
+- **`read` assigns at end of file and still fails.** Both halves: the variable
+  becomes empty *and* the status is 1, including for a last line with no
+  newline. Return 0 there and `while read` never terminates; skip the
+  assignment and a loop that clears a variable by reading into it spins.
+- **`test` special-cases one to four arguments before the grammar**, because
+  that is what makes `[ x = -a ]` a comparison and `[ -n -a ]` a unary test
+  rather than parse errors. Do not "simplify" it into the general grammar. And
+  do not ask `t_isbin` before calling `t_two` -- `t_two` already declines a
+  word that is not an operator, and asking twice cost 3.6% on the loop.
 - **`qsort` is not given a NULL base.** An empty directory leaves `vec.p` NULL,
   and glibc declares the argument non-null, which UBSan reports.
 - **`ob_hex` does not check what follows the digits**, because in `packed-refs`
@@ -328,19 +353,35 @@ were each run and their real output pasted back; keep it that way.
 
 ## Open items
 
-- Run real scripts under hibr **at execution level** and fix by frequency. The
-  parse-level sweep is done: 169 system scripts, all of them parse. Comparing
-  what they *do* against bash is where the rest is, and it is the method that
-  found `${u:?}` not guarding, `trap EXIT` not firing and `TZ=UTC` doing
-  nothing.
+- Running real scripts **at execution level** is now done too, by
+  `tests/corpus.py`: 465 invocations over 155 system scripts, run under both
+  shells in a sandbox and compared on stdout and status. It went **48 differing
+  to 7**, and not one of the nine fixes came from guessing -- each came from
+  reading a difference: nested backquotes kept verbatim, `test` having no
+  grammar beyond three argument counts, `read` neither assigning nor failing at
+  end of file, `getopts` unable to bundle, `${@:2}` slicing text instead of
+  selecting parameters, `$"..."` printing a dollar sign, an assignment
+  discarding its substitution's status, `command -v` not existing, and a
+  command substitution inheriting errexit. Keep using it; what is left is a
+  short list, not a research project.
+- The seven that remain, each needing its own read: `uz` (status 2 vs 1),
+  `tzselect` with no arguments (status 1 vs 0, and bash prints an empty line),
+  `byobu-ulevel --version` (no output from hibr), and
+  `aptitude-run-state-bundle`, which differs only in the random suffix `mktemp`
+  gave it -- harness noise that `corpus.py` should normalise the way it already
+  normalises the sandbox path. `cc_aiwo_bootstrap.sh` is the owner's own script
+  and **bash** is the one that fails it, with 127.
 - Loop throughput is 1.2x behind dash on a `while` loop and 1.4x on `case`,
   from 1.7x and 1.6x. What is left is genuinely diffuse. Measure this with
   instruction counts, not the clock: the wall time between two separately
   built binaries moves several percent on code layout alone, and said +5.5%
   for a change that cost 0.23% of the instructions.
-- Shells leak on the way out, about 3.8 kB, and a forked child that `_exit`s
-  leaks whatever it held. Both predate this work; measure a leak change against
-  the previous commit rather than against zero.
+- All 63 test files are now leak-clean under ASan with `detect_leaks=1`. A
+  forked child that `_exit`s still leaks whatever it held. Measure a leak change
+  against the previous commit rather than against zero -- and against the other
+  tests: the command cache's 96 bytes were found by noticing that only one test
+  file reported anything, and then that `hash` reported the same number, which
+  is what said cache rather than new code.
 - hibr uses about 110 kB more than dash, and that is the binary rather than the
   heap: 29 kB of a 1792 kB resident set is heap, so there is no allocator work
   left that would move it. Shrinking it means less code. The README says so.
