@@ -15,4 +15,10 @@ Load present
 kernel agrees with uname
 arch agrees with uname
 names this shell
+hibr clean
+debian clean
+alpine clean
+cix clean
+cix lines: 13
+unknown picture rc=0
 dropped

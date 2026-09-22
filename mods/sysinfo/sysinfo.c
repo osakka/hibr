@@ -177,16 +177,80 @@ static const char *si_alpine[] = {
 	0
 };
 
+static const char *si_cix[] = {
+	"\001           ▄▄▄▄",
+	"\001      ▄▄███████████▄",
+	"\001    ▄██████▀▀▀▀▀██████▄           ▄▄██████▄",
+	"\001   ████▀▀         ▀█████▄      ▄█████████▀▀",
+	"\001  ████▀     \002▄▄\001      ▀█████▄  ▄█████▀",
+	"\001 ▄███▀    \002▄█████▄\001     ▀▀██▀▄████▀",
+	"\001 ████     \002███████\001        ▄█████",
+	"\001 ▀███▄    \002▀█████▀\001      ▄████████▄",
+	"\001  ████▄     \002▀▀\001       ▄████▀  ▀████▄▄",
+	"\001   ████▄▄         ▄▄████▀      ▀█████▄▄▄▄▄",
+	"\001    ▀██████▄▄▄▄▄██████▀          ▀▀███████▀",
+	"\001      ▀▀███████████▀▀",
+	"\001           ▀▀▀▀",
+	0
+};
+
 /* The picture for this system, or the shell's own. */
 const char **si_logo(const char *id)
 {
 	if (!id || !*id)
 		return si_hibr;
+	if (!strcmp(id, "hibr"))
+		return si_hibr;
 	if (!strcmp(id, "debian") || !strcmp(id, "raspbian"))
 		return si_debian;
 	if (!strcmp(id, "alpine"))
 		return si_alpine;
+	if (!strcmp(id, "cix"))
+		return si_cix;
 	return si_hibr;
+}
+
+/* How many columns a logo line takes: tone marks none, glyphs their width. */
+size_t si_width(const char *p)
+{
+	size_t n = strlen(p), i = 0, w = 0;
+	unsigned cp;
+	int l;
+
+	while (i < n) {
+		if (p[i] == 1 || p[i] == 2) {
+			i++;
+			continue;
+		}
+		l = u8dec(p + i, n - i, &cp);
+		w += (size_t)u8w(cp);
+		i += (size_t)l;
+	}
+	return w;
+}
+
+/* Write a logo line, turning the tone marks into colour or into nothing. */
+void si_art(str *o, const char *p, int tty)
+{
+	size_t n = strlen(p), i = 0;
+
+	if (tty && n && p[0] != 1 && p[0] != 2)
+		s_cat(o, "\033[38;5;110m");
+	for (i = 0; i < n; i++) {
+		if (p[i] == 1) {
+			if (tty)
+				s_cat(o, "\033[38;5;110m");
+			continue;
+		}
+		if (p[i] == 2) {
+			if (tty)
+				s_cat(o, "\033[38;5;215m");
+			continue;
+		}
+		s_ch(o, p[i]);
+	}
+	if (tty)
+		s_cat(o, "\033[0m");
 }
 
 /* Add one labelled line to the list. */
@@ -207,6 +271,7 @@ void si_row(vec *v, const char *k, const char *val)
 int m_sysinfo(sh *s, int ac, char **av)
 {
 	int tty = isatty(1), plain = 0, i;
+	const char *want = 0;
 	struct utsname un;
 	char *rel, *cpu, *mem;
 	str id, pretty, t, u;
@@ -218,8 +283,10 @@ int m_sysinfo(sh *s, int ac, char **av)
 	for (i = 1; i < ac; i++) {
 		if (!strcmp(av[i], "-p")) {
 			plain = 1;
+		} else if (!strcmp(av[i], "-l") && i + 1 < ac) {
+			want = av[++i];
 		} else {
-			lg(HIBR_LERR, "usage: sysinfo [-p]");
+			lg(HIBR_LERR, "usage: sysinfo [-p] [-l picture]");
 			return 2;
 		}
 	}
@@ -353,25 +420,21 @@ int m_sysinfo(sh *s, int ac, char **av)
 		}
 	}
 
-	logo = si_logo(id.p);
+	logo = si_logo(want ? want : id.p);
 	for (n = 0; logo[n]; n++)
 		;
 	wide = 0;
 	for (k = 0; k < n; k++)
-		if (strlen(logo[k]) > wide)
-			wide = strlen(logo[k]);
+		if (si_width(logo[k]) > wide)
+			wide = si_width(logo[k]);
 	for (k = 0; k < n || k < rows.n; k++) {
 		size_t pad = wide;
 		u.n = 0;
 		if (u.p)
 			u.p[0] = 0;
 		if (k < n) {
-			if (tty)
-				s_cat(&u, "\033[38;5;110m");
-			s_cat(&u, logo[k]);
-			if (tty)
-				s_cat(&u, "\033[0m");
-			pad = wide - strlen(logo[k]);
+			si_art(&u, logo[k], tty);
+			pad = wide - si_width(logo[k]);
 		}
 		while (pad--)
 			s_ch(&u, ' ');

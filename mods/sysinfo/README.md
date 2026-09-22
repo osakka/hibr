@@ -27,6 +27,17 @@ quietly go stale.
 
 ## Pictures
 
-There are three: Debian, Alpine, and hibr's own, which is the fallback for
-everything else. Adding one is a table entry and an array of lines; they are
-padded to the widest line at draw time, so they need not be a rectangle.
+Four: Debian, Alpine, CIX, and hibr's own, which is the fallback for anything
+else. `-l name` picks one by hand, which is also how they are tested on a
+machine that is only ever one distribution.
+
+A picture is an array of lines, padded to the widest at draw time, so it need
+not be a rectangle. Two tones are available: a line may contain `\001` and
+`\002` to switch between them, which is the same idea as neofetch's `$1` and
+`$2` and lets a logo have an inner shape in a second colour. The marks take no
+columns and never reach the output — a picture with none is drawn entirely in
+the first tone, which is what the older ones expect.
+
+Width is counted in **columns, not bytes**: these are block-drawing glyphs at
+three bytes each, so measuring with `strlen` would pad every line to a third of
+where it should be and leave the text column ragged.
