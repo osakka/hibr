@@ -53,6 +53,7 @@ Every divergence has a record. The short version:
 | [One namespace for options](adr/0017-one-namespace-for-options.md) | `set -o` and `shopt` are the same table, and extended patterns need no switch |
 | [A coprocess is an endpoint](adr/0018-a-coprocess-is-an-endpoint.md) | spoken to with the same verbs as a socket |
 | [The display assumes an xterm](adr/0019-the-console-display-assumes-xterm.md) | no terminfo, no ncurses, and what that costs |
+| [Windows are painted, not composited](adr/0020-windows-are-drawn-not-composited.md) | and an app is a hibr file that says what it needs |
 | [Privileges only go one way](adr/0016-privileges-are-dropped-never-gained.md) | `drop` gives up root; hibr is never setuid |
 
 ## Reading these pages in a browser

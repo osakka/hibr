@@ -1,0 +1,14 @@
+0
+start with nothing: 0
+need display rc=0
+now loaded: 1
+1
+again rc=0 loaded=1
+two interfaces rc=0 loaded=2
+a module by name rc=0 loaded=3
+unmet rc=1
+one unmet in a list rc=1
+no arguments rc=2
+app rc=0 name=[calc] desc=[A calculator]
+app with no name rc=2
+dropped

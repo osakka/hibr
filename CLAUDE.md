@@ -296,6 +296,11 @@ were each run and their real output pasted back; keep it that way.
 - **A descriptor lives inside the object, so read it before dlclose.**
   `mod drop all` logged `m->m->nm` after unmapping the module and segfaulted.
   Take a copy of anything needed from the descriptor first.
+- **A script says what it needs; a module says what it offers.** `need <name>`
+  is `hibr_require` with a status instead of a pointer, so a script can reach
+  the autoloader too. It does not check the version -- present is enough, and
+  asking `m_offered` for version 0 makes it complain about a mismatch nobody
+  asked about. One registry resolves both directions.
 - **A module declares the interface it offers, so it can be found unloaded.**
   `hibr_require` walks the module path when nothing has offered what was asked
   for, reads each descriptor's `prov` without calling its init, and loads the

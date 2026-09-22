@@ -527,6 +527,44 @@ void *hibr_require(sh *s, const char *nm, unsigned ver)
 	return 0;
 }
 
+/* Make an interface available: already offered, or found on the module path,
+   or -- failing both -- the name of a module to load outright. This is what
+   hibr_require does, with a status instead of a pointer, so a script can ask
+   for what it needs the same way a module does. */
+int m_need(sh *s, const char *nm)
+{
+	const char *mp;
+	size_t i;
+
+	if (!nm || !*nm)
+		return HIBR_FAIL;
+	/* Present is enough; the version is the caller's business, and asking
+	   m_offered here would complain about a mismatch nobody asked about. */
+	for (i = 0; i < s->apis.n; i++)
+		if (!strcmp(((struct api *)s->apis.p[i])->nm, nm))
+			return HIBR_OK;
+	mp = geteuid() == 0 ? 0 : hibr_get(s, "HIBR_MODPATH");
+	if (geteuid() != 0 && m_seek(s, ".", nm))
+		return HIBR_OK;
+	while (mp && *mp) {
+		const char *e = strchr(mp, ':');
+		size_t n = e ? (size_t)(e - mp) : strlen(mp);
+		if (n) {
+			char *d = ar_dup(s->xa, mp, n);
+			if (m_seek(s, d, nm))
+				return HIBR_OK;
+		}
+		mp = e ? e + 1 : mp + n;
+	}
+	if (m_seek(s, HIBR_MODDIR, nm))
+		return HIBR_OK;
+	/* Not an interface anyone offers; it may simply be a module. */
+	for (i = 0; i < s->mods.n; i++)
+		if (!strcmp(((mod *)s->mods.p[i])->m->nm, nm))
+			return HIBR_OK;
+	return m_load(s, nm);
+}
+
 /* Withdraw an offer, which a module must do before it is unloaded. */
 int hibr_unprovide(sh *s, const char *nm)
 {

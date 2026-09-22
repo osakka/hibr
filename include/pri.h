@@ -145,6 +145,7 @@ int m_cmp(const void *a, const void *b);
 void m_scan(sh *s, const char *dir, vec *seen);
 void m_avail(sh *s);
 void m_apifree(sh *s);
+int m_need(sh *s, const char *nm);
 void *m_offered(sh *s, const char *nm, unsigned ver, int *wrong);
 int m_declares(const char *path, const char *iface);
 int m_seek(sh *s, const char *dir, const char *iface);
@@ -264,6 +265,8 @@ void m_fini(sh *s);
 void m_help(sh *s);
 
 int b_src(sh *s, int ac, char **av);
+int b_need(sh *s, int ac, char **av);
+int b_app(sh *s, int ac, char **av);
 char *rdline(FILE *f);
 int ed_init(sh *s);
 int ed_cols(void);

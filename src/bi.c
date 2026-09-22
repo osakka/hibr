@@ -1012,6 +1012,41 @@ int b_mod(sh *s, int ac, char **av)
 	return HIBR_FAIL;
 }
 
+/* Say what this script cannot run without. Each name is an interface some
+   module offers, or a module; the first that cannot be found stops the
+   script's dependencies from being met and says which one. */
+int b_need(sh *s, int ac, char **av)
+{
+	int i;
+
+	if (ac < 2) {
+		lg(HIBR_LERR, "usage: need name...");
+		return 2;
+	}
+	for (i = 1; i < ac; i++) {
+		if (m_need(s, av[i]) == HIBR_OK) {
+			lg(HIBR_LDBG, "need %s: met", av[i]);
+			continue;
+		}
+		lg(HIBR_LERR, "need: %s: nothing offers it", av[i]);
+		return HIBR_FAIL;
+	}
+	return HIBR_OK;
+}
+
+/* Name this script to whatever is running it, and say what it is for. */
+int b_app(sh *s, int ac, char **av)
+{
+	if (ac < 2) {
+		lg(HIBR_LERR, "usage: app name [description]");
+		return 2;
+	}
+	hibr_set(s, "APP_NAME", av[1], 0);
+	hibr_set(s, "APP_DESC", ac > 2 ? av[2] : "", 0);
+	lg(HIBR_LDBG, "app %s declared", av[1]);
+	return HIBR_OK;
+}
+
 /* Print one variable the way declare would state it. */
 void b_decl1(sh *s, var *v)
 {
@@ -1405,6 +1440,7 @@ const hibr_bi bitab[] = {
 	{ "[", b_test, "evaluate a conditional expression" },
 	{ "accept", b_accept, "wait for one connection" },
 	{ "alias", b_alias, "define or list aliases" },
+	{ "app", b_app, "name this script as an app, for whatever runs it" },
 	{ "args", b_args, "parse arguments against declared options" },
 	{ "arr", b_arr, "array operations" },
 	{ "bg", b_bg, "resume a stopped job in the background" },
@@ -1439,6 +1475,7 @@ const hibr_bi bitab[] = {
 	{ "mapfile", b_mapfile, "read lines into an array" },
 	{ "match", b_match, "match a regex and peel out the groups" },
 	{ "mod", b_mod, "load, drop or list modules" },
+	{ "need", b_need, "make an interface or module available, or fail" },
 	{ "opt", b_opt, "declare an option for args" },
 	{ "popd", b_popd, "pop the directory stack" },
 	{ "printf", b_printf, "write formatted output" },
