@@ -1756,45 +1756,67 @@ void ax_err(struct ax *a, const char *m)
 	a->bad = 1;
 }
 
-/* Read a[...] inside arithmetic, giving the element's value. */
-long ax_elem(struct ax *a, const char *nm)
-{
-	const char *b, *e;
-	const char *t;
-	char *ks[1];
-	str k;
-	long v = 0;
-	int d = 1;
-
-	a->p++;
-	b = a->p;
-	for (e = b; *e && d; e++) {
-		if (*e == '[')
-			d++;
-		else if (*e == ']' && !--d)
-			break;
-	}
-	if (!*e) {
-		ax_err(a, "expected ] after subscript");
-		return 0;
-	}
-	s_init(&k);
-	s_add(&k, b, (size_t)(e - b));
-	a->p = e + 1;
-	ks[0] = xkey(a->s, k.p ? k.p : "");
-	t = hibr_getp(a->s, nm, ks, 1);
-	if (t && *t)
-		v = strtol(t, 0, 0);
-	lg(HIBR_LTRC, "arithmetic read %s[%s] as %ld", nm, k.p ? k.p : "", v);
-	s_free(&k);
-	return v;
-}
 
 /* Read a variable's numeric value. */
+/* Drop the quotes from a subscript, marking what they made literal.
+   Arithmetic sees the quote characters as ordinary text, so without this
+   a["k"] would look for a key spelt with its quotes still on. */
+char *ax_unq(struct ax *a, const char *nm, char **mk)
+{
+	size_t n = strlen(nm), i, j = 0;
+	char *w = ar_alloc(a->s->xa, n + 1);
+	char *m = ar_alloc(a->s->xa, n + 1);
+	int q = 0;
+
+	for (i = 0; i < n; i++) {
+		if (!q && (nm[i] == '"' || nm[i] == '\'')) {
+			q = nm[i];
+			continue;
+		}
+		if (q && nm[i] == q) {
+			q = 0;
+			continue;
+		}
+		m[j] = q ? 1 : 0;
+		w[j++] = nm[i];
+	}
+	w[j] = 0;
+	m[j] = 0;
+	*mk = m;
+	return w;
+}
+
+/* Split name[i][j]... the one way everything else splits it. */
+int ax_path(struct ax *a, const char *nm, char **base, vec *ks)
+{
+	char *w, *mk = 0;
+
+	if (!strchr(nm, '['))
+		return 0;
+	if (strpbrk(nm, "\"'"))
+		w = ax_unq(a, nm, &mk);
+	else
+		w = ar_dup(a->s->xa, nm, strlen(nm));
+	bi_keys(a->s, w, mk, ks);
+	*base = w;
+	return 1;
+}
+
 long ax_get(struct ax *a, const char *nm)
 {
-	const char *t = nm[1] ? hibr_get(a->s, nm) : xval(a->s, nm);
+	const char *t;
+	char *base;
+	vec *ks;
 
+	ks = vb_get(a->s);
+	if (ax_path(a, nm, &base, ks)) {
+		t = hibr_getp(a->s, base, (char **)ks->p, (int)ks->n);
+		vb_put(a->s, ks);
+		lg(HIBR_LTRC, "arithmetic read %s as '%s'", nm, t ? t : "");
+		return t && *t ? strtol(t, 0, 0) : 0;
+	}
+	vb_put(a->s, ks);
+	t = nm[1] ? hibr_get(a->s, nm) : xval(a->s, nm);
 	if (!t && nm[1])
 		t = xval(a->s, nm);
 	return t && *t ? strtol(t, 0, 0) : 0;
@@ -1803,8 +1825,20 @@ long ax_get(struct ax *a, const char *nm)
 /* Store a numeric value, unless this branch is not being evaluated. */
 void ax_set(struct ax *a, const char *nm, long v)
 {
+	char *base;
+	vec *ks;
+
 	if (a->skip || a->bad)
 		return;
+	ks = vb_get(a->s);
+	if (ax_path(a, nm, &base, ks)) {
+		hibr_setp(a->s, base, (char **)ks->p, (int)ks->n,
+			  xnum(a->s, v));
+		vb_put(a->s, ks);
+		lg(HIBR_LTRC, "arithmetic wrote %s as %ld", nm, v);
+		return;
+	}
+	vb_put(a->s, ks);
 	hibr_set(a->s, nm, xnum(a->s, v), 0);
 }
 
@@ -1812,11 +1846,24 @@ void ax_set(struct ax *a, const char *nm, long v)
 int ax_name(struct ax *a, str *nm)
 {
 	const char *b = a->p;
+	int d;
 
 	if (!(isalpha((unsigned char)*a->p) || *a->p == '_'))
 		return 0;
 	while (isalnum((unsigned char)*a->p) || *a->p == '_')
 		a->p++;
+	while (*a->p == '[') {
+		for (d = 1, a->p++; *a->p && d; a->p++) {
+			if (*a->p == '[')
+				d++;
+			else if (*a->p == ']')
+				d--;
+		}
+		if (d) {
+			ax_err(a, "expected ] after subscript");
+			return 0;
+		}
+	}
 	s_add(nm, b, (size_t)(a->p - b));
 	return 1;
 }
@@ -1892,11 +1939,6 @@ long ax_prim(struct ax *a)
 	}
 	s_init(&nm);
 	if (ax_name(a, &nm)) {
-		if (*a->p == '[') {
-			v = ax_elem(a, nm.p);
-			s_free(&nm);
-			return v;
-		}
 		v = ax_get(a, nm.p);
 		ax_ws(a);
 		if ((a->p[0] == '+' && a->p[1] == '+') ||

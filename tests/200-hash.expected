@@ -12,3 +12,10 @@ sparse: one two three six keys=0 1 2 5 count=4
 arith subscript: three
 deep: bottom levels=1
 after unset: [] count=0
+--- arithmetic reaches a nested subscript
+read 16
+wrote 99
+plus 13
+byvar 10
+missing 7
+let-quoted 55

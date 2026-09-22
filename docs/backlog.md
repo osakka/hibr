@@ -64,6 +64,41 @@ the pty line editor and the test suite are untested rather than known broken.
 
 ## Wanted
 
+### A desktop on the console — the first three steps built
+
+Draggable, closable, minimisable windows on a text terminal, with apps
+written as hibr functions. [Decision 0020](adr/0020-windows-are-drawn-not-composited.md)
+records the design and the build order; [the guide](desktop.md) is how to use
+it.
+
+Built: stacking and hit testing in the console (`console pane raise|lower|drop|list`
+and `console hit row col`), the window manager itself
+(`examples/desktop.hibr`, a script), a session that opens three windows on it
+(`examples/desktop-session.hibr`), and 34 tests driving both through a pty.
+Dragging, focus, minimise, zoom, close, tab cycling, and keys and clicks
+reaching the focused app all work.
+
+Left, in the order the decision record sets out: a calculator and a file
+browser, to prove scrolling inside a window and mouse events reaching content
+rather than only the frame; a control panel; and last and largest, a terminal
+emulator module so a hibr can run inside a hibr window.
+
+Not planned: transparency, sub-cell placement, or a widget toolkit before
+three apps have wanted the same widget.
+
+### Arithmetic and quoted subscripts
+
+`$(( m["key"] ))` cannot work: the argument to `$(( ))` and `(( ))` is
+expanded with quote removal before the evaluator sees it, so the quotes are
+gone and the subscript is evaluated. `let 'm["key"] = 1'` does work, because
+its argument is a string the shell never unquotes.
+
+Fixing it means carrying a quote mask alongside the arithmetic text the way
+words already carry one — `xone_q` exists, and `struct ax` would need the mask
+plus each name's offset into the original. It is tractable and it is not
+small. Until then the workaround is one line: read the field into a variable
+and use that.
+
 ### A visual traceroute with a world map — built
 
 `mods/trace` plus `examples/traceroute.hibr`. The three things that looked hard

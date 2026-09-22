@@ -1,0 +1,77 @@
+#!/usr/bin/env hibr
+#
+# A desktop session -- the third of the three layers in docs/adr/0020.
+#
+# The console module is the display server, desktop.hibr is the window
+# manager, and this file is the part you own: it says which windows open and
+# where, the way ~/.xinitrc does.  Copy it, change it, it is yours.
+#
+#     ./build/hibr examples/desktop-session.hibr
+#
+# Drag a title bar to move a window, click _ to minimise, □ to fill the
+# screen, x to close.  Tab cycles.  q quits.
+
+. "${0%/*}/desktop.hibr"
+
+# A clock.  An app is a *prefix*: it provides any of <name>_draw, <name>_key,
+# <name>_click, <name>_open and <name>_close, and the window manager calls
+# only the ones that exist.  This one draws and nothing else, so it can never
+# take a key that was meant for another window.
+clock_draw() {
+	local now
+
+	printf -v now "%(%H:%M:%S)T" -1
+	console pen "#68d391" "$DT_FACE" bold
+	console put -p "w$1" 2 4 "$now"
+	console pen "$DT_INK" "$DT_FACE"
+	printf -v now "%(%A %d %B)T" -1
+	console put -p "w$1" 4 2 "$now"
+}
+
+# A counter, to show keys and clicks reaching the focused window.  A key
+# handler returns non-zero for a key it does not want, which is how q still
+# quits while this window has focus.
+counter_open() {
+	CT=0
+}
+
+counter_draw() {
+	console put -p "w$1" 1 2 "+ and - change it, r resets"
+	console pen "#63b3ed" "$DT_FACE" bold
+	console put -p "w$1" 3 2 "    $CT"
+	console pen "$DT_INK" "$DT_FACE"
+	console put -p "w$1" 5 2 "click in here"
+}
+
+counter_key() {
+	case $2 in
+	+) CT=$((CT + 1)) ;;
+	-) CT=$((CT - 1)) ;;
+	r) CT=0 ;;
+	*) return 1 ;;
+	esac
+}
+
+counter_click() {
+	CT=$(($2 * 100 + $3))
+}
+
+# Some text, to show a window that is only a window.
+readme_draw() {
+	console put -p "w$1" 1 2 "Three layers, and none of them"
+	console put -p "w$1" 2 2 "is new C:"
+	console pen "#f6ad55" "$DT_FACE"
+	console put -p "w$1" 4 3 "console   the display"
+	console put -p "w$1" 5 3 "desktop   the window manager"
+	console put -p "w$1" 6 3 "this      the session"
+	console pen "$DT_INK" "$DT_FACE"
+	console put -p "w$1" 8 2 "Drag me. Then press q."
+}
+
+dt_open || exit 1
+dt_new "Read me"  11 36  3  4 readme
+dt_new "Counter"   8 34 10 22 counter
+dt_new "Clock"     7 24  5 48 clock
+DT_TICK=200
+dt_run
+dt_close

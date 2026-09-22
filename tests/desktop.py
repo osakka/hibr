@@ -9,7 +9,7 @@ The Screen class below is just enough of a terminal to answer "what is at row
 r, column c" -- absolute cursor moves and printable text.  That is all the
 console ever emits.
 """
-import fcntl, os, pty, re, select, struct, sys, termios, time
+import fcntl, os, pty, re, select, signal, struct, sys, termios, time
 
 HIBR = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else "./build/hibr")
 MOD = os.path.abspath("./build/mods/console.so")
@@ -116,14 +116,21 @@ def run(session, feed=(), wait=1.2):
         os.close(fd)
     except OSError:
         pass
+    quit = False
     try:
-        os.waitpid(pid, 0)
+        quit = os.waitpid(pid, os.WNOHANG)[0] == pid
     except ChildProcessError:
-        pass
+        quit = True
+    if not quit:
+        try:
+            os.kill(pid, signal.SIGKILL)
+            os.waitpid(pid, 0)
+        except (ProcessLookupError, ChildProcessError):
+            pass
     os.unlink(path)
-    text = out.decode("utf8", "replace")
     sc = Screen()
-    sc.feed(text)
+    sc.feed(out.decode("utf8", "replace"))
+    sc.quit = quit
     return sc, out
 
 
@@ -145,7 +152,8 @@ check("and a bottom-right corner at its far end",
 check("its title is in the title bar", sc.find("┤ Hello ├") == (6, 12), sc)
 check("the close button is at the right of the bar", sc.g[6][37] == "x", sc)
 check("the minimise and zoom buttons sit beside it",
-      sc.g[6][33] == "_" and sc.g[6][35] == "□", sc)
+      sc.g[6][32] == "┤" and sc.g[6][33] == "_" and
+      sc.g[6][35] == "□" and sc.g[6][38] == "├", sc)
 check("the wallpaper is drawn behind it", sc.g[12][2] == "·", sc)
 check("the bar across the top counts the windows",
       "1 window(s)" in sc.row(0), sc)
@@ -159,7 +167,7 @@ check("dragging the title bar moves the window",
 check("the window is drawn whole at its new place",
       sc.g[9][14] == "┌" and sc.g[16][43] == "┘", sc)
 check("and nothing of it is left behind",
-      sc.g[6][10] == "·" and sc.g[13][39] == "·", sc)
+      sc.g[6][10] == "·" and sc.g[8][39] == "·" and sc.g[13][12] == "·", sc)
 
 sc, _ = run(ONE, [press(6, 20), drag(0, 0), release(0, 0)])
 check("a window cannot be dragged up over the bar",
@@ -180,7 +188,7 @@ check("minimising takes the window off the screen",
 sc, _ = run(ONE, [press(6, 35)])
 check("zooming fills the screen below the bar",
       sc.g[1][0] == "┌" and sc.g[23][79] == "┘", sc)
-sc, _ = run(ONE, [press(6, 35), press(1, 35)])
+sc, _ = run(ONE, [press(6, 35), press(1, 75)])
 check("and zooming again puts it back where it was",
       sc.g[6][10] == "┌" and sc.g[13][39] == "┘", sc)
 
@@ -189,46 +197,69 @@ TWO = ('dt_new "Under" 8 30 6 10\n'
 
 sc, _ = run(TWO)
 check("two windows overlap, the newer one on top",
-      sc.find("┤ Over ├") == (9, 22) and sc.g[9][25] == "─", sc)
-check("the one below is clipped by it", sc.g[9][10] == "│" and
-      sc.g[9][19] == " " and sc.g[10][20] == " ", sc)
+      sc.find("┤ Over ├") == (9, 22) and sc.g[9][20] == "┌", sc)
+check("so the one below loses its right edge where they meet",
+      sc.g[8][39] == "│" and sc.g[9][39] == "─", sc)
+check("but keeps the edges the top one does not cover",
+      sc.g[10][10] == "│" and sc.g[10][19] == " " and
+      sc.g[10][20] == "│", sc)
 check("the bar counts both", "2 window(s)" in sc.row(0), sc)
 
 sc, _ = run(TWO, [press(6, 12)])
 check("clicking the lower window raises it",
-      sc.g[9][22] == "│" and sc.g[13][25] == "─", sc)
-check("and the title bars show which one has focus",
-      sc.find("┤ Under ├") == (6, 12), sc)
+      sc.g[9][39] == "│" and sc.g[13][25] == "─", sc)
+check("and the one that was on top is now clipped",
+      sc.g[9][20] == " " and sc.g[9][40] == "─", sc)
+check("the raised window is whole again", sc.find("┤ Under ├") == (6, 12) and
+      sc.g[6][10] == "┌" and sc.g[13][39] == "┘", sc)
+
+sc, _ = run(TWO, [b"\t"])
+check("tab raises the window at the bottom of the stack",
+      sc.g[9][39] == "│" and sc.g[13][25] == "─", sc)
+sc, _ = run(TWO, [b"\t", b"\t"])
+check("and tab again brings the other one back",
+      sc.g[9][20] == "┌" and sc.g[9][39] == "─", sc)
 
 sc, _ = run(TWO, [press(6, 12), press(6, 37)])
 check("closing the raised window leaves the other",
       sc.find("Under") is None and sc.find("┤ Over ├") == (9, 22), sc)
 
-APP = ('counter() {\n'
-       '  case $1 in\n'
-       '  draw) console put -p "w$2" 2 3 "count $CN" ;;\n'
-       '  key) [ "$3" = plus ] && CN=$((CN+1)) && return 0; return 1 ;;\n'
-       '  click) CN=$(($3 * 100 + $4)) ;;\n'
-       '  open) CN=0 ;;\n'
-       '  esac\n'
-       '}\n'
+APP = ('counter_open()  { CN=0; }\n'
+       'counter_draw()  { console put -p "w$1" 2 3 "count $CN"; }\n'
+       'counter_key()   { [ "$2" = + ] && CN=$((CN+1)) && return 0; return 1; }\n'
+       'counter_click() { CN=$(($2 * 100 + $3)); }\n'
+       'counter_close() { echo "CLOSED" > /tmp/hibr-dt-closed; }\n'
        'dt_new "App" 8 30 6 10 counter\n')
 
 sc, _ = run(APP)
-check("an app draws inside its own window", sc.find("count 0") == (8, 14), sc)
+check("an app draws inside its own window", sc.find("count 0") == (8, 13), sc)
 
 sc, _ = run(APP, [b"\x1b[15~"])
 check("a key the app refuses does not reach it", sc.find("count 0"), sc)
 
 sc, _ = run(APP, [press(9, 16)])
 check("a click in the body reaches the app in its own coordinates",
-      sc.find("count 205") == (8, 14), sc)
+      sc.find("count 205") == (8, 13), sc)
 
+try:
+    os.unlink("/tmp/hibr-dt-closed")
+except OSError:
+    pass
 sc, _ = run(APP, [press(6, 37)])
 check("closing an app's window closes the app",
-      sc.find("count") is None, sc)
+      sc.find("count") is None and os.path.exists("/tmp/hibr-dt-closed"), sc)
+
+sc, _ = run(APP, [b"+", b"+"])
+check("a key the app wants reaches it", sc.find("count 2") == (8, 13), sc)
+
+QUIET = ('quiet_draw() { console put -p "w$1" 1 2 "no keys here"; }\n'
+         'dt_new "Quiet" 6 24 4 6 quiet\n')
+sc, raw = run(QUIET)
+check("an app with no key handler cannot swallow one",
+      sc.quit and b"\x1b[?1049l" in raw and
+      sc.find("no keys here") == (5, 8), sc)
 
 print()
-n = 29
+n = 34
 print("%d passed, %d failed" % (n - len(FAIL), len(FAIL)))
 sys.exit(1 if FAIL else 0)

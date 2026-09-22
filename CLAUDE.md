@@ -28,9 +28,10 @@ Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 13).
     make install         # PREFIX=/usr/local, modules to $(PREFIX)/lib/hibr
     ./build/hibr -n script      # parse only
 
-    tests/run.sh [-v] [prefix]           # C-side harness, 74 tests
+    tests/run.sh [-v] [prefix]           # C-side harness, 75 tests
     ./build/hibr tests/self.hibr                 # suite in hibr, 91 assertions, planned
     python3 tests/editor.py                      # the line editor, through a pty
+    python3 tests/desktop.py                     # the window manager, through a pty
     python3 tests/console.py                     # the console display, through a pty
     python3 tests/cat.py                         # the cat module, through a pty
     python3 tests/most.py                        # the pager, through a pty
@@ -101,6 +102,7 @@ linked, and no OpenSSL headers are needed to build.
 | `src/args.c` | `opt`/`args` declared CLI parsing, `title` |
 | `src/mod.c` | module loading |
 | `mods/*.c` | reference modules: `sys`, `http` (scheme), `ls` |
+| `examples/desktop.hibr` | the window manager, in hibr — see `docs/desktop.md` |
 | `mods/prompt/` | the prompt module, including a native reader for git's object store — see `mods/README.md` for the file-by-file breakdown |
 | `mods/console/` | the text display: alternate screen, cell grid with damage-based redraw, panes, decoded keys — see `mods/console/README.md` |
 | `mods/display.h` | the interface a display backend offers; `console` is the only one so far |
@@ -517,6 +519,30 @@ went in the shell.
 - **`sh -c cmd name args...` names `$0` with the first operand**, not with the
   shell. hibr used to make it `$1`, so every argument was off by one and `$#`
   one too many. bash and dash agree with each other here; hibr was alone.
+- **A bare subscript is evaluated; quote the ones that are names.**
+  `DT[$id][row]` does not read the key `row` when a variable called `row` holds
+  a number — the rule is "bare name = its value if numeric, else literal", so
+  it silently reads `DT[$id][6]`. Every named field in a map is written
+  `${DT[$id]["row"]}`. This cost an afternoon in the window manager, where
+  `local row=$3` is the obvious name for a mouse row.
+- **Arithmetic never sees the quotes.** `$(( ))` and `(( ))` have their
+  argument expanded with quote removal before the evaluator runs, so
+  `$(( DT[$id]["col"] ))` looks for the key `col`, evaluated, and the trick
+  above does not work there. Read the field into a local first. `let` is the
+  exception, because its argument is a string the shell never unquotes, and
+  `ax_unq` strips the quotes for it.
+- **Arithmetic reaches subscripts through `bi_keys`, like everything else.**
+  `ax_name` swallows the whole `name[i][j]` chain into the name, and `ax_get`
+  and `ax_set` split it with the same helper `unset` and `read` use. That is
+  what made `$(( a[i] + 1 ))` reach a nested map and `(( a[0] = 42 ))` work at
+  all — bash has both and hibr had neither. Do not add a second splitter.
+- **An app is a prefix, not a command.** The window manager calls
+  `<app>_draw`, `<app>_key`, `<app>_click`, `<app>_open` and `<app>_close`,
+  asking `command -v` once which exist. One function answering a verb was
+  tried first and every app swallowed every key, because a `case` that matches
+  nothing succeeds and a successful `key` means "handled" — so `q` stopped
+  quitting whenever a clock had focus. A prefix makes that impossible rather
+  than merely documented.
 - **Lengths and slices count characters.** `${#s}`, `${s:i:n}`, `str len`,
   `str slice` and `str index` all count characters; `str pad` and `str width`
   count *display columns*, because padding exists to line columns up and `漢`

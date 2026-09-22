@@ -73,9 +73,22 @@ what it offers:
 need display                    # or this line fails, with a status
 app clock "An analogue clock"
 
-draw() { console put -p "$win" 0 0 "..." }
-key()  { ... }
+clock_draw()  { console put -p "w$1" 0 0 "..." }
+clock_key()   { case $2 in ...) ;; *) return 1 ;; esac }
 ```
+
+**The app name is a prefix, not a command.** An app called `clock` provides
+any of `clock_draw`, `clock_key`, `clock_click`, `clock_open` and
+`clock_close`, and the window manager asks once, with `command -v`, which of
+them exist and calls only those.
+
+That is not cosmetic. The first version had one function answering a verb —
+`clock draw`, `clock key` — and an app that only drew still swallowed every
+key sent to it, because a `case` that matches nothing succeeds, and a
+successful `key` means "handled". The symptom was that `q` stopped quitting
+while a clock had focus. With a prefix, an app that has not written a key
+handler cannot take a key, by construction rather than by remembering to add
+a `*) return 1 ;;` arm to something it never thought about.
 
 `need <name>` does for a script what `hibr_require` does for a module: if
 something loaded already offers the interface, succeed; otherwise walk the
@@ -88,6 +101,10 @@ drawing.
 
 **That symmetry is the design**: a module declares `prov`, a script declares
 `need`, and the shell resolves both through one registry.
+
+An app that *does* handle keys still returns non-zero for the ones it does not
+want, and that arm sits inside its own `<name>_key`, which is where someone
+writing a key handler is already thinking about it.
 
 `app` is a declaration and nothing else — it sets `APP_NAME` and `APP_DESC`
 and returns. So a file with an `app` line still runs on its own, taking the
@@ -176,14 +193,15 @@ Each step is usable before the next one starts.
 
 0. **`need` and `app`.** *Done.* The app contract, and useful today in any
    script that depends on a module being there.
-1. **Stacking and hit testing in the console.** Ten lines of C. Everything
-   after this is script.
-2. **One window that can be dragged and closed.** Not a clock — a plain
-   window, so that the event loop, the drag and the back-to-front redraw are
-   the only things being judged. If dragging does not feel right here, nothing
-   built on it will.
-3. **Two windows, focus, and minimise.** Now the stacking order earns its
-   keep.
+1. **Stacking and hit testing in the console.** *Done.* `console pane raise`,
+   `lower`, `drop` and `list`, and `console hit row col`. Sixty lines of C,
+   and everything after this is script.
+2. **One window that can be dragged and closed.** *Done.* `examples/desktop.hibr`
+   is the window manager; `examples/desktop-session.hibr` is a session that
+   opens three windows on it. `tests/desktop.py` drives both through a pty and
+   reads the screen back.
+3. **Two windows, focus, and minimise.** *Done*, with zoom as well, since it
+   was the same four lines.
 4. **Calculator and file browser.** The calculator proves keys reaching a
    focused window; the file browser proves scrolling *inside* a window and
    mouse events reaching content rather than only the frame.
