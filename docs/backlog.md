@@ -104,19 +104,23 @@ Two small extras that would be worth having: a `--demo` route exists so the map
 can be seen working when a real path's routers happen to be anonymous, and the
 six-letter backbone codes (`londen`, `frnkge`) are only partly covered.
 
-### A screen layer — built
+### A display layer — built
 
-`mods/screen` now exists, so the vi, the most and the monitor are no longer
-blocked on it. It owns the terminal: alternate screen, a cell grid with two
+`mods/console` now exists, so the vi, the most and the monitor are no longer
+blocked on it. It was called `screen` until that turned out to shadow
+`/usr/bin/screen` — a module's builtins become commands — and it is the
+*console*, a text display. What it offers other modules is the **display**
+interface in `mods/display.h`, which a framebuffer or SDL backend could offer
+equally well without the tools noticing. It owns the terminal: alternate screen, a cell grid with two
 buffers and a redraw that emits only the difference, panes, colour, and keys
 decoded into names. 2095 bytes to paint an empty eighty by twenty-four screen,
 8 bytes to change one character on it, and nothing at all for a flush with
 nothing new.
 
 What it deliberately does not do is in
-[0019](adr/0019-the-screen-layer-assumes-xterm.md): no terminfo, no ncurses.
-The guide is [full-screen programs](screen.md), the demo is
-`examples/screen-demo.hibr`.
+[0019](adr/0019-the-console-display-assumes-xterm.md): no terminfo, no ncurses.
+The guide is [full-screen programs](display.md), the demo is
+`examples/console-demo.hibr`.
 
 Not there yet, and worth adding when something needs it: a scrolling region,
 so a pager can move a screenful without repainting it; and z-ordering for
@@ -142,7 +146,7 @@ What it needs:
   is worse than the thing it replaces. This is the argument for doing it here
   rather than in a script.
 
-The screen layer above is built, so this is now reading `/proc` and drawing.
+The display layer above is built, so this is now reading `/proc` and drawing.
 
 ### A vi
 
@@ -210,7 +214,7 @@ keeping.
 
 **Paging.** A `cat` that pages is half a `most`. When the `most` below exists
 this can hand off to it; building a second pager inside a `cat` is the
-duplication the screen layer was created to avoid.
+duplication the display layer was created to avoid.
 
 **The git gutter, which this entry promised and the architecture cannot yet
 deliver.** hibr does read git's object store natively — but that code lives in
@@ -234,9 +238,9 @@ be part of `prompt.so` or do without.
 
 ### A shared pty test harness
 
-`tests/editor.py`, `tests/screen.py` and `tests/cat.py` each carry their own
+`tests/editor.py`, `tests/console.py`, `tests/cat.py` and `tests/most.py` each carry their own
 twenty-five lines of `pty.fork` boilerplate, because everything interesting
-about a terminal is invisible to `run.sh`. Three copies is one too many. A
+about a terminal is invisible to `run.sh`. Four copies is three too many. A
 shared `tests/ptyrun.py` would fix it — and must not be called `pty.py` or
 `tty.py`, for the reason already recorded in `CLAUDE.md`.
 

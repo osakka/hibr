@@ -1,6 +1,6 @@
 #define _GNU_SOURCE
 
-#include "scr.h"
+#include "cn.h"
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,36 +8,36 @@
 #include <sys/select.h>
 #include <unistd.h>
 
-extern int scr_fd;
-extern int scr_on;
+extern int cn_fd;
+extern int cn_on;
 
-str scr_pend;
-int scr_pendo;
+str cn_pend;
+int cn_pendo;
 
 /* Drop the bytes already turned into keys, keeping the buffer small. */
-void scr_eat(size_t n)
+void cn_eat(size_t n)
 {
-	scr_pendo += (int)n;
-	if ((size_t)scr_pendo >= scr_pend.n) {
-		scr_pend.n = 0;
-		scr_pendo = 0;
-		if (scr_pend.p)
-			scr_pend.p[0] = 0;
+	cn_pendo += (int)n;
+	if ((size_t)cn_pendo >= cn_pend.n) {
+		cn_pend.n = 0;
+		cn_pendo = 0;
+		if (cn_pend.p)
+			cn_pend.p[0] = 0;
 	}
 }
 
 /* Wait for the terminal to have something to say. */
-int scr_wait(int ms)
+int cn_wait(int ms)
 {
 	fd_set r;
 	struct timeval tv;
 	int k;
 
 	FD_ZERO(&r);
-	FD_SET(scr_fd, &r);
+	FD_SET(cn_fd, &r);
 	tv.tv_sec = ms / 1000;
 	tv.tv_usec = (ms % 1000) * 1000;
-	k = select(scr_fd + 1, &r, 0, 0, ms < 0 ? 0 : &tv);
+	k = select(cn_fd + 1, &r, 0, 0, ms < 0 ? 0 : &tv);
 	if (k > 0)
 		return 1;
 	if (k == 0)
@@ -50,14 +50,14 @@ int scr_wait(int ms)
 }
 
 /* Read whatever is waiting onto the pending buffer. */
-int scr_rdfill(void)
+int cn_rdfill(void)
 {
 	char b[512];
 	ssize_t k;
 
-	k = read(scr_fd, b, sizeof b);
+	k = read(cn_fd, b, sizeof b);
 	if (k > 0) {
-		s_add(&scr_pend, b, (size_t)k);
+		s_add(&cn_pend, b, (size_t)k);
 		return 1;
 	}
 	if (k < 0 && (errno == EINTR || errno == EAGAIN))
@@ -66,7 +66,7 @@ int scr_rdfill(void)
 }
 
 /* Name the modifier bits xterm packs into a CSI parameter. */
-void scr_mods(str *o, int m)
+void cn_mods(str *o, int m)
 {
 	int b = m > 0 ? m - 1 : 0;
 
@@ -79,7 +79,7 @@ void scr_mods(str *o, int m)
 }
 
 /* The name of a tilde-terminated CSI key, or null. */
-const char *scr_tilde(int n)
+const char *cn_tilde(int n)
 {
 	switch (n) {
 	case 1:
@@ -125,7 +125,7 @@ const char *scr_tilde(int n)
 }
 
 /* The name of a letter-terminated CSI or SS3 key, or null. */
-const char *scr_final(char c)
+const char *cn_final(char c)
 {
 	switch (c) {
 	case 'A':
@@ -155,7 +155,7 @@ const char *scr_final(char c)
 }
 
 /* Name a control byte the way a key map would want to see it. */
-void scr_ctrl(str *o, unsigned char c)
+void cn_ctrl(str *o, unsigned char c)
 {
 	if (c == 9) {
 		s_cat(o, "tab");
@@ -175,7 +175,7 @@ void scr_ctrl(str *o, unsigned char c)
 }
 
 /* Decode one mouse report in SGR form. */
-int scr_mouse(const char *p, size_t n, str *o, size_t *used)
+int cn_mouse(const char *p, size_t n, str *o, size_t *used)
 {
 	int b = 0, x = 0, y = 0, i = 3, rel;
 
@@ -218,7 +218,7 @@ int scr_mouse(const char *p, size_t n, str *o, size_t *used)
 }
 
 /* Collect a bracketed paste up to its terminator. */
-int scr_paste(const char *p, size_t n, str *o, size_t *used)
+int cn_paste(const char *p, size_t n, str *o, size_t *used)
 {
 	size_t i;
 
@@ -233,7 +233,7 @@ int scr_paste(const char *p, size_t n, str *o, size_t *used)
 }
 
 /* Turn the front of the buffer into one key name; 0 means need more bytes. */
-int scr_dec(const char *p, size_t n, str *o, size_t *used, int last)
+int cn_dec(const char *p, size_t n, str *o, size_t *used, int last)
 {
 	unsigned cp;
 	int l, np = 0, par[4], i;
@@ -243,7 +243,7 @@ int scr_dec(const char *p, size_t n, str *o, size_t *used, int last)
 		return 0;
 	if ((unsigned char)p[0] != 27) {
 		if ((unsigned char)p[0] < 32 || (unsigned char)p[0] == 127) {
-			scr_ctrl(o, (unsigned char)p[0]);
+			cn_ctrl(o, (unsigned char)p[0]);
 			*used = 1;
 			return 1;
 		}
@@ -257,9 +257,9 @@ int scr_dec(const char *p, size_t n, str *o, size_t *used, int last)
 	if (n == 1)
 		return last ? (s_cat(o, "escape"), *used = 1, 1) : 0;
 	if (p[1] == '[' && n >= 3 && p[2] == '<')
-		return scr_mouse(p, n, o, used);
+		return cn_mouse(p, n, o, used);
 	if (p[1] == '[' && n >= 6 && !memcmp(p + 2, "200~", 4))
-		return scr_paste(p, n, o, used);
+		return cn_paste(p, n, o, used);
 	if (p[1] == 'O' || p[1] == '[') {
 		for (i = 0; i < 4; i++)
 			par[i] = 0;
@@ -285,10 +285,10 @@ int scr_dec(const char *p, size_t n, str *o, size_t *used, int last)
 			return 0;
 		np++;
 		if (p[i] == '~') {
-			nm = scr_tilde(par[0]);
+			nm = cn_tilde(par[0]);
 			if (!nm)
 				return -1;
-			scr_mods(o, np > 1 ? par[1] : 0);
+			cn_mods(o, np > 1 ? par[1] : 0);
 			s_cat(o, nm);
 			*used = (size_t)i + 1;
 			return 1;
@@ -298,17 +298,17 @@ int scr_dec(const char *p, size_t n, str *o, size_t *used, int last)
 			*used = (size_t)i + 1;
 			return 1;
 		}
-		nm = scr_final(p[i]);
+		nm = cn_final(p[i]);
 		if (!nm)
 			return -1;
-		scr_mods(o, np > 1 ? par[1] : 0);
+		cn_mods(o, np > 1 ? par[1] : 0);
 		s_cat(o, nm);
 		*used = (size_t)i + 1;
 		return 1;
 	}
 	s_cat(o, "alt-");
 	if ((unsigned char)p[1] < 32 || (unsigned char)p[1] == 127) {
-		scr_ctrl(o, (unsigned char)p[1]);
+		cn_ctrl(o, (unsigned char)p[1]);
 		*used = 2;
 		return 1;
 	}
@@ -321,50 +321,50 @@ int scr_dec(const char *p, size_t n, str *o, size_t *used, int last)
 }
 
 /* Read one key, waiting at most ms milliseconds; 0 means nothing arrived. */
-int scr_key(int ms, str *out)
+int cn_key(int ms, str *out)
 {
 	size_t used = 0;
 	int r, waited = 0;
 
-	if (!scr_on) {
+	if (!cn_on) {
 		lg(HIBR_LERR, "screen: not open");
 		return -1;
 	}
 	for (;;) {
-		if (scr_pend.n > (size_t)scr_pendo) {
-			r = scr_dec(scr_pend.p + scr_pendo,
-				   scr_pend.n - (size_t)scr_pendo, out, &used,
+		if (cn_pend.n > (size_t)cn_pendo) {
+			r = cn_dec(cn_pend.p + cn_pendo,
+				   cn_pend.n - (size_t)cn_pendo, out, &used,
 				   waited);
 			if (r == 1) {
-				scr_eat(used);
+				cn_eat(used);
 				return 1;
 			}
 			if (r < 0) {
 				lg(HIBR_LDBG, "screen: unknown sequence, "
 					      "skipping a byte");
-				scr_eat(1);
+				cn_eat(1);
 				out->n = 0;
 				if (out->p)
 					out->p[0] = 0;
 				continue;
 			}
-			r = scr_wait(waited ? 0 : 50);
+			r = cn_wait(waited ? 0 : 50);
 			if (r <= 0) {
 				if (waited)
 					return 0;
 				waited = 1;
 				continue;
 			}
-			if (scr_rdfill() < 0)
+			if (cn_rdfill() < 0)
 				return -1;
 			continue;
 		}
-		r = scr_wait(ms);
+		r = cn_wait(ms);
 		if (r == 0)
 			return 0;
 		if (r < 0)
 			return -1;
-		if (scr_rdfill() < 0)
+		if (cn_rdfill() < 0)
 			return -1;
 		waited = 0;
 	}

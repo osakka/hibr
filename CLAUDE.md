@@ -31,7 +31,7 @@ Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 12).
     tests/run.sh [-v] [prefix]           # C-side harness, 68 tests
     ./build/hibr tests/self.hibr                 # suite in hibr, 91 assertions, planned
     python3 tests/editor.py                      # the line editor, through a pty
-    python3 tests/screen.py                      # the screen module, through a pty
+    python3 tests/console.py                     # the console display, through a pty
     python3 tests/cat.py                         # the cat module, through a pty
     python3 tests/most.py                        # the pager, through a pty
     python3 tests/diff.py --shell ./build/hibr 250   # snippets, diffed against bash
@@ -99,7 +99,8 @@ linked, and no OpenSSL headers are needed to build.
 | `src/mod.c` | module loading |
 | `mods/*.c` | reference modules: `sys`, `http` (scheme), `ls` |
 | `mods/prompt/` | the prompt module, including a native reader for git's object store — see `mods/README.md` for the file-by-file breakdown |
-| `mods/screen/` | the screen layer: alternate screen, cell grid with damage-based redraw, panes, decoded keys — see `mods/screen/README.md` |
+| `mods/console/` | the text display: alternate screen, cell grid with damage-based redraw, panes, decoded keys — see `mods/console/README.md` |
+| `mods/display.h` | the interface a display backend offers; `console` is the only one so far |
 | `mods/cat/` | `cat` that is byte-identical in a pipe and useful on a terminal — see `mods/cat/README.md` |
 | `mods/trace/` | unprivileged traceroute over UDP with `IP_RECVERR` — see `mods/trace/README.md` |
 | `mods/most/` | a pager built on the screen module, the first to use another module — see `mods/most/README.md` |
@@ -274,15 +275,24 @@ were each run and their real output pasted back; keep it that way.
   `hibr_require(s, nm, ver)` in a user's is the way across; the version must
   match exactly, and the provider must `hibr_unprovide` in its finaliser or a
   dropped module leaves its users holding a table in an unloaded object.
-  `most` uses `screen` this way. Do not switch to `RTLD_GLOBAL` to avoid it —
+  `most` uses the console this way, and asks for `"display"` rather than for a
+  backend. Do not switch to `RTLD_GLOBAL` to avoid it —
   that makes every module's symbols collide with every other's, which is the
   `m_drop` trap generalised.
 - **A damage-based renderer cannot be tested by grepping its output.** The
-  screen layer sends only the cells that changed, so the byte stream holds
+  display sends only the cells that changed, so the byte stream holds
   `78-200/200` where the display reads `178-200/200`. `tests/most.py`
   reassembles the screen from the escapes and asserts on that; four checks
   looked like real failures until it did.
-- **The `sc_` prefix is `net.c`'s.** The screen module is `scr_`, because
+- **A module's builtins become commands, so its name shadows one.** The
+  display module was called `screen` and `mod load screen` made
+  `/usr/bin/screen` unreachable. For the cat that shadowing is the point; here
+  it was not. Check a new module's name against `command -v` before choosing
+  it. The module is `console` because it is a text display, and what it
+  registers is `"display"` — the interface, not the backend — so a framebuffer
+  or SDL backend could replace it without `most` or the vi changing.
+- **The `sc_` prefix is `net.c`'s.** The display module is `cn_` now and was
+  `scr_` before that, because
   `src/net.c` already exports `sc_find` and `sc_fini` for schemes — and
   `sc_fini(sh *)` is exactly the signature a module finaliser has, so a screen
   module calling its own `sc_fini` would have been silently bound to the
@@ -290,16 +300,16 @@ were each run and their real output pasted back; keep it that way.
   be put back. This is the `m_drop` trap below, found a second time, which is
   why the check belongs in the build habit and not in memory.
 - **A full-screen redraw must cost what changed, not what is on screen.** The
-  screen module keeps a front and a back grid and emits the difference: 2095
+  console module keeps a front and a back grid and emits the difference: 2095
   bytes for the first paint, 8 for one changed character, and **zero** for a
   flush with nothing new. Two things that look like optimisations are not —
   re-sending the pen every flush, and moving the cursor over a one-cell gap.
-  A cursor move is three bytes and the character it skips is one, so `scr_near`
+  A cursor move is three bytes and the character it skips is one, so `cn_near`
   redraws gaps of up to two cells rather than jumping them.
 - **The cursor advances on its own after a character is drawn.** Track the
   column *after* the glyph, not the one it started at, or every cell gets a
   spurious `\e[C` and the text spreads out one column at a time.
-- **`scr_key` must not consume the resize flag.** `select` returns `EINTR` on
+- **`cn_key` must not consume the resize flag.** `select` returns `EINTR` on
   `SIGWINCH`; treating that as an error, or swallowing the flag to report it,
   leaves the application unable to learn that the terminal changed size. The
   wait ends early and `screen resized` still answers.

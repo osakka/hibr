@@ -22,10 +22,10 @@ BIN = $(B)/hibr
 SRC = src/mem.c src/var.c src/lex.c src/parse.c src/expand.c src/exec.c \
       src/bi.c src/mod.c src/job.c src/trap.c src/regex.c src/daily.c src/net.c src/json.c src/text.c src/args.c src/edit.c src/main.c
 MODS = $(B)/mods/sys.so $(B)/mods/http.so $(B)/mods/ls.so $(B)/mods/prompt.so \
-       $(B)/mods/screen.so $(B)/mods/cat.so \
+       $(B)/mods/console.so $(B)/mods/cat.so \
        $(B)/mods/trace.so $(B)/mods/most.so
 PROMPT_SRC = $(wildcard mods/prompt/*.c)
-SCREEN_SRC = $(wildcard mods/screen/*.c)
+CONSOLE_SRC = $(wildcard mods/console/*.c)
 CAT_SRC = $(wildcard mods/cat/*.c)
 
 PREFIX ?= /usr/local
@@ -49,13 +49,13 @@ $(BIN): $(SRC) include/hibr.h include/pri.h $(B)/.moddir | $(B)/mods
 $(B)/mods/prompt.so: $(PROMPT_SRC) include/hibr.h mods/prompt/pr.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(PROMPT_SRC)
 
-$(B)/mods/screen.so: $(SCREEN_SRC) include/hibr.h mods/screen/scr.h | $(B)/mods
-	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(SCREEN_SRC)
+$(B)/mods/console.so: $(CONSOLE_SRC) include/hibr.h mods/console/cn.h mods/display.h | $(B)/mods
+	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(CONSOLE_SRC)
 
 $(B)/mods/cat.so: $(CAT_SRC) include/hibr.h mods/cat/ct.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(CAT_SRC)
 
-$(B)/mods/most.so: mods/most/most.c include/hibr.h mods/screen/scr.h | $(B)/mods
+$(B)/mods/most.so: mods/most/most.c include/hibr.h mods/display.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ mods/most/most.c
 
 $(B)/mods/trace.so: mods/trace/trace.c include/hibr.h | $(B)/mods

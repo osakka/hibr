@@ -13,24 +13,26 @@ Its input is the data, not the keyboard. `cmd | most` puts a pipe on standard
 input, so a pager that reads commands from its own input works perfectly when
 tested with a file argument and not at all in real use.
 
-The screen module already handles this: it takes the terminal from standard
+The console module already handles this: it takes the terminal from standard
 output when that is one, and falls back to `/dev/tty`. So `most` reads keys
-through `scr_key` and never touches standard input except to read the text.
+through the display's `key` and never touches standard input except to read the text.
 `tests/most.py` covers both shapes, and the piped one is the one that matters.
 
-## Built on the screen module
+## Built on the display interface
 
 This is the first module to use another. Modules are opened `RTLD_LOCAL`, so
-`most.so` cannot see a symbol in `screen.so`; it asks the shell instead:
+`most.so` cannot see a symbol in `console.so`; it asks the shell for an
+interface rather than for a module:
 
 ```c
-sc = hibr_require(s, "screen", SCR_API_VER);
-if (!sc) { lg(HIBR_LERR, "most: needs the screen module"); return HIBR_FAIL; }
+dp = hibr_require(s, "display", DP_API_VER);
+if (!dp) { lg(HIBR_LERR, "most: needs a display; mod load console"); return HIBR_FAIL; }
 ```
 
-`screen.so` offers the table in its init with `hibr_provide` and withdraws it
-in its finaliser, so dropping the screen module makes `most` refuse rather than
-call into an unloaded object. Both halves are checked in
+`console.so` offers that table in its init with `hibr_provide` and withdraws it
+in its finaliser, so dropping the console makes `most` refuse rather than call
+into an unloaded object. Because it asks for "display" and not for "console", a
+framebuffer backend offering the same table would work unchanged. Both halves are checked in
 `tests/670-module-api.t`.
 
 ## What it does
@@ -62,7 +64,7 @@ scrolling back needs it; what has not is not waited for.
 ## Testing
 
 `tests/most.py`, through a pseudo terminal. It reassembles the screen from the
-escape stream rather than grepping it — the screen layer sends only the cells
+escape stream rather than grepping it — the display sends only the cells
 that changed, so a search of the raw bytes finds `78-200/200` where the display
 reads `178-200/200`. Twenty checks; the one worth keeping is that `seq | most`
 pages correctly, because that is the shape real use takes.

@@ -1,7 +1,7 @@
 0
 most loads on its own
-most without screen rc=1
-screen loads and offers its table
-screen dropped
+most without a display rc=1
+console loads and offers a display
+console dropped
 most after the offer is withdrawn rc=1
 most dropped

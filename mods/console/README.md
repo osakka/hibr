@@ -1,6 +1,6 @@
-# mods/screen
+# mods/console
 
-A screen for other things to be built on. The line editor owns one line; this
+A text display for other things to be built on. The line editor owns one line; this
 owns the terminal — an alternate screen, a grid of cells, a redraw that sends
 only what changed, and keys decoded once into names.
 
@@ -9,16 +9,16 @@ system monitor, and anything else full-screen. Building it once is the point.
 
 | file | role |
 |---|---|
-| `scr.h` | the cell, the grid, the pane, and every `scr_` entry point |
+| `cn.h` | the cell, the grid, the pane, and every `cn_` entry point |
 | `term.c` | taking and giving back the terminal, and the signals that guarantee it |
 | `grid.c` | the front and back buffers, placement, and the diffing flush |
 | `key.c` | bytes to key names: CSI, SS3, modifiers, mouse, bracketed paste |
-| `screen.c` | panes, colour parsing, and the `screen` builtin |
+| `console.c` | panes, colour parsing, and the `console` builtin |
 
 ## The model
 
-Two grids. `scr_put` writes into the **back** buffer, which is just memory;
-nothing reaches the terminal until `scr_flush` compares back against **front**
+Two grids. `cn_put` writes into the **back** buffer, which is just memory;
+nothing reaches the terminal until `cn_flush` compares back against **front**
 and emits the difference. So a program redraws everything it wants on screen,
 every frame, and pays only for what actually moved.
 
@@ -39,7 +39,7 @@ half a glyph is never left on screen.
 
 ## Naming
 
-Everything is `scr_`, not `sc_`. `src/net.c` already uses `sc_` for schemes and
+Everything is `cn_`, not `sc_`. `src/net.c` already uses `sc_` for schemes and
 exports `sc_fini(sh *)` — which is exactly the signature a module finaliser
 has. A module named `sc_fini` is silently preempted by the shell's under
 `-rdynamic`, so the terminal would never have been put back and nothing would
@@ -55,8 +55,8 @@ grids are rebuilt in the next flush, never in the handler.
 
 ## Testing
 
-`tests/screen.py` drives all of it through a pseudo terminal, because none of
-it happens without one; `tests/640-screen.t` covers what `run.sh` can reach,
+`tests/console.py` drives all of it through a pseudo terminal, because none of
+it happens without one; `tests/640-console.t` covers what `run.sh` can reach,
 which is the no-terminal behaviour and the argument checking.
 
-    python3 tests/screen.py
+    python3 tests/console.py

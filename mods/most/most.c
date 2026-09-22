@@ -1,7 +1,7 @@
 #define _GNU_SOURCE
 
 #include "hibr.h"
-#include "../screen/scr.h"
+#include "../display.h"
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -40,7 +40,7 @@ struct ms_win {
 	int follow;
 };
 
-static const scr_api *sc;
+static const dp_api *dp;
 
 /* Add one line to a buffer, taking ownership of a copy. */
 void ms_add(ms_buf *b, const char *p, size_t n)
@@ -175,40 +175,40 @@ const char *ms_sgr(const char *p, const char *e, unsigned *fg, unsigned *bg,
 	for (i = 0; i < n; i++) {
 		long c = v[i];
 		if (c == 0) {
-			*fg = SCR_DEFAULT;
-			*bg = SCR_DEFAULT;
+			*fg = DP_DEFAULT;
+			*bg = DP_DEFAULT;
 			*at = 0;
 		} else if (c == 1) {
-			*at |= SCR_BOLD;
+			*at |= DP_BOLD;
 		} else if (c == 2) {
-			*at |= SCR_DIM;
+			*at |= DP_DIM;
 		} else if (c == 3) {
-			*at |= SCR_ITAL;
+			*at |= DP_ITAL;
 		} else if (c == 4) {
-			*at |= SCR_UNDER;
+			*at |= DP_UNDER;
 		} else if (c == 7) {
-			*at |= SCR_REV;
+			*at |= DP_REV;
 		} else if (c == 9) {
-			*at |= SCR_STRIKE;
+			*at |= DP_STRIKE;
 		} else if (c >= 30 && c <= 37) {
-			*fg = SCR_PAL | (unsigned)(c - 30);
+			*fg = DP_PAL | (unsigned)(c - 30);
 		} else if (c == 39) {
-			*fg = SCR_DEFAULT;
+			*fg = DP_DEFAULT;
 		} else if (c >= 40 && c <= 47) {
-			*bg = SCR_PAL | (unsigned)(c - 40);
+			*bg = DP_PAL | (unsigned)(c - 40);
 		} else if (c == 49) {
-			*bg = SCR_DEFAULT;
+			*bg = DP_DEFAULT;
 		} else if (c >= 90 && c <= 97) {
-			*fg = SCR_PAL | (unsigned)(c - 90 + 8);
+			*fg = DP_PAL | (unsigned)(c - 90 + 8);
 		} else if (c >= 100 && c <= 107) {
-			*bg = SCR_PAL | (unsigned)(c - 100 + 8);
+			*bg = DP_PAL | (unsigned)(c - 100 + 8);
 		} else if ((c == 38 || c == 48) && i + 1 < n) {
 			unsigned *t = c == 38 ? fg : bg;
 			if (v[i + 1] == 5 && i + 2 < n) {
-				*t = SCR_PAL | (unsigned)v[i + 2];
+				*t = DP_PAL | (unsigned)v[i + 2];
 				i += 2;
 			} else if (v[i + 1] == 2 && i + 4 < n) {
-				*t = SCR_RGB | ((unsigned)v[i + 2] << 16) |
+				*t = DP_RGB | ((unsigned)v[i + 2] << 16) |
 				     ((unsigned)v[i + 3] << 8) |
 				     (unsigned)v[i + 4];
 				i += 4;
@@ -247,7 +247,7 @@ void ms_draw(ms_win *w, int row, int cols, const char *find, int fold,
 {
 	ms_line *l;
 	const char *p, *e, *hit;
-	unsigned fg = SCR_DEFAULT, bg = SCR_DEFAULT, at = 0;
+	unsigned fg = DP_DEFAULT, bg = DP_DEFAULT, at = 0;
 	int col = 0, skip = w->hoff, lcol = 0;
 	size_t off;
 	char one[8];
@@ -288,8 +288,8 @@ void ms_draw(ms_win *w, int row, int cols, const char *find, int fold,
 				if (skip > 0) {
 					skip--;
 				} else if (col < cols) {
-					sc->pen(fg, bg, at);
-					col += sc->put(row, col, " ");
+					dp->pen(fg, bg, at);
+					col += dp->put(row, col, " ");
 				}
 				lcol++;
 			}
@@ -305,7 +305,7 @@ void ms_draw(ms_win *w, int row, int cols, const char *find, int fold,
 		lcol++;
 		if (hit) {
 			size_t fn = strlen(find);
-			sc->pen(mfg, mbg, SCR_BOLD);
+			dp->pen(mfg, mbg, DP_BOLD);
 			while (fn && p < e && col < cols) {
 				len = 1;
 				if ((unsigned char)*p >= 0xC0) {
@@ -314,15 +314,15 @@ void ms_draw(ms_win *w, int row, int cols, const char *find, int fold,
 				}
 				memcpy(one, p, (size_t)len);
 				one[len] = 0;
-				col += sc->put(row, col, one);
+				col += dp->put(row, col, one);
 				p += len;
 				fn -= fn < (size_t)len ? fn : (size_t)len;
 			}
 			continue;
 		}
-		sc->pen(fg, bg, at);
+		dp->pen(fg, bg, at);
 		if ((unsigned char)*p < 32) {
-			sc->pen(SCR_PAL | 244u, bg, at);
+			dp->pen(DP_PAL | 244u, bg, at);
 			one[0] = '^';
 			one[1] = (char)(*p + 64);
 			one[2] = 0;
@@ -330,7 +330,7 @@ void ms_draw(ms_win *w, int row, int cols, const char *find, int fold,
 			memcpy(one, p, (size_t)len);
 			one[len] = 0;
 		}
-		col += sc->put(row, col, one);
+		col += dp->put(row, col, one);
 		p += len;
 	}
 }
@@ -345,9 +345,9 @@ int m_most(sh *s, int ac, char **av)
 	str find, key, msg;
 	ms_buf *b;
 
-	sc = (const scr_api *)hibr_require(s, "screen", SCR_API_VER);
-	if (!sc) {
-		lg(HIBR_LERR, "most: needs the screen module; mod load screen");
+	dp = (const dp_api *)hibr_require(s, "display", DP_API_VER);
+	if (!dp) {
+		lg(HIBR_LERR, "most: needs a display; mod load console");
 		return HIBR_FAIL;
 	}
 	bufs.p = 0;
@@ -376,7 +376,7 @@ int m_most(sh *s, int ac, char **av)
 	}
 	if (!bufs.n)
 		return HIBR_FAIL;
-	if (sc->open(s) != HIBR_OK)
+	if (dp->open(s) != HIBR_OK)
 		return HIBR_FAIL;
 	memset(win, 0, sizeof win);
 	win[0].b = (ms_buf *)bufs.p[0];
@@ -386,8 +386,8 @@ int m_most(sh *s, int ac, char **av)
 
 	while (!quit) {
 		int wi, r;
-		sc->size(&rows, &cols);
-		if (sc->resized())
+		dp->size(&rows, &cols);
+		if (dp->resized())
 			redraw = 1;
 		for (i = 0; i < (int)bufs.n; i++) {
 			ms_buf *bb = (ms_buf *)bufs.p[i];
@@ -408,8 +408,8 @@ int m_most(sh *s, int ac, char **av)
 				}
 			}
 		if (redraw) {
-			sc->pen(SCR_DEFAULT, SCR_DEFAULT, 0);
-			sc->clear();
+			dp->pen(DP_DEFAULT, DP_DEFAULT, 0);
+			dp->clear();
 			vh = nwin == 1 ? rows - status
 				       : (rows - status) / nwin - 1;
 			for (wi = 0; wi < nwin; wi++) {
@@ -418,8 +418,8 @@ int m_most(sh *s, int ac, char **av)
 					ms_win sv = win[wi];
 					sv.top = win[wi].top;
 					ms_draw(&sv, base + r, cols, find.p,
-						fold, SCR_PAL | 16u,
-						SCR_PAL | 227u);
+						fold, DP_PAL | 16u,
+						DP_PAL | 227u);
 					if (0)
 						break;
 				}
@@ -428,10 +428,10 @@ int m_most(sh *s, int ac, char **av)
 					s_init(&t);
 					s_cat(&t, wi == cur ? " * " : "   ");
 					s_cat(&t, win[wi].b->name);
-					sc->pen(SCR_PAL | 252u, SCR_PAL | 238u,
+					dp->pen(DP_PAL | 252u, DP_PAL | 238u,
 						0);
-					sc->fill(base + vh, 0, 1, cols, " ");
-					sc->put(base + vh, 0, t.p);
+					dp->fill(base + vh, 0, 1, cols, " ");
+					dp->put(base + vh, 0, t.p);
 					s_free(&t);
 				}
 			}
@@ -467,19 +467,19 @@ int m_most(sh *s, int ac, char **av)
 					s_cat(&t, "  ");
 					s_cat(&t, msg.p);
 				}
-				sc->pen(SCR_PAL | 16u, SCR_PAL | 110u, 0);
-				sc->fill(rows - 1, 0, 1, cols, " ");
-				sc->put(rows - 1, 0, t.p);
-				sc->pen(SCR_DEFAULT, SCR_DEFAULT, 0);
+				dp->pen(DP_PAL | 16u, DP_PAL | 110u, 0);
+				dp->fill(rows - 1, 0, 1, cols, " ");
+				dp->put(rows - 1, 0, t.p);
+				dp->pen(DP_DEFAULT, DP_DEFAULT, 0);
 				s_free(&t);
 			}
-			sc->flush();
+			dp->flush();
 			redraw = 0;
 		}
 		key.n = 0;
 		if (key.p)
 			key.p[0] = 0;
-		r = sc->key(win[cur].follow || !win[cur].b->eof ? 400 : -1,
+		r = dp->key(win[cur].follow || !win[cur].b->eof ? 400 : -1,
 			    &key);
 		if (r < 0)
 			break;
@@ -557,16 +557,16 @@ int m_most(sh *s, int ac, char **av)
 					s_init(&t);
 					s_cat(&t, " /");
 					s_cat(&t, q.p ? q.p : "");
-					sc->pen(SCR_PAL | 16u, SCR_PAL | 227u,
+					dp->pen(DP_PAL | 16u, DP_PAL | 227u,
 						0);
-					sc->fill(rows - 1, 0, 1, cols, " ");
-					sc->put(rows - 1, 0, t.p);
-					sc->flush();
+					dp->fill(rows - 1, 0, 1, cols, " ");
+					dp->put(rows - 1, 0, t.p);
+					dp->flush();
 					s_free(&t);
 					key.n = 0;
 					if (key.p)
 						key.p[0] = 0;
-					if (sc->key(-1, &key) != 1)
+					if (dp->key(-1, &key) != 1)
 						break;
 					k = key.p ? key.p : "";
 					if (!strcmp(k, "enter")) {
@@ -627,7 +627,7 @@ int m_most(sh *s, int ac, char **av)
 				w->top = 0;
 		}
 	}
-	sc->close(s);
+	dp->close(s);
 	for (i = 0; i < (int)bufs.n; i++)
 		ms_free((ms_buf *)bufs.p[i]);
 	v_free(&bufs);

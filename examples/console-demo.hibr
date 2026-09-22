@@ -1,0 +1,71 @@
+#!/usr/bin/env hibr
+# A small full-console program: panes, colour, decoded keys, and a redraw that
+# costs only what changed. Press keys to see them named; q leaves.
+
+mod load ./build/mods/console.so 2>/dev/null || mod load console || {
+  echo "the console module is not built; run make" >&2
+  exit 1
+}
+
+console open || exit 1
+
+sz := console size
+set -- $sz
+rows=$1
+cols=$2
+last="(press something)"
+frames=0
+bytes=0
+
+layout() {
+  sz := console size
+  set -- $sz
+  rows=$1
+  cols=$2
+  console pane title 0 0 1 "$cols"
+  console pane body 2 2 $((rows - 4)) $((cols - 4))
+  console pane status $((rows - 1)) 0 1 "$cols"
+}
+
+layout
+
+while true; do
+  if console resized; then layout; console clear; fi
+
+  console pen black cyan bold
+  console fill $((0)) 0 1 "$cols" " "
+  console put -p title 0 1 "hibr console — q to quit"
+
+  console pen default
+  console put -p body 0 0 "terminal   ${rows} rows by ${cols} columns"
+  console put -p body 2 0 "last key   "
+  console pen yellow default bold
+  console put -p body 2 11 "$last                    "
+  console pen default
+
+  console put -p body 4 0 "frames     $frames"
+  console put -p body 5 0 "last flush $bytes bytes"
+
+  console pen 244
+  console put -p body 7 0 "Arrows, function keys, ctrl and alt combinations,"
+  console put -p body 8 0 "mouse clicks and pasted text are all named."
+  console pen default
+
+  console pen white 236
+  console fill $((rows - 1)) 0 1 "$cols" " "
+  console put -p status 0 1 "a redraw sends only what moved"
+
+  bytes := console flush
+  frames=$((frames + 1))
+
+  k := console key 1000
+  if [ -n "$k" ]; then
+    last="$k"
+    case "$k" in
+      q|ctrl-c) break ;;
+    esac
+  fi
+done
+
+console close
+echo "drew $frames frames"

@@ -27,7 +27,7 @@ Options: `--prefix DIR` (default `/usr/local`), `--yes`, `--quiet`,
    own modules.
 2. Runs every suite and stops if anything fails: `tests/run.sh`, then
    `tests/self.hibr`, then the pseudo-terminal suites — `tests/editor.py`,
-   `tests/screen.py`, `tests/cat.py` — which make their own terminals and so
+   `tests/console.py`, `tests/cat.py`, `tests/most.py` — which make their own terminals and so
    run headless, and are skipped with a note where there is no `python3`.
    Nothing is installed from a tree that does not pass. This is checked rather
    than assumed: a deliberately failing test leaves the installed binary

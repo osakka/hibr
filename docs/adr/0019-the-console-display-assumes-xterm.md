@@ -1,4 +1,4 @@
-# 0019 — The screen layer assumes an xterm, and does not read terminfo
+# 0019 — The console display assumes an xterm, and does not read terminfo
 
 Status: accepted
 
@@ -15,7 +15,7 @@ portable answer and it is forty years old for a reason.
 
 ## Decision
 
-The screen module emits escape sequences directly, assuming a terminal that
+The console module emits escape sequences directly, assuming a terminal that
 understands the xterm set: `\e[?1049h` for the alternate screen, `\e[row;colH`
 to move, SGR for colour, `\e[?2004h` for bracketed paste, and SGR mouse
 reporting. It does not open terminfo, does not link ncurses, and does not

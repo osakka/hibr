@@ -1,10 +1,14 @@
-# Full-screen programs
+# Full-console programs
 
-The line editor owns one line. The `screen` module owns the terminal: an
+The line editor owns one line. The `console` module owns the terminal: an
 alternate screen, a grid of cells, a redraw that sends only what changed, and
 keys decoded once into names you can compare against.
 
-It is a module, so nothing pays for it until it is loaded.
+It is a module, so nothing pays for it until it is loaded. The module is called
+`console` because it is a *text* display; what it offers other modules is the
+**display** interface in `mods/display.h`, which a framebuffer or SDL backend
+could offer just as well. A tool written against that interface would not have
+to change.
 
 ```sh
 mod load screen
@@ -12,8 +16,8 @@ mod load screen
 
 ## The idea worth understanding first
 
-There are two grids. `screen put` writes into the **back** buffer, which is
-memory; nothing reaches the terminal until `screen flush` compares back against
+There are two grids. `console put` writes into the **back** buffer, which is
+memory; nothing reaches the terminal until `console flush` compares back against
 **front** and emits the difference.
 
 That inverts how drawing usually feels. You do not work out what changed — you
@@ -34,52 +38,52 @@ redraws its entire layout sends nothing at all when nothing moved.
 
 ```sh
 mod load screen
-screen open || exit 1
+console open || exit 1
 
 while true; do
-  sz := screen size
+  sz := console size
   set -- $sz
 
-  screen pen black cyan bold
-  screen fill 0 0 1 "$2" " "
-  screen put 0 1 "hibr — q to quit"
+  console pen black cyan bold
+  console fill 0 0 1 "$2" " "
+  console put 0 1 "hibr — q to quit"
 
-  screen pen default
+  console pen default
   t := sys epoch
-  screen put 2 2 "epoch $t"
+  console put 2 2 "epoch $t"
 
-  screen flush
-  k := screen key 1000
+  console flush
+  k := console key 1000
   case "$k" in q) break ;; esac
 done
 
-screen close
+console close
 ```
 
-`examples/screen-demo.hibr` is the longer version, with panes, a status line
+`examples/console-demo.hibr` is the longer version, with panes, a status line
 and the flush cost shown live. Run it and press things.
 
 ## Commands
 
 | | |
 |---|---|
-| `screen open` | take the terminal: alternate screen, raw mode, no cursor |
-| `screen close` | give it back exactly as it was found |
-| `screen size` | rows and columns, as two words |
-| `screen resized` | true once after the terminal changed size |
-| `screen clear` | blank the back buffer with the current pen |
-| `screen pen [fg [bg [attr…]]]` | the colours and attributes later writes use |
-| `screen put row col text` | write into the back buffer |
-| `screen put -p pane row col text` | the same, inside a pane and clipped to it |
-| `screen fill row col h w [char]` | repeat a character over a rectangle |
-| `screen cursor row col` / `screen cursor off` | where the cursor should be seen |
-| `screen flush` | send what changed; gives the byte count |
-| `screen key [ms]` | wait for a key, up to ms; gives its name |
-| `screen pane name row col h w` | define a region |
-| `screen pane clear` | forget every pane |
+| `console open` | take the terminal: alternate screen, raw mode, no cursor |
+| `console close` | give it back exactly as it was found |
+| `console size` | rows and columns, as two words |
+| `console resized` | true once after the terminal changed size |
+| `console clear` | blank the back buffer with the current pen |
+| `console pen [fg [bg [attr…]]]` | the colours and attributes later writes use |
+| `console put row col text` | write into the back buffer |
+| `console put -p pane row col text` | the same, inside a pane and clipped to it |
+| `console fill row col h w [char]` | repeat a character over a rectangle |
+| `console cursor row col` / `console cursor off` | where the cursor should be seen |
+| `console flush` | send what changed; gives the byte count |
+| `console key [ms]` | wait for a key, up to ms; gives its name |
+| `console pane name row col h w` | define a region |
+| `console pane clear` | forget every pane |
 
-Rows and columns count from zero. `screen flush` and `screen key` fill the
-result slot, so `n := screen flush` and `k := screen key 1000` are how you read
+Rows and columns count from zero. `console flush` and `console key` fill the
+result slot, so `n := console flush` and `k := console key 1000` are how you read
 them without forking.
 
 ## Colour
@@ -87,12 +91,12 @@ them without forking.
 A colour is a name, a palette number from 0 to 255, or `#rrggbb`:
 
 ```sh
-screen pen red                 # foreground only
-screen pen white blue          # foreground and background
-screen pen yellow default bold # and attributes
-screen pen 244                 # the 256-colour palette
-screen pen '#ff8800'           # true colour
-screen pen                     # back to the terminal's own
+console pen red                 # foreground only
+console pen white blue          # foreground and background
+console pen yellow default bold # and attributes
+console pen 244                 # the 256-colour palette
+console pen '#ff8800'           # true colour
+console pen                     # back to the terminal's own
 ```
 
 Names are `black red green yellow blue magenta cyan white` and the `bright`
@@ -104,7 +108,7 @@ sequence before each run that needs a different one, not one per character.
 
 ## Keys
 
-`screen key` returns a name, never a byte:
+`console key` returns a name, never a byte:
 
 ```
 up  down  left  right  home  end  pageup  pagedown  insert  delete
@@ -129,14 +133,14 @@ arrow key. Over a link slow enough to split a sequence across that gap, an
 arrow key can arrive as `escape` and then its letters; this is the same trade
 every terminal program makes.
 
-`screen key 1000` waits up to a second and gives nothing back if the second
-passes. `screen key` with no argument waits forever. Either way a terminal
+`console key 1000` waits up to a second and gives nothing back if the second
+passes. `console key` with no argument waits forever. Either way a terminal
 resize ends the wait early, so a loop that draws on a timer also redraws
 promptly when the window changes:
 
 ```sh
-k := screen key 1000
-if screen resized; then relayout; screen clear; fi
+k := console key 1000
+if console resized; then relayout; console clear; fi
 ```
 
 ## Panes
@@ -146,9 +150,9 @@ coordinates and is clipped to its edges, so a program does not have to check
 whether text fits:
 
 ```sh
-screen pane body 2 2 20 40
-screen put -p body 0 0 "this is clipped at forty columns, however long it is"
-screen put -p body 99 0 "this row is outside the pane, so nothing is drawn"
+console pane body 2 2 20 40
+console put -p body 0 0 "this is clipped at forty columns, however long it is"
+console put -p body 99 0 "this row is outside the pane, so nothing is drawn"
 ```
 
 Panes are bookkeeping, not windows — they hold no content of their own and
@@ -162,8 +166,8 @@ two cells, and overwriting either half clears both, so half a character is
 never left behind:
 
 ```sh
-screen put 1 0 "漢字ab"   # 漢 occupies columns 0 and 1
-screen put 1 1 "X"        # writing over its right half
+console put 1 0 "漢字ab"   # 漢 occupies columns 0 and 1
+console put 1 1 "X"        # writing over its right half
 ```
 
 sends `\e[2;1H X` — a space where the orphaned left half was, then the `X`.
@@ -175,25 +179,25 @@ after it is not shifted.
 ## Getting the terminal back
 
 This is the part that matters more than the drawing. `SIGINT`, `SIGTERM` and
-`SIGHUP` restore the terminal — alternate screen off, cursor back, raw mode
+`SIGHUP` restore the terminal — alternate console off, cursor back, raw mode
 undone — and then re-raise the signal, so the shell still dies of whatever
 killed it. `mod drop screen` and shell exit do the same.
 
-`screen open` with no terminal to draw on fails with status 1 and a message; it
+`console open` with no terminal to draw on fails with status 1 and a message; it
 does not hang and does not half-open. So a script that might be run from cron
 can simply check:
 
 ```sh
-screen open || { echo "needs a terminal" >&2; exit 1; }
+console open || { echo "needs a terminal" >&2; exit 1; }
 ```
 
 ## What it does not do
 
 There is no terminfo and no `TERM` lookup — see
-[0019](adr/0019-the-screen-layer-assumes-xterm.md) for why, and what that
+[0019](adr/0019-the-console-display-assumes-xterm.md) for why, and what that
 costs. There is no scrolling region, no line-drawing character set beyond
 whatever Unicode you write yourself, and no input line editing: that is the
-line editor's job, and a full-screen program that wants a prompt should draw
+line editor's job, and a full-console program that wants a prompt should draw
 one itself.
 
 ---

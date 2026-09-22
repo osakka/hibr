@@ -11,11 +11,11 @@ Run it directly:  python3 tests/most.py [path-to-hibr]
 import os, pty, select, sys, tempfile, time
 
 HIBR = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else "./build/hibr")
-SCREEN = os.path.abspath("./build/mods/screen.so")
+CONSOLE = os.path.abspath("./build/mods/console.so")
 MOST = os.path.abspath("./build/mods/most.so")
 FAIL = []
 D = tempfile.mkdtemp(prefix="hibr-most-")
-LOAD = "mod load %s; mod load %s; " % (SCREEN, MOST)
+LOAD = "mod load %s; mod load %s; " % (CONSOLE, MOST)
 
 
 def run(cmd, keys=(), settle=0.7, rows=24, cols=80):

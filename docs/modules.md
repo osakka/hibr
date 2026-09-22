@@ -86,18 +86,20 @@ across is `hibr_provide(s, name, version, table)` in the provider's init and
 `hibr_require(s, name, version)` in the user's. The version must match exactly,
 and a provider withdraws its offer in its finaliser so that dropping it makes
 its users refuse rather than call into an unloaded object. `most` uses the
-`screen` module this way.
+`console` module this way, asking for "display" rather than for a backend.
 
 Reference modules in `mods/`:
-- **`most`** pages files or a pipe, built on `screen` through that mechanism.
+- **`most`** pages files or a pipe, built on the display interface.
 - **`trace`** traces a route with no privileges, using `IP_RECVERR` rather than
   a raw socket, and puts the hops in a map. `examples/traceroute.hibr` draws
   them on a world map.
 - **`cat`** is `cat` byte for byte in a pipe, and adds a gutter, visible control
   bytes and lexical colour when standard output is a terminal.
-- **`screen`** owns the terminal so other tools do not have to: an alternate
+- **`console`** owns the terminal so other tools do not have to: an alternate
   screen, a cell grid that redraws only what changed, panes, colour and decoded
-  keys. See [full-screen programs](screen.md).
+  keys. It offers the **display** interface in `mods/display.h`, so a
+  framebuffer or SDL backend could replace it without the tools changing. See
+  [full-screen programs](display.md).
 - **`http`** registers `/dev/http/host/port/path`: the request is made on open
   and the descriptor is positioned at the body.
   `while read l; do …; done </dev/http/127.0.0.1/8080/status`
