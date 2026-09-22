@@ -64,8 +64,10 @@ $(B)/mods/vi.so: $(VI_SRC) include/hibr.h mods/vi/vi.h mods/display.h | $(B)/mod
 $(B)/mods/most.so: mods/most/most.c include/hibr.h mods/display.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ mods/most/most.c
 
-$(B)/mods/trace.so: mods/trace/trace.c include/hibr.h | $(B)/mods
-	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ mods/trace/trace.c
+TRACE_SRC = $(wildcard mods/trace/*.c)
+
+$(B)/mods/trace.so: $(TRACE_SRC) include/hibr.h mods/trace/tr.h mods/display.h | $(B)/mods
+	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(TRACE_SRC)
 
 $(B)/mods/%.so: mods/%.c include/hibr.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $<

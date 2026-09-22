@@ -3,7 +3,8 @@
 A traceroute that needs no privileges, and puts its hops in a map rather than
 only on the screen.
 
-    trace 1.1.1.1
+    trace 1.1.1.1                  # once, like traceroute
+    trace -l 1.1.1.1               # keep going, like mtr
     trace -q -m 20 example.com     # quiet: fill the map, print nothing
     echo "${TRACE[3]["ip"]} ${TRACE[3]["rtt"]}ms ${TRACE[3]["host"]}"
 
@@ -24,6 +25,7 @@ the builtin loads and refuses, saying why, rather than pretending.
 
 | | |
 |---|---|
+| `-l` | keep probing and watch it live; needs a display |
 | `-m hops` | how far to go, default 24 |
 | `-w ms` | how long to wait for each hop, default 1000 |
 | `-v name` | fill this map instead of `TRACE` |
@@ -38,6 +40,38 @@ Use quoted subscripts — `${TRACE[0]["hops"]}` — since an unquoted bare name 
 looked up as a variable first, and a `hops` variable of your own would silently
 redirect the subscript. See
 [0006](../../docs/adr/0006-arrays-are-sparse-maps.md).
+
+## Live
+
+`-l` keeps probing and draws what a single traceroute cannot show: how much is
+being *lost*, and how much the timing *moves*.
+
+```
+ 1.1.1.1 (1.1.1.1)   11 rounds   q quit  p pause  r reset
+ Hop  Address           Loss   Snt   Last    Avg   Best   Wrst   Jttr  History
+   1  san-cr-2.uk.home.   0.0%    11    0.4    0.6    0.2    3.6    0.7 ▁▁▁▁▁▁▁▁▁▁▁
+   3  gw.uk.home.arpa     0.0%    11    1.6    1.4    0.9    2.9    0.6 ▁▁▁▁▁▁▁▁▁▁▁
+   5  172.20.37.1        18.2%    11   23.3   29.4   21.5   42.8   12.1 ▃▃▅▃▄▃▃▅▃
+  11  141.101.71.101     54.5%    11   28.2   44.4   26.2   71.9   32.2 █▄▃█▄
+  14  141.101.71.121      0.0%    11   33.7   34.2   27.3   49.0    8.6 ▄▅▄▄▅▄▆▄▄▄▄
+```
+
+A hop that never answers is a row of `???` at 100% loss, which is normal —
+plenty of routers decline to send ICMP — and is not the same as a hop that
+answers sometimes. The history is the last forty round-trips as block heights,
+coloured by the same scale as the latency columns. `p` pauses, `r` starts the
+counting again, `q` leaves.
+
+**Two things about the probing are not obvious and are worth keeping.** A round
+sends every hop limit rather than doing one hop at a time, because the timeout
+multiplied by the number of hops is far too slow to watch — twenty seconds a
+round instead of one. But sending them as one burst makes routers rate limit
+their ICMP, and that queueing lands in the timings: the same hop read 35 ms
+probed singly and 520 ms in a burst. So the sends are spaced about twelve
+milliseconds apart, *and replies are collected in between* — because timing a
+reply when the round ends rather than when it arrives charges the wait for the
+later hops to the earlier ones, and a LAN gateway then reads two hundred
+milliseconds. Both halves are needed; either alone is wrong.
 
 ## The map
 
@@ -65,6 +99,8 @@ smaller than the five degrees of longitude one column covers.
 ## Testing
 
 `tests/660-trace.t` covers the argument handling and the unresolvable case,
-which need no network. There is no test of a real trace, because a test that
-depends on the internet being up and on which routers answer is a test that
+which need no network. `tests/mtr.py` drives the live mode through a pseudo
+terminal against the loopback address — one hop, always reachable, always
+fast. Neither tests a real trace across the internet, because a test that
+depends on the network being up and on which routers answer is a test that
 fails for reasons that are not about this code.

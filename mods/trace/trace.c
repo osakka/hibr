@@ -1,6 +1,6 @@
 #define _GNU_SOURCE
 
-#include "hibr.h"
+#include "tr.h"
 #include <errno.h>
 #include <netdb.h>
 #include <poll.h>
@@ -15,10 +15,6 @@
 
 #ifdef __linux__
 #include <linux/errqueue.h>
-#endif
-
-#ifndef TR_PORT
-#define TR_PORT 33434
 #endif
 
 /* Milliseconds between two points in time. */
@@ -116,6 +112,7 @@ int m_trace(sh *s, int ac, char **av)
 #else
 	const char *host = 0, *nm = "TRACE";
 	int i, ttl, maxttl = 24, wait = 1000, quiet = 0, norev = 0, done = 0;
+	int live = 0;
 	struct addrinfo hint, *res = 0;
 	struct sockaddr_in d;
 	char ip[INET_ADDRSTRLEN], rev[NI_MAXHOST];
@@ -132,9 +129,11 @@ int m_trace(sh *s, int ac, char **av)
 			quiet = 1;
 		else if (!strcmp(av[i], "-n"))
 			norev = 1;
+		else if (!strcmp(av[i], "-l"))
+			live = 1;
 		else if (av[i][0] == '-' && av[i][1]) {
-			lg(HIBR_LERR, "usage: trace [-m hops] [-w ms] [-v var]"
-				      " [-q] [-n] host");
+			lg(HIBR_LERR, "usage: trace [-l] [-m hops] [-w ms]"
+				      " [-v var] [-q] [-n] host");
 			return 2;
 		} else {
 			host = av[i];
@@ -157,6 +156,9 @@ int m_trace(sh *s, int ac, char **av)
 	freeaddrinfo(res);
 	d.sin_port = htons(TR_PORT);
 	inet_ntop(AF_INET, &d.sin_addr, ip, sizeof ip);
+	if (live)
+		return tr_live(s, &d, host, maxttl, wait < 200 ? 200 : wait,
+			       !norev);
 	hibr_set(s, nm, "", 0);
 	tr_put(s, nm, 0, "target", host);
 	tr_put(s, nm, 0, "ip", ip);

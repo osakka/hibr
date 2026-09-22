@@ -5,4 +5,5 @@ bad option rc=2
 unresolvable rc=1
 target=127.0.0.1 ip=127.0.0.1
 second var target=127.0.0.1
+live without a display rc=1
 dropped

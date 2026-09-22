@@ -92,8 +92,9 @@ Reference modules in `mods/`:
 - **`most`** pages files or a pipe, built on the display interface.
 - **`vi`** a modal editor on the same interface: gap buffer, linear undo.
 - **`trace`** traces a route with no privileges, using `IP_RECVERR` rather than
-  a raw socket, and puts the hops in a map. `examples/traceroute.hibr` draws
-  them on a world map.
+  a raw socket, and puts the hops in a map. `trace -l` keeps probing and shows
+  loss, jitter and a round-trip history per hop on the display.
+  `examples/traceroute.hibr` draws a route on a world map.
 - **`cat`** is `cat` byte for byte in a pipe, and adds a gutter, visible control
   bytes and lexical colour when standard output is a terminal.
 - **`console`** owns the terminal so other tools do not have to: an alternate

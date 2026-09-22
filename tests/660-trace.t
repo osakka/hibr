@@ -14,4 +14,7 @@ echo "target=${TRACE[0]["target"]} ip=${TRACE[0]["ip"]}"
 trace -q -m 1 -w 1 -v PATH2 127.0.0.1 > /dev/null 2>&1
 echo "second var target=${PATH2[0]["target"]}"
 
+# live mode needs a display, and says which one
+trace -l 127.0.0.1 2>/dev/null; echo "live without a display rc=$?"
+
 mod drop trace > /dev/null && echo "dropped"

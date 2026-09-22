@@ -35,6 +35,7 @@ Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 12).
     python3 tests/cat.py                         # the cat module, through a pty
     python3 tests/most.py                        # the pager, through a pty
     python3 tests/vi.py                          # the editor, through a pty
+    python3 tests/mtr.py                         # the live traceroute, through a pty
     python3 tests/diff.py --shell ./build/hibr 250   # snippets, diffed against bash
     python3 tests/corpus.py --list <file>        # real scripts, run under both shells
     HIBR=./build/hibr REF=dash tests/run.sh      # compare against another shell
@@ -103,7 +104,7 @@ linked, and no OpenSSL headers are needed to build.
 | `mods/console/` | the text display: alternate screen, cell grid with damage-based redraw, panes, decoded keys — see `mods/console/README.md` |
 | `mods/display.h` | the interface a display backend offers; `console` is the only one so far |
 | `mods/cat/` | `cat` that is byte-identical in a pipe and useful on a terminal — see `mods/cat/README.md` |
-| `mods/trace/` | unprivileged traceroute over UDP with `IP_RECVERR` — see `mods/trace/README.md` |
+| `mods/trace/` | unprivileged traceroute over UDP with `IP_RECVERR`, one-shot and live — see `mods/trace/README.md` |
 | `mods/most/` | a pager on the display interface, the first module to use another — see `mods/most/README.md` |
 | `mods/vi/` | a modal editor: gap buffer, lazy line index, linear undo — see `mods/vi/README.md` |
 
@@ -281,6 +282,14 @@ were each run and their real output pasted back; keep it that way.
   backend. Do not switch to `RTLD_GLOBAL` to avoid it —
   that makes every module's symbols collide with every other's, which is the
   `m_drop` trap generalised.
+- **A round of probes must be spaced, and collected between the spaces.**
+  Sending every hop limit at once is what makes a live traceroute fast enough
+  to watch, but routers rate limit their ICMP and the queueing lands in the
+  timings -- the same hop reads 35 ms probed singly and 520 ms in a burst. So
+  the sends are spaced, *and* replies are picked up between them: timing a
+  reply when the round ends rather than when it arrives charges the wait for
+  later hops to the earlier ones, and a LAN gateway reads 200 ms. Either half
+  alone is wrong, and each looks plausible on its own.
 - **Visual mode takes in the character under the cursor.** vi's `v` is
   inclusive and a naive start-to-cursor range is one character short, which
   looks right on a long selection and wrong on a short one. `V` is whole lines
