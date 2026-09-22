@@ -24,6 +24,7 @@ DT_DRAG=
 DT_DR=0
 DT_DC=0
 DT_QUIT=0
+DT_TABS=
 DT_ROWS=24
 DT_COLS=80
 declare -A DT
@@ -110,9 +111,12 @@ dt_del() {
 	fi
 }
 
-# Show or hide a window without destroying it.
+# Show or hide a window without destroying it.  A minimised window has no
+# pane, so nothing draws it and nothing can hit it; its only remaining handle
+# is the label dt_wall puts on the bar, which is why that label exists.
 dt_min() {
-	local id=$1
+	local id=$1 l
+
 	if [ "${DT[$id]["min"]}" = 1 ]; then
 		DT[$id]["min"]=0
 		console pane "w$id" "${DT[$id]["row"]}" "${DT[$id]["col"]}" \
@@ -123,7 +127,6 @@ dt_min() {
 		DT[$id]["min"]=1
 		console pane drop "w$id"
 		if [ "$DT_FOCUS" = "$id" ]; then
-			local l
 			l := console pane list
 			l=${l##* }
 			DT_FOCUS=${l#w}
@@ -136,26 +139,73 @@ dt_put() {
 	console put -p "w$1" $(($2 + 1)) $(($3 + 1)) "$4"
 }
 
-# Repeat a string until it is n cells wide.
+# Repeat a string n times.  One builtin call, not a loop with ${#} in it.
+# The result goes through a variable and then ret: := binds for a builtin,
+# not for a function, so a bare `str repeat` here would print to the screen.
 dt_rep() {
-	local n=$1 t=$2 o=
-	while [ ${#o} -lt "$n" ]; do o="$o$t"; done
-	ret "${o:0:$n}"
+	local o
+
+	str repeat "$2" "$1" o
+	ret "$o"
 }
 
-# Paint the wallpaper.
+# Paint the wallpaper and the bar across the top.
+#
+# The bar carries a label for every minimised window, and DT_TABS records
+# where each one landed so a click can be turned back into a window id.  It
+# is the only way back from minimising, since a minimised window has no pane.
 dt_wall() {
+	local line id open=0 mini=0 c t
+
 	console pen "$DT_DOT" "$DT_WALL"
 	console fill 0 0 "$DT_ROWS" "$DT_COLS" "·"
 	console pen "$DT_INK" "$DT_BAR"
-	local line
 	line := dt_rep "$DT_COLS" " "
 	console put 0 0 "$line"
+	console pen "$DT_ACTIVE" "$DT_BAR" bold
 	console put 0 1 "hibr"
-	local n=0 l id
-	l := console pane list
-	for id in $l; do n=$((n + 1)); done
-	console put 0 $((DT_COLS - 22)) "$n window(s)   q to quit"
+
+	DT_TABS=
+	c=7
+	for id in "${!DT[@]}"; do
+		if [ "${DT[$id]["min"]}" != 1 ]; then
+			open=$((open + 1))
+			continue
+		fi
+		mini=$((mini + 1))
+		t="[${DT[$id]["title"]}]"
+		[ $((c + ${#t} + 1)) -gt $((DT_COLS - 30)) ] && continue
+		console pen "$DT_INK" "$DT_BAR"
+		console put 0 "$c" "$t"
+		DT_TABS="$DT_TABS $id:$c:$((c + ${#t} - 1))"
+		c=$((c + ${#t} + 1))
+	done
+
+	console pen "$DT_INK" "$DT_BAR"
+	if [ "$mini" -gt 0 ]; then
+		console put 0 $((DT_COLS - 28)) "$open open, $mini hidden"
+	else
+		console put 0 $((DT_COLS - 28)) "$open open"
+	fi
+	console put 0 $((DT_COLS - 10)) "q to quit"
+}
+
+# Which minimised window's label is under this column, if any.
+dt_tab() {
+	local e id lo hi
+
+	for e in $DT_TABS; do
+		id=${e%%:*}
+		lo=${e#*:}
+		hi=${lo#*:}
+		lo=${lo%%:*}
+		if [ "$1" -ge "$lo" ] && [ "$1" -le "$hi" ]; then
+			ret "$id"
+			return 0
+		fi
+	done
+	ret ""
+	return 1
 }
 
 # Draw one window: its face, then its app, then its frame over the top.
@@ -219,6 +269,11 @@ dt_mouse() {
 
 	case $act in
 	press)
+		if [ "$mr" = 0 ]; then
+			id := dt_tab "$mc"
+			[ -n "$id" ] && dt_min "$id"
+			return 0
+		fi
 		id := console hit "$mr" "$mc"
 		if [ -z "$id" ]; then
 			DT_FOCUS=
@@ -311,6 +366,12 @@ dt_event() {
 	fi
 	case $k in
 	q) DT_QUIT=1 ;;
+	escape)
+		local id
+		for id in "${!DT[@]}"; do
+			[ "${DT[$id]["min"]}" = 1 ] && dt_min "$id" && return 0
+		done
+		;;
 	tab)
 		local l
 		l := console pane list

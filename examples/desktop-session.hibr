@@ -11,7 +11,9 @@
 # Drag a title bar to move a window, click _ to minimise, □ to fill the
 # screen, x to close.  Tab cycles.  q quits.
 
-. "${0%/*}/desktop.hibr"
+d=${0%/*}
+[ "$d" = "$0" ] && d=.
+. "$d/desktop.hibr"
 
 # A clock.  An app is a *prefix*: it provides any of <name>_draw, <name>_key,
 # <name>_click, <name>_open and <name>_close, and the window manager calls

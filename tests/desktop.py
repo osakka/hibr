@@ -142,6 +142,8 @@ def check(name, ok, sc=None):
             print(sc.dump())
 
 
+TWO_DEF = ('dt_new "Under" 8 30 6 10\n'
+           'dt_new "Over" 8 30 9 20\n')
 ONE = 'dt_new "Hello" 8 30 6 10'
 
 sc, raw = run(ONE)
@@ -156,7 +158,7 @@ check("the minimise and zoom buttons sit beside it",
       sc.g[6][35] == "□" and sc.g[6][38] == "├", sc)
 check("the wallpaper is drawn behind it", sc.g[12][2] == "·", sc)
 check("the bar across the top counts the windows",
-      "1 window(s)" in sc.row(0), sc)
+      "1 open" in sc.row(0) and "hidden" not in sc.row(0), sc)
 check("the alternate screen is left on the way out", b"\x1b[?1049l" in raw)
 check("and the mouse is turned off again",
       b"\x1b[?1002l" in raw or b"\x1b[?1000l" in raw)
@@ -179,11 +181,31 @@ check("nor off the bottom right", sc.g[16][50] == "┌", sc)
 sc, _ = run(ONE, [press(6, 37)])
 check("clicking the close button closes the window",
       sc.find("Hello") is None, sc)
-check("and the count on the bar goes down", "0 window(s)" in sc.row(0), sc)
+check("and the count on the bar goes down", "0 open" in sc.row(0), sc)
 
 sc, _ = run(ONE, [press(6, 33)])
 check("minimising takes the window off the screen",
-      sc.find("Hello") is None and "0 window(s)" in sc.row(0), sc)
+      sc.g[6][10] == "·" and sc.g[10][20] == "·", sc)
+check("but leaves a label for it on the bar",
+      sc.find("[Hello]") == (0, 7) and "0 open, 1 hidden" in sc.row(0), sc)
+
+sc, _ = run(ONE, [press(6, 33), press(0, 9)])
+check("clicking the label brings the window back",
+      sc.g[6][10] == "┌" and sc.find("┤ Hello ├") == (6, 12) and
+      "1 open" in sc.row(0) and "hidden" not in sc.row(0), sc)
+
+sc, _ = run(ONE, [press(6, 33), b"\x1b"])
+check("and escape restores a minimised window too",
+      sc.g[6][10] == "┌", sc)
+
+sc, _ = run(TWO_DEF, [press(6, 33), press(9, 43)])
+check("two minimised windows each get their own label",
+      sc.find("[Under]") == (0, 7) and sc.find("[Over]") == (0, 15) and
+      "0 open, 2 hidden" in sc.row(0), sc)
+sc, _ = run(TWO_DEF, [press(6, 33), press(9, 43), press(0, 17)])
+check("and clicking the second label restores the right one",
+      sc.find("┤ Over ├") == (9, 22) and sc.find("[Under]") == (0, 7) and
+      "1 open, 1 hidden" in sc.row(0), sc)
 
 sc, _ = run(ONE, [press(6, 35)])
 check("zooming fills the screen below the bar",
@@ -192,8 +214,7 @@ sc, _ = run(ONE, [press(6, 35), press(1, 75)])
 check("and zooming again puts it back where it was",
       sc.g[6][10] == "┌" and sc.g[13][39] == "┘", sc)
 
-TWO = ('dt_new "Under" 8 30 6 10\n'
-       'dt_new "Over" 8 30 9 20\n')
+TWO = TWO_DEF
 
 sc, _ = run(TWO)
 check("two windows overlap, the newer one on top",
@@ -203,7 +224,7 @@ check("so the one below loses its right edge where they meet",
 check("but keeps the edges the top one does not cover",
       sc.g[10][10] == "│" and sc.g[10][19] == " " and
       sc.g[10][20] == "│", sc)
-check("the bar counts both", "2 window(s)" in sc.row(0), sc)
+check("the bar counts both", "2 open" in sc.row(0), sc)
 
 sc, _ = run(TWO, [press(6, 12)])
 check("clicking the lower window raises it",
@@ -260,6 +281,6 @@ check("an app with no key handler cannot swallow one",
       sc.find("no keys here") == (5, 8), sc)
 
 print()
-n = 34
+n = 39
 print("%d passed, %d failed" % (n - len(FAIL), len(FAIL)))
 sys.exit(1 if FAIL else 0)

@@ -536,6 +536,23 @@ went in the shell.
   and `ax_set` split it with the same helper `unset` and `read` use. That is
   what made `$(( a[i] + 1 ))` reach a nested map and `(( a[0] = 42 ))` work at
   all — bash has both and hibr had neither. Do not add a second splitter.
+- **`:=` binds for a builtin, not for a function.** A helper that ends in
+  `str repeat "$2" "$1"` and is called as `x := helper ...` prints to the
+  screen instead of filling the slot, because the bind was set for `helper`,
+  which is a function. Route the value through a variable and `ret`. In a
+  full-screen program the symptom is a blank line where the drawing should
+  be, not an error.
+- **Run the sanitizer suite under `timeout`, and check for orphans after.**
+  A run has now hung twice, on different tests (`120-bg-order`, then
+  `140-case`), and an orphaned `tests/run.sh` reparented to init keeps
+  spawning `hibr.asan` for hours, competing for ptys and making unrelated pty
+  suites hang. It has not reproduced on demand either time. `ps -eo pid,ppid,cmd
+  | grep run.sh` before believing a pty suite that stalls.
+- **Before trying anything by hand that uses `need`, reinstall.**
+  `./deploy.sh update --yes --quiet --no-test`. The tests `mod load` the
+  module out of `build/mods`, but `need` autoloads from the module path, which
+  is the *installed* copy — so a green test suite and a broken run by hand
+  mean the installed module is yesterday's.
 - **An app is a prefix, not a command.** The window manager calls
   `<app>_draw`, `<app>_key`, `<app>_click`, `<app>_open` and `<app>_close`,
   asking `command -v` once which exist. One function answering a verb was

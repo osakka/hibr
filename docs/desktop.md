@@ -19,7 +19,13 @@ Try it:
     ./build/hibr examples/desktop-session.hibr
 
 Drag a title bar to move a window. `_` minimises, `□` fills the screen, `x`
-closes. `tab` cycles. `q` quits and gives the terminal back.
+closes. `tab` cycles, `escape` brings back a minimised window, and `q` quits
+and gives the terminal back.
+
+A minimised window has no pane at all, so nothing draws it and nothing can
+click it. Its label on the bar across the top is the only way back — click it
+to restore the window. The bar also says how many windows are open and how
+many are hidden.
 
 ## Writing a session
 

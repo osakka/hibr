@@ -113,9 +113,11 @@ size_t u8off(const char *t, size_t n, size_t c)
 {
 	size_t i = 0;
 
-	while (c-- && i < n)
-		i += (unsigned char)t[i] < 0x80 ? 1 :
-		     (size_t)u8len((unsigned char)t[i]);
+	while (c-- && i < n) {
+		i++;
+		while (i < n && ((unsigned char)t[i] & 0xC0) == 0x80)
+			i++;
+	}
 	return i > n ? n : i;
 }
 

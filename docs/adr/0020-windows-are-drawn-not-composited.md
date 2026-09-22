@@ -201,7 +201,10 @@ Each step is usable before the next one starts.
    opens three windows on it. `tests/desktop.py` drives both through a pty and
    reads the screen back.
 3. **Two windows, focus, and minimise.** *Done*, with zoom as well, since it
-   was the same four lines.
+   was the same four lines. Minimising drops the window's pane, which means
+   nothing draws it and nothing can hit it — so the bar across the top grew a
+   label per minimised window, because otherwise there is no way back. A
+   feature that only goes one way is half a feature.
 4. **Calculator and file browser.** The calculator proves keys reaching a
    focused window; the file browser proves scrolling *inside* a window and
    mouse events reaching content rather than only the frame.

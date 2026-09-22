@@ -28,3 +28,14 @@ while [ $i -le 5 ]; do
   echo "cut $i [${s:0:$i}]"
   i=$((i + 1))
 done
+
+# Malformed input is measured, never validated -- but the length and the
+# slices must still agree, or ${s:0:${#s}} would not be the whole string.
+b=$'a\xe2b\xc3\xa9c'
+echo "bad len ${#b} of $(printf "%s" "$b" | wc -c) bytes"
+i=0
+while [ $i -le ${#b} ]; do
+  printf "bad cut %d = %d bytes\n" $i "$(printf "%s" "${b:0:$i}" | wc -c)"
+  i=$((i + 1))
+done
+[ "${b:0:${#b}}" = "$b" ] && echo "bad whole slice is the whole string"
