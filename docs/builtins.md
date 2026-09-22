@@ -225,6 +225,7 @@ inside a function or a `try` it returns 2 —
 | `mod drop name` | unload one |
 | `mod list` | list what is loaded, with its ABI and builtins |
 | `mod avail`, `mod list -a` | list every module that could be loaded, and its state |
+| `cat [-benstuvAETfp] [file…]` | **[module]** `cat` in a pipe; gutter and colour on a terminal |
 
 A module adds builtins, and it can add a *protocol*: register a scheme and
 `/dev/<name>/…` works anywhere a filename does. When the effective uid is 0 the

@@ -1,0 +1,39 @@
+0
+ok   cat text
+ok   cat nonl
+ok   cat empty
+ok   cat blanks
+ok   cat weird
+ok   cat bin
+ok   cat text nonl
+ok   cat text empty bin
+ok   cat -n text
+ok   cat -n blanks
+ok   cat -b blanks
+ok   cat -bs blanks
+ok   cat -bE blanks
+ok   cat -s blanks
+ok   cat -E text
+ok   cat -T weird
+ok   cat -v weird
+ok   cat -e weird
+ok   cat -t weird
+ok   cat -A weird
+ok   cat -vT weird
+ok   cat -vn weird
+ok   cat -ns text nonl
+ok   cat nosuchfile
+ok   cat nosuchfile text
+ok   cat text nosuchfile
+ok   cat .
+ok   cat -- text
+ok   cat -n -- text
+ok   stdin cat 
+ok   stdin cat -
+ok   stdin cat - -
+ok   stdin cat -n -
+ok   stdin cat - text
+ok   command cat reaches a cat
+ok   /bin/cat still runs
+command -v cat says cat
+ok   dropped

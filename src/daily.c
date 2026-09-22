@@ -867,41 +867,58 @@ int cmd_what(sh *s, const char *nm, int vb)
 {
 	const char *al;
 	char *path;
+	str o;
+	int ok = 1;
 
+	s_init(&o);
 	al = al_get(s, nm);
 	if (al) {
+		if (vb) {
+			s_cat(&o, nm);
+			s_cat(&o, " is aliased to `");
+			s_cat(&o, al);
+			s_ch(&o, '\'');
+		} else {
+			s_cat(&o, "alias ");
+			s_cat(&o, nm);
+			s_cat(&o, "='");
+			s_cat(&o, al);
+			s_ch(&o, '\'');
+		}
+	} else if (fn_find(s, nm)) {
+		s_cat(&o, nm);
 		if (vb)
-			printf("%s is aliased to `%s'\n", nm, al);
-		else
-			printf("alias %s='%s'\n", nm, al);
-		return HIBR_OK;
-	}
-	if (fn_find(s, nm)) {
-		printf(vb ? "%s is a function\n" : "%s\n", nm);
-		return HIBR_OK;
-	}
-	if (kw_name(nm)) {
-		printf(vb ? "%s is a shell keyword\n" : "%s\n", nm);
-		return HIBR_OK;
-	}
-	if (m_find(s, nm) || bi_find(nm)) {
-		printf(vb ? "%s is a shell builtin\n" : "%s\n", nm);
-		return HIBR_OK;
-	}
-	path = findx(s, nm);
-	if (path) {
+			s_cat(&o, " is a function");
+	} else if (kw_name(nm)) {
+		s_cat(&o, nm);
 		if (vb)
-			printf("%s is %s\n", nm, path);
-		else
-			printf("%s\n", path);
+			s_cat(&o, " is a shell keyword");
+	} else if (m_find(s, nm) || bi_find(nm)) {
+		s_cat(&o, nm);
+		if (vb)
+			s_cat(&o, " is a shell builtin");
+	} else if ((path = findx(s, nm)) != 0) {
+		if (vb) {
+			s_cat(&o, nm);
+			s_cat(&o, " is ");
+		}
+		s_cat(&o, path);
 		free(path);
-		return HIBR_OK;
+	} else {
+		ok = 0;
 	}
-	if (vb)
-		lg(HIBR_LERR, "%s: not found", nm);
-	return HIBR_FAIL;
+	if (!ok) {
+		if (vb)
+			lg(HIBR_LERR, "%s: not found", nm);
+		s_free(&o);
+		return HIBR_FAIL;
+	}
+	hibr_ret(s, o.p ? o.p : "");
+	if (!s->bind)
+		printf("%s\n", o.p ? o.p : "");
+	s_free(&o);
+	return HIBR_OK;
 }
-
 /* Run a builtin, ignoring functions, aliases and modules. */
 int b_builtin(sh *s, int ac, char **av)
 {

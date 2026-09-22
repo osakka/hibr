@@ -81,6 +81,8 @@ Module builtins take precedence over the built-in ones; lookup order is alias,
 function, module, builtin, `PATH`.
 
 Reference modules in `mods/`:
+- **`cat`** is `cat` byte for byte in a pipe, and adds a gutter, visible control
+  bytes and lexical colour when standard output is a terminal.
 - **`screen`** owns the terminal so other tools do not have to: an alternate
   screen, a cell grid that redraws only what changed, panes, colour and decoded
   keys. See [full-screen programs](screen.md).

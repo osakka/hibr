@@ -28,10 +28,11 @@ Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 11).
     make install         # PREFIX=/usr/local, modules to $(PREFIX)/lib/hibr
     ./build/hibr -n script      # parse only
 
-    tests/run.sh [-v] [prefix]           # C-side harness, 65 tests
+    tests/run.sh [-v] [prefix]           # C-side harness, 66 tests
     ./build/hibr tests/self.hibr                 # suite in hibr, 91 assertions, planned
     python3 tests/editor.py                      # the line editor, through a pty
     python3 tests/screen.py                      # the screen module, through a pty
+    python3 tests/cat.py                         # the cat module, through a pty
     python3 tests/diff.py --shell ./build/hibr 250   # snippets, diffed against bash
     python3 tests/corpus.py --list <file>        # real scripts, run under both shells
     HIBR=./build/hibr REF=dash tests/run.sh      # compare against another shell
@@ -98,6 +99,7 @@ linked, and no OpenSSL headers are needed to build.
 | `mods/*.c` | reference modules: `sys`, `http` (scheme), `ls` |
 | `mods/prompt/` | the prompt module, including a native reader for git's object store — see `mods/README.md` for the file-by-file breakdown |
 | `mods/screen/` | the screen layer: alternate screen, cell grid with damage-based redraw, panes, decoded keys — see `mods/screen/README.md` |
+| `mods/cat/` | `cat` that is byte-identical in a pipe and useful on a terminal — see `mods/cat/README.md` |
 
 Each directory carries its own `README.md` with the detail: `src/`, `include/`,
 `mods/`, `tests/`, `examples/`. User-facing documentation is under `docs/`, and
@@ -240,6 +242,18 @@ were each run and their real output pasted back; keep it that way.
   cost 7% on tight loops. A builtin that grows an interest in its arguments'
   quoting has to be added to that list, and `command` must keep forwarding
   `sh.amask + 1` with its shifted `argv`.
+- **A tool that writes to standard output must be plain in a pipe.** The cat
+  module decides everything on `isatty(1)`: in a pipe it is byte-identical to
+  `/bin/cat`, including `-n` and `-A`, which must produce GNU's bytes and not a
+  nicer version of them. `tests/650-cat.t` compares against `/bin/cat` itself
+  rather than against bash, because bash's `cat` *is* `/bin/cat`. The fast path
+  (`ct_raw`) never looks at a byte, which is why 100 MB costs 15 ms against
+  `/bin/cat`'s 14; anything that inspects content has to stay off it.
+- **Modules cannot see each other.** `m_open` uses `RTLD_LOCAL`, so `cat.so`
+  cannot call the git reader inside `prompt.so`. There is no module-to-module
+  export mechanism in the ABI, which is why the cat has no git gutter. Do not
+  solve it by moving code into the shell or by switching to `RTLD_GLOBAL` —
+  both have costs recorded in `docs/backlog.md`.
 - **The `sc_` prefix is `net.c`'s.** The screen module is `scr_`, because
   `src/net.c` already exports `sc_find` and `sc_fini` for schemes — and
   `sc_fini(sh *)` is exactly the signature a module finaliser has, so a screen

@@ -167,24 +167,47 @@ end of a pipe, so its standard input is the data, not the keyboard. It has to
 open `/dev/tty` for keys. A pager that reads commands from its own input works
 perfectly when tested with a file argument and not at all in real use.
 
-### A cat
+### A cat — built
 
-The one that needs no screen layer, so it can land first and be useful alone.
+`mods/cat` exists. In a pipe it is `cat`, byte for byte — 37 comparisons
+against `/bin/cat` itself, including every flag, the error cases and a binary
+file, and 100 MB copies in 15 ms against `/bin/cat`'s 14. On a terminal it adds
+a dim gutter, control bytes shown rather than sent, lexical colour for C,
+shell, Python, JSON, Markdown and Makefiles, and a refusal to spew a binary.
+`-p` turns all of it off.
 
-Better than `cat` means line numbers that do not break `diff`, non-printable
-bytes rendered visibly rather than sent to the terminal, encoding detected
-rather than assumed, and paging when the output is a terminal and the content
-does not fit — never when it is a pipe, because that is the mistake that makes
-a tool unusable in scripts.
+Two things from this entry were **not** built, and the reasons are worth
+keeping.
 
-Two things hibr can do here that a standalone `cat` cannot. It already reads
-git's object store natively (`mods/prompt`), so it can mark which lines are
-added or changed against the index without running git. And `str`, `match` and
-`rsub` do the text work in-process, so highlighting costs no forks.
+**Paging.** A `cat` that pages is half a `most`. When the `most` below exists
+this can hand off to it; building a second pager inside a `cat` is the
+duplication the screen layer was created to avoid.
 
-Keep the no-argument, no-terminal case byte-for-byte identical to `cat`, and
-make every addition conditional on the output being a terminal. A `cat` that is
-clever in a pipe is a broken `cat`.
+**The git gutter, which this entry promised and the architecture cannot yet
+deliver.** hibr does read git's object store natively — but that code lives in
+`prompt.so`, and `m_open` uses `RTLD_LOCAL`, so `cat.so` cannot reach a symbol
+of it. There is no way to share code between two modules today. The three ways
+out, none free:
+
+- Move the git reader into the shell. Several thousand lines against the
+  resident-memory priority, paid by every shell that never looks at a repo.
+- Open modules `RTLD_GLOBAL`. Every module's symbols then collide with every
+  other's, which is the `m_drop` trap generalised to the whole module system.
+- **Give the ABI a way for one module to export to another** — a named registry
+  a module publishes a function table into and another looks up by name and
+  version. Real design work, and the only one that scales past two modules.
+
+The third is the right answer and it is the owner's call, not something to
+improvise inside a `cat`. Until then, anything wanting git data has to be part
+of `prompt.so` or do without.
+
+### A shared pty test harness
+
+`tests/editor.py`, `tests/screen.py` and `tests/cat.py` each carry their own
+twenty-five lines of `pty.fork` boilerplate, because everything interesting
+about a terminal is invisible to `run.sh`. Three copies is one too many. A
+shared `tests/ptyrun.py` would fix it — and must not be called `pty.py` or
+`tty.py`, for the reason already recorded in `CLAUDE.md`.
 
 ---
 
