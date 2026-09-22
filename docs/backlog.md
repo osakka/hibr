@@ -91,30 +91,23 @@ What it needs, in order of how much it bites:
 
 So: the drawing is an afternoon, the privilege and geo parts are the project.
 
-### A screen layer, before any of the rest
+### A screen layer — built
 
-Four of the things below want the same missing piece, so it is its own item
-and it lands first.
+`mods/screen` now exists, so the vi, the most and the monitor are no longer
+blocked on it. It owns the terminal: alternate screen, a cell grid with two
+buffers and a redraw that emits only the difference, panes, colour, and keys
+decoded into names. 2095 bytes to paint an empty eighty by twenty-four screen,
+8 bytes to change one character on it, and nothing at all for a flush with
+nothing new.
 
-The line editor can move a cursor, knows the terminal width and decodes UTF-8,
-but it owns one line. There is no alternate screen, no region that redraws
-without flicker, no layout, no key decoding beyond what the editor needs for
-itself. Everything full-screen needs exactly that, and none of it is specific
-to a monitor or an editor:
+What it deliberately does not do is in
+[0019](adr/0019-the-screen-layer-assumes-xterm.md): no terminfo, no ncurses.
+The guide is [full-screen programs](screen.md), the demo is
+`examples/screen-demo.hibr`.
 
-- the alternate screen, and putting the terminal back on the way out including
-  on a signal
-- a damage model, so a redraw writes the cells that changed rather than the
-  screen
-- panes with sizes, and reflow on `SIGWINCH`
-- keys decoded once: arrows, page, home/end, function keys, modifiers, mouse,
-  bracketed paste
-- the width rules already in `ed_width` — combining marks, wide glyphs — but
-  for a grid rather than a line
-
-Build it as a module with a builtin interface, so the tools below are its users
-and not four copies of it. It is the difference between one hard piece of work
-and four.
+Not there yet, and worth adding when something needs it: a scrolling region,
+so a pager can move a screenful without repainting it; and z-ordering for
+panes, which nothing has asked for.
 
 ### A system monitor worth looking at
 
@@ -136,8 +129,7 @@ What it needs:
   is worse than the thing it replaces. This is the argument for doing it here
   rather than in a script.
 
-Start with the screen layer above. A monitor is then the first thing built on
-it, not the point of it.
+The screen layer above is built, so this is now reading `/proc` and drawing.
 
 ### A vi
 

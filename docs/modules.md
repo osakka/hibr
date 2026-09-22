@@ -81,6 +81,9 @@ Module builtins take precedence over the built-in ones; lookup order is alias,
 function, module, builtin, `PATH`.
 
 Reference modules in `mods/`:
+- **`screen`** owns the terminal so other tools do not have to: an alternate
+  screen, a cell grid that redraws only what changed, panes, colour and decoded
+  keys. See [full-screen programs](screen.md).
 - **`http`** registers `/dev/http/host/port/path`: the request is made on open
   and the descriptor is positioned at the body.
   `while read l; do …; done </dev/http/127.0.0.1/8080/status`

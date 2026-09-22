@@ -28,6 +28,7 @@ downside is usually a decision nobody had to make.
 | [0016](0016-privileges-are-dropped-never-gained.md) | Privileges are given up, never taken | accepted |
 | [0017](0017-one-namespace-for-options.md) | One namespace for options, and extglob is always on | accepted |
 | [0018](0018-a-coprocess-is-an-endpoint.md) | A coprocess is an endpoint like any other | accepted |
+| [0019](0019-the-screen-layer-assumes-xterm.md) | The screen layer assumes an xterm and skips terminfo | accepted |
 
 ---
 

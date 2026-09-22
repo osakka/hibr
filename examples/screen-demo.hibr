@@ -1,0 +1,71 @@
+#!/usr/bin/env hibr
+# A small full-screen program: panes, colour, decoded keys, and a redraw that
+# costs only what changed. Press keys to see them named; q leaves.
+
+mod load ./build/mods/screen.so 2>/dev/null || mod load screen || {
+  echo "the screen module is not built; run make" >&2
+  exit 1
+}
+
+screen open || exit 1
+
+sz := screen size
+set -- $sz
+rows=$1
+cols=$2
+last="(press something)"
+frames=0
+bytes=0
+
+layout() {
+  sz := screen size
+  set -- $sz
+  rows=$1
+  cols=$2
+  screen pane title 0 0 1 "$cols"
+  screen pane body 2 2 $((rows - 4)) $((cols - 4))
+  screen pane status $((rows - 1)) 0 1 "$cols"
+}
+
+layout
+
+while true; do
+  if screen resized; then layout; screen clear; fi
+
+  screen pen black cyan bold
+  screen fill $((0)) 0 1 "$cols" " "
+  screen put -p title 0 1 "hibr screen — q to quit"
+
+  screen pen default
+  screen put -p body 0 0 "terminal   ${rows} rows by ${cols} columns"
+  screen put -p body 2 0 "last key   "
+  screen pen yellow default bold
+  screen put -p body 2 11 "$last                    "
+  screen pen default
+
+  screen put -p body 4 0 "frames     $frames"
+  screen put -p body 5 0 "last flush $bytes bytes"
+
+  screen pen 244
+  screen put -p body 7 0 "Arrows, function keys, ctrl and alt combinations,"
+  screen put -p body 8 0 "mouse clicks and pasted text are all named."
+  screen pen default
+
+  screen pen white 236
+  screen fill $((rows - 1)) 0 1 "$cols" " "
+  screen put -p status 0 1 "a redraw sends only what moved"
+
+  bytes := screen flush
+  frames=$((frames + 1))
+
+  k := screen key 1000
+  if [ -n "$k" ]; then
+    last="$k"
+    case "$k" in
+      q|ctrl-c) break ;;
+    esac
+  fi
+done
+
+screen close
+echo "drew $frames frames"

@@ -28,9 +28,10 @@ Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 11).
     make install         # PREFIX=/usr/local, modules to $(PREFIX)/lib/hibr
     ./build/hibr -n script      # parse only
 
-    tests/run.sh [-v] [prefix]           # C-side harness, 62 tests
+    tests/run.sh [-v] [prefix]           # C-side harness, 65 tests
     ./build/hibr tests/self.hibr                 # suite in hibr, 91 assertions, planned
     python3 tests/editor.py                      # the line editor, through a pty
+    python3 tests/screen.py                      # the screen module, through a pty
     python3 tests/diff.py --shell ./build/hibr 250   # snippets, diffed against bash
     python3 tests/corpus.py --list <file>        # real scripts, run under both shells
     HIBR=./build/hibr REF=dash tests/run.sh      # compare against another shell
@@ -96,6 +97,7 @@ linked, and no OpenSSL headers are needed to build.
 | `src/mod.c` | module loading |
 | `mods/*.c` | reference modules: `sys`, `http` (scheme), `ls` |
 | `mods/prompt/` | the prompt module, including a native reader for git's object store — see `mods/README.md` for the file-by-file breakdown |
+| `mods/screen/` | the screen layer: alternate screen, cell grid with damage-based redraw, panes, decoded keys — see `mods/screen/README.md` |
 
 Each directory carries its own `README.md` with the detail: `src/`, `include/`,
 `mods/`, `tests/`, `examples/`. User-facing documentation is under `docs/`, and
@@ -238,6 +240,27 @@ were each run and their real output pasted back; keep it that way.
   cost 7% on tight loops. A builtin that grows an interest in its arguments'
   quoting has to be added to that list, and `command` must keep forwarding
   `sh.amask + 1` with its shifted `argv`.
+- **The `sc_` prefix is `net.c`'s.** The screen module is `scr_`, because
+  `src/net.c` already exports `sc_find` and `sc_fini` for schemes — and
+  `sc_fini(sh *)` is exactly the signature a module finaliser has, so a screen
+  module calling its own `sc_fini` would have been silently bound to the
+  shell's scheme cleanup. Nothing would crash; the terminal would simply never
+  be put back. This is the `m_drop` trap below, found a second time, which is
+  why the check belongs in the build habit and not in memory.
+- **A full-screen redraw must cost what changed, not what is on screen.** The
+  screen module keeps a front and a back grid and emits the difference: 2095
+  bytes for the first paint, 8 for one changed character, and **zero** for a
+  flush with nothing new. Two things that look like optimisations are not —
+  re-sending the pen every flush, and moving the cursor over a one-cell gap.
+  A cursor move is three bytes and the character it skips is one, so `scr_near`
+  redraws gaps of up to two cells rather than jumping them.
+- **The cursor advances on its own after a character is drawn.** Track the
+  column *after* the glyph, not the one it started at, or every cell gets a
+  spurious `\e[C` and the text spreads out one column at a time.
+- **`scr_key` must not consume the resize flag.** `select` returns `EINTR` on
+  `SIGWINCH`; treating that as an error, or swallowing the flag to report it,
+  leaves the application unable to learn that the terminal changed size. The
+  wait ends early and `screen resized` still answers.
 - **A module must not name a function the shell already exports.** The shell is
   linked `-rdynamic`, so a module's own global symbol is preempted by the
   shell's of the same name: `sys.c` defining `m_drop` silently bound to

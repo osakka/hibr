@@ -18,6 +18,7 @@ exists. These pages are the detail.
 | [Networking](networking.md) | Sockets, TLS, `/dev/tcp` and friends, `listen`, coprocesses |
 | [Interactive use](interactive.md) | Prompts including right-hand and transient, line editing, history, completion, jobs |
 | [The prompt](prompt.md) | The prompt hook, the segment module, and its git support |
+| [Full-screen programs](screen.md) | The screen module: cells, panes, colour, decoded keys |
 
 ## Look it up
 
@@ -51,6 +52,7 @@ Every divergence has a record. The short version:
 | [`**` is always on](adr/0008-globstar-is-always-on.md) | and never follows a symlink |
 | [One namespace for options](adr/0017-one-namespace-for-options.md) | `set -o` and `shopt` are the same table, and extended patterns need no switch |
 | [A coprocess is an endpoint](adr/0018-a-coprocess-is-an-endpoint.md) | spoken to with the same verbs as a socket |
+| [The screen assumes an xterm](adr/0019-the-screen-layer-assumes-xterm.md) | no terminfo, no ncurses, and what that costs |
 | [Privileges only go one way](adr/0016-privileges-are-dropped-never-gained.md) | `drop` gives up root; hibr is never setuid |
 
 ## Reading these pages in a browser
