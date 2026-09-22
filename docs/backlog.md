@@ -44,14 +44,23 @@ actually reads; the link flags, since Darwin keeps `dlopen` in libc, spells
 one is not cosmetic — the racy-index rule compares nanoseconds, and losing it
 silently would make the prompt rehash the whole tree on every draw.
 
+Also dealt with: `setresuid`/`setresgid` do not exist on Darwin. `drop` now
+uses `setgid` then `setuid`, which move the real, effective *and* saved ids
+together while the effective id is still root. What makes that trustworthy
+rather than merely compiling is the check already there — `drop` verifies all
+four ids afterwards and then tries `setuid(0)`, refusing to continue if root
+can be taken back. That check is the security property, not the call used to
+get there, and it holds on both platforms.
+
 Still open: `tcc` almost certainly does not work on arm64 Darwin, so macOS
 probably means `make CC=gcc` and that needs deciding rather than assuming;
 `/proc/meminfo` in the prompt module has no Darwin equivalent and should report
 nothing rather than a wrong number; whether modules should follow the `.dylib`
 convention when `m_open` only appends `.so`; and the sonames `libssl` is
 `dlopen`ed by, which differ and are not on the default search path under
-Homebrew. Job control, the pty line editor and the test suite are untested
-rather than known broken.
+Homebrew. Modules are built as `-dynamiclib`; if `dlopen` refuses them, `-bundle` is the
+other spelling and the one macOS conventionally uses for plugins. Job control,
+the pty line editor and the test suite are untested rather than known broken.
 
 ## Wanted
 

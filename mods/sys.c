@@ -172,10 +172,19 @@ int sy_drop(sh *s, int ac, char **av)
 		free(nm);
 		return HIBR_FAIL;
 	}
+#ifdef __APPLE__
+	lg(HIBR_LDBG, "no setresuid here; setgid and setuid move all three ids "
+		      "while the effective id is still root");
+	if (setgid(gid) != 0)
+		return sy_halfway(s, "setgid");
+	if (setuid(uid) != 0)
+		return sy_halfway(s, "setuid");
+#else
 	if (setresgid(gid, gid, gid) != 0)
 		return sy_halfway(s, "setresgid");
 	if (setresuid(uid, uid, uid) != 0)
 		return sy_halfway(s, "setresuid");
+#endif
 	if (getuid() != uid || geteuid() != uid || getgid() != gid ||
 	    getegid() != gid) {
 		errno = 0;
