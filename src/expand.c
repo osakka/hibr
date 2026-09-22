@@ -1289,21 +1289,32 @@ void xwm(sh *s, word *w, vec *out, int fl, vec *outm)
 normal:
 		;
 	}
+	if ((fl & HIBR_XPAT) && w->p && !w->p->nx && w->p->k == P_TXT &&
+	    !w->p->q && w->p->n && w->p->t[0] != '~') {
+		xout(s, out, outm, w->p->t, 0, w->p->n);
+		return;
+	}
 	if (w->p && !w->p->nx && w->p->k == P_VAR && !w->p->q && !w->p->arr &&
-	    w->p->op == V_NONE && !s->strict && !s->uset &&
-	    !(fl & (HIBR_XPAT | HIBR_XONE))) {
+	    w->p->op == V_NONE && !s->uset && !(fl & HIBR_XPAT)) {
 		const char *v = xval(s, w->p->t);
 		size_t k, n;
+		if (fl & HIBR_XONE) {
+			xout(s, out, outm, v ? v : "", 0,
+			     v ? strlen(v) : 0);
+			return;
+		}
 		if (!v)
 			return;
 		n = strlen(v);
-		for (k = 0; k < n; k++)
-			if (w_meta[(unsigned char)v[k]])
-				break;
-		if (k == n && !sh_ifs(s)) {
-			if (n)
-				xout(s, out, outm, v, 0, n);
-			return;
+		if (!s->strict) {
+			for (k = 0; k < n; k++)
+				if (w_meta[(unsigned char)v[k]])
+					break;
+			if (k == n && !sh_ifs(s)) {
+				if (n)
+					xout(s, out, outm, v, 0, n);
+				return;
+			}
 		}
 	}
 	if (w->p && !w->p->nx && w->p->k == P_TXT && !(fl & HIBR_XPAT)) {

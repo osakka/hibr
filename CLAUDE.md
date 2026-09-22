@@ -281,14 +281,18 @@ were each run and their real output pasted back; keep it that way.
   `ar_drop` now keeps up to `HIBR_ARKEEP` blocks of the standard size for the
   next command and frees anything larger, which costs about 36 kB of resident
   memory and bought 5%. `ar_free` and `ar_reset` must both drain that list.
-- **Two fast paths carry the loop, and both must stay honest.** `xargv` skips
+- **Three fast paths carry the loop, and all must stay honest.** `xargv` skips
   brace expansion, `xwm`, splitting and globbing for a word that is one
-  unquoted run of text with no byte in `w_meta`; `xwm` skips building the
-  string and mask pair for a bare `$name` with no operator, subscript or quote
-  whose value has no `w_meta` byte either. Both bail out to the slow path on
-  anything else, both are off under `set -S` and `set -u`, and together they
-  are most of a 30% loop gain. Anything added to expansion has to be reachable
-  from the slow path, or the fast path has to learn to refuse it.
+  unquoted run of text with no byte in `w_meta`. `xwm` skips building the
+  string and mask pair twice over: for a bare `$name` with no operator,
+  subscript or quote -- whose value must have no `w_meta` byte, unless the
+  caller wants a single word, where nothing splits or globs anyway -- and for
+  a `HIBR_XPAT` word that is one unquoted run of text, since the escaping pass
+  only ever escapes quoted bytes and there are none. All three bail out to the
+  slow path on anything else, all are off under `set -u`, and together they are
+  most of a 30% gain on a `while` loop and 10% on `case`. Anything added to
+  expansion has to be reachable from the slow path, or a fast path has to learn
+  to refuse it.
 - **`IFS` is cached on `sh` and invalidated by hand.** Four of every six
   variable lookups in a tight loop were asking for it -- from `xargv`, from
   both expansion fast paths and from `xsplit`. `sh_ifs` answers from `ifsc`
@@ -329,9 +333,11 @@ were each run and their real output pasted back; keep it that way.
   what they *do* against bash is where the rest is, and it is the method that
   found `${u:?}` not guarding, `trap EXIT` not firing and `TZ=UTC` doing
   nothing.
-- Loop throughput is 1.21x behind dash, from 1.71x. What is left is genuinely
-  diffuse and the next step is not obvious; stop before the fast paths grow
-  cases that the slow path would have handled correctly.
+- Loop throughput is 1.2x behind dash on a `while` loop and 1.4x on `case`,
+  from 1.7x and 1.6x. What is left is genuinely diffuse. Measure this with
+  instruction counts, not the clock: the wall time between two separately
+  built binaries moves several percent on code layout alone, and said +5.5%
+  for a change that cost 0.23% of the instructions.
 - Shells leak on the way out, about 3.8 kB, and a forked child that `_exit`s
   leaks whatever it held. Both predate this work; measure a leak change against
   the previous commit rather than against zero.
