@@ -49,7 +49,10 @@ echo "typed ok: $strict"
 declare num f=1.5
 echo "num ok: $f"
 declare -p strict
-( declare int bad=1; bad=oops; echo "NOT REACHED" ) 2>/dev/null
-echo "a declared type refuses a bad value"
-( readonly frozen=1; frozen=2; echo "NOT REACHED" ) 2>/dev/null
-echo "readonly refuses too"
+declare int bad=1
+bad=oops 2>/dev/null
+echo "a declared type refuses: rc=$? value still $bad"
+readonly frozen=1
+frozen=2 2>/dev/null
+echo "readonly refuses: rc=$? value still $frozen"
+echo "and the script carries on"

@@ -44,6 +44,26 @@ with a `content-type` field creates a key that **no subscript can address** —
 only `json get` reaches it. bash, which has no arithmetic subscripts, stores
 the literal key here.
 
+One difference from bash follows from the word *ordered*. A map here keeps the
+order its keys were first assigned in, so `${!h[*]}` answers the same way on
+every run and on every machine:
+
+```sh
+e[k]=1; e[0]=2; e[zz]=3; e[b]=4
+echo "${!e[*]}"        # k 0 zz b   — the order they were set
+```
+
+bash answers `0 k b zz` for the same input: its associative arrays are hash
+tables and it iterates buckets, which is stable for a given build and defined
+nowhere. A script that wants a particular order has to sort in both shells; a
+script that only wants *an* order gets a reproducible one here.
+
+A negative subscript follows from the same place. `${h[-1]}` counts back from
+the highest numeric key whatever else the map holds, because there is only one
+container; bash has indexed arrays and associative ones, and on the latter it
+reads `-1` as the literal key. Both differences were found by `tests/diff.py`,
+which is what that harness is for.
+
 ## Amendment — a quoted subscript is a literal key
 
 The seam now has the escape hatch quoting already implies everywhere else:

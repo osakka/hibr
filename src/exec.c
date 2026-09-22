@@ -777,7 +777,7 @@ int ex_cmd(sh *s, node *n)
 	av = xargv(s, n->w, &ac, &am);
 	if (s->xerr) {
 		s->xerr = 0;
-		st = HIBR_FAIL;
+		st = s->st = 1;
 		goto out;
 	}
 	if (s->stop || s->quit) {

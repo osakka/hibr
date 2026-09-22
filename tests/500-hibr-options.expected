@@ -1,6 +1,7 @@
 0
 hibr: extglob is always on in hibr and cannot be changed
 hibr: pipefail is always off in hibr and cannot be changed
+hibr: bad: declared int, got 'oops'
 -- extglob needs no shopt, unlike bash --
 at group: match
 at miss: no
@@ -35,5 +36,7 @@ bash style -i: 0
 typed ok: 5
 num ok: 1.5
 declare int strict="5"
-a declared type refuses a bad value
-readonly refuses too
+hibr: frozen: readonly variable
+a declared type refuses: rc=1 value still 1
+readonly refuses: rc=1 value still 1
+and the script carries on

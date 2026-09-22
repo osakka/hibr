@@ -31,6 +31,7 @@ Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 8).
     tests/run.sh [-v] [prefix]           # C-side harness, 55 tests
     ./build/hibr tests/self.hibr                 # suite written in hibr, 91 assertions
     python3 tests/editor.py                      # the line editor, through a pty
+    python3 tests/diff.py 250                    # snippets, diffed against bash
     HIBR=./build/hibr REF=dash tests/run.sh      # compare against another shell
 
 Sanitizers — run both before calling anything done:
@@ -183,6 +184,10 @@ were each run and their real output pasted back; keep it that way.
   `xone`, or a `$` in a branch name would be expanded.
 - **`ed_pos` counts prompt rows**, so anything that can put a newline or an
   escape sequence in a prompt has to be accounted for there.
+- **A too-broad skip in `tests/diff.py` reports success.** Its `DELIBERATE`
+  patterns must match only the construct they name; filtering on `{` for brace
+  expansion also caught `${x}` and every function body, skipped three quarters
+  of the runs, and made a silent generator look like a clean shell.
 - **The line editor can only be tested through a pty**, which is what
   `tests/editor.py` is for; `tests/run.sh` cannot reach it, because the editor
   runs only when stdin is a terminal. Do not name that file `pty.py` or
@@ -334,8 +339,6 @@ were each run and their real output pasted back; keep it that way.
   heap: 29 kB of a 1792 kB resident set is heap, so there is no allocator work
   left that would move it. Shrinking it means less code. The README says so.
   Measure memory as a median of many runs; the spread is about 180 kB.
-- A differential fuzzer: `tests/fuzz.py` checks the parser does not crash, but
-  every real bug this year came from comparing behaviour, not from parsing.
 - Decide whether `set -S` should become the default.
 - Possibly: `declare -l`/`-u`, `trap RETURN`, `select` refinements, a `plan N`
   count in `self.hibr`.

@@ -126,9 +126,6 @@ int hibr_set(sh *s, const char *k, const char *v, int ex)
 		if (e->ro) {
 			lg(HIBR_LERR, "%s: readonly variable", k);
 			s->st = 1;
-			s->stop = 1;
-			if (!s->it)
-				s->quit = 1;
 			return HIBR_FAIL;
 		}
 		if (e->at & A_REF)
@@ -138,9 +135,6 @@ int hibr_set(sh *s, const char *k, const char *v, int ex)
 		if (!v) {
 			s_free(&t);
 			s->st = 1;
-			s->stop = 1;
-			if (!s->it)
-				s->quit = 1;
 			return HIBR_FAIL;
 		}
 		v_free_el(e);
