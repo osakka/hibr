@@ -317,6 +317,11 @@ strict:  1 1
 A glob behaves the same way: `count $g` with `g="*.c"` counts every `.c` file by
 default and exactly one argument — the literal `*.c` — under `set -S`.
 
+It guards the value that arrives in a word, not the word you wrote: `$dir/*`
+still globs under `-S`, because that `*` is not the result of an expansion.
+Whether it should become the default is settled, with the measurements, in
+[0009](adr/0009-strict-expansion-is-opt-in.md).
+
 The last line is the deliberate cost, and the point: `rm -rf $dir/*` can no
 longer become `rm -rf /*` because `$dir` was empty. It is off by default.
 
