@@ -123,9 +123,13 @@ gb = mt / 1024.0 / 1024.0
 check("the memory total agrees with /proc",
       ("%.1fG" % gb) in v or ("%.1fG" % round(gb)) in v)
 
-# whatever is at the top of the table, the row must parse as one
+# Read the table from a *paused* monitor. A live one redraws while the capture
+# is running, and because only changed cells are sent, the reconstruction can
+# hold one row from before a re-sort and the next from after it -- which looks
+# like an ordering bug and is not one.
+vp = screen(run("mon -d 0.4", keys=[b"p"], settle=2.5))
 rowre = re.compile(r"^\s*(\d+)\s+(\S+)\s+([\d.]+)\s+([\d.]+[BKMGT])\s+(\S+)")
-rows = [rowre.match(l) for l in v.split("\n")]
+rows = [rowre.match(l) for l in vp.split("\n")]
 rows = [m for m in rows if m]
 check("the process table holds parsable rows", len(rows) >= 3)
 check("its pids are real processes",
