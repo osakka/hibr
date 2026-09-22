@@ -196,6 +196,23 @@ the next step — and alt with what a program inside one might want. A desktop
 that eats ctrl-c is a desktop nothing can run in. The cost is two keystrokes
 instead of one, and it is worth it.
 
+## What the menu bar grew, and why
+
+Ticks, items that cannot be chosen, and one level of submenu — each because
+something wanted it rather than in advance. The control panel's Theme was a
+"Next Theme" that cycled blindly; as a submenu with a tick against the
+current one it is both shorter to write and better to use, and it is what
+made submenus worth building at all.
+
+**An item that cannot be chosen is drawn, not removed.** With no window
+focused the Window menu still shows Move and Resize, without their letters.
+A menu that changes shape between one moment and the next is one nobody can
+learn the shape of.
+
+**The Window menu is always last and always there**, after whatever the
+application declared, because an app must not be able to hide the only way
+to move or close its own window.
+
 ## Where the line is
 
 This is a windowing layer, not a widget toolkit. Each app draws its own

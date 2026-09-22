@@ -549,6 +549,12 @@ went in the shell.
   which is a function. Route the value through a variable and `ret`. In a
   full-screen program the symptom is a blank line where the drawing should
   be, not an error.
+- **`pkill -f` matches the command running it.** The testing rules say this
+  about the harness; it is just as true of a shell command. `pkill -9 -f
+  "desktop.py"` inside a command whose own line contains `desktop.py` kills
+  itself, and the result is an empty output and a status of 1 that looks like
+  the test failing. Kill by pid, or match something the killer does not
+  contain.
 - **Run the sanitizer suite under `timeout`, and check for orphans after.**
   A run has now hung twice, on different tests (`120-bg-order`, then
   `140-case`), and an orphaned `tests/run.sh` reparented to init keeps
@@ -615,6 +621,15 @@ went in the shell.
   considered and rejected: ctrl collides with everything a terminal window
   will need, and alt with what a program inside one might. A desktop that
   eats ctrl-c is a desktop nothing can run in.
+- **`dt_sub` hangs off the menu being declared, not the last one created.**
+  After one `dt_end` the most recently created menu is the submenu that just
+  closed, so a second `dt_sub` attached itself to the first submenu — and it
+  looks almost right until you notice an item has gone missing from the
+  parent. `MB_CUR` is the answer, and everything that adds a row uses it.
+- **A window menu is always last, and always there.** An app with its own
+  menus must not be able to hide the only way to move or close its window.
+  With nothing focused its items are dimmed rather than removed: a menu that
+  changes shape between one moment and the next is one nobody can learn.
 - **Two menu items cannot share a letter.** Calculator and Clock both start
   with a C, so `dt_akey` walks the label for the first letter nothing has
   taken. An item that cannot be reached is worse than one with no shortcut.

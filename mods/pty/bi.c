@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 
 #include "tt.h"
+#include "../pty.h"
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -213,11 +214,82 @@ int m_pty(sh *s, int ac, char **av)
 	return HIBR_FAIL;
 }
 
+/* The same operations a script gets, for a module that needs the bytes
+   rather than the words -- the terminal emulator, which has no business
+   carrying its own copy of forkpty. */
+int tt_api_spawn(sh *s, int rows, int cols, char **av)
+{
+	tt_p *p = tt_spawn(s, rows, cols, av);
+
+	return p ? p->id : 0;
+}
+
+int tt_api_read(int id, int ms, str *out)
+{
+	tt_p *p = tt_find(id);
+
+	return p ? tt_read(p, ms, out) : -1;
+}
+
+long tt_api_write(int id, const char *t, size_t n)
+{
+	tt_p *p = tt_find(id);
+
+	return p ? tt_write(p, t, n) : -1;
+}
+
+int tt_api_resize(int id, int rows, int cols)
+{
+	tt_p *p = tt_find(id);
+
+	return p ? tt_resize(p, rows, cols) : 0;
+}
+
+int tt_api_alive(int id)
+{
+	tt_p *p = tt_find(id);
+
+	return p ? tt_alive(p) : 0;
+}
+
+int tt_api_status(int id)
+{
+	tt_p *p = tt_find(id);
+
+	return p ? p->st : -1;
+}
+
+long tt_api_pid(int id)
+{
+	tt_p *p = tt_find(id);
+
+	return p ? p->pid : -1;
+}
+
+void tt_api_drop(int id)
+{
+	tt_p *p = tt_find(id);
+
+	if (p)
+		tt_drop(p);
+}
+
+static const py_api pty_api = {
+	tt_api_spawn, tt_api_read, tt_api_write, tt_api_resize,
+	tt_api_alive, tt_api_status, tt_api_pid, tt_api_drop
+};
+
+/* Offer the table to whatever else needs a terminal. */
+int tt_ini(sh *s)
+{
+	return hibr_provide(s, "pty", PY_API_VER, (void *)&pty_api);
+}
+
 /* Kill anything still running and give the descriptors back. */
 void tt_fini(sh *s)
 {
-	(void)s;
 	tt_all();
+	hibr_unprovide(s, "pty");
 }
 
 const hibr_bi pty_bi[] = {
@@ -227,4 +299,4 @@ const hibr_bi pty_bi[] = {
 
 HIBR_MODULE_P("pty", "0.21",
 	      "pseudo terminals: spawn a program on one and drive it",
-	      pty_bi, 0, tt_fini, "pty");
+	      pty_bi, tt_ini, tt_fini, "pty");

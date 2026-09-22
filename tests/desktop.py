@@ -42,8 +42,7 @@ ONE = 'dt_new "Hello" 8 30 6 10'
 sc, raw = run(ONE)
 check("a window has a top-left corner where it was put",
       sc.g[6][10] == "┌", sc)
-check("and a bottom-right corner at its far end",
-      sc.g[13][39] == "┘", sc)
+check("and a grow box at its far corner", sc.g[13][39] == "◢", sc)
 check("its title is in the title bar", sc.find("┤ Hello ├") == (6, 12), sc)
 check("the close button is at the right of the bar", sc.g[6][37] == "x", sc)
 check("the minimise and zoom buttons sit beside it",
@@ -61,7 +60,7 @@ sc, _ = run(ONE, [press(6, 20), drag(9, 24), release(9, 24)])
 check("dragging the title bar moves the window",
       sc.find("┤ Hello ├") == (9, 16), sc)
 check("the window is drawn whole at its new place",
-      sc.g[9][14] == "┌" and sc.g[16][43] == "┘", sc)
+      sc.g[9][14] == "┌" and sc.g[16][43] == "◢", sc)
 check("and nothing of it is left behind",
       sc.g[6][10] == "·" and sc.g[8][39] == "·" and sc.g[13][12] == "·", sc)
 
@@ -90,10 +89,10 @@ check("choosing it there brings it back",
 
 sc, _ = run(ONE, [press(6, 35)])
 check("zooming fills the screen below the bar",
-      sc.g[1][0] == "┌" and sc.g[23][79] == "┘", sc)
+      sc.g[1][0] == "┌" and sc.g[23][79] == "◢", sc)
 sc, _ = run(ONE, [press(6, 35), press(1, 75)])
 check("and zooming again puts it back where it was",
-      sc.g[6][10] == "┌" and sc.g[13][39] == "┘", sc)
+      sc.g[6][10] == "┌" and sc.g[13][39] == "◢", sc)
 
 TWO = TWO_DEF
 
@@ -114,7 +113,7 @@ check("clicking the lower window raises it",
 check("and the one that was on top is now clipped",
       sc.g[9][20] == " " and sc.g[9][40] == "─", sc)
 check("the raised window is whole again", sc.find("┤ Under ├") == (6, 12) and
-      sc.g[6][10] == "┌" and sc.g[13][39] == "┘", sc)
+      sc.g[6][10] == "┌" and sc.g[13][39] == "◢", sc)
 
 sc, _ = run(TWO, [b"\t"])
 check("tab raises the window at the bottom of the stack",
@@ -175,7 +174,13 @@ MENUS = ('noted_draw() { console put -p "w$1" 1 2 "count $NC"; }\n'
          '  dt_item "Close" w dt_close_focused\n'
          '  dt_menu "More"\n'
          '  dt_item "Bump Twice" t noted_twice\n'
+         '  dt_sub "Set To"\n'
+         '  dt_mark "One" o 0 noted_set 1\n'
+         '  dt_mark "Two" x 1 noted_set 2\n'
+         '  dt_end\n'
+         '  dt_dim "Not Now"\n'
          '}\n'
+         'noted_set() { NC=$1; }\n'
          'noted_twice() { noted_bump; noted_bump; }\n'
          'dt_app noted "Noted" 6 24\n'
          'dt_new "Noted" 8 30 6 10 noted\n')
@@ -188,10 +193,10 @@ check("and the application menu names it",
 
 sc, _ = run(MENUS, [press(0, 9)])
 check("clicking a title drops the menu under it",
-      sc.find("Bump") == (1, 8) and sc.find("Reset") == (3, 8), sc)
-check("a separator is drawn between the groups", sc.at(2, 9) == "─", sc)
-check("each item shows the letter that picks it", sc.at(1, 17) == "b" and
-      sc.at(3, 17) == "r", sc)
+      sc.find("Bump") == (1, 9) and sc.find("Reset") == (3, 9), sc)
+check("a separator is drawn between the groups", sc.at(2, 8) == "─", sc)
+check("each item shows the letter that picks it", sc.at(1, 19) == "b" and
+      sc.at(3, 19) == "r", sc)
 
 sc, _ = run(MENUS, [press(0, 9), press(0, 9)])
 check("clicking it again puts it away", sc.find("Bump") is None, sc)
@@ -251,4 +256,79 @@ sc, _ = run(MENUS, [press(6, 37)])
 check("with no window left the desktop's own menus show",
       sc.find("Desktop") is not None and sc.find("Count") is None, sc)
 
-report(58)
+# --- resizing -------------------------------------------------------------
+
+sc, _ = run(ONE, [press(13, 39), drag(17, 51), release(17, 51)])
+check("dragging the grow box makes the window bigger",
+      sc.at(6, 10) == "┌" and sc.at(17, 51) == "◢", sc)
+check("and the title bar's buttons move out with the edge",
+      sc.at(6, 49) == "x", sc)
+
+sc, _ = run(ONE, [press(13, 39), drag(9, 25), release(9, 25)])
+check("and smaller", sc.at(9, 25) == "◢" and sc.at(6, 10) == "┌", sc)
+
+sc, _ = run(ONE, [press(13, 39), drag(6, 10), release(6, 10)])
+check("but never smaller than the title bar's buttons need",
+      sc.at(9, 25) == "◢" and sc.at(6, 23) == "x" and
+      sc.at(6, 10) == "┌", sc)
+
+sc, _ = run(ONE, [press(13, 39), drag(30, 120), release(30, 120)])
+check("nor past the edge of the screen", sc.at(23, 79) == "◢", sc)
+
+# --- the window menu, and items that cannot be chosen ---------------------
+
+sc, _ = run(MENUS, [press(0, 20)])
+check("a window menu is there even for an app with its own menus",
+      sc.find("Move") is not None and sc.find("Cycle") is not None, sc)
+
+sc, _ = run(MENUS, [press(6, 37), press(0, 9)])
+check("with nothing focused its items lose their letters",
+      sc.find("Move") is not None and sc.at(1, 19) != "m", sc)
+
+sc, _ = run(MENUS, [press(6, 37), press(0, 9), b"m"])
+check("and a dimmed letter does nothing", sc.find("Move") is not None, sc)
+
+# --- submenus -------------------------------------------------------------
+
+sc, _ = run(MENUS, [press(0, 15)])
+check("an item with a submenu shows an arrow, not a letter",
+      sc.find("Set To") is not None and sc.at(2, 30) == "▸", sc)
+
+sc, _ = run(MENUS, [press(0, 15), b"\x1b[B", b"\x1b[C"])
+check("right opens it beside its parent",
+      sc.find("One") is not None and sc.find("Two") is not None and
+      sc.find("Bump Twice") is not None, sc)
+check("and the current choice carries a tick",
+      sc.find("✓ Two") is not None and sc.find("✓ One") is None, sc)
+
+sc, _ = run(MENUS, [press(0, 15), b"\x1b[B", b"\x1b[C", b"\x1b[D"])
+check("left comes back out, leaving the parent open",
+      sc.find("One") is None and sc.find("Bump Twice") is not None, sc)
+
+sc, _ = run(MENUS, [press(0, 15), b"\x1b[B", b"\x1b[C", b"o"])
+check("an item inside a submenu runs",
+      sc.find("count 1") is not None and sc.find("One") is None, sc)
+
+sc, _ = run(MENUS, [press(0, 15), b"\x1b[B", b"\x1b[B", b"\r"])
+check("a dimmed item is stepped over, so down twice wraps past it",
+      sc.find("count 2") is not None, sc)
+
+# --- moving and resizing from the keyboard --------------------------------
+
+sc, _ = run(MENUS, [press(0, 20), b"m"])
+check("move says what it is doing", sc.find("moving") is not None, sc)
+
+sc, _ = run(MENUS, [press(0, 20), b"m", b"\x1b[A", b"\x1b[A",
+                    b"\x1b[D", b"\r"])
+check("the arrows move the window while it is held",
+      sc.find("┤ Noted ├") == (4, 11) and sc.find("moving") is None, sc)
+
+sc, _ = run(MENUS, [press(0, 20), b"r", b"\x1b[C", b"\x1b[C", b"\r"])
+check("and resize it in the other mode",
+      sc.at(6, 10) == "┌" and sc.at(13, 41) == "◢", sc)
+
+sc, _ = run(MENUS, [press(0, 20), b"m", b"\x1b[A", b"\x1b"])
+check("escape ends the mode, keeping what it did",
+      sc.find("┤ Noted ├") == (5, 12) and sc.find("moving") is None, sc)
+
+report(75)

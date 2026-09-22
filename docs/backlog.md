@@ -99,19 +99,15 @@ and runs the program — and what remains is turning the escape sequences that
 come back into cells. It is also what would let the test harness be hibr
 rather than Python, see below.
 
-**Left, and smaller.** None of these is on the critical path, and each is a
-real gap rather than a deliberate omission:
-
-- **Windows cannot be resized**, only zoomed to full screen and back. System 7
-  had a grow box in the bottom-right corner and this should too; the pane
-  already takes an arbitrary size, so it is a drag handler and a corner glyph.
-- **Menus have no check marks and no disabled items.** The control panel's
-  Hidden Files is a toggle drawn as though it were an action, which is the
-  kind of small lie that accumulates.
-- **No cascading submenus.** Nothing has wanted one yet, which is the bar for
-  building it.
-- **A window can only be moved with the mouse.** There is no keyboard
-  equivalent of dragging.
+**Those four smaller gaps are closed.** A grow box in the bottom-right corner
+resizes a window and clamps at a size the title bar still fits and at the edge
+of the screen. Menus have ticks and items that cannot be chosen, and one level
+of submenu — the control panel's Theme, Wallpaper and Refresh are now
+submenus with a tick against whichever is current, which is a better thing
+than the "Next Theme" they replaced. And a Window menu that is always there,
+after the application's own, holds Move and Resize: both take the arrows
+until enter or escape gives them back, so the desktop can be arranged without
+a mouse.
 
 Not planned: transparency, sub-cell placement, or a widget toolkit before
 three apps have wanted the same widget.

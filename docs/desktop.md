@@ -18,8 +18,8 @@ Try it:
 
     ./build/hibr examples/desktop-session.hibr
 
-Drag a title bar to move a window. `_` minimises, `□` fills the screen, `x`
-closes. `tab` cycles, `escape` brings back a minimised window, and `q` quits
+Drag a title bar to move a window and the `◢` in its bottom-right corner to
+resize it. `_` minimises, `□` fills the screen, `x` closes. `tab` cycles, `escape` brings back a minimised window, and `q` quits
 and gives the terminal back.
 
 A minimised window has no pane at all, so nothing draws it and nothing can
@@ -91,6 +91,15 @@ The application menu lists every window, with `•` against the active one and
 `·` against a hidden one; choosing a hidden one brings it back. That is the
 only way back from minimising, and it is where System 7 put it too.
 
+**A Window menu is always there**, after the application's own, so an app
+cannot hide the only way to move or close its window. It holds Move, Resize,
+Zoom, Hide, Close and Cycle — and with nothing focused those are drawn
+without their letters, present but not choosable, rather than vanishing.
+
+**Move and Resize take the arrows** until enter or escape gives them back,
+which is the keyboard's answer to dragging. A desktop that can only be
+arranged with a mouse is a desktop half its users cannot arrange.
+
 ## Menus for an app
 
 An app declares them by providing `<app>_menus`, which calls `dt_menu`,
@@ -108,8 +117,26 @@ clock_menus() {
 }
 ```
 
+| declarator | makes |
+|---|---|
+| `dt_item <label> <key> <cmd…>` | an ordinary item; an empty key means no letter |
+| `dt_mark <label> <key> <on> <cmd…>` | the same, with a tick when `on` is not `0` |
+| `dt_dim <label>` | an item that is there and cannot be chosen |
+| `dt_sep` | a dividing line |
+| `dt_sub <label>` … `dt_end` | a submenu; the items between belong to it |
+
 `dt_item <label> <key> <command> [args…]` — the key is the letter that picks
-it while the menu is open, and the command is run when it is chosen. Keys
+it while the menu is open, and the command is run when it is chosen.
+
+A submenu opens with `→` and closes with `←`, and its parent stays on screen
+beside it. One level is all there is, because nothing has wanted two. The
+control panel uses all of this: its Theme, Wallpaper and Refresh are
+submenus with a tick against whichever is current, which is a better thing
+than the "Next Theme" it had before.
+
+`dt_dim` exists so a menu can say a thing is unavailable rather than
+disappearing it — a menu that changes shape between one moment and the next
+is one you cannot learn. Keys
 are the app's own business inside its own menu; in the hibr menu the desktop
 picks them, skipping any already taken, because Calculator and Clock both
 start with a C and a menu where one item cannot be reached is a broken menu.
@@ -138,6 +165,8 @@ manager's own table:
 | `dt_raise <id>` | put it on top and give it the keyboard; un-minimises first |
 | `dt_close_focused`, `dt_hide_focused`, `dt_zoom_focused` | act on whatever has focus, for menu items |
 | `dt_note <text>` | say something in the middle of the screen until the next key |
+| `dt_move <id> <row> <col>` | put a window somewhere, clamped to the screen |
+| `dt_resize <id> <h> <w>` | give it a size, clamped to what is usable and what fits |
 | `dt_min <id>` | minimise it, or restore it if it already is |
 | `dt_del <id>` | close it |
 | `dt_new <title> <h> <w> <row> <col> [app]` | open one; the id lands in `$RET` |
@@ -168,7 +197,7 @@ verb. See [decision 0020](adr/0020-windows-are-drawn-not-composited.md).
 
 It is cooperative: one process, one loop, apps called in turn, so an app that
 takes a long time in `_draw` stalls the desktop. Windows snap to cells and
-cannot be transparent. There is no widget library — each app draws its own
+cannot be transparent. Menus nest one level deep. There is no widget library — each app draws its own
 buttons, and if the same button code turns up in three apps, *then* it becomes
 one. There is no way yet to run a program that is not written in hibr inside a
 window; that needs a terminal emulator, which is the last thing on the list in

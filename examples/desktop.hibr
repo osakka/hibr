@@ -24,6 +24,8 @@ DT_DRAG=
 DT_DR=0
 DT_DC=0
 DT_QUIT=0
+DT_SIZE=
+DT_GRAB=
 DT_NOTE=
 DT_ROWS=24
 DT_COLS=80
@@ -210,6 +212,8 @@ dt_win() {
 	bar := dt_rep $((w - 2)) "─"
 	console put -p "w$id" 0 0 "┌$bar┐"
 	console put -p "w$id" $((h - 1)) 0 "└$bar┘"
+	console pen "$DT_INK" "$DT_FACE"
+	console put -p "w$id" $((h - 1)) $((w - 1)) "◢"
 	local r=1
 	while [ "$r" -lt $((h - 1)) ]; do
 		console put -p "w$id" "$r" 0 "│"
@@ -311,7 +315,13 @@ dt_mouse() {
 		wr=${DT[$id]["row"]}
 		wc=${DT[$id]["col"]}
 		ww=${DT[$id]["w"]}
+		wh=${DT[$id]["h"]}
 		ap=${DT[$id]["click"]}
+		if [ "$mr" = $((wr + wh - 1)) ] &&
+		   [ "$mc" = $((wc + ww - 1)) ]; then
+			DT_SIZE=$id
+			return 0
+		fi
 		if [ "$mr" -ne "$wr" ]; then
 			[ -n "$ap" ] && $ap "$id" $((mr - wr)) $((mc - wc))
 			return 0
@@ -329,22 +339,18 @@ dt_mouse() {
 		esac
 		;;
 	drag)
+		if [ -n "$DT_SIZE" ]; then
+			id=$DT_SIZE
+			dt_resize "$id" $((mr - DT[$id]["row"] + 1)) \
+				$((mc - DT[$id]["col"] + 1))
+			return 0
+		fi
 		[ -z "$DT_DRAG" ] && return 0
-		id=$DT_DRAG
-		wh=${DT[$id]["h"]}
-		ww=${DT[$id]["w"]}
-		wr=$((mr - DT_DR))
-		wc=$((mc - DT_DC))
-		[ "$wr" -lt 1 ] && wr=1
-		[ "$wc" -lt 0 ] && wc=0
-		[ $((wr + wh)) -gt "$DT_ROWS" ] && wr=$((DT_ROWS - wh))
-		[ $((wc + ww)) -gt "$DT_COLS" ] && wc=$((DT_COLS - ww))
-		DT[$id]["row"]=$wr
-		DT[$id]["col"]=$wc
-		console pane "w$id" "$wr" "$wc" "$wh" "$ww"
+		dt_move "$DT_DRAG" $((mr - DT_DR)) $((mc - DT_DC))
 		;;
 	release)
 		DT_DRAG=
+		DT_SIZE=
 		;;
 	wheelup | wheeldown)
 		id := console hit "$mr" "$mc"
@@ -357,6 +363,44 @@ dt_mouse() {
 		$ap "$id" "${act#wheel}" $((mr - wr)) $((mc - wc))
 		;;
 	esac
+}
+
+# The smallest a window can be and still have a usable title bar: the
+# buttons alone take eight columns, and a body with no rows is not a window.
+DT_MINW=16
+DT_MINH=4
+
+# Put a window at a size, clamped to what is sensible and what fits.
+dt_resize() {
+	local id=$1 h=$2 w=$3 r c
+
+	[ "$h" -lt "$DT_MINH" ] && h=$DT_MINH
+	[ "$w" -lt "$DT_MINW" ] && w=$DT_MINW
+	r=${DT[$id]["row"]}
+	c=${DT[$id]["col"]}
+	[ $((r + h)) -gt "$DT_ROWS" ] && h=$((DT_ROWS - r))
+	[ $((c + w)) -gt "$DT_COLS" ] && w=$((DT_COLS - c))
+	[ "$h" -lt "$DT_MINH" ] && return 1
+	[ "$w" -lt "$DT_MINW" ] && return 1
+	DT[$id]["h"]=$h
+	DT[$id]["w"]=$w
+	DT[$id]["oh"]=
+	console pane "w$id" "$r" "$c" "$h" "$w"
+}
+
+# Move a window, clamped to the screen below the menu bar.
+dt_move() {
+	local id=$1 r=$2 c=$3
+
+	[ "$r" -lt 1 ] && r=1
+	[ "$c" -lt 0 ] && c=0
+	[ $((r + DT[$id]["h"])) -gt "$DT_ROWS" ] &&
+		r=$((DT_ROWS - DT[$id]["h"]))
+	[ $((c + DT[$id]["w"])) -gt "$DT_COLS" ] &&
+		c=$((DT_COLS - DT[$id]["w"]))
+	DT[$id]["row"]=$r
+	DT[$id]["col"]=$c
+	console pane "w$id" "$r" "$c" "${DT[$id]["h"]}" "${DT[$id]["w"]}"
 }
 
 # Fill the screen, or go back to where the window was.
@@ -399,6 +443,10 @@ dt_event() {
 		return 0
 		;;
 	esac
+	if [ -n "$DT_GRAB" ]; then
+		dt_gkey "$k" && return 0
+		return 0
+	fi
 	DT_NOTE=
 	if [ "$MB_OPEN" != -1 ]; then
 		dt_mkey "$k" && return 0
@@ -459,6 +507,9 @@ MB_N=0
 MB_OPEN=-1
 MB_SEL=0
 MB_APP=
+MB_CUR=
+MB_STACK=
+MB_PAR=
 MB_IN=0
 
 # Start a menu.  Called from an app's <app>_menus.
@@ -466,31 +517,101 @@ dt_menu() {
 	MB[$MB_N]["title"]="$1"
 	MB[$MB_N]["n"]=0
 	MB[$MB_N]["w"]=0
+	MB[$MB_N]["bar"]=1
+	MB_CUR=$MB_N
 	MB_N=$((MB_N + 1))
 }
 
 # Add an item to the menu being declared: label, key, then the command.
+# An empty key means the item has no letter and is reached with the arrows.
 dt_item() {
-	local m=$((MB_N - 1)) n=${MB[$((MB_N - 1))]["n"]} lb=$1 k=$2
-	local wide=$((${#1} + 6))
+	dt_row "" 0 "$@"
+}
 
-	shift 2
+# The same, with a tick beside it when the third argument is not 0.
+dt_mark() {
+	local lb=$1 k=$2 on=$3
+
+	shift 3
+	if [ "$on" = 0 ] || [ -z "$on" ]; then
+		dt_row " " 0 "$lb" "$k" "$@"
+	else
+		dt_row "✓" 0 "$lb" "$k" "$@"
+	fi
+}
+
+# An item that is there but cannot be chosen, which is how a menu says a
+# thing exists and is not available now -- quieter than hiding it, and it
+# keeps the menu the same shape from one moment to the next.
+dt_dim() {
+	dt_row "" 1 "$1" "" :
+}
+
+# Start a submenu.  Items until dt_end belong to it.
+#
+# The parent is MB_CUR -- the menu being declared -- and not the last menu
+# created, which after one dt_end is the submenu that just closed. Getting
+# that wrong hangs the second submenu off the first, and it looks almost
+# right until you notice a menu item has gone missing.
+dt_sub() {
+	local p=${MB_CUR:-$((MB_N - 1))} n
+
+	n=${MB[$p]["n"]}
+	dt_menu "$1"
+	MB[$((MB_N - 1))]["bar"]=0
+	MI[$p][$n]["label"]="$1"
+	MI[$p][$n]["key"]=""
+	MI[$p][$n]["cmd"]=""
+	MI[$p][$n]["sep"]=0
+	MI[$p][$n]["dim"]=0
+	MI[$p][$n]["tick"]=""
+	MI[$p][$n]["sub"]=$((MB_N - 1))
+	MB[$p]["n"]=$((n + 1))
+	dt_wide "$p" $((${#1} + 8))
+	MB_STACK="$p $MB_STACK"
+}
+
+# Finish a submenu and go back to the menu that owns it.
+dt_end() {
+	MB_CUR=${MB_STACK%% *}
+	MB_STACK=${MB_STACK#* }
+}
+
+# Remember the widest label a menu has to fit.
+dt_wide() {
+	[ "$2" -gt "${MB[$1]["w"]}" ] && MB[$1]["w"]=$2
+}
+
+# One row of a menu.  Everything above goes through here.
+dt_row() {
+	local tick=$1 dim=$2 lb=$3 k=$4 m n
+
+	shift 4
+	m=${MB_CUR:-$((MB_N - 1))}
+	n=${MB[$m]["n"]}
 	MI[$m][$n]["label"]="$lb"
 	MI[$m][$n]["key"]="$k"
 	MI[$m][$n]["cmd"]="$*"
 	MI[$m][$n]["sep"]=0
+	MI[$m][$n]["dim"]="$dim"
+	MI[$m][$n]["tick"]="$tick"
+	MI[$m][$n]["sub"]=
 	MB[$m]["n"]=$((n + 1))
-	[ "$wide" -gt "${MB[$m]["w"]}" ] && MB[$m]["w"]=$wide
+	dt_wide "$m" $((${#lb} + 8))
 }
 
 # Add a dividing line.
 dt_sep() {
-	local m=$((MB_N - 1)) n=${MB[$((MB_N - 1))]["n"]}
+	local m=${MB_CUR:-$((MB_N - 1))} n
 
+	n=${MB[$m]["n"]}
 	MI[$m][$n]["sep"]=1
 	MI[$m][$n]["label"]=
 	MI[$m][$n]["key"]=
 	MI[$m][$n]["cmd"]=
+	MI[$m][$n]["dim"]=0
+	MI[$m][$n]["tick"]=""
+	MI[$m][$n]["sub"]=
 	MB[$m]["n"]=$((n + 1))
 }
 
@@ -533,18 +654,32 @@ dt_menus() {
 	dt_sep
 	dt_item "Quit" q dt_quit
 
+	MB_APP=
 	if [ -n "$ap" ] && dt_has "${ap}_menus"; then
 		MB_APP=$ap
 		${ap}_menus
-	else
-		MB_APP=
-		dt_menu "Desktop"
-		dt_item "Close Window" w dt_close_focused
-		dt_item "Hide Window" h dt_hide_focused
-		dt_item "Zoom Window" z dt_zoom_focused
-		dt_sep
-		dt_item "Cycle Windows" c dt_cycle
 	fi
+
+	# Always last, and always there: an app that has its own menus must
+	# not be able to hide the only way to move or close its window.
+	dt_menu "Window"
+	if [ -z "$DT_FOCUS" ]; then
+		dt_dim "Move"
+		dt_dim "Resize"
+		dt_dim "Zoom"
+		dt_dim "Hide"
+		dt_sep
+		dt_dim "Close"
+	else
+		dt_item "Move" m dt_grab move
+		dt_item "Resize" r dt_grab size
+		dt_item "Zoom" z dt_zoom_focused
+		dt_item "Hide" h dt_hide_focused
+		dt_sep
+		dt_item "Close" w dt_close_focused
+	fi
+	dt_sep
+	dt_item "Cycle" c dt_cycle
 	dt_layout
 }
 
@@ -581,6 +716,12 @@ dt_layout() {
 	local i=0 c=1 t
 
 	while [ "$i" -lt "$MB_N" ]; do
+		if [ "${MB[$i]["bar"]}" != 1 ]; then
+			MB[$i]["x"]=0
+			MB[$i]["tw"]=0
+			i=$((i + 1))
+			continue
+		fi
 		t=${MB[$i]["title"]}
 		MB[$i]["x"]=$c
 		MB[$i]["tw"]=$((${#t} + 2))
@@ -613,8 +754,12 @@ dt_bar() {
 	console put 0 0 "$line"
 
 	while [ "$i" -lt "$MB_N" ]; do
+		if [ "${MB[$i]["bar"]}" != 1 ]; then
+			i=$((i + 1))
+			continue
+		fi
 		t=${MB[$i]["title"]}
-		if [ "$i" = "$MB_OPEN" ]; then
+		if [ "$i" = "$MB_OPEN" ] || [ "$i" = "$MB_PAR" ]; then
 			console pen "$DT_BAR" "$DT_ACTIVE" bold
 		elif [ "$i" = 0 ]; then
 			console pen "$DT_ACTIVE" "$DT_BAR" bold
@@ -650,37 +795,60 @@ dt_appname() {
 
 # Draw the open menu over everything else.
 dt_drop() {
-	local m=$MB_OPEN i=0 r x w n lb k
-	local rows
+	local m=$MB_OPEN
 
 	[ "$m" = -1 ] && return 0
 	if [ "$m" = app ]; then
 		dt_drop_apps
 		return 0
 	fi
+	if [ -n "$MB_PAR" ]; then
+		dt_menu_draw "$MB_PAR" "" 1
+		dt_menu_draw "$m" "${MB[$m]["px"]}" 0
+	else
+		dt_menu_draw "$m" "" 0
+	fi
+}
+
+# Draw one menu at its own place.  A submenu is given the column its parent
+# occupies so it can sit beside it rather than on top of it.
+dt_menu_draw() {
+	local m=$1 px=$2 parent=$3
+	local i=0 r=1 x w n lb k t sub
+
 	x=${MB[$m]["x"]}
 	w=${MB[$m]["w"]}
 	n=${MB[$m]["n"]}
-	[ "$w" -lt 12 ] && w=12
+	[ "$w" -lt 14 ] && w=14
+	[ -n "$px" ] && x=$px
+	[ "$x" -lt 0 ] && x=0
 	[ $((x + w)) -gt "$DT_COLS" ] && x=$((DT_COLS - w))
-	console pen "$DT_INK" "$DT_FACE"
-	r=1
+	MB[$m]["dx"]=$x
+	MB[$m]["dw"]=$w
 	while [ "$i" -lt "$n" ]; do
 		if [ "${MI[$m][$i]["sep"]}" = 1 ]; then
 			console pen "$DT_IDLE" "$DT_FACE"
 			lb := dt_rep "$w" "─"
 			console put "$r" "$x" "$lb"
-		else
-			if [ "$i" = "$MB_SEL" ]; then
-				console pen "$DT_FACE" "$DT_ACTIVE" bold
-			else
-				console pen "$DT_INK" "$DT_FACE"
-			fi
-			lb=${MI[$m][$i]["label"]}
-			k=${MI[$m][$i]["key"]}
-			lb := str pad " $lb" $((w - 3))
-			console put "$r" "$x" "$lb $k "
+			r=$((r + 1))
+			i=$((i + 1))
+			continue
 		fi
+		if [ "$parent" != 1 ] && [ "$i" = "$MB_SEL" ]; then
+			console pen "$DT_FACE" "$DT_ACTIVE" bold
+		elif [ "${MI[$m][$i]["dim"]}" = 1 ]; then
+			console pen "$DT_IDLE" "$DT_FACE"
+		else
+			console pen "$DT_INK" "$DT_FACE"
+		fi
+		lb=${MI[$m][$i]["label"]}
+		k=${MI[$m][$i]["key"]}
+		t=${MI[$m][$i]["tick"]}
+		sub=${MI[$m][$i]["sub"]}
+		[ -n "$sub" ] && k="▸"
+		[ -z "$t" ] && t=" "
+		lb := str pad "$t $lb" $((w - 3))
+		console put "$r" "$x" "$lb $k "
 		r=$((r + 1))
 		i=$((i + 1))
 	done
@@ -741,8 +909,9 @@ dt_mmove() {
 	while [ "$k" -lt "$n" ]; do
 		i=$(((i + d + n) % n))
 		[ "$MB_OPEN" = app ] && break
-		[ "${MI[$MB_OPEN][$i]["sep"]}" != 1 ] && break
-		k=$((k + 1))
+		[ "${MI[$MB_OPEN][$i]["sep"]}" = 1 ] && { k=$((k + 1)); continue; }
+		[ "${MI[$MB_OPEN][$i]["dim"]}" = 1 ] && { k=$((k + 1)); continue; }
+		break
 	done
 	MB_SEL=$i
 }
@@ -750,19 +919,56 @@ dt_mmove() {
 # Open a menu, closing whatever was open.
 dt_mopen() {
 	MB_OPEN=$1
+	MB_PAR=
 	MB_SEL=0
-	[ "$1" != app ] && [ "${MI[$1][0]["sep"]}" = 1 ] && dt_mmove 1
+	[ "$1" = app ] && return 0
+	[ "${MI[$1][0]["sep"]}" = 1 ] || [ "${MI[$1][0]["dim"]}" = 1 ] &&
+		dt_mmove 1
 }
 
 dt_mclose() {
 	MB_OPEN=-1
+	MB_PAR=
 	MB_SEL=0
+}
+
+# Step into the submenu of the highlighted item, if it has one.
+dt_mdown() {
+	local sub
+
+	[ "$MB_OPEN" = app ] && return 1
+	sub=${MI[$MB_OPEN][$MB_SEL]["sub"]}
+	[ -z "$sub" ] && return 1
+	MB[$sub]["px"]=$((${MB[$MB_OPEN]["dx"]} + ${MB[$MB_OPEN]["dw"]} - 1))
+	MB_PAR=$MB_OPEN
+	MB_OPEN=$sub
+	MB_SEL=0
+	return 0
+}
+
+# Back out of a submenu to the one that owns it.
+dt_mup() {
+	local p=$MB_PAR i=0 n
+
+	[ -z "$p" ] && return 1
+	n=${MB[$p]["n"]}
+	while [ "$i" -lt "$n" ]; do
+		[ "${MI[$p][$i]["sub"]}" = "$MB_OPEN" ] && MB_SEL=$i
+		i=$((i + 1))
+	done
+	MB_OPEN=$p
+	MB_PAR=
+	return 0
 }
 
 # Choose the highlighted item.
 dt_mdo() {
 	local m=$MB_OPEN i=$MB_SEL ids id n=0 cmd
 
+	if [ "$m" != app ] && [ -n "${MI[$m][$i]["sub"]}" ]; then
+		dt_mdown
+		return 0
+	fi
 	dt_mclose
 	if [ "$m" = app ]; then
 		ids := dt_ids
@@ -773,6 +979,7 @@ dt_mdo() {
 		return 0
 	fi
 	[ "${MI[$m][$i]["sep"]}" = 1 ] && return 0
+	[ "${MI[$m][$i]["dim"]}" = 1 ] && return 0
 	cmd=${MI[$m][$i]["cmd"]}
 	[ -n "$cmd" ] && $cmd
 }
@@ -820,8 +1027,9 @@ dt_mkey() {
 	local k=$1 n i=0 lb
 
 	case $k in
-	escape) dt_mclose; return 0 ;;
+	escape) dt_mup || dt_mclose; return 0 ;;
 	left)
+		dt_mup && return 0
 		if [ "$MB_OPEN" = app ]; then
 			dt_mopen $((MB_N - 1))
 		elif [ "$MB_OPEN" -gt 0 ]; then
@@ -832,6 +1040,7 @@ dt_mkey() {
 		return 0
 		;;
 	right)
+		dt_mdown && return 0
 		if [ "$MB_OPEN" = app ]; then
 			dt_mopen 0
 		elif [ $((MB_OPEN + 1)) -lt "$MB_N" ]; then
@@ -848,7 +1057,10 @@ dt_mkey() {
 	if [ "$MB_OPEN" != app ] && [ ${#k} = 1 ]; then
 		n=${MB[$MB_OPEN]["n"]}
 		while [ "$i" -lt "$n" ]; do
-			if [ "${MI[$MB_OPEN][$i]["key"]}" = "$k" ]; then
+			[ "${MI[$MB_OPEN][$i]["dim"]}" = 1 ] &&
+				{ i=$((i + 1)); continue; }
+			if [ -n "${MI[$MB_OPEN][$i]["key"]}" ] &&
+			   [ "${MI[$MB_OPEN][$i]["key"]}" = "$k" ]; then
 				MB_SEL=$i
 				dt_mdo
 				return 0
@@ -857,6 +1069,50 @@ dt_mkey() {
 		done
 	fi
 	return 1
+}
+
+# Take the arrows for moving or resizing the focused window, until enter or
+# escape gives them back.  This is the keyboard's answer to dragging a title
+# bar, and the only one there is: a desktop that can only be arranged with a
+# mouse is a desktop half its users cannot arrange.
+dt_grab() {
+	[ -z "$DT_FOCUS" ] && return 1
+	DT_GRAB=$1
+	if [ "$1" = move ]; then
+		dt_note "moving — arrows, then enter"
+	else
+		dt_note "resizing — arrows, then enter"
+	fi
+}
+
+# One key while the arrows are taken.  Returns 1 for a key it does not want.
+dt_gkey() {
+	local id=$DT_FOCUS dr=0 dc=0
+
+	case $1 in
+	up) dr=-1 ;;
+	down) dr=1 ;;
+	left) dc=-1 ;;
+	right) dc=1 ;;
+	enter | escape | " ")
+		DT_GRAB=
+		DT_NOTE=
+		return 0
+		;;
+	*) return 1 ;;
+	esac
+	if [ -z "$id" ]; then
+		DT_GRAB=
+		return 0
+	fi
+	if [ "$DT_GRAB" = move ]; then
+		dt_move "$id" $((DT[$id]["row"] + dr)) \
+			$((DT[$id]["col"] + dc))
+	else
+		dt_resize "$id" $((DT[$id]["h"] + dr)) \
+			$((DT[$id]["w"] + dc))
+	fi
+	return 0
 }
 
 # A note in the middle of the screen, until the next key.

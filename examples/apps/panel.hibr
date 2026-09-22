@@ -182,26 +182,36 @@ panel_draw() {
 }
 
 panel_menus() {
+	local x on
+
 	dt_menu "Settings"
-	dt_item "Next Theme" t cp_theme_next
-	dt_item "Next Wallpaper" p cp_glyph_next
+	dt_sub "Theme"
+	for x in "${CP_THEMES[@]}"; do
+		on=0
+		[ "$x" = "$CP_THEME" ] && on=1
+		dt_mark "$x" "${x:0:1}" "$on" cp_theme "$x"
+	done
+	dt_end
+	dt_sub "Wallpaper"
+	for x in "${CP_GLYPHS[@]}"; do
+		on=0
+		[ "$x" = "$DT_GLYPH" ] && on=1
+		dt_mark "$x" "" "$on" cp_set_glyph "$x"
+	done
+	dt_end
+	dt_sub "Refresh"
+	for x in "${CP_TICKS[@]}"; do
+		on=0
+		[ "$x" = "$DT_TICK" ] && on=1
+		dt_mark "$x ms" "" "$on" cp_set_tick "$x"
+	done
+	dt_end
 	dt_sep
-	dt_item "Change" c cp_do 1
-	dt_sep
-	dt_item "Close" w dt_close_focused
+	dt_item "Change Selected" c cp_do 1
 }
 
-cp_theme_next() {
-	local v
-	v := cp_next "$CP_THEME" 1 "${CP_THEMES[@]}"
-	cp_theme "$v"
-}
-
-cp_glyph_next() {
-	local v
-	v := cp_next "$DT_GLYPH" 1 "${CP_GLYPHS[@]}"
-	DT_GLYPH=$v
-}
+cp_set_glyph() { DT_GLYPH=$1; }
+cp_set_tick() { DT_TICK=$1; }
 
 panel_key() {
 	case $2 in
