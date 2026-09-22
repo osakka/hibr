@@ -10,15 +10,19 @@ Every run is contained: a fresh directory per invocation, with HOME, TMPDIR and
 the working directory all inside it, stdin closed and a timeout. Containment is
 not optional -- `tgz --help` writes an archive called `--help.tgz`, so a script
 that looks like it only prints usage may not. Service scripts under /etc/init.d
-are skipped outright; nothing good comes of running those twice.
+are skipped outright, as is anything in SKIP_SCRIPTS -- `rscreen` starts an
+ssh-agent per invocation and the sandbox contains files, not daemons.
 
 Only stdout and exit status are compared. Error wording differs between shells
-on purpose and is not a divergence.
+on purpose and is not a divergence. The sandbox path is replaced in the output
+before comparing, because a script that prints its own temp directory would
+otherwise differ from itself.
 """
 import os, shutil, subprocess, sys, tempfile
 
 ARGS = [["--help"], ["--version"], []]
 SKIP_DIRS = ("/etc/init.d",)
+SKIP_SCRIPTS = ("/usr/bin/rscreen",)
 
 
 def sandbox_run(shell, script, args, keep):
@@ -36,11 +40,26 @@ def sandbox_run(shell, script, args, keep):
         out, rc = "", "timeout"
     except Exception as e:
         out, rc = "", "error:%s" % e
+    out = out.replace(d, "<sandbox>")
     wrote = sorted(os.listdir(d)) if os.path.isdir(d) else []
     if keep is not None:
         keep.extend(wrote)
     shutil.rmtree(d, ignore_errors=True)
     return rc, out
+
+
+def show_first_diff(ref, name, o1, o2):
+    """Print the first line that differs, which is where the cause is."""
+    l1, l2 = o1.splitlines(), o2.splitlines()
+    for i in range(max(len(l1), len(l2))):
+        a = l1[i] if i < len(l1) else "<no line %d>" % (i + 1)
+        b = l2[i] if i < len(l2) else "<no line %d>" % (i + 1)
+        if a != b:
+            print("    line %d  %-6s %r" % (i + 1, ref, a[:120]))
+            print("            %-6s %r" % (name, b[:120]))
+            return
+    if o1 != o2:
+        print("    output differs only in trailing newlines")
 
 
 def main():
@@ -62,8 +81,10 @@ def main():
     else:
         print("give --list with a file of script paths", file=sys.stderr)
         return 2
-    scripts = [s for s in scripts if not s.startswith(SKIP_DIRS)]
+    scripts = [s for s in scripts
+               if not s.startswith(SKIP_DIRS) and s not in SKIP_SCRIPTS]
 
+    name = os.path.basename(shell)
     runs = same = diff = 0
     reports = []
     for sc in scripts:
@@ -81,9 +102,8 @@ def main():
           % (runs, len(scripts), same, diff))
     for sc, args, a1, a2, wrote in reports:
         print("--- %s %s" % (sc, " ".join(args) or "(no arguments)"))
-        print("    %-14s rc=%s out=%r" % (ref, a1[0], a1[1][:160]))
-        print("    %-14s rc=%s out=%r" % (os.path.basename(shell), a2[0],
-                                          a2[1][:160]))
+        print("    rc  %s %s   %s %s" % (ref, a1[0], name, a2[0]))
+        show_first_diff(ref, name, a1[1], a2[1])
         if wrote:
             print("    (it also wrote %s)" % ", ".join(wrote[:4]))
     return 1 if diff else 0

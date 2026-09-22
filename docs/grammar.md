@@ -41,6 +41,13 @@ nothing to switch on — [0017](adr/0017-one-namespace-for-options.md).
 | `'…'` | every byte literal, no escapes, cannot contain `'` |
 | `"…"` | literal except `$` `` ` `` `\` and, inside, `!` when history expansion is on |
 | `$'…'` | ANSI-C escapes: `\n \t \r \a \b \f \v \e \\ \' \xHH \0NNN` |
+| `$"…"` | exactly `"…"` — see below |
+
+`$"…"` is bash's locale-translation form, accepted so that scripts written
+with it run. It means the same as `"…"`: expansions happen, and the text is
+used as written. hibr does not look the string up in a message catalogue, and
+there is nothing to configure — a script that uses it gets its own text, which
+is what bash gives you too when no translation is installed.
 
 ### Reserved words
 

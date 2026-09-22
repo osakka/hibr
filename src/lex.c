@@ -509,6 +509,12 @@ word *lx_word(lex *l)
 			seen = 1;
 			continue;
 		}
+		if (c == '$' && l->p + 1 < l->e && l->p[1] == '"' && !q) {
+			lg(HIBR_LDBG, "locale quote: $\"...\" read as \"...\"");
+			l->p++;
+			seen = 1;
+			continue;
+		}
 		if (c == '$' && l->p + 1 < l->e && l->p[1] == '\'' && !q) {
 			l->p += 2;
 			seen = 1;

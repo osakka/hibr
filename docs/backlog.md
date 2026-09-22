@@ -58,6 +58,31 @@ What it needs, in order of how much it bites:
 
 So: the drawing is an afternoon, the privilege and geo parts are the project.
 
+### A screen layer, before any of the rest
+
+Four of the things below want the same missing piece, so it is its own item
+and it lands first.
+
+The line editor can move a cursor, knows the terminal width and decodes UTF-8,
+but it owns one line. There is no alternate screen, no region that redraws
+without flicker, no layout, no key decoding beyond what the editor needs for
+itself. Everything full-screen needs exactly that, and none of it is specific
+to a monitor or an editor:
+
+- the alternate screen, and putting the terminal back on the way out including
+  on a signal
+- a damage model, so a redraw writes the cells that changed rather than the
+  screen
+- panes with sizes, and reflow on `SIGWINCH`
+- keys decoded once: arrows, page, home/end, function keys, modifiers, mouse,
+  bracketed paste
+- the width rules already in `ed_width` — combining marks, wide glyphs — but
+  for a grid rather than a line
+
+Build it as a module with a builtin interface, so the tools below are its users
+and not four copies of it. It is the difference between one hard piece of work
+and four.
+
 ### A system monitor worth looking at
 
 `btop`, but better looking and more useful.
@@ -78,8 +103,63 @@ What it needs:
   is worse than the thing it replaces. This is the argument for doing it here
   rather than in a script.
 
-Start with the screen layer, and make it a module that other full-screen tools
-can use — a monitor is then the first thing built on it, not the point of it.
+Start with the screen layer above. A monitor is then the first thing built on
+it, not the point of it.
+
+### A vi
+
+Modal, and actually vi — but with the arrow keys working, and the rest of what
+thirty years added: undo that goes back more than once, visual selection,
+incremental search with highlight, unlimited line length, UTF-8 that is right.
+
+- **The buffer.** A piece table or a gap buffer, not an array of lines. `str`
+  and `vec` and the arena allocator are the right primitives, and the
+  no-fixed-sizes rule means the answer to a 2 GB file is the same as to a
+  20-byte one.
+- **Undo.** The thing vi clones get wrong. Record edits, not snapshots, and
+  decide early whether undo is linear or a tree — retrofitting a tree is a
+  rewrite.
+- **Modes and the key map.** A table, and it should be reachable from the shell
+  so a `.hibrc` can rebind without a recompile.
+- **What it must not become.** Not a second shell. It should call back into
+  hibr for `!` and `:r !cmd` rather than growing its own way to run things.
+
+Big, and the most interesting of these. Everything except the buffer and the
+undo model is the screen layer.
+
+### A most
+
+`most`, not `less` and not `more`: several windows on the same or different
+files, horizontal scrolling that works, and a binary mode.
+
+Then the part that makes it worth writing — search that highlights every match
+rather than jumping between them, colour that survives paging, following a file
+as it grows without losing the scroll position, and reading a stream without
+buffering all of it first.
+
+One trap to record before it is rediscovered: a pager is nearly always at the
+end of a pipe, so its standard input is the data, not the keyboard. It has to
+open `/dev/tty` for keys. A pager that reads commands from its own input works
+perfectly when tested with a file argument and not at all in real use.
+
+### A cat
+
+The one that needs no screen layer, so it can land first and be useful alone.
+
+Better than `cat` means line numbers that do not break `diff`, non-printable
+bytes rendered visibly rather than sent to the terminal, encoding detected
+rather than assumed, and paging when the output is a terminal and the content
+does not fit — never when it is a pipe, because that is the mistake that makes
+a tool unusable in scripts.
+
+Two things hibr can do here that a standalone `cat` cannot. It already reads
+git's object store natively (`mods/prompt`), so it can mark which lines are
+added or changed against the index without running git. And `str`, `match` and
+`rsub` do the text work in-process, so highlighting costs no forks.
+
+Keep the no-argument, no-terminal case byte-for-byte identical to `cat`, and
+make every addition conditional on the output being a terminal. A `cat` that is
+clever in a pipe is a broken `cat`.
 
 ---
 
