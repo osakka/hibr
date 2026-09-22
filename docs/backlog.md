@@ -64,7 +64,7 @@ the pty line editor and the test suite are untested rather than known broken.
 
 ## Wanted
 
-### A desktop on the console — the first three steps built
+### A desktop on the console — five steps of six built
 
 Draggable, closable, minimisable windows on a text terminal, with apps
 written as hibr functions. [Decision 0020](adr/0020-windows-are-drawn-not-composited.md)
@@ -87,9 +87,31 @@ wallpaper and the refresh rate and manages the other windows. The window
 manager grew a small surface for it — `dt_ids`, `dt_title`, `dt_hidden`,
 `dt_raise` — so that an app managing other windows never reads `DT`.
 
-Left: the terminal emulator module, so a hibr can run inside a hibr window —
-which is also what would let the test harness be hibr rather than Python,
-see below.
+And a menu bar, System 7's: the hibr menu on the left, the active
+application's own menus beside it, the clock and the application menu on the
+right. An app declares menus with `<app>_menus`, the same prefix contract it
+declares `_draw` through. F10 or escape opens the bar; there are no modifier
+shortcuts, because ctrl collides with everything a terminal window will need.
+
+**Left, on the roadmap:** the terminal emulator module, so a hibr can run
+inside a hibr window. Half of that is built — `mods/pty/` opens the terminal
+and runs the program — and what remains is turning the escape sequences that
+come back into cells. It is also what would let the test harness be hibr
+rather than Python, see below.
+
+**Left, and smaller.** None of these is on the critical path, and each is a
+real gap rather than a deliberate omission:
+
+- **Windows cannot be resized**, only zoomed to full screen and back. System 7
+  had a grow box in the bottom-right corner and this should too; the pane
+  already takes an arbitrary size, so it is a drag handler and a corner glyph.
+- **Menus have no check marks and no disabled items.** The control panel's
+  Hidden Files is a toggle drawn as though it were an action, which is the
+  kind of small lie that accumulates.
+- **No cascading submenus.** Nothing has wanted one yet, which is the bar for
+  building it.
+- **A window can only be moved with the mouse.** There is no keyboard
+  equivalent of dragging.
 
 Not planned: transparency, sub-cell placement, or a widget toolkit before
 three apps have wanted the same widget.
