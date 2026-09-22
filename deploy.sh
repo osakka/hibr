@@ -89,7 +89,7 @@ priv() {
 # A fingerprint of everything that ends up in the binary or the modules.
 srcid() {
 	cat "$SRC"/Makefile "$SRC"/include/*.h "$SRC"/src/*.c "$SRC"/mods/*.c \
-	    "$SRC"/mods/prompt/*.c "$SRC"/mods/prompt/*.h 2>/dev/null |
+	    "$SRC"/mods/*/*.c "$SRC"/mods/*/*.h 2>/dev/null |
 		cksum | cut -d' ' -f1
 }
 
@@ -133,6 +133,22 @@ verify() {
 		die "tests failed; nothing was installed"
 	}
 	say "   $(printf '%s\n' "$out" | grep -E '[0-9]+ passed' | tail -1)"
+	out=$( cd "$SRC" && ./build/hibr tests/self.hibr 2>&1 ) || {
+		printf '%s\n' "$out" >&2
+		die "self.hibr failed; nothing was installed"
+	}
+	say "   $(printf '%s\n' "$out" | grep -E '[0-9]+ passed' | tail -1)"
+	# The terminal suites make their own pseudo terminals, so they run
+	# headless -- but only where python3 exists, which is not everywhere.
+	command -v python3 >/dev/null 2>&1 || { say "   pty suites skipped, no python3"; return 0; }
+	for t in editor screen cat; do
+		[ -f "$SRC/tests/$t.py" ] || continue
+		out=$( cd "$SRC" && python3 "tests/$t.py" 2>&1 ) || {
+			printf '%s\n' "$out" >&2
+			die "tests/$t.py failed; nothing was installed"
+		}
+		say "   $t.py: $(printf '%s\n' "$out" | grep -E '[0-9]+ passed' | tail -1)"
+	done
 }
 
 # Keep the current installation so it can be put back.
@@ -163,9 +179,14 @@ smoke() {
 	step "checking the installed copy"
 	v=$( cd / && "$BIN" --version ) || die "installed binary will not run"
 	say "   $v"
-	( cd / && "$BIN" -c 'mod load prompt; p := prompt render' ) >/dev/null 2>&1 ||
-		die "installed binary cannot load its modules from $MODDIR"
-	say "   modules load from $MODDIR"
+	for m in "$MODDIR"/*.so; do
+		[ -f "$m" ] || continue
+		n=${m##*/}
+		n=${n%.so}
+		( cd / && "$BIN" -c "mod load $n" ) >/dev/null 2>&1 ||
+			die "installed binary cannot load the $n module from $MODDIR"
+		say "   module $n loads"
+	done
 	( cd / && "$BIN" -c 'echo ok' ) >/dev/null || die "installed shell cannot run a command"
 }
 

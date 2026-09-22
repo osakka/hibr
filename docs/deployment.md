@@ -25,14 +25,21 @@ Options: `--prefix DIR` (default `/usr/local`), `--yes`, `--quiet`,
    the module directory is compiled into the binary, so installing to a
    different prefix without rebuilding produces a shell that cannot find its
    own modules.
-2. Runs the test suite and stops if anything fails. Nothing is installed from
-   a tree that does not pass.
+2. Runs every suite and stops if anything fails: `tests/run.sh`, then
+   `tests/self.hibr`, then the pseudo-terminal suites — `tests/editor.py`,
+   `tests/screen.py`, `tests/cat.py` — which make their own terminals and so
+   run headless, and are skipped with a note where there is no `python3`.
+   Nothing is installed from a tree that does not pass. This is checked rather
+   than assumed: a deliberately failing test leaves the installed binary
+   byte-identical and exits 1, which is what makes the timer report a failure
+   instead of quietly doing nothing.
 3. Copies the current installation aside, so `rollback` has somewhere to go.
 4. Installs, and records a manifest next to the modules: version, a checksum
    of every source file, where it was built from, and when.
 5. Runs the installed copy — not the one in the build tree — to check that it
-   starts, loads its modules from the installed directory, and renders a
-   prompt.
+   starts and that **every** module in the installed directory loads, one at a
+   time, so an ABI bump that leaves a stale module behind is caught here rather
+   than by whoever next uses it.
 6. Writes a starter `~/.hibrc` if you do not already have one, never over an
    existing file; offers the binary to `/etc/shells`; and asks, once, whether
    you want it as your login shell.
@@ -40,7 +47,10 @@ Options: `--prefix DIR` (default `/usr/local`), `--yes`, `--quiet`,
 ## Updating
 
 `update` compares a checksum of the source tree against the one recorded at
-install time and does nothing if they match. If the tree is a git checkout with
+install time and does nothing if they match. That checksum covers every module
+directory, not just `mods/*.c` — a module living in its own directory, as the
+prompt, screen, cat and trace modules do, would otherwise change without the
+update noticing. If the tree is a git checkout with
 a remote, it fast-forwards first. Then it repeats the sequence above, tests
 included, so an update can never install a tree that fails its own tests.
 
