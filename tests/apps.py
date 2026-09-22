@@ -33,13 +33,22 @@ for i in range(12):
 ENTRIES = 15
 
 
-def run(app, win, feed=(), pre="", wait=1.0):
-    """Open one app in a window at a known place and drive it."""
+def run(app, win, feed=(), pre="", wait=1.0, also=()):
+    """Open one app in a window at a known place and drive it.
+
+    `also` adds further windows after it, as (title, geometry, app) triples,
+    which is what the control panel needs: it has nothing to show until
+    there is something else open.
+    """
     p = os.path.join(S, "session.hibr")
+    src = "".join(". %s/%s.hibr\n" % (APPS, a)
+                  for a in dict.fromkeys([app] + [x[2] for x in also if x[2]]))
+    more = "".join('dt_new "%s" %s %s\n' % x for x in also)
     open(p, "w").write(
-        "%s. %s\n. %s/%s.hibr\n%s\ndt_open\ndt_new \"%s\" %s %s\n"
+        "%s. %s\n%s%s\ndt_open\ndt_new \"%s\" %s %s\n%s"
         "dt_run\ndt_close\n"
-        % (load("console"), WM, APPS, app, pre, app.title(), win, app))
+        % (load("console"), WM, src, pre, app.title(), win, app,
+           more + ("dt_raise 1\n" if also else "")))
     t = Term(p, env={"DT_TICK": "60"}, settle=0.6)
     t.keys(feed)
     t.quit(b"q", wait)
@@ -171,6 +180,64 @@ sc = run("files", FW, [wheel(6, 10, up=False), press(4, 10)], pre=PRE)
 check("a click after scrolling lands on the row that is there",
       sc.find("4 of %d" % ENTRIES) is not None, sc)
 
+# --- the control panel ----------------------------------------------------
+
+rc, out, err = cli("panel")
+check("it lists what it can change from the command line",
+      rc == 0 and "midnight" in out and "refresh:" in out, out)
+
+PW = "14 34 2 2"
+PANEL = ("panel", PW)
+OTHER = [("Other", "5 20 18 40", "")]
+TICK = "DT_TICK=200"
+
+sc = run(*PANEL, pre=TICK, also=OTHER)
+check("the sections are drawn", sc.find("Appearance") == (3, 3) and
+      sc.find("Behaviour") == (7, 3) and sc.find("Windows") == (10, 3), sc)
+check("the settings show their values", sc.find("midnight") is not None and
+      sc.find("200 ms") is not None, sc)
+check("the window list names what is open",
+      sc.find("Panel") is not None and sc.find("Other") is not None, sc)
+
+sc = run(*PANEL, feed=[b"\x1b[C"], pre=TICK, also=OTHER)
+check("right cycles the theme", sc.find("slate") is not None and
+      sc.find("midnight") is None, sc)
+sc = run(*PANEL, feed=[b"\x1b[D"], pre=TICK, also=OTHER)
+check("left cycles it the other way", sc.find("paper") is not None, sc)
+
+sc = run(*PANEL, feed=[b"\x1b[B", b"\x1b[C"], pre=TICK, also=OTHER)
+check("the wallpaper glyph changes, and the desktop follows",
+      sc.at(0, 78) != "·" and sc.at(23, 60) == "░", sc)
+
+sc = run(*PANEL, feed=[b"\x1b[B", b"\x1b[B", b"\x1b[C"], pre=TICK,
+         also=OTHER)
+check("down skips the blank line and the heading, landing on Refresh",
+      sc.find("350 ms") is not None, sc)
+
+# Theme, Wallpaper, Refresh, Panel, Other -- four downs from Theme reaches
+# the second window, because cp_move steps over the headings and the blanks.
+DOWN4 = [b"\x1b[B"] * 4
+
+sc = run(*PANEL, feed=DOWN4 + [b"x"], pre=TICK, also=OTHER)
+check("x closes the selected window", sc.find("Other") is None and
+      "1 open" in sc.row(0), sc)
+
+sc = run(*PANEL, feed=DOWN4 + [b"-"], pre=TICK, also=OTHER)
+check("- hides it, and the bar says so",
+      "1 open, 1 hidden" in sc.row(0) and sc.find("[Other]") is not None, sc)
+check("and the panel marks it hidden", sc.find("hidden") is not None, sc)
+
+sc = run(*PANEL, feed=DOWN4 + [b"-", b"\r"], pre=TICK, also=OTHER)
+check("enter on a hidden window brings it back",
+      "2 open" in sc.row(0) and sc.find("hidden") is None, sc)
+
+sc = run(*PANEL, feed=[press(4, 10), press(4, 10)], pre=TICK, also=OTHER)
+check("a click selects and a second click acts",
+      sc.find("slate") is not None, sc)
+
+sc = run(*PANEL, feed=[press(3, 10), press(3, 10)], pre=TICK, also=OTHER)
+check("clicking a heading does nothing", sc.find("midnight") is not None, sc)
+
 for f in os.listdir(D):
     p = os.path.join(D, f)
     if os.path.isdir(p):
@@ -180,4 +247,4 @@ for f in os.listdir(D):
 os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
-report(31)
+report(43)

@@ -4,7 +4,7 @@
 #include <stddef.h>
 
 #ifndef HIBR_ABI
-#define HIBR_ABI 13u
+#define HIBR_ABI 14u
 #endif
 #ifndef HIBR_VER
 #define HIBR_VER "0.21"
@@ -194,7 +194,7 @@ struct vec { void **p; size_t n, cap; };
 struct part { part *nx; word *arg, *idx; char *t; size_t n; short k, op; unsigned q, col, arr; };
 struct word { word *nx; part *p; };
 struct redir { redir *nx; word *w; char *var; int fd; short k, fl; };
-struct node { node *l, *r, *x; word *w, *aw; redir *rd; char *s, *tx, *rt; short k, f; };
+struct node { node *l, *r, *x; word *w, *aw, *bw; redir *rd; char *s, *tx, *rt; short k, f; };
 struct ent { ent *nx; char *k, *s; ent *map; size_t n; short ty; };
 struct var { var *nx; char *k, *v; ent *map; size_t n; short ty; unsigned ex, ro, am, at; };
 

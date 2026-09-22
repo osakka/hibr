@@ -163,6 +163,8 @@ void asg_pop(sh *s, vec *old);
 int bi_mask(const char *nm);
 int bi_argk(const char *nm);
 int w_assign(word *w);
+int w_bind(word *w);
+void ex_bind(sh *s, node *n);
 size_t u8n(const char *t, size_t n);
 size_t u8off(const char *t, size_t n, size_t c);
 char *bi_keys(sh *s, char *word, const char *mk, vec *ks);

@@ -73,6 +73,27 @@ is clicked at row 4. There is no separate body coordinate system to convert
 between; the window manager deals with row 0 itself, so an app never sees a
 click on its own title bar.
 
+## Managing other windows
+
+Most apps mind their own business. One that manages *other* windows — a
+control panel, a task switcher — uses these, and does not read the window
+manager's own table:
+
+| call | gives |
+|---|---|
+| `dt_ids` | every window id, hidden ones included, in the order they were opened |
+| `dt_title <id>` | its title |
+| `dt_hidden <id>` | status: is it minimised |
+| `dt_raise <id>` | put it on top and give it the keyboard; un-minimises first |
+| `dt_min <id>` | minimise it, or restore it if it already is |
+| `dt_del <id>` | close it |
+| `dt_new <title> <h> <w> <row> <col> [app]` | open one; the id lands in `$RET` |
+
+The first four exist so that reaching into `DT` is never the answer. An app
+that reads it is depending on how the window manager happens to be written
+today, and the one that tried it walked straight into a subscript trap for
+its trouble.
+
 **A key handler returns non-zero for a key it does not want.** That is how
 `q` still quits while your window has focus:
 

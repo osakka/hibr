@@ -724,6 +724,41 @@ void ex_trace(char **av, int ac)
 	fputc('\n', stderr);
 }
 
+/* Give the result slot to the target of a :=, subscripts and all.
+
+   A plain name is bound straight from n->s, because that is every := in a
+   tight loop and it must cost nothing. A subscripted target is a word, so
+   the subscript is expanded first, then split by the one helper everything
+   else splits with -- through xone_q, so a quoted key stays literal. */
+void ex_bind(sh *s, node *n)
+{
+	char *w, *mk = 0, *br;
+	const char *v;
+	vec *ks;
+
+	if (n->s) {
+		v_copy(s, n->s, "RET");
+		return;
+	}
+	if (!n->bw)
+		return;
+	w = xone_q(s, n->bw, &mk);
+	if (!w || !*w)
+		return;
+	if (!strchr(w, '[')) {
+		v_copy(s, w, "RET");
+		return;
+	}
+	ks = vb_get(s);
+	br = bi_keys(s, w, mk, ks);
+	v = hibr_get(s, "RET");
+	hibr_setp(s, w, (char **)ks->p, (int)ks->n, v ? v : "");
+	if (br)
+		*br = '[';
+	lg(HIBR_LDBG, "bound the result slot to %s", w);
+	vb_put(s, ks);
+}
+
 /* Execute a simple command, builtin, function or external program. */
 int ex_cmd(sh *s, node *n)
 {
@@ -814,7 +849,7 @@ int ex_cmd(sh *s, node *n)
 	}
 	if (s->xtr)
 		ex_trace(av, ac);
-	if (n->f == 2 && n->s) {
+	if (n->f == 2) {
 		hibr_set(s, "RET", "", 0);
 		s->bind = 1;
 	}
@@ -912,8 +947,8 @@ int ex_cmd(sh *s, node *n)
 		st = wstat(w2);
 	}
 out:
-	if (n->f == 2 && n->s) {
-		v_copy(s, n->s, "RET");
+	if (n->f == 2) {
+		ex_bind(s, n);
 		s->bind = 0;
 	}
 	if (asg != &none) {

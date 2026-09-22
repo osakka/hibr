@@ -23,9 +23,11 @@ d=${0%/*}
 # own -- try `hibr examples/apps/calc.hibr '2 ** 16'`.
 . "$d/apps/calc.hibr"
 . "$d/apps/files.hibr"
+. "$d/apps/panel.hibr"
 
 # A clock, small enough to write here.  It only draws, so it can never take
-# a key meant for another window.
+# a key meant for another window.  Nothing opens it: press its name on the
+# bar, or add a dt_new line below.
 clock_draw() {
 	local now
 
@@ -40,8 +42,8 @@ clock_draw() {
 FB_DIR=$PWD
 
 dt_open || exit 1
-dt_new "Files"      12 34  1  2 files
-dt_new "Clock"       7 26 15  3 clock
+dt_new "Files"      10 34  1  2 files
+dt_new "Settings"   12 34 12  2 panel
 dt_new "Calculator" 16 24  1 40 calc
 DT_TICK=200
 dt_run

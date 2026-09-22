@@ -221,9 +221,13 @@ node *p_simple(lex *l)
 				l->s->keep = 1;
 				return f;
 			}
-			if (!got && t && isname(t) && l->tk == T_WORD &&
-			    w_lit(l->w) && !strcmp(w_lit(l->w), ":=")) {
-				n->s = t;
+			if (!got && l->tk == T_WORD && w_lit(l->w) &&
+			    !strcmp(w_lit(l->w), ":=") &&
+			    ((t && isname(t)) || w_bind(w))) {
+				if (t && isname(t))
+					n->s = t;
+				else
+					n->bw = w;
 				n->f = 2;
 				lx_next(l);
 				continue;

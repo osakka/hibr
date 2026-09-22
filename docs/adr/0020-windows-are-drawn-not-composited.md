@@ -219,7 +219,18 @@ Each step is usable before the next one starts.
    error found by both apps getting the conversion wrong in opposite
    directions — an app that draws its keypad at pane row 4 is now told a
    click at pane row 4, and there is no second coordinate system.
-5. **Control panel.** The window that configures the others.
+5. **Control panel.** *Done.* `examples/apps/panel.hibr`: theme, wallpaper
+   glyph, refresh rate, and a row per window that raises, hides or closes it.
+   A theme is applied by setting the variables the window manager already
+   reads every frame, so it takes effect on the next one, in every window at
+   once, without anything being told.
+
+   It needed the window manager to grow a surface an app may call — `dt_ids`,
+   `dt_title`, `dt_hidden`, `dt_raise`, beside the `dt_new`, `dt_min` and
+   `dt_del` that already existed — because the alternative was the panel
+   reading `DT`, which is the window manager's own table and not an
+   interface. The browser had already been moved off `DT` for the same
+   reason, and had walked into a subscript trap on the way.
 6. **The terminal window.** The emulator, and a hibr inside a hibr.
 
 ## What this costs

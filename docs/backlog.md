@@ -82,9 +82,14 @@ Step 4 is built too: `examples/apps/calc.hibr` and `examples/apps/files.hibr`,
 each also a program on its own. The wheel now goes to the window under the
 pointer, and a click is reported in the coordinates the app draws in.
 
-Left: a control panel, and last and largest, a terminal emulator module so a
-hibr can run inside a hibr window — which is also what would let the test
-harness be hibr rather than Python, see below.
+Step 5 is built: `examples/apps/panel.hibr`, which changes the theme, the
+wallpaper and the refresh rate and manages the other windows. The window
+manager grew a small surface for it — `dt_ids`, `dt_title`, `dt_hidden`,
+`dt_raise` — so that an app managing other windows never reads `DT`.
+
+Left: the terminal emulator module, so a hibr can run inside a hibr window —
+which is also what would let the test harness be hibr rather than Python,
+see below.
 
 Not planned: transparency, sub-cell placement, or a widget toolkit before
 three apps have wanted the same widget.

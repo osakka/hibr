@@ -17,7 +17,7 @@ servers, typed function signatures, result slots (`x := f` without forking),
 declared CLI arguments, and a module ABI that lets modules add *protocols*
 (`/dev/<name>/…`), not just commands.
 
-Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 13).
+Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 14).
 
 ## Build and test
 
@@ -77,7 +77,7 @@ linked, and no OpenSSL headers are needed to build.
 
 | file | role |
 |---|---|
-| `include/hibr.h` | public types, macros and the module ABI (v13) |
+| `include/hibr.h` | public types, macros and the module ABI (v14) |
 | `include/pri.h` | internal declarations, tokens, the `lex` struct |
 | `include/re.h` | our own regex declarations (tcc cannot parse glibc's) |
 | `src/mem.c` | arenas with mark/release, `str`, `vec`, pools, `lg` logging |
@@ -99,7 +99,7 @@ linked, and no OpenSSL headers are needed to build.
 | `src/mod.c` | module loading |
 | `mods/*.c` | reference modules: `sys`, `http` (scheme), `ls` |
 | `examples/desktop.hibr` | the window manager, in hibr — see `docs/desktop.md` |
-| `examples/apps/` | apps for it: a calculator and a file browser, each also a program on its own |
+| `examples/apps/` | apps for it: a calculator, a file browser and a control panel, each also a program on its own |
 | `tests/screen.py` | **the** pty harness and terminal model, shared by every full-screen suite |
 | `mods/prompt/` | the prompt module, including a native reader for git's object store — see `mods/README.md` for the file-by-file breakdown |
 | `mods/console/` | the text display: alternate screen, cell grid with damage-based redraw, panes, decoded keys — see `mods/console/README.md` |
@@ -581,6 +581,23 @@ went in the shell.
   held the keypad as a string and `for k in $CALC_KEYS` globbed the `*` and
   the parentheses, so the calculator drew a directory listing where its
   operators should have been.
+- **`:=` binds into a subscripted target too.** `m[$i]["k"] := f` works, and
+  it has to: nested maps and result slots are both hibr's own, and a script
+  that could not put a function's result in a map without a temporary
+  variable was two features that did not compose. A plain name still binds
+  straight from `n->s` with no expansion, because that is every `:=` in a
+  tight loop; a subscripted one is kept as a word in `n->bw` and goes through
+  `xone_q` and `bi_keys`, so a quoted key stays literal. That field is why
+  the ABI went to 14.
+- **An app that manages other windows calls the window manager, not its
+  table.** `dt_ids`, `dt_title`, `dt_hidden`, `dt_raise`, `dt_new`, `dt_min`,
+  `dt_del`. Reading `DT` depends on how the window manager happens to be
+  written today, and the first app that tried it landed in the
+  `local id=$1 vis=$((DT[$id]...))` trap for its trouble.
+- **A window list is in creation order, not stacking order.** Stacking order
+  reshuffles the list every time something is raised, and raising things is
+  what a window list is for — so the row you meant to click moves out from
+  under you. `"${!DT[@]}"` gives creation order because the maps are ordered.
 - **An app is a prefix, not a command.** The window manager calls
   `<app>_draw`, `<app>_key`, `<app>_click`, `<app>_open` and `<app>_close`,
   asking `command -v` once which exist. One function answering a verb was

@@ -1,0 +1,229 @@
+#!/usr/bin/env hibr
+#
+# panel -- the window that configures the others.
+#
+# Appearance and behaviour on top, then a row per window: enter raises it,
+# x closes it, - hides it.  The theme is applied by setting the variables the
+# window manager already reads every frame, so a change shows on the next
+# one, in every window at once, without anything being told about it.
+#
+# Run on its own it prints the themes and stops, which is not much, but it
+# means the file is still a program and not only a fragment.
+
+app panel "Settings, and the window list"
+
+CP_SEL=1
+CP_TOP=0
+CP_VIS=1
+CP_N=0
+CP_LAST=-1
+CP_THEME=midnight
+CP_THEMES=(midnight slate forest ember paper)
+CP_TICKS=(80 120 200 350 600)
+CP_GLYPHS=("·" "░" "▒" "⋅" "+")
+declare -A CP
+
+# wall, dot, bar, active, idle, face, ink
+cp_theme() {
+	local t=$1
+
+	case $t in
+	midnight) set -- "#0d1b2a" "#16324a" "#1b3a5c" "#63b3ed" "#4a5568" \
+		"#101820" "#cbd5e0" ;;
+	slate)    set -- "#1a202c" "#2d3748" "#2d3748" "#90cdf4" "#4a5568" \
+		"#171923" "#e2e8f0" ;;
+	forest)   set -- "#0b1f16" "#14342a" "#14432f" "#68d391" "#3f5e51" \
+		"#0d1f18" "#d7e8de" ;;
+	ember)    set -- "#1f1410" "#3a241c" "#4a2c1e" "#f6ad55" "#6b4a3a" \
+		"#1a110d" "#ecd9c6" ;;
+	paper)    set -- "#e8e4da" "#d3cec1" "#c3bdae" "#2b6cb0" "#8a8578" \
+		"#f5f2ea" "#2d3748" ;;
+	*) return 1 ;;
+	esac
+	CP_THEME=$t
+	DT_WALL=$1
+	DT_DOT=$2
+	DT_BAR=$3
+	DT_ACTIVE=$4
+	DT_IDLE=$5
+	DT_FACE=$6
+	DT_INK=$7
+}
+
+# Step through a list, wrapping at either end.
+cp_next() {
+	local cur=$1 dir=$2 n=0 i=0 hit=-1 x
+
+	shift 2
+	for x in "$@"; do
+		[ "$x" = "$cur" ] && hit=$n
+		n=$((n + 1))
+	done
+	[ "$hit" -lt 0 ] && hit=0
+	i=$(((hit + dir + n) % n))
+	n=0
+	for x in "$@"; do
+		[ "$n" = "$i" ] && { ret "$x"; return 0; }
+		n=$((n + 1))
+	done
+}
+
+# Build the rows: headings, settings, then one per window.
+#
+# Rebuilt every frame, because the window list changes underneath it and a
+# panel showing windows that closed a second ago is worse than no panel.
+cp_rows() {
+	local n=0 id ids
+
+	CP[$n]["kind"]=head; CP[$n]["text"]="Appearance"; n=$((n + 1))
+	CP[$n]["kind"]=set;  CP[$n]["text"]="Theme"
+	CP[$n]["val"]="$CP_THEME"; CP[$n]["key"]=theme; n=$((n + 1))
+	CP[$n]["kind"]=set;  CP[$n]["text"]="Wallpaper"
+	CP[$n]["val"]="$DT_GLYPH"; CP[$n]["key"]=glyph; n=$((n + 1))
+	CP[$n]["kind"]=head; CP[$n]["text"]=""; n=$((n + 1))
+	CP[$n]["kind"]=head; CP[$n]["text"]="Behaviour"; n=$((n + 1))
+	CP[$n]["kind"]=set;  CP[$n]["text"]="Refresh"
+	CP[$n]["val"]="$DT_TICK ms"; CP[$n]["key"]=tick; n=$((n + 1))
+	CP[$n]["kind"]=head; CP[$n]["text"]=""; n=$((n + 1))
+	CP[$n]["kind"]=head; CP[$n]["text"]="Windows"; n=$((n + 1))
+
+	ids := dt_ids
+	for id in $ids; do
+		CP[$n]["kind"]=win
+		CP[$n]["text"] := dt_title "$id"
+		if dt_hidden "$id"; then
+			CP[$n]["val"]=hidden
+		else
+			CP[$n]["val"]=open
+		fi
+		CP[$n]["key"]=$id
+		n=$((n + 1))
+	done
+	CP_N=$n
+}
+
+# Move the selection, skipping headings, and keep it on screen.
+cp_move() {
+	local d=$1 i=$CP_SEL n=0
+
+	while [ "$n" -lt "$CP_N" ]; do
+		i=$(((i + d + CP_N) % CP_N))
+		[ "${CP[$i]["kind"]}" != head ] && break
+		n=$((n + 1))
+	done
+	CP_SEL=$i
+	[ "$CP_SEL" -lt "$CP_TOP" ] && CP_TOP=$CP_SEL
+	[ "$CP_SEL" -ge $((CP_TOP + CP_VIS)) ] &&
+		CP_TOP=$((CP_SEL - CP_VIS + 1))
+	[ "$CP_TOP" -lt 0 ] && CP_TOP=0
+}
+
+# Change the selected setting, or act on the selected window.
+cp_do() {
+	local dir=$1 k=${CP[$CP_SEL]["key"]} v
+
+	case ${CP[$CP_SEL]["kind"]} in
+	set)
+		case $k in
+		theme) v := cp_next "$CP_THEME" "$dir" "${CP_THEMES[@]}"
+		       cp_theme "$v" ;;
+		glyph) v := cp_next "$DT_GLYPH" "$dir" "${CP_GLYPHS[@]}"
+		       DT_GLYPH=$v ;;
+		tick)  v := cp_next "$DT_TICK" "$dir" "${CP_TICKS[@]}"
+		       DT_TICK=$v ;;
+		esac
+		;;
+	win) dt_raise "$k" ;;
+	esac
+}
+
+panel_open() {
+	cp_rows
+	CP_SEL=1
+}
+
+panel_draw() {
+	local id=$1 h=$2 w=$3 i r t v
+
+	cp_rows
+	CP_VIS=$((h - 1))
+	[ "$CP_SEL" -ge "$CP_N" ] && CP_SEL=$((CP_N - 1))
+	i=$CP_TOP
+	r=1
+	while [ "$r" -le "$h" ]; do
+		t=""
+		v=""
+		if [ "$i" -lt "$CP_N" ]; then
+			t=${CP[$i]["text"]}
+			v=${CP[$i]["val"]}
+		fi
+		case ${CP[$i]["kind"]} in
+		head)
+			console pen "#718096" "$DT_FACE" bold
+			t := str pad "$t" $((w - 1))
+			;;
+		*)
+			if [ "$i" = "$CP_SEL" ]; then
+				console pen "#1a202c" "$DT_ACTIVE" bold
+			else
+				console pen "$DT_INK" "$DT_FACE"
+			fi
+			t := str pad "  $t" $((w - 13))
+			v := str pad "$v" 12
+			t="$t$v"
+			;;
+		esac
+		[ "$i" -ge "$CP_N" ] && { console pen "$DT_INK" "$DT_FACE"
+			t := str repeat " " $((w - 1)); }
+		console put -p "w$id" "$r" 1 "$t"
+		r=$((r + 1))
+		i=$((i + 1))
+	done
+}
+
+panel_key() {
+	case $2 in
+	up) cp_move -1 ;;
+	down) cp_move 1 ;;
+	right | enter | " ") cp_do 1 ;;
+	left) cp_do -1 ;;
+	x)
+		[ "${CP[$CP_SEL]["kind"]}" = win ] &&
+			dt_del "${CP[$CP_SEL]["key"]}"
+		;;
+	-)
+		[ "${CP[$CP_SEL]["kind"]}" = win ] &&
+			dt_min "${CP[$CP_SEL]["key"]}"
+		;;
+	*) return 1 ;;
+	esac
+}
+
+# A click selects; a second click on the same row does what enter does.
+panel_click() {
+	local r=$2 i=$((CP_TOP + $2 - 1))
+
+	[ "$r" -lt 1 ] || [ "$i" -ge "$CP_N" ] && return 0
+	[ "${CP[$i]["kind"]}" = head ] && return 0
+	if [ "$i" = "$CP_SEL" ] && [ "$i" = "$CP_LAST" ]; then
+		cp_do 1
+		return 0
+	fi
+	CP_SEL=$i
+	CP_LAST=$i
+}
+
+panel_wheel() {
+	case $2 in
+	up) CP_TOP=$((CP_TOP - 2)) ;;
+	down) CP_TOP=$((CP_TOP + 2)) ;;
+	esac
+	[ "$CP_TOP" -gt $((CP_N - CP_VIS)) ] && CP_TOP=$((CP_N - CP_VIS))
+	[ "$CP_TOP" -lt 0 ] && CP_TOP=0
+}
+
+if [ -z "$DT_ROWS" ]; then
+	echo "themes: ${CP_THEMES[*]}"
+	echo "wallpaper: ${CP_GLYPHS[*]}"
+	echo "refresh: ${CP_TICKS[*]}"
+fi

@@ -1646,6 +1646,23 @@ int w_simple(word *w)
 }
 
 /* Build a NULL terminated argv from a word list. */
+/* True for a word that can be the target of :=, a name or name[sub]...
+   The name and the bracket must be literal; the subscript need not be, so
+   m[$i]["k"] is a target and $m is not. */
+int w_bind(word *w)
+{
+	part *p = w ? w->p : 0;
+	size_t i = 0;
+
+	if (!p || p->k != P_TXT || p->q || !p->n)
+		return 0;
+	if (!isalpha((unsigned char)p->t[0]) && p->t[0] != '_')
+		return 0;
+	while (i < p->n && (isalnum((unsigned char)p->t[i]) || p->t[i] == '_'))
+		i++;
+	return i < p->n && p->t[i] == '[';
+}
+
 /* True for a word that literally starts with name= or name[sub]= or name+=. */
 int w_assign(word *w)
 {
