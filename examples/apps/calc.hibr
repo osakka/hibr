@@ -16,9 +16,10 @@
 
 app calc "A calculator"
 
-CALC_IN=
-CALC_OUT=0
-CALC_ERR=
+# Per window, not per app: two calculators must be able to hold two
+# different sums.  Everything an app remembers goes under the window id it
+# was handed, because a global is shared by every window of the same app.
+declare -A CA
 
 # Four columns, five rows.  ^ inserts ** and c clears.
 #
@@ -37,31 +38,44 @@ CALC_COLS=4
 # evaluation runs in a group with its diagnostic sent nowhere, and its status
 # is what decides.
 calc_eval() {
-	local v
+	local id=$1 v in
 
-	[ -z "$CALC_IN" ] && return 0
-	CALC_ERR=
-	if ! match "$CALC_IN" '^[0-9+*/%()<>|&^~ -]+$' > /dev/null; then
-		CALC_ERR="digits and operators"
+	in=${CA[$id]["in"]}
+
+	[ -z "$in" ] && return 0
+	CA[$id]["err"]=
+	if ! match "$in" '^[0-9+*/%()<>|&^~ -]+$' > /dev/null; then
+		CA[$id]["err"]="digits and operators"
 		return 0
 	fi
-	if { v=$(( CALC_IN )); } 2> /dev/null; then
-		CALC_OUT=$v
-		CALC_IN=
+	if { v=$(( in )); } 2> /dev/null; then
+		CA[$id]["out"]=$v
+		CA[$id]["in"]=
 	else
-		CALC_ERR="not an expression"
+		CA[$id]["err"]="not an expression"
 	fi
 }
 
 # Add to the expression, or act on a key that is not part of one.
 calc_push() {
-	case $1 in
-	=) calc_eval ;;
-	c) CALC_IN=; CALC_OUT=0; CALC_ERR= ;;
-	"^") CALC_IN="$CALC_IN**"; CALC_ERR= ;;
-	backspace) CALC_IN=${CALC_IN%?}; CALC_ERR= ;;
-	*) CALC_IN="$CALC_IN$1"; CALC_ERR= ;;
+	local id=$1 k=$2
+
+	case $k in
+	=) calc_eval "$id" ;;
+	c) CA[$id]["in"]=; CA[$id]["out"]=0; CA[$id]["err"]= ;;
+	"^") CA[$id]["in"]="${CA[$id]["in"]}**"; CA[$id]["err"]= ;;
+	backspace)
+		CA[$id]["in"]="${CA[$id]["in"]%?}"
+		CA[$id]["err"]=
+		;;
+	*) CA[$id]["in"]="${CA[$id]["in"]}$k"; CA[$id]["err"]= ;;
 	esac
+}
+
+calc_open() {
+	CA[$1]["in"]=
+	CA[$1]["out"]=0
+	CA[$1]["err"]=
 }
 
 # Where a key sits in the window body: five columns wide, two rows apart.
@@ -86,14 +100,14 @@ calc_draw() {
 	local id=$1 w=$3 k p i=0 t
 
 	console pen "#a0aec0" "$DT_FACE"
-	t := str pad "${CALC_IN:-expression}" $((w - 4))
+	t := str pad "${CA[$id]["in"]:-expression}" $((w - 4))
 	console put -p "w$id" 1 2 "$t"
-	if [ -n "$CALC_ERR" ]; then
+	if [ -n "${CA[$id]["err"]}" ]; then
 		console pen "#f56565" "$DT_FACE"
-		t := str pad "$CALC_ERR" $((w - 4))
+		t := str pad "${CA[$id]["err"]}" $((w - 4))
 	else
 		console pen "#68d391" "$DT_FACE" bold
-		t := str pad "$CALC_OUT" $((w - 4))
+		t := str pad "${CA[$id]["out"]}" $((w - 4))
 	fi
 	console put -p "w$id" 2 2 "$t"
 
@@ -115,11 +129,11 @@ calc_draw() {
 # The menus the bar shows while a calculator window has focus.
 calc_menus() {
 	dt_menu "Calc"
-	dt_item "Evaluate" e calc_eval
-	dt_item "Clear" c calc_push c
-	dt_item "Backspace" b calc_push backspace
+	dt_item "Evaluate" e calc_eval "$DT_FOCUS"
+	dt_item "Clear" c calc_push "$DT_FOCUS" c
+	dt_item "Backspace" b calc_push "$DT_FOCUS" backspace
 	dt_sep
-	dt_item "Copy Answer" y calc_copy
+	dt_item "Copy Answer" y calc_copy "$DT_FOCUS"
 	dt_sep
 	dt_item "Close" w dt_close_focused
 }
@@ -127,16 +141,16 @@ calc_menus() {
 # Put the answer back in the expression, which is what a calculator's memory
 # is for and costs nothing to provide.
 calc_copy() {
-	CALC_IN="$CALC_OUT"
-	CALC_ERR=
+	CA[$1]["in"]="${CA[$1]["out"]}"
+	CA[$1]["err"]=
 }
 
 calc_key() {
 	case $2 in
-	[0-9] | + | - | "*" | / | % | "(" | ")") calc_push "$2" ;;
-	= | enter) calc_eval ;;
-	c) calc_push c ;;
-	backspace) calc_push backspace ;;
+	[0-9] | + | - | "*" | / | % | "(" | ")") calc_push "$1" "$2" ;;
+	= | enter) calc_eval "$1" ;;
+	c) calc_push "$1" c ;;
+	backspace) calc_push "$1" backspace ;;
 	*) return 1 ;;
 	esac
 }
@@ -145,16 +159,16 @@ calc_click() {
 	local k
 
 	k := calc_at "$2" "$3" || return 0
-	[ -n "$k" ] && calc_push "$k"
+	[ -n "$k" ] && calc_push "$1" "$k"
 }
 
 # Run directly: evaluate the arguments and print the answer.
 if [ -z "$DT_ROWS" ] && [ $# -gt 0 ]; then
-	CALC_IN="$*"
-	calc_eval
-	if [ -n "$CALC_ERR" ]; then
-		echo "calc: $CALC_ERR" >&2
+	CA[0]["in"]="$*"
+	calc_eval 0
+	if [ -n "${CA[0]["err"]}" ]; then
+		echo "calc: ${CA[0]["err"]}" >&2
 		exit 1
 	fi
-	echo "$CALC_OUT"
+	echo "${CA[0]["out"]}"
 fi

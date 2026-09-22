@@ -206,7 +206,7 @@ dt_win() {
 	[ "$DT_FOCUS" = "$id" ] && on=$DT_ACTIVE
 	console pen "$DT_INK" "$DT_FACE"
 	console fill "$wr" "$wc" "$h" "$w" " "
-	[ -n "$dr" ] && $dr "$id" $((h - 2)) $((w - 2))
+	[ -n "$dr" ] && $dr "$id" $((h - 2)) $((w - 2)) "$wr" "$wc"
 	console pen "$on" "$DT_FACE"
 	local bar edge
 	bar := dt_rep $((w - 2)) "─"
@@ -452,17 +452,21 @@ dt_event() {
 		dt_mkey "$k" && return 0
 		return 0
 	fi
+	# f10 is the one key an app cannot have, because it is the only way
+	# back to the menu bar from a window that wants everything else --
+	# a terminal running vi wants escape, and must be allowed it.
+	if [ "$k" != f10 ] && [ -n "$DT_FOCUS" ] &&
+	   [ -n "${DT[$DT_FOCUS]["key"]}" ]; then
+		if ${DT[$DT_FOCUS]["key"]} "$DT_FOCUS" "$k"; then
+			return 0
+		fi
+	fi
 	case $k in
 	f10 | escape)
 		dt_mopen 0
 		return 0
 		;;
 	esac
-	if [ -n "$DT_FOCUS" ] && [ -n "${DT[$DT_FOCUS]["key"]}" ]; then
-		if ${DT[$DT_FOCUS]["key"]} "$DT_FOCUS" "$k"; then
-			return 0
-		fi
-	fi
 	case $k in
 	q) DT_QUIT=1 ;;
 	tab) dt_cycle ;;

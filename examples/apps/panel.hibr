@@ -12,16 +12,15 @@
 
 app panel "Settings, and the window list"
 
-CP_SEL=1
-CP_TOP=0
-CP_VIS=1
-CP_N=0
-CP_LAST=-1
+# The theme and the wallpaper belong to the desktop, so they stay global.
+# Where the selection is and what the rows are belong to a window, so they
+# do not: two panels would otherwise share one cursor.
+declare -A PW
+declare -A CP
 CP_THEME=midnight
 CP_THEMES=(midnight slate forest ember paper)
 CP_TICKS=(80 120 200 350 600)
 CP_GLYPHS=("·" "░" "▒" "⋅" "+")
-declare -A CP
 
 # wall, dot, bar, active, idle, face, ink
 cp_theme() {
@@ -73,56 +72,63 @@ cp_next() {
 # Rebuilt every frame, because the window list changes underneath it and a
 # panel showing windows that closed a second ago is worse than no panel.
 cp_rows() {
-	local n=0 id ids
+	local w=$1 n=0 id ids
 
-	CP[$n]["kind"]=head; CP[$n]["text"]="Appearance"; n=$((n + 1))
-	CP[$n]["kind"]=set;  CP[$n]["text"]="Theme"
-	CP[$n]["val"]="$CP_THEME"; CP[$n]["key"]=theme; n=$((n + 1))
-	CP[$n]["kind"]=set;  CP[$n]["text"]="Wallpaper"
-	CP[$n]["val"]="$DT_GLYPH"; CP[$n]["key"]=glyph; n=$((n + 1))
-	CP[$n]["kind"]=head; CP[$n]["text"]=""; n=$((n + 1))
-	CP[$n]["kind"]=head; CP[$n]["text"]="Behaviour"; n=$((n + 1))
-	CP[$n]["kind"]=set;  CP[$n]["text"]="Refresh"
-	CP[$n]["val"]="$DT_TICK ms"; CP[$n]["key"]=tick; n=$((n + 1))
-	CP[$n]["kind"]=head; CP[$n]["text"]=""; n=$((n + 1))
-	CP[$n]["kind"]=head; CP[$n]["text"]="Windows"; n=$((n + 1))
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Appearance"; n=$((n + 1))
+	CP[$w][$n]["kind"]=set;  CP[$w][$n]["text"]="Theme"
+	CP[$w][$n]["val"]="$CP_THEME"; CP[$w][$n]["key"]=theme; n=$((n + 1))
+	CP[$w][$n]["kind"]=set;  CP[$w][$n]["text"]="Wallpaper"
+	CP[$w][$n]["val"]="$DT_GLYPH"; CP[$w][$n]["key"]=glyph; n=$((n + 1))
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]=""; n=$((n + 1))
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Behaviour"; n=$((n + 1))
+	CP[$w][$n]["kind"]=set;  CP[$w][$n]["text"]="Refresh"
+	CP[$w][$n]["val"]="$DT_TICK ms"; CP[$w][$n]["key"]=tick; n=$((n + 1))
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]=""; n=$((n + 1))
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Windows"; n=$((n + 1))
 
 	ids := dt_ids
 	for id in $ids; do
-		CP[$n]["kind"]=win
-		CP[$n]["text"] := dt_title "$id"
+		CP[$w][$n]["kind"]=win
+		CP[$w][$n]["text"] := dt_title "$id"
 		if dt_hidden "$id"; then
-			CP[$n]["val"]=hidden
+			CP[$w][$n]["val"]=hidden
 		else
-			CP[$n]["val"]=open
+			CP[$w][$n]["val"]=open
 		fi
-		CP[$n]["key"]=$id
+		CP[$w][$n]["key"]=$id
 		n=$((n + 1))
 	done
-	CP_N=$n
+	PW[$w]["n"]=$n
 }
 
 # Move the selection, skipping headings, and keep it on screen.
 cp_move() {
-	local d=$1 i=$CP_SEL n=0
+	local w=$1 d=$2 i n vis top k=0
 
-	while [ "$n" -lt "$CP_N" ]; do
-		i=$(((i + d + CP_N) % CP_N))
-		[ "${CP[$i]["kind"]}" != head ] && break
-		n=$((n + 1))
+	n=${PW[$w]["n"]}
+	vis=${PW[$w]["vis"]}
+	top=${PW[$w]["top"]}
+	i=${PW[$w]["sel"]}
+	[ "$n" -lt 1 ] && return 0
+	while [ "$k" -lt "$n" ]; do
+		i=$(((i + d + n) % n))
+		[ "${CP[$w][$i]["kind"]}" != head ] && break
+		k=$((k + 1))
 	done
-	CP_SEL=$i
-	[ "$CP_SEL" -lt "$CP_TOP" ] && CP_TOP=$CP_SEL
-	[ "$CP_SEL" -ge $((CP_TOP + CP_VIS)) ] &&
-		CP_TOP=$((CP_SEL - CP_VIS + 1))
-	[ "$CP_TOP" -lt 0 ] && CP_TOP=0
+	PW[$w]["sel"]=$i
+	[ "$i" -lt "$top" ] && top=$i
+	[ "$i" -ge $((top + vis)) ] && top=$((i - vis + 1))
+	[ "$top" -lt 0 ] && top=0
+	PW[$w]["top"]=$top
 }
 
 # Change the selected setting, or act on the selected window.
 cp_do() {
-	local dir=$1 k=${CP[$CP_SEL]["key"]} v
+	local w=$1 dir=$2 sel k v
 
-	case ${CP[$CP_SEL]["kind"]} in
+	sel=${PW[$w]["sel"]}
+	k=${CP[$w][$sel]["key"]}
+	case ${CP[$w][$sel]["kind"]} in
 	set)
 		case $k in
 		theme) v := cp_next "$CP_THEME" "$dir" "${CP_THEMES[@]}"
@@ -138,32 +144,42 @@ cp_do() {
 }
 
 panel_open() {
-	cp_rows
-	CP_SEL=1
+	local w=$1
+
+	PW[$w]["sel"]=1
+	PW[$w]["top"]=0
+	PW[$w]["vis"]=1
+	PW[$w]["last"]=-1
+	cp_rows "$w"
 }
 
 panel_draw() {
-	local id=$1 h=$2 w=$3 i r t v
+	local id=$1 h=$2 w=$3
+	local i r t v n top sel
 
-	cp_rows
-	CP_VIS=$((h - 1))
-	[ "$CP_SEL" -ge "$CP_N" ] && CP_SEL=$((CP_N - 1))
-	i=$CP_TOP
+	cp_rows "$id"
+	PW[$id]["vis"]=$((h - 1))
+	n=${PW[$id]["n"]}
+	sel=${PW[$id]["sel"]}
+	top=${PW[$id]["top"]}
+	[ "$sel" -ge "$n" ] && sel=$((n - 1)) && PW[$id]["sel"]=$sel
+	i=$top
 	r=1
 	while [ "$r" -le "$h" ]; do
 		t=""
 		v=""
-		if [ "$i" -lt "$CP_N" ]; then
-			t=${CP[$i]["text"]}
-			v=${CP[$i]["val"]}
+		if [ "$i" -lt "$n" ]; then
+			t=${CP[$id][$i]["text"]}
+			v=${CP[$id][$i]["val"]}
 		fi
-		case ${CP[$i]["kind"]} in
-		head)
+		if [ "$i" -ge "$n" ]; then
+			console pen "$DT_INK" "$DT_FACE"
+			t := str repeat " " $((w - 1))
+		elif [ "${CP[$id][$i]["kind"]}" = head ]; then
 			console pen "#718096" "$DT_FACE" bold
 			t := str pad "$t" $((w - 1))
-			;;
-		*)
-			if [ "$i" = "$CP_SEL" ]; then
+		else
+			if [ "$i" = "$sel" ]; then
 				console pen "#1a202c" "$DT_ACTIVE" bold
 			else
 				console pen "$DT_INK" "$DT_FACE"
@@ -171,10 +187,7 @@ panel_draw() {
 			t := str pad "  $t" $((w - 13))
 			v := str pad "$v" 12
 			t="$t$v"
-			;;
-		esac
-		[ "$i" -ge "$CP_N" ] && { console pen "$DT_INK" "$DT_FACE"
-			t := str repeat " " $((w - 1)); }
+		fi
 		console put -p "w$id" "$r" 1 "$t"
 		r=$((r + 1))
 		i=$((i + 1))
@@ -182,7 +195,7 @@ panel_draw() {
 }
 
 panel_menus() {
-	local x on
+	local x on w=$DT_FOCUS
 
 	dt_menu "Settings"
 	dt_sub "Theme"
@@ -207,25 +220,29 @@ panel_menus() {
 	done
 	dt_end
 	dt_sep
-	dt_item "Change Selected" c cp_do 1
+	dt_item "Change Selected" c cp_do "$w" 1
 }
 
 cp_set_glyph() { DT_GLYPH=$1; }
 cp_set_tick() { DT_TICK=$1; }
 
 panel_key() {
+	local w=$1 sel
+
 	case $2 in
-	up) cp_move -1 ;;
-	down) cp_move 1 ;;
-	right | enter | " ") cp_do 1 ;;
-	left) cp_do -1 ;;
+	up) cp_move "$w" -1 ;;
+	down) cp_move "$w" 1 ;;
+	right | enter | " ") cp_do "$w" 1 ;;
+	left) cp_do "$w" -1 ;;
 	x)
-		[ "${CP[$CP_SEL]["kind"]}" = win ] &&
-			dt_del "${CP[$CP_SEL]["key"]}"
+		sel=${PW[$w]["sel"]}
+		[ "${CP[$w][$sel]["kind"]}" = win ] &&
+			dt_del "${CP[$w][$sel]["key"]}"
 		;;
 	-)
-		[ "${CP[$CP_SEL]["kind"]}" = win ] &&
-			dt_min "${CP[$CP_SEL]["key"]}"
+		sel=${PW[$w]["sel"]}
+		[ "${CP[$w][$sel]["kind"]}" = win ] &&
+			dt_min "${CP[$w][$sel]["key"]}"
 		;;
 	*) return 1 ;;
 	esac
@@ -233,25 +250,35 @@ panel_key() {
 
 # A click selects; a second click on the same row does what enter does.
 panel_click() {
-	local r=$2 i=$((CP_TOP + $2 - 1))
+	local w=$1 r=$2 i n top
 
-	[ "$r" -lt 1 ] || [ "$i" -ge "$CP_N" ] && return 0
-	[ "${CP[$i]["kind"]}" = head ] && return 0
-	if [ "$i" = "$CP_SEL" ] && [ "$i" = "$CP_LAST" ]; then
-		cp_do 1
+	n=${PW[$w]["n"]}
+	top=${PW[$w]["top"]}
+	i=$((top + r - 1))
+	[ "$r" -lt 1 ] || [ "$i" -ge "$n" ] && return 0
+	[ "${CP[$w][$i]["kind"]}" = head ] && return 0
+	if [ "$i" = "${PW[$w]["sel"]}" ] && [ "$i" = "${PW[$w]["last"]}" ]; then
+		cp_do "$w" 1
 		return 0
 	fi
-	CP_SEL=$i
-	CP_LAST=$i
+	PW[$w]["sel"]=$i
+	PW[$w]["last"]=$i
 }
 
 panel_wheel() {
+	local w=$1 top max n vis
+
+	top=${PW[$w]["top"]}
+	n=${PW[$w]["n"]}
+	vis=${PW[$w]["vis"]}
+	max=$((n - vis))
 	case $2 in
-	up) CP_TOP=$((CP_TOP - 2)) ;;
-	down) CP_TOP=$((CP_TOP + 2)) ;;
+	up) top=$((top - 2)) ;;
+	down) top=$((top + 2)) ;;
 	esac
-	[ "$CP_TOP" -gt $((CP_N - CP_VIS)) ] && CP_TOP=$((CP_N - CP_VIS))
-	[ "$CP_TOP" -lt 0 ] && CP_TOP=0
+	[ "$top" -gt "$max" ] && top=$max
+	[ "$top" -lt 0 ] && top=0
+	PW[$w]["top"]=$top
 }
 
 if [ -z "$DT_ROWS" ]; then

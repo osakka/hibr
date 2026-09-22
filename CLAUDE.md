@@ -111,6 +111,7 @@ linked, and no OpenSSL headers are needed to build.
 | `mods/mon/` | a system monitor over `/proc` — see `mods/mon/README.md` |
 | `mods/sysinfo/` | what the machine is, with a picture — see `mods/sysinfo/README.md` |
 | `mods/pty/` | pseudo terminals: run a program on one and drive it — see `mods/pty/README.md` |
+| `mods/term/` | a terminal emulator: a program's screen as cells, drawn into a window — see `mods/term/README.md` |
 
 Each directory carries its own `README.md` with the detail: `src/`, `include/`,
 `mods/`, `tests/`, `examples/`. User-facing documentation is under `docs/`, and
@@ -585,6 +586,19 @@ went in the shell.
   at pane row 4 is told a click at pane row 4. Two systems is one too many,
   and both of the first two apps got the conversion wrong in opposite
   directions before this was fixed.
+- **`local a=$1 b=${M[$a]...}` cannot see `a`.** `local`'s own arguments are
+  all expanded before it runs, so the name being declared is not set yet --
+  which bash does too, and which has now cost three separate afternoons in
+  this desktop because a map lookup keyed on the id makes it silent rather
+  than empty-looking. Declare the id, then read the map on the next line.
+- **An app's state belongs under the window id, never in a global.** Two
+  windows of the same app share every global it has: two terminals become one
+  shell mirroring itself keystroke for keystroke, two browsers cannot be in
+  different directories, two calculators hold one sum. The terminal's version
+  was worse than it looked -- both windows resized the one grid to their own
+  size on every frame, so the garbled characters were the same bug wearing a
+  different hat. Every callback is handed the id; everything remembered goes
+  under it.
 - **An app keeps what it needs, rather than reading the window manager's
   table.** The browser stashes the visible row count in `_draw`, which is the
   only thing told it, instead of computing it from `DT[$id]["h"]` — which also

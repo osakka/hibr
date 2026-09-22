@@ -239,6 +239,47 @@ check("a click selects and a second click acts",
 sc = run(*PANEL, feed=[press(3, 10), press(3, 10)], pre=TICK, also=OTHER)
 check("clicking a heading does nothing", sc.find("midnight") is not None, sc)
 
+# --- the terminal window --------------------------------------------------
+
+TW = "14 44 2 2"
+TERM = ("term", TW)
+SH = "TW_CMD=(/bin/sh -c 'PS1=\"sh> \"; export PS1; exec /bin/sh')"
+
+sc = run(*TERM, pre=SH,
+         wait=1.6)
+check("a shell starts in the window", sc.find("sh>") is not None, sc)
+
+sc = run(*TERM, feed=[b"e", b"c", b"h", b"o", b" ", b"h", b"i", b"\r"],
+         pre=SH,
+         wait=1.6)
+check("what is typed reaches it and what it says comes back",
+      sc.find("echo hi") is not None and "│hi " in sc.row(4), sc)
+
+# Two terminals are two sessions: each its own pty and its own shell, and a
+# key typed into one never reaches the other.
+TWO = "TW_CMD=(/bin/sh -c 'tty; PS1=\"sh> \"; export PS1; exec /bin/sh')"
+sc = run("term", "10 36 2 2", feed=[b"e", b"c", b"h", b"o", b" ", b"o",
+         b"n", b"e", b"\r"], pre=TWO, wait=1.6,
+         also=[("Term", "10 36 2 40", "term")])
+ttys = [r for r in range(24) if "/dev/pts/" in sc.row(r)]
+check("two terminals are two sessions, each on its own pty",
+      len(ttys) == 1 and sc.row(ttys[0]).count("/dev/pts/") == 2 and
+      len(set(x.split()[0] for x in
+              sc.row(ttys[0]).split("/dev/pts/")[1:])) == 2, sc)
+check("and what is typed in one does not reach the other",
+      sc.row(4).count("echo one") == 1 and sc.row(5).count("one") == 1 and
+      "│sh>  " in sc.row(4), sc)
+
+sc = run(*TERM, feed=[b"\x1b[21~"],
+         pre=SH,
+         wait=1.2)
+check("f10 still reaches the menu bar, not the program",
+      sc.find("About hibr") is not None, sc)
+
+sc = run(*TERM, pre="TW_CMD=(/bin/sh -c 'exit 4')", wait=1.6)
+check("a program that ends says so in the window",
+      sc.find("exited 4") is not None, sc)
+
 for f in os.listdir(D):
     p = os.path.join(D, f)
     if os.path.isdir(p):
@@ -248,4 +289,4 @@ for f in os.listdir(D):
 os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
-report(43)
+report(49)

@@ -1,0 +1,101 @@
+#!/usr/bin/env hibr
+#
+# term -- a shell in a window, which is the last step of decision 0020.
+#
+# The window manager hands this app a rectangle and some keys; the term
+# module runs a program on a pseudo terminal, keeps a picture of its screen
+# and paints that picture into the rectangle. What runs inside is a real
+# program with a real terminal: it edits its own line, draws its own colours
+# and does not know it is in a window.
+#
+# Run on its own it just says what it would run, since there is no window to
+# put it in.
+
+app term "A shell in a window"
+
+need pty || { echo "term: no pty module" >&2; exit 1; }
+need terminal || { echo "term: no terminal module" >&2; exit 1; }
+
+# State is per window, not per app.
+#
+# Every callback is handed the window id, and everything an app remembers
+# belongs under it. A global would be shared by every window of the same
+# app -- which for a terminal means two windows showing one shell, mirroring
+# each other keystroke for keystroke, and for a file browser means two
+# windows that cannot be in different directories.
+declare -A TW
+# What each window runs, as words rather than a string, so a command with
+# quoted arguments survives: a test sets it to a /bin/sh with a known prompt.
+[ -n "${TW_CMD[*]}" ] || TW_CMD=(hibr)
+
+# Start the program the first time there is a window to put it in, and keep
+# its size in step with the window afterwards.
+tw_fit() {
+	local id=$1 h=$2 w=$3
+
+	[ "$h" -lt 1 ] || [ "$w" -lt 1 ] && return 1
+	if [ -z "${TW[$id]["t"]}" ]; then
+		TW[$id]["t"] := term open -r "$h" -c "$w" "${TW_CMD[@]}" || return 1
+		TW[$id]["h"]=$h
+		TW[$id]["w"]=$w
+		return 0
+	fi
+	if [ "$h" != "${TW[$id]["h"]}" ] || [ "$w" != "${TW[$id]["w"]}" ]; then
+		term size "${TW[$id]["t"]}" "$h" "$w"
+		TW[$id]["h"]=$h
+		TW[$id]["w"]=$w
+	fi
+	return 0
+}
+
+term_draw() {
+	local id=$1 h=$2 w=$3 wr=$4 wc=$5 t st
+
+	tw_fit "$id" "$h" "$w" || return 0
+	t=${TW[$id]["t"]}
+	term poll "$t" 0
+	if ! term alive "$t"; then
+		console pen "#f56565" "$DT_FACE"
+		st := term status "$t"
+		console put -p "w$id" 1 2 "[exited $st — close this window]"
+		return 0
+	fi
+	term draw "$t" $((wr + 1)) $((wc + 1)) "$h" "$w"
+}
+
+# Everything goes to the program except f10, which the window manager keeps
+# so there is always a way back to the menu bar.
+term_key() {
+	term key "${TW[$1]["t"]}" "$2"
+}
+
+term_close() {
+	[ -n "${TW[$1]["t"]}" ] && term close "${TW[$1]["t"]}"
+	TW[$1]["t"]=
+}
+
+# The window's title follows whatever the program calls itself.
+term_menus() {
+	local t n
+
+	t=${TW[$DT_FOCUS]["t"]}
+	dt_menu "Shell"
+	if [ -n "$t" ]; then
+		n := term title "$t"
+		if [ -n "$n" ]; then
+			dt_dim "${n:0:24}"
+			dt_sep
+		fi
+		dt_item "Send Interrupt" i term key "$t" ctrl-c
+		dt_item "Send End Of File" d term key "$t" ctrl-d
+	else
+		dt_dim "Not started"
+	fi
+	dt_sep
+	dt_item "Close" w dt_close_focused
+}
+
+if [ -z "$DT_ROWS" ]; then
+	echo "term: would run ${TW_CMD[*]}"
+	echo "term: this is a desktop app; open it from the hibr menu"
+fi

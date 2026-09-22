@@ -24,6 +24,7 @@ d=${0%/*}
 . "$d/apps/calc.hibr"
 . "$d/apps/files.hibr"
 . "$d/apps/panel.hibr"
+. "$d/apps/term.hibr"
 
 # A clock, small enough to write here.  It only draws, so it can never take
 # a key meant for another window.  Nothing opens it: press its name on the
@@ -47,6 +48,7 @@ dt_app files "Files"      12 34
 dt_app calc  "Calculator" 16 24
 dt_app panel "Settings"   14 34
 dt_app clock "Clock"       7 26
+dt_app term  "Terminal"   14 52
 
 dt_open || exit 1
 dt_new "Files"      10 34  1  2 files

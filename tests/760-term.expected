@@ -1,0 +1,55 @@
+0
+--- text, newlines and a carriage return
+0|one
+1|two
+2|three
+3|XXer
+4|
+5|
+--- the cursor goes where it is told
+0|top
+1|
+2|         placed
+3|
+cursor 0 3 1
+--- erasing, inserting and deleting
+0|abc|gh
+1|kee
+2|
+--- a scroll region scrolls only itself
+0|1
+1|4
+2|
+3|X
+4|5
+5|
+--- the alternate screen gives the first one back
+0|before
+1|
+2|
+--- wrapping is deferred to the next character
+0|X2345678
+1|
+2|
+--- utf-8, including a wide character
+0|héllo 漢字 ok
+1|
+--- the title comes from the escape that sets it
+0|hi
+title [my title]
+--- resizing keeps what fits
+size 10 40
+0|keep this line
+1|10 40
+2|
+--- a program that ends says so
+ended
+status 3
+--- a hibr inside, editing its own line
+1|in> echo 42
+2|42
+3|in>
+--- errors
+no command: 2
+no such terminal: 1
+bad subcommand: 1
