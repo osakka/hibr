@@ -1,0 +1,7 @@
+0
+scalar   [bcde]
+array    [q r]
+params   [w x y]
+all-but  [p q r]
+empty    []
+past     []

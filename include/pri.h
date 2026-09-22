@@ -211,6 +211,8 @@ int b_getopts(sh *s, int ac, char **av);
 int b_disown(sh *s, int ac, char **av);
 int b_let(sh *s, int ac, char **av);
 typedef struct { char **v; int n; int i; int err; int d; } tex;
+void xposlist(sh *s, vec *lst);
+void xslice(sh *s, part *p, size_t n, long *off, long *len);
 int t_one(const char *op, const char *a);
 int t_isun(const char *w);
 int t_isbin(const char *w);

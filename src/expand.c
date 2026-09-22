@@ -87,6 +87,39 @@ const char *xval(sh *s, const char *k)
 	return 0;
 }
 
+/* List the positional parameters for slicing, element zero being $0. */
+void xposlist(sh *s, vec *lst)
+{
+	int i;
+
+	v_add(lst, (void *)(s->arg0 ? s->arg0 : "hibr"));
+	for (i = 0; i < s->ac; i++)
+		v_add(lst, (void *)s->av[i]);
+}
+
+/* Resolve an offset and length against a list, clamped to its bounds. */
+void xslice(sh *s, part *p, size_t n, long *off, long *len)
+{
+	char *spec = xone(s, p->arg), *colon = strchr(spec, ':');
+
+	if (colon)
+		*colon = 0;
+	*off = ax_run(s, spec);
+	if (*off < 0)
+		*off += (long)n;
+	if (*off < 0)
+		*off = 0;
+	if (*off > (long)n)
+		*off = (long)n;
+	*len = colon ? ax_run(s, colon + 1) : (long)n - *off;
+	if (*len < 0)
+		*len = (long)n - *off + *len;
+	if (*len < 0)
+		*len = 0;
+	if (*off + *len > (long)n)
+		*len = (long)n - *off;
+}
+
 /* Append text to the buffer with a uniform quoting mask. */
 void xput(str *b, str *m, const char *t, size_t n, int q)
 {
@@ -389,20 +422,12 @@ void xvar(sh *s, part *p, str *b, str *m)
 		}
 		if (all && p->op == V_SUBSTR) {
 			vec *lst = vb_get(s);
-			char *spec = xone(s, p->arg), *colon = strchr(spec, ':');
 			long off, len, k2;
 			str j;
 			v_list(s, p->t, ks, nk, lst, 0);
-			if (colon)
-				*colon = 0;
-			off = ax_run(s, spec);
-			if (off < 0)
-				off += (long)lst->n;
-			if (off < 0)
-				off = 0;
-			len = colon ? ax_run(s, colon + 1) : (long)lst->n - off;
+			xslice(s, p, lst->n, &off, &len);
 			s_init(&j);
-			for (k2 = off; k2 < off + len && k2 < (long)lst->n; k2++) {
+			for (k2 = off; k2 < off + len; k2++) {
 				if (j.n)
 					s_ch(&j, ' ');
 				s_cat(&j, (char *)lst->p[k2]);
@@ -643,27 +668,29 @@ void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 		return;
 	}
 	case V_SUBSTR: {
-		char *spec = xone(s, p->arg), *colon = strchr(spec, ':');
 		long off, len, n;
+		if (!p->arr && p->t[0] && !p->t[1] &&
+		    (p->t[0] == '*' || p->t[0] == '@')) {
+			vec *lst = vb_get(s);
+			long k2;
+			str j;
+			xposlist(s, lst);
+			xslice(s, p, lst->n, &off, &len);
+			s_init(&j);
+			for (k2 = off; k2 < off + len; k2++) {
+				if (j.n)
+					s_ch(&j, ' ');
+				s_cat(&j, (char *)lst->p[k2]);
+			}
+			vb_put(s, lst);
+			xput(b, m, j.p ? j.p : "", j.n, p->q || s->strict);
+			s_free(&j);
+			return;
+		}
 		if (!v)
 			return;
-		if (colon)
-			*colon = 0;
-		off = ax_run(s, spec);
 		n = (long)strlen(v);
-		if (off < 0)
-			off += n;
-		if (off < 0)
-			off = 0;
-		if (off > n)
-			off = n;
-		len = colon ? ax_run(s, colon + 1) : n - off;
-		if (len < 0)
-			len = n - off + len;
-		if (len < 0)
-			len = 0;
-		if (off + len > n)
-			len = n - off;
+		xslice(s, p, (size_t)n, &off, &len);
 		xput(b, m, v + off, (size_t)len, p->q || s->strict);
 		return;
 	}
@@ -1234,33 +1261,36 @@ void xwm(sh *s, word *w, vec *out, int fl, vec *outm)
 	    (w->p->q || s->strict) && !(fl & (HIBR_XONE | HIBR_XPAT))) {
 		part *p0 = w->p;
 		int i;
-		if (!p0->arr && p0->t[0] == '@' && !p0->t[1]) {
+		if (!p0->arr && p0->op == V_NONE && p0->t[0] == '@' &&
+		    !p0->t[1]) {
 			for (i = 0; i < s->ac; i++)
 				xoutq(s, out, outm, s->av[i],
 				      strlen(s->av[i]));
+			return;
+		}
+		if (!p0->arr && p0->op == V_SUBSTR && p0->t[0] == '@' &&
+		    !p0->t[1]) {
+			vec *lst = vb_get(s);
+			long off, len, k2;
+			xposlist(s, lst);
+			xslice(s, p0, lst->n, &off, &len);
+			for (k2 = off; k2 < off + len; k2++)
+				xoutq(s, out, outm, (char *)lst->p[k2],
+				      strlen((char *)lst->p[k2]));
+			vb_put(s, lst);
 			return;
 		}
 		if (p0->arr && p0->op == V_SUBSTR) {
 			char **ks;
 			int all, nk = xkeys(s, p0, &ks, &all);
 			vec *lst;
-			char *spec, *colon;
 			long off, len, k2;
 			if (!all)
 				goto normal;
 			lst = vb_get(s);
 			v_list(s, p0->t, ks, nk, lst, 0);
-			spec = xone(s, p0->arg);
-			colon = strchr(spec, ':');
-			if (colon)
-				*colon = 0;
-			off = ax_run(s, spec);
-			if (off < 0)
-				off += (long)lst->n;
-			if (off < 0)
-				off = 0;
-			len = colon ? ax_run(s, colon + 1) : (long)lst->n - off;
-			for (k2 = off; k2 < off + len && k2 < (long)lst->n; k2++)
+			xslice(s, p0, lst->n, &off, &len);
+			for (k2 = off; k2 < off + len; k2++)
 				xoutq(s, out, outm, (char *)lst->p[k2],
 				      strlen((char *)lst->p[k2]));
 			vb_put(s, lst);

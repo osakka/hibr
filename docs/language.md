@@ -14,7 +14,9 @@ and the `;&` / `;;&` fallthroughs), functions with recursion, and `local`.
 **Expansion.** Single, double and `$'…'` quoting (`\n \t \e \xHH \0NNN`).
 `${x:-d} ${x:=d} ${x:?msg} ${x:+alt}`, `${#x}`, `${x#p} ${x##p} ${x%p} ${x%%p}`,
 `${x/p/r} ${x//p/r}`, anchored `${x/#p/r}` and `${x/%p/r}`, `${x:off:len}` with
-negative offsets, `${x^^} ${x,,} ${x^} ${x,}`, the transforms `${x@Q} ${x@E}
+negative offsets and negative lengths, over a scalar's characters or a list's
+elements — `${*:2}`, `${@:2:1}` and `${a[*]:1}` all select, they do not slice
+the joined text, `${x^^} ${x,,} ${x^} ${x,}`, the transforms `${x@Q} ${x@E}
 ${x@U} ${x@L} ${x@u}`, indirection `${!ref}` (which keeps any modifier after
 it, so `${!ref:-d}` works), the names starting with a prefix `${!pre*}` and
 `${!pre@}`, and negative subscripts `${a[-1]}`, counted back from the highest
