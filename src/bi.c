@@ -850,6 +850,10 @@ void b_decl1(sh *s, var *v)
 		s_ch(&f, 'n');
 	if (v->at & A_INT)
 		s_ch(&f, 'i');
+	if (v->at & A_LOW)
+		s_ch(&f, 'l');
+	if (v->at & A_UPP)
+		s_ch(&f, 'u');
 	if (v->ro)
 		s_ch(&f, 'r');
 	if (v->ex)
@@ -882,6 +886,8 @@ int b_decl(sh *s, int ac, char **av)
 			switch (*f) {
 			case 'i': at |= A_INT; break;
 			case 'n': at |= A_REF; break;
+			case 'l': at = (at & ~A_UPP) | A_LOW; break;
+			case 'u': at = (at & ~A_LOW) | A_UPP; break;
 			case 'r': ro = 1; break;
 			case 'x': ex = 1; break;
 			case 'a':

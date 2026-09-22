@@ -4,7 +4,7 @@
 #include <stddef.h>
 
 #ifndef HIBR_ABI
-#define HIBR_ABI 8u
+#define HIBR_ABI 9u
 #endif
 #ifndef HIBR_VER
 #define HIBR_VER "0.21"
@@ -106,6 +106,8 @@
 #ifndef A_INT
 #define A_INT 1u
 #define A_REF 2u
+#define A_LOW 4u
+#define A_UPP 8u
 #define A_TYSH 8
 #define A_TYMASK 0xf00u
 #endif
@@ -204,7 +206,7 @@ struct sh {
 	size_t tsz, tn;
 	char **av;
 	int ac, avo;
-	char *arg0, *rty, *etrap, *dtrap;
+	char *arg0, *rty, *etrap, *dtrap, *rtrap;
 	int st, lv, it, dep, nofork, tst, pfs, stop, uset, intry, noclob, noexec, strict, bind, hx, xerr;
 	long t0;
 	char **trap;

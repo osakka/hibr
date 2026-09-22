@@ -205,6 +205,29 @@ void tr_debug(sh *s, const char *what)
 	s->ret = oret;
 }
 
+/* Run the return trap a function set for itself, then forget it. */
+void tr_return(sh *s)
+{
+	char *cmd = s->rtrap;
+	int ost, ostop, obrk, ocont, oret;
+
+	if (!cmd)
+		return;
+	ost = s->st;
+	ostop = s->stop;
+	obrk = s->brk;
+	ocont = s->cont;
+	oret = s->ret;
+	s->rtrap = 0;
+	hibr_run(s, cmd);
+	free(cmd);
+	s->st = ost;
+	s->stop = ostop;
+	s->brk = obrk;
+	s->cont = ocont;
+	s->ret = oret;
+}
+
 /* Translate a signal name or number, with EXIT as slot zero. */
 int tr_sig(const char *nm)
 {
@@ -218,6 +241,8 @@ int tr_sig(const char *nm)
 		return -2;
 	if (!strcasecmp(nm, "DEBUG"))
 		return -3;
+	if (!strcasecmp(nm, "RETURN"))
+		return -4;
 	if (!strncasecmp(nm, "SIG", 3))
 		nm += 3;
 	for (sm = jc_sigs; sm->nm; sm++)
@@ -240,6 +265,8 @@ int b_trap(sh *s, int ac, char **av)
 			printf("trap -- '%s' ERR\n", s->etrap);
 		if (s->dtrap)
 			printf("trap -- '%s' DEBUG\n", s->dtrap);
+		if (s->rtrap)
+			printf("trap -- '%s' RETURN\n", s->rtrap);
 		for (i = 0; i < tr_n; i++)
 			if (s->trap[i]) {
 				const struct signm *sm;
@@ -270,6 +297,11 @@ int b_trap(sh *s, int ac, char **av)
 		if (sig == -3) {
 			free(s->dtrap);
 			s->dtrap = reset || !*cmd ? 0 : xs(cmd);
+			continue;
+		}
+		if (sig == -4) {
+			free(s->rtrap);
+			s->rtrap = reset || !*cmd ? 0 : xs(cmd);
 			continue;
 		}
 		if (sig < 0 || sig >= tr_n) {

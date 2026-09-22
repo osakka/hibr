@@ -17,7 +17,7 @@ servers, typed function signatures, result slots (`x := f` without forking),
 declared CLI arguments, and a module ABI that lets modules add *protocols*
 (`/dev/<name>/…`), not just commands.
 
-Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 8).
+Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 9).
 
 ## Build and test
 
@@ -29,7 +29,7 @@ Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 8).
     ./build/hibr -n script      # parse only
 
     tests/run.sh [-v] [prefix]           # C-side harness, 55 tests
-    ./build/hibr tests/self.hibr                 # suite written in hibr, 91 assertions
+    ./build/hibr tests/self.hibr                 # suite in hibr, 91 assertions, planned
     python3 tests/editor.py                      # the line editor, through a pty
     python3 tests/diff.py 250                    # snippets, diffed against bash
     HIBR=./build/hibr REF=dash tests/run.sh      # compare against another shell
@@ -73,7 +73,7 @@ linked, and no OpenSSL headers are needed to build.
 
 | file | role |
 |---|---|
-| `include/hibr.h` | public types, macros and the module ABI (v8) |
+| `include/hibr.h` | public types, macros and the module ABI (v9) |
 | `include/pri.h` | internal declarations, tokens, the `lex` struct |
 | `include/re.h` | our own regex declarations (tcc cannot parse glibc's) |
 | `src/mem.c` | arenas with mark/release, `str`, `vec`, pools, `lg` logging |
@@ -340,8 +340,6 @@ were each run and their real output pasted back; keep it that way.
   left that would move it. Shrinking it means less code. The README says so.
   Measure memory as a median of many runs; the spread is about 180 kB.
 - Decide whether `set -S` should become the default.
-- Possibly: `declare -l`/`-u`, `trap RETURN`, `select` refinements, a `plan N`
-  count in `self.hibr`.
 - Prompt status divergences from git, all deliberate: renames are matched only
   on identical content, submodule working trees are not inspected, and `**` in
   the middle of a gitignore pattern behaves as `*`.

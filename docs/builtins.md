@@ -37,7 +37,7 @@ arguments the sourced file inherits them, and a `shift` inside leaks, as in bash
 
 | builtin | synopsis |
 |---|---|
-| `declare [-airxnpg] [type] [name[=v]…]` | declare variables and attributes |
+| `declare [-aAgilnprux] [type] [name[=v]…]` | declare variables and attributes |
 | `typeset …` | the same builtin under its other name |
 | `readonly [-p] [name[=v]…]` | make variables readonly, or list the ones that are |
 | `local name[=v]…` | declare function-local variables |
@@ -51,9 +51,9 @@ arguments the sourced file inherits them, and a `shift` inside leaks, as in bash
 | `mapfile` / `readarray [-t] [-n k] [-s k] [-O k] [-d c] [-u fd] [arr]` | read lines into an array |
 | `getopts optstring name [args…]` | parse option letters, one call at a time |
 
-`declare` takes bash's flags — `-i` integer, `-r` readonly, `-x` export, `-a`
-and `-A` map (they are the same thing here), `-n` nameref, `-p` print, `-g`
-global — and **[hibr]** accepts one of the shell's own type names in their place:
+`declare` takes bash's flags — `-i` integer, `-l` and `-u` lower and upper
+cased on assignment, `-r` readonly, `-x` export, `-a` and `-A` map (they are
+the same thing here), `-n` nameref, `-p` print, `-g` global — and **[hibr]** accepts one of the shell's own type names in their place:
 
 ```sh
 declare -i n;   n=abc    # bash's: coerces, n becomes 0
@@ -131,7 +131,7 @@ echo "$sum"             # 5
 | `kill [-sig] %job\|pid` | signal a job or process |
 | `disown [%job]` | forget a job without signalling it |
 | `coproc [name] cmd args…` | **[hibr]** run a command as a coprocess |
-| `trap [cmd] sig…` | run `cmd` on a signal, on `EXIT`, on `ERR` or on `DEBUG` |
+| `trap [cmd] sig…` | run `cmd` on a signal, on `EXIT`, `ERR`, `DEBUG` or `RETURN` |
 | `ulimit [-HSa] [-cdfilnstuv] [limit]` | read or set a resource limit |
 | `umask [mask]` | show or set the file creation mask |
 | `hash [-r] [-d name] [name…]` | show or forget where commands were found |
@@ -150,6 +150,9 @@ As many as you like, at once. See
 [0018](adr/0018-a-coprocess-is-an-endpoint.md).
 
 `trap … DEBUG` runs before each command, with the command text in `$CMD`.
+`trap … RETURN` runs when the function that set it returns, and is forgotten
+afterwards, so it does not leak into the next call — set it inside the function
+you mean, as in bash.
 `hash` is a real cache: `findx` consults it before walking `PATH`, it is
 forgotten when `PATH` changes, and a remembered path that stops working is
 looked up again.

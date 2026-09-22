@@ -443,6 +443,11 @@ int fn_call(sh *s, node *f, int ac, char **av)
 		s->ret = 0;
 		st = s->st;
 	}
+	if (s->rtrap) {
+		s->st = st;
+		tr_return(s);
+		st = s->st;
+	}
 	s->dep--;
 	s->scope.n--;
 	asg_pop(s, fr);
@@ -1463,7 +1468,45 @@ int ex_cond(sh *s, node *n)
 	return s->st = c.bad ? 2 : (v ? 0 : 1);
 }
 
-/* Offer a numbered menu and run the body for each choice. */
+/* Print a select menu, in columns when the terminal has room for them. */
+void sel_show(vec *o, int cols)
+{
+	size_t i, item = 0, n = o->n, idxw = 1, rows, ncol, r, c, k;
+	str num;
+
+	for (i = 10; i <= n; i *= 10)
+		idxw++;
+	for (i = 0; i < n; i++) {
+		size_t l = strlen((char *)o->p[i]);
+		if (l > item)
+			item = l;
+	}
+	ncol = (size_t)cols / (idxw + 2 + item + 2);
+	if (!ncol)
+		ncol = 1;
+	rows = (n + ncol - 1) / ncol;
+	if (rows <= 1) {
+		rows = n;
+		ncol = 1;
+	} else {
+		ncol = (n + rows - 1) / rows;
+	}
+	for (r = 0; r < rows; r++) {
+		for (c = 0; c < ncol; c++) {
+			k = c * rows + r;
+			if (k >= n)
+				continue;
+			s_init(&num);
+			s_num(&num, (long)k + 1);
+			fprintf(stderr, "%*s) %-*s", (int)idxw, num.p,
+				c + 1 < ncol ? (int)item + 2 : 0,
+				(char *)o->p[k]);
+			s_free(&num);
+		}
+		fputc('\n', stderr);
+	}
+}
+
 int ex_select(sh *s, node *n)
 {
 	amark m = ar_mark(s->xa);
@@ -1485,9 +1528,7 @@ int ex_select(sh *s, node *n)
 			v_add(&o, s->av[i]);
 	for (;;) {
 		if (show)
-			for (i = 0; i < o.n; i++)
-				fprintf(stderr, "%lu) %s\n", (unsigned long)i + 1,
-					(char *)o.p[i]);
+			sel_show(&o, ed_cols());
 		show = 0;
 		ps3 = hibr_get(s, "PS3");
 		fputs(ps3 ? ps3 : "#? ", stderr);

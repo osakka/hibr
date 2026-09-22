@@ -31,6 +31,11 @@ errors and hangs. Parser nesting (`HIBR_DEPTH`), arithmetic nesting
 (`HIBR_AXDEPTH`) and `[[ ]]` grouping are bounded, so deeply nested input
 produces an error rather than a crash.
 
+`tests/self.hibr` opens with `plan N`. A suite that runs fewer assertions than
+it planned has skipped something — an `is` inside a branch that stopped being
+taken, a section that failed early — and a count nobody checks cannot say so.
+The run fails on a mismatch, not only on a failed assertion.
+
 ## Differential fuzzing
 
 `tests/fuzz.py` asks whether the parser survives odd input. `tests/diff.py`

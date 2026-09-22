@@ -199,7 +199,10 @@ printf a:b | { read -r -d: y; echo "$y"; }     # a
 read -r -t 1 z < /dev/null; echo "$?"          # 1, it timed out
 ```
 
-`select` builds a menu and loops until something breaks it:
+`select` builds a menu and loops until something breaks it. A long list is laid
+out in columns, as many as the terminal takes, filled down each column in turn —
+the same shape bash chooses, padded with spaces rather than tabs so the columns
+line up whatever the terminal's tab stops are:
 
 ```sh
 select x in alpha beta; do echo "picked $x"; break; done

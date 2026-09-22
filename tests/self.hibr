@@ -5,6 +5,15 @@
 pass=0
 fail=0
 failed=()
+planned=0
+
+# How many assertions this file intends to make. A suite that silently runs
+# fewer has skipped something -- an `is` inside a branch that stopped being
+# taken, or a section that failed early -- and a count nobody checks cannot
+# tell you that.
+fn plan(int n) {
+  planned=$n
+}
 
 fn ok(str what) {
   pass=$((pass + 1))
@@ -34,6 +43,8 @@ fn status_is(int got, int want, str what) {
 }
 
 fn section(str name) { echo "== $name"; }
+
+plan 91
 
 section "expansion"
 x=hello
@@ -245,6 +256,11 @@ isnt "$hdl" "0" "40k of generated text"
 
 echo ""
 echo "$pass passed, $fail failed"
+run=$((pass + fail))
+if [ "$planned" -gt 0 ] && [ "$run" -ne "$planned" ]; then
+  echo "planned $planned assertions, ran $run"
+  exit 1
+fi
 if [ "$fail" -gt 0 ]; then
   echo "failed: ${failed[@]}"
   exit 1
