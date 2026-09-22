@@ -19,6 +19,20 @@ hibr clean
 debian clean
 alpine clean
 cix clean
-cix lines: 13
+arch clean
+ubuntu clean
+fedora clean
+mint clean
+opensuse clean
+gentoo clean
+nixos clean
+void clean
+rhel clean
+freebsd clean
+debian columns: 12
+cix columns: 13
+arch columns: 19
+ubuntu columns: 20
+nixos columns: 20
 unknown picture rc=0
 dropped

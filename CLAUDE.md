@@ -28,7 +28,7 @@ Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 13).
     make install         # PREFIX=/usr/local, modules to $(PREFIX)/lib/hibr
     ./build/hibr -n script      # parse only
 
-    tests/run.sh [-v] [prefix]           # C-side harness, 71 tests
+    tests/run.sh [-v] [prefix]           # C-side harness, 72 tests
     ./build/hibr tests/self.hibr                 # suite in hibr, 91 assertions, planned
     python3 tests/editor.py                      # the line editor, through a pty
     python3 tests/console.py                     # the console display, through a pty

@@ -27,17 +27,32 @@ quietly go stale.
 
 ## Pictures
 
-Four: Debian, Alpine, CIX, and hibr's own, which is the fallback for anything
-else. `-l name` picks one by hand, which is also how they are tested on a
-machine that is only ever one distribution.
+Fourteen: Arch, Ubuntu, Fedora, Mint, openSUSE, Gentoo, NixOS, Void, RHEL and
+CentOS, FreeBSD, Debian and Raspbian, Alpine, CIX, and hibr's own.
+
+**A host shows its own.** The picture follows `ID` in `/etc/os-release`, and
+when that is a name with no picture, each word of `ID_LIKE` in turn — which is
+how Mint gets Ubuntu's, Manjaro and EndeavourOS get Arch's, Rocky and AlmaLinux
+get RHEL's, and Raspbian gets Debian's, without any of them needing one of
+their own. hibr's own picture is the fallback for a system that says nothing
+either way.
+
+`-l name` forces one, which exists so the other thirteen can be tested on a
+machine that is only ever one distribution. It is not a normal way to run it:
+a CIX picture beside `OS: Debian GNU/Linux` is not a thing that should happen.
+
+`tests/sysinfo-id.c` checks the identification directly — 21 cases including
+every derivative above and three that should fall through to hibr — because
+that logic is what makes a host show the right picture and it is easy to break
+quietly.
 
 A picture is an array of lines, padded to the widest at draw time, so it need
 not be a rectangle. Two tones are available: a line may contain `\001` and
 `\002` to switch between them, which is the same idea as neofetch's `$1` and
 `$2` and lets a logo have an inner shape in a second colour. The marks take no
-columns and never reach the output — a picture with none is drawn entirely in
-the first tone, which is what the older ones expect.
+columns and never reach the output; a picture with none is drawn entirely in
+the first tone.
 
-Width is counted in **columns, not bytes**: these are block-drawing glyphs at
-three bytes each, so measuring with `strlen` would pad every line to a third of
-where it should be and leave the text column ragged.
+Width is counted in **columns, not bytes**. Several of these are block-drawing
+glyphs at three bytes each, so measuring with `strlen` would pad every line to
+a third of where it belongs and leave the text column ragged.

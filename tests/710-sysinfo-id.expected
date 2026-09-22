@@ -1,0 +1,24 @@
+0
+ok   debian         like -                      -> debian
+ok   ubuntu         like debian                 -> ubuntu
+ok   linuxmint      like ubuntu debian          -> mint
+ok   pop            like ubuntu debian          -> ubuntu
+ok   raspbian       like debian                 -> debian
+ok   arch           like -                      -> arch
+ok   manjaro        like arch                   -> arch
+ok   endeavouros    like arch                   -> arch
+ok   fedora         like -                      -> fedora
+ok   rocky          like rhel centos fedora     -> rhel
+ok   almalinux      like rhel centos fedora     -> rhel
+ok   alpine         like -                      -> alpine
+ok   cix            like -                      -> cix
+ok   nixos          like -                      -> nixos
+ok   void           like -                      -> void
+ok   opensuse-leap  like suse opensuse          -> opensuse
+ok   gentoo         like -                      -> gentoo
+ok   freebsd        like -                      -> freebsd
+ok   weirdos        like -                      -> hibr
+ok   weirdos        like nonsense               -> hibr
+ok                  like -                      -> hibr
+
+every identification lands on the right picture

@@ -166,8 +166,13 @@ terminal, processor, memory, disk and load, beside a picture chosen from
 
 It follows the cat's rule rather than the monitor's: colour on a terminal and
 nothing at all in a pipe, so `sysinfo | mail` sends text. Everything comes from
-`/proc`, `uname` and `statvfs`, so it forks for nothing. Three pictures —
-Debian, Alpine, and hibr's own as the fallback.
+`/proc`, `uname` and `statvfs`, so it forks for nothing.
+
+Fourteen pictures, and a host shows **its own**: `ID` from `/etc/os-release`,
+then each word of `ID_LIKE`, which is how Mint gets Ubuntu's and Rocky gets
+RHEL's without needing their own. `tests/sysinfo-id.c` checks that chain
+directly over 21 identifications, because it is the part that decides whether
+the thing on screen is about the machine it is running on.
 
 ### Module autoloading — built
 

@@ -24,7 +24,8 @@ printf '%s' "$out" | grep -q "Arch: $a" && echo "arch agrees with uname"
 printf '%s' "$out" | grep -q "Shell: hibr $HIBR_VERSION" && echo "names this shell"
 
 # every picture draws, and none of them leaks its tone marks into the text
-for l in hibr debian alpine cix; do
+for l in hibr debian alpine cix arch ubuntu fedora mint opensuse gentoo \
+         nixos void rhel freebsd; do
   printf '%s ' "$l"
   a=$(sysinfo -l "$l")
   case "$a" in
@@ -35,8 +36,16 @@ done
 
 # the picture is padded to a straight edge: every line puts the label column
 # in the same place
-sysinfo -l cix | rsub -g "$(sysinfo -l cix)" "[^ ]" "x" > /dev/null
-echo "cix lines: $(sysinfo -l cix | grep -c .)"
+# the text column starts in the same place on every line of a picture
+straight() {
+  sysinfo -l "$1" | grep -n ': ' | head -3 | while IFS= read -r ln; do
+    printf '%s ' "$(expr index "$ln" ':')"
+  done
+  echo
+}
+for l in debian cix arch ubuntu nixos; do
+  printf '%s columns: %s\n' "$l" "$(sysinfo -l "$l" | grep -c .)"
+done
 
 # an unknown name falls back rather than failing
 sysinfo -l nosuchdistro > /dev/null; echo "unknown picture rc=$?"

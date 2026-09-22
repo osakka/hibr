@@ -194,20 +194,272 @@ static const char *si_cix[] = {
 	0
 };
 
-/* The picture for this system, or the shell's own. */
-const char **si_logo(const char *id)
+static const char *si_arch[] = {
+	"\001                   -`",
+	"\001                  .o+`",
+	"\001                 `ooo/",
+	"\001                `+oooo:",
+	"\001               `+oooooo:",
+	"\001               -+oooooo+:",
+	"\001             `/:-:++oooo+:",
+	"\001            `/++++/+++++++:",
+	"\001           `/++++++++++++++:",
+	"\001          `/+++ooooooooooooo/`",
+	"\001         ./ooosssso++osssssso+`",
+	"\001        .oossssso-````/ossssss+`",
+	"\001       -osssssso.      :ssssssso.",
+	"\001      :osssssss/        osssso+++.",
+	"\001     /ossssssss/        +ssssooo/-",
+	"\001   `/ossssso+/:-        -:/+osssso+-",
+	"\001  `+sso+:-`                 `.-/+oso:",
+	"\001 `++:.                           `-/+/",
+	"\001 .`                                 `/",
+	0
+};
+
+static const char *si_ubuntu[] = {
+	"\001            .-/+oossssoo+/-.",
+	"\001        `:+ssssssssssssssssss+:`",
+	"\001      -+ssssssssssssssssssyyssss+-",
+	"\001    .ossssssssssssssssss\002dMMMNy\001sssso.",
+	"\001   /sssssssssss\002hdmmNNmmyNMMMMh\001ssssss/",
+	"\001  +sssssssss\002hm\001yd\002MMMMMMMNddddy\001ssssssss+",
+	"\001 /ssssssss\002hNMMM\001yh\002hyyyyhmNMMMNh\001ssssssss/",
+	"\001.ssssssss\002dMMMNh\001ssssssssss\002hNMMMd\001ssssssss.",
+	"\001+ssss\002hhhyNMMNy\001ssssssssssss\002yNMMMy\001sssssss+",
+	"\001oss\002yNMMMNyMMh\001ssssssssssssss\002hmmmh\001sssssso",
+	"\001oss\002yNMMMNyMMh\001sssssssssssssshmmmh\001sssssso",
+	"\001+ssss\002hhhyNMMNy\001ssssssssssss\002yNMMMy\001sssssss+",
+	"\001.ssssssss\002dMMMNh\001ssssssssss\002hNMMMd\001ssssssss.",
+	"\001 /ssssssss\002hNMMM\001yh\002hyyyyhdNMMMNh\001ssssssss/",
+	"\001  +sssssssss\002dm\001yd\002MMMMMMMMddddy\001ssssssss+",
+	"\001   /sssssssssss\002hdmNNNNmyNMMMMh\001ssssss/",
+	"\001    .ossssssssssssssssss\002dMMMNy\001sssso.",
+	"\001      -+sssssssssssssssss\002yyy\001ssss+-",
+	"\001        `:+ssssssssssssssssss+:`",
+	"\001            .-/+oossssoo+/-.",
+	0
+};
+
+static const char *si_fedora[] = {
+	"\001             .',;::::;,'.",
+	"\001         .';:cccccccccccc:;,.",
+	"\001      .;cccccccccccccccccccccc;.",
+	"\001    .:cccccccccccccccccccccccccc:.",
+	"\001  .;ccccccccccccc;\002.:dddl:.\001;ccccccc;.",
+	"\001 .:ccccccccccccc;\002OWMKOOXMWd\001;ccccccc:.",
+	"\001.:ccccccccccccc;\002KMMc\001;cc;\002xMMc\001;ccccccc:.",
+	"\001,cccccccccccccc;\002MMM.\001;cc;\002;WW:\001;cccccccc,",
+	"\001:cccccccccccccc;\002MMM.\001;cccccccccccccccc:",
+	"\001:ccccccc;\002oxOOOo\001;\002MMM000k.\001;cccccccccccc:",
+	"\001cccccc;\0020MMKxdd:\001;\002MMMkddc.\001;cccccccccccc;",
+	"\001ccccc;\002XM0'\001;cccc;\002MMM.\001;cccccccccccccccc'",
+	"\001ccccc;\002MMo\001;ccccc;\002MMW.\001;ccccccccccccccc;",
+	"\001ccccc;\0020MNc.\001ccc\002.xMMd\001;ccccccccccccccc;",
+	"\001cccccc;\002dNMWXXXWM0:\001;cccccccccccccc,",
+	"\001cccccccc;\002.:odl:.\001;cccccccccccccc:,",
+	"\001ccccccccccccccccccccccccccccc:'.",
+	"\001:ccccccccccccccccccccccc:;,..",
+	"\001 ':cccccccccccccc::;,.",
+	0
+};
+
+static const char *si_mint[] = {
+	"\001 ___________",
+	"\001|_          \\",
+	"\001  |\002 | _____ \001|",
+	"\001  |\002 | | | | \001|",
+	"\001  |\002 | | | | \001|",
+	"\001  |\002 \\__\001___\002/ \001|",
+	"\001  \\_________/",
+	0
+};
+
+static const char *si_opensuse[] = {
+	"\001           .;ldkO0000Okdl;.",
+	"\001       .;d00xl:^''''''^:oko,",
+	"\001     .d00l'                'o0d.",
+	"\001   .d0Kd'\002  Okxol:;,.      \001 :O0d.",
+	"\001  .OK\002KKK0kOKKKKKKKKKKOxo:,     \001lKO.",
+	"\001 ,0K\002KKKKKKKKKKKKKKK0P^\001,,,\002^dx:\001    ;00,",
+	"\001.OK\002KKKKKKKKKKKKKKKk'\001.oOPPb.\002'0k.\001   cKO.",
+	"\001:KK\002KKKKKKKKKKKKKKK: \001kKx..dd \002lKd\001   'OK:",
+	"\001dKK\002KKKKKKKKKOx0KKKd \001^0KKKO'\002 kKKc\001   dKd",
+	"\001dKK\002KKKKKKKKKK;.;oOKx,,^${1;,x;;\002:kKKc\001   dKd",
+	"\001:KK\002KKKKKKKKKK0o;...^cdxxOK0O/^^'\001  .0K:",
+	"\001 kKK\002KKKKKKKKKKKKK0x:,,......,;od\001  lKk",
+	"\001 '0K\002KKKKKKKKKKKKKKKKKKKK00KKOo^\001  c00'",
+	"\001  'kK\002KKOxddxkOO00000Okxoc;''\001   .dKk'",
+	"\001    l0Ko.                    .c00l'",
+	"\001     'l0Kk:.              .;xK0l'",
+	"\001        'lkK0xl:;,,,,;:ldO0kl'",
+	"\001            '^:ldxkkkkxdl:^'",
+	0
+};
+
+static const char *si_gentoo[] = {
+	"\001         -/oyddmdhs+:.",
+	"\001     -o\002dNMMMMMMMMNNmhy+\001-`",
+	"\001   -y\002NMMMMMMMMMMMNNNmmdhy\001+-",
+	"\001 `o\002mMMMMMMMMMMMMNmdmmmmddhhy\001/`",
+	"\001 om\002MMMMMMMMMMMN\001hhyyyo\002hmdddhhhd\001o`",
+	"\001.y\002dMMMMMMMMMMd\001hs++so/s\002mdddhhhhdm\001+`",
+	"\001 oy\002hdmNMMMMMMMN\001dyooy\002dmddddhhhhyhN\001d.",
+	"\001  :o\002yhhdNNMMMMMMMNNNmmdddhhhhhyym\001Mh",
+	"\001    .:\002+sydNMMMMMNNNmmmdddhhhhhhmM\001my",
+	"\001       /m\002MMMMMMNNNmmmdddhhhhhmMNh\001s:",
+	"\001    `o\002NMMMMMMMNNNmmmddddhhdmMNhs\001+`",
+	"\001  `s\002NMMMMMMMMNNNmmmdddddmNMmhs\001/.",
+	"\001 /N\002MMMMMMMMNNNNmmmdddmNMNdso\001:`",
+	"\001+M\002MMMMMMNNNNNmmmmdmNMNdso\001/-",
+	"\001yM\002MNNNNNNNmmmmmNNMmhs+/\001-`",
+	"\001/h\002MMNNNNNNNNMNdhs++/\001-`",
+	"\001`/o\002hdmmddhys+++/:\001.`",
+	"\001  `-//////:--.",
+	0
+};
+
+static const char *si_nixos[] = {
+	"\001          ▗▄▄▄       \002▗▄▄▄▄    ▄▄▄▖",
+	"\001          ▜███▙       \002▜███▙  ▟███▛",
+	"\001           ▜███▙       \002▜███▙▟███▛",
+	"\001            ▜███▙       \002▜██████▛",
+	"\001     ▟█████████████████▙ \002▜████▛     \001▟▙",
+	"\001    ▟███████████████████▙ \002▜███▙    \001▟██▙",
+	"\001           ▄▄▄▄▖           \002▜███▙  \001▟███▛",
+	"\001          ▟███▛             \002▜██▛ \001▟███▛",
+	"\001         ▟███▛               \002▜▛ \001▟███▛",
+	"\001▟███████████▛                  \002▟██████████▙",
+	"\001▜██████████▛                  \002▟███████████▛",
+	"\001      ▟███▛ \002▟▙               ▟███▛",
+	"\001     ▟███▛ \002▟██▙             ▟███▛",
+	"\001    ▟███▛  \002▜███▙           ▝▀▀▀▀",
+	"\001    ▜██▛    \002▜███▙ ▜██████████████████▛",
+	"\001     ▜▛     \002▟████▙ ▜████████████████▛",
+	"\001           ▟██████▙       \002▜███▙",
+	"\001          ▟███▛▜███▙       \002▜███▙",
+	"\001         ▟███▛  ▜███▙       \002▜███▙",
+	"\001         ▝▀▀▀    ▀▀▀▀▘       \002▀▀▀▘",
+	0
+};
+
+static const char *si_void[] = {
+	"\001                __.;=====;.__",
+	"\001            _.=+==++=++=+=+===;.",
+	"\001             -=+++=+===+=+=+++++=_",
+	"\001        .     -=:``     `--==+=++==.",
+	"\001       _vi,    `            --+=++++:",
+	"\001      .uvnvi.       _._       -==+==+.",
+	"\001     .vvnvnI`    .;==|==;.     :|=||=|.",
+	"\001_.   vvnvnnvnI  .;=|===|=;.  .|=||=||=|",
+	"\001nvvnvvvnvvnvvI .|=|====|=|.  |=||=||=||",
+	"\001`vvnvnvnvnvnI` |=|=====|=|   |=||=||=||",
+	"\001 `nvnvnvnvnI`  |=|=====|=|   |=||=||=||",
+	"\001   `vnvnvnI`    |=|====|=|   |=||=||=|`",
+	"\001     `vnvI`      `;=|==|=;`  `|=||=|`",
+	"\001       `v`          `-==-`     `|=|`",
+	"\001                                 `",
+	0
+};
+
+static const char *si_rhel[] = {
+	"\001           .MMM..:MMMMMMM",
+	"\001          MMMMMMMMMMMMMMMMMM",
+	"\001          MMMMMMMMMMMMMMMMMMMM.",
+	"\001         MMMMMMMMMMMMMMMMMMMMMM",
+	"\001        ,MMMMMMMMMMMMMMMMMMMMMM:",
+	"\001        MMMMMMMMMMMMMMMMMMMMMMMM",
+	"\001  .MMMM'  MMMMMMMMMMMMMMMMMMMMMM",
+	"\001 MMMMMM    `MMMMMMMMMMMMMMMMMMMM.",
+	"\001MMMMMMMM      MMMMMMMMMMMMMMMMMM .",
+	"\001MMMMMMMMM.       `MMMMMMMMMMMMM' MM.",
+	"\001MMMMMMMMMMM.                     MMMM",
+	"\001`MMMMMMMMMMMMM.                 ,MMMMM.",
+	"\001 `MMMMMMMMMMMMMMMMM.          ,MMMMMMMM.",
+	"\001    MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM",
+	"\001      `MMMMMMMMMMMMMMMMMMMMMMMMMMMMMM",
+	"\001         `MMMMMMMMMMMMMMMMMMMMMMMM:",
+	"\001            ``MMMMMMMMMMMMMMMMM'",
+	0
+};
+
+static const char *si_freebsd[] = {
+	"\001   ```                        `",
+	"\001  ` `.....---.......--.```   -/",
+	"\001  +o   .--`         /y:`      +.",
+	"\001   yo`:.            :o      `+-",
+	"\001    y/               -/`   -o/",
+	"\001   .-                  ::/sy+:.",
+	"\001   /                     `--  /",
+	"\001  `:                          :`",
+	"\001  `:                          :`",
+	"\001   /                          /",
+	"\001   .-                        -.",
+	"\001    --                      -.",
+	"\001     `:`                  `:`",
+	"\001       .--             `--.",
+	"\001          .---.....----.",
+	0
+};
+
+/* Every picture, by the ID a system calls itself. */
+static const struct { const char *id; const char **art; } si_arts[] = {
+	{ "arch", si_arch },        { "ubuntu", si_ubuntu },
+	{ "fedora", si_fedora },    { "linuxmint", si_mint },
+	{ "mint", si_mint },        { "opensuse", si_opensuse },
+	{ "opensuse-leap", si_opensuse },
+	{ "opensuse-tumbleweed", si_opensuse },
+	{ "suse", si_opensuse },    { "gentoo", si_gentoo },
+	{ "nixos", si_nixos },      { "void", si_void },
+	{ "rhel", si_rhel },        { "centos", si_rhel },
+	{ "freebsd", si_freebsd },  { "debian", si_debian },
+	{ "raspbian", si_debian },  { "alpine", si_alpine },
+	{ "cix", si_cix },          { "hibr", si_hibr },
+	{ 0, 0 }
+};
+
+/* The picture for one name, or null when there is none. */
+const char **si_named(const char *id)
 {
+	int i;
+
 	if (!id || !*id)
-		return si_hibr;
-	if (!strcmp(id, "hibr"))
-		return si_hibr;
-	if (!strcmp(id, "debian") || !strcmp(id, "raspbian"))
-		return si_debian;
-	if (!strcmp(id, "alpine"))
-		return si_alpine;
-	if (!strcmp(id, "cix"))
-		return si_cix;
-	return si_hibr;
+		return 0;
+	for (i = 0; si_arts[i].id; i++)
+		if (!strcmp(si_arts[i].id, id))
+			return si_arts[i].art;
+	return 0;
+}
+
+/* The picture for this system: what it calls itself, then what it says it is
+   like -- which is how a derivative gets its parent's picture without every
+   one of them needing its own -- and hibr's own if neither says anything. */
+const char **si_logo(const char *id, const char *like)
+{
+	const char **a = si_named(id);
+	str w;
+
+	if (a)
+		return a;
+	s_init(&w);
+	while (like && *like) {
+		if (*like == ' ' || *like == ',') {
+			a = si_named(w.p);
+			if (a) {
+				s_free(&w);
+				return a;
+			}
+			w.n = 0;
+			if (w.p)
+				w.p[0] = 0;
+		} else {
+			s_ch(&w, *like);
+		}
+		like++;
+	}
+	a = w.n ? si_named(w.p) : 0;
+	s_free(&w);
+	return a ? a : si_hibr;
 }
 
 /* How many columns a logo line takes: tone marks none, glyphs their width. */
@@ -274,7 +526,7 @@ int m_sysinfo(sh *s, int ac, char **av)
 	const char *want = 0;
 	struct utsname un;
 	char *rel, *cpu, *mem;
-	str id, pretty, t, u;
+	str id, like, pretty, t, u;
 	vec rows;
 	const char **logo;
 	size_t k, n, wide;
@@ -296,12 +548,14 @@ int m_sysinfo(sh *s, int ac, char **av)
 	rows.n = 0;
 	rows.cap = 0;
 	s_init(&id);
+	s_init(&like);
 	s_init(&pretty);
 	s_init(&t);
 	s_init(&u);
 	rel = si_slurp("/etc/os-release");
 	if (rel) {
 		si_rel(rel, "ID", &id);
+		si_rel(rel, "ID_LIKE", &like);
 		si_rel(rel, "PRETTY_NAME", &pretty);
 		if (!pretty.n)
 			si_rel(rel, "NAME", &pretty);
@@ -420,7 +674,7 @@ int m_sysinfo(sh *s, int ac, char **av)
 		}
 	}
 
-	logo = si_logo(want ? want : id.p);
+	logo = si_logo(want ? want : id.p, want ? 0 : like.p);
 	for (n = 0; logo[n]; n++)
 		;
 	wide = 0;
@@ -489,6 +743,7 @@ int m_sysinfo(sh *s, int ac, char **av)
 	v_free(&rows);
 	free(rel);
 	s_free(&id);
+	s_free(&like);
 	s_free(&pretty);
 	s_free(&t);
 	s_free(&u);
