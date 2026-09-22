@@ -5,141 +5,34 @@ examples/desktop.hibr is a hibr script, so none of this can be reached from
 a .t file: it needs a terminal for the console to open and a mouse to click
 with.  Run it directly:  python3 tests/desktop.py [path-to-hibr]
 
-The Screen class below is just enough of a terminal to answer "what is at row
-r, column c" -- absolute cursor moves and printable text.  That is all the
-console ever emits.
+The pty and the terminal model live in tests/screen.py, which every
+full-screen suite shares.
 """
-import fcntl, os, pty, re, select, signal, struct, sys, termios, time
+import os, sys
 
-HIBR = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else "./build/hibr")
-MOD = os.path.abspath("./build/mods/console.so")
-WM = os.path.abspath("./examples/desktop.hibr")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import screen
+from screen import Term, check, report, press, release, drag, wheel, load, tree
+
+if len(sys.argv) > 1:
+    screen.HIBR = os.path.abspath(sys.argv[1])
+MOD = tree("build/mods/console.so")
+WM = tree("examples/desktop.hibr")
 ROWS, COLS = 24, 80
-FAIL = []
-
-CSI = re.compile(r"\x1b\[([0-9;?]*)([A-Za-z])")
-
-
-class Screen:
-    """A grid that replays what the console emitted."""
-
-    def __init__(self, rows=ROWS, cols=COLS):
-        self.rows, self.cols = rows, cols
-        self.g = [[" "] * cols for _ in range(rows)]
-        self.r = self.c = 0
-
-    def feed(self, text):
-        i = 0
-        while i < len(text):
-            m = CSI.match(text, i)
-            if m:
-                a, verb = m.group(1), m.group(2)
-                if verb == "H":
-                    p = [int(x or 1) for x in a.split(";")] or [1, 1]
-                    self.r = (p[0] if p else 1) - 1
-                    self.c = (p[1] if len(p) > 1 else 1) - 1
-                i = m.end()
-                continue
-            ch = text[i]
-            if ch == "\x1b":
-                i += 2
-                continue
-            if ch in "\r\n":
-                i += 1
-                continue
-            if 0 <= self.r < self.rows and 0 <= self.c < self.cols:
-                self.g[self.r][self.c] = ch
-            self.c += 1 + (1 if ord(ch) > 0x2E80 else 0)
-            i += 1
-
-    def row(self, r):
-        return "".join(self.g[r]).rstrip()
-
-    def find(self, s):
-        """Where a string starts, as (row, col), or None."""
-        for r in range(self.rows):
-            c = "".join(self.g[r]).find(s)
-            if c >= 0:
-                return r, c
-        return None
-
-    def dump(self):
-        return "\n".join("%2d|%s" % (r, self.row(r)) for r in range(self.rows))
-
-
-def press(row, col, btn=0):
-    return b"\x1b[<%d;%d;%dM" % (btn, col + 1, row + 1)
-
-
-def drag(row, col):
-    return b"\x1b[<32;%d;%dM" % (col + 1, row + 1)
-
-
-def release(row, col):
-    return b"\x1b[<0;%d;%dm" % (col + 1, row + 1)
 
 
 def run(session, feed=(), wait=1.2):
     """Run a session on top of the window manager and return the last screen."""
     path = "/tmp/hibr-desktop-%d.hibr" % os.getpid()
-    open(path, "w").write(
-        "mod load %s\n. %s\ndt_open\n%s\ndt_run\ndt_close\n" % (MOD, WM, session))
-    pid, fd = pty.fork()
-    if pid == 0:
-        os.environ["TERM"] = "xterm-256color"
-        os.environ["DT_TICK"] = "60"
-        os.execv(HIBR, ["hibr", path])
-    fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", ROWS, COLS, 0, 0))
-    out = b""
-    time.sleep(0.5)
-    for k in feed:
-        os.write(fd, k)
-        deadline = time.time() + 0.25
-        while time.time() < deadline:
-            if select.select([fd], [], [], 0.05)[0]:
-                try:
-                    out += os.read(fd, 65536)
-                except OSError:
-                    break
-    os.write(fd, b"q")
-    end = time.time() + wait
-    while time.time() < end:
-        if select.select([fd], [], [], 0.1)[0]:
-            try:
-                d = os.read(fd, 65536)
-            except OSError:
-                break
-            if not d:
-                break
-            out += d
-    try:
-        os.close(fd)
-    except OSError:
-        pass
-    quit = False
-    try:
-        quit = os.waitpid(pid, os.WNOHANG)[0] == pid
-    except ChildProcessError:
-        quit = True
-    if not quit:
-        try:
-            os.kill(pid, signal.SIGKILL)
-            os.waitpid(pid, 0)
-        except (ProcessLookupError, ChildProcessError):
-            pass
+    open(path, "w").write("%s. %s\ndt_open\n%s\ndt_run\ndt_close\n"
+                          % (load(MOD), WM, session))
+    t = Term(path, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.5)
+    t.keys(feed)
+    t.quit(b"q", wait)
     os.unlink(path)
-    sc = Screen()
-    sc.feed(out.decode("utf8", "replace"))
-    sc.quit = quit
-    return sc, out
-
-
-def check(name, ok, sc=None):
-    print(("ok   " if ok else "FAIL ") + name)
-    if not ok:
-        FAIL.append(name)
-        if sc and os.environ.get("V"):
-            print(sc.dump())
+    sc = t.screen()
+    sc.quit = t.exited
+    return sc, t.raw
 
 
 TWO_DEF = ('dt_new "Under" 8 30 6 10\n'
@@ -259,8 +152,8 @@ sc, _ = run(APP, [b"\x1b[15~"])
 check("a key the app refuses does not reach it", sc.find("count 0"), sc)
 
 sc, _ = run(APP, [press(9, 16)])
-check("a click in the body reaches the app in its own coordinates",
-      sc.find("count 205") == (8, 13), sc)
+check("a click reaches the app in the coordinates it draws in",
+      sc.find("count 306") == (8, 13), sc)
 
 try:
     os.unlink("/tmp/hibr-dt-closed")
@@ -280,7 +173,4 @@ check("an app with no key handler cannot swallow one",
       sc.quit and b"\x1b[?1049l" in raw and
       sc.find("no keys here") == (5, 8), sc)
 
-print()
-n = 39
-print("%d passed, %d failed" % (n - len(FAIL), len(FAIL)))
-sys.exit(1 if FAIL else 0)
+report(39)

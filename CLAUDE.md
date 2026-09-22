@@ -30,14 +30,10 @@ Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 13).
 
     tests/run.sh [-v] [prefix]           # C-side harness, 75 tests
     ./build/hibr tests/self.hibr                 # suite in hibr, 91 assertions, planned
-    python3 tests/editor.py                      # the line editor, through a pty
-    python3 tests/desktop.py                     # the window manager, through a pty
-    python3 tests/console.py                     # the console display, through a pty
-    python3 tests/cat.py                         # the cat module, through a pty
-    python3 tests/most.py                        # the pager, through a pty
-    python3 tests/hvi.py                         # the editor, through a pty
-    python3 tests/mtr.py                         # the live traceroute, through a pty
-    python3 tests/mon.py                         # the system monitor, through a pty
+    python3 tests/{console,cat,most,hvi,mon,mtr,editor,desktop,apps}.py
+                                 # the full-screen suites, each through a pty
+    python3 tests/screen.py examples/desktop-session.hibr
+                                 # the same harness, to look rather than assert
     python3 tests/diff.py --shell ./build/hibr 250   # snippets, diffed against bash
     python3 tests/corpus.py --list <file>        # real scripts, run under both shells
     HIBR=./build/hibr REF=dash tests/run.sh      # compare against another shell
@@ -103,6 +99,8 @@ linked, and no OpenSSL headers are needed to build.
 | `src/mod.c` | module loading |
 | `mods/*.c` | reference modules: `sys`, `http` (scheme), `ls` |
 | `examples/desktop.hibr` | the window manager, in hibr — see `docs/desktop.md` |
+| `examples/apps/` | apps for it: a calculator and a file browser, each also a program on its own |
+| `tests/screen.py` | **the** pty harness and terminal model, shared by every full-screen suite |
 | `mods/prompt/` | the prompt module, including a native reader for git's object store — see `mods/README.md` for the file-by-file breakdown |
 | `mods/console/` | the text display: alternate screen, cell grid with damage-based redraw, panes, decoded keys — see `mods/console/README.md` |
 | `mods/display.h` | the interface a display backend offers; `console` is the only one so far |
@@ -522,6 +520,17 @@ went in the shell.
   key `col` *evaluated*, exactly as the unquoted form would. Read the field
   into a local first. `let` is the exception, because its argument is a string
   the shell never unquotes, and `ax_unq` strips the quotes for it.
+- **A variable's value is itself an expression.** `x="3 * (4 + 5)"; echo $((x))`
+  is 27 in bash and was 3 here, because `ax_get` took `strtol` of the first
+  token. `ax_val` re-reads anything that is not a clean integer as an
+  expression, bounded by `HIBR_AXDEPTH` so `a=a` errors rather than
+  overflowing the stack. This is the mechanism every shell calculator is built
+  on, so it was not optional.
+- **A plain name must not reach the vec pool.** `ax_get` began calling
+  `vb_get`/`vb_put` around the subscript split for *every* arithmetic variable
+  read, subscripted or not, and that alone cost 2% on an arithmetic loop. The
+  `strchr(nm, '[')` is the gate, and it belongs in the caller, before the
+  pool is touched.
 - **Arithmetic reaches subscripts through `bi_keys`, like everything else.**
   `ax_name` swallows the whole `name[i][j]` chain into the name, and `ax_get`
   and `ax_set` split it with the same helper `unset` and `read` use. That is
@@ -544,6 +553,34 @@ went in the shell.
   module out of `build/mods`, but `need` autoloads from the module path, which
   is the *installed* copy — so a green test suite and a broken run by hand
   mean the installed module is yesterday's.
+- **There is one pty harness, `tests/screen.py`.** There used to be six
+  `run()`s and five terminal models across the full-screen suites, differing
+  only in timings, so a fix to one fixed one. Anything a new suite needs goes
+  into `screen.py`; do not start a seventh copy, and do not write a throwaway
+  renderer either — `python3 tests/screen.py <args>` runs hibr and prints the
+  screen. Its `tree()` is deliberately not called `path`, which would be
+  shadowed by the parameter of that name in half the suites and fail as
+  "'str' object is not callable" a long way from the cause.
+- **A mouse report has four fields or five.** `press`, `release` and `drag`
+  carry a button — `mouse press left 6 20` — and the wheel does not:
+  `mouse wheelup 6 12`. Reading the position from a fixed argument works for
+  one shape and silently reads the wrong field for the other, which is why the
+  wheel did nothing at all. The action may also carry a modifier
+  (`ctrl-press`), stripped with `${act##*-}`. One place parses it.
+- **An app is told a click in the coordinates it draws in.** Not in some
+  separate body coordinate system offset by one: an app that draws its keypad
+  at pane row 4 is told a click at pane row 4. Two systems is one too many,
+  and both of the first two apps got the conversion wrong in opposite
+  directions before this was fixed.
+- **An app keeps what it needs, rather than reading the window manager's
+  table.** The browser stashes the visible row count in `_draw`, which is the
+  only thing told it, instead of computing it from `DT[$id]["h"]` — which also
+  walked straight into the `local id=$1 vis=$((DT[$id]...))` trap, since `id`
+  is not set while `local`'s own arguments are being expanded.
+- **A list of shell tokens belongs in an array, not a string.** `CALC_KEYS`
+  held the keypad as a string and `for k in $CALC_KEYS` globbed the `*` and
+  the parentheses, so the calculator drew a directory listing where its
+  operators should have been.
 - **An app is a prefix, not a command.** The window manager calls
   `<app>_draw`, `<app>_key`, `<app>_click`, `<app>_open` and `<app>_close`,
   asking `command -v` once which exist. One function answering a verb was

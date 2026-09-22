@@ -7,91 +7,29 @@ on which routers answer is a test that fails for reasons that are not about
 this code.
 Run it directly:  python3 tests/mtr.py [path-to-hibr]
 """
-import fcntl, os, pty, select, struct, sys, termios, time
+import os, sys
 
-HIBR = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else "./build/hibr")
-CONSOLE = os.path.abspath("./build/mods/console.so")
-TRACE = os.path.abspath("./build/mods/trace.so")
-FAIL = []
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import screen as sx
+from screen import Term, Screen, check, report, load
+
+if len(sys.argv) > 1:
+    sx.HIBR = os.path.abspath(sys.argv[1])
 ROWS, COLS = 12, 100
+LOAD = load("console", "trace")
 
 
 def run(cmd, keys=(), settle=3.0):
-    pid, fd = pty.fork()
-    if pid == 0:
-        os.environ["TERM"] = "xterm-256color"
-        os.execv(HIBR, ["hibr", "-c", "mod load %s; mod load %s; %s"
-                        % (CONSOLE, TRACE, cmd)])
-    fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", ROWS, COLS, 0, 0))
-    out = b""
-
-    def grab(t):
-        nonlocal out
-        end = time.time() + t
-        while time.time() < end:
-            if select.select([fd], [], [], 0.2)[0]:
-                try:
-                    d = os.read(fd, 65536)
-                except OSError:
-                    return
-                if not d:
-                    return
-                out += d
-
-    time.sleep(settle)
-    grab(0.6)
-    for k in keys:
-        os.write(fd, k)
-        time.sleep(0.5)
-        grab(0.4)
-    os.write(fd, b"q")
-    time.sleep(0.4)
-    grab(0.4)
-    try:
-        os.close(fd)
-    except OSError:
-        pass
-    try:
-        os.waitpid(pid, 0)
-    except ChildProcessError:
-        pass
-    return out.decode("utf8", "replace")
+    t = Term("-c", LOAD + cmd, rows=ROWS, cols=COLS, settle=settle)
+    t.keys(keys, settle=0.5, collect=0.4)
+    t.quit(b"q", 0.8)
+    return t.text
 
 
 def screen(t):
-    g = [[" "] * COLS for _ in range(ROWS)]
-    r = c = 0
-    t = t.split("\x1b[2J", 1)[-1]
-    i = 0
-    while i < len(t):
-        ch = t[i]
-        if ch == "\x1b" and i + 1 < len(t) and t[i + 1] == "[":
-            j = i + 2
-            while j < len(t) and not ("@" <= t[j] <= "~"):
-                j += 1
-            if j >= len(t):
-                break
-            seq, fin = t[i + 2:j], t[j]
-            if fin == "H":
-                a = seq.split(";")
-                r = (int(a[0]) - 1) if a[0].isdigit() else 0
-                c = (int(a[1]) - 1) if len(a) > 1 and a[1].isdigit() else 0
-            elif fin == "C":
-                c += int(seq) if seq.isdigit() else 1
-            i = j + 1
-            continue
-        if ch not in "\r\n":
-            if 0 <= r < ROWS and 0 <= c < COLS:
-                g[r][c] = ch
-            c += 1
-        i += 1
-    return "\n".join("".join(x).rstrip() for x in g)
+    return Screen(ROWS, COLS).feed(t).text()
 
 
-def check(name, ok):
-    print(("ok   " if ok else "FAIL ") + name)
-    if not ok:
-        FAIL.append(name)
 
 
 t = run("trace -l -m 3 -w 300 127.0.0.1")
@@ -129,6 +67,4 @@ v = screen(run("trace -l -m 3 -w 300 -n 127.0.0.1"))
 check("-n leaves the address unresolved",
       "127.0.0.1" in v and "localhost" not in v.split("\n", 1)[1])
 
-print()
-print("%d passed, %d failed" % (11 - len(FAIL), len(FAIL)))
-sys.exit(1 if FAIL else 0)
+report(11)

@@ -1788,20 +1788,62 @@ char *ax_unq(struct ax *a, const char *nm, char **mk)
 	return w;
 }
 
-/* Split name[i][j]... the one way everything else splits it. */
-int ax_path(struct ax *a, const char *nm, char **base, vec *ks)
+/* Split name[i][j]... the one way everything else splits it.  The caller has
+   already established there is a subscript: a plain name must not reach the
+   vec pool at all, since every arithmetic read of one would pay for it. */
+void ax_path(struct ax *a, const char *nm, char **base, vec *ks)
 {
 	char *w, *mk = 0;
 
-	if (!strchr(nm, '['))
-		return 0;
 	if (strpbrk(nm, "\"'"))
 		w = ax_unq(a, nm, &mk);
 	else
 		w = ar_dup(a->s->xa, nm, strlen(nm));
 	bi_keys(a->s, w, mk, ks);
 	*base = w;
-	return 1;
+}
+
+/* Evaluate a nested expression, carrying the recursion bound with it. */
+long ax_sub(struct ax *a, const char *src)
+{
+	struct ax b;
+	long v;
+
+	if (a->depth >= HIBR_AXDEPTH) {
+		ax_err(a, "expression nests too deeply");
+		return 0;
+	}
+	b.s = a->s;
+	b.p = src;
+	b.depth = a->depth + 1;
+	b.bad = 0;
+	b.skip = a->skip;
+	b.hasq = strchr(src, '=') != 0;
+	v = ax_comma(&b);
+	ax_ws(&b);
+	if (*b.p && !b.bad)
+		ax_err(&b, "unexpected text");
+	if (b.bad)
+		a->bad = 1;
+	return v;
+}
+
+/* A variable's value is itself an expression, which is what makes
+   x="3 * (4 + 5)"; echo $((x)) print 27 rather than 3. */
+long ax_val(struct ax *a, const char *t)
+{
+	char *e;
+	long v;
+
+	if (!t || !*t)
+		return 0;
+	v = strtol(t, &e, 0);
+	while (*e == ' ' || *e == '\t' || *e == '\n')
+		e++;
+	if (!*e)
+		return v;
+	lg(HIBR_LTRC, "arithmetic re-reads '%s' as an expression", t);
+	return ax_sub(a, t);
 }
 
 long ax_get(struct ax *a, const char *nm)
@@ -1810,18 +1852,18 @@ long ax_get(struct ax *a, const char *nm)
 	char *base;
 	vec *ks;
 
-	ks = vb_get(a->s);
-	if (ax_path(a, nm, &base, ks)) {
+	if (strchr(nm, '[')) {
+		ks = vb_get(a->s);
+		ax_path(a, nm, &base, ks);
 		t = hibr_getp(a->s, base, (char **)ks->p, (int)ks->n);
 		vb_put(a->s, ks);
 		lg(HIBR_LTRC, "arithmetic read %s as '%s'", nm, t ? t : "");
-		return t && *t ? strtol(t, 0, 0) : 0;
+		return ax_val(a, t);
 	}
-	vb_put(a->s, ks);
 	t = nm[1] ? hibr_get(a->s, nm) : xval(a->s, nm);
 	if (!t && nm[1])
 		t = xval(a->s, nm);
-	return t && *t ? strtol(t, 0, 0) : 0;
+	return ax_val(a, t);
 }
 
 /* Store a numeric value, unless this branch is not being evaluated. */
@@ -1832,15 +1874,15 @@ void ax_set(struct ax *a, const char *nm, long v)
 
 	if (a->skip || a->bad)
 		return;
-	ks = vb_get(a->s);
-	if (ax_path(a, nm, &base, ks)) {
+	if (strchr(nm, '[')) {
+		ks = vb_get(a->s);
+		ax_path(a, nm, &base, ks);
 		hibr_setp(a->s, base, (char **)ks->p, (int)ks->n,
 			  xnum(a->s, v));
 		vb_put(a->s, ks);
 		lg(HIBR_LTRC, "arithmetic wrote %s as %ld", nm, v);
 		return;
 	}
-	vb_put(a->s, ks);
 	hibr_set(a->s, nm, xnum(a->s, v), 0);
 }
 

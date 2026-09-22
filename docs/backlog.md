@@ -78,10 +78,13 @@ and `console hit row col`), the window manager itself
 Dragging, focus, minimise, zoom, close, tab cycling, and keys and clicks
 reaching the focused app all work.
 
-Left, in the order the decision record sets out: a calculator and a file
-browser, to prove scrolling inside a window and mouse events reaching content
-rather than only the frame; a control panel; and last and largest, a terminal
-emulator module so a hibr can run inside a hibr window.
+Step 4 is built too: `examples/apps/calc.hibr` and `examples/apps/files.hibr`,
+each also a program on its own. The wheel now goes to the window under the
+pointer, and a click is reported in the coordinates the app draws in.
+
+Left: a control panel, and last and largest, a terminal emulator module so a
+hibr can run inside a hibr window — which is also what would let the test
+harness be hibr rather than Python, see below.
 
 Not planned: transparency, sub-cell placement, or a widget toolkit before
 three apps have wanted the same widget.
@@ -324,14 +327,37 @@ its git reader is a set of functions, not a table it offers, so giving it one
 is a piece of work on that module. Until then, anything wanting git data has to
 be part of `prompt.so` or do without.
 
-### A shared pty test harness
+### A pseudo terminal, so hibr can test itself
 
-`tests/editor.py`, `tests/console.py`, `tests/cat.py`, `tests/most.py`,
-`tests/vi.py`, `tests/mtr.py` and `tests/mon.py` each carry their own
-twenty-five lines of `pty.fork` boilerplate, because everything interesting
-about a terminal is invisible to `run.sh`. Four copies is three too many. A
-shared `tests/ptyrun.py` would fix it — and must not be called `pty.py` or
-`tty.py`, for the reason already recorded in `CLAUDE.md`.
+**Why the full-screen suites are in Python, and the honest answer to it.**
+
+Most of the suite is already shell: 75 `.t` files compared against bash, and
+91 assertions in `tests/self.hibr` written in hibr. What is in Python is the
+nine suites that drive a *terminal* — the console, the line editor, the pager,
+the editor, the monitor, the traceroute, the cat, the window manager and its
+apps — and they are in Python for one reason, which is not a preference:
+
+**hibr cannot open a pseudo terminal.** There is no `posix_openpt`, no
+`forkpty`, no `/dev/ptmx` and no `TIOCSWINSZ` anywhere in the source. A
+harness has to be the controlling process of a pty: fork a child onto the
+slave, set its window size, write keystrokes to the master and read back what
+was drawn. Nothing in hibr can do any of that, so the harness cannot be hibr.
+
+That capability is **already required** by the last step of
+[decision 0020](adr/0020-windows-are-drawn-not-composited.md): a hibr running
+inside a hibr window needs exactly a pty and a child on it. So `mods/term/`
+gets built anyway, and the half of it that opens the pty — `pty spawn`,
+`pty write`, `pty read`, `pty resize` — is the half the test harness needs.
+When it lands, `tests/screen.py` can be `tests/screen.hibr`, and the shell
+will test its own terminal programs.
+
+Two things should stay independent of hibr even then, and this is a reason
+rather than an excuse: `tests/diff.py` and `tests/fuzz.py` exist to *find*
+hibr bugs by generating input and comparing against bash. A generator written
+in the shell under test cannot be trusted to report that shell's failure — a
+broken `$RANDOM` or a broken comparison would make a silent generator look
+like a clean shell, which is a mistake this project has already made once and
+recorded in `CLAUDE.md`. They could be hibr; they should not be.
 
 ---
 

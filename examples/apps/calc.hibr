@@ -1,0 +1,141 @@
+#!/usr/bin/env hibr
+#
+# calc -- a calculator for the desktop, and a program on its own.
+#
+# Sourced by a session it is an app: the window manager finds calc_draw,
+# calc_key and calc_click and calls those.  Run directly it evaluates its
+# arguments and prints the answer, so it is useful without a desktop:
+#
+#     hibr examples/apps/calc.hibr '3 * (4 + 5)'
+#
+# It does no arithmetic of its own -- the shell has an evaluator and this
+# hands the expression to it, which is why a calculator written in hibr is
+# fifty lines rather than five hundred.  That also fixes what it can do:
+# integers, like the shell and like bash.  There is no decimal point on the
+# keypad because there would be nothing behind it.
+
+app calc "A calculator"
+
+CALC_IN=
+CALC_OUT=0
+CALC_ERR=
+
+# Four columns, five rows.  ^ inserts ** and c clears.
+#
+# An array, not a string: the keypad holds * and ( and ), and a `for k in
+# $CALC_KEYS` would glob them into whatever files are in the current
+# directory -- which it did, and the calculator drew a directory listing.
+CALC_KEYS=(7 8 9 / 4 5 6 '*' 1 2 3 - 0 '(' ')' + c % '^' '=')
+CALC_ROWS=5
+CALC_COLS=4
+
+# Evaluate the expression, or say why it will not.
+#
+# The characters are checked first, so a typed name cannot reach a shell
+# variable: $(( PATH )) is a valid expression and not one a calculator should
+# answer.  What survives that can still be malformed -- "2 +" is -- so the
+# evaluation runs in a group with its diagnostic sent nowhere, and its status
+# is what decides.
+calc_eval() {
+	local v
+
+	[ -z "$CALC_IN" ] && return 0
+	CALC_ERR=
+	if ! match "$CALC_IN" '^[0-9+*/%()<>|&^~ -]+$' > /dev/null; then
+		CALC_ERR="digits and operators"
+		return 0
+	fi
+	if { v=$(( CALC_IN )); } 2> /dev/null; then
+		CALC_OUT=$v
+		CALC_IN=
+	else
+		CALC_ERR="not an expression"
+	fi
+}
+
+# Add to the expression, or act on a key that is not part of one.
+calc_push() {
+	case $1 in
+	=) calc_eval ;;
+	c) CALC_IN=; CALC_OUT=0; CALC_ERR= ;;
+	"^") CALC_IN="$CALC_IN**"; CALC_ERR= ;;
+	backspace) CALC_IN=${CALC_IN%?}; CALC_ERR= ;;
+	*) CALC_IN="$CALC_IN$1"; CALC_ERR= ;;
+	esac
+}
+
+# Where a key sits in the window body: five columns wide, two rows apart.
+calc_pos() {
+	ret "$((4 + ($1 / CALC_COLS) * 2)) $((2 + ($1 % CALC_COLS) * 5))"
+}
+
+# Which key is under a point in the body, if any.
+calc_at() {
+	local r=$(($1 - 4)) c=$(($2 - 2)) i
+
+	[ "$r" -lt 0 ] || [ "$c" -lt 0 ] && return 1
+	[ $((r % 2)) = 1 ] && return 1
+	[ $((c % 5)) -gt 3 ] && return 1
+	r=$((r / 2))
+	c=$((c / 5))
+	[ "$r" -ge "$CALC_ROWS" ] || [ "$c" -ge "$CALC_COLS" ] && return 1
+	ret "${CALC_KEYS[$((r * CALC_COLS + c))]}"
+}
+
+calc_draw() {
+	local id=$1 w=$3 k p i=0 t
+
+	console pen "#a0aec0" "$DT_FACE"
+	t := str pad "${CALC_IN:-expression}" $((w - 4))
+	console put -p "w$id" 1 2 "$t"
+	if [ -n "$CALC_ERR" ]; then
+		console pen "#f56565" "$DT_FACE"
+		t := str pad "$CALC_ERR" $((w - 4))
+	else
+		console pen "#68d391" "$DT_FACE" bold
+		t := str pad "$CALC_OUT" $((w - 4))
+	fi
+	console put -p "w$id" 2 2 "$t"
+
+	for k in "${CALC_KEYS[@]}"; do
+		p := calc_pos "$i"
+		case $k in
+		=) console pen "#1a202c" "#68d391" bold ;;
+		c) console pen "#1a202c" "#f56565" bold ;;
+		[0-9]) console pen "$DT_INK" "#2d3748" ;;
+		*) console pen "#f6ad55" "#2d3748" ;;
+		esac
+		console put -p "w$id" ${p% *} ${p#* } " $k  "
+		i=$((i + 1))
+	done
+	console pen "#718096" "$DT_FACE"
+	console put -p "w$id" 14 2 "integers only"
+}
+
+calc_key() {
+	case $2 in
+	[0-9] | + | - | "*" | / | % | "(" | ")") calc_push "$2" ;;
+	= | enter) calc_eval ;;
+	c) calc_push c ;;
+	backspace) calc_push backspace ;;
+	*) return 1 ;;
+	esac
+}
+
+calc_click() {
+	local k
+
+	k := calc_at "$2" "$3" || return 0
+	[ -n "$k" ] && calc_push "$k"
+}
+
+# Run directly: evaluate the arguments and print the answer.
+if [ -z "$DT_ROWS" ] && [ $# -gt 0 ]; then
+	CALC_IN="$*"
+	calc_eval
+	if [ -n "$CALC_ERR" ]; then
+		echo "calc: $CALC_ERR" >&2
+		exit 1
+	fi
+	echo "$CALC_OUT"
+fi

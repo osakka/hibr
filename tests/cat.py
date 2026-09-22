@@ -6,45 +6,24 @@ isatty(1), and under tests/run.sh standard output is a pipe — which is the
 point, and what tests/650-cat.t checks. This is the other half.
 Run it directly:  python3 tests/cat.py [path-to-hibr]
 """
-import os, pty, select, sys, tempfile, time
+import os, sys, tempfile
 
-HIBR = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else "./build/hibr")
-MOD = os.path.abspath("./build/mods/cat.so")
-FAIL = []
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import screen as sx
+from screen import Term, check, report, load
+
+if len(sys.argv) > 1:
+    sx.HIBR = os.path.abspath(sys.argv[1])
 D = tempfile.mkdtemp(prefix="hibr-cat-")
+LOAD = load("cat")
 
 
 def tty(cmd, wait=1.5):
     """Run a command with standard output attached to a pseudo terminal."""
-    pid, fd = pty.fork()
-    if pid == 0:
-        os.environ["TERM"] = "xterm-256color"
-        os.execv(HIBR, ["hibr", "-c", "mod load %s; %s" % (MOD, cmd)])
-    out, end = b"", time.time() + wait
-    while time.time() < end:
-        if select.select([fd], [], [], 0.1)[0]:
-            try:
-                d = os.read(fd, 65536)
-            except OSError:
-                break
-            if not d:
-                break
-            out += d
-    try:
-        os.close(fd)
-    except OSError:
-        pass
-    try:
-        os.waitpid(pid, 0)
-    except ChildProcessError:
-        pass
-    return out.decode("utf8", "replace")
-
-
-def check(name, ok):
-    print(("ok   " if ok else "FAIL ") + name)
-    if not ok:
-        FAIL.append(name)
+    t = Term("-c", LOAD + cmd, settle=0, size=False)
+    t.collect(wait)
+    t.close()
+    return t.text
 
 
 def write(nm, data):
@@ -130,8 +109,7 @@ check("a byte that is not text is shown as itself", "<ff>" in t and "<fe>" in t)
 check("and valid utf-8 beside it is untouched", "ok " in t and " end" in t)
 
 print()
-print("%d passed, %d failed" % (27 - len(FAIL), len(FAIL)))
 for f in os.listdir(D):
     os.unlink(os.path.join(D, f))
 os.rmdir(D)
-sys.exit(1 if FAIL else 0)
+report(27)

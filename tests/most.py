@@ -5,117 +5,31 @@ None of this is reachable from run.sh: a pager needs a terminal to draw on and
 a keyboard to read, and its whole point is that those are not the same thing as
 its input. Note that the screen layer only sends the cells that changed, so a
 check has to look at everything the session emitted rather than at the last
-frame alone.
+frame alone -- which is what tests/screen.py's model is for.
 Run it directly:  python3 tests/most.py [path-to-hibr]
 """
-import os, pty, select, sys, tempfile, time
+import os, sys, tempfile
 
-HIBR = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else "./build/hibr")
-CONSOLE = os.path.abspath("./build/mods/console.so")
-MOST = os.path.abspath("./build/mods/most.so")
-FAIL = []
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import screen
+from screen import Term, Screen, check, report, load
+
+if len(sys.argv) > 1:
+    screen.HIBR = os.path.abspath(sys.argv[1])
 D = tempfile.mkdtemp(prefix="hibr-most-")
-LOAD = "mod load %s; mod load %s; " % (CONSOLE, MOST)
+LOAD = load("console", "most")
 
 
 def run(cmd, keys=(), settle=0.7, rows=24, cols=80):
     """Page something, send keys, and return everything that came back."""
-    import fcntl, struct, termios
-    pid, fd = pty.fork()
-    if pid == 0:
-        os.environ["TERM"] = "xterm-256color"
-        os.execv(HIBR, ["hibr", "-c", LOAD + cmd])
-    fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
-    out = b""
-
-    def grab(t):
-        nonlocal out
-        end = time.time() + t
-        while time.time() < end:
-            if select.select([fd], [], [], 0.1)[0]:
-                try:
-                    d = os.read(fd, 65536)
-                except OSError:
-                    return
-                if not d:
-                    return
-                out += d
-
-    time.sleep(settle)
-    grab(0.5)
-    for k in keys:
-        os.write(fd, k)
-        time.sleep(0.4)
-        grab(0.35)
-    os.write(fd, b"q")
-    time.sleep(0.3)
-    grab(0.3)
-    try:
-        os.close(fd)
-    except OSError:
-        pass
-    try:
-        os.waitpid(pid, 0)
-    except ChildProcessError:
-        pass
-    return out.decode("utf8", "replace")
-
-
-class Screen:
-    """Just enough terminal to reassemble what the pager actually showed.
-
-    The display sends only the cells that changed, so grepping the byte
-    stream finds fragments like "78-200/200" where the display reads
-    "178-200/200". Applying the moves and the text gives the real thing.
-    """
-
-    def __init__(self, rows=24, cols=80):
-        self.rows, self.cols = rows, cols
-        self.g = [[" "] * cols for _ in range(rows)]
-        self.r = self.c = 0
-
-    def feed(self, t):
-        i, n = 0, len(t)
-        while i < n:
-            ch = t[i]
-            if ch == "\x1b" and i + 1 < n and t[i + 1] == "[":
-                j = i + 2
-                while j < n and not ("@" <= t[j] <= "~"):
-                    j += 1
-                if j >= n:
-                    break
-                seq, fin = t[i + 2:j], t[j]
-                if fin == "H":
-                    a = seq.split(";")
-                    self.r = (int(a[0]) - 1) if a and a[0].isdigit() else 0
-                    self.c = (int(a[1]) - 1) if len(a) > 1 and a[1].isdigit() else 0
-                elif fin == "C":
-                    self.c += int(seq) if seq.isdigit() else 1
-                i = j + 1
-                continue
-            if ch in "\r\n":
-                i += 1
-                continue
-            if 0 <= self.r < self.rows and 0 <= self.c < self.cols:
-                self.g[self.r][self.c] = ch
-            self.c += 1
-            i += 1
-
-    def text(self):
-        return "\n".join("".join(row).rstrip() for row in self.g)
+    t = Term("-c", LOAD + cmd, rows=rows, cols=cols, settle=settle)
+    t.keys(keys, settle=0.4, collect=0.35)
+    t.quit(b"q", 0.6)
+    return t.text
 
 
 def screen_of(t, rows=24, cols=80):
-    s = Screen(rows, cols)
-    body = t.split("\x1b[2J", 1)
-    s.feed(body[1] if len(body) > 1 else t)
-    return s.text()
-
-
-def check(name, ok):
-    print(("ok   " if ok else "FAIL ") + name)
-    if not ok:
-        FAIL.append(name)
+    return Screen(rows, cols).feed(t).text()
 
 
 def write(nm, data):
@@ -190,8 +104,7 @@ check("tabs reach their stop rather than showing as ^I",
       "col     A" in v and "longer  B" in v and "^I" not in v)
 
 print()
-print("%d passed, %d failed" % (21 - len(FAIL), len(FAIL)))
 for f in os.listdir(D):
     os.unlink(os.path.join(D, f))
 os.rmdir(D)
-sys.exit(1 if FAIL else 0)
+report(21)

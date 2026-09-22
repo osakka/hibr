@@ -82,7 +82,7 @@ dt_new() {
 	DT[$id]["col"]="$5"
 	DT[$id]["app"]="$ap"
 	DT[$id]["min"]=0
-	for f in draw key click open close; do
+	for f in draw key click wheel open close; do
 		if [ -n "$ap" ] && dt_has "${ap}_$f"; then
 			DT[$id]["$f"]="${ap}_$f"
 		else
@@ -260,12 +260,33 @@ dt_btn() {
 	esac
 }
 
-# Handle one mouse report.  Window fields are read into locals first: a
-# subscript is only literal when it is quoted, and arithmetic never sees the
-# quotes, so DT[$id][col] inside $(( )) would mean DT[$id][5] here.
+# Handle one mouse report.
+#
+# An app is told a click in *pane* coordinates -- the same ones it draws in,
+# where row 0 is the top border -- and not in some separate body coordinate
+# system. Two systems is one too many: an app that draws at row 4 and is told
+# a click at row 3 has to hold both in its head, and the first two apps each
+# got the conversion wrong. The window manager handles row 0 itself, so an
+# app only ever sees a click at row 1 or below.
+#
+# A report is `<action> <button> <row> <col>` for a press, a release or a
+# drag, and `<action> <row> <col>` for the wheel, which has no button -- so
+# the position cannot be read from a fixed argument. The action may carry a
+# modifier, `ctrl-press`, which is stripped: a modified click is still a
+# click here.
+#
+# Window fields are read into locals first: a subscript is only literal when
+# it is quoted, and arithmetic never sees the quotes, so DT[$id][col] inside
+# $(( )) would mean DT[$id][5] here.
 dt_mouse() {
-	local act=$1 mr=$3 mc=$4
+	local act=${1##*-} mr mc
 	local id b wr wc wh ww ap
+
+	shift
+	case $act in
+	wheelup | wheeldown) mr=$1; mc=$2 ;;
+	*) mr=$2; mc=$3 ;;
+	esac
 
 	case $act in
 	press)
@@ -287,8 +308,7 @@ dt_mouse() {
 		ww=${DT[$id]["w"]}
 		ap=${DT[$id]["click"]}
 		if [ "$mr" -ne "$wr" ]; then
-			[ -n "$ap" ] &&
-				$ap "$id" $((mr - wr - 1)) $((mc - wc - 1))
+			[ -n "$ap" ] && $ap "$id" $((mr - wr)) $((mc - wc))
 			return 0
 		fi
 		b := dt_btn "$ww" $((mc - wc))
@@ -321,6 +341,16 @@ dt_mouse() {
 	release)
 		DT_DRAG=
 		;;
+	wheelup | wheeldown)
+		id := console hit "$mr" "$mc"
+		[ -z "$id" ] && return 0
+		id=${id#w}
+		ap=${DT[$id]["wheel"]}
+		[ -z "$ap" ] && return 0
+		wr=${DT[$id]["row"]}
+		wc=${DT[$id]["col"]}
+		$ap "$id" "${act#wheel}" $((mr - wr)) $((mc - wc))
+		;;
 	esac
 }
 
@@ -349,13 +379,18 @@ dt_zoom() {
 }
 
 # Handle one decoded key or mouse line.
+#
+# The wheel goes to the window under the pointer rather than to the focused
+# one, which is what every other desktop does and what anyone expects when
+# they scroll a list they have not clicked on yet.
 dt_event() {
 	local k="$1"
 
 	case $k in
 	"mouse "*)
 		set -- $k
-		dt_mouse "$2" "$3" "$4" "$5"
+		shift
+		dt_mouse "$@"
 		return 0
 		;;
 	esac

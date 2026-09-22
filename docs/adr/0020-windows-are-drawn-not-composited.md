@@ -205,9 +205,20 @@ Each step is usable before the next one starts.
    nothing draws it and nothing can hit it — so the bar across the top grew a
    label per minimised window, because otherwise there is no way back. A
    feature that only goes one way is half a feature.
-4. **Calculator and file browser.** The calculator proves keys reaching a
-   focused window; the file browser proves scrolling *inside* a window and
-   mouse events reaching content rather than only the frame.
+4. **Calculator and file browser.** *Done.* `examples/apps/calc.hibr` and
+   `examples/apps/files.hibr`, each also a program that runs on its own. The
+   calculator hands its expression to the shell's own evaluator, so it is
+   fifty lines and does integers — there is no decimal point on the keypad
+   because there would be nothing behind it. The browser scrolls with the
+   keys, with the wheel, and with a scrollbar, and the wheel moves the view
+   without moving the selection. Both are in `tests/apps.py`.
+
+   Two things changed in the window manager for them: the wheel is routed to
+   the window *under the pointer* rather than the focused one, and a click is
+   reported in the same coordinates the app draws in. The second was a design
+   error found by both apps getting the conversion wrong in opposite
+   directions — an app that draws its keypad at pane row 4 is now told a
+   click at pane row 4, and there is no second coordinate system.
 5. **Control panel.** The window that configures the others.
 6. **The terminal window.** The emulator, and a hibr inside a hibr.
 

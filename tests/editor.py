@@ -4,50 +4,26 @@
 The .t files cannot reach any of this: the editor only runs when stdin is a
 terminal.  Run it directly:  python3 tests/editor.py [path-to-hibr]
 """
-import fcntl, os, pty, select, struct, sys, termios, time
+import os, sys
 
-HIBR = sys.argv[1] if len(sys.argv) > 1 else "./build/hibr"
-FAIL = []
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import screen as sx
+from screen import Term, check, report
+
+if len(sys.argv) > 1:
+    sx.HIBR = os.path.abspath(sys.argv[1])
 
 
 def session(rc, keys, cols=60):
     """Start an interactive shell with that rc, send keys, return what came back."""
-    path = "/tmp/hibr-pty-rc-%d" % os.getpid()
+    path = "/tmp/hibr-editor-rc-%d" % os.getpid()
     open(path, "w").write(rc)
-    pid, fd = pty.fork()
-    if pid == 0:
-        os.environ["HIBR_RC"] = path
-        os.environ["TERM"] = "xterm"
-        os.execv(HIBR, ["hibr"])
-    fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", 24, cols, 0, 0))
-    out = b""
-    time.sleep(0.35)
-    for k in keys:
-        os.write(fd, k.encode())
-        time.sleep(0.22)
-        while select.select([fd], [], [], 0.05)[0]:
-            try:
-                d = os.read(fd, 65536)
-            except OSError:
-                d = b""
-            if not d:
-                break
-            out += d
-    for f in (lambda: os.close(fd), lambda: os.waitpid(pid, 0)):
-        try:
-            f()
-        except OSError:
-            pass
-        except ChildProcessError:
-            pass
+    t = Term(rows=24, cols=cols, env={"HIBR_RC": path, "TERM": "xterm"},
+             settle=0.35)
+    t.keys(keys, settle=0.22, collect=0.05)
+    t.close()
     os.unlink(path)
-    return out.decode("utf8", "replace")
-
-
-def check(name, ok):
-    print(("ok   " if ok else "FAIL ") + name)
-    if not ok:
-        FAIL.append(name)
+    return t.text
 
 
 RUN = ["echo hi\n", "exit\n"]
@@ -80,5 +56,4 @@ check("editing still works with a right prompt", "\r\nhibr: axy: command not fou
       or "axy" in t)
 
 print()
-print("%d passed, %d failed" % (9 - len(FAIL), len(FAIL)))
-sys.exit(1 if FAIL else 0)
+report(9)

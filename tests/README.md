@@ -32,6 +32,41 @@ A recording is only useful if it cannot drift.
 - **Re-record only after reading the diff** and agreeing the new behaviour is
   correct. A re-record that was not inspected is a test that has been deleted.
 
+## The full-screen suites
+
+Anything that only happens on a terminal -- the console, the line editor, the
+pager, the editor, the monitor, the traceroute, the cat, the window manager and
+its apps -- cannot be reached from a `.t` file, because `run.sh` gives it a
+pipe. Those live in the Python suites, and every one of them drives a real
+pseudo terminal:
+
+```
+python3 tests/console.py    the display: cells, panes, damage, decoded keys
+python3 tests/cat.py        what cat adds when its output is a terminal
+python3 tests/most.py       the pager
+python3 tests/hvi.py        the editor
+python3 tests/mon.py        the system monitor
+python3 tests/mtr.py        the live traceroute
+python3 tests/editor.py     the line editor
+python3 tests/desktop.py    the window manager
+python3 tests/apps.py       the calculator and the file browser
+```
+
+**`screen.py` is the only pty harness.** It holds the pseudo terminal, the
+key and mouse helpers, the assertion tally, and the model that reassembles a
+screen from the escapes the console emitted -- which is necessary, because the
+display sends only the cells that changed, so grepping the byte stream finds
+`78-200/200` where the display reads `178-200/200`. There used to be six
+copies of that and five of the model, differing in timings, so fixing one
+fixed one. Do not write a seventh; add what is missing to `screen.py`.
+
+It is also runnable, which is what to reach for instead of a throwaway script:
+
+```
+python3 tests/screen.py examples/desktop-session.hibr
+python3 tests/screen.py -c 'mod load build/mods/mon.so; mon'
+```
+
 ## Fixtures without dependencies
 
 `410-object.t` and `420-status.t` need git repositories, but the suite cannot

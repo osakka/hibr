@@ -3,99 +3,39 @@
 
 Checks are mostly on the file that comes out, which is what an editor is for;
 where a message matters the screen is reassembled from the escape stream,
-because the display sends only the cells that changed.
+because the display sends only the cells that changed.  The pty and the
+terminal model are tests/screen.py, shared with every other full-screen suite.
 Run it directly:  python3 tests/hvi.py [path-to-hibr]
 """
-import fcntl, os, pty, select, struct, sys, tempfile, termios, threading, time
+import os, sys, tempfile, threading, time
 
-HIBR = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else "./build/hibr")
-CONSOLE = os.path.abspath("./build/mods/console.so")
-HVI = os.path.abspath("./build/mods/hvi.so")
-FAIL = []
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import screen as sx
+from screen import Term, Screen, check, report, load, tree
+
+if len(sys.argv) > 1:
+    sx.HIBR = os.path.abspath(sys.argv[1])
 D = tempfile.mkdtemp(prefix="hibr-vi-")
 ROWS, COLS = 10, 60
+LOAD = load("console", "hvi")
 
 
 def vi(path, keys, wait=0.6, step=0.25):
     """Edit a file, send keys, return everything the terminal received."""
-    pid, fd = pty.fork()
-    if pid == 0:
-        os.environ["TERM"] = "xterm-256color"
-        # so the colourer can be found without being named: the editor asks
-        # for "highlight" and the shell goes looking for whatever offers it
-        os.environ["HIBR_MODPATH"] = os.path.abspath("./build/mods")
-        os.execv(HIBR, ["hibr", "-c", "mod load %s; mod load %s; hvi %s"
-                        % (CONSOLE, HVI, path)])
-    fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", ROWS, COLS, 0, 0))
-    out = b""
-
-    def grab(t):
-        nonlocal out
-        end = time.time() + t
-        while time.time() < end:
-            if select.select([fd], [], [], 0.1)[0]:
-                try:
-                    d = os.read(fd, 65536)
-                except OSError:
-                    return
-                if not d:
-                    return
-                out += d
-
-    time.sleep(wait)
-    grab(0.4)
-    for k in keys:
-        os.write(fd, k)
-        time.sleep(step)
-        grab(0.2)
-    time.sleep(0.35)
-    grab(0.35)
-    try:
-        os.close(fd)
-    except OSError:
-        pass
-    try:
-        os.waitpid(pid, 0)
-    except ChildProcessError:
-        pass
-    return out.decode("utf8", "replace")
+    # HIBR_MODPATH so the colourer can be found without being named: the
+    # editor asks for "highlight" and the shell goes looking for whatever
+    # offers it.
+    t = Term("-c", LOAD + "hvi %s" % path, rows=ROWS, cols=COLS, settle=wait,
+             env={"HIBR_MODPATH": tree("build/mods")})
+    t.keys(keys, settle=step, collect=0.2)
+    t.quit(None, 0.35)
+    return t.text
 
 
 def screen(t):
-    """Reassemble the display from the cells that were sent."""
-    g = [[" "] * COLS for _ in range(ROWS)]
-    r = c = 0
-    t = t.split("\x1b[2J", 1)[-1]
-    i = 0
-    while i < len(t):
-        ch = t[i]
-        if ch == "\x1b" and i + 1 < len(t) and t[i + 1] == "[":
-            j = i + 2
-            while j < len(t) and not ("@" <= t[j] <= "~"):
-                j += 1
-            if j >= len(t):
-                break
-            seq, fin = t[i + 2:j], t[j]
-            if fin == "H":
-                a = seq.split(";")
-                r = (int(a[0]) - 1) if a[0].isdigit() else 0
-                c = (int(a[1]) - 1) if len(a) > 1 and a[1].isdigit() else 0
-            elif fin == "C":
-                c += int(seq) if seq.isdigit() else 1
-            i = j + 1
-            continue
-        if ch not in "\r\n":
-            if 0 <= r < ROWS and 0 <= c < COLS:
-                g[r][c] = ch
-            c += 1
-        i += 1
-    return "\n".join("".join(x).rstrip() for x in g)
+    return Screen(ROWS, COLS).feed(t).text()
 
 
-def check(name, ok):
-    print(("ok   " if ok else "FAIL ") + name)
-    if not ok:
-        FAIL.append(name)
 
 
 def fresh(nm, text):
@@ -237,8 +177,7 @@ check("a file of no known kind is left plain",
       "38;5;110" not in t.split("\x1b[2J", 1)[-1])
 
 print()
-print("%d passed, %d failed" % (30 - len(FAIL), len(FAIL)))
 for f in os.listdir(D):
     os.unlink(os.path.join(D, f))
 os.rmdir(D)
-sys.exit(1 if FAIL else 0)
+report(30)

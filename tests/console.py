@@ -4,55 +4,34 @@
 The .t files cannot reach any of this, for the same reason tests/editor.py
 exists: full-screen drawing only happens when there is a terminal to draw on.
 Run it directly:  python3 tests/console.py [path-to-hibr]
-"""
-import fcntl, os, pty, re, select, signal, struct, sys, termios, time
 
-HIBR = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else "./build/hibr")
-MOD = os.path.abspath("./build/mods/console.so")
-FAIL = []
+Unlike the other suites this one mostly asserts on the *bytes* rather than on
+the reassembled screen, because what is being checked is that the damage model
+sends the right escapes and not merely that the right picture comes out.
+"""
+import os, re, signal, sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import screen as sx
+from screen import Term, check, report, tree
+
+if len(sys.argv) > 1:
+    sx.HIBR = os.path.abspath(sys.argv[1])
+MOD = tree("build/mods/console.so")
 
 
 def run(script, feed=(), after=None, wait=2.5, rows=24, cols=80):
     """Run a script under a pty, optionally feeding keys, and return its output."""
     path = "/tmp/hibr-console-%d.hibr" % os.getpid()
     open(path, "w").write("mod load %s\n%s" % (MOD, script))
-    pid, fd = pty.fork()
-    if pid == 0:
-        os.environ["TERM"] = "xterm-256color"
-        os.execv(HIBR, ["hibr", path])
-    fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
-    time.sleep(0.4)
-    for k in feed:
-        os.write(fd, k)
-        time.sleep(0.12)
+    t = Term(path, rows=rows, cols=cols, settle=0.4)
+    t.keys(feed, settle=0.12, collect=0)
     if after:
-        after(pid, fd)
-    out, end = b"", time.time() + wait
-    while time.time() < end:
-        if select.select([fd], [], [], 0.1)[0]:
-            try:
-                d = os.read(fd, 65536)
-            except OSError:
-                break
-            if not d:
-                break
-            out += d
-    try:
-        os.close(fd)
-    except OSError:
-        pass
-    try:
-        st = os.waitpid(pid, 0)[1]
-    except ChildProcessError:
-        st = 0
+        after(t)
+    t.collect(wait)
+    t.close()
     os.unlink(path)
-    return out, st
-
-
-def check(name, ok):
-    print(("ok   " if ok else "FAIL ") + name)
-    if not ok:
-        FAIL.append(name)
+    return t.raw, t.status
 
 
 def counts(out):
@@ -212,15 +191,15 @@ o, _ = run('console mouse nonsense\n')
 check("a bad mouse mode is refused", b"usage" in o)
 
 o, st = run('console open\nconsole flush\nconsole key 5000\n',
-            after=lambda pid, fd: os.kill(pid, signal.SIGINT), wait=1.5)
+            after=lambda t: t.signal(signal.SIGINT), wait=1.5)
 check("an interrupt still leaves the alternate screen", b"\x1b[?1049l" in o)
 check("an interrupt still gives the cursor back", b"\x1b[?25h" in o)
 check("and the signal is not swallowed",
       os.WIFSIGNALED(st) and os.WTERMSIG(st) == signal.SIGINT)
 
 
-def bigger(pid, fd):
-    fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 100, 0, 0))
+def bigger(t):
+    t.resize(40, 100)
 
 
 o, _ = run('console open\nconsole flush\nconsole key 3000\nconsole close\n'
@@ -228,6 +207,4 @@ o, _ = run('console open\nconsole flush\nconsole key 3000\nconsole close\n'
            after=bigger, wait=3)
 check("a resize interrupts the wait and is reported", counts(o) == [40, 100])
 
-print()
-print("%d passed, %d failed" % (len(WANT) + len(MWANT) + 39 - len(FAIL), len(FAIL)))
-sys.exit(1 if FAIL else 0)
+report(len(WANT) + len(MWANT) + 39)

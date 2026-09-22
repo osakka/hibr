@@ -1,0 +1,242 @@
+#!/usr/bin/env hibr
+#
+# files -- a file browser for the desktop, and a lister on its own.
+#
+#     hibr examples/apps/files.hibr /etc
+#
+# This is the app that scrolls.  Everything it shows lives inside the window
+# and moves under a fixed frame: arrows and page keys move the selection, the
+# wheel moves the view without moving the selection, and a click lands on the
+# row it was aimed at.  The window manager knows none of that -- it hands over
+# a row and a column relative to the body and the app decides what they mean.
+#
+# There are no sizes or dates in the listing because the shell cannot ask for
+# them without forking a stat, and a browser that forks once per row would be
+# the slowest thing in the desktop.  Names and what is a directory come from
+# globbing and [ -d ], which cost nothing.
+
+app files "A file browser"
+
+FB_DIR=
+FB_N=0
+FB_TOP=0
+FB_SEL=0
+FB_HIDDEN=0
+FB_LAST=-1
+FB_VIS=1
+declare -A FB
+
+# Read a directory into FB: name, and whether it is a directory.
+# Directories come first, each group in the order the glob gave, which is
+# sorted.
+# Entries past FB_N are left over from a larger directory and never read,
+# because everything that walks the list stops at FB_N.  Clearing FB here
+# would need an unset at global scope -- a declare inside a function makes a
+# local, and the listing would go into that and vanish with the frame.
+fb_scan() {
+	local f n=0 base
+
+	if [ "$FB_DIR" != / ]; then
+		FB[$n]["name"]=".."
+		FB[$n]["dir"]=1
+		n=$((n + 1))
+	fi
+	for f in "$FB_DIR"/*/ ${FB_HIDDEN:+"$FB_DIR"/.*/}; do
+		f=${f%/}
+		base=${f##*/}
+		[ -d "$f" ] || continue
+		[ "$base" = "." ] || [ "$base" = ".." ] && continue
+		FB[$n]["name"]="$base"
+		FB[$n]["dir"]=1
+		n=$((n + 1))
+	done
+	for f in "$FB_DIR"/* ${FB_HIDDEN:+"$FB_DIR"/.*}; do
+		[ -e "$f" ] || continue
+		[ -d "$f" ] && continue
+		base=${f##*/}
+		FB[$n]["name"]="$base"
+		FB[$n]["dir"]=0
+		n=$((n + 1))
+	done
+	FB_N=$n
+	FB_TOP=0
+	FB_SEL=0
+	FB_LAST=-1
+}
+
+# Go somewhere, keeping FB_DIR absolute and without a trailing slash.
+fb_go() {
+	local d=$1
+
+	case $d in
+	/*) ;;
+	*) d="$FB_DIR/$d" ;;
+	esac
+	while [ "$d" != "${d%/.}" ]; do d=${d%/.}; done
+	case $d in
+	*/..)
+		d=${d%/..}
+		d=${d%/*}
+		[ -z "$d" ] && d=/
+		;;
+	esac
+	[ -d "$d" ] || return 1
+	FB_DIR=$d
+	fb_scan
+}
+
+# Keep the selection on screen after it moves.
+fb_show() {
+	local vis=$1
+
+	[ "$FB_SEL" -lt 0 ] && FB_SEL=0
+	[ "$FB_SEL" -ge "$FB_N" ] && FB_SEL=$((FB_N - 1))
+	[ "$FB_SEL" -lt 0 ] && FB_SEL=0
+	[ "$FB_SEL" -lt "$FB_TOP" ] && FB_TOP=$FB_SEL
+	[ "$FB_SEL" -ge $((FB_TOP + vis)) ] && FB_TOP=$((FB_SEL - vis + 1))
+	fb_clamp "$vis"
+}
+
+# Keep the view itself inside the list.
+fb_clamp() {
+	local vis=$1 max=$(($FB_N - $1))
+
+	[ "$max" -lt 0 ] && max=0
+	[ "$FB_TOP" -gt "$max" ] && FB_TOP=$max
+	[ "$FB_TOP" -lt 0 ] && FB_TOP=0
+}
+
+files_open() {
+	[ -z "$FB_DIR" ] && FB_DIR=$PWD
+	fb_scan
+}
+
+files_draw() {
+	local id=$1 h=$2 w=$3
+	local vis=$((h - 2)) i r nm t thumb
+
+	# What _key and _wheel need to know is how many rows are on screen, and
+	# draw is the only thing told.  Stashing it here rather than reading the
+	# window manager's own table keeps the app out of its host's state, and
+	# survives a resize for free: draw runs before every event.
+	FB_VIS=$vis
+
+	console pen "#63b3ed" "$DT_FACE" bold
+	t := str pad "$FB_DIR" "$w"
+	[ ${#FB_DIR} -gt "$w" ] && t="…${FB_DIR: -$((w - 1))}"
+	console put -p "w$id" 1 1 "$t"
+
+	i=$FB_TOP
+	r=2
+	while [ "$r" -lt "$h" ]; do
+		if [ "$i" -ge "$FB_N" ]; then
+			console pen "$DT_INK" "$DT_FACE"
+			t := str repeat " " $((w - 1))
+			console put -p "w$id" "$r" 1 "$t"
+			r=$((r + 1))
+			i=$((i + 1))
+			continue
+		fi
+		nm=${FB[$i]["name"]}
+		[ "${FB[$i]["dir"]}" = 1 ] && nm="$nm/"
+		t := str pad " $nm" $((w - 1))
+		if [ "$i" = "$FB_SEL" ]; then
+			console pen "#1a202c" "#63b3ed" bold
+		elif [ "${FB[$i]["dir"]}" = 1 ]; then
+			console pen "#f6ad55" "$DT_FACE"
+		else
+			console pen "$DT_INK" "$DT_FACE"
+		fi
+		console put -p "w$id" "$r" 1 "$t"
+		r=$((r + 1))
+		i=$((i + 1))
+	done
+
+	if [ "$FB_N" -gt "$vis" ]; then
+		thumb=$((2 + (FB_TOP * (vis - 1)) / (FB_N - vis)))
+		r=2
+		while [ "$r" -lt "$h" ]; do
+			if [ "$r" = "$thumb" ]; then
+				console pen "#63b3ed" "$DT_FACE"
+				console put -p "w$id" "$r" "$w" "█"
+			else
+				console pen "#2d3748" "$DT_FACE"
+				console put -p "w$id" "$r" "$w" "│"
+			fi
+			r=$((r + 1))
+		done
+	fi
+
+	console pen "#718096" "$DT_FACE"
+	t := str pad "$((FB_SEL + 1)) of $FB_N" "$w"
+	console put -p "w$id" "$h" 1 "$t"
+}
+
+files_key() {
+	local vis=$FB_VIS
+
+	case $2 in
+	up) FB_SEL=$((FB_SEL - 1)) ;;
+	down) FB_SEL=$((FB_SEL + 1)) ;;
+	pageup) FB_SEL=$((FB_SEL - vis)) ;;
+	pagedown) FB_SEL=$((FB_SEL + vis)) ;;
+	home) FB_SEL=0 ;;
+	end) FB_SEL=$((FB_N - 1)) ;;
+	enter | right) fb_open ;;
+	backspace | left) fb_go .. ;;
+	h) FB_HIDDEN=$((1 - FB_HIDDEN)); fb_scan ;;
+	*) return 1 ;;
+	esac
+	fb_show "$vis"
+}
+
+# Enter the selected directory.  A file is selected and nothing more: there
+# is no viewer here, and pretending otherwise would be the wrong kind of
+# clever.
+fb_open() {
+	[ "$FB_N" = 0 ] && return 0
+	[ "${FB[$FB_SEL]["dir"]}" = 1 ] && fb_go "${FB[$FB_SEL]["name"]}"
+}
+
+# A click selects the row it landed on, and a second click on the same row
+# opens it.
+files_click() {
+	local id=$1 r=$2 i
+
+	[ "$r" -lt 2 ] && return 0
+	i=$((FB_TOP + r - 2))
+	[ "$i" -ge "$FB_N" ] && return 0
+	if [ "$i" = "$FB_SEL" ] && [ "$i" = "$FB_LAST" ]; then
+		fb_open
+		return 0
+	fi
+	FB_SEL=$i
+	FB_LAST=$i
+}
+
+# The wheel moves the view and leaves the selection where it is, which is
+# what a wheel does everywhere else.
+files_wheel() {
+	case $2 in
+	up) FB_TOP=$((FB_TOP - 3)) ;;
+	down) FB_TOP=$((FB_TOP + 3)) ;;
+	esac
+	fb_clamp "$FB_VIS"
+}
+
+# Run directly: list a directory and stop.
+if [ -z "$DT_ROWS" ]; then
+	FB_DIR=${1:-$PWD}
+	case $FB_DIR in /*) ;; *) FB_DIR="$PWD/$FB_DIR" ;; esac
+	[ -d "$FB_DIR" ] || { echo "files: $FB_DIR: not a directory" >&2; exit 1; }
+	fb_scan
+	i=0
+	while [ "$i" -lt "$FB_N" ]; do
+		if [ "${FB[$i]["dir"]}" = 1 ]; then
+			echo "${FB[$i]["name"]}/"
+		else
+			echo "${FB[$i]["name"]}"
+		fi
+		i=$((i + 1))
+	done
+fi

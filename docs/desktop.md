@@ -59,13 +59,19 @@ these, and the window manager calls only the ones that exist:
 | `hello_open` | `id` | once, when the window is made |
 | `hello_draw` | `id inner_h inner_w` | every frame |
 | `hello_key` | `id key` | a key, while this window has focus |
-| `hello_click` | `id row col` | a click in the body, in the app's own coordinates |
+| `hello_click` | `id row col` | a click, in the same coordinates the app draws in |
+| `hello_wheel` | `id up\|down row col` | the wheel, over this window whether or not it has focus |
 | `hello_close` | `id` | once, when the window closes |
 
 Draw with `console put -p "w$id" row col text` — the pane is the window, so
 row 0 is its top border and the body starts at row 1, column 1. Drawing
 outside the pane is clipped, and the frame is redrawn over the top of
 whatever the app wrote, so an app cannot damage its own border.
+
+**A click arrives in those same coordinates**, so a key the app drew at row 4
+is clicked at row 4. There is no separate body coordinate system to convert
+between; the window manager deals with row 0 itself, so an app never sees a
+click on its own title bar.
 
 **A key handler returns non-zero for a key it does not want.** That is how
 `q` still quits while your window has focus:
