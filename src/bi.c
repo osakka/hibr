@@ -610,8 +610,52 @@ int t_one(const char *op, const char *a)
 	case 'L':
 	case 'h':
 		return lstat(a, &st) == 0 && S_ISLNK(st.st_mode);
+	case 'a':
+		return stat(a, &st) == 0;
+	case 'b':
+		return stat(a, &st) == 0 && S_ISBLK(st.st_mode);
+	case 'c':
+		return stat(a, &st) == 0 && S_ISCHR(st.st_mode);
+	case 'p':
+		return stat(a, &st) == 0 && S_ISFIFO(st.st_mode);
+	case 'S':
+		return stat(a, &st) == 0 && S_ISSOCK(st.st_mode);
+	case 'g':
+		return stat(a, &st) == 0 && (st.st_mode & S_ISGID) != 0;
+	case 'u':
+		return stat(a, &st) == 0 && (st.st_mode & S_ISUID) != 0;
+	case 'k':
+		return stat(a, &st) == 0 && (st.st_mode & S_ISVTX) != 0;
+	case 'O':
+		return stat(a, &st) == 0 && st.st_uid == geteuid();
+	case 'G':
+		return stat(a, &st) == 0 && st.st_gid == getegid();
+	case 'N':
+		return stat(a, &st) == 0 && st.st_mtime > st.st_atime;
+	case 't':
+		return isatty((int)strtol(a, 0, 10));
 	}
 	return -1;
+}
+
+/* Say whether a word is a unary test operator. */
+int t_isun(const char *w)
+{
+	return w[0] == '-' && w[1] && !w[2] &&
+	       strchr("znefdrwxsLhabcpSgukOGNt", w[1]) != 0;
+}
+
+/* Say whether a word is a binary test operator. */
+int t_isbin(const char *w)
+{
+	static const char *b[] = { "=", "!=", "<", ">", "-eq", "-ne", "-lt",
+				   "-le", "-gt", "-ge", "-ef", "-nt", "-ot", 0 };
+	int i;
+
+	for (i = 0; b[i]; i++)
+		if (!strcmp(w, b[i]))
+			return 1;
+	return 0;
 }
 
 /* Evaluate a binary test operator. */
@@ -627,6 +671,16 @@ int t_two(const char *a, const char *op, const char *b)
 		return strcmp(a, b) < 0;
 	if (!strcmp(op, ">"))
 		return strcmp(a, b) > 0;
+	if (!strcmp(op, "-ef") || !strcmp(op, "-nt") || !strcmp(op, "-ot")) {
+		struct stat sa, sb;
+		int ha = stat(a, &sa) == 0, hb = stat(b, &sb) == 0;
+		if (!strcmp(op, "-ef"))
+			return ha && hb && sa.st_dev == sb.st_dev &&
+			       sa.st_ino == sb.st_ino;
+		if (!strcmp(op, "-nt"))
+			return ha && (!hb || sa.st_mtime > sb.st_mtime);
+		return hb && (!ha || sa.st_mtime < sb.st_mtime);
+	}
 	x = strtol(a, 0, 10);
 	y = strtol(b, 0, 10);
 	if (!strcmp(op, "-eq"))
@@ -644,10 +698,89 @@ int t_two(const char *a, const char *op, const char *b)
 	return -1;
 }
 
-/* Evaluate a conditional expression. */
+/* Evaluate a primary: a negation, a parenthesised group, or a comparison. */
+int tx_prim(tex *t)
+{
+	int r;
+
+	if (t->i >= t->n) {
+		t->err = 1;
+		return 0;
+	}
+	if (!strcmp(t->v[t->i], "!")) {
+		t->i++;
+		return !tx_prim(t);
+	}
+	if (!strcmp(t->v[t->i], "(")) {
+		t->i++;
+		r = tx_or(t);
+		if (t->i >= t->n || strcmp(t->v[t->i], ")")) {
+			t->err = 1;
+			return 0;
+		}
+		t->i++;
+		return r;
+	}
+	if (t->i + 2 < t->n && t_isbin(t->v[t->i + 1])) {
+		r = t_two(t->v[t->i], t->v[t->i + 1], t->v[t->i + 2]);
+		t->i += 3;
+		if (r < 0)
+			t->err = 1;
+		return r > 0;
+	}
+	if (t_isun(t->v[t->i]) && t->i + 1 < t->n) {
+		r = t_one(t->v[t->i], t->v[t->i + 1]);
+		t->i += 2;
+		if (r < 0)
+			t->err = 1;
+		return r > 0;
+	}
+	r = *t->v[t->i] != 0;
+	t->i++;
+	return r;
+}
+
+/* Evaluate a sequence of primaries joined by -a. */
+int tx_and(tex *t)
+{
+	int r;
+
+	if (++t->d > HIBR_DEPTH) {
+		t->err = 1;
+		return 0;
+	}
+	r = tx_prim(t);
+	while (!t->err && t->i < t->n && !strcmp(t->v[t->i], "-a")) {
+		t->i++;
+		r = tx_prim(t) && r;
+	}
+	t->d--;
+	return r;
+}
+
+/* Evaluate a sequence of and-groups joined by -o. */
+int tx_or(tex *t)
+{
+	int r;
+
+	if (++t->d > HIBR_DEPTH) {
+		t->err = 1;
+		return 0;
+	}
+	r = tx_and(t);
+	while (!t->err && t->i < t->n && !strcmp(t->v[t->i], "-o")) {
+		t->i++;
+		r = tx_and(t) || r;
+	}
+	t->d--;
+	return r;
+}
+
+/* Evaluate a conditional expression, POSIX argument counts then a grammar. */
 int b_test(sh *s, int ac, char **av)
 {
 	int r = -1;
+	tex t;
 
 	(void)s;
 	if (ac && !strcmp(av[0], "[")) {
@@ -665,19 +798,30 @@ int b_test(sh *s, int ac, char **av)
 		if (!strcmp(av[1], "!"))
 			return *av[2] ? HIBR_FAIL : HIBR_OK;
 		r = t_one(av[1], av[2]);
+	} else if (ac == 4) {
+		if (t_isbin(av[2]))
+			r = t_two(av[1], av[2], av[3]);
+		else if (!strcmp(av[1], "!"))
+			r = t_one(av[2], av[3]) < 0 ? -1 :
+			    !t_one(av[2], av[3]);
+		else if (!strcmp(av[1], "(") && !strcmp(av[3], ")"))
+			return *av[2] ? HIBR_OK : HIBR_FAIL;
+	} else if (ac == 5) {
+		if (!strcmp(av[1], "!") && t_isbin(av[3]))
+			r = t_two(av[2], av[3], av[4]) < 0 ? -1 :
+			    !t_two(av[2], av[3], av[4]);
+		else if (!strcmp(av[1], "(") && !strcmp(av[4], ")"))
+			r = t_two(av[2], av[3], av[4]);
 	}
-	if (ac == 4) {
-		if (!strcmp(av[1], "!")) {
-			r = t_one(av[2], av[3]);
-			if (r >= 0)
-				return r ? HIBR_FAIL : HIBR_OK;
-		}
-		r = t_two(av[1], av[2], av[3]);
-	}
-	if (ac == 5 && !strcmp(av[1], "!")) {
-		r = t_two(av[2], av[3], av[4]);
-		if (r >= 0)
-			return r ? HIBR_FAIL : HIBR_OK;
+	if (r < 0 && ac > 3) {
+		t.v = av + 1;
+		t.n = ac - 1;
+		t.i = 0;
+		t.err = 0;
+		t.d = 0;
+		r = tx_or(&t);
+		if (t.err || t.i != t.n)
+			r = -1;
 	}
 	if (r < 0) {
 		lg(HIBR_LERR, "test: bad expression");
