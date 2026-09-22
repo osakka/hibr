@@ -966,7 +966,8 @@ int b_type(sh *s, int ac, char **av)
 int b_mod(sh *s, int ac, char **av)
 {
 	if (ac < 2) {
-		lg(HIBR_LERR, "usage: mod load <path> | mod drop <name> | mod list");
+		lg(HIBR_LERR, "usage: mod load <path|name> | mod drop <name> "
+			      "| mod list | mod avail");
 		return HIBR_FAIL;
 	}
 	if (!strcmp(av[1], "load")) {
@@ -984,7 +985,15 @@ int b_mod(sh *s, int ac, char **av)
 		return m_drop(s, av[2]);
 	}
 	if (!strcmp(av[1], "list")) {
+		if (ac > 2 && !strcmp(av[2], "-a")) {
+			m_avail(s);
+			return HIBR_OK;
+		}
 		m_list(s);
+		return HIBR_OK;
+	}
+	if (!strcmp(av[1], "avail")) {
+		m_avail(s);
 		return HIBR_OK;
 	}
 	lg(HIBR_LERR, "mod: %s: unknown subcommand", av[1]);

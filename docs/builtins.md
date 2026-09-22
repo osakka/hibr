@@ -224,6 +224,7 @@ inside a function or a `try` it returns 2 —
 | `mod load path\|name` | load a module |
 | `mod drop name` | unload one |
 | `mod list` | list what is loaded, with its ABI and builtins |
+| `mod avail`, `mod list -a` | list every module that could be loaded, and its state |
 
 A module adds builtins, and it can add a *protocol*: register a scheme and
 `/dev/<name>/…` works anywhere a filename does. When the effective uid is 0 the

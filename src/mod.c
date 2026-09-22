@@ -1,4 +1,5 @@
 #include "pri.h"
+#include <dirent.h>
 #include <dlfcn.h>
 
 #ifndef HIBR_MODDIR
@@ -68,8 +69,12 @@ void *m_open(sh *s, const char *path, str *p)
 	int so = m_hasso(path);
 	void *h = 0;
 
-	if (strchr(path, '/'))
-		return m_try(p, 0, path, 0);
+	if (strchr(path, '/')) {
+		h = m_try(p, 0, path, 0);
+		if (!h && !so)
+			h = m_try(p, 0, path, 1);
+		return h;
+	}
 	if (geteuid() == 0) {
 		lg(HIBR_LDBG, "root: searching only %s for %s", HIBR_MODDIR,
 		   path);
@@ -187,6 +192,165 @@ void m_list(sh *s)
 		       m->m->ver ? m->m->ver : "-", m->m->abi,
 		       m->m->dsc ? m->m->dsc : "");
 	}
+}
+
+/* Whether this candidate is loaded: 2 from this very file, 1 by name only. */
+int m_isload(sh *s, const char *nm, const char *path)
+{
+	size_t i;
+	mod *m;
+	int byname = 0;
+
+	for (i = 0; i < s->mods.n; i++) {
+		m = (mod *)s->mods.p[i];
+		if (strcmp(m->m->nm, nm))
+			continue;
+		if (m->path && path && !strcmp(m->path, path))
+			return 2;
+		byname = 1;
+	}
+	return byname;
+}
+
+/* Describe one candidate object, without ever making it a loaded module. */
+void m_probe(sh *s, const char *path, const char *file)
+{
+	void *h;
+	const hibr_mod *d;
+	const hibr_bi *b;
+	const char *state;
+	str ab, bl;
+	int i;
+
+	s_init(&ab);
+	s_init(&bl);
+	h = dlopen(path, RTLD_NOW | RTLD_LOCAL);
+	if (!h) {
+		lg(HIBR_LDBG, "mod avail: %s: %s", path, dlerror());
+		s_cat(&ab, "-");
+		printf("%-12s %-8s %-8s %-10s %s\n", file, "-", ab.p,
+		       "unreadable", path);
+		s_free(&ab);
+		s_free(&bl);
+		return;
+	}
+	d = (const hibr_mod *)dlsym(h, "hibr_module");
+	if (!d) {
+		s_cat(&ab, "-");
+		printf("%-12s %-8s %-8s %-10s %s\n", file, "-", ab.p,
+		       "no descr", path);
+		dlclose(h);
+		s_free(&ab);
+		s_free(&bl);
+		return;
+	}
+	s_cat(&ab, "abi ");
+	s_num(&ab, (long)d->abi);
+	i = m_isload(s, d->nm, path);
+	if (i == 2)
+		state = "loaded";
+	else if (d->abi != HIBR_ABI)
+		state = "wrong abi";
+	else if (i)
+		state = "elsewhere";
+	else
+		state = "available";
+	for (b = d->bi; b && b->nm; b++) {
+		if (bl.n)
+			s_cat(&bl, ", ");
+		s_cat(&bl, b->nm);
+	}
+	printf("%-12s %-8s %-8s %-10s %s\n", d->nm, d->ver ? d->ver : "-",
+	       ab.p, state, path);
+	if (bl.n)
+		printf("             %s\n", bl.p);
+	dlclose(h);
+	s_free(&ab);
+	s_free(&bl);
+}
+
+/* Compare two names for sorting a directory listing. */
+int m_cmp(const void *a, const void *b)
+{
+	return strcmp(*(const char *const *)a, *(const char *const *)b);
+}
+
+/* Probe every shared object in one directory. */
+void m_scan(sh *s, const char *dir, vec *seen)
+{
+	DIR *dp = opendir(dir);
+	struct dirent *de;
+	vec names;
+	size_t i, j;
+	str full;
+
+	if (!dp) {
+		lg(HIBR_LDBG, "mod avail: %s: not a directory", dir);
+		return;
+	}
+	names.p = 0;
+	names.n = 0;
+	names.cap = 0;
+	while ((de = readdir(dp)))
+		if (m_hasso(de->d_name))
+			v_add(&names, xs(de->d_name));
+	closedir(dp);
+	if (names.n > 1)
+		qsort(names.p, names.n, sizeof *names.p, m_cmp);
+	for (i = 0; i < names.n; i++) {
+		for (j = 0; j < seen->n; j++)
+			if (!strcmp((char *)seen->p[j], (char *)names.p[i]))
+				break;
+		if (j < seen->n) {
+			lg(HIBR_LDBG, "mod avail: %s/%s is shadowed", dir,
+			   (char *)names.p[i]);
+			free(names.p[i]);
+			continue;
+		}
+		v_add(seen, xs((char *)names.p[i]));
+		s_init(&full);
+		s_cat(&full, dir);
+		if (full.n && full.p[full.n - 1] != '/')
+			s_ch(&full, '/');
+		s_cat(&full, (char *)names.p[i]);
+		m_probe(s, full.p, (char *)names.p[i]);
+		s_free(&full);
+		free(names.p[i]);
+	}
+	v_free(&names);
+}
+
+/* List every module that could be loaded, in the order a bare name finds. */
+void m_avail(sh *s)
+{
+	const char *mp = hibr_get(s, "HIBR_MODPATH");
+	vec seen;
+	size_t i;
+
+	seen.p = 0;
+	seen.n = 0;
+	seen.cap = 0;
+	printf("%-12s %-8s %-8s %-10s %s\n", "NAME", "VERSION", "ABI",
+	       "STATE", "PATH");
+	if (geteuid() == 0) {
+		lg(HIBR_LDBG, "root: listing only %s", HIBR_MODDIR);
+		mp = 0;
+	} else {
+		m_scan(s, ".", &seen);
+	}
+	while (mp && *mp) {
+		const char *e = strchr(mp, ':');
+		size_t n = e ? (size_t)(e - mp) : strlen(mp);
+		if (n) {
+			char *d = ar_dup(s->xa, mp, n);
+			m_scan(s, d, &seen);
+		}
+		mp = e ? e + 1 : mp + n;
+	}
+	m_scan(s, HIBR_MODDIR, &seen);
+	for (i = 0; i < seen.n; i++)
+		free(seen.p[i]);
+	v_free(&seen);
 }
 
 /* Unload every module at shutdown. */
