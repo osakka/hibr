@@ -206,13 +206,24 @@ were each run and their real output pasted back; keep it that way.
   would hand a builtin the mask of a different argument and make `unset` delete
   the wrong key. `xargv` compares the two lengths and drops the mask rather
   than trust it; glob results are padded with unquoted entries by `xpad`.
-- **`al_quote` escapes, it does not quote.** The arguments it re-emits have
-  already been expanded, so wrapping them in `'…'` would mark every byte as
-  quoted and make a subscript reached through an alias literal —
-  `alias u=unset; u a[i]` would stop resolving `i`. Per-character escaping
-  protects the metacharacters without masking the subscript's own bytes. An
-  argument that is empty or holds a newline still has to be quoted, since
-  `\<newline>` is a line continuation.
+- **One helper splits `name[sub]…`**, `bi_keys`, and everything that takes a
+  subscripted name goes through it: `unset`, `read`, `[[ -v ]]` and the
+  assignment path. It honours a quoted subscript and a negative one, and it
+  leaves the name truncated at the bracket for the caller to restore. A builtin
+  that wants the quoting of its own arguments must also be named in `bi_mask`,
+  or it silently gets none -- which is what made `read h["a-b"]` write to key 0
+  after the parsing was already right.
+- **`al_quote` reproduces the caller's quoting rather than inventing its own.**
+  An alias re-emits arguments that have already been expanded and are then
+  re-lexed, so what it writes decides what the new mask says. Given the old
+  argument's mask it wraps the runs that were quoted in `'…'` and escapes the
+  rest per character, which reproduces the same mask — so `u h["a-b"]` still
+  reaches the literal key and `u a[i]` still resolves `i`. Wrapping everything
+  in quotes breaks the second; escaping everything breaks the first. With no
+  mask it falls back to escaping, and an argument that is empty or holds a
+  newline is quoted whole, since `\<newline>` is a line continuation.
+  `xargv` builds the mask for a command whose first word names an alias, as
+  well as one in `bi_mask`.
 - **Argument masks are gated on the command name.** `xargv` builds them only
   when the first expanded word names a builtin in `bi_mask`, so an ordinary
   command pays one `strcmp` and nothing else — building them unconditionally
@@ -328,12 +339,6 @@ were each run and their real output pasted back; keep it that way.
 - Decide whether `set -S` should become the default.
 - Possibly: `declare -l`/`-u`, `trap RETURN`, `select` refinements, a `plan N`
   count in `self.hibr`.
-- A quoted subscript does not survive an alias: `al_quote` escapes rather than
-  quotes, so `alias u=unset; u h["a-b"]` evaluates the subscript. Fixing it
-  needs the alias path to carry masks rather than re-lex text.
-- `export`, `read` and `[[ -v ]]` do not parse a subscript at all, quoted or
-  not — `export e[k]=v` is silently inert. The argv quote mask (`sh.amask`) is
-  already there for whichever of them should grow one; see `docs/adr/0006`.
 - Prompt status divergences from git, all deliberate: renames are matched only
   on identical content, submodule working trees are not inspected, and `**` in
   the middle of a gitignore pattern behaves as `*`.

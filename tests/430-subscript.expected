@@ -18,4 +18,13 @@ unset via eval: k
 unset via variable: k
 unset via command: k
 arithmetic survives an alias: 0 2
-quoting does not survive an alias: x-y k
+quoting survives an alias: k
+read into elements: one/two
+read into a quoted key: changed
+test -v sees an element
+test -v misses an absent one
+test -v follows unset
+test -v takes a negative subscript
+test -v takes a quoted subscript
+test -v takes a name subscript
+export refuses a subscript: 1

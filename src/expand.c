@@ -1596,7 +1596,9 @@ char **xargv(sh *s, word *w, int *ac, char ***am)
 		}
 		if (om)
 			xpad(o, om);
-		else if (first && o->n && bi_mask((char *)o->p[0])) {
+		else if (first && o->n &&
+			 (bi_mask((char *)o->p[0]) ||
+			  al_get(s, (char *)o->p[0]))) {
 			lg(HIBR_LDBG, "%s reads argument quoting, masking",
 			   (char *)o->p[0]);
 			om = vb_get(s);

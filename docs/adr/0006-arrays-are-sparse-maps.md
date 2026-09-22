@@ -68,9 +68,16 @@ bytes; the cost is that a quoted subscript passed through an alias is
 evaluated, not taken literally. Escaping matches what the quotes did for
 splitting and globbing, checked against bash.
 
-`unset` is the only builtin reading it today. `local` rejects a subscripted
-name outright, and `export`, `read` and `[[ -v ]]` do not parse subscripts at
-all — they are unaffected by this change and remain a separate item.
+`unset`, `read` and `[[ -v ]]` all read it, through one helper — `bi_keys` —
+which also handles a negative subscript. `export` refuses a subscripted name
+outright, as bash does, rather than accepting it and doing nothing. `local`
+rejects one too, since it wants a plain name.
+
+It survives an alias as well. An alias re-emits arguments that are then
+re-lexed, so `al_quote` is given the old mask and reproduces it: the runs that
+were quoted go back inside quotes and the rest is escaped per character. Quote
+everything and `u a[i]` stops resolving `i`; escape everything and
+`u h["a-b"]` stops reaching the literal key.
 
 The cost is a discipline in `expand.c`: every field is emitted through `xout`
 or `xoutq` so the field vector and the mask vector cannot drift apart. A

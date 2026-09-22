@@ -146,7 +146,7 @@ int b_echo(sh *s, int ac, char **av)
 int b_exp(sh *s, int ac, char **av)
 {
 	int i;
-	char *q;
+	char *q, *e;
 	var *v;
 	size_t j;
 
@@ -161,6 +161,15 @@ int b_exp(sh *s, int ac, char **av)
 		return HIBR_OK;
 	}
 	for (; i < ac; i++) {
+		q = strchr(av[i], '[');
+		if (q && (!(e = strchr(av[i], '=')) || q < e)) {
+			char sv = *q;
+			*q = 0;
+			lg(HIBR_LERR, "export: %s[...]: not a valid identifier",
+			   av[i]);
+			*q = sv;
+			return HIBR_FAIL;
+		}
 		q = strchr(av[i], '=');
 		if (q) {
 			*q = 0;
@@ -179,10 +188,42 @@ int b_exp(sh *s, int ac, char **av)
 	return HIBR_OK;
 }
 
+/* Split name[sub]... into its name and key path, honouring a quoted
+   subscript. The name is left truncated at the bracket the caller restores. */
+char *bi_keys(sh *s, char *word, const char *mk, vec *ks)
+{
+	char *br = strchr(word, '[');
+	char *r, *end, *k;
+
+	if (!br)
+		return 0;
+	*br = 0;
+	for (r = br + 1; r && *r;) {
+		end = strchr(r, ']');
+		if (!end)
+			break;
+		*end = 0;
+		k = xkey_q(s, r, mk ? mk + (r - word) : 0);
+		k = ar_dup(s->xa, k, strlen(k));
+		v_add(ks, k);
+		if (k[0] == '-' && isdigit((unsigned char)k[1]))
+			ks->p[ks->n - 1] =
+				xneg(s, word, (char **)ks->p, (int)ks->n - 1);
+		*end = ']';
+		r = end + 1;
+		if (*r == '[')
+			r++;
+		else
+			break;
+	}
+	return br;
+}
+
 /* True for a builtin that reads the quote mask of its own arguments. */
 int bi_mask(const char *nm)
 {
-	return !strcmp(nm, "unset") || !strcmp(nm, "command");
+	return !strcmp(nm, "unset") || !strcmp(nm, "command") ||
+	       !strcmp(nm, "read");
 }
 
 /* Remove variables or functions. */
@@ -193,33 +234,17 @@ int b_unset(sh *s, int ac, char **av)
 	node *f;
 
 	for (i = 1; i < ac; i++) {
-		char *br = strchr(av[i], '[');
-		if (br) {
+		{
 			vec *ks = vb_get(s);
-			const char *mk = s->amask ? s->amask[i] : 0;
-			char *r, *k;
-			*br = 0;
-			for (r = br + 1; r && *r;) {
-				char *end = strchr(r, ']');
-				if (!end)
-					break;
-				*end = 0;
-				k = xkey_q(s, r, mk ? mk + (r - av[i]) : 0);
-				v_add(ks, k);
-				if (k[0] == '-' && isdigit((unsigned char)k[1]))
-					ks->p[ks->n - 1] =
-						xneg(s, av[i], (char **)ks->p,
-						     (int)ks->n - 1);
-				r = end + 1;
-				if (*r == '[')
-					r++;
-				else
-					break;
+			char *br = bi_keys(s, av[i],
+					   s->amask ? s->amask[i] : 0, ks);
+			if (br) {
+				v_delp(s, av[i], (char **)ks->p, (int)ks->n);
+				vb_put(s, ks);
+				*br = '[';
+				continue;
 			}
-			v_delp(s, av[i], (char **)ks->p, (int)ks->n);
 			vb_put(s, ks);
-			*br = '[';
-			continue;
 		}
 		v_del(s, av[i]);
 		for (j = 0; j < s->fns.n; j++) {
@@ -502,9 +527,19 @@ int b_read(sh *s, int ac, char **av)
 		}
 		{
 			char svc = b.p ? b.p[p] : 0;
+			vec *ks = vb_get(s);
+			char *br;
 			if (b.p)
 				b.p[p] = 0;
-			hibr_set(s, av[i], b.p ? b.p + st : "", 0);
+			br = bi_keys(s, av[i], s->amask ? s->amask[i] : 0, ks);
+			if (br) {
+				v_setp(s, av[i], (char **)ks->p, (int)ks->n,
+				       b.p ? b.p + st : "");
+				*br = '[';
+			} else {
+				hibr_set(s, av[i], b.p ? b.p + st : "", 0);
+			}
+			vb_put(s, ks);
 			if (b.p)
 				b.p[p] = svc;
 		}

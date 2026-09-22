@@ -60,10 +60,33 @@ void al_set(sh *s, const char *k, const char *v)
 }
 
 /* Quote one argument so it survives being re-parsed. */
-void al_quote(str *o, const char *a)
+void al_quote(str *o, const char *a, const char *mk)
 {
 	const char *p;
 
+	if (mk) {
+		for (p = a; *p; p++) {
+			if (!mk[p - a]) {
+				if (!isalnum((unsigned char)*p) &&
+				    !strchr("_+-%^=./:,@", *p))
+					s_ch(o, '\\');
+				s_ch(o, *p);
+				continue;
+			}
+			s_ch(o, '\'');
+			for (; *p && mk[p - a]; p++) {
+				if (*p == '\'')
+					s_cat(o, "'\\''");
+				else
+					s_ch(o, *p);
+			}
+			s_ch(o, '\'');
+			p--;
+		}
+		if (!*a)
+			s_cat(o, "''");
+		return;
+	}
 	if (!*a || strchr(a, '\n')) {
 		s_ch(o, '\'');
 		for (p = a; *p; p++) {
@@ -83,7 +106,7 @@ void al_quote(str *o, const char *a)
 }
 
 /* Run an alias body with the original arguments appended. */
-int al_run(sh *s, const char *body, int ac, char **av)
+int al_run(sh *s, const char *body, int ac, char **av, char **am)
 {
 	str b;
 	int i, st;
@@ -92,7 +115,7 @@ int al_run(sh *s, const char *body, int ac, char **av)
 	s_cat(&b, body);
 	for (i = 1; i < ac; i++) {
 		s_ch(&b, ' ');
-		al_quote(&b, av[i]);
+		al_quote(&b, av[i], am && am[i] ? am[i] : 0);
 	}
 	v_add(&s->axp, xs(av[0]));
 	lg(HIBR_LTRC, "alias %s -> %s", av[0], b.p);
@@ -853,7 +876,7 @@ int b_time(sh *s, int ac, char **av)
 	for (i = 1; i < ac; i++) {
 		if (cmd.n)
 			s_ch(&cmd, ' ');
-		al_quote(&cmd, av[i]);
+		al_quote(&cmd, av[i], 0);
 	}
 	gettimeofday(&a, 0);
 	getrusage(RUSAGE_CHILDREN, &r0);

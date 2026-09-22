@@ -43,10 +43,11 @@ arguments the sourced file inherits them, and a `shift` inside leaks, as in bash
 | `local name[=v]…` | declare function-local variables |
 | `export [-p] [name[=v]…]` | mark variables for export; `-p` lists them |
 | `unset [-f] name…` | remove variables, array elements or functions |
+| | `unset a[1]`, `a[-1]` and `h["a-b"]` all reach what they name |
 | `set [-/+flags] [--] [args…]` | set options, or replace the positional parameters |
 | `shopt [-s\|-u\|-q] [name…]` | read or set shell options |
 | `shift [n]` | drop the first `n` positional parameters |
-| `read [-rs] [-p s] [-n k] [-d c] [-t s] [-u fd] [-a arr] [name…]` | read one line |
+| `read [-rs] [-p s] [-n k] [-d c] [-t s] [-u fd] [-a arr] [name…]` | read one line; a name may be subscripted, as in `read h[k]` |
 | `mapfile` / `readarray [-t] [-n k] [-s k] [-O k] [-d c] [-u fd] [arr]` | read lines into an array |
 | `getopts optstring name [args…]` | parse option letters, one call at a time |
 

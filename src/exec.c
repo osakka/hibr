@@ -806,7 +806,7 @@ int ex_cmd(sh *s, node *n)
 		const char *al = al_get(s, av[0]);
 		if (al && !al_busy(s, av[0])) {
 			if (rd_do(s, n->rd, &sv) == HIBR_OK)
-				st = al_run(s, al, ac, av);
+				st = al_run(s, al, ac, av, am);
 			else
 				st = HIBR_FAIL;
 			rd_undo(&sv);
@@ -1352,8 +1352,21 @@ int cx_prim(struct cx *c)
 		c->i++;
 		if (c->skip)
 			return 0;
-		if (op[1] == 'v')
-			return v_find(c->s, a) != 0;
+		if (op[1] == 'v') {
+			word *aw = c->it[c->i - 1];
+			vec *ks = vb_get(c->s);
+			char *mk = 0, *nm, *br;
+			int set;
+			nm = aw->p && aw->p->op == -2 ? a :
+						       xone_q(c->s, aw, &mk);
+			nm = ar_dup(c->s->xa, nm, strlen(nm));
+			br = bi_keys(c->s, nm, mk, ks);
+			set = br ? v_getp(c->s, nm, (char **)ks->p,
+					  (int)ks->n) != 0 :
+				   v_find(c->s, nm) != 0;
+			vb_put(c->s, ks);
+			return set;
+		}
 		r = t_one(op, a);
 		if (r < 0) {
 			lg(HIBR_LERR, "[[: %s: unknown test", op);

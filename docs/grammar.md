@@ -181,7 +181,7 @@ Unlike `[`, no expansion splitting happens inside, so quoting is rarely needed.
 | `-r f` `-w f` `-x f` | it is readable, writable, executable |
 | `-s f` | it exists and is not empty |
 | `-L f` `-h f` | it is a symbolic link |
-| `-v n` | the variable is set |
+| `-v n` | the variable is set; `-v a[1]` and `-v h["k"]` test one element |
 
 | binary | true when |
 |---|---|

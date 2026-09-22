@@ -70,4 +70,27 @@ echo "arithmetic survives an alias: ${!ax[*]}"
 al["x-y"]=1
 al[k]=2
 u al["x-y"]
-echo "quoting does not survive an alias: ${!al[*]}"
+echo "quoting survives an alias: ${!al[*]}"
+
+rd=()
+read -r rd[0] rd[1] <<< "one two"
+echo "read into elements: ${rd[0]}/${rd[1]}"
+rq["a-b"]=start
+read -r rq["a-b"] <<< "changed"
+echo "read into a quoted key: ${rq["a-b"]}"
+
+vt[k]=v
+[[ -v vt[k] ]] && echo "test -v sees an element"
+[[ -v vt[nope] ]] || echo "test -v misses an absent one"
+va=(x y z)
+unset va[1]
+[[ -v va[1] ]] || echo "test -v follows unset"
+[[ -v va[-1] ]] && echo "test -v takes a negative subscript"
+vq["a-b"]=1
+[[ -v vq["a-b"] ]] && echo "test -v takes a quoted subscript"
+vn=(x y z)
+vi=2
+[[ -v vn[vi] ]] && echo "test -v takes a name subscript"
+
+export ex[k]=v 2>/dev/null
+echo "export refuses a subscript: $?"
