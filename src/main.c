@@ -223,6 +223,8 @@ void sh_fini(sh *s)
 	v_free(&s->fns);
 	v_free(&s->scope);
 	v_free(&s->psub);
+	hsh_clear(s, 0);
+	v_free(&s->cmds);
 	ar_free(s->ar);
 	ar_free(s->xa);
 	for (i = 0; i < s->tsz; i++)
