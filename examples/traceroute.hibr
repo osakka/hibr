@@ -1,0 +1,306 @@
+#!/usr/bin/env hibr
+# Trace a route and draw it on a world map.
+#
+# The hops come from the trace module, which sends UDP with a rising hop limit
+# and reads the ICMP complaints off the error queue -- no root, no raw sockets.
+# Places come from /usr/share/zoneinfo/zone1970.tab, which every Unix already
+# has and which is public domain, so there is no database to ship or update.
+# A hop is placed when its reverse DNS names a city or carries an airport code,
+# which is how backbone routers are usually named; anything else is unplaced
+# and said to be, rather than guessed at.
+
+mod load ./build/mods/trace.so 2>/dev/null || mod load trace || {
+  echo "the trace module is not built; run make" >&2
+  exit 1
+}
+
+opt .  "Trace a route and draw it on a world map"
+opt -m --max   hops  int=20  "Maximum number of hops"
+opt -w --wait  wait  int=800 "Milliseconds to wait for each hop"
+opt -d --demo  demo          "Draw a made-up route, to see the map without tracing"
+args "$@"
+
+host=$1
+if [ -z "$host" ] && [ "$demo" != 1 ]; then
+  echo "usage: traceroute.hibr [-m hops] [-w ms] host   (or --demo)" >&2
+  exit 2
+fi
+
+W=72
+H=22
+
+# A coarse equirectangular land mask: 72 columns of five degrees of longitude,
+# 22 rows covering 80N to 60S. Checked against every coordinate in
+# zone1970.tab -- 86% of them land on land, the rest being islands too small
+# to occupy a cell this size.
+MAP[0]="                        #########                                       "
+MAP[1]="      ############################   #####  ############################"
+MAP[2]="   ###############################  ####################################"
+MAP[3]="  ################################  ####################################"
+MAP[4]="         #################       #######################################"
+MAP[5]="          ################        ######################################"
+MAP[6]="           ############           ################################      "
+MAP[7]="            ##########          #################################       "
+MAP[8]="             ###### #           #############################           "
+MAP[9]="              #########         ###############  #########              "
+MAP[10]="                 ##########     ##############    ########              "
+MAP[11]="                   ###########   #############     ######               "
+MAP[12]="                    ##########       ########         #########         "
+MAP[13]="                    ##########       ########          ###########      "
+MAP[14]="                    ##########        ######              #########     "
+MAP[15]="                     ########         ########            #########     "
+MAP[16]="                     ########         ######              #########     "
+MAP[17]="                     #####            #####               ######### ####"
+MAP[18]="                     ####                                      ###   ## "
+MAP[19]="                     ###                                            ##  "
+MAP[20]="                     ##                                                 "
+MAP[21]="                                                                        "
+
+# Airport and common shorthand codes that turn up in router names, pointing at
+# the tzdata place that has the coordinates.
+CODE[lhr]=london;      CODE["lon"]=london;      CODE[ldn]=london
+CODE[man]=london;      CODE[jfk]=new_york;    CODE[nyc]=new_york
+CODE[ewr]=new_york;    CODE[lga]=new_york;    CODE[iad]=new_york
+CODE[dca]=new_york;    CODE[bos]=new_york;    CODE[lax]=los_angeles
+CODE[sfo]=los_angeles; CODE[sjc]=los_angeles; CODE[sea]=los_angeles
+CODE[ord]=chicago;     CODE[chi]=chicago;     CODE[dfw]=chicago
+CODE[atl]=new_york;    CODE[mia]=new_york;    CODE[den]=denver
+CODE[yyz]=toronto;     CODE[tor]=toronto;     CODE[yul]=toronto
+CODE[ams]=amsterdam;   CODE[fra]=berlin;      CODE[dus]=berlin
+CODE[ber]=berlin;      CODE[muc]=berlin;      CODE[ham]=berlin
+CODE[cdg]=paris;       CODE[par]=paris;       CODE[mrs]=paris
+CODE[mad]=madrid;      CODE[bcn]=madrid;      CODE[lis]=lisbon
+CODE[mxp]=rome;        CODE[mil]=rome;        CODE[rom]=rome
+CODE[zrh]=zurich;      CODE[gva]=zurich;      CODE[vie]=vienna
+CODE[waw]=warsaw;      CODE[prg]=prague;      CODE[bud]=budapest
+CODE[arn]=stockholm;   CODE[sto]=stockholm;   CODE[cph]=copenhagen
+CODE[osl]=oslo;        CODE[hel]=helsinki;    CODE[dub]=dublin
+CODE[otp]=bucharest;   CODE[sof]=sofia;       CODE[ath]=athens
+CODE[ist]=istanbul;    CODE[dxb]=dubai;       CODE[doh]=qatar
+CODE[sin]=singapore;   CODE[hkg]=hong_kong;   CODE[nrt]=tokyo
+CODE[tyo]=tokyo;       CODE[hnd]=tokyo;       CODE[icn]=seoul
+CODE[sel]=seoul;       CODE[syd]=sydney;      CODE[mel]=melbourne
+CODE[per]=perth;       CODE[bne]=brisbane;    CODE[akl]=auckland
+CODE[bom]=kolkata;     CODE[del]=kolkata;     CODE[maa]=kolkata
+CODE[blr]=kolkata;     CODE[gru]=sao_paulo;   CODE[sao]=sao_paulo
+CODE[eze]=buenos_aires; CODE[scl]=santiago;   CODE[jnb]=johannesburg
+CODE[cpt]=johannesburg; CODE[nbo]=nairobi;    CODE[los]=lagos
+CODE[cai]=cairo;       CODE[tlv]=jerusalem;   CODE[mos]=moscow
+CODE[svo]=moscow;      CODE[led]=moscow;      CODE[londen]=london
+CODE[frnkge]=berlin;   CODE[nycmny]=new_york; CODE[sngpsi]=singapore
+CODE[amstnl]=amsterdam; CODE[tokyjp]=tokyo;   CODE[snjsca]=los_angeles
+
+# Read every place tzdata knows, with its coordinates in hundredths of a
+# degree so the whole thing stays in integers.
+geo_load() {
+  local line co tz city ld lm od om
+  while read -r line; do
+    case "$line" in \#*|"") continue ;; esac
+    match "$line" "^[^	]*	([^	]*)	([^	]*)" || continue
+    co="${M[1]}"
+    tz="${M[2]}"
+    match "$co" "^([+-])([0-9]{2})([0-9]{2})([0-9]{2})?([+-])([0-9]{3})([0-9]{2})" || continue
+    ld="${M[2]#0}"
+    lm="${M[3]#0}"
+    od="${M[6]#0}"
+    od="${od#0}"
+    om="${M[7]#0}"
+    city=$(str lower "${tz##*/}")
+    GEO[$city]["lat"]=$(( ${ld:-0} * 100 + ${lm:-0} * 100 / 60 ))
+    GEO[$city]["lon"]=$(( ${od:-0} * 100 + ${om:-0} * 100 / 60 ))
+    if [ "${M[1]}" = "-" ]; then GEO[$city]["lat"]=$(( 0 - ${GEO[$city]["lat"]} )); fi
+    if [ "${M[5]}" = "-" ]; then GEO[$city]["lon"]=$(( 0 - ${GEO[$city]["lon"]} )); fi
+  done < /usr/share/zoneinfo/zone1970.tab
+}
+
+# tzdata folds some capitals into a neighbour's zone -- Amsterdam into
+# Brussels, the Nordic capitals into Berlin -- and using the neighbour's
+# coordinates would put them several degrees out. These four are given
+# explicitly rather than approximated.
+geo_extra() {
+  GEO[amsterdam]["lat"]=5237;  GEO[amsterdam]["lon"]=489
+  GEO[stockholm]["lat"]=5933;  GEO[stockholm]["lon"]=1807
+  GEO[copenhagen]["lat"]=5568; GEO[copenhagen]["lon"]=1257
+  GEO[oslo]["lat"]=5991;       GEO[oslo]["lon"]=1075
+}
+
+# Find a place name or airport code among a hostname's parts.
+locate() {
+  local hn=$1 part
+  PLACE=""
+  [ -z "$hn" ] && return 1
+  hn=$(str lower "$hn")
+  hn=$(rsub -g "$hn" "[0-9.]+" " ")
+  hn=$(rsub -g "$hn" "[^a-z_]+" " ")
+  for part in $hn; do
+    if [ -n "${CODE[$part]}" ]; then
+      PLACE="${CODE[$part]}"
+      [ -n "${GEO[$PLACE]["lat"]}" ] && return 0
+    fi
+    if [ -n "${GEO[$part]["lat"]}" ]; then
+      PLACE="$part"
+      return 0
+    fi
+  done
+  PLACE=""
+  return 1
+}
+
+# Where a coordinate falls on the map, in whole cells.
+project() {
+  ROW=$(( ( (8000 - $1) * 21 + 7000 ) / 14000 ))
+  COL=$(( ( ($2 + 18000) * 71 + 18000 ) / 36000 ))
+  [ "$ROW" -lt 0 ] && ROW=0
+  [ "$ROW" -ge "$H" ] && ROW=$(( H - 1 ))
+  [ "$COL" -lt 0 ] && COL=0
+  [ "$COL" -ge "$W" ] && COL=$(( W - 1 ))
+  return 0
+}
+
+# Latency to a colour, and to the character a link is drawn with.
+grade() {
+  local ms=${1%%.*}
+  if [ "$ms" -lt 25 ]; then   TONE=46;  MARK="·"
+  elif [ "$ms" -lt 60 ]; then TONE=82;  MARK="·"
+  elif [ "$ms" -lt 120 ]; then TONE=226; MARK="•"
+  elif [ "$ms" -lt 250 ]; then TONE=208; MARK="•"
+  else                        TONE=196; MARK="◆"
+  fi
+}
+
+# Put one character on the canvas, never over a hop marker. Columns wrap,
+# because a link that leaves one edge of the map arrives at the other.
+plot() {
+  local r=$1 c=$2 ch=$3 tone=$4
+  [ "$r" -lt 0 ] && return 0
+  [ "$r" -ge "$H" ] && return 0
+  c=$(( (c % W + W) % W ))
+  [ "${CANV[$r][$c]["lock"]}" = 1 ] && return 0
+  CANV[$r][$c]["ch"]="$ch"
+  CANV[$r][$c]["tone"]="$tone"
+  return 0
+}
+
+# Draw the straight line between two cells, one cell at a time.
+link() {
+  local r0=$1 c0=$2 r1=$3 c1=$4 tone=$5 ch=$6
+  local dr dc sr sc err e2
+  # Going the long way round the map is never what a cable does, so when the
+  # short way crosses the antimeridian, move the far end off the edge and let
+  # plot wrap it back.
+  if [ $(( c1 - c0 )) -gt $(( W / 2 )) ]; then c1=$(( c1 - W )); fi
+  if [ $(( c0 - c1 )) -gt $(( W / 2 )) ]; then c1=$(( c1 + W )); fi
+  dc=$(( c1 > c0 ? c1 - c0 : c0 - c1 ))
+  dr=$(( r1 > r0 ? r1 - r0 : r0 - r1 ))
+  sc=$(( c0 < c1 ? 1 : -1 ))
+  sr=$(( r0 < r1 ? 1 : -1 ))
+  err=$(( dc - dr ))
+  while true; do
+    plot "$r0" "$c0" "$ch" "$tone"
+    [ "$r0" -eq "$r1" ] && [ "$c0" -eq "$c1" ] && break
+    e2=$(( err * 2 ))
+    if [ "$e2" -gt $(( 0 - dr )) ]; then err=$(( err - dr )); c0=$(( c0 + sc )); fi
+    if [ "$e2" -lt "$dc" ]; then err=$(( err + dc )); r0=$(( r0 + sr )); fi
+  done
+}
+
+colour() { [ -t 1 ] && printf '\033[38;5;%sm' "$1"; }
+off()    { [ -t 1 ] && printf '\033[0m'; }
+
+geo_load
+geo_extra
+
+if [ "$demo" = 1 ]; then
+  # A route that does not exist, so the map can be seen working when the
+  # routers on a real path happen not to carry their cities in their names.
+  i=1
+  for leg in "ldn-b1.example.net 4" "ams03.example.net 12" \
+             "nyc1.example.net 78" "ord-core.example.net 96" \
+             "sfo-edge.example.net 141" "tokyo-jp1.example.net 226" \
+             "syd-sy3.example.net 288"; do
+    set -- $leg
+    TRACE[$i]["ip"]="198.51.100.$i"
+    TRACE[$i]["host"]="$1"
+    TRACE[$i]["rtt"]="$2.00"
+    i=$(( i + 1 ))
+  done
+  TRACE[0]["hops"]=$(( i - 1 ))
+  host="the demo route"
+else
+  trace -q -m "$hops" -w "$wait" "$host" || exit 1
+fi
+n=${TRACE[0]["hops"]}
+
+# Walk the hops, placing the ones whose names give them away.
+placed=0
+prow=""
+pcol=""
+i=1
+while [ "$i" -le "$n" ]; do
+  ip="${TRACE[$i]["ip"]}"
+  if [ -n "$ip" ] && locate "${TRACE[$i]["host"]}"; then
+    project "${GEO[$PLACE]["lat"]}" "${GEO[$PLACE]["lon"]}"
+    grade "${TRACE[$i]["rtt"]}"
+    if [ -n "$prow" ]; then
+      link "$prow" "$pcol" "$ROW" "$COL" "$TONE" "$MARK"
+    fi
+    CANV[$ROW][$COL]["ch"]="◉"
+    CANV[$ROW][$COL]["tone"]="$TONE"
+    CANV[$ROW][$COL]["lock"]=1
+    CANV[$ROW][$COL]["name"]="$PLACE"
+    prow=$ROW
+    pcol=$COL
+    placed=$(( placed + 1 ))
+    HOPPLACE[$i]="$PLACE"
+  fi
+  i=$(( i + 1 ))
+done
+
+# Draw: the land underneath, whatever the route put on top.
+echo
+r=0
+while [ "$r" -lt "$H" ]; do
+  line="${MAP[$r]}"
+  c=0
+  out=""
+  while [ "$c" -lt "$W" ]; do
+    ch="${CANV[$r][$c]["ch"]}"
+    if [ -n "$ch" ]; then
+      out="$out$(colour "${CANV[$r][$c]["tone"]}")$ch$(off)"
+    else
+      bg="${line:$c:1}"
+      if [ "$bg" = "#" ]; then
+        out="$out$(colour 238)·$(off)"
+      else
+        out="$out "
+      fi
+    fi
+    c=$(( c + 1 ))
+  done
+  echo "$out"
+  r=$(( r + 1 ))
+done
+echo
+
+# And the list, so the unplaced hops are visible rather than silently missing.
+printf '%-4s %-16s %9s  %s\n' hop address rtt where
+i=1
+while [ "$i" -le "$n" ]; do
+  ip="${TRACE[$i]["ip"]}"
+  if [ -z "$ip" ]; then
+    printf '%-4s %-16s %9s  %s\n' "$i" "*" "" ""
+  else
+    where="${HOPPLACE[$i]}"
+    if [ -n "$where" ]; then
+      grade "${TRACE[$i]["rtt"]}"
+      printf '%-4s %-16s %8sms  ' "$i" "$ip" "${TRACE[$i]["rtt"]}"
+      colour "$TONE"; printf '%s' "$where"; off; echo
+    else
+      printf '%-4s %-16s %8sms  %s\n' "$i" "$ip" "${TRACE[$i]["rtt"]}" \
+        "${TRACE[$i]["host"]:-unplaced}"
+    fi
+  fi
+  i=$(( i + 1 ))
+done
+echo
+echo "$placed of $n hops placed; the rest have no city or airport code in their names."

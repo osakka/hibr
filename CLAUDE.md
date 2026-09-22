@@ -28,7 +28,7 @@ Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 11).
     make install         # PREFIX=/usr/local, modules to $(PREFIX)/lib/hibr
     ./build/hibr -n script      # parse only
 
-    tests/run.sh [-v] [prefix]           # C-side harness, 66 tests
+    tests/run.sh [-v] [prefix]           # C-side harness, 67 tests
     ./build/hibr tests/self.hibr                 # suite in hibr, 91 assertions, planned
     python3 tests/editor.py                      # the line editor, through a pty
     python3 tests/screen.py                      # the screen module, through a pty
@@ -100,6 +100,7 @@ linked, and no OpenSSL headers are needed to build.
 | `mods/prompt/` | the prompt module, including a native reader for git's object store — see `mods/README.md` for the file-by-file breakdown |
 | `mods/screen/` | the screen layer: alternate screen, cell grid with damage-based redraw, panes, decoded keys — see `mods/screen/README.md` |
 | `mods/cat/` | `cat` that is byte-identical in a pipe and useful on a terminal — see `mods/cat/README.md` |
+| `mods/trace/` | unprivileged traceroute over UDP with `IP_RECVERR` — see `mods/trace/README.md` |
 
 Each directory carries its own `README.md` with the detail: `src/`, `include/`,
 `mods/`, `tests/`, `examples/`. User-facing documentation is under `docs/`, and
@@ -242,6 +243,22 @@ were each run and their real output pasted back; keep it that way.
   cost 7% on tight loops. A builtin that grows an interest in its arguments'
   quoting has to be added to that list, and `command` must keep forwarding
   `sh.amask + 1` with its shifted `argv`.
+- **An unquoted subscript is looked up as a variable first.** `${TRACE[0][hops]}`
+  reads the *variable* `hops` when one exists and is numeric, so a script with
+  its own `hops=20` silently addresses key 20 instead of key "hops" and gets
+  nothing. Quote every literal subscript — `${TRACE[0]["hops"]}` — which is
+  what ADR 0006 says and what this cost an hour to rediscover.
+- **`rsub` replaces one match unless given `-g`.** A hostname cleaned with an
+  ungreedy `rsub` keeps most of its dots, and the leftover text then reaches an
+  arithmetic subscript and errors there, several steps from the cause.
+- **Leading zeros are octal in arithmetic.** tzdata writes longitudes as `074`,
+  which evaluates to 60 rather than 74 and puts a place fourteen degrees out.
+  Strip them before the arithmetic sees them; bash does the same thing.
+- **A map drawn by eye is wrong.** The world map in `examples/traceroute.hibr`
+  scored 46% when hand-drawn — over half of real places fell in the sea. It is
+  now written as longitude ranges per latitude band, which can be checked
+  against an atlas, and scored against every coordinate in `zone1970.tab`. Do
+  not adjust it by eye; re-score it.
 - **A tool that writes to standard output must be plain in a pipe.** The cat
   module decides everything on `isatty(1)`: in a pipe it is byte-identical to
   `/bin/cat`, including `-n` and `-A`, which must produce GNU's bytes and not a

@@ -1,0 +1,8 @@
+0
+loaded
+no host rc=2
+bad option rc=2
+unresolvable rc=1
+target=127.0.0.1 ip=127.0.0.1
+second var target=127.0.0.1
+dropped

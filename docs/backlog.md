@@ -64,32 +64,45 @@ the pty line editor and the test suite are untested rather than known broken.
 
 ## Wanted
 
-### A visual traceroute with a world map
+### A visual traceroute with a world map — built
 
-Trace a route and draw it on an ASCII map, each hop plotted, the line coloured
-by latency.
+`mods/trace` plus `examples/traceroute.hibr`. The three things that looked hard
+turned out to have light answers, and one of them was not solved at all.
 
-What it needs, in order of how much it bites:
+**Getting the hops needs no privilege after all.** The entry used to say this
+needed a raw socket and therefore root. It does not: a UDP socket with
+`IP_RECVERR` set collects the ICMP complaints on its error queue, which
+`recvmsg(MSG_ERRQUEUE)` reads along with the address of the router that
+complained. That is how `tracepath` does it. The cost is that it is Linux's;
+elsewhere the builtin loads and refuses, saying why.
 
-- **Getting the hops at all.** Classic traceroute sends UDP with a rising TTL
-  and reads ICMP time-exceeded replies, and reading ICMP needs a raw socket,
-  which needs root or `CAP_NET_RAW`. The shell can already drop privileges
-  ([0016](adr/0016-privileges-are-dropped-never-gained.md)), so a module could
-  open the socket while still root and drop immediately after — the same shape
-  as binding a low port. The alternative is shelling out to `traceroute`, which
-  is against the point of an in-process module.
-- **Setting TTL per packet.** `setsockopt(IP_TTL)` is not reachable from the
-  language today. A module can call it directly on a descriptor the shell
-  owns, so this is a few lines, but it is a real gap worth its own builtin.
-- **Turning an address into a place.** A map needs coordinates, which means a
-  geo database on disk. That is data, not code, and it dates. Offline
-  MaxMind-style lookup is a file format to parse; the alternative is a network
-  service, which makes a traceroute tool depend on the network being up.
-- **The map itself.** The easy part. A coarse ASCII projection is a lookup
-  table, and the colour work is already done — the prompt module has a style
-  language that turns names into ANSI.
+**Setting the hop limit** was said to need a new builtin. It needed
+`setsockopt` inside the module, which is three lines.
 
-So: the drawing is an afternoon, the privilege and geo parts are the project.
+**Places need no database.** `/usr/share/zoneinfo/zone1970.tab` is public
+domain, already on every Unix, and holds 312 coordinates. Four capitals that
+tzdata folds into a neighbour's zone — Amsterdam and the Nordic ones — are
+given explicit coordinates rather than approximated by the neighbour, which
+would have been several degrees out.
+
+**The map was the easy part, as predicted, but not the way it was drawn.**
+Hand-drawing it by eye scored 46% — that is, over half of real places fell in
+the sea. The fix was to write the coastlines as longitude ranges per latitude
+band, so they can be checked against an atlas instead of counted in characters,
+and then to score the result against every coordinate in `zone1970.tab`. It is
+now 86%, and every remaining miss is an island smaller than the five degrees of
+longitude one column covers.
+
+**What is honestly not solved: locating an address.** A hop is placed when its
+reverse DNS carries a city name or an airport code. That is a convention, not a
+measurement — a router called `lon` is *said* to be in London by whoever named
+it, and one with no reverse DNS is not placed at all. The script says which
+hops it placed and which it did not, rather than guessing. Real geolocation
+still means a real database, and that remains a thing this does not do.
+
+Two small extras that would be worth having: a `--demo` route exists so the map
+can be seen working when a real path's routers happen to be anonymous, and the
+six-letter backbone codes (`londen`, `frnkge`) are only partly covered.
 
 ### A screen layer — built
 

@@ -81,6 +81,9 @@ Module builtins take precedence over the built-in ones; lookup order is alias,
 function, module, builtin, `PATH`.
 
 Reference modules in `mods/`:
+- **`trace`** traces a route with no privileges, using `IP_RECVERR` rather than
+  a raw socket, and puts the hops in a map. `examples/traceroute.hibr` draws
+  them on a world map.
 - **`cat`** is `cat` byte for byte in a pipe, and adds a gutter, visible control
   bytes and lexical colour when standard output is a terminal.
 - **`screen`** owns the terminal so other tools do not have to: an alternate
