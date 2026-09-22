@@ -223,6 +223,22 @@ struct sh {
 	unsigned ncap;
 };
 
+#ifndef HIBR_MTIM
+#ifdef __APPLE__
+#define HIBR_MTIM(st) ((st).st_mtimespec)
+#define HIBR_ATIM(st) ((st).st_atimespec)
+#else
+#define HIBR_MTIM(st) ((st).st_mtim)
+#define HIBR_ATIM(st) ((st).st_atim)
+#endif
+#endif
+
+int u8len(unsigned char c);
+int u8dec(const char *p, size_t n, unsigned *cp);
+int u8w(unsigned c);
+int ed_cols(void);
+int ed_width(const char *p);
+
 typedef int (*hibr_fn)(sh *s, int ac, char **av);
 
 typedef struct hibr_bi { const char *nm; hibr_fn fn; const char *hp; } hibr_bi;

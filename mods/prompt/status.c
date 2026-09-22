@@ -29,7 +29,7 @@ int st_statsame(gidx *x, struct ie *e, struct stat *st)
 		return 0;
 	if (e->mtim != (unsigned)st->st_mtime)
 		return 0;
-	if (e->mtin && e->mtin != (unsigned)st->st_mtim.tv_nsec)
+	if (e->mtin && e->mtin != (unsigned)HIBR_MTIM(*st).tv_nsec)
 		return 0;
 	if (x->mtim && (x->mtim < e->mtim ||
 			(x->mtim == e->mtim && x->mtimns <= e->mtin)))

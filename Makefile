@@ -2,9 +2,19 @@ CC = tcc
 TLS ?= 1
 OPT ?=
 CFLAGS = -Iinclude -Wall $(OPT)
-LDFLAGS = -rdynamic -ldl
+UNAME := $(shell uname -s)
 ifeq ($(TLS),1)
 CFLAGS += -DHIBR_TLS
+endif
+
+# Darwin keeps dlopen in libc, spells -rdynamic differently, and builds shared
+# objects with -dynamiclib. Everything else uses the Linux and BSD spelling.
+ifeq ($(UNAME),Darwin)
+LDFLAGS = -Wl,-export_dynamic
+SOFLAGS = -dynamiclib -undefined dynamic_lookup
+else
+LDFLAGS = -rdynamic -ldl
+SOFLAGS = -shared
 endif
 
 B = build
@@ -33,10 +43,10 @@ $(BIN): $(SRC) include/hibr.h include/pri.h $(B)/.moddir | $(B)/mods
 	$(CC) $(SHCFLAGS) $(LDFLAGS) -o $@ $(SRC)
 
 $(B)/mods/prompt.so: $(PROMPT_SRC) include/hibr.h mods/prompt/pr.h | $(B)/mods
-	$(CC) $(CFLAGS) -shared -o $@ $(PROMPT_SRC)
+	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(PROMPT_SRC)
 
 $(B)/mods/%.so: mods/%.c include/hibr.h | $(B)/mods
-	$(CC) $(CFLAGS) -shared -o $@ $<
+	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $<
 
 strip: $(BIN)
 	strip $(BIN) || true

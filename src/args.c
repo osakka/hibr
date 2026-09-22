@@ -3,7 +3,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef __linux__
 #include <sys/prctl.h>
+#endif
+#ifdef __APPLE__
+#include <pthread.h>
+#endif
 #include <unistd.h>
 
 struct ospec {
@@ -80,7 +85,11 @@ int b_title(sh *s, int ac, char **av)
 	room = (size_t)(pt_end - pt_start);
 	memset(pt_start, 0, room);
 	memcpy(pt_start, t.p, t.n < room - 1 ? t.n : room - 1);
+#ifdef __linux__
 	prctl(PR_SET_NAME, (unsigned long)t.p, 0, 0, 0);
+#elif defined(__APPLE__)
+	pthread_setname_np(t.p);
+#endif
 	lg(HIBR_LDBG, "process title now %s", t.p);
 	s_free(&t);
 	return HIBR_OK;

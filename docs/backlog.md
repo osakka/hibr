@@ -29,6 +29,30 @@ work today; a name with a `/` in it is opened directly and never searched for.
 Only a bare name goes through the search path. Nothing to do, recorded so the
 question is not asked twice.
 
+## Ports
+
+### macOS
+
+Tracked as a ticket; the state of play lives here so it is not rediscovered.
+
+Dealt with: `sys/prctl.h` does not exist on Darwin, so `title` sets the comm
+name behind an `#ifdef` and keeps the portable argv rewrite that is what `ps`
+actually reads; the link flags, since Darwin keeps `dlopen` in libc, spells
+`-rdynamic` as `-Wl,-export_dynamic` and wants `-dynamiclib` rather than
+`-shared`; and `struct stat`'s nanosecond fields, `st_mtim` against
+`st_mtimespec`, now behind `HIBR_MTIM` and `HIBR_ATIM` in `hibr.h`. That last
+one is not cosmetic — the racy-index rule compares nanoseconds, and losing it
+silently would make the prompt rehash the whole tree on every draw.
+
+Still open: `tcc` almost certainly does not work on arm64 Darwin, so macOS
+probably means `make CC=gcc` and that needs deciding rather than assuming;
+`/proc/meminfo` in the prompt module has no Darwin equivalent and should report
+nothing rather than a wrong number; whether modules should follow the `.dylib`
+convention when `m_open` only appends `.so`; and the sonames `libssl` is
+`dlopen`ed by, which differ and are not on the default search path under
+Homebrew. Job control, the pty line editor and the test suite are untested
+rather than known broken.
+
 ## Wanted
 
 ### A visual traceroute with a world map

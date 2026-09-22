@@ -193,7 +193,7 @@ gidx *ix_read(grepo *g)
 	x->ver = ix_be32(p + 4);
 	cnt = ix_be32(p + 8);
 	x->mtim = (unsigned)st.st_mtime;
-	x->mtimns = (unsigned)st.st_mtim.tv_nsec;
+	x->mtimns = (unsigned)HIBR_MTIM(st).tv_nsec;
 	if (x->ver < 2 || x->ver > 4) {
 		lg(HIBR_LWRN, "index version %u unsupported", x->ver);
 		munmap(p, n);
