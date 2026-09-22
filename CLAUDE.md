@@ -339,9 +339,9 @@ were each run and their real output pasted back; keep it that way.
   heap: 29 kB of a 1792 kB resident set is heap, so there is no allocator work
   left that would move it. Shrinking it means less code. The README says so.
   Measure memory as a median of many runs; the spread is about 180 kB.
-- `set -S` stays opt-in; measured in `docs/adr/0009`. Worth revisiting: its
-  empty-expansion rule is stricter than zsh's for no protection, and is most of
-  what would break if it ever became the default.
+- `set -S` stays opt-in, measured in `docs/adr/0009`. It now changes a working
+  script in exactly one way -- an expansion stops splitting -- since the empty
+  rule was aligned with zsh. The remaining 31% is scripts that meant to split.
 - Prompt status divergences from git, all deliberate: renames are matched only
   on identical content, submodule working trees are not inspected, and `**` in
   the middle of a gitignore pattern behaves as `*`.

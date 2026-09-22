@@ -1350,7 +1350,7 @@ normal:
 	} else if (fl & HIBR_XONE) {
 		xout(s, out, outm, b->p ? b->p : "", m->p, b->n);
 	} else if (!b->n) {
-		if (w_hasq(w) || (s->strict && w->p && w->p->k != P_TXT))
+		if (w_hasq(w))
 			xout(s, out, outm, "", 0, 0);
 	} else {
 		xsplit(s, b, m, out, outm);

@@ -311,8 +311,11 @@ echo "strict:  $(count $f) $(count $empty)"
 
 ```
 default: 2 0
-strict:  1 1
+strict:  1 0
 ```
+
+An empty expansion still disappears under `-S`, the same as it does by default
+and the same as in zsh; only a quoted `"$empty"` gives an empty argument.
 
 A glob behaves the same way: `count $g` with `g="*.c"` counts every `.c` file by
 default and exactly one argument — the literal `*.c` — under `set -S`.

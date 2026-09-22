@@ -10,6 +10,9 @@ count $f
 count $g
 count $list
 count $empty
+# Under -S an expansion never splits and never globs, so the first three give
+# one argument each. An empty one still gives none, as zsh does and as the
+# default does -- that is the one place -S used to be stricter than either.
 echo "--- strict:"
 set -S
 count $f

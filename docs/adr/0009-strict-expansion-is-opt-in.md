@@ -36,45 +36,47 @@ stated justification for the option, which is a good argument for running the
 example before writing the record. `-S` protects the value that *arrives* in a
 word, not the word you typed.
 
-## Should it be the default
+## An empty expansion still disappears
 
-Measured, which is what this record previously said had not been done. Realistic
-snippets were run under both settings and grouped by what the expanded variable
-held:
-
-| what the variable holds | snippets using it | answer changed under `-S` |
-|---|---|---|
-| a single word | 247 | 1 (0%) |
-| several words | 247 | 79 (31%) |
-| a glob pattern | 247 | 1 (0%) |
-| nothing at all | 247 | 74 (29%) |
-
-For the ordinary case — a variable holding one word — `-S` is invisible. All of
-the change is in two idioms, and both are everywhere in real scripts:
-`for x in $LIST` relies on splitting, and `cmd $OPTIONAL_FLAGS` relies on an
-empty expansion disappearing. In the 169 system scripts on this machine, 78%
-contain an unquoted expansion and 22% use one of those two idioms directly.
-
-So it stays opt-in. Roughly a third of either idiom changes meaning, which is
-too much to take by default for a benefit that is invisible in the common case.
-
-## One thing worth revisiting
-
-hibr's `-S` makes an empty expansion produce one empty argument. zsh, which has
-suppressed splitting by default for decades, makes it produce none:
+`-S` used to make an empty expansion produce one empty argument. It no longer
+does, which puts it exactly where zsh has been for decades:
 
 | | `$empty` | `$multi` | `$glob` |
 |---|---|---|---|
 | bash, and hibr by default | 0 args | 2 args | 1 |
 | zsh | 0 args | 1 arg | 1 |
-| hibr with `-S` | **1 arg** | 1 arg | 1 |
+| hibr with `-S` | 0 args | 1 arg | 1 |
 
-The empty rule is the one place `-S` is stricter than zsh, and it is the whole
-of the fourth row above — a separate population from the third, not part of it.
-It does not buy the protection this record used to claim for it. Aligning with
-zsh would remove one of the two ways `-S` changes a working script, leaving it
-protecting exactly what it protects today: `for x in $LIST` would still have to
-be rewritten, and `cmd $OPTIONAL_FLAGS` would not.
+That rule was the one place `-S` was stricter than either, and it bought none
+of the protection this record used to claim for it — an empty `$dir` in
+`$dir/*` was never what `-S` guarded against. What it cost was every
+`cmd $OPTIONAL_FLAGS` in every script. A quoted `"$empty"` still gives one
+empty argument, in both modes, as everywhere else.
+
+## Should it be the default
+
+Measured, which is what this record previously said had not been done. Realistic
+snippets were run under both settings, grouped by what the expanded variable
+held, before and after the empty rule changed:
+
+| what the variable holds | changed under `-S`, before | after |
+|---|---|---|
+| a single word | 0% | 0% |
+| a glob pattern | 0% | 0% |
+| nothing at all | 29% | **0%** |
+| several words | 31% | 31% |
+
+`-S` now changes a working script in exactly one way: it stops an expansion
+splitting. That is the whole feature, and the remaining 31% is scripts that
+meant to split — `for x in $LIST`, `cmd $FLAGS`. In the 169 system scripts on
+this machine, 78% contain an unquoted expansion and 22% use one of those idioms
+directly.
+
+So it stays opt-in. A third of a very common idiom is still too much to change
+by default, and the case for `-S` was never that splitting is rare — it is that
+splitting is rarely *meant* at the call site where it bites. Turning it on for
+a script you are writing is cheap; turning it on for scripts someone else wrote
+is not.
 
 ---
 
