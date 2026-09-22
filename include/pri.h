@@ -97,6 +97,7 @@ int w_simple(word *w);
 extern const char w_meta[256];
 int w_simple(word *w);
 char *xnum(sh *s, long v);
+char *xclock(sh *s);
 char *xcap(sh *s, const char *src);
 char *xpat(sh *s, word *w);
 char *xone(sh *s, word *w);

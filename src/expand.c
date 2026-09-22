@@ -84,7 +84,38 @@ const char *xval(sh *s, const char *k)
 		return xnum(s, (long)(rand() % 32768));
 	if (!strcmp(k, "SECONDS"))
 		return xnum(s, (long)time(0) - s->t0);
+	if (k[0] == 'E' && !strncmp(k, "EPOCH", 5)) {
+		if (!strcmp(k + 5, "REALTIME"))
+			return xclock(s);
+		if (!strcmp(k + 5, "SECONDS"))
+			return xnum(s, (long)time(0));
+	}
 	return 0;
+}
+
+/* Render the wall clock as bash's EPOCHREALTIME does: seconds, a point, and
+   six digits of microseconds. */
+char *xclock(sh *s)
+{
+	struct timespec ts;
+	char *sec, *p;
+	size_t n;
+	long us;
+	int i;
+
+	clock_gettime(CLOCK_REALTIME, &ts);
+	sec = xnum(s, (long)ts.tv_sec);
+	n = strlen(sec);
+	p = ar_alloc(s->xa, n + 8);
+	memcpy(p, sec, n);
+	p[n] = '.';
+	us = ts.tv_nsec / 1000;
+	for (i = 6; i >= 1; i--) {
+		p[n + i] = (char)('0' + us % 10);
+		us /= 10;
+	}
+	p[n + 7] = 0;
+	return p;
 }
 
 /* List the positional parameters for slicing, element zero being $0. */

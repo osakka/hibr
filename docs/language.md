@@ -44,8 +44,8 @@ spoken to with the same `send` and `recv` as a socket. `mapfile` / `readarray`,
 `wait -n [-p var]`, `trap … DEBUG` (the command is in `$CMD`), `hash`, `ulimit`,
 `|&` and `printf '%(fmt)T'` are all there too.
 
-**Special variables.** `$@ $* $# $? $$ $! $0–$9 $RANDOM $SECONDS $PPID $UID
-$EUID $HOSTNAME $HIBR_VERSION $HIBR_ABI`, plus `$RET`, `$ERRMSG`, `$ERR`, `$ERRSTATUS`,
+**Special variables.** `$@ $* $# $? $$ $! $0–$9 $RANDOM $SECONDS $EPOCHSECONDS
+$EPOCHREALTIME $PPID $UID $EUID $HOSTNAME $HIBR_VERSION $HIBR_ABI`, plus `$RET`, `$ERRMSG`, `$ERR`, `$ERRSTATUS`,
 `$REMOTE` and `$M`. `$$` is fixed at startup, so it is the same inside every
 subshell. `$HIBR_VERSION` holds the version and nothing else does, so it is
 the way to ask which shell is running. It is set at startup over anything
