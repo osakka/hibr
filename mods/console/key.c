@@ -174,7 +174,9 @@ void cn_ctrl(str *o, unsigned char c)
 	}
 }
 
-/* Decode one mouse report in SGR form. */
+/* Decode one mouse report in SGR form: \e[<b;col;rowM for a press or a drag,
+   the same with a trailing m for a release. The button number carries the
+   modifiers and whether it is a drag or the wheel. */
 int cn_mouse(const char *p, size_t n, str *o, size_t *used)
 {
 	int b = 0, x = 0, y = 0, i = 3, rel;
@@ -197,22 +199,36 @@ int cn_mouse(const char *p, size_t n, str *o, size_t *used)
 		return -1;
 	rel = p[i] == 'm';
 	s_cat(o, "mouse ");
-	if (b & 64)
+	if (b & 16)
+		s_cat(o, "ctrl-");
+	if (b & 8)
+		s_cat(o, "alt-");
+	if (b & 4)
+		s_cat(o, "shift-");
+	if (b & 64) {
 		s_cat(o, b & 1 ? "wheeldown" : "wheelup");
-	else if (rel)
-		s_cat(o, "release");
-	else if ((b & 3) == 0)
-		s_cat(o, "left");
-	else if ((b & 3) == 1)
-		s_cat(o, "middle");
-	else if ((b & 3) == 2)
-		s_cat(o, "right");
-	else
-		s_cat(o, "move");
+	} else {
+		s_cat(o, rel ? "release" : (b & 32 ? "drag" : "press"));
+		s_ch(o, ' ');
+		switch (b & 3) {
+		case 0:
+			s_cat(o, "left");
+			break;
+		case 1:
+			s_cat(o, "middle");
+			break;
+		case 2:
+			s_cat(o, "right");
+			break;
+		default:
+			s_cat(o, "none");
+		}
+	}
+	/* Row then column, both counted from zero like everything else here. */
 	s_ch(o, ' ');
-	s_num(o, (long)y);
+	s_num(o, (long)y - 1);
 	s_ch(o, ' ');
-	s_num(o, (long)x);
+	s_num(o, (long)x - 1);
 	*used = (size_t)i + 1;
 	return 1;
 }

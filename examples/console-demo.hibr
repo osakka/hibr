@@ -8,12 +8,15 @@ mod load ./build/mods/console.so 2>/dev/null || mod load console || {
 }
 
 console open || exit 1
+console mouse drag
 
 sz := console size
 set -- $sz
 rows=$1
 cols=$2
-last="(press something)"
+last="(press something, or click)"
+mrow=""
+mcol=""
 frames=0
 bytes=0
 
@@ -48,8 +51,16 @@ while true; do
 
   console pen 244
   console put -p body 7 0 "Arrows, function keys, ctrl and alt combinations,"
-  console put -p body 8 0 "mouse clicks and pasted text are all named."
+  console put -p body 8 0 "mouse clicks, drags, the wheel and pasted text are"
+  console put -p body 9 0 "all named. Click anywhere and watch the last key."
   console pen default
+
+  # a click paints where it landed, which is the whole point of knowing where
+  if [ -n "$mrow" ]; then
+    console pen black yellow
+    console put "$mrow" "$mcol" "X"
+    console pen default
+  fi
 
   console pen white 236
   console fill $((rows - 1)) 0 1 "$cols" " "
@@ -61,6 +72,13 @@ while true; do
   k := console key 1000
   if [ -n "$k" ]; then
     last="$k"
+    case "$k" in
+      "mouse press"*|"mouse drag"*)
+        set -- $k
+        mrow=$4
+        mcol=$5
+        ;;
+    esac
     case "$k" in
       q|ctrl-c) break ;;
     esac

@@ -138,6 +138,11 @@ What it deliberately does not do is in
 ncurses. The guide is [full-screen programs](display.md), the demo is
 `examples/console-demo.hibr`.
 
+The mouse is decoded too — presses, releases, drags, the wheel, and modifiers,
+in the same zero-based coordinates as `put`, so a click is a position. It is
+off until a program asks, because reporting takes the terminal's own text
+selection away from the person watching. The pager uses it for the wheel.
+
 Not there yet, and worth adding when something needs it: a scrolling region,
 so a pager can move a screenful without repainting it; and z-ordering for
 panes, which nothing has asked for.

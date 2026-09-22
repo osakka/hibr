@@ -21,6 +21,40 @@ static const char cn_leave[] = "\033[?25h\033[0m\033[?1002l\033[?1006l"
 			       "\033[?2004l\033[?1049l";
 static const char cn_enter[] = "\033[?1049h\033[?25l\033[?2004h\033[2J";
 
+/* Named, so their lengths come from the compiler rather than from counting.
+   Counting by hand is what truncated the clear in cn_enter once already. */
+static const char cn_moff[] = "\033[?1003l\033[?1002l\033[?1000l\033[?1006l";
+static const char cn_mclick[] = "\033[?1000h\033[?1006h";
+static const char cn_mdrag[] = "\033[?1002h\033[?1006h";
+static const char cn_mmotion[] = "\033[?1003h\033[?1006h";
+
+/* Mouse reporting is off until something asks. Turning it on takes click and
+   drag text selection away from whoever is watching, which is too rude to do
+   to every full-screen program. 1006 is the SGR form, the only one that can
+   report a column past 223. */
+int cn_mousemode;
+
+void cn_wr(int fd, const char *p, size_t n);
+
+/* Ask the terminal for mouse reports, or stop asking. */
+void cn_mouseon(int mode)
+{
+	if (!cn_on) {
+		cn_mousemode = mode;
+		return;
+	}
+	if (cn_mousemode)
+		cn_wr(cn_fd, cn_moff, sizeof cn_moff - 1);
+	cn_mousemode = mode;
+	if (mode == 1)
+		cn_wr(cn_fd, cn_mclick, sizeof cn_mclick - 1);
+	else if (mode == 2)
+		cn_wr(cn_fd, cn_mdrag, sizeof cn_mdrag - 1);
+	else if (mode == 3)
+		cn_wr(cn_fd, cn_mmotion, sizeof cn_mmotion - 1);
+	lg(HIBR_LDBG, "mouse reporting mode %d", mode);
+}
+
 /* Write a whole buffer, retrying a short or interrupted write. */
 void cn_wr(int fd, const char *p, size_t n)
 {
@@ -147,6 +181,11 @@ int cn_open(sh *s)
 	cn_wr(cn_fd, cn_enter, sizeof cn_enter - 1);
 	cn_hook();
 	cn_on = 1;
+	if (cn_mousemode) {
+		int m = cn_mousemode;
+		cn_mousemode = 0;
+		cn_mouseon(m);
+	}
 	cn_winch = 0;
 	cn_size(&rows, &cols);
 	lg(HIBR_LDBG, "screen open, %d rows by %d columns", rows, cols);
@@ -160,6 +199,7 @@ void cn_close(sh *s)
 	(void)s;
 	if (!cn_on)
 		return;
+	cn_wr(cn_fd, cn_moff, sizeof cn_moff - 1);
 	cn_wr(cn_fd, cn_leave, sizeof cn_leave - 1);
 	tcsetattr(cn_fd, TCSADRAIN, &cn_sv);
 	cn_unhook();

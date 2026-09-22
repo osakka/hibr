@@ -121,10 +121,10 @@ check("a hex colour becomes a true-colour SGR",
       b"38;2;255;136;0" in drawn(o))
 
 SEQ = [b"\x1b[A", b"\x1b[1;5C", b"\x1b[1;2B", b"\x01", b"\x1b[15~", b"\x1b[H",
-       b"\x1b[5~", b"\x1b[Z", b"\x1b[<0;12;3M", b"\x1bx", b"\xc3\xa9", b"\r",
+       b"\x1b[5~", b"\x1b[Z", b"\x1b[<0;13;4M", b"\x1bx", b"\xc3\xa9", b"\r",
        b"\x1b[200~pasted\x1b[201~", b"\x1b"]
 WANT = ["up", "ctrl-right", "shift-down", "ctrl-a", "f5", "home", "pageup",
-        "shift-tab", "mouse left 3 12", "alt-x", "é", "enter",
+        "shift-tab", "mouse press left 3 12", "alt-x", "é", "enter",
         "paste pasted", "escape"]
 o, _ = run('console open\ni=0\nwhile [ $i -lt %d ]; do\n'
            '  k := console key 2000\n  if [ -z "$k" ]; then break; fi\n'
@@ -133,6 +133,33 @@ o, _ = run('console open\ni=0\nwhile [ $i -lt %d ]; do\n'
 got = [m.decode("utf8", "replace") for m in re.findall(rb"KEY\[([^\]]*)\]", o)]
 for i, w in enumerate(WANT):
     check("key %-16s decodes" % repr(w), i < len(got) and got[i] == w)
+
+MOUSE = [b"\x1b[<0;13;4M", b"\x1b[<0;13;4m", b"\x1b[<2;40;10M",
+         b"\x1b[<32;41;10M", b"\x1b[<64;5;5M", b"\x1b[<65;5;5M",
+         b"\x1b[<16;7;7M", b"\x1b[<4;9;9M"]
+MWANT = ["mouse press left 3 12", "mouse release left 3 12",
+         "mouse press right 9 39", "mouse drag left 9 40",
+         "mouse wheelup 4 4", "mouse wheeldown 4 4",
+         "mouse ctrl-press left 6 6", "mouse shift-press left 8 8"]
+o, _ = run('console open\nconsole mouse drag\ni=0\nwhile [ $i -lt %d ]; do\n'
+           '  k := console key 2000\n  if [ -z "$k" ]; then break; fi\n'
+           '  echo "KEY[$k]"\n  i=$((i+1))\ndone\nconsole close\n' % len(MOUSE),
+           feed=MOUSE, wait=3)
+check("mouse reporting is asked for when wanted",
+      b"\x1b[?1002h" in o and b"\x1b[?1006h" in o)
+check("and turned off again on the way out",
+      b"\x1b[?1002l" in o or b"\x1b[?1000l" in o)
+mgot = [m.decode("utf8", "replace") for m in re.findall(rb"KEY\[([^\]]*)\]", o)]
+for mi, w in enumerate(MWANT):
+    check("%-28s decodes" % w, mi < len(mgot) and mgot[mi] == w)
+
+o, _ = run('console open\nconsole flush\nconsole close\n')
+check("mouse reporting is off unless asked for",
+      b"\x1b[?1002h" not in o and b"\x1b[?1000h" not in o
+      and b"\x1b[?1003h" not in o)
+
+o, _ = run('console mouse nonsense\n')
+check("a bad mouse mode is refused", b"usage" in o)
 
 o, st = run('console open\nconsole flush\nconsole key 5000\n',
             after=lambda pid, fd: os.kill(pid, signal.SIGINT), wait=1.5)
@@ -152,5 +179,5 @@ o, _ = run('console open\nconsole flush\nconsole key 3000\nconsole close\n'
 check("a resize interrupts the wait and is reported", counts(o) == [40, 100])
 
 print()
-print("%d passed, %d failed" % (len(WANT) + 21 - len(FAIL), len(FAIL)))
+print("%d passed, %d failed" % (len(WANT) + len(MWANT) + 25 - len(FAIL), len(FAIL)))
 sys.exit(1 if FAIL else 0)

@@ -275,6 +275,24 @@ were each run and their real output pasted back; keep it that way.
   rather than against bash, because bash's `cat` *is* `/bin/cat`. The fast path
   (`ct_raw`) never looks at a byte, which is why 100 MB costs 15 ms against
   `/bin/cat`'s 14; anything that inspects content has to stay off it.
+- **Mouse reporting is off until asked for, and the enable is easy to forget.**
+  The console shipped with the mouse *decoder* written and the *disable* in its
+  leave sequence, but nothing ever sent the enable -- so clicks produced
+  whatever the terminal does by default and the decoder never saw a report.
+  `console mouse click|drag|motion` turns it on; off stays the default because
+  reporting takes click-and-drag text selection away from whoever is watching.
+- **Never write a string's length by hand.** `sizeof x - 1` on a named
+  constant, or `strlen`. Counting escape sequences by eye has now cost two
+  bugs: a truncated `\e[2J` in the console's enter sequence, which left the
+  alternate screen unclear; and a four byte read past the end of the mouse
+  disable string, which ASan caught only because the mouse decoder was being
+  fed malformed reports at the time.
+- **Mouse reporting is off until asked for, and the enable is easy to forget.**
+  The console shipped with the mouse *decoder* written and the *disable* in its
+  leave sequence, but nothing ever sent the enable -- so clicks produced
+  whatever the terminal does by default and the decoder never saw a report.
+  `console mouse click|drag|motion` turns it on; off stays the default because
+  reporting takes click-and-drag text selection away from whoever is watching.
 - **A descriptor lives inside the object, so read it before dlclose.**
   `mod drop all` logged `m->m->nm` after unmapping the module and segfaulted.
   Take a copy of anything needed from the descriptor first.

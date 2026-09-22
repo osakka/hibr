@@ -379,6 +379,8 @@ int m_most(sh *s, int ac, char **av)
 		return HIBR_FAIL;
 	if (dp->open(s) != HIBR_OK)
 		return HIBR_FAIL;
+	if (dp->mouse)
+		dp->mouse(1);
 	memset(win, 0, sizeof win);
 	win[0].b = (ms_buf *)bufs.p[0];
 	win[1].b = (ms_buf *)bufs.p[bufs.n > 1 ? 1 : 0];
@@ -486,9 +488,11 @@ int m_most(sh *s, int ac, char **av)
 			break;
 		if (r == 0)
 			continue;
-		msg.n = 0;
-		if (msg.p)
-			msg.p[0] = 0;
+		if (!key.p || strncmp(key.p, "mouse ", 6)) {
+			msg.n = 0;
+			if (msg.p)
+				msg.p[0] = 0;
+		}
 		vh = nwin == 1 ? rows - status : (rows - status) / nwin - 1;
 		redraw = 1;
 		{
@@ -497,7 +501,33 @@ int m_most(sh *s, int ac, char **av)
 			long last = (long)w->b->lines.n - vh;
 			if (last < 0)
 				last = 0;
-			if (!strcmp(k, "q") || !strcmp(k, "ctrl-c")) {
+			if (!strncmp(k, "mouse ", 6)) {
+				/* row and column are the last two fields */
+				const char *r1 = strrchr(k, ' ');
+				const char *r0 = r1 ? r1 - 1 : 0;
+				while (r0 > k && *r0 != ' ')
+					r0--;
+				if (strstr(k, "wheelup")) {
+					w->top -= 3;
+				} else if (strstr(k, "wheeldown")) {
+					w->top += 3;
+				} else if (strstr(k, "press") && r0) {
+					long row = atol(r0 + 1);
+					if (row >= 0 && row < vh &&
+					    w->top + row < (long)w->b->lines.n) {
+						msg.n = 0;
+						if (msg.p)
+							msg.p[0] = 0;
+						s_cat(&msg, "line ");
+						s_num(&msg,
+						      w->top + row + 1);
+					}
+				}
+				if (w->top > last)
+					w->top = last;
+				if (w->top < 0)
+					w->top = 0;
+			} else if (!strcmp(k, "q") || !strcmp(k, "ctrl-c")) {
 				quit = 1;
 			} else if (!strcmp(k, "down") || !strcmp(k, "j") ||
 				   !strcmp(k, "enter")) {

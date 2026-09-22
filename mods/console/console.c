@@ -171,7 +171,7 @@ int m_console(sh *s, int ac, char **av)
 
 	if (ac < 2) {
 		lg(HIBR_LERR, "usage: console open|close|size|clear|pen|put|"
-			      "fill|cursor|flush|key|pane");
+			      "fill|cursor|flush|key|pane|mouse");
 		return 2;
 	}
 	if (!strcmp(sub, "open"))
@@ -190,6 +190,23 @@ int m_console(sh *s, int ac, char **av)
 		if (!s->bind)
 			printf("%d %d\n", rows, cols);
 		s_free(&k);
+		return HIBR_OK;
+	}
+	if (!strcmp(sub, "mouse")) {
+		const char *m = ac > 2 ? av[2] : "";
+		if (!strcmp(m, "off"))
+			cn_mouseon(0);
+		else if (!strcmp(m, "click"))
+			cn_mouseon(1);
+		else if (!strcmp(m, "drag"))
+			cn_mouseon(2);
+		else if (!strcmp(m, "motion"))
+			cn_mouseon(3);
+		else {
+			lg(HIBR_LERR,
+			   "usage: console mouse off|click|drag|motion");
+			return 2;
+		}
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "resized")) {
@@ -320,7 +337,7 @@ int m_console(sh *s, int ac, char **av)
 static const dp_api console_api = {
 	cn_open, cn_close, cn_isopen, cn_size, cn_resized, cn_pen,
 	cn_clear, cn_put, cn_fill, cn_cursor, cn_flush, cn_key,
-	cn_colour, cn_attr
+	cn_colour, cn_attr, cn_mouseon
 };
 
 /* Offer the drawing table to whatever else wants to draw. */

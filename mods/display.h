@@ -10,7 +10,7 @@
    anything reordered or removed breaks every tool already using it. */
 
 #ifndef DP_API_VER
-#define DP_API_VER 1u
+#define DP_API_VER 2u
 #endif
 
 #ifndef DP_ATTRS
@@ -47,6 +47,10 @@ struct dp_api {
 	int (*key)(int ms, str *out);
 	int (*colour)(const char *t, unsigned *out);
 	unsigned (*attr)(const char *t);
+	/* 0 none, 1 clicks, 2 clicks and drags, 3 every movement. Off unless
+	   asked for: reporting takes the terminal's own text selection away
+	   from whoever is watching. */
+	void (*mouse)(int mode);
 };
 
 #endif

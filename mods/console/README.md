@@ -45,6 +45,34 @@ has. A module named `sc_fini` is silently preempted by the shell's under
 `-rdynamic`, so the terminal would never have been put back and nothing would
 have crashed to say so. See the trap in `CLAUDE.md`.
 
+## The mouse
+
+Off until something asks for it:
+
+    console mouse click     # presses and releases
+    console mouse drag      # and dragging
+    console mouse motion    # and every movement, which is a lot
+    console mouse off
+
+**Off is the default on purpose.** Turning reporting on takes click-and-drag
+text selection away from whoever is watching, and that is too rude to do to
+every full-screen program.
+
+A report comes back through the same `key` call as everything else, named the
+same way:
+
+    mouse press left 3 12
+    mouse release left 3 12
+    mouse drag left 9 40
+    mouse wheelup 4 4
+    mouse ctrl-press left 6 6
+    mouse shift-press left 8 8
+
+Row then column, counted from zero, matching `put` — so a press can be used as
+a position without arithmetic. Modifiers prefix the action in the same order
+keys use. The SGR form (`1006`) is always requested alongside, because the
+older encoding cannot report a column past 223.
+
 ## Giving the terminal back
 
 The one thing a full-screen program must never do is leave a terminal in raw

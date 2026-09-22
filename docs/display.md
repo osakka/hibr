@@ -143,6 +143,41 @@ k := console key 1000
 if console resized; then relayout; console clear; fi
 ```
 
+## The mouse
+
+Nothing is reported until it is asked for, because reporting takes the
+terminal's own text selection away from the person watching:
+
+```sh
+console mouse click     # presses and releases
+console mouse drag      # and dragging
+console mouse motion    # and every movement
+console mouse off
+```
+
+Reports arrive through `console key` like any other key:
+
+```
+mouse press left 3 12        the action, the button, then row and column
+mouse release left 3 12
+mouse drag left 9 40
+mouse wheelup 4 4            the wheel has no button
+mouse ctrl-press left 6 6    modifiers prefix the action
+```
+
+Row and column count from zero, the same as `put`, so a click can be used as a
+position directly:
+
+```sh
+k := console key
+case "$k" in
+  "mouse press"*)
+    set -- $k
+    console put "$4" "$5" "X"
+    ;;
+esac
+```
+
 ## Panes
 
 A pane is a named rectangle. Writing through one uses the pane's own
