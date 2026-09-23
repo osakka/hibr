@@ -1,0 +1,259 @@
+#!/usr/bin/env hibr
+#
+# snake -- eat, grow, and do not bite yourself.
+#
+# The snake is a string of "row,col" cells, head first.  A step puts a new
+# head on the front and, unless it has just eaten, takes the tail off the
+# back; running into itself is a pattern match on that string.  No arrays,
+# no C: a game written in the shell, stepping on $EPOCHREALTIME.
+#
+# The board is the window.  A cell is two columns wide, because a terminal
+# cell is twice as tall as it is wide and a square board should look square.
+#
+#     arrows / hjkl   turn         p   pause
+#     space           start again
+
+app snake "Eat, grow, and do not bite yourself"
+
+declare -A SN
+SNAKE_BEST=0
+
+# Milliseconds since the epoch.  The point comes out and the last three
+# digits go; the whole part is never zero, so no leading zero reaches the
+# arithmetic and becomes octal.
+sn_now() {
+	local t=${EPOCHREALTIME/./}
+
+	ret $((t / 1000))
+}
+
+# A fresh snake of three in the middle, heading right, and something to eat.
+sn_new() {
+	local id=$1 r c now
+
+	r=${SN[$id]["rows"]}
+	c=${SN[$id]["cols"]}
+	r=$((r / 2))
+	c=$((c / 2))
+	SN[$id]["body"]="$r,$c $r,$((c - 1)) $r,$((c - 2))"
+	SN[$id]["dir"]=right
+	SN[$id]["q"]=
+	SN[$id]["score"]=0
+	SN[$id]["state"]=ready
+	sn_food "$id"
+	now := sn_now
+	SN[$id]["last"]=$now
+}
+
+# Put food on a free cell.  Random tries first, which is almost always
+# enough; a full scan if the board is so crowded that they keep missing.
+sn_food() {
+	local id=$1 rows cols body r c i=0
+
+	rows=${SN[$id]["rows"]}
+	cols=${SN[$id]["cols"]}
+	body=" ${SN[$id]["body"]} "
+	while [ "$i" -lt 64 ]; do
+		r=$((RANDOM % rows))
+		c=$((RANDOM % cols))
+		case $body in
+		*" $r,$c "*) i=$((i + 1)) ;;
+		*) SN[$id]["food"]="$r,$c"; return 0 ;;
+		esac
+	done
+	r=0
+	while [ "$r" -lt "$rows" ]; do
+		c=0
+		while [ "$c" -lt "$cols" ]; do
+			case $body in
+			*" $r,$c "*) ;;
+			*) SN[$id]["food"]="$r,$c"; return 0 ;;
+			esac
+			c=$((c + 1))
+		done
+		r=$((r + 1))
+	done
+	SN[$id]["food"]=
+}
+
+# How long a step takes: quicker as the snake grows, down to a floor.
+sn_period() {
+	local s=${SN[$1]["score"]} p
+
+	p=$((150 - s * 4))
+	[ "$p" -lt 60 ] && p=60
+	ret "$p"
+}
+
+# One step: turn if a turn is queued, move, then eat or die.
+sn_step() {
+	local id=$1 body head r c d q rows cols
+
+	body=${SN[$id]["body"]}
+	d=${SN[$id]["dir"]}
+	q=${SN[$id]["q"]}
+	if [ -n "$q" ]; then
+		d=${q%% *}
+		q=${q#"$d"}
+		SN[$id]["q"]=${q# }
+		SN[$id]["dir"]=$d
+	fi
+	head=${body%% *}
+	r=${head%,*}
+	c=${head#*,}
+	case $d in
+	up) r=$((r - 1)) ;;
+	down) r=$((r + 1)) ;;
+	left) c=$((c - 1)) ;;
+	right) c=$((c + 1)) ;;
+	esac
+	rows=${SN[$id]["rows"]}
+	cols=${SN[$id]["cols"]}
+	if [ "$r" -lt 0 ] || [ "$c" -lt 0 ] ||
+	   [ "$r" -ge "$rows" ] || [ "$c" -ge "$cols" ]; then
+		sn_over "$id"
+		return 0
+	fi
+	# The tail moves out of the way in the same step, so chasing it is safe.
+	if [ "$r,$c" != "${SN[$id]["food"]}" ]; then
+		body=${body% *}
+	fi
+	case " $body " in
+	*" $r,$c "*) sn_over "$id"; return 0 ;;
+	esac
+	SN[$id]["body"]="$r,$c $body"
+	if [ "$r,$c" = "${SN[$id]["food"]}" ]; then
+		d=${SN[$id]["score"]}
+		SN[$id]["score"]=$((d + 1))
+		sn_food "$id"
+	fi
+}
+
+sn_over() {
+	local s=${SN[$1]["score"]}
+
+	SN[$1]["state"]=over
+	[ "$s" -gt "$SNAKE_BEST" ] && SNAKE_BEST=$s
+}
+
+# Queue a turn, so two quick keys inside one step are both kept.  A turn
+# straight back into the snake's own neck is dropped, as is a repeat.
+sn_turn() {
+	local id=$1 d=$2 q last
+
+	q=${SN[$id]["q"]}
+	last=${q##* }
+	[ -z "$last" ] && last=${SN[$id]["dir"]}
+	case $last:$d in
+	up:down | down:up | left:right | right:left) return 0 ;;
+	esac
+	[ "$last" = "$d" ] && return 0
+	case $q in
+	*" "*) return 0 ;;
+	esac
+	SN[$id]["q"]="${q:+$q }$d"
+	[ "${SN[$id]["state"]}" = ready ] && SN[$id]["state"]=run
+	return 0
+}
+
+snake_open() {
+	SN[$1]["rows"]=0
+	SN[$1]["cols"]=0
+}
+
+# The board follows the window: a resize starts a new game on the new board,
+# since a snake cut in half by the edge is no fun for anyone.
+snake_draw() {
+	local id=$1 h=$2 w=$3 wr=$4 wc=$5
+	local rows=$((h - 1)) cols=$((w / 2)) now last p n=0 t cell r c st bar
+
+	if [ "$rows" != "${SN[$id]["rows"]}" ] || [ "$cols" != "${SN[$id]["cols"]}" ]; then
+		SN[$id]["rows"]=$rows
+		SN[$id]["cols"]=$cols
+		sn_new "$id"
+	fi
+	st=${SN[$id]["state"]}
+	now := sn_now
+	if [ "$st" = run ] && [ "$DT_FOCUS" = "$id" ]; then
+		last=${SN[$id]["last"]}
+		p := sn_period "$id"
+		# Catch up on missed steps, but not on a whole pause's worth.
+		while [ $((now - last)) -ge "$p" ] && [ "$n" -lt 4 ]; do
+			sn_step "$id"
+			last=$((last + p))
+			n=$((n + 1))
+			[ "${SN[$id]["state"]}" = run ] || break
+		done
+		[ $((now - last)) -ge "$p" ] && last=$now
+		SN[$id]["last"]=$last
+		dt_want "$p"
+	else
+		SN[$id]["last"]=$now
+	fi
+	st=${SN[$id]["state"]}
+
+	console pen "#cbd5e0" "#0b1a12"
+	console fill $((wr + 2)) $((wc + 1)) "$rows" $((cols * 2)) " "
+	cell=${SN[$id]["food"]}
+	if [ -n "$cell" ]; then
+		console pen "#f56565" "#0b1a12" bold
+		console put -p "w$id" $((${cell%,*} + 2)) $((${cell#*,} * 2 + 1)) "●"
+	fi
+	console pen "#276749" "#0b1a12"
+	for cell in ${SN[$id]["body"]}; do
+		r=${cell%,*}
+		c=${cell#*,}
+		console put -p "w$id" $((r + 2)) $((c * 2 + 1)) "██"
+	done
+	cell=${SN[$id]["body"]%% *}
+	[ "$st" = over ] && console pen "#f56565" "#0b1a12" || console pen "#68d391" "#0b1a12"
+	console put -p "w$id" $((${cell%,*} + 2)) $((${cell#*,} * 2 + 1)) "██"
+
+	console pen "#68d391" "$DT_FACE" bold
+	t="score ${SN[$id]["score"]}"
+	console put -p "w$id" 1 2 "$t"
+	console pen "#718096" "$DT_FACE"
+	case $st in
+	ready) bar="an arrow to start" ;;
+	pause) bar="paused -- p" ;;
+	over) bar="bitten -- space again" ;;
+	*) bar="best $SNAKE_BEST" ;;
+	esac
+	[ "$DT_FOCUS" != "$id" ] && [ "$st" = run ] && bar="paused -- click me"
+	console put -p "w$id" 1 $((w - ${#bar})) "$bar"
+}
+
+snake_key() {
+	local id=$1 st
+
+	st=${SN[$id]["state"]}
+	case $2 in
+	up | k) sn_turn "$id" up ;;
+	down | j) sn_turn "$id" down ;;
+	left | h) sn_turn "$id" left ;;
+	right | l) sn_turn "$id" right ;;
+	p)
+		case $st in
+		run) SN[$id]["state"]=pause ;;
+		pause) SN[$id]["state"]=run ;;
+		esac
+		;;
+	" " | space | enter) [ "$st" = over ] && sn_new "$id" ;;
+	*) return 1 ;;
+	esac
+	# Arrows are the snake's, even when it cannot use one right now: a lost
+	# arrow must not fall through and move the window instead.
+	return 0
+}
+
+snake_menus() {
+	dt_menu "Snake"
+	dt_item "New Game" n sn_new "$DT_FOCUS"
+	dt_item "Pause" p snake_key "$DT_FOCUS" p
+	dt_sep
+	dt_item "Close" w dt_close_focused
+}
+
+if [ -z "$DT_ROWS" ]; then
+	echo "snake: a desktop app; open it from the hibr menu"
+fi

@@ -57,9 +57,9 @@ these, and the window manager calls only the ones that exist:
 | function | called with | when |
 |---|---|---|
 | `hello_open` | `id` | once, when the window is made |
-| `hello_draw` | `id inner_h inner_w` | every frame |
+| `hello_draw` | `id inner_h inner_w row col` | every frame; `row col` is where the window is on screen, for `console fill`, which takes screen coordinates |
 | `hello_key` | `id key` | a key, while this window has focus |
-| `hello_click` | `id row col` | a click, in the same coordinates the app draws in |
+| `hello_click` | `id row col button` | a click, in the same coordinates the app draws in; `button` is `left`, `middle` or `right` |
 | `hello_wheel` | `id up\|down row col` | the wheel, over this window whether or not it has focus |
 | `hello_close` | `id` | once, when the window closes |
 
@@ -72,6 +72,31 @@ whatever the app wrote, so an app cannot damage its own border.
 is clicked at row 4. There is no separate body coordinate system to convert
 between; the window manager deals with row 0 itself, so an app never sees a
 click on its own title bar.
+
+**A window that animates asks for its next frame.** The desktop redraws on
+every key and otherwise every `DT_TICK` milliseconds, 200 by default. A game
+calls `dt_want 60` from its `_draw` to be drawn again within 60 ms. The
+request lasts one frame, so a game that is paused, hidden or not focused
+stops asking and the desktop goes back to idling. Step on the clock, not on
+frames: frames also come with every key, and a snake that moved once per
+frame would sprint while an arrow is held. `$EPOCHREALTIME` is the clock.
+
+## The apps
+
+In `examples/apps/`, each one also a file you can read in a sitting:
+
+| app | what it is |
+|---|---|
+| `files` | a file browser, with a scrollbar and the wheel |
+| `calc` | a calculator, and `hibr calc.hibr '3 * 4'` on its own |
+| `panel` | settings, and a list of the other windows |
+| `term` | a shell in a window. Each window is its own pty and its own session |
+| `snake` | arrows turn, `p` pauses. It speeds up as it grows |
+| `mines` | Minesweeper, 9 by 9 with ten mines. `space` or a click opens, `f` or a right click flags, and opening a number with its flags placed opens what is round it |
+| `bricks` | after Arkanoid: the arrows or a click move the bat, `space` serves. Where the ball lands on the bat sets its angle |
+
+A focused terminal gets every key except `f10`, so a program inside can have
+`escape`; `f10` is the way back to the menu bar.
 
 ## The menu bar
 
@@ -199,9 +224,8 @@ It is cooperative: one process, one loop, apps called in turn, so an app that
 takes a long time in `_draw` stalls the desktop. Windows snap to cells and
 cannot be transparent. Menus nest one level deep. There is no widget library — each app draws its own
 buttons, and if the same button code turns up in three apps, *then* it becomes
-one. There is no way yet to run a program that is not written in hibr inside a
-window; that needs a terminal emulator, which is the last thing on the list in
-the decision record.
+one. A terminal window keeps no scrollback, and the program inside it gets
+no mouse.
 
 ---
 

@@ -1,0 +1,313 @@
+#!/usr/bin/env hibr
+#
+# mines -- clear the field without stepping on anything.
+#
+# The board is three strings of one character per cell: where the mines are,
+# how many touch each cell, and what the player has seen.  A cell is read
+# with ${s:i:1} and written by slicing around it, and opening an empty
+# region is a loop over a stack of indices, so there is no recursion to run
+# out of and nothing here is not ordinary shell.
+#
+# The first cell opened is never a mine, nor is anything next to it: the
+# mines are laid only after the first click, around it.
+#
+#     arrows / hjkl   move          space / enter / click   open
+#     f / right-click flag          n                       new game
+#
+# Opening a number whose flags are all placed opens everything around it,
+# which is how the game is played quickly.
+
+app mines "Clear the field"
+
+declare -A MS
+MINES_ROWS=9
+MINES_COLS=9
+MINES_COUNT=10
+
+# Set character i of a board string.
+ms_set() {
+	local s=$1 i=$2
+
+	ret "${s:0:i}$3${s:i+1}"
+}
+
+# The cells around i, as indices, clipped to the board.
+ms_around() {
+	local i=$1 r c dr dc rr cc out=
+
+	r=$((i / MINES_COLS))
+	c=$((i % MINES_COLS))
+	for dr in -1 0 1; do
+		for dc in -1 0 1; do
+			[ "$dr$dc" = 00 ] && continue
+			rr=$((r + dr))
+			cc=$((c + dc))
+			[ "$rr" -lt 0 ] || [ "$cc" -lt 0 ] && continue
+			[ "$rr" -ge "$MINES_ROWS" ] || [ "$cc" -ge "$MINES_COLS" ] && continue
+			out="$out $((rr * MINES_COLS + cc))"
+		done
+	done
+	ret "${out# }"
+}
+
+ms_new() {
+	local id=$1 n=$((MINES_ROWS * MINES_COLS)) s
+
+	s := str repeat "." "$n"
+	MS[$id]["mine"]=$s
+	MS[$id]["near"]=$s
+	s := str repeat h "$n"
+	MS[$id]["seen"]=$s
+	MS[$id]["state"]=ready
+	MS[$id]["cur"]=$(((MINES_ROWS / 2) * MINES_COLS + MINES_COLS / 2))
+	MS[$id]["flags"]=0
+	MS[$id]["open"]=0
+	MS[$id]["t0"]=0
+	MS[$id]["t1"]=0
+}
+
+# Lay the mines anywhere but the first cell opened and its neighbours, then
+# count what touches every cell.
+ms_lay() {
+	local id=$1 safe=$2 n=$((MINES_ROWS * MINES_COLS)) mine near
+	local keep i k j a laid=0
+
+	mine=${MS[$id]["mine"]}
+	keep := ms_around "$safe"
+	keep=" $safe $keep "
+	while [ "$laid" -lt "$MINES_COUNT" ]; do
+		i=$((RANDOM % n))
+		case $keep in *" $i "*) continue ;; esac
+		[ "${mine:i:1}" = "*" ] && continue
+		mine := ms_set "$mine" "$i" "*"
+		laid=$((laid + 1))
+	done
+	near=
+	i=0
+	while [ "$i" -lt "$n" ]; do
+		k=0
+		a := ms_around "$i"
+		for j in $a; do
+			[ "${mine:j:1}" = "*" ] && k=$((k + 1))
+		done
+		near="$near$k"
+		i=$((i + 1))
+	done
+	MS[$id]["mine"]=$mine
+	MS[$id]["near"]=$near
+	MS[$id]["state"]=run
+	MS[$id]["t0"]=$EPOCHSECONDS
+}
+
+# Open a cell.  A mine ends the game; a zero opens its neighbours, and
+# theirs, until the region is bounded by numbers.
+ms_open() {
+	local id=$1 i=$2 seen mine near stack j a opened
+
+	[ "${MS[$id]["state"]}" = ready ] && ms_lay "$id" "$i"
+	[ "${MS[$id]["state"]}" = run ] || return 0
+	seen=${MS[$id]["seen"]}
+	[ "${seen:i:1}" = h ] || return 0
+	mine=${MS[$id]["mine"]}
+	near=${MS[$id]["near"]}
+	if [ "${mine:i:1}" = "*" ]; then
+		seen := ms_set "$seen" "$i" x
+		MS[$id]["seen"]=$seen
+		ms_end "$id" lost
+		return 0
+	fi
+	opened=${MS[$id]["open"]}
+	stack=$i
+	while [ -n "$stack" ]; do
+		i=${stack%% *}
+		if [ "$i" = "$stack" ]; then stack=; else stack=${stack#* }; fi
+		[ "${seen:i:1}" = h ] || continue
+		seen := ms_set "$seen" "$i" o
+		opened=$((opened + 1))
+		if [ "${near:i:1}" = 0 ]; then
+			a := ms_around "$i"
+			for j in $a; do
+				[ "${seen:j:1}" = h ] && stack="$j${stack:+ $stack}"
+			done
+		fi
+	done
+	MS[$id]["seen"]=$seen
+	MS[$id]["open"]=$opened
+	[ "$opened" -ge $((MINES_ROWS * MINES_COLS - MINES_COUNT)) ] &&
+		ms_end "$id" won
+	return 0
+}
+
+# Open a number's neighbours once as many flags as it says are round it.
+ms_chord() {
+	local id=$1 i=$2 seen near a j f=0
+
+	seen=${MS[$id]["seen"]}
+	near=${MS[$id]["near"]}
+	[ "${seen:i:1}" = o ] || return 0
+	a := ms_around "$i"
+	for j in $a; do
+		[ "${seen:j:1}" = f ] && f=$((f + 1))
+	done
+	[ "$f" = "${near:i:1}" ] || return 0
+	for j in $a; do
+		ms_open "$id" "$j"
+	done
+}
+
+ms_flag() {
+	local id=$1 i=$2 seen f
+
+	[ "${MS[$id]["state"]}" = run ] || return 0
+	seen=${MS[$id]["seen"]}
+	f=${MS[$id]["flags"]}
+	case ${seen:i:1} in
+	h) seen := ms_set "$seen" "$i" f; f=$((f + 1)) ;;
+	f) seen := ms_set "$seen" "$i" h; f=$((f - 1)) ;;
+	*) return 0 ;;
+	esac
+	MS[$id]["seen"]=$seen
+	MS[$id]["flags"]=$f
+}
+
+ms_end() {
+	MS[$1]["state"]=$2
+	MS[$1]["t1"]=$EPOCHSECONDS
+}
+
+# What the player acts on: open it, or if it is already open, chord it.
+ms_act() {
+	local seen=${MS[$1]["seen"]}
+
+	if [ "${seen:$2:1}" = o ]; then
+		ms_chord "$1" "$2"
+	else
+		ms_open "$1" "$2"
+	fi
+}
+
+mines_open() {
+	ms_new "$1"
+}
+
+mines_draw() {
+	local id=$1 h=$2 w=$3
+	local mine seen near cur st i=0 r c ch t secs left t0 t1
+	local cells=$((MINES_ROWS * MINES_COLS))
+
+	mine=${MS[$id]["mine"]}
+	seen=${MS[$id]["seen"]}
+	near=${MS[$id]["near"]}
+	cur=${MS[$id]["cur"]}
+	st=${MS[$id]["state"]}
+
+	while [ "$i" -lt "$cells" ]; do
+		r=$((3 + i / MINES_COLS))
+		c=$((2 + (i % MINES_COLS) * 3))
+		ch=${seen:i:1}
+		# A lost game shows every mine, and every flag that was wrong.
+		if [ "$st" = lost ] && [ "${mine:i:1}" = "*" ] && [ "$ch" = h ]; then
+			ch=m
+		fi
+		if [ "$st" = lost ] && [ "$ch" = f ] && [ "${mine:i:1}" != "*" ]; then
+			ch=w
+		fi
+		case $ch in
+		h) console pen "#718096" "#2d3748"; t=" · " ;;
+		f) console pen "#f56565" "#2d3748" bold; t=" ⚑ " ;;
+		x) console pen "#1a202c" "#f56565" bold; t=" ✱ " ;;
+		m) console pen "#e2e8f0" "#4a5568" bold; t=" ✱ " ;;
+		w) console pen "#f6ad55" "#2d3748" bold; t=" ✗ " ;;
+		o)
+			case ${near:i:1} in
+			0) console pen "#4a5568" "#101820"; t="   " ;;
+			1) console pen "#63b3ed" "#101820" bold ;;
+			2) console pen "#68d391" "#101820" bold ;;
+			3) console pen "#f56565" "#101820" bold ;;
+			4) console pen "#b794f4" "#101820" bold ;;
+			5) console pen "#f6ad55" "#101820" bold ;;
+			*) console pen "#4fd1c5" "#101820" bold ;;
+			esac
+			[ "${near:i:1}" != 0 ] && t=" ${near:i:1} "
+			;;
+		esac
+		if [ "$i" = "$cur" ] && [ "$DT_FOCUS" = "$id" ]; then
+			t="[${t:1:1}]"
+		fi
+		console put -p "w$id" "$r" "$c" "$t"
+		i=$((i + 1))
+	done
+
+	left=${MS[$id]["flags"]}
+	left=$((MINES_COUNT - left))
+	t0=${MS[$id]["t0"]}
+	t1=${MS[$id]["t1"]}
+	case $st in
+	ready) secs=0 ;;
+	run) secs=$((EPOCHSECONDS - t0)) ;;
+	*) secs=$((t1 - t0)) ;;
+	esac
+	console pen "#f56565" "$DT_FACE" bold
+	console put -p "w$id" 1 2 "⚑ $left"
+	console pen "#cbd5e0" "$DT_FACE" bold
+	t="${secs}s"
+	console put -p "w$id" 1 $((w - ${#t})) "$t"
+	case $st in
+	won) console pen "#68d391" "$DT_FACE" bold; t="cleared!" ;;
+	lost) console pen "#f56565" "$DT_FACE" bold; t="boom" ;;
+	*) console pen "#718096" "$DT_FACE"; t="mines" ;;
+	esac
+	console put -p "w$id" 1 $(((w - ${#t}) / 2 + 1)) "$t"
+	console pen "#718096" "$DT_FACE"
+	if [ "$st" = won ] || [ "$st" = lost ]; then
+		t="n for another"
+	else
+		t="space opens, f flags"
+	fi
+	console put -p "w$id" "$h" $(((w - ${#t}) / 2 + 1)) "$t"
+}
+
+mines_key() {
+	local id=$1 cur r c
+
+	cur=${MS[$id]["cur"]}
+	r=$((cur / MINES_COLS))
+	c=$((cur % MINES_COLS))
+	case $2 in
+	up | k) [ "$r" -gt 0 ] && r=$((r - 1)) ;;
+	down | j) [ "$r" -lt $((MINES_ROWS - 1)) ] && r=$((r + 1)) ;;
+	left | h) [ "$c" -gt 0 ] && c=$((c - 1)) ;;
+	right | l) [ "$c" -lt $((MINES_COLS - 1)) ] && c=$((c + 1)) ;;
+	" " | space | enter) ms_act "$id" "$cur" ;;
+	f) ms_flag "$id" "$cur" ;;
+	n) ms_new "$id"; return 0 ;;
+	*) return 1 ;;
+	esac
+	MS[$id]["cur"]=$((r * MINES_COLS + c))
+	return 0
+}
+
+# A click lands on a cell or on nothing; the right button flags.
+mines_click() {
+	local id=$1 r=$(($2 - 3)) c=$(($3 - 2)) i
+
+	[ "$r" -lt 0 ] || [ "$c" -lt 0 ] && return 0
+	[ "$r" -ge "$MINES_ROWS" ] || [ "$c" -ge $((MINES_COLS * 3)) ] && return 0
+	i=$((r * MINES_COLS + c / 3))
+	MS[$id]["cur"]=$i
+	case $4 in
+	right) ms_flag "$id" "$i" ;;
+	*) ms_act "$id" "$i" ;;
+	esac
+}
+
+mines_menus() {
+	dt_menu "Game"
+	dt_item "New Game" n ms_new "$DT_FOCUS"
+	dt_sep
+	dt_item "Close" w dt_close_focused
+}
+
+if [ -z "$DT_ROWS" ]; then
+	echo "mines: a desktop app; open it from the hibr menu"
+fi

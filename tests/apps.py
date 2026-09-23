@@ -280,6 +280,70 @@ sc = run(*TERM, pre="TW_CMD=(/bin/sh -c 'exit 4')", wait=1.6)
 check("a program that ends says so in the window",
       sc.find("exited 4") is not None, sc)
 
+# --- the games --------------------------------------------------------------
+#
+# Each one steps on the clock, not on keys, so a key it ignores ("z") is how a
+# test lets time pass: the harness waits between keys.  "p" freezes a game,
+# so what is asserted is what was on screen when it stopped.
+
+SW = "18 42 2 2"
+sc = run("snake", SW)
+check("the snake waits in the middle for an arrow",
+      sc.find("an arrow to start") is not None and
+      sc.find("██████") is not None, sc)
+
+sc = run("snake", SW, feed=[b"\x1b[B", b"p"])
+col = [r for r in range(3, 20) if sc.at(r, 23) == "█"]
+check("an arrow sets it off, and it goes that way",
+      sc.find("paused") is not None and len(col) >= 3, sc)
+
+sc = run("snake", SW, feed=[b"\x1b[A"] + [b"z"] * 5)
+check("the wall ends the game", sc.find("bitten") is not None, sc)
+
+MW = "15 31 2 2"
+sc = run("mines", MW)
+check("a new field is all hidden, ten mines to find",
+      sc.text().count("·") >= 81 and sc.find("⚑ 10") is not None, sc)
+
+sc = run("mines", MW, feed=[b" "])
+check("the first cell opened is never a mine, and opens a region",
+      sc.find("boom") is None and sc.find("[ ]") is not None, sc)
+
+# With 72 mines, only the first cell and its neighbours are clear, so the
+# first open is also the last one needed.
+sc = run("mines", MW, feed=[b" "], pre="MINES_COUNT=72")
+check("opening every clear cell wins", sc.find("cleared!") is not None, sc)
+
+# With 71, one clear cell is left among 72: of the two corner cells at least
+# one is a mine, whichever the dice chose.
+UL = [b"\x1b[A"] * 4 + [b"\x1b[D"] * 4
+sc = run("mines", MW, feed=[b" "] + UL + [b" ", b"\x1b[C", b" "],
+         pre="MINES_COUNT=71")
+check("a mine ends it and shows where the rest were",
+      sc.find("boom") is not None and sc.text().count("✱") >= 2, sc)
+
+sc = run("mines", MW, feed=[b" ", press(5, 4, 2)], pre="MINES_COUNT=71")
+check("a right click plants a flag",
+      sc.find("⚑ 70") is not None and sc.at(5, 5) == "⚑", sc)
+
+BW = "20 44 2 2"
+sc = run("bricks", BW)
+check("the wall is up and the ball waits on the bat",
+      sc.find("space to serve") is not None and
+      all("████" in sc.row(r) for r in range(5, 10)) and
+      sc.find("♥♥♥") is not None and sc.find("▀▀▀▀▀▀▀") == (20, 20), sc)
+
+sc = run("bricks", BW, feed=[b"\x1b[D"])
+check("the arrows move the bat, and the ball rides along",
+      sc.find("▀▀▀▀▀▀▀") == (20, 17) and sc.at(19, 20) == "●", sc)
+
+sc = run("bricks", BW, feed=[press(10, 36)])
+check("a click puts the bat under it", sc.find("▀▀▀▀▀▀▀") == (20, 33), sc)
+
+sc = run("bricks", BW, feed=[b" ", b"z", b"z", b"z"])
+check("served, the ball knocks a brick out and scores it",
+      sc.row(3)[3:6].strip() not in ("0", ""), sc)
+
 for f in os.listdir(D):
     p = os.path.join(D, f)
     if os.path.isdir(p):
@@ -289,4 +353,4 @@ for f in os.listdir(D):
 os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
-report(49)
+report(61)

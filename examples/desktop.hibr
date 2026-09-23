@@ -235,6 +235,7 @@ dt_win() {
 dt_draw() {
 	local l id
 
+	DT_WANT=
 	dt_wall
 	l := console pane list
 	for id in $l; do dt_win "${id#w}"; done
@@ -323,7 +324,7 @@ dt_mouse() {
 			return 0
 		fi
 		if [ "$mr" -ne "$wr" ]; then
-			[ -n "$ap" ] && $ap "$id" $((mr - wr)) $((mc - wc))
+			[ -n "$ap" ] && $ap "$id" $((mr - wr)) $((mc - wc)) "$1"
 			return 0
 		fi
 		b := dt_btn "$ww" $((mc - wc))
@@ -473,12 +474,23 @@ dt_event() {
 	esac
 }
 
+# Ask for the next frame within ms, from inside an app's _draw.
+#
+# The request lasts one frame: a game that is paused, hidden or not focused
+# simply stops asking, and the desktop goes back to DT_TICK.  An idle desktop
+# must not pay for an animation nobody is watching.
+dt_want() {
+	if [ -z "$DT_WANT" ] || [ "$1" -lt "$DT_WANT" ]; then
+		DT_WANT=$1
+	fi
+}
+
 # The event loop.  Draw, wait, dispatch, repeat.
 dt_run() {
 	local k
 	while [ "$DT_QUIT" = 0 ]; do
 		dt_draw
-		k := console key "${DT_TICK-200}"
+		k := console key "${DT_WANT:-${DT_TICK-200}}"
 		if console resized; then
 			dt_size
 			continue

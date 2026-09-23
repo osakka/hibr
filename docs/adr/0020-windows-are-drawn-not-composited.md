@@ -180,6 +180,12 @@ That is `mods/term/`, offering a `terminal` interface — `spawn`, `feed`,
 than the window manager and all the other apps together. It is deliberately
 last, so that everything else is working and useful before it starts.
 
+*As built*, the interface is the `term` builtin rather than a C table:
+`term open`, `poll`, `draw`, `key`, `write`, `size` and the rest, described
+in [`mods/term/README.md`](../../mods/term/README.md). The module still
+registers `terminal`, so `need terminal` finds it unloaded, and it asks for
+`pty` and `display` itself rather than carrying either.
+
 ## A menu bar, after the fact
 
 Not in the original record, and added because the owner asked for System 7's

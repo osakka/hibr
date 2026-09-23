@@ -93,11 +93,20 @@ right. An app declares menus with `<app>_menus`, the same prefix contract it
 declares `_draw` through. F10 or escape opens the bar; there are no modifier
 shortcuts, because ctrl collides with everything a terminal window will need.
 
-**Left, on the roadmap:** the terminal emulator module, so a hibr can run
-inside a hibr window. Half of that is built — `mods/pty/` opens the terminal
-and runs the program — and what remains is turning the escape sequences that
-come back into cells. It is also what would let the test harness be hibr
-rather than Python, see below.
+**The terminal is built.** `mods/term/` parses what a program writes into
+cells and paints them into a window, and `examples/apps/term.hibr` is a shell
+in a window. Every window is its own pty and its own session, so two
+terminals are two shells; `tests/apps.py` checks that typing in one does not
+reach the other. It is also what would let the test harness be hibr rather
+than Python, see below.
+
+**And three games**, because they were asked for and because each one tests
+something the other apps do not: `snake`, `mines` and `bricks` in
+`examples/apps/`. Two of them animate, which is what `$EPOCHREALTIME` (bash
+5's, now in the core) and `dt_want` (a window asking for its next frame
+sooner, for one frame only) are for. A frame with two windows costs 2.4 ms,
+so a game stepping every 60 ms costs about 4% of a core while it is played
+and nothing when it is paused, hidden or not focused.
 
 **Those four smaller gaps are closed.** A grow box in the bottom-right corner
 resizes a window and clamps at a size the title bar still fits and at the edge

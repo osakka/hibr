@@ -1,0 +1,315 @@
+#!/usr/bin/env hibr
+#
+# bricks -- a bat, a ball and a wall to knock down, after Arkanoid.
+#
+# Each row of the wall is a string of 1s and 0s, one per brick.  The ball
+# moves one row and one or two columns a step, and takes the columns one at a
+# time, so it never passes through the corner of a brick.  Where it lands on
+# the bat decides how steeply it leaves: the ends send it off at a slant, and
+# the middle sends it back the way it came.
+#
+#     left / right   move the bat      space   serve
+#     a click        put the bat there p       pause
+#
+# Clear the wall and the next one comes faster.
+
+app bricks "Knock the wall down"
+
+declare -A BK
+BRICKS_ROWS=5
+BRICKS_BAT=7
+BRICKS_COLOURS=("#f56565" "#f6ad55" "#ecc94b" "#68d391" "#63b3ed")
+BRICKS_SHADES=("#c53030" "#c05621" "#b7791f" "#2f855a" "#2b6cb0")
+
+bk_now() {
+	local t=${EPOCHREALTIME/./}
+
+	ret $((t / 1000))
+}
+
+# A whole wall.  The bricks are four columns wide and centred.
+bk_wall() {
+	local id=$1 w r=0 nb row
+
+	w=${BK[$id]["w"]}
+	nb=$((w / 4))
+	BK[$id]["nb"]=$nb
+	BK[$id]["ox"]=$((1 + (w - nb * 4) / 2))
+	row := str repeat 1 "$nb"
+	while [ "$r" -lt "$BRICKS_ROWS" ]; do
+		BK[$id]["b$r"]=$row
+		r=$((r + 1))
+	done
+	BK[$id]["left"]=$((nb * BRICKS_ROWS))
+}
+
+bk_new() {
+	local id=$1
+
+	BK[$id]["score"]=0
+	BK[$id]["lives"]=3
+	BK[$id]["level"]=1
+	bk_wall "$id"
+	bk_serve "$id"
+}
+
+# The ball back on the bat, waiting for space.
+bk_serve() {
+	local id=$1 w h bat
+
+	w=${BK[$id]["w"]}
+	h=${BK[$id]["h"]}
+	bat=$(((w - BRICKS_BAT) / 2 + 1))
+	BK[$id]["bat"]=$bat
+	BK[$id]["r"]=$((h - 1))
+	BK[$id]["c"]=$((bat + BRICKS_BAT / 2))
+	BK[$id]["dr"]=-1
+	BK[$id]["dc"]=1
+	BK[$id]["state"]=ready
+}
+
+# Which brick is at a cell, as "row index", or nothing.
+bk_at() {
+	local id=$1 r=$2 c=$3 br k nb ox row
+
+	br=$((r - 3))
+	[ "$br" -lt 0 ] || [ "$br" -ge "$BRICKS_ROWS" ] && return 1
+	ox=${BK[$id]["ox"]}
+	nb=${BK[$id]["nb"]}
+	[ "$c" -lt "$ox" ] && return 1
+	k=$(((c - ox) / 4))
+	[ "$k" -ge "$nb" ] && return 1
+	row=${BK[$id]["b$br"]}
+	[ "${row:k:1}" = 1 ] || return 1
+	ret "$br $k"
+}
+
+# Knock a brick out and score it: the higher the row, the more it is worth.
+bk_hit() {
+	local id=$1 br=${2% *} k=${2#* } row s n
+
+	row=${BK[$id]["b$br"]}
+	BK[$id]["b$br"]="${row:0:k}0${row:k+1}"
+	s=${BK[$id]["score"]}
+	BK[$id]["score"]=$((s + (BRICKS_ROWS - br) * 10))
+	n=${BK[$id]["left"]}
+	BK[$id]["left"]=$((n - 1))
+}
+
+# One step of the ball: across a column at a time, then up or down a row.
+bk_step() {
+	local id=$1 r c dr dc w h bat n i s b o
+
+	r=${BK[$id]["r"]}
+	c=${BK[$id]["c"]}
+	dr=${BK[$id]["dr"]}
+	dc=${BK[$id]["dc"]}
+	w=${BK[$id]["w"]}
+	h=${BK[$id]["h"]}
+	bat=${BK[$id]["bat"]}
+
+	n=${dc#-}
+	s=1
+	[ "$dc" -lt 0 ] && s=-1
+	i=0
+	while [ "$i" -lt "$n" ]; do
+		if [ $((c + s)) -lt 1 ] || [ $((c + s)) -gt "$w" ]; then
+			s=$((-s))
+			dc=$((-dc))
+		elif b := bk_at "$id" "$r" $((c + s)); then
+			bk_hit "$id" "$b"
+			s=$((-s))
+			dc=$((-dc))
+		else
+			c=$((c + s))
+		fi
+		i=$((i + 1))
+	done
+
+	if [ $((r + dr)) -lt 2 ]; then
+		dr=1
+	elif b := bk_at "$id" $((r + dr)) "$c"; then
+		bk_hit "$id" "$b"
+		dr=$((-dr))
+	elif [ $((r + dr)) -eq "$h" ] && [ "$c" -ge "$bat" ] &&
+	     [ "$c" -lt $((bat + BRICKS_BAT)) ]; then
+		dr=-1
+		o=$((c - bat))
+		case $o in
+		0 | 1) dc=-2 ;;
+		2) dc=-1 ;;
+		4) dc=1 ;;
+		5 | 6) dc=2 ;;
+		esac
+	elif [ $((r + dr)) -gt "$h" ]; then
+		n=${BK[$id]["lives"]}
+		BK[$id]["lives"]=$((n - 1))
+		if [ "$n" -le 1 ]; then
+			BK[$id]["state"]=over
+		else
+			bk_serve "$id"
+		fi
+		return 0
+	else
+		r=$((r + dr))
+	fi
+
+	BK[$id]["r"]=$r
+	BK[$id]["c"]=$c
+	BK[$id]["dr"]=$dr
+	BK[$id]["dc"]=$dc
+	if [ "${BK[$id]["left"]}" = 0 ]; then
+		BK[$id]["state"]=clear
+	fi
+}
+
+# How long a step takes; each wall is a little quicker than the last.
+bk_period() {
+	local l=${BK[$1]["level"]} p
+
+	p=$((70 - (l - 1) * 8))
+	[ "$p" -lt 35 ] && p=35
+	ret "$p"
+}
+
+# Move the bat, keeping it on the field.  A ball waiting to be served rides
+# along on it.
+bk_bat() {
+	local id=$1 bat=$2 w
+
+	w=${BK[$id]["w"]}
+	[ "$bat" -lt 1 ] && bat=1
+	[ "$bat" -gt $((w - BRICKS_BAT + 1)) ] && bat=$((w - BRICKS_BAT + 1))
+	BK[$id]["bat"]=$bat
+	[ "${BK[$id]["state"]}" = ready ] &&
+		BK[$id]["c"]=$((bat + BRICKS_BAT / 2))
+	return 0
+}
+
+bricks_open() {
+	BK[$1]["h"]=0
+	BK[$1]["w"]=0
+}
+
+bricks_draw() {
+	local id=$1 h=$2 w=$3 st now last p n=0 r k nb ox row t bat lives
+
+	if [ "$h" != "${BK[$id]["h"]}" ] || [ "$w" != "${BK[$id]["w"]}" ]; then
+		BK[$id]["h"]=$h
+		BK[$id]["w"]=$w
+		bk_new "$id"
+	fi
+	st=${BK[$id]["state"]}
+	now := bk_now
+	if [ "$st" = run ] && [ "$DT_FOCUS" = "$id" ]; then
+		last=${BK[$id]["last"]}
+		p := bk_period "$id"
+		while [ $((now - last)) -ge "$p" ] && [ "$n" -lt 4 ]; do
+			bk_step "$id"
+			last=$((last + p))
+			n=$((n + 1))
+			[ "${BK[$id]["state"]}" = run ] || break
+		done
+		[ $((now - last)) -ge "$p" ] && last=$now
+		BK[$id]["last"]=$last
+		dt_want "$p"
+	else
+		BK[$id]["last"]=$now
+	fi
+	st=${BK[$id]["state"]}
+
+	nb=${BK[$id]["nb"]}
+	ox=${BK[$id]["ox"]}
+	r=0
+	while [ "$r" -lt "$BRICKS_ROWS" ]; do
+		row=${BK[$id]["b$r"]}
+		k=0
+		while [ "$k" -lt "$nb" ]; do
+			if [ "${row:k:1}" = 1 ]; then
+				if [ $(((k + r) % 2)) = 0 ]; then
+					console pen "${BRICKS_COLOURS[$r]}" "$DT_FACE"
+				else
+					console pen "${BRICKS_SHADES[$r]}" "$DT_FACE"
+				fi
+				console put -p "w$id" $((r + 3)) $((ox + k * 4)) "████"
+			fi
+			k=$((k + 1))
+		done
+		r=$((r + 1))
+	done
+
+	bat=${BK[$id]["bat"]}
+	t := str repeat "▀" "$BRICKS_BAT"
+	console pen "#e2e8f0" "$DT_FACE" bold
+	console put -p "w$id" "$h" "$bat" "$t"
+	if [ "$st" != over ]; then
+		console pen "#ffffff" "$DT_FACE" bold
+		console put -p "w$id" "${BK[$id]["r"]}" "${BK[$id]["c"]}" "●"
+	fi
+
+	lives=${BK[$id]["lives"]}
+	console pen "#f6ad55" "$DT_FACE" bold
+	console put -p "w$id" 1 1 "${BK[$id]["score"]}"
+	console pen "#f56565" "$DT_FACE"
+	[ "$lives" -gt 0 ] && t := str repeat "♥" "$lives" || t=
+	console put -p "w$id" 1 $((w - lives + 1)) "$t"
+	console pen "#718096" "$DT_FACE"
+	case $st in
+	ready) t="space to serve" ;;
+	pause) t="paused -- p" ;;
+	over) t="game over -- n" ;;
+	clear) t="cleared! space" ;;
+	*) t="wall ${BK[$id]["level"]}" ;;
+	esac
+	[ "$DT_FOCUS" != "$id" ] && [ "$st" = run ] && t="paused -- click me"
+	console put -p "w$id" 1 $(((w - ${#t}) / 2 + 1)) "$t"
+}
+
+bricks_key() {
+	local id=$1 st bat l
+
+	st=${BK[$id]["state"]}
+	bat=${BK[$id]["bat"]}
+	case $2 in
+	left | a | h) bk_bat "$id" $((bat - 3)) ;;
+	right | d | l) bk_bat "$id" $((bat + 3)) ;;
+	" " | space | enter)
+		case $st in
+		ready) BK[$id]["state"]=run ;;
+		clear)
+			l=${BK[$id]["level"]}
+			BK[$id]["level"]=$((l + 1))
+			bk_wall "$id"
+			bk_serve "$id"
+			;;
+		esac
+		;;
+	p)
+		case $st in
+		run) BK[$id]["state"]=pause ;;
+		pause) BK[$id]["state"]=run ;;
+		esac
+		;;
+	n) bk_new "$id" ;;
+	up | down) ;;
+	*) return 1 ;;
+	esac
+	return 0
+}
+
+# A click anywhere puts the middle of the bat under it.
+bricks_click() {
+	bk_bat "$1" $(($3 - BRICKS_BAT / 2))
+}
+
+bricks_menus() {
+	dt_menu "Game"
+	dt_item "New Game" n bk_new "$DT_FOCUS"
+	dt_item "Pause" p bricks_key "$DT_FOCUS" p
+	dt_sep
+	dt_item "Close" w dt_close_focused
+}
+
+if [ -z "$DT_ROWS" ]; then
+	echo "bricks: a desktop app; open it from the hibr menu"
+fi
