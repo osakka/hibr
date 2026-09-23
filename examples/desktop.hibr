@@ -125,7 +125,7 @@ dt_open() {
 	console open || return 1
 	console signals off
 	console mouse drag
-	console cursor 0 0 0
+	console cursor off
 	# mkdir is a process, and startup should not pay for one per folder
 	# every time: only when the folder is not there yet.
 	if [ -d "${DT_LOG%/*}" ] || mkdir -p "${DT_LOG%/*}" 2> /dev/null; then
@@ -686,8 +686,13 @@ dt_want() {
 DT_RSTILL=150
 
 # The event loop.  Draw, wait, dispatch, repeat.
+#
+# A key read while rsz is waiting out the quiet period is still consumed
+# from the pty whether this looks at it or not, so it has to be kept in pk
+# rather than just skipped -- skipping it reads the byte and throws the
+# value away, which is a key silently lost, not a key left for later.
 dt_run() {
-	local k rsz=0 last now
+	local k rsz=0 last now pk=
 	while [ "$DT_QUIT" = 0 ]; do
 		[ "$rsz" = 0 ] && { dt_draw; dt_autoclose; }
 		if [ "$rsz" = 1 ]; then
@@ -695,6 +700,7 @@ dt_run() {
 		else
 			k := console key "${DT_WANT:-${DT_TICK-200}}"
 		fi
+		[ -n "$k" ] && pk=$k
 		if console resizing; then
 			rsz=1
 			last := dt_ms
@@ -706,9 +712,12 @@ dt_run() {
 				console reassert
 				dt_size
 				rsz=0
+				k=$pk
+			else
+				continue
 			fi
-			continue
 		fi
+		pk=
 		[ -n "$k" ] && dt_event "$k"
 	done
 }

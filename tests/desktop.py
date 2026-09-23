@@ -57,6 +57,47 @@ check("the menu bar shows the hibr menu, the time and the active application",
 check("the alternate screen is left on the way out", b"\x1b[?1049l" in raw)
 check("and the mouse is turned off again",
       b"\x1b[?1002l" in raw or b"\x1b[?1000l" in raw)
+check("the real cursor is never shown while the desktop runs, only on exit",
+      raw.count(b"\x1b[?25h") == 1, raw)
+
+# The default wallpaper (#16324a on #0d1b2a) darkened 55%: fg (22,50,74) ->
+# (12,27,40), bg (13,27,42) -> (7,14,23) -- the shadow's own colour, wherever
+# it peeks out from under the window it belongs to.
+SHADOW_RGB = b"38;2;12;27;40;48;2;7;14;23"
+
+
+def shadow_run(env=None, settle=0.6):
+    path = "/tmp/hibr-desktop-shadow.hibr"
+    open(path, "w").write("%s. %s\ndt_open\n%s\ndt_run\ndt_close\n"
+                          % (load(MOD), WM, ONE))
+    t = Term(path, env=dict({"DT_TICK": "60"}, **(env or {})), rows=ROWS,
+             cols=COLS, settle=settle)
+    t.quit(b"q", 1.0)
+    os.unlink(path)
+    return t.raw
+
+
+raw_shadow = shadow_run()
+check("a window casts a shadow on the wallpaper under it",
+      SHADOW_RGB in raw_shadow, raw_shadow)
+raw_noshadow = shadow_run(env={"DT_SHADOW": "0"})
+check("DT_SHADOW=0 casts none", SHADOW_RGB not in raw_noshadow, raw_noshadow)
+raw_long = shadow_run(settle=2.5)
+check("more frames before quitting does not darken it further -- damage "
+      "sends an unchanged cell once",
+      raw_long.count(SHADOW_RGB) == raw_shadow.count(SHADOW_RGB), raw_long)
+
+# A key sent right after a resize must not be lost while the debounce is
+# waiting to see whether more of them are coming (DT_RSTILL is 150ms).
+path = "/tmp/hibr-desktop-rsz.hibr"
+open(path, "w").write("%s. %s\ndt_open\n%s\ndt_run\ndt_close\n"
+                      % (load(MOD), WM, ONE))
+t = Term(path, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.6)
+t.resize(ROWS, COLS + 1)
+t.quit(b"q", 1.0)
+os.unlink(path)
+check("a key right after a resize is not dropped by the debounce",
+      t.exited, t.raw)
 
 sc, _ = run(ONE, [press(6, 20), drag(9, 24), release(9, 24)])
 check("dragging the title bar moves the window",
@@ -726,4 +767,4 @@ check("ending it leaves the other one alone",
       "personal" in r.stdout and "work" not in r.stdout, r.stdout)
 unsession()
 
-report(108)
+report(113)

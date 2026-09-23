@@ -14,7 +14,7 @@ app panel "Settings, and the window list"
 
 # What the hibr menu shows, how big a new window is, and whether a second
 # launch opens another window or brings this one forward.
-command -v dt_app > /dev/null && dt_app panel "Settings" 14 34 once "≡"
+command -v dt_app > /dev/null && dt_app panel "Settings" 18 34 once "≡"
 
 # The theme and the wallpaper belong to the desktop, so they stay global.
 # Where the selection is and what the rows are belong to a window, so they
