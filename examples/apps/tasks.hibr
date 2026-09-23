@@ -18,6 +18,15 @@ declare -gA TK_PREV
 # kernel does not expose it any other way worth reading for this.
 TK_HZ=100
 
+# A full scan opens two files per process. Scanning on every redraw cost 40%
+# of a core on this machine's real process count, measured at the DT_TICK=60
+# the test suite uses to run fast, which is not the default: at the real
+# 200ms default, redrawing without rescanning is what makes an open window
+# cost 5.8% instead, rescanning once a second (what top and htop default to
+# as well) 7.6%. Only the visible rows are formatted on a redraw that finds
+# nothing new to scan.
+TK_SCANMS=1000
+
 # The state, then the ten fields before utime and stime, then those two --
 # /proc/[pid]/stat's own gotcha, since the command name is in parens and may
 # itself contain both parens and spaces. Found from the last ")" in the
@@ -138,12 +147,23 @@ tasks_open() {
 # spaces between them; row 0 is the top border and row h-1 the bottom one,
 # both dt_win's, so the list lives in rows 2..h-2 under a header at row 1.
 tasks_draw() {
-	local id=$1 h=$2 w=$3 i r t n vis top sel by
+	local id=$1 h=$2 w=$3 i r t n vis top sel by now
 	local namew=$((w - 2 - 6 - 1 - 7 - 1)) cpu mem line
 
-	tasks_scan "$id"
+	now := dt_ms
 	by=${TK[$id]["by"]}
-	tasks_sort "$id" "$by"
+	if [ -z "${TK[$id]["scant"]}" ] ||
+	   [ $((now - TK[$id]["scant"])) -ge "$TK_SCANMS" ]; then
+		tasks_scan "$id"
+		tasks_sort "$id" "$by"
+		TK[$id]["scant"]=$now
+		TK[$id]["sortby"]=$by
+	elif [ "${TK[$id]["sortby"]}" != "$by" ]; then
+		# A sort key change between scans still shows at once: sorting the
+		# cached list is cheap, unlike the /proc scan that fills it.
+		tasks_sort "$id" "$by"
+		TK[$id]["sortby"]=$by
+	fi
 	n=${TK[$id]["n"]}
 	vis=$((h - 3))
 	TK[$id]["vis"]=$vis
@@ -224,13 +244,18 @@ tasks_click() {
 	TK[$id]["sel"]=$i
 }
 
+# Set directly rather than through tasks_key: a menu item is not a key, and
+# routing it through the key handler only worked here because "x" the key
+# and "x" the argument happen to be the same string.
+tasks_sortby() { TK[$1]["by"]=$2; }
+
 tasks_menus() {
 	dt_menu "Task"
-	dt_item "Sort by CPU" c tasks_key "$DT_FOCUS" c
-	dt_item "Sort by Memory" m tasks_key "$DT_FOCUS" m
+	dt_item "Sort by CPU" c tasks_sortby "$DT_FOCUS" cpu
+	dt_item "Sort by Memory" m tasks_sortby "$DT_FOCUS" mem
 	dt_sep
-	dt_item "End Task" x tasks_key "$DT_FOCUS" x
-	dt_item "End Task (force)" f tasks_key "$DT_FOCUS" shift-x
+	dt_item "End Task" x tasks_end "$DT_FOCUS" TERM
+	dt_item "End Task (force)" f tasks_end "$DT_FOCUS" KILL
 }
 
 if [ -z "$DT_ROWS" ]; then

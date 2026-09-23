@@ -536,8 +536,12 @@ sc = run(*TASKS)
 check("the task manager lists processes under a header",
       sc.find("CPU%") is not None and sc.find("Mem") is not None and
       sc.find("Name") is not None, sc)
-check("at least this suite's own process tree is in it",
-      sc.text().count("hibr") + sc.text().count("python") > 0, sc)
+# Not any name in particular: on the very first scan every process ties at
+# 0% CPU, so which of a few hundred land in the visible rows is whatever
+# order /proc's glob happened to return, not something to name one of. The
+# header's own "CPU%" is one "%"; a second one is a real row, not blanks.
+check("at least one real row of the process list is drawn",
+      sc.text().count("%") > 1, sc)
 
 sc = run(*TASKS, feed=[b"m"])
 check("m sorts by memory instead, without error",

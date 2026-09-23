@@ -966,6 +966,10 @@ dt_menus() {
 	used=aqdu
 	n := dt_appsorted
 	for n in $n; do
+		# about already has its own permanent item above; it registers
+		# with dt_app only so dt_launch about can find it, not to be
+		# listed a second time as an ordinary app.
+		[ "$n" = about ] && continue
 		k := dt_akey "${DT_APPS[$n]["title"]}" "$used"
 		used="$used$k"
 		dt_item "${DT_APPS[$n]["title"]}" "$k" dt_launch "$n"
