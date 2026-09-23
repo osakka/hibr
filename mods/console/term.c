@@ -108,7 +108,22 @@ int cn_isopen(void)
 	return cn_on;
 }
 
-/* Report and clear the pending resize flag.
+/* Report and clear the pending resize flag, with none of cn_reassert's
+   side effects -- a caller that wants to debounce a burst of resizes into
+   one redraw asks this every tick and acts only once it goes quiet, rather
+   than paying cn_reassert's clear-and-repaint on every intermediate size. */
+int cn_pending(void)
+{
+	int r = cn_winch;
+
+	cn_winch = 0;
+	return r;
+}
+
+/* Assert terminal modes again and invalidate the front buffer, so the next
+   flush repaints everything.  Unconditional: the caller has already decided
+   a resize happened and it is time to act on it, not asked whether one is
+   still pending.
 
    A resize also says the terminal on the other end may not be the one the
    screen was opened on: a session reattached from somewhere else arrives
@@ -116,18 +131,26 @@ int cn_isopen(void)
    the hidden cursor or the mouse mode.  So every resize asserts them
    again and repaints everything, which costs one full frame on an event
    that is rare anyway. */
+void cn_reassert(void)
+{
+	if (!cn_on)
+		return;
+	cn_wr(cn_fd, cn_enter, sizeof cn_enter - 1);
+	if (cn_mousemode)
+		cn_mouseon(cn_mousemode);
+	cn_inval();
+	lg(HIBR_LDBG, "resized: terminal modes asserted again");
+}
+
+/* Report and clear the pending resize flag, asserting terminal modes and
+   invalidating the buffer when one was pending.  What a caller that redraws
+   on every resize, rather than debouncing a burst of them, uses. */
 int cn_resized(void)
 {
-	int r = cn_winch;
+	int r = cn_pending();
 
-	cn_winch = 0;
-	if (r && cn_on) {
-		cn_wr(cn_fd, cn_enter, sizeof cn_enter - 1);
-		if (cn_mousemode)
-			cn_mouseon(cn_mousemode);
-		cn_inval();
-		lg(HIBR_LDBG, "resized: terminal modes asserted again");
-	}
+	if (r)
+		cn_reassert();
 	return r;
 }
 

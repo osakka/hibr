@@ -32,6 +32,8 @@ void cn_close(sh *s);
 int cn_isopen(void);
 void cn_size(int *rows, int *cols);
 int cn_resized(void);
+int cn_pending(void);
+void cn_reassert(void);
 void cn_mouseon(int mode);
 void cn_signals(int on);
 void cn_clip(const char *t);

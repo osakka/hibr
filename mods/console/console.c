@@ -295,6 +295,13 @@ int m_console(sh *s, int ac, char **av)
 	if (!strcmp(sub, "resized")) {
 		return cn_resized() ? HIBR_OK : HIBR_FAIL;
 	}
+	if (!strcmp(sub, "resizing")) {
+		return cn_pending() ? HIBR_OK : HIBR_FAIL;
+	}
+	if (!strcmp(sub, "reassert")) {
+		cn_reassert();
+		return HIBR_OK;
+	}
 	if (!strcmp(sub, "clear")) {
 		if (!cn_need())
 			return HIBR_FAIL;

@@ -5,3 +5,6 @@ array=one two three n=3
 fact=720
 empty=[]
 keys=0 1 first=left second=right
+hit: x=[found] status=0
+miss: x=[] status=1
+dead code after ret: y=[v] status=0

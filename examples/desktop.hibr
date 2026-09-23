@@ -671,15 +671,37 @@ dt_want() {
 	fi
 }
 
+# A live redraw on every SIGWINCH of a drag makes the screen scramble once
+# per pixel the terminal moves through, which is what dragging a real GUI
+# window's edge does not do -- it freezes the content and snaps it once at
+# the end.  console resizing is a cheap peek at the same flag console
+# resized consumes, with none of its clear-and-repaint side effects, so a
+# burst of them costs nothing extra: this waits for DT_RSTILL ms of quiet
+# before it calls console reassert and redraws, once, at the settled size.
+DT_RSTILL=150
+
 # The event loop.  Draw, wait, dispatch, repeat.
 dt_run() {
-	local k
+	local k rsz=0 last now
 	while [ "$DT_QUIT" = 0 ]; do
-		dt_draw
-		dt_autoclose
-		k := console key "${DT_WANT:-${DT_TICK-200}}"
-		if console resized; then
-			dt_size
+		[ "$rsz" = 0 ] && { dt_draw; dt_autoclose; }
+		if [ "$rsz" = 1 ]; then
+			k := console key 80
+		else
+			k := console key "${DT_WANT:-${DT_TICK-200}}"
+		fi
+		if console resizing; then
+			rsz=1
+			last := dt_ms
+			continue
+		fi
+		if [ "$rsz" = 1 ]; then
+			now := dt_ms
+			if [ $((now - last)) -ge "$DT_RSTILL" ]; then
+				console reassert
+				dt_size
+				rsz=0
+			fi
 			continue
 		fi
 		[ -n "$k" ] && dt_event "$k"
@@ -2254,6 +2276,13 @@ dt_mpick() {
 }
 
 # Which menu title is under a column on the bar, if any.
+#
+# No `ret ""` on a miss: `ret` ends the function on the spot, the same as
+# `return`, so a trailing `return 1` after one is dead code and the caller
+# always sees status 0 -- `x := dt_mhit ... || ...` never took the miss
+# branch, and a click on empty bar space opened whatever `x` was left
+# holding from the last hit. `:=` clears the slot before the call, so a
+# bare `return 1` alone already leaves it empty.
 dt_mhit() {
 	local c=$1 i=0 x w
 
@@ -2265,7 +2294,6 @@ dt_mhit() {
 			{ ret "$i"; return 0; }
 		i=$((i + 1))
 	done
-	ret ""
 	return 1
 }
 

@@ -99,6 +99,16 @@ never seen the alternate screen, the hidden cursor or the mouse mode. So
 next flush draws the whole frame. It costs one full frame on an event that is
 rare anyway.
 
+**`console resizing` and `console reassert` split that in two**, for a caller
+that wants to debounce a burst of them into one redraw at the settled size
+rather than repainting once per pixel a drag moves through. `resizing` peeks
+at the same flag `resized` consumes, with none of the side effects -- cheap
+enough to poll every tick -- and `reassert` does the mode-reassertion and
+invalidation unconditionally, once the caller has decided the resize is
+over. The desktop uses exactly this: freeze on the first `resizing`, keep
+polling without redrawing while it keeps reporting one, and only call
+`reassert` and redraw once it has gone quiet for a while.
+
 ## Testing
 
 `tests/console.py` drives all of it through a pseudo terminal, because none of

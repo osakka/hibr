@@ -207,6 +207,11 @@ sc, _ = run(MENUS, [press(0, 6), press(15, 60)])
 check("clicking away from an open menu shuts it",
       sc.find("Bump") is None, sc)
 
+sc, _ = run(MENUS, [press(0, 45)])
+check("a click on empty bar space, nothing open, opens nothing",
+      sc.find("Bump") is None and sc.find("Move") is None and
+      sc.at(1, 45) == "·" and sc.row(0).startswith("  ✎  Count  More"), sc)
+
 sc, _ = run(MENUS, [press(0, 6), b"b"])
 check("a letter picks the item beside it", sc.find("count 1") is not None
       and sc.find("Bump") is None, sc)

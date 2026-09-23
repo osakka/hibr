@@ -720,6 +720,16 @@ went in the shell.
   nothing.
 - **`ob_hex` does not check what follows the digits**, because in `packed-refs`
   an object name is followed by a space. Callers check the length.
+- **`ret` ends the function on the spot, the same as `return`.** They share
+  one flag, so `ret ""; return 1` never reaches the `return` -- `ret` has
+  already stopped the function, with status 0, which is what `x := f`
+  then sees no matter what follows it. `dt_mhit` signalled a miss this way
+  and a click on empty menu-bar space opened whatever the bar had last
+  looked up, because `x := dt_mhit ... || dt_mclose` never took the `||`
+  branch. A miss needs a bare `return 1` and nothing else -- `:=` has
+  already cleared the slot before the call, so there is no `ret ""` to
+  write. `return 0` right after a successful `ret` is the same dead code,
+  just harmless, since `ret` already leaves status 0.
 
 ## Testing discipline
 
