@@ -48,7 +48,7 @@ void tm_draw(tm_t *t, const dp_api *dp, int row, int col, int h, int w)
 	for (r = 0; r < h; r++) {
 		c = 0;
 		while (c < w) {
-			k = tm_at(t, r, c);
+			k = tm_vat(t, r, c);
 			if (!k) {
 				c++;
 				continue;
@@ -65,7 +65,7 @@ void tm_draw(tm_t *t, const dp_api *dp, int row, int col, int h, int w)
 				run.p[0] = 0;
 			n = c;
 			while (c < w) {
-				k = tm_at(t, r, c);
+				k = tm_vat(t, r, c);
 				if (!k || !k->w)
 					break;
 				if (k->fg != fg || k->bg != bg ||

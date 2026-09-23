@@ -52,13 +52,13 @@ int tm_pump(tm_t *m, int ms)
 int m_term(sh *s, int ac, char **av)
 {
 	const char *sub = ac > 1 ? av[1] : "";
-	int rows = 24, cols = 80, i, r;
+	int rows = 24, cols = 80, lines = 1000, i, r;
 	tm_t *m;
 	str o;
 
 	if (ac < 2) {
 		lg(HIBR_LERR, "usage: term open|poll|draw|key|write|size|"
-			      "alive|status|title|cursor|row|close ...");
+			      "alive|status|title|cursor|row|scroll|mouse|screen|close ...");
 		return 2;
 	}
 	if (!strcmp(sub, "open")) {
@@ -72,6 +72,8 @@ int m_term(sh *s, int ac, char **av)
 				rows = atoi(av[++i]);
 			else if (!strcmp(av[i], "-c") && i + 1 < ac)
 				cols = atoi(av[++i]);
+			else if (!strcmp(av[i], "-s") && i + 1 < ac)
+				lines = atoi(av[++i]);
 			else if (!strcmp(av[i], "--")) {
 				i++;
 				break;
@@ -84,7 +86,7 @@ int m_term(sh *s, int ac, char **av)
 		}
 		if (i >= ac) {
 			lg(HIBR_LERR, "usage: term open [-r rows] [-c cols] "
-				      "command [args...]");
+				      "[-s lines] command [args...]");
 			return 2;
 		}
 		if (rows < 1 || cols < 1) {
@@ -92,6 +94,7 @@ int m_term(sh *s, int ac, char **av)
 			return 2;
 		}
 		m = tm_new(rows, cols);
+		m->sbmax = lines < 0 ? 0 : lines;
 		m->pty = tm_pty->spawn(s, rows, cols, av + i);
 		if (!m->pty) {
 			tm_free(m);
@@ -134,9 +137,15 @@ int m_term(sh *s, int ac, char **av)
 			return 2;
 		}
 		s_init(&o);
+		if (m->bpaste && !strncmp(av[3], "paste ", 6))
+			s_cat(&o, "\033[200~");
 		r = tm_keybytes(av[3], &o);
-		if (r && tm_pty)
+		if (r && m->bpaste && !strncmp(av[3], "paste ", 6))
+			s_cat(&o, "\033[201~");
+		if (r && tm_pty) {
 			tm_pty->write(m->pty, o.p, o.n);
+			m->view = 0;
+		}
 		s_free(&o);
 		return r ? HIBR_OK : HIBR_FAIL;
 	}
@@ -147,6 +156,7 @@ int m_term(sh *s, int ac, char **av)
 		}
 		for (i = 3; i < ac; i++)
 			tm_pty->write(m->pty, av[i], strlen(av[i]));
+		m->view = 0;
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "size")) {
@@ -205,7 +215,7 @@ int m_term(sh *s, int ac, char **av)
 		r = atoi(av[3]);
 		s_init(&o);
 		for (c = 0; c < m->cols; c++) {
-			k = tm_at(m, r, c);
+			k = tm_vat(m, r, c);
 			if (!k || !k->w)
 				continue;
 			tm_utf8(&o, k->cp ? k->cp : ' ');
@@ -214,6 +224,51 @@ int m_term(sh *s, int ac, char **av)
 			o.p[--o.n] = 0;
 		tm_ret(s, o.p ? o.p : "");
 		s_free(&o);
+		return HIBR_OK;
+	}
+	if (!strcmp(sub, "scroll")) {
+		if (ac > 3) {
+			if (!strcmp(av[3], "top"))
+				tm_view(m, m->sbn);
+			else if (!strcmp(av[3], "bottom"))
+				tm_view(m, -m->view);
+			else
+				tm_view(m, atoi(av[3]));
+			return HIBR_OK;
+		}
+		s_init(&o);
+		s_num(&o, (long)m->view);
+		s_ch(&o, ' ');
+		s_num(&o, (long)m->sbn);
+		tm_ret(s, o.p);
+		s_free(&o);
+		return HIBR_OK;
+	}
+	if (!strcmp(sub, "mouse")) {
+		const char *btn = "";
+		int at = 4;
+		if (ac < 4) {
+			tm_ret(s, tm_mname(m));
+			return HIBR_OK;
+		}
+		if (strncmp(av[3], "wheel", 5))
+			btn = ac > at ? av[at++] : "";
+		if (ac < at + 2) {
+			lg(HIBR_LERR, "usage: term mouse id [press|release|"
+				      "drag button|wheelup|wheeldown] row col");
+			return 2;
+		}
+		s_init(&o);
+		r = tm_mouse(m, av[3], btn, atoi(av[at]), atoi(av[at + 1]), &o);
+		if (r && o.n && tm_pty) {
+			tm_pty->write(m->pty, o.p, o.n);
+			m->view = 0;
+		}
+		s_free(&o);
+		return r ? HIBR_OK : HIBR_FAIL;
+	}
+	if (!strcmp(sub, "screen")) {
+		tm_ret(s, m->inalt ? "alt" : "main");
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "close")) {

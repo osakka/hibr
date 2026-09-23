@@ -60,6 +60,7 @@ these, and the window manager calls only the ones that exist:
 | `hello_draw` | `id inner_h inner_w row col` | every frame; `row col` is where the window is on screen, for `console fill`, which takes screen coordinates |
 | `hello_key` | `id key` | a key, while this window has focus |
 | `hello_click` | `id row col button` | a click, in the same coordinates the app draws in; `button` is `left`, `middle` or `right` |
+| `hello_mouse` | `id press\|drag\|release button row col` | instead of `_click`, for an app that wants the whole of a press: after the press, its drags and its release come here wherever the pointer goes |
 | `hello_wheel` | `id up\|down row col` | the wheel, over this window whether or not it has focus |
 | `hello_close` | `id` | once, when the window closes |
 
@@ -90,7 +91,7 @@ In `examples/apps/`, each one also a file you can read in a sitting:
 | `files` | a file browser, with a scrollbar and the wheel |
 | `calc` | a calculator, and `hibr calc.hibr '3 * 4'` on its own |
 | `panel` | settings, and a list of the other windows |
-| `term` | a shell in a window. Each window is its own pty and its own session |
+| `term` | a shell in a window. Each window is its own pty and its own session. The wheel or `shift-pageup` scrolls back, and a program that asks for the mouse gets it |
 | `snake` | arrows turn, `p` pauses. It speeds up as it grows |
 | `mines` | Minesweeper, 9 by 9 with ten mines. `space` or a click opens, `f` or a right click flags, and opening a number with its flags placed opens what is round it |
 | `bricks` | after Arkanoid: the arrows or a click move the bat, `space` serves. Where the ball lands on the bat sets its angle |
@@ -224,8 +225,8 @@ It is cooperative: one process, one loop, apps called in turn, so an app that
 takes a long time in `_draw` stalls the desktop. Windows snap to cells and
 cannot be transparent. Menus nest one level deep. There is no widget library — each app draws its own
 buttons, and if the same button code turns up in three apps, *then* it becomes
-one. A terminal window keeps no scrollback, and the program inside it gets
-no mouse.
+one. A program in a terminal window hears about the mouse only while a
+button is down, never plain motion.
 
 ---
 

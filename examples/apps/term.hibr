@@ -49,7 +49,7 @@ tw_fit() {
 }
 
 term_draw() {
-	local id=$1 h=$2 w=$3 wr=$4 wc=$5 t st
+	local id=$1 h=$2 w=$3 wr=$4 wc=$5 t st sb
 
 	tw_fit "$id" "$h" "$w" || return 0
 	t=${TW[$id]["t"]}
@@ -61,6 +61,12 @@ term_draw() {
 		return 0
 	fi
 	term draw "$t" $((wr + 1)) $((wc + 1)) "$h" "$w"
+	sb := term scroll "$t"
+	if [ "${sb% *}" != 0 ]; then
+		console pen "$DT_FACE" "#ecc94b" bold
+		sb=" ↑ ${sb% *} of ${sb#* } "
+		console put -p "w$id" 1 $((w + 1 - ${#sb})) "$sb"
+	fi
 	# A key's echo comes back after the frame that sent it, so a focused
 	# terminal asks for the next one soon rather than in DT_TICK.
 	[ "$DT_FOCUS" = "$id" ] && dt_want 30
@@ -68,9 +74,47 @@ term_draw() {
 }
 
 # Everything goes to the program except f10, which the window manager keeps
-# so there is always a way back to the menu bar.
+# so there is always a way back to the menu bar, and shift with pageup or
+# pagedown, which page through the scrollback as they do in xterm.  Any
+# other key goes back to the live screen on its way through.
 term_key() {
-	term key "${TW[$1]["t"]}" "$2"
+	local t=${TW[$1]["t"]} h=${TW[$1]["h"]}
+
+	case $2 in
+	shift-pageup) term scroll "$t" $((h - 1)) ;;
+	shift-pagedown) term scroll "$t" $((1 - h)) ;;
+	*) term key "$t" "$2" ;;
+	esac
+}
+
+# The mouse belongs to the program when it has asked for it -- vi, htop and
+# mc all do -- and the window manager keeps sending a press's drag and
+# release here until the button comes up.  The window's body starts at row
+# and column 1, the program's screen at 0.
+term_mouse() {
+	local t=${TW[$1]["t"]}
+
+	[ -n "$t" ] || return 0
+	term mouse "$t" "$2" "$3" $(($4 - 1)) $(($5 - 1))
+	return 0
+}
+
+# The wheel goes to a program that asked for the mouse.  Otherwise, on the
+# alternate screen it is arrow keys, which is how less and man scroll in
+# every terminal that does this; on the main screen it scrolls back.
+term_wheel() {
+	local t=${TW[$1]["t"]} s k
+
+	[ -n "$t" ] || return 0
+	term mouse "$t" "wheel$2" $(($3 - 1)) $(($4 - 1)) && return 0
+	s := term screen "$t"
+	if [ "$s" = alt ]; then
+		for k in 1 2 3; do term key "$t" "$2"; done
+	elif [ "$2" = up ]; then
+		term scroll "$t" 3
+	else
+		term scroll "$t" -3
+	fi
 }
 
 term_close() {
@@ -92,6 +136,9 @@ term_menus() {
 		fi
 		dt_item "Send Interrupt" i term key "$t" ctrl-c
 		dt_item "Send End Of File" d term key "$t" ctrl-d
+		dt_sep
+		dt_item "Scroll To Top" t term scroll "$t" top
+		dt_item "Scroll To Bottom" b term scroll "$t" bottom
 	else
 		dt_dim "Not started"
 	fi

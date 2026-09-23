@@ -676,6 +676,10 @@ went in the shell.
   to answer a fabricated 24 rows beside a real `ed_cols()` width, so half the
   answer was true — which is worse than either, and hid a pty resize working
   correctly for most of an hour.
+- **A terminal test must not end with `q`.** `tests/apps.py`'s `run()`
+  finishes by sending `q`, which a focused terminal passes to its program
+  -- and any key snaps a scrolled-back view to the live screen, so a
+  scrollback test saw nothing scrolled. Pass `end=None`.
 - **A printable key arrives as itself.** `console key` reports space as
   `" "`, not `space`, and a letter as the letter; only keys with no glyph
   have names. Both games shipped matching `space` and did nothing on it.

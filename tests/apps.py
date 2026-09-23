@@ -13,7 +13,7 @@ import os, subprocess, sys, tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
-from screen import Term, check, report, press, wheel, load, tree
+from screen import Term, check, report, press, release, wheel, load, tree
 
 if len(sys.argv) > 1:
     sx.HIBR = os.path.abspath(sys.argv[1])
@@ -34,12 +34,13 @@ for i in range(12):
 ENTRIES = 15
 
 
-def run(app, win, feed=(), pre="", wait=1.0, also=()):
+def run(app, win, feed=(), pre="", wait=1.0, also=(), end=b"q"):
     """Open one app in a window at a known place and drive it.
 
     `also` adds further windows after it, as (title, geometry, app) triples,
     which is what the control panel needs: it has nothing to show until
-    there is something else open.
+    there is something else open. `end` is the key that finishes; a test
+    of a terminal passes None, since the program inside would take the q.
     """
     p = os.path.join(S, "session.hibr")
     src = "".join(". %s/%s.hibr\n" % (APPS, a)
@@ -52,7 +53,7 @@ def run(app, win, feed=(), pre="", wait=1.0, also=()):
            more + ("dt_raise 1\n" if also else "")))
     t = Term(p, env={"DT_TICK": "60"}, settle=0.6)
     t.keys(feed)
-    t.quit(b"q", wait)
+    t.quit(end, wait)
     return t.screen()
 
 
@@ -281,6 +282,27 @@ sc = run(*TERM, pre="TW_CMD=(/bin/sh -c 'exit 4')", wait=1.6)
 check("a program that ends says so in the window",
       sc.find("exited 4") is not None, sc)
 
+# Scrollback, and the mouse for a program that asks for it.
+LONG = "TW_CMD=(/bin/sh -c 'i=1; while [ $i -le 40 ]; do echo \"row $i\"; i=$((i+1)); done; exec cat')"
+sc = run(*TERM, feed=[wheel(8, 10)], pre=LONG, wait=1.2, end=None)
+check("the wheel scrolls back through what went off the top",
+      sc.find("↑ 3 of 29") is not None and sc.find("row 27") == (3, 3) and
+      sc.find("row 40") is None, sc)
+
+sc = run(*TERM, feed=[b"\x1b[5;2~"], pre=LONG, wait=1.2, end=None)
+check("shift-pageup pages back a screenful less one",
+      sc.find("↑ 11 of 29") is not None and sc.find("row 19") == (3, 3), sc)
+
+sc = run(*TERM, feed=[wheel(8, 10), b"x"], pre=LONG, wait=1.2, end=None)
+check("and a key goes back to the live screen",
+      sc.find("↑") is None and sc.find("row 40") is not None, sc)
+
+CLICK = ("TW_CMD=(/bin/sh -c 'stty raw -echo; "
+         "printf \"\\033[?1000h\\033[?1006h\"; head -c 18 | cat -v; sleep 5')")
+sc = run(*TERM, feed=[press(6, 10), release(6, 10)], pre=CLICK, wait=1.2, end=None)
+check("a click reaches a program that asked for the mouse, where it landed",
+      sc.find("^[[<0;8;4M^[[<0;8;4m") is not None, sc)
+
 # --- the games --------------------------------------------------------------
 #
 # Each one steps on the clock, not on keys, so a key it ignores ("z") is how a
@@ -354,4 +376,4 @@ for f in os.listdir(D):
 os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
-report(61)
+report(65)

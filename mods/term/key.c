@@ -76,3 +76,82 @@ int tm_keybytes(const char *name, str *out)
 	}
 	return 0;
 }
+
+/* What the program inside has asked to hear from the mouse. */
+const char *tm_mname(tm_t *t)
+{
+	switch (t->mmode) {
+	case 9:
+	case 1000:
+		return "click";
+	case 1002:
+		return "drag";
+	case 1003:
+		return "motion";
+	}
+	return "off";
+}
+
+/* Encode a mouse event for the program, if it asked for this kind.
+
+   This is the console's cn_mouse read backwards: a name such as `press left`
+   or `wheelup` at a cell counted from zero becomes the report a terminal
+   would send.  SGR form when the program turned on 1006, since it has no
+   limit on the position and says which button was released; the old form
+   otherwise, which cannot name a column past 223 and so drops the event
+   rather than send a wrong one.  Returns 0 for an event the program did not
+   ask for, so the caller can use it for something else. */
+int tm_mouse(tm_t *t, const char *act, const char *btn, int r, int c,
+	     str *out)
+{
+	int b, rel = 0;
+
+	if (!t->mmode)
+		return 0;
+	if (!strcmp(btn, "middle"))
+		b = 1;
+	else if (!strcmp(btn, "right"))
+		b = 2;
+	else
+		b = 0;
+	if (!strcmp(act, "wheelup") || !strcmp(act, "wheeldown")) {
+		if (t->mmode == 9)
+			return 0;
+		b = act[5] == 'u' ? 64 : 65;
+	} else if (!strcmp(act, "release")) {
+		if (t->mmode == 9)
+			return 0;
+		rel = 1;
+	} else if (!strcmp(act, "drag")) {
+		if (t->mmode != 1002 && t->mmode != 1003)
+			return 0;
+		b += 32;
+	} else if (strcmp(act, "press")) {
+		return 0;
+	}
+	if (r < 0)
+		r = 0;
+	if (c < 0)
+		c = 0;
+	if (r >= t->rows)
+		r = t->rows - 1;
+	if (c >= t->cols)
+		c = t->cols - 1;
+	if (t->msgr) {
+		s_cat(out, "\033[<");
+		s_num(out, (long)b);
+		s_ch(out, ';');
+		s_num(out, (long)c + 1);
+		s_ch(out, ';');
+		s_num(out, (long)r + 1);
+		s_ch(out, rel ? 'm' : 'M');
+		return 1;
+	}
+	if (c + 1 + 32 > 255 || r + 1 + 32 > 255)
+		return 1;
+	s_cat(out, "\033[M");
+	s_ch(out, (char)(32 + (rel ? 3 : b)));
+	s_ch(out, (char)(32 + c + 1));
+	s_ch(out, (char)(32 + r + 1));
+	return 1;
+}

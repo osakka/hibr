@@ -26,6 +26,7 @@ DT_DC=0
 DT_QUIT=0
 DT_SIZE=
 DT_GRAB=
+DT_MOUSE=
 DT_NOTE=
 DT_ROWS=24
 DT_COLS=80
@@ -85,7 +86,7 @@ dt_new() {
 	DT[$id]["col"]="$5"
 	DT[$id]["app"]="$ap"
 	DT[$id]["min"]=0
-	for f in draw key click wheel open close; do
+	for f in draw key click mouse wheel open close; do
 		if [ -n "$ap" ] && dt_has "${ap}_$f"; then
 			DT[$id]["$f"]="${ap}_$f"
 		else
@@ -277,7 +278,7 @@ dt_btn() {
 # $(( )) would mean DT[$id][5] here.
 dt_mouse() {
 	local act=${1##*-} mr mc
-	local id b wr wc wh ww ap
+	local id b wr wc wh ww ap mo
 
 	shift
 	case $act in
@@ -324,6 +325,12 @@ dt_mouse() {
 			return 0
 		fi
 		if [ "$mr" -ne "$wr" ]; then
+			mo=${DT[$id]["mouse"]}
+			if [ -n "$mo" ]; then
+				DT_MOUSE=$id
+				$mo "$id" press "$1" $((mr - wr)) $((mc - wc))
+				return 0
+			fi
 			[ -n "$ap" ] && $ap "$id" $((mr - wr)) $((mc - wc)) "$1"
 			return 0
 		fi
@@ -339,6 +346,22 @@ dt_mouse() {
 			;;
 		esac
 		;;
+	drag | release)
+		# A window that took the press with _mouse is told the rest of it,
+		# wherever the pointer goes, until the button comes up.
+		if [ -n "$DT_MOUSE" ]; then
+			id=$DT_MOUSE
+			mo=${DT[$id]["mouse"]}
+			wr=${DT[$id]["row"]}
+			wc=${DT[$id]["col"]}
+			[ "$act" = release ] && DT_MOUSE=
+			[ -n "$mo" ] && $mo "$id" "$act" "$1" $((mr - wr)) $((mc - wc))
+			return 0
+		fi
+		;;
+	esac
+
+	case $act in
 	drag)
 		if [ -n "$DT_SIZE" ]; then
 			id=$DT_SIZE

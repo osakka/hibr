@@ -49,6 +49,46 @@ status 3
 1|in> echo 42
 2|42
 3|in>
+--- lines that scroll off the top are kept
+view and stored: 0 15
+0|line 13
+1|line 14
+0|line 1
+1|line 2
+past the top stops at the top: 15 15
+0|line 16
+--- a key goes back to the live screen
+scrolled: 2 6
+after a key: 0 6
+--- the store keeps as many lines as it is told
+stored: 0 4
+0|l 25
+--- the alternate screen and ESC [3J stay out of it
+after the alternate screen: 0 2
+after ESC [3J: 0 0
+--- shrinking keeps the cursor's line, growing brings lines back
+shrunk, stored: 0 3
+0|4
+1|5
+2|here
+grown, stored: 0 0
+0|1
+1|2
+2|3
+3|4
+4|5
+5|here
+--- the mouse reaches a program that asks for it
+before it asks: off
+not sent
+after it asks: drag
+0|ready
+1|^[[<0;5;3M^[[<32;6;4M^[[<0;6;4m^[[<64;1;1M
+--- in the old encoding, and only what was asked for
+no drag in click mode
+0|^[[M !!^[[M#!!
+--- a paste is bracketed when the program asks
+0|^[[200~hi^[[201~
 --- errors
 no command: 2
 no such terminal: 1

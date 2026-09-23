@@ -105,6 +105,101 @@ while [ $i -lt 4 ]; do
 done
 term close $t
 
+echo "--- lines that scroll off the top are kept"
+t := term open -r 6 -c 20 /bin/sh -c 'i=1; while [ $i -le 20 ]; do echo "line $i"; i=$((i+1)); done'
+i=0; while [ $i -lt 8 ]; do term poll $t 100; i=$((i+1)); done
+sb := term scroll $t
+echo "view and stored: $sb"
+term scroll $t 3
+show $t 2
+term scroll $t top
+show $t 2
+term scroll $t 100
+sb := term scroll $t
+echo "past the top stops at the top: $sb"
+term scroll $t bottom
+show $t 1
+term close $t
+
+echo "--- a key goes back to the live screen"
+t := term open -r 4 -c 20 /bin/sh -c 'i=1; while [ $i -le 9 ]; do echo "n $i"; i=$((i+1)); done; cat > /dev/null'
+i=0; while [ $i -lt 8 ]; do term poll $t 100; i=$((i+1)); done
+term scroll $t 2
+sb := term scroll $t
+echo "scrolled: $sb"
+term key $t x
+sb := term scroll $t
+echo "after a key: $sb"
+term close $t
+
+echo "--- the store keeps as many lines as it is told"
+t := term open -r 3 -c 20 -s 4 /bin/sh -c 'i=1; while [ $i -le 30 ]; do echo "l $i"; i=$((i+1)); done'
+i=0; while [ $i -lt 8 ]; do term poll $t 100; i=$((i+1)); done
+sb := term scroll $t
+echo "stored: $sb"
+term scroll $t top
+show $t 1
+term close $t
+
+echo "--- the alternate screen and ESC [3J stay out of it"
+t := term open -r 4 -c 20 /bin/sh -c 'printf "a\nb\nc\nd\ne\n"; printf "\033[?1049h"; i=0; while [ $i -lt 9 ]; do echo alt; i=$((i+1)); done; printf "\033[?1049l"; sleep 1; printf "\033[3J"'
+i=0; while [ $i -lt 4 ]; do term poll $t 100; i=$((i+1)); done
+sb := term scroll $t
+echo "after the alternate screen: $sb"
+i=0; while [ $i -lt 14 ]; do term poll $t 100; i=$((i+1)); done
+sb := term scroll $t
+echo "after ESC [3J: $sb"
+term close $t
+
+echo "--- shrinking keeps the cursor's line, growing brings lines back"
+t := term open -r 6 -c 20 /bin/sh -c 'printf "1\n2\n3\n4\n5\nhere"; sleep 5'
+i=0; while [ $i -lt 4 ]; do term poll $t 100; i=$((i+1)); done
+term size $t 3 20
+sb := term scroll $t
+echo "shrunk, stored: $sb"
+show $t 3
+term size $t 6 20
+sb := term scroll $t
+echo "grown, stored: $sb"
+show $t 6
+term close $t
+
+echo "--- the mouse reaches a program that asks for it"
+t := term open -r 4 -c 70 /bin/sh -c 'stty raw -echo; printf "ready\r\n"; head -c 1 > /dev/null; printf "\033[?1002h\033[?1006h"; head -c 38 | cat -v'
+i=0; while [ $i -lt 6 ]; do term poll $t 100; i=$((i+1)); done
+m := term mouse $t
+echo "before it asks: $m"
+term mouse $t press left 0 0 && echo "sent anyway" || echo "not sent"
+term write $t g
+i=0; while [ $i -lt 4 ]; do term poll $t 100; i=$((i+1)); done
+m := term mouse $t
+echo "after it asks: $m"
+term mouse $t press left 2 4
+term mouse $t drag left 3 5
+term mouse $t release left 3 5
+term mouse $t wheelup 0 0
+i=0; while [ $i -lt 6 ]; do term poll $t 100; i=$((i+1)); done
+show $t 2
+term close $t
+
+echo "--- in the old encoding, and only what was asked for"
+t := term open -r 4 -c 40 /bin/sh -c 'stty raw -echo; printf "\033[?1000h"; head -c 12 | cat -v'
+i=0; while [ $i -lt 6 ]; do term poll $t 100; i=$((i+1)); done
+term mouse $t drag left 1 1 && echo "drag sent" || echo "no drag in click mode"
+term mouse $t press left 0 0
+term mouse $t release left 0 0
+i=0; while [ $i -lt 6 ]; do term poll $t 100; i=$((i+1)); done
+show $t 1
+term close $t
+
+echo "--- a paste is bracketed when the program asks"
+t := term open -r 4 -c 40 /bin/sh -c 'stty raw -echo; printf "\033[?2004h"; head -c 14 | cat -v'
+i=0; while [ $i -lt 6 ]; do term poll $t 100; i=$((i+1)); done
+term key $t "paste hi"
+i=0; while [ $i -lt 6 ]; do term poll $t 100; i=$((i+1)); done
+show $t 1
+term close $t
+
 echo "--- errors"
 term open 2>/dev/null; echo "no command: $?"
 term poll 999 2>/dev/null; echo "no such terminal: $?"

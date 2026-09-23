@@ -201,6 +201,19 @@ void tm_mode(tm_t *t, int on)
 		case 47:
 		case 1047:
 		case 1049: tm_altscreen(t, on); break;
+		case 9:
+		case 1000:
+		case 1002:
+		case 1003:
+			if (on)
+				t->mmode = (int)v;
+			else if (t->mmode == (int)v)
+				t->mmode = 0;
+			lg(HIBR_LDBG, "terminal %d mouse %s", t->id,
+			   tm_mname(t));
+			break;
+		case 1006: t->msgr = on; break;
+		case 2004: t->bpaste = on; break;
 		default: break;
 		}
 	}
@@ -231,6 +244,8 @@ void tm_csi(tm_t *t, int f)
 			tm_erase(t, t->cr, t->cc, t->rows - 1, t->cols - 1);
 		else if (n == 1)
 			tm_erase(t, 0, 0, t->cr, t->cc);
+		else if (n == 3)
+			tm_sbclear(t);
 		else
 			tm_erase(t, 0, 0, t->rows - 1, t->cols - 1);
 		break;
@@ -325,6 +340,7 @@ void tm_esc(tm_t *t, int c)
 		t->bot = t->rows - 1;
 		t->autowrap = 1;
 		t->vis = 1;
+		t->mmode = t->msgr = t->bpaste = 0;
 		tm_altscreen(t, 0);
 		tm_erase(t, 0, 0, t->rows - 1, t->cols - 1);
 		tm_goto(t, 0, 0);

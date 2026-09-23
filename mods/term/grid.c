@@ -59,6 +59,8 @@ tm_t *tm_new(int rows, int cols)
 	t->autowrap = 1;
 	t->top = 0;
 	t->bot = rows - 1;
+	t->sbmax = 1000;
+	tm_blank(t, &t->nil);
 	t->g = xm((size_t)rows * cols * sizeof *t->g);
 	s_init(&t->pb);
 	s_init(&t->ub);
@@ -83,52 +85,98 @@ void tm_free(tm_t *t)
 		}
 	free(t->g);
 	free(t->alt);
+	tm_sbclear(t);
 	s_free(&t->pb);
 	s_free(&t->ub);
 	s_free(&t->title);
 	free(t);
 }
 
-/* Change the size, keeping the top-left of what is there.
+/* A grid of a new size holding an old one's cells, old row `from` landing
+   on new row `to`, and blank wherever the old one had nothing. */
+tm_cell *tm_regrid(tm_t *t, tm_cell *old, int orows, int ocols, int rows,
+		   int cols, int from, int to)
+{
+	tm_cell *n = xm((size_t)rows * cols * sizeof *n);
+	int r, c, src;
+	size_t i;
+
+	for (i = 0; i < (size_t)rows * cols; i++)
+		tm_blank(t, n + i);
+	for (r = 0; r < rows; r++) {
+		src = r - to + from;
+		if (src < 0 || src >= orows)
+			continue;
+		for (c = 0; c < cols && c < ocols; c++)
+			n[(size_t)r * cols + c] = old[(size_t)src * ocols + c];
+	}
+	return n;
+}
+
+/* Change the size.
 
    Nothing reflows. A real terminal rewraps long lines when it widens, and
    getting that right needs the original line breaks, which a cell grid has
    already thrown away -- so this keeps what fits and says so rather than
-   guessing. */
+   guessing.  What it does do is what xterm does with height: a screen that
+   shrinks under the cursor pushes its top lines into the scrollback rather
+   than losing the line being typed on, and one that grows pulls them back.
+   Both screens are resized, so a program on the alternate screen stays
+   there and simply redraws. */
 int tm_size(tm_t *t, int rows, int cols)
 {
-	tm_cell *n;
-	int r, c;
-	size_t i;
+	tm_cell *mg, *n;
+	tm_line *l;
+	int r, c, shift = 0, pull = 0;
 
 	if (rows < 1 || cols < 1)
 		return 0;
 	if (rows == t->rows && cols == t->cols)
 		return 1;
-	n = xm((size_t)rows * cols * sizeof *n);
-	for (i = 0; i < (size_t)rows * cols; i++)
-		tm_blank(t, n + i);
-	for (r = 0; r < rows && r < t->rows; r++)
-		for (c = 0; c < cols && c < t->cols; c++)
-			n[(size_t)r * cols + c] =
-				t->g[(size_t)r * t->cols + c];
-	free(t->g);
-	t->g = n;
-	if (t->alt) {
-		free(t->alt);
-		t->alt = 0;
-		t->inalt = 0;
+	mg = t->inalt ? t->alt : t->g;
+	if (!t->inalt) {
+		if (rows < t->rows && t->cr >= rows)
+			shift = t->cr - rows + 1;
+		else if (rows > t->rows)
+			pull = rows - t->rows < t->sbn ? rows - t->rows : t->sbn;
 	}
+	for (r = 0; r < shift; r++)
+		tm_push(t, mg + (size_t)r * t->cols, t->cols);
+	n = tm_regrid(t, mg, t->rows, t->cols, rows, cols, shift, pull);
+	for (r = pull - 1; r >= 0; r--) {
+		l = tm_pop(t);
+		for (c = 0; l && c < l->w && c < cols; c++)
+			n[(size_t)r * cols + c] = l->c[c];
+		free(l);
+	}
+	free(mg);
+	if (t->inalt) {
+		t->alt = n;
+		n = tm_regrid(t, t->g, t->rows, t->cols, rows, cols, 0, 0);
+		free(t->g);
+		t->g = n;
+	} else {
+		t->g = n;
+		if (t->alt) {
+			free(t->alt);
+			t->alt = 0;
+		}
+	}
+	t->cr += pull - shift;
 	t->rows = rows;
 	t->cols = cols;
 	t->top = 0;
 	t->bot = rows - 1;
+	t->view = 0;
 	if (t->cr >= rows)
 		t->cr = rows - 1;
+	if (t->cr < 0)
+		t->cr = 0;
 	if (t->cc >= cols)
 		t->cc = cols - 1;
 	t->wrapnext = 0;
-	lg(HIBR_LDBG, "terminal %d resized to %dx%d", t->id, rows, cols);
+	lg(HIBR_LDBG, "terminal %d resized to %dx%d, %d up, %d back", t->id,
+	   rows, cols, shift, pull);
 	return 1;
 }
 
@@ -159,6 +207,9 @@ void tm_scroll(tm_t *t, int n)
 	if (n > h || -n > h)
 		n = n > 0 ? h : -h;
 	if (n > 0) {
+		if (t->top == 0 && !t->inalt)
+			for (r = 0; r < n; r++)
+				tm_push(t, t->g + (size_t)r * t->cols, t->cols);
 		for (r = t->top; r <= t->bot - n; r++)
 			memcpy(t->g + (size_t)r * t->cols,
 			       t->g + (size_t)(r + n) * t->cols, w);
