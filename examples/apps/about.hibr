@@ -1,0 +1,116 @@
+#!/usr/bin/env hibr
+#
+# about -- what this is, and what it is running on.
+#
+# Nothing here forks: the machine's own numbers come from /proc, read
+# directly, the same way mods/sysinfo does in C. A window rather than the
+# one-line note it used to be, because a bar that means something has to
+# keep being redrawn, and a note fades on its own.
+
+app about "About hibr, and the machine it runs on"
+
+command -v dt_app > /dev/null && dt_app about "About hibr" 13 46 once "ⓘ" fixed
+
+declare -gA AB
+
+# One read, no fork, cached: none of this changes while the window is open.
+AB_HOST=
+AB_KERNEL=
+about_facts() {
+	[ -n "$AB_HOST" ] && return 0
+	read -r AB_HOST < /proc/sys/kernel/hostname
+	read -r AB_KERNEL < /proc/sys/kernel/osrelease
+}
+
+# A bar of blocks, pct out of 100, w cells wide.
+about_bar() {
+	local pct=$1 w=$2 fill empty
+
+	[ "$pct" -lt 0 ] && pct=0
+	[ "$pct" -gt 100 ] && pct=100
+	fill=$((pct * w / 100))
+	empty=$((w - fill))
+	local b
+	b := dt_rep "$fill" "█"
+	local e
+	e := dt_rep "$empty" "░"
+	ret "$b$e"
+}
+
+# Percent CPU busy since the last reading, from the aggregate line in
+# /proc/stat: total and idle are both running counters in ticks, so the
+# first reading has nothing to compare against and reads as 0.
+about_cpu() {
+	local id=$1 label u n s i io irq soft steal total idle dt di pct
+
+	read -r label u n s i io irq soft steal _ < /proc/stat
+	total=$((u + n + s + i + io + irq + soft + steal))
+	idle=$((i + io))
+	if [ -z "${AB[$id]["ptotal"]}" ]; then
+		pct=0
+	else
+		dt=$((total - AB[$id]["ptotal"]))
+		di=$((idle - AB[$id]["pidle"]))
+		pct=0
+		[ "$dt" -gt 0 ] && pct=$(((dt - di) * 100 / dt))
+	fi
+	AB[$id]["ptotal"]=$total
+	AB[$id]["pidle"]=$idle
+	ret "$pct"
+}
+
+# Percent memory in use, from what is actually unavailable to a new
+# allocation -- MemAvailable, not MemFree, which undercounts what the page
+# cache would give back under pressure.
+about_mem() {
+	local line k v total avail=0
+
+	while read -r k v _; do
+		case $k in
+		MemTotal:) total=$v ;;
+		MemAvailable:) avail=$v ;;
+		esac
+	done < /proc/meminfo
+	[ -z "$total" ] || [ "$total" = 0 ] && { ret 0; return 0; }
+	ret $(((total - avail) * 100 / total))
+}
+
+about_open() {
+	about_facts
+}
+
+about_draw() {
+	local id=$1 w=$3 cpu mem bar barw=$((w - 12)) pct
+
+	console pen "$DT_INK" "$DT_FACE" bold
+	console put -p "w$id" 1 2 "hibr $HIBR_VERSION"
+	console pen "$DT_INK" "$DT_FACE"
+	console put -p "w$id" 2 2 "Highly Improved Bash Runtime"
+	console put -p "w$id" 3 2 "a desktop written in the shell it runs on"
+	console put -p "w$id" 5 2 "$AB_HOST"
+	console put -p "w$id" 6 2 "$AB_KERNEL"
+
+	cpu := about_cpu "$id"
+	bar := about_bar "$cpu" "$barw"
+	console pen "$DT_INK" "$DT_FACE"
+	console put -p "w$id" 8 2 "CPU"
+	console pen "$DT_ACTIVE" "$DT_FACE"
+	console put -p "w$id" 8 6 "$bar"
+	console pen "$DT_INK" "$DT_FACE"
+	printf -v pct '%3d%%' "$cpu"
+	console put -p "w$id" 8 $((w - 6)) "$pct"
+
+	mem := about_mem
+	bar := about_bar "$mem" "$barw"
+	console pen "$DT_INK" "$DT_FACE"
+	console put -p "w$id" 9 2 "MEM"
+	console pen "$DT_ACTIVE" "$DT_FACE"
+	console put -p "w$id" 9 6 "$bar"
+	console pen "$DT_INK" "$DT_FACE"
+	printf -v pct '%3d%%' "$mem"
+	console put -p "w$id" 9 $((w - 6)) "$pct"
+}
+
+if [ -z "$DT_ROWS" ]; then
+	echo "about: this is a desktop app; open it from the hibr menu"
+fi

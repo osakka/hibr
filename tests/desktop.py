@@ -622,6 +622,14 @@ LAUNCH = MENU + [b"f"]
 sc, raw = run("", feed=LAUNCH + LAUNCH, pre=APPS)
 check("and one that is not opens another window each time",
       sc.text().count("┤ Files ├") == 2, sc)
+
+sc, _ = run("", feed=[press(0, 2), b"a"], pre=APPS)
+check("About hibr opens a window with the machine's own numbers",
+      sc.find("┤ About hibr ├") is not None and
+      sc.find("CPU") is not None and sc.find("MEM") is not None and
+      sc.find("%") is not None, sc)
+check("and it has no maximise button, being a fixed size",
+      sc.find("┤_ x├") is not None, sc)
 CONF = tempfile.mkdtemp(prefix="hibr-conf-")
 PANEL = '. %s/panel.hibr' % tree("examples/apps")
 sc, raw = run('dt_new "Settings" 12 34 2 2 panel', feed=[b"\x1b[C"],
@@ -792,4 +800,4 @@ check("ending it leaves the other one alone",
       "personal" in r.stdout and "work" not in r.stdout, r.stdout)
 unsession()
 
-report(117)
+report(119)

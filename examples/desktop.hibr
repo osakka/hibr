@@ -2036,7 +2036,13 @@ dt_autohold() {
 dt_detach() {
 	need hold && hold detach
 }
-dt_about() { dt_note "hibr $HIBR_VERSION — a desktop written in the shell it runs on"; }
+# The about app shows the machine's own numbers, live; without it (a session
+# that never called dt_apps, or one that dropped the file) a note still says
+# what this is, since About hibr must never be a dead menu item.
+dt_about() {
+	dt_has about_draw && { dt_launch about; return 0; }
+	dt_note "hibr $HIBR_VERSION — a desktop written in the shell it runs on"
+}
 dt_close_focused() { [ -n "$DT_FOCUS" ] && dt_del "$DT_FOCUS"; }
 dt_hide_focused() { [ -n "$DT_FOCUS" ] && dt_min "$DT_FOCUS"; }
 dt_zoom_focused() { [ -n "$DT_FOCUS" ] && dt_zoom "$DT_FOCUS"; }

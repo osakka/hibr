@@ -280,6 +280,7 @@ In `examples/apps/`, each one also a file you can read in a sitting:
 | `snake` | arrows turn, `p` pauses. It speeds up as it grows |
 | `mines` | Minesweeper, 9 by 9 with ten mines. `space` or a click opens, `f` or a right click flags, and opening a number with its flags placed opens what is round it |
 | `bricks` | after Arkanoid: the arrows or a click move the bat, `space` serves. Where the ball lands on the bat sets its angle |
+| `about` | the version, the machine's hostname and kernel, and a CPU and a memory bar read live from `/proc` -- no forking, the same way `mods/sysinfo` reads them in C |
 
 A focused terminal gets every key except `f10`, so a program inside can have
 `escape`; `f10` is the way back to the menu bar.
