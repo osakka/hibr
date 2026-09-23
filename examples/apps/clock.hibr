@@ -1,0 +1,24 @@
+#!/usr/bin/env hibr
+#
+# clock -- the time, large, and the date under it.
+#
+# It only draws, so it can never take a key meant for another window.
+
+app clock "The time and the date"
+
+command -v dt_app > /dev/null && dt_app clock "Clock" 7 26 once "◷"
+
+clock_draw() {
+	local now
+
+	printf -v now "%(%H:%M:%S)T" -1
+	console pen "#68d391" "$DT_FACE" bold
+	console put -p "w$1" 2 4 "$now"
+	console pen "$DT_INK" "$DT_FACE"
+	printf -v now "%(%A %d %B)T" -1
+	console put -p "w$1" 4 2 "$now"
+}
+
+if [ -z "$DT_ROWS" ]; then
+	printf '%(%H:%M:%S  %A %d %B)T\n' -1
+fi

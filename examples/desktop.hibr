@@ -151,7 +151,7 @@ dt_new() {
 	DT_NEXT=$((DT_NEXT + 1))
 	console pane "w$id" "$4" "$5" "$2" "$3"
 	DT_FOCUS=$id
-	[ -n "${DT[$id]["open"]}" ] && ${DT[$id]["open"]} "$id"
+	[ -n "${DT[$id]["open"]}" ] && ${DT[$id]["open"]} "$id" "$7"
 	ret "$id"
 }
 
@@ -716,18 +716,80 @@ dt_app() {
 	DT_APPS[$1]["title"]="$2"
 	DT_APPS[$1]["h"]="$3"
 	DT_APPS[$1]["w"]="$4"
+	DT_APPS[$1]["once"]=
+	[ "$5" = once ] && DT_APPS[$1]["once"]=1
+	DT_APPS[$1]["icon"]="${6:-◆}"
+}
+
+# Where apps are found: every .hibr in each of these, in this order.  The
+# user's own folder comes first, so a file there replaces a bundled app of
+# the same name; a session adds its own folders after.
+DT_APPDIRS=("${XDG_CONFIG_HOME:-$HOME/.config}/hibr/apps")
+declare -gA DT_SRC
+
+# Load every app in the folders.  Each file declares itself with dt_app, so
+# the folder is the whole configuration: drop a script in, and it is on the
+# menu at the next start.  A file whose name was already loaded from an
+# earlier folder is skipped.
+dt_apps() {
+	local d f b
+
+	for d in "${DT_APPDIRS[@]}"; do
+		for f in "$d"/*.hibr; do
+			[ -r "$f" ] || continue
+			b=${f##*/}
+			b=${b%.hibr}
+			[ -n "${DT_SRC[$b]}" ] && continue
+			DT_SRC[$b]=$f
+			. "$f"
+		done
+	done
+}
+
+# The registered apps, sorted by title without regard to case, as names.
+dt_appsorted() {
+	local n l out=
+	local -a all
+
+	for n in "${!DT_APPS[@]}"; do
+		l := str lower "${DT_APPS[$n]["title"]}"
+		all+=("$l	$n")
+	done
+	arr sort all
+	for l in "${all[@]}"; do out="$out ${l#*	}"; done
+	ret "${out# }"
+}
+
+# The window already showing an app, if there is one.
+dt_appwin() {
+	local id
+
+	for id in "${!DT[@]}"; do
+		if [ "${DT[$id]["app"]}" = "$1" ]; then
+			ret "$id"
+			return 0
+		fi
+	done
+	return 1
 }
 
 # Open a registered app in a fresh window, stepped down and across so a
-# second one does not land exactly on the first.
+# second one does not land exactly on the first.  An app declared `once`
+# has one window at most: launching it again brings that one forward,
+# shown if it was hidden.  Anything after the name goes to its _open.
 dt_launch() {
-	local n=$1 r c
+	local n=$1 r c id
 
 	[ -z "${DT_APPS[$n]["title"]}" ] && return 1
+	if [ -n "${DT_APPS[$n]["once"]}" ] && id := dt_appwin "$n"; then
+		dt_raise "$id"
+		ret "$id"
+		return 0
+	fi
 	r=$((2 + (DT_NEXT * 2) % 6))
 	c=$((4 + (DT_NEXT * 4) % 16))
 	dt_new "${DT_APPS[$n]["title"]}" "${DT_APPS[$n]["h"]}" \
-		"${DT_APPS[$n]["w"]}" "$r" "$c" "$n"
+		"${DT_APPS[$n]["w"]}" "$r" "$c" "$n" "$2"
 }
 
 # Rebuild the bar for whatever has focus.  Cheap enough to do every frame:
@@ -742,7 +804,8 @@ dt_menus() {
 	dt_item "About hibr" a dt_about
 	dt_sep
 	used=aqd
-	for n in "${!DT_APPS[@]}"; do
+	n := dt_appsorted
+	for n in $n; do
 		k := dt_akey "${DT_APPS[$n]["title"]}" "$used"
 		used="$used$k"
 		dt_item "${DT_APPS[$n]["title"]}" "$k" dt_launch "$n"

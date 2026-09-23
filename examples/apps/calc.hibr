@@ -16,10 +16,14 @@
 
 app calc "A calculator"
 
+# What the hibr menu shows, how big a new window is, and whether a second
+# launch opens another window or brings this one forward.
+command -v dt_app > /dev/null && dt_app calc "Calculator" 16 24 once "±"
+
 # Per window, not per app: two calculators must be able to hold two
 # different sums.  Everything an app remembers goes under the window id it
 # was handed, because a global is shared by every window of the same app.
-declare -A CA
+declare -gA CA
 
 # Four columns, five rows.  ^ inserts ** and c clears.
 #
@@ -133,14 +137,14 @@ calc_menus() {
 	dt_item "Clear" c calc_push "$DT_FOCUS" c
 	dt_item "Backspace" b calc_push "$DT_FOCUS" backspace
 	dt_sep
-	dt_item "Copy Answer" y calc_copy "$DT_FOCUS"
+	dt_item "Use Answer" u calc_recall "$DT_FOCUS"
 	dt_sep
 	dt_item "Close" w dt_close_focused
 }
 
 # Put the answer back in the expression, which is what a calculator's memory
 # is for and costs nothing to provide.
-calc_copy() {
+calc_recall() {
 	CA[$1]["in"]="${CA[$1]["out"]}"
 	CA[$1]["err"]=
 }

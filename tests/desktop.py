@@ -342,6 +342,36 @@ check("and Detach is on the hibr menu, dimmed when nothing holds it",
       sc.find("Detach") is not None, sc)
 
 import tempfile
+
+# --- the hibr menu comes from folders of apps ---------------------------
+
+UCONF = tempfile.mkdtemp(prefix="hibr-apps-")
+os.makedirs(os.path.join(UCONF, "hibr", "apps"))
+open(os.path.join(UCONF, "hibr", "apps", "hello.hibr"), "w").write(
+    'dt_app hello "Hello" 6 20 once "☺"\n'
+    'hello_draw() { console put -p "w$1" 1 1 "hi there"; }\n')
+open(os.path.join(UCONF, "hibr", "apps", "calc.hibr"), "w").write(
+    'dt_app calc "My Sums" 6 20 once "±"\n')
+APPS = 'DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/apps")
+MENU = [b"\x1b[21~", b"\x1b[B"]
+sc, raw = run("", feed=MENU, env={"XDG_CONFIG_HOME": UCONF}, pre=APPS)
+rows = [r for r in range(2, 16) if "Hello" in sc.row(r) or
+        "Files" in sc.row(r) or "Mines" in sc.row(r)]
+check("an app in your own folder is on the menu, in its sorted place",
+      len(rows) == 3 and "Files" in sc.row(rows[0]) and
+      "Hello" in sc.row(rows[1]) and "Mines" in sc.row(rows[2]), sc)
+check("and a file of yours replaces the bundled app of that name",
+      sc.find("My Sums") is not None and sc.find("Calculator") is None, sc)
+shutil.rmtree(UCONF, True)
+
+LAUNCH = MENU + [b"c"]
+sc, raw = run("", feed=LAUNCH + LAUNCH, pre=APPS)
+check("an app declared once opens one window, however often launched",
+      sc.text().count("┤ Calculator ├") == 1, sc)
+LAUNCH = MENU + [b"f"]
+sc, raw = run("", feed=LAUNCH + LAUNCH, pre=APPS)
+check("and one that is not opens another window each time",
+      sc.text().count("┤ Files ├") == 2, sc)
 CONF = tempfile.mkdtemp(prefix="hibr-conf-")
 PANEL = '. %s/panel.hibr' % tree("examples/apps")
 sc, raw = run('dt_new "Settings" 12 34 2 2 panel', feed=[b"\x1b[C"],
@@ -406,4 +436,4 @@ check("quitting a held desktop ends the session",
       b"[desk ended, status 0]" in t.out and b"back 0" in t.out, t.out.decode(errors="replace"))
 t.close()
 
-report(82)
+report(86)

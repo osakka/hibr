@@ -13,6 +13,10 @@
 
 app term "A shell in a window"
 
+# What the hibr menu shows, how big a new window is, and whether a second
+# launch opens another window or brings this one forward.
+command -v dt_app > /dev/null && dt_app term "Terminal" 14 52 many ">_"
+
 need pty || { echo "term: no pty module" >&2; exit 1; }
 need terminal || { echo "term: no terminal module" >&2; exit 1; }
 
@@ -23,7 +27,7 @@ need terminal || { echo "term: no terminal module" >&2; exit 1; }
 # app -- which for a terminal means two windows showing one shell, mirroring
 # each other keystroke for keystroke, and for a file browser means two
 # windows that cannot be in different directories.
-declare -A TW
+declare -gA TW
 # What each window runs, as words rather than a string, so a command with
 # quoted arguments survives: a test sets it to a /bin/sh with a known prompt.
 [ -n "${TW_CMD[*]}" ] || TW_CMD=(hibr)

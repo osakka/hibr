@@ -19,7 +19,11 @@
 
 app mines "Clear the field"
 
-declare -A MS
+# What the hibr menu shows, how big a new window is, and whether a second
+# launch opens another window or brings this one forward.
+command -v dt_app > /dev/null && dt_app mines "Mines" 15 31 once "✱"
+
+declare -gA MS
 MINES_ROWS=9
 MINES_COLS=9
 MINES_COUNT=10

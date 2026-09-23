@@ -15,7 +15,11 @@
 
 app bricks "Knock the wall down"
 
-declare -A BK
+# What the hibr menu shows, how big a new window is, and whether a second
+# launch opens another window or brings this one forward.
+command -v dt_app > /dev/null && dt_app bricks "Bricks" 20 44 once "▀▀"
+
+declare -gA BK
 BRICKS_ROWS=5
 BRICKS_BAT=7
 BRICKS_COLOURS=("#f56565" "#f6ad55" "#ecc94b" "#68d391" "#63b3ed")

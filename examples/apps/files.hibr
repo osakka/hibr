@@ -17,11 +17,15 @@
 
 app files "A file browser"
 
+# What the hibr menu shows, how big a new window is, and whether a second
+# launch opens another window or brings this one forward.
+command -v dt_app > /dev/null && dt_app files "Files" 12 34 many "▤"
+
 # Per window, not per app.  Two browsers must be able to be in two different
 # directories; a global would put them both in the last one opened.  FB holds
 # each window's state and FL holds its listing.
-declare -A FB
-declare -A FL
+declare -gA FB
+declare -gA FL
 
 # Read a directory into FL: name, and whether it is a directory.  Directories
 # come first, each group in the order the glob gave, which is sorted.

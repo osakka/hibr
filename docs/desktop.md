@@ -217,15 +217,32 @@ are the app's own business inside its own menu; in the hibr menu the desktop
 picks them, skipping any already taken, because Calculator and Clock both
 start with a C and a menu where one item cannot be reached is a broken menu.
 
-A session says which apps the hibr menu can open:
+The hibr menu lists the apps found in a list of folders, sorted by title.
+Each app says who it is in its own file, one line near the top:
 
 ```sh
-dt_app files "Files"      12 34
-dt_app calc  "Calculator" 16 24
+command -v dt_app > /dev/null && dt_app calc "Calculator" 16 24 once "±"
 ```
 
-`dt_app <name> <title> <height> <width>`. Choosing one opens a window,
-stepped down and across so a second does not land exactly on the first.
+`dt_app <name> <title> <height> <width> [once|many] [icon]`. `once` means
+one window at most: launching it again brings that window forward, shown if
+it was hidden. The calculator, the settings, the clock and the games are
+`once`; the terminal and the file browser are `many`. The icon is what the
+desktop shows for it. The `command -v` guard is what lets the same file run
+on its own, where there is no desktop to register with.
+
+A session names the folders and loads them:
+
+```sh
+DT_APPDIRS+=("$d/apps")     # after ~/.config/hibr/apps, which is always first
+dt_apps
+```
+
+A script dropped in `~/.config/hibr/apps` is on the menu at the next start,
+and one there with the same file name as a bundled app replaces it. An app
+file is sourced from inside a function, so its tables must be declared
+`declare -gA`, or they vanish when the loading function returns, exactly as
+they would in bash.
 
 ## Managing other windows
 

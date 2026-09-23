@@ -17,44 +17,16 @@ d=${0%/*}
 [ "$d" = "$0" ] && d=.
 . "$d/desktop.hibr"
 
-# Apps are ordinary hibr files.  Each declares itself with `app` and provides
-# some of <name>_draw, _key, _click, _wheel, _open and _close; the window
-# manager calls only the ones that exist.  Both of these also run on their
-# own -- try `hibr examples/apps/calc.hibr '2 ** 16'`.
-. "$d/apps/calc.hibr"
-. "$d/apps/files.hibr"
-. "$d/apps/panel.hibr"
-. "$d/apps/term.hibr"
-. "$d/apps/snake.hibr"
-. "$d/apps/mines.hibr"
-. "$d/apps/bricks.hibr"
-
-# A clock, small enough to write here.  It only draws, so it can never take
-# a key meant for another window.  Nothing opens it: press its name on the
-# bar, or add a dt_new line below.
-clock_draw() {
-	local now
-
-	printf -v now "%(%H:%M:%S)T" -1
-	console pen "#68d391" "$DT_FACE" bold
-	console put -p "w$1" 2 4 "$now"
-	console pen "$DT_INK" "$DT_FACE"
-	printf -v now "%(%A %d %B)T" -1
-	console put -p "w$1" 4 2 "$now"
-}
+# Apps are ordinary hibr files, found in folders: your own
+# ~/.config/hibr/apps first, then the ones that come with hibr.  Each file
+# declares itself with dt_app -- its title, its window's size, and whether a
+# second launch opens another window -- so a script dropped in a folder is
+# on the hibr menu at the next start, sorted by title.  A file of yours
+# with the same name as a bundled one replaces it.
+DT_APPDIRS+=("$d/apps")
+dt_apps
 
 FB_DIR=$PWD
-
-# What the hibr menu can open.  A session says which apps exist; the window
-# manager does not go looking.
-dt_app files "Files"      12 34
-dt_app calc  "Calculator" 16 24
-dt_app panel "Settings"   14 34
-dt_app clock "Clock"       7 26
-dt_app term  "Terminal"   14 52
-dt_app snake "Snake"      18 42
-dt_app mines "Mines"      15 31
-dt_app bricks "Bricks"    20 44
 
 # Defaults go before dt_open, which then reads what was saved last time
 # over the top of them.

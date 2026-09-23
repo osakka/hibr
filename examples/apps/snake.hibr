@@ -15,7 +15,11 @@
 
 app snake "Eat, grow, and do not bite yourself"
 
-declare -A SN
+# What the hibr menu shows, how big a new window is, and whether a second
+# launch opens another window or brings this one forward.
+command -v dt_app > /dev/null && dt_app snake "Snake" 18 42 once "∿"
+
+declare -gA SN
 SNAKE_BEST=0
 
 # Milliseconds since the epoch.  The point comes out and the last three
