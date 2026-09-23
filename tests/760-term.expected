@@ -16,7 +16,8 @@ cursor 0 3 1 block
 default: 0 1 1 block
 steady underline: 1 0 1 underline
 blinking bar: 2 0 1 bar
-no parameter resets to: 3 0 1 block
+a bare CSI q with no space is not DECSCUSR, and changes nothing: 3 0 1 bar
+CSI SP q with no digit still resets to: 3 0 1 block
 set directly: 3 0 1 underline
 bad shape: 2
 --- erasing, inserting and deleting

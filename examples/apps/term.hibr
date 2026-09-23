@@ -63,7 +63,7 @@ tw_fit() {
 }
 
 term_draw() {
-	local id=$1 h=$2 w=$3 wr=$4 wc=$5 t st sb
+	local id=$1 h=$2 w=$3 wr=$4 wc=$5 t st sb cur=0
 
 	tw_fit "$id" "$h" "$w" || return 0
 	t=${TW[$id]["t"]}
@@ -78,8 +78,8 @@ term_draw() {
 		console put -p "w$id" 1 2 "[exited $st — close this window]"
 		return 0
 	fi
-	term draw "$t" $((wr + 1)) $((wc + 1)) "$h" "$w" \
-		$([ "$DT_FOCUS" = "$id" ] && echo 1 || echo 0)
+	[ "$DT_FOCUS" = "$id" ] && cur=1
+	term draw "$t" $((wr + 1)) $((wc + 1)) "$h" "$w" "$cur"
 	sb := term scroll "$t"
 	if [ "${sb% *}" != 0 ]; then
 		console pen "$DT_FACE" "#ecc94b" bold

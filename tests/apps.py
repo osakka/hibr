@@ -285,6 +285,15 @@ check("and what is typed in one does not reach the other",
       sc.row(4).count("echo one") == 1 and sc.row(5).count("one") == 1 and
       "│sh>  " in sc.row(4), sc)
 
+# DT_CURSOR is what a new terminal starts with, and only the focused one
+# draws a cursor at all -- end=None, since the default quit key would land
+# on the prompt and move it before the screen is read.
+sc = run(*TERM, pre=SH + "\nDT_CURSOR=bar", wait=1.6,
+         also=[("Term", "14 44 2 50", "term")], end=None)
+check("DT_CURSOR sets a new terminal's cursor, drawn only where focused",
+      sc.row(3).count("▏") == 1 and
+      sum(sc.row(r).count("▏") for r in range(24)) == 1, sc)
+
 sc = run(*TERM, feed=[b"\x1b[21~"],
          pre=SH,
          wait=1.2)
@@ -521,4 +530,4 @@ for f in os.listdir(D):
 os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
-report(90)
+report(91)

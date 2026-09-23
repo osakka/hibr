@@ -280,9 +280,10 @@ A focused terminal gets every key except `f10`, so a program inside can have
 `escape`; `f10` is the way back to the menu bar.
 
 A new terminal's cursor is a block until the program inside sets its own with
-DECSCUSR (`CSI Ps SP q`) -- vi and most line editors do. What a new one
-starts with is `DT_CURSOR` (block, underline or bar), a Settings entry like
-any other; only the terminal that has focus shows a cursor at all.
+DECSCUSR (`CSI Ps SP q`), as some editors do to mark insert mode with a
+different shape. What a new one starts with is `DT_CURSOR` (block, underline
+or bar), a Settings entry like any other; only the terminal that has focus
+shows a cursor at all.
 
 ## The menu bar
 
