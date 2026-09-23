@@ -163,6 +163,7 @@ struct sav { char *k, *v; unsigned ex; var *w; };
 void asg_keep(sh *s, vec *old, const char *k);
 int asg_hide(sh *s, vec *old, const char *k);
 int asg_wasex(vec *old);
+long pf_arg(const char *arg, int uns);
 void ex_arrasg(sh *s, node *f);
 void ex_arrlate(sh *s, node *n);
 int ex_arrro(sh *s, node *n);

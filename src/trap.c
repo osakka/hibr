@@ -389,6 +389,24 @@ size_t pf_wide(const char *spec)
 	return w;
 }
 
+/* A numeric argument's value.  A leading quote means the code of the
+   character after it, which POSIX asks of printf and scripts use to turn a
+   character into a number; the character is read as UTF-8, as the rest of
+   the shell reads text, so 'é is 233 as it is in bash in a UTF-8 locale. */
+long pf_arg(const char *arg, int uns)
+{
+	unsigned cp = 0;
+
+	if (!arg)
+		return 0;
+	if (*arg == '\'' || *arg == '"') {
+		if (arg[1])
+			u8dec(arg + 1, strlen(arg + 1), &cp);
+		return (long)cp;
+	}
+	return uns ? (long)strtoul(arg, 0, 0) : strtol(arg, 0, 0);
+}
+
 /* Emit one conversion with its flags, width and precision. */
 void pf_one(str *o, const char *spec, char cv, const char *arg)
 {
@@ -403,8 +421,7 @@ void pf_one(str *o, const char *spec, char cv, const char *arg)
 	case 'i':
 		s_cat(&f, "ld");
 		s_grow(o, room);
-		o->n += (size_t)sprintf(o->p + o->n, f.p,
-					arg ? strtol(arg, 0, 0) : 0L);
+		o->n += (size_t)sprintf(o->p + o->n, f.p, pf_arg(arg, 0));
 		break;
 	case 'u':
 	case 'x':
@@ -414,7 +431,7 @@ void pf_one(str *o, const char *spec, char cv, const char *arg)
 		s_ch(&f, cv);
 		s_grow(o, room);
 		o->n += (size_t)sprintf(o->p + o->n, f.p,
-					arg ? strtoul(arg, 0, 0) : 0UL);
+					(unsigned long)pf_arg(arg, 1));
 		break;
 	case 'f':
 	case 'e':
