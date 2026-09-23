@@ -51,8 +51,8 @@ FB_DIR=$PWD
 DT_TICK=200
 
 dt_open || exit 1
-dt_new "Files"      10 34  1  2 files
-dt_new "Settings"   12 34 12  2 panel
-dt_new "Calculator" 16 24  1 40 calc
+#dt_new "Files"      10 34  1  2 files
+#dt_new "Settings"   12 34 12  2 panel
+#dt_new "Calculator" 16 24  1 40 calc
 dt_run
 dt_close
