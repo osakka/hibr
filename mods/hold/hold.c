@@ -24,10 +24,12 @@ void hd_ret(sh *s, const char *t)
 }
 
 /* Close every descriptor the shell had open except the one kept, so the
-   server holds nothing of the terminal it was started from. */
+   server holds nothing of the terminal it was started from.  /dev/fd is
+   /proc/self/fd's older, more portable name -- a symlink to it on Linux,
+   its own filesystem on macOS and the BSDs, which have no /proc at all. */
 void hd_shed(int keep)
 {
-	DIR *d = opendir("/proc/self/fd");
+	DIR *d = opendir("/dev/fd");
 	struct dirent *e;
 	vec fds;
 	size_t i;
