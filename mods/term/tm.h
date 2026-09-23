@@ -38,7 +38,14 @@ struct tm_t {
 	tm_cell nil;
 	long tot, sa, sz;
 	int sel, sca, scz;
+	int cshape;
 };
+
+/* DECSCUSR's six shapes collapse to three: blinking is never drawn as
+   blinking (that would cost a redraw every blink, on every terminal window,
+   whether or not anyone is looking at it), so its blinking and steady forms
+   share one drawn shape. */
+enum { TM_BLOCK, TM_UNDER, TM_BAR };
 
 tm_t *tm_find(int id);
 tm_t *tm_new(int rows, int cols);
@@ -72,7 +79,8 @@ const tm_cell *tm_absline(tm_t *t, long a, int *w);
 void tm_feed(tm_t *t, const char *b, size_t n);
 void tm_osc(tm_t *t);
 void tm_utf8(str *b, unsigned cp);
-void tm_draw(tm_t *t, const dp_api *dp, int row, int col, int h, int w);
+void tm_draw(tm_t *t, const dp_api *dp, int row, int col, int h, int w,
+	     int curon);
 int tm_keybytes(const char *name, str *out);
 int tm_mouse(tm_t *t, const char *act, const char *btn, int r, int c,
 	     str *out);

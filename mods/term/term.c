@@ -124,11 +124,12 @@ int m_term(sh *s, int ac, char **av)
 			return HIBR_FAIL;
 		}
 		if (ac < 5) {
-			lg(HIBR_LERR, "usage: term draw id row col [h] [w]");
+			lg(HIBR_LERR, "usage: term draw id row col [h] [w] [curon]");
 			return 2;
 		}
 		tm_draw(m, tm_dp, atoi(av[3]), atoi(av[4]),
-			ac > 5 ? atoi(av[5]) : 0, ac > 6 ? atoi(av[6]) : 0);
+			ac > 5 ? atoi(av[5]) : 0, ac > 6 ? atoi(av[6]) : 0,
+			ac > 7 ? atoi(av[7]) : 0);
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "key")) {
@@ -195,12 +196,29 @@ int m_term(sh *s, int ac, char **av)
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "cursor")) {
+		if (ac > 3) {
+			if (!strcmp(av[3], "block"))
+				m->cshape = TM_BLOCK;
+			else if (!strcmp(av[3], "underline"))
+				m->cshape = TM_UNDER;
+			else if (!strcmp(av[3], "bar"))
+				m->cshape = TM_BAR;
+			else {
+				lg(HIBR_LERR, "term cursor: %s: block, "
+					      "underline or bar", av[3]);
+				return 2;
+			}
+			return HIBR_OK;
+		}
 		s_init(&o);
 		s_num(&o, (long)m->cr);
 		s_ch(&o, ' ');
 		s_num(&o, (long)m->cc);
 		s_ch(&o, ' ');
 		s_num(&o, (long)m->vis);
+		s_ch(&o, ' ');
+		s_cat(&o, m->cshape == TM_UNDER ? "underline" :
+			  m->cshape == TM_BAR ? "bar" : "block");
 		tm_ret(s, o.p);
 		s_free(&o);
 		return HIBR_OK;

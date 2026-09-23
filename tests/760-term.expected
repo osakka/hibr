@@ -11,7 +11,14 @@
 1|
 2|         placed
 3|
-cursor 0 3 1
+cursor 0 3 1 block
+--- DECSCUSR sets the cursor's shape, block by default
+default: 0 1 1 block
+steady underline: 1 0 1 underline
+blinking bar: 2 0 1 bar
+no parameter resets to: 3 0 1 block
+set directly: 3 0 1 underline
+bad shape: 2
 --- erasing, inserting and deleting
 0|abc|gh
 1|kee

@@ -33,6 +33,38 @@ c := term cursor $t
 echo "cursor $c"
 term close $t
 
+echo "--- DECSCUSR sets the cursor's shape, block by default"
+# Each stage waits on a line of input before the next escape, rather than on
+# a sleep racing the poll loop, so this cannot flake on a loaded machine.
+t := term open -r 4 -c 20 /bin/sh -c \
+  'printf a; read x; printf "\033[4 q"; read x; printf "\033[5 q"; \
+   read x; printf "\033[q"; read x'
+i=0; while [ $i -lt 4 ]; do term poll $t 100; i=$((i+1)); done
+c := term cursor $t
+echo "default: $c"
+term write $t '
+'
+i=0; while [ $i -lt 4 ]; do term poll $t 100; i=$((i+1)); done
+c := term cursor $t
+echo "steady underline: $c"
+term write $t '
+'
+i=0; while [ $i -lt 4 ]; do term poll $t 100; i=$((i+1)); done
+c := term cursor $t
+echo "blinking bar: $c"
+term write $t '
+'
+i=0; while [ $i -lt 4 ]; do term poll $t 100; i=$((i+1)); done
+c := term cursor $t
+echo "no parameter resets to: $c"
+term cursor $t underline
+c := term cursor $t
+echo "set directly: $c"
+term cursor $t nonsense 2>/dev/null; echo "bad shape: $?"
+term write $t '
+'
+term close $t
+
 echo "--- erasing, inserting and deleting"
 t := term open -r 6 -c 30 /bin/sh -c 'printf "abcdefgh\033[1;4H\033[2P|\n"; printf "keepme\033[2;4H\033[K\n"'
 show $t 3

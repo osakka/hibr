@@ -27,14 +27,15 @@ program, offered as `mods/pty.h`, and the display (`console`, through
 
     t := term open [-r rows] [-c cols] [-s lines] [--] cmd args...
     term poll  t [ms]            # read what the program wrote, parse it
-    term draw  t row col h w     # paint the screen into a rectangle
+    term draw  t row col h w [curon]  # paint the screen into a rectangle
     term key   t name            # a decoded key name, as the program expects it
     term write t text            # raw bytes
     term size  t [rows cols]     # ask, or resize (the program gets SIGWINCH)
     term alive t                 # status 0 while the program runs
     term status t                # its exit status once it has ended
     term title t                 # what it last called itself with OSC 0 or 2
-    term cursor t                # row, column, and whether it is shown
+    term cursor t                # row, column, shown, and its shape
+    term cursor t block|underline|bar  # set the shape directly
     term row   t n               # one row of what is shown, as text
     term scroll t [n|top|bottom] # move the view back n lines, or ask where it is
     term mouse t [act [button] row col]  # send a mouse event, or ask the mode
@@ -90,6 +91,23 @@ is dropped rather than sent wrong.
 
 Bracketed paste (2004) wraps a `paste` key in `ESC [200~` and `ESC [201~`
 when the program asks.
+
+## The cursor
+
+A program sets its shape with DECSCUSR (`CSI Ps SP q`): 0, 1 or 2 for a
+block, 3 or 4 for an underline, 5 or 6 for a bar; blinking and steady share
+one drawn shape, since redrawing on a timer costs a frame in every terminal
+window whether or not anyone is looking at it. `term cursor t` reports it as
+the fourth field, and `term cursor t <shape>` sets it directly, which is how
+a new terminal is given `DT_CURSOR`'s shape before any program has asked for
+its own.
+
+`term draw` only shows a cursor when its caller passes `curon` -- the desktop
+knows which window has focus, this module does not -- and only on the live
+screen (`view` 0), never on the scrollback showing something the program did
+not put there. A block or underline is drawn as an attribute on the cell
+underneath, alongside a selection; a bar is drawn over the character, since
+there is no sub-cell mark in a grid of cells.
 
 ## Tests
 

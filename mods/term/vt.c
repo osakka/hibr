@@ -300,6 +300,15 @@ void tm_csi(tm_t *t, int f)
 		}
 		break;
 	case 'c': tm_reply(t, "\033[?1;2c"); break;
+	case 'q':
+		n = (int)a;
+		if (n <= 2)
+			t->cshape = TM_BLOCK;
+		else if (n <= 4)
+			t->cshape = TM_UNDER;
+		else
+			t->cshape = TM_BAR;
+		break;
 	default:
 		lg(HIBR_LTRC, "terminal %d ignored CSI %s%c", t->id,
 		   t->pb.p ? t->pb.p : "", f);

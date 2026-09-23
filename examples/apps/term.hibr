@@ -49,6 +49,7 @@ tw_fit() {
 			TW[$id]["t"] := term open -r "$h" -c "$w" "${TW_CMD[@]}" ||
 				return 1
 		fi
+		[ -n "$DT_CURSOR" ] && term cursor "${TW[$id]["t"]}" "$DT_CURSOR"
 		TW[$id]["h"]=$h
 		TW[$id]["w"]=$w
 		return 0
@@ -77,7 +78,8 @@ term_draw() {
 		console put -p "w$id" 1 2 "[exited $st — close this window]"
 		return 0
 	fi
-	term draw "$t" $((wr + 1)) $((wc + 1)) "$h" "$w"
+	term draw "$t" $((wr + 1)) $((wc + 1)) "$h" "$w" \
+		$([ "$DT_FOCUS" = "$id" ] && echo 1 || echo 0)
 	sb := term scroll "$t"
 	if [ "${sb% *}" != 0 ]; then
 		console pen "$DT_FACE" "#ecc94b" bold

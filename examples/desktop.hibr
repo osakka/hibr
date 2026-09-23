@@ -56,13 +56,17 @@ DT_FACE="${DT_FACE-#101820}"
 DT_INK="${DT_INK-#cbd5e0}"
 DT_GLYPH="${DT_GLYPH-·}"
 
+# The cursor a new terminal starts with, until the program inside it asks
+# for one of its own with DECSCUSR -- block, underline or bar.
+DT_CURSOR="${DT_CURSOR-block}"
+
 # Settings are a script of the user's own, written by the desktop whenever
 # one changes and read back at the next start: plain assignments, so it can
 # be edited by hand and needs no format of its own.  An app that wants a
 # variable of its own kept names it with dt_keep.
 DT_CONF="${DT_CONF-${XDG_CONFIG_HOME:-$HOME/.config}/hibr/desktop.hibr}"
 DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
-	DT_TICK DT_ICONS DT_DISKS)
+	DT_TICK DT_ICONS DT_DISKS DT_CURSOR)
 
 # Where the desktop's stderr goes while it holds the screen, so an app's
 # error message cannot scribble over the display, and the reason for a
