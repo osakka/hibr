@@ -20,15 +20,26 @@ English on its own, without a translation footnote.
 
 ## Decision
 
-The name is **hibr**, read as **H**ackable **I**n-process **B**ash **R**untime.
+The name is **hibr**, read as **H**ighly **I**mproved **B**ash **R**untime.
 
-Both halves of the expansion are load-bearing claims rather than decoration.
-*Hackable*: the module ABI lets a module register a protocol, so `/dev/<name>/…`
-works anywhere a filename does — modules extend the language, not just the
-command set. *In-process*: results return without forking
-([0005](0005-results-travel-in-a-slot.md)), text and JSON are manipulated
-without pipelines, and the prompt reads git's object store with no subprocess
-([0014](0014-read-git-objects-natively.md)).
+*Highly* names the numbers: half of bash's memory, tight loops two and a half
+times faster, in a 313 KB binary. *Improved* names the intent: bash's own
+sharp edges — `test`'s word-splitting traps, `$BASH_REMATCH`'s awkward
+capture, and the rest recorded across this directory — resolved rather than
+inherited. *Bash* says what it stays close to: familiar syntax, not a
+rewrite. *Runtime* carries what the original expansion called *Hackable* and
+*In-process*: the module ABI lets a module register a protocol, so
+`/dev/<name>/…` works anywhere a filename does, and results return without
+forking ([0005](0005-results-travel-in-a-slot.md)), text and JSON are
+manipulated without pipelines, and the prompt reads git's object store with
+no subprocess ([0014](0014-read-git-objects-natively.md)) — a runtime that
+extends the language, not just the command set, and stays in-process doing
+it.
+
+The original reading was **H**ackable **I**n-process **B**ash **R**untime,
+both halves load-bearing claims rather than decoration. It described the same
+two facts this one does; this expansion reads better and still says nothing
+untrue.
 
 It is also **حِبر**, Arabic for ink. That second reading is a bonus for those
 who have it, not a prerequisite for anyone else.

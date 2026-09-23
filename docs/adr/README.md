@@ -24,7 +24,7 @@ downside is usually a decision nobody had to make.
 | [0012](0012-prompt-is-an-in-process-hook.md) | The prompt comes from an in-process hook | accepted |
 | [0013](0013-prompt-config-uses-the-map-model.md) | Prompt configuration uses the shell's own map model | accepted |
 | [0014](0014-read-git-objects-natively.md) | Read git's object store natively rather than forking git | accepted |
-| [0015](0015-the-name-is-hibr.md) | The name is hibr, read as Hackable In-process Bash Runtime | accepted |
+| [0015](0015-the-name-is-hibr.md) | The name is hibr, read as Highly Improved Bash Runtime | accepted |
 | [0016](0016-privileges-are-dropped-never-gained.md) | Privileges are given up, never taken | accepted |
 | [0017](0017-one-namespace-for-options.md) | One namespace for options, and extglob is always on | accepted |
 | [0018](0018-a-coprocess-is-an-endpoint.md) | A coprocess is an endpoint like any other | accepted |

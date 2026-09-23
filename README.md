@@ -1,16 +1,20 @@
-# hibr — Hackable In-process Bash Runtime
+# hibr — Highly Improved Bash Runtime
 
 **hibr** runs a useful subset of bash syntax in about 13,000 lines of C and a
 313 KB binary, in a little over half of bash's memory and running tight loops
 two and a half times faster than bash. It is built with `tcc` and depends on nothing but libc
 and libdl.
 
-The name says what it is. **Hackable**: the module ABI lets a module add a
-*protocol*, not just a command — register a scheme and `/dev/<name>/…` works
-anywhere a filename does. **In-process**: results come back without forking,
-text and JSON are manipulated without pipelines, and the prompt reads git's
-object store with no subprocess at all. It is also **حِبر**, Arabic for ink,
-which is what you write with.
+The name says what it is. **Highly**: half of bash's memory, tight loops two
+and a half times faster, in a 313 KB binary — the numbers above. **Improved**:
+bash's own sharp edges, resolved rather than inherited — `test`'s word-splitting
+traps, `$BASH_REMATCH`'s awkward capture, a dozen more in
+[the decision records](docs/adr/README.md). **Bash**: familiar syntax, not a
+rewrite. **Runtime**: the module ABI lets a module add a *protocol*, not just
+a command — register a scheme and `/dev/<name>/…` works anywhere a filename
+does — and results come back without forking, text and JSON are manipulated
+without pipelines, and the prompt reads git's object store with no subprocess
+at all. It is also **حِبر**, Arabic for ink, which is what you write with.
 
 It is not a drop-in replacement for bash. Some behaviour differs on purpose,
 where bash is error-prone; every one of those divergences is written down in
