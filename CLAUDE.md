@@ -677,6 +677,9 @@ went in the shell.
   to answer a fabricated 24 rows beside a real `ed_cols()` width, so half the
   answer was true — which is worse than either, and hid a pty resize working
   correctly for most of an hour.
+- **`unset 'm[$k]'` is bash's idiom and the wrong one here.** In hibr a quoted
+  subscript is a literal key, so that removes a key named `$k`. Write
+  `unset m["$k"]`: the variable is expanded and the key is still literal.
 - **A function defined twice in a script silently replaces the first.** The
   desktop's drop handler was called `dt_drop`, which is also the function
   that draws the open menu, so every frame "drew the menu" by dropping

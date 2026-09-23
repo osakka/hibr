@@ -31,6 +31,7 @@ declare -gA FB
 declare -gA FL
 FILES_VIEWS=(list details icons)
 FILES_TILE=12
+FB_PATHS=()
 
 # The in-process ls, so the details view does not exec a program; the one on
 # the PATH writes the same columns if the module cannot be had.
@@ -50,6 +51,7 @@ fb_scan() {
 		FL[$id][$n]["name"]=".."
 		FL[$id][$n]["dir"]=1
 		FL[$id][$n]["kind"]=up
+		FL[$id][$n]["m"]=
 		n=$((n + 1))
 	fi
 	for f in "$d"/*/ ${FB[$id]["hidden"]:+"$d"/.*/}; do
@@ -60,6 +62,7 @@ fb_scan() {
 		FL[$id][$n]["name"]="$base"
 		FL[$id][$n]["dir"]=1
 		FL[$id][$n]["kind"]=dir
+		FL[$id][$n]["m"]=
 		n=$((n + 1))
 	done
 	for f in "$d"/* ${FB[$id]["hidden"]:+"$d"/.*}; do
@@ -68,6 +71,7 @@ fb_scan() {
 		base=${f##*/}
 		FL[$id][$n]["name"]="$base"
 		FL[$id][$n]["dir"]=0
+		FL[$id][$n]["m"]=
 		if [ -L "$f" ]; then
 			FL[$id][$n]["kind"]=link
 		elif [ -x "$f" ]; then
@@ -82,6 +86,98 @@ fb_scan() {
 	FB[$id]["sel"]=0
 	FB[$id]["last"]=-1
 	FB[$id]["meta"]=
+	FB[$id]["marks"]=0
+	FB[$id]["anchor"]=0
+	FB[$id]["defer"]=
+}
+
+# --- what is selected ----------------------------------------------------
+#
+# The cursor is one entry; marks are any number more.  With nothing marked,
+# the cursor is the selection, which is what a single click leaves.  ".." is
+# never marked, because nothing sensible is done to it.
+
+# Mark entry i or take its mark away, keeping count.
+fb_mark() {
+	local id=$1 i=$2 c
+
+	[ "${FL[$id][$i]["kind"]}" = up ] && return 0
+	c=${FB[$id]["marks"]}
+	if [ "$3" = 1 ]; then
+		[ -n "${FL[$id][$i]["m"]}" ] && return 0
+		FL[$id][$i]["m"]=1
+		FB[$id]["marks"]=$((c + 1))
+	else
+		[ -z "${FL[$id][$i]["m"]}" ] && return 0
+		FL[$id][$i]["m"]=
+		FB[$id]["marks"]=$((c - 1))
+	fi
+}
+
+# Nothing marked.
+fb_clear() {
+	local id=$1 i=0 n=${FB[$1]["n"]}
+
+	[ "${FB[$id]["marks"]}" = 0 ] && return 0
+	while [ "$i" -lt "$n" ]; do
+		FL[$id][$i]["m"]=
+		i=$((i + 1))
+	done
+	FB[$id]["marks"]=0
+}
+
+# Mark everything between two entries, and nothing else.
+fb_range() {
+	local id=$1 a=$2 b=$3 i
+
+	fb_clear "$id"
+	[ "$a" -gt "$b" ] && { i=$a; a=$b; b=$i; }
+	i=$a
+	while [ "$i" -le "$b" ]; do
+		fb_mark "$id" "$i" 1
+		i=$((i + 1))
+	done
+}
+
+# What is selected, as entries: the marked ones, or the cursor when none
+# are.  Fails when that leaves only "..".
+fb_selected() {
+	local id=$1 i=0 n=${FB[$1]["n"]} out= sel
+
+	if [ "${FB[$id]["marks"]}" -gt 0 ]; then
+		while [ "$i" -lt "$n" ]; do
+			[ -n "${FL[$id][$i]["m"]}" ] && out="$out $i"
+			i=$((i + 1))
+		done
+	else
+		sel=${FB[$id]["sel"]}
+		[ "${FL[$id][$sel]["kind"]}" = up ] || out=" $sel"
+	fi
+	[ -n "$out" ] || return 1
+	ret "${out# }"
+}
+
+# The paths of a list of entries, into FB_PATHS.
+fb_paths() {
+	local id=$1 i p
+
+	FB_PATHS=()
+	for i in $2; do
+		p := fb_path "$id" "$i"
+		FB_PATHS+=("$p")
+	done
+}
+
+# The pen for an entry's row: the cursor brightest, marked entries lit,
+# the rest by what they are.
+fb_rowpen() {
+	if [ "$2" = "${FB[$1]["sel"]}" ]; then
+		console pen "#1a202c" "#63b3ed" bold
+	elif [ -n "${FL[$1][$2]["m"]}" ]; then
+		console pen "#e2e8f0" "#2c5282" bold
+	else
+		fb_pen "${FL[$1][$2]["kind"]}"
+	fi
 }
 
 # Fill in size, time and permissions for the details view, from one ls.
@@ -254,7 +350,11 @@ files_draw() {
 	n=${FB[$id]["n"]}
 	sel=${FB[$id]["sel"]}
 	console pen "#718096" "$DT_FACE"
-	console put -p "w$id" "$h" 1 "$((sel + 1)) of $n"
+	if [ "${FB[$id]["marks"]}" -gt 0 ]; then
+		console put -p "w$id" "$h" 1 "${FB[$id]["marks"]} selected"
+	else
+		console put -p "w$id" "$h" 1 "$((sel + 1)) of $n"
+	fi
 	t=${FB[$id]["view"]}
 	console put -p "w$id" "$h" $((w - ${#t})) "$t"
 }
@@ -275,11 +375,7 @@ fb_drawlist() {
 		nm=${FL[$id][$i]["name"]}
 		[ "${FL[$id][$i]["dir"]}" = 1 ] && nm="$nm/"
 		t := str pad " $nm" $((w - 1))
-		if [ "$i" = "$sel" ]; then
-			console pen "#1a202c" "#63b3ed" bold
-		else
-			fb_pen "${FL[$id][$i]["kind"]}"
-		fi
+		fb_rowpen "$id" "$i"
 		console put -p "w$id" "$r" 1 "$t"
 		r=$((r + 1))
 		i=$((i + 1))
@@ -331,11 +427,7 @@ fb_drawdet() {
 		fi
 		[ "$cp" = 1 ] && line="$line ${FL[$id][$i]["perm"]}"
 		line := str pad "$line" $((w - 1))
-		if [ "$i" = "$sel" ]; then
-			console pen "#1a202c" "#63b3ed" bold
-		else
-			fb_pen "${FL[$id][$i]["kind"]}"
-		fi
+		fb_rowpen "$id" "$i"
 		console put -p "w$id" "$r" 1 "$line"
 		r=$((r + 1))
 		i=$((i + 1))
@@ -367,7 +459,7 @@ fb_drawicons() {
 		console put -p "w$id" "$y" $((x + (tw - ${#g}) / 2)) "$g"
 		nm=${FL[$id][$i]["name"]}
 		[ "${#nm}" -gt $((tw - 2)) ] && nm="${nm:0:$((tw - 3))}…"
-		[ "$i" = "$sel" ] && console pen "#1a202c" "#63b3ed" bold
+		fb_rowpen "$id" "$i"
 		console put -p "w$id" $((y + 1)) $((x + (tw - ${#nm}) / 2)) "$nm"
 		i=$((i + 1))
 	done
@@ -400,43 +492,74 @@ fb_bar() {
 	done
 }
 
+# Keys.  The arrows move the cursor and leave only it selected; with shift
+# they carry the selection with them from where it was anchored.  Space
+# marks or unmarks the cursor's entry and steps on, ctrl-a marks everything.
 files_key() {
-	local id=$1 vis sel n per icons=
+	local id=$1 k=$2 vis sel n per icons= to ext=
 
 	vis=${FB[$id]["vis"]}
 	per=${FB[$id]["per"]}
 	sel=${FB[$id]["sel"]}
 	n=${FB[$id]["n"]}
 	[ "${FB[$id]["view"]}" = icons ] && icons=1
-	case $2 in
-	up) FB[$id]["sel"]=$((sel - per)) ;;
-	down) FB[$id]["sel"]=$((sel + per)) ;;
+	case $k in shift-*) ext=1; k=${k#shift-} ;; esac
+	case $k in
+	up) to=$((sel - per)) ;;
+	down) to=$((sel + per)) ;;
 	left)
 		if [ -n "$icons" ]; then
-			FB[$id]["sel"]=$((sel - 1))
-		else
+			to=$((sel - 1))
+		elif [ -z "$ext" ]; then
 			fb_go "$id" ..
+			return 0
 		fi
 		;;
 	right)
 		if [ -n "$icons" ]; then
-			FB[$id]["sel"]=$((sel + 1))
-		else
+			to=$((sel + 1))
+		elif [ -z "$ext" ]; then
 			fb_open "$id"
+			return 0
 		fi
 		;;
-	pageup) FB[$id]["sel"]=$((sel - vis)) ;;
-	pagedown) FB[$id]["sel"]=$((sel + vis)) ;;
-	home) FB[$id]["sel"]=0 ;;
-	end) FB[$id]["sel"]=$((n - 1)) ;;
+	pageup) to=$((sel - vis)) ;;
+	pagedown) to=$((sel + vis)) ;;
+	home) to=0 ;;
+	end) to=$((n - 1)) ;;
 	enter) fb_open "$id" ;;
 	backspace) fb_go "$id" .. ;;
+	" " | space)
+		if [ -n "${FL[$id][$sel]["m"]}" ]; then
+			fb_mark "$id" "$sel" 0
+		else
+			fb_mark "$id" "$sel" 1
+		fi
+		to=$((sel + 1))
+		ext=keep
+		;;
+	ctrl-a)
+		fb_range "$id" 0 $((n - 1))
+		return 0
+		;;
 	h) files_hidden "$id" ;;
 	v) files_cycle "$id" ;;
 	delete) files_trash "$id" ;;
 	*) return 1 ;;
 	esac
+	[ -n "$to" ] || { fb_show "$id"; return 0; }
+	FB[$id]["sel"]=$to
 	fb_show "$id"
+	to=${FB[$id]["sel"]}
+	case $ext in
+	keep) ;;
+	1) fb_range "$id" "${FB[$id]["anchor"]}" "$to" ;;
+	*)
+		fb_clear "$id"
+		FB[$id]["anchor"]=$to
+		;;
+	esac
+	return 0
 }
 
 # Open the selected entry: go into a folder, and hand a file to the desktop,
@@ -483,14 +606,13 @@ files_end() {
 	fb_show "$1"
 }
 
-# Move the selected entry to the trash, where the desktop keeps one.
+# Move what is selected to the trash, where the desktop keeps one.
 files_trash() {
-	local id=$1 sel p
+	local id=$1 sel
 
-	sel=${FB[$id]["sel"]}
-	[ "${FL[$id][$sel]["kind"]}" = up ] && return 0
-	p := fb_path "$id" "$sel"
-	command -v dt_trash > /dev/null && dt_trash "$p"
+	sel := fb_selected "$id" || return 0
+	fb_paths "$id" "$sel"
+	command -v dt_trash > /dev/null && dt_trash "${FB_PATHS[@]}"
 	return 0
 }
 
@@ -537,24 +659,57 @@ fb_at() {
 	ret "$i"
 }
 
-# A press selects what it landed on and a second press on the same entry
-# opens it.  A press that then moves starts dragging the entry: the desktop
-# carries it from there, and whatever it is dropped on decides what to do.
+# A press selects what it landed on, ctrl adds it to the selection or takes
+# it away, shift takes the run from the anchor, and a second plain press on
+# the same entry opens it.  A plain press on an entry already marked leaves
+# the others marked until the button comes up, so a selection can be picked
+# up whole.  A press that then moves drags the selection: the desktop
+# carries it from there, and whatever it lands on decides what to do.
 files_mouse() {
-	local id=$1 act=$2 r=$4 c=$5 i p pr g pc
+	local id=$1 act=$2 r=$4 c=$5 mods=$6 i pr pc sel g lb
 
 	[ "$3" = left ] || return 0
 	case $act in
 	press)
 		FB[$id]["press"]=
-		i := fb_at "$id" "$r" "$c" || return 0
-		if [ "$i" = "${FB[$id]["sel"]}" ] &&
-		   [ "$i" = "${FB[$id]["last"]}" ]; then
-			fb_open "$id"
+		FB[$id]["defer"]=
+		if ! i := fb_at "$id" "$r" "$c"; then
+			case $mods in *ctrl* | *shift*) ;; *) fb_clear "$id" ;; esac
 			return 0
 		fi
+		case $mods in
+		*ctrl*)
+			if [ -n "${FL[$id][$i]["m"]}" ]; then
+				fb_mark "$id" "$i" 0
+			else
+				[ "${FB[$id]["marks"]}" = 0 ] &&
+					fb_mark "$id" "${FB[$id]["sel"]}" 1
+				fb_mark "$id" "$i" 1
+			fi
+			FB[$id]["anchor"]=$i
+			FB[$id]["last"]=-1
+			;;
+		*shift*)
+			fb_range "$id" "${FB[$id]["anchor"]}" "$i"
+			FB[$id]["last"]=-1
+			;;
+		*)
+			if [ "$i" = "${FB[$id]["sel"]}" ] &&
+			   [ "$i" = "${FB[$id]["last"]}" ] &&
+			   [ "${FB[$id]["marks"]}" = 0 ]; then
+				fb_open "$id"
+				return 0
+			fi
+			if [ -n "${FL[$id][$i]["m"]}" ]; then
+				FB[$id]["defer"]=1
+			else
+				fb_clear "$id"
+			fi
+			FB[$id]["anchor"]=$i
+			FB[$id]["last"]=$i
+			;;
+		esac
 		FB[$id]["sel"]=$i
-		FB[$id]["last"]=$i
 		FB[$id]["press"]="$r $c"
 		;;
 	drag)
@@ -566,14 +721,22 @@ files_mouse() {
 			return 0
 		fi
 		FB[$id]["press"]=
+		FB[$id]["defer"]=
+		sel := fb_selected "$id" || return 0
+		fb_paths "$id" "$sel"
 		i=${FB[$id]["sel"]}
-		[ "${FL[$id][$i]["kind"]}" = up ] && return 0
-		p := fb_path "$id" "$i"
 		g := fb_glyph "${FL[$id][$i]["kind"]}"
-		command -v dt_dnd > /dev/null &&
-			dt_dnd "$p" "${FL[$id][$i]["name"]}" "$g"
+		lb=${FL[$id][$i]["name"]}
+		[ "${#FB_PATHS[@]}" -gt 1 ] && lb="${#FB_PATHS[@]} items"
+		command -v dt_dnd > /dev/null && dt_dnd "$lb" "$g" "${FB_PATHS[@]}"
 		;;
-	release) FB[$id]["press"]= ;;
+	release)
+		if [ -n "${FB[$id]["defer"]}" ]; then
+			fb_clear "$id"
+			FB[$id]["defer"]=
+		fi
+		FB[$id]["press"]=
+		;;
 	esac
 	return 0
 }
@@ -581,32 +744,41 @@ files_mouse() {
 # Something dropped here goes into the folder shown, or into the folder it
 # was dropped on.
 files_drop() {
-	local id=$1 r=$2 c=$3 src=$4 op=$5 i dst
+	local id=$1 r=$2 c=$3 op=$4 i dst
 
+	shift 4
 	dst=${FB[$id]["dir"]}
 	if i := fb_at "$id" "$r" "$c" && [ "${FL[$id][$i]["dir"]}" = 1 ]; then
 		dst := fb_path "$id" "$i"
 	fi
-	dt_fileop "$op" "$src" "$dst"
+	dt_fileop "$op" "$dst" "$@"
 }
 
-# The path of what is selected, for the desktop's Copy; and a path pasted
-# here copies that file into the folder shown.
+# The paths of what is selected, one to a line, for the desktop's Copy; and
+# paths pasted here, one to a line, copy those files into the folder shown.
 files_copy() {
-	local i=${FB[$1]["sel"]}
+	local sel p out=
 
-	[ "${FL[$1][$i]["kind"]}" = up ] && return 1
-	fb_path "$1" "$i"
+	sel := fb_selected "$1" || return 1
+	fb_paths "$1" "$sel"
+	for p in "${FB_PATHS[@]}"; do out="$out$p"$'\n'; done
+	ret "${out%$'\n'}"
 }
 files_paste() {
-	local id=$1 p=$2
+	local id=$1 p
+	local -a ps
 
-	p=${p%$'\n'}
-	if [ -e "$p" ] || [ -L "$p" ]; then
-		dt_fileop copy "$p" "${FB[$id]["dir"]}"
-	else
+	while IFS= read -r p; do
+		[ -n "$p" ] || continue
+		if [ -e "$p" ] || [ -L "$p" ]; then
+			ps+=("$p")
+		fi
+	done <<< "$2"
+	if [ "${#ps[@]}" = 0 ]; then
 		dt_note "Paste a path to copy that file here"
+		return 0
 	fi
+	dt_fileop copy "${FB[$id]["dir"]}" "${ps[@]}"
 }
 
 # Something changed on disk: read the folder again, keeping the selection

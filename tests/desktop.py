@@ -382,10 +382,12 @@ check("a file's icon dragged onto the trash is thrown away",
 sc, raw = run("", feed=[press(3, 70), drag(3, 74), drag(15, 20),
                         release(15, 20)], env=env, pre=pre)
 conf = open(os.path.join(d, "conf", "hibr", "desktop.hibr")).read()
+# It keeps where it was held: grabbed at (3, 70) and let go at (15, 20), it
+# has moved twelve rows down and fifty columns left.
 check("an icon dragged somewhere empty stays where it was put",
-      sc.find("Bricks") == (16, 17) and "dt_iconpos app:bricks" in conf, sc)
+      sc.find("Bricks") == (15, 20) and "dt_iconpos app:bricks" in conf, sc)
 sc, raw = run("", env=env, pre=pre)
-check("and is there again at the next start", sc.find("Bricks") == (16, 17),
+check("and is there again at the next start", sc.find("Bricks") == (15, 20),
       sc)
 
 sc, raw = run('dt_new "Files" 10 34 2 2 files', env=env,
@@ -395,6 +397,60 @@ check("a file dragged out of a window onto the desktop goes to ~/Desktop",
       os.path.exists(os.path.join(d, "Desktop", "moveme.txt")) and
       not os.path.exists(os.path.join(d, "src", "moveme.txt")) and
       sc.find("moveme.txt") is not None, sc)
+shutil.rmtree(d, True)
+
+# Choosing more than one.  The second column holds Terminal at row 2,
+# notes.txt at 5, project/ at 8 and the trash at 11; a band from (4, 50) to
+# (10, 60) touches notes.txt and project/ and nothing else.  With no window
+# focused, alt-c copies the paths of what is selected, which says exactly
+# what that is.
+
+import base64
+
+def copied(raw):
+    i = raw.rfind(b"\x1b]52;c;")
+    if i < 0:
+        return ""
+    return base64.b64decode(raw[i + 7:raw.index(b"\x07", i)]).decode()
+
+d, env, pre = desk()
+NOTES = os.path.join(d, "Desktop", "notes.txt")
+PROJ = os.path.join(d, "Desktop", "project")
+BAND = [press(4, 50), drag(7, 55), drag(10, 60), release(10, 60)]
+sc, raw = run("", feed=BAND + [b"\x1bc"], env=env, pre=pre)
+check("a band drawn across the desktop selects what it touches",
+      copied(raw) == NOTES + "\n" + PROJ, sc)
+sc, raw = run("", feed=[press(6, 60), press(9, 60, 16), b"\x1bc"], env=env,
+              pre=pre)
+check("and ctrl with a click adds an icon", copied(raw) == NOTES + "\n" + PROJ,
+      sc)
+
+sc, raw = run("", feed=BAND + [press(6, 60), drag(6, 64), drag(15, 20),
+                               release(15, 20)], env=env, pre=pre)
+check("a selection dragged somewhere empty keeps its arrangement",
+      sc.find("notes.txt") == (15, 16) and sc.find("project") == (18, 17), sc)
+shutil.rmtree(d, True)
+
+d, env, pre = desk()
+sc, raw = run("", feed=[b"\x1b[B", b"\x1b[B", b"\r"], env=env, pre=pre)
+check("with no window focused the arrows go from icon to icon, enter opens",
+      sc.find("┤ Calculator ├") is not None, sc)
+sc, raw = run("", feed=[b"\x1b[B", b"\x1b[D", b"\x1b[B", b"\x1b[1;2B",
+                        b"\x1b[3~"], env=env, pre=pre)
+check("shift with them extends, and delete throws the files away",
+      os.path.exists(os.path.join(d, "trash", "files", "notes.txt")) and
+      os.path.exists(os.path.join(d, "trash", "files", "project")) and
+      sc.find("Moved 2 items to the trash") is not None, sc)
+shutil.rmtree(d, True)
+
+d, env, pre = desk()
+BAND = [press(4, 50), drag(7, 55), drag(10, 60), release(10, 60)]
+sc, raw = run("", feed=BAND + [press(6, 60), drag(6, 64), drag(11, 58),
+                               release(11, 58)], env=env, pre=pre)
+NOTES = os.path.join(d, "Desktop", "notes.txt")
+check("and a selection dragged onto the trash goes there together",
+      os.path.exists(os.path.join(d, "trash", "files", "notes.txt")) and
+      os.path.exists(os.path.join(d, "trash", "files", "project")), sc)
 shutil.rmtree(d, True)
 
 # --- breaks, saved settings, and a session that outlives its terminal ----
@@ -501,4 +557,4 @@ check("quitting a held desktop ends the session",
       b"[desk ended, status 0]" in t.out and b"back 0" in t.out, t.out.decode(errors="replace"))
 t.close()
 
-report(94)
+report(101)

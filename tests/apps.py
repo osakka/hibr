@@ -463,6 +463,46 @@ check("opening a file opens a terminal window called by its name",
       sc.find("┤ file00.txt ├") is not None and
       sc.find("editing") is not None, sc)
 
+# --- files: choosing more than one ---------------------------------------
+#
+# Rows in the left window: ../ 4, alpha/ 5, beta/ 6, file00.txt 7,
+# file01.txt 8.  Button 16 is the left button with ctrl held.
+
+sc = run("files", FW, [press(7, 5), press(8, 5, 16)], pre=PRE)
+check("ctrl and a click add to what is selected",
+      sc.find("2 selected") is not None, sc)
+sc = run("files", FW, [b"\x1b[B"] * 3 + [b"\x1b[1;2B"] * 2, pre=PRE)
+check("shift with the arrows carries the selection along",
+      sc.find("3 selected") is not None, sc)
+sc = run("files", FW, [b"\x1b[B"] * 3 + [b" ", b" "], pre=PRE)
+check("space marks an entry and steps on", sc.find("2 selected") is not None,
+      sc)
+sc = run("files", FW, [b"\x01"], pre=PRE)
+check("ctrl-a selects everything but ..",
+      sc.find("%d selected" % (ENTRIES - 1)) is not None, sc)
+
+PICK = [press(7, 5), press(8, 5, 16), press(8, 5), drag(8, 9), drag(9, 50),
+        release(9, 50)]
+sc = run("files", FW, INTO + PICK, pre=PRE, also=TWO)
+both = [os.path.exists(os.path.join(D, "alpha", f))
+        for f in ("file00.txt", "file01.txt")]
+check("a selection dragged to another window moves all of it",
+      all(both) and sc.find("Moved 2 items to alpha") is not None, sc)
+for f in ("file00.txt", "file01.txt"):
+    if os.path.exists(os.path.join(D, "alpha", f)):
+        os.rename(os.path.join(D, "alpha", f), os.path.join(D, f))
+
+TRASH = tempfile.mkdtemp(prefix="hibr-trash-")
+sc = run("files", FW, [press(7, 5), press(8, 5, 16), b"\x1b[3~"],
+         pre=PRE + "\nDT_TRASH=%s" % TRASH)
+gone = [os.path.exists(os.path.join(TRASH, "files", f))
+        for f in ("file00.txt", "file01.txt")]
+check("and delete throws all of it away", all(gone), sc)
+for f in ("file00.txt", "file01.txt"):
+    if os.path.exists(os.path.join(TRASH, "files", f)):
+        os.rename(os.path.join(TRASH, "files", f), os.path.join(D, f))
+shutil.rmtree(TRASH, True)
+
 for f in os.listdir(D):
     p = os.path.join(D, f)
     if os.path.isdir(p):
@@ -472,4 +512,4 @@ for f in os.listdir(D):
 os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
-report(83)
+report(89)

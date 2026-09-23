@@ -173,13 +173,18 @@ term_open() {
 	return 0
 }
 
-# A file dropped on a terminal is typed in as its path, quoted for a shell.
+# Files dropped on a terminal are typed in as their paths, each quoted for a
+# shell and followed by a space, ready to be the arguments of something.
 term_drop() {
-	local t=${TW[$1]["t"]} q
+	local t=${TW[$1]["t"]} q p out=
 
 	[ -n "$t" ] || return 0
-	printf -v q '%q' "$4"
-	term write "$t" "$q "
+	shift 4
+	for p in "$@"; do
+		printf -v q '%q' "$p"
+		out="$out$q "
+	done
+	term write "$t" "$out"
 }
 
 term_close() {

@@ -34,6 +34,8 @@ DT_DNDG=
 DT_DNDR=0
 DT_DNDC=0
 DT_DNDICON=
+DT_DNDS=()
+DT_PATHS=()
 DT_NOTE=
 DT_ROWS=24
 DT_COLS=80
@@ -389,7 +391,7 @@ dt_mouse() {
 		id := console hit "$mr" "$mc"
 		if [ -z "$id" ]; then
 			DT_FOCUS=
-			dt_iconpress "$mr" "$mc"
+			dt_iconpress "$mr" "$mc" "$mods"
 			return 0
 		fi
 		id=${id#w}
@@ -440,7 +442,12 @@ dt_mouse() {
 			fi
 			return 0
 		fi
-		# A press on an icon that moves becomes a drag of that icon.
+		# A band being drawn across the empty desktop.
+		if [ -n "$DI_BAND" ]; then
+			dt_iconband "$act" "$mr" "$mc"
+			return 0
+		fi
+		# A press on an icon that moves becomes a drag of the selection.
 		if [ -n "$DI_PRESS" ]; then
 			dt_iconmove "$act" "$mr" "$mc"
 			return 0
@@ -603,6 +610,9 @@ dt_event() {
 		if ${DT[$DT_FOCUS]["key"]} "$DT_FOCUS" "$k"; then
 			return 0
 		fi
+	fi
+	if [ -z "$DT_FOCUS" ] && [ "$DT_ICONS" = 1 ] && dt_iconkey "$k"; then
+		return 0
 	fi
 	case $k in
 	f10 | escape)
@@ -978,17 +988,21 @@ dt_quit() { DT_QUIT=1; }
 
 # --- files between windows -------------------------------------------------
 #
-# An app starts a drag with dt_dnd from inside its _mouse, naming a path; the
-# desktop carries it from there, drawing it under the pointer, and hands it
-# on release to the _drop of the window it lands on -- or to the desktop
-# itself.  A drop moves, and copies with ctrl held; escape cancels.  The
-# moving and copying is here, once, so every app refuses the same things.
+# An app starts a drag with dt_dnd from inside its _mouse, naming the paths
+# it carries; the desktop draws it under the pointer and hands it on release
+# to the _drop of the window it lands on -- or to the desktop itself.  A drop
+# moves, and copies with ctrl held; escape cancels.  The moving and copying
+# is here, once, so every app refuses the same things and says so the same
+# way.
 
-# Start dragging a path, with a name and a picture to show while it moves.
+# Start dragging: a label and a picture to show under the pointer, then the
+# paths carried.  Icons dragged about the desktop may carry none.
 dt_dnd() {
-	DT_DND=$1
-	DT_DNDN=$2
-	DT_DNDG=${3:-▯}
+	DT_DNDN=$1
+	DT_DNDG=${2:-▯}
+	shift 2
+	DT_DNDS=("$@")
+	DT_DND=1
 	DT_DNDICON=
 }
 
@@ -1000,9 +1014,12 @@ dt_dnddraw() {
 # Hand what was dropped to whatever is under the pointer.  Not dt_drop,
 # which already draws the open menu.
 dt_ondrop() {
-	local mr=$1 mc=$2 op=move src=$DT_DND id ap wr wc
+	local mr=$1 mc=$2 op=move id ap wr wc
+	local -a src
 
+	src=("${DT_DNDS[@]}")
 	DT_DND=
+	DT_DNDS=()
 	case $3 in *ctrl*) op=copy ;; esac
 	[ "$mr" = 0 ] && return 0
 	id := console hit "$mr" "$mc"
@@ -1010,7 +1027,7 @@ dt_ondrop() {
 		id=${id#w}
 		DT_DNDICON=
 		ap=${DT[$id]["drop"]}
-		if [ "$src" = - ]; then
+		if [ "${#src[@]}" = 0 ]; then
 			dt_note "Only files can be dropped on a window"
 			return 0
 		fi
@@ -1020,38 +1037,39 @@ dt_ondrop() {
 		fi
 		wr=${DT[$id]["row"]}
 		wc=${DT[$id]["col"]}
-		$ap "$id" $((mr - wr)) $((mc - wc)) "$src" "$op"
+		$ap "$id" $((mr - wr)) $((mc - wc)) "$op" "${src[@]}"
 		return 0
 	fi
-	dt_has dt_deskdrop && dt_deskdrop "$mr" "$mc" "$src" "$op"
+	dt_has dt_deskdrop && dt_deskdrop "$mr" "$mc" "$op" "${src[@]}"
 	return 0
 }
 
-# Move or copy a file or folder into a folder.  Nothing is ever put over
-# something already there, and a folder cannot go inside itself.
-dt_fileop() {
+# Move or copy one path into a folder: 0 done, 1 refused with the reason in
+# DT_WHY, 2 nothing to do.  Nothing is ever put over something already
+# there, and a folder cannot go inside itself.
+dt_fileop1() {
 	local op=$1 src=$2 dst=$3 base dir
 
 	base=${src##*/}
 	if ! [ -e "$src" ] && ! [ -L "$src" ]; then
-		dt_note "$base is not there any more"
+		DT_WHY="$base is not there any more"
 		return 1
 	fi
 	if ! [ -d "$dst" ]; then
-		dt_note "${dst##*/} is not a folder"
+		DT_WHY="${dst##*/} is not a folder"
 		return 1
 	fi
 	dir=${src%/*}
 	[ -z "$dir" ] && dir=/
-	[ "$op" = move ] && [ "$dir" = "$dst" ] && return 0
+	[ "$op" = move ] && [ "$dir" = "$dst" ] && return 2
 	case "$dst/" in
 	"$src/"*)
-		dt_note "$base cannot go inside itself"
+		DT_WHY="$base cannot go inside itself"
 		return 1
 		;;
 	esac
 	if [ -e "$dst/$base" ] || [ -L "$dst/$base" ]; then
-		dt_note "${dst##*/} already has a $base"
+		DT_WHY="${dst##*/} already has a $base"
 		return 1
 	fi
 	if [ "$op" = copy ]; then
@@ -1060,15 +1078,53 @@ dt_fileop() {
 		command mv -- "$src" "$dst/" 2>> "$DT_LOG"
 	fi
 	if [ $? != 0 ]; then
-		dt_note "Could not $op $base"
+		DT_WHY="Could not $op $base"
 		return 1
 	fi
-	if [ "$op" = copy ]; then
-		dt_note "Copied $base to ${dst##*/}"
+	return 0
+}
+
+# Say how a batch went: what was done, and the first thing refused.
+dt_tally() {
+	local done=$1 bad=$2 what=$3 last=$4 why=$5
+
+	if [ "$bad" = 0 ]; then
+		[ "$done" = 1 ] && dt_note "$what $last"
+		[ "$done" -gt 1 ] && dt_note "$what $done items"
+	elif [ "$done" = 0 ]; then
+		if [ "$bad" = 1 ]; then
+			dt_note "$why"
+		else
+			dt_note "$why, and $((bad - 1)) more could not go"
+		fi
 	else
-		dt_note "Moved $base to ${dst##*/}"
+		dt_note "$what $done; $why"
 	fi
-	dt_changed
+}
+
+# Move or copy paths into a folder, and say once how it went.
+dt_fileop() {
+	local op=$1 dst=$2 src n=0 bad=0 why= last= what
+
+	shift 2
+	for src in "$@"; do
+		dt_fileop1 "$op" "$src" "$dst"
+		case $? in
+		0) n=$((n + 1)); last=${src##*/} ;;
+		1) bad=$((bad + 1)); [ -z "$why" ] && why=$DT_WHY ;;
+		esac
+	done
+	what="Moved"
+	[ "$op" = copy ] && what="Copied"
+	if [ "$n" = 1 ]; then
+		dt_tally 1 "$bad" "$what" "$last to ${dst##*/}" "$why"
+	else
+		dt_tally "$n" "$bad" "$what" "" "$why"
+		[ "$n" -gt 1 ] && [ "$bad" = 0 ] &&
+			dt_note "$what $n items to ${dst##*/}"
+	fi
+	[ "$n" -gt 0 ] && dt_changed
+	[ "$bad" = 0 ]
 }
 
 # Tell every window that shows files that something on disk has changed.
@@ -1111,15 +1167,22 @@ dt_urlpath() {
 	ret "$out"
 }
 
-# Move a file or folder to the trash, with the note that says where it was.
-dt_trash() {
+# Move one file or folder to the trash, with the note that says where it
+# was: 0 done, 1 refused with the reason in DT_WHY.
+dt_trash1() {
 	local p=$1 base n i=1 when enc
 
 	base=${p##*/}
 	if ! [ -e "$p" ] && ! [ -L "$p" ]; then
+		DT_WHY="$base is not there any more"
 		return 1
 	fi
-	mkdir -p "$DT_TRASH/files" "$DT_TRASH/info" 2> /dev/null || return 1
+	if ! [ -d "$DT_TRASH/info" ] || ! [ -d "$DT_TRASH/files" ]; then
+		if ! mkdir -p "$DT_TRASH/files" "$DT_TRASH/info" 2> /dev/null; then
+			DT_WHY="There is no trash to put $base in"
+			return 1
+		fi
+	fi
 	n=$base
 	while [ -e "$DT_TRASH/files/$n" ] || [ -L "$DT_TRASH/files/$n" ] ||
 	      [ -e "$DT_TRASH/info/$n.trashinfo" ]; do
@@ -1128,15 +1191,41 @@ dt_trash() {
 	done
 	printf -v when '%(%Y-%m-%dT%H:%M:%S)T' -1
 	enc := dt_urlpath "$p"
-	printf '[Trash Info]\nPath=%s\nDeletionDate=%s\n' "$enc" "$when" \
-		> "$DT_TRASH/info/$n.trashinfo" || return 1
-	if ! command mv -- "$p" "$DT_TRASH/files/$n" 2>> "$DT_LOG"; then
-		rm -f "$DT_TRASH/info/$n.trashinfo"
-		dt_note "Could not move $base to the trash"
+	if ! printf '[Trash Info]\nPath=%s\nDeletionDate=%s\n' "$enc" "$when" \
+		> "$DT_TRASH/info/$n.trashinfo"; then
+		DT_WHY="Could not write the trash's note for $base"
 		return 1
 	fi
-	dt_note "Moved $base to the trash"
-	dt_changed
+	if ! command mv -- "$p" "$DT_TRASH/files/$n" 2>> "$DT_LOG"; then
+		rm -f "$DT_TRASH/info/$n.trashinfo"
+		DT_WHY="Could not move $base to the trash"
+		return 1
+	fi
+	return 0
+}
+
+# Move paths to the trash, and say once how it went.
+dt_trash() {
+	local p n=0 bad=0 why= last=
+
+	for p in "$@"; do
+		if dt_trash1 "$p"; then
+			n=$((n + 1))
+			last=${p##*/}
+		else
+			bad=$((bad + 1))
+			[ -z "$why" ] && why=$DT_WHY
+		fi
+	done
+	if [ "$n" = 1 ]; then
+		dt_tally 1 "$bad" "Moved" "$last to the trash" "$why"
+	else
+		dt_tally "$n" "$bad" "Moved" "" "$why"
+		[ "$n" -gt 1 ] && [ "$bad" = 0 ] &&
+			dt_note "Moved $n items to the trash"
+	fi
+	[ "$n" -gt 0 ] && dt_changed
+	[ "$bad" = 0 ]
 }
 
 # Open a path: a folder in a file browser, anything else in a terminal with
@@ -1155,21 +1244,36 @@ dt_openfile() {
 #
 # The apps, in the order of the hibr menu, then whatever is in ~/Desktop,
 # then the trash -- laid out down from the top right, where the Mac put
-# them.  A double click opens one.  Dragging one somewhere empty moves it
-# there and remembers where; dragging it onto the trash, a folder or an app
-# does what that means; dragging a file out of a window onto the empty
-# desktop moves it into ~/Desktop.  DT_ICONS=0 turns them off.
+# them.  A double click opens one.  A click selects, ctrl adds or takes
+# away, shift takes a run, and a drag across the empty desktop draws a band
+# that selects what it touches.  Dragging a selection somewhere empty moves
+# the icons there, keeping their arrangement; onto the trash, a folder or an
+# app it does what that means; onto a window, it hands the files over.  With
+# no window focused the arrows move between icons, shift with them extends,
+# space picks one, enter opens and delete throws away.  DT_ICONS=0 turns
+# them off.
+#
+# What is selected is kept by the icon's key, not its place in the list, so
+# the folder being read again every few seconds does not move it elsewhere.
 
 DT_ICONS="${DT_ICONS-1}"
 DT_DESK="${DT_DESK-${XDG_DESKTOP_DIR:-$HOME/Desktop}}"
 DT_ICONW=12
 declare -gA DT_ICONPOS
 declare -gA DI
+declare -gA DI_MARK
+declare -gA DI_KEEP
 DI_N=0
-DI_SEL=
+DI_CUR=
+DI_ANCHOR=
 DI_PRESS=
+DI_DEFER=
 DI_LAST=0
+DI_LASTK=
+DI_BAND=
+DI_BANDR=
 DI_SCANT=0
+DT_DNDFROM=
 
 # Where an icon was put, as the settings file restores it.
 dt_iconpos() {
@@ -1256,13 +1360,14 @@ dt_iconlay() {
 }
 
 dt_icondraw() {
-	local i=0 r c g l
+	local i=0 r c g l k
 
 	while [ "$i" -lt "$DI_N" ]; do
 		r=${DI[$i]["r"]}
 		c=${DI[$i]["c"]}
 		g=${DI[$i]["glyph"]}
 		l=${DI[$i]["label"]}
+		k=${DI[$i]["key"]}
 		[ "${#l}" -gt $((DT_ICONW - 2)) ] && l="${l:0:$((DT_ICONW - 3))}…"
 		case ${DI[$i]["kind"]} in
 		dir) console pen "#f6ad55" "$DT_WALL" bold ;;
@@ -1270,13 +1375,35 @@ dt_icondraw() {
 		*) console pen "$DT_ACTIVE" "$DT_WALL" bold ;;
 		esac
 		console put "$r" $((c + (DT_ICONW - ${#g}) / 2)) "$g"
-		if [ "$i" = "$DI_SEL" ]; then
+		if [ -n "${DI_MARK["$k"]}" ]; then
 			console pen "$DT_FACE" "$DT_ACTIVE" bold
+		elif [ "$k" = "$DI_CUR" ]; then
+			console pen "$DT_INK" "$DT_IDLE"
 		else
 			console pen "$DT_INK" "$DT_WALL"
 		fi
 		console put $((r + 1)) $((c + (DT_ICONW - ${#l}) / 2)) "$l"
 		i=$((i + 1))
+	done
+	[ -n "$DI_BANDR" ] && dt_banddraw
+}
+
+# The rubber band, drawn dashed so it reads as a selection, not a window.
+dt_banddraw() {
+	local r0 c0 r1 c1 r t
+
+	read -r r0 c0 r1 c1 <<< "$DI_BANDR"
+	console pen "$DT_ACTIVE" "$DT_WALL"
+	if [ "$c1" -gt "$c0" ]; then
+		t := str repeat "┄" $((c1 - c0 + 1))
+		console put "$r0" "$c0" "$t"
+		console put "$r1" "$c0" "$t"
+	fi
+	r=$r0
+	while [ "$r" -le "$r1" ]; do
+		console put "$r" "$c0" "┆"
+		console put "$r" "$c1" "┆"
+		r=$((r + 1))
 	done
 }
 
@@ -1297,34 +1424,184 @@ dt_iconat() {
 	return 1
 }
 
-# A press on the desktop: select the icon under it, or open it if it was
-# pressed a moment ago.
-dt_iconpress() {
-	local i now
+# The icon with a key, by its place in the list.
+dt_iconidx() {
+	local i=0
 
-	DI_PRESS=
-	if ! i := dt_iconat "$1" "$2"; then
-		DI_SEL=
-		return 0
-	fi
-	now := dt_ms
-	if [ "$i" = "$DI_SEL" ] && [ $((now - DI_LAST)) -lt 700 ]; then
-		DI_LAST=0
-		dt_iconopen "$i"
-		return 0
-	fi
-	DI_SEL=$i
-	DI_LAST=$now
-	DI_PRESS="$i $1 $2"
+	while [ "$i" -lt "$DI_N" ]; do
+		if [ "${DI[$i]["key"]}" = "$1" ]; then
+			ret "$i"
+			return 0
+		fi
+		i=$((i + 1))
+	done
+	return 1
 }
 
-# Moving after a press on an icon starts dragging it; letting go without
-# moving is only a click.
-dt_iconmove() {
-	local act=$1 mr=$2 mc=$3 i pr pc src
+# Nothing selected.
+dt_iconclear() {
+	local k
+
+	for k in "${!DI_MARK[@]}"; do unset DI_MARK["$k"]; done
+}
+
+# Select or unselect one icon by key.
+dt_iconmark() {
+	if [ "$2" = 1 ]; then
+		DI_MARK["$1"]=1
+	else
+		unset DI_MARK["$1"]
+	fi
+}
+
+# What is selected, as places in the list; the cursor alone when nothing is.
+dt_iconsel() {
+	local i=0 out=
+
+	while [ "$i" -lt "$DI_N" ]; do
+		[ -n "${DI_MARK["${DI[$i]["key"]}"]}" ] && out="$out $i"
+		i=$((i + 1))
+	done
+	if [ -z "$out" ] && [ -n "$DI_CUR" ]; then
+		dt_iconidx "$DI_CUR" || return 1
+		return 0
+	fi
+	[ -n "$out" ] || return 1
+	ret "${out# }"
+}
+
+# The files behind a list of icons; apps and the trash have none.
+dt_iconpaths() {
+	local i
+
+	DT_PATHS=()
+	for i in $1; do
+		case ${DI[$i]["kind"]} in
+		dir | file) DT_PATHS+=("${DI[$i]["name"]}") ;;
+		esac
+	done
+}
+
+# Select a run of icons, in the order they are listed.
+dt_iconrange() {
+	local a b i
+
+	a := dt_iconidx "$1" || return 0
+	b := dt_iconidx "$2" || return 0
+	[ "$a" -gt "$b" ] && { i=$a; a=$b; b=$i; }
+	i=$a
+	while [ "$i" -le "$b" ]; do
+		DI_MARK["${DI[$i]["key"]}"]=1
+		i=$((i + 1))
+	done
+}
+
+# A press on the desktop.  On an icon: select it, add it with ctrl, take a
+# run with shift, open it if it was pressed a moment ago.  A plain press on
+# something already selected leaves the rest selected until the button comes
+# up, so a selection can be picked up and dragged whole.  On nothing: start
+# a rubber band.
+dt_iconpress() {
+	local mr=$1 mc=$2 mods=$3 i k now
+
+	DI_PRESS=
+	DI_DEFER=
+	if ! i := dt_iconat "$mr" "$mc"; then
+		case $mods in *ctrl*) ;; *) dt_iconclear ;; esac
+		dt_iconclear_keep
+		DI_BAND="$mr $mc"
+		DI_BANDR=
+		return 0
+	fi
+	k=${DI[$i]["key"]}
+	now := dt_ms
+	case $mods in
+	*ctrl*)
+		if [ -n "${DI_MARK["$k"]}" ]; then
+			dt_iconmark "$k" 0
+		else
+			dt_iconmark "$k" 1
+		fi
+		DI_ANCHOR=$k
+		;;
+	*shift*)
+		[ -n "$DI_ANCHOR" ] || DI_ANCHOR=$k
+		dt_iconclear
+		dt_iconrange "$DI_ANCHOR" "$k"
+		;;
+	*)
+		if [ "$k" = "$DI_LASTK" ] && [ $((now - DI_LAST)) -lt 700 ]; then
+			DI_LAST=0
+			dt_iconopen "$i"
+			return 0
+		fi
+		if [ -n "${DI_MARK["$k"]}" ] && [ "${#DI_MARK[@]}" -gt 1 ]; then
+			DI_DEFER=1
+		else
+			dt_iconclear
+			dt_iconmark "$k" 1
+		fi
+		DI_ANCHOR=$k
+		;;
+	esac
+	DI_CUR=$k
+	DI_LAST=$now
+	DI_LASTK=$k
+	DI_PRESS="$i $mr $mc"
+}
+
+# Remember what was selected when a band starts, so ctrl can add to it.
+dt_iconclear_keep() {
+	local k
+
+	for k in "${!DI_KEEP[@]}"; do unset DI_KEEP["$k"]; done
+	for k in "${!DI_MARK[@]}"; do DI_KEEP["$k"]=1; done
+}
+
+# Stretch the rubber band, selecting every icon it touches.
+dt_iconband() {
+	local act=$1 mr=$2 mc=$3 r0 c0 r1 c1 i r c k
 
 	if [ "$act" = release ]; then
+		DI_BAND=
+		DI_BANDR=
+		return 0
+	fi
+	r0=${DI_BAND% *}
+	c0=${DI_BAND#* }
+	r1=$mr
+	c1=$mc
+	[ "$r0" -gt "$r1" ] && { r=$r0; r0=$r1; r1=$r; }
+	[ "$c0" -gt "$c1" ] && { c=$c0; c0=$c1; c1=$c; }
+	[ "$r0" -lt 1 ] && r0=1
+	DI_BANDR="$r0 $c0 $r1 $c1"
+	i=0
+	while [ "$i" -lt "$DI_N" ]; do
+		r=${DI[$i]["r"]}
+		c=${DI[$i]["c"]}
+		k=${DI[$i]["key"]}
+		if [ $((r + 1)) -ge "$r0" ] && [ "$r" -le "$r1" ] &&
+		   [ $((c + DT_ICONW - 1)) -ge "$c0" ] && [ "$c" -le "$c1" ]; then
+			DI_MARK["$k"]=1
+		elif [ -z "${DI_KEEP["$k"]}" ]; then
+			unset DI_MARK["$k"]
+		fi
+		i=$((i + 1))
+	done
+}
+
+# Moving after a press on an icon drags the selection; letting go without
+# moving is only a click, which settles a deferred one.
+dt_iconmove() {
+	local act=$1 mr=$2 mc=$3 i pr pc sel n
+
+	if [ "$act" = release ]; then
+		if [ -n "$DI_DEFER" ]; then
+			dt_iconclear
+			dt_iconmark "$DI_CUR" 1
+		fi
 		DI_PRESS=
+		DI_DEFER=
 		return 0
 	fi
 	i=${DI_PRESS%% *}
@@ -1336,12 +1613,19 @@ dt_iconmove() {
 		return 0
 	fi
 	DI_PRESS=
-	case ${DI[$i]["kind"]} in
-	dir | file) src=${DI[$i]["name"]} ;;
-	*) src=- ;;
-	esac
-	dt_dnd "$src" "${DI[$i]["label"]}" "${DI[$i]["glyph"]}"
-	DT_DNDICON=$i
+	DI_DEFER=
+	sel := dt_iconsel || sel=$i
+	case " $sel " in *" $i "*) ;; *) sel=$i ;; esac
+	dt_iconpaths "$sel"
+	set -- $sel
+	n=$#
+	if [ "$n" = 1 ]; then
+		dt_dnd "${DI[$i]["label"]}" "${DI[$i]["glyph"]}" "${DT_PATHS[@]}"
+	else
+		dt_dnd "$n items" "${DI[$i]["glyph"]}" "${DT_PATHS[@]}"
+	fi
+	DT_DNDICON=$sel
+	DT_DNDFROM="$pr $pc"
 	DT_DNDR=$mr
 	DT_DNDC=$mc
 }
@@ -1361,43 +1645,166 @@ dt_iconopen() {
 	esac
 }
 
-# Put an icon where it was let go, kept on the screen, and remember it.
-dt_iconplace() {
-	local key=$1 r=$2 c=$(($3 - DT_ICONW / 2))
+# Put an icon at a place, kept on the screen, and remember it.
+dt_iconset() {
+	local key=$1 r=$2 c=$3
 
 	[ "$r" -lt 1 ] && r=1
 	[ "$r" -gt $((DT_ROWS - 3)) ] && r=$((DT_ROWS - 3))
 	[ "$c" -lt 0 ] && c=0
 	[ "$c" -gt $((DT_COLS - DT_ICONW)) ] && c=$((DT_COLS - DT_ICONW))
 	DT_ICONPOS["$key"]="$r $c"
+}
+
+# Put an icon where it was let go, centred under the pointer.
+dt_iconplace() {
+	dt_iconset "$1" "$2" $(($3 - DT_ICONW / 2))
 	dt_iconlay
 	dt_save
 }
 
 # Something let go over the desktop rather than a window.
 dt_deskdrop() {
-	local mr=$1 mc=$2 src=$3 op=$4 from=$DT_DNDICON i base
+	local mr=$1 mc=$2 op=$3 from=$DT_DNDICON at=$DT_DNDFROM i dr dc p k r
 
+	shift 3
 	DT_DNDICON=
-	if i := dt_iconat "$mr" "$mc" && [ "$i" != "$from" ]; then
-		[ "$src" = - ] && return 0
-		case ${DI[$i]["kind"]} in
-		trash) dt_trash "$src" ;;
-		dir) dt_fileop "$op" "$src" "${DI[$i]["name"]}" ;;
-		app) dt_launch "${DI[$i]["name"]}" "$src" ;;
+	DT_DNDFROM=
+	if i := dt_iconat "$mr" "$mc"; then
+		case " $from " in
+		*" $i "*) ;;
+		*)
+			[ $# -gt 0 ] || return 0
+			case ${DI[$i]["kind"]} in
+			trash) dt_trash "$@" ;;
+			dir) dt_fileop "$op" "${DI[$i]["name"]}" "$@" ;;
+			app) for p in "$@"; do dt_launch "${DI[$i]["name"]}" "$p"; done ;;
+			esac
+			return 0
+			;;
 		esac
-		return 0
 	fi
 	if [ -n "$from" ]; then
-		dt_iconplace "${DI[$from]["key"]}" "$mr" "$mc"
+		dr=$((mr - ${at% *}))
+		dc=$((mc - ${at#* }))
+		for i in $from; do
+			r=${DI[$i]["r"]}
+			p=${DI[$i]["c"]}
+			dt_iconset "${DI[$i]["key"]}" $((r + dr)) $((p + dc))
+		done
+		dt_iconlay
+		dt_save
 		return 0
 	fi
-	[ "$src" = - ] && return 0
-	mkdir -p "$DT_DESK" 2> /dev/null
-	base=${src##*/}
-	dt_fileop "$op" "$src" "$DT_DESK" &&
-		dt_iconplace "desk:$base" "$mr" "$mc"
+	[ $# -gt 0 ] || return 0
+	[ -d "$DT_DESK" ] || mkdir -p "$DT_DESK" 2> /dev/null
+	dt_fileop "$op" "$DT_DESK" "$@"
+	r=$mr
+	for p in "$@"; do
+		k="desk:${p##*/}"
+		if [ -e "$DT_DESK/${p##*/}" ] && [ -z "${DT_ICONPOS["$k"]}" ]; then
+			dt_iconset "$k" "$r" $((mc - DT_ICONW / 2))
+			r=$((r + 3))
+		fi
+	done
+	dt_iconlay
+	dt_save
+}
+
+# The icon nearest the current one in a direction: what is that way, and of
+# that, what is closest, counting a row as four columns since icons are
+# three rows tall and twelve columns wide.
+dt_iconnear() {
+	local dir=$1 i=0 cur r0 c0 r c d best= bd dx dy
+
+	if ! cur := dt_iconidx "$DI_CUR"; then
+		ret 0
+		return 0
+	fi
+	r0=${DI[$cur]["r"]}
+	c0=${DI[$cur]["c"]}
+	while [ "$i" -lt "$DI_N" ]; do
+		r=${DI[$i]["r"]}
+		c=${DI[$i]["c"]}
+		dx=$((c - c0))
+		dy=$((r - r0))
+		d=
+		case $dir in
+		up) [ "$dy" -lt 0 ] && d=$((-dy * 4 + ${dx#-} * 2)) ;;
+		down) [ "$dy" -gt 0 ] && d=$((dy * 4 + ${dx#-} * 2)) ;;
+		left) [ "$dx" -lt 0 ] && d=$((-dx + ${dy#-} * 8)) ;;
+		right) [ "$dx" -gt 0 ] && d=$((dx + ${dy#-} * 8)) ;;
+		esac
+		if [ -n "$d" ] && { [ -z "$best" ] || [ "$d" -lt "$bd" ]; }; then
+			best=$i
+			bd=$d
+		fi
+		i=$((i + 1))
+	done
+	[ -n "$best" ] || best=$cur
+	ret "$best"
+}
+
+# Keys on the desktop, while no window has focus.
+dt_iconkey() {
+	local k=$1 i sel
+
+	[ "$DI_N" -gt 0 ] || return 1
+	case $k in
+	up | down | left | right | shift-up | shift-down | shift-left | \
+	shift-right)
+		i := dt_iconnear "${k#shift-}"
+		case $k in
+		shift-*)
+			[ -n "$DI_CUR" ] && dt_iconmark "$DI_CUR" 1
+			dt_iconmark "${DI[$i]["key"]}" 1
+			;;
+		*)
+			dt_iconclear
+			dt_iconmark "${DI[$i]["key"]}" 1
+			DI_ANCHOR=${DI[$i]["key"]}
+			;;
+		esac
+		DI_CUR=${DI[$i]["key"]}
+		;;
+	" " | space)
+		[ -n "$DI_CUR" ] || return 0
+		if [ -n "${DI_MARK["$DI_CUR"]}" ]; then
+			dt_iconmark "$DI_CUR" 0
+		else
+			dt_iconmark "$DI_CUR" 1
+		fi
+		;;
+	ctrl-a)
+		i=0
+		while [ "$i" -lt "$DI_N" ]; do
+			DI_MARK["${DI[$i]["key"]}"]=1
+			i=$((i + 1))
+		done
+		;;
+	enter)
+		sel := dt_iconsel || return 0
+		for i in $sel; do dt_iconopen "$i"; done
+		;;
+	delete)
+		sel := dt_iconsel || return 0
+		dt_iconpaths "$sel"
+		[ "${#DT_PATHS[@]}" -gt 0 ] && dt_trash "${DT_PATHS[@]}"
+		;;
+	*) return 1 ;;
+	esac
 	return 0
+}
+
+# What the desktop copies: the paths of the selected files, one to a line.
+dt_iconcopy() {
+	local sel p out=
+
+	sel := dt_iconsel || return 1
+	dt_iconpaths "$sel"
+	[ "${#DT_PATHS[@]}" -gt 0 ] || return 1
+	for p in "${DT_PATHS[@]}"; do out="$out$p"$'\n'; done
+	ret "${out%$'\n'}"
 }
 
 # Give a window a new title; an app knows what it is showing better than
@@ -1416,7 +1823,17 @@ dt_retitle() {
 dt_edit() {
 	local cb t
 
-	[ -n "$DT_FOCUS" ] || return 0
+	if [ -z "$DT_FOCUS" ]; then
+		[ "$1" = copy ] || return 0
+		if t := dt_iconcopy && [ -n "$t" ]; then
+			DT_CLIP=$t
+			console clip "$t"
+			dt_note "Copied the paths of what is selected"
+		else
+			dt_note "No file is selected"
+		fi
+		return 0
+	fi
 	cb=${DT[$DT_FOCUS]["$1"]}
 	if [ -z "$cb" ]; then
 		dt_note "${DT[$DT_FOCUS]["title"]} cannot $1"

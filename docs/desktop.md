@@ -35,8 +35,18 @@ trash, drawn full when it is not empty. A **double click** opens one -- an
 app launches, a folder opens in Files, a file opens in a terminal with hvi,
 the trash opens in Files.
 
+**Choose several**: ctrl and a click adds an icon or takes it away, shift
+and a click takes the run from the last one chosen (where the terminal
+passes shift-click on; many keep it for their own text selection), and a
+drag across the empty desktop draws a band that selects every icon it
+touches. With no window focused the keyboard works too: the arrows go from
+icon to icon, shift with them extends the selection, space picks or drops
+one, ctrl-a takes them all, enter opens what is selected and delete throws
+the files away. alt-c copies their paths.
+
 **Drag** an icon somewhere empty and it stays there, remembered in the
-settings file with the rest. Drag a file's icon onto the trash to throw it
+settings file with the rest; drag a selection and it moves together,
+keeping its arrangement. Drag a file's icon onto the trash to throw it
 away, onto a folder's icon to put it inside, onto an app's to open it with
 that app, or onto a window to hand it to the window. A file dragged out of a
 Files window onto the empty desktop moves into `~/Desktop`, where it was let
@@ -53,12 +63,23 @@ over a terminal window its path is typed in, quoted for a shell. A drop
 already there, and a folder cannot go inside itself -- the desktop says so
 instead. Escape while dragging cancels.
 
-An app starts a drag with `dt_dnd path name glyph` from its `_mouse`, and
-takes one with `_drop`; the moving and copying is `dt_fileop`, once, so
+A selection drags whole: every file in it moves or copies, and one note
+says how that went -- "Moved 3 items to project", or the first thing
+refused and how many more were.
+
+An app starts a drag with `dt_dnd label glyph path...` from its `_mouse`,
+and takes one with `_drop`; the moving and copying is `dt_fileop`, once, so
 every app refuses the same things. `dt_trash path` moves a file to the trash
 at `~/.local/share/Trash`, the freedesktop one, so what is thrown away here
 turns up in any other desktop's trash on the machine. `dt_openfile path`
 opens a folder in Files and anything else in a terminal with hvi.
+
+In the file browser a click selects one entry; ctrl and a click adds or
+takes away; shift and a click takes a run; shift with the arrows carries
+the selection along; space marks the entry under the cursor and steps on;
+ctrl-a takes everything but `..`. A plain click on something already
+selected keeps the rest until the button comes up, so the selection can be
+picked up and dragged; the footer says how many are chosen.
 
 The file browser has three views, which `v` cycles and the View menu picks:
 a **list** of names; **details**, with size, time and permissions from one
@@ -171,7 +192,7 @@ these, and the window manager calls only the ones that exist:
 | `hello_mouse` | `id press\|drag\|release button row col mods` | instead of `_click`, for an app that wants the whole of a press: after the press, its drags and its release come here wherever the pointer goes. `mods` is what was held, such as `shift` or `ctrl` |
 | `hello_copy` | `id` | Edit > Copy or alt-c: hand back the selection with `ret`, or fail when nothing is selected |
 | `hello_paste` | `id text` | Edit > Paste or alt-v, and a paste from the terminal the desktop runs on |
-| `hello_drop` | `id row col path move\|copy` | something dragged from another window, let go over this one |
+| `hello_drop` | `id row col move\|copy path...` | files dragged from elsewhere, let go over this one; there may be several |
 | `hello_refresh` | `id` | something on disk changed: a move, a copy, the trash |
 | `hello_wheel` | `id up\|down row col` | the wheel, over this window whether or not it has focus |
 | `hello_close` | `id` | once, when the window closes |
