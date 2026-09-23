@@ -63,7 +63,7 @@ tw_fit() {
 }
 
 term_draw() {
-	local id=$1 h=$2 w=$3 wr=$4 wc=$5 t st sb cur=0
+	local id=$1 h=$2 w=$3 wr=$4 wc=$5 t st sb cur=0 ms
 
 	tw_fit "$id" "$h" "$w" || return 0
 	t=${TW[$id]["t"]}
@@ -79,6 +79,10 @@ term_draw() {
 		return 0
 	fi
 	[ "$DT_FOCUS" = "$id" ] && cur=1
+	if [ "$cur" = 1 ] && [ "$DT_CURSOR_BLINK" = 1 ]; then
+		ms := dt_ms
+		[ $(((ms / 500) % 2)) = 1 ] && cur=0
+	fi
 	term draw "$t" $((wr + 1)) $((wc + 1)) "$h" "$w" "$cur"
 	sb := term scroll "$t"
 	if [ "${sb% *}" != 0 ]; then

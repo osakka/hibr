@@ -60,13 +60,19 @@ DT_GLYPH="${DT_GLYPH-·}"
 # for one of its own with DECSCUSR -- block, underline or bar.
 DT_CURSOR="${DT_CURSOR-block}"
 
+# Whether the cursor blinks. Off by default: a steady cursor is what the
+# terminal module has always drawn, and blinking is a look, not a fix, so it
+# stays opt-in. It costs nothing extra either way -- the focused terminal
+# already redraws every 30ms to catch its own echo promptly, blink or not.
+DT_CURSOR_BLINK="${DT_CURSOR_BLINK-0}"
+
 # Settings are a script of the user's own, written by the desktop whenever
 # one changes and read back at the next start: plain assignments, so it can
 # be edited by hand and needs no format of its own.  An app that wants a
 # variable of its own kept names it with dt_keep.
 DT_CONF="${DT_CONF-${XDG_CONFIG_HOME:-$HOME/.config}/hibr/desktop.hibr}"
 DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
-	DT_TICK DT_ICONS DT_DISKS DT_CURSOR)
+	DT_TICK DT_ICONS DT_DISKS DT_CURSOR DT_CURSOR_BLINK)
 
 # Where the desktop's stderr goes while it holds the screen, so an app's
 # error message cannot scribble over the display, and the reason for a
@@ -901,7 +907,7 @@ dt_menus() {
 	[ -n "$who" ] && ap=${DT[$who]["app"]}
 	MB_N=0
 
-	dt_menu "hibr"
+	dt_menu "✎"
 	dt_item "About hibr" a dt_about
 	dt_sep
 	used=aqdu

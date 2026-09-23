@@ -202,7 +202,7 @@ TICK = "DT_TICK=200"
 
 sc = run(*PANEL, pre=TICK, also=OTHER)
 check("the sections are drawn", sc.find("Appearance") == (3, 3) and
-      sc.find("Behaviour") == (7, 3) and sc.find("Windows") == (13, 3), sc)
+      sc.find("Behaviour") == (7, 3) and sc.find("Windows") == (14, 3), sc)
 check("the settings show their values", sc.find("midnight") is not None and
       sc.find("200 ms") is not None, sc)
 check("the window list names what is open",
@@ -223,10 +223,10 @@ sc = run(*PANEL, feed=[b"\x1b[B", b"\x1b[B", b"\x1b[C"], pre=TICK,
 check("down skips the blank line and the heading, landing on Refresh",
       sc.find("350 ms") is not None, sc)
 
-# Theme, Wallpaper, Refresh, Icons, Disk Icons, Cursor, Panel, Other -- seven
-# downs from Theme reaches the second window, because cp_move steps over the
-# headings and the blanks.
-DOWN4 = [b"\x1b[B"] * 7
+# Theme, Wallpaper, Refresh, Icons, Disk Icons, Cursor, Cursor Blink, Panel,
+# Other -- eight downs from Theme reaches the second window, because cp_move
+# steps over the headings and the blanks.
+DOWN4 = [b"\x1b[B"] * 8
 
 sc = run(*PANEL, feed=[b"\x1b[B"] * 3 + [b"\r"], pre=TICK, also=OTHER)
 check("the icons can be switched off, and the panel says so",
@@ -307,7 +307,7 @@ check("a program that ends says so in the window",
 sc = run(*TERM, pre="TW_CMD=(/bin/sh -c 'exit 0')", wait=1.6)
 check("and one that ends cleanly closes the window instead of asking",
       sc.find("┤ Term ├") is None and sc.find("exited 0") is None and
-      "hibr" in sc.row(0), sc)
+      "✎" in sc.row(0), sc)
 
 # Scrollback, and the mouse for a program that asks for it.
 LONG = "TW_CMD=(/bin/sh -c 'i=1; while [ $i -le 40 ]; do echo \"row $i\"; i=$((i+1)); done; exec cat')"

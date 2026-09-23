@@ -51,8 +51,8 @@ check("the minimise and zoom buttons sit beside it",
       sc.g[6][32] == "┤" and sc.g[6][33] == "_" and
       sc.g[6][35] == "□" and sc.g[6][38] == "├", sc)
 check("the wallpaper is drawn behind it", sc.g[12][2] == "·", sc)
-check("the menu bar names hibr, the time and the active application",
-      sc.find("hibr") == (0, 2) and re.search(r"\d\d:\d\d", sc.row(0)) and
+check("the menu bar shows the hibr menu, the time and the active application",
+      sc.find("✎") == (0, 2) and re.search(r"\d\d:\d\d", sc.row(0)) and
       sc.find("Desktop ▾") is not None, sc)
 check("the alternate screen is left on the way out", b"\x1b[?1049l" in raw)
 check("and the mouse is turned off again",
@@ -189,32 +189,32 @@ MENUS = ('noted_draw() { console put -p "w$1" 1 2 "count $NC"; }\n'
 
 sc, _ = run(MENUS)
 check("an app's own menus are on the bar when it has focus",
-      sc.find("Count") == (0, 8) and sc.find("More") is not None, sc)
+      sc.find("Count") == (0, 5) and sc.find("More") is not None, sc)
 check("and the application menu names it",
       sc.find("Noted ▾") is not None, sc)
 
-sc, _ = run(MENUS, [press(0, 9)])
+sc, _ = run(MENUS, [press(0, 6)])
 check("clicking a title drops the menu under it",
-      sc.find("Bump") == (1, 9) and sc.find("Reset") == (3, 9), sc)
-check("a separator is drawn between the groups", sc.at(2, 8) == "─", sc)
-check("each item shows the letter that picks it", sc.at(1, 19) == "b" and
-      sc.at(3, 19) == "r", sc)
+      sc.find("Bump") == (1, 6) and sc.find("Reset") == (3, 6), sc)
+check("a separator is drawn between the groups", sc.at(2, 5) == "─", sc)
+check("each item shows the letter that picks it", sc.at(1, 16) == "b" and
+      sc.at(3, 16) == "r", sc)
 
-sc, _ = run(MENUS, [press(0, 9), press(0, 9)])
+sc, _ = run(MENUS, [press(0, 6), press(0, 6)])
 check("clicking it again puts it away", sc.find("Bump") is None, sc)
 
-sc, _ = run(MENUS, [press(0, 9), press(15, 60)])
+sc, _ = run(MENUS, [press(0, 6), press(15, 60)])
 check("clicking away from an open menu shuts it",
       sc.find("Bump") is None, sc)
 
-sc, _ = run(MENUS, [press(0, 9), b"b"])
+sc, _ = run(MENUS, [press(0, 6), b"b"])
 check("a letter picks the item beside it", sc.find("count 1") is not None
       and sc.find("Bump") is None, sc)
 
-sc, _ = run(MENUS, [press(0, 9), b"\r"])
+sc, _ = run(MENUS, [press(0, 6), b"\r"])
 check("enter takes the highlighted one", sc.find("count 1") is not None, sc)
 
-sc, _ = run(MENUS, [press(0, 9), b"\x1b[B", b"\r"])
+sc, _ = run(MENUS, [press(0, 6), b"\x1b[B", b"\r"])
 check("down steps over the separator to the next real item",
       sc.find("count 0") is not None and sc.find("Reset") is None, sc)
 
@@ -281,8 +281,8 @@ check("nor past the edge of the screen", sc.at(23, 79) == "◢", sc)
 
 # Where Window sits on the bar: after the app's two menus and Edit when the
 # app has focus, after Edit alone when nothing does.
-#   "  hibr  Count  More  Edit  Window"      "  hibr  Edit  Window"
-WIN, WIN0 = 26, 14
+#   "  ✎  Count  More  Edit  Window"      "  ✎  Edit  Window"
+WIN, WIN0 = 23, 11
 
 sc, _ = run(MENUS, [press(0, WIN)])
 check("a window menu is there even for an app with its own menus",
@@ -290,33 +290,33 @@ check("a window menu is there even for an app with its own menus",
 
 sc, _ = run(MENUS, [press(6, 37), press(0, WIN0)])
 check("with nothing focused its items lose their letters",
-      sc.find("Move") is not None and sc.at(1, 19) != "m", sc)
+      sc.find("Move") is not None and sc.at(1, 16) != "m", sc)
 
 sc, _ = run(MENUS, [press(6, 37), press(0, WIN0), b"m"])
 check("and a dimmed letter does nothing", sc.find("Move") is not None, sc)
 
 # --- submenus -------------------------------------------------------------
 
-sc, _ = run(MENUS, [press(0, 15)])
+sc, _ = run(MENUS, [press(0, 12)])
 check("an item with a submenu shows an arrow, not a letter",
-      sc.find("Set To") is not None and sc.at(2, 30) == "▸", sc)
+      sc.find("Set To") is not None and sc.at(2, 27) == "▸", sc)
 
-sc, _ = run(MENUS, [press(0, 15), b"\x1b[B", b"\x1b[C"])
+sc, _ = run(MENUS, [press(0, 12), b"\x1b[B", b"\x1b[C"])
 check("right opens it beside its parent",
       sc.find("One") is not None and sc.find("Two") is not None and
       sc.find("Bump Twice") is not None, sc)
 check("and the current choice carries a tick",
       sc.find("✓ Two") is not None and sc.find("✓ One") is None, sc)
 
-sc, _ = run(MENUS, [press(0, 15), b"\x1b[B", b"\x1b[C", b"\x1b[D"])
+sc, _ = run(MENUS, [press(0, 12), b"\x1b[B", b"\x1b[C", b"\x1b[D"])
 check("left comes back out, leaving the parent open",
       sc.find("One") is None and sc.find("Bump Twice") is not None, sc)
 
-sc, _ = run(MENUS, [press(0, 15), b"\x1b[B", b"\x1b[C", b"o"])
+sc, _ = run(MENUS, [press(0, 12), b"\x1b[B", b"\x1b[C", b"o"])
 check("an item inside a submenu runs",
       sc.find("count 1") is not None and sc.find("One") is None, sc)
 
-sc, _ = run(MENUS, [press(0, 15), b"\x1b[B", b"\x1b[B", b"\r"])
+sc, _ = run(MENUS, [press(0, 12), b"\x1b[B", b"\x1b[B", b"\r"])
 check("a dimmed item is stepped over, so down twice wraps past it",
       sc.find("count 2") is not None, sc)
 
@@ -600,7 +600,7 @@ t = Term("-c", HOLDC + "hold attach desk", env=HENV, settle=1.5)
 sc = t.screen()
 check("attached from a new terminal, the whole desktop is drawn again",
       sc.g[6][10] == "┌" and sc.find("Held") is not None and
-      sc.find("hibr") == (0, 2), sc)
+      sc.find("✎") == (0, 2), sc)
 t.send(b"\x1b[21~", settle=0.4)
 t.send(b"d", settle=0.8)
 check("Detach on the hibr menu detaches too",
@@ -643,7 +643,12 @@ atexit.register(unresume)
 t = Term(SESSION, env=RENV, settle=2.0)
 sc = t.screen()
 check("run plainly, the shipped session is already detachable",
-      sc.find("Files") is not None and sc.find("Calculator") is not None, sc)
+      sc.find("Home") is not None and sc.find("Trash") is not None, sc)
+# A window open when it detaches is what proves --resume brings back more
+# than a bare desktop: F10 then the app's own letter opens it, the same way
+# a person would from the hibr menu.
+t.send(b"\x1b[21~", settle=0.3)
+t.send(b"f", settle=0.6)
 t.send(b"\x1c", settle=0.6)
 check("and ctrl-\\ detaches it", b"[desktop: detached" in t.out,
       t.out.decode(errors="replace"))
@@ -658,7 +663,7 @@ t.close()
 t = Term(SESSION, "--resume", env=RENV, settle=2.0)
 sc = t.screen()
 check("--resume comes back to the same desktop, windows and all",
-      sc.find("Files") is not None and sc.find("Calculator") is not None, sc)
+      sc.find("┤ Files ├") is not None, sc)
 t.send(b"q", settle=1.0)
 t.collect(0.5)
 check("and quitting it from there ends the whole session",
@@ -689,6 +694,8 @@ def unsession():
 atexit.register(unsession)
 
 t = Term(SESSION, "--session", "work", env=S2ENV, settle=2.0)
+t.send(b"\x1b[21~", settle=0.3)
+t.send(b"f", settle=0.6)
 t.send(b"\x1c", settle=0.5)
 t.close()
 t = Term(SESSION, "--session", "personal", env=S2ENV, settle=2.0)
@@ -704,7 +711,7 @@ check("--session starts an independently named desktop, more than one at once",
 t = Term(SESSION, "--session", "work", "--resume", env=S2ENV, settle=2.0)
 sc = t.screen()
 check("--session with --resume comes back to that one specifically",
-      sc.find("Files") is not None, sc)
+      sc.find("┤ Files ├") is not None, sc)
 t.send(b"q", settle=1.0)
 t.close()
 r = subprocess.run([screen.HIBR, "-c", HOLDC + "hold list"],

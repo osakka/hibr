@@ -97,6 +97,9 @@ cp_rows() {
 	CP[$w][$n]["key"]=disks; n=$((n + 1))
 	CP[$w][$n]["kind"]=set;  CP[$w][$n]["text"]="Cursor"
 	CP[$w][$n]["val"]="$DT_CURSOR"; CP[$w][$n]["key"]=cursor; n=$((n + 1))
+	CP[$w][$n]["kind"]=set;  CP[$w][$n]["text"]="Cursor Blink"
+	CP[$w][$n]["val"]=off; [ "$DT_CURSOR_BLINK" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=blink; n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]=""; n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Windows"; n=$((n + 1))
 
@@ -155,6 +158,7 @@ cp_do() {
 		disks) cp_disks ;;
 		cursor) v := cp_next "$DT_CURSOR" "$dir" "${CP_CURSORS[@]}"
 			DT_CURSOR=$v ;;
+		blink) cp_blink ;;
 		esac
 		cp_save
 		;;
@@ -251,6 +255,9 @@ panel_menus() {
 	on=0
 	[ "$DT_DISKS" = 1 ] && on=1
 	dt_mark "Disk Icons" k "$on" cp_disks
+	on=0
+	[ "$DT_CURSOR_BLINK" = 1 ] && on=1
+	dt_mark "Cursor Blink" b "$on" cp_blink
 	dt_sep
 	dt_item "Change Selected" c cp_do "$w" 1
 }
@@ -281,6 +288,16 @@ cp_disks() {
 cp_set_glyph() { DT_GLYPH=$1; cp_save; }
 cp_set_tick() { DT_TICK=$1; cp_save; }
 cp_set_cursor() { DT_CURSOR=$1; cp_save; }
+
+# Whether a focused terminal's cursor blinks.
+cp_blink() {
+	if [ "$DT_CURSOR_BLINK" = 1 ]; then
+		DT_CURSOR_BLINK=0
+	else
+		DT_CURSOR_BLINK=1
+	fi
+	cp_save
+}
 
 # Every change is kept at once: there is no Save to forget.
 cp_save() {
