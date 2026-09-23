@@ -279,15 +279,20 @@ check("nor past the edge of the screen", sc.at(23, 79) == "◢", sc)
 
 # --- the window menu, and items that cannot be chosen ---------------------
 
-sc, _ = run(MENUS, [press(0, 20)])
+# Where Window sits on the bar: after the app's two menus and Edit when the
+# app has focus, after Edit alone when nothing does.
+#   "  hibr  Count  More  Edit  Window"      "  hibr  Edit  Window"
+WIN, WIN0 = 26, 14
+
+sc, _ = run(MENUS, [press(0, WIN)])
 check("a window menu is there even for an app with its own menus",
       sc.find("Move") is not None and sc.find("Cycle") is not None, sc)
 
-sc, _ = run(MENUS, [press(6, 37), press(0, 9)])
+sc, _ = run(MENUS, [press(6, 37), press(0, WIN0)])
 check("with nothing focused its items lose their letters",
       sc.find("Move") is not None and sc.at(1, 19) != "m", sc)
 
-sc, _ = run(MENUS, [press(6, 37), press(0, 9), b"m"])
+sc, _ = run(MENUS, [press(6, 37), press(0, WIN0), b"m"])
 check("and a dimmed letter does nothing", sc.find("Move") is not None, sc)
 
 # --- submenus -------------------------------------------------------------
@@ -317,19 +322,19 @@ check("a dimmed item is stepped over, so down twice wraps past it",
 
 # --- moving and resizing from the keyboard --------------------------------
 
-sc, _ = run(MENUS, [press(0, 20), b"m"])
+sc, _ = run(MENUS, [press(0, WIN), b"m"])
 check("move says what it is doing", sc.find("moving") is not None, sc)
 
-sc, _ = run(MENUS, [press(0, 20), b"m", b"\x1b[A", b"\x1b[A",
+sc, _ = run(MENUS, [press(0, WIN), b"m", b"\x1b[A", b"\x1b[A",
                     b"\x1b[D", b"\r"])
 check("the arrows move the window while it is held",
       sc.find("┤ Noted ├") == (4, 11) and sc.find("moving") is None, sc)
 
-sc, _ = run(MENUS, [press(0, 20), b"r", b"\x1b[C", b"\x1b[C", b"\r"])
+sc, _ = run(MENUS, [press(0, WIN), b"r", b"\x1b[C", b"\x1b[C", b"\r"])
 check("and resize it in the other mode",
       sc.at(6, 10) == "┌" and sc.at(13, 41) == "◢", sc)
 
-sc, _ = run(MENUS, [press(0, 20), b"m", b"\x1b[A", b"\x1b"])
+sc, _ = run(MENUS, [press(0, WIN), b"m", b"\x1b[A", b"\x1b"])
 check("escape ends the mode, keeping what it did",
       sc.find("┤ Noted ├") == (5, 12) and sc.find("moving") is None, sc)
 

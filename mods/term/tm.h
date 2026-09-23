@@ -36,6 +36,8 @@ struct tm_t {
 	int sbcap, sbn, sbh, sbmax, view;
 	int mmode, msgr, bpaste;
 	tm_cell nil;
+	long tot, sa, sz;
+	int sel, sca, scz;
 };
 
 tm_t *tm_find(int id);
@@ -61,6 +63,11 @@ tm_line *tm_pop(tm_t *t);
 void tm_sbclear(tm_t *t);
 tm_cell *tm_vat(tm_t *t, int r, int c);
 int tm_view(tm_t *t, int n);
+long tm_absrow(tm_t *t, int r);
+void tm_selset(tm_t *t, int r, int c, int start);
+int tm_insel(tm_t *t, long a, int c);
+void tm_seltext(tm_t *t, str *out);
+const tm_cell *tm_absline(tm_t *t, long a, int *w);
 
 void tm_feed(tm_t *t, const char *b, size_t n);
 void tm_osc(tm_t *t);

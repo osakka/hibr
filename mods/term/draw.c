@@ -34,6 +34,7 @@ void tm_utf8(str *b, unsigned cp)
 void tm_draw(tm_t *t, const dp_api *dp, int row, int col, int h, int w)
 {
 	int r, c, n;
+	long ar;
 	unsigned fg, bg, at;
 	tm_cell *k;
 	str run;
@@ -46,6 +47,7 @@ void tm_draw(tm_t *t, const dp_api *dp, int row, int col, int h, int w)
 		w = t->cols;
 	s_init(&run);
 	for (r = 0; r < h; r++) {
+		ar = tm_absrow(t, r);
 		c = 0;
 		while (c < w) {
 			k = tm_vat(t, r, c);
@@ -59,7 +61,7 @@ void tm_draw(tm_t *t, const dp_api *dp, int row, int col, int h, int w)
 			}
 			fg = k->fg;
 			bg = k->bg;
-			at = k->attr;
+			at = k->attr ^ (tm_insel(t, ar, c) ? DP_REV : 0);
 			run.n = 0;
 			if (run.p)
 				run.p[0] = 0;
@@ -69,7 +71,8 @@ void tm_draw(tm_t *t, const dp_api *dp, int row, int col, int h, int w)
 				if (!k || !k->w)
 					break;
 				if (k->fg != fg || k->bg != bg ||
-				    k->attr != at)
+				    (k->attr ^ (tm_insel(t, ar, c) ? DP_REV : 0)) !=
+					    at)
 					break;
 				tm_utf8(&run, k->cp ? k->cp : ' ');
 				c += k->w;

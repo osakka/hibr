@@ -202,6 +202,17 @@ the next step — and alt with what a program inside one might want. A desktop
 that eats ctrl-c is a desktop nothing can run in. The cost is two keystrokes
 instead of one, and it is worth it.
 
+### Amended: two alt shortcuts, for copy and paste
+
+The owner asked for keyboard copy and paste, and chose **alt-c and alt-v**.
+It is the one exception, and the reasoning above still decides its shape.
+Ctrl stays untouched, because a terminal window's program needs every ctrl
+key and ctrl-shift-c cannot be told from ctrl-c on most terminals. Alt costs
+less: a program in a terminal window loses exactly alt-c and alt-v (readline's
+capitalise-word, for one), and nothing else. Both are also on an Edit menu
+the desktop owns, so they can be reached without the keys. No other modifier
+shortcut has been added, and one should need as good a reason.
+
 ## What the menu bar grew, and why
 
 Ticks, items that cannot be chosen, and one level of submenu — each because

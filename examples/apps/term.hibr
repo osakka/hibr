@@ -95,11 +95,45 @@ term_key() {
 # mc all do -- and the window manager keeps sending a press's drag and
 # release here until the button comes up.  The window's body starts at row
 # and column 1, the program's screen at 0.
+#
+# Otherwise the left button selects, as in any terminal: press, drag,
+# release, and alt-c or Edit > Copy takes it.  Holding shift selects even
+# when the program has the mouse, which is xterm's way out of the same bind.
 term_mouse() {
-	local t=${TW[$1]["t"]}
+	local t=${TW[$1]["t"]} mode
 
 	[ -n "$t" ] || return 0
-	term mouse "$t" "$2" "$3" $(($4 - 1)) $(($5 - 1))
+	mode := term mouse "$t"
+	if [ "$mode" != off ]; then
+		case $6 in
+		*shift*) ;;
+		*)
+			term mouse "$t" "$2" "$3" $(($4 - 1)) $(($5 - 1))
+			return 0
+			;;
+		esac
+	fi
+	[ "$3" = left ] || return 0
+	case $2 in
+	press) term select "$t" start $(($4 - 1)) $(($5 - 1)) ;;
+	drag | release) term select "$t" to $(($4 - 1)) $(($5 - 1)) ;;
+	esac
+	return 0
+}
+
+# What is selected, for the desktop's Copy.
+term_copy() {
+	local t=${TW[$1]["t"]} x
+
+	[ -n "$t" ] || return 1
+	x := term copy "$t" || return 1
+	ret "$x"
+}
+
+# Paste as the terminal's own paste arrives: bracketed, when the program
+# asked for that, so a shell does not run each line as it lands.
+term_paste() {
+	[ -n "${TW[$1]["t"]}" ] && term key "${TW[$1]["t"]}" "paste $2"
 	return 0
 }
 

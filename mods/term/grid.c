@@ -168,6 +168,7 @@ int tm_size(tm_t *t, int rows, int cols)
 	t->top = 0;
 	t->bot = rows - 1;
 	t->view = 0;
+	t->sel = 0;
 	if (t->cr >= rows)
 		t->cr = rows - 1;
 	if (t->cr < 0)

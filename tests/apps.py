@@ -13,7 +13,7 @@ import os, subprocess, sys, tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
-from screen import Term, check, report, press, release, wheel, load, tree
+from screen import Term, check, report, press, release, drag, wheel, load, tree
 
 if len(sys.argv) > 1:
     sx.HIBR = os.path.abspath(sys.argv[1])
@@ -54,7 +54,9 @@ def run(app, win, feed=(), pre="", wait=1.0, also=(), end=b"q"):
     t = Term(p, env={"DT_TICK": "60"}, settle=0.6)
     t.keys(feed)
     t.quit(end, wait)
-    return t.screen()
+    sc = t.screen()
+    sc.out = t.out
+    return sc
 
 
 def calc_key(i):
@@ -303,6 +305,16 @@ sc = run(*TERM, feed=[b"\x03"], pre=TRAP, wait=1.0, end=None)
 check("ctrl-c reaches the program in a focused terminal window",
       sc.find("caught") is not None, sc)
 
+# Copy and paste: a drag selects, alt-c copies -- to the desktop and, with
+# OSC 52, to the clipboard of the terminal the desktop runs on -- and alt-v
+# pastes.  "row 30" is the top line once forty rows have gone past.
+sc = run(*TERM, feed=[press(3, 3), drag(3, 8), release(3, 8), b"\x1bc",
+                      b"\x1bv"], pre=LONG, wait=1.0, end=None)
+check("a drag in a terminal selects, and alt-c copies it everywhere",
+      b"\x1b]52;c;cm93IDMw\x07" in sc.out, sc)
+check("and alt-v pastes it back into the program",
+      "row 30" in sc.row(14), sc)
+
 CLICK = ("TW_CMD=(/bin/sh -c 'stty raw -echo; "
          "printf \"\\033[?1000h\\033[?1006h\"; head -c 18 | cat -v; sleep 5')")
 sc = run(*TERM, feed=[press(6, 10), release(6, 10)], pre=CLICK, wait=1.2, end=None)
@@ -373,6 +385,18 @@ sc = run("bricks", BW, feed=[b" ", b"z", b"z", b"z"])
 check("served, the ball knocks a brick out and scores it",
       sc.row(3)[3:6].strip() not in ("0", ""), sc)
 
+# The calculator copies its answer and pastes only what is arithmetic.
+CW = "16 24 2 2"
+sc = run("calc", CW, feed=[b"6", b"*", b"7", b"=", b"\x1bc", b"\x1bv"])
+check("the calculator's copy is its answer",
+      b"\x1b]52;c;NDI=\x07" in sc.out, sc)
+check("and a paste lands in the expression", sc.find("42") is not None and
+      sc.find("expression") is None, sc)
+sc = run("calc", CW, feed=[b"\x1b[200~12 apples + 3\x1b[201~"])
+check("a paste from the real terminal reaches the app, filtered",
+      sc.find("12  + 3") is not None, sc)
+check("and Edit is on the menu bar", "Edit" in sc.row(0), sc)
+
 for f in os.listdir(D):
     p = os.path.join(D, f)
     if os.path.isdir(p):
@@ -382,4 +406,4 @@ for f in os.listdir(D):
 os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
-report(66)
+report(72)

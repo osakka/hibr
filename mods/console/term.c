@@ -258,3 +258,52 @@ void cn_close(sh *s)
 	cn_on = 0;
 	lg(HIBR_LDBG, "screen closed");
 }
+
+/* Append n bytes as base64, which is what OSC 52 carries. */
+void cn_b64(str *o, const unsigned char *p, size_t n)
+{
+	static const char al[] =
+		"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+	unsigned v;
+	size_t i;
+
+	for (i = 0; i + 2 < n; i += 3) {
+		v = (unsigned)p[i] << 16 | (unsigned)p[i + 1] << 8 | p[i + 2];
+		s_ch(o, al[v >> 18 & 63]);
+		s_ch(o, al[v >> 12 & 63]);
+		s_ch(o, al[v >> 6 & 63]);
+		s_ch(o, al[v & 63]);
+	}
+	if (n - i == 1) {
+		v = (unsigned)p[i] << 16;
+		s_ch(o, al[v >> 18 & 63]);
+		s_ch(o, al[v >> 12 & 63]);
+		s_cat(o, "==");
+	} else if (n - i == 2) {
+		v = (unsigned)p[i] << 16 | (unsigned)p[i + 1] << 8;
+		s_ch(o, al[v >> 18 & 63]);
+		s_ch(o, al[v >> 12 & 63]);
+		s_ch(o, al[v >> 6 & 63]);
+		s_ch(o, '=');
+	}
+}
+
+/* Put text on the clipboard of the terminal the screen is on, with OSC 52.
+
+   The terminal decides whether to honour it: most modern ones do, some ask
+   first, and some ignore it entirely -- which is harmless, since the copy
+   the desktop keeps for itself does not depend on it. Through hold it
+   reaches whichever terminal is attached, which is the one being used. */
+void cn_clip(const char *t)
+{
+	str o;
+
+	if (!cn_on)
+		return;
+	s_init(&o);
+	s_cat(&o, "\033]52;c;");
+	cn_b64(&o, (const unsigned char *)t, strlen(t));
+	s_ch(&o, 7);
+	cn_wr(cn_fd, o.p, o.n);
+	s_free(&o);
+}

@@ -27,6 +27,24 @@ click it. Its label on the bar across the top is the only way back — click it
 to restore the window. The bar also says how many windows are open and how
 many are hidden.
 
+## Copy and paste
+
+**alt-c** copies and **alt-v** pastes, in every window, and both are on the
+**Edit** menu, which belongs to the desktop like Window does: the same two
+items everywhere, dimmed where the focused app cannot do them. There is one
+clipboard for the whole desktop, and a copy also goes to the clipboard of
+the terminal the desktop runs on through OSC 52, so it pastes into anything
+else on the machine -- where that terminal allows it, which most modern
+ones do and some ask about first.
+
+In a terminal window, drag with the left button to select; the selection
+stays put while more output scrolls past. When the program there has taken
+the mouse, hold shift to select anyway, as in xterm. A paste goes in as the
+terminal's own paste would, bracketed when the program asked for that. The
+calculator copies its answer and keeps only arithmetic from a paste. These
+are the only two keys the desktop takes from a program: see the amendment in
+[decision 0020](adr/0020-windows-are-drawn-not-composited.md).
+
 ## Detaching, and coming back
 
 Start the desktop held, and it outlives the terminal it was started on:
@@ -110,7 +128,9 @@ these, and the window manager calls only the ones that exist:
 | `hello_draw` | `id inner_h inner_w row col` | every frame; `row col` is where the window is on screen, for `console fill`, which takes screen coordinates |
 | `hello_key` | `id key` | a key, while this window has focus |
 | `hello_click` | `id row col button` | a click, in the same coordinates the app draws in; `button` is `left`, `middle` or `right` |
-| `hello_mouse` | `id press\|drag\|release button row col` | instead of `_click`, for an app that wants the whole of a press: after the press, its drags and its release come here wherever the pointer goes |
+| `hello_mouse` | `id press\|drag\|release button row col mods` | instead of `_click`, for an app that wants the whole of a press: after the press, its drags and its release come here wherever the pointer goes. `mods` is what was held, such as `shift` or `ctrl` |
+| `hello_copy` | `id` | Edit > Copy or alt-c: hand back the selection with `ret`, or fail when nothing is selected |
+| `hello_paste` | `id text` | Edit > Paste or alt-v, and a paste from the terminal the desktop runs on |
 | `hello_wheel` | `id up\|down row col` | the wheel, over this window whether or not it has focus |
 | `hello_close` | `id` | once, when the window closes |
 

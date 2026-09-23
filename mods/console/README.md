@@ -87,6 +87,10 @@ keys `ctrl-c`, `ctrl-\` and `ctrl-z` instead of raising signals; `on` puts
 them back, and `console close` restores whatever the terminal had anyway. A
 program that is left only through its own Quit wants this -- the desktop does.
 
+`console clip text` puts text on the clipboard of the terminal the screen is
+on, with OSC 52. The terminal decides whether to honour it; nothing depends
+on its answer.
+
 **A resize asserts the terminal's modes again and repaints everything.** The
 terminal on the other end may not be the one the screen was opened on: a
 session reattached with `hold` arrives as a `SIGWINCH` on a terminal that has

@@ -58,7 +58,7 @@ int m_term(sh *s, int ac, char **av)
 
 	if (ac < 2) {
 		lg(HIBR_LERR, "usage: term open|poll|draw|key|write|size|"
-			      "alive|status|title|cursor|row|scroll|mouse|screen|close ...");
+			      "alive|status|title|cursor|row|scroll|mouse|screen|select|copy|close ...");
 		return 2;
 	}
 	if (!strcmp(sub, "open")) {
@@ -266,6 +266,26 @@ int m_term(sh *s, int ac, char **av)
 		}
 		s_free(&o);
 		return r ? HIBR_OK : HIBR_FAIL;
+	}
+	if (!strcmp(sub, "select")) {
+		if (ac > 3 && !strcmp(av[3], "none")) {
+			m->sel = 0;
+			return HIBR_OK;
+		}
+		if (ac < 6 || (strcmp(av[3], "start") && strcmp(av[3], "to"))) {
+			lg(HIBR_LERR, "usage: term select id start|to row col, "
+				      "or term select id none");
+			return 2;
+		}
+		tm_selset(m, atoi(av[4]), atoi(av[5]), av[3][0] == 's');
+		return HIBR_OK;
+	}
+	if (!strcmp(sub, "copy")) {
+		s_init(&o);
+		tm_seltext(m, &o);
+		tm_ret(s, o.p ? o.p : "");
+		s_free(&o);
+		return m->sel ? HIBR_OK : HIBR_FAIL;
 	}
 	if (!strcmp(sub, "screen")) {
 		tm_ret(s, m->inalt ? "alt" : "main");

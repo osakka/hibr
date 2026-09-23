@@ -149,6 +149,19 @@ calc_recall() {
 	CA[$1]["err"]=
 }
 
+# The answer is what a calculator has to copy.
+calc_copy() {
+	ret "${CA[$1]["out"]}"
+}
+
+# A paste keeps only what can be part of an expression.
+calc_paste() {
+	local t=${2//[^0-9+*\/%()<>|&^~ -]/}
+
+	CA[$1]["in"]="${CA[$1]["in"]}$t"
+	CA[$1]["err"]=
+}
+
 calc_key() {
 	case $2 in
 	[0-9] | + | - | "*" | / | % | "(" | ")") calc_push "$1" "$2" ;;

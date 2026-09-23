@@ -276,6 +276,14 @@ int m_console(sh *s, int ac, char **av)
 		}
 		return HIBR_OK;
 	}
+	if (!strcmp(sub, "clip")) {
+		if (ac < 3) {
+			lg(HIBR_LERR, "usage: console clip text");
+			return 2;
+		}
+		cn_clip(av[2]);
+		return HIBR_OK;
+	}
 	if (!strcmp(sub, "signals")) {
 		if (ac < 3 || (strcmp(av[2], "on") && strcmp(av[2], "off"))) {
 			lg(HIBR_LERR, "usage: console signals on|off");

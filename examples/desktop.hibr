@@ -27,6 +27,7 @@ DT_QUIT=0
 DT_SIZE=
 DT_GRAB=
 DT_MOUSE=
+DT_CLIP=
 DT_NOTE=
 DT_ROWS=24
 DT_COLS=80
@@ -141,7 +142,7 @@ dt_new() {
 	DT[$id]["col"]="$5"
 	DT[$id]["app"]="$ap"
 	DT[$id]["min"]=0
-	for f in draw key click mouse wheel open close; do
+	for f in draw key click mouse wheel open close copy paste; do
 		if [ -n "$ap" ] && dt_has "${ap}_$f"; then
 			DT[$id]["$f"]="${ap}_$f"
 		else
@@ -332,9 +333,11 @@ dt_btn() {
 # it is quoted, and arithmetic never sees the quotes, so DT[$id][col] inside
 # $(( )) would mean DT[$id][5] here.
 dt_mouse() {
-	local act=${1##*-} mr mc
+	local act=${1##*-} mr mc mods
 	local id b wr wc wh ww ap mo
 
+	mods=${1%"$act"}
+	mods=${mods%-}
 	shift
 	case $act in
 	wheelup | wheeldown) mr=$1; mc=$2 ;;
@@ -383,7 +386,8 @@ dt_mouse() {
 			mo=${DT[$id]["mouse"]}
 			if [ -n "$mo" ]; then
 				DT_MOUSE=$id
-				$mo "$id" press "$1" $((mr - wr)) $((mc - wc))
+				$mo "$id" press "$1" $((mr - wr)) $((mc - wc)) \
+					"$mods"
 				return 0
 			fi
 			[ -n "$ap" ] && $ap "$id" $((mr - wr)) $((mc - wc)) "$1"
@@ -410,7 +414,9 @@ dt_mouse() {
 			wr=${DT[$id]["row"]}
 			wc=${DT[$id]["col"]}
 			[ "$act" = release ] && DT_MOUSE=
-			[ -n "$mo" ] && $mo "$id" "$act" "$1" $((mr - wr)) $((mc - wc))
+			[ -n "$mo" ] &&
+				$mo "$id" "$act" "$1" $((mr - wr)) $((mc - wc)) \
+					"$mods"
 			return 0
 		fi
 		;;
@@ -531,6 +537,19 @@ dt_event() {
 		dt_mkey "$k" && return 0
 		return 0
 	fi
+	# Copy and paste belong to the desktop, the same keys in every window,
+	# and so does a paste arriving from the terminal the desktop runs on:
+	# it goes to the app's _paste when it has one.
+	case $k in
+	alt-c) dt_edit copy; return 0 ;;
+	alt-v) dt_edit paste; return 0 ;;
+	"paste "*)
+		if [ -n "$DT_FOCUS" ] && [ -n "${DT[$DT_FOCUS]["paste"]}" ]; then
+			${DT[$DT_FOCUS]["paste"]} "$DT_FOCUS" "${k#paste }"
+			return 0
+		fi
+		;;
+	esac
 	# f10 is the one key an app cannot have, because it is the only way
 	# back to the menu bar from a window that wants everything else --
 	# a terminal running vi wants escape, and must be allowed it.
@@ -824,6 +843,21 @@ dt_menus() {
 		${ap}_menus
 	fi
 
+	# Edit is the desktop's, like Window: the same two items everywhere,
+	# dimmed where the focused app cannot do them, so it never changes shape.
+	dt_menu "Edit"
+	if [ -n "$who" ] && [ -n "${DT[$who]["copy"]}" ]; then
+		dt_item "Copy       alt-c" c dt_edit copy
+	else
+		dt_dim "Copy       alt-c"
+	fi
+	if [ -n "$who" ] && [ -n "${DT[$who]["paste"]}" ] &&
+	   [ -n "$DT_CLIP" ]; then
+		dt_item "Paste      alt-v" v dt_edit paste
+	else
+		dt_dim "Paste      alt-v"
+	fi
+
 	# Always last, and always there: an app that has its own menus must
 	# not be able to hide the only way to move or close its window.
 	dt_menu "Window"
@@ -896,6 +930,35 @@ dt_layout() {
 }
 
 dt_quit() { DT_QUIT=1; }
+
+# Copy from the focused window or paste into it.
+#
+# An app offers <app>_copy, which hands back what is selected with ret and
+# fails when nothing is, and <app>_paste, which is given the text.  The
+# desktop keeps one clipboard for every window, and also sends a copy to the
+# clipboard of the terminal it runs on, where that terminal allows it -- so
+# what is copied here pastes into anything else on the machine.
+dt_edit() {
+	local cb t
+
+	[ -n "$DT_FOCUS" ] || return 0
+	cb=${DT[$DT_FOCUS]["$1"]}
+	if [ -z "$cb" ]; then
+		dt_note "${DT[$DT_FOCUS]["title"]} cannot $1"
+		return 0
+	fi
+	if [ "$1" = paste ]; then
+		[ -n "$DT_CLIP" ] && $cb "$DT_FOCUS" "$DT_CLIP"
+		return 0
+	fi
+	if ! t := $cb "$DT_FOCUS" || [ -z "$t" ]; then
+		dt_note "Nothing is selected"
+		return 0
+	fi
+	DT_CLIP=$t
+	console clip "$t"
+	dt_note "Copied ${#t} characters"
+}
 
 # Leave the desktop running and give the terminal back.  Only a desktop
 # started with `hold new` can, which is why the item is dimmed otherwise.

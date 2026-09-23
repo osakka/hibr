@@ -39,6 +39,9 @@ program, offered as `mods/pty.h`, and the display (`console`, through
     term scroll t [n|top|bottom] # move the view back n lines, or ask where it is
     term mouse t [act [button] row col]  # send a mouse event, or ask the mode
     term screen t                # main or alt
+    term select t start|to r c   # begin a selection at a shown cell, or carry it on
+    term select t none
+    term copy t                  # the selected text; fails when nothing is
     term close t
 
 Each `term open` is its own terminal, its own session and its own program.
@@ -63,6 +66,15 @@ A window that shrinks under the cursor pushes its top lines into the
 scrollback rather than losing the line being typed on, and one that grows
 pulls them back, which is xterm's behaviour. Resizing also keeps the
 alternate screen, so vi stays on it and redraws.
+
+## Selection
+
+Every line the terminal has held is numbered from the first ever pushed into
+the scrollback, and a selection is two of those numbers with a column each.
+So it stays on the same text while more output scrolls underneath it, and it
+reaches back into the scrollback when the view is scrolled there. It is
+drawn reversed; `term copy` gives it as text, each line without its trailing
+blanks and joined by newlines, as a terminal's copy does. A resize clears it.
 
 ## The mouse
 
