@@ -521,6 +521,32 @@ for f in ("file00.txt", "file01.txt"):
         os.rename(os.path.join(TRASH, "files", f), os.path.join(D, f))
 shutil.rmtree(TRASH, True)
 
+# --- the task manager -------------------------------------------------------
+#
+# The process list is the real machine's, so nothing here asserts on which
+# names or numbers appear -- only that a header and at least one real row
+# are drawn, and that both sort keys run without error. Nothing here sends
+# x or shift-x: killing whatever a live sort put on top would be killing a
+# process this suite does not own. Before D and S are cleaned up below, since
+# run() still needs S/session.hibr to exist.
+
+TASKS = ("tasks", "16 50 4 4")
+
+sc = run(*TASKS)
+check("the task manager lists processes under a header",
+      sc.find("CPU%") is not None and sc.find("Mem") is not None and
+      sc.find("Name") is not None, sc)
+check("at least this suite's own process tree is in it",
+      sc.text().count("hibr") + sc.text().count("python") > 0, sc)
+
+sc = run(*TASKS, feed=[b"m"])
+check("m sorts by memory instead, without error",
+      sc.find("CPU%") is not None, sc)
+
+sc = run(*TASKS, feed=[b"\x1b[B", b"\x1b[B", b"\x1b[B"])
+check("the arrows move the selection without error",
+      sc.find("CPU%") is not None, sc)
+
 for f in os.listdir(D):
     p = os.path.join(D, f)
     if os.path.isdir(p):
@@ -530,4 +556,5 @@ for f in os.listdir(D):
 os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
-report(91)
+
+report(95)

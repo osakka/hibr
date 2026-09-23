@@ -1,0 +1,238 @@
+#!/usr/bin/env hibr
+#
+# tasks -- what is running, and a way to end one of them.
+#
+# Reads /proc directly, the same technique mods/mon and the about window
+# both use: no forking, and no dependency on anything but the kernel giving
+# a truthful /proc. Sorted by CPU or memory, x or Task > End Task sends the
+# selected one SIGTERM, shift-x sends SIGKILL.
+
+app tasks "What is running, and a way to end one"
+
+command -v dt_app > /dev/null && dt_app tasks "Task Manager" 16 50 once "▤"
+
+declare -gA TK
+declare -gA TK_PREV
+
+# CLK_TCK is 100 on every Linux this was run on; getconf forks, and the
+# kernel does not expose it any other way worth reading for this.
+TK_HZ=100
+
+# The state, then the ten fields before utime and stime, then those two --
+# /proc/[pid]/stat's own gotcha, since the command name is in parens and may
+# itself contain both parens and spaces. Found from the last ")" in the
+# line, never the first.
+tasks_times() {
+	local pid=$1 line rest state a b c d e f g h j k u s
+
+	read -r line < "/proc/$pid/stat" 2> /dev/null || return 1
+	rest=${line##*)}
+	read -r state a b c d e f g h j k u s _ <<< "$rest"
+	ret "$u $s"
+}
+
+# One pass: every pid under /proc, its name and memory from status (no
+# bracket or position traps there), CPU from the delta against the last
+# scan. The first scan has nothing to compare against, so it reads 0.
+tasks_scan() {
+	local id=$1 pid name rss times u s now elapsed du ds pct n=0
+	local prevt=${TK_PREV[$id]["t"]}
+
+	now := dt_ms
+	for pid in /proc/[0-9]*; do
+		pid=${pid#/proc/}
+		[ -r "/proc/$pid/status" ] || continue
+		name= rss=
+		while read -r k v _; do
+			case $k in
+			Name:) name=$v ;;
+			VmRSS:) rss=$v ;;
+			esac
+		done < "/proc/$pid/status"
+		[ -z "$name" ] && continue
+		times := tasks_times "$pid" || continue
+		u=${times% *}
+		s=${times#* }
+		pct=0
+		if [ -n "$prevt" ] && [ -n "${TK_PREV[$id]["$pid.u"]}" ]; then
+			du=$((u - TK_PREV[$id]["$pid.u"]))
+			ds=$((s - TK_PREV[$id]["$pid.s"]))
+			elapsed=$((now - prevt))
+			[ "$elapsed" -gt 0 ] &&
+				pct=$(((du + ds) * 100000 / TK_HZ / elapsed))
+		fi
+		TK_PREV[$id]["$pid.u"]=$u
+		TK_PREV[$id]["$pid.s"]=$s
+		TK[$id][$n]["pid"]=$pid
+		TK[$id][$n]["name"]=$name
+		TK[$id][$n]["cpu"]=$pct
+		TK[$id][$n]["mem"]=${rss:-0}
+		n=$((n + 1))
+	done
+	TK_PREV[$id]["t"]=$now
+	TK[$id]["n"]=$n
+}
+
+# Insertion sort on whichever column, descending: n is at most a few
+# hundred, and the list is nearly sorted from one scan to the next, which is
+# exactly what this does least work on.
+tasks_sort() {
+	local id=$1 by=$2 n=${TK[$id]["n"]} i j pid name cpu mem key
+
+	i=1
+	while [ "$i" -lt "$n" ]; do
+		pid=${TK[$id][$i]["pid"]}
+		name=${TK[$id][$i]["name"]}
+		cpu=${TK[$id][$i]["cpu"]}
+		mem=${TK[$id][$i]["mem"]}
+		key=${TK[$id][$i]["$by"]}
+		j=$((i - 1))
+		while [ "$j" -ge 0 ] && [ "${TK[$id][$j]["$by"]}" -lt "$key" ]; do
+			TK[$id][$((j + 1))]["pid"]=${TK[$id][$j]["pid"]}
+			TK[$id][$((j + 1))]["name"]=${TK[$id][$j]["name"]}
+			TK[$id][$((j + 1))]["cpu"]=${TK[$id][$j]["cpu"]}
+			TK[$id][$((j + 1))]["mem"]=${TK[$id][$j]["mem"]}
+			j=$((j - 1))
+		done
+		TK[$id][$((j + 1))]["pid"]=$pid
+		TK[$id][$((j + 1))]["name"]=$name
+		TK[$id][$((j + 1))]["cpu"]=$cpu
+		TK[$id][$((j + 1))]["mem"]=$mem
+		i=$((i + 1))
+	done
+}
+
+# A value right-justified in a field w wide, never narrower than the value
+# itself -- str pad only pads on the right, so a numeric column that wants
+# its digits lined up on the right needs its own spaces put in front.
+tasks_rjust() {
+	local v=$1 w=$2 n sp
+
+	n=$((w - ${#v}))
+
+	[ "$n" -lt 0 ] && n=0
+	sp := dt_rep "$n" " "
+	ret "$sp$v"
+}
+
+# A byte count as people read one.
+tasks_human() {
+	local kb=$1
+	if [ "$kb" -ge 1048576 ]; then
+		ret "$((kb / 1048576)).$(((kb % 1048576) * 10 / 1048576))G"
+	elif [ "$kb" -ge 1024 ]; then
+		ret "$((kb / 1024)).$(((kb % 1024) * 10 / 1024))M"
+	else
+		ret "${kb}K"
+	fi
+}
+
+tasks_open() {
+	local id=$1
+	TK[$id]["sel"]=0
+	TK[$id]["top"]=0
+	TK[$id]["by"]=cpu
+}
+
+# Columns: name takes what is left after CPU% (6) and Mem (7) and the
+# spaces between them; row 0 is the top border and row h-1 the bottom one,
+# both dt_win's, so the list lives in rows 2..h-2 under a header at row 1.
+tasks_draw() {
+	local id=$1 h=$2 w=$3 i r t n vis top sel by
+	local namew=$((w - 2 - 6 - 1 - 7 - 1)) cpu mem line
+
+	tasks_scan "$id"
+	by=${TK[$id]["by"]}
+	tasks_sort "$id" "$by"
+	n=${TK[$id]["n"]}
+	vis=$((h - 3))
+	TK[$id]["vis"]=$vis
+	top=${TK[$id]["top"]}
+	sel=${TK[$id]["sel"]}
+	[ "$sel" -ge "$n" ] && sel=$((n - 1)) && TK[$id]["sel"]=$sel
+	[ "$sel" -lt 0 ] && sel=0
+
+	console pen "$DT_INK" "$DT_FACE" bold
+	t := str pad Name "$namew"
+	cpu := tasks_rjust "CPU%" 6
+	mem := tasks_rjust Mem 7
+	console put -p "w$id" 1 1 "$t $cpu $mem"
+
+	i=$top
+	r=2
+	while [ "$r" -le $((vis + 1)) ]; do
+		if [ "$i" -lt "$n" ]; then
+			t=${TK[$id][$i]["name"]}
+			[ ${#t} -gt "$namew" ] && t="${t:0:$namew}"
+			t := str pad "$t" "$namew"
+			cpu="${TK[$id][$i]["cpu"]}%"
+			cpu := tasks_rjust "$cpu" 6
+			mem := tasks_human "${TK[$id][$i]["mem"]}"
+			mem := tasks_rjust "$mem" 7
+			line="$t $cpu $mem"
+		else
+			line := str pad "" $((namew + 14))
+		fi
+		if [ "$i" = "$sel" ] && [ "$i" -lt "$n" ]; then
+			console pen "#1a202c" "$DT_ACTIVE" bold
+		else
+			console pen "$DT_INK" "$DT_FACE"
+		fi
+		console put -p "w$id" "$r" 1 "$line"
+		i=$((i + 1))
+		r=$((r + 1))
+	done
+	dt_want 500
+}
+
+tasks_end() {
+	local id=$1 sig=$2 sel=${TK[$id]["sel"]} pid
+
+	pid=${TK[$id][$sel]["pid"]}
+	[ -n "$pid" ] && kill "-$sig" "$pid" 2> /dev/null
+	return 0
+}
+
+tasks_key() {
+	local id=$1 n=${TK[$id]["n"]} vis=${TK[$id]["vis"]}
+	local sel=${TK[$id]["sel"]} top=${TK[$id]["top"]}
+
+	case $2 in
+	up) sel=$((sel - 1)) ;;
+	down) sel=$((sel + 1)) ;;
+	x) tasks_end "$id" TERM; return 0 ;;
+	shift-x) tasks_end "$id" KILL; return 0 ;;
+	c) TK[$id]["by"]=cpu; return 0 ;;
+	m) TK[$id]["by"]=mem; return 0 ;;
+	*) return 1 ;;
+	esac
+	[ "$sel" -lt 0 ] && sel=0
+	[ "$sel" -ge "$n" ] && sel=$((n - 1))
+	[ "$sel" -lt "$top" ] && top=$sel
+	[ "$sel" -ge $((top + vis)) ] && top=$((sel - vis + 1))
+	TK[$id]["sel"]=$sel
+	TK[$id]["top"]=$top
+	return 0
+}
+
+tasks_click() {
+	local id=$1 r=$2 top=${TK[$id]["top"]} n=${TK[$id]["n"]} i
+
+	[ "$r" -lt 1 ] && return 0
+	i=$((top + r - 1))
+	[ "$i" -ge "$n" ] && return 0
+	TK[$id]["sel"]=$i
+}
+
+tasks_menus() {
+	dt_menu "Task"
+	dt_item "Sort by CPU" c tasks_key "$DT_FOCUS" c
+	dt_item "Sort by Memory" m tasks_key "$DT_FOCUS" m
+	dt_sep
+	dt_item "End Task" x tasks_key "$DT_FOCUS" x
+	dt_item "End Task (force)" f tasks_key "$DT_FOCUS" shift-x
+}
+
+if [ -z "$DT_ROWS" ]; then
+	echo "tasks: this is a desktop app; open it from the hibr menu"
+fi
