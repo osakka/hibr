@@ -1,0 +1,36 @@
+0
+--- a session starts detached and is listed
+new: 0
+t1 detached
+--- names and duplicates are refused
+a name with a slash: 2
+a name in use: 1
+attach to nothing: 1
+--- attach, detach with ctrl-\, and the shell is still there
+[t2: detached -- hold attach t2]
+back rc=0
+t2 detached
+--- the terminal going away detaches it, as a logout does
+t2 detached
+--- attached again, from a new terminal, everything is as it was
+v=5
+[t2 ended, status 3]
+back rc=3
+gone from the list: 0
+--- hold detach, from outside
+detach: 0
+[t3: detached -- hold attach t3]
+back rc=0
+--- a second attach takes over from the first
+[t3: attached elsewhere -- hold attach t3]
+back rc=0
+t3 attached
+--- a program in a session knows which, and can detach itself
+HIBR_HOLD names t4
+detach outside a session: 2
+--- kill ends it
+kill t1: 0
+kill t3: 0
+kill t4: 0
+left: 0
+kill again: 1

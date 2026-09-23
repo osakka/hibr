@@ -100,9 +100,12 @@ tt_p *tt_spawn(sh *s, int rows, int cols, char **av)
 		dup2(sl, 2);
 		if (sl > 2)
 			close(sl);
+		signal(SIGHUP, SIG_DFL);
 		signal(SIGINT, SIG_DFL);
 		signal(SIGQUIT, SIG_DFL);
 		signal(SIGTSTP, SIG_DFL);
+		signal(SIGTTIN, SIG_DFL);
+		signal(SIGTTOU, SIG_DFL);
 		signal(SIGPIPE, SIG_DFL);
 		execvp(av[0], av);
 		_exit(127);

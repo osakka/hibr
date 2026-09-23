@@ -10,7 +10,7 @@
    breaks every module already using it. */
 
 #ifndef PY_API_VER
-#define PY_API_VER 1u
+#define PY_API_VER 2u
 #endif
 
 typedef struct py_api py_api;
@@ -27,6 +27,9 @@ struct py_api {
 	int (*status)(int id);
 	long (*pid)(int id);
 	void (*drop)(int id);
+	/* The master's descriptor, for a caller that waits on it alongside
+	   others; -1 for no such terminal. Added in version 2. */
+	int (*fd)(int id);
 };
 
 #endif

@@ -26,11 +26,12 @@ MODS = $(B)/mods/sys.so $(B)/mods/http.so $(B)/mods/ls.so $(B)/mods/prompt.so \
        $(B)/mods/trace.so $(B)/mods/most.so \
        $(B)/mods/hvi.so $(B)/mods/mon.so \
        $(B)/mods/sysinfo.so $(B)/mods/pty.so \
-       $(B)/mods/term.so
+       $(B)/mods/term.so $(B)/mods/hold.so
 PROMPT_SRC = $(wildcard mods/prompt/*.c)
 CONSOLE_SRC = $(wildcard mods/console/*.c)
 PTY_SRC = $(wildcard mods/pty/*.c)
 TERM_SRC = $(wildcard mods/term/*.c)
+HOLD_SRC = $(wildcard mods/hold/*.c)
 CAT_SRC = $(wildcard mods/cat/*.c)
 
 PREFIX ?= /usr/local
@@ -59,6 +60,9 @@ $(B)/mods/pty.so: $(PTY_SRC) include/hibr.h mods/pty/tt.h | $(B)/mods
 
 $(B)/mods/term.so: $(TERM_SRC) include/hibr.h mods/term/tm.h mods/pty.h mods/display.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(TERM_SRC)
+
+$(B)/mods/hold.so: $(HOLD_SRC) include/hibr.h mods/hold/hd.h mods/pty.h | $(B)/mods
+	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(HOLD_SRC)
 
 $(B)/mods/console.so: $(CONSOLE_SRC) include/hibr.h mods/console/cn.h mods/display.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(CONSOLE_SRC)

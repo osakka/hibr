@@ -274,9 +274,16 @@ void tt_api_drop(int id)
 		tt_drop(p);
 }
 
+int tt_api_fd(int id)
+{
+	tt_p *p = tt_find(id);
+
+	return p ? p->fd : -1;
+}
+
 static const py_api pty_api = {
 	tt_api_spawn, tt_api_read, tt_api_write, tt_api_resize,
-	tt_api_alive, tt_api_status, tt_api_pid, tt_api_drop
+	tt_api_alive, tt_api_status, tt_api_pid, tt_api_drop, tt_api_fd
 };
 
 /* Offer the table to whatever else needs a terminal. */
