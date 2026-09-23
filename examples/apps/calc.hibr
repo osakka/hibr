@@ -142,6 +142,16 @@ calc_menus() {
 	dt_item "Close" w dt_close_focused
 }
 
+# Right-click anywhere on the keypad: the same shortcuts as the Calc menu,
+# without reaching for the menu bar first.
+calc_context() {
+	dt_menu "Calc"
+	dt_item "Use Answer" u calc_recall "$1"
+	dt_item "Copy" p dt_edit copy
+	dt_sep
+	dt_item "Clear" c calc_push "$1" c
+}
+
 # Put the answer back in the expression, which is what a calculator's memory
 # is for and costs nothing to provide.
 calc_recall() {

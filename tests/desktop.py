@@ -152,6 +152,54 @@ sc, _ = run(FIXED, [b"\x1b[21~", b"\x1b[C", b"\x1b[C"])
 check("Zoom is dimmed on the Window menu for it",
       sc.find("Zoom") is not None and sc.at(3, 22) != "z", sc)
 
+# --- right-click context menus ---------------------------------------------
+#
+# ctx has both _click and _context: right-click must reach _context, not
+# _click, and choosing an item there must not also count as a click. plain
+# has _click alone, to prove an app without _context still gets its right
+# clicks the way mines always has.
+
+CTX = ('declare -gA CTX_N\n'
+       'ctx_draw() { console put -p "w$1" 1 2 "hits=${CTX_N[$1]:-0}"; }\n'
+       'ctx_click() { CTX_N[$1]=$((${CTX_N[$1]:-0} + 1)); }\n'
+       'ctx_context() { dt_menu "Act"; dt_item "Bump" b ctx_bump "$1"; }\n'
+       'ctx_bump() { CTX_N[$1]=$((${CTX_N[$1]:-0} + 10)); }\n'
+       'dt_new "Ctx" 8 30 6 10 ctx\n')
+
+sc, _ = run(CTX, [press(9, 15, 2)])
+check("a right-click on an app with _context opens it there, not at the bar",
+      sc.find("Bump") == (9, 17) and sc.row(0).find("Act") == -1, sc)
+check("and does not also count as a click",
+      sc.find("hits=0") is not None, sc)
+
+sc, _ = run(CTX, [press(9, 15, 2), press(9, 17)])
+check("choosing its item runs the item's own command",
+      sc.find("hits=10") is not None, sc)
+
+sc, _ = run(CTX, [press(9, 15, 2), press(0, 40)])
+check("clicking away from it closes it, same as any other menu",
+      sc.find("Bump") is None, sc)
+
+PLAIN = ('plain_draw() { console put -p "w$1" 1 2 "hits=${CTX_N[$1]}"; }\n'
+         'plain_click() { CTX_N[$1]=$((${CTX_N[$1]:-0} + 1)); }\n'
+         'dt_new "Plain" 8 30 6 10 plain\n')
+sc, _ = run(PLAIN, [press(9, 15, 2)])
+check("without _context, a right-click still reaches _click as it always did",
+      sc.find("Bump") is None and sc.find("hits=1") is not None, sc)
+
+sc, _ = run(ONE, [press(15, 40, 2)])
+check("a right-click on the bare desktop opens its own menu at the pointer",
+      sc.find("Arrange Icons") == (15, 42) and
+      sc.find("Change Wallpaper") is not None, sc)
+
+sc, _ = run(ONE, [press(6, 20, 2)])
+check("a right-click on a title bar opens the Window menu's own items there",
+      sc.find("Move") == (6, 22) and sc.find("Resize") is not None and
+      sc.find("Close") is not None, sc)
+sc, _ = run(ONE, [press(6, 20, 2), press(6, 22)])
+check("choosing Move from it starts moving, the same as from the menu bar",
+      sc.find("moving") is not None, sc)
+
 TWO = TWO_DEF
 
 sc, _ = run(TWO)
@@ -800,4 +848,4 @@ check("ending it leaves the other one alone",
       "personal" in r.stdout and "work" not in r.stdout, r.stdout)
 unsession()
 
-report(119)
+report(136)

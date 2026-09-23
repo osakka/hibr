@@ -362,6 +362,7 @@ dt_draw() {
 	for id in $l; do dt_win "${id#w}"; done
 	[ -n "$DT_DND" ] && dt_dnddraw
 	dt_menus
+	dt_ctxbuild
 	dt_bar
 	dt_drop
 	dt_note_draw
@@ -441,6 +442,10 @@ dt_mouse() {
 		fi
 		id := console hit "$mr" "$mc"
 		if [ -z "$id" ]; then
+			if [ "$1" = right ]; then
+				dt_context_open desktop "" "$mr" "$mc"
+				return 0
+			fi
 			DT_FOCUS=
 			dt_iconpress "$mr" "$mc" "$mods"
 			return 0
@@ -466,10 +471,20 @@ dt_mouse() {
 					"$mods"
 				return 0
 			fi
+			if [ "$1" = right ] &&
+			   dt_has "${DT[$id]["app"]}_context"; then
+				dt_context_open "${DT[$id]["app"]}" "$id" \
+					"$mr" "$mc"
+				return 0
+			fi
 			[ -n "$ap" ] && $ap "$id" $((mr - wr)) $((mc - wc)) "$1"
 			return 0
 		fi
 		b := dt_btn "$ww" $((mc - wc)) "${DT_APPS[${DT[$id]["app"]}]["fixed"]}"
+		if [ "$1" = right ] && [ -z "$b" ]; then
+			dt_context_open titlebar "$id" "$mr" "$mc"
+			return 0
+		fi
 		case $b in
 		close) dt_del "$id" ;;
 		min) dt_min "$id" ;;
@@ -764,6 +779,15 @@ MB_CUR=
 MB_STACK=
 MB_PAR=
 MB_IN=0
+
+# A menu that opened at the pointer rather than under its bar title: MB_CX
+# and MB_CY are where it goes instead, MB_CTXWHO is what to ask for its
+# items every frame it stays open (an app prefix, or "desktop" for the hibr
+# menu itself), MB_CTXID the window it belongs to, if any.
+MB_CX=
+MB_CY=
+MB_CTXWHO=
+MB_CTXID=
 
 # Start a menu.  Called from an app's <app>_menus.
 dt_menu() {
@@ -2134,9 +2158,18 @@ dt_menu_draw() {
 	w=${MB[$m]["w"]}
 	n=${MB[$m]["n"]}
 	[ "$w" -lt 14 ] && w=14
-	[ -n "$px" ] && x=$px
+	if [ -n "$px" ]; then
+		x=$px
+		r=${MB[$MB_PAR]["dy"]:-1}
+	elif [ -n "$MB_CX" ]; then
+		x=$MB_CX
+		r=${MB_CY:-1}
+	fi
 	[ "$x" -lt 0 ] && x=0
 	[ $((x + w)) -gt "$DT_COLS" ] && x=$((DT_COLS - w))
+	[ $((r + n + 1)) -gt "$DT_ROWS" ] && r=$((DT_ROWS - n - 1))
+	[ "$r" -lt 1 ] && r=1
+	MB[$m]["dy"]=$r
 	MB[$m]["dx"]=$x
 	MB[$m]["dw"]=$w
 	while [ "$i" -lt "$n" ]; do
@@ -2235,6 +2268,10 @@ dt_mopen() {
 	MB_OPEN=$1
 	MB_PAR=
 	MB_SEL=0
+	MB_CX=
+	MB_CY=
+	MB_CTXWHO=
+	MB_CTXID=
 	[ "$1" = app ] && return 0
 	[ "${MI[$1][0]["sep"]}" = 1 ] || [ "${MI[$1][0]["dim"]}" = 1 ] &&
 		dt_mmove 1
@@ -2244,6 +2281,90 @@ dt_mclose() {
 	MB_OPEN=-1
 	MB_PAR=
 	MB_SEL=0
+	MB_CX=
+	MB_CY=
+	MB_CTXWHO=
+	MB_CTXID=
+}
+
+# Ask for a menu at the pointer rather than under a bar title: who is
+# "desktop" for the hibr menu, or an app's prefix for its own <app>_context.
+# The menu itself does not exist until the next frame builds it -- dt_mouse
+# only records where and for whom, the same lag any other request has.
+dt_context_open() {
+	MB_CTXWHO=$1
+	MB_CTXID=$2
+	MB_CY=$3
+	MB_CX=$4
+	MB_PAR=
+	MB_SEL=0
+}
+
+# Build or drop the open context menu, once a frame, after dt_menus has
+# rebuilt the bar -- an app's own items are no more special than Window's,
+# rebuilt fresh every time for the same reason. desktop reuses index 0,
+# the hibr menu dt_menus just built, rather than building anything of its
+# own.
+dt_ctxbuild() {
+	local before who=$MB_CTXWHO
+
+	[ -z "$who" ] && return 0
+	case $who in
+	desktop) before=$MB_N; dt_deskcontext ;;
+	titlebar) before=$MB_N; dt_titlecontext "$MB_CTXID" ;;
+	*)
+		if ! dt_has "${who}_context"; then
+			dt_mclose
+			return 0
+		fi
+		before=$MB_N
+		"${who}_context" "$MB_CTXID"
+		;;
+	esac
+	if [ "$MB_N" = "$before" ]; then
+		dt_mclose
+		return 0
+	fi
+	# dt_menu always marks what it starts as a bar title, since every other
+	# caller is building the bar itself; a context menu is never on it.
+	MB[$before]["bar"]=0
+	MB_OPEN=$before
+}
+
+# Right-click on the bare desktop.
+DT_WALLGLYPHS=("·" "░" "▒" "⋅" "+")
+dt_wallnext() {
+	local i=0 g
+
+	for g in "${DT_WALLGLYPHS[@]}"; do
+		i=$((i + 1))
+		[ "$g" = "$DT_GLYPH" ] && break
+	done
+	DT_GLYPH=${DT_WALLGLYPHS[$((i % ${#DT_WALLGLYPHS[@]}))]}
+	dt_save
+}
+dt_deskcontext() {
+	dt_menu "Desktop"
+	dt_item "Arrange Icons" a dt_iconclean
+	dt_item "Change Wallpaper" w dt_wallnext
+}
+
+# Right-click on a window's title bar: the Window menu's own items, since
+# that is what a title bar is for, without reaching the menu bar first.
+dt_titlecontext() {
+	local id=$1
+
+	dt_menu "Window"
+	dt_item "Move" m dt_grab move
+	dt_item "Resize" r dt_grab size
+	if [ "${DT_APPS[${DT[$id]["app"]}]["fixed"]}" = 1 ]; then
+		dt_dim "Zoom"
+	else
+		dt_item "Zoom" z dt_zoom "$id"
+	fi
+	dt_item "Hide" h dt_min "$id"
+	dt_sep
+	dt_item "Close" w dt_del "$id"
 }
 
 # Step into the submenu of the highlighted item, if it has one.
@@ -2300,23 +2421,26 @@ dt_mdo() {
 
 # Is a click inside the open menu?  Sets the highlight if it is.
 dt_mpick() {
-	local r=$1 c=$2 n x w
+	local r=$1 c=$2 n x w dy rel
 
 	n := dt_mrows
-	[ "$r" -lt 1 ] || [ "$r" -gt "$n" ] && return 1
 	if [ "$MB_OPEN" = app ]; then
 		x=$((MB_AX - 4))
 		w=18
+		dy=1
 	else
-		x=${MB[$MB_OPEN]["x"]}
+		x=${MB[$MB_OPEN]["dx"]:-${MB[$MB_OPEN]["x"]}}
 		w=${MB[$MB_OPEN]["w"]}
 		[ "$w" -lt 12 ] && w=12
+		dy=${MB[$MB_OPEN]["dy"]:-1}
 	fi
+	rel=$((r - dy + 1))
+	[ "$rel" -lt 1 ] || [ "$rel" -gt "$n" ] && return 1
 	[ $((x + w)) -gt "$DT_COLS" ] && x=$((DT_COLS - w))
 	[ "$c" -lt "$x" ] || [ "$c" -ge $((x + w)) ] && return 1
 	[ "$MB_OPEN" != app ] &&
-		[ "${MI[$MB_OPEN][$((r - 1))]["sep"]}" = 1 ] && return 1
-	MB_SEL=$((r - 1))
+		[ "${MI[$MB_OPEN][$((rel - 1))]["sep"]}" = 1 ] && return 1
+	MB_SEL=$((rel - 1))
 	return 0
 }
 

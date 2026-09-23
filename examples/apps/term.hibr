@@ -132,12 +132,39 @@ term_mouse() {
 			;;
 		esac
 	fi
+	# A context menu, not the desktop's generic one: the program has not
+	# asked for the mouse, the same condition that lets left selection
+	# work below, so this is the one place that can tell right-click from
+	# a program wanting it for its own use.
+	if [ "$3" = right ] && [ "$2" = press ]; then
+		dt_context_open term "$1" \
+			$((${DT[$1]["row"]} + $4)) $((${DT[$1]["col"]} + $5))
+		return 0
+	fi
 	[ "$3" = left ] || return 0
 	case $2 in
 	press) term select "$t" start $(($4 - 1)) $(($5 - 1)) ;;
 	drag | release) term select "$t" to $(($4 - 1)) $(($5 - 1)) ;;
 	esac
 	return 0
+}
+
+# Right-click in the terminal's body, when the program has not grabbed the
+# mouse for itself. Copy and Paste are dt_edit's, the same as the Edit
+# menu's own items: it already puts a copy on the clipboard and shows the
+# note that says so.
+term_context() {
+	local t=${TW[$1]["t"]}
+
+	dt_menu "Terminal"
+	if [ -n "$t" ]; then
+		dt_item "Copy" c dt_edit copy
+		dt_item "Paste" v dt_edit paste
+		dt_sep
+		dt_item "Send Interrupt" i term key "$t" ctrl-c
+	else
+		dt_dim "Not started"
+	fi
 }
 
 # What is selected, for the desktop's Copy.
