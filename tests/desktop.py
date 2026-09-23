@@ -443,6 +443,42 @@ check("a selection dragged somewhere empty keeps its arrangement",
       sc.find("backup") == (15, 20) and sc.find("usb") == (18, 21), sc)
 shutil.rmtree(d, True)
 
+# A saved position is a preference, not a promise: dt_iconlay clamps it to
+# whatever screen it is laid out on, every time, not just when it is first
+# dropped -- or an icon dragged out to the edge of a wide screen is off the
+# side, or under the bar, once the terminal narrows.  Home is dragged to a
+# row and column no other icon defaults to, at column 68, the furthest
+# right an icon fits on an 80-column screen; row and column are given
+# directly, since drag() encodes a fixed offset from press() rather than an
+# absolute position, and this is not a click near the icon's own start.
+d, env, pre, home, backup, usb, src = desk()
+path = "/tmp/hibr-resize-icon.hibr"
+open(path, "w").write("%s. %s\n%sdt_open\ndt_run\ndt_close\n"
+                      % (load(MOD), WM, pre))
+t = Term(path, env=dict({"DT_TICK": "60"}, **env), rows=ROWS, cols=COLS,
+         settle=0.6)
+t.keys([press(3, 70), drag(10, 74), drag(14, 68), release(14, 68)])
+sc = t.screen()
+check("an icon dragged to the edge of a wide screen is visible there",
+      sc.find("Home") == (14, 69), sc)
+t.resize(ROWS, 40)
+t.send(b"", settle=0.6)
+sc = t.screen()
+check("and stays visible once the terminal narrows under it",
+      sc.find("Home") is not None and sc.find("Home")[1] < 40, sc)
+t.quit(b"q", 1.0)
+t.close()
+os.unlink(path)
+shutil.rmtree(d, True)
+
+d, env, pre, home, backup, usb, src = desk()
+sc, raw = run("", feed=[press(3, 70), drag(10, 74), drag(14, 68),
+                        release(14, 68), b"\x1b[21~", b"u"], env=env,
+              pre=pre)
+check("Clean Up Icons on the hibr menu puts them back at their defaults",
+      sc.find("Home") == (3, 71), sc)
+shutil.rmtree(d, True)
+
 # The first arrow press with nothing yet selected only picks Home, where the
 # cursor already conceptually was; it is the second press that actually
 # moves, from Home to the first disk.
@@ -590,15 +626,15 @@ RESUME = tempfile.mkdtemp(prefix="hibr-resume-")
 RENV = {"HOME": RESUME, "TMPDIR": RESUME,
         "XDG_CONFIG_HOME": os.path.join(RESUME, "config"),
         "XDG_STATE_HOME": os.path.join(RESUME, "state"),
-        "XDG_DATA_HOME": os.path.join(RESUME, "data"),
-        "XDG_DESKTOP_DIR": os.path.join(RESUME, "Desktop")}
+        "XDG_DATA_HOME": os.path.join(RESUME, "data")}
 SESSION = tree("examples/desktop-session.hibr")
 
 
 def unresume():
     import subprocess
-    subprocess.run([screen.HIBR, "-c", HOLDC + "hold kill desktop"],
-                   env=dict(os.environ, **RENV), capture_output=True)
+    for n in ("desktop", "work", "personal"):
+        subprocess.run([screen.HIBR, "-c", HOLDC + "hold kill %s" % n],
+                       env=dict(os.environ, **RENV), capture_output=True)
     shutil.rmtree(RESUME, True)
 
 
@@ -630,4 +666,52 @@ check("and quitting it from there ends the whole session",
 t.close()
 unresume()
 
-report(105)
+# --session names which one, for more than one side by side.  A directory
+# of its own, not RESUME -- unresume() has already removed that one, TMPDIR
+# included, and hold's own directory needs TMPDIR to still exist.
+
+import subprocess
+
+SESS2 = tempfile.mkdtemp(prefix="hibr-session-")
+S2ENV = {"HOME": SESS2, "TMPDIR": SESS2,
+         "XDG_CONFIG_HOME": os.path.join(SESS2, "config"),
+         "XDG_STATE_HOME": os.path.join(SESS2, "state"),
+         "XDG_DATA_HOME": os.path.join(SESS2, "data")}
+
+
+def unsession():
+    for n in ("work", "personal"):
+        subprocess.run([screen.HIBR, "-c", HOLDC + "hold kill %s" % n],
+                       env=dict(os.environ, **S2ENV), capture_output=True)
+    shutil.rmtree(SESS2, True)
+
+
+atexit.register(unsession)
+
+t = Term(SESSION, "--session", "work", env=S2ENV, settle=2.0)
+t.send(b"\x1c", settle=0.5)
+t.close()
+t = Term(SESSION, "--session", "personal", env=S2ENV, settle=2.0)
+t.send(b"\x1c", settle=0.5)
+t.close()
+r = subprocess.run([screen.HIBR, "-c", HOLDC + "hold list"],
+                   env=dict(os.environ, **S2ENV), capture_output=True,
+                   text=True)
+running = set(l.split()[0] for l in r.stdout.splitlines())
+check("--session starts an independently named desktop, more than one at once",
+      running == {"work", "personal"}, r.stdout)
+
+t = Term(SESSION, "--session", "work", "--resume", env=S2ENV, settle=2.0)
+sc = t.screen()
+check("--session with --resume comes back to that one specifically",
+      sc.find("Files") is not None, sc)
+t.send(b"q", settle=1.0)
+t.close()
+r = subprocess.run([screen.HIBR, "-c", HOLDC + "hold list"],
+                   env=dict(os.environ, **S2ENV), capture_output=True,
+                   text=True)
+check("ending it leaves the other one alone",
+      "personal" in r.stdout and "work" not in r.stdout, r.stdout)
+unsession()
+
+report(108)

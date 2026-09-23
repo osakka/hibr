@@ -103,8 +103,12 @@ sc = run("calc", CW, [b"9", b"9", b"c"])
 check("c clears", sc.find("expression") is not None, sc)
 
 sc = run("calc", CW, [b"1", b"2", b"\x7f"])
+# Pinned to the expression's own position, not sc.find(" 12") is None
+# anywhere on screen -- that matched the menu bar's clock once an hour, at
+# 12 o'clock. " 1 " at this exact spot already rules out "12" being there
+# instead: the character right after "1" would be "2", not a space.
 check("backspace takes the last character back",
-      sc.find(" 1 ") is not None and sc.find(" 12") is None, sc)
+      sc.find(" 1 ") == (3, 3), sc)
 
 sc = run("calc", CW, [b"2", b"+", b"="])
 check("an incomplete expression says so rather than answering",

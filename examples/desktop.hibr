@@ -900,13 +900,15 @@ dt_menus() {
 	dt_menu "hibr"
 	dt_item "About hibr" a dt_about
 	dt_sep
-	used=aqd
+	used=aqdu
 	n := dt_appsorted
 	for n in $n; do
 		k := dt_akey "${DT_APPS[$n]["title"]}" "$used"
 		used="$used$k"
 		dt_item "${DT_APPS[$n]["title"]}" "$k" dt_launch "$n"
 	done
+	dt_sep
+	dt_item "Clean Up Icons" u dt_iconclean
 	dt_sep
 	if [ -n "$HIBR_HOLD" ]; then
 		dt_item "Detach" d dt_detach
@@ -1375,7 +1377,7 @@ dt_diskscan() {
 # Where each icon goes: where it was put, or the next free place down from
 # the top right, a column at a time.
 dt_iconlay() {
-	local i=0 slot=0 per p k r c
+	local i=0 slot=0 per p k r c cl
 
 	per=$(((DT_ROWS - 2) / 3))
 	[ "$per" -lt 1 ] && per=1
@@ -1383,8 +1385,15 @@ dt_iconlay() {
 		k=${DI[$i]["key"]}
 		p=${DT_ICONPOS["$k"]}
 		if [ -n "$p" ]; then
-			r=${p% *}
-			c=${p#* }
+			# A saved spot is a preference, not a promise: clamp it to
+			# whatever screen this is on every time, or an icon dragged
+			# to the edge on a wide one lands off-screen, or under the
+			# bar, after a resize to a narrower one -- dt_size calls
+			# this on every resize for exactly that.  The saved value
+			# itself is left alone, so it fits again if the screen does.
+			cl := dt_iconclamp "${p% *}" "${p#* }"
+			r=${cl% *}
+			c=${cl#* }
 		else
 			r=$((2 + (slot % per) * 3))
 			c=$((DT_COLS - DT_ICONW - 1 - (slot / per) * DT_ICONW))
@@ -1685,14 +1694,31 @@ dt_iconopen() {
 }
 
 # Put an icon at a place, kept on the screen, and remember it.
-dt_iconset() {
-	local key=$1 r=$2 c=$3
+# A row and column pulled onto the screen an icon is twelve columns wide and
+# three rows tall on, its top-left corner kept below the menu bar.
+dt_iconclamp() {
+	local r=$1 c=$2
 
 	[ "$r" -lt 1 ] && r=1
 	[ "$r" -gt $((DT_ROWS - 3)) ] && r=$((DT_ROWS - 3))
 	[ "$c" -lt 0 ] && c=0
 	[ "$c" -gt $((DT_COLS - DT_ICONW)) ] && c=$((DT_COLS - DT_ICONW))
-	DT_ICONPOS["$key"]="$r $c"
+	ret "$r $c"
+}
+
+dt_iconset() {
+	local key=$1 cl
+
+	cl := dt_iconclamp "$2" "$3"
+	DT_ICONPOS["$key"]=$cl
+}
+
+# Forget every saved position and lay every icon out fresh, for when they
+# have drifted somewhere inconvenient -- the hibr menu's Clean Up Icons.
+dt_iconclean() {
+	DT_ICONPOS=()
+	dt_iconlay
+	dt_save
 }
 
 # Put an icon where it was let go, centred under the pointer.

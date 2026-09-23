@@ -29,11 +29,14 @@ many are hidden.
 
 ## Icons on the desktop
 
-Down from the top right: the apps, in the order of the hibr menu, then what
-is in `~/Desktop` (`$XDG_DESKTOP_DIR`; created if it is not there), then the
-trash, drawn full when it is not empty. A **double click** opens one -- an
-app launches, a folder opens in Files, a file opens in a terminal with hvi,
-the trash opens in Files.
+A clean desktop, down from the top right: **Home**, the mounted **disks** if
+`DT_DISKS` wants them (real block devices only -- `/proc/mounts` filtered by
+filesystem and by a `/dev/` device, so tmpfs, proc, cgroups and the dozen
+other things a kernel mounts never show up as one), and the **trash**, drawn
+full when it is not empty. Apps stay in the hibr menu, not here, and nothing
+in `~/Desktop` gets an icon just for being there -- the desktop is not a
+second copy of a folder. A **double click** opens one: Home and a disk in
+Files, the trash in Files on what it holds.
 
 **Choose several**: ctrl and a click adds an icon or takes it away, shift
 and a click takes the run from the last one chosen (where the terminal
@@ -41,18 +44,26 @@ passes shift-click on; many keep it for their own text selection), and a
 drag across the empty desktop draws a band that selects every icon it
 touches. With no window focused the keyboard works too: the arrows go from
 icon to icon, shift with them extends the selection, space picks or drops
-one, ctrl-a takes them all, enter opens what is selected and delete throws
-the files away. alt-c copies their paths.
+one, ctrl-a takes them all, enter opens what is selected. alt-c copies their
+paths.
 
 **Drag** an icon somewhere empty and it stays there, remembered in the
-settings file with the rest; drag a selection and it moves together,
-keeping its arrangement. Drag a file's icon onto the trash to throw it
-away, onto a folder's icon to put it inside, onto an app's to open it with
-that app, or onto a window to hand it to the window. A file dragged out of a
-Files window onto the empty desktop moves into `~/Desktop`, where it was let
-go. The folder is read again every three seconds, so a file saved there from
-a terminal turns up by itself. Icons can be switched off in Settings, or with
-`DT_ICONS=0` in the session.
+settings file with the rest; drag a selection and it moves together, keeping
+its arrangement. Positions are clamped to the screen every time it is laid
+out, not just when one is dropped, so a spot picked on a wide screen cannot
+put an icon under the bar or off the edge after a resize to a narrower one --
+`dt_size` calls `dt_iconlay` on every resize for exactly this. "Clean Up
+Icons" on the hibr menu forgets every saved position and lays them out
+fresh, for when they have drifted somewhere inconvenient anyway.
+
+**Home and a disk are never something delete or a drag can lose.** They are
+a kind of their own, `place`, deliberately left out of every path a move or
+a trash can act on -- dragging Home onto the trash icon, or pressing delete
+with it selected, does nothing, on purpose: dragging Home into the trash
+used to mean the whole home directory, moved. Copying a place's path with
+alt-c is still allowed, since that only ever produces text. Icons can be
+switched off in Settings (`DT_ICONS`), and the disks specifically with
+`DT_DISKS`, or with either in the session.
 
 ## Files between windows
 
@@ -125,16 +136,22 @@ already running does not start a second, independent desktop under the same
 name; it says so and leaves the running one alone, since a bare rerun is as
 likely to be forgetting it is there as it is to mean "and another one."
 
-Underneath, this is a session held by name -- `hold list` shows it as
-`desktop`, and `hold kill desktop` ends it outright. A session gets this by
-calling `dt_autohold` once, before `dt_open`, with a name and whether it was
-asked to resume:
+For more than one, `--session` names which: `--session work` starts (or
+refuses, exactly as above) one called "work"; `--session work --resume`
+comes back to it specifically, leaving any other named session alone.
+Plain `--resume` is short for `--session desktop --resume`.
+
+Underneath, this is a session held by name -- `hold list` shows every one
+running, and `hold kill work` ends that one outright. A session gets this
+by calling `dt_autohold` once, before `dt_open`, with the name and whether
+it was asked to resume:
 
 ```sh
-opt -r --resume resume "Reattach to it if it is already running"
+opt -r --resume  resume          "Reattach to it if it is already running"
+opt -s --session session str=desktop "Which held session this is"
 args "$@"
 . desktop.hibr
-dt_autohold desktop "$resume"
+dt_autohold "$session" "$resume"
 ```
 
 It does nothing, quietly, wherever holding cannot make sense -- no `hold`
