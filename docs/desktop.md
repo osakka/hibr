@@ -365,11 +365,13 @@ Each app says who it is in its own file, one line near the top:
 command -v dt_app > /dev/null && dt_app calc "Calculator" 16 24 once "±"
 ```
 
-`dt_app <name> <title> <height> <width> [once|many] [icon]`. `once` means
-one window at most: launching it again brings that window forward, shown if
-it was hidden. The calculator, the settings, the clock and the games are
-`once`; the terminal and the file browser are `many`. The icon is what the
-desktop shows for it. The `command -v` guard is what lets the same file run
+`dt_app <name> <title> <height> <width> [once|many] [icon] [fixed]`. `once`
+means one window at most: launching it again brings that window forward,
+shown if it was hidden. The calculator, the settings, the clock and the games
+are `once`; the terminal and the file browser are `many`. The icon is what
+the desktop shows for it. `fixed` takes the maximise button off its windows
+entirely -- not dimmed, not drawn -- for a board or a grid with one sensible
+size; the games use it. The `command -v` guard is what lets the same file run
 on its own, where there is no desktop to register with.
 
 A session names the folders and loads them:
@@ -380,8 +382,10 @@ dt_apps
 ```
 
 A script dropped in `~/.config/hibr/apps` is on the menu at the next start,
-and one there with the same file name as a bundled app replaces it. An app
-file is sourced from inside a function, so its tables must be declared
+in a subfolder of your own if you like -- `dt_apps` looks at every depth, not
+just the top -- and one there with the same file name as a bundled app
+replaces it, wherever in the tree either one sits. An app file is sourced
+from inside a function, so its tables must be declared
 `declare -gA`, or they vanish when the loading function returns, exactly as
 they would in bash.
 

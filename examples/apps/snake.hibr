@@ -17,7 +17,7 @@ app snake "Eat, grow, and do not bite yourself"
 
 # What the hibr menu shows, how big a new window is, and whether a second
 # launch opens another window or brings this one forward.
-command -v dt_app > /dev/null && dt_app snake "Snake" 18 42 once "∿"
+command -v dt_app > /dev/null && dt_app snake "Snake" 18 42 once "∿" fixed
 
 declare -gA SN
 SNAKE_BEST=0

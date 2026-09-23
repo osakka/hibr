@@ -137,6 +137,21 @@ sc, _ = run(ONE, [press(6, 35), press(1, 75)])
 check("and zooming again puts it back where it was",
       sc.g[6][10] == "┌" and sc.g[13][39] == "◢", sc)
 
+# An app declared fixed has no maximise button at all -- not dimmed, not
+# there -- so a game whose board is one size does not offer to stretch it.
+FIXED = ('dt_app fx "Fixed" 6 20 once "◆" fixed\n'
+         'fx_draw() { console put -p "w$1" 1 1 "hi"; }\n'
+         'dt_launch fx\n')
+sc, _ = run(FIXED)
+check("a fixed app has no maximise button",
+      sc.find("┤_ x├") is not None and sc.find("┤_ □ x├") is None, sc)
+sc, _ = run(FIXED, [press(4, 21)])
+check("clicking where it would be does not zoom",
+      sc.find("┤ Fixed ├") is not None and sc.find("┤_ x├") is not None, sc)
+sc, _ = run(FIXED, [b"\x1b[21~", b"\x1b[C", b"\x1b[C"])
+check("Zoom is dimmed on the Window menu for it",
+      sc.find("Zoom") is not None and sc.at(3, 22) != "z", sc)
+
 TWO = TWO_DEF
 
 sc, _ = run(TWO)
@@ -589,6 +604,16 @@ check("and a file of yours replaces the bundled app of that name",
       sc.find("My Sums") is not None and sc.find("Calculator") is None, sc)
 shutil.rmtree(UCONF, True)
 
+NCONF = tempfile.mkdtemp(prefix="hibr-apps-nested-")
+os.makedirs(os.path.join(NCONF, "hibr", "apps", "sub"))
+open(os.path.join(NCONF, "hibr", "apps", "sub", "greet.hibr"), "w").write(
+    'dt_app greet "Greetings" 6 20 once "☺"\n')
+sc, _ = run("", feed=[b"\x1b[21~"], env={"XDG_CONFIG_HOME": NCONF},
+            pre="dt_apps\n")
+check("an app in a subfolder of your own is found too",
+      sc.find("Greetings") is not None, sc)
+shutil.rmtree(NCONF, True)
+
 LAUNCH = MENU + [b"c"]
 sc, raw = run("", feed=LAUNCH + LAUNCH, pre=APPS)
 check("an app declared once opens one window, however often launched",
@@ -767,4 +792,4 @@ check("ending it leaves the other one alone",
       "personal" in r.stdout and "work" not in r.stdout, r.stdout)
 unsession()
 
-report(113)
+report(117)

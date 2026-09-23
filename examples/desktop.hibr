@@ -343,7 +343,11 @@ dt_win() {
 	console pen "$on" "$DT_FACE" bold
 	console put -p "w$id" 0 2 "┤ $t ├"
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 0 $((w - 8)) "┤_ □ x├"
+	if [ "${DT_APPS[${DT[$id]["app"]}]["fixed"]}" = 1 ]; then
+		console put -p "w$id" 0 $((w - 6)) "┤_ x├"
+	else
+		console put -p "w$id" 0 $((w - 8)) "┤_ □ x├"
+	fi
 	console pen "#f56565" "$DT_FACE" bold
 	console put -p "w$id" 0 $((w - 3)) "x"
 }
@@ -364,9 +368,19 @@ dt_draw() {
 	console flush
 }
 
-# Which title-bar button is at this column, if any.
+# Which title-bar button is at this column, if any.  fixed omits max, whose
+# button is not drawn there either, so a click at its old column falls
+# through to the window's body instead of hitting a button that is not there.
 dt_btn() {
-	local w=$1 c=$2
+	local w=$1 c=$2 fixed=$3
+	if [ "$fixed" = 1 ]; then
+		case $((w - c)) in
+		5) ret min ;;
+		3) ret close ;;
+		*) ret "" ;;
+		esac
+		return 0
+	fi
 	case $((w - c)) in
 	7) ret min ;;
 	5) ret max ;;
@@ -455,7 +469,7 @@ dt_mouse() {
 			[ -n "$ap" ] && $ap "$id" $((mr - wr)) $((mc - wc)) "$1"
 			return 0
 		fi
-		b := dt_btn "$ww" $((mc - wc))
+		b := dt_btn "$ww" $((mc - wc)) "${DT_APPS[${DT[$id]["app"]}]["fixed"]}"
 		case $b in
 		close) dt_del "$id" ;;
 		min) dt_min "$id" ;;
@@ -862,23 +876,26 @@ dt_app() {
 	DT_APPS[$1]["once"]=
 	[ "$5" = once ] && DT_APPS[$1]["once"]=1
 	DT_APPS[$1]["icon"]="${6:-◆}"
+	DT_APPS[$1]["fixed"]=
+	[ "$7" = fixed ] && DT_APPS[$1]["fixed"]=1
 }
 
-# Where apps are found: every .hibr in each of these, in this order.  The
-# user's own folder comes first, so a file there replaces a bundled app of
-# the same name; a session adds its own folders after.
+# Where apps are found: every .hibr in each of these, at any depth, in this
+# order.  The user's own folder comes first, so a file there replaces a
+# bundled app of the same name; a session adds its own folders after.
 DT_APPDIRS=("${XDG_CONFIG_HOME:-$HOME/.config}/hibr/apps")
 declare -gA DT_SRC
 
 # Load every app in the folders.  Each file declares itself with dt_app, so
-# the folder is the whole configuration: drop a script in, and it is on the
-# menu at the next start.  A file whose name was already loaded from an
-# earlier folder is skipped.
+# the folder is the whole configuration: drop a script in, in a subfolder of
+# your own if you like, and it is on the menu at the next start -- globstar
+# is always on, which is what makes ** reach into them. A file whose name
+# was already loaded from an earlier folder is skipped.
 dt_apps() {
 	local d f b
 
 	for d in "${DT_APPDIRS[@]}"; do
-		for f in "$d"/*.hibr; do
+		for f in "$d"/**/*.hibr; do
 			[ -r "$f" ] || continue
 			b=${f##*/}
 			b=${b%.hibr}
@@ -997,7 +1014,11 @@ dt_menus() {
 	else
 		dt_item "Move" m dt_grab move
 		dt_item "Resize" r dt_grab size
-		dt_item "Zoom" z dt_zoom_focused
+		if [ "${DT_APPS[${DT[$DT_FOCUS]["app"]}]["fixed"]}" = 1 ]; then
+			dt_dim "Zoom"
+		else
+			dt_item "Zoom" z dt_zoom_focused
+		fi
 		dt_item "Hide" h dt_hide_focused
 		dt_sep
 		dt_item "Close" w dt_close_focused

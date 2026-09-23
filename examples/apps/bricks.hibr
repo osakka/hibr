@@ -17,7 +17,7 @@ app bricks "Knock the wall down"
 
 # What the hibr menu shows, how big a new window is, and whether a second
 # launch opens another window or brings this one forward.
-command -v dt_app > /dev/null && dt_app bricks "Bricks" 20 44 once "▀▀"
+command -v dt_app > /dev/null && dt_app bricks "Bricks" 20 44 once "▀▀" fixed
 
 declare -gA BK
 BRICKS_ROWS=5
