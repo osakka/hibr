@@ -205,6 +205,55 @@ void v_del(sh *s, const char *k)
 	}
 }
 
+/* Lift a variable out of the table whole -- value, map, type and flags --
+   so a local can shadow it and v_back can put it back exactly.  Copying the
+   scalar instead lost every array a local of the same name ever hid.  The
+   environment is left alone: until the local is given a value, a child
+   still sees the outer one, as it does in bash. */
+var *v_take(sh *s, const char *k)
+{
+	var **pp;
+	var *v;
+
+	if (!s->tab)
+		return 0;
+	pp = &s->tab[vh(k) & (s->tsz - 1)];
+	while ((v = *pp)) {
+		if (!strcmp(v->k, k)) {
+			*pp = v->nx;
+			v->nx = 0;
+			s->tn--;
+			if (!strcmp(k, "IFS"))
+				s->ifsok = 0;
+			if (!strcmp(k, "PATH"))
+				hsh_clear(s, 0);
+			return v;
+		}
+		pp = &v->nx;
+	}
+	return 0;
+}
+
+/* Put back a variable v_take lifted out, replacing whatever has the name. */
+void v_back(sh *s, var *v)
+{
+	unsigned b;
+
+	v_del(s, v->k);
+	if (!s->tab || s->tn * 4 >= s->tsz * 3)
+		v_grow(s);
+	b = vh(v->k) & (s->tsz - 1);
+	v->nx = s->tab[b];
+	s->tab[b] = v;
+	s->tn++;
+	if (v->ex && v->v)
+		setenv(v->k, v->v, 1);
+	if (!strcmp(v->k, "IFS"))
+		s->ifsok = 0;
+	if (!strcmp(v->k, "PATH"))
+		hsh_clear(s, 0);
+}
+
 /* Import the process environment into the variable table. */
 void v_env(sh *s)
 {
@@ -409,6 +458,12 @@ void v_setp(sh *s, const char *nm, char **ks, int nk, const char *val)
 		hibr_set(s, nm, val, 0);
 		return;
 	}
+	v = v_find(s, nm);
+	if (v && v->ro) {
+		lg(HIBR_LERR, "%s: readonly variable", nm);
+		s->st = 1;
+		return;
+	}
 	e = v_path(s, nm, ks, nk, 1);
 	if (!e)
 		return;
@@ -483,10 +538,12 @@ void v_arr(sh *s, const char *k, vec *vals)
 {
 	var *e;
 	size_t i;
+	long nx = 0;
 	str ix;
-	char *kv, *q;
+	char *kv, *q, *end;
 
-	hibr_set(s, k, "", 0);
+	if (hibr_set(s, k, "", 0) != HIBR_OK)
+		return;
 	e = v_find(s, k);
 	if (!e)
 		return;
@@ -499,13 +556,16 @@ void v_arr(sh *s, const char *k, vec *vals)
 			*q = 0;
 			{
 				char *key = kv + 1;
+				long at = strtol(key, &end, 10);
+				if (*key && !*end)
+					nx = at + 1;
 				v_setp(s, k, &key, 1, q + 2);
 			}
 			*q = ']';
 			continue;
 		}
 		s_init(&ix);
-		s_num(&ix, (long)i);
+		s_num(&ix, nx++);
 		{
 			char *key = ix.p;
 			v_setp(s, k, &key, 1, kv);

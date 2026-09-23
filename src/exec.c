@@ -430,7 +430,7 @@ int fn_bind(sh *s, node *f, vec *fr, int ac, char **av)
 			vec *rest = vb_get(s);
 			for (; i < ac; i++)
 				v_add(rest, av[i]);
-			asg_keep(s, fr, pm->s);
+			asg_hide(s, fr, pm->s);
 			v_arr(s, pm->s, rest);
 			vb_put(s, rest);
 			return HIBR_OK;
@@ -448,7 +448,7 @@ int fn_bind(sh *s, node *f, vec *fr, int ac, char **av)
 			   pm->tx, val);
 			return HIBR_FAIL;
 		}
-		asg_keep(s, fr, pm->s);
+		asg_hide(s, fr, pm->s);
 		if (pm->tx && (!strcmp(pm->tx, "arr") || !strcmp(pm->tx, "map")))
 			v_copy(s, pm->s, val);
 		else
@@ -569,10 +569,127 @@ void asg_keep(sh *s, vec *old, const char *k)
 	var *v = v_find(s, k);
 	struct sav *sv = xm(sizeof *sv);
 
+	memset(sv, 0, sizeof *sv);
 	sv->k = xs(k);
 	sv->v = v ? xs(v->v) : 0;
 	sv->ex = v ? v->ex : 0;
 	v_add(old, sv);
+}
+
+/* Shadow a variable for the rest of a function: the outer one is set aside
+   whole and put back when the function returns, so an array or a map a
+   local hides comes back intact.  A readonly variable cannot be shadowed,
+   as in bash. */
+int asg_hide(sh *s, vec *old, const char *k)
+{
+	var *v = v_find(s, k);
+	struct sav *sv;
+
+	if (v && v->ro) {
+		lg(HIBR_LERR, "%s: readonly variable", k);
+		return HIBR_FAIL;
+	}
+	sv = xm(sizeof *sv);
+	memset(sv, 0, sizeof *sv);
+	sv->k = xs(k);
+	sv->w = v_take(s, k);
+	v_add(old, sv);
+	return HIBR_OK;
+}
+
+/* Assign an array clause, name=(...), from a command's words.  Those after
+   a declaration builtin run after it, so `declare -A m=(...)` makes m a
+   local map first and fills it second. */
+void ex_arrasg(sh *s, node *f)
+{
+	vec *el = vb_get(s);
+	size_t nl = strlen(f->s);
+	word *w;
+
+	for (w = f->w; w; w = w->nx)
+		xw(s, w, el, 0);
+	if (nl > 1 && f->s[nl - 1] == '+') {
+		char *nm = ar_dup(s->xa, f->s, nl - 1);
+		vec *cur = vb_get(s);
+		size_t z;
+		long next = 0;
+		v_list(s, nm, 0, 0, cur, 1);
+		for (z = 0; z < cur->n; z++) {
+			long kk = atol((char *)cur->p[z]);
+			if (kk >= next)
+				next = kk + 1;
+		}
+		vb_put(s, cur);
+		for (z = 0; z < el->n; z++)
+			v_setel(s, nm, next + (long)z, (char *)el->p[z]);
+		if (!el->n && !v_find(s, nm)) {
+			vec empty = { 0, 0, 0 };
+			v_arr(s, nm, &empty);
+		}
+	} else {
+		v_arr(s, f->s, el);
+	}
+	vb_put(s, el);
+}
+
+/* The name an array clause assigns, without the + of an append. */
+char *ex_arrnm(sh *s, node *d)
+{
+	size_t nl = strlen(d->s);
+
+	if (nl > 1 && d->s[nl - 1] == '+')
+		return ar_dup(s->xa, d->s, nl - 1);
+	return d->s;
+}
+
+/* Refuse a declaration whose array would land on a readonly variable,
+   before the builtin runs and could hide that by declaring it again. */
+int ex_arrro(sh *s, node *n)
+{
+	node *d;
+	var *v;
+
+	for (d = n->x; d; d = d->x) {
+		if (d->f != 4)
+			continue;
+		v = v_find(s, ex_arrnm(s, d));
+		if (v && v->ro) {
+			lg(HIBR_LERR, "%s: readonly variable", v->k);
+			return HIBR_FAIL;
+		}
+	}
+	return HIBR_OK;
+}
+
+/* Run the array clauses that wait for their declaration builtin.  One the
+   builtin itself made readonly, as `declare -r a=(...)` does, is still
+   given its value: that is part of declaring it. */
+void ex_arrlate(sh *s, node *n)
+{
+	node *d;
+	var *v;
+	int ro;
+
+	for (d = n->x; d; d = d->x) {
+		if (d->f != 4)
+			continue;
+		v = v_find(s, ex_arrnm(s, d));
+		ro = v && v->ro;
+		if (ro)
+			v->ro = 0;
+		ex_arrasg(s, d);
+		if (ro && (v = v_find(s, ex_arrnm(s, d))))
+			v->ro = 1;
+	}
+}
+
+/* Whether the variable the last asg_hide set aside was exported, so a local
+   given a value in its place is exported too. */
+int asg_wasex(vec *old)
+{
+	struct sav *sv = old->n ? (struct sav *)old->p[old->n - 1] : 0;
+
+	return sv && sv->w && sv->w->ex;
 }
 
 /* Apply temporary assignments, remembering the previous values. */
@@ -601,7 +718,9 @@ void asg_pop(sh *s, vec *old)
 
 	while (i--) {
 		sv = (struct sav *)old->p[i];
-		if (sv->v) {
+		if (sv->w) {
+			v_back(s, sv->w);
+		} else if (sv->v) {
 			hibr_set(s, sv->k, sv->v, sv->ex);
 			free(sv->v);
 		} else {
@@ -695,6 +814,8 @@ int ex_asg(sh *s, char *kv, const char *mask, int ex_flag)
 	char *br, *r, *plus = 0;
 	vec *ks;
 	str cat;
+	var *rv;
+	int ro;
 
 	if (!q)
 		return HIBR_OK;
@@ -746,9 +867,10 @@ int ex_asg(sh *s, char *kv, const char *mask, int ex_flag)
 		v_setp(s, kv, (char **)ks->p, (int)ks->n, q + 1);
 	}
 	vb_put(s, ks);
+	ro = (rv = v_find(s, kv)) && rv->ro;
 	*br = '[';
 	*q = '=';
-	return s->stop ? HIBR_FAIL : HIBR_OK;
+	return s->stop || ro ? HIBR_FAIL : HIBR_OK;
 }
 
 /* Print an execution trace line. */
@@ -829,38 +951,9 @@ int ex_cmd(sh *s, node *n)
 			v_add(asgm, mk);
 		}
 	}
-	for (f = n->x; f; f = f->x) {
-		vec *el = vb_get(s);
-		for (w = f->w; w; w = w->nx)
-			xw(s, w, el, 0);
-		if (f->f == 3 && s->scope.n)
-			asg_keep(s, (vec *)s->scope.p[s->scope.n - 1], f->s);
-		{
-			size_t nl = strlen(f->s);
-			if (nl > 1 && f->s[nl - 1] == '+') {
-				char *nm = ar_dup(s->xa, f->s, nl - 1);
-				vec *cur = vb_get(s);
-				size_t z;
-				long next = 0;
-				v_list(s, nm, 0, 0, cur, 1);
-				for (z = 0; z < cur->n; z++) {
-					long kk = atol((char *)cur->p[z]);
-					if (kk >= next)
-						next = kk + 1;
-				}
-				vb_put(s, cur);
-				for (z = 0; z < el->n; z++)
-					v_setel(s, nm, next + (long)z, (char *)el->p[z]);
-				if (!el->n && !v_find(s, nm)) {
-					vec empty = { 0, 0, 0 };
-					v_arr(s, nm, &empty);
-				}
-			} else {
-				v_arr(s, f->s, el);
-			}
-		}
-		vb_put(s, el);
-	}
+	for (f = n->x; f; f = f->x)
+		if (f->f != 4)
+			ex_arrasg(s, f);
 	av = xargv(s, n->w, &ac, &am);
 	if (s->xerr) {
 		s->xerr = 0;
@@ -927,8 +1020,12 @@ int ex_cmd(sh *s, node *n)
 			} else {
 				char **oam = s->amask;
 				s->amask = am;
-				st = b->fn(s, ac, av);
+				st = ex_arrro(s, n);
+				if (st == HIBR_OK)
+					st = b->fn(s, ac, av);
 				s->amask = oam;
+				if (st == HIBR_OK)
+					ex_arrlate(s, n);
 			}
 		} else
 			st = HIBR_FAIL;

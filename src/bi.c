@@ -220,7 +220,9 @@ char *bi_keys(sh *s, char *word, const char *mk, vec *ks)
 }
 
 /* What a command name changes about how its own arguments expand:
-   1 = it reads their quote mask, 2 = its name=value words are assignments.
+   1 = it reads their quote mask, 2 = its name=value words are assignments,
+   4 = a name=(...) array is assigned before it runs rather than after, which
+   readonly and export need and the declaring builtins must not have.
    One switch, called once per command, because every command pays for it. */
 int bi_argk(const char *nm)
 {
@@ -232,7 +234,7 @@ int bi_argk(const char *nm)
 	case 'r':
 		if (!strcmp(nm, "read"))
 			return 1;
-		return !strcmp(nm, "readonly") ? 2 : 0;
+		return !strcmp(nm, "readonly") ? 6 : 0;
 	case 'l':
 		return !strcmp(nm, "local") ? 2 : 0;
 	case 'd':
@@ -240,7 +242,7 @@ int bi_argk(const char *nm)
 	case 't':
 		return !strcmp(nm, "typeset") ? 2 : 0;
 	case 'e':
-		return !strcmp(nm, "export") ? 2 : 0;
+		return !strcmp(nm, "export") ? 6 : 0;
 	}
 	return 0;
 }
@@ -1167,8 +1169,16 @@ int b_decl(sh *s, int ac, char **av)
 				*q = '=';
 			return HIBR_FAIL;
 		}
-		if (!glob && s->scope.n)
-			asg_keep(s, (vec *)s->scope.p[s->scope.n - 1], av[i]);
+		if (!glob && s->scope.n) {
+			vec *fr = (vec *)s->scope.p[s->scope.n - 1];
+			if (asg_hide(s, fr, av[i]) != HIBR_OK) {
+				if (q)
+					*q = '=';
+				return HIBR_FAIL;
+			}
+			if (q && asg_wasex(fr))
+				ex = 1;
+		}
 		v = v_find(s, av[i]);
 		if (!v) {
 			hibr_set(s, av[i], "", 0);
@@ -1243,8 +1253,10 @@ int b_local(sh *s, int ac, char **av)
 		lg(HIBR_LERR, "local: only valid inside a function");
 		return HIBR_FAIL;
 	}
+	if (ac > 1 && av[1][0] == '-' && av[1][1] && strcmp(av[1], "--"))
+		return b_decl(s, ac, av);
 	fr = (vec *)s->scope.p[s->scope.n - 1];
-	for (i = 1; i < ac; i++) {
+	for (i = ac > 1 && !strcmp(av[1], "--") ? 2 : 1; i < ac; i++) {
 		q = strchr(av[i], '=');
 		if (q)
 			*q = 0;
@@ -1254,12 +1266,14 @@ int b_local(sh *s, int ac, char **av)
 				*q = '=';
 			return HIBR_FAIL;
 		}
-		asg_keep(s, fr, av[i]);
+		if (asg_hide(s, fr, av[i]) != HIBR_OK) {
+			if (q)
+				*q = '=';
+			return HIBR_FAIL;
+		}
 		if (q) {
-			hibr_set(s, av[i], q + 1, 0);
+			hibr_set(s, av[i], q + 1, asg_wasex(fr));
 			*q = '=';
-		} else {
-			v_del(s, av[i]);
 		}
 		lg(HIBR_LTRC, "local %s at depth %lu", av[i],
 		   (unsigned long)s->scope.n);

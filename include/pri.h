@@ -158,9 +158,17 @@ void hsh_clear(sh *s, const char *nm);
 void hsh_put(sh *s, const char *nm, const char *path);
 char *findx(sh *s, const char *nm);
 
-struct sav { char *k, *v; unsigned ex; };
+struct sav { char *k, *v; unsigned ex; var *w; };
 
 void asg_keep(sh *s, vec *old, const char *k);
+int asg_hide(sh *s, vec *old, const char *k);
+int asg_wasex(vec *old);
+void ex_arrasg(sh *s, node *f);
+void ex_arrlate(sh *s, node *n);
+int ex_arrro(sh *s, node *n);
+char *ex_arrnm(sh *s, node *d);
+var *v_take(sh *s, const char *k);
+void v_back(sh *s, var *v);
 void asg_pop(sh *s, vec *old);
 int bi_mask(const char *nm);
 int bi_argk(const char *nm);

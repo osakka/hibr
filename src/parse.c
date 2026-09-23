@@ -259,13 +259,25 @@ node *p_simple(lex *l)
 				at = &w->nx;
 				continue;
 			}
-			if (got && cmd0 && !strcmp(cmd0, "local") && w_asg(w) &&
+			if (got && cmd0 && (bi_argk(cmd0) & 2) && w_asg(w) &&
 			    w_asgbare(w) && l->tk == T_LP) {
+				word *nw;
+				part *np;
 				lx_next(l);
 				p_nl(l);
 				cl = nd(l, N_CLAUSE);
 				cl->s = ar_dup(l->a, w->p->t, w->p->n - 1);
-				cl->f = 3;
+				cl->f = (bi_argk(cmd0) & 4) ? 5 : 4;
+				nw = ar_alloc(l->a, sizeof *nw);
+				np = ar_alloc(l->a, sizeof *np);
+				np->k = P_TXT;
+				np->n = w->p->n - 1;
+				if (np->n && w->p->t[np->n - 1] == '+')
+					np->n--;
+				np->t = ar_dup(l->a, w->p->t, np->n);
+				nw->p = np;
+				*wt = nw;
+				wt = &nw->nx;
 				et = &cl->w;
 				while (l->tk == T_WORD) {
 					*et = l->w;
