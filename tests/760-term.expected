@@ -66,6 +66,10 @@ stored: 0 4
 --- the alternate screen and ESC [3J stay out of it
 after the alternate screen: 0 2
 after ESC [3J: 0 0
+--- a deleted line is not history
+stored: 0 0
+0|b
+1|c
 --- shrinking keeps the cursor's line, growing brings lines back
 shrunk, stored: 0 3
 0|4

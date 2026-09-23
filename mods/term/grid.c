@@ -234,15 +234,19 @@ void tm_ilines(tm_t *t, int n)
 	t->top = save;
 }
 
-/* Take n lines out at the cursor, pulling the rest of the region up. */
+/* Take n lines out at the cursor, pulling the rest of the region up.  A
+   deleted line is gone, not history, so it stays out of the scrollback even
+   when it was the top line. */
 void tm_dlines(tm_t *t, int n)
 {
-	int save = t->top;
+	int save = t->top, keep = t->sbmax;
 
 	if (t->cr < t->top || t->cr > t->bot)
 		return;
 	t->top = t->cr;
+	t->sbmax = 0;
 	tm_scroll(t, n);
+	t->sbmax = keep;
 	t->top = save;
 }
 

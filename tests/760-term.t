@@ -151,6 +151,14 @@ sb := term scroll $t
 echo "after ESC [3J: $sb"
 term close $t
 
+echo "--- a deleted line is not history"
+t := term open -r 4 -c 20 /bin/sh -c 'printf "a\nb\nc\033[H\033[M"'
+i=0; while [ $i -lt 4 ]; do term poll $t 100; i=$((i+1)); done
+sb := term scroll $t
+echo "stored: $sb"
+show $t 2
+term close $t
+
 echo "--- shrinking keeps the cursor's line, growing brings lines back"
 t := term open -r 6 -c 20 /bin/sh -c 'printf "1\n2\n3\n4\n5\nhere"; sleep 5'
 i=0; while [ $i -lt 4 ]; do term poll $t 100; i=$((i+1)); done
