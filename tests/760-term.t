@@ -76,7 +76,15 @@ term close $t
 
 echo "--- a program that ends says so"
 t := term open -r 4 -c 20 /bin/sh -c 'exit 3'
-i=0; while [ $i -lt 8 ]; do term poll $t 100; i=$((i+1)); done
+# A program closes its terminal a moment before its status can be
+# collected, and after the hangup a poll returns at once -- so this waits
+# for the exit, up to five seconds, rather than counting polls.
+i=0
+while term alive $t && [ $i -lt 50 ]; do
+  term poll $t 100
+  sleep 0.1
+  i=$((i+1))
+done
 if term alive $t; then echo "still running"; else echo "ended"; fi
 st := term status $t
 echo "status $st"
