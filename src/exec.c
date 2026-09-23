@@ -170,6 +170,17 @@ void rd_save(vec *sv, int fd)
 	v_add(sv, e);
 }
 
+/* Is this the text of a descriptor number: digits, and nothing else? */
+int rd_isfd(const char *t)
+{
+	if (!t || !*t)
+		return 0;
+	for (; *t; t++)
+		if (*t < '0' || *t > '9')
+			return 0;
+	return 1;
+}
+
 /* Apply a redirection list, optionally recording the old descriptors. */
 int rd_do(sh *s, redir *r, vec *sv)
 {
@@ -236,19 +247,49 @@ int rd_do(sh *s, redir *r, vec *sv)
 			break;
 		case R_DUP: {
 			int tgt = r->fd;
-			if (r->var) {
-				const char *cur = hibr_get(s, r->var);
-				if (cur && *cur)
-					tgt = atoi(cur);
-			}
-			if (sv)
-				rd_save(sv, tgt);
 			if (!strcmp(t, "-")) {
+				if (r->var) {
+					const char *cur = hibr_get(s, r->var);
+					if (!rd_isfd(cur)) {
+						lg(HIBR_LERR, "%s: not a descriptor",
+						   r->var);
+						st = HIBR_FAIL;
+						continue;
+					}
+					tgt = atoi(cur);
+				}
+				if (sv)
+					rd_save(sv, tgt);
 				close(tgt);
 				lg(HIBR_LTRC, "closed fd %d", tgt);
 				continue;
 			}
+			if (!rd_isfd(t)) {
+				lg(HIBR_LERR, "%s: ambiguous redirect",
+				   *t ? t : "\"\"");
+				st = HIBR_FAIL;
+				continue;
+			}
 			fd = atoi(t);
+			if (r->var) {
+				str nb;
+				int hi = fcntl(fd, F_DUPFD, 10);
+				if (hi < 0) {
+					lg(HIBR_LERR, "%d: bad file descriptor",
+					   fd);
+					st = HIBR_FAIL;
+					continue;
+				}
+				s_init(&nb);
+				s_num(&nb, (long)hi);
+				hibr_set(s, r->var, nb.p, 0);
+				s_free(&nb);
+				lg(HIBR_LDBG, "descriptor %d, a copy of %d, in %s",
+				   hi, fd, r->var);
+				continue;
+			}
+			if (sv)
+				rd_save(sv, tgt);
 			if (dup2(fd, tgt) < 0) {
 				lg(HIBR_LERR, "%d: bad file descriptor", fd);
 				st = HIBR_FAIL;

@@ -136,6 +136,7 @@ int gcmp(const void *a, const void *b);
 
 int ex_asg(sh *s, char *kv, const char *mask, int ex_flag);
 int ex(sh *s, node *n);
+int rd_isfd(const char *t);
 int rd_do(sh *s, redir *r, vec *sv);
 void rd_undo(vec *sv);
 node *fn_find(sh *s, const char *nm);

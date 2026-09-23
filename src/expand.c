@@ -542,7 +542,7 @@ void xvar(sh *s, part *p, str *b, str *m)
 /* True for a byte that needs no escape in a backslash quoted word. */
 int xqsafe(int c, int first)
 {
-	if (isalnum(c) || strchr("_./-:=@+%", c))
+	if (c >= 0x80 || isalnum(c) || strchr("_./-:=@+%", c))
 		return 1;
 	return !first && (c == '~' || c == '#');
 }
