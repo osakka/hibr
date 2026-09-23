@@ -8,7 +8,7 @@ with.  Run it directly:  python3 tests/desktop.py [path-to-hibr]
 The pty and the terminal model live in tests/screen.py, which every
 full-screen suite shares.
 """
-import os, re, shutil, sys
+import os, re, shutil, sys, tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen
@@ -338,6 +338,65 @@ sc, _ = run(MENUS, [press(0, WIN), b"m", b"\x1b[A", b"\x1b"])
 check("escape ends the mode, keeping what it did",
       sc.find("┤ Noted ├") == (5, 12) and sc.find("moving") is None, sc)
 
+# --- icons on the desktop -------------------------------------------------
+#
+# 24 rows hold seven icons to a column.  The first column, at column 67, is
+# the apps Bricks to Snake; the second, at 55, is Terminal, then what is in
+# the Desktop folder -- notes.txt, project/ -- then the trash.
+
+APPS = 'DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/apps")
+
+
+def desk():
+    d = tempfile.mkdtemp(prefix="hibr-desk-")
+    for sub in ("Desktop/project", "conf", "trash", "src"):
+        os.makedirs(os.path.join(d, sub))
+    open(os.path.join(d, "Desktop", "notes.txt"), "w").write("hi\n")
+    open(os.path.join(d, "src", "moveme.txt"), "w").write("x\n")
+    env = {"XDG_DESKTOP_DIR": os.path.join(d, "Desktop"),
+           "XDG_CONFIG_HOME": os.path.join(d, "conf")}
+    pre = APPS + "DT_TRASH=%s\n" % os.path.join(d, "trash")
+    return d, env, pre
+
+d, env, pre = desk()
+sc, raw = run("", env=env, pre=pre)
+check("the apps, the Desktop folder and the trash are icons on the desktop",
+      sc.find("Bricks") == (3, 70) and sc.find("Terminal") == (3, 57) and
+      sc.find("notes.txt") == (6, 56) and sc.find("project") == (9, 57) and
+      sc.find("Trash") == (12, 58), sc)
+
+sc, raw = run("", feed=[press(3, 70), press(3, 70)], env=env, pre=pre)
+check("a double click on an app's icon opens it",
+      sc.find("┤ Bricks ├") is not None, sc)
+sc, raw = run("", feed=[press(9, 60), press(9, 60)], env=env, pre=pre)
+check("and on a folder's opens it in Files",
+      sc.find("Desktop/project") is not None, sc)
+
+sc, raw = run("", feed=[press(6, 60), drag(6, 64), drag(11, 60),
+                        release(11, 60)], env=env, pre=pre)
+check("a file's icon dragged onto the trash is thrown away",
+      os.path.exists(os.path.join(d, "trash", "files", "notes.txt")) and
+      sc.find("notes.txt") != (6, 56) and sc.find("▼") is not None and
+      sc.find("Moved notes.txt to the trash") is not None, sc)
+
+sc, raw = run("", feed=[press(3, 70), drag(3, 74), drag(15, 20),
+                        release(15, 20)], env=env, pre=pre)
+conf = open(os.path.join(d, "conf", "hibr", "desktop.hibr")).read()
+check("an icon dragged somewhere empty stays where it was put",
+      sc.find("Bricks") == (16, 17) and "dt_iconpos app:bricks" in conf, sc)
+sc, raw = run("", env=env, pre=pre)
+check("and is there again at the next start", sc.find("Bricks") == (16, 17),
+      sc)
+
+sc, raw = run('dt_new "Files" 10 34 2 2 files', env=env,
+              pre=pre + "FB_DIR=%s\n" % os.path.join(d, "src"),
+              feed=[press(5, 5), drag(5, 9), drag(19, 10), release(19, 10)])
+check("a file dragged out of a window onto the desktop goes to ~/Desktop",
+      os.path.exists(os.path.join(d, "Desktop", "moveme.txt")) and
+      not os.path.exists(os.path.join(d, "src", "moveme.txt")) and
+      sc.find("moveme.txt") is not None, sc)
+shutil.rmtree(d, True)
+
 # --- breaks, saved settings, and a session that outlives its terminal ----
 
 sc, raw = run(ONE, feed=[b"\x03", b"\x1c", b"\x1a", b"\x1b[21~"])
@@ -360,11 +419,12 @@ open(os.path.join(UCONF, "hibr", "apps", "calc.hibr"), "w").write(
 APPS = 'DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/apps")
 MENU = [b"\x1b[21~", b"\x1b[B"]
 sc, raw = run("", feed=MENU, env={"XDG_CONFIG_HOME": UCONF}, pre=APPS)
-rows = [r for r in range(2, 16) if "Hello" in sc.row(r) or
-        "Files" in sc.row(r) or "Mines" in sc.row(r)]
+# The menu is on the left; the icons on the right carry the same names.
+menu = [sc.row(r)[:20] for r in range(2, 16)]
+rows = [m for m in menu if "Hello" in m or "Files" in m or "Mines" in m]
 check("an app in your own folder is on the menu, in its sorted place",
-      len(rows) == 3 and "Files" in sc.row(rows[0]) and
-      "Hello" in sc.row(rows[1]) and "Mines" in sc.row(rows[2]), sc)
+      len(rows) == 3 and "Files" in rows[0] and "Hello" in rows[1] and
+      "Mines" in rows[2], sc)
 check("and a file of yours replaces the bundled app of that name",
       sc.find("My Sums") is not None and sc.find("Calculator") is None, sc)
 shutil.rmtree(UCONF, True)
@@ -441,4 +501,4 @@ check("quitting a held desktop ends the session",
       b"[desk ended, status 0]" in t.out and b"back 0" in t.out, t.out.decode(errors="replace"))
 t.close()
 
-report(86)
+report(94)

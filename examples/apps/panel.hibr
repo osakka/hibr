@@ -88,6 +88,9 @@ cp_rows() {
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Behaviour"; n=$((n + 1))
 	CP[$w][$n]["kind"]=set;  CP[$w][$n]["text"]="Refresh"
 	CP[$w][$n]["val"]="$DT_TICK ms"; CP[$w][$n]["key"]=tick; n=$((n + 1))
+	CP[$w][$n]["kind"]=set;  CP[$w][$n]["text"]="Icons"
+	CP[$w][$n]["val"]=off; [ "$DT_ICONS" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=icons; n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]=""; n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Windows"; n=$((n + 1))
 
@@ -142,6 +145,7 @@ cp_do() {
 		       DT_GLYPH=$v ;;
 		tick)  v := cp_next "$DT_TICK" "$dir" "${CP_TICKS[@]}"
 		       DT_TICK=$v ;;
+		icons) cp_icons ;;
 		esac
 		cp_save
 		;;
@@ -225,11 +229,25 @@ panel_menus() {
 		dt_mark "$x ms" "" "$on" cp_set_tick "$x"
 	done
 	dt_end
+	on=0
+	[ "$DT_ICONS" = 1 ] && on=1
+	dt_mark "Desktop Icons" i "$on" cp_icons
 	dt_sep
 	dt_item "Change Selected" c cp_do "$w" 1
 }
 
 cp_set_theme() { cp_theme "$1" && cp_save; }
+
+# Icons on the desktop, or a bare wallpaper.
+cp_icons() {
+	if [ "$DT_ICONS" = 1 ]; then
+		DT_ICONS=0
+	else
+		DT_ICONS=1
+	fi
+	command -v dt_deskscan > /dev/null && dt_deskscan
+	cp_save
+}
 cp_set_glyph() { DT_GLYPH=$1; cp_save; }
 cp_set_tick() { DT_TICK=$1; cp_save; }
 

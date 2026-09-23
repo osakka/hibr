@@ -198,7 +198,7 @@ TICK = "DT_TICK=200"
 
 sc = run(*PANEL, pre=TICK, also=OTHER)
 check("the sections are drawn", sc.find("Appearance") == (3, 3) and
-      sc.find("Behaviour") == (7, 3) and sc.find("Windows") == (10, 3), sc)
+      sc.find("Behaviour") == (7, 3) and sc.find("Windows") == (11, 3), sc)
 check("the settings show their values", sc.find("midnight") is not None and
       sc.find("200 ms") is not None, sc)
 check("the window list names what is open",
@@ -219,9 +219,15 @@ sc = run(*PANEL, feed=[b"\x1b[B", b"\x1b[B", b"\x1b[C"], pre=TICK,
 check("down skips the blank line and the heading, landing on Refresh",
       sc.find("350 ms") is not None, sc)
 
-# Theme, Wallpaper, Refresh, Panel, Other -- four downs from Theme reaches
-# the second window, because cp_move steps over the headings and the blanks.
-DOWN4 = [b"\x1b[B"] * 4
+# Theme, Wallpaper, Refresh, Icons, Panel, Other -- five downs from Theme
+# reaches the second window, because cp_move steps over the headings and the
+# blanks.
+DOWN4 = [b"\x1b[B"] * 5
+
+sc = run(*PANEL, feed=[b"\x1b[B"] * 3 + [b"\r"], pre=TICK, also=OTHER)
+check("the icons can be switched off, and the panel says so",
+      sc.find("Icons") is not None and "off" in sc.row(sc.find("Icons")[0]),
+      sc)
 
 sc = run(*PANEL, feed=DOWN4 + [b"x"], pre=TICK, also=OTHER)
 check("x closes the selected window", sc.find("Other") is None and
@@ -231,7 +237,7 @@ sc = run(*PANEL, feed=DOWN4 + [b"-"], pre=TICK, also=OTHER)
 check("- hides it, and the panel says so",
       sc.find("Other") is not None and sc.find("hidden") is not None, sc)
 check("while the one still showing reads open",
-      "open" in sc.row(11) and "hidden" in sc.row(12), sc)
+      "open" in sc.row(12) and "hidden" in sc.row(13), sc)
 
 sc = run(*PANEL, feed=DOWN4 + [b"-", b"\r"], pre=TICK, also=OTHER)
 check("enter on a hidden window brings it back",
@@ -466,4 +472,4 @@ for f in os.listdir(D):
 os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
-report(82)
+report(83)

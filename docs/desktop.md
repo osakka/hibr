@@ -27,6 +27,23 @@ click it. Its label on the bar across the top is the only way back — click it
 to restore the window. The bar also says how many windows are open and how
 many are hidden.
 
+## Icons on the desktop
+
+Down from the top right: the apps, in the order of the hibr menu, then what
+is in `~/Desktop` (`$XDG_DESKTOP_DIR`; created if it is not there), then the
+trash, drawn full when it is not empty. A **double click** opens one -- an
+app launches, a folder opens in Files, a file opens in a terminal with hvi,
+the trash opens in Files.
+
+**Drag** an icon somewhere empty and it stays there, remembered in the
+settings file with the rest. Drag a file's icon onto the trash to throw it
+away, onto a folder's icon to put it inside, onto an app's to open it with
+that app, or onto a window to hand it to the window. A file dragged out of a
+Files window onto the empty desktop moves into `~/Desktop`, where it was let
+go. The folder is read again every three seconds, so a file saved there from
+a terminal turns up by itself. Icons can be switched off in Settings, or with
+`DT_ICONS=0` in the session.
+
 ## Files between windows
 
 Drag a file out of a Files window and let go over another: over a Files

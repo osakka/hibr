@@ -33,6 +33,7 @@ DT_DNDN=
 DT_DNDG=
 DT_DNDR=0
 DT_DNDC=0
+DT_DNDICON=
 DT_NOTE=
 DT_ROWS=24
 DT_COLS=80
@@ -53,7 +54,7 @@ DT_GLYPH="${DT_GLYPH-·}"
 # variable of its own kept names it with dt_keep.
 DT_CONF="${DT_CONF-${XDG_CONFIG_HOME:-$HOME/.config}/hibr/desktop.hibr}"
 DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
-	DT_TICK)
+	DT_TICK DT_ICONS)
 
 # Where the desktop's stderr goes while it holds the screen, so an app's
 # error message cannot scribble over the display, and the reason for a
@@ -85,6 +86,9 @@ dt_save() {
 		for v in "${DT_KEEP[@]}"; do
 			[ -n "${!v+set}" ] && printf '%s=%q\n' "$v" "${!v}"
 		done
+		for v in "${!DT_ICONPOS[@]}"; do
+			printf 'dt_iconpos %q %q\n' "$v" "${DT_ICONPOS["$v"]}"
+		done
 	} > "$tmp" && mv -f "$tmp" "$DT_CONF"
 }
 
@@ -99,10 +103,16 @@ dt_open() {
 	console signals off
 	console mouse drag
 	console cursor 0 0 0
-	if mkdir -p "${DT_LOG%/*}" 2> /dev/null; then
+	# mkdir is a process, and startup should not pay for one per folder
+	# every time: only when the folder is not there yet.
+	if [ -d "${DT_LOG%/*}" ] || mkdir -p "${DT_LOG%/*}" 2> /dev/null; then
 		exec {DT_ERR}>&2 2>> "$DT_LOG"
 	fi
 	dt_size
+	if [ "$DT_ICONS" = 1 ] && ! [ -d "$DT_DESK" ]; then
+		mkdir -p "$DT_DESK" 2> /dev/null
+	fi
+	dt_deskscan
 }
 
 # Re-read the screen size after a resize.
@@ -111,6 +121,7 @@ dt_size() {
 	sz := console size
 	DT_ROWS=${sz% *}
 	DT_COLS=${sz#* }
+	dt_iconlay
 }
 
 # Give the terminal back.
@@ -258,6 +269,10 @@ dt_rep() {
 dt_wall() {
 	console pen "$DT_DOT" "$DT_WALL"
 	console fill 0 0 "$DT_ROWS" "$DT_COLS" "$DT_GLYPH"
+	if [ "$DT_ICONS" = 1 ]; then
+		[ $((EPOCHSECONDS - DI_SCANT)) -ge 3 ] && dt_deskscan
+		dt_icondraw
+	fi
 }
 
 # Draw one window: its face, then its app, then its frame over the top.
@@ -374,6 +389,7 @@ dt_mouse() {
 		id := console hit "$mr" "$mc"
 		if [ -z "$id" ]; then
 			DT_FOCUS=
+			dt_iconpress "$mr" "$mc"
 			return 0
 		fi
 		id=${id#w}
@@ -422,6 +438,11 @@ dt_mouse() {
 				DT_MOUSE=
 				dt_ondrop "$mr" "$mc" "$mods"
 			fi
+			return 0
+		fi
+		# A press on an icon that moves becomes a drag of that icon.
+		if [ -n "$DI_PRESS" ]; then
+			dt_iconmove "$act" "$mr" "$mc"
 			return 0
 		fi
 		# A window that took the press with _mouse is told the rest of it,
@@ -968,6 +989,7 @@ dt_dnd() {
 	DT_DND=$1
 	DT_DNDN=$2
 	DT_DNDG=${3:-▯}
+	DT_DNDICON=
 }
 
 dt_dnddraw() {
@@ -986,7 +1008,12 @@ dt_ondrop() {
 	id := console hit "$mr" "$mc"
 	if [ -n "$id" ]; then
 		id=${id#w}
+		DT_DNDICON=
 		ap=${DT[$id]["drop"]}
+		if [ "$src" = - ]; then
+			dt_note "Only files can be dropped on a window"
+			return 0
+		fi
 		if [ -z "$ap" ]; then
 			dt_note "${DT[$id]["title"]} does not take files"
 			return 0
@@ -1122,6 +1149,255 @@ dt_openfile() {
 	else
 		dt_note "Nothing here opens ${1##*/}"
 	fi
+}
+
+# --- icons on the desktop ----------------------------------------------------
+#
+# The apps, in the order of the hibr menu, then whatever is in ~/Desktop,
+# then the trash -- laid out down from the top right, where the Mac put
+# them.  A double click opens one.  Dragging one somewhere empty moves it
+# there and remembers where; dragging it onto the trash, a folder or an app
+# does what that means; dragging a file out of a window onto the empty
+# desktop moves it into ~/Desktop.  DT_ICONS=0 turns them off.
+
+DT_ICONS="${DT_ICONS-1}"
+DT_DESK="${DT_DESK-${XDG_DESKTOP_DIR:-$HOME/Desktop}}"
+DT_ICONW=12
+declare -gA DT_ICONPOS
+declare -gA DI
+DI_N=0
+DI_SEL=
+DI_PRESS=
+DI_LAST=0
+DI_SCANT=0
+
+# Where an icon was put, as the settings file restores it.
+dt_iconpos() {
+	DT_ICONPOS["$1"]="$2"
+}
+
+# Milliseconds, for telling a double click from two.
+dt_ms() {
+	local t=${EPOCHREALTIME/./}
+
+	ret $((t / 1000))
+}
+
+# One icon.
+dt_iconadd() {
+	local n=$DI_N
+
+	DI[$n]["kind"]=$1
+	DI[$n]["name"]=$2
+	DI[$n]["label"]=$3
+	DI[$n]["glyph"]=$4
+	DI[$n]["key"]=$5
+	DI_N=$((n + 1))
+}
+
+# Read what the desktop shows: apps, ~/Desktop, the trash.
+dt_deskscan() {
+	local a f base g
+
+	DI_N=0
+	DI_SCANT=$EPOCHSECONDS
+	[ "$DT_ICONS" = 1 ] || return 0
+	a := dt_appsorted
+	for a in $a; do
+		dt_iconadd app "$a" "${DT_APPS[$a]["title"]}" \
+			"${DT_APPS[$a]["icon"]}" "app:$a"
+	done
+	if [ -d "$DT_DESK" ]; then
+		for f in "$DT_DESK"/*; do
+			[ -e "$f" ] || [ -L "$f" ] || continue
+			base=${f##*/}
+			if [ -d "$f" ]; then
+				dt_iconadd dir "$f" "$base" "▤▤" "desk:$base"
+			elif [ -x "$f" ]; then
+				dt_iconadd file "$f" "$base" "▶" "desk:$base"
+			else
+				dt_iconadd file "$f" "$base" "▯" "desk:$base"
+			fi
+		done
+	fi
+	g="▽"
+	for f in "$DT_TRASH"/files/* "$DT_TRASH"/files/.*; do
+		[ -e "$f" ] || [ -L "$f" ] || continue
+		case ${f##*/} in . | ..) continue ;; esac
+		g="▼"
+		break
+	done
+	dt_iconadd trash "$DT_TRASH/files" "Trash" "$g" trash
+	dt_iconlay
+}
+
+# Where each icon goes: where it was put, or the next free place down from
+# the top right, a column at a time.
+dt_iconlay() {
+	local i=0 slot=0 per p k r c
+
+	per=$(((DT_ROWS - 2) / 3))
+	[ "$per" -lt 1 ] && per=1
+	while [ "$i" -lt "$DI_N" ]; do
+		k=${DI[$i]["key"]}
+		p=${DT_ICONPOS["$k"]}
+		if [ -n "$p" ]; then
+			r=${p% *}
+			c=${p#* }
+		else
+			r=$((2 + (slot % per) * 3))
+			c=$((DT_COLS - DT_ICONW - 1 - (slot / per) * DT_ICONW))
+			slot=$((slot + 1))
+		fi
+		DI[$i]["r"]=$r
+		DI[$i]["c"]=$c
+		i=$((i + 1))
+	done
+}
+
+dt_icondraw() {
+	local i=0 r c g l
+
+	while [ "$i" -lt "$DI_N" ]; do
+		r=${DI[$i]["r"]}
+		c=${DI[$i]["c"]}
+		g=${DI[$i]["glyph"]}
+		l=${DI[$i]["label"]}
+		[ "${#l}" -gt $((DT_ICONW - 2)) ] && l="${l:0:$((DT_ICONW - 3))}…"
+		case ${DI[$i]["kind"]} in
+		dir) console pen "#f6ad55" "$DT_WALL" bold ;;
+		trash) console pen "$DT_INK" "$DT_WALL" bold ;;
+		*) console pen "$DT_ACTIVE" "$DT_WALL" bold ;;
+		esac
+		console put "$r" $((c + (DT_ICONW - ${#g}) / 2)) "$g"
+		if [ "$i" = "$DI_SEL" ]; then
+			console pen "$DT_FACE" "$DT_ACTIVE" bold
+		else
+			console pen "$DT_INK" "$DT_WALL"
+		fi
+		console put $((r + 1)) $((c + (DT_ICONW - ${#l}) / 2)) "$l"
+		i=$((i + 1))
+	done
+}
+
+# Which icon is at a cell, if any; the last drawn is on top.
+dt_iconat() {
+	local i=$DI_N r c
+
+	while [ "$i" -gt 0 ]; do
+		i=$((i - 1))
+		r=${DI[$i]["r"]}
+		c=${DI[$i]["c"]}
+		if [ "$1" -ge "$r" ] && [ "$1" -le $((r + 1)) ] &&
+		   [ "$2" -ge "$c" ] && [ "$2" -lt $((c + DT_ICONW)) ]; then
+			ret "$i"
+			return 0
+		fi
+	done
+	return 1
+}
+
+# A press on the desktop: select the icon under it, or open it if it was
+# pressed a moment ago.
+dt_iconpress() {
+	local i now
+
+	DI_PRESS=
+	if ! i := dt_iconat "$1" "$2"; then
+		DI_SEL=
+		return 0
+	fi
+	now := dt_ms
+	if [ "$i" = "$DI_SEL" ] && [ $((now - DI_LAST)) -lt 700 ]; then
+		DI_LAST=0
+		dt_iconopen "$i"
+		return 0
+	fi
+	DI_SEL=$i
+	DI_LAST=$now
+	DI_PRESS="$i $1 $2"
+}
+
+# Moving after a press on an icon starts dragging it; letting go without
+# moving is only a click.
+dt_iconmove() {
+	local act=$1 mr=$2 mc=$3 i pr pc src
+
+	if [ "$act" = release ]; then
+		DI_PRESS=
+		return 0
+	fi
+	i=${DI_PRESS%% *}
+	pr=${DI_PRESS#* }
+	pc=${pr#* }
+	pr=${pr% *}
+	if [ "$mr" = "$pr" ] && [ $((mc - pc)) -lt 2 ] &&
+	   [ $((pc - mc)) -lt 2 ]; then
+		return 0
+	fi
+	DI_PRESS=
+	case ${DI[$i]["kind"]} in
+	dir | file) src=${DI[$i]["name"]} ;;
+	*) src=- ;;
+	esac
+	dt_dnd "$src" "${DI[$i]["label"]}" "${DI[$i]["glyph"]}"
+	DT_DNDICON=$i
+	DT_DNDR=$mr
+	DT_DNDC=$mc
+}
+
+# Open what an icon stands for.
+dt_iconopen() {
+	local i=$1
+
+	case ${DI[$i]["kind"]} in
+	app) dt_launch "${DI[$i]["name"]}" ;;
+	dir) dt_launch files "${DI[$i]["name"]}" ;;
+	file) dt_openfile "${DI[$i]["name"]}" ;;
+	trash)
+		mkdir -p "$DT_TRASH/files" 2> /dev/null
+		dt_launch files "$DT_TRASH/files"
+		;;
+	esac
+}
+
+# Put an icon where it was let go, kept on the screen, and remember it.
+dt_iconplace() {
+	local key=$1 r=$2 c=$(($3 - DT_ICONW / 2))
+
+	[ "$r" -lt 1 ] && r=1
+	[ "$r" -gt $((DT_ROWS - 3)) ] && r=$((DT_ROWS - 3))
+	[ "$c" -lt 0 ] && c=0
+	[ "$c" -gt $((DT_COLS - DT_ICONW)) ] && c=$((DT_COLS - DT_ICONW))
+	DT_ICONPOS["$key"]="$r $c"
+	dt_iconlay
+	dt_save
+}
+
+# Something let go over the desktop rather than a window.
+dt_deskdrop() {
+	local mr=$1 mc=$2 src=$3 op=$4 from=$DT_DNDICON i base
+
+	DT_DNDICON=
+	if i := dt_iconat "$mr" "$mc" && [ "$i" != "$from" ]; then
+		[ "$src" = - ] && return 0
+		case ${DI[$i]["kind"]} in
+		trash) dt_trash "$src" ;;
+		dir) dt_fileop "$op" "$src" "${DI[$i]["name"]}" ;;
+		app) dt_launch "${DI[$i]["name"]}" "$src" ;;
+		esac
+		return 0
+	fi
+	if [ -n "$from" ]; then
+		dt_iconplace "${DI[$from]["key"]}" "$mr" "$mc"
+		return 0
+	fi
+	[ "$src" = - ] && return 0
+	mkdir -p "$DT_DESK" 2> /dev/null
+	base=${src##*/}
+	dt_fileop "$op" "$src" "$DT_DESK" &&
+		dt_iconplace "desk:$base" "$mr" "$mc"
+	return 0
 }
 
 # Give a window a new title; an app knows what it is showing better than
