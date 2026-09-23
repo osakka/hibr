@@ -116,7 +116,8 @@ void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 	sigaction(SIGTERM, &sa, 0);
 	hd_selftitle("hold", path);
 
-	l = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+	l = socket(AF_UNIX, SOCK_STREAM, 0);
+	hd_cloexec(l);
 	memset(&a, 0, sizeof a);
 	a.sun_family = AF_UNIX;
 	strncpy(a.sun_path, path, sizeof a.sun_path - 1);
@@ -182,9 +183,11 @@ void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 			}
 		}
 		if (q[0].revents & POLLIN) {
-			int c = accept4(l, 0, 0, SOCK_CLOEXEC);
-			if (c >= 0)
+			int c = accept(l, 0, 0);
+			if (c >= 0) {
+				hd_cloexec(c);
 				cl = hd_conn(c, cl, id, m, &quit);
+			}
 		}
 	}
 	unlink(path);

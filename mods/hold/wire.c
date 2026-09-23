@@ -2,6 +2,7 @@
 
 #include "hd.h"
 #include <errno.h>
+#include <fcntl.h>
 #include <poll.h>
 #include <stdlib.h>
 #include <string.h>
@@ -49,6 +50,23 @@ int hd_nameok(const char *name)
 		      *p == '-'))
 			return 0;
 	return 1;
+}
+
+/* Keep a descriptor out of whatever this process execs next.  SOCK_CLOEXEC,
+   accept4 and pipe2's O_CLOEXEC do this in one call on Linux; this is the
+   POSIX form every platform this runs on has, macOS included, where none
+   of the three exist. A failure here is not worth stopping over -- the
+   descriptor still works, it would just survive an exec that never
+   happens on any path that reaches this module. */
+void hd_cloexec(int fd)
+{
+	int f;
+
+	if (fd < 0)
+		return;
+	f = fcntl(fd, F_GETFD);
+	if (f >= 0)
+		fcntl(fd, F_SETFD, f | FD_CLOEXEC);
 }
 
 /* Say who a process is, from the session's socket path: hibr: hold[desk] for
@@ -188,9 +206,10 @@ int hd_dial(const char *path)
 	struct sockaddr_un a;
 	int fd;
 
-	fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+	fd = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (fd < 0)
 		return -1;
+	hd_cloexec(fd);
 	memset(&a, 0, sizeof a);
 	a.sun_family = AF_UNIX;
 	strncpy(a.sun_path, path, sizeof a.sun_path - 1);

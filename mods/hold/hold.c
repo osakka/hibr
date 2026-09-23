@@ -83,11 +83,13 @@ int hd_new(sh *s, int ac, char **av)
 		sz[0] = w.ws_row;
 		sz[1] = w.ws_col;
 	}
-	if (pipe2(pp, O_CLOEXEC) < 0) {
+	if (pipe(pp) < 0) {
 		lg(HIBR_LERR, "hold: %s", strerror(errno));
 		s_free(&path);
 		return HIBR_FAIL;
 	}
+	hd_cloexec(pp[0]);
+	hd_cloexec(pp[1]);
 	fflush(0);
 	pid = fork();
 	if (pid < 0) {

@@ -26,6 +26,7 @@ int hd_recv(int fd, int *type, str *out);
 int hd_dial(const char *path);
 int hd_ask(const char *path, int type, str *reply);
 void hd_selftitle(const char *what, const char *path);
+void hd_cloexec(int fd);
 
 void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 	      int ready);
