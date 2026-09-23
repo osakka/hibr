@@ -8,14 +8,27 @@
 # yours.
 #
 #     ./build/hibr examples/desktop-session.hibr
+#     ./build/hibr examples/desktop-session.hibr --resume
 #
 # Drag a title bar to move a window, click _ to minimise, □ to fill the
 # screen, x to close.  Tab cycles, escape brings back a minimised window,
-# q quits.
+# q quits.  ctrl-\ or Detach on the hibr menu leaves it running and gives
+# the terminal back; --resume is how you come back to it.
+
+opt .           "hibr's desktop, held so it can always be detached from"
+opt -r --resume resume "Reattach to it if it is already running"
+args "$@"
 
 d=${0%/*}
 [ "$d" = "$0" ] && d=.
 . "$d/desktop.hibr"
+
+# So Detach and ctrl-\ always work: if this is not already a held session,
+# restart it as one, named "desktop", and attach to it right here.  Without
+# --resume, one already running is left alone rather than reattached to
+# quietly -- run again with it to come back.  See dt_autohold in
+# desktop.hibr for what "always" leaves out.
+dt_autohold desktop "$resume"
 
 # Apps are ordinary hibr files, found in folders: your own
 # ~/.config/hibr/apps first, then the ones that come with hibr.  Each file

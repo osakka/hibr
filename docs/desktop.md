@@ -108,21 +108,42 @@ are the only two keys the desktop takes from a program: see the amendment in
 
 ## Detaching, and coming back
 
-Start the desktop held, and it outlives the terminal it was started on:
+The shipped session holds itself, so this is already detachable:
 
-    hold new desk hibr examples/desktop-session.hibr
+    hibr examples/desktop-session.hibr
 
 **ctrl-\\** detaches, and so does **Detach** on the hibr menu; the desktop
 keeps running, terminal windows and whatever runs in them included. Log off,
 log in somewhere else, and
 
-    hold attach desk
+    hibr examples/desktop-session.hibr --resume
 
-puts it back on the new terminal exactly as it was, redrawn in full. Closing
-the terminal or losing an ssh connection detaches too. `hold list` shows what
-is running and `hold kill desk` ends it. Started without `hold`, Detach is on
-the menu, dimmed, so the menu does not change shape. See
-[`mods/hold/README.md`](../mods/hold/README.md) for how it works.
+comes back to it exactly as it was, redrawn in full -- the same command,
+with one flag, from anywhere. Closing the terminal or losing an ssh
+connection detaches too. Running it again *without* `--resume` while it is
+already running does not start a second, independent desktop under the same
+name; it says so and leaves the running one alone, since a bare rerun is as
+likely to be forgetting it is there as it is to mean "and another one."
+
+Underneath, this is a session held by name -- `hold list` shows it as
+`desktop`, and `hold kill desktop` ends it outright. A session gets this by
+calling `dt_autohold` once, before `dt_open`, with a name and whether it was
+asked to resume:
+
+```sh
+opt -r --resume resume "Reattach to it if it is already running"
+args "$@"
+. desktop.hibr
+dt_autohold desktop "$resume"
+```
+
+It does nothing, quietly, wherever holding cannot make sense -- no `hold`
+module, no real terminal to attach from -- or if starting one fails, so a
+session that calls it is never worse off than one that does not: Detach
+stays dimmed and the desktop opens in this terminal as it always did. See
+[`mods/hold/README.md`](../mods/hold/README.md) for how holding itself
+works, and `hold attach desk`/`hold new desk ...` directly if you would
+rather manage that yourself, under a name of your own.
 
 ## Keys that would be signals
 
@@ -214,6 +235,15 @@ request lasts one frame, so a game that is paused, hidden or not focused
 stops asking and the desktop goes back to idling. Step on the clock, not on
 frames: frames also come with every key, and a snake that moved once per
 frame would sprint while an arrow is held. `$EPOCHREALTIME` is the clock.
+
+**A window that is done asks to be closed, from its own `_draw`, with
+`dt_wantclose id`.** The terminal calls it once the program inside has
+exited cleanly, instead of leaving `[exited 0 — close this window]` sitting
+there for someone to close by hand; it still shows the message and waits to
+be closed for a nonzero exit, since that is worth seeing before the window
+goes. The close itself happens once the frame that asked is fully drawn, not
+from inside `_draw` -- calling `dt_del` there would pull the window's pane
+out from under the border the frame still has left to draw over it.
 
 ## The apps
 

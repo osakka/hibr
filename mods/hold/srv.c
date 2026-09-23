@@ -114,6 +114,7 @@ void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 	memset(&sa, 0, sizeof sa);
 	sa.sa_handler = hd_onterm;
 	sigaction(SIGTERM, &sa, 0);
+	hd_selftitle("hold", path);
 
 	l = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
 	memset(&a, 0, sizeof a);

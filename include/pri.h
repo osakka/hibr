@@ -253,6 +253,7 @@ int b_match(sh *s, int ac, char **av);
 char *hx_expand(sh *s, const char *line, int *changed, int *bad);
 void pt_init(int ac, char **av);
 void pt_claim(void);
+void pt_rename(const char *name);
 int b_title(sh *s, int ac, char **av);
 int b_opt(sh *s, int ac, char **av);
 int b_args(sh *s, int ac, char **av);

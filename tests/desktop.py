@@ -340,72 +340,15 @@ check("escape ends the mode, keeping what it did",
 
 # --- icons on the desktop -------------------------------------------------
 #
-# 24 rows hold seven icons to a column.  The first column, at column 67, is
-# the apps Bricks to Snake; the second, at 55, is Terminal, then what is in
-# the Desktop folder -- notes.txt, project/ -- then the trash.
+# A clean desktop: Home, the disks (faked here through DT_MOUNTS, so the
+# suite does not report on whatever is really mounted where it runs), and
+# the trash.  One column at column 67: Home at row 2, the first disk at 5,
+# the second at 8, the trash at 11 -- or at 5, with disks off.
 
 APPS = 'DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/apps")
 
-
-def desk():
-    d = tempfile.mkdtemp(prefix="hibr-desk-")
-    for sub in ("Desktop/project", "conf", "trash", "src"):
-        os.makedirs(os.path.join(d, sub))
-    open(os.path.join(d, "Desktop", "notes.txt"), "w").write("hi\n")
-    open(os.path.join(d, "src", "moveme.txt"), "w").write("x\n")
-    env = {"XDG_DESKTOP_DIR": os.path.join(d, "Desktop"),
-           "XDG_CONFIG_HOME": os.path.join(d, "conf")}
-    pre = APPS + "DT_TRASH=%s\n" % os.path.join(d, "trash")
-    return d, env, pre
-
-d, env, pre = desk()
-sc, raw = run("", env=env, pre=pre)
-check("the apps, the Desktop folder and the trash are icons on the desktop",
-      sc.find("Bricks") == (3, 70) and sc.find("Terminal") == (3, 57) and
-      sc.find("notes.txt") == (6, 56) and sc.find("project") == (9, 57) and
-      sc.find("Trash") == (12, 58), sc)
-
-sc, raw = run("", feed=[press(3, 70), press(3, 70)], env=env, pre=pre)
-check("a double click on an app's icon opens it",
-      sc.find("┤ Bricks ├") is not None, sc)
-sc, raw = run("", feed=[press(9, 60), press(9, 60)], env=env, pre=pre)
-check("and on a folder's opens it in Files",
-      sc.find("Desktop/project") is not None, sc)
-
-sc, raw = run("", feed=[press(6, 60), drag(6, 64), drag(11, 60),
-                        release(11, 60)], env=env, pre=pre)
-check("a file's icon dragged onto the trash is thrown away",
-      os.path.exists(os.path.join(d, "trash", "files", "notes.txt")) and
-      sc.find("notes.txt") != (6, 56) and sc.find("▼") is not None and
-      sc.find("Moved notes.txt to the trash") is not None, sc)
-
-sc, raw = run("", feed=[press(3, 70), drag(3, 74), drag(15, 20),
-                        release(15, 20)], env=env, pre=pre)
-conf = open(os.path.join(d, "conf", "hibr", "desktop.hibr")).read()
-# It keeps where it was held: grabbed at (3, 70) and let go at (15, 20), it
-# has moved twelve rows down and fifty columns left.
-check("an icon dragged somewhere empty stays where it was put",
-      sc.find("Bricks") == (15, 20) and "dt_iconpos app:bricks" in conf, sc)
-sc, raw = run("", env=env, pre=pre)
-check("and is there again at the next start", sc.find("Bricks") == (15, 20),
-      sc)
-
-sc, raw = run('dt_new "Files" 10 34 2 2 files', env=env,
-              pre=pre + "FB_DIR=%s\n" % os.path.join(d, "src"),
-              feed=[press(5, 5), drag(5, 9), drag(19, 10), release(19, 10)])
-check("a file dragged out of a window onto the desktop goes to ~/Desktop",
-      os.path.exists(os.path.join(d, "Desktop", "moveme.txt")) and
-      not os.path.exists(os.path.join(d, "src", "moveme.txt")) and
-      sc.find("moveme.txt") is not None, sc)
-shutil.rmtree(d, True)
-
-# Choosing more than one.  The second column holds Terminal at row 2,
-# notes.txt at 5, project/ at 8 and the trash at 11; a band from (4, 50) to
-# (10, 60) touches notes.txt and project/ and nothing else.  With no window
-# focused, alt-c copies the paths of what is selected, which says exactly
-# what that is.
-
 import base64
+
 
 def copied(raw):
     i = raw.rfind(b"\x1b]52;c;")
@@ -413,44 +356,123 @@ def copied(raw):
         return ""
     return base64.b64decode(raw[i + 7:raw.index(b"\x07", i)]).decode()
 
-d, env, pre = desk()
-NOTES = os.path.join(d, "Desktop", "notes.txt")
-PROJ = os.path.join(d, "Desktop", "project")
-BAND = [press(4, 50), drag(7, 55), drag(10, 60), release(10, 60)]
+
+def desk():
+    d = tempfile.mkdtemp(prefix="hibr-desk-")
+    home, backup, usb, src = (os.path.join(d, n)
+                              for n in ("h", "backup", "usb", "src"))
+    for sub in (home, backup, usb, src, os.path.join(d, "conf"),
+                os.path.join(d, "trash")):
+        os.makedirs(sub)
+    open(os.path.join(src, "moveme.txt"), "w").write("x\n")
+    mounts = os.path.join(d, "mounts")
+    open(mounts, "w").write("/dev/sda1 %s ext4 rw 0 0\n"
+                            "/dev/sdb1 %s btrfs rw 0 0\n" % (backup, usb))
+    env = {"HOME": home, "DT_MOUNTS": mounts,
+           "XDG_CONFIG_HOME": os.path.join(d, "conf")}
+    pre = APPS + "DT_TRASH=%s\n" % os.path.join(d, "trash")
+    return d, env, pre, home, backup, usb, src
+
+
+d, env, pre, home, backup, usb, src = desk()
+sc, raw = run("", env=env, pre=pre)
+check("home, the disks and the trash are the desktop's icons",
+      sc.find("Home") == (3, 71) and sc.find("backup") == (6, 70) and
+      sc.find("usb") == (9, 71) and sc.find("Trash") == (12, 70), sc)
+
+sc, raw = run("", env=env, pre=pre + "DT_DISKS=0\n")
+check("and disks off leaves just home and the trash, moved up to meet it",
+      sc.find("Home") == (3, 71) and sc.find("Trash") == (6, 70) and
+      sc.find("backup") is None, sc)
+
+sc, raw = run("", feed=[press(3, 70), press(3, 70)], env=env, pre=pre)
+check("a double click on home opens it in Files", sc.find(home) is not None,
+      sc)
+sc, raw = run("", feed=[press(6, 70), press(6, 70)], env=env, pre=pre)
+check("and on a disk opens it there", sc.find(backup) is not None, sc)
+
+sc, raw = run('dt_new "Files" 10 34 2 2 files', env=env,
+              pre=pre + "FB_DIR=%s\n" % src,
+              feed=[press(5, 5), drag(5, 9), drag(12, 70), release(12, 70)])
+check("a file dragged from a window onto the trash icon is thrown away",
+      os.path.exists(os.path.join(d, "trash", "files", "moveme.txt")) and
+      sc.find("Moved moveme.txt to the trash") is not None, sc)
+shutil.rmtree(d, True)
+
+d, env, pre, home, backup, usb, src = desk()
+sc, raw = run("", feed=[b"\x1b[3~"], env=env, pre=pre)
+check("delete on home selected does nothing -- it is not a file to lose",
+      os.path.isdir(home) and sc.find("Home") is not None, sc)
+sc, raw = run("", feed=[press(3, 70), drag(3, 74), drag(12, 70),
+                        release(12, 70)], env=env, pre=pre)
+check("nor does dragging its icon onto the trash",
+      os.path.isdir(home) and sc.find("Home") is not None, sc)
+shutil.rmtree(d, True)
+
+d, env, pre, home, backup, usb, src = desk()
+sc, raw = run("", feed=[press(3, 70), drag(3, 74), drag(15, 20),
+                        release(15, 20)], env=env, pre=pre)
+conf = open(os.path.join(d, "conf", "hibr", "desktop.hibr")).read()
+# It keeps where it was held: grabbed at (3, 70) and let go at (15, 20), it
+# has moved twelve rows down and fifty columns left.
+check("an icon dragged somewhere empty stays where it was put",
+      sc.find("Home") == (15, 21) and "dt_iconpos home" in conf, sc)
+sc, raw = run("", env=env, pre=pre)
+check("and is there again at the next start", sc.find("Home") == (15, 21),
+      sc)
+shutil.rmtree(d, True)
+
+# Choosing more than one, over the two disks: a band from (4, 60) to
+# (10, 79) touches both and neither Home nor the trash.  With no window
+# focused, alt-c copies the paths of what is selected, which says exactly
+# what that is.
+
+d, env, pre, home, backup, usb, src = desk()
+BAND = [press(4, 60), drag(7, 65), drag(10, 79), release(10, 79)]
 sc, raw = run("", feed=BAND + [b"\x1bc"], env=env, pre=pre)
 check("a band drawn across the desktop selects what it touches",
-      copied(raw) == NOTES + "\n" + PROJ, sc)
-sc, raw = run("", feed=[press(6, 60), press(9, 60, 16), b"\x1bc"], env=env,
+      copied(raw) == backup + "\n" + usb, sc)
+sc, raw = run("", feed=[press(6, 70), press(9, 70, 16), b"\x1bc"], env=env,
               pre=pre)
-check("and ctrl with a click adds an icon", copied(raw) == NOTES + "\n" + PROJ,
+check("and ctrl with a click adds an icon", copied(raw) == backup + "\n" + usb,
       sc)
 
-sc, raw = run("", feed=BAND + [press(6, 60), drag(6, 64), drag(15, 20),
+sc, raw = run("", feed=BAND + [press(6, 70), drag(6, 74), drag(15, 20),
                                release(15, 20)], env=env, pre=pre)
 check("a selection dragged somewhere empty keeps its arrangement",
-      sc.find("notes.txt") == (15, 16) and sc.find("project") == (18, 17), sc)
+      sc.find("backup") == (15, 20) and sc.find("usb") == (18, 21), sc)
 shutil.rmtree(d, True)
 
-d, env, pre = desk()
+# The first arrow press with nothing yet selected only picks Home, where the
+# cursor already conceptually was; it is the second press that actually
+# moves, from Home to the first disk.
+d, env, pre, home, backup, usb, src = desk()
 sc, raw = run("", feed=[b"\x1b[B", b"\x1b[B", b"\r"], env=env, pre=pre)
 check("with no window focused the arrows go from icon to icon, enter opens",
-      sc.find("┤ Calculator ├") is not None, sc)
-sc, raw = run("", feed=[b"\x1b[B", b"\x1b[D", b"\x1b[B", b"\x1b[1;2B",
-                        b"\x1b[3~"], env=env, pre=pre)
-check("shift with them extends, and delete throws the files away",
-      os.path.exists(os.path.join(d, "trash", "files", "notes.txt")) and
-      os.path.exists(os.path.join(d, "trash", "files", "project")) and
-      sc.find("Moved 2 items to the trash") is not None, sc)
+      sc.find(backup) is not None, sc)
+
+# Home and a disk are both place icons, so neither is ever a file delete can
+# lose; shift extends the selection across them regardless, provable by
+# copying rather than deleting.
+sc, raw = run("", feed=[b"\x1b[B", b"\x1b[1;2B", b"\x1bc"], env=env, pre=pre)
+check("shift with them extends the selection across kinds too",
+      copied(raw) == home + "\n" + backup, sc)
+sc, raw = run("", feed=[b"\x1b[B", b"\x1b[1;2B", b"\x1b[3~"], env=env,
+              pre=pre)
+check("and delete leaves both alone -- neither is a file to lose",
+      os.path.isdir(home) and os.path.isdir(backup) and
+      sc.find("Home") is not None, sc)
 shutil.rmtree(d, True)
 
-d, env, pre = desk()
-BAND = [press(4, 50), drag(7, 55), drag(10, 60), release(10, 60)]
-sc, raw = run("", feed=BAND + [press(6, 60), drag(6, 64), drag(11, 58),
-                               release(11, 58)], env=env, pre=pre)
-NOTES = os.path.join(d, "Desktop", "notes.txt")
-check("and a selection dragged onto the trash goes there together",
-      os.path.exists(os.path.join(d, "trash", "files", "notes.txt")) and
-      os.path.exists(os.path.join(d, "trash", "files", "project")), sc)
+# The same for a drag: a selection of place icons dropped on the trash is
+# refused whole, not just its first, unsafe icon.
+d, env, pre, home, backup, usb, src = desk()
+BAND = [press(4, 60), drag(7, 65), drag(10, 79), release(10, 79)]
+sc, raw = run("", feed=BAND + [press(6, 70), drag(6, 74), drag(11, 68),
+                               release(11, 68)], env=env, pre=pre)
+check("dragging a selection of them onto the trash loses neither",
+      os.path.isdir(backup) and os.path.isdir(usb) and
+      sc.find("backup") is not None and sc.find("usb") is not None, sc)
 shutil.rmtree(d, True)
 
 # --- breaks, saved settings, and a session that outlives its terminal ----
@@ -557,4 +579,55 @@ check("quitting a held desktop ends the session",
       b"[desk ended, status 0]" in t.out and b"back 0" in t.out, t.out.decode(errors="replace"))
 t.close()
 
-report(101)
+# --- the shipped session holds itself, and --resume comes back to it -----
+#
+# examples/desktop-session.hibr calls dt_autohold on its own, so running it
+# plainly makes it detachable without anyone asking hold for that by hand;
+# running it again without --resume must not start a second, independent
+# one under the same name, and --resume is how you get back to it.
+
+RESUME = tempfile.mkdtemp(prefix="hibr-resume-")
+RENV = {"HOME": RESUME, "TMPDIR": RESUME,
+        "XDG_CONFIG_HOME": os.path.join(RESUME, "config"),
+        "XDG_STATE_HOME": os.path.join(RESUME, "state"),
+        "XDG_DATA_HOME": os.path.join(RESUME, "data"),
+        "XDG_DESKTOP_DIR": os.path.join(RESUME, "Desktop")}
+SESSION = tree("examples/desktop-session.hibr")
+
+
+def unresume():
+    import subprocess
+    subprocess.run([screen.HIBR, "-c", HOLDC + "hold kill desktop"],
+                   env=dict(os.environ, **RENV), capture_output=True)
+    shutil.rmtree(RESUME, True)
+
+
+atexit.register(unresume)
+
+t = Term(SESSION, env=RENV, settle=2.0)
+sc = t.screen()
+check("run plainly, the shipped session is already detachable",
+      sc.find("Files") is not None and sc.find("Calculator") is not None, sc)
+t.send(b"\x1c", settle=0.6)
+check("and ctrl-\\ detaches it", b"[desktop: detached" in t.out,
+      t.out.decode(errors="replace"))
+t.close()
+
+t = Term(SESSION, env=RENV, settle=1.5)
+out = t.out.decode(errors="replace")
+check("run again without --resume, it refuses rather than starting a second",
+      "desktop is already running" in out and "--resume" in out, out)
+t.close()
+
+t = Term(SESSION, "--resume", env=RENV, settle=2.0)
+sc = t.screen()
+check("--resume comes back to the same desktop, windows and all",
+      sc.find("Files") is not None and sc.find("Calculator") is not None, sc)
+t.send(b"q", settle=1.0)
+t.collect(0.5)
+check("and quitting it from there ends the whole session",
+      b"[desktop ended, status 0]" in t.out, t.out.decode(errors="replace"))
+t.close()
+unresume()
+
+report(105)

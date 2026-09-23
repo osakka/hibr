@@ -25,6 +25,7 @@ int hd_send(int fd, int type, const char *p, size_t n);
 int hd_recv(int fd, int *type, str *out);
 int hd_dial(const char *path);
 int hd_ask(const char *path, int type, str *reply);
+void hd_selftitle(const char *what, const char *path);
 
 void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 	      int ready);

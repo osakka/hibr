@@ -18,6 +18,12 @@
 
 need display || { echo "desktop: no display available" >&2; exit 1; }
 
+# The session's own arguments, captured here at the top level where $@ is
+# still theirs: a function sees its own, and dt_autohold needs to hand these
+# back to a fresh copy of itself.  $0 needs no such capture -- it is one
+# value on the shell itself, the same in a function as at the top.
+DT_SELFARGS=("$@")
+
 DT_NEXT=1
 DT_FOCUS=
 DT_DRAG=
@@ -56,7 +62,7 @@ DT_GLYPH="${DT_GLYPH-·}"
 # variable of its own kept names it with dt_keep.
 DT_CONF="${DT_CONF-${XDG_CONFIG_HOME:-$HOME/.config}/hibr/desktop.hibr}"
 DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
-	DT_TICK DT_ICONS)
+	DT_TICK DT_ICONS DT_DISKS)
 
 # Where the desktop's stderr goes while it holds the screen, so an app's
 # error message cannot scribble over the display, and the reason for a
@@ -100,6 +106,7 @@ dt_save() {
 # left by Quit, never by a stray interrupt, and the key goes to the focused
 # window -- which is how a program in a terminal window gets its ctrl-c.
 dt_open() {
+	title "hibr: desktop"
 	dt_load
 	console open || return 1
 	console signals off
@@ -111,9 +118,6 @@ dt_open() {
 		exec {DT_ERR}>&2 2>> "$DT_LOG"
 	fi
 	dt_size
-	if [ "$DT_ICONS" = 1 ] && ! [ -d "$DT_DESK" ]; then
-		mkdir -p "$DT_DESK" 2> /dev/null
-	fi
 	dt_deskscan
 }
 
@@ -160,6 +164,7 @@ dt_new() {
 	DT[$id]["col"]="$5"
 	DT[$id]["app"]="$ap"
 	DT[$id]["min"]=0
+	DT[$id]["autoclose"]=
 	for f in draw key click mouse wheel open close copy paste drop \
 		refresh; do
 		if [ -n "$ap" ] && dt_has "${ap}_$f"; then
@@ -188,6 +193,23 @@ dt_del() {
 		l=${l##* }
 		DT_FOCUS=${l#w}
 	fi
+}
+
+# An app calls this from its own _draw to ask that its window be closed --
+# the terminal does, once the program inside has ended cleanly -- rather
+# than calling dt_del there itself, which would pull the pane out from under
+# the border dt_win still has left to draw over it.
+dt_wantclose() {
+	DT[$1]["autoclose"]=1
+}
+
+# Close whatever asked to be, once the frame it asked in is fully drawn.
+dt_autoclose() {
+	local id
+
+	for id in "${!DT[@]}"; do
+		[ -n "${DT[$id]["autoclose"]}" ] && dt_del "$id"
+	done
 }
 
 # Show or hide a window without destroying it.  A minimised window has no
@@ -644,6 +666,7 @@ dt_run() {
 	local k
 	while [ "$DT_QUIT" = 0 ]; do
 		dt_draw
+		dt_autoclose
 		k := console key "${DT_WANT:-${DT_TICK-200}}"
 		if console resized; then
 			dt_size
@@ -1242,22 +1265,27 @@ dt_openfile() {
 
 # --- icons on the desktop ----------------------------------------------------
 #
-# The apps, in the order of the hibr menu, then whatever is in ~/Desktop,
-# then the trash -- laid out down from the top right, where the Mac put
-# them.  A double click opens one.  A click selects, ctrl adds or takes
-# away, shift takes a run, and a drag across the empty desktop draws a band
-# that selects what it touches.  Dragging a selection somewhere empty moves
-# the icons there, keeping their arrangement; onto the trash, a folder or an
-# app it does what that means; onto a window, it hands the files over.  With
-# no window focused the arrows move between icons, shift with them extends,
-# space picks one, enter opens and delete throws away.  DT_ICONS=0 turns
-# them off.
+# A clean desktop: Home, the disks if DT_DISKS wants them, and the trash --
+# laid out down from the top right, where the Mac put them.  Nothing else.
+# Apps stay in the hibr menu; the desktop is not a second copy of a folder,
+# so no file ever gets an icon of its own just for having been put somewhere.
+#
+# A double click opens one -- Home and a disk in Files, the trash in Files
+# on what it holds.  A click selects, ctrl adds or takes away, shift takes a
+# run, and a drag across the empty desktop draws a band that selects what it
+# touches.  Dragging a selection moves the icons themselves: somewhere empty
+# keeps their arrangement, onto the trash or a disk hands over whatever files
+# it carries, onto a window hands the files to that window.  With no window
+# focused the arrows move between icons, shift with them extends, space
+# picks one, enter opens and delete throws away.  DT_ICONS=0 turns every
+# icon off; DT_DISKS=0 leaves Home and the trash but drops the disks.
 #
 # What is selected is kept by the icon's key, not its place in the list, so
-# the folder being read again every few seconds does not move it elsewhere.
+# a rescan -- the disks can change without anyone dragging anything -- does
+# not move it to a different icon.
 
 DT_ICONS="${DT_ICONS-1}"
-DT_DESK="${DT_DESK-${XDG_DESKTOP_DIR:-$HOME/Desktop}}"
+DT_DISKS="${DT_DISKS-1}"
 DT_ICONW=12
 declare -gA DT_ICONPOS
 declare -gA DI
@@ -1299,31 +1327,15 @@ dt_iconadd() {
 	DI_N=$((n + 1))
 }
 
-# Read what the desktop shows: apps, ~/Desktop, the trash.
+# Read what the desktop shows: home, the disks if wanted, the trash.
 dt_deskscan() {
-	local a f base g
+	local f g
 
 	DI_N=0
 	DI_SCANT=$EPOCHSECONDS
 	[ "$DT_ICONS" = 1 ] || return 0
-	a := dt_appsorted
-	for a in $a; do
-		dt_iconadd app "$a" "${DT_APPS[$a]["title"]}" \
-			"${DT_APPS[$a]["icon"]}" "app:$a"
-	done
-	if [ -d "$DT_DESK" ]; then
-		for f in "$DT_DESK"/*; do
-			[ -e "$f" ] || [ -L "$f" ] || continue
-			base=${f##*/}
-			if [ -d "$f" ]; then
-				dt_iconadd dir "$f" "$base" "▤▤" "desk:$base"
-			elif [ -x "$f" ]; then
-				dt_iconadd file "$f" "$base" "▶" "desk:$base"
-			else
-				dt_iconadd file "$f" "$base" "▯" "desk:$base"
-			fi
-		done
-	fi
+	dt_iconadd place "$HOME" "Home" "⌂" home
+	[ "$DT_DISKS" = 1 ] && dt_diskscan
 	g="▽"
 	for f in "$DT_TRASH"/files/* "$DT_TRASH"/files/.*; do
 		[ -e "$f" ] || [ -L "$f" ] || continue
@@ -1333,6 +1345,31 @@ dt_deskscan() {
 	done
 	dt_iconadd trash "$DT_TRASH/files" "Trash" "$g" trash
 	dt_iconlay
+}
+
+# Real, mounted disks: a filesystem backed by an actual block device, so
+# tmpfs, proc, cgroups and the dozen other things a modern kernel mounts
+# never turn up as one.  DT_MOUNTS is /proc/mounts, overridable so a test can
+# hand this a file of its own rather than reporting on whatever is real.
+# Reading it is one open and a loop of reads, never a fork.
+DT_MOUNTS="${DT_MOUNTS-/proc/mounts}"
+DT_DISKFS="${DT_DISKFS-ext2 ext3 ext4 xfs btrfs vfat exfat ntfs ntfs3 \
+iso9660 udf zfs hfsplus apfs}"
+dt_diskscan() {
+	local dev mnt fs rest lbl
+
+	[ -r "$DT_MOUNTS" ] || return 0
+	while IFS=' ' read -r dev mnt fs rest; do
+		case $dev in /dev/*) ;; *) continue ;; esac
+		case " $DT_DISKFS " in *" $fs "*) ;; *) continue ;; esac
+		mnt=${mnt//\\040/ }
+		if [ "$mnt" = / ]; then
+			lbl=/
+		else
+			lbl=${mnt##*/}
+		fi
+		dt_iconadd place "$mnt" "$lbl" "▥" "disk:$mnt"
+	done < "$DT_MOUNTS"
 }
 
 # Where each icon goes: where it was put, or the next free place down from
@@ -1470,7 +1507,11 @@ dt_iconsel() {
 	ret "${out# }"
 }
 
-# The files behind a list of icons; apps and the trash have none.
+# The files behind a list of icons, for a drag or a delete: only a kind that
+# means "a disposable file" hands one back.  place -- Home, a disk -- never
+# does, or dragging Home onto the trash would trash the whole home directory;
+# neither does trash itself.  Nothing makes a dir or file icon right now, but
+# the kind is kept for whatever eventually does.
 dt_iconpaths() {
 	local i
 
@@ -1635,9 +1676,7 @@ dt_iconopen() {
 	local i=$1
 
 	case ${DI[$i]["kind"]} in
-	app) dt_launch "${DI[$i]["name"]}" ;;
-	dir) dt_launch files "${DI[$i]["name"]}" ;;
-	file) dt_openfile "${DI[$i]["name"]}" ;;
+	place) dt_launch files "${DI[$i]["name"]}" ;;
 	trash)
 		mkdir -p "$DT_TRASH/files" 2> /dev/null
 		dt_launch files "$DT_TRASH/files"
@@ -1663,9 +1702,12 @@ dt_iconplace() {
 	dt_save
 }
 
-# Something let go over the desktop rather than a window.
+# Something let go over the desktop rather than a window: onto an icon, it
+# does what that icon means for files; onto empty wallpaper, a selection of
+# icons being dragged is repositioned there, and files from anywhere else are
+# refused -- the background holds no files of its own to receive them.
 dt_deskdrop() {
-	local mr=$1 mc=$2 op=$3 from=$DT_DNDICON at=$DT_DNDFROM i dr dc p k r
+	local mr=$1 mc=$2 op=$3 from=$DT_DNDICON at=$DT_DNDFROM i dr dc p r
 
 	shift 3
 	DT_DNDICON=
@@ -1677,8 +1719,7 @@ dt_deskdrop() {
 			[ $# -gt 0 ] || return 0
 			case ${DI[$i]["kind"]} in
 			trash) dt_trash "$@" ;;
-			dir) dt_fileop "$op" "${DI[$i]["name"]}" "$@" ;;
-			app) for p in "$@"; do dt_launch "${DI[$i]["name"]}" "$p"; done ;;
+			place) dt_fileop "$op" "${DI[$i]["name"]}" "$@" ;;
 			esac
 			return 0
 			;;
@@ -1696,19 +1737,7 @@ dt_deskdrop() {
 		dt_save
 		return 0
 	fi
-	[ $# -gt 0 ] || return 0
-	[ -d "$DT_DESK" ] || mkdir -p "$DT_DESK" 2> /dev/null
-	dt_fileop "$op" "$DT_DESK" "$@"
-	r=$mr
-	for p in "$@"; do
-		k="desk:${p##*/}"
-		if [ -e "$DT_DESK/${p##*/}" ] && [ -z "${DT_ICONPOS["$k"]}" ]; then
-			dt_iconset "$k" "$r" $((mc - DT_ICONW / 2))
-			r=$((r + 3))
-		fi
-	done
-	dt_iconlay
-	dt_save
+	[ $# -gt 0 ] && dt_note "Drop onto Home, a disk, or the trash"
 }
 
 # The icon nearest the current one in a direction: what is that way, and of
@@ -1798,12 +1827,15 @@ dt_iconkey() {
 
 # What the desktop copies: the paths of the selected files, one to a line.
 dt_iconcopy() {
-	local sel p out=
+	local sel i out=
 
 	sel := dt_iconsel || return 1
-	dt_iconpaths "$sel"
-	[ "${#DT_PATHS[@]}" -gt 0 ] || return 1
-	for p in "${DT_PATHS[@]}"; do out="$out$p"$'\n'; done
+	for i in $sel; do
+		case ${DI[$i]["kind"]} in
+		place | dir | file) out="$out${DI[$i]["name"]}"$'\n' ;;
+		esac
+	done
+	[ -n "$out" ] || return 1
 	ret "${out%$'\n'}"
 }
 
@@ -1852,8 +1884,62 @@ dt_edit() {
 	dt_note "Copied ${#t} characters"
 }
 
+# --- staying detachable ----------------------------------------------------
+#
+# Detach only works when the desktop is a held session.  A session calls
+# dt_autohold once, before dt_open, to make sure it always is: if it is not
+# already held, this restarts it -- the same command, the same arguments --
+# inside one, under a free name, and attaches to it right here, so from the
+# terminal it looks exactly like the desktop just starting.  This process
+# then takes on whatever the held one ends with, and the desktop nothing
+# else has changed about runs there instead.
+#
+# It does nothing, quietly, wherever holding cannot make sense -- no hold
+# module, no real terminal to attach from -- or if starting one fails for any
+# reason, so a session that calls it is never worse off than one that does
+# not: Detach stays dimmed and the desktop opens here as it always did.
+#
+# A name already running is left alone unless resume asks for it -- coming
+# back to the same desktop should be something a session's own --resume
+# flag says plainly, not something a bare rerun does on its own guess.
+
+# Every session name already in use, space separated.
+dt_holdnames() {
+	local lst line out=
+
+	lst := hold list
+	while IFS= read -r line; do
+		[ -n "$line" ] && out="$out ${line%% *}"
+	done <<< "$lst"
+	ret "${out# }"
+}
+
+dt_autohold() {
+	local base=${1:-desktop} resume=$2 have
+
+	[ -n "$HIBR_HOLD" ] && return 0
+	[ -t 0 ] && [ -t 1 ] || return 0
+	need hold || return 0
+	have := dt_holdnames
+	case " $have " in
+	*" $base "*)
+		if [ "$resume" = 1 ]; then
+			hold attach "$base"
+			exit $?
+		fi
+		echo "$0: $base is already running -- add --resume to reattach," \
+			"or run 'hold attach $base' directly" >&2
+		exit 1
+		;;
+	esac
+	hold new -d "$base" hibr "$0" "${DT_SELFARGS[@]}" || return 0
+	hold attach "$base"
+	exit $?
+}
+
 # Leave the desktop running and give the terminal back.  Only a desktop
-# started with `hold new` can, which is why the item is dimmed otherwise.
+# started with `hold new` can, which is why the item is dimmed otherwise --
+# dt_autohold is what makes that true from the moment this one opens.
 dt_detach() {
 	need hold && hold detach
 }

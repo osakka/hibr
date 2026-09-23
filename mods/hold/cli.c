@@ -76,6 +76,7 @@ int hd_attach(const char *name, const char *path)
 		lg(HIBR_LERR, "hold: %s: the session did not answer", name);
 		return 1;
 	}
+	hd_selftitle("attached", path);
 	fflush(0);
 	raw = sv;
 	cfmakeraw(&raw);

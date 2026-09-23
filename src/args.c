@@ -60,11 +60,35 @@ void pt_claim(void)
 	lg(HIBR_LDBG, "environment copied off the argv region");
 }
 
+/* Rename the running process everywhere it shows: the argv region ps reads,
+   and the kernel's short name /proc/pid/comm and top's default column read.
+   Shared by the `title` builtin and by hibr_title, so a module can say who
+   it is the same way a script does -- hold uses it for the server it forks
+   and the terminal that attaches to one, neither of which is a script. */
+void pt_rename(const char *name)
+{
+	size_t room, n;
+
+	if (!pt_start || pt_end <= pt_start)
+		return;
+	pt_claim();
+	n = strlen(name);
+	room = (size_t)(pt_end - pt_start);
+	memset(pt_start, 0, room);
+	memcpy(pt_start, name, n < room - 1 ? n : room - 1);
+#ifdef __linux__
+	prctl(PR_SET_NAME, (unsigned long)name, 0, 0, 0);
+#elif defined(__APPLE__)
+	pthread_setname_np(name);
+#endif
+	lg(HIBR_LDBG, "process title now %s", name);
+}
+
 /* Rename the running process as seen by ps and top. */
 int b_title(sh *s, int ac, char **av)
 {
 	str t;
-	size_t room, i;
+	size_t i;
 
 	(void)s;
 	if (ac < 2) {
@@ -75,24 +99,21 @@ int b_title(sh *s, int ac, char **av)
 		lg(HIBR_LERR, "title: argv region unavailable");
 		return HIBR_FAIL;
 	}
-	pt_claim();
 	s_init(&t);
 	for (i = 1; i < (size_t)ac; i++) {
 		if (t.n)
 			s_ch(&t, ' ');
 		s_cat(&t, av[i]);
 	}
-	room = (size_t)(pt_end - pt_start);
-	memset(pt_start, 0, room);
-	memcpy(pt_start, t.p, t.n < room - 1 ? t.n : room - 1);
-#ifdef __linux__
-	prctl(PR_SET_NAME, (unsigned long)t.p, 0, 0, 0);
-#elif defined(__APPLE__)
-	pthread_setname_np(t.p);
-#endif
-	lg(HIBR_LDBG, "process title now %s", t.p);
+	pt_rename(t.p);
 	s_free(&t);
 	return HIBR_OK;
+}
+
+/* The same rename, for a module rather than a script. */
+void hibr_title(const char *name)
+{
+	pt_rename(name);
 }
 
 /* Release the option specifications. */

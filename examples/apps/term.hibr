@@ -68,8 +68,12 @@ term_draw() {
 	t=${TW[$id]["t"]}
 	term poll "$t" 0
 	if ! term alive "$t"; then
-		console pen "#f56565" "$DT_FACE"
 		st := term status "$t"
+		if [ "$st" = 0 ]; then
+			dt_wantclose "$id"
+			return 0
+		fi
+		console pen "#f56565" "$DT_FACE"
 		console put -p "w$id" 1 2 "[exited $st — close this window]"
 		return 0
 	fi

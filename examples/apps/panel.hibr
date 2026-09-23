@@ -91,6 +91,9 @@ cp_rows() {
 	CP[$w][$n]["kind"]=set;  CP[$w][$n]["text"]="Icons"
 	CP[$w][$n]["val"]=off; [ "$DT_ICONS" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=icons; n=$((n + 1))
+	CP[$w][$n]["kind"]=set;  CP[$w][$n]["text"]="Disk Icons"
+	CP[$w][$n]["val"]=off; [ "$DT_DISKS" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=disks; n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]=""; n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Windows"; n=$((n + 1))
 
@@ -146,6 +149,7 @@ cp_do() {
 		tick)  v := cp_next "$DT_TICK" "$dir" "${CP_TICKS[@]}"
 		       DT_TICK=$v ;;
 		icons) cp_icons ;;
+		disks) cp_disks ;;
 		esac
 		cp_save
 		;;
@@ -232,6 +236,9 @@ panel_menus() {
 	on=0
 	[ "$DT_ICONS" = 1 ] && on=1
 	dt_mark "Desktop Icons" i "$on" cp_icons
+	on=0
+	[ "$DT_DISKS" = 1 ] && on=1
+	dt_mark "Disk Icons" k "$on" cp_disks
 	dt_sep
 	dt_item "Change Selected" c cp_do "$w" 1
 }
@@ -244,6 +251,17 @@ cp_icons() {
 		DT_ICONS=0
 	else
 		DT_ICONS=1
+	fi
+	command -v dt_deskscan > /dev/null && dt_deskscan
+	cp_save
+}
+
+# The mounted disks among those icons, or just Home and the trash.
+cp_disks() {
+	if [ "$DT_DISKS" = 1 ]; then
+		DT_DISKS=0
+	else
+		DT_DISKS=1
 	fi
 	command -v dt_deskscan > /dev/null && dt_deskscan
 	cp_save

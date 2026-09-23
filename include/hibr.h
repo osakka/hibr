@@ -314,6 +314,11 @@ int hibr_dial(const char *host, const char *port, int udp);
 typedef int (*hibr_open_fn)(sh *s, const char *rest);
 int hibr_scheme(sh *s, const char *nm, hibr_open_fn fn);
 
+/* Rename the running process, the way the `title` builtin renames a
+   script's: what ps prints and /proc/pid/comm. For a module process that
+   is not running a script, such as a forked server or a relay. */
+void hibr_title(const char *name);
+
 /* One module offers a table of functions under a name and a version; another
    asks for it. This is the only way for modules to reach each other: they are
    opened RTLD_LOCAL on purpose, so a symbol in one is invisible to the rest. */
