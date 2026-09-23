@@ -27,6 +27,11 @@ click it. Its label on the bar across the top is the only way back — click it
 to restore the window. The bar also says how many windows are open and how
 many are hidden.
 
+A window casts a shadow, one row down and two columns right, darkening
+whatever it falls across -- another window, or the desktop underneath.
+`DT_SHADOW`, a Settings entry, turns it off; it costs one `console darken`
+call per window, and nothing at all when off.
+
 ## Icons on the desktop
 
 A clean desktop, down from the top right: **Home**, the mounted **disks** if

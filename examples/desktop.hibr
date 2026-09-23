@@ -66,13 +66,17 @@ DT_CURSOR="${DT_CURSOR-block}"
 # already redraws every 30ms to catch its own echo promptly, blink or not.
 DT_CURSOR_BLINK="${DT_CURSOR_BLINK-0}"
 
+# A window's shadow, cast on whatever is under it. On by default, since it
+# costs one console darken call per window and nothing when off.
+DT_SHADOW="${DT_SHADOW-1}"
+
 # Settings are a script of the user's own, written by the desktop whenever
 # one changes and read back at the next start: plain assignments, so it can
 # be edited by hand and needs no format of its own.  An app that wants a
 # variable of its own kept names it with dt_keep.
 DT_CONF="${DT_CONF-${XDG_CONFIG_HOME:-$HOME/.config}/hibr/desktop.hibr}"
 DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
-	DT_TICK DT_ICONS DT_DISKS DT_CURSOR DT_CURSOR_BLINK)
+	DT_TICK DT_ICONS DT_DISKS DT_CURSOR DT_CURSOR_BLINK DT_SHADOW)
 
 # Where the desktop's stderr goes while it holds the screen, so an app's
 # error message cannot scribble over the display, and the reason for a
@@ -315,6 +319,7 @@ dt_win() {
 	local h=${DT[$id]["h"]} w=${DT[$id]["w"]} on=$DT_IDLE
 	local wr=${DT[$id]["row"]} wc=${DT[$id]["col"]} dr=${DT[$id]["draw"]}
 
+	[ "$DT_SHADOW" = 1 ] && console darken $((wr + 1)) $((wc + 2)) "$h" "$w"
 	[ "$DT_FOCUS" = "$id" ] && on=$DT_ACTIVE
 	console pen "$DT_INK" "$DT_FACE"
 	console fill "$wr" "$wc" "$h" "$w" " "

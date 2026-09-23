@@ -124,6 +124,56 @@ void cn_clear(void)
 	}
 }
 
+/* Darken one colour toward black by pct percent of its own value. RGB scales
+   exactly; a palette index or the terminal's own default cannot be scaled
+   without a colour table the display does not have, so DP_DIM is left for
+   the caller to add as the fallback that reaches every terminal. */
+unsigned cn_dim1(unsigned v, int pct)
+{
+	unsigned r, g, b;
+
+	if (!(v & DP_RGB))
+		return v;
+	r = (v >> 16) & 0xFF;
+	g = (v >> 8) & 0xFF;
+	b = v & 0xFF;
+	r = r * (unsigned)pct / 100;
+	g = g * (unsigned)pct / 100;
+	b = b * (unsigned)pct / 100;
+	return DP_RGB | (r << 16) | (g << 8) | b;
+}
+
+/* Darken a rectangle of the back buffer in place, in front of whatever is
+   drawn under it -- a window's shadow, cast on the desktop and on windows
+   below it, is this over their already-drawn cells before the window
+   drawing on top of it goes in and paints over its own footprint.  Nothing
+   is undone: a fixed shape darkened once a frame, not state carried between
+   frames, so there is nothing to restore when the window moves. */
+void cn_darken(int row, int col, int h, int w, int pct)
+{
+	int r, c;
+	cn_cell *k;
+
+	if (cn_fit() != HIBR_OK)
+		return;
+	if (pct < 0)
+		pct = 0;
+	if (pct > 100)
+		pct = 100;
+	for (r = row; r < row + h; r++) {
+		if (r < 0 || r >= cn_back.rows)
+			continue;
+		for (c = col; c < col + w; c++) {
+			if (c < 0 || c >= cn_back.cols)
+				continue;
+			k = &cn_back.c[r * cn_back.cols + c];
+			k->fg = cn_dim1(k->fg, pct);
+			k->bg = cn_dim1(k->bg, pct);
+			k->attr |= DP_DIM;
+		}
+	}
+}
+
 /* Overwrite a cell that is half of a wide glyph, and its other half. */
 void cn_split(int row, int col)
 {

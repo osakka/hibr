@@ -37,6 +37,15 @@ U+0301 still shares one cell with its mark. A wide glyph occupies two cells,
 the second marked as a continuation, and writing over either half clears both:
 half a glyph is never left on screen.
 
+`console darken row col h w [pct]` scales a rectangle of the **back** buffer's
+existing colours toward black by `pct` percent (55 if not given) and sets the
+dim attribute, in place — a shadow cast on whatever is already drawn there,
+before whatever casts it draws its own opaque content over its own footprint
+on top. Only an RGB colour can be scaled exactly; a palette index or the
+terminal's own default colour has no table to scale by, so those cells get
+the dim attribute alone. It reads back what `cn_put` already wrote, which
+`cn_fill` and `cn_put` themselves never do.
+
 ## Naming
 
 Everything is `cn_`, not `sc_`. `src/net.c` already uses `sc_` for schemes and

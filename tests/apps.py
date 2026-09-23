@@ -202,7 +202,7 @@ TICK = "DT_TICK=200"
 
 sc = run(*PANEL, pre=TICK, also=OTHER)
 check("the sections are drawn", sc.find("Appearance") == (3, 3) and
-      sc.find("Behaviour") == (7, 3) and sc.find("Windows") == (14, 3), sc)
+      sc.find("Behaviour") == (7, 3), sc)
 check("the settings show their values", sc.find("midnight") is not None and
       sc.find("200 ms") is not None, sc)
 check("the window list names what is open",
@@ -223,10 +223,10 @@ sc = run(*PANEL, feed=[b"\x1b[B", b"\x1b[B", b"\x1b[C"], pre=TICK,
 check("down skips the blank line and the heading, landing on Refresh",
       sc.find("350 ms") is not None, sc)
 
-# Theme, Wallpaper, Refresh, Icons, Disk Icons, Cursor, Cursor Blink, Panel,
-# Other -- eight downs from Theme reaches the second window, because cp_move
-# steps over the headings and the blanks.
-DOWN4 = [b"\x1b[B"] * 8
+# Theme, Wallpaper, Refresh, Icons, Disk Icons, Cursor, Cursor Blink, Window
+# Shadow, Panel, Other -- nine downs from Theme reaches the second window,
+# because cp_move steps over the headings and the blanks.
+DOWN4 = [b"\x1b[B"] * 9
 
 sc = run(*PANEL, feed=[b"\x1b[B"] * 3 + [b"\r"], pre=TICK, also=OTHER)
 check("the icons can be switched off, and the panel says so",

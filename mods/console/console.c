@@ -372,6 +372,17 @@ int m_console(sh *s, int ac, char **av)
 			ac > 6 ? av[6] : " ");
 		return HIBR_OK;
 	}
+	if (!strcmp(sub, "darken")) {
+		if (!cn_need())
+			return HIBR_FAIL;
+		if (ac < 6) {
+			lg(HIBR_LERR, "usage: console darken row col h w [pct]");
+			return 2;
+		}
+		cn_darken(atoi(av[2]), atoi(av[3]), atoi(av[4]), atoi(av[5]),
+			  ac > 6 ? atoi(av[6]) : 55);
+		return HIBR_OK;
+	}
 	if (!strcmp(sub, "cursor")) {
 		if (ac > 2 && !strcmp(av[2], "off")) {
 			cn_cursor(cn_crow, cn_ccol, 0);

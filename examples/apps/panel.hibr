@@ -100,6 +100,9 @@ cp_rows() {
 	CP[$w][$n]["kind"]=set;  CP[$w][$n]["text"]="Cursor Blink"
 	CP[$w][$n]["val"]=off; [ "$DT_CURSOR_BLINK" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=blink; n=$((n + 1))
+	CP[$w][$n]["kind"]=set;  CP[$w][$n]["text"]="Window Shadow"
+	CP[$w][$n]["val"]=off; [ "$DT_SHADOW" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=shadow; n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]=""; n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Windows"; n=$((n + 1))
 
@@ -159,6 +162,7 @@ cp_do() {
 		cursor) v := cp_next "$DT_CURSOR" "$dir" "${CP_CURSORS[@]}"
 			DT_CURSOR=$v ;;
 		blink) cp_blink ;;
+		shadow) cp_shadow ;;
 		esac
 		cp_save
 		;;
@@ -258,6 +262,9 @@ panel_menus() {
 	on=0
 	[ "$DT_CURSOR_BLINK" = 1 ] && on=1
 	dt_mark "Cursor Blink" b "$on" cp_blink
+	on=0
+	[ "$DT_SHADOW" = 1 ] && on=1
+	dt_mark "Window Shadow" s "$on" cp_shadow
 	dt_sep
 	dt_item "Change Selected" c cp_do "$w" 1
 }
@@ -295,6 +302,16 @@ cp_blink() {
 		DT_CURSOR_BLINK=0
 	else
 		DT_CURSOR_BLINK=1
+	fi
+	cp_save
+}
+
+# Whether a window casts a shadow on what is under it.
+cp_shadow() {
+	if [ "$DT_SHADOW" = 1 ]; then
+		DT_SHADOW=0
+	else
+		DT_SHADOW=1
 	fi
 	cp_save
 }
