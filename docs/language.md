@@ -46,7 +46,10 @@ spoken to with the same `send` and `recv` as a socket. `mapfile` / `readarray`,
 
 **Special variables.** `$@ $* $# $? $$ $! $0–$9 $RANDOM $SECONDS $EPOCHSECONDS
 $EPOCHREALTIME $PPID $UID $EUID $HOSTNAME $HIBR_VERSION $HIBR_ABI`, plus `$RET`, `$ERRMSG`, `$ERR`, `$ERRSTATUS`,
-`$REMOTE` and `$M`. `$$` is fixed at startup, so it is the same inside every
+`$REMOTE` and `$M`. Assigning to `$RANDOM`, `$SECONDS`, `$EPOCHSECONDS` or
+`$EPOCHREALTIME` makes an ordinary variable that hides the live one until it
+is unset: `RANDOM=5` reads 5 from then on, where bash would seed with it, and
+bash ignores an assignment to the two clocks. `$$` is fixed at startup, so it is the same inside every
 subshell. `$HIBR_VERSION` holds the version and nothing else does, so it is
 the way to ask which shell is running. It is set at startup over anything
 inherited, so a planted `HIBR_VERSION` in the environment cannot claim a shell

@@ -61,6 +61,10 @@ term_draw() {
 		return 0
 	fi
 	term draw "$t" $((wr + 1)) $((wc + 1)) "$h" "$w"
+	# A key's echo comes back after the frame that sent it, so a focused
+	# terminal asks for the next one soon rather than in DT_TICK.
+	[ "$DT_FOCUS" = "$id" ] && dt_want 30
+	return 0
 }
 
 # Everything goes to the program except f10, which the window manager keeps

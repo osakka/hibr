@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Drive the desktop's apps through a pty: the calculator and the browser.
+"""Drive the desktop's apps through a pty: every one in examples/apps/.
 
 tests/desktop.py checks the window manager with apps small enough to fit in
-the test file. This checks the real ones in examples/apps/, which are the two
-that decision 0020 calls for at this stage: the calculator proves keys and
-clicks reaching a focused window, and the browser proves scrolling *inside*
-one, with the wheel and the selection moving independently.
+the test file. This checks the real ones: the calculator proves keys and
+clicks reaching a focused window, the browser proves scrolling *inside* one,
+the panel proves an app managing other windows, the terminal proves a real
+program in a window (two of them, as two sessions), and the games prove
+animation on the clock.
 Run it directly:  python3 tests/apps.py [path-to-hibr]
 """
 import os, subprocess, sys, tempfile

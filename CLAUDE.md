@@ -28,7 +28,7 @@ Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 14).
     make install         # PREFIX=/usr/local, modules to $(PREFIX)/lib/hibr
     ./build/hibr -n script      # parse only
 
-    tests/run.sh [-v] [prefix]           # C-side harness, 76 tests
+    tests/run.sh [-v] [prefix]           # C-side harness, 78 tests
     ./build/hibr tests/self.hibr                 # suite in hibr, 91 assertions, planned
     python3 tests/{console,cat,most,hvi,mon,mtr,editor,desktop,apps}.py
                                  # the full-screen suites, each through a pty
@@ -99,7 +99,7 @@ linked, and no OpenSSL headers are needed to build.
 | `src/mod.c` | module loading |
 | `mods/*.c` | reference modules: `sys`, `http` (scheme), `ls` |
 | `examples/desktop.hibr` | the window manager, in hibr — see `docs/desktop.md` |
-| `examples/apps/` | apps for it: a calculator, a file browser and a control panel, each also a program on its own |
+| `examples/apps/` | apps for it: a calculator, a file browser, a control panel, a terminal, and three games (snake, mines, bricks) |
 | `tests/screen.py` | **the** pty harness and terminal model, shared by every full-screen suite |
 | `mods/prompt/` | the prompt module, including a native reader for git's object store — see `mods/README.md` for the file-by-file breakdown |
 | `mods/console/` | the text display: alternate screen, cell grid with damage-based redraw, panes, decoded keys — see `mods/console/README.md` |
@@ -676,6 +676,19 @@ went in the shell.
   to answer a fabricated 24 rows beside a real `ed_cols()` width, so half the
   answer was true — which is worse than either, and hid a pty resize working
   correctly for most of an hour.
+- **A printable key arrives as itself.** `console key` reports space as
+  `" "`, not `space`, and a letter as the letter; only keys with no glyph
+  have names. Both games shipped matching `space` and did nothing on it.
+- **`str pad` has no `-l`.** It pads on the right only, and given `-l` pads
+  the literal text `-l`. To right-align in a window, put the text at
+  `w - ${#t}`: the face is cleared before every draw, so nothing needs
+  padding over.
+- **A game steps on the clock, never on frames.** Frames also arrive with
+  every key, so a snake moved once per frame sprints while an arrow is
+  held, and one moved only on idle frames freezes while it is. Step while
+  `$EPOCHREALTIME` says a period has passed, and ask for the next frame with
+  `dt_want`; its request lasts one frame, so a paused or hidden game costs
+  nothing.
 - **`ob_hex` does not check what follows the digits**, because in `packed-refs`
   an object name is followed by a space. Callers check the length.
 

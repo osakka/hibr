@@ -478,8 +478,10 @@ dt_event() {
 #
 # The request lasts one frame: a game that is paused, hidden or not focused
 # simply stops asking, and the desktop goes back to DT_TICK.  An idle desktop
-# must not pay for an animation nobody is watching.
+# must not pay for an animation nobody is watching.  A request slower than
+# DT_TICK is ignored, so it can never slow the desktop down.
 dt_want() {
+	[ "$1" -ge "${DT_TICK-200}" ] && return 0
 	if [ -z "$DT_WANT" ] || [ "$1" -lt "$DT_WANT" ]; then
 		DT_WANT=$1
 	fi

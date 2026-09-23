@@ -83,7 +83,11 @@ echo "status $st"
 term close $t
 
 echo "--- a hibr inside, editing its own line"
+# Started in /, because its first prompt shows the directory, and a long
+# checkout path would wrap it and move every row below.
+cd /
 t := term open -r 8 -c 40 $H
+cd "$OLDPWD"
 i=0; while [ $i -lt 8 ]; do term poll $t 100; i=$((i+1)); done
 term write $t 'PS1="in> "
 '
