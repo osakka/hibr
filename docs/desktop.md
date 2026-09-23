@@ -27,6 +27,56 @@ click it. Its label on the bar across the top is the only way back — click it
 to restore the window. The bar also says how many windows are open and how
 many are hidden.
 
+## Detaching, and coming back
+
+Start the desktop held, and it outlives the terminal it was started on:
+
+    hold new desk hibr examples/desktop-session.hibr
+
+**ctrl-\\** detaches, and so does **Detach** on the hibr menu; the desktop
+keeps running, terminal windows and whatever runs in them included. Log off,
+log in somewhere else, and
+
+    hold attach desk
+
+puts it back on the new terminal exactly as it was, redrawn in full. Closing
+the terminal or losing an ssh connection detaches too. `hold list` shows what
+is running and `hold kill desk` ends it. Started without `hold`, Detach is on
+the menu, dimmed, so the menu does not change shape. See
+[`mods/hold/README.md`](../mods/hold/README.md) for how it works.
+
+## Keys that would be signals
+
+ctrl-c, ctrl-\\ and ctrl-z are keys on the desktop, not signals: the
+desktop is left by Quit and nothing else. Each goes to the focused window, so
+ctrl-c in a terminal window interrupts the program running there, and does
+nothing to a calculator.
+
+The terminal is put back if the desktop dies anyway, whether from `kill`, a
+hangup or a crash in a module. While it holds the screen its stderr goes to
+`~/.local/state/hibr/desktop.log` (`$XDG_STATE_HOME`, or `DT_LOG`), so an
+app's error message cannot scribble over the display and the reason for a
+failure is still there to read afterwards.
+
+## Settings are kept
+
+Every change in the Settings window is saved the moment it is made, to
+`~/.config/hibr/desktop.hibr` (`$XDG_CONFIG_HOME`, or `DT_CONF`), and read
+back by `dt_open` at the next start. It is a script, not a format:
+
+```sh
+# The desktop's settings, written whenever one changes and
+# read at the next start.  A script like any other.
+DT_WALL=\#1a202c
+DT_TICK=200
+CP_THEME=slate
+```
+
+`dt_open` reads it after the session file has set its own defaults, so what
+was chosen last wins. An app that wants a variable of its own kept calls
+`dt_keep NAME` and `dt_save` after changing it; the Settings app keeps
+`CP_THEME` that way.
+
 ## Writing a session
 
 A session sources the window manager, defines or loads some apps, opens

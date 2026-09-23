@@ -297,6 +297,12 @@ sc = run(*TERM, feed=[wheel(8, 10), b"x"], pre=LONG, wait=1.2, end=None)
 check("and a key goes back to the live screen",
       sc.find("↑") is None and sc.find("row 40") is not None, sc)
 
+TRAP = ("TW_CMD=(/bin/sh -c 'trap \"echo caught\" INT; "
+        "while :; do sleep 0.1; done')")
+sc = run(*TERM, feed=[b"\x03"], pre=TRAP, wait=1.0, end=None)
+check("ctrl-c reaches the program in a focused terminal window",
+      sc.find("caught") is not None, sc)
+
 CLICK = ("TW_CMD=(/bin/sh -c 'stty raw -echo; "
          "printf \"\\033[?1000h\\033[?1006h\"; head -c 18 | cat -v; sleep 5')")
 sc = run(*TERM, feed=[press(6, 10), release(6, 10)], pre=CLICK, wait=1.2, end=None)
@@ -376,4 +382,4 @@ for f in os.listdir(D):
 os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
-report(65)
+report(66)

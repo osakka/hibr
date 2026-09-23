@@ -18,6 +18,7 @@ app panel "Settings, and the window list"
 declare -A PW
 declare -A CP
 CP_THEME=midnight
+command -v dt_keep > /dev/null && dt_keep CP_THEME
 CP_THEMES=(midnight slate forest ember paper)
 CP_TICKS=(80 120 200 350 600)
 CP_GLYPHS=("·" "░" "▒" "⋅" "+")
@@ -138,6 +139,7 @@ cp_do() {
 		tick)  v := cp_next "$DT_TICK" "$dir" "${CP_TICKS[@]}"
 		       DT_TICK=$v ;;
 		esac
+		cp_save
 		;;
 	win) dt_raise "$k" ;;
 	esac
@@ -202,7 +204,7 @@ panel_menus() {
 	for x in "${CP_THEMES[@]}"; do
 		on=0
 		[ "$x" = "$CP_THEME" ] && on=1
-		dt_mark "$x" "${x:0:1}" "$on" cp_theme "$x"
+		dt_mark "$x" "${x:0:1}" "$on" cp_set_theme "$x"
 	done
 	dt_end
 	dt_sub "Wallpaper"
@@ -223,8 +225,15 @@ panel_menus() {
 	dt_item "Change Selected" c cp_do "$w" 1
 }
 
-cp_set_glyph() { DT_GLYPH=$1; }
-cp_set_tick() { DT_TICK=$1; }
+cp_set_theme() { cp_theme "$1" && cp_save; }
+cp_set_glyph() { DT_GLYPH=$1; cp_save; }
+cp_set_tick() { DT_TICK=$1; cp_save; }
+
+# Every change is kept at once: there is no Save to forget.
+cp_save() {
+	command -v dt_save > /dev/null && dt_save
+	return 0
+}
 
 panel_key() {
 	local w=$1 sel

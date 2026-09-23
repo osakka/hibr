@@ -41,11 +41,61 @@ DT_FACE="${DT_FACE-#101820}"
 DT_INK="${DT_INK-#cbd5e0}"
 DT_GLYPH="${DT_GLYPH-·}"
 
+# Settings are a script of the user's own, written by the desktop whenever
+# one changes and read back at the next start: plain assignments, so it can
+# be edited by hand and needs no format of its own.  An app that wants a
+# variable of its own kept names it with dt_keep.
+DT_CONF="${DT_CONF-${XDG_CONFIG_HOME:-$HOME/.config}/hibr/desktop.hibr}"
+DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
+	DT_TICK)
+
+# Where the desktop's stderr goes while it holds the screen, so an app's
+# error message cannot scribble over the display, and the reason for a
+# failure is still there to read after it.
+DT_LOG="${DT_LOG-${XDG_STATE_HOME:-$HOME/.local/state}/hibr/desktop.log}"
+DT_ERR=
+
+# Keep these variables in the settings file too.
+dt_keep() {
+	DT_KEEP+=("$@")
+}
+
+# Read the settings file, if there is one.  It runs after the session file
+# has set its defaults, so what was chosen last time wins.
+dt_load() {
+	[ -r "$DT_CONF" ] && . "$DT_CONF"
+	return 0
+}
+
+# Write every kept variable back, through a temporary file and a rename,
+# so a crash halfway through never leaves half a settings file.
+dt_save() {
+	local v tmp=$DT_CONF.$$
+
+	mkdir -p "${DT_CONF%/*}" 2> /dev/null || return 1
+	{
+		echo "# The desktop's settings, written whenever one changes and"
+		echo "# read at the next start.  A script like any other."
+		for v in "${DT_KEEP[@]}"; do
+			[ -n "${!v+set}" ] && printf '%s=%q\n' "$v" "${!v}"
+		done
+	} > "$tmp" && mv -f "$tmp" "$DT_CONF"
+}
+
 # Open the display, take the mouse, and note how big the screen is.
+#
+# ctrl-c, ctrl-\ and ctrl-z become keys rather than signals: the desktop is
+# left by Quit, never by a stray interrupt, and the key goes to the focused
+# window -- which is how a program in a terminal window gets its ctrl-c.
 dt_open() {
+	dt_load
 	console open || return 1
+	console signals off
 	console mouse drag
 	console cursor 0 0 0
+	if mkdir -p "${DT_LOG%/*}" 2> /dev/null; then
+		exec {DT_ERR}>&2 2>> "$DT_LOG"
+	fi
 	dt_size
 }
 
@@ -59,7 +109,12 @@ dt_size() {
 
 # Give the terminal back.
 dt_close() {
+	if [ -n "$DT_ERR" ]; then
+		exec 2>&$DT_ERR {DT_ERR}>&-
+		DT_ERR=
+	fi
 	console mouse off
+	console signals on
 	console close
 }
 
@@ -686,13 +741,18 @@ dt_menus() {
 	dt_menu "hibr"
 	dt_item "About hibr" a dt_about
 	dt_sep
-	used=aq
+	used=aqd
 	for n in "${!DT_APPS[@]}"; do
 		k := dt_akey "${DT_APPS[$n]["title"]}" "$used"
 		used="$used$k"
 		dt_item "${DT_APPS[$n]["title"]}" "$k" dt_launch "$n"
 	done
 	dt_sep
+	if [ -n "$HIBR_HOLD" ]; then
+		dt_item "Detach" d dt_detach
+	else
+		dt_dim "Detach"
+	fi
 	dt_item "Quit" q dt_quit
 
 	MB_APP=
@@ -773,6 +833,12 @@ dt_layout() {
 }
 
 dt_quit() { DT_QUIT=1; }
+
+# Leave the desktop running and give the terminal back.  Only a desktop
+# started with `hold new` can, which is why the item is dimmed otherwise.
+dt_detach() {
+	need hold && hold detach
+}
 dt_about() { dt_note "hibr $HIBR_VERSION — a desktop written in the shell it runs on"; }
 dt_close_focused() { [ -n "$DT_FOCUS" ] && dt_del "$DT_FOCUS"; }
 dt_hide_focused() { [ -n "$DT_FOCUS" ] && dt_min "$DT_FOCUS"; }

@@ -8,7 +8,7 @@ with.  Run it directly:  python3 tests/desktop.py [path-to-hibr]
 The pty and the terminal model live in tests/screen.py, which every
 full-screen suite shares.
 """
-import os, re, sys
+import os, re, shutil, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen
@@ -21,17 +21,19 @@ WM = tree("examples/desktop.hibr")
 ROWS, COLS = 24, 80
 
 
-def run(session, feed=(), wait=1.2):
+def run(session, feed=(), wait=1.2, env=None, pre=""):
     """Run a session on top of the window manager and return the last screen."""
     path = "/tmp/hibr-desktop-%d.hibr" % os.getpid()
-    open(path, "w").write("%s. %s\ndt_open\n%s\ndt_run\ndt_close\n"
-                          % (load(MOD), WM, session))
-    t = Term(path, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.5)
+    open(path, "w").write("%s. %s\n%s\ndt_open\n%s\ndt_run\ndt_close\n"
+                          % (load(MOD), WM, pre, session))
+    t = Term(path, env=dict({"DT_TICK": "60"}, **(env or {})), rows=ROWS,
+             cols=COLS, settle=0.5)
     t.keys(feed)
     t.quit(b"q", wait)
     os.unlink(path)
     sc = t.screen()
     sc.quit = t.exited
+    sc.status = t.status
     return sc, t.raw
 
 
@@ -331,4 +333,77 @@ sc, _ = run(MENUS, [press(0, 20), b"m", b"\x1b[A", b"\x1b"])
 check("escape ends the mode, keeping what it did",
       sc.find("┤ Noted ├") == (5, 12) and sc.find("moving") is None, sc)
 
-report(75)
+# --- breaks, saved settings, and a session that outlives its terminal ----
+
+sc, raw = run(ONE, feed=[b"\x03", b"\x1c", b"\x1a", b"\x1b[21~"])
+check("ctrl-c, ctrl-\\ and ctrl-z are keys, not the end of the desktop",
+      sc.find("About hibr") is not None and sc.status == 0, sc)
+check("and Detach is on the hibr menu, dimmed when nothing holds it",
+      sc.find("Detach") is not None, sc)
+
+import tempfile
+CONF = tempfile.mkdtemp(prefix="hibr-conf-")
+PANEL = '. %s/panel.hibr' % tree("examples/apps")
+sc, raw = run('dt_new "Settings" 12 34 2 2 panel', feed=[b"\x1b[C"],
+              env={"XDG_CONFIG_HOME": CONF}, pre=PANEL)
+saved = os.path.join(CONF, "hibr", "desktop.hibr")
+text = open(saved).read() if os.path.exists(saved) else ""
+check("a changed setting is written at once, as a script",
+      "CP_THEME=slate" in text and "DT_WALL=\\#1a202c" in text and
+      "DT_TICK=" in text, text or sc)
+sc, raw = run('dt_new "Settings" 12 34 2 2 panel',
+              env={"XDG_CONFIG_HOME": CONF}, pre=PANEL)
+check("and the next desktop starts with it", sc.find("slate") is not None, sc)
+shutil.rmtree(CONF, True)
+
+HOLD = tempfile.mkdtemp(prefix="hibr-hold-")
+held = os.path.join(HOLD, "session.hibr")
+open(held, "w").write("%s. %s\ndt_open\ndt_new \"Held\" 8 30 6 10\n"
+                      "dt_run\ndt_close\n"
+                      % (load(MOD, "build/mods/pty.so",
+                              "build/mods/hold.so"), WM))
+HENV = {"TMPDIR": HOLD, "DT_TICK": "60"}
+HOLDC = load("build/mods/pty.so", "build/mods/hold.so")
+
+
+def unhold():
+    """Kill the held desktop whatever happened, so a failure leaves nothing
+    running in the background for hours."""
+    import subprocess
+    subprocess.run([screen.HIBR, "-c", HOLDC + "hold kill desk"],
+                   env=dict(os.environ, **HENV), capture_output=True)
+    shutil.rmtree(HOLD, True)
+
+
+import atexit
+atexit.register(unhold)
+t = Term("-c", HOLDC + "hold new desk %s %s" % (screen.HIBR, held),
+         env=HENV, settle=1.5)
+sc = t.screen()
+check("a desktop started with hold new draws as usual",
+      sc.g[6][10] == "┌" and sc.find("Held") is not None, sc)
+t.send(b"\x1c", settle=0.6)
+check("ctrl-\\ detaches, and says how to come back",
+      b"[desk: detached -- hold attach desk]" in t.out, t.out.decode(errors="replace"))
+t.close()
+
+t = Term("-c", HOLDC + "hold attach desk", env=HENV, settle=1.5)
+sc = t.screen()
+check("attached from a new terminal, the whole desktop is drawn again",
+      sc.g[6][10] == "┌" and sc.find("Held") is not None and
+      sc.find("hibr") == (0, 2), sc)
+t.send(b"\x1b[21~", settle=0.4)
+t.send(b"d", settle=0.8)
+check("Detach on the hibr menu detaches too",
+      b"[desk: detached -- hold attach desk]" in t.out, t.out.decode(errors="replace"))
+t.close()
+
+t = Term("-c", HOLDC + "hold attach desk; echo \"back $?\"", env=HENV,
+         settle=1.5)
+t.send(b"q", settle=1.0)
+t.collect(0.5)
+check("quitting a held desktop ends the session",
+      b"[desk ended, status 0]" in t.out and b"back 0" in t.out, t.out.decode(errors="replace"))
+t.close()
+
+report(82)

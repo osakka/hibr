@@ -26,6 +26,14 @@ import fcntl, os, pty, select, signal, struct, sys, termios, time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HIBR = os.environ.get("HIBR") or os.path.join(ROOT, "build/hibr")
 ROWS, COLS = 24, 80
+
+# Somewhere of each run's own for anything a program under test saves --
+# the desktop's settings above all.  Without it a test that changes the
+# theme changes the owner's theme, and the next test starts from it.  A
+# test that wants saved settings to carry over passes the same env itself.
+import atexit, shutil, tempfile
+HOME = tempfile.mkdtemp(prefix="hibr-screen-")
+atexit.register(shutil.rmtree, HOME, True)
 FAIL = []
 
 
@@ -126,6 +134,9 @@ class Term:
         self.pid, self.fd = pty.fork()
         if self.pid == 0:
             os.environ["TERM"] = "xterm-256color"
+            own = os.path.join(HOME, str(os.getpid()))
+            os.environ["XDG_CONFIG_HOME"] = os.path.join(own, "config")
+            os.environ["XDG_STATE_HOME"] = os.path.join(own, "state")
             for k, v in (env or {}).items():
                 os.environ[k] = v
             os.execv(HIBR, ["hibr"] + [str(a) for a in argv])

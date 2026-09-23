@@ -28,7 +28,7 @@ Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 14).
     make install         # PREFIX=/usr/local, modules to $(PREFIX)/lib/hibr
     ./build/hibr -n script      # parse only
 
-    tests/run.sh [-v] [prefix]           # C-side harness, 78 tests
+    tests/run.sh [-v] [prefix]           # C-side harness, 80 tests
     ./build/hibr tests/self.hibr                 # suite in hibr, 91 assertions, planned
     python3 tests/{console,cat,most,hvi,mon,mtr,editor,desktop,apps}.py
                                  # the full-screen suites, each through a pty
@@ -112,6 +112,7 @@ linked, and no OpenSSL headers are needed to build.
 | `mods/sysinfo/` | what the machine is, with a picture — see `mods/sysinfo/README.md` |
 | `mods/pty/` | pseudo terminals: run a program on one and drive it — see `mods/pty/README.md` |
 | `mods/term/` | a terminal emulator: a program's screen as cells, drawn into a window — see `mods/term/README.md` |
+| `mods/hold/` | sessions that outlive their terminal: detach, log off, attach again — see `mods/hold/README.md` |
 
 Each directory carries its own `README.md` with the detail: `src/`, `include/`,
 `mods/`, `tests/`, `examples/`. User-facing documentation is under `docs/`, and
@@ -676,6 +677,21 @@ went in the shell.
   to answer a fabricated 24 rows beside a real `ed_cols()` width, so half the
   answer was true — which is worse than either, and hid a pty resize working
   correctly for most of an hour.
+- **An ignored signal survives `exec`.** The hold server ignores `SIGHUP`
+  so a logout cannot end it, and every program it started inherited the
+  ignore: a held shell behaved as if run under `nohup`, and `sleep`s outlived
+  `hold kill`. The pty module's child now puts `SIGHUP`, `SIGTTIN` and
+  `SIGTTOU` back to the default along with the rest.
+- **A test of anything that saves must have somewhere of its own to save.**
+  The desktop writes its settings on every change, so the panel tests were
+  one run away from changing the owner's theme, and a test that changed it
+  made the next test start from it. `tests/screen.py` gives each run its own
+  `XDG_CONFIG_HOME` and `XDG_STATE_HOME`.
+- **Do not write a wrapper through a path that may be a symlink.** A
+  sanitizer wrapper written to a scratch `build/hibr` that was a symlink to
+  the real one replaced the shell binary with a 65-byte script, and every
+  suite run after that would have tested the sanitizer build. `rm` the path
+  first, or give the wrapper a name of its own.
 - **A terminal test must not end with `q`.** `tests/apps.py`'s `run()`
   finishes by sending `q`, which a focused terminal passes to its program
   -- and any key snaps a scrolled-back view to the live screen, so a

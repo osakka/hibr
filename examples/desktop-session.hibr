@@ -56,10 +56,13 @@ dt_app snake "Snake"      18 42
 dt_app mines "Mines"      15 31
 dt_app bricks "Bricks"    20 44
 
+# Defaults go before dt_open, which then reads what was saved last time
+# over the top of them.
+DT_TICK=200
+
 dt_open || exit 1
 dt_new "Files"      10 34  1  2 files
 dt_new "Settings"   12 34 12  2 panel
 dt_new "Calculator" 16 24  1 40 calc
-DT_TICK=200
 dt_run
 dt_close
