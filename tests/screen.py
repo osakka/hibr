@@ -137,6 +137,7 @@ class Term:
             own = os.path.join(HOME, str(os.getpid()))
             os.environ["XDG_CONFIG_HOME"] = os.path.join(own, "config")
             os.environ["XDG_STATE_HOME"] = os.path.join(own, "state")
+            os.environ["XDG_DATA_HOME"] = os.path.join(own, "data")
             for k, v in (env or {}).items():
                 os.environ[k] = v
             os.execv(HIBR, ["hibr"] + [str(a) for a in argv])

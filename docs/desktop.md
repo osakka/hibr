@@ -27,6 +27,29 @@ click it. Its label on the bar across the top is the only way back — click it
 to restore the window. The bar also says how many windows are open and how
 many are hidden.
 
+## Files between windows
+
+Drag a file out of a Files window and let go over another: over a Files
+window it goes into the folder shown, or into the folder it was let go on;
+over a terminal window its path is typed in, quoted for a shell. A drop
+**moves**, and **copies with ctrl held**. Nothing is ever put over something
+already there, and a folder cannot go inside itself -- the desktop says so
+instead. Escape while dragging cancels.
+
+An app starts a drag with `dt_dnd path name glyph` from its `_mouse`, and
+takes one with `_drop`; the moving and copying is `dt_fileop`, once, so
+every app refuses the same things. `dt_trash path` moves a file to the trash
+at `~/.local/share/Trash`, the freedesktop one, so what is thrown away here
+turns up in any other desktop's trash on the machine. `dt_openfile path`
+opens a folder in Files and anything else in a terminal with hvi.
+
+The file browser has three views, which `v` cycles and the View menu picks:
+a **list** of names; **details**, with size, time and permissions from one
+`ls -l` per folder, dropping columns from the right as the window narrows;
+and **icons**, a grid the arrows move across and down. Delete moves the
+selection to the trash; alt-c copies its path, and alt-v in a Files window
+copies the file whose path was pasted into the folder shown.
+
 ## Copy and paste
 
 **alt-c** copies and **alt-v** pastes, in every window, and both are on the
@@ -131,6 +154,8 @@ these, and the window manager calls only the ones that exist:
 | `hello_mouse` | `id press\|drag\|release button row col mods` | instead of `_click`, for an app that wants the whole of a press: after the press, its drags and its release come here wherever the pointer goes. `mods` is what was held, such as `shift` or `ctrl` |
 | `hello_copy` | `id` | Edit > Copy or alt-c: hand back the selection with `ret`, or fail when nothing is selected |
 | `hello_paste` | `id text` | Edit > Paste or alt-v, and a paste from the terminal the desktop runs on |
+| `hello_drop` | `id row col path move\|copy` | something dragged from another window, let go over this one |
+| `hello_refresh` | `id` | something on disk changed: a move, a copy, the trash |
 | `hello_wheel` | `id up\|down row col` | the wheel, over this window whether or not it has focus |
 | `hello_close` | `id` | once, when the window closes |
 

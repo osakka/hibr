@@ -32,6 +32,9 @@ declare -gA TW
 # quoted arguments survives: a test sets it to a /bin/sh with a known prompt.
 [ -n "${TW_CMD[*]}" ] || TW_CMD=(hibr)
 
+# What a window opened on a file runs: hibr's own editor, handed the path.
+[ -n "${TW_EDIT[*]}" ] || TW_EDIT=(hibr -c 'mod load hvi && hvi "$1"' hvi)
+
 # Start the program the first time there is a window to put it in, and keep
 # its size in step with the window afterwards.
 tw_fit() {
@@ -39,7 +42,13 @@ tw_fit() {
 
 	[ "$h" -lt 1 ] || [ "$w" -lt 1 ] && return 1
 	if [ -z "${TW[$id]["t"]}" ]; then
-		TW[$id]["t"] := term open -r "$h" -c "$w" "${TW_CMD[@]}" || return 1
+		if [ -n "${TW[$id]["file"]}" ]; then
+			TW[$id]["t"] := term open -r "$h" -c "$w" "${TW_EDIT[@]}" \
+				"${TW[$id]["file"]}" || return 1
+		else
+			TW[$id]["t"] := term open -r "$h" -c "$w" "${TW_CMD[@]}" ||
+				return 1
+		fi
 		TW[$id]["h"]=$h
 		TW[$id]["w"]=$w
 		return 0
@@ -153,6 +162,24 @@ term_wheel() {
 	else
 		term scroll "$t" -3
 	fi
+}
+
+# A window opened on a file edits it, and is called what it shows.
+term_open() {
+	TW[$1]["file"]=$2
+	if [ -n "$2" ]; then
+		command -v dt_retitle > /dev/null && dt_retitle "$1" "${2##*/}"
+	fi
+	return 0
+}
+
+# A file dropped on a terminal is typed in as its path, quoted for a shell.
+term_drop() {
+	local t=${TW[$1]["t"]} q
+
+	[ -n "$t" ] || return 0
+	printf -v q '%q' "$4"
+	term write "$t" "$q "
 }
 
 term_close() {

@@ -9,7 +9,7 @@ program in a window (two of them, as two sessions), and the games prove
 animation on the clock.
 Run it directly:  python3 tests/apps.py [path-to-hibr]
 """
-import os, subprocess, sys, tempfile
+import os, shutil, subprocess, sys, tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
@@ -34,7 +34,7 @@ for i in range(12):
 ENTRIES = 15
 
 
-def run(app, win, feed=(), pre="", wait=1.0, also=(), end=b"q"):
+def run(app, win, feed=(), pre="", wait=1.0, also=(), end=b"q", extra=()):
     """Open one app in a window at a known place and drive it.
 
     `also` adds further windows after it, as (title, geometry, app) triples,
@@ -44,7 +44,8 @@ def run(app, win, feed=(), pre="", wait=1.0, also=(), end=b"q"):
     """
     p = os.path.join(S, "session.hibr")
     src = "".join(". %s/%s.hibr\n" % (APPS, a)
-                  for a in dict.fromkeys([app] + [x[2] for x in also if x[2]]))
+                  for a in dict.fromkeys([app] + [x[2] for x in also if x[2]]
+                                         + list(extra)))
     more = "".join('dt_new "%s" %s %s\n' % x for x in also)
     open(p, "w").write(
         "%s. %s\n%s%s\ndt_open\ndt_new \"%s\" %s %s\n%s"
@@ -397,6 +398,65 @@ check("a paste from the real terminal reaches the app, filtered",
       sc.find("12  + 3") is not None, sc)
 check("and Edit is on the menu bar", "Edit" in sc.row(0), sc)
 
+# --- files: views, and dragging between windows -------------------------
+
+sc = run("files", "12 60 2 2", [b"v"], pre=PRE)
+check("the details view has sizes, times and permissions",
+      sc.find("Size") is not None and sc.find("Mode") is not None and
+      sc.find("drwxr-xr-x") is not None, sc)
+sc = run("files", "12 60 2 2", [b"v", b"v", b"\x1b[C", b"\x1b[B"], pre=PRE)
+check("the icon view is a grid, and the arrows move across and down it",
+      sc.find("▤▤") is not None and sc.find("6 of %d" % ENTRIES) is not None,
+      sc)
+
+TWO = [("Files", "12 34 2 40", "files")]
+# The right-hand window goes into alpha/ with two presses, then file00.txt
+# is dragged across from the left-hand one and let go over it.
+INTO = [press(5, 44), press(5, 44)]
+DRAG = [press(7, 5), drag(7, 9), drag(9, 50)]
+sc = run("files", FW, INTO + DRAG + [release(9, 50)], pre=PRE, also=TWO)
+moved = os.path.exists(os.path.join(D, "alpha", "file00.txt")) and \
+        not os.path.exists(os.path.join(D, "file00.txt"))
+check("a file dragged to another window's folder is moved there", moved, sc)
+if moved:
+    os.rename(os.path.join(D, "alpha", "file00.txt"),
+              os.path.join(D, "file00.txt"))
+sc = run("files", FW, INTO + DRAG + [release(9, 50, 16)], pre=PRE, also=TWO)
+copied = os.path.exists(os.path.join(D, "alpha", "file00.txt")) and \
+         os.path.exists(os.path.join(D, "file00.txt"))
+check("and with ctrl held it is copied instead", copied, sc)
+sc = run("files", FW, INTO + DRAG + [release(9, 50, 16)], pre=PRE, also=TWO)
+check("nothing is ever put over a file already there",
+      sc.find("already has a file00.txt") is not None, sc)
+if copied:
+    os.unlink(os.path.join(D, "alpha", "file00.txt"))
+
+TRASH = tempfile.mkdtemp(prefix="hibr-trash-")
+sc = run("files", FW, [b"\x1b[B"] * 3 + [b"\x1b[3~"],
+         pre=PRE + "\nDT_TRASH=%s" % TRASH)
+info = os.path.join(TRASH, "info", "file00.txt.trashinfo")
+check("delete moves a file to the trash, with the note of where it was",
+      os.path.exists(os.path.join(TRASH, "files", "file00.txt")) and
+      os.path.exists(info) and
+      ("Path=%s/file00.txt" % D) in open(info).read(), sc)
+if os.path.exists(os.path.join(TRASH, "files", "file00.txt")):
+    os.rename(os.path.join(TRASH, "files", "file00.txt"),
+              os.path.join(D, "file00.txt"))
+shutil.rmtree(TRASH, True)
+
+TERMW = [("Term", "10 36 12 40", "term")]
+sc = run("files", FW, DRAG[:2] + [drag(15, 50), release(15, 50)],
+         pre=PRE + "\n" + SH, also=TERMW, end=None, wait=1.2)
+check("a file dropped on a terminal is typed in as its path",
+      sc.find("sh> " + D[:28]) is not None, sc)
+
+EDIT = "TW_EDIT=(/bin/sh -c 'echo \"editing $1\"; sleep 5' x)"
+sc = run("files", FW, [b"\x1b[B"] * 3 + [b"\r"], pre=PRE + "\n" + EDIT,
+         extra=["term"], end=None, wait=1.2)
+check("opening a file opens a terminal window called by its name",
+      sc.find("┤ file00.txt ├") is not None and
+      sc.find("editing") is not None, sc)
+
 for f in os.listdir(D):
     p = os.path.join(D, f)
     if os.path.isdir(p):
@@ -406,4 +466,4 @@ for f in os.listdir(D):
 os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
-report(72)
+report(82)

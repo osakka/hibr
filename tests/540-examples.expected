@@ -1,5 +1,6 @@
 0
 every example parses
+no function is defined twice
 every declared program answers --help
 [auth]
   token = abc123

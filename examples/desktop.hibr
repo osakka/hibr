@@ -28,6 +28,11 @@ DT_SIZE=
 DT_GRAB=
 DT_MOUSE=
 DT_CLIP=
+DT_DND=
+DT_DNDN=
+DT_DNDG=
+DT_DNDR=0
+DT_DNDC=0
 DT_NOTE=
 DT_ROWS=24
 DT_COLS=80
@@ -142,7 +147,8 @@ dt_new() {
 	DT[$id]["col"]="$5"
 	DT[$id]["app"]="$ap"
 	DT[$id]["min"]=0
-	for f in draw key click mouse wheel open close copy paste; do
+	for f in draw key click mouse wheel open close copy paste drop \
+		refresh; do
 		if [ -n "$ap" ] && dt_has "${ap}_$f"; then
 			DT[$id]["$f"]="${ap}_$f"
 		else
@@ -296,6 +302,7 @@ dt_draw() {
 	dt_wall
 	l := console pane list
 	for id in $l; do dt_win "${id#w}"; done
+	[ -n "$DT_DND" ] && dt_dnddraw
 	dt_menus
 	dt_bar
 	dt_drop
@@ -406,6 +413,17 @@ dt_mouse() {
 		esac
 		;;
 	drag | release)
+		# Something being dragged between windows belongs to the desktop
+		# until it is dropped, whoever started it.
+		if [ -n "$DT_DND" ]; then
+			DT_DNDR=$mr
+			DT_DNDC=$mc
+			if [ "$act" = release ]; then
+				DT_MOUSE=
+				dt_ondrop "$mr" "$mc" "$mods"
+			fi
+			return 0
+		fi
 		# A window that took the press with _mouse is told the rest of it,
 		# wherever the pointer goes, until the button comes up.
 		if [ -n "$DT_MOUSE" ]; then
@@ -417,6 +435,8 @@ dt_mouse() {
 			[ -n "$mo" ] &&
 				$mo "$id" "$act" "$1" $((mr - wr)) $((mc - wc)) \
 					"$mods"
+			DT_DNDR=$mr
+			DT_DNDC=$mc
 			return 0
 		fi
 		;;
@@ -530,6 +550,10 @@ dt_event() {
 	esac
 	if [ -n "$DT_GRAB" ]; then
 		dt_gkey "$k" && return 0
+		return 0
+	fi
+	if [ -n "$DT_DND" ]; then
+		[ "$k" = escape ] && DT_DND= && DT_MOUSE=
 		return 0
 	fi
 	DT_NOTE=
@@ -930,6 +954,181 @@ dt_layout() {
 }
 
 dt_quit() { DT_QUIT=1; }
+
+# --- files between windows -------------------------------------------------
+#
+# An app starts a drag with dt_dnd from inside its _mouse, naming a path; the
+# desktop carries it from there, drawing it under the pointer, and hands it
+# on release to the _drop of the window it lands on -- or to the desktop
+# itself.  A drop moves, and copies with ctrl held; escape cancels.  The
+# moving and copying is here, once, so every app refuses the same things.
+
+# Start dragging a path, with a name and a picture to show while it moves.
+dt_dnd() {
+	DT_DND=$1
+	DT_DNDN=$2
+	DT_DNDG=${3:-▯}
+}
+
+dt_dnddraw() {
+	console pen "$DT_FACE" "$DT_ACTIVE" bold
+	console put "$DT_DNDR" $((DT_DNDC + 1)) " $DT_DNDG $DT_DNDN "
+}
+
+# Hand what was dropped to whatever is under the pointer.  Not dt_drop,
+# which already draws the open menu.
+dt_ondrop() {
+	local mr=$1 mc=$2 op=move src=$DT_DND id ap wr wc
+
+	DT_DND=
+	case $3 in *ctrl*) op=copy ;; esac
+	[ "$mr" = 0 ] && return 0
+	id := console hit "$mr" "$mc"
+	if [ -n "$id" ]; then
+		id=${id#w}
+		ap=${DT[$id]["drop"]}
+		if [ -z "$ap" ]; then
+			dt_note "${DT[$id]["title"]} does not take files"
+			return 0
+		fi
+		wr=${DT[$id]["row"]}
+		wc=${DT[$id]["col"]}
+		$ap "$id" $((mr - wr)) $((mc - wc)) "$src" "$op"
+		return 0
+	fi
+	dt_has dt_deskdrop && dt_deskdrop "$mr" "$mc" "$src" "$op"
+	return 0
+}
+
+# Move or copy a file or folder into a folder.  Nothing is ever put over
+# something already there, and a folder cannot go inside itself.
+dt_fileop() {
+	local op=$1 src=$2 dst=$3 base dir
+
+	base=${src##*/}
+	if ! [ -e "$src" ] && ! [ -L "$src" ]; then
+		dt_note "$base is not there any more"
+		return 1
+	fi
+	if ! [ -d "$dst" ]; then
+		dt_note "${dst##*/} is not a folder"
+		return 1
+	fi
+	dir=${src%/*}
+	[ -z "$dir" ] && dir=/
+	[ "$op" = move ] && [ "$dir" = "$dst" ] && return 0
+	case "$dst/" in
+	"$src/"*)
+		dt_note "$base cannot go inside itself"
+		return 1
+		;;
+	esac
+	if [ -e "$dst/$base" ] || [ -L "$dst/$base" ]; then
+		dt_note "${dst##*/} already has a $base"
+		return 1
+	fi
+	if [ "$op" = copy ]; then
+		command cp -R -- "$src" "$dst/" 2>> "$DT_LOG"
+	else
+		command mv -- "$src" "$dst/" 2>> "$DT_LOG"
+	fi
+	if [ $? != 0 ]; then
+		dt_note "Could not $op $base"
+		return 1
+	fi
+	if [ "$op" = copy ]; then
+		dt_note "Copied $base to ${dst##*/}"
+	else
+		dt_note "Moved $base to ${dst##*/}"
+	fi
+	dt_changed
+}
+
+# Tell every window that shows files that something on disk has changed.
+dt_changed() {
+	local id cb
+
+	for id in "${!DT[@]}"; do
+		cb=${DT[$id]["refresh"]}
+		[ -n "$cb" ] && $cb "$id"
+	done
+	dt_has dt_deskscan && dt_deskscan
+	return 0
+}
+
+# The trash, where the freedesktop specification puts it, so a file thrown
+# away here can be found by any other desktop on the machine and the other
+# way round.
+DT_TRASH="${DT_TRASH-${XDG_DATA_HOME:-$HOME/.local/share}/Trash}"
+
+# A path as the trash's info file writes it: percent-escaped, UTF-8 left be.
+dt_urlpath() {
+	local p=$1 out= ch i=0 x
+
+	while [ "$i" -lt "${#p}" ]; do
+		ch=${p:i:1}
+		case $ch in
+		[A-Za-z0-9/._~-]) out="$out$ch" ;;
+		*)
+			printf -v x '%d' "'$ch"
+			if [ "$x" -gt 0 ] && [ "$x" -lt 128 ]; then
+				printf -v x '%%%02X' "$x"
+				out="$out$x"
+			else
+				out="$out$ch"
+			fi
+			;;
+		esac
+		i=$((i + 1))
+	done
+	ret "$out"
+}
+
+# Move a file or folder to the trash, with the note that says where it was.
+dt_trash() {
+	local p=$1 base n i=1 when enc
+
+	base=${p##*/}
+	if ! [ -e "$p" ] && ! [ -L "$p" ]; then
+		return 1
+	fi
+	mkdir -p "$DT_TRASH/files" "$DT_TRASH/info" 2> /dev/null || return 1
+	n=$base
+	while [ -e "$DT_TRASH/files/$n" ] || [ -L "$DT_TRASH/files/$n" ] ||
+	      [ -e "$DT_TRASH/info/$n.trashinfo" ]; do
+		n="$base.$i"
+		i=$((i + 1))
+	done
+	printf -v when '%(%Y-%m-%dT%H:%M:%S)T' -1
+	enc := dt_urlpath "$p"
+	printf '[Trash Info]\nPath=%s\nDeletionDate=%s\n' "$enc" "$when" \
+		> "$DT_TRASH/info/$n.trashinfo" || return 1
+	if ! command mv -- "$p" "$DT_TRASH/files/$n" 2>> "$DT_LOG"; then
+		rm -f "$DT_TRASH/info/$n.trashinfo"
+		dt_note "Could not move $base to the trash"
+		return 1
+	fi
+	dt_note "Moved $base to the trash"
+	dt_changed
+}
+
+# Open a path: a folder in a file browser, anything else in a terminal with
+# hvi, since every file a terminal can show is one it can edit.
+dt_openfile() {
+	if [ -d "$1" ]; then
+		dt_launch files "$1"
+	elif [ -n "${DT_APPS[term]["title"]}" ]; then
+		dt_launch term "$1"
+	else
+		dt_note "Nothing here opens ${1##*/}"
+	fi
+}
+
+# Give a window a new title; an app knows what it is showing better than
+# the menu that opened it does.
+dt_retitle() {
+	DT[$1]["title"]="$2"
+}
 
 # Copy from the focused window or paste into it.
 #

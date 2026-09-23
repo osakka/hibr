@@ -12,6 +12,15 @@ for e in examples/*.hibr; do
 done
 echo "every example parses"
 
+# A function defined twice in a script silently replaces the first, which is
+# how the desktop's drag and drop once took over the function that draws the
+# open menu. No example, and no app, defines one name twice.
+for e in examples/*.hibr examples/apps/*.hibr; do
+  sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)() *{.*/\1/p' "$e" | sort | uniq -d |
+    while read -r f; do echo "defined twice in $e: $f"; done
+done
+echo "no function is defined twice"
+
 for e in examples/fetch.hibr examples/ls-report.hibr examples/conf.hibr examples/workers.hibr; do
   ./build/hibr "$e" --help > /dev/null 2>&1 || echo "no --help: $e"
 done

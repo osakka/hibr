@@ -28,7 +28,7 @@ Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 14).
     make install         # PREFIX=/usr/local, modules to $(PREFIX)/lib/hibr
     ./build/hibr -n script      # parse only
 
-    tests/run.sh [-v] [prefix]           # C-side harness, 80 tests
+    tests/run.sh [-v] [prefix]           # C-side harness, 82 tests
     ./build/hibr tests/self.hibr                 # suite in hibr, 91 assertions, planned
     python3 tests/{console,cat,most,hvi,mon,mtr,editor,desktop,apps}.py
                                  # the full-screen suites, each through a pty
@@ -677,6 +677,12 @@ went in the shell.
   to answer a fabricated 24 rows beside a real `ed_cols()` width, so half the
   answer was true — which is worse than either, and hid a pty resize working
   correctly for most of an hour.
+- **A function defined twice in a script silently replaces the first.** The
+  desktop's drop handler was called `dt_drop`, which is also the function
+  that draws the open menu, so every frame "drew the menu" by dropping
+  whatever was being dragged. Nothing errors; it simply stops working.
+  `tests/540-examples.t` now fails on any name defined twice in an example
+  or an app.
 - **An ignored signal survives `exec`.** The hold server ignores `SIGHUP`
   so a logout cannot end it, and every program it started inherited the
   ignore: a held shell behaved as if run under `nohup`, and `sleep`s outlived
