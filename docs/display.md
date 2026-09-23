@@ -143,6 +143,18 @@ k := console key 1000
 if console resized; then relayout; console clear; fi
 ```
 
+## Keys that would be signals
+
+By default ctrl-c interrupts a full-screen program the way it interrupts
+anything else, and the console puts the terminal back on the way out. A
+program that should be left only through its own quit can have those keys
+instead:
+
+```sh
+console signals off     # ctrl-c, ctrl-\ and ctrl-z arrive as keys
+console signals on
+```
+
 ## The mouse
 
 Nothing is reported until it is asked for, because reporting takes the

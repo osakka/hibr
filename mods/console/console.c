@@ -276,6 +276,14 @@ int m_console(sh *s, int ac, char **av)
 		}
 		return HIBR_OK;
 	}
+	if (!strcmp(sub, "signals")) {
+		if (ac < 3 || (strcmp(av[2], "on") && strcmp(av[2], "off"))) {
+			lg(HIBR_LERR, "usage: console signals on|off");
+			return 2;
+		}
+		cn_signals(!strcmp(av[2], "on"));
+		return HIBR_OK;
+	}
 	if (!strcmp(sub, "resized")) {
 		return cn_resized() ? HIBR_OK : HIBR_FAIL;
 	}

@@ -77,9 +77,23 @@ older encoding cannot report a column past 223.
 
 The one thing a full-screen program must never do is leave a terminal in raw
 mode. `SIGINT`, `SIGTERM` and `SIGHUP` restore the terminal and then re-raise
-the signal, so the shell still dies of what killed it; the module's finaliser
+the signal, so the shell still dies of what killed it, and so do the crashes:
+`SIGSEGV`, `SIGBUS`, `SIGABRT`, `SIGFPE` and `SIGILL`. The module's finaliser
 does the same on `mod drop` and at exit. `SIGWINCH` only sets a flag — the
 grids are rebuilt in the next flush, never in the handler.
+
+`console signals off` hands ctrl-c, ctrl-\\ and ctrl-z to the program as the
+keys `ctrl-c`, `ctrl-\` and `ctrl-z` instead of raising signals; `on` puts
+them back, and `console close` restores whatever the terminal had anyway. A
+program that is left only through its own Quit wants this -- the desktop does.
+
+**A resize asserts the terminal's modes again and repaints everything.** The
+terminal on the other end may not be the one the screen was opened on: a
+session reattached with `hold` arrives as a `SIGWINCH` on a terminal that has
+never seen the alternate screen, the hidden cursor or the mouse mode. So
+`console resized` sends them again and invalidates the front grid, and the
+next flush draws the whole frame. It costs one full frame on an event that is
+rare anyway.
 
 ## Testing
 

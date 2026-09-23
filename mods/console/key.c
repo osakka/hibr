@@ -170,7 +170,7 @@ void cn_ctrl(str *o, unsigned char c)
 		s_ch(o, (char)('a' + c - 1));
 	} else {
 		s_cat(o, "ctrl-");
-		s_ch(o, (char)('a' + c - 1));
+		s_ch(o, (char)('@' + c));
 	}
 }
 

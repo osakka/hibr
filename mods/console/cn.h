@@ -33,6 +33,7 @@ int cn_isopen(void);
 void cn_size(int *rows, int *cols);
 int cn_resized(void);
 void cn_mouseon(int mode);
+void cn_signals(int on);
 void cn_pen(unsigned fg, unsigned bg, unsigned attr);
 void cn_getpen(unsigned *fg, unsigned *bg, unsigned *attr);
 void cn_clear(void);

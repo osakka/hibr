@@ -17,6 +17,15 @@ volatile sig_atomic_t cn_winch;
 volatile sig_atomic_t cn_fatal;
 struct sigaction cn_oint, cn_oterm, cn_ohup, cn_owin;
 
+/* The signals that end a process without asking it, each of which must
+   put the terminal back first, and what was installed for them before. */
+static const int cn_fatals[] = { SIGSEGV, SIGBUS, SIGABRT, SIGFPE, SIGILL };
+struct sigaction cn_ofatal[sizeof cn_fatals / sizeof cn_fatals[0]];
+
+/* Whether ctrl-c, ctrl-\ and ctrl-z raise signals, as they do by default,
+   or arrive as keys for the program to use. */
+int cn_isig = 1;
+
 static const char cn_leave[] = "\033[?25h\033[0m\033[?1002l\033[?1006l"
 			       "\033[?2004l\033[?1049l";
 static const char cn_enter[] = "\033[?1049h\033[?25l\033[?2004h\033[2J";
@@ -99,13 +108,42 @@ int cn_isopen(void)
 	return cn_on;
 }
 
-/* Report and clear the pending resize flag. */
+/* Report and clear the pending resize flag.
+
+   A resize also says the terminal on the other end may not be the one the
+   screen was opened on: a session reattached from somewhere else arrives
+   as a SIGWINCH on a terminal that has never seen the alternate screen,
+   the hidden cursor or the mouse mode.  So every resize asserts them
+   again and repaints everything, which costs one full frame on an event
+   that is rare anyway. */
 int cn_resized(void)
 {
 	int r = cn_winch;
 
 	cn_winch = 0;
+	if (r && cn_on) {
+		cn_wr(cn_fd, cn_enter, sizeof cn_enter - 1);
+		if (cn_mousemode)
+			cn_mouseon(cn_mousemode);
+		cn_inval();
+		lg(HIBR_LDBG, "resized: terminal modes asserted again");
+	}
 	return r;
+}
+
+/* Let ctrl-c and its kind raise signals, or hand them over as keys. */
+void cn_signals(int on)
+{
+	struct termios r;
+
+	cn_isig = !!on;
+	if (!cn_on || tcgetattr(cn_fd, &r) != 0)
+		return;
+	if (on)
+		r.c_lflag |= (unsigned)ISIG;
+	else
+		r.c_lflag &= ~(unsigned)ISIG;
+	tcsetattr(cn_fd, TCSADRAIN, &r);
 }
 
 /* Ask the terminal how large it is, falling back to a sane default. */
@@ -132,6 +170,7 @@ void cn_size(int *rows, int *cols)
 void cn_hook(void)
 {
 	struct sigaction a;
+	size_t i;
 
 	memset(&a, 0, sizeof a);
 	a.sa_handler = cn_onwinch;
@@ -140,11 +179,17 @@ void cn_hook(void)
 	sigaction(SIGINT, &a, &cn_oint);
 	sigaction(SIGTERM, &a, &cn_oterm);
 	sigaction(SIGHUP, &a, &cn_ohup);
+	for (i = 0; i < sizeof cn_fatals / sizeof cn_fatals[0]; i++)
+		sigaction(cn_fatals[i], &a, &cn_ofatal[i]);
 }
 
 /* Put back the handlers that were there before. */
 void cn_unhook(void)
 {
+	size_t i;
+
+	for (i = 0; i < sizeof cn_fatals / sizeof cn_fatals[0]; i++)
+		sigaction(cn_fatals[i], &cn_ofatal[i], 0);
 	sigaction(SIGWINCH, &cn_owin, 0);
 	sigaction(SIGINT, &cn_oint, 0);
 	sigaction(SIGTERM, &cn_oterm, 0);
@@ -174,6 +219,8 @@ int cn_open(sh *s)
 	}
 	r = cn_sv;
 	r.c_lflag &= ~(unsigned)(ECHO | ICANON | IEXTEN);
+	if (!cn_isig)
+		r.c_lflag &= ~(unsigned)ISIG;
 	r.c_iflag &= ~(unsigned)(IXON | ICRNL | INLCR | ISTRIP);
 	r.c_oflag &= ~(unsigned)OPOST;
 	r.c_cc[VMIN] = 0;
