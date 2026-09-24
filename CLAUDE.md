@@ -6,10 +6,12 @@ decisions and the traps already found, so they don't get rediscovered.
 
 ## What hibr is
 
-A shell that runs a useful subset of bash syntax in ~12k lines and ~270 KB,
-with a resident footprint below dash and roughly half of bash, and faster than
-bash on tight loops. It is *not* a drop-in bash replacement and must not be
-described as one: some divergences are deliberate (see Design decisions).
+A shell that runs a useful subset of bash syntax in ~15,000 lines and a 358 KB
+binary, with resident memory about half of bash's (and about 110 kB more than
+dash's — see the README's own Measurements table for the honest comparison),
+and faster than bash on tight loops. It is *not* a drop-in bash replacement
+and must not be described as one: some divergences are deliberate (see Design
+decisions).
 
 Its reasons to exist beyond size: nested maps, JSON with type fidelity, regex
 capture, in-process text/array operations, native TCP/TLS/Unix sockets and
@@ -23,7 +25,7 @@ Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 14).
 
     make                 # tcc; builds ./build/hibr and mods/*.so
     make TLS=0           # compile TLS out entirely
-    make CC=gcc OPT=-O2  # optimised: 44% smaller text, 44% faster, not the default
+    make CC=gcc OPT=-O2  # optimised: ~20% smaller text, ~45% faster, not the default
     make check           # = tests/run.sh
     make install         # PREFIX=/usr/local, modules to $(PREFIX)/lib/hibr
     ./build/hibr -n script      # parse only
@@ -867,3 +869,18 @@ went in the shell.
   drawn every default tick to notice its own 3-second throttle has elapsed
   rather than calling `dt_want`, would need converting first or it silently
   refreshes late under a long default tick.
+- The core binary is 358 KB stripped, 15,369 lines across `src/*.c` -- both
+  the README and this file's own opening line had drifted stale (313 KB,
+  ~13,000/~12,000 lines) before being re-measured and corrected. Per-file
+  text size, compiled separately with `tcc -c`: `expand.c` 52.6K, `exec.c`
+  36.7K, `bi.c` 31.4K, `edit.c` 20.2K, `daily.c` 19.0K, `lex.c` 19.0K,
+  `net.c` 15.9K, `parse.c` 15.8K, the rest under 13K each. Nothing
+  desktop-related is in `src/*.c` at all -- console, term, pty and hold are
+  already modules, loaded on demand, and all 14 `.so` files together total
+  476K outside the core. What is core but arguably language-adjacent rather
+  than shell-core by this file's own "grows only for what makes it a better
+  shell" test -- `net.c`, `json.c`, `text.c`, `args.c`, the interactive-only
+  `edit.c` -- are also exactly the features the README leads with as reasons
+  to use hibr over dash; moving any of them to a module is a product
+  decision about what "just works out of the binary" means, not a cleanup,
+  and has not been made.

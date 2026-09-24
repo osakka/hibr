@@ -1,6 +1,6 @@
 # hibr documentation
 
-A shell that runs a useful subset of bash in ~13,000 lines of C, and adds
+A shell that runs a useful subset of bash in ~15,000 lines of C, and adds
 nested maps, JSON, regex capture, native sockets and TLS, typed functions,
 results without forking, declared command-line arguments, and modules that can
 add whole protocols.

@@ -2,12 +2,12 @@
 
 **hibr** is a shell that finally behaves the way you already expect a shell
 to behave. Familiar bash syntax, its sharpest edges resolved instead of
-carried forward, in about 13,000 lines of C and a 313 KB binary — a little
+carried forward, in about 15,000 lines of C and a 358 KB binary — a little
 over half of bash's memory, and two and a half times its speed on a tight
 loop. Built with `tcc`, depending on nothing but libc and libdl.
 
 The name says what it is. **Highly**: half of bash's memory, tight loops two
-and a half times faster, in a 313 KB binary — the numbers above. **Intuitive**:
+and a half times faster, in a 358 KB binary — the numbers above. **Intuitive**:
 the things that make bash surprising the first time you hit them —
 `test`'s word-splitting traps, `$BASH_REMATCH`'s awkward capture, a dozen more
 in [the decision records](docs/adr/README.md) — fixed, so the shell does what
@@ -53,7 +53,7 @@ here, because run-to-run spread is about 180 kB either way.
 
 | | hibr | dash | bash |
 |---|---|---|---|
-| binary, stripped | 313 KB | 122 KB | 1235 KB |
+| binary, stripped | 358 KB | 122 KB | 1235 KB |
 | resident memory at startup | 1792 kB | 1680 kB | 3104 kB |
 | resident memory after the loop | 1796 kB | 1712 kB | 3120 kB |
 | the loop | 90 ms | 76 ms | 233 ms |
