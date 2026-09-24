@@ -38,11 +38,21 @@ declare -gA TW
 # Start the program the first time there is a window to put it in, and keep
 # its size in step with the window afterwards.
 tw_fit() {
-	local id=$1 h=$2 w=$3
+	local id=$1 h=$2 w=$3 n i
+	local -a cmd
 
 	[ "$h" -lt 1 ] || [ "$w" -lt 1 ] && return 1
 	if [ -z "${TW[$id]["t"]}" ]; then
-		if [ -n "${TW[$id]["file"]}" ]; then
+		if [ -n "${TW[$id]["argvn"]}" ]; then
+			n=${TW[$id]["argvn"]}
+			i=0
+			while [ "$i" -lt "$n" ]; do
+				cmd+=("${TW[$id]["arg$i"]}")
+				i=$((i + 1))
+			done
+			TW[$id]["t"] := term open -r "$h" -c "$w" "${cmd[@]}" \
+				"${TW[$id]["file"]}" || return 1
+		elif [ -n "${TW[$id]["file"]}" ]; then
 			TW[$id]["t"] := term open -r "$h" -c "$w" "${TW_EDIT[@]}" \
 				"${TW[$id]["file"]}" || return 1
 		else
@@ -201,9 +211,24 @@ term_wheel() {
 	fi
 }
 
-# A window opened on a file edits it, and is called what it shows.
+# A window opened on a file edits it, and is called what it shows.  Opened
+# through a registered handler that wanted a terminal, DT_OPENCMD carries
+# what runs instead of hvi -- read once, here, and cleared, so the next
+# ordinary terminal or file does not inherit it.
 term_open() {
+	local n i
+
 	TW[$1]["file"]=$2
+	if [ "${#DT_OPENCMD[@]}" -gt 0 ]; then
+		n=${#DT_OPENCMD[@]}
+		i=0
+		while [ "$i" -lt "$n" ]; do
+			TW[$1]["arg$i"]="${DT_OPENCMD[$i]}"
+			i=$((i + 1))
+		done
+		TW[$1]["argvn"]=$n
+		DT_OPENCMD=()
+	fi
 	if [ -n "$2" ]; then
 		command -v dt_retitle > /dev/null && dt_retitle "$1" "${2##*/}"
 	fi

@@ -578,6 +578,44 @@ fb_open() {
 	return 0
 }
 
+# What the entry under the cursor is: name, size, and permissions from the
+# same one-ls-per-folder metadata the details view uses.
+fb_info() {
+	local id=$1 sel=${FB[$1]["sel"]} nm sz
+
+	[ "${FB[$id]["n"]}" = 0 ] && return 0
+	[ -n "${FB[$id]["meta"]}" ] || fb_meta "$id"
+	nm=${FL[$id][$sel]["name"]}
+	if [ "${FL[$id][$sel]["dir"]}" = 1 ]; then
+		dt_note "$nm — folder, ${FL[$id][$sel]["perm"]}"
+		return 0
+	fi
+	sz := fb_human "${FL[$id][$sel]["size"]}"
+	dt_note "$nm — $sz, ${FL[$id][$sel]["perm"]}, ${FL[$id][$sel]["time"]}"
+}
+
+# Open the entry under the cursor with a specific handler, chosen from Open
+# With rather than by its own extension -- the desktop's dt_runhandler is
+# generic on the path once given which one to use.
+files_openwith() {
+	local id=$1 ext=$2 sel p
+
+	sel=${FB[$id]["sel"]}
+	[ "${FB[$id]["n"]}" = 0 ] && return 0
+	[ "${FL[$id][$sel]["dir"]}" = 1 ] && return 0
+	p := fb_path "$id" "$sel"
+	command -v dt_runhandler > /dev/null && dt_runhandler "$ext" "$p"
+}
+
+# Cut is what Copy is, plus marking the clipboard so a paste after it moves
+# the files instead of copying them; dt_edit reads which happened.
+files_cut() {
+	local t
+
+	t := files_copy "$1" || return 1
+	ret "$t"
+}
+
 files_hidden() {
 	if [ -n "${FB[$1]["hidden"]}" ]; then
 		FB[$1]["hidden"]=
@@ -668,6 +706,20 @@ fb_at() {
 files_mouse() {
 	local id=$1 act=$2 r=$4 c=$5 mods=$6 i pr pc sel g lb
 
+	if [ "$3" = right ]; then
+		[ "$act" = press ] || return 0
+		if i := fb_at "$id" "$r" "$c"; then
+			[ -n "${FL[$id][$i]["m"]}" ] || {
+				fb_clear "$id"
+				FB[$id]["sel"]=$i
+			}
+		else
+			fb_clear "$id"
+		fi
+		dt_context_open files "$id" \
+			$((${DT[$id]["row"]} + r)) $((${DT[$id]["col"]} + c))
+		return 0
+	fi
 	[ "$3" = left ] || return 0
 	case $act in
 	press)
@@ -741,6 +793,54 @@ files_mouse() {
 	return 0
 }
 
+# Right-click on an entry, or on empty space in the list: the same actions
+# as the File menu, without reaching for the menu bar first.  Open With
+# lists every handler a script of the user's own has registered with
+# dt_handler, regardless of the entry's own extension -- that is what Open
+# With is for.
+files_context() {
+	local id=$1 sel=${FB[$1]["sel"]} n=${FB[$1]["n"]} none isdir ext
+
+	none=0
+	[ "$n" = 0 ] || [ "${FL[$id][$sel]["kind"]}" = up ] && none=1
+	dt_menu "File"
+	if [ "$none" = 1 ]; then
+		dt_dim "Open"
+	else
+		isdir=${FL[$id][$sel]["dir"]}
+		dt_item "Open" o fb_open "$id"
+		if [ "$isdir" != 1 ] && [ "${#DT_HANDLERS[@]}" -gt 0 ]; then
+			dt_sub "Open With"
+			for ext in "${!DT_HANDLERS[@]}"; do
+				dt_item "${DT_HANDLERS[$ext][0]##*/} (.$ext)" "" \
+					files_openwith "$id" "$ext"
+			done
+			dt_end
+		fi
+	fi
+	dt_sep
+	if [ "$none" = 1 ]; then
+		dt_dim "Cut"
+		dt_dim "Copy"
+	else
+		dt_item "Cut" t dt_edit cut
+		dt_item "Copy" c dt_edit copy
+	fi
+	if [ -n "$DT_CLIP" ]; then
+		dt_item "Paste" v dt_edit paste
+	else
+		dt_dim "Paste"
+	fi
+	dt_sep
+	if [ "$none" = 1 ]; then
+		dt_dim "Info"
+		dt_dim "Move to Trash"
+	else
+		dt_item "Info" i fb_info "$id"
+		dt_item "Move to Trash" x files_trash "$id"
+	fi
+}
+
 # Something dropped here goes into the folder shown, or into the folder it
 # was dropped on.
 files_drop() {
@@ -765,9 +865,11 @@ files_copy() {
 	ret "${out%$'\n'}"
 }
 files_paste() {
-	local id=$1 p
+	local id=$1 op=$3 p
 	local -a ps
 
+	[ "$op" = cut ] && op=move
+	[ -z "$op" ] && op=copy
 	while IFS= read -r p; do
 		[ -n "$p" ] || continue
 		if [ -e "$p" ] || [ -L "$p" ]; then
@@ -778,7 +880,7 @@ files_paste() {
 		dt_note "Paste a path to copy that file here"
 		return 0
 	fi
-	dt_fileop copy "${FB[$id]["dir"]}" "${ps[@]}"
+	dt_fileop "$op" "${FB[$id]["dir"]}" "${ps[@]}"
 }
 
 # Something changed on disk: read the folder again, keeping the selection

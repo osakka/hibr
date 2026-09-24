@@ -34,6 +34,7 @@ DT_SIZE=
 DT_GRAB=
 DT_MOUSE=
 DT_CLIP=
+DT_CLIPOP=
 DT_DND=
 DT_DNDN=
 DT_DNDG=
@@ -179,7 +180,7 @@ dt_new() {
 	DT[$id]["app"]="$ap"
 	DT[$id]["min"]=0
 	DT[$id]["autoclose"]=
-	for f in draw key click mouse wheel open close copy paste drop \
+	for f in draw key click mouse wheel open close copy cut paste drop \
 		refresh; do
 		if [ -n "$ap" ] && dt_has "${ap}_$f"; then
 			DT[$id]["$f"]="${ap}_$f"
@@ -660,6 +661,7 @@ dt_event() {
 	# it goes to the app's _paste when it has one.
 	case $k in
 	alt-c) dt_edit copy; return 0 ;;
+	alt-x) dt_edit cut; return 0 ;;
 	alt-v) dt_edit paste; return 0 ;;
 	"paste "*)
 		if [ -n "$DT_FOCUS" ] && [ -n "${DT[$DT_FOCUS]["paste"]}" ]; then
@@ -1022,6 +1024,11 @@ dt_menus() {
 	else
 		dt_dim "Copy       alt-c"
 	fi
+	if [ -n "$who" ] && [ -n "${DT[$who]["cut"]}" ]; then
+		dt_item "Cut        alt-x" t dt_edit cut
+	else
+		dt_dim "Cut        alt-x"
+	fi
 	if [ -n "$who" ] && [ -n "${DT[$who]["paste"]}" ] &&
 	   [ -n "$DT_CLIP" ]; then
 		dt_item "Paste      alt-v" v dt_edit paste
@@ -1348,11 +1355,87 @@ dt_trash() {
 	[ "$bad" = 0 ]
 }
 
-# Open a path: a folder in a file browser, anything else in a terminal with
-# hvi, since every file a terminal can show is one it can edit.
+# --- application handlers ------------------------------------------------
+#
+# What opens a file, by its extension -- a script of the user's own
+# registers one with dt_handler, the same idiom dt_app uses to register a
+# window:
+#
+#     dt_handler jpg feh
+#     dt_handler json term less
+#
+# "term" runs the program in a terminal window, for anything that reads a
+# terminal itself -- an interpreter, a pager; without it the program is
+# started detached, for anything that draws its own window outside the
+# desktop, such as an image viewer or a media player, which must not be
+# waited for or the desktop would hang until it closed. A name with no
+# extension, or one nothing was registered for, still opens in a terminal
+# with hvi, exactly as it always did.
+declare -gA DT_HANDLERS
+
+dt_handler() {
+	local ext=$1 term=0 i=0 a
+
+	shift
+	if [ "$1" = term ]; then
+		term=1
+		shift
+	fi
+	DT_HANDLERS[$ext]["term"]=$term
+	for a in "$@"; do
+		DT_HANDLERS[$ext][$i]="$a"
+		i=$((i + 1))
+	done
+	DT_HANDLERS[$ext]["n"]=$i
+}
+
+# The extension a name is opened by: everything after the last dot, or
+# empty for one with none -- "Makefile" and ".bashrc" both have none, since
+# a leading dot is the name, not a separator.
+dt_ext() {
+	local nm=${1##*/}
+
+	case $nm in
+	*.*) ret "${nm##*.}" ;;
+	*) ret "" ;;
+	esac
+}
+
+# A handler's own argv, read by term_open once it is asked to run one
+# instead of hvi: set right here, right before dt_launch term, so term.hibr
+# never has to know this table exists.
+DT_OPENCMD=()
+
+# Run a registered handler on a path.
+dt_runhandler() {
+	local ext=$1 path=$2 n=${DT_HANDLERS[$ext]["n"]} i=0
+
+	DT_OPENCMD=()
+	while [ "$i" -lt "$n" ]; do
+		DT_OPENCMD+=("${DT_HANDLERS[$ext][$i]}")
+		i=$((i + 1))
+	done
+	if [ "${DT_HANDLERS[$ext]["term"]}" = 1 ]; then
+		dt_launch term "$path"
+	else
+		( "${DT_OPENCMD[@]}" "$path" >> "$DT_LOG" 2>&1 & )
+		DT_OPENCMD=()
+	fi
+}
+
+# Open a path: a folder in a file browser, a registered extension with its
+# own handler, and anything else in a terminal with hvi, since every file a
+# terminal can show is one it can edit.
 dt_openfile() {
+	local ext
+
 	if [ -d "$1" ]; then
 		dt_launch files "$1"
+		return 0
+	fi
+	ext := dt_ext "$1"
+	if [ -n "${DT_HANDLERS[$ext]["n"]}" ]; then
+		dt_runhandler "$ext" "$1"
 	elif [ -n "${DT_APPS[term]["title"]}" ]; then
 		dt_launch term "$1"
 	else
@@ -1966,13 +2049,16 @@ dt_retitle() {
 	DT[$1]["title"]="$2"
 }
 
-# Copy from the focused window or paste into it.
+# Copy or cut from the focused window, or paste into it.
 #
-# An app offers <app>_copy, which hands back what is selected with ret and
-# fails when nothing is, and <app>_paste, which is given the text.  The
-# desktop keeps one clipboard for every window, and also sends a copy to the
-# clipboard of the terminal it runs on, where that terminal allows it -- so
-# what is copied here pastes into anything else on the machine.
+# An app offers <app>_copy and, if it can move rather than only duplicate
+# what is selected, <app>_cut -- both hand back the same kind of text with
+# ret and fail when nothing is selected.  <app>_paste is given the text and,
+# third, cut or copy, so a paste after Cut can move what it receives instead
+# of copying it.  The desktop keeps one clipboard for every window, and also
+# sends a copy to the clipboard of the terminal it runs on, where that
+# terminal allows it -- so what is copied or cut here pastes into anything
+# else on the machine.
 dt_edit() {
 	local cb t
 
@@ -1980,6 +2066,7 @@ dt_edit() {
 		[ "$1" = copy ] || return 0
 		if t := dt_iconcopy && [ -n "$t" ]; then
 			DT_CLIP=$t
+			DT_CLIPOP=copy
 			console clip "$t"
 			dt_note "Copied the paths of what is selected"
 		else
@@ -1993,7 +2080,7 @@ dt_edit() {
 		return 0
 	fi
 	if [ "$1" = paste ]; then
-		[ -n "$DT_CLIP" ] && $cb "$DT_FOCUS" "$DT_CLIP"
+		[ -n "$DT_CLIP" ] && $cb "$DT_FOCUS" "$DT_CLIP" "${DT_CLIPOP:-copy}"
 		return 0
 	fi
 	if ! t := $cb "$DT_FOCUS" || [ -z "$t" ]; then
@@ -2001,8 +2088,13 @@ dt_edit() {
 		return 0
 	fi
 	DT_CLIP=$t
+	DT_CLIPOP=$1
 	console clip "$t"
-	dt_note "Copied ${#t} characters"
+	if [ "$1" = cut ]; then
+		dt_note "Cut ${#t} characters"
+	else
+		dt_note "Copied ${#t} characters"
+	fi
 }
 
 # --- staying detachable ----------------------------------------------------
@@ -2328,7 +2420,12 @@ dt_ctxbuild() {
 	# dt_menu always marks what it starts as a bar title, since every other
 	# caller is building the bar itself; a context menu is never on it.
 	MB[$before]["bar"]=0
-	MB_OPEN=$before
+	# Only the first frame opens it here -- every one after runs while the
+	# menu is already up, possibly down inside a submenu of its own, and
+	# resetting MB_OPEN on every rebuild snapped that shut the moment it
+	# opened: dt_mdown set it, and the next frame's dt_ctxbuild set it right
+	# back.
+	[ "$MB_OPEN" = -1 ] && MB_OPEN=$before
 }
 
 # Right-click on the bare desktop.

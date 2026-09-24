@@ -521,6 +521,83 @@ for f in ("file00.txt", "file01.txt"):
         os.rename(os.path.join(TRASH, "files", f), os.path.join(D, f))
 shutil.rmtree(TRASH, True)
 
+# --- context menu: cut, copy, paste, info, and open with -------------------
+#
+# HD is its own directory, just two files, so the rows are easy to name:
+# ../ is 4, note.txt is 5, pic.jpg is 6.
+
+HD = tempfile.mkdtemp(prefix="hibr-hfiles-")
+open(os.path.join(HD, "note.txt"), "w").write("hello\n")
+open(os.path.join(HD, "pic.jpg"), "w").write("")
+HPRE = "FB_DIR=%s" % HD
+
+sc = run("files", FW, [press(5, 10, 2)], pre=HPRE)
+check("a right-click opens a File menu at the pointer, on the entry there",
+      sc.find("Open") == (5, 12) and sc.find("Cut") is not None and
+      sc.find("Copy") is not None and sc.find("Paste") is not None and
+      sc.find("Info") is not None and sc.find("Move to Trash") is not None,
+      sc)
+check("and selects it, as a plain click would",
+      sc.find("2 of 3") is not None, sc)
+
+sc = run("files", FW, [press(4, 10, 2)], pre=HPRE)
+check("right-clicking .. dims what does not apply to it",
+      sc.find("Open") is not None and sc.at(4, 29) != "o", sc)
+
+sc = run("files", FW, [press(5, 10, 2), press(11, 12)], pre=HPRE)
+check("Info shows the entry's size and permissions",
+      sc.find("note.txt — 6B") is not None and
+      sc.find("-rw-") is not None, sc)
+
+sc = run("files", FW, [press(5, 10, 2), press(8, 12)], pre=HPRE)
+check("Cut puts its paths on the clipboard, the same as Copy does",
+      b"\x1b]52;c;" in sc.out, sc)
+
+# A second window, into a folder of its own, proves Cut moves rather than
+# copies: HD2 has a subfolder to paste into, so the file has somewhere to
+# actually go.
+HD2 = tempfile.mkdtemp(prefix="hibr-hfiles2-")
+os.mkdir(os.path.join(HD2, "sub"))
+open(os.path.join(HD2, "note.txt"), "w").write("hello\n")
+H2PRE = "FB_DIR=%s" % HD2
+H2TWO = [("Files", "12 34 2 40", "files")]
+H2INTO = [press(5, 44), press(5, 44)]
+
+sc = run("files", FW,
+         H2INTO + [press(6, 10, 2), press(8, 12), press(4, 44, 2),
+                   press(8, 46)],
+         pre=H2PRE, also=H2TWO)
+check("Cut, then Paste elsewhere, moves the file rather than copying it",
+      os.path.exists(os.path.join(HD2, "sub", "note.txt")) and
+      not os.path.exists(os.path.join(HD2, "note.txt")), sc)
+shutil.rmtree(HD2, True)
+
+# A handler registered with dt_handler, from a script of the user's own.
+HW = tempfile.mkdtemp(prefix="hibr-hfiles3-")
+open(os.path.join(HW, "note.txt"), "w").write("hello\n")
+MARK = os.path.join(HW, "opened")
+HWPRE = "FB_DIR=%s\ndt_handler txt touch %s\n" % (HW, MARK)
+
+sc = run("files", FW, [press(5, 10, 2)], pre=HWPRE)
+check("a registered handler adds Open With to the menu",
+      sc.find("Open With") == (6, 12), sc)
+
+sc = run("files", FW, [press(5, 10, 2), press(6, 12)], pre=HWPRE)
+check("and lists it by its own program name and the extension it is for",
+      sc.find("touch (.txt)") is not None, sc)
+
+sc = run("files", FW, [press(5, 10, 2), press(6, 12), press(5, 32)],
+         pre=HWPRE)
+check("choosing it runs that handler on the entry", os.path.exists(MARK), sc)
+if os.path.exists(MARK):
+    os.unlink(MARK)
+
+sc = run("files", FW, [press(5, 10), press(5, 10)], pre=HWPRE)
+check("a plain double-click still opens it through its own registered "
+      "handler", os.path.exists(MARK), sc)
+shutil.rmtree(HW, True)
+shutil.rmtree(HD, True)
+
 # --- the task manager -------------------------------------------------------
 #
 # The process list is the real machine's, so nothing here asserts on which
@@ -561,4 +638,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(95)
+report(108)

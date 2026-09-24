@@ -88,7 +88,19 @@ and takes one with `_drop`; the moving and copying is `dt_fileop`, once, so
 every app refuses the same things. `dt_trash path` moves a file to the trash
 at `~/.local/share/Trash`, the freedesktop one, so what is thrown away here
 turns up in any other desktop's trash on the machine. `dt_openfile path`
-opens a folder in Files and anything else in a terminal with hvi.
+opens a folder in Files, a registered handler if one matches the name's
+extension (see **Application handlers** below), and anything else in a
+terminal with hvi.
+
+**Right-click** an entry, or empty space in the list, for a menu of its
+own: Open, Open With (only when a handler is registered, listing every one
+by the program it runs), Cut, Copy, Paste, Info, and Move to Trash --
+dimmed for what does not apply to the entry under the pointer, or to `..`.
+Cut marks the clipboard so the next Paste moves the files instead of
+copying them; Paste itself, and the note it leaves, say which happened.
+The desktop's own background and every window's title bar have their own
+right-click menus too, unrelated to this one -- Arrange Icons and Change
+Wallpaper on the desktop, Move/Resize/Zoom/Hide/Close on a title bar.
 
 In the file browser a click selects one entry; ctrl and a click adds or
 takes away; shift and a click takes a run; shift with the arrows carries
@@ -106,13 +118,35 @@ copies the file whose path was pasted into the folder shown.
 
 ## Copy and paste
 
-**alt-c** copies and **alt-v** pastes, in every window, and both are on the
-**Edit** menu, which belongs to the desktop like Window does: the same two
-items everywhere, dimmed where the focused app cannot do them. There is one
-clipboard for the whole desktop, and a copy also goes to the clipboard of
-the terminal the desktop runs on through OSC 52, so it pastes into anything
-else on the machine -- where that terminal allows it, which most modern
-ones do and some ask about first.
+**alt-c** copies, **alt-x** cuts, and **alt-v** pastes, in every window, and
+all three are on the **Edit** menu, which belongs to the desktop like Window
+does: the same three items everywhere, dimmed where the focused app cannot
+do them -- most apps have no Cut, since most things there are not files. An
+app offers `<app>_cut` the same way it offers `<app>_copy`, and its
+`<app>_paste` is handed a third argument, `cut` or `copy`, so the file
+browser is the one thing so far that tells them apart. There is one
+clipboard for the whole desktop, and a copy or cut also goes to the
+clipboard of the terminal the desktop runs on through OSC 52, so it pastes
+into anything else on the machine -- where that terminal allows it, which
+most modern ones do and some ask about first.
+
+## Application handlers
+
+`dt_handler ext [term] program args...` says what opens a file of that
+extension, from a session's own script -- the same idiom as `dt_app`,
+registering something rather than editing a table:
+
+    dt_handler jpg feh
+    dt_handler json term less
+
+Without `term` the program is started detached, for anything that draws a
+window of its own outside the desktop -- an image viewer, a media player --
+which must not be waited for, or the desktop would hang until it closed.
+With `term` it runs in a terminal window instead, for anything that reads
+one, in place of the hvi a file with no handler opens in. A name with no
+extension, or one nothing was registered for, still opens in a terminal with
+hvi. The file browser's Open With lists every registered handler by the
+program it runs, letting an entry be opened by one other than its own.
 
 In a terminal window, drag with the left button to select; the selection
 stays put while more output scrolls past. When the program there has taken
