@@ -96,26 +96,6 @@ opt -o --output out path!  "Where to write" # declared arguments
 args "$@"
 ```
 
-## There is also a desktop
-
-A window manager, a calculator, a file browser, a terminal emulator, and a
-handful of other apps — every one of them an ordinary hibr script, running
-on a display module built for this, with no C beyond that module. It is an
-example of what the language and the module ABI can build, not a separate
-project bolted on:
-
-![Three real windows open on the hibr desktop: a calculator, the file browser, and a terminal running a nested hibr shell with its own real prompt](docs/img/desktop-apps.png)
-
-```
-hibr examples/desktop-session.hibr
-```
-
-[The desktop's architecture](docs/desktop-architecture.md) covers how it
-works — the three layers, the event loop, damage-based redraw, and the
-contract an app is written against — with more real screenshots, including
-one you are welcome to check against a real machine: nothing in any of them
-is staged.
-
 ## Documentation
 
 | | |
@@ -125,6 +105,7 @@ is staged.
 | [Networking](docs/networking.md) | Sockets, TLS, `/dev/tcp` and friends, `listen` |
 | [Interactive use](docs/interactive.md) | `~/.hibrc`, line editing, history, completion, job control |
 | [The prompt](docs/prompt.md) | The prompt hook, the segment module, and its native git support |
+| [Windows on a console](docs/desktop.md) | Draggable windows and apps written as ordinary hibr scripts, on a display module built for it |
 | [Modules](docs/modules.md) | The module ABI, and writing one |
 | [Deployment](docs/deployment.md) | `deploy.sh`: install, verify, update, roll back |
 | [Testing](docs/testing.md) | The harness, the recording discipline, sanitizers and fuzzing |
