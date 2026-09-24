@@ -346,12 +346,16 @@ hello_click() {
 
 A dropdown that offers more than a couple of values wants a real list rather
 than a click-to-cycle: `dt_droplist id row col callback val1 val2...` opens
-one, anchored just under the `dt_wdrop` that asked for it, built the next
-frame the same one-frame lag `dt_want` and a right-click's context menu
-both already have. Choosing a value calls `callback id value`; dismissing it
-calls nothing. It is a context menu with nowhere on the desktop it belongs
-to, which is exactly what a dropdown is -- it reuses the same context-menu
-machinery a right-click already builds on, rather than a second popup system
+one, anchored just under the `dt_wdrop` that asked for it. `col` should be
+the widget's own left column, not wherever inside it was clicked -- `dt_wcol
+id row tag` answers that, looking up the same region `dt_hit` just matched,
+so the popup lines up under the dropdown itself regardless of where across
+it the click landed. Built the next frame the same one-frame lag `dt_want`
+and a right-click's context menu both already have, choosing a value calls
+`callback id value`; dismissing it calls nothing. It is a context menu with
+nowhere on the desktop it belongs to, which is exactly what a dropdown is --
+it reuses the same context-menu machinery a right-click already builds on,
+rather than a second popup system
 of its own.
 
 ## The apps

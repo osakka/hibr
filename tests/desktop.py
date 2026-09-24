@@ -232,11 +232,12 @@ WIDGETS = ('dt_app wg "Widgets" 10 30 once "▢"\n'
            '}\n'
            'wg_pick() { dt_note "picked $2"; }\n'
            'wg_click() {\n'
-           '\tlocal id=$1 r=$2 c=$3 tag\n'
+           '\tlocal id=$1 r=$2 c=$3 tag wc\n'
            '\ttag := dt_hit "$id" "$r" "$c"\n'
            '\tcase $tag in\n'
            '\tchk) WGS[$id]=$((1 - ${WGS[$id]:-0})) ;;\n'
-           '\tdrp) dt_droplist "$id" "$r" "$c" wg_pick one two three ;;\n'
+           '\tdrp) wc := dt_wcol "$id" "$r" "$tag"\n'
+           '\t     dt_droplist "$id" "$r" "$wc" wg_pick one two three ;;\n'
            '\tesac\n'
            '}\n'
            'dt_launch wg\n')
@@ -254,6 +255,10 @@ sc, _ = run(WIDGETS, [press(7, 9)])
 check("clicking a dropdown opens a popup of its choices beneath it",
       sc.find("one") == (8, 11) and sc.find("two") == (9, 11) and
       sc.find("three") == (10, 11), sc)
+sc, _ = run(WIDGETS, [press(7, 17)])
+check("and it aligns to the dropdown itself, not wherever inside it "
+      "was clicked",
+      sc.find("one") == (8, 11), sc)
 
 # A note lasts only until the next key, and run()'s own qy teardown is a
 # key -- checked before it, the same way the about-note test is.
@@ -424,8 +429,8 @@ sc, _ = run(MENUS, [press(0, 6)])
 check("clicking a title drops the menu under it",
       sc.find("Bump") == (1, 6) and sc.find("Reset") == (3, 6), sc)
 check("a separator is drawn between the groups", sc.at(2, 5) == "─", sc)
-check("but not a closing line after the last item -- Close is the last row",
-      sc.find("Close") == (4, 6) and sc.at(5, 6) == "·", sc)
+check("and a blank row closes it, not a line -- Close is the last item",
+      sc.find("Close") == (4, 6) and sc.at(5, 6) == " ", sc)
 check("each item shows the letter that picks it", sc.at(1, 16) == "b" and
       sc.at(3, 16) == "r", sc)
 
@@ -901,6 +906,33 @@ text2 = open(saved2).read() if os.path.exists(saved2) else ""
 check("and the new binding is saved", 'DT_KEYS["close"]=x' in text2, text2)
 shutil.rmtree(CONF2, True)
 
+# Any registered app gets its own row in App Shortcuts, not just Terminal
+# and Task Manager -- empty by default, assignable the same way DT_KEYS'
+# fixed four are. Fourteen downs from Theme reaches Calculator here,
+# because with only calc and panel loaded, App Shortcuts has two rows and
+# Calculator sorts before Settings.
+CALCSRC = '. %s/calc.hibr' % tree("examples/apps")
+CONF3 = tempfile.mkdtemp(prefix="hibr-conf3-")
+sc, _ = run('dt_new "Settings" 12 34 2 2 panel',
+            feed=[b"\x1b[B"] * 14, env={"XDG_CONFIG_HOME": CONF3},
+            pre=PANEL + "\n" + CALCSRC)
+check("a registered app is listed with no shortcut by default",
+      sc.find("Calculator") is not None, sc)
+sc, _ = run('dt_new "Settings" 12 34 2 2 panel',
+            feed=[b"\x1b[B"] * 14 + [b"\r", b"g"],
+            env={"XDG_CONFIG_HOME": CONF3}, pre=PANEL + "\n" + CALCSRC)
+check("a shortcut can be assigned to any app, not only the two defaults",
+      sc.find("Calculator") is not None and
+      "g" in sc.row(sc.find("Calculator")[0]), sc)
+saved3 = os.path.join(CONF3, "hibr", "desktop.hibr")
+text3 = open(saved3).read() if os.path.exists(saved3) else ""
+check("and it is saved as DT_APPKEY, not DT_KEYS",
+      'DT_APPKEY["calc"]=g' in text3, text3)
+sc, _ = run('', env={"XDG_CONFIG_HOME": CONF3}, pre=CALCSRC, feed=[b"g"])
+check("and takes effect: g now opens the calculator",
+      sc.find("Calculator") is not None, sc)
+shutil.rmtree(CONF3, True)
+
 HOLD = tempfile.mkdtemp(prefix="hibr-hold-")
 held = os.path.join(HOLD, "session.hibr")
 open(held, "w").write("%s. %s\ndt_open\ndt_new \"Held\" 8 30 6 10\n"
@@ -1057,4 +1089,4 @@ check("ending it leaves the other one alone",
       "personal" in r.stdout and "work" not in r.stdout, r.stdout)
 unsession()
 
-report(164)
+report(169)

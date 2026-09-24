@@ -82,7 +82,7 @@ cp_next() {
 # Rebuilt every frame, because the window list changes underneath it and a
 # panel showing windows that closed a second ago is worse than no panel.
 cp_rows() {
-	local w=$1 n=0 id ids
+	local w=$1 n=0 id ids an names
 
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Appearance"; n=$((n + 1))
 	CP[$w][$n]["kind"]=set;  CP[$w][$n]["text"]="Theme"
@@ -136,12 +136,16 @@ cp_rows() {
 	CP[$w][$n]["kind"]=key;  CP[$w][$n]["text"]="Cycle Windows"
 	CP[$w][$n]["val"]="${DT_KEYS[cycle]}"; CP[$w][$n]["key"]=cycle
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=key;  CP[$w][$n]["text"]="New Terminal"
-	CP[$w][$n]["val"]="${DT_KEYS[terminal]}"; CP[$w][$n]["key"]=terminal
-	n=$((n + 1))
-	CP[$w][$n]["kind"]=key;  CP[$w][$n]["text"]="Task Manager"
-	CP[$w][$n]["val"]="${DT_KEYS[tasks]}"; CP[$w][$n]["key"]=tasks
-	n=$((n + 1))
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]=""; n=$((n + 1))
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="App Shortcuts"; n=$((n + 1))
+	names := dt_appnames
+	for an in $names; do
+		CP[$w][$n]["kind"]=key
+		CP[$w][$n]["text"]="${DT_APPS[$an]["title"]}"
+		CP[$w][$n]["val"]="${DT_APPKEY[$an]:-}"
+		CP[$w][$n]["key"]="app:$an"
+		n=$((n + 1))
+	done
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]=""; n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Windows"; n=$((n + 1))
 
@@ -436,7 +440,7 @@ panel_key() {
 # the row still selects, and a second click (or enter) still cycles the
 # value through cp_do, unchanged.
 panel_click() {
-	local w=$1 r=$2 c=$3 i n top tag k
+	local w=$1 r=$2 c=$3 i n top tag k wc
 
 	n=${PW[$w]["n"]}
 	top=${PW[$w]["top"]}
@@ -448,18 +452,19 @@ panel_click() {
 		tag := dt_hit "$w" "$r" "$c"
 		if [ -n "$tag" ]; then
 			k=${CP[$w][$i]["key"]}
+			wc := dt_wcol "$w" "$r" "$tag"
 			case $k in
-			theme) dt_droplist "$w" "$r" "$c" cp_set_theme \
+			theme) dt_droplist "$w" "$r" "$wc" cp_set_theme \
 				"${CP_THEMES[@]}" ;;
-			glyph) dt_droplist "$w" "$r" "$c" cp_set_glyph \
+			glyph) dt_droplist "$w" "$r" "$wc" cp_set_glyph \
 				"${CP_GLYPHS[@]}" ;;
-			tick) dt_droplist "$w" "$r" "$c" cp_set_tick \
+			tick) dt_droplist "$w" "$r" "$wc" cp_set_tick \
 				"${CP_TICKS[@]}" ;;
-			cursor) dt_droplist "$w" "$r" "$c" cp_set_cursor \
+			cursor) dt_droplist "$w" "$r" "$wc" cp_set_cursor \
 				"${CP_CURSORS[@]}" ;;
-			about) dt_droplist "$w" "$r" "$c" cp_set_about \
+			about) dt_droplist "$w" "$r" "$wc" cp_set_about \
 				"${CP_ABTICKS[@]}" ;;
-			dblaction) dt_droplist "$w" "$r" "$c" \
+			dblaction) dt_droplist "$w" "$r" "$wc" \
 				cp_set_dblaction "${CP_DBLACTIONS[@]}" ;;
 			esac
 			PW[$w]["sel"]=$i

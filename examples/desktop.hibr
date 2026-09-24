@@ -60,17 +60,22 @@ DT_KEYS[detach]="ctrl-\\"
 DT_KEYS[quit]=q
 DT_KEYS[cycle]=tab
 
-# Only these two apps get a global shortcut of their own -- everything else
-# is reached from the hibr menu, same as always. Neither does anything if
-# that app was never sourced, the same way dt_launch always behaves for a
-# name nothing registered. alt-ctrl-, not ctrl-alt-: an alt combination
-# arrives as ESC followed by the plain control byte, and the console names
-# that "alt-" then whatever the control byte itself is, in that order --
-# unlike a CSI-encoded key's modifiers, which are named ctrl- before alt-.
-# escape is avoided here on purpose: alt-escape is indistinguishable from a
-# plain escape in most terminals, since ESC is also how alt itself arrives.
-DT_KEYS[terminal]="alt-ctrl-t"
-DT_KEYS[tasks]="alt-ctrl-p"
+# Any app can have a global shortcut of its own, assigned from Settings --
+# most have none, which is the point: a game or About does not want to
+# steal a key from every window just for existing. term and tasks ship with
+# one, since those two are reached often enough from outside any app to be
+# worth a default; nothing stops a script or Settings from giving the same
+# to any other, or taking these away. Nothing happens if the named app was
+# never sourced, the same way dt_launch always behaves for a name nothing
+# registered. alt-ctrl-, not ctrl-alt-: an alt combination arrives as ESC
+# followed by the plain control byte, and the console names that "alt-"
+# then whatever the control byte itself is, in that order -- unlike a
+# CSI-encoded key's modifiers, which are named ctrl- before alt-. escape is
+# avoided here on purpose: alt-escape is indistinguishable from a plain
+# escape in most terminals, since ESC is also how alt itself arrives.
+declare -gA DT_APPKEY
+DT_APPKEY[term]="alt-ctrl-t"
+DT_APPKEY[tasks]="alt-ctrl-p"
 DT_KEYCAP=
 declare -A DT
 
@@ -160,6 +165,9 @@ dt_save() {
 		done
 		for v in "${!DT_KEYS[@]}"; do
 			printf 'DT_KEYS["%s"]=%q\n' "$v" "${DT_KEYS["$v"]}"
+		done
+		for v in "${!DT_APPKEY[@]}"; do
+			printf 'DT_APPKEY["%s"]=%q\n' "$v" "${DT_APPKEY["$v"]}"
 		done
 	} > "$tmp" && mv -f "$tmp" "$DT_CONF"
 }
@@ -714,16 +722,25 @@ dt_zoom() {
 # one, which is what every other desktop does and what anyone expects when
 # they scroll a list they have not clicked on yet.
 dt_event() {
-	local k="$1"
+	local k="$1" an
 
 	if [ -n "$DT_KEYCAP" ]; then
 		case $k in
 		"mouse "*) DT_KEYCAP= ;;
 		escape) DT_KEYCAP= ;;
 		*)
-			DT_KEYS[$DT_KEYCAP]=$k
+			case $DT_KEYCAP in
+			app:*)
+				an=${DT_KEYCAP#app:}
+				DT_APPKEY[$an]=$k
+				dt_note "${DT_APPS[$an]["title"]} is now $k"
+				;;
+			*)
+				DT_KEYS[$DT_KEYCAP]=$k
+				dt_note "${DT_KEYCAP^} is now $k"
+				;;
+			esac
 			dt_save
-			dt_note "${DT_KEYCAP^} is now $k"
 			DT_KEYCAP=
 			;;
 		esac
@@ -804,9 +821,22 @@ dt_event() {
 	"${DT_KEYS[cycle]}") dt_cycle ;;
 	"${DT_KEYS[close]}") dt_close_focused ;;
 	"${DT_KEYS[detach]}") dt_detach ;;
-	"${DT_KEYS[terminal]}") dt_launch term ;;
-	"${DT_KEYS[tasks]}") dt_launch tasks ;;
+	*) dt_appkeyed "$k" ;;
 	esac
+}
+
+# Launch whichever app, if any, has k as its own shortcut -- the general
+# form DT_KEYS' fixed four desktop actions above are not: any number of
+# apps, not two of them by name in this case statement.
+dt_appkeyed() {
+	local an
+
+	for an in "${!DT_APPKEY[@]}"; do
+		if [ "${DT_APPKEY[$an]}" = "$1" ]; then
+			dt_launch "$an"
+			return 0
+		fi
+	done
 }
 
 # Ask for the next frame within ms, from inside an app's _draw.
@@ -1057,6 +1087,22 @@ dt_apps() {
 		done
 	done
 	DT_APPDIR_CUR=
+}
+
+# Every registered app, sorted by title without regard to case, as names --
+# for anything that wants every app in one flat list rather than the hibr
+# menu's own folder-grouped one below (Settings' App Shortcuts rows do).
+dt_appnames() {
+	local n l out=
+	local -a all
+
+	for n in "${!DT_APPS[@]}"; do
+		l := str lower "${DT_APPS[$n]["title"]}"
+		all+=("$l	$n")
+	done
+	arr sort all
+	for l in "${all[@]}"; do out="$out ${l#*	}"; done
+	ret "${out# }"
 }
 
 # Add one folder level's worth of the hibr menu: apps stored directly in
@@ -2421,12 +2467,13 @@ dt_menu_draw() {
 	fi
 	[ "$x" -lt 0 ] && x=0
 	[ $((x + w)) -gt "$DT_COLS" ] && x=$((DT_COLS - w))
-	[ $((r + n)) -gt "$DT_ROWS" ] && r=$((DT_ROWS - n))
+	[ $((r + n + 1)) -gt "$DT_ROWS" ] && r=$((DT_ROWS - n - 1))
 	[ "$r" -lt 1 ] && r=1
 	MB[$m]["dy"]=$r
 	MB[$m]["dx"]=$x
 	MB[$m]["dw"]=$w
-	[ "$DT_MSHADOW" = 1 ] && console darken $((r + 1)) $((x + 2)) "$n" "$w"
+	[ "$DT_MSHADOW" = 1 ] &&
+		console darken $((r + 1)) $((x + 2)) $((n + 1)) "$w"
 	while [ "$i" -lt "$n" ]; do
 		if [ "${MI[$m][$i]["sep"]}" = 1 ]; then
 			console pen "$DT_IDLE" "$DT_FACE"
@@ -2454,6 +2501,9 @@ dt_menu_draw() {
 		r=$((r + 1))
 		i=$((i + 1))
 	done
+	console pen "$DT_INK" "$DT_FACE"
+	lb := dt_rep "$w" " "
+	console put "$r" "$x" "$lb"
 }
 
 # The application menu: every window, the hidden ones marked.
@@ -2466,7 +2516,8 @@ dt_drop_apps() {
 	set -- $ids
 	n=$#
 	[ "$n" = 0 ] && n=1
-	[ "$DT_MSHADOW" = 1 ] && console darken $((r + 1)) $((x + 2)) "$n" "$w"
+	[ "$DT_MSHADOW" = 1 ] &&
+		console darken $((r + 1)) $((x + 2)) $((n + 1)) "$w"
 	for id in $ids; do
 		if [ "$i" = "$MB_SEL" ]; then
 			console pen "$DT_FACE" "$DT_ACTIVE" bold
@@ -2488,6 +2539,9 @@ dt_drop_apps() {
 		console put "$r" "$x" "$t"
 		r=$((r + 1))
 	fi
+	console pen "$DT_INK" "$DT_FACE"
+	t := dt_rep "$w" " "
+	console put "$r" "$x" "$t"
 	MB_AN=$i
 }
 
@@ -2638,6 +2692,24 @@ dt_hit() {
 		i=$((i + 1))
 	done
 	ret ""
+}
+
+# The column a registered widget's own region starts at, for opening
+# something (a dropdown's popup) aligned to the widget itself rather than
+# to wherever inside it happened to be clicked -- id and row the same as
+# the dt_hit call that found tag there.
+dt_wcol() {
+	local id=$1 r=$2 tag=$3 n=${WG[$id]["n"]:-0} i=0
+
+	while [ "$i" -lt "$n" ]; do
+		if [ "${WG[$id][$i]["r"]}" = "$r" ] &&
+		   [ "${WG[$id][$i]["tag"]}" = "$tag" ]; then
+			ret "${WG[$id][$i]["c"]}"
+			return 0
+		fi
+		i=$((i + 1))
+	done
+	ret "$2"
 }
 
 # Draw a checkbox: "[x] label" or "[ ] label".  tag is what dt_hit answers
@@ -3070,5 +3142,8 @@ dt_quitconfirm() {
 # takes the very next key, of any kind, rather than dispatching it.
 dt_keycap() {
 	DT_KEYCAP=$1
-	dt_note "Press a key for ${1^}…"
+	case $1 in
+	app:*) dt_note "Press a key for ${DT_APPS[${1#app:}]["title"]}…" ;;
+	*) dt_note "Press a key for ${1^}…" ;;
+	esac
 }

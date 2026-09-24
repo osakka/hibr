@@ -235,11 +235,13 @@ check("down skips the blank line and the heading, landing on Refresh",
       sc.find("350 ms") is not None, sc)
 
 # Theme, Wallpaper, Refresh, Icons, Disk Icons, Cursor, Cursor Blink, Window
-# Shadow, Menu Shadow, Titlebar Click, Close Window, Detach, Quit,
-# Cycle Windows, New Terminal, Task Manager, Panel, Other -- seventeen downs
-# from Theme reaches the second window, because cp_move steps over the
-# headings and the blanks.
-DOWN4 = [b"\x1b[B"] * 17
+# Shadow, Menu Shadow, Titlebar Click, Close Window, Detach, Quit, Cycle
+# Windows, Settings (App Shortcuts has one row here -- panel is the only
+# app PANEL's own session loads), Panel, Other -- sixteen downs from Theme
+# reaches the second window, because cp_move steps over the headings and
+# the blanks. This count is sensitive to how many apps App Shortcuts
+# lists, which depends on what a test's session loads.
+DOWN4 = [b"\x1b[B"] * 16
 
 sc = run(*PANEL, feed=[b"\x1b[B"] * 3 + [b"\r"], pre=TICK, also=OTHER)
 check("the icons can be switched off, and the panel shows an unchecked box",
