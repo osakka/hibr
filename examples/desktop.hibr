@@ -97,6 +97,11 @@ DT_CURSOR_BLINK="${DT_CURSOR_BLINK-0}"
 # costs one console darken call per window and nothing when off.
 DT_SHADOW="${DT_SHADOW-1}"
 
+# The same, for an open menu -- a separate setting, since a menu is drawn
+# far more often than a window is moved, and someone who wants one without
+# the other should be able to say so.
+DT_MSHADOW="${DT_MSHADOW-1}"
+
 # How often the desktop wakes and redraws with nothing else asking for a
 # turn -- see dt_want and dt_run for why 2000 costs nothing in latency.
 DT_TICK="${DT_TICK-2000}"
@@ -107,7 +112,8 @@ DT_TICK="${DT_TICK-2000}"
 # variable of its own kept names it with dt_keep.
 DT_CONF="${DT_CONF-${XDG_CONFIG_HOME:-$HOME/.config}/hibr/desktop.hibr}"
 DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
-	DT_TICK DT_ICONS DT_DISKS DT_CURSOR DT_CURSOR_BLINK DT_SHADOW)
+	DT_TICK DT_ICONS DT_DISKS DT_CURSOR DT_CURSOR_BLINK DT_SHADOW
+	DT_MSHADOW)
 
 # Where the desktop's stderr goes while it holds the screen, so an app's
 # error message cannot scribble over the display, and the reason for a
@@ -2350,6 +2356,7 @@ dt_menu_draw() {
 	MB[$m]["dy"]=$r
 	MB[$m]["dx"]=$x
 	MB[$m]["dw"]=$w
+	[ "$DT_MSHADOW" = 1 ] && console darken $((r + 1)) $((x + 2)) "$n" "$w"
 	while [ "$i" -lt "$n" ]; do
 		if [ "${MI[$m][$i]["sep"]}" = 1 ]; then
 			console pen "$DT_IDLE" "$DT_FACE"
@@ -2381,11 +2388,15 @@ dt_menu_draw() {
 
 # The application menu: every window, the hidden ones marked.
 dt_drop_apps() {
-	local ids id i=0 r=1 x w=18 t mark
+	local ids id i=0 r=1 x w=18 t mark n
 
 	ids := dt_ids
 	x=$((MB_AX - 4))
 	[ $((x + w)) -gt "$DT_COLS" ] && x=$((DT_COLS - w))
+	set -- $ids
+	n=$#
+	[ "$n" = 0 ] && n=1
+	[ "$DT_MSHADOW" = 1 ] && console darken $((r + 1)) $((x + 2)) "$n" "$w"
 	for id in $ids; do
 		if [ "$i" = "$MB_SEL" ]; then
 			console pen "$DT_FACE" "$DT_ACTIVE" bold

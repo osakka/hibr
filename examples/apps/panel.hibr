@@ -109,6 +109,10 @@ cp_rows() {
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_SHADOW" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=shadow; n=$((n + 1))
+	CP[$w][$n]["kind"]=set;  CP[$w][$n]["text"]="Menu Shadow"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_MSHADOW" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=mshadow; n=$((n + 1))
 	if [ -n "$AB_SLOWMS" ]; then
 		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="About Refresh"
 		CP[$w][$n]["val"]="$AB_SLOWMS ms"; CP[$w][$n]["key"]=about
@@ -194,6 +198,7 @@ cp_do() {
 			DT_CURSOR=$v ;;
 		blink) cp_blink ;;
 		shadow) cp_shadow ;;
+		mshadow) cp_mshadow ;;
 		about) v := cp_next "$AB_SLOWMS" "$dir" "${CP_ABTICKS[@]}"
 		       AB_SLOWMS=$v ;;
 		esac
@@ -320,6 +325,9 @@ panel_menus() {
 	on=0
 	[ "$DT_SHADOW" = 1 ] && on=1
 	dt_mark "Window Shadow" s "$on" cp_shadow
+	on=0
+	[ "$DT_MSHADOW" = 1 ] && on=1
+	dt_mark "Menu Shadow" m "$on" cp_mshadow
 	dt_sep
 	dt_item "Change Selected" c cp_do "$w" 1
 }
@@ -372,6 +380,17 @@ cp_shadow() {
 		DT_SHADOW=0
 	else
 		DT_SHADOW=1
+	fi
+	cp_save
+}
+
+# Whether an open menu casts a shadow -- a separate setting from a
+# window's, see DT_MSHADOW in desktop.hibr.
+cp_mshadow() {
+	if [ "$DT_MSHADOW" = 1 ]; then
+		DT_MSHADOW=0
+	else
+		DT_MSHADOW=1
 	fi
 	cp_save
 }

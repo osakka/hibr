@@ -87,6 +87,25 @@ check("more frames before quitting does not darken it further -- damage "
       "sends an unchanged cell once",
       raw_long.count(SHADOW_RGB) == raw_shadow.count(SHADOW_RGB), raw_long)
 
+
+def mshadow_run(env=None):
+    path = "/tmp/hibr-desktop-mshadow.hibr"
+    open(path, "w").write("%s. %s\ndt_open\n\ndt_run\ndt_close\n"
+                          % (load(MOD), WM))
+    t = Term(path, env=dict({"DT_TICK": "60"}, **(env or {})), rows=ROWS,
+             cols=COLS, settle=0.6)
+    t.send(b"\x1b[21~", settle=0.4)
+    t.quit(b"qy", 1.0)
+    os.unlink(path)
+    return t.raw
+
+
+raw_mshadow = mshadow_run()
+check("an open menu casts a shadow too", SHADOW_RGB in raw_mshadow, raw_mshadow)
+raw_nomshadow = mshadow_run(env={"DT_MSHADOW": "0"})
+check("DT_MSHADOW=0 casts none, independently of DT_SHADOW",
+      SHADOW_RGB not in raw_nomshadow, raw_nomshadow)
+
 # A key sent right after a resize must not be lost while the debounce is
 # waiting to see whether more of them are coming (DT_RSTILL is 150ms).
 path = "/tmp/hibr-desktop-rsz.hibr"
@@ -822,11 +841,12 @@ sc, raw = run('dt_new "Settings" 12 34 2 2 panel',
 check("and the next desktop starts with it", sc.find("slate") is not None, sc)
 shutil.rmtree(CONF, True)
 
-# Eight downs from Theme reaches Close Window: Theme, Wallpaper, Refresh,
-# Icons, Disk Icons, Cursor, Cursor Blink, Window Shadow, Close Window.
+# Nine downs from Theme reaches Close Window: Theme, Wallpaper, Refresh,
+# Icons, Disk Icons, Cursor, Cursor Blink, Window Shadow, Menu Shadow,
+# Close Window.
 CONF2 = tempfile.mkdtemp(prefix="hibr-conf2-")
 sc, raw = run('dt_new "Settings" 12 34 2 2 panel',
-              feed=[b"\x1b[B"] * 8 + [b"\r", b"x"],
+              feed=[b"\x1b[B"] * 9 + [b"\r", b"x"],
               env={"XDG_CONFIG_HOME": CONF2}, pre=PANEL)
 check("a shortcut row can be rebound to a new key",
       sc.find("alt-f4") is None, sc)
@@ -991,4 +1011,4 @@ check("ending it leaves the other one alone",
       "personal" in r.stdout and "work" not in r.stdout, r.stdout)
 unsession()
 
-report(157)
+report(159)

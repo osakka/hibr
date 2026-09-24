@@ -235,15 +235,22 @@ check("down skips the blank line and the heading, landing on Refresh",
       sc.find("350 ms") is not None, sc)
 
 # Theme, Wallpaper, Refresh, Icons, Disk Icons, Cursor, Cursor Blink, Window
-# Shadow, Close Window, Detach, Quit, Cycle Windows, New Terminal, Task
-# Manager, Panel, Other -- fifteen downs from Theme reaches the second
-# window, because cp_move steps over the headings and the blanks.
-DOWN4 = [b"\x1b[B"] * 15
+# Shadow, Menu Shadow, Close Window, Detach, Quit, Cycle Windows, New
+# Terminal, Task Manager, Panel, Other -- sixteen downs from Theme reaches
+# the second window, because cp_move steps over the headings and the blanks.
+DOWN4 = [b"\x1b[B"] * 16
 
 sc = run(*PANEL, feed=[b"\x1b[B"] * 3 + [b"\r"], pre=TICK, also=OTHER)
 check("the icons can be switched off, and the panel shows an unchecked box",
       sc.find("Icons") is not None and
       "[ ]" in sc.row(sc.find("Icons")[0]),
+      sc)
+
+sc = run(*PANEL, feed=[b"\x1b[B"] * 8 + [b"\r"], pre=TICK, also=OTHER)
+check("menu shadow is its own setting, separate from window shadow",
+      sc.find("Menu Shadow") is not None and
+      "[ ]" in sc.row(sc.find("Menu Shadow")[0]) and
+      "[x]" in sc.row(sc.find("Window Shadow")[0]),
       sc)
 
 sc = run(*PANEL, feed=DOWN4 + [b"x"], pre=TICK, also=OTHER)
@@ -267,7 +274,7 @@ check("a click selects and a second click acts",
 sc = run(*PANEL, feed=[press(3, 10), press(3, 10)], pre=TICK, also=OTHER)
 check("clicking a heading does nothing", sc.find("midnight") is not None, sc)
 
-sc = run(*PANEL, pre=TICK, extra=("about",))
+sc = run("panel", "15 34 2 2", pre=TICK, extra=("about",))
 check("About Refresh only appears once About hibr itself is loaded",
       sc.find("About Refresh") is not None and
       sc.find("3000 ms") is not None, sc)
@@ -672,4 +679,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(115)
+report(116)

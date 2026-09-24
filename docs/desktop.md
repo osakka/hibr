@@ -32,6 +32,11 @@ whatever it falls across -- another window, or the desktop underneath.
 `DT_SHADOW`, a Settings entry, turns it off; it costs one `console darken`
 call per window, and nothing at all when off.
 
+An open menu -- a bar menu, a submenu, a right-click context menu, or a
+dropdown's own popup -- casts one the same way, governed by its own
+`DT_MSHADOW` instead: a menu is drawn far more often than a window moves, so
+whether to pay for its shadow is a separate choice from a window's.
+
 ## Icons on the desktop
 
 A clean desktop, down from the top right: **Home**, the mounted **disks** if
