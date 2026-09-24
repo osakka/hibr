@@ -802,9 +802,27 @@ open(os.path.join(NCONF, "hibr", "apps", "sub", "greet.hibr"), "w").write(
     'dt_app greet "Greetings" 6 20 once "☺"\n')
 sc, _ = run("", feed=[b"\x1b[21~"], env={"XDG_CONFIG_HOME": NCONF},
             pre="dt_apps\n")
-check("an app in a subfolder of your own is found too",
+check("an app in a subfolder becomes a submenu named after the folder",
+      sc.find("sub") is not None and sc.find("Greetings") is None, sc)
+sc, _ = run("", feed=[b"\x1b[21~", b"\x1b[B", b"\x1b[C"],
+            env={"XDG_CONFIG_HOME": NCONF}, pre="dt_apps\n")
+check("and descending into it finds the app",
       sc.find("Greetings") is not None, sc)
 shutil.rmtree(NCONF, True)
+
+# A folder sorts by its own name among the flat apps, not after all of
+# them -- "games" belongs between "Files" and "Mines", not at the end.
+GCONF = tempfile.mkdtemp(prefix="hibr-apps-games-")
+os.makedirs(os.path.join(GCONF, "hibr", "apps", "games"))
+open(os.path.join(GCONF, "hibr", "apps", "games", "pong.hibr"), "w").write(
+    'dt_app pong "Pong" 6 20\n')
+sc, _ = run("", feed=[b"\x1b[21~"], env={"XDG_CONFIG_HOME": GCONF}, pre=APPS)
+menu = [sc.row(r)[:20] for r in range(2, 17)]
+rows = [m for m in menu if "Files" in m or "games" in m or "Mines" in m]
+check("a folder is interleaved by name, not appended after every app",
+      len(rows) == 3 and "Files" in rows[0] and "games" in rows[1] and
+      "Mines" in rows[2], sc)
+shutil.rmtree(GCONF, True)
 
 LAUNCH = MENU + [b"c"]
 sc, raw = run("", feed=LAUNCH + LAUNCH, pre=APPS)
@@ -1011,4 +1029,4 @@ check("ending it leaves the other one alone",
       "personal" in r.stdout and "work" not in r.stdout, r.stdout)
 unsession()
 
-report(159)
+report(161)

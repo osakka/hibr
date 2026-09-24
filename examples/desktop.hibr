@@ -992,6 +992,9 @@ dt_app() {
 	DT_APPS[$1]["icon"]="${6:-◆}"
 	DT_APPS[$1]["fixed"]=
 	[ "$7" = fixed ] && DT_APPS[$1]["fixed"]=1
+	# Set by dt_apps while it sources this file, from where it found it --
+	# empty for one sourced any other way, which stays a flat item.
+	DT_APPS[$1]["dir"]="$DT_APPDIR_CUR"
 }
 
 # Where apps are found: every .hibr in each of these, at any depth, in this
@@ -1004,9 +1007,12 @@ declare -gA DT_SRC
 # the folder is the whole configuration: drop a script in, in a subfolder of
 # your own if you like, and it is on the menu at the next start -- globstar
 # is always on, which is what makes ** reach into them. A file whose name
-# was already loaded from an earlier folder is skipped.
+# was already loaded from an earlier folder is skipped. An app in a
+# subfolder gets a submenu of its own on the hibr menu, named after it --
+# DT_APPDIR_CUR is the path dt_app reads to know which, relative to
+# whichever root found it, empty at the top of one.
 dt_apps() {
-	local d f b
+	local d f b rel
 
 	for d in "${DT_APPDIRS[@]}"; do
 		for f in "$d"/**/*.hibr; do
@@ -1015,23 +1021,67 @@ dt_apps() {
 			b=${b%.hibr}
 			[ -n "${DT_SRC[$b]}" ] && continue
 			DT_SRC[$b]=$f
+			rel=${f#"$d"/}
+			case $rel in
+			*/*) DT_APPDIR_CUR=${rel%/*} ;;
+			*) DT_APPDIR_CUR= ;;
+			esac
 			. "$f"
 		done
 	done
+	DT_APPDIR_CUR=
 }
 
-# The registered apps, sorted by title without regard to case, as names.
-dt_appsorted() {
-	local n l out=
-	local -a all
+# Add one folder level's worth of the hibr menu: apps stored directly in
+# it as items, each immediate child folder as a submenu built the same way,
+# recursing to any depth -- prefix is that folder's own path, "" for the
+# top. reserved is letters the *caller's* menu has already used, since a
+# submenu is its own menu with its own letters otherwise: About hibr, Quit
+# and the rest only need keeping clear of at the top.
+dt_appmenu() {
+	local prefix=$1 used=${2:-} n d l child k path
+	local -a all seen
 
 	for n in "${!DT_APPS[@]}"; do
-		l := str lower "${DT_APPS[$n]["title"]}"
-		all+=("$l	$n")
+		[ "$n" = about ] && continue
+		d=${DT_APPS[$n]["dir"]}
+		if [ "$d" = "$prefix" ]; then
+			l := str lower "${DT_APPS[$n]["title"]}"
+			all+=("$l	a	$n")
+			continue
+		fi
+		if [ -n "$prefix" ]; then
+			case $d in "$prefix"/*) ;; *) continue ;; esac
+			child=${d#"$prefix"/}
+		else
+			[ -z "$d" ] && continue
+			child=$d
+		fi
+		child=${child%%/*}
+		case " ${seen[*]-} " in *" $child "*) continue ;; esac
+		seen+=("$child")
+		l := str lower "$child"
+		if [ -n "$prefix" ]; then
+			all+=("$l	f	$prefix/$child")
+		else
+			all+=("$l	f	$child")
+		fi
 	done
+	[ "${#all[@]}" -eq 0 ] && return 0
 	arr sort all
-	for l in "${all[@]}"; do out="$out ${l#*	}"; done
-	ret "${out# }"
+	for l in "${all[@]}"; do
+		IFS=$'\t' read -r _ kind path <<< "$l"
+		if [ "$kind" = f ]; then
+			dt_sub "${path##*/}"
+			dt_appmenu "$path"
+			dt_end
+		else
+			k := dt_akey "${DT_APPS[$path]["title"]}" "$used"
+			used="$used$k"
+			dt_item "${DT_APPS[$path]["title"]}" "$k" \
+				dt_launch "$path"
+		fi
+	done
 }
 
 # The window already showing an app, if there is one.
@@ -1069,7 +1119,7 @@ dt_launch() {
 # Rebuild the bar for whatever has focus.  Cheap enough to do every frame:
 # it is a handful of assignments, and it has to follow the focus anyway.
 dt_menus() {
-	local who=${DT_FOCUS:-} ap= n k used
+	local who=${DT_FOCUS:-} ap=
 
 	[ -n "$who" ] && ap=${DT[$who]["app"]}
 	MB_N=0
@@ -1077,17 +1127,10 @@ dt_menus() {
 	dt_menu "✎"
 	dt_item "About hibr" a dt_about
 	dt_sep
-	used=aqdu
-	n := dt_appsorted
-	for n in $n; do
-		# about already has its own permanent item above; it registers
-		# with dt_app only so dt_launch about can find it, not to be
-		# listed a second time as an ordinary app.
-		[ "$n" = about ] && continue
-		k := dt_akey "${DT_APPS[$n]["title"]}" "$used"
-		used="$used$k"
-		dt_item "${DT_APPS[$n]["title"]}" "$k" dt_launch "$n"
-	done
+	# about already has its own permanent item above; it registers with
+	# dt_app only so dt_launch about can find it, not to be listed a
+	# second time as an ordinary app -- dt_appmenu skips it by name.
+	dt_appmenu "" aqdu
 	dt_sep
 	dt_item "Clean Up Icons" u dt_iconclean
 	dt_sep

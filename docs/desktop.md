@@ -442,8 +442,10 @@ are the app's own business inside its own menu; in the hibr menu the desktop
 picks them, skipping any already taken, because Calculator and Clock both
 start with a C and a menu where one item cannot be reached is a broken menu.
 
-The hibr menu lists the apps found in a list of folders, sorted by title.
-Each app says who it is in its own file, one line near the top:
+The hibr menu lists the apps found in a list of folders, sorted by title --
+an app in a subfolder becomes a submenu named after that folder, sorted in
+among the flat ones by the folder's own name, to any depth. Each app says
+who it is in its own file, one line near the top:
 
 ```sh
 command -v dt_app > /dev/null && dt_app calc "Calculator" 16 24 once "±"
