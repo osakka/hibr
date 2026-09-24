@@ -44,6 +44,8 @@ DT_DNDICON=
 DT_DNDS=()
 DT_PATHS=()
 DT_NOTE=
+DT_CONFIRM=
+DT_CONFIRM_CMD=
 DT_ROWS=24
 DT_COLS=80
 declare -A DT
@@ -367,6 +369,7 @@ dt_draw() {
 	dt_bar
 	dt_drop
 	dt_note_draw
+	dt_confirm_draw
 	console flush
 }
 
@@ -641,6 +644,13 @@ dt_zoom() {
 dt_event() {
 	local k="$1"
 
+	if [ -n "$DT_CONFIRM" ]; then
+		case $k in
+		"mouse "*) DT_CONFIRM= ;;
+		*) dt_confirm_key "$k" ;;
+		esac
+		return 0
+	fi
 	case $k in
 	"mouse "*)
 		set -- $k
@@ -695,7 +705,7 @@ dt_event() {
 		;;
 	esac
 	case $k in
-	q) DT_QUIT=1 ;;
+	q) dt_quitconfirm ;;
 	tab) dt_cycle ;;
 	esac
 }
@@ -2679,4 +2689,57 @@ dt_note_draw() {
 	console put "$r" "$c" "$t"
 	console put $((r + 1)) "$c" "  $DT_NOTE  "
 	console put $((r + 2)) "$c" "$t"
+}
+
+# Ask before doing something that cannot be taken back by pressing the key
+# again: y or enter runs cmd, anything else -- including a click, which
+# cancels rather than reaching whatever it landed on -- forgets it. cmd is
+# a single word, a function of no arguments, since the message can hold a
+# space and a command built from stored, later-unquoted menu text cannot.
+dt_confirm() {
+	DT_NOTE=
+	DT_CONFIRM="$1"
+	DT_CONFIRM_CMD=$2
+}
+
+dt_confirm_draw() {
+	local w r c t
+
+	[ -z "$DT_CONFIRM" ] && return 0
+	t="$DT_CONFIRM  (y/n)"
+	w=$((${#t} + 4))
+	r=$((DT_ROWS / 2 - 1))
+	c=$(((DT_COLS - w) / 2))
+	console pen "$DT_INK" "$DT_ACTIVE" bold
+	local bl
+	bl := dt_rep "$w" " "
+	console put "$r" "$c" "$bl"
+	console put $((r + 1)) "$c" "  $t  "
+	console put $((r + 2)) "$c" "$bl"
+}
+
+dt_confirm_key() {
+	local cmd=$DT_CONFIRM_CMD
+
+	DT_CONFIRM=
+	DT_CONFIRM_CMD=
+	case $1 in
+	y | Y | enter)
+		# cmd may end the loop (dt_quit) with no redraw of its own after
+		# it, same as every other quit path -- draw once here, box
+		# already cleared above, so that is what a pty test's last
+		# frame shows rather than the box still up.
+		dt_draw
+		$cmd
+		;;
+	esac
+	return 0
+}
+
+# The bare key asks first: q used to end the desktop on the spot, and one
+# key too many landed on it more than once. Quit on the hibr menu does not
+# go through this -- reaching it is already two keys (f10, then q), so
+# asking a third time is the annoyance this exists to remove, not add back.
+dt_quitconfirm() {
+	dt_confirm "Quit hibr?" dt_quit
 }

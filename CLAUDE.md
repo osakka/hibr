@@ -755,6 +755,19 @@ went in the shell.
   difference: `default` means nobody set it, and only then should a
   platform-specific fallback replace it, so an explicit `make CC=...` or
   `CC=...` in the environment still wins.
+- **A pty test's last screen is whatever was drawn before the quitting key
+  was read, not after.** `dt_run` never redraws once `DT_QUIT` is set, so
+  the frame a test's `t.screen()` reconstructs is one iteration behind the
+  key that ended it -- which is why an open menu, or a note that a later
+  key would clear, still showed up in a final screenshot: nothing ever drew
+  the frame where it was gone. Adding Quit's confirm box broke this the
+  other way -- an extra key (`y`) meant an extra frame, and the box itself
+  became the thing frozen in the last screenshot instead. Draw once more
+  only from inside the path that clears the box, right before the confirmed
+  command runs, not unconditionally after the loop -- an unconditional
+  redraw there also closes a menu that a different, one-key quit (Quit on
+  the hibr menu, still `dt_quit` directly, deliberately not this box) had
+  left open for exactly that same one-iteration-behind reason.
 
 ## Testing discipline
 
