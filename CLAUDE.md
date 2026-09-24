@@ -768,6 +768,24 @@ went in the shell.
   redraw there also closes a menu that a different, one-key quit (Quit on
   the hibr menu, still `dt_quit` directly, deliberately not this box) had
   left open for exactly that same one-iteration-behind reason.
+- **`:=` does nothing for a program on the PATH.** It binds a *builtin's*
+  own result, silently -- `uname`, `hostname`, `top`, `sysctl`, `ps`,
+  `grep`, none of those are builtins, and `x := uname` leaves `x` empty
+  while `uname` prints straight to the real terminal, underneath the
+  console module's own cell-based drawing, wherever the cursor happens to
+  be. That is what "the About window is writing outside its own box"
+  turned out to be. Worse, the captured variable being silently always
+  empty meant a platform check (`[ "$AB_OS" = Linux ]`) never actually
+  matched on a real Linux machine either, so About and Task Manager ran
+  their macOS branch there throughout -- which is why the meters never
+  updated, since `top`/`vm_stat` do not exist to fork. `$(...)` is the real
+  capture for a program; `:=` is for the builtin calls already elsewhere in
+  the same functions (`dt_ms`, `str`, `console`), which is where it stays.
+  Fixed input standing in for a real command's output is not the same as
+  running the real thing -- this was checked carefully against fixture
+  strings and still shipped broken, and was only caught once it actually
+  ran inside the desktop through a pty and got watched draw, not just read
+  from a saved dump.
 
 ## Testing discipline
 
