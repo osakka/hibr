@@ -1,173 +1,238 @@
 #!/usr/bin/env hibr
 #
-# panel -- the window that configures the others.
+# panel -- Control Panel: a picker of panes down the left, the selected
+# pane's own content on the right, System 7's Control Panels folder shape.
+# Each pane is an ordinary hibr file that registers itself with cp_pane;
+# this file only hosts them and draws the window list, which is not a
+# pane, just always there.
 #
-# Appearance and behaviour on top, then a row per window: enter raises it,
-# x closes it, - hides it.  The theme is applied by setting the variables the
-# window manager already reads every frame, so a change shows on the next
-# one, in every window at once, without anything being told about it.
-#
-# Run on its own it prints the themes and stops, which is not much, but it
-# means the file is still a program and not only a fragment.
+# Run on its own it does nothing -- there is no pane to show without a
+# desktop around it, unlike calc or panel's own former self.
 
-app panel "Control Panel, and the window list"
+app panel "Control Panel, a picker of panes, and the window list"
 
-# What the hibr menu shows, how big a new window is, and whether a second
-# launch opens another window or brings this one forward.
-command -v dt_app > /dev/null && dt_app panel "Control Panel" 18 34 once "≡"
+command -v dt_app > /dev/null && dt_app panel "Control Panel" 20 58 once "≡"
 
-# The theme and the wallpaper belong to the desktop, so they stay global.
-# Where the selection is and what the rows are belong to a window, so they
-# do not: two panels would otherwise share one cursor.
+# Where to find panes beyond the bundled ones -- an array, so a session can
+# add its own the same way DT_APPDIRS already works for apps. The bundled
+# panes live in examples/control-panel and are added by the session that
+# wants them, the same way examples/apps is added to DT_APPDIRS: nothing
+# here reaches for them on its own.
+CP_PANEDIRS=("${XDG_CONFIG_HOME:-$HOME/.config}/hibr/control-panel")
+
+declare -gA CP_PANES
+CP_PANE_LIST=()
+declare -gA CPSRC
+
+# Register a pane: name, title, icon. A pane defines either <name>_rows
+# (and usually <name>_do, and <name>_drop if any row is a dropdown) for
+# the common row-list shape every pane below uses, or a body of its own --
+# a world map does not fit two columns of text -- with <name>_draw id h w
+# bx (bx is the body's own left column, since it shares the window with
+# the pane list on its left) and <name>_click id row col, in the same
+# w$id coordinates _draw used, no translation to undo. Either shape may
+# also define <name>_key and, for the body shape, <name>_wheel.
+cp_pane() {
+	CP_PANES[$1]["title"]="$2"
+	CP_PANES[$1]["icon"]="${3:-◆}"
+	CP_PANE_LIST+=("$1")
+}
+
+# Load every pane in the folders, then sort the list by title without
+# regard to case, the same trick dt_appnames uses -- so the picker's own
+# order does not depend on load order or filenames, just on what a pane
+# calls itself.
+cp_panes() {
+	local d f b l
+	local -a all
+
+	for d in "${CP_PANEDIRS[@]}"; do
+		for f in "$d"/*.hibr; do
+			[ -r "$f" ] || continue
+			b=${f##*/}
+			[ -n "${CPSRC["$b"]}" ] && continue
+			CPSRC["$b"]=$f
+			. "$f"
+		done
+	done
+	for b in "${CP_PANE_LIST[@]}"; do
+		l := str lower "${CP_PANES[$b]["title"]}"
+		all+=("$l	$b")
+	done
+	arr sort all
+	CP_PANE_LIST=()
+	for l in "${all[@]}"; do CP_PANE_LIST+=("${l#*	}"); done
+}
+
+# Per window: which pane is selected (an index into CP_PANE_LIST), and
+# whether the arrows move the pane list or the selected pane's own rows --
+# tab switches which, the same split dt_grab's move/resize already gives
+# one set of arrows two meanings by. CP holds the selected pane's own rows,
+# rebuilt every frame the same reason it always was: a pane showing a
+# window that closed a second ago is worse than no pane.
 declare -gA PW
 declare -gA CP
-CP_THEME=midnight
-command -v dt_keep > /dev/null && dt_keep CP_THEME
-CP_THEMES=(midnight slate forest ember paper dracula)
-CP_TICKS=(80 120 200 350 600 1000 2000 3500 5000)
-CP_ABTICKS=(1000 2000 3000 5000 10000)
-CP_GLYPHS=("·" "░" "▒" "⋅" "+")
-CP_CURSORS=(block underline bar)
-CP_DBLACTIONS=(zoom min close none)
 
-# wall, dot, bar, active, idle, face, ink
-cp_theme() {
-	local t=$1
+# How wide the pane list is, and how much is left for the selected pane's
+# own content once the divider is taken out of it too.
+CP_LISTW=17
 
-	case $t in
-	midnight) set -- "#0d1b2a" "#16324a" "#1b3a5c" "#63b3ed" "#4a5568" \
-		"#101820" "#cbd5e0" ;;
-	slate)    set -- "#1a202c" "#2d3748" "#2d3748" "#90cdf4" "#4a5568" \
-		"#171923" "#e2e8f0" ;;
-	forest)   set -- "#0b1f16" "#14342a" "#14432f" "#68d391" "#3f5e51" \
-		"#0d1f18" "#d7e8de" ;;
-	ember)    set -- "#1f1410" "#3a241c" "#4a2c1e" "#f6ad55" "#6b4a3a" \
-		"#1a110d" "#ecd9c6" ;;
-	paper)    set -- "#e8e4da" "#d3cec1" "#c3bdae" "#2b6cb0" "#8a8578" \
-		"#f5f2ea" "#2d3748" ;;
-	dracula)  set -- "#282a36" "#383a4c" "#44475a" "#bd93f9" "#6272a4" \
-		"#21222c" "#f8f8f2" ;;
-	*) return 1 ;;
-	esac
-	CP_THEME=$t
-	DT_WALL=$1
-	DT_DOT=$2
-	DT_BAR=$3
-	DT_ACTIVE=$4
-	DT_IDLE=$5
-	DT_FACE=$6
-	DT_INK=$7
+panel_open() {
+	local w=$1
+
+	PW[$w]["pane"]=0
+	PW[$w]["side"]=list
+	PW[$w]["sel"]=0
+	PW[$w]["top"]=0
+	PW[$w]["vis"]=1
+	PW[$w]["last"]=-1
 }
 
-# Step through a list, wrapping at either end.
-cp_next() {
-	local cur=$1 dir=$2 n=0 i=0 hit=-1 x
+# The selected pane's name, clamped to what is actually registered -- a
+# pane can vanish between frames if whatever provided it stops (nothing
+# does today, but the window list already assumes apps can close under it).
+panel_pane() {
+	local w=$1 i
 
-	shift 2
-	for x in "$@"; do
-		[ "$x" = "$cur" ] && hit=$n
-		n=$((n + 1))
-	done
-	[ "$hit" -lt 0 ] && hit=0
-	i=$(((hit + dir + n) % n))
-	n=0
-	for x in "$@"; do
-		[ "$n" = "$i" ] && { ret "$x"; return 0; }
-		n=$((n + 1))
-	done
+	i=${PW[$w]["pane"]}
+	[ "${#CP_PANE_LIST[@]}" -eq 0 ] && { ret ""; return 0; }
+	[ "$i" -ge "${#CP_PANE_LIST[@]}" ] && i=0
+	ret "${CP_PANE_LIST[$i]}"
 }
 
-# Build the rows: headings, settings, then one per window.
-#
-# Rebuilt every frame, because the window list changes underneath it and a
-# panel showing windows that closed a second ago is worse than no panel.
-cp_rows() {
-	local w=$1 n=0 id ids an names
+panel_draw() {
+	local id=$1 h=$2 w=$3
+	local i n r t lw=$CP_LISTW side pane bx bw
 
-	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Appearance"; n=$((n + 1))
-	CP[$w][$n]["kind"]=set;  CP[$w][$n]["text"]="Theme"
-	CP[$w][$n]["val"]="$CP_THEME"; CP[$w][$n]["key"]=theme; n=$((n + 1))
-	CP[$w][$n]["kind"]=set;  CP[$w][$n]["text"]="Wallpaper"
-	CP[$w][$n]["val"]="$DT_GLYPH"; CP[$w][$n]["key"]=glyph; n=$((n + 1))
-	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]=""; n=$((n + 1))
-	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Behaviour"; n=$((n + 1))
-	CP[$w][$n]["kind"]=set;  CP[$w][$n]["text"]="Refresh"
-	CP[$w][$n]["val"]="$DT_TICK ms"; CP[$w][$n]["key"]=tick; n=$((n + 1))
-	CP[$w][$n]["kind"]=set;  CP[$w][$n]["text"]="Icons"; CP[$w][$n]["wtype"]=bool
-	CP[$w][$n]["val"]=off; [ "$DT_ICONS" = 1 ] && CP[$w][$n]["val"]=on
-	CP[$w][$n]["key"]=icons; n=$((n + 1))
-	CP[$w][$n]["kind"]=set;  CP[$w][$n]["text"]="Disk Icons"
-	CP[$w][$n]["wtype"]=bool
-	CP[$w][$n]["val"]=off; [ "$DT_DISKS" = 1 ] && CP[$w][$n]["val"]=on
-	CP[$w][$n]["key"]=disks; n=$((n + 1))
-	CP[$w][$n]["kind"]=set;  CP[$w][$n]["text"]="Cursor"
-	CP[$w][$n]["val"]="$DT_CURSOR"; CP[$w][$n]["key"]=cursor; n=$((n + 1))
-	CP[$w][$n]["kind"]=set;  CP[$w][$n]["text"]="Cursor Blink"
-	CP[$w][$n]["wtype"]=bool
-	CP[$w][$n]["val"]=off; [ "$DT_CURSOR_BLINK" = 1 ] && CP[$w][$n]["val"]=on
-	CP[$w][$n]["key"]=blink; n=$((n + 1))
-	CP[$w][$n]["kind"]=set;  CP[$w][$n]["text"]="Window Shadow"
-	CP[$w][$n]["wtype"]=bool
-	CP[$w][$n]["val"]=off; [ "$DT_SHADOW" = 1 ] && CP[$w][$n]["val"]=on
-	CP[$w][$n]["key"]=shadow; n=$((n + 1))
-	CP[$w][$n]["kind"]=set;  CP[$w][$n]["text"]="Menu Shadow"
-	CP[$w][$n]["wtype"]=bool
-	CP[$w][$n]["val"]=off; [ "$DT_MSHADOW" = 1 ] && CP[$w][$n]["val"]=on
-	CP[$w][$n]["key"]=mshadow; n=$((n + 1))
-	CP[$w][$n]["kind"]=set;  CP[$w][$n]["text"]="Titlebar Click"
-	CP[$w][$n]["val"]="$DT_DBLACTION"; CP[$w][$n]["key"]=dblaction
-	n=$((n + 1))
-	if [ -n "$AB_SLOWMS" ]; then
-		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="About Refresh"
-		CP[$w][$n]["val"]="$AB_SLOWMS ms"; CP[$w][$n]["key"]=about
-		n=$((n + 1))
-	fi
-	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]=""; n=$((n + 1))
-	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Shortcuts"; n=$((n + 1))
-	CP[$w][$n]["kind"]=key;  CP[$w][$n]["text"]="Close Window"
-	CP[$w][$n]["val"]="${DT_KEYS[close]}"; CP[$w][$n]["key"]=close
-	n=$((n + 1))
-	CP[$w][$n]["kind"]=key;  CP[$w][$n]["text"]="Detach"
-	CP[$w][$n]["val"]="${DT_KEYS[detach]}"; CP[$w][$n]["key"]=detach
-	n=$((n + 1))
-	CP[$w][$n]["kind"]=key;  CP[$w][$n]["text"]="Quit"
-	CP[$w][$n]["val"]="${DT_KEYS[quit]}"; CP[$w][$n]["key"]=quit
-	n=$((n + 1))
-	CP[$w][$n]["kind"]=key;  CP[$w][$n]["text"]="Cycle Windows"
-	CP[$w][$n]["val"]="${DT_KEYS[cycle]}"; CP[$w][$n]["key"]=cycle
-	n=$((n + 1))
-	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]=""; n=$((n + 1))
-	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="App Shortcuts"; n=$((n + 1))
-	names := dt_appnames
-	for an in $names; do
-		CP[$w][$n]["kind"]=key
-		CP[$w][$n]["text"]="${DT_APPS[$an]["title"]}"
-		CP[$w][$n]["val"]="${DT_APPKEY[$an]:-}"
-		CP[$w][$n]["key"]="app:$an"
-		n=$((n + 1))
-	done
-	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]=""; n=$((n + 1))
-	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Windows"; n=$((n + 1))
+	dt_wclear "$id"
+	[ "$lw" -ge $((w - 8)) ] && lw=$((w / 2))
+	side=${PW[$id]["side"]}
+	pane := panel_pane "$id"
 
-	ids := dt_ids
-	for id in $ids; do
-		CP[$w][$n]["kind"]=win
-		CP[$w][$n]["text"] := dt_title "$id"
-		if dt_hidden "$id"; then
-			CP[$w][$n]["val"]=hidden
+	i=0
+	r=1
+	for n in "${CP_PANE_LIST[@]}"; do
+		if [ "$n" = "$pane" ]; then
+			if [ "$side" = list ]; then
+				console pen "#1a202c" "$DT_ACTIVE" bold
+			else
+				console pen "$DT_ACTIVE" "$DT_FACE" bold
+			fi
 		else
-			CP[$w][$n]["val"]=open
+			console pen "$DT_INK" "$DT_FACE"
 		fi
-		CP[$w][$n]["key"]=$id
-		n=$((n + 1))
+		t := str pad " ${CP_PANES[$n]["icon"]} ${CP_PANES[$n]["title"]}" \
+			$((lw - 1))
+		console put -p "w$id" "$r" 0 "$t"
+		r=$((r + 1))
+		i=$((i + 1))
 	done
-	PW[$w]["n"]=$n
+	console pen "$DT_INK" "$DT_FACE"
+	while [ "$r" -lt "$h" ]; do
+		t := str repeat " " "$lw"
+		console put -p "w$id" "$r" 0 "$t"
+		r=$((r + 1))
+	done
+	console pen "$DT_IDLE" "$DT_FACE"
+	r=1
+	while [ "$r" -lt "$h" ]; do
+		console put -p "w$id" "$r" "$lw" "│"
+		r=$((r + 1))
+	done
+
+	[ -z "$pane" ] && return 0
+	bx=$((lw + 1))
+	bw=$((w - lw - 1))
+	if dt_has "${pane}_draw"; then
+		"${pane}_draw" "$id" $((h - 1)) "$bw" "$bx"
+	else
+		cp_rowsdraw "$id" "$pane" $((h - 1)) "$bw" "$bx"
+	fi
 }
 
-# Move the selection, skipping headings, and keep it on screen.
-cp_move() {
-	local w=$1 d=$2 i n vis top k=0
+# The shared row-list renderer every ordinary pane uses: builds this
+# pane's own rows fresh (rebuilt every frame, the window list is why),
+# then draws them exactly the single list panel.hibr used to draw for
+# everything, just offset into the pane's own body at column bx.
+cp_rowsdraw() {
+	local id=$1 pane=$2 h=$3 w=$4 bx=$5
+	local i r t v n top sel kind wtype on
 
+	n := "${pane}_rows" "$id"
+	PW[$id]["n"]=$n
+	PW[$id]["vis"]=$h
+	sel=${PW[$id]["sel"]}
+	top=${PW[$id]["top"]}
+	[ "$sel" -ge "$n" ] && sel=$((n - 1)) && PW[$id]["sel"]=$sel
+	[ "$sel" -lt 0 ] && sel=0 && PW[$id]["sel"]=$sel
+	i=$top
+	r=1
+	while [ "$r" -le "$h" ]; do
+		t=""
+		v=""
+		kind=""
+		wtype=""
+		if [ "$i" -lt "$n" ]; then
+			t=${CP[$id][$i]["text"]}
+			v=${CP[$id][$i]["val"]}
+			kind=${CP[$id][$i]["kind"]}
+			wtype=${CP[$id][$i]["wtype"]}
+		fi
+		if [ "$i" -ge "$n" ]; then
+			console pen "$DT_INK" "$DT_FACE"
+			t := str repeat " " "$w"
+		elif [ "$kind" = head ]; then
+			console pen "#718096" "$DT_FACE" bold
+			t := str pad "$t" "$w"
+		else
+			if [ "$i" = "$sel" ] && [ "${PW[$id]["side"]}" != list ]; then
+				console pen "#1a202c" "$DT_ACTIVE" bold
+			else
+				console pen "$DT_INK" "$DT_FACE"
+			fi
+			t := str pad "  $t" $((w - 12))
+			# A "set" row's value is drawn as a widget below, in the
+			# same pen, rather than appended to this string -- a real
+			# checkbox or a dropdown caret instead of on/off text.
+			if [ "$kind" != set ]; then
+				v := str pad "$v" 11
+				t="$t$v"
+			fi
+		fi
+		console put -p "w$id" "$r" "$bx" "$t"
+		if [ "$kind" = set ]; then
+			if [ "$wtype" = bool ]; then
+				on=0
+				[ "$v" = on ] && on=1
+				dt_check "$id" "$r" $((bx + w - 11)) "$on" "" \
+					"${CP[$id][$i]["key"]}"
+			else
+				dt_wdrop "$id" "$r" $((bx + w - 11)) 11 "$v" \
+					"${CP[$id][$i]["key"]}"
+			fi
+		fi
+		r=$((r + 1))
+		i=$((i + 1))
+	done
+}
+
+# Move the selection within the pane list, or within the selected pane's
+# own rows, whichever has the arrows right now -- skipping headings in a
+# row list, and wrapping at either end in the pane list, the way the hibr
+# menu's own items already do.
+panel_move() {
+	local w=$1 d=$2 i n vis top k=0 pane
+
+	if [ "${PW[$w]["side"]}" = list ]; then
+		n=${#CP_PANE_LIST[@]}
+		[ "$n" -lt 1 ] && return 0
+		i=$(((PW[$w]["pane"] + d + n) % n))
+		PW[$w]["pane"]=$i
+		PW[$w]["sel"]=0
+		PW[$w]["top"]=0
+		PW[$w]["last"]=-1
+		return 0
+	fi
 	n=${PW[$w]["n"]}
 	vis=${PW[$w]["vis"]}
 	top=${PW[$w]["top"]}
@@ -185,240 +250,75 @@ cp_move() {
 	PW[$w]["top"]=$top
 }
 
-# Change the selected setting, or act on the selected window.
-cp_do() {
-	local w=$1 dir=$2 sel k v
+# Step through a list, wrapping at either end -- shared by every ordinary
+# pane's own cycling, not just one.
+cp_next() {
+	local cur=$1 dir=$2 n=0 i=0 hit=-1 x
 
+	shift 2
+	for x in "$@"; do
+		[ "$x" = "$cur" ] && hit=$n
+		n=$((n + 1))
+	done
+	[ "$hit" -lt 0 ] && hit=0
+	i=$(((hit + dir + n) % n))
+	n=0
+	for x in "$@"; do
+		[ "$n" = "$i" ] && { ret "$x"; return 0; }
+		n=$((n + 1))
+	done
+}
+
+# Change the selected row in the selected pane, or act on the selected
+# window if the Windows pane is what is showing.
+cp_do() {
+	local w=$1 dir=$2 pane sel k
+
+	pane := panel_pane "$w"
+	[ -z "$pane" ] && return 0
 	sel=${PW[$w]["sel"]}
 	k=${CP[$w][$sel]["key"]}
 	case ${CP[$w][$sel]["kind"]} in
-	set)
-		case $k in
-		theme) v := cp_next "$CP_THEME" "$dir" "${CP_THEMES[@]}"
-		       cp_theme "$v" ;;
-		glyph) v := cp_next "$DT_GLYPH" "$dir" "${CP_GLYPHS[@]}"
-		       DT_GLYPH=$v ;;
-		tick)  v := cp_next "$DT_TICK" "$dir" "${CP_TICKS[@]}"
-		       DT_TICK=$v ;;
-		icons) cp_icons ;;
-		disks) cp_disks ;;
-		cursor) v := cp_next "$DT_CURSOR" "$dir" "${CP_CURSORS[@]}"
-			DT_CURSOR=$v ;;
-		blink) cp_blink ;;
-		shadow) cp_shadow ;;
-		mshadow) cp_mshadow ;;
-		about) v := cp_next "$AB_SLOWMS" "$dir" "${CP_ABTICKS[@]}"
-		       AB_SLOWMS=$v ;;
-		dblaction) v := cp_next "$DT_DBLACTION" "$dir" \
-			"${CP_DBLACTIONS[@]}"
-			DT_DBLACTION=$v ;;
-		esac
-		cp_save
-		;;
+	set) dt_has "${pane}_do" && "${pane}_do" "$w" "$k" "$dir" ;;
 	key) command -v dt_keycap > /dev/null && dt_keycap "$k" ;;
 	win) dt_raise "$k" ;;
 	esac
 }
 
-panel_open() {
-	local w=$1
-
-	PW[$w]["sel"]=1
-	PW[$w]["top"]=0
-	PW[$w]["vis"]=1
-	PW[$w]["last"]=-1
-	cp_rows "$w"
-}
-
-panel_draw() {
-	local id=$1 h=$2 w=$3
-	local i r t v n top sel kind wtype on
-
-	cp_rows "$id"
-	dt_wclear "$id"
-	PW[$id]["vis"]=$((h - 1))
-	n=${PW[$id]["n"]}
-	sel=${PW[$id]["sel"]}
-	top=${PW[$id]["top"]}
-	[ "$sel" -ge "$n" ] && sel=$((n - 1)) && PW[$id]["sel"]=$sel
-	i=$top
-	r=1
-	while [ "$r" -le "$h" ]; do
-		t=""
-		v=""
-		kind=""
-		wtype=""
-		if [ "$i" -lt "$n" ]; then
-			t=${CP[$id][$i]["text"]}
-			v=${CP[$id][$i]["val"]}
-			kind=${CP[$id][$i]["kind"]}
-			wtype=${CP[$id][$i]["wtype"]}
-		fi
-		if [ "$i" -ge "$n" ]; then
-			console pen "$DT_INK" "$DT_FACE"
-			t := str repeat " " $((w - 1))
-		elif [ "$kind" = head ]; then
-			console pen "#718096" "$DT_FACE" bold
-			t := str pad "$t" $((w - 1))
-		else
-			if [ "$i" = "$sel" ]; then
-				console pen "#1a202c" "$DT_ACTIVE" bold
-			else
-				console pen "$DT_INK" "$DT_FACE"
-			fi
-			t := str pad "  $t" $((w - 13))
-			# A "set" row's value is drawn as a widget below, in the
-			# same pen, rather than appended to this string -- a real
-			# checkbox or a dropdown caret instead of on/off text.
-			if [ "$kind" != set ]; then
-				v := str pad "$v" 12
-				t="$t$v"
-			fi
-		fi
-		console put -p "w$id" "$r" 1 "$t"
-		if [ "$kind" = set ]; then
-			if [ "$wtype" = bool ]; then
-				on=0
-				[ "$v" = on ] && on=1
-				dt_check "$id" "$r" $((w - 12)) "$on" "" \
-					"${CP[$id][$i]["key"]}"
-			else
-				dt_wdrop "$id" "$r" $((w - 12)) 12 "$v" \
-					"${CP[$id][$i]["key"]}"
-			fi
-		fi
-		r=$((r + 1))
-		i=$((i + 1))
-	done
-}
-
-panel_menus() {
-	local x on w=$DT_FOCUS
-
-	dt_menu "Control Panel"
-	dt_sub "Theme"
-	for x in "${CP_THEMES[@]}"; do
-		on=0
-		[ "$x" = "$CP_THEME" ] && on=1
-		dt_mark "$x" "${x:0:1}" "$on" cp_set_theme "$x"
-	done
-	dt_end
-	dt_sub "Wallpaper"
-	for x in "${CP_GLYPHS[@]}"; do
-		on=0
-		[ "$x" = "$DT_GLYPH" ] && on=1
-		dt_mark "$x" "" "$on" cp_set_glyph "$x"
-	done
-	dt_end
-	dt_sub "Refresh"
-	for x in "${CP_TICKS[@]}"; do
-		on=0
-		[ "$x" = "$DT_TICK" ] && on=1
-		dt_mark "$x ms" "" "$on" cp_set_tick "$x"
-	done
-	dt_end
-	dt_sub "Cursor"
-	for x in "${CP_CURSORS[@]}"; do
-		on=0
-		[ "$x" = "$DT_CURSOR" ] && on=1
-		dt_mark "$x" "" "$on" cp_set_cursor "$x"
-	done
-	dt_end
-	on=0
-	[ "$DT_ICONS" = 1 ] && on=1
-	dt_mark "Desktop Icons" i "$on" cp_icons
-	on=0
-	[ "$DT_DISKS" = 1 ] && on=1
-	dt_mark "Disk Icons" k "$on" cp_disks
-	on=0
-	[ "$DT_CURSOR_BLINK" = 1 ] && on=1
-	dt_mark "Cursor Blink" b "$on" cp_blink
-	on=0
-	[ "$DT_SHADOW" = 1 ] && on=1
-	dt_mark "Window Shadow" s "$on" cp_shadow
-	on=0
-	[ "$DT_MSHADOW" = 1 ] && on=1
-	dt_mark "Menu Shadow" m "$on" cp_mshadow
-	dt_sep
-	dt_item "Change Selected" c cp_do "$w" 1
-}
-
-# Each of these is called two ways: with just a value, from the bar menu's
-# dt_mark items, and with a window id ahead of the value, as the callback a
-# dt_droplist popup makes from Control Panel -- ${2:-$1} takes whichever shape
-# it got.
-cp_set_theme() { local v=${2:-$1}; cp_theme "$v" && cp_save; }
-
-# Icons on the desktop, or a bare wallpaper.
-cp_icons() {
-	if [ "$DT_ICONS" = 1 ]; then
-		DT_ICONS=0
-	else
-		DT_ICONS=1
-	fi
-	command -v dt_deskscan > /dev/null && dt_deskscan
-	cp_save
-}
-
-# The mounted disks among those icons, or just Home and the trash.
-cp_disks() {
-	if [ "$DT_DISKS" = 1 ]; then
-		DT_DISKS=0
-	else
-		DT_DISKS=1
-	fi
-	command -v dt_deskscan > /dev/null && dt_deskscan
-	cp_save
-}
-cp_set_glyph() { local v=${2:-$1}; DT_GLYPH=$v; cp_save; }
-cp_set_tick() { local v=${2:-$1}; DT_TICK=$v; cp_save; }
-cp_set_cursor() { local v=${2:-$1}; DT_CURSOR=$v; cp_save; }
-cp_set_about() { local v=${2:-$1}; AB_SLOWMS=$v; cp_save; }
-cp_set_dblaction() { local v=${2:-$1}; DT_DBLACTION=$v; cp_save; }
-
-# Whether a focused terminal's cursor blinks.
-cp_blink() {
-	if [ "$DT_CURSOR_BLINK" = 1 ]; then
-		DT_CURSOR_BLINK=0
-	else
-		DT_CURSOR_BLINK=1
-	fi
-	cp_save
-}
-
-# Whether a window casts a shadow on what is under it.
-cp_shadow() {
-	if [ "$DT_SHADOW" = 1 ]; then
-		DT_SHADOW=0
-	else
-		DT_SHADOW=1
-	fi
-	cp_save
-}
-
-# Whether an open menu casts a shadow -- a separate setting from a
-# window's, see DT_MSHADOW in desktop.hibr.
-cp_mshadow() {
-	if [ "$DT_MSHADOW" = 1 ]; then
-		DT_MSHADOW=0
-	else
-		DT_MSHADOW=1
-	fi
-	cp_save
-}
-
-# Every change is kept at once: there is no Save to forget.
+# Every change is kept at once: there is no Save to forget. Shared by
+# every pane, not redefined by each.
 cp_save() {
 	command -v dt_save > /dev/null && dt_save
 	return 0
 }
 
 panel_key() {
-	local w=$1 sel
+	local w=$1 sel pane
+
+	if [ "${PW[$w]["side"]}" = list ]; then
+		case $2 in
+		tab | right | enter | " ") PW[$w]["side"]=pane ;;
+		up) panel_move "$w" -1 ;;
+		down) panel_move "$w" 1 ;;
+		*) return 1 ;;
+		esac
+		return 0
+	fi
+
+	if [ "$2" = tab ]; then
+		PW[$w]["side"]=list
+		return 0
+	fi
+
+	pane := panel_pane "$w"
+	if [ -n "$pane" ] && dt_has "${pane}_draw"; then
+		dt_has "${pane}_key" && { "${pane}_key" "$w" "$2"; return 0; }
+		return 1
+	fi
 
 	case $2 in
-	up) cp_move "$w" -1 ;;
-	down) cp_move "$w" 1 ;;
+	up) panel_move "$w" -1 ;;
+	down) panel_move "$w" 1 ;;
 	right | enter | " ") cp_do "$w" 1 ;;
 	left) cp_do "$w" -1 ;;
 	x)
@@ -431,42 +331,49 @@ panel_key() {
 		[ "${CP[$w][$sel]["kind"]}" = win ] &&
 			dt_min "${CP[$w][$sel]["key"]}"
 		;;
-	*) return 1 ;;
+	*)
+		[ -n "$pane" ] && dt_has "${pane}_key" &&
+			{ "${pane}_key" "$w" "$2"; return 0; }
+		return 1
+		;;
 	esac
 }
 
-# A click selects; a second click on the same row does what enter does.
-# A click on a dropdown's own cell opens the real popup; everywhere else on
-# the row still selects, and a second click (or enter) still cycles the
-# value through cp_do, unchanged.
+# A click in the pane list selects a pane and moves focus there; a click
+# in the selected pane's own body works the way it always did -- select,
+# a second click (or enter) activates, and a click on a dropdown's own
+# cell opens the real popup, through the pane's own <name>_drop.
 panel_click() {
-	local w=$1 r=$2 c=$3 i n top tag k wc
+	local w=$1 r=$2 c=$3 pane i n top tag k wc
 
+	if [ "$c" -lt "$CP_LISTW" ]; then
+		[ "$r" -lt 1 ] || [ "$r" -gt "${#CP_PANE_LIST[@]}" ] && return 0
+		PW[$w]["pane"]=$((r - 1))
+		PW[$w]["side"]=list
+		PW[$w]["sel"]=0
+		PW[$w]["top"]=0
+		PW[$w]["last"]=-1
+		return 0
+	fi
+	pane := panel_pane "$w"
+	[ -z "$pane" ] && return 0
+	PW[$w]["side"]=pane
+	if dt_has "${pane}_draw"; then
+		dt_has "${pane}_click" && "${pane}_click" "$w" "$r" "$c"
+		return 0
+	fi
 	n=${PW[$w]["n"]}
 	top=${PW[$w]["top"]}
 	i=$((top + r - 1))
 	[ "$r" -lt 1 ] || [ "$i" -ge "$n" ] && return 0
 	[ "${CP[$w][$i]["kind"]}" = head ] && return 0
 	if [ "${CP[$w][$i]["kind"]}" = set ] &&
-	   [ "${CP[$w][$i]["wtype"]}" != bool ]; then
+	   [ "${CP[$w][$i]["wtype"]}" != bool ] && dt_has "${pane}_drop"; then
 		tag := dt_hit "$w" "$r" "$c"
 		if [ -n "$tag" ]; then
 			k=${CP[$w][$i]["key"]}
 			wc := dt_wcol "$w" "$r" "$tag"
-			case $k in
-			theme) dt_droplist "$w" "$r" "$wc" cp_set_theme \
-				"${CP_THEMES[@]}" ;;
-			glyph) dt_droplist "$w" "$r" "$wc" cp_set_glyph \
-				"${CP_GLYPHS[@]}" ;;
-			tick) dt_droplist "$w" "$r" "$wc" cp_set_tick \
-				"${CP_TICKS[@]}" ;;
-			cursor) dt_droplist "$w" "$r" "$wc" cp_set_cursor \
-				"${CP_CURSORS[@]}" ;;
-			about) dt_droplist "$w" "$r" "$wc" cp_set_about \
-				"${CP_ABTICKS[@]}" ;;
-			dblaction) dt_droplist "$w" "$r" "$wc" \
-				cp_set_dblaction "${CP_DBLACTIONS[@]}" ;;
-			esac
+			"${pane}_drop" "$w" "$r" "$wc" "$k"
 			PW[$w]["sel"]=$i
 			PW[$w]["last"]=$i
 			return 0
@@ -481,8 +388,14 @@ panel_click() {
 }
 
 panel_wheel() {
-	local w=$1 top max n vis
+	local w=$1 top max n vis pane
 
+	[ "${PW[$w]["side"]}" = list ] && return 0
+	pane := panel_pane "$w"
+	if [ -n "$pane" ] && dt_has "${pane}_draw"; then
+		dt_has "${pane}_wheel" && "${pane}_wheel" "$w" "$2"
+		return 0
+	fi
 	top=${PW[$w]["top"]}
 	n=${PW[$w]["n"]}
 	vis=${PW[$w]["vis"]}
@@ -496,8 +409,14 @@ panel_wheel() {
 	PW[$w]["top"]=$top
 }
 
+# What it can show depends entirely on which panes got sourced before this
+# ran, which is nothing at all for the bare file -- an honest answer, not
+# a fabricated one, the same as calc's own CLI mode only working because
+# arithmetic is self-contained here and this is not.
 if [ -z "$DT_ROWS" ]; then
-	echo "themes: ${CP_THEMES[*]}"
-	echo "wallpaper: ${CP_GLYPHS[*]}"
-	echo "refresh: ${CP_TICKS[*]}"
+	if [ "${#CP_PANE_LIST[@]}" -eq 0 ]; then
+		echo "no panes registered"
+	else
+		echo "panes: ${CP_PANE_LIST[*]}"
+	fi
 fi

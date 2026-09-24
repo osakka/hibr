@@ -878,26 +878,38 @@ sc, _ = run("", feed=[press(0, 63)], pre=APPS)
 check("clicking the clock in the bar opens the Clock app",
       sc.find("┤ Clock ├") is not None, sc)
 
+# Control Panel is a pane picker, panes loaded from examples/control-panel
+# and sorted by title without regard to case, the same trick dt_appnames
+# uses for apps -- which puts App Shortcuts first, ahead of Appearance: a
+# space sorts before a letter, plain byte order. tests/apps.py verifies
+# this order directly against cp_panes; ORDER here just names it, so a
+# real change to it breaks an assertion instead of a silent miscount.
+PANEL = ('. %s/panel.hibr\nCP_PANEDIRS+=("%s")\ncp_panes'
+         % (tree("examples/apps"), tree("examples/control-panel")))
+ORDER = ["app_shortcuts", "appearance", "behaviour", "shortcuts", "windows"]
+DOWN_APP = [b"\x1b[B"] * ORDER.index("appearance")
+DOWN_SHORT = [b"\x1b[B"] * ORDER.index("shortcuts")
+
 CONF = tempfile.mkdtemp(prefix="hibr-conf-")
-PANEL = '. %s/panel.hibr' % tree("examples/apps")
-sc, raw = run('dt_new "Control Panel" 12 34 2 2 panel', feed=[b"\x1b[C"],
+sc, raw = run('dt_new "Control Panel" 20 58 2 2 panel',
+              feed=DOWN_APP + [b"\x1b[C", b"\x1b[C"],
               env={"XDG_CONFIG_HOME": CONF}, pre=PANEL)
 saved = os.path.join(CONF, "hibr", "desktop.hibr")
 text = open(saved).read() if os.path.exists(saved) else ""
 check("a changed setting is written at once, as a script",
       "CP_THEME=slate" in text and "DT_WALL=\\#1a202c" in text and
       "DT_TICK=" in text, text or sc)
-sc, raw = run('dt_new "Control Panel" 12 34 2 2 panel',
+sc, raw = run('dt_new "Control Panel" 20 58 2 2 panel', feed=DOWN_APP,
               env={"XDG_CONFIG_HOME": CONF}, pre=PANEL)
-check("and the next desktop starts with it", sc.find("slate") is not None, sc)
+check("and the next desktop starts with it", sc.find("slate") is not None,
+      sc)
 shutil.rmtree(CONF, True)
 
-# Ten downs from Theme reaches Close Window: Theme, Wallpaper, Refresh,
-# Icons, Disk Icons, Cursor, Cursor Blink, Window Shadow, Menu Shadow,
-# Titlebar Click, Close Window.
+# ORDER.index("shortcuts") downs on the picker reaches Shortcuts; entering
+# it lands on its first row, Close Window.
 CONF2 = tempfile.mkdtemp(prefix="hibr-conf2-")
-sc, raw = run('dt_new "Control Panel" 12 34 2 2 panel',
-              feed=[b"\x1b[B"] * 10 + [b"\r", b"x"],
+sc, raw = run('dt_new "Control Panel" 20 58 2 2 panel',
+              feed=DOWN_SHORT + [b"\r", b"\r", b"x"],
               env={"XDG_CONFIG_HOME": CONF2}, pre=PANEL)
 check("a shortcut row can be rebound to a new key",
       sc.find("alt-f4") is None, sc)
@@ -908,18 +920,17 @@ shutil.rmtree(CONF2, True)
 
 # Any registered app gets its own row in App Shortcuts, not just Terminal
 # and Task Manager -- empty by default, assignable the same way DT_KEYS'
-# fixed four are. Fourteen downs from Theme reaches Calculator here,
-# because with only calc and panel loaded, App Shortcuts has two rows and
-# Calculator sorts before Control Panel.
+# fixed four are. App Shortcuts sorts first of all the panes (see ORDER
+# above), so it is the default pane -- no downs on the picker at all;
+# entering it lands on Calculator, since it sorts before Control Panel.
 CALCSRC = '. %s/calc.hibr' % tree("examples/apps")
 CONF3 = tempfile.mkdtemp(prefix="hibr-conf3-")
-sc, _ = run('dt_new "Control Panel" 12 34 2 2 panel',
-            feed=[b"\x1b[B"] * 14, env={"XDG_CONFIG_HOME": CONF3},
-            pre=PANEL + "\n" + CALCSRC)
+sc, _ = run('dt_new "Control Panel" 20 58 2 2 panel', feed=[b"\r"],
+            env={"XDG_CONFIG_HOME": CONF3}, pre=PANEL + "\n" + CALCSRC)
 check("a registered app is listed with no shortcut by default",
       sc.find("Calculator") is not None, sc)
-sc, _ = run('dt_new "Control Panel" 12 34 2 2 panel',
-            feed=[b"\x1b[B"] * 14 + [b"\r", b"g"],
+sc, _ = run('dt_new "Control Panel" 20 58 2 2 panel',
+            feed=[b"\r", b"\r", b"g"],
             env={"XDG_CONFIG_HOME": CONF3}, pre=PANEL + "\n" + CALCSRC)
 check("a shortcut can be assigned to any app, not only the two defaults",
       sc.find("Calculator") is not None and

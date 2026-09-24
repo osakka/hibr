@@ -1076,8 +1076,8 @@ dt_apps() {
 			[ -r "$f" ] || continue
 			b=${f##*/}
 			b=${b%.hibr}
-			[ -n "${DT_SRC[$b]}" ] && continue
-			DT_SRC[$b]=$f
+			[ -n "${DT_SRC["$b"]}" ] && continue
+			DT_SRC["$b"]=$f
 			rel=${f#"$d"/}
 			case $rel in
 			*/*) DT_APPDIR_CUR=${rel%/*} ;;

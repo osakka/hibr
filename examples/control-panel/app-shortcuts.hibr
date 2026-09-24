@@ -1,0 +1,21 @@
+#!/usr/bin/env hibr
+#
+# app-shortcuts -- the Control Panel pane listing every registered app,
+# each with an optional global launch shortcut. Any app can be given one
+# this way, not just the ones that ship with a default.
+
+command -v cp_pane > /dev/null && cp_pane app_shortcuts "App Shortcuts" "⌘"
+
+app_shortcuts_rows() {
+	local w=$1 n=0 an names
+
+	names := dt_appnames
+	for an in $names; do
+		CP[$w][$n]["kind"]=key
+		CP[$w][$n]["text"]="${DT_APPS[$an]["title"]}"
+		CP[$w][$n]["val"]="${DT_APPKEY[$an]:-}"
+		CP[$w][$n]["key"]="app:$an"
+		n=$((n + 1))
+	done
+	ret "$n"
+}

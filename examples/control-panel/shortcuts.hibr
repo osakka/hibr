@@ -1,0 +1,25 @@
+#!/usr/bin/env hibr
+#
+# shortcuts -- the Control Panel pane for the four fixed desktop shortcuts:
+# Close Window, Detach, Quit, Cycle Windows. Rebinding goes through
+# dt_keycap, the same capture every rebindable key in the desktop uses.
+
+command -v cp_pane > /dev/null && cp_pane shortcuts "Shortcuts" "⌨"
+
+shortcuts_rows() {
+	local w=$1 n=0
+
+	CP[$w][$n]["kind"]=key; CP[$w][$n]["text"]="Close Window"
+	CP[$w][$n]["val"]="${DT_KEYS[close]}"; CP[$w][$n]["key"]=close
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=key; CP[$w][$n]["text"]="Detach"
+	CP[$w][$n]["val"]="${DT_KEYS[detach]}"; CP[$w][$n]["key"]=detach
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=key; CP[$w][$n]["text"]="Quit"
+	CP[$w][$n]["val"]="${DT_KEYS[quit]}"; CP[$w][$n]["key"]=quit
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=key; CP[$w][$n]["text"]="Cycle Windows"
+	CP[$w][$n]["val"]="${DT_KEYS[cycle]}"; CP[$w][$n]["key"]=cycle
+	n=$((n + 1))
+	ret "$n"
+}

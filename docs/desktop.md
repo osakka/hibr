@@ -358,6 +358,42 @@ it reuses the same context-menu machinery a right-click already builds on,
 rather than a second popup system
 of its own.
 
+## Control Panel panes
+
+`panel.hibr` only hosts panes; it has none of its own. A pane down the left
+picks what shows on the right, System 7's Control Panels folder rather than
+one long scrolling list -- which is also what a world map (a Date & Time
+pane's own body) needs room for that a shared list of rows never could.
+
+Each pane is its own file, found in `CP_PANEDIRS` the same way apps are
+found in `DT_APPDIRS`: a session adds `examples/control-panel` (and its own
+`~/.config/hibr/control-panel`, the default) and calls `cp_panes`, which
+sources every file and sorts the result by title -- the same trick
+`dt_appnames` uses for the hibr menu, so load order and file names never
+decide what the picker shows first.
+
+A pane calls `cp_pane name title icon` to register, then is one of two
+shapes. Most are a **row list**: `name_rows id` fills `CP[$id]` the same way
+an app fills its own state and returns the count with `ret`; a `set` row
+gets `name_do id key dir` to change it and, for a dropdown rather than a
+checkbox, `name_drop id row col key` to open one with `dt_droplist`. A
+`key`-kind row (a shortcut) and a `win`-kind row (an open window) need no
+callback at all -- the host handles both generically, the same four rows
+Shortcuts and Windows already are.
+
+A pane that needs a body of its own -- a world map does not fit two columns
+of text -- defines `name_draw id h w bx` and `name_click id row col`
+instead, in the same `w$id` coordinates every other `_draw`/`_click` pair
+already uses; `bx` is where its own body starts, since it shares the window
+with the pane list to its left. Either shape may also define `name_key` for
+keys the host's own row/pane navigation does not already handle, and the
+body shape `name_wheel`.
+
+The five bundled panes -- Appearance, Behaviour, Shortcuts, App Shortcuts,
+Windows -- are ordinary files under `examples/control-panel` themselves, not
+special-cased in `panel.hibr`: a file of your own with the same pane name
+replaces one, the same rule `DT_APPDIRS` already has for apps.
+
 ## The apps
 
 In `examples/apps/`, each one also a file you can read in a sitting:
@@ -366,7 +402,7 @@ In `examples/apps/`, each one also a file you can read in a sitting:
 |---|---|
 | `files` | a file browser, with a scrollbar and the wheel |
 | `calc` | a calculator, and `hibr calc.hibr '3 * 4'` on its own |
-| `panel` | Control Panel: settings, and a list of the other windows |
+| `panel` | Control Panel: a picker of panes (see below), and a list of the other windows |
 | `term` | a shell in a window. Each window is its own pty and its own session. The wheel or `shift-pageup` scrolls back, and a program that asks for the mouse gets it |
 | `snake` | arrows turn, `p` pauses. It speeds up as it grows |
 | `mines` | Minesweeper, 9 by 9 with ten mines. `space` or a click opens, `f` or a right click flags, and opening a number with its flags placed opens what is round it |

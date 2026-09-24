@@ -194,102 +194,172 @@ check("a click after scrolling lands on the row that is there",
       sc.find("4 of %d" % ENTRIES) is not None, sc)
 
 # --- the control panel ----------------------------------------------------
+#
+# Control Panel is a picker now, not one scrolling list: a pane down the
+# left, the selected pane's own rows on the right (System 7's Control
+# Panels folder). Panes are loaded from examples/control-panel, sorted by
+# title without regard to case, the same trick dt_appnames uses for apps --
+# which is why App Shortcuts sorts ahead of Appearance: a space is less
+# than a letter, plain byte order, the same rule already governing the app
+# list. Verified once below, not assumed, and ORDER mirrors it exactly
+# rather than guessing at ASCII sort trivia a second time.
 
 rc, out, err = cli("panel")
-check("it lists what it can change from the command line",
-      rc == 0 and "midnight" in out and "refresh:" in out, out)
+check("with no panes loaded, it says so rather than pretending",
+      rc == 0 and out == "no panes registered", out)
 
-PW = "14 34 2 2"
+CP = tree("examples/control-panel")
+CPLOAD = ('. %s\n. %s/panel.hibr\nCP_PANEDIRS+=("%s")\ncp_panes\n'
+          % (WM, APPS, CP))
+out = subprocess.run([sx.HIBR, "-c", CPLOAD + "echo ${CP_PANE_LIST[*]}"],
+                     capture_output=True, text=True).stdout.strip()
+ORDER = out.split()
+check("panes register and sort by title, not load order",
+      ORDER == ["app_shortcuts", "appearance", "behaviour", "shortcuts",
+                "windows"], out)
+
+PW = "20 58 2 2"
 PANEL = ("panel", PW)
 OTHER = [("Other", "5 20 18 40", "")]
 TICK = "DT_TICK=200"
+CPANES = 'CP_PANEDIRS+=("%s")\ncp_panes' % CP
 
-sc = run(*PANEL, pre=TICK, also=OTHER)
-check("the sections are drawn", sc.find("Appearance") == (3, 3) and
-      sc.find("Behaviour") == (7, 3), sc)
-check("the settings show their values", sc.find("midnight") is not None and
-      sc.find("200 ms") is not None, sc)
-check("the window list names what is open",
-      sc.find("Panel") is not None and sc.find("Other") is not None, sc)
+# Absolute screen coordinates for PW's geometry (row 2, col 2): a pane's
+# own first content row is at 3, its dropdown/checkbox column at 47 --
+# derived once here from CP_LISTW and the window's body width, rather than
+# copied by eye into every check below.
+R0, VALCOL = 3, 47
+LISTCOL = 5
+TITLE = {"app_shortcuts": "App Shortcuts", "appearance": "Appearance",
+         "behaviour": "Behaviour", "shortcuts": "Shortcuts",
+         "windows": "Windows"}
 
-sc = run(*PANEL, feed=[b"\x1b[C"], pre=TICK, also=OTHER)
-check("right cycles the theme", sc.find("slate") is not None and
-      sc.find("midnight") is None, sc)
-sc = run(*PANEL, feed=[b"\x1b[D"], pre=TICK, also=OTHER)
-check("left cycles it the other way", sc.find("paper") is not None, sc)
 
-sc = run(*PANEL, feed=[press(4, 26)], pre=TICK, also=OTHER)
+def prow(name):
+    """Which screen row a pane's own name sits at in the picker list."""
+    return R0 + ORDER.index(name)
+
+
+def downs(name):
+    """How many downs on the picker, from the default pane, reach it."""
+    return ORDER.index(name)
+
+
+def cprun(feed=(), also=(), extra=()):
+    """Run Control Panel from a config directory of its own.
+
+    tests/screen.py gives the whole suite one shared $HOME, so without this
+    a theme set by one check would still be in effect for the next one --
+    which is exactly how "left cycles it the other way" once passed by
+    reading a value "right" had left behind a moment before, rather than by
+    actually cycling from the default. Each check gets its own directory
+    instead, so its math holds regardless of what ran before it.
+    """
+    d = tempfile.mkdtemp(prefix="hibr-cp-")
+    sc = run(*PANEL, feed=feed, pre="export XDG_CONFIG_HOME=%s\n%s\n%s"
+             % (d, TICK, CPANES), also=also, extra=extra)
+    shutil.rmtree(d, True)
+    return sc
+
+
+sc = cprun()
+check("the picker lists every pane, sorted by title",
+      all(TITLE[n] in sc.row(prow(n)) for n in ORDER), sc)
+check("the first pane's own rows show on the right without entering it",
+      sc.find(TITLE[ORDER[0]]) is not None and
+      sc.find("Control Panel") is not None, sc)
+
+DOWN_APP = [b"\x1b[B"] * downs("appearance")
+DOWN_BEH = [b"\x1b[B"] * downs("behaviour")
+DOWN_WIN = [b"\x1b[B"] * downs("windows")
+
+sc = cprun(DOWN_APP)
+check("down on the picker moves pane by pane, showing each one's rows",
+      sc.find("Theme") is not None and sc.find("midnight") is not None, sc)
+
+sc = cprun(DOWN_APP + [b"\x1b[C", b"\x1b[C"])
+check("right enters the pane, and a second right cycles its first row",
+      sc.find("slate") is not None and sc.find("midnight") is None, sc)
+sc = cprun(DOWN_APP + [b"\t", b"\x1b[D"])
+check("tab enters it too, and left cycles the other way",
+      sc.find("dracula") is not None, sc)
+sc = cprun(DOWN_APP + [b"\t", b"\t", b"\x1b[C"])
+check("a second tab leaves the pane, back to moving the picker",
+      sc.find("slate") is None and
+      sc.find(TITLE[ORDER[downs("appearance") + 1]]) is not None, sc)
+
+sc = cprun(DOWN_APP + [press(R0, VALCOL)])
 check("clicking the dropdown's own cell opens a real popup of choices",
       sc.find("slate") is not None and sc.find("dracula") is not None, sc)
-sc = run(*PANEL, feed=[press(4, 26), press(10, 30)], pre=TICK, also=OTHER)
+sc = cprun(DOWN_APP + [press(R0, VALCOL), press(R0 + 6, VALCOL + 3)])
 check("choosing one there applies it, the same as cycling would",
       sc.find("dracula") is not None and sc.find("midnight") is None, sc)
 
-sc = run(*PANEL, feed=[b"\x1b[B", b"\x1b[C"], pre=TICK, also=OTHER)
+sc = cprun(DOWN_APP + [b"\x1b[C", b"\x1b[B", b"\x1b[C"])
 check("the wallpaper glyph changes, and the desktop follows",
       sc.at(0, 78) != "·" and sc.at(23, 60) == "░", sc)
 
-sc = run(*PANEL, feed=[b"\x1b[B", b"\x1b[B", b"\x1b[C"], pre=TICK,
-         also=OTHER)
-check("down skips the blank line and the heading, landing on Refresh",
-      sc.find("350 ms") is not None, sc)
+# Behaviour's own rows, in order: Refresh(0), Icons(1), Disk Icons(2),
+# Cursor(3), Cursor Blink(4), Window Shadow(5), Menu Shadow(6), Titlebar
+# Click(7), About Refresh(8, only once about.hibr is loaded).
+sc = cprun(DOWN_BEH)
+check("Behaviour's own second row is Icons, right there with no headings",
+      sc.find("Icons") is not None and
+      "[x]" in sc.row(sc.find("Icons")[0]), sc)
 
-# Theme, Wallpaper, Refresh, Icons, Disk Icons, Cursor, Cursor Blink, Window
-# Shadow, Menu Shadow, Titlebar Click, Close Window, Detach, Quit, Cycle
-# Windows, Control Panel (App Shortcuts has one row here -- panel is the
-# only app PANEL's own session loads), Panel, Other -- sixteen downs from
-# Theme reaches the second window, because cp_move steps over the headings
-# and
-# the blanks. This count is sensitive to how many apps App Shortcuts
-# lists, which depends on what a test's session loads.
-DOWN4 = [b"\x1b[B"] * 16
-
-sc = run(*PANEL, feed=[b"\x1b[B"] * 3 + [b"\r"], pre=TICK, also=OTHER)
+sc = cprun(DOWN_BEH + [b"\x1b[C", b"\x1b[B", b"\r"])
 check("the icons can be switched off, and the panel shows an unchecked box",
       sc.find("Icons") is not None and
-      "[ ]" in sc.row(sc.find("Icons")[0]),
-      sc)
+      "[ ]" in sc.row(sc.find("Icons")[0]), sc)
 
-sc = run(*PANEL, feed=[b"\x1b[B"] * 8 + [b"\r"], pre=TICK, also=OTHER)
+sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 6 + [b"\r"])
 check("menu shadow is its own setting, separate from window shadow",
       sc.find("Menu Shadow") is not None and
       "[ ]" in sc.row(sc.find("Menu Shadow")[0]) and
-      "[x]" in sc.row(sc.find("Window Shadow")[0]),
-      sc)
+      "[x]" in sc.row(sc.find("Window Shadow")[0]), sc)
 
-sc = run(*PANEL, feed=[b"\x1b[B"] * 9, pre=TICK, also=OTHER)
+sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 7)
 check("titlebar double-click defaults to zoom",
       sc.find("Titlebar Click") is not None and
       "zoom" in sc.row(sc.find("Titlebar Click")[0]), sc)
-sc = run(*PANEL, feed=[b"\x1b[B"] * 9 + [b"\x1b[C"], pre=TICK, also=OTHER)
+sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 7 + [b"\x1b[C"])
 check("and it cycles through the other actions",
       "min" in sc.row(sc.find("Titlebar Click")[0]), sc)
 
-sc = run(*PANEL, feed=DOWN4 + [b"x"], pre=TICK, also=OTHER)
-check("x closes the selected window", sc.find("Other") is None and
-      sc.find("Panel") is not None, sc)
-
-sc = run(*PANEL, feed=DOWN4 + [b"-"], pre=TICK, also=OTHER)
-check("- hides it, and the panel says so",
-      sc.find("Other") is not None and sc.find("hidden") is not None, sc)
-check("while the one still showing reads open",
-      "open" in sc.row(12) and "hidden" in sc.row(13), sc)
-
-sc = run(*PANEL, feed=DOWN4 + [b"-", b"\r"], pre=TICK, also=OTHER)
-check("enter on a hidden window brings it back",
-      sc.find("hidden") is None and sc.find("Other") is not None, sc)
-
-sc = run(*PANEL, feed=[press(4, 10), press(4, 10)], pre=TICK, also=OTHER)
-check("a click selects and a second click acts",
-      sc.find("slate") is not None, sc)
-
-sc = run(*PANEL, feed=[press(3, 10), press(3, 10)], pre=TICK, also=OTHER)
-check("clicking a heading does nothing", sc.find("midnight") is not None, sc)
-
-sc = run("panel", "16 34 2 2", pre=TICK, extra=("about",))
+sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 8, extra=("about",))
 check("About Refresh only appears once About hibr itself is loaded",
       sc.find("About Refresh") is not None and
       sc.find("3000 ms") is not None, sc)
+
+sc = cprun(DOWN_WIN + [b"\r"], also=OTHER)
+check("the window list names what is open",
+      sc.find("Panel") is not None and sc.find("Other") is not None, sc)
+
+TOOTHER = DOWN_WIN + [b"\r", b"\x1b[B"]  # into Windows, then onto Other
+
+sc = cprun(TOOTHER + [b"x"], also=OTHER)
+check("x closes the selected window", sc.find("Other") is None and
+      sc.find("Panel") is not None, sc)
+
+sc = cprun(TOOTHER + [b"-"], also=OTHER)
+check("- hides it, and the panel says so",
+      sc.find("Other") is not None and sc.find("hidden") is not None, sc)
+
+sc = cprun(TOOTHER + [b"-", b"\r"], also=OTHER)
+check("enter on a hidden window brings it back",
+      sc.find("hidden") is None and sc.find("Other") is not None, sc)
+
+sc = cprun([press(R0, LISTCOL), press(R0, LISTCOL)])
+check("clicking the same pane twice in the picker is harmless",
+      sc.find(TITLE[ORDER[0]]) is not None, sc)
+
+sc = cprun(DOWN_APP + [press(R0, VALCOL - 10), press(R0, VALCOL - 10)])
+check("a click in the pane's own body selects and a second click acts",
+      sc.find("slate") is not None, sc)
+
+sc = cprun([press(20, LISTCOL)])
+check("clicking below the last pane in the picker does nothing",
+      sc.find(TITLE[ORDER[0]]) is not None, sc)
 
 sc2 = run("tasks", "16 50 4 4", feed=[b"\x1b\x14"], extra=("term",))
 check("alt-ctrl-t opens a terminal, even with another app focused",
@@ -691,4 +761,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(118)
+report(121)

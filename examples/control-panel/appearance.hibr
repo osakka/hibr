@@ -1,0 +1,75 @@
+#!/usr/bin/env hibr
+#
+# appearance -- the Control Panel pane for the theme and the wallpaper
+# glyph. The theme sets the variables the window manager already reads
+# every frame, so a change shows on the next one, in every window at once.
+
+command -v cp_pane > /dev/null && cp_pane appearance "Appearance" "◐"
+
+CP_THEME=midnight
+command -v dt_keep > /dev/null && dt_keep CP_THEME
+CP_THEMES=(midnight slate forest ember paper dracula)
+CP_GLYPHS=("·" "░" "▒" "⋅" "+")
+
+# wall, dot, bar, active, idle, face, ink
+cp_theme() {
+	local t=$1
+
+	case $t in
+	midnight) set -- "#0d1b2a" "#16324a" "#1b3a5c" "#63b3ed" "#4a5568" \
+		"#101820" "#cbd5e0" ;;
+	slate)    set -- "#1a202c" "#2d3748" "#2d3748" "#90cdf4" "#4a5568" \
+		"#171923" "#e2e8f0" ;;
+	forest)   set -- "#0b1f16" "#14342a" "#14432f" "#68d391" "#3f5e51" \
+		"#0d1f18" "#d7e8de" ;;
+	ember)    set -- "#1f1410" "#3a241c" "#4a2c1e" "#f6ad55" "#6b4a3a" \
+		"#1a110d" "#ecd9c6" ;;
+	paper)    set -- "#e8e4da" "#d3cec1" "#c3bdae" "#2b6cb0" "#8a8578" \
+		"#f5f2ea" "#2d3748" ;;
+	dracula)  set -- "#282a36" "#383a4c" "#44475a" "#bd93f9" "#6272a4" \
+		"#21222c" "#f8f8f2" ;;
+	*) return 1 ;;
+	esac
+	CP_THEME=$t
+	DT_WALL=$1
+	DT_DOT=$2
+	DT_BAR=$3
+	DT_ACTIVE=$4
+	DT_IDLE=$5
+	DT_FACE=$6
+	DT_INK=$7
+}
+
+cp_set_theme() { cp_theme "$2" && cp_save; }
+cp_set_glyph() { DT_GLYPH=$2; cp_save; }
+
+appearance_rows() {
+	local w=$1 n=0
+
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Theme"
+	CP[$w][$n]["val"]="$CP_THEME"; CP[$w][$n]["key"]=theme; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Wallpaper"
+	CP[$w][$n]["val"]="$DT_GLYPH"; CP[$w][$n]["key"]=glyph; n=$((n + 1))
+	ret "$n"
+}
+
+appearance_do() {
+	local w=$1 k=$2 dir=$3 v
+
+	case $k in
+	theme) v := cp_next "$CP_THEME" "$dir" "${CP_THEMES[@]}"
+	       cp_theme "$v" ;;
+	glyph) v := cp_next "$DT_GLYPH" "$dir" "${CP_GLYPHS[@]}"
+	       DT_GLYPH=$v ;;
+	esac
+	cp_save
+}
+
+appearance_drop() {
+	local w=$1 r=$2 c=$3 k=$4
+
+	case $k in
+	theme) dt_droplist "$w" "$r" "$c" cp_set_theme "${CP_THEMES[@]}" ;;
+	glyph) dt_droplist "$w" "$r" "$c" cp_set_glyph "${CP_GLYPHS[@]}" ;;
+	esac
+}

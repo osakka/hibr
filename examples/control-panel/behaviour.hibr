@@ -1,0 +1,138 @@
+#!/usr/bin/env hibr
+#
+# behaviour -- the Control Panel pane for how the desktop redraws, what it
+# shows on the bare desktop, and how a click or a title bar behaves.
+
+command -v cp_pane > /dev/null && cp_pane behaviour "Behaviour" "⚙"
+
+CP_TICKS=(80 120 200 350 600 1000 2000 3500 5000)
+CP_ABTICKS=(1000 2000 3000 5000 10000)
+CP_CURSORS=(block underline bar)
+CP_DBLACTIONS=(zoom min close none)
+
+cp_set_tick() { DT_TICK=$2; cp_save; }
+cp_set_cursor() { DT_CURSOR=$2; cp_save; }
+cp_set_about() { AB_SLOWMS=$2; cp_save; }
+cp_set_dblaction() { DT_DBLACTION=$2; cp_save; }
+
+# The mounted disks among the desktop icons, or just Home and the trash.
+cp_icons() {
+	if [ "$DT_ICONS" = 1 ]; then
+		DT_ICONS=0
+	else
+		DT_ICONS=1
+	fi
+	command -v dt_deskscan > /dev/null && dt_deskscan
+	cp_save
+}
+cp_disks() {
+	if [ "$DT_DISKS" = 1 ]; then
+		DT_DISKS=0
+	else
+		DT_DISKS=1
+	fi
+	command -v dt_deskscan > /dev/null && dt_deskscan
+	cp_save
+}
+
+# Whether a focused terminal's cursor blinks.
+cp_blink() {
+	if [ "$DT_CURSOR_BLINK" = 1 ]; then
+		DT_CURSOR_BLINK=0
+	else
+		DT_CURSOR_BLINK=1
+	fi
+	cp_save
+}
+
+# Whether a window casts a shadow on what is under it.
+cp_shadow() {
+	if [ "$DT_SHADOW" = 1 ]; then
+		DT_SHADOW=0
+	else
+		DT_SHADOW=1
+	fi
+	cp_save
+}
+
+# Whether an open menu casts a shadow -- a separate setting from a
+# window's, see DT_MSHADOW in desktop.hibr.
+cp_mshadow() {
+	if [ "$DT_MSHADOW" = 1 ]; then
+		DT_MSHADOW=0
+	else
+		DT_MSHADOW=1
+	fi
+	cp_save
+}
+
+behaviour_rows() {
+	local w=$1 n=0
+
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Refresh"
+	CP[$w][$n]["val"]="$DT_TICK ms"; CP[$w][$n]["key"]=tick; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Icons"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_ICONS" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=icons; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Disk Icons"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_DISKS" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=disks; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Cursor"
+	CP[$w][$n]["val"]="$DT_CURSOR"; CP[$w][$n]["key"]=cursor; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Cursor Blink"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_CURSOR_BLINK" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=blink; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Window Shadow"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_SHADOW" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=shadow; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Menu Shadow"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_MSHADOW" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=mshadow; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Titlebar Click"
+	CP[$w][$n]["val"]="$DT_DBLACTION"; CP[$w][$n]["key"]=dblaction
+	n=$((n + 1))
+	if [ -n "$AB_SLOWMS" ]; then
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="About Refresh"
+		CP[$w][$n]["val"]="$AB_SLOWMS ms"; CP[$w][$n]["key"]=about
+		n=$((n + 1))
+	fi
+	ret "$n"
+}
+
+behaviour_do() {
+	local w=$1 k=$2 dir=$3 v
+
+	case $k in
+	tick)  v := cp_next "$DT_TICK" "$dir" "${CP_TICKS[@]}"
+	       DT_TICK=$v ;;
+	icons) cp_icons ;;
+	disks) cp_disks ;;
+	cursor) v := cp_next "$DT_CURSOR" "$dir" "${CP_CURSORS[@]}"
+		DT_CURSOR=$v ;;
+	blink) cp_blink ;;
+	shadow) cp_shadow ;;
+	mshadow) cp_mshadow ;;
+	about) v := cp_next "$AB_SLOWMS" "$dir" "${CP_ABTICKS[@]}"
+	       AB_SLOWMS=$v ;;
+	dblaction) v := cp_next "$DT_DBLACTION" "$dir" "${CP_DBLACTIONS[@]}"
+		DT_DBLACTION=$v ;;
+	esac
+	cp_save
+}
+
+behaviour_drop() {
+	local w=$1 r=$2 c=$3 k=$4
+
+	case $k in
+	tick) dt_droplist "$w" "$r" "$c" cp_set_tick "${CP_TICKS[@]}" ;;
+	cursor) dt_droplist "$w" "$r" "$c" cp_set_cursor "${CP_CURSORS[@]}" ;;
+	about) dt_droplist "$w" "$r" "$c" cp_set_about "${CP_ABTICKS[@]}" ;;
+	dblaction) dt_droplist "$w" "$r" "$c" cp_set_dblaction \
+		"${CP_DBLACTIONS[@]}" ;;
+	esac
+}

@@ -44,6 +44,12 @@ dt_autohold "$session" "$resume"
 DT_APPDIRS+=("$d/apps")
 dt_apps
 
+# Control Panel panes are the same idea, one level down: each is a plain
+# hibr file too, found the same way, loaded once Control Panel itself
+# (which defines cp_pane) is on the hibr menu above.
+CP_PANEDIRS+=("$d/control-panel")
+command -v cp_panes > /dev/null && cp_panes
+
 FB_DIR=$PWD
 
 # Defaults go before dt_open, which then reads what was saved last time
@@ -51,8 +57,8 @@ FB_DIR=$PWD
 DT_TICK=200
 
 dt_open || exit 1
-#dt_new "Files"      10 34  1  2 files
-#dt_new "Settings"   12 34 12  2 panel
-#dt_new "Calculator" 16 24  1 40 calc
+#dt_new "Files"        10 34  1  2 files
+#dt_new "Control Panel" 20 58 10  2 panel
+#dt_new "Calculator"   16 24  1 40 calc
 dt_run
 dt_close

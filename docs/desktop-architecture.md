@@ -135,17 +135,25 @@ own. `dt_save` writes plain assignments and setter calls to
 any other, editable by hand, and it is exactly the plain variables the
 window manager already reads every frame (`DT_WALL`, `DT_TICK`, `DT_KEYS`,
 and so on), so a change takes effect the moment it is written, in every
-window at once, without anything being told to refresh. The `panel.hibr`
-app, renamed Control Panel, is what edits it interactively:
+window at once, without anything being told to refresh. `panel.hibr`, the
+Control Panel app, is what edits it interactively — not with settings of
+its own, but as a host for panes, each an ordinary file under
+`examples/control-panel`, System 7's Control Panels folder rather than one
+long scrolling list:
 
-![Control Panel scrolled to the Shortcuts section, with Close Window selected and bound to alt-f4](img/desktop-controlpanel.png)
+![Control Panel's picker, Appearance selected and its Theme row cycled to slate](img/desktop-controlpanel.png)
 
-The four fixed desktop shortcuts shown there — Close Window, Detach, Quit,
-Cycle Windows — are stored the same way and rebindable from the same
-screen: select the row, press enter, then the new key. Below them, App
-Shortcuts lists every registered app the same way, empty by default; any
-app can be given a global launch shortcut this way, not just the two
-(Terminal and Task Manager) that ship with one.
+A pane down the left, its own rows on the right — arrows move the picker,
+tab or right or enter steps into the selected pane, and the same keys then
+move its row cursor instead. Appearance and Behaviour hold what used to be
+one flat list's worth of settings; Shortcuts holds the four fixed desktop
+bindings — Close Window, Detach, Quit, Cycle Windows — rebindable by
+selecting the row, pressing enter, then the new key; App Shortcuts lists
+every registered app the same way, empty by default, so any app can be
+given a global launch shortcut, not just the two (Terminal and Task
+Manager) that ship with one; Windows is the list of what is open. See
+[Control Panel panes](desktop.md#control-panel-panes) for the two shapes a
+pane can take and how `CP_PANEDIRS` finds them.
 
 ## A real app, for scale
 
