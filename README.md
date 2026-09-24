@@ -1,20 +1,27 @@
-# hibr — Highly Improved Bash Runtime
+# hibr — Highly Intuitive Bash-like Runtime
 
-**hibr** runs a useful subset of bash syntax in about 13,000 lines of C and a
-313 KB binary, in a little over half of bash's memory and running tight loops
-two and a half times faster than bash. It is built with `tcc` and depends on nothing but libc
-and libdl.
+**hibr** is a shell that finally behaves the way you already expect a shell
+to behave. Familiar bash syntax, its sharpest edges resolved instead of
+carried forward, in about 13,000 lines of C and a 313 KB binary — a little
+over half of bash's memory, and two and a half times its speed on a tight
+loop. Built with `tcc`, depending on nothing but libc and libdl.
 
 The name says what it is. **Highly**: half of bash's memory, tight loops two
-and a half times faster, in a 313 KB binary — the numbers above. **Improved**:
-bash's own sharp edges, resolved rather than inherited — `test`'s word-splitting
-traps, `$BASH_REMATCH`'s awkward capture, a dozen more in
-[the decision records](docs/adr/README.md). **Bash**: familiar syntax, not a
-rewrite. **Runtime**: the module ABI lets a module add a *protocol*, not just
+and a half times faster, in a 313 KB binary — the numbers above. **Intuitive**:
+the things that make bash surprising the first time you hit them —
+`test`'s word-splitting traps, `$BASH_REMATCH`'s awkward capture, a dozen more
+in [the decision records](docs/adr/README.md) — fixed, so the shell does what
+a reader would already guess it does. **Bash-like**: familiar syntax you
+already know, not a rewrite you have to learn, and not a claim to be bash
+itself. **Runtime**: the module ABI lets a module add a *protocol*, not just
 a command — register a scheme and `/dev/<name>/…` works anywhere a filename
 does — and results come back without forking, text and JSON are manipulated
 without pipelines, and the prompt reads git's object store with no subprocess
-at all. It is also **حِبر**, Arabic for ink, which is what you write with.
+at all.
+
+It is also **حِبر** — Arabic for *ink*. Every shell session, every script,
+every automated thing this runs is still just ink on a page in the oldest
+sense: it is what you write computing with.
 
 It is not a drop-in replacement for bash. Some behaviour differs on purpose,
 where bash is error-prone; every one of those divergences is written down in
@@ -66,10 +73,6 @@ language there is. There is no allocator trick left that would move it.
 
 The row that is not a near-miss is the fifth. Returning a value through `$( )`
 costs a fork per call in every shell; `:=` costs none, which is where the 53x
-comes from. That is the argument for the whole in-process design, in one line.
-
-The row that is not a near-miss is the fifth. Returning a value through `$( )`
-costs a fork per call in every shell; `:=` costs none, which is where the 45x
 comes from. That is the argument for the whole in-process design, in one line.
 
 A full prompt with git branch, working-tree status and upstream distance costs

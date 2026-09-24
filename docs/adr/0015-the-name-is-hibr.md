@@ -1,6 +1,10 @@
 # 0015 — The name is hibr
 
-Status: accepted
+Status: superseded by [0022](0022-the-reading-is-now-highly-intuitive-bash-like-runtime.md)
+
+The name itself, and the reasoning below for choosing **hibr** over every
+other candidate, both stand. Only the four words behind the letters changed;
+0022 says why.
 
 ## Context
 
