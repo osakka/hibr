@@ -377,6 +377,8 @@ sc, _ = run(MENUS, [press(0, 6)])
 check("clicking a title drops the menu under it",
       sc.find("Bump") == (1, 6) and sc.find("Reset") == (3, 6), sc)
 check("a separator is drawn between the groups", sc.at(2, 5) == "─", sc)
+check("but not a closing line after the last item -- Close is the last row",
+      sc.find("Close") == (4, 6) and sc.at(5, 6) == "·", sc)
 check("each item shows the letter that picks it", sc.at(1, 16) == "b" and
       sc.at(3, 16) == "r", sc)
 
@@ -989,4 +991,4 @@ check("ending it leaves the other one alone",
       "personal" in r.stdout and "work" not in r.stdout, r.stdout)
 unsession()
 
-report(156)
+report(157)

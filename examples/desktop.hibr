@@ -2345,7 +2345,7 @@ dt_menu_draw() {
 	fi
 	[ "$x" -lt 0 ] && x=0
 	[ $((x + w)) -gt "$DT_COLS" ] && x=$((DT_COLS - w))
-	[ $((r + n + 1)) -gt "$DT_ROWS" ] && r=$((DT_ROWS - n - 1))
+	[ $((r + n)) -gt "$DT_ROWS" ] && r=$((DT_ROWS - n))
 	[ "$r" -lt 1 ] && r=1
 	MB[$m]["dy"]=$r
 	MB[$m]["dx"]=$x
@@ -2377,9 +2377,6 @@ dt_menu_draw() {
 		r=$((r + 1))
 		i=$((i + 1))
 	done
-	console pen "$DT_IDLE" "$DT_FACE"
-	lb := dt_rep "$w" "─"
-	console put "$r" "$x" "$lb"
 }
 
 # The application menu: every window, the hidden ones marked.
@@ -2410,9 +2407,6 @@ dt_drop_apps() {
 		console put "$r" "$x" "$t"
 		r=$((r + 1))
 	fi
-	console pen "$DT_IDLE" "$DT_FACE"
-	t := dt_rep "$w" "─"
-	console put "$r" "$x" "$t"
 	MB_AN=$i
 }
 
