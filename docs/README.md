@@ -20,6 +20,7 @@ exists. These pages are the detail.
 | [The prompt](prompt.md) | The prompt hook, the segment module, and its git support |
 | [Full-screen programs](display.md) | The console display: cells, panes, colour, decoded keys |
 | [Windows on a console](desktop.md) | Draggable windows, and apps written as hibr functions |
+| [The desktop's architecture](desktop-architecture.md) | The three layers, the event loop, damage-based redraw, and the app contract, with real screenshots |
 
 ## Look it up
 
