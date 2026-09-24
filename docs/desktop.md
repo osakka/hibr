@@ -285,7 +285,7 @@ between; the window manager deals with row 0 itself, so an app never sees a
 click on its own title bar.
 
 **A window that animates asks for its next frame.** The desktop redraws on
-every key and otherwise every `DT_TICK` milliseconds, 200 by default. A game
+every key and otherwise every `DT_TICK` milliseconds, 2000 by default. A game
 calls `dt_want 60` from its `_draw` to be drawn again within 60 ms. The
 request lasts one frame, so a game that is paused, hidden or not focused
 stops asking and the desktop goes back to idling. Step on the clock, not on
@@ -300,6 +300,49 @@ be closed for a nonzero exit, since that is worth seeing before the window
 goes. The close itself happens once the frame that asked is fully drawn, not
 from inside `_draw` -- calling `dt_del` there would pull the window's pane
 out from under the border the frame still has left to draw over it.
+
+## Widgets
+
+A checkbox and a dropdown, for the two things almost every settings screen
+needs. Neither keeps state of its own -- they draw what an app tells them to
+and hand back a tag when their region is clicked, the same contract as
+`_click` itself; the app updates its own state, under its own window id, the
+same as anywhere else.
+
+`dt_wclear id` forgets a window's widget regions -- call it at the top of
+`_draw`, before drawing any widget, since a scrolled list moves them and
+last frame's regions must not answer this frame's click.
+
+`dt_check id row col on label [tag]` draws `[x] label` or `[ ] label`.
+`dt_wdrop id row col width value [tag]` draws a value padded to `width`
+columns with a caret after it: `value ▾`. Both take pane-relative
+coordinates, the same ones `_draw` and `_click` already use, and both
+default `tag` to `label`/`value` if left off.
+
+`dt_hit id row col` answers which widget, if any, is at a click -- an app's
+`_click` asks it first, and falls back to its own per-row logic when it
+comes back empty:
+
+```sh
+hello_click() {
+	local id=$1 r=$2 c=$3 tag
+
+	tag := dt_hit "$id" "$r" "$c"
+	case $tag in
+	sound) HS[$id]=$((1 - ${HS[$id]:-0})) ;;
+	esac
+}
+```
+
+A dropdown that offers more than a couple of values wants a real list rather
+than a click-to-cycle: `dt_droplist id row col callback val1 val2...` opens
+one, anchored just under the `dt_wdrop` that asked for it, built the next
+frame the same one-frame lag `dt_want` and a right-click's context menu
+both already have. Choosing a value calls `callback id value`; dismissing it
+calls nothing. It is a context menu with nowhere on the desktop it belongs
+to, which is exactly what a dropdown is -- it reuses the same context-menu
+machinery a right-click already builds on, rather than a second popup system
+of its own.
 
 ## The apps
 

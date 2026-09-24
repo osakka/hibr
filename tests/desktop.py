@@ -160,6 +160,58 @@ check("Zoom is dimmed on the Window menu for it",
 check("and so is Resize",
       sc.find("Resize") is not None and sc.at(2, 22) != "r", sc)
 
+# --- widgets -----------------------------------------------------------
+#
+# dt_check and dt_wdrop are draw helpers plus a per-window hit registry
+# (WG); an app's own _click asks dt_hit which one, if any, was clicked and
+# updates its own state, the same contract as everywhere else in the
+# desktop. dt_droplist opens a popup of choices anchored under a dropdown,
+# reusing the same context-menu machinery a right-click uses.
+WIDGETS = ('dt_app wg "Widgets" 10 30 once "▢"\n'
+           'declare -A WGS\n'
+           'wg_draw() {\n'
+           '\tdt_wclear "$1"\n'
+           '\tdt_check "$1" 1 1 "${WGS[$1]:-0}" "Beep" chk\n'
+           '\tdt_wdrop "$1" 3 1 10 "pick" drp\n'
+           '}\n'
+           'wg_pick() { dt_note "picked $2"; }\n'
+           'wg_click() {\n'
+           '\tlocal id=$1 r=$2 c=$3 tag\n'
+           '\ttag := dt_hit "$id" "$r" "$c"\n'
+           '\tcase $tag in\n'
+           '\tchk) WGS[$id]=$((1 - ${WGS[$id]:-0})) ;;\n'
+           '\tdrp) dt_droplist "$id" "$r" "$c" wg_pick one two three ;;\n'
+           '\tesac\n'
+           '}\n'
+           'dt_launch wg\n')
+sc, _ = run(WIDGETS)
+check("dt_check draws an unchecked box and its label",
+      sc.find("[ ] Beep") == (5, 9), sc)
+check("dt_wdrop draws a value with a caret", sc.find("pick     ▾") == (7, 9), sc)
+sc, _ = run(WIDGETS, [press(5, 9)])
+check("clicking the checkbox's own cell checks it, through dt_hit",
+      sc.find("[x] Beep") == (5, 9), sc)
+sc, _ = run(WIDGETS, [press(5, 20)])
+check("but clicking past its region does nothing",
+      sc.find("[ ] Beep") == (5, 9), sc)
+sc, _ = run(WIDGETS, [press(7, 9)])
+check("clicking a dropdown opens a popup of its choices beneath it",
+      sc.find("one") == (8, 11) and sc.find("two") == (9, 11) and
+      sc.find("three") == (10, 11), sc)
+
+# A note lasts only until the next key, and run()'s own qy teardown is a
+# key -- checked before it, the same way the about-note test is.
+path = "/tmp/hibr-desktop-widgets.hibr"
+open(path, "w").write("%s. %s\n%s\ndt_open\n%s\ndt_run\ndt_close\n"
+                      % (load(MOD), WM, "", WIDGETS))
+t = Term(path, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.6)
+t.keys([press(7, 9), press(9, 10)])
+sc = t.screen()
+check("choosing one runs the callback with the id and the value",
+      sc.find("picked two") is not None and sc.find("three") is None, sc)
+t.quit(b"qy", 1.2)
+os.unlink(path)
+
 # --- right-click context menus ---------------------------------------------
 #
 # ctx has both _click and _context: right-click must reach _context, not
@@ -927,4 +979,4 @@ check("ending it leaves the other one alone",
       "personal" in r.stdout and "work" not in r.stdout, r.stdout)
 unsession()
 
-report(148)
+report(154)

@@ -231,8 +231,9 @@ check("down skips the blank line and the heading, landing on Refresh",
 DOWN4 = [b"\x1b[B"] * 15
 
 sc = run(*PANEL, feed=[b"\x1b[B"] * 3 + [b"\r"], pre=TICK, also=OTHER)
-check("the icons can be switched off, and the panel says so",
-      sc.find("Icons") is not None and "off" in sc.row(sc.find("Icons")[0]),
+check("the icons can be switched off, and the panel shows an unchecked box",
+      sc.find("Icons") is not None and
+      "[ ]" in sc.row(sc.find("Icons")[0]),
       sc)
 
 sc = run(*PANEL, feed=DOWN4 + [b"x"], pre=TICK, also=OTHER)

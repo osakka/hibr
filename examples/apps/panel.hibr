@@ -92,18 +92,21 @@ cp_rows() {
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Behaviour"; n=$((n + 1))
 	CP[$w][$n]["kind"]=set;  CP[$w][$n]["text"]="Refresh"
 	CP[$w][$n]["val"]="$DT_TICK ms"; CP[$w][$n]["key"]=tick; n=$((n + 1))
-	CP[$w][$n]["kind"]=set;  CP[$w][$n]["text"]="Icons"
+	CP[$w][$n]["kind"]=set;  CP[$w][$n]["text"]="Icons"; CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_ICONS" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=icons; n=$((n + 1))
 	CP[$w][$n]["kind"]=set;  CP[$w][$n]["text"]="Disk Icons"
+	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_DISKS" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=disks; n=$((n + 1))
 	CP[$w][$n]["kind"]=set;  CP[$w][$n]["text"]="Cursor"
 	CP[$w][$n]["val"]="$DT_CURSOR"; CP[$w][$n]["key"]=cursor; n=$((n + 1))
 	CP[$w][$n]["kind"]=set;  CP[$w][$n]["text"]="Cursor Blink"
+	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_CURSOR_BLINK" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=blink; n=$((n + 1))
 	CP[$w][$n]["kind"]=set;  CP[$w][$n]["text"]="Window Shadow"
+	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_SHADOW" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=shadow; n=$((n + 1))
 	if [ -n "$AB_SLOWMS" ]; then
@@ -213,9 +216,10 @@ panel_open() {
 
 panel_draw() {
 	local id=$1 h=$2 w=$3
-	local i r t v n top sel
+	local i r t v n top sel kind wtype on
 
 	cp_rows "$id"
+	dt_wclear "$id"
 	PW[$id]["vis"]=$((h - 1))
 	n=${PW[$id]["n"]}
 	sel=${PW[$id]["sel"]}
@@ -226,14 +230,18 @@ panel_draw() {
 	while [ "$r" -le "$h" ]; do
 		t=""
 		v=""
+		kind=""
+		wtype=""
 		if [ "$i" -lt "$n" ]; then
 			t=${CP[$id][$i]["text"]}
 			v=${CP[$id][$i]["val"]}
+			kind=${CP[$id][$i]["kind"]}
+			wtype=${CP[$id][$i]["wtype"]}
 		fi
 		if [ "$i" -ge "$n" ]; then
 			console pen "$DT_INK" "$DT_FACE"
 			t := str repeat " " $((w - 1))
-		elif [ "${CP[$id][$i]["kind"]}" = head ]; then
+		elif [ "$kind" = head ]; then
 			console pen "#718096" "$DT_FACE" bold
 			t := str pad "$t" $((w - 1))
 		else
@@ -243,10 +251,26 @@ panel_draw() {
 				console pen "$DT_INK" "$DT_FACE"
 			fi
 			t := str pad "  $t" $((w - 13))
-			v := str pad "$v" 12
-			t="$t$v"
+			# A "set" row's value is drawn as a widget below, in the
+			# same pen, rather than appended to this string -- a real
+			# checkbox or a dropdown caret instead of on/off text.
+			if [ "$kind" != set ]; then
+				v := str pad "$v" 12
+				t="$t$v"
+			fi
 		fi
 		console put -p "w$id" "$r" 1 "$t"
+		if [ "$kind" = set ]; then
+			if [ "$wtype" = bool ]; then
+				on=0
+				[ "$v" = on ] && on=1
+				dt_check "$id" "$r" $((w - 12)) "$on" "" \
+					"${CP[$id][$i]["key"]}"
+			else
+				dt_wdrop "$id" "$r" $((w - 12)) 12 "$v" \
+					"${CP[$id][$i]["key"]}"
+			fi
+		fi
 		r=$((r + 1))
 		i=$((i + 1))
 	done

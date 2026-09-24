@@ -2488,6 +2488,7 @@ dt_ctxbuild() {
 	desktop) before=$MB_N; dt_deskcontext ;;
 	titlebar) before=$MB_N; dt_titlecontext "$MB_CTXID" ;;
 	bar) before=$MB_N; dt_barcontext ;;
+	widget) before=$MB_N; dt_dropcontext ;;
 	*)
 		if ! dt_has "${who}_context"; then
 			dt_mclose
@@ -2510,6 +2511,110 @@ dt_ctxbuild() {
 	# opened: dt_mdown set it, and the next frame's dt_ctxbuild set it right
 	# back.
 	[ "$MB_OPEN" = -1 ] && MB_OPEN=$before
+}
+
+# --- widgets -----------------------------------------------------------
+#
+# A checkbox and a dropdown, drawn the same way any other app content is:
+# console put into the window's own pane, in the coordinates it draws in.
+# Neither keeps state of its own -- an app passes in what to show and gets
+# a tag back from dt_hit when its region is clicked, the same contract as
+# an app's own _click callback, and updates its own state under its own
+# window id, never here.
+declare -gA WG
+
+# Forget a window's widget regions.  Call at the top of its _draw, before
+# drawing any dt_check or dt_wdrop -- a scrolled list moves them, so last
+# frame's regions must not answer this frame's click.
+dt_wclear() {
+	unset "WG[$1]"
+}
+
+# Record a widget's hit region.  The draw helpers below call this; an app
+# does not call it directly.
+dt_wreg() {
+	local id=$1 r=$2 c=$3 w=$4 tag=$5 n=${WG[$id]["n"]:-0}
+
+	WG[$id][$n]["r"]=$r
+	WG[$id][$n]["c"]=$c
+	WG[$id][$n]["w"]=$w
+	WG[$id][$n]["tag"]=$tag
+	WG[$id]["n"]=$((n + 1))
+}
+
+# Which widget, if any, sits at a pane-relative row/col -- ret's its tag,
+# empty for none.  An app's _click asks this before falling back to its
+# own per-row logic.
+dt_hit() {
+	local id=$1 r=$2 c=$3 n=${WG[$id]["n"]:-0} i=0 wr wc ww
+
+	while [ "$i" -lt "$n" ]; do
+		wr=${WG[$id][$i]["r"]}
+		wc=${WG[$id][$i]["c"]}
+		ww=${WG[$id][$i]["w"]}
+		if [ "$r" = "$wr" ] && [ "$c" -ge "$wc" ] &&
+		   [ "$c" -lt $((wc + ww)) ]; then
+			ret "${WG[$id][$i]["tag"]}"
+			return 0
+		fi
+		i=$((i + 1))
+	done
+	ret ""
+}
+
+# Draw a checkbox: "[x] label" or "[ ] label".  tag is what dt_hit answers
+# for a click on it -- the field the app will toggle, by default the label
+# itself.
+dt_check() {
+	local id=$1 r=$2 c=$3 on=$4 label=$5 tag=${6:-$5} mark=" "
+
+	[ "$on" = 1 ] && mark=x
+	console put -p "w$id" "$r" "$c" "[$mark] $label"
+	dt_wreg "$id" "$r" "$c" $((${#label} + 4)) "$tag"
+}
+
+# Draw a value that opens a list of choices: "value ▾", padded to w
+# columns. tag is what dt_hit answers for a click on it.
+dt_wdrop() {
+	local id=$1 r=$2 c=$3 w=$4 value=$5 tag=${6:-$5} lb
+
+	lb := str pad "$value" $((w - 2))
+	console put -p "w$id" "$r" "$c" "$lb ▾"
+	dt_wreg "$id" "$r" "$c" "$w" "$tag"
+}
+
+# Open a popup list of choices anchored under a dt_wdrop -- built the next
+# frame by dt_dropcontext, the same one-frame lag dt_context_open always
+# has. cb is called as "cb id value" when one is chosen; nothing runs if
+# the popup is dismissed instead. This is a context menu with nowhere on
+# the desktop it belongs to, which is exactly what a dropdown is -- it
+# reuses dt_context_open and the MB/MI menu machinery rather than a second
+# popup system of its own.
+DT_POPID=
+DT_POPCB=
+DT_POPVALS=()
+dt_droplist() {
+	local id=$1 r=$2 c=$3 cb=$4
+
+	shift 4
+	DT_POPID=$id
+	DT_POPCB=$cb
+	DT_POPVALS=("$@")
+	# r and c come in pane-relative, the same coordinates an app draws and
+	# is clicked in everywhere else, but dt_context_open positions on the
+	# real screen -- add the window's own row and column to convert.
+	dt_context_open widget "$id" $((DT[$id]["row"] + r + 1)) \
+		$((DT[$id]["col"] + c))
+}
+
+# Build the popup opened by dt_droplist, one item per value offered.
+dt_dropcontext() {
+	local v
+
+	dt_menu ""
+	for v in "${DT_POPVALS[@]}"; do
+		dt_item "$v" "" "$DT_POPCB" "$DT_POPID" "$v"
+	done
 }
 
 # Right-click on the bare desktop.
