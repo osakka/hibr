@@ -91,6 +91,9 @@ check("the keypad is drawn", sc.find(" 7  ") == (6, 4) and
       sc.find(" =  ") == (14, 19), sc)
 check("it starts empty", sc.find("expression") is not None and
       sc.find(" 0") is not None, sc)
+check("the keypad has one sensible size, so the window is fixed",
+      sc.find("┤_ x├") is not None and sc.find("┤_ □ x├") is None and
+      sc.g[17][25] == "┘", sc)
 
 sc = run("calc", CW, [press(*calc_key(0)), press(*calc_key(9)),
                       press(*calc_key(19))])
@@ -662,4 +665,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(112)
+report(113)

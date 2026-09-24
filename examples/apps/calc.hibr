@@ -18,7 +18,7 @@ app calc "A calculator"
 
 # What the hibr menu shows, how big a new window is, and whether a second
 # launch opens another window or brings this one forward.
-command -v dt_app > /dev/null && dt_app calc "Calculator" 16 24 once "±"
+command -v dt_app > /dev/null && dt_app calc "Calculator" 16 24 once "±" fixed
 
 # Per window, not per app: two calculators must be able to hold two
 # different sums.  Everything an app remembers goes under the window id it
