@@ -102,6 +102,16 @@ DT_SHADOW="${DT_SHADOW-1}"
 # the other should be able to say so.
 DT_MSHADOW="${DT_MSHADOW-1}"
 
+# What a double click on a title bar does -- zoom, minimise, close, or
+# nothing. DT_DBLMS is how close together the two clicks have to land, and
+# is not itself a setting: it is a threshold, not a preference.  DT_DBLID
+# and DT_DBLT track the last title-bar click, to compare the next one
+# against.
+DT_DBLACTION="${DT_DBLACTION-zoom}"
+DT_DBLMS=400
+DT_DBLID=
+DT_DBLT=0
+
 # How often the desktop wakes and redraws with nothing else asking for a
 # turn -- see dt_want and dt_run for why 2000 costs nothing in latency.
 DT_TICK="${DT_TICK-2000}"
@@ -113,7 +123,7 @@ DT_TICK="${DT_TICK-2000}"
 DT_CONF="${DT_CONF-${XDG_CONFIG_HOME:-$HOME/.config}/hibr/desktop.hibr}"
 DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 	DT_TICK DT_ICONS DT_DISKS DT_CURSOR DT_CURSOR_BLINK DT_SHADOW
-	DT_MSHADOW)
+	DT_MSHADOW DT_DBLACTION)
 
 # Where the desktop's stderr goes while it holds the screen, so an app's
 # error message cannot scribble over the display, and the reason for a
@@ -454,7 +464,7 @@ dt_btn() {
 # $(( )) would mean DT[$id][5] here.
 dt_mouse() {
 	local act=${1##*-} mr mc mods
-	local id b wr wc wh ww ap mo
+	local id b wr wc wh ww ap mo now
 
 	mods=${1%"$act"}
 	mods=${mods%-}
@@ -545,6 +555,23 @@ dt_mouse() {
 		min) dt_min "$id" ;;
 		max) dt_zoom "$id" ;;
 		*)
+			now := dt_ms
+			if [ "$DT_DBLACTION" != none ] &&
+			   [ "$DT_DBLID" = "$id" ] &&
+			   [ $((now - DT_DBLT)) -lt "$DT_DBLMS" ]; then
+				DT_DBLID=
+				case $DT_DBLACTION in
+				zoom)
+					[ "${DT_APPS[${DT[$id]["app"]}]["fixed"]}" \
+						!= 1 ] && dt_zoom "$id"
+					;;
+				min) dt_min "$id" ;;
+				close) dt_del "$id" ;;
+				esac
+				return 0
+			fi
+			DT_DBLID=$id
+			DT_DBLT=$now
 			DT_DRAG=$id
 			DT_DR=$((mr - wr))
 			DT_DC=$((mc - wc))

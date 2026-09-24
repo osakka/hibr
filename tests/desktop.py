@@ -158,6 +158,31 @@ sc, _ = run(ONE, [press(6, 35), press(1, 75)])
 check("and zooming again puts it back where it was",
       sc.g[6][10] == "┌" and sc.g[13][39] == "◢", sc)
 
+
+# Two presses close enough together to count as one double click -- run()'s
+# own default settle/collect between keys (0.25s + 0.2s) is longer than
+# DT_DBLMS, so this needs its own tight timing rather than run()'s.
+def dblclick_run(session, r, c, env=None):
+    path = "/tmp/hibr-desktop-dblclick.hibr"
+    open(path, "w").write("%s. %s\ndt_open\n%s\ndt_run\ndt_close\n"
+                          % (load(MOD), WM, session))
+    t = Term(path, env=dict({"DT_TICK": "60"}, **(env or {})), rows=ROWS,
+             cols=COLS, settle=0.5)
+    t.send(press(r, c), settle=0.1, collect=0.05)
+    t.send(press(r, c), settle=0.3, collect=0.2)
+    sc = t.screen()
+    t.quit(b"qy", 1.0)
+    os.unlink(path)
+    return sc
+
+
+sc = dblclick_run(ONE, 6, 20)
+check("double-clicking the title bar zooms it too, by default",
+      sc.g[1][0] == "┌" and sc.g[23][79] == "◢", sc)
+sc = dblclick_run(ONE, 6, 20, env={"DT_DBLACTION": "none"})
+check("DT_DBLACTION=none turns that off",
+      sc.g[6][10] == "┌" and sc.g[1][0] != "┌", sc)
+
 # An app declared fixed has no maximise button at all -- not dimmed, not
 # there -- so a game whose board is one size does not offer to stretch it.
 FIXED = ('dt_app fx "Fixed" 6 20 once "◆" fixed\n'
@@ -178,6 +203,9 @@ check("Zoom is dimmed on the Window menu for it",
       sc.find("Zoom") is not None and sc.at(3, 22) != "z", sc)
 check("and so is Resize",
       sc.find("Resize") is not None and sc.at(2, 22) != "r", sc)
+sc = dblclick_run(FIXED, 4, 15)
+check("a fixed window's double-click does not zoom it either",
+      sc.g[9][27] == "┘", sc)
 
 # The bar's app name follows focus even for an app with no menus of its own
 # to merge in -- Clock and About are exactly this shape, and used to show
@@ -859,12 +887,12 @@ sc, raw = run('dt_new "Settings" 12 34 2 2 panel',
 check("and the next desktop starts with it", sc.find("slate") is not None, sc)
 shutil.rmtree(CONF, True)
 
-# Nine downs from Theme reaches Close Window: Theme, Wallpaper, Refresh,
+# Ten downs from Theme reaches Close Window: Theme, Wallpaper, Refresh,
 # Icons, Disk Icons, Cursor, Cursor Blink, Window Shadow, Menu Shadow,
-# Close Window.
+# Titlebar Click, Close Window.
 CONF2 = tempfile.mkdtemp(prefix="hibr-conf2-")
 sc, raw = run('dt_new "Settings" 12 34 2 2 panel',
-              feed=[b"\x1b[B"] * 9 + [b"\r", b"x"],
+              feed=[b"\x1b[B"] * 10 + [b"\r", b"x"],
               env={"XDG_CONFIG_HOME": CONF2}, pre=PANEL)
 check("a shortcut row can be rebound to a new key",
       sc.find("alt-f4") is None, sc)
@@ -1029,4 +1057,4 @@ check("ending it leaves the other one alone",
       "personal" in r.stdout and "work" not in r.stdout, r.stdout)
 unsession()
 
-report(161)
+report(164)

@@ -28,6 +28,7 @@ CP_TICKS=(80 120 200 350 600 1000 2000 3500 5000)
 CP_ABTICKS=(1000 2000 3000 5000 10000)
 CP_GLYPHS=("·" "░" "▒" "⋅" "+")
 CP_CURSORS=(block underline bar)
+CP_DBLACTIONS=(zoom min close none)
 
 # wall, dot, bar, active, idle, face, ink
 cp_theme() {
@@ -113,6 +114,9 @@ cp_rows() {
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_MSHADOW" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=mshadow; n=$((n + 1))
+	CP[$w][$n]["kind"]=set;  CP[$w][$n]["text"]="Titlebar Click"
+	CP[$w][$n]["val"]="$DT_DBLACTION"; CP[$w][$n]["key"]=dblaction
+	n=$((n + 1))
 	if [ -n "$AB_SLOWMS" ]; then
 		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="About Refresh"
 		CP[$w][$n]["val"]="$AB_SLOWMS ms"; CP[$w][$n]["key"]=about
@@ -201,6 +205,9 @@ cp_do() {
 		mshadow) cp_mshadow ;;
 		about) v := cp_next "$AB_SLOWMS" "$dir" "${CP_ABTICKS[@]}"
 		       AB_SLOWMS=$v ;;
+		dblaction) v := cp_next "$DT_DBLACTION" "$dir" \
+			"${CP_DBLACTIONS[@]}"
+			DT_DBLACTION=$v ;;
 		esac
 		cp_save
 		;;
@@ -363,6 +370,7 @@ cp_set_glyph() { local v=${2:-$1}; DT_GLYPH=$v; cp_save; }
 cp_set_tick() { local v=${2:-$1}; DT_TICK=$v; cp_save; }
 cp_set_cursor() { local v=${2:-$1}; DT_CURSOR=$v; cp_save; }
 cp_set_about() { local v=${2:-$1}; AB_SLOWMS=$v; cp_save; }
+cp_set_dblaction() { local v=${2:-$1}; DT_DBLACTION=$v; cp_save; }
 
 # Whether a focused terminal's cursor blinks.
 cp_blink() {
@@ -451,6 +459,8 @@ panel_click() {
 				"${CP_CURSORS[@]}" ;;
 			about) dt_droplist "$w" "$r" "$c" cp_set_about \
 				"${CP_ABTICKS[@]}" ;;
+			dblaction) dt_droplist "$w" "$r" "$c" \
+				cp_set_dblaction "${CP_DBLACTIONS[@]}" ;;
 			esac
 			PW[$w]["sel"]=$i
 			PW[$w]["last"]=$i
