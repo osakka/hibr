@@ -218,6 +218,13 @@ check("right cycles the theme", sc.find("slate") is not None and
 sc = run(*PANEL, feed=[b"\x1b[D"], pre=TICK, also=OTHER)
 check("left cycles it the other way", sc.find("paper") is not None, sc)
 
+sc = run(*PANEL, feed=[press(4, 26)], pre=TICK, also=OTHER)
+check("clicking the dropdown's own cell opens a real popup of choices",
+      sc.find("slate") is not None and sc.find("dracula") is not None, sc)
+sc = run(*PANEL, feed=[press(4, 26), press(10, 30)], pre=TICK, also=OTHER)
+check("choosing one there applies it, the same as cycling would",
+      sc.find("dracula") is not None and sc.find("midnight") is None, sc)
+
 sc = run(*PANEL, feed=[b"\x1b[B", b"\x1b[C"], pre=TICK, also=OTHER)
 check("the wallpaper glyph changes, and the desktop follows",
       sc.at(0, 78) != "·" and sc.at(23, 60) == "░", sc)
@@ -665,4 +672,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(113)
+report(115)
