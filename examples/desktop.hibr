@@ -1092,9 +1092,12 @@ dt_menus() {
 	fi
 	dt_item "Quit" q dt_quit
 
-	MB_APP=
+	# The bar's app name follows focus regardless of whether the app has
+	# menus of its own to add -- Clock and About have none, and still have
+	# a name.  A window with no registered app (a bare dt_new) has no name
+	# to show either, so this still falls back to Desktop for it.
+	MB_APP=$ap
 	if [ -n "$ap" ] && dt_has "${ap}_menus"; then
-		MB_APP=$ap
 		${ap}_menus
 	fi
 

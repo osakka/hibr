@@ -160,6 +160,15 @@ check("Zoom is dimmed on the Window menu for it",
 check("and so is Resize",
       sc.find("Resize") is not None and sc.at(2, 22) != "r", sc)
 
+# The bar's app name follows focus even for an app with no menus of its own
+# to merge in -- Clock and About are exactly this shape, and used to show
+# Desktop while focused, since MB_APP was only set as a side effect of
+# finding a _menus function to call.
+NOMENU = 'dt_app nm "NoMenu" 6 20\nnm_draw() { :; }\ndt_launch nm\n'
+sc, _ = run(NOMENU)
+check("an app with no menus of its own still names itself in the bar",
+      sc.find("NoMenu ▾") is not None, sc)
+
 # --- widgets -----------------------------------------------------------
 #
 # dt_check and dt_wdrop are draw helpers plus a per-window hit registry
@@ -980,4 +989,4 @@ check("ending it leaves the other one alone",
       "personal" in r.stdout and "work" not in r.stdout, r.stdout)
 unsession()
 
-report(155)
+report(156)
