@@ -26,13 +26,17 @@ AB_KERNEL=
 AB_OS=
 about_facts() {
 	[ -n "$AB_HOST" ] && return 0
-	AB_OS := uname
+	# := binds a builtin's own result, silently; uname and hostname are
+	# programs on the PATH, not builtins, so := does nothing for them and
+	# their output goes straight to the real terminal underneath the
+	# console's own drawing -- $(...) is the one that actually captures it.
+	AB_OS=$(command uname)
 	if [ "$AB_OS" = Linux ]; then
 		read -r AB_HOST < /proc/sys/kernel/hostname
 		read -r AB_KERNEL < /proc/sys/kernel/osrelease
 	else
-		AB_HOST := hostname
-		AB_KERNEL := uname -r
+		AB_HOST=$(command hostname)
+		AB_KERNEL=$(command uname -r)
 	fi
 }
 
@@ -72,8 +76,8 @@ about_cpu() {
 			ret "${AB[$id]["ccpu"]}"
 			return 0
 		fi
-		line := command top -l 2 -n 0 2> /dev/null |
-			command grep "CPU usage"
+		line=$(command top -l 2 -n 0 2> /dev/null |
+			command grep "CPU usage")
 		line=${line##*$'\n'}
 		pct=0
 		if [ -n "$line" ]; then
@@ -121,12 +125,12 @@ about_mem() {
 			ret "${AB[$id]["cmem"]}"
 			return 0
 		fi
-		total := command sysctl -n hw.memsize 2> /dev/null
+		total=$(command sysctl -n hw.memsize 2> /dev/null)
 		if [ -z "$total" ] || [ "$total" = 0 ]; then
 			ret 0
 			return 0
 		fi
-		pagesize := command sysctl -n hw.pagesize 2> /dev/null
+		pagesize=$(command sysctl -n hw.pagesize 2> /dev/null)
 		[ -z "$pagesize" ] && pagesize=4096
 		while IFS= read -r line; do
 			case $line in

@@ -70,7 +70,10 @@ tasks_scan() {
 	local id=$1 pid name rss times u s now elapsed du ds pct n=0
 	local prevt=${TK_PREV[$id]["t"]}
 
-	[ -z "$TK_OS" ] && TK_OS := uname
+	# uname is a program, not a builtin -- := does nothing for one of
+	# those and its output goes straight to the real terminal, so this
+	# has to be a real command substitution, not :=.
+	[ -z "$TK_OS" ] && TK_OS=$(command uname)
 	if [ "$TK_OS" != Linux ]; then
 		tasks_scan_ps "$id"
 		return 0
