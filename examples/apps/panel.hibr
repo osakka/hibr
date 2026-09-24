@@ -10,11 +10,11 @@
 # Run on its own it prints the themes and stops, which is not much, but it
 # means the file is still a program and not only a fragment.
 
-app panel "Settings, and the window list"
+app panel "Control Panel, and the window list"
 
 # What the hibr menu shows, how big a new window is, and whether a second
 # launch opens another window or brings this one forward.
-command -v dt_app > /dev/null && dt_app panel "Settings" 18 34 once "≡"
+command -v dt_app > /dev/null && dt_app panel "Control Panel" 18 34 once "≡"
 
 # The theme and the wallpaper belong to the desktop, so they stay global.
 # Where the selection is and what the rows are belong to a window, so they
@@ -295,7 +295,7 @@ panel_draw() {
 panel_menus() {
 	local x on w=$DT_FOCUS
 
-	dt_menu "Settings"
+	dt_menu "Control Panel"
 	dt_sub "Theme"
 	for x in "${CP_THEMES[@]}"; do
 		on=0
@@ -345,7 +345,7 @@ panel_menus() {
 
 # Each of these is called two ways: with just a value, from the bar menu's
 # dt_mark items, and with a window id ahead of the value, as the callback a
-# dt_droplist popup makes from Settings -- ${2:-$1} takes whichever shape
+# dt_droplist popup makes from Control Panel -- ${2:-$1} takes whichever shape
 # it got.
 cp_set_theme() { local v=${2:-$1}; cp_theme "$v" && cp_save; }
 

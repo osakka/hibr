@@ -51,7 +51,7 @@ timeout, which only governs how long the desktop waits with nothing to do.
 A resize is delivered the same way: `SIGWINCH` interrupts the wait
 immediately, regardless of `DT_TICK`, so neither input nor resize responsiveness
 depends on how often the desktop wakes up on its own. `DT_TICK` (2000ms by
-default, itself a Settings entry) is how often the desktop wakes and redraws
+default, itself a Control Panel entry) is how often the desktop wakes and redraws
 anyway, with nothing to do — the clock in the corner has to advance, a
 throttled app that has not called `dt_want` has to get its own redraw. This
 is a periodic-poll design, not a purely event-driven one: a `tmux` or
@@ -75,7 +75,7 @@ above everything — a menu, a drag, the confirm box. `dt_event` decodes one
 key or mouse line and dispatches it: to a confirm box or a rebind capture if
 one is pending, to the open menu if one is, to the focused window's own key
 handler, and only once all of those have declined it, to the handful of
-global shortcuts (Settings has the current list).
+global shortcuts (Control Panel has the current list).
 
 ## Redrawing costs only what changed
 
@@ -127,7 +127,7 @@ own `<app>_context` if it defines one:
 
 ![A right-click on the desktop background showing Arrange Icons and Change Wallpaper](img/desktop-context.png)
 
-## Settings are a script, not a format
+## Control Panel settings are a script, not a format
 
 Nothing about the desktop's configuration is a config file format of its
 own. `dt_save` writes plain assignments and setter calls to
@@ -136,14 +136,16 @@ any other, editable by hand, and it is exactly the plain variables the
 window manager already reads every frame (`DT_WALL`, `DT_TICK`, `DT_KEYS`,
 and so on), so a change takes effect the moment it is written, in every
 window at once, without anything being told to refresh. The `panel.hibr`
-app is what edits it interactively:
+app, renamed Control Panel, is what edits it interactively:
 
-![Settings scrolled to the Shortcuts section, with Close Window selected and bound to alt-f4](img/desktop-settings.png)
+![Control Panel scrolled to the Shortcuts section, with Close Window selected and bound to alt-f4](img/desktop-controlpanel.png)
 
-Every keyboard shortcut shown there — Close Window, Detach, Quit, Cycle
-Windows, and the two that launch an app instead of acting on one, New
-Terminal and Task Manager — is stored the same way and rebindable from the
-same screen: select the row, press enter, then the new key.
+The four fixed desktop shortcuts shown there — Close Window, Detach, Quit,
+Cycle Windows — are stored the same way and rebindable from the same
+screen: select the row, press enter, then the new key. Below them, App
+Shortcuts lists every registered app the same way, empty by default; any
+app can be given a global launch shortcut this way, not just the two
+(Terminal and Task Manager) that ship with one.
 
 ## A real app, for scale
 

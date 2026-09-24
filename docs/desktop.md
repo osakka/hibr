@@ -23,7 +23,7 @@ resize it. `_` minimises, `□` fills the screen, `x` closes. `tab` cycles, `esc
 and gives the terminal back.
 
 A double click on the title bar itself does the same as `□` by default --
-`DT_DBLACTION`, a Settings entry, can change that to minimise, close, or
+`DT_DBLACTION`, a Control Panel entry, can change that to minimise, close, or
 nothing at all. It never zooms a fixed window, the same restriction `□`
 itself already has.
 
@@ -34,7 +34,7 @@ many are hidden.
 
 A window casts a shadow, one row down and two columns right, darkening
 whatever it falls across -- another window, or the desktop underneath.
-`DT_SHADOW`, a Settings entry, turns it off; it costs one `console darken`
+`DT_SHADOW`, a Control Panel entry, turns it off; it costs one `console darken`
 call per window, and nothing at all when off.
 
 An open menu -- a bar menu, a submenu, a right-click context menu, or a
@@ -77,7 +77,7 @@ a trash can act on -- dragging Home onto the trash icon, or pressing delete
 with it selected, does nothing, on purpose: dragging Home into the trash
 used to mean the whole home directory, moved. Copying a place's path with
 alt-c is still allowed, since that only ever produces text. Icons can be
-switched off in Settings (`DT_ICONS`), and the disks specifically with
+switched off in Control Panel (`DT_ICONS`), and the disks specifically with
 `DT_DISKS`, or with either in the session.
 
 ## Files between windows
@@ -226,7 +226,7 @@ failure is still there to read afterwards.
 
 ## Settings are kept
 
-Every change in the Settings window is saved the moment it is made, to
+Every change in the Control Panel window is saved the moment it is made, to
 `~/.config/hibr/desktop.hibr` (`$XDG_CONFIG_HOME`, or `DT_CONF`), and read
 back by `dt_open` at the next start. It is a script, not a format:
 
@@ -240,7 +240,7 @@ CP_THEME=slate
 
 `dt_open` reads it after the session file has set its own defaults, so what
 was chosen last wins. An app that wants a variable of its own kept calls
-`dt_keep NAME` and `dt_save` after changing it; the Settings app keeps
+`dt_keep NAME` and `dt_save` after changing it; the Control Panel app keeps
 `CP_THEME` that way.
 
 ## Writing a session
@@ -366,7 +366,7 @@ In `examples/apps/`, each one also a file you can read in a sitting:
 |---|---|
 | `files` | a file browser, with a scrollbar and the wheel |
 | `calc` | a calculator, and `hibr calc.hibr '3 * 4'` on its own |
-| `panel` | settings, and a list of the other windows |
+| `panel` | Control Panel: settings, and a list of the other windows |
 | `term` | a shell in a window. Each window is its own pty and its own session. The wheel or `shift-pageup` scrolls back, and a program that asks for the mouse gets it |
 | `snake` | arrows turn, `p` pauses. It speeds up as it grows |
 | `mines` | Minesweeper, 9 by 9 with ten mines. `space` or a click opens, `f` or a right click flags, and opening a number with its flags placed opens what is round it |
@@ -380,7 +380,7 @@ A focused terminal gets every key except `f10`, so a program inside can have
 A new terminal's cursor is a block until the program inside sets its own with
 DECSCUSR (`CSI Ps SP q`), as some editors do to mark insert mode with a
 different shape. What a new one starts with is `DT_CURSOR` (block, underline
-or bar), a Settings entry like any other; only the terminal that has focus
+or bar), a Control Panel entry like any other; only the terminal that has focus
 shows a cursor at all.
 
 ## The menu bar

@@ -236,9 +236,10 @@ check("down skips the blank line and the heading, landing on Refresh",
 
 # Theme, Wallpaper, Refresh, Icons, Disk Icons, Cursor, Cursor Blink, Window
 # Shadow, Menu Shadow, Titlebar Click, Close Window, Detach, Quit, Cycle
-# Windows, Settings (App Shortcuts has one row here -- panel is the only
-# app PANEL's own session loads), Panel, Other -- sixteen downs from Theme
-# reaches the second window, because cp_move steps over the headings and
+# Windows, Control Panel (App Shortcuts has one row here -- panel is the
+# only app PANEL's own session loads), Panel, Other -- sixteen downs from
+# Theme reaches the second window, because cp_move steps over the headings
+# and
 # the blanks. This count is sensitive to how many apps App Shortcuts
 # lists, which depends on what a test's session loads.
 DOWN4 = [b"\x1b[B"] * 16

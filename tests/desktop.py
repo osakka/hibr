@@ -325,8 +325,8 @@ sc, _ = run(ONE, [press(0, 40, 2)])
 check("a right-click on empty menu-bar space offers the quick launchers",
       sc.find("New Terminal") is not None and
       sc.find("Task Manager") is not None, sc)
-check("but not Settings, reachable from the hibr menu instead",
-      sc.find("Settings") is None, sc)
+check("but not Control Panel, reachable from the hibr menu instead",
+      sc.find("Control Panel") is None, sc)
 
 TWO = TWO_DEF
 
@@ -880,14 +880,14 @@ check("clicking the clock in the bar opens the Clock app",
 
 CONF = tempfile.mkdtemp(prefix="hibr-conf-")
 PANEL = '. %s/panel.hibr' % tree("examples/apps")
-sc, raw = run('dt_new "Settings" 12 34 2 2 panel', feed=[b"\x1b[C"],
+sc, raw = run('dt_new "Control Panel" 12 34 2 2 panel', feed=[b"\x1b[C"],
               env={"XDG_CONFIG_HOME": CONF}, pre=PANEL)
 saved = os.path.join(CONF, "hibr", "desktop.hibr")
 text = open(saved).read() if os.path.exists(saved) else ""
 check("a changed setting is written at once, as a script",
       "CP_THEME=slate" in text and "DT_WALL=\\#1a202c" in text and
       "DT_TICK=" in text, text or sc)
-sc, raw = run('dt_new "Settings" 12 34 2 2 panel',
+sc, raw = run('dt_new "Control Panel" 12 34 2 2 panel',
               env={"XDG_CONFIG_HOME": CONF}, pre=PANEL)
 check("and the next desktop starts with it", sc.find("slate") is not None, sc)
 shutil.rmtree(CONF, True)
@@ -896,7 +896,7 @@ shutil.rmtree(CONF, True)
 # Icons, Disk Icons, Cursor, Cursor Blink, Window Shadow, Menu Shadow,
 # Titlebar Click, Close Window.
 CONF2 = tempfile.mkdtemp(prefix="hibr-conf2-")
-sc, raw = run('dt_new "Settings" 12 34 2 2 panel',
+sc, raw = run('dt_new "Control Panel" 12 34 2 2 panel',
               feed=[b"\x1b[B"] * 10 + [b"\r", b"x"],
               env={"XDG_CONFIG_HOME": CONF2}, pre=PANEL)
 check("a shortcut row can be rebound to a new key",
@@ -910,15 +910,15 @@ shutil.rmtree(CONF2, True)
 # and Task Manager -- empty by default, assignable the same way DT_KEYS'
 # fixed four are. Fourteen downs from Theme reaches Calculator here,
 # because with only calc and panel loaded, App Shortcuts has two rows and
-# Calculator sorts before Settings.
+# Calculator sorts before Control Panel.
 CALCSRC = '. %s/calc.hibr' % tree("examples/apps")
 CONF3 = tempfile.mkdtemp(prefix="hibr-conf3-")
-sc, _ = run('dt_new "Settings" 12 34 2 2 panel',
+sc, _ = run('dt_new "Control Panel" 12 34 2 2 panel',
             feed=[b"\x1b[B"] * 14, env={"XDG_CONFIG_HOME": CONF3},
             pre=PANEL + "\n" + CALCSRC)
 check("a registered app is listed with no shortcut by default",
       sc.find("Calculator") is not None, sc)
-sc, _ = run('dt_new "Settings" 12 34 2 2 panel',
+sc, _ = run('dt_new "Control Panel" 12 34 2 2 panel',
             feed=[b"\x1b[B"] * 14 + [b"\r", b"g"],
             env={"XDG_CONFIG_HOME": CONF3}, pre=PANEL + "\n" + CALCSRC)
 check("a shortcut can be assigned to any app, not only the two defaults",
