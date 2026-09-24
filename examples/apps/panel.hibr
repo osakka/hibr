@@ -24,7 +24,7 @@ declare -gA CP
 CP_THEME=midnight
 command -v dt_keep > /dev/null && dt_keep CP_THEME
 CP_THEMES=(midnight slate forest ember paper dracula)
-CP_TICKS=(80 120 200 350 600)
+CP_TICKS=(80 120 200 350 600 1000 2000 3500 5000)
 CP_ABTICKS=(1000 2000 3000 5000 10000)
 CP_GLYPHS=("·" "░" "▒" "⋅" "+")
 CP_CURSORS=(block underline bar)

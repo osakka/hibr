@@ -38,7 +38,7 @@ what a window shows is faked or simulated for the picture.
 ```
 while [ "$DT_QUIT" = 0 ]; do
     dt_draw
-    k := console key "${DT_WANT:-${DT_TICK-200}}"
+    k := console key "${DT_WANT:-$DT_TICK}"
     dt_event "$k"
 done
 ```
@@ -46,17 +46,28 @@ done
 (Simplified — the real loop also debounces a burst of resize events into one
 settled redraw, described in `desktop.hibr`'s own comments.) `console key
 MS` blocks for up to `MS` milliseconds waiting for one decoded key or mouse
-report, then returns whatever it has, empty if nothing arrived. `DT_TICK`
-(200ms by default, itself a Settings entry) is how often the desktop wakes
-up and redraws even with nothing to do — the clock in the corner has to
-advance, a resize has to be noticed, an app that asked for a faster tick
-with `dt_want` has to get one. This is a periodic-poll design, not a purely
-event-driven one: a `tmux` or `screen`, blocked on `select()` with no timer
-at all, spends zero CPU while genuinely idle, where hibr's desktop wakes and
-redraws (cheaply, since nothing changed means nothing is sent — see below)
-every `DT_TICK`. It is a real, measured cost, on the order of 1-2% of one
-core with nothing open and nothing happening, not zero, and not something to
-claim otherwise.
+report, and returns the instant one arrives — a key is never delayed by the
+timeout, which only governs how long the desktop waits with nothing to do.
+A resize is delivered the same way: `SIGWINCH` interrupts the wait
+immediately, regardless of `DT_TICK`, so neither input nor resize responsiveness
+depends on how often the desktop wakes up on its own. `DT_TICK` (2000ms by
+default, itself a Settings entry) is how often the desktop wakes and redraws
+anyway, with nothing to do — the clock in the corner has to advance, a
+throttled app that has not called `dt_want` has to get its own redraw. This
+is a periodic-poll design, not a purely event-driven one: a `tmux` or
+`screen`, blocked on `select()` with no timer at all, spends zero CPU while
+genuinely idle. hibr's desktop still wakes and redraws (cheaply, since
+nothing changed means nothing is sent — see below) every `DT_TICK`, so it is
+not zero either, but raising the default from an original 200ms — chosen
+without measuring what it cost — to 2000ms cut two real, live sessions'
+measured idle CPU from 1.6-2.2% of one core to 0.15-0.2%, about a tenth,
+with no change to input latency: `tests/desktop.py` and `tests/apps.py`,
+which set their own short `DT_TICK` for fast, deterministic runs, do not
+depend on the default at all and passed unchanged. An app that redraws
+itself only on a timer, not on `dt_want`, would now update less often while
+idle — Tasks already asks with `dt_want 500`; About does not yet, and still
+relies on being drawn every default tick to notice its own 3-second
+throttle has elapsed.
 
 `dt_draw` walks every open window bottom to top, drawing its face and letting
 its own `_draw` callback fill it in, then the menu bar and whatever floats

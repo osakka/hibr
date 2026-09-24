@@ -851,3 +851,19 @@ went in the shell.
 - Prompt status divergences from git, all deliberate: renames are matched only
   on identical content, submodule working trees are not inspected, and `**` in
   the middle of a gitignore pattern behaves as `*`.
+- The desktop's idle CPU was measured, not assumed: two real, long-running
+  sessions cost 1.6-2.2% of one core with nothing open and nothing forked,
+  almost entirely from `dt_draw` and `console flush`'s grid diff running on
+  every `DT_TICK` regardless of whether anything changed -- `console key MS`
+  already returns the instant a key or a `SIGWINCH` arrives, so a short tick
+  bought nothing for responsiveness and only paid for it in wakeups. Raising
+  the default from 200 to 2000 cut both sessions' idle cost to 0.15-0.2% with
+  no test changes, since `tests/desktop.py` and `tests/apps.py` already set
+  their own short `DT_TICK`. What is left, if it is worth more than this:
+  skip `dt_draw` entirely when nothing is dirty and block indefinitely
+  instead of on a tick, waking only for input, resize, or a computed
+  next-needed-time (an app's `dt_want`, the bar clock, `dt_deskscan`'s
+  interval); and `about.hibr`'s CPU/memory refresh, which relies on being
+  drawn every default tick to notice its own 3-second throttle has elapsed
+  rather than calling `dt_want`, would need converting first or it silently
+  refreshes late under a long default tick.

@@ -97,6 +97,10 @@ DT_CURSOR_BLINK="${DT_CURSOR_BLINK-0}"
 # costs one console darken call per window and nothing when off.
 DT_SHADOW="${DT_SHADOW-1}"
 
+# How often the desktop wakes and redraws with nothing else asking for a
+# turn -- see dt_want and dt_run for why 2000 costs nothing in latency.
+DT_TICK="${DT_TICK-2000}"
+
 # Settings are a script of the user's own, written by the desktop whenever
 # one changes and read back at the next start: plain assignments, so it can
 # be edited by hand and needs no format of its own.  An app that wants a
@@ -775,7 +779,7 @@ dt_event() {
 # must not pay for an animation nobody is watching.  A request slower than
 # DT_TICK is ignored, so it can never slow the desktop down.
 dt_want() {
-	[ "$1" -ge "${DT_TICK-200}" ] && return 0
+	[ "$1" -ge "$DT_TICK" ] && return 0
 	if [ -z "$DT_WANT" ] || [ "$1" -lt "$DT_WANT" ]; then
 		DT_WANT=$1
 	fi
@@ -803,7 +807,7 @@ dt_run() {
 		if [ "$rsz" = 1 ]; then
 			k := console key 80
 		else
-			k := console key "${DT_WANT:-${DT_TICK-200}}"
+			k := console key "${DT_WANT:-$DT_TICK}"
 		fi
 		[ -n "$k" ] && pk=$k
 		if console resizing; then
