@@ -176,7 +176,14 @@ void cn_signals(int on)
    no terminal at all and falls back to the default, which then only ever
    changes on an actual resize. Retried a few times, milliseconds apart,
    before giving up: a terminal that already knows its size answers on the
-   first try and never sees the wait. */
+   first try and never sees the wait.
+
+   The size asked for is also checked for being merely small rather than
+   exactly zero -- a terminal mid-transition (entering the alternate screen
+   counts) can answer a real ioctl with a real but degenerate size, a 1x1
+   or thereabouts, which passes a bare truthiness check and then builds a
+   grid nothing can be seen in, rather than falling back or retrying. No
+   real terminal is legitimately this small. */
 void cn_size(int *rows, int *cols)
 {
 	struct winsize w;
@@ -184,12 +191,13 @@ void cn_size(int *rows, int *cols)
 
 	for (i = 0; i < 10; i++) {
 		if (cn_fd >= 0 && ioctl(cn_fd, TIOCGWINSZ, &w) == 0 &&
-		    w.ws_row && w.ws_col) {
+		    w.ws_row > 2 && w.ws_col > 2) {
 			*rows = w.ws_row;
 			*cols = w.ws_col;
 			return;
 		}
-		if (ioctl(2, TIOCGWINSZ, &w) == 0 && w.ws_row && w.ws_col) {
+		if (ioctl(2, TIOCGWINSZ, &w) == 0 &&
+		    w.ws_row > 2 && w.ws_col > 2) {
 			*rows = w.ws_row;
 			*cols = w.ws_col;
 			return;
