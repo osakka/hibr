@@ -678,6 +678,11 @@ check("About hibr opens a window with the machine's own numbers",
       sc.find("%") is not None, sc)
 check("and it has no maximise button, being a fixed size",
       sc.find("┤_ x├") is not None, sc)
+
+sc, _ = run("", feed=[press(0, 63)], pre=APPS)
+check("clicking the clock in the bar opens the Clock app",
+      sc.find("┤ Clock ├") is not None, sc)
+
 CONF = tempfile.mkdtemp(prefix="hibr-conf-")
 PANEL = '. %s/panel.hibr' % tree("examples/apps")
 sc, raw = run('dt_new "Settings" 12 34 2 2 panel', feed=[b"\x1b[C"],
@@ -848,4 +853,4 @@ check("ending it leaves the other one alone",
       "personal" in r.stdout and "work" not in r.stdout, r.stdout)
 unsession()
 
-report(136)
+report(137)

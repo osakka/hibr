@@ -425,6 +425,12 @@ dt_mouse() {
 	press)
 		DT_NOTE=
 		if [ "$mr" = 0 ]; then
+			if [ "$mc" -ge $((DT_COLS - 19)) ] &&
+			   [ "$mc" -lt $((DT_COLS - 14)) ]; then
+				dt_mclose
+				dt_has clock_draw && dt_launch clock
+				return 0
+			fi
 			b := dt_mhit "$mc" || { dt_mclose; return 0; }
 			if [ "$b" = "$MB_OPEN" ]; then
 				dt_mclose
