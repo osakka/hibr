@@ -169,21 +169,32 @@ void cn_signals(int on)
 	tcsetattr(cn_fd, TCSADRAIN, &r);
 }
 
-/* Ask the terminal how large it is, falling back to a sane default. */
+/* Ask the terminal how large it is, falling back to a sane default.
+
+   Some terminals answer a fresh window's TIOCGWINSZ with 0x0 for a moment,
+   before they have settled on a size -- asked right at open, that reads as
+   no terminal at all and falls back to the default, which then only ever
+   changes on an actual resize. Retried a few times, milliseconds apart,
+   before giving up: a terminal that already knows its size answers on the
+   first try and never sees the wait. */
 void cn_size(int *rows, int *cols)
 {
 	struct winsize w;
+	int i;
 
-	if (cn_fd >= 0 && ioctl(cn_fd, TIOCGWINSZ, &w) == 0 && w.ws_row &&
-	    w.ws_col) {
-		*rows = w.ws_row;
-		*cols = w.ws_col;
-		return;
-	}
-	if (ioctl(2, TIOCGWINSZ, &w) == 0 && w.ws_row && w.ws_col) {
-		*rows = w.ws_row;
-		*cols = w.ws_col;
-		return;
+	for (i = 0; i < 10; i++) {
+		if (cn_fd >= 0 && ioctl(cn_fd, TIOCGWINSZ, &w) == 0 &&
+		    w.ws_row && w.ws_col) {
+			*rows = w.ws_row;
+			*cols = w.ws_col;
+			return;
+		}
+		if (ioctl(2, TIOCGWINSZ, &w) == 0 && w.ws_row && w.ws_col) {
+			*rows = w.ws_row;
+			*cols = w.ws_col;
+			return;
+		}
+		usleep(20000);
 	}
 	*rows = 24;
 	*cols = ed_cols();

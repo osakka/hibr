@@ -730,6 +730,31 @@ went in the shell.
   already cleared the slot before the call, so there is no `ret ""` to
   write. `return 0` right after a successful `ret` is the same dead code,
   just harmless, since `ret` already leaves status 0.
+- **A CSI parameter's own sub-parameter is separated by `:`, not `;`.** A
+  modern program sends `4:0` to turn underline off and `4:1` upward to pick
+  a style, in place of the plain `4`/`24` pair an older one uses -- and
+  `strtol` on `"4:0"` reads `4` and stops at the colon, silently turning
+  underline on instead of off. Once that happened, everything typed after
+  stayed underlined until a full `SGR 0` reset arrived, which is what
+  running a program built with a modern terminal-styling library inside a
+  hibr terminal window looked like: everything underlined. `tm_sub` reads
+  what follows the colon; nothing else sent here uses one.
+- **`ioctl(fd, TIOCGWINSZ, …)` can answer 0x0 for a real terminal's first
+  moment.** Seen on some terminals right after a new window opens, before
+  it has settled on a size -- asked that early, the console read "no
+  terminal at all" and fell back to a fixed 80x24 that only an actual
+  resize ever corrected afterwards. `cn_size` retries a handful of times,
+  milliseconds apart, before giving up; a terminal that already knows its
+  size answers on the first try and never sees the wait.
+- **`?=` in a Makefile cannot override a built-in variable's default.**
+  `CC`, `CFLAGS` and the rest already have a value from make's own implicit
+  rules before the makefile is even read, so `CC ?= tcc` sees `CC` as
+  already set (to make's own `cc`) and never fires -- silently building
+  with `cc` everywhere, which happened to look like nothing was wrong until
+  a platform where `cc` and `tcc` disagree. `$(origin CC)` tells the
+  difference: `default` means nobody set it, and only then should a
+  platform-specific fallback replace it, so an explicit `make CC=...` or
+  `CC=...` in the environment still wins.
 
 ## Testing discipline
 

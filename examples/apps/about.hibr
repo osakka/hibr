@@ -2,10 +2,13 @@
 #
 # about -- what this is, and what it is running on.
 #
-# Nothing here forks: the machine's own numbers come from /proc, read
-# directly, the same way mods/sysinfo does in C. A window rather than the
-# one-line note it used to be, because a bar that means something has to
-# keep being redrawn, and a note fades on its own.
+# On Linux the machine's own numbers come from /proc, read directly and
+# costing no fork, the same way mods/sysinfo does in C. Nothing else keeps
+# a /proc, so everywhere else forks a system command instead -- vm_stat and
+# sysctl for memory, top for CPU, both throttled to AB_SLOWMS since forking
+# a command every frame is not something to do at DT_TICK's pace. A window
+# rather than the one-line note it used to be, because a bar that means
+# something has to keep being redrawn, and a note fades on its own.
 
 app about "About hibr, and the machine it runs on"
 
@@ -13,13 +16,24 @@ command -v dt_app > /dev/null && dt_app about "About hibr" 13 46 once "ⓘ" fixe
 
 declare -gA AB
 
+# How often a forked reading is allowed to be taken again, on anything that
+# is not Linux; a Linux reading costs nothing and is never throttled.
+AB_SLOWMS=2000
+
 # One read, no fork, cached: none of this changes while the window is open.
 AB_HOST=
 AB_KERNEL=
+AB_OS=
 about_facts() {
 	[ -n "$AB_HOST" ] && return 0
-	read -r AB_HOST < /proc/sys/kernel/hostname
-	read -r AB_KERNEL < /proc/sys/kernel/osrelease
+	AB_OS := uname
+	if [ "$AB_OS" = Linux ]; then
+		read -r AB_HOST < /proc/sys/kernel/hostname
+		read -r AB_KERNEL < /proc/sys/kernel/osrelease
+	else
+		AB_HOST := hostname
+		AB_KERNEL := uname -r
+	fi
 }
 
 # A bar of blocks, pct out of 100, w cells wide.
@@ -37,11 +51,41 @@ about_bar() {
 	ret "$b$e"
 }
 
-# Percent CPU busy since the last reading, from the aggregate line in
-# /proc/stat: total and idle are both running counters in ticks, so the
-# first reading has nothing to compare against and reads as 0.
+# Percent CPU busy since the last reading. On Linux, from the aggregate
+# line in /proc/stat: total and idle are both running counters in ticks, so
+# the first reading has nothing to compare against and reads as 0.
+#
+# Elsewhere, top -l 2 -n 0 takes two samples, a second or so apart, with no
+# process rows, and prints each one's summary line -- "CPU usage: 12.3%
+# user, 4.5% sys, 83.2% idle" -- which is the one part of top's output that
+# has held its shape for years; the second line is the delta between them.
+# Busy is what is not idle. Throttled to AB_SLOWMS, which is well past that
+# second anyway: this is not a fork to make every frame.
 about_cpu() {
 	local id=$1 label u n s i io irq soft steal total idle dt di pct
+	local now line _w1 _w2 idlepct
+
+	if [ "$AB_OS" != Linux ]; then
+		now := dt_ms
+		if [ -n "${AB[$id]["ccpu"]}" ] &&
+		   [ $((now - ${AB[$id]["ctime"]:-0})) -lt "$AB_SLOWMS" ]; then
+			ret "${AB[$id]["ccpu"]}"
+			return 0
+		fi
+		line := command top -l 2 -n 0 2> /dev/null |
+			command grep "CPU usage"
+		line=${line##*$'\n'}
+		pct=0
+		if [ -n "$line" ]; then
+			read -r _w1 _w1 _w1 _w1 _w1 _w1 idlepct _w2 <<< "$line"
+			idlepct=${idlepct%\%}
+			pct=$((100 - ${idlepct%.*}))
+		fi
+		AB[$id]["ccpu"]=$pct
+		AB[$id]["ctime"]=$now
+		ret "$pct"
+		return 0
+	fi
 
 	read -r label u n s i io irq soft steal _ < /proc/stat
 	total=$((u + n + s + i + io + irq + soft + steal))
@@ -59,11 +103,50 @@ about_cpu() {
 	ret "$pct"
 }
 
-# Percent memory in use, from what is actually unavailable to a new
-# allocation -- MemAvailable, not MemFree, which undercounts what the page
-# cache would give back under pressure.
+# Percent memory in use. On Linux, from what is actually unavailable to a
+# new allocation -- MemAvailable, not MemFree, which undercounts what the
+# page cache would give back under pressure.
+#
+# Elsewhere, sysctl hw.memsize is the machine's total, and vm_stat's free
+# and inactive pages are its rough equivalent of MemAvailable -- inactive
+# is reclaimable the same way a Linux page cache is. Throttled the same as
+# about_cpu, though vm_stat itself is a snapshot and costs far less.
 about_mem() {
-	local line k v total avail=0
+	local id=$1 line k v total avail=0 now pagesize free=0 inactive=0
+
+	if [ "$AB_OS" != Linux ]; then
+		now := dt_ms
+		if [ -n "${AB[$id]["cmem"]}" ] &&
+		   [ $((now - ${AB[$id]["mtime"]:-0})) -lt "$AB_SLOWMS" ]; then
+			ret "${AB[$id]["cmem"]}"
+			return 0
+		fi
+		total := command sysctl -n hw.memsize 2> /dev/null
+		if [ -z "$total" ] || [ "$total" = 0 ]; then
+			ret 0
+			return 0
+		fi
+		pagesize := command sysctl -n hw.pagesize 2> /dev/null
+		[ -z "$pagesize" ] && pagesize=4096
+		while IFS= read -r line; do
+			case $line in
+			"Pages free:"*)
+				read -r _ _ free <<< "$line"
+				free=${free%.}
+				;;
+			"Pages inactive:"*)
+				read -r _ _ inactive <<< "$line"
+				inactive=${inactive%.}
+				;;
+			esac
+		done < <(command vm_stat 2> /dev/null)
+		avail=$(((free + inactive) * pagesize))
+		v=$(((total - avail) * 100 / total))
+		AB[$id]["cmem"]=$v
+		AB[$id]["mtime"]=$now
+		ret "$v"
+		return 0
+	fi
 
 	while read -r k v _; do
 		case $k in
@@ -100,7 +183,7 @@ about_draw() {
 	printf -v pct '%3d%%' "$cpu"
 	console put -p "w$id" 8 $((w - 6)) "$pct"
 
-	mem := about_mem
+	mem := about_mem "$id"
 	bar := about_bar "$mem" "$barw"
 	console pen "$DT_INK" "$DT_FACE"
 	console put -p "w$id" 9 2 "MEM"

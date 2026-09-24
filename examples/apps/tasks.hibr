@@ -2,10 +2,13 @@
 #
 # tasks -- what is running, and a way to end one of them.
 #
-# Reads /proc directly, the same technique mods/mon and the about window
-# both use: no forking, and no dependency on anything but the kernel giving
-# a truthful /proc. Sorted by CPU or memory, x or Task > End Task sends the
-# selected one SIGTERM, shift-x sends SIGKILL.
+# On Linux, reads /proc directly, the same technique mods/mon and the about
+# window both use: no forking, and no dependency on anything but the kernel
+# giving a truthful /proc. Elsewhere, one ps -axo per scan, since there is
+# no /proc to read there at all -- ps already computes %CPU itself, so
+# there is no delta of its own to keep between scans, unlike the Linux path.
+# Sorted by CPU or memory, x or Task > End Task sends the selected one
+# SIGTERM, shift-x sends SIGKILL.
 
 app tasks "What is running, and a way to end one"
 
@@ -13,6 +16,7 @@ command -v dt_app > /dev/null && dt_app tasks "Task Manager" 16 50 once "▤"
 
 declare -gA TK
 declare -gA TK_PREV
+TK_OS=
 
 # CLK_TCK is 100 on every Linux this was run on; getconf forks, and the
 # kernel does not expose it any other way worth reading for this.
@@ -43,10 +47,34 @@ tasks_times() {
 # One pass: every pid under /proc, its name and memory from status (no
 # bracket or position traps there), CPU from the delta against the last
 # scan. The first scan has nothing to compare against, so it reads 0.
+# Every process from ps -axo, one line each: pid, RSS in the same
+# kilobytes /proc/[pid]/status uses, %CPU already computed by the kernel,
+# and comm last so a path with a space in it -- an app bundle's, typically
+# -- still reads whole, in read's own last-variable-takes-the-rest rule.
+tasks_scan_ps() {
+	local id=$1 pid rss pcpu comm line n=0
+
+	while IFS= read -r line; do
+		read -r pid rss pcpu comm <<< "$line"
+		case $pid in '' | *[!0-9]*) continue ;; esac
+		TK[$id][$n]["pid"]=$pid
+		TK[$id][$n]["name"]=${comm##*/}
+		TK[$id][$n]["cpu"]=${pcpu%.*}
+		TK[$id][$n]["mem"]=${rss:-0}
+		n=$((n + 1))
+	done < <(command ps -axo pid=,rss=,pcpu=,comm= 2> /dev/null)
+	TK[$id]["n"]=$n
+}
+
 tasks_scan() {
 	local id=$1 pid name rss times u s now elapsed du ds pct n=0
 	local prevt=${TK_PREV[$id]["t"]}
 
+	[ -z "$TK_OS" ] && TK_OS := uname
+	if [ "$TK_OS" != Linux ]; then
+		tasks_scan_ps "$id"
+		return 0
+	fi
 	now := dt_ms
 	for pid in /proc/[0-9]*; do
 		pid=${pid#/proc/}

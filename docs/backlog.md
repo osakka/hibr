@@ -52,15 +52,34 @@ four ids afterwards and then tries `setuid(0)`, refusing to continue if root
 can be taken back. That check is the security property, not the call used to
 get there, and it holds on both platforms.
 
-Still open: `tcc` almost certainly does not work on arm64 Darwin, so macOS
-probably means `make CC=gcc` and that needs deciding rather than assuming;
-`/proc/meminfo` in the prompt module has no Darwin equivalent and should report
-nothing rather than a wrong number; whether modules should follow the `.dylib`
-convention when `m_open` only appends `.so`; and the sonames `libssl` is
-`dlopen`ed by, which differ and are not on the default search path under
-Homebrew. Modules are built as `-dynamiclib`; if `dlopen` refuses them, `-bundle` is the
-other spelling and the one macOS conventionally uses for plugins. Job control,
-the pty line editor and the test suite are untested rather than known broken.
+Also dealt with: `tcc` does not build on Darwin at all, and `CC = tcc` in the
+Makefile is a plain assignment, which overrides make's own built-in `CC=cc`
+regardless of platform -- so a bare `make` on Darwin tried tcc anyway rather
+than falling back. The default is now conditional on `$(origin CC)` being
+`default`: only make's own fallback gets replaced, by platform, so `make
+CC=gcc` or `CC=gcc` in the environment still wins over either default, on
+either platform, exactly as before. Also: a terminal reporting a size of 0x0
+for its first moment after opening a new window -- seen on some Darwin
+terminals, not on the Linux ones this was built against -- read as no
+terminal at all and fell back to a fixed 80x24 that only a real resize ever
+corrected; `cn_size` now retries a few times, milliseconds apart, before
+giving up. And the desktop's About window and Task Manager, which read
+`/proc` directly the same as `mods/sysinfo` and have no Darwin equivalent of
+their own: About now forks `vm_stat`, `sysctl` and `top -l 2 -n 0` instead,
+throttled the same way the Linux path already throttles its own reads, and
+the Task Manager forks `ps -axo` for its whole process list, since there is
+no delta of its own to keep when the kernel already computes %CPU. None of
+this has run on an actual Mac -- only reasoned through and checked against
+fixed input standing in for the real command.
+
+Still open: `/proc/meminfo` in the prompt module has no Darwin equivalent and
+should report nothing rather than a wrong number; whether modules should
+follow the `.dylib` convention when `m_open` only appends `.so`; and the
+sonames `libssl` is `dlopen`ed by, which differ and are not on the default
+search path under Homebrew. Modules are built as `-dynamiclib`; if `dlopen`
+refuses them, `-bundle` is the other spelling and the one macOS conventionally
+uses for plugins. Job control, the pty line editor and the test suite are
+untested rather than known broken.
 
 ## Wanted
 

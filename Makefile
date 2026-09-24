@@ -1,10 +1,23 @@
-CC = tcc
 TLS ?= 1
 OPT ?=
 CFLAGS = -Iinclude -Wall $(OPT)
 UNAME := $(shell uname -s)
 ifeq ($(TLS),1)
 CFLAGS += -DHIBR_TLS
+endif
+
+# tcc does not build on Darwin at all, so the default there is the system
+# compiler instead -- cc, which Xcode's command line tools point at clang.
+# origin, not ?=: make's own built-in default already sets CC to "cc" before
+# this file is even read, which makes ?= a no-op here and CC always "cc" --
+# this only replaces that built-in default, so an explicit make CC=... or
+# CC=... in the environment still wins over either platform's default.
+ifeq ($(origin CC),default)
+ifeq ($(UNAME),Darwin)
+CC = cc
+else
+CC = tcc
+endif
 endif
 
 # Darwin keeps dlopen in libc, spells -rdynamic differently, and builds shared
