@@ -352,6 +352,7 @@ dt_win() {
 	local id=$1
 	local h=${DT[$id]["h"]} w=${DT[$id]["w"]} on=$DT_IDLE
 	local wr=${DT[$id]["row"]} wc=${DT[$id]["col"]} dr=${DT[$id]["draw"]}
+	local fixed=${DT_APPS[${DT[$id]["app"]}]["fixed"]}
 
 	[ "$DT_SHADOW" = 1 ] && console darken $((wr + 1)) $((wc + 2)) "$h" "$w"
 	[ "$DT_FOCUS" = "$id" ] && on=$DT_ACTIVE
@@ -364,7 +365,9 @@ dt_win() {
 	console put -p "w$id" 0 0 "┌$bar┐"
 	console put -p "w$id" $((h - 1)) 0 "└$bar┘"
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" $((h - 1)) $((w - 1)) "◢"
+	# A fixed window keeps the plain corner the border just drew instead of
+	# the grow box: no drag can resize it, so nothing should invite one.
+	[ "$fixed" != 1 ] && console put -p "w$id" $((h - 1)) $((w - 1)) "◢"
 	local r=1
 	while [ "$r" -lt $((h - 1)) ]; do
 		console put -p "w$id" "$r" 0 "│"
@@ -377,7 +380,7 @@ dt_win() {
 	console pen "$on" "$DT_FACE" bold
 	console put -p "w$id" 0 2 "┤ $t ├"
 	console pen "$DT_INK" "$DT_FACE"
-	if [ "${DT_APPS[${DT[$id]["app"]}]["fixed"]}" = 1 ]; then
+	if [ "$fixed" = 1 ]; then
 		console put -p "w$id" 0 $((w - 6)) "┤_ x├"
 	else
 		console put -p "w$id" 0 $((w - 8)) "┤_ □ x├"
@@ -504,7 +507,8 @@ dt_mouse() {
 		wh=${DT[$id]["h"]}
 		ap=${DT[$id]["click"]}
 		if [ "$mr" = $((wr + wh - 1)) ] &&
-		   [ "$mc" = $((wc + ww - 1)) ]; then
+		   [ "$mc" = $((wc + ww - 1)) ] &&
+		   [ "${DT_APPS[${DT[$id]["app"]}]["fixed"]}" != 1 ]; then
 			DT_SIZE=$id
 			return 0
 		fi
@@ -1126,10 +1130,11 @@ dt_menus() {
 		dt_dim "Close"
 	else
 		dt_item "Move" m dt_grab move
-		dt_item "Resize" r dt_grab size
 		if [ "${DT_APPS[${DT[$DT_FOCUS]["app"]}]["fixed"]}" = 1 ]; then
+			dt_dim "Resize"
 			dt_dim "Zoom"
 		else
+			dt_item "Resize" r dt_grab size
 			dt_item "Zoom" z dt_zoom_focused
 		fi
 		dt_item "Hide" h dt_hide_focused
@@ -2555,10 +2560,11 @@ dt_titlecontext() {
 
 	dt_menu "Window"
 	dt_item "Move" m dt_grab move
-	dt_item "Resize" r dt_grab size
 	if [ "${DT_APPS[${DT[$id]["app"]}]["fixed"]}" = 1 ]; then
+		dt_dim "Resize"
 		dt_dim "Zoom"
 	else
+		dt_item "Resize" r dt_grab size
 		dt_item "Zoom" z dt_zoom "$id"
 	fi
 	dt_item "Hide" h dt_min "$id"

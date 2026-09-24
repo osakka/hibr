@@ -147,12 +147,18 @@ FIXED = ('dt_app fx "Fixed" 6 20 once "◆" fixed\n'
 sc, _ = run(FIXED)
 check("a fixed app has no maximise button",
       sc.find("┤_ x├") is not None and sc.find("┤_ □ x├") is None, sc)
+check("and no grow box is drawn at its corner", sc.g[9][27] == "┘", sc)
 sc, _ = run(FIXED, [press(4, 21)])
 check("clicking where it would be does not zoom",
       sc.find("┤ Fixed ├") is not None and sc.find("┤_ x├") is not None, sc)
+sc, _ = run(FIXED, [press(9, 27), drag(15, 40), release(15, 40)])
+check("dragging its corner does not resize it",
+      sc.g[9][27] == "┘" and sc.find("┤ Fixed ├") == (4, 10), sc)
 sc, _ = run(FIXED, [b"\x1b[21~", b"\x1b[C", b"\x1b[C"])
 check("Zoom is dimmed on the Window menu for it",
       sc.find("Zoom") is not None and sc.at(3, 22) != "z", sc)
+check("and so is Resize",
+      sc.find("Resize") is not None and sc.at(2, 22) != "r", sc)
 
 # --- right-click context menus ---------------------------------------------
 #
@@ -921,4 +927,4 @@ check("ending it leaves the other one alone",
       "personal" in r.stdout and "work" not in r.stdout, r.stdout)
 unsession()
 
-report(145)
+report(148)

@@ -405,10 +405,20 @@ command -v dt_app > /dev/null && dt_app calc "Calculator" 16 24 once "±"
 means one window at most: launching it again brings that window forward,
 shown if it was hidden. The calculator, the settings, the clock and the games
 are `once`; the terminal and the file browser are `many`. The icon is what
-the desktop shows for it. `fixed` takes the maximise button off its windows
-entirely -- not dimmed, not drawn -- for a board or a grid with one sensible
-size; the games use it. The `command -v` guard is what lets the same file run
-on its own, where there is no desktop to register with.
+the desktop shows for it. The `command -v` guard is what lets the same file
+run on its own, where there is no desktop to register with.
+
+There are two window types, and the seventh argument picks between them.
+Leave it off and a window is fully manipulable: it can be moved, resized (by
+dragging its corner, the Window menu, or the keyboard's Resize grab) and
+zoomed to fill the screen. Say `fixed` and none of that exists for it -- no
+maximise button, no grow box drawn at its corner, a drag on that corner does
+an ordinary body click instead of resizing, and Resize and Zoom are both
+dimmed on its Window menu, whether reached from the menu bar or a right-click
+on its own title bar -- for a board or a grid with one sensible size; the
+games and About hibr use it. There is no half-fixed window: resizability
+follows `fixed` everywhere at once, so a window is never left with a working
+drag-resize but a dimmed menu item, or the reverse.
 
 A session names the folders and loads them:
 
