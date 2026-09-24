@@ -225,9 +225,10 @@ check("down skips the blank line and the heading, landing on Refresh",
       sc.find("350 ms") is not None, sc)
 
 # Theme, Wallpaper, Refresh, Icons, Disk Icons, Cursor, Cursor Blink, Window
-# Shadow, Panel, Other -- nine downs from Theme reaches the second window,
-# because cp_move steps over the headings and the blanks.
-DOWN4 = [b"\x1b[B"] * 9
+# Shadow, Close Window, Detach, Quit, Cycle Windows, New Terminal, Task
+# Manager, Panel, Other -- fifteen downs from Theme reaches the second
+# window, because cp_move steps over the headings and the blanks.
+DOWN4 = [b"\x1b[B"] * 15
 
 sc = run(*PANEL, feed=[b"\x1b[B"] * 3 + [b"\r"], pre=TICK, also=OTHER)
 check("the icons can be switched off, and the panel says so",
@@ -254,6 +255,18 @@ check("a click selects and a second click acts",
 
 sc = run(*PANEL, feed=[press(3, 10), press(3, 10)], pre=TICK, also=OTHER)
 check("clicking a heading does nothing", sc.find("midnight") is not None, sc)
+
+sc = run(*PANEL, pre=TICK, extra=("about",))
+check("About Refresh only appears once About hibr itself is loaded",
+      sc.find("About Refresh") is not None and
+      sc.find("3000 ms") is not None, sc)
+
+sc2 = run("tasks", "16 50 4 4", feed=[b"\x1b\x14"], extra=("term",))
+check("alt-ctrl-t opens a terminal, even with another app focused",
+      sc2.find("┤ Terminal ├") is not None, sc2)
+sc3 = run("files", FW, feed=[b"\x1b\x10"], pre=PRE, extra=("tasks",))
+check("alt-ctrl-p opens the task manager",
+      sc3.find("┤ Task Manager ├") is not None, sc3)
 
 # --- the terminal window --------------------------------------------------
 
@@ -648,4 +661,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(109)
+report(112)

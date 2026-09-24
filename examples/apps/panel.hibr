@@ -23,8 +23,9 @@ declare -gA PW
 declare -gA CP
 CP_THEME=midnight
 command -v dt_keep > /dev/null && dt_keep CP_THEME
-CP_THEMES=(midnight slate forest ember paper)
+CP_THEMES=(midnight slate forest ember paper dracula)
 CP_TICKS=(80 120 200 350 600)
+CP_ABTICKS=(1000 2000 3000 5000 10000)
 CP_GLYPHS=("·" "░" "▒" "⋅" "+")
 CP_CURSORS=(block underline bar)
 
@@ -43,6 +44,8 @@ cp_theme() {
 		"#1a110d" "#ecd9c6" ;;
 	paper)    set -- "#e8e4da" "#d3cec1" "#c3bdae" "#2b6cb0" "#8a8578" \
 		"#f5f2ea" "#2d3748" ;;
+	dracula)  set -- "#282a36" "#383a4c" "#44475a" "#bd93f9" "#6272a4" \
+		"#21222c" "#f8f8f2" ;;
 	*) return 1 ;;
 	esac
 	CP_THEME=$t
@@ -103,6 +106,31 @@ cp_rows() {
 	CP[$w][$n]["kind"]=set;  CP[$w][$n]["text"]="Window Shadow"
 	CP[$w][$n]["val"]=off; [ "$DT_SHADOW" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=shadow; n=$((n + 1))
+	if [ -n "$AB_SLOWMS" ]; then
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="About Refresh"
+		CP[$w][$n]["val"]="$AB_SLOWMS ms"; CP[$w][$n]["key"]=about
+		n=$((n + 1))
+	fi
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]=""; n=$((n + 1))
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Shortcuts"; n=$((n + 1))
+	CP[$w][$n]["kind"]=key;  CP[$w][$n]["text"]="Close Window"
+	CP[$w][$n]["val"]="${DT_KEYS[close]}"; CP[$w][$n]["key"]=close
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=key;  CP[$w][$n]["text"]="Detach"
+	CP[$w][$n]["val"]="${DT_KEYS[detach]}"; CP[$w][$n]["key"]=detach
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=key;  CP[$w][$n]["text"]="Quit"
+	CP[$w][$n]["val"]="${DT_KEYS[quit]}"; CP[$w][$n]["key"]=quit
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=key;  CP[$w][$n]["text"]="Cycle Windows"
+	CP[$w][$n]["val"]="${DT_KEYS[cycle]}"; CP[$w][$n]["key"]=cycle
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=key;  CP[$w][$n]["text"]="New Terminal"
+	CP[$w][$n]["val"]="${DT_KEYS[terminal]}"; CP[$w][$n]["key"]=terminal
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=key;  CP[$w][$n]["text"]="Task Manager"
+	CP[$w][$n]["val"]="${DT_KEYS[tasks]}"; CP[$w][$n]["key"]=tasks
+	n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]=""; n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Windows"; n=$((n + 1))
 
@@ -163,9 +191,12 @@ cp_do() {
 			DT_CURSOR=$v ;;
 		blink) cp_blink ;;
 		shadow) cp_shadow ;;
+		about) v := cp_next "$AB_SLOWMS" "$dir" "${CP_ABTICKS[@]}"
+		       AB_SLOWMS=$v ;;
 		esac
 		cp_save
 		;;
+	key) command -v dt_keycap > /dev/null && dt_keycap "$k" ;;
 	win) dt_raise "$k" ;;
 	esac
 }

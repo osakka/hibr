@@ -18,7 +18,10 @@ declare -gA AB
 
 # How often a forked reading is allowed to be taken again, on anything that
 # is not Linux; a Linux reading costs nothing and is never throttled.
-AB_SLOWMS=2000
+# Configurable from Settings, since forking top and vm_stat is not free and
+# how current the meters need to be is a matter of taste.
+AB_SLOWMS="${AB_SLOWMS-3000}"
+command -v dt_keep > /dev/null && dt_keep AB_SLOWMS
 
 # One read, no fork, cached: none of this changes while the window is open.
 AB_HOST=
@@ -172,7 +175,7 @@ about_draw() {
 	console pen "$DT_INK" "$DT_FACE" bold
 	console put -p "w$id" 1 2 "hibr $HIBR_VERSION"
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 2 2 "Highly Improved Bash Runtime"
+	console put -p "w$id" 2 2 "Highly Intuitive Bash-like Runtime"
 	console put -p "w$id" 3 2 "a desktop written in the shell it runs on"
 	console put -p "w$id" 5 2 "$AB_HOST"
 	console put -p "w$id" 6 2 "$AB_KERNEL"

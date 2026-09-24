@@ -202,6 +202,12 @@ sc, _ = run(ONE, [press(6, 20, 2), press(6, 22)])
 check("choosing Move from it starts moving, the same as from the menu bar",
       sc.find("moving") is not None, sc)
 
+sc, _ = run(ONE, [press(0, 40, 2)])
+check("a right-click on empty menu-bar space offers the quick launchers",
+      sc.find("New Terminal") is not None and
+      sc.find("Task Manager") is not None and
+      sc.find("Settings") is not None, sc)
+
 TWO = TWO_DEF
 
 sc, _ = run(TWO)
@@ -657,6 +663,26 @@ t.quit(b"qy", 1.0)
 check("and q then y still quits", t.exited, t.raw)
 os.unlink(path)
 
+# [y]es and [n]o on the confirm box are clickable, not just typeable.
+path = "/tmp/hibr-desktop-confirmclick.hibr"
+open(path, "w").write("%s. %s\ndt_open\n%s\ndt_run\ndt_close\n"
+                      % (load(MOD), WM, ONE))
+t = Term(path, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.5)
+t.send(b"q", settle=0.4)
+sc = t.screen()
+no_pos = sc.find("[n]o")
+t.send(press(*no_pos), settle=0.4)
+sc = t.screen()
+check("clicking [n]o cancels the confirm box",
+      sc.find("Quit hibr?") is None and not t.exited, sc)
+t.send(b"q", settle=0.4)
+sc = t.screen()
+yes_pos = sc.find("[y]es")
+t.send(press(*yes_pos), settle=0.4)
+t.quit(None, 1.0)
+check("and clicking [y]es quits", t.exited, t.raw)
+os.unlink(path)
+
 import tempfile
 
 # --- the hibr menu comes from folders of apps ---------------------------
@@ -725,6 +751,19 @@ sc, raw = run('dt_new "Settings" 12 34 2 2 panel',
               env={"XDG_CONFIG_HOME": CONF}, pre=PANEL)
 check("and the next desktop starts with it", sc.find("slate") is not None, sc)
 shutil.rmtree(CONF, True)
+
+# Eight downs from Theme reaches Close Window: Theme, Wallpaper, Refresh,
+# Icons, Disk Icons, Cursor, Cursor Blink, Window Shadow, Close Window.
+CONF2 = tempfile.mkdtemp(prefix="hibr-conf2-")
+sc, raw = run('dt_new "Settings" 12 34 2 2 panel',
+              feed=[b"\x1b[B"] * 8 + [b"\r", b"x"],
+              env={"XDG_CONFIG_HOME": CONF2}, pre=PANEL)
+check("a shortcut row can be rebound to a new key",
+      sc.find("alt-f4") is None, sc)
+saved2 = os.path.join(CONF2, "hibr", "desktop.hibr")
+text2 = open(saved2).read() if os.path.exists(saved2) else ""
+check("and the new binding is saved", 'DT_KEYS["close"]=x' in text2, text2)
+shutil.rmtree(CONF2, True)
 
 HOLD = tempfile.mkdtemp(prefix="hibr-hold-")
 held = os.path.join(HOLD, "session.hibr")
@@ -882,4 +921,4 @@ check("ending it leaves the other one alone",
       "personal" in r.stdout and "work" not in r.stdout, r.stdout)
 unsession()
 
-report(140)
+report(145)

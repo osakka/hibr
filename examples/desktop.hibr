@@ -48,6 +48,30 @@ DT_CONFIRM=
 DT_CONFIRM_CMD=
 DT_ROWS=24
 DT_COLS=80
+
+# Keyboard shortcuts a script -- or Settings -- can rebind. f10 and escape,
+# which open the menu bar, are not in here: an app cannot have those keys
+# at all, so there is nothing to configure. Everything else an app's own
+# _key sees first, same as always -- a shortcut here only fires once the
+# focused window has declined the key.
+declare -gA DT_KEYS
+DT_KEYS[close]="alt-f4"
+DT_KEYS[detach]="ctrl-\\"
+DT_KEYS[quit]=q
+DT_KEYS[cycle]=tab
+
+# Only these two apps get a global shortcut of their own -- everything else
+# is reached from the hibr menu, same as always. Neither does anything if
+# that app was never sourced, the same way dt_launch always behaves for a
+# name nothing registered. alt-ctrl-, not ctrl-alt-: an alt combination
+# arrives as ESC followed by the plain control byte, and the console names
+# that "alt-" then whatever the control byte itself is, in that order --
+# unlike a CSI-encoded key's modifiers, which are named ctrl- before alt-.
+# escape is avoided here on purpose: alt-escape is indistinguishable from a
+# plain escape in most terminals, since ESC is also how alt itself arrives.
+DT_KEYS[terminal]="alt-ctrl-t"
+DT_KEYS[tasks]="alt-ctrl-p"
+DT_KEYCAP=
 declare -A DT
 
 DT_WALL="${DT_WALL-#0d1b2a}"
@@ -113,6 +137,9 @@ dt_save() {
 		done
 		for v in "${!DT_ICONPOS[@]}"; do
 			printf 'dt_iconpos %q %q\n' "$v" "${DT_ICONPOS["$v"]}"
+		done
+		for v in "${!DT_KEYS[@]}"; do
+			printf 'DT_KEYS["%s"]=%q\n' "$v" "${DT_KEYS["$v"]}"
 		done
 	} > "$tmp" && mv -f "$tmp" "$DT_CONF"
 }
@@ -434,6 +461,10 @@ dt_mouse() {
 				dt_has clock_draw && dt_launch clock
 				return 0
 			fi
+			if [ "$1" = right ]; then
+				dt_context_open bar "" "$mr" "$mc"
+				return 0
+			fi
 			b := dt_mhit "$mc" || { dt_mclose; return 0; }
 			if [ "$b" = "$MB_OPEN" ]; then
 				dt_mclose
@@ -644,9 +675,32 @@ dt_zoom() {
 dt_event() {
 	local k="$1"
 
+	if [ -n "$DT_KEYCAP" ]; then
+		case $k in
+		"mouse "*) DT_KEYCAP= ;;
+		escape) DT_KEYCAP= ;;
+		*)
+			DT_KEYS[$DT_KEYCAP]=$k
+			dt_save
+			dt_note "${DT_KEYCAP^} is now $k"
+			DT_KEYCAP=
+			;;
+		esac
+		return 0
+	fi
 	if [ -n "$DT_CONFIRM" ]; then
 		case $k in
-		"mouse "*) DT_CONFIRM= ;;
+		"mouse press "*)
+			set -- $k
+			local yn
+			yn := dt_confirm_hit "$4" "$5"
+			if [ -n "$yn" ]; then
+				dt_confirm_key "$yn"
+			else
+				DT_CONFIRM=
+			fi
+			;;
+		"mouse "*) ;;
 		*) dt_confirm_key "$k" ;;
 		esac
 		return 0
@@ -705,8 +759,12 @@ dt_event() {
 		;;
 	esac
 	case $k in
-	q) dt_quitconfirm ;;
-	tab) dt_cycle ;;
+	"${DT_KEYS[quit]}") dt_quitconfirm ;;
+	"${DT_KEYS[cycle]}") dt_cycle ;;
+	"${DT_KEYS[close]}") dt_close_focused ;;
+	"${DT_KEYS[detach]}") dt_detach ;;
+	"${DT_KEYS[terminal]}") dt_launch term ;;
+	"${DT_KEYS[tasks]}") dt_launch tasks ;;
 	esac
 }
 
@@ -2420,6 +2478,7 @@ dt_ctxbuild() {
 	case $who in
 	desktop) before=$MB_N; dt_deskcontext ;;
 	titlebar) before=$MB_N; dt_titlecontext "$MB_CTXID" ;;
+	bar) before=$MB_N; dt_barcontext ;;
 	*)
 		if ! dt_has "${who}_context"; then
 			dt_mclose
@@ -2460,6 +2519,29 @@ dt_deskcontext() {
 	dt_menu "Desktop"
 	dt_item "Arrange Icons" a dt_iconclean
 	dt_item "Change Wallpaper" w dt_wallnext
+}
+
+# Right-click on empty menu-bar space: quick launchers, for the two apps
+# that also have a keyboard shortcut of their own -- everything else stays
+# reachable from the hibr menu only.
+dt_barcontext() {
+	dt_menu "Desktop"
+	if dt_has term_draw; then
+		dt_item "New Terminal" t dt_launch term
+	else
+		dt_dim "New Terminal"
+	fi
+	if dt_has tasks_draw; then
+		dt_item "Task Manager" m dt_launch tasks
+	else
+		dt_dim "Task Manager"
+	fi
+	dt_sep
+	if dt_has panel_draw; then
+		dt_item "Settings" s dt_launch panel
+	else
+		dt_dim "Settings"
+	fi
 }
 
 # Right-click on a window's title bar: the Window menu's own items, since
@@ -2702,20 +2784,72 @@ dt_confirm() {
 	DT_CONFIRM_CMD=$2
 }
 
-dt_confirm_draw() {
-	local w r c t
+# A small window of its own, not just a coloured box: a border and a
+# title bar, the same shapes dt_win draws, at an absolute position rather
+# than a pane's, since this has no pane and takes no drag or resize.
+# [y]es and [n]o are also clickable -- dt_confirm_hit tests a point against
+# the same box this lays out, so the two can never drift apart.
+DT_CONFIRM_HINT="[y]es        [n]o"
 
-	[ -z "$DT_CONFIRM" ] && return 0
-	t="$DT_CONFIRM  (y/n)"
-	w=$((${#t} + 4))
-	r=$((DT_ROWS / 2 - 1))
-	c=$(((DT_COLS - w) / 2))
-	console pen "$DT_INK" "$DT_ACTIVE" bold
-	local bl
-	bl := dt_rep "$w" " "
-	console put "$r" "$c" "$bl"
-	console put $((r + 1)) "$c" "  $t  "
-	console put $((r + 2)) "$c" "$bl"
+dt_confirm_geom() {
+	local msg=$DT_CONFIRM w h y0 x0
+
+	w=$((${#msg} + 6))
+	[ "$w" -lt $((${#DT_CONFIRM_HINT} + 4)) ] && w=$((${#DT_CONFIRM_HINT} + 4))
+	h=5
+	y0=$((DT_ROWS / 2 - h / 2))
+	x0=$(((DT_COLS - w) / 2))
+	ret "$y0 $x0 $w $h"
+}
+
+# y, n, or empty for a point that is not on either word of the hint line.
+dt_confirm_hit() {
+	local mr=$1 mc=$2 g y0 x0 w h hr hx half
+
+	[ -z "$DT_CONFIRM" ] && return 1
+	g := dt_confirm_geom
+	set -- $g
+	y0=$1 x0=$2 w=$3 h=$4
+	hr=$((y0 + 3))
+	[ "$mr" != "$hr" ] && return 1
+	hx=$((x0 + (w - ${#DT_CONFIRM_HINT}) / 2))
+	[ "$mc" -lt "$hx" ] || [ "$mc" -ge $((hx + ${#DT_CONFIRM_HINT})) ] &&
+		return 1
+	half=$(( (${#DT_CONFIRM_HINT} + 1) / 2 ))
+	if [ $((mc - hx)) -lt "$half" ]; then
+		ret y
+	else
+		ret n
+	fi
+}
+
+dt_confirm_draw() {
+	local msg=$DT_CONFIRM w h y0 x0 bar r g
+
+	[ -z "$msg" ] && return 0
+	g := dt_confirm_geom
+	set -- $g
+	y0=$1 x0=$2 w=$3 h=$4
+	console pen "$DT_INK" "$DT_FACE"
+	console fill "$y0" "$x0" "$h" "$w" " "
+	bar := dt_rep $((w - 2)) "─"
+	console pen "$DT_ACTIVE" "$DT_FACE" bold
+	console put "$y0" "$x0" "┌$bar┐"
+	console put $((y0 + h - 1)) "$x0" "└$bar┘"
+	console pen "$DT_INK" "$DT_FACE"
+	r=$((y0 + 1))
+	while [ "$r" -lt $((y0 + h - 1)) ]; do
+		console put "$r" "$x0" "│"
+		console put "$r" $((x0 + w - 1)) "│"
+		r=$((r + 1))
+	done
+	console pen "$DT_ACTIVE" "$DT_FACE" bold
+	console put "$y0" $((x0 + 2)) "┤ Confirm ├"
+	console pen "$DT_INK" "$DT_FACE" bold
+	console put $((y0 + 2)) $((x0 + (w - ${#msg}) / 2)) "$msg"
+	console pen "$DT_IDLE" "$DT_FACE"
+	console put $((y0 + 3)) $((x0 + (w - ${#DT_CONFIRM_HINT}) / 2)) \
+		"$DT_CONFIRM_HINT"
 }
 
 dt_confirm_key() {
@@ -2742,4 +2876,12 @@ dt_confirm_key() {
 # asking a third time is the annoyance this exists to remove, not add back.
 dt_quitconfirm() {
 	dt_confirm "Quit hibr?" dt_quit
+}
+
+# Start capturing the next key as action's own shortcut -- Settings calls
+# this when a shortcut row is activated; dt_event's own DT_KEYCAP check
+# takes the very next key, of any kind, rather than dispatching it.
+dt_keycap() {
+	DT_KEYCAP=$1
+	dt_note "Press a key for ${1^}…"
 }
