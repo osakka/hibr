@@ -263,8 +263,9 @@ check("choosing Move from it starts moving, the same as from the menu bar",
 sc, _ = run(ONE, [press(0, 40, 2)])
 check("a right-click on empty menu-bar space offers the quick launchers",
       sc.find("New Terminal") is not None and
-      sc.find("Task Manager") is not None and
-      sc.find("Settings") is not None, sc)
+      sc.find("Task Manager") is not None, sc)
+check("but not Settings, reachable from the hibr menu instead",
+      sc.find("Settings") is None, sc)
 
 TWO = TWO_DEF
 
@@ -979,4 +980,4 @@ check("ending it leaves the other one alone",
       "personal" in r.stdout and "work" not in r.stdout, r.stdout)
 unsession()
 
-report(154)
+report(155)

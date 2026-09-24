@@ -2650,12 +2650,6 @@ dt_barcontext() {
 	else
 		dt_dim "Task Manager"
 	fi
-	dt_sep
-	if dt_has panel_draw; then
-		dt_item "Settings" s dt_launch panel
-	else
-		dt_dim "Settings"
-	fi
 }
 
 # Right-click on a window's title bar: the Window menu's own items, since
