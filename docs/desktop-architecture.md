@@ -151,7 +151,11 @@ bindings — Close Window, Detach, Quit, Cycle Windows — rebindable by
 selecting the row, pressing enter, then the new key; App Shortcuts lists
 every registered app the same way, empty by default, so any app can be
 given a global launch shortcut, not just the two (Terminal and Task
-Manager) that ship with one; Windows is the list of what is open. See
+Manager) that ship with one; Windows is the list of what is open; Date &
+Time draws its own body instead of rows — the clock, the date, and a small
+world map with a mark near the machine's own time zone, reusing
+`examples/traceroute.hibr`'s own map and zone1970.tab lookup rather than a
+second copy of either. See
 [Control Panel panes](desktop.md#control-panel-panes) for the two shapes a
 pane can take and how `CP_PANEDIRS` finds them.
 

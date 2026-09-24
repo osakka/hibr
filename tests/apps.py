@@ -215,8 +215,8 @@ out = subprocess.run([sx.HIBR, "-c", CPLOAD + "echo ${CP_PANE_LIST[*]}"],
                      capture_output=True, text=True).stdout.strip()
 ORDER = out.split()
 check("panes register and sort by title, not load order",
-      ORDER == ["app_shortcuts", "appearance", "behaviour", "shortcuts",
-                "windows"], out)
+      ORDER == ["app_shortcuts", "appearance", "behaviour", "datetime",
+                "shortcuts", "windows"], out)
 
 PW = "20 58 2 2"
 PANEL = ("panel", PW)
@@ -231,8 +231,8 @@ CPANES = 'CP_PANEDIRS+=("%s")\ncp_panes' % CP
 R0, VALCOL = 3, 47
 LISTCOL = 5
 TITLE = {"app_shortcuts": "App Shortcuts", "appearance": "Appearance",
-         "behaviour": "Behaviour", "shortcuts": "Shortcuts",
-         "windows": "Windows"}
+         "behaviour": "Behaviour", "datetime": "Date & Time",
+         "shortcuts": "Shortcuts", "windows": "Windows"}
 
 
 def prow(name):
@@ -245,7 +245,7 @@ def downs(name):
     return ORDER.index(name)
 
 
-def cprun(feed=(), also=(), extra=()):
+def cprun(feed=(), also=(), extra=(), tz=None):
     """Run Control Panel from a config directory of its own.
 
     tests/screen.py gives the whole suite one shared $HOME, so without this
@@ -254,10 +254,15 @@ def cprun(feed=(), also=(), extra=()):
     reading a value "right" had left behind a moment before, rather than by
     actually cycling from the default. Each check gets its own directory
     instead, so its math holds regardless of what ran before it.
+
+    tz, if given, is exported before cp_panes loads the panes, so the Date
+    & Time pane's own lookup is deterministic rather than whatever zone the
+    machine running the suite happens to be in.
     """
     d = tempfile.mkdtemp(prefix="hibr-cp-")
-    sc = run(*PANEL, feed=feed, pre="export XDG_CONFIG_HOME=%s\n%s\n%s"
-             % (d, TICK, CPANES), also=also, extra=extra)
+    tzline = "export TZ=%s\n" % tz if tz else ""
+    sc = run(*PANEL, feed=feed, pre="export XDG_CONFIG_HOME=%s\n%s%s\n%s"
+             % (d, tzline, TICK, CPANES), also=also, extra=extra)
     shutil.rmtree(d, True)
     return sc
 
@@ -271,6 +276,7 @@ check("the first pane's own rows show on the right without entering it",
 
 DOWN_APP = [b"\x1b[B"] * downs("appearance")
 DOWN_BEH = [b"\x1b[B"] * downs("behaviour")
+DOWN_DT = [b"\x1b[B"] * downs("datetime")
 DOWN_WIN = [b"\x1b[B"] * downs("windows")
 
 sc = cprun(DOWN_APP)
@@ -330,6 +336,17 @@ sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 8, extra=("about",))
 check("About Refresh only appears once About hibr itself is loaded",
       sc.find("About Refresh") is not None and
       sc.find("3000 ms") is not None, sc)
+
+# Date & Time is a custom pane -- a body of its own, not rows -- proving
+# that shape rather than the row-list one every other pane above uses.
+# TZ is pinned so the coordinate is deterministic regardless of where the
+# suite runs.
+sc = cprun(DOWN_DT, tz="Europe/London")
+check("the Date & Time pane shows the clock, the date and the zone",
+      sc.find("Europe/London") is not None and
+      sc.find("51N") is not None and sc.find("0W") is not None, sc)
+check("and a mark for it on the reused world map",
+      sc.find("◉") is not None, sc)
 
 sc = cprun(DOWN_WIN + [b"\r"], also=OTHER)
 check("the window list names what is open",
@@ -761,4 +778,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(121)
+report(123)

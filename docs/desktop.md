@@ -362,8 +362,8 @@ of its own.
 
 `panel.hibr` only hosts panes; it has none of its own. A pane down the left
 picks what shows on the right, System 7's Control Panels folder rather than
-one long scrolling list -- which is also what a world map (a Date & Time
-pane's own body) needs room for that a shared list of rows never could.
+one long scrolling list -- which is also what Date & Time's own small world
+map needs room for that a shared list of rows never could.
 
 Each pane is its own file, found in `CP_PANEDIRS` the same way apps are
 found in `DT_APPDIRS`: a session adds `examples/control-panel` (and its own
@@ -387,12 +387,20 @@ instead, in the same `w$id` coordinates every other `_draw`/`_click` pair
 already uses; `bx` is where its own body starts, since it shares the window
 with the pane list to its left. Either shape may also define `name_key` for
 keys the host's own row/pane navigation does not already handle, and the
-body shape `name_wheel`.
+body shape `name_wheel`. `datetime.hibr` is the one bundled example of this
+shape: the clock and the date are its own, but the small world map under
+them, and the zone1970.tab lookup that places a mark on it, are copied
+verbatim from `examples/traceroute.hibr` rather than redone -- CLAUDE.md's
+own trap about that map is not to adjust one by eye, and the same holds for
+drawing a second one from scratch.
 
-The five bundled panes -- Appearance, Behaviour, Shortcuts, App Shortcuts,
-Windows -- are ordinary files under `examples/control-panel` themselves, not
-special-cased in `panel.hibr`: a file of your own with the same pane name
-replaces one, the same rule `DT_APPDIRS` already has for apps.
+![The Date & Time pane, its clock and date above a small world map marking Europe/London](img/desktop-datetime.png)
+
+The six bundled panes -- Appearance, Behaviour, Date & Time, Shortcuts, App
+Shortcuts, Windows -- are ordinary files under `examples/control-panel`
+themselves, not special-cased in `panel.hibr`: a file of your own with the
+same pane name replaces one, the same rule `DT_APPDIRS` already has for
+apps.
 
 ## The apps
 

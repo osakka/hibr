@@ -886,7 +886,8 @@ check("clicking the clock in the bar opens the Clock app",
 # real change to it breaks an assertion instead of a silent miscount.
 PANEL = ('. %s/panel.hibr\nCP_PANEDIRS+=("%s")\ncp_panes'
          % (tree("examples/apps"), tree("examples/control-panel")))
-ORDER = ["app_shortcuts", "appearance", "behaviour", "shortcuts", "windows"]
+ORDER = ["app_shortcuts", "appearance", "behaviour", "datetime", "shortcuts",
+         "windows"]
 DOWN_APP = [b"\x1b[B"] * ORDER.index("appearance")
 DOWN_SHORT = [b"\x1b[B"] * ORDER.index("shortcuts")
 
