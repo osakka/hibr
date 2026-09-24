@@ -58,27 +58,49 @@ about_bar() {
 	ret "$b$e"
 }
 
-# Percent CPU busy since the last reading. On Linux, from the aggregate
-# line in /proc/stat: total and idle are both running counters in ticks, so
-# the first reading has nothing to compare against and reads as 0.
+# Percent CPU busy since the last reading, throttled to AB_SLOWMS on every
+# platform alike -- dt_want in about_draw is the other half of that: without
+# it, a Terminal window's own faster tick would drag About's redraw along
+# with it, and a reading meant to change every three seconds would instead
+# change however often anything else asks the desktop to wake up. Both
+# halves are needed for a refresh rate that means what it says regardless
+# of what else is open.
+#
+# On Linux, from the aggregate line in /proc/stat: total and idle are both
+# running counters in ticks, so the first reading has nothing to compare
+# against and reads as 0, and the delta is taken between samples AB_SLOWMS
+# apart rather than every frame, which is also the less noisy reading.
 #
 # Elsewhere, top -l 2 -n 0 takes two samples, a second or so apart, with no
 # process rows, and prints each one's summary line -- "CPU usage: 12.3%
 # user, 4.5% sys, 83.2% idle" -- which is the one part of top's output that
 # has held its shape for years; the second line is the delta between them.
-# Busy is what is not idle. Throttled to AB_SLOWMS, which is well past that
-# second anyway: this is not a fork to make every frame.
+# Busy is what is not idle.
 about_cpu() {
 	local id=$1 label u n s i io irq soft steal total idle dt di pct
 	local now line _w1 _w2 idlepct
 
-	if [ "$AB_OS" != Linux ]; then
-		now := dt_ms
-		if [ -n "${AB[$id]["ccpu"]}" ] &&
-		   [ $((now - ${AB[$id]["ctime"]:-0})) -lt "$AB_SLOWMS" ]; then
-			ret "${AB[$id]["ccpu"]}"
-			return 0
+	now := dt_ms
+	if [ -n "${AB[$id]["ccpu"]}" ] &&
+	   [ $((now - ${AB[$id]["ctime"]:-0})) -lt "$AB_SLOWMS" ]; then
+		ret "${AB[$id]["ccpu"]}"
+		return 0
+	fi
+	if [ "$AB_OS" = Linux ]; then
+		read -r label u n s i io irq soft steal _ < /proc/stat
+		total=$((u + n + s + i + io + irq + soft + steal))
+		idle=$((i + io))
+		if [ -z "${AB[$id]["ptotal"]}" ]; then
+			pct=0
+		else
+			dt=$((total - AB[$id]["ptotal"]))
+			di=$((idle - AB[$id]["pidle"]))
+			pct=0
+			[ "$dt" -gt 0 ] && pct=$(((dt - di) * 100 / dt))
 		fi
+		AB[$id]["ptotal"]=$total
+		AB[$id]["pidle"]=$idle
+	else
 		line=$(command top -l 2 -n 0 2> /dev/null |
 			command grep "CPU usage")
 		line=${line##*$'\n'}
@@ -88,81 +110,69 @@ about_cpu() {
 			idlepct=${idlepct%\%}
 			pct=$((100 - ${idlepct%.*}))
 		fi
-		AB[$id]["ccpu"]=$pct
-		AB[$id]["ctime"]=$now
-		ret "$pct"
-		return 0
 	fi
-
-	read -r label u n s i io irq soft steal _ < /proc/stat
-	total=$((u + n + s + i + io + irq + soft + steal))
-	idle=$((i + io))
-	if [ -z "${AB[$id]["ptotal"]}" ]; then
-		pct=0
-	else
-		dt=$((total - AB[$id]["ptotal"]))
-		di=$((idle - AB[$id]["pidle"]))
-		pct=0
-		[ "$dt" -gt 0 ] && pct=$(((dt - di) * 100 / dt))
-	fi
-	AB[$id]["ptotal"]=$total
-	AB[$id]["pidle"]=$idle
+	AB[$id]["ccpu"]=$pct
+	AB[$id]["ctime"]=$now
 	ret "$pct"
 }
 
-# Percent memory in use. On Linux, from what is actually unavailable to a
-# new allocation -- MemAvailable, not MemFree, which undercounts what the
-# page cache would give back under pressure.
+# Percent memory in use, throttled the same way and for the same reason as
+# about_cpu.
+#
+# On Linux, from what is actually unavailable to a new allocation --
+# MemAvailable, not MemFree, which undercounts what the page cache would
+# give back under pressure.
 #
 # Elsewhere, sysctl hw.memsize is the machine's total, and vm_stat's free
 # and inactive pages are its rough equivalent of MemAvailable -- inactive
-# is reclaimable the same way a Linux page cache is. Throttled the same as
-# about_cpu, though vm_stat itself is a snapshot and costs far less.
+# is reclaimable the same way a Linux page cache is.
 about_mem() {
 	local id=$1 line k v total avail=0 now pagesize free=0 inactive=0
 
-	if [ "$AB_OS" != Linux ]; then
-		now := dt_ms
-		if [ -n "${AB[$id]["cmem"]}" ] &&
-		   [ $((now - ${AB[$id]["mtime"]:-0})) -lt "$AB_SLOWMS" ]; then
-			ret "${AB[$id]["cmem"]}"
-			return 0
-		fi
-		total=$(command sysctl -n hw.memsize 2> /dev/null)
-		if [ -z "$total" ] || [ "$total" = 0 ]; then
-			ret 0
-			return 0
-		fi
-		pagesize=$(command sysctl -n hw.pagesize 2> /dev/null)
-		[ -z "$pagesize" ] && pagesize=4096
-		while IFS= read -r line; do
-			case $line in
-			"Pages free:"*)
-				read -r _ _ free <<< "$line"
-				free=${free%.}
-				;;
-			"Pages inactive:"*)
-				read -r _ _ inactive <<< "$line"
-				inactive=${inactive%.}
-				;;
-			esac
-		done < <(command vm_stat 2> /dev/null)
-		avail=$(((free + inactive) * pagesize))
-		v=$(((total - avail) * 100 / total))
-		AB[$id]["cmem"]=$v
-		AB[$id]["mtime"]=$now
-		ret "$v"
+	now := dt_ms
+	if [ -n "${AB[$id]["cmem"]}" ] &&
+	   [ $((now - ${AB[$id]["mtime"]:-0})) -lt "$AB_SLOWMS" ]; then
+		ret "${AB[$id]["cmem"]}"
 		return 0
 	fi
-
-	while read -r k v _; do
-		case $k in
-		MemTotal:) total=$v ;;
-		MemAvailable:) avail=$v ;;
-		esac
-	done < /proc/meminfo
-	[ -z "$total" ] || [ "$total" = 0 ] && { ret 0; return 0; }
-	ret $(((total - avail) * 100 / total))
+	if [ "$AB_OS" = Linux ]; then
+		while read -r k v _; do
+			case $k in
+			MemTotal:) total=$v ;;
+			MemAvailable:) avail=$v ;;
+			esac
+		done < /proc/meminfo
+		if [ -z "$total" ] || [ "$total" = 0 ]; then
+			v=0
+		else
+			v=$(((total - avail) * 100 / total))
+		fi
+	else
+		total=$(command sysctl -n hw.memsize 2> /dev/null)
+		if [ -z "$total" ] || [ "$total" = 0 ]; then
+			v=0
+		else
+			pagesize=$(command sysctl -n hw.pagesize 2> /dev/null)
+			[ -z "$pagesize" ] && pagesize=4096
+			while IFS= read -r line; do
+				case $line in
+				"Pages free:"*)
+					read -r _ _ free <<< "$line"
+					free=${free%.}
+					;;
+				"Pages inactive:"*)
+					read -r _ _ inactive <<< "$line"
+					inactive=${inactive%.}
+					;;
+				esac
+			done < <(command vm_stat 2> /dev/null)
+			avail=$(((free + inactive) * pagesize))
+			v=$(((total - avail) * 100 / total))
+		fi
+	fi
+	AB[$id]["cmem"]=$v
+	AB[$id]["mtime"]=$now
+	ret "$v"
 }
 
 about_open() {
@@ -172,6 +182,7 @@ about_open() {
 about_draw() {
 	local id=$1 w=$3 cpu mem bar barw=$((w - 12)) pct
 
+	command -v dt_want > /dev/null && dt_want "$AB_SLOWMS"
 	console pen "$DT_INK" "$DT_FACE" bold
 	console put -p "w$id" 1 2 "hibr $HIBR_VERSION"
 	console pen "$DT_INK" "$DT_FACE"
