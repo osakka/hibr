@@ -36,6 +36,38 @@ long tm_par(tm_t *t, int n, long def)
 	}
 }
 
+/* Parameter n's own sub-parameter, after a ':', or def when it has none.
+
+   SGR 4 is the one code a modern program actually sends one for: 4:0 turns
+   underline off and 4:1 upward picks a style, in place of the plain 4/24
+   pair older ones use. Reading 4:0 as plain 4 -- which strtol does on its
+   own, stopping at the ':' -- turns underline permanently on instead of
+   off, and never gives it back until a full SGR 0 arrives. Nothing else
+   here sends a colon, so nothing else needs this. */
+long tm_sub(tm_t *t, int n, long def)
+{
+	const char *p = t->pb.p ? t->pb.p : "";
+	int i = 0;
+
+	while (*p == '?' || *p == '>' || *p == '!')
+		p++;
+	for (;;) {
+		if (i == n) {
+			while (*p && *p != ';' && *p != ':')
+				p++;
+			if (*p != ':' || !*++p || *p < '0' || *p > '9')
+				return def;
+			return strtol(p, NULL, 10);
+		}
+		while (*p && *p != ';')
+			p++;
+		if (!*p)
+			return def;
+		p++;
+		i++;
+	}
+}
+
 /* How many parameters a CSI sequence carries. */
 int tm_npar(tm_t *t)
 {
@@ -123,7 +155,12 @@ void tm_sgr(tm_t *t)
 		case 1: t->attr |= DP_BOLD; break;
 		case 2: t->attr |= DP_DIM; break;
 		case 3: t->attr |= DP_ITAL; break;
-		case 4: t->attr |= DP_UNDER; break;
+		case 4:
+			if (tm_sub(t, i, -1) == 0)
+				t->attr &= ~DP_UNDER;
+			else
+				t->attr |= DP_UNDER;
+			break;
 		case 5:
 		case 6: t->attr |= DP_BLINK; break;
 		case 7: t->attr |= DP_REV; break;

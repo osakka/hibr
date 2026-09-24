@@ -9,7 +9,7 @@ program in a window (two of them, as two sessions), and the games prove
 animation on the clock.
 Run it directly:  python3 tests/apps.py [path-to-hibr]
 """
-import os, shutil, subprocess, sys, tempfile
+import os, re, shutil, subprocess, sys, tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
@@ -330,6 +330,15 @@ sc = run(*TERM, feed=[b"\x03"], pre=TRAP, wait=1.0, end=None)
 check("ctrl-c reaches the program in a focused terminal window",
       sc.find("caught") is not None, sc)
 
+# SGR 4's colon sub-parameter picks an underline style, and 0 means none --
+# a modern program uses 4:0 to turn underline off, in place of 24, and a
+# parser that reads only the digits up to the colon turns it on instead.
+UNDER = "TW_CMD=(/bin/sh -c 'printf \"\\033[4:0mWORD\\033[0m\"; sleep 5')"
+sc = run(*TERM, pre=UNDER, wait=1.0, end=None)
+m = re.search(rb"\x1b\[([0-9;]*)mWORD", sc.out)
+check("SGR 4:0 turns underline off, not on -- the colon is not a digit",
+      m is not None and b"4" not in m.group(1).split(b";"), sc)
+
 # Copy and paste: a drag selects, alt-c copies -- to the desktop and, with
 # OSC 52, to the clipboard of the terminal the desktop runs on -- and alt-v
 # pastes.  "row 30" is the top line once forty rows have gone past.
@@ -638,4 +647,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(108)
+report(109)
