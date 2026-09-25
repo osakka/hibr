@@ -11,23 +11,32 @@ command -v dt_keep > /dev/null && dt_keep CP_THEME
 CP_THEMES=(midnight slate forest ember paper dracula)
 CP_GLYPHS=("·" "░" "▒" "⋅" "+")
 
-# wall, dot, bar, active, idle, face, ink
+# wall, dot, bar, active, idle, face, ink, shadow -- shadow is console
+# darken's own pct: how much of a shadow's own colour survives once it is
+# darkened. 55 (its builtin default) is a soft, barely-there shadow against
+# a dark face, since scaling an already-low RGB value down by 45% is a
+# small absolute change; every theme here but paper has a dark face and
+# keeps it. Paper's face is close to white, where the same 45% cut lands
+# on a flat medium grey -- a hard block, not a shadow -- so it gets a much
+# smaller cut instead, chosen by rendering a menu at a few candidates and
+# comparing them to how subtle midnight's own shadow reads, not by eye
+# against paper alone.
 cp_theme() {
 	local t=$1
 
 	case $t in
 	midnight) set -- "#0d1b2a" "#16324a" "#1b3a5c" "#63b3ed" "#4a5568" \
-		"#101820" "#cbd5e0" ;;
+		"#101820" "#cbd5e0" 55 ;;
 	slate)    set -- "#1a202c" "#2d3748" "#2d3748" "#90cdf4" "#4a5568" \
-		"#171923" "#e2e8f0" ;;
+		"#171923" "#e2e8f0" 55 ;;
 	forest)   set -- "#0b1f16" "#14342a" "#14432f" "#68d391" "#3f5e51" \
-		"#0d1f18" "#d7e8de" ;;
+		"#0d1f18" "#d7e8de" 55 ;;
 	ember)    set -- "#1f1410" "#3a241c" "#4a2c1e" "#f6ad55" "#6b4a3a" \
-		"#1a110d" "#ecd9c6" ;;
+		"#1a110d" "#ecd9c6" 55 ;;
 	paper)    set -- "#e8e4da" "#d3cec1" "#c3bdae" "#2b6cb0" "#8a8578" \
-		"#f5f2ea" "#2d3748" ;;
+		"#f5f2ea" "#2d3748" 90 ;;
 	dracula)  set -- "#282a36" "#383a4c" "#44475a" "#bd93f9" "#6272a4" \
-		"#21222c" "#f8f8f2" ;;
+		"#21222c" "#f8f8f2" 55 ;;
 	*) return 1 ;;
 	esac
 	CP_THEME=$t
@@ -38,6 +47,7 @@ cp_theme() {
 	DT_IDLE=$5
 	DT_FACE=$6
 	DT_INK=$7
+	DT_SHADOW_PCT=$8
 }
 
 cp_set_theme() { cp_theme "$2" && cp_save; }

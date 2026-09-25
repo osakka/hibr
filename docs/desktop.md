@@ -42,6 +42,13 @@ dropdown's own popup -- casts one the same way, governed by its own
 `DT_MSHADOW` instead: a menu is drawn far more often than a window moves, so
 whether to pay for its shadow is a separate choice from a window's.
 
+How dark a shadow falls is `DT_SHADOW_PCT`, part of the theme rather than one
+constant: Appearance's `cp_theme` sets it alongside the other seven colours.
+Scaling an already-dark face down by console darken's own default (55, a 45%
+cut) is a small absolute change and reads as soft against a dark theme, but
+the same cut off paper's near-white face lands on a flat medium grey -- a
+hard block, not a shadow -- so paper alone gets a much gentler one.
+
 ## Icons on the desktop
 
 A clean desktop, down from the top right: **Home**, the mounted **disks** if

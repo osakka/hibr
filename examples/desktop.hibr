@@ -108,6 +108,16 @@ DT_SHADOW="${DT_SHADOW-1}"
 # the other should be able to say so.
 DT_MSHADOW="${DT_MSHADOW-1}"
 
+# How much a shadow darkens what is under it -- console darken's own pct,
+# kept per theme rather than as one constant. 55 (its builtin default)
+# reads as a soft, barely-there shadow against a dark face like midnight's,
+# because scaling an already-low RGB value down by 45% is a small absolute
+# change -- but the same 45% off paper's near-white face lands on a flat
+# medium grey, a hard-edged block rather than a shadow. Appearance's own
+# cp_theme sets this alongside the other seven colours; unset here only
+# matters before it is loaded at all.
+DT_SHADOW_PCT="${DT_SHADOW_PCT-55}"
+
 # What a double click on a title bar does -- zoom, minimise, close, or
 # nothing. DT_DBLMS is how close together the two clicks have to land, and
 # is not itself a setting: it is a threshold, not a preference.  DT_DBLID
@@ -129,7 +139,8 @@ DT_TICK="${DT_TICK-2000}"
 DT_CONF="${DT_CONF-${XDG_CONFIG_HOME:-$HOME/.config}/hibr/desktop.hibr}"
 DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 	DT_TICK DT_ICONS DT_DISKS DT_CURSOR DT_CURSOR_BLINK DT_SHADOW
-	DT_MSHADOW DT_DBLACTION CS_SIDE CS_Y CS_COLLAPSED CS_LEN CS_SHADOW)
+	DT_MSHADOW DT_DBLACTION DT_SHADOW_PCT CS_SIDE CS_Y CS_COLLAPSED CS_LEN
+	CS_SHADOW)
 
 # Where the desktop's stderr goes while it holds the screen, so an app's
 # error message cannot scribble over the display, and the reason for a
@@ -381,7 +392,8 @@ dt_win() {
 	local wr=${DT[$id]["row"]} wc=${DT[$id]["col"]} dr=${DT[$id]["draw"]}
 	local fixed=${DT_APPS[${DT[$id]["app"]}]["fixed"]}
 
-	[ "$DT_SHADOW" = 1 ] && console darken $((wr + 1)) $((wc + 2)) "$h" "$w"
+	[ "$DT_SHADOW" = 1 ] &&
+		console darken $((wr + 1)) $((wc + 2)) "$h" "$w" "$DT_SHADOW_PCT"
 	[ "$DT_FOCUS" = "$id" ] && on=$DT_ACTIVE
 	console pen "$DT_INK" "$DT_FACE"
 	console fill "$wr" "$wc" "$h" "$w" " "
@@ -2604,7 +2616,7 @@ dt_menu_draw() {
 	MB[$m]["dx"]=$x
 	MB[$m]["dw"]=$w
 	[ "$DT_MSHADOW" = 1 ] &&
-		console darken $((r + 1)) $((x + 2)) $((n + 1)) "$w"
+		console darken $((r + 1)) $((x + 2)) $((n + 1)) "$w" "$DT_SHADOW_PCT"
 	while [ "$i" -lt "$n" ]; do
 		if [ "${MI[$m][$i]["sep"]}" = 1 ]; then
 			console pen "$DT_IDLE" "$DT_FACE"
@@ -2648,7 +2660,7 @@ dt_drop_apps() {
 	n=$#
 	[ "$n" = 0 ] && n=1
 	[ "$DT_MSHADOW" = 1 ] &&
-		console darken $((r + 1)) $((x + 2)) $((n + 1)) "$w"
+		console darken $((r + 1)) $((x + 2)) $((n + 1)) "$w" "$DT_SHADOW_PCT"
 	for id in $ids; do
 		if [ "$i" = "$MB_SEL" ]; then
 			console pen "$DT_FACE" "$DT_ACTIVE" bold
@@ -3512,7 +3524,8 @@ dt_stripdraw() {
 	cnt := cs_count
 	w := cs_width
 	[ "$CS_SIDE" = left ] && col=0 || col=$((DT_COLS - w))
-	[ "$CS_SHADOW" = 1 ] && console darken $((row + 1)) $((col + 2)) 1 "$w"
+	[ "$CS_SHADOW" = 1 ] &&
+		console darken $((row + 1)) $((col + 2)) 1 "$w" "$DT_SHADOW_PCT"
 	console pen "$DT_INK" "$DT_FACE"
 	console fill "$row" "$col" 1 "$w" " "
 	c=$col

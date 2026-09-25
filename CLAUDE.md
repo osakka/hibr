@@ -802,6 +802,22 @@ went in the shell.
   line, then a second `local` statement for anything that reads `$id`,
   always works, the same as `mines_draw`'s own two-statement locals
   already do it.
+- **A percentage darken is theme-dependent, not one constant.** `console
+  darken`'s default (55, a 45% cut) scales a colour's own RGB value down by
+  that fraction, which is a small absolute change on an already-dark face
+  and reads as a soft, barely-there shadow -- but the same 45% off a
+  near-white face lands on a flat medium grey, a hard block rather than a
+  shadow. It shipped tuned only by eye against midnight, the default theme,
+  and looked wrong the first time anything was drawn over paper, the one
+  light theme: what read as a shadow elsewhere read as broken alignment
+  there, since its right-and-down offset (one row, two columns) is what a
+  real shadow looks like once it stops blending in and starts looking like
+  a second, misplaced box. `DT_SHADOW_PCT` is now part of the theme, next
+  to the other seven colours, chosen for paper by rendering a few
+  candidates and comparing them to how subtle midnight's own shadow reads,
+  not by eye against paper alone. A theme added later needs its own
+  considered value here, not a copy of 55 -- check it against a light face
+  before assuming it looks fine.
 
 ## Testing discipline
 
