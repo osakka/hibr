@@ -784,7 +784,8 @@ HPRE = "FB_DIR=%s" % HD
 
 sc = run("files", FW, [press(5, 10, 2)], pre=HPRE)
 check("a right-click opens a File menu at the pointer, on the entry there",
-      sc.find("Open") == (5, 12) and sc.find("Cut") is not None and
+      sc.find("Open") == (5, 12) and sc.find("Rename") is not None and
+      sc.find("Cut") is not None and
       sc.find("Copy") is not None and sc.find("Paste") is not None and
       sc.find("Info") is not None and sc.find("Move to Trash") is not None,
       sc)
@@ -795,10 +796,59 @@ sc = run("files", FW, [press(4, 10, 2)], pre=HPRE)
 check("right-clicking .. dims what does not apply to it",
       sc.find("Open") is not None and sc.at(4, 29) != "o", sc)
 
-sc = run("files", FW, [press(5, 10, 2), press(11, 12)], pre=HPRE, end=None)
-check("Info shows the entry's size and permissions",
-      sc.find("note.txt — 6B") is not None and
-      sc.find("-rw-") is not None, sc)
+# Rename and Get Info are real windows of their own, not a one-line note --
+# opened on the entry the context menu (or the keyboard: n and i, straight
+# from the browser) was aimed at.
+
+RD = tempfile.mkdtemp(prefix="hibr-rename-")
+open(os.path.join(RD, "old.txt"), "w").write("hi\n")
+RPRE = "FB_DIR=%s" % RD
+
+sc = run("files", FW, [b"\x1b[B", b"n"], pre=RPRE, end=None)
+check("n opens Rename on the selected entry, its name already there",
+      sc.find("┤ Rename ├") is not None and
+      sc.find("New name:") is not None and sc.find("old.txt") is not None,
+      sc)
+
+sc = run("files", FW, [b"\x1b[B", b"n", b"\x1b"], pre=RPRE)
+check("escape cancels it -- nothing on disk changes",
+      os.path.exists(os.path.join(RD, "old.txt")), sc)
+
+sc = run("files", FW,
+         [b"\x1b[B", b"n"] + [b"\x7f"] * 7 + [b"new.txt", b"\r"],
+         pre=RPRE)
+check("enter renames it and closes the window",
+      sc.find("new.txt") is not None and
+      sc.find("┤ Rename ├") is None, sc)
+check("and it is the real file on disk that moved",
+      os.path.exists(os.path.join(RD, "new.txt")) and
+      not os.path.exists(os.path.join(RD, "old.txt")), sc)
+shutil.rmtree(RD, True)
+
+sc = run("files", FW, [press(5, 10, 2), press(12, 12)], pre=HPRE, end=None)
+check("Info opens a real Get Info window with the entry's own details",
+      sc.find("┤ Get Info ├") is not None and
+      sc.find("Name: note.txt") is not None and
+      sc.find("Kind: file") is not None and
+      sc.find("Size: 6B") is not None and
+      sc.find("Owner:") is not None and sc.find("Group:") is not None,
+      sc)
+check("and the nine permission bits read as checkboxes, matching -rw-r--r--",
+      sc.at(13, 25) == "x" and sc.at(13, 29) == "x" and
+      sc.at(13, 33) == " " and
+      sc.at(14, 25) == "x" and sc.at(14, 29) == " ", sc)
+
+NP = os.path.join(HD, "note.txt")
+os.chmod(NP, 0o644)
+sc = run("files", FW, [press(5, 10, 2), press(12, 12), press(14, 29)],
+         pre=HPRE, end=None)
+check("clicking a permission box chmods the real file at once",
+      oct(os.stat(NP).st_mode & 0o777) == "0o664", sc)
+os.chmod(NP, 0o644)
+
+sc = run("files", FW, [press(5, 10, 2), press(12, 12), b"\x1b"], pre=HPRE)
+check("escape closes Get Info without applying a pending name edit",
+      os.path.exists(NP) and sc.find("┤ Get Info ├") is None, sc)
 
 sc = run("files", FW, [press(5, 10, 2), press(8, 12)], pre=HPRE)
 check("Cut puts its paths on the clipboard, the same as Copy does",
@@ -815,8 +865,8 @@ H2TWO = [("Files", "12 34 2 40", "files")]
 H2INTO = [press(5, 44), press(5, 44)]
 
 sc = run("files", FW,
-         H2INTO + [press(6, 10, 2), press(8, 12), press(4, 44, 2),
-                   press(8, 46)],
+         H2INTO + [press(6, 10, 2), press(9, 12), press(4, 44, 2),
+                   press(9, 46)],
          pre=H2PRE, also=H2TWO)
 check("Cut, then Paste elsewhere, moves the file rather than copying it",
       os.path.exists(os.path.join(HD2, "sub", "note.txt")) and
@@ -893,4 +943,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(138)
+report(141)

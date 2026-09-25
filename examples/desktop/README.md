@@ -378,6 +378,21 @@ columns with a caret after it: `value ▾`. Both take pane-relative
 coordinates, the same ones `_draw` and `_click` already use, and both
 default `tag` to `label`/`value` if left off.
 
+A single-line editable field is the same shape, split in two rather than
+one, since typing has to change what an app's own state holds and neither
+of the widgets above ever does that: `dt_textdraw id row col width text
+cursor focused` draws the text, padded or truncated to `width`, and --
+while `focused` -- the character at `cursor` shown inverted. `dt_textkey
+text cursor key` applies one key to that pair and returns the new one as
+`"text cursor"`, for the app's own state to hold; left, right, home, end,
+backspace and delete all do what they say, any other single character is
+inserted at the cursor, and anything else -- enter, escape, tab -- comes
+back unhandled (status 1, text and cursor unchanged), for the app's own
+`_key` to decide instead. The Files app's Rename and Get Info windows
+(`examples/desktop/apps/files.hibr`) are the bundled example: a name typed there
+is not applied until enter, unlike a checkbox, which always acts the
+moment it is clicked.
+
 `dt_hit id row col` answers which widget, if any, is at a click -- an app's
 `_click` asks it first, and falls back to its own per-row logic when it
 comes back empty:

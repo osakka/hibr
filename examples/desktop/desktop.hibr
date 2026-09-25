@@ -3190,6 +3190,65 @@ dt_wdrop() {
 	dt_wreg "$id" "$r" "$c" "$w" "$tag"
 }
 
+# Draw a single-line editable field: the text, padded or truncated to w,
+# and -- while focused -- the character at the cursor shown inverted, the
+# same convention a selected list row already uses. There is no dt_wreg
+# here: a field's own tag is for dt_hit to say a click landed on it, which
+# an app's _click uses to move the cursor there and give it focus, not to
+# fire an action the way a checkbox or a dropdown's arrow does.
+dt_textdraw() {
+	local id=$1 r=$2 c=$3 w=$4 text=$5 cur=$6 focused=$7 shown t ch
+
+	shown="$text"
+	[ ${#shown} -gt "$w" ] && shown="${shown:0:$w}"
+	console pen "$DT_INK" "$DT_FACE"
+	t := str pad "$shown" "$w"
+	console put -p "w$id" "$r" "$c" "$t"
+	if [ "$focused" = 1 ] && [ "$cur" -lt "$w" ]; then
+		ch=" "
+		[ "$cur" -lt "${#shown}" ] && ch="${shown:$cur:1}"
+		console pen "$DT_FACE" "$DT_INK" bold
+		console put -p "w$id" "$r" $((c + cur)) "$ch"
+	fi
+}
+
+# Apply one key to a text field's own (text, cursor) pair, returned as
+# "text cursor" for the caller's own state to hold -- an app keeps a
+# field in its own array, the same as dt_check and dt_wdrop never own the
+# value they draw either. Status is 1 for a key this does not handle
+# (enter, escape, tab...), so a caller's own _key still decides those for
+# itself; text and cursor come back unchanged in that case.
+dt_textkey() {
+	local text=$1 cur=$2 key=$3
+
+	case $key in
+	left) [ "$cur" -gt 0 ] && cur=$((cur - 1)) ;;
+	right) [ "$cur" -lt "${#text}" ] && cur=$((cur + 1)) ;;
+	home) cur=0 ;;
+	end) cur=${#text} ;;
+	backspace)
+		if [ "$cur" -gt 0 ]; then
+			text="${text:0:$((cur - 1))}${text:$cur}"
+			cur=$((cur - 1))
+		fi
+		;;
+	delete)
+		[ "$cur" -lt "${#text}" ] &&
+			text="${text:0:$cur}${text:$((cur + 1))}"
+		;;
+	*)
+		if [ ${#key} = 1 ]; then
+			text="${text:0:$cur}$key${text:$cur}"
+			cur=$((cur + 1))
+		else
+			ret "$text $cur"
+			return 1
+		fi
+		;;
+	esac
+	ret "$text $cur"
+}
+
 # Open a popup list of choices anchored under a dt_wdrop -- built the next
 # frame by dt_dropcontext, the same one-frame lag dt_context_open always
 # has. cb is called as "cb id value" when one is chosen; nothing runs if

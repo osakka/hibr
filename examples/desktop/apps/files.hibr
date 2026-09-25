@@ -24,11 +24,21 @@ app files "A file browser"
 # launch opens another window or brings this one forward.
 command -v dt_app > /dev/null && dt_app files "Files" 12 34 many "▤"
 
+# Rename and Get Info are windows of their own (dt_new, not dt_launch --
+# they are never on a menu, just opened directly on the entry that asked
+# for one), registered only so dt_win and dt_btn see fixed=1 for them the
+# same way any other fixed app does: one field or a handful is never worth
+# resizing.
+command -v dt_app > /dev/null && dt_app rn "Rename" 6 46 "" "" fixed
+command -v dt_app > /dev/null && dt_app gi "Get Info" 18 48 "" "" fixed
+
 # Per window, not per app.  Two browsers must be able to be in two different
 # directories; a global would put them both in the last one opened.  FB holds
 # each window's state and FL holds its listing.
 declare -gA FB
 declare -gA FL
+declare -gA RN
+declare -gA GI
 FILES_VIEWS=(list details icons)
 FILES_TILE=12
 FB_PATHS=()
@@ -193,6 +203,8 @@ fb_meta() {
 		FL[$id][$i]["size"]=
 		FL[$id][$i]["time"]=
 		FL[$id][$i]["perm"]=
+		FL[$id][$i]["user"]=
+		FL[$id][$i]["group"]=
 		i=$((i + 1))
 	done
 	out=$(LC_ALL=C ls -l -a "$d" 2> /dev/null)
@@ -205,6 +217,8 @@ fb_meta() {
 		FL[$id][$i]["perm"]=$perm
 		FL[$id][$i]["size"]=$size
 		FL[$id][$i]["time"]="$mon $day $tm"
+		FL[$id][$i]["user"]=$user
+		FL[$id][$i]["group"]=$group
 	done <<< "$out"
 	FB[$id]["meta"]=1
 }
@@ -544,6 +558,8 @@ files_key() {
 		;;
 	h) files_hidden "$id" ;;
 	v) files_cycle "$id" ;;
+	n) files_rename "$id" ;;
+	i) files_info "$id" ;;
 	delete) files_trash "$id" ;;
 	*) return 1 ;;
 	esac
@@ -578,20 +594,332 @@ fb_open() {
 	return 0
 }
 
-# What the entry under the cursor is: name, size, and permissions from the
-# same one-ls-per-folder metadata the details view uses.
-fb_info() {
-	local id=$1 sel=${FB[$1]["sel"]} nm sz
+# Rename: one field, a real window of its own. mv does the actual work,
+# the same command every move in this app already shells out to.
+files_rename() {
+	local id=$1 sel rid h=6 w=46 r c nm p
 
+	sel=${FB[$id]["sel"]}
 	[ "${FB[$id]["n"]}" = 0 ] && return 0
-	[ -n "${FB[$id]["meta"]}" ] || fb_meta "$id"
+	[ "${FL[$id][$sel]["kind"]}" = up ] && return 0
 	nm=${FL[$id][$sel]["name"]}
-	if [ "${FL[$id][$sel]["dir"]}" = 1 ]; then
-		dt_note "$nm — folder, ${FL[$id][$sel]["perm"]}"
+	p := fb_path "$id" "$sel"
+	r=$((DT_ROWS / 2 - h / 2))
+	c=$(((DT_COLS - w) / 2))
+	rid := dt_new "Rename" "$h" "$w" "$r" "$c" rn
+	RN[$rid]["dir"]=${FB[$id]["dir"]}
+	RN[$rid]["path"]=$p
+	RN[$rid]["text"]=$nm
+	RN[$rid]["cur"]=${#nm}
+}
+
+rn_draw() {
+	local id=$1 w=$3
+
+	console pen "$DT_INK" "$DT_FACE"
+	console put -p "w$id" 1 2 "New name:"
+	dt_textdraw "$id" 2 2 $((w - 4)) "${RN[$id]["text"]}" \
+		"${RN[$id]["cur"]}" 1
+	console pen "#718096" "$DT_FACE"
+	console put -p "w$id" 4 2 "enter renames · escape cancels"
+}
+
+rn_click() {
+	local id=$1 c=$3 cur
+
+	[ "$2" = 2 ] || return 0
+	cur=$((c - 2))
+	[ "$cur" -gt "${#RN[$id]["text"]}" ] && cur=${#RN[$id]["text"]}
+	[ "$cur" -lt 0 ] && cur=0
+	RN[$id]["cur"]=$cur
+}
+
+rn_commit() {
+	local id=$1 name dir old new
+
+	name=${RN[$id]["text"]}
+	dir=${RN[$id]["dir"]}
+	old=${RN[$id]["path"]}
+	if [ -z "$name" ] || [ "$name" = "." ] || [ "$name" = ".." ] ||
+	   [ "${name#*/}" != "$name" ]; then
+		dt_note "Not a valid name"
 		return 0
 	fi
-	sz := fb_human "${FL[$id][$sel]["size"]}"
-	dt_note "$nm — $sz, ${FL[$id][$sel]["perm"]}, ${FL[$id][$sel]["time"]}"
+	new="$dir/$name"
+	if [ "$new" = "$old" ]; then
+		dt_del "$id"
+		return 0
+	fi
+	if [ -e "$new" ] || [ -L "$new" ]; then
+		dt_note "${dir##*/} already has a $name"
+		return 0
+	fi
+	if command mv -- "$old" "$new" 2>> "$DT_LOG"; then
+		dt_del "$id"
+		dt_changed
+	else
+		dt_note "Could not rename it"
+	fi
+}
+
+rn_key() {
+	local id=$1 k=$2 res
+
+	case $k in
+	enter) rn_commit "$id"; return 0 ;;
+	escape) dt_del "$id"; return 0 ;;
+	esac
+	res := dt_textkey "${RN[$id]["text"]}" "${RN[$id]["cur"]}" "$k" ||
+		return 1
+	RN[$id]["text"]=${res% *}
+	RN[$id]["cur"]=${res#* }
+	return 0
+}
+
+rn_close() {
+	unset "RN[$1]"
+}
+
+# Get Info: name (so renaming lives here too, the same as it does in a
+# real Get Info panel), kind, size, where, when it last changed, owner
+# and group, and the nine permission bits -- read from the same one-ls
+# metadata the details view uses, applied with chmod and chown the moment
+# a box is clicked or, for the text fields, on enter.
+files_info() {
+	local id=$1 sel h=18 w=48 r c gid nm p isdir
+
+	sel=${FB[$id]["sel"]}
+	[ "${FB[$id]["n"]}" = 0 ] && return 0
+	[ "${FL[$id][$sel]["kind"]}" = up ] && return 0
+	[ -n "${FB[$id]["meta"]}" ] || fb_meta "$id"
+	nm=${FL[$id][$sel]["name"]}
+	p := fb_path "$id" "$sel"
+	isdir=${FL[$id][$sel]["dir"]}
+	r=$((DT_ROWS / 2 - h / 2))
+	c=$(((DT_COLS - w) / 2))
+	gid := dt_new "Get Info" "$h" "$w" "$r" "$c" gi
+	GI[$gid]["dir"]=${FB[$id]["dir"]}
+	GI[$gid]["path"]=$p
+	GI[$gid]["isdir"]=$isdir
+	GI[$gid]["size"]=${FL[$id][$sel]["size"]}
+	GI[$gid]["time"]=${FL[$id][$sel]["time"]}
+	GI[$gid]["namebuf"]=$nm
+	GI[$gid]["namecur"]=${#nm}
+	GI[$gid]["userbuf"]=${FL[$id][$sel]["user"]}
+	GI[$gid]["usercur"]=${#GI[$gid]["userbuf"]}
+	GI[$gid]["groupbuf"]=${FL[$id][$sel]["group"]}
+	GI[$gid]["groupcur"]=${#GI[$gid]["groupbuf"]}
+	GI[$gid]["origuser"]=${GI[$gid]["userbuf"]}
+	GI[$gid]["origgroup"]=${GI[$gid]["groupbuf"]}
+	GI[$gid]["focus"]=name
+	gi_permload "$gid" "${FL[$id][$sel]["perm"]}"
+}
+
+# x and s (setuid/sticky in the executable's own column) both still mean
+# the bit is set; anything else in that column (S, T, a bare -) does not.
+gi_permload() {
+	local id=$1 p=$2
+
+	GI[$id]["ur"]=0; [ "${p:1:1}" = r ] && GI[$id]["ur"]=1
+	GI[$id]["uw"]=0; [ "${p:2:1}" = w ] && GI[$id]["uw"]=1
+	GI[$id]["ux"]=0
+	case ${p:3:1} in x | s) GI[$id]["ux"]=1 ;; esac
+	GI[$id]["gr"]=0; [ "${p:4:1}" = r ] && GI[$id]["gr"]=1
+	GI[$id]["gw"]=0; [ "${p:5:1}" = w ] && GI[$id]["gw"]=1
+	GI[$id]["gx"]=0
+	case ${p:6:1} in x | s) GI[$id]["gx"]=1 ;; esac
+	GI[$id]["or"]=0; [ "${p:7:1}" = r ] && GI[$id]["or"]=1
+	GI[$id]["ow"]=0; [ "${p:8:1}" = w ] && GI[$id]["ow"]=1
+	GI[$id]["ox"]=0
+	case ${p:9:1} in x | t) GI[$id]["ox"]=1 ;; esac
+}
+
+gi_draw() {
+	local id=$1 w=$3 sz nfoc ofoc gfoc
+
+	dt_wclear "$id"
+	console pen "$DT_INK" "$DT_FACE"
+	console put -p "w$id" 1 2 "Name:"
+	nfoc=0; [ "${GI[$id]["focus"]}" = name ] && nfoc=1
+	dt_textdraw "$id" 1 8 $((w - 10)) "${GI[$id]["namebuf"]}" \
+		"${GI[$id]["namecur"]}" "$nfoc"
+	dt_wreg "$id" 1 8 $((w - 10)) name
+
+	console pen "$DT_INK" "$DT_FACE"
+	console put -p "w$id" 2 2 "Kind:"
+	if [ "${GI[$id]["isdir"]}" = 1 ]; then
+		console put -p "w$id" 2 8 "folder"
+	else
+		console put -p "w$id" 2 8 "file"
+		sz := fb_human "${GI[$id]["size"]}"
+		console put -p "w$id" 3 2 "Size: $sz"
+	fi
+	console put -p "w$id" 4 2 "Where:"
+	console put -p "w$id" 4 9 "${GI[$id]["dir"]:0:$((w - 11))}"
+	console put -p "w$id" 5 2 "Modified: ${GI[$id]["time"]}"
+
+	console put -p "w$id" 7 2 "Owner:"
+	ofoc=0; [ "${GI[$id]["focus"]}" = owner ] && ofoc=1
+	dt_textdraw "$id" 7 9 12 "${GI[$id]["userbuf"]}" \
+		"${GI[$id]["usercur"]}" "$ofoc"
+	dt_wreg "$id" 7 9 12 owner
+	console put -p "w$id" 7 24 "Group:"
+	gfoc=0; [ "${GI[$id]["focus"]}" = group ] && gfoc=1
+	dt_textdraw "$id" 7 31 12 "${GI[$id]["groupbuf"]}" \
+		"${GI[$id]["groupcur"]}" "$gfoc"
+	dt_wreg "$id" 7 31 12 group
+
+	console pen "#718096" "$DT_FACE"
+	console put -p "w$id" 9 9 "R"
+	console put -p "w$id" 9 13 "W"
+	console put -p "w$id" 9 17 "X"
+	console pen "$DT_INK" "$DT_FACE"
+	console put -p "w$id" 10 2 "Owner"
+	dt_check "$id" 10 8 "${GI[$id]["ur"]}" "" perm:ur
+	dt_check "$id" 10 12 "${GI[$id]["uw"]}" "" perm:uw
+	dt_check "$id" 10 16 "${GI[$id]["ux"]}" "" perm:ux
+	console put -p "w$id" 11 2 "Group"
+	dt_check "$id" 11 8 "${GI[$id]["gr"]}" "" perm:gr
+	dt_check "$id" 11 12 "${GI[$id]["gw"]}" "" perm:gw
+	dt_check "$id" 11 16 "${GI[$id]["gx"]}" "" perm:gx
+	console put -p "w$id" 12 2 "Other"
+	dt_check "$id" 12 8 "${GI[$id]["or"]}" "" perm:or
+	dt_check "$id" 12 12 "${GI[$id]["ow"]}" "" perm:ow
+	dt_check "$id" 12 16 "${GI[$id]["ox"]}" "" perm:ox
+
+	console pen "#718096" "$DT_FACE"
+	console put -p "w$id" 14 2 "enter applies · escape closes"
+}
+
+gi_chmod() {
+	local id=$1 u=0 g=0 o=0
+
+	[ "${GI[$id]["ur"]}" = 1 ] && u=$((u + 4))
+	[ "${GI[$id]["uw"]}" = 1 ] && u=$((u + 2))
+	[ "${GI[$id]["ux"]}" = 1 ] && u=$((u + 1))
+	[ "${GI[$id]["gr"]}" = 1 ] && g=$((g + 4))
+	[ "${GI[$id]["gw"]}" = 1 ] && g=$((g + 2))
+	[ "${GI[$id]["gx"]}" = 1 ] && g=$((g + 1))
+	[ "${GI[$id]["or"]}" = 1 ] && o=$((o + 4))
+	[ "${GI[$id]["ow"]}" = 1 ] && o=$((o + 2))
+	[ "${GI[$id]["ox"]}" = 1 ] && o=$((o + 1))
+	if command chmod "$u$g$o" -- "${GI[$id]["path"]}" 2>> "$DT_LOG"; then
+		dt_changed
+	else
+		dt_note "Could not change permissions"
+	fi
+}
+
+gi_click() {
+	local id=$1 r=$2 c=$3 tag cur
+
+	tag := dt_hit "$id" "$r" "$c"
+	case $tag in
+	name)
+		GI[$id]["focus"]=name
+		cur=$((c - 8))
+		[ "$cur" -gt "${#GI[$id]["namebuf"]}" ] &&
+			cur=${#GI[$id]["namebuf"]}
+		[ "$cur" -lt 0 ] && cur=0
+		GI[$id]["namecur"]=$cur
+		;;
+	owner)
+		GI[$id]["focus"]=owner
+		cur=$((c - 9))
+		[ "$cur" -gt "${#GI[$id]["userbuf"]}" ] &&
+			cur=${#GI[$id]["userbuf"]}
+		[ "$cur" -lt 0 ] && cur=0
+		GI[$id]["usercur"]=$cur
+		;;
+	group)
+		GI[$id]["focus"]=group
+		cur=$((c - 31))
+		[ "$cur" -gt "${#GI[$id]["groupbuf"]}" ] &&
+			cur=${#GI[$id]["groupbuf"]}
+		[ "$cur" -lt 0 ] && cur=0
+		GI[$id]["groupcur"]=$cur
+		;;
+	perm:*)
+		if [ "${GI[$id]["${tag#perm:}"]}" = 1 ]; then
+			GI[$id]["${tag#perm:}"]=0
+		else
+			GI[$id]["${tag#perm:}"]=1
+		fi
+		gi_chmod "$id"
+		;;
+	esac
+}
+
+gi_apply() {
+	local id=$1 old dir name new own grp ok=1
+
+	old=${GI[$id]["path"]}
+	dir=${GI[$id]["dir"]}
+	name=${GI[$id]["namebuf"]}
+	if [ -n "$name" ] && [ "$name" != "." ] && [ "$name" != ".." ] &&
+	   [ "${name#*/}" = "$name" ]; then
+		new="$dir/$name"
+		if [ "$new" != "$old" ]; then
+			if [ -e "$new" ] || [ -L "$new" ]; then
+				dt_note "${dir##*/} already has a $name"
+				ok=0
+			elif command mv -- "$old" "$new" 2>> "$DT_LOG"; then
+				old=$new
+				GI[$id]["path"]=$new
+				dt_changed
+			else
+				dt_note "Could not rename it"
+				ok=0
+			fi
+		fi
+	fi
+	own=${GI[$id]["userbuf"]}
+	grp=${GI[$id]["groupbuf"]}
+	if [ "$own" != "${GI[$id]["origuser"]}" ] ||
+	   [ "$grp" != "${GI[$id]["origgroup"]}" ]; then
+		if command chown "$own:$grp" -- "$old" 2>> "$DT_LOG"; then
+			dt_changed
+		else
+			dt_note "Could not change owner or group"
+			ok=0
+		fi
+	fi
+	[ "$ok" = 1 ] && dt_del "$id"
+}
+
+gi_key() {
+	local id=$1 k=$2 res field buf cur
+
+	case $k in
+	escape) dt_del "$id"; return 0 ;;
+	enter) gi_apply "$id"; return 0 ;;
+	tab)
+		case ${GI[$id]["focus"]} in
+		name) GI[$id]["focus"]=owner ;;
+		owner) GI[$id]["focus"]=group ;;
+		*) GI[$id]["focus"]=name ;;
+		esac
+		return 0
+		;;
+	esac
+	field=${GI[$id]["focus"]}
+	case $field in
+	name) buf=${GI[$id]["namebuf"]}; cur=${GI[$id]["namecur"]} ;;
+	owner) buf=${GI[$id]["userbuf"]}; cur=${GI[$id]["usercur"]} ;;
+	group) buf=${GI[$id]["groupbuf"]}; cur=${GI[$id]["groupcur"]} ;;
+	*) return 1 ;;
+	esac
+	res := dt_textkey "$buf" "$cur" "$k" || return 1
+	case $field in
+	name) GI[$id]["namebuf"]=${res% *}; GI[$id]["namecur"]=${res#* } ;;
+	owner) GI[$id]["userbuf"]=${res% *}; GI[$id]["usercur"]=${res#* } ;;
+	group) GI[$id]["groupbuf"]=${res% *}; GI[$id]["groupcur"]=${res#* } ;;
+	esac
+	return 0
+}
+
+gi_close() {
+	unset "GI[$1]"
 }
 
 # Open the entry under the cursor with a specific handler, chosen from Open
@@ -820,9 +1148,11 @@ files_context() {
 	fi
 	dt_sep
 	if [ "$none" = 1 ]; then
+		dt_dim "Rename"
 		dt_dim "Cut"
 		dt_dim "Copy"
 	else
+		dt_item "Rename" n files_rename "$id"
 		dt_item "Cut" t dt_edit cut
 		dt_item "Copy" c dt_edit copy
 	fi
@@ -836,7 +1166,7 @@ files_context() {
 		dt_dim "Info"
 		dt_dim "Move to Trash"
 	else
-		dt_item "Info" i fb_info "$id"
+		dt_item "Info" i files_info "$id"
 		dt_item "Move to Trash" x files_trash "$id"
 	fi
 }
