@@ -479,31 +479,23 @@ fb_drawicons() {
 	done
 }
 
-# A scrollbar when the list is longer than the window.
+# A scrollbar when the list is longer than the window, via the shared
+# dt_scrollbar every scrollable window uses. n and vis are items, not
+# rows, when per (the icon view's columns) is more than one -- rows and
+# shown convert them, and dt_scrollbar's own gate gets the right answer
+# from those rather than from n and vis directly.
 fb_bar() {
-	local id=$1 h=$2 w=$3 n per vis top rows shown y0 r thumb
+	local id=$1 h=$2 w=$3 n per vis top rows shown y0
 
 	n=${FB[$id]["n"]}
 	per=${FB[$id]["per"]}
 	vis=${FB[$id]["vis"]}
 	top=${FB[$id]["top"]}
 	y0=${FB[$id]["y0"]}
-	[ "$n" -gt "$vis" ] || return 0
 	rows=$(((n + per - 1) / per))
 	shown=$((vis / per))
-	thumb=$((y0 + (top / per) * (h - y0 - 1) / (rows - shown)))
-	[ "$thumb" -ge "$h" ] && thumb=$((h - 1))
-	r=$y0
-	while [ "$r" -lt "$h" ]; do
-		if [ "$r" = "$thumb" ]; then
-			console pen "#63b3ed" "$DT_FACE"
-			console put -p "w$id" "$r" "$w" "█"
-		else
-			console pen "#2d3748" "$DT_FACE"
-			console put -p "w$id" "$r" "$w" "│"
-		fi
-		r=$((r + 1))
-	done
+	dt_scrollbar "$id" "$y0" "$w" $((h - y0)) "$rows" "$shown" \
+		$((top / per))
 }
 
 # Keys.  The arrows move the cursor and leave only it selected; with shift

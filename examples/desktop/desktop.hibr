@@ -193,6 +193,14 @@ DT_BTNSIDE="${DT_BTNSIDE-right}"
 DT_TITLEALIGN="${DT_TITLEALIGN-left}"
 DT_BTNSTYLE="${DT_BTNSTYLE-brackets}"
 
+# Whether a plain side (not just a corner) resizes too -- one dimension,
+# the opposite edge anchored. On by default; off leaves the four corners
+# as the only way, the same as before this existed. There is no top edge
+# of its own regardless: row wr is the title bar over its whole width, so
+# the two top corners are the only way to resize from above a window,
+# with this on or off.
+DT_EDGERESIZE="${DT_EDGERESIZE-1}"
+
 # How often the desktop wakes and redraws with nothing else asking for a
 # turn -- see dt_want and dt_run for why 2000 costs nothing in latency.
 DT_TICK="${DT_TICK-2000}"
@@ -207,7 +215,7 @@ DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 	DT_TICK DT_ICONS DT_DISKS DT_CURSOR DT_CURSOR_BLINK DT_SHADOW
 	DT_MSHADOW DT_BARSHADOW DT_DBLACTION DT_SHADOW_PCT CS_SIDE CS_Y
 	CS_COLLAPSED CS_LEN CS_SHADOW
-	DT_FRAME DT_BTNSIDE DT_TITLEALIGN DT_BTNSTYLE)
+	DT_FRAME DT_BTNSIDE DT_TITLEALIGN DT_BTNSTYLE DT_EDGERESIZE)
 
 # Where the desktop's stderr goes while it holds the screen, so an app's
 # error message cannot scribble over the display, and the reason for a
@@ -801,6 +809,30 @@ dt_mouse() {
 				DT_SIZE_AR=$wr; DT_SIZE_AC=$((wc + ww - 1))
 				return 0
 			fi
+			# A side, not just a corner -- one dimension only, the
+			# opposite edge anchored. There is no top edge of its own:
+			# row wr is the title bar over its whole width, so the two
+			# top corners are the only way to resize from above it.
+			if [ "$DT_EDGERESIZE" = 1 ]; then
+				if [ "$mc" = "$wc" ] && [ "$mr" -gt "$wr" ] &&
+				   [ "$mr" -lt $((wr + wh - 1)) ]; then
+					DT_SIZE=$id; DT_SIZECORNER=l
+					DT_SIZE_AC=$((wc + ww - 1))
+					return 0
+				fi
+				if [ "$mc" = $((wc + ww - 1)) ] && [ "$mr" -gt "$wr" ] &&
+				   [ "$mr" -lt $((wr + wh - 1)) ]; then
+					DT_SIZE=$id; DT_SIZECORNER=r
+					DT_SIZE_AC=$wc
+					return 0
+				fi
+				if [ "$mr" = $((wr + wh - 1)) ] && [ "$mc" -gt "$wc" ] &&
+				   [ "$mc" -lt $((wc + ww - 1)) ]; then
+					DT_SIZE=$id; DT_SIZECORNER=b
+					DT_SIZE_AR=$wr
+					return 0
+				fi
+			fi
 		fi
 		if [ "$mr" -ne "$wr" ]; then
 			mo=${DT[$id]["mouse"]}
@@ -1070,6 +1102,25 @@ dt_cornersize() {
 		[ "$c" -gt $((ac - DT_MINW + 1)) ] && c=$((ac - DT_MINW + 1))
 		DT[$id]["col"]=$c
 		dt_resize "$id" $((mr - ar + 1)) $((ac - c + 1))
+		;;
+	l)
+		# One dimension only: the left edge moves, height and the right
+		# edge (ac) do not, the same clamp as tl's own column half.
+		c=$mc
+		[ "$c" -lt 0 ] && c=0
+		[ "$c" -gt $((ac - DT_MINW + 1)) ] && c=$((ac - DT_MINW + 1))
+		DT[$id]["col"]=$c
+		dt_resize "$id" "${DT[$id]["h"]}" $((ac - c + 1))
+		;;
+	r)
+		# The mirror of l: the right edge moves, the left one (ac) does
+		# not, so dt_resize's own clamp on the width is all this needs.
+		dt_resize "$id" "${DT[$id]["h"]}" $((mc - ac + 1))
+		;;
+	b)
+		# The mirror of r, the other axis: the bottom edge moves, the
+		# top one (ar) does not.
+		dt_resize "$id" $((mr - ar + 1)) "${DT[$id]["w"]}"
 		;;
 	*)
 		dt_resize "$id" $((mr - ar + 1)) $((mc - ac + 1))
@@ -3247,6 +3298,32 @@ dt_textkey() {
 		;;
 	esac
 	ret "$text $cur"
+}
+
+# A vertical scrollbar: a track of │ over h rows starting at row0, one
+# cell shown as the thumb █ at a position proportional to how far through
+# total the view already is. shown is how many of total are visible at
+# once; nothing is drawn when everything already is, the same as a
+# checkbox or a dropdown draws nothing it was not asked for. The shape
+# the file browser's own list view and a terminal's scrollback both need,
+# so a fix or a restyle is one place, not two.
+dt_scrollbar() {
+	local id=$1 row0=$2 col=$3 h=$4 total=$5 shown=$6 pos=$7 thumb r
+
+	[ "$total" -gt "$shown" ] || return 0
+	thumb=$((row0 + pos * (h - 1) / (total - shown)))
+	[ "$thumb" -ge $((row0 + h)) ] && thumb=$((row0 + h - 1))
+	r=$row0
+	while [ "$r" -lt $((row0 + h)) ]; do
+		if [ "$r" = "$thumb" ]; then
+			console pen "#63b3ed" "$DT_FACE"
+			console put -p "w$id" "$r" "$col" "█"
+		else
+			console pen "#2d3748" "$DT_FACE"
+			console put -p "w$id" "$r" "$col" "│"
+		fi
+		r=$((r + 1))
+	done
 }
 
 # Open a popup list of choices anchored under a dt_wdrop -- built the next

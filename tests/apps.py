@@ -389,6 +389,14 @@ check("Button Style cycles from brackets to circles",
       sc.find("Button Style") is not None and
       "circles" in sc.row(sc.find("Button Style")[0]), sc)
 
+sc = cprun(DOWN_WS + [b"\x1b[C"] + [b"\x1b[B"] * 4)
+check("Edge Resize defaults on",
+      sc.find("Edge Resize") is not None and
+      "[x]" in sc.row(sc.find("Edge Resize")[0]), sc)
+sc = cprun(DOWN_WS + [b"\x1b[C"] + [b"\x1b[B"] * 4 + [b"\r"])
+check("and it can be switched off",
+      "[ ]" in sc.row(sc.find("Edge Resize")[0]), sc)
+
 sc = cprun([press(R0, LISTCOL), press(R0, LISTCOL)])
 check("clicking the same pane twice in the picker is harmless",
       sc.find(TITLE[ORDER[0]]) is not None, sc)
@@ -565,6 +573,23 @@ check("shift-pageup pages back a screenful less one",
 sc = run(*TERM, feed=[wheel(8, 10), b"x"], pre=LONG, wait=1.2, end=None)
 check("and a key goes back to the live screen",
       sc.find("↑") is None and sc.find("row 40") is not None, sc)
+
+# DT_TERMBAR: off by default (a real column of the pty, not just a drawn
+# one, so it stays opt-in the same way DT_CURSOR_BLINK and the shadows do).
+sc = run(*TERM, pre=LONG, wait=1.2, end=None)
+check("DT_TERMBAR is off by default -- no scrollbar column, full width",
+      sc.at(3, 44) != "│" and sc.at(3, 45) == "│", sc)
+
+sc = run(*TERM, feed=[wheel(8, 10)], pre=LONG, wait=1.2, end=None,
+         env={"DT_TERMBAR": "1"})
+check("on, a scrollbar tracks the view -- one column short of the border, "
+      "the one it bought back from the program",
+      sc.at(3, 44) == "│" and sc.at(3, 45) == "│" and
+      sc.at(11, 44) == "█", sc)
+
+sc = run(*TERM, wait=1.2, end=None, env={"DT_TERMBAR": "1"})
+check("but nothing draws there at all with no scrollback yet to show",
+      sc.at(3, 44) != "│" and sc.at(3, 45) == "│", sc)
 
 TRAP = ("TW_CMD=(/bin/sh -c 'trap \"echo caught\" INT; "
         "while :; do sleep 0.1; done')")
@@ -943,4 +968,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(141)
+report(146)

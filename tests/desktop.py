@@ -666,6 +666,36 @@ check("a fixed window's top-left corner moves it instead -- no drag can "
       "resize it, from any corner",
       sc.find("┤ Fixed ├") == (4, 10), sc)
 
+# A plain side, not just a corner, resizes too -- one dimension only, the
+# opposite edge anchored. There is no top edge of its own: row wr is the
+# title bar over its whole width, so the two top corners stay the only
+# way to resize from above a window.
+sc, _ = run(ONE, [press(9, 39), drag(9, 50), release(9, 50)])
+check("the right edge resizes width alone, the left edge and height "
+      "anchored",
+      sc.at(6, 50) == "┐" and sc.at(6, 10) == "┌" and
+      sc.at(13, 10) == "└", sc)
+
+sc, _ = run(ONE, [press(9, 10), drag(9, 2), release(9, 2)])
+check("the left edge resizes width from that side instead, the right "
+      "edge anchored",
+      sc.at(9, 2) == "│" and sc.at(6, 39) == "┐" and
+      sc.at(13, 39) == "◢", sc)
+
+sc, _ = run(ONE, [press(13, 20), drag(18, 20), release(18, 20)])
+check("the bottom edge resizes height alone, the top and width anchored",
+      sc.at(18, 10) == "└" and sc.at(6, 10) == "┌" and
+      sc.at(6, 39) == "┐", sc)
+
+sc, _ = run(ONE, [press(9, 39), drag(9, 50), release(9, 50)],
+            env={"DT_EDGERESIZE": "0"})
+check("DT_EDGERESIZE=0 turns edge resizing off, corners still work",
+      sc.at(6, 39) == "┐", sc)
+
+sc, _ = run(FIXED_TL, [press(8, 29), drag(8, 40), release(8, 40)])
+check("a fixed window's edges do not resize it either",
+      sc.g[6][10] == "┌" and sc.g[6][29] == "┐", sc)
+
 # --- the window menu, and items that cannot be chosen ---------------------
 
 # Where Window sits on the bar: after the app's two menus and Edit when the
@@ -1454,4 +1484,4 @@ check("ending it leaves the other one alone",
       "personal" in r.stdout and "work" not in r.stdout, r.stdout)
 unsession()
 
-report(218)
+report(223)

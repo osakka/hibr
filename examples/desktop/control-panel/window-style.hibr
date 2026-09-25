@@ -18,6 +18,16 @@ cp_set_side() { DT_BTNSIDE=$2; cp_save; }
 cp_set_align() { DT_TITLEALIGN=$2; cp_save; }
 cp_set_btnstyle() { DT_BTNSTYLE=$2; cp_save; }
 
+# Whether a plain side, not just a corner, resizes a window too.
+cp_edgeresize() {
+	if [ "$DT_EDGERESIZE" = 1 ]; then
+		DT_EDGERESIZE=0
+	else
+		DT_EDGERESIZE=1
+	fi
+	cp_save
+}
+
 window_style_rows() {
 	local w=$1 n=0
 
@@ -31,6 +41,10 @@ window_style_rows() {
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Button Style"
 	CP[$w][$n]["val"]="$DT_BTNSTYLE"; CP[$w][$n]["key"]=btnstyle
 	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Edge Resize"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_EDGERESIZE" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=edgeresize; n=$((n + 1))
 	ret "$n"
 }
 
@@ -46,6 +60,7 @@ window_style_do() {
 	       DT_TITLEALIGN=$v ;;
 	btnstyle) v := cp_next "$DT_BTNSTYLE" "$dir" "${WS_STYLES[@]}"
 	          DT_BTNSTYLE=$v ;;
+	edgeresize) cp_edgeresize ;;
 	esac
 	cp_save
 }

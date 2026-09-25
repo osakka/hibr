@@ -35,6 +35,14 @@ declare -gA TW
 # What a window opened on a file runs: hibr's own editor, handed the path.
 [ -n "${TW_EDIT[*]}" ] || TW_EDIT=(hibr -c 'mod load hvi && hvi "$1"' hvi)
 
+# Whether a scrollbar is drawn down the right edge, showing how far back
+# the view has scrolled through what term keeps -- and a real column of
+# the pty spent on it, the same as an xterm's own gutter takes one. Off
+# by default: that is a real behaviour change for anything reading
+# $COLUMNS, not just a cosmetic one, so it stays opt-in.
+DT_TERMBAR="${DT_TERMBAR-0}"
+command -v dt_keep > /dev/null && dt_keep DT_TERMBAR
+
 # Start the program the first time there is a window to put it in, and keep
 # its size in step with the window afterwards.
 tw_fit() {
@@ -73,9 +81,16 @@ tw_fit() {
 }
 
 term_draw() {
-	local id=$1 h=$2 w=$3 wr=$4 wc=$5 t st sb cur=0 ms
+	local id=$1 h=$2 w=$3 wr=$4 wc=$5 t st sb cur=0 ms tw view stored
 
-	tw_fit "$id" "$h" "$w" || return 0
+	tw=$w
+	# A visible scrollbar costs the program inside a real column, not just
+	# a drawn one: with DT_TERMBAR on, the pty itself is one narrower, the
+	# same way an xterm's own scrollbar takes a fixed gutter rather than
+	# only appearing (and only then resizing the program under it) once
+	# there is something to scroll back through.
+	[ "$DT_TERMBAR" = 1 ] && [ "$tw" -gt 1 ] && tw=$((w - 1))
+	tw_fit "$id" "$h" "$tw" || return 0
 	t=${TW[$id]["t"]}
 	term poll "$t" 0
 	if ! term alive "$t"; then
@@ -93,13 +108,22 @@ term_draw() {
 		ms := dt_ms
 		[ $(((ms / 500) % 2)) = 1 ] && cur=0
 	fi
-	term draw "$t" $((wr + 1)) $((wc + 1)) "$h" "$w" "$cur"
+	term draw "$t" $((wr + 1)) $((wc + 1)) "$h" "$tw" "$cur"
 	sb := term scroll "$t"
-	if [ "${sb% *}" != 0 ]; then
+	view=${sb% *}
+	stored=${sb#* }
+	if [ "$view" != 0 ]; then
 		console pen "$DT_FACE" "#ecc94b" bold
-		sb=" ↑ ${sb% *} of ${sb#* } "
-		console put -p "w$id" 1 $((w + 1 - ${#sb})) "$sb"
+		sb=" ↑ $view of $stored "
+		console put -p "w$id" 1 $((tw + 1 - ${#sb})) "$sb"
 	fi
+	# tw columns is all the pty was given, so its own content never
+	# reaches column w (pane-relative) at all when the two differ -- that
+	# is the one column DT_TERMBAR bought back, and the only place the
+	# scrollbar draws.
+	[ "$DT_TERMBAR" = 1 ] &&
+		dt_scrollbar "$id" 0 "$w" "$h" $((stored + h)) "$h" \
+			$((stored - view))
 	# A key's echo comes back after the frame that sent it, so a terminal
 	# that was just typed into asks for the next one soon rather than in
 	# DT_TICK -- but only for a brief window after an actual key, not for

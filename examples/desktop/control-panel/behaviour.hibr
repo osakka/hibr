@@ -77,6 +77,17 @@ cp_barshadow() {
 	cp_save
 }
 
+# Whether a terminal shows a scrollbar -- and spends a real column of the
+# pty on it -- see DT_TERMBAR in examples/desktop/apps/term.hibr.
+cp_termbar() {
+	if [ "$DT_TERMBAR" = 1 ]; then
+		DT_TERMBAR=0
+	else
+		DT_TERMBAR=1
+	fi
+	cp_save
+}
+
 behaviour_rows() {
 	local w=$1 n=0
 
@@ -116,6 +127,13 @@ behaviour_rows() {
 		CP[$w][$n]["val"]="$AB_SLOWMS ms"; CP[$w][$n]["key"]=about
 		n=$((n + 1))
 	fi
+	if [ -n "$DT_TERMBAR" ]; then
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Terminal Scrollbar"
+		CP[$w][$n]["wtype"]=bool
+		CP[$w][$n]["val"]=off
+		[ "$DT_TERMBAR" = 1 ] && CP[$w][$n]["val"]=on
+		CP[$w][$n]["key"]=termbar; n=$((n + 1))
+	fi
 	ret "$n"
 }
 
@@ -137,6 +155,7 @@ behaviour_do() {
 	       AB_SLOWMS=$v ;;
 	dblaction) v := cp_next "$DT_DBLACTION" "$dir" "${CP_DBLACTIONS[@]}"
 		DT_DBLACTION=$v ;;
+	termbar) cp_termbar ;;
 	esac
 	cp_save
 }
