@@ -93,7 +93,7 @@ it.
 Built: stacking and hit testing in the console (`console pane raise|lower|drop|list`
 and `console hit row col`), the window manager itself
 (`examples/desktop/desktop.hibr`, a script), a session that opens three windows on it
-(`examples/desktop/desktop-session.hibr`), and 34 tests driving both through a pty.
+(`examples/desktop/session.hibr`), and 34 tests driving both through a pty.
 Dragging, focus, minimise, zoom, close, tab cycling, and keys and clicks
 reaching the focused app all work.
 

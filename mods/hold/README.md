@@ -6,7 +6,7 @@ over ssh, with everything as it was. It is what `dtach` does, and the part of
 `tmux` and `screen` that matters for a desktop: the program never stops, so
 nothing has to be saved and restored.
 
-    hold new desk hibr examples/desktop/desktop-session.hibr   # start it, attached
+    hold new desk hibr examples/desktop/session.hibr   # start it, attached
     ...ctrl-\ ...                                       # detach
     hold attach desk                                    # later, from anywhere
 

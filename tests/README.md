@@ -63,7 +63,7 @@ fixed one. Do not write a seventh; add what is missing to `screen.py`.
 It is also runnable, which is what to reach for instead of a throwaway script:
 
 ```
-python3 tests/screen.py examples/desktop/desktop-session.hibr
+python3 tests/screen.py examples/desktop/session.hibr
 python3 tests/screen.py -c 'mod load build/mods/mon.so; mon'
 ```
 

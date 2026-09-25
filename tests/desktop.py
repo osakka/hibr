@@ -931,6 +931,15 @@ arrow = sc.find("▸")
 check("the strip docks left by default, roughly 80% down the screen",
       arrow is not None and arrow[0] > ROWS * 3 // 4, sc)
 row = arrow[0]
+
+# A saved CS_Y is a preference, not a promise, the same as an icon's own
+# saved spot -- dt_size clamps it on open (and on every resize) rather
+# than baking the clamp into the saved value, so it is pulled back onto
+# the screen here without losing what was actually saved.
+sc2, _ = run("", env={"CS_Y": "500"}, pre=CSSRC)
+arrow2 = sc2.find("▸")
+check("a saved position past the edge of the screen is pulled back onto it",
+      arrow2 is not None and arrow2[0] == ROWS - 1, sc2)
 # cursor, shadow, theme, wallpaper: alphabetical file order, its own full
 # name in each bracket rather than a single glyph nobody could read
 # without already knowing what it meant -- verified as one exact string
@@ -1018,17 +1027,8 @@ check("scrolling all the way back reaches the first module again",
       sc.row(row)[0:9] == "[Cursor]▸", sc)
 shutil.rmtree(sc.conf, True)
 
-# A hover motion (a "drag" report whose own button decodes to none) marks
-# where the pointer is without needing a click -- left/right then scroll
-# the strip the same way the wheel does, as long as the pointer sits on it.
-HOVER_ON_STRIP = drag(row, 1, button=3)
-
-sc = csrun(SHRINK + [HOVER_ON_STRIP, b"\x1b[C"])
-check("hovering over the strip lets the right arrow scroll it too",
-      sc.row(row)[0:9] == "[Shadow]▸", sc)
-shutil.rmtree(sc.conf, True)
-
-# With no mouse at all, its own shortcut gives it attention instead --
+# With no mouse at all (or simply preferred), its own shortcut gives it
+# attention instead --
 # right still scrolls it, escape or the same shortcut again releases it.
 sc = csrun(SHRINK + [b"\x1bs", b"\x1b[C"])
 check("the strip's own shortcut scrolls it with no mouse involved",
@@ -1230,7 +1230,7 @@ t.close()
 
 # --- the shipped session holds itself, and --resume comes back to it -----
 #
-# examples/desktop/desktop-session.hibr calls dt_autohold on its own, so running it
+# examples/desktop/session.hibr calls dt_autohold on its own, so running it
 # plainly makes it detachable without anyone asking hold for that by hand;
 # running it again without --resume must not start a second, independent
 # one under the same name, and --resume is how you get back to it.
@@ -1240,7 +1240,7 @@ RENV = {"HOME": RESUME, "TMPDIR": RESUME,
         "XDG_CONFIG_HOME": os.path.join(RESUME, "config"),
         "XDG_STATE_HOME": os.path.join(RESUME, "state"),
         "XDG_DATA_HOME": os.path.join(RESUME, "data")}
-SESSION = tree("examples/desktop/desktop-session.hibr")
+SESSION = tree("examples/desktop/session.hibr")
 
 
 def unresume():

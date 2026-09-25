@@ -16,7 +16,7 @@ describe them:
 
 Try it:
 
-    ./build/hibr examples/desktop/desktop-session.hibr
+    ./build/hibr examples/desktop/session.hibr
 
 Drag a title bar to move a window and the `◢` in its bottom-right corner to
 resize it. `_` minimises, `□` fills the screen, `x` closes. `tab` cycles, `escape` brings back a minimised window, and `q` quits
@@ -201,13 +201,13 @@ are the only two keys the desktop takes from a program: see the amendment in
 
 The shipped session holds itself, so this is already detachable:
 
-    hibr examples/desktop/desktop-session.hibr
+    hibr examples/desktop/session.hibr
 
 **ctrl-\\** detaches, and so does **Detach** on the hibr menu; the desktop
 keeps running, terminal windows and whatever runs in them included. Log off,
 log in somewhere else, and
 
-    hibr examples/desktop/desktop-session.hibr --resume
+    hibr examples/desktop/session.hibr --resume
 
 comes back to it exactly as it was, redrawn in full -- the same command,
 with one flag, from anywhere. Closing the terminal or losing an ssh
@@ -507,13 +507,19 @@ which is not, the same as a file browser does not remember its own
 scroll position either.
 
 Shortened below its full width, the modules that no longer fit are still
-there to scroll to: the wheel, while the pointer sits on the strip; the
-left and right arrow keys, the same way, once `console mouse motion`
-reports where the pointer is even with no button held; or, with no mouse
-in reach at all, `alt-s` (rebindable like the desktop's other four
+there to scroll to: the wheel, while the pointer sits on the strip, from
+wherever the wheel event itself lands; or, with no mouse in reach at all
+(or simply preferred), `alt-s` (rebindable like the desktop's other four
 shortcuts) gives the strip explicit attention until escape or `alt-s`
-again releases it, and the same arrow keys scroll it regardless of where
-the pointer happens to be.
+again releases it, and the left and right arrow keys scroll it regardless
+of where the pointer happens to be. An earlier version also scrolled it by
+hovering the pointer over it with no click at all, which needed `console
+mouse motion` (XTerm mode 1003, reporting every movement rather than only
+clicks and drags) -- removed once it turned out to cost a continuous
+stream of escape sequences on every mouse movement anywhere on screen,
+breaking a real terminal's own shift-drag copy convention and making the
+desktop's own selection band lag behind the pointer. Not worth a hover
+convenience.
 
 A module calls `cs_module name title [width]` to register -- `title` is
 what is drawn in its own brackets, and (once there is one) what a tooltip

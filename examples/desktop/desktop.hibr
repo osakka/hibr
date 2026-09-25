@@ -212,9 +212,20 @@ dt_open() {
 	dt_load
 	console open || return 1
 	console signals off
-	# motion, not just drag: the strip needs to know when the pointer is
-	# over it with no button held, for the wheel and hover both.
-	console mouse motion
+	# Click and drag only, not motion: reporting every movement with no
+	# button held (XTerm mode 1003) was tried for the strip's own hover
+	# highlight, and cost far more than that was worth -- a continuous
+	# stream of escape sequences on every mouse movement anywhere on
+	# screen, whether or not anything in hibr cared, which broke a real
+	# terminal's own copy-and-paste convention (holding shift to bypass
+	# app mouse reporting only ever had to suppress clicks and drags, not
+	# a flood of plain movement) and made the desktop's own selection
+	# band lag well behind the pointer, queued behind stale hover reports
+	# from a moment earlier. The strip still scrolls by wheel (the wheel
+	# event carries its own position) and by keyboard once given
+	# attention with its own shortcut; only hovering it with the mouse
+	# and getting no click at all is gone.
+	console mouse drag
 	console cursor off
 	# mkdir is a process, and startup should not pay for one per folder
 	# every time: only when the folder is not there yet.
@@ -232,6 +243,7 @@ dt_size() {
 	DT_ROWS=${sz% *}
 	DT_COLS=${sz#* }
 	dt_iconlay
+	cs_clamp
 }
 
 # Give the terminal back.
@@ -517,26 +529,6 @@ dt_btn() {
 # it is quoted, and arithmetic never sees the quotes, so DT[$id][col] inside
 # $(( )) would mean DT[$id][5] here.
 
-# Where the pointer last was, with no button held -- `console mouse motion`
-# reports this too, as a "drag" whose own button decodes to "none", so
-# dt_mouse hands it straight to here rather than falling into the button
-# logic below. Nothing here redraws on every cell crossed, which a plain
-# wave of the mouse would be, at whatever rate the terminal reports motion
-# at: only entering or leaving something that cares -- so far, only the
-# strip -- is a real change worth a frame for.
-DT_HOVERR=
-DT_HOVERC=
-dt_hover() {
-	local was=0 is=0
-
-	cs_hit "$DT_HOVERR" "$DT_HOVERC" && was=1
-	DT_HOVERR=$1
-	DT_HOVERC=$2
-	cs_hit "$DT_HOVERR" "$DT_HOVERC" && is=1
-	[ "$was" = "$is" ] && return 0
-	dt_draw
-}
-
 dt_mouse() {
 	local act=${1##*-} mr mc mods
 	local id b wr wc wh ww ap mo now dr dc
@@ -548,11 +540,6 @@ dt_mouse() {
 	wheelup | wheeldown) mr=$1; mc=$2 ;;
 	*) mr=$2; mc=$3 ;;
 	esac
-
-	if [ "$act" = drag ] && [ "$1" = none ]; then
-		dt_hover "$mr" "$mc"
-		return 0
-	fi
 
 	case $act in
 	press)
@@ -907,12 +894,12 @@ dt_event() {
 		dt_mkey "$k" && return 0
 		return 0
 	fi
-	# The strip takes left/right ahead of the focused window, either while
-	# the pointer sits over it (no click needed, the same as the wheel
-	# already works) or, with no mouse at all, once CS_ATTN has been given
-	# to it explicitly by its own shortcut.
+	# The strip takes left/right ahead of the focused window once CS_ATTN
+	# has been given to it explicitly by its own shortcut -- there is no
+	# mouse involved here at all; the wheel scrolls it separately, from
+	# wherever the pointer actually is when it turns.
 	if [ "$k" = left ] || [ "$k" = right ]; then
-		if [ "$CS_ATTN" = 1 ] || cs_hit "$DT_HOVERR" "$DT_HOVERC"; then
+		if [ "$CS_ATTN" = 1 ]; then
 			if [ "$k" = left ]; then
 				cs_scroll -1
 			else
@@ -3402,6 +3389,19 @@ cs_modules() {
 cs_y() {
 	[ -z "$CS_Y" ] && CS_Y=$((DT_ROWS * 8 / 10))
 	ret "$CS_Y"
+}
+
+# Pulled onto the screen the same way an icon's own saved spot is: a
+# preference, not a promise, clamped every time dt_size runs (on open and
+# on every resize) rather than baked into the saved value -- so a strip
+# dragged near the bottom of a tall screen is still reachable after a
+# resize to a shorter one, and lands back where it was if the screen grows
+# again. A never-set CS_Y is left alone; cs_y's own default already
+# accounts for whatever DT_ROWS turns out to be.
+cs_clamp() {
+	[ -z "$CS_Y" ] && return 0
+	[ "$CS_Y" -lt 1 ] && CS_Y=1
+	[ "$CS_Y" -ge "$DT_ROWS" ] && CS_Y=$((DT_ROWS - 1))
 }
 
 # How many modules are actually shown -- every one of them, unless the

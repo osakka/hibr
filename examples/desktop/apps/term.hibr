@@ -100,9 +100,19 @@ term_draw() {
 		sb=" ↑ ${sb% *} of ${sb#* } "
 		console put -p "w$id" 1 $((w + 1 - ${#sb})) "$sb"
 	fi
-	# A key's echo comes back after the frame that sent it, so a focused
-	# terminal asks for the next one soon rather than in DT_TICK.
-	[ "$DT_FOCUS" = "$id" ] && dt_want 30
+	# A key's echo comes back after the frame that sent it, so a terminal
+	# that was just typed into asks for the next one soon rather than in
+	# DT_TICK -- but only for a brief window after an actual key, not for
+	# as long as it stays focused. A terminal sitting focused with nobody
+	# typing into it used to ask for this every single frame regardless,
+	# which is a permanent 2000ms-to-30ms wake-frequency increase (about
+	# 66x) for as long as any terminal has focus at all: measured at
+	# roughly 30 dt_draw calls a second, continuously, with one idle
+	# focused terminal open and nothing being typed into it.
+	if [ "$DT_FOCUS" = "$id" ]; then
+		ms := dt_ms
+		[ $((ms - ${TW[$id]["kt"]:-0})) -lt 200 ] && dt_want 30
+	fi
 	return 0
 }
 
@@ -118,6 +128,7 @@ term_key() {
 	shift-pagedown) term scroll "$t" $((1 - h)) ;;
 	*) term key "$t" "$2" ;;
 	esac
+	TW[$1]["kt"] := dt_ms
 }
 
 # The mouse belongs to the program when it has asked for it -- vi, htop and

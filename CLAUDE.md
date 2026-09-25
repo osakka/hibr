@@ -34,7 +34,7 @@ Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 14).
     ./build/hibr tests/self.hibr                 # suite in hibr, 91 assertions, planned
     python3 tests/{console,cat,most,hvi,mon,mtr,editor,desktop,apps}.py
                                  # the full-screen suites, each through a pty
-    python3 tests/screen.py examples/desktop/desktop-session.hibr
+    python3 tests/screen.py examples/desktop/session.hibr
                                  # the same harness, to look rather than assert
     python3 tests/diff.py --shell ./build/hibr 250   # snippets, diffed against bash
     python3 tests/corpus.py --list <file>        # real scripts, run under both shells

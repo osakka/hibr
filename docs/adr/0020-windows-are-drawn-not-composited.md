@@ -247,7 +247,7 @@ Each step is usable before the next one starts.
    `lower`, `drop` and `list`, and `console hit row col`. Sixty lines of C,
    and everything after this is script.
 2. **One window that can be dragged and closed.** *Done.* `examples/desktop/desktop.hibr`
-   is the window manager; `examples/desktop/desktop-session.hibr` is a session that
+   is the window manager; `examples/desktop/session.hibr` is a session that
    opens three windows on it. `tests/desktop.py` drives both through a pty and
    reads the screen back.
 3. **Two windows, focus, and minimise.** *Done*, with zoom as well, since it
