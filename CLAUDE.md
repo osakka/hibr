@@ -101,7 +101,7 @@ linked, and no OpenSSL headers are needed to build.
 | `src/mod.c` | module loading |
 | `mods/*.c` | reference modules: `sys`, `http` (scheme), `ls` |
 | `examples/desktop.hibr` | the window manager, in hibr — see `docs/desktop.md` |
-| `examples/apps/` | apps for it: a calculator, a file browser, a control panel, a terminal, and three games (snake, mines, bricks) |
+| `examples/apps/` | apps for it: a file browser, a control panel, a terminal, a task manager, About hibr, and three games (snake, mines, bricks) -- the desk accessories (calculator, clock, an image viewer, a note pad, a sliding puzzle) are `examples/desk-accessories/` instead |
 | `tests/screen.py` | **the** pty harness and terminal model, shared by every full-screen suite |
 | `mods/prompt/` | the prompt module, including a native reader for git's object store — see `mods/README.md` for the file-by-file breakdown |
 | `mods/console/` | the text display: alternate screen, cell grid with damage-based redraw, panes, decoded keys — see `mods/console/README.md` |
@@ -115,6 +115,7 @@ linked, and no OpenSSL headers are needed to build.
 | `mods/pty/` | pseudo terminals: run a program on one and drive it — see `mods/pty/README.md` |
 | `mods/term/` | a terminal emulator: a program's screen as cells, drawn into a window — see `mods/term/README.md` |
 | `mods/hold/` | sessions that outlive their terminal: detach, log off, attach again — see `mods/hold/README.md` |
+| `mods/img/` | decode an image and draw it as terminal cells, jp2a-alike, libpng dlopen'd on first use — see `mods/img/README.md` |
 
 Each directory carries its own `README.md` with the detail: `src/`, `include/`,
 `mods/`, `tests/`, `examples/`. User-facing documentation is under `docs/`, and
@@ -833,6 +834,12 @@ went in the shell.
   pattern that can match the harness's own command line.
 - Re-record an `.expected` file only after reading the diff and agreeing the
   new behaviour is correct.
+- **The `.expected` file is named after the test, not the test file.**
+  `tests/830-img.t`'s own recorded file is `tests/830-img.expected` --
+  `tests/830-img.t.expected` does not error, it just never matches
+  `$here/$name.expected` in `run.sh`, so the test silently falls through to
+  being compared against bash instead and fails there in a way that looks
+  like a behaviour bug rather than a typo'd filename.
 
 ## Owner's preferences for the work
 

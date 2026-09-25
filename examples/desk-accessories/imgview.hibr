@@ -1,0 +1,73 @@
+#!/usr/bin/env hibr
+#
+# imgview -- a picture in a window, drawn by the img module. Opens with a
+# path (dt_launch imgview "$path", the same as any other app takes one
+# through its own _open), or empty and waiting for one dropped onto it from
+# a file browser -- there is no file-open dialog anywhere in this desktop,
+# so a drop is the only way in short of already knowing the path.
+
+app imgview "A picture in a window"
+
+command -v dt_app > /dev/null && dt_app imgview "Image Viewer" 16 40 "" "◧"
+
+# Per window, not per app: two viewers must be able to show two different
+# pictures. Everything an app remembers goes under the window id it was
+# handed, because a global is shared by every window of the same app.
+declare -gA IV
+
+imgview_open() {
+	IV[$1]["path"]=$2
+}
+
+imgview_close() {
+	unset "IV[$1]"
+}
+
+imgview_draw() {
+	local id=$1 h=$2 w=$3 wr=$4 wc=$5 path=${IV[$1]["path"]}
+
+	if [ -z "$path" ]; then
+		console pen "$DT_IDLE" "$DT_FACE"
+		console put -p "w$id" $((h / 2)) 2 "Drop a picture here to open it"
+		return 0
+	fi
+	if ! dt_has img && [ -z "${IV[$id]["tried"]}" ]; then
+		IV[$id]["tried"]=1
+		need img
+	fi
+	if dt_has img; then
+		img draw "$path" $((wr + 1)) $((wc + 1)) "$h" "$w" &&
+			return 0
+	fi
+	console pen "#f56565" "$DT_FACE"
+	console put -p "w$id" $((h / 2)) 2 "Cannot show ${path##*/}"
+}
+
+# A file dragged in from a file browser replaces whatever was shown.
+imgview_drop() {
+	local id=$1
+
+	shift 3
+	IV[$id]["path"]=$1
+}
+
+imgview_menus() {
+	dt_menu "Image"
+	dt_item "Set as Wallpaper" w imgview_setwall "$DT_FOCUS"
+}
+
+imgview_setwall() {
+	local path=${IV[$1]["path"]}
+
+	if [ -z "$path" ]; then
+		dt_note "No picture open to set as wallpaper"
+		return 0
+	fi
+	DT_WALLIMG=$path
+	dt_save
+	dt_note "Wallpaper set"
+}
+
+if [ -z "$DT_ROWS" ] && [ -n "$1" ]; then
+	command -v img > /dev/null && img "$1"
+fi

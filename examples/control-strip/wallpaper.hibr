@@ -23,5 +23,6 @@ wallpaper_click() {
 
 wallpaper_pick() {
 	DT_GLYPH=$1
+	DT_WALLIMG=
 	dt_save
 }

@@ -1040,6 +1040,47 @@ check("escape releases it, so the same arrow goes back to being unhandled",
       sc.row(row)[0:9] == "[Cursor]▸", sc)
 shutil.rmtree(sc.conf, True)
 
+# --- the wallpaper and the image viewer -----------------------------------
+#
+# img (mods/img) decodes a PNG and draws it as coloured half-blocks -- the
+# desktop reads DT_WALLIMG the same way it already reads DT_GLYPH, and the
+# desk accessory imgview is the only way to set one short of hand-editing
+# the saved config. tests/img-2x2.png (red, green / blue, yellow, one pixel
+# each) is the same fixture 830-img.t itself is recorded against.
+
+IMGMOD = 'mod load %s\n' % tree("build/mods/img.so")
+IMGFIX = tree("tests/img-2x2.png")
+DASRC = 'DA_DIRS+=("%s")\nda_apps\n' % tree("examples/desk-accessories")
+
+sc, raw = run("", env={"DT_WALLIMG": IMGFIX}, pre=IMGMOD)
+check("a real image can be the desktop's own wallpaper",
+      b"38;2;255;0;0" in raw and b"48;2;0;0;255" in raw, raw)
+
+sc, raw = run("", env={"DT_WALLIMG": "/does/not/exist.png"}, pre=IMGMOD)
+check("an unusable wallpaper image falls back to the glyph instead",
+      sc.row(1)[0:1] == "·", sc)
+
+sc, raw = run('dt_launch imgview "%s"' % IMGFIX, pre=IMGMOD + DASRC)
+check("the image viewer opens with a picture and draws it",
+      sc.find("Image Viewer") is not None and
+      b"38;2;255;0;0" in raw and b"48;2;0;0;255" in raw, sc)
+
+sc, raw = run("dt_launch imgview", pre=IMGMOD + DASRC)
+check("opened with no picture, it says so instead of showing nothing",
+      sc.find("Drop a picture here") is not None, sc)
+
+WCONF = tempfile.mkdtemp(prefix="hibr-imgview-")
+menurow = sc.find("Image")[0]
+sc, raw = run('dt_launch imgview "%s"' % IMGFIX,
+              feed=[press(menurow, 4), release(menurow, 4),
+                    press(menurow + 1, 4), release(menurow + 1, 4)],
+              env={"XDG_CONFIG_HOME": WCONF}, pre=IMGMOD + DASRC)
+saved = os.path.join(WCONF, "hibr", "desktop.hibr")
+text = open(saved).read() if os.path.exists(saved) else ""
+check("Set as Wallpaper on its own Image menu sets and saves DT_WALLIMG",
+      ("DT_WALLIMG=%s" % IMGFIX) in text, text)
+shutil.rmtree(WCONF, True)
+
 LAUNCH = MENU + [b"c"]
 sc, raw = run("", feed=LAUNCH + LAUNCH, pre=APPS)
 # 'c' launches Control Panel, not Clock -- Clock moved to Desk Accessories
@@ -1293,4 +1334,4 @@ check("ending it leaves the other one alone",
       "personal" in r.stdout and "work" not in r.stdout, r.stdout)
 unsession()
 
-report(188)
+report(193)

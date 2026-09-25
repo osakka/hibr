@@ -1,0 +1,11 @@
+0
+[38;2;255;0;0;48;2;0;0;255m▀[38;2;0;255;0;48;2;255;255;0m▀[0m
+.*
+rc=0
+rc=0
+hibr: cannot open tests/does-not-exist.png
+rc=1
+hibr: tests/img-2x2.jpg: only .png is decoded so far (see issue #39)
+rc=1
+hibr: usage: img [-g] [-w cols] [-h rows] file
+rc=2

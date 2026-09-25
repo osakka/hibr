@@ -25,9 +25,11 @@ endif
 ifeq ($(UNAME),Darwin)
 LDFLAGS = -Wl,-export_dynamic
 SOFLAGS = -dynamiclib -undefined dynamic_lookup
+DLLIB =
 else
 LDFLAGS = -rdynamic -ldl
 SOFLAGS = -shared
+DLLIB = -ldl
 endif
 
 B = build
@@ -39,7 +41,7 @@ MODS = $(B)/mods/sys.so $(B)/mods/http.so $(B)/mods/ls.so $(B)/mods/prompt.so \
        $(B)/mods/trace.so $(B)/mods/most.so \
        $(B)/mods/hvi.so $(B)/mods/mon.so \
        $(B)/mods/sysinfo.so $(B)/mods/pty.so \
-       $(B)/mods/term.so $(B)/mods/hold.so
+       $(B)/mods/term.so $(B)/mods/hold.so $(B)/mods/img.so
 PROMPT_SRC = $(wildcard mods/prompt/*.c)
 CONSOLE_SRC = $(wildcard mods/console/*.c)
 PTY_SRC = $(wildcard mods/pty/*.c)
@@ -102,6 +104,11 @@ TRACE_SRC = $(wildcard mods/trace/*.c)
 
 $(B)/mods/trace.so: $(TRACE_SRC) include/hibr.h mods/trace/tr.h mods/display.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(TRACE_SRC)
+
+IMG_SRC = $(wildcard mods/img/*.c)
+
+$(B)/mods/img.so: $(IMG_SRC) include/hibr.h mods/img/im.h mods/display.h | $(B)/mods
+	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(IMG_SRC) $(DLLIB)
 
 $(B)/mods/%.so: mods/%.c include/hibr.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $<

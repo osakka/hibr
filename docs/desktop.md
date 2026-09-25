@@ -55,6 +55,24 @@ cut) is a small absolute change and reads as soft against a dark theme, but
 the same cut off paper's near-white face lands on a flat medium grey -- a
 hard block, not a shadow -- so paper alone gets a much gentler one.
 
+## The wallpaper
+
+`dt_wall` fills the whole screen before anything else draws: `DT_GLYPH`
+repeated (`·` by default, Appearance's own Wallpaper row and the strip's
+`wallpaper` module both cycle it), or a real picture in `DT_WALLIMG` instead
+when one is set. A picture is decoded and drawn by the `img` module
+(`mods/img`, `need img` on first use so a desktop that never sets one never
+loads it) -- `img draw` blits it straight into the display, resampled to
+fill the screen exactly, cached by the module itself so a redraw every
+frame does not mean a decode every frame. The two are mutually exclusive in
+the UI: picking a glyph clears `DT_WALLIMG`, and a picture wins over the
+glyph when both happen to be set. Setting one at all means opening a
+picture in the desk accessory `imgview` (drop a file onto it, since there
+is no file-open dialog anywhere in this desktop) and choosing "Set as
+Wallpaper" from its own **Image** menu. If the file cannot be decoded --
+moved, deleted, not actually a PNG -- `dt_wall` falls back to the glyph
+rather than leaving the screen blank.
+
 ## Icons on the desktop
 
 A clean desktop, down from the top right: **Home**, the mounted **disks** if
@@ -457,6 +475,7 @@ The bundled accessories live in `examples/desk-accessories/`:
 |---|---|
 | `calc` | a calculator, and `hibr calc.hibr '3 * 4'` on its own |
 | `clock` | the time, large, and the date under it |
+| `imgview` | a picture in a window, decoded and drawn by the `img` module -- drop one on it to open it, there is no file-open dialog |
 | `notepad` | one plain-text scratch note, saved to disk the moment it changes -- no word wrap, no search; `hvi` is the real editor |
 | `puzzle` | the sliding tile puzzle, 4 by 4. Arrows or a click move the gap; shuffled by real moves from solved, so it is always solvable |
 

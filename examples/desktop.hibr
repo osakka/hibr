@@ -89,6 +89,17 @@ DT_FACE="${DT_FACE-#101820}"
 DT_INK="${DT_INK-#cbd5e0}"
 DT_GLYPH="${DT_GLYPH-·}"
 
+# A real image as the wallpaper instead of the repeated glyph, drawn by the
+# img module (mods/img) if it can be loaded -- empty means the glyph, same
+# as it always has been. Setting one and setting DT_GLYPH are mutually
+# exclusive in the UI (Appearance's Wallpaper row, the strip's own wallpaper
+# module) for the same reason a radio button only shows one choice at a
+# time, but nothing stops a hand-edited config from having both; DT_WALLIMG
+# wins when it does. DT_WALLTRIED is not a setting -- it just stops dt_wall
+# from retrying `need img` every single frame once it is known not to load.
+DT_WALLIMG="${DT_WALLIMG-}"
+DT_WALLTRIED=
+
 # The cursor a new terminal starts with, until the program inside it asks
 # for one of its own with DECSCUSR -- block, underline or bar.
 DT_CURSOR="${DT_CURSOR-block}"
@@ -144,6 +155,7 @@ DT_TICK="${DT_TICK-2000}"
 # variable of its own kept names it with dt_keep.
 DT_CONF="${DT_CONF-${XDG_CONFIG_HOME:-$HOME/.config}/hibr/desktop.hibr}"
 DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
+	DT_WALLIMG
 	DT_TICK DT_ICONS DT_DISKS DT_CURSOR DT_CURSOR_BLINK DT_SHADOW
 	DT_MSHADOW DT_BARSHADOW DT_DBLACTION DT_SHADOW_PCT CS_SIDE CS_Y
 	CS_COLLAPSED CS_LEN CS_SHADOW)
@@ -383,8 +395,20 @@ dt_rep() {
 # Paint the wallpaper.  The bar is drawn afterwards, over the windows, so a
 # drop-down menu covers them.
 dt_wall() {
-	console pen "$DT_DOT" "$DT_WALL"
-	console fill 0 0 "$DT_ROWS" "$DT_COLS" "$DT_GLYPH"
+	local drawn=
+
+	if [ -n "$DT_WALLIMG" ]; then
+		if ! dt_has img && [ -z "$DT_WALLTRIED" ]; then
+			DT_WALLTRIED=1
+			need img
+		fi
+		dt_has img && img draw "$DT_WALLIMG" 0 0 "$DT_ROWS" "$DT_COLS" &&
+			drawn=1
+	fi
+	if [ -z "$drawn" ]; then
+		console pen "$DT_DOT" "$DT_WALL"
+		console fill 0 0 "$DT_ROWS" "$DT_COLS" "$DT_GLYPH"
+	fi
 	if [ "$DT_ICONS" = 1 ]; then
 		[ $((EPOCHSECONDS - DI_SCANT)) -ge 3 ] && dt_deskscan
 		dt_icondraw
@@ -1781,8 +1805,11 @@ dt_runhandler() {
 }
 
 # Open a path: a folder in a file browser, a registered extension with its
-# own handler, and anything else in a terminal with hvi, since every file a
-# terminal can show is one it can edit.
+# own handler, a picture in the image viewer if one is loaded, and anything
+# else in a terminal with hvi, since every file a terminal can show is one
+# it can edit. A user's own dt_handler for the same extension is checked
+# first and wins, the same rule a file of your own replacing a bundled app
+# already follows elsewhere.
 dt_openfile() {
 	local ext
 
@@ -1793,6 +1820,8 @@ dt_openfile() {
 	ext := dt_ext "$1"
 	if [ -n "${DT_HANDLERS[$ext]["n"]}" ]; then
 		dt_runhandler "$ext" "$1"
+	elif [ "$ext" = png ] && dt_has imgview_open; then
+		dt_launch imgview "$1"
 	elif [ -n "${DT_APPS[term]["title"]}" ]; then
 		dt_launch term "$1"
 	else

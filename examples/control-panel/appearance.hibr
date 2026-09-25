@@ -50,8 +50,12 @@ cp_theme() {
 	DT_SHADOW_PCT=$8
 }
 
+# Picking a glyph is choosing the plain wallpaper over a real image, the
+# same as picking one theme is choosing it over another -- so it clears
+# DT_WALLIMG rather than leaving it set underneath a glyph that would never
+# actually show while an image wins in dt_wall.
 cp_set_theme() { cp_theme "$2" && cp_save; }
-cp_set_glyph() { DT_GLYPH=$2; cp_save; }
+cp_set_glyph() { DT_GLYPH=$2; DT_WALLIMG=; cp_save; }
 
 appearance_rows() {
 	local w=$1 n=0
@@ -59,7 +63,12 @@ appearance_rows() {
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Theme"
 	CP[$w][$n]["val"]="$CP_THEME"; CP[$w][$n]["key"]=theme; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Wallpaper"
-	CP[$w][$n]["val"]="$DT_GLYPH"; CP[$w][$n]["key"]=glyph; n=$((n + 1))
+	if [ -n "$DT_WALLIMG" ]; then
+		CP[$w][$n]["val"]="(image)"
+	else
+		CP[$w][$n]["val"]="$DT_GLYPH"
+	fi
+	CP[$w][$n]["key"]=glyph; n=$((n + 1))
 	ret "$n"
 }
 
@@ -70,7 +79,7 @@ appearance_do() {
 	theme) v := cp_next "$CP_THEME" "$dir" "${CP_THEMES[@]}"
 	       cp_theme "$v" ;;
 	glyph) v := cp_next "$DT_GLYPH" "$dir" "${CP_GLYPHS[@]}"
-	       DT_GLYPH=$v ;;
+	       DT_GLYPH=$v; DT_WALLIMG= ;;
 	esac
 	cp_save
 }
