@@ -1,0 +1,7 @@
+#!/usr/bin/env hibr
+#
+# desktop -- the hibr desktop, wherever it was installed. @DESKDIR@ is
+# filled in at install time (see the Makefile's own install target); this
+# file is a template, not run directly.
+
+exec hibr "@DESKDIR@/session.hibr" "$@"

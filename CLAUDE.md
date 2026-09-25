@@ -27,7 +27,9 @@ Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 14).
     make TLS=0           # compile TLS out entirely
     make CC=gcc OPT=-O2  # optimised: ~20% smaller text, ~45% faster, not the default
     make check           # = tests/run.sh
-    make install         # PREFIX=/usr/local, modules to $(PREFIX)/lib/hibr
+    make install         # PREFIX=/usr/local, modules to $(PREFIX)/lib/hibr,
+                         # the desktop to $(PREFIX)/share/hibr/desktop and
+                         # a `desktop` launcher to $(PREFIX)/bin
     ./build/hibr -n script      # parse only
 
     tests/run.sh [-v] [prefix]           # C-side harness, 82 tests

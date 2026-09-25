@@ -385,6 +385,7 @@ install)
 	maybe_chsh
 	say ""
 	say "hibr $(srcver) is at $BIN"
+	say "the desktop is at $PREFIX/bin/desktop -- run it to try it"
 	case ":$PATH:" in
 	*":$PREFIX/bin:"*) ;;
 	*) say "note: $PREFIX/bin is not on your PATH" ;;

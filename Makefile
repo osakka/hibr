@@ -51,6 +51,8 @@ CAT_SRC = $(wildcard mods/cat/*.c)
 
 PREFIX ?= /usr/local
 MODDIR ?= $(PREFIX)/lib/hibr
+SHAREDIR ?= $(PREFIX)/share/hibr
+DESKDIR = $(SHAREDIR)/desktop
 SHCFLAGS = $(CFLAGS) -DHIBR_MODDIR=\"$(MODDIR)\"
 
 all: $(BIN) $(MODS)
@@ -129,10 +131,17 @@ install: all
 	install -m 755 $(BIN) $(DESTDIR)$(PREFIX)/bin/hibr
 	install -m 644 $(MODS) $(DESTDIR)$(MODDIR)
 	install -m 644 include/hibr.h $(DESTDIR)$(PREFIX)/include/hibr/hibr.h
+	rm -rf $(DESTDIR)$(DESKDIR)
+	install -d $(DESTDIR)$(DESKDIR)
+	cp -R examples/desktop/. $(DESTDIR)$(DESKDIR)/
+	sed 's|@DESKDIR@|$(DESKDIR)|' tools/desktop-launcher.in \
+		> $(DESTDIR)$(PREFIX)/bin/desktop
+	chmod 755 $(DESTDIR)$(PREFIX)/bin/desktop
 
 uninstall:
-	rm -f $(DESTDIR)$(PREFIX)/bin/hibr
-	rm -rf $(DESTDIR)$(MODDIR) $(DESTDIR)$(PREFIX)/include/hibr
+	rm -f $(DESTDIR)$(PREFIX)/bin/hibr $(DESTDIR)$(PREFIX)/bin/desktop
+	rm -rf $(DESTDIR)$(MODDIR) $(DESTDIR)$(PREFIX)/include/hibr \
+		$(DESTDIR)$(DESKDIR)
 
 clean:
 	rm -rf $(B)

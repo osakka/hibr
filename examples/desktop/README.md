@@ -14,9 +14,19 @@ describe them:
 | the window manager | `examples/desktop/desktop.hibr` | the event loop, focus, dragging, title bars |
 | `~/.xinitrc` | your own session file | which windows open, and where |
 
-Try it:
+Try it, from a checkout:
 
     ./build/hibr examples/desktop/session.hibr
+
+Or, once `make install` has put this whole directory at
+`$PREFIX/share/hibr/desktop` (`$PREFIX/lib/hibr` alongside the modules'
+own, `/usr/local` by default) and a small wrapper at `$PREFIX/bin/desktop`:
+
+    desktop
+
+`desktop --resume` and `desktop --session name --resume` work the same as
+running `session.hibr` directly does -- the wrapper forwards its own
+arguments straight through, it does nothing else.
 
 Drag a title bar to move a window and the `◢` in its bottom-right corner to
 resize it. `_` minimises, `□` fills the screen, `x` closes. `tab` cycles, `escape` brings back a minimised window, and `q` quits
