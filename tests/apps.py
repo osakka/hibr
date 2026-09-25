@@ -323,8 +323,9 @@ check("the wallpaper glyph changes, and the desktop follows",
       sc.at(0, 78) != "·" and sc.at(23, 60) == "░", sc)
 
 # Behaviour's own rows, in order: Refresh(0), Icons(1), Disk Icons(2),
-# Cursor(3), Cursor Blink(4), Window Shadow(5), Menu Shadow(6), Titlebar
-# Click(7), About Refresh(8, only once about.hibr is loaded).
+# Cursor(3), Cursor Blink(4), Window Shadow(5), Menu Shadow(6), Bar
+# Shadow(7), Titlebar Click(8), About Refresh(9, only once about.hibr is
+# loaded).
 sc = cprun(DOWN_BEH)
 check("Behaviour's own second row is Icons, right there with no headings",
       sc.find("Icons") is not None and
@@ -341,15 +342,21 @@ check("menu shadow is its own setting, separate from window shadow",
       "[ ]" in sc.row(sc.find("Menu Shadow")[0]) and
       "[x]" in sc.row(sc.find("Window Shadow")[0]), sc)
 
-sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 7)
+sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 7 + [b"\r"])
+check("bar shadow is a third, separate setting again",
+      sc.find("Bar Shadow") is not None and
+      "[ ]" in sc.row(sc.find("Bar Shadow")[0]) and
+      "[x]" in sc.row(sc.find("Menu Shadow")[0]), sc)
+
+sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 8)
 check("titlebar double-click defaults to zoom",
       sc.find("Titlebar Click") is not None and
       "zoom" in sc.row(sc.find("Titlebar Click")[0]), sc)
-sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 7 + [b"\x1b[C"])
+sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 8 + [b"\x1b[C"])
 check("and it cycles through the other actions",
       "min" in sc.row(sc.find("Titlebar Click")[0]), sc)
 
-sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 8, extra=("about",))
+sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 9, extra=("about",))
 check("About Refresh only appears once About hibr itself is loaded",
       sc.find("About Refresh") is not None and
       sc.find("3000 ms") is not None, sc)
@@ -887,4 +894,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(133)
+report(134)

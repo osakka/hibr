@@ -42,6 +42,12 @@ dropdown's own popup -- casts one the same way, governed by its own
 `DT_MSHADOW` instead: a menu is drawn far more often than a window moves, so
 whether to pay for its shadow is a separate choice from a window's.
 
+The menu bar itself casts a shadow too, one row straight down across the
+full width of the screen, giving it a sense of sitting above everything
+else -- `DT_BARSHADOW`, a third and separate setting again, since the bar
+is drawn every frame it is visible at all (always), which is neither a
+window moving nor a menu opening.
+
 How dark a shadow falls is `DT_SHADOW_PCT`, part of the theme rather than one
 constant: Appearance's `cp_theme` sets it alongside the other seven colours.
 Scaling an already-dark face down by console darken's own default (55, a 45%

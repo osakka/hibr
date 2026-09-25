@@ -80,7 +80,10 @@ def shadow_run(env=None, settle=0.6):
 raw_shadow = shadow_run()
 check("a window casts a shadow on the wallpaper under it",
       SHADOW_RGB in raw_shadow, raw_shadow)
-raw_noshadow = shadow_run(env={"DT_SHADOW": "0"})
+# DT_BARSHADOW defaults on and would otherwise darken the same wallpaper
+# colours at row 1, the same exact bytes this checks for -- off here so a
+# second, unrelated shadow source cannot make "none" look like "some".
+raw_noshadow = shadow_run(env={"DT_SHADOW": "0", "DT_BARSHADOW": "0"})
 check("DT_SHADOW=0 casts none", SHADOW_RGB not in raw_noshadow, raw_noshadow)
 raw_long = shadow_run(settle=2.5)
 check("more frames before quitting does not darken it further -- damage "
@@ -102,9 +105,27 @@ def mshadow_run(env=None):
 
 raw_mshadow = mshadow_run()
 check("an open menu casts a shadow too", SHADOW_RGB in raw_mshadow, raw_mshadow)
-raw_nomshadow = mshadow_run(env={"DT_MSHADOW": "0"})
+raw_nomshadow = mshadow_run(env={"DT_MSHADOW": "0", "DT_BARSHADOW": "0"})
 check("DT_MSHADOW=0 casts none, independently of DT_SHADOW",
       SHADOW_RGB not in raw_nomshadow, raw_nomshadow)
+
+
+def barshadow_run(env=None):
+    path = "/tmp/hibr-desktop-barshadow.hibr"
+    open(path, "w").write("%s. %s\ndt_open\ndt_run\ndt_close\n" % (load(MOD), WM))
+    t = Term(path, env=dict({"DT_TICK": "60"}, **(env or {})), rows=ROWS,
+             cols=COLS, settle=0.6)
+    t.quit(b"qy", 1.0)
+    os.unlink(path)
+    return t.raw
+
+
+raw_barshadow = barshadow_run()
+check("the menu bar casts a shadow too, with nothing else open at all",
+      SHADOW_RGB in raw_barshadow, raw_barshadow)
+raw_nobarshadow = barshadow_run(env={"DT_BARSHADOW": "0"})
+check("DT_BARSHADOW=0 casts none, independently of the other two",
+      SHADOW_RGB not in raw_nobarshadow, raw_nobarshadow)
 
 # A key sent right after a resize must not be lost while the debounce is
 # waiting to see whether more of them are coming (DT_RSTILL is 150ms).
@@ -1272,4 +1293,4 @@ check("ending it leaves the other one alone",
       "personal" in r.stdout and "work" not in r.stdout, r.stdout)
 unsession()
 
-report(186)
+report(188)

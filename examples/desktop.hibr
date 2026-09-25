@@ -108,6 +108,12 @@ DT_SHADOW="${DT_SHADOW-1}"
 # the other should be able to say so.
 DT_MSHADOW="${DT_MSHADOW-1}"
 
+# A shadow under the menu bar, giving it a sense of sitting above the
+# desktop -- its own setting rather than tied to DT_SHADOW or DT_MSHADOW,
+# the same reasoning as both of those already have: it is drawn every
+# frame the bar is (always), not just when a window moves or a menu opens.
+DT_BARSHADOW="${DT_BARSHADOW-1}"
+
 # How much a shadow darkens what is under it -- console darken's own pct,
 # kept per theme rather than as one constant. 55 (its builtin default)
 # reads as a soft, barely-there shadow against a dark face like midnight's,
@@ -139,8 +145,8 @@ DT_TICK="${DT_TICK-2000}"
 DT_CONF="${DT_CONF-${XDG_CONFIG_HOME:-$HOME/.config}/hibr/desktop.hibr}"
 DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 	DT_TICK DT_ICONS DT_DISKS DT_CURSOR DT_CURSOR_BLINK DT_SHADOW
-	DT_MSHADOW DT_DBLACTION DT_SHADOW_PCT CS_SIDE CS_Y CS_COLLAPSED CS_LEN
-	CS_SHADOW)
+	DT_MSHADOW DT_BARSHADOW DT_DBLACTION DT_SHADOW_PCT CS_SIDE CS_Y
+	CS_COLLAPSED CS_LEN CS_SHADOW)
 
 # Where the desktop's stderr goes while it holds the screen, so an app's
 # error message cannot scribble over the display, and the reason for a
@@ -2530,6 +2536,8 @@ dt_cycle() {
 dt_bar() {
 	local i=0 t line now
 
+	[ "$DT_BARSHADOW" = 1 ] &&
+		console darken 1 0 1 "$DT_COLS" "$DT_SHADOW_PCT"
 	console pen "$DT_INK" "$DT_BAR"
 	line := dt_rep "$DT_COLS" " "
 	console put 0 0 "$line"

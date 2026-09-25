@@ -66,6 +66,17 @@ cp_mshadow() {
 	cp_save
 }
 
+# Whether the menu bar casts a shadow onto whatever is under it -- a third,
+# separate setting again, see DT_BARSHADOW in desktop.hibr.
+cp_barshadow() {
+	if [ "$DT_BARSHADOW" = 1 ]; then
+		DT_BARSHADOW=0
+	else
+		DT_BARSHADOW=1
+	fi
+	cp_save
+}
+
 behaviour_rows() {
 	local w=$1 n=0
 
@@ -93,6 +104,10 @@ behaviour_rows() {
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_MSHADOW" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=mshadow; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Bar Shadow"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_BARSHADOW" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=barshadow; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Titlebar Click"
 	CP[$w][$n]["val"]="$DT_DBLACTION"; CP[$w][$n]["key"]=dblaction
 	n=$((n + 1))
@@ -117,6 +132,7 @@ behaviour_do() {
 	blink) cp_blink ;;
 	shadow) cp_shadow ;;
 	mshadow) cp_mshadow ;;
+	barshadow) cp_barshadow ;;
 	about) v := cp_next "$AB_SLOWMS" "$dir" "${CP_ABTICKS[@]}"
 	       AB_SLOWMS=$v ;;
 	dblaction) v := cp_next "$DT_DBLACTION" "$dir" "${CP_DBLACTIONS[@]}"
