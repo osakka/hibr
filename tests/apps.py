@@ -35,6 +35,14 @@ for i in range(12):
 ENTRIES = 15
 
 
+def appdir(a):
+    """Which of examples/apps or examples/desk-accessories has a.hibr."""
+    for d in (APPS, DA):
+        if os.path.exists(os.path.join(d, a + ".hibr")):
+            return d
+    return APPS
+
+
 def run(app, win, feed=(), pre="", wait=1.0, also=(), end=b"qy", extra=(),
         env=None):
     """Open one app in a window at a known place and drive it.
@@ -51,13 +59,6 @@ def run(app, win, feed=(), pre="", wait=1.0, also=(), end=b"qy", extra=(),
     own NP_FILE is exactly that, the same as the desktop's own DT_CONF.
     """
     p = os.path.join(S, "session.hibr")
-
-    def appdir(a):
-        for d in (APPS, DA):
-            if os.path.exists(os.path.join(d, a + ".hibr")):
-                return d
-        return APPS
-
     src = "".join(". %s/%s.hibr\n" % (appdir(a), a)
                   for a in dict.fromkeys([app] + [x[2] for x in also if x[2]]
                                          + list(extra)))
@@ -81,8 +82,9 @@ def calc_key(i):
 
 
 def cli(app, *args):
-    out = subprocess.run([sx.HIBR, "%s/%s.hibr" % (APPS, app)] + list(args),
-                         capture_output=True, text=True, cwd=D)
+    out = subprocess.run(
+        [sx.HIBR, "%s/%s.hibr" % (appdir(app), app)] + list(args),
+        capture_output=True, text=True, cwd=D)
     return out.returncode, out.stdout.strip(), out.stderr.strip()
 
 
@@ -828,7 +830,11 @@ sc = run("files", FW, [press(5, 10, 2), press(6, 12)], pre=HWPRE)
 check("and lists it by its own program name and the extension it is for",
       sc.find("touch (.txt)") is not None, sc)
 
-sc = run("files", FW, [press(5, 10, 2), press(6, 12), press(5, 32)],
+# Click where the entry actually rendered just above, not a row copied by
+# eye -- a hardcoded one is exactly what let the submenu-position bug
+# below go unnoticed: it happened to match the (buggy) implementation.
+pos = sc.find("touch (.txt)")
+sc = run("files", FW, [press(5, 10, 2), press(6, 12), press(*pos)],
          pre=HWPRE)
 check("choosing it runs that handler on the entry", os.path.exists(MARK), sc)
 if os.path.exists(MARK):

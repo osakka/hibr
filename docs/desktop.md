@@ -409,7 +409,6 @@ In `examples/apps/`, each one also a file you can read in a sitting:
 | app | what it is |
 |---|---|
 | `files` | a file browser, with a scrollbar and the wheel |
-| `calc` | a calculator, and `hibr calc.hibr '3 * 4'` on its own |
 | `panel` | Control Panel: a picker of panes (see below), and a list of the other windows |
 | `term` | a shell in a window. Each window is its own pty and its own session. The wheel or `shift-pageup` scrolls back, and a program that asks for the mouse gets it |
 | `snake` | arrows turn, `p` pauses. It speeds up as it grows |
@@ -437,8 +436,63 @@ The two bundled accessories live in `examples/desk-accessories/`:
 
 | app | what it is |
 |---|---|
+| `calc` | a calculator, and `hibr calc.hibr '3 * 4'` on its own |
 | `notepad` | one plain-text scratch note, saved to disk the moment it changes -- no word wrap, no search; `hvi` is the real editor |
 | `puzzle` | the sliding tile puzzle, 4 by 4. Arrows or a click move the gap; shuffled by real moves from solved, so it is always solvable |
+
+## Control Strip
+
+One line of quick-toggle modules, each in its own brackets, drawn straight
+over everything else the same fixed-position way the menu bar and the
+confirm box already are -- not a `DT[]` window: it has no title, cannot be
+resized the way a window is, and never takes the keyboard focus a window
+has. Not authentic to any one System version on purpose: the real Control
+Strip sat at the bottom of the screen and only ever slid left and right
+along it; this one docks to either side instead and slides up and down, a
+deliberate choice over period accuracy.
+
+![The Control Strip docked left, four modules in brackets ending in its own arrow](img/desktop-strip.png)
+
+The arrow at the end is the strip's own handle, for three different
+gestures: drag it up or down to move the whole strip along its docked
+side; drag it sideways instead and it resizes, showing fewer or more
+modules depending on how far towards or away from the docked edge the
+pointer goes, recomputed live from the pointer's own position rather than
+accumulated one drag event at a time; press and release it with no
+movement at all and it collapses the strip down to the arrow alone, a
+second press bringing it back. Dragging past the screen's own horizontal
+middle re-docks it to that side instead of just moving it. Everything is
+saved the moment it settles, `CS_SIDE`/`CS_Y`/`CS_COLLAPSED`/`CS_LEN`
+alongside the desktop's own settings -- except how far it is scrolled,
+which is not, the same as a file browser does not remember its own
+scroll position either.
+
+Shortened below its full width, the modules that no longer fit are still
+there to scroll to: the wheel, while the pointer sits on the strip; the
+left and right arrow keys, the same way, once `console mouse motion`
+reports where the pointer is even with no button held; or, with no mouse
+in reach at all, `alt-s` (rebindable like the desktop's other four
+shortcuts) gives the strip explicit attention until escape or `alt-s`
+again releases it, and the same arrow keys scroll it regardless of where
+the pointer happens to be.
+
+A module calls `cs_module name [width]` to register (one column by
+default -- a toggle or a single letter), then defines `name_draw row col`
+and `name_click row col`, in the same absolute screen coordinates -- `col`
+is where its own content starts, one column inside its brackets, however
+the strip is currently docked, sized or scrolled; neither takes a window
+id, since there is never more than one instance of a strip module.
+`CS_MODDIRS` (default `~/.config/hibr/control-strip`) and `cs_modules`
+find and load them, the same shape `DT_APPDIRS`/`dt_apps`,
+`CP_PANEDIRS`/`cp_panes` and `DA_DIRS`/`da_apps` already are.
+
+The four bundled modules live in `examples/control-strip/`, each a few
+lines reusing a setting Control Panel already has: `shadow` toggles
+`DT_SHADOW`, `wallpaper` cycles `DT_GLYPH`, `cursor` cycles `DT_CURSOR`,
+and `theme` cycles the theme by calling Appearance's own `cp_theme()`
+rather than a second copy of its colour table -- if Control Panel is not
+loaded, `theme` still shows the current theme's name, but a click does
+nothing, honestly, rather than switching only some of the colours.
 
 A focused terminal gets every key except `f10`, so a program inside can have
 `escape`; `f10` is the way back to the menu bar.
@@ -528,7 +582,7 @@ command -v dt_app > /dev/null && dt_app calc "Calculator" 16 24 once "±"
 
 `dt_app <name> <title> <height> <width> [once|many] [icon] [fixed]`. `once`
 means one window at most: launching it again brings that window forward,
-shown if it was hidden. The calculator, the settings, the clock and the games
+shown if it was hidden. The calculator, Control Panel, the clock and the games
 are `once`; the terminal and the file browser are `many`. The icon is what
 the desktop shows for it. The `command -v` guard is what lets the same file
 run on its own, where there is no desktop to register with.

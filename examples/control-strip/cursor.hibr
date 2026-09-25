@@ -1,0 +1,30 @@
+#!/usr/bin/env hibr
+#
+# cursor -- a Control Strip module cycling a new terminal's cursor style,
+# the same DT_CURSOR setting Behaviour's own Cursor row changes. Shown as
+# its own first letter -- b, u or r -- the strip's cells are one column
+# wide.
+
+command -v cs_module > /dev/null && cs_module cursor
+
+CURSOR_STYLES=(block underline bar)
+
+cursor_draw() {
+	local row=$1 col=$2
+
+	console pen "$DT_INK" "$DT_FACE"
+	console put "$row" "$col" "${DT_CURSOR:0:1}"
+}
+
+cursor_click() {
+	local cur=$DT_CURSOR n=0 i=0 hit=-1 s
+
+	for s in "${CURSOR_STYLES[@]}"; do
+		[ "$s" = "$cur" ] && hit=$n
+		n=$((n + 1))
+	done
+	[ "$hit" -lt 0 ] && hit=0
+	i=$(((hit + 1) % n))
+	DT_CURSOR=${CURSOR_STYLES[$i]}
+	dt_save
+}

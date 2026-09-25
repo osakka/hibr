@@ -1,0 +1,28 @@
+#!/usr/bin/env hibr
+#
+# wallpaper -- a Control Strip module cycling the desktop's own wallpaper
+# glyph, the same DT_GLYPH setting Appearance's own Wallpaper row changes.
+
+command -v cs_module > /dev/null && cs_module wallpaper
+
+WALL_GLYPHS=("·" "░" "▒" "⋅" "+")
+
+wallpaper_draw() {
+	local row=$1 col=$2
+
+	console pen "$DT_INK" "$DT_FACE"
+	console put "$row" "$col" "$DT_GLYPH"
+}
+
+wallpaper_click() {
+	local cur=$DT_GLYPH n=0 i=0 hit=-1 g
+
+	for g in "${WALL_GLYPHS[@]}"; do
+		[ "$g" = "$cur" ] && hit=$n
+		n=$((n + 1))
+	done
+	[ "$hit" -lt 0 ] && hit=0
+	i=$(((hit + 1) % n))
+	DT_GLYPH=${WALL_GLYPHS[$i]}
+	dt_save
+}

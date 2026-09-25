@@ -1,0 +1,31 @@
+#!/usr/bin/env hibr
+#
+# theme -- a Control Strip module cycling the desktop's own colour theme,
+# by its first letter, the strip's cells being one column wide. Reuses
+# Appearance's own cp_theme() and CP_THEMES rather than a second copy of
+# the same colour table: if Control Panel is not loaded, the module still
+# draws a dash, but a click does nothing, honestly, rather than
+# half-switching only some of the colours.
+
+command -v cs_module > /dev/null && cs_module theme
+
+theme_draw() {
+	local row=$1 col=$2
+
+	console pen "$DT_INK" "$DT_FACE"
+	console put "$row" "$col" "${CP_THEME:0:1}"
+	[ -z "$CP_THEME" ] && console put "$row" "$col" "-"
+}
+
+theme_click() {
+	local n=0 i=0 hit=-1 t
+
+	command -v cp_theme > /dev/null || return 0
+	for t in "${CP_THEMES[@]}"; do
+		[ "$t" = "$CP_THEME" ] && hit=$n
+		n=$((n + 1))
+	done
+	[ "$hit" -lt 0 ] && hit=0
+	i=$(((hit + 1) % n))
+	cp_theme "${CP_THEMES[$i]}" && dt_save
+}

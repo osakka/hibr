@@ -59,6 +59,7 @@ DT_KEYS[close]="alt-f4"
 DT_KEYS[detach]="ctrl-\\"
 DT_KEYS[quit]=q
 DT_KEYS[cycle]=tab
+DT_KEYS[strip]="alt-s"
 
 # Any app can have a global shortcut of its own, assigned from Settings --
 # most have none, which is the point: a game or About does not want to
@@ -128,7 +129,7 @@ DT_TICK="${DT_TICK-2000}"
 DT_CONF="${DT_CONF-${XDG_CONFIG_HOME:-$HOME/.config}/hibr/desktop.hibr}"
 DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 	DT_TICK DT_ICONS DT_DISKS DT_CURSOR DT_CURSOR_BLINK DT_SHADOW
-	DT_MSHADOW DT_DBLACTION)
+	DT_MSHADOW DT_DBLACTION CS_SIDE CS_Y CS_COLLAPSED CS_LEN)
 
 # Where the desktop's stderr goes while it holds the screen, so an app's
 # error message cannot scribble over the display, and the reason for a
@@ -182,7 +183,9 @@ dt_open() {
 	dt_load
 	console open || return 1
 	console signals off
-	console mouse drag
+	# motion, not just drag: the strip needs to know when the pointer is
+	# over it with no button held, for the wheel and hover both.
+	console mouse motion
 	console cursor off
 	# mkdir is a process, and startup should not pay for one per folder
 	# every time: only when the folder is not there yet.
@@ -425,6 +428,7 @@ dt_draw() {
 	dt_menus
 	dt_ctxbuild
 	dt_bar
+	dt_stripdraw
 	dt_drop
 	dt_note_draw
 	dt_confirm_draw
@@ -470,9 +474,30 @@ dt_btn() {
 # Window fields are read into locals first: a subscript is only literal when
 # it is quoted, and arithmetic never sees the quotes, so DT[$id][col] inside
 # $(( )) would mean DT[$id][5] here.
+
+# Where the pointer last was, with no button held -- `console mouse motion`
+# reports this too, as a "drag" whose own button decodes to "none", so
+# dt_mouse hands it straight to here rather than falling into the button
+# logic below. Nothing here redraws on every cell crossed, which a plain
+# wave of the mouse would be, at whatever rate the terminal reports motion
+# at: only entering or leaving something that cares -- so far, only the
+# strip -- is a real change worth a frame for.
+DT_HOVERR=
+DT_HOVERC=
+dt_hover() {
+	local was=0 is=0
+
+	cs_hit "$DT_HOVERR" "$DT_HOVERC" && was=1
+	DT_HOVERR=$1
+	DT_HOVERC=$2
+	cs_hit "$DT_HOVERR" "$DT_HOVERC" && is=1
+	[ "$was" = "$is" ] && return 0
+	dt_draw
+}
+
 dt_mouse() {
 	local act=${1##*-} mr mc mods
-	local id b wr wc wh ww ap mo now
+	local id b wr wc wh ww ap mo now dr dc
 
 	mods=${1%"$act"}
 	mods=${mods%-}
@@ -481,6 +506,11 @@ dt_mouse() {
 	wheelup | wheeldown) mr=$1; mc=$2 ;;
 	*) mr=$2; mc=$3 ;;
 	esac
+
+	if [ "$act" = drag ] && [ "$1" = none ]; then
+		dt_hover "$mr" "$mc"
+		return 0
+	fi
 
 	case $act in
 	press)
@@ -512,6 +542,7 @@ dt_mouse() {
 			fi
 			return 0
 		fi
+		cs_press "$mr" "$mc" && return 0
 		id := console hit "$mr" "$mc"
 		if [ -z "$id" ]; then
 			if [ "$1" = right ]; then
@@ -628,6 +659,26 @@ dt_mouse() {
 
 	case $act in
 	drag)
+		if [ -n "$CS_DRAG" ]; then
+			if [ -z "$CS_DRAGKIND" ]; then
+				dr=$((mr - CS_PRESSR)); [ "$dr" -lt 0 ] && dr=$((0 - dr))
+				dc=$((mc - CS_PRESSC)); [ "$dc" -lt 0 ] && dc=$((0 - dc))
+				if [ "$dc" -gt "$dr" ] && [ "$dc" -gt 0 ]; then
+					CS_DRAGKIND=resize
+				elif [ "$dr" -gt 0 ]; then
+					CS_DRAGKIND=move
+				fi
+			fi
+			case $CS_DRAGKIND in
+			resize) cs_resize "$mc" ;;
+			move)
+				CS_Y=$mr
+				[ "$CS_Y" -lt 1 ] && CS_Y=1
+				[ "$CS_Y" -ge "$DT_ROWS" ] && CS_Y=$((DT_ROWS - 1))
+				;;
+			esac
+			return 0
+		fi
 		if [ -n "$DT_SIZE" ]; then
 			id=$DT_SIZE
 			dt_resize "$id" $((mr - DT[$id]["row"] + 1)) \
@@ -638,10 +689,36 @@ dt_mouse() {
 		dt_move "$DT_DRAG" $((mr - DT_DR)) $((mc - DT_DC))
 		;;
 	release)
+		if [ -n "$CS_DRAG" ]; then
+			case $CS_DRAGKIND in
+			"")
+				if [ "$CS_COLLAPSED" = 1 ]; then
+					CS_COLLAPSED=0
+				else
+					CS_COLLAPSED=1
+				fi
+				;;
+			move)
+				if [ "$mc" -lt $((DT_COLS / 2)) ]; then
+					CS_SIDE=left
+				else
+					CS_SIDE=right
+				fi
+				;;
+			esac
+			CS_DRAG=
+			CS_DRAGKIND=
+			dt_save
+			return 0
+		fi
 		DT_DRAG=
 		DT_SIZE=
 		;;
 	wheelup | wheeldown)
+		if cs_hit "$mr" "$mc"; then
+			[ "$act" = wheelup ] && cs_scroll -1 || cs_scroll 1
+			return 0
+		fi
 		id := console hit "$mr" "$mc"
 		[ -z "$id" ] && return 0
 		id=${id#w}
@@ -784,6 +861,16 @@ dt_event() {
 		dt_mkey "$k" && return 0
 		return 0
 	fi
+	# The strip takes left/right ahead of the focused window, either while
+	# the pointer sits over it (no click needed, the same as the wheel
+	# already works) or, with no mouse at all, once CS_ATTN has been given
+	# to it explicitly by its own shortcut.
+	if [ "$k" = left ] || [ "$k" = right ]; then
+		if [ "$CS_ATTN" = 1 ] || cs_hit "$DT_HOVERR" "$DT_HOVERC"; then
+			[ "$k" = left ] && cs_scroll -1 || cs_scroll 1
+			return 0
+		fi
+	fi
 	# Copy and paste belong to the desktop, the same keys in every window,
 	# and so does a paste arriving from the terminal the desktop runs on:
 	# it goes to the app's _paste when it has one.
@@ -812,6 +899,7 @@ dt_event() {
 	fi
 	case $k in
 	f10 | escape)
+		CS_ATTN=0
 		dt_mopen 0
 		return 0
 		;;
@@ -821,6 +909,15 @@ dt_event() {
 	"${DT_KEYS[cycle]}") dt_cycle ;;
 	"${DT_KEYS[close]}") dt_close_focused ;;
 	"${DT_KEYS[detach]}") dt_detach ;;
+	"${DT_KEYS[strip]}")
+		if [ "$CS_ATTN" = 1 ]; then
+			CS_ATTN=0
+			dt_note "Control Strip: released"
+		else
+			CS_ATTN=1
+			dt_note "Control Strip: arrows scroll it, until escape"
+		fi
+		;;
 	*) dt_appkeyed "$k" ;;
 	esac
 }
@@ -2486,7 +2583,7 @@ dt_menu_draw() {
 	[ "$w" -lt 14 ] && w=14
 	if [ -n "$px" ]; then
 		x=$px
-		r=${MB[$MB_PAR]["dy"]:-1}
+		r=${MB[$m]["py"]:-1}
 	elif [ -n "$MB_CX" ]; then
 		x=$MB_CX
 		r=${MB_CY:-1}
@@ -2848,6 +2945,11 @@ dt_titlecontext() {
 }
 
 # Step into the submenu of the highlighted item, if it has one.
+#
+# A submenu opens level with the row that owns it, not with its parent's own
+# top row -- dt_menu_draw's own r starts at 1 and gains exactly one per
+# index drawn, separators included, so MB_SEL is already the row offset to
+# add, no separate counting needed.
 dt_mdown() {
 	local sub
 
@@ -2855,6 +2957,7 @@ dt_mdown() {
 	sub=${MI[$MB_OPEN][$MB_SEL]["sub"]}
 	[ -z "$sub" ] && return 1
 	MB[$sub]["px"]=$((${MB[$MB_OPEN]["dx"]} + ${MB[$MB_OPEN]["dw"]} - 1))
+	MB[$sub]["py"]=$((${MB[$MB_OPEN]["dy"]:-1} + MB_SEL))
 	MB_PAR=$MB_OPEN
 	MB_OPEN=$sub
 	MB_SEL=0
@@ -3172,4 +3275,284 @@ dt_keycap() {
 	app:*) dt_note "Press a key for ${DT_APPS[${1#app:}]["title"]}…" ;;
 	*) dt_note "Press a key for ${1^}…" ;;
 	esac
+}
+
+# --- the control strip ---------------------------------------------------
+#
+# One line of quick-toggle modules, each in its own brackets, drawn
+# straight over everything else the same fixed-position way the bar and
+# the confirm box already are -- not a DT[] window: it has no title,
+# cannot be resized the way a window is, and must never take the keyboard
+# focus a window has. Not authentic to any one System version on purpose:
+# the real Control Strip sat at the bottom and only ever slid left and
+# right along it; this one docks to either side and slides up and down
+# instead, a deliberate choice over period accuracy.
+CS_MODDIRS=("${XDG_CONFIG_HOME:-$HOME/.config}/hibr/control-strip")
+declare -gA CS_MODS
+CS_MOD_LIST=()
+declare -gA CS_SRC
+
+CS_SIDE="${CS_SIDE-left}"
+CS_Y="${CS_Y-}"
+CS_COLLAPSED="${CS_COLLAPSED-0}"
+CS_LEN="${CS_LEN-}"
+CS_SCROLL="${CS_SCROLL-0}"
+CS_ATTN=0
+CS_DRAG=
+CS_DRAGKIND=
+CS_PRESSR=0
+CS_PRESSC=0
+
+# Register a strip module: name, and how many columns its own content
+# needs inside its brackets (one by default -- a toggle or a single
+# letter). name_draw row col draws that content, starting at col;
+# name_click row col is called the same way, for a click anywhere in it.
+# Neither takes an id -- there is never more than one instance of a strip
+# module, unlike a window.
+cs_module() {
+	CS_MODS[$1]["w"]="${2:-1}"
+	CS_MOD_LIST+=("$1")
+}
+
+# Load every module in the folders. Flat, not recursive, the same as
+# Control Panel's own panes -- a module is not an app.
+cs_modules() {
+	local d f b
+
+	for d in "${CS_MODDIRS[@]}"; do
+		for f in "$d"/*.hibr; do
+			[ -r "$f" ] || continue
+			b=${f##*/}
+			[ -n "${CS_SRC["$b"]}" ] && continue
+			CS_SRC["$b"]=$f
+			. "$f"
+		done
+	done
+}
+
+# The row the strip sits on -- computed once, the first time it is needed,
+# so "80% down" means 80% of the real screen rather than of the 24-row
+# default DT_ROWS still holds when this file is only just being sourced.
+cs_y() {
+	[ -z "$CS_Y" ] && CS_Y=$((DT_ROWS * 8 / 10))
+	ret "$CS_Y"
+}
+
+# How many modules are actually shown -- every one of them, unless the
+# strip has been dragged shorter than that, or scrolling has moved some
+# off either end.
+cs_count() {
+	local total=${#CS_MOD_LIST[@]}
+	local n=${CS_LEN:-$total}
+
+	[ "$n" -gt "$total" ] && n=$total
+	[ $((CS_SCROLL + n)) -gt "$total" ] && n=$((total - CS_SCROLL))
+	ret "$n"
+}
+
+# The whole row's width, brackets and the arrow both included -- of the
+# modules actually shown, not every registered one.
+cs_width() {
+	local n=0 i cnt m
+
+	cnt := cs_count
+	i=$CS_SCROLL
+	while [ "$i" -lt $((CS_SCROLL + cnt)) ]; do
+		m=${CS_MOD_LIST[$i]}
+		n=$((n + ${CS_MODS[$m]["w"]:-1} + 2))
+		i=$((i + 1))
+	done
+	ret $((n + 1))
+}
+
+# The column shown-module i's own content starts at -- one past its own
+# opening bracket, and past the arrow too on the side that leads with it.
+cs_modcol() {
+	local w cnt i c m
+
+	w := cs_width
+	cnt := cs_count
+	if [ "$CS_SIDE" = left ]; then
+		c=1
+	else
+		c=$((DT_COLS - w + 2))
+	fi
+	i=$CS_SCROLL
+	while [ "$i" -lt $((CS_SCROLL + cnt)) ]; do
+		[ "$i" = "$1" ] && { ret "$c"; return 0; }
+		m=${CS_MOD_LIST[$i]}
+		c=$((c + ${CS_MODS[$m]["w"]:-1} + 2))
+		i=$((i + 1))
+	done
+	ret -1
+}
+
+# Which shown module a column belongs to, if any -- ret's its real index
+# into CS_MOD_LIST, not a position among the ones currently shown.
+cs_at() {
+	local w cnt i c m mw
+
+	w := cs_width
+	cnt := cs_count
+	if [ "$CS_SIDE" = left ]; then
+		c=1
+	else
+		c=$((DT_COLS - w + 2))
+	fi
+	i=$CS_SCROLL
+	while [ "$i" -lt $((CS_SCROLL + cnt)) ]; do
+		m=${CS_MOD_LIST[$i]}
+		mw=${CS_MODS[$m]["w"]:-1}
+		if [ "$1" -ge "$c" ] && [ "$1" -lt $((c + mw)) ]; then
+			ret "$i"
+			return 0
+		fi
+		c=$((c + mw + 2))
+		i=$((i + 1))
+	done
+	return 1
+}
+
+# Whether row/col falls on the strip right now -- expanded or its own
+# collapsed tab. What hover, wheel and a press all three ask, instead of
+# three copies of the same rectangle.
+cs_hit() {
+	local row w col
+
+	[ "${#CS_MOD_LIST[@]}" = 0 ] && return 1
+	[ -z "$1" ] && return 1
+	row := cs_y
+	[ "$1" != "$row" ] && return 1
+	if [ "$CS_COLLAPSED" = 1 ]; then
+		if [ "$CS_SIDE" = left ]; then
+			[ "$2" = 0 ]
+		else
+			[ "$2" = $((DT_COLS - 1)) ]
+		fi
+		return $?
+	fi
+	w := cs_width
+	[ "$CS_SIDE" = left ] && col=0 || col=$((DT_COLS - w))
+	[ "$2" -ge "$col" ] && [ "$2" -lt $((col + w)) ]
+}
+
+# Scroll by dir modules, clamped so the shown window never runs past
+# either end of the registered list.
+cs_scroll() {
+	local total=${#CS_MOD_LIST[@]} cnt
+
+	cnt := cs_count
+	CS_SCROLL=$((CS_SCROLL + $1))
+	[ "$CS_SCROLL" -lt 0 ] && CS_SCROLL=0
+	[ $((CS_SCROLL + cnt)) -gt "$total" ] && CS_SCROLL=$((total - cnt))
+	[ "$CS_SCROLL" -lt 0 ] && CS_SCROLL=0
+}
+
+# Live-resize from the arrow's own drag: how many modules fit between the
+# strip's fixed anchor edge and the pointer's current column, computed
+# fresh from that position every time rather than accumulated one drag
+# event at a time, the same reason a real resize handle tracks the
+# pointer instead of its own last delta.
+cs_resize() {
+	local budget total i m w used=0 cnt=0
+
+	total=${#CS_MOD_LIST[@]}
+	if [ "$CS_SIDE" = left ]; then
+		budget=$1
+	else
+		budget=$((DT_COLS - 1 - $1))
+	fi
+	[ "$budget" -lt 0 ] && budget=0
+	i=$CS_SCROLL
+	while [ "$i" -lt "$total" ]; do
+		m=${CS_MOD_LIST[$i]}
+		w=$((${CS_MODS[$m]["w"]:-1} + 2))
+		[ $((used + w)) -gt "$budget" ] && break
+		used=$((used + w))
+		cnt=$((cnt + 1))
+		i=$((i + 1))
+	done
+	[ "$cnt" -lt 1 ] && cnt=1
+	if [ "$cnt" -ge $((total - CS_SCROLL)) ]; then
+		CS_LEN=
+	else
+		CS_LEN=$cnt
+	fi
+}
+
+dt_stripdraw() {
+	local row w col i cnt m mw c
+
+	[ "${#CS_MOD_LIST[@]}" = 0 ] && return 0
+	row := cs_y
+	if [ "$CS_COLLAPSED" = 1 ]; then
+		console pen "$DT_ACTIVE" "$DT_FACE" bold
+		if [ "$CS_SIDE" = left ]; then
+			console put "$row" 0 "▸"
+		else
+			console put "$row" $((DT_COLS - 1)) "◂"
+		fi
+		return 0
+	fi
+	cnt := cs_count
+	w := cs_width
+	[ "$CS_SIDE" = left ] && col=0 || col=$((DT_COLS - w))
+	[ "$DT_SHADOW" = 1 ] && console darken $((row + 1)) $((col + 2)) 1 "$w"
+	console pen "$DT_INK" "$DT_FACE"
+	console fill "$row" "$col" 1 "$w" " "
+	c=$col
+	console pen "$DT_ACTIVE" "$DT_FACE" bold
+	if [ "$CS_SIDE" = right ]; then
+		console put "$row" "$c" "◂"
+		c=$((c + 1))
+	fi
+	i=$CS_SCROLL
+	while [ "$i" -lt $((CS_SCROLL + cnt)) ]; do
+		m=${CS_MOD_LIST[$i]}
+		mw=${CS_MODS[$m]["w"]:-1}
+		console pen "$DT_IDLE" "$DT_FACE"
+		console put "$row" "$c" "["
+		console put "$row" $((c + mw + 1)) "]"
+		dt_has "${m}_draw" && "${m}_draw" "$row" $((c + 1))
+		c=$((c + mw + 2))
+		i=$((i + 1))
+	done
+	[ "$CS_SIDE" = left ] && { console pen "$DT_ACTIVE" "$DT_FACE" bold
+		console put "$row" "$c" "▸"; }
+}
+
+# A press on the strip's own row: the arrow starts a drag -- vertical
+# movement repositions it, horizontal resizes it, decided once the first
+# real movement shows which, and if it turns out not to have moved at all
+# by release, toggles collapsed instead. A click inside a module's own
+# brackets goes to its _click. return 0 alone means handled, so
+# dt_mouse's press case can tell it from a miss with ||.
+cs_press() {
+	local row w col arrowcol
+
+	cs_hit "$1" "$2" || return 1
+	row=$1
+	if [ "$CS_COLLAPSED" = 1 ]; then
+		CS_DRAG=1
+		CS_DRAGKIND=
+		CS_PRESSR=$1
+		CS_PRESSC=$2
+		return 0
+	fi
+	w := cs_width
+	[ "$CS_SIDE" = left ] && col=0 || col=$((DT_COLS - w))
+	[ "$CS_SIDE" = left ] && arrowcol=$((col + w - 1)) || arrowcol=$col
+	if [ "$2" = "$arrowcol" ]; then
+		CS_DRAG=1
+		CS_DRAGKIND=
+		CS_PRESSR=$1
+		CS_PRESSC=$2
+		return 0
+	fi
+	local i m mc
+	i := cs_at "$2" || return 0
+	m=${CS_MOD_LIST[$i]}
+	mc := cs_modcol "$i"
+	dt_has "${m}_click" && "${m}_click" "$row" "$mc"
+	return 0
 }

@@ -55,6 +55,11 @@ command -v cp_panes > /dev/null && cp_panes
 DA_DIRS+=("$d/desk-accessories")
 da_apps
 
+# The Control Strip's own quick-toggle modules -- cs_module is desktop.hibr's
+# own, so this needs nothing else on the hibr menu to have loaded first.
+CS_MODDIRS+=("$d/control-strip")
+cs_modules
+
 FB_DIR=$PWD
 
 # Defaults go before dt_open, which then reads what was saved last time

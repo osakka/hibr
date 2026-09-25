@@ -817,8 +817,14 @@ open(os.path.join(UCONF, "hibr", "apps", "hello.hibr"), "w").write(
 open(os.path.join(UCONF, "hibr", "apps", "calc.hibr"), "w").write(
     'dt_app calc "My Sums" 6 20 once "±"\n')
 APPS = 'DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/apps")
+# Calculator is a desk accessory now, found by da_apps rather than dt_apps
+# -- but DT_SRC is one shared registry either way, so a user's own file,
+# loaded first by dt_apps from the default DT_APPDIRS entry, still blocks
+# the bundled one da_apps would otherwise find, the same as it always did.
+DAAPPS = 'DA_DIRS+=("%s")\nda_apps\n' % tree("examples/desk-accessories")
 MENU = [b"\x1b[21~", b"\x1b[B"]
-sc, raw = run("", feed=MENU, env={"XDG_CONFIG_HOME": UCONF}, pre=APPS)
+sc, raw = run("", feed=MENU, env={"XDG_CONFIG_HOME": UCONF},
+              pre=APPS + DAAPPS)
 # The menu is on the left; the icons on the right carry the same names.
 menu = [sc.row(r)[:20] for r in range(2, 16)]
 rows = [m for m in menu if "Hello" in m or "Files" in m or "Mines" in m]
@@ -873,10 +879,104 @@ check("which lists Note Pad and Puzzle rather than folding them in flat",
       sc2)
 shutil.rmtree(DACONF, True)
 
+# --- the control strip ---------------------------------------------------
+#
+# One line of quick-toggle modules, each in its own brackets, drawn
+# straight over everything else like the bar and the confirm box, not a
+# DT[] window -- docked to a side and dragged up and down, hibr's own take
+# rather than the bottom-only strip the real one was.
+
+CSSRC = 'CS_MODDIRS+=("%s")\ncs_modules\n' % tree("examples/control-strip")
+
+
+def csrun(feed=()):
+    """Run the bare desktop with the strip loaded, its own config dir each
+    time -- one check's collapse or drag must not be the next check's
+    starting point, the same reason Control Panel's own tests each get one.
+    """
+    d = tempfile.mkdtemp(prefix="hibr-strip-")
+    sc, _ = run("", feed=feed, env={"XDG_CONFIG_HOME": d}, pre=CSSRC)
+    sc.conf = d
+    return sc
+
+
+sc = csrun()
+arrow = sc.find("▸")
+check("the strip docks left by default, roughly 80% down the screen",
+      arrow is not None and arrow[0] > ROWS * 3 // 4, sc)
+row = arrow[0]
+# cursor, shadow, theme, wallpaper: alphabetical file order, one column
+# each -- verified as one exact string before any position derived from
+# it is trusted for a click.
+check("its four modules draw as one bracketed row, in file order",
+      sc.row(row)[0:13] == "[b][x][-][·]▸", sc)
+shutil.rmtree(sc.conf, True)
+
+SHADOW_COL, ARROW_COL = 4, 12
+
+sc = csrun([press(row, SHADOW_COL), release(row, SHADOW_COL)])
+check("a click toggles a module, here Window Shadow off",
+      sc.row(row)[0:13] == "[b][ ][-][·]▸", sc)
+shutil.rmtree(sc.conf, True)
+
+sc = csrun([press(row, ARROW_COL), release(row, ARROW_COL)])
+check("a click on the arrow collapses the strip to its own tab",
+      sc.row(row).startswith("▸") and "[" not in sc.row(row), sc)
+shutil.rmtree(sc.conf, True)
+
+sc = csrun([press(row, ARROW_COL), drag(15, 70), release(15, 70)])
+# Right-docked, the arrow leads instead of trailing, flush against the
+# screen's own right edge -- the last 13 columns of the row it landed on.
+check("dragging the arrow across the screen re-docks it to the other side",
+      sc.row(15)[-13:] == "◂[b][x][-][·]", sc)
+saved = os.path.join(sc.conf, "hibr", "desktop.hibr")
+text = open(saved).read() if os.path.exists(saved) else ""
+check("the new side and position are saved",
+      "CS_SIDE=right" in text and "CS_Y=15" in text, text)
+shutil.rmtree(sc.conf, True)
+
+# Dragging the arrow sideways instead of up/down resizes it -- how many
+# modules fit between the docked edge and the pointer, recomputed live
+# from where the pointer actually is, not accumulated one drag event at a
+# time. Shrunk to one module, the other three are still there to scroll to.
+sc = csrun([press(row, ARROW_COL), drag(row, 5), release(row, 5)])
+check("dragging the arrow sideways instead resizes it",
+      sc.row(row)[0:4] == "[b]▸", sc)
+shutil.rmtree(sc.conf, True)
+
+SHRINK = [press(row, ARROW_COL), drag(row, 5), release(row, 5)]
+
+sc = csrun(SHRINK + [wheel(row, 1, up=False)])
+check("the wheel over the strip scrolls to the next module",
+      sc.row(row)[0:4] == "[x]▸", sc)
+shutil.rmtree(sc.conf, True)
+
+# A hover motion (a "drag" report whose own button decodes to none) marks
+# where the pointer is without needing a click -- left/right then scroll
+# the strip the same way the wheel does, as long as the pointer sits on it.
+HOVER_ON_STRIP = drag(row, 1, button=3)
+
+sc = csrun(SHRINK + [HOVER_ON_STRIP, b"\x1b[C"])
+check("hovering over the strip lets the right arrow scroll it too",
+      sc.row(row)[0:4] == "[x]▸", sc)
+shutil.rmtree(sc.conf, True)
+
+# With no mouse at all, its own shortcut gives it attention instead --
+# right still scrolls it, escape or the same shortcut again releases it.
+sc = csrun(SHRINK + [b"\x1bs", b"\x1b[C"])
+check("the strip's own shortcut scrolls it with no mouse involved",
+      sc.row(row)[0:4] == "[x]▸", sc)
+shutil.rmtree(sc.conf, True)
+
+sc = csrun(SHRINK + [b"\x1bs", b"\x1b", b"\x1b[C"])
+check("escape releases it, so the same arrow goes back to being unhandled",
+      sc.row(row)[0:4] == "[b]▸", sc)
+shutil.rmtree(sc.conf, True)
+
 LAUNCH = MENU + [b"c"]
 sc, raw = run("", feed=LAUNCH + LAUNCH, pre=APPS)
 check("an app declared once opens one window, however often launched",
-      sc.text().count("┤ Calculator ├") == 1, sc)
+      sc.text().count("┤ Clock ├") == 1, sc)
 LAUNCH = MENU + [b"f"]
 sc, raw = run("", feed=LAUNCH + LAUNCH, pre=APPS)
 check("and one that is not opens another window each time",
@@ -940,7 +1040,7 @@ shutil.rmtree(CONF2, True)
 # fixed four are. App Shortcuts sorts first of all the panes (see ORDER
 # above), so it is the default pane -- no downs on the picker at all;
 # entering it lands on Calculator, since it sorts before Control Panel.
-CALCSRC = '. %s/calc.hibr' % tree("examples/apps")
+CALCSRC = '. %s/calc.hibr' % tree("examples/desk-accessories")
 CONF3 = tempfile.mkdtemp(prefix="hibr-conf3-")
 sc, _ = run('dt_new "Control Panel" 20 58 2 2 panel', feed=[b"\r"],
             env={"XDG_CONFIG_HOME": CONF3}, pre=PANEL + "\n" + CALCSRC)
@@ -1117,4 +1217,4 @@ check("ending it leaves the other one alone",
       "personal" in r.stdout and "work" not in r.stdout, r.stdout)
 unsession()
 
-report(171)
+report(182)
