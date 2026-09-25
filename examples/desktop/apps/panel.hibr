@@ -151,13 +151,24 @@ panel_draw() {
 }
 
 # The shared row-list renderer every ordinary pane uses: builds this
-# pane's own rows fresh (rebuilt every frame, the window list is why),
-# then draws them exactly the single list panel.hibr used to draw for
-# everything, just offset into the pane's own body at column bx.
+# pane's own rows fresh every frame, then draws them exactly the single
+# list panel.hibr used to draw for everything, just offset into the
+# pane's own body at column bx.
+#
+# CP[$id] is unset first, not just overwritten: a row is a handful of
+# fields (kind, text, val, key, and wtype only for a checkbox), and a
+# pane that never sets wtype leaves whatever the previous pane shown in
+# this same window left there. Appearance's own Wallpaper row -- a
+# dropdown, no wtype -- drew as a checkbox once Behaviour's Icons row
+# (wtype=bool) had ever occupied the same row index first; it still
+# worked when clicked, since that only changes cp_rowsdraw's own choice
+# of widget, not what key a click reaches, which is what made it look
+# like a rendering glitch rather than the stale field it was.
 cp_rowsdraw() {
 	local id=$1 pane=$2 h=$3 w=$4 bx=$5
 	local i r t v n top sel kind wtype on
 
+	unset "CP[$id]"
 	n := "${pane}_rows" "$id"
 	PW[$id]["n"]=$n
 	PW[$id]["vis"]=$h

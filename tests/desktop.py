@@ -237,35 +237,50 @@ check("and the title and buttons are unaffected by the frame style",
       sc.find("┤ Hello ├") == (6, 12) and sc.g[6][37] == "x", sc)
 
 sc, raw = run(ONE, env={"DT_FRAME": "none"})
-check("DT_FRAME=none draws no border, no title and no buttons at all",
-      sc.find("┌") is None and sc.find("Hello") is None and
-      sc.g[6][10] == " ", sc)
-
-NOFRAME_APP = ('nf_draw() { console put -p "w$1" 1 1 "hi"; }\n'
-               'dt_new "No Frame" 8 30 6 10 nf\n')
-sc, _ = run(NOFRAME_APP, [press(6, 20), drag(9, 24), release(9, 24)],
+check("DT_FRAME=none is a blank frame -- no border ring at all",
+      sc.find("┌") is None and sc.find("└") is None and
+      sc.g[6][10] == " " and sc.g[13][39] == " ", sc)
+check("and no tick marks either -- those are box-drawing glyphs too",
+      sc.find("┤") is None and sc.find("├") is None, sc)
+check("but the title and its buttons are still there, same as ever",
+      sc.find("Hello") == (6, 14) and sc.g[6][37] == "x", sc)
+sc, _ = run(ONE, [press(6, 20), drag(9, 24), release(9, 24)],
             env={"DT_FRAME": "none"})
-check("a borderless window's own invisible top row can still be dragged",
-      sc.find("hi") == (10, 15) and sc.g[9][14] == " ", sc)
-sc, _ = run(NOFRAME_APP, [press(6, 20, 2)], env={"DT_FRAME": "none"})
-check("and right-clicking it still opens the Window menu -- move, close, "
-      "resize are never lost, only undrawn",
-      sc.find("Close") is not None and sc.find("Move") is not None, sc)
+check("and the (undrawn) title bar can still be dragged",
+      sc.find("Hello") == (9, 18), sc)
+sc, _ = run(ONE, [press(6, 37), release(6, 37)], env={"DT_FRAME": "none"})
+check("and its close button still closes it",
+      sc.find("Hello") is None, sc)
 
 sc, _ = run(ONE, env={"DT_BTNSIDE": "left"})
-check("DT_BTNSIDE=left docks min/max/close to the left of the bar instead",
-      sc.g[6][12] == "_" and sc.g[6][14] == "□" and sc.g[6][16] == "x" and
+check("DT_BTNSIDE=left docks the cluster left, mirrored -- close, max, "
+      "min -- so close stays nearest the window's own corner either way",
+      sc.g[6][12] == "x" and sc.g[6][14] == "□" and sc.g[6][16] == "_" and
       sc.find("┤ Hello ├") == (6, 18), sc)
-sc, _ = run(ONE, [press(6, 16), release(6, 16)], env={"DT_BTNSIDE": "left"})
-check("and the moved close button still closes it",
+sc, _ = run(ONE, [press(6, 12), release(6, 12)], env={"DT_BTNSIDE": "left"})
+check("and the close button, now leftmost, still closes it",
       sc.find("Hello") is None, sc)
+sc, _ = run(ONE, [press(6, 16), release(6, 16), press(0, 70)],
+            env={"DT_BTNSIDE": "left"})
+check("while the rightmost button there is min, not close",
+      sc.find("· Hello") is not None, sc)
 
 sc, _ = run(ONE, env={"DT_TITLEALIGN": "center"})
 check("DT_TITLEALIGN=center centres the title in the room the buttons leave",
-      sc.find("┤ Hello ├") == (6, 18), sc)
+      sc.find("┤ Hello ├") == (6, 17), sc)
 sc, _ = run(ONE, env={"DT_TITLEALIGN": "right"})
 check("and right pins it against the button cluster",
-      sc.find("┤ Hello ├") == (6, 25), sc)
+      sc.find("┤ Hello ├") == (6, 23), sc)
+sc, _ = run(ONE, env={"DT_TITLEALIGN": "center", "DT_BTNSIDE": "left"})
+check("centring accounts for the real cluster width, not a style's worst "
+      "case -- a fixed window's five-wide cluster would otherwise skew it",
+      sc.find("┤ Hello ├") == (6, 24), sc)
+
+FIXEDONE = ('dt_app fx "Fixed" 6 20 once "◆" fixed\n'
+            'dt_new "Fixed" 6 20 6 10 fx\n')
+sc, _ = run(FIXEDONE, env={"DT_TITLEALIGN": "center"})
+check("and a fixed window's own narrower cluster centres correctly too",
+      sc.find("┤ Fixed ├") == (6, 13), sc)
 
 AMBER_FG = b"38;2;246;173;85"
 GREEN_FG = b"38;2;104;211;145"
@@ -1412,4 +1427,4 @@ check("ending it leaves the other one alone",
       "personal" in r.stdout and "work" not in r.stdout, r.stdout)
 unsession()
 
-report(207)
+report(213)

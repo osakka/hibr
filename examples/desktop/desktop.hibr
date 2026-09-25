@@ -162,13 +162,12 @@ DT_DBLMS=400
 DT_DBLID=
 DT_DBLT=0
 
-# A window's own frame: single or double lined, or none at all. None
-# removes the whole ring -- no border, no title, no buttons -- but takes
-# nothing away, since move, resize, zoom, hide and close are always on the
-# Window menu too; the invisible top row can still be dragged or
-# double-clicked exactly as a drawn one can, there is simply nothing drawn
-# to show it. A style is a table entry: DT_FRAMES[name] carries its own
-# six glyphs, so a fifth frame is six lines here, not a change to dt_win.
+# A window's own frame: single or double lined, or none at all. None is a
+# blank frame, not no frame: the border ring -- corners, sides, grow box --
+# goes undrawn, but the title and its buttons are still there, still
+# clickable, exactly as under single or double. A style is a table entry:
+# DT_FRAMES[name] carries its own six glyphs, so a fifth frame is six
+# lines here, not a change to dt_win.
 DT_FRAME="${DT_FRAME-single}"
 declare -gA DT_FRAMES
 DT_FRAMES[single]["tl"]="┌"; DT_FRAMES[single]["tr"]="┐"
@@ -510,6 +509,27 @@ dt_btnspec() {
 	esac
 }
 
+# dt_btnspec's own arrays, reordered left to right for the side the
+# cluster actually docks to. min/max/close reads left to right on the
+# right; mirrored on the left it reads close/max/min, so close is always
+# the button nearest the window's own outer corner, whichever side that
+# is -- the same relationship a real title bar keeps moved to either side.
+dt_btnorder() {
+	local style=$1 fixed=$2 side=$3
+
+	dt_btnspec "$style" "$fixed"
+	[ "$side" != left ] && return 0
+	if [ "$fixed" = 1 ]; then
+		BTN_K=("${BTN_K[1]}" "${BTN_K[0]}")
+		BTN_G=("${BTN_G[1]}" "${BTN_G[0]}")
+		BTN_C=("${BTN_C[1]}" "${BTN_C[0]}")
+	else
+		BTN_K=("${BTN_K[2]}" "${BTN_K[1]}" "${BTN_K[0]}")
+		BTN_G=("${BTN_G[2]}" "${BTN_G[1]}" "${BTN_G[0]}")
+		BTN_C=("${BTN_C[2]}" "${BTN_C[1]}" "${BTN_C[0]}")
+	fi
+}
+
 # The cluster dt_btnspec's own glyphs draw as one string -- always 5
 # (fixed) or 7 (movable) characters, matching the offsets dt_btn already
 # hit-tests, whatever style set the glyphs themselves.
@@ -534,33 +554,41 @@ dt_win() {
 	console pen "$DT_INK" "$DT_FACE"
 	console fill "$wr" "$wc" "$h" "$w" " "
 	[ -n "$dr" ] && $dr "$id" $((h - 2)) $((w - 2)) "$wr" "$wc"
-	# None removes the whole ring: no border, no title, no buttons. Nothing
-	# is lost -- move, resize, zoom, hide and close are always on the
-	# Window menu too, and this row can still be dragged or double-clicked
-	# exactly as a drawn one can; there is simply nothing drawn to show it.
-	[ "$DT_FRAME" = none ] && return 0
 
-	console pen "$on" "$DT_FACE"
-	local tl=${DT_FRAMES[$DT_FRAME]["tl"]} tr=${DT_FRAMES[$DT_FRAME]["tr"]}
-	local bl=${DT_FRAMES[$DT_FRAME]["bl"]} br=${DT_FRAMES[$DT_FRAME]["br"]}
-	local fh=${DT_FRAMES[$DT_FRAME]["h"]} fv=${DT_FRAMES[$DT_FRAME]["v"]}
-	local bar
-	bar := dt_rep $((w - 2)) "$fh"
-	console put -p "w$id" 0 0 "$tl$bar$tr"
-	console put -p "w$id" $((h - 1)) 0 "$bl$bar$br"
-	console pen "$DT_INK" "$DT_FACE"
-	# A fixed window keeps the plain corner the border just drew instead of
-	# the grow box: no drag can resize it, so nothing should invite one.
-	[ "$fixed" != 1 ] && console put -p "w$id" $((h - 1)) $((w - 1)) "◢"
-	local r=1
-	while [ "$r" -lt $((h - 1)) ]; do
-		console put -p "w$id" "$r" 0 "$fv"
-		console put -p "w$id" "$r" $((w - 1)) "$fv"
-		r=$((r + 1))
-	done
+	# None is a blank frame, not no frame: the ring of border glyphs is
+	# left undrawn -- no corners, no sides, no grow box -- but the title
+	# and its buttons are still there, still clickable, exactly as under
+	# single or double. Nothing about a window's controls ever depends on
+	# whether its edge is drawn.
+	if [ "$DT_FRAME" != none ]; then
+		console pen "$on" "$DT_FACE"
+		local tl=${DT_FRAMES[$DT_FRAME]["tl"]} tr=${DT_FRAMES[$DT_FRAME]["tr"]}
+		local bl=${DT_FRAMES[$DT_FRAME]["bl"]} br=${DT_FRAMES[$DT_FRAME]["br"]}
+		local fh=${DT_FRAMES[$DT_FRAME]["h"]} fv=${DT_FRAMES[$DT_FRAME]["v"]}
+		local bar
+		bar := dt_rep $((w - 2)) "$fh"
+		console put -p "w$id" 0 0 "$tl$bar$tr"
+		console put -p "w$id" $((h - 1)) 0 "$bl$bar$br"
+		console pen "$DT_INK" "$DT_FACE"
+		# A fixed window keeps the plain corner the border just drew
+		# instead of the grow box: no drag can resize it, so nothing
+		# should invite one.
+		[ "$fixed" != 1 ] &&
+			console put -p "w$id" $((h - 1)) $((w - 1)) "◢"
+		local r=1
+		while [ "$r" -lt $((h - 1)) ]; do
+			console put -p "w$id" "$r" 0 "$fv"
+			console put -p "w$id" "$r" $((w - 1)) "$fv"
+			r=$((r + 1))
+		done
+	fi
 
 	local bs bc off i
-	dt_btnspec "$DT_BTNSTYLE" "$fixed"
+	dt_btnorder "$DT_BTNSTYLE" "$fixed" "$DT_BTNSIDE"
+	# A blank frame is blank throughout: the tick marks a style wraps its
+	# cluster in are box-drawing glyphs too, and stay undrawn along with
+	# the ring itself, even though the buttons they wrap keep working.
+	[ "$DT_FRAME" = none ] && { BTN_DL=" "; BTN_DR=" "; }
 	bs := dt_btnstr
 	if [ "$DT_BTNSIDE" = left ]; then bc=1; else bc=$((w - 1 - ${#bs})); fi
 	console pen "$DT_INK" "$DT_FACE"
@@ -575,9 +603,19 @@ dt_win() {
 		i=$((i + 1))
 	done
 
+	# Room for the title is measured from the button cluster's own real
+	# position and width, not a style's worst case -- a fixed window's
+	# five-wide cluster leaves two columns more than a movable one's seven,
+	# and a centred or right-aligned title has to land on the real
+	# boundary or it reads as off-centre once anything narrower than the
+	# widest cluster is in play.
 	local t=${DT[$id]["title"]} tc0 room tc
-	if [ "$DT_BTNSIDE" = left ]; then tc0=8; room=$((w - 6))
-	else tc0=2; room=$((w - 12))
+	if [ "$DT_BTNSIDE" = left ]; then
+		tc0=$((bc + ${#bs}))
+		room=$((w - 1 - tc0 - 4))
+	else
+		tc0=2
+		room=$((bc - tc0 - 4))
 	fi
 	[ ${#t} -gt "$room" ] && t="${t:0:$room}"
 	case $DT_TITLEALIGN in
@@ -585,8 +623,10 @@ dt_win() {
 	right)  tc=$((tc0 + room - ${#t})) ;;
 	*)      tc=$tc0 ;;
 	esac
+	local tdl="┤" tdr="├"
+	[ "$DT_FRAME" = none ] && { tdl=" "; tdr=" "; }
 	console pen "$on" "$DT_FACE" bold
-	console put -p "w$id" 0 "$tc" "┤ $t ├"
+	console put -p "w$id" 0 "$tc" "$tdl $t $tdr"
 
 	# Held down and still over the one that was pressed: shown inverted,
 	# so a click actually looks like it did something before whatever it
@@ -630,21 +670,21 @@ dt_draw() {
 dt_btn() {
 	local w=$1 c=$2 fixed=$3 bc bw
 
-	[ "$DT_FRAME" = none ] && { ret ""; return 0; }
 	if [ "$fixed" = 1 ]; then bw=5; else bw=7; fi
 	if [ "$DT_BTNSIDE" = left ]; then bc=1; else bc=$((w - 1 - bw)); fi
+	dt_btnorder "$DT_BTNSTYLE" "$fixed" "$DT_BTNSIDE"
 	if [ "$fixed" = 1 ]; then
 		case $((c - bc)) in
-		1) ret min ;;
-		3) ret close ;;
+		1) ret "${BTN_K[0]}" ;;
+		3) ret "${BTN_K[1]}" ;;
 		*) ret "" ;;
 		esac
 		return 0
 	fi
 	case $((c - bc)) in
-	1) ret min ;;
-	3) ret max ;;
-	5) ret close ;;
+	1) ret "${BTN_K[0]}" ;;
+	3) ret "${BTN_K[1]}" ;;
+	5) ret "${BTN_K[2]}" ;;
 	*) ret "" ;;
 	esac
 }
