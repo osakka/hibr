@@ -2,8 +2,10 @@
 #
 # wallpaper -- a Control Strip module cycling the desktop's own wallpaper
 # glyph, the same DT_GLYPH setting Appearance's own Wallpaper row changes.
+# Its own name, not the glyph itself -- a click opens every glyph as a
+# dropdown, each shown as itself, which is its own preview.
 
-command -v cs_module > /dev/null && cs_module wallpaper
+command -v cs_module > /dev/null && cs_module wallpaper Wallpaper
 
 WALL_GLYPHS=("·" "░" "▒" "⋅" "+")
 
@@ -11,18 +13,15 @@ wallpaper_draw() {
 	local row=$1 col=$2
 
 	console pen "$DT_INK" "$DT_FACE"
-	console put "$row" "$col" "$DT_GLYPH"
+	console put "$row" "$col" "Wallpaper"
 }
 
 wallpaper_click() {
-	local cur=$DT_GLYPH n=0 i=0 hit=-1 g
+	command -v cs_dropopen > /dev/null || return 0
+	cs_dropopen "$1" "$2" wallpaper_pick "${WALL_GLYPHS[@]}"
+}
 
-	for g in "${WALL_GLYPHS[@]}"; do
-		[ "$g" = "$cur" ] && hit=$n
-		n=$((n + 1))
-	done
-	[ "$hit" -lt 0 ] && hit=0
-	i=$(((hit + 1) % n))
-	DT_GLYPH=${WALL_GLYPHS[$i]}
+wallpaper_pick() {
+	DT_GLYPH=$1
 	dt_save
 }

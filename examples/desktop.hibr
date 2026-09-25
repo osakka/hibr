@@ -3329,14 +3329,17 @@ CS_DRAGKIND=
 CS_PRESSR=0
 CS_PRESSC=0
 
-# Register a strip module: name, and how many columns its own content
-# needs inside its brackets (one by default -- a toggle or a single
-# letter). name_draw row col draws that content, starting at col;
-# name_click row col is called the same way, for a click anywhere in it.
-# Neither takes an id -- there is never more than one instance of a strip
-# module, unlike a window.
+# Register a strip module: name, the title it draws in its own brackets
+# (also what a tooltip would say, once there is one), and how many columns
+# its content needs there -- the title's own length by default, since the
+# title is what is drawn unless a module wants something narrower.
+# name_draw row col draws that content, starting at col; name_click row col
+# is called the same way, for a click anywhere in it. Neither takes an id
+# -- there is never more than one instance of a strip module, unlike a
+# window.
 cs_module() {
-	CS_MODS[$1]["w"]="${2:-1}"
+	CS_MODS[$1]["title"]="$2"
+	CS_MODS[$1]["w"]="${3:-${#2}}"
 	CS_MOD_LIST+=("$1")
 }
 
@@ -3583,4 +3586,29 @@ cs_press() {
 	mc := cs_modcol "$i"
 	dt_has "${m}_click" && "${m}_click" "$row" "$mc"
 	return 0
+}
+
+# Open a dropdown of choices for a strip module, below its own row if that
+# fits on the screen, above it otherwise -- the strip has no window to
+# translate a widget's own row/col through the way dt_droplist does for a
+# Control Panel pane, so it reaches dt_context_open's absolute coordinates
+# directly. Reuses the same widget/dt_dropcontext machinery, and the same
+# "" DT_POPID a window-less caller already gets away with there, since an
+# empty argument vanishes under unquoted word splitting rather than
+# reaching the callback at all.
+cs_dropopen() {
+	local r=$1 c=$2 cb=$3 n
+
+	shift 3
+	n=$#
+	if [ $((r + n + 1)) -gt "$DT_ROWS" ]; then
+		r=$((r - n))
+		[ "$r" -lt 1 ] && r=1
+	else
+		r=$((r + 1))
+	fi
+	DT_POPID=
+	DT_POPCB=$cb
+	DT_POPVALS=("$@")
+	dt_context_open widget "" "$r" "$c"
 }

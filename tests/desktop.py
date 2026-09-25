@@ -900,23 +900,46 @@ def csrun(feed=()):
     return sc
 
 
+def cssaved(sc):
+    saved = os.path.join(sc.conf, "hibr", "desktop.hibr")
+    return open(saved).read() if os.path.exists(saved) else ""
+
+
 sc = csrun()
 arrow = sc.find("▸")
 check("the strip docks left by default, roughly 80% down the screen",
       arrow is not None and arrow[0] > ROWS * 3 // 4, sc)
 row = arrow[0]
-# cursor, shadow, theme, wallpaper: alphabetical file order, one column
-# each -- verified as one exact string before any position derived from
-# it is trusted for a click.
-check("its four modules draw as one bracketed row, in file order",
-      sc.row(row)[0:13] == "[█][●][-][·]▸", sc)
+# cursor, shadow, theme, wallpaper: alphabetical file order, its own full
+# name in each bracket rather than a single glyph nobody could read
+# without already knowing what it meant -- verified as one exact string
+# before any position derived from it is trusted for a click.
+LABELS = "[Cursor][Shadow][Theme][Wallpaper]▸"
+check("its four modules draw as one bracketed row, in file order, named",
+      sc.row(row)[0:len(LABELS)] == LABELS, sc)
+SHADOW_COL = sc.find("Shadow")[1]
+CURSOR_COL = sc.find("Cursor")[1]
+ARROW_COL = arrow[1]
 shutil.rmtree(sc.conf, True)
 
-SHADOW_COL, ARROW_COL = 4, 12
-
 sc = csrun([press(row, SHADOW_COL), release(row, SHADOW_COL)])
-check("a click toggles a module, here Window Shadow off",
-      sc.row(row)[0:13] == "[█][○][-][·]▸", sc)
+# Shadow is a plain toggle, drawn bold in the active colour when on and
+# dimmed when off -- its own colour changes, not its text, and the screen
+# model tracks characters, not colour, so this checks the saved setting.
+check("a click toggles Shadow", "DT_SHADOW=0" in cssaved(sc), sc)
+shutil.rmtree(sc.conf, True)
+
+sc = csrun([press(row, CURSOR_COL), release(row, CURSOR_COL)])
+check("clicking Cursor instead opens a dropdown of its three styles",
+      sc.find("block") is not None and sc.find("underline") is not None and
+      sc.find("bar") is not None, sc)
+pick = sc.find("bar")
+shutil.rmtree(sc.conf, True)
+
+sc = csrun([press(row, CURSOR_COL), release(row, CURSOR_COL),
+            press(*pick), release(*pick)])
+check("picking a value from it sets and saves the value",
+      "DT_CURSOR=bar" in cssaved(sc), sc)
 shutil.rmtree(sc.conf, True)
 
 sc = csrun([press(row, ARROW_COL), release(row, ARROW_COL)])
@@ -924,11 +947,19 @@ check("a click on the arrow collapses the strip to its own tab",
       sc.row(row).startswith("▸") and "[" not in sc.row(row), sc)
 shutil.rmtree(sc.conf, True)
 
-sc = csrun([press(row, ARROW_COL), drag(15, 70), release(15, 70)])
+# The kind (move vs resize) latches on the first drag event once away from
+# the press, off whichever of dr/dc is bigger -- a small vertical step
+# first, same as a real drag's first few pixels, keeps it "move" before
+# the big horizontal jump that actually reaches the other side; jumping
+# straight there reads as a sideways resize instead, since dc dwarfs dr in
+# one single (row, col) jump the way it never does pixel by pixel.
+sc = csrun([press(row, ARROW_COL), drag(row - 1, ARROW_COL),
+            drag(15, 70), release(15, 70)])
 # Right-docked, the arrow leads instead of trailing, flush against the
-# screen's own right edge -- the last 13 columns of the row it landed on.
+# screen's own right edge.
+TAIL = "◂[Cursor][Shadow][Theme][Wallpaper]"
 check("dragging the arrow across the screen re-docks it to the other side",
-      sc.row(15)[-13:] == "◂[█][●][-][·]", sc)
+      sc.row(15)[-len(TAIL):] == TAIL, sc)
 saved = os.path.join(sc.conf, "hibr", "desktop.hibr")
 text = open(saved).read() if os.path.exists(saved) else ""
 check("the new side and position are saved",
@@ -941,14 +972,14 @@ shutil.rmtree(sc.conf, True)
 # time. Shrunk to one module, the other three are still there to scroll to.
 sc = csrun([press(row, ARROW_COL), drag(row, 5), release(row, 5)])
 check("dragging the arrow sideways instead resizes it",
-      sc.row(row)[0:4] == "[█]▸", sc)
+      sc.row(row)[0:9] == "[Cursor]▸", sc)
 shutil.rmtree(sc.conf, True)
 
 SHRINK = [press(row, ARROW_COL), drag(row, 5), release(row, 5)]
 
 sc = csrun(SHRINK + [wheel(row, 1, up=False)])
 check("the wheel over the strip scrolls to the next module",
-      sc.row(row)[0:4] == "[●]▸", sc)
+      sc.row(row)[0:9] == "[Shadow]▸", sc)
 shutil.rmtree(sc.conf, True)
 
 # `[ "$act" = wheelup ] && cs_scroll -1 || cs_scroll 1` looked like an
@@ -958,12 +989,12 @@ shutil.rmtree(sc.conf, True)
 # somewhere to go. Scroll to the far end, then back past every module.
 sc = csrun(SHRINK + [wheel(row, 1, up=False)] * 4 + [wheel(row, 1, up=True)])
 check("the wheel scrolls back too, not just forward",
-      sc.row(row)[0:4] == "[-]▸", sc)
+      sc.row(row)[0:8] == "[Theme]▸", sc)
 shutil.rmtree(sc.conf, True)
 
 sc = csrun(SHRINK + [wheel(row, 1, up=False)] * 4 + [wheel(row, 1, up=True)] * 3)
 check("scrolling all the way back reaches the first module again",
-      sc.row(row)[0:4] == "[█]▸", sc)
+      sc.row(row)[0:9] == "[Cursor]▸", sc)
 shutil.rmtree(sc.conf, True)
 
 # A hover motion (a "drag" report whose own button decodes to none) marks
@@ -973,25 +1004,30 @@ HOVER_ON_STRIP = drag(row, 1, button=3)
 
 sc = csrun(SHRINK + [HOVER_ON_STRIP, b"\x1b[C"])
 check("hovering over the strip lets the right arrow scroll it too",
-      sc.row(row)[0:4] == "[●]▸", sc)
+      sc.row(row)[0:9] == "[Shadow]▸", sc)
 shutil.rmtree(sc.conf, True)
 
 # With no mouse at all, its own shortcut gives it attention instead --
 # right still scrolls it, escape or the same shortcut again releases it.
 sc = csrun(SHRINK + [b"\x1bs", b"\x1b[C"])
 check("the strip's own shortcut scrolls it with no mouse involved",
-      sc.row(row)[0:4] == "[●]▸", sc)
+      sc.row(row)[0:9] == "[Shadow]▸", sc)
 shutil.rmtree(sc.conf, True)
 
 sc = csrun(SHRINK + [b"\x1bs", b"\x1b", b"\x1b[C"])
 check("escape releases it, so the same arrow goes back to being unhandled",
-      sc.row(row)[0:4] == "[█]▸", sc)
+      sc.row(row)[0:9] == "[Cursor]▸", sc)
 shutil.rmtree(sc.conf, True)
 
 LAUNCH = MENU + [b"c"]
 sc, raw = run("", feed=LAUNCH + LAUNCH, pre=APPS)
+# 'c' launches Control Panel, not Clock -- Clock moved to Desk Accessories
+# and is not registered at all under a bare APPS, so it no longer holds
+# 'c' here (Control Panel does, being the sole 'c'-starting app left in
+# examples/apps); this check was never about which app it launches, only
+# that a `once` one opens no more than a single window.
 check("an app declared once opens one window, however often launched",
-      sc.text().count("┤ Clock ├") == 1, sc)
+      sc.text().count("┤ Control Panel ├") == 1, sc)
 LAUNCH = MENU + [b"f"]
 sc, raw = run("", feed=LAUNCH + LAUNCH, pre=APPS)
 check("and one that is not opens another window each time",
@@ -1021,8 +1057,8 @@ check("clicking the clock in the bar opens the Clock app",
 # real change to it breaks an assertion instead of a silent miscount.
 PANEL = ('. %s/panel.hibr\nCP_PANEDIRS+=("%s")\ncp_panes'
          % (tree("examples/apps"), tree("examples/control-panel")))
-ORDER = ["app_shortcuts", "appearance", "behaviour", "datetime", "shortcuts",
-         "windows"]
+ORDER = ["app_shortcuts", "appearance", "behaviour", "control_strip",
+         "datetime", "shortcuts", "windows"]
 DOWN_APP = [b"\x1b[B"] * ORDER.index("appearance")
 DOWN_SHORT = [b"\x1b[B"] * ORDER.index("shortcuts")
 
@@ -1236,4 +1272,4 @@ check("ending it leaves the other one alone",
       "personal" in r.stdout and "work" not in r.stdout, r.stdout)
 unsession()
 
-report(184)
+report(186)

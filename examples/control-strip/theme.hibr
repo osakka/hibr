@@ -1,37 +1,27 @@
 #!/usr/bin/env hibr
 #
-# theme -- a Control Strip module cycling the desktop's own colour theme, as
-# a swatch of the theme's own accent colour rather than its first letter --
-# a letter names the theme only to someone who already has the six names
-# memorised, a swatch of the colour it sets is legible to anyone. Reuses
-# Appearance's own cp_theme() and CP_THEMES rather than a second copy of
-# the same colour table: if Control Panel is not loaded, the module still
-# draws a dash, but a click does nothing, honestly, rather than
-# half-switching only some of the colours.
+# theme -- a Control Strip module cycling the desktop's own colour theme,
+# by its own name rather than a first letter or a swatch -- a click opens
+# every theme as a dropdown, reusing Appearance's own cp_theme() and
+# CP_THEMES rather than a second copy of the same colour table. If Control
+# Panel is not loaded there is nothing to offer, so a click does nothing,
+# honestly, rather than switching only some of the colours.
 
-command -v cs_module > /dev/null && cs_module theme
+command -v cs_module > /dev/null && cs_module theme Theme
 
 theme_draw() {
 	local row=$1 col=$2
 
-	if [ -z "$CP_THEME" ]; then
-		console pen "$DT_INK" "$DT_FACE"
-		console put "$row" "$col" "-"
-		return 0
-	fi
-	console pen "$DT_ACTIVE" "$DT_FACE"
-	console put "$row" "$col" "◆"
+	console pen "$DT_INK" "$DT_FACE"
+	console put "$row" "$col" "Theme"
 }
 
 theme_click() {
-	local n=0 i=0 hit=-1 t
-
 	command -v cp_theme > /dev/null || return 0
-	for t in "${CP_THEMES[@]}"; do
-		[ "$t" = "$CP_THEME" ] && hit=$n
-		n=$((n + 1))
-	done
-	[ "$hit" -lt 0 ] && hit=0
-	i=$(((hit + 1) % n))
-	cp_theme "${CP_THEMES[$i]}" && dt_save
+	command -v cs_dropopen > /dev/null || return 0
+	cs_dropopen "$1" "$2" theme_pick "${CP_THEMES[@]}"
+}
+
+theme_pick() {
+	cp_theme "$1" && dt_save
 }

@@ -1,31 +1,28 @@
 #!/usr/bin/env hibr
 #
-# cursor -- a Control Strip module cycling a new terminal's cursor style,
-# the same DT_CURSOR setting Behaviour's own Cursor row changes. Shown as
-# the shape it sets, not its first letter -- a strip full of single letters
-# reads as nothing in particular, a shape reads as itself.
+# cursor -- a Control Strip module for a new terminal's cursor style, the
+# same DT_CURSOR setting Behaviour's own Cursor row changes. Its own name
+# rather than a shape or a letter -- a click opens the three styles as a
+# dropdown, the same as Behaviour's own Cursor row does from a click on
+# its value, so the current style is seen and chosen in the same place.
 
-command -v cs_module > /dev/null && cs_module cursor
+command -v cs_module > /dev/null && cs_module cursor Cursor
 
 CURSOR_STYLES=(block underline bar)
-declare -gA CURSOR_GLYPH=([block]="█" [underline]="_" [bar]="│")
 
 cursor_draw() {
 	local row=$1 col=$2
 
 	console pen "$DT_INK" "$DT_FACE"
-	console put "$row" "$col" "${CURSOR_GLYPH[$DT_CURSOR]:-?}"
+	console put "$row" "$col" "Cursor"
 }
 
 cursor_click() {
-	local cur=$DT_CURSOR n=0 i=0 hit=-1 s
+	command -v cs_dropopen > /dev/null || return 0
+	cs_dropopen "$1" "$2" cursor_pick "${CURSOR_STYLES[@]}"
+}
 
-	for s in "${CURSOR_STYLES[@]}"; do
-		[ "$s" = "$cur" ] && hit=$n
-		n=$((n + 1))
-	done
-	[ "$hit" -lt 0 ] && hit=0
-	i=$(((hit + 1) % n))
-	DT_CURSOR=${CURSOR_STYLES[$i]}
+cursor_pick() {
+	DT_CURSOR=$1
 	dt_save
 }

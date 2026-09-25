@@ -1,21 +1,22 @@
 #!/usr/bin/env hibr
 #
 # shadow -- a Control Strip module toggling window shadows, the same
-# DT_SHADOW setting Behaviour's own Window Shadow row changes. A filled or
-# hollow dot, not "x" or a blank -- a blank cell in a strip full of cells
-# reads as broken, not as off.
+# DT_SHADOW setting Behaviour's own Window Shadow row changes. Its own
+# name, not a glyph -- bold in the active colour when on, dimmed when off,
+# since a single icon read as nothing in particular to anyone who had not
+# already memorised what it meant.
 
-command -v cs_module > /dev/null && cs_module shadow
+command -v cs_module > /dev/null && cs_module shadow Shadow
 
 shadow_draw() {
 	local row=$1 col=$2
 
-	console pen "$DT_INK" "$DT_FACE"
 	if [ "$DT_SHADOW" = 1 ]; then
-		console put "$row" "$col" "●"
+		console pen "$DT_ACTIVE" "$DT_FACE" bold
 	else
-		console put "$row" "$col" "○"
+		console pen "$DT_IDLE" "$DT_FACE"
 	fi
+	console put "$row" "$col" "Shadow"
 }
 
 shadow_click() {

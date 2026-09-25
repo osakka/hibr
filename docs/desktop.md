@@ -403,11 +403,17 @@ drawing a second one from scratch.
 
 ![The Date & Time pane, its clock and date above a small world map marking Europe/London](img/desktop-datetime.png)
 
-The six bundled panes -- Appearance, Behaviour, Date & Time, Shortcuts, App
-Shortcuts, Windows -- are ordinary files under `examples/control-panel`
-themselves, not special-cased in `panel.hibr`: a file of your own with the
-same pane name replaces one, the same rule `DT_APPDIRS` already has for
-apps.
+The seven bundled panes -- Appearance, Behaviour, Control Strip, Date &
+Time, Shortcuts, App Shortcuts, Windows -- are ordinary files under
+`examples/control-panel` themselves, not special-cased in `panel.hibr`: a
+file of your own with the same pane name replaces one, the same rule
+`DT_APPDIRS` already has for apps.
+
+Control Strip's own pane carries only `CS_SIDE` and `CS_SHADOW` -- which
+side it docks to, and whether it casts its own shadow. Its position,
+whether it is collapsed, and how many modules are shown are dragged on the
+strip itself, the same way a window is moved and resized on itself rather
+than from a settings row elsewhere.
 
 ## The apps
 
@@ -459,7 +465,7 @@ Strip sat at the bottom of the screen and only ever slid left and right
 along it; this one docks to either side instead and slides up and down, a
 deliberate choice over period accuracy.
 
-![The Control Strip docked left, four modules in brackets ending in its own arrow](img/desktop-strip.png)
+![The Control Strip docked left, four named modules in brackets ending in its own arrow](img/desktop-strip.png)
 
 The arrow at the end is the strip's own handle, for three different
 gestures: drag it up or down to move the whole strip along its docked
@@ -484,27 +490,41 @@ shortcuts) gives the strip explicit attention until escape or `alt-s`
 again releases it, and the same arrow keys scroll it regardless of where
 the pointer happens to be.
 
-A module calls `cs_module name [width]` to register (one column by
-default -- a toggle or a single letter), then defines `name_draw row col`
-and `name_click row col`, in the same absolute screen coordinates -- `col`
-is where its own content starts, one column inside its brackets, however
-the strip is currently docked, sized or scrolled; neither takes a window
-id, since there is never more than one instance of a strip module.
-`CS_MODDIRS` (default `~/.config/hibr/control-strip`) and `cs_modules`
-find and load them, the same shape `DT_APPDIRS`/`dt_apps`,
+A module calls `cs_module name title [width]` to register -- `title` is
+what is drawn in its own brackets, and (once there is one) what a tooltip
+would say; `width` defaults to the title's own length, since the title is
+what is drawn unless a module wants something narrower. It then defines
+`name_draw row col` and `name_click row col`, in the same absolute screen
+coordinates -- `col` is where its own content starts, one column inside
+its brackets, however the strip is currently docked, sized or scrolled;
+neither takes a window id, since there is never more than one instance of
+a strip module. `CS_MODDIRS` (default `~/.config/hibr/control-strip`) and
+`cs_modules` find and load them, the same shape `DT_APPDIRS`/`dt_apps`,
 `CP_PANEDIRS`/`cp_panes` and `DA_DIRS`/`da_apps` already are.
 
-The four bundled modules live in `examples/control-strip/`, each a few
-lines reusing a setting Control Panel already has, drawn as the thing it
-sets rather than an arbitrary letter: `shadow` toggles `DT_SHADOW` and
-draws a filled or hollow dot (a blank cell reads as broken, not as off);
-`wallpaper` cycles `DT_GLYPH` and draws that glyph directly; `cursor`
-cycles `DT_CURSOR` and draws the shape it sets -- a block, an underline
-or a bar; and `theme` cycles the theme by calling Appearance's own
-`cp_theme()` rather than a second copy of its colour table, drawing a
-diamond in the theme's own accent colour -- if Control Panel is not
-loaded, `theme` shows a dash instead, but a click does nothing, honestly,
-rather than switching only some of the colours.
+Earlier versions drew a single letter or glyph per module -- clever, but
+nothing anyone could read without already knowing what it meant. Every
+bundled module now draws its own name instead: `[Cursor][Shadow][Theme]
+[Wallpaper]`, in `examples/control-strip/`, each a few lines reusing a
+setting Control Panel already has. `shadow` toggles `DT_SHADOW` on click,
+bold in the active colour when on and dimmed when off; `cursor`, `theme`
+and `wallpaper` -- each with more than two values -- open a dropdown of
+their choices on click instead, `cursor` cycling `DT_CURSOR`, `theme`
+calling Appearance's own `cp_theme()` rather than a second copy of its
+colour table, and `wallpaper` cycling `DT_GLYPH`, each glyph shown as
+itself in its own list row. If Control Panel is not loaded, `theme`'s
+click does nothing, honestly, rather than switching only some of the
+colours.
+
+The dropdown reuses `dt_droplist`'s own widget/`dt_dropcontext` machinery
+-- the same one a Control Panel row's own dropdown opens -- through
+`cs_dropopen row col cb values...`, which reaches `dt_context_open`'s
+absolute screen coordinates directly rather than translating a widget's
+row/col through a window the strip does not have. It opens below the
+module's own row if the choices fit on the screen there, above it
+otherwise -- there is no reason to prefer one over the other beyond what
+actually fits, and the strip's own default position, most of the way down
+the screen, means most of its dropdowns open upward in practice.
 
 The strip casts its own shadow under `CS_SHADOW`, independent of
 `DT_SHADOW` (windows) and `DT_MSHADOW` (menus) -- the same reasoning as

@@ -1,0 +1,54 @@
+#!/usr/bin/env hibr
+#
+# control-strip -- the Control Panel pane for the strip itself: which side
+# it docks to, and whether it casts its own shadow, the same reasoning as
+# Behaviour's own Window Shadow and Menu Shadow rows. Position, collapse
+# and length are dragged directly on the strip, the same as a window is
+# moved and resized on itself rather than from a settings row -- this pane
+# only carries the two things that are otherwise nowhere to see or change.
+
+command -v cp_pane > /dev/null && cp_pane control_strip "Control Strip" "▤"
+
+CP_CS_SIDES=(left right)
+
+cp_set_csside() { CS_SIDE=$2; cp_save; }
+
+cp_csshadow() {
+	if [ "$CS_SHADOW" = 1 ]; then
+		CS_SHADOW=0
+	else
+		CS_SHADOW=1
+	fi
+	cp_save
+}
+
+control_strip_rows() {
+	local w=$1 n=0
+
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Side"
+	CP[$w][$n]["val"]="$CS_SIDE"; CP[$w][$n]["key"]=side; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Shadow"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$CS_SHADOW" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=shadow; n=$((n + 1))
+	ret "$n"
+}
+
+control_strip_do() {
+	local w=$1 k=$2 dir=$3 v
+
+	case $k in
+	side) v := cp_next "$CS_SIDE" "$dir" "${CP_CS_SIDES[@]}"
+	      CS_SIDE=$v ;;
+	shadow) cp_csshadow ;;
+	esac
+	cp_save
+}
+
+control_strip_drop() {
+	local w=$1 r=$2 c=$3 k=$4
+
+	case $k in
+	side) dt_droplist "$w" "$r" "$c" cp_set_csside "${CP_CS_SIDES[@]}" ;;
+	esac
+}
