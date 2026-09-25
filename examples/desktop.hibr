@@ -129,7 +129,7 @@ DT_TICK="${DT_TICK-2000}"
 DT_CONF="${DT_CONF-${XDG_CONFIG_HOME:-$HOME/.config}/hibr/desktop.hibr}"
 DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 	DT_TICK DT_ICONS DT_DISKS DT_CURSOR DT_CURSOR_BLINK DT_SHADOW
-	DT_MSHADOW DT_DBLACTION CS_SIDE CS_Y CS_COLLAPSED CS_LEN)
+	DT_MSHADOW DT_DBLACTION CS_SIDE CS_Y CS_COLLAPSED CS_LEN CS_SHADOW)
 
 # Where the desktop's stderr goes while it holds the screen, so an app's
 # error message cannot scribble over the display, and the reason for a
@@ -716,7 +716,11 @@ dt_mouse() {
 		;;
 	wheelup | wheeldown)
 		if cs_hit "$mr" "$mc"; then
-			[ "$act" = wheelup ] && cs_scroll -1 || cs_scroll 1
+			if [ "$act" = wheelup ]; then
+				cs_scroll -1
+			else
+				cs_scroll 1
+			fi
 			return 0
 		fi
 		id := console hit "$mr" "$mc"
@@ -867,7 +871,11 @@ dt_event() {
 	# to it explicitly by its own shortcut.
 	if [ "$k" = left ] || [ "$k" = right ]; then
 		if [ "$CS_ATTN" = 1 ] || cs_hit "$DT_HOVERR" "$DT_HOVERC"; then
-			[ "$k" = left ] && cs_scroll -1 || cs_scroll 1
+			if [ "$k" = left ]; then
+				cs_scroll -1
+			else
+				cs_scroll 1
+			fi
 			return 0
 		fi
 	fi
@@ -3297,6 +3305,12 @@ CS_Y="${CS_Y-}"
 CS_COLLAPSED="${CS_COLLAPSED-0}"
 CS_LEN="${CS_LEN-}"
 CS_SCROLL="${CS_SCROLL-0}"
+
+# The strip's own shadow -- a separate setting from DT_SHADOW, the same
+# reasoning as DT_MSHADOW: the strip is drawn every frame it is on screen,
+# not just when a window moves, so someone who wants window shadows without
+# paying for this one every frame should be able to say so.
+CS_SHADOW="${CS_SHADOW-1}"
 CS_ATTN=0
 CS_DRAG=
 CS_DRAGKIND=
@@ -3446,6 +3460,7 @@ cs_scroll() {
 	[ "$CS_SCROLL" -lt 0 ] && CS_SCROLL=0
 	[ $((CS_SCROLL + cnt)) -gt "$total" ] && CS_SCROLL=$((total - cnt))
 	[ "$CS_SCROLL" -lt 0 ] && CS_SCROLL=0
+	return 0
 }
 
 # Live-resize from the arrow's own drag: how many modules fit between the
@@ -3497,7 +3512,7 @@ dt_stripdraw() {
 	cnt := cs_count
 	w := cs_width
 	[ "$CS_SIDE" = left ] && col=0 || col=$((DT_COLS - w))
-	[ "$DT_SHADOW" = 1 ] && console darken $((row + 1)) $((col + 2)) 1 "$w"
+	[ "$CS_SHADOW" = 1 ] && console darken $((row + 1)) $((col + 2)) 1 "$w"
 	console pen "$DT_INK" "$DT_FACE"
 	console fill "$row" "$col" 1 "$w" " "
 	c=$col

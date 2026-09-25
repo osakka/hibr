@@ -2,18 +2,19 @@
 #
 # cursor -- a Control Strip module cycling a new terminal's cursor style,
 # the same DT_CURSOR setting Behaviour's own Cursor row changes. Shown as
-# its own first letter -- b, u or r -- the strip's cells are one column
-# wide.
+# the shape it sets, not its first letter -- a strip full of single letters
+# reads as nothing in particular, a shape reads as itself.
 
 command -v cs_module > /dev/null && cs_module cursor
 
 CURSOR_STYLES=(block underline bar)
+declare -gA CURSOR_GLYPH=([block]="█" [underline]="_" [bar]="│")
 
 cursor_draw() {
 	local row=$1 col=$2
 
 	console pen "$DT_INK" "$DT_FACE"
-	console put "$row" "$col" "${DT_CURSOR:0:1}"
+	console put "$row" "$col" "${CURSOR_GLYPH[$DT_CURSOR]:-?}"
 }
 
 cursor_click() {

@@ -909,14 +909,14 @@ row = arrow[0]
 # each -- verified as one exact string before any position derived from
 # it is trusted for a click.
 check("its four modules draw as one bracketed row, in file order",
-      sc.row(row)[0:13] == "[b][x][-][·]▸", sc)
+      sc.row(row)[0:13] == "[█][●][-][·]▸", sc)
 shutil.rmtree(sc.conf, True)
 
 SHADOW_COL, ARROW_COL = 4, 12
 
 sc = csrun([press(row, SHADOW_COL), release(row, SHADOW_COL)])
 check("a click toggles a module, here Window Shadow off",
-      sc.row(row)[0:13] == "[b][ ][-][·]▸", sc)
+      sc.row(row)[0:13] == "[█][○][-][·]▸", sc)
 shutil.rmtree(sc.conf, True)
 
 sc = csrun([press(row, ARROW_COL), release(row, ARROW_COL)])
@@ -928,7 +928,7 @@ sc = csrun([press(row, ARROW_COL), drag(15, 70), release(15, 70)])
 # Right-docked, the arrow leads instead of trailing, flush against the
 # screen's own right edge -- the last 13 columns of the row it landed on.
 check("dragging the arrow across the screen re-docks it to the other side",
-      sc.row(15)[-13:] == "◂[b][x][-][·]", sc)
+      sc.row(15)[-13:] == "◂[█][●][-][·]", sc)
 saved = os.path.join(sc.conf, "hibr", "desktop.hibr")
 text = open(saved).read() if os.path.exists(saved) else ""
 check("the new side and position are saved",
@@ -941,14 +941,29 @@ shutil.rmtree(sc.conf, True)
 # time. Shrunk to one module, the other three are still there to scroll to.
 sc = csrun([press(row, ARROW_COL), drag(row, 5), release(row, 5)])
 check("dragging the arrow sideways instead resizes it",
-      sc.row(row)[0:4] == "[b]▸", sc)
+      sc.row(row)[0:4] == "[█]▸", sc)
 shutil.rmtree(sc.conf, True)
 
 SHRINK = [press(row, ARROW_COL), drag(row, 5), release(row, 5)]
 
 sc = csrun(SHRINK + [wheel(row, 1, up=False)])
 check("the wheel over the strip scrolls to the next module",
-      sc.row(row)[0:4] == "[x]▸", sc)
+      sc.row(row)[0:4] == "[●]▸", sc)
+shutil.rmtree(sc.conf, True)
+
+# `[ "$act" = wheelup ] && cs_scroll -1 || cs_scroll 1` looked like an
+# if/else but is not one: cs_scroll's own clamping ends in a test that is
+# often false, so the `-1` call's own exit status re-triggered the `|| cs_scroll
+# 1` right after it, leaving a wheel-up stuck whenever it actually had
+# somewhere to go. Scroll to the far end, then back past every module.
+sc = csrun(SHRINK + [wheel(row, 1, up=False)] * 4 + [wheel(row, 1, up=True)])
+check("the wheel scrolls back too, not just forward",
+      sc.row(row)[0:4] == "[-]▸", sc)
+shutil.rmtree(sc.conf, True)
+
+sc = csrun(SHRINK + [wheel(row, 1, up=False)] * 4 + [wheel(row, 1, up=True)] * 3)
+check("scrolling all the way back reaches the first module again",
+      sc.row(row)[0:4] == "[█]▸", sc)
 shutil.rmtree(sc.conf, True)
 
 # A hover motion (a "drag" report whose own button decodes to none) marks
@@ -958,19 +973,19 @@ HOVER_ON_STRIP = drag(row, 1, button=3)
 
 sc = csrun(SHRINK + [HOVER_ON_STRIP, b"\x1b[C"])
 check("hovering over the strip lets the right arrow scroll it too",
-      sc.row(row)[0:4] == "[x]▸", sc)
+      sc.row(row)[0:4] == "[●]▸", sc)
 shutil.rmtree(sc.conf, True)
 
 # With no mouse at all, its own shortcut gives it attention instead --
 # right still scrolls it, escape or the same shortcut again releases it.
 sc = csrun(SHRINK + [b"\x1bs", b"\x1b[C"])
 check("the strip's own shortcut scrolls it with no mouse involved",
-      sc.row(row)[0:4] == "[x]▸", sc)
+      sc.row(row)[0:4] == "[●]▸", sc)
 shutil.rmtree(sc.conf, True)
 
 sc = csrun(SHRINK + [b"\x1bs", b"\x1b", b"\x1b[C"])
 check("escape releases it, so the same arrow goes back to being unhandled",
-      sc.row(row)[0:4] == "[b]▸", sc)
+      sc.row(row)[0:4] == "[█]▸", sc)
 shutil.rmtree(sc.conf, True)
 
 LAUNCH = MENU + [b"c"]
@@ -990,7 +1005,11 @@ check("About hibr opens a window with the machine's own numbers",
 check("and it has no maximise button, being a fixed size",
       sc.find("┤_ x├") is not None, sc)
 
-sc, _ = run("", feed=[press(0, 63)], pre=APPS)
+# Clock is a desk accessory now, not in examples/apps -- the bar's own
+# click handler only asks dt_has clock_draw, so it works regardless of
+# which loader found it, but the test has to load it from where it is.
+sc, _ = run("", feed=[press(0, 63)],
+            pre=APPS + 'DA_DIRS+=("%s")\nda_apps\n' % tree("examples/desk-accessories"))
 check("clicking the clock in the bar opens the Clock app",
       sc.find("┤ Clock ├") is not None, sc)
 
@@ -1217,4 +1236,4 @@ check("ending it leaves the other one alone",
       "personal" in r.stdout and "work" not in r.stdout, r.stdout)
 unsession()
 
-report(182)
+report(184)

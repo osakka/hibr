@@ -432,11 +432,12 @@ whatever it finds under one "Desk Accessories" submenu on the hibr menu,
 regardless of where `DA_DIRS` actually points -- unlike an ordinary
 subfolder of `DT_APPDIRS`, which is named after itself.
 
-The two bundled accessories live in `examples/desk-accessories/`:
+The bundled accessories live in `examples/desk-accessories/`:
 
 | app | what it is |
 |---|---|
 | `calc` | a calculator, and `hibr calc.hibr '3 * 4'` on its own |
+| `clock` | the time, large, and the date under it |
 | `notepad` | one plain-text scratch note, saved to disk the moment it changes -- no word wrap, no search; `hvi` is the real editor |
 | `puzzle` | the sliding tile puzzle, 4 by 4. Arrows or a click move the gap; shuffled by real moves from solved, so it is always solvable |
 
@@ -487,12 +488,22 @@ find and load them, the same shape `DT_APPDIRS`/`dt_apps`,
 `CP_PANEDIRS`/`cp_panes` and `DA_DIRS`/`da_apps` already are.
 
 The four bundled modules live in `examples/control-strip/`, each a few
-lines reusing a setting Control Panel already has: `shadow` toggles
-`DT_SHADOW`, `wallpaper` cycles `DT_GLYPH`, `cursor` cycles `DT_CURSOR`,
-and `theme` cycles the theme by calling Appearance's own `cp_theme()`
-rather than a second copy of its colour table -- if Control Panel is not
-loaded, `theme` still shows the current theme's name, but a click does
-nothing, honestly, rather than switching only some of the colours.
+lines reusing a setting Control Panel already has, drawn as the thing it
+sets rather than an arbitrary letter: `shadow` toggles `DT_SHADOW` and
+draws a filled or hollow dot (a blank cell reads as broken, not as off);
+`wallpaper` cycles `DT_GLYPH` and draws that glyph directly; `cursor`
+cycles `DT_CURSOR` and draws the shape it sets -- a block, an underline
+or a bar; and `theme` cycles the theme by calling Appearance's own
+`cp_theme()` rather than a second copy of its colour table, drawing a
+diamond in the theme's own accent colour -- if Control Panel is not
+loaded, `theme` shows a dash instead, but a click does nothing, honestly,
+rather than switching only some of the colours.
+
+The strip casts its own shadow under `CS_SHADOW`, independent of
+`DT_SHADOW` (windows) and `DT_MSHADOW` (menus) -- the same reasoning as
+the other two: something drawn every frame it is visible, rather than
+only when a window moves or a menu opens, should be a setting of its own
+rather than piggybacking on either.
 
 A focused terminal gets every key except `f10`, so a program inside can have
 `escape`; `f10` is the way back to the menu bar.
