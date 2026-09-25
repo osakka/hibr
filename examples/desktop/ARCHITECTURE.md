@@ -1,9 +1,9 @@
 # The desktop's architecture
 
-[Windows on a console](desktop.md) says what the desktop does. This says how
+[Windows on a console](README.md) says what the desktop does. This says how
 it is built — the three layers, the event loop, the rendering model, and the
 contract an app is written against. Every screenshot below is a real render
-of real hibr output, made with [`tools/screenshot.py`](../tools/README.md),
+of real hibr output, made with [`tools/screenshot.py`](../../tools/README.md),
 not a mockup.
 
 ![An empty desktop: the menu bar, the wallpaper, and the three fixed icons](img/desktop-empty.png)
@@ -13,14 +13,14 @@ not a mockup.
 | X | here | what it is |
 |---|---|---|
 | the server | the `console` module | owns the terminal, the grid, the mouse, stacking, hit testing |
-| the window manager | `examples/desktop.hibr` | the event loop, focus, dragging, title bars, menus |
+| the window manager | `examples/desktop/desktop.hibr` | the event loop, focus, dragging, title bars, menus |
 | `~/.xinitrc` | your own session file | which windows open, and where |
 
 None of it is C beyond the display module itself. The window manager is a
 hibr script; every app is a hibr script; the session that starts them is a
 hibr script you write and own, the same way an X session is whatever
 `~/.xinitrc` says to run — see
-[decision 0020](adr/0020-windows-are-drawn-not-composited.md) for why this
+[decision 0020](../../docs/adr/0020-windows-are-drawn-not-composited.md) for why this
 split was chosen over compositing panes together in the display module
 itself.
 
@@ -138,7 +138,7 @@ and so on), so a change takes effect the moment it is written, in every
 window at once, without anything being told to refresh. `panel.hibr`, the
 Control Panel app, is what edits it interactively — not with settings of
 its own, but as a host for panes, each an ordinary file under
-`examples/control-panel`, System 7's Control Panels folder rather than one
+`examples/desktop/control-panel`, System 7's Control Panels folder rather than one
 long scrolling list:
 
 ![Control Panel's picker, Appearance selected and its Theme row cycled to slate](img/desktop-controlpanel.png)
@@ -156,7 +156,7 @@ Time draws its own body instead of rows — the clock, the date, and a small
 world map with a mark near the machine's own time zone, reusing
 `examples/traceroute.hibr`'s own map and zone1970.tab lookup rather than a
 second copy of either. See
-[Control Panel panes](desktop.md#control-panel-panes) for the two shapes a
+[Control Panel panes](README.md#control-panel-panes) for the two shapes a
 pane can take and how `CP_PANEDIRS` finds them.
 
 ## A real app, for scale
@@ -176,4 +176,4 @@ every cell is a real character cell, drawn with real SGR escape sequences,
 at whatever rate the terminal it runs in can keep up with. And it does not
 yet match a purely event-driven multiplexer's idle cost — see the note under
 [the event loop](#the-event-loop) above, and the project's own
-[backlog](backlog.md) for what is still open about it.
+[backlog](../../docs/backlog.md) for what is still open about it.

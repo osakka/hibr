@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Drive the window manager through a pty and read the screen it draws.
 
-examples/desktop.hibr is a hibr script, so none of this can be reached from
+examples/desktop/desktop.hibr is a hibr script, so none of this can be reached from
 a .t file: it needs a terminal for the console to open and a mouse to click
 with.  Run it directly:  python3 tests/desktop.py [path-to-hibr]
 
@@ -17,7 +17,7 @@ from screen import Term, check, report, press, release, drag, wheel, load, tree
 if len(sys.argv) > 1:
     screen.HIBR = os.path.abspath(sys.argv[1])
 MOD = tree("build/mods/console.so")
-WM = tree("examples/desktop.hibr")
+WM = tree("examples/desktop/desktop.hibr")
 ROWS, COLS = 24, 80
 
 
@@ -614,7 +614,7 @@ check("escape ends the mode, keeping what it did",
 # the trash.  One column at column 67: Home at row 2, the first disk at 5,
 # the second at 8, the trash at 11 -- or at 5, with disks off.
 
-APPS = 'DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/apps")
+APPS = 'DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/desktop/apps")
 
 import base64
 
@@ -837,12 +837,12 @@ open(os.path.join(UCONF, "hibr", "apps", "hello.hibr"), "w").write(
     'hello_draw() { console put -p "w$1" 1 1 "hi there"; }\n')
 open(os.path.join(UCONF, "hibr", "apps", "calc.hibr"), "w").write(
     'dt_app calc "My Sums" 6 20 once "±"\n')
-APPS = 'DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/apps")
+APPS = 'DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/desktop/apps")
 # Calculator is a desk accessory now, found by da_apps rather than dt_apps
 # -- but DT_SRC is one shared registry either way, so a user's own file,
 # loaded first by dt_apps from the default DT_APPDIRS entry, still blocks
 # the bundled one da_apps would otherwise find, the same as it always did.
-DAAPPS = 'DA_DIRS+=("%s")\nda_apps\n' % tree("examples/desk-accessories")
+DAAPPS = 'DA_DIRS+=("%s")\nda_apps\n' % tree("examples/desktop/desk-accessories")
 MENU = [b"\x1b[21~", b"\x1b[B"]
 sc, raw = run("", feed=MENU, env={"XDG_CONFIG_HOME": UCONF},
               pre=APPS + DAAPPS)
@@ -888,7 +888,7 @@ shutil.rmtree(GCONF, True)
 # regardless of where DA_DIRS points -- unlike the folder-submenu above,
 # an accessory need not live inside DT_APPDIRS at all.
 DACONF = tempfile.mkdtemp(prefix="hibr-apps-da-")
-DASRC = APPS + 'DA_DIRS+=("%s")\nda_apps\n' % tree("examples/desk-accessories")
+DASRC = APPS + 'DA_DIRS+=("%s")\nda_apps\n' % tree("examples/desktop/desk-accessories")
 sc, _ = run("", feed=[b"\x1b[21~"], env={"XDG_CONFIG_HOME": DACONF}, pre=DASRC)
 pos = sc.find("Desk Accessories")
 check("desk accessories are grouped under their own submenu",
@@ -907,7 +907,7 @@ shutil.rmtree(DACONF, True)
 # DT[] window -- docked to a side and dragged up and down, hibr's own take
 # rather than the bottom-only strip the real one was.
 
-CSSRC = 'CS_MODDIRS+=("%s")\ncs_modules\n' % tree("examples/control-strip")
+CSSRC = 'CS_MODDIRS+=("%s")\ncs_modules\n' % tree("examples/desktop/control-strip")
 
 
 def csrun(feed=()):
@@ -1050,7 +1050,7 @@ shutil.rmtree(sc.conf, True)
 
 IMGMOD = 'mod load %s\n' % tree("build/mods/img.so")
 IMGFIX = tree("tests/img-2x2.png")
-DASRC = 'DA_DIRS+=("%s")\nda_apps\n' % tree("examples/desk-accessories")
+DASRC = 'DA_DIRS+=("%s")\nda_apps\n' % tree("examples/desktop/desk-accessories")
 
 sc, raw = run("", env={"DT_WALLIMG": IMGFIX}, pre=IMGMOD)
 check("a real image can be the desktop's own wallpaper",
@@ -1086,7 +1086,7 @@ sc, raw = run("", feed=LAUNCH + LAUNCH, pre=APPS)
 # 'c' launches Control Panel, not Clock -- Clock moved to Desk Accessories
 # and is not registered at all under a bare APPS, so it no longer holds
 # 'c' here (Control Panel does, being the sole 'c'-starting app left in
-# examples/apps); this check was never about which app it launches, only
+# examples/desktop/apps); this check was never about which app it launches, only
 # that a `once` one opens no more than a single window.
 check("an app declared once opens one window, however often launched",
       sc.text().count("┤ Control Panel ├") == 1, sc)
@@ -1103,22 +1103,22 @@ check("About hibr opens a window with the machine's own numbers",
 check("and it has no maximise button, being a fixed size",
       sc.find("┤_ x├") is not None, sc)
 
-# Clock is a desk accessory now, not in examples/apps -- the bar's own
+# Clock is a desk accessory now, not in examples/desktop/apps -- the bar's own
 # click handler only asks dt_has clock_draw, so it works regardless of
 # which loader found it, but the test has to load it from where it is.
 sc, _ = run("", feed=[press(0, 63)],
-            pre=APPS + 'DA_DIRS+=("%s")\nda_apps\n' % tree("examples/desk-accessories"))
+            pre=APPS + 'DA_DIRS+=("%s")\nda_apps\n' % tree("examples/desktop/desk-accessories"))
 check("clicking the clock in the bar opens the Clock app",
       sc.find("┤ Clock ├") is not None, sc)
 
-# Control Panel is a pane picker, panes loaded from examples/control-panel
+# Control Panel is a pane picker, panes loaded from examples/desktop/control-panel
 # and sorted by title without regard to case, the same trick dt_appnames
 # uses for apps -- which puts App Shortcuts first, ahead of Appearance: a
 # space sorts before a letter, plain byte order. tests/apps.py verifies
 # this order directly against cp_panes; ORDER here just names it, so a
 # real change to it breaks an assertion instead of a silent miscount.
 PANEL = ('. %s/panel.hibr\nCP_PANEDIRS+=("%s")\ncp_panes'
-         % (tree("examples/apps"), tree("examples/control-panel")))
+         % (tree("examples/desktop/apps"), tree("examples/desktop/control-panel")))
 ORDER = ["app_shortcuts", "appearance", "behaviour", "control_strip",
          "datetime", "shortcuts", "windows"]
 DOWN_APP = [b"\x1b[B"] * ORDER.index("appearance")
@@ -1157,7 +1157,7 @@ shutil.rmtree(CONF2, True)
 # fixed four are. App Shortcuts sorts first of all the panes (see ORDER
 # above), so it is the default pane -- no downs on the picker at all;
 # entering it lands on Calculator, since it sorts before Control Panel.
-CALCSRC = '. %s/calc.hibr' % tree("examples/desk-accessories")
+CALCSRC = '. %s/calc.hibr' % tree("examples/desktop/desk-accessories")
 CONF3 = tempfile.mkdtemp(prefix="hibr-conf3-")
 sc, _ = run('dt_new "Control Panel" 20 58 2 2 panel', feed=[b"\r"],
             env={"XDG_CONFIG_HOME": CONF3}, pre=PANEL + "\n" + CALCSRC)
@@ -1230,7 +1230,7 @@ t.close()
 
 # --- the shipped session holds itself, and --resume comes back to it -----
 #
-# examples/desktop-session.hibr calls dt_autohold on its own, so running it
+# examples/desktop/desktop-session.hibr calls dt_autohold on its own, so running it
 # plainly makes it detachable without anyone asking hold for that by hand;
 # running it again without --resume must not start a second, independent
 # one under the same name, and --resume is how you get back to it.
@@ -1240,7 +1240,7 @@ RENV = {"HOME": RESUME, "TMPDIR": RESUME,
         "XDG_CONFIG_HOME": os.path.join(RESUME, "config"),
         "XDG_STATE_HOME": os.path.join(RESUME, "state"),
         "XDG_DATA_HOME": os.path.join(RESUME, "data")}
-SESSION = tree("examples/desktop-session.hibr")
+SESSION = tree("examples/desktop/desktop-session.hibr")
 
 
 def unresume():

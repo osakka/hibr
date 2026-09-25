@@ -44,10 +44,13 @@ imgview_draw() {
 }
 
 # A file dragged in from a file browser replaces whatever was shown.
+# _drop's own args are id, row, col, op ("move" or "copy"), then the paths
+# -- four to shift past, not three; term_drop shifts the same four. Getting
+# this wrong doesn't error, it just quietly stores "move" as the path.
 imgview_drop() {
 	local id=$1
 
-	shift 3
+	shift 4
 	IV[$id]["path"]=$1
 }
 

@@ -87,21 +87,21 @@ untested rather than known broken.
 
 Draggable, closable, minimisable windows on a text terminal, with apps
 written as hibr functions. [Decision 0020](adr/0020-windows-are-drawn-not-composited.md)
-records the design and the build order; [the guide](desktop.md) is how to use
+records the design and the build order; [the guide](../examples/desktop/README.md) is how to use
 it.
 
 Built: stacking and hit testing in the console (`console pane raise|lower|drop|list`
 and `console hit row col`), the window manager itself
-(`examples/desktop.hibr`, a script), a session that opens three windows on it
-(`examples/desktop-session.hibr`), and 34 tests driving both through a pty.
+(`examples/desktop/desktop.hibr`, a script), a session that opens three windows on it
+(`examples/desktop/desktop-session.hibr`), and 34 tests driving both through a pty.
 Dragging, focus, minimise, zoom, close, tab cycling, and keys and clicks
 reaching the focused app all work.
 
-Step 4 is built too: `examples/apps/calc.hibr` and `examples/apps/files.hibr`,
+Step 4 is built too: `examples/desktop/desk-accessories/calc.hibr` and `examples/desktop/apps/files.hibr`,
 each also a program on its own. The wheel now goes to the window under the
 pointer, and a click is reported in the coordinates the app draws in.
 
-Step 5 is built: `examples/apps/panel.hibr`, which changes the theme, the
+Step 5 is built: `examples/desktop/apps/panel.hibr`, which changes the theme, the
 wallpaper and the refresh rate and manages the other windows. The window
 manager grew a small surface for it — `dt_ids`, `dt_title`, `dt_hidden`,
 `dt_raise` — so that an app managing other windows never reads `DT`.
@@ -113,7 +113,7 @@ declares `_draw` through. F10 or escape opens the bar; there are no modifier
 shortcuts, because ctrl collides with everything a terminal window will need.
 
 **The terminal is built.** `mods/term/` parses what a program writes into
-cells and paints them into a window, and `examples/apps/term.hibr` is a shell
+cells and paints them into a window, and `examples/desktop/apps/term.hibr` is a shell
 in a window. Every window is its own pty and its own session, so two
 terminals are two shells; `tests/apps.py` checks that typing in one does not
 reach the other. It is also what would let the test harness be hibr rather
@@ -121,7 +121,7 @@ than Python, see below.
 
 **And three games**, because they were asked for and because each one tests
 something the other apps do not: `snake`, `mines` and `bricks` in
-`examples/apps/`. Two of them animate, which is what `$EPOCHREALTIME` (bash
+`examples/desktop/apps/`. Two of them animate, which is what `$EPOCHREALTIME` (bash
 5's, now in the core) and `dt_want` (a window asking for its next frame
 sooner, for one frame only) are for. A frame with two windows costs 2.4 ms,
 so a game stepping every 60 ms costs about 4% of a core while it is played

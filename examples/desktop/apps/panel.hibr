@@ -15,8 +15,8 @@ command -v dt_app > /dev/null && dt_app panel "Control Panel" 20 58 once "≡"
 
 # Where to find panes beyond the bundled ones -- an array, so a session can
 # add its own the same way DT_APPDIRS already works for apps. The bundled
-# panes live in examples/control-panel and are added by the session that
-# wants them, the same way examples/apps is added to DT_APPDIRS: nothing
+# panes live in examples/desktop/control-panel and are added by the session that
+# wants them, the same way examples/desktop/apps is added to DT_APPDIRS: nothing
 # here reaches for them on its own.
 CP_PANEDIRS=("${XDG_CONFIG_HOME:-$HOME/.config}/hibr/control-panel")
 

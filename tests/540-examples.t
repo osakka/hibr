@@ -6,8 +6,8 @@ mkdir -p "$tmp"
 printf '[server]\nhost = example.com\nport = 8080\n\n[auth]\ntoken = abc123\n' > "$tmp/app.ini"
 printf 'xx\n' > "$tmp/one"; printf 'yyy\n' > "$tmp/two"
 
-for e in examples/*.hibr examples/control-panel/*.hibr \
-         examples/desk-accessories/*.hibr examples/control-strip/*.hibr; do
+for e in examples/*.hibr examples/desktop/*.hibr examples/desktop/control-panel/*.hibr \
+         examples/desktop/desk-accessories/*.hibr examples/desktop/control-strip/*.hibr; do
   case "$e" in *hibrc) continue ;; esac
   ./build/hibr -n "$e" || echo "does not parse: $e"
 done
@@ -16,8 +16,9 @@ echo "every example parses"
 # A function defined twice in a script silently replaces the first, which is
 # how the desktop's drag and drop once took over the function that draws the
 # open menu. No example, and no app, defines one name twice.
-for e in examples/*.hibr examples/apps/*.hibr examples/control-panel/*.hibr \
-         examples/desk-accessories/*.hibr examples/control-strip/*.hibr; do
+for e in examples/*.hibr examples/desktop/*.hibr examples/desktop/apps/*.hibr \
+         examples/desktop/control-panel/*.hibr \
+         examples/desktop/desk-accessories/*.hibr examples/desktop/control-strip/*.hibr; do
   sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)() *{.*/\1/p' "$e" | sort | uniq -d |
     while read -r f; do echo "defined twice in $e: $f"; done
 done

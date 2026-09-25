@@ -18,7 +18,7 @@ them. This is the only copy.
 
 Run it directly to look at something rather than assert on it:
 
-    python3 tests/screen.py examples/desktop-session.hibr
+    python3 tests/screen.py examples/desktop/desktop-session.hibr
     python3 tests/screen.py -c 'mod load build/mods/mon.so; mon'
 """
 import fcntl, os, pty, select, signal, struct, sys, termios, time

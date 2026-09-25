@@ -6,7 +6,7 @@
 # calc_key and calc_click and calls those.  Run directly it evaluates its
 # arguments and prints the answer, so it is useful without a desktop:
 #
-#     hibr examples/desk-accessories/calc.hibr '3 * (4 + 5)'
+#     hibr examples/desktop/desk-accessories/calc.hibr '3 * (4 + 5)'
 #
 # It does no arithmetic of its own -- the shell has an evaluator and this
 # hands the expression to it, which is why a calculator written in hibr is

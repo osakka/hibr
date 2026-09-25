@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Drive the desktop's apps through a pty: every one in examples/apps/.
+"""Drive the desktop's apps through a pty: every one in examples/desktop/apps/.
 
 tests/desktop.py checks the window manager with apps small enough to fit in
 the test file. This checks the real ones: the calculator proves keys and
@@ -17,9 +17,9 @@ from screen import Term, check, report, press, release, drag, wheel, load, tree
 
 if len(sys.argv) > 1:
     sx.HIBR = os.path.abspath(sys.argv[1])
-WM = tree("examples/desktop.hibr")
-APPS = tree("examples/apps")
-DA = tree("examples/desk-accessories")
+WM = tree("examples/desktop/desktop.hibr")
+APPS = tree("examples/desktop/apps")
+DA = tree("examples/desktop/desk-accessories")
 D = tempfile.mkdtemp(prefix="hibr-apps-")
 S = tempfile.mkdtemp(prefix="hibr-apps-session-")
 
@@ -36,7 +36,7 @@ ENTRIES = 15
 
 
 def appdir(a):
-    """Which of examples/apps or examples/desk-accessories has a.hibr."""
+    """Which of examples/desktop/apps or examples/desktop/desk-accessories has a.hibr."""
     for d in (APPS, DA):
         if os.path.exists(os.path.join(d, a + ".hibr")):
             return d
@@ -213,7 +213,7 @@ check("a click after scrolling lands on the row that is there",
 #
 # Control Panel is a picker now, not one scrolling list: a pane down the
 # left, the selected pane's own rows on the right (System 7's Control
-# Panels folder). Panes are loaded from examples/control-panel, sorted by
+# Panels folder). Panes are loaded from examples/desktop/control-panel, sorted by
 # title without regard to case, the same trick dt_appnames uses for apps --
 # which is why App Shortcuts sorts ahead of Appearance: a space is less
 # than a letter, plain byte order, the same rule already governing the app
@@ -224,7 +224,7 @@ rc, out, err = cli("panel")
 check("with no panes loaded, it says so rather than pretending",
       rc == 0 and out == "no panes registered", out)
 
-CP = tree("examples/control-panel")
+CP = tree("examples/desktop/control-panel")
 CPLOAD = ('. %s\n. %s/panel.hibr\nCP_PANEDIRS+=("%s")\ncp_panes\n'
           % (WM, APPS, CP))
 out = subprocess.run([sx.HIBR, "-c", CPLOAD + "echo ${CP_PANE_LIST[*]}"],
@@ -411,7 +411,7 @@ check("alt-ctrl-p opens the task manager",
 
 # --- the desk accessories --------------------------------------------------
 #
-# Ordinary apps, kept in examples/desk-accessories rather than examples/apps
+# Ordinary apps, kept in examples/desktop/desk-accessories rather than examples/desktop/apps
 # only so the hibr menu groups them (see tests/desktop.py for that part);
 # nothing about running one is different, which is the point of #32.
 

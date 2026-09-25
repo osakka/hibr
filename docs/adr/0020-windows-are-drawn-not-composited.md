@@ -246,8 +246,8 @@ Each step is usable before the next one starts.
 1. **Stacking and hit testing in the console.** *Done.* `console pane raise`,
    `lower`, `drop` and `list`, and `console hit row col`. Sixty lines of C,
    and everything after this is script.
-2. **One window that can be dragged and closed.** *Done.* `examples/desktop.hibr`
-   is the window manager; `examples/desktop-session.hibr` is a session that
+2. **One window that can be dragged and closed.** *Done.* `examples/desktop/desktop.hibr`
+   is the window manager; `examples/desktop/desktop-session.hibr` is a session that
    opens three windows on it. `tests/desktop.py` drives both through a pty and
    reads the screen back.
 3. **Two windows, focus, and minimise.** *Done*, with zoom as well, since it
@@ -255,8 +255,8 @@ Each step is usable before the next one starts.
    nothing draws it and nothing can hit it — so the bar across the top grew a
    label per minimised window, because otherwise there is no way back. A
    feature that only goes one way is half a feature.
-4. **Calculator and file browser.** *Done.* `examples/apps/calc.hibr` and
-   `examples/apps/files.hibr`, each also a program that runs on its own. The
+4. **Calculator and file browser.** *Done.* `examples/desktop/desk-accessories/calc.hibr` and
+   `examples/desktop/apps/files.hibr`, each also a program that runs on its own. The
    calculator hands its expression to the shell's own evaluator, so it is
    fifty lines and does integers — there is no decimal point on the keypad
    because there would be nothing behind it. The browser scrolls with the
@@ -269,7 +269,7 @@ Each step is usable before the next one starts.
    error found by both apps getting the conversion wrong in opposite
    directions — an app that draws its keypad at pane row 4 is now told a
    click at pane row 4, and there is no second coordinate system.
-5. **Control panel.** *Done.* `examples/apps/panel.hibr`: theme, wallpaper
+5. **Control panel.** *Done.* `examples/desktop/apps/panel.hibr`: theme, wallpaper
    glyph, refresh rate, and a row per window that raises, hides or closes it.
    A theme is applied by setting the variables the window manager already
    reads every frame, so it takes effect on the next one, in every window at

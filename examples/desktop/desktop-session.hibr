@@ -7,9 +7,9 @@
 # which windows open, the way ~/.xinitrc does.  Copy it, change it, it is
 # yours.
 #
-#     ./build/hibr examples/desktop-session.hibr
-#     ./build/hibr examples/desktop-session.hibr --resume
-#     ./build/hibr examples/desktop-session.hibr --session work --resume
+#     ./build/hibr examples/desktop/desktop-session.hibr
+#     ./build/hibr examples/desktop/desktop-session.hibr --resume
+#     ./build/hibr examples/desktop/desktop-session.hibr --session work --resume
 #
 # Drag a title bar to move a window, click _ to minimise, □ to fill the
 # screen, x to close.  Tab cycles, escape brings back a minimised window,

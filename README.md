@@ -105,7 +105,7 @@ args "$@"
 | [Networking](docs/networking.md) | Sockets, TLS, `/dev/tcp` and friends, `listen` |
 | [Interactive use](docs/interactive.md) | `~/.hibrc`, line editing, history, completion, job control |
 | [The prompt](docs/prompt.md) | The prompt hook, the segment module, and its native git support |
-| [Windows on a console](docs/desktop.md) | Draggable windows and apps written as ordinary hibr scripts, on a display module built for it |
+| [Windows on a console](examples/desktop/README.md) | Draggable windows and apps written as ordinary hibr scripts, on a display module built for it |
 | [Modules](docs/modules.md) | The module ABI, and writing one |
 | [Deployment](docs/deployment.md) | `deploy.sh`: install, verify, update, roll back |
 | [Testing](docs/testing.md) | The harness, the recording discipline, sanitizers and fuzzing |

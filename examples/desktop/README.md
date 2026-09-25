@@ -11,12 +11,12 @@ describe them:
 | X | here | what it is |
 |---|---|---|
 | the server | the `console` module | owns the terminal, the grid, the mouse, stacking, hit testing |
-| the window manager | `examples/desktop.hibr` | the event loop, focus, dragging, title bars |
+| the window manager | `examples/desktop/desktop.hibr` | the event loop, focus, dragging, title bars |
 | `~/.xinitrc` | your own session file | which windows open, and where |
 
 Try it:
 
-    ./build/hibr examples/desktop-session.hibr
+    ./build/hibr examples/desktop/desktop-session.hibr
 
 Drag a title bar to move a window and the `◢` in its bottom-right corner to
 resize it. `_` minimises, `□` fills the screen, `x` closes. `tab` cycles, `escape` brings back a minimised window, and `q` quits
@@ -195,19 +195,19 @@ the mouse, hold shift to select anyway, as in xterm. A paste goes in as the
 terminal's own paste would, bracketed when the program asked for that. The
 calculator copies its answer and keeps only arithmetic from a paste. These
 are the only two keys the desktop takes from a program: see the amendment in
-[decision 0020](adr/0020-windows-are-drawn-not-composited.md).
+[decision 0020](../../docs/adr/0020-windows-are-drawn-not-composited.md).
 
 ## Detaching, and coming back
 
 The shipped session holds itself, so this is already detachable:
 
-    hibr examples/desktop-session.hibr
+    hibr examples/desktop/desktop-session.hibr
 
 **ctrl-\\** detaches, and so does **Detach** on the hibr menu; the desktop
 keeps running, terminal windows and whatever runs in them included. Log off,
 log in somewhere else, and
 
-    hibr examples/desktop-session.hibr --resume
+    hibr examples/desktop/desktop-session.hibr --resume
 
 comes back to it exactly as it was, redrawn in full -- the same command,
 with one flag, from anywhere. Closing the terminal or losing an ssh
@@ -238,7 +238,7 @@ It does nothing, quietly, wherever holding cannot make sense -- no `hold`
 module, no real terminal to attach from -- or if starting one fails, so a
 session that calls it is never worse off than one that does not: Detach
 stays dimmed and the desktop opens in this terminal as it always did. See
-[`mods/hold/README.md`](../mods/hold/README.md) for how holding itself
+[`mods/hold/README.md`](../../mods/hold/README.md) for how holding itself
 works, and `hold attach desk`/`hold new desk ...` directly if you would
 rather manage that yourself, under a name of your own.
 
@@ -397,7 +397,7 @@ one long scrolling list -- which is also what Date & Time's own small world
 map needs room for that a shared list of rows never could.
 
 Each pane is its own file, found in `CP_PANEDIRS` the same way apps are
-found in `DT_APPDIRS`: a session adds `examples/control-panel` (and its own
+found in `DT_APPDIRS`: a session adds `examples/desktop/control-panel` (and its own
 `~/.config/hibr/control-panel`, the default) and calls `cp_panes`, which
 sources every file and sorts the result by title -- the same trick
 `dt_appnames` uses for the hibr menu, so load order and file names never
@@ -429,7 +429,7 @@ drawing a second one from scratch.
 
 The seven bundled panes -- Appearance, Behaviour, Control Strip, Date &
 Time, Shortcuts, App Shortcuts, Windows -- are ordinary files under
-`examples/control-panel` themselves, not special-cased in `panel.hibr`: a
+`examples/desktop/control-panel` themselves, not special-cased in `panel.hibr`: a
 file of your own with the same pane name replaces one, the same rule
 `DT_APPDIRS` already has for apps.
 
@@ -441,7 +441,7 @@ than from a settings row elsewhere.
 
 ## The apps
 
-In `examples/apps/`, each one also a file you can read in a sitting:
+In `examples/desktop/apps/`, each one also a file you can read in a sitting:
 
 | app | what it is |
 |---|---|
@@ -469,7 +469,7 @@ whatever it finds under one "Desk Accessories" submenu on the hibr menu,
 regardless of where `DA_DIRS` actually points -- unlike an ordinary
 subfolder of `DT_APPDIRS`, which is named after itself.
 
-The bundled accessories live in `examples/desk-accessories/`:
+The bundled accessories live in `examples/desktop/desk-accessories/`:
 
 | app | what it is |
 |---|---|
@@ -530,7 +530,7 @@ a strip module. `CS_MODDIRS` (default `~/.config/hibr/control-strip`) and
 Earlier versions drew a single letter or glyph per module -- clever, but
 nothing anyone could read without already knowing what it meant. Every
 bundled module now draws its own name instead: `[Cursor][Shadow][Theme]
-[Wallpaper]`, in `examples/control-strip/`, each a few lines reusing a
+[Wallpaper]`, in `examples/desktop/control-strip/`, each a few lines reusing a
 setting Control Panel already has. `shadow` toggles `DT_SHADOW` on click,
 bold in the active colour when on and dimmed when off; `cursor`, `theme`
 and `wallpaper` -- each with more than two values -- open a dropdown of
@@ -717,7 +717,7 @@ hello_key() {
 
 An app that never writes a `_key` function cannot swallow a key at all, which
 is the reason the app name is a prefix rather than one function answering a
-verb. See [decision 0020](adr/0020-windows-are-drawn-not-composited.md).
+verb. See [decision 0020](../../docs/adr/0020-windows-are-drawn-not-composited.md).
 
 ## What it does not do
 
@@ -730,6 +730,6 @@ button is down, never plain motion.
 
 ---
 
-See also [full-screen programs](display.md) for the console module the whole
-thing draws on, and [modules](modules.md) for `need`, which is how a script
+See also [full-screen programs](../../docs/display.md) for the console module the whole
+thing draws on, and [modules](../../docs/modules.md) for `need`, which is how a script
 asks for a display and fails cleanly when there is not one.

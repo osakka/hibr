@@ -46,7 +46,7 @@ program, offered as `mods/pty.h`, and the display (`console`, through
     term close t
 
 Each `term open` is its own terminal, its own session and its own program.
-Two windows of `examples/apps/term.hibr` are two shells on two ptys, and
+Two windows of `examples/desktop/apps/term.hibr` are two shells on two ptys, and
 `tests/apps.py` checks exactly that.
 
 ## Scrollback

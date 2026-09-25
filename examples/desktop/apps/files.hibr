@@ -2,7 +2,7 @@
 #
 # files -- a file browser for the desktop, and a lister on its own.
 #
-#     hibr examples/apps/files.hibr /etc
+#     hibr examples/desktop/apps/files.hibr /etc
 #
 # Three views, which v cycles through: a list of names, the same with size,
 # time and permissions, and a grid of icons.  Everything moves under a fixed

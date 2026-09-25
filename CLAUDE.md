@@ -34,7 +34,7 @@ Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 14).
     ./build/hibr tests/self.hibr                 # suite in hibr, 91 assertions, planned
     python3 tests/{console,cat,most,hvi,mon,mtr,editor,desktop,apps}.py
                                  # the full-screen suites, each through a pty
-    python3 tests/screen.py examples/desktop-session.hibr
+    python3 tests/screen.py examples/desktop/desktop-session.hibr
                                  # the same harness, to look rather than assert
     python3 tests/diff.py --shell ./build/hibr 250   # snippets, diffed against bash
     python3 tests/corpus.py --list <file>        # real scripts, run under both shells
@@ -100,8 +100,7 @@ linked, and no OpenSSL headers are needed to build.
 | `src/args.c` | `opt`/`args` declared CLI parsing, `title` |
 | `src/mod.c` | module loading |
 | `mods/*.c` | reference modules: `sys`, `http` (scheme), `ls` |
-| `examples/desktop.hibr` | the window manager, in hibr — see `docs/desktop.md` |
-| `examples/apps/` | apps for it: a file browser, a control panel, a terminal, a task manager, About hibr, and three games (snake, mines, bricks) -- the desk accessories (calculator, clock, an image viewer, a note pad, a sliding puzzle) are `examples/desk-accessories/` instead |
+| `examples/desktop/` | the window manager (`desktop.hibr`) and everything built on it — `apps/` (file browser, control panel, terminal, task manager, About hibr, three games), `desk-accessories/` (calculator, clock, image viewer, note pad, sliding puzzle), `control-panel/` panes, `control-strip/` modules — see `examples/desktop/README.md` for how to use it and `examples/desktop/ARCHITECTURE.md` for how it is built |
 | `tests/screen.py` | **the** pty harness and terminal model, shared by every full-screen suite |
 | `mods/prompt/` | the prompt module, including a native reader for git's object store — see `mods/README.md` for the file-by-file breakdown |
 | `mods/console/` | the text display: alternate screen, cell grid with damage-based redraw, panes, decoded keys — see `mods/console/README.md` |
