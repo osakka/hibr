@@ -639,6 +639,33 @@ check("but never smaller than the title bar's buttons need",
 sc, _ = run(ONE, [press(13, 39), drag(30, 120), release(30, 120)])
 check("nor past the edge of the screen", sc.at(23, 79) == "◢", sc)
 
+# Any of the other three corners resizes too, the opposite one anchored --
+# captured once at the press, since the window's own row/col start
+# changing the moment a top or left edge does.
+sc, _ = run(ONE, [press(6, 10), drag(4, 8), release(4, 8)])
+check("the top-left corner resizes too, growing up and to the left",
+      sc.at(4, 8) == "┌" and sc.at(13, 39) == "◢", sc)
+
+sc, _ = run(ONE, [press(6, 39), drag(4, 45), release(4, 45)])
+check("so does the top-right, growing up and to the right",
+      sc.at(4, 45) == "┐" and sc.at(13, 10) == "└", sc)
+
+sc, _ = run(ONE, [press(13, 10), drag(15, 6), release(15, 6)])
+check("and the bottom-left, growing down and to the left",
+      sc.at(15, 6) == "└" and sc.at(6, 39) == "┐", sc)
+
+sc, _ = run(ONE, [press(6, 10), drag(12, 30), release(12, 30)])
+check("dragging the top-left past the minimum size stops there, "
+      "the opposite corner still anchored",
+      sc.at(13, 39) == "◢" and sc.at(10, 24) == "┌", sc)
+
+FIXED_TL = ('dt_app fxc "Fixed" 6 20 once "◆" fixed\n'
+            'dt_new "Fixed" 6 20 6 10 fxc\n')
+sc, _ = run(FIXED_TL, [press(6, 10), drag(4, 8), release(4, 8)])
+check("a fixed window's top-left corner moves it instead -- no drag can "
+      "resize it, from any corner",
+      sc.find("┤ Fixed ├") == (4, 10), sc)
+
 # --- the window menu, and items that cannot be chosen ---------------------
 
 # Where Window sits on the bar: after the app's two menus and Edit when the
@@ -1427,4 +1454,4 @@ check("ending it leaves the other one alone",
       "personal" in r.stdout and "work" not in r.stdout, r.stdout)
 unsession()
 
-report(213)
+report(218)

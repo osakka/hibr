@@ -28,9 +28,12 @@ own, `/usr/local` by default) and a small wrapper at `$PREFIX/bin/desktop`:
 running `session.hibr` directly does -- the wrapper forwards its own
 arguments straight through, it does nothing else.
 
-Drag a title bar to move a window and the `◢` in its bottom-right corner to
-resize it. `_` minimises, `□` fills the screen, `x` closes. `tab` cycles, `escape` brings back a minimised window, and `q` quits
-and gives the terminal back.
+Drag a title bar to move a window, and any of its four corners to resize
+it -- the `◢` at the bottom-right is the one this always had; the other
+three work the same way, whichever one is dragged staying opposite a
+corner that does not move. `_` minimises, `□` fills the screen, `x`
+closes. `tab` cycles, `escape` brings back a minimised window, and `q`
+quits and gives the terminal back.
 
 A button presses then releases, the same as any other clickable thing in a
 real GUI: held down, it shows inverted, and dragging off it before letting
@@ -687,9 +690,9 @@ run on its own, where there is no desktop to register with.
 
 There are two window types, and the seventh argument picks between them.
 Leave it off and a window is fully manipulable: it can be moved, resized (by
-dragging its corner, the Window menu, or the keyboard's Resize grab) and
-zoomed to fill the screen. Say `fixed` and none of that exists for it -- no
-maximise button, no grow box drawn at its corner, a drag on that corner does
+dragging any of its four corners, the Window menu, or the keyboard's Resize
+grab) and zoomed to fill the screen. Say `fixed` and none of that exists for
+it -- no maximise button, no grow box drawn at any corner, a drag on one does
 an ordinary body click instead of resizing, and Resize and Zoom are both
 dimmed on its Window menu, whether reached from the menu bar or a right-click
 on its own title bar -- for a board or a grid with one sensible size; the

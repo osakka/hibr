@@ -31,6 +31,13 @@ DT_DR=0
 DT_DC=0
 DT_QUIT=0
 DT_SIZE=
+# Which corner is being dragged, and the opposite corner's own row/col,
+# captured once at the press that started the drag and held fixed for the
+# rest of it -- the window's own row and col start changing the moment a
+# top or left edge does, so the anchor cannot be re-read from DT[$id].
+DT_SIZECORNER=
+DT_SIZE_AR=0
+DT_SIZE_AC=0
 # A title-bar button pressed but not yet released -- close, min or max --
 # shown inverted while held, and only acted on if the release lands back
 # on the same one, the same press-then-release convention every other
@@ -769,11 +776,31 @@ dt_mouse() {
 		ww=${DT[$id]["w"]}
 		wh=${DT[$id]["h"]}
 		ap=${DT[$id]["click"]}
-		if [ "$mr" = $((wr + wh - 1)) ] &&
-		   [ "$mc" = $((wc + ww - 1)) ] &&
-		   [ "${DT_APPS[${DT[$id]["app"]}]["fixed"]}" != 1 ]; then
-			DT_SIZE=$id
-			return 0
+		if [ "${DT_APPS[${DT[$id]["app"]}]["fixed"]}" != 1 ]; then
+			# Any of the four corners starts a resize, the opposite one
+			# anchored: captured once, here, since the window's own row
+			# and col start changing the moment a top or left edge does.
+			if [ "$mr" = $((wr + wh - 1)) ] && [ "$mc" = $((wc + ww - 1)) ]
+			then
+				DT_SIZE=$id; DT_SIZECORNER=br
+				DT_SIZE_AR=$wr; DT_SIZE_AC=$wc
+				return 0
+			fi
+			if [ "$mr" = "$wr" ] && [ "$mc" = "$wc" ]; then
+				DT_SIZE=$id; DT_SIZECORNER=tl
+				DT_SIZE_AR=$((wr + wh - 1)); DT_SIZE_AC=$((wc + ww - 1))
+				return 0
+			fi
+			if [ "$mr" = "$wr" ] && [ "$mc" = $((wc + ww - 1)) ]; then
+				DT_SIZE=$id; DT_SIZECORNER=tr
+				DT_SIZE_AR=$((wr + wh - 1)); DT_SIZE_AC=$wc
+				return 0
+			fi
+			if [ "$mr" = $((wr + wh - 1)) ] && [ "$mc" = "$wc" ]; then
+				DT_SIZE=$id; DT_SIZECORNER=bl
+				DT_SIZE_AR=$wr; DT_SIZE_AC=$((wc + ww - 1))
+				return 0
+			fi
 		fi
 		if [ "$mr" -ne "$wr" ]; then
 			mo=${DT[$id]["mouse"]}
@@ -917,9 +944,8 @@ dt_mouse() {
 			return 0
 		fi
 		if [ -n "$DT_SIZE" ]; then
-			id=$DT_SIZE
-			dt_resize "$id" $((mr - DT[$id]["row"] + 1)) \
-				$((mc - DT[$id]["col"] + 1))
+			dt_cornersize "$DT_SIZE" "$DT_SIZECORNER" "$DT_SIZE_AR" \
+				"$DT_SIZE_AC" "$mr" "$mc"
 			return 0
 		fi
 		[ -z "$DT_DRAG" ] && return 0
@@ -950,6 +976,7 @@ dt_mouse() {
 		fi
 		DT_DRAG=
 		DT_SIZE=
+		DT_SIZECORNER=
 		;;
 	wheelup | wheeldown)
 		if cs_hit "$mr" "$mc"; then
@@ -993,6 +1020,61 @@ dt_resize() {
 	DT[$id]["w"]=$w
 	DT[$id]["oh"]=
 	console pane "w$id" "$r" "$c" "$h" "$w"
+}
+
+# Resize by dragging any of the window's four corners, the opposite one
+# held at (ar, ac) for the whole drag -- captured once, at the press that
+# started it, since the window's own row and col start changing the
+# moment a top or left edge does. br is dt_resize alone, unchanged from
+# what a single grow box always did: the near corner is already the
+# anchor, so only height and width change. tl moves both row and col, so
+# it clamps both itself against the screen's near edge and against the
+# minimum size the far corner still needs. tr and bl each move one of the
+# two, clamped the same way, and hand the other edge (already free of any
+# row/col change) to dt_resize, which clamps it against the screen's own
+# far edge exactly as it always has.
+dt_cornersize() {
+	local id=$1 corner=$2 ar=$3 ac=$4 mr=$5 mc=$6 r c
+
+	case $corner in
+	tl)
+		r=$mr; c=$mc
+		[ "$r" -lt 1 ] && r=1
+		[ "$c" -lt 0 ] && c=0
+		[ "$r" -gt $((ar - DT_MINH + 1)) ] && r=$((ar - DT_MINH + 1))
+		[ "$c" -gt $((ac - DT_MINW + 1)) ] && c=$((ac - DT_MINW + 1))
+		DT[$id]["row"]=$r
+		DT[$id]["col"]=$c
+		DT[$id]["h"]=$((ar - r + 1))
+		DT[$id]["w"]=$((ac - c + 1))
+		DT[$id]["oh"]=
+		console pane "w$id" "$r" "$c" "${DT[$id]["h"]}" "${DT[$id]["w"]}"
+		;;
+	tr)
+		# r is already clamped so ar-r+1 cannot be under DT_MINH, and ar
+		# itself was always a valid row for a window that already fit the
+		# screen -- dt_resize's own early-return, for a height still too
+		# small once it clamps against the screen's far edge, can never
+		# actually fire here; only its far-edge clamp on the width does.
+		r=$mr
+		[ "$r" -lt 1 ] && r=1
+		[ "$r" -gt $((ar - DT_MINH + 1)) ] && r=$((ar - DT_MINH + 1))
+		DT[$id]["row"]=$r
+		dt_resize "$id" $((ar - r + 1)) $((mc - ac + 1))
+		;;
+	bl)
+		# Same reasoning as tr, mirrored: c is already clamped so
+		# ac-c+1 cannot be under DT_MINW.
+		c=$mc
+		[ "$c" -lt 0 ] && c=0
+		[ "$c" -gt $((ac - DT_MINW + 1)) ] && c=$((ac - DT_MINW + 1))
+		DT[$id]["col"]=$c
+		dt_resize "$id" $((mr - ar + 1)) $((ac - c + 1))
+		;;
+	*)
+		dt_resize "$id" $((mr - ar + 1)) $((mc - ac + 1))
+		;;
+	esac
 }
 
 # Move a window, clamped to the screen below the menu bar.
