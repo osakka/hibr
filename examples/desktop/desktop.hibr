@@ -31,6 +31,14 @@ DT_DR=0
 DT_DC=0
 DT_QUIT=0
 DT_SIZE=
+# A title-bar button pressed but not yet released -- close, min or max --
+# shown inverted while held, and only acted on if the release lands back
+# on the same one, the same press-then-release convention every other
+# clickable thing in a real GUI already uses. Dragging off before letting
+# go cancels it, the same as any other button; nothing here fires early.
+DT_BTNID=
+DT_BTNKIND=
+DT_BTNOVER=0
 DT_GRAB=
 DT_MOUSE=
 DT_CLIP=
@@ -468,6 +476,26 @@ dt_win() {
 	fi
 	console pen "#f56565" "$DT_FACE" bold
 	console put -p "w$id" 0 $((w - 3)) "x"
+	# Held down and still over the one that was pressed: shown inverted,
+	# so a click actually looks like it did something before whatever it
+	# does finishes happening -- the same press-then-release feedback
+	# every other clickable thing in a real GUI already gives.
+	if [ "$DT_BTNID" = "$id" ] && [ "$DT_BTNOVER" = 1 ]; then
+		case $DT_BTNKIND in
+		min)
+			console pen "$DT_FACE" "$DT_INK" bold
+			if [ "$fixed" = 1 ]; then
+				console put -p "w$id" 0 $((w - 5)) "_"
+			else
+				console put -p "w$id" 0 $((w - 7)) "_"
+			fi
+			;;
+		max) console pen "$DT_FACE" "$DT_INK" bold
+			console put -p "w$id" 0 $((w - 5)) "□" ;;
+		close) console pen "$DT_FACE" "#f56565" bold
+			console put -p "w$id" 0 $((w - 3)) "x" ;;
+		esac
+	fi
 }
 
 # One full frame, bottom of the stack upwards.
@@ -618,35 +646,64 @@ dt_mouse() {
 			dt_context_open titlebar "$id" "$mr" "$mc"
 			return 0
 		fi
-		case $b in
-		close) dt_del "$id" ;;
-		min) dt_min "$id" ;;
-		max) dt_zoom "$id" ;;
-		*)
-			now := dt_ms
-			if [ "$DT_DBLACTION" != none ] &&
-			   [ "$DT_DBLID" = "$id" ] &&
-			   [ $((now - DT_DBLT)) -lt "$DT_DBLMS" ]; then
-				DT_DBLID=
-				case $DT_DBLACTION in
-				zoom)
-					[ "${DT_APPS[${DT[$id]["app"]}]["fixed"]}" \
-						!= 1 ] && dt_zoom "$id"
-					;;
-				min) dt_min "$id" ;;
-				close) dt_del "$id" ;;
-				esac
-				return 0
-			fi
-			DT_DBLID=$id
-			DT_DBLT=$now
-			DT_DRAG=$id
-			DT_DR=$((mr - wr))
-			DT_DC=$((mc - wc))
-			;;
-		esac
+		if [ -n "$b" ]; then
+			DT_BTNID=$id
+			DT_BTNKIND=$b
+			DT_BTNOVER=1
+			return 0
+		fi
+		now := dt_ms
+		if [ "$DT_DBLACTION" != none ] &&
+		   [ "$DT_DBLID" = "$id" ] &&
+		   [ $((now - DT_DBLT)) -lt "$DT_DBLMS" ]; then
+			DT_DBLID=
+			case $DT_DBLACTION in
+			zoom)
+				[ "${DT_APPS[${DT[$id]["app"]}]["fixed"]}" \
+					!= 1 ] && dt_zoom "$id"
+				;;
+			min) dt_min "$id" ;;
+			close) dt_del "$id" ;;
+			esac
+			return 0
+		fi
+		DT_DBLID=$id
+		DT_DBLT=$now
+		DT_DRAG=$id
+		DT_DR=$((mr - wr))
+		DT_DC=$((mc - wc))
 		;;
 	drag | release)
+		# A title-bar button held down: while dragging, just track whether
+		# the pointer is still over the one that was pressed, for dt_win's
+		# own highlight; the action itself only ever fires from release,
+		# and only if it landed back on the same button.
+		if [ -n "$DT_BTNID" ]; then
+			id=$DT_BTNID
+			wr=${DT[$id]["row"]}
+			wc=${DT[$id]["col"]}
+			ww=${DT[$id]["w"]}
+			b := dt_btn "$ww" $((mc - wc)) \
+				"${DT_APPS[${DT[$id]["app"]}]["fixed"]}"
+			if [ "$b" = "$DT_BTNKIND" ] && [ "$mr" = "$wr" ]; then
+				DT_BTNOVER=1
+			else
+				DT_BTNOVER=0
+			fi
+			if [ "$act" = release ]; then
+				if [ "$DT_BTNOVER" = 1 ]; then
+					case $DT_BTNKIND in
+					close) dt_del "$id" ;;
+					min) dt_min "$id" ;;
+					max) dt_zoom "$id" ;;
+					esac
+				fi
+				DT_BTNID=
+				DT_BTNKIND=
+				DT_BTNOVER=0
+			fi
+			return 0
+		fi
 		# Something being dragged between windows belongs to the desktop
 		# until it is dropped, whoever started it.
 		if [ -n "$DT_DND" ]; then

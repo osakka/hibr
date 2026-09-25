@@ -22,6 +22,11 @@ Drag a title bar to move a window and the `◢` in its bottom-right corner to
 resize it. `_` minimises, `□` fills the screen, `x` closes. `tab` cycles, `escape` brings back a minimised window, and `q` quits
 and gives the terminal back.
 
+A button presses then releases, the same as any other clickable thing in a
+real GUI: held down, it shows inverted, and dragging off it before letting
+go cancels whatever it would have done -- nothing fires until release, and
+only if release lands back on the same button.
+
 A double click on the title bar itself does the same as `□` by default --
 `DT_DBLACTION`, a Control Panel entry, can change that to minimise, close, or
 nothing at all. It never zooms a fixed window, the same restriction `□`

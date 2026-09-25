@@ -156,26 +156,40 @@ check("a window cannot be dragged up over the bar",
 sc, _ = run(ONE, [press(6, 20), drag(23, 79), release(23, 79)])
 check("nor off the bottom right", sc.g[16][50] == "┌", sc)
 
-sc, _ = run(ONE, [press(6, 37)])
+sc, _ = run(ONE, [press(6, 37), release(6, 37)])
 check("clicking the close button closes the window",
       sc.find("Hello") is None, sc)
 check("and nothing is left where it was", sc.g[6][10] == "·", sc)
 
-sc, _ = run(ONE, [press(6, 33)])
+# A title-bar button now presses then releases, the same as any other
+# clickable thing in a real GUI -- shown inverted while held (checked in
+# the raw bytes, since the screen model tracks characters, not colour),
+# and only acted on if the release lands back on the same button.
+DT_FACE_RGB = b"38;2;16;24;32"
+CLOSE_BG_RGB = b"48;2;245;101;101"
+sc, raw = run(ONE, [press(6, 37)])
+check("the close button shows pressed (inverted) while held",
+      DT_FACE_RGB in raw and CLOSE_BG_RGB in raw, raw)
+
+sc, _ = run(ONE, [press(6, 37), drag(15, 15), release(15, 15)])
+check("dragging off the close button before releasing cancels it",
+      sc.find("Hello") is not None, sc)
+
+sc, _ = run(ONE, [press(6, 33), release(6, 33)])
 check("minimising takes the window off the screen",
       sc.g[6][10] == "·" and sc.g[10][20] == "·", sc)
-sc, _ = run(ONE, [press(6, 33), press(0, 70)])
+sc, _ = run(ONE, [press(6, 33), release(6, 33), press(0, 70)])
 check("and it is still listed, marked hidden, in the application menu",
       sc.find("· Hello") is not None, sc)
 
-sc, _ = run(ONE, [press(6, 33), press(0, 70), b"\r"])
+sc, _ = run(ONE, [press(6, 33), release(6, 33), press(0, 70), b"\r"])
 check("choosing it there brings it back",
       sc.g[6][10] == "┌" and sc.find("┤ Hello ├") == (6, 12), sc)
 
-sc, _ = run(ONE, [press(6, 35)])
+sc, _ = run(ONE, [press(6, 35), release(6, 35)])
 check("zooming fills the screen below the bar",
       sc.g[1][0] == "┌" and sc.g[23][79] == "◢", sc)
-sc, _ = run(ONE, [press(6, 35), press(1, 75)])
+sc, _ = run(ONE, [press(6, 35), release(6, 35), press(1, 75), release(1, 75)])
 check("and zooming again puts it back where it was",
       sc.g[6][10] == "┌" and sc.g[13][39] == "◢", sc)
 
@@ -377,7 +391,7 @@ sc, _ = run(TWO, [b"\t", b"\t"])
 check("and tab again brings the other one back",
       sc.g[9][20] == "┌" and sc.g[9][39] == "─", sc)
 
-sc, _ = run(TWO, [press(6, 12), press(6, 37)])
+sc, _ = run(TWO, [press(6, 12), press(6, 37), release(6, 37)])
 check("closing the raised window leaves the other",
       sc.find("Under") is None and sc.find("┤ Over ├") == (9, 22), sc)
 
@@ -402,7 +416,7 @@ try:
     os.unlink("/tmp/hibr-dt-closed")
 except OSError:
     pass
-sc, _ = run(APP, [press(6, 37)])
+sc, _ = run(APP, [press(6, 37), release(6, 37)])
 check("closing an app's window closes the app",
       sc.find("count") is None and os.path.exists("/tmp/hibr-dt-closed"), sc)
 
@@ -523,7 +537,7 @@ check("about says what this is",
 t.quit(b"qy", 1.2)
 os.unlink(path)
 
-sc, _ = run(MENUS, [press(6, 37)])
+sc, _ = run(MENUS, [press(6, 37), release(6, 37)])
 check("with no window left the desktop's own menus show",
       sc.find("Desktop") is not None and sc.find("Count") is None, sc)
 
@@ -557,11 +571,11 @@ sc, _ = run(MENUS, [press(0, WIN)])
 check("a window menu is there even for an app with its own menus",
       sc.find("Move") is not None and sc.find("Cycle") is not None, sc)
 
-sc, _ = run(MENUS, [press(6, 37), press(0, WIN0)])
+sc, _ = run(MENUS, [press(6, 37), release(6, 37), press(0, WIN0)])
 check("with nothing focused its items lose their letters",
       sc.find("Move") is not None and sc.at(1, 16) != "m", sc)
 
-sc, _ = run(MENUS, [press(6, 37), press(0, WIN0), b"m"])
+sc, _ = run(MENUS, [press(6, 37), release(6, 37), press(0, WIN0), b"m"])
 check("and a dimmed letter does nothing", sc.find("Move") is not None, sc)
 
 # --- submenus -------------------------------------------------------------
@@ -1334,4 +1348,4 @@ check("ending it leaves the other one alone",
       "personal" in r.stdout and "work" not in r.stdout, r.stdout)
 unsession()
 
-report(193)
+report(195)
