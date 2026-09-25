@@ -1134,7 +1134,7 @@ check("clicking the clock in the bar opens the Clock app",
 PANEL = ('. %s/panel.hibr\nCP_PANEDIRS+=("%s")\ncp_panes'
          % (tree("examples/desktop/apps"), tree("examples/desktop/control-panel")))
 ORDER = ["app_shortcuts", "appearance", "behaviour", "control_strip",
-         "datetime", "shortcuts", "windows"]
+         "datetime", "shortcuts"]
 DOWN_APP = [b"\x1b[B"] * ORDER.index("appearance")
 DOWN_SHORT = [b"\x1b[B"] * ORDER.index("shortcuts")
 

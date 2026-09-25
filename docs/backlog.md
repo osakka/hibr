@@ -102,9 +102,9 @@ each also a program on its own. The wheel now goes to the window under the
 pointer, and a click is reported in the coordinates the app draws in.
 
 Step 5 is built: `examples/desktop/apps/panel.hibr`, which changes the theme, the
-wallpaper and the refresh rate and manages the other windows. The window
-manager grew a small surface for it — `dt_ids`, `dt_title`, `dt_hidden`,
-`dt_raise` — so that an app managing other windows never reads `DT`.
+wallpaper and the refresh rate. The window manager grew a small surface for
+apps that manage other windows — `dt_ids`, `dt_title`, `dt_hidden`,
+`dt_raise` — so that one never reads `DT` directly.
 
 And a menu bar, System 7's: the hibr menu on the left, the active
 application's own menus beside it, the clock and the application menu on the

@@ -269,8 +269,7 @@ cp_next() {
 	done
 }
 
-# Change the selected row in the selected pane, or act on the selected
-# window if the Windows pane is what is showing.
+# Change the selected row in the selected pane.
 cp_do() {
 	local w=$1 dir=$2 pane sel k
 
@@ -281,7 +280,6 @@ cp_do() {
 	case ${CP[$w][$sel]["kind"]} in
 	set) dt_has "${pane}_do" && "${pane}_do" "$w" "$k" "$dir" ;;
 	key) command -v dt_keycap > /dev/null && dt_keycap "$k" ;;
-	win) dt_raise "$k" ;;
 	esac
 }
 
@@ -293,7 +291,7 @@ cp_save() {
 }
 
 panel_key() {
-	local w=$1 sel pane
+	local w=$1 pane
 
 	if [ "${PW[$w]["side"]}" = list ]; then
 		case $2 in
@@ -321,16 +319,6 @@ panel_key() {
 	down) panel_move "$w" 1 ;;
 	right | enter | " ") cp_do "$w" 1 ;;
 	left) cp_do "$w" -1 ;;
-	x)
-		sel=${PW[$w]["sel"]}
-		[ "${CP[$w][$sel]["kind"]}" = win ] &&
-			dt_del "${CP[$w][$sel]["key"]}"
-		;;
-	-)
-		sel=${PW[$w]["sel"]}
-		[ "${CP[$w][$sel]["kind"]}" = win ] &&
-			dt_min "${CP[$w][$sel]["key"]}"
-		;;
 	*)
 		[ -n "$pane" ] && dt_has "${pane}_key" &&
 			{ "${pane}_key" "$w" "$2"; return 0; }

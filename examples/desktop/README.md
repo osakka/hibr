@@ -423,9 +423,8 @@ shapes. Most are a **row list**: `name_rows id` fills `CP[$id]` the same way
 an app fills its own state and returns the count with `ret`; a `set` row
 gets `name_do id key dir` to change it and, for a dropdown rather than a
 checkbox, `name_drop id row col key` to open one with `dt_droplist`. A
-`key`-kind row (a shortcut) and a `win`-kind row (an open window) need no
-callback at all -- the host handles both generically, the same four rows
-Shortcuts and Windows already are.
+`key`-kind row (a shortcut) needs no callback at all -- the host handles it
+generically, the same rows Shortcuts already uses.
 
 A pane that needs a body of its own -- a world map does not fit two columns
 of text -- defines `name_draw id h w bx` and `name_click id row col`
@@ -442,8 +441,8 @@ drawing a second one from scratch.
 
 ![The Date & Time pane, its clock and date above a small world map marking Europe/London](img/desktop-datetime.png)
 
-The seven bundled panes -- Appearance, Behaviour, Control Strip, Date &
-Time, Shortcuts, App Shortcuts, Windows -- are ordinary files under
+The six bundled panes -- Appearance, Behaviour, Control Strip, Date &
+Time, Shortcuts, App Shortcuts -- are ordinary files under
 `examples/desktop/control-panel` themselves, not special-cased in `panel.hibr`: a
 file of your own with the same pane name replaces one, the same rule
 `DT_APPDIRS` already has for apps.
@@ -461,7 +460,7 @@ In `examples/desktop/apps/`, each one also a file you can read in a sitting:
 | app | what it is |
 |---|---|
 | `files` | a file browser, with a scrollbar and the wheel |
-| `panel` | Control Panel: a picker of panes (see below), and a list of the other windows |
+| `panel` | Control Panel: a picker of panes (see below) |
 | `term` | a shell in a window. Each window is its own pty and its own session. The wheel or `shift-pageup` scrolls back, and a program that asks for the mouse gets it |
 | `snake` | arrows turn, `p` pauses. It speeds up as it grows |
 | `mines` | Minesweeper, 9 by 9 with ten mines. `space` or a click opens, `f` or a right click flags, and opening a number with its flags placed opens what is round it |
@@ -701,7 +700,7 @@ they would in bash.
 ## Managing other windows
 
 Most apps mind their own business. One that manages *other* windows — a
-control panel, a task switcher — uses these, and does not read the window
+task switcher, a window list — uses these, and does not read the window
 manager's own table:
 
 | call | gives |

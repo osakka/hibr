@@ -4,9 +4,9 @@
 tests/desktop.py checks the window manager with apps small enough to fit in
 the test file. This checks the real ones: the calculator proves keys and
 clicks reaching a focused window, the browser proves scrolling *inside* one,
-the panel proves an app managing other windows, the terminal proves a real
-program in a window (two of them, as two sessions), and the games prove
-animation on the clock.
+the panel proves a multi-pane app with its own picker list, the terminal
+proves a real program in a window (two of them, as two sessions), and the
+games prove animation on the clock.
 Run it directly:  python3 tests/apps.py [path-to-hibr]
 """
 import os, re, shutil, subprocess, sys, tempfile
@@ -232,11 +232,10 @@ out = subprocess.run([sx.HIBR, "-c", CPLOAD + "echo ${CP_PANE_LIST[*]}"],
 ORDER = out.split()
 check("panes register and sort by title, not load order",
       ORDER == ["app_shortcuts", "appearance", "behaviour", "control_strip",
-                "datetime", "shortcuts", "windows"], out)
+                "datetime", "shortcuts"], out)
 
 PW = "20 58 2 2"
 PANEL = ("panel", PW)
-OTHER = [("Other", "5 20 18 40", "")]
 TICK = "DT_TICK=200"
 CPANES = 'CP_PANEDIRS+=("%s")\ncp_panes' % CP
 
@@ -248,8 +247,7 @@ R0, VALCOL = 3, 47
 LISTCOL = 5
 TITLE = {"app_shortcuts": "App Shortcuts", "appearance": "Appearance",
          "behaviour": "Behaviour", "control_strip": "Control Strip",
-         "datetime": "Date & Time", "shortcuts": "Shortcuts",
-         "windows": "Windows"}
+         "datetime": "Date & Time", "shortcuts": "Shortcuts"}
 
 
 def prow(name):
@@ -294,7 +292,6 @@ check("the first pane's own rows show on the right without entering it",
 DOWN_APP = [b"\x1b[B"] * downs("appearance")
 DOWN_BEH = [b"\x1b[B"] * downs("behaviour")
 DOWN_DT = [b"\x1b[B"] * downs("datetime")
-DOWN_WIN = [b"\x1b[B"] * downs("windows")
 
 sc = cprun(DOWN_APP)
 check("down on the picker moves pane by pane, showing each one's rows",
@@ -371,24 +368,6 @@ check("the Date & Time pane shows the clock, the date and the zone",
       sc.find("51N") is not None and sc.find("0W") is not None, sc)
 check("and a mark for it on the reused world map",
       sc.find("◉") is not None, sc)
-
-sc = cprun(DOWN_WIN + [b"\r"], also=OTHER)
-check("the window list names what is open",
-      sc.find("Panel") is not None and sc.find("Other") is not None, sc)
-
-TOOTHER = DOWN_WIN + [b"\r", b"\x1b[B"]  # into Windows, then onto Other
-
-sc = cprun(TOOTHER + [b"x"], also=OTHER)
-check("x closes the selected window", sc.find("Other") is None and
-      sc.find("Panel") is not None, sc)
-
-sc = cprun(TOOTHER + [b"-"], also=OTHER)
-check("- hides it, and the panel says so",
-      sc.find("Other") is not None and sc.find("hidden") is not None, sc)
-
-sc = cprun(TOOTHER + [b"-", b"\r"], also=OTHER)
-check("enter on a hidden window brings it back",
-      sc.find("hidden") is None and sc.find("Other") is not None, sc)
 
 sc = cprun([press(R0, LISTCOL), press(R0, LISTCOL)])
 check("clicking the same pane twice in the picker is harmless",
