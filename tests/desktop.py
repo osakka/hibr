@@ -218,6 +218,70 @@ sc = dblclick_run(ONE, 6, 20, env={"DT_DBLACTION": "none"})
 check("DT_DBLACTION=none turns that off",
       sc.g[6][10] == "┌" and sc.g[1][0] != "┌", sc)
 
+# --- window chrome: frame, button side, title alignment, icon style -------
+#
+# DT_FRAME, DT_BTNSIDE, DT_TITLEALIGN and DT_BTNSTYLE are the Window Style
+# pane's own four settings (examples/desktop/control-panel/window-style.hibr);
+# tests/apps.py checks the pane itself, this checks what each value actually
+# draws. Every button style is 5 (fixed) or 7 (movable) characters wide, the
+# same as the original brackets, so a style change alone never moves where a
+# button is clicked -- only what is drawn there.
+
+sc, _ = run(ONE, env={"DT_FRAME": "double"})
+check("DT_FRAME=double draws double-line corners and sides",
+      sc.g[6][10] == "╔" and sc.g[6][39] == "╗" and
+      sc.g[13][10] == "╚" and sc.g[9][10] == "║", sc)
+check("and the grow box still overwrites its own corner, same as single",
+      sc.g[13][39] == "◢", sc)
+check("and the title and buttons are unaffected by the frame style",
+      sc.find("┤ Hello ├") == (6, 12) and sc.g[6][37] == "x", sc)
+
+sc, raw = run(ONE, env={"DT_FRAME": "none"})
+check("DT_FRAME=none draws no border, no title and no buttons at all",
+      sc.find("┌") is None and sc.find("Hello") is None and
+      sc.g[6][10] == " ", sc)
+
+NOFRAME_APP = ('nf_draw() { console put -p "w$1" 1 1 "hi"; }\n'
+               'dt_new "No Frame" 8 30 6 10 nf\n')
+sc, _ = run(NOFRAME_APP, [press(6, 20), drag(9, 24), release(9, 24)],
+            env={"DT_FRAME": "none"})
+check("a borderless window's own invisible top row can still be dragged",
+      sc.find("hi") == (10, 15) and sc.g[9][14] == " ", sc)
+sc, _ = run(NOFRAME_APP, [press(6, 20, 2)], env={"DT_FRAME": "none"})
+check("and right-clicking it still opens the Window menu -- move, close, "
+      "resize are never lost, only undrawn",
+      sc.find("Close") is not None and sc.find("Move") is not None, sc)
+
+sc, _ = run(ONE, env={"DT_BTNSIDE": "left"})
+check("DT_BTNSIDE=left docks min/max/close to the left of the bar instead",
+      sc.g[6][12] == "_" and sc.g[6][14] == "□" and sc.g[6][16] == "x" and
+      sc.find("┤ Hello ├") == (6, 18), sc)
+sc, _ = run(ONE, [press(6, 16), release(6, 16)], env={"DT_BTNSIDE": "left"})
+check("and the moved close button still closes it",
+      sc.find("Hello") is None, sc)
+
+sc, _ = run(ONE, env={"DT_TITLEALIGN": "center"})
+check("DT_TITLEALIGN=center centres the title in the room the buttons leave",
+      sc.find("┤ Hello ├") == (6, 18), sc)
+sc, _ = run(ONE, env={"DT_TITLEALIGN": "right"})
+check("and right pins it against the button cluster",
+      sc.find("┤ Hello ├") == (6, 25), sc)
+
+AMBER_FG = b"38;2;246;173;85"
+GREEN_FG = b"38;2;104;211;145"
+RED_FG = b"38;2;245;101;101"
+sc, raw = run(ONE, env={"DT_BTNSTYLE": "circles"})
+check("DT_BTNSTYLE=circles colours all three buttons, traffic-light style",
+      AMBER_FG in raw and GREEN_FG in raw and RED_FG in raw and
+      sc.g[6][33] == "●" and sc.g[6][35] == "●" and sc.g[6][37] == "●", sc)
+sc, raw = run(ONE, env={"DT_BTNSTYLE": "squares"})
+check("DT_BTNSTYLE=squares does the same with a different glyph",
+      AMBER_FG in raw and GREEN_FG in raw and RED_FG in raw and
+      sc.g[6][37] == "■", sc)
+sc, _ = run(ONE, [press(6, 37), release(6, 37)], env={"DT_BTNSTYLE": "circles"})
+check("a style change never moves where a button is clicked, only its glyph",
+      sc.find("Hello") is None, sc)
+
 # An app declared fixed has no maximise button at all -- not dimmed, not
 # there -- so a game whose board is one size does not offer to stretch it.
 FIXED = ('dt_app fx "Fixed" 6 20 once "◆" fixed\n'
@@ -1134,7 +1198,7 @@ check("clicking the clock in the bar opens the Clock app",
 PANEL = ('. %s/panel.hibr\nCP_PANEDIRS+=("%s")\ncp_panes'
          % (tree("examples/desktop/apps"), tree("examples/desktop/control-panel")))
 ORDER = ["app_shortcuts", "appearance", "behaviour", "control_strip",
-         "datetime", "shortcuts"]
+         "datetime", "shortcuts", "window_style"]
 DOWN_APP = [b"\x1b[B"] * ORDER.index("appearance")
 DOWN_SHORT = [b"\x1b[B"] * ORDER.index("shortcuts")
 
@@ -1348,4 +1412,4 @@ check("ending it leaves the other one alone",
       "personal" in r.stdout and "work" not in r.stdout, r.stdout)
 unsession()
 
-report(195)
+report(207)

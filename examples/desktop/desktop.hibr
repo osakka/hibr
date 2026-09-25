@@ -39,6 +39,15 @@ DT_SIZE=
 DT_BTNID=
 DT_BTNKIND=
 DT_BTNOVER=0
+# Scratch, filled by dt_btnspec for whichever button style is current and
+# read straight back by dt_win: which kind sits at each of dt_btn's own
+# fixed offsets (1, 3, 5 movable; 1, 3 fixed), its glyph, its colour, and
+# what wraps the two ends of the cluster.
+BTN_K=()
+BTN_G=()
+BTN_C=()
+BTN_DL=
+BTN_DR=
 DT_GRAB=
 DT_MOUSE=
 DT_CLIP=
@@ -153,6 +162,31 @@ DT_DBLMS=400
 DT_DBLID=
 DT_DBLT=0
 
+# A window's own frame: single or double lined, or none at all. None
+# removes the whole ring -- no border, no title, no buttons -- but takes
+# nothing away, since move, resize, zoom, hide and close are always on the
+# Window menu too; the invisible top row can still be dragged or
+# double-clicked exactly as a drawn one can, there is simply nothing drawn
+# to show it. A style is a table entry: DT_FRAMES[name] carries its own
+# six glyphs, so a fifth frame is six lines here, not a change to dt_win.
+DT_FRAME="${DT_FRAME-single}"
+declare -gA DT_FRAMES
+DT_FRAMES[single]["tl"]="┌"; DT_FRAMES[single]["tr"]="┐"
+DT_FRAMES[single]["bl"]="└"; DT_FRAMES[single]["br"]="┘"
+DT_FRAMES[single]["h"]="─";  DT_FRAMES[single]["v"]="│"
+DT_FRAMES[double]["tl"]="╔"; DT_FRAMES[double]["tr"]="╗"
+DT_FRAMES[double]["bl"]="╚"; DT_FRAMES[double]["br"]="╝"
+DT_FRAMES[double]["h"]="═";  DT_FRAMES[double]["v"]="║"
+
+# Which side the min/max/close cluster docks to, where the title sits in
+# whatever room that leaves, and which glyphs the cluster is drawn with:
+# the Windows-style brackets this shipped with, coloured circles, or
+# coloured squares. dt_btnspec is the table for the third of these, the
+# same shape cp_theme's own case statement already is for a theme.
+DT_BTNSIDE="${DT_BTNSIDE-right}"
+DT_TITLEALIGN="${DT_TITLEALIGN-left}"
+DT_BTNSTYLE="${DT_BTNSTYLE-brackets}"
+
 # How often the desktop wakes and redraws with nothing else asking for a
 # turn -- see dt_want and dt_run for why 2000 costs nothing in latency.
 DT_TICK="${DT_TICK-2000}"
@@ -166,7 +200,8 @@ DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 	DT_WALLIMG
 	DT_TICK DT_ICONS DT_DISKS DT_CURSOR DT_CURSOR_BLINK DT_SHADOW
 	DT_MSHADOW DT_BARSHADOW DT_DBLACTION DT_SHADOW_PCT CS_SIDE CS_Y
-	CS_COLLAPSED CS_LEN CS_SHADOW)
+	CS_COLLAPSED CS_LEN CS_SHADOW
+	DT_FRAME DT_BTNSIDE DT_TITLEALIGN DT_BTNSTYLE)
 
 # Where the desktop's stderr goes while it holds the screen, so an app's
 # error message cannot scribble over the display, and the reason for a
@@ -435,6 +470,57 @@ dt_wall() {
 	fi
 }
 
+# The three button-icon styles: which glyph and colour each of min, max
+# and close gets, and what wraps the movable (3-button) or fixed
+# (2-button) cluster. Fills BTN_K/BTN_G/BTN_C/BTN_DL/BTN_DR in the same
+# left-to-right order dt_btn's own fixed offsets (1, 3, 5 or 1, 3) expect,
+# so a fourth style is a branch here, never a change to dt_win or dt_btn.
+dt_btnspec() {
+	local style=$1 fixed=$2
+
+	if [ "$fixed" = 1 ]; then BTN_K=(min close); else BTN_K=(min max close); fi
+	case $style in
+	circles)
+		BTN_DL=" "; BTN_DR=" "
+		if [ "$fixed" = 1 ]; then
+			BTN_G=("●" "●"); BTN_C=("#f6ad55" "#f56565")
+		else
+			BTN_G=("●" "●" "●")
+			BTN_C=("#f6ad55" "#68d391" "#f56565")
+		fi
+		;;
+	squares)
+		BTN_DL=" "; BTN_DR=" "
+		if [ "$fixed" = 1 ]; then
+			BTN_G=("■" "■"); BTN_C=("#f6ad55" "#f56565")
+		else
+			BTN_G=("■" "■" "■")
+			BTN_C=("#f6ad55" "#68d391" "#f56565")
+		fi
+		;;
+	*)
+		BTN_DL="┤"; BTN_DR="├"
+		if [ "$fixed" = 1 ]; then
+			BTN_G=("_" "x"); BTN_C=("$DT_INK" "#f56565")
+		else
+			BTN_G=("_" "□" "x")
+			BTN_C=("$DT_INK" "$DT_INK" "#f56565")
+		fi
+		;;
+	esac
+}
+
+# The cluster dt_btnspec's own glyphs draw as one string -- always 5
+# (fixed) or 7 (movable) characters, matching the offsets dt_btn already
+# hit-tests, whatever style set the glyphs themselves.
+dt_btnstr() {
+	if [ ${#BTN_G[@]} = 3 ]; then
+		ret "$BTN_DL${BTN_G[0]} ${BTN_G[1]} ${BTN_G[2]}$BTN_DR"
+	else
+		ret "$BTN_DL${BTN_G[0]} ${BTN_G[1]}$BTN_DR"
+	fi
+}
+
 # Draw one window: its face, then its app, then its frame over the top.
 dt_win() {
 	local id=$1
@@ -448,53 +534,74 @@ dt_win() {
 	console pen "$DT_INK" "$DT_FACE"
 	console fill "$wr" "$wc" "$h" "$w" " "
 	[ -n "$dr" ] && $dr "$id" $((h - 2)) $((w - 2)) "$wr" "$wc"
+	# None removes the whole ring: no border, no title, no buttons. Nothing
+	# is lost -- move, resize, zoom, hide and close are always on the
+	# Window menu too, and this row can still be dragged or double-clicked
+	# exactly as a drawn one can; there is simply nothing drawn to show it.
+	[ "$DT_FRAME" = none ] && return 0
+
 	console pen "$on" "$DT_FACE"
-	local bar edge
-	bar := dt_rep $((w - 2)) "─"
-	console put -p "w$id" 0 0 "┌$bar┐"
-	console put -p "w$id" $((h - 1)) 0 "└$bar┘"
+	local tl=${DT_FRAMES[$DT_FRAME]["tl"]} tr=${DT_FRAMES[$DT_FRAME]["tr"]}
+	local bl=${DT_FRAMES[$DT_FRAME]["bl"]} br=${DT_FRAMES[$DT_FRAME]["br"]}
+	local fh=${DT_FRAMES[$DT_FRAME]["h"]} fv=${DT_FRAMES[$DT_FRAME]["v"]}
+	local bar
+	bar := dt_rep $((w - 2)) "$fh"
+	console put -p "w$id" 0 0 "$tl$bar$tr"
+	console put -p "w$id" $((h - 1)) 0 "$bl$bar$br"
 	console pen "$DT_INK" "$DT_FACE"
 	# A fixed window keeps the plain corner the border just drew instead of
 	# the grow box: no drag can resize it, so nothing should invite one.
 	[ "$fixed" != 1 ] && console put -p "w$id" $((h - 1)) $((w - 1)) "◢"
 	local r=1
 	while [ "$r" -lt $((h - 1)) ]; do
-		console put -p "w$id" "$r" 0 "│"
-		console put -p "w$id" "$r" $((w - 1)) "│"
+		console put -p "w$id" "$r" 0 "$fv"
+		console put -p "w$id" "$r" $((w - 1)) "$fv"
 		r=$((r + 1))
 	done
-	local t=${DT[$id]["title"]}
-	local room=$((w - 12))
-	[ ${#t} -gt "$room" ] && t="${t:0:$room}"
-	console pen "$on" "$DT_FACE" bold
-	console put -p "w$id" 0 2 "┤ $t ├"
+
+	local bs bc off i
+	dt_btnspec "$DT_BTNSTYLE" "$fixed"
+	bs := dt_btnstr
+	if [ "$DT_BTNSIDE" = left ]; then bc=1; else bc=$((w - 1 - ${#bs})); fi
 	console pen "$DT_INK" "$DT_FACE"
-	if [ "$fixed" = 1 ]; then
-		console put -p "w$id" 0 $((w - 6)) "┤_ x├"
-	else
-		console put -p "w$id" 0 $((w - 8)) "┤_ □ x├"
+	console put -p "w$id" 0 "$bc" "$bs"
+	if [ "$fixed" = 1 ]; then off=(1 3); else off=(1 3 5); fi
+	i=0
+	while [ "$i" -lt ${#BTN_G[@]} ]; do
+		if [ "${BTN_C[$i]}" != "$DT_INK" ]; then
+			console pen "${BTN_C[$i]}" "$DT_FACE" bold
+			console put -p "w$id" 0 $((bc + ${off[$i]})) "${BTN_G[$i]}"
+		fi
+		i=$((i + 1))
+	done
+
+	local t=${DT[$id]["title"]} tc0 room tc
+	if [ "$DT_BTNSIDE" = left ]; then tc0=8; room=$((w - 6))
+	else tc0=2; room=$((w - 12))
 	fi
-	console pen "#f56565" "$DT_FACE" bold
-	console put -p "w$id" 0 $((w - 3)) "x"
+	[ ${#t} -gt "$room" ] && t="${t:0:$room}"
+	case $DT_TITLEALIGN in
+	center) tc=$((tc0 + (room - ${#t}) / 2)) ;;
+	right)  tc=$((tc0 + room - ${#t})) ;;
+	*)      tc=$tc0 ;;
+	esac
+	console pen "$on" "$DT_FACE" bold
+	console put -p "w$id" 0 "$tc" "┤ $t ├"
+
 	# Held down and still over the one that was pressed: shown inverted,
 	# so a click actually looks like it did something before whatever it
 	# does finishes happening -- the same press-then-release feedback
 	# every other clickable thing in a real GUI already gives.
 	if [ "$DT_BTNID" = "$id" ] && [ "$DT_BTNOVER" = 1 ]; then
-		case $DT_BTNKIND in
-		min)
-			console pen "$DT_FACE" "$DT_INK" bold
-			if [ "$fixed" = 1 ]; then
-				console put -p "w$id" 0 $((w - 5)) "_"
-			else
-				console put -p "w$id" 0 $((w - 7)) "_"
+		i=0
+		while [ "$i" -lt ${#BTN_K[@]} ]; do
+			if [ "${BTN_K[$i]}" = "$DT_BTNKIND" ]; then
+				console pen "$DT_FACE" "${BTN_C[$i]}" bold
+				console put -p "w$id" 0 $((bc + ${off[$i]})) \
+					"${BTN_G[$i]}"
 			fi
-			;;
-		max) console pen "$DT_FACE" "$DT_INK" bold
-			console put -p "w$id" 0 $((w - 5)) "□" ;;
-		close) console pen "$DT_FACE" "#f56565" bold
-			console put -p "w$id" 0 $((w - 3)) "x" ;;
-		esac
+			i=$((i + 1))
+		done
 	fi
 }
 
@@ -521,19 +628,23 @@ dt_draw() {
 # button is not drawn there either, so a click at its old column falls
 # through to the window's body instead of hitting a button that is not there.
 dt_btn() {
-	local w=$1 c=$2 fixed=$3
+	local w=$1 c=$2 fixed=$3 bc bw
+
+	[ "$DT_FRAME" = none ] && { ret ""; return 0; }
+	if [ "$fixed" = 1 ]; then bw=5; else bw=7; fi
+	if [ "$DT_BTNSIDE" = left ]; then bc=1; else bc=$((w - 1 - bw)); fi
 	if [ "$fixed" = 1 ]; then
-		case $((w - c)) in
-		5) ret min ;;
+		case $((c - bc)) in
+		1) ret min ;;
 		3) ret close ;;
 		*) ret "" ;;
 		esac
 		return 0
 	fi
-	case $((w - c)) in
-	7) ret min ;;
-	5) ret max ;;
-	3) ret close ;;
+	case $((c - bc)) in
+	1) ret min ;;
+	3) ret max ;;
+	5) ret close ;;
 	*) ret "" ;;
 	esac
 }

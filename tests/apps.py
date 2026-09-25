@@ -232,7 +232,7 @@ out = subprocess.run([sx.HIBR, "-c", CPLOAD + "echo ${CP_PANE_LIST[*]}"],
 ORDER = out.split()
 check("panes register and sort by title, not load order",
       ORDER == ["app_shortcuts", "appearance", "behaviour", "control_strip",
-                "datetime", "shortcuts"], out)
+                "datetime", "shortcuts", "window_style"], out)
 
 PW = "20 58 2 2"
 PANEL = ("panel", PW)
@@ -247,7 +247,8 @@ R0, VALCOL = 3, 47
 LISTCOL = 5
 TITLE = {"app_shortcuts": "App Shortcuts", "appearance": "Appearance",
          "behaviour": "Behaviour", "control_strip": "Control Strip",
-         "datetime": "Date & Time", "shortcuts": "Shortcuts"}
+         "datetime": "Date & Time", "shortcuts": "Shortcuts",
+         "window_style": "Window Style"}
 
 
 def prow(name):
@@ -368,6 +369,25 @@ check("the Date & Time pane shows the clock, the date and the zone",
       sc.find("51N") is not None and sc.find("0W") is not None, sc)
 check("and a mark for it on the reused world map",
       sc.find("◉") is not None, sc)
+
+# Window Style's own rows: Frame(0), Buttons(1), Title(2), Button Style(3).
+DOWN_WS = [b"\x1b[B"] * downs("window_style")
+sc = cprun(DOWN_WS)
+check("Window Style's first row is Frame, defaulting to single",
+      sc.find("Frame") is not None and "single" in sc.row(sc.find("Frame")[0]),
+      sc)
+sc = cprun(DOWN_WS + [b"\x1b[C", b"\x1b[C"])
+check("cycling it once reaches double",
+      sc.find("Frame") is not None and
+      "double" in sc.row(sc.find("Frame")[0]), sc)
+sc = cprun(DOWN_WS + [b"\x1b[C", b"\x1b[C", b"\x1b[C"])
+check("and again reaches none",
+      sc.find("Frame") is not None and "none" in sc.row(sc.find("Frame")[0]),
+      sc)
+sc = cprun(DOWN_WS + [b"\x1b[C"] + [b"\x1b[B"] * 3 + [b"\x1b[C"])
+check("Button Style cycles from brackets to circles",
+      sc.find("Button Style") is not None and
+      "circles" in sc.row(sc.find("Button Style")[0]), sc)
 
 sc = cprun([press(R0, LISTCOL), press(R0, LISTCOL)])
 check("clicking the same pane twice in the picker is harmless",
@@ -873,4 +893,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(134)
+report(138)

@@ -441,11 +441,26 @@ drawing a second one from scratch.
 
 ![The Date & Time pane, its clock and date above a small world map marking Europe/London](img/desktop-datetime.png)
 
-The six bundled panes -- Appearance, Behaviour, Control Strip, Date &
-Time, Shortcuts, App Shortcuts -- are ordinary files under
+The seven bundled panes -- Appearance, Behaviour, Control Strip, Date &
+Time, Shortcuts, App Shortcuts, Window Style -- are ordinary files under
 `examples/desktop/control-panel` themselves, not special-cased in `panel.hibr`: a
 file of your own with the same pane name replaces one, the same rule
 `DT_APPDIRS` already has for apps.
+
+Window Style's own four rows -- Frame, Buttons, Title and Button Style --
+are read by `dt_win` and `dt_btn` in desktop.hibr itself, not by the pane:
+`DT_FRAME` picks the border glyphs from the `DT_FRAMES` table (`single`,
+`double`, or `none` for no ring at all -- move, resize, zoom, hide and
+close stay reachable through the Window menu even then, since that row is
+still there to drag or double-click, just undrawn); `DT_BTNSIDE` docks the
+min/max/close cluster left or right; `DT_TITLEALIGN` places the title in
+whatever room that leaves; `DT_BTNSTYLE` picks its glyphs and colours from
+`dt_btnspec` -- the Windows-style brackets this shipped with, coloured
+circles, or coloured squares. Every style's cluster is 5 (fixed) or 7
+(movable) characters wide, so changing it never moves where a button is
+clicked, only what is drawn there -- a fourth style is a branch in
+`dt_btnspec`, a fifth frame is six glyphs in `DT_FRAMES`, and neither
+touches `dt_win` or `dt_btn` themselves.
 
 Control Strip's own pane carries only `CS_SIDE` and `CS_SHADOW` -- which
 side it docks to, and whether it casts its own shadow. Its position,

@@ -151,8 +151,10 @@ bindings — Close Window, Detach, Quit, Cycle Windows — rebindable by
 selecting the row, pressing enter, then the new key; App Shortcuts lists
 every registered app the same way, empty by default, so any app can be
 given a global launch shortcut, not just the two (Terminal and Task
-Manager) that ship with one; Date & Time draws its own body instead of
-rows — the clock, the date, and a small
+Manager) that ship with one; Window Style sets a window's own chrome —
+frame, button side, title alignment, button glyphs — read by `dt_win` and
+`dt_btn` themselves, not by the pane; Date & Time draws its own body
+instead of rows — the clock, the date, and a small
 world map with a mark near the machine's own time zone, reusing
 `examples/traceroute.hibr`'s own map and zone1970.tab lookup rather than a
 second copy of either. See

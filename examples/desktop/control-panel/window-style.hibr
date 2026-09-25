@@ -1,0 +1,63 @@
+#!/usr/bin/env hibr
+#
+# window-style -- the Control Panel pane for a window's own chrome: its
+# frame, which side its buttons dock to, where its title sits, and which
+# glyphs the buttons themselves are drawn with. Every value here is read
+# by dt_win and dt_btn in desktop.hibr; this pane only ever changes the
+# four DT_* settings, never the drawing itself.
+
+command -v cp_pane > /dev/null && cp_pane window_style "Window Style" "▭"
+
+WS_FRAMES=(single double none)
+WS_SIDES=(right left)
+WS_ALIGNS=(left center right)
+WS_STYLES=(brackets circles squares)
+
+cp_set_frame() { DT_FRAME=$2; cp_save; }
+cp_set_side() { DT_BTNSIDE=$2; cp_save; }
+cp_set_align() { DT_TITLEALIGN=$2; cp_save; }
+cp_set_btnstyle() { DT_BTNSTYLE=$2; cp_save; }
+
+window_style_rows() {
+	local w=$1 n=0
+
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Frame"
+	CP[$w][$n]["val"]="$DT_FRAME"; CP[$w][$n]["key"]=frame; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Buttons"
+	CP[$w][$n]["val"]="$DT_BTNSIDE"; CP[$w][$n]["key"]=side; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Title"
+	CP[$w][$n]["val"]="$DT_TITLEALIGN"; CP[$w][$n]["key"]=align
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Button Style"
+	CP[$w][$n]["val"]="$DT_BTNSTYLE"; CP[$w][$n]["key"]=btnstyle
+	n=$((n + 1))
+	ret "$n"
+}
+
+window_style_do() {
+	local w=$1 k=$2 dir=$3 v
+
+	case $k in
+	frame) v := cp_next "$DT_FRAME" "$dir" "${WS_FRAMES[@]}"
+	       DT_FRAME=$v ;;
+	side) v := cp_next "$DT_BTNSIDE" "$dir" "${WS_SIDES[@]}"
+	      DT_BTNSIDE=$v ;;
+	align) v := cp_next "$DT_TITLEALIGN" "$dir" "${WS_ALIGNS[@]}"
+	       DT_TITLEALIGN=$v ;;
+	btnstyle) v := cp_next "$DT_BTNSTYLE" "$dir" "${WS_STYLES[@]}"
+	          DT_BTNSTYLE=$v ;;
+	esac
+	cp_save
+}
+
+window_style_drop() {
+	local w=$1 r=$2 c=$3 k=$4
+
+	case $k in
+	frame) dt_droplist "$w" "$r" "$c" cp_set_frame "${WS_FRAMES[@]}" ;;
+	side) dt_droplist "$w" "$r" "$c" cp_set_side "${WS_SIDES[@]}" ;;
+	align) dt_droplist "$w" "$r" "$c" cp_set_align "${WS_ALIGNS[@]}" ;;
+	btnstyle) dt_droplist "$w" "$r" "$c" cp_set_btnstyle \
+		"${WS_STYLES[@]}" ;;
+	esac
+}
