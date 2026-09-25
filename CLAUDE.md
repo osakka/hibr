@@ -818,6 +818,40 @@ went in the shell.
   not by eye against paper alone. A theme added later needs its own
   considered value here, not a copy of 55 -- check it against a light face
   before assuming it looks fine.
+- **`dt_want`'s own contract is "one frame", and nothing enforces that
+  besides the caller actually stopping.** `dt_want` has no memory of who
+  asked or why; a caller that checks the wrong condition just keeps
+  re-arming it forever. `term_draw`'s own `[ "$DT_FOCUS" = "$id" ] &&
+  dt_want 30` shipped checking "is this terminal focused" instead of "was
+  a key just sent to it" -- true for as long as a terminal has focus at
+  all, not for one frame after its echo. A permanently focused, completely
+  idle terminal held the whole desktop at a ~30ms wake cadence instead of
+  `DT_TICK`'s 2000ms, forever: measured directly (an instrumented `dt_draw`
+  timed with `$EPOCHREALTIME`) at a continuous ~30 full redraws a second
+  with nothing happening at all, dropping to one every two seconds once
+  `term_key` records its own last-key time and `term_draw` checks that
+  instead. Idle is the state a real desktop spends most of its time in, so
+  a `dt_want` that never actually goes back to sleep costs far more than
+  its own frame-time overhead suggests -- it costs whatever the *desktop's
+  own idle baseline was supposed to be*, continuously. Anything calling
+  `dt_want` needs to ask "did the specific thing I'm waiting for just
+  happen", never "am I the kind of thing that sometimes needs this".
+- **`console mouse motion` is not a cheap upgrade from `drag`.** Drag
+  (XTerm mode 1002) reports movement only while a button is held; motion
+  (mode 1003) reports *every* movement, button or not -- a continuous
+  stream of escape sequences for as long as the mouse moves anywhere on
+  screen, whether or not anything in hibr cares. Switched on for the
+  Control Strip's own hover highlight, it broke a real terminal's
+  shift-drag copy convention (built to bypass only clicks and drags, not a
+  flood of plain movement) and made the desktop's own rubber-band
+  selection lag well behind the pointer, processing stale hover reports
+  queued ahead of the actual drag. Reverted; the strip lost hovering with
+  no click, kept the wheel (which carries its own position) and the
+  keyboard (`alt-s` then the arrow keys). A feature that needs to know
+  where the pointer is without a click is not free just because the
+  desktop's own script-side gating (redraw only when something changes)
+  is cheap -- the cost that mattered here was between the terminal and
+  hibr's own input decoding, before any of hibr's own code ever ran.
 
 ## Testing discipline
 
