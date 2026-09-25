@@ -1,0 +1,171 @@
+#!/usr/bin/env hibr
+#
+# puzzle -- the sliding tile puzzle, 15 numbered tiles and one gap in a 4x4
+# frame. Arrows move the gap, a click on a tile next to it slides that one
+# into it; get 1 through 15 in reading order with the gap last and it says
+# so.
+#
+#     arrows / hjkl   slide the gap    click   slide the tile next to it
+#     n               new game
+#
+# Shuffled by making real moves from the solved position, not by a random
+# permutation of the tiles -- a random permutation is only solvable half
+# the time, and this way it always is.
+
+app puzzle "The sliding tile puzzle"
+
+command -v dt_app > /dev/null && dt_app puzzle "Puzzle" 13 22 once "▦" fixed
+
+declare -gA PZ
+PZ_N=4
+PZ_CELLS=16
+
+pz_new() {
+	local id=$1 i r a b tmp
+
+	i=0
+	while [ "$i" -lt $((PZ_CELLS - 1)) ]; do
+		PZ[$id][$i]=$((i + 1))
+		i=$((i + 1))
+	done
+	PZ[$id][$((PZ_CELLS - 1))]=0
+	PZ[$id]["blank"]=$((PZ_CELLS - 1))
+	PZ[$id]["moves"]=0
+	PZ[$id]["state"]=run
+
+	# 400 random legal slides from solved, so whatever comes out can always
+	# be solved again the same way it was scrambled.
+	r=0
+	while [ "$r" -lt 400 ]; do
+		a="up down left right"
+		set -- $a
+		pz_slide "$id" "${@:$((RANDOM % 4 + 1)):1}" 1
+		r=$((r + 1))
+	done
+	PZ[$id]["moves"]=0
+}
+
+# The cell a direction reaches from the blank, empty if that would leave
+# the frame.
+pz_at() {
+	local id=$1 dir=$2
+	local b=${PZ[$id]["blank"]} r c
+
+	r=$((b / PZ_N))
+	c=$((b % PZ_N))
+	case $dir in
+	up)    r=$((r - 1)) ;;
+	down)  r=$((r + 1)) ;;
+	left)  c=$((c - 1)) ;;
+	right) c=$((c + 1)) ;;
+	esac
+	[ "$r" -lt 0 ] || [ "$r" -ge "$PZ_N" ] && return 1
+	[ "$c" -lt 0 ] || [ "$c" -ge "$PZ_N" ] && return 1
+	ret $((r * PZ_N + c))
+}
+
+# Move the tile at the cell a direction reaches from the blank into the
+# blank -- the blank itself moves the other way. quiet skips the win check
+# and the move count, for shuffling.
+pz_slide() {
+	local id=$1 dir=$2 quiet=$3
+	local b=${PZ[$id]["blank"]} i
+
+	i := pz_at "$id" "$dir" || return 0
+	PZ[$id][$b]=${PZ[$id][$i]}
+	PZ[$id][$i]=0
+	PZ[$id]["blank"]=$i
+	[ "$quiet" = 1 ] && return 0
+	PZ[$id]["moves"]=$((${PZ[$id]["moves"]} + 1))
+	pz_check "$id"
+}
+
+pz_check() {
+	local id=$1 i=0
+
+	while [ "$i" -lt $((PZ_CELLS - 1)) ]; do
+		[ "${PZ[$id][$i]}" = $((i + 1)) ] || return 0
+		i=$((i + 1))
+	done
+	PZ[$id]["state"]=won
+}
+
+puzzle_open() {
+	pz_new "$1"
+}
+
+puzzle_draw() {
+	local id=$1 h=$2 w=$3
+	local i=0 r c t v st
+
+	st=${PZ[$id]["state"]}
+	while [ "$i" -lt "$PZ_CELLS" ]; do
+		r=$((3 + i / PZ_N))
+		c=$((2 + (i % PZ_N) * 4))
+		v=${PZ[$id][$i]}
+		if [ "$v" = 0 ]; then
+			console pen "$DT_INK" "$DT_FACE"
+			t="    "
+		else
+			console pen "#1a202c" "#63b3ed" bold
+			t := str pad " $v" 3
+			t="$t "
+		fi
+		console put -p "w$id" "$r" "$c" "$t"
+		i=$((i + 1))
+	done
+
+	case $st in
+	won) console pen "#68d391" "$DT_FACE" bold; t="solved!" ;;
+	*) console pen "#718096" "$DT_FACE"; t="puzzle" ;;
+	esac
+	console put -p "w$id" 1 $(((w - ${#t}) / 2 + 1)) "$t"
+	console pen "#cbd5e0" "$DT_FACE" bold
+	t := str pad "moves ${PZ[$id]["moves"]}" $((w - 2))
+	console put -p "w$id" 8 2 "$t"
+	console pen "#718096" "$DT_FACE"
+	t="n for another"
+	console put -p "w$id" "$h" $(((w - ${#t}) / 2 + 1)) "$t"
+}
+
+puzzle_key() {
+	local id=$1
+
+	case $2 in
+	up | k) pz_slide "$id" up ;;
+	down | j) pz_slide "$id" down ;;
+	left | h) pz_slide "$id" left ;;
+	right | l) pz_slide "$id" right ;;
+	n) pz_new "$id" ;;
+	*) return 1 ;;
+	esac
+}
+
+# A click on the tile just above, below, left or right of the blank slides
+# it; anywhere else does nothing, same as a mis-click in Mines.
+puzzle_click() {
+	local id=$1 r=$(($2 - 3)) c=$((($3 - 2) / 4)) i b dir
+
+	[ "$r" -lt 0 ] || [ "$c" -lt 0 ] && return 0
+	[ "$r" -ge "$PZ_N" ] || [ "$c" -ge "$PZ_N" ] && return 0
+	i=$((r * PZ_N + c))
+	b=${PZ[$id]["blank"]}
+	if [ "$i" = $((b - PZ_N)) ]; then dir=up
+	elif [ "$i" = $((b + PZ_N)) ]; then dir=down
+	elif [ "$i" = $((b - 1)) ] && [ $((b % PZ_N)) -gt 0 ]; then dir=left
+	elif [ "$i" = $((b + 1)) ] && [ $((b % PZ_N)) -lt $((PZ_N - 1)) ]; then dir=right
+	else return 0
+	fi
+	pz_slide "$id" "$dir"
+}
+
+puzzle_menus() {
+	dt_menu "Game"
+	dt_item "New Game" n pz_new "$DT_FOCUS"
+	dt_sep
+	dt_item "Close" w dt_close_focused
+}
+
+if [ -z "$DT_ROWS" ]; then
+	echo "puzzle: a desktop app; open it from the hibr menu"
+fi

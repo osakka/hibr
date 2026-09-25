@@ -19,6 +19,7 @@ if len(sys.argv) > 1:
     sx.HIBR = os.path.abspath(sys.argv[1])
 WM = tree("examples/desktop.hibr")
 APPS = tree("examples/apps")
+DA = tree("examples/desk-accessories")
 D = tempfile.mkdtemp(prefix="hibr-apps-")
 S = tempfile.mkdtemp(prefix="hibr-apps-session-")
 
@@ -34,7 +35,8 @@ for i in range(12):
 ENTRIES = 15
 
 
-def run(app, win, feed=(), pre="", wait=1.0, also=(), end=b"qy", extra=()):
+def run(app, win, feed=(), pre="", wait=1.0, also=(), end=b"qy", extra=(),
+        env=None):
     """Open one app in a window at a known place and drive it.
 
     `also` adds further windows after it, as (title, geometry, app) triples,
@@ -42,9 +44,21 @@ def run(app, win, feed=(), pre="", wait=1.0, also=(), end=b"qy", extra=()):
     there is something else open. `end` is the keys that finish it -- q
     opens Quit's own confirm box, so the default is qy, not q; a test of a
     terminal passes None, since the program inside would take the q.
+
+    `env` is real process environment, in place at the very first line of
+    the script -- unlike a `pre` line, which cannot reach a path an app
+    computes once at its own source time, before `pre` ever runs. Note Pad's
+    own NP_FILE is exactly that, the same as the desktop's own DT_CONF.
     """
     p = os.path.join(S, "session.hibr")
-    src = "".join(". %s/%s.hibr\n" % (APPS, a)
+
+    def appdir(a):
+        for d in (APPS, DA):
+            if os.path.exists(os.path.join(d, a + ".hibr")):
+                return d
+        return APPS
+
+    src = "".join(". %s/%s.hibr\n" % (appdir(a), a)
                   for a in dict.fromkeys([app] + [x[2] for x in also if x[2]]
                                          + list(extra)))
     more = "".join('dt_new "%s" %s %s\n' % x for x in also)
@@ -53,7 +67,7 @@ def run(app, win, feed=(), pre="", wait=1.0, also=(), end=b"qy", extra=()):
         "dt_run\ndt_close\n"
         % (load("console"), WM, src, pre, app.title(), win, app,
            more + ("dt_raise 1\n" if also else "")))
-    t = Term(p, env={"DT_TICK": "60"}, settle=0.6)
+    t = Term(p, env=dict({"DT_TICK": "60"}, **(env or {})), settle=0.6)
     t.keys(feed)
     t.quit(end, wait)
     sc = t.screen()
@@ -384,6 +398,94 @@ check("alt-ctrl-t opens a terminal, even with another app focused",
 sc3 = run("files", FW, feed=[b"\x1b\x10"], pre=PRE, extra=("tasks",))
 check("alt-ctrl-p opens the task manager",
       sc3.find("┤ Task Manager ├") is not None, sc3)
+
+# --- the desk accessories --------------------------------------------------
+#
+# Ordinary apps, kept in examples/desk-accessories rather than examples/apps
+# only so the hibr menu groups them (see tests/desktop.py for that part);
+# nothing about running one is different, which is the point of #32.
+
+PZW = "13 22 2 2"
+
+sc = run("puzzle", PZW)
+vals = set()
+for r in range(4):
+    row = 5 + r
+    for c in range(4):
+        col0 = 5 + 4 * c
+        v = sc.row(row)[col0:col0 + 3].strip()
+        vals.add(int(v) if v else 0)
+check("the tiles are a full shuffle of 1 to 15 and one blank",
+      vals == set(range(16)), sc)
+
+sc = run("puzzle", PZW, feed=[b"\x1b[A", b"\x1b[B", b"\x1b[C", b"\x1b[D"])
+check("an arrow key that can move the blank slides a tile and counts it",
+      "moves 0" not in sc.row(10), sc)
+
+sc = run("puzzle", PZW, feed=[b"\x1b[A", b"\x1b[B", b"\x1b[C", b"\x1b[D",
+         b"n"])
+check("n starts a new game, resetting the move count",
+      "moves 0" in sc.row(10), sc)
+
+WINSCRIPT = os.path.join(S, "puzzle-win.hibr")
+open(WINSCRIPT, "w").write('''. %s
+. %s
+id=1
+i=0
+while [ "$i" -lt 14 ]; do
+	PZ[$id][$i]=$((i + 1))
+	i=$((i + 1))
+done
+PZ[$id][14]=0
+PZ[$id][15]=15
+PZ[$id]["blank"]=14
+PZ[$id]["moves"]=0
+PZ[$id]["state"]=run
+pz_slide "$id" right
+echo "${PZ[$id]["state"]}"
+''' % (WM, os.path.join(DA, "puzzle.hibr")))
+out = subprocess.run([sx.HIBR, WINSCRIPT], capture_output=True,
+                     text=True).stdout.strip()
+check("sliding the last tile into place is recognised as solved",
+      out == "won", out)
+os.unlink(WINSCRIPT)
+
+# end=None throughout: notepad_key takes every printable character as
+# text, q included, so the usual qy quit sequence would type itself into
+# the note rather than closing the window -- the same reason a terminal
+# test never uses the default end either.
+NPD = tempfile.mkdtemp(prefix="hibr-notepad-")
+sc = run("notepad", "12 40 2 2", feed=[b"h", b"i"],
+         env={"XDG_CONFIG_HOME": NPD}, end=None)
+check("typing appears in the window", sc.find("hi") is not None, sc)
+NPFILE = os.path.join(NPD, "hibr", "notepad.txt")
+text = open(NPFILE).read() if os.path.exists(NPFILE) else ""
+check("and is saved to disk as it is typed", text == "hi\n", text)
+shutil.rmtree(NPD, True)
+
+NPD2 = tempfile.mkdtemp(prefix="hibr-notepad-")
+sc = run("notepad", "12 40 2 2", feed=[b"h", b"i", b"\x08"],
+         env={"XDG_CONFIG_HOME": NPD2}, end=None)
+check("backspace removes the last character typed",
+      sc.find("hi") is None and sc.find("h") is not None, sc)
+shutil.rmtree(NPD2, True)
+
+NPD3 = tempfile.mkdtemp(prefix="hibr-notepad-")
+sc = run("notepad", "12 40 2 2", feed=[b"a", b"\r", b"b"],
+         env={"XDG_CONFIG_HOME": NPD3}, end=None)
+posa, posb = sc.find("a"), sc.find("b")
+check("enter starts a new line",
+      posa is not None and posb is not None and posa[0] != posb[0], sc)
+text3 = open(os.path.join(NPD3, "hibr", "notepad.txt")).read()
+check("both lines are saved", text3 == "a\nb\n", text3)
+shutil.rmtree(NPD3, True)
+
+NPD4 = tempfile.mkdtemp(prefix="hibr-notepad-")
+run("notepad", "12 40 2 2", feed=[b"h", b"e", b"l", b"l", b"o"],
+    env={"XDG_CONFIG_HOME": NPD4}, end=None)
+sc = run("notepad", "12 40 2 2", env={"XDG_CONFIG_HOME": NPD4}, end=None)
+check("reopening it loads the saved note", sc.find("hello") is not None, sc)
+shutil.rmtree(NPD4, True)
 
 # --- the terminal window --------------------------------------------------
 
@@ -778,4 +880,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(123)
+report(133)

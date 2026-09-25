@@ -857,6 +857,22 @@ check("a folder is interleaved by name, not appended after every app",
       "Mines" in rows[2], sc)
 shutil.rmtree(GCONF, True)
 
+# Desk accessories are ordinary apps, grouped under one submenu name
+# regardless of where DA_DIRS points -- unlike the folder-submenu above,
+# an accessory need not live inside DT_APPDIRS at all.
+DACONF = tempfile.mkdtemp(prefix="hibr-apps-da-")
+DASRC = APPS + 'DA_DIRS+=("%s")\nda_apps\n' % tree("examples/desk-accessories")
+sc, _ = run("", feed=[b"\x1b[21~"], env={"XDG_CONFIG_HOME": DACONF}, pre=DASRC)
+pos = sc.find("Desk Accessories")
+check("desk accessories are grouped under their own submenu",
+      pos is not None, sc)
+sc2, _ = run("", feed=[b"\x1b[21~", press(pos[0], pos[1] + 2)],
+             env={"XDG_CONFIG_HOME": DACONF}, pre=DASRC)
+check("which lists Note Pad and Puzzle rather than folding them in flat",
+      sc2.find("Note Pad") is not None and sc2.find("Puzzle") is not None,
+      sc2)
+shutil.rmtree(DACONF, True)
+
 LAUNCH = MENU + [b"c"]
 sc, raw = run("", feed=LAUNCH + LAUNCH, pre=APPS)
 check("an app declared once opens one window, however often launched",
@@ -1101,4 +1117,4 @@ check("ending it leaves the other one alone",
       "personal" in r.stdout and "work" not in r.stdout, r.stdout)
 unsession()
 
-report(169)
+report(171)

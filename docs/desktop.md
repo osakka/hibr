@@ -418,6 +418,28 @@ In `examples/apps/`, each one also a file you can read in a sitting:
 | `about` | the version, the machine's hostname and kernel, and a CPU and a memory bar read live from `/proc` -- no forking, the same way `mods/sysinfo` reads them in C |
 | `tasks` | every process, name, CPU% and memory, sorted by either (`c`, `m`); `x` ends the selected one, `shift-x` forces it |
 
+## Desk Accessories
+
+System 6 and earlier could only run one real application at a time; a Desk
+Accessory was the OS's own exception, a tiny program let onto the Apple menu
+regardless of what else was running. That constraint does not exist here --
+`dt_app`/`dt_launch` already let any number of ordinary apps run at once,
+reached from the hibr menu, exactly what the Apple menu did for DAs. So a
+desk accessory *is* an ordinary app, `dt_app` and nothing else; the only
+thing new is `DA_DIRS`, a directory list of its own (default
+`~/.config/hibr/desk-accessories`, customizable and appendable the same way
+`DT_APPDIRS` and `CP_PANEDIRS` are) and `da_apps`, which loads it and groups
+whatever it finds under one "Desk Accessories" submenu on the hibr menu,
+regardless of where `DA_DIRS` actually points -- unlike an ordinary
+subfolder of `DT_APPDIRS`, which is named after itself.
+
+The two bundled accessories live in `examples/desk-accessories/`:
+
+| app | what it is |
+|---|---|
+| `notepad` | one plain-text scratch note, saved to disk the moment it changes -- no word wrap, no search; `hvi` is the real editor |
+| `puzzle` | the sliding tile puzzle, 4 by 4. Arrows or a click move the gap; shuffled by real moves from solved, so it is always solvable |
+
 A focused terminal gets every key except `f10`, so a program inside can have
 `escape`; `f10` is the way back to the menu bar.
 

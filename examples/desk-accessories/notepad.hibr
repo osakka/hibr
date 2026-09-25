@@ -1,0 +1,206 @@
+#!/usr/bin/env hibr
+#
+# notepad -- one plain-text scratch note, kept in a window of its own and
+# written to disk the moment it changes, the same "no Save to forget"
+# rule Control Panel's own settings already follow.
+#
+# Deliberately small: one page, no word wrap, no search -- hvi is the real
+# editor. This is the System 6 Note Pad, a place to jot something down
+# without leaving the desktop for it.
+
+app notepad "A scratch note, saved as you type"
+
+command -v dt_app > /dev/null && dt_app notepad "Note Pad" 12 40 once "▧"
+
+declare -gA NP
+NP_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/hibr/notepad.txt"
+
+# Read the note off disk into this window's own lines -- always at least
+# one, even an empty one, so the cursor always has a line to sit on.
+np_load() {
+	local id=$1 line n=0
+
+	if [ -r "$NP_FILE" ]; then
+		while IFS= read -r line || [ -n "$line" ]; do
+			NP[$id][$n]="$line"
+			n=$((n + 1))
+		done < "$NP_FILE"
+	fi
+	[ "$n" = 0 ] && { NP[$id][0]=""; n=1; }
+	NP[$id]["n"]=$n
+	NP[$id]["cr"]=0
+	NP[$id]["cc"]=0
+	NP[$id]["top"]=0
+}
+
+# Written whole, to a temporary file first, the same atomic rename dt_save
+# already uses for the desktop's own settings.
+np_save() {
+	local id=$1
+	local i=0 n=${NP[$id]["n"]} tmp="$NP_FILE.$$"
+
+	mkdir -p "${NP_FILE%/*}" 2> /dev/null || return 1
+	{
+		while [ "$i" -lt "$n" ]; do
+			printf '%s\n' "${NP[$id][$i]}"
+			i=$((i + 1))
+		done
+	} > "$tmp" && mv -f "$tmp" "$NP_FILE"
+}
+
+notepad_open() {
+	np_load "$1"
+}
+
+notepad_draw() {
+	local id=$1 h=$2 w=$3
+	local n=${NP[$id]["n"]} cr=${NP[$id]["cr"]} cc=${NP[$id]["cc"]}
+	local top=${NP[$id]["top"]} i r line hoff shown
+
+	[ "$cr" -lt "$top" ] && top=$cr
+	[ "$cr" -ge $((top + h)) ] && top=$((cr - h + 1))
+	[ "$top" -lt 0 ] && top=0
+	NP[$id]["top"]=$top
+
+	# The cursor's own line scrolls sideways to keep the cursor on screen;
+	# every other line just starts at its own left margin. Kept, not just
+	# local, so a click on this same row knows what column it is really
+	# looking at.
+	hoff=0
+	[ "$cc" -ge "$w" ] && hoff=$((cc - w + 1))
+	NP[$id]["hoff"]=$hoff
+
+	console pen "$DT_INK" "$DT_FACE"
+	r=1
+	i=$top
+	while [ "$r" -le "$h" ]; do
+		line=""
+		[ "$i" -lt "$n" ] && line="${NP[$id][$i]}"
+		if [ "$i" = "$cr" ]; then
+			shown="${line:$hoff}"
+		else
+			shown="$line"
+		fi
+		shown := str pad "${shown:0:$w}" "$w"
+		console put -p "w$id" "$r" 1 "$shown"
+		r=$((r + 1))
+		i=$((i + 1))
+	done
+	console pen "#1a202c" "#63b3ed"
+	console put -p "w$id" $((cr - top + 1)) $((cc - hoff + 1)) \
+		"${NP[$id][$cr]:$cc:1}"
+	[ -z "${NP[$id][$cr]:$cc:1}" ] &&
+		console put -p "w$id" $((cr - top + 1)) $((cc - hoff + 1)) " "
+}
+
+notepad_key() {
+	local id=$1
+	local n=${NP[$id]["n"]} cr=${NP[$id]["cr"]} cc=${NP[$id]["cc"]}
+	local line=${NP[$id][$cr]} rest
+
+	case $2 in
+	up)
+		[ "$cr" -gt 0 ] && cr=$((cr - 1))
+		[ "$cc" -gt "${#NP[$id][$cr]}" ] && cc=${#NP[$id][$cr]}
+		;;
+	down)
+		[ "$cr" -lt $((n - 1)) ] && cr=$((cr + 1))
+		[ "$cc" -gt "${#NP[$id][$cr]}" ] && cc=${#NP[$id][$cr]}
+		;;
+	left)
+		if [ "$cc" -gt 0 ]; then
+			cc=$((cc - 1))
+		elif [ "$cr" -gt 0 ]; then
+			cr=$((cr - 1))
+			cc=${#NP[$id][$cr]}
+		fi
+		;;
+	right)
+		if [ "$cc" -lt "${#line}" ]; then
+			cc=$((cc + 1))
+		elif [ "$cr" -lt $((n - 1)) ]; then
+			cr=$((cr + 1))
+			cc=0
+		fi
+		;;
+	home) cc=0 ;;
+	end) cc=${#line} ;;
+	backspace)
+		if [ "$cc" -gt 0 ]; then
+			NP[$id][$cr]="${line:0:$((cc - 1))}${line:$cc}"
+			cc=$((cc - 1))
+		elif [ "$cr" -gt 0 ]; then
+			cc=${#NP[$id][$((cr - 1))]}
+			NP[$id][$((cr - 1))]="${NP[$id][$((cr - 1))]}$line"
+			np_delline "$id" "$cr"
+			n=$((n - 1))
+			cr=$((cr - 1))
+		fi
+		;;
+	enter)
+		rest=${line:$cc}
+		NP[$id][$cr]="${line:0:$cc}"
+		np_insline "$id" $((cr + 1)) "$rest"
+		n=$((n + 1))
+		cr=$((cr + 1))
+		cc=0
+		;;
+	*)
+		[ "${#2}" = 1 ] || return 1
+		NP[$id][$cr]="${line:0:$cc}$2${line:$cc}"
+		cc=$((cc + 1))
+		;;
+	esac
+	NP[$id]["cr"]=$cr
+	NP[$id]["cc"]=$cc
+	NP[$id]["n"]=$n
+	np_save "$id"
+}
+
+# Insert a new line at i, moving every line from there down one.
+np_insline() {
+	local id=$1 i=$2 text=$3
+	local j=${NP[$id]["n"]}
+
+	while [ "$j" -gt "$i" ]; do
+		NP[$id][$j]=${NP[$id][$((j - 1))]}
+		j=$((j - 1))
+	done
+	NP[$id][$i]=$text
+}
+
+# Remove line i, moving every line after it up one.
+np_delline() {
+	local id=$1 i=$2
+	local j=$i n=${NP[$id]["n"]}
+
+	while [ "$j" -lt $((n - 1)) ]; do
+		NP[$id][$j]=${NP[$id][$((j + 1))]}
+		j=$((j + 1))
+	done
+	unset "NP[$id][$((n - 1))]"
+}
+
+notepad_click() {
+	local id=$1 r=$(($2 - 1)) c=$(($3 - 1))
+	local top=${NP[$id]["top"]} row
+
+	row=$((top + r))
+	[ "$row" -ge "${NP[$id]["n"]}" ] && row=$((${NP[$id]["n"]} - 1))
+	[ "$row" -lt 0 ] && return 0
+	# Only the row that was already the cursor's own row was drawn scrolled
+	# sideways -- everywhere else column 0 on screen is column 0 of the line.
+	[ "$row" = "${NP[$id]["cr"]}" ] && c=$((c + ${NP[$id]["hoff"]:-0}))
+	NP[$id]["cr"]=$row
+	[ "$c" -gt "${#NP[$id][$row]}" ] && c=${#NP[$id][$row]}
+	[ "$c" -lt 0 ] && c=0
+	NP[$id]["cc"]=$c
+}
+
+if [ -z "$DT_ROWS" ]; then
+	if [ -r "$NP_FILE" ]; then
+		cat "$NP_FILE"
+	else
+		echo "notepad: nothing saved yet"
+	fi
+fi

@@ -788,6 +788,20 @@ went in the shell.
   strings and still shipped broken, and was only caught once it actually
   ran inside the desktop through a pty and got watched draw, not just read
   from a saved dump.
+- **A `local` statement's own later words cannot see its own earlier ones.**
+  `local id=$1 b=${PZ[$id]["blank"]}` does not work -- `$id` in `b`'s value
+  is expanded before `local` assigns anything, the same as real bash and
+  dash, verified against both. It reads whatever `id` meant before this
+  statement (usually empty, sometimes some enclosing function's `id` by
+  coincidence of both being named `id`, which is worse: five instances of
+  this shipped looking correct in Puzzle and Note Pad, because every call
+  site happened to pass a same-named local down, until one was tested from
+  a context with no enclosing `id` at all and an empty subscript surfaced
+  the whole thing as `hibr: arithmetic: syntax error near ''`, several
+  calls away from any of the five actual causes. `local id=$1` on its own
+  line, then a second `local` statement for anything that reads `$id`,
+  always works, the same as `mines_draw`'s own two-statement locals
+  already do it.
 
 ## Testing discipline
 

@@ -50,6 +50,11 @@ dt_apps
 CP_PANEDIRS+=("$d/control-panel")
 command -v cp_panes > /dev/null && cp_panes
 
+# Desk accessories are ordinary apps -- Note Pad, Puzzle -- kept in their
+# own folder only so the hibr menu groups them under that name.
+DA_DIRS+=("$d/desk-accessories")
+da_apps
+
 FB_DIR=$PWD
 
 # Defaults go before dt_open, which then reads what was saved last time

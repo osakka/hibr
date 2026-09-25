@@ -1089,6 +1089,32 @@ dt_apps() {
 	DT_APPDIR_CUR=
 }
 
+# Desk accessories are ordinary apps -- dt_app, nothing else, the same
+# registration every other app uses. They get a directory list of their
+# own, the same customizable-with-a-default shape DT_APPDIRS and
+# CP_PANEDIRS already have, only so the hibr menu can group them under one
+# name regardless of where DA_DIRS points -- the nostalgic Desk Accessories
+# folder, not a mechanism an accessory has to do anything for. A flat scan,
+# not dt_apps' recursive one: an accessory does not earn a folder-submenu
+# concept of its own the way a whole app folder does.
+DA_DIRS=("${XDG_CONFIG_HOME:-$HOME/.config}/hibr/desk-accessories")
+da_apps() {
+	local d f b
+
+	for d in "${DA_DIRS[@]}"; do
+		for f in "$d"/*.hibr; do
+			[ -r "$f" ] || continue
+			b=${f##*/}
+			b=${b%.hibr}
+			[ -n "${DT_SRC["$b"]}" ] && continue
+			DT_SRC["$b"]=$f
+			DT_APPDIR_CUR="Desk Accessories"
+			. "$f"
+		done
+	done
+	DT_APPDIR_CUR=
+}
+
 # Every registered app, sorted by title without regard to case, as names --
 # for anything that wants every app in one flat list rather than the hibr
 # menu's own folder-grouped one below (Settings' App Shortcuts rows do).
