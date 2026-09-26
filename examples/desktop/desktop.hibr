@@ -18,6 +18,15 @@
 
 need display || { echo "desktop: no display available" >&2; exit 1; }
 
+# The desktop's own version, independent of HIBR_VERSION (include/hibr.h's
+# HIBR_VER): the window manager, its apps and Control Panel change on
+# their own schedule, much faster than the shell underneath them, and
+# tying the two together would mean bumping the core's own version for a
+# change that never touched a single line of src/*.c. HIBR_ABI is what
+# actually needs cross-checking between the two -- whether a module is
+# built against what this shell offers -- and that already exists.
+DT_VER=0.1
+
 # The session's own arguments, captured here at the top level where $@ is
 # still theirs: a function sees its own, and dt_autohold needs to hand these
 # back to a fresh copy of itself.  $0 needs no such capture -- it is one

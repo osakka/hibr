@@ -185,7 +185,11 @@ about_draw() {
 
 	command -v dt_want > /dev/null && dt_want "$AB_SLOWMS"
 	console pen "$DT_INK" "$DT_FACE" bold
-	console put -p "w$id" 1 2 "hibr $HIBR_VERSION"
+	if [ -n "$DT_VER" ]; then
+		console put -p "w$id" 1 2 "hibr $HIBR_VERSION · desktop $DT_VER"
+	else
+		console put -p "w$id" 1 2 "hibr $HIBR_VERSION"
+	fi
 	console pen "$DT_INK" "$DT_FACE"
 	console put -p "w$id" 2 2 "Highly Intuitive Bash-like Runtime"
 	console put -p "w$id" 3 2 "a desktop written in the shell it runs on"

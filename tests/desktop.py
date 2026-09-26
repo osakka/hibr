@@ -1309,6 +1309,8 @@ check("About hibr opens a window with the machine's own numbers",
       sc.find("%") is not None, sc)
 check("and it has no maximise button, being a fixed size",
       sc.find("┤_ x├") is not None, sc)
+check("and shows the desktop's own version beside hibr's, not just hibr's",
+      sc.find("· desktop ") is not None, sc)
 
 # Clock is a desk accessory now, not in examples/desktop/apps -- the bar's own
 # click handler only asks dt_has clock_draw, so it works regardless of
@@ -1580,4 +1582,4 @@ check("ending it leaves the other one alone",
       "personal" in r.stdout and "work" not in r.stdout, r.stdout)
 unsession()
 
-report(235)
+report(236)
