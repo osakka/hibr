@@ -2,6 +2,7 @@
 
 #include "cn.h"
 #include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,6 +14,60 @@ extern int cn_on;
 
 str cn_pend;
 int cn_pendo;
+
+static int *cn_wfd;
+static size_t cn_wn;
+
+/* Watch an extra descriptor -- a terminal's own pty master -- alongside key
+   input, so a caller blocked in cn_key wakes the instant it has real output
+   to show, rather than only finding out on its next scheduled redraw. */
+void cn_watchadd(int fd)
+{
+	size_t i;
+
+	if (fd < 0)
+		return;
+	for (i = 0; i < cn_wn; i++)
+		if (cn_wfd[i] == fd)
+			return;
+	cn_wfd = xr(cn_wfd, (cn_wn + 1) * sizeof *cn_wfd);
+	cn_wfd[cn_wn++] = fd;
+}
+
+/* Stop watching it -- called once a terminal's own pty is closed, so a
+   descriptor number the kernel reuses next is never mistaken for a live
+   one still worth waking for. */
+void cn_watchdel(int fd)
+{
+	size_t i;
+
+	for (i = 0; i < cn_wn; i++) {
+		if (cn_wfd[i] != fd)
+			continue;
+		memmove(cn_wfd + i, cn_wfd + i + 1,
+			(cn_wn - i - 1) * sizeof *cn_wfd);
+		cn_wn--;
+		return;
+	}
+}
+
+/* Drop whichever watched descriptors the kernel no longer recognises -- a
+   caller that forgot to unwatch one before closing it, most likely -- so
+   one stale terminal can never take key input down for the whole desktop
+   over a single EBADF. Returns whether it found one. */
+static int cn_watchprune(void)
+{
+	int i, found = 0;
+
+	for (i = (int)cn_wn - 1; i >= 0; i--) {
+		if (fcntl(cn_wfd[i], F_GETFD) >= 0)
+			continue;
+		lg(HIBR_LDBG, "screen: dropped a stale watched descriptor");
+		cn_watchdel(cn_wfd[i]);
+		found = 1;
+	}
+	return found;
+}
 
 /* Drop the bytes already turned into keys, keeping the buffer small. */
 void cn_eat(size_t n)
@@ -26,22 +81,34 @@ void cn_eat(size_t n)
 	}
 }
 
-/* Wait for the terminal to have something to say. */
+/* Wait for the terminal to have something to say, or for a watched
+   descriptor to. 1 means cn_fd itself is readable, the only case a caller
+   should act on directly; 2 means only a watched one is -- wake up and let
+   whoever owns it (term.hibr's own poll) notice, but there is nothing here
+   to read from cn_fd. */
 int cn_wait(int ms)
 {
 	fd_set r;
 	struct timeval tv;
-	int k;
+	int k, mx, i;
 
 	FD_ZERO(&r);
 	FD_SET(cn_fd, &r);
+	mx = cn_fd;
+	for (i = 0; i < (int)cn_wn; i++) {
+		FD_SET(cn_wfd[i], &r);
+		if (cn_wfd[i] > mx)
+			mx = cn_wfd[i];
+	}
 	tv.tv_sec = ms / 1000;
 	tv.tv_usec = (ms % 1000) * 1000;
-	k = select(cn_fd + 1, &r, 0, 0, ms < 0 ? 0 : &tv);
+	k = select(mx + 1, &r, 0, 0, ms < 0 ? 0 : &tv);
 	if (k > 0)
-		return 1;
+		return FD_ISSET(cn_fd, &r) ? 1 : 2;
 	if (k == 0)
 		return 0;
+	if (errno == EBADF)
+		return cn_watchprune() ? 0 : -1;
 	if (errno == EINTR) {
 		lg(HIBR_LDBG, "screen: wait interrupted, probably a resize");
 		return 0;
@@ -365,7 +432,7 @@ int cn_key(int ms, str *out)
 				continue;
 			}
 			r = cn_wait(waited ? 0 : 50);
-			if (r <= 0) {
+			if (r <= 0 || r == 2) {
 				if (waited)
 					return 0;
 				waited = 1;
@@ -376,7 +443,7 @@ int cn_key(int ms, str *out)
 			continue;
 		}
 		r = cn_wait(ms);
-		if (r == 0)
+		if (r == 0 || r == 2)
 			return 0;
 		if (r < 0)
 			return -1;

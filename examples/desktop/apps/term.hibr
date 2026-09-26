@@ -46,7 +46,7 @@ command -v dt_keep > /dev/null && dt_keep DT_TERMBAR
 # Start the program the first time there is a window to put it in, and keep
 # its size in step with the window afterwards.
 tw_fit() {
-	local id=$1 h=$2 w=$3 n i
+	local id=$1 h=$2 w=$3 n i fd
 	local -a cmd
 
 	[ "$h" -lt 1 ] || [ "$w" -lt 1 ] && return 1
@@ -70,6 +70,19 @@ tw_fit() {
 		[ -n "$DT_CURSOR" ] && term cursor "${TW[$id]["t"]}" "$DT_CURSOR"
 		TW[$id]["h"]=$h
 		TW[$id]["w"]=$w
+		# console key's own wait now watches this pty's master fd
+		# alongside real input, so the desktop wakes the instant the
+		# program inside writes something -- a key's echo included --
+		# rather than only finding out on its next scheduled redraw.
+		# This replaced a dt_want 30 fired for 200ms after every key,
+		# a guess at how long an echo takes that was either too slow
+		# (nothing yet) or wasteful (polling after it had already
+		# arrived); unwatched again in term_close.
+		fd := term fd "${TW[$id]["t"]}"
+		if [ -n "$fd" ] && [ "$fd" -ge 0 ]; then
+			TW[$id]["fd"]=$fd
+			command -v console > /dev/null && console watch "$fd"
+		fi
 		return 0
 	fi
 	if [ "$h" != "${TW[$id]["h"]}" ] || [ "$w" != "${TW[$id]["w"]}" ]; then
@@ -124,19 +137,6 @@ term_draw() {
 	[ "$DT_TERMBAR" = 1 ] &&
 		dt_scrollbar "$id" 0 "$w" "$h" $((stored + h)) "$h" \
 			$((stored - view))
-	# A key's echo comes back after the frame that sent it, so a terminal
-	# that was just typed into asks for the next one soon rather than in
-	# DT_TICK -- but only for a brief window after an actual key, not for
-	# as long as it stays focused. A terminal sitting focused with nobody
-	# typing into it used to ask for this every single frame regardless,
-	# which is a permanent 2000ms-to-30ms wake-frequency increase (about
-	# 66x) for as long as any terminal has focus at all: measured at
-	# roughly 30 dt_draw calls a second, continuously, with one idle
-	# focused terminal open and nothing being typed into it.
-	if [ "$DT_FOCUS" = "$id" ]; then
-		ms := dt_ms
-		[ $((ms - ${TW[$id]["kt"]:-0})) -lt 200 ] && dt_want 30
-	fi
 	return 0
 }
 
@@ -152,7 +152,6 @@ term_key() {
 	shift-pagedown) term scroll "$t" $((1 - h)) ;;
 	*) term key "$t" "$2" ;;
 	esac
-	TW[$1]["kt"] := dt_ms
 }
 
 # The mouse belongs to the program when it has asked for it -- vi, htop and
@@ -285,8 +284,12 @@ term_drop() {
 }
 
 term_close() {
+	if [ -n "${TW[$1]["fd"]}" ]; then
+		command -v console > /dev/null && console unwatch "${TW[$1]["fd"]}"
+	fi
 	[ -n "${TW[$1]["t"]}" ] && term close "${TW[$1]["t"]}"
 	TW[$1]["t"]=
+	TW[$1]["fd"]=
 }
 
 # The window's title follows whatever the program calls itself.

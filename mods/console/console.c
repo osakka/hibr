@@ -238,7 +238,7 @@ int m_console(sh *s, int ac, char **av)
 
 	if (ac < 2) {
 		lg(HIBR_LERR, "usage: console open|close|size|clear|pen|put|"
-			      "fill|cursor|flush|key|pane|hit|mouse");
+			      "fill|cursor|flush|key|watch|unwatch|pane|hit|mouse");
 		return 2;
 	}
 	if (!strcmp(sub, "open"))
@@ -435,6 +435,17 @@ int m_console(sh *s, int ac, char **av)
 		}
 		s_free(&k);
 		return r == 1 ? HIBR_OK : HIBR_FAIL;
+	}
+	if (!strcmp(sub, "watch") || !strcmp(sub, "unwatch")) {
+		if (ac < 3) {
+			lg(HIBR_LERR, "usage: console %s fd", sub);
+			return 2;
+		}
+		if (sub[0] == 'w')
+			cn_watchadd(atoi(av[2]));
+		else
+			cn_watchdel(atoi(av[2]));
+		return HIBR_OK;
 	}
 	if (!strcmp(sub, "pane")) {
 		const char *verb = ac > 2 ? av[2] : "";

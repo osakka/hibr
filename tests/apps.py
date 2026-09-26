@@ -63,10 +63,18 @@ def run(app, win, feed=(), pre="", wait=1.0, also=(), end=b"qy", extra=(),
                   for a in dict.fromkeys([app] + [x[2] for x in also if x[2]]
                                          + list(extra)))
     more = "".join('dt_new "%s" %s %s\n' % x for x in also)
+    # term.hibr's own `need pty`/`need terminal` autoload from the
+    # installed module path, not this tree's own build/mods -- the same
+    # trap `need` always is. A terminal test loads both explicitly first,
+    # so `need` finds them already provided and a rebuilt pty/term is what
+    # actually gets exercised, not whatever is separately installed.
+    mods = ["console"]
+    if app == "term" or "term" in extra:
+        mods += ["pty", "term"]
     open(p, "w").write(
         "%s. %s\n%s%s\ndt_open\ndt_new \"%s\" %s %s\n%s"
         "dt_run\ndt_close\n"
-        % (load("console"), WM, src, pre, app.title(), win, app,
+        % (load(*mods), WM, src, pre, app.title(), win, app,
            more + ("dt_raise 1\n" if also else "")))
     t = Term(p, env=dict({"DT_TICK": "60"}, **(env or {})), settle=0.6)
     t.keys(feed)

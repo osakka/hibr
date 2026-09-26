@@ -58,7 +58,7 @@ int m_term(sh *s, int ac, char **av)
 
 	if (ac < 2) {
 		lg(HIBR_LERR, "usage: term open|poll|draw|key|write|size|"
-			      "alive|status|title|cursor|row|scroll|mouse|screen|select|copy|close ...");
+			      "alive|status|fd|title|cursor|row|scroll|mouse|screen|select|copy|close ...");
 		return 2;
 	}
 	if (!strcmp(sub, "open")) {
@@ -187,6 +187,13 @@ int m_term(sh *s, int ac, char **av)
 	if (!strcmp(sub, "status")) {
 		s_init(&o);
 		s_num(&o, (long)(tm_pty ? tm_pty->status(m->pty) : -1));
+		tm_ret(s, o.p);
+		s_free(&o);
+		return HIBR_OK;
+	}
+	if (!strcmp(sub, "fd")) {
+		s_init(&o);
+		s_num(&o, (long)(tm_pty ? tm_pty->fd(m->pty) : -1));
 		tm_ret(s, o.p);
 		s_free(&o);
 		return HIBR_OK;

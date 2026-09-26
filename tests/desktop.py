@@ -1416,7 +1416,8 @@ open(p, "w").write(
     "%s. %s\n. %s/term.hibr\n"
     'DT_APPKEY[term]="ctrl-alt-t"\n'
     "dt_open\ndt_run\ndt_close\n"
-    % (load(MOD), WM, tree("examples/desktop/apps"))
+    % (load(MOD, "build/mods/pty.so", "build/mods/term.so"), WM,
+       tree("examples/desktop/apps"))
 )
 t = Term(p, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.6)
 t.send(b"\x1b\x14", settle=0.4, collect=0.4)  # ESC ctrl-T: alt-ctrl-t
