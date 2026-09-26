@@ -77,6 +77,8 @@ DT_DNDICON=
 DT_DNDS=()
 DT_PATHS=()
 DT_NOTE=
+DT_NOTET=0
+DT_NOTEMS=2500
 DT_CONFIRM=
 DT_CONFIRM_CMD=
 DT_ROWS=24
@@ -3772,20 +3774,37 @@ dt_gkey() {
 # A note in the middle of the screen, until the next key.
 dt_note() {
 	DT_NOTE="$1"
+	DT_NOTET := dt_ms
 }
 
+# A brief toast, not a small window of its own like dt_confirm's: a border
+# so it reads as something floating rather than as whatever happened to be
+# under it looking wrong, and a timeout so it goes away on its own -- it
+# used to have neither, drawn as three plain rows with no visual edge at
+# all, which is what made applying a wallpaper from the Wallpaper pane (a
+# window that fills most of the screen, with the note landing centred on
+# top of it) look like the screen itself had come out wrong rather than
+# like a notification, until the next click or key -- which cleared
+# DT_NOTE anyway, but only ever happened to look like the "fix" was
+# whatever that click did, moving a window included.
 dt_note_draw() {
-	local w r c t
+	local w r c t now
 
+	if [ -n "$DT_NOTE" ]; then
+		now := dt_ms
+		[ $((now - DT_NOTET)) -ge "$DT_NOTEMS" ] && DT_NOTE=
+	fi
 	[ -z "$DT_NOTE" ] && return 0
 	w=$((${#DT_NOTE} + 4))
 	r=$((DT_ROWS / 2 - 1))
 	c=$(((DT_COLS - w) / 2))
+	console pen "$DT_ACTIVE" "$DT_FACE" bold
+	t := dt_rep $((w - 2)) "─"
+	console put "$r" "$c" "┌$t┐"
+	console put $((r + 2)) "$c" "└$t┘"
 	console pen "$DT_INK" "$DT_FACE" bold
-	t := dt_rep "$w" " "
-	console put "$r" "$c" "$t"
-	console put $((r + 1)) "$c" "  $DT_NOTE  "
-	console put $((r + 2)) "$c" "$t"
+	console put $((r + 1)) "$c" "│ $DT_NOTE │"
+	dt_want "$DT_NOTEMS"
 }
 
 # Ask before doing something that cannot be taken back by pressing the key

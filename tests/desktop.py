@@ -410,6 +410,30 @@ check("choosing one runs the callback with the id and the value",
 t.quit(b"qy", 1.2)
 os.unlink(path)
 
+# A note used to be three plain rows with no border at all -- applying a
+# wallpaper from the Wallpaper pane, a window that fills most of the
+# screen, landed its own centred note on top of that same window and
+# read as the screen having come out wrong rather than as a
+# notification, until the next click or key (dismissing it) was
+# mistaken for whatever "fixed" it. It has a real border now, and clears
+# itself on a timeout, not only on the next key -- checked with nothing
+# sent at all, so only the timeout could have cleared it.
+NOTET = tempfile.mkdtemp(prefix="hibr-notet-")
+p = os.path.join(NOTET, "session.hibr")
+open(p, "w").write(
+    "%s. %s\ndt_open\ndt_note \"Hi there\"\ndt_run\ndt_close\n" % (load(MOD), WM)
+)
+t = Term(p, env={"DT_TICK": "300"}, rows=ROWS, cols=COLS, settle=0.5)
+sc = t.screen()
+check("a note shows in a real bordered box, not plain floating text",
+      sc.find("┌") is not None and sc.find("Hi there") is not None, sc)
+t.collect(3.0)
+sc = t.screen()
+check("and clears itself after its own timeout, with no key or click at all",
+      sc.find("Hi there") is None, sc)
+t.quit(None, 1.0)
+shutil.rmtree(NOTET, True)
+
 # --- right-click context menus ---------------------------------------------
 #
 # ctx has both _click and _context: right-click must reach _context, not
@@ -1583,4 +1607,4 @@ check("ending it leaves the other one alone",
       "personal" in r.stdout and "work" not in r.stdout, r.stdout)
 unsession()
 
-report(236)
+report(238)
