@@ -149,17 +149,50 @@ TK_HZ=100
 TK_SCANMS="${TK_SCANMS-1000}"
 command -v dt_keep > /dev/null && dt_keep TK_SCANMS
 
-# The state, then the ten fields before utime and stime, then those two --
-# /proc/[pid]/stat's own gotcha, since the command name is in parens and may
-# itself contain both parens and spaces. Found from the last ")" in the
-# line, never the first.
+# Name and CPU times, both from the one read of /proc/[pid]/stat -- status
+# was being read for the name alongside rss and uid, for a field the stat
+# read already had on the same line for free. rss stays out of this: its
+# own field here (24) is documented by proc(5) itself as inaccurate ("see
+# /proc/[pid]/statm"), and status's VmRSS is the one already trusted
+# everywhere else this shows memory, not something to trade for speed
+# silently.
+#
+# The command name is in parens and may itself contain both parens and
+# spaces -- found between the first "(" (pid, just above, is always a
+# plain number, so nothing before it can be one) and the last ")", never
+# the first, the same trap as before. Returned last, in the same
+# last-variable-takes-the-rest shape tasks_scan_ps's own comm already
+# relies on, so a name with a real space in it is never split across two
+# fields the way u/s (never containing one) safely can be -- status's own
+# Name: field actually had this bug already, silently truncating at the
+# first space; nothing before this depended on a name ever having one.
 tasks_times() {
-	local pid=$1 line rest state a b c d e f g h j k u s
+	local pid=$1 line name rest
+	local state a b c d e f g h j k u s _
 
 	read -r line < "/proc/$pid/stat" 2> /dev/null || return 1
+	name=${line%)*}
+	name=${name#*\(}
 	rest=${line##*)}
 	read -r state a b c d e f g h j k u s _ <<< "$rest"
-	ret "$u $s"
+	ret "$u $s $name"
+}
+
+# uid and rss, from status -- breaking out once both are found rather than
+# reading to the end of a ~50-line file for two, which is most of what
+# this file's own scan still costs (VmRSS is well down the file; Uid is
+# not, but the loop cannot stop until the later of the two either way).
+tasks_uidrss() {
+	local pid=$1 k v uid= rss=
+
+	while read -r k v _; do
+		case $k in
+		Uid:) uid=$v ;;
+		VmRSS:) rss=$v ;;
+		esac
+		[ -n "$uid" ] && [ -n "$rss" ] && break
+	done < "/proc/$pid/status" 2> /dev/null
+	ret "$uid ${rss:-0}"
 }
 
 # One pass: every pid under /proc, its name and memory from status (no
@@ -187,7 +220,8 @@ tasks_scan_ps() {
 }
 
 tasks_scan() {
-	local id=$1 pid name rss uid owner times u s now elapsed du ds pct n=0
+	local id=$1 pid uidrss uid rss owner times u s name now elapsed du ds pct
+	local n=0
 	local prevt=${TK_PREV[$id]["t"]}
 
 	# uname is a program, not a builtin -- := does nothing for one of
@@ -202,20 +236,11 @@ tasks_scan() {
 	now := dt_ms
 	for pid in /proc/[0-9]*; do
 		pid=${pid#/proc/}
-		[ -r "/proc/$pid/status" ] || continue
-		name= rss= uid=
-		while read -r k v _; do
-			case $k in
-			Name:) name=$v ;;
-			VmRSS:) rss=$v ;;
-			Uid:) uid=$v ;;
-			esac
-			[ -n "$name" ] && [ -n "$uid" ] && [ -n "$rss" ] && break
-		done < "/proc/$pid/status"
-		[ -z "$name" ] && continue
 		times := tasks_times "$pid" || continue
-		u=${times% *}
-		s=${times#* }
+		read -r u s name <<< "$times"
+		[ -z "$name" ] && continue
+		uidrss := tasks_uidrss "$pid"
+		read -r uid rss <<< "$uidrss"
 		pct=0
 		if [ -n "$prevt" ] && [ -n "${TK_PREV[$id]["$pid.u"]}" ]; then
 			du=$((u - TK_PREV[$id]["$pid.u"]))
@@ -231,7 +256,7 @@ tasks_scan() {
 		TK[$id][$n]["name"]=$name
 		TK[$id][$n]["owner"]=$owner
 		TK[$id][$n]["cpu"]=$pct
-		TK[$id][$n]["mem"]=${rss:-0}
+		TK[$id][$n]["mem"]=$rss
 		n=$((n + 1))
 	done
 	TK_PREV[$id]["t"]=$now
