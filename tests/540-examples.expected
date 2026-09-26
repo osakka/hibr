@@ -1,6 +1,7 @@
 0
 every example parses
 no function is defined twice
+no local reads a name assigned earlier in the same statement
 every declared program answers --help
 [auth]
   token = abc123

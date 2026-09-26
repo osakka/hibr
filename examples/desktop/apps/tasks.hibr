@@ -117,8 +117,9 @@ tasks_scan() {
 # hundred, and the list is nearly sorted from one scan to the next, which is
 # exactly what this does least work on.
 tasks_sort() {
-	local id=$1 by=$2 n=${TK[$id]["n"]} i j pid name cpu mem key
+	local id=$1 by=$2 n i j pid name cpu mem key
 
+	n=${TK[$id]["n"]}
 	i=1
 	while [ "$i" -lt "$n" ]; do
 		pid=${TK[$id][$i]["pid"]}
@@ -237,15 +238,19 @@ tasks_draw() {
 }
 
 tasks_end() {
-	local id=$1 sig=$2 sel=${TK[$id]["sel"]} pid
+	local id=$1 sig=$2 sel pid
 
+	sel=${TK[$id]["sel"]}
 	pid=${TK[$id][$sel]["pid"]}
 	[ -n "$pid" ] && kill "-$sig" "$pid" 2> /dev/null
 	return 0
 }
 
 tasks_key() {
-	local id=$1 n=${TK[$id]["n"]} vis=${TK[$id]["vis"]}
+	local id=$1 n vis
+
+	n=${TK[$id]["n"]}
+	vis=${TK[$id]["vis"]}
 	local sel=${TK[$id]["sel"]} top=${TK[$id]["top"]}
 
 	case $2 in
@@ -267,8 +272,10 @@ tasks_key() {
 }
 
 tasks_click() {
-	local id=$1 r=$2 top=${TK[$id]["top"]} n=${TK[$id]["n"]} i
+	local id=$1 r=$2 top n i
 
+	top=${TK[$id]["top"]}
+	n=${TK[$id]["n"]}
 	[ "$r" -lt 1 ] && return 0
 	i=$((top + r - 1))
 	[ "$i" -ge "$n" ] && return 0

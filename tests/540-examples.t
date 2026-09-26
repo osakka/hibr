@@ -24,6 +24,46 @@ for e in examples/*.hibr examples/desktop/*.hibr examples/desktop/apps/*.hibr \
 done
 echo "no function is defined twice"
 
+# local id=$1 b=${ARR[$id]...} looks right and often runs right: a local
+# statement's own words are all expanded before local assigns any of
+# them, so a later word reading an earlier word's name in the same
+# statement reads whatever it meant before the statement ran, not what
+# was just assigned. Masked whenever the caller's own local happens to
+# share the name -- which "id" alone did in seven places across two files
+# before this check found them, every one shipped and passing real use
+# for as long as nothing called it from a context with no such "id" lying
+# around. Cheap and approximate (whitespace-split, so a quoted value with
+# a space in it is not read correctly), not exhaustive -- see CLAUDE.md's
+# own trap entry for the pattern in full.
+for e in examples/*.hibr examples/desktop/*.hibr examples/desktop/apps/*.hibr \
+         examples/desktop/control-panel/*.hibr \
+         examples/desktop/desk-accessories/*.hibr examples/desktop/control-strip/*.hibr; do
+  awk '
+  /^[[:space:]]*local[[:space:]]/ {
+    line = $0
+    sub(/^[[:space:]]*local[[:space:]]+/, "", line)
+    sub(/[[:space:]]*#.*/, "", line)
+    n = split(line, words, /[[:space:]]+/)
+    delete seen
+    for (i = 1; i <= n; i++) {
+      w = words[i]
+      if (w == "") continue
+      eq = index(w, "=")
+      if (eq == 0) { seen[w] = 1; continue }
+      name = substr(w, 1, eq - 1)
+      val = substr(w, eq + 1)
+      for (nm in seen) {
+        pat = "\\$\\{?" nm "([^A-Za-z0-9_]|$)"
+        if (val ~ pat)
+          print FILENAME ":" FNR ": local " name "=" val \
+            " reads " nm ", assigned earlier in the same local statement"
+      }
+      seen[name] = 1
+    }
+  }' "$e"
+done
+echo "no local reads a name assigned earlier in the same statement"
+
 for e in examples/fetch.hibr examples/ls-report.hibr examples/conf.hibr examples/workers.hibr; do
   ./build/hibr "$e" --help > /dev/null 2>&1 || echo "no --help: $e"
 done

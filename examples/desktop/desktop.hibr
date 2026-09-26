@@ -2117,8 +2117,9 @@ DT_OPENCMD=()
 
 # Run a registered handler on a path.
 dt_runhandler() {
-	local ext=$1 path=$2 n=${DT_HANDLERS[$ext]["n"]} i=0
+	local ext=$1 path=$2 n i=0
 
+	n=${DT_HANDLERS[$ext]["n"]}
 	DT_OPENCMD=()
 	while [ "$i" -lt "$n" ]; do
 		DT_OPENCMD+=("${DT_HANDLERS[$ext][$i]}")
@@ -3173,8 +3174,9 @@ dt_wclear() {
 # Record a widget's hit region.  The draw helpers below call this; an app
 # does not call it directly.
 dt_wreg() {
-	local id=$1 r=$2 c=$3 w=$4 tag=$5 n=${WG[$id]["n"]:-0}
+	local id=$1 r=$2 c=$3 w=$4 tag=$5 n
 
+	n=${WG[$id]["n"]:-0}
 	WG[$id][$n]["r"]=$r
 	WG[$id][$n]["c"]=$c
 	WG[$id][$n]["w"]=$w
@@ -3186,8 +3188,9 @@ dt_wreg() {
 # empty for none.  An app's _click asks this before falling back to its
 # own per-row logic.
 dt_hit() {
-	local id=$1 r=$2 c=$3 n=${WG[$id]["n"]:-0} i=0 wr wc ww
+	local id=$1 r=$2 c=$3 n i=0 wr wc ww
 
+	n=${WG[$id]["n"]:-0}
 	while [ "$i" -lt "$n" ]; do
 		wr=${WG[$id][$i]["r"]}
 		wc=${WG[$id][$i]["c"]}
@@ -3207,8 +3210,9 @@ dt_hit() {
 # to wherever inside it happened to be clicked -- id and row the same as
 # the dt_hit call that found tag there.
 dt_wcol() {
-	local id=$1 r=$2 tag=$3 n=${WG[$id]["n"]:-0} i=0
+	local id=$1 r=$2 tag=$3 n i=0
 
+	n=${WG[$id]["n"]:-0}
 	while [ "$i" -lt "$n" ]; do
 		if [ "${WG[$id][$i]["r"]}" = "$r" ] &&
 		   [ "${WG[$id][$i]["tag"]}" = "$tag" ]; then
