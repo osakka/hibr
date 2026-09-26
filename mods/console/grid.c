@@ -15,6 +15,20 @@ int cn_crow, cn_ccol, cn_cvis;
 unsigned cn_lfg, cn_lbg, cn_lat;
 int cn_lset, cn_lvis = -1;
 
+/* What a cell left at the terminal's own default colour should darken
+   toward -- the console has no way to ask the terminal what that colour
+   actually is, so a caller with an opinion (the desktop, from its own
+   theme) sets one; DP_DEFAULT (0) either way means none was ever set,
+   which is also the value cn_dim1 already leaves an untouched cell at. */
+unsigned cn_deffg, cn_defbg;
+
+/* Set what DP_DEFAULT should darken toward. */
+void cn_setdim(unsigned fg, unsigned bg)
+{
+	cn_deffg = fg;
+	cn_defbg = bg;
+}
+
 /* Release every cell and the grid itself. */
 void cn_gfree(cn_grid *g)
 {
@@ -124,14 +138,24 @@ void cn_clear(void)
 	}
 }
 
-/* Darken one colour toward black by pct percent of its own value. RGB scales
-   exactly; a palette index or the terminal's own default cannot be scaled
-   without a colour table the display does not have, so DP_DIM is left for
-   the caller to add as the fallback that reaches every terminal. */
-unsigned cn_dim1(unsigned v, int pct)
+/* Darken one colour toward black by pct percent of its own value. RGB
+   scales exactly. deflt is what a cell left at the terminal's own
+   default colour (DP_DEFAULT, 0) darkens toward instead -- cn_setdim's
+   own reference, so a shadow over a terminal's own plain, uncoloured
+   output (a prompt, ls of regular files, most of what actually appears
+   on screen, all of it DP_DEFAULT since mods/term never colours a cell
+   the program itself did not ask to be coloured) darkens the same as the
+   decoration around it does, rather than not at all. A palette index is
+   a program's own deliberate colour choice, not a placeholder for "none
+   set" the way DP_DEFAULT is, so it is left exactly as DP_DEFAULT always
+   was: unscaled without a colour table the display does not have, DP_DIM
+   the fallback that reaches every terminal regardless. */
+unsigned cn_dim1(unsigned v, int pct, unsigned deflt)
 {
 	unsigned r, g, b;
 
+	if (v == DP_DEFAULT)
+		v = deflt;
 	if (!(v & DP_RGB))
 		return v;
 	r = (v >> 16) & 0xFF;
@@ -167,8 +191,8 @@ void cn_darken(int row, int col, int h, int w, int pct)
 			if (c < 0 || c >= cn_back.cols)
 				continue;
 			k = &cn_back.c[r * cn_back.cols + c];
-			k->fg = cn_dim1(k->fg, pct);
-			k->bg = cn_dim1(k->bg, pct);
+			k->fg = cn_dim1(k->fg, pct, cn_deffg);
+			k->bg = cn_dim1(k->bg, pct, cn_defbg);
 			k->attr |= DP_DIM;
 		}
 	}

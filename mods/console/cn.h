@@ -44,6 +44,7 @@ void cn_clear(void);
 int cn_put(int row, int col, const char *t);
 void cn_fill(int row, int col, int h, int w, const char *t);
 void cn_darken(int row, int col, int h, int w, int pct);
+void cn_setdim(unsigned fg, unsigned bg);
 void cn_cursor(int row, int col, int vis);
 long cn_flush(void);
 int cn_key(int ms, str *out);

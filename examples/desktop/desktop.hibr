@@ -268,6 +268,13 @@ dt_open() {
 	title "hibr: desktop"
 	dt_load
 	console open || return 1
+	# What a cell left at the terminal's own default colour should darken
+	# toward, for a window's shadow: the desktop's own idea of plain
+	# ink-on-face, the same colours everything undecorated already reads
+	# as. Without this, a shadow over a terminal's own plain, uncoloured
+	# output -- a shell prompt, ls of regular files, most of what
+	# actually appears on screen -- showed no visible darkening at all.
+	console darkdefault "$DT_INK" "$DT_FACE"
 	console signals off
 	# Click and drag only, not motion: reporting every movement with no
 	# button held (XTerm mode 1003) was tried for the strip's own hover

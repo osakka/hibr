@@ -383,6 +383,24 @@ int m_console(sh *s, int ac, char **av)
 			  ac > 6 ? atoi(av[6]) : 55);
 		return HIBR_OK;
 	}
+	if (!strcmp(sub, "darkdefault")) {
+		if (ac < 4) {
+			lg(HIBR_LERR, "usage: console darkdefault fg bg");
+			return 2;
+		}
+		if (cn_colour(av[2], &fg) != HIBR_OK) {
+			lg(HIBR_LERR, "console darkdefault: %s: not a colour",
+			   av[2]);
+			return HIBR_FAIL;
+		}
+		if (cn_colour(av[3], &bg) != HIBR_OK) {
+			lg(HIBR_LERR, "console darkdefault: %s: not a colour",
+			   av[3]);
+			return HIBR_FAIL;
+		}
+		cn_setdim(fg, bg);
+		return HIBR_OK;
+	}
 	if (!strcmp(sub, "cursor")) {
 		if (ac > 2 && !strcmp(av[2], "off")) {
 			cn_cursor(cn_crow, cn_ccol, 0);

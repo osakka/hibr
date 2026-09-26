@@ -48,6 +48,7 @@ cp_theme() {
 	DT_FACE=$6
 	DT_INK=$7
 	DT_SHADOW_PCT=$8
+	command -v console > /dev/null && console darkdefault "$DT_INK" "$DT_FACE"
 }
 
 # Picking a glyph is choosing the plain wallpaper over a real image, the
