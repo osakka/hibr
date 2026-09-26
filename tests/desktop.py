@@ -562,14 +562,26 @@ check("an app's own menus are on the bar when it has focus",
 check("and the application menu names it",
       sc.find("Noted ▾") is not None, sc)
 
-sc, _ = run(MENUS, [press(0, 6)])
+sc, raw = run(MENUS, [press(0, 6)])
 check("clicking a title drops the menu under it",
       sc.find("Bump") == (1, 6) and sc.find("Reset") == (3, 6), sc)
 check("a separator is drawn between the groups", sc.at(2, 5) == "─", sc)
 check("and a blank row closes it, not a line -- Close is the last item",
       sc.find("Close") == (4, 6) and sc.at(5, 6) == " ", sc)
-check("each item shows the letter that picks it", sc.at(1, 16) == "b" and
-      sc.at(3, 16) == "r", sc)
+# #55: an accelerator that is a real letter of the label is underlined
+# in place, not repeated after it -- Bump and Reset are both picked by
+# their own first letter, so column 16 (the old trailing column) is
+# blank for them now, and the underline SGR (4) brackets that letter
+# in the raw stream instead. Close's own accelerator, w, is not a
+# letter anywhere in "Close" -- an author's own pick, not a spelled-out
+# one -- so it still falls back to showing up there, same as always.
+check("the old trailing column is blank for an on-label accelerator",
+      sc.at(1, 16) == " " and sc.at(3, 16) == " ", sc)
+check("but still shows an off-label one, Close's own w",
+      sc.at(4, 16) == "w", sc)
+check("and the on-label accelerator is underlined in the label itself",
+      re.search(rb"\x1b\[[0-9;]*\b4\b[0-9;]*mB", raw) is not None and
+      re.search(rb"\x1b\[[0-9;]*\b4\b[0-9;]*mR", raw) is not None, raw)
 
 sc, _ = run(MENUS, [press(0, 6), press(0, 6)])
 check("clicking it again puts it away", sc.find("Bump") is None, sc)
@@ -1529,4 +1541,4 @@ check("ending it leaves the other one alone",
       "personal" in r.stdout and "work" not in r.stdout, r.stdout)
 unsession()
 
-report(231)
+report(233)

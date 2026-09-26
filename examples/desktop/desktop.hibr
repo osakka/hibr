@@ -1840,6 +1840,29 @@ dt_akey() {
 	ret ""
 }
 
+# Where a single-character accelerator sits in a label, case-insensitive
+# -- -1 when it is not one character, or is not actually in the label at
+# all, which is true of a shortcut an app author picked to mean
+# something rather than to spell part of the word ("x" for "End Task").
+# dt_menu_draw underlines the letter in place when this finds one, and
+# falls back to showing the key after the label, the way every item
+# used to, when it does not.
+dt_akeypos() {
+	local lb=$1 k=$2 i=0 c lk
+
+	if [ "${#k}" != 1 ]; then
+		ret -1
+		return 0
+	fi
+	lk := str lower "$k"
+	while [ "$i" -lt "${#lb}" ]; do
+		c := str lower "${lb:$i:1}"
+		[ "$c" = "$lk" ] && { ret "$i"; return 0; }
+		i=$((i + 1))
+	done
+	ret -1
+}
+
 # Work out where each title sits on the bar.
 dt_layout() {
 	local i=0 c=1 t
@@ -3001,7 +3024,7 @@ dt_drop() {
 # occupies so it can sit beside it rather than on top of it.
 dt_menu_draw() {
 	local m=$1 px=$2 parent=$3
-	local i=0 r=1 x w n lb k t sub
+	local i=0 r=1 x w n lb k t sub rowfg rowbg rowbold pos full pre hl post
 
 	x=${MB[$m]["x"]}
 	w=${MB[$m]["w"]}
@@ -3033,20 +3056,64 @@ dt_menu_draw() {
 			continue
 		fi
 		if [ "$parent" != 1 ] && [ "$i" = "$MB_SEL" ]; then
-			console pen "$DT_FACE" "$DT_ACTIVE" bold
+			rowfg=$DT_FACE; rowbg=$DT_ACTIVE; rowbold=1
 		elif [ "${MI[$m][$i]["dim"]}" = 1 ]; then
-			console pen "$DT_IDLE" "$DT_FACE"
+			rowfg=$DT_IDLE; rowbg=$DT_FACE; rowbold=0
 		else
-			console pen "$DT_INK" "$DT_FACE"
+			rowfg=$DT_INK; rowbg=$DT_FACE; rowbold=0
+		fi
+		if [ "$rowbold" = 1 ]; then
+			console pen "$rowfg" "$rowbg" bold
+		else
+			console pen "$rowfg" "$rowbg"
 		fi
 		lb=${MI[$m][$i]["label"]}
 		k=${MI[$m][$i]["key"]}
 		t=${MI[$m][$i]["tick"]}
 		sub=${MI[$m][$i]["sub"]}
-		[ -n "$sub" ] && k="▸"
+		if [ -n "$sub" ]; then
+			k="▸"
+			pos=-1
+		else
+			pos := dt_akeypos "$lb" "$k"
+		fi
 		[ -z "$t" ] && t=" "
-		lb := str pad "$t $lb" $((w - 3))
-		console put "$r" "$x" "$lb $k "
+		if [ "$pos" -ge 0 ]; then
+			# The accelerator is a real letter of the label -- underline
+			# it in place instead of repeating it after the label, which
+			# is what #55 asked for: a trailing "f" for "Files" reads
+			# like a second, unexplained shortcut next to the real ones
+			# App Shortcuts assigns, not a hint about the letter beside
+			# it. "$t " (tick-or-blank, then a space) always precedes
+			# the label, so the label's own position shifts by 2.
+			pos=$((pos + 2))
+			full="$t $lb"
+			full := str pad "$full" $((w - 3))
+			pre=${full:0:$pos}
+			hl=${full:$pos:1}
+			post=${full:$((pos + 1))}
+			console put "$r" "$x" "$pre"
+			if [ "$rowbold" = 1 ]; then
+				console pen "$rowfg" "$rowbg" bold underline
+			else
+				console pen "$rowfg" "$rowbg" underline
+			fi
+			console put "$r" $((x + pos)) "$hl"
+			if [ "$rowbold" = 1 ]; then
+				console pen "$rowfg" "$rowbg" bold
+			else
+				console pen "$rowfg" "$rowbg"
+			fi
+			console put "$r" $((x + pos + 1)) "$post   "
+		else
+			# No letter of the label to underline -- a shortcut an app
+			# author picked to mean something rather than spell part of
+			# the word ("x" for "End Task"), or dt_akey's own digit
+			# fallback when a menu ran out of free letters. Shown after
+			# the label, as every item's always been.
+			lb := str pad "$t $lb" $((w - 3))
+			console put "$r" "$x" "$lb $k "
+		fi
 		r=$((r + 1))
 		i=$((i + 1))
 	done
