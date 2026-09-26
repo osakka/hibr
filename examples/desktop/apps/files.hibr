@@ -355,6 +355,17 @@ fb_view_save() {
 	} > "$tmp" && mv -f "$tmp" "$FB_VIEWFILE"
 }
 
+# Forget every directory's own remembered view -- Control Panel's own
+# Reset All Views (#51), next to Default File View (#50). Each one starts
+# fresh from the default the next time it is shown; a window already
+# open keeps showing whatever it is currently showing, the same as
+# changing the default itself already leaves an open window alone.
+fb_reset_views() {
+	unset FB_VIEWS
+	declare -gA FB_VIEWS
+	rm -f "$FB_VIEWFILE"
+}
+
 files_open() {
 	local d=${2:-${FB_DIR:-$PWD}}
 

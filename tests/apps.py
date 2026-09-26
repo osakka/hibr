@@ -371,6 +371,34 @@ sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 9 + [b"\x1b[C"],
 check("and cycles through the other views",
       "details" in sc.row(sc.find("Default File View")[0]), sc)
 
+# Reset All Views -- #51 -- is a plain button (kind=action): no value of
+# its own, just below Default File View, and only present under the same
+# condition.
+sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 10, extra=("files",))
+check("Reset All Views appears once Files itself is loaded, as a button",
+      sc.find("Reset All Views") is not None, sc)
+
+# fb_reset_views itself, directly: it clears an already-remembered view
+# back to the default, and removes the file it was kept in.
+RVSTATE = tempfile.mkdtemp(prefix="hibr-resetviews-state-")
+RVSCRIPT = (
+    '. %s\n'
+    'fb_view_save /some/dir icons\n'
+    'before := fb_dirview /some/dir\n'
+    'echo "before=$before"\n'
+    'fb_reset_views\n'
+    'after := fb_dirview /some/dir\n'
+    'echo "after=$after"\n'
+    '[ -f "$FB_VIEWFILE" ] && echo file=yes || echo file=no\n'
+    % (appdir("files") + "/files.hibr")
+)
+out = subprocess.run([sx.HIBR, "-c", RVSCRIPT], capture_output=True, text=True,
+                     env=dict(os.environ, XDG_STATE_HOME=RVSTATE)).stdout
+check("it clears a remembered view back to the default",
+      "before=icons" in out and "after=list" in out, out)
+check("and removes the persisted file", "file=no" in out, out)
+shutil.rmtree(RVSTATE, True)
+
 # Date & Time is a custom pane -- a body of its own, not rows -- proving
 # that shape rather than the row-list one every other pane above uses.
 # TZ is pinned so the coordinate is deterministic regardless of where the
@@ -1066,4 +1094,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(155)
+report(158)

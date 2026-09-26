@@ -289,7 +289,10 @@ cp_do() {
 	sel=${PW[$w]["sel"]}
 	k=${CP[$w][$sel]["key"]}
 	case ${CP[$w][$sel]["kind"]} in
-	set) dt_has "${pane}_do" && "${pane}_do" "$w" "$k" "$dir" ;;
+	# action is a plain button: no value of its own to cycle, so the
+	# pane's own _do sees whatever dir a click or a key happened to
+	# give it, and ignores it -- the same call "set" already makes.
+	set | action) dt_has "${pane}_do" && "${pane}_do" "$w" "$k" "$dir" ;;
 	key) command -v dt_keycap > /dev/null && dt_keycap "$k" ;;
 	esac
 }

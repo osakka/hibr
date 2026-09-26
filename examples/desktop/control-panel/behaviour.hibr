@@ -140,6 +140,11 @@ behaviour_rows() {
 		CP[$w][$n]["val"]="${FB_DEFAULTVIEW:-list}"; CP[$w][$n]["key"]=fileview
 		n=$((n + 1))
 	fi
+	if dt_has fb_reset_views; then
+		CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Reset All Views"
+		CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=resetviews
+		n=$((n + 1))
+	fi
 	ret "$n"
 }
 
@@ -164,6 +169,7 @@ behaviour_do() {
 	termbar) cp_termbar ;;
 	fileview) v := cp_next "${FB_DEFAULTVIEW:-list}" "$dir" "${FILES_VIEWS[@]}"
 		FB_DEFAULTVIEW=$v ;;
+	resetviews) fb_reset_views ;;
 	esac
 	cp_save
 }
