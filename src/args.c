@@ -40,24 +40,18 @@ void pt_init(int ac, char **av)
 	   (unsigned long)(pt_end - pt_start));
 }
 
-/* Move the environment off the argv region, so a title may overwrite it. */
+/* Move each environment string off the argv region a title will overwrite. */
 void pt_claim(void)
 {
 	extern char **environ;
-	char **e, **copy;
-	size_t n = 0, i;
+	char **e;
 
 	if (pt_taken)
 		return;
 	pt_taken = 1;
 	for (e = environ; e && *e; e++)
-		n++;
-	copy = xm((n + 1) * sizeof *copy);
-	for (i = 0; i < n; i++)
-		copy[i] = xs(environ[i]);
-	copy[n] = 0;
-	environ = copy;
-	lg(HIBR_LDBG, "environment copied off the argv region");
+		*e = xs(*e);
+	lg(HIBR_LDBG, "environment strings copied off the argv region");
 }
 
 /* Rename the running process everywhere it shows: the argv region ps reads,
