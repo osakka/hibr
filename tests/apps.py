@@ -504,6 +504,49 @@ sc = run("notepad", "12 40 2 2", env={"XDG_CONFIG_HOME": NPD4}, end=None)
 check("reopening it loads the saved note", sc.find("hello") is not None, sc)
 shutil.rmtree(NPD4, True)
 
+# imgview: draws a decoded picture, or says why not -- #48 found this
+# folding two very different failures ("the img module was never
+# installed" and "this file could not be decoded") into one identical
+# message, with no way to tell which from the screen alone. Each variant
+# gets its own HIBR_MODPATH, since which module directory is on the
+# search path is exactly what tells the two cases apart.
+IVW = "13 46 2 2"
+BUILT_MODS = os.path.abspath("build/mods")
+
+
+def run_img(path, moddir):
+    """Like run(), but opens imgview already showing path -- dt_new's own
+    7th argument, which run() has no way to pass through."""
+    p = os.path.join(S, "session.hibr")
+    open(p, "w").write(
+        "%s\n. %s\n. %s\ndt_open\n"
+        'dt_new "Image Viewer" %s imgview "%s"\n'
+        "dt_run\ndt_close\n" % (load("console"), WM, appdir("imgview") +
+                                "/imgview.hibr", IVW, path)
+    )
+    t = Term(p, env={"DT_TICK": "60", "HIBR_MODPATH": moddir}, settle=0.8)
+    t.quit(b"qy", 1.0)
+    return t.screen()
+
+
+sc = run_img(os.path.abspath("tests/img-2x2.png"), BUILT_MODS)
+check("a decodable picture is drawn, not an error message",
+      sc.find("Cannot show") is None and
+      sc.find("isn't installed") is None, sc)
+
+NOMOD = tempfile.mkdtemp(prefix="hibr-no-img-mod-")
+sc = run_img(os.path.abspath("tests/img-2x2.png"), NOMOD)
+check("a missing img module says so, not \"cannot show\" the file",
+      sc.find("Image support isn't installed") is not None, sc)
+shutil.rmtree(NOMOD, True)
+
+BADPNG = tempfile.mkdtemp(prefix="hibr-bad-png-")
+open(os.path.join(BADPNG, "broken.png"), "wb").write(b"not a real png")
+sc = run_img(os.path.join(BADPNG, "broken.png"), BUILT_MODS)
+check("a file that fails to decode says so, by name",
+      sc.find("Cannot show broken.png") is not None, sc)
+shutil.rmtree(BADPNG, True)
+
 # --- the terminal window --------------------------------------------------
 
 TW = "14 44 2 2"
@@ -968,4 +1011,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(146)
+report(149)

@@ -35,10 +35,12 @@ imgview_draw() {
 		IV[$id]["tried"]=1
 		need img
 	fi
-	if dt_has img; then
-		img draw "$path" $((wr + 1)) $((wc + 1)) "$h" "$w" &&
-			return 0
+	if ! dt_has img; then
+		console pen "#f56565" "$DT_FACE"
+		console put -p "w$id" $((h / 2)) 2 "Image support isn't installed"
+		return 0
 	fi
+	img draw "$path" $((wr + 1)) $((wc + 1)) "$h" "$w" && return 0
 	console pen "#f56565" "$DT_FACE"
 	console put -p "w$id" $((h / 2)) 2 "Cannot show ${path##*/}"
 }
