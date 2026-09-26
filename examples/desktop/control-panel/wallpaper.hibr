@@ -1,0 +1,361 @@
+#!/usr/bin/env hibr
+#
+# wallpaper -- browse for an image, preview it as ASCII art (fitted to its
+# own aspect ratio, not stretched), apply it as the desktop's wallpaper in
+# full colour. The preview is text, not colour, on purpose: see wp_preview.
+# #2's own explicit constraint was to reuse the file browser's own tooling
+# for picking the image rather than building a
+# new picker from scratch: fb_scan, fb_go and fb_path (all of files.hibr's
+# own, keyed by window id so any window can use them, not just Files' own)
+# do the actual directory scanning and path-building here, unchanged.
+# Only the drawing is new -- files.hibr's own row layout is built for a
+# whole bordered window, not a half-width strip inside a shared Control
+# Panel body, so there was nothing there to reuse for that part.
+#
+# The pane's own internal name is wallpick, not wallpaper: control-strip's
+# own wallpaper.hibr already defines wallpaper_draw/_click for its glyph
+# cycler, and the two would silently redefine each other's functions if
+# this one used the same prefix -- a function defined twice replaces the
+# first with no error at all. Their display names both say "Wallpaper"
+# on purpose; they live in different parts of the UI and do different
+# things (a plain glyph there, an image here), the same way two apps can
+# each have their own File menu.
+command -v cp_pane > /dev/null && cp_pane wallpick "Wallpaper" "▤"
+
+declare -gA WPK
+
+# Where the picker starts: wherever it was left, or failing that wherever
+# the current wallpaper image already lives, or failing that home. Kept
+# across restarts the same way CP_THEME is, through dt_keep.
+WPK_DIR=
+command -v dt_keep > /dev/null && dt_keep WPK_DIR
+
+wallpick_open() {
+	local id=$1
+
+	if [ -z "$WPK_DIR" ]; then
+		if [ -n "$DT_WALLIMG" ]; then
+			WPK_DIR=${DT_WALLIMG%/*}
+			[ "$WPK_DIR" = "$DT_WALLIMG" ] && WPK_DIR=.
+		else
+			WPK_DIR="${HOME:-/}"
+		fi
+	fi
+	FB[$id]["dir"]=$WPK_DIR
+	FB[$id]["hidden"]=
+	fb_scan "$id"
+	WPK[$id]["previewfor"]=
+}
+
+# Change directory and remember it, so the picker starts here next time --
+# shared by backspace, entering a directory from the keyboard, and a
+# double-click on one from the mouse, so all three ways in keep it current.
+wp_goto() {
+	local id=$1
+
+	fb_go "$id" "$2"
+	WPK_DIR=${FB[$id]["dir"]}
+	command -v dt_save > /dev/null && dt_save
+	wp_refresh "$id"
+}
+
+# .png only -- mods/img/README.md is direct about JPEG not being decoded
+# yet, and showing a picker entry that fails the moment it is reached is
+# worse than not offering it.
+wp_isimage() {
+	case $1 in
+	*.[pP][nN][gG]) return 0 ;;
+	esac
+	return 1
+}
+
+# Decode the given file as a grayscale ASCII rendering into WPK's own line
+# array, sized to the box's own aspect-correct fit rather than the full
+# preview area, so a wide or tall image is letterboxed instead of
+# stretched -- -g's own density ramp is plain text with no colour codes
+# at all (it deliberately reads in whatever the terminal's own foreground
+# already is), which is exactly what makes capturing it into an ordinary
+# array and drawing it with a pen of this pane's own choosing possible,
+# through console put -p like every other window's own content, unlike a
+# raw, un-paned draw straight at screen coordinates -- tried once, pulled
+# after it corrupted the display applying a new wallpaper while this
+# pane's own preview was also open, most likely the two racing over the
+# same screen region with no pane of its own to track damage against.
+# Revisit properly (a real pane-targeted blit, added to the console
+# module itself) rather than rushing a fix for this one.
+wp_preview() {
+	local id=$1 path=$2 pw=$3 ph=$4 out line n=0
+
+	WPK[$id]["previewfor"]=
+	unset "WPK[$id]["lines"]"
+	dt_has img || need img > /dev/null 2>&1
+	dt_has img || return 1
+	out=$(img -g -w "$pw" -h "$ph" "$path" 2> /dev/null) || return 1
+	while IFS= read -r line; do
+		WPK[$id]["lines"][$n]=$line
+		n=$((n + 1))
+	done <<< "$out"
+	WPK[$id]["linesn"]=$n
+	WPK[$id]["previewfor"]=$path
+	return 0
+}
+
+# Reload the preview for whatever is selected now, or clear it -- called
+# after anything that can move the selection: a directory change starts
+# clear (nothing there yet makes sense to preview), a plain up/down only
+# updates it when it actually lands on an image. Reads its own sizing
+# from WPK[$id], laid out fresh by _draw every frame before this could
+# ever run from a key or a click.
+wp_refresh() {
+	local id=$1 sel path
+
+	sel=${FB[$id]["sel"]}
+	if [ "${FL[$id][$sel]["dir"]}" = 1 ]; then
+		WPK[$id]["previewfor"]=
+		return 0
+	fi
+	path := fb_path "$id" "$sel"
+	if wp_isimage "$path"; then
+		wp_fitcache "$id" "$path" "${WPK[$id]["prevh"]}" "${WPK[$id]["prevw"]}"
+		wp_preview "$id" "$path" "${WPK[$id]["fitc"]}" "${WPK[$id]["fitr"]}"
+	else
+		WPK[$id]["previewfor"]=
+	fi
+}
+
+# The rows/cols to hand img draw so the image keeps its own aspect ratio
+# rather than being stretched to fill the whole preview box, and the
+# offset within the box that centres it (a letterbox, top/bottom or
+# left/right depending which way the box and the image disagree).
+#
+# img draw's own cell is one column wide but two source pixel rows tall
+# (the upper/lower half-block trick that doubles its vertical resolution),
+# so a visually square unit of the box is one column by *half* a row --
+# cols/rows must equal 2*sw/sh, not sw/sh, or an image whose own ratio is
+# right would still come out stretched.
+#
+# Cached on the path and the box size together, so a frame where neither
+# changed reads the last answer instead of asking img size -- a full
+# decode with no result but the two numbers -- again for nothing; img
+# draw's own cache (keyed the same way) already saves the same repeat for
+# the actual pixels.
+wp_fitcache() {
+	local id=$1 path=$2 boxr=$3 boxc=$4
+	local sw sh out fitr fitc
+
+	if [ "${WPK[$id]["fitfor"]}" = "$path" ] &&
+	   [ "${WPK[$id]["fitboxr"]}" = "$boxr" ] &&
+	   [ "${WPK[$id]["fitboxc"]}" = "$boxc" ]; then
+		return 0
+	fi
+	fitr=$boxr
+	fitc=$boxc
+	out := img size "$path"
+	if [ -n "$out" ]; then
+		sw=${out% *}
+		sh=${out#* }
+		if [ "$sw" -gt 0 ] && [ "$sh" -gt 0 ]; then
+			fitc=$boxc
+			fitr=$((fitc * sh / (2 * sw)))
+			if [ "$fitr" -gt "$boxr" ]; then
+				fitr=$boxr
+				fitc=$((fitr * 2 * sw / sh))
+			fi
+			[ "$fitc" -lt 1 ] && fitc=1
+			[ "$fitr" -lt 1 ] && fitr=1
+			[ "$fitc" -gt "$boxc" ] && fitc=$boxc
+			[ "$fitr" -gt "$boxr" ] && fitr=$boxr
+		fi
+	fi
+	WPK[$id]["fitfor"]=$path
+	WPK[$id]["fitboxr"]=$boxr
+	WPK[$id]["fitboxc"]=$boxc
+	WPK[$id]["fitr"]=$fitr
+	WPK[$id]["fitc"]=$fitc
+	WPK[$id]["fitoffr"]=$(((boxr - fitr) / 2))
+	WPK[$id]["fitoffc"]=$(((boxc - fitc) / 2))
+}
+
+wallpick_draw() {
+	local id=$1 h=$2 w=$3 bx=$4
+	local listw prevw prevx prevh vis applyrow i r n top sel t applyon path
+
+	listw=$(((w - 3) * 2 / 5))
+	[ "$listw" -lt 16 ] && listw=16
+	prevx=$((bx + listw + 2))
+	prevw=$((w - listw - 3))
+	prevh=$((h - 4))
+	vis=$((h - 3))
+	applyrow=$((h - 1))
+	WPK[$id]["listw"]=$listw
+	WPK[$id]["bx"]=$bx
+	WPK[$id]["prevw"]=$prevw
+	WPK[$id]["prevx"]=$prevx
+	WPK[$id]["prevh"]=$prevh
+	WPK[$id]["vis"]=$vis
+	WPK[$id]["applyrow"]=$applyrow
+
+	if [ -z "${FB[$id]["dir"]}" ]; then
+		wallpick_open "$id"
+		wp_refresh "$id"
+	fi
+
+	console pen "$DT_IDLE" "$DT_FACE"
+	r=1
+	while [ "$r" -le "$h" ]; do
+		console put -p "w$id" "$r" $((bx + listw + 1)) "│"
+		r=$((r + 1))
+	done
+
+	console pen "#63b3ed" "$DT_FACE" bold
+	t=${FB[$id]["dir"]}
+	[ ${#t} -gt "$listw" ] && t="…${t: -$((listw - 1))}"
+	t := str pad "$t" "$listw"
+	console put -p "w$id" 1 "$bx" "$t"
+
+	n=${FB[$id]["n"]}
+	top=${FB[$id]["top"]}
+	sel=${FB[$id]["sel"]}
+	i=$top
+	r=2
+	while [ "$r" -le $((h - 2)) ]; do
+		if [ "$i" -lt "$n" ]; then
+			t=${FL[$id][$i]["name"]}
+			[ "${FL[$id][$i]["dir"]}" = 1 ] && t="$t/"
+			[ ${#t} -gt "$listw" ] && t="${t:0:$listw}"
+			t := str pad "$t" "$listw"
+		else
+			t := str pad "" "$listw"
+		fi
+		if [ "$i" = "$sel" ] && [ "$i" -lt "$n" ]; then
+			console pen "#1a202c" "$DT_ACTIVE" bold
+		else
+			console pen "$DT_INK" "$DT_FACE"
+		fi
+		console put -p "w$id" "$r" "$bx" "$t"
+		i=$((i + 1))
+		r=$((r + 1))
+	done
+	console pen "$DT_IDLE" "$DT_FACE"
+	t="$((sel + 1)) of $n"
+	t := str pad "$t" "$listw"
+	console put -p "w$id" $((h - 1)) "$bx" "$t"
+
+	console pen "$DT_INK" "$DT_FACE"
+	path=${WPK[$id]["previewfor"]}
+	if [ -n "$path" ]; then
+		n=${WPK[$id]["linesn"]}
+		i=0
+		r=1
+		while [ "$r" -le "$prevh" ]; do
+			t=""
+			[ "$i" -lt "$n" ] && t=${WPK[$id]["lines"][$i]}
+			t := str pad "$t" "$prevw"
+			console put -p "w$id" "$r" "$prevx" "$t"
+			i=$((i + 1))
+			r=$((r + 1))
+		done
+		applyon=1
+	else
+		r=1
+		while [ "$r" -le "$prevh" ]; do
+			t := str pad "" "$prevw"
+			console put -p "w$id" "$r" "$prevx" "$t"
+			r=$((r + 1))
+		done
+		console pen "$DT_IDLE" "$DT_FACE"
+		t="Select a .png"
+		[ ${#t} -gt "$prevw" ] && t="${t:0:$prevw}"
+		console put -p "w$id" 1 "$prevx" "$t"
+		applyon=0
+	fi
+
+	if [ "$applyon" = 1 ]; then
+		console pen "$DT_FACE" "$DT_ACTIVE" bold
+	else
+		console pen "$DT_IDLE" "$DT_FACE"
+	fi
+	console put -p "w$id" "$applyrow" "$prevx" " Apply as Wallpaper "
+	console pen "$DT_INK" "$DT_FACE"
+}
+
+wallpick_key() {
+	local id=$1 n vis top sel
+
+	n=${FB[$id]["n"]}
+	sel=${FB[$id]["sel"]}
+	top=${FB[$id]["top"]}
+	case $2 in
+	up) sel=$((sel - 1)) ;;
+	down) sel=$((sel + 1)) ;;
+	backspace)
+		wp_goto "$id" ..
+		return 0
+		;;
+	enter)
+		if [ "${FL[$id][$sel]["dir"]}" = 1 ]; then
+			wp_goto "$id" "${FL[$id][$sel]["name"]}"
+		else
+			wp_apply "$id"
+		fi
+		return 0
+		;;
+	*) return 1 ;;
+	esac
+	[ "$sel" -lt 0 ] && sel=0
+	[ "$sel" -ge "$n" ] && sel=$((n - 1))
+	FB[$id]["sel"]=$sel
+	vis=${WPK[$id]["vis"]}
+	[ "$sel" -lt "$top" ] && top=$sel
+	[ "$sel" -ge $((top + vis)) ] && top=$((sel - vis + 1))
+	FB[$id]["top"]=$top
+	wp_refresh "$id"
+	return 0
+}
+
+# Set the currently previewed file as the wallpaper, always in full
+# colour -- shared by a click on the button and enter on an already-
+# previewed file, so there is a keyboard way to finish this, not only a
+# mouse one.
+wp_apply() {
+	local id=$1
+
+	[ -n "${WPK[$id]["previewfor"]}" ] || return 0
+	DT_WALLIMG=${WPK[$id]["previewfor"]}
+	command -v dt_save > /dev/null && dt_save
+	command -v dt_note > /dev/null && dt_note "Wallpaper set"
+}
+
+# A click selects a row; a second click on the same, already-selected row
+# either enters the directory or applies the image -- the same
+# select-then-activate convention panel.hibr's own generic row list and
+# files.hibr's own file list both already use, tracked the same way:
+# FB[$id]["last"] (reset to -1 by fb_scan on every directory change, so a
+# stale index from the old listing can never falsely count as a repeat).
+wallpick_click() {
+	local id=$1 r=$2 c=$3
+	local bx=${WPK[$id]["bx"]} listw=${WPK[$id]["listw"]} n i
+
+	if [ "$r" = "${WPK[$id]["applyrow"]}" ] &&
+	   [ "$c" -ge "${WPK[$id]["prevx"]}" ]; then
+		wp_apply "$id"
+		return 0
+	fi
+	[ "$c" -ge "$bx" ] || return 0
+	[ "$c" -lt $((bx + listw)) ] || return 0
+	[ "$r" -lt 2 ] && return 0
+	n=${FB[$id]["n"]}
+	i=$((FB[$id]["top"] + r - 2))
+	[ "$i" -ge "$n" ] && return 0
+	if [ "$i" = "${FB[$id]["sel"]}" ] && [ "$i" = "${FB[$id]["last"]}" ]; then
+		if [ "${FL[$id][$i]["dir"]}" = 1 ]; then
+			wp_goto "$id" "${FL[$id][$i]["name"]}"
+		else
+			wp_apply "$id"
+		fi
+		return 0
+	fi
+	FB[$id]["sel"]=$i
+	FB[$id]["last"]=$i
+	wp_refresh "$id"
+}

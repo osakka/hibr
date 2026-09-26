@@ -56,23 +56,7 @@ cp_theme() {
 # DT_WALLIMG rather than leaving it set underneath a glyph that would never
 # actually show while an image wins in dt_wall.
 cp_set_theme() { cp_theme "$2" && cp_save; }
-cp_set_glyph() { DT_GLYPH=$2; DT_WALLIMG=; DT_WALLASCII=0; cp_save; }
-
-# Flip the current wallpaper image between ASCII art and full colour --
-# meaningless with no image set, so the row only appears alongside one.
-# Found missing while adding ASCII Art's own picker (#2): that picker
-# and Image Viewer's Set as Wallpaper are two different ways in, one
-# always ASCII and one always full colour, with no way to change an
-# already-applied image's own mind afterward without going through
-# whichever flow gives the other one.
-cp_wallascii() {
-	if [ "$DT_WALLASCII" = 1 ]; then
-		DT_WALLASCII=0
-	else
-		DT_WALLASCII=1
-	fi
-	cp_save
-}
+cp_set_glyph() { DT_GLYPH=$2; DT_WALLIMG=; cp_save; }
 
 appearance_rows() {
 	local w=$1 n=0
@@ -86,12 +70,6 @@ appearance_rows() {
 		CP[$w][$n]["val"]="$DT_GLYPH"
 	fi
 	CP[$w][$n]["key"]=glyph; n=$((n + 1))
-	if [ -n "$DT_WALLIMG" ]; then
-		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="ASCII Wallpaper"
-		CP[$w][$n]["wtype"]=bool
-		CP[$w][$n]["val"]=off; [ "$DT_WALLASCII" = 1 ] && CP[$w][$n]["val"]=on
-		CP[$w][$n]["key"]=wallascii; n=$((n + 1))
-	fi
 	ret "$n"
 }
 
@@ -103,7 +81,6 @@ appearance_do() {
 	       cp_theme "$v" ;;
 	glyph) v := cp_next "$DT_GLYPH" "$dir" "${CP_GLYPHS[@]}"
 	       DT_GLYPH=$v; DT_WALLIMG= ;;
-	wallascii) cp_wallascii ;;
 	esac
 	cp_save
 }

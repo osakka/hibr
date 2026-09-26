@@ -231,9 +231,8 @@ out = subprocess.run([sx.HIBR, "-c", CPLOAD + "echo ${CP_PANE_LIST[*]}"],
                      capture_output=True, text=True).stdout.strip()
 ORDER = out.split()
 check("panes register and sort by title, not load order",
-      ORDER == ["app_shortcuts", "appearance", "ascii_wallpaper",
-                "behaviour", "control_strip", "datetime", "shortcuts",
-                "window_style"], out)
+      ORDER == ["app_shortcuts", "appearance", "behaviour", "control_strip",
+                "datetime", "shortcuts", "wallpick", "window_style"], out)
 
 PW = "20 58 2 2"
 PANEL = ("panel", PW)
@@ -243,14 +242,17 @@ CPANES = 'CP_PANEDIRS+=("%s")\ncp_panes' % CP
 # Absolute screen coordinates for PW's geometry (row 2, col 2): a pane's
 # own first content row is at 3, its dropdown/checkbox column at 47 --
 # derived once here from CP_LISTW and the window's body width, rather than
-# copied by eye into every check below.
+# copied by eye into every check below. BODYCOL is a body-shape pane's own
+# left content column (CP_LISTW + 1, plus the window's own left edge) --
+# where Wallpaper's own file list starts, not LISTCOL, which is the
+# picker's own sidebar column to its left.
 R0, VALCOL = 3, 47
 LISTCOL = 5
+BODYCOL = 20
 TITLE = {"app_shortcuts": "App Shortcuts", "appearance": "Appearance",
-         "ascii_wallpaper": "ASCII Art",
          "behaviour": "Behaviour", "control_strip": "Control Strip",
          "datetime": "Date & Time", "shortcuts": "Shortcuts",
-         "window_style": "Window Style"}
+         "wallpick": "Wallpaper", "window_style": "Window Style"}
 
 
 def prow(name):
@@ -263,7 +265,7 @@ def downs(name):
     return ORDER.index(name)
 
 
-def cprun(feed=(), also=(), extra=(), tz=None, env=None):
+def cprun(feed=(), also=(), extra=(), tz=None, env=None, pre=""):
     """Run Control Panel from a config directory of its own.
 
     tests/screen.py gives the whole suite one shared $HOME, so without this
@@ -276,14 +278,18 @@ def cprun(feed=(), also=(), extra=(), tz=None, env=None):
     tz, if given, is exported before cp_panes loads the panes, so the Date
     & Time pane's own lookup is deterministic rather than whatever zone the
     machine running the suite happens to be in. env, if given, is real
-    process environment, the same as run()'s own -- for a pane like ASCII
+    process environment, the same as run()'s own -- for a pane like
     Wallpaper that reads $HOME itself, rather than a setting this file's
-    own pre line could export.
+    own pre line could export. pre, if given, runs before all of that --
+    for a `load(...)` prefix a pane needs a freshly built module already
+    in place for, rather than autoloaded later by its own `need`, which
+    would reach for the installed copy instead of this tree's own build.
     """
     d = tempfile.mkdtemp(prefix="hibr-cp-")
     tzline = "export TZ=%s\n" % tz if tz else ""
-    sc = run(*PANEL, feed=feed, pre="export XDG_CONFIG_HOME=%s\n%s%s\n%s"
-             % (d, tzline, TICK, CPANES), also=also, extra=extra, env=env)
+    sc = run(*PANEL, feed=feed, pre="%sexport XDG_CONFIG_HOME=%s\n%s%s\n%s"
+             % (pre, d, tzline, TICK, CPANES), also=also, extra=extra,
+             env=env)
     shutil.rmtree(d, True)
     return sc
 
@@ -325,82 +331,128 @@ sc = cprun(DOWN_APP + [b"\x1b[C", b"\x1b[B", b"\x1b[C"])
 check("the wallpaper glyph changes, and the desktop follows",
       sc.at(0, 78) != "·" and sc.at(23, 60) == "░", sc)
 
-# ASCII Wallpaper's own toggle -- found missing while building the
-# picker: it and Image Viewer's Set as Wallpaper are two different ways
-# in, one always ASCII and one always full colour, with no way to
-# change an already-applied image's own mind afterward. Meaningless
-# with no image set, so the row only appears alongside one, the same
-# rule Default File View and About Refresh already follow for their own
-# conditions elsewhere on these panes.
-sc = cprun(DOWN_APP)
-check("with no wallpaper image set, the toggle does not appear",
-      sc.find("ASCII Wallpaper") is None, sc)
-
-WPRE = ('CP_PANEDIRS+=("%s")\ncp_panes\n'
-        'DT_WALLIMG=%s\nDT_WALLASCII=1'
-        % (CP, os.path.abspath("tests/img-2x2.png")))
-sc = run(*PANEL, feed=DOWN_APP + [b"\x1b[C", b"\x1b[B", b"\x1b[B"], pre=WPRE)
-check("with one set, it appears, matching the current mode",
-      sc.find("ASCII Wallpaper") is not None and
-      "[x]" in sc.row(sc.find("ASCII Wallpaper")[0]), sc)
-
-sc = run(*PANEL, feed=DOWN_APP + [b"\x1b[C", b"\x1b[B", b"\x1b[B", b"\r"],
-          pre=WPRE)
-check("toggling it flips the mode",
-      "[ ]" in sc.row(sc.find("ASCII Wallpaper")[0]), sc)
-
-# ASCII Wallpaper -- #2 -- browses for an image and previews it as ASCII
-# art, reusing files.hibr's own fb_scan/fb_go/fb_path for the directory
-# side of that rather than a picker built from scratch (the ticket's own
-# explicit constraint). Its own $HOME, so what it lists is known: a
-# non-image and the same 2x2 PNG fixture other img tests already use.
-AWHOME = tempfile.mkdtemp(prefix="hibr-aw-home-")
+# Wallpaper -- #2 -- browses for an image and previews it (as ASCII art,
+# in this pane's own small preview strip only -- the desktop itself
+# always gets it in full colour, never ASCII: the toggle that used to
+# offer a choice here was tried and then reversed), reusing files.hibr's
+# own fb_scan/fb_go/fb_path for the directory side of that rather than a
+# picker built from scratch (the ticket's own explicit constraint). Its
+# own $HOME, so what it lists is known: a non-image, a subdirectory, and
+# the same 2x2 PNG fixture other img tests already use.
+AWHOME = tempfile.mkdtemp(prefix="hibr-wp-home-")
 shutil.copy(os.path.abspath("tests/img-2x2.png"),
             os.path.join(AWHOME, "wall.png"))
 open(os.path.join(AWHOME, "notes.txt"), "w").write("hi\n")
-DOWN_AW = [b"\x1b[B"] * downs("ascii_wallpaper")
+os.mkdir(os.path.join(AWHOME, "sub"))
+shutil.copy(os.path.abspath("tests/img-2x2.png"),
+            os.path.join(AWHOME, "sub", "deep.png"))
+DOWN_WP = [b"\x1b[B"] * downs("wallpick")
 
-sc = cprun(DOWN_AW + [b"\r"], env={"HOME": AWHOME}, extra=("files",))
+sc = cprun(DOWN_WP + [b"\r"], env={"HOME": AWHOME}, extra=("files",))
 check("it lists the home directory, through files.hibr's own scan",
       sc.find("wall.png") is not None and sc.find("notes.txt") is not None,
       sc)
 check("nothing is selected yet, so there is no preview",
       sc.find("Select a .png") is not None, sc)
 
-# fb_scan lists directories first, then files sorted -- with none here,
-# entries are 0 "..", 1 "notes.txt", 2 "wall.png".
-sc = cprun(DOWN_AW + [b"\r", b"\x1b[B"], env={"HOME": AWHOME},
+# fb_scan lists directories first, then files sorted -- with one
+# directory here, entries are 0 "..", 1 "sub/", 2 "notes.txt", 3 "wall.png".
+sc = cprun(DOWN_WP + [b"\r", b"\x1b[B", b"\x1b[B"], env={"HOME": AWHOME},
            extra=("files",))
 check("selecting the non-image leaves the preview cleared",
       sc.find("Select a .png") is not None, sc)
 
-sc = cprun(DOWN_AW + [b"\r", b"\x1b[B", b"\x1b[B"], env={"HOME": AWHOME},
-           extra=("files",))
-check("selecting the .png shows an ASCII preview instead",
+sc = cprun(DOWN_WP + [b"\r", b"\x1b[B", b"\x1b[B", b"\x1b[B"],
+           env={"HOME": AWHOME}, extra=("files",))
+check("selecting the .png shows a preview instead",
       sc.find("Select a .png") is None, sc)
+
+# The preview is ASCII text, drawn through this pane's own buffer like
+# every other window's content (console put -p), not a raw draw straight
+# at screen coordinates -- tried once for a colour preview, reverted
+# after it corrupted the display applying a new wallpaper while this
+# pane's own preview was open at the same time, the two most likely
+# racing over the same screen region with no pane of its own to track
+# damage against. See wp_preview's own comment.
+#
+# It also keeps the image's own aspect ratio rather than stretching it to
+# fill the whole box -- img -g has no notion of the source's own shape
+# either, so wallpick_draw works out a smaller, fitted size itself (img
+# size, added for this) before asking for it. A very wide, short fixture
+# makes a stretch-to-fill bug obvious: stretched, its density-ramp
+# characters would fill every row of the preview; fitted, only one or two.
+WIDEHOME = tempfile.mkdtemp(prefix="hibr-wp-wide-")
+shutil.copy(os.path.abspath("tests/img-wide.png"),
+            os.path.join(WIDEHOME, "wide.png"))
+sc = cprun(DOWN_WP + [b"\r", b"\x1b[B"], env={"HOME": WIDEHOME},
+           extra=("files",), pre=load("img"))
+filledrows = [r for r in range(sc.rows) if "-" in sc.row(r)]
+check("a very wide image is fitted, not stretched to fill the box",
+      0 < len(filledrows) < 10, sc)
+shutil.rmtree(WIDEHOME, True)
+
+# A click selects a row; a second click on the same, already-selected
+# one is what actually navigates or applies. Neither did anything at all
+# before this: the column check guarding the whole list gated on the
+# list's own *width* rather than on where its body actually starts, so
+# every click in it -- not just a repeated one -- was silently rejected,
+# which is what "not navigatable by mouse" turned out to mean in full.
+sc = cprun(DOWN_WP + [b"\r", press(R0 + 2, BODYCOL)],
+           env={"HOME": AWHOME}, extra=("files",))
+check("a single click on a directory only selects it, not enters it",
+      sc.find("wall.png") is not None, sc)
+sc = cprun(DOWN_WP + [b"\r", press(R0 + 2, BODYCOL), press(R0 + 2, BODYCOL)],
+           env={"HOME": AWHOME}, extra=("files",))
+check("a second click on the same row enters the directory",
+      sc.find("deep.png") is not None and sc.find("wall.png") is None, sc)
 
 # Applying is keyboard-reachable, not only a mouse click on the button --
 # enter on an already-previewed file, the same as everywhere else in
 # this desktop enter means "confirm this".
 # Not asserting on dt_note's own "Wallpaper set" appearing on screen
-# here: applying repaints the whole desktop as ASCII art in the same
-# frame Control Panel itself redraws in, and the screen model's own
-# simplified escape reconstruction ("it understands absolute cursor
-# moves, relative moves to the right, and the erase that starts a
-# full-screen program; everything else is skipped") cannot keep up with
-# that much of the screen changing in one frame. The saved config is
-# the real, reliable proof this worked.
-AWCONF = tempfile.mkdtemp(prefix="hibr-aw-conf-")
-run(*PANEL, feed=DOWN_AW + [b"\r", b"\x1b[B", b"\x1b[B", b"\r"],
+# here: applying repaints the whole desktop in the same frame Control
+# Panel itself redraws in, and the screen model's own simplified escape
+# reconstruction ("it understands absolute cursor moves, relative moves
+# to the right, and the erase that starts a full-screen program;
+# everything else is skipped") cannot keep up with that much of the
+# screen changing in one frame. The saved config is the real, reliable
+# proof this worked.
+AWCONF = tempfile.mkdtemp(prefix="hibr-wp-conf-")
+run(*PANEL, feed=DOWN_WP + [b"\r", b"\x1b[B", b"\x1b[B", b"\x1b[B", b"\r"],
     env={"HOME": AWHOME, "XDG_CONFIG_HOME": AWCONF}, pre=CPANES,
     extra=("files",))
 saved = os.path.join(AWCONF, "hibr", "desktop.hibr")
 text = open(saved).read() if os.path.exists(saved) else ""
 check("enter on a previewed file applies it, saved as the wallpaper",
       ("DT_WALLIMG=%s/wall.png" % AWHOME) in text and
-      "DT_WALLASCII=1" in text, text)
-shutil.rmtree(AWHOME, True)
+      "DT_WALLASCII" not in text, text)
 shutil.rmtree(AWCONF, True)
+
+# The picker remembers where it was left, across a restart. With nothing
+# recorded yet, it starts at the currently-applied wallpaper's own
+# directory rather than $HOME -- a bogus $HOME here proves that, since a
+# wrong fallback to it would find nothing.
+sc = run(*PANEL, feed=DOWN_WP + [b"\r"],
+         env={"HOME": "/nonexistent-for-this-check"},
+         pre=CPANES + "\nDT_WALLIMG=%s/wall.png" % AWHOME, extra=("files",))
+check("with no directory remembered yet, it starts at the wallpaper's own",
+      sc.find("wall.png") is not None, sc)
+
+# Once it has browsed somewhere else, that becomes the new starting
+# point -- a directory distinct from both $HOME and the wallpaper's own,
+# so this is not just the check above by coincidence.
+AWCONF2 = tempfile.mkdtemp(prefix="hibr-wp-conf2-")
+run(*PANEL, feed=DOWN_WP + [b"\r", b"\x1b[B", b"\r"],
+    env={"HOME": AWHOME, "XDG_CONFIG_HOME": AWCONF2}, pre=CPANES,
+    extra=("files",))
+sc = run(*PANEL, feed=DOWN_WP + [b"\r"],
+         env={"HOME": "/nonexistent-for-this-check",
+              "XDG_CONFIG_HOME": AWCONF2},
+         pre=CPANES, extra=("files",))
+check("once it has browsed a directory, that is where it starts next",
+      sc.find("deep.png") is not None, sc)
+shutil.rmtree(AWHOME, True)
+shutil.rmtree(AWCONF2, True)
 
 # Behaviour's own rows, in order: Refresh(0), Icons(1), Disk Icons(2),
 # Cursor(3), Cursor Blink(4), Window Shadow(5), Menu Shadow(6), Bar

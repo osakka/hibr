@@ -879,6 +879,28 @@ went in the shell.
   a call already knows it is re-lexing text that began inside a quoted
   string -- never to `lx_word`'s two ordinary top-level callers, which do
   not exist inside anything.
+- **A window's own content is drawn through its pane, never straight at
+  screen coordinates.** Every window's `_draw` writes through
+  `console put -p "w$id" ...`, a named offscreen buffer the console module
+  tracks damage against on its own; `dt_wall()`'s raw, un-paned `img draw`
+  at the root screen is the one narrow exception, because the wallpaper
+  *is* the background everything else composites onto, not a window's own
+  content. A Control Panel pane's own image preview was drawn the raw way
+  once, reasoned to be safe "by analogy to dt_wall()" -- it was not: img
+  draw has no pane-targeted form at all (it only ever reaches the display
+  through the abstract `dp_api`, which panes are not part of), so the
+  preview wrote straight at the window's absolute position instead, and it
+  corrupted the real screen the moment a new wallpaper was applied while
+  that same pane's own preview was open -- most likely the two racing over
+  the same region with no pane of its own for either to track damage
+  against. Reverted to a plain-text render into the pane (an ASCII density
+  ramp, ordinary `console put -p`), the same as everything else on that
+  pane already was. **Do not draw a window's own content straight at
+  screen coordinates, ever, reasoning by resemblance to `dt_wall()` or
+  anything else that already does -- if a pane cannot render something
+  today (colour cells, in this case), that is a real gap in the console
+  module's own API, to fix there, deliberately, not a reason to reach
+  around the pane system for one call.**
 
 ## Testing discipline
 

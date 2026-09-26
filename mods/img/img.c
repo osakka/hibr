@@ -317,10 +317,44 @@ static int im_draw(sh *s, int ac, char **av)
 	return HIBR_OK;
 }
 
+/* img size file -- the decoded pixel width and height, "W H", so a caller
+   can work out an aspect-correct fit before calling img draw with it; img
+   draw's own resample always stretches to exactly the rows/cols it is
+   given, with no notion of the source's own shape. */
+static int im_size(sh *s, int ac, char **av)
+{
+	image im;
+	str err, t;
+
+	if (ac < 3) {
+		lg(HIBR_LERR, "usage: img size file");
+		return 2;
+	}
+	s_init(&err);
+	if (im_load(av[2], &im, &err) != HIBR_OK) {
+		lg(HIBR_LERR, "%s", err.p ? err.p : "decode failed");
+		s_free(&err);
+		return HIBR_FAIL;
+	}
+	s_free(&err);
+	s_init(&t);
+	s_num(&t, im.w);
+	s_ch(&t, ' ');
+	s_num(&t, im.h);
+	hibr_ret(s, t.p);
+	if (!s->bind)
+		printf("%s\n", t.p);
+	s_free(&t);
+	im_free(&im);
+	return HIBR_OK;
+}
+
 static int m_img(sh *s, int ac, char **av)
 {
 	if (ac > 1 && !strcmp(av[1], "draw"))
 		return im_draw(s, ac, av);
+	if (ac > 1 && !strcmp(av[1], "size"))
+		return im_size(s, ac, av);
 	return im_cat(s, ac, av);
 }
 

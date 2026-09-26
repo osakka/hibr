@@ -69,20 +69,20 @@ void hd_cloexec(int fd)
 		fcntl(fd, F_SETFD, f | FD_CLOEXEC);
 }
 
-/* Say who a process is, from the session's socket path: hibr: hold[desk] for
-   the server, hibr: attached[desk] for whatever is attached to it. Neither
-   is running a script, so ps showing the command line it was forked from --
-   the whole `hold new ...` invocation, or nothing at all for the double
-   fork -- would say nothing useful about which session it is. */
+/* Say who a process is, from the session's socket path: hibr [hold: desk]
+   for the server, hibr [attached: desk] for whatever is attached to it.
+   Neither is running a script, so ps showing the command line it was forked
+   from -- the whole `hold new ...` invocation, or nothing at all for the
+   double fork -- would say nothing useful about which session it is. */
 void hd_selftitle(const char *what, const char *path)
 {
 	const char *nm = strrchr(path, '/');
 	str t;
 
 	s_init(&t);
-	s_cat(&t, "hibr: ");
+	s_cat(&t, "hibr [");
 	s_cat(&t, what);
-	s_ch(&t, '[');
+	s_cat(&t, ": ");
 	s_cat(&t, nm ? nm + 1 : path);
 	s_ch(&t, ']');
 	hibr_title(t.p);
