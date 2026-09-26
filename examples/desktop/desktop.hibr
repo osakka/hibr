@@ -1203,7 +1203,7 @@ dt_zoom() {
 # one, which is what every other desktop does and what anyone expects when
 # they scroll a list they have not clicked on yet.
 dt_event() {
-	local k="$1" an
+	local k="$1" an knorm qn cn cln dn sn
 
 	if [ -n "$DT_KEYCAP" ]; then
 		case $k in
@@ -1312,12 +1312,24 @@ dt_event() {
 		return 0
 		;;
 	esac
-	case $k in
-	"${DT_KEYS[quit]}") dt_quitconfirm ;;
-	"${DT_KEYS[cycle]}") dt_cycle ;;
-	"${DT_KEYS[close]}") dt_close_focused ;;
-	"${DT_KEYS[detach]}") dt_detach ;;
-	"${DT_KEYS[strip]}")
+	# Compared by dt_keynorm, not as the literal string: a rebound
+	# DT_KEYS entry combining ctrl and alt would have exactly the same
+	# either-order ambiguity dt_appkeyed's own shortcuts do.
+	knorm := dt_keynorm "$k"
+	qn := dt_keynorm "${DT_KEYS[quit]}"
+	cn := dt_keynorm "${DT_KEYS[cycle]}"
+	cln := dt_keynorm "${DT_KEYS[close]}"
+	dn := dt_keynorm "${DT_KEYS[detach]}"
+	sn := dt_keynorm "${DT_KEYS[strip]}"
+	if [ "$knorm" = "$qn" ]; then
+		dt_quitconfirm
+	elif [ "$knorm" = "$cn" ]; then
+		dt_cycle
+	elif [ "$knorm" = "$cln" ]; then
+		dt_close_focused
+	elif [ "$knorm" = "$dn" ]; then
+		dt_detach
+	elif [ "$knorm" = "$sn" ]; then
 		if [ "$CS_ATTN" = 1 ]; then
 			CS_ATTN=0
 			dt_note "Control Strip: released"
@@ -1325,19 +1337,42 @@ dt_event() {
 			CS_ATTN=1
 			dt_note "Control Strip: arrows scroll it, until escape"
 		fi
-		;;
-	*) dt_appkeyed "$k" ;;
-	esac
+	else
+		dt_appkeyed "$k"
+	fi
+}
+
+# A shortcut in one canonical modifier order, ctrl then alt then shift,
+# whatever order it named them in -- an alt combination arrives as ESC
+# followed by the plain control byte, and is named "alt-" then whatever
+# that byte is, in that order; a CSI-encoded one (some terminals report
+# a modified plain key this way too, not only function keys and arrows)
+# is named "ctrl-" before "alt-". Comparing shortcuts by this instead of
+# by the exact string is what makes alt-ctrl-t and ctrl-alt-t the same
+# shortcut regardless of which encoding a real keypress happened to take
+# -- a user typing what looks like the natural chord should not have to
+# know or care which one their own terminal uses.
+dt_keynorm() {
+	local k=$1
+	local base=$k mods= out=
+
+	case $k in *-*) base=${k##*-}; mods=${k%-"$base"} ;; esac
+	case $mods in *ctrl*) out="${out}ctrl-" ;; esac
+	case $mods in *alt*) out="${out}alt-" ;; esac
+	case $mods in *shift*) out="${out}shift-" ;; esac
+	ret "$out$base"
 }
 
 # Launch whichever app, if any, has k as its own shortcut -- the general
 # form DT_KEYS' fixed four desktop actions above are not: any number of
 # apps, not two of them by name in this case statement.
 dt_appkeyed() {
-	local an
+	local an knorm anorm
 
+	knorm := dt_keynorm "$1"
 	for an in "${!DT_APPKEY[@]}"; do
-		if [ "${DT_APPKEY[$an]}" = "$1" ]; then
+		anorm := dt_keynorm "${DT_APPKEY[$an]}"
+		if [ "$anorm" = "$knorm" ]; then
 			dt_launch "$an"
 			return 0
 		fi

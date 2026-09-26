@@ -1385,6 +1385,45 @@ check("and takes effect: g now opens the calculator",
       sc.find("Calculator") is not None, sc)
 shutil.rmtree(CONF3, True)
 
+# #56: ctrl-alt-t and alt-ctrl-t name the same physical chord -- which
+# one a real keypress produces depends on whether the terminal encoded
+# it as an ESC-prefixed alt combination (always "alt-" first) or a
+# CSI-encoded one (always "ctrl-" first), not on anything the user did
+# differently. dt_keynorm is the direct, deterministic proof; the pty
+# check after it is the real thing end to end, term registered the
+# other order round from what an actual keypress sends.
+import subprocess
+KEYNORM = (
+    '. %s\n'
+    'for pair in "alt-ctrl-t:ctrl-alt-t" "ctrl-alt-t:alt-ctrl-t" '
+    '"alt-s:alt-s" "alt-f4:alt-f4"; do\n'
+    '  a=${pair%%:*}; b=${pair#*:}\n'
+    '  an := dt_keynorm "$a"; bn := dt_keynorm "$b"\n'
+    '  [ "$an" = "$bn" ] && echo "match $a $b" || echo "nomatch $a $b"\n'
+    'done\n'
+    % WM
+)
+out = subprocess.run([screen.HIBR, "-c", KEYNORM], capture_output=True,
+                     text=True, env=dict(os.environ, DT_ROWS="1")).stdout
+check("dt_keynorm treats either modifier order as the same shortcut",
+      out.count("match ") == 4 and "nomatch" not in out, out)
+
+TERMKEY = tempfile.mkdtemp(prefix="hibr-termkey-")
+p = os.path.join(TERMKEY, "session.hibr")
+open(p, "w").write(
+    "%s. %s\n. %s/term.hibr\n"
+    'DT_APPKEY[term]="ctrl-alt-t"\n'
+    "dt_open\ndt_run\ndt_close\n"
+    % (load(MOD), WM, tree("examples/desktop/apps"))
+)
+t = Term(p, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.6)
+t.send(b"\x1b\x14", settle=0.4, collect=0.4)  # ESC ctrl-T: alt-ctrl-t
+sc = t.screen()
+t.quit(b"qy", 1.0)
+check("registered as ctrl-alt-t, a real alt-ctrl-t keypress still opens it",
+      sc.find("Terminal") is not None, sc)
+shutil.rmtree(TERMKEY, True)
+
 HOLD = tempfile.mkdtemp(prefix="hibr-hold-")
 held = os.path.join(HOLD, "session.hibr")
 open(held, "w").write("%s. %s\ndt_open\ndt_new \"Held\" 8 30 6 10\n"
@@ -1541,4 +1580,4 @@ check("ending it leaves the other one alone",
       "personal" in r.stdout and "work" not in r.stdout, r.stdout)
 unsession()
 
-report(233)
+report(235)
