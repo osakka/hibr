@@ -161,9 +161,9 @@ unsigned cn_dim1(unsigned v, int pct, unsigned deflt)
 	r = (v >> 16) & 0xFF;
 	g = (v >> 8) & 0xFF;
 	b = v & 0xFF;
-	r = r * (unsigned)pct / 100;
-	g = g * (unsigned)pct / 100;
-	b = b * (unsigned)pct / 100;
+	r = (r * (unsigned)pct + 50) / 100;
+	g = (g * (unsigned)pct + 50) / 100;
+	b = (b * (unsigned)pct + 50) / 100;
 	return DP_RGB | (r << 16) | (g << 8) | b;
 }
 

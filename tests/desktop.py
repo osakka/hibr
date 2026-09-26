@@ -60,10 +60,11 @@ check("and the mouse is turned off again",
 check("the real cursor is never shown while the desktop runs, only on exit",
       raw.count(b"\x1b[?25h") == 1, raw)
 
-# The default wallpaper (#16324a on #0d1b2a) darkened 55%: fg (22,50,74) ->
-# (12,27,40), bg (13,27,42) -> (7,14,23) -- the shadow's own colour, wherever
-# it peeks out from under the window it belongs to.
-SHADOW_RGB = b"38;2;12;27;40;48;2;7;14;23"
+# The default wallpaper (#16324a on #0d1b2a) darkened 55%, rounded rather
+# than truncated: fg (22,50,74) -> (12,28,41), bg (13,27,42) -> (7,15,23)
+# -- the shadow's own colour, wherever it peeks out from under the window
+# it belongs to.
+SHADOW_RGB = b"38;2;12;28;41;48;2;7;15;23"
 
 
 def shadow_run(env=None, settle=0.6):

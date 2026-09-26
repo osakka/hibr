@@ -16,6 +16,23 @@ void im_free(image *im)
 	im->w = im->h = 0;
 }
 
+/* 4x4 ordered (Bayer) dither, threshold in [0,16) -- spreads what would
+   otherwise be a hard, per-cell-regular rounding step (a real but faint
+   vertical gradient in a photo, quantised the same way cell after cell,
+   reads as a clean repeating band once a shadow darkens it) into fine
+   grain instead. An exact 1:1 pixel mapping (n == 1, no averaging) is
+   untouched: sr/n is already a whole number, and any threshold below
+   16/16 floors straight back to it. */
+static const unsigned char im_bayer4[4][4] = {
+	{  0,  8,  2, 10 }, {  12,  4, 14,  6 },
+	{  3, 11,  1,  9 }, {  15,  7, 13,  5 },
+};
+
+static unsigned char im_dith(long s, long n, int d)
+{
+	return (unsigned char)((32 * s + n * (2 * d + 1)) / (32 * n));
+}
+
 void im_resample(const image *im, cell *out, int rows, int cols)
 {
 	int halfrows = rows * 2;
@@ -52,14 +69,18 @@ void im_resample(const image *im, cell *out, int rows, int cols)
 			}
 			if (n < 1)
 				n = 1;
-			if (r % 2 == 0) {
-				cp->tr = (unsigned char)(sr / n);
-				cp->tg = (unsigned char)(sg / n);
-				cp->tb = (unsigned char)(sb / n);
-			} else {
-				cp->br = (unsigned char)(sr / n);
-				cp->bg = (unsigned char)(sg / n);
-				cp->bb = (unsigned char)(sb / n);
+			{
+				int d = im_bayer4[r & 3][c & 3];
+
+				if (r % 2 == 0) {
+					cp->tr = im_dith(sr, n, d);
+					cp->tg = im_dith(sg, n, d);
+					cp->tb = im_dith(sb, n, d);
+				} else {
+					cp->br = im_dith(sr, n, d);
+					cp->bg = im_dith(sg, n, d);
+					cp->bb = im_dith(sb, n, d);
+				}
 			}
 		}
 	}
