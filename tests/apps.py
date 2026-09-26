@@ -325,6 +325,30 @@ sc = cprun(DOWN_APP + [b"\x1b[C", b"\x1b[B", b"\x1b[C"])
 check("the wallpaper glyph changes, and the desktop follows",
       sc.at(0, 78) != "·" and sc.at(23, 60) == "░", sc)
 
+# ASCII Wallpaper's own toggle -- found missing while building the
+# picker: it and Image Viewer's Set as Wallpaper are two different ways
+# in, one always ASCII and one always full colour, with no way to
+# change an already-applied image's own mind afterward. Meaningless
+# with no image set, so the row only appears alongside one, the same
+# rule Default File View and About Refresh already follow for their own
+# conditions elsewhere on these panes.
+sc = cprun(DOWN_APP)
+check("with no wallpaper image set, the toggle does not appear",
+      sc.find("ASCII Wallpaper") is None, sc)
+
+WPRE = ('CP_PANEDIRS+=("%s")\ncp_panes\n'
+        'DT_WALLIMG=%s\nDT_WALLASCII=1'
+        % (CP, os.path.abspath("tests/img-2x2.png")))
+sc = run(*PANEL, feed=DOWN_APP + [b"\x1b[C", b"\x1b[B", b"\x1b[B"], pre=WPRE)
+check("with one set, it appears, matching the current mode",
+      sc.find("ASCII Wallpaper") is not None and
+      "[x]" in sc.row(sc.find("ASCII Wallpaper")[0]), sc)
+
+sc = run(*PANEL, feed=DOWN_APP + [b"\x1b[C", b"\x1b[B", b"\x1b[B", b"\r"],
+          pre=WPRE)
+check("toggling it flips the mode",
+      "[ ]" in sc.row(sc.find("ASCII Wallpaper")[0]), sc)
+
 # ASCII Wallpaper -- #2 -- browses for an image and previews it as ASCII
 # art, reusing files.hibr's own fb_scan/fb_go/fb_path for the directory
 # side of that rather than a picker built from scratch (the ticket's own
@@ -1297,4 +1321,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(181)
+report(184)
