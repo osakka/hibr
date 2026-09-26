@@ -12,11 +12,24 @@ WS_FRAMES=(single double none)
 WS_SIDES=(right left)
 WS_ALIGNS=(left center right)
 WS_STYLES=(brackets circles squares)
+WS_DRAGKEYS=(alt ctrl shift)
 
 cp_set_frame() { DT_FRAME=$2; cp_save; }
 cp_set_side() { DT_BTNSIDE=$2; cp_save; }
 cp_set_align() { DT_TITLEALIGN=$2; cp_save; }
 cp_set_btnstyle() { DT_BTNSTYLE=$2; cp_save; }
+cp_set_dragkey() { DT_DRAGKEY=$2; cp_save; }
+
+# Whether a modifier click anywhere in a window's body moves it, the
+# same as dragging its title bar.
+cp_dragmod() {
+	if [ "$DT_DRAGMOD" = 1 ]; then
+		DT_DRAGMOD=0
+	else
+		DT_DRAGMOD=1
+	fi
+	cp_save
+}
 
 # Whether a plain side, not just a corner, resizes a window too.
 cp_edgeresize() {
@@ -45,6 +58,13 @@ window_style_rows() {
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_EDGERESIZE" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=edgeresize; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Modifier Drag"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_DRAGMOD" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=dragmod; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Drag Modifier"
+	CP[$w][$n]["val"]="$DT_DRAGKEY"; CP[$w][$n]["key"]=dragkey
+	n=$((n + 1))
 	ret "$n"
 }
 
@@ -61,6 +81,9 @@ window_style_do() {
 	btnstyle) v := cp_next "$DT_BTNSTYLE" "$dir" "${WS_STYLES[@]}"
 	          DT_BTNSTYLE=$v ;;
 	edgeresize) cp_edgeresize ;;
+	dragmod) cp_dragmod ;;
+	dragkey) v := cp_next "$DT_DRAGKEY" "$dir" "${WS_DRAGKEYS[@]}"
+	         DT_DRAGKEY=$v ;;
 	esac
 	cp_save
 }
@@ -74,5 +97,6 @@ window_style_drop() {
 	align) dt_droplist "$w" "$r" "$c" cp_set_align "${WS_ALIGNS[@]}" ;;
 	btnstyle) dt_droplist "$w" "$r" "$c" cp_set_btnstyle \
 		"${WS_STYLES[@]}" ;;
+	dragkey) dt_droplist "$w" "$r" "$c" cp_set_dragkey "${WS_DRAGKEYS[@]}" ;;
 	esac
 }

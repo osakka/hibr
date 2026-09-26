@@ -161,6 +161,29 @@ check("clicking the close button closes the window",
       sc.find("Hello") is None, sc)
 check("and nothing is left where it was", sc.g[6][10] == "·", sc)
 
+# Modifier drag -- #47 -- moves a window from a click anywhere in its
+# body, not just its title bar; off by default, and only for the
+# configured modifier. ALT is bit 8 of the SGR mouse button byte.
+ALT = 8
+DRAG_BODY = [press(8, 15, ALT), drag(11, 27, ALT), release(11, 27, ALT)]
+
+sc, _ = run(ONE, DRAG_BODY)
+check("off by default: an alt-click in the body does not move the window",
+      sc.find("┤ Hello ├") == (6, 12), sc)
+
+sc, _ = run(ONE, DRAG_BODY, pre="DT_DRAGMOD=1\nDT_DRAGKEY=alt")
+check("enabled, with alt configured: it moves the same as the title bar",
+      sc.find("┤ Hello ├") == (9, 24), sc)
+
+sc, _ = run(ONE, DRAG_BODY, pre="DT_DRAGMOD=1\nDT_DRAGKEY=ctrl")
+check("enabled, but configured for ctrl: alt alone still does nothing",
+      sc.find("┤ Hello ├") == (6, 12), sc)
+
+sc, _ = run(ONE, [press(8, 15), drag(11, 27), release(11, 27)],
+            pre="DT_DRAGMOD=1\nDT_DRAGKEY=alt")
+check("enabled, but the click itself carries no modifier: nothing moves",
+      sc.find("┤ Hello ├") == (6, 12), sc)
+
 # A title-bar button now presses then releases, the same as any other
 # clickable thing in a real GUI -- shown inverted while held (checked in
 # the raw bytes, since the screen model tracks characters, not colour),
@@ -580,6 +603,28 @@ check("f10 opens the bar at the hibr menu",
       sc.find("About hibr") is not None, sc)
 sc, _ = run(MENUS, [b"\x1b"])
 check("and so does escape", sc.find("About hibr") is not None, sc)
+
+sc, _ = run(MENUS, [b"\x1b[21~"])
+check("an ordinary registered app is listed", sc.find("Noted") is not None, sc)
+
+HIDDEN = MENUS + 'dt_app hushed "Hushed" 6 24 "" "" "" hidden\n'
+sc, _ = run(HIDDEN, [b"\x1b[21~"])
+check("one registered hidden is not, though it is still a real app",
+      sc.find("Hushed") is None, sc)
+
+# Rename and Get Info register themselves only so dt_win/dt_btn treat
+# their windows as fixed -- they open on a specific file's own entry,
+# never generically, and used to leak onto this menu regardless, since
+# dt_appmenu only ever excluded "about" by a hardcoded name and nothing
+# excluded them. Loading the real apps proves the hidden flag actually
+# reaches them, not just a synthetic one built for the check above.
+REALAPPS = 'DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/desktop/apps")
+sc, _ = run(REALAPPS, [b"\x1b[21~"])
+check("Rename and Get Info do not leak onto the real hibr menu",
+      sc.find("Rename") is None and sc.find("Get Info") is None, sc)
+check("but the apps that belong there still do",
+      sc.find("Files") is not None and sc.find("Task Manager") is not None,
+      sc)
 
 sc, _ = run(MENUS, [b"\x1b[21~", b"\x1b[C"])
 check("right walks to the next menu along",
@@ -1484,4 +1529,4 @@ check("ending it leaves the other one alone",
       "personal" in r.stdout and "work" not in r.stdout, r.stdout)
 unsession()
 
-report(223)
+report(231)

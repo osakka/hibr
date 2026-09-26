@@ -437,6 +437,21 @@ sc = cprun(DOWN_WS + [b"\x1b[C"] + [b"\x1b[B"] * 4 + [b"\r"])
 check("and it can be switched off",
       "[ ]" in sc.row(sc.find("Edge Resize")[0]), sc)
 
+sc = cprun(DOWN_WS + [b"\x1b[C"] + [b"\x1b[B"] * 5)
+check("Modifier Drag -- #47 -- defaults off",
+      sc.find("Modifier Drag") is not None and
+      "[ ]" in sc.row(sc.find("Modifier Drag")[0]), sc)
+sc = cprun(DOWN_WS + [b"\x1b[C"] + [b"\x1b[B"] * 5 + [b"\r"])
+check("and it can be switched on",
+      "[x]" in sc.row(sc.find("Modifier Drag")[0]), sc)
+sc = cprun(DOWN_WS + [b"\x1b[C"] + [b"\x1b[B"] * 6)
+check("Drag Modifier defaults to alt",
+      sc.find("Drag Modifier") is not None and
+      "alt" in sc.row(sc.find("Drag Modifier")[0]), sc)
+sc = cprun(DOWN_WS + [b"\x1b[C"] + [b"\x1b[B"] * 6 + [b"\x1b[C"])
+check("and cycles to the other modifiers",
+      "ctrl" in sc.row(sc.find("Drag Modifier")[0]), sc)
+
 sc = cprun([press(R0, LISTCOL), press(R0, LISTCOL)])
 check("clicking the same pane twice in the picker is harmless",
       sc.find(TITLE[ORDER[0]]) is not None, sc)
@@ -1094,4 +1109,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(158)
+report(162)

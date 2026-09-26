@@ -12,7 +12,8 @@
 
 app about "About hibr, and the machine it runs on"
 
-command -v dt_app > /dev/null && dt_app about "About hibr" 13 46 once "ⓘ" fixed
+command -v dt_app > /dev/null && dt_app about "About hibr" 13 46 once "ⓘ" \
+	fixed hidden
 
 declare -gA AB
 

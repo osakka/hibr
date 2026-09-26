@@ -201,6 +201,18 @@ DT_BTNSTYLE="${DT_BTNSTYLE-brackets}"
 # with this on or off.
 DT_EDGERESIZE="${DT_EDGERESIZE-1}"
 
+# Move a window by holding a modifier and clicking anywhere in its body,
+# not just its title bar -- off by default, the same reasoning
+# console's own mouse motion reporting is: it takes a click away from
+# whatever the app under the pointer would otherwise do with it, alt
+# included, so it is the desktop owner's decision to make, never the
+# default. When it fires, the window manager takes the click outright,
+# before the app under the pointer ever sees it -- there is no "the app
+# declined it" convention anywhere else a click is dispatched, and this
+# does not invent one just for itself.
+DT_DRAGMOD="${DT_DRAGMOD-0}"
+DT_DRAGKEY="${DT_DRAGKEY-alt}"
+
 # How often the desktop wakes and redraws with nothing else asking for a
 # turn -- see dt_want and dt_run for why 2000 costs nothing in latency.
 DT_TICK="${DT_TICK-2000}"
@@ -215,7 +227,8 @@ DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 	DT_TICK DT_ICONS DT_DISKS DT_CURSOR DT_CURSOR_BLINK DT_SHADOW
 	DT_MSHADOW DT_BARSHADOW DT_DBLACTION DT_SHADOW_PCT CS_SIDE CS_Y
 	CS_COLLAPSED CS_LEN CS_SHADOW
-	DT_FRAME DT_BTNSIDE DT_TITLEALIGN DT_BTNSTYLE DT_EDGERESIZE)
+	DT_FRAME DT_BTNSIDE DT_TITLEALIGN DT_BTNSTYLE DT_EDGERESIZE
+	DT_DRAGMOD DT_DRAGKEY)
 
 # Where the desktop's stderr goes while it holds the screen, so an app's
 # error message cannot scribble over the display, and the reason for a
@@ -842,6 +855,16 @@ dt_mouse() {
 			fi
 		fi
 		if [ "$mr" -ne "$wr" ]; then
+			if [ "$DT_DRAGMOD" = 1 ] && [ "$1" != right ]; then
+				case "-$mods-" in
+				*"-$DT_DRAGKEY-"*)
+					DT_DRAG=$id
+					DT_DR=$((mr - wr))
+					DT_DC=$((mc - wc))
+					return 0
+					;;
+				esac
+			fi
 			mo=${DT[$id]["mouse"]}
 			if [ -n "$mo" ]; then
 				DT_MOUSE=$id
@@ -1531,6 +1554,14 @@ dt_app() {
 	DT_APPS[$1]["icon"]="${6:-◆}"
 	DT_APPS[$1]["fixed"]=
 	[ "$7" = fixed ] && DT_APPS[$1]["fixed"]=1
+	# hidden is for an app dt_launch has to find by name -- About hibr,
+	# or a window like Rename/Get Info that only ever opens on a specific
+	# file, never generically -- but that must never appear as a choice
+	# of its own on the hibr menu or in App Shortcuts' list of apps to
+	# give a global key. dt_appmenu and dt_appnames both read it; neither
+	# hardcodes a name the way dt_appmenu once hardcoded "about".
+	DT_APPS[$1]["hidden"]=
+	[ "$8" = hidden ] && DT_APPS[$1]["hidden"]=1
 	# Set by dt_apps while it sources this file, from where it found it --
 	# empty for one sourced any other way, which stays a flat item.
 	DT_APPS[$1]["dir"]="$DT_APPDIR_CUR"
@@ -1605,6 +1636,7 @@ dt_appnames() {
 	local -a all
 
 	for n in "${!DT_APPS[@]}"; do
+		[ "${DT_APPS[$n]["hidden"]}" = 1 ] && continue
 		l := str lower "${DT_APPS[$n]["title"]}"
 		all+=("$l	$n")
 	done
@@ -1624,7 +1656,7 @@ dt_appmenu() {
 	local -a all seen
 
 	for n in "${!DT_APPS[@]}"; do
-		[ "$n" = about ] && continue
+		[ "${DT_APPS[$n]["hidden"]}" = 1 ] && continue
 		d=${DT_APPS[$n]["dir"]}
 		if [ "$d" = "$prefix" ]; then
 			l := str lower "${DT_APPS[$n]["title"]}"
@@ -1710,7 +1742,8 @@ dt_menus() {
 	dt_sep
 	# about already has its own permanent item above; it registers with
 	# dt_app only so dt_launch about can find it, not to be listed a
-	# second time as an ordinary app -- dt_appmenu skips it by name.
+	# second time as an ordinary app -- its own dt_app call marks it
+	# hidden, which is what dt_appmenu actually skips.
 	dt_appmenu "" aqdu
 	dt_sep
 	dt_item "Clean Up Icons" u dt_iconclean

@@ -28,9 +28,11 @@ command -v dt_app > /dev/null && dt_app files "Files" 12 34 many "▤"
 # they are never on a menu, just opened directly on the entry that asked
 # for one), registered only so dt_win and dt_btn see fixed=1 for them the
 # same way any other fixed app does: one field or a handful is never worth
-# resizing.
-command -v dt_app > /dev/null && dt_app rn "Rename" 6 46 "" "" fixed
-command -v dt_app > /dev/null && dt_app gi "Get Info" 18 48 "" "" fixed
+# resizing. hidden is what actually keeps them off the hibr menu and out
+# of App Shortcuts -- launched with no entry to show, gi_draw and the
+# rename field would have nothing populated and nothing to act on.
+command -v dt_app > /dev/null && dt_app rn "Rename" 6 46 "" "" fixed hidden
+command -v dt_app > /dev/null && dt_app gi "Get Info" 18 48 "" "" fixed hidden
 
 # Per window, not per app.  Two browsers must be able to be in two different
 # directories; a global would put them both in the last one opened.  FB holds
