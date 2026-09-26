@@ -16,7 +16,27 @@ command -v dt_app > /dev/null && dt_app tasks "Task Manager" 16 50 once "▤"
 
 declare -gA TK
 declare -gA TK_PREV
+declare -gA TK_UIDNAME
 TK_OS=
+
+# uid -> name, from /etc/passwd directly -- no fork, matching how the
+# rest of a Linux scan already avoids one. Reloaded every scan: reading
+# a few dozen lines once a second costs nothing worth caching further,
+# and a user added since the window opened still resolves.
+tasks_loadusers() {
+	local name uid _
+
+	TK_UIDNAME=()
+	while IFS=: read -r name _ uid _; do
+		TK_UIDNAME["$uid"]=$name
+	done < /etc/passwd
+}
+
+# A uid as the name it resolves to, or itself when nothing does -- a
+# user removed after their process started, most often.
+tasks_ownername() {
+	ret "${TK_UIDNAME["$1"]:-$1}"
+}
 
 # The two sparklines at the bottom -- one label row, one glyph row, each
 # glyph one of eight block heights, most recent sample on the right, the
@@ -139,25 +159,27 @@ tasks_times() {
 # scan. The first scan has nothing to compare against, so it reads 0.
 # Every process from ps -axo, one line each: pid, RSS in the same
 # kilobytes /proc/[pid]/status uses, %CPU already computed by the kernel,
-# and comm last so a path with a space in it -- an app bundle's, typically
-# -- still reads whole, in read's own last-variable-takes-the-rest rule.
+# user (ps resolves it itself here, unlike the Linux path's own uid), and
+# comm last so a path with a space in it -- an app bundle's, typically --
+# still reads whole, in read's own last-variable-takes-the-rest rule.
 tasks_scan_ps() {
-	local id=$1 pid rss pcpu comm line n=0
+	local id=$1 pid rss pcpu user comm line n=0
 
 	while IFS= read -r line; do
-		read -r pid rss pcpu comm <<< "$line"
+		read -r pid rss pcpu user comm <<< "$line"
 		case $pid in '' | *[!0-9]*) continue ;; esac
 		TK[$id][$n]["pid"]=$pid
 		TK[$id][$n]["name"]=${comm##*/}
+		TK[$id][$n]["owner"]=$user
 		TK[$id][$n]["cpu"]=${pcpu%.*}
 		TK[$id][$n]["mem"]=${rss:-0}
 		n=$((n + 1))
-	done < <(command ps -axo pid=,rss=,pcpu=,comm= 2> /dev/null)
+	done < <(command ps -axo pid=,rss=,pcpu=,user=,comm= 2> /dev/null)
 	TK[$id]["n"]=$n
 }
 
 tasks_scan() {
-	local id=$1 pid name rss times u s now elapsed du ds pct n=0
+	local id=$1 pid name rss uid owner times u s now elapsed du ds pct n=0
 	local prevt=${TK_PREV[$id]["t"]}
 
 	# uname is a program, not a builtin -- := does nothing for one of
@@ -168,15 +190,17 @@ tasks_scan() {
 		tasks_scan_ps "$id"
 		return 0
 	fi
+	tasks_loadusers
 	now := dt_ms
 	for pid in /proc/[0-9]*; do
 		pid=${pid#/proc/}
 		[ -r "/proc/$pid/status" ] || continue
-		name= rss=
+		name= rss= uid=
 		while read -r k v _; do
 			case $k in
 			Name:) name=$v ;;
 			VmRSS:) rss=$v ;;
+			Uid:) uid=$v ;;
 			esac
 		done < "/proc/$pid/status"
 		[ -z "$name" ] && continue
@@ -193,8 +217,10 @@ tasks_scan() {
 		fi
 		TK_PREV[$id]["$pid.u"]=$u
 		TK_PREV[$id]["$pid.s"]=$s
+		owner := tasks_ownername "$uid"
 		TK[$id][$n]["pid"]=$pid
 		TK[$id][$n]["name"]=$name
+		TK[$id][$n]["owner"]=$owner
 		TK[$id][$n]["cpu"]=$pct
 		TK[$id][$n]["mem"]=${rss:-0}
 		n=$((n + 1))
@@ -207,13 +233,14 @@ tasks_scan() {
 # hundred, and the list is nearly sorted from one scan to the next, which is
 # exactly what this does least work on.
 tasks_sort() {
-	local id=$1 by=$2 n i j pid name cpu mem key
+	local id=$1 by=$2 n i j pid name owner cpu mem key
 
 	n=${TK[$id]["n"]}
 	i=1
 	while [ "$i" -lt "$n" ]; do
 		pid=${TK[$id][$i]["pid"]}
 		name=${TK[$id][$i]["name"]}
+		owner=${TK[$id][$i]["owner"]}
 		cpu=${TK[$id][$i]["cpu"]}
 		mem=${TK[$id][$i]["mem"]}
 		key=${TK[$id][$i]["$by"]}
@@ -221,12 +248,14 @@ tasks_sort() {
 		while [ "$j" -ge 0 ] && [ "${TK[$id][$j]["$by"]}" -lt "$key" ]; do
 			TK[$id][$((j + 1))]["pid"]=${TK[$id][$j]["pid"]}
 			TK[$id][$((j + 1))]["name"]=${TK[$id][$j]["name"]}
+			TK[$id][$((j + 1))]["owner"]=${TK[$id][$j]["owner"]}
 			TK[$id][$((j + 1))]["cpu"]=${TK[$id][$j]["cpu"]}
 			TK[$id][$((j + 1))]["mem"]=${TK[$id][$j]["mem"]}
 			j=$((j - 1))
 		done
 		TK[$id][$((j + 1))]["pid"]=$pid
 		TK[$id][$((j + 1))]["name"]=$name
+		TK[$id][$((j + 1))]["owner"]=$owner
 		TK[$id][$((j + 1))]["cpu"]=$cpu
 		TK[$id][$((j + 1))]["mem"]=$mem
 		i=$((i + 1))
@@ -263,14 +292,36 @@ tasks_open() {
 	TK[$id]["sel"]=0
 	TK[$id]["top"]=0
 	TK[$id]["by"]=cpu
+	TK[$id]["full"]=0
 }
 
-# Columns: name takes what is left after CPU% (6) and Mem (7) and the
-# spaces between them; row 0 is the top border and row h-1 the bottom one,
+# A process's whole command line, arguments and all, joined with plain
+# spaces -- /proc/[pid]/cmdline is NUL-separated, and a hibr string ends
+# at the first NUL like any C string, so it is read one field at a time
+# instead of into one variable, which never has to hold the NULs at all.
+# Linux only, and only for the rows actually on screen: forking to get
+# this on every platform for every process, every scan, would cost far
+# more than a handful of reads twice a second.
+tasks_cmdline() {
+	local pid=$1 out= part first=1
+
+	[ "$TK_OS" = Linux ] || return 1
+	while IFS= read -r -d '' part; do
+		[ "$first" = 1 ] && first=0 || out="$out "
+		out="$out$part"
+	done < "/proc/$pid/cmdline" 2> /dev/null
+	[ -z "$out" ] && return 1
+	ret "$out"
+}
+
+# Columns: PID, Name, Owner, CPU%, Mem -- Name takes whatever is left
+# once the other four fixed widths and the spaces between them are
+# accounted for. Row 0 is the top border and row h-1 the bottom one,
 # both dt_win's, so the list lives in rows 2..h-2 under a header at row 1.
 tasks_draw() {
-	local id=$1 h=$2 w=$3 i r t n vis top sel by now
-	local namew=$((w - 2 - 6 - 1 - 7 - 1)) cpu mem line
+	local id=$1 h=$2 w=$3 i r t n vis top sel by now full
+	local pidw=6 ownerw=8 owner pidtxt
+	local namew=$((w - 2 - pidw - 1 - ownerw - 1 - 6 - 1 - 7 - 1)) cpu mem line
 	local showgraph=1 graphh=2 leftw rightw lbl spark
 
 	now := dt_ms
@@ -297,26 +348,35 @@ tasks_draw() {
 	[ "$sel" -ge "$n" ] && sel=$((n - 1)) && TK[$id]["sel"]=$sel
 	[ "$sel" -lt 0 ] && sel=0
 
+	full=${TK[$id]["full"]:-0}
 	console pen "$DT_INK" "$DT_FACE" bold
+	pidtxt := tasks_rjust PID "$pidw"
 	t := str pad Name "$namew"
+	owner := str pad Owner "$ownerw"
 	cpu := tasks_rjust "CPU%" 6
 	mem := tasks_rjust Mem 7
-	console put -p "w$id" 1 1 "$t $cpu $mem"
+	console put -p "w$id" 1 1 "$pidtxt $t $owner $cpu $mem"
 
 	i=$top
 	r=2
 	while [ "$r" -le $((vis + 1)) ]; do
 		if [ "$i" -lt "$n" ]; then
-			t=${TK[$id][$i]["name"]}
+			pidtxt := tasks_rjust "${TK[$id][$i]["pid"]}" "$pidw"
+			t=
+			[ "$full" = 1 ] && t := tasks_cmdline "${TK[$id][$i]["pid"]}"
+			[ -z "$t" ] && t=${TK[$id][$i]["name"]}
 			[ ${#t} -gt "$namew" ] && t="${t:0:$namew}"
 			t := str pad "$t" "$namew"
+			owner=${TK[$id][$i]["owner"]}
+			[ ${#owner} -gt "$ownerw" ] && owner="${owner:0:$ownerw}"
+			owner := str pad "$owner" "$ownerw"
 			cpu="${TK[$id][$i]["cpu"]}%"
 			cpu := tasks_rjust "$cpu" 6
 			mem := tasks_human "${TK[$id][$i]["mem"]}"
 			mem := tasks_rjust "$mem" 7
-			line="$t $cpu $mem"
+			line="$pidtxt $t $owner $cpu $mem"
 		else
-			line := str pad "" $((namew + 14))
+			line := str pad "" $((pidw + namew + ownerw + 17))
 		fi
 		if [ "$i" = "$sel" ] && [ "$i" -lt "$n" ]; then
 			console pen "#1a202c" "$DT_ACTIVE" bold
@@ -369,6 +429,7 @@ tasks_key() {
 	shift-x) tasks_end "$id" KILL; return 0 ;;
 	c) TK[$id]["by"]=cpu; return 0 ;;
 	m) TK[$id]["by"]=mem; return 0 ;;
+	n) TK[$id]["full"]=$((1 - ${TK[$id]["full"]:-0})); return 0 ;;
 	*) return 1 ;;
 	esac
 	[ "$sel" -lt 0 ] && sel=0
@@ -395,11 +456,15 @@ tasks_click() {
 # routing it through the key handler only worked here because "x" the key
 # and "x" the argument happen to be the same string.
 tasks_sortby() { TK[$1]["by"]=$2; }
+tasks_fulltoggle() { TK[$1]["full"]=$((1 - ${TK[$1]["full"]:-0})); }
 
 tasks_menus() {
+	local full=${TK[$DT_FOCUS]["full"]:-0}
+
 	dt_menu "Task"
 	dt_item "Sort by CPU" c tasks_sortby "$DT_FOCUS" cpu
 	dt_item "Sort by Memory" m tasks_sortby "$DT_FOCUS" mem
+	dt_mark "Full Command Line" n "$full" tasks_fulltoggle "$DT_FOCUS"
 	dt_sep
 	dt_item "End Task" x tasks_end "$DT_FOCUS" TERM
 	dt_item "End Task (force)" f tasks_end "$DT_FOCUS" KILL

@@ -1095,7 +1095,8 @@ TASKS = ("tasks", "16 50 4 4")
 sc = run(*TASKS)
 check("the task manager lists processes under a header",
       sc.find("CPU%") is not None and sc.find("Mem") is not None and
-      sc.find("Name") is not None, sc)
+      sc.find("Name") is not None and sc.find("PID") is not None and
+      sc.find("Owner") is not None, sc)
 # Not any name in particular: on the very first scan every process ties at
 # 0% CPU, so which of a few hundred land in the visible rows is whatever
 # order /proc's glob happened to return, not something to name one of. The
@@ -1110,6 +1111,39 @@ check("m sorts by memory instead, without error",
 sc = run(*TASKS, feed=[b"\x1b[B", b"\x1b[B", b"\x1b[B"])
 check("the arrows move the selection without error",
       sc.find("CPU%") is not None, sc)
+
+# #54: PID/Owner columns, and toggling full command lines -- real machine
+# data again, so only that toggling runs without error and the header
+# survives it, not what changed.
+sc = run(*TASKS, feed=[b"n"])
+check("n toggles full command lines, without error",
+      sc.find("CPU%") is not None and sc.find("PID") is not None, sc)
+
+# tasks_sort carrying "owner" along with pid/name/cpu/mem is the actual
+# correctness question -- found while adding the Owner column: sorting
+# moved every other field but left owner behind at its old row index,
+# pairing every process with some other one's user. Deterministic
+# fixture data, not the real process list, since this is exactly the
+# bug a real list's own near-sorted-already rows could hide by chance.
+TSORT = (
+    '. %s\n'
+    'TK[1]["n"]=3\n'
+    'TK[1][0]["pid"]=10; TK[1][0]["name"]=a; TK[1][0]["owner"]=alice\n'
+    'TK[1][0]["cpu"]=5; TK[1][0]["mem"]=100\n'
+    'TK[1][1]["pid"]=20; TK[1][1]["name"]=b; TK[1][1]["owner"]=bob\n'
+    'TK[1][1]["cpu"]=50; TK[1][1]["mem"]=50\n'
+    'TK[1][2]["pid"]=30; TK[1][2]["name"]=c; TK[1][2]["owner"]=carol\n'
+    'TK[1][2]["cpu"]=1; TK[1][2]["mem"]=200\n'
+    'tasks_sort 1 cpu\n'
+    'echo "${TK[1][0]["pid"]}:${TK[1][0]["owner"]}'
+    ' ${TK[1][1]["pid"]}:${TK[1][1]["owner"]}'
+    ' ${TK[1][2]["pid"]}:${TK[1][2]["owner"]}"\n'
+    % (appdir("tasks") + "/tasks.hibr")
+)
+out = subprocess.run([sx.HIBR, "-c", TSORT], capture_output=True, text=True,
+                     env=dict(os.environ, DT_ROWS="1")).stdout.strip()
+check("sorting by CPU keeps each pid's own owner with it, not another's",
+      out == "20:bob 10:alice 30:carol", out)
 
 # Two graphs at the bottom -- #52 -- CPU on the left, Mem on the right,
 # a percentage label above each and a sparkline below it. Not the
@@ -1137,4 +1171,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(168)
+report(170)
