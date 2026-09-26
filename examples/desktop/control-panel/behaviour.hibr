@@ -7,6 +7,7 @@ command -v cp_pane > /dev/null && cp_pane behaviour "Behaviour" "⚙"
 
 CP_TICKS=(80 120 200 350 600 1000 2000 3500 5000)
 CP_ABTICKS=(1000 2000 3000 5000 10000)
+CP_TKTICKS=(500 1000 2000 3000 5000 10000)
 CP_CURSORS=(block underline bar)
 CP_DBLACTIONS=(zoom min close none)
 
@@ -15,6 +16,7 @@ cp_set_cursor() { DT_CURSOR=$2; cp_save; }
 cp_set_about() { AB_SLOWMS=$2; cp_save; }
 cp_set_dblaction() { DT_DBLACTION=$2; cp_save; }
 cp_set_fileview() { FB_DEFAULTVIEW=$2; cp_save; }
+cp_set_tasks() { TK_SCANMS=$2; cp_save; }
 
 # The mounted disks among the desktop icons, or just Home and the trash.
 cp_icons() {
@@ -128,6 +130,11 @@ behaviour_rows() {
 		CP[$w][$n]["val"]="$AB_SLOWMS ms"; CP[$w][$n]["key"]=about
 		n=$((n + 1))
 	fi
+	if [ -n "$TK_SCANMS" ]; then
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Task Manager Refresh"
+		CP[$w][$n]["val"]="$TK_SCANMS ms"; CP[$w][$n]["key"]=tasksrefresh
+		n=$((n + 1))
+	fi
 	if [ -n "$DT_TERMBAR" ]; then
 		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Terminal Scrollbar"
 		CP[$w][$n]["wtype"]=bool
@@ -164,6 +171,8 @@ behaviour_do() {
 	barshadow) cp_barshadow ;;
 	about) v := cp_next "$AB_SLOWMS" "$dir" "${CP_ABTICKS[@]}"
 	       AB_SLOWMS=$v ;;
+	tasksrefresh) v := cp_next "$TK_SCANMS" "$dir" "${CP_TKTICKS[@]}"
+	              TK_SCANMS=$v ;;
 	dblaction) v := cp_next "$DT_DBLACTION" "$dir" "${CP_DBLACTIONS[@]}"
 		DT_DBLACTION=$v ;;
 	termbar) cp_termbar ;;
@@ -181,6 +190,7 @@ behaviour_drop() {
 	tick) dt_droplist "$w" "$r" "$c" cp_set_tick "${CP_TICKS[@]}" ;;
 	cursor) dt_droplist "$w" "$r" "$c" cp_set_cursor "${CP_CURSORS[@]}" ;;
 	about) dt_droplist "$w" "$r" "$c" cp_set_about "${CP_ABTICKS[@]}" ;;
+	tasksrefresh) dt_droplist "$w" "$r" "$c" cp_set_tasks "${CP_TKTICKS[@]}" ;;
 	dblaction) dt_droplist "$w" "$r" "$c" cp_set_dblaction \
 		"${CP_DBLACTIONS[@]}" ;;
 	fileview) dt_droplist "$w" "$r" "$c" cp_set_fileview "${FILES_VIEWS[@]}" ;;

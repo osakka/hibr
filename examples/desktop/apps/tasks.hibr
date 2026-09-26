@@ -18,6 +18,95 @@ declare -gA TK
 declare -gA TK_PREV
 TK_OS=
 
+# The two sparklines at the bottom -- one label row, one glyph row, each
+# glyph one of eight block heights, most recent sample on the right, the
+# same look tmux's own graphs use. History is kept independent of the
+# window's current width (samples are trimmed to fit at draw time, not
+# at collection time), so a resize never throws a real sample away.
+TK_HISTMAX=120
+TK_SPARK=(▁ ▂ ▃ ▄ ▅ ▆ ▇ █)
+
+# Append one value, shifting the oldest out once TK_HISTMAX is reached.
+# Once a second (TK_SCANMS), never once a frame, so an O(n) shift over
+# at most 120 entries costs nothing worth avoiding.
+tasks_pushhist() {
+	local id=$1 key=$2 val=$3 n i
+
+	n=${TK[$id]["${key}n"]:-0}
+	if [ "$n" -ge "$TK_HISTMAX" ]; then
+		i=0
+		while [ "$i" -lt $((n - 1)) ]; do
+			TK[$id]["$key"][$i]=${TK[$id]["$key"][$((i + 1))]}
+			i=$((i + 1))
+		done
+		n=$((n - 1))
+	fi
+	TK[$id]["$key"][$n]=$val
+	TK[$id]["${key}n"]=$((n + 1))
+}
+
+# The last w samples of a history, as glyphs, oldest first -- padded with
+# blanks on the left so a history shorter than the graph still sits
+# against the right edge, where "now" belongs.
+tasks_spark() {
+	local id=$1 key=$2 w=$3 n i v lvl out=
+
+	n=${TK[$id]["${key}n"]:-0}
+	i=$((n - w))
+	[ "$i" -lt 0 ] && i=0
+	while [ "$i" -lt "$n" ]; do
+		v=${TK[$id]["$key"][$i]}
+		lvl=$((v * 8 / 101))
+		[ "$lvl" -gt 7 ] && lvl=7
+		[ "$lvl" -lt 0 ] && lvl=0
+		out="$out${TK_SPARK[$lvl]}"
+		i=$((i + 1))
+	done
+	while [ "${#out}" -lt "$w" ]; do out=" $out"; done
+	ret "$out"
+}
+
+# Overall CPU% and memory% used, from /proc directly -- Linux only, the
+# same split tasks_scan already makes for the per-process list. Elsewhere
+# the graphs stay flat at 0 rather than reading something platform
+# doesn't offer; ps -axo's own %CPU is per process, not a system total,
+# and there is no single ps column this could sum into one honestly.
+#
+# CPU: /proc/stat's own first line is every core already summed by the
+# kernel; delta of idle over delta of the whole line since the last scan
+# is exactly what top's own headline percentage is. Memory: MemAvailable
+# already accounts for reclaimable cache the way a plain MemFree does
+# not, which is the same number free(1) reports as "available".
+tasks_sysstat() {
+	local id=$1 line rest v total=0 idle du_total du_idle
+	local k mtotal= mavail=
+
+	[ "$TK_OS" = Linux ] || return 0
+	read -r line < /proc/stat 2> /dev/null
+	rest=${line#cpu }
+	set -- $rest
+	idle=${4:-0}
+	for v in "$@"; do total=$((total + v)); done
+	if [ -n "${TK_PREV[$id]["cput"]}" ]; then
+		du_total=$((total - TK_PREV[$id]["cput"]))
+		du_idle=$((idle - TK_PREV[$id]["cpui"]))
+		[ "$du_total" -gt 0 ] &&
+			TK[$id]["syscpu"]=$(((du_total - du_idle) * 100 / du_total))
+	fi
+	TK_PREV[$id]["cput"]=$total
+	TK_PREV[$id]["cpui"]=$idle
+	while read -r k v _; do
+		case $k in
+		MemTotal:) mtotal=$v ;;
+		MemAvailable:) mavail=$v ;;
+		esac
+	done < /proc/meminfo
+	[ -n "$mtotal" ] && [ "$mtotal" -gt 0 ] &&
+		TK[$id]["sysmem"]=$(((mtotal - ${mavail:-0}) * 100 / mtotal))
+	tasks_pushhist "$id" cpuh "${TK[$id]["syscpu"]:-0}"
+	tasks_pushhist "$id" memh "${TK[$id]["sysmem"]:-0}"
+}
+
 # CLK_TCK is 100 on every Linux this was run on; getconf forks, and the
 # kernel does not expose it any other way worth reading for this.
 TK_HZ=100
@@ -29,7 +118,8 @@ TK_HZ=100
 # cost 5.8% instead, rescanning once a second (what top and htop default to
 # as well) 7.6%. Only the visible rows are formatted on a redraw that finds
 # nothing new to scan.
-TK_SCANMS=1000
+TK_SCANMS="${TK_SCANMS-1000}"
+command -v dt_keep > /dev/null && dt_keep TK_SCANMS
 
 # The state, then the ten fields before utime and stime, then those two --
 # /proc/[pid]/stat's own gotcha, since the command name is in parens and may
@@ -181,6 +271,7 @@ tasks_open() {
 tasks_draw() {
 	local id=$1 h=$2 w=$3 i r t n vis top sel by now
 	local namew=$((w - 2 - 6 - 1 - 7 - 1)) cpu mem line
+	local showgraph=1 graphh=2 leftw rightw lbl spark
 
 	now := dt_ms
 	by=${TK[$id]["by"]}
@@ -188,6 +279,7 @@ tasks_draw() {
 	   [ $((now - TK[$id]["scant"])) -ge "$TK_SCANMS" ]; then
 		tasks_scan "$id"
 		tasks_sort "$id" "$by"
+		tasks_sysstat "$id"
 		TK[$id]["scant"]=$now
 		TK[$id]["sortby"]=$by
 	elif [ "${TK[$id]["sortby"]}" != "$by" ]; then
@@ -197,7 +289,8 @@ tasks_draw() {
 		TK[$id]["sortby"]=$by
 	fi
 	n=${TK[$id]["n"]}
-	vis=$((h - 3))
+	vis=$((h - 3 - graphh))
+	[ "$vis" -lt 1 ] && { vis=$((h - 3)); showgraph=0; }
 	TK[$id]["vis"]=$vis
 	top=${TK[$id]["top"]}
 	sel=${TK[$id]["sel"]}
@@ -234,6 +327,22 @@ tasks_draw() {
 		i=$((i + 1))
 		r=$((r + 1))
 	done
+	if [ "$showgraph" = 1 ]; then
+		leftw=$(((w - 2 - 1) / 2))
+		rightw=$((w - 2 - 1 - leftw))
+		r=$((vis + 2))
+		console pen "$DT_INK" "$DT_FACE"
+		lbl := tasks_rjust "${TK[$id]["syscpu"]:-0}%" 4
+		lbl := str pad "CPU $lbl" "$leftw"
+		console put -p "w$id" "$r" 1 "$lbl"
+		lbl := tasks_rjust "${TK[$id]["sysmem"]:-0}%" 4
+		lbl := str pad "Mem $lbl" "$rightw"
+		console put -p "w$id" "$r" $((leftw + 2)) "$lbl"
+		spark := tasks_spark "$id" cpuh "$leftw"
+		console put -p "w$id" $((r + 1)) 1 "$spark"
+		spark := tasks_spark "$id" memh "$rightw"
+		console put -p "w$id" $((r + 1)) $((leftw + 2)) "$spark"
+	fi
 	dt_want 500
 }
 

@@ -359,6 +359,18 @@ check("About Refresh only appears once About hibr itself is loaded",
       sc.find("About Refresh") is not None and
       sc.find("3000 ms") is not None, sc)
 
+# Task Manager Refresh -- found while adding #52's graphs, the same gap
+# About Refresh already closed for About hibr: TK_SCANMS had no setting
+# of its own either.
+sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 9, extra=("tasks",))
+check("Task Manager Refresh only appears once Task Manager is loaded",
+      sc.find("Task Manager Refresh") is not None and
+      sc.find("1000 ms") is not None, sc)
+sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 9 + [b"\x1b[C"],
+           extra=("tasks",))
+check("and it cycles through the other intervals",
+      "2000 ms" in sc.row(sc.find("Task Manager Refresh")[0]), sc)
+
 # Default File View -- #50 -- only shows once Files itself is loaded, the
 # same rule About Refresh follows above, and only that pane's own row
 # order changes: nothing else about it does.
@@ -1099,6 +1111,22 @@ sc = run(*TASKS, feed=[b"\x1b[B", b"\x1b[B", b"\x1b[B"])
 check("the arrows move the selection without error",
       sc.find("CPU%") is not None, sc)
 
+# Two graphs at the bottom -- #52 -- CPU on the left, Mem on the right,
+# a percentage label above each and a sparkline below it. Not the
+# specific numbers or heights, the real machine's again, only that both
+# halves are actually drawn.
+sc = run(*TASKS)
+# "CPU " (a real space) is the graph's own label, not the header's
+# "CPU%" -- the one place with no space between the two.
+row = sc.find("CPU ")
+check("a CPU% label sits above the left graph", row is not None, sc)
+check("and a Mem% label beside it, on the right",
+      row is not None and "Mem" in sc.row(row[0]), sc)
+SPARK = "▁▂▃▄▅▆▇█"
+sparkrow = sc.row(row[0] + 1) if row else ""
+check("a sparkline glyph is drawn under each label",
+      any(c in SPARK for c in sparkrow), sc)
+
 for f in os.listdir(D):
     p = os.path.join(D, f)
     if os.path.isdir(p):
@@ -1109,4 +1137,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(162)
+report(168)
