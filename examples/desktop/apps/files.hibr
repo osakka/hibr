@@ -43,6 +43,15 @@ FILES_VIEWS=(list details icons)
 FILES_TILE=12
 FB_PATHS=()
 
+# Which view a directory was last shown in, kept across windows and across
+# restarts -- its own small file, not the desktop's DT_CONF, since it is
+# the browser's own concern and nothing else reads it. One assignment per
+# line, sourced back exactly the way dt_load reads DT_CONF, so no parser
+# of its own is needed.
+FB_VIEWFILE="${FB_VIEWFILE-${XDG_STATE_HOME:-$HOME/.local/state}/hibr/files-views}"
+declare -gA FB_VIEWS
+[ -r "$FB_VIEWFILE" ] && . "$FB_VIEWFILE"
+
 # The in-process ls, so the details view does not exec a program; the one on
 # the PATH writes the same columns if the module cannot be had.
 mod load ls > /dev/null 2>&1
@@ -277,6 +286,7 @@ fb_go() {
 	[ "$d" != / ] && d=${d%/}
 	[ -d "$d" ] || return 1
 	FB[$id]["dir"]=$d
+	FB[$id]["view"] := fb_dirview "$d"
 	fb_scan "$id"
 }
 
@@ -315,13 +325,38 @@ fb_clamp() {
 	FB[$id]["top"]=$((top - top % per))
 }
 
+# The view a directory was last shown in, or the default.
+fb_dirview() {
+	ret "${FB_VIEWS["$1"]:-list}"
+}
+
+# Remember which view a directory is shown in, and keep it. Written
+# through a temporary file and a rename, the same discipline dt_save uses
+# for the desktop's own settings. A path holding a literal double quote is
+# skipped rather than written unparseably, since only the value is
+# escaped here, not the key -- the same limitation dt_save's own DT_KEYS
+# and DT_APPKEY already accept for a controlled vocabulary of names; a
+# filesystem path is not controlled.
+fb_view_save() {
+	local dir=$1 view=$2 d tmp=$FB_VIEWFILE.$$
+
+	FB_VIEWS["$dir"]=$view
+	mkdir -p "${FB_VIEWFILE%/*}" 2> /dev/null || return 1
+	{
+		for d in "${!FB_VIEWS[@]}"; do
+			case $d in *'"'*) continue ;; esac
+			printf 'FB_VIEWS["%s"]=%q\n' "$d" "${FB_VIEWS["$d"]}"
+		done
+	} > "$tmp" && mv -f "$tmp" "$FB_VIEWFILE"
+}
+
 files_open() {
 	local d=${2:-${FB_DIR:-$PWD}}
 
 	[ -d "$d" ] || d=$PWD
 	FB[$1]["dir"]=$d
 	FB[$1]["hidden"]=
-	FB[$1]["view"]=${FB[$1]["view"]:-list}
+	FB[$1]["view"] := fb_dirview "$d"
 	FB[$1]["vis"]=1
 	FB[$1]["per"]=1
 	fb_scan "$1"
@@ -946,7 +981,11 @@ files_hidden() {
 }
 
 # Show a view, or the next one.
-files_view() { FB[$1]["view"]=$2; FB[$1]["top"]=0; }
+files_view() {
+	FB[$1]["view"]=$2
+	FB[$1]["top"]=0
+	fb_view_save "${FB[$1]["dir"]}" "$2"
+}
 files_cycle() {
 	case ${FB[$1]["view"]} in
 	list) files_view "$1" details ;;

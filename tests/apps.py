@@ -507,22 +507,20 @@ shutil.rmtree(NPD4, True)
 # imgview: draws a decoded picture, or says why not -- #48 found this
 # folding two very different failures ("the img module was never
 # installed" and "this file could not be decoded") into one identical
-# message, with no way to tell which from the screen alone. Each variant
-# gets its own HIBR_MODPATH, since which module directory is on the
-# search path is exactly what tells the two cases apart.
+# message, with no way to tell which from the screen alone.
 IVW = "13 46 2 2"
 BUILT_MODS = os.path.abspath("build/mods")
 
 
-def run_img(path, moddir):
+def run_img(path, moddir, pre=""):
     """Like run(), but opens imgview already showing path -- dt_new's own
     7th argument, which run() has no way to pass through."""
     p = os.path.join(S, "session.hibr")
     open(p, "w").write(
-        "%s\n. %s\n. %s\ndt_open\n"
+        "%s\n. %s\n. %s\n%s\ndt_open\n"
         'dt_new "Image Viewer" %s imgview "%s"\n'
         "dt_run\ndt_close\n" % (load("console"), WM, appdir("imgview") +
-                                "/imgview.hibr", IVW, path)
+                                "/imgview.hibr", pre, IVW, path)
     )
     t = Term(p, env={"DT_TICK": "60", "HIBR_MODPATH": moddir}, settle=0.8)
     t.quit(b"qy", 1.0)
@@ -534,11 +532,19 @@ check("a decodable picture is drawn, not an error message",
       sc.find("Cannot show") is None and
       sc.find("isn't installed") is None, sc)
 
-NOMOD = tempfile.mkdtemp(prefix="hibr-no-img-mod-")
-sc = run_img(os.path.abspath("tests/img-2x2.png"), NOMOD)
+# HIBR_MODPATH alone cannot force "the module is missing": hibr_require
+# falls back to the compiled-in HIBR_MODDIR (the real install) after an
+# empty HIBR_MODPATH, so whether this looks missing would otherwise
+# depend on what happens to be installed on the machine running the
+# tests. dt_has is redefined instead, the same "define it twice" the
+# codebase already treats as a deliberate override elsewhere in a test's
+# own pre script -- everything but "does img exist" still asks the real
+# command -v.
+FORCE_NO_IMG = 'dt_has() { [ "$1" = img ] && return 1; command -v "$1" > /dev/null; }'
+sc = run_img(os.path.abspath("tests/img-2x2.png"), BUILT_MODS,
+             pre=FORCE_NO_IMG)
 check("a missing img module says so, not \"cannot show\" the file",
       sc.find("Image support isn't installed") is not None, sc)
-shutil.rmtree(NOMOD, True)
 
 BADPNG = tempfile.mkdtemp(prefix="hibr-bad-png-")
 open(os.path.join(BADPNG, "broken.png"), "wb").write(b"not a real png")
@@ -751,6 +757,33 @@ sc = run("files", "12 60 2 2", [b"v", b"v", b"\x1b[C", b"\x1b[B"], pre=PRE)
 check("the icon view is a grid, and the arrows move across and down it",
       sc.find("▤▤") is not None and sc.find("6 of %d" % ENTRIES) is not None,
       sc)
+
+# The chosen view is remembered per directory, and survives a fresh
+# window entirely -- #49. Its own directory pair and XDG_STATE_HOME, not
+# D, since D is what every other files check above and below assumes
+# opens in the plain list default.
+VA = tempfile.mkdtemp(prefix="hibr-views-a-")
+VB = tempfile.mkdtemp(prefix="hibr-views-b-")
+open(os.path.join(VA, "f.txt"), "w").close()
+open(os.path.join(VB, "f.txt"), "w").close()
+VSTATE = tempfile.mkdtemp(prefix="hibr-views-state-")
+
+sc = run("files", "12 40 2 2", [b"v", b"v"], pre="FB_DIR=%s" % VA,
+         env={"XDG_STATE_HOME": VSTATE})
+check("cycling to icons shows the icons label", "icons" in sc.row(12), sc)
+
+sc = run("files", "12 40 2 2", pre="FB_DIR=%s" % VA,
+         env={"XDG_STATE_HOME": VSTATE})
+check("reopening the same directory remembers icons, with no keys sent",
+      "icons" in sc.row(12), sc)
+
+sc = run("files", "12 40 2 2", pre="FB_DIR=%s" % VB,
+         env={"XDG_STATE_HOME": VSTATE})
+check("a directory never shown stays the plain default, list",
+      "list" in sc.row(12), sc)
+shutil.rmtree(VA, True)
+shutil.rmtree(VB, True)
+shutil.rmtree(VSTATE, True)
 
 TWO = [("Files", "12 34 2 40", "files")]
 # The right-hand window goes into alpha/ with two presses, then file00.txt
@@ -1011,4 +1044,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(149)
+report(152)
