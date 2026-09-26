@@ -12,6 +12,13 @@ case foo.txt in !(*.log)) echo "neg group: match" ;; *) echo "neg group: no" ;; 
 [[ afoob == a@(foo|bar)b ]] && echo "embedded: yes"
 [[ abazb == a@(foo|bar)b ]] || echo "embedded miss: yes"
 
+echo "-- escaping an extglob trigger character keeps it literal --"
+x="abc(def"
+echo "unescaped star-paren stays put (an unclosed group): ${x#*(}"
+echo "escaped star-paren strips instead:                  ${x#*\(}"
+y="a|b"
+echo "escaped pipe strips too:                            ${y#*\|}"
+
 echo "-- one option namespace, reached either way --"
 shopt -s nullglob
 shopt nullglob

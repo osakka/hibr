@@ -1442,8 +1442,7 @@ normal:
 		str *q = sb_get(s);
 		size_t i;
 		for (i = 0; i < b->n; i++) {
-			if (m->p[i] && (b->p[i] == '*' || b->p[i] == '?' ||
-					b->p[i] == '[' || b->p[i] == '\\'))
+			if (m->p[i] && strchr("*?[\\()|!@+", b->p[i]))
 				s_ch(q, '\\');
 			s_ch(q, b->p[i]);
 		}

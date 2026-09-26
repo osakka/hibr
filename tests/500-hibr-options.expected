@@ -15,6 +15,10 @@ neg: yes
 neg excludes: yes
 embedded: yes
 embedded miss: yes
+-- escaping an extglob trigger character keeps it literal --
+unescaped star-paren stays put (an unclosed group): abc(def
+escaped star-paren strips instead:                  def
+escaped pipe strips too:                            b
 -- one option namespace, reached either way --
 nullglob        on
 nullglob        off
