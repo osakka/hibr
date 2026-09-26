@@ -275,7 +275,8 @@ wallpick_draw() {
 	else
 		console pen "$DT_IDLE" "$DT_FACE"
 	fi
-	console put -p "w$id" "$applyrow" "$prevx" " Apply as Wallpaper "
+	t := str pad " Apply as Wallpaper " "$prevw"
+	console put -p "w$id" "$applyrow" "$prevx" "$t"
 	console pen "$DT_INK" "$DT_FACE"
 }
 
