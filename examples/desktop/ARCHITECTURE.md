@@ -65,9 +65,17 @@ with no change to input latency: `tests/desktop.py` and `tests/apps.py`,
 which set their own short `DT_TICK` for fast, deterministic runs, do not
 depend on the default at all and passed unchanged. An app that redraws
 itself only on a timer, not on `dt_want`, would now update less often while
-idle — Tasks already asks with `dt_want 500`; About does not yet, and still
-relies on being drawn every default tick to notice its own 3-second
-throttle has elapsed.
+idle — Tasks asks with `dt_want "$TK_SCANMS"`, tied to its own real refresh
+setting rather than a fixed guess (a flat `dt_want 500` here once forced
+the *whole* desktop to wake twice a second regardless of what Tasks' own
+setting said, which is most of why opening it used to cost far more than
+its own redraw ever needed to). About asks with `dt_want "$AB_SLOWMS"`
+too, but `dt_want` is a no-op once the ask is not shorter than `DT_TICK`
+itself (`[ "$1" -ge "$DT_TICK" ] && return 0`), and `AB_SLOWMS` (3000ms)
+is longer than the 2000ms default -- so under the default tick, About's
+own ask currently does nothing at all, and it still relies on being drawn
+every default tick to notice its own 3-second throttle has elapsed. That
+is harmless at the default tick, but would go stale under a longer one.
 
 `dt_draw` walks every open window bottom to top, drawing its face and letting
 its own `_draw` callback fill it in, then the menu bar and whatever floats

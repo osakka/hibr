@@ -210,6 +210,7 @@ tasks_scan() {
 			VmRSS:) rss=$v ;;
 			Uid:) uid=$v ;;
 			esac
+			[ -n "$name" ] && [ -n "$uid" ] && [ -n "$rss" ] && break
 		done < "/proc/$pid/status"
 		[ -z "$name" ] && continue
 		times := tasks_times "$pid" || continue
@@ -411,7 +412,7 @@ tasks_draw() {
 		spark := tasks_spark "$id" memh "$rightw"
 		console put -p "w$id" $((r + 1)) $((leftw + 2)) "$spark"
 	fi
-	dt_want 500
+	dt_want "$TK_SCANMS"
 }
 
 tasks_end() {
