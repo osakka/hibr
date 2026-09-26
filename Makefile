@@ -126,6 +126,14 @@ strip: $(BIN)
 check: all
 	tests/run.sh
 
+# What HIBR_VER and the desktop's own DT_VER should probably become next,
+# from what actually changed since the last release tag (or FROM, given
+# explicitly) -- see tools/next-version.sh's own comment for what decides
+# minor from major. Suggests; release.sh still does the real bump, with
+# its own gates (clean tree, CHANGELOG entry, passing tests) intact.
+next-version:
+	tools/next-version.sh $(FROM)
+
 install: all
 	install -d $(DESTDIR)$(PREFIX)/bin $(DESTDIR)$(MODDIR) $(DESTDIR)$(PREFIX)/include/hibr
 	install -m 755 $(BIN) $(DESTDIR)$(PREFIX)/bin/hibr
@@ -146,4 +154,4 @@ uninstall:
 clean:
 	rm -rf $(B)
 
-.PHONY: all clean strip check install uninstall FORCE
+.PHONY: all clean strip check next-version install uninstall FORCE

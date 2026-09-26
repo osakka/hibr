@@ -9,6 +9,10 @@
 #                                        a tag already pushed and synced
 #                                        to the public mirror
 #
+# `make next-version` (tools/next-version.sh) suggests what 0.22 and 1.0
+# above should probably be, from what actually changed since the last
+# tag -- this script still does the real bump, gates intact.
+#
 # Two steps, not one: the Homebrew formula's tarball URL has to point at
 # a tag github.com/osakka/hibr can actually serve, which only exists
 # after this repo's own tag is pushed and the mirror has synced from it
