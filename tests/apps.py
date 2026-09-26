@@ -231,8 +231,9 @@ out = subprocess.run([sx.HIBR, "-c", CPLOAD + "echo ${CP_PANE_LIST[*]}"],
                      capture_output=True, text=True).stdout.strip()
 ORDER = out.split()
 check("panes register and sort by title, not load order",
-      ORDER == ["app_shortcuts", "appearance", "behaviour", "control_strip",
-                "datetime", "shortcuts", "window_style"], out)
+      ORDER == ["app_shortcuts", "appearance", "ascii_wallpaper",
+                "behaviour", "control_strip", "datetime", "shortcuts",
+                "window_style"], out)
 
 PW = "20 58 2 2"
 PANEL = ("panel", PW)
@@ -246,6 +247,7 @@ CPANES = 'CP_PANEDIRS+=("%s")\ncp_panes' % CP
 R0, VALCOL = 3, 47
 LISTCOL = 5
 TITLE = {"app_shortcuts": "App Shortcuts", "appearance": "Appearance",
+         "ascii_wallpaper": "ASCII Art",
          "behaviour": "Behaviour", "control_strip": "Control Strip",
          "datetime": "Date & Time", "shortcuts": "Shortcuts",
          "window_style": "Window Style"}
@@ -261,7 +263,7 @@ def downs(name):
     return ORDER.index(name)
 
 
-def cprun(feed=(), also=(), extra=(), tz=None):
+def cprun(feed=(), also=(), extra=(), tz=None, env=None):
     """Run Control Panel from a config directory of its own.
 
     tests/screen.py gives the whole suite one shared $HOME, so without this
@@ -273,12 +275,15 @@ def cprun(feed=(), also=(), extra=(), tz=None):
 
     tz, if given, is exported before cp_panes loads the panes, so the Date
     & Time pane's own lookup is deterministic rather than whatever zone the
-    machine running the suite happens to be in.
+    machine running the suite happens to be in. env, if given, is real
+    process environment, the same as run()'s own -- for a pane like ASCII
+    Wallpaper that reads $HOME itself, rather than a setting this file's
+    own pre line could export.
     """
     d = tempfile.mkdtemp(prefix="hibr-cp-")
     tzline = "export TZ=%s\n" % tz if tz else ""
     sc = run(*PANEL, feed=feed, pre="export XDG_CONFIG_HOME=%s\n%s%s\n%s"
-             % (d, tzline, TICK, CPANES), also=also, extra=extra)
+             % (d, tzline, TICK, CPANES), also=also, extra=extra, env=env)
     shutil.rmtree(d, True)
     return sc
 
@@ -319,6 +324,59 @@ check("choosing one there applies it, the same as cycling would",
 sc = cprun(DOWN_APP + [b"\x1b[C", b"\x1b[B", b"\x1b[C"])
 check("the wallpaper glyph changes, and the desktop follows",
       sc.at(0, 78) != "·" and sc.at(23, 60) == "░", sc)
+
+# ASCII Wallpaper -- #2 -- browses for an image and previews it as ASCII
+# art, reusing files.hibr's own fb_scan/fb_go/fb_path for the directory
+# side of that rather than a picker built from scratch (the ticket's own
+# explicit constraint). Its own $HOME, so what it lists is known: a
+# non-image and the same 2x2 PNG fixture other img tests already use.
+AWHOME = tempfile.mkdtemp(prefix="hibr-aw-home-")
+shutil.copy(os.path.abspath("tests/img-2x2.png"),
+            os.path.join(AWHOME, "wall.png"))
+open(os.path.join(AWHOME, "notes.txt"), "w").write("hi\n")
+DOWN_AW = [b"\x1b[B"] * downs("ascii_wallpaper")
+
+sc = cprun(DOWN_AW + [b"\r"], env={"HOME": AWHOME}, extra=("files",))
+check("it lists the home directory, through files.hibr's own scan",
+      sc.find("wall.png") is not None and sc.find("notes.txt") is not None,
+      sc)
+check("nothing is selected yet, so there is no preview",
+      sc.find("Select a .png") is not None, sc)
+
+# fb_scan lists directories first, then files sorted -- with none here,
+# entries are 0 "..", 1 "notes.txt", 2 "wall.png".
+sc = cprun(DOWN_AW + [b"\r", b"\x1b[B"], env={"HOME": AWHOME},
+           extra=("files",))
+check("selecting the non-image leaves the preview cleared",
+      sc.find("Select a .png") is not None, sc)
+
+sc = cprun(DOWN_AW + [b"\r", b"\x1b[B", b"\x1b[B"], env={"HOME": AWHOME},
+           extra=("files",))
+check("selecting the .png shows an ASCII preview instead",
+      sc.find("Select a .png") is None, sc)
+
+# Applying is keyboard-reachable, not only a mouse click on the button --
+# enter on an already-previewed file, the same as everywhere else in
+# this desktop enter means "confirm this".
+# Not asserting on dt_note's own "Wallpaper set" appearing on screen
+# here: applying repaints the whole desktop as ASCII art in the same
+# frame Control Panel itself redraws in, and the screen model's own
+# simplified escape reconstruction ("it understands absolute cursor
+# moves, relative moves to the right, and the erase that starts a
+# full-screen program; everything else is skipped") cannot keep up with
+# that much of the screen changing in one frame. The saved config is
+# the real, reliable proof this worked.
+AWCONF = tempfile.mkdtemp(prefix="hibr-aw-conf-")
+run(*PANEL, feed=DOWN_AW + [b"\r", b"\x1b[B", b"\x1b[B", b"\r"],
+    env={"HOME": AWHOME, "XDG_CONFIG_HOME": AWCONF}, pre=CPANES,
+    extra=("files",))
+saved = os.path.join(AWCONF, "hibr", "desktop.hibr")
+text = open(saved).read() if os.path.exists(saved) else ""
+check("enter on a previewed file applies it, saved as the wallpaper",
+      ("DT_WALLIMG=%s/wall.png" % AWHOME) in text and
+      "DT_WALLASCII=1" in text, text)
+shutil.rmtree(AWHOME, True)
+shutil.rmtree(AWCONF, True)
 
 # Behaviour's own rows, in order: Refresh(0), Icons(1), Disk Icons(2),
 # Cursor(3), Cursor Blink(4), Window Shadow(5), Menu Shadow(6), Bar
@@ -1239,4 +1297,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(176)
+report(181)

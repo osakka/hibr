@@ -69,6 +69,7 @@ imgview_setwall() {
 		return 0
 	fi
 	DT_WALLIMG=$path
+	DT_WALLASCII=0
 	dt_save
 	dt_note "Wallpaper set"
 }

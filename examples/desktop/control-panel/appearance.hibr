@@ -56,7 +56,7 @@ cp_theme() {
 # DT_WALLIMG rather than leaving it set underneath a glyph that would never
 # actually show while an image wins in dt_wall.
 cp_set_theme() { cp_theme "$2" && cp_save; }
-cp_set_glyph() { DT_GLYPH=$2; DT_WALLIMG=; cp_save; }
+cp_set_glyph() { DT_GLYPH=$2; DT_WALLIMG=; DT_WALLASCII=0; cp_save; }
 
 appearance_rows() {
 	local w=$1 n=0

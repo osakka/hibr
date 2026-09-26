@@ -133,6 +133,13 @@ DT_GLYPH="${DT_GLYPH-·}"
 DT_WALLIMG="${DT_WALLIMG-}"
 DT_WALLTRIED=
 
+# Whether DT_WALLIMG draws as ASCII art (img draw's own -g) instead of
+# full colour -- #2. Meaningless with DT_WALLIMG empty, and cleared
+# wherever a full-colour wallpaper or a plain glyph is chosen instead,
+# so it never lingers as a stale flag a later, unrelated image or glyph
+# choice would otherwise silently inherit.
+DT_WALLASCII="${DT_WALLASCII-0}"
+
 # The cursor a new terminal starts with, until the program inside it asks
 # for one of its own with DECSCUSR -- block, underline or bar.
 DT_CURSOR="${DT_CURSOR-block}"
@@ -232,7 +239,7 @@ DT_TICK="${DT_TICK-2000}"
 # variable of its own kept names it with dt_keep.
 DT_CONF="${DT_CONF-${XDG_CONFIG_HOME:-$HOME/.config}/hibr/desktop.hibr}"
 DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
-	DT_WALLIMG
+	DT_WALLIMG DT_WALLASCII
 	DT_TICK DT_ICONS DT_DISKS DT_CURSOR DT_CURSOR_BLINK DT_SHADOW
 	DT_MSHADOW DT_BARSHADOW DT_DBLACTION DT_SHADOW_PCT CS_SIDE CS_Y
 	CS_COLLAPSED CS_LEN CS_SHADOW
@@ -500,8 +507,15 @@ dt_wall() {
 			DT_WALLTRIED=1
 			need img
 		fi
-		dt_has img && img draw "$DT_WALLIMG" 0 0 "$DT_ROWS" "$DT_COLS" &&
-			drawn=1
+		if dt_has img; then
+			if [ "$DT_WALLASCII" = 1 ]; then
+				img draw "$DT_WALLIMG" 0 0 "$DT_ROWS" "$DT_COLS" -g &&
+					drawn=1
+			else
+				img draw "$DT_WALLIMG" 0 0 "$DT_ROWS" "$DT_COLS" &&
+					drawn=1
+			fi
+		fi
 	fi
 	if [ -z "$drawn" ]; then
 		console pen "$DT_DOT" "$DT_WALL"
