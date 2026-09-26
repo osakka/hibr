@@ -14,7 +14,15 @@ app tasks "What is running, and a way to end one"
 
 command -v dt_app > /dev/null && dt_app tasks "Task Manager" 16 50 once "▤"
 
+# A small read-only window for one process's own details -- opened
+# directly on the row a right-click landed on, the same way Get Info
+# opens on a file, and hidden for the same reason theirs is: nothing
+# about it makes sense launched with no process to show.
+command -v dt_app > /dev/null && dt_app tdetail "Process Details" 11 56 \
+	"" "" fixed hidden
+
 declare -gA TK
+declare -gA TD
 declare -gA TK_PREV
 declare -gA TK_UIDNAME
 TK_OS=
@@ -446,10 +454,60 @@ tasks_click() {
 
 	top=${TK[$id]["top"]}
 	n=${TK[$id]["n"]}
-	[ "$r" -lt 1 ] && return 0
-	i=$((top + r - 1))
+	# r=1 is the header row (tasks_draw's own layout: header at pane row
+	# 1, the list starting at row 2) -- found while adding #53's context
+	# menu, since it selects the row a right-click landed on the same
+	# way this already should for a left one. Off by one before this:
+	# r=2, the first visible row, gave index top+1, not top+0, so every
+	# click here has been selecting one row below the one clicked.
+	[ "$r" -lt 2 ] && return 0
+	i=$((top + r - 2))
 	[ "$i" -ge "$n" ] && return 0
 	TK[$id]["sel"]=$i
+}
+
+# The actual window, given values already resolved -- shared by the menu
+# bar's own View Details, which reads them from the current selection
+# when the item is finally chosen, and the context menu's, which
+# captures them the moment the row is right-clicked so that a rescan
+# before the item is actually picked can never make it show a different
+# process. A point-in-time snapshot either way, the same as Get Info's,
+# not a live one: keeping it current would mean giving a second window
+# its own scan cadence for what is meant to be a quick glance, not a
+# second Task Manager.
+tasks_opendetails() {
+	local pid=$1 name=$2 owner=$3 cpu=$4 mem=$5 gid r c cmd
+
+	[ -z "$pid" ] && return 0
+	cmd := tasks_cmdline "$pid" || cmd=$name
+	r=$((DT_ROWS / 2 - 5))
+	c=$(((DT_COLS - 56) / 2))
+	gid := dt_new "Process Details" 11 56 "$r" "$c" tdetail
+	TD[$gid]["pid"]=$pid
+	TD[$gid]["name"]=$name
+	TD[$gid]["owner"]=$owner
+	TD[$gid]["cpu"]=$cpu
+	TD[$gid]["mem"]=$mem
+	TD[$gid]["cmd"]=$cmd
+}
+
+tasks_details() {
+	local id=$1 sel=${TK[$1]["sel"]}
+
+	tasks_opendetails "${TK[$id][$sel]["pid"]}" "${TK[$id][$sel]["name"]}" \
+		"${TK[$id][$sel]["owner"]}" "${TK[$id][$sel]["cpu"]}" \
+		"${TK[$id][$sel]["mem"]}"
+}
+
+# End Task by pid directly -- the context menu's own version of
+# tasks_end, for the same reason tasks_opendetails exists: a captured
+# pid cannot be made stale by a rescan between the right-click and the
+# item finally being chosen, where re-reading the selection could be.
+tasks_killpid() {
+	local pid=$1 sig=$2
+
+	[ -n "$pid" ] && kill "-$sig" "$pid" 2> /dev/null
+	return 0
 }
 
 # Set directly rather than through tasks_key: a menu item is not a key, and
@@ -468,6 +526,91 @@ tasks_menus() {
 	dt_sep
 	dt_item "End Task" x tasks_end "$DT_FOCUS" TERM
 	dt_item "End Task (force)" f tasks_end "$DT_FOCUS" KILL
+	dt_sep
+	dt_item "View Details" i tasks_details "$DT_FOCUS"
+}
+
+# A right-click selects the row under it first, the same as a left click
+# does, before the menu opens on it. _context is handed only the window
+# id, never the click position the way _click is -- MB_CY is the raw row
+# dt_context_open was given, still there when this runs.
+tasks_context() {
+	local id=$1 r sel none pid name owner cpu mem
+
+	# dt_ctxbuild calls this fresh every frame the menu stays open, not
+	# once at the click -- files_context gets away with that because it
+	# only reads a selection a real left click already set, never moves
+	# it. Selecting here too, the way this ticket asks, cannot run every
+	# frame the same way: a background rescan while the menu just sits
+	# open would reorder the list under it, and re-deriving the row from
+	# MB_CY again on the next rebuild could land on a different process
+	# than the one actually clicked. MB_CY itself does not change for as
+	# long as one open menu is the same menu, so it doubles as "have I
+	# already captured this one" -- select and snapshot once, on the
+	# frame it changes, and every later rebuild of the same menu just
+	# redraws what was already captured.
+	if [ "${TK[$id]["ctxrow"]}" != "$MB_CY" ]; then
+		r=$((MB_CY - DT[$id]["row"]))
+		tasks_click "$id" "$r"
+		sel=${TK[$id]["sel"]}
+		TK[$id]["ctxrow"]=$MB_CY
+		TK[$id]["ctxpid"]=${TK[$id][$sel]["pid"]}
+		TK[$id]["ctxname"]=${TK[$id][$sel]["name"]}
+		TK[$id]["ctxowner"]=${TK[$id][$sel]["owner"]}
+		TK[$id]["ctxcpu"]=${TK[$id][$sel]["cpu"]}
+		TK[$id]["ctxmem"]=${TK[$id][$sel]["mem"]}
+	fi
+	pid=${TK[$id]["ctxpid"]}
+	name=${TK[$id]["ctxname"]}
+	owner=${TK[$id]["ctxowner"]}
+	cpu=${TK[$id]["ctxcpu"]}
+	mem=${TK[$id]["ctxmem"]}
+	none=0
+	[ -z "$pid" ] && none=1
+	dt_menu "Task"
+	if [ "$none" = 1 ]; then
+		dt_dim "End Task"
+		dt_dim "End Task (force)"
+		dt_dim "View Details"
+	else
+		dt_item "End Task" x tasks_killpid "$pid" TERM
+		dt_item "End Task (force)" f tasks_killpid "$pid" KILL
+		dt_sep
+		dt_item "View Details" i tasks_opendetails "$pid" "$name" "$owner" \
+			"$cpu" "$mem"
+	fi
+}
+
+# Process Details -- read only, a snapshot tasks_details already took.
+tdetail_draw() {
+	local id=$1 w=$3 mem cmd
+
+	console pen "$DT_INK" "$DT_FACE"
+	console put -p "w$id" 1 2 "PID:    ${TD[$id]["pid"]}"
+	console put -p "w$id" 2 2 "Name:   ${TD[$id]["name"]}"
+	console put -p "w$id" 3 2 "Owner:  ${TD[$id]["owner"]}"
+	mem := tasks_human "${TD[$id]["mem"]}"
+	console put -p "w$id" 4 2 "CPU:    ${TD[$id]["cpu"]}%       Memory: $mem"
+	console pen "#718096" "$DT_FACE"
+	console put -p "w$id" 6 2 "Command:"
+	console pen "$DT_INK" "$DT_FACE"
+	cmd=${TD[$id]["cmd"]:0:$((w - 4))}
+	console put -p "w$id" 7 2 "$cmd"
+	console pen "#718096" "$DT_FACE"
+	console put -p "w$id" 9 2 "escape closes"
+}
+
+tdetail_key() {
+	local id=$1
+
+	case $2 in
+	escape) dt_del "$id"; return 0 ;;
+	esac
+	return 1
+}
+
+tdetail_close() {
+	unset "TD[$1]"
 }
 
 if [ -z "$DT_ROWS" ]; then

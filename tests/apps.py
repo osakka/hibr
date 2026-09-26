@@ -1145,6 +1145,74 @@ out = subprocess.run([sx.HIBR, "-c", TSORT], capture_output=True, text=True,
 check("sorting by CPU keeps each pid's own owner with it, not another's",
       out == "20:bob 10:alice 30:carol", out)
 
+# tasks_click's own row math -- found the same way, while adding #53's
+# context menu: row 1 is the header (tasks_draw draws it there), the
+# list starts at row 2, and the old "top + r - 1" gave index 1 for row
+# 2's own click -- one row below whatever was actually clicked, for
+# every left click there has ever been, not just the new right one.
+TCLICK = (
+    '. %s\n'
+    'TK[1]["n"]=3; TK[1]["top"]=0\n'
+    'TK[1][0]["pid"]=10; TK[1][1]["pid"]=20; TK[1][2]["pid"]=30\n'
+    'tasks_click 1 2; echo "row2=${TK[1]["sel"]}"\n'
+    'tasks_click 1 3; echo "row3=${TK[1]["sel"]}"\n'
+    'tasks_click 1 1; echo "row1=${TK[1]["sel"]}"\n'
+    % (appdir("tasks") + "/tasks.hibr")
+)
+out = subprocess.run([sx.HIBR, "-c", TCLICK], capture_output=True, text=True,
+                     env=dict(os.environ, DT_ROWS="1")).stdout
+check("clicking the first visible row selects index 0, not 1",
+      "row2=0" in out, out)
+check("the second visible row selects index 1",
+      "row3=1" in out, out)
+check("clicking the header row leaves the selection alone",
+      "row1=1" in out, out)
+
+# The context menu -- #53 -- selects the row under the click first, the
+# same as a left click already does, before it opens: right-clicking a
+# row not currently selected must show End Task and View Details for
+# that row, not whatever was selected before.
+sc = run(*TASKS, feed=[press(6, 10, 2)])
+check("right-clicking an unselected row selects it and opens the menu",
+      sc.find("End Task") is not None and
+      sc.find("End Task (force)") is not None and
+      sc.find("View Details") is not None, sc)
+
+# The row is captured once, on the frame the context menu first opens,
+# not re-derived every time it rebuilds -- found the hard way, against
+# the real process list: dt_ctxbuild calls tasks_context fresh every
+# frame the menu stays open, and re-deriving the clicked pid from the
+# click's row every single time meant a background rescan reordering
+# the list while the menu just sat there, unclicked, could make View
+# Details open on a different process than the one actually
+# right-clicked. Fixture data, not the real list, since the real one
+# reorders on its own schedule regardless of what a test wants to
+# hold still -- one capture, then a rescan simulated by changing the
+# fixture between two rebuilds of the same still-open menu.
+TCTX = (
+    '. %s\n'
+    'TK[1]["n"]=2; TK[1]["top"]=0\n'
+    'TK[1][0]["pid"]=10; TK[1][0]["name"]=a; TK[1][0]["owner"]=alice\n'
+    'TK[1][0]["cpu"]=1; TK[1][0]["mem"]=100\n'
+    'TK[1][1]["pid"]=20; TK[1][1]["name"]=b; TK[1][1]["owner"]=bob\n'
+    'TK[1][1]["cpu"]=2; TK[1][1]["mem"]=200\n'
+    'DT[1]["row"]=4\n'
+    'MB_CY=6; MB_CX=10\n'
+    'dt_menu() { :; }; dt_item() { :; }; dt_dim() { :; }; dt_sep() { :; }\n'
+    'tasks_context 1\n'
+    'echo "first=${TK[1]["ctxpid"]}"\n'
+    'TK[1][0]["pid"]=999\n'
+    'tasks_context 1\n'
+    'echo "second=${TK[1]["ctxpid"]}"\n'
+    % (appdir("tasks") + "/tasks.hibr")
+)
+out = subprocess.run([sx.HIBR, "-c", TCTX], capture_output=True, text=True,
+                     env=dict(os.environ, DT_ROWS="1")).stdout
+check("right-click selects row 0 (index under the click), pid 10",
+      "first=10" in out, out)
+check("a rescan while the same menu stays open does not change it",
+      "second=10" in out, out)
+
 # Two graphs at the bottom -- #52 -- CPU on the left, Mem on the right,
 # a percentage label above each and a sparkline below it. Not the
 # specific numbers or heights, the real machine's again, only that both
@@ -1171,4 +1239,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(170)
+report(176)
