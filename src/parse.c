@@ -492,7 +492,7 @@ node *p_cond(lex *l)
 				e++;
 			}
 			if (memchr(b, '$', (size_t)(e - b))) {
-				w = lx_sub(l, b, e);
+				w = lx_sub(l, b, e, 0);
 			} else if (e - b >= 2 && (*b == '\'' || *b == '"') &&
 				   e[-1] == *b) {
 				w = p_litw(l, b + 1, (size_t)(e - b - 2));
@@ -603,7 +603,7 @@ const char *p_param(lex *l, node *pm, const char *p, const char *e)
 				break;
 			p++;
 		}
-		pm->w = lx_sub(l, b, p);
+		pm->w = lx_sub(l, b, p, 0);
 	}
 	while (p < e && (*p == ' ' || *p == '\t' || *p == ','))
 		p++;

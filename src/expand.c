@@ -2320,7 +2320,7 @@ long ax_text(sh *s, const char *t)
 	lx_init(&l, s, t);
 	l.a = s->xa;
 	l.nb = 1;
-	w = lx_word(&l);
+	w = lx_word(&l, 0);
 	v = ax_run(s, w ? xone(s, w) : "");
 	ar_rel(s->xa, m);
 	return v;

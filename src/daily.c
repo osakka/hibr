@@ -412,7 +412,7 @@ char *pr_make(sh *s, const char *ps)
 	m = ar_mark(s->xa);
 	lx_init(&l, s, o.p);
 	l.nb = 1;
-	w = lx_word(&l);
+	w = lx_word(&l, 0);
 	r = w ? xs(xone(s, w)) : xs(o.p);
 	ar_rel(s->xa, m);
 	s_free(&o);

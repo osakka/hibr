@@ -203,6 +203,13 @@ went in the shell.
    `docs/adr/0016`.
 10. **`args` exits the script only at top level**; inside functions or `try` it
     returns 2.
+11. **A bare apostrophe in a `${...}` default/alternate/pattern's own text is
+    just a character, not a quote**, even inside an enclosing `"..."` where
+    that is already true for everything else. Real bash fails to parse
+    `echo "${FOO:-the machine's zone}"` too (confirmed against bash itself,
+    not assumed) — only dash gets it right — so accepting it costs nothing:
+    no script that runs in bash could have relied on the broken form. See
+    `tests/195-brace-apostrophe.t`.
 
 ## Traps already found — don't reintroduce them
 
@@ -854,6 +861,24 @@ went in the shell.
   desktop's own script-side gating (redraw only when something changes)
   is cheap -- the cost that mattered here was between the terminal and
   hibr's own input decoding, before any of hibr's own code ever ran.
+- **A bounded re-lex starts its own quote state from zero, not from what
+  called it.** `${VAR:-default text}`'s own default/alternate/pattern text
+  is re-lexed as its own word (`lx_sub` calling `lx_word` on just that
+  substring), and that inner call has never seen the enclosing `"..."` --
+  its own `q` starts at 0 regardless, which is why a bare apostrophe in it
+  was read as opening a real quote and the parse ran off the end hunting
+  for a close that was never coming. The fix is not "start q as 1 when the
+  outer context was quoted": that seed also reaches `lx_ch`'s own
+  quote-marking of every character parsed afterward, which is what tells
+  later code a glob character means a glob rather than literal text --
+  seeding `q` from the outer context fixed the apostrophe and silently
+  broke `${x%.tar.gz}`, `${x#*.}` and `${x/a/b}` for every value written
+  inside a `"..."`, each one returning its input completely unchanged.
+  The parameter that survives is narrower on purpose: it only silences the
+  one `'` check, `q` itself still starts at 0, and it is passed only where
+  a call already knows it is re-lexing text that began inside a quoted
+  string -- never to `lx_word`'s two ordinary top-level callers, which do
+  not exist inside anything.
 
 ## Testing discipline
 

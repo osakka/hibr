@@ -74,11 +74,11 @@ int ismeta(int c);
 int isname(const char *t);
 void lx_init(lex *l, sh *s, const char *src);
 int lx_next(lex *l);
-word *lx_word(lex *l);
+word *lx_word(lex *l, int dq);
 char *lx_span(lex *l);
 char *lx_arrow(lex *l);
-word *lx_sub(lex *l, const char *b, const char *e);
-void lx_brace1(lex *l, part *p, const char *b, const char *e);
+word *lx_sub(lex *l, const char *b, const char *e, int dq);
+void lx_brace1(lex *l, part *p, const char *b, const char *e, int dq);
 void lx_here(lex *l, redir *r, word *d);
 
 char *w_lit(word *w);

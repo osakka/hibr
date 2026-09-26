@@ -62,8 +62,14 @@ void lx_ch(lex *l, str *b, part ***t, int *cq, int q, int c)
 	s_ch(b, c);
 }
 
-/* Find the matching close delimiter, honouring quotes and nesting. */
-const char *sk_bal(lex *l, const char *p, char o, char c)
+/* Find the matching close delimiter, honouring quotes and nesting. dq is
+   nonzero when this scan is itself already inside a double-quoted
+   string: a single quote has no special meaning there at all, in bash
+   or here, so it must not be treated as opening one, unlike a bare
+   ${...} or a $(...)/$((...)), which always starts a fresh quoting
+   context of its own regardless of anything enclosing it -- every other
+   caller passes dq as 0. */
+const char *sk_bal(lex *l, const char *p, char o, char c, int dq)
 {
 	int d = 1;
 
@@ -72,7 +78,7 @@ const char *sk_bal(lex *l, const char *p, char o, char c)
 			p += 2;
 			continue;
 		}
-		if (*p == '\'') {
+		if (*p == '\'' && !dq) {
 			for (p++; p < l->e && *p != '\''; p++)
 				;
 			if (p >= l->e)
@@ -103,7 +109,7 @@ const char *sk_bal(lex *l, const char *p, char o, char c)
 char *lx_span(lex *l)
 {
 	const char *b = l->p;
-	const char *e = sk_bal(l, b, '(', ')');
+	const char *e = sk_bal(l, b, '(', ')', 0);
 	char *r;
 
 	if (!e)
@@ -132,8 +138,15 @@ char *lx_arrow(lex *l)
 	return ar_dup(l->a, b, (size_t)(p - b));
 }
 
-/* Lex a bounded substring as one word without blank splitting. */
-word *lx_sub(lex *l, const char *b, const char *e)
+/* Lex a bounded substring as one word without blank splitting. lit is
+   nonzero when the substring is itself already inside a double-quoted
+   string -- the ${...} default/subscript/pattern text this is almost
+   always called on -- so a bare apostrophe in it is just a character,
+   not a quote, the same reasoning sk_bal's own dq already has. It only
+   silences that one check in lx_word; a glob character in a pattern
+   still globs. Every other caller (an unrelated, always-fresh context:
+   a regex right-hand side, a typed parameter's default) passes lit as 0. */
+word *lx_sub(lex *l, const char *b, const char *e, int lit)
 {
 	lex t = *l;
 	word *w;
@@ -141,24 +154,29 @@ word *lx_sub(lex *l, const char *b, const char *e)
 	t.p = b;
 	t.e = e;
 	t.nb = 1;
-	w = lx_word(&t);
+	w = lx_word(&t, lit);
 	if (t.more)
 		l->more = 1;
 	return w;
 }
 
 /* Parse ${...}, keeping any modifier that follows an indirect name. */
-void lx_brace(lex *l, part *p, const char *b, const char *e)
+void lx_brace(lex *l, part *p, const char *b, const char *e, int lit)
 {
 	int ind = b + 1 < e && *b == '!';
 
-	lx_brace1(l, p, b, e);
+	lx_brace1(l, p, b, e, lit);
 	if (ind && p->op != V_KEYS && p->op != V_NAMES && p->op != V_IND)
 		p->op |= V_INDF;
 }
 
-/* Parse the interior of a brace expansion into a variable part. */
-void lx_brace1(lex *l, part *p, const char *b, const char *e)
+/* Parse the interior of a brace expansion into a variable part. lit is
+   the enclosing lx_dol's own quote state, threaded through to every
+   lx_sub call below -- the subscript, the default/alternate/pattern
+   text, and the search/replace halves of ${x/a/b} are all re-lexed as
+   their own word, and every one needs to know whether a bare apostrophe
+   in it is real or, like here, just text. */
+void lx_brace1(lex *l, part *p, const char *b, const char *e, int lit)
 {
 	const char *q = b;
 
@@ -199,7 +217,7 @@ void lx_brace1(lex *l, part *p, const char *b, const char *e)
 			return;
 		}
 		p->arr = 1;
-		ix = lx_sub(l, q + 1, r);
+		ix = lx_sub(l, q + 1, r, lit);
 		if (!ix)
 			ix = ar_alloc(l->a, sizeof *ix);
 		*it = ix;
@@ -229,7 +247,7 @@ void lx_brace1(lex *l, part *p, const char *b, const char *e)
 	if (*q == ':') {
 		if (q + 1 >= e || !strchr("-=?+", q[1])) {
 			p->op = V_SUBSTR;
-			p->arg = lx_sub(l, q + 1, e);
+			p->arg = lx_sub(l, q + 1, e, lit);
 			return;
 		}
 		p->col = 1;
@@ -318,10 +336,10 @@ void lx_brace1(lex *l, part *p, const char *b, const char *e)
 			if (*r == '/')
 				break;
 		}
-		p->arg = lx_sub(l, q, r < e ? r : e);
+		p->arg = lx_sub(l, q, r < e ? r : e, lit);
 		if (!p->arg)
 			p->arg = ar_alloc(l->a, sizeof *p->arg);
-		p->arg->nx = r < e ? lx_sub(l, r + 1, e) : 0;
+		p->arg->nx = r < e ? lx_sub(l, r + 1, e, lit) : 0;
 		return;
 	}
 	default:
@@ -329,7 +347,7 @@ void lx_brace1(lex *l, part *p, const char *b, const char *e)
 		l->err = 1;
 		return;
 	}
-	p->arg = lx_sub(l, q, e);
+	p->arg = lx_sub(l, q, e, lit);
 }
 
 /* Parse a dollar or backquote expansion into a part. */
@@ -381,7 +399,7 @@ part *lx_dol(lex *l, int q)
 	c = *l->p;
 	if (c == '(') {
 		b = l->p + 1;
-		e = sk_bal(l, b, '(', ')');
+		e = sk_bal(l, b, '(', ')', 0);
 		if (!e)
 			return 0;
 		l->p = e + 1;
@@ -398,11 +416,11 @@ part *lx_dol(lex *l, int q)
 	}
 	if (c == '{') {
 		b = l->p + 1;
-		e = sk_bal(l, b, '{', '}');
+		e = sk_bal(l, b, '{', '}', q);
 		if (!e)
 			return 0;
 		l->p = e + 1;
-		lx_brace(l, p, b, e);
+		lx_brace(l, p, b, e, q);
 		return p;
 	}
 	if (isalpha(c) || c == '_') {
@@ -427,8 +445,16 @@ part *lx_dol(lex *l, int q)
 	return p;
 }
 
-/* Read one shell word, resolving quotes into parts. */
-word *lx_word(lex *l)
+/* Read one shell word, resolving quotes into parts. lit is lx_sub's own
+   way of saying this text (a ${...} default and the like) was already
+   found inside a double-quoted string, so a bare apostrophe in it is
+   just a character, not a quote -- the same as it would not be for the
+   rest of that same string. It only silences that one check: q itself
+   still starts at 0 and every character is still appended unquoted
+   unless something in here quotes it, so a glob character in a pattern
+   still means a glob, not literal text. Every ordinary top-level word
+   passes lit as 0, exactly as this behaved before the parameter existed. */
+word *lx_word(lex *l, int lit)
 {
 	str b;
 	part *h = 0, **t = &h, *x;
@@ -444,7 +470,7 @@ word *lx_word(lex *l)
 			lx_flush(l, &b, &t, cq);
 			l->p += 2;
 			bb = l->p;
-			ee = sk_bal(l, bb, '(', ')');
+			ee = sk_bal(l, bb, '(', ')', 0);
 			if (!ee)
 				break;
 			x = ar_alloc(l->a, sizeof *x);
@@ -464,7 +490,7 @@ word *lx_word(lex *l)
 		if (!q && !l->nb && l->p + 1 < l->e && l->p[1] == '(' &&
 		    (c == '?' || c == '*' || c == '+' || c == '@' ||
 		     c == '!')) {
-			const char *ee = sk_bal(l, l->p + 2, '(', ')');
+			const char *ee = sk_bal(l, l->p + 2, '(', ')', 0);
 			if (ee) {
 				lg(HIBR_LTRC, "extended pattern group %.*s",
 				   (int)(ee - l->p + 1), l->p);
@@ -476,7 +502,7 @@ word *lx_word(lex *l)
 		}
 		if (!q && !l->nb && (c == ' ' || c == '\t' || ismeta(c)))
 			break;
-		if (c == '\'' && !q) {
+		if (c == '\'' && !q && !lit) {
 			l->p++;
 			seen = 1;
 			while (l->p < l->e && *l->p != '\'')
@@ -821,8 +847,9 @@ int lx_next(lex *l)
 		return l->tk = T_SEMI;
 	}
 	if (c == '(' && l->p + 1 < l->e && l->p[1] == '(') {
-		const char *outer = sk_bal(l, l->p + 1, '(', ')');
-		const char *inner = outer ? sk_bal(l, l->p + 2, '(', ')') : 0;
+		const char *outer = sk_bal(l, l->p + 1, '(', ')', 0);
+		const char *inner = outer ?
+			sk_bal(l, l->p + 2, '(', ')', 0) : 0;
 		if (outer && inner && inner + 1 == outer) {
 			word *w = ar_alloc(l->a, sizeof *w);
 			part *pp = ar_alloc(l->a, sizeof *pp);
@@ -900,13 +927,13 @@ int lx_next(lex *l)
 		}
 	}
 	if ((c == '<' || c == '>') && l->p + 1 < l->e && l->p[1] == '(') {
-		l->w = lx_word(l);
+		l->w = lx_word(l, 0);
 		if (l->w)
 			return l->tk = T_WORD;
 	}
 	if (c == '<' || c == '>')
 		return lx_redir(l);
-	l->w = lx_word(l);
+	l->w = lx_word(l, 0);
 	if (!l->w) {
 		lg(HIBR_LERR, "unexpected character '%c'", c);
 		l->err = 1;
