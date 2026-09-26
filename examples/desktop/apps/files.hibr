@@ -43,6 +43,11 @@ FILES_VIEWS=(list details icons)
 FILES_TILE=12
 FB_PATHS=()
 
+# What a directory never shown before opens as -- Control Panel's own
+# setting (behaviour.hibr), kept the plain way a single scalar is.
+FB_DEFAULTVIEW="${FB_DEFAULTVIEW-list}"
+command -v dt_keep > /dev/null && dt_keep FB_DEFAULTVIEW
+
 # Which view a directory was last shown in, kept across windows and across
 # restarts -- its own small file, not the desktop's DT_CONF, since it is
 # the browser's own concern and nothing else reads it. One assignment per
@@ -327,7 +332,7 @@ fb_clamp() {
 
 # The view a directory was last shown in, or the default.
 fb_dirview() {
-	ret "${FB_VIEWS["$1"]:-list}"
+	ret "${FB_VIEWS["$1"]:-$FB_DEFAULTVIEW}"
 }
 
 # Remember which view a directory is shown in, and keep it. Written

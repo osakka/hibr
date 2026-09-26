@@ -359,6 +359,18 @@ check("About Refresh only appears once About hibr itself is loaded",
       sc.find("About Refresh") is not None and
       sc.find("3000 ms") is not None, sc)
 
+# Default File View -- #50 -- only shows once Files itself is loaded, the
+# same rule About Refresh follows above, and only that pane's own row
+# order changes: nothing else about it does.
+sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 9, extra=("files",))
+check("Default File View only appears once Files itself is loaded, at list",
+      sc.find("Default File View") is not None and
+      "list" in sc.row(sc.find("Default File View")[0]), sc)
+sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 9 + [b"\x1b[C"],
+           extra=("files",))
+check("and cycles through the other views",
+      "details" in sc.row(sc.find("Default File View")[0]), sc)
+
 # Date & Time is a custom pane -- a body of its own, not rows -- proving
 # that shape rather than the row-list one every other pane above uses.
 # TZ is pinned so the coordinate is deterministic regardless of where the
@@ -785,6 +797,16 @@ shutil.rmtree(VA, True)
 shutil.rmtree(VB, True)
 shutil.rmtree(VSTATE, True)
 
+# #50: that plain default is Control Panel's own FB_DEFAULTVIEW, not a
+# constant -- changing it changes what a directory nobody has shown
+# before opens as.
+VC = tempfile.mkdtemp(prefix="hibr-views-c-")
+open(os.path.join(VC, "f.txt"), "w").close()
+sc = run("files", "12 40 2 2", pre="FB_DEFAULTVIEW=icons\nFB_DIR=%s" % VC)
+check("changing the default view changes what an untouched directory opens as",
+      "icons" in sc.row(12), sc)
+shutil.rmtree(VC, True)
+
 TWO = [("Files", "12 34 2 40", "files")]
 # The right-hand window goes into alpha/ with two presses, then file00.txt
 # is dragged across from the left-hand one and let go over it.
@@ -1044,4 +1066,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(152)
+report(155)

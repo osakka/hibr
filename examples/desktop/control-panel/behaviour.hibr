@@ -14,6 +14,7 @@ cp_set_tick() { DT_TICK=$2; cp_save; }
 cp_set_cursor() { DT_CURSOR=$2; cp_save; }
 cp_set_about() { AB_SLOWMS=$2; cp_save; }
 cp_set_dblaction() { DT_DBLACTION=$2; cp_save; }
+cp_set_fileview() { FB_DEFAULTVIEW=$2; cp_save; }
 
 # The mounted disks among the desktop icons, or just Home and the trash.
 cp_icons() {
@@ -134,6 +135,11 @@ behaviour_rows() {
 		[ "$DT_TERMBAR" = 1 ] && CP[$w][$n]["val"]=on
 		CP[$w][$n]["key"]=termbar; n=$((n + 1))
 	fi
+	if [ "${#FILES_VIEWS[@]}" -gt 0 ]; then
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Default File View"
+		CP[$w][$n]["val"]="${FB_DEFAULTVIEW:-list}"; CP[$w][$n]["key"]=fileview
+		n=$((n + 1))
+	fi
 	ret "$n"
 }
 
@@ -156,6 +162,8 @@ behaviour_do() {
 	dblaction) v := cp_next "$DT_DBLACTION" "$dir" "${CP_DBLACTIONS[@]}"
 		DT_DBLACTION=$v ;;
 	termbar) cp_termbar ;;
+	fileview) v := cp_next "${FB_DEFAULTVIEW:-list}" "$dir" "${FILES_VIEWS[@]}"
+		FB_DEFAULTVIEW=$v ;;
 	esac
 	cp_save
 }
@@ -169,5 +177,6 @@ behaviour_drop() {
 	about) dt_droplist "$w" "$r" "$c" cp_set_about "${CP_ABTICKS[@]}" ;;
 	dblaction) dt_droplist "$w" "$r" "$c" cp_set_dblaction \
 		"${CP_DBLACTIONS[@]}" ;;
+	fileview) dt_droplist "$w" "$r" "$c" cp_set_fileview "${FILES_VIEWS[@]}" ;;
 	esac
 }
