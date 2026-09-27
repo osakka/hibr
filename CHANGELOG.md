@@ -1,6 +1,8 @@
 # Changelog
 
-## 1.0 (desktop 0.2)
+## 1.0
+
+Desktop moves to **0.2** alongside this release.
 
 **A real colour preview for the Wallpaper Control Panel pane**, drawn
 straight into its own window rather than a grayscale ASCII render
