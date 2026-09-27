@@ -100,7 +100,7 @@ int hd_modes(int tid, struct hd_cli *cn, str *out)
 
 	if (!cn->primed || alt != cn->alt)
 		s_cat(out, alt ? "\033[?1049h" : "\033[?1049l");
-	if (!cn->primed || mmode != cn->mmode || sgr != cn->msgr) {
+	if (!cn->primed || mmode != cn->mmode) {
 		s_cat(out, "\033[?1003l\033[?1002l\033[?1000l\033[?1006l");
 		if (mmode == 1000)
 			s_cat(out, "\033[?1000h");
@@ -108,7 +108,13 @@ int hd_modes(int tid, struct hd_cli *cn, str *out)
 			s_cat(out, "\033[?1002h");
 		else if (mmode == 1003)
 			s_cat(out, "\033[?1003h");
-		if (mmode && sgr)
+		/* Always SGR on the client's own terminal, regardless of
+		   whether the program asked for it: that is what lets
+		   mtrans's own parser recognise every report the same way.
+		   A program that never asked for SGR still gets one in that
+		   form -- mrewrite re-encodes it back to what it did ask
+		   for before it reaches the pty. */
+		if (mmode)
 			s_cat(out, "\033[?1006h");
 	}
 	if (!cn->primed || bpaste != cn->bpaste)
@@ -173,22 +179,36 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 	}
 }
 
-/* Render and send every attached client its own rectangle. A client whose
-   send fails is dropped, the same as a failed mirror used to be. */
-void hd_rensend(vec *cls, int tid)
+/* Render and send one client its own rectangle; drop it from the list on a
+   failed send, the same as a failed mirror used to be. This is also what a
+   just-attached client gets immediately, on its own, before anything new
+   has come from the pty to render -- a program that does not react to its
+   own SIGWINCH (cat, say, unlike a shell redrawing its prompt) would
+   otherwise leave a newly attached client seeing nothing at all until the
+   program next writes something on its own, which for a quiet session may
+   be never. */
+void hd_rensend1(vec *cls, struct hd_cli *cn, int tid)
 {
-	size_t i;
 	str out;
 
 	s_init(&out);
+	hd_render(tid, cn, &out);
+	if (!hd_send(cn->fd, HD_DATA, out.p, out.n))
+		hd_cdrop(cls, cn->fd);
+	s_free(&out);
+}
+
+/* Render and send every attached client its own rectangle. */
+void hd_rensend(vec *cls, int tid)
+{
+	size_t i;
+
 	for (i = 0; i < cls->n; ) {
 		struct hd_cli *cn = cls->p[i];
+		size_t before = cls->n;
 
-		hd_render(tid, cn, &out);
-		if (!hd_send(cn->fd, HD_DATA, out.p, out.n))
-			hd_cdrop(cls, cn->fd);
-		else
+		hd_rensend1(cls, cn, tid);
+		if (cls->n == before)
 			i++;
 	}
-	s_free(&out);
 }

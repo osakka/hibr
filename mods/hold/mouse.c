@@ -3,10 +3,41 @@
 #include "hd.h"
 #include <stdlib.h>
 
+/* A legacy (pre-SGR) X10 report: \e[M then three raw bytes, button+32,
+   column+32, row+32. There is no release-with-a-button in this encoding --
+   only ever "released", button 3, regardless of which one -- and a
+   position past 223 cannot be represented at all, so it saturates there
+   instead of wrapping into some other byte's meaning. This is the
+   protocol's own limit, not a shortcut: a program that never asked for SGR
+   could not have told the difference between a real column 223 and a
+   wrapped one either. */
+void hd_mlegacy(str *out, long b, long x, long y)
+{
+	if (b > 223)
+		b = 223;
+	if (x < 1)
+		x = 1;
+	if (x > 223)
+		x = 223;
+	if (y < 1)
+		y = 1;
+	if (y > 223)
+		y = 223;
+	s_cat(out, "\033[M");
+	s_ch(out, (int)b + 32);
+	s_ch(out, (int)x + 32);
+	s_ch(out, (int)y + 32);
+}
+
 /* Rewrite one complete SGR mouse report -- \e[<Pb;Px;PyM or m, buffered
    whole in cn->mbuf including its own terminator -- by this client's own
    offset, and append the result. Pb (the button/modifier code) passes
    through unchanged; only the position is this client's own to translate.
+   The client's own terminal is always told to use SGR (render.c's own
+   hd_modes sees to that) regardless of what the program on the pty asked
+   for, so mtrans only ever has this one form to recognise -- but the
+   program still has to receive whatever form it did ask for, so this
+   re-encodes to legacy here if that is what cn->msgr says it wants.
    Malformed input cannot reach here: mtrans only calls this once it has
    seen digits, ';' and a terminator and nothing else since "\e[<". */
 void hd_mrewrite(struct hd_cli *cn, str *out)
@@ -22,12 +53,18 @@ void hd_mrewrite(struct hd_cli *cn, str *out)
 	if (*p == ';')
 		p++;
 	y = strtol(p, (char **)&p, 10);
+	x += cn->col;
+	y += cn->row;
+	if (!cn->msgr) {
+		hd_mlegacy(out, term == 'm' ? 3 : b, x, y);
+		return;
+	}
 	s_cat(out, "\033[<");
 	s_num(out, b);
 	s_ch(out, ';');
-	s_num(out, x + cn->col);
+	s_num(out, x);
 	s_ch(out, ';');
-	s_num(out, y + cn->row);
+	s_num(out, y);
 	s_ch(out, term);
 }
 
@@ -99,6 +136,9 @@ void hd_mtrans(struct hd_cli *cn, const char *p, size_t n, str *out)
 					cn->mst = 0;
 				} else if ((c >= '0' && c <= '9') ||
 					   c == ';') {
+					/* 32 is a real margin, not a guess:
+					   the longest a genuine report gets
+					   is "\e[<223;9999;9999M", 18 bytes. */
 					if (cn->mbuf.n < 32) {
 						s_ch(&cn->mbuf, (int)c);
 					} else {

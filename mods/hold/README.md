@@ -65,12 +65,14 @@ their own.
   held program that could not be hung up would outlive its own terminal.
 - **Nothing is lost while detached.** What the program writes while nobody
   is attached is read and dropped, or the pty would fill and stop it.
-- **Reattaching repaints.** The server sends `SIGWINCH` to the program's
-  foreground on every attach, even when the size has not changed. A
-  full-screen program redraws on that; the console re-asserts the alternate
-  screen and mouse mode first, because the new terminal has never seen them.
-  A plain shell only redraws its prompt, since nothing keeps a copy of the
-  screen.
+- **Reattaching repaints.** A newly attached client is rendered at once,
+  brought to the session's actual mode state and sent its own rectangle's
+  current content, whether or not the program does anything at all -- a
+  program that never reacts to `SIGWINCH` (`cat`, unlike a shell redrawing
+  its prompt) would otherwise leave it seeing nothing. The server still
+  sends `SIGWINCH` to the program's foreground on every attach, even when
+  the size has not changed, for whatever a full-screen program does with it
+  beyond what hold already sent.
 - **Detaching gives the terminal back clean.** The alternate screen, a hidden
   cursor, every mouse mode and bracketed paste are all turned off in the
   terminal being left, because the program still thinks they are on.
@@ -92,7 +94,7 @@ with `loginctl enable-linger` there.
 | `wire.c` | the socket directory, names, and framing: a type byte, a length, the bytes |
 | `srv.c` | the server: the program's pty, the listening socket, any number of attached clients, their union size |
 | `render.c` | one client's own rectangle of the emulator's grid, as a full repaint of escape sequences |
-| `mouse.c` | a client's own SGR mouse report, rewritten by its own offset before it reaches the pty |
+| `mouse.c` | a client's own SGR mouse report, rewritten by its own offset and re-encoded to legacy if that is what the program asked for |
 | `cli.c` | the client: raw mode, the relay, ctrl-\\, and giving the terminal back |
 | `hold.c` | the builtin, and starting a server |
 
@@ -105,11 +107,14 @@ shell's variables still set, the program's status coming back, a second
 attach taking over, `-m` joining alongside instead, the pty sized to the
 union of every attached client, one client's own rectangle showing content
 the other's does not, the alternate screen reaching an attaching client on
-entry but not again once nothing has changed, and a client's own mouse
-click at its own local column reaching the program at that column plus its
-offset. `tests/desktop.py` holds a whole desktop, detaches it, reattaches
-from a new terminal and checks the full frame is drawn again. Both are
-clean under ASan and UBSan.
+entry but not again once nothing has changed, a just-attached client seeing
+its own mode state and content at once even when the program never reacts
+to `SIGWINCH`, and a client's own mouse click at its own local column
+reaching the program at that column plus its offset -- rewritten to
+whichever encoding the program actually asked for, legacy included.
+`tests/desktop.py` holds a whole desktop, detaches it, reattaches from a
+new terminal and checks the full frame is drawn again. Both are clean
+under ASan and UBSan.
 
 ## What it does not do
 

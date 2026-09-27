@@ -196,21 +196,47 @@ echo "not resent once nothing changed: $(printf '%s' "$o2" | cat -v | grep -Fc '
 hold kill t9
 pty close $a
 
-echo "--- a client's own mouse report is translated by its offset"
-# The held program echoes raw bytes back (cat -v); its own cursor starts at
-# column 0, so client a, at offset 0, is what shows what the program itself
-# received. Client b, at column offset 40, is the one clicking, at its own
-# local column 5 -- the program has to see column 45, not 5.
+echo "--- a just-attached client is rendered at once, program or no program"
+# cat -v is the vehicle on purpose: unlike a shell, it never reacts to its
+# own SIGWINCH, so a client attaching to it gets nothing at all unless hold
+# itself sends a first frame rather than waiting on the program to redraw.
 hold new -d t10 /bin/sh -c 'stty raw -echo; printf "\033[?1002h\033[?1006h"; cat -v'
 a := pty spawn -r 5 -c 100 $H -c "$L; hold attach t10; echo \"back rc=\$?\""
 sleep 0.6
 b := pty spawn -r 5 -c 60 $H -c "$L; hold attach -m t10 0 40; echo \"back rc=\$?\""
 sleep 0.8
+ob1 := pty drain $b 1500
+echo "b got its mode escapes immediately, unprompted: $(printf '%s' "$ob1" | cat -v | grep -Fc '^[[?1006h')"
+
+echo "--- a client's own mouse report is translated by its offset"
+# The held program echoes raw bytes back (cat -v); its own cursor starts at
+# column 0, so client a, at offset 0, is what shows what the program itself
+# received. Client b, at column offset 40, is the one clicking, at its own
+# local column 5 -- the program has to see column 45, not 5.
 pty write $b $'\033[<0;5;3M'
 sleep 1.0
 oa := pty drain $a 2000
-echo "b's local column 5 reaches the program as column 45: $(printf '%s' "$oa" | cat -v | grep -o '\^\[\[<[0-9;]*M')"
+echo "b's local column 5 reaches the program as column 45: $(printf '%s' "$oa" | cat -v | grep -Fc '^[[<0;45;3M')"
 hold kill t10
+pty close $a
+pty close $b
+
+echo "--- re-encoded to legacy for a program that never asked for SGR"
+# Same shape, but the program only enables 1000 (the "old encoding" case
+# 760-term.t also covers) -- b's own terminal is still told to use SGR
+# (that is what mtrans can parse), but the program has to receive what it
+# actually asked for: legacy X10, \e[M + three raw bytes, button+32,
+# column+32, row+32. 'M' is 0x4D = 77 = 45+32; '#' is 0x23 = 35 = 3+32.
+hold new -d t11 /bin/sh -c 'stty raw -echo; printf "\033[?1000h"; cat -v'
+a := pty spawn -r 5 -c 100 $H -c "$L; hold attach t11; echo \"back rc=\$?\""
+sleep 0.6
+b := pty spawn -r 5 -c 60 $H -c "$L; hold attach -m t11 0 40; echo \"back rc=\$?\""
+sleep 0.8
+pty write $b $'\033[<0;5;3M'
+sleep 1.0
+oa2 := pty drain $a 2000
+echo "re-encoded to legacy, still at column 45: $(printf '%s' "$oa2" | cat -v | grep -Fc '^[[M M#')"
+hold kill t11
 pty close $a
 pty close $b
 

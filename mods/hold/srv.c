@@ -156,10 +156,13 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit)
 		}
 		v_add(cls, cn);
 		hd_union(cls, id, tid);
-		hd_poke(m);
 		lg(HIBR_LDBG, "hold: attached at %d,%d size %dx%d (%lu now)",
 		   cn->row, cn->col, cn->rows, cn->cols,
 		   (unsigned long)cls->n);
+		/* cn may be freed by a failed send below -- nothing after
+		   this point may still read it. */
+		hd_rensend1(cls, cn, tid);
+		hd_poke(m);
 		s_free(&in);
 		return;
 	case HD_DETACH:

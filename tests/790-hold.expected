@@ -45,8 +45,12 @@ b (columns 40-79) sees the marker: 1
 --- mode state (alt screen here) is sent on change, not every frame
 alt screen entered reaches the client: 1
 not resent once nothing changed: 0
+--- a just-attached client is rendered at once, program or no program
+b got its mode escapes immediately, unprompted: 1
 --- a client's own mouse report is translated by its offset
-b's local column 5 reaches the program as column 45: ^[[<0;45;3M
+b's local column 5 reaches the program as column 45: 1
+--- re-encoded to legacy for a program that never asked for SGR
+re-encoded to legacy, still at column 45: 1
 --- a program in a session knows which, and can detach itself
 HIBR_HOLD names t4
 detach outside a session: 2
