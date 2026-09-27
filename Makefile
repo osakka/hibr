@@ -75,7 +75,7 @@ $(B)/mods/prompt.so: $(PROMPT_SRC) include/hibr.h mods/prompt/pr.h | $(B)/mods
 $(B)/mods/pty.so: $(PTY_SRC) include/hibr.h mods/pty/tt.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(PTY_SRC)
 
-$(B)/mods/term.so: $(TERM_SRC) include/hibr.h mods/term/tm.h mods/pty.h mods/display.h | $(B)/mods
+$(B)/mods/term.so: $(TERM_SRC) include/hibr.h mods/term/tm.h mods/pty.h mods/display.h mods/term.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(TERM_SRC)
 
 $(B)/mods/hold.so: $(HOLD_SRC) include/hibr.h mods/hold/hd.h mods/pty.h | $(B)/mods

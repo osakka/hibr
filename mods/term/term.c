@@ -123,6 +123,9 @@ int m_term(sh *s, int ac, char **av)
 		int row, col, h, w, curon, n = ac, i;
 		int prow = 0, pcol = 0, ph = 0, pw = 0;
 
+		if (!tm_dp)
+			tm_dp = (const dp_api *)hibr_require(s, "display",
+						      DP_API_VER);
 		if (!tm_dp) {
 			lg(HIBR_LERR, "term draw: no display");
 			return HIBR_FAIL;
@@ -363,7 +366,11 @@ int m_term(sh *s, int ac, char **av)
 	return HIBR_FAIL;
 }
 
-/* Find the pty and the display this needs to do anything at all. */
+/* Find the pty this needs to do anything at all.  The display is not
+   required here: a server-side user of the "terminal" interface (hold, for
+   its own union-of-viewports emulator) never draws anywhere and must not
+   drag console in just by loading term -- so `term draw` finds its own
+   display lazily, on first use, instead. */
 int tm_ini(sh *s)
 {
 	tm_pty = (const py_api *)hibr_require(s, "pty", PY_API_VER);
@@ -371,10 +378,7 @@ int tm_ini(sh *s)
 		lg(HIBR_LERR, "term: needs the pty module");
 		return HIBR_FAIL;
 	}
-	tm_dp = (const dp_api *)hibr_require(s, "display", DP_API_VER);
-	if (!tm_dp)
-		lg(HIBR_LWRN, "term: no display yet; term draw will fail");
-	return hibr_provide(s, "terminal", 1u, (void *)&m_term);
+	return hibr_provide(s, "terminal", TM_API_VER, (void *)tm_apiget());
 }
 
 /* Close every terminal and the programs behind them. */
@@ -395,6 +399,6 @@ const hibr_bi term_bi[] = {
 	HIBR_BI_END
 };
 
-HIBR_MODULE_P("term", "0.21",
+HIBR_MODULE_P("term", "0.22",
 	      "a terminal emulator: a program's screen as cells",
 	      term_bi, tm_ini, tm_fini, "terminal");

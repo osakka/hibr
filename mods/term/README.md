@@ -10,8 +10,14 @@ colours and does not know it is in a window.
 It stands on two interfaces and implements neither itself.
 [`mods/pty/`](../pty/README.md) opens the pseudo terminal and runs the
 program, offered as `mods/pty.h`, and the display (`console`, through
-`mods/display.h`) is what `term draw` paints into. It offers `"terminal"`, so
-`need terminal` finds it unloaded.
+`mods/display.h`) is what `term draw` paints into -- found lazily, on
+`draw`'s own first use, not at load time, so a caller that never draws
+anywhere never drags console in. It offers `"terminal"` itself, through
+`mods/term.h`: a terminal emulator addressed by id, fed bytes and queried by
+cell, with nothing drawn anywhere and no pty of its own. `hold` is the first
+user of this, for its own emulator over a multi-monitor session's virtual
+space; the shell-level builtin below is a second, script-facing user of the
+same underlying grid, not the interface itself.
 
 | file | role |
 |---|---|
@@ -21,6 +27,7 @@ program, offered as `mods/pty.h`, and the display (`console`, through
 | `vt.c` | the escape parser: CSI, SGR in 16, 256 and 24-bit colour, OSC titles, the alternate screen, mouse and paste modes, and replies to status queries |
 | `draw.c` | blitting the grid into a rectangle through the display interface |
 | `key.c` | turning a decoded key name (`up`, `ctrl-c`, `f5`) back into the bytes a program expects, and a mouse event into the report it asked for |
+| `api.c` | the `"terminal"` interface itself: an emulator addressed by id, for a module rather than a script |
 | `term.c` | the builtin and the module's life cycle |
 
 ## The builtin

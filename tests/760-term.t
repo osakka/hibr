@@ -2,15 +2,13 @@
 #
 # Recorded, and in shell rather than Python, because the module makes its own
 # terminal -- the same reason tests/750-pty.t can be here. Only `term draw`
-# needs a display, and that is covered through a pty in tests/apps.py -- but
-# term's own init still asks for one eagerly (to log a warning if there is
-# none), so console.so is loaded too, the same as pty.so and term.so, rather
-# than falling through to whatever "display" provider happens to be
-# installed: that's what makes an in-progress DP_API_VER bump show up here
-# as a spurious version-mismatch warning until the install catches up, for
-# a test that never touches a display at all.
+# needs a display, found lazily on its own first use rather than by term's
+# init -- so a server-side user of the "terminal" interface (hold, for its
+# own emulator) never drags console in just by loading term. None of this
+# file's own commands ever call `term draw`, so no display module is loaded
+# here at all; `term draw` itself is covered through a pty in tests/apps.py,
+# where a real display is loaded.
 
-mod load ./build/mods/console.so
 mod load ./build/mods/pty.so
 mod load ./build/mods/term.so
 H=$PWD/build/hibr

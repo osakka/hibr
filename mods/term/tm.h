@@ -4,6 +4,7 @@
 #include "hibr.h"
 #include "../display.h"
 #include "../pty.h"
+#include "../term.h"
 
 typedef struct tm_cell tm_cell;
 typedef struct tm_line tm_line;
@@ -85,5 +86,10 @@ int tm_keybytes(const char *name, str *out);
 int tm_mouse(tm_t *t, const char *act, const char *btn, int r, int c,
 	     str *out);
 const char *tm_mname(tm_t *t);
+
+/* The table offered under "terminal" -- defined in api.c, alongside the
+   static instance it hands out, so tm_ini (in term.c) has something to pass
+   to hibr_provide without that instance needing to be extern. */
+const tm_api *tm_apiget(void);
 
 #endif
