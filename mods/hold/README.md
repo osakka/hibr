@@ -34,7 +34,10 @@ rectangle, so it sees one screen big enough for everyone at their own place
 120 columns to draw on, not 40. Every client is sent only its own rectangle
 of that union, translated into its own coordinates -- a client at column 80
 whose neighbour's line runs into that column sees it starting at its own
-column 0, not 80.
+column 0, not 80. The same translation runs the other way: a client's own
+mouse report, in SGR form, is rewritten by its own offset before it reaches
+the pty, so a click at that client's own local column 5 lands on the
+program's own column 85, not 5.
 
 There is no diffing yet, though: `hold` keeps a terminal emulator of its own
 (the `term` module's `"terminal"` interface, fed every byte the pty writes)
@@ -89,6 +92,7 @@ with `loginctl enable-linger` there.
 | `wire.c` | the socket directory, names, and framing: a type byte, a length, the bytes |
 | `srv.c` | the server: the program's pty, the listening socket, any number of attached clients, their union size |
 | `render.c` | one client's own rectangle of the emulator's grid, as a full repaint of escape sequences |
+| `mouse.c` | a client's own SGR mouse report, rewritten by its own offset before it reaches the pty |
 | `cli.c` | the client: raw mode, the relay, ctrl-\\, and giving the terminal back |
 | `hold.c` | the builtin, and starting a server |
 
@@ -100,20 +104,19 @@ closing the terminal as a logout would, attaching again and finding the
 shell's variables still set, the program's status coming back, a second
 attach taking over, `-m` joining alongside instead, the pty sized to the
 union of every attached client, one client's own rectangle showing content
-the other's does not, and the alternate screen reaching an attaching
-client on entry but not again once nothing has changed. `tests/desktop.py`
-holds a whole desktop, detaches it, reattaches from a new terminal and
-checks the full frame is drawn again. Both are clean under ASan and UBSan.
+the other's does not, the alternate screen reaching an attaching client on
+entry but not again once nothing has changed, and a client's own mouse
+click at its own local column reaching the program at that column plus its
+offset. `tests/desktop.py` holds a whole desktop, detaches it, reattaches
+from a new terminal and checks the full frame is drawn again. Both are
+clean under ASan and UBSan.
 
 ## What it does not do
 
 Every frame is a full repaint -- there is no diffing between one and the
 next, so a busy program's session resends every cell of a client's own
-rectangle on every settled redraw, not just what changed. A client's own
-input is not yet translated for its offset either: a mouse report from a
-client placed at column 80 still names its own local column, not the
-union's -- correct for a lone client at 0,0, wrong for anything placed
-beside another. No copy of the screen is kept across a full detach with
-nobody attached, so a program that does not redraw on `SIGWINCH` comes back
-blank until it next writes on its own. No splitting, no windows, no
-scrollback: that is the desktop's job, and the terminal module's.
+rectangle on every settled redraw, not just what changed. No copy of the
+screen is kept across a full detach with nobody attached, so a program
+that does not redraw on `SIGWINCH` comes back blank until it next writes
+on its own. No splitting, no windows, no scrollback: that is the desktop's
+job, and the terminal module's.

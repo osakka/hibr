@@ -28,11 +28,17 @@ extern const tm_api *hd_tm;
    to switch buffers, mice or paste mode on a genuine change, not every
    frame. A lone attacher sits at 0,0 and the space is exactly its own size,
    which is today's behaviour exactly; several placed side by side is what a
-   multi-monitor arrangement attaches through. Shared between srv.c, which
-   owns the list, and render.c, which only ever reads one entry at a time. */
+   multi-monitor arrangement attaches through. mbuf/mst are a small state
+   machine of their own: a client's own mouse report, in SGR form, has to
+   be rewritten by this client's own offset before it reaches the pty, and
+   a report can arrive split across more than one read. Shared between
+   srv.c, which owns the list, render.c, which only ever reads one entry at
+   a time, and mouse.c, which owns mbuf/mst. */
 struct hd_cli {
 	int fd, row, col, rows, cols;
 	int primed, alt, mmode, msgr, bpaste, cshape;
+	str mbuf;
+	int mst;
 };
 
 void hd_cdrop(vec *cls, int fd);
@@ -41,6 +47,7 @@ int hd_chas(vec *cls, int fd);
 void hd_union(vec *cls, int id, int tid);
 void hd_cclear(vec *cls, const char *why, size_t n);
 void hd_rensend(vec *cls, int tid);
+void hd_mtrans(struct hd_cli *cn, const char *p, size_t n, str *out);
 
 int hd_dir(str *out);
 int hd_path(const char *name, str *out);

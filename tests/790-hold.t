@@ -53,7 +53,7 @@ wsz() {
 }
 
 echo "--- a session starts detached and is listed"
-hold new -d t1 /bin/sh -c 'sleep 30'
+hold new -d t1 /bin/sh -c 'sleep 120'
 echo "new: $?"
 state t1
 
@@ -196,8 +196,26 @@ echo "not resent once nothing changed: $(printf '%s' "$o2" | cat -v | grep -Fc '
 hold kill t9
 pty close $a
 
+echo "--- a client's own mouse report is translated by its offset"
+# The held program echoes raw bytes back (cat -v); its own cursor starts at
+# column 0, so client a, at offset 0, is what shows what the program itself
+# received. Client b, at column offset 40, is the one clicking, at its own
+# local column 5 -- the program has to see column 45, not 5.
+hold new -d t10 /bin/sh -c 'stty raw -echo; printf "\033[?1002h\033[?1006h"; cat -v'
+a := pty spawn -r 5 -c 100 $H -c "$L; hold attach t10; echo \"back rc=\$?\""
+sleep 0.6
+b := pty spawn -r 5 -c 60 $H -c "$L; hold attach -m t10 0 40; echo \"back rc=\$?\""
+sleep 0.8
+pty write $b $'\033[<0;5;3M'
+sleep 1.0
+oa := pty drain $a 2000
+echo "b's local column 5 reaches the program as column 45: $(printf '%s' "$oa" | cat -v | grep -o '\^\[\[<[0-9;]*M')"
+hold kill t10
+pty close $a
+pty close $b
+
 echo "--- a program in a session knows which, and can detach itself"
-hold new -d t4 /bin/sh -c 'echo "$HIBR_HOLD" > "$TMPDIR/where"; sleep 30'
+hold new -d t4 /bin/sh -c 'echo "$HIBR_HOLD" > "$TMPDIR/where"; sleep 120'
 sleep 0.3
 case $(cat "$TMPDIR/where") in */hibr-hold-*/t4) echo "HIBR_HOLD names t4" ;; esac
 ( unset HIBR_HOLD; hold detach 2>/dev/null; echo "detach outside a session: $?" )

@@ -43,6 +43,7 @@ void hd_cdrop(vec *cls, int fd)
 		cn = cls->p[i];
 		if (cn->fd == fd) {
 			close(fd);
+			s_free(&cn->mbuf);
 			free(cn);
 			cls->p[i] = cls->p[--cls->n];
 			return;
@@ -104,6 +105,7 @@ void hd_cclear(vec *cls, const char *why, size_t n)
 		cn = cls->p[i];
 		hd_send(cn->fd, HD_DETACH, why, n);
 		close(cn->fd);
+		s_free(&cn->mbuf);
 		free(cn);
 	}
 	cls->n = 0;
@@ -200,7 +202,7 @@ void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 	int l, m, id, tid, quit = 0, st, fed;
 	size_t i, j, nc;
 	ssize_t k;
-	str rb, in;
+	str rb, in, mo;
 
 	memset(&cls, 0, sizeof cls);
 	signal(SIGHUP, SIG_IGN);
@@ -238,6 +240,7 @@ void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 	tid = hd_tm->new(rows, cols);
 	s_init(&rb);
 	s_init(&in);
+	s_init(&mo);
 	s_grow(&rb, HIBR_IOCH);
 	while (!quit && !hd_term) {
 		fed = 0;
@@ -275,7 +278,13 @@ void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 			if (r <= 0) {
 				hd_cdrop(&cls, fd);
 			} else if (t == HD_DATA) {
-				hd_wall(m, in.p, in.n);
+				struct hd_cli *cn = hd_cfind(&cls, fd);
+
+				if (cn) {
+					mo.n = 0;
+					hd_mtrans(cn, in.p, in.n, &mo);
+					hd_wall(m, mo.p, mo.n);
+				}
 			} else if (t == HD_SIZE && in.n == 2 * sizeof(int)) {
 				struct hd_cli *cn = hd_cfind(&cls, fd);
 				int sz[2];
@@ -317,6 +326,7 @@ void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 
 		hd_send(cn->fd, HD_EXIT, (const char *)&st, sizeof st);
 		close(cn->fd);
+		s_free(&cn->mbuf);
 		free(cn);
 	}
 	v_free(&cls);
@@ -324,5 +334,6 @@ void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 	hd_tm->free(tid);
 	s_free(&rb);
 	s_free(&in);
+	s_free(&mo);
 	_exit(0);
 }
