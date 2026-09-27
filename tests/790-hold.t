@@ -27,6 +27,14 @@ state() {
   hold list | awk -v n="$1" '$1 == n { print $1, $2 }'
 }
 
+# What `stty size` printed, without prompt noise.
+wsz() {
+  local o
+  o := pty drain "$1" "${2:-1500}"
+  printf '%s' "$o" | tr -d '\r' | sed 's/\x1b\[[0-9;?]*[a-zA-Z]//g; s/\x1b>//g' |
+    grep -x '[0-9]* [0-9]*'
+}
+
 echo "--- a session starts detached and is listed"
 hold new -d t1 /bin/sh -c 'sleep 30'
 echo "new: $?"
@@ -106,6 +114,31 @@ sleep 0.3
 echo "now both are:"; state t5
 pty close $b
 pty close $a
+
+echo "--- viewport offsets: the pty is sized to the union of all attached"
+hold new -d t6 $H
+a := pty spawn -r 24 -c 80 $H -c "$L; hold attach t6; echo \"back rc=\$?\""
+sleep 0.6
+echo "a solo plain attach: the pty matches its own size"
+pty write $a 'stty size
+'
+sleep 0.4
+wsz $a
+pty write $a $'\x1c'
+sleep 0.3
+
+b := pty spawn -r 24 -c 80 $H -c "$L; hold attach -m t6; echo \"back rc=\$?\""
+sleep 0.6
+c := pty spawn -r 30 -c 100 $H -c "$L; hold attach -m t6 0 80; echo \"back rc=\$?\""
+sleep 0.6
+echo "a 24x80 client at 0,0 and a 30x100 client at 0,80: union is 30x180"
+pty write $b 'stty size
+'
+sleep 0.4
+wsz $b
+hold kill t6
+pty close $b
+pty close $c
 
 echo "--- a program in a session knows which, and can detach itself"
 hold new -d t4 /bin/sh -c 'echo "$HIBR_HOLD" > "$TMPDIR/where"; sleep 30'

@@ -31,10 +31,12 @@ void hd_poke(int m)
 		kill(-g, SIGWINCH);
 }
 
-/* One attached terminal.  Just the fd for now -- a client's own viewport,
-   for a multi-monitor arrangement, is a later addition on top of this same
-   list, not part of proving the list itself works. */
-struct hd_cli { int fd; };
+/* One attached terminal: its connection, and where it sits in the session's
+   own virtual space -- row,col its top-left corner, rows,cols its own size.
+   A lone attacher sits at 0,0 and the space is exactly its own size, which
+   is today's behaviour exactly; several placed side by side is what a
+   multi-monitor arrangement attaches through. */
+struct hd_cli { int fd, row, col, rows, cols; };
 
 /* Remove a client by fd, closing it.  A no-op if it is not (or no longer)
    in the list: a poll() snapshot taken at the top of the loop can still
@@ -55,15 +57,46 @@ void hd_cdrop(vec *cls, int fd)
 	}
 }
 
+/* The client with this fd, or NULL if it is not (or no longer) attached. */
+struct hd_cli *hd_cfind(vec *cls, int fd)
+{
+	size_t i;
+	struct hd_cli *cn;
+
+	for (i = 0; i < cls->n; i++) {
+		cn = cls->p[i];
+		if (cn->fd == fd)
+			return cn;
+	}
+	return 0;
+}
+
 /* Whether a client with this fd is still in the list. */
 int hd_chas(vec *cls, int fd)
 {
-	size_t i;
+	return hd_cfind(cls, fd) != 0;
+}
 
-	for (i = 0; i < cls->n; i++)
-		if (((struct hd_cli *)cls->p[i])->fd == fd)
-			return 1;
-	return 0;
+/* The pty's own size: the furthest row and column any attached client's
+   viewport reaches, so the program always sees one screen big enough for
+   everyone at their own place, not just the largest single client.  Left
+   alone with nobody attached -- there is nothing to size it from. */
+void hd_union(vec *cls, int id)
+{
+	size_t i;
+	int rows = 0, cols = 0;
+	struct hd_cli *cn;
+
+	if (!cls->n)
+		return;
+	for (i = 0; i < cls->n; i++) {
+		cn = cls->p[i];
+		if (cn->row + cn->rows > rows)
+			rows = cn->row + cn->rows;
+		if (cn->col + cn->cols > cols)
+			cols = cn->col + cn->cols;
+	}
+	hd_pty->resize(id, rows, cols);
 }
 
 /* Detach every attached client, telling each one why, and empty the list. */
@@ -83,12 +116,18 @@ void hd_cclear(vec *cls, const char *why, size_t n)
 
 /* Handle one new connection: a plain attach takes the session over,
    detaching whoever was there; HD_MATTACH joins alongside them instead.
-   Anything else is a one-shot request, answered and closed. */
+   Anything else is a one-shot request, answered and closed.
+
+   The attach payload is either 2 ints (rows, cols -- an older client, or one
+   with no offset of its own: it sits at 0,0) or 4 (rows, cols, row, col).
+   Accepting both means an old client and a new server, or the reverse, still
+   attach -- just without a viewport, until whichever side is stale gets
+   reinstalled. */
 void hd_conn(int c, vec *cls, int id, int m, int *quit)
 {
 	struct pollfd q;
 	str in, o;
-	int t = 0, sz[2];
+	int t = 0, v[4];
 	struct hd_cli *cn;
 
 	q.fd = c;
@@ -104,15 +143,25 @@ void hd_conn(int c, vec *cls, int id, int m, int *quit)
 		hd_cclear(cls, "attached elsewhere", 18);
 		/* fall through */
 	case HD_MATTACH:
-		if (in.n == sizeof sz) {
-			memcpy(sz, in.p, sizeof sz);
-			hd_pty->resize(id, sz[0], sz[1]);
-		}
 		cn = xm(sizeof *cn);
+		memset(cn, 0, sizeof *cn);
 		cn->fd = c;
+		if (in.n == 4 * sizeof(int)) {
+			memcpy(v, in.p, sizeof v);
+			cn->rows = v[0];
+			cn->cols = v[1];
+			cn->row = v[2];
+			cn->col = v[3];
+		} else if (in.n == 2 * sizeof(int)) {
+			memcpy(v, in.p, 2 * sizeof(int));
+			cn->rows = v[0];
+			cn->cols = v[1];
+		}
 		v_add(cls, cn);
+		hd_union(cls, id);
 		hd_poke(m);
-		lg(HIBR_LDBG, "hold: attached (%lu now)",
+		lg(HIBR_LDBG, "hold: attached at %d,%d size %dx%d (%lu now)",
+		   cn->row, cn->col, cn->rows, cn->cols,
 		   (unsigned long)cls->n);
 		s_free(&in);
 		return;
@@ -238,9 +287,15 @@ void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 			} else if (t == HD_DATA) {
 				hd_wall(m, in.p, in.n);
 			} else if (t == HD_SIZE && in.n == 2 * sizeof(int)) {
+				struct hd_cli *cn = hd_cfind(&cls, fd);
 				int sz[2];
+
 				memcpy(sz, in.p, sizeof sz);
-				hd_pty->resize(id, sz[0], sz[1]);
+				if (cn) {
+					cn->rows = sz[0];
+					cn->cols = sz[1];
+					hd_union(&cls, id);
+				}
 			} else if (t == HD_DETACH) {
 				hd_cdrop(&cls, fd);
 			}

@@ -48,15 +48,18 @@ void hd_size(int *sz)
 
    The terminal is raw, signals included, so ctrl-c reaches the program as
    a byte rather than killing the client.  Plain attach takes the session
-   over, detaching whoever was there; multi joins alongside them instead.
-   Returns 0 after a detach, or the program's own status when it ended. */
-int hd_attach(const char *name, const char *path, int multi)
+   over, detaching whoever was there; multi joins alongside them instead, at
+   the given row/col offset into the session's own virtual space -- 0,0
+   unless this client is one of several placed side by side.  Returns 0
+   after a detach, or the program's own status when it ended. */
+int hd_attach(const char *name, const char *path, int multi, int row,
+	      int col)
 {
 	struct termios sv, raw;
 	struct sigaction a, oa;
 	struct pollfd q[2];
 	const char *why = "detached";
-	int s, sz[2], t, st = 0, ended = 0, lost = 0;
+	int s, sz[4], t, st = 0, ended = 0, lost = 0;
 	ssize_t k;
 	char *p;
 	str rb, in;
@@ -72,6 +75,8 @@ int hd_attach(const char *name, const char *path, int multi)
 		return 2;
 	}
 	hd_size(sz);
+	sz[2] = row;
+	sz[3] = col;
 	if (!hd_send(s, multi ? HD_MATTACH : HD_ATTACH, (const char *)sz,
 		     sizeof sz)) {
 		close(s);
@@ -94,7 +99,7 @@ int hd_attach(const char *name, const char *path, int multi)
 		if (hd_winch) {
 			hd_winch = 0;
 			hd_size(sz);
-			hd_send(s, HD_SIZE, (const char *)sz, sizeof sz);
+			hd_send(s, HD_SIZE, (const char *)sz, 2 * sizeof(int));
 		}
 		q[0].fd = 0;
 		q[0].events = POLLIN;

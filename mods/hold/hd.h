@@ -33,6 +33,7 @@ void hd_cloexec(int fd);
 
 void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 	      int ready);
-int hd_attach(const char *name, const char *path, int multi);
+int hd_attach(const char *name, const char *path, int multi, int row,
+	      int col);
 
 #endif

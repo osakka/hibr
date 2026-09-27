@@ -133,7 +133,7 @@ int hd_new(sh *s, int ac, char **av)
 		s_free(&path);
 		return HIBR_OK;
 	}
-	i = hd_attach(name, path.p, 0);
+	i = hd_attach(name, path.p, 0, 0, 0);
 	s_free(&path);
 	return i;
 }
@@ -218,7 +218,8 @@ int m_hold(sh *s, int ac, char **av)
 		return hd_list(s);
 	s_init(&path);
 	if (!strcmp(sub, "attach")) {
-		int multi = 0, ai = 2;
+		int multi = 0, ai = 2, row = 0, col = 0;
+		const char *nm;
 
 		if (ai < ac && !strcmp(av[ai], "-m")) {
 			multi = 1;
@@ -226,11 +227,17 @@ int m_hold(sh *s, int ac, char **av)
 		}
 		if (ai >= ac || !hd_path(av[ai], &path)) {
 			if (ai >= ac)
-				lg(HIBR_LERR, "usage: hold attach [-m] name");
+				lg(HIBR_LERR,
+				   "usage: hold attach [-m] name [row col]");
 			s_free(&path);
 			return 2;
 		}
-		r = hd_attach(av[ai], path.p, multi);
+		nm = av[ai++];
+		if (ai + 1 < ac) {
+			row = atoi(av[ai]);
+			col = atoi(av[ai + 1]);
+		}
+		r = hd_attach(nm, path.p, multi, row, col);
 		s_free(&path);
 		return r;
 	}
@@ -271,6 +278,6 @@ const hibr_bi hold_bi[] = {
 	HIBR_BI_END
 };
 
-HIBR_MODULE_P("hold", "0.21",
+HIBR_MODULE_P("hold", "0.22",
 	      "sessions that outlive the terminal they were started on",
 	      hold_bi, hd_ini, hd_fini, "hold");

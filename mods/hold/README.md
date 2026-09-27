@@ -13,7 +13,7 @@ nothing has to be saved and restored.
 | | |
 |---|---|
 | `hold new [-d] name cmd args...` | start `cmd` in a session called `name`, and attach unless `-d` |
-| `hold attach [-m] name` | put this terminal on it; `-m` joins alongside whoever is already there instead of taking over; returns 0 after a detach, the program's status when it ends |
+| `hold attach [-m] name [row col]` | put this terminal on it; `-m` joins alongside whoever is already there instead of taking over, at the given offset (0,0 if not given); returns 0 after a detach, the program's status when it ends |
 | `hold detach [name]` | detach whoever is attached; with no name, the session this shell is running in |
 | `hold list` | each session, attached or detached, and the program's pid |
 | `hold kill name` | end the program and the session |
@@ -24,8 +24,16 @@ detaches the first, with a message saying so; `hold attach -m` joins
 alongside it instead -- both terminals see the same bytes and either can
 type, and each detaches on its own without disturbing the other. This is the
 foundation a multi-monitor arrangement attaches through, one terminal per
-monitor, all onto the same session; there is no viewport of its own yet --
-every attached client currently sees the whole session, unclipped.
+monitor, all onto the same session.
+
+Each attached client has a place in the session's own virtual space: its own
+row,col offset (0,0 by default) and its own rows,cols size. The program on
+the pty is always sized to the union of every attached client's own
+rectangle, so it sees one screen big enough for everyone at their own place
+-- three clients placed side by side, each 40 columns wide, give the program
+120 columns to draw on, not 40. There is no *clipping* yet, though: every
+attached client currently sees the whole of that union, unclipped, rather
+than only its own rectangle of it.
 
 ## How it works
 
@@ -86,9 +94,9 @@ and UBSan.
 
 ## What it does not do
 
-Every attached client sees the whole session, unclipped -- there is no
-per-client viewport, and `-m` mirrors the same bytes to everyone rather than
-giving each its own view of a larger virtual screen. No copy of the screen
-is kept, so something that does not redraw on `SIGWINCH` comes back blank
-until it next writes. No splitting, no windows, no scrollback: that is the
-desktop's job, and the terminal module's.
+Every attached client sees the whole of the virtual space, unclipped -- `-m`
+mirrors the same bytes to everyone rather than giving each its own view of
+just its own rectangle. No copy of the screen is kept, so something that
+does not redraw on `SIGWINCH` comes back blank until it next writes. No
+splitting, no windows, no scrollback: that is the desktop's job, and the
+terminal module's.
