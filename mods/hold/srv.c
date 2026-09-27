@@ -287,6 +287,9 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit)
 			hd_union(cls, id, tid);
 			/* cn2 may be freed by a failed send below. */
 			hd_rensend1(cls, cn2, tid);
+			/* A moved display may be the primary one: nudge the
+			   program to notice, same as a fresh attach does. */
+			hd_poke(m);
 		}
 		rep = cn2 ? "ok" : "no such display";
 		hd_send(c, HD_MOVE, rep, strlen(rep));
@@ -303,6 +306,8 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit)
 			hd_union(cls, id, tid);
 			if (wasp && cls->n)
 				((struct hd_cli *)cls->p[0])->primary = 1;
+			/* The union shrank, or the primary changed, or both. */
+			hd_poke(m);
 		}
 		rep = cn2 ? "ok" : "no such display";
 		hd_send(c, HD_DROP, rep, strlen(rep));
@@ -317,6 +322,8 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit)
 			for (pi = 0; pi < cls->n; pi++)
 				((struct hd_cli *)cls->p[pi])->primary = 0;
 			cn2->primary = 1;
+			/* Nudge the program to re-read who is primary now. */
+			hd_poke(m);
 		}
 		rep = cn2 ? "ok" : "no such display";
 		hd_send(c, HD_PRIMARY, rep, strlen(rep));

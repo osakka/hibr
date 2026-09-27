@@ -83,12 +83,15 @@ DT_CONFIRM=
 DT_CONFIRM_CMD=
 DT_ROWS=24
 DT_COLS=80
-# The first attached terminal's own width, set once by dt_size's first run
-# and never again -- a second terminal joining beside it (hold attach -m)
-# widens DT_COLS to the union's, and the bar, wallpaper and icon grid stay
-# confined to this instead, rather than spreading across every screen.
-# Window placement is unaffected: it already uses the full DT_COLS/DT_ROWS.
+# The primary display's own width and column offset within the union --
+# read from `hold clients`'s own primary-flagged row when this desktop is
+# held, so the bar, wallpaper and icon grid stay confined to that display
+# instead of spreading across every one a terminal has joined beside it
+# with `hold attach -m`. Not held (or hold not loaded): the whole screen,
+# at column 0, same as always. Window placement is unaffected: it already
+# uses the full DT_COLS/DT_ROWS.
 DT_PRIMARY_W=
+DT_PRIMARY_COL=0
 
 # Keyboard shortcuts a script -- or Settings -- can rebind. f10 and escape,
 # which open the menu bar, are not in here: an app cannot have those keys
@@ -330,20 +333,28 @@ dt_open() {
 	dt_deskscan
 }
 
-# Re-read the screen size after a resize.
+# Re-read the screen size after a resize, and this desktop's own primary
+# viewport from hold's own per-client data. Not held, or hold not loaded,
+# or nobody has attached yet (the moment right after `hold new -d` starts
+# this script, before the first `hold attach` lands): primary is the whole
+# screen, at column 0, the same fallback as a lone terminal always was.
 dt_size() {
-	local sz
+	local sz lst nm row col rows cols pri
+
 	sz := console size
 	DT_ROWS=${sz% *}
 	DT_COLS=${sz#* }
-	# Tracks DT_COLS downward, but a growth is left alone: the union never
-	# shrinks on its own (a joined client detaching does not shrink it
-	# back), so the only way DT_COLS gets smaller is a real resize of this
-	# terminal, which DT_PRIMARY_W should always follow -- while a growth
-	# it should not follow is indistinguishable, from here, from a second
-	# terminal joining beside this one.
-	if [ -z "$DT_PRIMARY_W" ] || [ "$DT_COLS" -lt "$DT_PRIMARY_W" ]; then
-		DT_PRIMARY_W=$DT_COLS
+	DT_PRIMARY_W=$DT_COLS
+	DT_PRIMARY_COL=0
+	if [ -n "$HIBR_HOLD" ] && need hold; then
+		lst := hold clients
+		while IFS=' ' read -r nm row col rows cols pri; do
+			if [ "$pri" = 1 ]; then
+				DT_PRIMARY_COL=$col
+				DT_PRIMARY_W=$cols
+				break
+			fi
+		done <<< "$lst"
 	fi
 	dt_iconlay
 	cs_clamp
@@ -1928,7 +1939,7 @@ dt_akeypos() {
 
 # Work out where each title sits on the bar.
 dt_layout() {
-	local i=0 c=1 t
+	local i=0 c=$((DT_PRIMARY_COL + 1)) t
 
 	while [ "$i" -lt "$MB_N" ]; do
 		if [ "${MB[$i]["bar"]}" != 1 ]; then
@@ -1943,7 +1954,7 @@ dt_layout() {
 		c=$((c + ${#t} + 2))
 		i=$((i + 1))
 	done
-	MB_AX=$((${DT_PRIMARY_W:-$DT_COLS} - 14))
+	MB_AX=$((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - 14))
 }
 
 dt_quit() { DT_QUIT=1; }
@@ -2415,7 +2426,7 @@ dt_iconlay() {
 			c=${cl#* }
 		else
 			r=$((2 + (slot % per) * 3))
-			c=$((${DT_PRIMARY_W:-$DT_COLS} - DT_ICONW - 1 -
+			c=$((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - DT_ICONW - 1 -
 				(slot / per) * DT_ICONW))
 			slot=$((slot + 1))
 		fi
@@ -2721,9 +2732,9 @@ dt_iconclamp() {
 
 	[ "$r" -lt 1 ] && r=1
 	[ "$r" -gt $((DT_ROWS - 3)) ] && r=$((DT_ROWS - 3))
-	[ "$c" -lt 0 ] && c=0
-	[ "$c" -gt $((${DT_PRIMARY_W:-$DT_COLS} - DT_ICONW)) ] &&
-		c=$((${DT_PRIMARY_W:-$DT_COLS} - DT_ICONW))
+	[ "$c" -lt "$DT_PRIMARY_COL" ] && c=$DT_PRIMARY_COL
+	[ "$c" -gt $((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - DT_ICONW)) ] &&
+		c=$((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - DT_ICONW))
 	ret "$r $c"
 }
 
@@ -3059,10 +3070,10 @@ dt_bar() {
 	local i=0 t line now w=${DT_PRIMARY_W:-$DT_COLS}
 
 	[ "$DT_BARSHADOW" = 1 ] &&
-		console darken 1 0 1 "$w" "$DT_SHADOW_PCT"
+		console darken 1 "$DT_PRIMARY_COL" 1 "$w" "$DT_SHADOW_PCT"
 	console pen "$DT_INK" "$DT_BAR"
 	line := dt_rep "$w" " "
-	console put 0 0 "$line"
+	console put 0 "$DT_PRIMARY_COL" "$line"
 
 	while [ "$i" -lt "$MB_N" ]; do
 		if [ "${MB[$i]["bar"]}" != 1 ]; then
@@ -3083,7 +3094,7 @@ dt_bar() {
 
 	printf -v now "%(%H:%M)T" -1
 	console pen "$DT_INK" "$DT_BAR"
-	console put 0 $((w - 19)) "$now"
+	console put 0 $((DT_PRIMARY_COL + w - 19)) "$now"
 	if [ "$MB_OPEN" = app ]; then
 		console pen "$DT_BAR" "$DT_ACTIVE" bold
 	else
@@ -3850,7 +3861,7 @@ dt_note_draw() {
 	[ -z "$DT_NOTE" ] && return 0
 	w=$((${#DT_NOTE} + 4))
 	r=$((DT_ROWS / 2 - 1))
-	c=$(((${DT_PRIMARY_W:-$DT_COLS} - w) / 2))
+	c=$((DT_PRIMARY_COL + (${DT_PRIMARY_W:-$DT_COLS} - w) / 2))
 	console pen "$DT_ACTIVE" "$DT_FACE" bold
 	t := dt_rep $((w - 2)) "─"
 	console put "$r" "$c" "┌$t┐"
@@ -3885,7 +3896,7 @@ dt_confirm_geom() {
 	[ "$w" -lt $((${#DT_CONFIRM_HINT} + 4)) ] && w=$((${#DT_CONFIRM_HINT} + 4))
 	h=5
 	y0=$((DT_ROWS / 2 - h / 2))
-	x0=$(((${DT_PRIMARY_W:-$DT_COLS} - w) / 2))
+	x0=$((DT_PRIMARY_COL + (${DT_PRIMARY_W:-$DT_COLS} - w) / 2))
 	ret "$y0 $x0 $w $h"
 }
 
@@ -4094,9 +4105,9 @@ cs_modcol() {
 	w := cs_width
 	cnt := cs_count
 	if [ "$CS_SIDE" = left ]; then
-		c=1
+		c=$((DT_PRIMARY_COL + 1))
 	else
-		c=$((${DT_PRIMARY_W:-$DT_COLS} - w + 2))
+		c=$((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - w + 2))
 	fi
 	i=$CS_SCROLL
 	while [ "$i" -lt $((CS_SCROLL + cnt)) ]; do
@@ -4116,9 +4127,9 @@ cs_at() {
 	w := cs_width
 	cnt := cs_count
 	if [ "$CS_SIDE" = left ]; then
-		c=1
+		c=$((DT_PRIMARY_COL + 1))
 	else
-		c=$((${DT_PRIMARY_W:-$DT_COLS} - w + 2))
+		c=$((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - w + 2))
 	fi
 	i=$CS_SCROLL
 	while [ "$i" -lt $((CS_SCROLL + cnt)) ]; do
@@ -4146,14 +4157,15 @@ cs_hit() {
 	[ "$1" != "$row" ] && return 1
 	if [ "$CS_COLLAPSED" = 1 ]; then
 		if [ "$CS_SIDE" = left ]; then
-			[ "$2" = 0 ]
+			[ "$2" = "$DT_PRIMARY_COL" ]
 		else
-			[ "$2" = $((${DT_PRIMARY_W:-$DT_COLS} - 1)) ]
+			[ "$2" = $((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - 1)) ]
 		fi
 		return $?
 	fi
 	w := cs_width
-	[ "$CS_SIDE" = left ] && col=0 || col=$((${DT_PRIMARY_W:-$DT_COLS} - w))
+	[ "$CS_SIDE" = left ] && col=$DT_PRIMARY_COL ||
+		col=$((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - w))
 	[ "$2" -ge "$col" ] && [ "$2" -lt $((col + w)) ]
 }
 
@@ -4180,9 +4192,9 @@ cs_resize() {
 
 	total=${#CS_MOD_LIST[@]}
 	if [ "$CS_SIDE" = left ]; then
-		budget=$1
+		budget=$(($1 - DT_PRIMARY_COL))
 	else
-		budget=$((${DT_PRIMARY_W:-$DT_COLS} - 1 - $1))
+		budget=$((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - 1 - $1))
 	fi
 	[ "$budget" -lt 0 ] && budget=0
 	i=$CS_SCROLL
@@ -4210,15 +4222,16 @@ dt_stripdraw() {
 	if [ "$CS_COLLAPSED" = 1 ]; then
 		console pen "$DT_ACTIVE" "$DT_FACE" bold
 		if [ "$CS_SIDE" = left ]; then
-			console put "$row" 0 "▸"
+			console put "$row" "$DT_PRIMARY_COL" "▸"
 		else
-			console put "$row" $((${DT_PRIMARY_W:-$DT_COLS} - 1)) "◂"
+			console put "$row" $((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - 1)) "◂"
 		fi
 		return 0
 	fi
 	cnt := cs_count
 	w := cs_width
-	[ "$CS_SIDE" = left ] && col=0 || col=$((${DT_PRIMARY_W:-$DT_COLS} - w))
+	[ "$CS_SIDE" = left ] && col=$DT_PRIMARY_COL ||
+		col=$((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - w))
 	[ "$CS_SHADOW" = 1 ] &&
 		console darken $((row + 1)) $((col + 2)) 1 "$w" "$DT_SHADOW_PCT"
 	console pen "$DT_INK" "$DT_FACE"
@@ -4263,7 +4276,8 @@ cs_press() {
 		return 0
 	fi
 	w := cs_width
-	[ "$CS_SIDE" = left ] && col=0 || col=$((${DT_PRIMARY_W:-$DT_COLS} - w))
+	[ "$CS_SIDE" = left ] && col=$DT_PRIMARY_COL ||
+		col=$((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - w))
 	[ "$CS_SIDE" = left ] && arrowcol=$((col + w - 1)) || arrowcol=$col
 	if [ "$2" = "$arrowcol" ]; then
 		CS_DRAG=1

@@ -1654,6 +1654,31 @@ sc2 = t2.screen()
 check("the bar and icons stay on the first screen, not spilling into this one",
       sc2.find("Home") is None and sc2.find("Desktop") is None, sc2)
 
+# The panel can change which display is primary, live: hold primary
+# nudges the program to notice (hd_poke, the same SIGWINCH a fresh attach
+# already gets), and dt_size re-reads hold clients rather than a
+# heuristic -- the bar and icons should move to follow whichever display
+# picks it up.
+r3 = subprocess.run([screen.HIBR, "-c", HOLDC + "hold clients desktop"],
+                    env=dict(os.environ, **JENV), capture_output=True,
+                    text=True)
+joined = next((ln.split()[0] for ln in r3.stdout.splitlines()
+               if ln.split()[-1] == "0"), None)
+check("hold clients lists the joined display, not primary yet",
+      joined is not None, r3.stdout)
+
+subprocess.run([screen.HIBR, "-c",
+                HOLDC + "hold primary desktop %s" % joined],
+               env=dict(os.environ, **JENV), capture_output=True)
+t1.collect(1.0)
+t2.collect(1.0)
+sc1b = t1.screen()
+sc2b = t2.screen()
+check("making the joined display primary moves the bar to follow it",
+      sc2b.find("Home") is not None, sc2b)
+check("...and it leaves the display that used to be primary",
+      sc1b.find("Home") is None, sc1b)
+
 t2.send(b"\x1c", settle=0.5)
 check("ctrl-\\ detaches just the joined terminal",
       b"[desktop: detached" in t2.out, t2.out.decode(errors="replace"))
@@ -1671,4 +1696,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(243)
+report(245)

@@ -38,7 +38,10 @@ panel to draw a picture of the arrangement and let it be rearranged: `hold
 clients` to list it, `hold move` to reposition one of them, `hold drop` to
 switch one off (a server-side detach, indistinguishable to the program from
 that client's own `ctrl-\\`), `hold primary` to change which anchors a
-desktop's own bar and menu.
+desktop's own bar and menu. All three also send the program's foreground
+`SIGWINCH`, the same nudge a fresh attach already gets, so a program that
+reads `hold clients` on a resize -- the desktop's own bar and icon grid do
+-- notices the change live rather than on its own next unrelated redraw.
 
 Each attached client has a place in the session's own virtual space: its own
 row,col offset (0,0 by default) and its own rows,cols size. The program on
