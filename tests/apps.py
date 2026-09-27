@@ -67,9 +67,14 @@ def run(app, win, feed=(), pre="", wait=1.0, also=(), end=b"qy", extra=(),
     # installed module path, not this tree's own build/mods -- the same
     # trap `need` always is. A terminal test loads both explicitly first,
     # so `need` finds them already provided and a rebuilt pty/term is what
-    # actually gets exercised, not whatever is separately installed.
+    # actually gets exercised, not whatever is separately installed. A
+    # terminal opened through `also` (a second window, not the main app)
+    # is just as much a terminal test as one opened through `app` or
+    # `extra` -- missed here once, which stayed silent only because the
+    # installed term.so and this tree's own DP_API_VER happened to still
+    # agree; an in-progress version bump is exactly what surfaces it.
     mods = ["console"]
-    if app == "term" or "term" in extra:
+    if app == "term" or "term" in extra or any(x[2] == "term" for x in also):
         mods += ["pty", "term"]
     open(p, "w").write(
         "%s. %s\n%s%s\ndt_open\ndt_new \"%s\" %s %s\n%s"

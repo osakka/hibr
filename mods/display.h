@@ -10,7 +10,7 @@
    anything reordered or removed breaks every tool already using it. */
 
 #ifndef DP_API_VER
-#define DP_API_VER 2u
+#define DP_API_VER 3u
 #endif
 
 #ifndef DP_ATTRS
@@ -51,6 +51,11 @@ struct dp_api {
 	   asked for: reporting takes the terminal's own text selection away
 	   from whoever is watching. */
 	void (*mouse)(int mode);
+	/* A named pane's own rectangle (root row, col, h, w), so another
+	   module can translate and clip its own drawing into one without
+	   reaching into the display backend's internals -- img draw's -p
+	   is the first user. 0 if no such pane is registered. */
+	int (*prect)(const char *nm, int *row, int *col, int *h, int *w);
 };
 
 #endif

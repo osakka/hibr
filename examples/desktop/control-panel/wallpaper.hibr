@@ -1,8 +1,9 @@
 #!/usr/bin/env hibr
 #
-# wallpaper -- browse for an image, preview it as ASCII art (fitted to its
-# own aspect ratio, not stretched), apply it as the desktop's wallpaper in
-# full colour. The preview is text, not colour, on purpose: see wp_preview.
+# wallpaper -- browse for an image, preview it in real colour (fitted to
+# its own aspect ratio, not stretched), apply it as the desktop's
+# wallpaper, also in full colour. See wp_preview for how the preview
+# itself is drawn straight into this window's own pane.
 # #2's own explicit constraint was to reuse the file browser's own tooling
 # for picking the image rather than building a
 # new picker from scratch: fb_scan, fb_go and fb_path (all of files.hibr's
@@ -69,33 +70,21 @@ wp_isimage() {
 	return 1
 }
 
-# Decode the given file as a grayscale ASCII rendering into WPK's own line
-# array, sized to the box's own aspect-correct fit rather than the full
-# preview area, so a wide or tall image is letterboxed instead of
-# stretched -- -g's own density ramp is plain text with no colour codes
-# at all (it deliberately reads in whatever the terminal's own foreground
-# already is), which is exactly what makes capturing it into an ordinary
-# array and drawing it with a pen of this pane's own choosing possible,
-# through console put -p like every other window's own content, unlike a
-# raw, un-paned draw straight at screen coordinates -- tried once, pulled
-# after it corrupted the display applying a new wallpaper while this
-# pane's own preview was also open, most likely the two racing over the
-# same screen region with no pane of its own to track damage against.
-# Revisit properly (a real pane-targeted blit, added to the console
-# module itself) rather than rushing a fix for this one.
+# The previewed file is drawn as a real colour image, straight into this
+# window's own pane (img draw -p, DP_API_VER 3) -- not a grayscale
+# density-ramp render captured into text any more. A raw, un-paned draw
+# straight at screen coordinates was tried here once and pulled after it
+# corrupted the display applying a new wallpaper while this pane's own
+# preview was also open; img draw -p is the real fix for that, added to
+# the console and img modules themselves -- it clips and translates the
+# same way console put -p already does for text, so this needs no more
+# care than any other window's own content does, and no reading of the
+# window manager's own position table.
 wp_preview() {
-	local id=$1 path=$2 pw=$3 ph=$4 out line n=0
+	local id=$1 path=$2
 
-	WPK[$id]["previewfor"]=
-	unset "WPK[$id]["lines"]"
 	dt_has img || need img > /dev/null 2>&1
 	dt_has img || return 1
-	out=$(img -g -w "$pw" -h "$ph" "$path" 2> /dev/null) || return 1
-	while IFS= read -r line; do
-		WPK[$id]["lines"][$n]=$line
-		n=$((n + 1))
-	done <<< "$out"
-	WPK[$id]["linesn"]=$n
 	WPK[$id]["previewfor"]=$path
 	return 0
 }
@@ -117,7 +106,7 @@ wp_refresh() {
 	path := fb_path "$id" "$sel"
 	if wp_isimage "$path"; then
 		wp_fitcache "$id" "$path" "${WPK[$id]["prevh"]}" "${WPK[$id]["prevw"]}"
-		wp_preview "$id" "$path" "${WPK[$id]["fitc"]}" "${WPK[$id]["fitr"]}"
+		wp_preview "$id" "$path"
 	else
 		WPK[$id]["previewfor"]=
 	fi
@@ -243,26 +232,19 @@ wallpick_draw() {
 
 	console pen "$DT_INK" "$DT_FACE"
 	path=${WPK[$id]["previewfor"]}
+	r=1
+	while [ "$r" -le "$prevh" ]; do
+		t := str pad "" "$prevw"
+		console put -p "w$id" "$r" "$prevx" "$t"
+		r=$((r + 1))
+	done
 	if [ -n "$path" ]; then
-		n=${WPK[$id]["linesn"]}
-		i=0
-		r=1
-		while [ "$r" -le "$prevh" ]; do
-			t=""
-			[ "$i" -lt "$n" ] && t=${WPK[$id]["lines"][$i]}
-			t := str pad "$t" "$prevw"
-			console put -p "w$id" "$r" "$prevx" "$t"
-			i=$((i + 1))
-			r=$((r + 1))
-		done
+		img draw "$path" $((${WPK[$id]["fitoffr"]} + 1)) \
+			$((prevx + ${WPK[$id]["fitoffc"]})) \
+			"${WPK[$id]["fitr"]}" "${WPK[$id]["fitc"]}" \
+			-p "w$id" 2> /dev/null
 		applyon=1
 	else
-		r=1
-		while [ "$r" -le "$prevh" ]; do
-			t := str pad "" "$prevw"
-			console put -p "w$id" "$r" "$prevx" "$t"
-			r=$((r + 1))
-		done
 		console pen "$DT_IDLE" "$DT_FACE"
 		t="Select a .png"
 		[ ${#t} -gt "$prevw" ] && t="${t:0:$prevw}"

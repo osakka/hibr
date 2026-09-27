@@ -2,8 +2,8 @@
 
 Decode an image and draw it into a terminal as coloured cells -- a jp2a-alike,
 issue #39. `img file.png` prints ANSI to standard output; `img draw file row
-col h w` blits directly into the open display instead, for a window or the
-desktop's own wallpaper.
+col h w [-p pane]` blits directly into the open display instead, for a
+window or the desktop's own wallpaper.
 
 | file | role |
 |---|---|
@@ -68,12 +68,27 @@ all -- terminal size comes from `TIOCGWINSZ` directly when neither `-w` nor
 `-h` is given and stdout is a terminal, `80x24` otherwise. This is the
 testable path: deterministic ANSI bytes, no pty required.
 
-`img draw file row col h w [-g]` requires `"display"` (`hibr_require`)
-only inside this one subcommand, so printing an image in a plain pipe never
-loads the console module. There is no bulk cell-write primitive in `dp_api`
--- drawing means one `pen`+`put` pair per cell, the same granularity a
-script driving `console put` in a loop would pay, just without the shell's
-own parsing and dispatch overhead per call.
+`img draw file row col h w [-g] [-p pane]` requires `"display"`
+(`hibr_require`) only inside this one subcommand, so printing an image in a
+plain pipe never loads the console module. There is no bulk cell-write
+primitive in `dp_api` -- drawing means one `pen`+`put` pair per cell, the
+same granularity a script driving `console put` in a loop would pay, just
+without the shell's own parsing and dispatch overhead per call.
+
+With `-p pane`, `row`/`col` are relative to that pane's own top-left corner
+(via `dp_api`'s `prect`, DP_API_VER 3) rather than the root screen, and
+anything past its own edge is silently clipped instead of drawn -- the same
+discipline `console put -p` already gives text. This is what lets a
+window's own preview draw a real image without reading the window
+manager's own position table (`DT[$id]["row"]`/`["col"]`) directly, and
+without breaking when the window moves or resizes. `dt_wall()` keeps using
+the root screen directly: the wallpaper *is* the background everything
+else composites onto, not a window's own content, so it has no pane of its
+own to target. The resampled-grid cache (`im_cache`) holds `IM_CACHEN` (4)
+entries, evicted round-robin, rather than one: once a pane preview and
+`dt_wall()` can both call `img draw` with different files in the same
+frame, a single slot would thrash between them, paying for a full decode
+and resample of each on every frame instead of caching either.
 
 ## Testing
 

@@ -213,71 +213,90 @@ static int im_cat(sh *s, int ac, char **av)
 	return HIBR_OK;
 }
 
-/* The last resampled grid, kept across calls -- dt_wall draws the desktop's
-   own wallpaper every frame, and re-decoding and re-resampling a PNG that
-   many times a second for a picture that never changes would be wasted
-   work every single one of them. One entry is enough: the wallpaper is the
-   only caller that redraws the same file at the same size over and over.
-   Keyed on the file's own mtime too, so replacing the file is noticed
-   without needing a restart.
+/* Resampled grids, kept across calls -- dt_wall draws the desktop's own
+   wallpaper every frame, and re-decoding and re-resampling a PNG that many
+   times a second for a picture that never changes would be wasted work
+   every single one of them. Keyed on the file's own mtime too, so
+   replacing the file is noticed without needing a restart.
 
-   Bounded to one entry -- the previous one is freed before a new one is
-   stored, never accumulated -- and lives as long as the module does, the
-   same shape the command cache elsewhere in this codebase already is.
-   ASan's leak detector cannot see that: it does not recognise a dlopen'd,
-   tcc-built .so's own static data as a root to scan from, so the one live
-   entry left at process exit reports as a leak of exactly its own size
-   (verified by matching the reported byte counts to rows*cols*sizeof(cell)
-   and strlen(path)+1) rather than growing or reflecting an actual bug. */
+   More than one entry now: once img draw can target a pane (-p), the
+   wallpaper and a window's own preview both call it, with different
+   files, in the same frame -- a single slot thrashed between the two,
+   paying for a full decode and resample of each on every single frame
+   instead of caching either. IM_CACHEN slots, evicted round-robin (oldest
+   first, no recency bookkeeping needed for a handful of concurrent
+   callers). Each slot's own previous grid is freed before it is reused,
+   never accumulated, the same shape the single-entry version already
+   was. ASan's leak detector cannot see a dlopen'd, tcc-built .so's own
+   static data as a root to scan from, so the slots still live at process
+   exit report as a leak of exactly their own size, not as a growing one
+   or an actual bug -- verified the same way the single-entry version was. */
+#define IM_CACHEN 4
+
 static struct {
 	char *path;
 	int rows, cols;
 	time_t mtime;
 	cell *grid;
-} im_cache;
+} im_cache[IM_CACHEN];
+static int im_cachei;
 
 static int im_cached(const char *path, int rows, int cols, cell **out)
 {
 	struct stat st;
+	int i;
 
-	if (!im_cache.path || strcmp(im_cache.path, path) ||
-	    im_cache.rows != rows || im_cache.cols != cols)
+	if (stat(path, &st) != 0)
 		return 0;
-	if (stat(path, &st) != 0 || st.st_mtime != im_cache.mtime)
-		return 0;
-	*out = im_cache.grid;
-	return 1;
+	for (i = 0; i < IM_CACHEN; i++) {
+		if (!im_cache[i].path || strcmp(im_cache[i].path, path) ||
+		    im_cache[i].rows != rows || im_cache[i].cols != cols)
+			continue;
+		if (im_cache[i].mtime != st.st_mtime)
+			continue;
+		*out = im_cache[i].grid;
+		return 1;
+	}
+	return 0;
 }
 
 static void im_cache_store(const char *path, int rows, int cols, cell *grid)
 {
 	struct stat st;
+	int i = im_cachei;
 
-	free(im_cache.path);
-	free(im_cache.grid);
-	im_cache.path = strdup(path);
-	im_cache.rows = rows;
-	im_cache.cols = cols;
-	im_cache.grid = grid;
-	im_cache.mtime = stat(path, &st) == 0 ? st.st_mtime : 0;
+	free(im_cache[i].path);
+	free(im_cache[i].grid);
+	im_cache[i].path = strdup(path);
+	im_cache[i].rows = rows;
+	im_cache[i].cols = cols;
+	im_cache[i].grid = grid;
+	im_cache[i].mtime = stat(path, &st) == 0 ? st.st_mtime : 0;
+	im_cachei = (im_cachei + 1) % IM_CACHEN;
 }
 
-/* img draw file row col h w [-g] -- blit directly into the open display,
-   for a window or the desktop's own wallpaper, rather than printing text
-   a shell would have to route somewhere. Requires "display" only here, so
-   `img file.png` in a plain pipe never touches the console module. */
+/* img draw file row col h w [-g] [-p pane] -- blit directly into the open
+   display, for a window or the desktop's own wallpaper, rather than
+   printing text a shell would have to route somewhere. Requires "display"
+   only here, so `img file.png` in a plain pipe never touches the console
+   module. With -p, row/col are relative to that pane's own top-left
+   corner rather than the root screen, and anything past its own edge is
+   silently clipped rather than drawn -- the same discipline console put
+   -p already gives text, so a window's own preview can use this without
+   knowing where the window itself sits or surviving it moving. */
 static int im_draw(sh *s, int ac, char **av)
 {
 	const dp_api *dp;
-	const char *path;
+	const char *path, *pane = 0;
 	int row, col, rows, cols, gray = 0;
+	int prow = 0, pcol = 0, ph = 0, pw = 0;
 	image im;
 	str err;
 	cell *grid;
-	int r, c;
+	int r, c, i;
 
 	if (ac < 7) {
-		lg(HIBR_LERR, "usage: img draw file row col h w [-g]");
+		lg(HIBR_LERR, "usage: img draw file row col h w [-g] [-p pane]");
 		return 2;
 	}
 	path = av[2];
@@ -285,8 +304,12 @@ static int im_draw(sh *s, int ac, char **av)
 	col = atoi(av[4]);
 	rows = atoi(av[5]);
 	cols = atoi(av[6]);
-	if (ac > 7 && !strcmp(av[7], "-g"))
-		gray = 1;
+	for (i = 7; i < ac; i++) {
+		if (!strcmp(av[i], "-g"))
+			gray = 1;
+		else if (!strcmp(av[i], "-p") && i + 1 < ac)
+			pane = av[++i];
+	}
 	if (rows < 1 || cols < 1) {
 		lg(HIBR_LERR, "img draw: h and w must be at least 1");
 		return 2;
@@ -295,6 +318,15 @@ static int im_draw(sh *s, int ac, char **av)
 	if (!dp || !dp->isopen()) {
 		lg(HIBR_LERR, "img draw: no display is open");
 		return HIBR_FAIL;
+	}
+	/* row/col become pane-relative once -p names one: this is the
+	   only place that ever has to know that, since every dp->put
+	   below still takes a plain absolute position either way. */
+	if (pane) {
+		if (!dp->prect || !dp->prect(pane, &prow, &pcol, &ph, &pw)) {
+			lg(HIBR_LERR, "img draw: no such pane: %s", pane);
+			return HIBR_FAIL;
+		}
 	}
 	if (!im_cached(path, rows, cols, &grid)) {
 		s_init(&err);
@@ -310,8 +342,16 @@ static int im_draw(sh *s, int ac, char **av)
 		im_cache_store(path, rows, cols, grid);
 	}
 	for (r = 0; r < rows; r++) {
+		int ar = row + r;
+
+		if (pane && (ar < 0 || ar >= ph))
+			continue;
 		for (c = 0; c < cols; c++) {
 			const cell *cp = &grid[r * cols + c];
+			int acol = col + c;
+
+			if (pane && (acol < 0 || acol >= pw))
+				continue;
 
 			if (gray) {
 				int lv = im_luma(cp) * IM_RAMPN / 255;
@@ -324,7 +364,8 @@ static int im_draw(sh *s, int ac, char **av)
 				dp->pen(DP_DEFAULT, DP_DEFAULT, 0);
 				ch[0] = im_ramp[lv];
 				ch[1] = 0;
-				dp->put(row + r, col + c, ch);
+				dp->put(pane ? prow + ar : ar,
+					pane ? pcol + acol : acol, ch);
 				continue;
 			}
 			dp->pen(DP_RGB | ((unsigned)cp->tr << 16) |
@@ -332,7 +373,8 @@ static int im_draw(sh *s, int ac, char **av)
 				DP_RGB | ((unsigned)cp->br << 16) |
 					 ((unsigned)cp->bg << 8) | cp->bb,
 				0);
-			dp->put(row + r, col + c, "\xe2\x96\x80");
+			dp->put(pane ? prow + ar : ar,
+				pane ? pcol + acol : acol, "\xe2\x96\x80");
 		}
 	}
 	return HIBR_OK;

@@ -27,6 +27,21 @@ cn_pane *cn_pfind(const char *nm)
 	return 0;
 }
 
+/* A named pane's own rectangle, for another module to translate and clip
+   its own drawing into -- see dp_api's own comment for why this exists. */
+int cn_prect(const char *nm, int *row, int *col, int *h, int *w)
+{
+	cn_pane *p = cn_pfind(nm);
+
+	if (!p)
+		return 0;
+	*row = p->row;
+	*col = p->col;
+	*h = p->h;
+	*w = p->w;
+	return 1;
+}
+
 /* Define or move a named pane. */
 cn_pane *cn_pset(const char *nm, int row, int col, int h, int w)
 {
@@ -538,7 +553,7 @@ int m_console(sh *s, int ac, char **av)
 static const dp_api console_api = {
 	cn_open, cn_close, cn_isopen, cn_size, cn_resized, cn_pen,
 	cn_clear, cn_put, cn_fill, cn_cursor, cn_flush, cn_key,
-	cn_colour, cn_attr, cn_mouseon
+	cn_colour, cn_attr, cn_mouseon, cn_prect
 };
 
 /* Offer the drawing table to whatever else wants to draw. */
