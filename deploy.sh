@@ -86,11 +86,27 @@ priv() {
 	fi
 }
 
-# A fingerprint of everything that ends up in the binary or the modules.
+# A fingerprint of everything that ends up installed: the binary and the
+# modules, and also examples/desktop, which install's own `cp -R` copies
+# whole, and the desktop launcher template -- none of it .c or .h, so a
+# glob over source files alone missed every one of them. update compares
+# this against what was last installed and says "already current" when it
+# matches; before examples/desktop was included here, that was true after
+# a desktop.hibr-only change had actually changed nothing on disk, so
+# update's own "already current" was simply wrong -- confirmed live, not
+# guessed: three real slices of desktop.hibr/session.hibr/control-panel
+# work each said "already current" and the installed copy stayed exactly
+# where it was before all three, one of them a whole new pane file that
+# was never even copied there. Paths as well as content go through cksum,
+# not content alone, so a file added, removed or renamed with byte-for-
+# byte identical content elsewhere still changes the fingerprint.
 srcid() {
-	cat "$SRC"/Makefile "$SRC"/include/*.h "$SRC"/src/*.c "$SRC"/mods/*.c \
-	    "$SRC"/mods/*/*.c "$SRC"/mods/*/*.h 2>/dev/null |
-		cksum | cut -d' ' -f1
+	{ cat "$SRC"/Makefile "$SRC"/include/*.h "$SRC"/src/*.c "$SRC"/mods/*.c \
+	      "$SRC"/mods/*/*.c "$SRC"/mods/*/*.h 2>/dev/null
+	  cat "$SRC"/tools/desktop-launcher.in 2>/dev/null
+	  find "$SRC"/examples/desktop -type f 2>/dev/null | sort |
+		  while IFS= read -r f; do printf '%s\n' "$f"; cat "$f"; done
+	} | cksum | cut -d' ' -f1
 }
 
 # Read one field out of the installed manifest.
