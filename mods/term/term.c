@@ -119,17 +119,54 @@ int m_term(sh *s, int ac, char **av)
 		return r < 0 ? HIBR_FAIL : HIBR_OK;
 	}
 	if (!strcmp(sub, "draw")) {
+		const char *pane = 0;
+		int row, col, h, w, curon, n = ac, i;
+		int prow = 0, pcol = 0, ph = 0, pw = 0;
+
 		if (!tm_dp) {
 			lg(HIBR_LERR, "term draw: no display");
 			return HIBR_FAIL;
 		}
 		if (ac < 5) {
-			lg(HIBR_LERR, "usage: term draw id row col [h] [w] [curon]");
+			lg(HIBR_LERR,
+			   "usage: term draw id row col [h] [w] [curon] [-p pane]");
 			return 2;
 		}
-		tm_draw(m, tm_dp, atoi(av[3]), atoi(av[4]),
-			ac > 5 ? atoi(av[5]) : 0, ac > 6 ? atoi(av[6]) : 0,
-			ac > 7 ? atoi(av[7]) : 0);
+		/* -p, if given, always trails whichever positionals are
+		   present -- found once here, the rest (h/w/curon) stop
+		   being read from beyond it. */
+		for (i = 5; i < ac; i++) {
+			if (!strcmp(av[i], "-p") && i + 1 < ac) {
+				pane = av[i + 1];
+				n = i;
+				break;
+			}
+		}
+		row = atoi(av[3]);
+		col = atoi(av[4]);
+		h = n > 5 ? atoi(av[5]) : 0;
+		w = n > 6 ? atoi(av[6]) : 0;
+		curon = n > 7 ? atoi(av[7]) : 0;
+		/* row/col become pane-relative once -p names one, the same
+		   translate-and-clip img draw -p already does: nothing
+		   inside tm_draw itself has to know panes exist at all. */
+		if (pane) {
+			if (!tm_dp->prect ||
+			    !tm_dp->prect(pane, &prow, &pcol, &ph, &pw)) {
+				lg(HIBR_LERR, "term draw: no such pane: %s",
+				   pane);
+				return HIBR_FAIL;
+			}
+			if (row < 0 || row >= ph || col < 0 || col >= pw)
+				return HIBR_OK;
+			if (h <= 0 || h > ph - row)
+				h = ph - row;
+			if (w <= 0 || w > pw - col)
+				w = pw - col;
+			row += prow;
+			col += pcol;
+		}
+		tm_draw(m, tm_dp, row, col, h, w, curon);
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "key")) {
