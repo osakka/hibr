@@ -1,0 +1,208 @@
+#!/usr/bin/env hibr
+#
+# displays -- Control Panel's own picture of a multi-monitor arrangement:
+# every attached display drawn to scale from hold clients, dragged to
+# reposition (hold move on release), clicked with no movement to make
+# primary (hold primary), switched off with the x in its own top-right
+# corner (hold drop). Nothing here is kept that a fresh read of hold
+# clients cannot recompute -- the same as every other pane's row list is
+# rebuilt every frame -- except the drag itself, which is this window's
+# own gesture in progress and belongs nowhere else.
+command -v cp_pane > /dev/null && cp_pane displays "Displays" "▦"
+
+declare -gA DPY
+
+# This session's own name, or empty when there is none to show a picture
+# of -- not held, or held but the hold module is not to be had.
+displays_sess() {
+	[ -n "$HIBR_HOLD" ] && need hold && dt_holdsess
+}
+
+# One scale, in percent, applied to both axes: since a real display and
+# this pane's own canvas are both measured in the same unit -- terminal
+# cells -- a single uniform scale keeps a display's own proportions,
+# where a separate row-scale and column-scale would stretch it. Rounding
+# down and flooring at 1% keeps every display at least a sliver rather
+# than vanishing at zero width.
+displays_scale() {
+	local h=$1 w=$2 urows=$3 ucols=$4 s sc
+
+	s=$((h * 100 / urows))
+	sc=$((w * 100 / ucols))
+	[ "$sc" -lt "$s" ] && s=$sc
+	[ "$s" -lt 1 ] && s=1
+	ret "$s"
+}
+
+displays_draw() {
+	local id=$1 h=$2 w=$3 bx=$4
+	local sess lst nm row col rows cols pri i n urows ucols s
+	local br bc bh bw namew t r mr mc dragi
+
+	dt_wclear "$id"
+	sess := displays_sess
+	if [ -z "$sess" ]; then
+		console pen "$DT_IDLE" "$DT_FACE"
+		t="Not held -- nothing to arrange"
+		[ "${#t}" -gt "$w" ] && t=${t:0:$w}
+		console put -p "w$id" 1 "$bx" "$t"
+		DPY[$id]["n"]=0
+		return 0
+	fi
+
+	console pen "$DT_INK" "$DT_FACE"
+	r=1
+	while [ "$r" -le "$h" ]; do
+		t := str repeat " " "$w"
+		console put -p "w$id" "$r" "$bx" "$t"
+		r=$((r + 1))
+	done
+
+	lst := hold clients "$sess"
+	i=0
+	urows=0
+	ucols=0
+	while IFS=' ' read -r nm row col rows cols pri; do
+		[ -z "$nm" ] && continue
+		DPY[$id][$i]["name"]=$nm
+		DPY[$id][$i]["row"]=$row
+		DPY[$id][$i]["col"]=$col
+		DPY[$id][$i]["rows"]=$rows
+		DPY[$id][$i]["cols"]=$cols
+		DPY[$id][$i]["primary"]=$pri
+		[ $((row + rows)) -gt "$urows" ] && urows=$((row + rows))
+		[ $((col + cols)) -gt "$ucols" ] && ucols=$((col + cols))
+		i=$((i + 1))
+	done <<< "$lst"
+	n=$i
+	DPY[$id]["n"]=$n
+	[ "$urows" -lt 1 ] && urows=1
+	[ "$ucols" -lt 1 ] && ucols=1
+	s := displays_scale "$h" "$w" "$urows" "$ucols"
+	DPY[$id]["s"]=$s
+	dragi=${DPY[$id]["drag"]}
+
+	i=0
+	while [ "$i" -lt "$n" ]; do
+		row=${DPY[$id][$i]["row"]}
+		col=${DPY[$id][$i]["col"]}
+		rows=${DPY[$id][$i]["rows"]}
+		cols=${DPY[$id][$i]["cols"]}
+		nm=${DPY[$id][$i]["name"]}
+		pri=${DPY[$id][$i]["primary"]}
+		br=$((row * s / 100 + 1))
+		bc=$((col * s / 100 + bx))
+		# One cell shaved off each box's own scaled size, a gap between
+		# two adjacent displays rather than their borders sharing (and
+		# fighting over) the same cell: real displays touch exactly at
+		# hold clients's own coordinates -- 0,0 and 0,80 for two 80-wide
+		# screens side by side -- and the uniform scale preserves that
+		# exactly, so without this a display's own right border is drawn
+		# over by its neighbour's left one, whichever is drawn second.
+		bh=$((rows * s / 100 - 1))
+		bw=$((cols * s / 100 - 1))
+		[ "$bh" -lt 2 ] && bh=2
+		[ "$bw" -lt 4 ] && bw=4
+		if [ "$i" = "$dragi" ]; then
+			mr=${DPY[$id]["mr"]:-0}
+			mc=${DPY[$id]["mc"]:-0}
+			br=$((br + mr))
+			bc=$((bc + mc))
+		fi
+		DPY[$id][$i]["br"]=$br
+		DPY[$id][$i]["bc"]=$bc
+		DPY[$id][$i]["bh"]=$bh
+		DPY[$id][$i]["bw"]=$bw
+		DPY[$id][$i]["xr"]=$br
+		DPY[$id][$i]["xc"]=$((bc + bw - 1))
+
+		if [ "$pri" = 1 ]; then
+			console pen "$DT_ACTIVE" "$DT_FACE" bold
+		else
+			console pen "$DT_IDLE" "$DT_FACE"
+		fi
+		t := dt_rep $((bw - 1)) "─"
+		console put -p "w$id" "$br" "$bc" "┌${t}x"
+		r=1
+		while [ "$r" -lt $((bh - 1)) ]; do
+			console put -p "w$id" $((br + r)) "$bc" "│"
+			console put -p "w$id" $((br + r)) $((bc + bw - 1)) "│"
+			r=$((r + 1))
+		done
+		t := dt_rep $((bw - 2)) "─"
+		console put -p "w$id" $((br + bh - 1)) "$bc" "└${t}┘"
+		namew=$((bw - 2))
+		[ "$namew" -lt 1 ] && namew=1
+		t=$nm
+		[ "${#t}" -gt "$namew" ] && t=${t:0:$namew}
+		console pen "$DT_INK" "$DT_FACE"
+		console put -p "w$id" $((br + bh / 2)) $((bc + 1)) "$t"
+		i=$((i + 1))
+	done
+}
+
+# Press: the x in a rectangle's own corner switches that display off on
+# the spot; inside a rectangle otherwise starts dragging it; neither
+# declines the press (returns 1) so panel_mouse still offers panel_click
+# a plain row-list click elsewhere in the pane.
+displays_mouse() {
+	local id=$1 act=$2 button=$3 r=$4 c=$5
+	local n i sess nm mr mc s row col nrow ncol
+
+	n=${DPY[$id]["n"]:-0}
+	if [ "$act" = press ]; then
+		i=0
+		while [ "$i" -lt "$n" ]; do
+			if [ "$r" = "${DPY[$id][$i]["xr"]}" ] &&
+			   [ "$c" = "${DPY[$id][$i]["xc"]}" ]; then
+				sess := displays_sess
+				hold drop "$sess" "${DPY[$id][$i]["name"]}"
+				return 0
+			fi
+			i=$((i + 1))
+		done
+		i=0
+		while [ "$i" -lt "$n" ]; do
+			if [ "$r" -ge "${DPY[$id][$i]["br"]}" ] &&
+			   [ "$r" -lt $((${DPY[$id][$i]["br"]} + ${DPY[$id][$i]["bh"]})) ] &&
+			   [ "$c" -ge "${DPY[$id][$i]["bc"]}" ] &&
+			   [ "$c" -lt $((${DPY[$id][$i]["bc"]} + ${DPY[$id][$i]["bw"]})) ]; then
+				DPY[$id]["drag"]=$i
+				DPY[$id]["pr"]=$r
+				DPY[$id]["pc"]=$c
+				DPY[$id]["mr"]=0
+				DPY[$id]["mc"]=0
+				return 0
+			fi
+			i=$((i + 1))
+		done
+		return 1
+	fi
+
+	i=${DPY[$id]["drag"]}
+	[ -z "$i" ] && return 1
+	mr=$((r - ${DPY[$id]["pr"]}))
+	mc=$((c - ${DPY[$id]["pc"]}))
+	DPY[$id]["mr"]=$mr
+	DPY[$id]["mc"]=$mc
+	if [ "$act" = release ]; then
+		sess := displays_sess
+		nm=${DPY[$id][$i]["name"]}
+		if [ "$mr" = 0 ] && [ "$mc" = 0 ]; then
+			hold primary "$sess" "$nm"
+		else
+			s=${DPY[$id]["s"]}
+			row=${DPY[$id][$i]["row"]}
+			col=${DPY[$id][$i]["col"]}
+			nrow=$((row + mr * 100 / s))
+			ncol=$((col + mc * 100 / s))
+			[ "$nrow" -lt 0 ] && nrow=0
+			[ "$ncol" -lt 0 ] && ncol=0
+			hold move "$sess" "$nm" "$nrow" "$ncol"
+		fi
+		DPY[$id]["drag"]=
+		DPY[$id]["mr"]=0
+		DPY[$id]["mc"]=0
+	fi
+	return 0
+}

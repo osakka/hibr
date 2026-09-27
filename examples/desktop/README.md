@@ -288,8 +288,18 @@ answers directly:
     hold primary desktop NAME   # change which one anchors the bar
 
 A display's name is whatever `hold attach -n NAME` gave it, or
-`client-<fd>` if nothing did -- see [`mods/hold/README.md`](../../mods/hold/README.md)
-for the rest of what a held session can do.
+`client-<fd>` if nothing did -- `--name` gives it one directly:
+
+    hibr examples/desktop/session.hibr --name left
+    hibr examples/desktop/session.hibr --join --name right
+
+See [`mods/hold/README.md`](../../mods/hold/README.md) for the rest of
+what a held session can do.
+
+The Control Panel's own **Displays** pane draws the whole arrangement to
+scale, from the same `hold clients`: drag a display to reposition it,
+click one with the mouse held still to make it primary, or press the x in
+its own corner to switch it off.
 
 ## Keys that would be signals
 

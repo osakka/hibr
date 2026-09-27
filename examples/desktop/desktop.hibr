@@ -3007,7 +3007,7 @@ dt_holdline() {
 }
 
 dt_autojoin() {
-	local base=$1 line wxh cols
+	local base=$1 dname=$2 line wxh cols
 
 	line := dt_holdline "$base"
 	if [ -z "$line" ]; then
@@ -3017,32 +3017,46 @@ dt_autojoin() {
 	fi
 	wxh=${line##* }
 	cols=${wxh#*x}
-	hold attach -m "$base" 0 "$cols"
+	if [ -n "$dname" ]; then
+		hold attach -m -n "$dname" "$base" 0 "$cols"
+	else
+		hold attach -m "$base" 0 "$cols"
+	fi
+	exit $?
+}
+
+# Attach to this session, named for the control panel if asked to be --
+# shared by a fresh `hold new`, --resume and --join, so all three ways of
+# ending up attached leave the same name behind.
+dt_holdattach() {
+	local base=$1 dname=$2
+
+	if [ -n "$dname" ]; then
+		hold attach -n "$dname" "$base"
+	else
+		hold attach "$base"
+	fi
 	exit $?
 }
 
 dt_autohold() {
-	local base=${1:-desktop} resume=$2 join=$3 have
+	local base=${1:-desktop} resume=$2 join=$3 dname=$4 have
 
 	[ -n "$HIBR_HOLD" ] && return 0
 	[ -t 0 ] && [ -t 1 ] || return 0
 	need hold || return 0
-	[ "$join" = 1 ] && dt_autojoin "$base"
+	[ "$join" = 1 ] && dt_autojoin "$base" "$dname"
 	have := dt_holdnames
 	case " $have " in
 	*" $base "*)
-		if [ "$resume" = 1 ]; then
-			hold attach "$base"
-			exit $?
-		fi
+		[ "$resume" = 1 ] && dt_holdattach "$base" "$dname"
 		echo "$0: $base is already running -- add --resume to reattach," \
 			"or run 'hold attach $base' directly" >&2
 		exit 1
 		;;
 	esac
 	hold new -d "$base" hibr "$0" "${DT_SELFARGS[@]}" || return 0
-	hold attach "$base"
-	exit $?
+	dt_holdattach "$base" "$dname"
 }
 
 # Leave the desktop running and give the terminal back.  Only a desktop

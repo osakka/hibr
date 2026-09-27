@@ -31,7 +31,15 @@ declare -gA CPSRC
 # bx (bx is the body's own left column, since it shares the window with
 # the pane list on its left) and <name>_click id row col, in the same
 # w$id coordinates _draw used, no translation to undo. Either shape may
-# also define <name>_key and, for the body shape, <name>_wheel.
+# also define <name>_key and, for the body shape, <name>_wheel. A body
+# pane whose content needs more than a click -- something dragged on a
+# canvas, not a row picked from a list -- also defines <name>_mouse id
+# act button row col: press, drag and release, the same w$id coordinates
+# and the same shape a window's own _mouse already has (displays.hibr's
+# rectangles are the first to use it). Return 1 from a press to decline
+# it -- panel_mouse then falls through to <name>_click for that same
+# press, exactly as if _mouse did not exist; only a press it actually
+# accepts (return 0) ever sees the drag or the release that follows it.
 cp_pane() {
 	CP_PANES[$1]["title"]="$2"
 	CP_PANES[$1]["icon"]="${3:-◆}"
@@ -387,6 +395,43 @@ panel_click() {
 	fi
 	PW[$w]["sel"]=$i
 	PW[$w]["last"]=$i
+}
+
+# Forward press/drag/release to whichever pane is selected, when it has
+# its own _mouse -- for a pane whose content needs more than a click, a
+# rectangle dragged on a canvas rather than a row picked from a list.
+# dt_new wires up a window's own _mouse to take over every press for that
+# window, ahead of the plain click path this file has always used, so
+# without this an ordinary pane click would never reach panel_click again
+# the moment any one pane defined _mouse. A press is only ever offered to
+# the selected pane's own _mouse when it lands in the body, past the pane
+# list's own column, and only while it accepts -- return 1 (a miss, not
+# its own rectangle say) falls straight through to panel_click exactly as
+# if _mouse did not exist, so an ordinary pane is untouched either way.
+# Drag and release go only where a press was actually accepted, and only
+# for the one window that accepted it -- CP_MDRAG is keyed by window id,
+# never a bare global, for the same reason every other per-window pane
+# state here is.
+declare -gA CP_MDRAG
+
+panel_mouse() {
+	local id=$1 act=$2 button=$3 r=$4 c=$5 pane
+
+	if [ "$act" = press ]; then
+		CP_MDRAG[$id]=
+		pane := panel_pane "$id"
+		if [ "$c" -ge "$CP_LISTW" ] && [ -n "$pane" ] &&
+		   dt_has "${pane}_mouse" &&
+		   "${pane}_mouse" "$id" press "$button" "$r" "$c"; then
+			CP_MDRAG[$id]=$pane
+			return 0
+		fi
+		panel_click "$id" "$r" "$c"
+		return 0
+	fi
+	pane=${CP_MDRAG[$id]}
+	[ -n "$pane" ] && "${pane}_mouse" "$id" "$act" "$button" "$r" "$c"
+	[ "$act" = release ] && CP_MDRAG[$id]=
 }
 
 panel_wheel() {

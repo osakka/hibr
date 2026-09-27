@@ -245,7 +245,8 @@ out = subprocess.run([sx.HIBR, "-c", CPLOAD + "echo ${CP_PANE_LIST[*]}"],
 ORDER = out.split()
 check("panes register and sort by title, not load order",
       ORDER == ["app_shortcuts", "appearance", "behaviour", "control_strip",
-                "datetime", "shortcuts", "wallpick", "window_style"], out)
+                "datetime", "displays", "shortcuts", "wallpick",
+                "window_style"], out)
 
 PW = "20 58 2 2"
 PANEL = ("panel", PW)
@@ -264,8 +265,9 @@ LISTCOL = 5
 BODYCOL = 20
 TITLE = {"app_shortcuts": "App Shortcuts", "appearance": "Appearance",
          "behaviour": "Behaviour", "control_strip": "Control Strip",
-         "datetime": "Date & Time", "shortcuts": "Shortcuts",
-         "wallpick": "Wallpaper", "window_style": "Window Style"}
+         "datetime": "Date & Time", "displays": "Displays",
+         "shortcuts": "Shortcuts", "wallpick": "Wallpaper",
+         "window_style": "Window Style"}
 
 
 def prow(name):

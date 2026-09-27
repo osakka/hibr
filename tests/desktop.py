@@ -1354,7 +1354,7 @@ check("clicking the clock in the bar opens the Clock app",
 PANEL = ('. %s/panel.hibr\nCP_PANEDIRS+=("%s")\ncp_panes'
          % (tree("examples/desktop/apps"), tree("examples/desktop/control-panel")))
 ORDER = ["app_shortcuts", "appearance", "behaviour", "control_strip",
-         "datetime", "shortcuts", "wallpick", "window_style"]
+         "datetime", "displays", "shortcuts", "wallpick", "window_style"]
 DOWN_APP = [b"\x1b[B"] * ORDER.index("appearance")
 DOWN_SHORT = [b"\x1b[B"] * ORDER.index("shortcuts")
 
@@ -1706,6 +1706,51 @@ check("the hibr menu's Displays submenu lists every display too",
 check("the primary one is ticked", sc.find("✓ " + primary) is not None, sc)
 t1.send(press(0, 50))
 
+# The Control Panel gets a "Displays" pane too (Slice D): every attached
+# display drawn to scale from hold clients, dragged to reposition it
+# (hold move on release), clicked with no movement to make it primary
+# (hold primary), an x in its own corner to switch it off (hold drop).
+t1.send(press(0, 1))
+sc = t1.screen()
+cp = sc.find("Control Panel")
+t1.send(press(cp[0], cp[1]))
+sc = t1.screen()
+dpy = sc.find("Displays")
+t1.send(press(dpy[0], dpy[1]))
+sc = t1.screen()
+check("the Displays pane draws both attached displays by name",
+      sc.find(primary) is not None and sc.find(joined) is not None, sc)
+
+lbl = sc.find(joined)
+t1.send(press(lbl[0], lbl[1]))
+t1.send(drag(lbl[0] + 1, lbl[1] + 3))
+t1.send(release(lbl[0] + 1, lbl[1] + 3))
+r4 = subprocess.run([screen.HIBR, "-c", HOLDC + "hold clients desktop"],
+                    env=dict(os.environ, **JENV), capture_output=True,
+                    text=True)
+row4 = next((ln.split() for ln in r4.stdout.splitlines()
+             if ln.split() and ln.split()[0] == joined), None)
+check("dragging a display's own rectangle repositions it",
+      row4 is not None and row4[2] != "80", r4.stdout)
+
+t1.collect(0.5)
+sc = t1.screen()
+lbl2 = sc.find(joined)
+t1.send(press(lbl2[0], lbl2[1]))
+t1.send(release(lbl2[0], lbl2[1]))
+r5 = subprocess.run([screen.HIBR, "-c", HOLDC + "hold clients desktop"],
+                    env=dict(os.environ, **JENV), capture_output=True,
+                    text=True)
+row5 = next((ln.split() for ln in r5.stdout.splitlines()
+             if ln.split() and ln.split()[0] == joined), None)
+check("clicking a display's rectangle with no movement makes it primary",
+      row5 is not None and row5[-1] == "1", r5.stdout)
+
+t1.collect(0.5)
+sc = t1.screen()
+xb = sc.find("x├")
+t1.send(press(xb[0], xb[1]))
+
 # The panel can change which display is primary, live: hold primary
 # nudges the program to notice (hd_poke, the same SIGWINCH a fresh attach
 # already gets), and dt_size re-reads hold clients rather than a
@@ -1740,4 +1785,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(252)
+report(255)
