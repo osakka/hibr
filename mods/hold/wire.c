@@ -220,17 +220,25 @@ int hd_dial(const char *path)
 	return fd;
 }
 
-/* Send a session one request and, if a reply is wanted, wait for it. */
-int hd_ask(const char *path, int type, str *reply)
+/* Send a session one request with a payload and, if a reply is wanted,
+   wait for it. */
+int hd_askp(const char *path, int type, const char *p, size_t n, str *reply)
 {
 	int fd = hd_dial(path), t = 0, r = 1;
 
 	if (fd < 0)
 		return 0;
-	if (!hd_send(fd, type, 0, 0))
+	if (!hd_send(fd, type, p, n))
 		r = 0;
 	else if (reply)
 		r = hd_recv(fd, &t, reply) > 0 && t == type;
 	close(fd);
 	return r;
+}
+
+/* Send a session one request with no payload and, if a reply is wanted,
+   wait for it. */
+int hd_ask(const char *path, int type, str *reply)
+{
+	return hd_askp(path, type, 0, 0, reply);
 }

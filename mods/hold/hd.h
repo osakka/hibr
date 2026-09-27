@@ -16,7 +16,15 @@ enum {
 	HD_INFO = 'i',
 	/* Join as an additional client rather than taking over: everyone
 	   already attached stays attached. */
-	HD_MATTACH = 'm'
+	HD_MATTACH = 'm',
+	/* One line per attached client: name row col rows cols primary. */
+	HD_CLIENTS = 'c',
+	/* Reposition a named client: name row col. */
+	HD_MOVE = 'v',
+	/* Detach a named client, server-side, by name rather than by fd. */
+	HD_DROP = 'o',
+	/* Make a named client the primary; every other client stops being it. */
+	HD_PRIMARY = 'p'
 };
 
 extern const py_api *hd_pty;
@@ -50,11 +58,19 @@ struct hd_cli {
 	struct hd_cell *front;
 	str mbuf;
 	int mst;
+	/* A display's own name, for the control panel: what a client asked to
+	   be called at attach, or "client-<fd>" when it asked for nothing.
+	   primary marks the one the desktop's own bar and menu anchor to --
+	   the first client to attach, until the panel picks another. */
+	str name;
+	int primary;
 };
 
 void hd_cdrop(vec *cls, int fd);
 struct hd_cli *hd_cfind(vec *cls, int fd);
+struct hd_cli *hd_cfindname(vec *cls, const char *name);
 int hd_chas(vec *cls, int fd);
+int hd_anyprimary(vec *cls);
 void hd_ubox(vec *cls, int *rows, int *cols);
 void hd_union(vec *cls, int id, int tid);
 void hd_cclear(vec *cls, const char *why, size_t n);
@@ -71,12 +87,13 @@ int hd_send(int fd, int type, const char *p, size_t n);
 int hd_recv(int fd, int *type, str *out);
 int hd_dial(const char *path);
 int hd_ask(const char *path, int type, str *reply);
+int hd_askp(const char *path, int type, const char *p, size_t n, str *reply);
 void hd_selftitle(const char *what, const char *path);
 void hd_cloexec(int fd);
 
 void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 	      int ready);
 int hd_attach(const char *name, const char *path, int multi, int row,
-	      int col);
+	      int col, const char *dname);
 
 #endif

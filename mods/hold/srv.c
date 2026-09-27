@@ -45,6 +45,7 @@ void hd_cdrop(vec *cls, int fd)
 			close(fd);
 			free(cn->front);
 			s_free(&cn->mbuf);
+			s_free(&cn->name);
 			free(cn);
 			cls->p[i] = cls->p[--cls->n];
 			return;
@@ -70,6 +71,31 @@ struct hd_cli *hd_cfind(vec *cls, int fd)
 int hd_chas(vec *cls, int fd)
 {
 	return hd_cfind(cls, fd) != 0;
+}
+
+/* The client named this, or NULL if none is. */
+struct hd_cli *hd_cfindname(vec *cls, const char *name)
+{
+	size_t i;
+	struct hd_cli *cn;
+
+	for (i = 0; i < cls->n; i++) {
+		cn = cls->p[i];
+		if (cn->name.p && !strcmp(cn->name.p, name))
+			return cn;
+	}
+	return 0;
+}
+
+/* Whether any attached client is already marked primary. */
+int hd_anyprimary(vec *cls)
+{
+	size_t i;
+
+	for (i = 0; i < cls->n; i++)
+		if (((struct hd_cli *)cls->p[i])->primary)
+			return 1;
+	return 0;
 }
 
 /* The furthest row and column any attached client's viewport reaches --
@@ -118,6 +144,7 @@ void hd_cclear(vec *cls, const char *why, size_t n)
 		close(cn->fd);
 		free(cn->front);
 		s_free(&cn->mbuf);
+		s_free(&cn->name);
 		free(cn);
 	}
 	cls->n = 0;
@@ -155,17 +182,26 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit)
 		cn = xm(sizeof *cn);
 		memset(cn, 0, sizeof *cn);
 		cn->fd = c;
-		if (in.n == 4 * sizeof(int)) {
+		if (in.n >= 4 * sizeof(int)) {
 			memcpy(v, in.p, sizeof v);
 			cn->rows = v[0];
 			cn->cols = v[1];
 			cn->row = v[2];
 			cn->col = v[3];
+			if (in.n > 4 * sizeof(int))
+				s_add(&cn->name, in.p + 4 * sizeof(int),
+				      in.n - 4 * sizeof(int));
 		} else if (in.n == 2 * sizeof(int)) {
 			memcpy(v, in.p, 2 * sizeof(int));
 			cn->rows = v[0];
 			cn->cols = v[1];
 		}
+		if (!cn->name.n) {
+			s_cat(&cn->name, "client-");
+			s_num(&cn->name, cn->fd);
+		}
+		if (!hd_anyprimary(cls))
+			cn->primary = 1;
 		v_add(cls, cn);
 		hd_union(cls, id, tid);
 		lg(HIBR_LDBG, "hold: attached at %d,%d size %dx%d (%lu now)",
@@ -199,6 +235,91 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit)
 		s_num(&o, ucols);
 		hd_send(c, HD_INFO, o.p, o.n);
 		s_free(&o);
+		break;
+	}
+	case HD_CLIENTS: {
+		size_t ci;
+
+		s_init(&o);
+		for (ci = 0; ci < cls->n; ci++) {
+			struct hd_cli *cn2 = cls->p[ci];
+
+			if (o.n)
+				s_ch(&o, '\n');
+			s_cat(&o, cn2->name.p ? cn2->name.p : "");
+			s_ch(&o, ' ');
+			s_num(&o, cn2->row);
+			s_ch(&o, ' ');
+			s_num(&o, cn2->col);
+			s_ch(&o, ' ');
+			s_num(&o, cn2->rows);
+			s_ch(&o, ' ');
+			s_num(&o, cn2->cols);
+			s_ch(&o, ' ');
+			s_num(&o, cn2->primary);
+		}
+		hd_send(c, HD_CLIENTS, o.p, o.n);
+		s_free(&o);
+		break;
+	}
+	case HD_MOVE: {
+		struct hd_cli *cn2 = 0;
+		char *sp1, *sp2;
+		int nrow = 0, ncol = 0;
+		const char *rep;
+
+		sp1 = in.n ? memchr(in.p, ' ', in.n) : 0;
+		if (sp1) {
+			*sp1 = 0;
+			sp2 = strchr(sp1 + 1, ' ');
+			if (sp2) {
+				*sp2 = 0;
+				nrow = atoi(sp1 + 1);
+				ncol = atoi(sp2 + 1);
+				cn2 = hd_cfindname(cls, in.p);
+			}
+		}
+		if (cn2) {
+			cn2->row = nrow;
+			cn2->col = ncol;
+			free(cn2->front);
+			cn2->front = 0;
+			hd_union(cls, id, tid);
+			/* cn2 may be freed by a failed send below. */
+			hd_rensend1(cls, cn2, tid);
+		}
+		rep = cn2 ? "ok" : "no such display";
+		hd_send(c, HD_MOVE, rep, strlen(rep));
+		break;
+	}
+	case HD_DROP: {
+		struct hd_cli *cn2 = in.n ? hd_cfindname(cls, in.p) : 0;
+		int wasp = cn2 ? cn2->primary : 0;
+		const char *rep;
+
+		if (cn2) {
+			hd_send(cn2->fd, HD_DETACH, "switched off", 12);
+			hd_cdrop(cls, cn2->fd);
+			hd_union(cls, id, tid);
+			if (wasp && cls->n)
+				((struct hd_cli *)cls->p[0])->primary = 1;
+		}
+		rep = cn2 ? "ok" : "no such display";
+		hd_send(c, HD_DROP, rep, strlen(rep));
+		break;
+	}
+	case HD_PRIMARY: {
+		struct hd_cli *cn2 = in.n ? hd_cfindname(cls, in.p) : 0;
+		const char *rep;
+		size_t pi;
+
+		if (cn2) {
+			for (pi = 0; pi < cls->n; pi++)
+				((struct hd_cli *)cls->p[pi])->primary = 0;
+			cn2->primary = 1;
+		}
+		rep = cn2 ? "ok" : "no such display";
+		hd_send(c, HD_PRIMARY, rep, strlen(rep));
 		break;
 	}
 	}
@@ -353,6 +474,7 @@ void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 		close(cn->fd);
 		free(cn->front);
 		s_free(&cn->mbuf);
+		s_free(&cn->name);
 		free(cn);
 	}
 	v_free(&cls);

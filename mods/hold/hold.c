@@ -134,7 +134,7 @@ int hd_new(sh *s, int ac, char **av)
 		s_free(&path);
 		return HIBR_OK;
 	}
-	i = hd_attach(name, path.p, 0, 0, 0);
+	i = hd_attach(name, path.p, 0, 0, 0, 0);
 	s_free(&path);
 	return i;
 }
@@ -202,6 +202,121 @@ int hd_which(const char *name, str *path)
 	return 1;
 }
 
+/* Every attached client of a session, one per line: name row col rows cols
+   primary -- what the control panel draws its rectangles from. */
+int hd_clients(sh *s, int ac, char **av)
+{
+	str path, r;
+	int ok;
+
+	s_init(&path);
+	if (!hd_which(ac > 2 ? av[2] : 0, &path)) {
+		s_free(&path);
+		return 2;
+	}
+	s_init(&r);
+	ok = hd_ask(path.p, HD_CLIENTS, &r);
+	s_free(&path);
+	if (!ok) {
+		s_free(&r);
+		lg(HIBR_LERR, "hold: no such session");
+		return HIBR_FAIL;
+	}
+	hd_ret(s, r.p ? r.p : "");
+	s_free(&r);
+	return HIBR_OK;
+}
+
+/* Turn a request-with-a-name's own reply into a builtin's status: the
+   session answers "ok" or names the problem, and hd_askp itself failing
+   means it never answered at all. */
+int hd_okreply(int ok, str *r)
+{
+	if (ok && r->p && !strcmp(r->p, "ok"))
+		return HIBR_OK;
+	lg(HIBR_LERR, "hold: %s", r->p && *r->p ? r->p : "no such session");
+	return HIBR_FAIL;
+}
+
+/* Reposition a named display within its session's own virtual space. */
+int hd_move(sh *s, int ac, char **av)
+{
+	str path, req, r;
+	int ok, ret;
+
+	(void)s;
+	if (ac < 6) {
+		lg(HIBR_LERR, "usage: hold move session display row col");
+		return 2;
+	}
+	s_init(&path);
+	if (!hd_which(av[2], &path)) {
+		s_free(&path);
+		return 2;
+	}
+	s_init(&req);
+	s_cat(&req, av[3]);
+	s_ch(&req, ' ');
+	s_cat(&req, av[4]);
+	s_ch(&req, ' ');
+	s_cat(&req, av[5]);
+	s_init(&r);
+	ok = hd_askp(path.p, HD_MOVE, req.p, req.n, &r);
+	s_free(&path);
+	s_free(&req);
+	ret = hd_okreply(ok, &r);
+	s_free(&r);
+	return ret;
+}
+
+/* Detach a named display, server-side -- "switch it off" from the panel. */
+int hd_drop(sh *s, int ac, char **av)
+{
+	str path, r;
+	int ok, ret;
+
+	(void)s;
+	if (ac < 4) {
+		lg(HIBR_LERR, "usage: hold drop session display");
+		return 2;
+	}
+	s_init(&path);
+	if (!hd_which(av[2], &path)) {
+		s_free(&path);
+		return 2;
+	}
+	s_init(&r);
+	ok = hd_askp(path.p, HD_DROP, av[3], strlen(av[3]), &r);
+	s_free(&path);
+	ret = hd_okreply(ok, &r);
+	s_free(&r);
+	return ret;
+}
+
+/* Make a named display the session's primary one. */
+int hd_primary(sh *s, int ac, char **av)
+{
+	str path, r;
+	int ok, ret;
+
+	(void)s;
+	if (ac < 4) {
+		lg(HIBR_LERR, "usage: hold primary session display");
+		return 2;
+	}
+	s_init(&path);
+	if (!hd_which(av[2], &path)) {
+		s_free(&path);
+		return 2;
+	}
+	s_init(&r);
+	ok = hd_askp(path.p, HD_PRIMARY, av[3], strlen(av[3]), &r);
+	s_free(&path);
+	ret = hd_okreply(ok, &r);
+	s_free(&r);
+	return ret;
+}
+
 /* Keep a program running on a terminal nobody has to stay attached to. */
 int m_hold(sh *s, int ac, char **av)
 {
@@ -217,19 +332,34 @@ int m_hold(sh *s, int ac, char **av)
 		return hd_new(s, ac, av);
 	if (!strcmp(sub, "list"))
 		return hd_list(s);
+	if (!strcmp(sub, "clients"))
+		return hd_clients(s, ac, av);
+	if (!strcmp(sub, "move"))
+		return hd_move(s, ac, av);
+	if (!strcmp(sub, "drop"))
+		return hd_drop(s, ac, av);
+	if (!strcmp(sub, "primary"))
+		return hd_primary(s, ac, av);
 	s_init(&path);
 	if (!strcmp(sub, "attach")) {
 		int multi = 0, ai = 2, row = 0, col = 0;
-		const char *nm;
+		const char *nm, *dname = 0;
 
-		if (ai < ac && !strcmp(av[ai], "-m")) {
-			multi = 1;
-			ai++;
+		while (ai < ac) {
+			if (!strcmp(av[ai], "-m")) {
+				multi = 1;
+				ai++;
+			} else if (!strcmp(av[ai], "-n") && ai + 1 < ac) {
+				dname = av[ai + 1];
+				ai += 2;
+			} else {
+				break;
+			}
 		}
 		if (ai >= ac || !hd_path(av[ai], &path)) {
 			if (ai >= ac)
-				lg(HIBR_LERR,
-				   "usage: hold attach [-m] name [row col]");
+				lg(HIBR_LERR, "usage: hold attach [-m] "
+				   "[-n display] name [row col]");
 			s_free(&path);
 			return 2;
 		}
@@ -238,7 +368,7 @@ int m_hold(sh *s, int ac, char **av)
 			row = atoi(av[ai]);
 			col = atoi(av[ai + 1]);
 		}
-		r = hd_attach(nm, path.p, multi, row, col);
+		r = hd_attach(nm, path.p, multi, row, col, dname);
 		s_free(&path);
 		return r;
 	}
@@ -255,7 +385,8 @@ int m_hold(sh *s, int ac, char **av)
 		return r ? HIBR_OK : HIBR_FAIL;
 	}
 	s_free(&path);
-	lg(HIBR_LERR, "usage: hold new|attach|detach|list|kill ...");
+	lg(HIBR_LERR,
+	   "usage: hold new|attach|detach|list|kill|clients|move|drop|primary ...");
 	return 2;
 }
 

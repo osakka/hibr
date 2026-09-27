@@ -286,6 +286,40 @@ hold kill t11
 pty close $a
 pty close $b
 
+echo "--- an unnamed client gets client-<fd>; a named one keeps its own name"
+hold new -d t13 /bin/sh -c 'sleep 120'
+a := pty spawn -r 24 -c 80 $H -c "$L; hold attach t13; echo \"back rc=\$?\""
+sleep 0.6
+echo "default name looks like client-N: $(hold clients t13 | grep -Ec '^client-[0-9]+ ')"
+b := pty spawn -r 10 -c 40 $H -c "$L; hold attach -m -n second t13 0 80; echo \"back rc=\$?\""
+sleep 0.6
+echo "named client keeps its own name: $(hold clients t13 | grep -c '^second ')"
+echo "the first to attach is primary: $(hold clients t13 | awk '$1 ~ /^client-/ {print $NF}')"
+
+echo "--- move repositions a named display"
+hold move t13 second 0 100
+echo "moved: $(hold clients t13 | grep second)"
+
+echo "--- primary transfers to a named display"
+hold primary t13 second
+echo "primary now: $(hold clients t13 | awk '$1=="second"{print $NF}')"
+echo "and the other stops being it: $(hold clients t13 | awk '$1 ~ /^client-/ {print $NF}')"
+
+echo "--- drop detaches a named display and re-picks a primary"
+hold drop t13 second
+sleep 0.3
+echo "gone from clients: $(hold clients t13 | grep -c second)"
+echo "the remaining one is primary again: $(hold clients t13 | awk '$1 ~ /^client-/ {print $NF}')"
+
+echo "--- a bad display name is an error, not a crash"
+hold move t13 nosuch 0 0 2>/dev/null; echo "move nosuch: $?"
+hold drop t13 nosuch 2>/dev/null; echo "drop nosuch: $?"
+hold primary t13 nosuch 2>/dev/null; echo "primary nosuch: $?"
+
+hold kill t13
+pty close $a
+pty close $b
+
 echo "--- a program in a session knows which, and can detach itself"
 hold new -d t4 /bin/sh -c 'echo "$HIBR_HOLD" > "$TMPDIR/where"; sleep 120'
 sleep 0.3

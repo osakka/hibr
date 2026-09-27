@@ -56,6 +56,22 @@ b got its mode escapes immediately, unprompted: 1
 b's local column 5 reaches the program as column 45: 1
 --- re-encoded to legacy for a program that never asked for SGR
 re-encoded to legacy, still at column 45: 1
+--- an unnamed client gets client-<fd>; a named one keeps its own name
+default name looks like client-N: 1
+named client keeps its own name: 1
+the first to attach is primary: 1
+--- move repositions a named display
+moved: second 0 100 10 40 0
+--- primary transfers to a named display
+primary now: 1
+and the other stops being it: 0
+--- drop detaches a named display and re-picks a primary
+gone from clients: 0
+the remaining one is primary again: 1
+--- a bad display name is an error, not a crash
+move nosuch: 1
+drop nosuch: 1
+primary nosuch: 1
 --- a program in a session knows which, and can detach itself
 HIBR_HOLD names t4
 detach outside a session: 2

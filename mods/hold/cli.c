@@ -53,7 +53,7 @@ void hd_size(int *sz)
    unless this client is one of several placed side by side.  Returns 0
    after a detach, or the program's own status when it ended. */
 int hd_attach(const char *name, const char *path, int multi, int row,
-	      int col)
+	      int col, const char *dname)
 {
 	struct termios sv, raw;
 	struct sigaction a, oa;
@@ -62,7 +62,7 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 	int s, sz[4], t, st = 0, ended = 0, lost = 0;
 	ssize_t k;
 	char *p;
-	str rb, in;
+	str rb, in, pay;
 
 	s = hd_dial(path);
 	if (s < 0) {
@@ -77,12 +77,17 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 	hd_size(sz);
 	sz[2] = row;
 	sz[3] = col;
-	if (!hd_send(s, multi ? HD_MATTACH : HD_ATTACH, (const char *)sz,
-		     sizeof sz)) {
+	s_init(&pay);
+	s_add(&pay, (const char *)sz, sizeof sz);
+	if (dname && *dname)
+		s_add(&pay, dname, strlen(dname));
+	if (!hd_send(s, multi ? HD_MATTACH : HD_ATTACH, pay.p, pay.n)) {
+		s_free(&pay);
 		close(s);
 		lg(HIBR_LERR, "hold: %s: the session did not answer", name);
 		return 1;
 	}
+	s_free(&pay);
 	hd_selftitle("attached", path);
 	fflush(0);
 	raw = sv;

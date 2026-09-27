@@ -13,9 +13,13 @@ nothing has to be saved and restored.
 | | |
 |---|---|
 | `hold new [-d] name cmd args...` | start `cmd` in a session called `name`, and attach unless `-d` |
-| `hold attach [-m] name [row col]` | put this terminal on it; `-m` joins alongside whoever is already there instead of taking over, at the given offset (0,0 if not given); returns 0 after a detach, the program's status when it ends |
+| `hold attach [-m] [-n display] name [row col]` | put this terminal on it; `-m` joins alongside whoever is already there instead of taking over, at the given offset (0,0 if not given); `-n` names this client for the control panel -- `client-<fd>` if left unnamed; returns 0 after a detach, the program's status when it ends |
 | `hold detach [name]` | detach whoever is attached; with no name, the session this shell is running in |
 | `hold list` | each session, attached or detached, the program's pid, and the union's own size (rows x cols) |
+| `hold clients [name]` | one line per attached client of a session (with no name, the one this shell runs in): `name row col rows cols primary` -- what a control panel draws its rectangles from |
+| `hold move name display row col` | reposition a named client within the session's own virtual space |
+| `hold drop name display` | detach a named client, server-side -- "switch off" a display from the panel |
+| `hold primary name display` | make a named client the session's primary; every other client stops being it |
 | `hold kill name` | end the program and the session |
 
 While attached, **ctrl-\\** detaches. Everything else, ctrl-c included, goes
@@ -25,6 +29,16 @@ alongside it instead -- both terminals see the same bytes and either can
 type, and each detaches on its own without disturbing the other. This is the
 foundation a multi-monitor arrangement attaches through, one terminal per
 monitor, all onto the same session.
+
+Each attached client also has a name -- given at attach with `-n`, or
+`client-<fd>` if not -- and, exactly one of them, is the session's primary,
+the first to attach until something else picks another with `hold primary`.
+Neither is required for anything above to work; both exist for a control
+panel to draw a picture of the arrangement and let it be rearranged: `hold
+clients` to list it, `hold move` to reposition one of them, `hold drop` to
+switch one off (a server-side detach, indistinguishable to the program from
+that client's own `ctrl-\\`), `hold primary` to change which anchors a
+desktop's own bar and menu.
 
 Each attached client has a place in the session's own virtual space: its own
 row,col offset (0,0 by default) and its own rows,cols size. The program on
@@ -119,7 +133,11 @@ to `SIGWINCH`, a client's own mouse click at its own local column
 reaching the program at that column plus its offset -- rewritten to
 whichever encoding the program actually asked for, legacy included -- and
 a settled frame being a small diff except on the first attach or right
-after a resize, where it is a full repaint again. `tests/desktop.py` holds
+after a resize, where it is a full repaint again. Named clients, the
+default name, which one is primary and how it moves on a transfer or a
+drop, repositioning with `hold move`, switching one off with `hold drop`
+and a bad display name being an error rather than a crash are all checked
+against `hold clients`'s own plain text output. `tests/desktop.py` holds
 a whole desktop, detaches it, reattaches from a new terminal and checks
 the full frame is drawn again. Both are clean under ASan and UBSan.
 
