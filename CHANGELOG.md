@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0
+## 0.22
 
 Desktop moves to **0.2** alongside this release.
 
@@ -10,11 +10,13 @@ captured into text. `img draw` gains `-p pane`, and `dp_api` gains
 `prect`, a named pane's own rectangle, so any module can translate and
 clip its own drawing into a window without reading the window manager's
 own position table — the same discipline `console put -p` already gives
-text, reused rather than reinvented. **The module ABI for "display" moves
-to `DP_API_VER` 3**, since a module built against the old headers can no
-longer link. `img`'s resampled-grid cache grows from one entry to four,
-round-robin, since a pane's own preview and the desktop's wallpaper can
-now both call `img draw` with different files in the same frame.
+text, reused rather than reinvented. The module ABI for "display" moves
+to `DP_API_VER` 3, since a module built against the old headers can no
+longer link — the same kind of break 0.21's own ABI move to 3 was, and
+which stayed a minor release then too. `img`'s resampled-grid cache
+grows from one entry to four, round-robin, since a pane's own preview
+and the desktop's wallpaper can now both call `img draw` with different
+files in the same frame.
 
 Applying a wallpaper dithers the resample (a 4x4 ordered Bayer pattern)
 before it is ever darkened under a window's shadow, so a real photo's
@@ -41,12 +43,20 @@ it silently did nothing before, since the pattern-quoting pass only
 recognised `* ? [ \` as characters needing the escape reinserted.
 
 `tools/next-version.sh` (`make next-version`) suggests the next
-`HIBR_VER`/`DT_VER` from what changed since the last tag — a module ABI
-change, or a commit's own `Breaking:` trailer, bumps the major version;
-anything else in scope bumps the minor one. A suggestion, not an
-authority: a single commit spanning both core and desktop can carry a
-break that only applies to one of them, which this release's own
-`DT_VER` needed a human judgement call to catch.
+`HIBR_VER`/`DT_VER` from what changed since the last tag. Fixed here,
+found while cutting this exact release: it originally suggested a major
+bump (a jump to 1.0) for any module ABI change or `Breaking:` trailer,
+without checking this project's own precedent first — 0.21 carried a
+real ABI break (the `nsh` rename) and stayed a minor release, the
+standard meaning of staying below 1.0 at all: anything may still break
+between any two 0.x releases, and 1.0 is a deliberate declaration of
+stability, not a mechanical consequence of one breaking change. The tool
+now bumps the minor version for a break too, once still below 1.0, and
+only suggests an actual major bump once the project already has one to
+count from. Still a suggestion, not an authority either way: a single
+commit spanning both core and desktop can carry a break that only
+applies to one of them, which this release's own `DT_VER` needed a
+human judgement call to catch regardless.
 
 ## 0.21
 

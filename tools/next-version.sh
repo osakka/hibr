@@ -48,7 +48,15 @@ bump() {
 	major=${ver%%.*}
 	rest=${ver#*.}
 	minor=${rest%%.*}
-	if [ "$kind" = major ]; then
+	# Below 1.0, a break still only bumps the minor number -- that is
+	# the standard meaning of staying pre-1.0 at all (anything may
+	# break between any two 0.x releases), and this project's own
+	# 0.21 already set the precedent: a real ABI break (the nsh
+	# rename) stayed a minor release. 1.0 is a deliberate declaration
+	# of stability to make separately, never a mechanical consequence
+	# of one breaking change -- found the hard way, cutting the first
+	# release this script ever suggested a bump for.
+	if [ "$kind" = major ] && [ "$major" != 0 ]; then
 		echo "$((major + 1)).0"
 	else
 		echo "$major.$((minor + 1))"
