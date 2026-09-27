@@ -39,14 +39,20 @@ mouse report, in SGR form, is rewritten by its own offset before it reaches
 the pty, so a click at that client's own local column 5 lands on the
 program's own column 85, not 5.
 
-There is no diffing yet, though: `hold` keeps a terminal emulator of its own
-(the `term` module's `"terminal"` interface, fed every byte the pty writes)
-and, once nothing more is waiting from it right now, repaints each client's
-own rectangle from scratch -- a full screen every time, not just what
-changed since the last one. A quiet session costs nothing extra; a busy one
-resends unchanged cells along with the changed ones. That is the next thing
-to add here, not a correctness gap: what a client sees is right, only more
-of it than it strictly needs to be.
+`hold` keeps a terminal emulator of its own (the `term` module's
+`"terminal"` interface, fed every byte the pty writes) and, once nothing
+more is waiting from it right now, sends each client a diff against what
+that client was last sent -- only the cells that actually changed, a
+cursor move only when the next one is not already where the last glyph
+left it, and the pen only when it differs from the last one actually
+emitted. A client's very first frame, and the one right after a resize
+(the previous frame no longer means anything at the new size), are still a
+full repaint, deliberately: there is nothing sent yet to diff against.
+Measured through the real desktop, not guessed: a 15-step window drag
+that cost 107KB before this (a full ~6.3KB repaint resent on every
+settled move) costs under 1KB after it, matching what the console module
+itself would send a directly attached terminal for the same drag -- hold
+is no longer paying to re-derive what console had already worked out.
 
 ## How it works
 
@@ -93,7 +99,7 @@ with `loginctl enable-linger` there.
 | `hd.h` | the message types and every function the files share |
 | `wire.c` | the socket directory, names, and framing: a type byte, a length, the bytes |
 | `srv.c` | the server: the program's pty, the listening socket, any number of attached clients, their union size |
-| `render.c` | one client's own rectangle of the emulator's grid, as a full repaint of escape sequences |
+| `render.c` | one client's own rectangle of the emulator's grid, diffed against a per-client front to send only what changed |
 | `mouse.c` | a client's own SGR mouse report, rewritten by its own offset and re-encoded to legacy if that is what the program asked for |
 | `cli.c` | the client: raw mode, the relay, ctrl-\\, and giving the terminal back |
 | `hold.c` | the builtin, and starting a server |
@@ -109,19 +115,17 @@ union of every attached client, one client's own rectangle showing content
 the other's does not, the alternate screen reaching an attaching client on
 entry but not again once nothing has changed, a just-attached client seeing
 its own mode state and content at once even when the program never reacts
-to `SIGWINCH`, and a client's own mouse click at its own local column
+to `SIGWINCH`, a client's own mouse click at its own local column
 reaching the program at that column plus its offset -- rewritten to
-whichever encoding the program actually asked for, legacy included.
-`tests/desktop.py` holds a whole desktop, detaches it, reattaches from a
-new terminal and checks the full frame is drawn again. Both are clean
-under ASan and UBSan.
+whichever encoding the program actually asked for, legacy included -- and
+a settled frame being a small diff except on the first attach or right
+after a resize, where it is a full repaint again. `tests/desktop.py` holds
+a whole desktop, detaches it, reattaches from a new terminal and checks
+the full frame is drawn again. Both are clean under ASan and UBSan.
 
 ## What it does not do
 
-Every frame is a full repaint -- there is no diffing between one and the
-next, so a busy program's session resends every cell of a client's own
-rectangle on every settled redraw, not just what changed. No copy of the
-screen is kept across a full detach with nobody attached, so a program
-that does not redraw on `SIGWINCH` comes back blank until it next writes
-on its own. No splitting, no windows, no scrollback: that is the desktop's
-job, and the terminal module's.
+No copy of the screen is kept across a full detach with nobody attached,
+so a program that does not redraw on `SIGWINCH` comes back blank until it
+next writes on its own. No splitting, no windows, no scrollback: that is
+the desktop's job, and the terminal module's.

@@ -22,21 +22,32 @@ enum {
 extern const py_api *hd_pty;
 extern const tm_api *hd_tm;
 
+/* One cell as this client was last sent it -- hold's own copy, not term's:
+   hold must not include tm.h just to name tm_cell, and the two have no
+   reason to stay the same shape. cp is a code point (0 is never a real one
+   tm_api hands back, ~0u a cell this client has not been sent yet at all,
+   so a fresh or just-resized front is invalid everywhere without a second
+   fill pass). */
+struct hd_cell { unsigned cp, fg, bg, attr; };
+
 /* One attached terminal: its connection, where it sits in the session's own
    virtual space -- row,col its top-left corner, rows,cols its own size --
-   and the mode state last sent to it, so a real terminal is only ever told
-   to switch buffers, mice or paste mode on a genuine change, not every
-   frame. A lone attacher sits at 0,0 and the space is exactly its own size,
-   which is today's behaviour exactly; several placed side by side is what a
-   multi-monitor arrangement attaches through. mbuf/mst are a small state
-   machine of their own: a client's own mouse report, in SGR form, has to
-   be rewritten by this client's own offset before it reaches the pty, and
-   a report can arrive split across more than one read. Shared between
-   srv.c, which owns the list, render.c, which only ever reads one entry at
-   a time, and mouse.c, which owns mbuf/mst. */
+   the mode state last sent to it, so a real terminal is only ever told to
+   switch buffers, mice or paste mode on a genuine change, not every frame,
+   and front: what it was last sent, cell by cell, so a settled frame sends
+   only what actually changed. A lone attacher sits at 0,0 and the space is
+   exactly its own size, which is today's behaviour exactly; several placed
+   side by side is what a multi-monitor arrangement attaches through.
+   mbuf/mst are a small state machine of their own: a client's own mouse
+   report, in SGR form, has to be rewritten by this client's own offset
+   before it reaches the pty, and a report can arrive split across more
+   than one read. Shared between srv.c, which owns the list, render.c,
+   which owns front and only ever reads one entry at a time, and mouse.c,
+   which owns mbuf/mst. */
 struct hd_cli {
 	int fd, row, col, rows, cols;
 	int primed, alt, mmode, msgr, bpaste, cshape;
+	struct hd_cell *front;
 	str mbuf;
 	int mst;
 };

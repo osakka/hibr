@@ -43,6 +43,7 @@ void hd_cdrop(vec *cls, int fd)
 		cn = cls->p[i];
 		if (cn->fd == fd) {
 			close(fd);
+			free(cn->front);
 			s_free(&cn->mbuf);
 			free(cn);
 			cls->p[i] = cls->p[--cls->n];
@@ -115,6 +116,7 @@ void hd_cclear(vec *cls, const char *why, size_t n)
 		cn = cls->p[i];
 		hd_send(cn->fd, HD_DETACH, why, n);
 		close(cn->fd);
+		free(cn->front);
 		s_free(&cn->mbuf);
 		free(cn);
 	}
@@ -314,6 +316,8 @@ void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 				if (cn) {
 					cn->rows = sz[0];
 					cn->cols = sz[1];
+					free(cn->front);
+					cn->front = 0;
 					hd_union(&cls, id, tid);
 				}
 			} else if (t == HD_DETACH) {
@@ -347,6 +351,7 @@ void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 
 		hd_send(cn->fd, HD_EXIT, (const char *)&st, sizeof st);
 		close(cn->fd);
+		free(cn->front);
 		s_free(&cn->mbuf);
 		free(cn);
 	}

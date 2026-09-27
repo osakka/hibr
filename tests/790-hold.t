@@ -14,23 +14,28 @@ export HIBR_RC=/dev/null
 export TMPDIR=$(mktemp -d)
 L="mod load $M/pty.so; mod load $M/term.so; mod load $M/hold.so"
 
-# What a client printed, without the escapes and the prompt noise. A full
-# rendered frame moves row to row with a cursor jump rather than a newline
-# -- \e[<row>;1H, always column 1, since hd_render starts every row there
-# -- so that exact escape is turned into one before the rest are stripped,
-# or a frame's whole 24 rows would arrive as a single unmatchable line. Each
-# row is also padded to the full width with blanks (a real repaint, not the
-# program's own bytes), trimmed here for the same reason a real terminal's
-# trailing blanks are not part of what a line says.
-# uniq at the end because a full repaint with no diffing yet (see the
-# render slice's own README note) can resend an already-settled line
-# across more than one frame; what matters here is that it showed up, not
-# how many times the same unchanged frame repeated it.
+# What a client printed, without the escapes and the prompt noise. A row
+# change moves the cursor with a jump to column 1 rather than a newline --
+# \e[<row>;1H -- so that exact escape is turned into one before anything
+# else, or a whole frame would arrive as a single unmatchable line. Once
+# there is a diff and not just a full repaint, a jump to any *other*
+# column is real too -- an unchanged gap skipped rather than resent -- and
+# has to become a space, not vanish with the rest of the escapes: dropping
+# it silently glues whatever comes after straight onto whatever came
+# before, with no separator at all ("30 180" arriving as two writes
+# joined by a mid-row goto becomes "30180", not "30 180"). Each row is
+# also padded to the full width with blanks on a full repaint (a real
+# frame, not the program's own bytes), trimmed here for the same reason a
+# real terminal's trailing blanks are not part of what a line says.
+# uniq at the end because a settled frame can still repeat unchanged
+# content the diff already sent once, across more than one poll; what
+# matters here is that it showed up, not how many times.
 seen() {
   local o
   o := pty drain "$1" "${2:-1500}"
   printf '%s' "$o" | tr -d '\r' |
-    sed 's/\x1b\[[0-9]*;1H/\n/g; s/\x1b\[[0-9;?]*[a-zA-Z]//g; s/\x1b>//g' |
+    sed 's/\x1b\[[0-9]*;1H/\n/g; s/\x1b\[[0-9]*;[0-9]*H/ /g;
+         s/\x1b\[[0-9;?]*[a-zA-Z]//g; s/\x1b>//g' |
     sed 's/[[:space:]]*$//' |
     grep -x 'v=[0-9]*\|.*\[[a-z0-9]*[: ][^]]*\]\|back rc=[0-9]*' |
     sed 's/^.*\(\[[a-z0-9]*[: ]\)/\1/' | uniq
@@ -47,7 +52,8 @@ wsz() {
   local o
   o := pty drain "$1" "${2:-1500}"
   printf '%s' "$o" | tr -d '\r' |
-    sed 's/\x1b\[[0-9]*;1H/\n/g; s/\x1b\[[0-9;?]*[a-zA-Z]//g; s/\x1b>//g' |
+    sed 's/\x1b\[[0-9]*;1H/\n/g; s/\x1b\[[0-9]*;[0-9]*H/ /g;
+         s/\x1b\[[0-9;?]*[a-zA-Z]//g; s/\x1b>//g' |
     sed 's/[[:space:]]*$//' |
     grep -x '[0-9]* [0-9]*' | uniq
 }
@@ -180,6 +186,37 @@ hold kill t7
 pty close $a
 pty close $b
 
+echo "--- a settled frame is a diff: only what changed, resent in full only"
+echo "--- on the first attach or a resize, not on every frame after that"
+# Thresholds throughout, never the exact byte count: it depends on the
+# prompt's own length (this checkout's own path is part of it, and so is
+# wherever it happens to be cloned), which varies the digit count of the
+# cursor position a frame ends with. The point being proven -- a full
+# repaint is hundreds of bytes and a settled diff is not -- holds
+# regardless of exactly how many.
+hold new -d t12 $H
+a := pty spawn -r 24 -c 80 $H -c "$L; hold attach t12; echo \"back rc=\$?\""
+sleep 0.6
+o1 := pty drain $a 1500
+echo "first frame, a full repaint: $(( ${#o1} > 500 ? 1 : 0 ))"
+pty write $a 'x'
+sleep 0.4
+o2 := pty drain $a 1500
+echo "one keystroke's own echo is a small diff: $(( ${#o2} < 100 ? 1 : 0 ))"
+pty resize $a 30 100
+sleep 0.4
+pty drain $a 1500 > /dev/null
+# The resize alone proves nothing by itself: an idle shell, like real bash,
+# does not redraw just because its window changed size, so there is no
+# frame at all to inspect yet -- only once it next writes anything does
+# whether that write was a diff or a full repaint become observable.
+pty write $a 'y'
+sleep 0.4
+o3 := pty drain $a 1500
+echo "a resize invalidates it, full repaint again: $(( ${#o3} > 500 ? 1 : 0 ))"
+hold kill t12
+pty close $a
+
 echo "--- mode state (alt screen here) is sent on change, not every frame"
 hold new -d t9 $H
 a := pty spawn $H -c "$L; hold attach t9; echo \"back rc=\$?\""
@@ -235,7 +272,16 @@ sleep 0.8
 pty write $b $'\033[<0;5;3M'
 sleep 1.0
 oa2 := pty drain $a 2000
-echo "re-encoded to legacy, still at column 45: $(printf '%s' "$oa2" | cat -v | grep -Fc '^[[M M#')"
+# Strip hold's own escape sequences first (a real ESC byte, not the literal
+# "^[" two characters the held cat -v prints for the mouse report's own
+# ESC byte) -- diffing can skip an unchanged cell (here, the report's own
+# button byte, a space that already matched an untouched part of the
+# screen) and reach the changed ones after it through a goto instead of
+# resending everything contiguously, so what actually lands on the client's
+# real screen is what matters, not whether "M#" is still directly adjacent
+# to the bytes before it in hold's own wire bytes.
+echo "re-encoded to legacy, still at column 45: $(printf '%s' "$oa2" |
+  sed 's/\x1b\[[0-9;?]*[a-zA-Z]//g; s/\x1b>//g' | grep -Fc 'M#')"
 hold kill t11
 pty close $a
 pty close $b

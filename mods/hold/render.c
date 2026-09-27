@@ -136,29 +136,50 @@ int hd_modes(int tid, struct hd_cli *cn, str *out)
 	return clear;
 }
 
-/* One client's own rectangle of the union grid: every visible cell in it,
-   and the real cursor if it falls inside -- translated from the union's own
-   coordinates into the client's. No diffing yet: every settled frame is a
-   full repaint of just this client's own rows and columns. That is the
-   whole point of this slice -- correctness of the clipping, not the cost
-   of repainting it. The leading clear is not part of that repeat, though:
-   it only precedes the first frame or a buffer switch, since the cell walk
-   below already overwrites everything else there is to see. */
+/* One client's own rectangle of the union grid, sent as a diff against
+   what this client was last sent: only a cell that actually changed, a
+   cursor move only when the next changed cell is not already where the
+   last glyph left the terminal's own cursor, and the pen only when it
+   differs from the last one actually emitted -- the same shape as
+   console's own cn_flush, arrived at independently, since hold must not
+   depend on the display module to share it with. front is allocated (and
+   every cell in it marked impossible, cp ~0u, which nothing real is ever
+   sent as) the first time this client is rendered, or again after srv.c
+   frees it on a resize -- both cases fall straight out of front being
+   NULL here, so this frame is a full repaint by construction, not a diff
+   against stale or wrongly-sized content. */
 void hd_render(int tid, struct hd_cli *cn, str *out)
 {
-	int r, c, have, cr, cc, cvis;
+	int r, c, lr, lc, have, cr, cc, cvis, clear;
 	unsigned cp, fg, bg, at, w, lfg = 0, lbg = 0, lat = 0;
+	struct hd_cell *f;
+	size_t n, i;
 
 	out->n = 0;
-	if (hd_modes(tid, cn, out))
+	clear = hd_modes(tid, cn, out);
+	if (!cn->front) {
+		n = (size_t)cn->rows * (size_t)cn->cols;
+		cn->front = xm(sizeof *cn->front * n);
+		for (i = 0; i < n; i++)
+			cn->front[i].cp = ~0u;
+		clear = 1;
+	}
+	if (clear)
 		s_cat(out, "\033[H\033[2J");
+	lr = -1;
+	lc = -1;
+	have = 0;
 	for (r = 0; r < cn->rows; r++) {
-		hd_goto(out, r, 0);
-		have = 0;
 		for (c = 0; c < cn->cols; c++) {
 			if (!hd_tm->at(tid, cn->row + r, cn->col + c, &cp,
 					&fg, &bg, &at, &w) || !w)
 				continue;
+			f = &cn->front[(size_t)r * cn->cols + c];
+			if (f->cp == cp && f->fg == fg && f->bg == bg &&
+			    f->attr == at)
+				continue;
+			if (r != lr || c != lc)
+				hd_goto(out, r, c);
 			if (!have || fg != lfg || bg != lbg || at != lat) {
 				hd_sgr(out, fg, bg, at);
 				lfg = fg;
@@ -167,6 +188,20 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 				have = 1;
 			}
 			hd_utf8(out, cp ? cp : ' ');
+			f->cp = cp;
+			f->fg = fg;
+			f->bg = bg;
+			f->attr = at;
+			/* The continuation half is never itself read from
+			   tm_api (w is 0 there, skipped above) so it is never
+			   otherwise kept in step -- left stale, a wide glyph
+			   later replaced by two narrow ones would find its
+			   second half's old value here matching by
+			   coincidence and never get sent. */
+			if (w == 2 && c + 1 < cn->cols)
+				cn->front[(size_t)r * cn->cols + c + 1] = *f;
+			lr = r;
+			lc = c + (int)w;
 		}
 	}
 	if (hd_tm->cursor(tid, &cr, &cc, &cvis) && cvis &&
