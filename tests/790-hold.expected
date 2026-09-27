@@ -39,6 +39,9 @@ a solo plain attach: the pty matches its own size
 24 80
 a 24x80 client at 0,0 and a 30x100 client at 0,80: union is 30x180
 30 180
+--- each attached client sees only its own rectangle of the union
+a (columns 0-39) sees the marker: 0
+b (columns 40-79) sees the marker: 1
 --- a program in a session knows which, and can detach itself
 HIBR_HOLD names t4
 detach outside a session: 2

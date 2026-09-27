@@ -31,9 +31,19 @@ row,col offset (0,0 by default) and its own rows,cols size. The program on
 the pty is always sized to the union of every attached client's own
 rectangle, so it sees one screen big enough for everyone at their own place
 -- three clients placed side by side, each 40 columns wide, give the program
-120 columns to draw on, not 40. There is no *clipping* yet, though: every
-attached client currently sees the whole of that union, unclipped, rather
-than only its own rectangle of it.
+120 columns to draw on, not 40. Every client is sent only its own rectangle
+of that union, translated into its own coordinates -- a client at column 80
+whose neighbour's line runs into that column sees it starting at its own
+column 0, not 80.
+
+There is no diffing yet, though: `hold` keeps a terminal emulator of its own
+(the `term` module's `"terminal"` interface, fed every byte the pty writes)
+and, once nothing more is waiting from it right now, repaints each client's
+own rectangle from scratch -- a full screen every time, not just what
+changed since the last one. A quiet session costs nothing extra; a busy one
+resends unchanged cells along with the changed ones. That is the next thing
+to add here, not a correctness gap: what a client sees is right, only more
+of it than it strictly needs to be.
 
 ## How it works
 
@@ -77,7 +87,8 @@ with `loginctl enable-linger` there.
 |---|---|
 | `hd.h` | the message types and every function the files share |
 | `wire.c` | the socket directory, names, and framing: a type byte, a length, the bytes |
-| `srv.c` | the server: the program's pty, the listening socket, any number of attached clients |
+| `srv.c` | the server: the program's pty, the listening socket, any number of attached clients, their union size |
+| `render.c` | one client's own rectangle of the emulator's grid, as a full repaint of escape sequences |
 | `cli.c` | the client: raw mode, the relay, ctrl-\\, and giving the terminal back |
 | `hold.c` | the builtin, and starting a server |
 
@@ -87,16 +98,21 @@ with `loginctl enable-linger` there.
 the attaching terminals with the `pty` module: detaching with ctrl-\\,
 closing the terminal as a logout would, attaching again and finding the
 shell's variables still set, the program's status coming back, a second
-attach taking over, `hold detach` from outside, `HIBR_HOLD`, and `kill`.
-`tests/desktop.py` holds a whole desktop, detaches it, reattaches from a new
-terminal and checks the full frame is drawn again. Both are clean under ASan
-and UBSan.
+attach taking over, `-m` joining alongside instead, the pty sized to the
+union of every attached client, and one client's own rectangle showing
+content the other's does not. `tests/desktop.py` holds a whole desktop,
+detaches it, reattaches from a new terminal and checks the full frame is
+drawn again. Both are clean under ASan and UBSan.
 
 ## What it does not do
 
-Every attached client sees the whole of the virtual space, unclipped -- `-m`
-mirrors the same bytes to everyone rather than giving each its own view of
-just its own rectangle. No copy of the screen is kept, so something that
-does not redraw on `SIGWINCH` comes back blank until it next writes. No
-splitting, no windows, no scrollback: that is the desktop's job, and the
-terminal module's.
+Every frame is a full repaint -- there is no diffing between one and the
+next, so a busy program's session resends every cell of a client's own
+rectangle on every settled redraw, not just what changed. A client's own
+input is not yet translated for its offset either: a mouse report from a
+client placed at column 80 still names its own local column, not the
+union's -- correct for a lone client at 0,0, wrong for anything placed
+beside another. No copy of the screen is kept across a full detach with
+nobody attached, so a program that does not redraw on `SIGWINCH` comes back
+blank until it next writes on its own. No splitting, no windows, no
+scrollback: that is the desktop's job, and the terminal module's.

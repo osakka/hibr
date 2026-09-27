@@ -31,13 +31,6 @@ void hd_poke(int m)
 		kill(-g, SIGWINCH);
 }
 
-/* One attached terminal: its connection, and where it sits in the session's
-   own virtual space -- row,col its top-left corner, rows,cols its own size.
-   A lone attacher sits at 0,0 and the space is exactly its own size, which
-   is today's behaviour exactly; several placed side by side is what a
-   multi-monitor arrangement attaches through. */
-struct hd_cli { int fd, row, col, rows, cols; };
-
 /* Remove a client by fd, closing it.  A no-op if it is not (or no longer)
    in the list: a poll() snapshot taken at the top of the loop can still
    name a client that an earlier part of the same pass already dropped. */
@@ -77,11 +70,12 @@ int hd_chas(vec *cls, int fd)
 	return hd_cfind(cls, fd) != 0;
 }
 
-/* The pty's own size: the furthest row and column any attached client's
-   viewport reaches, so the program always sees one screen big enough for
-   everyone at their own place, not just the largest single client.  Left
-   alone with nobody attached -- there is nothing to size it from. */
-void hd_union(vec *cls, int id)
+/* The pty's own size, and the emulator's: the furthest row and column any
+   attached client's viewport reaches, so the program always sees one screen
+   big enough for everyone at their own place, not just the largest single
+   client.  Left alone with nobody attached -- there is nothing to size it
+   from. */
+void hd_union(vec *cls, int id, int tid)
 {
 	size_t i;
 	int rows = 0, cols = 0;
@@ -97,6 +91,7 @@ void hd_union(vec *cls, int id)
 			cols = cn->col + cn->cols;
 	}
 	hd_pty->resize(id, rows, cols);
+	hd_tm->resize(tid, rows, cols);
 }
 
 /* Detach every attached client, telling each one why, and empty the list. */
@@ -123,7 +118,7 @@ void hd_cclear(vec *cls, const char *why, size_t n)
    Accepting both means an old client and a new server, or the reverse, still
    attach -- just without a viewport, until whichever side is stale gets
    reinstalled. */
-void hd_conn(int c, vec *cls, int id, int m, int *quit)
+void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit)
 {
 	struct pollfd q;
 	str in, o;
@@ -158,7 +153,7 @@ void hd_conn(int c, vec *cls, int id, int m, int *quit)
 			cn->cols = v[1];
 		}
 		v_add(cls, cn);
-		hd_union(cls, id);
+		hd_union(cls, id, tid);
 		hd_poke(m);
 		lg(HIBR_LDBG, "hold: attached at %d,%d size %dx%d (%lu now)",
 		   cn->row, cn->col, cn->rows, cn->cols,
@@ -200,9 +195,9 @@ void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 {
 	struct sockaddr_un a;
 	struct sigaction sa;
-	struct pollfd *q = 0;
+	struct pollfd *q = 0, pm;
 	vec cls;
-	int l, m, id, quit = 0, st;
+	int l, m, id, tid, quit = 0, st, fed;
 	size_t i, j, nc;
 	ssize_t k;
 	str rb, in;
@@ -240,10 +235,12 @@ void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 		_exit(1);
 	}
 	m = hd_pty->fd(id);
+	tid = hd_tm->new(rows, cols);
 	s_init(&rb);
 	s_init(&in);
 	s_grow(&rb, HIBR_IOCH);
 	while (!quit && !hd_term) {
+		fed = 0;
 		nc = cls.n;
 		q = xr(q, sizeof *q * (2 + nc));
 		q[0].fd = l;
@@ -262,15 +259,8 @@ void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 		if (q[1].revents) {
 			k = read(m, rb.p, rb.cap - 1);
 			if (k > 0) {
-				for (i = 0; i < cls.n; ) {
-					struct hd_cli *cn = cls.p[i];
-
-					if (!hd_send(cn->fd, HD_DATA, rb.p,
-						     (size_t)k))
-						hd_cdrop(&cls, cn->fd);
-					else
-						i++;
-				}
+				hd_tm->feed(tid, rb.p, (size_t)k);
+				fed = 1;
 			} else if (!(k < 0 && (errno == EAGAIN ||
 					       errno == EINTR))) {
 				break;
@@ -294,7 +284,7 @@ void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 				if (cn) {
 					cn->rows = sz[0];
 					cn->cols = sz[1];
-					hd_union(&cls, id);
+					hd_union(&cls, id, tid);
 				}
 			} else if (t == HD_DETACH) {
 				hd_cdrop(&cls, fd);
@@ -304,8 +294,14 @@ void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 			int c = accept(l, 0, 0);
 			if (c >= 0) {
 				hd_cloexec(c);
-				hd_conn(c, &cls, id, m, &quit);
+				hd_conn(c, &cls, id, tid, m, &quit);
 			}
+		}
+		if (fed) {
+			pm.fd = m;
+			pm.events = POLLIN;
+			if (poll(&pm, 1, 0) <= 0 || !(pm.revents & POLLIN))
+				hd_rensend(&cls, tid);
 		}
 	}
 	unlink(path);
@@ -325,6 +321,7 @@ void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 	}
 	v_free(&cls);
 	hd_pty->drop(id);
+	hd_tm->free(tid);
 	s_free(&rb);
 	s_free(&in);
 	_exit(0);

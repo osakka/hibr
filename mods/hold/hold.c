@@ -13,6 +13,7 @@
 #include <unistd.h>
 
 const py_api *hd_pty;
+const tm_api *hd_tm;
 
 /* Hand a value back through the result slot, printing it only when nobody
    asked for it. */
@@ -263,6 +264,11 @@ int hd_ini(sh *s)
 	hd_pty = (const py_api *)hibr_require(s, "pty", PY_API_VER);
 	if (!hd_pty) {
 		lg(HIBR_LERR, "hold: needs the pty module");
+		return HIBR_FAIL;
+	}
+	hd_tm = (const tm_api *)hibr_require(s, "terminal", TM_API_VER);
+	if (!hd_tm) {
+		lg(HIBR_LERR, "hold: needs the term module");
 		return HIBR_FAIL;
 	}
 	return hibr_provide(s, "hold", 1u, (void *)&m_hold);

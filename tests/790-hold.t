@@ -6,20 +6,34 @@
 # and closing that pty is exactly what a logout does to a client.
 
 mod load ./build/mods/pty.so
+mod load ./build/mods/term.so
 mod load ./build/mods/hold.so
 H=$PWD/build/hibr
 M=$PWD/build/mods
 export HIBR_RC=/dev/null
 export TMPDIR=$(mktemp -d)
-L="mod load $M/pty.so; mod load $M/hold.so"
+L="mod load $M/pty.so; mod load $M/term.so; mod load $M/hold.so"
 
-# What a client printed, without the escapes and the prompt noise.
+# What a client printed, without the escapes and the prompt noise. A full
+# rendered frame moves row to row with a cursor jump rather than a newline
+# -- \e[<row>;1H, always column 1, since hd_render starts every row there
+# -- so that exact escape is turned into one before the rest are stripped,
+# or a frame's whole 24 rows would arrive as a single unmatchable line. Each
+# row is also padded to the full width with blanks (a real repaint, not the
+# program's own bytes), trimmed here for the same reason a real terminal's
+# trailing blanks are not part of what a line says.
+# uniq at the end because a full repaint with no diffing yet (see the
+# render slice's own README note) can resend an already-settled line
+# across more than one frame; what matters here is that it showed up, not
+# how many times the same unchanged frame repeated it.
 seen() {
   local o
   o := pty drain "$1" "${2:-1500}"
-  printf '%s' "$o" | tr -d '\r' | sed 's/\x1b\[[0-9;?]*[a-zA-Z]//g; s/\x1b>//g' |
+  printf '%s' "$o" | tr -d '\r' |
+    sed 's/\x1b\[[0-9]*;1H/\n/g; s/\x1b\[[0-9;?]*[a-zA-Z]//g; s/\x1b>//g' |
+    sed 's/[[:space:]]*$//' |
     grep -x 'v=[0-9]*\|.*\[[a-z0-9]*[: ][^]]*\]\|back rc=[0-9]*' |
-    sed 's/^.*\(\[[a-z0-9]*[: ]\)/\1/'
+    sed 's/^.*\(\[[a-z0-9]*[: ]\)/\1/' | uniq
 }
 
 # A session's line in hold list, without its pid.
@@ -27,12 +41,15 @@ state() {
   hold list | awk -v n="$1" '$1 == n { print $1, $2 }'
 }
 
-# What `stty size` printed, without prompt noise.
+# What `stty size` printed, without prompt noise. Same row-jump-to-newline
+# and trailing-padding fixes as seen(), and for the same reasons.
 wsz() {
   local o
   o := pty drain "$1" "${2:-1500}"
-  printf '%s' "$o" | tr -d '\r' | sed 's/\x1b\[[0-9;?]*[a-zA-Z]//g; s/\x1b>//g' |
-    grep -x '[0-9]* [0-9]*'
+  printf '%s' "$o" | tr -d '\r' |
+    sed 's/\x1b\[[0-9]*;1H/\n/g; s/\x1b\[[0-9;?]*[a-zA-Z]//g; s/\x1b>//g' |
+    sed 's/[[:space:]]*$//' |
+    grep -x '[0-9]* [0-9]*' | uniq
 }
 
 echo "--- a session starts detached and is listed"
@@ -123,7 +140,11 @@ echo "a solo plain attach: the pty matches its own size"
 pty write $a 'stty size
 '
 sleep 0.4
-wsz $a
+# tail -1: several settled frames can repeat the same reading before the
+# session moves on (no diffing yet, see render.c's own note); the last one
+# in the window is enough to know the size, without depending on how many
+# times it happened to be redrawn first.
+wsz $a | tail -1
 pty write $a $'\x1c'
 sleep 0.3
 
@@ -135,10 +156,29 @@ echo "a 24x80 client at 0,0 and a 30x100 client at 0,80: union is 30x180"
 pty write $b 'stty size
 '
 sleep 0.4
-wsz $b
+wsz $b | tail -1
 hold kill t6
 pty close $b
 pty close $c
+
+echo "--- each attached client sees only its own rectangle of the union"
+hold new -d t7 $H
+a := pty spawn -r 10 -c 40 $H -c "$L; hold attach t7; echo \"back rc=\$?\""
+sleep 0.6
+b := pty spawn -r 10 -c 40 $H -c "$L; hold attach -m t7 0 40; echo \"back rc=\$?\""
+sleep 0.6
+# 40 spaces then a marker built from two halves, so the marker itself never
+# appears in the typed line's own echo -- only in the program's real output,
+# which lands at column 40: inside b's own rectangle, outside a's.
+pty write $a $'x=MA; y=RK; printf "%40s%s%s\\n" "" "$x" "$y"\n'
+sleep 0.8
+oa := pty drain $a 1500
+ob := pty drain $b 1500
+echo "a (columns 0-39) sees the marker: $(printf '%s' "$oa" | grep -c MARK)"
+echo "b (columns 40-79) sees the marker: $(printf '%s' "$ob" | grep -c MARK)"
+hold kill t7
+pty close $a
+pty close $b
 
 echo "--- a program in a session knows which, and can detach itself"
 hold new -d t4 /bin/sh -c 'echo "$HIBR_HOLD" > "$TMPDIR/where"; sleep 30'

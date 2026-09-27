@@ -1456,10 +1456,10 @@ HOLD = tempfile.mkdtemp(prefix="hibr-hold-")
 held = os.path.join(HOLD, "session.hibr")
 open(held, "w").write("%s. %s\ndt_open\ndt_new \"Held\" 8 30 6 10\n"
                       "dt_run\ndt_close\n"
-                      % (load(MOD, "build/mods/pty.so",
+                      % (load(MOD, "build/mods/pty.so", "build/mods/term.so",
                               "build/mods/hold.so"), WM))
 HENV = {"TMPDIR": HOLD, "DT_TICK": "60"}
-HOLDC = load("build/mods/pty.so", "build/mods/hold.so")
+HOLDC = load("build/mods/pty.so", "build/mods/term.so", "build/mods/hold.so")
 
 
 def unhold():

@@ -2,7 +2,9 @@
 #define HD_H
 
 #include "hibr.h"
+#include "../display.h"
 #include "../pty.h"
+#include "../term.h"
 
 enum {
 	HD_ATTACH = 'a',
@@ -18,6 +20,22 @@ enum {
 };
 
 extern const py_api *hd_pty;
+extern const tm_api *hd_tm;
+
+/* One attached terminal: its connection, and where it sits in the session's
+   own virtual space -- row,col its top-left corner, rows,cols its own size.
+   A lone attacher sits at 0,0 and the space is exactly its own size, which
+   is today's behaviour exactly; several placed side by side is what a
+   multi-monitor arrangement attaches through. Shared between srv.c, which
+   owns the list, and render.c, which only ever reads one entry at a time. */
+struct hd_cli { int fd, row, col, rows, cols; };
+
+void hd_cdrop(vec *cls, int fd);
+struct hd_cli *hd_cfind(vec *cls, int fd);
+int hd_chas(vec *cls, int fd);
+void hd_union(vec *cls, int id, int tid);
+void hd_cclear(vec *cls, const char *why, size_t n);
+void hd_rensend(vec *cls, int tid);
 
 int hd_dir(str *out);
 int hd_path(const char *name, str *out);

@@ -37,6 +37,10 @@ struct tm_api {
 	   translate a click into the report the program actually asked for,
 	   rather than one it never enabled. 0 for no such id. */
 	int (*mouse)(int id, int *sgr);
+	/* The real cursor: row, col, and whether it should be shown at all
+	   right now -- off, or scrolled back to history rather than the
+	   live screen. 0 for no such id. */
+	int (*cursor)(int id, int *r, int *c, int *vis);
 };
 
 #endif
