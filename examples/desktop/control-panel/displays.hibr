@@ -4,10 +4,19 @@
 # every attached display drawn to scale from hold clients, dragged to
 # reposition (hold move on release), clicked with no movement to make
 # primary (hold primary), switched off with the x in its own top-right
-# corner (hold drop). Nothing here is kept that a fresh read of hold
-# clients cannot recompute -- the same as every other pane's row list is
-# rebuilt every frame -- except the drag itself, which is this window's
-# own gesture in progress and belongs nowhere else.
+# corner (hold drop). The primary display always draws at this pane's
+# own top-left corner, whatever its real row/col actually is, and every
+# other display is positioned relative to it -- dragging one never moves
+# the picture's own anchor, only the rectangle actually being dragged --
+# and the primary's own rectangle cannot be dragged at all, since it is
+# what "relative to" means here. Nothing else is kept that a fresh read
+# of hold clients cannot recompute -- the same as every other pane's row
+# list is rebuilt every frame -- except the drag itself, which is this
+# window's own gesture in progress and belongs nowhere else, and is
+# frozen against hold clients while it is happening: re-reading mid-drag
+# would have the dragged rectangle's own base position shift under the
+# live preview the moment the release this same drag ends in reaches the
+# server, which is what "primitive and dodgy" turned out to mean.
 command -v cp_pane > /dev/null && cp_pane displays "Displays" "▦"
 
 declare -gA DPY
@@ -37,7 +46,7 @@ displays_scale() {
 displays_draw() {
 	local id=$1 h=$2 w=$3 bx=$4
 	local sess lst nm row col rows cols pri i n urows ucols s
-	local br bc bh bw namew t r mr mc dragi
+	local br bc bh bw namew t r mr mc dragi prow pcol
 
 	dt_wclear "$id"
 	sess := displays_sess
@@ -58,29 +67,51 @@ displays_draw() {
 		r=$((r + 1))
 	done
 
-	lst := hold clients "$sess"
-	i=0
+	dragi=${DPY[$id]["drag"]}
+	if [ -z "$dragi" ]; then
+		# Not mid-drag: read fresh, same as every other pane's row list
+		# is rebuilt every frame. Mid-drag, deliberately not -- see the
+		# header.
+		lst := hold clients "$sess"
+		i=0
+		while IFS=' ' read -r nm row col rows cols pri; do
+			[ -z "$nm" ] && continue
+			DPY[$id][$i]["name"]=$nm
+			DPY[$id][$i]["row"]=$row
+			DPY[$id][$i]["col"]=$col
+			DPY[$id][$i]["rows"]=$rows
+			DPY[$id][$i]["cols"]=$cols
+			DPY[$id][$i]["primary"]=$pri
+			i=$((i + 1))
+		done <<< "$lst"
+		DPY[$id]["n"]=$i
+	fi
+	n=${DPY[$id]["n"]:-0}
+	[ "$n" -lt 1 ] && return 0
+
+	# The primary's own real row/col -- everything else draws relative
+	# to it -- and the union's own bounds, for the scale: both read from
+	# whatever is currently stored, a fresh read just above or, mid-drag,
+	# exactly what the last one before this drag started left there.
 	urows=0
 	ucols=0
-	while IFS=' ' read -r nm row col rows cols pri; do
-		[ -z "$nm" ] && continue
-		DPY[$id][$i]["name"]=$nm
-		DPY[$id][$i]["row"]=$row
-		DPY[$id][$i]["col"]=$col
-		DPY[$id][$i]["rows"]=$rows
-		DPY[$id][$i]["cols"]=$cols
-		DPY[$id][$i]["primary"]=$pri
+	prow=0
+	pcol=0
+	i=0
+	while [ "$i" -lt "$n" ]; do
+		row=${DPY[$id][$i]["row"]}
+		col=${DPY[$id][$i]["col"]}
+		rows=${DPY[$id][$i]["rows"]}
+		cols=${DPY[$id][$i]["cols"]}
+		[ "${DPY[$id][$i]["primary"]}" = 1 ] && { prow=$row; pcol=$col; }
 		[ $((row + rows)) -gt "$urows" ] && urows=$((row + rows))
 		[ $((col + cols)) -gt "$ucols" ] && ucols=$((col + cols))
 		i=$((i + 1))
-	done <<< "$lst"
-	n=$i
-	DPY[$id]["n"]=$n
+	done
 	[ "$urows" -lt 1 ] && urows=1
 	[ "$ucols" -lt 1 ] && ucols=1
 	s := displays_scale "$h" "$w" "$urows" "$ucols"
 	DPY[$id]["s"]=$s
-	dragi=${DPY[$id]["drag"]}
 
 	i=0
 	while [ "$i" -lt "$n" ]; do
@@ -90,8 +121,8 @@ displays_draw() {
 		cols=${DPY[$id][$i]["cols"]}
 		nm=${DPY[$id][$i]["name"]}
 		pri=${DPY[$id][$i]["primary"]}
-		br=$((row * s / 100 + 1))
-		bc=$((col * s / 100 + bx))
+		br=$(((row - prow) * s / 100 + 1))
+		bc=$(((col - pcol) * s / 100 + bx))
 		# One cell shaved off each box's own scaled size, a gap between
 		# two adjacent displays rather than their borders sharing (and
 		# fighting over) the same cell: real displays touch exactly at
@@ -141,20 +172,26 @@ displays_draw() {
 	done
 }
 
-# Press: the x in a rectangle's own corner switches that display off on
-# the spot; inside a rectangle otherwise starts dragging it; neither
-# declines the press (returns 1) so panel_mouse still offers panel_click
-# a plain row-list click elsewhere in the pane.
+# Press: the x in a rectangle's own corner (its own cell, plus its left
+# neighbour -- one cell alone is not a reachable target for a real
+# pointer) switches that display off on the spot; inside a rectangle
+# that is not the primary one otherwise starts dragging it -- the
+# primary's own rectangle is not draggable at all, since it is the
+# picture's own fixed anchor; every other display's position is drawn
+# relative to it, so dragging the anchor itself has no meaning. Neither
+# hit declines the press (returns 1) so panel_mouse still offers
+# panel_click a plain row-list click elsewhere in the pane.
 displays_mouse() {
 	local id=$1 act=$2 button=$3 r=$4 c=$5
-	local n i sess nm mr mc s row col nrow ncol
+	local n i sess nm mr mc s row col nrow ncol xc amr amc
 
 	n=${DPY[$id]["n"]:-0}
 	if [ "$act" = press ]; then
 		i=0
 		while [ "$i" -lt "$n" ]; do
+			xc=${DPY[$id][$i]["xc"]}
 			if [ "$r" = "${DPY[$id][$i]["xr"]}" ] &&
-			   [ "$c" = "${DPY[$id][$i]["xc"]}" ]; then
+			   [ "$c" -ge $((xc - 1)) ] && [ "$c" -le "$xc" ]; then
 				sess := displays_sess
 				hold drop "$sess" "${DPY[$id][$i]["name"]}"
 				return 0
@@ -163,7 +200,8 @@ displays_mouse() {
 		done
 		i=0
 		while [ "$i" -lt "$n" ]; do
-			if [ "$r" -ge "${DPY[$id][$i]["br"]}" ] &&
+			if [ "${DPY[$id][$i]["primary"]}" != 1 ] &&
+			   [ "$r" -ge "${DPY[$id][$i]["br"]}" ] &&
 			   [ "$r" -lt $((${DPY[$id][$i]["br"]} + ${DPY[$id][$i]["bh"]})) ] &&
 			   [ "$c" -ge "${DPY[$id][$i]["bc"]}" ] &&
 			   [ "$c" -lt $((${DPY[$id][$i]["bc"]} + ${DPY[$id][$i]["bw"]})) ]; then
@@ -188,7 +226,13 @@ displays_mouse() {
 	if [ "$act" = release ]; then
 		sess := displays_sess
 		nm=${DPY[$id][$i]["name"]}
-		if [ "$mr" = 0 ] && [ "$mc" = 0 ]; then
+		amr=$mr; [ "$amr" -lt 0 ] && amr=$((0 - amr))
+		amc=$mc; [ "$amc" -lt 0 ] && amc=$((0 - amc))
+		if [ "$amr" -le 1 ] && [ "$amc" -le 1 ]; then
+			# A real press-release with no real intent to drag still
+			# lands a cell or so away from where it started, over ssh
+			# especially -- without this slack that reads as a move of
+			# a column or two rather than the click it was meant to be.
 			hold primary "$sess" "$nm"
 		else
 			s=${DPY[$id]["s"]}

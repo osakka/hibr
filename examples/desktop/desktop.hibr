@@ -1824,11 +1824,6 @@ dt_menus() {
 	dt_sep
 	if [ -n "$HIBR_HOLD" ]; then
 		dt_item "Detach" d dt_detach
-		if need hold; then
-			dt_sub "Displays"
-			dt_displaysmenu
-			dt_end
-		fi
 	else
 		dt_dim "Detach"
 	fi
@@ -3069,22 +3064,10 @@ dt_detach() {
 # This session's own name, from HIBR_HOLD's own socket path -- what hold's
 # subcommands that take an explicit session name (clients, move, drop,
 # primary; detach and kill alone fall back to HIBR_HOLD with none) need.
+# The Control Panel's own Displays pane is the one place that switches a
+# display off; there is no menu-bar equivalent.
 dt_holdsess() { ret "${HIBR_HOLD##*/}"; }
 
-# The hibr menu's own "Displays" submenu: every terminal attached to this
-# session, primary ticked, choosing one switches it off (hold drop) --
-# the panel's own detach, indistinguishable to the program from that
-# display's own ctrl-\.
-dt_displaysmenu() {
-	local sess lst nm row col rows cols pri
-
-	sess := dt_holdsess
-	lst := hold clients "$sess"
-	while IFS=' ' read -r nm row col rows cols pri; do
-		[ -z "$nm" ] && continue
-		dt_mark "$nm" "" "$pri" hold drop "$sess" "$nm"
-	done <<< "$lst"
-}
 # The about app shows the machine's own numbers, live; without it (a session
 # that never called dt_apps, or one that dropped the file) a note still says
 # what this is, since About hibr must never be a dead menu item.

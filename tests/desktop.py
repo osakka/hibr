@@ -1693,23 +1693,12 @@ check("choosing one moves the window there",
       sc1c.find("┤ Files ├") is None and sc2c.find("┤ Files ├") is not None,
       str(sc1c) + "\n" + str(sc2c))
 
-# The hibr menu gets a "Displays" submenu too: every attached display,
-# primary ticked, for switching one off without a terminal of its own to
-# type ctrl-\ into.
-t1.send(press(0, 1))
-for _ in range(11):
-    t1.send(b"\x1b[B")
-t1.send(b"\x1b[C")
-sc = t1.screen()
-check("the hibr menu's Displays submenu lists every display too",
-      sc.find(primary) is not None and sc.find(joined) is not None, sc)
-check("the primary one is ticked", sc.find("✓ " + primary) is not None, sc)
-t1.send(press(0, 50))
-
-# The Control Panel gets a "Displays" pane too (Slice D): every attached
+# The Control Panel gets a "Displays" pane (Slice D): every attached
 # display drawn to scale from hold clients, dragged to reposition it
 # (hold move on release), clicked with no movement to make it primary
 # (hold primary), an x in its own corner to switch it off (hold drop).
+# There is no separate hibr-menu equivalent -- this pane is the one place
+# for all of it.
 t1.send(press(0, 1))
 sc = t1.screen()
 cp = sc.find("Control Panel")
@@ -1721,6 +1710,10 @@ sc = t1.screen()
 check("the Displays pane draws both attached displays by name",
       sc.find(primary) is not None and sc.find(joined) is not None, sc)
 
+# The primary display always draws at this pane's own fixed anchor,
+# whatever its real row/col is -- dragging a *different* display must
+# never move it, only the rectangle actually being dragged.
+ppos = sc.find(primary)
 lbl = sc.find(joined)
 t1.send(press(lbl[0], lbl[1]))
 t1.send(drag(lbl[0] + 1, lbl[1] + 3))
@@ -1732,6 +1725,29 @@ row4 = next((ln.split() for ln in r4.stdout.splitlines()
              if ln.split() and ln.split()[0] == joined), None)
 check("dragging a display's own rectangle repositions it",
       row4 is not None and row4[2] != "80", r4.stdout)
+t1.collect(0.5)
+sc = t1.screen()
+check("...and leaves the primary display drawn exactly where it was",
+      sc.find(primary) == ppos, sc)
+
+# The primary display's own rectangle is the picture's fixed anchor, so
+# it cannot be dragged at all -- attempting to is a no-op, not a move.
+r4b = subprocess.run([screen.HIBR, "-c", HOLDC + "hold clients desktop"],
+                     env=dict(os.environ, **JENV), capture_output=True,
+                     text=True)
+rowp_before = next((ln.split() for ln in r4b.stdout.splitlines()
+                    if ln.split() and ln.split()[0] == primary), None)
+ppos2 = sc.find(primary)
+t1.send(press(ppos2[0], ppos2[1]))
+t1.send(drag(ppos2[0] + 2, ppos2[1] + 5))
+t1.send(release(ppos2[0] + 2, ppos2[1] + 5))
+r4c = subprocess.run([screen.HIBR, "-c", HOLDC + "hold clients desktop"],
+                     env=dict(os.environ, **JENV), capture_output=True,
+                     text=True)
+rowp_after = next((ln.split() for ln in r4c.stdout.splitlines()
+                   if ln.split() and ln.split()[0] == primary), None)
+check("dragging the primary display's own rectangle is a no-op",
+      rowp_before == rowp_after, r4b.stdout + "\n" + r4c.stdout)
 
 t1.collect(0.5)
 sc = t1.screen()
@@ -1748,8 +1764,8 @@ check("clicking a display's rectangle with no movement makes it primary",
 
 t1.collect(0.5)
 sc = t1.screen()
-xb = sc.find("x├")
-t1.send(press(xb[0], xb[1]))
+close = sc.find("x├")
+t1.send(press(close[0], close[1]))
 
 # The panel can change which display is primary, live: hold primary
 # nudges the program to notice (hd_poke, the same SIGWINCH a fresh attach
