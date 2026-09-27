@@ -42,12 +42,6 @@ struct tm_t {
 	int cshape;
 };
 
-/* DECSCUSR's six shapes collapse to three: blinking is never drawn as
-   blinking (that would cost a redraw every blink, on every terminal window,
-   whether or not anyone is looking at it), so its blinking and steady forms
-   share one drawn shape. */
-enum { TM_BLOCK, TM_UNDER, TM_BAR };
-
 tm_t *tm_find(int id);
 tm_t *tm_new(int rows, int cols);
 void tm_free(tm_t *t);

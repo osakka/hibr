@@ -15,6 +15,12 @@
 #define TM_API_VER 1u
 #endif
 
+/* DECSCUSR's six shapes collapse to three: blinking is never drawn as
+   blinking (that would cost a redraw every blink, on every terminal window,
+   whether or not anyone is looking at it), so its blinking and steady forms
+   share one drawn shape. */
+enum { TM_BLOCK, TM_UNDER, TM_BAR };
+
 typedef struct tm_api tm_api;
 struct tm_api {
 	/* A terminal with nothing on it yet, sized rows x cols. Returns an
@@ -41,6 +47,13 @@ struct tm_api {
 	   right now -- off, or scrolled back to history rather than the
 	   live screen. 0 for no such id. */
 	int (*cursor)(int id, int *r, int *c, int *vis);
+	/* The mode state a caller re-serialising this grid onto a real
+	   terminal has to reproduce, or the terminal is left on the wrong
+	   buffer, unable to paste, or showing the wrong cursor shape: alt is
+	   whether the alternate screen is active, bpaste whether the program
+	   has asked for bracketed paste, cshape one of TM_BLOCK/TM_UNDER/
+	   TM_BAR. 0 for no such id. */
+	int (*modes)(int id, int *alt, int *bpaste, int *cshape);
 };
 
 #endif

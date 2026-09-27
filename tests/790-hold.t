@@ -180,6 +180,22 @@ hold kill t7
 pty close $a
 pty close $b
 
+echo "--- mode state (alt screen here) is sent on change, not every frame"
+hold new -d t9 $H
+a := pty spawn $H -c "$L; hold attach t9; echo \"back rc=\$?\""
+sleep 0.6
+pty write $a $'printf "\\033[?1049h"\n'
+sleep 0.6
+o1 := pty drain $a 1500
+echo "alt screen entered reaches the client: $(printf '%s' "$o1" | cat -v | grep -Fc '^[[?1049h')"
+pty write $a 'printf "still here"
+'
+sleep 0.6
+o2 := pty drain $a 1500
+echo "not resent once nothing changed: $(printf '%s' "$o2" | cat -v | grep -Fc '^[[?1049h')"
+hold kill t9
+pty close $a
+
 echo "--- a program in a session knows which, and can detach itself"
 hold new -d t4 /bin/sh -c 'echo "$HIBR_HOLD" > "$TMPDIR/where"; sleep 30'
 sleep 0.3

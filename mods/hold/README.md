@@ -99,10 +99,11 @@ the attaching terminals with the `pty` module: detaching with ctrl-\\,
 closing the terminal as a logout would, attaching again and finding the
 shell's variables still set, the program's status coming back, a second
 attach taking over, `-m` joining alongside instead, the pty sized to the
-union of every attached client, and one client's own rectangle showing
-content the other's does not. `tests/desktop.py` holds a whole desktop,
-detaches it, reattaches from a new terminal and checks the full frame is
-drawn again. Both are clean under ASan and UBSan.
+union of every attached client, one client's own rectangle showing content
+the other's does not, and the alternate screen reaching an attaching
+client on entry but not again once nothing has changed. `tests/desktop.py`
+holds a whole desktop, detaches it, reattaches from a new terminal and
+checks the full frame is drawn again. Both are clean under ASan and UBSan.
 
 ## What it does not do
 

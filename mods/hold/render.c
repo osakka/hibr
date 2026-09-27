@@ -81,19 +81,71 @@ void hd_utf8(str *b, unsigned cp)
 	}
 }
 
-/* One client's own rectangle of the union grid, as a full screen: cleared,
-   every visible cell in it, and the real cursor if it falls inside --
-   translated from the union's own coordinates into the client's. No
-   diffing yet: every frame is a full repaint of just this client's own
-   rows and columns. That is the whole point of this slice -- correctness
-   of the clipping, not the cost of repainting it. */
+/* Bring a client's own terminal to the mode state the session is actually
+   in right now, transition by transition: the alternate screen, mouse
+   reporting and its encoding, bracketed paste, the cursor's shape. Each is
+   sent only the first time (cn->primed still 0) or on a genuine change,
+   never every frame -- unlike the cell content below, still repainted in
+   full every settled frame, this is cheap to get right from the start and
+   expensive to get wrong: skipping the alternate-screen switch, say, means
+   a session's own full-screen redraw lands in the client's *main* buffer
+   instead, burning over whatever scrollback was there before it attached. */
+int hd_modes(int tid, struct hd_cli *cn, str *out)
+{
+	int alt = 0, bpaste = 0, cshape = 0, mmode, sgr = 0, clear;
+
+	hd_tm->modes(tid, &alt, &bpaste, &cshape);
+	mmode = hd_tm->mouse(tid, &sgr);
+	clear = !cn->primed || alt != cn->alt;
+
+	if (!cn->primed || alt != cn->alt)
+		s_cat(out, alt ? "\033[?1049h" : "\033[?1049l");
+	if (!cn->primed || mmode != cn->mmode || sgr != cn->msgr) {
+		s_cat(out, "\033[?1003l\033[?1002l\033[?1000l\033[?1006l");
+		if (mmode == 1000)
+			s_cat(out, "\033[?1000h");
+		else if (mmode == 1002)
+			s_cat(out, "\033[?1002h");
+		else if (mmode == 1003)
+			s_cat(out, "\033[?1003h");
+		if (mmode && sgr)
+			s_cat(out, "\033[?1006h");
+	}
+	if (!cn->primed || bpaste != cn->bpaste)
+		s_cat(out, bpaste ? "\033[?2004h" : "\033[?2004l");
+	if (!cn->primed || cshape != cn->cshape) {
+		if (cshape == TM_UNDER)
+			s_cat(out, "\033[4 q");
+		else if (cshape == TM_BAR)
+			s_cat(out, "\033[6 q");
+		else
+			s_cat(out, "\033[2 q");
+	}
+	cn->primed = 1;
+	cn->alt = alt;
+	cn->mmode = mmode;
+	cn->msgr = sgr;
+	cn->bpaste = bpaste;
+	cn->cshape = cshape;
+	return clear;
+}
+
+/* One client's own rectangle of the union grid: every visible cell in it,
+   and the real cursor if it falls inside -- translated from the union's own
+   coordinates into the client's. No diffing yet: every settled frame is a
+   full repaint of just this client's own rows and columns. That is the
+   whole point of this slice -- correctness of the clipping, not the cost
+   of repainting it. The leading clear is not part of that repeat, though:
+   it only precedes the first frame or a buffer switch, since the cell walk
+   below already overwrites everything else there is to see. */
 void hd_render(int tid, struct hd_cli *cn, str *out)
 {
 	int r, c, have, cr, cc, cvis;
 	unsigned cp, fg, bg, at, w, lfg = 0, lbg = 0, lat = 0;
 
 	out->n = 0;
-	s_cat(out, "\033[H\033[2J");
+	if (hd_modes(tid, cn, out))
+		s_cat(out, "\033[H\033[2J");
 	for (r = 0; r < cn->rows; r++) {
 		hd_goto(out, r, 0);
 		have = 0;

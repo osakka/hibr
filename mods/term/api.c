@@ -86,9 +86,21 @@ int tm_api_cursor(int id, int *r, int *c, int *vis)
 	return 1;
 }
 
+int tm_api_modes(int id, int *alt, int *bpaste, int *cshape)
+{
+	tm_t *t = tm_find(id);
+
+	if (!t)
+		return 0;
+	*alt = t->inalt;
+	*bpaste = t->bpaste;
+	*cshape = t->cshape;
+	return 1;
+}
+
 static const tm_api term_api = {
 	tm_api_new, tm_api_free, tm_api_resize, tm_api_rows, tm_api_cols,
-	tm_api_feed, tm_api_at, tm_api_mouse, tm_api_cursor
+	tm_api_feed, tm_api_at, tm_api_mouse, tm_api_cursor, tm_api_modes
 };
 
 const tm_api *tm_apiget(void)

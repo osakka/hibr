@@ -22,13 +22,18 @@ enum {
 extern const py_api *hd_pty;
 extern const tm_api *hd_tm;
 
-/* One attached terminal: its connection, and where it sits in the session's
-   own virtual space -- row,col its top-left corner, rows,cols its own size.
-   A lone attacher sits at 0,0 and the space is exactly its own size, which
-   is today's behaviour exactly; several placed side by side is what a
+/* One attached terminal: its connection, where it sits in the session's own
+   virtual space -- row,col its top-left corner, rows,cols its own size --
+   and the mode state last sent to it, so a real terminal is only ever told
+   to switch buffers, mice or paste mode on a genuine change, not every
+   frame. A lone attacher sits at 0,0 and the space is exactly its own size,
+   which is today's behaviour exactly; several placed side by side is what a
    multi-monitor arrangement attaches through. Shared between srv.c, which
    owns the list, and render.c, which only ever reads one entry at a time. */
-struct hd_cli { int fd, row, col, rows, cols; };
+struct hd_cli {
+	int fd, row, col, rows, cols;
+	int primed, alt, mmode, msgr, bpaste, cshape;
+};
 
 void hd_cdrop(vec *cls, int fd);
 struct hd_cli *hd_cfind(vec *cls, int fd);
