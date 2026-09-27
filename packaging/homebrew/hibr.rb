@@ -2,7 +2,7 @@ class Hibr < Formula
   desc "Small, fast bash-flavoured shell with nested maps, JSON, and native networking"
   homepage "https://github.com/osakka/hibr"
   url "https://github.com/osakka/hibr/archive/c6f397cbc26f94cae50915c80402e88491e4edbf.tar.gz"
-  version "0.21"
+  version "0.22"
   sha256 "a4839fb06c244e50895d9ffddf74a3ee64d20747d7b276272d865b4740820603"
   license "MIT"
   head "https://github.com/osakka/hibr.git", branch: "main"
