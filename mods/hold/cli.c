@@ -47,9 +47,10 @@ void hd_size(int *sz)
 /* Put this terminal on a session until it detaches or the program ends.
 
    The terminal is raw, signals included, so ctrl-c reaches the program as
-   a byte rather than killing the client.  Returns 0 after a detach, or the
-   program's own status when it ended. */
-int hd_attach(const char *name, const char *path)
+   a byte rather than killing the client.  Plain attach takes the session
+   over, detaching whoever was there; multi joins alongside them instead.
+   Returns 0 after a detach, or the program's own status when it ended. */
+int hd_attach(const char *name, const char *path, int multi)
 {
 	struct termios sv, raw;
 	struct sigaction a, oa;
@@ -71,7 +72,8 @@ int hd_attach(const char *name, const char *path)
 		return 2;
 	}
 	hd_size(sz);
-	if (!hd_send(s, HD_ATTACH, (const char *)sz, sizeof sz)) {
+	if (!hd_send(s, multi ? HD_MATTACH : HD_ATTACH, (const char *)sz,
+		     sizeof sz)) {
 		close(s);
 		lg(HIBR_LERR, "hold: %s: the session did not answer", name);
 		return 1;

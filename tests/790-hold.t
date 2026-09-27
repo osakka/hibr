@@ -87,6 +87,26 @@ state t3
 pty close $b
 pty close $a
 
+echo "--- -m joins alongside a client instead of taking over from it"
+hold new -d t5 $H
+a := pty spawn $H -c "$L; hold attach t5; echo \"back rc=\$?\""
+sleep 0.6
+b := pty spawn $H -c "$L; hold attach -m t5; echo \"back rc=\$?\""
+sleep 0.6
+pty write $a 'echo "v=9"
+'
+sleep 0.4
+echo "a sees the real output:"; seen $a
+echo "b sees it too, mirrored, though it typed nothing:"; seen $b
+pty write $a $'\x1c'
+sleep 0.3
+echo "a is gone, b is not:"; state t5
+pty write $b $'\x1c'
+sleep 0.3
+echo "now both are:"; state t5
+pty close $b
+pty close $a
+
 echo "--- a program in a session knows which, and can detach itself"
 hold new -d t4 /bin/sh -c 'echo "$HIBR_HOLD" > "$TMPDIR/where"; sleep 30'
 sleep 0.3
@@ -94,7 +114,7 @@ case $(cat "$TMPDIR/where") in */hibr-hold-*/t4) echo "HIBR_HOLD names t4" ;; es
 ( unset HIBR_HOLD; hold detach 2>/dev/null; echo "detach outside a session: $?" )
 
 echo "--- kill ends it"
-for n in t1 t3 t4; do hold kill $n; echo "kill $n: $?"; done
+for n in t1 t3 t4 t5; do hold kill $n; echo "kill $n: $?"; done
 sleep 0.3
 echo "left: $(hold list | wc -l)"
 hold kill t1 2>/dev/null; echo "kill again: $?"

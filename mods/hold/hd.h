@@ -11,7 +11,10 @@ enum {
 	HD_DETACH = 'q',
 	HD_EXIT = 'x',
 	HD_KILL = 'k',
-	HD_INFO = 'i'
+	HD_INFO = 'i',
+	/* Join as an additional client rather than taking over: everyone
+	   already attached stays attached. */
+	HD_MATTACH = 'm'
 };
 
 extern const py_api *hd_pty;
@@ -30,6 +33,6 @@ void hd_cloexec(int fd);
 
 void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 	      int ready);
-int hd_attach(const char *name, const char *path);
+int hd_attach(const char *name, const char *path, int multi);
 
 #endif

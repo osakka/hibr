@@ -133,7 +133,7 @@ int hd_new(sh *s, int ac, char **av)
 		s_free(&path);
 		return HIBR_OK;
 	}
-	i = hd_attach(name, path.p);
+	i = hd_attach(name, path.p, 0);
 	s_free(&path);
 	return i;
 }
@@ -218,13 +218,19 @@ int m_hold(sh *s, int ac, char **av)
 		return hd_list(s);
 	s_init(&path);
 	if (!strcmp(sub, "attach")) {
-		if (ac < 3 || !hd_path(av[2], &path)) {
-			if (ac < 3)
-				lg(HIBR_LERR, "usage: hold attach name");
+		int multi = 0, ai = 2;
+
+		if (ai < ac && !strcmp(av[ai], "-m")) {
+			multi = 1;
+			ai++;
+		}
+		if (ai >= ac || !hd_path(av[ai], &path)) {
+			if (ai >= ac)
+				lg(HIBR_LERR, "usage: hold attach [-m] name");
 			s_free(&path);
 			return 2;
 		}
-		r = hd_attach(av[2], path.p);
+		r = hd_attach(av[ai], path.p, multi);
 		s_free(&path);
 		return r;
 	}

@@ -13,14 +13,19 @@ nothing has to be saved and restored.
 | | |
 |---|---|
 | `hold new [-d] name cmd args...` | start `cmd` in a session called `name`, and attach unless `-d` |
-| `hold attach name` | put this terminal on it; returns 0 after a detach, the program's status when it ends |
+| `hold attach [-m] name` | put this terminal on it; `-m` joins alongside whoever is already there instead of taking over; returns 0 after a detach, the program's status when it ends |
 | `hold detach [name]` | detach whoever is attached; with no name, the session this shell is running in |
 | `hold list` | each session, attached or detached, and the program's pid |
 | `hold kill name` | end the program and the session |
 
 While attached, **ctrl-\\** detaches. Everything else, ctrl-c included, goes
-to the program. A second `hold attach` takes the session over and detaches
-the first, with a message saying so.
+to the program. A second plain `hold attach` takes the session over and
+detaches the first, with a message saying so; `hold attach -m` joins
+alongside it instead -- both terminals see the same bytes and either can
+type, and each detaches on its own without disturbing the other. This is the
+foundation a multi-monitor arrangement attaches through, one terminal per
+monitor, all onto the same session; there is no viewport of its own yet --
+every attached client currently sees the whole session, unclipped.
 
 ## How it works
 
@@ -64,7 +69,7 @@ with `loginctl enable-linger` there.
 |---|---|
 | `hd.h` | the message types and every function the files share |
 | `wire.c` | the socket directory, names, and framing: a type byte, a length, the bytes |
-| `srv.c` | the server: the program's pty, the listening socket, one client |
+| `srv.c` | the server: the program's pty, the listening socket, any number of attached clients |
 | `cli.c` | the client: raw mode, the relay, ctrl-\\, and giving the terminal back |
 | `hold.c` | the builtin, and starting a server |
 
@@ -81,7 +86,9 @@ and UBSan.
 
 ## What it does not do
 
-One client at a time; a second takes over rather than sharing. No copy of
-the screen is kept, so something that does not redraw on `SIGWINCH` comes
-back blank until it next writes. No splitting, no windows, no scrollback:
-that is the desktop's job, and the terminal module's.
+Every attached client sees the whole session, unclipped -- there is no
+per-client viewport, and `-m` mirrors the same bytes to everyone rather than
+giving each its own view of a larger virtual screen. No copy of the screen
+is kept, so something that does not redraw on `SIGWINCH` comes back blank
+until it next writes. No splitting, no windows, no scrollback: that is the
+desktop's job, and the terminal module's.

@@ -31,14 +31,65 @@ void hd_poke(int m)
 		kill(-g, SIGWINCH);
 }
 
-/* Handle one new connection: an attach takes over as the client, anything
-   else is a request answered and closed.  Returns the new client, or the
-   old one. */
-int hd_conn(int c, int cl, int id, int m, int *quit)
+/* One attached terminal.  Just the fd for now -- a client's own viewport,
+   for a multi-monitor arrangement, is a later addition on top of this same
+   list, not part of proving the list itself works. */
+struct hd_cli { int fd; };
+
+/* Remove a client by fd, closing it.  A no-op if it is not (or no longer)
+   in the list: a poll() snapshot taken at the top of the loop can still
+   name a client that an earlier part of the same pass already dropped. */
+void hd_cdrop(vec *cls, int fd)
+{
+	size_t i;
+	struct hd_cli *cn;
+
+	for (i = 0; i < cls->n; i++) {
+		cn = cls->p[i];
+		if (cn->fd == fd) {
+			close(fd);
+			free(cn);
+			cls->p[i] = cls->p[--cls->n];
+			return;
+		}
+	}
+}
+
+/* Whether a client with this fd is still in the list. */
+int hd_chas(vec *cls, int fd)
+{
+	size_t i;
+
+	for (i = 0; i < cls->n; i++)
+		if (((struct hd_cli *)cls->p[i])->fd == fd)
+			return 1;
+	return 0;
+}
+
+/* Detach every attached client, telling each one why, and empty the list. */
+void hd_cclear(vec *cls, const char *why, size_t n)
+{
+	size_t i;
+	struct hd_cli *cn;
+
+	for (i = 0; i < cls->n; i++) {
+		cn = cls->p[i];
+		hd_send(cn->fd, HD_DETACH, why, n);
+		close(cn->fd);
+		free(cn);
+	}
+	cls->n = 0;
+}
+
+/* Handle one new connection: a plain attach takes the session over,
+   detaching whoever was there; HD_MATTACH joins alongside them instead.
+   Anything else is a one-shot request, answered and closed. */
+void hd_conn(int c, vec *cls, int id, int m, int *quit)
 {
 	struct pollfd q;
 	str in, o;
 	int t = 0, sz[2];
+	struct hd_cli *cn;
 
 	q.fd = c;
 	q.events = POLLIN;
@@ -46,28 +97,27 @@ int hd_conn(int c, int cl, int id, int m, int *quit)
 	if (poll(&q, 1, 2000) <= 0 || hd_recv(c, &t, &in) <= 0) {
 		close(c);
 		s_free(&in);
-		return cl;
+		return;
 	}
 	switch (t) {
 	case HD_ATTACH:
-		if (cl >= 0) {
-			hd_send(cl, HD_DETACH, "attached elsewhere", 18);
-			close(cl);
-		}
+		hd_cclear(cls, "attached elsewhere", 18);
+		/* fall through */
+	case HD_MATTACH:
 		if (in.n == sizeof sz) {
 			memcpy(sz, in.p, sizeof sz);
 			hd_pty->resize(id, sz[0], sz[1]);
 		}
+		cn = xm(sizeof *cn);
+		cn->fd = c;
+		v_add(cls, cn);
 		hd_poke(m);
-		lg(HIBR_LDBG, "hold: attached");
+		lg(HIBR_LDBG, "hold: attached (%lu now)",
+		   (unsigned long)cls->n);
 		s_free(&in);
-		return c;
+		return;
 	case HD_DETACH:
-		if (cl >= 0) {
-			hd_send(cl, HD_DETACH, "detached", 8);
-			close(cl);
-			cl = -1;
-		}
+		hd_cclear(cls, "detached", 8);
 		hd_send(c, HD_DETACH, 0, 0);
 		break;
 	case HD_KILL:
@@ -76,7 +126,7 @@ int hd_conn(int c, int cl, int id, int m, int *quit)
 		break;
 	case HD_INFO:
 		s_init(&o);
-		s_cat(&o, cl >= 0 ? "attached" : "detached");
+		s_cat(&o, cls->n ? "attached" : "detached");
 		s_ch(&o, ' ');
 		s_num(&o, hd_pty->pid(id));
 		hd_send(c, HD_INFO, o.p, o.n);
@@ -85,26 +135,30 @@ int hd_conn(int c, int cl, int id, int m, int *quit)
 	}
 	close(c);
 	s_free(&in);
-	return cl;
 }
 
-/* The session itself: a program on a terminal, and whoever is attached.
+/* The session itself: a program on a terminal, and whoever is attached --
+   any number at once, all fed the same bytes and all able to type into it.
 
    This runs in a process of its own that has left the shell's session, so
-   a hangup -- a closed terminal, a logout -- reaches only the client, which
-   dies, and the server carries on with nobody attached.  While nobody is,
-   what the program writes is read and dropped, or it would fill the pty and
-   stop; the next attach asks it to draw everything again anyway. */
+   a hangup -- a closed terminal, a logout -- reaches only that one client,
+   which is dropped from the list, and the server carries on with whoever
+   else (if anyone) is still attached.  While nobody is, what the program
+   writes is read and dropped, or it would fill the pty and stop; the next
+   attach asks it to draw everything again anyway. */
 void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 	      int ready)
 {
 	struct sockaddr_un a;
 	struct sigaction sa;
-	struct pollfd q[3];
-	int l, cl = -1, m, id, n, t, quit = 0, i, st;
+	struct pollfd *q = 0;
+	vec cls;
+	int l, m, id, quit = 0, st;
+	size_t i, j, nc;
 	ssize_t k;
 	str rb, in;
 
+	memset(&cls, 0, sizeof cls);
 	signal(SIGHUP, SIG_IGN);
 	signal(SIGPIPE, SIG_IGN);
 	signal(SIGINT, SIG_IGN);
@@ -141,14 +195,17 @@ void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 	s_init(&in);
 	s_grow(&rb, HIBR_IOCH);
 	while (!quit && !hd_term) {
+		nc = cls.n;
+		q = xr(q, sizeof *q * (2 + nc));
 		q[0].fd = l;
 		q[0].events = POLLIN;
 		q[1].fd = m;
 		q[1].events = POLLIN;
-		q[2].fd = cl;
-		q[2].events = POLLIN;
-		n = cl >= 0 ? 3 : 2;
-		if (poll(q, (nfds_t)n, -1) < 0) {
+		for (i = 0; i < nc; i++) {
+			q[2 + i].fd = ((struct hd_cli *)cls.p[i])->fd;
+			q[2 + i].events = POLLIN;
+		}
+		if (poll(q, (nfds_t)(2 + nc), -1) < 0) {
 			if (errno == EINTR)
 				continue;
 			break;
@@ -156,21 +213,28 @@ void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 		if (q[1].revents) {
 			k = read(m, rb.p, rb.cap - 1);
 			if (k > 0) {
-				if (cl >= 0 && !hd_send(cl, HD_DATA, rb.p,
-							(size_t)k)) {
-					close(cl);
-					cl = -1;
+				for (i = 0; i < cls.n; ) {
+					struct hd_cli *cn = cls.p[i];
+
+					if (!hd_send(cn->fd, HD_DATA, rb.p,
+						     (size_t)k))
+						hd_cdrop(&cls, cn->fd);
+					else
+						i++;
 				}
 			} else if (!(k < 0 && (errno == EAGAIN ||
 					       errno == EINTR))) {
 				break;
 			}
 		}
-		if (n == 3 && q[2].revents) {
-			i = hd_recv(cl, &t, &in);
-			if (i <= 0) {
-				close(cl);
-				cl = -1;
+		for (j = 0; j < nc; j++) {
+			int fd = q[2 + j].fd, t, r;
+
+			if (!q[2 + j].revents || !hd_chas(&cls, fd))
+				continue;
+			r = hd_recv(fd, &t, &in);
+			if (r <= 0) {
+				hd_cdrop(&cls, fd);
 			} else if (t == HD_DATA) {
 				hd_wall(m, in.p, in.n);
 			} else if (t == HD_SIZE && in.n == 2 * sizeof(int)) {
@@ -178,29 +242,33 @@ void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 				memcpy(sz, in.p, sizeof sz);
 				hd_pty->resize(id, sz[0], sz[1]);
 			} else if (t == HD_DETACH) {
-				close(cl);
-				cl = -1;
+				hd_cdrop(&cls, fd);
 			}
 		}
 		if (q[0].revents & POLLIN) {
 			int c = accept(l, 0, 0);
 			if (c >= 0) {
 				hd_cloexec(c);
-				cl = hd_conn(c, cl, id, m, &quit);
+				hd_conn(c, &cls, id, m, &quit);
 			}
 		}
 	}
 	unlink(path);
 	close(l);
+	free(q);
 	if (quit || hd_term)
 		hd_pty->drop(id);
 	for (i = 0; i < 300 && hd_pty->alive(id); i++)
 		usleep(10000);
 	st = hd_pty->status(id);
-	if (cl >= 0) {
-		hd_send(cl, HD_EXIT, (const char *)&st, sizeof st);
-		close(cl);
+	for (i = 0; i < cls.n; i++) {
+		struct hd_cli *cn = cls.p[i];
+
+		hd_send(cn->fd, HD_EXIT, (const char *)&st, sizeof st);
+		close(cn->fd);
+		free(cn);
 	}
+	v_free(&cls);
 	hd_pty->drop(id);
 	s_free(&rb);
 	s_free(&in);
