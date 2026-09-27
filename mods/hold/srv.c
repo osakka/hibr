@@ -71,26 +71,36 @@ int hd_chas(vec *cls, int fd)
 	return hd_cfind(cls, fd) != 0;
 }
 
-/* The pty's own size, and the emulator's: the furthest row and column any
-   attached client's viewport reaches, so the program always sees one screen
-   big enough for everyone at their own place, not just the largest single
-   client.  Left alone with nobody attached -- there is nothing to size it
-   from. */
-void hd_union(vec *cls, int id, int tid)
+/* The furthest row and column any attached client's viewport reaches --
+   the union's own size, queried without resizing anything. 0,0 with
+   nobody attached. */
+void hd_ubox(vec *cls, int *rows, int *cols)
 {
 	size_t i;
-	int rows = 0, cols = 0;
 	struct hd_cli *cn;
+
+	*rows = 0;
+	*cols = 0;
+	for (i = 0; i < cls->n; i++) {
+		cn = cls->p[i];
+		if (cn->row + cn->rows > *rows)
+			*rows = cn->row + cn->rows;
+		if (cn->col + cn->cols > *cols)
+			*cols = cn->col + cn->cols;
+	}
+}
+
+/* The pty's own size, and the emulator's: sized to the union, so the
+   program always sees one screen big enough for everyone at their own
+   place, not just the largest single client. Left alone with nobody
+   attached -- there is nothing to size it from. */
+void hd_union(vec *cls, int id, int tid)
+{
+	int rows, cols;
 
 	if (!cls->n)
 		return;
-	for (i = 0; i < cls->n; i++) {
-		cn = cls->p[i];
-		if (cn->row + cn->rows > rows)
-			rows = cn->row + cn->rows;
-		if (cn->col + cn->cols > cols)
-			cols = cn->col + cn->cols;
-	}
+	hd_ubox(cls, &rows, &cols);
 	hd_pty->resize(id, rows, cols);
 	hd_tm->resize(tid, rows, cols);
 }
@@ -173,14 +183,22 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit)
 		*quit = 1;
 		hd_send(c, HD_KILL, 0, 0);
 		break;
-	case HD_INFO:
+	case HD_INFO: {
+		int urows, ucols;
+
+		hd_ubox(cls, &urows, &ucols);
 		s_init(&o);
 		s_cat(&o, cls->n ? "attached" : "detached");
 		s_ch(&o, ' ');
 		s_num(&o, hd_pty->pid(id));
+		s_ch(&o, ' ');
+		s_num(&o, urows);
+		s_ch(&o, 'x');
+		s_num(&o, ucols);
 		hd_send(c, HD_INFO, o.p, o.n);
 		s_free(&o);
 		break;
+	}
 	}
 	close(c);
 	s_free(&in);

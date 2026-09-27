@@ -22,6 +22,8 @@ opt .            "hibr's desktop, held so it can always be detached from"
 opt -r --resume  resume         "Reattach to it if it is already running"
 opt -s --session session str=desktop \
 	"Which held session this is, for keeping more than one"
+opt -j --join    join \
+	"Attach beside an already-running one instead of starting or resuming"
 args "$@"
 
 d=${0%/*}
@@ -31,9 +33,11 @@ d=${0%/*}
 # So Detach and ctrl-\ always work: if this is not already a held session
 # named $session, restart it as one and attach to it right here.  Without
 # --resume, one already running under that name is left alone rather than
-# reattached to quietly -- run again with it to come back.  See dt_autohold
-# in desktop.hibr for what "always" leaves out.
-dt_autohold "$session" "$resume"
+# reattached to quietly -- run again with it to come back.  --join is a
+# second terminal on this same desktop, side by side with the first, rather
+# than a session of its own -- see dt_autohold in desktop.hibr for what
+# "always" leaves out.
+dt_autohold "$session" "$resume" "$join"
 
 # Apps are ordinary hibr files, found in folders: your own
 # ~/.config/hibr/apps first, then the ones that come with hibr.  Each file

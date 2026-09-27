@@ -2941,6 +2941,15 @@ dt_edit() {
 # A name already running is left alone unless resume asks for it -- coming
 # back to the same desktop should be something a session's own --resume
 # flag says plainly, not something a bare rerun does on its own guess.
+#
+# --join is a different terminal's own request to attach beside an already
+# running one, at the union's current width -- another monitor for the same
+# desktop, not a session of its own, so it never starts or resumes one: a
+# name not already running is an error, the same as --resume without a name
+# to resume is. There is no lock between reading the current width and
+# attaching at it, so two terminals joining at the same instant can land on
+# the same offset -- narrow in practice (this is a person typing a command
+# in each terminal, not a burst of them), and not solved here.
 
 # Every session name already in use, space separated.
 dt_holdnames() {
@@ -2953,12 +2962,39 @@ dt_holdnames() {
 	ret "${out# }"
 }
 
+# This session's own line from `hold list`, or empty if it is not running.
+dt_holdline() {
+	local base=$1 lst line
+
+	lst := hold list
+	while IFS= read -r line; do
+		case $line in "$base "*) ret "$line"; return 0 ;; esac
+	done <<< "$lst"
+	ret ""
+}
+
+dt_autojoin() {
+	local base=$1 line wxh cols
+
+	line := dt_holdline "$base"
+	if [ -z "$line" ]; then
+		echo "$0: $base is not running -- start it first (plain" \
+			"'desktop'), then --join from here" >&2
+		exit 1
+	fi
+	wxh=${line##* }
+	cols=${wxh#*x}
+	hold attach -m "$base" 0 "$cols"
+	exit $?
+}
+
 dt_autohold() {
-	local base=${1:-desktop} resume=$2 have
+	local base=${1:-desktop} resume=$2 join=$3 have
 
 	[ -n "$HIBR_HOLD" ] && return 0
 	[ -t 0 ] && [ -t 1 ] || return 0
 	need hold || return 0
+	[ "$join" = 1 ] && dt_autojoin "$base"
 	have := dt_holdnames
 	case " $have " in
 	*" $base "*)

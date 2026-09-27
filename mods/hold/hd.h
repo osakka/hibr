@@ -44,6 +44,7 @@ struct hd_cli {
 void hd_cdrop(vec *cls, int fd);
 struct hd_cli *hd_cfind(vec *cls, int fd);
 int hd_chas(vec *cls, int fd);
+void hd_ubox(vec *cls, int *rows, int *cols);
 void hd_union(vec *cls, int id, int tid);
 void hd_cclear(vec *cls, const char *why, size_t n);
 void hd_rensend1(vec *cls, struct hd_cli *cn, int tid);

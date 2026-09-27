@@ -1608,4 +1608,63 @@ check("ending it leaves the other one alone",
       "personal" in r.stdout and "work" not in r.stdout, r.stdout)
 unsession()
 
-report(238)
+# --join is a second terminal's own request to attach beside the first
+# rather than start or resume a session of its own -- one more monitor on
+# the same desktop. Content-level assertions about what the joined
+# terminal actually draws (the menu bar staying on the first screen, not
+# spanning both) belong to the primary-viewport work that follows this;
+# what belongs here is that it attaches at all, at the right combined
+# width, and that detaching it leaves the first alone.
+
+JOIN = tempfile.mkdtemp(prefix="hibr-join-")
+JENV = {"HOME": JOIN, "TMPDIR": JOIN,
+        "XDG_CONFIG_HOME": os.path.join(JOIN, "config"),
+        "XDG_STATE_HOME": os.path.join(JOIN, "state"),
+        "XDG_DATA_HOME": os.path.join(JOIN, "data"),
+        # session.hibr's own `need hold`/`need term` etc. otherwise fall
+        # through to whatever hold.so happens to be installed system-wide,
+        # which -m and HD_INFO's own size field need not be new enough to
+        # have -- this suite must not depend on that, only on this build.
+        "HIBR_MODPATH": tree("build/mods")}
+
+
+def unjoin():
+    subprocess.run([screen.HIBR, "-c", HOLDC + "hold kill desktop"],
+                   env=dict(os.environ, **JENV), capture_output=True)
+    shutil.rmtree(JOIN, True)
+
+
+atexit.register(unjoin)
+
+t1 = Term(SESSION, env=JENV, cols=80, settle=2.0)
+sc = t1.screen()
+check("a plain desktop starts, ready to be joined",
+      sc.find("Home") is not None, sc)
+
+t2 = Term(SESSION, "--join", env=JENV, cols=60, settle=1.5)
+out2 = t2.out.decode(errors="replace")
+r = subprocess.run([screen.HIBR, "-c", HOLDC + "hold list"],
+                   env=dict(os.environ, **JENV), capture_output=True,
+                   text=True)
+check("--join attaches beside it, growing the union to the combined width",
+      "x140" in r.stdout and "is not running" not in out2,
+      r.stdout + "\n" + out2)
+
+t2.send(b"\x1c", settle=0.5)
+check("ctrl-\\ detaches just the joined terminal",
+      b"[desktop: detached" in t2.out, t2.out.decode(errors="replace"))
+t2.close()
+r2 = subprocess.run([screen.HIBR, "-c", HOLDC + "hold list"],
+                    env=dict(os.environ, **JENV), capture_output=True,
+                    text=True)
+check("the first one is still there, unaffected",
+      "desktop" in r2.stdout, r2.stdout)
+
+t1.send(b"qy", settle=1.0)
+t1.collect(0.5)
+check("quitting from the first ends the whole session",
+      b"[desktop ended" in t1.out, t1.out.decode(errors="replace"))
+t1.close()
+unjoin()
+
+report(242)

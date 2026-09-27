@@ -15,7 +15,7 @@ nothing has to be saved and restored.
 | `hold new [-d] name cmd args...` | start `cmd` in a session called `name`, and attach unless `-d` |
 | `hold attach [-m] name [row col]` | put this terminal on it; `-m` joins alongside whoever is already there instead of taking over, at the given offset (0,0 if not given); returns 0 after a detach, the program's status when it ends |
 | `hold detach [name]` | detach whoever is attached; with no name, the session this shell is running in |
-| `hold list` | each session, attached or detached, and the program's pid |
+| `hold list` | each session, attached or detached, the program's pid, and the union's own size (rows x cols) |
 | `hold kill name` | end the program and the session |
 
 While attached, **ctrl-\\** detaches. Everything else, ctrl-c included, goes
