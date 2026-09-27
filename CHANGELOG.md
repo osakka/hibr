@@ -1,5 +1,51 @@
 # Changelog
 
+## 1.0 (desktop 0.2)
+
+**A real colour preview for the Wallpaper Control Panel pane**, drawn
+straight into its own window rather than a grayscale ASCII render
+captured into text. `img draw` gains `-p pane`, and `dp_api` gains
+`prect`, a named pane's own rectangle, so any module can translate and
+clip its own drawing into a window without reading the window manager's
+own position table — the same discipline `console put -p` already gives
+text, reused rather than reinvented. **The module ABI for "display" moves
+to `DP_API_VER` 3**, since a module built against the old headers can no
+longer link. `img`'s resampled-grid cache grows from one entry to four,
+round-robin, since a pane's own preview and the desktop's wallpaper can
+now both call `img draw` with different files in the same frame.
+
+Applying a wallpaper dithers the resample (a 4x4 ordered Bayer pattern)
+before it is ever darkened under a window's shadow, so a real photo's
+own faint gradients read as fine grain instead of a repeating band once
+darkened; a window's shadow itself now rounds its own darken math rather
+than truncating it.
+
+Desktop notifications (`dt_note`) get a real border and a timeout,
+rather than three plain rows that only ever cleared on the next click or
+key — which is what made applying a wallpaper from a window filling
+most of the screen look like the display had come out wrong, rather
+than like a transient toast.
+
+Task Manager: process name folded into the CPU-time read already
+happening every scan, fixing a latent bug where a name containing a
+space was silently truncated, and halving what the read still cost
+beyond that. Its own refresh interval no longer gets silently
+overridden by a hardcoded one. Terminals now wake on real pty output,
+rather than polling every 30ms after each key.
+
+Glob patterns: escaping an extglob-trigger character (`(` `)` `|` `!`
+`@` `+`) now stays literal, matching bash's own extglob-on behaviour —
+it silently did nothing before, since the pattern-quoting pass only
+recognised `* ? [ \` as characters needing the escape reinserted.
+
+`tools/next-version.sh` (`make next-version`) suggests the next
+`HIBR_VER`/`DT_VER` from what changed since the last tag — a module ABI
+change, or a commit's own `Breaking:` trailer, bumps the major version;
+anything else in scope bumps the minor one. A suggestion, not an
+authority: a single commit spanning both core and desktop can carry a
+break that only applies to one of them, which this release's own
+`DT_VER` needed a human judgement call to catch.
+
 ## 0.21
 
 **Renamed from `nsh` to `hibr`** — Hackable In-process Bash Runtime, and
