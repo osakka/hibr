@@ -1824,6 +1824,11 @@ dt_menus() {
 	dt_sep
 	if [ -n "$HIBR_HOLD" ]; then
 		dt_item "Detach" d dt_detach
+		if need hold; then
+			dt_sub "Displays"
+			dt_displaysmenu
+			dt_end
+		fi
 	else
 		dt_dim "Detach"
 	fi
@@ -3046,6 +3051,26 @@ dt_autohold() {
 dt_detach() {
 	need hold && hold detach
 }
+
+# This session's own name, from HIBR_HOLD's own socket path -- what hold's
+# subcommands that take an explicit session name (clients, move, drop,
+# primary; detach and kill alone fall back to HIBR_HOLD with none) need.
+dt_holdsess() { ret "${HIBR_HOLD##*/}"; }
+
+# The hibr menu's own "Displays" submenu: every terminal attached to this
+# session, primary ticked, choosing one switches it off (hold drop) --
+# the panel's own detach, indistinguishable to the program from that
+# display's own ctrl-\.
+dt_displaysmenu() {
+	local sess lst nm row col rows cols pri
+
+	sess := dt_holdsess
+	lst := hold clients "$sess"
+	while IFS=' ' read -r nm row col rows cols pri; do
+		[ -z "$nm" ] && continue
+		dt_mark "$nm" "" "$pri" hold drop "$sess" "$nm"
+	done <<< "$lst"
+}
 # The about app shows the machine's own numbers, live; without it (a session
 # that never called dt_apps, or one that dropped the file) a note still says
 # what this is, since About hibr must never be a dead menu item.
@@ -3621,7 +3646,7 @@ dt_barcontext() {
 # Right-click on a window's title bar: the Window menu's own items, since
 # that is what a title bar is for, without reaching the menu bar first.
 dt_titlecontext() {
-	local id=$1
+	local id=$1 sess lst nm row col rows cols pri
 
 	dt_menu "Window"
 	dt_item "Move" m dt_grab move
@@ -3633,8 +3658,43 @@ dt_titlecontext() {
 		dt_item "Zoom" z dt_zoom "$id"
 	fi
 	dt_item "Hide" h dt_min "$id"
+	if [ -n "$HIBR_HOLD" ] && need hold; then
+		sess := dt_holdsess
+		lst := hold clients "$sess"
+		if [ -n "$lst" ]; then
+			dt_sub "Move to"
+			while IFS=' ' read -r nm row col rows cols pri; do
+				[ -z "$nm" ] && continue
+				dt_item "$nm" "" \
+					dt_movewin "$id" "$row" "$col" "$rows" "$cols"
+			done <<< "$lst"
+			dt_end
+		fi
+	fi
 	dt_sep
 	dt_item "Close" w dt_del "$id"
+}
+
+# Move a window onto a specific display's own rectangle -- the titlebar
+# menu's "Move to" submenu. Placed at that display's own top-left corner,
+# clamped to still fit within it, the same shape dt_move already clamps a
+# drag to the whole screen with, just against one display's box instead of
+# the whole union.
+dt_movewin() {
+	local id=$1 drow=$2 dcol=$3 drows=$4 dcols=$5 r c
+
+	r=$drow
+	[ "$r" -lt 1 ] && r=1
+	c=$dcol
+	[ $((r + DT[$id]["h"])) -gt $((drow + drows)) ] &&
+		r=$((drow + drows - DT[$id]["h"]))
+	[ $((c + DT[$id]["w"])) -gt $((dcol + dcols)) ] &&
+		c=$((dcol + dcols - DT[$id]["w"]))
+	[ "$r" -lt "$drow" ] && r=$drow
+	[ "$c" -lt "$dcol" ] && c=$dcol
+	DT[$id]["row"]=$r
+	DT[$id]["col"]=$c
+	console pane "w$id" "$r" "$c" "${DT[$id]["h"]}" "${DT[$id]["w"]}"
 }
 
 # Step into the submenu of the highlighted item, if it has one.

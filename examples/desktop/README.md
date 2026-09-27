@@ -260,6 +260,37 @@ stays dimmed and the desktop opens in this terminal as it always did. See
 works, and `hold attach desk`/`hold new desk ...` directly if you would
 rather manage that yourself, under a name of your own.
 
+## More than one screen
+
+A second terminal joins the same desktop instead of starting its own:
+
+    hibr examples/desktop/session.hibr --join
+
+It attaches beside the first at the union's current width -- another
+monitor for the same desktop, not a session of its own -- and refuses,
+saying so, if nothing is running yet to join. The bar, the icon grid, notes
+and the control strip stay confined to one display, the *primary* one --
+the first to attach, until something picks another -- rather than
+spreading across every display a terminal has joined beside it; a window
+is unaffected and can sit anywhere across the whole arrangement.
+
+Right-click a window's own title bar for **Move to**, a submenu of every
+attached display by name, to hand that window from one screen to another.
+The hibr menu's own **Displays** submenu lists the same displays, primary
+ticked, and switches one off from there -- a server-side detach, the same
+as that display's own ctrl-\\, for when the terminal sitting on it is not
+the one doing the choosing. Both are built from `hold clients`, which also
+answers directly:
+
+    hold clients desktop        # name row col rows cols primary, one per line
+    hold move desktop NAME 0 80 # reposition a named display
+    hold drop desktop NAME      # switch one off
+    hold primary desktop NAME   # change which one anchors the bar
+
+A display's name is whatever `hold attach -n NAME` gave it, or
+`client-<fd>` if nothing did -- see [`mods/hold/README.md`](../../mods/hold/README.md)
+for the rest of what a held session can do.
+
 ## Keys that would be signals
 
 ctrl-c, ctrl-\\ and ctrl-z are keys on the desktop, not signals: the

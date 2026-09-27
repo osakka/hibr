@@ -1654,19 +1654,63 @@ sc2 = t2.screen()
 check("the bar and icons stay on the first screen, not spilling into this one",
       sc2.find("Home") is None and sc2.find("Desktop") is None, sc2)
 
+r3 = subprocess.run([screen.HIBR, "-c", HOLDC + "hold clients desktop"],
+                    env=dict(os.environ, **JENV), capture_output=True,
+                    text=True)
+rows = [ln.split() for ln in r3.stdout.splitlines() if ln.split()]
+check("hold clients lists both attached displays", len(rows) == 2, r3.stdout)
+primary = next((row[0] for row in rows if row[-1] == "1"), None)
+joined = next((row[0] for row in rows if row[-1] == "0"), None)
+check("exactly one is primary, the other is not",
+      primary is not None and joined is not None, r3.stdout)
+
+# A window's own titlebar context menu gets a "Move to" submenu (Slice C):
+# open Files from the desktop's own Home icon, right-click its titlebar,
+# and hand it to the joined display by name.
+hp = sc.find("Home")
+t1.send(press(hp[0], hp[1]))
+t1.send(press(hp[0], hp[1]))
+sc = t1.screen()
+tb = sc.find("┤ Files ├")
+check("double-clicking home opens Files, with a titlebar to right-click",
+      tb is not None, sc)
+t1.send(press(tb[0], tb[1], 2))
+sc = t1.screen()
+check("the titlebar's own context menu gets a Move to submenu",
+      sc.find("Move to") is not None, sc)
+for _ in range(4):
+    t1.send(b"\x1b[B")
+t1.send(b"\x1b[C")
+sc = t1.screen()
+check("it lists every attached display by name",
+      sc.find(primary) is not None and sc.find(joined) is not None, sc)
+t1.send(b"\x1b[B")
+t1.send(b"\r")
+t2.collect(1.0)
+sc1c = t1.screen()
+sc2c = t2.screen()
+check("choosing one moves the window there",
+      sc1c.find("┤ Files ├") is None and sc2c.find("┤ Files ├") is not None,
+      str(sc1c) + "\n" + str(sc2c))
+
+# The hibr menu gets a "Displays" submenu too: every attached display,
+# primary ticked, for switching one off without a terminal of its own to
+# type ctrl-\ into.
+t1.send(press(0, 1))
+for _ in range(11):
+    t1.send(b"\x1b[B")
+t1.send(b"\x1b[C")
+sc = t1.screen()
+check("the hibr menu's Displays submenu lists every display too",
+      sc.find(primary) is not None and sc.find(joined) is not None, sc)
+check("the primary one is ticked", sc.find("✓ " + primary) is not None, sc)
+t1.send(press(0, 50))
+
 # The panel can change which display is primary, live: hold primary
 # nudges the program to notice (hd_poke, the same SIGWINCH a fresh attach
 # already gets), and dt_size re-reads hold clients rather than a
 # heuristic -- the bar and icons should move to follow whichever display
 # picks it up.
-r3 = subprocess.run([screen.HIBR, "-c", HOLDC + "hold clients desktop"],
-                    env=dict(os.environ, **JENV), capture_output=True,
-                    text=True)
-joined = next((ln.split()[0] for ln in r3.stdout.splitlines()
-               if ln.split()[-1] == "0"), None)
-check("hold clients lists the joined display, not primary yet",
-      joined is not None, r3.stdout)
-
 subprocess.run([screen.HIBR, "-c",
                 HOLDC + "hold primary desktop %s" % joined],
                env=dict(os.environ, **JENV), capture_output=True)
@@ -1696,4 +1740,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(245)
+report(252)
