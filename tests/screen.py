@@ -143,6 +143,15 @@ class Term:
         self.exited = False
         self.pid, self.fd = pty.fork()
         if self.pid == 0:
+            # A shell this suite happens to run from can itself be a hold
+            # client -- inside a held desktop, in CI under one, anywhere --
+            # and HIBR_HOLD is a real environment variable, inherited like
+            # any other. A test's own dt_autohold sees it already set and
+            # returns immediately, thinking it is already held, when the
+            # session it names is nothing to do with this run at all: the
+            # desktop still comes up looking entirely normal, and every
+            # hold-dependent check fails confusingly far from this cause.
+            os.environ.pop("HIBR_HOLD", None)
             os.environ["TERM"] = "xterm-256color"
             own = os.path.join(HOME, str(os.getpid()))
             os.environ["XDG_CONFIG_HOME"] = os.path.join(own, "config")

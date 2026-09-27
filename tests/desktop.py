@@ -1606,6 +1606,24 @@ r = subprocess.run([screen.HIBR, "-c", HOLDC + "hold list"],
                    text=True)
 check("ending it leaves the other one alone",
       "personal" in r.stdout and "work" not in r.stdout, r.stdout)
+
+# HIBR_HOLD is an ordinary environment variable, inherited by anything a
+# held terminal starts -- so a shell already attached to some other
+# session, starting this one from inside it, inherits that other
+# session's own HIBR_HOLD. dt_autohold must not mistake "HIBR_HOLD is
+# set" for "I am already the held program": only a value naming *this*
+# session means that.
+INHERITENV = dict(S2ENV, HIBR_HOLD="/tmp/hibr-hold-nonexistent/elsewhere")
+t = Term(SESSION, "--session", "third", env=INHERITENV, settle=2.0)
+t.send(b"\x1c", settle=0.5)
+t.close()
+r = subprocess.run([screen.HIBR, "-c", HOLDC + "hold list"],
+                   env=dict(os.environ, **S2ENV), capture_output=True,
+                   text=True)
+check("an unrelated inherited HIBR_HOLD does not stop it holding for real",
+      "third" in r.stdout, r.stdout)
+subprocess.run([screen.HIBR, "-c", HOLDC + "hold kill third"],
+               env=dict(os.environ, **S2ENV), capture_output=True)
 unsession()
 
 # --join is a second terminal's own request to attach beside the first
@@ -1695,10 +1713,11 @@ check("choosing one moves the window there",
 
 # The Control Panel gets a "Displays" pane (Slice D): every attached
 # display drawn to scale from hold clients, dragged to reposition it
-# (hold move on release), clicked with no movement to make it primary
-# (hold primary), an x in its own corner to switch it off (hold drop).
-# There is no separate hibr-menu equivalent -- this pane is the one place
-# for all of it.
+# (hold move on release); a "Primary:" dropdown to choose which one is
+# primary (hold primary); right-click a rectangle for Detach (hold drop)
+# or Identify (flash its own name on its own screen). There is no
+# separate hibr-menu equivalent -- this pane is the one place for all
+# of it.
 t1.send(press(0, 1))
 sc = t1.screen()
 cp = sc.find("Control Panel")
@@ -1785,6 +1804,22 @@ check("the pane list's own row is still intact, not overlapped",
 check("...and the bar follows the new primary onto the other terminal",
       t2.screen().find("Home") is not None, sc)
 
+# Right-click a rectangle for Detach and Identify -- joined's, not
+# primary's: Identify flashes its own name in the middle of its own
+# screen, and checking it on the terminal without the Control Panel
+# open (joined is t2's own display) avoids the flash landing under the
+# pane list or the dropdown this same window also draws.
+lbl3 = sc.find_from(joined, canvas0)
+t1.send(press(lbl3[0], lbl3[1], 2))
+sc = t1.screen()
+check("right-clicking a rectangle offers Detach and Identify",
+      sc.find("Detach") is not None and sc.find("Identify") is not None, sc)
+ident = sc.find("Identify")
+t1.send(press(ident[0], ident[1]))
+t2.collect(0.3)
+check("choosing Identify flashes the display's own name on its own screen",
+      t2.screen().find("│ %s │" % joined) is not None, sc)
+
 t1.collect(0.5)
 sc = t1.screen()
 close = sc.find("x├")
@@ -1824,4 +1859,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(258)
+report(261)

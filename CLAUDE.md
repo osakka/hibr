@@ -901,6 +901,39 @@ went in the shell.
   today (colour cells, in this case), that is a real gap in the console
   module's own API, to fix there, deliberately, not a reason to reach
   around the pane system for one call.**
+- **`HIBR_HOLD` is inherited by everything a held terminal spawns, not
+  just the program hold itself starts.** It is an ordinary environment
+  variable, so a shell already attached to session `Default`, running
+  `desktop --session work` from inside it, inherits `Default`'s own
+  `HIBR_HOLD` -- and `dt_autohold` checking only "is it set" mistook that
+  for "I am already the held program," silently starting `work` un-held:
+  Detach stayed dimmed, and `--resume work` later said it was not
+  running, which reads as the desktop being broken rather than as one
+  variable meaning two different things. The check is the value's own
+  basename against the session actually being started
+  (`${HIBR_HOLD##*/} = $base`), not merely non-empty -- the re-exec'd
+  program this same function's own `hold new` starts does have one
+  naming `$base` correctly, so the guard still short-circuits there.
+  Cost about an hour to trace: every live verification in this arc *also*
+  ran from a shell already attached to a held session, so every one of
+  them was silently testing the un-held fallback path instead of hold at
+  all, and looked completely normal doing it -- a fully working desktop,
+  just with `hold clients` finding nothing, which reads as a `hold`
+  protocol bug long before it reads as an inherited environment variable.
+  A test harness that holds must strip `HIBR_HOLD` before forking
+  (`tests/screen.py`'s `Term` does); a script that holds must compare
+  the basename, not just test for non-empty.
+- **A submenu created mid-build occupies a real index in the same array
+  the top-level bar menus live in**, so "the next index" is not "the next
+  bar menu": `dt_appmenu`'s own `dt_sub` (a folder of apps -- Desk
+  Accessories is the common one) allocates a new `MB[]` entry the moment
+  it runs, interleaved between whichever bar menus were declared before
+  and after it. With Desk Accessories sitting between the hibr menu and
+  Edit, right arrow on an item with no submenu of its own (About hibr,
+  say) used `MB_OPEN + 1` and landed on Desk Accessories by plain index
+  arithmetic, opening it regardless of what was actually highlighted.
+  `dt_mbar` searches by each menu's own `bar` flag instead of assuming
+  position.
 
 ## Testing discipline
 

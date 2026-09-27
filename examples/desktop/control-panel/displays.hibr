@@ -3,12 +3,13 @@
 # displays -- Control Panel's own picture of a multi-monitor arrangement:
 # a dropdown to choose which display is primary, and every attached
 # display drawn to scale below it from hold clients, dragged to
-# reposition (hold move on release) or switched off with the x in its
-# own top-right corner (hold drop). The primary display is the picture's
-# own anchor -- every rectangle is positioned relative to it, so
-# switching which one is primary, or dragging a *different* display,
-# never moves where the primary itself draws -- but its own rectangle is
-# not otherwise interactive: the dropdown is the one reliable way to
+# reposition (hold move on release). Right-click a rectangle for Detach
+# (hold drop) or Identify (flash its own name on its own screen, so
+# whoever is looking can tell which is which). The primary display is
+# the picture's own anchor -- every rectangle is positioned relative to
+# it, so switching which one is primary, or dragging a *different*
+# display, never moves where the primary itself draws -- but its own
+# rectangle cannot be dragged: the dropdown is the one reliable way to
 # change it, since a mouse click precise enough to land on a specific
 # terminal cell with *no* movement at all is not something to depend on,
 # over ssh least of all. Nothing else is kept that a fresh read of hold
@@ -50,6 +51,41 @@ displays_setprimary() {
 
 	sess := displays_sess
 	[ -n "$sess" ] && hold primary "$sess" "$value"
+}
+
+# Right-click on a rectangle: detach it, or flash its own name where it
+# actually is.
+displays_context() {
+	local nm=$1
+
+	dt_menu "Display"
+	dt_item "Detach" d displays_detach "$nm"
+	dt_item "Identify" i displays_identify "$nm"
+}
+
+displays_detach() {
+	local nm=$1 sess
+
+	sess := displays_sess
+	[ -n "$sess" ] && hold drop "$sess" "$nm"
+}
+
+# hold clients again, rather than trusting whatever the right-click that
+# opened this menu last saw: a frame can pass between opening the menu
+# and choosing an item from it, same as everything else here that reads
+# fresh rather than keeping what could be stale.
+displays_identify() {
+	local nm=$1 sess lst n2 row col rows cols pri
+
+	sess := displays_sess
+	[ -z "$sess" ] && return 0
+	lst := hold clients "$sess"
+	while IFS=' ' read -r n2 row col rows cols pri; do
+		if [ "$n2" = "$nm" ]; then
+			dt_identify "$nm" "$row" "$col" "$rows" "$cols"
+			return 0
+		fi
+	done <<< "$lst"
 }
 
 displays_draw() {
@@ -193,16 +229,14 @@ displays_draw() {
 		DPY[$id][$i]["bc"]=$bc
 		DPY[$id][$i]["bh"]=$bh
 		DPY[$id][$i]["bw"]=$bw
-		DPY[$id][$i]["xr"]=$br
-		DPY[$id][$i]["xc"]=$((bc + bw - 1))
 
 		if [ "$pri" = 1 ]; then
 			console pen "$DT_ACTIVE" "$DT_FACE" bold
 		else
 			console pen "$DT_IDLE" "$DT_FACE"
 		fi
-		t := dt_rep $((bw - 1)) "─"
-		console put -p "w$id" "$br" "$bc" "┌${t}x"
+		t := dt_rep $((bw - 2)) "─"
+		console put -p "w$id" "$br" "$bc" "┌${t}┐"
 		r=1
 		while [ "$r" -lt $((bh - 1)) ]; do
 			console put -p "w$id" $((br + r)) "$bc" "│"
@@ -222,17 +256,17 @@ displays_draw() {
 }
 
 # Press: on the dropdown, open its own popup of every attached display's
-# name; on the x in a rectangle's own corner (its own cell, plus its
-# left neighbour -- one cell alone is not a reachable target for a real
-# pointer), switch that display off on the spot; inside a rectangle that
-# is not the primary one, otherwise start dragging it. The primary's own
-# rectangle is not draggable -- it is the picture's own fixed anchor,
-# and the dropdown above is the one way to change which display that is.
-# Neither hit declines the press (returns 1) so panel_mouse still offers
-# panel_click a plain row-list click elsewhere in the pane.
+# name; right-click on any rectangle opens Detach/Identify; left-click
+# on a rectangle that is not the primary one starts dragging it -- the
+# primary's own rectangle cannot be dragged, only right-clicked, since
+# the dropdown above is the one way to change which display it is.
+# Nothing here declines a press that actually landed on a rectangle, so
+# a right-click or a drag on the primary's own body does not fall
+# through to panel_click; only a press that hit no rectangle at all
+# does (returns 1).
 displays_mouse() {
 	local id=$1 act=$2 button=$3 r=$4 c=$5
-	local n i sess nm mr mc s row col nrow ncol xc amr amc tag wc vals
+	local n i sess nm mr mc s row col nrow ncol amr amc tag wc vals
 
 	n=${DPY[$id]["n"]:-0}
 	if [ "$act" = press ]; then
@@ -250,22 +284,18 @@ displays_mouse() {
 		fi
 		i=0
 		while [ "$i" -lt "$n" ]; do
-			xc=${DPY[$id][$i]["xc"]}
-			if [ "$r" = "${DPY[$id][$i]["xr"]}" ] &&
-			   [ "$c" -ge $((xc - 1)) ] && [ "$c" -le "$xc" ]; then
-				sess := displays_sess
-				hold drop "$sess" "${DPY[$id][$i]["name"]}"
-				return 0
-			fi
-			i=$((i + 1))
-		done
-		i=0
-		while [ "$i" -lt "$n" ]; do
-			if [ "${DPY[$id][$i]["primary"]}" != 1 ] &&
-			   [ "$r" -ge "${DPY[$id][$i]["br"]}" ] &&
+			if [ "$r" -ge "${DPY[$id][$i]["br"]}" ] &&
 			   [ "$r" -lt $((${DPY[$id][$i]["br"]} + ${DPY[$id][$i]["bh"]})) ] &&
 			   [ "$c" -ge "${DPY[$id][$i]["bc"]}" ] &&
 			   [ "$c" -lt $((${DPY[$id][$i]["bc"]} + ${DPY[$id][$i]["bw"]})) ]; then
+				if [ "$button" = right ]; then
+					dt_context_open displays \
+						"${DPY[$id][$i]["name"]}" \
+						$((${DT[$id]["row"]} + r + 1)) \
+						$((${DT[$id]["col"]} + c))
+					return 0
+				fi
+				[ "${DPY[$id][$i]["primary"]}" = 1 ] && return 0
 				DPY[$id]["drag"]=$i
 				DPY[$id]["pr"]=$r
 				DPY[$id]["pc"]=$c

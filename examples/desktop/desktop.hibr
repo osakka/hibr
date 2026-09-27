@@ -30,8 +30,12 @@ DT_VER=0.2
 # The session's own arguments, captured here at the top level where $@ is
 # still theirs: a function sees its own, and dt_autohold needs to hand these
 # back to a fresh copy of itself.  $0 needs no such capture -- it is one
-# value on the shell itself, the same in a function as at the top.
-DT_SELFARGS=("$@")
+# value on the shell itself, the same in a function as at the top. Left
+# alone if a caller already set it -- session.hibr's own opt/args consumes
+# its "$@" into named variables before sourcing this file, so capturing
+# again here would silently overwrite session.hibr's own, earlier and
+# correct capture with the empty leftover args does not use flags for.
+[ "${#DT_SELFARGS[@]}" -eq 0 ] && DT_SELFARGS=("$@")
 
 DT_NEXT=1
 DT_FOCUS=
@@ -734,6 +738,7 @@ dt_draw() {
 	dt_stripdraw
 	dt_drop
 	dt_note_draw
+	dt_identify_draw
 	dt_confirm_draw
 	console flush
 }
@@ -3037,7 +3042,19 @@ dt_holdattach() {
 dt_autohold() {
 	local base=${1:-desktop} resume=$2 join=$3 dname=$4 have
 
-	[ -n "$HIBR_HOLD" ] && return 0
+	# HIBR_HOLD being set does not by itself mean this process already is
+	# the held program: it is an ordinary environment variable, inherited
+	# by anything a held terminal starts, and a shell attached to one
+	# session running `desktop --session other` from inside it inherits
+	# the *first* session's own HIBR_HOLD. Only the re-exec'd program this
+	# same dt_autohold's own `hold new` starts has one naming $base -- the
+	# server sets it right before spawning that program -- so that is the
+	# actual check, not merely "is it set". Getting this wrong looks like
+	# the desktop silently refusing to hold at all: Detach stays dimmed,
+	# and `--resume other` later says it is not running, when what
+	# actually happened is dt_autohold returned immediately, mistaking
+	# some other session's own HIBR_HOLD for this one's.
+	[ -n "$HIBR_HOLD" ] && [ "${HIBR_HOLD##*/}" = "$base" ] && return 0
 	[ -t 0 ] && [ -t 1 ] || return 0
 	need hold || return 0
 	[ "$join" = 1 ] && dt_autojoin "$base" "$dname"
@@ -3799,6 +3816,27 @@ dt_mhit() {
 	return 1
 }
 
+# The next (dir 1) or previous (dir -1) top-level bar menu from i, skipping
+# any submenu index in between. dt_appmenu's own dt_sub calls (a folder of
+# apps -- Desk Accessories is the common one) and an app's own _menus both
+# interleave submenu entries into the same MB[] array the bar menus
+# themselves live in, so "the next index" is not "the next bar menu": with
+# Desk Accessories sitting between the hibr menu and Edit, MB_OPEN + 1 on
+# the hibr menu landed on it by plain index arithmetic, so right arrow on
+# an item with no submenu of its own (About hibr, say) opened Desk
+# Accessories instead of moving to Edit. Returns -1 or MB_N when there is
+# no further bar menu that way, for the caller to fall back to "app".
+dt_mbar() {
+	local i=$1 dir=$2
+
+	i=$((i + dir))
+	while [ "$i" -ge 0 ] && [ "$i" -lt "$MB_N" ] &&
+	      [ "${MB[$i]["bar"]}" != 1 ]; do
+		i=$((i + dir))
+	done
+	ret "$i"
+}
+
 # Keys while the bar has the keyboard.  Returns 1 for a key it does not use.
 dt_mkey() {
 	local k=$1 n i=0 lb
@@ -3808,9 +3846,12 @@ dt_mkey() {
 	left)
 		dt_mup && return 0
 		if [ "$MB_OPEN" = app ]; then
-			dt_mopen $((MB_N - 1))
-		elif [ "$MB_OPEN" -gt 0 ]; then
-			dt_mopen $((MB_OPEN - 1))
+			n := dt_mbar "$MB_N" -1
+		else
+			n := dt_mbar "$MB_OPEN" -1
+		fi
+		if [ "$n" -ge 0 ]; then
+			dt_mopen "$n"
 		else
 			dt_mopen app
 		fi
@@ -3820,10 +3861,13 @@ dt_mkey() {
 		dt_mdown && return 0
 		if [ "$MB_OPEN" = app ]; then
 			dt_mopen 0
-		elif [ $((MB_OPEN + 1)) -lt "$MB_N" ]; then
-			dt_mopen $((MB_OPEN + 1))
 		else
-			dt_mopen app
+			n := dt_mbar "$MB_OPEN" 1
+			if [ "$n" -lt "$MB_N" ]; then
+				dt_mopen "$n"
+			else
+				dt_mopen app
+			fi
 		fi
 		return 0
 		;;
@@ -3926,6 +3970,53 @@ dt_note_draw() {
 	console pen "$DT_INK" "$DT_FACE" bold
 	console put $((r + 1)) "$c" "│ $DT_NOTE │"
 	dt_want "$DT_NOTEMS"
+}
+
+# Flash a display's own name in the middle of its own screen -- called
+# with its row, col, rows and cols (hold clients's own coordinates), not
+# just its name, so this does not have to ask hold clients again itself.
+# Multi-monitor's own "which one is this" answer: a display drawn in the
+# Control Panel's own picture is a small rectangle with a name in it, but
+# a real screen has no such label on it anywhere -- this puts the same
+# name directly onto the display it actually names, in the middle of its
+# own real rows/cols, for whoever is looking at it to read.
+DT_IDNAME=
+DT_IDROW=0
+DT_IDCOL=0
+DT_IDROWS=0
+DT_IDCOLS=0
+DT_IDT=0
+DT_IDMS=2000
+dt_identify() {
+	DT_IDNAME="$1"
+	DT_IDROW=$2
+	DT_IDCOL=$3
+	DT_IDROWS=$4
+	DT_IDCOLS=$5
+	DT_IDT := dt_ms
+	dt_want "$DT_IDMS"
+}
+
+dt_identify_draw() {
+	local now w r c t
+
+	[ -z "$DT_IDNAME" ] && return 0
+	now := dt_ms
+	if [ $((now - DT_IDT)) -ge "$DT_IDMS" ]; then
+		DT_IDNAME=
+		return 0
+	fi
+	w=$((${#DT_IDNAME} + 4))
+	[ "$w" -gt "$DT_IDCOLS" ] && w=$DT_IDCOLS
+	r=$((DT_IDROW + DT_IDROWS / 2))
+	c=$((DT_IDCOL + (DT_IDCOLS - w) / 2))
+	console pen "$DT_ACTIVE" "$DT_FACE" bold
+	t := dt_rep $((w - 2)) "─"
+	console put "$r" "$c" "┌$t┐"
+	console put $((r + 2)) "$c" "└$t┘"
+	console pen "$DT_INK" "$DT_FACE" bold
+	console put $((r + 1)) "$c" "│ ${DT_IDNAME:0:$((w - 4))} │"
+	dt_want "$DT_IDMS"
 }
 
 # Ask before doing something that cannot be taken back by pressing the key

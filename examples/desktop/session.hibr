@@ -18,6 +18,17 @@
 # which held session this is, "desktop" unless you say otherwise -- for
 # more than one, running side by side under different names.
 
+# Captured before `args` parses -- and consumes -- these same words into
+# session/resume/join/name below, so dt_autohold's own re-exec (hold new
+# ... hibr "$0" "${DT_SELFARGS[@]}") hands the fresh copy of this script
+# the exact command line this one was started with, --session included.
+# args leaves "$@" holding only what it did not recognise as an option
+# (nothing, here), so capturing after it ran always produced an empty
+# DT_SELFARGS regardless of what was actually typed -- the re-exec'd
+# process then parsed no --session flag at all and silently defaulted to
+# "desktop", no matter which session this one was actually starting.
+DT_SELFARGS=("$@")
+
 opt .            "hibr's desktop, held so it can always be detached from"
 opt -r --resume  resume         "Reattach to it if it is already running"
 opt -s --session session str=desktop \
