@@ -1650,6 +1650,10 @@ check("--join attaches beside it, growing the union to the combined width",
       "x140" in r.stdout and "is not running" not in out2,
       r.stdout + "\n" + out2)
 
+sc2 = t2.screen()
+check("the bar and icons stay on the first screen, not spilling into this one",
+      sc2.find("Home") is None and sc2.find("Desktop") is None, sc2)
+
 t2.send(b"\x1c", settle=0.5)
 check("ctrl-\\ detaches just the joined terminal",
       b"[desktop: detached" in t2.out, t2.out.decode(errors="replace"))
@@ -1667,4 +1671,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(242)
+report(243)

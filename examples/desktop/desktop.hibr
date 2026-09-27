@@ -83,6 +83,12 @@ DT_CONFIRM=
 DT_CONFIRM_CMD=
 DT_ROWS=24
 DT_COLS=80
+# The first attached terminal's own width, set once by dt_size's first run
+# and never again -- a second terminal joining beside it (hold attach -m)
+# widens DT_COLS to the union's, and the bar, wallpaper and icon grid stay
+# confined to this instead, rather than spreading across every screen.
+# Window placement is unaffected: it already uses the full DT_COLS/DT_ROWS.
+DT_PRIMARY_W=
 
 # Keyboard shortcuts a script -- or Settings -- can rebind. f10 and escape,
 # which open the menu bar, are not in here: an app cannot have those keys
@@ -330,6 +336,15 @@ dt_size() {
 	sz := console size
 	DT_ROWS=${sz% *}
 	DT_COLS=${sz#* }
+	# Tracks DT_COLS downward, but a growth is left alone: the union never
+	# shrinks on its own (a joined client detaching does not shrink it
+	# back), so the only way DT_COLS gets smaller is a real resize of this
+	# terminal, which DT_PRIMARY_W should always follow -- while a growth
+	# it should not follow is indistinguishable, from here, from a second
+	# terminal joining beside this one.
+	if [ -z "$DT_PRIMARY_W" ] || [ "$DT_COLS" -lt "$DT_PRIMARY_W" ]; then
+		DT_PRIMARY_W=$DT_COLS
+	fi
 	dt_iconlay
 	cs_clamp
 }
@@ -1928,7 +1943,7 @@ dt_layout() {
 		c=$((c + ${#t} + 2))
 		i=$((i + 1))
 	done
-	MB_AX=$((DT_COLS - 14))
+	MB_AX=$((${DT_PRIMARY_W:-$DT_COLS} - 14))
 }
 
 dt_quit() { DT_QUIT=1; }
@@ -2400,7 +2415,8 @@ dt_iconlay() {
 			c=${cl#* }
 		else
 			r=$((2 + (slot % per) * 3))
-			c=$((DT_COLS - DT_ICONW - 1 - (slot / per) * DT_ICONW))
+			c=$((${DT_PRIMARY_W:-$DT_COLS} - DT_ICONW - 1 -
+				(slot / per) * DT_ICONW))
 			slot=$((slot + 1))
 		fi
 		DI[$i]["r"]=$r
@@ -2706,7 +2722,8 @@ dt_iconclamp() {
 	[ "$r" -lt 1 ] && r=1
 	[ "$r" -gt $((DT_ROWS - 3)) ] && r=$((DT_ROWS - 3))
 	[ "$c" -lt 0 ] && c=0
-	[ "$c" -gt $((DT_COLS - DT_ICONW)) ] && c=$((DT_COLS - DT_ICONW))
+	[ "$c" -gt $((${DT_PRIMARY_W:-$DT_COLS} - DT_ICONW)) ] &&
+		c=$((${DT_PRIMARY_W:-$DT_COLS} - DT_ICONW))
 	ret "$r $c"
 }
 
@@ -3039,12 +3056,12 @@ dt_cycle() {
 
 # Draw the bar itself.
 dt_bar() {
-	local i=0 t line now
+	local i=0 t line now w=${DT_PRIMARY_W:-$DT_COLS}
 
 	[ "$DT_BARSHADOW" = 1 ] &&
-		console darken 1 0 1 "$DT_COLS" "$DT_SHADOW_PCT"
+		console darken 1 0 1 "$w" "$DT_SHADOW_PCT"
 	console pen "$DT_INK" "$DT_BAR"
-	line := dt_rep "$DT_COLS" " "
+	line := dt_rep "$w" " "
 	console put 0 0 "$line"
 
 	while [ "$i" -lt "$MB_N" ]; do
@@ -3066,7 +3083,7 @@ dt_bar() {
 
 	printf -v now "%(%H:%M)T" -1
 	console pen "$DT_INK" "$DT_BAR"
-	console put 0 $((DT_COLS - 19)) "$now"
+	console put 0 $((w - 19)) "$now"
 	if [ "$MB_OPEN" = app ]; then
 		console pen "$DT_BAR" "$DT_ACTIVE" bold
 	else
@@ -3833,7 +3850,7 @@ dt_note_draw() {
 	[ -z "$DT_NOTE" ] && return 0
 	w=$((${#DT_NOTE} + 4))
 	r=$((DT_ROWS / 2 - 1))
-	c=$(((DT_COLS - w) / 2))
+	c=$(((${DT_PRIMARY_W:-$DT_COLS} - w) / 2))
 	console pen "$DT_ACTIVE" "$DT_FACE" bold
 	t := dt_rep $((w - 2)) "─"
 	console put "$r" "$c" "┌$t┐"
@@ -3868,7 +3885,7 @@ dt_confirm_geom() {
 	[ "$w" -lt $((${#DT_CONFIRM_HINT} + 4)) ] && w=$((${#DT_CONFIRM_HINT} + 4))
 	h=5
 	y0=$((DT_ROWS / 2 - h / 2))
-	x0=$(((DT_COLS - w) / 2))
+	x0=$(((${DT_PRIMARY_W:-$DT_COLS} - w) / 2))
 	ret "$y0 $x0 $w $h"
 }
 
@@ -4079,7 +4096,7 @@ cs_modcol() {
 	if [ "$CS_SIDE" = left ]; then
 		c=1
 	else
-		c=$((DT_COLS - w + 2))
+		c=$((${DT_PRIMARY_W:-$DT_COLS} - w + 2))
 	fi
 	i=$CS_SCROLL
 	while [ "$i" -lt $((CS_SCROLL + cnt)) ]; do
@@ -4101,7 +4118,7 @@ cs_at() {
 	if [ "$CS_SIDE" = left ]; then
 		c=1
 	else
-		c=$((DT_COLS - w + 2))
+		c=$((${DT_PRIMARY_W:-$DT_COLS} - w + 2))
 	fi
 	i=$CS_SCROLL
 	while [ "$i" -lt $((CS_SCROLL + cnt)) ]; do
@@ -4131,12 +4148,12 @@ cs_hit() {
 		if [ "$CS_SIDE" = left ]; then
 			[ "$2" = 0 ]
 		else
-			[ "$2" = $((DT_COLS - 1)) ]
+			[ "$2" = $((${DT_PRIMARY_W:-$DT_COLS} - 1)) ]
 		fi
 		return $?
 	fi
 	w := cs_width
-	[ "$CS_SIDE" = left ] && col=0 || col=$((DT_COLS - w))
+	[ "$CS_SIDE" = left ] && col=0 || col=$((${DT_PRIMARY_W:-$DT_COLS} - w))
 	[ "$2" -ge "$col" ] && [ "$2" -lt $((col + w)) ]
 }
 
@@ -4165,7 +4182,7 @@ cs_resize() {
 	if [ "$CS_SIDE" = left ]; then
 		budget=$1
 	else
-		budget=$((DT_COLS - 1 - $1))
+		budget=$((${DT_PRIMARY_W:-$DT_COLS} - 1 - $1))
 	fi
 	[ "$budget" -lt 0 ] && budget=0
 	i=$CS_SCROLL
@@ -4195,13 +4212,13 @@ dt_stripdraw() {
 		if [ "$CS_SIDE" = left ]; then
 			console put "$row" 0 "▸"
 		else
-			console put "$row" $((DT_COLS - 1)) "◂"
+			console put "$row" $((${DT_PRIMARY_W:-$DT_COLS} - 1)) "◂"
 		fi
 		return 0
 	fi
 	cnt := cs_count
 	w := cs_width
-	[ "$CS_SIDE" = left ] && col=0 || col=$((DT_COLS - w))
+	[ "$CS_SIDE" = left ] && col=0 || col=$((${DT_PRIMARY_W:-$DT_COLS} - w))
 	[ "$CS_SHADOW" = 1 ] &&
 		console darken $((row + 1)) $((col + 2)) 1 "$w" "$DT_SHADOW_PCT"
 	console pen "$DT_INK" "$DT_FACE"
@@ -4246,7 +4263,7 @@ cs_press() {
 		return 0
 	fi
 	w := cs_width
-	[ "$CS_SIDE" = left ] && col=0 || col=$((DT_COLS - w))
+	[ "$CS_SIDE" = left ] && col=0 || col=$((${DT_PRIMARY_W:-$DT_COLS} - w))
 	[ "$CS_SIDE" = left ] && arrowcol=$((col + w - 1)) || arrowcol=$col
 	if [ "$2" = "$arrowcol" ]; then
 		CS_DRAG=1
