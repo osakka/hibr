@@ -1,22 +1,23 @@
 #!/usr/bin/env hibr
 #
 # displays -- Control Panel's own picture of a multi-monitor arrangement:
-# every attached display drawn to scale from hold clients, dragged to
-# reposition (hold move on release), clicked with no movement to make
-# primary (hold primary), switched off with the x in its own top-right
-# corner (hold drop). The primary display always draws at this pane's
-# own top-left corner, whatever its real row/col actually is, and every
-# other display is positioned relative to it -- dragging one never moves
-# the picture's own anchor, only the rectangle actually being dragged --
-# and the primary's own rectangle cannot be dragged at all, since it is
-# what "relative to" means here. Nothing else is kept that a fresh read
-# of hold clients cannot recompute -- the same as every other pane's row
-# list is rebuilt every frame -- except the drag itself, which is this
-# window's own gesture in progress and belongs nowhere else, and is
-# frozen against hold clients while it is happening: re-reading mid-drag
-# would have the dragged rectangle's own base position shift under the
-# live preview the moment the release this same drag ends in reaches the
-# server, which is what "primitive and dodgy" turned out to mean.
+# a dropdown to choose which display is primary, and every attached
+# display drawn to scale below it from hold clients, dragged to
+# reposition (hold move on release) or switched off with the x in its
+# own top-right corner (hold drop). The primary display is the picture's
+# own anchor -- every rectangle is positioned relative to it, so
+# switching which one is primary, or dragging a *different* display,
+# never moves where the primary itself draws -- but its own rectangle is
+# not otherwise interactive: the dropdown is the one reliable way to
+# change it, since a mouse click precise enough to land on a specific
+# terminal cell with *no* movement at all is not something to depend on,
+# over ssh least of all. Nothing else is kept that a fresh read of hold
+# clients cannot recompute -- the same as every other pane's row list is
+# rebuilt every frame -- except the drag itself, which is this window's
+# own gesture in progress and belongs nowhere else, and is frozen against
+# hold clients while it is happening: re-reading mid-drag would have the
+# dragged rectangle's own base position shift under the live preview the
+# moment the release this same drag ends in reaches the server.
 command -v cp_pane > /dev/null && cp_pane displays "Displays" "▦"
 
 declare -gA DPY
@@ -43,10 +44,19 @@ displays_scale() {
 	ret "$s"
 }
 
+# The dropdown's own callback: choosing a name makes it primary.
+displays_setprimary() {
+	local id=$1 value=$2 sess
+
+	sess := displays_sess
+	[ -n "$sess" ] && hold primary "$sess" "$value"
+}
+
 displays_draw() {
 	local id=$1 h=$2 w=$3 bx=$4
-	local sess lst nm row col rows cols pri i n urows ucols s
+	local sess lst nm row col rows cols pri i n s dropw pname
 	local br bc bh bw namew t r mr mc dragi prow pcol
+	local rr rc minr minc urows ucols
 
 	dt_wclear "$id"
 	sess := displays_sess
@@ -89,40 +99,79 @@ displays_draw() {
 	n=${DPY[$id]["n"]:-0}
 	[ "$n" -lt 1 ] && return 0
 
-	# The primary's own real row/col -- everything else draws relative
-	# to it -- and the union's own bounds, for the scale: both read from
-	# whatever is currently stored, a fresh read just above or, mid-drag,
-	# exactly what the last one before this drag started left there.
-	urows=0
-	ucols=0
+	# The primary's own real row/col and name -- everything else draws
+	# relative to it -- read from whatever is currently stored, a fresh
+	# read just above or, mid-drag, exactly what the last one before
+	# this drag started left there.
 	prow=0
 	pcol=0
+	pname=
 	i=0
 	while [ "$i" -lt "$n" ]; do
-		row=${DPY[$id][$i]["row"]}
-		col=${DPY[$id][$i]["col"]}
+		if [ "${DPY[$id][$i]["primary"]}" = 1 ]; then
+			prow=${DPY[$id][$i]["row"]}
+			pcol=${DPY[$id][$i]["col"]}
+			pname=${DPY[$id][$i]["name"]}
+		fi
+		i=$((i + 1))
+	done
+
+	dropw=$((w - 4))
+	[ "$dropw" -lt 12 ] && dropw=12
+	console pen "$DT_INK" "$DT_FACE"
+	t="Primary:"
+	console put -p "w$id" 1 "$bx" "$t"
+	dt_wdrop "$id" 2 "$bx" "$dropw" "$pname" primary
+
+	# Every display's own row/col relative to the primary's, which can
+	# be negative (a display positioned "before" the primary in hold's
+	# own absolute coordinates -- exactly what happens the moment the
+	# primary picked is not the leftmost one). minr/minc, never above 0,
+	# so the primary itself is always included in the box, shift the
+	# whole picture just enough that nothing draws to the left of or
+	# above this canvas's own top-left corner -- into the pane list, or
+	# under the dropdown just drawn -- rather than clamping each display
+	# to the same corner independently, which would draw two of them on
+	# top of each other instead.
+	urows=0
+	ucols=0
+	minr=0
+	minc=0
+	i=0
+	while [ "$i" -lt "$n" ]; do
+		rr=$((${DPY[$id][$i]["row"]} - prow))
+		rc=$((${DPY[$id][$i]["col"]} - pcol))
+		DPY[$id][$i]["rr"]=$rr
+		DPY[$id][$i]["rc"]=$rc
+		[ "$rr" -lt "$minr" ] && minr=$rr
+		[ "$rc" -lt "$minc" ] && minc=$rc
+		i=$((i + 1))
+	done
+	i=0
+	while [ "$i" -lt "$n" ]; do
+		rr=$((${DPY[$id][$i]["rr"]} - minr))
+		rc=$((${DPY[$id][$i]["rc"]} - minc))
 		rows=${DPY[$id][$i]["rows"]}
 		cols=${DPY[$id][$i]["cols"]}
-		[ "${DPY[$id][$i]["primary"]}" = 1 ] && { prow=$row; pcol=$col; }
-		[ $((row + rows)) -gt "$urows" ] && urows=$((row + rows))
-		[ $((col + cols)) -gt "$ucols" ] && ucols=$((col + cols))
+		[ $((rr + rows)) -gt "$urows" ] && urows=$((rr + rows))
+		[ $((rc + cols)) -gt "$ucols" ] && ucols=$((rc + cols))
 		i=$((i + 1))
 	done
 	[ "$urows" -lt 1 ] && urows=1
 	[ "$ucols" -lt 1 ] && ucols=1
-	s := displays_scale "$h" "$w" "$urows" "$ucols"
+	s := displays_scale $((h - 2)) "$w" "$urows" "$ucols"
 	DPY[$id]["s"]=$s
 
 	i=0
 	while [ "$i" -lt "$n" ]; do
-		row=${DPY[$id][$i]["row"]}
-		col=${DPY[$id][$i]["col"]}
+		rr=$((${DPY[$id][$i]["rr"]} - minr))
+		rc=$((${DPY[$id][$i]["rc"]} - minc))
 		rows=${DPY[$id][$i]["rows"]}
 		cols=${DPY[$id][$i]["cols"]}
 		nm=${DPY[$id][$i]["name"]}
 		pri=${DPY[$id][$i]["primary"]}
-		br=$(((row - prow) * s / 100 + 1))
-		bc=$(((col - pcol) * s / 100 + bx))
+		br=$((rr * s / 100 + 3))
+		bc=$((rc * s / 100 + bx))
 		# One cell shaved off each box's own scaled size, a gap between
 		# two adjacent displays rather than their borders sharing (and
 		# fighting over) the same cell: real displays touch exactly at
@@ -172,21 +221,33 @@ displays_draw() {
 	done
 }
 
-# Press: the x in a rectangle's own corner (its own cell, plus its left
-# neighbour -- one cell alone is not a reachable target for a real
-# pointer) switches that display off on the spot; inside a rectangle
-# that is not the primary one otherwise starts dragging it -- the
-# primary's own rectangle is not draggable at all, since it is the
-# picture's own fixed anchor; every other display's position is drawn
-# relative to it, so dragging the anchor itself has no meaning. Neither
-# hit declines the press (returns 1) so panel_mouse still offers
+# Press: on the dropdown, open its own popup of every attached display's
+# name; on the x in a rectangle's own corner (its own cell, plus its
+# left neighbour -- one cell alone is not a reachable target for a real
+# pointer), switch that display off on the spot; inside a rectangle that
+# is not the primary one, otherwise start dragging it. The primary's own
+# rectangle is not draggable -- it is the picture's own fixed anchor,
+# and the dropdown above is the one way to change which display that is.
+# Neither hit declines the press (returns 1) so panel_mouse still offers
 # panel_click a plain row-list click elsewhere in the pane.
 displays_mouse() {
 	local id=$1 act=$2 button=$3 r=$4 c=$5
-	local n i sess nm mr mc s row col nrow ncol xc amr amc
+	local n i sess nm mr mc s row col nrow ncol xc amr amc tag wc vals
 
 	n=${DPY[$id]["n"]:-0}
 	if [ "$act" = press ]; then
+		tag := dt_hit "$id" "$r" "$c"
+		if [ "$tag" = primary ]; then
+			wc := dt_wcol "$id" "$r" primary
+			vals=()
+			i=0
+			while [ "$i" -lt "$n" ]; do
+				vals+=("${DPY[$id][$i]["name"]}")
+				i=$((i + 1))
+			done
+			dt_droplist "$id" "$r" "$wc" displays_setprimary "${vals[@]}"
+			return 0
+		fi
 		i=0
 		while [ "$i" -lt "$n" ]; do
 			xc=${DPY[$id][$i]["xc"]}
@@ -224,17 +285,13 @@ displays_mouse() {
 	DPY[$id]["mr"]=$mr
 	DPY[$id]["mc"]=$mc
 	if [ "$act" = release ]; then
-		sess := displays_sess
-		nm=${DPY[$id][$i]["name"]}
 		amr=$mr; [ "$amr" -lt 0 ] && amr=$((0 - amr))
 		amc=$mc; [ "$amc" -lt 0 ] && amc=$((0 - amc))
-		if [ "$amr" -le 1 ] && [ "$amc" -le 1 ]; then
-			# A real press-release with no real intent to drag still
-			# lands a cell or so away from where it started, over ssh
-			# especially -- without this slack that reads as a move of
-			# a column or two rather than the click it was meant to be.
-			hold primary "$sess" "$nm"
-		else
+		if [ "$amr" -gt 1 ] || [ "$amc" -gt 1 ]; then
+			# A one-cell jitter under a real mouse, over ssh especially,
+			# is not a real intent to move it -- anything past that is.
+			sess := displays_sess
+			nm=${DPY[$id][$i]["name"]}
 			s=${DPY[$id]["s"]}
 			row=${DPY[$id][$i]["row"]}
 			col=${DPY[$id][$i]["col"]}

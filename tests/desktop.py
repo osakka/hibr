@@ -1710,11 +1710,17 @@ sc = t1.screen()
 check("the Displays pane draws both attached displays by name",
       sc.find(primary) is not None and sc.find(joined) is not None, sc)
 
+# The dropdown's own displayed value also carries the primary's name, so
+# every check below that cares about *where* a name is drawn (not just
+# whether it appears at all) looks only below it, or it would just be
+# reading the dropdown back to itself.
+canvas0 = sc.find("Primary:")[0] + 3
+
 # The primary display always draws at this pane's own fixed anchor,
 # whatever its real row/col is -- dragging a *different* display must
 # never move it, only the rectangle actually being dragged.
-ppos = sc.find(primary)
-lbl = sc.find(joined)
+ppos = sc.find_from(primary, canvas0)
+lbl = sc.find_from(joined, canvas0)
 t1.send(press(lbl[0], lbl[1]))
 t1.send(drag(lbl[0] + 1, lbl[1] + 3))
 t1.send(release(lbl[0] + 1, lbl[1] + 3))
@@ -1728,7 +1734,7 @@ check("dragging a display's own rectangle repositions it",
 t1.collect(0.5)
 sc = t1.screen()
 check("...and leaves the primary display drawn exactly where it was",
-      sc.find(primary) == ppos, sc)
+      sc.find_from(primary, canvas0) == ppos, sc)
 
 # The primary display's own rectangle is the picture's fixed anchor, so
 # it cannot be dragged at all -- attempting to is a no-op, not a move.
@@ -1737,7 +1743,7 @@ r4b = subprocess.run([screen.HIBR, "-c", HOLDC + "hold clients desktop"],
                      text=True)
 rowp_before = next((ln.split() for ln in r4b.stdout.splitlines()
                     if ln.split() and ln.split()[0] == primary), None)
-ppos2 = sc.find(primary)
+ppos2 = sc.find_from(primary, canvas0)
 t1.send(press(ppos2[0], ppos2[1]))
 t1.send(drag(ppos2[0] + 2, ppos2[1] + 5))
 t1.send(release(ppos2[0] + 2, ppos2[1] + 5))
@@ -1749,18 +1755,35 @@ rowp_after = next((ln.split() for ln in r4c.stdout.splitlines()
 check("dragging the primary display's own rectangle is a no-op",
       rowp_before == rowp_after, r4b.stdout + "\n" + r4c.stdout)
 
+# The dropdown is the one reliable way to change which display is
+# primary: open it, choose the other one. The list picker's own row for
+# "Displays" must still read correctly afterward -- the display that
+# used to be primary can now have a negative offset from the new one,
+# which is exactly what put a rectangle on top of the category list
+# before this was fixed.
 t1.collect(0.5)
 sc = t1.screen()
-lbl2 = sc.find(joined)
-t1.send(press(lbl2[0], lbl2[1]))
-t1.send(release(lbl2[0], lbl2[1]))
+prim = sc.find("Primary:")
+t1.send(press(prim[0] + 1, prim[1]))
+sc = t1.screen()
+check("the dropdown opens with a choice for each attached display",
+      sc.find_from(joined, prim[0]) is not None, sc)
+item = sc.find_from(joined, prim[0] + 1)
+t1.send(press(item[0], item[1]))
 r5 = subprocess.run([screen.HIBR, "-c", HOLDC + "hold clients desktop"],
                     env=dict(os.environ, **JENV), capture_output=True,
                     text=True)
 row5 = next((ln.split() for ln in r5.stdout.splitlines()
              if ln.split() and ln.split()[0] == joined), None)
-check("clicking a display's rectangle with no movement makes it primary",
+check("choosing a display from the dropdown makes it primary",
       row5 is not None and row5[-1] == "1", r5.stdout)
+t1.collect(1.0)
+t2.collect(1.0)
+sc = t1.screen()
+check("the pane list's own row is still intact, not overlapped",
+      sc.find("Displays") is not None, sc)
+check("...and the bar follows the new primary onto the other terminal",
+      t2.screen().find("Home") is not None, sc)
 
 t1.collect(0.5)
 sc = t1.screen()
@@ -1801,4 +1824,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(255)
+report(258)

@@ -115,6 +115,16 @@ class Screen:
                 return r, c
         return None
 
+    def find_from(self, s, minrow):
+        """Where a string starts, at or after minrow -- for a string that
+        can also appear earlier, such as a display's own name in a
+        dropdown's shown value as well as in the rectangle beneath it."""
+        for r in range(minrow, self.rows):
+            c = "".join(self.g[r]).find(s)
+            if c >= 0:
+                return r, c
+        return None
+
     def text(self):
         return "\n".join(self.row(r) for r in range(self.rows))
 
