@@ -64,6 +64,29 @@ for e in examples/*.hibr examples/desktop/*.hibr examples/desktop/apps/*.hibr \
 done
 echo "no local reads a name assigned earlier in the same statement"
 
+# A window's own content must never draw at absolute screen coordinates --
+# console put without -p, or img/term draw without -p anywhere in the call --
+# which is exactly what reaching around the pane system by reading
+# DT[$id]["row"]/["col"] directly used to look like: a real photo drawn
+# straight at the wrong position, or a terminal that renders outside its own
+# window entirely once the module underneath it changes shape. Excludes
+# control-strip/*.hibr and desktop.hibr itself: the control strip, the
+# wallpaper, the menu bar, dt_note and dt_confirm are the desktop's own root
+# overlay, not a window's content, and have no pane of their own to target.
+for e in examples/desktop/apps/*.hibr examples/desktop/control-panel/*.hibr \
+         examples/desktop/desk-accessories/*.hibr; do
+  sed -e :a -e '/\\$/N; s/\\\n[[:space:]]*/ /; ta' "$e" | awk -v f="$e" '
+    /^[[:space:]]*#/ { next }
+    /console put[[:space:]]/ && !/console put[[:space:]]+-p[[:space:]]/ {
+      print f ": console put without -p: " $0
+    }
+    /(^|[^A-Za-z_])(img|term) draw[[:space:]]/ && !/[[:space:]]-p[[:space:]]/ {
+      print f ": draw without -p: " $0
+    }
+  '
+done
+echo "no window content draws at absolute screen coordinates"
+
 for e in examples/fetch.hibr examples/ls-report.hibr examples/conf.hibr examples/workers.hibr; do
   ./build/hibr "$e" --help > /dev/null 2>&1 || echo "no --help: $e"
 done
