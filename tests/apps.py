@@ -469,53 +469,67 @@ check("once it has browsed a directory, that is where it starts next",
 shutil.rmtree(AWHOME, True)
 shutil.rmtree(AWCONF2, True)
 
-# Behaviour's own rows, in order: Refresh(0), Icons(1), Disk Icons(2),
-# Cursor(3), Cursor Blink(4), Window Shadow(5), Menu Shadow(6), Bar
-# Shadow(7), Titlebar Click(8), About Refresh(9, only once about.hibr is
-# loaded).
+# Behaviour's own rows, in order: Refresh(0), Redraw Skip(1), Icons(2),
+# Disk Icons(3), Cursor(4), Cursor Blink(5), Window Shadow(6), Menu
+# Shadow(7), Bar Shadow(8), Titlebar Click(9), About Refresh(10, only
+# once about.hibr is loaded).
 sc = cprun(DOWN_BEH)
-check("Behaviour's own second row is Icons, right there with no headings",
-      sc.find("Icons") is not None and
-      "[x]" in sc.row(sc.find("Icons")[0]), sc)
+check("Behaviour's own second row is Redraw Skip, right there with no "
+      "headings", sc.find("Redraw Skip") is not None, sc)
 
-sc = cprun(DOWN_BEH + [b"\x1b[C", b"\x1b[B", b"\r"])
+sc = cprun(DOWN_BEH + [b"\x1b[C", b"\x1b[B", b"\x1b[B", b"\r"])
 check("the icons can be switched off, and the panel shows an unchecked box",
       sc.find("Icons") is not None and
       "[ ]" in sc.row(sc.find("Icons")[0]), sc)
 
-sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 6 + [b"\r"])
+sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 7 + [b"\r"])
 check("menu shadow is its own setting, separate from window shadow",
       sc.find("Menu Shadow") is not None and
       "[ ]" in sc.row(sc.find("Menu Shadow")[0]) and
       "[x]" in sc.row(sc.find("Window Shadow")[0]), sc)
 
-sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 7 + [b"\r"])
+sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 8 + [b"\r"])
 check("bar shadow is a third, separate setting again",
       sc.find("Bar Shadow") is not None and
       "[ ]" in sc.row(sc.find("Bar Shadow")[0]) and
       "[x]" in sc.row(sc.find("Menu Shadow")[0]), sc)
 
-sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 8)
+sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 9)
 check("titlebar double-click defaults to zoom",
       sc.find("Titlebar Click") is not None and
       "zoom" in sc.row(sc.find("Titlebar Click")[0]), sc)
-sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 8 + [b"\x1b[C"])
+sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 9 + [b"\x1b[C"])
 check("and it cycles through the other actions",
       "min" in sc.row(sc.find("Titlebar Click")[0]), sc)
 
-sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 9, extra=("about",))
+sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 10, extra=("about",))
 check("About Refresh only appears once About hibr itself is loaded",
       sc.find("About Refresh") is not None and
       sc.find("3000 ms") is not None, sc)
 
+# The redraw-skip slider itself: a plain track, min at DT_DRAWSKIP=1, no
+# popup to open (unlike a dropdown, right/enter on it just cycles the
+# value in place, the same as a dropdown's own second right already does).
+sc = cprun(DOWN_BEH + [b"\x1b[C", b"\x1b[B"])
+skiprow = sc.find("Redraw Skip (1)")
+check("the redraw-skip row draws as a slider, not a dropdown or checkbox",
+      skiprow is not None and "●" in sc.row(skiprow[0]) and
+      "▾" not in sc.row(skiprow[0]), sc)
+sc = cprun(DOWN_BEH + [b"\x1b[C", b"\x1b[B", b"\x1b[C", b"\x1b[C"])
+check("right arrow on it increases the value, the marker moving with it",
+      sc.find("Redraw Skip (3)") is not None, sc)
+sc = cprun(DOWN_BEH + [b"\x1b[C", b"\x1b[B"] + [b"\x1b[C"] * 20)
+check("it stops at the reasonable maximum rather than climbing forever",
+      sc.find("Redraw Skip (10)") is not None, sc)
+
 # Task Manager Refresh -- found while adding #52's graphs, the same gap
 # About Refresh already closed for About hibr: TK_SCANMS had no setting
 # of its own either.
-sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 9, extra=("tasks",))
+sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 10, extra=("tasks",))
 check("Task Manager Refresh only appears once Task Manager is loaded",
       sc.find("Task Manager Refresh") is not None and
       sc.find("1000 ms") is not None, sc)
-sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 9 + [b"\x1b[C"],
+sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 10 + [b"\x1b[C"],
            extra=("tasks",))
 check("and it cycles through the other intervals",
       "2000 ms" in sc.row(sc.find("Task Manager Refresh")[0]), sc)
@@ -523,11 +537,11 @@ check("and it cycles through the other intervals",
 # Default File View -- #50 -- only shows once Files itself is loaded, the
 # same rule About Refresh follows above, and only that pane's own row
 # order changes: nothing else about it does.
-sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 9, extra=("files",))
+sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 10, extra=("files",))
 check("Default File View only appears once Files itself is loaded, at list",
       sc.find("Default File View") is not None and
       "list" in sc.row(sc.find("Default File View")[0]), sc)
-sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 9 + [b"\x1b[C"],
+sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 10 + [b"\x1b[C"],
            extra=("files",))
 check("and cycles through the other views",
       "details" in sc.row(sc.find("Default File View")[0]), sc)
@@ -535,7 +549,7 @@ check("and cycles through the other views",
 # Reset All Views -- #51 -- is a plain button (kind=action): no value of
 # its own, just below Default File View, and only present under the same
 # condition.
-sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 10, extra=("files",))
+sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 11, extra=("files",))
 check("Reset All Views appears once Files itself is loaded, as a button",
       sc.find("Reset All Views") is not None, sc)
 

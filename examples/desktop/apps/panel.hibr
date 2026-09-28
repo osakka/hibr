@@ -225,6 +225,11 @@ cp_rowsdraw() {
 				[ "$v" = on ] && on=1
 				dt_check "$id" "$r" $((bx + w - 11)) "$on" "" \
 					"${CP[$id][$i]["key"]}"
+			elif [ "$wtype" = slider ]; then
+				dt_slider "$id" "$r" $((bx + w - 11)) 11 "$v" \
+					"${CP[$id][$i]["min"]:-0}" \
+					"${CP[$id][$i]["max"]:-10}" \
+					"${CP[$id][$i]["key"]}"
 			else
 				dt_wdrop "$id" "$r" $((bx + w - 11)) 11 "$v" \
 					"${CP[$id][$i]["key"]}"
@@ -378,7 +383,9 @@ panel_click() {
 	[ "$r" -lt 1 ] || [ "$i" -ge "$n" ] && return 0
 	[ "${CP[$w][$i]["kind"]}" = head ] && return 0
 	if [ "${CP[$w][$i]["kind"]}" = set ] &&
-	   [ "${CP[$w][$i]["wtype"]}" != bool ] && dt_has "${pane}_drop"; then
+	   [ "${CP[$w][$i]["wtype"]}" != bool ] &&
+	   [ "${CP[$w][$i]["wtype"]}" != slider ] &&
+	   dt_has "${pane}_drop"; then
 		tag := dt_hit "$w" "$r" "$c"
 		if [ -n "$tag" ]; then
 			k=${CP[$w][$i]["key"]}

@@ -96,6 +96,10 @@ behaviour_rows() {
 
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Refresh"
 	CP[$w][$n]["val"]="$DT_TICK ms"; CP[$w][$n]["key"]=tick; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Redraw Skip ($DT_DRAWSKIP)"
+	CP[$w][$n]["wtype"]=slider
+	CP[$w][$n]["val"]=$DT_DRAWSKIP; CP[$w][$n]["min"]=1; CP[$w][$n]["max"]=10
+	CP[$w][$n]["key"]=drawskip; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Icons"
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_ICONS" = 1 ] && CP[$w][$n]["val"]=on
@@ -161,6 +165,12 @@ behaviour_do() {
 	case $k in
 	tick)  v := cp_next "$DT_TICK" "$dir" "${CP_TICKS[@]}"
 	       DT_TICK=$v ;;
+	drawskip)
+		v=$((DT_DRAWSKIP + dir))
+		[ "$v" -lt 1 ] && v=1
+		[ "$v" -gt 10 ] && v=10
+		DT_DRAWSKIP=$v
+		;;
 	icons) cp_icons ;;
 	disks) cp_disks ;;
 	cursor) v := cp_next "$DT_CURSOR" "$dir" "${CP_CURSORS[@]}"

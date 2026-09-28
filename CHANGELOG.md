@@ -1,5 +1,79 @@
 # Changelog
 
+## 0.23
+
+Desktop moves to **0.3** alongside this release.
+
+**Multiple monitors**, built on `hold` learning to hold more than one
+attached client at once (`-m`), each with its own viewport into the
+union of every attached screen's size, its own front grid for damage
+diffing, and mouse reports translated by its own offset before the
+desktop ever sees them. The desktop confines the bar, the icon layout
+and the control strip to the first screen rather than stretching them
+across the union, and gains `--join` to attach a second terminal
+beside an already-running session, `hold`'s own named-client and
+query/move/drop/primary protocol for a Control Panel to drive it, and
+a Move-to submenu and Displays menu on every window built straight
+from `hold clients`.
+
+The Control Panel's own **Displays pane** went through several real
+redesigns rather than one: first a WYSIWYG picture of the actual
+layout in place of a list, then a dropdown to choose the primary
+display instead of a click gesture that turned out to collide with
+dragging, then pinning the primary as the pane's own fixed anchor so
+dragging a secondary never renumbers what "primary" means mid-drag.
+It now drops the little close-box corner glyph that never did
+anything a menu couldn't do better, and gains a right-click context
+menu on any display's rectangle — Detach, and Identify, which flashes
+the display's own name in a bordered box drawn on *that* display, not
+wherever the Control Panel itself happens to be open.
+
+Two bugs found while verifying that arc, both silent: `HIBR_HOLD` is
+an ordinary environment variable, so a terminal already attached to
+one session inherited it into anything it spawned, and `dt_autohold`'s
+own `[ -n "$HIBR_HOLD" ]` guard mistook any non-empty value — even one
+naming an unrelated session — for "already held", starting a nested
+`desktop --session X` un-held with no visible symptom. Fixed by
+comparing basenames instead of merely checking for a value. The second
+was `DT_SELFARGS`, captured too late in `desktop.hibr`'s own top level
+to still see `"$@"` once `session.hibr`'s own `opt`/`args` had already
+consumed it into named variables — so a re-exec through `hold` silently
+dropped `--session` and everything else on the command line, always
+re-launching as plain "desktop". The capture now happens at the very
+top of `session.hibr`, before anything reads its arguments.
+
+A third, unrelated bug surfaced by the user's own bug report: the menu
+bar's left/right arrow keys walked `MB[]` by raw index, assuming each
+bar menu sat next to the one before it — true until a submenu (Desk
+Accessories' own flyout) got allocated an entry in the same array,
+after which arrowing right from the **hibr** menu could land on the
+submenu instead of Edit. `dt_mbar` now walks the array skipping
+anything that isn't itself a bar-level menu, keyed off each entry's
+own `bar` flag rather than its position.
+
+**A configurable redraw skip**, `DT_DRAWSKIP` (Control Panel, Behaviour
+pane, 1–10, default 1 — today's behaviour unchanged unless raised):
+consecutive `mouse drag` reports beyond the configured count are
+absorbed without a redraw, while a press or release always forces one
+immediately and resets the count. Measured with an instrumented
+redraw counter: a fixed 20-drag sequence drew 77 frames at the
+default and 45 at `DT_DRAWSKIP=5` — a real reduction on a slow link or
+a slow terminal, at the cost of the pointer visibly catching up in
+jumps rather than gliding. Built alongside it: `dt_slider`, a
+reusable horizontal slider widget (`▸────●─── 10`) for the Control
+Panel, joining the existing checkbox and dropdown widgets and driven
+by the same left/right-arrow cycling convention as a dropdown.
+
+Smaller fixes: `term draw` and `img draw` gain `-p pane` and lose
+their last absolute-coordinate paths, so nothing a window draws can
+land outside its own pane regardless of which module drew it;
+`deploy.sh`'s own fingerprint now covers `examples/desktop` and its
+launcher, not just the C sources, so a desktop-only change is not
+silently skipped on `deploy.sh update`; and `tools/homebrew-sync.sh`
+keeps `osakka/homebrew-hibr`'s formula on hibr's latest GitHub tag on
+its own six-hourly timer, so a tagged release reaches `brew install
+hibr` without a manual step.
+
 ## 0.22
 
 Desktop moves to **0.2** alongside this release.

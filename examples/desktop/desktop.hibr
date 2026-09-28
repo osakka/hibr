@@ -25,7 +25,7 @@ need display || { echo "desktop: no display available" >&2; exit 1; }
 # change that never touched a single line of src/*.c. HIBR_ABI is what
 # actually needs cross-checking between the two -- whether a module is
 # built against what this shell offers -- and that already exists.
-DT_VER=0.2
+DT_VER=0.3
 
 # The session's own arguments, captured here at the top level where $@ is
 # still theirs: a function sees its own, and dt_autohold needs to hand these
@@ -241,6 +241,22 @@ DT_DRAGKEY="${DT_DRAGKEY-alt}"
 # turn -- see dt_want and dt_run for why 2000 costs nothing in latency.
 DT_TICK="${DT_TICK-2000}"
 
+# How many consecutive drag reports dt_run lets go by before it actually
+# redraws -- 1 redraws every one (today's behaviour, and the default): a
+# drag itself is not slower for it, since every report still updates the
+# window's own position, only the screen catches up less often, which
+# trades a window looking like it hops rather than glides in exchange for
+# dt_win drawing every open window's own full content less often. A
+# press or a release always redraws regardless -- only a drag report can
+# be skipped, and only while another one immediately follows it.
+DT_DRAWSKIP="${DT_DRAWSKIP-1}"
+
+# Whether the event dt_event just handled was a drag report -- dt_run's
+# own signal for whether this is a turn it may skip drawing, set there
+# rather than passed back some other way since dt_run already calls
+# dt_event for its only side effect and reads no return value from it.
+DT_LASTDRAG=0
+
 # Settings are a script of the user's own, written by the desktop whenever
 # one changes and read back at the next start: plain assignments, so it can
 # be edited by hand and needs no format of its own.  An app that wants a
@@ -252,7 +268,7 @@ DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 	DT_MSHADOW DT_BARSHADOW DT_DBLACTION DT_SHADOW_PCT CS_SIDE CS_Y
 	CS_COLLAPSED CS_LEN CS_SHADOW
 	DT_FRAME DT_BTNSIDE DT_TITLEALIGN DT_BTNSTYLE DT_EDGERESIZE
-	DT_DRAGMOD DT_DRAGKEY)
+	DT_DRAGMOD DT_DRAGKEY DT_DRAWSKIP)
 
 # Where the desktop's stderr goes while it holds the screen, so an app's
 # error message cannot scribble over the display, and the reason for a
@@ -1249,6 +1265,10 @@ dt_zoom() {
 dt_event() {
 	local k="$1" an knorm qn cn cln dn sn
 
+	case $k in
+	"mouse drag "*) DT_LASTDRAG=1 ;;
+	*) DT_LASTDRAG=0 ;;
+	esac
 	if [ -n "$DT_KEYCAP" ]; then
 		case $k in
 		"mouse "*) DT_KEYCAP= ;;
@@ -1452,9 +1472,18 @@ DT_RSTILL=150
 # rather than just skipped -- skipping it reads the byte and throws the
 # value away, which is a key silently lost, not a key left for later.
 dt_run() {
-	local k rsz=0 last now pk=
+	local k rsz=0 last now pk= skipn=0
 	while [ "$DT_QUIT" = 0 ]; do
-		[ "$rsz" = 0 ] && { dt_draw; dt_autoclose; }
+		if [ "$rsz" = 0 ]; then
+			if [ "$DT_LASTDRAG" = 1 ] &&
+			   [ "$skipn" -lt $((DT_DRAWSKIP - 1)) ]; then
+				skipn=$((skipn + 1))
+			else
+				dt_draw
+				dt_autoclose
+				skipn=0
+			fi
+		fi
 		if [ "$rsz" = 1 ]; then
 			k := console key 80
 		else
@@ -3500,6 +3529,31 @@ dt_wdrop() {
 
 	lb := str pad "$value" $((w - 2))
 	console put -p "w$id" "$r" "$c" "$lb ▾"
+	dt_wreg "$id" "$r" "$c" "$w" "$tag"
+}
+
+# Draw a slider: a track of ─ over w columns with a ● at the position
+# value falls between min and max, arrow keys the way to change it once
+# the row is selected -- clicking selects it, the same as a dropdown
+# before it is opened, but there is no popup to open; the track is a
+# picture of the value, not a control of its own to press at a given
+# column. tag is what dt_hit answers for a click on it.
+dt_slider() {
+	local id=$1 r=$2 c=$3 w=$4 value=$5 min=$6 max=$7 tag=${8:-$5}
+	local pos i t
+
+	pos=0
+	[ "$max" -gt "$min" ] &&
+		pos=$(( (value - min) * (w - 1) / (max - min) ))
+	[ "$pos" -lt 0 ] && pos=0
+	[ "$pos" -gt $((w - 1)) ] && pos=$((w - 1))
+	t=""
+	i=0
+	while [ "$i" -lt "$w" ]; do
+		[ "$i" = "$pos" ] && t="$t●" || t="$t─"
+		i=$((i + 1))
+	done
+	console put -p "w$id" "$r" "$c" "$t"
 	dt_wreg "$id" "$r" "$c" "$w" "$tag"
 }
 
