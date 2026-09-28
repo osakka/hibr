@@ -25,7 +25,7 @@ need display || { echo "desktop: no display available" >&2; exit 1; }
 # change that never touched a single line of src/*.c. HIBR_ABI is what
 # actually needs cross-checking between the two -- whether a module is
 # built against what this shell offers -- and that already exists.
-DT_VER=0.3
+DT_VER=0.4
 
 # The session's own arguments, captured here at the top level where $@ is
 # still theirs: a function sees its own, and dt_autohold needs to hand these
@@ -1482,18 +1482,21 @@ DT_RSTILL=150
 # rather than just skipped -- skipping it reads the byte and throws the
 # value away, which is a key silently lost, not a key left for later.
 #
-# check is a startup-only safety net, spent once: dt_open's own dt_size
-# already retried the real TIOCGWINSZ read for a bounded stretch before
-# ever reaching here, but a terminal that settles slower than that budget
-# -- some do, right after a fresh window opens -- leaves the desktop
-# painted at the wrong (fallback) size with nothing to correct it until a
-# real resize fires its own SIGWINCH, which is what "starts blank until I
-# resize the window" was. This costs nothing extra: the first tick's own
-# wait for a key already takes as long as DT_TICK, so checking again once
-# that wait returns re-reads the real size for free, at no added latency,
-# rather than only ever trusting the one reading dt_open started with.
+# A startup-only re-check of the real size, tried and reverted: dt_open's
+# own dt_size already retries TIOCGWINSZ for a bounded stretch (see
+# cn_size), but a terminal that settles slower than even that leaves the
+# desktop painted at the wrong (fallback) size with nothing to correct it
+# short of a real resize's own SIGWINCH. A one-shot re-check on the first
+# idle tick seemed free -- the wait for a key takes as long as DT_TICK
+# regardless -- but measurably (rarely; about 1 in 60 runs) changed
+# whether this loop's own first console resizing caught a resize the test
+# harness's own pty setup triggers at construction time, occasionally
+# pushing a quit key past a test's fixed wait for it. Not worth the
+# startup race for an improvement over an already-widened retry budget
+# that has no confirmed case it would actually help. Left out; cn_size's
+# own 1s budget (up from 200ms) is the fix that shipped.
 dt_run() {
-	local k rsz=0 last now pk= skipn=0 check=1 orows ocols
+	local k rsz=0 last now pk= skipn=0
 	while [ "$DT_QUIT" = 0 ]; do
 		if [ "$rsz" = 0 ]; then
 			if [ "$DT_LASTDRAG" = 1 ] &&
@@ -1525,14 +1528,6 @@ dt_run() {
 				k=$pk
 			else
 				continue
-			fi
-		fi
-		if [ "$check" = 1 ] && [ "$rsz" = 0 ]; then
-			check=0
-			orows=$DT_ROWS ocols=$DT_COLS
-			dt_size
-			if [ "$DT_ROWS" != "$orows" ] || [ "$DT_COLS" != "$ocols" ]; then
-				console reassert
 			fi
 		fi
 		pk=

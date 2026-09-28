@@ -82,14 +82,37 @@ dtp_tz() {
 	ret "${l##*zoneinfo/}"
 }
 
+# Where tzdata's own place table actually is -- copied from
+# traceroute.hibr's own tzdata_path, for the same reason the rest of this
+# file's map data is a copy: /usr/share/zoneinfo/zone1970.tab is not a safe
+# assumption everywhere, reported missing on a real Mac, where
+# /usr/share/zoneinfo is usually a symlink chain down to a version-stamped
+# /var/db/timezone/tz/.../zoneinfo and apparently not always one that
+# resolves. TZDIR is the standard override, checked first; the direct
+# macOS path is checked without going through the symlink at all, in case
+# that is what is broken.
+dtp_tzdata_path() {
+	local p
+
+	for p in "${TZDIR:+$TZDIR/zone1970.tab}" /usr/share/zoneinfo/zone1970.tab \
+		 /var/db/timezone/zoneinfo/zone1970.tab; do
+		[ -n "$p" ] && [ -r "$p" ] && { ret "$p"; return 0; }
+	done
+	return 1
+}
+
 # This zone's coordinates, in hundredths of a degree, into DTP_LAT/DTP_LON
 # -- the same field parsing traceroute.hibr's geo_load() does, run just for
-# the one zone that matters here rather than the whole table.
+# the one zone that matters here rather than the whole table. Silently
+# does nothing if no copy of zone1970.tab can be found at all -- a pane
+# with no mark on its map is a real, if disappointing, result; a shell
+# error printed at startup, every time the desktop opens, is not.
 dtp_geo() {
-	local tz=$1 city line co ld lm od om
+	local tz=$1 city line co ld lm od om tab
 
 	city=$(str lower "${tz##*/}")
 	dtp_extra "$city" && return 0
+	tab := dtp_tzdata_path || return 1
 	while read -r line; do
 		case "$line" in \#* | "") continue ;; esac
 		match "$line" "^[^	]*	([^	]*)	([^	]*)" || continue
@@ -107,7 +130,7 @@ dtp_geo() {
 		[ "${M[1]}" = "-" ] && DTP_LAT=$(( 0 - DTP_LAT ))
 		[ "${M[5]}" = "-" ] && DTP_LON=$(( 0 - DTP_LON ))
 		return 0
-	done < /usr/share/zoneinfo/zone1970.tab
+	done < "$tab"
 	return 1
 }
 

@@ -90,10 +90,31 @@ CODE[svo]=moscow;      CODE[led]=moscow;      CODE[londen]=london
 CODE[frnkge]=berlin;   CODE[nycmny]=new_york; CODE[sngpsi]=singapore
 CODE[amstnl]=amsterdam; CODE[tokyjp]=tokyo;   CODE[snjsca]=los_angeles
 
+# Where tzdata's own place table actually is: /usr/share/zoneinfo on every
+# Linux this was written against, but not a safe assumption everywhere --
+# reported missing on a real Mac, where /usr/share/zoneinfo is usually a
+# symlink chain down to a version-stamped /var/db/timezone/tz/.../zoneinfo,
+# and apparently not always one that resolves. TZDIR is the standard
+# override, checked first; the direct macOS path is checked without going
+# through the symlink at all, in case that is what is broken.
+tzdata_path() {
+  local p
+  for p in "${TZDIR:+$TZDIR/zone1970.tab}" /usr/share/zoneinfo/zone1970.tab \
+           /var/db/timezone/zoneinfo/zone1970.tab; do
+    [ -n "$p" ] && [ -r "$p" ] && { ret "$p"; return 0; }
+  done
+  return 1
+}
+
 # Read every place tzdata knows, with its coordinates in hundredths of a
-# degree so the whole thing stays in integers.
+# degree so the whole thing stays in integers. Silently does nothing if no
+# copy of zone1970.tab can be found at all -- a route with nothing placed
+# on it is a real, if disappointing, result; a shell error printed over the
+# map is not.
 geo_load() {
-  local line co tz city ld lm od om
+  local line co tz city ld lm od om tab
+
+  tab := tzdata_path || return 0
   while read -r line; do
     case "$line" in \#*|"") continue ;; esac
     match "$line" "^[^	]*	([^	]*)	([^	]*)" || continue
@@ -110,7 +131,7 @@ geo_load() {
     GEO[$city]["lon"]=$(( ${od:-0} * 100 + ${om:-0} * 100 / 60 ))
     if [ "${M[1]}" = "-" ]; then GEO[$city]["lat"]=$(( 0 - ${GEO[$city]["lat"]} )); fi
     if [ "${M[5]}" = "-" ]; then GEO[$city]["lon"]=$(( 0 - ${GEO[$city]["lon"]} )); fi
-  done < /usr/share/zoneinfo/zone1970.tab
+  done < "$tab"
 }
 
 # tzdata folds some capitals into a neighbour's zone -- Amsterdam into

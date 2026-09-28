@@ -1,5 +1,60 @@
 # Changelog
 
+## 0.24
+
+Desktop moves to **0.4** alongside this release. A macOS hardening pass,
+found live on a real Mac rather than guessed at from this project's own
+Linux development machine.
+
+**A window's centred title** was centred within the room left over after
+excluding the button cluster, not across the bar's true full width --
+pushing it off-centre by about half the cluster's own width, in opposite
+directions depending on which side the buttons dock. Both sides were
+wrong; only one was reported.
+
+**A black screen until the first manual resize**, on terminals that settle
+their real size more slowly than a plain local pty does: `cn_size`'s own
+retry budget widens from 200ms to 1s, and `dt_run` now re-checks the real
+size once more on its first idle tick regardless of whether a resize ever
+fires -- free, since that tick's own wait for a key takes as long as
+`DT_TICK` anyway.
+
+**Wallpaper and TLS silently never worked on macOS**: `libpng` and
+`libssl` were dlopen'd by bare Linux `.so` names only. Both gain macOS
+`.dylib` paths (Homebrew's own versioned builds, by full keg-only path --
+confirmed against Apple's own developer forums that the system's
+unversioned copies hard-abort third-party code that loads them) and,
+more importantly, a negative cache: a missing library was previously
+rediscovered-and-failed on every call, which for a wallpaper once set
+meant three failed `dlopen`s and a log line on every single frame, a
+real and separate source of the reported choppiness. The Homebrew
+formula now `depends_on` both on macOS.
+
+**`DT_DRAWSKIP`** (Control Panel, Behaviour) is renumbered 0-9, default
+0: the loop compared it against `DT_DRAWSKIP - 1`, so the old default of
+1 skipped nothing, and the number never meant what it said.
+
+**A native `darwin` module**: `cpu` and `mem`, from one
+`host_statistics(64)` call each, no fork and no wait for a second
+sample. Task Manager's system-wide meters were never implemented on
+macOS at all; About hibr's own `top -l 2 -n 0` blocked the whole
+single-threaded draw loop for about a second every three, whenever its
+window was open -- a second real, separate source of the choppiness.
+Both now use the module when it loaded, falling back to the previous
+`top`/`vm_stat`/`ps` behaviour otherwise. Built and reasoned through on
+a Linux box with no Mach headers at all; verified loading and resolving
+its symbols on a real Mac, the numeric correctness of the readings
+themselves still to be confirmed there.
+
+**`zone1970.tab`**, tzdata's own place table, is not reliably at
+`/usr/share/zoneinfo` on macOS -- reported missing there, where that
+path is usually a symlink chain down through a version-stamped
+`/var/db/timezone/...` and apparently does not always resolve. The
+Date & Time Control Panel pane and `examples/traceroute.hibr` now check
+`$TZDIR`, then the standard path, then the direct macOS path, and fail
+silently -- no map mark, rather than a shell error printed at every
+desktop startup -- if none exist.
+
 ## 0.23
 
 Desktop moves to **0.3** alongside this release.

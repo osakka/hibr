@@ -934,6 +934,26 @@ went in the shell.
   arithmetic, opening it regardless of what was actually highlighted.
   `dt_mbar` searches by each menu's own `bar` flag instead of assuming
   position.
+- **`tests/desktop.py`'s own "an app with no key handler cannot swallow
+  one" flakes at about 4% in complete isolation**, found while chasing a
+  suspected regression from a startup self-heal that was reverted for it
+  -- and wrongly suspected at first: an initial 0-failures-in-60 comparison
+  run against the code from before that change looked like a clean
+  baseline, and was actually just luck (a 4% rate and zero failures in 60
+  tries are compatible about a third of the time; the tell was a *matched*
+  100-run baseline on the unmodified code turning up 4 failures of its
+  own). `Term.__init__` sets the pty's size with an explicit `TIOCSWINSZ`
+  right after fork, in the parent, racing the child's own startup before
+  `cn_hook` has necessarily installed its SIGWINCH handler -- a plausible
+  mechanism, not a confirmed one; disabling that resize to test it made
+  every run fail for an unrelated reason (the desktop then starts at
+  whatever degenerate size a pty defaults to) rather than isolating
+  anything. Not yet root-caused. Reproduce with a tight loop calling
+  `run(QUIET)` — the one at the bottom of `tests/desktop.py`'s own "an app
+  with no key handler" section — 100 times outside the rest of the suite;
+  expect 3-5 failures, all `sc.quit == False` with the screen itself drawn
+  correctly, meaning the desktop is up and drawing fine and only the quit
+  key's own delivery is what occasionally misses its 1.2s window.
 
 ## Testing discipline
 
