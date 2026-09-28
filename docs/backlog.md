@@ -145,8 +145,8 @@ separate, real source of the reported choppiness, quite apart from
 `libpng`'s own per-frame retries. `cpu` deliberately returns raw counters,
 not a percentage -- the previous reading belongs to whichever caller is
 asking, and About and Task Manager can both be open at once, each on its
-own throttle. Not yet independently confirmed: the actual *numbers* `cpu`/
-`mem` report are correct, only that the calls succeed and return something.
+own throttle. Confirmed live: the reported CPU and memory percentages
+themselves are correct, not just that the calls succeed.
 
 Dealt with, verified live: `/usr/share/zoneinfo/zone1970.tab` (the Date &
 Time Control Panel pane's map, and `examples/traceroute.hibr`) reported
