@@ -1,5 +1,77 @@
 # Changelog
 
+## 0.29
+
+Desktop moves to **0.9** alongside this release.
+
+**Control Panel shortcuts that appeared to do nothing when you tried to
+change them**, reported live as "I cannot change shortcuts/keybindings
+in general -- they work, but I cannot change them," specifically for
+combinations like `alt-ctrl-x`. Root cause: the "press a key to rebind
+this" capture treats a lone Escape as a silent cancel, and `cn_key`'s
+own Alt/Escape disambiguation -- the same "is this a lone Escape or the
+first byte of Alt-something" wait every terminal program needs -- could
+be cut short by a *different*, unrelated terminal window's own program
+merely having something to say at the wrong moment, deciding "Escape"
+before the combination's second byte was ever read. Fixed in two parts:
+`cn_key` now tracks a real wall-clock deadline for the disambiguation
+instead of collapsing it the moment any watched pty stirs, and a
+cancelled capture now says "Cancelled" instead of silently doing
+nothing either way.
+
+**File manager, four small things asked for together**: opening a `.txt`
+file now offers Note Pad, the same way `.png` already offers Image
+Viewer. A window's own title now names what it is showing --
+`Files [~/some/dir]`, `~` for home the same way a prompt's `\w` already
+would -- an app knows what it is showing better than the menu that
+opened it. The path shown at the top of the window is a breadcrumb now:
+click it for a dropdown of every ancestor directory, root included, and
+choose one to jump straight there.
+
+**A terminal window's own title now follows what the program inside it
+reports**, through the same OSC 0/1/2 escape every real terminal
+already honours -- a shell's own `PS1` is the "settable based on
+variables" way to choose one (`\[\e]0;Terminal [\w]\a\]`, see
+`docs/interactive.md`'s prompt escapes), not something new added here.
+On by default (`DT_TERMTITLE`), and a new **Terminal** pane in Control
+Panel holds it next to the terminal's scrollbar toggle, moved there out
+of Behaviour since both are terminal settings, not general ones.
+
+**Games no longer litter the hibr menu** -- Snake, Mines and Bricks moved
+into their own `Games` subfolder, which the existing app-folder
+mechanism already turns into a submenu automatically, the same way any
+folder of apps does.
+
+**Task Manager's own gap under its graphs**: `dt_win` already excludes
+both border rows before an app's own `_draw` ever runs, and the layout
+math subtracted three rows for them (as if the borders were still
+included) instead of the one actual header row -- so a real border's
+worth of dead space sat under the graphs for no reason. Also: the PID
+column widens to whatever the widest PID on screen actually needs
+(previously a fixed 6 characters, overrun and misaligned at seven
+digits).
+
+**The wallpaper picker's own mouse wheel did nothing** -- Control
+Panel's generic scroll fallback only ever applies to a pane with no
+`_draw` of its own; Wallpaper draws its own body and needs its own
+`_wheel`, which nothing had written yet.
+
+**`sysinfo`'s own uptime read now knows macOS**, via `sysctl` and
+`KERN_BOOTTIME` rather than `/proc/uptime`, which does not exist there;
+it read 0 minutes on every Mac. Unverified beyond a syntax read --
+`sys/sysctl.h` does not exist on this Linux box even under
+`-D__APPLE__`, so this could not be compile-checked here at all.
+
+**About hibr**: relabelled "Desktop 0.8" / "hibr 0.28" as "hibr desktop
+v0.9" / "hibr v0.29" with a blank top margin row; added Hostname (a
+real FQDN, `hostname -f`, not the legacy and usually-empty
+`/etc/domainname`) and Kernel rows underneath the version lines.
+
+HIBR_VER -> 0.29, DT_VER -> 0.9.
+
+Verified: tests/run.sh 86/86, tests/desktop.py 264/264, tests/apps.py
+197/197.
+
 ## 0.28
 
 Desktop moves to **0.8** alongside this release.

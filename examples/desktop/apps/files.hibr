@@ -183,6 +183,25 @@ fb_selected() {
 	ret "${out# }"
 }
 
+# Every directory between root and $1, each a full path so the same string
+# is what the breadcrumb shows and what it means -- dt_droplist has no room
+# for a label distinct from the value it hands back. Into FB_CRUMBS.
+fb_crumbs() {
+	local d=$1 rest seg cur=
+
+	FB_CRUMBS=(/)
+	rest=${d#/}
+	while [ -n "$rest" ]; do
+		seg=${rest%%/*}
+		cur="$cur/$seg"
+		FB_CRUMBS+=("$cur")
+		case $rest in
+		*/*) rest=${rest#*/} ;;
+		*) rest= ;;
+		esac
+	done
+}
+
 # The paths of a list of entries, into FB_PATHS.
 fb_paths() {
 	local id=$1 i p
@@ -274,6 +293,20 @@ fb_path() {
 	fi
 }
 
+# The window's title: what the menu opened it with, once it is somewhere
+# worth naming -- an app knows what it is showing better than the menu
+# that opened it does, the same reasoning term_open's own dt_retitle uses.
+# $HOME collapses to ~ the same way a prompt's \w already would.
+fb_retitle() {
+	local id=$1 t=$2
+
+	case $t in
+	"$HOME") t="~" ;;
+	"$HOME"/*) t="~${t#$HOME}" ;;
+	esac
+	command -v dt_retitle > /dev/null && dt_retitle "$id" "Files [$t]"
+}
+
 # Go somewhere, keeping the path absolute and without a trailing slash.
 fb_go() {
 	local id=$1 d=$2
@@ -294,6 +327,7 @@ fb_go() {
 	[ -d "$d" ] || return 1
 	FB[$id]["dir"]=$d
 	FB[$id]["view"] := fb_dirview "$d"
+	fb_retitle "$id" "$d"
 	fb_scan "$id"
 }
 
@@ -377,6 +411,7 @@ files_open() {
 	FB[$1]["view"] := fb_dirview "$d"
 	FB[$1]["vis"]=1
 	FB[$1]["per"]=1
+	fb_retitle "$1" "$d"
 	fb_scan "$1"
 }
 
@@ -1083,6 +1118,11 @@ fb_at() {
 files_mouse() {
 	local id=$1 act=$2 r=$4 c=$5 mods=$6 i pr pc sel g lb
 
+	if [ "$3" = left ] && [ "$act" = press ] && [ "$r" = 1 ]; then
+		fb_crumbs "${FB[$id]["dir"]}"
+		dt_droplist "$id" 1 1 fb_go "${FB_CRUMBS[@]}"
+		return 0
+	fi
 	if [ "$3" = right ]; then
 		[ "$act" = press ] || return 0
 		if i := fb_at "$id" "$r" "$c"; then

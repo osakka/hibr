@@ -36,7 +36,13 @@ about_facts() {
 	# console's own drawing -- $(...) is the one that actually captures it.
 	AB_OS=$(command uname)
 	if [ "$AB_OS" = Linux ]; then
-		read -r AB_HOST < /proc/sys/kernel/hostname
+		# The kernel's own hostname is the short name; a real FQDN needs
+		# actual resolution (/proc/sys/kernel/domainname is legacy NIS,
+		# "(none)" on every machine this was checked against even where
+		# `hostname -f` resolves a real one via DNS/hosts) -- one fork,
+		# same as the branch below already pays unconditionally, and
+		# this whole function runs once per window, cached.
+		AB_HOST=$(command hostname -f)
 		read -r AB_KERNEL < /proc/sys/kernel/osrelease
 	else
 		AB_HOST=$(command hostname)
@@ -206,34 +212,34 @@ about_draw() {
 	command -v dt_want > /dev/null && dt_want "$AB_SLOWMS"
 	console pen "$DT_INK" "$DT_FACE" bold
 	if [ -n "$DT_VER" ]; then
-		console put -p "w$id" 1 2 "Desktop $DT_VER"
+		console put -p "w$id" 2 2 "hibr desktop v$DT_VER"
 	fi
-	console put -p "w$id" 2 2 "hibr $HIBR_VERSION"
+	console put -p "w$id" 3 2 "hibr v$HIBR_VERSION"
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 3 2 "Highly Intuitive Bash-like Runtime"
-	console put -p "w$id" 4 2 "a desktop written in the shell it runs on"
-	console put -p "w$id" 6 2 "$AB_HOST"
-	console put -p "w$id" 7 2 "$AB_KERNEL"
+	console put -p "w$id" 4 2 "Highly Intuitive Bash-like Runtime"
+	console put -p "w$id" 5 2 "a desktop written in the shell it runs on"
+	console put -p "w$id" 7 2 "Hostname: $AB_HOST"
+	console put -p "w$id" 8 2 "Kernel: $AB_KERNEL"
 
 	cpu := about_cpu "$id"
 	bar := about_bar "$cpu" "$barw"
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 9 2 "CPU"
+	console put -p "w$id" 10 2 "CPU"
 	console pen "$DT_ACTIVE" "$DT_FACE"
-	console put -p "w$id" 9 6 "$bar"
+	console put -p "w$id" 10 6 "$bar"
 	console pen "$DT_INK" "$DT_FACE"
 	printf -v pct '%3d%%' "$cpu"
-	console put -p "w$id" 9 $((w - 6)) "$pct"
+	console put -p "w$id" 10 $((w - 6)) "$pct"
 
 	mem := about_mem "$id"
 	bar := about_bar "$mem" "$barw"
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 10 2 "MEM"
+	console put -p "w$id" 11 2 "MEM"
 	console pen "$DT_ACTIVE" "$DT_FACE"
-	console put -p "w$id" 10 6 "$bar"
+	console put -p "w$id" 11 6 "$bar"
 	console pen "$DT_INK" "$DT_FACE"
 	printf -v pct '%3d%%' "$mem"
-	console put -p "w$id" 10 $((w - 6)) "$pct"
+	console put -p "w$id" 11 $((w - 6)) "$pct"
 }
 
 if [ -z "$DT_ROWS" ]; then

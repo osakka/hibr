@@ -25,7 +25,7 @@ need display || { echo "desktop: no display available" >&2; exit 1; }
 # change that never touched a single line of src/*.c. HIBR_ABI is what
 # actually needs cross-checking between the two -- whether a module is
 # built against what this shell offers -- and that already exists.
-DT_VER=0.8
+DT_VER=0.9
 
 # The session's own arguments, captured here at the top level where $@ is
 # still theirs: a function sees its own, and dt_autohold needs to hand these
@@ -1282,7 +1282,7 @@ dt_event() {
 	if [ -n "$DT_KEYCAP" ]; then
 		case $k in
 		"mouse "*) DT_KEYCAP= ;;
-		escape) DT_KEYCAP= ;;
+		escape) DT_KEYCAP=; dt_note "Cancelled" ;;
 		*)
 			case $DT_KEYCAP in
 			app:*)
@@ -2332,11 +2332,11 @@ dt_runhandler() {
 }
 
 # Open a path: a folder in a file browser, a registered extension with its
-# own handler, a picture in the image viewer if one is loaded, and anything
-# else in a terminal with hvi, since every file a terminal can show is one
-# it can edit. A user's own dt_handler for the same extension is checked
-# first and wins, the same rule a file of your own replacing a bundled app
-# already follows elsewhere.
+# own handler, a picture in the image viewer and plain text in Note Pad if
+# either is loaded, and anything else in a terminal with hvi, since every
+# file a terminal can show is one it can edit. A user's own dt_handler for
+# the same extension is checked first and wins, the same rule a file of
+# your own replacing a bundled app already follows elsewhere.
 dt_openfile() {
 	local ext
 
@@ -2349,6 +2349,8 @@ dt_openfile() {
 		dt_runhandler "$ext" "$1"
 	elif [ "$ext" = png ] && dt_has imgview_open; then
 		dt_launch imgview "$1"
+	elif [ "$ext" = txt ] && dt_has notepad_open; then
+		dt_launch notepad "$1"
 	elif [ -n "${DT_APPS[term]["title"]}" ]; then
 		dt_launch term "$1"
 	else

@@ -1,0 +1,58 @@
+#!/usr/bin/env hibr
+#
+# terminal -- the Control Panel pane for how a terminal window behaves: its
+# scrollbar, and whether its title follows what the program inside reports.
+
+command -v cp_pane > /dev/null && cp_pane terminal "Terminal" "⌨"
+
+# Whether a terminal shows a scrollbar -- and spends a real column of the
+# pty on it -- see DT_TERMBAR in examples/desktop/apps/term.hibr.
+cp_termbar() {
+	if [ "$DT_TERMBAR" = 1 ]; then
+		DT_TERMBAR=0
+	else
+		DT_TERMBAR=1
+	fi
+	cp_save
+}
+
+# Whether a window's title follows the program's own OSC title -- see
+# DT_TERMTITLE in examples/desktop/apps/term.hibr.
+cp_termtitle() {
+	if [ "$DT_TERMTITLE" = 1 ]; then
+		DT_TERMTITLE=0
+	else
+		DT_TERMTITLE=1
+	fi
+	cp_save
+}
+
+terminal_rows() {
+	local w=$1 n=0
+
+	if [ -n "$DT_TERMBAR" ]; then
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Scrollbar"
+		CP[$w][$n]["wtype"]=bool
+		CP[$w][$n]["val"]=off
+		[ "$DT_TERMBAR" = 1 ] && CP[$w][$n]["val"]=on
+		CP[$w][$n]["key"]=termbar; n=$((n + 1))
+	fi
+	if [ -n "$DT_TERMTITLE" ]; then
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Follow Program Title"
+		CP[$w][$n]["wtype"]=bool
+		CP[$w][$n]["val"]=off
+		[ "$DT_TERMTITLE" = 1 ] && CP[$w][$n]["val"]=on
+		CP[$w][$n]["key"]=termtitle; n=$((n + 1))
+	fi
+	ret "$n"
+}
+
+terminal_do() {
+	local w=$1 k=$2 dir=$3
+
+	case $k in
+	termbar) cp_termbar ;;
+	termtitle) cp_termtitle ;;
+	esac
+	cp_save
+}

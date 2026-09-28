@@ -1089,11 +1089,16 @@ MENU = [b"\x1b[21~", b"\x1b[B"]
 sc, raw = run("", feed=MENU, env={"XDG_CONFIG_HOME": UCONF},
               pre=APPS + DAAPPS)
 # The menu is on the left; the icons on the right carry the same names.
+# Task Manager, not one of the games, as the third fixed point: the games
+# moved into their own Games subfolder (a submenu, not a flat entry) once
+# there were three of them worth grouping, so a bundled app that is still
+# flat is what a sort-order check needs to stay meaningful.
 menu = [sc.row(r)[:20] for r in range(2, 16)]
-rows = [m for m in menu if "Hello" in m or "Files" in m or "Mines" in m]
+rows = [m for m in menu
+        if "Hello" in m or "Files" in m or "Task Manager" in m]
 check("an app in your own folder is on the menu, in its sorted place",
       len(rows) == 3 and "Files" in rows[0] and "Hello" in rows[1] and
-      "Mines" in rows[2], sc)
+      "Task Manager" in rows[2], sc)
 check("and a file of yours replaces the bundled app of that name",
       sc.find("My Sums") is not None and sc.find("Calculator") is None, sc)
 shutil.rmtree(UCONF, True)
@@ -1113,17 +1118,20 @@ check("and descending into it finds the app",
 shutil.rmtree(NCONF, True)
 
 # A folder sorts by its own name among the flat apps, not after all of
-# them -- "games" belongs between "Files" and "Mines", not at the end.
+# them -- "games" belongs between "Files" and "Task Manager", not at the
+# end. A synthetic "games" folder here, not the bundled Games one -- this
+# checks the general sort, not that specific folder's own existence.
 GCONF = tempfile.mkdtemp(prefix="hibr-apps-games-")
 os.makedirs(os.path.join(GCONF, "hibr", "apps", "games"))
 open(os.path.join(GCONF, "hibr", "apps", "games", "pong.hibr"), "w").write(
     'dt_app pong "Pong" 6 20\n')
 sc, _ = run("", feed=[b"\x1b[21~"], env={"XDG_CONFIG_HOME": GCONF}, pre=APPS)
 menu = [sc.row(r)[:20] for r in range(2, 17)]
-rows = [m for m in menu if "Files" in m or "games" in m or "Mines" in m]
+rows = [m for m in menu
+        if "Files" in m or "games" in m or "Task Manager" in m]
 check("a folder is interleaved by name, not appended after every app",
       len(rows) == 3 and "Files" in rows[0] and "games" in rows[1] and
-      "Mines" in rows[2], sc)
+      "Task Manager" in rows[2], sc)
 shutil.rmtree(GCONF, True)
 
 # Desk accessories are ordinary apps, grouped under one submenu name
@@ -1335,7 +1343,7 @@ check("an app declared once opens one window, however often launched",
 LAUNCH = MENU + [b"f"]
 sc, raw = run("", feed=LAUNCH + LAUNCH, pre=APPS)
 check("and one that is not opens another window each time",
-      sc.text().count("┤ Files ├") == 2, sc)
+      sc.text().count("┤ Files [~/hibr] ├") == 2, sc)
 
 sc, _ = run("", feed=[press(0, 2), b"a"], pre=APPS)
 check("About hibr opens a window with the machine's own numbers",
@@ -1344,9 +1352,9 @@ check("About hibr opens a window with the machine's own numbers",
       sc.find("%") is not None, sc)
 check("and it has no maximise button, being a fixed size",
       sc.find("┤_ x├") is not None, sc)
-dpos = sc.find("Desktop ")
+dpos = sc.find("hibr desktop v")
 check("and shows the desktop's own version above hibr's, not just hibr's",
-      dpos is not None and "hibr " in sc.row(dpos[0] + 1), sc)
+      dpos is not None and "hibr v" in sc.row(dpos[0] + 1), sc)
 
 # Clock is a desk accessory now, not in examples/desktop/apps -- the bar's own
 # click handler only asks dt_has clock_draw, so it works regardless of
@@ -1561,7 +1569,7 @@ t.close()
 t = Term(SESSION, "--resume", env=RENV, settle=2.0)
 sc = t.screen()
 check("--resume comes back to the same desktop, windows and all",
-      sc.find("┤ Files ├") is not None, sc)
+      sc.find("┤ Files [") is not None, sc)
 t.send(b"qy", settle=1.0)
 t.collect(0.5)
 check("and quitting it from there ends the whole session",
@@ -1609,7 +1617,7 @@ check("--session starts an independently named desktop, more than one at once",
 t = Term(SESSION, "--session", "work", "--resume", env=S2ENV, settle=2.0)
 sc = t.screen()
 check("--session with --resume comes back to that one specifically",
-      sc.find("┤ Files ├") is not None, sc)
+      sc.find("┤ Files [") is not None, sc)
 t.send(b"qy", settle=1.0)
 t.close()
 r = subprocess.run([screen.HIBR, "-c", HOLDC + "hold list"],
@@ -1700,7 +1708,7 @@ hp = sc.find("Home")
 t1.send(press(hp[0], hp[1]))
 t1.send(press(hp[0], hp[1]))
 sc = t1.screen()
-tb = sc.find("┤ Files ├")
+tb = sc.find("┤ Files [~] ├")
 check("double-clicking home opens Files, with a titlebar to right-click",
       tb is not None, sc)
 t1.send(press(tb[0], tb[1], 2))
@@ -1719,7 +1727,8 @@ t2.collect(1.0)
 sc1c = t1.screen()
 sc2c = t2.screen()
 check("choosing one moves the window there",
-      sc1c.find("┤ Files ├") is None and sc2c.find("┤ Files ├") is not None,
+      sc1c.find("┤ Files [~] ├") is None and
+      sc2c.find("┤ Files [~] ├") is not None,
       str(sc1c) + "\n" + str(sc2c))
 
 # The Control Panel gets a "Displays" pane (Slice D): every attached
@@ -1870,4 +1879,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(261)
+report(264)

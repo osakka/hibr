@@ -43,6 +43,20 @@ declare -gA TW
 DT_TERMBAR="${DT_TERMBAR-0}"
 command -v dt_keep > /dev/null && dt_keep DT_TERMBAR
 
+# Whether the window's title follows whatever the program inside reports
+# through its own OSC 0/1/2 escape -- a shell's PS1 can set one with
+# '\[\e]0;...\a\]', so "settable based on variables" is already the prompt's
+# own escapes (\w for the working directory, \h for the host, and so on;
+# see docs/interactive.md), not something new here. On by default: once a
+# program reports a title, it is more useful than the fixed one the menu
+# opened the window with. A window opened on a file (term_open's own
+# dt_retitle) is untouched by this as long as what runs there reports
+# nothing, which is why closing a program-named window still shows the
+# file's name in tests/apps.py's "opening a file opens a terminal window
+# called by its name".
+DT_TERMTITLE="${DT_TERMTITLE-1}"
+command -v dt_keep > /dev/null && dt_keep DT_TERMTITLE
+
 # Start the program the first time there is a window to put it in, and keep
 # its size in step with the window afterwards.
 tw_fit() {
@@ -94,7 +108,7 @@ tw_fit() {
 }
 
 term_draw() {
-	local id=$1 h=$2 w=$3 t st sb cur=0 ms tw view stored
+	local id=$1 h=$2 w=$3 t st sb cur=0 ms tw view stored n
 
 	tw=$w
 	# A visible scrollbar costs the program inside a real column, not just
@@ -115,6 +129,13 @@ term_draw() {
 		console pen "#f56565" "$DT_FACE"
 		console put -p "w$id" 1 2 "[exited $st — close this window]"
 		return 0
+	fi
+	if [ "$DT_TERMTITLE" = 1 ]; then
+		n := term title "$t"
+		if [ -n "$n" ] && [ "$n" != "${TW[$id]["ptitle"]}" ]; then
+			TW[$id]["ptitle"]="$n"
+			command -v dt_retitle > /dev/null && dt_retitle "$id" "$n"
+		fi
 	fi
 	[ "$DT_FOCUS" = "$id" ] && cur=1
 	if [ "$cur" = 1 ] && [ "$DT_CURSOR_BLINK" = 1 ]; then

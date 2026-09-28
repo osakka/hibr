@@ -368,8 +368,12 @@ tasks_cmdline() {
 
 # Columns: PID, Name, Owner, CPU%, Mem -- Name takes whatever is left
 # once the other four fixed widths and the spaces between them are
-# accounted for. Row 0 is the top border and row h-1 the bottom one,
-# both dt_win's, so the list lives in rows 2..h-2 under a header at row 1.
+# accounted for. dt_win already excludes both its own border rows before
+# calling here -- h is dt_win's own h-2, not the window's real outer
+# height -- so this only ever needs to subtract its own header row, not
+# a second border allowance on top of that; subtracting 3 here instead
+# of 1 left two rows of real dead space at the bottom of every window,
+# under the graph and above dt_win's own border, reported live.
 tasks_draw() {
 	local id=$1 h=$2 w=$3 i r t n vis top sel by now full
 	local pidw=6 ownerw=8 owner pidtxt namew cpu mem line pl
@@ -406,8 +410,8 @@ tasks_draw() {
 		i=$((i + 1))
 	done
 	namew=$((w - 2 - pidw - 1 - ownerw - 1 - 6 - 1 - 7 - 1))
-	vis=$((h - 3 - graphh))
-	[ "$vis" -lt 1 ] && { vis=$((h - 3)); showgraph=0; }
+	vis=$((h - 1 - graphh))
+	[ "$vis" -lt 1 ] && { vis=$((h - 1)); showgraph=0; }
 	TK[$id]["vis"]=$vis
 	top=${TK[$id]["top"]}
 	sel=${TK[$id]["sel"]}

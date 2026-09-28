@@ -8,7 +8,12 @@
 #include <string.h>
 #include <sys/statvfs.h>
 #include <sys/utsname.h>
+#include <time.h>
 #include <unistd.h>
+#ifdef __APPLE__
+#include <sys/sysctl.h>
+#include <sys/time.h>
+#endif
 
 /* Read a whole file, which for /proc cannot be sized in advance. */
 char *si_slurp(const char *path)
@@ -602,12 +607,28 @@ int m_sysinfo(sh *s, int ac, char **av)
 	si_row(&rows, "Kernel", un.release);
 	si_row(&rows, "Arch", un.machine);
 	{
+		double secs = 0;
+#ifdef __APPLE__
+		/* No /proc/uptime here at all -- macOS reported "0 minutes"
+		   regardless of the machine's real uptime, unconditionally,
+		   since the read simply failed. KERN_BOOTTIME is the native
+		   equivalent: the kernel's own idea of when it started,
+		   compared against the wall clock now. */
+		struct timeval bt;
+		size_t bn = sizeof bt;
+		int mib[2] = { CTL_KERN, KERN_BOOTTIME };
+		if (sysctl(mib, 2, &bt, &bn, 0, 0) == 0)
+			secs = difftime(time(0), bt.tv_sec);
+#else
 		char *up = si_slurp("/proc/uptime");
+		if (up)
+			secs = strtod(up, 0);
+		free(up);
+#endif
 		t.n = 0;
 		if (t.p)
 			t.p[0] = 0;
-		si_uptime(&t, up ? strtod(up, 0) : 0);
-		free(up);
+		si_uptime(&t, secs);
 		si_row(&rows, "Uptime", t.p);
 	}
 	{

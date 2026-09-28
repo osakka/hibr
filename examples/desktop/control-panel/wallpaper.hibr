@@ -296,6 +296,31 @@ wallpick_key() {
 	return 0
 }
 
+# A custom-drawn pane (its own wallpick_draw, not the generic row list)
+# has to define this itself, the same way it defines wallpick_key --
+# panel_wheel only falls back to its own generic top/n/vis scrolling for
+# a pane with no _draw of its own. Missing here meant the wheel simply
+# did nothing over the picker at all, reported live. Scrolls the view
+# only, same as files_wheel; the selection does not follow, the same as
+# the arrow keys' own up/down already leave it when they scroll without
+# crossing it.
+wallpick_wheel() {
+	local id=$1 top n vis max
+
+	n=${FB[$id]["n"]}
+	vis=${WPK[$id]["vis"]}
+	top=${FB[$id]["top"]}
+	max=$((n - vis))
+	case $2 in
+	up) top=$((top - 2)) ;;
+	down) top=$((top + 2)) ;;
+	esac
+	[ "$top" -gt "$max" ] && top=$max
+	[ "$top" -lt 0 ] && top=0
+	FB[$id]["top"]=$top
+	wp_refresh "$id"
+}
+
 # Set the currently previewed file as the wallpaper, always in full
 # colour -- shared by a click on the button and enter on an already-
 # previewed file, so there is a keyboard way to finish this, not only a

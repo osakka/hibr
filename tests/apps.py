@@ -36,10 +36,15 @@ ENTRIES = 15
 
 
 def appdir(a):
-    """Which of examples/desktop/apps or examples/desktop/desk-accessories has a.hibr."""
-    for d in (APPS, DA):
-        if os.path.exists(os.path.join(d, a + ".hibr")):
-            return d
+    """Which directory has a.hibr -- APPS searched recursively, the same
+    as dt_apps' own **/*.hibr glob (an app can live in a subfolder of its
+    own, which is what makes it a submenu); DA flat, the same as da_apps'
+    own deliberately non-recursive scan."""
+    if os.path.exists(os.path.join(DA, a + ".hibr")):
+        return DA
+    for root, _dirs, files in os.walk(APPS):
+        if a + ".hibr" in files:
+            return root
     return APPS
 
 
@@ -166,6 +171,8 @@ PRE = 'FB_DIR=%s' % D
 
 sc = run("files", FW, pre=PRE)
 check("the window shows the path it is in", sc.find(D) == (3, 3), sc)
+check("and the window's own title names it too, truncated the same as any "
+      "other long title", sc.find("Files [") is not None, sc)
 check("the first entries are drawn", sc.find(" ../") == (4, 3) and
       sc.find(" alpha/") == (5, 3), sc)
 check("the selection starts on the first row",
@@ -218,6 +225,20 @@ sc = run("files", FW, [press(5, 10), press(5, 10), b"\x7f"], pre=PRE)
 check("backspace goes back up", sc.find(D) == (3, 3) and
       sc.find("1 of %d" % ENTRIES) is not None, sc)
 
+# The path row (row 1 of the pane, absolute row 3 here) is a breadcrumb: a
+# click opens a dropdown of every ancestor, root first, D itself among them
+# since the window is opened one level below it (in alpha/, already empty
+# and already used above) -- and choosing one navigates straight there. The
+# row D lands on in the popup depends on how many segments its own path
+# has (root, then one row per segment), which varies by machine and by
+# $TMPDIR, so it is computed rather than guessed.
+DROW = 4 + len([s for s in D.strip("/").split("/") if s])
+sc = run("files", FW, [press(3, 5), press(DROW, 6)],
+         pre="FB_DIR=%s" % os.path.join(D, "alpha"))
+check("clicking the path opens a breadcrumb of every ancestor, and "
+      "choosing one navigates there",
+      sc.find(D) == (3, 3) and sc.find("1 of %d" % ENTRIES) is not None, sc)
+
 sc = run("files", FW, [wheel(6, 10, up=False), press(4, 10)], pre=PRE)
 check("a click after scrolling lands on the row that is there",
       sc.find("4 of %d" % ENTRIES) is not None, sc)
@@ -245,7 +266,7 @@ out = subprocess.run([sx.HIBR, "-c", CPLOAD + "echo ${CP_PANE_LIST[*]}"],
 ORDER = out.split()
 check("panes register and sort by title, not load order",
       ORDER == ["app_shortcuts", "appearance", "behaviour", "control_strip",
-                "datetime", "displays", "shortcuts", "wallpick",
+                "datetime", "displays", "shortcuts", "terminal", "wallpick",
                 "window_style"], out)
 
 PW = "20 58 2 2"
@@ -266,8 +287,8 @@ BODYCOL = 20
 TITLE = {"app_shortcuts": "App Shortcuts", "appearance": "Appearance",
          "behaviour": "Behaviour", "control_strip": "Control Strip",
          "datetime": "Date & Time", "displays": "Displays",
-         "shortcuts": "Shortcuts", "wallpick": "Wallpaper",
-         "window_style": "Window Style"}
+         "shortcuts": "Shortcuts", "terminal": "Terminal",
+         "wallpick": "Wallpaper", "window_style": "Window Style"}
 
 
 def prow(name):
@@ -406,6 +427,35 @@ check("a very wide image is fitted, not stretched to fill the box",
       0 < len(filledrows) < 10, sc)
 shutil.rmtree(WIDEHOME, True)
 
+# panel_wheel only falls back to its own generic top/n/vis scrolling for a
+# pane with no _draw of its own -- a custom-drawn one, this picker among
+# them, has to define its own _wheel the same way it defines its own
+# _key. Missing here meant the wheel simply did nothing over the picker
+# at all, reported live. Fixture, not a live scroll through the pty: the
+# picker only needs enough files to scroll with a directory this suite
+# would have to fabricate dozens of just to reach past one screen's worth.
+WPWHEEL = (
+    '. %s/wallpaper.hibr\n'
+    'wp_refresh() { :; }\n'
+    'FB[1]["n"]=20; FB[1]["top"]=0; FB[1]["sel"]=0\n'
+    'WPK[1]["vis"]=5\n'
+    'wallpick_wheel 1 down; echo "d1=${FB[1]["top"]}"\n'
+    'wallpick_wheel 1 down; wallpick_wheel 1 down\n'
+    'wallpick_wheel 1 down; wallpick_wheel 1 down\n'
+    'wallpick_wheel 1 down; echo "d6=${FB[1]["top"]}"\n'
+    'i=0; while [ "$i" -lt 9 ]; do wallpick_wheel 1 up; i=$((i + 1)); done\n'
+    'echo "u9=${FB[1]["top"]}"\n'
+    % CP
+)
+out = subprocess.run([sx.HIBR, "-c", WPWHEEL], capture_output=True, text=True,
+                     env=dict(os.environ, DT_ROWS="1")).stdout
+check("the wheel scrolls the wallpaper picker, two rows at a time",
+      "d1=2" in out, out)
+check("and keeps scrolling without overrunning the list",
+      "d6=12" in out, out)
+check("but not above the first entry",
+      "u9=0" in out, out)
+
 # A click selects a row; a second click on the same, already-selected
 # one is what actually navigates or applies. Neither did anything at all
 # before this: the column check guarding the whole list gated on the
@@ -506,6 +556,21 @@ sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 10, extra=("about",))
 check("About Refresh only appears once About hibr itself is loaded",
       sc.find("About Refresh") is not None and
       sc.find("3000 ms") is not None, sc)
+
+# The Terminal pane: its own rows only appear once term.hibr is loaded, the
+# same as About Refresh and Task Manager Refresh above -- and it is a pane
+# of its own now, not a couple of rows buried in Behaviour.
+DOWN_TERM = [b"\x1b[B"] * downs("terminal")
+sc = cprun(DOWN_TERM, extra=("term",))
+check("Scrollbar and Follow Program Title only appear once term itself is "
+      "loaded, in the Terminal pane of its own",
+      sc.find("Scrollbar") is not None and
+      sc.find("Follow Program Title") is not None, sc)
+
+sc = cprun(DOWN_TERM + [b"\x1b[C"], extra=("term",))
+check("Scrollbar defaults off, and Follow Program Title defaults on",
+      "[ ]" in sc.row(sc.find("Scrollbar")[0]) and
+      "[x]" in sc.row(sc.find("Follow Program Title")[0]), sc)
 
 # The redraw-skip slider itself: a plain track, min at DT_DRAWSKIP=0 (skip
 # none), no popup to open (unlike a dropdown, right/enter on it just cycles
@@ -870,6 +935,20 @@ check("on, a scrollbar tracks the view -- one column short of the border, "
 sc = run(*TERM, wait=1.2, end=None, env={"DT_TERMBAR": "1"})
 check("but nothing draws there at all with no scrollback yet to show",
       sc.at(3, 44) != "│" and sc.at(3, 45) == "│", sc)
+
+# DT_TERMTITLE: on by default, a window's title follows the OSC 0 title a
+# program inside it reports -- a shell's own PS1 is the "settable based on
+# variables" way to choose one (\[\e]0;...\a\], see docs/interactive.md).
+OSCTITLE = ("TW_CMD=(/bin/sh -c 'printf \"\\033]0;My Shell\\007\"; "
+            "PS1=\"sh> \"; export PS1; exec /bin/sh')")
+sc = run(*TERM, pre=OSCTITLE, wait=1.2, end=None)
+check("a program's own OSC title becomes the window's title",
+      sc.find("My Shell") is not None and sc.find("┤ Term ├") is None, sc)
+
+sc = run(*TERM, pre=OSCTITLE, wait=1.2, end=None,
+         env={"DT_TERMTITLE": "0"})
+check("and switching that off keeps the window's own title instead",
+      sc.find("My Shell") is None and sc.find("┤ Term ├") is not None, sc)
 
 TRAP = ("TW_CMD=(/bin/sh -c 'trap \"echo caught\" INT; "
         "while :; do sleep 0.1; done')")
@@ -1403,4 +1482,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(184)
+report(197)

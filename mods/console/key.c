@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/select.h>
+#include <time.h>
 #include <unistd.h>
 
 extern int cn_fd;
@@ -407,7 +408,9 @@ int cn_dec(const char *p, size_t n, str *o, size_t *used, int last)
 int cn_key(int ms, str *out)
 {
 	size_t used = 0;
-	int r, waited = 0;
+	int r, waited = 0, armed = 0;
+	struct timespec deadline, now;
+	long remain;
 
 	if (!cn_on) {
 		lg(HIBR_LERR, "screen: not open");
@@ -429,17 +432,40 @@ int cn_key(int ms, str *out)
 				out->n = 0;
 				if (out->p)
 					out->p[0] = 0;
+				armed = 0;
 				continue;
 			}
-			r = cn_wait(waited ? 0 : 50);
-			if (r <= 0 || r == 2) {
-				if (waited)
-					return 0;
-				waited = 1;
+			if (waited)
+				return 0;
+			/* A real deadline, not a single retry: a watched
+			   pty's own output becoming ready (cn_wait's 2) must
+			   never cut this window short, or a busy terminal
+			   window turns a real Alt-combination into a lone
+			   Escape every time. */
+			if (!armed) {
+				clock_gettime(CLOCK_MONOTONIC, &deadline);
+				deadline.tv_nsec += 50000000L;
+				if (deadline.tv_nsec >= 1000000000L) {
+					deadline.tv_sec++;
+					deadline.tv_nsec -= 1000000000L;
+				}
+				armed = 1;
+			}
+			clock_gettime(CLOCK_MONOTONIC, &now);
+			remain = (deadline.tv_sec - now.tv_sec) * 1000 +
+				 (deadline.tv_nsec - now.tv_nsec) / 1000000;
+			if (remain < 0)
+				remain = 0;
+			r = cn_wait((int)remain);
+			if (r == 1) {
+				if (cn_rdfill() < 0)
+					return -1;
 				continue;
 			}
-			if (cn_rdfill() < 0)
+			if (r < 0)
 				return -1;
+			if (remain == 0)
+				waited = 1;
 			continue;
 		}
 		r = cn_wait(ms);
@@ -450,5 +476,6 @@ int cn_key(int ms, str *out)
 		if (cn_rdfill() < 0)
 			return -1;
 		waited = 0;
+		armed = 0;
 	}
 }

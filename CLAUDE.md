@@ -1031,6 +1031,50 @@ went in the shell.
   hello; console flush; console key 8000; console close'`) and knowing
   the exact terminal application are the next two things to check before
   touching `dt_run` a third time.
+- **A watched pty's own readiness must never cut the Alt/Escape
+  disambiguation window short.** `cn_key`'s decoder cannot tell "the user
+  pressed plain Escape" from "the user pressed Alt-something and only the
+  ESC byte has arrived so far" until either the next byte shows up or a
+  short window passes -- the same ambiguity every terminal program has.
+  The window was a single 50ms `cn_wait`, and `cn_wait` returns the same
+  code (2) whether that call timed out or a *different*, watched pty
+  (any open terminal window's own program) merely had something to say --
+  the original code treated the two identically, so a terminal running
+  anything at all (even an idle shell that occasionally writes something)
+  could collapse the real 50ms budget down to whatever that unrelated
+  pty's own event timing happened to be, deciding "Escape" before the
+  combination's second byte was ever read. Reported live as "I cannot
+  change shortcuts in the Control Panel -- the popup appears, but
+  pressing a key does nothing" for `alt-ctrl-x` specifically, a
+  combination that needs both bytes read together. `cn_key` now tracks a
+  real `CLOCK_MONOTONIC` deadline for the disambiguation and only commits
+  to "Escape" once wall-clock time, not merely the appearance of *some*
+  event, has actually run out.
+- **A cancelled key-capture must say so.** `dt_event`'s "press a key to
+  rebind this shortcut" capture treated a lone Escape as silent cancel --
+  no `dt_note`, nothing -- which reads as "my keypress did nothing" both
+  for a genuine Escape and for the disambiguation race above, since
+  either way the "Press a key for X…" box simply vanishes with no
+  explanation. `escape) DT_KEYCAP=; dt_note "Cancelled"` now says why.
+- **`dt_win` reduces `h`/`w` by 2 before calling an app's own `_draw`**,
+  to exclude both border rows/columns -- an app's own layout math must
+  not subtract border space a second time. Task Manager's own gap under
+  its graphs was exactly this: `vis=$((h - 3 - graphh))` assumed three
+  rows needed subtracting (top border, bottom border, header) when only
+  the header (1) does, since the borders are already excluded by the
+  time `_draw` sees `h`. Fixed to `h - 1 - graphh`.
+- **A window title that now carries variable content must be matched by
+  a prefix in tests, not the exact string.** Files' own title changed
+  from a fixed `"Files"` to `"Files [$dir]"` (`fb_retitle`, collapsing
+  `$HOME` to `~`); every existing test asserting the literal border
+  `"┤ Files ├"` broke, and two of them (a `--resume`/`--session` pair
+  running with `$HOME` overridden to an unrelated tempdir, so no `~`
+  collapse applies) kept failing even after the obvious fix, because
+  `dt_win`'s own title truncation (`[ ${#t} -gt room ] && t=...`) cut the
+  long absolute path off mid-string before the exact match could ever
+  land. `sc.find("┤ Files [")` -- a prefix guaranteed to survive
+  truncation -- is the right assertion once a title's content depends on
+  something a test does not fully control.
 
 ## Testing discipline
 
