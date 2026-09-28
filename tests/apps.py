@@ -1324,6 +1324,31 @@ check("a plain double-click still opens it through its own registered "
 shutil.rmtree(HW, True)
 shutil.rmtree(HD, True)
 
+# The executable bit, not a second extension, decides run vs edit: a
+# double-clicked executable runs directly in a terminal instead of opening
+# in hvi. Its own path is not also appended as an argument (it is the
+# command, not something being handed to one), and the window stays open
+# on a clean exit -- unlike a registered handler's own term:1, closing
+# instantly here would be a flash and gone before there was anything to
+# read.
+EX = tempfile.mkdtemp(prefix="hibr-exec-")
+EXOUT = os.path.join(EX, "out.txt")
+EXSCRIPT = os.path.join(EX, "run.sh")
+open(EXSCRIPT, "w").write('#!/bin/sh\necho "args:$#" > %s\n' % EXOUT)
+os.chmod(EXSCRIPT, os.stat(EXSCRIPT).st_mode | 0o111)
+EXPRE = "FB_DIR=%s\n" % EX
+
+sc = run("files", FW, [press(5, 10), press(5, 10)], pre=EXPRE,
+         extra=("term",), wait=1.5)
+check("an executable, double-clicked, runs in a terminal instead of "
+      "opening in hvi", sc.find("┤ run.sh ├") is not None, sc)
+check("the window stays open on a clean exit, showing the status",
+      sc.find("[exited 0") is not None, sc)
+check("and it runs with its own path only, not appended a second time "
+      "as an argument",
+      os.path.exists(EXOUT) and open(EXOUT).read().strip() == "args:0", sc)
+shutil.rmtree(EX, True)
+
 # --- the task manager -------------------------------------------------------
 #
 # The process list is the real machine's, so nothing here asserts on which
@@ -1482,4 +1507,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(197)
+report(200)

@@ -72,8 +72,13 @@ tw_fit() {
 				cmd+=("${TW[$id]["arg$i"]}")
 				i=$((i + 1))
 			done
-			TW[$id]["t"] := term open -r "$h" -c "$w" "${cmd[@]}" \
-				"${TW[$id]["file"]}" || return 1
+			if [ "${TW[$id]["selfrun"]}" = 1 ]; then
+				TW[$id]["t"] := term open -r "$h" -c "$w" \
+					"${cmd[@]}" || return 1
+			else
+				TW[$id]["t"] := term open -r "$h" -c "$w" "${cmd[@]}" \
+					"${TW[$id]["file"]}" || return 1
+			fi
 		elif [ -n "${TW[$id]["file"]}" ]; then
 			TW[$id]["t"] := term open -r "$h" -c "$w" "${TW_EDIT[@]}" \
 				"${TW[$id]["file"]}" || return 1
@@ -122,7 +127,7 @@ term_draw() {
 	term poll "$t" 0
 	if ! term alive "$t"; then
 		st := term status "$t"
-		if [ "$st" = 0 ]; then
+		if [ "$st" = 0 ] && [ "${TW[$id]["selfrun"]}" != 1 ]; then
 			dt_wantclose "$id"
 			return 0
 		fi
@@ -284,6 +289,8 @@ term_open() {
 		TW[$1]["argvn"]=$n
 		DT_OPENCMD=()
 	fi
+	TW[$1]["selfrun"]=$DT_OPENSELF
+	DT_OPENSELF=
 	if [ -n "$2" ]; then
 		command -v dt_retitle > /dev/null && dt_retitle "$1" "${2##*/}"
 	fi

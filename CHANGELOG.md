@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.30
+
+Desktop moves to **0.10** alongside this release.
+
+**Double-clicking an executable in Files now runs it, in a terminal
+window, instead of opening it in hvi** -- closing the file-handler
+question left open in 0.29 (extension → handler mapping, `.txt` → Note
+Pad). The executable bit decides run vs edit; it does not decide
+windowed-app vs terminal. A hibr desktop app is only an app while it is
+*sourced into the running desktop process* -- `dt_apps()` reads it so
+its `dt_app`/`<name>_draw` registration runs in the desktop's own
+namespace -- so making Files source an arbitrary double-clicked file
+into that same live process, on a click, would cross a trust boundary
+the hibr menu's own `DT_APPDIRS` allow-list deliberately does not. A
+script wanting a window belongs there, where the menu already finds
+it. Two details the naive version would have gotten wrong: the
+existing `DT_OPENCMD` plumbing (built for a registered handler's own
+interpreter, e.g. `python3 script.py`) always appends the path as a
+final argument, which for an executable *of* itself would silently run
+it against its own path a second time as an unwanted argument -- a new
+`DT_OPENSELF`/`TW[$id]["selfrun"]` flag skips that append; and a
+terminal window closes itself on a clean exit, which for a registered
+handler is the point but for a double-clicked script would flash and
+vanish before there was anything to read, so a self-run window stays
+open regardless of status, same as a non-zero exit already does.
+
+Verified: tests/run.sh 86/86, tests/desktop.py 264/264, tests/apps.py
+200/200.
+
 ## 0.29
 
 Desktop moves to **0.9** alongside this release.
