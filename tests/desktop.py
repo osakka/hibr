@@ -1344,8 +1344,9 @@ check("About hibr opens a window with the machine's own numbers",
       sc.find("%") is not None, sc)
 check("and it has no maximise button, being a fixed size",
       sc.find("┤_ x├") is not None, sc)
-check("and shows the desktop's own version beside hibr's, not just hibr's",
-      sc.find("· desktop ") is not None, sc)
+dpos = sc.find("Desktop ")
+check("and shows the desktop's own version above hibr's, not just hibr's",
+      dpos is not None and "hibr " in sc.row(dpos[0] + 1), sc)
 
 # Clock is a desk accessory now, not in examples/desktop/apps -- the bar's own
 # click handler only asks dt_has clock_draw, so it works regardless of

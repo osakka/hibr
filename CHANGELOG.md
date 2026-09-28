@@ -1,5 +1,51 @@
 # Changelog
 
+## 0.25
+
+Desktop moves to **0.5** alongside this release.
+
+**A process substitution's child could become a permanent zombie.**
+`xpsub_done` closed a `<(...)`'s descriptor and tried a non-blocking
+`waitpid`, but discarded the tracking record regardless of whether that
+wait actually reaped anything -- for `while read; do ...; done < <(cmd)`,
+the loop's own first `read` reaches that code microseconds after the fork,
+almost always before `cmd` has exited, so the wait reliably answered
+"not yet" and the pid was forgotten anyway. Confirmed with a hundred-
+iteration loop: 97 zombies on the old code, 0 fixed. Not desktop- or
+macOS-specific -- any fast loop around `<(...)` hit this on any platform;
+it surfaced first in Task Manager's own macOS process scan because that
+is where the pattern was already in real use. The record now stays
+tracked until a wait actually resolves it, one way or the other.
+
+**The black screen on some Mac terminals was confirmed indefinite**, not
+merely slower than `cn_size`'s widened 1s retry budget: waiting alone
+never revealed it on a real Mac, only an actual resize did, meaning
+nothing was ever going to self-correct without one. `dt_run`'s startup
+self-heal is back, and unconditional this time -- a forced `console
+reassert` on the first idle tick regardless of whether the re-read size
+even changed, since that covers a stale-size theory and a terminal-
+render-lag theory at once, without needing to know which one it is.
+
+**A bare command name can autoload its module.** `command_not_found` in
+`.hibrc` -- written into a new install's starter file by default -- calls
+the new `mod find <builtin>`, which walks the module path the same way
+`need` already does but matches a candidate's own builtin table by name
+instead of its declared interface. `console key`, `img draw`, anything a
+module registers, now works without an explicit `mod load` first, the
+same shape bash's `command_not_found_handle` is. Interactive only --
+`.hibrc` is never read by a script -- and deliberately only reachable
+after PATH and every builtin/function has already refused the name, so
+it can never shadow a real program. (Considered and set aside: moving
+`json.c` itself to a module on the strength of this -- the autoloader
+doesn't help scripts, which is how `json` is actually used, and the
+underlying typed-map data it operates on is core infrastructure either
+way. Recorded in `docs/backlog.md`.)
+
+Smaller: About hibr shows the desktop's own version on its own line above
+hibr's, rather than combined onto one; `sysinfo` gained a Darwin picture
+and an explicit fallback to it when `/etc/os-release` doesn't exist,
+which it never does on macOS.
+
 ## 0.24
 
 Desktop moves to **0.4** alongside this release. A macOS hardening pass,

@@ -383,6 +383,17 @@ static const char *si_rhel[] = {
 	0
 };
 
+static const char *si_darwin[] = {
+	"                 .:'          ",
+	"             __ :'__          ",
+	"          .'`  `-'  ``.       ",
+	"         :          .-'       ",
+	"         :         :          ",
+	"          :         `-;       ",
+	"           `.__.-.__.'        ",
+	0
+};
+
 static const char *si_freebsd[] = {
 	"\001   ```                        `",
 	"\001  ` `.....---.......--.```   -/",
@@ -415,6 +426,7 @@ static const struct { const char *id; const char **art; } si_arts[] = {
 	{ "freebsd", si_freebsd },  { "debian", si_debian },
 	{ "raspbian", si_debian },  { "alpine", si_alpine },
 	{ "cix", si_cix },          { "hibr", si_hibr },
+	{ "darwin", si_darwin },    { "macos", si_darwin },
 	{ 0, 0 }
 };
 
@@ -561,6 +573,11 @@ int m_sysinfo(sh *s, int ac, char **av)
 			si_rel(rel, "NAME", &pretty);
 	}
 	uname(&un);
+	/* macOS has no /etc/os-release at all, so id stays empty and the
+	   picture would otherwise fall back to hibr's own -- uname's own
+	   sysname is the one thing that is always there to ask instead. */
+	if (!id.n && !strcmp(un.sysname, "Darwin"))
+		s_cat(&id, "darwin");
 
 	{
 		char hn[128];

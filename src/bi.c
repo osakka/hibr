@@ -994,7 +994,8 @@ int b_mod(sh *s, int ac, char **av)
 {
 	if (ac < 2) {
 		lg(HIBR_LERR, "usage: mod load <path|name> | "
-			      "mod drop <name|all> | mod list | mod avail");
+			      "mod drop <name|all> | mod list | mod avail | "
+			      "mod find <builtin>");
 		return HIBR_FAIL;
 	}
 	if (!strcmp(av[1], "load")) {
@@ -1034,6 +1035,13 @@ int b_mod(sh *s, int ac, char **av)
 	if (!strcmp(av[1], "avail")) {
 		m_avail(s);
 		return HIBR_OK;
+	}
+	if (!strcmp(av[1], "find")) {
+		if (ac < 3) {
+			lg(HIBR_LERR, "mod find: builtin name required");
+			return HIBR_FAIL;
+		}
+		return m_findbi(s, av[2]);
 	}
 	lg(HIBR_LERR, "mod: %s: unknown subcommand", av[1]);
 	return HIBR_FAIL;
@@ -1513,7 +1521,7 @@ const hibr_bi bitab[] = {
 	{ "local", b_local, "declare function local variables" },
 	{ "mapfile", b_mapfile, "read lines into an array" },
 	{ "match", b_match, "match a regex and peel out the groups" },
-	{ "mod", b_mod, "load, drop or list modules" },
+	{ "mod", b_mod, "load, drop, list or find modules" },
 	{ "need", b_need, "make an interface or module available, or fail" },
 	{ "opt", b_opt, "declare an option for args" },
 	{ "popd", b_popd, "pop the directory stack" },

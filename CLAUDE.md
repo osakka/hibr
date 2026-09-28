@@ -936,24 +936,70 @@ went in the shell.
   position.
 - **`tests/desktop.py`'s own "an app with no key handler cannot swallow
   one" flakes at about 4% in complete isolation**, found while chasing a
-  suspected regression from a startup self-heal that was reverted for it
-  -- and wrongly suspected at first: an initial 0-failures-in-60 comparison
-  run against the code from before that change looked like a clean
-  baseline, and was actually just luck (a 4% rate and zero failures in 60
-  tries are compatible about a third of the time; the tell was a *matched*
-  100-run baseline on the unmodified code turning up 4 failures of its
-  own). `Term.__init__` sets the pty's size with an explicit `TIOCSWINSZ`
-  right after fork, in the parent, racing the child's own startup before
-  `cn_hook` has necessarily installed its SIGWINCH handler -- a plausible
-  mechanism, not a confirmed one; disabling that resize to test it made
-  every run fail for an unrelated reason (the desktop then starts at
-  whatever degenerate size a pty defaults to) rather than isolating
-  anything. Not yet root-caused. Reproduce with a tight loop calling
-  `run(QUIET)` — the one at the bottom of `tests/desktop.py`'s own "an app
-  with no key handler" section — 100 times outside the rest of the suite;
-  expect 3-5 failures, all `sc.quit == False` with the screen itself drawn
-  correctly, meaning the desktop is up and drawing fine and only the quit
-  key's own delivery is what occasionally misses its 1.2s window.
+  suspected regression from a startup self-heal in `dt_run`, initially
+  reverted for it -- and wrongly suspected at first: a 0-failures-in-60
+  comparison run against the code from before that change looked like a
+  clean baseline, and was actually just luck (a 4% rate and zero failures
+  in 60 tries are compatible about a third of the time; the tell was a
+  *matched* 100-run baseline on the unmodified code turning up 4 failures
+  of its own). `Term.__init__` sets the pty's size with an explicit
+  `TIOCSWINSZ` right after fork, in the parent, racing the child's own
+  startup before `cn_hook` has necessarily installed its SIGWINCH handler
+  -- a plausible mechanism, not a confirmed one; disabling that resize to
+  test it made every run fail for an unrelated reason (the desktop then
+  starts at whatever degenerate size a pty defaults to) rather than
+  isolating anything. Not yet root-caused. Reproduce with a tight loop
+  calling `run(QUIET)` — the one at the bottom of `tests/desktop.py`'s own
+  "an app with no key handler" section — 100 times outside the rest of the
+  suite; expect 3-5 failures, all `sc.quit == False` with the screen itself
+  drawn correctly, meaning the desktop is up and drawing fine and only the
+  quit key's own delivery is what occasionally misses its 1.2s window.
+  The self-heal itself went back in afterward, unconditional this time
+  (always `console reassert` on the first idle tick, not only when the
+  re-read size differs) -- a real Mac confirmed the black screen was
+  *indefinite*, not merely past cn_size's own retry budget, so nothing
+  about waiting longer was ever going to fix it, and only an unconditional
+  repaint covers both "the size was wrong" and "the size was fine but the
+  terminal never rendered it" without knowing which one it is.
+- **A window's centred title was centred in the wrong space.**
+  `DT_TITLEALIGN=center` centred the title within the room left over
+  *after* excluding the button cluster, not across the bar's true full
+  width -- pushing it off-centre by about half the cluster's own width, in
+  opposite directions depending on `DT_BTNSIDE`. Both sides were wrong;
+  only `left` was reported, because `right` is the default and the offset
+  reads as a design choice until you see the other side. `tc` is computed
+  against the bar's own width now, then clamped into the same safe range
+  the button cluster already keeps clear.
+- **A "skip" setting's own number must mean the count it names.**
+  `DT_DRAWSKIP`'s loop compared `skipn` against `DT_DRAWSKIP - 1`, so the
+  shipped default of 1 ("Redraw Skip (1)" in the Control Panel) actually
+  skipped zero frames -- the number never meant what the label said, an
+  off-by-one found only because a real user asked "shouldn't this start
+  from zero?" and was right. Renumbered 0-9, default 0, so the mechanism
+  and the label finally agree.
+- **A process substitution's child is only reaped if the first `WNOHANG`
+  wait happens to catch it already dead, and the record was discarded
+  either way.** `xpsub_done` closes the descriptor and calls
+  `waitpid(pid, &w, WNOHANG)` for every `<(...)` a command used, but it
+  used to `free` the tracking record regardless of what `waitpid`
+  answered -- 0 ("still running") was treated the same as a real reap.
+  For `while read; do ...; done < <(cmd)`, the loop's first ordinary
+  command (the first `read`, going through `ex_cmd`'s own tail where this
+  runs) reaches that point microseconds after the fork, almost always
+  before `cmd` has even exited -- so the wait reliably returns 0, the pid
+  is discarded anyway, and hibr simply stops knowing that child exists.
+  When it does exit, moments later, nothing is left to reap it: a zombie
+  per loop, forever, for as long as the shell itself runs. Confirmed with
+  a hundred-iteration `while read x; do :; done < <(command echo hi)`
+  loop: 97 zombies on the old code, 0 on the fixed one. The fix keeps an
+  unresolved record in `s->psub` instead of discarding it -- `waitpid`
+  returning 0 means "try again", not "done" -- so the very next simple
+  command's own call to `xpsub_done`, whether or not it has a process
+  substitution of its own, gets another chance, for as long as `s->psub.n`
+  stays nonzero. Not desktop- or macOS-specific: any `<(...)` read inside
+  a fast loop hits this on any platform; it surfaced first in Task
+  Manager's own macOS `ps -axo` scan because that is the one place in this
+  codebase the pattern was already in real use.
 
 ## Testing discipline
 

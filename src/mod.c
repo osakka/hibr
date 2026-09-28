@@ -455,6 +455,31 @@ int m_declares(const char *path, const char *iface)
 	return yes;
 }
 
+/* Does the module in this file register a builtin by this exact name?
+   The same probe m_declares makes for an interface, reading the static
+   descriptor without ever calling the module's own init -- so finding out
+   costs a dlopen/dlclose, not the module's own startup work, for every
+   candidate that turns out not to be the one. */
+int m_declaresbi(const char *path, const char *nm)
+{
+	void *h = dlopen(path, RTLD_NOW | RTLD_LOCAL);
+	const hibr_mod *d;
+	const hibr_bi *b;
+	int yes = 0;
+
+	if (!h)
+		return 0;
+	d = (const hibr_mod *)dlsym(h, "hibr_module");
+	if (d && d->abi == HIBR_ABI)
+		for (b = d->bi; b && b->nm; b++)
+			if (!strcmp(b->nm, nm)) {
+				yes = 1;
+				break;
+			}
+	dlclose(h);
+	return yes;
+}
+
 /* Walk one directory for a module that offers the interface, and load it. */
 int m_seek(sh *s, const char *dir, const char *iface)
 {
@@ -493,6 +518,79 @@ int m_seek(sh *s, const char *dir, const char *iface)
 		free(names.p[i]);
 	v_free(&names);
 	return got;
+}
+
+/* Walk one directory for a module that registers this builtin, and load
+   it. Same shape as m_seek, one directory below it, checking m_declaresbi
+   instead of m_declares -- kept as its own copy rather than a shared
+   walker taking a predicate, since the two are three lines apart and a
+   parameter here would only be used by these two callers. */
+int m_seekbi(sh *s, const char *dir, const char *nm)
+{
+	DIR *dp = opendir(dir);
+	struct dirent *de;
+	vec names;
+	size_t i;
+	int got = 0;
+
+	if (!dp)
+		return 0;
+	names.p = 0;
+	names.n = 0;
+	names.cap = 0;
+	while ((de = readdir(dp)))
+		if (m_hasso(de->d_name))
+			v_add(&names, xs(de->d_name));
+	closedir(dp);
+	if (names.n > 1)
+		qsort(names.p, names.n, sizeof *names.p, m_cmp);
+	for (i = 0; i < names.n && !got; i++) {
+		str full;
+		s_init(&full);
+		s_cat(&full, dir);
+		if (full.n && full.p[full.n - 1] != '/')
+			s_ch(&full, '/');
+		s_cat(&full, (char *)names.p[i]);
+		if (m_declaresbi(full.p, nm)) {
+			lg(HIBR_LINF, "loading %s, which registers %s", full.p,
+			   nm);
+			got = m_load(s, full.p) == HIBR_OK;
+		}
+		s_free(&full);
+	}
+	for (i = 0; i < names.n; i++)
+		free(names.p[i]);
+	v_free(&names);
+	return got;
+}
+
+/* Find and load whichever module on the module path registers a builtin
+   by this exact name -- what the command_not_found autoloader in .hibrc
+   is built on. Already loaded is checked first and is free; everything
+   past that is the same search hibr_require/need already walk: the
+   current directory unless root, $HIBR_MODPATH, then HIBR_MODDIR. */
+int m_findbi(sh *s, const char *nm)
+{
+	const char *mp;
+
+	if (m_find(s, nm))
+		return HIBR_OK;
+	mp = geteuid() == 0 ? 0 : hibr_get(s, "HIBR_MODPATH");
+	if (geteuid() != 0 && m_seekbi(s, ".", nm))
+		return HIBR_OK;
+	while (mp && *mp) {
+		const char *e = strchr(mp, ':');
+		size_t n = e ? (size_t)(e - mp) : strlen(mp);
+		if (n) {
+			char *d = ar_dup(s->xa, mp, n);
+			if (m_seekbi(s, d, nm))
+				return HIBR_OK;
+		}
+		mp = e ? e + 1 : mp + n;
+	}
+	if (m_seekbi(s, HIBR_MODDIR, nm))
+		return HIBR_OK;
+	return HIBR_FAIL;
 }
 
 /* Ask for a table another module offered. When nothing has offered it yet,

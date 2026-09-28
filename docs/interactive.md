@@ -21,6 +21,33 @@ alias ll='ls -lh'
 export EDITOR=vim
 ```
 
+A `command_not_found` function defined here — `deploy.sh` writes one into a
+new install's starter `.hibrc` by default — is called with the missing
+command and its arguments once ordinary lookup has already failed, the same
+convention bash's `command_not_found_handle` uses:
+
+```sh
+command_not_found() {
+	mod find "$1" > /dev/null 2>&1 && "$@" ||
+		{ echo "hibr: $1: command not found" >&2; return 127; }
+}
+```
+
+Run:
+
+```
+$ upper hello world
+HELLO WORLD
+$ totally-bogus-command
+hibr: totally-bogus-command: command not found
+```
+
+`upper` autoloaded the `sys` module that registers it — no `mod load`/`need`
+line first — while a command nothing registers still fails cleanly. This is
+interactive-only: `.hibrc` is never read by a script, so a script that wants
+a module's builtin still needs its own explicit `need`. See [`mod
+find`](builtins.md#modules).
+
 ## Prompts
 
 | variable | is |

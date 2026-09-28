@@ -206,35 +206,34 @@ about_draw() {
 	command -v dt_want > /dev/null && dt_want "$AB_SLOWMS"
 	console pen "$DT_INK" "$DT_FACE" bold
 	if [ -n "$DT_VER" ]; then
-		console put -p "w$id" 1 2 "hibr $HIBR_VERSION · desktop $DT_VER"
-	else
-		console put -p "w$id" 1 2 "hibr $HIBR_VERSION"
+		console put -p "w$id" 1 2 "Desktop $DT_VER"
 	fi
+	console put -p "w$id" 2 2 "hibr $HIBR_VERSION"
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 2 2 "Highly Intuitive Bash-like Runtime"
-	console put -p "w$id" 3 2 "a desktop written in the shell it runs on"
-	console put -p "w$id" 5 2 "$AB_HOST"
-	console put -p "w$id" 6 2 "$AB_KERNEL"
+	console put -p "w$id" 3 2 "Highly Intuitive Bash-like Runtime"
+	console put -p "w$id" 4 2 "a desktop written in the shell it runs on"
+	console put -p "w$id" 6 2 "$AB_HOST"
+	console put -p "w$id" 7 2 "$AB_KERNEL"
 
 	cpu := about_cpu "$id"
 	bar := about_bar "$cpu" "$barw"
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 8 2 "CPU"
+	console put -p "w$id" 9 2 "CPU"
 	console pen "$DT_ACTIVE" "$DT_FACE"
-	console put -p "w$id" 8 6 "$bar"
+	console put -p "w$id" 9 6 "$bar"
 	console pen "$DT_INK" "$DT_FACE"
 	printf -v pct '%3d%%' "$cpu"
-	console put -p "w$id" 8 $((w - 6)) "$pct"
+	console put -p "w$id" 9 $((w - 6)) "$pct"
 
 	mem := about_mem "$id"
 	bar := about_bar "$mem" "$barw"
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 9 2 "MEM"
+	console put -p "w$id" 10 2 "MEM"
 	console pen "$DT_ACTIVE" "$DT_FACE"
-	console put -p "w$id" 9 6 "$bar"
+	console put -p "w$id" 10 6 "$bar"
 	console pen "$DT_INK" "$DT_FACE"
 	printf -v pct '%3d%%' "$mem"
-	console put -p "w$id" 9 $((w - 6)) "$pct"
+	console put -p "w$id" 10 $((w - 6)) "$pct"
 }
 
 if [ -z "$DT_ROWS" ]; then

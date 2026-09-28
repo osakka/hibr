@@ -225,6 +225,7 @@ inside a function or a `try` it returns 2 —
 | `mod drop name` | unload one |
 | `mod list` | list what is loaded, with its ABI and builtins |
 | `mod avail`, `mod list -a` | list every module that could be loaded, and its state |
+| `mod find builtin` | load whichever module on the module path registers this builtin |
 | `need name…` | make an interface or module available, or fail saying which |
 | `app name [text]` | name this script as an app, for whatever is running it |
 | `cat [-benstuvAETfp] [file…]` | **[module]** `cat` in a pipe; gutter and colour on a terminal |
@@ -233,6 +234,14 @@ A module adds builtins, and it can add a *protocol*: register a scheme and
 `/dev/<name>/…` works anywhere a filename does. When the effective uid is 0 the
 search skips `.` and `HIBR_MODPATH` and consults only the module directory. See
 [Modules](modules.md).
+
+`mod find` is what a `command_not_found` function (interactive shells only —
+see [Interactive](interactive.md)) autoloads with: the default `~/.hibrc`
+`deploy.sh` writes for a new install defines one, so a command a module
+registers works without an explicit `mod load`/`need` first, the same as if
+it had always been a builtin. It only ever runs after PATH and every
+builtin/function have already failed to find the command, so it never
+shadows a real program the way checking modules *before* PATH would.
 
 ## Interactive
 

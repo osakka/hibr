@@ -7,20 +7,63 @@ about.
 
 ## Modules
 
-### List what is installed, not only what is loaded
+### List what is installed, not only what is loaded — built
 
-`mod list` shows the modules that are **loaded**. Nothing shows what is
-*available* — there are four `.so` files in `/usr/local/lib/hibr` and no way to
-ask the shell about them.
+`mod avail` (and `mod list -a`) lists the module directory itself, each
+module's name, version, ABI and builtins, marking the ones already loaded —
+`dlopen`ing each candidate to reach its `hibr_module` descriptor without
+calling its init, refusing one whose ABI does not match.
 
-Wanted: `mod avail` (or `mod list -a`), listing the module directory with each
-module's name, version, ABI and builtins, and marking the ones already loaded.
-Reading the ABI and description means `dlopen`ing each candidate to reach its
-`hibr_module` descriptor, so it should refuse one whose ABI does not match
-rather than loading it.
+### A bare command name autoloads its module — built
 
-Small. The search-path logic in `m_open` already knows where to look, including
-the rule that root consults only `HIBR_MODDIR`.
+A second, different sense of "autoloading" from the interface-based one
+below: this one starts from a command someone actually typed, not an
+interface a tool asked for. `command_not_found` in `.hibrc` (interactive
+only — a script still needs its own `need`) calls the new
+`mod find <builtin>`, which walks the module path the same way
+`hibr_require`/`need` already do but matches a candidate's `bi[]` table by
+name instead of its declared interface, loading the first one that
+registers it. `deploy.sh` writes the function into a new install's starter
+`.hibrc` by default, so `console key`/`img draw`/anything a module
+registers works without an explicit `mod load` first — the same shape
+bash's own `command_not_found_handle` is, and, deliberately, only reachable
+*after* PATH and every builtin/function has already refused the name, so it
+can never shadow a real program the way checking modules before PATH would.
+See [`mod find`](builtins.md#modules) and
+[the interactive guide](interactive.md#starting-up).
+
+### Move json (and other language-adjacent core) to a module?
+
+Raised once the autoloader above existed: if a command autoloads its module
+for free now, why keep `json.c` (parse/serialize, ~460 lines, the `json`
+builtin) linked into every `hibr` binary rather than `mods/json.so`, loaded
+on first use like `console` or `img`?
+
+The autoloader does not actually make this free, and that is the answer for
+now, not just a caveat. `command_not_found` lives in `.hibrc`, which is
+never read by a script (`rc_load` is gated on `isatty(0)`) — only by a human
+typing at a prompt. `json` is used from scripts, not typed interactively: a
+grep across `examples/` and `docs/` found 9 files calling `json
+parse`/`get`/`set`/`type` directly, none of them with a `need json` guard,
+because it is core today. Moving it to a module on the strength of an
+interactive-only convenience would break all nine silently.
+
+Deeper than that: `json.c` does not own its data. It reads and writes
+`ent->ty` (`J_STR`/`J_NUM`/`J_ARR`/…), the same field ordinary nested-map
+assignment already threads through `var.c` and `expand.c` regardless of
+whether `json.c` is ever linked. Moving the file would only relocate the
+parse/serialize *command*; "nested maps carry JSON type fidelity" is core
+infrastructure independent of it, and has to stay core.
+
+If this is worth doing anyway, it needs a fallback that is not
+interactive-only — something the core shell itself tries on any
+command-not-found, script or interactive, before giving up, not a
+`.hibrc`-defined function. That is a materially bigger, separate design
+(effectively "checks modules" is `command_not_found`'s *own* fallback
+built into the shell rather than opt-in) and has not been scoped. Same
+question applies to `net.c`, `text.c`, `args.c` — see CLAUDE.md's own
+"Open items" — this ticket is about `json.c` specifically because it is the
+one raised so far.
 
 ### Loading by path — already works
 
@@ -58,28 +101,76 @@ regardless of platform -- so a bare `make` on Darwin tried tcc anyway rather
 than falling back. The default is now conditional on `$(origin CC)` being
 `default`: only make's own fallback gets replaced, by platform, so `make
 CC=gcc` or `CC=gcc` in the environment still wins over either default, on
-either platform, exactly as before. Also: a terminal reporting a size of 0x0
-for its first moment after opening a new window -- seen on some Darwin
-terminals, not on the Linux ones this was built against -- read as no
-terminal at all and fell back to a fixed 80x24 that only a real resize ever
-corrected; `cn_size` now retries a few times, milliseconds apart, before
-giving up. And the desktop's About window and Task Manager, which read
-`/proc` directly the same as `mods/sysinfo` and have no Darwin equivalent of
-their own: About now forks `vm_stat`, `sysctl` and `top -l 2 -n 0` instead,
-throttled the same way the Linux path already throttles its own reads, and
-the Task Manager forks `ps -axo` for its whole process list, since there is
-no delta of its own to keep when the kernel already computes %CPU. None of
-this has run on an actual Mac -- only reasoned through and checked against
-fixed input standing in for the real command.
+either platform, exactly as before.
 
-Still open: `/proc/meminfo` in the prompt module has no Darwin equivalent and
-should report nothing rather than a wrong number; whether modules should
-follow the `.dylib` convention when `m_open` only appends `.so`; and the
-sonames `libssl` is `dlopen`ed by, which differ and are not on the default
-search path under Homebrew. Modules are built as `-dynamiclib`; if `dlopen`
-refuses them, `-bundle` is the other spelling and the one macOS conventionally
-uses for plugins. Job control, the pty line editor and the test suite are
-untested rather than known broken.
+**The rest of this section was rewritten once real hardware was actually
+available (v0.23/0.24) — everything above this line was reasoned through
+only; everything below was found, fixed and mostly verified live on a real
+Mac (Apple Silicon, confirmed via `brew list` showing `/opt/homebrew/...`
+paths).**
+
+Dealt with, verified live: a terminal answering a fresh window's own
+`TIOCGWINSZ` with 0x0 for a moment read as no terminal at all and fell back
+to a fixed size that nothing then corrected -- `cn_size`'s retry budget
+widened from 200ms to 1s, *and*, since a real Mac still stayed black
+indefinitely (confirmed: waiting alone never revealed it, only an actual
+resize did, meaning the terminal was never going to self-correct no matter
+how long the wait), `dt_run` now forces one `console reassert` on its own
+first idle tick regardless of whether the reported size even changed --
+covers both a stale-size theory and a terminal-render-lag theory at once,
+since only one of them is fixed by comparing sizes.
+
+Dealt with, verified live: `libpng`/`libssl` were `dlopen`ed by bare Linux
+`.so` names only, so wallpaper decoding and TLS silently never worked on
+macOS at all. Both gain macOS paths by full Homebrew keg-only path (checked
+against a real `brew list libpng openssl@3`: `libpng16.dylib` is genuinely
+a symlink to the real `libpng16.16.dylib`, so the guessed name resolves).
+`libssl` deliberately gets no bare `.dylib` fallback -- confirmed against
+Apple's own developer forums that the system's unversioned copy hard-aborts
+third-party code that loads it, "invalid dylib load", not a graceful
+failure. Both also gained a negative cache: previously a missing library
+was rediscovered-and-failed on every call, which for `libpng` meant three
+failed `dlopen`s and a log line on every single desktop frame once a
+wallpaper was set. The Homebrew formula (this repo's copy and the live
+`osakka/homebrew-hibr` one) now `depends_on` both on macOS.
+
+Dealt with, verified live (`mod load` succeeds, its Mach symbols resolve):
+`mods/darwin.c`, a Darwin-only module (`ifeq ($(UNAME),Darwin)` in the
+Makefile, not `#ifdef`, so nothing on Linux ever tries to compile it) --
+`cpu` and `mem` from one `host_statistics(64)` call each, no fork. Task
+Manager's system-wide meters were never implemented on macOS at all
+(a placeholder returning 0); About hibr's own `top -l 2 -n 0` blocked the
+whole single-threaded draw loop for about a second every three, a second,
+separate, real source of the reported choppiness, quite apart from
+`libpng`'s own per-frame retries. `cpu` deliberately returns raw counters,
+not a percentage -- the previous reading belongs to whichever caller is
+asking, and About and Task Manager can both be open at once, each on its
+own throttle. Not yet independently confirmed: the actual *numbers* `cpu`/
+`mem` report are correct, only that the calls succeed and return something.
+
+Dealt with, verified live: `/usr/share/zoneinfo/zone1970.tab` (the Date &
+Time Control Panel pane's map, and `examples/traceroute.hibr`) reported
+missing on a real Mac -- `/usr/share/zoneinfo` there is usually a symlink
+chain down through a version-stamped `/var/db/timezone/...` and apparently
+does not always resolve. Both now check `$TZDIR`, then the standard path,
+then the direct macOS path, and fail silently (no map mark, rather than a
+shell error printed at every desktop startup) if none exist.
+
+Dealt with, not yet verified live: `sysinfo` had no Darwin picture at all
+(no `/etc/os-release` there, so `id`/`like` stayed empty and it always fell
+back to hibr's own logo) -- a bitten-apple ASCII picture and an explicit
+`uname`-based fallback (`id = "darwin"` when `/etc/os-release` is absent and
+`uname`'s own `sysname` says `Darwin`) are added, checked only by eye on
+this Linux machine with `sysinfo -l darwin`.
+
+Still open: `mods/prompt`'s own `/proc/meminfo`/`/proc/loadavg` reads have
+no Darwin equivalent and should report nothing rather than a wrong number.
+Job control and the pty line editor are untested rather than known broken.
+The window title-bar centring bug (buttons pushed a centred title
+off-centre, reported from real use) and the redraw-skip slider's own
+0-vs-1 base (also reported from real use) were both real bugs, now fixed,
+not Darwin-specific -- listed in [CLAUDE.md](../CLAUDE.md)'s own traps, not
+here, since neither is actually a port issue.
 
 ## Wanted
 

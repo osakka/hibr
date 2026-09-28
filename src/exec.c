@@ -1061,6 +1061,22 @@ int ex_cmd(sh *s, node *n)
 	}
 	path = findx(s, av[0]);
 	if (!path) {
+		node *cnf = fn_find(s, "command_not_found");
+		if (cnf) {
+			/* fn_call shifts its own av by one (a function's $1 is
+			   its first argument, not its own name), so the missing
+			   command itself needs a dummy slot ahead of it to land
+			   on $1 -- without this, the handler's "$@" silently
+			   drops the very name it exists to be told. */
+			char **nav = xm((size_t)(ac + 1) * sizeof *nav);
+			int i;
+			nav[0] = "command_not_found";
+			for (i = 0; i < ac; i++)
+				nav[i + 1] = av[i];
+			st = fn_call(s, cnf, ac + 1, nav);
+			free(nav);
+			goto out;
+		}
 		lg(HIBR_LERR, "%s: command not found", av[0]);
 		st = HIBR_NOCMD;
 		goto out;
