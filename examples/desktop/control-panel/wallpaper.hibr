@@ -167,7 +167,7 @@ wp_fitcache() {
 
 wallpick_draw() {
 	local id=$1 h=$2 w=$3 bx=$4
-	local listw prevw prevx prevh vis applyrow i r n top sel t applyon path
+	local listw prevw prevx prevh vis moderow applyrow i r n top sel t applyon path
 
 	listw=$(((w - 3) * 2 / 5))
 	[ "$listw" -lt 16 ] && listw=16
@@ -175,6 +175,7 @@ wallpick_draw() {
 	prevw=$((w - listw - 3))
 	prevh=$((h - 4))
 	vis=$((h - 3))
+	moderow=$((h - 2))
 	applyrow=$((h - 1))
 	WPK[$id]["listw"]=$listw
 	WPK[$id]["bx"]=$bx
@@ -182,6 +183,7 @@ wallpick_draw() {
 	WPK[$id]["prevx"]=$prevx
 	WPK[$id]["prevh"]=$prevh
 	WPK[$id]["vis"]=$vis
+	WPK[$id]["moderow"]=$moderow
 	WPK[$id]["applyrow"]=$applyrow
 
 	if [ -z "${FB[$id]["dir"]}" ]; then
@@ -252,6 +254,11 @@ wallpick_draw() {
 		applyon=0
 	fi
 
+	console pen "$DT_INK" "$DT_FACE"
+	t="Mode: ${DT_WALLMODE^} ▾"
+	t := str pad "$t" "$prevw"
+	console put -p "w$id" "$moderow" "$prevx" "$t"
+
 	if [ "$applyon" = 1 ]; then
 		console pen "$DT_FACE" "$DT_ACTIVE" bold
 	else
@@ -271,6 +278,14 @@ wallpick_key() {
 	case $2 in
 	up) sel=$((sel - 1)) ;;
 	down) sel=$((sel + 1)) ;;
+	m)
+		local i
+		for i in "${!WP_MODES[@]}"; do
+			[ "${WP_MODES[$i]}" = "$DT_WALLMODE" ] && break
+		done
+		wp_setmode "$id" "${WP_MODES[$(((i + 1) % ${#WP_MODES[@]}))]}"
+		return 0
+		;;
 	backspace)
 		wp_goto "$id" ..
 		return 0
@@ -321,6 +336,16 @@ wallpick_wheel() {
 	wp_refresh "$id"
 }
 
+WP_MODES=(stretch scale zoom center)
+
+# Called by dt_droplist's own popup with (id, value) -- id is unused, the
+# same "cb id value" shape every dropdown here uses, since the value alone
+# is enough to set a desktop-wide mode.
+wp_setmode() {
+	DT_WALLMODE=$2
+	command -v dt_save > /dev/null && dt_save
+}
+
 # Set the currently previewed file as the wallpaper, always in full
 # colour -- shared by a click on the button and enter on an already-
 # previewed file, so there is a keyboard way to finish this, not only a
@@ -347,6 +372,11 @@ wallpick_click() {
 	if [ "$r" = "${WPK[$id]["applyrow"]}" ] &&
 	   [ "$c" -ge "${WPK[$id]["prevx"]}" ]; then
 		wp_apply "$id"
+		return 0
+	fi
+	if [ "$r" = "${WPK[$id]["moderow"]}" ] &&
+	   [ "$c" -ge "${WPK[$id]["prevx"]}" ]; then
+		dt_droplist "$id" "$r" "$c" wp_setmode "${WP_MODES[@]}"
 		return 0
 	fi
 	[ "$c" -ge "$bx" ] || return 0

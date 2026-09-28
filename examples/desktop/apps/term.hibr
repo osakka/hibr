@@ -47,10 +47,12 @@ command -v dt_keep > /dev/null && dt_keep DT_TERMBAR
 # through its own OSC 0/1/2 escape -- a shell's PS1 can set one with
 # '\[\e]0;...\a\]', so "settable based on variables" is already the prompt's
 # own escapes (\w for the working directory, \h for the host, and so on;
-# see docs/interactive.md), not something new here. On by default: once a
-# program reports a title, it is more useful than the fixed one the menu
-# opened the window with. A window opened on a file (term_open's own
-# dt_retitle) is untouched by this as long as what runs there reports
+# see docs/interactive.md), not something new here. Shown as
+# "Terminal [$reported]", not the bare report alone -- the window stays
+# identifiable as a terminal no matter how the program names itself. On by
+# default: once a program reports a title, it is more useful than the fixed
+# one the menu opened the window with. A window opened on a file (term_open's
+# own dt_retitle) is untouched by this as long as what runs there reports
 # nothing, which is why closing a program-named window still shows the
 # file's name in tests/apps.py's "opening a file opens a terminal window
 # called by its name".
@@ -139,7 +141,7 @@ term_draw() {
 		n := term title "$t"
 		if [ -n "$n" ] && [ "$n" != "${TW[$id]["ptitle"]}" ]; then
 			TW[$id]["ptitle"]="$n"
-			command -v dt_retitle > /dev/null && dt_retitle "$id" "$n"
+			command -v dt_retitle > /dev/null && dt_retitle "$id" "Terminal [$n]"
 		fi
 	fi
 	[ "$DT_FOCUS" = "$id" ] && cur=1
@@ -292,7 +294,8 @@ term_open() {
 	TW[$1]["selfrun"]=$DT_OPENSELF
 	DT_OPENSELF=
 	if [ -n "$2" ]; then
-		command -v dt_retitle > /dev/null && dt_retitle "$1" "${2##*/}"
+		command -v dt_retitle > /dev/null &&
+			dt_retitle "$1" "Terminal [${2##*/}]"
 	fi
 	return 0
 }

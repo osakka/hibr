@@ -1,5 +1,53 @@
 # Changelog
 
+## 0.31
+
+Desktop moves to **0.11** alongside this release.
+
+**A shortcut still would not register after the first one that did**,
+reported live as "I tried ctrl-l, alt-ctrl-l, and l, and none of them
+registered" -- and reproduced exactly: the first attempt on a fresh row
+worked, and every attempt after it silently failed, regardless of the
+key. Root cause was a second bug in the same capture flow 0.29 had
+already fixed one bug in. `panel_click`'s own "a second click on an
+already-selected row activates it" means a shortcut row already selected
+from a previous attempt arms capture on the very first click of the
+next one -- so the click right after that, the other half of an ordinary
+double-click or just a habitual re-click, arrives as its own event and
+was read by `dt_event`'s own capture check as "the next key," silently
+cancelling the capture it had itself just armed, before the intended
+key was ever pressed. A mouse event no longer cancels a capture in
+progress; only escape does.
+
+**A terminal window's title now reads "Terminal [x]", not just "x"** --
+whether x is what the program inside reported through its own OSC
+title, the name of a file opened for editing, or the name of an
+executable run directly (0.30's own new feature). The window stays
+identifiable as a terminal no matter what it is showing.
+
+**Files can now run an executable directly, from a script of your own**:
+`dt_handler <ext> [term] <cmd...>` (documented in
+`examples/desktop/README.md`, called from `session.hibr`, never from the
+desktop itself) is where an extension-to-program mapping is added --
+there is no default one, and none is meant to ship, since what opens
+what is a choice the user's own session file makes.
+
+**The wallpaper can now scale, zoom, or center, not only stretch** --
+`DT_WALLMODE`, a new row in Control Panel's own Wallpaper pane (a
+dropdown, or `m` on the keyboard): stretch ignores the image's own
+aspect ratio (the original and only behaviour); scale fits it entirely
+within the screen, keeping that ratio, the glyph pattern showing
+through any letterboxed margin; zoom fills the screen, keeping the
+ratio, with the overflow cropped; center is the image's own native
+size, unscaled, centred. The same cell-aspect correction (`2*sw/sh`,
+since a cell is one column but two source pixel rows) the wallpaper
+picker's own preview already used for "fitted, not stretched."
+
+HIBR_VER -> 0.31, DT_VER -> 0.11.
+
+Verified: tests/run.sh 86/86, tests/desktop.py 267/267, tests/apps.py
+203/203.
+
 ## 0.30
 
 Desktop moves to **0.10** alongside this release.

@@ -1310,6 +1310,34 @@ sc, raw = run("", env={"DT_WALLIMG": "/does/not/exist.png"}, pre=IMGMOD)
 check("an unusable wallpaper image falls back to the glyph instead",
       sc.row(1)[0:1] == "·", sc)
 
+# DT_WALLMODE: stretch (the default, checked above already) ignores the
+# image's own shape; scale fits it in keeping that shape, letterboxed;
+# zoom fills the screen keeping it, cropped; center is its own native
+# size, unscaled. img-wide.png is 40x4 -- very wide and short, so the
+# three differ obviously against a 24x80 screen: scale letterboxes top
+# and bottom, zoom covers every cell with no glyph left showing anywhere,
+# and center sits at exactly 40 columns by 2 rows (sh/2, img draw's own
+# half-block doubling), centred.
+WIDEFIX = tree("tests/img-wide.png")
+
+sc, raw = run("", env={"DT_WALLIMG": WIDEFIX, "DT_WALLMODE": "scale"},
+              pre=IMGMOD)
+check("scale fits the image within the screen, letterboxed",
+      "·" in sc.row(1) and "·" not in sc.row(11) and
+      sc.at(11, 0) != "·" and sc.at(11, 79) != "·", sc)
+
+sc, raw = run("", env={"DT_WALLIMG": WIDEFIX, "DT_WALLMODE": "zoom"},
+              pre=IMGMOD)
+check("zoom fills the screen, cropped, with no glyph left showing",
+      sc.text().count("·") == 0, sc)
+
+sc, raw = run("", env={"DT_WALLIMG": WIDEFIX, "DT_WALLMODE": "center"},
+              pre=IMGMOD)
+check("center sits at the image's own native size, unscaled, centred",
+      sc.at(11, 19) == "·" and sc.at(11, 20) != "·" and
+      sc.at(11, 59) != "·" and sc.at(11, 60) == "·" and
+      sc.at(10, 20) == "·" and sc.at(13, 20) == "·", sc)
+
 sc, raw = run('dt_launch imgview "%s"' % IMGFIX, pre=IMGMOD + DASRC)
 check("the image viewer opens with a picture and draws it",
       sc.find("Image Viewer") is not None and
@@ -1879,4 +1907,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(264)
+report(267)

@@ -337,6 +337,43 @@ check("the first pane's own rows show on the right without entering it",
       sc.find(TITLE[ORDER[0]]) is not None and
       sc.find("Control Panel") is not None, sc)
 
+# App Shortcuts (the default pane, with only panel.hibr loaded here its
+# only row is Control Panel itself) -- rebinding a shortcut, and the
+# self-cancelling-click bug reported live as "I tried ctrl-l, alt-ctrl-l
+# and l, none of them registered": a row already selected and last (true
+# of every attempt after the first) arms capture on the very *first*
+# click of the next attempt (panel_click's own "a second click on an
+# already-selected row activates it"), so the click right after that --
+# the other half of an ordinary double-click, or just a habitual re-click
+# -- used to be read as dt_event's own next key and silently cancel the
+# capture it had itself just armed, before the intended key was ever
+# pressed.
+# cprun's own returned screen is always read after its default "qy" quit
+# keys have *also* run (run()'s own end=b"qy") -- and "q" is DT_KEYS' own
+# default quit shortcut, so a capture still armed when it arrives swallows
+# it as the completing key instead of quitting. Every check below sends
+# its own real completing key (or escape) before that point, inside its
+# own feed, and asserts on the row's own persisted value rather than the
+# transient "Press a key…"/"X is now Y" notes, which by the time the
+# screen is captured may already have been overwritten by whatever the
+# trailing "qy" went on to do.
+sc = cprun([b"\x1b[C", b"\r", b"z"])
+row = sc.find("Control Panel")
+check("activating the only App Shortcuts row starts capture, and the "
+      "very next key completes it",
+      row is not None and "z" in sc.row(row[0]), sc)
+
+sc = cprun([b"\x1b[C", b"\r", press(R0, VALCOL), b"z"])
+row = sc.find("Control Panel")
+check("a stray click while capturing does not cancel it -- the key sent "
+      "right after still completes the rebind",
+      row is not None and "z" in sc.row(row[0]), sc)
+
+sc = cprun([b"\x1b[C", b"\r", b"\x1b", b"z"])
+row = sc.find("Control Panel")
+check("escape cancels it -- the next key is ordinary again, not captured",
+      row is not None and "z" not in sc.row(row[0]), sc)
+
 DOWN_APP = [b"\x1b[B"] * downs("appearance")
 DOWN_BEH = [b"\x1b[B"] * downs("behaviour")
 DOWN_DT = [b"\x1b[B"] * downs("datetime")
@@ -1151,7 +1188,7 @@ EDIT = "TW_EDIT=(/bin/sh -c 'echo \"editing $1\"; sleep 5' x)"
 sc = run("files", FW, [b"\x1b[B"] * 3 + [b"\r"], pre=PRE + "\n" + EDIT,
          extra=["term"], end=None, wait=1.2)
 check("opening a file opens a terminal window called by its name",
-      sc.find("┤ file00.txt ├") is not None and
+      sc.find("┤ Terminal [file00.txt] ├") is not None and
       sc.find("editing") is not None, sc)
 
 # --- files: choosing more than one ---------------------------------------
@@ -1341,7 +1378,7 @@ EXPRE = "FB_DIR=%s\n" % EX
 sc = run("files", FW, [press(5, 10), press(5, 10)], pre=EXPRE,
          extra=("term",), wait=1.5)
 check("an executable, double-clicked, runs in a terminal instead of "
-      "opening in hvi", sc.find("┤ run.sh ├") is not None, sc)
+      "opening in hvi", sc.find("┤ Terminal [run.sh] ├") is not None, sc)
 check("the window stays open on a clean exit, showing the status",
       sc.find("[exited 0") is not None, sc)
 check("and it runs with its own path only, not appended a second time "
@@ -1507,4 +1544,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(200)
+report(203)

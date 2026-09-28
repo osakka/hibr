@@ -25,7 +25,7 @@ need display || { echo "desktop: no display available" >&2; exit 1; }
 # change that never touched a single line of src/*.c. HIBR_ABI is what
 # actually needs cross-checking between the two -- whether a module is
 # built against what this shell offers -- and that already exists.
-DT_VER=0.10
+DT_VER=0.11
 
 # The session's own arguments, captured here at the top level where $@ is
 # still theirs: a function sees its own, and dt_autohold needs to hand these
@@ -148,6 +148,18 @@ DT_GLYPH="${DT_GLYPH-·}"
 DT_WALLIMG="${DT_WALLIMG-}"
 DT_WALLTRIED=
 
+# How the wallpaper image fills the screen: stretch (ignore its own aspect
+# ratio, the original and only behaviour), scale (fit entirely within the
+# screen, keeping its own ratio, the glyph pattern showing through any
+# letterboxed margin), zoom (fill the screen, keeping its own ratio, the
+# overflow cropped), or center (its own native size, unscaled, centred,
+# cropped or letterboxed as its size and the screen's disagree). Kept in
+# the static DT_KEEP list below, not with dt_keep, since that function is
+# not defined yet this early in the core file's own top-to-bottom run --
+# dt_keep is for variables an app or pane declares after desktop.hibr has
+# already loaded.
+DT_WALLMODE="${DT_WALLMODE-stretch}"
+
 # The cursor a new terminal starts with, until the program inside it asks
 # for one of its own with DECSCUSR -- block, underline or bar.
 DT_CURSOR="${DT_CURSOR-block}"
@@ -263,7 +275,7 @@ DT_LASTDRAG=0
 # variable of its own kept names it with dt_keep.
 DT_CONF="${DT_CONF-${XDG_CONFIG_HOME:-$HOME/.config}/hibr/desktop.hibr}"
 DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
-	DT_WALLIMG
+	DT_WALLIMG DT_WALLMODE
 	DT_TICK DT_ICONS DT_DISKS DT_CURSOR DT_CURSOR_BLINK DT_SHADOW
 	DT_MSHADOW DT_BARSHADOW DT_DBLACTION DT_SHADOW_PCT CS_SIDE CS_Y
 	CS_COLLAPSED CS_LEN CS_SHADOW
@@ -538,6 +550,77 @@ dt_rep() {
 	ret "$o"
 }
 
+# The row/col/h/w to hand img draw for DT_WALLMODE, in DT_WALLR/C/H/W --
+# the same "cols must be 2*sw/sh, not sw/sh" cell-aspect correction
+# wallpaper.hibr's own preview already uses, since img draw's own cell is
+# one column wide but two source pixel rows tall. img draw silently clips
+# whatever falls outside the screen, the same discipline console put
+# already has, so zoom and center can freely come out larger than the
+# screen or with a negative row/col -- nothing here needs to clamp for it.
+#
+# Cached on the image, the mode and the screen size together, since this
+# runs every frame: a frame where none of the three changed reads the last
+# answer instead of asking img size -- a full decode with no result but
+# two numbers -- again for nothing.
+DT_WALLFITFOR=
+DT_WALLFITMODE=
+DT_WALLFITROWS=
+DT_WALLFITCOLS=
+dt_wallfit() {
+	local sw sh out fitr fitc
+
+	if [ "$DT_WALLMODE" = stretch ]; then
+		DT_WALLR=0
+		DT_WALLC=0
+		DT_WALLH=$DT_ROWS
+		DT_WALLW=$DT_COLS
+		return 0
+	fi
+	if [ "$DT_WALLFITFOR" = "$DT_WALLIMG" ] &&
+	   [ "$DT_WALLFITMODE" = "$DT_WALLMODE" ] &&
+	   [ "$DT_WALLFITROWS" = "$DT_ROWS" ] &&
+	   [ "$DT_WALLFITCOLS" = "$DT_COLS" ]; then
+		return 0
+	fi
+	DT_WALLR=0
+	DT_WALLC=0
+	DT_WALLH=$DT_ROWS
+	DT_WALLW=$DT_COLS
+	out := img size "$DT_WALLIMG"
+	if [ -n "$out" ]; then
+		sw=${out% *}
+		sh=${out#* }
+		if [ "$sw" -gt 0 ] && [ "$sh" -gt 0 ]; then
+			if [ "$DT_WALLMODE" = center ]; then
+				fitc=$sw
+				fitr=$((sh / 2))
+			else
+				fitc=$DT_COLS
+				fitr=$((fitc * sh / (2 * sw)))
+				if [ "$DT_WALLMODE" = scale ] &&
+				   [ "$fitr" -gt "$DT_ROWS" ]; then
+					fitr=$DT_ROWS
+					fitc=$((fitr * 2 * sw / sh))
+				elif [ "$DT_WALLMODE" = zoom ] &&
+				     [ "$fitr" -lt "$DT_ROWS" ]; then
+					fitr=$DT_ROWS
+					fitc=$((fitr * 2 * sw / sh))
+				fi
+			fi
+			[ "$fitc" -lt 1 ] && fitc=1
+			[ "$fitr" -lt 1 ] && fitr=1
+			DT_WALLH=$fitr
+			DT_WALLW=$fitc
+			DT_WALLR=$(((DT_ROWS - fitr) / 2))
+			DT_WALLC=$(((DT_COLS - fitc) / 2))
+		fi
+	fi
+	DT_WALLFITFOR=$DT_WALLIMG
+	DT_WALLFITMODE=$DT_WALLMODE
+	DT_WALLFITROWS=$DT_ROWS
+	DT_WALLFITCOLS=$DT_COLS
+}
+
 # Paint the wallpaper.  The bar is drawn afterwards, over the windows, so a
 # drop-down menu covers them.
 dt_wall() {
@@ -549,8 +632,15 @@ dt_wall() {
 			need img
 		fi
 		if dt_has img; then
-			img draw "$DT_WALLIMG" 0 0 "$DT_ROWS" "$DT_COLS" &&
-				drawn=1
+			dt_wallfit
+			case $DT_WALLMODE in
+			scale | center)
+				console pen "$DT_DOT" "$DT_WALL"
+				console fill 0 0 "$DT_ROWS" "$DT_COLS" "$DT_GLYPH"
+				;;
+			esac
+			img draw "$DT_WALLIMG" "$DT_WALLR" "$DT_WALLC" \
+				"$DT_WALLH" "$DT_WALLW" && drawn=1
 		fi
 	fi
 	if [ -z "$drawn" ]; then
@@ -1281,7 +1371,16 @@ dt_event() {
 	esac
 	if [ -n "$DT_KEYCAP" ]; then
 		case $k in
-		"mouse "*) DT_KEYCAP= ;;
+		# A mouse event does not cancel: a shortcut row already selected
+		# from an earlier attempt arms capture on the very first click
+		# of the next one (panel_click's own "a second click on an
+		# already-selected row activates it"), so the click that
+		# arrives right after -- the other half of an ordinary
+		# double-click, or just a habitual re-click -- would otherwise
+		# be read as this event and cancel the capture it had itself
+		# just armed, before the intended key was ever pressed. Only
+		# escape cancels; a stray click while capturing is absorbed.
+		"mouse "*) ;;
 		escape) DT_KEYCAP=; dt_note "Cancelled" ;;
 		*)
 			case $DT_KEYCAP in
