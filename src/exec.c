@@ -792,19 +792,45 @@ char *xpsub(sh *s, part *p)
 	return r;
 }
 
-/* Close the descriptors a command's process substitutions used. */
+/* Close the descriptors a command's process substitutions used, and reap
+   whichever of their children have actually exited.
+
+   The descriptor is always closed here -- the command that named it is
+   done with it regardless. The pid is a different matter: a WNOHANG wait
+   right after the command that used it returns 0 far more often than not,
+   since a process substitution's own child is usually still writing (or
+   has not even execve'd yet) the moment the reader's first ordinary
+   command reaches here, which for a `while read; do ...; done < <(...)`
+   loop is the very first loop iteration -- microseconds after the fork.
+   Discarding the record there and then, WNOHANG result or not, is what
+   orphaned the pid from ever being waited on again: the child was real
+   and still running, hibr had simply stopped keeping track of it, and it
+   became a zombie the moment it did exit, for nothing to ever reap.
+   Kept in s->psub instead until a wait actually resolves it (reaped, or
+   errors -- ECHILD because something else already reaped it, say -- but
+   never merely "not yet"), so the next simple command's own call to this
+   same function, whether or not it has a process substitution of its
+   own, gets another try. */
 void xpsub_done(sh *s)
 {
-	size_t i;
-	int *rec, w;
+	size_t i, j = 0;
+	int *rec;
+	pid_t r;
+	int w;
 
 	for (i = 0; i < s->psub.n; i++) {
 		rec = (int *)s->psub.p[i];
-		close(rec[0]);
-		waitpid((pid_t)rec[1], &w, WNOHANG);
-		free(rec);
+		if (rec[0] >= 0) {
+			close(rec[0]);
+			rec[0] = -1;
+		}
+		r = waitpid((pid_t)rec[1], &w, WNOHANG);
+		if (r != 0)
+			free(rec);
+		else
+			s->psub.p[j++] = rec;
 	}
-	s->psub.n = 0;
+	s->psub.n = j;
 }
 
 /* Apply a name=value assignment to the shell variable table. */
