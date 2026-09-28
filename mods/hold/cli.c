@@ -64,6 +64,20 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 	char *p;
 	str rb, in, pay;
 
+#ifdef __APPLE__
+	/* The desktop always auto-holds (dt_autohold), so on a fresh launch
+	   this is the first and only thing that ever writes to the real
+	   terminal -- console open, inside the detached held process
+	   `hold new -d` started, never touches it at all. Confirmed live
+	   that some Mac terminal apps do not render an alternate-screen
+	   entry sent too soon after the window opens; cn_open's own delay
+	   (mods/console/term.c) fixes a plain, unheld run, but is the wrong
+	   process for this one. Same fix, same duration, here instead --
+	   also paid on an ordinary reattach to an already-settled terminal,
+	   where it is not needed, since nothing here distinguishes a fresh
+	   attach from that. */
+	usleep(1000000);
+#endif
 	s = hd_dial(path);
 	if (s < 0) {
 		lg(HIBR_LERR, "hold: %s: no such session", name);

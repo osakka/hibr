@@ -337,7 +337,10 @@ panel_key() {
 
 	pane := panel_pane "$w"
 	if [ -n "$pane" ] && dt_has "${pane}_draw"; then
-		dt_has "${pane}_key" && { "${pane}_key" "$w" "$2"; return 0; }
+		if dt_has "${pane}_key"; then
+			"${pane}_key" "$w" "$2"
+			return $?
+		fi
 		return 1
 	fi
 
@@ -347,8 +350,10 @@ panel_key() {
 	right | enter | " ") cp_do "$w" 1 ;;
 	left) cp_do "$w" -1 ;;
 	*)
-		[ -n "$pane" ] && dt_has "${pane}_key" &&
-			{ "${pane}_key" "$w" "$2"; return 0; }
+		if [ -n "$pane" ] && dt_has "${pane}_key"; then
+			"${pane}_key" "$w" "$2"
+			return $?
+		fi
 		return 1
 		;;
 	esac

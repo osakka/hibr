@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.27
+
+Desktop moves to **0.7** alongside this release.
+
+**The macOS black screen, actually fixed this time** -- 0.26's fix landed
+in the wrong process. The desktop always auto-holds by default
+(`dt_autohold` -> `hold new -d`), so `console open` runs inside a
+detached, headless held process that never touches the real terminal at
+all; the real terminal only receives anything once it attaches, through
+entirely separate code in `mods/hold/cli.c`. The same one-second
+settle delay 0.26 gave `cn_open`, confirmed live to be the right fix in
+principle, is now also in `hd_attach` -- the function that actually owns
+the real terminal on every ordinary desktop launch.
+
+**Keyboard shortcuts silently doing nothing while a window is focused**,
+reported live as "I cannot use ctrl-alt-t for Terminal, and I cannot
+change it either." Not a key-decoding bug -- confirmed hibr correctly
+decodes real Mac keypresses (`alt-ctrl-t` came back exactly as pressed).
+The actual cause: `dt_event` gives the focused window's own key handler
+first refusal on every key, and only checks global shortcuts if that
+handler declines. Control Panel's own handler (`panel_key`,
+`examples/desktop/apps/panel.hibr`) discarded whatever its active pane's
+key handler actually returned and always reported "handled" -- so
+Control Panel with certain panes open (Wallpaper, at least) swallowed
+*every* global shortcut unconditionally. Fixed to propagate the real
+result. Audited every other app with its own key handler
+(`bricks`/`mines`/`snake`/`tasks`/`files`/`calc`/`notepad`/`puzzle`/
+`term`) for the same shape; all already decline correctly. One
+by-design exception worth knowing: while a Terminal window itself has
+focus, shortcuts legitimately go to the shell running inside it instead
+of the desktop -- correct behaviour for a terminal emulator, not a bug,
+but it means trying to open a *second* terminal via its own shortcut
+while a *first* one is focused won't work, and never will.
+
+HIBR_VER -> 0.27, DT_VER -> 0.7.
+
+Verified: tests/run.sh 86/86, tests/desktop.py 261/261, tests/apps.py
+184/184. The Darwin branch of hd_attach is untested here -- no way to
+build it without Mach headers -- syntax-checked with gcc -D__APPLE__ only.
+
 ## 0.26
 
 Desktop moves to **0.6** alongside this release.
