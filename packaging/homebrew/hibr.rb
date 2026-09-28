@@ -24,48 +24,32 @@ class Hibr < Formula
     system "make", "install", "PREFIX=#{prefix}"
   end
 
-  # deploy.sh's own install path writes this same starter file; a plain
-  # `brew install hibr` never runs deploy.sh at all, so without this hook
-  # a Homebrew install got no default `.hibrc` and, since `command_not_found`
-  # lives in it, no working autoloader either -- reported directly: a fresh
-  # install with no `.hibrc` and `sysinfo` failing to autoload.
-  def post_install
-    rc = "#{Dir.home}/.hibrc"
-    if File.exist?(rc)
-      ohai "~/.hibrc already exists, leaving it as it is"
-      return
-    end
-    File.write(rc, <<~RC)
-      mod load prompt
-      PROMPT[format]='$dir$git$duration$status$char'
-      PROMPT[duration][min]=500
+  # Homebrew formulas do not write into a user's home directory -- not a
+  # limitation to work around, a deliberate one to respect: two formulas
+  # could collide on one dotfile, an uninstall would have to decide
+  # whether to touch a file it did not create, and an upgrade could
+  # clobber whatever the user had customised. post_install tried this
+  # anyway, through two revisions, and never reliably ran even once on
+  # real hardware -- confirmed why, eventually: `post_install` itself is
+  # deprecated in current Homebrew ("Warning: Calling `post_install` is
+  # deprecated! Use `post_install_steps` instead", seen live), and its
+  # declarative replacement only ever writes within the formula's own
+  # prefix (base: :etc/:bin/:libexec/:homebrew_prefix) -- there is no
+  # :home, by design, for the reasons above. caveats is the right tool
+  # for this instead: always shown, never deprecated, and it asks rather
+  # than acts.
+  def caveats
+    <<~EOS
+      hibr doesn't read /etc/profile or similar -- ~/.hibrc, read by every
+      interactive shell (see hibr -d 2 if you want to confirm it's being
+      looked for). Add this to it for a module's command to autoload the
+      first time you type it, without an explicit `mod load`/`need` first:
 
-      alias ll='ls -lh'
-      export EDITOR=vim
-
-      # Autoload a module for a command it registers, once normal lookup
-      # has already failed -- so `console key`, `img draw`, `darwin cpu`
-      # and the rest of what a module offers work without an explicit
-      # `mod load` or `need` first. Interactive only (.hibrc isn't read
-      # by scripts), and only after PATH and every builtin/function has
-      # already had first refusal, so it never shadows a real program
-      # the way loading modules ahead of PATH would. Remove this
-      # function, or return 127 unconditionally at its top, to go back
-      # to requiring an explicit `need`/`mod load`.
-      command_not_found() {
-      	mod find "$1" > /dev/null 2>&1 && "$@" ||
-      		{ echo "hibr: $1: command not found" >&2; return 127; }
-      }
-    RC
-    ohai "wrote a starter ~/.hibrc, with the command_not_found autoloader in it"
-  rescue StandardError => e
-    # Reported live: this silently did not run at all on a real machine,
-    # twice, through a plain `brew reinstall hibr` -- and the previous
-    # version of this method swallowed any error with a bare `rescue;
-    # nil`, so there was no way to tell whether post_install even ran,
-    # let alone why it failed if it did. opoo makes either outcome show
-    # up in the install's own output instead of staying a silent mystery.
-    opoo "could not write ~/.hibrc: #{e.message}"
+        command_not_found() {
+        	mod find "$1" > /dev/null 2>&1 && "$@" ||
+        		{ echo "hibr: $1: command not found" >&2; return 127; }
+        }
+    EOS
   end
 
   test do

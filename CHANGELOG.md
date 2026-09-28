@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.28
+
+Desktop moves to **0.8** alongside this release.
+
+**Task Manager misaligned itself for any process with a wide enough
+PID**, reported live at seven digits (real on macOS; Linux's own default
+32768 ceiling never reaches it, which is why this went unnoticed until
+now). The PID column was a fixed 6 characters; a wider one overran it
+unpadded and pushed every column after it out of place. The column now
+widens to whatever the widest PID actually on screen needs, never
+narrower than 6, so the common case costs nothing extra.
+
+**Homebrew's `post_install` -- used across the last two releases to
+write a starter `~/.hibrc` -- never reliably ran, and now we know why**:
+it is deprecated in current Homebrew ("Warning: Calling `post_install`
+is deprecated! Use `post_install_steps` instead", seen live), and its
+declarative replacement (`post_install_steps`) has no way to write into
+a user's home directory at all -- by design, every `base:` it offers is
+relative to the formula's own prefix. Homebrew formulas not writing
+into `$HOME` is a deliberate choice worth respecting, not a limitation
+to route around: two formulas could collide on one dotfile, an upgrade
+could clobber a customised one. The formula now uses `caveats` instead
+-- always shown, never deprecated, and it tells the user what to add
+rather than acting on their behalf.
+
+**`rc_load`'s own "no startup file" line was debug-only**, which is
+exactly why "does hibr even load `.hibrc`" took several rounds of the
+wrong theory to chase down. Raised to `HIBR_LINF` -- visible under
+`hibr -d 2`, still below the default level, so a user who has simply
+never wanted a `.hibrc` is not nagged about it every login.
+
+HIBR_VER -> 0.28, DT_VER -> 0.8.
+
+Verified: tests/run.sh 86/86, tests/desktop.py 261/261, tests/apps.py
+184/184.
+
 ## 0.27
 
 Desktop moves to **0.7** alongside this release.

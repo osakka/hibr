@@ -372,8 +372,7 @@ tasks_cmdline() {
 # both dt_win's, so the list lives in rows 2..h-2 under a header at row 1.
 tasks_draw() {
 	local id=$1 h=$2 w=$3 i r t n vis top sel by now full
-	local pidw=6 ownerw=8 owner pidtxt
-	local namew=$((w - 2 - pidw - 1 - ownerw - 1 - 6 - 1 - 7 - 1)) cpu mem line
+	local pidw=6 ownerw=8 owner pidtxt namew cpu mem line pl
 	local showgraph=1 graphh=2 leftw rightw lbl spark
 
 	now := dt_ms
@@ -392,6 +391,21 @@ tasks_draw() {
 		TK[$id]["sortby"]=$by
 	fi
 	n=${TK[$id]["n"]}
+	# 6 digits fits every pid on a default Linux (32768 max) with room to
+	# spare, but not every macOS one -- reported live at seven digits,
+	# where a fixed width let the pid text overrun its own column and
+	# misaligned every column after it. Widened to whatever the widest
+	# pid actually on screen needs, never narrower than 6, so the common
+	# case costs nothing extra (this is a length check per already-
+	# scanned entry, not another scan) and only a genuinely wide pid
+	# grows the column at all.
+	i=0
+	while [ "$i" -lt "$n" ]; do
+		pl=${#TK[$id][$i]["pid"]}
+		[ "$pl" -gt "$pidw" ] && pidw=$pl
+		i=$((i + 1))
+	done
+	namew=$((w - 2 - pidw - 1 - ownerw - 1 - 6 - 1 - 7 - 1))
 	vis=$((h - 3 - graphh))
 	[ "$vis" -lt 1 ] && { vis=$((h - 3)); showgraph=0; }
 	TK[$id]["vis"]=$vis

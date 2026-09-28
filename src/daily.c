@@ -491,7 +491,15 @@ void rc_load(sh *s)
 		s_cat(&b, "/.hibrc");
 	}
 	if (access(b.p, R_OK) != 0) {
-		lg(HIBR_LDBG, "no startup file at %s", b.p);
+		/* Debug-only until now, which is exactly why "does hibr even
+		   load .hibrc" turned into several rounds of the wrong
+		   theory (a Homebrew post_install writing it, a login-shell
+		   quirk) rather than one look at this line under -d 2: this
+		   is the one place that knows the real path checked and
+		   whether it found anything there at all. Still below
+		   HIBR_LWRN's own default level, so a user who has simply
+		   never wanted a .hibrc is not nagged about it every login. */
+		lg(HIBR_LINF, "no startup file at %s", b.p);
 		s_free(&b);
 		return;
 	}
