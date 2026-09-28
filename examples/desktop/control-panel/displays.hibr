@@ -325,10 +325,17 @@ displays_mouse() {
 			s=${DPY[$id]["s"]}
 			row=${DPY[$id][$i]["row"]}
 			col=${DPY[$id][$i]["col"]}
+			# hold's own absolute coordinates, not the relative ones this
+			# pane draws in -- and, unlike those, never clamped to zero
+			# here. A display can legitimately need a negative row or
+			# column the moment it sits above or to the left of whatever
+			# is at hold's own (0,0), which is exactly the arrangement
+			# reported broken: dragging something left of the primary
+			# silently refused to move past column 0. The protocol
+			# itself has no such restriction (hd_conn in mods/hold/srv.c
+			# parses both as plain signed ints); this clamp was the bug.
 			nrow=$((row + mr * 100 / s))
 			ncol=$((col + mc * 100 / s))
-			[ "$nrow" -lt 0 ] && nrow=0
-			[ "$ncol" -lt 0 ] && ncol=0
 			hold move "$sess" "$nm" "$nrow" "$ncol"
 		fi
 		DPY[$id]["drag"]=

@@ -280,6 +280,22 @@ int cn_open(sh *s)
 		return HIBR_FAIL;
 	}
 	fflush(0);
+#ifdef __APPLE__
+	/* A terminal freshly opened by some Mac terminal apps stays black
+	   until an actual resize, no matter how long a script waits after
+	   that before drawing anything -- confirmed live: cn_size's own
+	   widened retry budget made no difference, and neither did an
+	   unconditional repaint once the desktop's own main loop started,
+	   but a plain `sleep 1` before this point, with nothing else
+	   different, fixed it outright. So this is not a size the terminal
+	   answers wrong and later corrects -- something in the terminal's
+	   own window setup has not finished, and entering the alternate
+	   screen before it has does not queue for replay once it does.
+	   One second, tested and confirmed working; not yet narrowed to
+	   whether less would do. Not applied on any other platform, where
+	   this has never been reported. */
+	usleep(1000000);
+#endif
 	cn_wr(cn_fd, cn_enter, sizeof cn_enter - 1);
 	cn_hook();
 	cn_on = 1;

@@ -25,7 +25,7 @@ need display || { echo "desktop: no display available" >&2; exit 1; }
 # change that never touched a single line of src/*.c. HIBR_ABI is what
 # actually needs cross-checking between the two -- whether a module is
 # built against what this shell offers -- and that already exists.
-DT_VER=0.5
+DT_VER=0.6
 
 # The session's own arguments, captured here at the top level where $@ is
 # still theirs: a function sees its own, and dt_autohold needs to hand these
@@ -1482,30 +1482,24 @@ DT_RSTILL=150
 # rather than just skipped -- skipping it reads the byte and throws the
 # value away, which is a key silently lost, not a key left for later.
 #
-# A startup-only forced repaint, tried, reverted for a suspected flake,
-# then confirmed necessary after all: dt_open's own dt_size retries
-# TIOCGWINSZ for a bounded stretch (cn_size, now 1s, up from 200ms), but a
-# real Mac terminal confirmed to stay black *indefinitely* -- not just
-# past that budget, but forever, until the window is actually resized --
-# meaning nothing about waiting longer would ever have helped; whatever
-# the terminal answered at open time, right or wrong, it was never going
-# to update itself. Only a real resize's own SIGWINCH ever forces
-# `console reassert` today, so an indefinite wait with no resize was an
-# indefinite black screen. The re-check tried here earlier compared the
-# re-read size against the one dt_open started with and only reasserted
-# on a difference; unconditional this time, since a terminal that never
-# updates its own answer needs the repaint regardless of whether the
-# *value* it reports ever changes -- the black screen may be the
-# terminal failing to render what it was already correctly told, not
-# hibr drawing at the wrong size at all, and only one of those two
-# theories is fixed by comparing sizes.
+# A startup self-heal was tried twice here and removed both times: first
+# a re-check gated on the size actually differing, then an unconditional
+# `console reassert` on the first idle tick regardless. Neither fixed a
+# real Mac's black-screen-until-resize, and the reason turned out to be
+# that `console flush` already re-fits the grid to the real size on
+# *every* call (`cn_fit`, inside `cn_flush` itself) -- so this was never
+# a stale-size problem for anything here to re-check. The real cause and
+# fix are in `cn_open` (mods/console/term.c): some Mac terminal apps do
+# not render the alternate screen until they have had a moment to finish
+# their own window setup, confirmed with a plain `sleep 1` before
+# `console open` fixing it with nothing else different.
 #
-# The suspected flake ("an app with no key handler cannot swallow one",
-# tests/desktop.py) was confirmed pre-existing and unrelated: a matched
-# 100-run baseline on code with none of this reverted still failed about
-# 4% of the time. See CLAUDE.md.
+# A suspected flake was chased into this dead end too ("an app with no
+# key handler cannot swallow one", tests/desktop.py): confirmed
+# pre-existing and unrelated to any of this, a matched 100-run baseline
+# on unmodified code still failed about 4% of the time. See CLAUDE.md.
 dt_run() {
-	local k rsz=0 last now pk= skipn=0 check=1
+	local k rsz=0 last now pk= skipn=0
 	while [ "$DT_QUIT" = 0 ]; do
 		if [ "$rsz" = 0 ]; then
 			if [ "$DT_LASTDRAG" = 1 ] &&
@@ -1516,11 +1510,6 @@ dt_run() {
 				dt_autoclose
 				skipn=0
 			fi
-		fi
-		if [ "$check" = 1 ] && [ "$rsz" = 0 ]; then
-			check=0
-			dt_size
-			console reassert
 		fi
 		if [ "$rsz" = 1 ]; then
 			k := console key 80

@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.26
+
+Desktop moves to **0.6** alongside this release.
+
+**The real fix for the macOS black screen**, after two false starts. The
+actual cause: some Mac terminal apps do not render the alternate screen
+until they have had a moment to finish their own window setup after
+opening, confirmed with a plain `sleep 1` before `console open` fixing it
+with nothing else different. `cn_open` now waits one second before
+entering the alternate screen, on Darwin only. The two earlier attempts
+(widening `cn_size`'s retry budget, then a `dt_run` startup self-heal)
+were reasoned from a stale-size theory that turned out to be wrong: given
+that a `console flush` already re-fits the grid to the real terminal size
+on every single call, size staleness was never actually the problem, and
+both fixes are removed as dead ends -- recorded in CLAUDE.md so the same
+theory doesn't get re-tried.
+
+**A display could not be dragged to the left of, or above, whatever
+happened to be at hold's own (0,0)**, reported live: the Displays Control
+Panel pane's drag-release handler clamped the new position to zero in
+both row and column before sending it to `hold move`, even though the
+same file's own drawing code already handles negative *relative*
+positions correctly (a display "before" the primary in hold's own
+coordinates is exactly what happens the moment the primary is not the
+leftmost one) -- confirmed the underlying protocol has no such
+restriction of its own. The clamp was the whole bug; removed.
+
+Also fixed properly this time: writing a starter `~/.hibrc` -- including
+the new `command_not_found` autoloader -- only ever happened via
+`deploy.sh`'s own install path, which a plain `brew install hibr` never
+runs at all. The Homebrew formula (both this repo's copy and the live
+`osakka/homebrew-hibr` one) now writes the same file via `post_install`.
+
 ## 0.25
 
 Desktop moves to **0.5** alongside this release.
