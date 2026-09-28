@@ -183,13 +183,21 @@ void cn_signals(int on)
    counts) can answer a real ioctl with a real but degenerate size, a 1x1
    or thereabouts, which passes a bare truthiness check and then builds a
    grid nothing can be seen in, rather than falling back or retrying. No
-   real terminal is legitimately this small. */
+   real terminal is legitimately this small.
+
+   The budget below (50 tries, 20ms apart -- 1s worst case) is wider than
+   the 200ms this shipped with: some terminal apps settle their real size
+   noticeably later than a plain local pty does, and unlike a resize this
+   one has no SIGWINCH to fall back on if the window never sends one of
+   its own on open -- once this gives up, only a real, later resize event
+   corrects it. Widening the budget only costs time on the rare terminal
+   that needs it; one that already knows its size still answers first try. */
 void cn_size(int *rows, int *cols)
 {
 	struct winsize w;
 	int i;
 
-	for (i = 0; i < 10; i++) {
+	for (i = 0; i < 50; i++) {
 		if (cn_fd >= 0 && ioctl(cn_fd, TIOCGWINSZ, &w) == 0 &&
 		    w.ws_row > 2 && w.ws_col > 2) {
 			*rows = w.ws_row;

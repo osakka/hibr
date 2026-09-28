@@ -42,6 +42,7 @@ struct tlsapi {
 
 struct tlsapi tls;
 void *tls_lib;
+int tls_tried;
 
 /* Bind one symbol from libssl. */
 void *tls_sym(void *h, const char *nm, int *bad)
@@ -55,15 +56,38 @@ void *tls_sym(void *h, const char *nm, int *bad)
 	return p;
 }
 
-/* Load libssl on first use so a shell that never speaks TLS never pays. */
+/* Load libssl on first use so a shell that never speaks TLS never pays.
+   Tried once: a missing library does not get rediscovered on every /dev/tls
+   open, which would otherwise mean a repeated failed dlopen (three of them,
+   on macOS) per connection attempt rather than one clean "unavailable".
+
+   macOS has no bare libssl.dylib to fall back to the way Linux has a bare
+   libssl.so: the system's own /usr/lib/libssl.dylib (and libcrypto.dylib)
+   is an unversioned stub with no stable ABI that Apple's own dyld refuses
+   to load into third-party code at all past a point -- "invalid dylib
+   load", a hard abort, not a graceful dlopen failure -- confirmed against
+   Apple's own developer forums, not assumed. So only Homebrew's own
+   versioned openssl@3 is tried, by full path (it is keg-only, not linked
+   into /opt/homebrew/lib or /usr/local/lib), and nothing named just
+   "libssl.dylib" is ever attempted there. */
 int tls_load(void)
 {
 	int bad = 0;
+#ifdef __APPLE__
+	const char *names[] = {
+		"/opt/homebrew/opt/openssl@3/lib/libssl.3.dylib",
+		"/usr/local/opt/openssl@3/lib/libssl.3.dylib", 0
+	};
+#else
 	const char *names[] = { "libssl.so.3", "libssl.so.1.1", "libssl.so", 0 };
+#endif
 	int i;
 
 	if (tls_lib)
 		return HIBR_OK;
+	if (tls_tried)
+		return HIBR_FAIL;
+	tls_tried = 1;
 	for (i = 0; names[i]; i++) {
 		tls_lib = dlopen(names[i], RTLD_NOW | RTLD_LOCAL);
 		if (tls_lib)

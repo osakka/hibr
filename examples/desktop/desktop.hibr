@@ -242,14 +242,14 @@ DT_DRAGKEY="${DT_DRAGKEY-alt}"
 DT_TICK="${DT_TICK-2000}"
 
 # How many consecutive drag reports dt_run lets go by before it actually
-# redraws -- 1 redraws every one (today's behaviour, and the default): a
-# drag itself is not slower for it, since every report still updates the
+# redraws -- 0 skips none (today's behaviour, and the default): a drag
+# itself is not slower for it, since every report still updates the
 # window's own position, only the screen catches up less often, which
 # trades a window looking like it hops rather than glides in exchange for
 # dt_win drawing every open window's own full content less often. A
 # press or a release always redraws regardless -- only a drag report can
 # be skipped, and only while another one immediately follows it.
-DT_DRAWSKIP="${DT_DRAWSKIP-1}"
+DT_DRAWSKIP="${DT_DRAWSKIP-0}"
 
 # Whether the event dt_event just handled was a drag report -- dt_run's
 # own signal for whether this is a turn it may skip drawing, set there
@@ -1481,12 +1481,23 @@ DT_RSTILL=150
 # from the pty whether this looks at it or not, so it has to be kept in pk
 # rather than just skipped -- skipping it reads the byte and throws the
 # value away, which is a key silently lost, not a key left for later.
+#
+# check is a startup-only safety net, spent once: dt_open's own dt_size
+# already retried the real TIOCGWINSZ read for a bounded stretch before
+# ever reaching here, but a terminal that settles slower than that budget
+# -- some do, right after a fresh window opens -- leaves the desktop
+# painted at the wrong (fallback) size with nothing to correct it until a
+# real resize fires its own SIGWINCH, which is what "starts blank until I
+# resize the window" was. This costs nothing extra: the first tick's own
+# wait for a key already takes as long as DT_TICK, so checking again once
+# that wait returns re-reads the real size for free, at no added latency,
+# rather than only ever trusting the one reading dt_open started with.
 dt_run() {
-	local k rsz=0 last now pk= skipn=0
+	local k rsz=0 last now pk= skipn=0 check=1 orows ocols
 	while [ "$DT_QUIT" = 0 ]; do
 		if [ "$rsz" = 0 ]; then
 			if [ "$DT_LASTDRAG" = 1 ] &&
-			   [ "$skipn" -lt $((DT_DRAWSKIP - 1)) ]; then
+			   [ "$skipn" -lt "$DT_DRAWSKIP" ]; then
 				skipn=$((skipn + 1))
 			else
 				dt_draw
@@ -1514,6 +1525,14 @@ dt_run() {
 				k=$pk
 			else
 				continue
+			fi
+		fi
+		if [ "$check" = 1 ] && [ "$rsz" = 0 ]; then
+			check=0
+			orows=$DT_ROWS ocols=$DT_COLS
+			dt_size
+			if [ "$DT_ROWS" != "$orows" ] || [ "$DT_COLS" != "$ocols" ]; then
+				console reassert
 			fi
 		fi
 		pk=

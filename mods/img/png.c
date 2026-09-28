@@ -36,6 +36,7 @@ struct pngapi {
 
 static struct pngapi png;
 static void *png_lib;
+static int png_tried;
 
 /* Bind one symbol from libpng. */
 static void *png_sym(void *h, const char *nm, int *bad)
@@ -49,16 +50,31 @@ static void *png_sym(void *h, const char *nm, int *bad)
 	return p;
 }
 
-/* Load libpng on first use. */
+/* Load libpng on first use. Tried once: a broken or missing install does
+   not get rediscovered on the next call, and dt_wall calls this once per
+   frame once a wallpaper is set -- without the latch, a missing libpng
+   means three failed dlopens and a log line every single frame, forever,
+   rather than the one line this was meant to be. */
 static int png_load(void)
 {
 	int bad = 0;
+#ifdef __APPLE__
+	const char *names[] = {
+		"/opt/homebrew/opt/libpng/lib/libpng16.dylib",
+		"/usr/local/opt/libpng/lib/libpng16.dylib",
+		"libpng16.dylib", "libpng.dylib", 0
+	};
+#else
 	const char *names[] = { "libpng16.so.16", "libpng.so.16",
 				 "libpng.so", 0 };
+#endif
 	int i;
 
 	if (png_lib)
 		return HIBR_OK;
+	if (png_tried)
+		return HIBR_FAIL;
+	png_tried = 1;
 	for (i = 0; names[i]; i++) {
 		png_lib = dlopen(names[i], RTLD_NOW | RTLD_LOCAL);
 		if (png_lib)

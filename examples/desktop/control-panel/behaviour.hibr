@@ -98,7 +98,7 @@ behaviour_rows() {
 	CP[$w][$n]["val"]="$DT_TICK ms"; CP[$w][$n]["key"]=tick; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Redraw Skip ($DT_DRAWSKIP)"
 	CP[$w][$n]["wtype"]=slider
-	CP[$w][$n]["val"]=$DT_DRAWSKIP; CP[$w][$n]["min"]=1; CP[$w][$n]["max"]=10
+	CP[$w][$n]["val"]=$DT_DRAWSKIP; CP[$w][$n]["min"]=0; CP[$w][$n]["max"]=9
 	CP[$w][$n]["key"]=drawskip; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Icons"
 	CP[$w][$n]["wtype"]=bool
@@ -167,8 +167,8 @@ behaviour_do() {
 	       DT_TICK=$v ;;
 	drawskip)
 		v=$((DT_DRAWSKIP + dir))
-		[ "$v" -lt 1 ] && v=1
-		[ "$v" -gt 10 ] && v=10
+		[ "$v" -lt 0 ] && v=0
+		[ "$v" -gt 9 ] && v=9
 		DT_DRAWSKIP=$v
 		;;
 	icons) cp_icons ;;

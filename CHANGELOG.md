@@ -52,12 +52,12 @@ anything that isn't itself a bar-level menu, keyed off each entry's
 own `bar` flag rather than its position.
 
 **A configurable redraw skip**, `DT_DRAWSKIP` (Control Panel, Behaviour
-pane, 1–10, default 1 — today's behaviour unchanged unless raised):
-consecutive `mouse drag` reports beyond the configured count are
-absorbed without a redraw, while a press or release always forces one
+pane, 0–9, default 0 — today's behaviour unchanged unless raised): that
+many consecutive `mouse drag` reports beyond the first are absorbed
+without a redraw, while a press or release always forces one
 immediately and resets the count. Measured with an instrumented
 redraw counter: a fixed 20-drag sequence drew 77 frames at the
-default and 45 at `DT_DRAWSKIP=5` — a real reduction on a slow link or
+default and 45 at `DT_DRAWSKIP=4` — a real reduction on a slow link or
 a slow terminal, at the cost of the pointer visibly catching up in
 jumps rather than gliding. Built alongside it: `dt_slider`, a
 reusable horizontal slider widget (`▸────●─── 10`) for the Control

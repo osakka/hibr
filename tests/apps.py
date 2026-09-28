@@ -507,20 +507,21 @@ check("About Refresh only appears once About hibr itself is loaded",
       sc.find("About Refresh") is not None and
       sc.find("3000 ms") is not None, sc)
 
-# The redraw-skip slider itself: a plain track, min at DT_DRAWSKIP=1, no
-# popup to open (unlike a dropdown, right/enter on it just cycles the
-# value in place, the same as a dropdown's own second right already does).
+# The redraw-skip slider itself: a plain track, min at DT_DRAWSKIP=0 (skip
+# none), no popup to open (unlike a dropdown, right/enter on it just cycles
+# the value in place, the same as a dropdown's own second right already
+# does).
 sc = cprun(DOWN_BEH + [b"\x1b[C", b"\x1b[B"])
-skiprow = sc.find("Redraw Skip (1)")
+skiprow = sc.find("Redraw Skip (0)")
 check("the redraw-skip row draws as a slider, not a dropdown or checkbox",
       skiprow is not None and "●" in sc.row(skiprow[0]) and
       "▾" not in sc.row(skiprow[0]), sc)
 sc = cprun(DOWN_BEH + [b"\x1b[C", b"\x1b[B", b"\x1b[C", b"\x1b[C"])
 check("right arrow on it increases the value, the marker moving with it",
-      sc.find("Redraw Skip (3)") is not None, sc)
+      sc.find("Redraw Skip (2)") is not None, sc)
 sc = cprun(DOWN_BEH + [b"\x1b[C", b"\x1b[B"] + [b"\x1b[C"] * 20)
 check("it stops at the reasonable maximum rather than climbing forever",
-      sc.find("Redraw Skip (10)") is not None, sc)
+      sc.find("Redraw Skip (9)") is not None, sc)
 
 # Task Manager Refresh -- found while adding #52's graphs, the same gap
 # About Refresh already closed for About hibr: TK_SCANMS had no setting
