@@ -31,33 +31,41 @@ class Hibr < Formula
   # install with no `.hibrc` and `sysinfo` failing to autoload.
   def post_install
     rc = "#{Dir.home}/.hibrc"
-    return if File.exist?(rc)
-    begin
-      File.write(rc, <<~RC)
-        mod load prompt
-        PROMPT[format]='$dir$git$duration$status$char'
-        PROMPT[duration][min]=500
-
-        alias ll='ls -lh'
-        export EDITOR=vim
-
-        # Autoload a module for a command it registers, once normal lookup
-        # has already failed -- so `console key`, `img draw`, `darwin cpu`
-        # and the rest of what a module offers work without an explicit
-        # `mod load` or `need` first. Interactive only (.hibrc isn't read
-        # by scripts), and only after PATH and every builtin/function has
-        # already had first refusal, so it never shadows a real program
-        # the way loading modules ahead of PATH would. Remove this
-        # function, or return 127 unconditionally at its top, to go back
-        # to requiring an explicit `need`/`mod load`.
-        command_not_found() {
-        	mod find "$1" > /dev/null 2>&1 && "$@" ||
-        		{ echo "hibr: $1: command not found" >&2; return 127; }
-        }
-      RC
-    rescue StandardError
-      nil
+    if File.exist?(rc)
+      ohai "~/.hibrc already exists, leaving it as it is"
+      return
     end
+    File.write(rc, <<~RC)
+      mod load prompt
+      PROMPT[format]='$dir$git$duration$status$char'
+      PROMPT[duration][min]=500
+
+      alias ll='ls -lh'
+      export EDITOR=vim
+
+      # Autoload a module for a command it registers, once normal lookup
+      # has already failed -- so `console key`, `img draw`, `darwin cpu`
+      # and the rest of what a module offers work without an explicit
+      # `mod load` or `need` first. Interactive only (.hibrc isn't read
+      # by scripts), and only after PATH and every builtin/function has
+      # already had first refusal, so it never shadows a real program
+      # the way loading modules ahead of PATH would. Remove this
+      # function, or return 127 unconditionally at its top, to go back
+      # to requiring an explicit `need`/`mod load`.
+      command_not_found() {
+      	mod find "$1" > /dev/null 2>&1 && "$@" ||
+      		{ echo "hibr: $1: command not found" >&2; return 127; }
+      }
+    RC
+    ohai "wrote a starter ~/.hibrc, with the command_not_found autoloader in it"
+  rescue StandardError => e
+    # Reported live: this silently did not run at all on a real machine,
+    # twice, through a plain `brew reinstall hibr` -- and the previous
+    # version of this method swallowed any error with a bare `rescue;
+    # nil`, so there was no way to tell whether post_install even ran,
+    # let alone why it failed if it did. opoo makes either outcome show
+    # up in the install's own output instead of staying a silent mystery.
+    opoo "could not write ~/.hibrc: #{e.message}"
   end
 
   test do
