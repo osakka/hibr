@@ -94,43 +94,61 @@ tasks_spark() {
 	ret "$out"
 }
 
-# Overall CPU% and memory% used, from /proc directly -- Linux only, the
-# same split tasks_scan already makes for the per-process list. Elsewhere
-# the graphs stay flat at 0 rather than reading something platform
-# doesn't offer; ps -axo's own %CPU is per process, not a system total,
-# and there is no single ps column this could sum into one honestly.
+# Overall CPU% and memory% used. ps -axo's own %CPU is per process, not a
+# system total, and there is no single ps column this could sum into one
+# honestly, so a system-wide reading needs its own source on every
+# platform.
 #
-# CPU: /proc/stat's own first line is every core already summed by the
+# Linux: /proc/stat's own first line is every core already summed by the
 # kernel; delta of idle over delta of the whole line since the last scan
 # is exactly what top's own headline percentage is. Memory: MemAvailable
 # already accounts for reclaimable cache the way a plain MemFree does
 # not, which is the same number free(1) reports as "available".
+#
+# macOS: the darwin module's own host_statistics(3) calls, if it loaded --
+# the same two CPU counters diffed the same way, and a ready memory
+# percentage already computed on free+inactive, about.hibr's own
+# equivalent formula. Without it, the graphs stay flat at 0 rather than
+# reading something platform doesn't offer.
 tasks_sysstat() {
-	local id=$1 line rest v total=0 idle du_total du_idle
+	local id=$1 line rest v total=0 idle du_total du_idle raw
 	local k mtotal= mavail=
 
-	[ "$TK_OS" = Linux ] || return 0
-	read -r line < /proc/stat 2> /dev/null
-	rest=${line#cpu }
-	set -- $rest
-	idle=${4:-0}
-	for v in "$@"; do total=$((total + v)); done
-	if [ -n "${TK_PREV[$id]["cput"]}" ]; then
-		du_total=$((total - TK_PREV[$id]["cput"]))
-		du_idle=$((idle - TK_PREV[$id]["cpui"]))
-		[ "$du_total" -gt 0 ] &&
-			TK[$id]["syscpu"]=$(((du_total - du_idle) * 100 / du_total))
+	if [ "$TK_OS" = Linux ]; then
+		read -r line < /proc/stat 2> /dev/null
+		rest=${line#cpu }
+		set -- $rest
+		idle=${4:-0}
+		for v in "$@"; do total=$((total + v)); done
+		if [ -n "${TK_PREV[$id]["cput"]}" ]; then
+			du_total=$((total - TK_PREV[$id]["cput"]))
+			du_idle=$((idle - TK_PREV[$id]["cpui"]))
+			[ "$du_total" -gt 0 ] &&
+				TK[$id]["syscpu"]=$(((du_total - du_idle) * 100 / du_total))
+		fi
+		TK_PREV[$id]["cput"]=$total
+		TK_PREV[$id]["cpui"]=$idle
+		while read -r k v _; do
+			case $k in
+			MemTotal:) mtotal=$v ;;
+			MemAvailable:) mavail=$v ;;
+			esac
+		done < /proc/meminfo
+		[ -n "$mtotal" ] && [ "$mtotal" -gt 0 ] &&
+			TK[$id]["sysmem"]=$(((mtotal - ${mavail:-0}) * 100 / mtotal))
+	elif need darwin; then
+		raw := darwin cpu
+		read -r total idle <<< "$raw"
+		if [ -n "${TK_PREV[$id]["cput"]}" ]; then
+			du_total=$((total - TK_PREV[$id]["cput"]))
+			du_idle=$((idle - TK_PREV[$id]["cpui"]))
+			[ "$du_total" -gt 0 ] &&
+				TK[$id]["syscpu"]=$(((du_total - du_idle) * 100 / du_total))
+		fi
+		TK_PREV[$id]["cput"]=$total
+		TK_PREV[$id]["cpui"]=$idle
+		TK[$id]["sysmem"] := darwin mem
 	fi
-	TK_PREV[$id]["cput"]=$total
-	TK_PREV[$id]["cpui"]=$idle
-	while read -r k v _; do
-		case $k in
-		MemTotal:) mtotal=$v ;;
-		MemAvailable:) mavail=$v ;;
-		esac
-	done < /proc/meminfo
-	[ -n "$mtotal" ] && [ "$mtotal" -gt 0 ] &&
-		TK[$id]["sysmem"]=$(((mtotal - ${mavail:-0}) * 100 / mtotal))
 	tasks_pushhist "$id" cpuh "${TK[$id]["syscpu"]:-0}"
 	tasks_pushhist "$id" memh "${TK[$id]["sysmem"]:-0}"
 }

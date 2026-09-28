@@ -72,14 +72,19 @@ about_bar() {
 # against and reads as 0, and the delta is taken between samples AB_SLOWMS
 # apart rather than every frame, which is also the less noisy reading.
 #
-# Elsewhere, top -l 2 -n 0 takes two samples, a second or so apart, with no
-# process rows, and prints each one's summary line -- "CPU usage: 12.3%
-# user, 4.5% sys, 83.2% idle" -- which is the one part of top's output that
-# has held its shape for years; the second line is the delta between them.
-# Busy is what is not idle.
+# Elsewhere, the darwin module's own host_statistics(3) call, if it loaded
+# -- one syscall, the same two counters (total, idle) /proc/stat gives on
+# Linux, diffed here the same way. Without it (an older install, or a
+# build where Mach headers were not found), top -l 2 -n 0 is the fallback:
+# two samples a second or so apart, no process rows, and each one's
+# summary line -- "CPU usage: 12.3% user, 4.5% sys, 83.2% idle" -- which is
+# the one part of top's output that has held its shape for years; the
+# second line is the delta between them. Busy is what is not idle. This
+# fallback is the one path in this function that blocks the draw loop for
+# about a second; the darwin module exists specifically to avoid it.
 about_cpu() {
 	local id=$1 label u n s i io irq soft steal total idle dt di pct
-	local now line _w1 _w2 idlepct
+	local now line _w1 _w2 idlepct raw
 
 	now := dt_ms
 	if [ -n "${AB[$id]["ccpu"]}" ] &&
@@ -91,6 +96,19 @@ about_cpu() {
 		read -r label u n s i io irq soft steal _ < /proc/stat
 		total=$((u + n + s + i + io + irq + soft + steal))
 		idle=$((i + io))
+		if [ -z "${AB[$id]["ptotal"]}" ]; then
+			pct=0
+		else
+			dt=$((total - AB[$id]["ptotal"]))
+			di=$((idle - AB[$id]["pidle"]))
+			pct=0
+			[ "$dt" -gt 0 ] && pct=$(((dt - di) * 100 / dt))
+		fi
+		AB[$id]["ptotal"]=$total
+		AB[$id]["pidle"]=$idle
+	elif need darwin; then
+		raw := darwin cpu
+		read -r total idle <<< "$raw"
 		if [ -z "${AB[$id]["ptotal"]}" ]; then
 			pct=0
 		else
@@ -124,9 +142,9 @@ about_cpu() {
 # MemAvailable, not MemFree, which undercounts what the page cache would
 # give back under pressure.
 #
-# Elsewhere, sysctl hw.memsize is the machine's total, and vm_stat's free
-# and inactive pages are its rough equivalent of MemAvailable -- inactive
-# is reclaimable the same way a Linux page cache is.
+# Elsewhere, the darwin module answers the same formula (free + inactive
+# pages counted as available) natively, if it loaded; sysctl hw.memsize
+# plus vm_stat's own free and inactive pages is the fallback otherwise.
 about_mem() {
 	local id=$1 line k v total avail=0 now pagesize free=0 inactive=0
 
@@ -148,6 +166,8 @@ about_mem() {
 		else
 			v=$(((total - avail) * 100 / total))
 		fi
+	elif need darwin; then
+		v := darwin mem
 	else
 		total=$(command sysctl -n hw.memsize 2> /dev/null)
 		if [ -z "$total" ] || [ "$total" = 0 ]; then

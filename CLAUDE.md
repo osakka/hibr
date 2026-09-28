@@ -101,7 +101,7 @@ linked, and no OpenSSL headers are needed to build.
 | `src/regex.c` | `match` and `rsub` over POSIX ERE |
 | `src/args.c` | `opt`/`args` declared CLI parsing, `title` |
 | `src/mod.c` | module loading |
-| `mods/*.c` | reference modules: `sys`, `http` (scheme), `ls` |
+| `mods/*.c` | reference modules: `sys`, `http` (scheme), `ls`, `darwin` (macOS-only: `cpu`, `mem`, native `host_statistics`, no fork) |
 | `examples/desktop/` | the window manager (`desktop.hibr`) and everything built on it — `apps/` (file browser, control panel, terminal, task manager, About hibr, three games), `desk-accessories/` (calculator, clock, image viewer, note pad, sliding puzzle), `control-panel/` panes, `control-strip/` modules — see `examples/desktop/README.md` for how to use it and `examples/desktop/ARCHITECTURE.md` for how it is built |
 | `tests/screen.py` | **the** pty harness and terminal model, shared by every full-screen suite |
 | `mods/prompt/` | the prompt module, including a native reader for git's object store — see `mods/README.md` for the file-by-file breakdown |
