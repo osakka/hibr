@@ -1000,6 +1000,37 @@ went in the shell.
   a fast loop hits this on any platform; it surfaced first in Task
   Manager's own macOS `ps -axo` scan because that is the one place in this
   codebase the pattern was already in real use.
+- **`deploy.sh`'s own install path is not the only install path.** Its
+  `starter_rc` writes a default `~/.hibrc` (including, later, the
+  `command_not_found` autoloader), but a plain `brew install hibr` never
+  runs `deploy.sh` at all -- the Homebrew formula's own `install` is just
+  `make && make install`. A whole release shipped an autoloader on by
+  default for every install *except* the one this project's own owner
+  actually uses, reported directly as "no `.hibrc` after a fresh install"
+  and "`sysinfo` did not autoload" (the second being a symptom of the
+  first: no `.hibrc` means no `command_not_found` function exists to
+  autoload anything with). Anything `deploy.sh` writes as part of "a
+  fresh install" needs a Homebrew `post_install` twin, or it only ever
+  reaches someone running `deploy.sh` from a git clone.
+- **`console flush` already re-fits the grid to the terminal's real size
+  on every call (`cn_fit`, called from inside `cn_flush` itself), so a
+  black screen surviving an indefinite wait is not a stale-size problem
+  -- something already re-checks the size continuously.** A `dt_run`
+  self-heal that re-reads the size and calls `console reassert` once at
+  startup was shipped reasoning from a stale-size theory, then confirmed
+  live on a real Mac to not fix a black screen that only a real resize
+  ever revealed -- which is consistent with `cn_fit` already trying, and
+  failing the same way, on every one of the many flushes between open
+  and the eventual manual resize. The size is very likely already
+  correct; what a real resize does that hibr's own `console reassert`
+  apparently does not is make the *terminal* repaint what it was already
+  correctly told, which points at an alternate-screen-entry rendering
+  quirk in the terminal application itself, not at anything hibr computes
+  wrong. Not yet root-caused; isolating the console module from the
+  whole desktop (`hibr -c 'need console; console open; console put 5 5
+  hello; console flush; console key 8000; console close'`) and knowing
+  the exact terminal application are the next two things to check before
+  touching `dt_run` a third time.
 
 ## Testing discipline
 
