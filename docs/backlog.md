@@ -72,6 +72,57 @@ work today; a name with a `/` in it is opened directly and never searched for.
 Only a bare name goes through the search path. Nothing to do, recorded so the
 question is not asked twice.
 
+### A database module — ultra small, not exhaustive
+
+Raised with a concrete starting point: a pasted ~300-line C sketch of a
+column-store analytical engine -- mmap'd row groups (fixed `id`/`val`
+columns, 1024 rows each), a min/max zone map per group so a query can skip
+a whole group without scanning it, and branch-light filter loops
+(`vector_filter_gt_int32`, `vector_filter_lt_double_sel`) meant to let the
+compiler auto-vectorize. The shape is sound and genuinely small -- no SQL,
+no indexes beyond the zone maps, no transactions, no update/delete, single
+writer assumed throughout. That is the right size for hibr; nothing here
+should grow it.
+
+What the sketch does not answer, and a real `mods/db.c` needs to before
+it is more than a demo:
+
+- **The fixed `VECTOR_SIZE=1024` array inside every row group** is a
+  data-sized array, not a chunk size for allocation -- exactly what "No
+  static buffer sizes" (CLAUDE.md) rules out elsewhere in this codebase.
+  `HIBR_IOCH`-style reasoning (a constant *chunk* size that dynamic
+  allocation is grown in) might justify it as "how many rows an mmap'd
+  group holds before a new one starts," the same way a `str`'s own growth
+  chunk is fixed -- but that is a design call to make on purpose, not
+  inherit from the sketch because it was already there.
+- **There is no real write path.** `db_bulk_populate` fabricates
+  `rand()` data for a demo; an actual module needs `db insert <handle>
+  <id> <val>` (or similar) appending a real row, growing the mmap
+  (`ftruncate` + re-`mmap`, or a fixed max reserved up front -- another
+  decision, not a default) when the current group fills.
+- **The query surface is two hardcoded comparisons** (`id > x`, `val <
+  y`). A builtin needs *some* general shape -- even if it is just
+  `db query <handle> gt id <n> lt val <n>`, composeable predicates, not
+  a single hardcoded pipeline -- without turning into a query language.
+- **Schema is exactly two columns, int32 and double, and nothing else.**
+  Fine for v1 if said out loud; hibr's own nested maps already carry JSON
+  type fidelity (`ty` on `ent`), which is the obvious model to grow into
+  if a second column type is ever wanted, rather than inventing a
+  different one.
+- **mmap with `MAP_SHARED` and `msync` is the entire durability story.**
+  No crash recovery, no locking against a second writer -- worth stating
+  plainly in the module's own README rather than discovering it, matching
+  "be honest about limitations... state costs of design choices plainly."
+
+Shape it as a normal reference module (`mods/db.c`, `hibr_bi db_bi[]`,
+`HIBR_MODULE`), builtins along the lines of `db create|open|close|insert|
+query|size`, values in and out through `$RET`/`ret` like every other
+builtin here. Whoever picks this up should read `mods/README.md`'s
+file-by-file breakdown first and follow an existing module's own shape
+(`mods/mon/` is the closest existing thing -- small, single-purpose,
+reads a fixed structure fast) rather than growing this one feature by
+feature into something bigger than "ultra small" meant.
+
 ## Ports
 
 ### macOS

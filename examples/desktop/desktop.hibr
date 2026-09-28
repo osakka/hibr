@@ -25,7 +25,7 @@ need display || { echo "desktop: no display available" >&2; exit 1; }
 # change that never touched a single line of src/*.c. HIBR_ABI is what
 # actually needs cross-checking between the two -- whether a module is
 # built against what this shell offers -- and that already exists.
-DT_VER=0.11
+DT_VER=0.12
 
 # The session's own arguments, captured here at the top level where $@ is
 # still theirs: a function sees its own, and dt_autohold needs to hand these
@@ -303,7 +303,7 @@ dt_load() {
 # Write every kept variable back, through a temporary file and a rename,
 # so a crash halfway through never leaves half a settings file.
 dt_save() {
-	local v tmp=$DT_CONF.$$
+	local v tmp=$DT_CONF.$$ n i line
 
 	mkdir -p "${DT_CONF%/*}" 2> /dev/null || return 1
 	{
@@ -320,6 +320,22 @@ dt_save() {
 		done
 		for v in "${!DT_APPKEY[@]}"; do
 			printf 'DT_APPKEY["%s"]=%q\n' "$v" "${DT_APPKEY["$v"]}"
+		done
+		# A dt_handler call, reconstructed from the table it built --
+		# added to by the File Types pane now, not only by a line in a
+		# script of the user's own, so the same table needs writing back
+		# out here too. %q on each word, not on the whole line, so a
+		# command with an argument of its own survives the round trip.
+		for v in "${!DT_HANDLERS[@]}"; do
+			n=${DT_HANDLERS[$v]["n"]}
+			line="dt_handler $(printf '%q' "$v")"
+			[ "${DT_HANDLERS[$v]["term"]}" = 1 ] && line="$line term"
+			i=0
+			while [ "$i" -lt "$n" ]; do
+				line="$line $(printf '%q' "${DT_HANDLERS[$v][$i]}")"
+				i=$((i + 1))
+			done
+			echo "$line"
 		done
 	} > "$tmp" && mv -f "$tmp" "$DT_CONF"
 }
@@ -2448,6 +2464,17 @@ dt_runhandler() {
 # its own belongs in DT_APPDIRS, where the hibr menu already finds it --
 # sourcing an arbitrary double-clicked file into the running desktop, with
 # every global that implies, is not a line this crosses.
+DT_OPENPENDING=
+
+# Run once the "unregistered extension" confirm below is answered yes --
+# DT_OPENPENDING carries the path rather than the confirm command itself
+# naming it, since dt_confirm's own callback is a bare word-split string
+# and a path with a space in it would not survive that as an argument.
+dt_openfile_confirmed() {
+	dt_launch term "$DT_OPENPENDING"
+	DT_OPENPENDING=
+}
+
 dt_openfile() {
 	local ext
 
@@ -2467,7 +2494,14 @@ dt_openfile() {
 	elif [ "$ext" = txt ] && dt_has notepad_open; then
 		dt_launch notepad "$1"
 	elif [ -n "${DT_APPS[term]["title"]}" ]; then
-		dt_launch term "$1"
+		DT_OPENPENDING=$1
+		if [ -n "$ext" ]; then
+			dt_confirm "Unregistered extension .$ext -- open in hvi anyway?" \
+				dt_openfile_confirmed
+		else
+			dt_confirm "No file type registered for this -- open in hvi anyway?" \
+				dt_openfile_confirmed
+		fi
 	else
 		dt_note "Nothing here opens ${1##*/}"
 	fi

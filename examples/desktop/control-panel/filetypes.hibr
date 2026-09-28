@@ -1,0 +1,225 @@
+#!/usr/bin/env hibr
+#
+# filetypes -- the Control Panel pane for dt_handler's own extension-to-
+# program table (DT_HANDLERS). Files' own Open With menu already reads it;
+# this is where a mapping is added, changed or removed, rather than only
+# through a dt_handler line in a script of your own -- which still works
+# exactly as before, and is what dt_save now writes these back out as.
+
+command -v cp_pane > /dev/null && cp_pane filetypes "File Types" "◈"
+
+declare -gA FT
+
+# The command DT_HANDLERS[$ext] holds, back into one line, for the row's
+# own value column and the Edit dialog's own starting text.
+ft_summary() {
+	local ext=$1 n i cmd=
+
+	n=${DT_HANDLERS[$ext]["n"]}
+	i=0
+	while [ "$i" -lt "$n" ]; do
+		[ -n "$cmd" ] && cmd="$cmd "
+		cmd="$cmd${DT_HANDLERS[$ext][$i]}"
+		i=$((i + 1))
+	done
+	ret "$cmd"
+}
+
+filetypes_rows() {
+	local w=$1 n=0 ext v
+	local -a all
+
+	all=("${!DT_HANDLERS[@]}")
+	arr sort all
+	for ext in "${all[@]}"; do
+		CP[$w][$n]["kind"]=action
+		CP[$w][$n]["text"]=$ext
+		v := ft_summary "$ext"
+		[ "${DT_HANDLERS[$ext]["term"]}" = 1 ] && v="$v (term)"
+		CP[$w][$n]["val"]=$v
+		CP[$w][$n]["key"]="edit:$ext"
+		n=$((n + 1))
+	done
+	CP[$w][$n]["kind"]=action
+	CP[$w][$n]["text"]="Add File Type…"
+	CP[$w][$n]["val"]=""
+	CP[$w][$n]["key"]=add
+	n=$((n + 1))
+	ret "$n"
+}
+
+filetypes_do() {
+	local w=$1 k=$2
+
+	case $k in
+	add) ft_dialog "" ;;
+	edit:*) ft_dialog "${k#edit:}" ;;
+	esac
+}
+
+# Open the Add/Edit dialog, blank for a new entry or filled in for an
+# existing one -- the same dt_new-with-no-app-registration a small dialog
+# of its own already uses elsewhere (Rename, Get Info): defining ft_draw,
+# ft_key etc. is all a prefix needs to become one, with no dt_app of its
+# own and nothing on the hibr menu. Named ft_dialog, not ft_open -- dt_new
+# already reserves "<prefix>_open" as the window's own lifecycle hook, ​
+# called *by* dt_new once a window exists; naming this one that instead
+# made dt_new call it a second time as that hook, which called dt_new
+# again, which called it again -- an unbounded recursion opening a new
+# window every single time, caught only because DT_HANDLERS' own "ext"
+# argument came back as 2, 3, 4… once logged, plainly a window count and
+# not an extension.
+ft_dialog() {
+	local ext=$1 h=9 w=54 r c cmd rid
+
+	r=$((DT_ROWS / 2 - h / 2))
+	c=$(((DT_COLS - w) / 2))
+	rid := dt_new "File Type" "$h" "$w" "$r" "$c" ft
+	FT[$rid]["orig"]=$ext
+	FT[$rid]["extbuf"]=$ext
+	FT[$rid]["extcur"]=${#ext}
+	cmd=
+	FT[$rid]["term"]=0
+	if [ -n "$ext" ]; then
+		cmd := ft_summary "$ext"
+		[ "${DT_HANDLERS[$ext]["term"]}" = 1 ] && FT[$rid]["term"]=1
+	fi
+	FT[$rid]["cmdbuf"]=$cmd
+	FT[$rid]["cmdcur"]=${#cmd}
+	FT[$rid]["focus"]=ext
+}
+
+ft_draw() {
+	local id=$1 w=$3 efoc cfoc
+
+	dt_wclear "$id"
+	console pen "$DT_INK" "$DT_FACE"
+	console put -p "w$id" 1 2 "Extension:"
+	efoc=0; [ "${FT[$id]["focus"]}" = ext ] && efoc=1
+	dt_textdraw "$id" 1 13 10 "${FT[$id]["extbuf"]}" "${FT[$id]["extcur"]}" \
+		"$efoc"
+	dt_wreg "$id" 1 13 10 ext
+
+	console pen "$DT_INK" "$DT_FACE"
+	console put -p "w$id" 3 2 "Command:"
+	cfoc=0; [ "${FT[$id]["focus"]}" = cmd ] && cfoc=1
+	dt_textdraw "$id" 3 13 $((w - 15)) "${FT[$id]["cmdbuf"]}" \
+		"${FT[$id]["cmdcur"]}" "$cfoc"
+	dt_wreg "$id" 3 13 $((w - 15)) cmd
+
+	dt_check "$id" 5 2 "${FT[$id]["term"]}" "Run in a terminal" term
+
+	console pen "#718096" "$DT_FACE"
+	if [ -n "${FT[$id]["orig"]}" ]; then
+		console put -p "w$id" 7 2 "enter saves · escape cancels · ctrl-d deletes"
+	else
+		console put -p "w$id" 7 2 "enter saves · escape cancels"
+	fi
+}
+
+ft_click() {
+	local id=$1 r=$2 c=$3 tag cur
+
+	tag := dt_hit "$id" "$r" "$c"
+	case $tag in
+	ext)
+		FT[$id]["focus"]=ext
+		cur=$((c - 13))
+		[ "$cur" -gt "${#FT[$id]["extbuf"]}" ] && cur=${#FT[$id]["extbuf"]}
+		[ "$cur" -lt 0 ] && cur=0
+		FT[$id]["extcur"]=$cur
+		;;
+	cmd)
+		FT[$id]["focus"]=cmd
+		cur=$((c - 13))
+		[ "$cur" -gt "${#FT[$id]["cmdbuf"]}" ] && cur=${#FT[$id]["cmdbuf"]}
+		[ "$cur" -lt 0 ] && cur=0
+		FT[$id]["cmdcur"]=$cur
+		;;
+	term)
+		if [ "${FT[$id]["term"]}" = 1 ]; then
+			FT[$id]["term"]=0
+		else
+			FT[$id]["term"]=1
+		fi
+		;;
+	esac
+}
+
+ft_key() {
+	local id=$1 k=$2 field buf cur res
+
+	case $k in
+	escape) dt_del "$id"; return 0 ;;
+	enter) ft_apply "$id"; return 0 ;;
+	tab)
+		case ${FT[$id]["focus"]} in
+		ext) FT[$id]["focus"]=cmd ;;
+		*) FT[$id]["focus"]=ext ;;
+		esac
+		return 0
+		;;
+	ctrl-d)
+		if [ -n "${FT[$id]["orig"]}" ]; then
+			unset "DT_HANDLERS[${FT[$id]["orig"]}]"
+			command -v dt_save > /dev/null && dt_save
+			dt_del "$id"
+		fi
+		return 0
+		;;
+	esac
+	field=${FT[$id]["focus"]}
+	case $field in
+	ext) buf=${FT[$id]["extbuf"]}; cur=${FT[$id]["extcur"]} ;;
+	cmd) buf=${FT[$id]["cmdbuf"]}; cur=${FT[$id]["cmdcur"]} ;;
+	*) return 1 ;;
+	esac
+	res := dt_textkey "$buf" "$cur" "$k" || return 1
+	# ##* }, not #* }: the shortest-prefix form splits at the *first*
+	# space, which is wrong the moment the text itself has one in it (a
+	# command line typed here always will) -- dt_textkey's own "text cur"
+	# return has no other separator to tell them apart, so only the
+	# longest-prefix form, splitting at the *last* space, reliably lands
+	# on the cursor number rather than the middle of the text.
+	case $field in
+	ext) FT[$id]["extbuf"]=${res% *}; FT[$id]["extcur"]=${res##* } ;;
+	cmd) FT[$id]["cmdbuf"]=${res% *}; FT[$id]["cmdcur"]=${res##* } ;;
+	esac
+	return 0
+}
+
+ft_apply() {
+	local id=$1 ext orig cmd words
+
+	ext=${FT[$id]["extbuf"]}
+	ext=${ext#.}
+	if [ -z "$ext" ]; then
+		dt_note "Needs an extension"
+		return 0
+	fi
+	cmd=${FT[$id]["cmdbuf"]}
+	if [ -z "$cmd" ]; then
+		dt_note "Needs a command"
+		return 0
+	fi
+	orig=${FT[$id]["orig"]}
+	[ -n "$orig" ] && [ "$orig" != "$ext" ] && unset "DT_HANDLERS[$orig]"
+	# str split, not an unquoted $cmd expanded straight into an array --
+	# hibr's own globbing is always on, and a command typed here with a
+	# literal * in it (a real one: "grep foo *.log") would otherwise
+	# silently turn into whatever files happen to match in the directory
+	# this pane's own process is sitting in, nothing to do with what the
+	# user typed.
+	str split "$cmd" " " words
+	if [ "${FT[$id]["term"]}" = 1 ]; then
+		dt_handler "$ext" term "${words[@]}"
+	else
+		dt_handler "$ext" "${words[@]}"
+	fi
+	command -v dt_save > /dev/null && dt_save
+	dt_del "$id"
+}
+
+ft_close() {
+	unset "FT[$1]"
+}

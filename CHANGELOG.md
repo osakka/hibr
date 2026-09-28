@@ -1,5 +1,49 @@
 # Changelog
 
+## 0.32
+
+Desktop moves to **0.12** alongside this release.
+
+**A new "File Types" pane in Control Panel** for `dt_handler`'s own
+extension-to-program table -- list, add, edit and delete a mapping
+through the UI, not only through a `dt_handler` line in a script of your
+own (which still works exactly as before, and is what `dt_save` now
+writes these back out as, the same way it already does for shortcuts
+and icon positions). Double-clicking a file with no registered handler,
+no `.png`/`.txt` default and no executable bit now asks first --
+"Unregistered extension .ext -- open in hvi anyway?" -- rather than
+silently opening it; declining leaves it alone.
+
+**A real, pre-existing bug found building that pane's own Command
+field**, and fixed everywhere it already existed: `dt_textkey`'s own
+`"text cursor"` return has no separator of its own besides a plain
+space, and every caller extracting the cursor back out
+(`${res#* }`, the *shortest*-prefix form, splitting at the *first*
+space) silently assumed the text itself never has one. A command line
+always does ("feh -g"); Files' own Rename (a filename can) and Get Info
+(name, owner, group) had the identical latent bug, just harder to hit in
+practice. Typing past an embedded space scrambled every character after
+it -- confirmed by the *saved* value, not just the display, once
+isolated. Fixed at every one of the five call sites to `${res##* }`,
+the longest-prefix form, which correctly splits at the *last* space
+regardless of how many are in the text itself.
+
+Two tickets recorded in `docs/backlog.md`, not built this release: a
+Growl-style notification queue/history (today there is only ever one
+note on screen at a time, replaced rather than queued, with no history
+to look back at), and an "ultra small" `mods/db.c` -- a column-store
+engine sketch (mmap'd row groups, zone maps for scan-skipping,
+branch-light vectorized filters) with the real gaps it would need
+closed before it is more than a demo: no static per-group row limit
+inherited without deciding to, a real insert path, a composeable query
+surface instead of two hardcoded comparisons, and an honest statement
+of what "single writer, `msync`, no crash recovery" actually means.
+
+HIBR_VER -> 0.32, DT_VER -> 0.12.
+
+Verified: tests/run.sh 86/86, tests/desktop.py 267/267, tests/apps.py
+212/212.
+
 ## 0.31
 
 Desktop moves to **0.11** alongside this release.

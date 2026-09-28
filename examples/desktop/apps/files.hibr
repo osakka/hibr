@@ -752,7 +752,7 @@ rn_key() {
 	res := dt_textkey "${RN[$id]["text"]}" "${RN[$id]["cur"]}" "$k" ||
 		return 1
 	RN[$id]["text"]=${res% *}
-	RN[$id]["cur"]=${res#* }
+	RN[$id]["cur"]=${res##* }
 	return 0
 }
 
@@ -991,9 +991,9 @@ gi_key() {
 	esac
 	res := dt_textkey "$buf" "$cur" "$k" || return 1
 	case $field in
-	name) GI[$id]["namebuf"]=${res% *}; GI[$id]["namecur"]=${res#* } ;;
-	owner) GI[$id]["userbuf"]=${res% *}; GI[$id]["usercur"]=${res#* } ;;
-	group) GI[$id]["groupbuf"]=${res% *}; GI[$id]["groupcur"]=${res#* } ;;
+	name) GI[$id]["namebuf"]=${res% *}; GI[$id]["namecur"]=${res##* } ;;
+	owner) GI[$id]["userbuf"]=${res% *}; GI[$id]["usercur"]=${res##* } ;;
+	group) GI[$id]["groupbuf"]=${res% *}; GI[$id]["groupcur"]=${res##* } ;;
 	esac
 	return 0
 }

@@ -266,8 +266,8 @@ out = subprocess.run([sx.HIBR, "-c", CPLOAD + "echo ${CP_PANE_LIST[*]}"],
 ORDER = out.split()
 check("panes register and sort by title, not load order",
       ORDER == ["app_shortcuts", "appearance", "behaviour", "control_strip",
-                "datetime", "displays", "shortcuts", "terminal", "wallpick",
-                "window_style"], out)
+                "datetime", "displays", "filetypes", "shortcuts", "terminal",
+                "wallpick", "window_style"], out)
 
 PW = "20 58 2 2"
 PANEL = ("panel", PW)
@@ -287,8 +287,9 @@ BODYCOL = 20
 TITLE = {"app_shortcuts": "App Shortcuts", "appearance": "Appearance",
          "behaviour": "Behaviour", "control_strip": "Control Strip",
          "datetime": "Date & Time", "displays": "Displays",
-         "shortcuts": "Shortcuts", "terminal": "Terminal",
-         "wallpick": "Wallpaper", "window_style": "Window Style"}
+         "filetypes": "File Types", "shortcuts": "Shortcuts",
+         "terminal": "Terminal", "wallpick": "Wallpaper",
+         "window_style": "Window Style"}
 
 
 def prow(name):
@@ -608,6 +609,61 @@ sc = cprun(DOWN_TERM + [b"\x1b[C"], extra=("term",))
 check("Scrollbar defaults off, and Follow Program Title defaults on",
       "[ ]" in sc.row(sc.find("Scrollbar")[0]) and
       "[x]" in sc.row(sc.find("Follow Program Title")[0]), sc)
+
+# File Types: dt_handler's own table, listed and editable through the UI
+# now instead of only through a line in a script of the user's own --
+# which is still exactly how it is read back at the next start (dt_save
+# writes a dt_handler call for each one), and still exactly how it can be
+# set up outside the UI too.
+DOWN_FT = [b"\x1b[B"] * downs("filetypes")
+FTPRE = "dt_handler jpg feh\n"
+
+sc = cprun(DOWN_FT, pre=FTPRE)
+check("File Types lists a registered handler, and offers to add another",
+      sc.find("jpg") is not None and sc.find("feh") is not None and
+      sc.find("Add File Type") is not None, sc)
+
+sc = cprun(DOWN_FT + [b"\x1b[C", b"\r"], pre=FTPRE)
+check("activating a registered extension opens it, pre-filled, for editing",
+      sc.find("┤ File Type ├") is not None and
+      sc.find("Extension: jpg") is not None and
+      sc.find("Command:   feh") is not None, sc)
+
+sc = cprun(DOWN_FT + [b"\x1b[C", b"\r", b"\x1b"], pre=FTPRE)
+check("escape cancels the dialog, leaving the entry untouched",
+      sc.find("┤ File Type ├") is None and sc.find("jpg") is not None, sc)
+
+sc = cprun(DOWN_FT + [b"\x1b[C", b"\r", b"\x04"], pre=FTPRE)
+check("ctrl-d deletes it",
+      sc.find("┤ File Type ├") is None and sc.find("jpg") is None, sc)
+
+sc = cprun(DOWN_FT + [b"\x1b[C", b"\x1b[B", b"\r"], pre=FTPRE)
+# cprun's own trailing "qy" (its default end, always sent after this
+# feed) lands in the dialog's own Extension field -- still focused,
+# nothing here closes it -- so that field is not what this checks;
+# the Command field and the checkbox are untouched by it either way.
+# "Command:" plus a run of blanks, not the row's own end -- the row also
+# holds the Control Panel window's own right border, well past the
+# dialog, which .rstrip() (screen.row's own) does not strip since it is
+# not whitespace.
+check("Add File Type opens a blank dialog",
+      sc.find("┤ File Type ├") is not None and
+      sc.find("Command:" + " " * 10) is not None and
+      sc.find("[ ] Run in a terminal") is not None, sc)
+
+# The command field can hold a space (it is a command line), and
+# dt_textkey's own "text cur" return has no other separator to split on
+# -- reading the cursor back with the shortest-prefix form (the *first*
+# space) mistook the text's own embedded space for that separator,
+# scrambling every key typed after it. rn_key and gi_key had the same
+# latent bug (Files' own Rename and Get Info fields), fixed alongside
+# this one; see the Rename test above for that side of it.
+sc = cprun(DOWN_FT + [b"\x1b[C", b"\x1b[B", b"\r", b"p", b"n", b"g", b"\t",
+                      b"f", b"e", b"h", b" ", b"-", b"g", b"\r"], pre=FTPRE)
+row = sc.find("png")
+check("a command with a space in it is not scrambled by what is typed "
+      "after it",
+      row is not None and "feh -g" in sc.row(row[0]), sc)
 
 # The redraw-skip slider itself: a plain track, min at DT_DRAWSKIP=0 (skip
 # none), no popup to open (unlike a dropdown, right/enter on it just cycles
@@ -1187,9 +1243,19 @@ check("a file dropped on a terminal is typed in as its path",
 EDIT = "TW_EDIT=(/bin/sh -c 'echo \"editing $1\"; sleep 5' x)"
 sc = run("files", FW, [b"\x1b[B"] * 3 + [b"\r"], pre=PRE + "\n" + EDIT,
          extra=["term"], end=None, wait=1.2)
+check("opening a file with no registered handler asks first",
+      sc.find("Unregistered extension .txt") is not None, sc)
+
+sc = run("files", FW, [b"\x1b[B"] * 3 + [b"\r", b"y"], pre=PRE + "\n" + EDIT,
+         extra=["term"], end=None, wait=1.2)
 check("opening a file opens a terminal window called by its name",
       sc.find("┤ Terminal [file00.txt] ├") is not None and
       sc.find("editing") is not None, sc)
+
+sc = run("files", FW, [b"\x1b[B"] * 3 + [b"\r", b"n"], pre=PRE + "\n" + EDIT,
+         extra=["term"], end=None, wait=1.2)
+check("and declining leaves it closed",
+      sc.find("┤ Terminal [file00.txt] ├") is None, sc)
 
 # --- files: choosing more than one ---------------------------------------
 #
@@ -1282,6 +1348,21 @@ check("and it is the real file on disk that moved",
       os.path.exists(os.path.join(RD, "new.txt")) and
       not os.path.exists(os.path.join(RD, "old.txt")), sc)
 shutil.rmtree(RD, True)
+
+# A name typed here can have a space in it, and dt_textkey's own "text
+# cur" return has no other separator to split on -- ${res#* } (shortest
+# prefix, the first space) used to read the *text*'s own embedded space
+# as if it were that separator, corrupting the cursor for every key
+# typed after it. Renaming to something with a space in the middle, then
+# typing more past it, is exactly what would have scrambled.
+RD2 = tempfile.mkdtemp(prefix="hibr-rename2-")
+open(os.path.join(RD2, "old.txt"), "w").write("hi\n")
+sc = run("files", FW,
+         [b"\x1b[B", b"n"] + [b"\x7f"] * 7 + [b"new file.txt", b"\r"],
+         pre="FB_DIR=%s" % RD2)
+check("a space in the new name does not scramble what is typed after it",
+      os.path.exists(os.path.join(RD2, "new file.txt")), sc)
+shutil.rmtree(RD2, True)
 
 sc = run("files", FW, [press(5, 10, 2), press(12, 12)], pre=HPRE, end=None)
 check("Info opens a real Get Info window with the entry's own details",
@@ -1544,4 +1625,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(203)
+report(212)
