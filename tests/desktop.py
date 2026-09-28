@@ -290,21 +290,31 @@ check("while the rightmost button there is min, not close",
       sc.find("· Hello") is not None, sc)
 
 sc, _ = run(ONE, env={"DT_TITLEALIGN": "center"})
-check("DT_TITLEALIGN=center centres the title in the room the buttons leave",
-      sc.find("┤ Hello ├") == (6, 17), sc)
+check("DT_TITLEALIGN=center centres the title on the bar's own full width",
+      sc.find("┤ Hello ├") == (6, 20), sc)
 sc, _ = run(ONE, env={"DT_TITLEALIGN": "right"})
 check("and right pins it against the button cluster",
       sc.find("┤ Hello ├") == (6, 23), sc)
 sc, _ = run(ONE, env={"DT_TITLEALIGN": "center", "DT_BTNSIDE": "left"})
-check("centring accounts for the real cluster width, not a style's worst "
-      "case -- a fixed window's five-wide cluster would otherwise skew it",
-      sc.find("┤ Hello ├") == (6, 24), sc)
+check("and centring lands in the same place regardless of which side the "
+      "buttons are docked on -- centring in the room they leave instead "
+      "pushed the title away from them by about half their own width, in "
+      "opposite directions depending on the side, which is what read as "
+      "off-centre",
+      sc.find("┤ Hello ├") == (6, 20), sc)
 
 FIXEDONE = ('dt_app fx "Fixed" 6 20 once "◆" fixed\n'
             'dt_new "Fixed" 6 20 6 10 fx\n')
 sc, _ = run(FIXEDONE, env={"DT_TITLEALIGN": "center"})
-check("and a fixed window's own narrower cluster centres correctly too",
-      sc.find("┤ Fixed ├") == (6, 13), sc)
+check("and a fixed window's own narrower cluster still centres correctly",
+      sc.find("┤ Fixed ├") == (6, 15), sc)
+
+NARROWFIXED = ('dt_app fx "Fixedish" 6 20 once "◆" fixed\n'
+               'dt_new "Fixedish" 6 20 6 10 fx\n')
+sc, _ = run(NARROWFIXED, env={"DT_TITLEALIGN": "center"})
+check("and on a bar too narrow for true centre, it clamps short of the "
+      "buttons rather than running into them",
+      sc.find("┤ Fixedish ├") == (6, 12), sc)
 
 AMBER_FG = b"38;2;246;173;85"
 GREEN_FG = b"38;2;104;211;145"

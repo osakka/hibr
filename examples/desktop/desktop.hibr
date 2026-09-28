@@ -703,7 +703,7 @@ dt_win() {
 	# and a centred or right-aligned title has to land on the real
 	# boundary or it reads as off-centre once anything narrower than the
 	# widest cluster is in play.
-	local t=${DT[$id]["title"]} tc0 room tc
+	local t=${DT[$id]["title"]} tc0 room tc tmax
 	if [ "$DT_BTNSIDE" = left ]; then
 		tc0=$((bc + ${#bs}))
 		room=$((w - 1 - tc0 - 4))
@@ -712,9 +712,19 @@ dt_win() {
 		room=$((bc - tc0 - 4))
 	fi
 	[ ${#t} -gt "$room" ] && t="${t:0:$room}"
+	tmax=$((tc0 + room - ${#t}))
 	case $DT_TITLEALIGN in
-	center) tc=$((tc0 + (room - ${#t}) / 2)) ;;
-	right)  tc=$((tc0 + room - ${#t})) ;;
+	# Centred on the bar's own full width, not on the room left over once
+	# the button cluster is excluded -- centring in that remaining room
+	# pushes the title away from the buttons by about half the cluster's
+	# own width, which is exactly what reads as off-centre, and in the
+	# opposite direction depending on which side the buttons are docked.
+	# Still clamped into the same safe range the button cluster already
+	# keeps clear, so a long title still cannot run into it.
+	center) tc=$((1 + (w - 6 - ${#t}) / 2))
+		[ "$tc" -lt "$tc0" ] && tc=$tc0
+		[ "$tc" -gt "$tmax" ] && tc=$tmax ;;
+	right)  tc=$tmax ;;
 	*)      tc=$tc0 ;;
 	esac
 	local tdl="┤" tdr="├"
