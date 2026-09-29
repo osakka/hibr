@@ -267,7 +267,7 @@ ORDER = out.split()
 check("panes register and sort by title, not load order",
       ORDER == ["app_shortcuts", "appearance", "behaviour", "control_strip",
                 "datetime", "displays", "filetypes", "notify", "shortcuts",
-                "terminal", "wallpick", "window_style"], out)
+                "taskmgr", "terminal", "wallpick", "window_style"], out)
 
 PW = "20 58 2 2"
 PANEL = ("panel", PW)
@@ -288,7 +288,8 @@ TITLE = {"app_shortcuts": "App Shortcuts", "appearance": "Appearance",
          "behaviour": "Behaviour", "control_strip": "Control Strip",
          "datetime": "Date & Time", "displays": "Displays",
          "filetypes": "File Types", "notify": "Notifications",
-         "shortcuts": "Shortcuts", "terminal": "Terminal",
+         "shortcuts": "Shortcuts", "taskmgr": "Task Manager",
+         "terminal": "Terminal",
          "wallpick": "Wallpaper", "window_style": "Window Style"}
 
 
@@ -707,17 +708,27 @@ sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[C"] * 20)
 check("it stops at the reasonable maximum rather than climbing forever",
       sc.find("Redraw Skip (9)") is not None, sc)
 
-# Task Manager Refresh -- found while adding #52's graphs, the same gap
-# About Refresh already closed for About hibr: TK_SCANMS had no setting
-# of its own either.
-sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 9, extra=("tasks",))
-check("Task Manager Refresh only appears once Task Manager is loaded",
-      sc.find("Task Manager Refresh") is not None and
-      sc.find("1000 ms") is not None, sc)
-sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 9 + [b"\x1b[C"],
+# Task Manager's own pane: Refresh (which lived in Behaviour until it had
+# company), Scrollbar, and the order a new window starts in -- rows that
+# appear only once Task Manager itself is loaded.
+DOWN_TM = [b"\x1b[B"] * downs("taskmgr")
+sc = cprun(DOWN_TM, extra=("tasks",))
+check("Task Manager has a pane of its own: Refresh, Scrollbar, Sort By and "
+      "Order", sc.find("Refresh") is not None and
+      sc.find("1000 ms") is not None and sc.find("Scrollbar") is not None and
+      sc.find("Sort By") is not None and sc.find("Order") is not None and
+      "cpu" in sc.row(sc.find("Sort By")[0]) and
+      "desc" in sc.row(sc.find("Order")[0]), sc)
+sc = cprun(DOWN_TM + [b"\x1b[C", b"\x1b[C"], extra=("tasks",))
+check("and Refresh cycles through the other intervals",
+      "2000 ms" in sc.row(sc.find("Refresh")[0]), sc)
+sc = cprun(DOWN_TM + [b"\x1b[C", b"\x1b[B", b"\x1b[B", b"\x1b[C"],
            extra=("tasks",))
-check("and it cycles through the other intervals",
-      "2000 ms" in sc.row(sc.find("Task Manager Refresh")[0]), sc)
+check("and the default sort column can be changed",
+      "mem" in sc.row(sc.find("Sort By")[0]), sc)
+sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 9, extra=("tasks",))
+check("and Behaviour no longer carries a Task Manager row",
+      sc.find("Task Manager Refresh") is None, sc)
 
 # Default File View -- #50 -- only shows once Files itself is loaded, the
 # same rule About Refresh follows above, and only that pane's own row
@@ -1625,6 +1636,70 @@ check("right-click selects row 0 (index under the click), pid 10",
 check("a rescan while the same menu stays open does not change it",
       "second=10" in out, out)
 
+# The list sorts by any heading, and a second click on the same one turns
+# it round; a new window starts in whatever order the pane chose; the
+# wheel moves the view without moving the selection. Fixture data, the
+# same as the sort and click checks above.
+THEAD = (
+    '. %s\n'
+    'TK_SORTBY=name; TK_SORTDIR=asc\n'
+    'tasks_open 1; echo "open=${TK[1]["by"]}/${TK[1]["dir"]}"\n'
+    'TK[1]["hx"]="1 8 30 39 46 53"\n'
+    'tasks_click 1 1 10; echo "name2=${TK[1]["by"]}/${TK[1]["dir"]}"\n'
+    'tasks_click 1 1 40; echo "cpu=${TK[1]["by"]}/${TK[1]["dir"]}"\n'
+    'tasks_click 1 1 42; echo "cpu2=${TK[1]["by"]}/${TK[1]["dir"]}"\n'
+    'tasks_click 1 1 2; echo "pid=${TK[1]["by"]}/${TK[1]["dir"]}"\n'
+    'TK[1]["n"]=50; TK[1]["vis"]=10; TK[1]["top"]=0; TK[1]["sel"]=4\n'
+    'tasks_wheel 1 down; tasks_wheel 1 down; echo "down=${TK[1]["top"]}"\n'
+    'tasks_wheel 1 up; echo "up=${TK[1]["top"]} sel=${TK[1]["sel"]}"\n'
+    'i=0; while [ $i -lt 20 ]; do tasks_wheel 1 down; i=$((i + 1)); done\n'
+    'echo "end=${TK[1]["top"]}"\n'
+    % (appdir("tasks") + "/tasks.hibr")
+)
+out = subprocess.run([sx.HIBR, "-c", THEAD], capture_output=True, text=True,
+                     env=dict(os.environ, DT_ROWS="1")).stdout
+check("a new window starts in the order the Task Manager pane chose",
+      "open=name/asc" in out, out)
+check("clicking the sorted heading again turns the order round",
+      "name2=name/desc" in out, out)
+check("clicking another heading sorts by it -- a number column largest "
+      "first -- and again turns it round",
+      "cpu=cpu/desc" in out and "cpu2=cpu/asc" in out and
+      "pid=pid/asc" in out, out)
+check("the wheel scrolls three rows at a time and leaves the selection",
+      "down=6" in out and "up=3 sel=4" in out, out)
+check("and stops where the last row is in view", "end=40" in out, out)
+
+sc = run(*TASKS)
+hr = sc.find("PID")
+check("the sorted heading carries its direction, CPU largest first",
+      hr is not None and "▼CPU%" in sc.row(hr[0]), sc)
+nm = sc.find("Name")
+sc = run(*TASKS, feed=[press(nm[0], nm[1] + 1)] if nm else [])
+check("clicking a heading sorts by it, and says so",
+      "Name▲" in sc.row(hr[0]) if hr else False, sc)
+sc = run(*TASKS, feed=[press(nm[0], nm[1] + 1), press(nm[0], nm[1] + 1)]
+         if nm else [])
+check("and a second click turns it round",
+      "Name▼" in sc.row(hr[0]) if hr else False, sc)
+
+# The scrollbar sits in the list's right margin, between the Mem column
+# and the border: a real machine has more processes than rows, so a track
+# and its thumb are there.
+def tkbar(sc):
+    hr = sc.find("PID")
+    if not hr:
+        return False
+    head = sc.row(hr[0])
+    lo, hi = head.find("Mem") + 3, head.rfind("│")
+    return any(ch in "│█" for r in range(hr[0] + 1, hr[0] + 6)
+               for ch in sc.row(r)[lo:hi])
+
+sc = run(*TASKS)
+check("the list has a scrollbar in its right margin", tkbar(sc), sc)
+sc = run(*TASKS, pre="TK_BAR=0\n")
+check("and none when the pane turns it off", not tkbar(sc), sc)
+
 # Two graphs at the bottom -- #52 -- CPU on the left, Mem on the right,
 # a percentage label above each and a sparkline below it. Not the
 # specific numbers or heights, the real machine's again, only that both
@@ -1651,4 +1726,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(218)
+report(230)

@@ -1,0 +1,63 @@
+#!/usr/bin/env hibr
+#
+# taskmgr -- the Control Panel pane for Task Manager: how often it rescans,
+# whether its list has a scrollbar, and the order a new window starts in.
+# Its rows appear only once Task Manager itself is loaded, the same way the
+# Terminal pane's wait for the terminal.
+
+command -v cp_pane > /dev/null && cp_pane taskmgr "Task Manager" "▤"
+
+CP_TKTICKS=(500 1000 2000 3000 5000 10000)
+CP_TKDIRS=(desc asc)
+
+cp_set_tasks() { TK_SCANMS=$2; cp_save; }
+cp_set_tksort() { TK_SORTBY=$2; cp_save; }
+cp_set_tkdir() { TK_SORTDIR=$2; cp_save; }
+
+taskmgr_rows() {
+	local w=$1 n=0
+
+	if [ -n "$TK_SCANMS" ]; then
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Refresh"
+		CP[$w][$n]["val"]="$TK_SCANMS ms"; CP[$w][$n]["key"]=tasksrefresh
+		n=$((n + 1))
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Scrollbar"
+		CP[$w][$n]["wtype"]=bool
+		CP[$w][$n]["val"]=off; [ "$TK_BAR" = 1 ] && CP[$w][$n]["val"]=on
+		CP[$w][$n]["key"]=tkbar; n=$((n + 1))
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Sort By"
+		CP[$w][$n]["val"]="$TK_SORTBY"; CP[$w][$n]["key"]=tksort
+		n=$((n + 1))
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Order"
+		CP[$w][$n]["val"]="$TK_SORTDIR"; CP[$w][$n]["key"]=tkdir
+		n=$((n + 1))
+	fi
+	ret "$n"
+}
+
+taskmgr_do() {
+	local w=$1 k=$2 dir=$3 v
+
+	case $k in
+	tasksrefresh) v := cp_next "$TK_SCANMS" "$dir" "${CP_TKTICKS[@]}"
+		TK_SCANMS=$v ;;
+	tkbar)
+		if [ "$TK_BAR" = 1 ]; then TK_BAR=0; else TK_BAR=1; fi
+		;;
+	tksort) v := cp_next "$TK_SORTBY" "$dir" "${TK_COLS[@]}"
+		TK_SORTBY=$v ;;
+	tkdir) v := cp_next "$TK_SORTDIR" "$dir" "${CP_TKDIRS[@]}"
+		TK_SORTDIR=$v ;;
+	esac
+	cp_save
+}
+
+taskmgr_drop() {
+	local w=$1 r=$2 c=$3 k=$4
+
+	case $k in
+	tasksrefresh) dt_droplist "$w" "$r" "$c" cp_set_tasks "${CP_TKTICKS[@]}" ;;
+	tksort) dt_droplist "$w" "$r" "$c" cp_set_tksort "${TK_COLS[@]}" ;;
+	tkdir) dt_droplist "$w" "$r" "$c" cp_set_tkdir "${CP_TKDIRS[@]}" ;;
+	esac
+}

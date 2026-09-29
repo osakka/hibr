@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.41
+
+Desktop moves to **0.21** alongside this release.
+
+**Task Manager sorts by any column, either way.** Click a heading -- PID,
+Name, Owner, CPU% or Mem -- to sort by it, and click it again to turn the
+order round; the sorted heading carries ▲ or ▼. Numbers start largest first
+and names at A, case aside. The sort now happens in C (`arr sort`) over one
+padded key per row, where an insertion sort in the shell used to take one
+comparison at a time and would have crawled the moment a click reversed a
+few hundred processes.
+
+**The wheel scrolls the list** three rows at a time, leaving the selection
+where it is, and **a scrollbar** in the list's right margin shows where the
+view is; a click on its track jumps there.
+
+**Task Manager has its own Control Panel pane**: Refresh (moved from
+Behaviour), Scrollbar on or off, and Sort By and Order, the order a new
+window starts in.
+
+HIBR_VER -> 0.41, DT_VER -> 0.21.
+
+Verified: tests/run.sh 86/86, tests/desktop.py 294/294, tests/apps.py
+230/230.
+
 ## 0.40
 
 Desktop moves to **0.20** alongside this release.

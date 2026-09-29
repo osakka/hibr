@@ -167,6 +167,20 @@ TK_HZ=100
 TK_SCANMS="${TK_SCANMS-1000}"
 command -v dt_keep > /dev/null && dt_keep TK_SCANMS
 
+# The order a new window's list starts in -- a column (pid, name, owner,
+# cpu, mem) and a direction (asc, desc) -- and whether the list has a
+# scrollbar in its right margin. Clicking a column heading changes one
+# window's order without changing these.
+TK_SORTBY="${TK_SORTBY-cpu}"
+TK_SORTDIR="${TK_SORTDIR-desc}"
+TK_BAR="${TK_BAR-1}"
+TK_COLS=(pid name owner cpu mem)
+if command -v dt_keep > /dev/null; then
+	dt_keep TK_SORTBY
+	dt_keep TK_SORTDIR
+	dt_keep TK_BAR
+fi
+
 # Name and CPU times, both from the one read of /proc/[pid]/stat -- status
 # was being read for the name alongside rss and uid, for a field the stat
 # read already had on the same line for free. rss stays out of this: its
@@ -281,37 +295,76 @@ tasks_scan() {
 	TK[$id]["n"]=$n
 }
 
-# Insertion sort on whichever column, descending: n is at most a few
-# hundred, and the list is nearly sorted from one scan to the next, which is
-# exactly what this does least work on.
+# Sort by any column, either way. Each row becomes one key -- the column's
+# value, zero-padded when it is a number so text order is number order,
+# lowered when it is text -- then its pid to keep ties stable, then its
+# index; arr sort orders those in C, and the rows are rebuilt in that
+# order, or its reverse for descending. An insertion sort in the shell
+# did the same work one comparison at a time, fine for a list already
+# nearly in order and hopeless the moment a click reverses it.
 tasks_sort() {
-	local id=$1 by=$2 n i j pid name owner cpu mem key
+	local id=$1 by=$2 dir=${3:-desc} n i k v key
+	local -a keys apid aname aowner acpu amem
 
-	n=${TK[$id]["n"]}
-	i=1
+	n=${TK[$id]["n"]:-0}
+	[ "$n" -lt 2 ] && return 0
+	i=0
 	while [ "$i" -lt "$n" ]; do
-		pid=${TK[$id][$i]["pid"]}
-		name=${TK[$id][$i]["name"]}
-		owner=${TK[$id][$i]["owner"]}
-		cpu=${TK[$id][$i]["cpu"]}
-		mem=${TK[$id][$i]["mem"]}
-		key=${TK[$id][$i]["$by"]}
-		j=$((i - 1))
-		while [ "$j" -ge 0 ] && [ "${TK[$id][$j]["$by"]}" -lt "$key" ]; do
-			TK[$id][$((j + 1))]["pid"]=${TK[$id][$j]["pid"]}
-			TK[$id][$((j + 1))]["name"]=${TK[$id][$j]["name"]}
-			TK[$id][$((j + 1))]["owner"]=${TK[$id][$j]["owner"]}
-			TK[$id][$((j + 1))]["cpu"]=${TK[$id][$j]["cpu"]}
-			TK[$id][$((j + 1))]["mem"]=${TK[$id][$j]["mem"]}
-			j=$((j - 1))
-		done
-		TK[$id][$((j + 1))]["pid"]=$pid
-		TK[$id][$((j + 1))]["name"]=$name
-		TK[$id][$((j + 1))]["owner"]=$owner
-		TK[$id][$((j + 1))]["cpu"]=$cpu
-		TK[$id][$((j + 1))]["mem"]=$mem
+		v=${TK[$id][$i]["$by"]}
+		case $by in
+		name | owner) key := str lower "$v" ;;
+		*) printf -v key '%012d' "${v:-0}" ;;
+		esac
+		printf -v key '%s\t%012d\t%d' "$key" "${TK[$id][$i]["pid"]:-0}" "$i"
+		keys+=("$key")
 		i=$((i + 1))
 	done
+	arr sort keys
+	k=0
+	while [ "$k" -lt "$n" ]; do
+		if [ "$dir" = asc ]; then
+			key=${keys[$k]}
+		else
+			key=${keys[$((n - 1 - k))]}
+		fi
+		i=${key##*	}
+		apid+=("${TK[$id][$i]["pid"]}")
+		aname+=("${TK[$id][$i]["name"]}")
+		aowner+=("${TK[$id][$i]["owner"]}")
+		acpu+=("${TK[$id][$i]["cpu"]}")
+		amem+=("${TK[$id][$i]["mem"]}")
+		k=$((k + 1))
+	done
+	k=0
+	while [ "$k" -lt "$n" ]; do
+		TK[$id][$k]["pid"]=${apid[$k]}
+		TK[$id][$k]["name"]=${aname[$k]}
+		TK[$id][$k]["owner"]=${aowner[$k]}
+		TK[$id][$k]["cpu"]=${acpu[$k]}
+		TK[$id][$k]["mem"]=${amem[$k]}
+		k=$((k + 1))
+	done
+}
+
+# A heading clicked: sort by that column, or the other way if it already
+# was. Numbers start largest first -- the busiest process is the one being
+# looked for -- and text starts at A.
+tasks_headsort() {
+	local id=$1 col=$2
+
+	if [ "${TK[$id]["by"]}" = "$col" ]; then
+		if [ "${TK[$id]["dir"]}" = asc ]; then
+			TK[$id]["dir"]=desc
+		else
+			TK[$id]["dir"]=asc
+		fi
+	else
+		TK[$id]["by"]=$col
+		case $col in
+		cpu | mem) TK[$id]["dir"]=desc ;;
+		*) TK[$id]["dir"]=asc ;;
+		esac
+	fi
 }
 
 # A value right-justified in a field w wide, never narrower than the value
@@ -343,7 +396,8 @@ tasks_open() {
 	local id=$1
 	TK[$id]["sel"]=0
 	TK[$id]["top"]=0
-	TK[$id]["by"]=cpu
+	TK[$id]["by"]=${TK_SORTBY:-cpu}
+	TK[$id]["dir"]=${TK_SORTDIR:-desc}
 	TK[$id]["full"]=0
 }
 
@@ -375,24 +429,26 @@ tasks_cmdline() {
 # of 1 left two rows of real dead space at the bottom of every window,
 # under the graph and above dt_win's own border, reported live.
 tasks_draw() {
-	local id=$1 h=$2 w=$3 i r t n vis top sel by now full
+	local id=$1 h=$2 w=$3 i r t n vis top sel by dir now full mk
+	local lp ln lo lc lm
 	local pidw=6 ownerw=8 owner pidtxt namew cpu mem line pl
 	local showgraph=1 graphh=2 leftw rightw lbl spark
 
 	now := dt_ms
 	by=${TK[$id]["by"]}
+	dir=${TK[$id]["dir"]:-desc}
 	if [ -z "${TK[$id]["scant"]}" ] ||
 	   [ $((now - TK[$id]["scant"])) -ge "$TK_SCANMS" ]; then
 		tasks_scan "$id"
-		tasks_sort "$id" "$by"
+		tasks_sort "$id" "$by" "$dir"
 		tasks_sysstat "$id"
 		TK[$id]["scant"]=$now
-		TK[$id]["sortby"]=$by
-	elif [ "${TK[$id]["sortby"]}" != "$by" ]; then
-		# A sort key change between scans still shows at once: sorting the
+		TK[$id]["sortby"]="$by $dir"
+	elif [ "${TK[$id]["sortby"]}" != "$by $dir" ]; then
+		# A sort change between scans still shows at once: sorting the
 		# cached list is cheap, unlike the /proc scan that fills it.
-		tasks_sort "$id" "$by"
-		TK[$id]["sortby"]=$by
+		tasks_sort "$id" "$by" "$dir"
+		TK[$id]["sortby"]="$by $dir"
 	fi
 	n=${TK[$id]["n"]}
 	# 6 digits fits every pid on a default Linux (32768 max) with room to
@@ -413,19 +469,38 @@ tasks_draw() {
 	vis=$((h - 1 - graphh))
 	[ "$vis" -lt 1 ] && { vis=$((h - 1)); showgraph=0; }
 	TK[$id]["vis"]=$vis
+	TK[$id]["w"]=$w
 	top=${TK[$id]["top"]}
+	[ "$top" -gt $((n - vis)) ] && top=$((n - vis))
+	[ "$top" -lt 0 ] && top=0
+	TK[$id]["top"]=$top
 	sel=${TK[$id]["sel"]}
 	[ "$sel" -ge "$n" ] && sel=$((n - 1)) && TK[$id]["sel"]=$sel
 	[ "$sel" -lt 0 ] && sel=0
 
 	full=${TK[$id]["full"]:-0}
+	# The sorted column's heading carries its direction; a number column's
+	# mark goes in front, where its right-justified digits leave room.
+	mk="▼"
+	[ "$dir" = asc ] && mk="▲"
+	lp=PID; ln=Name; lo=Owner; lc="CPU%"; lm=Mem
+	case $by in
+	pid) lp="$mk$lp" ;;
+	name) ln="$ln$mk" ;;
+	owner) lo="$lo$mk" ;;
+	cpu) lc="$mk$lc" ;;
+	mem) lm="$mk$lm" ;;
+	esac
 	console pen "$DT_INK" "$DT_FACE" bold
-	pidtxt := tasks_rjust PID "$pidw"
-	t := str pad Name "$namew"
-	owner := str pad Owner "$ownerw"
-	cpu := tasks_rjust "CPU%" 6
-	mem := tasks_rjust Mem 7
+	pidtxt := tasks_rjust "$lp" "$pidw"
+	t := str pad "$ln" "$namew"
+	owner := str pad "$lo" "$ownerw"
+	cpu := tasks_rjust "$lc" 6
+	mem := tasks_rjust "$lm" 7
 	console put -p "w$id" 1 1 "$pidtxt $t $owner $cpu $mem"
+	# Where each heading starts, for tasks_click: pid, name, owner, cpu,
+	# mem, and where the last one ends.
+	TK[$id]["hx"]="1 $((pidw + 2)) $((pidw + namew + 3)) $((pidw + namew + ownerw + 4)) $((pidw + namew + ownerw + 11)) $((pidw + namew + ownerw + 18))"
 
 	i=$top
 	r=2
@@ -457,6 +532,7 @@ tasks_draw() {
 		i=$((i + 1))
 		r=$((r + 1))
 	done
+	[ "$TK_BAR" = 1 ] && dt_scrollbar "$id" 2 $((w - 1)) "$vis" "$n" "$vis" "$top"
 	if [ "$showgraph" = 1 ]; then
 		leftw=$(((w - 2 - 1) / 2))
 		rightw=$((w - 2 - 1 - leftw))
@@ -497,8 +573,8 @@ tasks_key() {
 	down) sel=$((sel + 1)) ;;
 	x) tasks_end "$id" TERM; return 0 ;;
 	shift-x) tasks_end "$id" KILL; return 0 ;;
-	c) TK[$id]["by"]=cpu; return 0 ;;
-	m) TK[$id]["by"]=mem; return 0 ;;
+	c) tasks_sortby "$id" cpu; return 0 ;;
+	m) tasks_sortby "$id" mem; return 0 ;;
 	n) TK[$id]["full"]=$((1 - ${TK[$id]["full"]:-0})); return 0 ;;
 	*) return 1 ;;
 	esac
@@ -512,10 +588,38 @@ tasks_key() {
 }
 
 tasks_click() {
-	local id=$1 r=$2 top n i
+	local id=$1 r=$2 c=$3 top n i vis k
+	local -a hx
 
 	top=${TK[$id]["top"]}
 	n=${TK[$id]["n"]}
+	vis=${TK[$id]["vis"]:-1}
+	# A heading sorts by its column. Only when the click's column is known:
+	# the context menu calls this with a row alone.
+	if [ "$r" = 1 ] && [ -n "$c" ]; then
+		read -r -a hx <<< "${TK[$id]["hx"]}"
+		k=0
+		while [ "$k" -lt 5 ]; do
+			if [ "$c" -ge "${hx[$k]:-0}" ] && [ "$c" -lt "${hx[$((k + 1))]:-0}" ]; then
+				tasks_headsort "$id" "${TK_COLS[$k]}"
+				return 0
+			fi
+			k=$((k + 1))
+		done
+		return 0
+	fi
+	# The scrollbar's track: a click jumps there, as far through the list
+	# as it is down the track.
+	if [ "$TK_BAR" = 1 ] && [ -n "$c" ] && [ "$c" = $((${TK[$id]["w"]:-0} - 1)) ] &&
+	   [ "$r" -ge 2 ] && [ "$r" -le $((vis + 1)) ] && [ "$n" -gt "$vis" ]; then
+		if [ "$vis" -gt 1 ]; then
+			top=$(((r - 2) * (n - vis) / (vis - 1)))
+		else
+			top=0
+		fi
+		TK[$id]["top"]=$top
+		return 0
+	fi
 	# r=1 is the header row (tasks_draw's own layout: header at pane row
 	# 1, the list starting at row 2) -- found while adding #53's context
 	# menu, since it selects the row a right-click landed on the same
@@ -575,7 +679,30 @@ tasks_killpid() {
 # Set directly rather than through tasks_key: a menu item is not a key, and
 # routing it through the key handler only worked here because "x" the key
 # and "x" the argument happen to be the same string.
-tasks_sortby() { TK[$1]["by"]=$2; }
+tasks_sortby() {
+	TK[$1]["by"]=$2
+	case $2 in
+	cpu | mem) TK[$1]["dir"]=desc ;;
+	*) TK[$1]["dir"]=asc ;;
+	esac
+}
+
+# The wheel moves the view three rows and leaves the selection where it is,
+# as it does in Files.
+tasks_wheel() {
+	local id=$1 top=${TK[$1]["top"]:-0} n=${TK[$1]["n"]:-0}
+	local vis=${TK[$1]["vis"]:-1}
+
+	case $2 in
+	up) top=$((top - 3)) ;;
+	down) top=$((top + 3)) ;;
+	*) return 1 ;;
+	esac
+	[ "$top" -gt $((n - vis)) ] && top=$((n - vis))
+	[ "$top" -lt 0 ] && top=0
+	TK[$id]["top"]=$top
+	return 0
+}
 tasks_fulltoggle() { TK[$1]["full"]=$((1 - ${TK[$1]["full"]:-0})); }
 
 tasks_menus() {
