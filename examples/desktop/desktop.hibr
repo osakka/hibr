@@ -25,7 +25,7 @@ need display || { echo "desktop: no display available" >&2; exit 1; }
 # change that never touched a single line of src/*.c. HIBR_ABI is what
 # actually needs cross-checking between the two -- whether a module is
 # built against what this shell offers -- and that already exists.
-DT_VER=0.13
+DT_VER=0.14
 
 # The session's own arguments, captured here at the top level where $@ is
 # still theirs: a function sees its own, and dt_autohold needs to hand these
@@ -276,9 +276,15 @@ DT_EDGERESIZE="${DT_EDGERESIZE-1}"
 DT_DRAGMOD="${DT_DRAGMOD-0}"
 DT_DRAGKEY="${DT_DRAGKEY-alt}"
 
-# How often the desktop wakes and redraws with nothing else asking for a
-# turn -- see dt_want and dt_run for why 2000 costs nothing in latency.
-DT_TICK="${DT_TICK-2000}"
+# The longest the desktop sleeps when nothing has asked for a frame. Not a
+# refresh rate: everything that changes on its own -- the bar clock, a
+# blinking cursor, a game, a meter -- asks with dt_want, and input, resize
+# and a terminal's output wake it at once. This is only a net under
+# anything that forgot to ask. There used to be a DT_TICK here, a fixed
+# redraw rate; a saved settings file kept the old 200ms default alive for
+# anyone who had ever saved a setting, and cost 5 full redraws a second
+# with nothing on screen changing.
+DT_IDLEMS="${DT_IDLEMS-60000}"
 
 # How many consecutive drag reports dt_run lets go by before it actually
 # redraws -- 0 skips none (today's behaviour, and the default): a drag
@@ -303,7 +309,7 @@ DT_LASTDRAG=0
 DT_CONF="${DT_CONF-${XDG_CONFIG_HOME:-$HOME/.config}/hibr/desktop.hibr}"
 DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 	DT_WALLIMG DT_WALLMODE
-	DT_TICK DT_ICONS DT_DISKS DT_CURSOR DT_CURSOR_BLINK DT_SHADOW
+	DT_ICONS DT_DISKS DT_CURSOR DT_CURSOR_BLINK DT_SHADOW
 	DT_MSHADOW DT_BARSHADOW DT_DBLACTION DT_SHADOW_PCT CS_SIDE CS_Y
 	CS_COLLAPSED CS_LEN CS_SHADOW
 	DT_FRAME DT_BTNSIDE DT_TITLEALIGN DT_BTNSTYLE DT_EDGERESIZE
@@ -691,7 +697,8 @@ dt_wall() {
 		console fill 0 0 "$DT_ROWS" "$DT_COLS" "$DT_GLYPH"
 	fi
 	if [ "$DT_ICONS" = 1 ]; then
-		[ $((EPOCHSECONDS - DI_SCANT)) -ge 3 ] && dt_deskscan
+		[ $((EPOCHSECONDS - DI_SCANT)) -ge 5 ] && dt_deskscan
+		dt_want 5000
 		dt_icondraw
 	fi
 }
@@ -1603,11 +1610,11 @@ dt_appkeyed() {
 # Ask for the next frame within ms, from inside an app's _draw.
 #
 # The request lasts one frame: a game that is paused, hidden or not focused
-# simply stops asking, and the desktop goes back to DT_TICK.  An idle desktop
-# must not pay for an animation nobody is watching.  A request slower than
-# DT_TICK is ignored, so it can never slow the desktop down.
+# simply stops asking, and the desktop goes back to sleeping until input.
+# An idle desktop must not pay for an animation nobody is watching. The
+# soonest of every ask in a frame wins; anything that shows the time has
+# to ask for its next change, or it stops changing.
 dt_want() {
-	[ "$1" -ge "$DT_TICK" ] && return 0
 	if [ -z "$DT_WANT" ] || [ "$1" -lt "$DT_WANT" ]; then
 		DT_WANT=$1
 	fi
@@ -1661,7 +1668,7 @@ dt_run() {
 		if [ "$rsz" = 1 ]; then
 			k := console key 80
 		else
-			k := console key "${DT_WANT:-$DT_TICK}"
+			k := console key "${DT_WANT:-$DT_IDLEMS}"
 		fi
 		[ -n "$k" ] && pk=$k
 		if console resizing; then
@@ -3380,6 +3387,8 @@ dt_bar() {
 	done
 
 	printf -v now "%(%H:%M)T" -1
+	t := dt_ms
+	dt_want $((60000 - t % 60000 + 20))
 	console pen "$DT_INK" "$DT_BAR"
 	console put 0 $((DT_PRIMARY_COL + w - 21)) "◉"
 	console put 0 $((DT_PRIMARY_COL + w - 19)) "$now"

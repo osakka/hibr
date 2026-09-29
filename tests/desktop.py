@@ -8,7 +8,7 @@ with.  Run it directly:  python3 tests/desktop.py [path-to-hibr]
 The pty and the terminal model live in tests/screen.py, which every
 full-screen suite shares.
 """
-import os, re, shutil, sys, tempfile
+import os, re, shutil, sys, tempfile, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen
@@ -538,6 +538,41 @@ check("and it lists a note already shown, timestamped",
       re.search(r"\d\d:\d\d  Remembered", sc.text()) is not None, sc)
 t.quit(None, 1.0)
 shutil.rmtree(BELL, True)
+
+# Idle means asleep. Every other run here uses a 60ms DT_TICK, which no
+# longer exists, and could never have caught a desktop waking on its own:
+# this one opens a real terminal window, with a blinking cursor off and
+# on, and counts how often the process actually wakes with nothing
+# happening. The bar clock asks once a minute and the desktop icons' own
+# mount rescan every 5s, so a quiet desktop is well under one wake a
+# second; a blinking cursor is two draws a second by design.
+def idle_wakes(env, session):
+    d = tempfile.mkdtemp(prefix="hibr-idle-")
+    p = os.path.join(d, "session.hibr")
+    apps = 'DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/desktop/apps")
+    open(p, "w").write("%s. %s\n%sdt_open\n%s\ndt_run\ndt_close\n"
+                       % (load(MOD), WM, apps, session))
+    t = Term(p, env=env, rows=ROWS, cols=COLS, settle=1.5)
+    t.collect(1.5)
+
+    def vol():
+        for l in open("/proc/%d/status" % t.pid):
+            if l.startswith("voluntary_ctxt_switches"):
+                return int(l.split()[1])
+    a, t0 = vol(), time.time()
+    t.collect(6.0)
+    rate = (vol() - a) / (time.time() - t0)
+    sc = t.screen()
+    t.quit(None, 0.5)
+    shutil.rmtree(d, True)
+    return rate, sc
+
+rate, sc = idle_wakes({"DT_CURSOR_BLINK": "0"}, "dt_launch term")
+check("an idle desktop with a terminal open sleeps, not redraws on a tick "
+      "(%.1f wakes/s)" % rate, rate < 1.0, sc)
+rate, sc = idle_wakes({"DT_CURSOR_BLINK": "1"}, "dt_launch term")
+check("a blinking cursor asks for its own two frames a second, and no more "
+      "(%.1f wakes/s)" % rate, 1.0 < rate < 4.0, sc)
 
 # --- right-click context menus ---------------------------------------------
 #
@@ -1508,7 +1543,7 @@ saved = os.path.join(CONF, "hibr", "desktop.hibr")
 text = open(saved).read() if os.path.exists(saved) else ""
 check("a changed setting is written at once, as a script",
       "CP_THEME=slate" in text and "DT_WALL=\\#1a202c" in text and
-      "DT_TICK=" in text, text or sc)
+      "DT_ICONS=" in text, text or sc)
 sc, raw = run('dt_new "Control Panel" 20 58 2 2 panel', feed=DOWN_APP,
               env={"XDG_CONFIG_HOME": CONF}, pre=PANEL)
 check("and the next desktop starts with it", sc.find("slate") is not None,
@@ -2002,4 +2037,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(276)
+report(278)

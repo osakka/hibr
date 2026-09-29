@@ -156,6 +156,8 @@ datetime_draw() {
 	local id=$1 h=$2 w=$3 bx=$4
 	local now rw rh r c oc sy sr sc lat lon out
 
+	now := dt_ms
+	dt_want $((1000 - now % 1000 + 10))
 	console pen "#68d391" "$DT_FACE" bold
 	printf -v now "%(%H:%M:%S)T" -1
 	console put -p "w$id" 1 "$bx" "$now"

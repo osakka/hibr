@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.34
+
+Desktop moves to **0.14** alongside this release.
+
+**An idle desktop sleeps instead of redrawing on a timer.** A live session
+was measured at 19% of a core with nothing happening: it redrew the whole
+desktop five times a second. The default refresh (`DT_TICK`) had been
+raised from 200ms to 2000ms long ago, but that never reached anyone whose
+settings file had saved the old value, and the shipped `session.hibr` set
+200 itself. The tick is gone. The desktop now wakes for input, a resize,
+output from a terminal window's program, or the soonest thing that asked
+for a frame: the menu-bar clock asks for the next minute, the Clock desk
+accessory and the Date & Time pane for the next second, a blinking cursor
+for its next half-second, Minesweeper's timer, games, Tasks, About, notes
+and the desktop icons' mount rescan for their own. Measured in a pty with
+a terminal window open: about 0.2 wakes a second and 0.2% CPU, or 1.5%
+with a blinking cursor. The Behaviour pane's Refresh row is gone with it,
+and `tests/desktop.py` now counts the desktop's own wakes while idle, so a
+tick cannot come back unnoticed.
+
+**A resize signal that arrived just before the console started waiting was
+lost until the wait timed out.** Found because the tick had been hiding it:
+choosing a new primary display made `hold` signal the desktop while it was
+still handling the click, and the bar stayed on the old display for up to
+a minute. `cn_wait` now counts resizes and waits in `pselect`, so each one
+ends exactly one wait, whenever it lands.
+
+HIBR_VER -> 0.34, DT_VER -> 0.14.
+
 ## 0.33
 
 Desktop moves to **0.13** alongside this release.

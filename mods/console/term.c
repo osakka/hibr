@@ -14,6 +14,7 @@ int cn_fd = -1;
 int cn_on;
 struct termios cn_sv;
 volatile sig_atomic_t cn_winch;
+volatile sig_atomic_t cn_wgen;
 volatile sig_atomic_t cn_fatal;
 struct sigaction cn_oint, cn_oterm, cn_ohup, cn_owin;
 
@@ -87,6 +88,7 @@ void cn_onwinch(int n)
 {
 	(void)n;
 	cn_winch = 1;
+	cn_wgen++;
 }
 
 /* Put the terminal back before a fatal signal is allowed to finish us. */

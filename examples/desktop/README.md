@@ -324,7 +324,7 @@ back by `dt_open` at the next start. It is a script, not a format:
 # The desktop's settings, written whenever one changes and
 # read at the next start.  A script like any other.
 DT_WALL=\#1a202c
-DT_TICK=200
+DT_ICONS=1
 CP_THEME=slate
 ```
 
@@ -385,7 +385,9 @@ between; the window manager deals with row 0 itself, so an app never sees a
 click on its own title bar.
 
 **A window that animates asks for its next frame.** The desktop redraws on
-every key and otherwise every `DT_TICK` milliseconds, 2000 by default. A game
+every key, resize and terminal output, and otherwise sleeps: there is no
+refresh rate. Anything that shows the time or moves on its own must ask, or
+it stops changing. A game
 calls `dt_want 60` from its `_draw` to be drawn again within 60 ms. The
 request lasts one frame, so a game that is paused, hidden or not focused
 stops asking and the desktop goes back to idling. Step on the clock, not on

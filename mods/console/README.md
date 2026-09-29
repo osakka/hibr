@@ -118,6 +118,18 @@ over. The desktop uses exactly this: freeze on the first `resizing`, keep
 polling without redrawing while it keeps reporting one, and only call
 `reassert` and redraw once it has gone quiet for a while.
 
+**A resize that lands before the wait begins still ends the wait.** A
+`SIGWINCH` interrupts a `select` that is already blocking, but one that
+arrives a moment earlier — while the caller is still handling the key
+before — does not, and the wait then runs its full timeout with the resize
+unseen. That was invisible while the desktop redrew on a fixed tick, and
+became a 60-second stall once it stopped: choosing a new primary display
+makes `hold` send the signal while the click that chose it is still being
+handled. The handler counts resizes, `cn_wait` blocks `SIGWINCH` while it
+compares the count with the last one it reported, and waits in `pselect`,
+which unblocks it atomically. Each resize ends exactly one wait early; a
+program that never asks `resized` does not spin on a flag it never clears.
+
 ## Testing
 
 `tests/console.py` drives all of it through a pseudo terminal, because none of

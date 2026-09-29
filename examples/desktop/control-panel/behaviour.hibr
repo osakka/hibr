@@ -5,13 +5,11 @@
 
 command -v cp_pane > /dev/null && cp_pane behaviour "Behaviour" "⚙"
 
-CP_TICKS=(80 120 200 350 600 1000 2000 3500 5000)
 CP_ABTICKS=(1000 2000 3000 5000 10000)
 CP_TKTICKS=(500 1000 2000 3000 5000 10000)
 CP_CURSORS=(block underline bar)
 CP_DBLACTIONS=(zoom min close none)
 
-cp_set_tick() { DT_TICK=$2; cp_save; }
 cp_set_cursor() { DT_CURSOR=$2; cp_save; }
 cp_set_about() { AB_SLOWMS=$2; cp_save; }
 cp_set_dblaction() { DT_DBLACTION=$2; cp_save; }
@@ -83,8 +81,6 @@ cp_barshadow() {
 behaviour_rows() {
 	local w=$1 n=0
 
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Refresh"
-	CP[$w][$n]["val"]="$DT_TICK ms"; CP[$w][$n]["key"]=tick; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Redraw Skip ($DT_DRAWSKIP)"
 	CP[$w][$n]["wtype"]=slider
 	CP[$w][$n]["val"]=$DT_DRAWSKIP; CP[$w][$n]["min"]=0; CP[$w][$n]["max"]=9
@@ -145,8 +141,6 @@ behaviour_do() {
 	local w=$1 k=$2 dir=$3 v
 
 	case $k in
-	tick)  v := cp_next "$DT_TICK" "$dir" "${CP_TICKS[@]}"
-	       DT_TICK=$v ;;
 	drawskip)
 		v=$((DT_DRAWSKIP + dir))
 		[ "$v" -lt 0 ] && v=0
@@ -178,7 +172,6 @@ behaviour_drop() {
 	local w=$1 r=$2 c=$3 k=$4
 
 	case $k in
-	tick) dt_droplist "$w" "$r" "$c" cp_set_tick "${CP_TICKS[@]}" ;;
 	cursor) dt_droplist "$w" "$r" "$c" cp_set_cursor "${CP_CURSORS[@]}" ;;
 	about) dt_droplist "$w" "$r" "$c" cp_set_about "${CP_ABTICKS[@]}" ;;
 	tasksrefresh) dt_droplist "$w" "$r" "$c" cp_set_tasks "${CP_TKTICKS[@]}" ;;

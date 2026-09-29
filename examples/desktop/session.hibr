@@ -79,10 +79,6 @@ cs_modules
 
 FB_DIR=$PWD
 
-# Defaults go before dt_open, which then reads what was saved last time
-# over the top of them.
-DT_TICK=200
-
 dt_open || exit 1
 #dt_new "Files"        10 34  1  2 files
 #dt_new "Control Panel" 20 58 10  2 panel

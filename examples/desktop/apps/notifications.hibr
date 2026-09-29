@@ -48,7 +48,6 @@ notifications_draw() {
 	console pen "$DT_INK" "$DT_FACE"
 	if [ "$n" = 0 ]; then
 		console put -p "w$id" 1 1 "Nothing yet"
-		dt_want "$DT_NOTEMS"
 		return 0
 	fi
 	i=0
@@ -70,7 +69,6 @@ notifications_draw() {
 		i=$((i + 1))
 		r=$((r + 1))
 	done
-	dt_want "$DT_NOTEMS"
 }
 
 notifications_key() {

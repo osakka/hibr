@@ -38,7 +38,7 @@ what a window shows is faked or simulated for the picture.
 ```
 while [ "$DT_QUIT" = 0 ]; do
     dt_draw
-    k := console key "${DT_WANT:-$DT_TICK}"
+    k := console key "${DT_WANT:-$DT_IDLEMS}"
     dt_event "$k"
 done
 ```
@@ -46,36 +46,32 @@ done
 (Simplified — the real loop also debounces a burst of resize events into one
 settled redraw, described in `desktop.hibr`'s own comments.) `console key
 MS` blocks for up to `MS` milliseconds waiting for one decoded key or mouse
-report, and returns the instant one arrives — a key is never delayed by the
-timeout, which only governs how long the desktop waits with nothing to do.
-A resize is delivered the same way: `SIGWINCH` interrupts the wait
-immediately, regardless of `DT_TICK`, so neither input nor resize responsiveness
-depends on how often the desktop wakes up on its own. `DT_TICK` (2000ms by
-default, itself a Control Panel entry) is how often the desktop wakes and redraws
-anyway, with nothing to do — the clock in the corner has to advance, a
-throttled app that has not called `dt_want` has to get its own redraw. This
-is a periodic-poll design, not a purely event-driven one: a `tmux` or
-`screen`, blocked on `select()` with no timer at all, spends zero CPU while
-genuinely idle. hibr's desktop still wakes and redraws (cheaply, since
-nothing changed means nothing is sent — see below) every `DT_TICK`, so it is
-not zero either, but raising the default from an original 200ms — chosen
-without measuring what it cost — to 2000ms cut two real, live sessions'
-measured idle CPU from 1.6-2.2% of one core to 0.15-0.2%, about a tenth,
-with no change to input latency: `tests/desktop.py` and `tests/apps.py`,
-which set their own short `DT_TICK` for fast, deterministic runs, do not
-depend on the default at all and passed unchanged. An app that redraws
-itself only on a timer, not on `dt_want`, would now update less often while
-idle — Tasks asks with `dt_want "$TK_SCANMS"`, tied to its own real refresh
-setting rather than a fixed guess (a flat `dt_want 500` here once forced
-the *whole* desktop to wake twice a second regardless of what Tasks' own
-setting said, which is most of why opening it used to cost far more than
-its own redraw ever needed to). About asks with `dt_want "$AB_SLOWMS"`
-too, but `dt_want` is a no-op once the ask is not shorter than `DT_TICK`
-itself (`[ "$1" -ge "$DT_TICK" ] && return 0`), and `AB_SLOWMS` (3000ms)
-is longer than the 2000ms default -- so under the default tick, About's
-own ask currently does nothing at all, and it still relies on being drawn
-every default tick to notice its own 3-second throttle has elapsed. That
-is harmless at the default tick, but would go stale under a longer one.
+report, and returns the instant one arrives. A resize interrupts the wait
+the same way (`SIGWINCH`), and so does output from any terminal window's
+program, since `term.hibr` asks `console watch` to include its pty.
+
+Nothing else wakes it. There is no refresh rate: `DT_WANT` is the soonest
+of every `dt_want MS` any `_draw` asked for during the frame just drawn,
+and each ask lasts that one frame. Everything that changes on its own asks
+for its own next change — the bar clock for the next minute, the Clock desk
+accessory and the Date & Time pane for the next second, a blinking terminal
+cursor for its next half-second, a game for its next step, Tasks and About
+for their own refresh settings, a note for the moment it expires, the
+desktop icons for their 5-second mount rescan. When nothing asks, the loop
+sleeps for `DT_IDLEMS` (60s), a net under anything that forgot to.
+
+It used to be a periodic poll: `DT_TICK`, first 200ms, later 2000ms,
+redrew the whole desktop that often whether anything had changed or not.
+Raising the default did not reach anyone whose settings file had already
+saved 200 — `dt_save` writes every kept setting, so a default frozen into
+it outlives the code that set it — and the shipped `session.hibr` set 200
+itself. A live session measured 19% of a core doing nothing. With the tick
+gone an idle desktop with a terminal window open measures about 0.2 wakes
+a second and 0.2% CPU; a blinking cursor costs about 1.5%, because each
+blink still runs every window's `_draw` — redrawing only the windows that
+changed is the next step, not yet taken. `tests/desktop.py` counts the
+process's own wakes with nothing happening, so a tick cannot come back
+unnoticed.
 
 `dt_draw` walks every open window bottom to top, drawing its face and letting
 its own `_draw` callback fill it in, then the menu bar and whatever floats
@@ -141,7 +137,7 @@ Nothing about the desktop's configuration is a config file format of its
 own. `dt_save` writes plain assignments and setter calls to
 `~/.config/hibr/desktop.hibr`, `dt_load` sources it back — a script like
 any other, editable by hand, and it is exactly the plain variables the
-window manager already reads every frame (`DT_WALL`, `DT_TICK`, `DT_KEYS`,
+window manager already reads every frame (`DT_WALL`, `DT_ICONS`, `DT_KEYS`,
 and so on), so a change takes effect the moment it is written, in every
 window at once, without anything being told to refresh. `panel.hibr`, the
 Control Panel app, is what edits it interactively — not with settings of

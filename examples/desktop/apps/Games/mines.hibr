@@ -248,7 +248,7 @@ mines_draw() {
 	t1=${MS[$id]["t1"]}
 	case $st in
 	ready) secs=0 ;;
-	run) secs=$((EPOCHSECONDS - t0)) ;;
+	run) secs=$((EPOCHSECONDS - t0)); dt_want 1000 ;;
 	*) secs=$((t1 - t0)) ;;
 	esac
 	console pen "#f56565" "$DT_FACE" bold

@@ -9,8 +9,10 @@ app clock "The time and the date"
 command -v dt_app > /dev/null && dt_app clock "Clock" 7 26 once "◷"
 
 clock_draw() {
-	local now
+	local now ms
 
+	ms := dt_ms
+	dt_want $((1000 - ms % 1000 + 10))
 	printf -v now "%(%H:%M:%S)T" -1
 	console pen "#68d391" "$DT_FACE" bold
 	console put -p "w$1" 2 4 "$now"

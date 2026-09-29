@@ -1076,6 +1076,15 @@ went in the shell.
   truncation -- is the right assertion once a title's content depends on
   something a test does not fully control.
 
+- **A saved setting outlives the default that wrote it.** `dt_save`
+  writes every variable in `DT_KEEP`, not only the ones the user changed,
+  so the first save freezes every *current default* into the settings
+  file, and a later change to that default in code never reaches anyone
+  who has ever saved anything. That is how a 2000ms default tick went on
+  running at 200ms for its own author. Changing a default is not enough to
+  change behaviour: either the setting stops mattering (what the tick got)
+  or the old value needs migrating on load.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then
@@ -1146,22 +1155,20 @@ went in the shell.
 - Prompt status divergences from git, all deliberate: renames are matched only
   on identical content, submodule working trees are not inspected, and `**` in
   the middle of a gitignore pattern behaves as `*`.
-- The desktop's idle CPU was measured, not assumed: two real, long-running
-  sessions cost 1.6-2.2% of one core with nothing open and nothing forked,
-  almost entirely from `dt_draw` and `console flush`'s grid diff running on
-  every `DT_TICK` regardless of whether anything changed -- `console key MS`
-  already returns the instant a key or a `SIGWINCH` arrives, so a short tick
-  bought nothing for responsiveness and only paid for it in wakeups. Raising
-  the default from 200 to 2000 cut both sessions' idle cost to 0.15-0.2% with
-  no test changes, since `tests/desktop.py` and `tests/apps.py` already set
-  their own short `DT_TICK`. What is left, if it is worth more than this:
-  skip `dt_draw` entirely when nothing is dirty and block indefinitely
-  instead of on a tick, waking only for input, resize, or a computed
-  next-needed-time (an app's `dt_want`, the bar clock, `dt_deskscan`'s
-  interval); and `about.hibr`'s CPU/memory refresh, which relies on being
-  drawn every default tick to notice its own 3-second throttle has elapsed
-  rather than calling `dt_want`, would need converting first or it silently
-  refreshes late under a long default tick.
+- The desktop's idle CPU was measured, not assumed, twice. The first time
+  a 200ms `DT_TICK` cost 1.6-2.2% and the default went to 2000ms; the
+  second time a live session was at **19%** of a core with nothing
+  happening, because its saved settings still said `DT_TICK=200` and the
+  shipped `session.hibr` set 200 itself. The tick is now gone: `dt_run`
+  sleeps until input, resize, terminal output or the soonest `dt_want`,
+  and everything that changes on its own asks (bar clock per minute,
+  Clock/Date & Time per second, cursor blink per half-second, icons' mount
+  rescan every 5s). Idle measures 0.2% with a terminal open. What is left:
+  a blinking cursor is 1.5%, because each blink still re-runs every
+  window's `_draw` -- per-window damage (re-run only the `_draw` whose
+  window changed, recomposite the rest from their existing panes) is the
+  next step. The console's own output diff already sends only changed
+  cells; the cost is building frames, not sending them.
 - The core binary is 358 KB stripped, 15,369 lines across `src/*.c` -- both
   the README and this file's own opening line had drifted stale (313 KB,
   ~13,000/~12,000 lines) before being re-measured and corrected. Per-file

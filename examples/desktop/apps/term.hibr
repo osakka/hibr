@@ -148,6 +148,7 @@ term_draw() {
 	if [ "$cur" = 1 ] && [ "$DT_CURSOR_BLINK" = 1 ]; then
 		ms := dt_ms
 		[ $(((ms / 500) % 2)) = 1 ] && cur=0
+		dt_want $((500 - ms % 500 + 5))
 	fi
 	term draw "$t" 1 1 "$h" "$tw" "$cur" -p "w$id"
 	sb := term scroll "$t"

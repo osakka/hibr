@@ -3,6 +3,7 @@
 #include "cn.h"
 #include <errno.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,6 +13,9 @@
 
 extern int cn_fd;
 extern int cn_on;
+extern volatile sig_atomic_t cn_wgen;
+
+static sig_atomic_t cn_wseen;
 
 str cn_pend;
 int cn_pendo;
@@ -90,9 +94,19 @@ void cn_eat(size_t n)
 int cn_wait(int ms)
 {
 	fd_set r;
-	struct timeval tv;
-	int k, mx, i;
+	struct timespec ts;
+	sigset_t blk, old;
+	int k, mx, i, e;
 
+	sigemptyset(&blk);
+	sigaddset(&blk, SIGWINCH);
+	sigprocmask(SIG_BLOCK, &blk, &old);
+	if (cn_wgen != cn_wseen) {
+		cn_wseen = cn_wgen;
+		sigprocmask(SIG_SETMASK, &old, 0);
+		lg(HIBR_LDBG, "screen: a resize arrived before the wait began");
+		return 0;
+	}
 	FD_ZERO(&r);
 	FD_SET(cn_fd, &r);
 	mx = cn_fd;
@@ -101,9 +115,13 @@ int cn_wait(int ms)
 		if (cn_wfd[i] > mx)
 			mx = cn_wfd[i];
 	}
-	tv.tv_sec = ms / 1000;
-	tv.tv_usec = (ms % 1000) * 1000;
-	k = select(mx + 1, &r, 0, 0, ms < 0 ? 0 : &tv);
+	ts.tv_sec = ms / 1000;
+	ts.tv_nsec = (long)(ms % 1000) * 1000000L;
+	k = pselect(mx + 1, &r, 0, 0, ms < 0 ? 0 : &ts, &old);
+	e = errno;
+	cn_wseen = cn_wgen;
+	sigprocmask(SIG_SETMASK, &old, 0);
+	errno = e;
 	if (k > 0)
 		return FD_ISSET(cn_fd, &r) ? 1 : 2;
 	if (k == 0)
