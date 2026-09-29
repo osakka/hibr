@@ -359,7 +359,7 @@ fn panel_key(w, key) {
 # in the selected pane's own body works the way it always did -- select,
 # a second click (or enter) activates, and a click on a dropdown's own
 # cell opens the real popup, through the pane's own <name>_drop.
-fn panel_click(w, r, c) {
+fn panel_click(w, r, c, btn = "") {
 	local pane i n top tag k wc
 
 	if [ "$c" -lt "$CP_LISTW" ]; then
@@ -442,7 +442,7 @@ fn panel_mouse(id, act, button, r, c, mods) {
 	[ "$act" = release ] && CP_MDRAG[$id]=
 }
 
-fn panel_wheel(w = "", dir = "") {
+fn panel_wheel(w = "", dir = "", r = "", c = "") {
 	local top max n vis pane
 
 	[ "${PW[$w]["side"]}" = list ] && return 0

@@ -89,7 +89,7 @@ fn notifications_key(id = "", key = "") {
 }
 
 # The wheel scrolls three rows at a time, like Files' own list does.
-fn notifications_wheel(id = "", dir = "") {
+fn notifications_wheel(id = "", dir = "", r = "", c = "") {
 	local top=${NHW[$id]["top"]}
 
 	case $dir in

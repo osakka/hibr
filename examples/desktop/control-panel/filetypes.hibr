@@ -116,7 +116,7 @@ fn ft_draw(id, h, w, row, col) {
 	fi
 }
 
-fn ft_click(id = "", r = "", c = "") {
+fn ft_click(id = "", r = "", c = "", btn = "") {
 	local tag cur
 
 	tag := dt_hit "$id" "$r" "$c"

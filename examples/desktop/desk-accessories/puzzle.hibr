@@ -138,7 +138,7 @@ fn puzzle_key(id, key) {
 
 # A click on the tile just above, below, left or right of the blank slides
 # it; anywhere else does nothing, same as a mis-click in Mines.
-fn puzzle_click(id = "", mr = "", mc = "") {
+fn puzzle_click(id = "", mr = "", mc = "", btn = "") {
 	local r=$(($mr - 3)) c=$((($mc - 2) / 4)) i b dir
 
 	[ "$r" -lt 0 ] || [ "$c" -lt 0 ] && return 0

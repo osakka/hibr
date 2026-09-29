@@ -82,12 +82,12 @@ dt_confirm_draw() {
 		"$DT_CONFIRM_HINT"
 }
 
-fn dt_confirm_key(id) {
+fn dt_confirm_key(key) {
 	local cmd=$DT_CONFIRM_CMD
 
 	DT_CONFIRM=
 	DT_CONFIRM_CMD=
-	case $id in
+	case $key in
 	y | Y | enter)
 		# cmd may end the loop (dt_quit) with no redraw of its own after
 		# it, same as every other quit path -- draw once here, box

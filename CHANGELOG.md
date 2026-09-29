@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.44.1
+
+Desktop moves to **0.24.1**. A fix to 0.44, which it should not have needed.
+
+**Thirteen callbacks refused what the window manager hands them.** 0.44
+wrote each function's parameters from what the test suites showed it being
+called with, and for a callback the suites never reach, that was only the
+names its old `local` line gave -- three for a `_click` the window manager
+calls with four, two for a `_wheel` it calls with four. A declared function
+refuses an argument it has no name for, so the call failed and the body
+never ran: clicking in Rename, File Type, Time Zone or Set Date & Time did
+nothing, nor did the wheel over Task Manager or the notification history,
+nor dropping a file on the image viewer, and Process Details and Set Date &
+Time drew nothing. Each now names its whole contract, the extra names
+optional so a direct call with fewer still works, and a drop takes its paths
+as `...paths` instead of shifting past four arguments to reach them.
+
+`tests/540-examples.t` now checks every callback against the arguments it
+is called with -- read from the desktop's own `dt_app`, `dt_new`, `cp_pane`
+and `cs_module` calls, so a new app is covered without being listed -- and
+it names all thirteen when run against 0.44. `tests/apps.py` calls
+`tasks_wheel` the way the window manager does as well as the way the test
+used to, which is how the census had seen two arguments where there are
+four. `dt_confirm_key`'s parameter is a key, not an `id`, which the
+conversion had guessed from its suffix.
+
+HIBR_VER -> 0.44.1, DT_VER -> 0.24.1.
+
+Verified: tests/run.sh 90/90, tests/desktop.py 294/294, tests/apps.py 234/234.
+
 ## 0.44
 
 Desktop moves to **0.24** alongside this release.

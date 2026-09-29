@@ -561,6 +561,29 @@ like a clean shell, which is a mistake this project has already made once and
 recorded in `CLAUDE.md`. They could be hibr; they should not be.
 
 
+## The desktop, agreed and queued
+
+### Four themes -- with the dialog buttons, 0.45
+
+Black (pure black desktop, near-black windows, soft grey text, one cool
+accent), Neon (synthwave: purple-black, hot magenta and electric cyan),
+Phosphor (a green monochrome CRT) and Amber (the amber one). Each is a
+`cp_theme` row with its own `DT_SHADOW_PCT` chosen against its face -- a
+near-black face needs a different depth from midnight's, as paper's did --
+and terminal colours to match. The button colours get checked on each, the
+unfocused one especially: on paper it is 3.3:1 today.
+
+### Shortcuts can be cleared, and never shared -- with the Control Panel, 0.46
+
+A Clear button at the end of every row that has a key, and Delete or
+Backspace on the selected row; a cleared row reads "none". Pressing a key
+another action holds asks -- "Alt-Ctrl-T is Terminal's: give it to Tasks
+instead?" [Reassign] [Cancel] -- and reassigning clears the old owner, so a
+key never has two. The desktop's own and the apps' shortcuts are one
+namespace for this. Keys the desktop reserves (F10, escape, tab) are refused
+outright with the reason; a settings file edited by hand to hold a duplicate
+shows a ⚠ on both rows rather than letting whichever matches first win.
+
 ## The language
 
 ### `.` and `source` search PATH for a name without a slash -- agreed

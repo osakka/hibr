@@ -1106,6 +1106,18 @@ went in the shell.
   the suites, not from reading call sites, and a parameter the suites never
   showed being passed is optional (`= ""`). Types are not declared yet: `int`
   would reject the empty id the Control Strip passes on purpose.
+- **A census of calls only knows the calls the suites make.** The 0.44
+  conversion took each function's arity from what the suites showed it
+  called with, and a callback the suites never reached got only the names
+  its old `local` line had given -- three for a `_click` the window manager
+  calls with four. Thirteen shipped refusing their own window manager, and
+  worse, one that *was* reached (`tasks_wheel`) had only ever been called
+  directly by a test with two arguments, so the census recorded two and the
+  real wheel, with four, failed. Evidence from use is only evidence for the
+  paths used; a contract has to come from the caller. `tests/540-examples.t`
+  now reads which prefixes are windows, panes and strip modules from the
+  desktop's own registrations and fails a callback that names fewer
+  arguments than it is handed.
 - **A menu item's command is kept as words, not a string.** `dt_row` used
   to join its arguments into `MI[..]["cmd"]` and `dt_mdo` ran `$cmd`, split
   again -- so a dropdown value with a space in it ("2:05 PM", from the

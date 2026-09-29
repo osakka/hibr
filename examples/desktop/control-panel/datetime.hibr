@@ -444,7 +444,7 @@ fn dtz_draw(id, h, w, ...rest) {
 	console put -p "w$id" $((h - 1)) 2 "enter sets it (sudo) · escape cancels"
 }
 
-fn dtz_click(id = "", r = "", c = "") {
+fn dtz_click(id = "", r = "", c = "", btn = "") {
 	local tag
 
 	tag := dt_hit "$id" "$r" "$c"
@@ -518,7 +518,7 @@ dts_dialog() {
 	DTS[$rid]["ntp"]=$ntp
 }
 
-fn dts_draw(id = "", h = "") {
+fn dts_draw(id = "", h = "", ...rest) {
 	local f
 
 	dt_wclear "$id"
@@ -542,7 +542,7 @@ fn dts_draw(id = "", h = "") {
 	console put -p "w$id" $((h - 1)) 2 "enter sets it (sudo) · escape cancels"
 }
 
-fn dts_click(id = "", r = "", c = "") {
+fn dts_click(id = "", r = "", c = "", btn = "") {
 	local tag
 
 	tag := dt_hit "$id" "$r" "$c"

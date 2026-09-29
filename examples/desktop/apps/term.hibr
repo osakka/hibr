@@ -338,12 +338,11 @@ fn term_open(id, arg) {
 
 # Files dropped on a terminal are typed in as their paths, each quoted for a
 # shell and followed by a space, ready to be the arguments of something.
-term_drop() {
-	local t=${TW[$1]["t"]} q p out=
+fn term_drop(id, r, c, op, ...paths) {
+	local t=${TW[$id]["t"]} q p out=
 
 	[ -n "$t" ] || return 0
-	shift 4
-	for p in "$@"; do
+	for p in "${paths[@]}"; do
 		printf -v q '%q' "$p"
 		out="$out$q "
 	done

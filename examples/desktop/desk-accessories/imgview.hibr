@@ -45,13 +45,10 @@ fn imgview_draw(id, h, w, row, col) {
 	console put -p "w$id" $((h / 2)) 2 "Cannot show ${path##*/}"
 }
 
-# A file dragged in from a file browser replaces whatever was shown.
-# _drop's own args are id, row, col, op ("move" or "copy"), then the paths
-# -- four to shift past, not three; term_drop shifts the same four. Getting
-# this wrong doesn't error, it just quietly stores "move" as the path.
-fn imgview_drop(id = "") {
-	shift 4
-	IV[$id]["path"]=$1
+# A file dragged in from a file browser replaces whatever was shown: the
+# first of the paths, which come after op ("move" or "copy").
+fn imgview_drop(id, r, c, op, ...paths) {
+	IV[$id]["path"]=${paths[0]}
 }
 
 imgview_menus() {

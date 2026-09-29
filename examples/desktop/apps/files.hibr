@@ -857,7 +857,7 @@ fn rn_draw(id, h, w, row, col) {
 	console put -p "w$id" 4 2 "enter renames · escape cancels"
 }
 
-fn rn_click(id = "", r = "", c = "") {
+fn rn_click(id = "", r = "", c = "", btn = "") {
 	local cur
 
 	[ "$r" = 2 ] || return 0

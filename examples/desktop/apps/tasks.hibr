@@ -689,7 +689,7 @@ fn tasks_sortby(id, by) {
 
 # The wheel moves the view three rows and leaves the selection where it is,
 # as it does in Files.
-fn tasks_wheel(id, dir) {
+fn tasks_wheel(id, dir, r = "", c = "") {
 	local top=${TK[$id]["top"]:-0} n=${TK[$id]["n"]:-0}
 	local vis=${TK[$id]["vis"]:-1}
 
@@ -771,7 +771,7 @@ fn tasks_context(id) {
 }
 
 # Process Details -- read only, a snapshot tasks_details already took.
-fn tdetail_draw(id = "", h = "", w = "") {
+fn tdetail_draw(id = "", h = "", w = "", row = "", col = "") {
 	local mem cmd
 
 	console pen "$DT_INK" "$DT_FACE"

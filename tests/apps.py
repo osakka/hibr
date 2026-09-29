@@ -1693,6 +1693,7 @@ THEAD = (
     'tasks_wheel 1 up; echo "up=${TK[1]["top"]} sel=${TK[1]["sel"]}"\n'
     'i=0; while [ $i -lt 20 ]; do tasks_wheel 1 down; i=$((i + 1)); done\n'
     'echo "end=${TK[1]["top"]}"\n'
+    'tasks_wheel 1 up 5 10; echo "wm=$? ${TK[1]["top"]}"\n'
     % (appdir("tasks") + "/tasks.hibr")
 )
 out = subprocess.run([sx.HIBR, "-c", THEAD], capture_output=True, text=True,
@@ -1708,6 +1709,8 @@ check("clicking another heading sorts by it -- a number column largest "
 check("the wheel scrolls three rows at a time and leaves the selection",
       "down=6" in out and "up=3 sel=4" in out, out)
 check("and stops where the last row is in view", "end=40" in out, out)
+check("the window manager's own call -- id, direction, row and col -- "
+      "reaches it too", "wm=0 37" in out, out)
 
 sc = run(*TASKS)
 hr = sc.find("PID")
@@ -1765,4 +1768,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(233)
+report(234)

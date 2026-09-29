@@ -76,6 +76,44 @@ for e in examples/*.hibr examples/desktop/*.hibr examples/desktop/apps/*.hibr \
 done
 echo "no local reads a name assigned earlier in the same statement"
 
+# The window manager calls a callback with a fixed set of arguments -- a
+# window's _draw with id h w row col, its _click with id r c btn -- and a
+# declared function refuses one it has no name for, so a callback that
+# names fewer than it is handed never runs. 0.44 shipped seven of these,
+# on paths the suites never reached. Which prefix is a window, a pane or a
+# strip module is read from the desktop's own dt_app, dt_new, cp_pane and
+# cs_module calls.
+desk=$(find examples/desktop -name '*.hibr' | sort)
+awk '
+  FNR == 1 { if (!first) first = FILENAME; if (FILENAME == first) pass++ }
+  pass == 1 && !/^[[:space:]]*#/ {
+    if (match($0, /dt_app [a-z_]+/)) win[substr($0, RSTART + 7, RLENGTH - 7)] = 1
+    if (match($0, /cp_pane [a-z_]+/)) pane[substr($0, RSTART + 8, RLENGTH - 8)] = 1
+    if (match($0, /cs_module [a-z_]+/)) strip[substr($0, RSTART + 10, RLENGTH - 10)] = 1
+    if ($1 ~ /dt_new$/ || / := dt_new /) { w = $NF; gsub(/"/, "", w); win[w] = 1 }
+    next
+  }
+  pass == 2 && /^fn [a-z_]+_[a-z]+\(/ {
+    name = $2; sub(/\(.*/, "", name)
+    suf = name; sub(/.*_/, "", suf); pre = substr(name, 1, length(name) - length(suf) - 1)
+    params = $0; sub(/^[^(]*\(/, "", params); sub(/\) \{.*/, "", params)
+    if (params ~ /\.\.\./) next
+    n = (params == "") ? 0 : split(params, a, ",")
+    need = ""
+    if (pre in win) need = W[suf]
+    else if (pre in pane) need = P[suf]
+    else if (pre in strip) need = S[suf]
+    if (need != "" && n < need)
+      print FILENAME ": " name " names " n " of the " need " arguments it is called with"
+  }
+  BEGIN {
+    W["open"] = 2; W["close"] = 1; W["draw"] = 5; W["key"] = 2; W["click"] = 4
+    W["mouse"] = 6; W["wheel"] = 4; W["drop"] = 5; W["context"] = 1
+    P["draw"] = 4; P["key"] = 2; P["click"] = 3; P["drop"] = 4; P["wheel"] = 2
+    S["draw"] = 2; S["click"] = 2
+  }' $desk $desk
+echo "every callback names what it is called with"
+
 # A window's own content must never draw at absolute screen coordinates --
 # console put without -p, or img/term draw without -p anywhere in the call --
 # which is exactly what reaching around the pane system by reading
