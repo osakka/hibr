@@ -26,11 +26,12 @@ cp_set_notems() { DT_NOTEMS=$2; cp_save; }
 cp_clearhist() {
 	local hid
 
+	dt_note "History cleared"
 	for hid in "${DT_NOTEHIST_ORDER[@]}"; do
 		unset "DT_NOTEHIST[$hid]"
 	done
 	DT_NOTEHIST_ORDER=()
-	dt_note "History cleared"
+	DT_NOTEUNSEEN=0
 }
 
 notify_rows() {

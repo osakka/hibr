@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.35
+
+Desktop moves to **0.15** alongside this release.
+
+**The menu bar clock's format is a setting**, in Control Panel's Date &
+Time pane: a dropdown of examples (14:05, 14:05:09, 2:05 PM, 2:05:09 PM,
+Tue 14:05, Tue 29 Sep 2:05 PM, 2026-09-29 14:05 and more), or Custom…
+for any strftime format, checked as it is typed and limited to 24 columns
+so it cannot run into the menus. A format with seconds asks for one frame
+a second; one without asks once a minute. The clock and everything beside
+it are placed from the width of what was actually drawn, so a wider
+format moves left and its clicks follow it.
+
+**The notification icon is a dot**: ● while there are notes you have not
+seen, ○ once the history has been opened.
+
+**Date & Time can change the time zone**, through a finder that narrows
+tzdata's own list as you type, and **the date and time** where the machine
+owns its clock. In a container, which shares its host's clock, it says
+"set by the host" instead of offering something that cannot work. Both run
+sudo in a terminal window of their own, so a password prompt and the
+result stay on screen; setting the clock turns automatic time (NTP) off
+first, and the dialog says so. A zone changed while the pane is open is
+picked up within five seconds, by every clock the desktop draws.
+
+**A dropdown value with a space in it never reached its callback whole.**
+Menu items kept their command as one string and ran it split, so "2:05 PM"
+arrived as two arguments. Items now keep their words separately. The
+File Type dialog, and Date & Time's three, now name themselves in the
+application menu rather than showing their internal prefix.
+
+HIBR_VER -> 0.35, DT_VER -> 0.15.
+
+Verified: tests/run.sh 86/86, tests/desktop.py 291/291, tests/apps.py
+212/212.
+
 ## 0.34
 
 Desktop moves to **0.14** alongside this release.

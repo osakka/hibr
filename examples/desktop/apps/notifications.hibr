@@ -36,6 +36,7 @@ notifications_close() {
 notifications_draw() {
 	local id=$1 h=$2 w=$3 n i r vis top hid at secs t line
 
+	DT_NOTEUNSEEN=0
 	n=${#DT_NOTEHIST_ORDER[@]}
 	vis=$((h - 1))
 	NHW[$id]["vis"]=$vis

@@ -502,7 +502,12 @@ already uses; `bx` is where its own body starts, since it shares the window
 with the pane list to its left. Either shape may also define `name_key` for
 keys the host's own row/pane navigation does not already handle, and the
 body shape `name_wheel`. `datetime.hibr` is the one bundled example of this
-shape: the clock and the date are its own, but the small world map under
+shape. It holds the menu bar clock's format (a dropdown of examples, or
+Custom… for any strftime format up to 24 columns wide), a time zone finder,
+and Set Date & Time where the machine owns its clock -- in a container it
+says "set by the host" instead. Changing the zone or the clock runs sudo in
+a terminal window of its own, so the password prompt and the result stay on
+screen. The small world map under
 them, and the zone1970.tab lookup that places a mark on it, are copied
 verbatim from `examples/traceroute.hibr` rather than redone -- CLAUDE.md's
 own trap about that map is not to adjust one by eye, and the same holds for
@@ -673,7 +678,9 @@ shows a cursor at all.
 ## The menu bar
 
 Across the top, System 7's: the **hibr menu** on the left where the apple
-went, then the menus of whatever window has focus, then the clock and the
+went, then the menus of whatever window has focus, then the notification dot
+(filled while there are notes you have not seen, opening their history when
+clicked), the clock (in whatever format Date & Time sets) and the
 **application menu** on the right. Windows cannot be dragged over it.
 
 The menus belong to the active application, so they change when you click a

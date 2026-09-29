@@ -1535,6 +1535,116 @@ ORDER = ["app_shortcuts", "appearance", "behaviour", "control_strip",
 DOWN_APP = [b"\x1b[B"] * ORDER.index("appearance")
 DOWN_SHORT = [b"\x1b[B"] * ORDER.index("shortcuts")
 
+# The bar's notification dot: hollow with nothing unread, filled once a
+# note arrives, hollow again once the history has been opened.
+def dotrun(session, env=None, pre="", keys=(), cols=COLS):
+    d = tempfile.mkdtemp(prefix="hibr-dot-")
+    p = os.path.join(d, "session.hibr")
+    apps = 'DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/desktop/apps")
+    cp = 'CP_PANEDIRS+=("%s")\ncp_panes\n' % tree("examples/desktop/control-panel")
+    open(p, "w").write("%s. %s\n%s%s%sdt_open\n%s\ndt_run\ndt_close\n"
+                       % (load(MOD), WM, apps, cp, pre, session))
+    e = {"XDG_CONFIG_HOME": os.path.join(d, "config")}
+    e.update(env or {})
+    t = Term(p, env=e, rows=ROWS, cols=cols, settle=0.8)
+    t.keys(list(keys), settle=0.4)
+    return t, d
+
+t, d = dotrun("")
+sc = t.screen()
+check("with nothing unread the bar's dot is hollow, just left of the clock",
+      sc.find("○") == (0, COLS - 21), sc)
+t.quit(None, 0.5); shutil.rmtree(d, True)
+
+t, d = dotrun('dt_note "Unread"')
+sc = t.screen()
+check("a note fills it", sc.find("●") == (0, COLS - 21), sc)
+t.keys([press(0, COLS - 21)], settle=0.6)
+sc = t.screen()
+check("and opening the history empties it again",
+      sc.find("┤ Notifications ├") is not None and sc.row(0).find("○") >= 0,
+      sc)
+t.quit(None, 0.5); shutil.rmtree(d, True)
+
+# DT_BARTIME: the clock's own strftime format. A wider one moves the clock
+# and the dot left, and their clicks follow them.
+t, d = dotrun("", env={"DT_BARTIME": "%a %H:%M:%S"})
+sc = t.screen()
+m = re.search(r"([○●]) (\w\w\w \d\d:\d\d:\d\d) ", sc.row(0))
+check("a format with seconds and a weekday is what the bar shows", m, sc)
+dot = sc.row(0).find("○")
+t.keys([press(0, dot)], settle=0.6)
+sc = t.screen()
+check("and the dot, moved left to make room, still opens the history",
+      sc.find("┤ Notifications ├") is not None, sc)
+t.quit(None, 0.5); shutil.rmtree(d, True)
+
+# Date & Time in Control Panel: the clock format is a dropdown of examples
+# plus Custom…; the zone has a finder; setting the clock is offered only
+# where the machine owns it.
+DTPANEL = 'dt_new "Control Panel" 22 70 1 2 panel'
+DOWN_DT = [b"\x1b[B"] * ORDER.index("datetime")
+t, d = dotrun(DTPANEL, keys=DOWN_DT)
+sc = t.screen()
+row = next((r for r in range(ROWS) if "Menu bar" in sc.row(r)), None)
+check("Date & Time has a Menu bar clock dropdown and a Time zone button",
+      row is not None and "▾" in sc.row(row) and sc.find("[ Change… ]"), sc)
+host = os.path.exists("/run/systemd/container") or \
+    os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv")
+check("setting the clock is offered only where this machine owns it",
+      (sc.find("set by the host") is not None) == host and
+      (sc.find("[ Set… ]") is not None) == (not host), sc)
+t.keys([press(row, sc.row(row).index("▾") - 2)], settle=0.6)
+sc = t.screen()
+item = sc.find("2:05:09 PM")
+check("its list shows examples, not strftime codes",
+      item is not None and sc.find("Custom…") is not None and
+      sc.find("%H") is None, sc)
+t.keys([press(item[0], item[1] + 1)], settle=0.8)
+sc = t.screen()
+saved = open(os.path.join(d, "config", "hibr", "desktop.hibr")).read() \
+    if os.path.exists(os.path.join(d, "config", "hibr", "desktop.hibr")) else ""
+check("choosing one changes the bar at once, and is saved",
+      re.search(r"\d?\d:\d\d:\d\d [AP]M", sc.row(0)) and
+      "DT_BARTIME=%l:%M:%S\\ %p" in saved, saved or sc)
+t.quit(None, 0.5); shutil.rmtree(d, True)
+
+t, d = dotrun(DTPANEL, keys=DOWN_DT)
+sc = t.screen()
+row = next(r for r in range(ROWS) if "Menu bar" in sc.row(r))
+t.keys([press(row, sc.row(row).index("▾") - 2)], settle=0.6)
+sc = t.screen()
+cu = sc.find("Custom…")
+t.keys([press(cu[0], cu[1] + 1)], settle=0.6)
+t.keys([b"\x7f"] * 8 + [b"%H)"], settle=0.2)
+sc = t.screen()
+check("a custom format is checked as it is typed",
+      sc.find("┤ Clock Format ├") is not None and
+      sc.find("cannot contain )") is not None, sc)
+t.keys([b"\x7f", b"h"], settle=0.3)
+t.keys([b"\r"], settle=0.6)
+sc = t.screen()
+check("and a valid one is taken on enter",
+      sc.find("┤ Clock Format ├") is None and
+      re.search(r"[○●] \d\dh ", sc.row(0)) is not None, sc)
+t.quit(None, 0.5); shutil.rmtree(d, True)
+
+t, d = dotrun(DTPANEL, keys=DOWN_DT)
+sc = t.screen()
+ch = sc.find("[ Change… ]")
+t.keys([press(ch[0], ch[1] + 2)], settle=0.8)
+t.keys([b"u", b"t", b"c"], settle=0.3)
+sc = t.screen()
+check("the zone finder narrows the list as you type",
+      sc.find("┤ Time Zone ├") is not None and sc.find(" UTC") is not None
+      and sc.find("Europe/") is None, sc)
+t.keys([b"\x1b"], settle=0.5)
+sc = t.screen()
+check("and escape closes it without running anything",
+      sc.find("┤ Time Zone ├") is None and sc.find("┤ Terminal") is None, sc)
+t.quit(None, 0.5); shutil.rmtree(d, True)
+
+
 CONF = tempfile.mkdtemp(prefix="hibr-conf-")
 sc, raw = run('dt_new "Control Panel" 20 58 2 2 panel',
               feed=DOWN_APP + [b"\x1b[C", b"\x1b[C"],
@@ -2037,4 +2147,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(278)
+report(291)

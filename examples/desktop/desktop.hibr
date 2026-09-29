@@ -25,7 +25,7 @@ need display || { echo "desktop: no display available" >&2; exit 1; }
 # change that never touched a single line of src/*.c. HIBR_ABI is what
 # actually needs cross-checking between the two -- whether a module is
 # built against what this shell offers -- and that already exists.
-DT_VER=0.14
+DT_VER=0.15
 
 # The session's own arguments, captured here at the top level where $@ is
 # still theirs: a function sees its own, and dt_autohold needs to hand these
@@ -110,6 +110,19 @@ DT_NOTEHISTMAX=50
 # setting replaces them, the same as DT_TICK and the rest of DT_KEEP.
 DT_NOTEMS="${DT_NOTEMS-2500}"
 DT_NOTEPOS="${DT_NOTEPOS-top-right}"
+
+# Notes that have arrived since the history was last looked at: the bar's
+# dot is filled while this is above zero, hollow once it has been read.
+DT_NOTEUNSEEN=0
+
+# The bar clock's own strftime format, chosen in Date & Time. dt_bar
+# measures what it renders and leaves where the clock and the dot landed
+# in DT_CLOCKC/DT_CLOCKW/DT_BELLC, so a wider format moves both left and
+# the clicks follow them, rather than overrunning the application menu.
+DT_BARTIME="${DT_BARTIME-%H:%M}"
+DT_CLOCKC=-1
+DT_CLOCKW=0
+DT_BELLC=-1
 DT_CONFIRM=
 DT_CONFIRM_CMD=
 DT_ROWS=24
@@ -313,7 +326,7 @@ DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 	DT_MSHADOW DT_BARSHADOW DT_DBLACTION DT_SHADOW_PCT CS_SIDE CS_Y
 	CS_COLLAPSED CS_LEN CS_SHADOW
 	DT_FRAME DT_BTNSIDE DT_TITLEALIGN DT_BTNSTYLE DT_EDGERESIZE
-	DT_DRAGMOD DT_DRAGKEY DT_DRAWSKIP DT_NOTEMS DT_NOTEPOS)
+	DT_DRAGMOD DT_DRAGKEY DT_DRAWSKIP DT_NOTEMS DT_NOTEPOS DT_BARTIME)
 
 # Where the desktop's stderr goes while it holds the screen, so an app's
 # error message cannot scribble over the display, and the reason for a
@@ -968,13 +981,13 @@ dt_mouse() {
 	case $act in
 	press)
 		if [ "$mr" = 0 ]; then
-			if [ "$mc" = $((DT_COLS - 21)) ]; then
+			if [ "$mc" = "$DT_BELLC" ]; then
 				dt_mclose
 				dt_has notifications_draw && dt_launch notifications
 				return 0
 			fi
-			if [ "$mc" -ge $((DT_COLS - 19)) ] &&
-			   [ "$mc" -lt $((DT_COLS - 14)) ]; then
+			if [ "$mc" -ge "$DT_CLOCKC" ] &&
+			   [ "$mc" -lt $((DT_CLOCKC + DT_CLOCKW)) ]; then
 				dt_mclose
 				dt_has clock_draw && dt_launch clock
 				return 0
@@ -1780,6 +1793,7 @@ dt_sub() {
 	MI[$p][$n]["label"]="$1"
 	MI[$p][$n]["key"]=""
 	MI[$p][$n]["cmd"]=""
+	MI[$p][$n]["argc"]=0
 	MI[$p][$n]["sep"]=0
 	MI[$p][$n]["dim"]=0
 	MI[$p][$n]["tick"]=""
@@ -1800,9 +1814,15 @@ dt_wide() {
 	[ "$2" -gt "${MB[$1]["w"]}" ] && MB[$1]["w"]=$2
 }
 
-# One row of a menu.  Everything above goes through here.
+# One row of a menu.  Everything above goes through here.  The command is
+# kept as its own words, a0..aN-1, not one joined string run split: a
+# dropdown's value is often a label with a space in it ("2:05 PM"), and
+# split it reached its callback as two arguments, the second one lost.
+# An empty word is still dropped, as splitting always dropped it: the
+# Control Strip's dropdowns pass an empty window id and rely on it never
+# reaching their callback.
 dt_row() {
-	local tick=$1 dim=$2 lb=$3 k=$4 m n
+	local tick=$1 dim=$2 lb=$3 k=$4 m n i=0 a
 
 	shift 4
 	m=${MB_CUR:-$((MB_N - 1))}
@@ -1810,6 +1830,12 @@ dt_row() {
 	MI[$m][$n]["label"]="$lb"
 	MI[$m][$n]["key"]="$k"
 	MI[$m][$n]["cmd"]="$*"
+	for a in "$@"; do
+		[ -z "$a" ] && continue
+		MI[$m][$n]["a$i"]=$a
+		i=$((i + 1))
+	done
+	MI[$m][$n]["argc"]=$i
 	MI[$m][$n]["sep"]=0
 	MI[$m][$n]["dim"]="$dim"
 	MI[$m][$n]["tick"]="$tick"
@@ -1827,6 +1853,7 @@ dt_sep() {
 	MI[$m][$n]["label"]=
 	MI[$m][$n]["key"]=
 	MI[$m][$n]["cmd"]=
+	MI[$m][$n]["argc"]=0
 	MI[$m][$n]["dim"]=0
 	MI[$m][$n]["tick"]=""
 	MI[$m][$n]["sub"]=
@@ -3386,12 +3413,25 @@ dt_bar() {
 		i=$((i + 1))
 	done
 
-	printf -v now "%(%H:%M)T" -1
+	now := dt_clocktext "$DT_BARTIME" -1
+	DT_CLOCKW := str width "$now"
+	DT_CLOCKC=$((MB_AX - DT_CLOCKW))
+	DT_BELLC=$((DT_CLOCKC - 2))
 	t := dt_ms
-	dt_want $((60000 - t % 60000 + 20))
+	case $DT_BARTIME in
+	*%S* | *%T* | *%r* | *%s* | *%X* | *%c*)
+		dt_want $((1000 - t % 1000 + 10)) ;;
+	*) dt_want $((60000 - t % 60000 + 20)) ;;
+	esac
+	if [ "$DT_NOTEUNSEEN" -gt 0 ]; then
+		console pen "$DT_ACTIVE" "$DT_BAR" bold
+		console put 0 "$DT_BELLC" "●"
+	else
+		console pen "$DT_INK" "$DT_BAR"
+		console put 0 "$DT_BELLC" "○"
+	fi
 	console pen "$DT_INK" "$DT_BAR"
-	console put 0 $((DT_PRIMARY_COL + w - 21)) "◉"
-	console put 0 $((DT_PRIMARY_COL + w - 19)) "$now"
+	console put 0 "$DT_CLOCKC" "$now"
 	if [ "$MB_OPEN" = app ]; then
 		console pen "$DT_BAR" "$DT_ACTIVE" bold
 	else
@@ -3399,6 +3439,17 @@ dt_bar() {
 	fi
 	t := dt_appname
 	console put 0 "$MB_AX" " ${t:0:11} ▾"
+}
+
+# A time in a strftime format, as the bar draws it: epoch seconds, or -1
+# for now. Leading blanks go, so %l's space-padded hour does not leave a
+# gap against the bell.
+dt_clocktext() {
+	local out
+
+	printf -v out "%($1)T" "$2"
+	while [ "${out:0:1}" = " " ]; do out=${out:1}; done
+	ret "$out"
 }
 
 # What to call the active application on the right of the bar.
@@ -4031,7 +4082,8 @@ dt_mup() {
 
 # Choose the highlighted item.
 dt_mdo() {
-	local m=$MB_OPEN i=$MB_SEL ids id n=0 cmd
+	local m=$MB_OPEN i=$MB_SEL ids id n=0 j=0 argc
+	local -a argv
 
 	if [ "$m" != app ] && [ -n "${MI[$m][$i]["sub"]}" ]; then
 		dt_mdown
@@ -4048,8 +4100,12 @@ dt_mdo() {
 	fi
 	[ "${MI[$m][$i]["sep"]}" = 1 ] && return 0
 	[ "${MI[$m][$i]["dim"]}" = 1 ] && return 0
-	cmd=${MI[$m][$i]["cmd"]}
-	[ -n "$cmd" ] && $cmd
+	argc=${MI[$m][$i]["argc"]:-0}
+	while [ "$j" -lt "$argc" ]; do
+		argv+=("${MI[$m][$i]["a$j"]}")
+		j=$((j + 1))
+	done
+	[ "$argc" -gt 0 ] && "${argv[@]}"
 }
 
 # Is a click inside the open menu?  Sets the highlight if it is.
@@ -4280,6 +4336,7 @@ dt_notehist_add() {
 	DT_NOTEHIST[$hid]["text"]=${DT_NOTEQ[$id]["text"]}
 	DT_NOTEHIST[$hid]["at"] := dt_ms
 	DT_NOTEHIST_ORDER+=("$hid")
+	DT_NOTEUNSEEN=$((DT_NOTEUNSEEN + 1))
 	if [ "${#DT_NOTEHIST_ORDER[@]}" -gt "$DT_NOTEHISTMAX" ]; then
 		unset "DT_NOTEHIST[${DT_NOTEHIST_ORDER[0]}]"
 		DT_NOTEHIST_ORDER=("${DT_NOTEHIST_ORDER[@]:1}")
@@ -4863,9 +4920,8 @@ cs_press() {
 # translate a widget's own row/col through the way dt_droplist does for a
 # Control Panel pane, so it reaches dt_context_open's absolute coordinates
 # directly. Reuses the same widget/dt_dropcontext machinery, and the same
-# "" DT_POPID a window-less caller already gets away with there, since an
-# empty argument vanishes under unquoted word splitting rather than
-# reaching the callback at all.
+# "" DT_POPID a window-less caller already gets away with there, since
+# dt_row drops an empty word rather than handing it to the callback.
 cs_dropopen() {
 	local r=$1 c=$2 cb=$3 n
 

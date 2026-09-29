@@ -1076,6 +1076,17 @@ went in the shell.
   truncation -- is the right assertion once a title's content depends on
   something a test does not fully control.
 
+- **A menu item's command is kept as words, not a string.** `dt_row` used
+  to join its arguments into `MI[..]["cmd"]` and `dt_mdo` ran `$cmd`, split
+  again -- so a dropdown value with a space in it ("2:05 PM", from the
+  clock format list) reached its callback as two arguments and silently
+  matched nothing. The words are stored as `a0..aN-1` with `argc` now,
+  the same shape `DT_OPENCMD` and notification actions use -- but an
+  empty word is still dropped, because the Control Strip's dropdowns pass
+  an empty window id that splitting always made vanish, and passing it
+  through set the cursor style to nothing. Anything else that stores a
+  command to run later should keep words the same way.
+
 - **A saved setting outlives the default that wrote it.** `dt_save`
   writes every variable in `DT_KEEP`, not only the ones the user changed,
   so the first save freezes every *current default* into the settings

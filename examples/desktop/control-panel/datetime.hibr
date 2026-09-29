@@ -14,6 +14,14 @@
 
 command -v cp_pane > /dev/null && cp_pane datetime "Date & Time" "◷"
 
+# The pane's own dialogs, named so the application menu reads "Time Zone"
+# rather than their prefix, and fixed: nothing in them grows with the window.
+if command -v dt_app > /dev/null; then
+	dt_app dtz "Time Zone" 16 46 "" "" fixed hidden
+	dt_app dts "Set Date & Time" 10 46 "" "" fixed hidden
+	dt_app dtf "Clock Format" 9 50 "" "" fixed hidden
+fi
+
 # A coarse equirectangular land mask, 72 columns of five degrees of
 # longitude, 22 rows covering 80N to 60S -- copied verbatim from
 # traceroute.hibr, which checked it against every coordinate in
@@ -134,13 +142,29 @@ dtp_geo() {
 	return 1
 }
 
-# Found once, when this file loads, not on every frame: the zone does not
-# change while the desktop is running.
+# Found once, when this file loads, and again whenever the machine's own
+# zone changes under the pane (dtp_follow) -- a zone set from here lands
+# a moment later, once sudo in its terminal window has been answered.
+DTP_TZUSER=0
+[ -n "$TZ" ] && DTP_TZUSER=1
 DTP_TZ := dtp_tz
 DTP_FOUND=0
 if [ -n "$DTP_TZ" ] && dtp_geo "$DTP_TZ"; then
 	dtp_project "$DTP_LAT" "$DTP_LON"
 	DTP_FOUND=1
+fi
+DTP_TZT=0
+
+# What runs this machine's clock, if not the machine itself: a container
+# shares its host's kernel clock, and nothing inside it -- root included --
+# can set that. Empty on a real machine or a VM.
+DTP_HOST=
+if [ -r /run/systemd/container ]; then
+	read -r DTP_HOST < /run/systemd/container
+elif [ -e /.dockerenv ]; then
+	DTP_HOST=docker
+elif [ -e /run/.containerenv ]; then
+	DTP_HOST=podman
 fi
 
 # A degree count and a sign into "51N"/"0W", the caption's own format.
@@ -152,10 +176,442 @@ dtp_deg() {
 	if [ "$v" -lt 0 ]; then ret "$d$neg"; else ret "$d$pos"; fi
 }
 
+# Notice a zone changed since the pane last looked, and move to it: the
+# map's mark, the caption, and -- through TZ, which the C library reads
+# again when it changes, unlike /etc/localtime -- every clock this desktop
+# draws. Read at most every 5s, and only while this pane is showing. Left
+# alone when the session set TZ itself.
+dtp_follow() {
+	local l z
+
+	[ "$DTP_TZUSER" = 1 ] && return 0
+	[ $((EPOCHSECONDS - DTP_TZT)) -lt 5 ] && return 0
+	DTP_TZT=$EPOCHSECONDS
+	l=$(readlink /etc/localtime 2> /dev/null)
+	z=${l##*zoneinfo/}
+	[ -z "$z" ] || [ "$z" = "$DTP_TZ" ] && return 0
+	DTP_TZ=$z
+	export TZ="$z"
+	DTP_FOUND=0
+	if dtp_geo "$DTP_TZ"; then
+		dtp_project "$DTP_LAT" "$DTP_LON"
+		DTP_FOUND=1
+	fi
+}
+
+# --- the menu bar's clock --------------------------------------------------
+#
+# Offered as examples, not as strftime codes: %l is the hour with no
+# leading zero, whose padding blank dt_clocktext drops.
+DTP_FMTS=("%H:%M" "%H:%M:%S" "%l:%M %p" "%l:%M:%S %p" "%a %H:%M"
+	"%a %l:%M %p" "%a %d %b %H:%M" "%a %d %b %l:%M %p" "%Y-%m-%d %H:%M")
+DTP_CUSTOM="Custom…"
+DTP_REF=0
+
+# Today at 14:05:09 -- an afternoon, so AM/PM shows, and the same moment
+# every time the list opens: a label is how a choice is mapped back to
+# its format, so it must not change between the list opening and a pick.
+dtp_ref() {
+	local h m s
+
+	printf -v h '%(%H)T' -1
+	printf -v m '%(%M)T' -1
+	printf -v s '%(%S)T' -1
+	h=${h#0}
+	m=${m#0}
+	s=${s#0}
+	ret $((EPOCHSECONDS - h * 3600 - m * 60 - s + 50709))
+}
+
+# What the dropdown shows for the format in use.
+dtp_fmtlabel() {
+	local f t ref
+
+	ref := dtp_ref
+	for f in "${DTP_FMTS[@]}"; do
+		if [ "$f" = "$DT_BARTIME" ]; then
+			t := dt_clocktext "$f" "$ref"
+			ret "$t"
+			return 0
+		fi
+	done
+	ret "Custom: $DT_BARTIME"
+}
+
+# The dropdown's own callback: an example back to its format, or the
+# custom dialog.
+dtp_pickfmt() {
+	local id=$1 label=$2 f t
+
+	if [ "$label" = "$DTP_CUSTOM" ]; then
+		dtf_dialog
+		return 0
+	fi
+	for f in "${DTP_FMTS[@]}"; do
+		t := dt_clocktext "$f" "$DTP_REF"
+		if [ "$t" = "$label" ]; then
+			DT_BARTIME=$f
+			cp_save
+			return 0
+		fi
+	done
+}
+
+# A format the bar can hold: something, no ")" (which ends printf's own
+# %(...)T early), and no wider than 24 columns once rendered, so it
+# cannot run into the menus on the left. Status 1 with DTP_WHY set.
+dtp_fmtok() {
+	local t w
+
+	DTP_WHY=
+	[ -z "$1" ] && { DTP_WHY="Needs a format"; return 1; }
+	case $1 in *")"*) DTP_WHY="A format cannot contain )"; return 1 ;; esac
+	t := dt_clocktext "$1" -1
+	[ -z "$t" ] && { DTP_WHY="That format shows nothing"; return 1; }
+	w := str width "$t"
+	[ "$w" -gt 24 ] && { DTP_WHY="Too wide for the bar ($w of 24)"; return 1; }
+	return 0
+}
+
+declare -gA DTF
+
+dtf_dialog() {
+	local h=9 w=50 r c rid
+
+	r=$((DT_ROWS / 2 - h / 2))
+	c=$(((DT_COLS - w) / 2))
+	rid := dt_new "Clock Format" "$h" "$w" "$r" "$c" dtf
+	DTF[$rid]["buf"]=$DT_BARTIME
+	DTF[$rid]["cur"]=${#DT_BARTIME}
+}
+
+dtf_draw() {
+	local id=$1 w=$3 t
+
+	dt_wclear "$id"
+	console pen "$DT_INK" "$DT_FACE"
+	console put -p "w$id" 1 2 "Format:"
+	dt_textdraw "$id" 1 11 $((w - 13)) "${DTF[$id]["buf"]}" \
+		"${DTF[$id]["cur"]}" 1
+	console pen "$DT_INK" "$DT_FACE"
+	console put -p "w$id" 3 2 "Shows:"
+	if dtp_fmtok "${DTF[$id]["buf"]}"; then
+		t := dt_clocktext "${DTF[$id]["buf"]}" -1
+		console pen "#68d391" "$DT_FACE" bold
+	else
+		t=$DTP_WHY
+		console pen "#f56565" "$DT_FACE"
+	fi
+	console put -p "w$id" 3 11 "$t"
+	console pen "#718096" "$DT_FACE"
+	console put -p "w$id" 5 2 "%H %M %S %l %p %a %d %b %Y, as strftime"
+	console put -p "w$id" 6 2 "enter saves · escape cancels"
+}
+
+dtf_key() {
+	local id=$1 res
+
+	case $2 in
+	escape) dt_del "$id"; return 0 ;;
+	enter)
+		if dtp_fmtok "${DTF[$id]["buf"]}"; then
+			DT_BARTIME=${DTF[$id]["buf"]}
+			cp_save
+			dt_del "$id"
+		else
+			dt_note "$DTP_WHY"
+		fi
+		return 0
+		;;
+	esac
+	res := dt_textkey "${DTF[$id]["buf"]}" "${DTF[$id]["cur"]}" "$2" ||
+		return 1
+	DTF[$id]["buf"]=${res% *}
+	DTF[$id]["cur"]=${res##* }
+	return 0
+}
+
+dtf_close() {
+	unset "DTF[$1]"
+}
+
+# --- running something that needs root ------------------------------------
+#
+# Setting the zone or the clock is root's business, and hibr never gains
+# privilege on its own, so the command runs in a terminal window of its
+# own where sudo can ask for a password and the result stays on screen.
+dtp_run() {
+	DT_OPENCMD=("$@")
+	DT_OPENSELF=1
+	dt_launch term && return 0
+	DT_OPENCMD=()
+	DT_OPENSELF=
+	dt_note "No terminal app to run it in"
+}
+
+# --- the time zone ---------------------------------------------------------
+
+DTP_ZONES=()
+DTP_ZONEL=()
+
+# Every zone tzdata lists, and UTC, loaded the first time the picker opens.
+dtp_zones() {
+	local tab line
+	local -a all
+
+	[ "${#DTP_ZONES[@]}" -gt 0 ] && return 0
+	all=(UTC)
+	if tab := dtp_tzdata_path; then
+		while read -r line; do
+			case "$line" in \#* | "") continue ;; esac
+			match "$line" "^[^	]*	[^	]*	([^	]*)" && all+=("${M[1]}")
+		done < "$tab"
+	fi
+	arr sort all
+	DTP_ZONES=("${all[@]}")
+	DTP_ZONEL=()
+	for line in "${DTP_ZONES[@]}"; do
+		line := str lower "$line"
+		DTP_ZONEL+=("$line")
+	done
+}
+
+declare -gA DTZ
+
+dtz_dialog() {
+	local h=16 w=46 r c rid
+
+	dtp_zones
+	r=$((DT_ROWS / 2 - h / 2))
+	c=$(((DT_COLS - w) / 2))
+	rid := dt_new "Time Zone" "$h" "$w" "$r" "$c" dtz
+	DTZ[$rid]["buf"]=
+	DTZ[$rid]["cur"]=0
+	DTZ[$rid]["sel"]=0
+	DTZ[$rid]["top"]=0
+}
+
+# The zones matching the filter, into DTZ_HIT -- a substring, either case.
+dtz_match() {
+	local q i=0 n=${#DTP_ZONES[@]}
+
+	q := str lower "${DTZ[$1]["buf"]}"
+	DTZ_HIT=()
+	while [ "$i" -lt "$n" ]; do
+		case ${DTP_ZONEL[$i]} in *"$q"*) DTZ_HIT+=("${DTP_ZONES[$i]}") ;; esac
+		i=$((i + 1))
+	done
+}
+
+dtz_draw() {
+	local id=$1 h=$2 w=$3 vis n sel top r i t
+
+	dt_wclear "$id"
+	dtz_match "$id"
+	n=${#DTZ_HIT[@]}
+	vis=$((h - 4))
+	sel=${DTZ[$id]["sel"]}
+	top=${DTZ[$id]["top"]}
+	[ "$sel" -ge "$n" ] && sel=$((n - 1))
+	[ "$sel" -lt 0 ] && sel=0
+	[ "$sel" -lt "$top" ] && top=$sel
+	[ "$sel" -ge $((top + vis)) ] && top=$((sel - vis + 1))
+	DTZ[$id]["sel"]=$sel
+	DTZ[$id]["top"]=$top
+	DTZ[$id]["vis"]=$vis
+
+	console pen "$DT_INK" "$DT_FACE"
+	console put -p "w$id" 1 2 "Find:"
+	dt_textdraw "$id" 1 8 $((w - 10)) "${DTZ[$id]["buf"]}" \
+		"${DTZ[$id]["cur"]}" 1
+	r=0
+	while [ "$r" -lt "$vis" ]; do
+		i=$((top + r))
+		t=
+		[ "$i" -lt "$n" ] && t=${DTZ_HIT[$i]}
+		[ "$t" = "$DTP_TZ" ] && t="$t  (now)"
+		t := str pad " $t" $((w - 4))
+		if [ "$i" = "$sel" ] && [ "$i" -lt "$n" ]; then
+			console pen "#1a202c" "$DT_ACTIVE" bold
+		else
+			console pen "$DT_INK" "$DT_FACE"
+		fi
+		console put -p "w$id" $((r + 2)) 2 "$t"
+		dt_wreg "$id" $((r + 2)) 2 $((w - 4)) "row$i"
+		r=$((r + 1))
+	done
+	console pen "#718096" "$DT_FACE"
+	console put -p "w$id" $((h - 1)) 2 "enter sets it (sudo) · escape cancels"
+}
+
+dtz_click() {
+	local id=$1 tag
+
+	tag := dt_hit "$id" "$2" "$3"
+	case $tag in row*) DTZ[$id]["sel"]=${tag#row} ;; esac
+}
+
+dtz_key() {
+	local id=$1 res z
+
+	case $2 in
+	escape) dt_del "$id"; return 0 ;;
+	up) DTZ[$id]["sel"]=$((DTZ[$id]["sel"] - 1)); return 0 ;;
+	down) DTZ[$id]["sel"]=$((DTZ[$id]["sel"] + 1)); return 0 ;;
+	enter)
+		dtz_match "$id"
+		z=${DTZ_HIT[${DTZ[$id]["sel"]}]}
+		[ -z "$z" ] && { dt_note "No zone matches"; return 0; }
+		dt_del "$id"
+		dtp_zoneset "$z"
+		return 0
+		;;
+	esac
+	res := dt_textkey "${DTZ[$id]["buf"]}" "${DTZ[$id]["cur"]}" "$2" ||
+		return 1
+	DTZ[$id]["buf"]=${res% *}
+	DTZ[$id]["cur"]=${res##* }
+	DTZ[$id]["sel"]=0
+	DTZ[$id]["top"]=0
+	return 0
+}
+
+dtz_close() {
+	unset "DTZ[$1]"
+}
+
+# Set the zone with whatever this system has for it.
+dtp_zoneset() {
+	if command -v timedatectl > /dev/null; then
+		dtp_run sudo timedatectl set-timezone "$1"
+	elif [ -x /usr/sbin/systemsetup ]; then
+		dtp_run sudo /usr/sbin/systemsetup -settimezone "$1"
+	else
+		dtp_run sudo ln -sf "/usr/share/zoneinfo/$1" /etc/localtime
+	fi
+	DTP_TZT=0
+}
+
+# --- the date and time -----------------------------------------------------
+
+declare -gA DTS
+
+dts_dialog() {
+	local h=10 w=46 r c rid d t ntp=
+
+	r=$((DT_ROWS / 2 - h / 2))
+	c=$(((DT_COLS - w) / 2))
+	rid := dt_new "Set Date & Time" "$h" "$w" "$r" "$c" dts
+	printf -v d '%(%Y-%m-%d)T' -1
+	printf -v t '%(%H:%M:%S)T' -1
+	DTS[$rid]["dbuf"]=$d
+	DTS[$rid]["dcur"]=${#d}
+	DTS[$rid]["tbuf"]=$t
+	DTS[$rid]["tcur"]=${#t}
+	DTS[$rid]["focus"]=d
+	if command -v timedatectl > /dev/null; then
+		ntp=$(timedatectl show -p NTP --value 2> /dev/null)
+	elif [ -x /usr/sbin/systemsetup ]; then
+		ntp=$(/usr/sbin/systemsetup -getusingnetworktime 2> /dev/null)
+		case $ntp in *On*) ntp=yes ;; *) ntp=no ;; esac
+	fi
+	DTS[$rid]["ntp"]=$ntp
+}
+
+dts_draw() {
+	local id=$1 h=$2 f
+
+	dt_wclear "$id"
+	console pen "$DT_INK" "$DT_FACE"
+	console put -p "w$id" 1 2 "Date:"
+	f=0; [ "${DTS[$id]["focus"]}" = d ] && f=1
+	dt_textdraw "$id" 1 9 12 "${DTS[$id]["dbuf"]}" "${DTS[$id]["dcur"]}" "$f"
+	dt_wreg "$id" 1 9 12 d
+	console pen "$DT_INK" "$DT_FACE"
+	console put -p "w$id" 3 2 "Time:"
+	f=0; [ "${DTS[$id]["focus"]}" = t ] && f=1
+	dt_textdraw "$id" 3 9 10 "${DTS[$id]["tbuf"]}" "${DTS[$id]["tcur"]}" "$f"
+	dt_wreg "$id" 3 9 10 t
+	console pen "#718096" "$DT_FACE"
+	console put -p "w$id" 5 2 "YYYY-MM-DD and HH:MM:SS, local time"
+	if [ "${DTS[$id]["ntp"]}" = yes ]; then
+		console pen "#f6ad55" "$DT_FACE"
+		console put -p "w$id" 6 2 "Turns off automatic time (NTP) first"
+	fi
+	console pen "#718096" "$DT_FACE"
+	console put -p "w$id" $((h - 1)) 2 "enter sets it (sudo) · escape cancels"
+}
+
+dts_click() {
+	local id=$1 tag
+
+	tag := dt_hit "$id" "$2" "$3"
+	case $tag in d | t) DTS[$id]["focus"]=$tag ;; esac
+}
+
+dts_key() {
+	local id=$1 f res
+
+	f=${DTS[$id]["focus"]}
+	case $2 in
+	escape) dt_del "$id"; return 0 ;;
+	tab)
+		if [ "$f" = d ]; then DTS[$id]["focus"]=t; else DTS[$id]["focus"]=d; fi
+		return 0
+		;;
+	enter) dts_apply "$id"; return 0 ;;
+	esac
+	res := dt_textkey "${DTS[$id]["${f}buf"]}" "${DTS[$id]["${f}cur"]}" "$2" ||
+		return 1
+	DTS[$id]["${f}buf"]=${res% *}
+	DTS[$id]["${f}cur"]=${res##* }
+	return 0
+}
+
+# Checked here so a typo is a note, not a failed sudo in a new window.
+dts_apply() {
+	local id=$1 d t y mo dy hh mi ss
+
+	d=${DTS[$id]["dbuf"]}
+	t=${DTS[$id]["tbuf"]}
+	match "$d" '^([0-9]{4})-([0-9]{2})-([0-9]{2})$' ||
+		{ dt_note "The date is YYYY-MM-DD"; return 0; }
+	y=${M[1]}; mo=${M[2]}; dy=${M[3]}
+	match "$t" '^([0-9]{2}):([0-9]{2})(:([0-9]{2}))?$' ||
+		{ dt_note "The time is HH:MM or HH:MM:SS"; return 0; }
+	hh=${M[1]}; mi=${M[2]}; ss=${M[4]:-00}
+	dt_del "$id"
+	if command -v timedatectl > /dev/null; then
+		dtp_run sudo sh -c 'timedatectl set-ntp false 2> /dev/null;
+			timedatectl set-time "$1"' sh "$y-$mo-$dy $hh:$mi:$ss"
+	elif [ -x /usr/sbin/systemsetup ]; then
+		dtp_run sudo sh -c '/usr/sbin/systemsetup -setusingnetworktime off \
+			> /dev/null; date "$1"' sh "$mo$dy$hh$mi$y.$ss"
+	else
+		dtp_run sudo date -s "$y-$mo-$dy $hh:$mi:$ss"
+	fi
+}
+
+dts_close() {
+	unset "DTS[$1]"
+}
+
+# --- the pane --------------------------------------------------------------
+
+# A plain button: "[ label ]", registered under tag for datetime_click.
+dtp_button() {
+	local id=$1 r=$2 c=$3 label=$4 tag=$5
+
+	console pen "$DT_ACTIVE" "$DT_FACE" bold
+	console put -p "w$id" "$r" "$c" "[ $label ]"
+	dt_wreg "$id" "$r" "$c" $((${#label} + 4)) "$tag"
+}
+
 datetime_draw() {
 	local id=$1 h=$2 w=$3 bx=$4
-	local now rw rh r c oc sy sr sc lat lon out
+	local now rw rh r c oc sy sr sc lat lon out lb
 
+	dtp_follow
 	now := dt_ms
 	dt_want $((1000 - now % 1000 + 10))
 	console pen "#68d391" "$DT_FACE" bold
@@ -164,17 +620,38 @@ datetime_draw() {
 	console pen "$DT_INK" "$DT_FACE"
 	printf -v now "%(%A %d %B %Y)T" -1
 	console put -p "w$id" 2 "$bx" "$now"
+	console pen "#a0aec0" "$DT_FACE"
+	if [ "$DTP_FOUND" = 1 ]; then
+		lat := dtp_deg "$DTP_LAT" N S
+		lon := dtp_deg "$DTP_LON" E W
+		console put -p "w$id" 3 "$bx" "$DTP_TZ  $lat $lon"
+	else
+		console put -p "w$id" 3 "$bx" "${DTP_TZ:-no time zone set}"
+	fi
+
+	console pen "$DT_INK" "$DT_FACE"
+	console put -p "w$id" 5 "$bx" "Menu bar"
+	lb := dtp_fmtlabel
+	console pen "$DT_INK" "$DT_FACE"
+	dt_wdrop "$id" 5 $((bx + 11)) 24 "$lb" barfmt
+	console pen "$DT_INK" "$DT_FACE"
+	console put -p "w$id" 6 "$bx" "Time zone"
+	dtp_button "$id" 6 $((bx + 11)) "Change…" zone
+	console pen "$DT_INK" "$DT_FACE"
+	console put -p "w$id" 7 "$bx" "Date/time"
+	if [ -n "$DTP_HOST" ]; then
+		console pen "#718096" "$DT_FACE"
+		console put -p "w$id" 7 $((bx + 11)) "set by the host ($DTP_HOST)"
+	else
+		dtp_button "$id" 7 $((bx + 11)) "Set…" settime
+	fi
 
 	[ "$DTP_FOUND" != 1 ] && return 0
-	console pen "#a0aec0" "$DT_FACE"
-	lat := dtp_deg "$DTP_LAT" N S
-	lon := dtp_deg "$DTP_LON" E W
-	console put -p "w$id" 3 "$bx" "$DTP_TZ  $lat $lon"
 
 	# The map fills whatever is left, at most half the reused mask's own
 	# resolution -- big enough to place a mark by, small the way System 7's
 	# own Date & Time map was.
-	rh=$(( h - 5 ))
+	rh=$(( h - 9 ))
 	[ "$rh" -gt $(( DTP_MAPH / 2 )) ] && rh=$(( DTP_MAPH / 2 ))
 	[ "$rh" -lt 1 ] && return 0
 	rw=$(( rh * DTP_MAPW / DTP_MAPH ))
@@ -202,11 +679,32 @@ datetime_draw() {
 			fi
 			oc=$(( oc + 1 ))
 		done
-		console put -p "w$id" $(( r + 5 )) "$bx" "$out"
+		console put -p "w$id" $(( r + 9 )) "$bx" "$out"
 		r=$(( r + 1 ))
 	done
 	console pen "#f6ad55" "$DT_FACE" bold
-	console put -p "w$id" $(( sr + 5 )) $(( bx + sc )) "◉"
+	console put -p "w$id" $(( sr + 9 )) $(( bx + sc )) "◉"
+}
+
+datetime_click() {
+	local id=$1 r=$2 c=$3 tag wc f t
+	local -a vals
+
+	tag := dt_hit "$id" "$r" "$c"
+	case $tag in
+	barfmt)
+		DTP_REF := dtp_ref
+		for f in "${DTP_FMTS[@]}"; do
+			t := dt_clocktext "$f" "$DTP_REF"
+			vals+=("$t")
+		done
+		vals+=("$DTP_CUSTOM")
+		wc := dt_wcol "$id" "$r" barfmt
+		dt_droplist "$id" "$r" "$wc" dtp_pickfmt "${vals[@]}"
+		;;
+	zone) dtz_dialog ;;
+	settime) [ -z "$DTP_HOST" ] && dts_dialog ;;
+	esac
 }
 
 if [ -z "$DT_ROWS" ]; then
