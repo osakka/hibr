@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.37
+
+Desktop moves to **0.17** alongside this release.
+
+**The right-hand side of the menu bar is spaced like the left.** The menu
+titles on the left sit two cells apart, from the space either side of each
+name; the notification dot, the clock and the application menu on the right
+were one cell apart and read as crowded. They are two apart now, and the
+clicks follow them, whatever clock format is chosen.
+
+HIBR_VER -> 0.37, DT_VER -> 0.17.
+
+Verified: tests/run.sh 86/86, tests/desktop.py 292/292, tests/apps.py
+212/212.
+
 ## 0.36
 
 Desktop moves to **0.16** alongside this release; the `term` module to 0.23.

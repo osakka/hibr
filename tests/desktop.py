@@ -530,7 +530,7 @@ open(p, "w").write(
     % (load(MOD), WM, bellapps)
 )
 t = Term(p, env={"DT_TICK": "300"}, rows=ROWS, cols=COLS, settle=0.5)
-t.keys([press(0, COLS - 21)])
+t.keys([press(0, COLS - 23)])
 sc = t.screen()
 check("the menu bar's own bell opens the notification history",
       sc.find("┤ Notifications ├") is not None, sc)
@@ -1553,13 +1553,17 @@ def dotrun(session, env=None, pre="", keys=(), cols=COLS):
 t, d = dotrun("")
 sc = t.screen()
 check("with nothing unread the bar's dot is hollow, just left of the clock",
-      sc.find("○") == (0, COLS - 21), sc)
+      sc.find("○") == (0, COLS - 23), sc)
+check("and the dot, the clock and the application menu sit two cells apart, "
+      "as the menu titles on the left do",
+      re.search(r"○  \d\d:\d\d  Desktop ▾", sc.row(0)) is not None and
+      re.search(r"✎  Edit  Window", sc.row(0)) is not None, sc)
 t.quit(None, 0.5); shutil.rmtree(d, True)
 
 t, d = dotrun('dt_note "Unread"')
 sc = t.screen()
-check("a note fills it", sc.find("●") == (0, COLS - 21), sc)
-t.keys([press(0, COLS - 21)], settle=0.6)
+check("a note fills it", sc.find("●") == (0, COLS - 23), sc)
+t.keys([press(0, COLS - 23)], settle=0.6)
 sc = t.screen()
 check("and opening the history empties it again",
       sc.find("┤ Notifications ├") is not None and sc.row(0).find("○") >= 0,
@@ -1570,7 +1574,7 @@ t.quit(None, 0.5); shutil.rmtree(d, True)
 # and the dot left, and their clicks follow them.
 t, d = dotrun("", env={"DT_BARTIME": "%a %H:%M:%S"})
 sc = t.screen()
-m = re.search(r"([○●]) (\w\w\w \d\d:\d\d:\d\d) ", sc.row(0))
+m = re.search(r"([○●])  (\w\w\w \d\d:\d\d:\d\d)  ", sc.row(0))
 check("a format with seconds and a weekday is what the bar shows", m, sc)
 dot = sc.row(0).find("○")
 t.keys([press(0, dot)], settle=0.6)
@@ -1626,7 +1630,7 @@ t.keys([b"\r"], settle=0.6)
 sc = t.screen()
 check("and a valid one is taken on enter",
       sc.find("┤ Clock Format ├") is None and
-      re.search(r"[○●] \d\dh ", sc.row(0)) is not None, sc)
+      re.search(r"[○●]  \d\dh  ", sc.row(0)) is not None, sc)
 t.quit(None, 0.5); shutil.rmtree(d, True)
 
 t, d = dotrun(DTPANEL, keys=DOWN_DT)
@@ -2147,4 +2151,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(291)
+report(292)
