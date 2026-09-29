@@ -1552,35 +1552,50 @@ def dotrun(session, env=None, pre="", keys=(), cols=COLS):
 
 t, d = dotrun("")
 sc = t.screen()
-# A wide character's second cell reads as a space in the screen model, so
-# the bell is "🔔 " on a row.
-check("with nothing unread the bar shows just the bell, left of the clock",
-      sc.find("🔔") == (0, COLS - 24), sc)
+# The icon is ⚑ unless DT_BELLICON says otherwise: one cell, in any font.
+check("with nothing unread the bar shows just the icon, left of the clock",
+      sc.find("⚑") == (0, COLS - 23), sc)
 check("and the bell, the clock and the application menu sit two cells apart, "
       "as the menu titles on the left do",
-      re.search(r"🔔   \d\d:\d\d  Desktop ▾", sc.row(0)) is not None and
+      re.search(r"⚑  \d\d:\d\d  Desktop ▾", sc.row(0)) is not None and
       re.search(r"✎  Edit  Window", sc.row(0)) is not None, sc)
 t.quit(None, 0.5); shutil.rmtree(d, True)
 
 t, d = dotrun('dt_note "Unread"')
 sc = t.screen()
 check("a note puts its count beside the bell",
-      sc.find("🔔") == (0, COLS - 25) and
-      re.search(r"🔔 1  \d\d:\d\d", sc.row(0)) is not None, sc)
-t.keys([press(0, COLS - 25)], settle=0.6)
+      sc.find("⚑") == (0, COLS - 24) and
+      re.search(r"⚑1  \d\d:\d\d", sc.row(0)) is not None, sc)
+t.keys([press(0, COLS - 24)], settle=0.6)
 sc = t.screen()
 check("and opening the history clears the count again",
       sc.find("┤ Notifications ├") is not None and
-      re.search(r"🔔   \d\d:\d\d", sc.row(0)) is not None, sc)
+      re.search(r"⚑  \d\d:\d\d", sc.row(0)) is not None, sc)
+t.quit(None, 0.5); shutil.rmtree(d, True)
+
+# The bell is a choice, not the default: it is an emoji, two cells wide,
+# and a terminal without an emoji font draws it as an empty box. Chosen,
+# the layout measures it and its click still lands. (A wide character's
+# second cell reads as a space in the screen model, so it is "🔔 ".)
+t, d = dotrun('dt_note "Unread"', env={"DT_BELLICON": "bell"})
+sc = t.screen()
+bell = sc.find("🔔")
+check("DT_BELLICON=bell puts the bell there, two cells wide, count beside it",
+      bell == (0, COLS - 25) and
+      re.search(r"🔔 1  \d\d:\d\d", sc.row(0)) is not None, sc)
+t.keys([press(0, bell[1] + 1 if bell else 0)], settle=0.6)
+sc = t.screen()
+check("and a click on either of its cells opens the history",
+      sc.find("┤ Notifications ├") is not None, sc)
 t.quit(None, 0.5); shutil.rmtree(d, True)
 
 # DT_BARTIME: the clock's own strftime format. A wider one moves the clock
 # and the dot left, and their clicks follow them.
 t, d = dotrun("", env={"DT_BARTIME": "%a %H:%M:%S"})
 sc = t.screen()
-m = re.search(r"🔔 \S*  (\w\w\w \d\d:\d\d:\d\d)  ", sc.row(0))
+m = re.search(r"⚑\S*  (\w\w\w \d\d:\d\d:\d\d)  ", sc.row(0))
 check("a format with seconds and a weekday is what the bar shows", m, sc)
-dot = sc.row(0).find("🔔")
+dot = sc.row(0).find("⚑")
 t.keys([press(0, dot)], settle=0.6)
 sc = t.screen()
 check("and the bell, moved left to make room, still opens the history",
@@ -1634,7 +1649,7 @@ t.keys([b"\r"], settle=0.6)
 sc = t.screen()
 check("and a valid one is taken on enter",
       sc.find("┤ Clock Format ├") is None and
-      re.search(r"🔔 \S*  \d\dh  ", sc.row(0)) is not None, sc)
+      re.search(r"⚑\S*  \d\dh  ", sc.row(0)) is not None, sc)
 t.quit(None, 0.5); shutil.rmtree(d, True)
 
 t, d = dotrun(DTPANEL, keys=DOWN_DT)
@@ -2155,4 +2170,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(292)
+report(294)

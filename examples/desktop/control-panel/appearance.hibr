@@ -59,7 +59,7 @@ cp_set_theme() { cp_theme "$2" && cp_save; }
 cp_set_glyph() { DT_GLYPH=$2; DT_WALLIMG=; cp_save; }
 
 appearance_rows() {
-	local w=$1 n=0
+	local w=$1 n=0 g
 
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Theme"
 	CP[$w][$n]["val"]="$CP_THEME"; CP[$w][$n]["key"]=theme; n=$((n + 1))
@@ -75,6 +75,10 @@ appearance_rows() {
 	CP[$w][$n]["wtype"]=slider
 	CP[$w][$n]["val"]=${DT_BARGAP:-2}; CP[$w][$n]["min"]=1; CP[$w][$n]["max"]=4
 	CP[$w][$n]["key"]=bargap; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Notification Icon"
+	g := dt_bellglyph "$DT_BELLICON"
+	CP[$w][$n]["val"]="$g $DT_BELLICON"; CP[$w][$n]["key"]=bellicon
+	n=$((n + 1))
 	ret "$n"
 }
 
@@ -86,6 +90,10 @@ appearance_do() {
 	       cp_theme "$v" ;;
 	glyph) v := cp_next "$DT_GLYPH" "$dir" "${CP_GLYPHS[@]}"
 	       DT_GLYPH=$v; DT_WALLIMG= ;;
+	bellicon)
+		v := cp_next "$DT_BELLICON" "$dir" "${DT_BELLICONS[@]}"
+		DT_BELLICON=$v
+		;;
 	bargap)
 		v=$((${DT_BARGAP:-2} + dir))
 		[ "$v" -lt 1 ] && v=1
@@ -102,5 +110,17 @@ appearance_drop() {
 	case $k in
 	theme) dt_droplist "$w" "$r" "$c" cp_set_theme "${CP_THEMES[@]}" ;;
 	glyph) dt_droplist "$w" "$r" "$c" cp_set_glyph "${CP_GLYPHS[@]}" ;;
+	bellicon)
+		local -a vals
+		local nm g
+		for nm in "${DT_BELLICONS[@]}"; do
+			g := dt_bellglyph "$nm"
+			vals+=("$g $nm")
+		done
+		dt_droplist "$w" "$r" "$c" cp_set_bellicon "${vals[@]}"
+		;;
 	esac
 }
+
+# A choice from the icon list, shown as "glyph name": the name is kept.
+cp_set_bellicon() { DT_BELLICON=${2##* }; cp_save; }

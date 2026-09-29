@@ -25,7 +25,7 @@ need display || { echo "desktop: no display available" >&2; exit 1; }
 # change that never touched a single line of src/*.c. HIBR_ABI is what
 # actually needs cross-checking between the two -- whether a module is
 # built against what this shell offers -- and that already exists.
-DT_VER=0.19
+DT_VER=0.20
 
 # The session's own arguments, captured here at the top level where $@ is
 # still theirs: a function sees its own, and dt_autohold needs to hand these
@@ -125,6 +125,13 @@ DT_BARTIME="${DT_BARTIME-%H:%M}"
 # default, 2, is the rhythm the menu titles on the left already have from
 # the space either side of each name.
 DT_BARGAP="${DT_BARGAP-2}"
+
+# The notification icon in the bar, by name -- see dt_bellglyph. flag is
+# the default because it is not an emoji: every monospace font has it, one
+# cell wide. The bell is, and a terminal without an emoji font draws it as
+# an empty box, or counts it one cell wide and pushes the clock along.
+DT_BELLICON="${DT_BELLICON-flag}"
+DT_BELLICONS=(flag bell note mail dot diamond star)
 DT_CLOCKC=-1
 DT_CLOCKW=0
 DT_BELLC=-1
@@ -333,7 +340,7 @@ DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 	CS_COLLAPSED CS_LEN CS_SHADOW
 	DT_FRAME DT_BTNSIDE DT_TITLEALIGN DT_BTNSTYLE DT_EDGERESIZE
 	DT_DRAGMOD DT_DRAGKEY DT_DRAWSKIP DT_NOTEMS DT_NOTEPOS DT_BARTIME
-	DT_BARGAP)
+	DT_BARGAP DT_BELLICON)
 
 # Where the desktop's stderr goes while it holds the screen, so an app's
 # error message cannot scribble over the display, and the reason for a
@@ -3429,11 +3436,10 @@ dt_bar() {
 	[ "$gap" -gt 4 ] && gap=4
 	DT_CLOCKW := str width "$now"
 	DT_CLOCKC=$((MB_AX - (gap - 1) - DT_CLOCKW))
-	# The bell, and beside it how many notes have come since the history
-	# was last opened -- nothing beside it when that is none. A real bell
-	# is two cells wide, which is why its width is measured like the
-	# clock's rather than assumed.
-	bell="🔔"
+	# The icon, and beside it how many notes have come since the history
+	# was last opened -- nothing beside it when that is none. Its width is
+	# measured like the clock's rather than assumed: the bell is two cells.
+	bell := dt_bellglyph "$DT_BELLICON"
 	if [ "$DT_NOTEUNSEEN" -gt 9 ]; then
 		bell="${bell}9+"
 	elif [ "$DT_NOTEUNSEEN" -gt 0 ]; then
@@ -3462,6 +3468,19 @@ dt_bar() {
 	fi
 	t := dt_appname
 	console put 0 "$MB_AX" " ${t:0:11} ▾"
+}
+
+# The glyph a notification icon name stands for.
+dt_bellglyph() {
+	case $1 in
+	bell) ret "🔔" ;;
+	note) ret "♪" ;;
+	mail) ret "✉" ;;
+	dot) ret "●" ;;
+	diamond) ret "◆" ;;
+	star) ret "✱" ;;
+	*) ret "⚑" ;;
+	esac
 }
 
 # A time in a strftime format, as the bar draws it: epoch seconds, or -1

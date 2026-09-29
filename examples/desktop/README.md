@@ -679,8 +679,9 @@ shows a cursor at all.
 
 Across the top, System 7's: the **hibr menu** on the left where the apple
 went, then the menus of whatever window has focus, then the notification
-bell (with a count beside it of notes you have not seen yet, opening their
-history when clicked), the clock (in whatever format Date & Time sets) and the
+icon (⚑ unless Appearance's Notification Icon picks another -- the bell 🔔
+among them, which needs an emoji font -- with a count beside it of notes you
+have not seen yet, opening their history when clicked), the clock (in whatever format Date & Time sets) and the
 **application menu** on the right. Windows cannot be dragged over it.
 
 The menus belong to the active application, so they change when you click a

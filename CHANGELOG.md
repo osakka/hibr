@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.40
+
+Desktop moves to **0.20** alongside this release.
+
+**The notification icon is a choice**, in Appearance: flag ⚑ (the default),
+bell 🔔, note ♪, mail ✉, dot ●, diamond ◆ or star ✱, with the unseen count
+beside whichever it is. The bell 0.39 introduced is an emoji: a terminal
+without an emoji font -- the Linux console, many older setups -- draws it as
+an empty box, and one with an older width table counts it as one cell and
+pushes the clock along. The flag is not an emoji, so every monospace font
+has it, one cell wide; the bell is still there for a terminal that shows it.
+
+HIBR_VER -> 0.40, DT_VER -> 0.20.
+
+Verified: tests/run.sh 86/86, tests/desktop.py 294/294, tests/apps.py
+218/218.
+
 ## 0.39
 
 Desktop moves to **0.19** alongside this release; the `term` module to 0.24.
