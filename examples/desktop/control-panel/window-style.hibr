@@ -3,7 +3,7 @@
 # window-style -- the Control Panel pane for a window's own chrome: its
 # frame, which side its buttons dock to, where its title sits, and which
 # glyphs the buttons themselves are drawn with. Every value here is read
-# by dt_win and dt_btn in desktop.hibr; this pane only ever changes the
+# by dt_win and dt_btn in wm/frame.hibr; this pane only ever changes the
 # four DT_* settings, never the drawing itself.
 
 command -v cp_pane > /dev/null && cp_pane window_style "Window Style" "▭"

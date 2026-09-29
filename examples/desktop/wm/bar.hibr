@@ -1,0 +1,136 @@
+# wm/bar -- the menu bar's own contents on the right: the notification icon,
+# the clock and the application menu.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+# The bar clock's own strftime format, chosen in Date & Time. dt_bar
+# measures what it renders and leaves where the clock and the icon landed
+# in DT_CLOCKC/DT_CLOCKW/DT_BELLC/DT_BELLW, so a wider format moves both
+# left and the clicks follow them, rather than overrunning the application
+# menu.
+DT_BARTIME="${DT_BARTIME-%H:%M}"
+
+# Cells between the dot, the clock and the application menu, 1 to 4. The
+# default, 2, is the rhythm the menu titles on the left already have from
+# the space either side of each name.
+DT_BARGAP="${DT_BARGAP-2}"
+
+# The notification icon in the bar, by name -- see dt_bellglyph. flag is
+# the default because it is not an emoji: every monospace font has it, one
+# cell wide. The bell is, and a terminal without an emoji font draws it as
+# an empty box, or counts it one cell wide and pushes the clock along.
+DT_BELLICON="${DT_BELLICON-flag}"
+DT_BELLICONS=(flag bell note mail dot diamond star)
+DT_CLOCKC=-1
+DT_CLOCKW=0
+DT_BELLC=-1
+DT_BELLW=0
+DT_CONFIRM=
+DT_CONFIRM_CMD=
+DT_ROWS=24
+DT_COLS=80
+
+# Draw the bar itself.
+dt_bar() {
+	local i=0 t line now gap bell w=${DT_PRIMARY_W:-$DT_COLS}
+
+	[ "$DT_BARSHADOW" = 1 ] &&
+		console darken 1 "$DT_PRIMARY_COL" 1 "$w" "$DT_SHADOW_PCT"
+	console pen "$DT_INK" "$DT_BAR"
+	line := dt_rep "$w" " "
+	console put 0 "$DT_PRIMARY_COL" "$line"
+
+	while [ "$i" -lt "$MB_N" ]; do
+		if [ "${MB[$i]["bar"]}" != 1 ]; then
+			i=$((i + 1))
+			continue
+		fi
+		t=${MB[$i]["title"]}
+		if [ "$i" = "$MB_OPEN" ] || [ "$i" = "$MB_PAR" ]; then
+			console pen "$DT_BAR" "$DT_ACTIVE" bold
+		elif [ "$i" = 0 ]; then
+			console pen "$DT_ACTIVE" "$DT_BAR" bold
+		else
+			console pen "$DT_INK" "$DT_BAR"
+		fi
+		console put 0 "${MB[$i]["x"]}" " $t "
+		i=$((i + 1))
+	done
+
+	now := dt_clocktext "$DT_BARTIME" -1
+	# DT_BARGAP cells between each item on the right -- the application
+	# menu's own leading space is one of them.
+	gap=${DT_BARGAP:-2}
+	[ "$gap" -lt 1 ] && gap=1
+	[ "$gap" -gt 4 ] && gap=4
+	DT_CLOCKW := str width "$now"
+	DT_CLOCKC=$((MB_AX - (gap - 1) - DT_CLOCKW))
+	# The icon, and beside it how many notes have come since the history
+	# was last opened -- nothing beside it when that is none. Its width is
+	# measured like the clock's rather than assumed: the bell is two cells.
+	bell := dt_bellglyph "$DT_BELLICON"
+	if [ "$DT_NOTEUNSEEN" -gt 9 ]; then
+		bell="${bell}9+"
+	elif [ "$DT_NOTEUNSEEN" -gt 0 ]; then
+		bell="${bell}$DT_NOTEUNSEEN"
+	fi
+	DT_BELLW := str width "$bell"
+	DT_BELLC=$((DT_CLOCKC - gap - DT_BELLW))
+	t := dt_ms
+	case $DT_BARTIME in
+	*%S* | *%T* | *%r* | *%s* | *%X* | *%c*)
+		dt_want $((1000 - t % 1000 + 10)) ;;
+	*) dt_want $((60000 - t % 60000 + 20)) ;;
+	esac
+	if [ "$DT_NOTEUNSEEN" -gt 0 ]; then
+		console pen "$DT_ACTIVE" "$DT_BAR" bold
+	else
+		console pen "$DT_INK" "$DT_BAR"
+	fi
+	console put 0 "$DT_BELLC" "$bell"
+	console pen "$DT_INK" "$DT_BAR"
+	console put 0 "$DT_CLOCKC" "$now"
+	if [ "$MB_OPEN" = app ]; then
+		console pen "$DT_BAR" "$DT_ACTIVE" bold
+	else
+		console pen "$DT_INK" "$DT_BAR"
+	fi
+	t := dt_appname
+	console put 0 "$MB_AX" " ${t:0:11} ▾"
+}
+
+# The glyph a notification icon name stands for.
+dt_bellglyph() {
+	case $1 in
+	bell) ret "🔔" ;;
+	note) ret "♪" ;;
+	mail) ret "✉" ;;
+	dot) ret "●" ;;
+	diamond) ret "◆" ;;
+	star) ret "✱" ;;
+	*) ret "⚑" ;;
+	esac
+}
+
+# A time in a strftime format, as the bar draws it: epoch seconds, or -1
+# for now. Leading blanks go, so %l's space-padded hour does not leave a
+# gap against the bell.
+dt_clocktext() {
+	local out
+
+	printf -v out "%($1)T" "$2"
+	while [ "${out:0:1}" = " " ]; do out=${out:1}; done
+	ret "$out"
+}
+
+# What to call the active application on the right of the bar.
+dt_appname() {
+	if [ -z "$MB_APP" ]; then
+		ret "Desktop"
+	elif [ -n "${DT_APPS[$MB_APP]["title"]}" ]; then
+		ret "${DT_APPS[$MB_APP]["title"]}"
+	else
+		ret "$MB_APP"
+	fi
+}

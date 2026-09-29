@@ -1,0 +1,109 @@
+# wm/confirm -- the confirm dialog: a question with a yes and a no.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+# Ask before doing something that cannot be taken back by pressing the key
+# again: y or enter runs cmd, anything else -- including a click, which
+# cancels rather than reaching whatever it landed on -- forgets it. cmd is
+# a single word, a function of no arguments, since the message can hold a
+# space and a command built from stored, later-unquoted menu text cannot.
+dt_confirm() {
+	dt_note_clear
+	DT_CONFIRM="$1"
+	DT_CONFIRM_CMD=$2
+}
+
+# A small window of its own, not just a coloured box: a border and a
+# title bar, the same shapes dt_win draws, at an absolute position rather
+# than a pane's, since this has no pane and takes no drag or resize.
+# [y]es and [n]o are also clickable -- dt_confirm_hit tests a point against
+# the same box this lays out, so the two can never drift apart.
+DT_CONFIRM_HINT="[y]es        [n]o"
+
+dt_confirm_geom() {
+	local msg=$DT_CONFIRM w h y0 x0
+
+	w=$((${#msg} + 6))
+	[ "$w" -lt $((${#DT_CONFIRM_HINT} + 4)) ] && w=$((${#DT_CONFIRM_HINT} + 4))
+	h=5
+	y0=$((DT_ROWS / 2 - h / 2))
+	x0=$((DT_PRIMARY_COL + (${DT_PRIMARY_W:-$DT_COLS} - w) / 2))
+	ret "$y0 $x0 $w $h"
+}
+
+# y, n, or empty for a point that is not on either word of the hint line.
+dt_confirm_hit() {
+	local mr=$1 mc=$2 g y0 x0 w h hr hx half
+
+	[ -z "$DT_CONFIRM" ] && return 1
+	g := dt_confirm_geom
+	set -- $g
+	y0=$1 x0=$2 w=$3 h=$4
+	hr=$((y0 + 3))
+	[ "$mr" != "$hr" ] && return 1
+	hx=$((x0 + (w - ${#DT_CONFIRM_HINT}) / 2))
+	[ "$mc" -lt "$hx" ] || [ "$mc" -ge $((hx + ${#DT_CONFIRM_HINT})) ] &&
+		return 1
+	half=$(( (${#DT_CONFIRM_HINT} + 1) / 2 ))
+	if [ $((mc - hx)) -lt "$half" ]; then
+		ret y
+	else
+		ret n
+	fi
+}
+
+dt_confirm_draw() {
+	local msg=$DT_CONFIRM w h y0 x0 bar r g
+
+	[ -z "$msg" ] && return 0
+	g := dt_confirm_geom
+	set -- $g
+	y0=$1 x0=$2 w=$3 h=$4
+	console pen "$DT_INK" "$DT_FACE"
+	console fill "$y0" "$x0" "$h" "$w" " "
+	bar := dt_rep $((w - 2)) "─"
+	console pen "$DT_ACTIVE" "$DT_FACE" bold
+	console put "$y0" "$x0" "┌$bar┐"
+	console put $((y0 + h - 1)) "$x0" "└$bar┘"
+	console pen "$DT_INK" "$DT_FACE"
+	r=$((y0 + 1))
+	while [ "$r" -lt $((y0 + h - 1)) ]; do
+		console put "$r" "$x0" "│"
+		console put "$r" $((x0 + w - 1)) "│"
+		r=$((r + 1))
+	done
+	console pen "$DT_ACTIVE" "$DT_FACE" bold
+	console put "$y0" $((x0 + 2)) "┤ Confirm ├"
+	console pen "$DT_INK" "$DT_FACE" bold
+	console put $((y0 + 2)) $((x0 + (w - ${#msg}) / 2)) "$msg"
+	console pen "$DT_IDLE" "$DT_FACE"
+	console put $((y0 + 3)) $((x0 + (w - ${#DT_CONFIRM_HINT}) / 2)) \
+		"$DT_CONFIRM_HINT"
+}
+
+dt_confirm_key() {
+	local cmd=$DT_CONFIRM_CMD
+
+	DT_CONFIRM=
+	DT_CONFIRM_CMD=
+	case $1 in
+	y | Y | enter)
+		# cmd may end the loop (dt_quit) with no redraw of its own after
+		# it, same as every other quit path -- draw once here, box
+		# already cleared above, so that is what a pty test's last
+		# frame shows rather than the box still up.
+		dt_draw
+		$cmd
+		;;
+	esac
+	return 0
+}
+
+# The bare key asks first: q used to end the desktop on the spot, and one
+# key too many landed on it more than once. Quit on the hibr menu does not
+# go through this -- reaching it is already two keys (f10, then q), so
+# asking a third time is the annoyance this exists to remove, not add back.
+dt_quitconfirm() {
+	dt_confirm "Quit hibr?" dt_quit
+}

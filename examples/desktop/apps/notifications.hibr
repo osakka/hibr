@@ -2,12 +2,12 @@
 #
 # notifications -- a read-only look back at what DT_NOTEHIST already kept.
 #
-# Opened directly by the menu-bar bell (dt_bar/dt_mouse in desktop.hibr)
-# and by the Notifications pane's own "View History" row, never from a
-# generic Applications pick -- hidden, the same reason About and Process
-# Details are: nothing about "show me what already happened" makes sense
-# launched with no history behind it, though here an empty one just
-# shows an empty list rather than being refused.
+# Opened directly by the menu bar's icon (dt_bar in wm/bar.hibr, dt_mouse in
+# wm/input.hibr) and by the Notifications pane's own "View History" row,
+# never from a generic Applications pick -- hidden, the same reason About
+# and Process Details are: nothing about "show me what already happened"
+# makes sense launched with no history behind it, though here an empty one
+# just shows an empty list rather than being refused.
 #
 # dt_new's own convention names every lifecycle hook after the app's
 # registered name, "notifications" here (the id dt_launch passes through

@@ -1,0 +1,124 @@
+# wm/wallpaper -- the desktop's own background: a glyph, or an image fitted
+# to the screen.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+# The row/col/h/w to hand img draw for DT_WALLMODE, in DT_WALLR/C/H/W --
+# the same "cols must be 2*sw/sh, not sw/sh" cell-aspect correction
+# wallpaper.hibr's own preview already uses, since img draw's own cell is
+# one column wide but two source pixel rows tall. img draw silently clips
+# whatever falls outside the screen, the same discipline console put
+# already has, so zoom and center can freely come out larger than the
+# screen or with a negative row/col -- nothing here needs to clamp for it.
+#
+# Cached on the image, the mode and the screen size together, since this
+# runs every frame: a frame where none of the three changed reads the last
+# answer instead of asking img size -- a full decode with no result but
+# two numbers -- again for nothing.
+DT_WALLFITFOR=
+DT_WALLFITMODE=
+DT_WALLFITROWS=
+DT_WALLFITCOLS=
+
+dt_wallfit() {
+	local sw sh out fitr fitc
+
+	if [ "$DT_WALLMODE" = stretch ]; then
+		DT_WALLR=0
+		DT_WALLC=0
+		DT_WALLH=$DT_ROWS
+		DT_WALLW=$DT_COLS
+		return 0
+	fi
+	if [ "$DT_WALLFITFOR" = "$DT_WALLIMG" ] &&
+	   [ "$DT_WALLFITMODE" = "$DT_WALLMODE" ] &&
+	   [ "$DT_WALLFITROWS" = "$DT_ROWS" ] &&
+	   [ "$DT_WALLFITCOLS" = "$DT_COLS" ]; then
+		return 0
+	fi
+	DT_WALLR=0
+	DT_WALLC=0
+	DT_WALLH=$DT_ROWS
+	DT_WALLW=$DT_COLS
+	out := img size "$DT_WALLIMG"
+	if [ -n "$out" ]; then
+		sw=${out% *}
+		sh=${out#* }
+		if [ "$sw" -gt 0 ] && [ "$sh" -gt 0 ]; then
+			if [ "$DT_WALLMODE" = center ]; then
+				fitc=$sw
+				fitr=$((sh / 2))
+			else
+				fitc=$DT_COLS
+				fitr=$((fitc * sh / (2 * sw)))
+				if [ "$DT_WALLMODE" = scale ] &&
+				   [ "$fitr" -gt "$DT_ROWS" ]; then
+					fitr=$DT_ROWS
+					fitc=$((fitr * 2 * sw / sh))
+				elif [ "$DT_WALLMODE" = zoom ] &&
+				     [ "$fitr" -lt "$DT_ROWS" ]; then
+					fitr=$DT_ROWS
+					fitc=$((fitr * 2 * sw / sh))
+				fi
+			fi
+			[ "$fitc" -lt 1 ] && fitc=1
+			[ "$fitr" -lt 1 ] && fitr=1
+			DT_WALLH=$fitr
+			DT_WALLW=$fitc
+			DT_WALLR=$(((DT_ROWS - fitr) / 2))
+			DT_WALLC=$(((DT_COLS - fitc) / 2))
+		fi
+	fi
+	DT_WALLFITFOR=$DT_WALLIMG
+	DT_WALLFITMODE=$DT_WALLMODE
+	DT_WALLFITROWS=$DT_ROWS
+	DT_WALLFITCOLS=$DT_COLS
+}
+
+# Paint the wallpaper.  The bar is drawn afterwards, over the windows, so a
+# drop-down menu covers them.
+dt_wall() {
+	local drawn=
+
+	if [ -n "$DT_WALLIMG" ]; then
+		if ! dt_has img && [ -z "$DT_WALLTRIED" ]; then
+			DT_WALLTRIED=1
+			need img
+		fi
+		if dt_has img; then
+			dt_wallfit
+			case $DT_WALLMODE in
+			scale | center)
+				console pen "$DT_DOT" "$DT_WALL"
+				console fill 0 0 "$DT_ROWS" "$DT_COLS" "$DT_GLYPH"
+				;;
+			esac
+			img draw "$DT_WALLIMG" "$DT_WALLR" "$DT_WALLC" \
+				"$DT_WALLH" "$DT_WALLW" && drawn=1
+		fi
+	fi
+	if [ -z "$drawn" ]; then
+		console pen "$DT_DOT" "$DT_WALL"
+		console fill 0 0 "$DT_ROWS" "$DT_COLS" "$DT_GLYPH"
+	fi
+	if [ "$DT_ICONS" = 1 ]; then
+		[ $((EPOCHSECONDS - DI_SCANT)) -ge 5 ] && dt_deskscan
+		dt_want 5000
+		dt_icondraw
+	fi
+}
+
+# Right-click on the bare desktop.
+DT_WALLGLYPHS=("·" "░" "▒" "⋅" "+")
+
+dt_wallnext() {
+	local i=0 g
+
+	for g in "${DT_WALLGLYPHS[@]}"; do
+		i=$((i + 1))
+		[ "$g" = "$DT_GLYPH" ] && break
+	done
+	DT_GLYPH=${DT_WALLGLYPHS[$((i % ${#DT_WALLGLYPHS[@]}))]}
+	dt_save
+}

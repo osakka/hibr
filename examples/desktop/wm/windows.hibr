@@ -1,0 +1,362 @@
+# wm/windows -- windows themselves: creating and closing them, what an app
+# may ask about them, moving, sizing, zooming, minimising and the keyboard
+# grab.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+# Which of an app's five functions actually exist, asked once.
+dt_has() {
+	command -v "$1" > /dev/null
+}
+
+# Make a window and put it on top.  Its id lands in $RET.
+#
+# The app argument is a prefix, not a command: an app called clock provides
+# any of clock_draw, clock_key, clock_click, clock_open and clock_close, and
+# the ones it does not write are never called.  That is the whole reason it
+# is a prefix -- an app with no clock_key cannot swallow a key by accident,
+# which a single function answering a verb in a case statement does, because
+# a case that matches nothing succeeds.
+dt_new() {
+	local id=$DT_NEXT ap=${6-} f
+
+	DT[$id]["title"]="$1"
+	DT[$id]["h"]="$2"
+	DT[$id]["w"]="$3"
+	DT[$id]["row"]="$4"
+	DT[$id]["col"]="$5"
+	DT[$id]["app"]="$ap"
+	DT[$id]["min"]=0
+	DT[$id]["autoclose"]=
+	for f in draw key click mouse wheel open close copy cut paste drop \
+		refresh; do
+		if [ -n "$ap" ] && dt_has "${ap}_$f"; then
+			DT[$id]["$f"]="${ap}_$f"
+		else
+			DT[$id]["$f"]=
+		fi
+	done
+	DT_NEXT=$((DT_NEXT + 1))
+	console pane "w$id" "$4" "$5" "$2" "$3"
+	DT_FOCUS=$id
+	[ -n "${DT[$id]["open"]}" ] && ${DT[$id]["open"]} "$id" "$7"
+	ret "$id"
+}
+
+# Close a window and forget it.
+dt_del() {
+	local id=$1
+
+	[ -n "${DT[$id]["close"]}" ] && ${DT[$id]["close"]} "$id"
+	console pane drop "w$id"
+	unset "DT[$id]"
+	if [ "$DT_FOCUS" = "$id" ]; then
+		local l
+		l := console pane list
+		l=${l##* }
+		DT_FOCUS=${l#w}
+	fi
+}
+
+# An app calls this from its own _draw to ask that its window be closed --
+# the terminal does, once the program inside has ended cleanly -- rather
+# than calling dt_del there itself, which would pull the pane out from under
+# the border dt_win still has left to draw over it.
+dt_wantclose() {
+	DT[$1]["autoclose"]=1
+}
+
+# Close whatever asked to be, once the frame it asked in is fully drawn.
+dt_autoclose() {
+	local id
+
+	for id in "${!DT[@]}"; do
+		[ -n "${DT[$id]["autoclose"]}" ] && dt_del "$id"
+	done
+}
+
+# Show or hide a window without destroying it.  A minimised window has no
+# pane, so nothing draws it and nothing can hit it; its only remaining handle
+# is the label dt_wall puts on the bar, which is why that label exists.
+dt_min() {
+	local id=$1 l
+
+	if [ "${DT[$id]["min"]}" = 1 ]; then
+		DT[$id]["min"]=0
+		console pane "w$id" "${DT[$id]["row"]}" "${DT[$id]["col"]}" \
+			"${DT[$id]["h"]}" "${DT[$id]["w"]}"
+		console pane raise "w$id"
+		DT_FOCUS=$id
+	else
+		DT[$id]["min"]=1
+		console pane drop "w$id"
+		if [ "$DT_FOCUS" = "$id" ]; then
+			l := console pane list
+			l=${l##* }
+			DT_FOCUS=${l#w}
+		fi
+	fi
+}
+
+#
+# An app draws with `console put -p "w$id"` and otherwise minds its own
+# business. The few that manage *other* windows -- a control panel, a task
+# switcher -- go through these rather than reading DT, which is the window
+# manager's own table and not an interface.
+
+# Every window, hidden ones included, in the order they were opened.
+#
+# Not in stacking order: a list that reshuffles every time something is
+# raised is unusable as a list, and raising things is exactly what a window
+# list is for. Anything that wants the stack can ask console pane list.
+dt_ids() {
+	local id out=
+
+	for id in "${!DT[@]}"; do out="$out $id"; done
+	ret "${out# }"
+}
+
+# What a window is called.
+dt_title() {
+	ret "${DT[$1]["title"]}"
+}
+
+# Is it minimised?
+dt_hidden() {
+	[ "${DT[$1]["min"]}" = 1 ]
+}
+
+# Put a window on top and give it the keyboard.
+dt_raise() {
+	dt_hidden "$1" && { dt_min "$1"; return 0; }
+	console pane raise "w$1"
+	DT_FOCUS=$1
+}
+
+# Draw inside a window, in its own coordinates, with the frame allowed for.
+dt_put() {
+	console put -p "w$1" $(($2 + 1)) $(($3 + 1)) "$4"
+}
+
+# The smallest a window can be and still have a usable title bar: the
+# buttons alone take eight columns, and a body with no rows is not a window.
+DT_MINW=16
+DT_MINH=4
+
+# Put a window at a size, clamped to what is sensible and what fits.
+dt_resize() {
+	local id=$1 h=$2 w=$3 r c
+
+	[ "$h" -lt "$DT_MINH" ] && h=$DT_MINH
+	[ "$w" -lt "$DT_MINW" ] && w=$DT_MINW
+	r=${DT[$id]["row"]}
+	c=${DT[$id]["col"]}
+	[ $((r + h)) -gt "$DT_ROWS" ] && h=$((DT_ROWS - r))
+	[ $((c + w)) -gt "$DT_COLS" ] && w=$((DT_COLS - c))
+	[ "$h" -lt "$DT_MINH" ] && return 1
+	[ "$w" -lt "$DT_MINW" ] && return 1
+	DT[$id]["h"]=$h
+	DT[$id]["w"]=$w
+	DT[$id]["oh"]=
+	console pane "w$id" "$r" "$c" "$h" "$w"
+}
+
+# Resize by dragging any of the window's four corners, the opposite one
+# held at (ar, ac) for the whole drag -- captured once, at the press that
+# started it, since the window's own row and col start changing the
+# moment a top or left edge does. br is dt_resize alone, unchanged from
+# what a single grow box always did: the near corner is already the
+# anchor, so only height and width change. tl moves both row and col, so
+# it clamps both itself against the screen's near edge and against the
+# minimum size the far corner still needs. tr and bl each move one of the
+# two, clamped the same way, and hand the other edge (already free of any
+# row/col change) to dt_resize, which clamps it against the screen's own
+# far edge exactly as it always has.
+dt_cornersize() {
+	local id=$1 corner=$2 ar=$3 ac=$4 mr=$5 mc=$6 r c
+
+	case $corner in
+	tl)
+		r=$mr; c=$mc
+		[ "$r" -lt 1 ] && r=1
+		[ "$c" -lt 0 ] && c=0
+		[ "$r" -gt $((ar - DT_MINH + 1)) ] && r=$((ar - DT_MINH + 1))
+		[ "$c" -gt $((ac - DT_MINW + 1)) ] && c=$((ac - DT_MINW + 1))
+		DT[$id]["row"]=$r
+		DT[$id]["col"]=$c
+		DT[$id]["h"]=$((ar - r + 1))
+		DT[$id]["w"]=$((ac - c + 1))
+		DT[$id]["oh"]=
+		console pane "w$id" "$r" "$c" "${DT[$id]["h"]}" "${DT[$id]["w"]}"
+		;;
+	tr)
+		# r is already clamped so ar-r+1 cannot be under DT_MINH, and ar
+		# itself was always a valid row for a window that already fit the
+		# screen -- dt_resize's own early-return, for a height still too
+		# small once it clamps against the screen's far edge, can never
+		# actually fire here; only its far-edge clamp on the width does.
+		r=$mr
+		[ "$r" -lt 1 ] && r=1
+		[ "$r" -gt $((ar - DT_MINH + 1)) ] && r=$((ar - DT_MINH + 1))
+		DT[$id]["row"]=$r
+		dt_resize "$id" $((ar - r + 1)) $((mc - ac + 1))
+		;;
+	bl)
+		# Same reasoning as tr, mirrored: c is already clamped so
+		# ac-c+1 cannot be under DT_MINW.
+		c=$mc
+		[ "$c" -lt 0 ] && c=0
+		[ "$c" -gt $((ac - DT_MINW + 1)) ] && c=$((ac - DT_MINW + 1))
+		DT[$id]["col"]=$c
+		dt_resize "$id" $((mr - ar + 1)) $((ac - c + 1))
+		;;
+	l)
+		# One dimension only: the left edge moves, height and the right
+		# edge (ac) do not, the same clamp as tl's own column half.
+		c=$mc
+		[ "$c" -lt 0 ] && c=0
+		[ "$c" -gt $((ac - DT_MINW + 1)) ] && c=$((ac - DT_MINW + 1))
+		DT[$id]["col"]=$c
+		dt_resize "$id" "${DT[$id]["h"]}" $((ac - c + 1))
+		;;
+	r)
+		# The mirror of l: the right edge moves, the left one (ac) does
+		# not, so dt_resize's own clamp on the width is all this needs.
+		dt_resize "$id" "${DT[$id]["h"]}" $((mc - ac + 1))
+		;;
+	b)
+		# The mirror of r, the other axis: the bottom edge moves, the
+		# top one (ar) does not.
+		dt_resize "$id" $((mr - ar + 1)) "${DT[$id]["w"]}"
+		;;
+	*)
+		dt_resize "$id" $((mr - ar + 1)) $((mc - ac + 1))
+		;;
+	esac
+}
+
+# Move a window, clamped to the screen below the menu bar.
+dt_move() {
+	local id=$1 r=$2 c=$3
+
+	[ "$r" -lt 1 ] && r=1
+	[ "$c" -lt 0 ] && c=0
+	[ $((r + DT[$id]["h"])) -gt "$DT_ROWS" ] &&
+		r=$((DT_ROWS - DT[$id]["h"]))
+	[ $((c + DT[$id]["w"])) -gt "$DT_COLS" ] &&
+		c=$((DT_COLS - DT[$id]["w"]))
+	DT[$id]["row"]=$r
+	DT[$id]["col"]=$c
+	console pane "w$id" "$r" "$c" "${DT[$id]["h"]}" "${DT[$id]["w"]}"
+}
+
+# Fill the screen, or go back to where the window was.
+dt_zoom() {
+	local id=$1
+
+	if [ -n "${DT[$id]["oh"]}" ]; then
+		DT[$id]["row"]=${DT[$id]["or"]}
+		DT[$id]["col"]=${DT[$id]["oc"]}
+		DT[$id]["h"]=${DT[$id]["oh"]}
+		DT[$id]["w"]=${DT[$id]["ow"]}
+		DT[$id]["oh"]=
+	else
+		DT[$id]["or"]=${DT[$id]["row"]}
+		DT[$id]["oc"]=${DT[$id]["col"]}
+		DT[$id]["oh"]=${DT[$id]["h"]}
+		DT[$id]["ow"]=${DT[$id]["w"]}
+		DT[$id]["row"]=1
+		DT[$id]["col"]=0
+		DT[$id]["h"]=$((DT_ROWS - 1))
+		DT[$id]["w"]=$DT_COLS
+	fi
+	console pane "w$id" "${DT[$id]["row"]}" "${DT[$id]["col"]}" \
+		"${DT[$id]["h"]}" "${DT[$id]["w"]}"
+}
+
+# Give a window a new title; an app knows what it is showing better than
+# the menu that opened it does.
+dt_retitle() {
+	DT[$1]["title"]="$2"
+}
+
+dt_close_focused() { [ -n "$DT_FOCUS" ] && dt_del "$DT_FOCUS"; }
+
+dt_hide_focused() { [ -n "$DT_FOCUS" ] && dt_min "$DT_FOCUS"; }
+
+dt_zoom_focused() { [ -n "$DT_FOCUS" ] && dt_zoom "$DT_FOCUS"; }
+
+# Bring the bottom window to the top.
+dt_cycle() {
+	local l
+	l := console pane list
+	l=${l%% *}
+	[ -n "$l" ] && dt_raise "${l#w}"
+}
+
+# Move a window onto a specific display's own rectangle -- the titlebar
+# menu's "Move to" submenu. Placed at that display's own top-left corner,
+# clamped to still fit within it, the same shape dt_move already clamps a
+# drag to the whole screen with, just against one display's box instead of
+# the whole union.
+dt_movewin() {
+	local id=$1 drow=$2 dcol=$3 drows=$4 dcols=$5 r c
+
+	r=$drow
+	[ "$r" -lt 1 ] && r=1
+	c=$dcol
+	[ $((r + DT[$id]["h"])) -gt $((drow + drows)) ] &&
+		r=$((drow + drows - DT[$id]["h"]))
+	[ $((c + DT[$id]["w"])) -gt $((dcol + dcols)) ] &&
+		c=$((dcol + dcols - DT[$id]["w"]))
+	[ "$r" -lt "$drow" ] && r=$drow
+	[ "$c" -lt "$dcol" ] && c=$dcol
+	DT[$id]["row"]=$r
+	DT[$id]["col"]=$c
+	console pane "w$id" "$r" "$c" "${DT[$id]["h"]}" "${DT[$id]["w"]}"
+}
+
+# Take the arrows for moving or resizing the focused window, until enter or
+# escape gives them back.  This is the keyboard's answer to dragging a title
+# bar, and the only one there is: a desktop that can only be arranged with a
+# mouse is a desktop half its users cannot arrange.
+dt_grab() {
+	[ -z "$DT_FOCUS" ] && return 1
+	DT_GRAB=$1
+	if [ "$1" = move ]; then
+		dt_note "moving — arrows, then enter"
+	else
+		dt_note "resizing — arrows, then enter"
+	fi
+}
+
+# One key while the arrows are taken.  Returns 1 for a key it does not want.
+dt_gkey() {
+	local id=$DT_FOCUS dr=0 dc=0
+
+	case $1 in
+	up) dr=-1 ;;
+	down) dr=1 ;;
+	left) dc=-1 ;;
+	right) dc=1 ;;
+	enter | escape | " ")
+		DT_GRAB=
+		dt_note_clear
+		return 0
+		;;
+	*) return 1 ;;
+	esac
+	if [ -z "$id" ]; then
+		DT_GRAB=
+		return 0
+	fi
+	if [ "$DT_GRAB" = move ]; then
+		dt_move "$id" $((DT[$id]["row"] + dr)) \
+			$((DT[$id]["col"] + dc))
+	else
+		dt_resize "$id" $((DT[$id]["h"] + dr)) \
+			$((DT[$id]["w"] + dc))
+	fi
+	return 0
+}

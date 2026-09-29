@@ -13,7 +13,8 @@ not a mockup.
 | X | here | what it is |
 |---|---|---|
 | the server | the `console` module | owns the terminal, the grid, the mouse, stacking, hit testing |
-| the window manager | `examples/desktop/desktop.hibr` | the event loop, focus, dragging, title bars, menus |
+| the window manager | `examples/desktop/desktop.hibr`, sourcing `wm/` | the event loop, focus, dragging, title bars, menus — one concern to a file, see [`wm/README.md`](wm/README.md) |
+| the widget library | `examples/desktop/widgets/` | checkbox, dropdown, slider, text field, scrollbar — see [`widgets/README.md`](widgets/README.md) |
 | `~/.xinitrc` | your own session file | which windows open, and where |
 
 None of it is C beyond the display module itself. The window manager is a
@@ -33,7 +34,7 @@ what a window shows is faked or simulated for the picture.
 
 ## The event loop
 
-`dt_run`, in `desktop.hibr`, is the whole of it:
+`dt_run`, in `wm/session.hibr`, is the whole of it:
 
 ```
 while [ "$DT_QUIT" = 0 ]; do
@@ -44,7 +45,7 @@ done
 ```
 
 (Simplified — the real loop also debounces a burst of resize events into one
-settled redraw, described in `desktop.hibr`'s own comments.) `console key
+settled redraw, described in `wm/session.hibr`'s own comments.) `console key
 MS` blocks for up to `MS` milliseconds waiting for one decoded key or mouse
 report, and returns the instant one arrives. A resize interrupts the wait
 the same way (`SIGWINCH`), and so does output from any terminal window's

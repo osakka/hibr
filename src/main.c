@@ -6,6 +6,10 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#ifdef __APPLE__
+#include <stdint.h>
+int _NSGetExecutablePath(char *buf, uint32_t *size);
+#endif
 
 volatile sig_atomic_t g_int;
 
@@ -221,6 +225,10 @@ void sh_fini(sh *s)
 	}
 	v_free(&s->vbf);
 	v_free(&s->fns);
+	v_free(&s->fsrc);
+	for (i = 0; i < s->srcs.n; i++)
+		free(s->srcs.p[i]);
+	v_free(&s->srcs);
 	v_free(&s->scope);
 	v_free(&s->psub);
 	hsh_clear(s, 0);
@@ -245,6 +253,74 @@ void sh_fini(sh *s)
 }
 
 /* Start the shell. */
+/* Ask the system which file this process is running, or return 0. */
+char *sh_exe(void)
+{
+#ifdef __APPLE__
+	uint32_t n = 0;
+	char *p;
+
+	_NSGetExecutablePath(0, &n);
+	p = xm(n + 1);
+	if (_NSGetExecutablePath(p, &n) == 0 && *p == '/')
+		return p;
+	free(p);
+	return 0;
+#else
+	size_t n = 256;
+	ssize_t r;
+	char *p;
+
+	for (;;) {
+		p = xm(n);
+		r = readlink("/proc/self/exe", p, n);
+		if (r < 0) {
+			free(p);
+			return 0;
+		}
+		if ((size_t)r < n) {
+			p[r] = 0;
+			return p;
+		}
+		free(p);
+		n *= 2;
+	}
+#endif
+}
+
+/* Set HIBR to this shell's own absolute path, the way bash sets BASH. */
+void sh_self(sh *s, const char *a0)
+{
+	char *p, *cwd;
+	str b;
+
+	if ((p = sh_exe())) {
+		hibr_set(s, "HIBR", p, 0);
+		free(p);
+		return;
+	}
+	lg(HIBR_LDBG, "no executable path from the system; resolving %s", a0);
+	if (*a0 == '-')
+		a0++;
+	p = strchr(a0, '/') ? xs(a0) : findx(s, a0);
+	if (!strchr(a0, '/'))
+		hsh_clear(s, a0);
+	if (!p) {
+		lg(HIBR_LDBG, "%s not found on PATH; HIBR left unset", a0);
+		return;
+	}
+	s_init(&b);
+	if (*p != '/' && (cwd = getcwd(0, 0))) {
+		s_cat(&b, cwd);
+		s_ch(&b, '/');
+		free(cwd);
+	}
+	s_cat(&b, p[0] == '.' && p[1] == '/' ? p + 2 : p);
+	hibr_set(s, "HIBR", b.p, 0);
+	s_free(&b);
+	free(p);
+}
+
 int main(int ac, char **av)
 {
 	sh s;
@@ -264,6 +340,7 @@ int main(int ac, char **av)
 	s.t0 = (long)time(0);
 	srand((unsigned)(s.t0 ^ (long)getpid()));
 	hibr_set(&s, "HIBR_VERSION", HIBR_VER, 0);
+	sh_self(&s, av[0]);
 	{
 		str b;
 		char *hn = xm(256);
@@ -346,6 +423,7 @@ int main(int ac, char **av)
 		}
 		free(s.arg0);
 		s.arg0 = xs(av[i]);
+		s.src = sr_name(&s, av[i]);
 		if (i + 1 < ac)
 			v_pos(&s, ac - i - 1, av + i + 1);
 		text = slurp(f);

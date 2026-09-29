@@ -1,0 +1,561 @@
+# wm/input -- keys and the mouse: where each one goes, and the shortcuts the
+# desktop keeps for itself.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+# Handle one mouse report.
+#
+# An app is told a click in *pane* coordinates -- the same ones it draws in,
+# where row 0 is the top border -- and not in some separate body coordinate
+# system. Two systems is one too many: an app that draws at row 4 and is told
+# a click at row 3 has to hold both in its head, and the first two apps each
+# got the conversion wrong. The window manager handles row 0 itself, so an
+# app only ever sees a click at row 1 or below.
+#
+# A report is `<action> <button> <row> <col>` for a press, a release or a
+# drag, and `<action> <row> <col>` for the wheel, which has no button -- so
+# the position cannot be read from a fixed argument. The action may carry a
+# modifier, `ctrl-press`, which is stripped: a modified click is still a
+# click here.
+#
+# Window fields are read into locals first: a subscript is only literal when
+# it is quoted, and arithmetic never sees the quotes, so DT[$id][col] inside
+# $(( )) would mean DT[$id][5] here.
+
+dt_mouse() {
+	local act=${1##*-} mr mc mods
+	local id b wr wc wh ww ap mo now dr dc
+
+	mods=${1%"$act"}
+	mods=${mods%-}
+	shift
+	case $act in
+	wheelup | wheeldown) mr=$1; mc=$2 ;;
+	*) mr=$2; mc=$3 ;;
+	esac
+
+	case $act in
+	press)
+		if [ "$mr" = 0 ]; then
+			if [ "$mc" -ge "$DT_BELLC" ] &&
+			   [ "$mc" -lt $((DT_BELLC + DT_BELLW)) ]; then
+				dt_mclose
+				dt_has notifications_draw && dt_launch notifications
+				return 0
+			fi
+			if [ "$mc" -ge "$DT_CLOCKC" ] &&
+			   [ "$mc" -lt $((DT_CLOCKC + DT_CLOCKW)) ]; then
+				dt_mclose
+				dt_has clock_draw && dt_launch clock
+				return 0
+			fi
+			if [ "$1" = right ]; then
+				dt_context_open bar "" "$mr" "$mc"
+				return 0
+			fi
+			b := dt_mhit "$mc" || { dt_mclose; return 0; }
+			if [ "$b" = "$MB_OPEN" ]; then
+				dt_mclose
+			else
+				dt_mopen "$b"
+			fi
+			return 0
+		fi
+		if [ "$MB_OPEN" != -1 ]; then
+			if dt_mpick "$mr" "$mc"; then
+				dt_mdo
+			else
+				dt_mclose
+			fi
+			return 0
+		fi
+		id := dt_note_hit "$mr" "$mc" && { dt_note_click "$id"; return 0; }
+		cs_press "$mr" "$mc" && return 0
+		id := console hit "$mr" "$mc"
+		if [ -z "$id" ]; then
+			if [ "$1" = right ]; then
+				dt_context_open desktop "" "$mr" "$mc"
+				return 0
+			fi
+			DT_FOCUS=
+			dt_iconpress "$mr" "$mc" "$mods"
+			return 0
+		fi
+		id=${id#w}
+		console pane raise "w$id"
+		DT_FOCUS=$id
+		wr=${DT[$id]["row"]}
+		wc=${DT[$id]["col"]}
+		ww=${DT[$id]["w"]}
+		wh=${DT[$id]["h"]}
+		ap=${DT[$id]["click"]}
+		if [ "${DT_APPS[${DT[$id]["app"]}]["fixed"]}" != 1 ]; then
+			# Any of the four corners starts a resize, the opposite one
+			# anchored: captured once, here, since the window's own row
+			# and col start changing the moment a top or left edge does.
+			if [ "$mr" = $((wr + wh - 1)) ] && [ "$mc" = $((wc + ww - 1)) ]
+			then
+				DT_SIZE=$id; DT_SIZECORNER=br
+				DT_SIZE_AR=$wr; DT_SIZE_AC=$wc
+				return 0
+			fi
+			if [ "$mr" = "$wr" ] && [ "$mc" = "$wc" ]; then
+				DT_SIZE=$id; DT_SIZECORNER=tl
+				DT_SIZE_AR=$((wr + wh - 1)); DT_SIZE_AC=$((wc + ww - 1))
+				return 0
+			fi
+			if [ "$mr" = "$wr" ] && [ "$mc" = $((wc + ww - 1)) ]; then
+				DT_SIZE=$id; DT_SIZECORNER=tr
+				DT_SIZE_AR=$((wr + wh - 1)); DT_SIZE_AC=$wc
+				return 0
+			fi
+			if [ "$mr" = $((wr + wh - 1)) ] && [ "$mc" = "$wc" ]; then
+				DT_SIZE=$id; DT_SIZECORNER=bl
+				DT_SIZE_AR=$wr; DT_SIZE_AC=$((wc + ww - 1))
+				return 0
+			fi
+			# A side, not just a corner -- one dimension only, the
+			# opposite edge anchored. There is no top edge of its own:
+			# row wr is the title bar over its whole width, so the two
+			# top corners are the only way to resize from above it.
+			if [ "$DT_EDGERESIZE" = 1 ]; then
+				if [ "$mc" = "$wc" ] && [ "$mr" -gt "$wr" ] &&
+				   [ "$mr" -lt $((wr + wh - 1)) ]; then
+					DT_SIZE=$id; DT_SIZECORNER=l
+					DT_SIZE_AC=$((wc + ww - 1))
+					return 0
+				fi
+				if [ "$mc" = $((wc + ww - 1)) ] && [ "$mr" -gt "$wr" ] &&
+				   [ "$mr" -lt $((wr + wh - 1)) ]; then
+					DT_SIZE=$id; DT_SIZECORNER=r
+					DT_SIZE_AC=$wc
+					return 0
+				fi
+				if [ "$mr" = $((wr + wh - 1)) ] && [ "$mc" -gt "$wc" ] &&
+				   [ "$mc" -lt $((wc + ww - 1)) ]; then
+					DT_SIZE=$id; DT_SIZECORNER=b
+					DT_SIZE_AR=$wr
+					return 0
+				fi
+			fi
+		fi
+		if [ "$mr" -ne "$wr" ]; then
+			if [ "$DT_DRAGMOD" = 1 ] && [ "$1" != right ]; then
+				case "-$mods-" in
+				*"-$DT_DRAGKEY-"*)
+					DT_DRAG=$id
+					DT_DR=$((mr - wr))
+					DT_DC=$((mc - wc))
+					return 0
+					;;
+				esac
+			fi
+			mo=${DT[$id]["mouse"]}
+			if [ -n "$mo" ]; then
+				DT_MOUSE=$id
+				$mo "$id" press "$1" $((mr - wr)) $((mc - wc)) \
+					"$mods"
+				return 0
+			fi
+			if [ "$1" = right ] &&
+			   dt_has "${DT[$id]["app"]}_context"; then
+				dt_context_open "${DT[$id]["app"]}" "$id" \
+					"$mr" "$mc"
+				return 0
+			fi
+			[ -n "$ap" ] && $ap "$id" $((mr - wr)) $((mc - wc)) "$1"
+			return 0
+		fi
+		b := dt_btn "$ww" $((mc - wc)) "${DT_APPS[${DT[$id]["app"]}]["fixed"]}"
+		if [ "$1" = right ] && [ -z "$b" ]; then
+			dt_context_open titlebar "$id" "$mr" "$mc"
+			return 0
+		fi
+		if [ -n "$b" ]; then
+			DT_BTNID=$id
+			DT_BTNKIND=$b
+			DT_BTNOVER=1
+			return 0
+		fi
+		now := dt_ms
+		if [ "$DT_DBLACTION" != none ] &&
+		   [ "$DT_DBLID" = "$id" ] &&
+		   [ $((now - DT_DBLT)) -lt "$DT_DBLMS" ]; then
+			DT_DBLID=
+			case $DT_DBLACTION in
+			zoom)
+				[ "${DT_APPS[${DT[$id]["app"]}]["fixed"]}" \
+					!= 1 ] && dt_zoom "$id"
+				;;
+			min) dt_min "$id" ;;
+			close) dt_del "$id" ;;
+			esac
+			return 0
+		fi
+		DT_DBLID=$id
+		DT_DBLT=$now
+		DT_DRAG=$id
+		DT_DR=$((mr - wr))
+		DT_DC=$((mc - wc))
+		;;
+	drag | release)
+		# A title-bar button held down: while dragging, just track whether
+		# the pointer is still over the one that was pressed, for dt_win's
+		# own highlight; the action itself only ever fires from release,
+		# and only if it landed back on the same button.
+		if [ -n "$DT_BTNID" ]; then
+			id=$DT_BTNID
+			wr=${DT[$id]["row"]}
+			wc=${DT[$id]["col"]}
+			ww=${DT[$id]["w"]}
+			b := dt_btn "$ww" $((mc - wc)) \
+				"${DT_APPS[${DT[$id]["app"]}]["fixed"]}"
+			if [ "$b" = "$DT_BTNKIND" ] && [ "$mr" = "$wr" ]; then
+				DT_BTNOVER=1
+			else
+				DT_BTNOVER=0
+			fi
+			if [ "$act" = release ]; then
+				if [ "$DT_BTNOVER" = 1 ]; then
+					case $DT_BTNKIND in
+					close) dt_del "$id" ;;
+					min) dt_min "$id" ;;
+					max) dt_zoom "$id" ;;
+					esac
+				fi
+				DT_BTNID=
+				DT_BTNKIND=
+				DT_BTNOVER=0
+			fi
+			return 0
+		fi
+		# Something being dragged between windows belongs to the desktop
+		# until it is dropped, whoever started it.
+		if [ -n "$DT_DND" ]; then
+			DT_DNDR=$mr
+			DT_DNDC=$mc
+			if [ "$act" = release ]; then
+				DT_MOUSE=
+				dt_ondrop "$mr" "$mc" "$mods"
+			fi
+			return 0
+		fi
+		# A band being drawn across the empty desktop.
+		if [ -n "$DI_BAND" ]; then
+			dt_iconband "$act" "$mr" "$mc"
+			return 0
+		fi
+		# A press on an icon that moves becomes a drag of the selection.
+		if [ -n "$DI_PRESS" ]; then
+			dt_iconmove "$act" "$mr" "$mc"
+			return 0
+		fi
+		# A window that took the press with _mouse is told the rest of it,
+		# wherever the pointer goes, until the button comes up.
+		if [ -n "$DT_MOUSE" ]; then
+			id=$DT_MOUSE
+			mo=${DT[$id]["mouse"]}
+			wr=${DT[$id]["row"]}
+			wc=${DT[$id]["col"]}
+			[ "$act" = release ] && DT_MOUSE=
+			[ -n "$mo" ] &&
+				$mo "$id" "$act" "$1" $((mr - wr)) $((mc - wc)) \
+					"$mods"
+			DT_DNDR=$mr
+			DT_DNDC=$mc
+			return 0
+		fi
+		;;
+	esac
+
+	case $act in
+	drag)
+		if [ -n "$CS_DRAG" ]; then
+			if [ -z "$CS_DRAGKIND" ]; then
+				dr=$((mr - CS_PRESSR)); [ "$dr" -lt 0 ] && dr=$((0 - dr))
+				dc=$((mc - CS_PRESSC)); [ "$dc" -lt 0 ] && dc=$((0 - dc))
+				if [ "$dc" -gt "$dr" ] && [ "$dc" -gt 0 ]; then
+					CS_DRAGKIND=resize
+				elif [ "$dr" -gt 0 ]; then
+					CS_DRAGKIND=move
+				fi
+			fi
+			case $CS_DRAGKIND in
+			resize) cs_resize "$mc" ;;
+			move)
+				CS_Y=$mr
+				[ "$CS_Y" -lt 1 ] && CS_Y=1
+				[ "$CS_Y" -ge "$DT_ROWS" ] && CS_Y=$((DT_ROWS - 1))
+				;;
+			esac
+			return 0
+		fi
+		if [ -n "$DT_SIZE" ]; then
+			dt_cornersize "$DT_SIZE" "$DT_SIZECORNER" "$DT_SIZE_AR" \
+				"$DT_SIZE_AC" "$mr" "$mc"
+			return 0
+		fi
+		[ -z "$DT_DRAG" ] && return 0
+		dt_move "$DT_DRAG" $((mr - DT_DR)) $((mc - DT_DC))
+		;;
+	release)
+		if [ -n "$CS_DRAG" ]; then
+			case $CS_DRAGKIND in
+			"")
+				if [ "$CS_COLLAPSED" = 1 ]; then
+					CS_COLLAPSED=0
+				else
+					CS_COLLAPSED=1
+				fi
+				;;
+			move)
+				if [ "$mc" -lt $((DT_COLS / 2)) ]; then
+					CS_SIDE=left
+				else
+					CS_SIDE=right
+				fi
+				;;
+			esac
+			CS_DRAG=
+			CS_DRAGKIND=
+			dt_save
+			return 0
+		fi
+		DT_DRAG=
+		DT_SIZE=
+		DT_SIZECORNER=
+		;;
+	wheelup | wheeldown)
+		if cs_hit "$mr" "$mc"; then
+			if [ "$act" = wheelup ]; then
+				cs_scroll -1
+			else
+				cs_scroll 1
+			fi
+			return 0
+		fi
+		id := console hit "$mr" "$mc"
+		[ -z "$id" ] && return 0
+		id=${id#w}
+		ap=${DT[$id]["wheel"]}
+		[ -z "$ap" ] && return 0
+		wr=${DT[$id]["row"]}
+		wc=${DT[$id]["col"]}
+		$ap "$id" "${act#wheel}" $((mr - wr)) $((mc - wc))
+		;;
+	esac
+}
+
+# Handle one decoded key or mouse line.
+#
+# The wheel goes to the window under the pointer rather than to the focused
+# one, which is what every other desktop does and what anyone expects when
+# they scroll a list they have not clicked on yet.
+dt_event() {
+	local k="$1" an knorm qn cn cln dn sn
+
+	case $k in
+	"mouse drag "*) DT_LASTDRAG=1 ;;
+	*) DT_LASTDRAG=0 ;;
+	esac
+	if [ -n "$DT_KEYCAP" ]; then
+		case $k in
+		# A mouse event does not cancel: a shortcut row already selected
+		# from an earlier attempt arms capture on the very first click
+		# of the next one (panel_click's own "a second click on an
+		# already-selected row activates it"), so the click that
+		# arrives right after -- the other half of an ordinary
+		# double-click, or just a habitual re-click -- would otherwise
+		# be read as this event and cancel the capture it had itself
+		# just armed, before the intended key was ever pressed. Only
+		# escape cancels; a stray click while capturing is absorbed.
+		"mouse "*) ;;
+		escape) DT_KEYCAP=; dt_note "Cancelled" ;;
+		*)
+			case $DT_KEYCAP in
+			app:*)
+				an=${DT_KEYCAP#app:}
+				DT_APPKEY[$an]=$k
+				dt_notify "${DT_APPS[$an]["title"]} is now $k" \
+					dt_launch panel
+				;;
+			*)
+				DT_KEYS[$DT_KEYCAP]=$k
+				dt_notify "${DT_KEYCAP^} is now $k" dt_launch panel
+				;;
+			esac
+			dt_save
+			DT_KEYCAP=
+			;;
+		esac
+		return 0
+	fi
+	if [ -n "$DT_CONFIRM" ]; then
+		case $k in
+		"mouse press "*)
+			set -- $k
+			local yn
+			yn := dt_confirm_hit "$4" "$5"
+			if [ -n "$yn" ]; then
+				dt_confirm_key "$yn"
+			else
+				DT_CONFIRM=
+			fi
+			;;
+		"mouse "*) ;;
+		*) dt_confirm_key "$k" ;;
+		esac
+		return 0
+	fi
+	case $k in
+	"mouse "*)
+		set -- $k
+		shift
+		dt_mouse "$@"
+		return 0
+		;;
+	esac
+	if [ -n "$DT_GRAB" ]; then
+		dt_gkey "$k" && return 0
+		return 0
+	fi
+	if [ -n "$DT_DND" ]; then
+		[ "$k" = escape ] && DT_DND= && DT_MOUSE=
+		return 0
+	fi
+	if [ "$MB_OPEN" != -1 ]; then
+		dt_mkey "$k" && return 0
+		return 0
+	fi
+	# The strip takes left/right ahead of the focused window once CS_ATTN
+	# has been given to it explicitly by its own shortcut -- there is no
+	# mouse involved here at all; the wheel scrolls it separately, from
+	# wherever the pointer actually is when it turns.
+	if [ "$k" = left ] || [ "$k" = right ]; then
+		if [ "$CS_ATTN" = 1 ]; then
+			if [ "$k" = left ]; then
+				cs_scroll -1
+			else
+				cs_scroll 1
+			fi
+			return 0
+		fi
+	fi
+	# Copy and paste belong to the desktop, the same keys in every window,
+	# and so does a paste arriving from the terminal the desktop runs on:
+	# it goes to the app's _paste when it has one.
+	case $k in
+	alt-c) dt_edit copy; return 0 ;;
+	alt-x) dt_edit cut; return 0 ;;
+	alt-v) dt_edit paste; return 0 ;;
+	"paste "*)
+		if [ -n "$DT_FOCUS" ] && [ -n "${DT[$DT_FOCUS]["paste"]}" ]; then
+			${DT[$DT_FOCUS]["paste"]} "$DT_FOCUS" "${k#paste }"
+			return 0
+		fi
+		;;
+	esac
+	# f10 is the one key an app cannot have, because it is the only way
+	# back to the menu bar from a window that wants everything else --
+	# a terminal running vi wants escape, and must be allowed it.
+	if [ "$k" != f10 ] && [ -n "$DT_FOCUS" ] &&
+	   [ -n "${DT[$DT_FOCUS]["key"]}" ]; then
+		if ${DT[$DT_FOCUS]["key"]} "$DT_FOCUS" "$k"; then
+			return 0
+		fi
+	fi
+	if [ -z "$DT_FOCUS" ] && [ "$DT_ICONS" = 1 ] && dt_iconkey "$k"; then
+		return 0
+	fi
+	case $k in
+	f10 | escape)
+		CS_ATTN=0
+		dt_mopen 0
+		return 0
+		;;
+	esac
+	# Compared by dt_keynorm, not as the literal string: a rebound
+	# DT_KEYS entry combining ctrl and alt would have exactly the same
+	# either-order ambiguity dt_appkeyed's own shortcuts do.
+	knorm := dt_keynorm "$k"
+	qn := dt_keynorm "${DT_KEYS[quit]}"
+	cn := dt_keynorm "${DT_KEYS[cycle]}"
+	cln := dt_keynorm "${DT_KEYS[close]}"
+	dn := dt_keynorm "${DT_KEYS[detach]}"
+	sn := dt_keynorm "${DT_KEYS[strip]}"
+	if [ "$knorm" = "$qn" ]; then
+		dt_quitconfirm
+	elif [ "$knorm" = "$cn" ]; then
+		dt_cycle
+	elif [ "$knorm" = "$cln" ]; then
+		dt_close_focused
+	elif [ "$knorm" = "$dn" ]; then
+		dt_detach
+	elif [ "$knorm" = "$sn" ]; then
+		if [ "$CS_ATTN" = 1 ]; then
+			CS_ATTN=0
+			dt_note "Control Strip: released"
+		else
+			CS_ATTN=1
+			dt_note "Control Strip: arrows scroll it, until escape"
+		fi
+	else
+		dt_appkeyed "$k"
+	fi
+}
+
+# A shortcut in one canonical modifier order, ctrl then alt then shift,
+# whatever order it named them in -- an alt combination arrives as ESC
+# followed by the plain control byte, and is named "alt-" then whatever
+# that byte is, in that order; a CSI-encoded one (some terminals report
+# a modified plain key this way too, not only function keys and arrows)
+# is named "ctrl-" before "alt-". Comparing shortcuts by this instead of
+# by the exact string is what makes alt-ctrl-t and ctrl-alt-t the same
+# shortcut regardless of which encoding a real keypress happened to take
+# -- a user typing what looks like the natural chord should not have to
+# know or care which one their own terminal uses.
+dt_keynorm() {
+	local k=$1
+	local base=$k mods= out=
+
+	case $k in *-*) base=${k##*-}; mods=${k%-"$base"} ;; esac
+	case $mods in *ctrl*) out="${out}ctrl-" ;; esac
+	case $mods in *alt*) out="${out}alt-" ;; esac
+	case $mods in *shift*) out="${out}shift-" ;; esac
+	ret "$out$base"
+}
+
+# Launch whichever app, if any, has k as its own shortcut -- the general
+# form DT_KEYS' fixed four desktop actions above are not: any number of
+# apps, not two of them by name in this case statement.
+dt_appkeyed() {
+	local an knorm anorm
+
+	knorm := dt_keynorm "$1"
+	for an in "${!DT_APPKEY[@]}"; do
+		anorm := dt_keynorm "${DT_APPKEY[$an]}"
+		if [ "$anorm" = "$knorm" ]; then
+			dt_launch "$an"
+			return 0
+		fi
+	done
+}
+
+# Milliseconds, for telling a double click from two.
+dt_ms() {
+	local t=${EPOCHREALTIME/./}
+
+	ret $((t / 1000))
+}
+
+# Start capturing the next key as action's own shortcut -- Settings calls
+# this when a shortcut row is activated; dt_event's own DT_KEYCAP check
+# takes the very next key, of any kind, rather than dispatching it.
+dt_keycap() {
+	DT_KEYCAP=$1
+	case $1 in
+	app:*) dt_note "Press a key for ${DT_APPS[${1#app:}]["title"]}…" ;;
+	*) dt_note "Press a key for ${1^}…" ;;
+	esac
+}

@@ -82,6 +82,8 @@ const char *xval(sh *s, const char *k)
 	}
 	if (!strcmp(k, "RANDOM"))
 		return xnum(s, (long)(rand() % 32768));
+	if (k[0] == 'B' && !strcmp(k, "BASH_SOURCE"))
+		return s->src ? s->src : "";
 	if (!strcmp(k, "SECONDS"))
 		return xnum(s, (long)time(0) - s->t0);
 	if (k[0] == 'E' && !strncmp(k, "EPOCH", 5)) {
@@ -496,6 +498,13 @@ void xvar(sh *s, part *p, str *b, str *m)
 			v = v_find(s, p->t) ? xajoin(s, p->t, ks, nk, " ", 0) : 0;
 		else
 			v = v_getp(s, p->t, ks, nk);
+		if (!v && nk <= 1 && (all || !strcmp(ks[0], "0")) &&
+		    !v_find(s, p->t)) {
+			v = xval(s, p->t);
+			if (v)
+				lg(HIBR_LTRC, "%s is computed; its [0] is its value",
+				   p->t);
+		}
 	} else if (p->op == V_KEYS) {
 		a = xajoin(s, p->t, 0, 0, " ", 1);
 		xput(b, m, a, strlen(a), p->q || s->strict);

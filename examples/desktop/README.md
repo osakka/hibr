@@ -11,7 +11,7 @@ describe them:
 | X | here | what it is |
 |---|---|---|
 | the server | the `console` module | owns the terminal, the grid, the mouse, stacking, hit testing |
-| the window manager | `examples/desktop/desktop.hibr` | the event loop, focus, dragging, title bars |
+| the window manager | `examples/desktop/desktop.hibr`, sourcing `wm/` and `widgets/` | the event loop, focus, dragging, title bars; the widgets apps draw with |
 | `~/.xinitrc` | your own session file | which windows open, and where |
 
 Try it, from a checkout:
@@ -522,7 +522,7 @@ file of your own with the same pane name replaces one, the same rule
 `DT_APPDIRS` already has for apps.
 
 Window Style's own four rows -- Frame, Buttons, Title and Button Style --
-are read by `dt_win` and `dt_btn` in desktop.hibr itself, not by the pane:
+are read by `dt_win` and `dt_btn` in `wm/frame.hibr`, not by the pane:
 `DT_FRAME` picks the border glyphs from the `DT_FRAMES` table (`single`,
 `double`, or `none` for no ring at all -- move, resize, zoom, hide and
 close stay reachable through the Window menu even then, since that row is

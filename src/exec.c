@@ -355,7 +355,7 @@ void rd_undo(vec *sv)
 	v_free(sv);
 }
 
-/* Find a shell function by name. */
+/* Find a shell function by name, leaving its index for fn_src. */
 node *fn_find(sh *s, const char *nm)
 {
 	size_t i;
@@ -363,9 +363,36 @@ node *fn_find(sh *s, const char *nm)
 
 	for (i = 0; i < s->fns.n; i++) {
 		f = (node *)s->fns.p[i];
-		if (!strcmp(f->s, nm))
+		if (!strcmp(f->s, nm)) {
+			s->fni = i;
 			return f;
+		}
 	}
+	return 0;
+}
+
+/* Keep one copy of a source file's path for the life of the shell. */
+const char *sr_name(sh *s, const char *path)
+{
+	size_t i;
+
+	for (i = 0; i < s->srcs.n; i++)
+		if (!strcmp((char *)s->srcs.p[i], path))
+			return (char *)s->srcs.p[i];
+	v_add(&s->srcs, xs(path));
+	return (char *)s->srcs.p[s->srcs.n - 1];
+}
+
+/* The file a function was defined in, or null when it had none. */
+const char *fn_src(sh *s, node *f)
+{
+	size_t i;
+
+	if (s->fni < s->fns.n && s->fns.p[s->fni] == f)
+		return (const char *)s->fsrc.p[s->fni];
+	for (i = 0; i < s->fns.n; i++)
+		if (s->fns.p[i] == f)
+			return (const char *)s->fsrc.p[i];
 	return 0;
 }
 
@@ -379,11 +406,13 @@ void fn_add(sh *s, node *f)
 		o = (node *)s->fns.p[i];
 		if (!strcmp(o->s, f->s)) {
 			s->fns.p[i] = f;
+			s->fsrc.p[i] = (void *)s->src;
 			lg(HIBR_LDBG, "redefined function %s", f->s);
 			return;
 		}
 	}
 	v_add(&s->fns, f);
+	v_add(&s->fsrc, (void *)s->src);
 	lg(HIBR_LDBG, "defined function %s", f->s);
 }
 
@@ -467,9 +496,11 @@ int fn_call(sh *s, node *f, int ac, char **av)
 	char **oav = s->av;
 	int oac = s->ac, oavo = s->avo, st;
 	vec *fr = vb_get(s);
+	const char *osrc = s->src;
 
 	char *orty = s->rty;
 
+	s->src = fn_src(s, f);
 	v_add(&s->scope, fr);
 	s->av = av + 1;
 	s->ac = ac - 1;
@@ -503,6 +534,7 @@ int fn_call(sh *s, node *f, int ac, char **av)
 	s->ac = oac;
 	s->avo = oavo;
 	s->rty = orty;
+	s->src = osrc;
 	return st;
 }
 

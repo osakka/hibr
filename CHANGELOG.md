@@ -1,5 +1,63 @@
 # Changelog
 
+## 0.43
+
+Desktop moves to **0.23** alongside this release.
+
+**`desktop.hibr` is a table of contents now.** Five thousand lines became a
+page that asks for a display and sources the window manager's parts, one
+concern to a file, from `examples/desktop/wm/` -- state, settings, the
+session, windows, frames, drawing, wallpaper, input, menus, the bar,
+context menus, apps, files, handlers, icons, hold, notifications, confirm,
+the Control Strip -- and the widget library from `examples/desktop/widgets/`:
+hit regions, checkbox, dropdown, slider, text field, scrollbar. Each part
+owns its own state and settings, and has a header saying what it holds;
+`wm/README.md` and `widgets/README.md` map them, and the latter sets out
+what makes a file a library, since hibr has no separate notion of one. The
+split moved text and rewrote none: loaded, the old file and the new parts
+leave the same 185 function definitions, byte for byte, and the same
+variables and maps behind. `tests/540-examples.t` now fails on a function
+defined twice across all the parts together, not only within one file.
+
+Three things in the shell itself made that possible, each checked against
+bash:
+
+- **`BASH_SOURCE`**: the file the running code came from -- the script, a
+  file being sourced, or, inside a function, the file the function was
+  defined in, wherever it is called from -- which is how `desktop.hibr`
+  finds its own directory however a session reached it. A function carries
+  its file from definition; a call costs 0.55% more instructions on a loop
+  that does nothing but call a function, and nothing on one that does not.
+- **`declare -f` and `declare -F`**, which bash scripts use to print and list
+  functions: `-F` exactly as bash does, `-f` printing a definition as it was
+  written, which reads back in as the same function.
+- **`[0]` of a computed name** (`${RANDOM[0]}`, `${SECONDS[0]}`) reads its
+  value, as `[0]` of any scalar does; and an assignment to `EPOCHSECONDS` or
+  `EPOCHREALTIME` is ignored, as in bash, rather than hiding the clock.
+- **`HIBR`**: this shell's own absolute path, asked of the system rather
+  than guessed from the name it was started under, as bash's `BASH` is. A
+  held desktop restarts itself under `hold new`, and it used to do so as
+  plain `hibr`, which is whichever one `PATH` finds first -- so a desktop
+  run from a build directory came back up under the installed shell. Until
+  now the two could run the same file and nobody noticed; with the desktop
+  asking for `BASH_SOURCE`, an older installed shell found none of its parts
+  and the held session ended at once. It restarts under `"$HIBR"` now, and
+  `desktop.hibr` run by a shell without `BASH_SOURCE` says which version it
+  needs instead of reporting twenty missing files.
+
+`docs/language.md` had still described `RANDOM=5` as reading 5 for ever
+after; that stopped being true in 0.42 and it now says so. Three tickets
+go into `docs/backlog.md` under "The language": `.` searching `PATH` for a
+bare name, as bash's does -- which is all a library would need; looking a
+function up without reading every name, since every command in the
+desktop pays for its four hundred; and a per-file strict mode. All three
+are agreed, and follow the dialog buttons and the Control Panel.
+
+HIBR_VER -> 0.43, DT_VER -> 0.23.
+
+Verified: tests/run.sh 90/90 (and under ASan and UBSan), tests/desktop.py
+294/294, tests/apps.py 233/233, tests/term_diff.py 66/66.
+
 ## 0.42
 
 Desktop moves to **0.22** alongside this release.

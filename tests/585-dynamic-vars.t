@@ -12,3 +12,5 @@ RANDOM=7; c=$RANDOM; d=$RANDOM
 SECONDS=100
 s=$SECONDS
 [ "$s" -ge 100 ] && [ "$s" -le 101 ] && echo "SECONDS counts on from what it was set to"
+EPOCHSECONDS=5
+[ "$EPOCHSECONDS" != 5 ] && echo "the clocks ignore an assignment"

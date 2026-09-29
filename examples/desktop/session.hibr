@@ -20,7 +20,7 @@
 
 # Captured before `args` parses -- and consumes -- these same words into
 # session/resume/join/name below, so dt_autohold's own re-exec (hold new
-# ... hibr "$0" "${DT_SELFARGS[@]}") hands the fresh copy of this script
+# ... "$HIBR" "$0" "${DT_SELFARGS[@]}") hands the fresh copy of this script
 # the exact command line this one was started with, --session included.
 # args leaves "$@" holding only what it did not recognise as an option
 # (nothing, here), so capturing after it ran always produced an empty

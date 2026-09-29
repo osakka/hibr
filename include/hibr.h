@@ -7,7 +7,7 @@
 #define HIBR_ABI 14u
 #endif
 #ifndef HIBR_VER
-#define HIBR_VER "0.42"
+#define HIBR_VER "0.43"
 #endif
 #ifndef HIBR_OK
 #define HIBR_OK 0
@@ -221,6 +221,9 @@ struct sh {
 	unsigned ifsok;
 	int optpos, optind;
 	unsigned ncap;
+	const char *src;
+	vec fsrc, srcs;
+	size_t fni;
 };
 
 #ifndef HIBR_MTIM

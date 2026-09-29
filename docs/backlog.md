@@ -561,6 +561,56 @@ like a clean shell, which is a mistake this project has already made once and
 recorded in `CLAUDE.md`. They could be hibr; they should not be.
 
 
+## The language
+
+### `.` and `source` search PATH for a name without a slash -- agreed
+
+bash's `.` looks a bare name up on `PATH` when it has no slash in it; hibr's
+opens the name as given, relative to wherever the shell is. That is a
+divergence, not a decision, and closing it is what gives hibr libraries
+without inventing anything: a directory of files that only define -- the
+convention `examples/desktop/widgets/README.md` sets out -- put on `PATH`,
+and `. widgets` finds it. bash searches `PATH` first and, outside posix
+mode, falls back to the current directory when nothing there matches;
+match that, and compare against it in a `.t`. Anything beyond that --
+a `use`, load-once guards, versions -- is a new concept, and `CLAUDE.md`'s
+rule is that the core grows only for what makes it a better shell.
+
+### Find a function without reading every name -- agreed, if it measures
+
+`fn_find` walks every defined function with `strcmp` on each command whose
+first word could be one. A script with a handful costs nothing; the desktop
+defines about four hundred across itself, its apps and panes, so every
+command it runs pays up to four hundred comparisons before it even knows
+it is a builtin or a program. A small hash table beside `s->fns` (the
+variable table already has one, `vh`) turns that into one lookup. Measure
+first, with instruction counts on the desktop's own idle frame and on the
+loop benchmarks -- `fn_find` is also on `unset`, `type`, `command -v` and
+`declare -F`, and `fn_src` relies on the index it leaves behind.
+
+### A strict mode, per file -- agreed, after v0.45
+
+Perl's `use strict` as a family of named checks, each opt-in, each scoped to
+the file that turns it on -- not the whole shell, since some redefinition
+across files is deliberate: an app in `~/.config/hibr/apps` replaces a
+bundled one of the same name.
+
+- **`strict functions`**: defining a function a second time in the same
+  file is an error that names both lines. The class of bug that once made
+  the desktop's drag and drop replace the function that draws the open
+  menu, and that `tests/540-examples.t` now catches only after the fact.
+- **`strict vars`**: inside a function, assigning a name that is not
+  `local`, `declare`d or explicitly global is an error -- the accidental
+  global behind several of the desktop's own "two windows share one state"
+  bugs.
+- **`strict expansion`**: `set -S`, folded in so the family has one home.
+
+Costs, stated plainly: the function check runs once per definition and is
+free; the variable check touches every assignment inside a function and
+must sit behind a flag bit so a script that never asks pays one test.
+Needs an ADR before any code, since it is a new language concept, and the
+desktop's own `wm/` files are the first place to turn it on.
+
 ## For language models
 
 Raised directly: what would make hibr the shell a language model reaches

@@ -45,11 +45,15 @@ spoken to with the same `send` and `recv` as a socket. `mapfile` / `readarray`,
 `|&` and `printf '%(fmt)T'` are all there too.
 
 **Special variables.** `$@ $* $# $? $$ $! $0–$9 $RANDOM $SECONDS $EPOCHSECONDS
-$EPOCHREALTIME $PPID $UID $EUID $HOSTNAME $HIBR_VERSION $HIBR_ABI`, plus `$RET`, `$ERRMSG`, `$ERR`, `$ERRSTATUS`,
-`$REMOTE` and `$M`. Assigning to `$RANDOM`, `$SECONDS`, `$EPOCHSECONDS` or
-`$EPOCHREALTIME` makes an ordinary variable that hides the live one until it
-is unset: `RANDOM=5` reads 5 from then on, where bash would seed with it, and
-bash ignores an assignment to the two clocks. `$$` is fixed at startup, so it is the same inside every
+$EPOCHREALTIME $PPID $UID $EUID $HOSTNAME $HIBR_VERSION $HIBR_ABI $HIBR`, plus `$RET`, `$ERRMSG`, `$ERR`, `$ERRSTATUS`,
+`$REMOTE` and `$M`, and `$BASH_SOURCE`: the file the running code came from --
+the script, a file being sourced, or, inside a function, the file the
+function was defined in, which is how a sourced file finds its own directory
+(`${BASH_SOURCE%/*}`). As in bash, `RANDOM=5` seeds the generator, `SECONDS=5`
+restarts the count from 5, and an assignment to `$EPOCHSECONDS` or
+`$EPOCHREALTIME` is ignored; `${RANDOM[0]}` and the like read the value, as
+`[0]` of any scalar does. Only `${BASH_SOURCE[0]}` is kept, not the stack of
+callers' files beneath it. `$$` is fixed at startup, so it is the same inside every
 subshell. `$HIBR_VERSION` holds the version and nothing else does, so it is
 the way to ask which shell is running. It is set at startup over anything
 inherited, so a planted `HIBR_VERSION` in the environment cannot claim a shell
@@ -58,7 +62,15 @@ inherit a stale answer either. `$SHELL` cannot answer that question at all —
 it is the login shell out of `/etc/passwd`, and no shell sets it.
 `$HIBR_ABI` is the module ABI the shell was built with, so a script can tell
 whether a module it carries will be accepted before it tries to load it; both
-are set the same way and carry the same guarantees.
+are set the same way and carry the same guarantees. `$HIBR` is this shell's
+own absolute path, asked of the system (`/proc/self/exe`, or
+`_NSGetExecutablePath` on macOS) rather than guessed from the name it was
+started under, which is what bash's `$BASH` does and which a caller can set
+to anything; only where the system cannot say is the name looked up on
+`PATH`. So a script that starts
+another copy of itself runs `"$HIBR" "$0"` and gets the shell it is running
+under, not whichever `hibr` comes first on `PATH`. It is not called `$BASH`
+because `[ -n "$BASH" ]` is how scripts ask whether they are in bash.
 
 **Redirection.** `<  >  >>  <>  n>&m  n<&m  &>  &>>  >|` (with `set -C`
 noclobber), here-documents `<<` and `<<-`, here-strings `<<<`, named

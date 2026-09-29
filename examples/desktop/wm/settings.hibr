@@ -1,0 +1,240 @@
+# wm/settings -- what the person using the desktop chooses -- keys, theme,
+# wallpaper, cursor, shadows, frames and buttons -- and the settings file
+# that keeps them: dt_keep, dt_load, dt_save.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+# Keyboard shortcuts a script -- or Settings -- can rebind. f10 and escape,
+# which open the menu bar, are not in here: an app cannot have those keys
+# at all, so there is nothing to configure. Everything else an app's own
+# _key sees first, same as always -- a shortcut here only fires once the
+# focused window has declined the key.
+declare -gA DT_KEYS
+DT_KEYS[close]="alt-f4"
+DT_KEYS[detach]="ctrl-\\"
+DT_KEYS[quit]=q
+DT_KEYS[cycle]=tab
+DT_KEYS[strip]="alt-s"
+
+# Any app can have a global shortcut of its own, assigned from Settings --
+# most have none, which is the point: a game or About does not want to
+# steal a key from every window just for existing. term and tasks ship with
+# one, since those two are reached often enough from outside any app to be
+# worth a default; nothing stops a script or Settings from giving the same
+# to any other, or taking these away. Nothing happens if the named app was
+# never sourced, the same way dt_launch always behaves for a name nothing
+# registered. alt-ctrl-, not ctrl-alt-: an alt combination arrives as ESC
+# followed by the plain control byte, and the console names that "alt-"
+# then whatever the control byte itself is, in that order -- unlike a
+# CSI-encoded key's modifiers, which are named ctrl- before alt-. escape is
+# avoided here on purpose: alt-escape is indistinguishable from a plain
+# escape in most terminals, since ESC is also how alt itself arrives.
+declare -gA DT_APPKEY
+DT_APPKEY[term]="alt-ctrl-t"
+DT_APPKEY[tasks]="alt-ctrl-p"
+DT_KEYCAP=
+declare -A DT
+
+DT_WALL="${DT_WALL-#0d1b2a}"
+DT_DOT="${DT_DOT-#16324a}"
+DT_BAR="${DT_BAR-#1b3a5c}"
+DT_ACTIVE="${DT_ACTIVE-#63b3ed}"
+DT_IDLE="${DT_IDLE-#4a5568}"
+DT_FACE="${DT_FACE-#101820}"
+DT_INK="${DT_INK-#cbd5e0}"
+DT_GLYPH="${DT_GLYPH-·}"
+
+# A real image as the wallpaper instead of the repeated glyph, drawn by the
+# img module (mods/img) if it can be loaded -- empty means the glyph, same
+# as it always has been. Setting one and setting DT_GLYPH are mutually
+# exclusive in the UI (Appearance's Wallpaper row, the strip's own wallpaper
+# module) for the same reason a radio button only shows one choice at a
+# time, but nothing stops a hand-edited config from having both; DT_WALLIMG
+# wins when it does. DT_WALLTRIED is not a setting -- it just stops dt_wall
+# from retrying `need img` every single frame once it is known not to load.
+DT_WALLIMG="${DT_WALLIMG-}"
+DT_WALLTRIED=
+
+# How the wallpaper image fills the screen: stretch (ignore its own aspect
+# ratio, the original and only behaviour), scale (fit entirely within the
+# screen, keeping its own ratio, the glyph pattern showing through any
+# letterboxed margin), zoom (fill the screen, keeping its own ratio, the
+# overflow cropped), or center (its own native size, unscaled, centred,
+# cropped or letterboxed as its size and the screen's disagree). Kept in
+# the static DT_KEEP list below, not with dt_keep, since that function is
+# not defined yet this early in the core file's own top-to-bottom run --
+# dt_keep is for variables an app or pane declares after desktop.hibr has
+# already loaded.
+DT_WALLMODE="${DT_WALLMODE-stretch}"
+
+# The cursor a new terminal starts with, until the program inside it asks
+# for one of its own with DECSCUSR -- block, underline or bar.
+DT_CURSOR="${DT_CURSOR-block}"
+
+# Whether the cursor blinks. Off by default: a steady cursor is what the
+# terminal module has always drawn, and blinking is a look, not a fix, so it
+# stays opt-in. It costs nothing extra either way -- the focused terminal
+# already redraws every 30ms to catch its own echo promptly, blink or not.
+DT_CURSOR_BLINK="${DT_CURSOR_BLINK-0}"
+
+# A window's shadow, cast on whatever is under it. On by default, since it
+# costs one console darken call per window and nothing when off.
+DT_SHADOW="${DT_SHADOW-1}"
+
+# The same, for an open menu -- a separate setting, since a menu is drawn
+# far more often than a window is moved, and someone who wants one without
+# the other should be able to say so.
+DT_MSHADOW="${DT_MSHADOW-1}"
+
+# A shadow under the menu bar, giving it a sense of sitting above the
+# desktop -- its own setting rather than tied to DT_SHADOW or DT_MSHADOW,
+# the same reasoning as both of those already have: it is drawn every
+# frame the bar is (always), not just when a window moves or a menu opens.
+DT_BARSHADOW="${DT_BARSHADOW-1}"
+
+# How much a shadow darkens what is under it -- console darken's own pct,
+# kept per theme rather than as one constant. 55 (its builtin default)
+# reads as a soft, barely-there shadow against a dark face like midnight's,
+# because scaling an already-low RGB value down by 45% is a small absolute
+# change -- but the same 45% off paper's near-white face lands on a flat
+# medium grey, a hard-edged block rather than a shadow. Appearance's own
+# cp_theme sets this alongside the other seven colours; unset here only
+# matters before it is loaded at all.
+DT_SHADOW_PCT="${DT_SHADOW_PCT-55}"
+
+# What a double click on a title bar does -- zoom, minimise, close, or
+# nothing. DT_DBLMS is how close together the two clicks have to land, and
+# is not itself a setting: it is a threshold, not a preference.  DT_DBLID
+# and DT_DBLT track the last title-bar click, to compare the next one
+# against.
+DT_DBLACTION="${DT_DBLACTION-zoom}"
+DT_DBLMS=400
+DT_DBLID=
+DT_DBLT=0
+
+# A window's own frame: single or double lined, or none at all. None is a
+# blank frame, not no frame: the border ring -- corners, sides, grow box --
+# goes undrawn, but the title and its buttons are still there, still
+# clickable, exactly as under single or double. A style is a table entry:
+# DT_FRAMES[name] carries its own six glyphs, so a fifth frame is six
+# lines here, not a change to dt_win.
+DT_FRAME="${DT_FRAME-single}"
+declare -gA DT_FRAMES
+DT_FRAMES[single]["tl"]="┌"; DT_FRAMES[single]["tr"]="┐"
+DT_FRAMES[single]["bl"]="└"; DT_FRAMES[single]["br"]="┘"
+DT_FRAMES[single]["h"]="─";  DT_FRAMES[single]["v"]="│"
+DT_FRAMES[double]["tl"]="╔"; DT_FRAMES[double]["tr"]="╗"
+DT_FRAMES[double]["bl"]="╚"; DT_FRAMES[double]["br"]="╝"
+DT_FRAMES[double]["h"]="═";  DT_FRAMES[double]["v"]="║"
+
+# Which side the min/max/close cluster docks to, where the title sits in
+# whatever room that leaves, and which glyphs the cluster is drawn with:
+# the Windows-style brackets this shipped with, coloured circles, or
+# coloured squares. dt_btnspec is the table for the third of these, the
+# same shape cp_theme's own case statement already is for a theme.
+DT_BTNSIDE="${DT_BTNSIDE-right}"
+DT_TITLEALIGN="${DT_TITLEALIGN-left}"
+DT_BTNSTYLE="${DT_BTNSTYLE-brackets}"
+
+# Whether a plain side (not just a corner) resizes too -- one dimension,
+# the opposite edge anchored. On by default; off leaves the four corners
+# as the only way, the same as before this existed. There is no top edge
+# of its own regardless: row wr is the title bar over its whole width, so
+# the two top corners are the only way to resize from above a window,
+# with this on or off.
+DT_EDGERESIZE="${DT_EDGERESIZE-1}"
+
+# Move a window by holding a modifier and clicking anywhere in its body,
+# not just its title bar -- off by default, the same reasoning
+# console's own mouse motion reporting is: it takes a click away from
+# whatever the app under the pointer would otherwise do with it, alt
+# included, so it is the desktop owner's decision to make, never the
+# default. When it fires, the window manager takes the click outright,
+# before the app under the pointer ever sees it -- there is no "the app
+# declined it" convention anywhere else a click is dispatched, and this
+# does not invent one just for itself.
+DT_DRAGMOD="${DT_DRAGMOD-0}"
+DT_DRAGKEY="${DT_DRAGKEY-alt}"
+
+# How many consecutive drag reports dt_run lets go by before it actually
+# redraws -- 0 skips none (today's behaviour, and the default): a drag
+# itself is not slower for it, since every report still updates the
+# window's own position, only the screen catches up less often, which
+# trades a window looking like it hops rather than glides in exchange for
+# dt_win drawing every open window's own full content less often. A
+# press or a release always redraws regardless -- only a drag report can
+# be skipped, and only while another one immediately follows it.
+DT_DRAWSKIP="${DT_DRAWSKIP-0}"
+
+# Settings are a script of the user's own, written by the desktop whenever
+# one changes and read back at the next start: plain assignments, so it can
+# be edited by hand and needs no format of its own.  An app that wants a
+# variable of its own kept names it with dt_keep.
+DT_CONF="${DT_CONF-${XDG_CONFIG_HOME:-$HOME/.config}/hibr/desktop.hibr}"
+DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
+	DT_WALLIMG DT_WALLMODE
+	DT_ICONS DT_DISKS DT_CURSOR DT_CURSOR_BLINK DT_SHADOW
+	DT_MSHADOW DT_BARSHADOW DT_DBLACTION DT_SHADOW_PCT CS_SIDE CS_Y
+	CS_COLLAPSED CS_LEN CS_SHADOW
+	DT_FRAME DT_BTNSIDE DT_TITLEALIGN DT_BTNSTYLE DT_EDGERESIZE
+	DT_DRAGMOD DT_DRAGKEY DT_DRAWSKIP DT_NOTEMS DT_NOTEPOS DT_BARTIME
+	DT_BARGAP DT_BELLICON)
+
+# Where the desktop's stderr goes while it holds the screen, so an app's
+# error message cannot scribble over the display, and the reason for a
+# failure is still there to read after it.
+DT_LOG="${DT_LOG-${XDG_STATE_HOME:-$HOME/.local/state}/hibr/desktop.log}"
+DT_ERR=
+
+# Keep these variables in the settings file too.
+dt_keep() {
+	DT_KEEP+=("$@")
+}
+
+# Read the settings file, if there is one.  It runs after the session file
+# has set its defaults, so what was chosen last time wins.
+dt_load() {
+	[ -r "$DT_CONF" ] && . "$DT_CONF"
+	return 0
+}
+
+# Write every kept variable back, through a temporary file and a rename,
+# so a crash halfway through never leaves half a settings file.
+dt_save() {
+	local v tmp=$DT_CONF.$$ n i line
+
+	mkdir -p "${DT_CONF%/*}" 2> /dev/null || return 1
+	{
+		echo "# The desktop's settings, written whenever one changes and"
+		echo "# read at the next start.  A script like any other."
+		for v in "${DT_KEEP[@]}"; do
+			[ -n "${!v+set}" ] && printf '%s=%q\n' "$v" "${!v}"
+		done
+		for v in "${!DT_ICONPOS[@]}"; do
+			printf 'dt_iconpos %q %q\n' "$v" "${DT_ICONPOS["$v"]}"
+		done
+		for v in "${!DT_KEYS[@]}"; do
+			printf 'DT_KEYS["%s"]=%q\n' "$v" "${DT_KEYS["$v"]}"
+		done
+		for v in "${!DT_APPKEY[@]}"; do
+			printf 'DT_APPKEY["%s"]=%q\n' "$v" "${DT_APPKEY["$v"]}"
+		done
+		# A dt_handler call, reconstructed from the table it built --
+		# added to by the File Types pane now, not only by a line in a
+		# script of the user's own, so the same table needs writing back
+		# out here too. %q on each word, not on the whole line, so a
+		# command with an argument of its own survives the round trip.
+		for v in "${!DT_HANDLERS[@]}"; do
+			n=${DT_HANDLERS[$v]["n"]}
+			line="dt_handler $(printf '%q' "$v")"
+			[ "${DT_HANDLERS[$v]["term"]}" = 1 ] && line="$line term"
+			i=0
+			while [ "$i" -lt "$n" ]; do
+				line="$line $(printf '%q' "${DT_HANDLERS[$v][$i]}")"
+				i=$((i + 1))
+			done
+			echo "$line"
+		done
+	} > "$tmp" && mv -f "$tmp" "$DT_CONF"
+}

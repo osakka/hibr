@@ -1,0 +1,34 @@
+# wm/draw -- one frame of the whole desktop, bottom of the stack upwards.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+# Repeat a string n times.  One builtin call, not a loop with ${#} in it.
+# The result goes through a variable and then ret: := binds for a builtin,
+# not for a function, so a bare `str repeat` here would print to the screen.
+dt_rep() {
+	local o
+
+	str repeat "$2" "$1" o
+	ret "$o"
+}
+
+# One full frame, bottom of the stack upwards.
+dt_draw() {
+	local l id
+
+	DT_WANT=
+	dt_wall
+	l := console pane list
+	for id in $l; do dt_win "${id#w}"; done
+	[ -n "$DT_DND" ] && dt_dnddraw
+	dt_menus
+	dt_ctxbuild
+	dt_bar
+	dt_stripdraw
+	dt_drop
+	dt_note_draw
+	dt_identify_draw
+	dt_confirm_draw
+	console flush
+}

@@ -1,0 +1,181 @@
+# wm/session -- the life of a session: opening the display, the event loop
+# that sleeps until something needs a frame, and closing it again.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+# The longest the desktop sleeps when nothing has asked for a frame. Not a
+# refresh rate: everything that changes on its own -- the bar clock, a
+# blinking cursor, a game, a meter -- asks with dt_want, and input, resize
+# and a terminal's output wake it at once. This is only a net under
+# anything that forgot to ask. There used to be a DT_TICK here, a fixed
+# redraw rate; a saved settings file kept the old 200ms default alive for
+# anyone who had ever saved a setting, and cost 5 full redraws a second
+# with nothing on screen changing.
+DT_IDLEMS="${DT_IDLEMS-60000}"
+
+# Open the display, take the mouse, and note how big the screen is.
+#
+# ctrl-c, ctrl-\ and ctrl-z become keys rather than signals: the desktop is
+# left by Quit, never by a stray interrupt, and the key goes to the focused
+# window -- which is how a program in a terminal window gets its ctrl-c.
+dt_open() {
+	title "hibr [desktop]"
+	dt_load
+	console open || return 1
+	# What a cell left at the terminal's own default colour should darken
+	# toward, for a window's shadow: the desktop's own idea of plain
+	# ink-on-face, the same colours everything undecorated already reads
+	# as. Without this, a shadow over a terminal's own plain, uncoloured
+	# output -- a shell prompt, ls of regular files, most of what
+	# actually appears on screen -- showed no visible darkening at all.
+	console darkdefault "$DT_INK" "$DT_FACE"
+	console signals off
+	# Click and drag only, not motion: reporting every movement with no
+	# button held (XTerm mode 1003) was tried for the strip's own hover
+	# highlight, and cost far more than that was worth -- a continuous
+	# stream of escape sequences on every mouse movement anywhere on
+	# screen, whether or not anything in hibr cared, which broke a real
+	# terminal's own copy-and-paste convention (holding shift to bypass
+	# app mouse reporting only ever had to suppress clicks and drags, not
+	# a flood of plain movement) and made the desktop's own selection
+	# band lag well behind the pointer, queued behind stale hover reports
+	# from a moment earlier. The strip still scrolls by wheel (the wheel
+	# event carries its own position) and by keyboard once given
+	# attention with its own shortcut; only hovering it with the mouse
+	# and getting no click at all is gone.
+	console mouse drag
+	console cursor off
+	# mkdir is a process, and startup should not pay for one per folder
+	# every time: only when the folder is not there yet.
+	if [ -d "${DT_LOG%/*}" ] || mkdir -p "${DT_LOG%/*}" 2> /dev/null; then
+		exec {DT_ERR}>&2 2>> "$DT_LOG"
+	fi
+	dt_size
+	dt_deskscan
+}
+
+# Re-read the screen size after a resize, and this desktop's own primary
+# viewport from hold's own per-client data. Not held, or hold not loaded,
+# or nobody has attached yet (the moment right after `hold new -d` starts
+# this script, before the first `hold attach` lands): primary is the whole
+# screen, at column 0, the same fallback as a lone terminal always was.
+dt_size() {
+	local sz lst nm row col rows cols pri
+
+	sz := console size
+	DT_ROWS=${sz% *}
+	DT_COLS=${sz#* }
+	DT_PRIMARY_W=$DT_COLS
+	DT_PRIMARY_COL=0
+	if [ -n "$HIBR_HOLD" ] && need hold; then
+		lst := hold clients
+		while IFS=' ' read -r nm row col rows cols pri; do
+			if [ "$pri" = 1 ]; then
+				DT_PRIMARY_COL=$col
+				DT_PRIMARY_W=$cols
+				break
+			fi
+		done <<< "$lst"
+	fi
+	dt_iconlay
+	cs_clamp
+}
+
+# Give the terminal back.
+dt_close() {
+	if [ -n "$DT_ERR" ]; then
+		exec 2>&$DT_ERR {DT_ERR}>&-
+		DT_ERR=
+	fi
+	console mouse off
+	console signals on
+	console close
+}
+
+# Ask for the next frame within ms, from inside an app's _draw.
+#
+# The request lasts one frame: a game that is paused, hidden or not focused
+# simply stops asking, and the desktop goes back to sleeping until input.
+# An idle desktop must not pay for an animation nobody is watching. The
+# soonest of every ask in a frame wins; anything that shows the time has
+# to ask for its next change, or it stops changing.
+dt_want() {
+	if [ -z "$DT_WANT" ] || [ "$1" -lt "$DT_WANT" ]; then
+		DT_WANT=$1
+	fi
+}
+
+# A live redraw on every SIGWINCH of a drag makes the screen scramble once
+# per pixel the terminal moves through, which is what dragging a real GUI
+# window's edge does not do -- it freezes the content and snaps it once at
+# the end.  console resizing is a cheap peek at the same flag console
+# resized consumes, with none of its clear-and-repaint side effects, so a
+# burst of them costs nothing extra: this waits for DT_RSTILL ms of quiet
+# before it calls console reassert and redraws, once, at the settled size.
+DT_RSTILL=150
+
+# The event loop.  Draw, wait, dispatch, repeat.
+#
+# A key read while rsz is waiting out the quiet period is still consumed
+# from the pty whether this looks at it or not, so it has to be kept in pk
+# rather than just skipped -- skipping it reads the byte and throws the
+# value away, which is a key silently lost, not a key left for later.
+#
+# A startup self-heal was tried twice here and removed both times: first
+# a re-check gated on the size actually differing, then an unconditional
+# `console reassert` on the first idle tick regardless. Neither fixed a
+# real Mac's black-screen-until-resize, and the reason turned out to be
+# that `console flush` already re-fits the grid to the real size on
+# *every* call (`cn_fit`, inside `cn_flush` itself) -- so this was never
+# a stale-size problem for anything here to re-check. The real cause and
+# fix are in `cn_open` (mods/console/term.c): some Mac terminal apps do
+# not render the alternate screen until they have had a moment to finish
+# their own window setup, confirmed with a plain `sleep 1` before
+# `console open` fixing it with nothing else different.
+#
+# A suspected flake was chased into this dead end too ("an app with no
+# key handler cannot swallow one", tests/desktop.py): confirmed
+# pre-existing and unrelated to any of this, a matched 100-run baseline
+# on unmodified code still failed about 4% of the time. See CLAUDE.md.
+dt_run() {
+	local k rsz=0 last now pk= skipn=0
+	while [ "$DT_QUIT" = 0 ]; do
+		if [ "$rsz" = 0 ]; then
+			if [ "$DT_LASTDRAG" = 1 ] &&
+			   [ "$skipn" -lt "$DT_DRAWSKIP" ]; then
+				skipn=$((skipn + 1))
+			else
+				dt_draw
+				dt_autoclose
+				skipn=0
+			fi
+		fi
+		if [ "$rsz" = 1 ]; then
+			k := console key 80
+		else
+			k := console key "${DT_WANT:-$DT_IDLEMS}"
+		fi
+		[ -n "$k" ] && pk=$k
+		if console resizing; then
+			rsz=1
+			last := dt_ms
+			continue
+		fi
+		if [ "$rsz" = 1 ]; then
+			now := dt_ms
+			if [ $((now - last)) -ge "$DT_RSTILL" ]; then
+				console reassert
+				dt_size
+				rsz=0
+				k=$pk
+			else
+				continue
+			fi
+		fi
+		pk=
+		[ -n "$k" ] && dt_event "$k"
+	done
+}
+
+dt_quit() { DT_QUIT=1; }

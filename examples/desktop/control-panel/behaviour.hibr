@@ -55,7 +55,7 @@ cp_shadow() {
 }
 
 # Whether an open menu casts a shadow -- a separate setting from a
-# window's, see DT_MSHADOW in desktop.hibr.
+# window's, see DT_MSHADOW in wm/settings.hibr.
 cp_mshadow() {
 	if [ "$DT_MSHADOW" = 1 ]; then
 		DT_MSHADOW=0
@@ -66,7 +66,7 @@ cp_mshadow() {
 }
 
 # Whether the menu bar casts a shadow onto whatever is under it -- a third,
-# separate setting again, see DT_BARSHADOW in desktop.hibr.
+# separate setting again, see DT_BARSHADOW in wm/settings.hibr.
 cp_barshadow() {
 	if [ "$DT_BARSHADOW" = 1 ]; then
 		DT_BARSHADOW=0

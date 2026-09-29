@@ -1,0 +1,79 @@
+# wm/state -- the state every part of the window manager shares: what has
+# focus, what is being dragged, sized, grabbed or dropped, and the title-bar
+# buttons being drawn.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+# The session's own arguments, captured here at the top level where $@ is
+# still theirs: a function sees its own, and dt_autohold needs to hand these
+# back to a fresh copy of itself.  $0 needs no such capture -- it is one
+# value on the shell itself, the same in a function as at the top. Left
+# alone if a caller already set it -- session.hibr's own opt/args consumes
+# its "$@" into named variables before sourcing this file, so capturing
+# again here would silently overwrite session.hibr's own, earlier and
+# correct capture with the empty leftover args does not use flags for.
+[ "${#DT_SELFARGS[@]}" -eq 0 ] && DT_SELFARGS=("$@")
+
+DT_NEXT=1
+DT_FOCUS=
+DT_DRAG=
+DT_DR=0
+DT_DC=0
+DT_QUIT=0
+DT_SIZE=
+
+# Which corner is being dragged, and the opposite corner's own row/col,
+# captured once at the press that started the drag and held fixed for the
+# rest of it -- the window's own row and col start changing the moment a
+# top or left edge does, so the anchor cannot be re-read from DT[$id].
+DT_SIZECORNER=
+DT_SIZE_AR=0
+DT_SIZE_AC=0
+
+# A title-bar button pressed but not yet released -- close, min or max --
+# shown inverted while held, and only acted on if the release lands back
+# on the same one, the same press-then-release convention every other
+# clickable thing in a real GUI already uses. Dragging off before letting
+# go cancels it, the same as any other button; nothing here fires early.
+DT_BTNID=
+DT_BTNKIND=
+DT_BTNOVER=0
+
+# Scratch, filled by dt_btnspec for whichever button style is current and
+# read straight back by dt_win: which kind sits at each of dt_btn's own
+# fixed offsets (1, 3, 5 movable; 1, 3 fixed), its glyph, its colour, and
+# what wraps the two ends of the cluster.
+BTN_K=()
+BTN_G=()
+BTN_C=()
+BTN_DL=
+BTN_DR=
+DT_GRAB=
+DT_MOUSE=
+DT_CLIP=
+DT_CLIPOP=
+DT_DND=
+DT_DNDN=
+DT_DNDG=
+DT_DNDR=0
+DT_DNDC=0
+DT_DNDICON=
+DT_DNDS=()
+DT_PATHS=()
+
+# The primary display's own width and column offset within the union --
+# read from `hold clients`'s own primary-flagged row when this desktop is
+# held, so the bar, wallpaper and icon grid stay confined to that display
+# instead of spreading across every one a terminal has joined beside it
+# with `hold attach -m`. Not held (or hold not loaded): the whole screen,
+# at column 0, same as always. Window placement is unaffected: it already
+# uses the full DT_COLS/DT_ROWS.
+DT_PRIMARY_W=
+DT_PRIMARY_COL=0
+
+# Whether the event dt_event just handled was a drag report -- dt_run's
+# own signal for whether this is a turn it may skip drawing, set there
+# rather than passed back some other way since dt_run already calls
+# dt_event for its only side effect and reads no return value from it.
+DT_LASTDRAG=0

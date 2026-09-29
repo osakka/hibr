@@ -103,7 +103,7 @@ linked, and no OpenSSL headers are needed to build.
 | `src/args.c` | `opt`/`args` declared CLI parsing, `title` |
 | `src/mod.c` | module loading |
 | `mods/*.c` | reference modules: `sys`, `http` (scheme), `ls`, `darwin` (macOS-only: `cpu`, `mem`, native `host_statistics`, no fork) |
-| `examples/desktop/` | the window manager (`desktop.hibr`) and everything built on it — `apps/` (file browser, control panel, terminal, task manager, About hibr, three games), `desk-accessories/` (calculator, clock, image viewer, note pad, sliding puzzle), `control-panel/` panes, `control-strip/` modules — see `examples/desktop/README.md` for how to use it and `examples/desktop/ARCHITECTURE.md` for how it is built |
+| `examples/desktop/` | the window manager (`desktop.hibr`, a table of contents sourcing `wm/`, one concern to a file, and `widgets/`, the widget library apps draw with) and everything built on it — `apps/` (file browser, control panel, terminal, task manager, About hibr, three games), `desk-accessories/` (calculator, clock, image viewer, note pad, sliding puzzle), `control-panel/` panes, `control-strip/` modules — see `examples/desktop/README.md` for how to use it and `examples/desktop/ARCHITECTURE.md` for how it is built |
 | `tests/screen.py` | **the** pty harness and terminal model, shared by every full-screen suite |
 | `mods/prompt/` | the prompt module, including a native reader for git's object store — see `mods/README.md` for the file-by-file breakdown |
 | `mods/console/` | the text display: alternate screen, cell grid with damage-based redraw, panes, decoded keys — see `mods/console/README.md` |
@@ -924,6 +924,19 @@ went in the shell.
   A test harness that holds must strip `HIBR_HOLD` before forking
   (`tests/screen.py`'s `Term` does); a script that holds must compare
   the basename, not just test for non-empty.
+- **A script that restarts itself must restart under `"$HIBR"`, not `hibr`.**
+  `dt_autohold` re-ran the desktop as `hold new … hibr "$0"`, which is
+  whichever `hibr` `PATH` finds first -- the installed one, not the build
+  under test. For as long as both could run the same file nobody noticed;
+  the day `desktop.hibr` began asking for `BASH_SOURCE`, the installed 0.42
+  read it as empty, looked for every part in the current directory, and the
+  held session ended the moment it began. Every suite but the hold section
+  was green, because only the re-exec ever left the binary the harness
+  named. `$HIBR` is the running shell's own absolute path, set at startup
+  from `/proc/self/exe` (`_NSGetExecutablePath` on macOS) -- *not* from
+  `argv[0]` the way bash sets `$BASH`: the first version did that, and the
+  harness execs `build/hibr` under the name `hibr`, so the PATH search found
+  the installed shell again and the same 13 tests failed a second time.
 - **A submenu created mid-build occupies a real index in the same array
   the top-level bar menus live in**, so "the next index" is not "the next
   bar menu": `dt_appmenu`'s own `dt_sub` (a folder of apps -- Desk

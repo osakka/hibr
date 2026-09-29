@@ -7,7 +7,8 @@ printf '[server]\nhost = example.com\nport = 8080\n\n[auth]\ntoken = abc123\n' >
 printf 'xx\n' > "$tmp/one"; printf 'yyy\n' > "$tmp/two"
 
 for e in examples/*.hibr examples/desktop/*.hibr examples/desktop/control-panel/*.hibr \
-         examples/desktop/desk-accessories/*.hibr examples/desktop/control-strip/*.hibr; do
+         examples/desktop/desk-accessories/*.hibr examples/desktop/control-strip/*.hibr \
+         examples/desktop/wm/*.hibr examples/desktop/widgets/*.hibr; do
   case "$e" in *hibrc) continue ;; esac
   ./build/hibr -n "$e" || echo "does not parse: $e"
 done
@@ -22,6 +23,13 @@ for e in examples/*.hibr examples/desktop/*.hibr examples/desktop/apps/*.hibr \
   sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)() *{.*/\1/p' "$e" | sort | uniq -d |
     while read -r f; do echo "defined twice in $e: $f"; done
 done
+# The desktop is desktop.hibr and every file it sources, so a name must be
+# unique across all of them together, not only within each: two parts that
+# each define it once still leave only the second one standing.
+cat examples/desktop/desktop.hibr examples/desktop/wm/*.hibr \
+    examples/desktop/widgets/*.hibr |
+  sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)() *{.*/\1/p' | sort | uniq -d |
+  while read -r f; do echo "defined twice across the desktop's parts: $f"; done
 echo "no function is defined twice"
 
 # local id=$1 b=${ARR[$id]...} looks right and often runs right: a local
@@ -37,7 +45,8 @@ echo "no function is defined twice"
 # own trap entry for the pattern in full.
 for e in examples/*.hibr examples/desktop/*.hibr examples/desktop/apps/*.hibr \
          examples/desktop/control-panel/*.hibr \
-         examples/desktop/desk-accessories/*.hibr examples/desktop/control-strip/*.hibr; do
+         examples/desktop/desk-accessories/*.hibr examples/desktop/control-strip/*.hibr \
+         examples/desktop/wm/*.hibr examples/desktop/widgets/*.hibr; do
   awk '
   /^[[:space:]]*local[[:space:]]/ {
     line = $0

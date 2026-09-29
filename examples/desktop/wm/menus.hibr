@@ -1,0 +1,705 @@
+# wm/menus -- menus: an app declaring them, the desktop drawing them, and
+# the keyboard and mouse moving through them.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+# System 7's, as closely as a text console allows: the hibr menu on the left
+# where the apple went, then the active application's own menus, then the
+# clock and the application menu on the right.  The menus belong to whatever
+# has focus, so they change when you click a different window, and when
+# nothing has focus they are the desktop's own.
+#
+# An app declares them by providing <app>_menus, which calls dt_menu, dt_item
+# and dt_sep -- the same shape as `opt` declaring a command line, and the
+# same prefix contract as _draw and _key: an app with no _menus simply has
+# none, and the bar shows the desktop's.
+#
+# F10 or escape opens the bar; then the arrows move, a letter picks the item
+# beside it, enter chooses and escape closes.  Nothing is reserved while the
+# bar is shut, which is what keeps ctrl-c free for whatever runs in a window.
+
+declare -A MB
+declare -A MI
+declare -A DT_APPS
+MB_N=0
+MB_OPEN=-1
+MB_SEL=0
+MB_APP=
+MB_CUR=
+MB_STACK=
+MB_PAR=
+MB_IN=0
+
+# A menu that opened at the pointer rather than under its bar title: MB_CX
+# and MB_CY are where it goes instead, MB_CTXWHO is what to ask for its
+# items every frame it stays open (an app prefix, or "desktop" for the hibr
+# menu itself), MB_CTXID the window it belongs to, if any.
+MB_CX=
+MB_CY=
+MB_CTXWHO=
+MB_CTXID=
+
+# Start a menu.  Called from an app's <app>_menus.
+dt_menu() {
+	MB[$MB_N]["title"]="$1"
+	MB[$MB_N]["n"]=0
+	MB[$MB_N]["w"]=0
+	MB[$MB_N]["bar"]=1
+	MB_CUR=$MB_N
+	MB_N=$((MB_N + 1))
+}
+
+# Add an item to the menu being declared: label, key, then the command.
+# An empty key means the item has no letter and is reached with the arrows.
+dt_item() {
+	dt_row "" 0 "$@"
+}
+
+# The same, with a tick beside it when the third argument is not 0.
+dt_mark() {
+	local lb=$1 k=$2 on=$3
+
+	shift 3
+	if [ "$on" = 0 ] || [ -z "$on" ]; then
+		dt_row " " 0 "$lb" "$k" "$@"
+	else
+		dt_row "✓" 0 "$lb" "$k" "$@"
+	fi
+}
+
+# An item that is there but cannot be chosen, which is how a menu says a
+# thing exists and is not available now -- quieter than hiding it, and it
+# keeps the menu the same shape from one moment to the next.
+dt_dim() {
+	dt_row "" 1 "$1" "" :
+}
+
+# Start a submenu.  Items until dt_end belong to it.
+#
+# The parent is MB_CUR -- the menu being declared -- and not the last menu
+# created, which after one dt_end is the submenu that just closed. Getting
+# that wrong hangs the second submenu off the first, and it looks almost
+# right until you notice a menu item has gone missing.
+dt_sub() {
+	local p=${MB_CUR:-$((MB_N - 1))} n
+
+	n=${MB[$p]["n"]}
+	dt_menu "$1"
+	MB[$((MB_N - 1))]["bar"]=0
+	MI[$p][$n]["label"]="$1"
+	MI[$p][$n]["key"]=""
+	MI[$p][$n]["cmd"]=""
+	MI[$p][$n]["argc"]=0
+	MI[$p][$n]["sep"]=0
+	MI[$p][$n]["dim"]=0
+	MI[$p][$n]["tick"]=""
+	MI[$p][$n]["sub"]=$((MB_N - 1))
+	MB[$p]["n"]=$((n + 1))
+	dt_wide "$p" $((${#1} + 8))
+	MB_STACK="$p $MB_STACK"
+}
+
+# Finish a submenu and go back to the menu that owns it.
+dt_end() {
+	MB_CUR=${MB_STACK%% *}
+	MB_STACK=${MB_STACK#* }
+}
+
+# Remember the widest label a menu has to fit.
+dt_wide() {
+	[ "$2" -gt "${MB[$1]["w"]}" ] && MB[$1]["w"]=$2
+}
+
+# One row of a menu.  Everything above goes through here.  The command is
+# kept as its own words, a0..aN-1, not one joined string run split: a
+# dropdown's value is often a label with a space in it ("2:05 PM"), and
+# split it reached its callback as two arguments, the second one lost.
+# An empty word is still dropped, as splitting always dropped it: the
+# Control Strip's dropdowns pass an empty window id and rely on it never
+# reaching their callback.
+dt_row() {
+	local tick=$1 dim=$2 lb=$3 k=$4 m n i=0 a
+
+	shift 4
+	m=${MB_CUR:-$((MB_N - 1))}
+	n=${MB[$m]["n"]}
+	MI[$m][$n]["label"]="$lb"
+	MI[$m][$n]["key"]="$k"
+	MI[$m][$n]["cmd"]="$*"
+	for a in "$@"; do
+		[ -z "$a" ] && continue
+		MI[$m][$n]["a$i"]=$a
+		i=$((i + 1))
+	done
+	MI[$m][$n]["argc"]=$i
+	MI[$m][$n]["sep"]=0
+	MI[$m][$n]["dim"]="$dim"
+	MI[$m][$n]["tick"]="$tick"
+	MI[$m][$n]["sub"]=
+	MB[$m]["n"]=$((n + 1))
+	dt_wide "$m" $((${#lb} + 8))
+}
+
+# Add a dividing line.
+dt_sep() {
+	local m=${MB_CUR:-$((MB_N - 1))} n
+
+	n=${MB[$m]["n"]}
+	MI[$m][$n]["sep"]=1
+	MI[$m][$n]["label"]=
+	MI[$m][$n]["key"]=
+	MI[$m][$n]["cmd"]=
+	MI[$m][$n]["argc"]=0
+	MI[$m][$n]["dim"]=0
+	MI[$m][$n]["tick"]=""
+	MI[$m][$n]["sub"]=
+	MB[$m]["n"]=$((n + 1))
+}
+
+# Rebuild the bar for whatever has focus.  Cheap enough to do every frame:
+# it is a handful of assignments, and it has to follow the focus anyway.
+dt_menus() {
+	local who=${DT_FOCUS:-} ap=
+
+	[ -n "$who" ] && ap=${DT[$who]["app"]}
+	MB_N=0
+
+	dt_menu "✎"
+	dt_item "About hibr" a dt_about
+	dt_sep
+	# about already has its own permanent item above; it registers with
+	# dt_app only so dt_launch about can find it, not to be listed a
+	# second time as an ordinary app -- its own dt_app call marks it
+	# hidden, which is what dt_appmenu actually skips.
+	dt_appmenu "" aqdu
+	dt_sep
+	dt_item "Clean Up Icons" u dt_iconclean
+	dt_sep
+	if [ -n "$HIBR_HOLD" ]; then
+		dt_item "Detach" d dt_detach
+	else
+		dt_dim "Detach"
+	fi
+	dt_item "Quit" q dt_quit
+
+	# The bar's app name follows focus regardless of whether the app has
+	# menus of its own to add -- Clock and About have none, and still have
+	# a name.  A window with no registered app (a bare dt_new) has no name
+	# to show either, so this still falls back to Desktop for it.
+	MB_APP=$ap
+	if [ -n "$ap" ] && dt_has "${ap}_menus"; then
+		${ap}_menus
+	fi
+
+	# Edit is the desktop's, like Window: the same two items everywhere,
+	# dimmed where the focused app cannot do them, so it never changes shape.
+	dt_menu "Edit"
+	if [ -n "$who" ] && [ -n "${DT[$who]["copy"]}" ]; then
+		dt_item "Copy       alt-c" c dt_edit copy
+	else
+		dt_dim "Copy       alt-c"
+	fi
+	if [ -n "$who" ] && [ -n "${DT[$who]["cut"]}" ]; then
+		dt_item "Cut        alt-x" t dt_edit cut
+	else
+		dt_dim "Cut        alt-x"
+	fi
+	if [ -n "$who" ] && [ -n "${DT[$who]["paste"]}" ] &&
+	   [ -n "$DT_CLIP" ]; then
+		dt_item "Paste      alt-v" v dt_edit paste
+	else
+		dt_dim "Paste      alt-v"
+	fi
+
+	# Always last, and always there: an app that has its own menus must
+	# not be able to hide the only way to move or close its window.
+	dt_menu "Window"
+	if [ -z "$DT_FOCUS" ]; then
+		dt_dim "Move"
+		dt_dim "Resize"
+		dt_dim "Zoom"
+		dt_dim "Hide"
+		dt_sep
+		dt_dim "Close"
+	else
+		dt_item "Move" m dt_grab move
+		if [ "${DT_APPS[${DT[$DT_FOCUS]["app"]}]["fixed"]}" = 1 ]; then
+			dt_dim "Resize"
+			dt_dim "Zoom"
+		else
+			dt_item "Resize" r dt_grab size
+			dt_item "Zoom" z dt_zoom_focused
+		fi
+		dt_item "Hide" h dt_hide_focused
+		dt_sep
+		dt_item "Close" w dt_close_focused
+	fi
+	dt_sep
+	dt_item "Cycle" c dt_cycle
+	dt_layout
+}
+
+# Pick an accelerator for a label that nothing else in the menu has taken.
+# Calculator and Clock both start with a C, and a menu where two items
+# answer to the same letter is a menu where one of them cannot be reached.
+dt_akey() {
+	local t=$1 used=$2 i=0 c
+
+	while [ "$i" -lt ${#t} ]; do
+		c=${t:$i:1}
+		c := str lower "$c"
+		case $c in
+		[a-z])
+			case $used in
+			*"$c"*) ;;
+			*) ret "$c"; return 0 ;;
+			esac
+			;;
+		esac
+		i=$((i + 1))
+	done
+	for c in 1 2 3 4 5 6 7 8 9; do
+		case $used in
+		*"$c"*) ;;
+		*) ret "$c"; return 0 ;;
+		esac
+	done
+	ret ""
+}
+
+# Where a single-character accelerator sits in a label, case-insensitive
+# -- -1 when it is not one character, or is not actually in the label at
+# all, which is true of a shortcut an app author picked to mean
+# something rather than to spell part of the word ("x" for "End Task").
+# dt_menu_draw underlines the letter in place when this finds one, and
+# falls back to showing the key after the label, the way every item
+# used to, when it does not.
+dt_akeypos() {
+	local lb=$1 k=$2 i=0 c lk
+
+	if [ "${#k}" != 1 ]; then
+		ret -1
+		return 0
+	fi
+	lk := str lower "$k"
+	while [ "$i" -lt "${#lb}" ]; do
+		c := str lower "${lb:$i:1}"
+		[ "$c" = "$lk" ] && { ret "$i"; return 0; }
+		i=$((i + 1))
+	done
+	ret -1
+}
+
+# Work out where each title sits on the bar.
+dt_layout() {
+	local i=0 c=$((DT_PRIMARY_COL + 1)) t
+
+	while [ "$i" -lt "$MB_N" ]; do
+		if [ "${MB[$i]["bar"]}" != 1 ]; then
+			MB[$i]["x"]=0
+			MB[$i]["tw"]=0
+			i=$((i + 1))
+			continue
+		fi
+		t=${MB[$i]["title"]}
+		MB[$i]["x"]=$c
+		MB[$i]["tw"]=$((${#t} + 2))
+		c=$((c + ${#t} + 2))
+		i=$((i + 1))
+	done
+	MB_AX=$((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - 14))
+}
+
+# Draw the open menu over everything else.
+dt_drop() {
+	local m=$MB_OPEN
+
+	[ "$m" = -1 ] && return 0
+	if [ "$m" = app ]; then
+		dt_drop_apps
+		return 0
+	fi
+	if [ -n "$MB_PAR" ]; then
+		dt_menu_draw "$MB_PAR" "" 1
+		dt_menu_draw "$m" "${MB[$m]["px"]}" 0
+	else
+		dt_menu_draw "$m" "" 0
+	fi
+}
+
+# Draw one menu at its own place.  A submenu is given the column its parent
+# occupies so it can sit beside it rather than on top of it.
+dt_menu_draw() {
+	local m=$1 px=$2 parent=$3
+	local i=0 r=1 x w n lb k t sub rowfg rowbg rowbold pos full pre hl post
+
+	x=${MB[$m]["x"]}
+	w=${MB[$m]["w"]}
+	n=${MB[$m]["n"]}
+	[ "$w" -lt 14 ] && w=14
+	if [ -n "$px" ]; then
+		x=$px
+		r=${MB[$m]["py"]:-1}
+	elif [ -n "$MB_CX" ]; then
+		x=$MB_CX
+		r=${MB_CY:-1}
+	fi
+	[ "$x" -lt 0 ] && x=0
+	[ $((x + w)) -gt "$DT_COLS" ] && x=$((DT_COLS - w))
+	[ $((r + n + 1)) -gt "$DT_ROWS" ] && r=$((DT_ROWS - n - 1))
+	[ "$r" -lt 1 ] && r=1
+	MB[$m]["dy"]=$r
+	MB[$m]["dx"]=$x
+	MB[$m]["dw"]=$w
+	[ "$DT_MSHADOW" = 1 ] &&
+		console darken $((r + 1)) $((x + 2)) $((n + 1)) "$w" "$DT_SHADOW_PCT"
+	while [ "$i" -lt "$n" ]; do
+		if [ "${MI[$m][$i]["sep"]}" = 1 ]; then
+			console pen "$DT_IDLE" "$DT_FACE"
+			lb := dt_rep "$w" "─"
+			console put "$r" "$x" "$lb"
+			r=$((r + 1))
+			i=$((i + 1))
+			continue
+		fi
+		if [ "$parent" != 1 ] && [ "$i" = "$MB_SEL" ]; then
+			rowfg=$DT_FACE; rowbg=$DT_ACTIVE; rowbold=1
+		elif [ "${MI[$m][$i]["dim"]}" = 1 ]; then
+			rowfg=$DT_IDLE; rowbg=$DT_FACE; rowbold=0
+		else
+			rowfg=$DT_INK; rowbg=$DT_FACE; rowbold=0
+		fi
+		if [ "$rowbold" = 1 ]; then
+			console pen "$rowfg" "$rowbg" bold
+		else
+			console pen "$rowfg" "$rowbg"
+		fi
+		lb=${MI[$m][$i]["label"]}
+		k=${MI[$m][$i]["key"]}
+		t=${MI[$m][$i]["tick"]}
+		sub=${MI[$m][$i]["sub"]}
+		if [ -n "$sub" ]; then
+			k="▸"
+			pos=-1
+		else
+			pos := dt_akeypos "$lb" "$k"
+		fi
+		[ -z "$t" ] && t=" "
+		if [ "$pos" -ge 0 ]; then
+			# The accelerator is a real letter of the label -- underline
+			# it in place instead of repeating it after the label, which
+			# is what #55 asked for: a trailing "f" for "Files" reads
+			# like a second, unexplained shortcut next to the real ones
+			# App Shortcuts assigns, not a hint about the letter beside
+			# it. "$t " (tick-or-blank, then a space) always precedes
+			# the label, so the label's own position shifts by 2.
+			pos=$((pos + 2))
+			full="$t $lb"
+			full := str pad "$full" $((w - 3))
+			pre=${full:0:$pos}
+			hl=${full:$pos:1}
+			post=${full:$((pos + 1))}
+			console put "$r" "$x" "$pre"
+			if [ "$rowbold" = 1 ]; then
+				console pen "$rowfg" "$rowbg" bold underline
+			else
+				console pen "$rowfg" "$rowbg" underline
+			fi
+			console put "$r" $((x + pos)) "$hl"
+			if [ "$rowbold" = 1 ]; then
+				console pen "$rowfg" "$rowbg" bold
+			else
+				console pen "$rowfg" "$rowbg"
+			fi
+			console put "$r" $((x + pos + 1)) "$post   "
+		else
+			# No letter of the label to underline -- a shortcut an app
+			# author picked to mean something rather than spell part of
+			# the word ("x" for "End Task"), or dt_akey's own digit
+			# fallback when a menu ran out of free letters. Shown after
+			# the label, as every item's always been.
+			lb := str pad "$t $lb" $((w - 3))
+			console put "$r" "$x" "$lb $k "
+		fi
+		r=$((r + 1))
+		i=$((i + 1))
+	done
+	console pen "$DT_INK" "$DT_FACE"
+	lb := dt_rep "$w" " "
+	console put "$r" "$x" "$lb"
+}
+
+# The application menu: every window, the hidden ones marked.
+dt_drop_apps() {
+	local ids id i=0 r=1 x w=18 t mark n
+
+	ids := dt_ids
+	x=$((MB_AX - 4))
+	[ $((x + w)) -gt "$DT_COLS" ] && x=$((DT_COLS - w))
+	set -- $ids
+	n=$#
+	[ "$n" = 0 ] && n=1
+	[ "$DT_MSHADOW" = 1 ] &&
+		console darken $((r + 1)) $((x + 2)) $((n + 1)) "$w" "$DT_SHADOW_PCT"
+	for id in $ids; do
+		if [ "$i" = "$MB_SEL" ]; then
+			console pen "$DT_FACE" "$DT_ACTIVE" bold
+		else
+			console pen "$DT_INK" "$DT_FACE"
+		fi
+		mark=" "
+		[ "$id" = "$DT_FOCUS" ] && mark="•"
+		dt_hidden "$id" && mark="·"
+		t := dt_title "$id"
+		t := str pad "$mark ${t}" "$w"
+		console put "$r" "$x" "$t"
+		r=$((r + 1))
+		i=$((i + 1))
+	done
+	if [ "$i" = 0 ]; then
+		console pen "$DT_IDLE" "$DT_FACE"
+		t := str pad " no windows" "$w"
+		console put "$r" "$x" "$t"
+		r=$((r + 1))
+	fi
+	console pen "$DT_INK" "$DT_FACE"
+	t := dt_rep "$w" " "
+	console put "$r" "$x" "$t"
+	MB_AN=$i
+}
+
+# How many rows the open menu occupies, and how many items it holds.
+dt_mrows() {
+	if [ "$MB_OPEN" = app ]; then
+		ret "${MB_AN:-0}"
+	else
+		ret "${MB[$MB_OPEN]["n"]}"
+	fi
+}
+
+# Move the highlight, stepping over separators.
+dt_mmove() {
+	local d=$1 n i=$MB_SEL k=0
+
+	n := dt_mrows
+	[ "$n" = 0 ] && return 0
+	while [ "$k" -lt "$n" ]; do
+		i=$(((i + d + n) % n))
+		[ "$MB_OPEN" = app ] && break
+		[ "${MI[$MB_OPEN][$i]["sep"]}" = 1 ] && { k=$((k + 1)); continue; }
+		[ "${MI[$MB_OPEN][$i]["dim"]}" = 1 ] && { k=$((k + 1)); continue; }
+		break
+	done
+	MB_SEL=$i
+}
+
+# Open a menu, closing whatever was open.
+dt_mopen() {
+	MB_OPEN=$1
+	MB_PAR=
+	MB_SEL=0
+	MB_CX=
+	MB_CY=
+	MB_CTXWHO=
+	MB_CTXID=
+	[ "$1" = app ] && return 0
+	[ "${MI[$1][0]["sep"]}" = 1 ] || [ "${MI[$1][0]["dim"]}" = 1 ] &&
+		dt_mmove 1
+}
+
+dt_mclose() {
+	MB_OPEN=-1
+	MB_PAR=
+	MB_SEL=0
+	MB_CX=
+	MB_CY=
+	MB_CTXWHO=
+	MB_CTXID=
+}
+
+# Step into the submenu of the highlighted item, if it has one.
+#
+# A submenu opens level with the row that owns it, not with its parent's own
+# top row -- dt_menu_draw's own r starts at 1 and gains exactly one per
+# index drawn, separators included, so MB_SEL is already the row offset to
+# add, no separate counting needed.
+dt_mdown() {
+	local sub
+
+	[ "$MB_OPEN" = app ] && return 1
+	sub=${MI[$MB_OPEN][$MB_SEL]["sub"]}
+	[ -z "$sub" ] && return 1
+	MB[$sub]["px"]=$((${MB[$MB_OPEN]["dx"]} + ${MB[$MB_OPEN]["dw"]} - 1))
+	MB[$sub]["py"]=$((${MB[$MB_OPEN]["dy"]:-1} + MB_SEL))
+	MB_PAR=$MB_OPEN
+	MB_OPEN=$sub
+	MB_SEL=0
+	return 0
+}
+
+# Back out of a submenu to the one that owns it.
+dt_mup() {
+	local p=$MB_PAR i=0 n
+
+	[ -z "$p" ] && return 1
+	n=${MB[$p]["n"]}
+	while [ "$i" -lt "$n" ]; do
+		[ "${MI[$p][$i]["sub"]}" = "$MB_OPEN" ] && MB_SEL=$i
+		i=$((i + 1))
+	done
+	MB_OPEN=$p
+	MB_PAR=
+	return 0
+}
+
+# Choose the highlighted item.
+dt_mdo() {
+	local m=$MB_OPEN i=$MB_SEL ids id n=0 j=0 argc
+	local -a argv
+
+	if [ "$m" != app ] && [ -n "${MI[$m][$i]["sub"]}" ]; then
+		dt_mdown
+		return 0
+	fi
+	dt_mclose
+	if [ "$m" = app ]; then
+		ids := dt_ids
+		for id in $ids; do
+			[ "$n" = "$i" ] && { dt_raise "$id"; return 0; }
+			n=$((n + 1))
+		done
+		return 0
+	fi
+	[ "${MI[$m][$i]["sep"]}" = 1 ] && return 0
+	[ "${MI[$m][$i]["dim"]}" = 1 ] && return 0
+	argc=${MI[$m][$i]["argc"]:-0}
+	while [ "$j" -lt "$argc" ]; do
+		argv+=("${MI[$m][$i]["a$j"]}")
+		j=$((j + 1))
+	done
+	[ "$argc" -gt 0 ] && "${argv[@]}"
+}
+
+# Is a click inside the open menu?  Sets the highlight if it is.
+dt_mpick() {
+	local r=$1 c=$2 n x w dy rel
+
+	n := dt_mrows
+	if [ "$MB_OPEN" = app ]; then
+		x=$((MB_AX - 4))
+		w=18
+		dy=1
+	else
+		x=${MB[$MB_OPEN]["dx"]:-${MB[$MB_OPEN]["x"]}}
+		w=${MB[$MB_OPEN]["w"]}
+		[ "$w" -lt 12 ] && w=12
+		dy=${MB[$MB_OPEN]["dy"]:-1}
+	fi
+	rel=$((r - dy + 1))
+	[ "$rel" -lt 1 ] || [ "$rel" -gt "$n" ] && return 1
+	[ $((x + w)) -gt "$DT_COLS" ] && x=$((DT_COLS - w))
+	[ "$c" -lt "$x" ] || [ "$c" -ge $((x + w)) ] && return 1
+	[ "$MB_OPEN" != app ] &&
+		[ "${MI[$MB_OPEN][$((rel - 1))]["sep"]}" = 1 ] && return 1
+	MB_SEL=$((rel - 1))
+	return 0
+}
+
+# Which menu title is under a column on the bar, if any.
+#
+# No `ret ""` on a miss: `ret` ends the function on the spot, the same as
+# `return`, so a trailing `return 1` after one is dead code and the caller
+# always sees status 0 -- `x := dt_mhit ... || ...` never took the miss
+# branch, and a click on empty bar space opened whatever `x` was left
+# holding from the last hit. `:=` clears the slot before the call, so a
+# bare `return 1` alone already leaves it empty.
+dt_mhit() {
+	local c=$1 i=0 x w
+
+	[ "$c" -ge "$MB_AX" ] && { ret app; return 0; }
+	while [ "$i" -lt "$MB_N" ]; do
+		x=${MB[$i]["x"]}
+		w=${MB[$i]["tw"]}
+		[ "$c" -ge "$x" ] && [ "$c" -lt $((x + w)) ] &&
+			{ ret "$i"; return 0; }
+		i=$((i + 1))
+	done
+	return 1
+}
+
+# The next (dir 1) or previous (dir -1) top-level bar menu from i, skipping
+# any submenu index in between. dt_appmenu's own dt_sub calls (a folder of
+# apps -- Desk Accessories is the common one) and an app's own _menus both
+# interleave submenu entries into the same MB[] array the bar menus
+# themselves live in, so "the next index" is not "the next bar menu": with
+# Desk Accessories sitting between the hibr menu and Edit, MB_OPEN + 1 on
+# the hibr menu landed on it by plain index arithmetic, so right arrow on
+# an item with no submenu of its own (About hibr, say) opened Desk
+# Accessories instead of moving to Edit. Returns -1 or MB_N when there is
+# no further bar menu that way, for the caller to fall back to "app".
+dt_mbar() {
+	local i=$1 dir=$2
+
+	i=$((i + dir))
+	while [ "$i" -ge 0 ] && [ "$i" -lt "$MB_N" ] &&
+	      [ "${MB[$i]["bar"]}" != 1 ]; do
+		i=$((i + dir))
+	done
+	ret "$i"
+}
+
+# Keys while the bar has the keyboard.  Returns 1 for a key it does not use.
+dt_mkey() {
+	local k=$1 n i=0 lb
+
+	case $k in
+	escape) dt_mup || dt_mclose; return 0 ;;
+	left)
+		dt_mup && return 0
+		if [ "$MB_OPEN" = app ]; then
+			n := dt_mbar "$MB_N" -1
+		else
+			n := dt_mbar "$MB_OPEN" -1
+		fi
+		if [ "$n" -ge 0 ]; then
+			dt_mopen "$n"
+		else
+			dt_mopen app
+		fi
+		return 0
+		;;
+	right)
+		dt_mdown && return 0
+		if [ "$MB_OPEN" = app ]; then
+			dt_mopen 0
+		else
+			n := dt_mbar "$MB_OPEN" 1
+			if [ "$n" -lt "$MB_N" ]; then
+				dt_mopen "$n"
+			else
+				dt_mopen app
+			fi
+		fi
+		return 0
+		;;
+	up) dt_mmove -1; return 0 ;;
+	down) dt_mmove 1; return 0 ;;
+	enter | " ") dt_mdo; return 0 ;;
+	esac
+	if [ "$MB_OPEN" != app ] && [ ${#k} = 1 ]; then
+		n=${MB[$MB_OPEN]["n"]}
+		while [ "$i" -lt "$n" ]; do
+			[ "${MI[$MB_OPEN][$i]["dim"]}" = 1 ] &&
+				{ i=$((i + 1)); continue; }
+			if [ -n "${MI[$MB_OPEN][$i]["key"]}" ] &&
+			   [ "${MI[$MB_OPEN][$i]["key"]}" = "$k" ]; then
+				MB_SEL=$i
+				dt_mdo
+				return 0
+			fi
+			i=$((i + 1))
+		done
+	fi
+	return 1
+}

@@ -1,0 +1,49 @@
+# widgets/dropdown -- a dropdown: its value, and the popup list of choices
+# under it.
+#
+# Part of the widget library apps draw with -- see widgets/README.md.
+
+# Draw a value that opens a list of choices: "value ▾", padded to w
+# columns. tag is what dt_hit answers for a click on it.
+dt_wdrop() {
+	local id=$1 r=$2 c=$3 w=$4 value=$5 tag=${6:-$5} lb
+
+	lb := str pad "$value" $((w - 2))
+	console put -p "w$id" "$r" "$c" "$lb ▾"
+	dt_wreg "$id" "$r" "$c" "$w" "$tag"
+}
+
+# Open a popup list of choices anchored under a dt_wdrop -- built the next
+# frame by dt_dropcontext, the same one-frame lag dt_context_open always
+# has. cb is called as "cb id value" when one is chosen; nothing runs if
+# the popup is dismissed instead. This is a context menu with nowhere on
+# the desktop it belongs to, which is exactly what a dropdown is -- it
+# reuses dt_context_open and the MB/MI menu machinery rather than a second
+# popup system of its own.
+DT_POPID=
+DT_POPCB=
+DT_POPVALS=()
+
+dt_droplist() {
+	local id=$1 r=$2 c=$3 cb=$4
+
+	shift 4
+	DT_POPID=$id
+	DT_POPCB=$cb
+	DT_POPVALS=("$@")
+	# r and c come in pane-relative, the same coordinates an app draws and
+	# is clicked in everywhere else, but dt_context_open positions on the
+	# real screen -- add the window's own row and column to convert.
+	dt_context_open widget "$id" $((DT[$id]["row"] + r + 1)) \
+		$((DT[$id]["col"] + c))
+}
+
+# Build the popup opened by dt_droplist, one item per value offered.
+dt_dropcontext() {
+	local v
+
+	dt_menu ""
+	for v in "${DT_POPVALS[@]}"; do
+		dt_item "$v" "" "$DT_POPCB" "$DT_POPID" "$v"
+	done
+}

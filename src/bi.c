@@ -278,7 +278,9 @@ int b_unset(sh *s, int ac, char **av)
 			f = (node *)s->fns.p[j];
 			if (!strcmp(f->s, av[i])) {
 				s->fns.p[j] = s->fns.p[s->fns.n - 1];
+				s->fsrc.p[j] = s->fsrc.p[s->fns.n - 1];
 				s->fns.n--;
+				s->fsrc.n--;
 				break;
 			}
 		}
@@ -914,6 +916,7 @@ int b_src(sh *s, int ac, char **av)
 	char **oav = 0;
 	size_t n;
 	int oret, oac = 0, oavo = 0, pos = ac > 2;
+	const char *osrc;
 
 	if (ac < 2) {
 		lg(HIBR_LERR, "source: filename required");
@@ -931,6 +934,8 @@ int b_src(sh *s, int ac, char **av)
 	free(buf);
 	fclose(f);
 	oret = s->ret;
+	osrc = s->src;
+	s->src = sr_name(s, av[1]);
 	if (pos) {
 		lg(HIBR_LDBG, "source: %d positional arguments for %s", ac - 2,
 		   av[1]);
@@ -954,6 +959,7 @@ int b_src(sh *s, int ac, char **av)
 		s->avo = oavo;
 	}
 	s->ret = oret;
+	s->src = osrc;
 	s_free(&b);
 	return s->st;
 }
@@ -1116,10 +1122,53 @@ void b_decl1(sh *s, var *v)
 }
 
 /* Declare variables, with bash's flags or one of our own type names. */
+/* Order two functions by name, for declare -f and -F. */
+int fn_cmp(const void *a, const void *b)
+{
+	return strcmp((*(node *const *)a)->s, (*(node *const *)b)->s);
+}
+
+/* Print functions: their definitions as written (-f), or declare -f lines
+   naming them (-F); every one, sorted, or just those named. */
+int b_declf(sh *s, int full, int ac, char **av, int i)
+{
+	vec l;
+	node *f;
+	size_t j;
+	int rc = HIBR_OK, all = i >= ac;
+
+	memset(&l, 0, sizeof l);
+	if (all) {
+		for (j = 0; j < s->fns.n; j++)
+			v_add(&l, s->fns.p[j]);
+		if (l.n)
+			qsort(l.p, l.n, sizeof *l.p, fn_cmp);
+	} else {
+		for (; i < ac; i++) {
+			f = fn_find(s, av[i]);
+			if (f)
+				v_add(&l, f);
+			else
+				rc = HIBR_FAIL;
+		}
+	}
+	for (j = 0; j < l.n; j++) {
+		f = (node *)l.p[j];
+		if (full)
+			printf("%s\n", f->tx ? f->tx : f->s);
+		else if (all)
+			printf("declare -f %s\n", f->s);
+		else
+			printf("%s\n", f->s);
+	}
+	v_free(&l);
+	return rc;
+}
+
 int b_decl(sh *s, int ac, char **av)
 {
 	unsigned at = 0, code;
-	int i = 1, ro = 0, ex = 0, pr = 0, map = 0, glob = 0, n = 0;
+	int i = 1, ro = 0, ex = 0, pr = 0, map = 0, glob = 0, n = 0, fn = 0;
 	char *q;
 	var *v;
 	size_t j;
@@ -1138,6 +1187,8 @@ int b_decl(sh *s, int ac, char **av)
 			case 'A': map = 1; break;
 			case 'g': glob = 1; break;
 			case 'p': pr = 1; break;
+			case 'f': fn = 1; break;
+			case 'F': fn = 2; break;
 			default:
 				lg(HIBR_LERR, "declare: -%c: unknown option",
 				   *f);
@@ -1145,6 +1196,8 @@ int b_decl(sh *s, int ac, char **av)
 			}
 		}
 	}
+	if (fn)
+		return b_declf(s, fn == 1, ac, av, i);
 	if (i < ac && (code = v_tycode(av[i]))) {
 		at |= code << A_TYSH;
 		i++;

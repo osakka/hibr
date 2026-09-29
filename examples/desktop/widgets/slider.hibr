@@ -1,0 +1,28 @@
+# widgets/slider -- a slider.
+#
+# Part of the widget library apps draw with -- see widgets/README.md.
+
+# Draw a slider: a track of ─ over w columns with a ● at the position
+# value falls between min and max, arrow keys the way to change it once
+# the row is selected -- clicking selects it, the same as a dropdown
+# before it is opened, but there is no popup to open; the track is a
+# picture of the value, not a control of its own to press at a given
+# column. tag is what dt_hit answers for a click on it.
+dt_slider() {
+	local id=$1 r=$2 c=$3 w=$4 value=$5 min=$6 max=$7 tag=${8:-$5}
+	local pos i t
+
+	pos=0
+	[ "$max" -gt "$min" ] &&
+		pos=$(( (value - min) * (w - 1) / (max - min) ))
+	[ "$pos" -lt 0 ] && pos=0
+	[ "$pos" -gt $((w - 1)) ] && pos=$((w - 1))
+	t=""
+	i=0
+	while [ "$i" -lt "$w" ]; do
+		[ "$i" = "$pos" ] && t="$t●" || t="$t─"
+		i=$((i + 1))
+	done
+	console put -p "w$id" "$r" "$c" "$t"
+	dt_wreg "$id" "$r" "$c" "$w" "$tag"
+}

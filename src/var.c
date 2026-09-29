@@ -125,9 +125,7 @@ const char *sh_ifs(sh *s)
 	return s->ifsc;
 }
 
-/* An assignment to a variable the shell computes: RANDOM seeds its
-   generator, SECONDS restarts its count from the value. Neither is stored,
-   or the name would stop being computed and read the same thing for ever. */
+/* Seed RANDOM, restart SECONDS, ignore the EPOCH clocks: store none. */
 int v_dyn(sh *s, const char *k, const char *v)
 {
 	if (!strcmp(k, "RANDOM")) {
@@ -136,6 +134,10 @@ int v_dyn(sh *s, const char *k, const char *v)
 	}
 	if (!strcmp(k, "SECONDS")) {
 		s->t0 = (long)time(0) - strtol(v, 0, 10);
+		return 1;
+	}
+	if (!strcmp(k, "EPOCHSECONDS") || !strcmp(k, "EPOCHREALTIME")) {
+		lg(HIBR_LDBG, "%s is a clock; the assignment is ignored", k);
 		return 1;
 	}
 	return 0;
@@ -147,7 +149,7 @@ int hibr_set(sh *s, const char *k, const char *v, int ex)
 	var *e;
 	unsigned b;
 
-	if ((k[0] == 'R' || k[0] == 'S') && v_dyn(s, k, v))
+	if ((k[0] == 'R' || k[0] == 'S' || k[0] == 'E') && v_dyn(s, k, v))
 		return HIBR_OK;
 	if (!s->tab || s->tn * 4 >= s->tsz * 3)
 		v_grow(s);

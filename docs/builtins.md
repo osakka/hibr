@@ -40,6 +40,7 @@ arguments the sourced file inherits them, and a `shift` inside leaks, as in bash
 | builtin | synopsis |
 |---|---|
 | `declare [-aAgilnprux] [type] [name[=v]…]` | declare variables and attributes |
+| `declare -f [name…]` / `declare -F [name…]` | print functions as written, or list their names |
 | `typeset …` | the same builtin under its other name |
 | `readonly [-p] [name[=v]…]` | make variables readonly, or list the ones that are |
 | `local name[=v]…` | declare function-local variables |
