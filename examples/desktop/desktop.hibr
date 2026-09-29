@@ -25,7 +25,7 @@ need display || { echo "desktop: no display available" >&2; exit 1; }
 # change that never touched a single line of src/*.c. HIBR_ABI is what
 # actually needs cross-checking between the two -- whether a module is
 # built against what this shell offers -- and that already exists.
-DT_VER=0.21
+DT_VER=0.22
 
 # The session's own arguments, captured here at the top level where $@ is
 # still theirs: a function sees its own, and dt_autohold needs to hand these
@@ -807,7 +807,7 @@ dt_win() {
 	local id=$1
 	local h=${DT[$id]["h"]} w=${DT[$id]["w"]} on=$DT_IDLE
 	local wr=${DT[$id]["row"]} wc=${DT[$id]["col"]} dr=${DT[$id]["draw"]}
-	local fixed=${DT_APPS[${DT[$id]["app"]}]["fixed"]}
+	local fixed=${DT_APPS[${DT[$id]["app"]}]["fixed"]} pc
 
 	[ "$DT_SHADOW" = 1 ] &&
 		console darken $((wr + 1)) $((wc + 2)) "$h" "$w" "$DT_SHADOW_PCT"
@@ -899,21 +899,42 @@ dt_win() {
 	console pen "$on" "$DT_FACE" bold
 	console put -p "w$id" 0 "$tc" "$tdl $t $tdr"
 
-	# Held down and still over the one that was pressed: shown inverted,
-	# so a click actually looks like it did something before whatever it
-	# does finishes happening -- the same press-then-release feedback
-	# every other clickable thing in a real GUI already gives.
+	# Held down and still over the one that was pressed: the glyph alone
+	# changes colour, no block behind it -- a grey one takes the theme's
+	# accent, a coloured one (close's red, the traffic lights) a brighter
+	# version of its own -- so a click looks like it did something before
+	# whatever it does finishes happening, in the theme's own colours.
 	if [ "$DT_BTNID" = "$id" ] && [ "$DT_BTNOVER" = 1 ]; then
 		i=0
 		while [ "$i" -lt ${#BTN_K[@]} ]; do
 			if [ "${BTN_K[$i]}" = "$DT_BTNKIND" ]; then
-				console pen "$DT_FACE" "${BTN_C[$i]}" bold
+				if [ "${BTN_C[$i]}" = "$DT_INK" ]; then
+					pc=$DT_ACTIVE
+				else
+					pc := dt_lighten "${BTN_C[$i]}" 45
+				fi
+				console pen "$pc" "$DT_FACE" bold
 				console put -p "w$id" 0 $((bc + ${off[$i]})) \
 					"${BTN_G[$i]}"
 			fi
 			i=$((i + 1))
 		done
 	fi
+}
+
+# A #rrggbb colour moved pct of the way toward white; anything else as it
+# came.
+dt_lighten() {
+	local c=$1 p=$2 r g b
+
+	match "$c" '^#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$' ||
+		{ ret "$c"; return 0; }
+	r=$((16#${M[1]})); g=$((16#${M[2]})); b=$((16#${M[3]}))
+	r=$((r + (255 - r) * p / 100))
+	g=$((g + (255 - g) * p / 100))
+	b=$((b + (255 - b) * p / 100))
+	printf -v c '#%02x%02x%02x' "$r" "$g" "$b"
+	ret "$c"
 }
 
 # One full frame, bottom of the stack upwards.

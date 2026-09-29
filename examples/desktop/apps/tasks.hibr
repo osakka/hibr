@@ -311,9 +311,15 @@ tasks_sort() {
 	i=0
 	while [ "$i" -lt "$n" ]; do
 		v=${TK[$id][$i]["$by"]}
+		# A number column turns its own key round for descending, so ties
+		# keep their pids in order; only a text column's list is reversed.
 		case $by in
 		name | owner) key := str lower "$v" ;;
-		*) printf -v key '%012d' "${v:-0}" ;;
+		*)
+			v=${v:-0}
+			[ "$dir" = desc ] && v=$((999999999999 - v))
+			printf -v key '%012d' "$v"
+			;;
 		esac
 		printf -v key '%s\t%012d\t%d' "$key" "${TK[$id][$i]["pid"]:-0}" "$i"
 		keys+=("$key")
@@ -322,7 +328,7 @@ tasks_sort() {
 	arr sort keys
 	k=0
 	while [ "$k" -lt "$n" ]; do
-		if [ "$dir" = asc ]; then
+		if [ "$dir" = asc ] || { [ "$by" != name ] && [ "$by" != owner ]; }; then
 			key=${keys[$k]}
 		else
 			key=${keys[$((n - 1 - k))]}

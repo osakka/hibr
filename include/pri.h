@@ -171,6 +171,7 @@ void ex_arrasg(sh *s, node *f);
 void ex_arrlate(sh *s, node *n);
 int ex_arrro(sh *s, node *n);
 char *ex_arrnm(sh *s, node *d);
+int v_dyn(sh *s, const char *k, const char *v);
 var *v_take(sh *s, const char *k);
 void v_back(sh *s, var *v);
 void asg_pop(sh *s, vec *old);

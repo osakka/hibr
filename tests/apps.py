@@ -1145,11 +1145,13 @@ check("the first cell opened is never a mine, and opens a region",
 sc = run("mines", MW, feed=[b" "], pre="MINES_COUNT=72")
 check("opening every clear cell wins", sc.find("cleared!") is not None, sc)
 
-# With 71, one clear cell is left among 72: of the two corner cells at least
-# one is a mine, whichever the dice chose.
+# With 71, one clear cell is left among 72, and it was once, one run in 72,
+# the very corner opened first -- which won the game before a mine could be
+# hit. RANDOM=1 seeds the layout (assigning RANDOM seeds it, as in bash) so
+# the corners hold mines every time.
 UL = [b"\x1b[A"] * 4 + [b"\x1b[D"] * 4
 sc = run("mines", MW, feed=[b" "] + UL + [b" ", b"\x1b[C", b" "],
-         pre="MINES_COUNT=71")
+         pre="RANDOM=1\nMINES_COUNT=71")
 check("a mine ends it and shows where the rest were",
       sc.find("boom") is not None and sc.text().count("✱") >= 2, sc)
 
@@ -1188,6 +1190,43 @@ check("a paste from the real terminal reaches the app, filtered",
 check("and Edit is on the menu bar", "Edit" in sc.row(0), sc)
 
 # --- files: views, and dragging between windows -------------------------
+
+# The details view sorts by a heading: click Size and the largest file is
+# first, click again and the smallest is; ".." stays on top and folders
+# stay ahead of files either way; Name sorts without regard to case.
+HS = tempfile.mkdtemp(prefix="hibr-hsort-")
+os.mkdir(os.path.join(HS, "zdir"))
+os.mkdir(os.path.join(HS, "Adir"))
+open(os.path.join(HS, "big.bin"), "wb").write(b"x" * 5000)
+open(os.path.join(HS, "Small.txt"), "wb").write(b"x" * 10)
+open(os.path.join(HS, "mid.dat"), "wb").write(b"x" * 300)
+HSPRE = "FB_DIR=%s\nFB_DEFAULTVIEW=details\n" % HS
+HSW = "14 70 2 2"
+
+def hsorder(sc):
+    return [w for r in range(sc.rows) for w in sc.row(r).split()
+            if w in ("../", "Adir/", "zdir/", "big.bin", "Small.txt",
+                     "mid.dat")]
+
+sc = run("files", HSW, pre=HSPRE)
+hr = next((r for r in range(sc.rows) if "Name" in sc.row(r) and
+           "Size" in sc.row(r)), None)
+size = (hr, sc.row(hr).index("Size")) if hr is not None else (0, 0)
+name = (hr, sc.row(hr).index("Name")) if hr is not None else (0, 0)
+sc = run("files", HSW, [press(*size)], pre=HSPRE)
+check("clicking Size in the details view sorts largest first, and says so",
+      "Size▼" in sc.row(hr) and hsorder(sc) ==
+      ["../", "Adir/", "zdir/", "big.bin", "mid.dat", "Small.txt"], sc)
+sc = run("files", HSW, [press(*size), press(*size)], pre=HSPRE)
+check("a second click turns it round, folders still first and still A to Z",
+      "Size▲" in sc.row(hr) and hsorder(sc) ==
+      ["../", "Adir/", "zdir/", "Small.txt", "mid.dat", "big.bin"], sc)
+sc = run("files", HSW, [press(*name), press(*name)], pre=HSPRE)
+check("Name sorts without regard to case, and reverses too",
+      "Name▼" in sc.row(hr) and hsorder(sc) ==
+      ["../", "zdir/", "Adir/", "Small.txt", "mid.dat", "big.bin"], sc)
+shutil.rmtree(HS, True)
+
 
 sc = run("files", "12 60 2 2", [b"v"], pre=PRE)
 check("the details view has sizes, times and permissions",
@@ -1726,4 +1765,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(230)
+report(233)

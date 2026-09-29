@@ -115,6 +115,7 @@ fb_scan() {
 	FB[$id]["marks"]=0
 	FB[$id]["anchor"]=0
 	FB[$id]["defer"]=
+	fb_sort "$id"
 }
 
 # --- what is selected ----------------------------------------------------
@@ -227,7 +228,7 @@ fb_rowpen() {
 
 # Fill in size, time and permissions for the details view, from one ls.
 fb_meta() {
-	local id=$1 d out line perm links user group size mon day tm name i n
+	local id=$1 d out line perm links user group size mon day tm name i n rank
 	local -A at
 
 	d=${FB[$id]["dir"]}
@@ -240,11 +241,16 @@ fb_meta() {
 		FL[$id][$i]["perm"]=
 		FL[$id][$i]["user"]=
 		FL[$id][$i]["group"]=
+		FL[$id][$i]["trank"]=0
 		i=$((i + 1))
 	done
-	out=$(LC_ALL=C ls -l -a "$d" 2> /dev/null)
+	# -t lists newest first, so where a line falls is its age: the one
+	# number the text "Sep 29 18:05" cannot be sorted by.
+	out=$(LC_ALL=C ls -l -a -t "$d" 2> /dev/null)
+	rank=0
 	while IFS= read -r line; do
 		case $line in total*) continue ;; esac
+		rank=$((rank + 1))
 		read -r perm links user group size mon day tm name <<< "$line"
 		case $perm in l*) name=${name% -> *} ;; esac
 		i=${at["$name"]}
@@ -254,8 +260,134 @@ fb_meta() {
 		FL[$id][$i]["time"]="$mon $day $tm"
 		FL[$id][$i]["user"]=$user
 		FL[$id][$i]["group"]=$group
+		FL[$id][$i]["trank"]=$rank
 	done <<< "$out"
 	FB[$id]["meta"]=1
+}
+
+# Order the list by the window's own sort, once a heading has been clicked:
+# the column (name, size, time, mode) and the direction. ".." stays first
+# and folders stay ahead of files, as in every file browser, and each group
+# is ordered by one key per entry, sorted in C by arr sort -- names by
+# their lower-case form, sizes zero-padded, times by where ls -t put them.
+# Until then the glob's own order stands.
+fb_sort() {
+	local id=$1 by=${FB[$1]["sort"]} dir=${FB[$1]["sdir"]:-asc}
+	local n=${FB[$1]["n"]:-0} i k key start=0 f nm
+	local -a kd kf order
+	local -a xname xdir xkind xm xsize xtime xperm xuser xgroup xtrank
+
+	[ -n "$by" ] || return 0
+	case $by in size | time | mode) [ -n "${FB[$id]["meta"]}" ] || fb_meta "$id" ;; esac
+	[ "${FL[$id][0]["kind"]}" = up ] && start=1
+	i=$start
+	while [ "$i" -lt "$n" ]; do
+		nm := str lower "${FL[$id][$i]["name"]}"
+		# A number column turns its own key round for descending, so ties
+		# still read A to Z; only a text column's list is reversed.
+		k=${FL[$id][$i]["size"]:-0}
+		[ "$by" = time ] && k=$((999999999 - ${FL[$id][$i]["trank"]:-0}))
+		case $by in
+		size | time)
+			[ "$dir" = desc ] && k=$((999999999999999 - k))
+			printf -v key '%015d' "$k"
+			;;
+		mode) key=${FL[$id][$i]["perm"]} ;;
+		*) key=$nm ;;
+		esac
+		key="$key	$nm	$i"
+		if [ "${FL[$id][$i]["dir"]}" = 1 ]; then
+			kd+=("$key")
+		else
+			kf+=("$key")
+		fi
+		i=$((i + 1))
+	done
+	arr sort kd
+	arr sort kf
+	for f in d f; do
+		if [ "$f" = d ]; then
+			k=${#kd[@]}
+		else
+			k=${#kf[@]}
+		fi
+		i=0
+		while [ "$i" -lt "$k" ]; do
+			if [ "$dir" = asc ] || [ "$by" = size ] || [ "$by" = time ]; then
+				key=$i
+			else
+				key=$((k - 1 - i))
+			fi
+			if [ "$f" = d ]; then
+				key=${kd[$key]}
+			else
+				key=${kf[$key]}
+			fi
+			order+=("${key##*	}")
+			i=$((i + 1))
+		done
+	done
+	for i in "${order[@]}"; do
+		xname+=("${FL[$id][$i]["name"]}")
+		xdir+=("${FL[$id][$i]["dir"]}")
+		xkind+=("${FL[$id][$i]["kind"]}")
+		xm+=("${FL[$id][$i]["m"]}")
+		xsize+=("${FL[$id][$i]["size"]}")
+		xtime+=("${FL[$id][$i]["time"]}")
+		xperm+=("${FL[$id][$i]["perm"]}")
+		xuser+=("${FL[$id][$i]["user"]}")
+		xgroup+=("${FL[$id][$i]["group"]}")
+		xtrank+=("${FL[$id][$i]["trank"]}")
+	done
+	k=0
+	while [ "$k" -lt "${#order[@]}" ]; do
+		i=$((start + k))
+		FL[$id][$i]["name"]=${xname[$k]}
+		FL[$id][$i]["dir"]=${xdir[$k]}
+		FL[$id][$i]["kind"]=${xkind[$k]}
+		FL[$id][$i]["m"]=${xm[$k]}
+		FL[$id][$i]["size"]=${xsize[$k]}
+		FL[$id][$i]["time"]=${xtime[$k]}
+		FL[$id][$i]["perm"]=${xperm[$k]}
+		FL[$id][$i]["user"]=${xuser[$k]}
+		FL[$id][$i]["group"]=${xgroup[$k]}
+		FL[$id][$i]["trank"]=${xtrank[$k]}
+		k=$((k + 1))
+	done
+}
+
+# A heading clicked in the details view: sort by it, or the other way if it
+# already was. Names and modes start at A; sizes largest first; times
+# newest first -- what is looked for most often. The selected entry stays
+# selected wherever it lands.
+fb_headsort() {
+	local id=$1 col=$2 nm i n
+
+	if [ "${FB[$id]["sort"]}" = "$col" ]; then
+		if [ "${FB[$id]["sdir"]}" = asc ]; then
+			FB[$id]["sdir"]=desc
+		else
+			FB[$id]["sdir"]=asc
+		fi
+	else
+		FB[$id]["sort"]=$col
+		case $col in
+		size | time) FB[$id]["sdir"]=desc ;;
+		*) FB[$id]["sdir"]=asc ;;
+		esac
+	fi
+	nm=${FL[$id][${FB[$id]["sel"]:-0}]["name"]}
+	fb_sort "$id"
+	n=${FB[$id]["n"]}
+	i=0
+	while [ "$i" -lt "$n" ]; do
+		if [ "${FL[$id][$i]["name"]}" = "$nm" ]; then
+			FB[$id]["sel"]=$i
+			break
+		fi
+		i=$((i + 1))
+	done
+	fb_show "$id"
 }
 
 # A size as people read one: 4.8K, 19M.
@@ -487,7 +619,7 @@ fb_drawlist() {
 # The list with a size, a time and permissions: as many of those columns as
 # the window has room for, dropped from the right as it narrows.
 fb_drawdet() {
-	local id=$1 h=$2 w=$3 i r nm t n top sel nw sz line
+	local id=$1 h=$2 w=$3 i r nm t n top sel nw sz line mk ms mt mm a x hx
 	local cs=0 ct=0 cp=0
 
 	[ -n "${FB[$id]["meta"]}" ] || fb_meta "$id"
@@ -498,11 +630,38 @@ fb_drawdet() {
 	[ "$nw" -ge 24 ] && cs=1 && nw=$((nw - 7))
 	[ "$nw" -ge 30 ] && ct=1 && nw=$((nw - 14))
 	[ "$nw" -ge 24 ] && cp=1 && nw=$((nw - 11))
+	mk=; ms=; mt=; mm=
+	if [ -n "${FB[$id]["sort"]}" ]; then
+		a="▼"
+		[ "${FB[$id]["sdir"]}" = asc ] && a="▲"
+		case ${FB[$id]["sort"]} in
+		name) mk=$a ;;
+		size) ms=$a ;;
+		time) mt=$a ;;
+		mode) mm=$a ;;
+		esac
+	fi
 	console pen "#718096" "$DT_FACE"
-	line := str pad " Name" "$nw"
-	[ "$cs" = 1 ] && line="$line   Size"
-	[ "$ct" = 1 ] && line="$line  Modified    "
-	[ "$cp" = 1 ] && line="$line Mode"
+	line := str pad " Name$mk" "$nw"
+	x=$((1 + nw))
+	hx="name 1 $x"
+	if [ "$cs" = 1 ]; then
+		t := str pad "Size$ms" 5
+		line="$line  $t"
+		hx="$hx size $x $((x + 7))"
+		x=$((x + 7))
+	fi
+	if [ "$ct" = 1 ]; then
+		t := str pad "Modified$mt" 12
+		line="$line  $t"
+		hx="$hx time $x $((x + 14))"
+		x=$((x + 14))
+	fi
+	if [ "$cp" = 1 ]; then
+		line="$line Mode$mm"
+		hx="$hx mode $x $((x + 11))"
+	fi
+	FB[$id]["hx"]=$hx
 	console put -p "w$id" 2 1 "$line"
 	n=${FB[$id]["n"]}
 	top=${FB[$id]["top"]}
@@ -1117,6 +1276,7 @@ fb_at() {
 # carries it from there, and whatever it lands on decides what to do.
 files_mouse() {
 	local id=$1 act=$2 r=$4 c=$5 mods=$6 i pr pc sel g lb
+	local -a hx
 
 	if [ "$3" = left ] && [ "$act" = press ] && [ "$r" = 1 ]; then
 		fb_crumbs "${FB[$id]["dir"]}"
@@ -1138,6 +1298,20 @@ files_mouse() {
 		return 0
 	fi
 	[ "$3" = left ] || return 0
+	if [ "$act" = press ] && [ "$r" = 2 ] &&
+	   [ "${FB[$id]["view"]}" = details ]; then
+		read -r -a hx <<< "${FB[$id]["hx"]}"
+		i=0
+		while [ "$i" -lt "${#hx[@]}" ]; do
+			if [ "$c" -ge "${hx[$((i + 1))]}" ] &&
+			   [ "$c" -lt "${hx[$((i + 2))]}" ]; then
+				fb_headsort "$id" "${hx[$i]}"
+				return 0
+			fi
+			i=$((i + 3))
+		done
+		return 0
+	fi
 	case $act in
 	press)
 		FB[$id]["press"]=

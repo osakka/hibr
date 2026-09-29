@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
+#include <time.h>
 
 extern char **environ;
 
@@ -124,12 +125,30 @@ const char *sh_ifs(sh *s)
 	return s->ifsc;
 }
 
+/* An assignment to a variable the shell computes: RANDOM seeds its
+   generator, SECONDS restarts its count from the value. Neither is stored,
+   or the name would stop being computed and read the same thing for ever. */
+int v_dyn(sh *s, const char *k, const char *v)
+{
+	if (!strcmp(k, "RANDOM")) {
+		srand((unsigned)strtol(v, 0, 10));
+		return 1;
+	}
+	if (!strcmp(k, "SECONDS")) {
+		s->t0 = (long)time(0) - strtol(v, 0, 10);
+		return 1;
+	}
+	return 0;
+}
+
 /* Store a variable value, optionally marking it exported. */
 int hibr_set(sh *s, const char *k, const char *v, int ex)
 {
 	var *e;
 	unsigned b;
 
+	if ((k[0] == 'R' || k[0] == 'S') && v_dyn(s, k, v))
+		return HIBR_OK;
 	if (!s->tab || s->tn * 4 >= s->tsz * 3)
 		v_grow(s);
 	e = v_find(s, k);

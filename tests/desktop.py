@@ -185,15 +185,18 @@ sc, _ = run(ONE, [press(8, 15), drag(11, 27), release(11, 27)],
 check("enabled, but the click itself carries no modifier: nothing moves",
       sc.find("┤ Hello ├") == (6, 12), sc)
 
-# A title-bar button now presses then releases, the same as any other
-# clickable thing in a real GUI -- shown inverted while held (checked in
-# the raw bytes, since the screen model tracks characters, not colour),
-# and only acted on if the release lands back on the same button.
-DT_FACE_RGB = b"38;2;16;24;32"
+# A title-bar button presses then releases, the same as any other
+# clickable thing in a real GUI, and is only acted on if the release lands
+# back on the same button. While held, only the glyph changes colour -- no
+# block behind it: close's red goes lighter (checked in the raw bytes,
+# since the screen model tracks characters, not colour), and a grey button
+# takes the theme's accent.
 CLOSE_BG_RGB = b"48;2;245;101;101"
+CLOSE_PRESSED = b"38;2;249;170;170"
 sc, raw = run(ONE, [press(6, 37)])
-check("the close button shows pressed (inverted) while held",
-      DT_FACE_RGB in raw and CLOSE_BG_RGB in raw, raw)
+check("the close button's glyph turns lighter red while held, with no "
+      "block behind it", CLOSE_PRESSED in raw and CLOSE_BG_RGB not in raw,
+      raw)
 
 sc, _ = run(ONE, [press(6, 37), drag(15, 15), release(15, 15)])
 check("dragging off the close button before releasing cancels it",

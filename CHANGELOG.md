@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.42
+
+Desktop moves to **0.22** alongside this release.
+
+**Files sorts by a heading in the details view**, the way Task Manager does:
+click Name, Size, Modified or Mode to sort by it, and again to turn it
+round, ▲ or ▼ on the heading. `..` stays first and folders stay ahead of
+files; names sort without regard to case, sizes largest first, times newest
+first -- the one `ls -l` the view already makes now runs with `-t`, and the
+order of its lines is each entry's age. The selection and any marks stay on
+their entries. Until a heading is clicked the order is the one it always
+was.
+
+**A pressed title-bar button changes colour, not shape.** It used to be
+drawn inverted, a block of its own colour behind the glyph. Now only the
+glyph changes: a grey button takes the theme's accent, and a coloured one --
+close's red, the traffic lights -- a lighter version of its own colour.
+
+Ties in both lists now keep their order when a number column is sorted
+descending: the key turns round rather than the list, so equal sizes and
+equal CPU still read A to Z and by pid.
+
+**`RANDOM=n` seeds the generator, and `SECONDS=n` restarts the count**, as
+in bash. Both used to become plain variables the moment they were assigned,
+reading the same value for ever after -- found because a Minesweeper test
+needed a seeded layout: it failed one run in 72, when the one safe cell
+among 72 happened to be the corner it opened first and won the game before
+a mine could be hit. The test is seeded now. `tests/585-dynamic-vars.t`
+checks both against bash.
+
+HIBR_VER -> 0.42, DT_VER -> 0.22.
+
+Verified: tests/run.sh 87/87 (and under ASan and UBSan), tests/desktop.py
+294/294, tests/apps.py 233/233.
+
 ## 0.41
 
 Desktop moves to **0.21** alongside this release.

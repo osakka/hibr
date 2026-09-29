@@ -1088,6 +1088,14 @@ went in the shell.
   through set the cursor style to nothing. Anything else that stores a
   command to run later should keep words the same way.
 
+- **RANDOM and SECONDS are computed, and an assignment must not store
+  them.** `hibr_set` hands `RANDOM=n` and `SECONDS=n` to `v_dyn`, which
+  seeds the generator or moves the count's start, as bash does. Stored as
+  plain variables they shadowed the computed ones and read the same value
+  for ever -- which is what made a seeded Minesweeper test impossible. The
+  gate is the name's first letter, so an ordinary assignment pays one
+  comparison.
+
 - **An escape sequence's prefix and intermediates are part of it.** The old
   parser stripped `?`, `>` and `!` and dispatched on the final byte alone,
   so Claude Code's `CSI > 4 ; 2 m` (a keyboard option) became SGR underline
