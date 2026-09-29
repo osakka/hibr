@@ -8,11 +8,11 @@
 # "desktop" for the hibr menu, or an app's prefix for its own <app>_context.
 # The menu itself does not exist until the next frame builds it -- dt_mouse
 # only records where and for whom, the same lag any other request has.
-dt_context_open() {
-	MB_CTXWHO=$1
-	MB_CTXID=$2
-	MB_CY=$3
-	MB_CX=$4
+fn dt_context_open(who, id, r, c) {
+	MB_CTXWHO=$who
+	MB_CTXID=$id
+	MB_CY=$r
+	MB_CX=$c
 	MB_PAR=
 	MB_SEL=0
 }
@@ -80,8 +80,8 @@ dt_barcontext() {
 
 # Right-click on a window's title bar: the Window menu's own items, since
 # that is what a title bar is for, without reaching the menu bar first.
-dt_titlecontext() {
-	local id=$1 sess lst nm row col rows cols pri
+fn dt_titlecontext(id) {
+	local sess lst nm row col rows cols pri
 
 	dt_menu "Window"
 	dt_item "Move" m dt_grab move

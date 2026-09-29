@@ -20,8 +20,8 @@ declare -gA PZ
 PZ_N=4
 PZ_CELLS=16
 
-pz_new() {
-	local id=$1 i r a b tmp
+fn pz_new(id) {
+	local i r a b tmp
 
 	i=0
 	while [ "$i" -lt $((PZ_CELLS - 1)) ]; do
@@ -47,8 +47,7 @@ pz_new() {
 
 # The cell a direction reaches from the blank, empty if that would leave
 # the frame.
-pz_at() {
-	local id=$1 dir=$2
+fn pz_at(id, dir) {
 	local b=${PZ[$id]["blank"]} r c
 
 	r=$((b / PZ_N))
@@ -67,8 +66,7 @@ pz_at() {
 # Move the tile at the cell a direction reaches from the blank into the
 # blank -- the blank itself moves the other way. quiet skips the win check
 # and the move count, for shuffling.
-pz_slide() {
-	local id=$1 dir=$2 quiet=$3
+fn pz_slide(id, dir, quiet = "") {
 	local b=${PZ[$id]["blank"]} i
 
 	i := pz_at "$id" "$dir" || return 0
@@ -80,8 +78,8 @@ pz_slide() {
 	pz_check "$id"
 }
 
-pz_check() {
-	local id=$1 i=0
+fn pz_check(id) {
+	local i=0
 
 	while [ "$i" -lt $((PZ_CELLS - 1)) ]; do
 		[ "${PZ[$id][$i]}" = $((i + 1)) ] || return 0
@@ -90,12 +88,11 @@ pz_check() {
 	PZ[$id]["state"]=won
 }
 
-puzzle_open() {
-	pz_new "$1"
+fn puzzle_open(id, arg) {
+	pz_new "$id"
 }
 
-puzzle_draw() {
-	local id=$1 h=$2 w=$3
+fn puzzle_draw(id, h, w, row, col) {
 	local i=0 r c t v st
 
 	st=${PZ[$id]["state"]}
@@ -128,10 +125,8 @@ puzzle_draw() {
 	console put -p "w$id" "$h" $(((w - ${#t}) / 2 + 1)) "$t"
 }
 
-puzzle_key() {
-	local id=$1
-
-	case $2 in
+fn puzzle_key(id, key) {
+	case $key in
 	up | k) pz_slide "$id" up ;;
 	down | j) pz_slide "$id" down ;;
 	left | h) pz_slide "$id" left ;;
@@ -143,8 +138,8 @@ puzzle_key() {
 
 # A click on the tile just above, below, left or right of the blank slides
 # it; anywhere else does nothing, same as a mis-click in Mines.
-puzzle_click() {
-	local id=$1 r=$(($2 - 3)) c=$((($3 - 2) / 4)) i b dir
+fn puzzle_click(id = "", mr = "", mc = "") {
+	local r=$(($mr - 3)) c=$((($mc - 2) / 4)) i b dir
 
 	[ "$r" -lt 0 ] || [ "$c" -lt 0 ] && return 0
 	[ "$r" -ge "$PZ_N" ] || [ "$c" -ge "$PZ_N" ] && return 0

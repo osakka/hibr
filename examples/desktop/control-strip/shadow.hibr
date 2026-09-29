@@ -8,9 +8,7 @@
 
 command -v cs_module > /dev/null && cs_module shadow Shadow
 
-shadow_draw() {
-	local row=$1 col=$2
-
+fn shadow_draw(row, col) {
 	if [ "$DT_SHADOW" = 1 ]; then
 		console pen "$DT_ACTIVE" "$DT_FACE" bold
 	else

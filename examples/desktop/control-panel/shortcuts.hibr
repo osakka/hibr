@@ -6,8 +6,8 @@
 
 command -v cp_pane > /dev/null && cp_pane shortcuts "Shortcuts" "⌨"
 
-shortcuts_rows() {
-	local w=$1 n=0
+fn shortcuts_rows(w) {
+	local n=0
 
 	CP[$w][$n]["kind"]=key; CP[$w][$n]["text"]="Close Window"
 	CP[$w][$n]["val"]="${DT_KEYS[close]}"; CP[$w][$n]["key"]=close

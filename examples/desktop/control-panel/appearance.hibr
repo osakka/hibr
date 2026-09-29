@@ -21,9 +21,7 @@ CP_GLYPHS=("·" "░" "▒" "⋅" "+")
 # smaller cut instead, chosen by rendering a menu at a few candidates and
 # comparing them to how subtle midnight's own shadow reads, not by eye
 # against paper alone.
-cp_theme() {
-	local t=$1
-
+fn cp_theme(t) {
 	case $t in
 	midnight) set -- "#0d1b2a" "#16324a" "#1b3a5c" "#63b3ed" "#4a5568" \
 		"#101820" "#cbd5e0" 55 ;;
@@ -55,11 +53,11 @@ cp_theme() {
 # same as picking one theme is choosing it over another -- so it clears
 # DT_WALLIMG rather than leaving it set underneath a glyph that would never
 # actually show while an image wins in dt_wall.
-cp_set_theme() { cp_theme "$2" && cp_save; }
-cp_set_glyph() { DT_GLYPH=$2; DT_WALLIMG=; cp_save; }
+fn cp_set_theme(id, value) { cp_theme "$value" && cp_save; }
+fn cp_set_glyph(id = "", value = "") { DT_GLYPH=$value; DT_WALLIMG=; cp_save; }
 
-appearance_rows() {
-	local w=$1 n=0 g
+fn appearance_rows(w) {
+	local n=0 g
 
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Theme"
 	CP[$w][$n]["val"]="$CP_THEME"; CP[$w][$n]["key"]=theme; n=$((n + 1))
@@ -82,8 +80,8 @@ appearance_rows() {
 	ret "$n"
 }
 
-appearance_do() {
-	local w=$1 k=$2 dir=$3 v
+fn appearance_do(w, k, dir) {
+	local v
 
 	case $k in
 	theme) v := cp_next "$CP_THEME" "$dir" "${CP_THEMES[@]}"
@@ -104,9 +102,7 @@ appearance_do() {
 	cp_save
 }
 
-appearance_drop() {
-	local w=$1 r=$2 c=$3 k=$4
-
+fn appearance_drop(w, r, c, k) {
 	case $k in
 	theme) dt_droplist "$w" "$r" "$c" cp_set_theme "${CP_THEMES[@]}" ;;
 	glyph) dt_droplist "$w" "$r" "$c" cp_set_glyph "${CP_GLYPHS[@]}" ;;
@@ -123,4 +119,4 @@ appearance_drop() {
 }
 
 # A choice from the icon list, shown as "glyph name": the name is kept.
-cp_set_bellicon() { DT_BELLICON=${2##* }; cp_save; }
+fn cp_set_bellicon(id = "", value = "") { DT_BELLICON=${value##* }; cp_save; }

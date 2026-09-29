@@ -9,19 +9,17 @@
 
 command -v cs_module > /dev/null && cs_module theme Theme
 
-theme_draw() {
-	local row=$1 col=$2
-
+fn theme_draw(row, col) {
 	console pen "$DT_INK" "$DT_FACE"
 	console put "$row" "$col" "Theme"
 }
 
-theme_click() {
+fn theme_click(row = "", col = "") {
 	command -v cp_theme > /dev/null || return 0
 	command -v cs_dropopen > /dev/null || return 0
-	cs_dropopen "$1" "$2" theme_pick "${CP_THEMES[@]}"
+	cs_dropopen "$row" "$col" theme_pick "${CP_THEMES[@]}"
 }
 
-theme_pick() {
-	cp_theme "$1" && dt_save
+fn theme_pick(theme = "") {
+	cp_theme "$theme" && dt_save
 }

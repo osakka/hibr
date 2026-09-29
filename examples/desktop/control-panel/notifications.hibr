@@ -18,8 +18,8 @@ command -v cp_pane > /dev/null && cp_pane notify "Notifications" "◉"
 CP_NOTEPOS=(top-right top-left bottom-right bottom-left)
 CP_NOTETICKS=(1000 1500 2500 4000 6000 10000)
 
-cp_set_notepos() { DT_NOTEPOS=$2; cp_save; }
-cp_set_notems() { DT_NOTEMS=$2; cp_save; }
+fn cp_set_notepos(id = "", value = "") { DT_NOTEPOS=$value; cp_save; }
+fn cp_set_notems(id = "", value = "") { DT_NOTEMS=$value; cp_save; }
 
 # Empties the in-memory-only history log -- what is currently stacked and
 # showing is untouched, since that lives in DT_NOTEQ, a separate array.
@@ -34,8 +34,8 @@ cp_clearhist() {
 	DT_NOTEUNSEEN=0
 }
 
-notify_rows() {
-	local w=$1 n=0
+fn notify_rows(w) {
+	local n=0
 
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Position"
 	CP[$w][$n]["val"]="$DT_NOTEPOS"; CP[$w][$n]["key"]=notepos
@@ -52,8 +52,8 @@ notify_rows() {
 	ret "$n"
 }
 
-notify_do() {
-	local w=$1 k=$2 dir=$3 v
+fn notify_do(w = "", k = "", dir = "") {
+	local v
 
 	case $k in
 	notepos) v := cp_next "$DT_NOTEPOS" "$dir" "${CP_NOTEPOS[@]}"
@@ -66,9 +66,7 @@ notify_do() {
 	cp_save
 }
 
-notify_drop() {
-	local w=$1 r=$2 c=$3 k=$4
-
+fn notify_drop(w = "", r = "", c = "", k = "") {
 	case $k in
 	notepos) dt_droplist "$w" "$r" "$c" cp_set_notepos "${CP_NOTEPOS[@]}" ;;
 	notems) dt_droplist "$w" "$r" "$c" cp_set_notems "${CP_NOTETICKS[@]}" ;;

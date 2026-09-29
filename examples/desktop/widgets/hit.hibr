@@ -14,14 +14,14 @@ declare -gA WG
 # Forget a window's widget regions.  Call at the top of its _draw, before
 # drawing any dt_check or dt_wdrop -- a scrolled list moves them, so last
 # frame's regions must not answer this frame's click.
-dt_wclear() {
-	unset "WG[$1]"
+fn dt_wclear(id) {
+	unset "WG[$id]"
 }
 
 # Record a widget's hit region.  The draw helpers below call this; an app
 # does not call it directly.
-dt_wreg() {
-	local id=$1 r=$2 c=$3 w=$4 tag=$5 n
+fn dt_wreg(id, r, c, w, tag) {
+	local n
 
 	n=${WG[$id]["n"]:-0}
 	WG[$id][$n]["r"]=$r
@@ -34,8 +34,8 @@ dt_wreg() {
 # Which widget, if any, sits at a pane-relative row/col -- ret's its tag,
 # empty for none.  An app's _click asks this before falling back to its
 # own per-row logic.
-dt_hit() {
-	local id=$1 r=$2 c=$3 n i=0 wr wc ww
+fn dt_hit(id, r, c) {
+	local n i=0 wr wc ww
 
 	n=${WG[$id]["n"]:-0}
 	while [ "$i" -lt "$n" ]; do
@@ -56,8 +56,8 @@ dt_hit() {
 # something (a dropdown's popup) aligned to the widget itself rather than
 # to wherever inside it happened to be clicked -- id and row the same as
 # the dt_hit call that found tag there.
-dt_wcol() {
-	local id=$1 r=$2 tag=$3 n i=0
+fn dt_wcol(id, r, tag) {
+	local n i=0
 
 	n=${WG[$id]["n"]:-0}
 	while [ "$i" -lt "$n" ]; do
@@ -68,5 +68,5 @@ dt_wcol() {
 		fi
 		i=$((i + 1))
 	done
-	ret "$2"
+	ret "$r"
 }

@@ -42,8 +42,8 @@ dt_holdnames() {
 }
 
 # This session's own line from `hold list`, or empty if it is not running.
-dt_holdline() {
-	local base=$1 lst line
+fn dt_holdline(base) {
+	local lst line
 
 	lst := hold list
 	while IFS= read -r line; do
@@ -52,8 +52,8 @@ dt_holdline() {
 	ret ""
 }
 
-dt_autojoin() {
-	local base=$1 dname=$2 line wxh cols
+fn dt_autojoin(base, dname) {
+	local line wxh cols
 
 	line := dt_holdline "$base"
 	if [ -z "$line" ]; then
@@ -74,9 +74,7 @@ dt_autojoin() {
 # Attach to this session, named for the control panel if asked to be --
 # shared by a fresh `hold new`, --resume and --join, so all three ways of
 # ending up attached leave the same name behind.
-dt_holdattach() {
-	local base=$1 dname=$2
-
+fn dt_holdattach(base, dname) {
 	if [ -n "$dname" ]; then
 		hold attach -n "$dname" "$base"
 	else
@@ -85,8 +83,8 @@ dt_holdattach() {
 	exit $?
 }
 
-dt_autohold() {
-	local base=${1:-desktop} resume=$2 join=$3 dname=$4 have
+fn dt_autohold(base, resume, join, dname) {
+	local base=${base:-desktop} have
 
 	# HIBR_HOLD being set does not by itself mean this process already is
 	# the held program: it is an ordinary environment variable, inherited
@@ -147,12 +145,12 @@ DT_IDCOLS=0
 DT_IDT=0
 DT_IDMS=2000
 
-dt_identify() {
-	DT_IDNAME="$1"
-	DT_IDROW=$2
-	DT_IDCOL=$3
-	DT_IDROWS=$4
-	DT_IDCOLS=$5
+fn dt_identify(name, row, col, rows, cols) {
+	DT_IDNAME="$name"
+	DT_IDROW=$row
+	DT_IDCOL=$col
+	DT_IDROWS=$rows
+	DT_IDCOLS=$cols
 	DT_IDT := dt_ms
 	dt_want "$DT_IDMS"
 }

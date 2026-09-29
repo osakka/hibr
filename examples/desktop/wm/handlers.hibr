@@ -19,8 +19,8 @@
 # with hvi, exactly as it always did.
 declare -gA DT_HANDLERS
 
-dt_handler() {
-	local ext=$1 term=0 i=0 a
+fn dt_handler(ext, ...rest) {
+	local term=0 i=0 a
 
 	shift
 	if [ "$1" = term ]; then
@@ -38,8 +38,8 @@ dt_handler() {
 # The extension a name is opened by: everything after the last dot, or
 # empty for one with none -- "Makefile" and ".bashrc" both have none, since
 # a leading dot is the name, not a separator.
-dt_ext() {
-	local nm=${1##*/}
+fn dt_ext(path) {
+	local nm=${path##*/}
 
 	case $nm in
 	*.*) ret "${nm##*.}" ;;
@@ -60,8 +60,8 @@ DT_OPENCMD=()
 DT_OPENSELF=
 
 # Run a registered handler on a path.
-dt_runhandler() {
-	local ext=$1 path=$2 n i=0
+fn dt_runhandler(ext, path) {
+	local n i=0
 
 	n=${DT_HANDLERS[$ext]["n"]}
 	DT_OPENCMD=()
@@ -99,26 +99,26 @@ dt_openfile_confirmed() {
 	DT_OPENPENDING=
 }
 
-dt_openfile() {
+fn dt_openfile(path) {
 	local ext
 
-	if [ -d "$1" ]; then
-		dt_launch files "$1"
+	if [ -d "$path" ]; then
+		dt_launch files "$path"
 		return 0
 	fi
-	ext := dt_ext "$1"
+	ext := dt_ext "$path"
 	if [ -n "${DT_HANDLERS[$ext]["n"]}" ]; then
-		dt_runhandler "$ext" "$1"
-	elif [ -x "$1" ]; then
-		DT_OPENCMD=("$1")
+		dt_runhandler "$ext" "$path"
+	elif [ -x "$path" ]; then
+		DT_OPENCMD=("$path")
 		DT_OPENSELF=1
-		dt_launch term "$1"
+		dt_launch term "$path"
 	elif [ "$ext" = png ] && dt_has imgview_open; then
-		dt_launch imgview "$1"
+		dt_launch imgview "$path"
 	elif [ "$ext" = txt ] && dt_has notepad_open; then
-		dt_launch notepad "$1"
+		dt_launch notepad "$path"
 	elif [ -n "${DT_APPS[term]["title"]}" ]; then
-		DT_OPENPENDING=$1
+		DT_OPENPENDING=$path
 		if [ -n "$ext" ]; then
 			dt_confirm "Unregistered extension .$ext -- open in hvi anyway?" \
 				dt_openfile_confirmed
@@ -127,6 +127,6 @@ dt_openfile() {
 				dt_openfile_confirmed
 		fi
 	else
-		dt_note "Nothing here opens ${1##*/}"
+		dt_note "Nothing here opens ${path##*/}"
 	fi
 }

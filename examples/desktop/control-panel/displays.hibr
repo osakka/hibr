@@ -35,8 +35,8 @@ displays_sess() {
 # where a separate row-scale and column-scale would stretch it. Rounding
 # down and flooring at 1% keeps every display at least a sliver rather
 # than vanishing at zero width.
-displays_scale() {
-	local h=$1 w=$2 urows=$3 ucols=$4 s sc
+fn displays_scale(h, w, urows, ucols) {
+	local s sc
 
 	s=$((h * 100 / urows))
 	sc=$((w * 100 / ucols))
@@ -46,8 +46,8 @@ displays_scale() {
 }
 
 # The dropdown's own callback: choosing a name makes it primary.
-displays_setprimary() {
-	local id=$1 value=$2 sess
+fn displays_setprimary(id, value) {
+	local sess
 
 	sess := displays_sess
 	[ -n "$sess" ] && hold primary "$sess" "$value"
@@ -55,16 +55,14 @@ displays_setprimary() {
 
 # Right-click on a rectangle: detach it, or flash its own name where it
 # actually is.
-displays_context() {
-	local nm=$1
-
+fn displays_context(nm) {
 	dt_menu "Display"
 	dt_item "Detach" d displays_detach "$nm"
 	dt_item "Identify" i displays_identify "$nm"
 }
 
-displays_detach() {
-	local nm=$1 sess
+fn displays_detach(nm = "") {
+	local sess
 
 	sess := displays_sess
 	[ -n "$sess" ] && hold drop "$sess" "$nm"
@@ -74,8 +72,8 @@ displays_detach() {
 # opened this menu last saw: a frame can pass between opening the menu
 # and choosing an item from it, same as everything else here that reads
 # fresh rather than keeping what could be stale.
-displays_identify() {
-	local nm=$1 sess lst n2 row col rows cols pri
+fn displays_identify(nm) {
+	local sess lst n2 row col rows cols pri
 
 	sess := displays_sess
 	[ -z "$sess" ] && return 0
@@ -88,8 +86,7 @@ displays_identify() {
 	done <<< "$lst"
 }
 
-displays_draw() {
-	local id=$1 h=$2 w=$3 bx=$4
+fn displays_draw(id, h, w, bx) {
 	local sess lst nm row col rows cols pri i n s dropw pname
 	local br bc bh bw namew t r mr mc dragi prow pcol
 	local rr rc minr minc urows ucols
@@ -264,8 +261,7 @@ displays_draw() {
 # a right-click or a drag on the primary's own body does not fall
 # through to panel_click; only a press that hit no rectangle at all
 # does (returns 1).
-displays_mouse() {
-	local id=$1 act=$2 button=$3 r=$4 c=$5
+fn displays_mouse(id, act, button, r, c) {
 	local n i sess nm mr mc s row col nrow ncol amr amc tag wc vals
 
 	n=${DPY[$id]["n"]:-0}

@@ -44,6 +44,11 @@ four rules, and every file here keeps them:
    bound to the wrong function.
 4. **It says what it offers**, in a one-line comment above each function and
    a row in a table like the one above.
+5. **It declares its parameters**: `fn dt_check(id, r, c, on, label, tag)`,
+   not `local id=$1 r=$2 ...`. The signature is the documentation a caller
+   reads, a wrong number of arguments fails the call rather than drawing
+   something plausible in the wrong place, and binding costs less than the
+   `local` line it replaces.
 
 `tests/540-examples.t` parses every file here and fails when a function name
 is defined twice anywhere across the desktop and its parts.

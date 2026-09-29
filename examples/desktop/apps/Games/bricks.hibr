@@ -32,8 +32,8 @@ bk_now() {
 }
 
 # A whole wall.  The bricks are four columns wide and centred.
-bk_wall() {
-	local id=$1 w r=0 nb row
+fn bk_wall(id) {
+	local w r=0 nb row
 
 	w=${BK[$id]["w"]}
 	nb=$((w / 4))
@@ -47,9 +47,7 @@ bk_wall() {
 	BK[$id]["left"]=$((nb * BRICKS_ROWS))
 }
 
-bk_new() {
-	local id=$1
-
+fn bk_new(id) {
 	BK[$id]["score"]=0
 	BK[$id]["lives"]=3
 	BK[$id]["level"]=1
@@ -58,8 +56,8 @@ bk_new() {
 }
 
 # The ball back on the bat, waiting for space.
-bk_serve() {
-	local id=$1 w h bat
+fn bk_serve(id) {
+	local w h bat
 
 	w=${BK[$id]["w"]}
 	h=${BK[$id]["h"]}
@@ -73,8 +71,8 @@ bk_serve() {
 }
 
 # Which brick is at a cell, as "row index", or nothing.
-bk_at() {
-	local id=$1 r=$2 c=$3 br k nb ox row
+fn bk_at(id, r, c) {
+	local br k nb ox row
 
 	br=$((r - 3))
 	[ "$br" -lt 0 ] || [ "$br" -ge "$BRICKS_ROWS" ] && return 1
@@ -89,8 +87,8 @@ bk_at() {
 }
 
 # Knock a brick out and score it: the higher the row, the more it is worth.
-bk_hit() {
-	local id=$1 br=${2% *} k=${2#* } row s n
+fn bk_hit(id, at) {
+	local br=${at% *} k=${at#* } row s n
 
 	row=${BK[$id]["b$br"]}
 	BK[$id]["b$br"]="${row:0:k}0${row:k+1}"
@@ -101,8 +99,8 @@ bk_hit() {
 }
 
 # One step of the ball: across a column at a time, then up or down a row.
-bk_step() {
-	local id=$1 r c dr dc w h bat n i s b o
+fn bk_step(id) {
+	local r c dr dc w h bat n i s b o
 
 	r=${BK[$id]["r"]}
 	c=${BK[$id]["c"]}
@@ -168,8 +166,8 @@ bk_step() {
 }
 
 # How long a step takes; each wall is a little quicker than the last.
-bk_period() {
-	local l=${BK[$1]["level"]} p
+fn bk_period(id) {
+	local l=${BK[$id]["level"]} p
 
 	p=$((70 - (l - 1) * 8))
 	[ "$p" -lt 35 ] && p=35
@@ -178,8 +176,8 @@ bk_period() {
 
 # Move the bat, keeping it on the field.  A ball waiting to be served rides
 # along on it.
-bk_bat() {
-	local id=$1 bat=$2 w
+fn bk_bat(id, bat) {
+	local w
 
 	w=${BK[$id]["w"]}
 	[ "$bat" -lt 1 ] && bat=1
@@ -190,9 +188,9 @@ bk_bat() {
 	return 0
 }
 
-bricks_open() {
-	BK[$1]["h"]=0
-	BK[$1]["w"]=0
+fn bricks_open(id, arg) {
+	BK[$id]["h"]=0
+	BK[$id]["w"]=0
 }
 
 bricks_draw() {
@@ -269,12 +267,12 @@ bricks_draw() {
 	console put -p "w$id" 1 $(((w - ${#t}) / 2 + 1)) "$t"
 }
 
-bricks_key() {
-	local id=$1 st bat l
+fn bricks_key(id, key) {
+	local st bat l
 
 	st=${BK[$id]["state"]}
 	bat=${BK[$id]["bat"]}
-	case $2 in
+	case $key in
 	left | a | h) bk_bat "$id" $((bat - 3)) ;;
 	right | d | l) bk_bat "$id" $((bat + 3)) ;;
 	" " | space | enter)
@@ -302,8 +300,8 @@ bricks_key() {
 }
 
 # A click anywhere puts the middle of the bat under it.
-bricks_click() {
-	bk_bat "$1" $(($3 - BRICKS_BAT / 2))
+fn bricks_click(id, r, c, btn) {
+	bk_bat "$id" $(($c - BRICKS_BAT / 2))
 }
 
 bricks_menus() {

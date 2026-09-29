@@ -61,8 +61,8 @@ dt_noteq() {
 # A note, stacked with whatever others are already showing, gone on its
 # own after DT_NOTEMS -- inert, the same as this always worked, every
 # existing call site untouched by anything dt_notify adds.
-dt_note() {
-	dt_noteq "$1"
+fn dt_note(text) {
+	dt_noteq "$text"
 }
 
 # The clickable form: args after the message are an action -- clicking
@@ -93,8 +93,8 @@ dt_note_clear() {
 # -- the oldest dropped once it is full -- so "what did I miss" has an
 # answer even for one that came and went stacked behind others, not only
 # whichever is on screen right now.
-dt_notehist_add() {
-	local id=$1 hid=$DT_NOTEHIST_NEXT
+fn dt_notehist_add(id) {
+	local hid=$DT_NOTEHIST_NEXT
 
 	DT_NOTEHIST_NEXT=$((DT_NOTEHIST_NEXT + 1))
 	DT_NOTEHIST[$hid]["text"]=${DT_NOTEQ[$id]["text"]}
@@ -173,8 +173,8 @@ dt_note_draw() {
 # A point against the currently drawn notification stack -- the id whose
 # rectangle contains it, or a miss. Reads DT_NOTERECT, filled by the same
 # dt_note_draw pass that drew them.
-dt_note_hit() {
-	local mr=$1 mc=$2 id r c w h
+fn dt_note_hit(mr, mc) {
+	local id r c w h
 
 	for id in "${DT_NOTEQ_ORDER[@]}"; do
 		r=${DT_NOTERECT[$id]["r"]}
@@ -193,8 +193,8 @@ dt_note_hit() {
 # Run a clicked note's own action, if it has one, and dismiss it either
 # way -- called from dt_mouse's own press dispatch once dt_note_hit
 # names which one.
-dt_note_click() {
-	local id=$1 n=${DT_NOTEQ[$1]["argvn"]:-0} i=0 o
+fn dt_note_click(id) {
+	local n=${DT_NOTEQ[$id]["argvn"]:-0} i=0 o
 	local -a args keep
 
 	while [ "$i" -lt "$n" ]; do

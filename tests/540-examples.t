@@ -6,7 +6,8 @@ mkdir -p "$tmp"
 printf '[server]\nhost = example.com\nport = 8080\n\n[auth]\ntoken = abc123\n' > "$tmp/app.ini"
 printf 'xx\n' > "$tmp/one"; printf 'yyy\n' > "$tmp/two"
 
-for e in examples/*.hibr examples/desktop/*.hibr examples/desktop/control-panel/*.hibr \
+for e in examples/*.hibr examples/desktop/*.hibr examples/desktop/apps/*.hibr \
+         examples/desktop/apps/*/*.hibr examples/desktop/control-panel/*.hibr \
          examples/desktop/desk-accessories/*.hibr examples/desktop/control-strip/*.hibr \
          examples/desktop/wm/*.hibr examples/desktop/widgets/*.hibr; do
   case "$e" in *hibrc) continue ;; esac
@@ -17,10 +18,12 @@ echo "every example parses"
 # A function defined twice in a script silently replaces the first, which is
 # how the desktop's drag and drop once took over the function that draws the
 # open menu. No example, and no app, defines one name twice.
+# Both ways of defining one count: name() { and fn name(...) {.
+defs='s/^\([A-Za-z_][A-Za-z0-9_]*\)() *{.*/\1/p; s/^fn \([A-Za-z_][A-Za-z0-9_]*\)(.*/\1/p'
 for e in examples/*.hibr examples/desktop/*.hibr examples/desktop/apps/*.hibr \
-         examples/desktop/control-panel/*.hibr \
+         examples/desktop/apps/*/*.hibr examples/desktop/control-panel/*.hibr \
          examples/desktop/desk-accessories/*.hibr examples/desktop/control-strip/*.hibr; do
-  sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)() *{.*/\1/p' "$e" | sort | uniq -d |
+  sed -n "$defs" "$e" | sort | uniq -d |
     while read -r f; do echo "defined twice in $e: $f"; done
 done
 # The desktop is desktop.hibr and every file it sources, so a name must be
@@ -28,7 +31,7 @@ done
 # each define it once still leave only the second one standing.
 cat examples/desktop/desktop.hibr examples/desktop/wm/*.hibr \
     examples/desktop/widgets/*.hibr |
-  sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)() *{.*/\1/p' | sort | uniq -d |
+  sed -n "$defs" | sort | uniq -d |
   while read -r f; do echo "defined twice across the desktop's parts: $f"; done
 echo "no function is defined twice"
 
@@ -44,7 +47,7 @@ echo "no function is defined twice"
 # a space in it is not read correctly), not exhaustive -- see CLAUDE.md's
 # own trap entry for the pattern in full.
 for e in examples/*.hibr examples/desktop/*.hibr examples/desktop/apps/*.hibr \
-         examples/desktop/control-panel/*.hibr \
+         examples/desktop/apps/*/*.hibr examples/desktop/control-panel/*.hibr \
          examples/desktop/desk-accessories/*.hibr examples/desktop/control-strip/*.hibr \
          examples/desktop/wm/*.hibr examples/desktop/widgets/*.hibr; do
   awk '

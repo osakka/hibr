@@ -1090,6 +1090,22 @@ went in the shell.
   truncation -- is the right assertion once a title's content depends on
   something a test does not fully control.
 
+- **The desktop declares its parameters, and that closes the `local` trap
+  above.** Every function in `examples/desktop/` that takes arguments is
+  `fn name(a, b = "", ...rest)` now, not `name() { local a=$1 ...`, so a
+  parameter is bound before the body's first `local` runs and `local
+  b=${M[$id]}` can see `id`. It is also cheaper -- binding is C, where the
+  `local` line was an expansion and an assignment per word: 526M instructions
+  against 711M for 20,000 calls of four arguments. The other half is
+  stricter: a declared function *refuses* an argument it has no name for and
+  one it is missing without a default, and the body never runs. So a
+  callback declares the whole of what it is called with (`fn x_draw(id, h, w,
+  row, col)`, the table in `examples/desktop/ARCHITECTURE.md`) even when it
+  uses only `id`, and anything taking a list ends in `...rest`. The
+  conversion was made from a census of every call's argument count across
+  the suites, not from reading call sites, and a parameter the suites never
+  showed being passed is optional (`= ""`). Types are not declared yet: `int`
+  would reject the empty id the Control Strip passes on purpose.
 - **A menu item's command is kept as words, not a string.** `dt_row` used
   to join its arguments into `MI[..]["cmd"]` and `dt_mdo` ran `$cmd`, split
   again -- so a dropdown value with a space in it ("2:05 PM", from the

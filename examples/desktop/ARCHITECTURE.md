@@ -104,11 +104,34 @@ app remembers is keyed by the window id it was handed, never a bare global,
 since two windows of the same app must not share one:
 
 ```sh
-calc_draw() {
-    local id=$1 h=$2 w=$3          # window id, body height, body width
+fn calc_draw(id, h, w, row, col) {     # window id, body size, where it sits
     console put -p "w$id" 1 2 "${CA[$id]["out"]}"
 }
 ```
+
+Every function the desktop defines declares its parameters this way, and a
+callback declares the whole of what it is called with, whether it uses all
+of it or not -- a declared function refuses an argument it has no name for,
+so `fn calc_draw(id)` would fail on the first frame. The calls:
+
+| callback | arguments |
+|---|---|
+| `_open` | `id arg` -- `arg` is whatever `dt_new` was given last, often empty |
+| `_close` | `id` |
+| `_draw` | `id h w row col` -- the body's size, and the window's place on screen |
+| `_key` | `id key` |
+| `_click` | `id r c btn` |
+| `_mouse` | `id act btn r c mods` |
+| `_wheel` | `id dir r c` |
+| `_drop` | `id r c op paths...` |
+| `_menus`, `_context` | `id` |
+
+A Control Panel pane is called with its own set -- `_draw id h w x`,
+`_key id key`, `_click id r c`, `_drop id r c key`, `_wheel id dir` -- and a
+Control Strip module with `_draw row col` and `_click row col`. A function
+that takes a list ends in one, as `fn dt_row(tick, dim, lb, k, ...rest)`
+does; the old `name() { local id=$1 ...` form still works for an app of
+your own, unchecked.
 
 `console put -p "w$id" row col text` writes into that window's own pane,
 in the coordinates the window draws in — row 0 is its own top border, not

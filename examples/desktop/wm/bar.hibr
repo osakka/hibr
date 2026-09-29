@@ -101,8 +101,8 @@ dt_bar() {
 }
 
 # The glyph a notification icon name stands for.
-dt_bellglyph() {
-	case $1 in
+fn dt_bellglyph(style) {
+	case $style in
 	bell) ret "🔔" ;;
 	note) ret "♪" ;;
 	mail) ret "✉" ;;
@@ -116,10 +116,10 @@ dt_bellglyph() {
 # A time in a strftime format, as the bar draws it: epoch seconds, or -1
 # for now. Leading blanks go, so %l's space-padded hour does not leave a
 # gap against the bell.
-dt_clocktext() {
+fn dt_clocktext(fmt, when) {
 	local out
 
-	printf -v out "%($1)T" "$2"
+	printf -v out "%($fmt)T" "$when"
 	while [ "${out:0:1}" = " " ]; do out=${out:1}; done
 	ret "$out"
 }

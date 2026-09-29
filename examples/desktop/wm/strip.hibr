@@ -42,10 +42,10 @@ CS_PRESSC=0
 # is called the same way, for a click anywhere in it. Neither takes an id
 # -- there is never more than one instance of a strip module, unlike a
 # window.
-cs_module() {
-	CS_MODS[$1]["title"]="$2"
-	CS_MODS[$1]["w"]="${3:-${#2}}"
-	CS_MOD_LIST+=("$1")
+fn cs_module(name, title, w = "") {
+	CS_MODS[$name]["title"]="$title"
+	CS_MODS[$name]["w"]="${w:-${#2}}"
+	CS_MOD_LIST+=("$name")
 }
 
 # Load every module in the folders. Flat, not recursive, the same as
@@ -114,7 +114,7 @@ cs_width() {
 
 # The column shown-module i's own content starts at -- one past its own
 # opening bracket, and past the arrow too on the side that leads with it.
-cs_modcol() {
+fn cs_modcol(idx) {
 	local w cnt i c m
 
 	w := cs_width
@@ -126,7 +126,7 @@ cs_modcol() {
 	fi
 	i=$CS_SCROLL
 	while [ "$i" -lt $((CS_SCROLL + cnt)) ]; do
-		[ "$i" = "$1" ] && { ret "$c"; return 0; }
+		[ "$i" = "$idx" ] && { ret "$c"; return 0; }
 		m=${CS_MOD_LIST[$i]}
 		c=$((c + ${CS_MODS[$m]["w"]:-1} + 2))
 		i=$((i + 1))
@@ -136,7 +136,7 @@ cs_modcol() {
 
 # Which shown module a column belongs to, if any -- ret's its real index
 # into CS_MOD_LIST, not a position among the ones currently shown.
-cs_at() {
+fn cs_at(mc) {
 	local w cnt i c m mw
 
 	w := cs_width
@@ -150,7 +150,7 @@ cs_at() {
 	while [ "$i" -lt $((CS_SCROLL + cnt)) ]; do
 		m=${CS_MOD_LIST[$i]}
 		mw=${CS_MODS[$m]["w"]:-1}
-		if [ "$1" -ge "$c" ] && [ "$1" -lt $((c + mw)) ]; then
+		if [ "$mc" -ge "$c" ] && [ "$mc" -lt $((c + mw)) ]; then
 			ret "$i"
 			return 0
 		fi
@@ -163,34 +163,34 @@ cs_at() {
 # Whether row/col falls on the strip right now -- expanded or its own
 # collapsed tab. What hover, wheel and a press all three ask, instead of
 # three copies of the same rectangle.
-cs_hit() {
+fn cs_hit(mr, mc) {
 	local row w col
 
 	[ "${#CS_MOD_LIST[@]}" = 0 ] && return 1
-	[ -z "$1" ] && return 1
+	[ -z "$mr" ] && return 1
 	row := cs_y
-	[ "$1" != "$row" ] && return 1
+	[ "$mr" != "$row" ] && return 1
 	if [ "$CS_COLLAPSED" = 1 ]; then
 		if [ "$CS_SIDE" = left ]; then
-			[ "$2" = "$DT_PRIMARY_COL" ]
+			[ "$mc" = "$DT_PRIMARY_COL" ]
 		else
-			[ "$2" = $((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - 1)) ]
+			[ "$mc" = $((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - 1)) ]
 		fi
 		return $?
 	fi
 	w := cs_width
 	[ "$CS_SIDE" = left ] && col=$DT_PRIMARY_COL ||
 		col=$((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - w))
-	[ "$2" -ge "$col" ] && [ "$2" -lt $((col + w)) ]
+	[ "$mc" -ge "$col" ] && [ "$mc" -lt $((col + w)) ]
 }
 
 # Scroll by dir modules, clamped so the shown window never runs past
 # either end of the registered list.
-cs_scroll() {
+fn cs_scroll(by) {
 	local total=${#CS_MOD_LIST[@]} cnt
 
 	cnt := cs_count
-	CS_SCROLL=$((CS_SCROLL + $1))
+	CS_SCROLL=$((CS_SCROLL + $by))
 	[ "$CS_SCROLL" -lt 0 ] && CS_SCROLL=0
 	[ $((CS_SCROLL + cnt)) -gt "$total" ] && CS_SCROLL=$((total - cnt))
 	[ "$CS_SCROLL" -lt 0 ] && CS_SCROLL=0
@@ -202,14 +202,14 @@ cs_scroll() {
 # fresh from that position every time rather than accumulated one drag
 # event at a time, the same reason a real resize handle tracks the
 # pointer instead of its own last delta.
-cs_resize() {
+fn cs_resize(at) {
 	local budget total i m w used=0 cnt=0
 
 	total=${#CS_MOD_LIST[@]}
 	if [ "$CS_SIDE" = left ]; then
-		budget=$(($1 - DT_PRIMARY_COL))
+		budget=$(($at - DT_PRIMARY_COL))
 	else
-		budget=$((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - 1 - $1))
+		budget=$((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - 1 - $at))
 	fi
 	[ "$budget" -lt 0 ] && budget=0
 	i=$CS_SCROLL
@@ -278,31 +278,31 @@ dt_stripdraw() {
 # by release, toggles collapsed instead. A click inside a module's own
 # brackets goes to its _click. return 0 alone means handled, so
 # dt_mouse's press case can tell it from a miss with ||.
-cs_press() {
+fn cs_press(prow, pcol) {
 	local row w col arrowcol
 
-	cs_hit "$1" "$2" || return 1
-	row=$1
+	cs_hit "$prow" "$pcol" || return 1
+	row=$prow
 	if [ "$CS_COLLAPSED" = 1 ]; then
 		CS_DRAG=1
 		CS_DRAGKIND=
-		CS_PRESSR=$1
-		CS_PRESSC=$2
+		CS_PRESSR=$prow
+		CS_PRESSC=$pcol
 		return 0
 	fi
 	w := cs_width
 	[ "$CS_SIDE" = left ] && col=$DT_PRIMARY_COL ||
 		col=$((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - w))
 	[ "$CS_SIDE" = left ] && arrowcol=$((col + w - 1)) || arrowcol=$col
-	if [ "$2" = "$arrowcol" ]; then
+	if [ "$pcol" = "$arrowcol" ]; then
 		CS_DRAG=1
 		CS_DRAGKIND=
-		CS_PRESSR=$1
-		CS_PRESSC=$2
+		CS_PRESSR=$prow
+		CS_PRESSC=$pcol
 		return 0
 	fi
 	local i m mc
-	i := cs_at "$2" || return 0
+	i := cs_at "$pcol" || return 0
 	m=${CS_MOD_LIST[$i]}
 	mc := cs_modcol "$i"
 	dt_has "${m}_click" && "${m}_click" "$row" "$mc"
@@ -316,8 +316,8 @@ cs_press() {
 # directly. Reuses the same widget/dt_dropcontext machinery, and the same
 # "" DT_POPID a window-less caller already gets away with there, since
 # dt_row drops an empty word rather than handing it to the callback.
-cs_dropopen() {
-	local r=$1 c=$2 cb=$3 n
+fn cs_dropopen(r, c, cb, ...rest) {
+	local n
 
 	shift 3
 	n=$#

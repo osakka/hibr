@@ -9,8 +9,8 @@
 # checkbox or a dropdown draws nothing it was not asked for. The shape
 # the file browser's own list view and a terminal's scrollback both need,
 # so a fix or a restyle is one place, not two.
-dt_scrollbar() {
-	local id=$1 row0=$2 col=$3 h=$4 total=$5 shown=$6 pos=$7 thumb r
+fn dt_scrollbar(id, row0, col, h, total, shown, pos) {
+	local thumb r
 
 	[ "$total" -gt "$shown" ] || return 0
 	thumb=$((row0 + pos * (h - 1) / (total - shown)))

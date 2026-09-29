@@ -17,8 +17,8 @@ NP_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/hibr/notepad.txt"
 
 # Read the note off disk into this window's own lines -- always at least
 # one, even an empty one, so the cursor always has a line to sit on.
-np_load() {
-	local id=$1 line n=0
+fn np_load(id) {
+	local line n=0
 
 	if [ -r "$NP_FILE" ]; then
 		while IFS= read -r line || [ -n "$line" ]; do
@@ -35,8 +35,7 @@ np_load() {
 
 # Written whole, to a temporary file first, the same atomic rename dt_save
 # already uses for the desktop's own settings.
-np_save() {
-	local id=$1
+fn np_save(id) {
 	local i=0 n=${NP[$id]["n"]} tmp="$NP_FILE.$$"
 
 	mkdir -p "${NP_FILE%/*}" 2> /dev/null || return 1
@@ -48,12 +47,11 @@ np_save() {
 	} > "$tmp" && mv -f "$tmp" "$NP_FILE"
 }
 
-notepad_open() {
-	np_load "$1"
+fn notepad_open(id, arg) {
+	np_load "$id"
 }
 
-notepad_draw() {
-	local id=$1 h=$2 w=$3
+fn notepad_draw(id, h, w, row, col) {
 	local n=${NP[$id]["n"]} cr=${NP[$id]["cr"]} cc=${NP[$id]["cc"]}
 	local top=${NP[$id]["top"]} i r line hoff shown
 
@@ -93,12 +91,11 @@ notepad_draw() {
 		console put -p "w$id" $((cr - top + 1)) $((cc - hoff + 1)) " "
 }
 
-notepad_key() {
-	local id=$1
+fn notepad_key(id, key) {
 	local n=${NP[$id]["n"]} cr=${NP[$id]["cr"]} cc=${NP[$id]["cc"]}
 	local line=${NP[$id][$cr]} rest
 
-	case $2 in
+	case $key in
 	up)
 		[ "$cr" -gt 0 ] && cr=$((cr - 1))
 		[ "$cc" -gt "${#NP[$id][$cr]}" ] && cc=${#NP[$id][$cr]}
@@ -147,7 +144,7 @@ notepad_key() {
 		;;
 	*)
 		[ "${#2}" = 1 ] || return 1
-		NP[$id][$cr]="${line:0:$cc}$2${line:$cc}"
+		NP[$id][$cr]="${line:0:$cc}$key${line:$cc}"
 		cc=$((cc + 1))
 		;;
 	esac
@@ -158,8 +155,7 @@ notepad_key() {
 }
 
 # Insert a new line at i, moving every line from there down one.
-np_insline() {
-	local id=$1 i=$2 text=$3
+fn np_insline(id, i, text) {
 	local j=${NP[$id]["n"]}
 
 	while [ "$j" -gt "$i" ]; do
@@ -170,8 +166,7 @@ np_insline() {
 }
 
 # Remove line i, moving every line after it up one.
-np_delline() {
-	local id=$1 i=$2
+fn np_delline(id = "", i = "") {
 	local j=$i n=${NP[$id]["n"]}
 
 	while [ "$j" -lt $((n - 1)) ]; do
@@ -181,8 +176,8 @@ np_delline() {
 	unset "NP[$id][$((n - 1))]"
 }
 
-notepad_click() {
-	local id=$1 r=$(($2 - 1)) c=$(($3 - 1))
+fn notepad_click(id = "", mr = "", mc = "") {
+	local r=$(($mr - 1)) c=$(($mc - 1))
 	local top=${NP[$id]["top"]} row
 
 	row=$((top + r))

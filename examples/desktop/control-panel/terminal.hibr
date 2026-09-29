@@ -31,10 +31,10 @@ cp_termtitle() {
 # Theme or terminal colours for a terminal window -- see DT_TERMCOLOURS in
 # examples/desktop/apps/term.hibr.
 CP_TERMCOLOURS=(theme terminal)
-cp_set_termcolours() { DT_TERMCOLOURS=$2; cp_save; }
+fn cp_set_termcolours(id = "", value = "") { DT_TERMCOLOURS=$value; cp_save; }
 
-terminal_rows() {
-	local w=$1 n=0
+fn terminal_rows(w) {
+	local n=0
 
 	if [ -n "$DT_TERMBAR" ]; then
 		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Scrollbar"
@@ -58,8 +58,8 @@ terminal_rows() {
 	ret "$n"
 }
 
-terminal_do() {
-	local w=$1 k=$2 dir=$3 v
+fn terminal_do(w, k, dir) {
+	local v
 
 	case $k in
 	termbar) cp_termbar ;;
@@ -72,9 +72,7 @@ terminal_do() {
 	cp_save
 }
 
-terminal_drop() {
-	local w=$1 r=$2 c=$3 k=$4
-
+fn terminal_drop(w = "", r = "", c = "", k = "") {
 	case $k in
 	termcolours) dt_droplist "$w" "$r" "$c" cp_set_termcolours \
 		"${CP_TERMCOLOURS[@]}" ;;

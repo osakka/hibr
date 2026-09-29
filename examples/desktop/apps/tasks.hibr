@@ -42,8 +42,8 @@ tasks_loadusers() {
 
 # A uid as the name it resolves to, or itself when nothing does -- a
 # user removed after their process started, most often.
-tasks_ownername() {
-	ret "${TK_UIDNAME["$1"]:-$1}"
+fn tasks_ownername(uid) {
+	ret "${TK_UIDNAME["$uid"]:-$uid}"
 }
 
 # The two sparklines at the bottom -- one label row, one glyph row, each
@@ -57,8 +57,8 @@ TK_SPARK=(▁ ▂ ▃ ▄ ▅ ▆ ▇ █)
 # Append one value, shifting the oldest out once TK_HISTMAX is reached.
 # Once a second (TK_SCANMS), never once a frame, so an O(n) shift over
 # at most 120 entries costs nothing worth avoiding.
-tasks_pushhist() {
-	local id=$1 key=$2 val=$3 n i
+fn tasks_pushhist(id, key, val) {
+	local n i
 
 	n=${TK[$id]["${key}n"]:-0}
 	if [ "$n" -ge "$TK_HISTMAX" ]; then
@@ -76,8 +76,8 @@ tasks_pushhist() {
 # The last w samples of a history, as glyphs, oldest first -- padded with
 # blanks on the left so a history shorter than the graph still sits
 # against the right edge, where "now" belongs.
-tasks_spark() {
-	local id=$1 key=$2 w=$3 n i v lvl out=
+fn tasks_spark(id, key, w) {
+	local n i v lvl out=
 
 	n=${TK[$id]["${key}n"]:-0}
 	i=$((n - w))
@@ -110,8 +110,8 @@ tasks_spark() {
 # percentage already computed on free+inactive, about.hibr's own
 # equivalent formula. Without it, the graphs stay flat at 0 rather than
 # reading something platform doesn't offer.
-tasks_sysstat() {
-	local id=$1 line rest v total=0 idle du_total du_idle raw
+fn tasks_sysstat(id) {
+	local line rest v total=0 idle du_total du_idle raw
 	local k mtotal= mavail=
 
 	if [ "$TK_OS" = Linux ]; then
@@ -198,8 +198,8 @@ fi
 # fields the way u/s (never containing one) safely can be -- status's own
 # Name: field actually had this bug already, silently truncating at the
 # first space; nothing before this depended on a name ever having one.
-tasks_times() {
-	local pid=$1 line name rest
+fn tasks_times(pid) {
+	local line name rest
 	local state a b c d e f g h j k u s _
 
 	read -r line < "/proc/$pid/stat" 2> /dev/null || return 1
@@ -214,8 +214,8 @@ tasks_times() {
 # reading to the end of a ~50-line file for two, which is most of what
 # this file's own scan still costs (VmRSS is well down the file; Uid is
 # not, but the loop cannot stop until the later of the two either way).
-tasks_uidrss() {
-	local pid=$1 k v uid= rss=
+fn tasks_uidrss(pid) {
+	local k v uid= rss=
 
 	while read -r k v _; do
 		case $k in
@@ -235,8 +235,8 @@ tasks_uidrss() {
 # user (ps resolves it itself here, unlike the Linux path's own uid), and
 # comm last so a path with a space in it -- an app bundle's, typically --
 # still reads whole, in read's own last-variable-takes-the-rest rule.
-tasks_scan_ps() {
-	local id=$1 pid rss pcpu user comm line n=0
+fn tasks_scan_ps(id = "") {
+	local pid rss pcpu user comm line n=0
 
 	while IFS= read -r line; do
 		read -r pid rss pcpu user comm <<< "$line"
@@ -251,8 +251,8 @@ tasks_scan_ps() {
 	TK[$id]["n"]=$n
 }
 
-tasks_scan() {
-	local id=$1 pid uidrss uid rss owner times u s name now elapsed du ds pct
+fn tasks_scan(id) {
+	local pid uidrss uid rss owner times u s name now elapsed du ds pct
 	local n=0
 	local prevt=${TK_PREV[$id]["t"]}
 
@@ -302,8 +302,8 @@ tasks_scan() {
 # order, or its reverse for descending. An insertion sort in the shell
 # did the same work one comparison at a time, fine for a list already
 # nearly in order and hopeless the moment a click reverses it.
-tasks_sort() {
-	local id=$1 by=$2 dir=${3:-desc} n i k v key
+fn tasks_sort(id, by, dir = "") {
+	local dir=${dir:-desc} n i k v key
 	local -a keys apid aname aowner acpu amem
 
 	n=${TK[$id]["n"]:-0}
@@ -355,9 +355,7 @@ tasks_sort() {
 # A heading clicked: sort by that column, or the other way if it already
 # was. Numbers start largest first -- the busiest process is the one being
 # looked for -- and text starts at A.
-tasks_headsort() {
-	local id=$1 col=$2
-
+fn tasks_headsort(id, col) {
 	if [ "${TK[$id]["by"]}" = "$col" ]; then
 		if [ "${TK[$id]["dir"]}" = asc ]; then
 			TK[$id]["dir"]=desc
@@ -376,8 +374,8 @@ tasks_headsort() {
 # A value right-justified in a field w wide, never narrower than the value
 # itself -- str pad only pads on the right, so a numeric column that wants
 # its digits lined up on the right needs its own spaces put in front.
-tasks_rjust() {
-	local v=$1 w=$2 n sp
+fn tasks_rjust(v, w) {
+	local n sp
 
 	n=$((w - ${#v}))
 
@@ -387,8 +385,7 @@ tasks_rjust() {
 }
 
 # A byte count as people read one.
-tasks_human() {
-	local kb=$1
+fn tasks_human(kb) {
 	if [ "$kb" -ge 1048576 ]; then
 		ret "$((kb / 1048576)).$(((kb % 1048576) * 10 / 1048576))G"
 	elif [ "$kb" -ge 1024 ]; then
@@ -398,8 +395,7 @@ tasks_human() {
 	fi
 }
 
-tasks_open() {
-	local id=$1
+fn tasks_open(id, arg = "") {
 	TK[$id]["sel"]=0
 	TK[$id]["top"]=0
 	TK[$id]["by"]=${TK_SORTBY:-cpu}
@@ -414,8 +410,8 @@ tasks_open() {
 # Linux only, and only for the rows actually on screen: forking to get
 # this on every platform for every process, every scan, would cost far
 # more than a handful of reads twice a second.
-tasks_cmdline() {
-	local pid=$1 out= part first=1
+fn tasks_cmdline(pid) {
+	local out= part first=1
 
 	[ "$TK_OS" = Linux ] || return 1
 	while IFS= read -r -d '' part; do
@@ -434,8 +430,8 @@ tasks_cmdline() {
 # a second border allowance on top of that; subtracting 3 here instead
 # of 1 left two rows of real dead space at the bottom of every window,
 # under the graph and above dt_win's own border, reported live.
-tasks_draw() {
-	local id=$1 h=$2 w=$3 i r t n vis top sel by dir now full mk
+fn tasks_draw(id, h, w, row, col) {
+	local i r t n vis top sel by dir now full mk
 	local lp ln lo lc lm
 	local pidw=6 ownerw=8 owner pidtxt namew cpu mem line pl
 	local showgraph=1 graphh=2 leftw rightw lbl spark
@@ -558,8 +554,8 @@ tasks_draw() {
 	dt_want "$TK_SCANMS"
 }
 
-tasks_end() {
-	local id=$1 sig=$2 sel pid
+fn tasks_end(id = "", sig = "") {
+	local sel pid
 
 	sel=${TK[$id]["sel"]}
 	pid=${TK[$id][$sel]["pid"]}
@@ -567,14 +563,14 @@ tasks_end() {
 	return 0
 }
 
-tasks_key() {
-	local id=$1 n vis
+fn tasks_key(id, key) {
+	local n vis
 
 	n=${TK[$id]["n"]}
 	vis=${TK[$id]["vis"]}
 	local sel=${TK[$id]["sel"]} top=${TK[$id]["top"]}
 
-	case $2 in
+	case $key in
 	up) sel=$((sel - 1)) ;;
 	down) sel=$((sel + 1)) ;;
 	x) tasks_end "$id" TERM; return 0 ;;
@@ -593,8 +589,8 @@ tasks_key() {
 	return 0
 }
 
-tasks_click() {
-	local id=$1 r=$2 c=$3 top n i vis k
+fn tasks_click(id, r, c = "", btn = "") {
+	local top n i vis k
 	local -a hx
 
 	top=${TK[$id]["top"]}
@@ -647,8 +643,8 @@ tasks_click() {
 # not a live one: keeping it current would mean giving a second window
 # its own scan cadence for what is meant to be a quick glance, not a
 # second Task Manager.
-tasks_opendetails() {
-	local pid=$1 name=$2 owner=$3 cpu=$4 mem=$5 gid r c cmd
+fn tasks_opendetails(pid = "", name = "", owner = "", cpu = "", mem = "") {
+	local gid r c cmd
 
 	[ -z "$pid" ] && return 0
 	cmd := tasks_cmdline "$pid" || cmd=$name
@@ -663,8 +659,8 @@ tasks_opendetails() {
 	TD[$gid]["cmd"]=$cmd
 }
 
-tasks_details() {
-	local id=$1 sel=${TK[$1]["sel"]}
+fn tasks_details(id = "") {
+	local sel=${TK[$id]["sel"]}
 
 	tasks_opendetails "${TK[$id][$sel]["pid"]}" "${TK[$id][$sel]["name"]}" \
 		"${TK[$id][$sel]["owner"]}" "${TK[$id][$sel]["cpu"]}" \
@@ -675,9 +671,7 @@ tasks_details() {
 # tasks_end, for the same reason tasks_opendetails exists: a captured
 # pid cannot be made stale by a rescan between the right-click and the
 # item finally being chosen, where re-reading the selection could be.
-tasks_killpid() {
-	local pid=$1 sig=$2
-
+fn tasks_killpid(pid = "", sig = "") {
 	[ -n "$pid" ] && kill "-$sig" "$pid" 2> /dev/null
 	return 0
 }
@@ -685,21 +679,21 @@ tasks_killpid() {
 # Set directly rather than through tasks_key: a menu item is not a key, and
 # routing it through the key handler only worked here because "x" the key
 # and "x" the argument happen to be the same string.
-tasks_sortby() {
-	TK[$1]["by"]=$2
-	case $2 in
-	cpu | mem) TK[$1]["dir"]=desc ;;
-	*) TK[$1]["dir"]=asc ;;
+fn tasks_sortby(id, by) {
+	TK[$id]["by"]=$by
+	case $by in
+	cpu | mem) TK[$id]["dir"]=desc ;;
+	*) TK[$id]["dir"]=asc ;;
 	esac
 }
 
 # The wheel moves the view three rows and leaves the selection where it is,
 # as it does in Files.
-tasks_wheel() {
-	local id=$1 top=${TK[$1]["top"]:-0} n=${TK[$1]["n"]:-0}
-	local vis=${TK[$1]["vis"]:-1}
+fn tasks_wheel(id, dir) {
+	local top=${TK[$id]["top"]:-0} n=${TK[$id]["n"]:-0}
+	local vis=${TK[$id]["vis"]:-1}
 
-	case $2 in
+	case $dir in
 	up) top=$((top - 3)) ;;
 	down) top=$((top + 3)) ;;
 	*) return 1 ;;
@@ -709,7 +703,7 @@ tasks_wheel() {
 	TK[$id]["top"]=$top
 	return 0
 }
-tasks_fulltoggle() { TK[$1]["full"]=$((1 - ${TK[$1]["full"]:-0})); }
+fn tasks_fulltoggle(id = "") { TK[$id]["full"]=$((1 - ${TK[$id]["full"]:-0})); }
 
 tasks_menus() {
 	local full=${TK[$DT_FOCUS]["full"]:-0}
@@ -729,8 +723,8 @@ tasks_menus() {
 # does, before the menu opens on it. _context is handed only the window
 # id, never the click position the way _click is -- MB_CY is the raw row
 # dt_context_open was given, still there when this runs.
-tasks_context() {
-	local id=$1 r sel none pid name owner cpu mem
+fn tasks_context(id) {
+	local r sel none pid name owner cpu mem
 
 	# dt_ctxbuild calls this fresh every frame the menu stays open, not
 	# once at the click -- files_context gets away with that because it
@@ -777,8 +771,8 @@ tasks_context() {
 }
 
 # Process Details -- read only, a snapshot tasks_details already took.
-tdetail_draw() {
-	local id=$1 w=$3 mem cmd
+fn tdetail_draw(id = "", h = "", w = "") {
+	local mem cmd
 
 	console pen "$DT_INK" "$DT_FACE"
 	console put -p "w$id" 1 2 "PID:    ${TD[$id]["pid"]}"
@@ -795,17 +789,15 @@ tdetail_draw() {
 	console put -p "w$id" 9 2 "escape closes"
 }
 
-tdetail_key() {
-	local id=$1
-
-	case $2 in
+fn tdetail_key(id = "", key = "") {
+	case $key in
 	escape) dt_del "$id"; return 0 ;;
 	esac
 	return 1
 }
 
-tdetail_close() {
-	unset "TD[$1]"
+fn tdetail_close(id = "") {
+	unset "TD[$id]"
 }
 
 if [ -z "$DT_ROWS" ]; then

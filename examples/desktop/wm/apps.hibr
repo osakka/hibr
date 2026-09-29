@@ -5,26 +5,26 @@
 # functions and sets state, so it can be read on its own and is never run.
 
 # Register an app the hibr menu can open: name, title, height, width.
-dt_app() {
-	DT_APPS[$1]["title"]="$2"
-	DT_APPS[$1]["h"]="$3"
-	DT_APPS[$1]["w"]="$4"
-	DT_APPS[$1]["once"]=
-	[ "$5" = once ] && DT_APPS[$1]["once"]=1
-	DT_APPS[$1]["icon"]="${6:-◆}"
-	DT_APPS[$1]["fixed"]=
-	[ "$7" = fixed ] && DT_APPS[$1]["fixed"]=1
+fn dt_app(name, title, h, w, once = "", icon = "", fixed = "", hidden = "") {
+	DT_APPS[$name]["title"]="$title"
+	DT_APPS[$name]["h"]="$h"
+	DT_APPS[$name]["w"]="$w"
+	DT_APPS[$name]["once"]=
+	[ "$once" = once ] && DT_APPS[$name]["once"]=1
+	DT_APPS[$name]["icon"]="${icon:-◆}"
+	DT_APPS[$name]["fixed"]=
+	[ "$fixed" = fixed ] && DT_APPS[$name]["fixed"]=1
 	# hidden is for an app dt_launch has to find by name -- About hibr,
 	# or a window like Rename/Get Info that only ever opens on a specific
 	# file, never generically -- but that must never appear as a choice
 	# of its own on the hibr menu or in App Shortcuts' list of apps to
 	# give a global key. dt_appmenu and dt_appnames both read it; neither
 	# hardcodes a name the way dt_appmenu once hardcoded "about".
-	DT_APPS[$1]["hidden"]=
-	[ "$8" = hidden ] && DT_APPS[$1]["hidden"]=1
+	DT_APPS[$name]["hidden"]=
+	[ "$hidden" = hidden ] && DT_APPS[$name]["hidden"]=1
 	# Set by dt_apps while it sources this file, from where it found it --
 	# empty for one sourced any other way, which stays a flat item.
-	DT_APPS[$1]["dir"]="$DT_APPDIR_CUR"
+	DT_APPS[$name]["dir"]="$DT_APPDIR_CUR"
 }
 
 # Where apps are found: every .hibr in each of these, at any depth, in this
@@ -112,8 +112,8 @@ dt_appnames() {
 # top. reserved is letters the *caller's* menu has already used, since a
 # submenu is its own menu with its own letters otherwise: About hibr, Quit
 # and the rest only need keeping clear of at the top.
-dt_appmenu() {
-	local prefix=$1 used=${2:-} n d l child k path
+fn dt_appmenu(prefix, used = "") {
+	local n d l child k path
 	local -a all seen
 
 	for n in "${!DT_APPS[@]}"; do
@@ -159,11 +159,11 @@ dt_appmenu() {
 }
 
 # The window already showing an app, if there is one.
-dt_appwin() {
+fn dt_appwin(app) {
 	local id
 
 	for id in "${!DT[@]}"; do
-		if [ "${DT[$id]["app"]}" = "$1" ]; then
+		if [ "${DT[$id]["app"]}" = "$app" ]; then
 			ret "$id"
 			return 0
 		fi
@@ -175,8 +175,8 @@ dt_appwin() {
 # second one does not land exactly on the first.  An app declared `once`
 # has one window at most: launching it again brings that one forward,
 # shown if it was hidden.  Anything after the name goes to its _open.
-dt_launch() {
-	local n=$1 r c id
+fn dt_launch(n, arg = "") {
+	local r c id
 
 	[ -z "${DT_APPS[$n]["title"]}" ] && return 1
 	if [ -n "${DT_APPS[$n]["once"]}" ] && id := dt_appwin "$n"; then
@@ -187,7 +187,7 @@ dt_launch() {
 	r=$((2 + (DT_NEXT * 2) % 6))
 	c=$((4 + (DT_NEXT * 4) % 16))
 	dt_new "${DT_APPS[$n]["title"]}" "${DT_APPS[$n]["h"]}" \
-		"${DT_APPS[$n]["w"]}" "$r" "$c" "$n" "$2"
+		"${DT_APPS[$n]["w"]}" "$r" "$c" "$n" "$arg"
 }
 
 # The about app shows the machine's own numbers, live; without it (a session

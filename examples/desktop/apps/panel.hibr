@@ -40,10 +40,10 @@ declare -gA CPSRC
 # it -- panel_mouse then falls through to <name>_click for that same
 # press, exactly as if _mouse did not exist; only a press it actually
 # accepts (return 0) ever sees the drag or the release that follows it.
-cp_pane() {
-	CP_PANES[$1]["title"]="$2"
-	CP_PANES[$1]["icon"]="${3:-◆}"
-	CP_PANE_LIST+=("$1")
+fn cp_pane(pane, title, icon) {
+	CP_PANES[$pane]["title"]="$title"
+	CP_PANES[$pane]["icon"]="${icon:-◆}"
+	CP_PANE_LIST+=("$pane")
 }
 
 # Load every pane in the folders, then sort the list by title without
@@ -85,9 +85,7 @@ declare -gA CP
 # own content once the divider is taken out of it too.
 CP_LISTW=17
 
-panel_open() {
-	local w=$1
-
+fn panel_open(w, arg) {
 	PW[$w]["pane"]=0
 	PW[$w]["side"]=list
 	PW[$w]["sel"]=0
@@ -99,8 +97,8 @@ panel_open() {
 # The selected pane's name, clamped to what is actually registered -- a
 # pane can vanish between frames if whatever provided it stops (nothing
 # does today, but the window list already assumes apps can close under it).
-panel_pane() {
-	local w=$1 i
+fn panel_pane(w) {
+	local i
 
 	i=${PW[$w]["pane"]}
 	[ "${#CP_PANE_LIST[@]}" -eq 0 ] && { ret ""; return 0; }
@@ -108,8 +106,7 @@ panel_pane() {
 	ret "${CP_PANE_LIST[$i]}"
 }
 
-panel_draw() {
-	local id=$1 h=$2 w=$3
+fn panel_draw(id, h, w, row, col) {
 	local i n r t lw=$CP_LISTW side pane bx bw
 
 	dt_wclear "$id"
@@ -172,8 +169,7 @@ panel_draw() {
 # worked when clicked, since that only changes cp_rowsdraw's own choice
 # of widget, not what key a click reaches, which is what made it look
 # like a rendering glitch rather than the stale field it was.
-cp_rowsdraw() {
-	local id=$1 pane=$2 h=$3 w=$4 bx=$5
+fn cp_rowsdraw(id, pane, h, w, bx) {
 	local i r t v n top sel kind wtype on
 
 	unset "CP[$id]"
@@ -244,8 +240,8 @@ cp_rowsdraw() {
 # own rows, whichever has the arrows right now -- skipping headings in a
 # row list, and wrapping at either end in the pane list, the way the hibr
 # menu's own items already do.
-panel_move() {
-	local w=$1 d=$2 i n vis top k=0 pane
+fn panel_move(w, d) {
+	local i n vis top k=0 pane
 
 	if [ "${PW[$w]["side"]}" = list ]; then
 		n=${#CP_PANE_LIST[@]}
@@ -276,8 +272,8 @@ panel_move() {
 
 # Step through a list, wrapping at either end -- shared by every ordinary
 # pane's own cycling, not just one.
-cp_next() {
-	local cur=$1 dir=$2 n=0 i=0 hit=-1 x
+fn cp_next(cur, dir, ...rest) {
+	local n=0 i=0 hit=-1 x
 
 	shift 2
 	for x in "$@"; do
@@ -294,8 +290,8 @@ cp_next() {
 }
 
 # Change the selected row in the selected pane.
-cp_do() {
-	local w=$1 dir=$2 pane sel k
+fn cp_do(w, dir) {
+	local pane sel k
 
 	pane := panel_pane "$w"
 	[ -z "$pane" ] && return 0
@@ -317,11 +313,11 @@ cp_save() {
 	return 0
 }
 
-panel_key() {
-	local w=$1 pane
+fn panel_key(w, key) {
+	local pane
 
 	if [ "${PW[$w]["side"]}" = list ]; then
-		case $2 in
+		case $key in
 		tab | right | enter | " ") PW[$w]["side"]=pane ;;
 		up) panel_move "$w" -1 ;;
 		down) panel_move "$w" 1 ;;
@@ -330,7 +326,7 @@ panel_key() {
 		return 0
 	fi
 
-	if [ "$2" = tab ]; then
+	if [ "$key" = tab ]; then
 		PW[$w]["side"]=list
 		return 0
 	fi
@@ -338,20 +334,20 @@ panel_key() {
 	pane := panel_pane "$w"
 	if [ -n "$pane" ] && dt_has "${pane}_draw"; then
 		if dt_has "${pane}_key"; then
-			"${pane}_key" "$w" "$2"
+			"${pane}_key" "$w" "$key"
 			return $?
 		fi
 		return 1
 	fi
 
-	case $2 in
+	case $key in
 	up) panel_move "$w" -1 ;;
 	down) panel_move "$w" 1 ;;
 	right | enter | " ") cp_do "$w" 1 ;;
 	left) cp_do "$w" -1 ;;
 	*)
 		if [ -n "$pane" ] && dt_has "${pane}_key"; then
-			"${pane}_key" "$w" "$2"
+			"${pane}_key" "$w" "$key"
 			return $?
 		fi
 		return 1
@@ -363,8 +359,8 @@ panel_key() {
 # in the selected pane's own body works the way it always did -- select,
 # a second click (or enter) activates, and a click on a dropdown's own
 # cell opens the real popup, through the pane's own <name>_drop.
-panel_click() {
-	local w=$1 r=$2 c=$3 pane i n top tag k wc
+fn panel_click(w, r, c) {
+	local pane i n top tag k wc
 
 	if [ "$c" -lt "$CP_LISTW" ]; then
 		[ "$r" -lt 1 ] || [ "$r" -gt "${#CP_PANE_LIST[@]}" ] && return 0
@@ -426,8 +422,8 @@ panel_click() {
 # state here is.
 declare -gA CP_MDRAG
 
-panel_mouse() {
-	local id=$1 act=$2 button=$3 r=$4 c=$5 pane
+fn panel_mouse(id, act, button, r, c, mods) {
+	local pane
 
 	if [ "$act" = press ]; then
 		CP_MDRAG[$id]=
@@ -446,20 +442,20 @@ panel_mouse() {
 	[ "$act" = release ] && CP_MDRAG[$id]=
 }
 
-panel_wheel() {
-	local w=$1 top max n vis pane
+fn panel_wheel(w = "", dir = "") {
+	local top max n vis pane
 
 	[ "${PW[$w]["side"]}" = list ] && return 0
 	pane := panel_pane "$w"
 	if [ -n "$pane" ] && dt_has "${pane}_draw"; then
-		dt_has "${pane}_wheel" && "${pane}_wheel" "$w" "$2"
+		dt_has "${pane}_wheel" && "${pane}_wheel" "$w" "$dir"
 		return 0
 	fi
 	top=${PW[$w]["top"]}
 	n=${PW[$w]["n"]}
 	vis=${PW[$w]["vis"]}
 	max=$((n - vis))
-	case $2 in
+	case $dir in
 	up) top=$((top - 2)) ;;
 	down) top=$((top + 2)) ;;
 	esac

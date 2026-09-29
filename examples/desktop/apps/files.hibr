@@ -69,8 +69,8 @@ mod load ls > /dev/null 2>&1
 #
 # Entries past ["n"] are left over from a larger directory and never read,
 # because everything that walks the list stops there.
-fb_scan() {
-	local id=$1 f n=0 base d
+fn fb_scan(id) {
+	local f n=0 base d
 
 	d=${FB[$id]["dir"]}
 	if [ "$d" != / ]; then
@@ -125,12 +125,12 @@ fb_scan() {
 # never marked, because nothing sensible is done to it.
 
 # Mark entry i or take its mark away, keeping count.
-fb_mark() {
-	local id=$1 i=$2 c
+fn fb_mark(id, i, on) {
+	local c
 
 	[ "${FL[$id][$i]["kind"]}" = up ] && return 0
 	c=${FB[$id]["marks"]}
-	if [ "$3" = 1 ]; then
+	if [ "$on" = 1 ]; then
 		[ -n "${FL[$id][$i]["m"]}" ] && return 0
 		FL[$id][$i]["m"]=1
 		FB[$id]["marks"]=$((c + 1))
@@ -142,8 +142,8 @@ fb_mark() {
 }
 
 # Nothing marked.
-fb_clear() {
-	local id=$1 i=0 n=${FB[$1]["n"]}
+fn fb_clear(id) {
+	local i=0 n=${FB[$id]["n"]}
 
 	[ "${FB[$id]["marks"]}" = 0 ] && return 0
 	while [ "$i" -lt "$n" ]; do
@@ -154,8 +154,8 @@ fb_clear() {
 }
 
 # Mark everything between two entries, and nothing else.
-fb_range() {
-	local id=$1 a=$2 b=$3 i
+fn fb_range(id, a, b) {
+	local i
 
 	fb_clear "$id"
 	[ "$a" -gt "$b" ] && { i=$a; a=$b; b=$i; }
@@ -168,8 +168,8 @@ fb_range() {
 
 # What is selected, as entries: the marked ones, or the cursor when none
 # are.  Fails when that leaves only "..".
-fb_selected() {
-	local id=$1 i=0 n=${FB[$1]["n"]} out= sel
+fn fb_selected(id) {
+	local i=0 n=${FB[$id]["n"]} out= sel
 
 	if [ "${FB[$id]["marks"]}" -gt 0 ]; then
 		while [ "$i" -lt "$n" ]; do
@@ -187,8 +187,8 @@ fb_selected() {
 # Every directory between root and $1, each a full path so the same string
 # is what the breadcrumb shows and what it means -- dt_droplist has no room
 # for a label distinct from the value it hands back. Into FB_CRUMBS.
-fb_crumbs() {
-	local d=$1 rest seg cur=
+fn fb_crumbs(d) {
+	local rest seg cur=
 
 	FB_CRUMBS=(/)
 	rest=${d#/}
@@ -204,11 +204,11 @@ fb_crumbs() {
 }
 
 # The paths of a list of entries, into FB_PATHS.
-fb_paths() {
-	local id=$1 i p
+fn fb_paths(id, sel) {
+	local i p
 
 	FB_PATHS=()
-	for i in $2; do
+	for i in $sel; do
 		p := fb_path "$id" "$i"
 		FB_PATHS+=("$p")
 	done
@@ -216,19 +216,19 @@ fb_paths() {
 
 # The pen for an entry's row: the cursor brightest, marked entries lit,
 # the rest by what they are.
-fb_rowpen() {
-	if [ "$2" = "${FB[$1]["sel"]}" ]; then
+fn fb_rowpen(id, i) {
+	if [ "$i" = "${FB[$id]["sel"]}" ]; then
 		console pen "#1a202c" "#63b3ed" bold
-	elif [ -n "${FL[$1][$2]["m"]}" ]; then
+	elif [ -n "${FL[$id][$i]["m"]}" ]; then
 		console pen "#e2e8f0" "#2c5282" bold
 	else
-		fb_pen "${FL[$1][$2]["kind"]}"
+		fb_pen "${FL[$id][$i]["kind"]}"
 	fi
 }
 
 # Fill in size, time and permissions for the details view, from one ls.
-fb_meta() {
-	local id=$1 d out line perm links user group size mon day tm name i n rank
+fn fb_meta(id) {
+	local d out line perm links user group size mon day tm name i n rank
 	local -A at
 
 	d=${FB[$id]["dir"]}
@@ -271,9 +271,9 @@ fb_meta() {
 # is ordered by one key per entry, sorted in C by arr sort -- names by
 # their lower-case form, sizes zero-padded, times by where ls -t put them.
 # Until then the glob's own order stands.
-fb_sort() {
-	local id=$1 by=${FB[$1]["sort"]} dir=${FB[$1]["sdir"]:-asc}
-	local n=${FB[$1]["n"]:-0} i k key start=0 f nm
+fn fb_sort(id) {
+	local by=${FB[$id]["sort"]} dir=${FB[$id]["sdir"]:-asc}
+	local n=${FB[$id]["n"]:-0} i k key start=0 f nm
 	local -a kd kf order
 	local -a xname xdir xkind xm xsize xtime xperm xuser xgroup xtrank
 
@@ -360,8 +360,8 @@ fb_sort() {
 # already was. Names and modes start at A; sizes largest first; times
 # newest first -- what is looked for most often. The selected entry stays
 # selected wherever it lands.
-fb_headsort() {
-	local id=$1 col=$2 nm i n
+fn fb_headsort(id, col) {
+	local nm i n
 
 	if [ "${FB[$id]["sort"]}" = "$col" ]; then
 		if [ "${FB[$id]["sdir"]}" = asc ]; then
@@ -391,8 +391,8 @@ fb_headsort() {
 }
 
 # A size as people read one: 4.8K, 19M.
-fb_human() {
-	local n=$1 i=0 t
+fn fb_human(n) {
+	local i=0 t
 	local units=(B K M G T)
 
 	[ -z "$n" ] && { ret ""; return; }
@@ -410,11 +410,11 @@ fb_human() {
 }
 
 # The full path of entry i.
-fb_path() {
-	local id=$1 d nm
+fn fb_path(id, i) {
+	local d nm
 
 	d=${FB[$id]["dir"]}
-	nm=${FL[$id][$2]["name"]}
+	nm=${FL[$id][$i]["name"]}
 	if [ "$nm" = .. ]; then
 		d=${d%/*}
 		ret "${d:-/}"
@@ -429,9 +429,7 @@ fb_path() {
 # worth naming -- an app knows what it is showing better than the menu
 # that opened it does, the same reasoning term_open's own dt_retitle uses.
 # $HOME collapses to ~ the same way a prompt's \w already would.
-fb_retitle() {
-	local id=$1 t=$2
-
+fn fb_retitle(id, t) {
 	case $t in
 	"$HOME") t="~" ;;
 	"$HOME"/*) t="~${t#$HOME}" ;;
@@ -440,9 +438,7 @@ fb_retitle() {
 }
 
 # Go somewhere, keeping the path absolute and without a trailing slash.
-fb_go() {
-	local id=$1 d=$2
-
+fn fb_go(id, d) {
 	case $d in
 	/*) ;;
 	*) d="${FB[$id]["dir"]}/$d" ;;
@@ -466,8 +462,8 @@ fb_go() {
 # Keep the selection on screen after it moves.  Positions are items, and
 # the screen holds `per` of them to a row -- one in the lists, a row of
 # tiles in the icons.
-fb_show() {
-	local id=$1 vis sel n top per
+fn fb_show(id) {
+	local vis sel n top per
 
 	vis=${FB[$id]["vis"]}
 	per=${FB[$id]["per"]}
@@ -484,8 +480,8 @@ fb_show() {
 }
 
 # Keep the view itself inside the list, on a whole row.
-fb_clamp() {
-	local id=$1 max n vis per top
+fn fb_clamp(id) {
+	local max n vis per top
 
 	n=${FB[$id]["n"]}
 	vis=${FB[$id]["vis"]}
@@ -499,8 +495,8 @@ fb_clamp() {
 }
 
 # The view a directory was last shown in, or the default.
-fb_dirview() {
-	ret "${FB_VIEWS["$1"]:-$FB_DEFAULTVIEW}"
+fn fb_dirview(dir) {
+	ret "${FB_VIEWS["$dir"]:-$FB_DEFAULTVIEW}"
 }
 
 # Remember which view a directory is shown in, and keep it. Written
@@ -510,8 +506,8 @@ fb_dirview() {
 # escaped here, not the key -- the same limitation dt_save's own DT_KEYS
 # and DT_APPKEY already accept for a controlled vocabulary of names; a
 # filesystem path is not controlled.
-fb_view_save() {
-	local dir=$1 view=$2 d tmp=$FB_VIEWFILE.$$
+fn fb_view_save(dir, view) {
+	local d tmp=$FB_VIEWFILE.$$
 
 	FB_VIEWS["$dir"]=$view
 	mkdir -p "${FB_VIEWFILE%/*}" 2> /dev/null || return 1
@@ -534,22 +530,22 @@ fb_reset_views() {
 	rm -f "$FB_VIEWFILE"
 }
 
-files_open() {
-	local d=${2:-${FB_DIR:-$PWD}}
+fn files_open(id, d) {
+	local d=${d:-${FB_DIR:-$PWD}}
 
 	[ -d "$d" ] || d=$PWD
-	FB[$1]["dir"]=$d
-	FB[$1]["hidden"]=
-	FB[$1]["view"] := fb_dirview "$d"
-	FB[$1]["vis"]=1
-	FB[$1]["per"]=1
-	fb_retitle "$1" "$d"
-	fb_scan "$1"
+	FB[$id]["dir"]=$d
+	FB[$id]["hidden"]=
+	FB[$id]["view"] := fb_dirview "$d"
+	FB[$id]["vis"]=1
+	FB[$id]["per"]=1
+	fb_retitle "$id" "$d"
+	fb_scan "$id"
 }
 
 # The colour an entry is drawn in, by what it is.
-fb_pen() {
-	case $1 in
+fn fb_pen(kind) {
+	case $kind in
 	up | dir) console pen "#f6ad55" "$DT_FACE" ;;
 	exe) console pen "#68d391" "$DT_FACE" ;;
 	link) console pen "#4fd1c5" "$DT_FACE" ;;
@@ -558,8 +554,8 @@ fb_pen() {
 }
 
 # The picture an entry has in the icon view.
-fb_glyph() {
-	case $1 in
+fn fb_glyph(kind) {
+	case $kind in
 	up) ret "▲" ;;
 	dir) ret "▤▤" ;;
 	exe) ret "▶" ;;
@@ -568,8 +564,8 @@ fb_glyph() {
 	esac
 }
 
-files_draw() {
-	local id=$1 h=$2 w=$3 t n sel
+fn files_draw(id, h, w, row, col) {
+	local t n sel
 
 	console pen "#63b3ed" "$DT_FACE" bold
 	t="${FB[$id]["dir"]}"
@@ -594,8 +590,8 @@ files_draw() {
 }
 
 # A list of names, one to a row.
-fb_drawlist() {
-	local id=$1 h=$2 w=$3 i r nm t n top sel
+fn fb_drawlist(id, h, w) {
+	local i r nm t n top sel
 
 	FB[$id]["y0"]=2
 	FB[$id]["vis"]=$((h - 2))
@@ -618,8 +614,8 @@ fb_drawlist() {
 
 # The list with a size, a time and permissions: as many of those columns as
 # the window has room for, dropped from the right as it narrows.
-fb_drawdet() {
-	local id=$1 h=$2 w=$3 i r nm t n top sel nw sz line mk ms mt mm a x hx
+fn fb_drawdet(id, h, w) {
+	local i r nm t n top sel nw sz line mk ms mt mm a x hx
 	local cs=0 ct=0 cp=0
 
 	[ -n "${FB[$id]["meta"]}" ] || fb_meta "$id"
@@ -696,8 +692,8 @@ fb_drawdet() {
 }
 
 # A grid of tiles: a picture, and the name under it.
-fb_drawicons() {
-	local id=$1 h=$2 w=$3 i n top sel per rows r c x y g nm tw=$FILES_TILE
+fn fb_drawicons(id, h, w) {
+	local i n top sel per rows r c x y g nm tw=$FILES_TILE
 
 	per=$(((w - 1) / tw))
 	[ "$per" -lt 1 ] && per=1
@@ -731,8 +727,8 @@ fb_drawicons() {
 # rows, when per (the icon view's columns) is more than one -- rows and
 # shown convert them, and dt_scrollbar's own gate gets the right answer
 # from those rather than from n and vis directly.
-fb_bar() {
-	local id=$1 h=$2 w=$3 n per vis top rows shown y0
+fn fb_bar(id, h, w) {
+	local n per vis top rows shown y0
 
 	n=${FB[$id]["n"]}
 	per=${FB[$id]["per"]}
@@ -748,8 +744,8 @@ fb_bar() {
 # Keys.  The arrows move the cursor and leave only it selected; with shift
 # they carry the selection with them from where it was anchored.  Space
 # marks or unmarks the cursor's entry and steps on, ctrl-a marks everything.
-files_key() {
-	local id=$1 k=$2 vis sel n per icons= to ext=
+fn files_key(id, k) {
+	local vis sel n per icons= to ext=
 
 	vis=${FB[$id]["vis"]}
 	per=${FB[$id]["per"]}
@@ -819,8 +815,8 @@ files_key() {
 
 # Open the selected entry: go into a folder, and hand a file to the desktop,
 # which opens it in a terminal with hvi.
-fb_open() {
-	local id=$1 sel p
+fn fb_open(id) {
+	local sel p
 
 	sel=${FB[$id]["sel"]}
 	[ "${FB[$id]["n"]}" = 0 ] && return 0
@@ -835,8 +831,8 @@ fb_open() {
 
 # Rename: one field, a real window of its own. mv does the actual work,
 # the same command every move in this app already shells out to.
-files_rename() {
-	local id=$1 sel rid h=6 w=46 r c nm p
+fn files_rename(id) {
+	local sel rid h=6 w=46 r c nm p
 
 	sel=${FB[$id]["sel"]}
 	[ "${FB[$id]["n"]}" = 0 ] && return 0
@@ -852,9 +848,7 @@ files_rename() {
 	RN[$rid]["cur"]=${#nm}
 }
 
-rn_draw() {
-	local id=$1 w=$3
-
+fn rn_draw(id, h, w, row, col) {
 	console pen "$DT_INK" "$DT_FACE"
 	console put -p "w$id" 1 2 "New name:"
 	dt_textdraw "$id" 2 2 $((w - 4)) "${RN[$id]["text"]}" \
@@ -863,18 +857,18 @@ rn_draw() {
 	console put -p "w$id" 4 2 "enter renames · escape cancels"
 }
 
-rn_click() {
-	local id=$1 c=$3 cur
+fn rn_click(id = "", r = "", c = "") {
+	local cur
 
-	[ "$2" = 2 ] || return 0
+	[ "$r" = 2 ] || return 0
 	cur=$((c - 2))
 	[ "$cur" -gt "${#RN[$id]["text"]}" ] && cur=${#RN[$id]["text"]}
 	[ "$cur" -lt 0 ] && cur=0
 	RN[$id]["cur"]=$cur
 }
 
-rn_commit() {
-	local id=$1 name dir old new
+fn rn_commit(id) {
+	local name dir old new
 
 	name=${RN[$id]["text"]}
 	dir=${RN[$id]["dir"]}
@@ -901,8 +895,8 @@ rn_commit() {
 	fi
 }
 
-rn_key() {
-	local id=$1 k=$2 res
+fn rn_key(id, k) {
+	local res
 
 	case $k in
 	enter) rn_commit "$id"; return 0 ;;
@@ -915,8 +909,8 @@ rn_key() {
 	return 0
 }
 
-rn_close() {
-	unset "RN[$1]"
+fn rn_close(id) {
+	unset "RN[$id]"
 }
 
 # Get Info: name (so renaming lives here too, the same as it does in a
@@ -924,8 +918,8 @@ rn_close() {
 # and group, and the nine permission bits -- read from the same one-ls
 # metadata the details view uses, applied with chmod and chown the moment
 # a box is clicked or, for the text fields, on enter.
-files_info() {
-	local id=$1 sel h=18 w=48 r c gid nm p isdir
+fn files_info(id) {
+	local sel h=18 w=48 r c gid nm p isdir
 
 	sel=${FB[$id]["sel"]}
 	[ "${FB[$id]["n"]}" = 0 ] && return 0
@@ -956,9 +950,7 @@ files_info() {
 
 # x and s (setuid/sticky in the executable's own column) both still mean
 # the bit is set; anything else in that column (S, T, a bare -) does not.
-gi_permload() {
-	local id=$1 p=$2
-
+fn gi_permload(id, p) {
 	GI[$id]["ur"]=0; [ "${p:1:1}" = r ] && GI[$id]["ur"]=1
 	GI[$id]["uw"]=0; [ "${p:2:1}" = w ] && GI[$id]["uw"]=1
 	GI[$id]["ux"]=0
@@ -973,8 +965,8 @@ gi_permload() {
 	case ${p:9:1} in x | t) GI[$id]["ox"]=1 ;; esac
 }
 
-gi_draw() {
-	local id=$1 w=$3 sz nfoc ofoc gfoc
+fn gi_draw(id, h, w, row, col) {
+	local sz nfoc ofoc gfoc
 
 	dt_wclear "$id"
 	console pen "$DT_INK" "$DT_FACE"
@@ -1030,8 +1022,8 @@ gi_draw() {
 	console put -p "w$id" 14 2 "enter applies · escape closes"
 }
 
-gi_chmod() {
-	local id=$1 u=0 g=0 o=0
+fn gi_chmod(id) {
+	local u=0 g=0 o=0
 
 	[ "${GI[$id]["ur"]}" = 1 ] && u=$((u + 4))
 	[ "${GI[$id]["uw"]}" = 1 ] && u=$((u + 2))
@@ -1049,8 +1041,8 @@ gi_chmod() {
 	fi
 }
 
-gi_click() {
-	local id=$1 r=$2 c=$3 tag cur
+fn gi_click(id, r, c, btn) {
+	local tag cur
 
 	tag := dt_hit "$id" "$r" "$c"
 	case $tag in
@@ -1089,8 +1081,8 @@ gi_click() {
 	esac
 }
 
-gi_apply() {
-	local id=$1 old dir name new own grp ok=1
+fn gi_apply(id = "") {
+	local old dir name new own grp ok=1
 
 	old=${GI[$id]["path"]}
 	dir=${GI[$id]["dir"]}
@@ -1126,8 +1118,8 @@ gi_apply() {
 	[ "$ok" = 1 ] && dt_del "$id"
 }
 
-gi_key() {
-	local id=$1 k=$2 res field buf cur
+fn gi_key(id, k) {
+	local res field buf cur
 
 	case $k in
 	escape) dt_del "$id"; return 0 ;;
@@ -1157,15 +1149,15 @@ gi_key() {
 	return 0
 }
 
-gi_close() {
-	unset "GI[$1]"
+fn gi_close(id) {
+	unset "GI[$id]"
 }
 
 # Open the entry under the cursor with a specific handler, chosen from Open
 # With rather than by its own extension -- the desktop's dt_runhandler is
 # generic on the path once given which one to use.
-files_openwith() {
-	local id=$1 ext=$2 sel p
+fn files_openwith(id, ext) {
+	local sel p
 
 	sel=${FB[$id]["sel"]}
 	[ "${FB[$id]["n"]}" = 0 ] && return 0
@@ -1176,48 +1168,48 @@ files_openwith() {
 
 # Cut is what Copy is, plus marking the clipboard so a paste after it moves
 # the files instead of copying them; dt_edit reads which happened.
-files_cut() {
+fn files_cut(id) {
 	local t
 
-	t := files_copy "$1" || return 1
+	t := files_copy "$id" || return 1
 	ret "$t"
 }
 
-files_hidden() {
-	if [ -n "${FB[$1]["hidden"]}" ]; then
-		FB[$1]["hidden"]=
+fn files_hidden(id = "") {
+	if [ -n "${FB[$id]["hidden"]}" ]; then
+		FB[$id]["hidden"]=
 	else
-		FB[$1]["hidden"]=1
+		FB[$id]["hidden"]=1
 	fi
-	fb_scan "$1"
+	fb_scan "$id"
 }
 
 # Show a view, or the next one.
-files_view() {
-	FB[$1]["view"]=$2
-	FB[$1]["top"]=0
-	fb_view_save "${FB[$1]["dir"]}" "$2"
+fn files_view(id, view) {
+	FB[$id]["view"]=$view
+	FB[$id]["top"]=0
+	fb_view_save "${FB[$id]["dir"]}" "$view"
 }
-files_cycle() {
-	case ${FB[$1]["view"]} in
-	list) files_view "$1" details ;;
-	details) files_view "$1" icons ;;
-	*) files_view "$1" list ;;
+fn files_cycle(id) {
+	case ${FB[$id]["view"]} in
+	list) files_view "$id" details ;;
+	details) files_view "$id" icons ;;
+	*) files_view "$id" list ;;
 	esac
 }
 
-fb_home() { fb_go "$1" "$HOME"; }
-files_top() { FB[$1]["sel"]=0; fb_show "$1"; }
-files_end() {
-	local n=${FB[$1]["n"]}
+fn fb_home(id = "") { fb_go "$id" "$HOME"; }
+fn files_top(id = "") { FB[$id]["sel"]=0; fb_show "$id"; }
+fn files_end(id = "") {
+	local n=${FB[$id]["n"]}
 
-	FB[$1]["sel"]=$((n - 1))
-	fb_show "$1"
+	FB[$id]["sel"]=$((n - 1))
+	fb_show "$id"
 }
 
 # Move what is selected to the trash, where the desktop keeps one.
-files_trash() {
-	local id=$1 sel
+fn files_trash(id) {
+	local sel
 
 	sel := fb_selected "$id" || return 0
 	fb_paths "$id" "$sel"
@@ -1250,8 +1242,8 @@ files_menus() {
 }
 
 # Which entry is under a point in the window, if any.
-fb_at() {
-	local id=$1 r=$2 c=$3 y0 per top i tw=$FILES_TILE
+fn fb_at(id, r, c) {
+	local y0 per top i tw=$FILES_TILE
 
 	y0=${FB[$id]["y0"]}
 	per=${FB[$id]["per"]}
@@ -1274,16 +1266,16 @@ fb_at() {
 # the others marked until the button comes up, so a selection can be picked
 # up whole.  A press that then moves drags the selection: the desktop
 # carries it from there, and whatever it lands on decides what to do.
-files_mouse() {
-	local id=$1 act=$2 r=$4 c=$5 mods=$6 i pr pc sel g lb
+fn files_mouse(id, act, btn, r, c, mods) {
+	local i pr pc sel g lb
 	local -a hx
 
-	if [ "$3" = left ] && [ "$act" = press ] && [ "$r" = 1 ]; then
+	if [ "$btn" = left ] && [ "$act" = press ] && [ "$r" = 1 ]; then
 		fb_crumbs "${FB[$id]["dir"]}"
 		dt_droplist "$id" 1 1 fb_go "${FB_CRUMBS[@]}"
 		return 0
 	fi
-	if [ "$3" = right ]; then
+	if [ "$btn" = right ]; then
 		[ "$act" = press ] || return 0
 		if i := fb_at "$id" "$r" "$c"; then
 			[ -n "${FL[$id][$i]["m"]}" ] || {
@@ -1297,7 +1289,7 @@ files_mouse() {
 			$((${DT[$id]["row"]} + r)) $((${DT[$id]["col"]} + c))
 		return 0
 	fi
-	[ "$3" = left ] || return 0
+	[ "$btn" = left ] || return 0
 	if [ "$act" = press ] && [ "$r" = 2 ] &&
 	   [ "${FB[$id]["view"]}" = details ]; then
 		read -r -a hx <<< "${FB[$id]["hx"]}"
@@ -1389,8 +1381,8 @@ files_mouse() {
 # lists every handler a script of the user's own has registered with
 # dt_handler, regardless of the entry's own extension -- that is what Open
 # With is for.
-files_context() {
-	local id=$1 sel=${FB[$1]["sel"]} n=${FB[$1]["n"]} none isdir ext
+fn files_context(id) {
+	local sel=${FB[$id]["sel"]} n=${FB[$id]["n"]} none isdir ext
 
 	none=0
 	[ "$n" = 0 ] || [ "${FL[$id][$sel]["kind"]}" = up ] && none=1
@@ -1436,8 +1428,8 @@ files_context() {
 
 # Something dropped here goes into the folder shown, or into the folder it
 # was dropped on.
-files_drop() {
-	local id=$1 r=$2 c=$3 op=$4 i dst
+fn files_drop(id, r, c, op, ...rest) {
+	local i dst
 
 	shift 4
 	dst=${FB[$id]["dir"]}
@@ -1449,16 +1441,16 @@ files_drop() {
 
 # The paths of what is selected, one to a line, for the desktop's Copy; and
 # paths pasted here, one to a line, copy those files into the folder shown.
-files_copy() {
+fn files_copy(id) {
 	local sel p out=
 
-	sel := fb_selected "$1" || return 1
-	fb_paths "$1" "$sel"
+	sel := fb_selected "$id" || return 1
+	fb_paths "$id" "$sel"
 	for p in "${FB_PATHS[@]}"; do out="$out$p"$'\n'; done
 	ret "${out%$'\n'}"
 }
-files_paste() {
-	local id=$1 op=$3 p
+fn files_paste(id, text, op) {
+	local p
 	local -a ps
 
 	[ "$op" = cut ] && op=move
@@ -1468,7 +1460,7 @@ files_paste() {
 		if [ -e "$p" ] || [ -L "$p" ]; then
 			ps+=("$p")
 		fi
-	done <<< "$2"
+	done <<< "$text"
 	if [ "${#ps[@]}" = 0 ]; then
 		dt_note "Paste a path to copy that file here"
 		return 0
@@ -1478,8 +1470,8 @@ files_paste() {
 
 # Something changed on disk: read the folder again, keeping the selection
 # on the same name where it is still there.
-files_refresh() {
-	local id=$1 sel nm i n
+fn files_refresh(id) {
+	local sel nm i n
 
 	sel=${FB[$id]["sel"]}
 	nm=${FL[$id][$sel]["name"]}
@@ -1498,14 +1490,14 @@ files_refresh() {
 
 # The wheel moves the view and leaves the selection where it is, which is
 # what a wheel does everywhere else.
-files_wheel() {
-	local top=${FB[$1]["top"]} per=${FB[$1]["per"]}
+fn files_wheel(id, dir, r, c) {
+	local top=${FB[$id]["top"]} per=${FB[$id]["per"]}
 
-	case $2 in
-	up) FB[$1]["top"]=$((top - 3 * per)) ;;
-	down) FB[$1]["top"]=$((top + 3 * per)) ;;
+	case $dir in
+	up) FB[$id]["top"]=$((top - 3 * per)) ;;
+	down) FB[$id]["top"]=$((top + 3 * per)) ;;
 	esac
-	fb_clamp "$1"
+	fb_clamp "$id"
 }
 
 # Run directly: list a directory and stop.

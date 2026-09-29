@@ -9,10 +9,10 @@ CP_ABTICKS=(1000 2000 3000 5000 10000)
 CP_CURSORS=(block underline bar)
 CP_DBLACTIONS=(zoom min close none)
 
-cp_set_cursor() { DT_CURSOR=$2; cp_save; }
-cp_set_about() { AB_SLOWMS=$2; cp_save; }
-cp_set_dblaction() { DT_DBLACTION=$2; cp_save; }
-cp_set_fileview() { FB_DEFAULTVIEW=$2; cp_save; }
+fn cp_set_cursor(id = "", value = "") { DT_CURSOR=$value; cp_save; }
+fn cp_set_about(id = "", value = "") { AB_SLOWMS=$value; cp_save; }
+fn cp_set_dblaction(id = "", value = "") { DT_DBLACTION=$value; cp_save; }
+fn cp_set_fileview(id = "", value = "") { FB_DEFAULTVIEW=$value; cp_save; }
 
 # The mounted disks among the desktop icons, or just Home and the trash.
 cp_icons() {
@@ -76,8 +76,8 @@ cp_barshadow() {
 	cp_save
 }
 
-behaviour_rows() {
-	local w=$1 n=0
+fn behaviour_rows(w) {
+	local n=0
 
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Redraw Skip ($DT_DRAWSKIP)"
 	CP[$w][$n]["wtype"]=slider
@@ -130,8 +130,8 @@ behaviour_rows() {
 	ret "$n"
 }
 
-behaviour_do() {
-	local w=$1 k=$2 dir=$3 v
+fn behaviour_do(w, k, dir) {
+	local v
 
 	case $k in
 	drawskip)
@@ -159,9 +159,7 @@ behaviour_do() {
 	cp_save
 }
 
-behaviour_drop() {
-	local w=$1 r=$2 c=$3 k=$4
-
+fn behaviour_drop(w = "", r = "", c = "", k = "") {
 	case $k in
 	cursor) dt_droplist "$w" "$r" "$c" cp_set_cursor "${CP_CURSORS[@]}" ;;
 	about) dt_droplist "$w" "$r" "$c" cp_set_about "${CP_ABTICKS[@]}" ;;

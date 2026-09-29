@@ -32,8 +32,8 @@ sn_now() {
 }
 
 # A fresh snake of three in the middle, heading right, and something to eat.
-sn_new() {
-	local id=$1 r c now
+fn sn_new(id) {
+	local r c now
 
 	r=${SN[$id]["rows"]}
 	c=${SN[$id]["cols"]}
@@ -51,8 +51,8 @@ sn_new() {
 
 # Put food on a free cell.  Random tries first, which is almost always
 # enough; a full scan if the board is so crowded that they keep missing.
-sn_food() {
-	local id=$1 rows cols body r c i=0
+fn sn_food(id) {
+	local rows cols body r c i=0
 
 	rows=${SN[$id]["rows"]}
 	cols=${SN[$id]["cols"]}
@@ -81,8 +81,8 @@ sn_food() {
 }
 
 # How long a step takes: quicker as the snake grows, down to a floor.
-sn_period() {
-	local s=${SN[$1]["score"]} p
+fn sn_period(id) {
+	local s=${SN[$id]["score"]} p
 
 	p=$((150 - s * 4))
 	[ "$p" -lt 60 ] && p=60
@@ -90,8 +90,8 @@ sn_period() {
 }
 
 # One step: turn if a turn is queued, move, then eat or die.
-sn_step() {
-	local id=$1 body head r c d q rows cols
+fn sn_step(id) {
+	local body head r c d q rows cols
 
 	body=${SN[$id]["body"]}
 	d=${SN[$id]["dir"]}
@@ -133,17 +133,17 @@ sn_step() {
 	fi
 }
 
-sn_over() {
-	local s=${SN[$1]["score"]}
+fn sn_over(id) {
+	local s=${SN[$id]["score"]}
 
-	SN[$1]["state"]=over
+	SN[$id]["state"]=over
 	[ "$s" -gt "$SNAKE_BEST" ] && SNAKE_BEST=$s
 }
 
 # Queue a turn, so two quick keys inside one step are both kept.  A turn
 # straight back into the snake's own neck is dropped, as is a repeat.
-sn_turn() {
-	local id=$1 d=$2 q last
+fn sn_turn(id, d) {
+	local q last
 
 	q=${SN[$id]["q"]}
 	last=${q##* }
@@ -160,15 +160,14 @@ sn_turn() {
 	return 0
 }
 
-snake_open() {
-	SN[$1]["rows"]=0
-	SN[$1]["cols"]=0
+fn snake_open(id, arg) {
+	SN[$id]["rows"]=0
+	SN[$id]["cols"]=0
 }
 
 # The board follows the window: a resize starts a new game on the new board,
 # since a snake cut in half by the edge is no fun for anyone.
-snake_draw() {
-	local id=$1 h=$2 w=$3 wr=$4 wc=$5
+fn snake_draw(id, h, w, wr, wc) {
 	local rows=$((h - 1)) cols=$((w / 2)) now last p n=0 t cell r c st bar
 
 	if [ "$rows" != "${SN[$id]["rows"]}" ] || [ "$cols" != "${SN[$id]["cols"]}" ]; then
@@ -227,11 +226,11 @@ snake_draw() {
 	console put -p "w$id" 1 $((w - ${#bar})) "$bar"
 }
 
-snake_key() {
-	local id=$1 st
+fn snake_key(id, key) {
+	local st
 
 	st=${SN[$id]["state"]}
-	case $2 in
+	case $key in
 	up | k) sn_turn "$id" up ;;
 	down | j) sn_turn "$id" down ;;
 	left | h) sn_turn "$id" left ;;

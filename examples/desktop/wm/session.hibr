@@ -100,9 +100,9 @@ dt_close() {
 # An idle desktop must not pay for an animation nobody is watching. The
 # soonest of every ask in a frame wins; anything that shows the time has
 # to ask for its next change, or it stops changing.
-dt_want() {
-	if [ -z "$DT_WANT" ] || [ "$1" -lt "$DT_WANT" ]; then
-		DT_WANT=$1
+fn dt_want(ms) {
+	if [ -z "$DT_WANT" ] || [ "$ms" -lt "$DT_WANT" ]; then
+		DT_WANT=$ms
 	fi
 }
 

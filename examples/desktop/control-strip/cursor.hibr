@@ -10,19 +10,17 @@ command -v cs_module > /dev/null && cs_module cursor Cursor
 
 CURSOR_STYLES=(block underline bar)
 
-cursor_draw() {
-	local row=$1 col=$2
-
+fn cursor_draw(row, col) {
 	console pen "$DT_INK" "$DT_FACE"
 	console put "$row" "$col" "Cursor"
 }
 
-cursor_click() {
+fn cursor_click(row, col) {
 	command -v cs_dropopen > /dev/null || return 0
-	cs_dropopen "$1" "$2" cursor_pick "${CURSOR_STYLES[@]}"
+	cs_dropopen "$row" "$col" cursor_pick "${CURSOR_STYLES[@]}"
 }
 
-cursor_pick() {
-	DT_CURSOR=$1
+fn cursor_pick(style) {
+	DT_CURSOR=$style
 	dt_save
 }

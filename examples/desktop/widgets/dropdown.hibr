@@ -5,8 +5,8 @@
 
 # Draw a value that opens a list of choices: "value ▾", padded to w
 # columns. tag is what dt_hit answers for a click on it.
-dt_wdrop() {
-	local id=$1 r=$2 c=$3 w=$4 value=$5 tag=${6:-$5} lb
+fn dt_wdrop(id, r, c, w, value, tag) {
+	local tag=${tag:-$value} lb
 
 	lb := str pad "$value" $((w - 2))
 	console put -p "w$id" "$r" "$c" "$lb ▾"
@@ -24,9 +24,7 @@ DT_POPID=
 DT_POPCB=
 DT_POPVALS=()
 
-dt_droplist() {
-	local id=$1 r=$2 c=$3 cb=$4
-
+fn dt_droplist(id, r, c, cb, ...rest) {
 	shift 4
 	DT_POPID=$id
 	DT_POPCB=$cb

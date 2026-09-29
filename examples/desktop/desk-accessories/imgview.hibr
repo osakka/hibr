@@ -15,16 +15,16 @@ command -v dt_app > /dev/null && dt_app imgview "Image Viewer" 16 40 "" "◧"
 # handed, because a global is shared by every window of the same app.
 declare -gA IV
 
-imgview_open() {
-	IV[$1]["path"]=$2
+fn imgview_open(id, arg) {
+	IV[$id]["path"]=$arg
 }
 
-imgview_close() {
-	unset "IV[$1]"
+fn imgview_close(id = "") {
+	unset "IV[$id]"
 }
 
-imgview_draw() {
-	local id=$1 h=$2 w=$3 path=${IV[$1]["path"]}
+fn imgview_draw(id, h, w, row, col) {
+	local path=${IV[$id]["path"]}
 
 	if [ -z "$path" ]; then
 		console pen "$DT_IDLE" "$DT_FACE"
@@ -49,9 +49,7 @@ imgview_draw() {
 # _drop's own args are id, row, col, op ("move" or "copy"), then the paths
 # -- four to shift past, not three; term_drop shifts the same four. Getting
 # this wrong doesn't error, it just quietly stores "move" as the path.
-imgview_drop() {
-	local id=$1
-
+fn imgview_drop(id = "") {
 	shift 4
 	IV[$id]["path"]=$1
 }
@@ -61,8 +59,8 @@ imgview_menus() {
 	dt_item "Set as Wallpaper" w imgview_setwall "$DT_FOCUS"
 }
 
-imgview_setwall() {
-	local path=${IV[$1]["path"]}
+fn imgview_setwall(id) {
+	local path=${IV[$id]["path"]}
 
 	if [ -z "$path" ]; then
 		dt_note "No picture open to set as wallpaper"

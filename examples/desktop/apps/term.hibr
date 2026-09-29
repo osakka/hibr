@@ -81,8 +81,8 @@ tw_colours() {
 
 # Start the program the first time there is a window to put it in, and keep
 # its size in step with the window afterwards.
-tw_fit() {
-	local id=$1 h=$2 w=$3 n i fd
+fn tw_fit(id, h, w) {
+	local n i fd
 	local -a cmd
 
 	[ "$h" -lt 1 ] || [ "$w" -lt 1 ] && return 1
@@ -134,8 +134,8 @@ tw_fit() {
 	return 0
 }
 
-term_draw() {
-	local id=$1 h=$2 w=$3 t st sb cur=0 ms tw view stored n want
+fn term_draw(id, h, w, row, col) {
+	local t st sb cur=0 ms tw view stored n want
 
 	tw=$w
 	# A visible scrollbar costs the program inside a real column, not just
@@ -208,13 +208,13 @@ term_draw() {
 # so there is always a way back to the menu bar, and shift with pageup or
 # pagedown, which page through the scrollback as they do in xterm.  Any
 # other key goes back to the live screen on its way through.
-term_key() {
-	local t=${TW[$1]["t"]} h=${TW[$1]["h"]}
+fn term_key(id, key) {
+	local t=${TW[$id]["t"]} h=${TW[$id]["h"]}
 
-	case $2 in
+	case $key in
 	shift-pageup) term scroll "$t" $((h - 1)) ;;
 	shift-pagedown) term scroll "$t" $((1 - h)) ;;
-	*) term key "$t" "$2" ;;
+	*) term key "$t" "$key" ;;
 	esac
 }
 
@@ -226,16 +226,16 @@ term_key() {
 # Otherwise the left button selects, as in any terminal: press, drag,
 # release, and alt-c or Edit > Copy takes it.  Holding shift selects even
 # when the program has the mouse, which is xterm's way out of the same bind.
-term_mouse() {
-	local t=${TW[$1]["t"]} mode
+fn term_mouse(id, act, btn, r, c, mods) {
+	local t=${TW[$id]["t"]} mode
 
 	[ -n "$t" ] || return 0
 	mode := term mouse "$t"
 	if [ "$mode" != off ]; then
-		case $6 in
+		case $mods in
 		*shift*) ;;
 		*)
-			term mouse "$t" "$2" "$3" $(($4 - 1)) $(($5 - 1))
+			term mouse "$t" "$act" "$btn" $(($r - 1)) $(($c - 1))
 			return 0
 			;;
 		esac
@@ -244,15 +244,15 @@ term_mouse() {
 	# asked for the mouse, the same condition that lets left selection
 	# work below, so this is the one place that can tell right-click from
 	# a program wanting it for its own use.
-	if [ "$3" = right ] && [ "$2" = press ]; then
-		dt_context_open term "$1" \
-			$((${DT[$1]["row"]} + $4)) $((${DT[$1]["col"]} + $5))
+	if [ "$btn" = right ] && [ "$act" = press ]; then
+		dt_context_open term "$id" \
+			$((${DT[$id]["row"]} + $r)) $((${DT[$id]["col"]} + $c))
 		return 0
 	fi
-	[ "$3" = left ] || return 0
-	case $2 in
-	press) term select "$t" start $(($4 - 1)) $(($5 - 1)) ;;
-	drag | release) term select "$t" to $(($4 - 1)) $(($5 - 1)) ;;
+	[ "$btn" = left ] || return 0
+	case $act in
+	press) term select "$t" start $(($r - 1)) $(($c - 1)) ;;
+	drag | release) term select "$t" to $(($r - 1)) $(($c - 1)) ;;
 	esac
 	return 0
 }
@@ -261,8 +261,8 @@ term_mouse() {
 # mouse for itself. Copy and Paste are dt_edit's, the same as the Edit
 # menu's own items: it already puts a copy on the clipboard and shows the
 # note that says so.
-term_context() {
-	local t=${TW[$1]["t"]}
+fn term_context(id = "") {
+	local t=${TW[$id]["t"]}
 
 	dt_menu "Terminal"
 	if [ -n "$t" ]; then
@@ -276,8 +276,8 @@ term_context() {
 }
 
 # What is selected, for the desktop's Copy.
-term_copy() {
-	local t=${TW[$1]["t"]} x
+fn term_copy(id) {
+	local t=${TW[$id]["t"]} x
 
 	[ -n "$t" ] || return 1
 	x := term copy "$t" || return 1
@@ -286,23 +286,23 @@ term_copy() {
 
 # Paste as the terminal's own paste arrives: bracketed, when the program
 # asked for that, so a shell does not run each line as it lands.
-term_paste() {
-	[ -n "${TW[$1]["t"]}" ] && term key "${TW[$1]["t"]}" "paste $2"
+fn term_paste(id, text, op) {
+	[ -n "${TW[$id]["t"]}" ] && term key "${TW[$id]["t"]}" "paste $text"
 	return 0
 }
 
 # The wheel goes to a program that asked for the mouse.  Otherwise, on the
 # alternate screen it is arrow keys, which is how less and man scroll in
 # every terminal that does this; on the main screen it scrolls back.
-term_wheel() {
-	local t=${TW[$1]["t"]} s k
+fn term_wheel(id, dir, r, c) {
+	local t=${TW[$id]["t"]} s k
 
 	[ -n "$t" ] || return 0
-	term mouse "$t" "wheel$2" $(($3 - 1)) $(($4 - 1)) && return 0
+	term mouse "$t" "wheel$dir" $(($r - 1)) $(($c - 1)) && return 0
 	s := term screen "$t"
 	if [ "$s" = alt ]; then
-		for k in 1 2 3; do term key "$t" "$2"; done
-	elif [ "$2" = up ]; then
+		for k in 1 2 3; do term key "$t" "$dir"; done
+	elif [ "$dir" = up ]; then
 		term scroll "$t" 3
 	else
 		term scroll "$t" -3
@@ -313,25 +313,25 @@ term_wheel() {
 # through a registered handler that wanted a terminal, DT_OPENCMD carries
 # what runs instead of hvi -- read once, here, and cleared, so the next
 # ordinary terminal or file does not inherit it.
-term_open() {
+fn term_open(id, arg) {
 	local n i
 
-	TW[$1]["file"]=$2
+	TW[$id]["file"]=$arg
 	if [ "${#DT_OPENCMD[@]}" -gt 0 ]; then
 		n=${#DT_OPENCMD[@]}
 		i=0
 		while [ "$i" -lt "$n" ]; do
-			TW[$1]["arg$i"]="${DT_OPENCMD[$i]}"
+			TW[$id]["arg$i"]="${DT_OPENCMD[$i]}"
 			i=$((i + 1))
 		done
-		TW[$1]["argvn"]=$n
+		TW[$id]["argvn"]=$n
 		DT_OPENCMD=()
 	fi
-	TW[$1]["selfrun"]=$DT_OPENSELF
+	TW[$id]["selfrun"]=$DT_OPENSELF
 	DT_OPENSELF=
-	if [ -n "$2" ]; then
+	if [ -n "$arg" ]; then
 		command -v dt_retitle > /dev/null &&
-			dt_retitle "$1" "Terminal [${2##*/}]"
+			dt_retitle "$id" "Terminal [${arg##*/}]"
 	fi
 	return 0
 }
@@ -350,13 +350,13 @@ term_drop() {
 	term write "$t" "$out"
 }
 
-term_close() {
-	if [ -n "${TW[$1]["fd"]}" ]; then
-		command -v console > /dev/null && console unwatch "${TW[$1]["fd"]}"
+fn term_close(id) {
+	if [ -n "${TW[$id]["fd"]}" ]; then
+		command -v console > /dev/null && console unwatch "${TW[$id]["fd"]}"
 	fi
-	[ -n "${TW[$1]["t"]}" ] && term close "${TW[$1]["t"]}"
-	TW[$1]["t"]=
-	TW[$1]["fd"]=
+	[ -n "${TW[$id]["t"]}" ] && term close "${TW[$id]["t"]}"
+	TW[$id]["t"]=
+	TW[$id]["fd"]=
 }
 
 # The window's title follows whatever the program calls itself.

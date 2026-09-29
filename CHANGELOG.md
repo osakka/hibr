@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.44
+
+Desktop moves to **0.24** alongside this release.
+
+**Every desktop function that takes arguments declares them.** 400 of them,
+across the window manager, the widgets, every app, pane, desk accessory and
+Control Strip module, went from `name() { local id=$1 h=$2 ...` to
+`fn name(id, h, w, row, col) {`. The signature is now the first thing a
+reader sees; a callback's says exactly what the window manager hands it,
+and `ARCHITECTURE.md` lists every one. Three things came with it:
+
+- **Cheaper calls.** Binding a declared parameter is done in C, where the
+  `local` line it replaces was an expansion and an assignment per word:
+  526M instructions against 711M for 20,000 calls of four arguments. Loading
+  the whole desktop costs 0.25% fewer.
+- **The `local` trap is closed.** A parameter is bound before the body
+  runs, so `local b=${M[$id]}` can see `id`. `About hibr`'s bar width read
+  `w` in the same `local` statement that assigned it, and was wrong until
+  now; nothing had caught it because `w` was bare inside arithmetic.
+- **A wrong number of arguments fails the call** rather than running with a
+  missing value. So that the conversion changed nothing else, every call's
+  argument count was recorded across the suites first, and the signatures
+  were written from what was seen: a parameter the suites never showed being
+  passed is optional (`= ""`), and a function handed more than it names
+  takes `...rest`. The 71 functions the suites never call have every
+  parameter optional. With the conversion applied the suites pass unchanged
+  and no call anywhere in them failed to bind.
+
+Types are not declared yet -- an `int` would refuse the empty window id the
+Control Strip passes on purpose -- and are in `docs/backlog.md` as the
+second pass. The undeclared form still works, for an app of your own.
+
+`tests/540-examples.t` had not been parsing `apps/` or checking
+`apps/Games/` for a function defined twice; it does both now, and knows
+both ways of defining one.
+
+HIBR_VER -> 0.44, DT_VER -> 0.24.
+
+Verified: tests/run.sh 90/90 (and under ASan and UBSan), tests/desktop.py
+294/294, tests/apps.py 233/233, tests/term_diff.py 66/66 -- the last three
+unchanged by the conversion, and under a build that logged every failed
+bind, none across 419,306 calls.
+
 ## 0.43
 
 Desktop moves to **0.23** alongside this release.

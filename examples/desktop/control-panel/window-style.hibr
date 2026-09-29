@@ -14,11 +14,11 @@ WS_ALIGNS=(left center right)
 WS_STYLES=(brackets circles squares)
 WS_DRAGKEYS=(alt ctrl shift)
 
-cp_set_frame() { DT_FRAME=$2; cp_save; }
-cp_set_side() { DT_BTNSIDE=$2; cp_save; }
-cp_set_align() { DT_TITLEALIGN=$2; cp_save; }
-cp_set_btnstyle() { DT_BTNSTYLE=$2; cp_save; }
-cp_set_dragkey() { DT_DRAGKEY=$2; cp_save; }
+fn cp_set_frame(id = "", value = "") { DT_FRAME=$value; cp_save; }
+fn cp_set_side(id = "", value = "") { DT_BTNSIDE=$value; cp_save; }
+fn cp_set_align(id = "", value = "") { DT_TITLEALIGN=$value; cp_save; }
+fn cp_set_btnstyle(id = "", value = "") { DT_BTNSTYLE=$value; cp_save; }
+fn cp_set_dragkey(id = "", value = "") { DT_DRAGKEY=$value; cp_save; }
 
 # Whether a modifier click anywhere in a window's body moves it, the
 # same as dragging its title bar.
@@ -41,8 +41,8 @@ cp_edgeresize() {
 	cp_save
 }
 
-window_style_rows() {
-	local w=$1 n=0
+fn window_style_rows(w) {
+	local n=0
 
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Frame"
 	CP[$w][$n]["val"]="$DT_FRAME"; CP[$w][$n]["key"]=frame; n=$((n + 1))
@@ -68,8 +68,8 @@ window_style_rows() {
 	ret "$n"
 }
 
-window_style_do() {
-	local w=$1 k=$2 dir=$3 v
+fn window_style_do(w, k, dir) {
+	local v
 
 	case $k in
 	frame) v := cp_next "$DT_FRAME" "$dir" "${WS_FRAMES[@]}"
@@ -88,9 +88,7 @@ window_style_do() {
 	cp_save
 }
 
-window_style_drop() {
-	local w=$1 r=$2 c=$3 k=$4
-
+fn window_style_drop(w = "", r = "", c = "", k = "") {
 	case $k in
 	frame) dt_droplist "$w" "$r" "$c" cp_set_frame "${WS_FRAMES[@]}" ;;
 	side) dt_droplist "$w" "$r" "$c" cp_set_side "${WS_SIDES[@]}" ;;

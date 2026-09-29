@@ -11,7 +11,7 @@ command -v cp_pane > /dev/null && cp_pane control_strip "Control Strip" "▤"
 
 CP_CS_SIDES=(left right)
 
-cp_set_csside() { CS_SIDE=$2; cp_save; }
+fn cp_set_csside(id = "", value = "") { CS_SIDE=$value; cp_save; }
 
 cp_csshadow() {
 	if [ "$CS_SHADOW" = 1 ]; then
@@ -22,8 +22,8 @@ cp_csshadow() {
 	cp_save
 }
 
-control_strip_rows() {
-	local w=$1 n=0
+fn control_strip_rows(w) {
+	local n=0
 
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Side"
 	CP[$w][$n]["val"]="$CS_SIDE"; CP[$w][$n]["key"]=side; n=$((n + 1))
@@ -34,8 +34,8 @@ control_strip_rows() {
 	ret "$n"
 }
 
-control_strip_do() {
-	local w=$1 k=$2 dir=$3 v
+fn control_strip_do(w = "", k = "", dir = "") {
+	local v
 
 	case $k in
 	side) v := cp_next "$CS_SIDE" "$dir" "${CP_CS_SIDES[@]}"
@@ -45,9 +45,7 @@ control_strip_do() {
 	cp_save
 }
 
-control_strip_drop() {
-	local w=$1 r=$2 c=$3 k=$4
-
+fn control_strip_drop(w = "", r = "", c = "", k = "") {
 	case $k in
 	side) dt_droplist "$w" "$r" "$c" cp_set_csside "${CP_CS_SIDES[@]}" ;;
 	esac

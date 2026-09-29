@@ -8,8 +8,8 @@
 # before it is opened, but there is no popup to open; the track is a
 # picture of the value, not a control of its own to press at a given
 # column. tag is what dt_hit answers for a click on it.
-dt_slider() {
-	local id=$1 r=$2 c=$3 w=$4 value=$5 min=$6 max=$7 tag=${8:-$5}
+fn dt_slider(id, r, c, w, value, min, max, tag) {
+	local tag=${tag:-$value}
 	local pos i t
 
 	pos=0

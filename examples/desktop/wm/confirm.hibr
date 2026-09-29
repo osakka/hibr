@@ -8,10 +8,10 @@
 # cancels rather than reaching whatever it landed on -- forgets it. cmd is
 # a single word, a function of no arguments, since the message can hold a
 # space and a command built from stored, later-unquoted menu text cannot.
-dt_confirm() {
+fn dt_confirm(msg, cmd) {
 	dt_note_clear
-	DT_CONFIRM="$1"
-	DT_CONFIRM_CMD=$2
+	DT_CONFIRM="$msg"
+	DT_CONFIRM_CMD=$cmd
 }
 
 # A small window of its own, not just a coloured box: a border and a
@@ -33,8 +33,8 @@ dt_confirm_geom() {
 }
 
 # y, n, or empty for a point that is not on either word of the hint line.
-dt_confirm_hit() {
-	local mr=$1 mc=$2 g y0 x0 w h hr hx half
+fn dt_confirm_hit(mr, mc) {
+	local g y0 x0 w h hr hx half
 
 	[ -z "$DT_CONFIRM" ] && return 1
 	g := dt_confirm_geom
@@ -82,12 +82,12 @@ dt_confirm_draw() {
 		"$DT_CONFIRM_HINT"
 }
 
-dt_confirm_key() {
+fn dt_confirm_key(id) {
 	local cmd=$DT_CONFIRM_CMD
 
 	DT_CONFIRM=
 	DT_CONFIRM_CMD=
-	case $1 in
+	case $id in
 	y | Y | enter)
 		# cmd may end the loop (dt_quit) with no redraw of its own after
 		# it, same as every other quit path -- draw once here, box

@@ -588,7 +588,7 @@ first, with instruction counts on the desktop's own idle frame and on the
 loop benchmarks -- `fn_find` is also on `unset`, `type`, `command -v` and
 `declare -F`, and `fn_src` relies on the index it leaves behind.
 
-### A strict mode, per file -- agreed, after v0.45
+### A strict mode, per file -- agreed, after the Control Panel
 
 Perl's `use strict` as a family of named checks, each opt-in, each scoped to
 the file that turns it on -- not the whole shell, since some redefinition
@@ -610,6 +610,17 @@ free; the variable check touches every assignment inside a function and
 must sit behind a flag bit so a script that never asks pays one test.
 Needs an ADR before any code, since it is a new language concept, and the
 desktop's own `wm/` files are the first place to turn it on.
+
+### Types on the desktop's parameters -- the second pass
+
+Every desktop function declares its parameters since 0.44, untyped. Types
+would turn a wrong argument into an error at the call rather than a drawing
+in the wrong place: `fn dt_button(str id, int r, int c, ...)`. Not done in
+the same pass because a type is a promise the callers have to keep, and
+some deliberately do not -- the Control Strip passes an empty window id,
+which `int` refuses. The census that made the conversion (every call's
+argument count, across the suites) can record whether each argument was an
+integer as well; type what always was, and read each of the rest.
 
 ## For language models
 

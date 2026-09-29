@@ -41,8 +41,8 @@ MB_CTXWHO=
 MB_CTXID=
 
 # Start a menu.  Called from an app's <app>_menus.
-dt_menu() {
-	MB[$MB_N]["title"]="$1"
+fn dt_menu(title) {
+	MB[$MB_N]["title"]="$title"
 	MB[$MB_N]["n"]=0
 	MB[$MB_N]["w"]=0
 	MB[$MB_N]["bar"]=1
@@ -57,9 +57,7 @@ dt_item() {
 }
 
 # The same, with a tick beside it when the third argument is not 0.
-dt_mark() {
-	local lb=$1 k=$2 on=$3
-
+fn dt_mark(lb, k, on, ...rest) {
 	shift 3
 	if [ "$on" = 0 ] || [ -z "$on" ]; then
 		dt_row " " 0 "$lb" "$k" "$@"
@@ -71,8 +69,8 @@ dt_mark() {
 # An item that is there but cannot be chosen, which is how a menu says a
 # thing exists and is not available now -- quieter than hiding it, and it
 # keeps the menu the same shape from one moment to the next.
-dt_dim() {
-	dt_row "" 1 "$1" "" :
+fn dt_dim(label) {
+	dt_row "" 1 "$label" "" :
 }
 
 # Start a submenu.  Items until dt_end belong to it.
@@ -81,13 +79,13 @@ dt_dim() {
 # created, which after one dt_end is the submenu that just closed. Getting
 # that wrong hangs the second submenu off the first, and it looks almost
 # right until you notice a menu item has gone missing.
-dt_sub() {
+fn dt_sub(label) {
 	local p=${MB_CUR:-$((MB_N - 1))} n
 
 	n=${MB[$p]["n"]}
-	dt_menu "$1"
+	dt_menu "$label"
 	MB[$((MB_N - 1))]["bar"]=0
-	MI[$p][$n]["label"]="$1"
+	MI[$p][$n]["label"]="$label"
 	MI[$p][$n]["key"]=""
 	MI[$p][$n]["cmd"]=""
 	MI[$p][$n]["argc"]=0
@@ -107,8 +105,8 @@ dt_end() {
 }
 
 # Remember the widest label a menu has to fit.
-dt_wide() {
-	[ "$2" -gt "${MB[$1]["w"]}" ] && MB[$1]["w"]=$2
+fn dt_wide(m, w) {
+	[ "$w" -gt "${MB[$m]["w"]}" ] && MB[$m]["w"]=$w
 }
 
 # One row of a menu.  Everything above goes through here.  The command is
@@ -118,8 +116,8 @@ dt_wide() {
 # An empty word is still dropped, as splitting always dropped it: the
 # Control Strip's dropdowns pass an empty window id and rely on it never
 # reaching their callback.
-dt_row() {
-	local tick=$1 dim=$2 lb=$3 k=$4 m n i=0 a
+fn dt_row(tick, dim, lb, k, ...rest) {
+	local m n i=0 a
 
 	shift 4
 	m=${MB_CUR:-$((MB_N - 1))}
@@ -243,8 +241,8 @@ dt_menus() {
 # Pick an accelerator for a label that nothing else in the menu has taken.
 # Calculator and Clock both start with a C, and a menu where two items
 # answer to the same letter is a menu where one of them cannot be reached.
-dt_akey() {
-	local t=$1 used=$2 i=0 c
+fn dt_akey(t, used) {
+	local i=0 c
 
 	while [ "$i" -lt ${#t} ]; do
 		c=${t:$i:1}
@@ -275,8 +273,8 @@ dt_akey() {
 # dt_menu_draw underlines the letter in place when this finds one, and
 # falls back to showing the key after the label, the way every item
 # used to, when it does not.
-dt_akeypos() {
-	local lb=$1 k=$2 i=0 c lk
+fn dt_akeypos(lb, k) {
+	local i=0 c lk
 
 	if [ "${#k}" != 1 ]; then
 		ret -1
@@ -330,8 +328,7 @@ dt_drop() {
 
 # Draw one menu at its own place.  A submenu is given the column its parent
 # occupies so it can sit beside it rather than on top of it.
-dt_menu_draw() {
-	local m=$1 px=$2 parent=$3
+fn dt_menu_draw(m, px, parent) {
 	local i=0 r=1 x w n lb k t sub rowfg rowbg rowbold pos full pre hl post
 
 	x=${MB[$m]["x"]}
@@ -479,8 +476,8 @@ dt_mrows() {
 }
 
 # Move the highlight, stepping over separators.
-dt_mmove() {
-	local d=$1 n i=$MB_SEL k=0
+fn dt_mmove(d) {
+	local n i=$MB_SEL k=0
 
 	n := dt_mrows
 	[ "$n" = 0 ] && return 0
@@ -495,16 +492,16 @@ dt_mmove() {
 }
 
 # Open a menu, closing whatever was open.
-dt_mopen() {
-	MB_OPEN=$1
+fn dt_mopen(m) {
+	MB_OPEN=$m
 	MB_PAR=
 	MB_SEL=0
 	MB_CX=
 	MB_CY=
 	MB_CTXWHO=
 	MB_CTXID=
-	[ "$1" = app ] && return 0
-	[ "${MI[$1][0]["sep"]}" = 1 ] || [ "${MI[$1][0]["dim"]}" = 1 ] &&
+	[ "$m" = app ] && return 0
+	[ "${MI[$m][0]["sep"]}" = 1 ] || [ "${MI[$m][0]["dim"]}" = 1 ] &&
 		dt_mmove 1
 }
 
@@ -582,8 +579,8 @@ dt_mdo() {
 }
 
 # Is a click inside the open menu?  Sets the highlight if it is.
-dt_mpick() {
-	local r=$1 c=$2 n x w dy rel
+fn dt_mpick(r, c) {
+	local n x w dy rel
 
 	n := dt_mrows
 	if [ "$MB_OPEN" = app ]; then
@@ -614,8 +611,8 @@ dt_mpick() {
 # branch, and a click on empty bar space opened whatever `x` was left
 # holding from the last hit. `:=` clears the slot before the call, so a
 # bare `return 1` alone already leaves it empty.
-dt_mhit() {
-	local c=$1 i=0 x w
+fn dt_mhit(c) {
+	local i=0 x w
 
 	[ "$c" -ge "$MB_AX" ] && { ret app; return 0; }
 	while [ "$i" -lt "$MB_N" ]; do
@@ -638,9 +635,7 @@ dt_mhit() {
 # an item with no submenu of its own (About hibr, say) opened Desk
 # Accessories instead of moving to Edit. Returns -1 or MB_N when there is
 # no further bar menu that way, for the caller to fall back to "app".
-dt_mbar() {
-	local i=$1 dir=$2
-
+fn dt_mbar(i, dir) {
 	i=$((i + dir))
 	while [ "$i" -ge 0 ] && [ "$i" -lt "$MB_N" ] &&
 	      [ "${MB[$i]["bar"]}" != 1 ]; do
@@ -650,8 +645,8 @@ dt_mbar() {
 }
 
 # Keys while the bar has the keyboard.  Returns 1 for a key it does not use.
-dt_mkey() {
-	local k=$1 n i=0 lb
+fn dt_mkey(k) {
+	local n i=0 lb
 
 	case $k in
 	escape) dt_mup || dt_mclose; return 0 ;;

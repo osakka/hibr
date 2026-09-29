@@ -29,14 +29,14 @@ dt_dnddraw() {
 
 # Hand what was dropped to whatever is under the pointer.  Not dt_drop,
 # which already draws the open menu.
-dt_ondrop() {
-	local mr=$1 mc=$2 op=move id ap wr wc
+fn dt_ondrop(mr, mc, mods) {
+	local op=move id ap wr wc
 	local -a src
 
 	src=("${DT_DNDS[@]}")
 	DT_DND=
 	DT_DNDS=()
-	case $3 in *ctrl*) op=copy ;; esac
+	case $mods in *ctrl*) op=copy ;; esac
 	[ "$mr" = 0 ] && return 0
 	id := console hit "$mr" "$mc"
 	if [ -n "$id" ]; then
@@ -63,8 +63,8 @@ dt_ondrop() {
 # Move or copy one path into a folder: 0 done, 1 refused with the reason in
 # DT_WHY, 2 nothing to do.  Nothing is ever put over something already
 # there, and a folder cannot go inside itself.
-dt_fileop1() {
-	local op=$1 src=$2 dst=$3 base dir
+fn dt_fileop1(op, src, dst) {
+	local base dir
 
 	base=${src##*/}
 	if ! [ -e "$src" ] && ! [ -L "$src" ]; then
@@ -105,9 +105,7 @@ dt_fileop1() {
 # trash" -- so the caller has one note to fire for that case, not two: a
 # second dt_note right after this used to silently replace the first one's
 # still-single DT_NOTE, which the queue would otherwise show as both.
-dt_tally() {
-	local done=$1 bad=$2 what=$3 last=$4 why=$5 detail=$6
-
+fn dt_tally(done, bad, what, last, why, detail = "") {
 	if [ "$bad" = 0 ]; then
 		[ "$done" = 1 ] && dt_note "$what $last"
 		[ "$done" -gt 1 ] && dt_note "$what $done items${detail:+ $detail}"
@@ -123,8 +121,8 @@ dt_tally() {
 }
 
 # Move or copy paths into a folder, and say once how it went.
-dt_fileop() {
-	local op=$1 dst=$2 src n=0 bad=0 why= last= what
+fn dt_fileop(op, dst, ...rest) {
+	local src n=0 bad=0 why= last= what
 
 	shift 2
 	for src in "$@"; do
@@ -163,8 +161,8 @@ dt_changed() {
 DT_TRASH="${DT_TRASH-${XDG_DATA_HOME:-$HOME/.local/share}/Trash}"
 
 # A path as the trash's info file writes it: percent-escaped, UTF-8 left be.
-dt_urlpath() {
-	local p=$1 out= ch i=0 x
+fn dt_urlpath(p) {
+	local out= ch i=0 x
 
 	while [ "$i" -lt "${#p}" ]; do
 		ch=${p:i:1}
@@ -187,8 +185,8 @@ dt_urlpath() {
 
 # Move one file or folder to the trash, with the note that says where it
 # was: 0 done, 1 refused with the reason in DT_WHY.
-dt_trash1() {
-	local p=$1 base n i=1 when enc
+fn dt_trash1(p) {
+	local base n i=1 when enc
 
 	base=${p##*/}
 	if ! [ -e "$p" ] && ! [ -L "$p" ]; then
@@ -263,11 +261,11 @@ dt_trash() {
 # sends a copy to the clipboard of the terminal it runs on, where that
 # terminal allows it -- so what is copied or cut here pastes into anything
 # else on the machine.
-dt_edit() {
+fn dt_edit(op) {
 	local cb t
 
 	if [ -z "$DT_FOCUS" ]; then
-		[ "$1" = copy ] || return 0
+		[ "$op" = copy ] || return 0
 		if t := dt_iconcopy && [ -n "$t" ]; then
 			DT_CLIP=$t
 			DT_CLIPOP=copy
@@ -278,12 +276,12 @@ dt_edit() {
 		fi
 		return 0
 	fi
-	cb=${DT[$DT_FOCUS]["$1"]}
+	cb=${DT[$DT_FOCUS]["$op"]}
 	if [ -z "$cb" ]; then
-		dt_note "${DT[$DT_FOCUS]["title"]} cannot $1"
+		dt_note "${DT[$DT_FOCUS]["title"]} cannot $op"
 		return 0
 	fi
-	if [ "$1" = paste ]; then
+	if [ "$op" = paste ]; then
 		[ -n "$DT_CLIP" ] && $cb "$DT_FOCUS" "$DT_CLIP" "${DT_CLIPOP:-copy}"
 		return 0
 	fi
@@ -292,9 +290,9 @@ dt_edit() {
 		return 0
 	fi
 	DT_CLIP=$t
-	DT_CLIPOP=$1
+	DT_CLIPOP=$op
 	console clip "$t"
-	if [ "$1" = cut ]; then
+	if [ "$op" = cut ]; then
 		dt_note "Cut ${#t} characters"
 	else
 		dt_note "Copied ${#t} characters"

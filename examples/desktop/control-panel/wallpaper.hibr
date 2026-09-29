@@ -31,9 +31,7 @@ declare -gA WPK
 WPK_DIR=
 command -v dt_keep > /dev/null && dt_keep WPK_DIR
 
-wallpick_open() {
-	local id=$1
-
+fn wallpick_open(id) {
 	if [ -z "$WPK_DIR" ]; then
 		if [ -n "$DT_WALLIMG" ]; then
 			WPK_DIR=${DT_WALLIMG%/*}
@@ -51,10 +49,8 @@ wallpick_open() {
 # Change directory and remember it, so the picker starts here next time --
 # shared by backspace, entering a directory from the keyboard, and a
 # double-click on one from the mouse, so all three ways in keep it current.
-wp_goto() {
-	local id=$1
-
-	fb_go "$id" "$2"
+fn wp_goto(id, dir) {
+	fb_go "$id" "$dir"
 	WPK_DIR=${FB[$id]["dir"]}
 	command -v dt_save > /dev/null && dt_save
 	wp_refresh "$id"
@@ -63,8 +59,8 @@ wp_goto() {
 # .png only -- mods/img/README.md is direct about JPEG not being decoded
 # yet, and showing a picker entry that fails the moment it is reached is
 # worse than not offering it.
-wp_isimage() {
-	case $1 in
+fn wp_isimage(path) {
+	case $path in
 	*.[pP][nN][gG]) return 0 ;;
 	esac
 	return 1
@@ -80,9 +76,7 @@ wp_isimage() {
 # same way console put -p already does for text, so this needs no more
 # care than any other window's own content does, and no reading of the
 # window manager's own position table.
-wp_preview() {
-	local id=$1 path=$2
-
+fn wp_preview(id, path) {
 	dt_has img || need img > /dev/null 2>&1
 	dt_has img || return 1
 	WPK[$id]["previewfor"]=$path
@@ -95,8 +89,8 @@ wp_preview() {
 # updates it when it actually lands on an image. Reads its own sizing
 # from WPK[$id], laid out fresh by _draw every frame before this could
 # ever run from a key or a click.
-wp_refresh() {
-	local id=$1 sel path
+fn wp_refresh(id) {
+	local sel path
 
 	sel=${FB[$id]["sel"]}
 	if [ "${FL[$id][$sel]["dir"]}" = 1 ]; then
@@ -128,8 +122,7 @@ wp_refresh() {
 # decode with no result but the two numbers -- again for nothing; img
 # draw's own cache (keyed the same way) already saves the same repeat for
 # the actual pixels.
-wp_fitcache() {
-	local id=$1 path=$2 boxr=$3 boxc=$4
+fn wp_fitcache(id, path, boxr, boxc) {
 	local sw sh out fitr fitc
 
 	if [ "${WPK[$id]["fitfor"]}" = "$path" ] &&
@@ -165,8 +158,7 @@ wp_fitcache() {
 	WPK[$id]["fitoffc"]=$(((boxc - fitc) / 2))
 }
 
-wallpick_draw() {
-	local id=$1 h=$2 w=$3 bx=$4
+fn wallpick_draw(id, h, w, bx) {
 	local listw prevw prevx prevh vis moderow applyrow i r n top sel t applyon path
 
 	listw=$(((w - 3) * 2 / 5))
@@ -269,13 +261,13 @@ wallpick_draw() {
 	console pen "$DT_INK" "$DT_FACE"
 }
 
-wallpick_key() {
-	local id=$1 n vis top sel
+fn wallpick_key(id, key) {
+	local n vis top sel
 
 	n=${FB[$id]["n"]}
 	sel=${FB[$id]["sel"]}
 	top=${FB[$id]["top"]}
-	case $2 in
+	case $key in
 	up) sel=$((sel - 1)) ;;
 	down) sel=$((sel + 1)) ;;
 	m)
@@ -319,14 +311,14 @@ wallpick_key() {
 # only, same as files_wheel; the selection does not follow, the same as
 # the arrow keys' own up/down already leave it when they scroll without
 # crossing it.
-wallpick_wheel() {
-	local id=$1 top n vis max
+fn wallpick_wheel(id, dir) {
+	local top n vis max
 
 	n=${FB[$id]["n"]}
 	vis=${WPK[$id]["vis"]}
 	top=${FB[$id]["top"]}
 	max=$((n - vis))
-	case $2 in
+	case $dir in
 	up) top=$((top - 2)) ;;
 	down) top=$((top + 2)) ;;
 	esac
@@ -341,8 +333,8 @@ WP_MODES=(stretch scale zoom center)
 # Called by dt_droplist's own popup with (id, value) -- id is unused, the
 # same "cb id value" shape every dropdown here uses, since the value alone
 # is enough to set a desktop-wide mode.
-wp_setmode() {
-	DT_WALLMODE=$2
+fn wp_setmode(id = "", value = "") {
+	DT_WALLMODE=$value
 	command -v dt_save > /dev/null && dt_save
 }
 
@@ -350,9 +342,7 @@ wp_setmode() {
 # colour -- shared by a click on the button and enter on an already-
 # previewed file, so there is a keyboard way to finish this, not only a
 # mouse one.
-wp_apply() {
-	local id=$1
-
+fn wp_apply(id) {
 	[ -n "${WPK[$id]["previewfor"]}" ] || return 0
 	DT_WALLIMG=${WPK[$id]["previewfor"]}
 	command -v dt_save > /dev/null && dt_save
@@ -365,8 +355,7 @@ wp_apply() {
 # files.hibr's own file list both already use, tracked the same way:
 # FB[$id]["last"] (reset to -1 by fb_scan on every directory change, so a
 # stale index from the old listing can never falsely count as a repeat).
-wallpick_click() {
-	local id=$1 r=$2 c=$3
+fn wallpick_click(id, r, c) {
 	local bx=${WPK[$id]["bx"]} listw=${WPK[$id]["listw"]} n i
 
 	if [ "$r" = "${WPK[$id]["applyrow"]}" ] &&

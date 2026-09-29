@@ -43,19 +43,19 @@ DI_SCANT=0
 DT_DNDFROM=
 
 # Where an icon was put, as the settings file restores it.
-dt_iconpos() {
-	DT_ICONPOS["$1"]="$2"
+fn dt_iconpos(key, pos) {
+	DT_ICONPOS["$key"]="$pos"
 }
 
 # One icon.
-dt_iconadd() {
+fn dt_iconadd(kind, name, label, glyph, key) {
 	local n=$DI_N
 
-	DI[$n]["kind"]=$1
-	DI[$n]["name"]=$2
-	DI[$n]["label"]=$3
-	DI[$n]["glyph"]=$4
-	DI[$n]["key"]=$5
+	DI[$n]["kind"]=$kind
+	DI[$n]["name"]=$name
+	DI[$n]["label"]=$label
+	DI[$n]["glyph"]=$glyph
+	DI[$n]["key"]=$key
 	DI_N=$((n + 1))
 }
 
@@ -186,15 +186,15 @@ dt_banddraw() {
 }
 
 # Which icon is at a cell, if any; the last drawn is on top.
-dt_iconat() {
+fn dt_iconat(mr, mc) {
 	local i=$DI_N r c
 
 	while [ "$i" -gt 0 ]; do
 		i=$((i - 1))
 		r=${DI[$i]["r"]}
 		c=${DI[$i]["c"]}
-		if [ "$1" -ge "$r" ] && [ "$1" -le $((r + 1)) ] &&
-		   [ "$2" -ge "$c" ] && [ "$2" -lt $((c + DT_ICONW)) ]; then
+		if [ "$mr" -ge "$r" ] && [ "$mr" -le $((r + 1)) ] &&
+		   [ "$mc" -ge "$c" ] && [ "$mc" -lt $((c + DT_ICONW)) ]; then
 			ret "$i"
 			return 0
 		fi
@@ -203,11 +203,11 @@ dt_iconat() {
 }
 
 # The icon with a key, by its place in the list.
-dt_iconidx() {
+fn dt_iconidx(key) {
 	local i=0
 
 	while [ "$i" -lt "$DI_N" ]; do
-		if [ "${DI[$i]["key"]}" = "$1" ]; then
+		if [ "${DI[$i]["key"]}" = "$key" ]; then
 			ret "$i"
 			return 0
 		fi
@@ -224,11 +224,11 @@ dt_iconclear() {
 }
 
 # Select or unselect one icon by key.
-dt_iconmark() {
-	if [ "$2" = 1 ]; then
-		DI_MARK["$1"]=1
+fn dt_iconmark(key, on) {
+	if [ "$on" = 1 ]; then
+		DI_MARK["$key"]=1
 	else
-		unset DI_MARK["$1"]
+		unset DI_MARK["$key"]
 	fi
 }
 
@@ -253,11 +253,11 @@ dt_iconsel() {
 # does, or dragging Home onto the trash would trash the whole home directory;
 # neither does trash itself.  Nothing makes a dir or file icon right now, but
 # the kind is kept for whatever eventually does.
-dt_iconpaths() {
+fn dt_iconpaths(keys) {
 	local i
 
 	DT_PATHS=()
-	for i in $1; do
+	for i in $keys; do
 		case ${DI[$i]["kind"]} in
 		dir | file) DT_PATHS+=("${DI[$i]["name"]}") ;;
 		esac
@@ -265,11 +265,11 @@ dt_iconpaths() {
 }
 
 # Select a run of icons, in the order they are listed.
-dt_iconrange() {
+fn dt_iconrange(from = "", to = "") {
 	local a b i
 
-	a := dt_iconidx "$1" || return 0
-	b := dt_iconidx "$2" || return 0
+	a := dt_iconidx "$from" || return 0
+	b := dt_iconidx "$to" || return 0
 	[ "$a" -gt "$b" ] && { i=$a; a=$b; b=$i; }
 	i=$a
 	while [ "$i" -le "$b" ]; do
@@ -283,8 +283,8 @@ dt_iconrange() {
 # something already selected leaves the rest selected until the button comes
 # up, so a selection can be picked up and dragged whole.  On nothing: start
 # a rubber band.
-dt_iconpress() {
-	local mr=$1 mc=$2 mods=$3 i k now
+fn dt_iconpress(mr, mc, mods) {
+	local i k now
 
 	DI_PRESS=
 	DI_DEFER=
@@ -341,8 +341,8 @@ dt_iconclear_keep() {
 }
 
 # Stretch the rubber band, selecting every icon it touches.
-dt_iconband() {
-	local act=$1 mr=$2 mc=$3 r0 c0 r1 c1 i r c k
+fn dt_iconband(act, mr, mc) {
+	local r0 c0 r1 c1 i r c k
 
 	if [ "$act" = release ]; then
 		DI_BAND=
@@ -374,8 +374,8 @@ dt_iconband() {
 
 # Moving after a press on an icon drags the selection; letting go without
 # moving is only a click, which settles a deferred one.
-dt_iconmove() {
-	local act=$1 mr=$2 mc=$3 i pr pc sel n
+fn dt_iconmove(act, mr, mc) {
+	local i pr pc sel n
 
 	if [ "$act" = release ]; then
 		if [ -n "$DI_DEFER" ]; then
@@ -413,9 +413,7 @@ dt_iconmove() {
 }
 
 # Open what an icon stands for.
-dt_iconopen() {
-	local i=$1
-
+fn dt_iconopen(i) {
 	case ${DI[$i]["kind"]} in
 	place) dt_launch files "${DI[$i]["name"]}" ;;
 	trash)
@@ -428,9 +426,7 @@ dt_iconopen() {
 # Put an icon at a place, kept on the screen, and remember it.
 # A row and column pulled onto the screen an icon is twelve columns wide and
 # three rows tall on, its top-left corner kept below the menu bar.
-dt_iconclamp() {
-	local r=$1 c=$2
-
+fn dt_iconclamp(r, c) {
 	[ "$r" -lt 1 ] && r=1
 	[ "$r" -gt $((DT_ROWS - 3)) ] && r=$((DT_ROWS - 3))
 	[ "$c" -lt "$DT_PRIMARY_COL" ] && c=$DT_PRIMARY_COL
@@ -439,10 +435,10 @@ dt_iconclamp() {
 	ret "$r $c"
 }
 
-dt_iconset() {
-	local key=$1 cl
+fn dt_iconset(key, r, c) {
+	local cl
 
-	cl := dt_iconclamp "$2" "$3"
+	cl := dt_iconclamp "$r" "$c"
 	DT_ICONPOS["$key"]=$cl
 }
 
@@ -455,8 +451,8 @@ dt_iconclean() {
 }
 
 # Put an icon where it was let go, centred under the pointer.
-dt_iconplace() {
-	dt_iconset "$1" "$2" $(($3 - DT_ICONW / 2))
+fn dt_iconplace(key = "", r = "", c = "") {
+	dt_iconset "$key" "$r" $(($c - DT_ICONW / 2))
 	dt_iconlay
 	dt_save
 }
@@ -465,8 +461,8 @@ dt_iconplace() {
 # does what that icon means for files; onto empty wallpaper, a selection of
 # icons being dragged is repositioned there, and files from anywhere else are
 # refused -- the background holds no files of its own to receive them.
-dt_deskdrop() {
-	local mr=$1 mc=$2 op=$3 from=$DT_DNDICON at=$DT_DNDFROM i dr dc p r
+fn dt_deskdrop(mr, mc, op, ...rest) {
+	local from=$DT_DNDICON at=$DT_DNDFROM i dr dc p r
 
 	shift 3
 	DT_DNDICON=
@@ -502,8 +498,8 @@ dt_deskdrop() {
 # The icon nearest the current one in a direction: what is that way, and of
 # that, what is closest, counting a row as four columns since icons are
 # three rows tall and twelve columns wide.
-dt_iconnear() {
-	local dir=$1 i=0 cur r0 c0 r c d best= bd dx dy
+fn dt_iconnear(dir) {
+	local i=0 cur r0 c0 r c d best= bd dx dy
 
 	if ! cur := dt_iconidx "$DI_CUR"; then
 		ret 0
@@ -534,8 +530,8 @@ dt_iconnear() {
 }
 
 # Keys on the desktop, while no window has focus.
-dt_iconkey() {
-	local k=$1 i sel
+fn dt_iconkey(k) {
+	local i sel
 
 	[ "$DI_N" -gt 0 ] || return 1
 	case $k in

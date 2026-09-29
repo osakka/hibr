@@ -10,12 +10,12 @@ command -v cp_pane > /dev/null && cp_pane taskmgr "Task Manager" "▤"
 CP_TKTICKS=(500 1000 2000 3000 5000 10000)
 CP_TKDIRS=(desc asc)
 
-cp_set_tasks() { TK_SCANMS=$2; cp_save; }
-cp_set_tksort() { TK_SORTBY=$2; cp_save; }
-cp_set_tkdir() { TK_SORTDIR=$2; cp_save; }
+fn cp_set_tasks(id = "", value = "") { TK_SCANMS=$value; cp_save; }
+fn cp_set_tksort(id = "", value = "") { TK_SORTBY=$value; cp_save; }
+fn cp_set_tkdir(id = "", value = "") { TK_SORTDIR=$value; cp_save; }
 
-taskmgr_rows() {
-	local w=$1 n=0
+fn taskmgr_rows(w) {
+	local n=0
 
 	if [ -n "$TK_SCANMS" ]; then
 		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Refresh"
@@ -35,8 +35,8 @@ taskmgr_rows() {
 	ret "$n"
 }
 
-taskmgr_do() {
-	local w=$1 k=$2 dir=$3 v
+fn taskmgr_do(w, k, dir) {
+	local v
 
 	case $k in
 	tasksrefresh) v := cp_next "$TK_SCANMS" "$dir" "${CP_TKTICKS[@]}"
@@ -52,9 +52,7 @@ taskmgr_do() {
 	cp_save
 }
 
-taskmgr_drop() {
-	local w=$1 r=$2 c=$3 k=$4
-
+fn taskmgr_drop(w = "", r = "", c = "", k = "") {
 	case $k in
 	tasksrefresh) dt_droplist "$w" "$r" "$c" cp_set_tasks "${CP_TKTICKS[@]}" ;;
 	tksort) dt_droplist "$w" "$r" "$c" cp_set_tksort "${TK_COLS[@]}" ;;

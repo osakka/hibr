@@ -53,9 +53,9 @@ DTP_MAPW=72
 
 # Where a coordinate (hundredths of a degree) falls on the 72x22 mask --
 # copied verbatim from traceroute.hibr's own project().
-dtp_project() {
-	DTP_ROW=$(( ( (8000 - $1) * 21 + 7000 ) / 14000 ))
-	DTP_COL=$(( ( ($2 + 18000) * 71 + 18000 ) / 36000 ))
+fn dtp_project(lat, lon) {
+	DTP_ROW=$(( ( (8000 - $lat) * 21 + 7000 ) / 14000 ))
+	DTP_COL=$(( ( ($lon + 18000) * 71 + 18000 ) / 36000 ))
 	[ "$DTP_ROW" -lt 0 ] && DTP_ROW=0
 	[ "$DTP_ROW" -ge "$DTP_MAPH" ] && DTP_ROW=$(( DTP_MAPH - 1 ))
 	[ "$DTP_COL" -lt 0 ] && DTP_COL=0
@@ -66,8 +66,8 @@ dtp_project() {
 # into Brussels, the Nordic capitals into Berlin -- so a lookup keyed on
 # the zone name misses them. Copied verbatim from traceroute.hibr's own
 # geo_extra(), which has to correct for the same four for the same reason.
-dtp_extra() {
-	case $1 in
+fn dtp_extra(city) {
+	case $city in
 	amsterdam)  DTP_LAT=5237;  DTP_LON=489 ;;
 	stockholm)  DTP_LAT=5933;  DTP_LON=1807 ;;
 	copenhagen) DTP_LAT=5568;  DTP_LON=1257 ;;
@@ -115,8 +115,8 @@ dtp_tzdata_path() {
 # does nothing if no copy of zone1970.tab can be found at all -- a pane
 # with no mark on its map is a real, if disappointing, result; a shell
 # error printed at startup, every time the desktop opens, is not.
-dtp_geo() {
-	local tz=$1 city line co ld lm od om tab
+fn dtp_geo(tz) {
+	local city line co ld lm od om tab
 
 	city=$(str lower "${tz##*/}")
 	dtp_extra "$city" && return 0
@@ -168,8 +168,8 @@ elif [ -e /run/.containerenv ]; then
 fi
 
 # A degree count and a sign into "51N"/"0W", the caption's own format.
-dtp_deg() {
-	local v=$1 pos=$2 neg=$3 d=$1
+fn dtp_deg(v, pos, neg) {
+	local d=$v
 
 	[ "$v" -lt 0 ] && d=$(( 0 - v ))
 	d=$(( d / 100 ))
@@ -240,8 +240,8 @@ dtp_fmtlabel() {
 
 # The dropdown's own callback: an example back to its format, or the
 # custom dialog.
-dtp_pickfmt() {
-	local id=$1 label=$2 f t
+fn dtp_pickfmt(id, label) {
+	local f t
 
 	if [ "$label" = "$DTP_CUSTOM" ]; then
 		dtf_dialog
@@ -260,13 +260,13 @@ dtp_pickfmt() {
 # A format the bar can hold: something, no ")" (which ends printf's own
 # %(...)T early), and no wider than 24 columns once rendered, so it
 # cannot run into the menus on the left. Status 1 with DTP_WHY set.
-dtp_fmtok() {
+fn dtp_fmtok(fmt) {
 	local t w
 
 	DTP_WHY=
-	[ -z "$1" ] && { DTP_WHY="Needs a format"; return 1; }
-	case $1 in *")"*) DTP_WHY="A format cannot contain )"; return 1 ;; esac
-	t := dt_clocktext "$1" -1
+	[ -z "$fmt" ] && { DTP_WHY="Needs a format"; return 1; }
+	case $fmt in *")"*) DTP_WHY="A format cannot contain )"; return 1 ;; esac
+	t := dt_clocktext "$fmt" -1
 	[ -z "$t" ] && { DTP_WHY="That format shows nothing"; return 1; }
 	w := str width "$t"
 	[ "$w" -gt 24 ] && { DTP_WHY="Too wide for the bar ($w of 24)"; return 1; }
@@ -285,8 +285,8 @@ dtf_dialog() {
 	DTF[$rid]["cur"]=${#DT_BARTIME}
 }
 
-dtf_draw() {
-	local id=$1 w=$3 t
+fn dtf_draw(id, h, w, row, col) {
+	local t
 
 	dt_wclear "$id"
 	console pen "$DT_INK" "$DT_FACE"
@@ -308,10 +308,10 @@ dtf_draw() {
 	console put -p "w$id" 6 2 "enter saves · escape cancels"
 }
 
-dtf_key() {
-	local id=$1 res
+fn dtf_key(id, key) {
+	local res
 
-	case $2 in
+	case $key in
 	escape) dt_del "$id"; return 0 ;;
 	enter)
 		if dtp_fmtok "${DTF[$id]["buf"]}"; then
@@ -324,15 +324,15 @@ dtf_key() {
 		return 0
 		;;
 	esac
-	res := dt_textkey "${DTF[$id]["buf"]}" "${DTF[$id]["cur"]}" "$2" ||
+	res := dt_textkey "${DTF[$id]["buf"]}" "${DTF[$id]["cur"]}" "$key" ||
 		return 1
 	DTF[$id]["buf"]=${res% *}
 	DTF[$id]["cur"]=${res##* }
 	return 0
 }
 
-dtf_close() {
-	unset "DTF[$1]"
+fn dtf_close(id) {
+	unset "DTF[$id]"
 }
 
 # --- running something that needs root ------------------------------------
@@ -392,10 +392,10 @@ dtz_dialog() {
 }
 
 # The zones matching the filter, into DTZ_HIT -- a substring, either case.
-dtz_match() {
+fn dtz_match(id) {
 	local q i=0 n=${#DTP_ZONES[@]}
 
-	q := str lower "${DTZ[$1]["buf"]}"
+	q := str lower "${DTZ[$id]["buf"]}"
 	DTZ_HIT=()
 	while [ "$i" -lt "$n" ]; do
 		case ${DTP_ZONEL[$i]} in *"$q"*) DTZ_HIT+=("${DTP_ZONES[$i]}") ;; esac
@@ -403,8 +403,8 @@ dtz_match() {
 	done
 }
 
-dtz_draw() {
-	local id=$1 h=$2 w=$3 vis n sel top r i t
+fn dtz_draw(id, h, w, ...rest) {
+	local vis n sel top r i t
 
 	dt_wclear "$id"
 	dtz_match "$id"
@@ -444,17 +444,17 @@ dtz_draw() {
 	console put -p "w$id" $((h - 1)) 2 "enter sets it (sudo) · escape cancels"
 }
 
-dtz_click() {
-	local id=$1 tag
+fn dtz_click(id = "", r = "", c = "") {
+	local tag
 
-	tag := dt_hit "$id" "$2" "$3"
+	tag := dt_hit "$id" "$r" "$c"
 	case $tag in row*) DTZ[$id]["sel"]=${tag#row} ;; esac
 }
 
-dtz_key() {
-	local id=$1 res z
+fn dtz_key(id, key) {
+	local res z
 
-	case $2 in
+	case $key in
 	escape) dt_del "$id"; return 0 ;;
 	up) DTZ[$id]["sel"]=$((DTZ[$id]["sel"] - 1)); return 0 ;;
 	down) DTZ[$id]["sel"]=$((DTZ[$id]["sel"] + 1)); return 0 ;;
@@ -467,7 +467,7 @@ dtz_key() {
 		return 0
 		;;
 	esac
-	res := dt_textkey "${DTZ[$id]["buf"]}" "${DTZ[$id]["cur"]}" "$2" ||
+	res := dt_textkey "${DTZ[$id]["buf"]}" "${DTZ[$id]["cur"]}" "$key" ||
 		return 1
 	DTZ[$id]["buf"]=${res% *}
 	DTZ[$id]["cur"]=${res##* }
@@ -476,18 +476,18 @@ dtz_key() {
 	return 0
 }
 
-dtz_close() {
-	unset "DTZ[$1]"
+fn dtz_close(id) {
+	unset "DTZ[$id]"
 }
 
 # Set the zone with whatever this system has for it.
-dtp_zoneset() {
+fn dtp_zoneset(zone = "") {
 	if command -v timedatectl > /dev/null; then
-		dtp_run sudo timedatectl set-timezone "$1"
+		dtp_run sudo timedatectl set-timezone "$zone"
 	elif [ -x /usr/sbin/systemsetup ]; then
-		dtp_run sudo /usr/sbin/systemsetup -settimezone "$1"
+		dtp_run sudo /usr/sbin/systemsetup -settimezone "$zone"
 	else
-		dtp_run sudo ln -sf "/usr/share/zoneinfo/$1" /etc/localtime
+		dtp_run sudo ln -sf "/usr/share/zoneinfo/$zone" /etc/localtime
 	fi
 	DTP_TZT=0
 }
@@ -518,8 +518,8 @@ dts_dialog() {
 	DTS[$rid]["ntp"]=$ntp
 }
 
-dts_draw() {
-	local id=$1 h=$2 f
+fn dts_draw(id = "", h = "") {
+	local f
 
 	dt_wclear "$id"
 	console pen "$DT_INK" "$DT_FACE"
@@ -542,18 +542,18 @@ dts_draw() {
 	console put -p "w$id" $((h - 1)) 2 "enter sets it (sudo) · escape cancels"
 }
 
-dts_click() {
-	local id=$1 tag
+fn dts_click(id = "", r = "", c = "") {
+	local tag
 
-	tag := dt_hit "$id" "$2" "$3"
+	tag := dt_hit "$id" "$r" "$c"
 	case $tag in d | t) DTS[$id]["focus"]=$tag ;; esac
 }
 
-dts_key() {
-	local id=$1 f res
+fn dts_key(id = "", key = "") {
+	local f res
 
 	f=${DTS[$id]["focus"]}
-	case $2 in
+	case $key in
 	escape) dt_del "$id"; return 0 ;;
 	tab)
 		if [ "$f" = d ]; then DTS[$id]["focus"]=t; else DTS[$id]["focus"]=d; fi
@@ -561,7 +561,7 @@ dts_key() {
 		;;
 	enter) dts_apply "$id"; return 0 ;;
 	esac
-	res := dt_textkey "${DTS[$id]["${f}buf"]}" "${DTS[$id]["${f}cur"]}" "$2" ||
+	res := dt_textkey "${DTS[$id]["${f}buf"]}" "${DTS[$id]["${f}cur"]}" "$key" ||
 		return 1
 	DTS[$id]["${f}buf"]=${res% *}
 	DTS[$id]["${f}cur"]=${res##* }
@@ -569,8 +569,8 @@ dts_key() {
 }
 
 # Checked here so a typo is a note, not a failed sudo in a new window.
-dts_apply() {
-	local id=$1 d t y mo dy hh mi ss
+fn dts_apply(id = "") {
+	local d t y mo dy hh mi ss
 
 	d=${DTS[$id]["dbuf"]}
 	t=${DTS[$id]["tbuf"]}
@@ -583,32 +583,29 @@ dts_apply() {
 	dt_del "$id"
 	if command -v timedatectl > /dev/null; then
 		dtp_run sudo sh -c 'timedatectl set-ntp false 2> /dev/null;
-			timedatectl set-time "$1"' sh "$y-$mo-$dy $hh:$mi:$ss"
+			timedatectl set-time "$id"' sh "$y-$mo-$dy $hh:$mi:$ss"
 	elif [ -x /usr/sbin/systemsetup ]; then
 		dtp_run sudo sh -c '/usr/sbin/systemsetup -setusingnetworktime off \
-			> /dev/null; date "$1"' sh "$mo$dy$hh$mi$y.$ss"
+			> /dev/null; date "$id"' sh "$mo$dy$hh$mi$y.$ss"
 	else
 		dtp_run sudo date -s "$y-$mo-$dy $hh:$mi:$ss"
 	fi
 }
 
-dts_close() {
-	unset "DTS[$1]"
+fn dts_close(id = "") {
+	unset "DTS[$id]"
 }
 
 # --- the pane --------------------------------------------------------------
 
 # A plain button: "[ label ]", registered under tag for datetime_click.
-dtp_button() {
-	local id=$1 r=$2 c=$3 label=$4 tag=$5
-
+fn dtp_button(id, r, c, label, tag) {
 	console pen "$DT_ACTIVE" "$DT_FACE" bold
 	console put -p "w$id" "$r" "$c" "[ $label ]"
 	dt_wreg "$id" "$r" "$c" $((${#label} + 4)) "$tag"
 }
 
-datetime_draw() {
-	local id=$1 h=$2 w=$3 bx=$4
+fn datetime_draw(id, h, w, bx) {
 	local now rw rh r c oc sy sr sc lat lon out lb
 
 	dtp_follow
@@ -686,8 +683,8 @@ datetime_draw() {
 	console put -p "w$id" $(( sr + 9 )) $(( bx + sc )) "◉"
 }
 
-datetime_click() {
-	local id=$1 r=$2 c=$3 tag wc f t
+fn datetime_click(id, r, c) {
+	local tag wc f t
 	local -a vals
 
 	tag := dt_hit "$id" "$r" "$c"

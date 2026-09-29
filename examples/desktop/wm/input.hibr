@@ -352,8 +352,8 @@ dt_mouse() {
 # The wheel goes to the window under the pointer rather than to the focused
 # one, which is what every other desktop does and what anyone expects when
 # they scroll a list they have not clicked on yet.
-dt_event() {
-	local k="$1" an knorm qn cn cln dn sn
+fn dt_event(k) {
+	local an knorm qn cn cln dn sn
 
 	case $k in
 	"mouse drag "*) DT_LASTDRAG=1 ;;
@@ -515,8 +515,7 @@ dt_event() {
 # shortcut regardless of which encoding a real keypress happened to take
 # -- a user typing what looks like the natural chord should not have to
 # know or care which one their own terminal uses.
-dt_keynorm() {
-	local k=$1
+fn dt_keynorm(k) {
 	local base=$k mods= out=
 
 	case $k in *-*) base=${k##*-}; mods=${k%-"$base"} ;; esac
@@ -529,10 +528,10 @@ dt_keynorm() {
 # Launch whichever app, if any, has k as its own shortcut -- the general
 # form DT_KEYS' fixed four desktop actions above are not: any number of
 # apps, not two of them by name in this case statement.
-dt_appkeyed() {
+fn dt_appkeyed(key) {
 	local an knorm anorm
 
-	knorm := dt_keynorm "$1"
+	knorm := dt_keynorm "$key"
 	for an in "${!DT_APPKEY[@]}"; do
 		anorm := dt_keynorm "${DT_APPKEY[$an]}"
 		if [ "$anorm" = "$knorm" ]; then
@@ -552,10 +551,10 @@ dt_ms() {
 # Start capturing the next key as action's own shortcut -- Settings calls
 # this when a shortcut row is activated; dt_event's own DT_KEYCAP check
 # takes the very next key, of any kind, rather than dispatching it.
-dt_keycap() {
-	DT_KEYCAP=$1
-	case $1 in
-	app:*) dt_note "Press a key for ${DT_APPS[${1#app:}]["title"]}…" ;;
-	*) dt_note "Press a key for ${1^}…" ;;
+fn dt_keycap(what) {
+	DT_KEYCAP=$what
+	case $what in
+	app:*) dt_note "Press a key for ${DT_APPS[${what#app:}]["title"]}…" ;;
+	*) dt_note "Press a key for ${what^}…" ;;
 	esac
 }

@@ -6,10 +6,10 @@
 # Repeat a string n times.  One builtin call, not a loop with ${#} in it.
 # The result goes through a variable and then ret: := binds for a builtin,
 # not for a function, so a bare `str repeat` here would print to the screen.
-dt_rep() {
+fn dt_rep(n, s) {
 	local o
 
-	str repeat "$2" "$1" o
+	str repeat "$s" "$n" o
 	ret "$o"
 }
 

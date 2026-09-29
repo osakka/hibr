@@ -342,8 +342,8 @@ windows and runs the loop:
 #!/usr/bin/env hibr
 . "${0%/*}/desktop.hibr"
 
-hello_draw() {
-	console put -p "w$1" 1 2 "Hello from a window."
+fn hello_draw(id, h, w, row, col) {
+	console put -p "w$id" 1 2 "Hello from a window."
 }
 
 dt_open || exit 1
@@ -354,6 +354,12 @@ dt_close
 
 `dt_new title height width row col [app]` makes a window and puts it on top.
 Its id lands in `$RET`, so `id := dt_new ...` works if you want to keep it.
+
+A callback declares everything it is called with -- `_draw` is handed the
+window id, its body's height and width, and where it sits -- because a
+declared function refuses an argument it has no name for. The whole list
+is in [ARCHITECTURE.md](ARCHITECTURE.md#an-app-is-a-prefix-not-a-class);
+the undeclared `hello_draw() { ... "$1" ...; }` form still works too.
 
 ## Writing an app
 
@@ -449,8 +455,8 @@ this one widget rather than each drawing their own.
 comes back empty:
 
 ```sh
-hello_click() {
-	local id=$1 r=$2 c=$3 tag
+fn hello_click(id, r, c, btn) {
+	local tag
 
 	tag := dt_hit "$id" "$r" "$c"
 	case $tag in
@@ -819,8 +825,8 @@ its trouble.
 `q` still quits while your window has focus:
 
 ```sh
-hello_key() {
-	case $2 in
+fn hello_key(id, key) {
+	case $key in
 	up)   N=$((N - 1)) ;;
 	down) N=$((N + 1)) ;;
 	*)    return 1 ;;
