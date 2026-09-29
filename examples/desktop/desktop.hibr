@@ -25,7 +25,7 @@ need display || { echo "desktop: no display available" >&2; exit 1; }
 # change that never touched a single line of src/*.c. HIBR_ABI is what
 # actually needs cross-checking between the two -- whether a module is
 # built against what this shell offers -- and that already exists.
-DT_VER=0.12
+DT_VER=0.13
 
 # The session's own arguments, captured here at the top level where $@ is
 # still theirs: a function sees its own, and dt_autohold needs to hand these
@@ -80,9 +80,36 @@ DT_DNDC=0
 DT_DNDICON=
 DT_DNDS=()
 DT_PATHS=()
-DT_NOTE=
-DT_NOTET=0
-DT_NOTEMS=2500
+# A queue of notes -- Growl's own corner-stacked, several-at-once look,
+# not one box replaced by whatever calls dt_note next. Each is a real id
+# (monotonic, never reused, so a stale click on a note already gone can
+# never act on or dismiss whatever now holds that same array slot), its
+# own text and creation time, and -- dt_notify's own addition -- an
+# action, kept as argv words (arg0..argN-1, argvn) the same shape
+# term_open's own DT_OPENCMD already is, not a joined string handed back
+# for the shell to re-split later; a path with a space in it does not
+# survive that, and this should not depend on one never having one.
+declare -gA DT_NOTEQ
+DT_NOTEQ_ORDER=()
+DT_NOTE_NEXT=0
+declare -gA DT_NOTERECT
+
+# Once a note's own time is up it moves here instead of vanishing -- the
+# "center" a notification center needs, capped and in memory only:
+# dt_save reruns and rewrites the whole settings file on every setting
+# change, so a growing log through it would make each one slower and
+# turn the settings file into a log. Gone at quit, on purpose -- this
+# session's own history, not a permanent record.
+declare -gA DT_NOTEHIST
+DT_NOTEHIST_ORDER=()
+DT_NOTEHIST_NEXT=0
+DT_NOTEHISTMAX=50
+
+# How long a note stays before it moves to history on its own, and which
+# corner new ones stack from -- both env-overridable before a saved
+# setting replaces them, the same as DT_TICK and the rest of DT_KEEP.
+DT_NOTEMS="${DT_NOTEMS-2500}"
+DT_NOTEPOS="${DT_NOTEPOS-top-right}"
 DT_CONFIRM=
 DT_CONFIRM_CMD=
 DT_ROWS=24
@@ -280,7 +307,7 @@ DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 	DT_MSHADOW DT_BARSHADOW DT_DBLACTION DT_SHADOW_PCT CS_SIDE CS_Y
 	CS_COLLAPSED CS_LEN CS_SHADOW
 	DT_FRAME DT_BTNSIDE DT_TITLEALIGN DT_BTNSTYLE DT_EDGERESIZE
-	DT_DRAGMOD DT_DRAGKEY DT_DRAWSKIP)
+	DT_DRAGMOD DT_DRAGKEY DT_DRAWSKIP DT_NOTEMS DT_NOTEPOS)
 
 # Where the desktop's stderr goes while it holds the screen, so an app's
 # error message cannot scribble over the display, and the reason for a
@@ -933,8 +960,12 @@ dt_mouse() {
 
 	case $act in
 	press)
-		DT_NOTE=
 		if [ "$mr" = 0 ]; then
+			if [ "$mc" = $((DT_COLS - 21)) ]; then
+				dt_mclose
+				dt_has notifications_draw && dt_launch notifications
+				return 0
+			fi
 			if [ "$mc" -ge $((DT_COLS - 19)) ] &&
 			   [ "$mc" -lt $((DT_COLS - 14)) ]; then
 				dt_mclose
@@ -961,6 +992,7 @@ dt_mouse() {
 			fi
 			return 0
 		fi
+		id := dt_note_hit "$mr" "$mc" && { dt_note_click "$id"; return 0; }
 		cs_press "$mr" "$mc" && return 0
 		id := console hit "$mr" "$mc"
 		if [ -z "$id" ]; then
@@ -1403,11 +1435,12 @@ dt_event() {
 			app:*)
 				an=${DT_KEYCAP#app:}
 				DT_APPKEY[$an]=$k
-				dt_note "${DT_APPS[$an]["title"]} is now $k"
+				dt_notify "${DT_APPS[$an]["title"]} is now $k" \
+					dt_launch panel
 				;;
 			*)
 				DT_KEYS[$DT_KEYCAP]=$k
-				dt_note "${DT_KEYCAP^} is now $k"
+				dt_notify "${DT_KEYCAP^} is now $k" dt_launch panel
 				;;
 			esac
 			dt_save
@@ -1449,7 +1482,6 @@ dt_event() {
 		[ "$k" = escape ] && DT_DND= && DT_MOUSE=
 		return 0
 	fi
-	DT_NOTE=
 	if [ "$MB_OPEN" != -1 ]; then
 		dt_mkey "$k" && return 0
 		return 0
@@ -2233,13 +2265,17 @@ dt_fileop1() {
 	return 0
 }
 
-# Say how a batch went: what was done, and the first thing refused.
+# Say how a batch went: what was done, and the first thing refused. detail
+# (optional) is appended to the done>1 note only -- "to $dst" or "to the
+# trash" -- so the caller has one note to fire for that case, not two: a
+# second dt_note right after this used to silently replace the first one's
+# still-single DT_NOTE, which the queue would otherwise show as both.
 dt_tally() {
-	local done=$1 bad=$2 what=$3 last=$4 why=$5
+	local done=$1 bad=$2 what=$3 last=$4 why=$5 detail=$6
 
 	if [ "$bad" = 0 ]; then
 		[ "$done" = 1 ] && dt_note "$what $last"
-		[ "$done" -gt 1 ] && dt_note "$what $done items"
+		[ "$done" -gt 1 ] && dt_note "$what $done items${detail:+ $detail}"
 	elif [ "$done" = 0 ]; then
 		if [ "$bad" = 1 ]; then
 			dt_note "$why"
@@ -2268,9 +2304,7 @@ dt_fileop() {
 	if [ "$n" = 1 ]; then
 		dt_tally 1 "$bad" "$what" "$last to ${dst##*/}" "$why"
 	else
-		dt_tally "$n" "$bad" "$what" "" "$why"
-		[ "$n" -gt 1 ] && [ "$bad" = 0 ] &&
-			dt_note "$what $n items to ${dst##*/}"
+		dt_tally "$n" "$bad" "$what" "" "$why" "to ${dst##*/}"
 	fi
 	[ "$n" -gt 0 ] && dt_changed
 	[ "$bad" = 0 ]
@@ -2353,7 +2387,10 @@ dt_trash1() {
 	return 0
 }
 
-# Move paths to the trash, and say once how it went.
+# Move paths to the trash, and say once how it went. A fully successful
+# run gets a clickable note straight to the trash's own folder -- dt_tally
+# only ever fires a plain dt_note, and that folder is specific to trash,
+# not something dt_fileop's own move/copy shares.
 dt_trash() {
 	local p n=0 bad=0 why= last=
 
@@ -2366,12 +2403,16 @@ dt_trash() {
 			[ -z "$why" ] && why=$DT_WHY
 		fi
 	done
-	if [ "$n" = 1 ]; then
-		dt_tally 1 "$bad" "Moved" "$last to the trash" "$why"
+	if [ "$n" -gt 0 ] && [ "$bad" = 0 ]; then
+		if [ "$n" = 1 ]; then
+			dt_notify "Moved $last to the trash" \
+				dt_launch files "$DT_TRASH/files"
+		else
+			dt_notify "Moved $n items to the trash" \
+				dt_launch files "$DT_TRASH/files"
+		fi
 	else
-		dt_tally "$n" "$bad" "Moved" "" "$why"
-		[ "$n" -gt 1 ] && [ "$bad" = 0 ] &&
-			dt_note "Moved $n items to the trash"
+		dt_tally "$n" "$bad" "Moved" "$last to the trash" "$why"
 	fi
 	[ "$n" -gt 0 ] && dt_changed
 	[ "$bad" = 0 ]
@@ -3340,6 +3381,7 @@ dt_bar() {
 
 	printf -v now "%(%H:%M)T" -1
 	console pen "$DT_INK" "$DT_BAR"
+	console put 0 $((DT_PRIMARY_COL + w - 21)) "◉"
 	console put 0 $((DT_PRIMARY_COL + w - 19)) "$now"
 	if [ "$MB_OPEN" = app ]; then
 		console pen "$DT_BAR" "$DT_ACTIVE" bold
@@ -4149,7 +4191,7 @@ dt_gkey() {
 	right) dc=1 ;;
 	enter | escape | " ")
 		DT_GRAB=
-		DT_NOTE=
+		dt_note_clear
 		return 0
 		;;
 	*) return 1 ;;
@@ -4168,40 +4210,173 @@ dt_gkey() {
 	return 0
 }
 
-# A note in the middle of the screen, until the next key.
-dt_note() {
-	DT_NOTE="$1"
-	DT_NOTET := dt_ms
+# Append a note's own fields to the queue, shared by dt_note and
+# dt_notify -- the only difference between them is whether there is
+# anything past the message to keep as an action.
+dt_noteq() {
+	local id=$DT_NOTE_NEXT n=0 a
+
+	DT_NOTE_NEXT=$((DT_NOTE_NEXT + 1))
+	DT_NOTEQ[$id]["text"]="$1"
+	DT_NOTEQ[$id]["created"] := dt_ms
+	shift
+	for a in "$@"; do
+		DT_NOTEQ[$id]["arg$n"]="$a"
+		n=$((n + 1))
+	done
+	DT_NOTEQ[$id]["argvn"]=$n
+	DT_NOTEQ_ORDER+=("$id")
+	dt_notehist_add "$id"
 }
 
-# A brief toast, not a small window of its own like dt_confirm's: a border
-# so it reads as something floating rather than as whatever happened to be
-# under it looking wrong, and a timeout so it goes away on its own -- it
-# used to have neither, drawn as three plain rows with no visual edge at
-# all, which is what made applying a wallpaper from the Wallpaper pane (a
-# window that fills most of the screen, with the note landing centred on
-# top of it) look like the screen itself had come out wrong rather than
-# like a notification, until the next click or key -- which cleared
-# DT_NOTE anyway, but only ever happened to look like the "fix" was
-# whatever that click did, moving a window included.
-dt_note_draw() {
-	local w r c t now
+# A note, stacked with whatever others are already showing, gone on its
+# own after DT_NOTEMS -- inert, the same as this always worked, every
+# existing call site untouched by anything dt_notify adds.
+dt_note() {
+	dt_noteq "$1"
+}
 
-	if [ -n "$DT_NOTE" ]; then
-		now := dt_ms
-		[ $((now - DT_NOTET)) -ge "$DT_NOTEMS" ] && DT_NOTE=
+# The clickable form: args after the message are an action -- clicking
+# this note, specifically, runs it (and dismisses the note); clicking a
+# plain dt_note only dismisses it. Kept as words, not a string handed
+# back for the shell to re-split: see DT_OPENCMD's own reasoning, the
+# same one word-split "gfeh -g" back to front once building the File
+# Types pane.
+dt_notify() {
+	dt_noteq "$@"
+}
+
+# Dismiss every note on screen at once -- what a single DT_NOTE= used to do
+# before the queue, and still the right thing when a modal dialog is about
+# to take over the screen (dt_confirm) or a keyboard grab hint is done
+# with (dt_gkey): there is no one note left to point at by id, so all of
+# them go. History is untouched -- this only clears what is showing.
+dt_note_clear() {
+	local id
+
+	for id in "${DT_NOTEQ_ORDER[@]}"; do
+		unset "DT_NOTEQ[$id]"
+	done
+	DT_NOTEQ_ORDER=()
+}
+
+# Copy a note's own text into the history log once it is created, capped
+# -- the oldest dropped once it is full -- so "what did I miss" has an
+# answer even for one that came and went stacked behind others, not only
+# whichever is on screen right now.
+dt_notehist_add() {
+	local id=$1 hid=$DT_NOTEHIST_NEXT
+
+	DT_NOTEHIST_NEXT=$((DT_NOTEHIST_NEXT + 1))
+	DT_NOTEHIST[$hid]["text"]=${DT_NOTEQ[$id]["text"]}
+	DT_NOTEHIST[$hid]["at"] := dt_ms
+	DT_NOTEHIST_ORDER+=("$hid")
+	if [ "${#DT_NOTEHIST_ORDER[@]}" -gt "$DT_NOTEHISTMAX" ]; then
+		unset "DT_NOTEHIST[${DT_NOTEHIST_ORDER[0]}]"
+		DT_NOTEHIST_ORDER=("${DT_NOTEHIST_ORDER[@]:1}")
 	fi
-	[ -z "$DT_NOTE" ] && return 0
-	w=$((${#DT_NOTE} + 4))
-	r=$((DT_ROWS / 2 - 1))
-	c=$((DT_PRIMARY_COL + (${DT_PRIMARY_W:-$DT_COLS} - w) / 2))
-	console pen "$DT_ACTIVE" "$DT_FACE" bold
-	t := dt_rep $((w - 2)) "─"
-	console put "$r" "$c" "┌$t┐"
-	console put $((r + 2)) "$c" "└$t┘"
-	console pen "$DT_INK" "$DT_FACE" bold
-	console put $((r + 1)) "$c" "│ $DT_NOTE │"
-	dt_want "$DT_NOTEMS"
+}
+
+# A brief toast, not a small window of its own like dt_confirm's: a
+# border so it reads as something floating rather than as whatever
+# happened to be under it looking wrong, and a timeout so it goes away
+# on its own -- it used to have neither, which is what made applying a
+# wallpaper from the Wallpaper pane (a window filling most of the
+# screen) look like the screen itself had come out wrong rather than
+# like a notification, until the next click or key. Several stack at
+# once now, DT_NOTEPOS's own corner, newest closest to the corner --
+# Growl's own look. Each drawn box's own row/col/h/w goes into
+# DT_NOTERECT in the same pass that draws it, so dt_note_hit's own
+# point-in-rect test can never drift from what is actually on screen --
+# the same discipline dt_confirm_hit/dt_confirm_geom already follow.
+dt_note_draw() {
+	local id now age w h r c t maxw n=0 top bar
+	local -a keep
+
+	now := dt_ms
+	for id in "${DT_NOTEQ_ORDER[@]}"; do
+		age=$((now - ${DT_NOTEQ[$id]["created"]}))
+		if [ "$age" -ge "$DT_NOTEMS" ]; then
+			unset "DT_NOTEQ[$id]"
+			continue
+		fi
+		keep+=("$id")
+		dt_want $((DT_NOTEMS - age))
+	done
+	DT_NOTEQ_ORDER=("${keep[@]}")
+	for id in "${!DT_NOTERECT[@]}"; do unset DT_NOTERECT["$id"]; done
+	[ "${#DT_NOTEQ_ORDER[@]}" = 0 ] && return 0
+
+	maxw=$((DT_COLS - 6))
+	case $DT_NOTEPOS in
+	*bottom*) top=0 ;;
+	*) top=1 ;;
+	esac
+	for id in "${DT_NOTEQ_ORDER[@]}"; do
+		t=${DT_NOTEQ[$id]["text"]}
+		[ ${#t} -gt "$maxw" ] && t="${t:0:$maxw}"
+		w=$((${#t} + 4))
+		h=3
+		case $DT_NOTEPOS in
+		*left*) c=1 ;;
+		*) c=$((DT_COLS - w - 1)) ;;
+		esac
+		if [ "$top" = 1 ]; then
+			r=$((1 + n * (h + 1)))
+		else
+			r=$((DT_ROWS - (n + 1) * (h + 1)))
+		fi
+		DT_NOTERECT[$id]["r"]=$r
+		DT_NOTERECT[$id]["c"]=$c
+		DT_NOTERECT[$id]["w"]=$w
+		DT_NOTERECT[$id]["h"]=$h
+		console pen "$DT_ACTIVE" "$DT_FACE" bold
+		bar := dt_rep $((w - 2)) "─"
+		console put "$r" "$c" "┌$bar┐"
+		console put $((r + 2)) "$c" "└$bar┘"
+		console pen "$DT_INK" "$DT_FACE" bold
+		console put $((r + 1)) "$c" "│ $t │"
+		n=$((n + 1))
+	done
+}
+
+# A point against the currently drawn notification stack -- the id whose
+# rectangle contains it, or a miss. Reads DT_NOTERECT, filled by the same
+# dt_note_draw pass that drew them.
+dt_note_hit() {
+	local mr=$1 mc=$2 id r c w h
+
+	for id in "${DT_NOTEQ_ORDER[@]}"; do
+		r=${DT_NOTERECT[$id]["r"]}
+		c=${DT_NOTERECT[$id]["c"]}
+		w=${DT_NOTERECT[$id]["w"]}
+		h=${DT_NOTERECT[$id]["h"]}
+		if [ "$mr" -ge "$r" ] && [ "$mr" -lt $((r + h)) ] &&
+		   [ "$mc" -ge "$c" ] && [ "$mc" -lt $((c + w)) ]; then
+			ret "$id"
+			return 0
+		fi
+	done
+	return 1
+}
+
+# Run a clicked note's own action, if it has one, and dismiss it either
+# way -- called from dt_mouse's own press dispatch once dt_note_hit
+# names which one.
+dt_note_click() {
+	local id=$1 n=${DT_NOTEQ[$1]["argvn"]:-0} i=0 o
+	local -a args keep
+
+	while [ "$i" -lt "$n" ]; do
+		args+=("${DT_NOTEQ[$id]["arg$i"]}")
+		i=$((i + 1))
+	done
+	unset "DT_NOTEQ[$id]"
+	for o in "${DT_NOTEQ_ORDER[@]}"; do
+		[ "$o" != "$id" ] && keep+=("$o")
+	done
+	DT_NOTEQ_ORDER=("${keep[@]}")
+	[ "$n" -gt 0 ] && "${args[@]}"
 }
 
 # Flash a display's own name in the middle of its own screen -- called
@@ -4257,7 +4432,7 @@ dt_identify_draw() {
 # a single word, a function of no arguments, since the message can hold a
 # space and a command built from stored, later-unquoted menu text cannot.
 dt_confirm() {
-	DT_NOTE=
+	dt_note_clear
 	DT_CONFIRM="$1"
 	DT_CONFIRM_CMD=$2
 }

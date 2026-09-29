@@ -445,6 +445,100 @@ check("and clears itself after its own timeout, with no key or click at all",
 t.quit(None, 1.0)
 shutil.rmtree(NOTET, True)
 
+# Growl-style stacking: several notes fired together all show at once,
+# stacked, not one replacing another the way a single DT_NOTE slot used
+# to.
+NOTEQ = tempfile.mkdtemp(prefix="hibr-noteq-")
+p = os.path.join(NOTEQ, "session.hibr")
+open(p, "w").write(
+    "%s. %s\ndt_open\ndt_note \"First\"\ndt_note \"Second\"\ndt_run\ndt_close\n"
+    % (load(MOD), WM)
+)
+t = Term(p, env={"DT_TICK": "300"}, rows=ROWS, cols=COLS, settle=0.5)
+sc = t.screen()
+f1, f2 = sc.find("First"), sc.find("Second")
+check("two notes fired together both show, stacked rather than one "
+      "replacing the other",
+      f1 is not None and f2 is not None and f1[0] != f2[0], sc)
+t.quit(None, 1.0)
+shutil.rmtree(NOTEQ, True)
+
+# dt_notify's own clickable form: an action after the message runs when
+# that note, specifically, is clicked, and the note is dismissed either
+# way.
+NOTIFY = tempfile.mkdtemp(prefix="hibr-notify-")
+mark = os.path.join(NOTIFY, "clicked")
+p = os.path.join(NOTIFY, "session.hibr")
+open(p, "w").write(
+    "%s. %s\nnf_mark() { touch %s; }\ndt_open\n"
+    "dt_notify \"Click me\" nf_mark\ndt_run\ndt_close\n"
+    % (load(MOD), WM, mark)
+)
+t = Term(p, env={"DT_TICK": "300"}, rows=ROWS, cols=COLS, settle=0.5)
+sc = t.screen()
+hit = sc.find("Click me")
+check("a dt_notify note is on screen before it is clicked",
+      hit is not None, sc)
+t.keys([press(hit[0], hit[1] + 1)])
+sc = t.screen()
+check("clicking it runs its own action", os.path.exists(mark), sc)
+check("and dismisses the note", sc.find("Click me") is None, sc)
+t.quit(None, 1.0)
+shutil.rmtree(NOTIFY, True)
+
+# A plain dt_note has no action -- clicking it only dismisses it.
+DISMISS = tempfile.mkdtemp(prefix="hibr-notedismiss-")
+p = os.path.join(DISMISS, "session.hibr")
+open(p, "w").write(
+    "%s. %s\ndt_open\ndt_note \"Dismiss me\"\ndt_run\ndt_close\n"
+    % (load(MOD), WM)
+)
+t = Term(p, env={"DT_TICK": "300"}, rows=ROWS, cols=COLS, settle=0.5)
+sc = t.screen()
+hit = sc.find("Dismiss me")
+check("a plain dt_note is on screen before it is clicked",
+      hit is not None, sc)
+t.keys([press(hit[0], hit[1] + 1)])
+sc = t.screen()
+check("clicking a plain note with no action just dismisses it",
+      sc.find("Dismiss me") is None, sc)
+t.quit(None, 1.0)
+shutil.rmtree(DISMISS, True)
+
+# DT_NOTEPOS moves which corner new notes stack from.
+CORNER = tempfile.mkdtemp(prefix="hibr-notecorner-")
+p = os.path.join(CORNER, "session.hibr")
+open(p, "w").write(
+    "%s. %s\ndt_open\ndt_note \"Corner\"\ndt_run\ndt_close\n" % (load(MOD), WM)
+)
+t = Term(p, env={"DT_TICK": "300", "DT_NOTEPOS": "bottom-left"},
+         rows=ROWS, cols=COLS, settle=0.5)
+sc = t.screen()
+hit = sc.find("Corner")
+check("DT_NOTEPOS=bottom-left stacks from the bottom-left instead",
+      hit is not None and hit[0] >= ROWS - 4 and hit[1] <= 4, sc)
+t.quit(None, 1.0)
+shutil.rmtree(CORNER, True)
+
+# The menu-bar bell opens a read-only history of notes already shown,
+# even ones already gone -- the "center" a notification center needs.
+BELL = tempfile.mkdtemp(prefix="hibr-notebell-")
+p = os.path.join(BELL, "session.hibr")
+bellapps = 'DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/desktop/apps")
+open(p, "w").write(
+    "%s. %s\n%sdt_open\ndt_note \"Remembered\"\ndt_run\ndt_close\n"
+    % (load(MOD), WM, bellapps)
+)
+t = Term(p, env={"DT_TICK": "300"}, rows=ROWS, cols=COLS, settle=0.5)
+t.keys([press(0, COLS - 21)])
+sc = t.screen()
+check("the menu bar's own bell opens the notification history",
+      sc.find("┤ Notifications ├") is not None, sc)
+check("and it lists a note already shown, timestamped",
+      re.search(r"\d\d:\d\d  Remembered", sc.text()) is not None, sc)
+t.quit(None, 1.0)
+shutil.rmtree(BELL, True)
+
 # --- right-click context menus ---------------------------------------------
 #
 # ctx has both _click and _context: right-click must reach _context, not
@@ -1401,8 +1495,8 @@ check("clicking the clock in the bar opens the Clock app",
 PANEL = ('. %s/panel.hibr\nCP_PANEDIRS+=("%s")\ncp_panes'
          % (tree("examples/desktop/apps"), tree("examples/desktop/control-panel")))
 ORDER = ["app_shortcuts", "appearance", "behaviour", "control_strip",
-         "datetime", "displays", "filetypes", "shortcuts", "terminal",
-         "wallpick", "window_style"]
+         "datetime", "displays", "filetypes", "notify", "shortcuts",
+         "terminal", "wallpick", "window_style"]
 DOWN_APP = [b"\x1b[B"] * ORDER.index("appearance")
 DOWN_SHORT = [b"\x1b[B"] * ORDER.index("shortcuts")
 
@@ -1908,4 +2002,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(267)
+report(276)

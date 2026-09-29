@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.33
+
+Desktop moves to **0.13** alongside this release.
+
+**A Growl-style notification center**, the other idea ticketed in 0.32's
+own `docs/backlog.md` and now built. `dt_note "$msg"` keeps its exact
+signature and all ~30 existing call sites are untouched, but several can
+now be on screen at once, corner-stacked (`DT_NOTEPOS`, four corners,
+top-right by default) rather than one replacing whatever was already
+showing -- the old single `DT_NOTE` slot is gone. A new `dt_notify "$msg"
+cmd args...` is the clickable form: clicking that note runs `cmd` and
+dismisses it; clicking a plain `dt_note` just dismisses it. Every note
+that has shown, on screen or already gone, is kept in a capped, in-memory
+history (50 entries) -- a new bell in the menu bar, and a "View History"
+row in a new Notifications Control Panel pane (which also sets the
+corner and the timeout), open a read-only window over it, timestamped.
+Trash and shortcut-rebind notes are now clickable, straight to the
+Trash folder or to Control Panel. Themed the same way everything else
+in the desktop is (`DT_ACTIVE`/`DT_FACE`/`DT_INK`), since it draws with
+the same calls `dt_confirm` already does.
+
+Two batched notes that used to silently coalesce into one line under the
+old single-slot mechanism (`dt_fileop`'s and `dt_trash`'s own "moved N
+items" wording, each followed immediately by a more specific second
+`dt_note` call that used to just overwrite the first) would have shown
+as two separate stacked notes for the exact same batch under the new
+queue -- `dt_tally` now takes the specific detail as an optional
+argument instead, so there is exactly one note per batch, same as before.
+
+HIBR_VER -> 0.33, DT_VER -> 0.13.
+
+Verified: tests/run.sh 86/86, tests/desktop.py 276/276, tests/apps.py
+212/212.
+
 ## 0.32
 
 Desktop moves to **0.12** alongside this release.

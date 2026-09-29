@@ -792,7 +792,8 @@ manager's own table:
 | `dt_hidden <id>` | status: is it minimised |
 | `dt_raise <id>` | put it on top and give it the keyboard; un-minimises first |
 | `dt_close_focused`, `dt_hide_focused`, `dt_zoom_focused` | act on whatever has focus, for menu items |
-| `dt_note <text>` | say something in the middle of the screen until the next key |
+| `dt_note <text>` | a corner-stacked toast, gone on its own after a timeout |
+| `dt_notify <text> <cmd> [args...]` | the same, but clicking it runs `cmd` |
 | `dt_move <id> <row> <col>` | put a window somewhere, clamped to the screen |
 | `dt_resize <id> <h> <w>` | give it a size, clamped to what is usable and what fits |
 | `dt_min <id>` | minimise it, or restore it if it already is |

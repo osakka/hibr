@@ -1,0 +1,101 @@
+#!/usr/bin/env hibr
+#
+# notifications -- a read-only look back at what DT_NOTEHIST already kept.
+#
+# Opened directly by the menu-bar bell (dt_bar/dt_mouse in desktop.hibr)
+# and by the Notifications pane's own "View History" row, never from a
+# generic Applications pick -- hidden, the same reason About and Process
+# Details are: nothing about "show me what already happened" makes sense
+# launched with no history behind it, though here an empty one just
+# shows an empty list rather than being refused.
+#
+# dt_new's own convention names every lifecycle hook after the app's
+# registered name, "notifications" here (the id dt_launch passes through
+# as dt_new's own prefix argument) -- not some shorter prefix of the
+# file's choosing, or dt_new silently finds none of these and draws
+# nothing at all. NHW (this window's own per-id state) is free to be
+# named anything, since nothing looks it up by convention.
+
+app notifications "A read-only look back at recent notifications"
+
+command -v dt_app > /dev/null && dt_app notifications "Notifications" 16 54 \
+	once "◉" fixed hidden
+
+declare -gA NHW
+
+notifications_open() {
+	NHW[$1]["top"]=0
+}
+
+notifications_close() {
+	unset "NHW[$1]"
+}
+
+# Newest first, each row its own HH:MM and text -- DT_NOTEHIST_ORDER is
+# oldest-first (append order), so the list is walked back to front.
+notifications_draw() {
+	local id=$1 h=$2 w=$3 n i r vis top hid at secs t line
+
+	n=${#DT_NOTEHIST_ORDER[@]}
+	vis=$((h - 1))
+	NHW[$id]["vis"]=$vis
+	top=${NHW[$id]["top"]}
+	[ "$top" -lt 0 ] && top=0
+	[ "$top" -gt $((n - vis)) ] && top=$((n - vis))
+	[ "$top" -lt 0 ] && top=0
+	NHW[$id]["top"]=$top
+
+	console pen "$DT_INK" "$DT_FACE"
+	if [ "$n" = 0 ]; then
+		console put -p "w$id" 1 1 "Nothing yet"
+		dt_want "$DT_NOTEMS"
+		return 0
+	fi
+	i=0
+	r=1
+	while [ "$r" -le "$vis" ]; do
+		if [ "$i" -lt $((n - top)) ]; then
+			hid=${DT_NOTEHIST_ORDER[$((n - 1 - top - i))]}
+			at=${DT_NOTEHIST[$hid]["at"]}
+			secs=$((at / 1000))
+			printf -v t "%(%H:%M)T" "$secs"
+			line="${DT_NOTEHIST[$hid]["text"]}"
+			[ ${#line} -gt $((w - 9)) ] && line="${line:0:$((w - 9))}"
+			line="$t  $line"
+		else
+			line=
+		fi
+		line := str pad "$line" $((w - 2))
+		console put -p "w$id" "$r" 1 "$line"
+		i=$((i + 1))
+		r=$((r + 1))
+	done
+	dt_want "$DT_NOTEMS"
+}
+
+notifications_key() {
+	local id=$1 n=${#DT_NOTEHIST_ORDER[@]} vis=${NHW[$1]["vis"]:-1}
+	local top=${NHW[$1]["top"]}
+
+	case $2 in
+	up) top=$((top - 1)) ;;
+	down) top=$((top + 1)) ;;
+	*) return 1 ;;
+	esac
+	[ "$top" -lt 0 ] && top=0
+	[ "$top" -gt $((n - vis)) ] && top=$((n - vis))
+	[ "$top" -lt 0 ] && top=0
+	NHW[$id]["top"]=$top
+	return 0
+}
+
+# The wheel scrolls three rows at a time, like Files' own list does.
+notifications_wheel() {
+	local top=${NHW[$1]["top"]}
+
+	case $2 in
+	up) NHW[$1]["top"]=$((top - 3)) ;;
+	down) NHW[$1]["top"]=$((top + 3)) ;;
+	esac
+	return 0
+}
