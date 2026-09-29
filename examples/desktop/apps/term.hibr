@@ -145,6 +145,13 @@ term_draw() {
 		fi
 	fi
 	[ "$DT_FOCUS" = "$id" ] && cur=1
+	# A program that asked for focus reports (mode 1004) hears when its
+	# window gains or loses the keyboard; the module sends nothing unless
+	# it asked, so this only has to notice the change.
+	if [ "$cur" != "${TW[$id]["foc"]}" ]; then
+		TW[$id]["foc"]=$cur
+		term focus "$t" "$cur"
+	fi
 	if [ "$cur" = 1 ] && [ "$DT_CURSOR_BLINK" = 1 ]; then
 		ms := dt_ms
 		[ $(((ms / 500) % 2)) = 1 ] && cur=0

@@ -22,9 +22,9 @@ same underlying grid, not the interface itself.
 | file | role |
 |---|---|
 | `tm.h` | the terminal record, cells, and every function the files share |
-| `grid.c` | the screen model: cursor, scroll region, deferred wrap, insert and delete of lines and characters, resizing |
+| `grid.c` | the screen model: cursor, scroll region, deferred wrap, insert and delete of lines and characters, wide characters kept whole, combining sequences, tab stops, resizing |
 | `sb.c` | the scrollback: a ring of the lines that went off the top, and the view that scrolls back through it |
-| `vt.c` | the escape parser: CSI, SGR in 16, 256 and 24-bit colour, OSC titles, the alternate screen, mouse and paste modes, and replies to status queries |
+| `vt.c` | the escape parser -- Paul Williams' DEC state machine -- and everything it dispatches: cursor movement, erasing, modes, SGR, character sets, save and restore, OSC and DCS strings, and replies to queries |
 | `draw.c` | blitting the grid into a rectangle through the display interface |
 | `key.c` | turning a decoded key name (`up`, `ctrl-c`, `f5`) back into the bytes a program expects, and a mouse event into the report it asked for |
 | `api.c` | the `"terminal"` interface itself: an emulator addressed by id, for a module rather than a script |
@@ -33,10 +33,12 @@ same underlying grid, not the interface itself.
 ## The builtin
 
     t := term open [-r rows] [-c cols] [-s lines] [--] cmd args...
+    t := term new [-r rows] [-c cols]  # a terminal with no program: fed by hand
     term poll  t [ms]            # read what the program wrote, parse it
     term draw  t row col h w [curon]  # paint the screen into a rectangle
     term key   t name            # a decoded key name, as the program expects it
-    term write t text            # raw bytes
+    term write t text            # raw bytes, to the program
+    term feed  t text... | -f file  # bytes into the emulator itself, as if the program wrote them
     term size  t [rows cols]     # ask, or resize (the program gets SIGWINCH)
     term alive t                 # status 0 while the program runs
     term status t                # its exit status once it has ended
@@ -44,6 +46,9 @@ same underlying grid, not the interface itself.
     term cursor t                # row, column, shown, and its shape
     term cursor t block|underline|bar  # set the shape directly
     term row   t n               # one row of what is shown, as text
+    term cells t n               # the same row as cells: column, fg, bg, attributes, text
+    term focus t 1|0             # tell a program that asked (mode 1004) it gained or lost focus
+    term colors t #fg #bg        # the real default colours, so OSC 10/11 can be answered
     term scroll t [n|top|bottom] # move the view back n lines, or ask where it is
     term mouse t [act [button] row col]  # send a mouse event, or ask the mode
     term screen t                # main or alt
@@ -54,7 +59,61 @@ same underlying grid, not the interface itself.
 
 Each `term open` is its own terminal, its own session and its own program.
 Two windows of `examples/desktop/apps/term.hibr` are two shells on two ptys, and
-`tests/apps.py` checks exactly that.
+`tests/apps.py` checks exactly that. The program is given `TERM=xterm-256color`
+and `COLORTERM=truecolor` whatever the desktop itself runs in: that is the
+terminal this module implements, and a program told it is on tmux or kitty
+would send sequences meant for those.
+
+## The parser
+
+`vt.c` is Paul Williams' state machine for DEC terminals, the design most
+serious emulators share, fed characters after UTF-8 decoding (an invalid
+byte becomes U+FFFD and the byte that broke a sequence is read again). What
+follows from it:
+
+- A sequence's prefix (`?`, `>`, `<`, `=`) and intermediates (` `, `$`, `!`)
+  are part of what it means. `CSI > 4 ; 2 m` sets a keyboard option, and is
+  not SGR underline; `CSI ? u` asks about the kitty keyboard, and is not a
+  cursor restore. Reading them without the prefix is what left programs such
+  as Claude Code with a stuck underline and text jumping about.
+- C0 controls act inside a sequence; CAN and SUB abandon one.
+- DCS, OSC, APC, PM and SOS strings are consumed whole, across any number of
+  reads, and never printed. OSC 0/1/2 set the title; OSC 10/11 queries are
+  answered once `term colors` has said what the colours are; DECRQSS
+  (`DCS $ q`) answers for the scroll region, cursor shape and pen; XTGETTCAP
+  (`DCS + q`) says it has nothing, which is still an answer.
+- Parameters keep their `:` sub-parameters, so `38:2::r:g:b`, `4:3` (curly
+  underline, drawn as plain) and `58;5;n` (underline colour, not drawn) all
+  mean what they say and nothing else.
+
+What it implements, by group:
+
+- **Moves:** CUU/CUD stopping at the scroll margins when inside them, CUF,
+  CUB, CNL, CPL, CHA, HPA, HPR, VPA, VPR, CUP/HVP honouring origin mode
+  (DECOM), IND, NEL, RI, tab stops (HT, HTS, TBC, CHT, CBT).
+- **Editing:** ED, EL, ECH (an erase takes the cursor's own cell even with a
+  wrap pending, and ends the pending wrap, as DEC STD 070 has it), ICH, DCH,
+  IL and DL (which leave the cursor at the line's start), SU, SD, REP, insert
+  mode (IRM), newline mode (LNM), DECSTBM, DECALN.
+- **Characters:** a combining mark, joiner or variation selector joins the
+  cell before it, so `é` written as `e` and U+0301 is one cell; a wide
+  character is two cells kept together, and writing over either half blanks
+  the other; DEC Special Graphics through `ESC ( 0`, `ESC ) 0`, SO and SI.
+- **State:** DECSC/DECRC save and restore the position, pen, character
+  sets, origin mode and autowrap mode, one slot per screen; alternate screen
+  47, 1047, 1048 and 1049 each with their own mix of clearing and saving;
+  DECSTR soft reset and RIS hard reset.
+- **Modes:** DECCKM (the arrows and Home/End become `ESC O` sequences),
+  DECKPAM/DECKPNM, DECAWM, DECTCEM, focus reports (1004), mouse (9, 1000,
+  1002, 1003, 1006), bracketed paste (2004), synchronized output (2026: the
+  frame as it was when the program began one is shown until it ends, or for
+  a second at most).
+- **Replies:** DA1, DA2, DSR 5 and 6 (CPR, relative to the margins under
+  DECOM), DECXCPR, DECRQM for every mode above, XTVERSION, the window size
+  (`CSI 18 t`).
+- **SGR:** bold, dim, italic, underline (and double, as underline), blink,
+  reverse, conceal, strike and their resets; 16, 256 and 24-bit colour in
+  both spellings.
 
 ## Scrollback
 
@@ -67,7 +126,7 @@ a paste or a mouse event sent to the program goes back to the live screen,
 and so does a resize.
 
 A line is stored without its trailing blanks, so the cost is the text: a cell
-is 20 bytes, and 1000 lines of 40 characters are about 800 kB. A short session
+is 24 bytes, and 1000 lines of 40 characters are about 960 kB. A short session
 costs next to nothing.
 
 A window that shrinks under the cursor pushes its top lines into the
@@ -118,6 +177,17 @@ there is no sub-cell mark in a grid of cells.
 
 ## Tests
 
+`tests/term_diff.py` feeds the same bytes to this module and to a private
+tmux server and compares the screens cell by cell -- text always, colours
+and attributes for the SGR cases. It covers each behaviour above with a
+short sequence of its own, and the recorded output of `less`, `nano`, `vi`,
+`screen` and `whiptail` (in `tests/term/`, recorded from a generated file by
+`--record`). Where xterm and tmux disagree this module follows xterm, and
+the case says so and asserts xterm's result instead: erasing with a wrap
+pending, REP wrapping, line drawing, CHT, IL/DL's cursor, a split wide
+character, an invalid byte. It also feeds sequences split across two reads,
+which a whole-file comparison cannot.
+
 `tests/760-term.t` drives the screen model through real programs: text,
 cursor addressing, erasing, a scroll region, the alternate screen, deferred
 wrap, UTF-8 with a wide character, the title, resizing, exit status, a hibr
@@ -131,5 +201,9 @@ ASan and UBSan with leak detection on that test.
 Motion with no button held is not reported, even under 1003, because the
 desktop turns on only click and drag reporting: all motion is a report per
 cell crossed. Modifiers on a mouse event are not passed on. Nothing reflows
-on a resize. Character sets beyond UTF-8 (`ESC ( 0` line drawing) are not
-translated. Each is a small addition when something needs it.
+on a resize. Left and right margins (DECLRMM), the kitty keyboard protocol,
+sixel and the kitty graphics protocol are not implemented -- the parser
+consumes their sequences so nothing leaks onto the screen, and a program
+asking about them hears nothing back and falls back, as it would on xterm.
+Underline styles and colours are parsed and drawn as a plain underline,
+since the display has only the one.

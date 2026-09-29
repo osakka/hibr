@@ -24,12 +24,40 @@ void tm_utf8(str *b, unsigned cp)
 	}
 }
 
+/* Where the cursor is drawn: where the program left it, or where it was
+   when a synchronized frame began, while that frame is still being built. */
+void tm_curpos(tm_t *t, int *r, int *c)
+{
+	if (!t->view && tm_syncing(t)) {
+		*r = t->fcr;
+		*c = t->fcc;
+	} else {
+		*r = t->cr;
+		*c = t->cc;
+	}
+}
+
 /* Whether (r, c) is where the cursor sits and ought to be drawn there: on,
    visible, not off in the scrollback looking at something that is not
    where the program left it, and actually inside the region asked for. */
 int tm_atcursor(tm_t *t, int curon, int r, int c)
 {
-	return curon && t->vis && !t->view && r == t->cr && c == t->cc;
+	int cr, cc;
+
+	tm_curpos(t, &cr, &cc);
+	return curon && t->vis && !t->view && r == cr && c == cc;
+}
+
+/* The cell shown at a row: the live screen, the scrollback, or the frame
+   frozen by synchronized output. */
+const tm_cell *tm_dat(tm_t *t, int r, int c)
+{
+	if (!t->view && tm_syncing(t)) {
+		if (r < 0 || r >= t->rows || c < 0 || c >= t->cols)
+			return 0;
+		return t->frz + (size_t)r * t->cols + c;
+	}
+	return tm_vat(t, r, c);
 }
 
 /* The attribute a cell draws with, cursor and selection both folded in.
@@ -41,7 +69,7 @@ int tm_atcursor(tm_t *t, int curon, int r, int c)
 unsigned tm_cellattr(tm_t *t, const tm_cell *k, int curon, long ar, int r,
 		     int c)
 {
-	unsigned at = k->attr;
+	unsigned at = k->attr & DP_ATTRS;
 	int cur = tm_atcursor(t, curon, r, c);
 
 	if (tm_insel(t, ar, c) || (cur && t->cshape == TM_BLOCK))
@@ -67,10 +95,10 @@ unsigned tm_cellattr(tm_t *t, const tm_cell *k, int curon, long ar, int r,
 void tm_draw(tm_t *t, const dp_api *dp, int row, int col, int h, int w,
 	     int curon)
 {
-	int r, c, n;
+	int r, c, n, cr, cc;
 	long ar;
 	unsigned fg, bg, at;
-	tm_cell *k;
+	const tm_cell *k;
 	str run, bar;
 
 	if (!dp)
@@ -84,7 +112,7 @@ void tm_draw(tm_t *t, const dp_api *dp, int row, int col, int h, int w,
 		ar = tm_absrow(t, r);
 		c = 0;
 		while (c < w) {
-			k = tm_vat(t, r, c);
+			k = tm_dat(t, r, c);
 			if (!k) {
 				c++;
 				continue;
@@ -101,13 +129,19 @@ void tm_draw(tm_t *t, const dp_api *dp, int row, int col, int h, int w,
 				run.p[0] = 0;
 			n = c;
 			while (c < w) {
-				k = tm_vat(t, r, c);
+				k = tm_dat(t, r, c);
 				if (!k || !k->w)
 					break;
 				if (k->fg != fg || k->bg != bg ||
 				    tm_cellattr(t, k, curon, ar, r, c) != at)
 					break;
-				tm_utf8(&run, k->cp ? k->cp : ' ');
+				if (k->attr & TM_HIDE) {
+					s_ch(&run, ' ');
+					if (k->w == 2)
+						s_ch(&run, ' ');
+				} else {
+					tm_cellstr(t, k, &run);
+				}
 				c += k->w;
 			}
 			if (run.n) {
@@ -119,13 +153,14 @@ void tm_draw(tm_t *t, const dp_api *dp, int row, int col, int h, int w,
 		}
 	}
 	s_free(&run);
-	if (tm_atcursor(t, curon, t->cr, t->cc) && t->cshape == TM_BAR &&
-	    t->cc < w && t->cr < h) {
-		k = tm_vat(t, t->cr, t->cc);
+	tm_curpos(t, &cr, &cc);
+	if (tm_atcursor(t, curon, cr, cc) && t->cshape == TM_BAR &&
+	    cc < w && cr < h) {
+		k = tm_dat(t, cr, cc);
 		s_init(&bar);
 		tm_utf8(&bar, 0x258F);
 		dp->pen(k ? k->fg : t->dfg, k ? k->bg : t->dbg, 0);
-		dp->put(row + t->cr, col + t->cc, bar.p);
+		dp->put(row + cr, col + cc, bar.p);
 		s_free(&bar);
 	}
 }

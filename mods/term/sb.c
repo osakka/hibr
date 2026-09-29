@@ -7,7 +7,8 @@
 /* Is a cell one that a stored line can leave off its end? */
 int tm_plain(const tm_cell *k)
 {
-	return k->cp == ' ' && k->bg == DP_DEFAULT && !k->attr && k->w == 1;
+	return k->cp == ' ' && k->bg == DP_DEFAULT && !k->attr && k->w == 1 &&
+	       !k->x;
 }
 
 /* Keep a line that has scrolled off the top.
@@ -216,8 +217,7 @@ void tm_seltext(tm_t *t, str *out)
 		to = a == a1 ? c1 : t->cols - 1;
 		keep = out->n;
 		for (c = from; row && c <= to && c < w; c++)
-			if (row[c].w)
-				tm_utf8(out, row[c].cp ? row[c].cp : ' ');
+			tm_cellstr(t, row + c, out);
 		while (out->n > keep && out->p[out->n - 1] == ' ')
 			out->p[--out->n] = 0;
 		if (a < a1)

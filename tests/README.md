@@ -50,7 +50,16 @@ python3 tests/mtr.py        the live traceroute
 python3 tests/editor.py     the line editor
 python3 tests/desktop.py    the window manager
 python3 tests/apps.py       the calculator and the file browser
+python3 tests/term_diff.py  the terminal emulator, cell by cell against tmux
 ```
+
+`term_diff.py` is the odd one out: it drives no pty of its own. It feeds the
+same bytes to `mods/term` (`term new` and `term feed`) and to a private tmux
+server, and compares the two screens -- short sequences each aimed at one
+behaviour, and real programs' output recorded into `term/` from a generated
+file (`--record` makes them again; never record anything that shows this
+machine's own processes, host or paths). Where xterm and tmux disagree, the
+case asserts xterm's result and says why. It skips when tmux is missing.
 
 **`screen.py` is the only pty harness.** It holds the pseudo terminal, the
 key and mouse helpers, the assertion tally, and the model that reassembles a

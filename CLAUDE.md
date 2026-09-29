@@ -36,6 +36,7 @@ Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 14).
     ./build/hibr tests/self.hibr                 # suite in hibr, 91 assertions, planned
     python3 tests/{console,cat,most,hvi,mon,mtr,editor,desktop,apps}.py
                                  # the full-screen suites, each through a pty
+    python3 tests/term_diff.py   # mods/term against tmux, cell by cell
     python3 tests/screen.py examples/desktop/session.hibr
                                  # the same harness, to look rather than assert
     python3 tests/diff.py --shell ./build/hibr 250   # snippets, diffed against bash
@@ -1086,6 +1087,17 @@ went in the shell.
   an empty window id that splitting always made vanish, and passing it
   through set the cursor style to nothing. Anything else that stores a
   command to run later should keep words the same way.
+
+- **An escape sequence's prefix and intermediates are part of it.** The old
+  parser stripped `?`, `>` and `!` and dispatched on the final byte alone,
+  so Claude Code's `CSI > 4 ; 2 m` (a keyboard option) became SGR underline
+  and stayed on, and its kitty-keyboard `CSI ? u` / `CSI > 1 u` became a
+  cursor restore that threw text across the screen. `vt.c` is now Paul
+  Williams' DEC state machine and dispatches on prefix, intermediates and
+  final together; anything new belongs in the right one of `tm_csi`,
+  `tm_csiq`, `tm_csigt` or `tm_csiin`, never matched on the final alone.
+  `tests/term_diff.py` compares against tmux, and follows xterm where the
+  two disagree -- tmux is a reference, not the specification.
 
 - **A saved setting outlives the default that wrote it.** `dt_save`
   writes every variable in `DT_KEEP`, not only the ones the user changed,

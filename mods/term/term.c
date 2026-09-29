@@ -48,6 +48,102 @@ int tm_pump(tm_t *m, int ms)
 	return r;
 }
 
+/* Spawn with the environment a program on this terminal should see: the
+   terminal type is what this emulator implements, not whatever the desktop
+   itself happens to be running in -- a desktop inside tmux or kitty would
+   otherwise hand its child a terminfo entry describing a different
+   terminal, and the program would use sequences meant for that one. The
+   variables are put back at once; only the child keeps them. */
+int tm_spawn(sh *s, int rows, int cols, char **argv)
+{
+	char *ot = getenv("TERM"), *oc = getenv("COLORTERM");
+	char *st = ot ? strdup(ot) : 0, *sc = oc ? strdup(oc) : 0;
+	int id;
+
+	setenv("TERM", "xterm-256color", 1);
+	setenv("COLORTERM", "truecolor", 1);
+	id = tm_pty->spawn(s, rows, cols, argv);
+	if (st)
+		setenv("TERM", st, 1);
+	else
+		unsetenv("TERM");
+	if (sc)
+		setenv("COLORTERM", sc, 1);
+	else
+		unsetenv("COLORTERM");
+	free(st);
+	free(sc);
+	return id;
+}
+
+/* One colour as the cells dump names it: d for the default, p<n> for a
+   palette entry, #rrggbb for a true colour. */
+void tm_cname(str *o, unsigned v)
+{
+	static const char hx[] = "0123456789abcdef";
+	int sh;
+
+	if (v & DP_RGB) {
+		s_ch(o, '#');
+		for (sh = 20; sh >= 0; sh -= 4)
+			s_ch(o, hx[(v >> sh) & 15]);
+	} else if (v & DP_PAL) {
+		s_ch(o, 'p');
+		s_num(o, (long)(v & 0xFF));
+	} else {
+		s_ch(o, 'd');
+	}
+}
+
+/* A row as cells, one line each: column, foreground, background, the
+   attributes as letters (b d i u k r s h: bold, dim, italic, underline,
+   blink, reverse, strike, hidden, or - for none), then the text. What a
+   test compares against a reference terminal's own attribute dump. */
+void tm_cells(tm_t *m, int r, str *o)
+{
+	static const char al[] = "bdiukrs";
+	const tm_cell *k;
+	int c, i, any;
+
+	for (c = 0; c < m->cols; c++) {
+		k = tm_vat(m, r, c);
+		if (!k || !k->w)
+			continue;
+		s_num(o, (long)c);
+		s_ch(o, '\t');
+		tm_cname(o, k->fg);
+		s_ch(o, '\t');
+		tm_cname(o, k->bg);
+		s_ch(o, '\t');
+		any = 0;
+		for (i = 0; i < 7; i++)
+			if (k->attr & (1u << i)) {
+				s_ch(o, al[i]);
+				any = 1;
+			}
+		if (k->attr & TM_HIDE) {
+			s_ch(o, 'h');
+			any = 1;
+		}
+		if (!any)
+			s_ch(o, '-');
+		s_ch(o, '\t');
+		tm_cellstr(m, k, o);
+		s_ch(o, '\n');
+	}
+}
+
+/* A colour given as #rrggbb, into 0xrrggbb; 0 if it is not one. */
+int tm_hex(const char *p, unsigned *v)
+{
+	char *e;
+
+	if (!p || *p != '#' || strlen(p) != 7)
+		return 0;
+	*v = (unsigned)strtoul(p + 1, &e, 16);
+	return !*e;
+}
+
 /* Run a program on a terminal of its own and keep a picture of its screen. */
 int m_term(sh *s, int ac, char **av)
 {
@@ -57,8 +153,9 @@ int m_term(sh *s, int ac, char **av)
 	str o;
 
 	if (ac < 2) {
-		lg(HIBR_LERR, "usage: term open|poll|draw|key|write|size|"
-			      "alive|status|fd|title|cursor|row|scroll|mouse|screen|select|copy|close ...");
+		lg(HIBR_LERR, "usage: term open|new|poll|draw|key|write|feed|size|"
+			      "alive|status|fd|title|cursor|row|cells|scroll|mouse|"
+			      "focus|colors|screen|select|copy|close ...");
 		return 2;
 	}
 	if (!strcmp(sub, "open")) {
@@ -95,11 +192,29 @@ int m_term(sh *s, int ac, char **av)
 		}
 		m = tm_new(rows, cols);
 		m->sbmax = lines < 0 ? 0 : lines;
-		m->pty = tm_pty->spawn(s, rows, cols, av + i);
+		m->pty = tm_spawn(s, rows, cols, av + i);
 		if (!m->pty) {
 			tm_free(m);
 			return HIBR_FAIL;
 		}
+		s_init(&o);
+		s_num(&o, (long)m->id);
+		tm_ret(s, o.p);
+		s_free(&o);
+		return HIBR_OK;
+	}
+	if (!strcmp(sub, "new")) {
+		for (i = 2; i + 1 < ac; i += 2) {
+			if (!strcmp(av[i], "-r"))
+				rows = atoi(av[i + 1]);
+			else if (!strcmp(av[i], "-c"))
+				cols = atoi(av[i + 1]);
+		}
+		if (rows < 1 || cols < 1) {
+			lg(HIBR_LERR, "term new: size must be positive");
+			return 2;
+		}
+		m = tm_new(rows, cols);
 		s_init(&o);
 		s_num(&o, (long)m->id);
 		tm_ret(s, o.p);
@@ -180,7 +295,7 @@ int m_term(sh *s, int ac, char **av)
 		s_init(&o);
 		if (m->bpaste && !strncmp(av[3], "paste ", 6))
 			s_cat(&o, "\033[200~");
-		r = tm_keybytes(av[3], &o);
+		r = tm_keybytes(m, av[3], &o);
 		if (r && m->bpaste && !strncmp(av[3], "paste ", 6))
 			s_cat(&o, "\033[201~");
 		if (r && tm_pty) {
@@ -281,9 +396,8 @@ int m_term(sh *s, int ac, char **av)
 		s_init(&o);
 		for (c = 0; c < m->cols; c++) {
 			k = tm_vat(m, r, c);
-			if (!k || !k->w)
-				continue;
-			tm_utf8(&o, k->cp ? k->cp : ' ');
+			if (k)
+				tm_cellstr(m, k, &o);
 		}
 		while (o.n && o.p[o.n - 1] == ' ')
 			o.p[--o.n] = 0;
@@ -352,6 +466,63 @@ int m_term(sh *s, int ac, char **av)
 		s_free(&o);
 		return m->sel ? HIBR_OK : HIBR_FAIL;
 	}
+	if (!strcmp(sub, "feed")) {
+		FILE *f;
+		char *buf;
+		size_t got;
+
+		if (ac < 4) {
+			lg(HIBR_LERR, "usage: term feed id text... | -f file");
+			return 2;
+		}
+		if (!strcmp(av[3], "-f") && ac > 4) {
+			f = fopen(av[4], "rb");
+			if (!f) {
+				lg(HIBR_LERR, "term feed: %s: cannot read", av[4]);
+				return HIBR_FAIL;
+			}
+			buf = xm(HIBR_IOCH);
+			while ((got = fread(buf, 1, HIBR_IOCH, f)) > 0)
+				tm_feed(m, buf, got);
+			free(buf);
+			fclose(f);
+			return HIBR_OK;
+		}
+		for (i = 3; i < ac; i++)
+			tm_feed(m, av[i], strlen(av[i]));
+		return HIBR_OK;
+	}
+	if (!strcmp(sub, "cells")) {
+		if (ac < 4) {
+			lg(HIBR_LERR, "usage: term cells id row");
+			return 2;
+		}
+		s_init(&o);
+		tm_cells(m, atoi(av[3]), &o);
+		if (o.n && o.p[o.n - 1] == '\n')
+			o.p[--o.n] = 0;
+		tm_ret(s, o.p ? o.p : "");
+		s_free(&o);
+		return HIBR_OK;
+	}
+	if (!strcmp(sub, "focus")) {
+		if (ac < 4) {
+			lg(HIBR_LERR, "usage: term focus id 1|0");
+			return 2;
+		}
+		if (m->focus && tm_pty && m->pty)
+			tm_pty->write(m->pty, atoi(av[3]) ? "\033[I" : "\033[O", 3);
+		return HIBR_OK;
+	}
+	if (!strcmp(sub, "colors")) {
+		if (ac < 5 || !tm_hex(av[3], &m->rgbfg) ||
+		    !tm_hex(av[4], &m->rgbbg)) {
+			lg(HIBR_LERR, "usage: term colors id #rrggbb #rrggbb");
+			return 2;
+		}
+		m->hasrgb = 1;
+		return HIBR_OK;
+	}
 	if (!strcmp(sub, "screen")) {
 		tm_ret(s, m->inalt ? "alt" : "main");
 		return HIBR_OK;
@@ -399,6 +570,6 @@ const hibr_bi term_bi[] = {
 	HIBR_BI_END
 };
 
-HIBR_MODULE_P("term", "0.22",
+HIBR_MODULE_P("term", "0.23",
 	      "a terminal emulator: a program's screen as cells",
 	      term_bi, tm_ini, tm_fini, "terminal");

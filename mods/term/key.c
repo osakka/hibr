@@ -32,15 +32,31 @@ static const struct tm_kn tm_keys[] = {
 	{ 0, 0 }
 };
 
+/* The keys whose bytes change in application cursor mode (DECCKM): the
+   arrows and Home/End become SS3 sequences, which is what terminfo's
+   kcuu1=\EOA and khome=\EOH promise a program that turned it on. */
+static const struct tm_kn tm_ckeys[] = {
+	{ "up", "\033OA" }, { "down", "\033OB" },
+	{ "right", "\033OC" }, { "left", "\033OD" },
+	{ "home", "\033OH" }, { "end", "\033OF" },
+	{ 0, 0 }
+};
+
 /* Turn a decoded key name into the bytes to send.  Returns 0 for a name
    that means nothing to a program, so the caller can leave it alone. */
-int tm_keybytes(const char *name, str *out)
+int tm_keybytes(tm_t *t, const char *name, str *out)
 {
 	const struct tm_kn *k;
 	size_t n;
 
 	if (!name || !*name)
 		return 0;
+	if (t && t->ckm)
+		for (k = tm_ckeys; k->nm; k++)
+			if (!strcmp(name, k->nm)) {
+				s_cat(out, k->seq);
+				return 1;
+			}
 	for (k = tm_keys; k->nm; k++)
 		if (!strcmp(name, k->nm)) {
 			s_cat(out, k->seq);

@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.36
+
+Desktop moves to **0.16** alongside this release; the `term` module to 0.23.
+
+**The terminal emulator is rebuilt around a real VT parser.** Programs
+built on ncurses and modern TUIs such as Claude Code, screen, htop and nano
+drew stuck underlines, jumped text about and swapped letters in a hibr
+terminal window. Every cause was found by comparing the emulator against
+tmux on the same bytes, not by guessing:
+
+- The parser threw away a sequence's `?`, `>` and `<` prefix, so a
+  keyboard option (`CSI > 4 ; 2 m`) became "underline on" and the kitty
+  keyboard queries (`CSI ? u`, `CSI > 1 u`) became "restore cursor".
+  `vt.c` is now Paul Williams' DEC state machine, which dispatches on
+  prefix, intermediates and final together, runs C0 controls inside
+  sequences, lets CAN and SUB abandon one, and consumes DCS, OSC, APC, PM
+  and SOS strings whole, however they are split across reads, instead of
+  printing them.
+- Combining marks, joiners and variation selectors took a column of their
+  own; they now join the character before them. A wide character is kept
+  whole, and writing over either half blanks the other.
+- Insert mode, REP, CHT/CBT/HTS/TBC tab stops, origin mode, margins for
+  cursor movement, DEC line drawing (`ESC ( 0`, SO/SI), full DECSC/DECRC
+  with one slot per screen, 47/1047/1048/1049 each done properly, soft and
+  hard reset, application cursor keys, focus reports, synchronized output,
+  conceal, colon sub-parameters, underline colour, and replies to DA2,
+  XTVERSION, DECRQM, DECRQSS, XTGETTCAP and the window size.
+- The program is given `TERM=xterm-256color` and `COLORTERM=truecolor`,
+  what this emulator implements, instead of inheriting whatever the desktop
+  itself runs in.
+
+**`tests/term_diff.py`** makes this permanent: 62 checks feeding the same
+bytes to the emulator and to a private tmux server, cell by cell, over
+short sequences and the recorded output of less, nano, vi, screen and
+whiptail. Where xterm and tmux disagree, hibr follows xterm and the test
+says why. The emulator was also run through 700 random byte streams under
+ASan and UBSan with leak detection, and stayed clean.
+
+HIBR_VER -> 0.36, DT_VER -> 0.16.
+
+Verified: tests/run.sh 86/86, tests/term_diff.py 62/62, tests/desktop.py
+291/291, tests/apps.py 212/212.
+
 ## 0.35
 
 Desktop moves to **0.15** alongside this release.
