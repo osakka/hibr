@@ -1180,24 +1180,61 @@ t.quit(b"qy", 1.0)
 check("and q then y still quits", t.exited, t.raw)
 os.unlink(path)
 
-# [y]es and [n]o on the confirm box are clickable, not just typeable.
+# Yes and No on the confirm box are buttons: clickable, not just typeable.
 path = "/tmp/hibr-desktop-confirmclick.hibr"
 open(path, "w").write("%s. %s\ndt_open\n%s\ndt_run\ndt_close\n"
                       % (load(MOD), WM, ONE))
 t = Term(path, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.5)
 t.send(b"q", settle=0.4)
 sc = t.screen()
-no_pos = sc.find("[n]o")
-t.send(press(*no_pos), settle=0.4)
+yes_pos = sc.find(" Yes ")
+check("the confirm box's answers are buttons, each with a shadow under it",
+      yes_pos is not None and sc.find(" No ") is not None and
+      sc.at(yes_pos[0] + 1, yes_pos[1] + 2) == "▀", sc)
+no_pos = sc.find(" No ")
+t.send(press(no_pos[0], no_pos[1] + 1), settle=0.4)
 sc = t.screen()
-check("clicking [n]o cancels the confirm box",
+check("clicking No cancels the confirm box",
       sc.find("Quit hibr?") is None and not t.exited, sc)
 t.send(b"q", settle=0.4)
 sc = t.screen()
-yes_pos = sc.find("[y]es")
-t.send(press(*yes_pos), settle=0.4)
+yes_pos = sc.find(" Yes ")
+t.send(press(yes_pos[0], yes_pos[1] + 1), settle=0.4)
 t.quit(None, 1.0)
-check("and clicking [y]es quits", t.exited, t.raw)
+check("and clicking Yes quits", t.exited, t.raw)
+os.unlink(path)
+
+# The keyboard moves between them: focus starts on Yes, so enter still
+# means yes; tab or an arrow moves it to No, where enter cancels.
+path = "/tmp/hibr-desktop-confirmkeys.hibr"
+open(path, "w").write("%s. %s\ndt_open\n%s\ndt_run\ndt_close\n"
+                      % (load(MOD), WM, ONE))
+t = Term(path, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.5)
+t.send(b"q", settle=0.3)
+t.send(b"\t", settle=0.3)
+t.send(b"\r", settle=0.4)
+sc = t.screen()
+check("tab moves focus to No, and enter there cancels",
+      sc.find("Quit hibr?") is None and not t.exited, sc)
+t.send(b"q", settle=0.3)
+t.send(b"\x1b[C", settle=0.3)
+t.send(b"\x1b[D", settle=0.3)
+t.quit(b"\r", 1.0)
+check("right then left comes back to Yes, and enter quits", t.exited, t.raw)
+os.unlink(path)
+
+# The shadow is a setting of its own, on by default.
+path = "/tmp/hibr-desktop-confirmflat.hibr"
+open(path, "w").write("%s. %s\nDT_BTNSHADOW=0\ndt_open\n%s\ndt_run\n"
+                      "dt_close\n" % (load(MOD), WM, ONE))
+t = Term(path, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.5)
+t.send(b"q", settle=0.4)
+sc = t.screen()
+yes_pos = sc.find(" Yes ")
+check("DT_BTNSHADOW=0 draws the buttons flat",
+      yes_pos is not None and "▀" not in sc.row(yes_pos[0] + 1) and
+      "▄" not in sc.row(yes_pos[0]), sc)
+t.quit(b"y", 1.0)
 os.unlink(path)
 
 import tempfile
@@ -2173,4 +2210,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(294)
+report(298)

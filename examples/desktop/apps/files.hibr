@@ -832,7 +832,7 @@ fn fb_open(id) {
 # Rename: one field, a real window of its own. mv does the actual work,
 # the same command every move in this app already shells out to.
 fn files_rename(id) {
-	local sel rid h=6 w=46 r c nm p
+	local sel rid h=7 w=46 r c nm p
 
 	sel=${FB[$id]["sel"]}
 	[ "${FB[$id]["n"]}" = 0 ] && return 0
@@ -846,21 +846,33 @@ fn files_rename(id) {
 	RN[$rid]["path"]=$p
 	RN[$rid]["text"]=$nm
 	RN[$rid]["cur"]=${#nm}
+	RN[$rid]["focus"]=text
 }
 
+# The name field, then Rename and Cancel: tab moves between the three, and
+# enter does what has focus -- or renames, from the field.
 fn rn_draw(id, h, w, row, col) {
+	local f=${RN[$id]["focus"]} on=0
+
+	dt_wclear "$id"
+	[ "$f" = text ] && on=1
 	console pen "$DT_INK" "$DT_FACE"
 	console put -p "w$id" 1 2 "New name:"
 	dt_textdraw "$id" 2 2 $((w - 4)) "${RN[$id]["text"]}" \
-		"${RN[$id]["cur"]}" 1
-	console pen "#718096" "$DT_FACE"
-	console put -p "w$id" 4 2 "enter renames · escape cancels"
+		"${RN[$id]["cur"]}" "$on"
+	dt_dlgbtns "$id" "$h" "$w" "$f" ok Rename cancel Cancel
 }
 
 fn rn_click(id = "", r = "", c = "", btn = "") {
-	local cur
+	local cur tag
 
+	tag := dt_hit "$id" "$r" "$c"
+	case $tag in
+	ok) rn_commit "$id"; return 0 ;;
+	cancel) dt_del "$id"; return 0 ;;
+	esac
 	[ "$r" = 2 ] || return 0
+	RN[$id]["focus"]=text
 	cur=$((c - 2))
 	[ "$cur" -gt "${#RN[$id]["text"]}" ] && cur=${#RN[$id]["text"]}
 	[ "$cur" -lt 0 ] && cur=0
@@ -896,12 +908,21 @@ fn rn_commit(id) {
 }
 
 fn rn_key(id, k) {
-	local res
+	local res f=${RN[$id]["focus"]} d onb=1
 
+	[ "$f" = text ] && onb=0
+	if d := dt_focuskey "$k" "$onb"; then
+		RN[$id]["focus"] := dt_focus "$f" "$d" text ok cancel
+		return 0
+	fi
 	case $k in
-	enter) rn_commit "$id"; return 0 ;;
+	enter)
+		if [ "$f" = cancel ]; then dt_del "$id"; else rn_commit "$id"; fi
+		return 0
+		;;
 	escape) dt_del "$id"; return 0 ;;
 	esac
+	[ "$f" = text ] || return 0
 	res := dt_textkey "${RN[$id]["text"]}" "${RN[$id]["cur"]}" "$k" ||
 		return 1
 	RN[$id]["text"]=${res% *}
@@ -1018,8 +1039,7 @@ fn gi_draw(id, h, w, row, col) {
 	dt_check "$id" 12 12 "${GI[$id]["ow"]}" "" perm:ow
 	dt_check "$id" 12 16 "${GI[$id]["ox"]}" "" perm:ox
 
-	console pen "#718096" "$DT_FACE"
-	console put -p "w$id" 14 2 "enter applies · escape closes"
+	dt_dlgbtns "$id" "$h" "$w" "${GI[$id]["focus"]}" ok Apply cancel Close
 }
 
 fn gi_chmod(id) {
@@ -1046,6 +1066,8 @@ fn gi_click(id, r, c, btn) {
 
 	tag := dt_hit "$id" "$r" "$c"
 	case $tag in
+	ok) gi_apply "$id" ;;
+	cancel) dt_del "$id" ;;
 	name)
 		GI[$id]["focus"]=name
 		cur=$((c - 8))
@@ -1119,25 +1141,25 @@ fn gi_apply(id = "") {
 }
 
 fn gi_key(id, k) {
-	local res field buf cur
+	local res field=${GI[$id]["focus"]} buf cur d onb=0
 
+	case $field in ok | cancel) onb=1 ;; esac
+	if d := dt_focuskey "$k" "$onb"; then
+		GI[$id]["focus"] := dt_focus "$field" "$d" name owner group ok cancel
+		return 0
+	fi
 	case $k in
 	escape) dt_del "$id"; return 0 ;;
-	enter) gi_apply "$id"; return 0 ;;
-	tab)
-		case ${GI[$id]["focus"]} in
-		name) GI[$id]["focus"]=owner ;;
-		owner) GI[$id]["focus"]=group ;;
-		*) GI[$id]["focus"]=name ;;
-		esac
+	enter)
+		if [ "$field" = cancel ]; then dt_del "$id"; else gi_apply "$id"; fi
 		return 0
 		;;
 	esac
-	field=${GI[$id]["focus"]}
 	case $field in
 	name) buf=${GI[$id]["namebuf"]}; cur=${GI[$id]["namecur"]} ;;
 	owner) buf=${GI[$id]["userbuf"]}; cur=${GI[$id]["usercur"]} ;;
 	group) buf=${GI[$id]["groupbuf"]}; cur=${GI[$id]["groupcur"]} ;;
+	ok | cancel) return 0 ;;
 	*) return 1 ;;
 	esac
 	res := dt_textkey "$buf" "$cur" "$k" || return 1

@@ -4,57 +4,43 @@
 # functions and sets state, so it can be read on its own and is never run.
 
 # Ask before doing something that cannot be taken back by pressing the key
-# again: y or enter runs cmd, anything else -- including a click, which
-# cancels rather than reaching whatever it landed on -- forgets it. cmd is
-# a single word, a function of no arguments, since the message can hold a
-# space and a command built from stored, later-unquoted menu text cannot.
+# again: Yes runs cmd, No forgets it, and so does a click anywhere else,
+# which cancels rather than reaching whatever it landed on. cmd is a single
+# word, a function of no arguments, since the message can hold a space and
+# a command built from stored, later-unquoted menu text cannot.
 fn dt_confirm(msg, cmd) {
 	dt_note_clear
 	DT_CONFIRM="$msg"
 	DT_CONFIRM_CMD=$cmd
+	DT_CONFIRM_FOCUS=y
 }
 
 # A small window of its own, not just a coloured box: a border and a
 # title bar, the same shapes dt_win draws, at an absolute position rather
-# than a pane's, since this has no pane and takes no drag or resize.
-# [y]es and [n]o are also clickable -- dt_confirm_hit tests a point against
-# the same box this lays out, so the two can never drift apart.
-DT_CONFIRM_HINT="[y]es        [n]o"
-
+# than a pane's, since this has no pane and takes no drag or resize. Its
+# buttons are drawn onto the screen (widgets/button.hibr's "root") and
+# found again by dt_hit under the same name, so the box a click is tested
+# against is the one that was drawn.
 dt_confirm_geom() {
-	local msg=$DT_CONFIRM w h y0 x0
+	local msg=$DT_CONFIRM w h y0 x0 bw
 
+	bw := dt_btnw Yes No
 	w=$((${#msg} + 6))
-	[ "$w" -lt $((${#DT_CONFIRM_HINT} + 4)) ] && w=$((${#DT_CONFIRM_HINT} + 4))
-	h=5
+	[ "$w" -lt $((bw + 6)) ] && w=$((bw + 6))
+	h=7
 	y0=$((DT_ROWS / 2 - h / 2))
 	x0=$((DT_PRIMARY_COL + (${DT_PRIMARY_W:-$DT_COLS} - w) / 2))
 	ret "$y0 $x0 $w $h"
 }
 
-# y, n, or empty for a point that is not on either word of the hint line.
+# y, n, or nothing for a point on neither button.
 fn dt_confirm_hit(mr, mc) {
-	local g y0 x0 w h hr hx half
-
 	[ -z "$DT_CONFIRM" ] && return 1
-	g := dt_confirm_geom
-	set -- $g
-	y0=$1 x0=$2 w=$3 h=$4
-	hr=$((y0 + 3))
-	[ "$mr" != "$hr" ] && return 1
-	hx=$((x0 + (w - ${#DT_CONFIRM_HINT}) / 2))
-	[ "$mc" -lt "$hx" ] || [ "$mc" -ge $((hx + ${#DT_CONFIRM_HINT})) ] &&
-		return 1
-	half=$(( (${#DT_CONFIRM_HINT} + 1) / 2 ))
-	if [ $((mc - hx)) -lt "$half" ]; then
-		ret y
-	else
-		ret n
-	fi
+	dt_hit root "$mr" "$mc"
 }
 
 dt_confirm_draw() {
-	local msg=$DT_CONFIRM w h y0 x0 bar r g
+	local msg=$DT_CONFIRM w h y0 x0 bar r g bw
 
 	[ -z "$msg" ] && return 0
 	g := dt_confirm_geom
@@ -77,18 +63,27 @@ dt_confirm_draw() {
 	console put "$y0" $((x0 + 2)) "┤ Confirm ├"
 	console pen "$DT_INK" "$DT_FACE" bold
 	console put $((y0 + 2)) $((x0 + (w - ${#msg}) / 2)) "$msg"
-	console pen "$DT_IDLE" "$DT_FACE"
-	console put $((y0 + 3)) $((x0 + (w - ${#DT_CONFIRM_HINT}) / 2)) \
-		"$DT_CONFIRM_HINT"
+	dt_wclear root
+	bw := dt_btnw Yes No
+	dt_buttons root $((y0 + 4)) $((x0 + (w - bw) / 2)) \
+		"$DT_CONFIRM_FOCUS" y Yes n No
 }
 
+# y and n answer at once, as they always have; enter answers with the
+# button that has focus, and tab or the arrows move it. Any other key
+# cancels, the same as No.
 fn dt_confirm_key(key) {
-	local cmd=$DT_CONFIRM_CMD
+	local cmd=$DT_CONFIRM_CMD d
 
+	if d := dt_focuskey "$key" 1; then
+		DT_CONFIRM_FOCUS := dt_focus "$DT_CONFIRM_FOCUS" "$d" y n
+		return 0
+	fi
+	[ "$key" = enter ] && key=$DT_CONFIRM_FOCUS
 	DT_CONFIRM=
 	DT_CONFIRM_CMD=
 	case $key in
-	y | Y | enter)
+	y | Y)
 		# cmd may end the loop (dt_quit) with no redraw of its own after
 		# it, same as every other quit path -- draw once here, box
 		# already cleared above, so that is what a pty test's last

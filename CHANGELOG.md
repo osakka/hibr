@@ -1,5 +1,49 @@
 # Changelog
 
+## 0.45
+
+Desktop moves to **0.25** alongside this release.
+
+**Dialogs have buttons.** Quit's confirm box, Rename, Get Info, File Type,
+Clock Format, Time Zone and Set Date & Time each end in a row of real
+buttons -- Yes and No; Rename and Cancel; Apply and Close; Save, Delete and
+Cancel; Set (sudo) and Cancel -- in place of a grey line saying which keys
+did what. A button is filled: the accent colour while it has focus, muted
+while it has not, with Turbo Vision's shadow, a `▄` beside it and a row of
+`▀` under it. Tab and shift-tab move through a dialog's fields and then its
+buttons; the arrows move between the buttons once one has focus, and leave a
+text field its cursor keys and a list its scrolling until then; enter does
+whatever has focus, or the dialog's own action from a field; escape cancels;
+a click does the button it lands on. y and n still answer Quit at once. File
+Type's Delete is a button now, where before only a hint said ctrl-d.
+
+The shadow is its own setting, **Button Shadow** in Behaviour, beside the
+window, menu and bar ones. Its colour is the face darkened by the theme's
+own shadow depth -- twice over, since a thin row of half blocks at a
+window's depth vanished into midnight's near-black face -- and comes from a
+new `console shade colour [pct]`, which answers the colour `console darken`
+would produce, so there is one formula for both.
+
+The buttons are a widget, `widgets/button.hibr`: `dt_button` and
+`dt_buttons` draw one or a row, `dt_dlgbtns` centres a dialog's along its
+bottom, and `dt_focus` and `dt_focuskey` move focus. A button can be drawn
+into a window's pane or, as the confirm box's are, onto the screen itself,
+and `dt_hit` finds it either way.
+
+**Four themes**: **black** (pure black, near-black windows, soft grey text,
+one cool accent), **neon** (synthwave -- purple-black, electric-cyan text,
+hot-magenta accent), **phosphor** (a green monochrome CRT) and **amber** (the
+amber one), each one hue family throughout. Every button reads at 5.5:1 or
+better on all four; paper's unfocused one is 3.3:1, its muted colour being
+a mid grey, and is the one theme where it falls short. Black's shadows cannot show -- nothing darkens black --
+which is the look it is for. A terminal window takes each theme's text and
+background, not yet its sixteen program colours.
+
+HIBR_VER -> 0.45, DT_VER -> 0.25.
+
+Verified: tests/run.sh 90/90 (and under ASan and UBSan), tests/console.py
+61/61, tests/apps.py 246/246, tests/desktop.py 298/298.
+
 ## 0.44.2
 
 Desktop moves to **0.24.2**. A second fix to 0.44.

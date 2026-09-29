@@ -283,16 +283,19 @@ dtf_dialog() {
 	rid := dt_new "Clock Format" "$h" "$w" "$r" "$c" dtf
 	DTF[$rid]["buf"]=$DT_BARTIME
 	DTF[$rid]["cur"]=${#DT_BARTIME}
+	DTF[$rid]["focus"]=text
 }
 
 fn dtf_draw(id, h, w, row, col) {
-	local t
+	local t f=${DTF[$id]["focus"]} on=0
 
 	dt_wclear "$id"
+	[ "$f" = text ] && on=1
 	console pen "$DT_INK" "$DT_FACE"
 	console put -p "w$id" 1 2 "Format:"
 	dt_textdraw "$id" 1 11 $((w - 13)) "${DTF[$id]["buf"]}" \
-		"${DTF[$id]["cur"]}" 1
+		"${DTF[$id]["cur"]}" "$on"
+	dt_wreg "$id" 1 11 $((w - 13)) text
 	console pen "$DT_INK" "$DT_FACE"
 	console put -p "w$id" 3 2 "Shows:"
 	if dtp_fmtok "${DTF[$id]["buf"]}"; then
@@ -305,25 +308,48 @@ fn dtf_draw(id, h, w, row, col) {
 	console put -p "w$id" 3 11 "$t"
 	console pen "#718096" "$DT_FACE"
 	console put -p "w$id" 5 2 "%H %M %S %l %p %a %d %b %Y, as strftime"
-	console put -p "w$id" 6 2 "enter saves · escape cancels"
+	dt_dlgbtns "$id" "$h" "$w" "$f" ok Save cancel Cancel
+}
+
+# Keep the format if it shows something that fits, or say why not.
+fn dtf_save(id) {
+	if dtp_fmtok "${DTF[$id]["buf"]}"; then
+		DT_BARTIME=${DTF[$id]["buf"]}
+		cp_save
+		dt_del "$id"
+	else
+		dt_note "$DTP_WHY"
+	fi
+}
+
+fn dtf_click(id, r, c, btn = "") {
+	local tag
+
+	tag := dt_hit "$id" "$r" "$c"
+	case $tag in
+	text) DTF[$id]["focus"]=text ;;
+	ok) dtf_save "$id" ;;
+	cancel) dt_del "$id" ;;
+	esac
+	return 0
 }
 
 fn dtf_key(id, key) {
-	local res
+	local res f=${DTF[$id]["focus"]} d onb=1
 
+	[ "$f" = text ] && onb=0
+	if d := dt_focuskey "$key" "$onb"; then
+		DTF[$id]["focus"] := dt_focus "$f" "$d" text ok cancel
+		return 0
+	fi
 	case $key in
 	escape) dt_del "$id"; return 0 ;;
 	enter)
-		if dtp_fmtok "${DTF[$id]["buf"]}"; then
-			DT_BARTIME=${DTF[$id]["buf"]}
-			cp_save
-			dt_del "$id"
-		else
-			dt_note "$DTP_WHY"
-		fi
+		if [ "$f" = cancel ]; then dt_del "$id"; else dtf_save "$id"; fi
 		return 0
 		;;
 	esac
+	[ "$f" = text ] || return 0
 	res := dt_textkey "${DTF[$id]["buf"]}" "${DTF[$id]["cur"]}" "$key" ||
 		return 1
 	DTF[$id]["buf"]=${res% *}
@@ -389,6 +415,7 @@ dtz_dialog() {
 	DTZ[$rid]["cur"]=0
 	DTZ[$rid]["sel"]=0
 	DTZ[$rid]["top"]=0
+	DTZ[$rid]["focus"]=text
 }
 
 # The zones matching the filter, into DTZ_HIT -- a substring, either case.
@@ -404,7 +431,7 @@ fn dtz_match(id) {
 }
 
 fn dtz_draw(id, h, w, ...rest) {
-	local vis n sel top r i t
+	local vis n sel top r i t f=${DTZ[$id]["focus"]} on=0
 
 	dt_wclear "$id"
 	dtz_match "$id"
@@ -420,10 +447,11 @@ fn dtz_draw(id, h, w, ...rest) {
 	DTZ[$id]["top"]=$top
 	DTZ[$id]["vis"]=$vis
 
+	[ "$f" = text ] && on=1
 	console pen "$DT_INK" "$DT_FACE"
 	console put -p "w$id" 1 2 "Find:"
 	dt_textdraw "$id" 1 8 $((w - 10)) "${DTZ[$id]["buf"]}" \
-		"${DTZ[$id]["cur"]}" 1
+		"${DTZ[$id]["cur"]}" "$on"
 	r=0
 	while [ "$r" -lt "$vis" ]; do
 		i=$((top + r))
@@ -440,33 +468,50 @@ fn dtz_draw(id, h, w, ...rest) {
 		dt_wreg "$id" $((r + 2)) 2 $((w - 4)) "row$i"
 		r=$((r + 1))
 	done
-	console pen "#718096" "$DT_FACE"
-	console put -p "w$id" $((h - 1)) 2 "enter sets it (sudo) · escape cancels"
+	dt_dlgbtns "$id" "$h" "$w" "$f" ok "Set (sudo)" cancel Cancel
+}
+
+# Set the highlighted zone. It runs sudo, so no test ever takes this path.
+fn dtz_set(id) {
+	local z
+
+	dtz_match "$id"
+	z=${DTZ_HIT[${DTZ[$id]["sel"]}]}
+	[ -z "$z" ] && { dt_note "No zone matches"; return 0; }
+	dt_del "$id"
+	dtp_zoneset "$z"
 }
 
 fn dtz_click(id = "", r = "", c = "", btn = "") {
 	local tag
 
 	tag := dt_hit "$id" "$r" "$c"
-	case $tag in row*) DTZ[$id]["sel"]=${tag#row} ;; esac
+	case $tag in
+	row*) DTZ[$id]["sel"]=${tag#row}; DTZ[$id]["focus"]=text ;;
+	ok) dtz_set "$id" ;;
+	cancel) dt_del "$id" ;;
+	esac
+	return 0
 }
 
 fn dtz_key(id, key) {
-	local res z
+	local res f=${DTZ[$id]["focus"]} d onb=1
 
+	[ "$f" = text ] && onb=0
+	if d := dt_focuskey "$key" "$onb"; then
+		DTZ[$id]["focus"] := dt_focus "$f" "$d" text ok cancel
+		return 0
+	fi
 	case $key in
 	escape) dt_del "$id"; return 0 ;;
 	up) DTZ[$id]["sel"]=$((DTZ[$id]["sel"] - 1)); return 0 ;;
 	down) DTZ[$id]["sel"]=$((DTZ[$id]["sel"] + 1)); return 0 ;;
 	enter)
-		dtz_match "$id"
-		z=${DTZ_HIT[${DTZ[$id]["sel"]}]}
-		[ -z "$z" ] && { dt_note "No zone matches"; return 0; }
-		dt_del "$id"
-		dtp_zoneset "$z"
+		if [ "$f" = cancel ]; then dt_del "$id"; else dtz_set "$id"; fi
 		return 0
 		;;
 	esac
+	[ "$f" = text ] || return 0
 	res := dt_textkey "${DTZ[$id]["buf"]}" "${DTZ[$id]["cur"]}" "$key" ||
 		return 1
 	DTZ[$id]["buf"]=${res% *}
@@ -518,7 +563,7 @@ dts_dialog() {
 	DTS[$rid]["ntp"]=$ntp
 }
 
-fn dts_draw(id = "", h = "", ...rest) {
+fn dts_draw(id = "", h = "", w = "", row = "", col = "") {
 	local f
 
 	dt_wclear "$id"
@@ -538,29 +583,38 @@ fn dts_draw(id = "", h = "", ...rest) {
 		console pen "#f6ad55" "$DT_FACE"
 		console put -p "w$id" 6 2 "Turns off automatic time (NTP) first"
 	fi
-	console pen "#718096" "$DT_FACE"
-	console put -p "w$id" $((h - 1)) 2 "enter sets it (sudo) · escape cancels"
+	dt_dlgbtns "$id" "$h" "$w" "${DTS[$id]["focus"]}" \
+		ok "Set (sudo)" cancel Cancel
 }
 
 fn dts_click(id = "", r = "", c = "", btn = "") {
 	local tag
 
 	tag := dt_hit "$id" "$r" "$c"
-	case $tag in d | t) DTS[$id]["focus"]=$tag ;; esac
+	case $tag in
+	d | t) DTS[$id]["focus"]=$tag ;;
+	ok) dts_apply "$id" ;;
+	cancel) dt_del "$id" ;;
+	esac
+	return 0
 }
 
 fn dts_key(id = "", key = "") {
-	local f res
+	local f=${DTS[$id]["focus"]} res d onb=1
 
-	f=${DTS[$id]["focus"]}
+	case $f in d | t) onb=0 ;; esac
+	if d := dt_focuskey "$key" "$onb"; then
+		DTS[$id]["focus"] := dt_focus "$f" "$d" d t ok cancel
+		return 0
+	fi
 	case $key in
 	escape) dt_del "$id"; return 0 ;;
-	tab)
-		if [ "$f" = d ]; then DTS[$id]["focus"]=t; else DTS[$id]["focus"]=d; fi
+	enter)
+		if [ "$f" = cancel ]; then dt_del "$id"; else dts_apply "$id"; fi
 		return 0
 		;;
-	enter) dts_apply "$id"; return 0 ;;
 	esac
+	case $f in d | t) ;; *) return 0 ;; esac
 	res := dt_textkey "${DTS[$id]["${f}buf"]}" "${DTS[$id]["${f}cur"]}" "$key" ||
 		return 1
 	DTS[$id]["${f}buf"]=${res% *}

@@ -1,7 +1,7 @@
 # `widgets/` — what an app draws with
 
 The desktop's widget library: the controls an app puts in its own window —
-a checkbox, a dropdown, a slider, a text field, a scrollbar — and the hit
+a checkbox, a dropdown, a slider, a text field, a scrollbar, a button — and the hit
 regions that tell it which one a click landed on. `desktop.hibr` sources every
 file here, in no particular order, before any app is loaded.
 
@@ -13,6 +13,7 @@ file here, in no particular order, before any app is loaded.
 | `slider.hibr` | `dt_slider`: a track with a marker, changed with the arrows |
 | `text.hibr` | `dt_textdraw`, `dt_textkey`: a one-line text field, and one key applied to it |
 | `scrollbar.hibr` | `dt_scrollbar`: a vertical track and thumb |
+| `button.hibr` | `dt_button`, `dt_buttons`, `dt_dlgbtns`: filled push buttons with a Turbo Vision shadow, one or a row of them, or a dialog's centred along its bottom; `dt_focus` and `dt_focuskey`: moving focus through fields and buttons with tab, shift-tab and the arrows |
 
 ## The contract
 

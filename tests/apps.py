@@ -388,8 +388,8 @@ sc = cprun(DOWN_APP + [b"\x1b[C", b"\x1b[C"])
 check("right enters the pane, and a second right cycles its first row",
       sc.find("slate") is not None and sc.find("midnight") is None, sc)
 sc = cprun(DOWN_APP + [b"\t", b"\x1b[D"])
-check("tab enters it too, and left cycles the other way",
-      sc.find("dracula") is not None, sc)
+check("tab enters it too, and left cycles the other way, round to the last",
+      sc.find("amber") is not None, sc)
 sc = cprun(DOWN_APP + [b"\t", b"\t", b"\x1b[C"])
 check("a second tab leaves the pane, back to moving the picker",
       sc.find("slate") is None and
@@ -401,6 +401,13 @@ check("clicking the dropdown's own cell opens a real popup of choices",
 sc = cprun(DOWN_APP + [press(R0, VALCOL), press(R0 + 6, VALCOL + 3)])
 check("choosing one there applies it, the same as cycling would",
       sc.find("dracula") is not None and sc.find("midnight") is None, sc)
+sc = cprun(DOWN_APP + [press(R0, VALCOL)])
+check("the popup offers black, neon, phosphor and amber too",
+      all(sc.find(t) is not None for t in ("black", "neon", "phosphor",
+                                            "amber")), sc)
+sc = cprun(DOWN_APP + [press(R0, VALCOL), press(R0 + 9, VALCOL + 3)])
+check("and choosing phosphor applies it",
+      sc.find("phosphor") is not None and sc.find("midnight") is None, sc)
 
 sc = cprun(DOWN_APP + [b"\x1b[C", b"\x1b[B", b"\x1b[C"])
 check("the wallpaper glyph changes, and the desktop follows",
@@ -560,8 +567,8 @@ shutil.rmtree(AWCONF2, True)
 
 # Behaviour's own rows, in order: Redraw Skip(0), Icons(1), Disk Icons(2),
 # Cursor(3), Cursor Blink(4), Window Shadow(5), Menu Shadow(6), Bar
-# Shadow(7), Titlebar Click(8), About Refresh(9, only once about.hibr is
-# loaded). Refresh, a fixed redraw rate, is gone: the desktop redraws
+# Shadow(7), Button Shadow(8), Titlebar Click(9), About Refresh(10, only
+# once about.hibr is loaded). Refresh, a fixed redraw rate, is gone: the desktop redraws
 # when something asks.
 sc = cprun(DOWN_BEH)
 check("Behaviour's own first row is Redraw Skip, right there with no "
@@ -584,15 +591,21 @@ check("bar shadow is a third, separate setting again",
       "[ ]" in sc.row(sc.find("Bar Shadow")[0]) and
       "[x]" in sc.row(sc.find("Menu Shadow")[0]), sc)
 
-sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 8)
+sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 8 + [b"\r"])
+check("button shadow is a fourth, on until switched off here",
+      sc.find("Button Shadow") is not None and
+      "[ ]" in sc.row(sc.find("Button Shadow")[0]) and
+      "[x]" in sc.row(sc.find("Bar Shadow")[0]), sc)
+
+sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 9)
 check("titlebar double-click defaults to zoom",
       sc.find("Titlebar Click") is not None and
       "zoom" in sc.row(sc.find("Titlebar Click")[0]), sc)
-sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 8 + [b"\x1b[C"])
+sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 9 + [b"\x1b[C"])
 check("and it cycles through the other actions",
       "min" in sc.row(sc.find("Titlebar Click")[0]), sc)
 
-sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 9, extra=("about",))
+sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 10, extra=("about",))
 check("About Refresh only appears once About hibr itself is loaded",
       sc.find("About Refresh") is not None and
       sc.find("3000 ms") is not None, sc)
@@ -664,6 +677,27 @@ sc = cprun(DOWN_FT + [b"\x1b[C", b"\r", b"\x04"], pre=FTPRE)
 check("ctrl-d deletes it",
       sc.find("┤ File Type ├") is None and sc.find("jpg") is None, sc)
 
+# Its buttons: Save, Delete -- only for an entry that exists -- and Cancel,
+# reached with tab after the two fields, or clicked.
+sc = cprun(DOWN_FT + [b"\x1b[C", b"\r"], pre=FTPRE)
+check("editing an entry offers Save, Delete and Cancel as buttons",
+      re.search(r" Save .* Delete .* Cancel ", sc.text()) is not None, sc)
+dl = sc.find(" Delete ")
+sc = cprun(DOWN_FT + [b"\x1b[C", b"\r"] +
+           ([press(dl[0], dl[1] + 1)] if dl else []), pre=FTPRE)
+check("clicking Delete deletes it",
+      dl is not None and sc.find("┤ File Type ├") is None and
+      sc.find("jpg") is None, sc)
+sc = cprun(DOWN_FT + [b"\x1b[C", b"\r"] + [b"\t"] * 4 + [b"\r"],
+           pre=FTPRE)
+check("tab past the fields, Save and Delete reaches Cancel, and enter on it "
+      "closes the dialog with the entry kept",
+      sc.find("┤ File Type ├") is None and sc.find("jpg") is not None, sc)
+sc = cprun(DOWN_FT + [b"\x1b[C", b"\r"] + [b"\t"] * 3 + [b"\r"],
+           pre=FTPRE)
+check("and enter on Delete, one before it, deletes",
+      sc.find("┤ File Type ├") is None and sc.find("jpg") is None, sc)
+
 sc = cprun(DOWN_FT + [b"\x1b[C", b"\x1b[B", b"\r"], pre=FTPRE)
 # cprun's own trailing "qy" (its default end, always sent after this
 # feed) lands in the dialog's own Extension field -- still focused,
@@ -726,18 +760,18 @@ sc = cprun(DOWN_TM + [b"\x1b[C", b"\x1b[B", b"\x1b[B", b"\x1b[C"],
            extra=("tasks",))
 check("and the default sort column can be changed",
       "mem" in sc.row(sc.find("Sort By")[0]), sc)
-sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 9, extra=("tasks",))
+sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 10, extra=("tasks",))
 check("and Behaviour no longer carries a Task Manager row",
       sc.find("Task Manager Refresh") is None, sc)
 
 # Default File View -- #50 -- only shows once Files itself is loaded, the
 # same rule About Refresh follows above, and only that pane's own row
 # order changes: nothing else about it does.
-sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 9, extra=("files",))
+sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 10, extra=("files",))
 check("Default File View only appears once Files itself is loaded, at list",
       sc.find("Default File View") is not None and
       "list" in sc.row(sc.find("Default File View")[0]), sc)
-sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 9 + [b"\x1b[C"],
+sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 10 + [b"\x1b[C"],
            extra=("files",))
 check("and cycles through the other views",
       "details" in sc.row(sc.find("Default File View")[0]), sc)
@@ -745,7 +779,7 @@ check("and cycles through the other views",
 # Reset All Views -- #51 -- is a plain button (kind=action): no value of
 # its own, just below Default File View, and only present under the same
 # condition.
-sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 10, extra=("files",))
+sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 11, extra=("files",))
 check("Reset All Views appears once Files itself is loaded, as a button",
       sc.find("Reset All Views") is not None, sc)
 
@@ -1448,6 +1482,33 @@ check("and it is the real file on disk that moved",
       not os.path.exists(os.path.join(RD, "old.txt")), sc)
 shutil.rmtree(RD, True)
 
+# Rename and Cancel are buttons: tab reaches them from the field, the
+# arrows move between them, enter does whichever has focus, and a click
+# does the one it lands on.
+RD = tempfile.mkdtemp(prefix="hibr-rename-")
+open(os.path.join(RD, "old.txt"), "w").write("hi\n")
+RPRE = "FB_DIR=%s" % RD
+sc = run("files", FW, [b"\x1b[B", b"n"], pre=RPRE, end=None)
+check("Rename has a Rename and a Cancel button under the field",
+      re.search(r" Rename .* Cancel ", sc.text()) is not None, sc)
+cn = sc.find(" Cancel ")
+sc = run("files", FW, [b"\x1b[B", b"n", b"\x7f", b"x", b"\t", b"\t", b"\r"],
+         pre=RPRE)
+check("tab twice reaches Cancel, and enter there renames nothing",
+      sc.find("┤ Rename ├") is None and
+      os.path.exists(os.path.join(RD, "old.txt")), sc)
+sc = run("files", FW, [b"\x1b[B", b"n", b"\x7f", b"x", b"\t", b"\x1b[C",
+                       b"\x1b[D", b"\r"], pre=RPRE)
+check("right and left move between the buttons, and enter on Rename renames",
+      os.path.exists(os.path.join(RD, "old.txx")), sc)
+os.rename(os.path.join(RD, "old.txx"), os.path.join(RD, "old.txt"))
+sc = run("files", FW, [b"\x1b[B", b"n", b"\x7f", b"z"] +
+         ([press(cn[0], cn[1] + 1)] if cn else []), pre=RPRE)
+check("clicking Cancel closes it with the file as it was",
+      cn is not None and sc.find("┤ Rename ├") is None and
+      os.path.exists(os.path.join(RD, "old.txt")), sc)
+shutil.rmtree(RD, True)
+
 # A name typed here can have a space in it, and dt_textkey's own "text
 # cur" return has no other separator to split on -- ${res#* } (shortest
 # prefix, the first space) used to read the *text*'s own embedded space
@@ -1791,4 +1852,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(235)
+report(246)

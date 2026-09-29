@@ -1,0 +1,124 @@
+# widgets/button -- push buttons, a row of them, and moving focus.
+#
+# Part of the widget library apps draw with -- see widgets/README.md.
+
+# Where a button is drawn: a window's pane, or with id "root" straight onto
+# the screen, for the window manager's own overlays (the confirm box) that
+# have no window and no pane. Either way dt_hit finds it under the same id.
+fn dt_bput(id, r, c, text) {
+	if [ "$id" = root ]; then
+		console put "$r" "$c" "$text"
+	else
+		console put -p "w$id" "$r" "$c" "$text"
+	fi
+}
+
+# The colour a button's shadow is drawn in, worked out once per theme: the
+# face darkened by the theme's own DT_SHADOW_PCT, twice over. Once is a
+# window's depth, which a whole window's worth of darkened cells makes
+# visible; a thin row of half blocks at that depth vanished into midnight's
+# near-black face. DT_BTNSHADOW (wm/settings.hibr) turns it off.
+dt_btnshade() {
+	local k="$DT_FACE $DT_SHADOW_PCT" p=$DT_SHADOW_PCT
+
+	if [ "$DT_BTNSHADE_FOR" != "$k" ]; then
+		DT_BTNSHADE := console shade "$DT_FACE" $((p * p / 100)) ||
+			DT_BTNSHADE=$DT_IDLE
+		DT_BTNSHADE_FOR=$k
+	fi
+	ret "$DT_BTNSHADE"
+}
+
+# Draw one button, " label " filled: the accent colour when it has focus,
+# muted when it has not, with Turbo Vision's shadow -- a ▄ beside it and a
+# row of ▀ under it. tag is what dt_hit answers for a click on it.
+fn dt_button(id, r, c, label, on, tag) {
+	local t=" $label " n sh
+
+	n=${#t}
+	if [ "$on" = 1 ]; then
+		console pen "$DT_FACE" "$DT_ACTIVE" bold
+	else
+		console pen "$DT_INK" "$DT_IDLE"
+	fi
+	dt_bput "$id" "$r" "$c" "$t"
+	if [ "$DT_BTNSHADOW" = 1 ]; then
+		sh := dt_btnshade
+		console pen "$sh" "$DT_FACE"
+		dt_bput "$id" "$r" $((c + n)) "▄"
+		t := dt_rep "$n" "▀"
+		dt_bput "$id" $((r + 1)) $((c + 1)) "$t"
+	fi
+	dt_wreg "$id" "$r" "$c" "$n" "$tag"
+}
+
+# The columns a row of buttons with these labels takes, shadow included --
+# for centring it.
+fn dt_btnw(...labels) {
+	local w=0 l
+
+	for l in "${labels[@]}"; do
+		w=$((w + ${#l} + 4))
+	done
+	[ "${#labels[@]}" -gt 0 ] && w=$((w - 2 + DT_BTNSHADOW))
+	ret "$w"
+}
+
+# Draw a row of buttons from c, two columns apart: pairs of tag and label,
+# the one whose tag is focus drawn as having it.
+fn dt_buttons(id, r, c, focus, ...pairs) {
+	local i=0 on n=${#pairs[@]}
+
+	while [ $((i + 1)) -lt "$n" ]; do
+		on=0
+		[ "${pairs[$i]}" = "$focus" ] && on=1
+		dt_button "$id" "$r" "$c" "${pairs[$((i + 1))]}" "$on" \
+			"${pairs[$i]}"
+		c=$((c + ${#pairs[$((i + 1))]} + 4))
+		i=$((i + 2))
+	done
+}
+
+# A dialog's buttons, centred along the bottom of its window: on the last
+# row but one, leaving the last for the shadow. h and w are what the
+# app's _draw was handed; pairs are dt_buttons'.
+fn dt_dlgbtns(id, h, w, focus, ...pairs) {
+	local i=1 bw
+	local -a labels
+
+	while [ "$i" -lt "${#pairs[@]}" ]; do
+		labels+=("${pairs[$i]}")
+		i=$((i + 2))
+	done
+	bw := dt_btnw "${labels[@]}"
+	dt_buttons "$id" $((h - 1)) $(((w + 2 - bw) / 2)) "$focus" \
+		"${pairs[@]}"
+}
+
+# The tag after (dir 1) or before (dir -1) cur among tags, wrapping at
+# either end -- how tab moves through a dialog's fields and buttons. A cur
+# that is not one of them gives the first.
+fn dt_focus(cur, dir, ...tags) {
+	local n=${#tags[@]} i=0
+
+	while [ "$i" -lt "$n" ]; do
+		if [ "${tags[$i]}" = "$cur" ]; then
+			ret "${tags[$(( (i + dir + n) % n ))]}"
+		fi
+		i=$((i + 1))
+	done
+	ret "${tags[0]}"
+}
+
+# Which way a key moves focus: tab and shift-tab always, the arrows only
+# when a button already has it (onbtn 1), so a text field keeps its cursor
+# keys and a list its scrolling. ret's 1 or -1; fails for any other key.
+fn dt_focuskey(key, onbtn = "") {
+	case $key in
+	tab) ret 1 ;;
+	shift-tab) ret -1 ;;
+	right | down) [ "$onbtn" = 1 ] || return 1; ret 1 ;;
+	left | up) [ "$onbtn" = 1 ] || return 1; ret -1 ;;
+	*) return 1 ;;
+	esac
+}

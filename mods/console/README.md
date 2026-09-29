@@ -46,6 +46,12 @@ terminal's own default colour has no table to scale by, so those cells get
 the dim attribute alone. It reads back what `cn_put` already wrote, which
 `cn_fill` and `cn_put` themselves never do.
 
+`console shade colour [pct]` answers the colour `darken` would turn a
+`#rrggbb` into, as another `#rrggbb` — through `:=`, or printed. It is how
+something drawn inside a pane, where `darken` cannot reach, gets a shadow of
+exactly the same depth: the desktop's buttons draw theirs as `▄` and `▀` in
+this colour. The formula is `darken`'s own, in one place.
+
 ## Naming
 
 Everything is `cn_`, not `sc_`. `src/net.c` already uses `sc_` for schemes and

@@ -69,7 +69,7 @@ fn filetypes_do(w, k, ...rest) {
 # argument came back as 2, 3, 4… once logged, plainly a window count and
 # not an extension.
 fn ft_dialog(ext) {
-	local h=9 w=54 r c cmd rid
+	local h=10 w=54 r c cmd rid
 
 	r=$((DT_ROWS / 2 - h / 2))
 	c=$(((DT_COLS - w) / 2))
@@ -108,11 +108,29 @@ fn ft_draw(id, h, w, row, col) {
 
 	dt_check "$id" 5 2 "${FT[$id]["term"]}" "Run in a terminal" term
 
-	console pen "#718096" "$DT_FACE"
 	if [ -n "${FT[$id]["orig"]}" ]; then
-		console put -p "w$id" 7 2 "enter saves · escape cancels · ctrl-d deletes"
+		dt_dlgbtns "$id" "$h" "$w" "${FT[$id]["focus"]}" \
+			ok Save del Delete cancel Cancel
 	else
-		console put -p "w$id" 7 2 "enter saves · escape cancels"
+		dt_dlgbtns "$id" "$h" "$w" "${FT[$id]["focus"]}" \
+			ok Save cancel Cancel
+	fi
+}
+
+# Forget the extension being edited: Delete, or ctrl-d.
+fn ft_delete(id) {
+	[ -n "${FT[$id]["orig"]}" ] || return 0
+	unset "DT_HANDLERS[${FT[$id]["orig"]}]"
+	command -v dt_save > /dev/null && dt_save
+	dt_del "$id"
+}
+
+# What tab moves through: the fields, then the buttons there are.
+fn ft_order(id) {
+	if [ -n "${FT[$id]["orig"]}" ]; then
+		ret ext cmd ok del cancel
+	else
+		ret ext cmd ok cancel
 	fi
 }
 
@@ -121,6 +139,9 @@ fn ft_click(id = "", r = "", c = "", btn = "") {
 
 	tag := dt_hit "$id" "$r" "$c"
 	case $tag in
+	ok) ft_apply "$id" ;;
+	del) ft_delete "$id" ;;
+	cancel) dt_del "$id" ;;
 	ext)
 		FT[$id]["focus"]=ext
 		cur=$((c - 13))
@@ -146,32 +167,30 @@ fn ft_click(id = "", r = "", c = "", btn = "") {
 }
 
 fn ft_key(id, k) {
-	local field buf cur res
+	local field=${FT[$id]["focus"]} buf cur res d onb=1 order
 
+	case $field in ext | cmd) onb=0 ;; esac
+	if d := dt_focuskey "$k" "$onb"; then
+		order := ft_order "$id"
+		FT[$id]["focus"] := dt_focus "$field" "$d" "${order[@]}"
+		return 0
+	fi
 	case $k in
 	escape) dt_del "$id"; return 0 ;;
-	enter) ft_apply "$id"; return 0 ;;
-	tab)
-		case ${FT[$id]["focus"]} in
-		ext) FT[$id]["focus"]=cmd ;;
-		*) FT[$id]["focus"]=ext ;;
+	enter)
+		case $field in
+		cancel) dt_del "$id" ;;
+		del) ft_delete "$id" ;;
+		*) ft_apply "$id" ;;
 		esac
 		return 0
 		;;
-	ctrl-d)
-		if [ -n "${FT[$id]["orig"]}" ]; then
-			unset "DT_HANDLERS[${FT[$id]["orig"]}]"
-			command -v dt_save > /dev/null && dt_save
-			dt_del "$id"
-		fi
-		return 0
-		;;
+	ctrl-d) ft_delete "$id"; return 0 ;;
 	esac
-	field=${FT[$id]["focus"]}
 	case $field in
 	ext) buf=${FT[$id]["extbuf"]}; cur=${FT[$id]["extcur"]} ;;
 	cmd) buf=${FT[$id]["cmdbuf"]}; cur=${FT[$id]["cmdcur"]} ;;
-	*) return 1 ;;
+	*) return 0 ;;
 	esac
 	res := dt_textkey "$buf" "$cur" "$k" || return 1
 	# ##* }, not #* }: the shortest-prefix form splits at the *first*

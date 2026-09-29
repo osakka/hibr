@@ -563,16 +563,6 @@ recorded in `CLAUDE.md`. They could be hibr; they should not be.
 
 ## The desktop, agreed and queued
 
-### Four themes -- with the dialog buttons, 0.45
-
-Black (pure black desktop, near-black windows, soft grey text, one cool
-accent), Neon (synthwave: purple-black, hot magenta and electric cyan),
-Phosphor (a green monochrome CRT) and Amber (the amber one). Each is a
-`cp_theme` row with its own `DT_SHADOW_PCT` chosen against its face -- a
-near-black face needs a different depth from midnight's, as paper's did --
-and terminal colours to match. The button colours get checked on each, the
-unfocused one especially: on paper it is 3.3:1 today.
-
 ### Shortcuts can be cleared, and never shared -- with the Control Panel, 0.46
 
 A Clear button at the end of every row that has a key, and Delete or

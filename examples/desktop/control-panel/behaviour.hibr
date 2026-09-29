@@ -76,6 +76,17 @@ cp_barshadow() {
 	cp_save
 }
 
+# Whether a dialog's buttons cast their shadow -- a fourth, see
+# DT_BTNSHADOW in wm/settings.hibr.
+cp_btnshadow() {
+	if [ "$DT_BTNSHADOW" = 1 ]; then
+		DT_BTNSHADOW=0
+	else
+		DT_BTNSHADOW=1
+	fi
+	cp_save
+}
+
 fn behaviour_rows(w) {
 	local n=0
 
@@ -109,6 +120,10 @@ fn behaviour_rows(w) {
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_BARSHADOW" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=barshadow; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Button Shadow"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_BTNSHADOW" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=btnshadow; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Titlebar Click"
 	CP[$w][$n]["val"]="$DT_DBLACTION"; CP[$w][$n]["key"]=dblaction
 	n=$((n + 1))
@@ -148,6 +163,7 @@ fn behaviour_do(w, k, dir) {
 	shadow) cp_shadow ;;
 	mshadow) cp_mshadow ;;
 	barshadow) cp_barshadow ;;
+	btnshadow) cp_btnshadow ;;
 	about) v := cp_next "$AB_SLOWMS" "$dir" "${CP_ABTICKS[@]}"
 	       AB_SLOWMS=$v ;;
 	dblaction) v := cp_next "$DT_DBLACTION" "$dir" "${CP_DBLACTIONS[@]}"

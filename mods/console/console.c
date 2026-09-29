@@ -398,6 +398,33 @@ int m_console(sh *s, int ac, char **av)
 			  ac > 6 ? atoi(av[6]) : 55);
 		return HIBR_OK;
 	}
+	if (!strcmp(sub, "shade")) {
+		unsigned v;
+		int pct = ac > 3 ? atoi(av[3]) : 55, i;
+		if (ac < 3) {
+			lg(HIBR_LERR, "usage: console shade colour [pct]");
+			return 2;
+		}
+		if (cn_colour(av[2], &v) != HIBR_OK || !(v & DP_RGB)) {
+			lg(HIBR_LERR, "console shade: %s: not a #rrggbb colour",
+			   av[2]);
+			return HIBR_FAIL;
+		}
+		if (pct < 0)
+			pct = 0;
+		if (pct > 100)
+			pct = 100;
+		v = cn_dim1(v, pct, 0);
+		s_init(&k);
+		s_ch(&k, '#');
+		for (i = 20; i >= 0; i -= 4)
+			s_ch(&k, "0123456789abcdef"[(v >> i) & 0xF]);
+		hibr_ret(s, k.p);
+		if (!s->bind)
+			printf("%s\n", k.p);
+		s_free(&k);
+		return HIBR_OK;
+	}
 	if (!strcmp(sub, "darkdefault")) {
 		if (ac < 4) {
 			lg(HIBR_LERR, "usage: console darkdefault fg bg");
