@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.38
+
+Desktop moves to **0.18** alongside this release.
+
+**Terminal windows wear the theme.** Their default text and background are
+now the theme's own ink and face, like every other window, and a program
+that asks what its background is (OSC 10/11) is told -- which is how Claude
+Code, vim and others choose a light or dark scheme for themselves. Control
+Panel's Terminal pane has a Colours setting: `theme`, the default, or
+`terminal`, which leaves them to the real terminal the desktop runs in; that
+one hibr cannot see, so the question goes unanswered rather than guessed. A
+theme change reaches every open terminal window on its next frame.
+
+**Menu Bar Spacing is a slider** in Appearance, 1 to 4 cells between the
+notification dot, the clock and the application menu; 2 by default.
+
+HIBR_VER -> 0.38, DT_VER -> 0.18.
+
+Seven tickets recorded in `docs/backlog.md` under "For language models":
+a reference written for a model to read, an agent mode, a linter for the
+mistakes models make, a dry run and a policy for commands an agent runs,
+an MCP server, staying a drop-in for bash, and being where models look.
+
+Verified: tests/run.sh 86/86, tests/term_diff.py 64/64, tests/desktop.py
+292/292, tests/apps.py 216/216.
+
 ## 0.37
 
 Desktop moves to **0.17** alongside this release.

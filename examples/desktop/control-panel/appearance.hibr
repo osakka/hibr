@@ -70,6 +70,11 @@ appearance_rows() {
 		CP[$w][$n]["val"]="$DT_GLYPH"
 	fi
 	CP[$w][$n]["key"]=glyph; n=$((n + 1))
+	CP[$w][$n]["kind"]=set
+	CP[$w][$n]["text"]="Menu Bar Spacing (${DT_BARGAP:-2})"
+	CP[$w][$n]["wtype"]=slider
+	CP[$w][$n]["val"]=${DT_BARGAP:-2}; CP[$w][$n]["min"]=1; CP[$w][$n]["max"]=4
+	CP[$w][$n]["key"]=bargap; n=$((n + 1))
 	ret "$n"
 }
 
@@ -81,6 +86,12 @@ appearance_do() {
 	       cp_theme "$v" ;;
 	glyph) v := cp_next "$DT_GLYPH" "$dir" "${CP_GLYPHS[@]}"
 	       DT_GLYPH=$v; DT_WALLIMG= ;;
+	bargap)
+		v=$((${DT_BARGAP:-2} + dir))
+		[ "$v" -lt 1 ] && v=1
+		[ "$v" -gt 4 ] && v=4
+		DT_BARGAP=$v
+		;;
 	esac
 	cp_save
 }

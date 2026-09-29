@@ -388,6 +388,31 @@ def hibr_only():
     check("an OSC whose ST is split between two reads leaves no backslash",
           "T:title" in out and "\\" not in out.split("\n")[0], out)
 
+    # A background-colour query (OSC 11) is answered with the colours the
+    # emulator was given, and not at all without them -- through a real
+    # pty, since a reply goes to the program.
+    d = tempfile.mkdtemp(prefix="hibr-osc-")
+    q = os.path.join(d, "q.sh")
+    open(q, "w").write("stty raw -echo\nsleep 0.3\n"
+                       "printf '\\033]11;?\\033\\\\'\n"
+                       "r=$(dd bs=1 count=25 2>/dev/null)\n"
+                       "printf 'got:%s' \"$(printf %s \"$r\" | tr '\\033\\\\' EB)\"\n"
+                       "sleep 0.5\n")
+    for setting, want in (("'#cbd5e0' '#101820'", "got:E]11;rgb:1010/1818/2020EB"),
+                          ("off", "")):
+        script = ("mod load %s/pty.so; mod load %s/term.so\n"
+                  "t := term open -r 4 -c 70 /bin/sh %s\n"
+                  "term colors $t %s\n"
+                  "i=0; while [ $i -lt 30 ]; do term poll $t 50; i=$((i + 1)); done\n"
+                  "x := term row $t 0; echo \"ROW[$x]\"\nterm close $t\n"
+                  % (MODS, MODS, q, setting))
+        out = subprocess.run([screen.HIBR, "-c", script], capture_output=True,
+                             text=True).stdout
+        check("OSC 11 %s" % ("is answered with the colours given" if want
+                             else "goes unanswered with none given"),
+              "ROW[%s]" % want in out, out)
+    shutil.rmtree(d, True)
+
 
 if RECORD:
     record()
@@ -409,4 +434,4 @@ for name in sorted(PROGRAMS):
         ran += 1
 
 hibr_only()
-report(ran + len(HIBR_ONLY) + 2)
+report(ran + len(HIBR_ONLY) + 4)

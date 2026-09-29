@@ -25,7 +25,7 @@ need display || { echo "desktop: no display available" >&2; exit 1; }
 # change that never touched a single line of src/*.c. HIBR_ABI is what
 # actually needs cross-checking between the two -- whether a module is
 # built against what this shell offers -- and that already exists.
-DT_VER=0.17
+DT_VER=0.18
 
 # The session's own arguments, captured here at the top level where $@ is
 # still theirs: a function sees its own, and dt_autohold needs to hand these
@@ -120,6 +120,11 @@ DT_NOTEUNSEEN=0
 # in DT_CLOCKC/DT_CLOCKW/DT_BELLC, so a wider format moves both left and
 # the clicks follow them, rather than overrunning the application menu.
 DT_BARTIME="${DT_BARTIME-%H:%M}"
+
+# Cells between the dot, the clock and the application menu, 1 to 4. The
+# default, 2, is the rhythm the menu titles on the left already have from
+# the space either side of each name.
+DT_BARGAP="${DT_BARGAP-2}"
 DT_CLOCKC=-1
 DT_CLOCKW=0
 DT_BELLC=-1
@@ -326,7 +331,8 @@ DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 	DT_MSHADOW DT_BARSHADOW DT_DBLACTION DT_SHADOW_PCT CS_SIDE CS_Y
 	CS_COLLAPSED CS_LEN CS_SHADOW
 	DT_FRAME DT_BTNSIDE DT_TITLEALIGN DT_BTNSTYLE DT_EDGERESIZE
-	DT_DRAGMOD DT_DRAGKEY DT_DRAWSKIP DT_NOTEMS DT_NOTEPOS DT_BARTIME)
+	DT_DRAGMOD DT_DRAGKEY DT_DRAWSKIP DT_NOTEMS DT_NOTEPOS DT_BARTIME
+	DT_BARGAP)
 
 # Where the desktop's stderr goes while it holds the screen, so an app's
 # error message cannot scribble over the display, and the reason for a
@@ -3388,7 +3394,7 @@ dt_cycle() {
 
 # Draw the bar itself.
 dt_bar() {
-	local i=0 t line now w=${DT_PRIMARY_W:-$DT_COLS}
+	local i=0 t line now gap w=${DT_PRIMARY_W:-$DT_COLS}
 
 	[ "$DT_BARSHADOW" = 1 ] &&
 		console darken 1 "$DT_PRIMARY_COL" 1 "$w" "$DT_SHADOW_PCT"
@@ -3414,12 +3420,14 @@ dt_bar() {
 	done
 
 	now := dt_clocktext "$DT_BARTIME" -1
-	# Two cells between each item on the right, the same rhythm the menu
-	# titles on the left get from the space either side of their names --
-	# the application menu's own leading space is one of the two.
+	# DT_BARGAP cells between each item on the right -- the application
+	# menu's own leading space is one of them.
+	gap=${DT_BARGAP:-2}
+	[ "$gap" -lt 1 ] && gap=1
+	[ "$gap" -gt 4 ] && gap=4
 	DT_CLOCKW := str width "$now"
-	DT_CLOCKC=$((MB_AX - 1 - DT_CLOCKW))
-	DT_BELLC=$((DT_CLOCKC - 3))
+	DT_CLOCKC=$((MB_AX - (gap - 1) - DT_CLOCKW))
+	DT_BELLC=$((DT_CLOCKC - gap - 1))
 	t := dt_ms
 	case $DT_BARTIME in
 	*%S* | *%T* | *%r* | *%s* | *%X* | *%c*)

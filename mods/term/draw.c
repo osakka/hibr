@@ -48,6 +48,17 @@ int tm_atcursor(tm_t *t, int curon, int r, int c)
 	return curon && t->vis && !t->view && r == cr && c == cc;
 }
 
+/* A cell's colour as it is painted: the default is the colour the caller
+   gave with `term colors`, when it gave one -- the same colour OSC 10/11
+   answer with, so a program asking what the background is hears what is
+   actually behind its text -- and the display's own default otherwise. */
+unsigned tm_paint(tm_t *t, unsigned v, int bg)
+{
+	if (v != DP_DEFAULT || !t->hasrgb)
+		return v;
+	return DP_RGB | (bg ? t->rgbbg : t->rgbfg);
+}
+
 /* The cell shown at a row: the live screen, the scrollback, or the frame
    frozen by synchronized output. */
 const tm_cell *tm_dat(tm_t *t, int r, int c)
@@ -145,7 +156,8 @@ void tm_draw(tm_t *t, const dp_api *dp, int row, int col, int h, int w,
 				c += k->w;
 			}
 			if (run.n) {
-				dp->pen(fg, bg, at);
+				dp->pen(tm_paint(t, fg, 0), tm_paint(t, bg, 1),
+					at);
 				dp->put(row + r, col + n, run.p);
 			}
 			if (c == n)
@@ -159,7 +171,8 @@ void tm_draw(tm_t *t, const dp_api *dp, int row, int col, int h, int w,
 		k = tm_dat(t, cr, cc);
 		s_init(&bar);
 		tm_utf8(&bar, 0x258F);
-		dp->pen(k ? k->fg : t->dfg, k ? k->bg : t->dbg, 0);
+		dp->pen(tm_paint(t, k ? k->fg : t->dfg, 0),
+			tm_paint(t, k ? k->bg : t->dbg, 1), 0);
 		dp->put(row + cr, col + cc, bar.p);
 		s_free(&bar);
 	}

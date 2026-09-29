@@ -59,6 +59,26 @@ command -v dt_keep > /dev/null && dt_keep DT_TERMBAR
 DT_TERMTITLE="${DT_TERMTITLE-1}"
 command -v dt_keep > /dev/null && dt_keep DT_TERMTITLE
 
+# Whose colours a terminal window's default text and background are:
+# "theme" paints them in the desktop's own ink and face, like every other
+# window, and tells a program that asks (OSC 10/11) what they are, so one
+# that picks a light or dark scheme for itself picks the right one;
+# "terminal" leaves them to the real terminal the desktop runs in, which
+# nothing here can see, so such a question goes unanswered.
+DT_TERMCOLOURS="${DT_TERMCOLOURS-theme}"
+command -v dt_keep > /dev/null && dt_keep DT_TERMCOLOURS
+
+# The colours to hand the emulator for the setting above, or "off".
+tw_colours() {
+	if [ "$DT_TERMCOLOURS" = theme ] &&
+	   match "$DT_INK" '^#[0-9a-fA-F]{6}$' &&
+	   match "$DT_FACE" '^#[0-9a-fA-F]{6}$'; then
+		ret "$DT_INK $DT_FACE"
+	else
+		ret off
+	fi
+}
+
 # Start the program the first time there is a window to put it in, and keep
 # its size in step with the window afterwards.
 tw_fit() {
@@ -115,7 +135,7 @@ tw_fit() {
 }
 
 term_draw() {
-	local id=$1 h=$2 w=$3 t st sb cur=0 ms tw view stored n
+	local id=$1 h=$2 w=$3 t st sb cur=0 ms tw view stored n want
 
 	tw=$w
 	# A visible scrollbar costs the program inside a real column, not just
@@ -126,6 +146,14 @@ term_draw() {
 	[ "$DT_TERMBAR" = 1 ] && [ "$tw" -gt 1 ] && tw=$((w - 1))
 	tw_fit "$id" "$h" "$tw" || return 0
 	t=${TW[$id]["t"]}
+	# Only when the setting or the theme has changed since this window
+	# last told the emulator: a theme switch reaches every open terminal
+	# on its next frame.
+	want := tw_colours
+	if [ "$want" != "${TW[$id]["rgb"]}" ]; then
+		TW[$id]["rgb"]=$want
+		term colors "$t" $want
+	fi
 	term poll "$t" 0
 	if ! term alive "$t"; then
 		st := term status "$t"

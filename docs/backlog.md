@@ -560,6 +560,105 @@ broken `$RANDOM` or a broken comparison would make a silent generator look
 like a clean shell, which is a mistake this project has already made once and
 recorded in `CLAUDE.md`. They could be hibr; they should not be.
 
+
+## For language models
+
+Raised directly: what would make hibr the shell a language model reaches
+for? Models write what their training data is full of, which is bash and
+Python, and nothing in this repository changes that on its own. What hibr
+can do is run the bash models already write *better* than bash does, and be
+quick to learn from a short text when a model is handed one. These are
+ordered by leverage. Each is measurable the same way: give a model the
+reference and a set of tasks, and count the scripts that run correctly on
+the first try, before and after.
+
+### A reference written for a model to read
+
+An `llms.txt` at the root and one page, `docs/llm.md`, that fits in a
+model's context: the grammar as `docs/grammar.md` states it, but condensed
+to the idioms; every divergence from bash in one table (the `docs/adr/`
+decisions, one line each); the features bash lacks, with a runnable example
+each (nested maps, `:=`, `match`/`M`, `json`, `/dev/tcp`, typed functions,
+`args`). Every example is run and its output pasted back, and
+`tests/530-docs.t` fails when one stops matching -- the same rule the
+cookbook already keeps. Cheap, and worth more than any feature: models write
+an unfamiliar language well from a tight reference and badly from scattered
+pages.
+
+### An agent mode
+
+`hibr --agent`, or `set -o agent`, for a script a model is running rather
+than a person:
+
+- errors as one line of JSON on stderr -- code, file, line, column, the
+  source line and a hint -- rather than prose to be parsed;
+- nothing interactive: no pager, no prompt, no line editor; a command that
+  reads the terminal fails at once instead of waiting;
+- `set -S` on, so an expansion never splits or globs -- an unquoted `$f`
+  handed to `rm` is the classic mistake, and this removes it;
+- a timeout on every foreground command, `HIBR_TIMEOUT`, so one hung
+  process cannot stall the agent.
+
+The error format is the one part that touches the core, through `lg`; the
+rest is option state. Open: whether it also implies `set -eu`, since
+`errexit` is scoped differently here (ADR 0001) and a model trained on
+bash's rules may be surprised either way.
+
+### A linter for the mistakes models make
+
+`hibr -n --explain script`: parse without running, then name what is wrong
+and why, with the line -- an unquoted expansion passed to `rm`, `mv` or
+`cp`; `cd` without `|| exit`; `for f in $(ls)`; `[ $x = y ]` with `$x`
+possibly empty; `set -e` expected to reach inside a function called from a
+condition; a `local x=$(cmd)` that masks `cmd`'s status. Rules live in a
+module (`mods/lint/`), so the shell pays nothing for them; the parser only
+has to expose the tree it already builds. `tests/corpus.py`'s 155 real
+scripts are the false-positive check.
+
+### A safety net for commands an agent runs
+
+A dry run, `hibr --plan script`, that runs nothing destructive and lists
+what would have been touched -- files written, removed or moved, commands
+spawned, hosts reached -- by intercepting the builtins and redirections
+that do it and refusing `exec` of anything not known to be read-only. And a
+policy file (`HIBR_POLICY`) the shell enforces while running for real: paths
+outside a root are refused, named commands are refused, network is off.
+Agent harnesses build this today out of wrappers around bash; in the shell
+itself it cannot be walked around with a subshell. Hard parts, stated
+plainly: a refused `exec` breaks most real scripts' plans, and a policy is
+only as good as the list of what can write -- `/dev/tcp`, `>`, `mv`, a
+module's builtins -- so every writing path has to be named and tested.
+
+### An MCP server
+
+A module, `mods/mcp/`, that serves hibr over the Model Context Protocol on
+stdio: a persistent session (variables and functions survive between
+calls), a `run` tool returning status, stdout, stderr and -- when a script
+ends with `ret` or `json` -- a structured value, since nested maps and JSON
+with type fidelity are exactly what a tool result wants. Agent mode is on
+inside it. Claude Code and other clients could then call hibr directly
+rather than through a generic shell tool. Needs: the JSON-RPC framing, the
+tool schemas, and a decision about how long a session lives.
+
+### Stay a drop-in for bash
+
+Every place hibr differs from bash is a place a model's bash breaks, and a
+model that has been burned once stops reaching for it. `tests/corpus.py` is
+the instrument: 7 scripts of 465 invocations still differ (see `CLAUDE.md`'s
+open items). Keep driving it to zero for anything not deliberately
+different, and make each deliberate difference loud -- a one-line warning
+in agent mode the first time a script depends on bash behaviour hibr does
+not have, rather than a silently different result.
+
+### Be where models look
+
+Packages in apt, nix and the other package managers beside the existing
+Homebrew tap; many small, real, runnable examples in public repositories
+and in the places answers are written; the reference above published at a
+stable URL. The slowest of these and the only one that changes what a
+model has seen, so it is worth starting early and doing steadily rather
+than all at once.
+
 ---
 
 [← documentation index](README.md)

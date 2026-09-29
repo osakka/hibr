@@ -610,6 +610,23 @@ sc = cprun(DOWN_TERM + [b"\x1b[C"], extra=("term",))
 check("Scrollbar defaults off, and Follow Program Title defaults on",
       "[ ]" in sc.row(sc.find("Scrollbar")[0]) and
       "[x]" in sc.row(sc.find("Follow Program Title")[0]), sc)
+check("Colours is a setting too, and terminal windows use the theme's "
+      "by default", sc.find("Colours") is not None and
+      "theme" in sc.row(sc.find("Colours")[0]), sc)
+sc = cprun(DOWN_TERM + [b"\x1b[C", b"\x1b[B", b"\x1b[B", b"\x1b[C"],
+           extra=("term",))
+check("and it can be switched to the real terminal's own colours",
+      "terminal" in sc.row(sc.find("Colours")[0]), sc)
+
+# Appearance's last row: the gap between the items on the bar's right.
+sc = cprun(DOWN_APP)
+check("Appearance has a Menu Bar Spacing slider, at 2 by default",
+      sc.find("Menu Bar Spacing (2)") is not None and
+      "●" in sc.row(sc.find("Menu Bar Spacing (2)")[0]), sc)
+sc = cprun(DOWN_APP + [b"\x1b[C", b"\x1b[B", b"\x1b[B", b"\x1b[C"])
+check("and moving it widens the gap",
+      sc.find("Menu Bar Spacing (3)") is not None and
+      re.search(r"[○●]   \d\d:\d\d   ", sc.row(0)) is not None, sc)
 
 # File Types: dt_handler's own table, listed and editable through the UI
 # now instead of only through a line in a script of the user's own --
@@ -1626,4 +1643,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(212)
+report(216)

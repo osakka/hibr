@@ -515,9 +515,13 @@ int m_term(sh *s, int ac, char **av)
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "colors")) {
+		if (ac == 4 && !strcmp(av[3], "off")) {
+			m->hasrgb = 0;
+			return HIBR_OK;
+		}
 		if (ac < 5 || !tm_hex(av[3], &m->rgbfg) ||
 		    !tm_hex(av[4], &m->rgbbg)) {
-			lg(HIBR_LERR, "usage: term colors id #rrggbb #rrggbb");
+			lg(HIBR_LERR, "usage: term colors id #rrggbb #rrggbb | off");
 			return 2;
 		}
 		m->hasrgb = 1;

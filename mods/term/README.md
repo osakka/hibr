@@ -48,7 +48,7 @@ same underlying grid, not the interface itself.
     term row   t n               # one row of what is shown, as text
     term cells t n               # the same row as cells: column, fg, bg, attributes, text
     term focus t 1|0             # tell a program that asked (mode 1004) it gained or lost focus
-    term colors t #fg #bg        # the real default colours, so OSC 10/11 can be answered
+    term colors t #fg #bg|off    # paint the default colours in these, and answer OSC 10/11 with them
     term scroll t [n|top|bottom] # move the view back n lines, or ask where it is
     term mouse t [act [button] row col]  # send a mouse event, or ask the mode
     term screen t                # main or alt
@@ -79,7 +79,9 @@ follows from it:
 - C0 controls act inside a sequence; CAN and SUB abandon one.
 - DCS, OSC, APC, PM and SOS strings are consumed whole, across any number of
   reads, and never printed. OSC 0/1/2 set the title; OSC 10/11 queries are
-  answered once `term colors` has said what the colours are; DECRQSS
+  answered once `term colors` has given the colours the default text and
+  background are then painted in -- the answer is only ever what is on
+  screen, and with `off` the question goes unanswered; DECRQSS
   (`DCS $ q`) answers for the scroll region, cursor shape and pen; XTGETTCAP
   (`DCS + q`) says it has nothing, which is still an answer.
 - Parameters keep their `:` sub-parameters, so `38:2::r:g:b`, `4:3` (curly

@@ -1,7 +1,8 @@
 #!/usr/bin/env hibr
 #
 # terminal -- the Control Panel pane for how a terminal window behaves: its
-# scrollbar, and whether its title follows what the program inside reports.
+# scrollbar, whether its title follows what the program inside reports, and
+# whose colours its text and background are.
 
 command -v cp_pane > /dev/null && cp_pane terminal "Terminal" "⌨"
 
@@ -27,6 +28,11 @@ cp_termtitle() {
 	cp_save
 }
 
+# Theme or terminal colours for a terminal window -- see DT_TERMCOLOURS in
+# examples/desktop/apps/term.hibr.
+CP_TERMCOLOURS=(theme terminal)
+cp_set_termcolours() { DT_TERMCOLOURS=$2; cp_save; }
+
 terminal_rows() {
 	local w=$1 n=0
 
@@ -44,15 +50,33 @@ terminal_rows() {
 		[ "$DT_TERMTITLE" = 1 ] && CP[$w][$n]["val"]=on
 		CP[$w][$n]["key"]=termtitle; n=$((n + 1))
 	fi
+	if [ -n "$DT_TERMCOLOURS" ]; then
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Colours"
+		CP[$w][$n]["val"]="$DT_TERMCOLOURS"
+		CP[$w][$n]["key"]=termcolours; n=$((n + 1))
+	fi
 	ret "$n"
 }
 
 terminal_do() {
-	local w=$1 k=$2 dir=$3
+	local w=$1 k=$2 dir=$3 v
 
 	case $k in
 	termbar) cp_termbar ;;
 	termtitle) cp_termtitle ;;
+	termcolours)
+		v := cp_next "$DT_TERMCOLOURS" "$dir" "${CP_TERMCOLOURS[@]}"
+		DT_TERMCOLOURS=$v
+		;;
 	esac
 	cp_save
+}
+
+terminal_drop() {
+	local w=$1 r=$2 c=$3 k=$4
+
+	case $k in
+	termcolours) dt_droplist "$w" "$r" "$c" cp_set_termcolours \
+		"${CP_TERMCOLOURS[@]}" ;;
+	esac
 }
