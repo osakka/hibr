@@ -29,6 +29,9 @@ ends exactly one wait, whenever it lands.
 
 HIBR_VER -> 0.34, DT_VER -> 0.14.
 
+Verified: tests/run.sh 86/86, tests/desktop.py 278/278, tests/apps.py
+212/212, and the console, most, hvi, mon, cat and editor pty suites.
+
 ## 0.33
 
 Desktop moves to **0.13** alongside this release.
