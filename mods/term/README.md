@@ -62,7 +62,16 @@ Two windows of `examples/desktop/apps/term.hibr` are two shells on two ptys, and
 `tests/apps.py` checks exactly that. The program is given `TERM=xterm-256color`
 and `COLORTERM=truecolor` whatever the desktop itself runs in: that is the
 terminal this module implements, and a program told it is on tmux or kitty
-would send sequences meant for those.
+would send sequences meant for those. It is given a UTF-8 locale for the
+same reason, when the one it would inherit is not: in the C locale, screen,
+ls and every ncurses program print `?` for what they think cannot be shown
+and raw bytes for the rest, which come out as U+FFFD. The C library is
+asked what the inherited locale really resolves to -- a UTF-8 name that is
+not installed falls back to C without a word -- and only `LC_CTYPE` is set,
+from the first of C.UTF-8, UTF-8 (macOS) or en_US.UTF-8 that exists; `LANG`
+is replaced only when it names a locale that cannot load, which had left the
+program entirely in C anyway, and `LC_ALL` only when it is itself set to a
+non-UTF-8 one.
 
 ## The parser
 

@@ -1,9 +1,15 @@
 #define _GNU_SOURCE
 
 #include "tm.h"
+#include <langinfo.h>
+#include <locale.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
+#ifdef __APPLE__
+#include <xlocale.h>
+#endif
 
 extern vec tm_list;
 
@@ -48,31 +54,127 @@ int tm_pump(tm_t *m, int ms)
 	return r;
 }
 
+/* Whether a locale, as the C library resolves it, encodes UTF-8 -- asked
+   of the library rather than read off the name, since a UTF-8 name that is
+   not installed (en_GB.UTF-8 on a machine with only C.utf8) falls back to
+   the C locale without a word. */
+int tm_isutf8(const char *v)
+{
+	locale_t l;
+	int ok;
+
+	if (!v || !*v)
+		return 0;
+	l = newlocale(LC_CTYPE_MASK, v, (locale_t)0);
+	if (!l)
+		return 0;
+	ok = !strcasecmp(nl_langinfo_l(CODESET, l), "UTF-8");
+	freelocale(l);
+	return ok;
+}
+
+/* Whether every category of a locale can be loaded -- what a program's
+   setlocale(LC_ALL, "") needs of LANG, since one category that fails
+   leaves all of them in C. */
+int tm_loadable(const char *v)
+{
+	locale_t l;
+
+	if (!v || !*v)
+		return 1;
+	l = newlocale(LC_ALL_MASK, v, (locale_t)0);
+	if (!l)
+		return 0;
+	freelocale(l);
+	return 1;
+}
+
+/* A UTF-8 locale this machine really has, or null for none: C.UTF-8 on
+   any recent glibc, UTF-8 on macOS, a language's own as a last resort. */
+const char *tm_u8loc(void)
+{
+	static const char *const c[] = {
+		"C.UTF-8", "C.utf8", "UTF-8", "en_US.UTF-8", "en_US.utf8", 0
+	};
+	int i;
+
+	for (i = 0; c[i]; i++)
+		if (tm_isutf8(c[i]))
+			return c[i];
+	return 0;
+}
+
+/* Set a variable for the child, keeping what it was so tm_envback can put
+   it back: *keep is 0 when it was unset. */
+void tm_envset(const char *nm, const char *v, char **keep)
+{
+	char *o = getenv(nm);
+
+	*keep = o ? strdup(o) : 0;
+	setenv(nm, v, 1);
+}
+
+void tm_envback(const char *nm, char *keep)
+{
+	if (keep)
+		setenv(nm, keep, 1);
+	else
+		unsetenv(nm);
+	free(keep);
+}
+
 /* Spawn with the environment a program on this terminal should see: the
    terminal type is what this emulator implements, not whatever the desktop
    itself happens to be running in -- a desktop inside tmux or kitty would
    otherwise hand its child a terminfo entry describing a different
-   terminal, and the program would use sequences meant for that one. The
-   variables are put back at once; only the child keeps them. */
+   terminal, and the program would use sequences meant for that one. And
+   the character set is UTF-8, the only one it decodes: a child left in
+   the C locale -- a machine with no other installed, or a session started
+   without LANG -- prints '?' for what it thinks cannot be shown (screen,
+   ls, every ncurses program) and raw bytes for the rest, which come out as
+   U+FFFD. Only LC_CTYPE is given, so the language, the collation and the
+   date format stay whatever the user chose; LC_ALL, which would override
+   it, is changed only when it is itself set to something else, and LANG
+   only when it names a locale this machine does not have -- in which case
+   every program was already in C, since one category that fails to load
+   fails them all. Everything is put back at once; only the child keeps it. */
 int tm_spawn(sh *s, int rows, int cols, char **argv)
 {
-	char *ot = getenv("TERM"), *oc = getenv("COLORTERM");
-	char *st = ot ? strdup(ot) : 0, *sc = oc ? strdup(oc) : 0;
-	int id;
+	const char *all = getenv("LC_ALL"), *ct = getenv("LC_CTYPE");
+	const char *eff = all && *all ? all : ct && *ct ? ct : getenv("LANG");
+	const char *u8 = 0;
+	char *kt, *kc, *kl = 0, *kall = 0, *klang = 0;
+	int id, fix = 0, fixall, fixlang;
 
-	setenv("TERM", "xterm-256color", 1);
-	setenv("COLORTERM", "truecolor", 1);
+	if (!tm_isutf8(eff)) {
+		u8 = tm_u8loc();
+		fix = u8 != 0;
+		if (!u8)
+			lg(HIBR_LDBG, "term: no UTF-8 locale installed to give");
+	}
+	fixall = fix && all && *all;
+	fixlang = fix && !fixall && !tm_loadable(getenv("LANG"));
+
+	tm_envset("TERM", "xterm-256color", &kt);
+	tm_envset("COLORTERM", "truecolor", &kc);
+	if (fixall)
+		tm_envset("LC_ALL", u8, &kall);
+	else if (fix)
+		tm_envset("LC_CTYPE", u8, &kl);
+	if (fixlang)
+		tm_envset("LANG", u8, &klang);
+	if (fix)
+		lg(HIBR_LDBG, "term: %s is not UTF-8; the program gets %s",
+		   eff ? eff : "an unset locale", u8);
 	id = tm_pty->spawn(s, rows, cols, argv);
-	if (st)
-		setenv("TERM", st, 1);
-	else
-		unsetenv("TERM");
-	if (sc)
-		setenv("COLORTERM", sc, 1);
-	else
-		unsetenv("COLORTERM");
-	free(st);
-	free(sc);
+	tm_envback("TERM", kt);
+	tm_envback("COLORTERM", kc);
+	if (fixall)
+		tm_envback("LC_ALL", kall);
+	else if (fix)
+		tm_envback("LC_CTYPE", kl);
+	if (fixlang)
+		tm_envback("LANG", klang);
 	return id;
 }
 
@@ -574,6 +676,6 @@ const hibr_bi term_bi[] = {
 	HIBR_BI_END
 };
 
-HIBR_MODULE_P("term", "0.23",
+HIBR_MODULE_P("term", "0.24",
 	      "a terminal emulator: a program's screen as cells",
 	      term_bi, tm_ini, tm_fini, "terminal");

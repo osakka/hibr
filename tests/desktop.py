@@ -1552,34 +1552,38 @@ def dotrun(session, env=None, pre="", keys=(), cols=COLS):
 
 t, d = dotrun("")
 sc = t.screen()
-check("with nothing unread the bar's dot is hollow, just left of the clock",
-      sc.find("○") == (0, COLS - 23), sc)
-check("and the dot, the clock and the application menu sit two cells apart, "
+# A wide character's second cell reads as a space in the screen model, so
+# the bell is "🔔 " on a row.
+check("with nothing unread the bar shows just the bell, left of the clock",
+      sc.find("🔔") == (0, COLS - 24), sc)
+check("and the bell, the clock and the application menu sit two cells apart, "
       "as the menu titles on the left do",
-      re.search(r"○  \d\d:\d\d  Desktop ▾", sc.row(0)) is not None and
+      re.search(r"🔔   \d\d:\d\d  Desktop ▾", sc.row(0)) is not None and
       re.search(r"✎  Edit  Window", sc.row(0)) is not None, sc)
 t.quit(None, 0.5); shutil.rmtree(d, True)
 
 t, d = dotrun('dt_note "Unread"')
 sc = t.screen()
-check("a note fills it", sc.find("●") == (0, COLS - 23), sc)
-t.keys([press(0, COLS - 23)], settle=0.6)
+check("a note puts its count beside the bell",
+      sc.find("🔔") == (0, COLS - 25) and
+      re.search(r"🔔 1  \d\d:\d\d", sc.row(0)) is not None, sc)
+t.keys([press(0, COLS - 25)], settle=0.6)
 sc = t.screen()
-check("and opening the history empties it again",
-      sc.find("┤ Notifications ├") is not None and sc.row(0).find("○") >= 0,
-      sc)
+check("and opening the history clears the count again",
+      sc.find("┤ Notifications ├") is not None and
+      re.search(r"🔔   \d\d:\d\d", sc.row(0)) is not None, sc)
 t.quit(None, 0.5); shutil.rmtree(d, True)
 
 # DT_BARTIME: the clock's own strftime format. A wider one moves the clock
 # and the dot left, and their clicks follow them.
 t, d = dotrun("", env={"DT_BARTIME": "%a %H:%M:%S"})
 sc = t.screen()
-m = re.search(r"([○●])  (\w\w\w \d\d:\d\d:\d\d)  ", sc.row(0))
+m = re.search(r"🔔 \S*  (\w\w\w \d\d:\d\d:\d\d)  ", sc.row(0))
 check("a format with seconds and a weekday is what the bar shows", m, sc)
-dot = sc.row(0).find("○")
+dot = sc.row(0).find("🔔")
 t.keys([press(0, dot)], settle=0.6)
 sc = t.screen()
-check("and the dot, moved left to make room, still opens the history",
+check("and the bell, moved left to make room, still opens the history",
       sc.find("┤ Notifications ├") is not None, sc)
 t.quit(None, 0.5); shutil.rmtree(d, True)
 
@@ -1630,7 +1634,7 @@ t.keys([b"\r"], settle=0.6)
 sc = t.screen()
 check("and a valid one is taken on enter",
       sc.find("┤ Clock Format ├") is None and
-      re.search(r"[○●]  \d\dh  ", sc.row(0)) is not None, sc)
+      re.search(r"🔔 \S*  \d\dh  ", sc.row(0)) is not None, sc)
 t.quit(None, 0.5); shutil.rmtree(d, True)
 
 t, d = dotrun(DTPANEL, keys=DOWN_DT)

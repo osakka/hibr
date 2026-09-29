@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.39
+
+Desktop moves to **0.19** alongside this release; the `term` module to 0.24.
+
+**Terminal windows speak UTF-8 to their programs.** The `?` and the `?` in
+a diamond left in terminal windows came from programs running in the C
+locale -- inherited from a desktop started without a UTF-8 one, and on a
+machine that has only `C.utf8` installed, a `LANG=en_GB.UTF-8` is the C
+locale too, since a locale that cannot load leaves every category in C.
+screen, ls and ncurses programs print `?` for what they believe cannot be
+shown, and raw bytes for the rest, which a UTF-8 terminal shows as U+FFFD.
+A program started in a terminal window now gets a UTF-8 `LC_CTYPE` when the
+locale it would inherit is not one, checked by asking the C library rather
+than reading the name; language, sorting and dates stay as they were.
+
+**The notification bell is a bell**, 🔔, with the number of notes not yet
+seen beside it (9+ past nine) and nothing beside it once the history has
+been opened. It replaces the dot, and the circle before that.
+
+`tests/screen.py`'s terminal model now lets a wide character cover the cell
+after it, as a real terminal does; it had left that cell's old character
+showing wherever a damage-based redraw moved a wide glyph along.
+
+HIBR_VER -> 0.39, DT_VER -> 0.19.
+
+Verified: tests/run.sh 86/86, tests/term_diff.py 66/66, tests/desktop.py
+292/292, tests/apps.py 216/216, and the console, most, hvi, mon, cat and
+editor pty suites.
+
 ## 0.38
 
 Desktop moves to **0.18** alongside this release.

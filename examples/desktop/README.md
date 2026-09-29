@@ -678,9 +678,9 @@ shows a cursor at all.
 ## The menu bar
 
 Across the top, System 7's: the **hibr menu** on the left where the apple
-went, then the menus of whatever window has focus, then the notification dot
-(filled while there are notes you have not seen, opening their history when
-clicked), the clock (in whatever format Date & Time sets) and the
+went, then the menus of whatever window has focus, then the notification
+bell (with a count beside it of notes you have not seen yet, opening their
+history when clicked), the clock (in whatever format Date & Time sets) and the
 **application menu** on the right. Windows cannot be dragged over it.
 
 The menus belong to the active application, so they change when you click a

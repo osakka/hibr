@@ -626,7 +626,7 @@ check("Appearance has a Menu Bar Spacing slider, at 2 by default",
 sc = cprun(DOWN_APP + [b"\x1b[C", b"\x1b[B", b"\x1b[B", b"\x1b[C"])
 check("and moving it widens the gap",
       sc.find("Menu Bar Spacing (3)") is not None and
-      re.search(r"[○●]   \d\d:\d\d   ", sc.row(0)) is not None, sc)
+      re.search(r"🔔 \S*   \d\d:\d\d   ", sc.row(0)) is not None, sc)
 
 # File Types: dt_handler's own table, listed and editable through the UI
 # now instead of only through a line in a script of the user's own --

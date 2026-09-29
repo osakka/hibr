@@ -413,6 +413,26 @@ def hibr_only():
               "ROW[%s]" % want in out, out)
     shutil.rmtree(d, True)
 
+    # A program on this terminal is given a UTF-8 locale when the one it
+    # would inherit is not -- the C locale, or a UTF-8 name this machine
+    # does not have, which fails to load and leaves it in C just the same.
+    # Either way ls would print a UTF-8 name as escaped bytes.
+    d = tempfile.mkdtemp(prefix="hibr-loc-")
+    open(os.path.join(d, "café-漢.txt"), "w").close()
+    for lang in ("C", "xx_XX.UTF-8"):
+        script = ("mod load %s/pty.so; mod load %s/term.so\n"
+                  "export LANG=%s; unset LC_ALL LC_CTYPE\n"
+                  "t := term open -r 3 -c 60 ls %s\n"
+                  "i=0; while [ $i -lt 10 ]; do term poll $t 50; i=$((i + 1)); done\n"
+                  "x := term row $t 0; echo \"ROW[$x]\"; echo \"LANG[$LANG]\"\n"
+                  "term close $t\n" % (MODS, MODS, lang, d))
+        out = subprocess.run([screen.HIBR, "-c", script], capture_output=True,
+                             text=True).stdout
+        check("under LANG=%s a program still gets UTF-8, and the desktop's own "
+              "LANG is left alone" % lang,
+              "ROW[café-漢.txt]" in out and "LANG[%s]" % lang in out, out)
+    shutil.rmtree(d, True)
+
 
 if RECORD:
     record()
@@ -434,4 +454,4 @@ for name in sorted(PROGRAMS):
         ran += 1
 
 hibr_only()
-report(ran + len(HIBR_ONLY) + 4)
+report(ran + len(HIBR_ONLY) + 6)

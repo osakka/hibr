@@ -95,9 +95,15 @@ class Screen:
             if ch in "\r\n":
                 i += 1
                 continue
+            wide = ord(ch) > 0x2E80
             if 0 <= self.r < self.rows and 0 <= self.c < self.cols:
                 self.g[self.r][self.c] = ch
-            self.c += 2 if ord(ch) > 0x2E80 else 1
+                # A wide character covers the next cell too, as it does on
+                # a real terminal -- whatever was there is gone, and a
+                # damage-based renderer never resends it.
+                if wide and self.c + 1 < self.cols:
+                    self.g[self.r][self.c + 1] = " "
+            self.c += 2 if wide else 1
             i += 1
         return self
 

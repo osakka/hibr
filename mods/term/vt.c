@@ -766,7 +766,7 @@ void tm_csigt(tm_t *t, int f, const char *in)
 	if (!*in && f == 'c' && tm_par(t, 0, 0) == 0)
 		tm_reply(t, "\033[>1;10;0c");
 	else if (!*in && f == 'q')
-		tm_reply(t, "\033P>|hibr-term 0.23\033\\");
+		tm_reply(t, "\033P>|hibr-term 0.24\033\\");
 	else
 		lg(HIBR_LTRC, "terminal %d ignored CSI >%s%c", t->id, in, f);
 }

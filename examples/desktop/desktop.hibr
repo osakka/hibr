@@ -25,7 +25,7 @@ need display || { echo "desktop: no display available" >&2; exit 1; }
 # change that never touched a single line of src/*.c. HIBR_ABI is what
 # actually needs cross-checking between the two -- whether a module is
 # built against what this shell offers -- and that already exists.
-DT_VER=0.18
+DT_VER=0.19
 
 # The session's own arguments, captured here at the top level where $@ is
 # still theirs: a function sees its own, and dt_autohold needs to hand these
@@ -117,7 +117,7 @@ DT_NOTEUNSEEN=0
 
 # The bar clock's own strftime format, chosen in Date & Time. dt_bar
 # measures what it renders and leaves where the clock and the dot landed
-# in DT_CLOCKC/DT_CLOCKW/DT_BELLC, so a wider format moves both left and
+# in DT_CLOCKC/DT_CLOCKW/DT_BELLC/DT_BELLW, so a wider format moves both left and
 # the clicks follow them, rather than overrunning the application menu.
 DT_BARTIME="${DT_BARTIME-%H:%M}"
 
@@ -128,6 +128,7 @@ DT_BARGAP="${DT_BARGAP-2}"
 DT_CLOCKC=-1
 DT_CLOCKW=0
 DT_BELLC=-1
+DT_BELLW=0
 DT_CONFIRM=
 DT_CONFIRM_CMD=
 DT_ROWS=24
@@ -987,7 +988,8 @@ dt_mouse() {
 	case $act in
 	press)
 		if [ "$mr" = 0 ]; then
-			if [ "$mc" = "$DT_BELLC" ]; then
+			if [ "$mc" -ge "$DT_BELLC" ] &&
+			   [ "$mc" -lt $((DT_BELLC + DT_BELLW)) ]; then
 				dt_mclose
 				dt_has notifications_draw && dt_launch notifications
 				return 0
@@ -3394,7 +3396,7 @@ dt_cycle() {
 
 # Draw the bar itself.
 dt_bar() {
-	local i=0 t line now gap w=${DT_PRIMARY_W:-$DT_COLS}
+	local i=0 t line now gap bell w=${DT_PRIMARY_W:-$DT_COLS}
 
 	[ "$DT_BARSHADOW" = 1 ] &&
 		console darken 1 "$DT_PRIMARY_COL" 1 "$w" "$DT_SHADOW_PCT"
@@ -3427,7 +3429,18 @@ dt_bar() {
 	[ "$gap" -gt 4 ] && gap=4
 	DT_CLOCKW := str width "$now"
 	DT_CLOCKC=$((MB_AX - (gap - 1) - DT_CLOCKW))
-	DT_BELLC=$((DT_CLOCKC - gap - 1))
+	# The bell, and beside it how many notes have come since the history
+	# was last opened -- nothing beside it when that is none. A real bell
+	# is two cells wide, which is why its width is measured like the
+	# clock's rather than assumed.
+	bell="🔔"
+	if [ "$DT_NOTEUNSEEN" -gt 9 ]; then
+		bell="${bell}9+"
+	elif [ "$DT_NOTEUNSEEN" -gt 0 ]; then
+		bell="${bell}$DT_NOTEUNSEEN"
+	fi
+	DT_BELLW := str width "$bell"
+	DT_BELLC=$((DT_CLOCKC - gap - DT_BELLW))
 	t := dt_ms
 	case $DT_BARTIME in
 	*%S* | *%T* | *%r* | *%s* | *%X* | *%c*)
@@ -3436,11 +3449,10 @@ dt_bar() {
 	esac
 	if [ "$DT_NOTEUNSEEN" -gt 0 ]; then
 		console pen "$DT_ACTIVE" "$DT_BAR" bold
-		console put 0 "$DT_BELLC" "●"
 	else
 		console pen "$DT_INK" "$DT_BAR"
-		console put 0 "$DT_BELLC" "○"
 	fi
+	console put 0 "$DT_BELLC" "$bell"
 	console pen "$DT_INK" "$DT_BAR"
 	console put 0 "$DT_CLOCKC" "$now"
 	if [ "$MB_OPEN" = app ]; then
