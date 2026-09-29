@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.44.2
+
+Desktop moves to **0.24.2**. A second fix to 0.44.
+
+**Set Date & Time set the clock to nothing.** The date reaches the command
+that sets it through a small `sh -c '...'` script run under sudo, which reads
+it as its own `$1`. The 0.44 conversion rewrote positionals to parameter
+names everywhere outside single quotes -- and judged quoting a line at a
+time, so on the script's second line, still inside the quote opened on the
+first, `$1` looked like the function's own and became `$id`. It is `$1`
+again. Those two were the only positionals anywhere in the desktop inside a
+single-quoted string that spans lines, checked with the quoting followed
+across lines this time; there are no heredocs to check.
+
+`tests/apps.py` now runs that script for real against a `timedatectl` that
+only reports what it was asked -- with sudo taken off the front, so nothing
+on the machine running it changes -- and fails on 0.44.1.
+
+`tests/desktop.py` counted Files windows by their whole title, `Files
+[~/hibr]`, which is only that when the checkout lives at `~/hibr`; run from
+anywhere else, one check failed. It counts by the start of the title now.
+
+HIBR_VER -> 0.44.2, DT_VER -> 0.24.2.
+
+Verified: tests/run.sh 90/90, tests/apps.py 235/235, tests/desktop.py 294/294.
+
 ## 0.44.1
 
 Desktop moves to **0.24.1**. A fix to 0.44, which it should not have needed.

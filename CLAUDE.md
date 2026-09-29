@@ -1106,6 +1106,14 @@ went in the shell.
   the suites, not from reading call sites, and a parameter the suites never
   showed being passed is optional (`= ""`). Types are not declared yet: `int`
   would reject the empty id the Control Strip passes on purpose.
+- **Quoting is not a property of a line.** A rewrite that decides whether a
+  `$1` is live by scanning one line at a time is wrong for the second line
+  of a single-quoted string that opened on the first -- which is exactly
+  where an `sh -c '...'` script or an awk program keeps a `$1` that belongs
+  to the child. The 0.44 conversion rewrote two of them to `$id`, and Set
+  Date & Time set the clock to an empty string under sudo. Anything that
+  edits shell source mechanically has to carry quote state across lines,
+  and to be checked against the old text with it.
 - **A census of calls only knows the calls the suites make.** The 0.44
   conversion took each function's arity from what the suites showed it
   called with, and a callback the suites never reached got only the names

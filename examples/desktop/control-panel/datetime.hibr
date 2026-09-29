@@ -583,10 +583,10 @@ fn dts_apply(id = "") {
 	dt_del "$id"
 	if command -v timedatectl > /dev/null; then
 		dtp_run sudo sh -c 'timedatectl set-ntp false 2> /dev/null;
-			timedatectl set-time "$id"' sh "$y-$mo-$dy $hh:$mi:$ss"
+			timedatectl set-time "$1"' sh "$y-$mo-$dy $hh:$mi:$ss"
 	elif [ -x /usr/sbin/systemsetup ]; then
 		dtp_run sudo sh -c '/usr/sbin/systemsetup -setusingnetworktime off \
-			> /dev/null; date "$id"' sh "$mo$dy$hh$mi$y.$ss"
+			> /dev/null; date "$1"' sh "$mo$dy$hh$mi$y.$ss"
 	else
 		dtp_run sudo date -s "$y-$mo-$dy $hh:$mi:$ss"
 	fi

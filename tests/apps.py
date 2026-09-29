@@ -781,6 +781,29 @@ check("the Date & Time pane shows the clock, the date and the zone",
 check("and a mark for it on the reused world map",
       sc.find("◉") is not None, sc)
 
+# Setting the clock hands the date to a small sh -c script run under sudo,
+# and the script reads it as its own $1 -- which 0.44's conversion rewrote to
+# $id, inside the single quotes, so the clock was set to nothing. Run the
+# real script against a timedatectl that only says what it was asked, with
+# sudo taken off the front: nothing on this machine changes.
+FAKE = tempfile.mkdtemp(prefix="hibr-fakebin-")
+open(os.path.join(FAKE, "timedatectl"), "w").write(
+    '#!/bin/sh\necho "timedatectl $*"\n')
+os.chmod(os.path.join(FAKE, "timedatectl"), 0o755)
+TSET = (
+    '. %s/datetime.hibr\n'
+    'fn dtp_run(...cmd) { "${cmd[@]:1}"; }\n'
+    'dt_del() { :; }; dt_note() { echo "note: $1"; }\n'
+    'declare -gA DTS; DTS[7]["dbuf"]=2026-01-02; DTS[7]["tbuf"]=03:04:05\n'
+    'dts_apply 7\n' % CP
+)
+out = subprocess.run([sx.HIBR, "-c", TSET], capture_output=True, text=True,
+                     env=dict(os.environ, PATH=FAKE + ":" + os.environ["PATH"])
+                     ).stdout
+check("Set Date & Time hands the date it was given to the command that sets it",
+      "timedatectl set-time 2026-01-02 03:04:05" in out, out)
+shutil.rmtree(FAKE, True)
+
 # Window Style's own rows: Frame(0), Buttons(1), Title(2), Button Style(3).
 DOWN_WS = [b"\x1b[B"] * downs("window_style")
 sc = cprun(DOWN_WS)
@@ -1768,4 +1791,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(234)
+report(235)

@@ -1503,7 +1503,7 @@ check("an app declared once opens one window, however often launched",
 LAUNCH = MENU + [b"f"]
 sc, raw = run("", feed=LAUNCH + LAUNCH, pre=APPS)
 check("and one that is not opens another window each time",
-      sc.text().count("┤ Files [~/hibr] ├") == 2, sc)
+      sc.text().count("┤ Files [") == 2, sc)
 
 sc, _ = run("", feed=[press(0, 2), b"a"], pre=APPS)
 check("About hibr opens a window with the machine's own numbers",
