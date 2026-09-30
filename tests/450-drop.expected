@@ -1,12 +1,12 @@
 0
-hibr: usage: drop user[:group]
-hibr: usage: drop user[:group]
-hibr: drop: only root can give up privileges
-hibr: drop: only root can give up privileges
-hibr: drop: command not found
 drop is a module builtin
+hibr: usage: drop user[:group]
 no argument: 2
+hibr: usage: drop user[:group]
 too many: 2
+hibr: drop: only root can give up privileges
 not root: 1
+hibr: drop: only root can give up privileges
 unknown user, not root: 1
+hibr: drop: command not found
 after unload: 127

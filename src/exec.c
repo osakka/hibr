@@ -807,7 +807,7 @@ char *xcap(sh *s, const char *src)
 		return ar_dup(s->xa, "", 0);
 	}
 	fflush(0);
-	pid = fork();
+	pid = (pid_t)jc_fork(s);
 	if (pid < 0) {
 		lg(HIBR_LERR, "fork: %s", strerror(errno));
 		close(pf[0]);
@@ -838,7 +838,7 @@ char *xcap(sh *s, const char *src)
 		s_add(&o, buf, (size_t)n);
 	free(buf);
 	close(pf[0]);
-	waitpid(pid, &w, 0);
+	jc_waitt(s, pid, pid, &w, 0);
 	s->st = wstat(w);
 	s->ncap++;
 	while (o.n && o.p[o.n - 1] == '\n')
@@ -1409,7 +1409,7 @@ int ex_cmd(sh *s, node *n)
 	}
 	if (s->it)
 		jb = jc_new(s, n->tx, 0);
-	pid = fork();
+	pid = (pid_t)jc_fork(s);
 	if (pid < 0) {
 		lg(HIBR_LERR, "fork: %s", strerror(errno));
 		free(path);
@@ -1440,7 +1440,7 @@ int ex_cmd(sh *s, node *n)
 		jc_pid(s, jb, (long)pid);
 		st = jc_fg(s, jb);
 	} else {
-		waitpid(pid, &w2, 0);
+		jc_waitt(s, pid, pid, &w2, 0);
 		st = wstat(w2);
 	}
 out:
@@ -1508,7 +1508,7 @@ int ex_pipe(sh *s, node *n)
 			lg(HIBR_LERR, "pipe: %s", strerror(errno));
 			break;
 		}
-		pid = fork();
+		pid = (pid_t)jc_fork(s);
 		if (pid < 0) {
 			lg(HIBR_LERR, "fork: %s", strerror(errno));
 			break;
@@ -1563,12 +1563,15 @@ int ex_pipe(sh *s, node *n)
 		return s->st = jc_fg(s, jb);
 	}
 	s->pfs = 0;
+	jc_tmo = 0;
 	for (i = 0; i < pids.n; i++) {
-		waitpid((pid_t)(long)pids.p[i], &w, 0);
+		jc_waitt(s, (pid_t)(long)pids.p[i], (pid_t)(long)pids.p[i], &w, 0);
 		rc = wstat(w);
 		if (rc && !s->pfs)
 			s->pfs = rc;
 	}
+	if (jc_tmo)
+		rc = s->pfs = 124;
 	v_free(&pids);
 	v_free(&st);
 	s->st = rc;
@@ -1621,7 +1624,7 @@ int ex_sub(sh *s, node *n)
 	int w;
 
 	fflush(0);
-	pid = fork();
+	pid = (pid_t)jc_fork(s);
 
 	if (pid < 0) {
 		lg(HIBR_LERR, "fork: %s", strerror(errno));
@@ -1638,7 +1641,7 @@ int ex_sub(sh *s, node *n)
 		fflush(0);
 		_exit(w);
 	}
-	waitpid(pid, &w, 0);
+	jc_waitt(s, pid, pid, &w, 0);
 	return s->st = wstat(w);
 }
 
@@ -2160,6 +2163,7 @@ int ex(sh *s, node *n)
 		st = ex(s, n->l);
 		return ex_chk(s, s->st = st ? 0 : 1, t);
 	case N_PIPE:
+		s->ln = n->ln;
 		st = ex_pipe(s, n);
 		ex_chk(s, s->pfs, t);
 		return st;

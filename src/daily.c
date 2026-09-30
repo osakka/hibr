@@ -1,6 +1,7 @@
 #include "pri.h"
 #include <ctype.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -657,7 +658,27 @@ unsigned sh_optbit(const char *nm)
 		return O_NOCASEMATCH;
 	if (!strcmp(nm, "inherit_errexit"))
 		return O_INHERITERR;
+	if (!strcmp(nm, "agent"))
+		return O_AGENT;
 	return 0;
+}
+
+/* What turning agent mode on turns on with it: errors come as JSON lines
+   (lg reads the bit), an unset variable is an error, expansions do not
+   split or glob, and a terminal on standard input is replaced by
+   /dev/null, so nothing can wait on a person who is not there. */
+void sh_agent(sh *s)
+{
+	int fd;
+
+	s->uset = 1;
+	s->strictg = 1;
+	sh_sfl(s);
+	if (isatty(0) && (fd = open("/dev/null", O_RDONLY)) >= 0) {
+		dup2(fd, 0);
+		close(fd);
+	}
+	lg(HIBR_LDBG, "agent mode on");
 }
 
 /* The shell flag an option controls, or null when it is not one. */
@@ -686,7 +707,7 @@ const char *sh_optnames[] = { "errexit", "nounset", "xtrace", "noclobber",
 			      "nocaseglob", "dotglob", "failglob",
 			      "nocasematch", "extglob", "globstar",
 			      "expand_aliases", "pipefail", "inherit_errexit",
-			      0 };
+			      "agent", 0 };
 
 /* Read one option by name, or -1 when there is no such option. */
 int sh_optget(sh *s, const char *nm)
@@ -738,6 +759,8 @@ int sh_optset(sh *s, const char *nm, int on)
 		s->sopt |= b;
 	else
 		s->sopt &= ~b;
+	if (on && b == O_AGENT)
+		sh_agent(s);
 	return HIBR_OK;
 }
 
@@ -847,13 +870,13 @@ int b_command(sh *s, int ac, char **av)
 	}
 	env = v_envp(s, 0);
 	fflush(0);
-	pid = fork();
+	pid = (pid_t)jc_fork(s);
 	if (pid == 0) {
 		execve(path, av + 1, env);
 		_exit(HIBR_NOEXEC);
 	}
 	free(path);
-	waitpid(pid, &w, 0);
+	jc_waitt(s, pid, pid, &w, 0);
 	return WIFEXITED(w) ? WEXITSTATUS(w) : HIBR_FAIL;
 }
 

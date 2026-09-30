@@ -1,9 +1,9 @@
 0
 hibr: usage: listen -b port [var]
-hibr: listen: -b only binds, so -f and -n mean nothing
-hibr: listen: -b only binds, so -f and -n mean nothing
 no port: 2
+hibr: listen: -b only binds, so -f and -n mean nothing
 with -f: 2
+hibr: listen: -b only binds, so -f and -n mean nothing
 with -n: 2
 bound: 0
 fd is out of the way: 1

@@ -80,6 +80,10 @@ guards typed function parameters. Inside a function `declare` is local unless
 everything. Options that cannot move — `extglob`, `globstar`,
 `expand_aliases` always on, `pipefail` always off — say so rather than
 appearing to succeed. See [0017](adr/0017-one-namespace-for-options.md).
+**[hibr]** `set -o agent`, or `hibr --agent`, is agent mode: errors as JSON
+lines, `nounset` and `strict` on, no terminal on standard input, and
+`HIBR_TIMEOUT` bounding each foreground process -- see
+[0025](adr/0025-agent-mode.md).
 
 ## Text and data
 

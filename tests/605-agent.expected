@@ -1,0 +1,16 @@
+0
+start
+{"error":"missing: unbound variable","file":"unset.sh","line":2,"source":"echo \"$missing\""}
+status 1
+{"error":"syntax error near unexpected token `fi'","file":"syntax.sh","line":3,"col":3,"source":"  fi"}
+status 2
+[a b]
+piped input still arrives: hi
+agent is agent           on
+{"error":"gone: unbound variable","file":"command line","line":1}
+{"error":"timed out after 1 seconds (HIBR_TIMEOUT)","file":"command line","line":1}
+status 124
+in time: status 0
+outside agent mode: plain text
+hibr: syntax error near unexpected token `then'
+a syntax error's status is 2: 2

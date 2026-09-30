@@ -57,4 +57,13 @@ check("editing still works with a right prompt", "\r\nhibr: axy: command not fou
       or "axy" in t)
 
 print()
-report(11)
+# Agent mode is for a script a program runs, with nobody at the terminal, so
+# a terminal on standard input is swapped for /dev/null: a read gets the end
+# of input at once rather than waiting for a person.
+t = Term("--agent", "-c", 'read -r x; echo "read [$x] status $?"', settle=0,
+         size=False)
+t.wait(3.0)
+check("in agent mode a read on a terminal ends at once instead of waiting",
+      t.exited and "read [] status 1" in t.text, t.text)
+
+report(12)

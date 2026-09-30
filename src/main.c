@@ -77,7 +77,11 @@ int hibr_run(sh *s, const char *src)
 	s->keep = 0;
 	n = hibr_parse(s, src, &more);
 	if (more) {
+		const char *c;
+		for (lg_ln = 1, c = src; *c; c++)
+			lg_ln += *c == '\n';
 		lg(HIBR_LERR, "unexpected end of input");
+		lg_ln = 0;
 		s->keep = okeep;
 		return s->st = HIBR_FAIL;
 	}
@@ -334,6 +338,7 @@ int main(int ac, char **av)
 	char *p;
 
 	memset(&s, 0, sizeof s);
+	lg_sh = &s;
 	s.ar = ar_new(HIBR_ARCH);
 	s.xa = ar_new(HIBR_ARCH);
 	s.arg0 = xs(av[0]);
@@ -389,12 +394,19 @@ int main(int ac, char **av)
 			s.noexec = 1;
 			continue;
 		}
+		if (!strcmp(av[i], "--agent")) {
+			sh_optset(&s, "agent", 1);
+			continue;
+		}
 		if (!strcmp(av[i], "-h") || !strcmp(av[i], "--help")) {
-			printf("usage: hibr [-d level] [-n] [script [args...]]\n"
+			printf("usage: hibr [-d level] [-n] [--agent] [script [args...]]\n"
 			       "       hibr -c 'commands' [args...]\n"
 			       "       hibr -v | -h\n\n"
 			       "  -c   run the given commands\n"
 			       "  -n   parse only, report syntax errors, run nothing\n"
+			       "  --agent  for a script a program runs: errors as JSON\n"
+			       "       lines, set -u, strict expansion, no terminal input,\n"
+			       "       HIBR_TIMEOUT seconds per foreground process\n"
 			       "  -d   log level 0-4 (error, warn, info, debug, trace)\n"
 			       "  -v   print version and module ABI\n\n"
 			       "Interactive when stdin is a terminal: reads ~/.hibrc,\n"

@@ -33,6 +33,7 @@ void lx_init(lex *l, sh *s, const char *src)
 	l->e = src + strlen(src);
 	l->fd = -1;
 	l->lnp = src;
+	l->bol = src;
 	l->ln = s->ln ? s->ln : 1;
 }
 
@@ -42,8 +43,10 @@ unsigned lx_line(lex *l)
 	const char *t = l->tkb ? l->tkb : l->p;
 
 	while (l->lnp < t) {
-		if (*l->lnp++ == '\n')
+		if (*l->lnp++ == '\n') {
 			l->ln++;
+			l->bol = l->lnp;
+		}
 	}
 	return l->ln;
 }

@@ -1,5 +1,65 @@
 # Changelog
 
+## 0.58
+
+**Agent mode: `hibr --agent`, or `set -o agent`.** For a script a program
+runs rather than a person -- a language model's, a build's, a harness's:
+
+- **Errors are one line of JSON each** on stderr, keyed by level, with the
+  file, the line and the source line's text, and a column for a syntax
+  error: `{"error":"missing: unbound variable","file":"run.sh","line":2,
+  "source":"echo \"$missing\""}`. Nothing is invented -- no codes, no hints.
+- **`set -u` and strict expansion** are on: an unset variable is an error,
+  and an unquoted expansion is one argument. `set -e` is left to the
+  script, since hibr scopes it differently from bash (ADR 0002).
+- **Nothing waits on a terminal:** a terminal on standard input is replaced
+  by `/dev/null`, so `read`, a pager or an editor ends at once.
+- **`HIBR_TIMEOUT=seconds`** bounds each foreground process: TERM, then KILL
+  two seconds later, and status 124, as timeout(1) reports. Under it each
+  foreground child gets a process group of its own, so what the child
+  started is ended with it, rather than left running and holding the
+  output pipe open. It bounds processes, not the shell's own work -- a
+  builtin, a function or a `while` loop is not a process to end.
+
+ADR 0025 records each choice. `tests/605-agent.t` covers the JSON, `set -u`,
+strict expansion, piped input and the timeout; `tests/editor.py` checks a
+terminal read through a pty; the language guide and `docs/llm.md` show it.
+
+**Found while building it, and fixed for everyone:**
+
+- **A syntax error exited with status 0**; it is 2, as in bash. An agent
+  would have taken a script that never ran for one that succeeded.
+- **An empty `then`, `else`, `do`, `{ }` or `( )` was accepted**: `if true;
+  then fi` passed, and `while true; do done` looped for ever. Each is a
+  syntax error naming the token that came too soon, as bash says it --
+  `syntax error near unexpected token `fi'`. The error that used to say only
+  "near unexpected token" names it too, and after the first error nothing
+  more is reported, so `eval "if then"` is one error and status 2.
+- **An error could come out before what the script printed ahead of it**,
+  because stdout is buffered in a pipe and stderr is not; `echo start; echo
+  "$missing"` logged the error first. Errors flush stdout now. Eight
+  recorded tests had captured the old order and are re-recorded; each
+  recording is the same size, since only where lines fall has changed.
+
+**Array elements keep a bracketed key whole.** `m=([c d]=2)` split at the
+blank into `[c` and `d]=2`, and `a=([k]=$v)` with a spaced `$v` made two
+elements. An element opening with `[` is read to its matching `]`, and a
+`[key]=value` element is expanded as an assignment -- never split or globbed
+-- while a plain element still splits, as in bash.
+`tests/604-assoc-keys.t` compares with bash.
+
+One difference is recorded, not fixed: bash runs a script a command at a
+time as it reads it, and hibr parses the whole script first, so a syntax
+error late in a file stops hibr before its first line runs. It is in the
+backlog under "Stay a drop-in for bash", and `docs/llm.md`'s table says so.
+
+HIBR_VER -> 0.58.
+
+Verified: tests/all.py, all thirteen suites green in 167 seconds;
+tests/asan.py, every suite against the sanitizer build with no report;
+`tests/diff.py` 1,000 snippets against bash with no difference;
+`tests/fuzz.py` 400 parser rounds on the sanitizer build, no crash or hang.
+
 ## 0.57
 
 **A page for a language model: `docs/llm.md`, and `llms.txt`.** The whole

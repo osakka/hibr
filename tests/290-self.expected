@@ -1,9 +1,9 @@
 0
 == expansion
-hibr: add: q expects int, got 'notanumber'
-hibr: add: missing argument q
 == maps and arrays
 == functions
+hibr: add: q expects int, got 'notanumber'
+hibr: add: missing argument q
 == errors
 == text
 == arrays

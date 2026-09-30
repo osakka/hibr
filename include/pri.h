@@ -45,7 +45,7 @@ struct lex {
 	int tk, fd, nb, more, err, dash, both, clob, depth;
 	char *fdvar;
 	vec hq;
-	const char *lnp;
+	const char *lnp, *bol;
 	unsigned ln;
 };
 
@@ -305,6 +305,14 @@ int b_send(sh *s, int ac, char **av);
 int b_recv(sh *s, int ac, char **av);
 int ed_search(sh *s, str *b, size_t *pos);
 int ty_ok(const char *ty, const char *v);
+extern sh *lg_sh;
+void sh_agent(sh *s);
+extern int jc_tmo;
+long jc_waitt(sh *s, long wp, long kp, int *w, int fl);
+long jc_fork(sh *s);
+void jc_tkill(long kp, int sig);
+long jc_limit(sh *s);
+extern unsigned lg_ln, lg_col;
 int ty_is(const char *ty, size_t n, const char *nm);
 int ty_code(const char *ty);
 int ty_fast(int f, const char *v);

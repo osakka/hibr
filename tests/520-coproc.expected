@@ -7,6 +7,6 @@ again: UP:two
 two at once: dn:three and UP:four
 keys: in 0 out 1
 default name: 1
-hibr: usage: coproc [name] command [args...]
 default round trip: UP:five
+hibr: usage: coproc [name] command [args...]
 no command: 2

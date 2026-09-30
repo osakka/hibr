@@ -431,6 +431,30 @@ it deliberately does not catch, is [0023](adr/0023-strict-is-per-file.md).
 `$LINENO` is the line of the command running, counted in its own file -- for a
 function, the file it was defined in -- as bash counts it.
 
+## Agent mode
+
+For a script a program runs rather than a person -- a language model's, a
+build's -- `hibr --agent` (or `set -o agent`) makes errors one line of JSON
+each, turns on `set -u` and strict expansion, and swaps a terminal on
+standard input for `/dev/null` so nothing waits on a person who is not
+there. `HIBR_TIMEOUT=seconds` bounds each foreground process: TERM, KILL two
+seconds later, status 124.
+
+```sh
+$ printf 'echo start\necho "$missing"\n' > run.sh
+$ hibr --agent run.sh; echo "status $?"
+start
+{"error":"missing: unbound variable","file":"run.sh","line":2,"source":"echo \"$missing\""}
+status 1
+$ HIBR_TIMEOUT=1 hibr --agent -c 'sleep 30; echo "status $?"'
+{"error":"timed out after 1 seconds (HIBR_TIMEOUT)","file":"command line","line":1}
+status 124
+```
+
+A syntax error adds its column. The timeout bounds processes, not the shell's
+own work: a builtin, a function or a loop is not a process to end. Why each
+choice, and what it leaves out, is [0025](adr/0025-agent-mode.md).
+
 ## Where to go next
 
 | | |

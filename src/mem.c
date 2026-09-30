@@ -6,6 +6,104 @@
 #include <stdarg.h>
 
 int hibr_lv = HIBR_LWRN;
+sh *lg_sh;
+unsigned lg_ln, lg_col;
+
+/* Append text to a JSON string's contents, escaped. */
+void lg_jstr(str *o, const char *t)
+{
+	for (; *t; t++) {
+		unsigned char c = (unsigned char)*t;
+		if (c == '"' || c == '\\') {
+			s_ch(o, '\\');
+			s_ch(o, (char)c);
+		} else if (c == '\n') {
+			s_cat(o, "\\n");
+		} else if (c == '\t') {
+			s_cat(o, "\\t");
+		} else if (c < 0x20) {
+			s_cat(o, "\\u00");
+			s_ch(o, "0123456789abcdef"[c >> 4]);
+			s_ch(o, "0123456789abcdef"[c & 15]);
+		} else {
+			s_ch(o, (char)c);
+		}
+	}
+}
+
+/* Line n of a file, without its newline, or null when it cannot be read. */
+char *lg_line(const char *path, unsigned n)
+{
+	FILE *f = fopen(path, "r");
+	str l;
+	int c;
+	unsigned at = 1;
+
+	if (!f)
+		return 0;
+	s_init(&l);
+	while ((c = fgetc(f)) != EOF && at <= n) {
+		if (c == '\n') {
+			at++;
+			continue;
+		}
+		if (at == n)
+			s_ch(&l, (char)c);
+	}
+	fclose(f);
+	if (at < n) {
+		s_free(&l);
+		return 0;
+	}
+	return l.p ? l.p : xs("");
+}
+
+/* One diagnostic as a line of JSON, for agent mode: the level names the
+   message's key, and where it happened comes with it when it is known. */
+void lg_json(int lv, const char *f, va_list ap)
+{
+	static const char *lvn[] = { "error", "warning", "info", "debug",
+				     "trace" };
+	va_list ap2;
+	str o;
+	char *m, *src;
+	const char *file = lg_sh->src ? lg_sh->src : "command line";
+	unsigned ln = lg_ln ? lg_ln : lg_sh->ln;
+	int n;
+
+	va_copy(ap2, ap);
+	n = vsnprintf(0, 0, f, ap2);
+	va_end(ap2);
+	m = xm((size_t)(n < 0 ? 0 : n) + 1);
+	vsnprintf(m, (size_t)(n < 0 ? 0 : n) + 1, f, ap);
+	s_init(&o);
+	s_cat(&o, "{\"");
+	s_cat(&o, lvn[lv < 0 ? 0 : lv > 4 ? 4 : lv]);
+	s_cat(&o, "\":\"");
+	lg_jstr(&o, m);
+	s_cat(&o, "\",\"file\":\"");
+	lg_jstr(&o, file);
+	s_ch(&o, '"');
+	if (ln) {
+		s_cat(&o, ",\"line\":");
+		s_num(&o, (long)ln);
+	}
+	if (lg_col) {
+		s_cat(&o, ",\"col\":");
+		s_num(&o, (long)lg_col);
+	}
+	src = ln && lg_sh->src ? lg_line(lg_sh->src, ln) : 0;
+	if (src) {
+		s_cat(&o, ",\"source\":\"");
+		lg_jstr(&o, src);
+		s_ch(&o, '"');
+		free(src);
+	}
+	s_cat(&o, "}\n");
+	fputs(o.p, stderr);
+	s_free(&o);
+	free(m);
+}
 
 /* Emit a diagnostic line when its level is enabled. */
 void lg(int lv, const char *f, ...)
@@ -14,11 +112,16 @@ void lg(int lv, const char *f, ...)
 
 	if (lv > hibr_lv)
 		return;
-	fputs("hibr: ", stderr);
+	fflush(stdout);
 	va_start(ap, f);
-	vfprintf(stderr, f, ap);
+	if (lg_sh && (lg_sh->sopt & O_AGENT))
+		lg_json(lv, f, ap);
+	else {
+		fputs("hibr: ", stderr);
+		vfprintf(stderr, f, ap);
+		fputc('\n', stderr);
+	}
 	va_end(ap);
-	fputc('\n', stderr);
 }
 
 /* Allocate heap memory or terminate. */

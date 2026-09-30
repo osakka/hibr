@@ -7,15 +7,15 @@ new global: status 1 unset
 declared ones: 0
 existing=5 made=2
 hibr: vars.hibr:13: fromread is not declared -- local fromread, or declare -g fromread (strict vars)
-hibr: vars.hibr:15: loopvar is not declared -- local loopvar, or declare -g loopvar (strict vars)
 read: status 1 unset
+hibr: vars.hibr:15: loopvar is not declared -- local loopvar, or declare -g loopvar (strict vars)
 for: status 1 unset
 ret is the shell's own: result
 declared local, set later: 2
 and not a global: unset
 after strict off vars: 1
-hibr: ./strictlib.hibr:2: made_by_lib is not declared -- local made_by_lib, or declare -g made_by_lib (strict vars)
 a lax file's function, called from a strict one: 1
+hibr: ./strictlib.hibr:2: made_by_lib is not declared -- local made_by_lib, or declare -g made_by_lib (strict vars)
 a strict file's function: unset
 a sourced file's top level is not in a function: set
 expansion: 1 word

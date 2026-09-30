@@ -34,6 +34,7 @@ downside is usually a decision nobody had to make.
 | [0022](0022-the-reading-is-now-highly-intuitive-bash-like-runtime.md) | The reading is now Highly Intuitive Bash-like Runtime | accepted |
 | [0023](0023-strict-is-per-file.md) | Strict checks are asked for per file | accepted |
 | [0024](0024-a-type-can-allow-empty.md) | A type ending in `?` also accepts empty | accepted |
+| [0025](0025-agent-mode.md) | Agent mode: JSON errors, `set -u`, strict expansion, no terminal, timeouts | accepted |
 
 ---
 

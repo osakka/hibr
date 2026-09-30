@@ -598,25 +598,6 @@ over `docs/cookbook.md` and `docs/data.md`, whose examples were run once and
 pasted back but are not run again -- they would need their output blocks
 marked the way `docs/llm.md`'s are.
 
-### An agent mode
-
-`hibr --agent`, or `set -o agent`, for a script a model is running rather
-than a person:
-
-- errors as one line of JSON on stderr -- code, file, line, column, the
-  source line and a hint -- rather than prose to be parsed;
-- nothing interactive: no pager, no prompt, no line editor; a command that
-  reads the terminal fails at once instead of waiting;
-- `set -S` on, so an expansion never splits or globs -- an unquoted `$f`
-  handed to `rm` is the classic mistake, and this removes it;
-- a timeout on every foreground command, `HIBR_TIMEOUT`, so one hung
-  process cannot stall the agent.
-
-The error format is the one part that touches the core, through `lg`; the
-rest is option state. Open: whether it also implies `set -eu`, since
-`errexit` is scoped differently here (ADR 0001) and a model trained on
-bash's rules may be surprised either way.
-
 ### A linter for the mistakes models make
 
 `hibr -n --explain script`: parse without running, then name what is wrong
@@ -659,8 +640,12 @@ Every place hibr differs from bash is a place a model's bash breaks, and a
 model that has been burned once stops reaching for it. `tests/corpus.py` is
 the instrument: 7 scripts of 465 invocations still differ (see `CLAUDE.md`'s
 open items). Keep driving it to zero for anything not deliberately
-different, and make each deliberate difference loud: a one-line warning
-in agent mode the first time a script depends on bash behaviour hibr does
+different. The largest known one: bash runs a script a command at a time as
+it reads it, and hibr parses the whole script first, so a syntax error late
+in a file stops hibr before its first line runs. Changing it means
+parsing and running one complete command at a time without losing the parse
+arena functions keep. And make each deliberate difference loud: a one-line
+warning in agent mode the first time a script depends on bash behaviour hibr does
 not have, rather than a silently different result.
 
 ### Be where models look

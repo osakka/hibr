@@ -8,6 +8,7 @@ missing value status=2
 bad type status=2
 unknown status=2
 required status=2
+help flag=1
 hibr: unknown option --bogus
 usage: 350-args.t [options] [args...]
   Frobnicate the widgets
@@ -17,7 +18,6 @@ usage: 350-args.t [options] [args...]
   -o, --output OUT   Where to write (path, required)
   -t, --tag TAGS     A tag, repeatable (str, repeatable)
   -h, --help         show this help
-help flag=1
 try caught: err=1 status=2 msg=[bad arguments]
 comm=hibr-worker
 again: count=5

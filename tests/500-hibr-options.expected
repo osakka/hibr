@@ -1,7 +1,4 @@
 0
-hibr: extglob is always on in hibr and cannot be changed
-hibr: pipefail is always off in hibr and cannot be changed
-hibr: bad: declared int, got 'oops'
 -- extglob needs no shopt, unlike bash --
 at group: match
 at miss: no
@@ -26,7 +23,9 @@ errexit         on
 errexit         off
 noclobber       off
 -- options that do not move say so --
+hibr: extglob is always on in hibr and cannot be changed
 unset extglob: 1
+hibr: pipefail is always off in hibr and cannot be changed
 set pipefail: 1
 extglob         on
 globstar        on
@@ -40,7 +39,8 @@ bash style -i: 0
 typed ok: 5
 num ok: 1.5
 declare int strict="5"
-hibr: frozen: readonly variable
+hibr: bad: declared int, got 'oops'
 a declared type refuses: rc=1 value still 1
+hibr: frozen: readonly variable
 readonly refuses: rc=1 value still 1
 and the script carries on

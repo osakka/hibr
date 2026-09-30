@@ -202,6 +202,109 @@ void jc_reclaim(sh *s)
 		tcsetattr(s->tty, TCSADRAIN, &jc_modes);
 }
 
+volatile sig_atomic_t jc_alrm;
+int jc_tmo;
+
+/* Note that an agent-mode timeout's alarm went off; the wait it interrupts
+   does the rest. */
+void jc_onalrm(int sig)
+{
+	(void)sig;
+	jc_alrm = 1;
+}
+
+/* The seconds a foreground process may run: HIBR_TIMEOUT in agent mode,
+   and no limit otherwise. */
+long jc_limit(sh *s)
+{
+	const char *v;
+
+	if (!(s->sopt & O_AGENT))
+		return 0;
+	v = hibr_get(s, "HIBR_TIMEOUT");
+	return v && *v ? atol(v) : 0;
+}
+
+int jc_ingrp;
+
+/* fork for a command the shell will wait on. Under an agent-mode timeout a
+   non-interactive shell puts the child in a process group of its own, set on
+   both sides so neither can lose the race, so that the timeout's signal
+   reaches whatever the child started as well as the child itself. A child
+   already in such a group keeps its own children in it, or they would
+   escape the signal meant for them. */
+long jc_fork(sh *s)
+{
+	pid_t p;
+
+	if (s->it || jc_ingrp || !jc_limit(s))
+		return (long)fork();
+	p = fork();
+	if (p == 0) {
+		setpgid(0, 0);
+		jc_ingrp = 1;
+	} else if (p > 0) {
+		setpgid(p, p);
+	}
+	return (long)p;
+}
+
+/* Signal what a timeout ends: the process's own group when it has one,
+   which jc_fork gave it, else the process alone. */
+void jc_tkill(long kp, int sig)
+{
+	if (kp > 0 && kill(-(pid_t)kp, sig) == 0)
+		return;
+	kill((pid_t)kp, sig);
+}
+
+/* waitpid, bounded in agent mode by HIBR_TIMEOUT: when the time runs out,
+   kp -- a process, or a process group as a negative -- is sent TERM, and
+   KILL two seconds later, and the status reads 124, as timeout(1)
+   reports. jc_tmo is left set, so a caller waiting on several processes
+   can report the same. */
+long jc_waitt(sh *s, long wp, long kp, int *w, int fl)
+{
+	long t = jc_limit(s);
+	struct sigaction a, oa;
+	pid_t p;
+	int stage = 0;
+
+	if (!t)
+		return (long)waitpid((pid_t)wp, w, fl);
+	memset(&a, 0, sizeof a);
+	a.sa_handler = jc_onalrm;
+	sigemptyset(&a.sa_mask);
+	sigaction(SIGALRM, &a, &oa);
+	jc_alrm = 0;
+	alarm((unsigned)t);
+	for (;;) {
+		p = waitpid((pid_t)wp, w, fl);
+		if (p >= 0 || errno != EINTR)
+			break;
+		if (!jc_alrm)
+			continue;
+		jc_alrm = 0;
+		if (!stage) {
+			lg(HIBR_LERR, "timed out after %ld seconds (HIBR_TIMEOUT)",
+			   t);
+			jc_tkill(kp, SIGTERM);
+			stage = 1;
+			alarm(2);
+		} else {
+			jc_tkill(kp, SIGKILL);
+		}
+	}
+	alarm(0);
+	sigaction(SIGALRM, &oa, 0);
+	if (stage) {
+		jc_tmo = 1;
+		if (p >= 0)
+			*w = 124 << 8;
+	}
+	return (long)p;
+}
+
 /* Wait for a job in the foreground, returning its exit status. */
 int jc_fg(sh *s, job *j)
 {
@@ -209,8 +312,10 @@ int jc_fg(sh *s, job *j)
 	pid_t p;
 
 	jc_grab(s, j->pgid);
+	jc_tmo = 0;
 	while (j->ndone < j->np && j->state == J_RUN) {
-		p = waitpid(-(pid_t)j->pgid, &w, WUNTRACED);
+		p = (pid_t)jc_waitt(s, -(long)j->pgid, -(long)j->pgid, &w,
+				    WUNTRACED);
 		if (p < 0) {
 			if (errno == EINTR)
 				continue;
@@ -229,6 +334,8 @@ int jc_fg(sh *s, job *j)
 			st = wstat(w);
 	}
 	jc_reclaim(s);
+	if (jc_tmo)
+		st = j->fail = 124;
 	s->pfs = j->fail;
 	if (j->state == J_STOP) {
 		j->bg = 1;

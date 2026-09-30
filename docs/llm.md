@@ -33,6 +33,7 @@ Where hibr is deliberately different:
 | unquoted expansions split and glob | the same by default; `set -S` or `strict expansion` stops it |
 | `"${x:-the machine's zone}"` does not parse | an apostrophe inside `${…}`'s own text is just a character |
 | `echo a=~` expands the tilde | only a real assignment does: `x=~`, `PATH=~/bin:~/x` |
+| a script runs each command as it is read | the whole script is parsed first, so a syntax error anywhere means none of it runs |
 
 Other things that are the same as bash but catch people out: a quoted
 `"$x"` never splits; leading zeros are octal in arithmetic (`$((08))` is an
@@ -313,6 +314,33 @@ defined twice in it is refused, a function creating a global without
 `local` is refused, and expansions stop splitting and globbing. Name some
 to take only those (`strict functions vars`). To split on purpose, say so:
 `read -ra words <<< "$list"`.
+
+## Agent mode
+
+Run a script with `hibr --agent` when a program, not a person, will read
+what it says:
+
+```sh
+printf 'echo start\necho "$missing"\n' > run.sh
+"$HIBR" --agent run.sh 2>&1
+echo "status $?"
+HIBR_TIMEOUT=1 "$HIBR" --agent -c 'sleep 30; echo "status $?"' 2>&1
+```
+
+```output
+start
+{"error":"missing: unbound variable","file":"run.sh","line":2,"source":"echo \"$missing\""}
+status 1
+{"error":"timed out after 1 seconds (HIBR_TIMEOUT)","file":"command line","line":1}
+status 124
+```
+
+Each error is one line of JSON on stderr: the message keyed by its level,
+the file, the line, the source line, and a column for a syntax error. The
+mode also turns on `set -u` and strict expansion, and swaps a terminal on
+standard input for `/dev/null`. `HIBR_TIMEOUT` bounds each foreground
+process -- TERM, KILL two seconds later, status 124 -- but not the shell's
+own work: a builtin, a function or a loop is not a process to end.
 
 ## Modules
 

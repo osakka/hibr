@@ -6,6 +6,9 @@ node *p_list(lex *l);
 node *p_cmd(lex *l);
 node *p_cmd2(lex *l);
 word *p_arrel(lex *l);
+void p_where(lex *l);
+void perr_near(lex *l);
+node *p_body(lex *l);
 
 /* Allocate an AST node in the parse arena. */
 node *nd(lex *l, int k)
@@ -75,13 +78,62 @@ int w_asgbare(word *w)
 /* Report a parse error and stop the current unit. */
 void perr(lex *l, const char *m)
 {
+	if (l->err)
+		return;
 	if (l->tk == T_EOF) {
 		l->more = 1;
 		return;
 	}
-	if (!l->err && !l->more)
+	if (!l->err && !l->more) {
+		p_where(l);
 		lg(HIBR_LERR, "syntax error: %s", m);
+		lg_ln = lg_col = 0;
+	}
 	l->err = 1;
+}
+
+/* Point the diagnostics at the current token: its line and column. */
+void p_where(lex *l)
+{
+	lg_ln = lx_line(l);
+	lg_col = l->tkb && l->bol && l->tkb >= l->bol ?
+		(unsigned)(l->tkb - l->bol) + 1 : 0;
+}
+
+/* Report the current token as one that cannot stand here, naming it the
+   way bash does. */
+void perr_near(lex *l)
+{
+	const char *b = l->tkb, *e = l->p;
+
+	if (l->err)
+		return;
+	if (l->tk == T_EOF) {
+		l->more = 1;
+		return;
+	}
+	if (!l->err && !l->more) {
+		while (b && e > b && (e[-1] == ' ' || e[-1] == '\t'))
+			e--;
+		if (b && e > b && e[-1] == '\n')
+			e--;
+		p_where(l);
+		lg(HIBR_LERR, "syntax error near unexpected token `%.*s'",
+		   b ? (int)(e - b) : 0, b ? b : "");
+		lg_ln = lg_col = 0;
+	}
+	l->err = 1;
+}
+
+/* A compound command's list, which bash will not let be empty: then, do,
+   { } and ( ) with nothing in them name the token that came too soon. */
+node *p_body(lex *l)
+{
+	node *n = p_list(l);
+
+	if (!n && !l->err && !l->more)
+		perr_near(l);
+	return n;
 }
 
 /* True if the current token is the given reserved word. */
@@ -323,20 +375,20 @@ node *p_if(lex *l)
 	node *n = nd(l, N_IF);
 
 	lx_next(l);
-	n->l = p_list(l);
+	n->l = p_body(l);
 	if (!kw(l, "then")) {
 		perr(l, "expected then");
 		return n;
 	}
 	lx_next(l);
-	n->r = p_list(l);
+	n->r = p_body(l);
 	if (kw(l, "elif")) {
 		n->x = p_if(l);
 		return n;
 	}
 	if (kw(l, "else")) {
 		lx_next(l);
-		n->x = p_list(l);
+		n->x = p_body(l);
 	}
 	if (!kw(l, "fi"))
 		perr(l, "expected fi");
@@ -351,13 +403,13 @@ node *p_while(lex *l)
 	node *n = nd(l, kw(l, "until") ? N_UNTIL : N_WHILE);
 
 	lx_next(l);
-	n->l = p_list(l);
+	n->l = p_body(l);
 	if (!kw(l, "do")) {
 		perr(l, "expected do");
 		return n;
 	}
 	lx_next(l);
-	n->r = p_list(l);
+	n->r = p_body(l);
 	if (!kw(l, "done"))
 		perr(l, "expected done");
 	else
@@ -417,7 +469,7 @@ node *p_cfor(lex *l)
 		return n;
 	}
 	lx_next(l);
-	n->r = p_list(l);
+	n->r = p_body(l);
 	if (!kw(l, "done"))
 		perr(l, "expected done");
 	else
@@ -577,7 +629,7 @@ node *p_for(lex *l)
 		return n;
 	}
 	lx_next(l);
-	n->r = p_list(l);
+	n->r = p_body(l);
 	if (!kw(l, "done"))
 		perr(l, "expected done");
 	else
@@ -782,7 +834,7 @@ node *p_cmd2(lex *l)
 	if (l->tk == T_LP) {
 		lx_next(l);
 		n = nd(l, N_SUB);
-		n->l = p_list(l);
+		n->l = p_body(l);
 		if (l->tk != T_RP)
 			perr(l, "expected )");
 		else
@@ -790,7 +842,7 @@ node *p_cmd2(lex *l)
 	} else if (kw(l, "{")) {
 		lx_next(l);
 		n = nd(l, N_GRP);
-		n->l = p_list(l);
+		n->l = p_body(l);
 		if (!kw(l, "}"))
 			perr(l, "expected }");
 		else
@@ -974,13 +1026,11 @@ node *hibr_parse(sh *s, const char *src, int *more)
 			*more = 1;
 		return 0;
 	}
-	if (l.err) {
-		v_free(&l.hq);
-		return 0;
-	}
+	if (!l.err && l.tk != T_EOF)
+		perr_near(&l);
 	v_free(&l.hq);
-	if (l.tk != T_EOF) {
-		lg(HIBR_LERR, "syntax error near unexpected token");
+	if (l.err) {
+		s->st = 2;
 		return 0;
 	}
 	return n;

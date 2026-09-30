@@ -1360,6 +1360,30 @@ went in the shell.
   element is expanded as an assignment -- never split, never globbed --
   while a plain element still splits, both as in bash.
 
+- **An error must follow what was printed before it.** stdout is buffered
+  when it is not a terminal and stderr is not, so `echo start; echo
+  "$missing"` into one pipe printed the error first -- wrong for a person
+  reading a log and wronger for a program parsing one. `lg` flushes stdout
+  before it writes; it runs only when there is something to report. Eight
+  recorded tests had captured the old order and were re-recorded, each
+  byte-for-byte the same size: only where the lines fell had moved.
+- **A syntax error is status 2, and an empty body is one.** `hibr_parse`
+  returned nothing on an error, which a caller could not tell from an empty
+  script, so a script with a syntax error exited 0. It sets `s->st = 2` now.
+  And `p_list` accepted an empty list anywhere, so `if true; then fi`
+  passed and `while true; do done` looped for ever; `p_body` is used
+  wherever bash requires a list and names the token that came too soon,
+  as bash does. Once an error is recorded, `perr` reports nothing more --
+  or reaching the end of the text after it also claimed "unexpected end of
+  input" and turned the status into 1.
+- **A timeout must reach what the child started.** A non-interactive
+  shell's children share its process group, so ending a timed-out child
+  left its own children running and holding the output pipe open.
+  `jc_fork` gives each foreground child its own group while an agent-mode
+  timeout is active, and `jc_ingrp` stops a child that is already in one
+  from giving its children another -- the first version did, and a
+  subshell's `sleep` escaped the signal meant for it.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then
