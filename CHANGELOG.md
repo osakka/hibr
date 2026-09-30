@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.62
+
+**A function run in the background or as a pipeline stage ran only up to
+its first program.** `f &` and `f | cat` fork a child for the stage, and
+the child may replace itself with the stage's program rather than fork
+again. That permission was a flag on the whole child, so when the stage was
+a function it was used by the first program *inside* the function: the
+child became that program, and everything after it in the body -- the
+`echo`, the `return 3` -- never ran. The status was the program's. `f() {
+sleep 1; return 3; }; f & wait $!` reported 0; bash reports 3. `ex_cmd` now
+takes the flag as it starts and clears it, so only the command the fork was
+made for can use it. A plain program in a pipeline or in the background is
+still exec'd without a second fork. Found by running the cookbook's `wait
+-n` example, which printed status 0. `tests/875-function-in-child.t`
+compares each case against bash.
+
+**Control Panel, Displays:**
+
+- **The pane list could not be clicked while Displays was showing** -- only
+  the arrow keys left it. The pane's own drawing cleared every clickable
+  region in the window, the list's included, which the panel had just
+  registered. It clears nothing now; the panel already has.
+- **"Primary:" and its dropdown were on two rows.** They share one, the way
+  every other pane lays out a label and its choice.
+
+`tests/desktop.py` checks both. `tests/531-llm.t` is `tests/531-doc-examples.t`
+now, ready to hold `docs/cookbook.md` and `docs/data.md` to their examples
+as well as `docs/llm.md`.
+
 ## 0.61
 
 **`return`, `break` and `continue` where they mean nothing are reported, and

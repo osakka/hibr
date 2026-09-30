@@ -1440,6 +1440,18 @@ went in the shell.
   caller's loop. `$( )`, pipeline stages and `&` inherit the depth, as in
   bash: each is a child, so its `break` only ends itself.
 
+- **Exec-in-place belongs to one command, not to a child.** A pipeline
+  stage's or a background job's fork sets `s->nofork` so its program can
+  replace the child instead of forking again; `ex_cmd` takes the flag into
+  a local on entry and clears it. Left on the shell, the first program
+  anywhere below -- inside a function body, an `eval`, a `$( )` in an
+  argument -- consumed it, and the rest of the function silently never ran.
+- **A Control Panel pane draws into a window the panel has already
+  cleared.** `dt_wclear` removes every clickable region in the window, and
+  the pane list's rows are registered before the pane is drawn, so a pane
+  calling it leaves a list only the keys can reach. A window of its own --
+  a dialog, the wallpaper picker -- clears; a pane never does.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then

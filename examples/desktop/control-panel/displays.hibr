@@ -93,7 +93,6 @@ fn displays_draw(int id, int h, int w, int bx) {
 	local br bc bh bw namew t r mr mc dragi prow pcol
 	local rr rc minr minc urows ucols
 
-	dt_wclear "$id"
 	sess := displays_sess
 	if [ -z "$sess" ]; then
 		console pen "$DT_IDLE" "$DT_FACE"
@@ -151,12 +150,12 @@ fn displays_draw(int id, int h, int w, int bx) {
 		i=$((i + 1))
 	done
 
-	dropw=$((w - 4))
+	t="Primary:"
+	dropw=$((w - ${#t} - 3))
 	[ "$dropw" -lt 12 ] && dropw=12
 	console pen "$DT_INK" "$DT_FACE"
-	t="Primary:"
 	console put -p "w$id" 1 "$bx" "$t"
-	dt_wdrop "$id" 2 "$bx" "$dropw" "$pname" primary
+	dt_wdrop "$id" 1 $((bx + ${#t} + 1)) "$dropw" "$pname" primary
 
 	# Every display's own row/col relative to the primary's, which can
 	# be negative (a display positioned "before" the primary in hold's

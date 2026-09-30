@@ -2176,6 +2176,24 @@ t1.send(press(dpy[0], dpy[1]))
 sc = t1.screen()
 check("the Displays pane draws both attached displays by name",
       sc.find(primary) is not None and sc.find(joined) is not None, sc)
+prim = sc.find("Primary:")
+check("the Primary: dropdown sits on the same row as its label",
+      prim is not None and sc.find_from("▾", prim[0]) is not None and
+      sc.find_from("▾", prim[0])[0] == prim[0], sc)
+
+# The pane list stays clickable while Displays is showing: the pane's own
+# draw used to clear every hit region in the window, the list's included,
+# so only the keys could leave it.
+ap = sc.find("Appearance")
+t1.send(press(ap[0], ap[1]))
+t1.send(release(ap[0], ap[1]))
+sc = t1.screen()
+check("a click on the pane list leaves Displays for another pane",
+      sc.find("Primary:") is None and sc.find("Theme") is not None, sc)
+dpy = sc.find("Displays")
+t1.send(press(dpy[0], dpy[1]))
+t1.send(release(dpy[0], dpy[1]))
+sc = t1.screen()
 
 # The dropdown's own displayed value also carries the primary's name, so
 # every check below that cares about *where* a name is drawn (not just
@@ -2231,7 +2249,7 @@ check("dragging the primary display's own rectangle is a no-op",
 t1.collect(0.5)
 sc = t1.screen()
 prim = sc.find("Primary:")
-t1.send(press(prim[0] + 1, prim[1]))
+t1.send(press(prim[0], prim[1] + len("Primary: ")))
 sc = t1.screen()
 check("the dropdown opens with a choice for each attached display",
       sc.find_from(joined, prim[0]) is not None, sc)
@@ -2345,4 +2363,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(312)
+report(314)

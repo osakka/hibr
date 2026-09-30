@@ -4,7 +4,7 @@ hibr is a small shell that runs the bash you already write, and adds a few
 things bash does not have. This page is the whole of what you need to write
 it well: the rules where it differs from bash, then each addition with an
 example. Every example below was run by hibr and its output pasted back
-under it; `tests/531-llm.t` runs them again on every build and fails when
+under it; `tests/531-doc-examples.t` runs them again on every build and fails when
 one stops matching.
 
 Run a script with `hibr script` or a `#!/usr/bin/env hibr` line;

@@ -1259,7 +1259,7 @@ void ex_bind(sh *s, node *n)
 	vb_put(s, ks);
 }
 
-/* Execute a simple command, builtin, function or external program. */
+/* Execute a simple command, builtin, function or external program; exec in place only if the fork was made for this command. */
 int ex_cmd(sh *s, node *n)
 {
 	amark m = ar_mark(s->xa);
@@ -1273,10 +1273,11 @@ int ex_cmd(sh *s, node *n)
 	const hibr_bi *b = 0;
 	word *w;
 	size_t i;
-	int ac = 0, st = 0, w2;
+	int ac = 0, st = 0, w2, nofork = s->nofork;
 	unsigned ncap0 = s->ncap;
 	pid_t pid;
 
+	s->nofork = 0;
 	s->ln = n->ln;
 	if (s->dtrap)
 		tr_debug(s, n->tx);
@@ -1404,7 +1405,7 @@ int ex_cmd(sh *s, node *n)
 	}
 	env = v_envp(s, asg);
 	fflush(0);
-	if (s->nofork) {
+	if (nofork) {
 		if (rd_do(s, n->rd, 0) != HIBR_OK)
 			_exit(HIBR_FAIL);
 		execve(path, av, env);
