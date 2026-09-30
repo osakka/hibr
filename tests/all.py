@@ -18,9 +18,10 @@ from concurrent.futures import ThreadPoolExecutor
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-LOGS = os.path.join(ROOT, "build", "test-logs")
+LOGS = (os.environ.get("HIBR_TESTLOGS")
+        or os.path.join(ROOT, "build", "test-logs"))
 SUITES = ["run.sh", "desktop", "apps", "most", "hvi", "console", "cat",
-          "mon", "mtr", "editor", "term_diff"]
+          "mon", "mtr", "editor", "term_diff", "uifuzz"]
 
 
 def one(name):

@@ -1,5 +1,86 @@
 # Changelog
 
+## 0.50
+
+Desktop moves to **0.29** alongside this release.
+
+**`x := rsub ...` binds its result instead of printing it.** `rsub` wrote
+its answer to standard output unless given a variable to put it in, and
+never looked at the result slot, so `x := rsub ...` printed the text and
+left `x` empty -- `:=` was silently a no-op for it, as it is for a program
+on the PATH. It now answers the way `str` does: into a named variable, into
+the slot under `:=`, and to standard output otherwise, with `$RET` set in
+every case. `tests/210-regex.t` records both a bound match and a bound miss.
+
+**Four testing tools, from asking how the suites could be quicker and worth
+more.** All four are described in `tests/README.md`.
+
+- **`tests/affected.py`** names the suites a change reaches, from `git diff`
+  or from paths given: `--run` runs only those, and `--why` says which path
+  picked each suite. What a module reaches is read from the source, not
+  kept in a list: every module's `hibr_require` calls, resolved through the
+  others' `hibr_provide`. So a change to `mods/cat` reaches `hvi` and both
+  desktop suites, because hvi asks for the `highlight` interface and cat
+  provides it. A path it does not recognise reaches every suite.
+- **`tests/census.py`** reports which desktop functions no suite calls.
+  `make census` builds the shell a second time with `-DHIBR_CENSUS`, and
+  that build logs every function call to `$HIBR_CENSUS`. The real shell
+  compiles the logging out and pays nothing. It lists what was never called,
+  file by file, along with any call whose arguments did not bind, and keeps
+  the count so the next run can say which way it moved. The first run found
+  79 of 540 never called; with the fuzzer below added to the
+  runs, the count is 71.
+- **`tests/uifuzz.py`** sends random keys, clicks, drags and wheel turns
+  into one app's window. It then checks that the desktop is still running,
+  still answering, and has printed nothing. Runs are seeded, and a failure
+  prints the command that replays it. It runs as a suite in `tests/all.py`
+  at a fixed seed; `SEED=random` goes looking somewhere new. It found the
+  bug below on its first run. Task Manager, Files, Terminal and the Date &
+  Time pane are left out on purpose: they signal processes, move files, run
+  a shell and run sudo, on whatever machine is running the tests.
+- **`tests/asan.py`** runs every suite against `make asan`: the shell *and
+  every module* built with AddressSanitizer and UBSan into `build/asan`.
+  Until now the console, term, pty, hold and img modules ran end to end only
+  as the tcc build. Sanitizer reports go to files rather than to stderr, so
+  a report from a desktop, whose stderr is its log, or from a forked child
+  is still found, and any report fails the run. `HIBR_TESTMODS` points the
+  pty harness at another module directory, and `HIBR_TESTLOGS` gives
+  `tests/all.py` another log directory.
+
+**A terminal window whose program had exited held a whole core.** Once
+the program inside a terminal window exits, the pty's master side reads as
+ready for ever. The desktop watches that descriptor so a program's output
+wakes it at once, and a window that closes on a clean exit stops watching.
+A window left open to show a non-zero status did not, so the desktop woke,
+drew and woke again as fast as it could: 1,836 frames in six seconds, 100%
+of a core, until the window was closed. The window now stops watching the
+descriptor the moment it sees the program has gone.
+
+The ASan run found this: the terminal's shell exited there for reasons of
+its own, and the idle check failed. The ordinary suite never could. That
+check counted voluntary context switches, and a loop that never blocks
+makes none, so a spinning desktop measured as perfectly asleep. The idle
+checks now read the CPU time the desktop used as well, and a new one opens
+a terminal on `false` and requires it to stay under 5% of a core.
+
+**The detach shortcut printed a `hold` error on a desktop that is not
+held.** The Detach menu item is dimmed when there is no session to detach
+from, but its key, `ctrl-\` by default, called `hold detach` anyway, and
+hold complained into the log. The key now says "Not held -- nothing to
+detach from", the same thing the dimmed item means.
+
+HIBR_VER -> 0.50.
+
+`tests/mon.py`'s "its pids are real processes" asked this of the three
+heaviest rows, which under a parallel sanitizer run are the other suites'
+children, gone before `/proc` was read. It now asks it of most of the
+table.
+
+Verified: tests/all.py, all twelve suites green in 162 seconds, uifuzz
+included; tests/asan.py, every suite against the sanitizer shell and
+modules with no sanitizer report; the exited-terminal check fails at 100%
+of a core without the fix and passes with it.
+
 ## 0.49.1
 
 **On macOS, `match` and `rsub` read and wrote the wrong memory -- and closing

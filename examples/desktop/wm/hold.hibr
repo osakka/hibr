@@ -118,9 +118,14 @@ fn dt_autohold(base, resume, join, dname) {
 }
 
 # Leave the desktop running and give the terminal back.  Only a desktop
-# started with `hold new` can, which is why the item is dimmed otherwise --
-# dt_autohold is what makes that true from the moment this one opens.
+# started with `hold new` can, which is why the item is dimmed otherwise and
+# the key only says so -- dt_autohold is what makes that true from the moment
+# this one opens.
 dt_detach() {
+	if [ -z "$HIBR_HOLD" ]; then
+		dt_note "Not held -- nothing to detach from"
+		return 1
+	fi
 	need hold && hold detach
 }
 

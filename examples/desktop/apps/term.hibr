@@ -156,6 +156,13 @@ fn term_draw(id, h, w, row, col) {
 	fi
 	term poll "$t" 0
 	if ! term alive "$t"; then
+		# A master whose program has gone reads as ready for ever, so a
+		# window left showing an exit status stops being watched, or the
+		# desktop wakes on it continuously and holds a core.
+		if [ -n "${TW[$id]["fd"]}" ]; then
+			command -v console > /dev/null && console unwatch "${TW[$id]["fd"]}"
+			TW[$id]["fd"]=
+		fi
 		st := term status "$t"
 		if [ "$st" = 0 ] && [ "${TW[$id]["selfrun"]}" != 1 ]; then
 			dt_wantclose "$id"

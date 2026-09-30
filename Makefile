@@ -134,6 +134,19 @@ strip: $(BIN)
 check: all
 	tests/run.sh
 
+# The shell and every module under AddressSanitizer and UBSan, in
+# build/asan; for tests/asan.py, which runs every suite against it.
+ASAN = -g -O1 -w -fPIC -fsanitize=address,undefined -fno-sanitize-recover=undefined
+asan:
+	$(MAKE) B=$(B)/asan CC=gcc OPT="$(ASAN)" all
+
+# The shell again, logging every function call to $HIBR_CENSUS; for
+# tests/census.py. Compiled out of the real one, which pays nothing for it.
+census: $(B)/hibr.census $(MODS)
+
+$(B)/hibr.census: $(SRC) include/hibr.h include/pri.h $(B)/.moddir | $(B)/mods
+	$(CC) $(SHCFLAGS) -DHIBR_CENSUS $(LDFLAGS) -o $@ $(SRC)
+
 # Every suite, the pty ones included, side by side: a couple of minutes.
 check-all: all
 	python3 tests/all.py
@@ -166,4 +179,4 @@ uninstall:
 clean:
 	rm -rf $(B)
 
-.PHONY: all clean strip check check-all next-version install uninstall FORCE
+.PHONY: all clean strip check check-all census asan next-version install uninstall FORCE

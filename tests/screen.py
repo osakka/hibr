@@ -37,6 +37,11 @@ atexit.register(shutil.rmtree, HOME, True)
 FAIL = []
 
 
+# Where the suites load modules from: this tree's build, or another build
+# of the same sources -- tests/asan.py points it at the sanitizer build.
+MODS = os.environ.get("HIBR_TESTMODS")
+
+
 def tree(p):
     """A path in the source tree, whatever directory the suite was run from.
 
@@ -44,6 +49,8 @@ def tree(p):
     parameter of that name, which is most of them, and the failure reads as
     "'str' object is not callable" several calls away from the cause.
     """
+    if MODS and (p == "build/mods" or p.startswith("build/mods/")):
+        p = MODS + p[len("build/mods"):]
     return p if os.path.isabs(p) else os.path.join(ROOT, p)
 
 

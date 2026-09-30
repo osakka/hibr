@@ -182,10 +182,7 @@ int b_rsub(sh *s, int ac, char **av)
 			break;
 	}
 	s_cat(&o, t);
-	if (i < ac)
-		hibr_set(s, av[i], o.p ? o.p : "", 0);
-	else
-		printf("%s\n", o.p ? o.p : "");
+	sx_out(s, i < ac ? av[i] : 0, o.p ? o.p : "");
 	free(m);
 	regfree(&re);
 	s_free(&o);

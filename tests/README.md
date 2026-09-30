@@ -97,6 +97,24 @@ suite, one per core -- with one line each and full logs under
 `build/test-logs/`; `make check-all` is the same. They are independent: each
 pty run has its own terminal, XDG directories and hold sockets.
 
+Three more tools sit around it:
+
+- **`tests/affected.py`** -- the suites a change reaches, from `git diff` or
+  from paths given; `--run` runs just those, `--why` says which path chose
+  each. Module dependencies are read from each module's `hibr_require` and
+  `hibr_provide`, not listed, and an unrecognised path reaches everything.
+  For iterating; `all.py` stays the release gate.
+- **`tests/census.py`** -- builds `build/hibr.census` (`make census`), which
+  logs every function call, runs the desktop suites under it and lists each
+  desktop function no suite called, with the count and which way it moved
+  since the last run. Calls whose arguments did not bind are listed too.
+- **`tests/uifuzz.py`** -- random keys, clicks, drags and wheel turns inside
+  one app's window, then: still running, still answering, nothing printed.
+  A suite in `all.py` at the fixed `SEED=1`; `SEED=random` explores, and a
+  failure prints the line that replays it. Task Manager, Files, Terminal
+  and the Date & Time pane are not targets: they signal processes, move
+  files, run a shell and run sudo on the machine running the tests.
+
 It is also runnable, which is what to reach for instead of a throwaway script:
 
 ```
@@ -127,6 +145,12 @@ ASAN_OPTIONS=detect_leaks=0 HIBR=./build/hibr.asan tests/run.sh
 ASAN_OPTIONS=detect_leaks=1 ./build/hibr.asan tests/<one>.t
 SEED=7 python3 fuzz.py ./build/hibr.asan 500
 ```
+
+`python3 tests/asan.py [suite...]` does the pty suites as well: `make asan`
+builds the shell and every module with the sanitizers into `build/asan`, and
+every suite runs against them, with reports written to `build/asan-logs`
+rather than stderr, so one from a desktop (whose stderr is its log) or a
+forked child is still found. Any report fails the run.
 
 On a kernel with high ASLR entropy the sanitizer build loops printing
 `AddressSanitizer:DEADLYSIGNAL` instead of running. Wrap it in `setarch -R` and

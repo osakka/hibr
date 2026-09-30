@@ -40,6 +40,10 @@ releases).
     python3 tests/{console,cat,most,hvi,mon,mtr,editor,desktop,apps}.py
                                  # the full-screen suites, each through a pty
     python3 tests/term_diff.py   # mods/term against tmux, cell by cell
+    python3 tests/uifuzz.py      # random input into each app, seeded; SEED=random
+    python3 tests/affected.py --run      # only the suites a change reaches
+    python3 tests/census.py      # desktop functions no suite calls, and the count
+    python3 tests/asan.py        # every suite, pty ones too, under ASan and UBSan
     python3 tests/screen.py examples/desktop/session.hibr
                                  # the same harness, to look rather than assert
     python3 tests/diff.py --shell ./build/hibr 250   # snippets, diffed against bash
@@ -1255,6 +1259,23 @@ went in the shell.
   N minus the failures, so a check never reached still read as a pass.
   `tests/screen.py` counts checks as they are made and fails a suite whose
   count is not its plan.
+
+- **A spin makes no voluntary context switches.** The idle checks
+  measured wakes by `voluntary_ctxt_switches`, and a loop that never
+  blocks never switches voluntarily, so a desktop pinning a core read
+  as 0 wakes a second -- quieter than a healthy one. An exited terminal
+  window did exactly that and passed. Anything checking "idle" must
+  read CPU time (`/proc/<pid>/stat` fields 14 and 15) as well.
+- **A pty master whose program has exited is ready for ever.** Watched
+  with `console watch`, it wakes the desktop on every pass. A window
+  that outlives its program -- to show the exit status -- must
+  `console unwatch` the descriptor when it first sees the program gone,
+  not only in its `_close`.
+- **Random input finds what the suites were never asked.** The fuzzer's
+  first run rebound a shortcut through the Keyboard pane and then pressed
+  it; the detach key was not gated the way its dimmed menu item is. Keep
+  its targets to what cannot touch the machine: Task Manager, Files,
+  Terminal and Date & Time stay out until a sandbox makes them harmless.
 
 ## Testing discipline
 

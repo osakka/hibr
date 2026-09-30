@@ -601,6 +601,27 @@ int fn_bind(sh *s, node *f, vec *fr, int ac, char **av)
 	return HIBR_OK;
 }
 
+#ifdef HIBR_CENSUS
+static FILE *ce_f;
+static int ce_ok;
+
+/* Append one function call to $HIBR_CENSUS: name, file, arguments, bind status. */
+void ce_log(sh *s, int ac, char **av, int bnd)
+{
+	const char *p;
+
+	if (!ce_ok) {
+		ce_ok = 1;
+		p = getenv("HIBR_CENSUS");
+		if (p && (ce_f = fopen(p, "a")))
+			setvbuf(ce_f, 0, _IOLBF, 0);
+	}
+	if (ce_f)
+		fprintf(ce_f, "%s\t%s\t%d\t%d\n", av[0], s->src ? s->src : "",
+			ac - 1, bnd);
+}
+#endif
+
 /* Invoke a shell function with its own positional parameters. */
 int fn_call(sh *s, node *f, int ac, char **av)
 {
@@ -626,6 +647,9 @@ int fn_call(sh *s, node *f, int ac, char **av)
 		bnd = fn_bind(s, f, fr, ac, av);
 		s->decl--;
 	}
+#ifdef HIBR_CENSUS
+	ce_log(s, ac, av, bnd);
+#endif
 	if (bnd != HIBR_OK)
 		st = 2;
 	else

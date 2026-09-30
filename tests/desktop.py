@@ -562,20 +562,36 @@ def idle_wakes(env, session):
         for l in open("/proc/%d/status" % t.pid):
             if l.startswith("voluntary_ctxt_switches"):
                 return int(l.split()[1])
-    a, t0 = vol(), time.time()
+
+    def cpu():
+        f = open("/proc/%d/stat" % t.pid).read().rsplit(")", 1)[1].split()
+        return (int(f[11]) + int(f[12])) / os.sysconf("SC_CLK_TCK")
+    a, c, t0 = vol(), cpu(), time.time()
     t.collect(6.0)
-    rate = (vol() - a) / (time.time() - t0)
+    took = time.time() - t0
+    rate = (vol() - a) / took
     sc = t.screen()
+    sc.cpu = (cpu() - c) / took
     t.quit(None, 0.5)
     shutil.rmtree(d, True)
     return rate, sc
 
 rate, sc = idle_wakes({"DT_CURSOR_BLINK": "0"}, "dt_launch term")
 check("an idle desktop with a terminal open sleeps, not redraws on a tick "
-      "(%.1f wakes/s)" % rate, rate < 1.0, sc)
+      "(%.1f wakes/s, %.0f%% of a core)" % (rate, sc.cpu * 100),
+      rate < 1.0 and sc.cpu < 0.05, sc)
 rate, sc = idle_wakes({"DT_CURSOR_BLINK": "1"}, "dt_launch term")
 check("a blinking cursor asks for its own two frames a second, and no more "
       "(%.1f wakes/s)" % rate, 1.0 < rate < 4.0, sc)
+# A pty whose program has exited reads as ready for ever; a window left
+# showing the exit status must stop watching it, or the desktop spins. A
+# spin never blocks, so it makes *no* voluntary wakes and would pass the
+# checks above: CPU time is what catches it.
+rate, sc = idle_wakes({"DT_CURSOR_BLINK": "1"},
+                      "TW_CMD=(false)\ndt_launch term")
+check("a terminal whose program has exited leaves the desktop idle "
+      "(%.0f%% of a core)" % (sc.cpu * 100),
+      sc.cpu < 0.05 and sc.find("[exited 1") is not None, sc)
 
 # --- right-click context menus ---------------------------------------------
 #
@@ -2209,4 +2225,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(299)
+report(300)

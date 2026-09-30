@@ -69,6 +69,7 @@ size_t v_alen(sh *s, const char *k);
 ent *mp_find(ent *m, const char *k);
 ent *v_path(sh *s, const char *nm, char **ks, int nk, int make);
 int b_json(sh *s, int ac, char **av);
+int sx_out(sh *s, const char *nm, const char *v);
 int b_str(sh *s, int ac, char **av);
 int b_arr(sh *s, int ac, char **av);
 ent *mp_add(ent **m, size_t *n, const char *k);

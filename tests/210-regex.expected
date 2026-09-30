@@ -8,3 +8,5 @@ first=hell0 world
 global=hell0 w0rld
 hamdan, omar
 dir=/var/log file=syslog n=1
+bound=[f00 b00]
+unmatched=1 [abc]

@@ -1136,7 +1136,7 @@ shutil.rmtree(NPD4, True)
 # installed" and "this file could not be decoded") into one identical
 # message, with no way to tell which from the screen alone.
 IVW = "13 46 2 2"
-BUILT_MODS = os.path.abspath("build/mods")
+BUILT_MODS = tree("build/mods")
 
 
 def run_img(path, moddir, pre=""):
