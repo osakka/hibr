@@ -134,11 +134,6 @@ fn dt_raise(int id) {
 	DT_FOCUS=$id
 }
 
-# Draw inside a window, in its own coordinates, with the frame allowed for.
-fn dt_put(id = "", r = "", c = "", text = "") {
-	console put -p "w$id" $(($r + 1)) $(($c + 1)) "$text"
-}
-
 # The smallest a window can be and still have a usable title bar: the
 # buttons alone take eight columns, and a body with no rows is not a window.
 DT_MINW=16

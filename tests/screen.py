@@ -72,7 +72,9 @@ class Screen:
 
     def clear(self):
         self.g = [[" "] * self.cols for _ in range(self.rows)]
+        self.p = [[""] * self.cols for _ in range(self.rows)]
         self.r = self.c = 0
+        self.pen = ""
 
     def feed(self, t):
         i, n = 0, len(t)
@@ -94,6 +96,8 @@ class Screen:
                     self.c += int(seq) if seq.isdigit() else 1
                 elif fin == "J" and seq in ("2", "3"):
                     self.clear()
+                elif fin == "m":
+                    self.pen = seq
                 i = j + 1
                 continue
             if ch == "\x1b" and i + 1 < n and t[i + 1] == "]":
@@ -111,6 +115,7 @@ class Screen:
             wide = ord(ch) > 0x2E80
             if 0 <= self.r < self.rows and 0 <= self.c < self.cols:
                 self.g[self.r][self.c] = ch
+                self.p[self.r][self.c] = self.pen
                 # A wide character covers the next cell too, as it does on
                 # a real terminal -- whatever was there is gone, and a
                 # damage-based renderer never resends it.
@@ -122,6 +127,24 @@ class Screen:
 
     def row(self, r):
         return "".join(self.g[r]).rstrip()
+
+    def style(self, r, c):
+        """The pen a cell was drawn with: fg and bg as #rrggbb (or None for
+        the terminal's own), and whether it was bold. The console sends the
+        whole pen on every change, starting from a reset, so the last one
+        seen is the whole truth."""
+        a = self.p[r][c].split(";")
+        out = {"fg": None, "bg": None, "bold": False}
+        i = 0
+        while i < len(a):
+            if a[i] == "1":
+                out["bold"] = True
+            elif a[i] in ("38", "48") and i + 4 < len(a) and a[i + 1] == "2":
+                out["fg" if a[i] == "38" else "bg"] = "#%02x%02x%02x" % tuple(
+                    int(x) for x in a[i + 2:i + 5])
+                i += 4
+            i += 1
+        return out
 
     def at(self, r, c):
         return self.g[r][c]

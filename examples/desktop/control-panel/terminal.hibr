@@ -9,12 +9,12 @@ strict
 command -v cp_pane > /dev/null && cp_pane terminal "Terminal" "▸" app
 
 CP_CURSORS=(block underline bar)
-fn cp_set_cursor(id = "", value = "") { DT_CURSOR=$value; cp_save; }
+fn cp_set_cursor(int? id = "", value = "") { DT_CURSOR=$value; cp_save; }
 
 # Theme or terminal colours for a terminal window -- see DT_TERMCOLOURS in
 # examples/desktop/apps/term.hibr.
 CP_TERMCOLOURS=(theme terminal)
-fn cp_set_termcolours(id = "", value = "") { DT_TERMCOLOURS=$value; cp_save; }
+fn cp_set_termcolours(int? id = "", value = "") { DT_TERMCOLOURS=$value; cp_save; }
 
 fn terminal_rows(int w) {
 	local n=0
@@ -55,7 +55,7 @@ fn terminal_do(int w, k, int dir) {
 	cp_save
 }
 
-fn terminal_drop(w = "", r = "", c = "", k = "") {
+fn terminal_drop(int? w = "", int? r = "", int? c = "", k = "") {
 	case $k in
 	termcolours) dt_droplist "$w" "$r" "$c" cp_set_termcolours \
 		"${CP_TERMCOLOURS[@]}" ;;

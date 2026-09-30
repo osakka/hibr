@@ -13,7 +13,7 @@ command -v cp_pane > /dev/null && cp_pane control_strip "Control Strip" "▤"
 
 CP_CS_SIDES=(left right)
 
-fn cp_set_csside(id = "", value = "") { CS_SIDE=$value; cp_save; }
+fn cp_set_csside(int? id = "", value = "") { CS_SIDE=$value; cp_save; }
 
 cp_csshadow() {
 	if [ "$CS_SHADOW" = 1 ]; then
@@ -47,7 +47,7 @@ fn control_strip_do(int? w = "", k = "", int? dir = "") {
 	cp_save
 }
 
-fn control_strip_drop(w = "", r = "", c = "", k = "") {
+fn control_strip_drop(int? w = "", int? r = "", int? c = "", k = "") {
 	case $k in
 	side) dt_droplist "$w" "$r" "$c" cp_set_csside "${CP_CS_SIDES[@]}" ;;
 	esac

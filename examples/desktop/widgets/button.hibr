@@ -37,23 +37,23 @@ dt_btnshade() {
 # Draw one button, " label " filled: the accent colour when it has focus,
 # muted when it has not, with Turbo Vision's shadow -- a ▄ beside it and a
 # row of ▀ under it. With DT_DLGBTN=brackets it is [label] on the window's
-# face instead, the same width. tag is what dt_hit answers for a click on it.
+# face instead, the same width, and filled only while it has focus. on is 1
+# for focus and 2 for the default -- the button enter presses while focus is
+# in a field or a list -- whose label is the accent colour, so it is always
+# plain what enter will do. tag is what dt_hit answers for a click on it.
 fn dt_button(id, int r, int c, label, int on, tag) {
-	local t=" $label " n sh
+	local t=" $label " n sh bg=$DT_IDLE
 
 	n=${#t}
 	if [ "$DT_DLGBTN" = brackets ]; then
 		t="[$label]"
-		if [ "$on" = 1 ]; then
-			console pen "$DT_ACTIVE" "$DT_FACE" bold
-		else
-			console pen "$DT_INK" "$DT_FACE"
-		fi
-	elif [ "$on" = 1 ]; then
-		console pen "$DT_FACE" "$DT_ACTIVE" bold
-	else
-		console pen "$DT_INK" "$DT_IDLE"
+		bg=$DT_FACE
 	fi
+	case $on in
+	1) console pen "$DT_FACE" "$DT_ACTIVE" bold ;;
+	2) console pen "$DT_ACTIVE" "$bg" bold ;;
+	*) console pen "$DT_INK" "$bg" ;;
+	esac
 	dt_bput "$id" "$r" "$c" "$t"
 	if [ "$DT_BTNSHADOW" = 1 ]; then
 		sh := dt_btnshade
@@ -78,12 +78,20 @@ fn dt_btnw(...labels) {
 }
 
 # Draw a row of buttons from c, two columns apart: pairs of tag and label,
-# the one whose tag is focus drawn as having it.
+# the one whose tag is focus drawn as having it. When focus is on none of
+# them -- in a field or a list -- the first, which is always the dialog's
+# action, is drawn as the default: it is what enter does from there.
 fn dt_buttons(id, int r, int c, focus, ...pairs) {
-	local i=0 on n=${#pairs[@]}
+	local i=0 on n=${#pairs[@]} def=1
 
 	while [ $((i + 1)) -lt "$n" ]; do
+		[ "${pairs[$i]}" = "$focus" ] && def=0
+		i=$((i + 2))
+	done
+	i=0
+	while [ $((i + 1)) -lt "$n" ]; do
 		on=0
+		[ "$i" = 0 ] && [ "$def" = 1 ] && on=2
 		[ "${pairs[$i]}" = "$focus" ] && on=1
 		dt_button "$id" "$r" "$c" "${pairs[$((i + 1))]}" "$on" \
 			"${pairs[$i]}"

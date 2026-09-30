@@ -549,12 +549,12 @@ touches `dt_win` or `dt_btn` themselves.
 Appearance's Dialog Buttons group is for the buttons inside dialogs rather
 than on title bars, and `widgets/button.hibr` reads it: `DT_DLGBTN` draws
 them `filled` (a block of colour, the accent one while focused) or as
-`brackets` (`[OK]` on the window's face, the focused one in the accent) --
+`brackets` (`[OK]` on the window's face, filled only while focused) --
 the same width either way, so no dialog's layout moves; `DT_BTNSHADOW` is
-their shadow; and `DT_CONFIRMDEF` is which button a confirm box starts on,
-`yes` so enter goes ahead or `no` so enter is the safe way out. Every other
-dialog starts in its text field or list, where enter already means the
-dialog's own action.
+their shadow. While focus is in a dialog's field or list, its first button
+-- always the action: Apply, Rename, Save, Yes -- is drawn as the default,
+its label in the accent colour, because that is what enter does from
+there; a button that has focus is filled with the accent instead.
 
 Control Strip's own pane carries only `CS_SIDE` and `CS_SHADOW` -- which
 side it docks to, and whether it casts its own shadow. Its position,

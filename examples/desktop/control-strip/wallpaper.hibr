@@ -16,7 +16,7 @@ fn wallpaper_draw(int row, int col) {
 	console put "$row" "$col" "Wallpaper"
 }
 
-fn wallpaper_click(row = "", col = "") {
+fn wallpaper_click(int? row = "", int? col = "") {
 	command -v cs_dropopen > /dev/null || return 0
 	cs_dropopen "$row" "$col" wallpaper_pick "${WALL_GLYPHS[@]}"
 }

@@ -126,6 +126,11 @@ Three more tools sit around it:
   and the Date & Time pane are not targets: they signal processes, move
   files, run a shell and run sudo on the machine running the tests.
 
+The screen model keeps the pen each cell was drawn with, as well as its
+character: `sc.style(r, c)` gives its foreground and background as
+`#rrggbb` and whether it was bold, so a test can check what is highlighted,
+not only what is written.
+
 It is also runnable, which is what to reach for instead of a throwaway script:
 
 ```

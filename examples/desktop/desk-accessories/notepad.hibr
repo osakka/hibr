@@ -168,7 +168,7 @@ fn np_insline(int id, int i, text) {
 }
 
 # Remove line i, moving every line after it up one.
-fn np_delline(id = "", i = "") {
+fn np_delline(int? id = "", int? i = "") {
 	local j=$i n=${NP[$id]["n"]}
 
 	while [ "$j" -lt $((n - 1)) ]; do

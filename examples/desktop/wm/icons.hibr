@@ -453,13 +453,6 @@ dt_iconclean() {
 	dt_save
 }
 
-# Put an icon where it was let go, centred under the pointer.
-fn dt_iconplace(key = "", r = "", c = "") {
-	dt_iconset "$key" "$r" $(($c - DT_ICONW / 2))
-	dt_iconlay
-	dt_save
-}
-
 # Something let go over the desktop rather than a window: onto an icon, it
 # does what that icon means for files; onto empty wallpaper, a selection of
 # icons being dragged is repositioned there, and files from anywhere else are

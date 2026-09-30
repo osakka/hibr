@@ -352,7 +352,8 @@ def brow(sc, label):
     return "" if r is None else sc.row(r)[BODYCOL:]
 
 
-def cprun(feed=(), also=(), extra=(), tz=None, env=None, pre="", end=b"qy"):
+def cprun(feed=(), also=(), extra=(), tz=None, env=None, pre="", end=b"qy",
+          post=""):
     """Run Control Panel from a config directory of its own.
 
     tests/screen.py gives the whole suite one shared $HOME, so without this
@@ -371,11 +372,13 @@ def cprun(feed=(), also=(), extra=(), tz=None, env=None, pre="", end=b"qy"):
     for a `load(...)` prefix a pane needs a freshly built module already
     in place for, rather than autoloaded later by its own `need`, which
     would reach for the installed copy instead of this tree's own build.
+    post runs after the panes are loaded, for a stub that must replace one
+    of their functions rather than be replaced by it.
     """
     d = tempfile.mkdtemp(prefix="hibr-cp-")
     tzline = "export TZ=%s\n" % tz if tz else ""
-    sc = run(*PANEL, feed=feed, pre="%sexport XDG_CONFIG_HOME=%s\n%s%s\n%s"
-             % (pre, d, tzline, TICK, CPANES), also=also, extra=extra,
+    sc = run(*PANEL, feed=feed, pre="%sexport XDG_CONFIG_HOME=%s\n%s%s\n%s\n%s"
+             % (pre, d, tzline, TICK, CPANES, post), also=also, extra=extra,
              env=env, end=end)
     shutil.rmtree(d, True)
     return sc
@@ -388,6 +391,66 @@ check("under a System heading, then an Apps one",
       "System" in sc.row(R0) and "Apps" in sc.row(prow("abouthibr") - 1), sc)
 check("the first pane's own rows show on the right without entering it",
       sc.find(TITLE[ORDER[0]]) is not None and brow(sc, "Theme") != "", sc)
+
+# Every dropdown in every pane, walked the same way: open it by clicking its
+# value, take the next choice with the keyboard, and see the value change.
+# Each choice runs a pane's _drop or cp_set_* callback, and most of those were
+# reached by nothing else -- the census listed them. Which rows are
+# dropdowns is read from each pane's own _drop, and where each row sits from
+# its own _rows. Date & Time is left out: its dialogs run sudo.
+PANE_APPS = {"abouthibr": ("about",), "filesview": ("files",),
+             "taskmgr": ("tasks",), "terminal": ("term",)}
+
+
+def panefull(pane, extra=()):
+    """A pane's rows as (kind, text, key, value), from its own _rows."""
+    src = "".join(". %s/%s.hibr\n" % (appdir(a), a) for a in extra)
+    out = subprocess.run(
+        [sx.HIBR, "-c", CPLOAD + src +
+         'n := %s_rows 1; i=0; while [ "$i" -lt "$n" ]; do '
+         'echo "${CP[1][$i]["kind"]}|${CP[1][$i]["text"]}|'
+         '${CP[1][$i]["key"]}|${CP[1][$i]["val"]}"; i=$((i + 1)); done'
+         % pane], capture_output=True, text=True).stdout
+    return [tuple(l.split("|", 3)) for l in out.splitlines() if l.count("|") >= 3]
+
+
+def dropkeys(pane):
+    """The row keys a pane's _drop opens a popup for, read from its source."""
+    src = ""
+    for f in sorted(os.listdir(CP)):
+        s = open(os.path.join(CP, f)).read()
+        if re.search(r"cp_pane %s " % pane, s):
+            src = s
+            break
+    m = re.search(r"^fn %s_drop\(.*?^}" % pane, src, re.M | re.S)
+    if not m:
+        return set()
+    keys = set()
+    for lab in re.findall(r"^\s*([A-Za-z_][A-Za-z0-9_ |]*)\)", m.group(0),
+                          re.M):
+        keys.update(k.strip() for k in lab.split("|"))
+    return keys
+
+
+DROPS = []
+for pane in ORDER:
+    if pane == "datetime":
+        continue
+    extra = PANE_APPS.get(pane, ())
+    keys = dropkeys(pane)
+    for i, (kind, text, key, val) in enumerate(panefull(pane, extra)):
+        if kind == "set" and key in keys:
+            DROPS.append((pane, extra, i, text, val))
+for pane, extra, i, text, val in DROPS:
+    for step in (1, 2):
+        sc = cprun([b"\x1b[B"] * downs(pane) +
+                   [press(R0 + i, VALCOL)] + [b"\x1b[B"] * step + [b"\r"],
+                   extra=extra)
+        now = brow(sc, text)
+        if now != "" and val not in now:
+            break
+    check("%s's %s dropdown chooses a new value" % (TITLE[pane], text),
+          now != "" and val not in now, sc)
 
 # Keyboard (with only panel.hibr loaded here, Control Panel is the only app
 # it lists) -- rebinding a shortcut, and the
@@ -725,8 +788,8 @@ check("Appearance lists three shadows under Shadows and the buttons' under "
       sc.find("Shadows") is not None and sc.find("Dialog Buttons") is not None
       and all("[x]" in brow(sc, t) for t in ("Windows", "Menus", "Menu Bar",
                                              "Shadow")), sc)
-check("dialog buttons start filled, and a confirm box on yes",
-      "filled" in brow(sc, "Style") and "yes" in brow(sc, "Confirm Starts On"),
+check("dialog buttons start filled",
+      "filled" in brow(sc, "Style") and brow(sc, "Confirm Starts On") == "",
       sc)
 sc = cprun(reach("appearance", "Menus") + [b"\r"])
 check("menu shadow is its own setting, separate from window shadow",
@@ -740,9 +803,6 @@ check("button shadow is its own setting, on until switched off here",
 sc = cprun(reach("appearance", "Style") + [b"\x1b[C"])
 check("the dialog button style steps to brackets",
       "brackets" in brow(sc, "Style"), sc)
-sc = cprun(reach("appearance", "Confirm Starts On") + [b"\x1b[C"])
-check("and a confirm box can start on no instead",
-      "no" in brow(sc, "Confirm Starts On"), sc)
 
 # What a double click on a title bar does belongs with Windows.
 sc = cprun(reach("windows", "Titlebar Click"))
@@ -1648,6 +1708,29 @@ sc = run("files", FW, [b"\x1b[B", b"n"], pre=RPRE, end=None)
 check("Rename has a Rename and a Cancel button under the field",
       re.search(r" Rename .* Cancel ", sc.text()) is not None, sc)
 cn = sc.find(" Cancel ")
+
+# With focus in the field, Rename is the default -- what enter does -- and
+# says so with its label in the accent; Cancel is plain. Tab puts focus on
+# Rename itself, which fills it with the accent instead. Midnight's colours:
+# accent #63b3ed, muted #4a5568, face #101820, ink #cbd5e0.
+ACCENT, IDLE, FACE, INK = "#63b3ed", "#4a5568", "#101820", "#cbd5e0"
+rn = (cn[0], sc.row(cn[0]).find(" Rename ")) if cn else None
+st = sc.style(rn[0], rn[1] + 1) if rn else {}
+check("with focus in the field, Rename is drawn as the default",
+      st.get("fg") == ACCENT and st.get("bold") and st.get("bg") == IDLE, sc)
+st = sc.style(cn[0], cn[1] + 1) if cn else {}
+check("and Cancel as a plain button", st.get("fg") == INK and
+      not st.get("bold"), sc)
+sc2 = run("files", FW, [b"\x1b[B", b"n", b"\t"], pre=RPRE, end=None)
+st = sc2.style(rn[0], rn[1] + 1) if rn else {}
+check("tab puts focus on Rename, filled with the accent",
+      st.get("bg") == ACCENT and st.get("fg") == FACE, sc2)
+sc2 = run("files", FW, [b"\x1b[B", b"n"], pre=RPRE + "\nDT_DLGBTN=brackets",
+          end=None)
+bp = sc2.find("[Rename]")
+st = sc2.style(bp[0], bp[1] + 1) if bp else {}
+check("in brackets, the default is [Rename] in the accent on the face",
+      st.get("fg") == ACCENT and st.get("bg") == FACE and st.get("bold"), sc2)
 sc = run("files", FW, [b"\x1b[B", b"n", b"\x7f", b"x", b"\t", b"\t", b"\r"],
          pre=RPRE)
 check("tab twice reaches Cancel, and enter there renames nothing",
@@ -1998,6 +2081,148 @@ sparkrow = sc.row(row[0] + 1) if row else ""
 check("a sparkline glyph is drawn under each label",
       any(c in SPARK for c in sparkrow), sc)
 
+# --- what nothing reached before 0.56 ---------------------------------------
+#
+# Each of these drives a function the census found no suite calling. Task
+# Manager's End Task is tested in tests/603-tasks-direct.t instead, on a
+# process of the test's own: through the window it would end whatever row
+# the machine running the suite has selected.
+
+sc = run("calc", CW, [b"6", b"*", b"7", b"=", press(*calc_key(0), 2), b"u"])
+check("Use Answer puts the last answer back into the expression",
+      sc.find("expression") is None and sc.find("42") is not None, sc)
+
+NPD5 = tempfile.mkdtemp(prefix="hibr-notepad-")
+run("notepad", "12 40 2 2", feed=[b"a", b"\r", b"b", b"\x08", b"\x08"],
+    env={"XDG_CONFIG_HOME": NPD5}, end=None)
+check("backspace at the start of a line joins it to the one above",
+      open(os.path.join(NPD5, "hibr", "notepad.txt")).read() == "a\n")
+shutil.rmtree(NPD5, True)
+
+HID = tempfile.mkdtemp(prefix="hibr-hidden-")
+open(os.path.join(HID, "shown.txt"), "w").write("x\n")
+open(os.path.join(HID, ".secret"), "w").write("x\n")
+sc = run("files", FW, pre="FB_DIR=%s" % HID)
+check("Files leaves dot files out by default", sc.find(".secret") is None, sc)
+sc = run("files", FW, [b"h"], pre="FB_DIR=%s" % HID)
+check("and h shows them", sc.find(".secret") is not None, sc)
+HOMED = tempfile.mkdtemp(prefix="hibr-home-")
+os.mkdir(os.path.join(HOMED, "homesub"))
+sc = run("files", FW, [b"\x1b[21~", b"\x1b[C", b"h"], pre="FB_DIR=%s" % HID,
+         env={"HOME": HOMED})
+check("File > Home goes to the home directory",
+      sc.find("homesub/") is not None, sc)
+shutil.rmtree(HOMED, True)
+sc = run("files", FW, [press(5, 10, 2), press(12, 12), b"\x7f", b"X", b"\r"],
+         pre="FB_DIR=%s" % HID)
+check("enter in Get Info's name field applies the new name",
+      os.path.exists(os.path.join(HID, "shown.txX")), sc)
+shutil.rmtree(HID, True)
+
+sc = run("notifications", "10 40 2 2", [press(2, 10, 2), b"w"])
+check("the Notifications window closes from its Window menu",
+      sc.find("┤ Notifications ├") is None, sc)
+
+sc = run(*TERM, pre=SH, feed=[1.0, press(8, 10, 2)], wait=1.6, end=None)
+check("a right-click in a terminal whose program has not asked for the "
+      "mouse opens the terminal's own menu",
+      sc.find("Send Interrupt") is not None, sc)
+
+PICD = tempfile.mkdtemp(prefix="hibr-pic-")
+shutil.copy(os.path.abspath("tests/img-2x2.png"),
+            os.path.join(PICD, "pic.png"))
+sc = run("files", FW, [press(5, 10), drag(8, 50), drag(9, 60),
+                       release(9, 60)],
+         pre="FB_DIR=%s" % PICD, extra=("imgview",),
+         also=[("Image Viewer", "13 36 2 40", "imgview")])
+check("a picture dragged from Files onto Image Viewer opens there",
+      sc.find("┤ Image Viewer ├") is not None and
+      sc.find("Drop a picture here") is None, sc)
+sc = run("imgview", IVW, [press(2, 10, 2), b"w"])
+check("and Image Viewer closes from its Window menu",
+      sc.find("┤ Image Viewer ├") is None, sc)
+shutil.rmtree(PICD, True)
+
+# View Details only reads: it opens a window about one process. The keys
+# sent to Task Manager here are i and escape -- never x or f, End Task's.
+sc = run(*TASKS, feed=[press(6, 10, 2), b"i"], end=None)
+check("View Details on a row's menu opens a Process Details window",
+      sc.find("┤ Process Details ├") is not None and
+      sc.find("PID:") is not None, sc)
+sc = run(*TASKS, feed=[press(6, 10, 2), b"i", b"\x1b"])
+check("and escape closes it", sc.find("┤ Process Details ├") is None, sc)
+sc = run(*TASKS, feed=[b"\x1b[21~", b"\x1b[C", b"i"], end=None)
+check("the Task menu's View Details opens it for the selected row",
+      sc.find("┤ Process Details ├") is not None, sc)
+
+sc = cprun(reach("control_strip", "Shadow") + [b"\x1b[C"])
+check("the Control Strip's shadow is switched from its pane",
+      "[ ]" in brow(sc, "Shadow"), sc)
+sc = cprun(reach("notify", "Position") + [b"\x1b[C"])
+check("right on Notifications' Position steps it",
+      "top-right" not in brow(sc, "Position"), sc)
+sc = cprun(reach("notify", "Clear History") + [b"\r"], end=None)
+check("Clear History runs and says so",
+      sc.find("History cleared") is not None, sc)
+sc = cprun(reach("abouthibr", "Refresh", ("about",)) + [b"\x1b[C"],
+           extra=("about",))
+check("right on About hibr's Refresh steps it",
+      "3000 ms" not in brow(sc, "Refresh"), sc)
+
+# Date & Time's dialogs, all the way to their OK, with nothing on this
+# machine able to change: dtp_run -- the one place a pane runs sudo -- only
+# records what it was asked, and a sudo first on PATH does the same, in case
+# the stub were ever not the one in effect.
+FAKESU = tempfile.mkdtemp(prefix="hibr-fakesudo-")
+REC = os.path.join(FAKESU, "asked")
+open(os.path.join(FAKESU, "sudo"), "w").write(
+    '#!/bin/sh\necho "real-sudo-path: $*" >> %s\n' % REC)
+os.chmod(os.path.join(FAKESU, "sudo"), 0o755)
+DTSTUB = ('fn dtp_run(...cmd) { printf "stub: %%s\\n" "${cmd[*]}" >> %s; }\n'
+          'DTP_HOST=' % REC)
+DTENV = {"PATH": FAKESU + ":" + os.environ["PATH"]}
+sc0 = cprun(DOWN_DT, tz="Europe/London", post=DTSTUB, env=DTENV)
+chg, st = sc0.find("Change…"), sc0.find("Set…")
+sc = cprun(DOWN_DT + [press(chg[0], chg[1] + 1), b"P", b"a", b"r", b"i",
+                      b"s"], tz="Europe/London", post=DTSTUB, env=DTENV,
+           end=None)
+zp = sc.find("Europe/Paris")
+sc = cprun(DOWN_DT + [press(chg[0], chg[1] + 1), b"P", b"a", b"r", b"i", b"s"]
+           + ([press(zp[0], zp[1] + 1)] if zp else []) + [b"\r"],
+           tz="Europe/London", post=DTSTUB, env=DTENV)
+asked = open(REC).read() if os.path.exists(REC) else ""
+check("choosing a zone in the Time Zone dialog asks to set that zone",
+      zp is not None and "stub: sudo timedatectl set-timezone Europe/Paris"
+      in asked, asked)
+check("and only ever through the stub: nothing reached a sudo",
+      "real-sudo-path" not in asked, asked)
+sc = cprun(DOWN_DT + [press(st[0], st[1] + 1)], tz="Europe/London",
+           post=DTSTUB, env=DTENV, end=None)
+dp = sc.find("Date:")
+sc = cprun(DOWN_DT + [press(st[0], st[1] + 1)] +
+           ([press(dp[0], dp[1] + 8)] if dp else []) + [b"\x1b"],
+           tz="Europe/London", post=DTSTUB, env=DTENV)
+check("Set Date & Time opens, takes a click on its date, and escape closes "
+      "it without setting anything",
+      dp is not None and sc.find("┤ Set Date") is None and
+      not re.search(r"set-time\b(?!zone)",
+                    open(REC).read() if os.path.exists(REC) else ""), sc)
+mb = sc0.find("Menu bar")
+OPENFMT = [press(mb[0], mb[1] + 12)] if mb else []
+sc = cprun(DOWN_DT + OPENFMT, tz="Europe/London", post=DTSTUB, env=DTENV,
+           end=None)
+cu = sc.find("Custom…")
+PICKCU = OPENFMT + ([press(cu[0], cu[1] + 1)] if cu else [])
+sc = cprun(DOWN_DT + PICKCU, tz="Europe/London", post=DTSTUB, env=DTENV,
+           end=None)
+fm = sc.find("┤ Clock Format ├")
+sc = cprun(DOWN_DT + PICKCU + ([press(fm[0] + 2, fm[1] + 4), b"\x1b"]
+                               if fm else []),
+           tz="Europe/London", post=DTSTUB, env=DTENV)
+check("Custom… opens Clock Format, which takes a click and closes on escape",
+      fm is not None and sc.find("┤ Clock Format ├") is None, sc)
+shutil.rmtree(FAKESU, True)
+
 for f in os.listdir(D):
     p = os.path.join(D, f)
     if os.path.isdir(p):
@@ -2008,4 +2233,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(275)
+report(320)

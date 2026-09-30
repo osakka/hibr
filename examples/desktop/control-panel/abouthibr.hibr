@@ -9,7 +9,7 @@ strict
 command -v cp_pane > /dev/null && cp_pane abouthibr "About hibr" "ⓘ" app
 
 CP_ABTICKS=(1000 2000 3000 5000 10000)
-fn cp_set_about(id = "", value = "") { AB_SLOWMS=$value; cp_save; }
+fn cp_set_about(int? id = "", int? value = "") { AB_SLOWMS=$value; cp_save; }
 
 fn abouthibr_rows(int w) {
 	[ -n "$AB_SLOWMS" ] || { cp_absent "$w" "About hibr"; ret 1; }
@@ -18,7 +18,7 @@ fn abouthibr_rows(int w) {
 	ret 1
 }
 
-fn abouthibr_do(w, k, dir) {
+fn abouthibr_do(int w, k, int dir) {
 	local v
 
 	case $k in
@@ -28,7 +28,7 @@ fn abouthibr_do(w, k, dir) {
 	cp_save
 }
 
-fn abouthibr_drop(w, r, c, k) {
+fn abouthibr_drop(int w, int r, int c, k) {
 	case $k in
 	about) dt_droplist "$w" "$r" "$c" cp_set_about "${CP_ABTICKS[@]}" ;;
 	esac

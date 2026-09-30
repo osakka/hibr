@@ -1,0 +1,7 @@
+0
+tasks_killpid ended its own child: status 143
+tasks_end ended the selected row's process: status 137
+the ps fallback lists processes
+each with a pid and a name
+full command lines: 1
+and back: 0

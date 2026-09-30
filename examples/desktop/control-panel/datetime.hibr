@@ -332,7 +332,7 @@ fn dtf_save(int id) {
 	fi
 }
 
-fn dtf_click(id, r, c, btn = "") {
+fn dtf_click(int id, int r, int c, btn = "") {
 	local tag
 
 	tag := dt_hit "$id" "$r" "$c"
@@ -484,7 +484,7 @@ fn dtz_draw(int id, int h, int w, ...rest) {
 }
 
 # Set the highlighted zone. It runs sudo, so no test ever takes this path.
-fn dtz_set(id) {
+fn dtz_set(int id) {
 	local z
 
 	dtz_match "$id"
@@ -494,7 +494,7 @@ fn dtz_set(id) {
 	dtp_zoneset "$z"
 }
 
-fn dtz_click(id = "", r = "", c = "", btn = "") {
+fn dtz_click(int? id = "", int? r = "", int? c = "", btn = "") {
 	local tag
 
 	tag := dt_hit "$id" "$r" "$c"
@@ -575,7 +575,7 @@ dts_dialog() {
 	DTS[$rid]["ntp"]=$ntp
 }
 
-fn dts_draw(id = "", h = "", w = "", row = "", col = "") {
+fn dts_draw(int? id = "", int? h = "", int? w = "", int? row = "", int? col = "") {
 	local f
 
 	dt_wclear "$id"
@@ -599,7 +599,7 @@ fn dts_draw(id = "", h = "", w = "", row = "", col = "") {
 		ok "Set (sudo)" cancel Cancel
 }
 
-fn dts_click(id = "", r = "", c = "", btn = "") {
+fn dts_click(int? id = "", int? r = "", int? c = "", btn = "") {
 	local tag
 
 	tag := dt_hit "$id" "$r" "$c"
@@ -611,7 +611,7 @@ fn dts_click(id = "", r = "", c = "", btn = "") {
 	return 0
 }
 
-fn dts_key(id = "", key = "") {
+fn dts_key(int? id = "", key = "") {
 	local f=${DTS[$id]["focus"]} res d onb=1
 
 	case $f in d | t) onb=0 ;; esac
@@ -658,7 +658,7 @@ fn dts_apply(int? id = "") {
 	fi
 }
 
-fn dts_close(id = "") {
+fn dts_close(int? id = "") {
 	unset "DTS[$id]"
 }
 

@@ -17,12 +17,12 @@ WS_STYLES=(brackets circles squares)
 WS_DRAGKEYS=(alt ctrl shift)
 WS_DBLACTIONS=(zoom min close none)
 
-fn cp_set_frame(id = "", value = "") { DT_FRAME=$value; cp_save; }
-fn cp_set_side(id = "", value = "") { DT_BTNSIDE=$value; cp_save; }
-fn cp_set_align(id = "", value = "") { DT_TITLEALIGN=$value; cp_save; }
-fn cp_set_btnstyle(id = "", value = "") { DT_BTNSTYLE=$value; cp_save; }
-fn cp_set_dragkey(id = "", value = "") { DT_DRAGKEY=$value; cp_save; }
-fn cp_set_dblaction(id = "", value = "") { DT_DBLACTION=$value; cp_save; }
+fn cp_set_frame(int? id = "", value = "") { DT_FRAME=$value; cp_save; }
+fn cp_set_side(int? id = "", value = "") { DT_BTNSIDE=$value; cp_save; }
+fn cp_set_align(int? id = "", value = "") { DT_TITLEALIGN=$value; cp_save; }
+fn cp_set_btnstyle(int? id = "", value = "") { DT_BTNSTYLE=$value; cp_save; }
+fn cp_set_dragkey(int? id = "", value = "") { DT_DRAGKEY=$value; cp_save; }
+fn cp_set_dblaction(int? id = "", value = "") { DT_DBLACTION=$value; cp_save; }
 
 # Edge Resize: whether a plain side, not just a corner, resizes a window.
 # Modifier Drag: whether a modifier click anywhere in a window's body moves
@@ -79,7 +79,7 @@ fn windows_do(int w, k, int dir) {
 	cp_save
 }
 
-fn windows_drop(w, r, c, k) {
+fn windows_drop(int w, int r, int c, k) {
 	case $k in
 	frame) dt_droplist "$w" "$r" "$c" cp_set_frame "${WS_FRAMES[@]}" ;;
 	side) dt_droplist "$w" "$r" "$c" cp_set_side "${WS_SIDES[@]}" ;;

@@ -8,7 +8,7 @@ strict
 
 command -v cp_pane > /dev/null && cp_pane filesview "Files" "◫" app
 
-fn cp_set_fileview(id = "", value = "") { FB_DEFAULTVIEW=$value; cp_save; }
+fn cp_set_fileview(int? id = "", value = "") { FB_DEFAULTVIEW=$value; cp_save; }
 
 fn filesview_rows(int w) {
 	local n=0
@@ -34,7 +34,7 @@ fn filesview_do(int w, k, int dir) {
 	cp_save
 }
 
-fn filesview_drop(w, r, c, k) {
+fn filesview_drop(int w, int r, int c, k) {
 	case $k in
 	fileview) dt_droplist "$w" "$r" "$c" cp_set_fileview "${FILES_VIEWS[@]}" ;;
 	esac

@@ -575,20 +575,14 @@ most. Doing it needs a sandbox that makes all four harmless -- its own pid
 namespace, a filesystem it cannot damage, no sudo -- and that is a decision
 about what the test machine allows, to be made before it is built.
 
-### Walk the census down
+### The last function no suite calls
 
-The census lists what no suite calls; each name is a test not written yet,
-or a function that should not exist. Take them a file at a time.
+The census stands at 1 of 537: `displays_detach`, the Displays pane's
+right-click Detach, which needs a held session with a second client
+attached. `tests/desktop.py`'s hold section starts held sessions already;
+one with two clients, detaching the second from the pane, would close it.
 
 ## The language
-
-### Type the rest of the desktop's parameters
-
-0.55 typed the 562 parameters the census saw as integers. The other 262 were
-passed words -- ids like `w3`, keys, labels -- and are `str` already in
-effect; 145 functions no suite calls are untyped because there is no
-evidence for them. Each of those wants a test that calls it, and then the
-census can speak for it (`python3 tests/census.py --types`).
 
 ## For language models
 

@@ -154,7 +154,7 @@ fn calc_context(int? id = "") {
 
 # Put the answer back in the expression, which is what a calculator's memory
 # is for and costs nothing to provide.
-fn calc_recall(id = "") {
+fn calc_recall(int? id = "") {
 	CA[$id]["in"]="${CA[$id]["out"]}"
 	CA[$id]["err"]=
 }

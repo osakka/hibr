@@ -369,7 +369,7 @@ WP_MODES=(stretch scale zoom center)
 # Called by dt_droplist's own popup with (id, value) -- id is unused, the
 # same "cb id value" shape every dropdown here uses, since the value alone
 # is enough to set a desktop-wide mode.
-fn wp_setmode(id = "", value = "") {
+fn wp_setmode(int? id = "", value = "") {
 	DT_WALLMODE=$value
 	command -v dt_save > /dev/null && dt_save
 }

@@ -1114,7 +1114,7 @@ fn gi_click(int id, int r, int c, btn) {
 	esac
 }
 
-fn gi_apply(id = "") {
+fn gi_apply(int? id = "") {
 	local old dir name new own grp ok=1
 
 	old=${GI[$id]["path"]}
@@ -1208,7 +1208,7 @@ fn files_cut(int id) {
 	ret "$t"
 }
 
-fn files_hidden(id = "") {
+fn files_hidden(int? id = "") {
 	if [ -n "${FB[$id]["hidden"]}" ]; then
 		FB[$id]["hidden"]=
 	else
@@ -1231,14 +1231,7 @@ fn files_cycle(int id) {
 	esac
 }
 
-fn fb_home(id = "") { fb_go "$id" "$HOME"; }
-fn files_top(id = "") { FB[$id]["sel"]=0; fb_show "$id"; }
-fn files_end(id = "") {
-	local n=${FB[$id]["n"]}
-
-	FB[$id]["sel"]=$((n - 1))
-	fb_show "$id"
-}
+fn fb_home(int? id = "") { fb_go "$id" "$HOME"; }
 
 # Move what is selected to the trash, where the desktop keeps one.
 fn files_trash(int id) {

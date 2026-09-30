@@ -237,7 +237,7 @@ fn tasks_uidrss(int pid) {
 # user (ps resolves it itself here, unlike the Linux path's own uid), and
 # comm last so a path with a space in it -- an app bundle's, typically --
 # still reads whole, in read's own last-variable-takes-the-rest rule.
-fn tasks_scan_ps(id = "") {
+fn tasks_scan_ps(int? id = "") {
 	local pid rss pcpu user comm line n=0
 
 	while IFS= read -r line; do
@@ -556,7 +556,7 @@ fn tasks_draw(int id, int h, int w, int row, int col) {
 	dt_want "$TK_SCANMS"
 }
 
-fn tasks_end(id = "", sig = "") {
+fn tasks_end(int? id = "", sig = "") {
 	local sel pid
 
 	sel=${TK[$id]["sel"]}
@@ -645,7 +645,7 @@ fn tasks_click(int id, int r, int? c = "", btn = "") {
 # not a live one: keeping it current would mean giving a second window
 # its own scan cadence for what is meant to be a quick glance, not a
 # second Task Manager.
-fn tasks_opendetails(pid = "", name = "", owner = "", cpu = "", mem = "") {
+fn tasks_opendetails(int? pid = "", name = "", owner = "", int? cpu = "", int? mem = "") {
 	local gid r c cmd
 
 	[ -z "$pid" ] && return 0
@@ -661,7 +661,7 @@ fn tasks_opendetails(pid = "", name = "", owner = "", cpu = "", mem = "") {
 	TD[$gid]["cmd"]=$cmd
 }
 
-fn tasks_details(id = "") {
+fn tasks_details(int? id = "") {
 	local sel=${TK[$id]["sel"]}
 
 	tasks_opendetails "${TK[$id][$sel]["pid"]}" "${TK[$id][$sel]["name"]}" \
@@ -673,7 +673,7 @@ fn tasks_details(id = "") {
 # tasks_end, for the same reason tasks_opendetails exists: a captured
 # pid cannot be made stale by a rescan between the right-click and the
 # item finally being chosen, where re-reading the selection could be.
-fn tasks_killpid(pid = "", sig = "") {
+fn tasks_killpid(int? pid = "", sig = "") {
 	[ -n "$pid" ] && kill "-$sig" "$pid" 2> /dev/null
 	return 0
 }
@@ -705,7 +705,7 @@ fn tasks_wheel(int id, dir, int? r = "", int? c = "") {
 	TK[$id]["top"]=$top
 	return 0
 }
-fn tasks_fulltoggle(id = "") { TK[$id]["full"]=$((1 - ${TK[$id]["full"]:-0})); }
+fn tasks_fulltoggle(int? id = "") { TK[$id]["full"]=$((1 - ${TK[$id]["full"]:-0})); }
 
 tasks_menus() {
 	local full=${TK[$DT_FOCUS]["full"]:-0}
@@ -773,7 +773,7 @@ fn tasks_context(int id) {
 }
 
 # Process Details -- read only, a snapshot tasks_details already took.
-fn tdetail_draw(id = "", h = "", w = "", row = "", col = "") {
+fn tdetail_draw(int? id = "", int? h = "", int? w = "", int? row = "", int? col = "") {
 	local mem cmd
 
 	console pen "$DT_INK" "$DT_FACE"
@@ -791,14 +791,14 @@ fn tdetail_draw(id = "", h = "", w = "", row = "", col = "") {
 	console put -p "w$id" 9 2 "escape closes"
 }
 
-fn tdetail_key(id = "", key = "") {
+fn tdetail_key(int? id = "", key = "") {
 	case $key in
 	escape) dt_del "$id"; return 0 ;;
 	esac
 	return 1
 }
 
-fn tdetail_close(id = "") {
+fn tdetail_close(int? id = "") {
 	unset "TD[$id]"
 }
 

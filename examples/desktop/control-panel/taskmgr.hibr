@@ -12,9 +12,9 @@ command -v cp_pane > /dev/null && cp_pane taskmgr "Task Manager" "⚙" app
 CP_TKTICKS=(500 1000 2000 3000 5000 10000)
 CP_TKDIRS=(desc asc)
 
-fn cp_set_tasks(id = "", value = "") { TK_SCANMS=$value; cp_save; }
-fn cp_set_tksort(id = "", value = "") { TK_SORTBY=$value; cp_save; }
-fn cp_set_tkdir(id = "", value = "") { TK_SORTDIR=$value; cp_save; }
+fn cp_set_tasks(int? id = "", int? value = "") { TK_SCANMS=$value; cp_save; }
+fn cp_set_tksort(int? id = "", value = "") { TK_SORTBY=$value; cp_save; }
+fn cp_set_tkdir(int? id = "", value = "") { TK_SORTDIR=$value; cp_save; }
 
 fn taskmgr_rows(int w) {
 	local n=0
@@ -55,7 +55,7 @@ fn taskmgr_do(int w, k, int dir) {
 	cp_save
 }
 
-fn taskmgr_drop(w = "", r = "", c = "", k = "") {
+fn taskmgr_drop(int? w = "", int? r = "", int? c = "", k = "") {
 	case $k in
 	tasksrefresh) dt_droplist "$w" "$r" "$c" cp_set_tasks "${CP_TKTICKS[@]}" ;;
 	tksort) dt_droplist "$w" "$r" "$c" cp_set_tksort "${TK_COLS[@]}" ;;

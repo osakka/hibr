@@ -21,7 +21,7 @@ fn imgview_open(int id, arg) {
 	IV[$id]["path"]=$arg
 }
 
-fn imgview_close(id = "") {
+fn imgview_close(int? id = "") {
 	unset "IV[$id]"
 }
 
@@ -49,7 +49,7 @@ fn imgview_draw(int id, int h, int w, int row, int col) {
 
 # A file dragged in from a file browser replaces whatever was shown: the
 # first of the paths, which come after op ("move" or "copy").
-fn imgview_drop(id, r, c, op, ...paths) {
+fn imgview_drop(int id, int r, int c, op, ...paths) {
 	IV[$id]["path"]=${paths[0]}
 }
 

@@ -29,7 +29,7 @@ fn notifications_open(int id, arg) {
 	NHW[$id]["top"]=0
 }
 
-fn notifications_close(id = "") {
+fn notifications_close(int? id = "") {
 	unset "NHW[$id]"
 }
 

@@ -1,5 +1,71 @@
 # Changelog
 
+## 0.56
+
+Desktop moves to **0.34** alongside this release.
+
+**A dialog shows which button Enter presses.** While focus is in a dialog's
+field or list, its first button is drawn as the default: Apply in the
+wallpaper picker, Rename, Save, OK, Yes. It gets its label in the accent
+colour, bold, because that button is what Enter does from there. A button
+that has focus is still filled with the accent, so the two never look
+alike. In the `brackets` style a focused button now fills as well, and the
+default is `[Apply]` in the accent. Every dialog puts its action first, and
+Enter from each dialog's field does that action, so marking the first
+button was enough.
+
+**"Confirm Starts On" is gone.** 0.54 added it to Appearance's Dialog
+Buttons, but it only ever affected the Yes/No question boxes -- "Quit
+hibr?", the shortcut question, the unregistered-file prompt -- while its
+label read as though it covered dialogs in general. Question boxes start on
+Yes, as they did before 0.54, and are now marked like any other default. A
+saved `DT_CONFIRMDEF` line is left as a harmless assignment, and the next
+save drops it.
+
+**Every desktop function but one is reached by a test.** The census went
+from 73 functions no suite called to 1:
+
+- **Dead code removed:** `dt_put`, `dt_iconplace`, `files_top` and
+  `files_end`, which nothing called and no key or menu reached. `dt_put` also
+  added a frame offset that contradicted the rule that an app draws in its
+  window's own coordinates.
+- **Every dropdown in every Control Panel pane**, walked by one data-driven
+  test: open it, take another value, check it changed. The rows come from
+  each pane's own `_rows` and `_drop`, so a new dropdown is tested without
+  being named. That is 21 checks, and 30 callbacks nothing else reached.
+- **The Window menu's own** Zoom, Hide and Close, from the menu bar and from
+  a title bar. **The desktop menu's** Change Wallpaper, shift-click ranges
+  of desktop icons, and the **Control Strip's** Theme and Wallpaper modules.
+- **Apps:** the calculator's Use Answer, and Note Pad joining lines. From
+  Files: hidden files, File > Home, and Get Info applying a new name. A
+  picture dragged from Files onto Image Viewer, closing Notifications and
+  Image Viewer, a terminal's own right-click menu, and Task Manager's View
+  Details from both its menus.
+- **Date & Time's dialogs through to their OK**, with nothing able to
+  change: the one function that runs sudo is replaced by a stub that only
+  records what it was asked, and a fake `sudo` first on `PATH` writes a
+  marker a check refuses. Time Zone asks to set the zone chosen; Set Date &
+  Time and Clock Format open, take a click and close.
+- **Task Manager's End Task** is tested directly, not through the window,
+  by the new `tests/603-tasks-direct.t` on a `sleep` of the test's own:
+  through the window it would end whatever row the machine running the
+  suite has selected. The same test covers the `ps` fallback macOS uses.
+
+The one left is `displays_detach`, which needs a held session with a second
+client. **96 more parameters are typed** from what these tests passed them:
+18 `int` and 78 `int?`, with no literal call site disagreeing.
+
+**The pty harness sees colour.** `tests/screen.py` keeps the pen each cell
+was drawn with, and `sc.style(r, c)` gives its colours and boldness, so a
+check can say what is highlighted and not only what is written. That is how
+the default button is tested, in both styles.
+
+HIBR_VER -> 0.56.
+
+Verified: tests/all.py, all thirteen suites green in 162 seconds;
+tests/asan.py, every suite against the sanitizer build with no report;
+uifuzz clean on three fresh seeds of 300 events each; the census at 1 of 537.
+
 ## 0.55
 
 Desktop moves to **0.33** alongside this release.

@@ -1266,21 +1266,6 @@ check("DT_DLGBTN=brackets draws [Yes] and [No]",
 t.quit(b"y", 1.0)
 os.unlink(path)
 
-# DT_CONFIRMDEF=no starts a confirm box on No, so enter is the safe way out.
-path = "/tmp/hibr-desktop-confirmno.hibr"
-open(path, "w").write("%s. %s\nDT_CONFIRMDEF=no\ndt_open\n%s\ndt_run\n"
-                      "dt_close\n" % (load(MOD), WM, ONE))
-t = Term(path, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.5)
-t.send(b"q", settle=0.3)
-t.send(b"\r", settle=0.4)
-sc = t.screen()
-check("with DT_CONFIRMDEF=no, enter on a fresh confirm box cancels",
-      sc.find("Quit hibr?") is None and sc.find("┤ Hello ├") is not None
-      and not t.exited, sc)
-t.quit(b"qy", 1.0)
-check("and y still quits", t.exited, t.raw)
-os.unlink(path)
-
 import tempfile
 
 # --- the hibr menu comes from folders of apps ---------------------------
@@ -1394,6 +1379,7 @@ arrow = sc.find("▸")
 check("the strip docks left by default, roughly 80% down the screen",
       arrow is not None and arrow[0] > ROWS * 3 // 4, sc)
 row = arrow[0]
+STRIPROW = row
 
 # A saved CS_Y is a preference, not a promise, the same as an icon's own
 # saved spot -- dt_size clamps it on open (and on every resize) rather
@@ -1605,6 +1591,74 @@ sc, _ = run("", feed=[press(0, 63)],
             pre=APPS + 'DA_DIRS+=("%s")\nda_apps\n' % tree("examples/desktop/desk-accessories"))
 check("clicking the clock in the bar opens the Clock app",
       sc.find("┤ Clock ├") is not None, sc)
+
+# The Window menu's own Zoom, Hide and Close, from a title bar's right-click:
+# the same items the menu bar's Window menu holds, and letters choose them
+# once it is open.
+sc, _ = run(ONE, [press(6, 20, 2), b"z"])
+top = sc.find("┤ Hello ├")
+check("Zoom from the Window menu fills the screen with the window",
+      top is not None and top[0] < 6 and sc.g[6][10] != "┌", sc)
+sc, _ = run(ONE, [press(6, 20, 2), b"h"])
+check("Hide from it hides the window",
+      sc.find("┤ Hello ├") is None, sc)
+sc, _ = run(ONE, [press(6, 20, 2), b"w"])
+check("Close from it closes the window",
+      sc.find("┤ Hello ├") is None, sc)
+
+# The strip's Theme and Wallpaper modules each open a list of choices and
+# apply the one taken, saved like any other setting. Theme needs the
+# Appearance pane loaded, since the themes are its.
+def stripdrop(col):
+    d = tempfile.mkdtemp(prefix="hibr-strip-")
+    sc, _ = run("", feed=[press(STRIPROW, col), b"\x1b[B", b"\r"],
+                env={"XDG_CONFIG_HOME": d},
+                pre=CSSRC + "\n. %s\n" % tree(
+                    "examples/desktop/control-panel/appearance.hibr"))
+    saved = os.path.join(d, "hibr", "desktop.hibr")
+    text = open(saved).read() if os.path.exists(saved) else ""
+    shutil.rmtree(d, True)
+    return sc, text
+
+
+sc, saved = stripdrop(17)
+check("the strip's Theme module applies the theme chosen from its list",
+      "CP_THEME=slate" in saved, sc)
+sc, saved = stripdrop(25)
+check("its Wallpaper module applies the glyph chosen from its list",
+      re.search(r"DT_GLYPH=.?░", saved) is not None, sc)
+
+# The same three from the menu bar's own Window menu, the last one: F10,
+# then left past the application menu to reach it.
+WMENU = [b"\x1b[21~", b"\x1b[D", b"\x1b[D"]
+sc, _ = run(ONE, WMENU + [b"z"])
+top = sc.find("┤ Hello ├")
+check("the menu bar's Window menu zooms the focused window",
+      top is not None and top[0] < 6, sc)
+sc, _ = run(ONE, WMENU + [b"h"])
+check("hides it", sc.find("┤ Hello ├") is None, sc)
+sc, _ = run(ONE, WMENU + [b"w"])
+check("and closes it", sc.find("┤ Hello ├") is None, sc)
+
+# Change Wallpaper on the desktop's own right-click menu steps to the next
+# glyph, so an empty cell of the wallpaper shows something else.
+before, _ = run(ONE)
+sc, _ = run(ONE, [press(15, 50, 2), b"w"])
+check("Change Wallpaper steps the wallpaper to its next glyph",
+      sc.at(20, 70) != before.at(20, 70), sc)
+
+# A shift-click on a desktop icon takes the run from the last one clicked,
+# which alt-c then copies as their paths.
+d, env, pre, home, backup, usb, src = desk()
+sc0, _ = run("", env=env, pre=pre)
+hp, bp = sc0.find("Home"), sc0.find(os.path.basename(backup))
+sc, raw = run("", feed=[press(hp[0] - 1, hp[1] + 1), release(hp[0] - 1, hp[1] + 1),
+                        press(bp[0] - 1, bp[1] + 1, 4),
+                        release(bp[0] - 1, bp[1] + 1, 4), b"\x1bc"],
+              env=env, pre=pre)
+check("shift-click selects the run of icons from the last one clicked",
+      copied(raw) == home + "\n" + backup, sc)
+shutil.rmtree(d, True)
 
 # Control Panel is a pane picker, panes loaded from examples/desktop/control-panel:
 # the desktop's own first, then one per app, each group sorted by title.
@@ -2253,4 +2307,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(303)
+report(311)

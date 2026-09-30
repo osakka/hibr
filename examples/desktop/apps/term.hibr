@@ -271,7 +271,7 @@ fn term_mouse(int id, act, btn, int r, int c, mods) {
 # mouse for itself. Copy and Paste are dt_edit's, the same as the Edit
 # menu's own items: it already puts a copy on the clipboard and shows the
 # note that says so.
-fn term_context(id = "") {
+fn term_context(int? id = "") {
 	local t=${TW[$id]["t"]}
 
 	dt_menu "Terminal"

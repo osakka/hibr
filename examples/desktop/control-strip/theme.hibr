@@ -16,7 +16,7 @@ fn theme_draw(int row, int col) {
 	console put "$row" "$col" "Theme"
 }
 
-fn theme_click(row = "", col = "") {
+fn theme_click(int? row = "", int? col = "") {
 	command -v cp_theme > /dev/null || return 0
 	command -v cs_dropopen > /dev/null || return 0
 	cs_dropopen "$row" "$col" theme_pick "${CP_THEMES[@]}"
