@@ -619,14 +619,20 @@ FILE *ce_file(void)
 	return ce_f;
 }
 
-/* Append one function call to the census: name, file, arguments, bind status. */
+/* Append one function call to the census: name, file, arguments, bind status,
+   and each argument's shape -- i an integer, e empty, s anything else. */
 void ce_log(sh *s, int ac, char **av, int bnd)
 {
 	FILE *f = ce_file();
+	int i;
 
-	if (f)
-		fprintf(f, "%s\t%s\t%d\t%d\n", av[0], s->src ? s->src : "",
-			ac - 1, bnd);
+	if (!f)
+		return;
+	fprintf(f, "%s\t%s\t%d\t%d\t", av[0], s->src ? s->src : "", ac - 1,
+		bnd);
+	for (i = 1; i < ac; i++)
+		fputc(!*av[i] ? 'e' : ty_ok("int", av[i]) ? 'i' : 's', f);
+	fputc('\n', f);
 }
 
 /* Append an expansion strict expansion would treat differently: kind, where, value. */

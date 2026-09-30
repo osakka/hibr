@@ -15,6 +15,7 @@ fn dt_confirm(msg, cmd) {
 	DT_CONFIRM="$msg"
 	DT_CONFIRM_CMD=$cmd
 	DT_CONFIRM_FOCUS=y
+	[ "$DT_CONFIRMDEF" = no ] && DT_CONFIRM_FOCUS=n
 }
 
 # A small window of its own, not just a coloured box: a border and a

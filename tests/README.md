@@ -111,7 +111,9 @@ Three more tools sit around it:
   `--expansion [prefix...]` also lists every place, file and line, where an
   expansion split or a value globbed or matched as a pattern -- what
   `strict expansion` would change -- so a file can be made strict from
-  evidence rather than by reading it.
+  evidence rather than by reading it. `--types` lists every declared
+  parameter by what the suites passed it: an integer every time, an integer
+  or nothing, or anything else -- the evidence for typing it.
 - **`tests/strictvars.py`** -- reads every function in each desktop file that
   says `strict` and fails on any assignment that would create a global:
   what `strict vars` refuses at run time, found on every path rather than

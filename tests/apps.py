@@ -717,21 +717,32 @@ sc = cprun(reach("desktop", "Icons") + [b"\r"])
 check("the icons can be switched off, and the panel shows an unchecked box",
       "[ ]" in brow(sc, "Icons"), sc)
 
-# The four shadows, each its own setting, under a heading in Appearance.
+# The shadows, each its own setting, under a heading in Appearance; the
+# button shadow is with the rest of the dialog buttons' settings.
 sc = cprun(DOWN_APP)
-check("Appearance lists the four shadows under a Shadows heading, all on",
-      sc.find("Shadows") is not None and
-      all("[x]" in brow(sc, t) for t in ("Windows", "Menus", "Menu Bar",
-                                         "Buttons")), sc)
+check("Appearance lists three shadows under Shadows and the buttons' under "
+      "Dialog Buttons, all on",
+      sc.find("Shadows") is not None and sc.find("Dialog Buttons") is not None
+      and all("[x]" in brow(sc, t) for t in ("Windows", "Menus", "Menu Bar",
+                                             "Shadow")), sc)
+check("dialog buttons start filled, and a confirm box on yes",
+      "filled" in brow(sc, "Style") and "yes" in brow(sc, "Confirm Starts On"),
+      sc)
 sc = cprun(reach("appearance", "Menus") + [b"\r"])
 check("menu shadow is its own setting, separate from window shadow",
       "[ ]" in brow(sc, "Menus") and "[x]" in brow(sc, "Windows"), sc)
 sc = cprun(reach("appearance", "Menu Bar") + [b"\r"])
 check("bar shadow is a third, separate setting again",
       "[ ]" in brow(sc, "Menu Bar") and "[x]" in brow(sc, "Menus"), sc)
-sc = cprun(reach("appearance", "Buttons") + [b"\r"])
-check("button shadow is a fourth, on until switched off here",
-      "[ ]" in brow(sc, "Buttons") and "[x]" in brow(sc, "Menu Bar"), sc)
+sc = cprun(reach("appearance", "Shadow") + [b"\r"])
+check("button shadow is its own setting, on until switched off here",
+      "[ ]" in brow(sc, "Shadow") and "[x]" in brow(sc, "Menu Bar"), sc)
+sc = cprun(reach("appearance", "Style") + [b"\x1b[C"])
+check("the dialog button style steps to brackets",
+      "brackets" in brow(sc, "Style"), sc)
+sc = cprun(reach("appearance", "Confirm Starts On") + [b"\x1b[C"])
+check("and a confirm box can start on no instead",
+      "no" in brow(sc, "Confirm Starts On"), sc)
 
 # What a double click on a title bar does belongs with Windows.
 sc = cprun(reach("windows", "Titlebar Click"))
@@ -1997,4 +2008,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(272)
+report(275)

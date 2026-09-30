@@ -73,7 +73,7 @@ def report(log):
     bad = Counter()
     for line in open(log, errors="replace"):
         f = line.rstrip("\n").split("\t")
-        if len(f) != 4:
+        if len(f) != 5 or f[0] == "X":
             continue
         called.add(f[0])
         if f[3] != "0" and f[0] in defs:
@@ -128,6 +128,73 @@ def expansion(log, prefixes):
     return len(sites)
 
 
+SIG = re.compile(r"^\s*fn\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)")
+
+
+def signatures():
+    """name -> (file, [(param, type, optional)]) for every declared function."""
+    out = {}
+    for d, _, fs in os.walk(DESK):
+        for f in sorted(fs):
+            if not f.endswith(".hibr"):
+                continue
+            p = os.path.join(d, f)
+            for line in open(p, errors="replace"):
+                m = SIG.match(line)
+                if not m:
+                    continue
+                ps = []
+                for a in m.group(2).split(","):
+                    a = a.strip()
+                    if not a or a.startswith("..."):
+                        continue
+                    opt = "=" in a
+                    words = a.split("=")[0].split()
+                    ty = words[0] if len(words) > 1 else ""
+                    ps.append((words[-1], ty, opt))
+                out.setdefault(m.group(1), (os.path.relpath(p, DESK), ps))
+    return out
+
+
+def types(log):
+    """Print, for every declared parameter, what the suites passed it: an
+    integer every time, an integer or nothing, or something else."""
+    sigs = signatures()
+    seen = defaultdict(Counter)
+    calls = Counter()
+    for line in open(log, errors="replace"):
+        f = line.rstrip("\n").split("\t")
+        if len(f) != 5 or f[0] == "X" or f[0] not in sigs or f[3] != "0":
+            continue
+        calls[f[0]] += 1
+        for k, c in enumerate(f[4]):
+            seen[(f[0], k)][c] += 1
+    groups = defaultdict(list)
+    for name, (rel, ps) in sorted(sigs.items()):
+        for k, (pn, ty, opt) in enumerate(ps):
+            c = seen[(name, k)]
+            if ty:
+                g = "typed already"
+            elif not calls[name]:
+                g = "never called"
+            elif not c:
+                g = "never passed"
+            elif set(c) == {"i"}:
+                g = "always an integer"
+            elif set(c) == {"i", "e"}:
+                g = "an integer or empty"
+            else:
+                g = "anything else"
+            groups[g].append("%s(%s%s) %s" % (name, pn, " =" if opt else "",
+                                              dict(c) if c else ""))
+    for g in ("always an integer", "an integer or empty", "anything else",
+              "never passed", "never called", "typed already"):
+        print("== %s: %d" % (g, len(groups[g])))
+        if g in ("always an integer", "an integer or empty"):
+            for x in groups[g]:
+                print("   " + x)
+
+
 def strict_files():
     """Desktop files that ask for strict checks of any kind."""
     out = []
@@ -142,6 +209,15 @@ def strict_files():
 
 def main():
     args = sys.argv[1:]
+    if "--types" in args:
+        args.remove("--types")
+        if "--log" in args:
+            types(args[args.index("--log") + 1])
+            return
+        log = os.path.join(ROOT, "build", "census.log")
+        st = take(args or ["desktop", "apps", "uifuzz", "run.sh"], log)
+        types(log)
+        sys.exit(st)
     exp = None
     if "--expansion" in args:
         i = args.index("--expansion")

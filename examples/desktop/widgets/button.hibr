@@ -36,12 +36,20 @@ dt_btnshade() {
 
 # Draw one button, " label " filled: the accent colour when it has focus,
 # muted when it has not, with Turbo Vision's shadow -- a ▄ beside it and a
-# row of ▀ under it. tag is what dt_hit answers for a click on it.
+# row of ▀ under it. With DT_DLGBTN=brackets it is [label] on the window's
+# face instead, the same width. tag is what dt_hit answers for a click on it.
 fn dt_button(id, r, c, label, on, tag) {
 	local t=" $label " n sh
 
 	n=${#t}
-	if [ "$on" = 1 ]; then
+	if [ "$DT_DLGBTN" = brackets ]; then
+		t="[$label]"
+		if [ "$on" = 1 ]; then
+			console pen "$DT_ACTIVE" "$DT_FACE" bold
+		else
+			console pen "$DT_INK" "$DT_FACE"
+		fi
+	elif [ "$on" = 1 ]; then
 		console pen "$DT_FACE" "$DT_ACTIVE" bold
 	else
 		console pen "$DT_INK" "$DT_IDLE"

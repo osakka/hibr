@@ -2,7 +2,8 @@
 #
 # appearance -- the Control Panel pane for how the desktop looks: the
 # theme, the wallpaper (a glyph, or an image chosen in a picker of its own),
-# the menu bar's spacing and notification icon, and the four shadows. The
+# the menu bar's spacing and notification icon, the shadows, and how dialog
+# buttons look and which one a confirm box starts on. The
 # theme sets the variables the window manager already reads every frame, so
 # a change shows on the next one, in every window at once.
 
@@ -110,10 +111,17 @@ fn appearance_rows(w) {
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_BARSHADOW" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=DT_BARSHADOW; n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Buttons"
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Dialog Buttons"
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Style"
+	CP[$w][$n]["val"]="$DT_DLGBTN"; CP[$w][$n]["key"]=dlgbtn; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Shadow"
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_BTNSHADOW" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=DT_BTNSHADOW; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Confirm Starts On"
+	CP[$w][$n]["val"]="$DT_CONFIRMDEF"; CP[$w][$n]["key"]=confirmdef
+	n=$((n + 1))
 	ret "$n"
 }
 
@@ -138,6 +146,10 @@ fn appearance_do(w, k, dir) {
 	wallimg) wp_dialog; return 0 ;;
 	wallmode) v := cp_next "$DT_WALLMODE" "$dir" "${WP_MODES[@]}"
 		DT_WALLMODE=$v ;;
+	dlgbtn) v := cp_next "$DT_DLGBTN" "$dir" "${DT_DLGBTNS[@]}"
+		DT_DLGBTN=$v ;;
+	confirmdef) v := cp_next "$DT_CONFIRMDEF" "$dir" "${DT_CONFIRMDEFS[@]}"
+		DT_CONFIRMDEF=$v ;;
 	DT_SHADOW | DT_MSHADOW | DT_BARSHADOW | DT_BTNSHADOW) cp_toggle "$k" ;;
 	esac
 	cp_save
@@ -148,6 +160,9 @@ fn appearance_drop(w, r, c, k) {
 	theme) dt_droplist "$w" "$r" "$c" cp_set_theme "${CP_THEMES[@]}" ;;
 	glyph) dt_droplist "$w" "$r" "$c" cp_set_glyph "${CP_GLYPHS[@]}" ;;
 	wallmode) dt_droplist "$w" "$r" "$c" wp_setmode "${WP_MODES[@]}" ;;
+	dlgbtn) dt_droplist "$w" "$r" "$c" cp_set_dlgbtn "${DT_DLGBTNS[@]}" ;;
+	confirmdef)
+		dt_droplist "$w" "$r" "$c" cp_set_confirmdef "${DT_CONFIRMDEFS[@]}" ;;
 	bellicon)
 		local -a vals
 		local nm g
@@ -159,6 +174,9 @@ fn appearance_drop(w, r, c, k) {
 		;;
 	esac
 }
+
+fn cp_set_dlgbtn(id = "", value = "") { DT_DLGBTN=$value; cp_save; }
+fn cp_set_confirmdef(id = "", value = "") { DT_CONFIRMDEF=$value; cp_save; }
 
 # A choice from the icon list, shown as "glyph name": the name is kept.
 fn cp_set_bellicon(id = "", value = "") { DT_BELLICON=${value##* }; cp_save; }

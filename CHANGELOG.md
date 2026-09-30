@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.54
+
+Desktop moves to **0.32** alongside this release.
+
+**Dialog buttons have a group of their own in Appearance.** Under a new
+**Dialog Buttons** heading:
+
+- **Style** -- `filled`, as they have been since 0.45 (a block of colour,
+  the accent while focused), or `brackets`: `[OK]` on the window's face,
+  the focused one in the accent. The width is the same either way, so no
+  dialog's layout moves when it changes.
+- **Shadow** -- the button shadow, moved here from the Shadows heading.
+- **Confirm Starts On** -- `yes`, as before, so enter goes ahead, or `no`,
+  so enter is the safe way out of "Quit hibr?" and every other confirm box.
+  Every other dialog starts in its text field or list, where enter already
+  means the dialog's own action.
+
+They are `DT_DLGBTN` and `DT_CONFIRMDEF` in `wm/settings.hibr`, kept with
+the rest of the settings. The Appearance tests find the rows under their new
+names, and new checks draw `[Yes]` and `[No]` in brackets and cancel a
+confirm box with a bare enter when it starts on no.
+
+**The census records each argument's shape.** Every call it logs now says
+whether each argument was an integer, empty or anything else, and
+`tests/census.py --types` lists every declared desktop parameter by what the
+suites passed it. The first run found 558 parameters that were an integer on
+every call, 30 of them optional, and 4 that take an integer or nothing on
+purpose. That is the groundwork for typing them, the next release.
+
+HIBR_VER -> 0.54.
+
+Verified: tests/all.py, all thirteen suites green in 163 seconds.
+
 ## 0.53
 
 **Under `-S`, what is written inside `${x:+…}` splits and globs.** The word

@@ -546,6 +546,16 @@ clicked, only what is drawn there -- a fourth style is a branch in
 `dt_btnspec`, a fifth frame is six glyphs in `DT_FRAMES`, and neither
 touches `dt_win` or `dt_btn` themselves.
 
+Appearance's Dialog Buttons group is for the buttons inside dialogs rather
+than on title bars, and `widgets/button.hibr` reads it: `DT_DLGBTN` draws
+them `filled` (a block of colour, the accent one while focused) or as
+`brackets` (`[OK]` on the window's face, the focused one in the accent) --
+the same width either way, so no dialog's layout moves; `DT_BTNSHADOW` is
+their shadow; and `DT_CONFIRMDEF` is which button a confirm box starts on,
+`yes` so enter goes ahead or `no` so enter is the safe way out. Every other
+dialog starts in its text field or list, where enter already means the
+dialog's own action.
+
 Control Strip's own pane carries only `CS_SIDE` and `CS_SHADOW` -- which
 side it docks to, and whether it casts its own shadow. Its position,
 whether it is collapsed, and how many modules are shown are dragged on the

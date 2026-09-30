@@ -1253,6 +1253,34 @@ check("DT_BTNSHADOW=0 draws the buttons flat",
 t.quit(b"y", 1.0)
 os.unlink(path)
 
+# Brackets draw each button as [label] on the face, the focused one in the
+# accent, no fill; the width is the same, so nothing else moves.
+path = "/tmp/hibr-desktop-confirmbrackets.hibr"
+open(path, "w").write("%s. %s\nDT_DLGBTN=brackets\nDT_BTNSHADOW=0\n"
+                      "dt_open\n%s\ndt_run\ndt_close\n" % (load(MOD), WM, ONE))
+t = Term(path, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.5)
+t.send(b"q", settle=0.4)
+sc = t.screen()
+check("DT_DLGBTN=brackets draws [Yes] and [No]",
+      sc.find("[Yes]") is not None and sc.find("[No]") is not None, sc)
+t.quit(b"y", 1.0)
+os.unlink(path)
+
+# DT_CONFIRMDEF=no starts a confirm box on No, so enter is the safe way out.
+path = "/tmp/hibr-desktop-confirmno.hibr"
+open(path, "w").write("%s. %s\nDT_CONFIRMDEF=no\ndt_open\n%s\ndt_run\n"
+                      "dt_close\n" % (load(MOD), WM, ONE))
+t = Term(path, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.5)
+t.send(b"q", settle=0.3)
+t.send(b"\r", settle=0.4)
+sc = t.screen()
+check("with DT_CONFIRMDEF=no, enter on a fresh confirm box cancels",
+      sc.find("Quit hibr?") is None and sc.find("┤ Hello ├") is not None
+      and not t.exited, sc)
+t.quit(b"qy", 1.0)
+check("and y still quits", t.exited, t.raw)
+os.unlink(path)
+
 import tempfile
 
 # --- the hibr menu comes from folders of apps ---------------------------
@@ -2225,4 +2253,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(300)
+report(303)

@@ -99,6 +99,17 @@ DT_BARSHADOW="${DT_BARSHADOW-1}"
 # this is its own setting for the same reason each of the others is.
 DT_BTNSHADOW="${DT_BTNSHADOW-1}"
 
+# How a dialog's buttons are drawn: filled, a block of colour each, or
+# brackets, [OK] in the ink with the focused one in the accent -- the same
+# width either way, so no dialog's layout moves when it changes.
+DT_DLGBTN="${DT_DLGBTN-filled}"
+DT_DLGBTNS=(filled brackets)
+
+# Which button a confirm box starts on: yes, so enter goes ahead, or no, so
+# enter is the safe way out and going ahead takes a deliberate key.
+DT_CONFIRMDEF="${DT_CONFIRMDEF-yes}"
+DT_CONFIRMDEFS=(yes no)
+
 # How much a shadow darkens what is under it -- console darken's own pct,
 # kept per theme rather than as one constant. 55 (its builtin default)
 # reads as a soft, barely-there shadow against a dark face like midnight's,
@@ -185,7 +196,7 @@ DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 	CS_COLLAPSED CS_LEN CS_SHADOW
 	DT_FRAME DT_BTNSIDE DT_TITLEALIGN DT_BTNSTYLE DT_EDGERESIZE
 	DT_DRAGMOD DT_DRAGKEY DT_DRAWSKIP DT_NOTEMS DT_NOTEPOS DT_BARTIME
-	DT_BARGAP DT_BELLICON DT_BTNSHADOW)
+	DT_BARGAP DT_BELLICON DT_BTNSHADOW DT_DLGBTN DT_CONFIRMDEF)
 
 # Where the desktop's stderr goes while it holds the screen, so an app's
 # error message cannot scribble over the display, and the reason for a
