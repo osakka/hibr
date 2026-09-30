@@ -27,13 +27,15 @@ echo "=== a read takes the script's next line"
 printf 'read x\nhello\necho "got $x"\necho "line $LINENO"\n' > rd.sh
 cat rd.sh | "$h"
 "$h" < rd.sh
-python3 -c "
-print('big() {')
-for i in range(300): print('  : %d' % i)
-print('}')
-print('read y; echo \"got \$y\"')
-print('data')
-print('echo \"line \$LINENO\"')" > big.sh
+{
+  echo 'big() {'
+  i=0
+  while [ "$i" -lt 300 ]; do echo "  : $i"; i=$((i + 1)); done
+  echo '}'
+  echo 'read y; echo "got $y"'
+  echo 'data'
+  echo 'echo "line $LINENO"'
+} > big.sh
 "$h" < big.sh
 
 echo "=== eval and source stop where their text stops parsing"

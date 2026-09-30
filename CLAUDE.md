@@ -220,6 +220,9 @@ went in the shell.
     not assumed) — only dash gets it right — so accepting it costs nothing:
     no script that runs in bash could have relied on the broken form. See
     `tests/195-brace-apostrophe.t`.
+12. **A script runs as it is read, and `checkfirst` is the opt-in to parse it
+    whole first** (on in agent mode); bash has no such option -- see
+    `docs/adr/0026`.
 
 ## Traps already found — don't reintroduce them
 
