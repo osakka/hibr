@@ -582,12 +582,16 @@ or a function that should not exist. Take them a file at a time.
 
 ## The language
 
-### The window manager under strict expansion too
+### The apps under strict too
 
-`wm/` and `widgets/` run under `strict functions vars` since 0.49, not under
-`strict expansion`: some of their code splits an unquoted expansion on
-purpose -- `set -- $g` in the confirm box, `for id in $names` -- and has to
-become arrays first. Turn it on file by file, each with its suite run.
+`wm/` and `widgets/` run under every strict check since 0.51. The apps, the
+desk accessories, the Control Panel panes and the strip modules do not say
+`strict` at all yet. The way there is the one the window manager took:
+`python3 tests/census.py --expansion apps desk-accessories ...` lists every
+place an expansion splits or a value matches as a pattern, each becomes an
+array (`read -ra`) or a quoted word, the probe is run again until it lists
+nothing, and then the file says `strict` -- with a search for `for ... in $x`,
+`set -- $x` and variable patterns for the paths no suite reaches.
 
 ### Types on the desktop's parameters -- the second pass
 

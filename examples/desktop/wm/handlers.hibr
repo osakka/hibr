@@ -3,7 +3,7 @@
 # Part of the window manager; desktop.hibr sources it. It only defines
 # functions and sets state, so it can be read on its own and is never run.
 
-strict functions vars
+strict
 
 # What opens a file, by its extension -- a script of the user's own
 # registers one with dt_handler, the same idiom dt_app uses to register a

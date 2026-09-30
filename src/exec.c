@@ -605,8 +605,8 @@ int fn_bind(sh *s, node *f, vec *fr, int ac, char **av)
 static FILE *ce_f;
 static int ce_ok;
 
-/* Append one function call to $HIBR_CENSUS: name, file, arguments, bind status. */
-void ce_log(sh *s, int ac, char **av, int bnd)
+/* The census log, $HIBR_CENSUS, opened on first use; null when not asked for. */
+FILE *ce_file(void)
 {
 	const char *p;
 
@@ -616,9 +616,31 @@ void ce_log(sh *s, int ac, char **av, int bnd)
 		if (p && (ce_f = fopen(p, "a")))
 			setvbuf(ce_f, 0, _IOLBF, 0);
 	}
-	if (ce_f)
-		fprintf(ce_f, "%s\t%s\t%d\t%d\n", av[0], s->src ? s->src : "",
+	return ce_f;
+}
+
+/* Append one function call to the census: name, file, arguments, bind status. */
+void ce_log(sh *s, int ac, char **av, int bnd)
+{
+	FILE *f = ce_file();
+
+	if (f)
+		fprintf(f, "%s\t%s\t%d\t%d\n", av[0], s->src ? s->src : "",
 			ac - 1, bnd);
+}
+
+/* Append an expansion strict expansion would treat differently: kind, where, value. */
+void ce_exp(sh *s, const char *kind, const char *t, size_t n)
+{
+	FILE *f = ce_file();
+	size_t i;
+
+	if (!f)
+		return;
+	fprintf(f, "X\t%s\t%s\t%u\t", kind, s->src ? s->src : "", s->ln);
+	for (i = 0; i < n && i < 60; i++)
+		fputc(t[i] == '\t' || t[i] == '\n' ? ' ' : t[i], f);
+	fputc('\n', f);
 }
 #endif
 
@@ -2053,8 +2075,10 @@ int ex(sh *s, node *n)
 	case N_BG:
 		return ex_bg(s, n);
 	case N_SUB:
+		s->ln = n->ln;
 		return ex_chk(s, ex_sub(s, n), t);
 	case N_GRP:
+		s->ln = n->ln;
 		if (rd_do(s, n->rd, &sv) != HIBR_OK) {
 			rd_undo(&sv);
 			return s->st = HIBR_FAIL;
@@ -2063,6 +2087,7 @@ int ex(sh *s, node *n)
 		rd_undo(&sv);
 		return st;
 	case N_IF:
+		s->ln = n->ln;
 		if (rd_do(s, n->rd, &sv) != HIBR_OK) {
 			rd_undo(&sv);
 			return s->st = HIBR_FAIL;
@@ -2078,6 +2103,7 @@ int ex(sh *s, node *n)
 	case N_FOR:
 	case N_CFOR:
 	case N_SELECT:
+		s->ln = n->ln;
 		if (rd_do(s, n->rd, &sv) != HIBR_OK) {
 			rd_undo(&sv);
 			return s->st = HIBR_FAIL;
@@ -2089,6 +2115,7 @@ int ex(sh *s, node *n)
 		return st;
 	case N_ARITH: {
 		long v;
+		s->ln = n->ln;
 		if (rd_do(s, n->rd, &sv) != HIBR_OK) {
 			rd_undo(&sv);
 			return s->st = HIBR_FAIL;
@@ -2102,6 +2129,7 @@ int ex(sh *s, node *n)
 		return s->st = v ? 0 : 1;
 	}
 	case N_COND:
+		s->ln = n->ln;
 		if (rd_do(s, n->rd, &sv) != HIBR_OK) {
 			rd_undo(&sv);
 			return s->st = HIBR_FAIL;
@@ -2110,6 +2138,7 @@ int ex(sh *s, node *n)
 		rd_undo(&sv);
 		return ex_chk(s, st, t);
 	case N_CASE:
+		s->ln = n->ln;
 		if (rd_do(s, n->rd, &sv) != HIBR_OK) {
 			rd_undo(&sv);
 			return s->st = HIBR_FAIL;

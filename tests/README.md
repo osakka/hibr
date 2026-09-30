@@ -108,6 +108,10 @@ Three more tools sit around it:
   logs every function call, runs the desktop suites under it and lists each
   desktop function no suite called, with the count and which way it moved
   since the last run. Calls whose arguments did not bind are listed too.
+  `--expansion [prefix...]` also lists every place, file and line, where an
+  expansion split or a value globbed or matched as a pattern -- what
+  `strict expansion` would change -- so a file can be made strict from
+  evidence rather than by reading it.
 - **`tests/uifuzz.py`** -- random keys, clicks, drags and wheel turns inside
   one app's window, then: still running, still answering, nothing printed.
   A suite in `all.py` at the fixed `SEED=1`; `SEED=random` explores, and a

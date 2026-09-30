@@ -1,5 +1,55 @@
 # Changelog
 
+## 0.51
+
+Desktop moves to **0.30** alongside this release.
+
+**The window manager and its widgets run under every strict check.** Since
+0.49 all 27 files in `wm/` and `widgets/` said `strict functions vars`. Now
+they say `strict`, and `strict expansion` is on as well, so an expansion
+there never splits or globs.
+
+Getting there took evidence rather than reading. The census build
+(`make census`) gained a probe for the places strict expansion would change.
+It logs an unquoted expansion that splits, and a value holding `*`, `?`,
+`[` or `\` wherever it could glob or match as a pattern, with its file and
+line. `python3 tests/census.py --expansion` runs the suites under that
+build and lists the sites. The first run listed 20. Ten were a value with a
+`?` in it being assigned or used as a `case` word, which neither splits nor
+globs, so the probe now looks at each word's expansion flags and stays
+quiet there. The other ten, plus three more loops found by searching for
+the forms the suites might not reach, were lists the window manager splits
+on purpose: the pane list, a selection of icons, the window ids, the
+confirm box's geometry, a mouse report. Each now goes through `read -ra`
+into an array, or `read -r` for a fixed tuple. With those converted and
+strict still off, the probe listed nothing. Then `strict` went on, and
+`tests/540-examples.t` now fails if any file in `wm/` or `widgets/` stops
+saying it.
+
+The probe also found something the documentation had never said: under
+`set -S`, a pattern that comes from a variable (`case $x in $p)`,
+`[[ $x == $p ]]`, `${x#$p}`) matches only itself, as a quoted `"$p"` does.
+`docs/language.md` and ADR 0009 now say so, with the example run. The window
+manager had no such pattern anywhere.
+
+**`$LINENO` is right in a `for`, `case`, `if`, loop, `(( ))` or `[[ ]]`.**
+Only simple commands set the current line, so `for i in $LINENO` and
+`[[ $LINENO == 5 ]]` read the line of whatever command ran before. A strict
+check refusing a loop variable therefore named the line that called the
+function rather than the loop. `tests/600-strict.expected` moves by exactly
+that one line, and a new `tests/601-lineno.t` compares these cases with
+bash. It costs one store per compound command: 6 instructions, 0.04% of a
+`case` loop. The first measurement said 0.33% on a loop that never reached
+the change, and all of that was glibc's `strcmp` running different paths for
+the same calls once the binary's strings moved.
+
+HIBR_VER -> 0.51.
+
+Verified: tests/all.py, all twelve suites green in 162 seconds with the window
+manager fully strict; tests/asan.py, every suite against the sanitizer build
+with no report; `tests/census.py --expansion` listing nothing in `wm/` or
+`widgets/` before strict went on.
+
 ## 0.50
 
 Desktop moves to **0.29** alongside this release.

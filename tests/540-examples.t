@@ -133,6 +133,15 @@ for v in $kept; do
 done
 echo "every kept preference is in the Control Panel"
 
+# The window manager and its widgets run under every strict check, so a
+# function defined twice, a forgotten local and an expansion that splits are
+# each refused rather than silently wrong. Anything that splits a list does
+# it explicitly, with read -ra into an array.
+for f in examples/desktop/wm/*.hibr examples/desktop/widgets/*.hibr; do
+  grep -qx 'strict' "$f" || echo "not under every strict check: $f"
+done
+echo "the window manager and widgets are strict"
+
 # A window's own content must never draw at absolute screen coordinates --
 # console put without -p, or img/term draw without -p anywhere in the call --
 # which is exactly what reaching around the pane system by reading

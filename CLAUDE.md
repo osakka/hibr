@@ -1277,6 +1277,29 @@ went in the shell.
   its targets to what cannot touch the machine: Task Manager, Files,
   Terminal and Date & Time stay out until a sandbox makes them harmless.
 
+- **An instruction count can move with no code change: `strcmp` is
+  address-sensitive.** glibc's AVX2 `strcmp` takes different paths near a
+  page boundary, so a rebuild that shifts where string literals land
+  changes its count for the same calls. Adding one store to `ex()` measured
+  +0.33% on a `while` loop that never reached it; every hibr function's
+  count was identical, and all 860,000 extra instructions were in
+  `__strcmp_avx2`. Diff per function (`callgrind_annotate`) before
+  believing a total, and report the cost with `strcmp` taken out.
+- **`$LINENO` has to be set by every node that expands a word, not only
+  by simple commands.** Only `ex_cmd` set it, so `for x in $LINENO` and
+  `[[ $LINENO == … ]]` read the previous command's line -- and the strict
+  checks and the census probe named that line for anything they found in
+  a loop header. Each compound case in `ex()` sets it on entry; a check on
+  every node in `ex()`'s prologue cost 42 instructions per loop
+  iteration, where one store in each compound case costs 6 per compound
+  node.
+- **`set -S` makes a pattern from a variable literal, not only a split.**
+  `case $x in $p)`, `[[ $x == $p ]]` and `${x#$p}` all stop matching
+  under strict expansion, as if `$p` were quoted. The census build's probe
+  (`tests/census.py --expansion`) logs both kinds, each only where it can
+  happen -- never for an assignment or a `case` word, which neither split
+  nor glob.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then

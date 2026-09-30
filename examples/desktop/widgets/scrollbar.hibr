@@ -2,7 +2,7 @@
 #
 # Part of the widget library apps draw with -- see widgets/README.md.
 
-strict functions vars
+strict
 
 # A vertical scrollbar: a track of │ over h rows starting at row0, one
 # cell shown as the thumb █ at a position proportional to how far through

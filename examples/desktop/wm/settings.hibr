@@ -5,7 +5,7 @@
 # Part of the window manager; desktop.hibr sources it. It only defines
 # functions and sets state, so it can be read on its own and is never run.
 
-strict functions vars
+strict
 
 # Keyboard shortcuts a script -- or Settings -- can rebind. f10 and escape,
 # which open the menu bar, are not in here: an app cannot have those keys

@@ -3,6 +3,8 @@
 
     python3 tests/census.py [suite...]     # default: desktop apps uifuzz run.sh
     python3 tests/census.py --log FILE     # report on a log already taken
+    python3 tests/census.py --expansion [PREFIX...]
+                        # and where strict expansion would change behaviour
 
 Builds build/hibr.census (`make census`: the shell, logging every function
 call to $HIBR_CENSUS), runs the suites under it side by side through
@@ -15,6 +17,12 @@ build/census.last so each report says which way it moved.
 The log also records whether each call's arguments bound to the function's
 declared parameters; calls that did not are listed too, since a callback
 handed the wrong number of arguments is exactly what 0.44.1 was.
+
+With --expansion it also lists, file and line, every place an expansion split
+or a value globbed or matched as a pattern -- the places `strict expansion`
+would change -- under the desktop-relative prefixes given, or by default in
+the files that already say `strict`. A place no suite reaches is not listed,
+so what it prints is where to start, not a proof of what is left.
 """
 import os
 import re
@@ -94,14 +102,61 @@ def report(log):
     return count
 
 
+def expansion(log, prefixes):
+    """Print each place under the prefixes where strict expansion would change
+    what happens: an expansion that split, or a value that globbed or matched
+    as a pattern. With no prefixes, the desktop files that already say
+    `strict`, since turning expansion on is those files' next step."""
+    if not prefixes:
+        prefixes = sorted(os.path.relpath(p, DESK) for p in strict_files())
+    sites = defaultdict(set)
+    for line in open(log, errors="replace"):
+        f = line.rstrip("\n").split("\t")
+        if len(f) != 5 or f[0] != "X" or not f[2].startswith(DESK + "/"):
+            continue
+        rel = os.path.relpath(f[2], DESK)
+        if any(rel == p or rel.startswith(p.rstrip("/") + "/")
+               for p in prefixes):
+            sites[(rel, int(f[3]), f[1])].add(f[4])
+    for (rel, ln, kind), vals in sorted(sites.items()):
+        v = sorted(vals)
+        print("%s:%d: %s %r%s" % (rel, ln, kind, v[0],
+                                  " (+%d more)" % (len(v) - 1) if len(v) > 1
+                                  else ""))
+    print("\n%d place%s where strict expansion would change what happens"
+          % (len(sites), "" if len(sites) == 1 else "s"))
+    return len(sites)
+
+
+def strict_files():
+    """Desktop files that ask for strict checks of any kind."""
+    out = []
+    for d, _, fs in os.walk(DESK):
+        for f in fs:
+            p = os.path.join(d, f)
+            if f.endswith(".hibr") and re.search(
+                    r"^strict\b", open(p, errors="replace").read(), re.M):
+                out.append(p)
+    return out
+
+
 def main():
     args = sys.argv[1:]
+    exp = None
+    if "--expansion" in args:
+        i = args.index("--expansion")
+        exp = [a for a in args[i + 1:] if not a.startswith("-")]
+        args = args[:i]
     if "--log" in args:
-        report(args[args.index("--log") + 1])
+        log = args[args.index("--log") + 1]
+        expansion(log, exp) if exp is not None else report(log)
         return
     log = os.path.join(ROOT, "build", "census.log")
     st = take(args or ["desktop", "apps", "uifuzz", "run.sh"], log)
     report(log)
+    if exp is not None:
+        print()
+        expansion(log, exp)
     if st:
         print("census: a suite failed under the census build; "
               "logs in %s" % LOGS)

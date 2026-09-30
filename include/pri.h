@@ -70,6 +70,9 @@ ent *mp_find(ent *m, const char *k);
 ent *v_path(sh *s, const char *nm, char **ks, int nk, int make);
 int b_json(sh *s, int ac, char **av);
 int sx_out(sh *s, const char *nm, const char *v);
+#ifdef HIBR_CENSUS
+void ce_exp(sh *s, const char *kind, const char *t, size_t n);
+#endif
 int b_str(sh *s, int ac, char **av);
 int b_arr(sh *s, int ac, char **av);
 ent *mp_add(ent **m, size_t *n, const char *k);

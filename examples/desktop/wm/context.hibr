@@ -4,7 +4,7 @@
 # Part of the window manager; desktop.hibr sources it. It only defines
 # functions and sets state, so it can be read on its own and is never run.
 
-strict functions vars
+strict
 
 # Ask for a menu at the pointer rather than under a bar title: who is
 # "desktop" for the hibr menu, or an app's prefix for its own <app>_context.

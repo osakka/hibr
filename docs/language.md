@@ -337,6 +337,24 @@ and the same as in zsh; only a quoted `"$empty"` gives an empty argument.
 A glob behaves the same way: `count $g` with `g="*.c"` counts every `.c` file by
 default and exactly one argument — the literal `*.c` — under `set -S`.
 
+A pattern is a glob too. Under `-S` a pattern that comes from a variable --
+in `case`, on the right of `[[ == ]]`, in `${x#$p}` and its kin -- matches
+only itself, exactly as if it had been quoted:
+
+```sh
+p="a*"
+case abc in $p) echo "default: $p matches abc" ;; esac
+set -S
+case abc in $p) echo "strict: matches" ;; *) echo "strict: $p is only itself" ;; esac
+case "a*" in $p) echo "strict: $p matches a*" ;; esac
+```
+
+```
+default: a* matches abc
+strict: a* is only itself
+strict: a* matches a*
+```
+
 It guards the value that arrives in a word, not the word you wrote: `$dir/*`
 still globs under `-S`, because that `*` is not the result of an expansion.
 Whether it should become the default is settled, with the measurements, in
@@ -379,7 +397,8 @@ some -- `strict functions vars` -- and `strict off vars` to put one back;
 `strict expansion` is `set -S` for this file alone, and `strict -p` lists what
 is on. "This file" is `$BASH_SOURCE`, so a function is checked by the file it
 was defined in, wherever it is called from. The desktop's own window manager
-and widgets run under `strict functions vars`. Why it is per file, and what
+and widgets run under all three -- plain `strict` -- with every list they
+split held in an array, `read -ra list <<< "$words"`. Why it is per file, and what
 it deliberately does not catch, is [0023](adr/0023-strict-is-per-file.md).
 
 `$LINENO` is the line of the command running, counted in its own file -- for a

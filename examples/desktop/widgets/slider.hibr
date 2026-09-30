@@ -2,7 +2,7 @@
 #
 # Part of the widget library apps draw with -- see widgets/README.md.
 
-strict functions vars
+strict
 
 # Draw a slider: a track of ─ over w columns with a ● at the position
 # value falls between min and max, arrow keys the way to change it once

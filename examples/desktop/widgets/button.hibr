@@ -2,7 +2,7 @@
 #
 # Part of the widget library apps draw with -- see widgets/README.md.
 
-strict functions vars
+strict
 
 # Where a button is drawn: a window's pane, or with id "root" straight onto
 # the screen, for the window manager's own overlays (the confirm box) that

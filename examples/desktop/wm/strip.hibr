@@ -4,7 +4,7 @@
 # Part of the window manager; desktop.hibr sources it. It only defines
 # functions and sets state, so it can be read on its own and is never run.
 
-strict functions vars
+strict
 
 # One line of quick-toggle modules, each in its own brackets, drawn
 # straight over everything else the same fixed-position way the bar and

@@ -8,6 +8,13 @@
 #include <time.h>
 #include <unistd.h>
 
+#ifdef HIBR_CENSUS
+#define XV(s, p, b, m, t, n) xputv(s, p, b, m, t, n)
+static int ce_xfl;
+#else
+#define XV(s, p, b, m, t, n) xput(b, m, t, n, (p)->q || (s)->strict)
+#endif
+
 void xvar2(sh *s, part *p, str *b, str *m, const char *v);
 
 /* Render a signed number into the expansion arena. */
@@ -190,6 +197,23 @@ void xput(str *b, str *m, const char *t, size_t n, int q)
 	m->n += n;
 	m->p[m->n] = 0;
 }
+
+#ifdef HIBR_CENSUS
+/* Add an expansion's value, logging one strict expansion would keep from globbing. */
+void xputv(sh *s, part *p, str *b, str *m, const char *t, size_t n)
+{
+	size_t i;
+
+	if (!p->q && !s->strict &&
+	    (!(ce_xfl & HIBR_XONE) || (ce_xfl & HIBR_XPAT)))
+		for (i = 0; i < n; i++)
+			if (strchr("*?[\\", t[i])) {
+				ce_exp(s, "glob", t, n);
+				break;
+			}
+	xput(b, m, t, n, p->q || s->strict);
+}
+#endif
 
 /* Expand a word into a single joined string. */
 char *xone(sh *s, word *w)
@@ -476,7 +500,7 @@ void xvar(sh *s, part *p, str *b, str *m)
 		}
 		if (p->op == V_KEYS) {
 			a = xajoin(s, p->t, ks, nk, " ", 1);
-			xput(b, m, a, strlen(a), p->q || s->strict);
+			XV(s, p, b, m, a, strlen(a));
 			return;
 		}
 		if (all && p->op == V_SUBSTR) {
@@ -492,7 +516,7 @@ void xvar(sh *s, part *p, str *b, str *m)
 				s_cat(&j, (char *)lst->p[k2]);
 			}
 			vb_put(s, lst);
-			xput(b, m, j.p ? j.p : "", j.n, p->q || s->strict);
+			XV(s, p, b, m, j.p ? j.p : "", j.n);
 			s_free(&j);
 			return;
 		}
@@ -509,7 +533,7 @@ void xvar(sh *s, part *p, str *b, str *m)
 		}
 	} else if (p->op == V_KEYS) {
 		a = xajoin(s, p->t, 0, 0, " ", 1);
-		xput(b, m, a, strlen(a), p->q || s->strict);
+		XV(s, p, b, m, a, strlen(a));
 		return;
 	} else if (p->op == V_NAMES) {
 		vec *nm = vb_get(s);
@@ -525,7 +549,7 @@ void xvar(sh *s, part *p, str *b, str *m)
 			s_cat(&j, (char *)nm->p[i]);
 			free(nm->p[i]);
 		}
-		xput(b, m, j.p ? j.p : "", j.n, p->q || s->strict);
+		XV(s, p, b, m, j.p ? j.p : "", j.n);
 		s_free(&j);
 		vb_put(s, nm);
 		return;
@@ -665,7 +689,7 @@ void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 		str t;
 		s_init(&t);
 		pf_esc(&t, v ? v : "", 0);
-		xput(b, m, t.p ? t.p : "", t.n, p->q || s->strict);
+		XV(s, p, b, m, t.p ? t.p : "", t.n);
 		s_free(&t);
 		return;
 	}
@@ -676,7 +700,7 @@ void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 	case V_DEF:
 		if (!ok) {
 			a = xone(s, p->arg);
-			xput(b, m, a, strlen(a), p->q || s->strict);
+			XV(s, p, b, m, a, strlen(a));
 			return;
 		}
 		break;
@@ -684,7 +708,7 @@ void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 		if (!ok) {
 			a = xone(s, p->arg);
 			hibr_set(s, p->t, a, 0);
-			xput(b, m, a, strlen(a), p->q || s->strict);
+			XV(s, p, b, m, a, strlen(a));
 			return;
 		}
 		break;
@@ -702,7 +726,7 @@ void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 	case V_ALT:
 		if (ok) {
 			a = xone(s, p->arg);
-			xput(b, m, a, strlen(a), p->q || s->strict);
+			XV(s, p, b, m, a, strlen(a));
 		}
 		return;
 	case V_RS:
@@ -712,7 +736,7 @@ void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 		if (!v)
 			return;
 		a = xtrim(s, v, xpat(s, p->arg), p->op);
-		xput(b, m, a, strlen(a), p->q || s->strict);
+		XV(s, p, b, m, a, strlen(a));
 		return;
 	case V_UP:
 	case V_UPALL:
@@ -730,7 +754,7 @@ void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 			if (p->op == V_UP || p->op == V_LOW)
 				break;
 		}
-		xput(b, m, a, strlen(a), p->q || s->strict);
+		XV(s, p, b, m, a, strlen(a));
 		return;
 	}
 	case V_SUBSTR: {
@@ -749,7 +773,7 @@ void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 				s_cat(&j, (char *)lst->p[k2]);
 			}
 			vb_put(s, lst);
-			xput(b, m, j.p ? j.p : "", j.n, p->q || s->strict);
+			XV(s, p, b, m, j.p ? j.p : "", j.n);
 			s_free(&j);
 			return;
 		}
@@ -762,7 +786,7 @@ void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 			xslice(s, p, (size_t)n, &off, &len);
 			bo = u8off(v, bn, (size_t)off);
 			be = u8off(v, bn, (size_t)(off + len));
-			xput(b, m, v + bo, be - bo, p->q || s->strict);
+			XV(s, p, b, m, v + bo, be - bo);
 		}
 		return;
 	}
@@ -772,7 +796,7 @@ void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 			return;
 		a = xrepl(s, v, xpat(s, p->arg),
 			  p->arg ? xone(s, p->arg->nx) : "", p->op == V_SUBA);
-		xput(b, m, a, strlen(a), p->q || s->strict);
+		XV(s, p, b, m, a, strlen(a));
 		return;
 	case V_SUBP:
 	case V_SUBF:
@@ -781,11 +805,11 @@ void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 		a = xrepl_a(s, v, xpat(s, p->arg),
 			    p->arg ? xone(s, p->arg->nx) : "",
 			    p->op == V_SUBF);
-		xput(b, m, a, strlen(a), p->q || s->strict);
+		XV(s, p, b, m, a, strlen(a));
 		return;
 	}
 	if (v) {
-		xput(b, m, v, strlen(v), p->q || s->strict);
+		XV(s, p, b, m, v, strlen(v));
 		return;
 	}
 	if (s->uset && p->op == V_NONE) {
@@ -811,7 +835,7 @@ void xpart(sh *s, part *p, str *b, str *m)
 		return;
 	case P_CMD:
 		a = xcap(s, p->t);
-		xput(b, m, a, strlen(a), p->q || s->strict);
+		XV(s, p, b, m, a, strlen(a));
 		return;
 	case P_PSUB:
 		a = xpsub(s, p);
@@ -819,7 +843,7 @@ void xpart(sh *s, part *p, str *b, str *m)
 		return;
 	case P_ARI:
 		a = xnum(s, ax_text(s, p->t));
-		xput(b, m, a, strlen(a), p->q || s->strict);
+		XV(s, p, b, m, a, strlen(a));
 		return;
 	}
 }
@@ -1247,6 +1271,13 @@ void xsplit(sh *s, str *b, str *m, vec *out, vec *outm)
 
 	if (!ifs)
 		ifs = " \t\n";
+#ifdef HIBR_CENSUS
+	for (st = 0; st < b->n && *ifs; st++)
+		if (!m->p[st] && strchr(ifs, b->p[st])) {
+			ce_exp(s, "split", b->p, b->n);
+			break;
+		}
+#endif
 	while (i < b->n) {
 		while (i < b->n && !m->p[i] && *ifs && strchr(ifs, b->p[i]))
 			i++;
@@ -1318,6 +1349,21 @@ void xtilde(sh *s, word *w, str *b, str *m)
 	p->t += 1 + n;
 	p->n -= 1 + n;
 }
+
+#ifdef HIBR_CENSUS
+void xwm_(sh *s, word *w, vec *out, int fl, vec *outm);
+
+/* Expand a word, noting its flags so the census knows what a value may do. */
+void xwm(sh *s, word *w, vec *out, int fl, vec *outm)
+{
+	int o = ce_xfl;
+
+	ce_xfl = fl;
+	xwm_(s, w, out, fl, outm);
+	ce_xfl = o;
+}
+#define xwm xwm_
+#endif
 
 /* Expand a word into zero or more fields. */
 void xwm(sh *s, word *w, vec *out, int fl, vec *outm)
@@ -1470,6 +1516,9 @@ normal:
 	sb_put(s, m);
 	sb_put(s, b);
 }
+#ifdef HIBR_CENSUS
+#undef xwm
+#endif
 
 /* Expand a word into one field, reporting which of its bytes were quoted. */
 char *xone_q(sh *s, word *w, char **mask)

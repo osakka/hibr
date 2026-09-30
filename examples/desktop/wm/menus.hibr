@@ -4,7 +4,7 @@
 # Part of the window manager; desktop.hibr sources it. It only defines
 # functions and sets state, so it can be read on its own and is never run.
 
-strict functions vars
+strict
 
 # System 7's, as closely as a text console allows: the hibr menu on the left
 # where the apple went, then the active application's own menus, then the
@@ -433,17 +433,17 @@ fn dt_menu_draw(m, px, parent) {
 
 # The application menu: every window, the hidden ones marked.
 dt_drop_apps() {
-	local ids id i=0 r=1 x w=18 t mark n
+	local ids id i=0 r=1 x w=18 t mark n il
 
 	ids := dt_ids
+	read -ra il <<< "$ids"
 	x=$((MB_AX - 4))
 	[ $((x + w)) -gt "$DT_COLS" ] && x=$((DT_COLS - w))
-	set -- $ids
-	n=$#
+	n=${#il[@]}
 	[ "$n" = 0 ] && n=1
 	[ "$DT_MSHADOW" = 1 ] &&
 		console darken $((r + 1)) $((x + 2)) $((n + 1)) "$w" "$DT_SHADOW_PCT"
-	for id in $ids; do
+	for id in "${il[@]}"; do
 		if [ "$i" = "$MB_SEL" ]; then
 			console pen "$DT_FACE" "$DT_ACTIVE" bold
 		else
@@ -556,7 +556,7 @@ dt_mup() {
 
 # Choose the highlighted item.
 dt_mdo() {
-	local m=$MB_OPEN i=$MB_SEL ids id n=0 j=0 argc
+	local m=$MB_OPEN i=$MB_SEL ids id n=0 j=0 argc il
 	local -a argv
 
 	if [ "$m" != app ] && [ -n "${MI[$m][$i]["sub"]}" ]; then
@@ -566,7 +566,8 @@ dt_mdo() {
 	dt_mclose
 	if [ "$m" = app ]; then
 		ids := dt_ids
-		for id in $ids; do
+		read -ra il <<< "$ids"
+		for id in "${il[@]}"; do
 			[ "$n" = "$i" ] && { dt_raise "$id"; return 0; }
 			n=$((n + 1))
 		done

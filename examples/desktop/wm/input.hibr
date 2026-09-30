@@ -4,7 +4,7 @@
 # Part of the window manager; desktop.hibr sources it. It only defines
 # functions and sets state, so it can be read on its own and is never run.
 
-strict functions vars
+strict
 
 # Handle one mouse report.
 #
@@ -355,7 +355,7 @@ dt_mouse() {
 # one, which is what every other desktop does and what anyone expects when
 # they scroll a list they have not clicked on yet.
 fn dt_event(k) {
-	local an knorm qn cn cln dn sn
+	local an knorm qn cn cln dn sn ev
 
 	case $k in
 	"mouse drag "*) DT_LASTDRAG=1 ;;
@@ -385,9 +385,9 @@ fn dt_event(k) {
 	if [ -n "$DT_CONFIRM" ]; then
 		case $k in
 		"mouse press "*)
-			set -- $k
+			read -ra ev <<< "$k"
 			local yn
-			yn := dt_confirm_hit "$4" "$5"
+			yn := dt_confirm_hit "${ev[3]}" "${ev[4]}"
 			if [ -n "$yn" ]; then
 				dt_confirm_key "$yn"
 			else
@@ -401,9 +401,8 @@ fn dt_event(k) {
 	fi
 	case $k in
 	"mouse "*)
-		set -- $k
-		shift
-		dt_mouse "$@"
+		read -ra ev <<< "$k"
+		dt_mouse "${ev[@]:1}"
 		return 0
 		;;
 	esac

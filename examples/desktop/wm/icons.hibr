@@ -4,7 +4,7 @@
 # Part of the window manager; desktop.hibr sources it. It only defines
 # functions and sets state, so it can be read on its own and is never run.
 
-strict functions vars
+strict
 
 # A clean desktop: Home, the disks if DT_DISKS wants them, and the trash --
 # laid out down from the top right, where the Mac put them.  Nothing else.
@@ -256,10 +256,11 @@ dt_iconsel() {
 # neither does trash itself.  Nothing makes a dir or file icon right now, but
 # the kind is kept for whatever eventually does.
 fn dt_iconpaths(keys) {
-	local i
+	local i ks
 
 	DT_PATHS=()
-	for i in $keys; do
+	read -ra ks <<< "$keys"
+	for i in "${ks[@]}"; do
 		case ${DI[$i]["kind"]} in
 		dir | file) DT_PATHS+=("${DI[$i]["name"]}") ;;
 		esac
@@ -377,7 +378,7 @@ fn dt_iconband(act, mr, mc) {
 # Moving after a press on an icon drags the selection; letting go without
 # moving is only a click, which settles a deferred one.
 fn dt_iconmove(act, mr, mc) {
-	local i pr pc sel n
+	local i pr pc sel n ss
 
 	if [ "$act" = release ]; then
 		if [ -n "$DI_DEFER" ]; then
@@ -401,8 +402,8 @@ fn dt_iconmove(act, mr, mc) {
 	sel := dt_iconsel || sel=$i
 	case " $sel " in *" $i "*) ;; *) sel=$i ;; esac
 	dt_iconpaths "$sel"
-	set -- $sel
-	n=$#
+	read -ra ss <<< "$sel"
+	n=${#ss[@]}
 	if [ "$n" = 1 ]; then
 		dt_dnd "${DI[$i]["label"]}" "${DI[$i]["glyph"]}" "${DT_PATHS[@]}"
 	else
@@ -464,7 +465,7 @@ fn dt_iconplace(key = "", r = "", c = "") {
 # icons being dragged is repositioned there, and files from anywhere else are
 # refused -- the background holds no files of its own to receive them.
 fn dt_deskdrop(mr, mc, op, ...rest) {
-	local from=$DT_DNDICON at=$DT_DNDFROM i dr dc p r
+	local from=$DT_DNDICON at=$DT_DNDFROM i dr dc p r fs
 
 	shift 3
 	DT_DNDICON=
@@ -485,7 +486,8 @@ fn dt_deskdrop(mr, mc, op, ...rest) {
 	if [ -n "$from" ]; then
 		dr=$((mr - ${at% *}))
 		dc=$((mc - ${at#* }))
-		for i in $from; do
+		read -ra fs <<< "$from"
+		for i in "${fs[@]}"; do
 			r=${DI[$i]["r"]}
 			p=${DI[$i]["c"]}
 			dt_iconset "${DI[$i]["key"]}" $((r + dr)) $((p + dc))
@@ -533,7 +535,7 @@ fn dt_iconnear(dir) {
 
 # Keys on the desktop, while no window has focus.
 fn dt_iconkey(k) {
-	local i sel
+	local i sel ss
 
 	[ "$DI_N" -gt 0 ] || return 1
 	case $k in
@@ -570,7 +572,8 @@ fn dt_iconkey(k) {
 		;;
 	enter)
 		sel := dt_iconsel || return 0
-		for i in $sel; do dt_iconopen "$i"; done
+		read -ra ss <<< "$sel"
+		for i in "${ss[@]}"; do dt_iconopen "$i"; done
 		;;
 	delete)
 		sel := dt_iconsel || return 0
@@ -584,10 +587,11 @@ fn dt_iconkey(k) {
 
 # What the desktop copies: the paths of the selected files, one to a line.
 dt_iconcopy() {
-	local sel i out=
+	local sel i out= ss
 
 	sel := dt_iconsel || return 1
-	for i in $sel; do
+	read -ra ss <<< "$sel"
+	for i in "${ss[@]}"; do
 		case ${DI[$i]["kind"]} in
 		place | dir | file) out="$out${DI[$i]["name"]}"$'\n' ;;
 		esac

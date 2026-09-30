@@ -2,7 +2,7 @@
 #
 # Part of the widget library apps draw with -- see widgets/README.md.
 
-strict functions vars
+strict
 
 # Draw a checkbox: "[x] label" or "[ ] label".  tag is what dt_hit answers
 # for a click on it -- the field the app will toggle, by default the label

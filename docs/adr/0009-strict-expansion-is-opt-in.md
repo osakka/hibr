@@ -36,6 +36,17 @@ stated justification for the option, which is a good argument for running the
 example before writing the record. `-S` protects the value that *arrives* in a
 word, not the word you typed.
 
+## A pattern from a variable is literal too
+
+"Never globbed" covers pattern matching as well as file names. Under `-S` a
+pattern that arrives by expansion -- `case $x in $p)`, `[[ $x == $p ]]`,
+`${x#$p}` -- matches only itself, as a quoted `"$p"` does by default. A
+script that keeps patterns in variables and wants them to match writes them
+into the word instead, or leaves this file lax. The window manager, which
+runs under `strict` since 0.51, had no such pattern: the census build's probe
+found none in any path the suites reach, and a search for the forms above
+found none in the rest.
+
 ## An empty expansion still disappears
 
 `-S` used to make an empty expansion produce one empty argument. It no longer

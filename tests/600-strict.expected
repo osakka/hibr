@@ -7,7 +7,7 @@ new global: status 1 unset
 declared ones: 0
 existing=5 made=2
 hibr: vars.hibr:13: fromread is not declared -- local fromread, or declare -g fromread (strict vars)
-hibr: vars.hibr:16: loopvar is not declared -- local loopvar, or declare -g loopvar (strict vars)
+hibr: vars.hibr:15: loopvar is not declared -- local loopvar, or declare -g loopvar (strict vars)
 read: status 1 unset
 for: status 1 unset
 ret is the shell's own: result
