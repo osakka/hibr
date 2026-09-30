@@ -703,6 +703,34 @@ const char *p_param(lex *l, node *pm, const char *p, const char *e)
 	return p;
 }
 
+/* Parse bash's function name { ... }, with or without the () after the name. */
+node *p_function(lex *l)
+{
+	node *f = nd(l, N_FUNC);
+	char *t;
+
+	lx_next(l);
+	t = l->tk == T_WORD ? w_lit(l->w) : 0;
+	if (!t || !*t) {
+		perr_near(l);
+		return f;
+	}
+	f->s = t;
+	lx_next(l);
+	if (l->tk == T_LP) {
+		lx_next(l);
+		if (l->tk != T_RP) {
+			perr(l, "expected ) in function definition");
+			return f;
+		}
+		lx_next(l);
+	}
+	p_nl(l);
+	f->r = p_cmd(l);
+	l->s->keep = 1;
+	return f;
+}
+
 /* Parse a typed function declaration. */
 node *p_fn(lex *l)
 {
@@ -863,6 +891,8 @@ node *p_cmd2(lex *l)
 		n = p_case(l);
 	} else if (kw(l, "fn")) {
 		return p_fn(l);
+	} else if (kw(l, "function")) {
+		return p_function(l);
 	} else {
 		return p_simple(l);
 	}

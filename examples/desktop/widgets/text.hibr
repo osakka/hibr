@@ -54,7 +54,6 @@ fn dt_textkey(text, int cur, key) {
 			text="${text:0:$cur}$key${text:$cur}"
 			cur=$((cur + 1))
 		else
-			ret "$text $cur"
 			return 1
 		fi
 		;;

@@ -9,6 +9,8 @@ one stops matching.
 
 Run a script with `hibr script` or a `#!/usr/bin/env hibr` line;
 `hibr -c 'cmd'` and `hibr -n script` (parse only) work as in bash.
+`hibr --explain script` checks a script for the mistakes below without
+running it.
 
 ## Write bash, and mind these differences
 
@@ -341,6 +343,28 @@ mode also turns on `set -u` and strict expansion, and swaps a terminal on
 standard input for `/dev/null`. `HIBR_TIMEOUT` bounds each foreground
 process -- TERM, KILL two seconds later, status 124 -- but not the shell's
 own work: a builtin, a function or a loop is not a process to end.
+
+## Checking a script before running it
+
+```sh
+printf 'cd build\nrm $out\nres := uname\n' > go.sh
+"$HIBR" --explain go.sh 2>&1
+echo "status $?"
+"$HIBR" --agent --explain go.sh 2>&1 | head -1
+```
+
+```output
+hibr: go.sh:1: cd-unchecked: cd can fail, and then everything after it runs in the wrong directory; write cd ... || exit
+hibr: go.sh:2: unquoted-path: rm is handed $out unquoted: a blank or a * in its value makes more paths than meant; write "$out"
+hibr: go.sh:3: bind-program: := binds what a builtin or a function returns, and uname is a program: it prints and the variable stays empty; write x=$(uname ...)
+status 1
+{"warning":"cd-unchecked: cd can fail, and then everything after it runs in the wrong directory; write cd ... || exit","file":"go.sh","line":1,"source":"cd build"}
+```
+
+Nothing runs. Status is 0 when clean, 1 when something was found, 2 for a
+syntax error. It also catches `for f in $(ls)`, `[ $x = y ]`, `unset
+'m[$k]'`, `local a=$1 b=${m[$a]}`, `$?` after `local x=$(cmd)`, a failing
+`return` after `ret`, and `${m[row]}` with `row` never assigned.
 
 ## Modules
 

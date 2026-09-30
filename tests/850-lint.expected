@@ -1,0 +1,31 @@
+0
+hibr: bad.sh:2: unquoted-path: rm is handed $f unquoted: a blank or a * in its value makes more paths than meant; write "$f"
+hibr: bad.sh:4: for-ls: for over $(ls) splits file names at blanks and globs them; loop over a glob: for f in *
+hibr: bad.sh:6: cd-unchecked: cd can fail, and then everything after it runs in the wrong directory; write cd ... || exit
+hibr: bad.sh:9: test-unquoted: $x is unquoted in [: if it is empty the test loses a word and errors or is always true; write "$x"
+hibr: bad.sh:14: bind-program: := binds what a builtin or a function returns, and uname is a program: it prints and the variable stays empty; write x=$(uname ...)
+hibr: bad.sh:16: unset-quoted-key: unset 'm[$k]' removes the key written there, $ and all, since a quoted subscript is a literal key; write it unquoted with the variable quoted inside, m["$k"]
+hibr: bad.sh:19: local-self-ref: $a is read in the same local that assigns it, before it is assigned: put a=... on its own line first
+hibr: bad.sh:22: local-masks-status: $? after local x=$(...) is local's own status, always 0, not the command's; declare it first, then assign it on a line of its own
+hibr: bad.sh:25: dead-return: ret already ends the function with status 0, so this failing return never runs; for a failure, return without ret
+hibr: bad.sh:32: bare-key: ${m[row]}: an unquoted key is looked up as a variable first; if row is the key itself, write ["row"], or declare m -A
+status 0
+findings status 1
+--- agent mode
+{"warning":"unquoted-path: rm is handed $f unquoted: a blank or a * in its value makes more paths than meant; write \"$f\"","file":"bad.sh","line":2,"source":"rm $f"}
+{"warning":"for-ls: for over $(ls) splits file names at blanks and globs them; loop over a glob: for f in *","file":"bad.sh","line":4,"source":"for x in $(ls); do echo \"$x\"; done"}
+--- clean
+status 0
+--- nothing runs
+hibr: command line:1: unquoted-path: rm is handed $f unquoted: a blank or a * in its value makes more paths than meant; write "$f"
+status 1
+--- a syntax error is status 2
+hibr: unexpected end of input
+status 2
+--- standard input
+hibr: command line:1: unquoted-path: rm is handed $f unquoted: a blank or a * in its value makes more paths than meant; write "$f"
+--- without the module
+hibr: --explain needs the lint module, which was not found
+status 2
+--- hibr's own examples are clean
+examples linted

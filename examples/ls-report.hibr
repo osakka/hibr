@@ -36,7 +36,7 @@ biggest := ls -qS "$dir"
 echo "largest $top:"
 i=0
 for f in "${biggest[@]}"; do
-  [ $i -ge $top ] && break
+  [ "$i" -ge "$top" ] && break
   line=$(ls -lh "$dir/$f")
   match "$line" '^[^ ]+ +[^ ]+ +[^ ]+ +[^ ]+ +([^ ]+)' S
   echo "  $f  (${S[1]})"

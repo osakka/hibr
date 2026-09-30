@@ -3,6 +3,7 @@
 # ```output block is run, in a directory of its own, and compared.
 h=$HIBR
 case $h in /*) ;; *) h=$PWD/$h ;; esac
+export HIBR_MODPATH=$PWD/build/mods
 n=0
 bad=0
 state=none

@@ -24,6 +24,7 @@ mod load ./build/mods/hello.so;  mod list;  mod drop hello
 | `http.c` | A **scheme**: registers `/dev/http/host/port/path`, so an HTTP body can be read by anything that reads a file |
 | `ls.c` | An in-process `ls` with columns, `-l -a -A -h -t -S -r -d -1 -F` and colour, whose listing also lands in `$RET` |
 | `prompt/` | A segmented prompt, and a native reader for git's object store |
+| `lint/` | The rules behind `hibr --explain`: reads a parsed script and names the mistakes in it, without running it. It adds no builtin; it offers `"lint"` (`mods/lint.h`), which `--explain` asks for |
 
 ## Naming
 

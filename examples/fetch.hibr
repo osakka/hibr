@@ -71,7 +71,7 @@ if [ "$showhdr" = 1 ]; then
   echo
 fi
 
-case "${head[content_type]}" in
+case "${head["content_type"]}" in
 *json*)
   json parse doc "$body" || fail "the body claimed to be JSON but did not parse"
   if [ -n "$query" ]; then
@@ -83,7 +83,7 @@ case "${head[content_type]}" in
   fi
   ;;
 *)
-  [ -n "$query" ] && fail "--query needs a JSON response, got ${head[content_type]:-no content type}"
+  [ -n "$query" ] && fail "--query needs a JSON response, got ${head["content_type"]:-no content type}"
   printf '%s' "$body"
   ;;
 esac

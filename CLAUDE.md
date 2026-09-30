@@ -126,6 +126,7 @@ linked, and no OpenSSL headers are needed to build.
 | `mods/term/` | a terminal emulator: a program's screen as cells, drawn into a window — see `mods/term/README.md` |
 | `mods/hold/` | sessions that outlive their terminal: detach, log off, attach again — see `mods/hold/README.md` |
 | `mods/img/` | decode an image and draw it as terminal cells, jp2a-alike, libpng dlopen'd on first use — see `mods/img/README.md` |
+| `mods/lint/` | the rules behind `hibr --explain`: walks the parsed tree and names mistakes, runs nothing; offers `"lint"` (`mods/lint.h`) and adds no builtin |
 
 Each directory carries its own `README.md` with the detail: `src/`, `include/`,
 `mods/`, `tests/`, `examples/`. User-facing documentation is under `docs/`, and
@@ -1383,6 +1384,23 @@ went in the shell.
   timeout is active, and `jc_ingrp` stops a child that is already in one
   from giving its children another -- the first version did, and a
   subshell's `sleep` escaped the signal meant for it.
+
+- **A condition that stops the shell must not replace the status it
+  stopped with.** `if`, `while`, `until` and `!` each computed their own
+  status after the condition ran -- 0 for an `if` with no branch taken --
+  so `if exit 3; then :; fi` exited 0, and a `set -e` stop inside a
+  function called from an `if` printed its errexit message and then
+  reported success. Each now checks `quit`, `stop` and `ret` right after
+  the condition and returns the condition's status. Anything new that
+  runs a condition and then decides its own status needs the same check.
+- **A lint rule ships only once hibr's own scripts are clean under it.**
+  Every finding in `examples/` is either a bug in the example or a false
+  positive in the rule, and the second has to go before the rule does:
+  the first pass found 62, of which one was real (`dt_textkey`'s `ret`
+  then `return 1`). `tests/850-lint.t` fails when an example stops linting
+  clean. A rule that reads another file's declarations cannot see them
+  -- `declare -gA` in `wm/input.hibr` is invisible to `apps/files.hibr` --
+  so a rule about arrays has to act only on arrays the file itself makes.
 
 ## Testing discipline
 

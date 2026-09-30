@@ -104,7 +104,8 @@ cond        = "[[" cond_expr "]]" ;
 arith       = "((" arith_expr "))" ;
 
 function    = "fn" name "(" [ params ] ")" [ "->" type ] "{" list "}"
-            | name "(" ")" compound ;
+            | name "(" ")" compound
+            | "function" word [ "(" ")" ] compound ;
 params      = param { "," param } ;
 param       = [ type ] name [ "=" word ] ;
 type        = ( "int" | "num" | "str" | "path" | "arr" | "map" | "any" ) [ "?" ] ;

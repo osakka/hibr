@@ -1656,6 +1656,10 @@ int ex_loop(sh *s, node *n)
 		s->tst = 1;
 		c = ex(s, n->l);
 		s->tst = 0;
+		if (s->quit || s->stop || s->ret) {
+			st = c;
+			break;
+		}
 		if (n->k == N_UNTIL ? c == 0 : c != 0)
 			break;
 		st = ex(s, n->r);
@@ -2161,6 +2165,8 @@ int ex(sh *s, node *n)
 	case N_NOT:
 		s->tst = 1;
 		st = ex(s, n->l);
+		if (s->quit || s->stop || s->ret)
+			return s->st = st;
 		return ex_chk(s, s->st = st ? 0 : 1, t);
 	case N_PIPE:
 		s->ln = n->ln;
@@ -2190,7 +2196,8 @@ int ex(sh *s, node *n)
 		s->tst = 1;
 		st = ex(s, n->l);
 		s->tst = t;
-		st = st == 0 ? ex(s, n->r) : (n->x ? ex(s, n->x) : 0);
+		if (!(s->quit || s->stop || s->ret))
+			st = st == 0 ? ex(s, n->r) : (n->x ? ex(s, n->x) : 0);
 		rd_undo(&sv);
 		return s->st = st;
 	case N_WHILE:

@@ -21,3 +21,14 @@ a() { echo "in a"; b; }
 b() { echo "in b, depth ok"; }
 a
 echo "exit code of false: "; false; echo $?
+function a { echo "a $1"; }
+function b() { echo "b $#"; }
+function c ()
+{
+	echo c
+}
+function d() ( echo "sub $1" )
+function e-f { echo dashed; }
+a x; b 1 2; c; d y; e-f
+function g { return 3; }; g; echo "st $?"
+type b | head -1

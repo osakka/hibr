@@ -598,16 +598,14 @@ over `docs/cookbook.md` and `docs/data.md`, whose examples were run once and
 pasted back but are not run again -- they would need their output blocks
 marked the way `docs/llm.md`'s are.
 
-### A linter for the mistakes models make
+### A linter for the mistakes models make — built
 
-`hibr -n --explain script`: parse without running, then name what is wrong
-and why, with the line -- an unquoted expansion passed to `rm`, `mv` or
-`cp`; `cd` without `|| exit`; `for f in $(ls)`; `[ $x = y ]` with `$x`
-possibly empty; `set -e` expected to reach inside a function called from a
-condition; a `local x=$(cmd)` that masks `cmd`'s status. Rules live in a
-module (`mods/lint/`), so the shell pays nothing for them; the parser only
-has to expose the tree it already builds. `tests/corpus.py`'s 155 real
-scripts are the false-positive check.
+`hibr --explain script`, in 0.59, with its ten rules in `mods/lint/`. The
+`set -e`-in-a-condition rule was left out: hibr's errexit already reaches
+inside those functions (ADR 0002), so there is nothing to warn about. What
+could come next: a rule for a quoted `"$@"` missing in a wrapper, and
+knowing that `opt ... int=` declares a number, which `test-unquoted` would
+then pass.
 
 ### A safety net for commands an agent runs
 

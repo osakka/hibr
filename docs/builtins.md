@@ -83,7 +83,9 @@ appearing to succeed. See [0017](adr/0017-one-namespace-for-options.md).
 **[hibr]** `set -o agent`, or `hibr --agent`, is agent mode: errors as JSON
 lines, `nounset` and `strict` on, no terminal on standard input, and
 `HIBR_TIMEOUT` bounding each foreground process -- see
-[0025](adr/0025-agent-mode.md).
+[0025](adr/0025-agent-mode.md). `hibr --explain script` parses without
+running and names common mistakes, one per line -- see
+[the language guide](language.md#explaining-a-script).
 
 ## Text and data
 

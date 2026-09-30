@@ -455,6 +455,42 @@ A syntax error adds its column. The timeout bounds processes, not the shell's
 own work: a builtin, a function or a loop is not a process to end. Why each
 choice, and what it leaves out, is [0025](adr/0025-agent-mode.md).
 
+## Explaining a script
+
+`hibr --explain script` parses a script, runs none of it, and names each
+common mistake it finds, with the line and what to write instead:
+
+```sh
+$ printf 'cd build\nrm $out\nres := uname\n' > go.sh
+$ hibr --explain go.sh; echo "status $?"
+hibr: go.sh:1: cd-unchecked: cd can fail, and then everything after it runs in the wrong directory; write cd ... || exit
+hibr: go.sh:2: unquoted-path: rm is handed $out unquoted: a blank or a * in its value makes more paths than meant; write "$out"
+hibr: go.sh:3: bind-program: := binds what a builtin or a function returns, and uname is a program: it prints and the variable stays empty; write x=$(uname ...)
+status 1
+```
+
+Status is 0 for a clean script, 1 when anything was found and 2 for a
+syntax error. `-c 'text'` and standard input work as they do for running;
+with `--agent` each finding is a line of JSON keyed `warning`. The rules:
+
+| rule | what it catches |
+|---|---|
+| `unquoted-path` | an unquoted expansion handed to `rm`, `mv`, `cp`, `rmdir`, `ln`, `chmod`, `chown`, `chgrp`, `touch` or `mkdir` |
+| `cd-unchecked` | a `cd` outside a condition, in a script that never says `set -e` (`cd /` is let through) |
+| `for-ls` | `for f in $(ls)` |
+| `test-unquoted` | `[ $x = y ]`, where an empty `$x` leaves the test a word short; not `$#`, `$?`, `${#x}`, nor a variable the script only ever gives a number |
+| `bind-program` | `x := program` for a program on the PATH, which prints and binds nothing |
+| `unset-quoted-key` | `unset 'm[$k]'`, which here removes a key literally named `$k` |
+| `local-self-ref` | `local a=$1 b=${m[$a]}`, where `b` reads `a` before it is assigned |
+| `local-masks-status` | `$?` read right after `local x=$(cmd)`, which is `local`'s status |
+| `dead-return` | a failing `return` straight after `ret`, which has already ended the function |
+| `bare-key` | `${m[row]}` with `row` never assigned, on an array this file makes without `-A` |
+
+The rules live in a module, `lint`, loaded only by `--explain`, so running a
+script never pays for them. bash's `set -e`-inside-a-condition trap is not a
+rule, because hibr's errexit already reaches into those functions -- see
+[0002](adr/0002-errexit-is-scoped.md).
+
 ## Where to go next
 
 | | |

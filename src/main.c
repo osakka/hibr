@@ -1,4 +1,5 @@
 #include "pri.h"
+#include "../mods/lint.h"
 #include <errno.h>
 #include <signal.h>
 #include <stdio.h>
@@ -63,6 +64,35 @@ void recycle(sh *s)
 	}
 	ar_reset(s->ar);
 	ar_reset(s->xa);
+}
+
+/* Parse a script and hand the tree to the lint module, running nothing:
+   0 when it found nothing, 1 when it found something, 2 when the script
+   does not parse or there is no linter to ask. */
+int sh_explain(sh *s, const char *src)
+{
+	const li_api *li;
+	node *n;
+	int more = 0, found;
+	const char *c;
+
+	n = hibr_parse(s, src, &more);
+	if (more) {
+		for (lg_ln = 1, c = src; *c; c++)
+			lg_ln += *c == '\n';
+		lg(HIBR_LERR, "unexpected end of input");
+		lg_ln = 0;
+		return 2;
+	}
+	if (!n)
+		return s->st == 2 ? 2 : 0;
+	li = (const li_api *)hibr_require(s, "lint", LI_API_VER);
+	if (!li) {
+		lg(HIBR_LERR, "--explain needs the lint module, which was not found");
+		return 2;
+	}
+	found = li->explain(s, n);
+	return found ? 1 : 0;
 }
 
 /* Parse and execute a source string in the current shell. */
@@ -334,7 +364,7 @@ int main(int ac, char **av)
 	sh s;
 	char *src = 0, *text;
 	FILE *f;
-	int i = 1, rc;
+	int i = 1, rc, explain = 0;
 	char *p;
 
 	memset(&s, 0, sizeof s);
@@ -398,8 +428,12 @@ int main(int ac, char **av)
 			sh_optset(&s, "agent", 1);
 			continue;
 		}
+		if (!strcmp(av[i], "--explain")) {
+			explain = 1;
+			continue;
+		}
 		if (!strcmp(av[i], "-h") || !strcmp(av[i], "--help")) {
-			printf("usage: hibr [-d level] [-n] [--agent] [script [args...]]\n"
+			printf("usage: hibr [-d level] [-n] [--agent] [--explain] [script [args...]]\n"
 			       "       hibr -c 'commands' [args...]\n"
 			       "       hibr -v | -h\n\n"
 			       "  -c   run the given commands\n"
@@ -407,6 +441,8 @@ int main(int ac, char **av)
 			       "  --agent  for a script a program runs: errors as JSON\n"
 			       "       lines, set -u, strict expansion, no terminal input,\n"
 			       "       HIBR_TIMEOUT seconds per foreground process\n"
+			       "  --explain  run nothing: name the mistakes the script\n"
+			       "       makes, one per line; status 1 if it found any\n"
 			       "  -d   log level 0-4 (error, warn, info, debug, trace)\n"
 			       "  -v   print version and module ABI\n\n"
 			       "Interactive when stdin is a terminal: reads ~/.hibrc,\n"
@@ -425,7 +461,7 @@ int main(int ac, char **av)
 		}
 		if (i < ac)
 			v_pos(&s, ac - i, av + i);
-		rc = hibr_run(&s, src);
+		rc = explain ? sh_explain(&s, src) : hibr_run(&s, src);
 		free(src);
 		sh_fini(&s);
 		return rc;
@@ -444,7 +480,14 @@ int main(int ac, char **av)
 			v_pos(&s, ac - i - 1, av + i + 1);
 		text = slurp(f);
 		fclose(f);
-		rc = hibr_run(&s, text);
+		rc = explain ? sh_explain(&s, text) : hibr_run(&s, text);
+		free(text);
+		sh_fini(&s);
+		return rc;
+	}
+	if (explain) {
+		text = slurp(stdin);
+		rc = sh_explain(&s, text);
 		free(text);
 		sh_fini(&s);
 		return rc;

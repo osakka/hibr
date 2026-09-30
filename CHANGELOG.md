@@ -1,5 +1,58 @@
 # Changelog
 
+## 0.59
+
+**`hibr --explain script`: the mistakes in a script, named, without running
+it.** It parses, runs nothing, and reports each finding with its line, what
+is wrong and what to write instead; with `--agent` each is a line of JSON
+keyed `warning`. Status is 0 when clean, 1 when something was found, 2 for
+a syntax error. Ten rules, each for a mistake models (and people) make:
+`unquoted-path` (`rm $f`), `cd-unchecked`, `for-ls`, `test-unquoted`
+(`[ $x = y ]`), `bind-program` (`x := uname`), `unset-quoted-key`
+(`unset 'm[$k]'`), `local-self-ref` (`local a=$1 b=${m[$a]}`),
+`local-masks-status` (`$?` after `local x=$(cmd)`), `dead-return` (a failing
+`return` after `ret`) and `bare-key` (`${m[row]}`). The rules are a module,
+`mods/lint/`, offering `"lint"`; `--explain` asks for it, so a script that
+is run rather than explained never loads it. bash's `set -e`-in-a-condition
+trap is not a rule, because hibr's errexit already reaches those functions
+(ADR 0002).
+
+Every rule was run over hibr's own 68 example scripts and `tests/self.hibr`
+before shipping, and each finding was either fixed or the rule narrowed: 62
+findings became 2, both in `tests/self.hibr`, which reads an unquoted key on
+purpose.
+`test-unquoted` passes `$#`, `$?`, `${#x}` and a variable the script only
+ever sets to a number; `dead-return` only a failing `return`;
+`bind-program` a name some module makes a builtin (`ls`); `bare-key` an
+array made in another file, which may be `-A` there. Then over 259 shell
+scripts in `/usr/bin` and `/usr/sbin`, parse only: no crash, and a sample
+of what it reported read as real.
+
+`tests/850-lint.t` has a firing case and a quiet case beside it for every
+rule, and fails if any example stops linting clean.
+
+**Found by it, and fixed:**
+
+- **`dt_textkey` told every caller it had handled every key.** It ended an
+  unhandled key with `ret "$text $cur"; return 1`, and `ret` had already
+  returned 0 -- the `dead-return` rule's own example. It returns 1 now.
+
+**Found while testing it against system scripts, and fixed:**
+
+- **bash's `function` keyword did not parse at all**: `function f { ...; }`
+  and `function f() { ...; }` were both syntax errors, which stopped
+  `iptables-apply` and `ip6tables-apply` before their first line. Both forms
+  work, as does a name bash allows there and `name()` does not
+  (`function e-f`).
+- **An `exit` inside a condition exited 0.** `if exit 3; then :; fi` exited
+  with the `if`'s own status rather than 3, and the same for `while`,
+  `until` and `!`, for `return` inside them, and for a `set -e` stop in a
+  function called from one -- which is how it was found: that script
+  printed its errexit message and then reported success. Each keeps the
+  status it was stopped with now. `tests/855-exit-in-condition.t` compares
+  every case against bash. The check costs 0.12% of the instructions on a
+  `while` loop.
+
 ## 0.58
 
 **Agent mode: `hibr --agent`, or `set -o agent`.** For a script a program
