@@ -207,4 +207,4 @@ o, _ = run('console open\nconsole flush\nconsole key 3000\nconsole close\n'
            after=bigger, wait=3)
 check("a resize interrupts the wait and is reported", counts(o) == [40, 100])
 
-report(len(WANT) + len(MWANT) + 39)
+report(len(WANT) + len(MWANT) + 38)

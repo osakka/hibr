@@ -295,7 +295,11 @@ def wheel(row, col, up=True):
     return b"\x1b[<%d;%d;%dM" % (64 if up else 65, col + 1, row + 1)
 
 
+RAN = [0]
+
+
 def check(name, ok, show=None):
+    RAN[0] += 1
     print(("ok   " if ok else "FAIL ") + name)
     if not ok:
         FAIL.append(name)
@@ -305,9 +309,15 @@ def check(name, ok, show=None):
 
 
 def report(total=None):
-    n = total if total is not None else 0
+    """Say how it went. total is how many checks the suite meant to make;
+    a suite that made a different number -- one skipped by an exception
+    caught somewhere, or added without the plan being raised -- fails
+    rather than reporting a count it did not earn."""
     print()
-    print("%d passed, %d failed" % ((n or len(FAIL)) - len(FAIL), len(FAIL)))
+    print("%d passed, %d failed" % (RAN[0] - len(FAIL), len(FAIL)))
+    if total is not None and RAN[0] != total:
+        print("planned %d checks, made %d" % (total, RAN[0]))
+        sys.exit(1)
     sys.exit(1 if FAIL else 0)
 
 

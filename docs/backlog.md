@@ -561,19 +561,6 @@ like a clean shell, which is a mistake this project has already made once and
 recorded in `CLAUDE.md`. They could be hibr; they should not be.
 
 
-## The desktop, agreed and queued
-
-### Shortcuts can be cleared, and never shared -- with the Control Panel, 0.46
-
-A Clear button at the end of every row that has a key, and Delete or
-Backspace on the selected row; a cleared row reads "none". Pressing a key
-another action holds asks -- "Alt-Ctrl-T is Terminal's: give it to Tasks
-instead?" [Reassign] [Cancel] -- and reassigning clears the old owner, so a
-key never has two. The desktop's own and the apps' shortcuts are one
-namespace for this. Keys the desktop reserves (F10, escape, tab) are refused
-outright with the reason; a settings file edited by hand to hold a duplicate
-shows a ⚠ on both rows rather than letting whichever matches first win.
-
 ## The language
 
 ### `.` and `source` search PATH for a name without a slash -- agreed
@@ -601,7 +588,7 @@ first, with instruction counts on the desktop's own idle frame and on the
 loop benchmarks -- `fn_find` is also on `unset`, `type`, `command -v` and
 `declare -F`, and `fn_src` relies on the index it leaves behind.
 
-### A strict mode, per file -- agreed, after the Control Panel
+### A strict mode, per file -- agreed, next
 
 Perl's `use strict` as a family of named checks, each opt-in, each scoped to
 the file that turns it on -- not the whole shell, since some redefinition

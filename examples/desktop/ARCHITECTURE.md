@@ -173,15 +173,21 @@ long scrolling list:
 
 A pane down the left, its own rows on the right — arrows move the picker,
 tab or right or enter steps into the selected pane, and the same keys then
-move its row cursor instead. Appearance and Behaviour hold what used to be
-one flat list's worth of settings; Shortcuts holds the four fixed desktop
-bindings — Close Window, Detach, Quit, Cycle Windows — rebindable by
-selecting the row, pressing enter, then the new key; App Shortcuts lists
-every registered app the same way, empty by default, so any app can be
-given a global launch shortcut, not just the two (Terminal and Task
-Manager) that ship with one; Window Style sets a window's own chrome —
-frame, button side, title alignment, button glyphs — read by `dt_win` and
-`dt_btn` themselves, not by the pane; Date & Time draws its own body
+move its row cursor instead. The picker has two groups under headings:
+**System** — Appearance, Control Strip, Date & Time, Desktop, Displays, File
+Types, Keyboard, Notifications, Windows — and **Apps**, one pane per app that
+has something to choose: About hibr, Files, Task Manager, Terminal. An app's
+pane is always listed and says so when its app is not loaded, so the list
+does not move under you. Everything an app keeps across restarts has a row in
+some pane; `tests/540-examples.t` fails otherwise. Appearance holds the theme,
+the wallpaper — a glyph, or an image chosen in a picker window of its own —
+the menu bar's spacing and icon, and the four shadows; Windows holds a
+window's chrome — frame, button side, title alignment, button glyphs, read by
+`dt_win` and `dt_btn` themselves, not by the pane — and how it is moved,
+resized and double-clicked; Keyboard holds every shortcut, the desktop's own
+and any app's, each cleared by the ✕ beside it or delete on its row, with
+`wm/keys.hibr` refusing a key the desktop keeps and asking before taking one
+another action holds; Date & Time draws its own body
 instead of rows — the clock, the date, and a small
 world map with a mark near the machine's own time zone, reusing
 `examples/traceroute.hibr`'s own map and zone1970.tab lookup rather than a

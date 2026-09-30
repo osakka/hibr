@@ -373,20 +373,9 @@ fn dt_event(k) {
 		"mouse "*) ;;
 		escape) DT_KEYCAP=; dt_note "Cancelled" ;;
 		*)
-			case $DT_KEYCAP in
-			app:*)
-				an=${DT_KEYCAP#app:}
-				DT_APPKEY[$an]=$k
-				dt_notify "${DT_APPS[$an]["title"]} is now $k" \
-					dt_launch panel
-				;;
-			*)
-				DT_KEYS[$DT_KEYCAP]=$k
-				dt_notify "${DT_KEYCAP^} is now $k" dt_launch panel
-				;;
-			esac
-			dt_save
+			an=$DT_KEYCAP
 			DT_KEYCAP=
+			dt_keytake "$an" "$k"
 			;;
 		esac
 		return 0
@@ -505,56 +494,9 @@ fn dt_event(k) {
 	fi
 }
 
-# A shortcut in one canonical modifier order, ctrl then alt then shift,
-# whatever order it named them in -- an alt combination arrives as ESC
-# followed by the plain control byte, and is named "alt-" then whatever
-# that byte is, in that order; a CSI-encoded one (some terminals report
-# a modified plain key this way too, not only function keys and arrows)
-# is named "ctrl-" before "alt-". Comparing shortcuts by this instead of
-# by the exact string is what makes alt-ctrl-t and ctrl-alt-t the same
-# shortcut regardless of which encoding a real keypress happened to take
-# -- a user typing what looks like the natural chord should not have to
-# know or care which one their own terminal uses.
-fn dt_keynorm(k) {
-	local base=$k mods= out=
-
-	case $k in *-*) base=${k##*-}; mods=${k%-"$base"} ;; esac
-	case $mods in *ctrl*) out="${out}ctrl-" ;; esac
-	case $mods in *alt*) out="${out}alt-" ;; esac
-	case $mods in *shift*) out="${out}shift-" ;; esac
-	ret "$out$base"
-}
-
-# Launch whichever app, if any, has k as its own shortcut -- the general
-# form DT_KEYS' fixed four desktop actions above are not: any number of
-# apps, not two of them by name in this case statement.
-fn dt_appkeyed(key) {
-	local an knorm anorm
-
-	knorm := dt_keynorm "$key"
-	for an in "${!DT_APPKEY[@]}"; do
-		anorm := dt_keynorm "${DT_APPKEY[$an]}"
-		if [ "$anorm" = "$knorm" ]; then
-			dt_launch "$an"
-			return 0
-		fi
-	done
-}
-
 # Milliseconds, for telling a double click from two.
 dt_ms() {
 	local t=${EPOCHREALTIME/./}
 
 	ret $((t / 1000))
-}
-
-# Start capturing the next key as action's own shortcut -- Settings calls
-# this when a shortcut row is activated; dt_event's own DT_KEYCAP check
-# takes the very next key, of any kind, rather than dispatching it.
-fn dt_keycap(what) {
-	DT_KEYCAP=$what
-	case $what in
-	app:*) dt_note "Press a key for ${DT_APPS[${what#app:}]["title"]}…" ;;
-	*) dt_note "Press a key for ${what^}…" ;;
-	esac
 }

@@ -2,8 +2,10 @@
 #
 # wallpaper -- browse for an image, preview it in real colour (fitted to
 # its own aspect ratio, not stretched), apply it as the desktop's
-# wallpaper, also in full colour. See wp_preview for how the preview
-# itself is drawn straight into this window's own pane.
+# wallpaper, also in full colour. A dialog window of its own, opened from
+# Appearance's "Wallpaper Image…" row, the same way Date & Time opens its
+# time zone picker. See wp_preview for how the preview itself is drawn
+# straight into this window's own pane.
 # #2's own explicit constraint was to reuse the file browser's own tooling
 # for picking the image rather than building a
 # new picker from scratch: fb_scan, fb_go and fb_path (all of files.hibr's
@@ -13,7 +15,7 @@
 # whole bordered window, not a half-width strip inside a shared Control
 # Panel body, so there was nothing there to reuse for that part.
 #
-# The pane's own internal name is wallpick, not wallpaper: control-strip's
+# The window's own prefix is wallpick, not wallpaper: control-strip's
 # own wallpaper.hibr already defines wallpaper_draw/_click for its glyph
 # cycler, and the two would silently redefine each other's functions if
 # this one used the same prefix -- a function defined twice replaces the
@@ -21,8 +23,6 @@
 # on purpose; they live in different parts of the UI and do different
 # things (a plain glyph there, an image here), the same way two apps can
 # each have their own File menu.
-command -v cp_pane > /dev/null && cp_pane wallpick "Wallpaper" "▤"
-
 declare -gA WPK
 
 # Where the picker starts: wherever it was left, or failing that wherever
@@ -31,7 +31,26 @@ declare -gA WPK
 WPK_DIR=
 command -v dt_keep > /dev/null && dt_keep WPK_DIR
 
-fn wallpick_open(id) {
+# Open the picker in a window of its own, over the Control Panel.
+wp_dialog() {
+	local h=20 w=64 r c
+
+	r=$((DT_ROWS / 2 - h / 2))
+	c=$(((DT_COLS - w) / 2))
+	dt_new "Wallpaper" "$h" "$w" "$r" "$c" wallpick
+}
+
+fn wallpick_open(id, arg = "") {
+	WPK[$id]["focus"]=list
+}
+
+fn wallpick_close(id) {
+	unset "WPK[$id]" "FB[$id]" "FL[$id]"
+}
+
+# Start in the folder the picker was last left in -- run on the first
+# frame, once _draw has laid out the preview box the fit is worked out for.
+fn wp_init(id) {
 	if [ -z "$WPK_DIR" ]; then
 		if [ -n "$DT_WALLIMG" ]; then
 			WPK_DIR=${DT_WALLIMG%/*}
@@ -158,8 +177,14 @@ fn wp_fitcache(id, path, boxr, boxc) {
 	WPK[$id]["fitoffc"]=$(((boxc - fitc) / 2))
 }
 
-fn wallpick_draw(id, h, w, bx) {
-	local listw prevw prevx prevh vis moderow applyrow i r n top sel t applyon path
+# The list and preview fill everything but the last two rows, which hold
+# the Apply and Close buttons and their shadow.
+fn wallpick_draw(id, h, w, row, col) {
+	local listw prevw prevx prevh vis moderow i r n top sel t path bx=1
+	local wh=$h
+
+	dt_wclear "$id"
+	h=$((h - 1))
 
 	listw=$(((w - 3) * 2 / 5))
 	[ "$listw" -lt 16 ] && listw=16
@@ -168,7 +193,6 @@ fn wallpick_draw(id, h, w, bx) {
 	prevh=$((h - 4))
 	vis=$((h - 3))
 	moderow=$((h - 2))
-	applyrow=$((h - 1))
 	WPK[$id]["listw"]=$listw
 	WPK[$id]["bx"]=$bx
 	WPK[$id]["prevw"]=$prevw
@@ -176,16 +200,15 @@ fn wallpick_draw(id, h, w, bx) {
 	WPK[$id]["prevh"]=$prevh
 	WPK[$id]["vis"]=$vis
 	WPK[$id]["moderow"]=$moderow
-	WPK[$id]["applyrow"]=$applyrow
 
 	if [ -z "${FB[$id]["dir"]}" ]; then
-		wallpick_open "$id"
+		wp_init "$id"
 		wp_refresh "$id"
 	fi
 
 	console pen "$DT_IDLE" "$DT_FACE"
 	r=1
-	while [ "$r" -le "$h" ]; do
+	while [ "$r" -le $((h - 1)) ]; do
 		console put -p "w$id" "$r" $((bx + listw + 1)) "│"
 		r=$((r + 1))
 	done
@@ -210,8 +233,11 @@ fn wallpick_draw(id, h, w, bx) {
 		else
 			t := str pad "" "$listw"
 		fi
-		if [ "$i" = "$sel" ] && [ "$i" -lt "$n" ]; then
+		if [ "$i" = "$sel" ] && [ "$i" -lt "$n" ] &&
+		   [ "${WPK[$id]["focus"]}" = list ]; then
 			console pen "#1a202c" "$DT_ACTIVE" bold
+		elif [ "$i" = "$sel" ] && [ "$i" -lt "$n" ]; then
+			console pen "$DT_ACTIVE" "$DT_FACE" bold
 		else
 			console pen "$DT_INK" "$DT_FACE"
 		fi
@@ -237,33 +263,41 @@ fn wallpick_draw(id, h, w, bx) {
 			$((prevx + ${WPK[$id]["fitoffc"]})) \
 			"${WPK[$id]["fitr"]}" "${WPK[$id]["fitc"]}" \
 			-p "w$id" 2> /dev/null
-		applyon=1
 	else
 		console pen "$DT_IDLE" "$DT_FACE"
 		t="Select a .png"
 		[ ${#t} -gt "$prevw" ] && t="${t:0:$prevw}"
 		console put -p "w$id" 1 "$prevx" "$t"
-		applyon=0
 	fi
 
 	console pen "$DT_INK" "$DT_FACE"
 	t="Mode: ${DT_WALLMODE^} ▾"
 	t := str pad "$t" "$prevw"
 	console put -p "w$id" "$moderow" "$prevx" "$t"
-
-	if [ "$applyon" = 1 ]; then
-		console pen "$DT_FACE" "$DT_ACTIVE" bold
-	else
-		console pen "$DT_IDLE" "$DT_FACE"
-	fi
-	t := str pad " Apply " "$prevw"
-	console put -p "w$id" "$applyrow" "$prevx" "$t"
-	console pen "$DT_INK" "$DT_FACE"
+	dt_wreg "$id" "$moderow" "$prevx" "$prevw" mode
+	dt_dlgbtns "$id" "$wh" "$w" "${WPK[$id]["focus"]}" ok Apply cancel Close
 }
 
+# Tab moves between the list and the buttons; enter on a button does it,
+# on the list enters a folder or applies an image; escape closes.
 fn wallpick_key(id, key) {
-	local n vis top sel
+	local n vis top sel f=${WPK[$id]["focus"]} d onb=1
 
+	[ "$f" = list ] && onb=0
+	if d := dt_focuskey "$key" "$onb"; then
+		WPK[$id]["focus"] := dt_focus "$f" "$d" list ok cancel
+		return 0
+	fi
+	case $key in
+	escape) dt_del "$id"; return 0 ;;
+	enter)
+		case $f in
+		ok) wp_apply "$id"; return 0 ;;
+		cancel) dt_del "$id"; return 0 ;;
+		esac
+		;;
+	esac
+	[ "$f" = list ] || return 0
 	n=${FB[$id]["n"]}
 	sel=${FB[$id]["sel"]}
 	top=${FB[$id]["top"]}
@@ -311,7 +345,7 @@ fn wallpick_key(id, key) {
 # only, same as files_wheel; the selection does not follow, the same as
 # the arrow keys' own up/down already leave it when they scroll without
 # crossing it.
-fn wallpick_wheel(id, dir) {
+fn wallpick_wheel(id, dir, r = "", c = "") {
 	local top n vis max
 
 	n=${FB[$id]["n"]}
@@ -355,19 +389,19 @@ fn wp_apply(id) {
 # files.hibr's own file list both already use, tracked the same way:
 # FB[$id]["last"] (reset to -1 by fb_scan on every directory change, so a
 # stale index from the old listing can never falsely count as a repeat).
-fn wallpick_click(id, r, c) {
-	local bx=${WPK[$id]["bx"]} listw=${WPK[$id]["listw"]} n i
+fn wallpick_click(id, r, c, btn = "") {
+	local bx=${WPK[$id]["bx"]} listw=${WPK[$id]["listw"]} n i tag
 
-	if [ "$r" = "${WPK[$id]["applyrow"]}" ] &&
-	   [ "$c" -ge "${WPK[$id]["prevx"]}" ]; then
-		wp_apply "$id"
-		return 0
-	fi
-	if [ "$r" = "${WPK[$id]["moderow"]}" ] &&
-	   [ "$c" -ge "${WPK[$id]["prevx"]}" ]; then
+	tag := dt_hit "$id" "$r" "$c"
+	case $tag in
+	ok) wp_apply "$id"; return 0 ;;
+	cancel) dt_del "$id"; return 0 ;;
+	mode)
 		dt_droplist "$id" "$r" "$c" wp_setmode "${WP_MODES[@]}"
 		return 0
-	fi
+		;;
+	esac
+	WPK[$id]["focus"]=list
 	[ "$c" -ge "$bx" ] || return 0
 	[ "$c" -lt $((bx + listw)) ] || return 0
 	[ "$r" -lt 2 ] && return 0

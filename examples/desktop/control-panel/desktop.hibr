@@ -1,0 +1,42 @@
+#!/usr/bin/env hibr
+#
+# desktop -- the Control Panel pane for the bare desktop: which icons sit
+# on it, and how often a busy screen is redrawn.
+
+command -v cp_pane > /dev/null && cp_pane desktop "Desktop" "▣"
+
+fn desktop_rows(w) {
+	local n=0
+
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Icons"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_ICONS" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=DT_ICONS; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Disk Icons"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_DISKS" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=DT_DISKS; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Redraw Skip ($DT_DRAWSKIP)"
+	CP[$w][$n]["wtype"]=slider
+	CP[$w][$n]["val"]=$DT_DRAWSKIP; CP[$w][$n]["min"]=0; CP[$w][$n]["max"]=9
+	CP[$w][$n]["key"]=drawskip; n=$((n + 1))
+	ret "$n"
+}
+
+fn desktop_do(w, k, dir) {
+	local v
+
+	case $k in
+	DT_ICONS | DT_DISKS)
+		cp_toggle "$k"
+		command -v dt_deskscan > /dev/null && dt_deskscan
+		;;
+	drawskip)
+		v=$((DT_DRAWSKIP + dir))
+		[ "$v" -lt 0 ] && v=0
+		[ "$v" -gt 9 ] && v=9
+		DT_DRAWSKIP=$v
+		;;
+	esac
+	cp_save
+}

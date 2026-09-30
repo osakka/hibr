@@ -107,4 +107,4 @@ print()
 for f in os.listdir(D):
     os.unlink(os.path.join(D, f))
 os.rmdir(D)
-report(21)
+report(22)

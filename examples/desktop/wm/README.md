@@ -15,7 +15,8 @@ can be read on its own, and the order is only for reading.
 | `frame.hibr` | a window's border, title and title-bar buttons |
 | `draw.hibr` | `dt_draw`: one frame of the whole desktop, bottom of the stack upwards |
 | `wallpaper.hibr` | the background: a glyph, or an image fitted to the screen |
-| `input.hibr` | `dt_event` and `dt_mouse`: where each key and click goes, and the desktop's own shortcuts |
+| `input.hibr` | `dt_event` and `dt_mouse`: where each key and click goes, and dispatching the desktop's own shortcuts |
+| `keys.hibr` | shortcuts: what each action is called, capturing a key for one, clearing it, the keys the desktop keeps, and moving a key rather than letting two actions share it |
 | `menus.hibr` | menus: `dt_menu`/`dt_item` for an app, drawing them, moving through them |
 | `bar.hibr` | the right-hand side of the menu bar: notification icon, clock, application menu |
 | `context.hibr` | menus that open at the pointer |

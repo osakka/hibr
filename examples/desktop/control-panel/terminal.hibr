@@ -1,32 +1,13 @@
 #!/usr/bin/env hibr
 #
 # terminal -- the Control Panel pane for how a terminal window behaves: its
-# scrollbar, whether its title follows what the program inside reports, and
-# whose colours its text and background are.
+# scrollbar, whether its title follows what the program inside reports,
+# whose colours its text and background are, and its cursor.
 
-command -v cp_pane > /dev/null && cp_pane terminal "Terminal" "⌨"
+command -v cp_pane > /dev/null && cp_pane terminal "Terminal" "▸" app
 
-# Whether a terminal shows a scrollbar -- and spends a real column of the
-# pty on it -- see DT_TERMBAR in examples/desktop/apps/term.hibr.
-cp_termbar() {
-	if [ "$DT_TERMBAR" = 1 ]; then
-		DT_TERMBAR=0
-	else
-		DT_TERMBAR=1
-	fi
-	cp_save
-}
-
-# Whether a window's title follows the program's own OSC title -- see
-# DT_TERMTITLE in examples/desktop/apps/term.hibr.
-cp_termtitle() {
-	if [ "$DT_TERMTITLE" = 1 ]; then
-		DT_TERMTITLE=0
-	else
-		DT_TERMTITLE=1
-	fi
-	cp_save
-}
+CP_CURSORS=(block underline bar)
+fn cp_set_cursor(id = "", value = "") { DT_CURSOR=$value; cp_save; }
 
 # Theme or terminal colours for a terminal window -- see DT_TERMCOLOURS in
 # examples/desktop/apps/term.hibr.
@@ -36,25 +17,24 @@ fn cp_set_termcolours(id = "", value = "") { DT_TERMCOLOURS=$value; cp_save; }
 fn terminal_rows(w) {
 	local n=0
 
-	if [ -n "$DT_TERMBAR" ]; then
-		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Scrollbar"
-		CP[$w][$n]["wtype"]=bool
-		CP[$w][$n]["val"]=off
-		[ "$DT_TERMBAR" = 1 ] && CP[$w][$n]["val"]=on
-		CP[$w][$n]["key"]=termbar; n=$((n + 1))
-	fi
-	if [ -n "$DT_TERMTITLE" ]; then
-		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Follow Program Title"
-		CP[$w][$n]["wtype"]=bool
-		CP[$w][$n]["val"]=off
-		[ "$DT_TERMTITLE" = 1 ] && CP[$w][$n]["val"]=on
-		CP[$w][$n]["key"]=termtitle; n=$((n + 1))
-	fi
-	if [ -n "$DT_TERMCOLOURS" ]; then
-		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Colours"
-		CP[$w][$n]["val"]="$DT_TERMCOLOURS"
-		CP[$w][$n]["key"]=termcolours; n=$((n + 1))
-	fi
+	[ -n "$DT_TERMBAR" ] || { cp_absent "$w" Terminal; ret 1; }
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Scrollbar"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_TERMBAR" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=DT_TERMBAR; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Follow Program Title"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_TERMTITLE" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=DT_TERMTITLE; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Colours"
+	CP[$w][$n]["val"]="$DT_TERMCOLOURS"
+	CP[$w][$n]["key"]=termcolours; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Cursor"
+	CP[$w][$n]["val"]="$DT_CURSOR"; CP[$w][$n]["key"]=cursor; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Cursor Blink"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_CURSOR_BLINK" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=DT_CURSOR_BLINK; n=$((n + 1))
 	ret "$n"
 }
 
@@ -62,12 +42,13 @@ fn terminal_do(w, k, dir) {
 	local v
 
 	case $k in
-	termbar) cp_termbar ;;
-	termtitle) cp_termtitle ;;
+	DT_TERMBAR | DT_TERMTITLE | DT_CURSOR_BLINK) cp_toggle "$k" ;;
 	termcolours)
 		v := cp_next "$DT_TERMCOLOURS" "$dir" "${CP_TERMCOLOURS[@]}"
 		DT_TERMCOLOURS=$v
 		;;
+	cursor) v := cp_next "$DT_CURSOR" "$dir" "${CP_CURSORS[@]}"
+		DT_CURSOR=$v ;;
 	esac
 	cp_save
 }
@@ -76,5 +57,6 @@ fn terminal_drop(w = "", r = "", c = "", k = "") {
 	case $k in
 	termcolours) dt_droplist "$w" "$r" "$c" cp_set_termcolours \
 		"${CP_TERMCOLOURS[@]}" ;;
+	cursor) dt_droplist "$w" "$r" "$c" cp_set_cursor "${CP_CURSORS[@]}" ;;
 	esac
 }

@@ -247,7 +247,7 @@ check("DT_DBLACTION=none turns that off",
 
 # --- window chrome: frame, button side, title alignment, icon style -------
 #
-# DT_FRAME, DT_BTNSIDE, DT_TITLEALIGN and DT_BTNSTYLE are the Window Style
+# DT_FRAME, DT_BTNSIDE, DT_TITLEALIGN and DT_BTNSTYLE are the Windows pane's
 # pane's own four settings (examples/desktop/control-panel/window-style.hibr);
 # tests/apps.py checks the pane itself, this checks what each value actually
 # draws. Every button style is 5 (fixed) or 7 (movable) characters wide, the
@@ -1561,19 +1561,18 @@ sc, _ = run("", feed=[press(0, 63)],
 check("clicking the clock in the bar opens the Clock app",
       sc.find("┤ Clock ├") is not None, sc)
 
-# Control Panel is a pane picker, panes loaded from examples/desktop/control-panel
-# and sorted by title without regard to case, the same trick dt_appnames
-# uses for apps -- which puts App Shortcuts first, ahead of Appearance: a
-# space sorts before a letter, plain byte order. tests/apps.py verifies
-# this order directly against cp_panes; ORDER here just names it, so a
-# real change to it breaks an assertion instead of a silent miscount.
+# Control Panel is a pane picker, panes loaded from examples/desktop/control-panel:
+# the desktop's own first, then one per app, each group sorted by title.
+# tests/apps.py verifies this order directly against cp_panes; ORDER here
+# just names it, so a real change to it breaks an assertion instead of a
+# silent miscount.
 PANEL = ('. %s/panel.hibr\nCP_PANEDIRS+=("%s")\ncp_panes'
          % (tree("examples/desktop/apps"), tree("examples/desktop/control-panel")))
-ORDER = ["app_shortcuts", "appearance", "behaviour", "control_strip",
-         "datetime", "displays", "filetypes", "notify", "shortcuts",
-         "taskmgr", "terminal", "wallpick", "window_style"]
+ORDER = ["appearance", "control_strip", "datetime", "desktop", "displays",
+         "filetypes", "keyboard", "notify", "windows", "abouthibr",
+         "filesview", "taskmgr", "terminal"]
 DOWN_APP = [b"\x1b[B"] * ORDER.index("appearance")
-DOWN_SHORT = [b"\x1b[B"] * ORDER.index("shortcuts")
+DOWN_KB = [b"\x1b[B"] * ORDER.index("keyboard")
 
 # The bar's notification dot: hollow with nothing unread, filled once a
 # note arrives, hollow again once the history has been opened.
@@ -1723,11 +1722,11 @@ check("and the next desktop starts with it", sc.find("slate") is not None,
       sc)
 shutil.rmtree(CONF, True)
 
-# ORDER.index("shortcuts") downs on the picker reaches Shortcuts; entering
-# it lands on its first row, Close Window.
+# ORDER.index("keyboard") downs on the picker reaches Keyboard; entering it
+# lands on its first row that is not a heading, Close Window.
 CONF2 = tempfile.mkdtemp(prefix="hibr-conf2-")
 sc, raw = run('dt_new "Control Panel" 20 58 2 2 panel',
-              feed=DOWN_SHORT + [b"\r", b"\r", b"x"],
+              feed=DOWN_KB + [b"\r", b"\r", b"x"],
               env={"XDG_CONFIG_HOME": CONF2}, pre=PANEL)
 check("a shortcut row can be rebound to a new key",
       sc.find("alt-f4") is None, sc)
@@ -1736,19 +1735,18 @@ text2 = open(saved2).read() if os.path.exists(saved2) else ""
 check("and the new binding is saved", 'DT_KEYS["close"]=x' in text2, text2)
 shutil.rmtree(CONF2, True)
 
-# Any registered app gets its own row in App Shortcuts, not just Terminal
-# and Task Manager -- empty by default, assignable the same way DT_KEYS'
-# fixed four are. App Shortcuts sorts first of all the panes (see ORDER
-# above), so it is the default pane -- no downs on the picker at all;
-# entering it lands on Calculator, since it sorts before Control Panel.
+# Any registered app gets its own row in Keyboard, under Apps, not just
+# Terminal and Task Manager -- empty by default, assignable the same way the
+# desktop's own are. Past the five desktop rows, Calculator is the first
+# app, since it sorts before Control Panel.
 CALCSRC = '. %s/calc.hibr' % tree("examples/desktop/desk-accessories")
 CONF3 = tempfile.mkdtemp(prefix="hibr-conf3-")
-sc, _ = run('dt_new "Control Panel" 20 58 2 2 panel', feed=[b"\r"],
+sc, _ = run('dt_new "Control Panel" 20 58 2 2 panel', feed=DOWN_KB,
             env={"XDG_CONFIG_HOME": CONF3}, pre=PANEL + "\n" + CALCSRC)
 check("a registered app is listed with no shortcut by default",
       sc.find("Calculator") is not None, sc)
 sc, _ = run('dt_new "Control Panel" 20 58 2 2 panel',
-            feed=[b"\r", b"\r", b"g"],
+            feed=DOWN_KB + [b"\r"] + [b"\x1b[B"] * 5 + [b"\r", b"g"],
             env={"XDG_CONFIG_HOME": CONF3}, pre=PANEL + "\n" + CALCSRC)
 check("a shortcut can be assigned to any app, not only the two defaults",
       sc.find("Calculator") is not None and

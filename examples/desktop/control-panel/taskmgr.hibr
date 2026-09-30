@@ -5,7 +5,7 @@
 # Its rows appear only once Task Manager itself is loaded, the same way the
 # Terminal pane's wait for the terminal.
 
-command -v cp_pane > /dev/null && cp_pane taskmgr "Task Manager" "▤"
+command -v cp_pane > /dev/null && cp_pane taskmgr "Task Manager" "⚙" app
 
 CP_TKTICKS=(500 1000 2000 3000 5000 10000)
 CP_TKDIRS=(desc asc)
@@ -17,6 +17,7 @@ fn cp_set_tkdir(id = "", value = "") { TK_SORTDIR=$value; cp_save; }
 fn taskmgr_rows(w) {
 	local n=0
 
+	[ -n "$TK_SCANMS" ] || { cp_absent "$w" "Task Manager"; ret 1; }
 	if [ -n "$TK_SCANMS" ]; then
 		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Refresh"
 		CP[$w][$n]["val"]="$TK_SCANMS ms"; CP[$w][$n]["key"]=tasksrefresh

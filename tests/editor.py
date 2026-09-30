@@ -56,4 +56,4 @@ check("editing still works with a right prompt", "\r\nhibr: axy: command not fou
       or "axy" in t)
 
 print()
-report(9)
+report(10)

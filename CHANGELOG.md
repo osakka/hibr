@@ -1,5 +1,71 @@
 # Changelog
 
+## 0.46
+
+Desktop moves to **0.26** alongside this release.
+
+**The Control Panel is organised the way a person looks for things.** The
+picker lists two groups under headings: **System** -- Appearance, Control
+Strip, Date & Time, Desktop, Displays, File Types, Keyboard, Notifications,
+Windows -- and **Apps**, one pane per app with something to choose: About
+hibr, Files, Task Manager, Terminal. Behaviour, which had become a drawer of
+everything, is gone:
+
+- Appearance has the theme, the wallpaper glyph, **Wallpaper Image…** -- the
+  image picker, a window of its own now with Apply and Close buttons -- a new
+  **Wallpaper Mode** row, the menu bar's spacing and icon, and the four
+  shadows (windows, menus, menu bar, buttons) under a Shadows heading.
+- **Desktop** has the icons and Redraw Skip.
+- **Windows** is what Window Style was, plus Titlebar Click.
+- **About hibr** has its refresh; **Files** its default view and Reset All
+  Views; **Terminal** gains Cursor and Cursor Blink.
+
+An app's pane is always listed, and says so when its app is not loaded,
+rather than going blank or moving the list about. And there is a rule now,
+with a test behind it: **everything an app keeps across restarts has a row
+in some pane.** `tests/540-examples.t` reads every `dt_keep` and the
+desktop's own list, and fails on one no pane shows -- which found the
+wallpaper mode on its first run, settable only inside the picker until now.
+Three things kept but not chosen (where the Control Strip sits, how long it
+is, whether it is folded) are named there with the reason.
+
+**Keyboard** replaces Shortcuts and App Shortcuts: one list, the desktop's
+actions then every app's, and the Control Strip's key, which no pane had
+shown.
+
+- **A ✕ clears a shortcut**, beside every key that is set, and delete or
+  backspace clears the selected row. A cleared shortcut is saved as cleared,
+  so one that ships with a default does not come back at the next start.
+- **A key never has two owners.** Pressing one another action holds asks --
+  "ctrl-\\ is Detach's: give it to Control Panel?" -- and Yes moves it.
+- **Keys the desktop keeps are refused with the reason**: f10 and escape
+  open the menu bar, alt-c, alt-x and alt-v are Copy, Cut and Paste.
+- A duplicate that only a settings file edited by hand could make is marked
+  ⚠ on both rows.
+
+The shortcut handling is a part of the window manager of its own,
+`wm/keys.hibr`.
+
+**The full-screen test suites count what they check.** `report(N)` used to
+print N minus the failures, however many checks had actually run, so a
+check silently skipped still counted as passed. `tests/screen.py` counts
+every check made now, and a suite whose count differs from its plan fails
+and says so. Its first run found five plans wrong: `console.py`'s was one
+too high and `cat.py`, `most.py`, `hvi.py` and `editor.py` were each one too
+low. Every check in them is unconditional, so none of the five had been
+hiding a skipped check -- the plans had drifted as checks came and went --
+and each is now the count the suite makes.
+
+HIBR_VER -> 0.46, DT_VER -> 0.26.
+
+Verified: tests/run.sh 90/90, tests/apps.py 270/270, tests/desktop.py
+298/298, tests/console.py 60/60, tests/cat.py 28/28, tests/most.py 22/22,
+tests/hvi.py 31/31, tests/editor.py 10/10, tests/mon.py 15/15, tests/mtr.py
+11/11, tests/term_diff.py 62/62 -- each count now the checks actually made.
+tests/750-pty.t failed once in the full run and passed 23 times alone
+since; nothing in this release touches the pty module, so it is recorded
+here as intermittent rather than as fixed.
+
 ## 0.45
 
 Desktop moves to **0.25** alongside this release.

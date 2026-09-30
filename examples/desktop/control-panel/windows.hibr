@@ -1,47 +1,32 @@
 #!/usr/bin/env hibr
 #
-# window-style -- the Control Panel pane for a window's own chrome: its
-# frame, which side its buttons dock to, where its title sits, and which
-# glyphs the buttons themselves are drawn with. Every value here is read
-# by dt_win and dt_btn in wm/frame.hibr; this pane only ever changes the
-# four DT_* settings, never the drawing itself.
+# windows -- the Control Panel pane for windows: a window's own chrome --
+# its frame, which side its buttons dock to, where its title sits, which
+# glyphs the buttons are drawn with -- and how it is moved, resized and
+# double-clicked. Every value here is read by wm/frame.hibr and wm/input;
+# this pane only ever changes the DT_* settings, never the drawing itself.
 
-command -v cp_pane > /dev/null && cp_pane window_style "Window Style" "▭"
+command -v cp_pane > /dev/null && cp_pane windows "Windows" "▭"
 
 WS_FRAMES=(single double none)
 WS_SIDES=(right left)
 WS_ALIGNS=(left center right)
 WS_STYLES=(brackets circles squares)
 WS_DRAGKEYS=(alt ctrl shift)
+WS_DBLACTIONS=(zoom min close none)
 
 fn cp_set_frame(id = "", value = "") { DT_FRAME=$value; cp_save; }
 fn cp_set_side(id = "", value = "") { DT_BTNSIDE=$value; cp_save; }
 fn cp_set_align(id = "", value = "") { DT_TITLEALIGN=$value; cp_save; }
 fn cp_set_btnstyle(id = "", value = "") { DT_BTNSTYLE=$value; cp_save; }
 fn cp_set_dragkey(id = "", value = "") { DT_DRAGKEY=$value; cp_save; }
+fn cp_set_dblaction(id = "", value = "") { DT_DBLACTION=$value; cp_save; }
 
-# Whether a modifier click anywhere in a window's body moves it, the
-# same as dragging its title bar.
-cp_dragmod() {
-	if [ "$DT_DRAGMOD" = 1 ]; then
-		DT_DRAGMOD=0
-	else
-		DT_DRAGMOD=1
-	fi
-	cp_save
-}
-
-# Whether a plain side, not just a corner, resizes a window too.
-cp_edgeresize() {
-	if [ "$DT_EDGERESIZE" = 1 ]; then
-		DT_EDGERESIZE=0
-	else
-		DT_EDGERESIZE=1
-	fi
-	cp_save
-}
-
-fn window_style_rows(w) {
+# Edge Resize: whether a plain side, not just a corner, resizes a window.
+# Modifier Drag: whether a modifier click anywhere in a window's body moves
+# it, the same as dragging its title bar. Titlebar Click: what a double
+# click on a title bar does.
+fn windows_rows(w) {
 	local n=0
 
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Frame"
@@ -57,18 +42,21 @@ fn window_style_rows(w) {
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Edge Resize"
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_EDGERESIZE" = 1 ] && CP[$w][$n]["val"]=on
-	CP[$w][$n]["key"]=edgeresize; n=$((n + 1))
+	CP[$w][$n]["key"]=DT_EDGERESIZE; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Modifier Drag"
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_DRAGMOD" = 1 ] && CP[$w][$n]["val"]=on
-	CP[$w][$n]["key"]=dragmod; n=$((n + 1))
+	CP[$w][$n]["key"]=DT_DRAGMOD; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Drag Modifier"
 	CP[$w][$n]["val"]="$DT_DRAGKEY"; CP[$w][$n]["key"]=dragkey
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Titlebar Click"
+	CP[$w][$n]["val"]="$DT_DBLACTION"; CP[$w][$n]["key"]=dblaction
 	n=$((n + 1))
 	ret "$n"
 }
 
-fn window_style_do(w, k, dir) {
+fn windows_do(w, k, dir) {
 	local v
 
 	case $k in
@@ -80,15 +68,16 @@ fn window_style_do(w, k, dir) {
 	       DT_TITLEALIGN=$v ;;
 	btnstyle) v := cp_next "$DT_BTNSTYLE" "$dir" "${WS_STYLES[@]}"
 	          DT_BTNSTYLE=$v ;;
-	edgeresize) cp_edgeresize ;;
-	dragmod) cp_dragmod ;;
+	DT_EDGERESIZE | DT_DRAGMOD) cp_toggle "$k" ;;
 	dragkey) v := cp_next "$DT_DRAGKEY" "$dir" "${WS_DRAGKEYS[@]}"
 	         DT_DRAGKEY=$v ;;
+	dblaction) v := cp_next "$DT_DBLACTION" "$dir" "${WS_DBLACTIONS[@]}"
+		DT_DBLACTION=$v ;;
 	esac
 	cp_save
 }
 
-fn window_style_drop(w = "", r = "", c = "", k = "") {
+fn windows_drop(w, r, c, k) {
 	case $k in
 	frame) dt_droplist "$w" "$r" "$c" cp_set_frame "${WS_FRAMES[@]}" ;;
 	side) dt_droplist "$w" "$r" "$c" cp_set_side "${WS_SIDES[@]}" ;;
@@ -96,5 +85,7 @@ fn window_style_drop(w = "", r = "", c = "", k = "") {
 	btnstyle) dt_droplist "$w" "$r" "$c" cp_set_btnstyle \
 		"${WS_STYLES[@]}" ;;
 	dragkey) dt_droplist "$w" "$r" "$c" cp_set_dragkey "${WS_DRAGKEYS[@]}" ;;
+	dblaction) dt_droplist "$w" "$r" "$c" cp_set_dblaction \
+		"${WS_DBLACTIONS[@]}" ;;
 	esac
 }

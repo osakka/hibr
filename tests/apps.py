@@ -247,12 +247,11 @@ check("a click after scrolling lands on the row that is there",
 #
 # Control Panel is a picker now, not one scrolling list: a pane down the
 # left, the selected pane's own rows on the right (System 7's Control
-# Panels folder). Panes are loaded from examples/desktop/control-panel, sorted by
-# title without regard to case, the same trick dt_appnames uses for apps --
-# which is why App Shortcuts sorts ahead of Appearance: a space is less
-# than a letter, plain byte order, the same rule already governing the app
-# list. Verified once below, not assumed, and ORDER mirrors it exactly
-# rather than guessing at ASCII sort trivia a second time.
+# Panels folder). Panes are loaded from examples/desktop/control-panel and
+# listed in two groups under headings -- the desktop's own under System,
+# then one pane per app under Apps -- each sorted by title without regard
+# to case, the same trick dt_appnames uses for apps. Verified once below,
+# not assumed, and ORDER mirrors it exactly.
 
 rc, out, err = cli("panel")
 check("with no panes loaded, it says so rather than pretending",
@@ -261,13 +260,17 @@ check("with no panes loaded, it says so rather than pretending",
 CP = tree("examples/desktop/control-panel")
 CPLOAD = ('. %s\n. %s/panel.hibr\nCP_PANEDIRS+=("%s")\ncp_panes\n'
           % (WM, APPS, CP))
-out = subprocess.run([sx.HIBR, "-c", CPLOAD + "echo ${CP_PANE_LIST[*]}"],
-                     capture_output=True, text=True).stdout.strip()
-ORDER = out.split()
-check("panes register and sort by title, not load order",
-      ORDER == ["app_shortcuts", "appearance", "behaviour", "control_strip",
-                "datetime", "displays", "filetypes", "notify", "shortcuts",
-                "taskmgr", "terminal", "wallpick", "window_style"], out)
+out = subprocess.run([sx.HIBR, "-c", CPLOAD + 'for p in "${CP_PANE_LIST[@]}"; '
+                      'do echo "$p ${CP_PANES[$p]["group"]}"; done'],
+                     capture_output=True, text=True).stdout.split("\n")
+ORDER = [l.split()[0] for l in out if l.strip()]
+GROUP = dict(l.split() for l in out if l.strip())
+check("panes register and sort by title within their group, not load order",
+      ORDER == ["appearance", "control_strip", "datetime", "desktop",
+                "displays", "filetypes", "keyboard", "notify", "windows",
+                "abouthibr", "filesview", "taskmgr", "terminal"], out)
+check("the desktop's own panes are System's and each app's is Apps'",
+      [GROUP[n] for n in ORDER] == ["system"] * 9 + ["app"] * 4, out)
 
 PW = "20 58 2 2"
 PANEL = ("panel", PW)
@@ -284,18 +287,19 @@ CPANES = 'CP_PANEDIRS+=("%s")\ncp_panes' % CP
 R0, VALCOL = 3, 47
 LISTCOL = 5
 BODYCOL = 20
-TITLE = {"app_shortcuts": "App Shortcuts", "appearance": "Appearance",
-         "behaviour": "Behaviour", "control_strip": "Control Strip",
-         "datetime": "Date & Time", "displays": "Displays",
-         "filetypes": "File Types", "notify": "Notifications",
-         "shortcuts": "Shortcuts", "taskmgr": "Task Manager",
-         "terminal": "Terminal",
-         "wallpick": "Wallpaper", "window_style": "Window Style"}
+TITLE = {"appearance": "Appearance", "control_strip": "Control Strip",
+         "datetime": "Date & Time", "desktop": "Desktop",
+         "displays": "Displays", "filetypes": "File Types",
+         "keyboard": "Keyboard", "notify": "Notifications",
+         "windows": "Windows", "abouthibr": "About hibr",
+         "filesview": "Files", "taskmgr": "Task Manager",
+         "terminal": "Terminal"}
 
 
 def prow(name):
-    """Which screen row a pane's own name sits at in the picker list."""
-    return R0 + ORDER.index(name)
+    """Which screen row a pane's own name sits at in the picker list: under
+    the System heading, and under Apps as well for an app's pane."""
+    return R0 + 1 + ORDER.index(name) + (GROUP[name] == "app")
 
 
 def downs(name):
@@ -303,7 +307,46 @@ def downs(name):
     return ORDER.index(name)
 
 
-def cprun(feed=(), also=(), extra=(), tz=None, env=None, pre=""):
+def panerows(pane, extra=()):
+    """What a pane lists, as (kind, text), asked of its own _rows with the
+    same apps loaded that cprun's extra would load."""
+    src = "".join(". %s/%s.hibr\n" % (appdir(a), a) for a in extra)
+    out = subprocess.run(
+        [sx.HIBR, "-c", CPLOAD + src +
+         'n := %s_rows 1; i=0; while [ "$i" -lt "$n" ]; do '
+         'echo "${CP[1][$i]["kind"]}|${CP[1][$i]["text"]}"; i=$((i + 1)); done'
+         % pane], capture_output=True, text=True).stdout
+    return [tuple(l.split("|", 1)) for l in out.splitlines() if "|" in l]
+
+
+def reach(pane, label, extra=()):
+    """The keys that select a pane's row by its label: down the picker to
+    the pane, right into it, then down past the rows before it -- headings
+    are skipped by the arrows, so they are not counted."""
+    rows = [t for k, t in panerows(pane, extra) if k != "head"]
+    hit = [i for i, t in enumerate(rows) if t == label]
+    hit = hit or [i for i, t in enumerate(rows) if t.startswith(label)]
+    assert hit, (pane, label, rows)
+    return [b"\x1b[B"] * downs(pane) + [b"\x1b[C"] + [b"\x1b[B"] * hit[0]
+
+
+def browi(sc, label):
+    """brow's row number instead of its text, or None."""
+    for r in range(sc.rows):
+        if re.match(re.escape(label) + r"(\s{2,}|$)", sc.row(r)[BODYCOL:].strip()):
+            return r
+    return None
+
+
+def brow(sc, label):
+    """The pane's own part of the screen row its row with this label is
+    drawn on, or "" -- matched on the label and the gap after it, so Menu
+    Bar is not taken for Menu Bar Spacing."""
+    r = browi(sc, label)
+    return "" if r is None else sc.row(r)[BODYCOL:]
+
+
+def cprun(feed=(), also=(), extra=(), tz=None, env=None, pre="", end=b"qy"):
     """Run Control Panel from a config directory of its own.
 
     tests/screen.py gives the whole suite one shared $HOME, so without this
@@ -327,7 +370,7 @@ def cprun(feed=(), also=(), extra=(), tz=None, env=None, pre=""):
     tzline = "export TZ=%s\n" % tz if tz else ""
     sc = run(*PANEL, feed=feed, pre="%sexport XDG_CONFIG_HOME=%s\n%s%s\n%s"
              % (pre, d, tzline, TICK, CPANES), also=also, extra=extra,
-             env=env)
+             env=env, end=end)
     shutil.rmtree(d, True)
     return sc
 
@@ -335,12 +378,13 @@ def cprun(feed=(), also=(), extra=(), tz=None, env=None, pre=""):
 sc = cprun()
 check("the picker lists every pane, sorted by title",
       all(TITLE[n] in sc.row(prow(n)) for n in ORDER), sc)
+check("under a System heading, then an Apps one",
+      "System" in sc.row(R0) and "Apps" in sc.row(prow("abouthibr") - 1), sc)
 check("the first pane's own rows show on the right without entering it",
-      sc.find(TITLE[ORDER[0]]) is not None and
-      sc.find("Control Panel") is not None, sc)
+      sc.find(TITLE[ORDER[0]]) is not None and brow(sc, "Theme") != "", sc)
 
-# App Shortcuts (the default pane, with only panel.hibr loaded here its
-# only row is Control Panel itself) -- rebinding a shortcut, and the
+# Keyboard (with only panel.hibr loaded here, Control Panel is the only app
+# it lists) -- rebinding a shortcut, and the
 # self-cancelling-click bug reported live as "I tried ctrl-l, alt-ctrl-l
 # and l, none of them registered": a row already selected and last (true
 # of every attempt after the first) arms capture on the very *first*
@@ -359,25 +403,92 @@ check("the first pane's own rows show on the right without entering it",
 # transient "Press a key…"/"X is now Y" notes, which by the time the
 # screen is captured may already have been overwritten by whatever the
 # trailing "qy" went on to do.
-sc = cprun([b"\x1b[C", b"\r", b"z"])
-row = sc.find("Control Panel")
-check("activating the only App Shortcuts row starts capture, and the "
-      "very next key completes it",
-      row is not None and "z" in sc.row(row[0]), sc)
+KB_CP = reach("keyboard", "Control Panel")
+sc = cprun(KB_CP + [b"\r", b"z"])
+check("activating an app's Keyboard row starts capture, and the very next "
+      "key completes it", "z" in brow(sc, "Control Panel"), sc)
 
-sc = cprun([b"\x1b[C", b"\r", press(R0, VALCOL), b"z"])
-row = sc.find("Control Panel")
+sc = cprun(KB_CP + [b"\r", press(R0, VALCOL), b"z"])
 check("a stray click while capturing does not cancel it -- the key sent "
       "right after still completes the rebind",
-      row is not None and "z" in sc.row(row[0]), sc)
+      "z" in brow(sc, "Control Panel"), sc)
 
-sc = cprun([b"\x1b[C", b"\r", b"\x1b", b"z"])
-row = sc.find("Control Panel")
+sc = cprun(KB_CP + [b"\r", b"\x1b", b"z"])
 check("escape cancels it -- the next key is ordinary again, not captured",
-      row is not None and "z" not in sc.row(row[0]), sc)
+      brow(sc, "Control Panel") != "" and
+      "z" not in brow(sc, "Control Panel"), sc)
+
+sc = cprun([b"\x1b[B"] * downs("keyboard"))
+check("Keyboard lists the desktop's actions, the Control Strip's among "
+      "them, then each app's under a heading of its own",
+      all(brow(sc, t) != "" for t in ("Close Window", "Detach", "Quit",
+                                        "Cycle Windows", "Control Strip",
+                                        "Control Panel")) and
+      "alt-s" in brow(sc, "Control Strip") and
+      sc.find("Apps") is not None, sc)
+
+# Clearing one: a ✕ beside every key that is set, and delete or backspace
+# on the selected row.
+check("a set shortcut has a ✕ to clear it, and an unset one has none",
+      "✕" in brow(sc, "Quit") and "✕" not in brow(sc, "Control Panel"), sc)
+qr = browi(sc, "Quit")
+sc = cprun([b"\x1b[B"] * downs("keyboard") +
+           ([press(qr, sc.row(qr).index("✕"))] if qr else []))
+check("clicking it clears the shortcut",
+      brow(sc, "Quit") != "" and "q" not in brow(sc, "Quit").split() and
+      "✕" not in brow(sc, "Quit"), sc)
+sc = cprun(reach("keyboard", "Close Window") + [b"\x1b[3~"])
+check("delete on a selected row clears it",
+      brow(sc, "Close Window") != "" and "alt-f4" not in brow(sc, "Close Window"),
+      sc)
+sc = cprun(reach("keyboard", "Cycle Windows") + [b"\x7f"])
+check("and so does backspace",
+      brow(sc, "Cycle Windows") != "" and "tab" not in brow(sc, "Cycle Windows"),
+      sc)
+
+# A key the desktop keeps for itself is refused, and says why.
+sc = cprun(KB_CP + [b"\r", b"\x1b[21~"], end=None)
+check("f10 is refused as a shortcut, with the reason",
+      "f10" not in brow(sc, "Control Panel") and
+      sc.find("opens the menu bar") is not None, sc)
+
+# A key another action holds is asked about, and yes moves it: a key never
+# has two owners. Detach's ctrl-\\ is the one taken here, not Quit's q,
+# since every run ends by pressing q to quit.
+sc = cprun(KB_CP + [b"\r", b"\x1c"], end=None)
+check("taking a key another action holds asks first, naming both",
+      sc.find("ctrl-\\ is Detach's: give it to Control Panel?") is not None,
+      sc)
+sc = cprun(KB_CP + [b"\r", b"\x1c", b"y"])
+check("yes moves it: the other action has none, this one has it",
+      "ctrl-\\" not in brow(sc, "Detach") and
+      "ctrl-\\" in brow(sc, "Control Panel"), sc)
+sc = cprun(KB_CP + [b"\r", b"\x1c", b"n"])
+check("no leaves both as they were",
+      "ctrl-\\" in brow(sc, "Detach") and
+      "ctrl-\\" not in brow(sc, "Control Panel"), sc)
+
+# Two actions sharing a key can only come from a settings file edited by
+# hand; both rows say so.
+sc = cprun([b"\x1b[B"] * downs("keyboard"), pre="DT_APPKEY[panel]=q\n")
+check("a key two actions share is marked on both",
+      brow(sc, "Quit ⚠") != "" and brow(sc, "Control Panel ⚠") != "", sc)
+
+# Cleared is kept as cleared: an empty value is saved, not left out, so a
+# shortcut that ships with a default does not come back at the next start.
+KCONF = tempfile.mkdtemp(prefix="hibr-keyconf-")
+KSET = '. %s\ndt_keyset quit ""\ndt_keyset app:term ""\n' % WM
+KGET = ('. %s\ndt_load\necho "quit=[${DT_KEYS[quit]}] '
+        'term=[${DT_APPKEY[term]}]"\n' % WM)
+subprocess.run([sx.HIBR, "-c", KSET], capture_output=True,
+               env=dict(os.environ, XDG_CONFIG_HOME=KCONF))
+out = subprocess.run([sx.HIBR, "-c", KGET], capture_output=True, text=True,
+                     env=dict(os.environ, XDG_CONFIG_HOME=KCONF)).stdout
+check("a cleared shortcut is still cleared after a restart",
+      "quit=[] term=[]" in out, out)
+shutil.rmtree(KCONF, True)
 
 DOWN_APP = [b"\x1b[B"] * downs("appearance")
-DOWN_BEH = [b"\x1b[B"] * downs("behaviour")
 DOWN_DT = [b"\x1b[B"] * downs("datetime")
 
 sc = cprun(DOWN_APP)
@@ -413,10 +524,8 @@ sc = cprun(DOWN_APP + [b"\x1b[C", b"\x1b[B", b"\x1b[C"])
 check("the wallpaper glyph changes, and the desktop follows",
       sc.at(0, 78) != "·" and sc.at(23, 60) == "░", sc)
 
-# Wallpaper -- #2 -- browses for an image and previews it (as ASCII art,
-# in this pane's own small preview strip only -- the desktop itself
-# always gets it in full colour, never ASCII: the toggle that used to
-# offer a choice here was tried and then reversed), reusing files.hibr's
+# Wallpaper -- #2 -- browses for an image and previews it, in a window of
+# its own opened from Appearance's "Wallpaper Image…" row, reusing files.hibr's
 # own fb_scan/fb_go/fb_path for the directory side of that rather than a
 # picker built from scratch (the ticket's own explicit constraint). Its
 # own $HOME, so what it lists is known: a non-image, a subdirectory, and
@@ -428,7 +537,20 @@ open(os.path.join(AWHOME, "notes.txt"), "w").write("hi\n")
 os.mkdir(os.path.join(AWHOME, "sub"))
 shutil.copy(os.path.abspath("tests/img-2x2.png"),
             os.path.join(AWHOME, "sub", "deep.png"))
-DOWN_WP = [b"\x1b[B"] * downs("wallpick")
+DOWN_WP = reach("appearance", "Wallpaper Image")
+# The picker window sits centred, 20 by 64, so on this 24 by 80 screen its
+# border is at row 2, column 8: a list row r is at screen row 2 + r, and
+# the list itself starts one column in.
+WPCOL = 10
+
+sc = cprun(DOWN_WP)
+check("Appearance offers the wallpaper image picker as a row of its own",
+      brow(sc, "Wallpaper Image…") != "", sc)
+check("and the way an image fills the screen, stretch by default",
+      "stretch" in brow(sc, "Wallpaper Mode"), sc)
+sc = cprun(reach("appearance", "Wallpaper Mode") + [b"\x1b[C"])
+check("which cycles to scale",
+      "scale" in brow(sc, "Wallpaper Mode"), sc)
 
 sc = cprun(DOWN_WP + [b"\r"], env={"HOME": AWHOME}, extra=("files",))
 check("it lists the home directory, through files.hibr's own scan",
@@ -436,6 +558,9 @@ check("it lists the home directory, through files.hibr's own scan",
       sc)
 check("nothing is selected yet, so there is no preview",
       sc.find("Select a .png") is not None, sc)
+check("it is a window of its own, with Apply and Close buttons",
+      sc.find("┤ Wallpaper ├") is not None and
+      re.search(r" Apply .* Close ", sc.text()) is not None, sc)
 
 # fb_scan lists directories first, then files sorted -- with one
 # directory here, entries are 0 "..", 1 "sub/", 2 "notes.txt", 3 "wall.png".
@@ -508,11 +633,11 @@ check("but not above the first entry",
 # list's own *width* rather than on where its body actually starts, so
 # every click in it -- not just a repeated one -- was silently rejected,
 # which is what "not navigatable by mouse" turned out to mean in full.
-sc = cprun(DOWN_WP + [b"\r", press(R0 + 2, BODYCOL)],
+sc = cprun(DOWN_WP + [b"\r", press(R0 + 2, WPCOL)],
            env={"HOME": AWHOME}, extra=("files",))
 check("a single click on a directory only selects it, not enters it",
       sc.find("wall.png") is not None, sc)
-sc = cprun(DOWN_WP + [b"\r", press(R0 + 2, BODYCOL), press(R0 + 2, BODYCOL)],
+sc = cprun(DOWN_WP + [b"\r", press(R0 + 2, WPCOL), press(R0 + 2, WPCOL)],
            env={"HOME": AWHOME}, extra=("files",))
 check("a second click on the same row enters the directory",
       sc.find("deep.png") is not None and sc.find("wall.png") is None, sc)
@@ -548,6 +673,14 @@ sc = run(*PANEL, feed=DOWN_WP + [b"\r"],
          pre=CPANES + "\nDT_WALLIMG=%s/wall.png" % AWHOME, extra=("files",))
 check("with no directory remembered yet, it starts at the wallpaper's own",
       sc.find("wall.png") is not None, sc)
+cl = sc.find(" Close ")
+sc = run(*PANEL, feed=DOWN_WP + [b"\r"] +
+         ([press(cl[0], cl[1] + 1)] if cl else []),
+         env={"HOME": "/nonexistent-for-this-check"},
+         pre=CPANES + "\nDT_WALLIMG=%s/wall.png" % AWHOME, extra=("files",))
+check("and Close closes the picker, leaving the Control Panel",
+      cl is not None and sc.find("┤ Wallpaper ├") is None and
+      sc.find("┤ Panel ├") is not None, sc)
 
 # Once it has browsed somewhere else, that becomes the new starting
 # point -- a directory distinct from both $HOME and the wallpaper's own,
@@ -565,54 +698,50 @@ check("once it has browsed a directory, that is where it starts next",
 shutil.rmtree(AWHOME, True)
 shutil.rmtree(AWCONF2, True)
 
-# Behaviour's own rows, in order: Redraw Skip(0), Icons(1), Disk Icons(2),
-# Cursor(3), Cursor Blink(4), Window Shadow(5), Menu Shadow(6), Bar
-# Shadow(7), Button Shadow(8), Titlebar Click(9), About Refresh(10, only
-# once about.hibr is loaded). Refresh, a fixed redraw rate, is gone: the desktop redraws
-# when something asks.
-sc = cprun(DOWN_BEH)
-check("Behaviour's own first row is Redraw Skip, right there with no "
-      "headings", sc.find("Redraw Skip") is not None, sc)
+# Desktop: Icons, Disk Icons, and the redraw-skip slider.
+sc = cprun([b"\x1b[B"] * downs("desktop"))
+check("Desktop holds Icons, Disk Icons and Redraw Skip",
+      brow(sc, "Icons") != "" and brow(sc, "Disk Icons") != "" and
+      sc.find("Redraw Skip") is not None, sc)
 
-sc = cprun(DOWN_BEH + [b"\x1b[C", b"\x1b[B", b"\r"])
+sc = cprun(reach("desktop", "Icons") + [b"\r"])
 check("the icons can be switched off, and the panel shows an unchecked box",
-      sc.find("Icons") is not None and
-      "[ ]" in sc.row(sc.find("Icons")[0]), sc)
+      "[ ]" in brow(sc, "Icons"), sc)
 
-sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 6 + [b"\r"])
+# The four shadows, each its own setting, under a heading in Appearance.
+sc = cprun(DOWN_APP)
+check("Appearance lists the four shadows under a Shadows heading, all on",
+      sc.find("Shadows") is not None and
+      all("[x]" in brow(sc, t) for t in ("Windows", "Menus", "Menu Bar",
+                                         "Buttons")), sc)
+sc = cprun(reach("appearance", "Menus") + [b"\r"])
 check("menu shadow is its own setting, separate from window shadow",
-      sc.find("Menu Shadow") is not None and
-      "[ ]" in sc.row(sc.find("Menu Shadow")[0]) and
-      "[x]" in sc.row(sc.find("Window Shadow")[0]), sc)
-
-sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 7 + [b"\r"])
+      "[ ]" in brow(sc, "Menus") and "[x]" in brow(sc, "Windows"), sc)
+sc = cprun(reach("appearance", "Menu Bar") + [b"\r"])
 check("bar shadow is a third, separate setting again",
-      sc.find("Bar Shadow") is not None and
-      "[ ]" in sc.row(sc.find("Bar Shadow")[0]) and
-      "[x]" in sc.row(sc.find("Menu Shadow")[0]), sc)
-
-sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 8 + [b"\r"])
+      "[ ]" in brow(sc, "Menu Bar") and "[x]" in brow(sc, "Menus"), sc)
+sc = cprun(reach("appearance", "Buttons") + [b"\r"])
 check("button shadow is a fourth, on until switched off here",
-      sc.find("Button Shadow") is not None and
-      "[ ]" in sc.row(sc.find("Button Shadow")[0]) and
-      "[x]" in sc.row(sc.find("Bar Shadow")[0]), sc)
+      "[ ]" in brow(sc, "Buttons") and "[x]" in brow(sc, "Menu Bar"), sc)
 
-sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 9)
-check("titlebar double-click defaults to zoom",
-      sc.find("Titlebar Click") is not None and
-      "zoom" in sc.row(sc.find("Titlebar Click")[0]), sc)
-sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 9 + [b"\x1b[C"])
+# What a double click on a title bar does belongs with Windows.
+sc = cprun(reach("windows", "Titlebar Click"))
+check("titlebar double-click defaults to zoom, in Windows",
+      "zoom" in brow(sc, "Titlebar Click"), sc)
+sc = cprun(reach("windows", "Titlebar Click") + [b"\x1b[C"])
 check("and it cycles through the other actions",
-      "min" in sc.row(sc.find("Titlebar Click")[0]), sc)
+      "min" in brow(sc, "Titlebar Click"), sc)
 
-sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 10, extra=("about",))
-check("About Refresh only appears once About hibr itself is loaded",
-      sc.find("About Refresh") is not None and
-      sc.find("3000 ms") is not None, sc)
+# An app's pane is always listed, and says so when its app is not loaded.
+sc = cprun([b"\x1b[B"] * downs("abouthibr"))
+check("About hibr's pane says so when About hibr is not loaded",
+      sc.find("About hibr is not loaded") is not None, sc)
+sc = cprun([b"\x1b[B"] * downs("abouthibr"), extra=("about",))
+check("and once it is, holds its Refresh",
+      brow(sc, "Refresh") != "" and "3000 ms" in brow(sc, "Refresh"), sc)
 
 # The Terminal pane: its own rows only appear once term.hibr is loaded, the
-# same as About Refresh and Task Manager Refresh above -- and it is a pane
-# of its own now, not a couple of rows buried in Behaviour.
+# same as About hibr's Refresh above.
 DOWN_TERM = [b"\x1b[B"] * downs("terminal")
 sc = cprun(DOWN_TERM, extra=("term",))
 check("Scrollbar and Follow Program Title only appear once term itself is "
@@ -627,17 +756,24 @@ check("Scrollbar defaults off, and Follow Program Title defaults on",
 check("Colours is a setting too, and terminal windows use the theme's "
       "by default", sc.find("Colours") is not None and
       "theme" in sc.row(sc.find("Colours")[0]), sc)
-sc = cprun(DOWN_TERM + [b"\x1b[C", b"\x1b[B", b"\x1b[B", b"\x1b[C"],
+sc = cprun(reach("terminal", "Colours", ("term",)) + [b"\x1b[C"],
            extra=("term",))
 check("and it can be switched to the real terminal's own colours",
-      "terminal" in sc.row(sc.find("Colours")[0]), sc)
+      "terminal" in brow(sc, "Colours"), sc)
+sc = cprun(DOWN_TERM, extra=("term",))
+check("the terminal's Cursor and Cursor Blink live here too, block and off",
+      "block" in brow(sc, "Cursor") and "[ ]" in brow(sc, "Cursor Blink"), sc)
+sc = cprun(reach("terminal", "Cursor", ("term",)) + [b"\x1b[C"],
+           extra=("term",))
+check("and the cursor cycles to underline",
+      "underline" in brow(sc, "Cursor"), sc)
 
 # Appearance's last row: the gap between the items on the bar's right.
 sc = cprun(DOWN_APP)
 check("Appearance has a Menu Bar Spacing slider, at 2 by default",
       sc.find("Menu Bar Spacing (2)") is not None and
       "●" in sc.row(sc.find("Menu Bar Spacing (2)")[0]), sc)
-sc = cprun(DOWN_APP + [b"\x1b[C", b"\x1b[B", b"\x1b[B", b"\x1b[C"])
+sc = cprun(reach("appearance", "Menu Bar Spacing") + [b"\x1b[C"])
 check("and moving it widens the gap",
       sc.find("Menu Bar Spacing (3)") is not None and
       re.search(r"⚑\S*   \d\d:\d\d   ", sc.row(0)) is not None, sc)
@@ -645,7 +781,7 @@ sc = cprun(DOWN_APP)
 check("and a Notification Icon choice, the flag by default -- no emoji font "
       "needed", sc.find("Notification Icon") is not None and
       "⚑ flag" in sc.row(sc.find("Notification Icon")[0]), sc)
-sc = cprun(DOWN_APP + [b"\x1b[C"] + [b"\x1b[B"] * 3 + [b"\x1b[C"])
+sc = cprun(reach("appearance", "Notification Icon") + [b"\x1b[C"])
 check("which can be the bell instead",
       "bell" in sc.row(sc.find("Notification Icon")[0]) and
       sc.find("🔔") is not None, sc)
@@ -730,21 +866,21 @@ check("a command with a space in it is not scrambled by what is typed "
 # none), no popup to open (unlike a dropdown, right/enter on it just cycles
 # the value in place, the same as a dropdown's own second right already
 # does).
-sc = cprun(DOWN_BEH + [b"\x1b[C"])
+RSKIP = reach("desktop", "Redraw Skip")
+sc = cprun(RSKIP)
 skiprow = sc.find("Redraw Skip (0)")
 check("the redraw-skip row draws as a slider, not a dropdown or checkbox",
       skiprow is not None and "●" in sc.row(skiprow[0]) and
       "▾" not in sc.row(skiprow[0]), sc)
-sc = cprun(DOWN_BEH + [b"\x1b[C", b"\x1b[C", b"\x1b[C"])
+sc = cprun(RSKIP + [b"\x1b[C", b"\x1b[C"])
 check("right arrow on it increases the value, the marker moving with it",
       sc.find("Redraw Skip (2)") is not None, sc)
-sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[C"] * 20)
+sc = cprun(RSKIP + [b"\x1b[C"] * 20)
 check("it stops at the reasonable maximum rather than climbing forever",
       sc.find("Redraw Skip (9)") is not None, sc)
 
-# Task Manager's own pane: Refresh (which lived in Behaviour until it had
-# company), Scrollbar, and the order a new window starts in -- rows that
-# appear only once Task Manager itself is loaded.
+# Task Manager's own pane: Refresh, Scrollbar, and the order a new window
+# starts in -- rows that appear only once Task Manager itself is loaded.
 DOWN_TM = [b"\x1b[B"] * downs("taskmgr")
 sc = cprun(DOWN_TM, extra=("tasks",))
 check("Task Manager has a pane of its own: Refresh, Scrollbar, Sort By and "
@@ -756,32 +892,25 @@ check("Task Manager has a pane of its own: Refresh, Scrollbar, Sort By and "
 sc = cprun(DOWN_TM + [b"\x1b[C", b"\x1b[C"], extra=("tasks",))
 check("and Refresh cycles through the other intervals",
       "2000 ms" in sc.row(sc.find("Refresh")[0]), sc)
-sc = cprun(DOWN_TM + [b"\x1b[C", b"\x1b[B", b"\x1b[B", b"\x1b[C"],
+sc = cprun(reach("taskmgr", "Sort By", ("tasks",)) + [b"\x1b[C"],
            extra=("tasks",))
 check("and the default sort column can be changed",
-      "mem" in sc.row(sc.find("Sort By")[0]), sc)
-sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 10, extra=("tasks",))
-check("and Behaviour no longer carries a Task Manager row",
-      sc.find("Task Manager Refresh") is None, sc)
+      "mem" in brow(sc, "Sort By"), sc)
+sc = cprun(DOWN_TM)
+check("and without Task Manager loaded, the pane says so",
+      sc.find("Task Manager is not loaded") is not None, sc)
 
-# Default File View -- #50 -- only shows once Files itself is loaded, the
-# same rule About Refresh follows above, and only that pane's own row
-# order changes: nothing else about it does.
-sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 10, extra=("files",))
-check("Default File View only appears once Files itself is loaded, at list",
-      sc.find("Default File View") is not None and
-      "list" in sc.row(sc.find("Default File View")[0]), sc)
-sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 10 + [b"\x1b[C"],
-           extra=("files",))
+# Files' own pane: the view a folder opens in until it has one of its own
+# (#50), and forgetting every folder's (#51, a plain button, kind=action).
+FVIEW = reach("filesview", "Default View", ("files",))
+sc = cprun(FVIEW, extra=("files",))
+check("Files' pane has Default View, at list, once Files itself is loaded",
+      "list" in brow(sc, "Default View"), sc)
+sc = cprun(FVIEW + [b"\x1b[C"], extra=("files",))
 check("and cycles through the other views",
-      "details" in sc.row(sc.find("Default File View")[0]), sc)
-
-# Reset All Views -- #51 -- is a plain button (kind=action): no value of
-# its own, just below Default File View, and only present under the same
-# condition.
-sc = cprun(DOWN_BEH + [b"\x1b[C"] + [b"\x1b[B"] * 11, extra=("files",))
-check("Reset All Views appears once Files itself is loaded, as a button",
-      sc.find("Reset All Views") is not None, sc)
+      "details" in brow(sc, "Default View"), sc)
+check("with Reset All Views below it, as a button",
+      brow(sc, "Reset All Views") != "", sc)
 
 # fb_reset_views itself, directly: it clears an already-remembered view
 # back to the default, and removes the file it was kept in.
@@ -838,10 +967,10 @@ check("Set Date & Time hands the date it was given to the command that sets it",
       "timedatectl set-time 2026-01-02 03:04:05" in out, out)
 shutil.rmtree(FAKE, True)
 
-# Window Style's own rows: Frame(0), Buttons(1), Title(2), Button Style(3).
-DOWN_WS = [b"\x1b[B"] * downs("window_style")
+# Windows' own rows start with the chrome: Frame, Buttons, Title, Button Style.
+DOWN_WS = [b"\x1b[B"] * downs("windows")
 sc = cprun(DOWN_WS)
-check("Window Style's first row is Frame, defaulting to single",
+check("Windows' first row is Frame, defaulting to single",
       sc.find("Frame") is not None and "single" in sc.row(sc.find("Frame")[0]),
       sc)
 sc = cprun(DOWN_WS + [b"\x1b[C", b"\x1b[C"])
@@ -852,35 +981,35 @@ sc = cprun(DOWN_WS + [b"\x1b[C", b"\x1b[C", b"\x1b[C"])
 check("and again reaches none",
       sc.find("Frame") is not None and "none" in sc.row(sc.find("Frame")[0]),
       sc)
-sc = cprun(DOWN_WS + [b"\x1b[C"] + [b"\x1b[B"] * 3 + [b"\x1b[C"])
+sc = cprun(reach("windows", "Button Style") + [b"\x1b[C"])
 check("Button Style cycles from brackets to circles",
       sc.find("Button Style") is not None and
       "circles" in sc.row(sc.find("Button Style")[0]), sc)
 
-sc = cprun(DOWN_WS + [b"\x1b[C"] + [b"\x1b[B"] * 4)
+sc = cprun(reach("windows", "Edge Resize"))
 check("Edge Resize defaults on",
       sc.find("Edge Resize") is not None and
       "[x]" in sc.row(sc.find("Edge Resize")[0]), sc)
-sc = cprun(DOWN_WS + [b"\x1b[C"] + [b"\x1b[B"] * 4 + [b"\r"])
+sc = cprun(reach("windows", "Edge Resize") + [b"\r"])
 check("and it can be switched off",
       "[ ]" in sc.row(sc.find("Edge Resize")[0]), sc)
 
-sc = cprun(DOWN_WS + [b"\x1b[C"] + [b"\x1b[B"] * 5)
+sc = cprun(reach("windows", "Modifier Drag"))
 check("Modifier Drag -- #47 -- defaults off",
       sc.find("Modifier Drag") is not None and
       "[ ]" in sc.row(sc.find("Modifier Drag")[0]), sc)
-sc = cprun(DOWN_WS + [b"\x1b[C"] + [b"\x1b[B"] * 5 + [b"\r"])
+sc = cprun(reach("windows", "Modifier Drag") + [b"\r"])
 check("and it can be switched on",
       "[x]" in sc.row(sc.find("Modifier Drag")[0]), sc)
-sc = cprun(DOWN_WS + [b"\x1b[C"] + [b"\x1b[B"] * 6)
+sc = cprun(reach("windows", "Drag Modifier"))
 check("Drag Modifier defaults to alt",
       sc.find("Drag Modifier") is not None and
       "alt" in sc.row(sc.find("Drag Modifier")[0]), sc)
-sc = cprun(DOWN_WS + [b"\x1b[C"] + [b"\x1b[B"] * 6 + [b"\x1b[C"])
+sc = cprun(reach("windows", "Drag Modifier") + [b"\x1b[C"])
 check("and cycles to the other modifiers",
       "ctrl" in sc.row(sc.find("Drag Modifier")[0]), sc)
 
-sc = cprun([press(R0, LISTCOL), press(R0, LISTCOL)])
+sc = cprun([press(prow(ORDER[0]), LISTCOL), press(prow(ORDER[0]), LISTCOL)])
 check("clicking the same pane twice in the picker is harmless",
       sc.find(TITLE[ORDER[0]]) is not None, sc)
 
@@ -891,6 +1020,12 @@ check("a click in the pane's own body selects and a second click acts",
 sc = cprun([press(20, LISTCOL)])
 check("clicking below the last pane in the picker does nothing",
       sc.find(TITLE[ORDER[0]]) is not None, sc)
+sc = cprun([press(prow("keyboard"), LISTCOL)])
+check("clicking a pane in the picker shows it, the headings counted",
+      brow(sc, "Close Window") != "", sc)
+sc = cprun([press(R0, LISTCOL)])
+check("and clicking a heading shows nothing new",
+      brow(sc, "Theme") != "", sc)
 
 sc2 = run("tasks", "16 50 4 4", feed=[b"\x1b\x14"], extra=("term",))
 check("alt-ctrl-t opens a terminal, even with another app focused",
@@ -1852,4 +1987,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(246)
+report(270)

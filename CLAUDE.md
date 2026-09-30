@@ -1165,6 +1165,22 @@ went in the shell.
   change behaviour: either the setting stops mattering (what the tick got)
   or the old value needs migrating on load.
 
+- **A setting an app keeps is a setting the Control Panel shows.** Every
+  `dt_keep`, and the desktop's own `DT_KEEP`, has to appear in a file that
+  registers a pane, or `tests/540-examples.t` fails; the few kept values
+  that are state rather than choice (where the Control Strip sits, the
+  wallpaper picker's last folder) are named there with their reason. An
+  app's pane is always listed and says it is not loaded when it is not, so
+  the picker's order is the same whatever is installed. A pane's name must
+  not be an app's prefix: `panel_draw` asks `dt_has "${pane}_draw"` to
+  choose a pane's shape, and a pane named `about` would find the About
+  app's own window callback. That is why they are `abouthibr`, `filesview`,
+  `taskmgr` and `terminal`.
+- **A pty suite's count is counted, not assumed.** `report(N)` used to print
+  N minus the failures, so a check never reached still read as a pass.
+  `tests/screen.py` counts checks as they are made and fails a suite whose
+  count is not its plan.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then

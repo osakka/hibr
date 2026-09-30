@@ -447,7 +447,7 @@ a track of `│` over `h` rows starting at `row0`, one cell shown as the
 thumb `█` at a position proportional to how far through `total` the view
 already is. `shown` is how many of `total` are visible at once; nothing is
 drawn when everything already is. The file browser's own list view and a
-terminal's scrollback (`DT_TERMBAR` in Behaviour, off by default) both use
+terminal's scrollback (`DT_TERMBAR` in the Terminal pane, off by default) both use
 this one widget rather than each drawing their own.
 
 `dt_hit id row col` answers which widget, if any, is at a click -- an app's
@@ -521,13 +521,17 @@ drawing a second one from scratch.
 
 ![The Date & Time pane, its clock and date above a small world map marking Europe/London](img/desktop-datetime.png)
 
-The seven bundled panes -- Appearance, Behaviour, Control Strip, Date &
-Time, Shortcuts, App Shortcuts, Window Style -- are ordinary files under
-`examples/desktop/control-panel` themselves, not special-cased in `panel.hibr`: a
-file of your own with the same pane name replaces one, the same rule
-`DT_APPDIRS` already has for apps.
+The bundled panes -- Appearance, Control Strip, Date & Time, Desktop,
+Displays, File Types, Keyboard, Notifications and Windows under System, and
+About hibr, Files, Task Manager and Terminal under Apps -- are ordinary files
+under `examples/desktop/control-panel` themselves, not special-cased in
+`panel.hibr`: a file of your own with the same pane name replaces one, the
+same rule `DT_APPDIRS` already has for apps. `cp_pane name "Title" icon`
+registers one under System; a fourth word, `app`, lists it under Apps. An
+app's pane should say so when its app is not loaded -- `cp_absent w "Title"`
+gives it the one row that does -- rather than show nothing.
 
-Window Style's own four rows -- Frame, Buttons, Title and Button Style --
+Windows' first four rows -- Frame, Buttons, Title and Button Style --
 are read by `dt_win` and `dt_btn` in `wm/frame.hibr`, not by the pane:
 `DT_FRAME` picks the border glyphs from the `DT_FRAMES` table (`single`,
 `double`, or `none` for no ring at all -- move, resize, zoom, hide and
@@ -556,7 +560,7 @@ In `examples/desktop/apps/`, each one also a file you can read in a sitting:
 |---|---|
 | `files` | a file browser, with a scrollbar and the wheel |
 | `panel` | Control Panel: a picker of panes (see below) |
-| `term` | a shell in a window. Each window is its own pty and its own session. The wheel or `shift-pageup` scrolls back, and a program that asks for the mouse gets it. `DT_TERMBAR` (Behaviour, off by default) shows a scrollbar down the right edge -- a real column of the pty, not just a drawn one, the same as an xterm's own gutter takes one |
+| `term` | a shell in a window. Each window is its own pty and its own session. The wheel or `shift-pageup` scrolls back, and a program that asks for the mouse gets it. `DT_TERMBAR` (the Terminal pane, off by default) shows a scrollbar down the right edge -- a real column of the pty, not just a drawn one, the same as an xterm's own gutter takes one |
 | `snake` | arrows turn, `p` pauses. It speeds up as it grows |
 | `mines` | Minesweeper, 9 by 9 with ten mines. `space` or a click opens, `f` or a right click flags, and opening a number with its flags placed opens what is round it |
 | `bricks` | after Arkanoid: the arrows or a click move the bat, `space` serves. Where the ball lands on the bat sets its angle |

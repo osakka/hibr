@@ -1,0 +1,33 @@
+#!/usr/bin/env hibr
+#
+# abouthibr -- the Control Panel pane for About hibr: how often its CPU and
+# memory figures are read again. Named abouthibr, not about, because the
+# app's own about_draw would otherwise be taken for this pane's body.
+
+command -v cp_pane > /dev/null && cp_pane abouthibr "About hibr" "ⓘ" app
+
+CP_ABTICKS=(1000 2000 3000 5000 10000)
+fn cp_set_about(id = "", value = "") { AB_SLOWMS=$value; cp_save; }
+
+fn abouthibr_rows(w) {
+	[ -n "$AB_SLOWMS" ] || { cp_absent "$w" "About hibr"; ret 1; }
+	CP[$w][0]["kind"]=set; CP[$w][0]["text"]="Refresh"
+	CP[$w][0]["val"]="$AB_SLOWMS ms"; CP[$w][0]["key"]=about
+	ret 1
+}
+
+fn abouthibr_do(w, k, dir) {
+	local v
+
+	case $k in
+	about) v := cp_next "$AB_SLOWMS" "$dir" "${CP_ABTICKS[@]}"
+	       AB_SLOWMS=$v ;;
+	esac
+	cp_save
+}
+
+fn abouthibr_drop(w, r, c, k) {
+	case $k in
+	about) dt_droplist "$w" "$r" "$c" cp_set_about "${CP_ABTICKS[@]}" ;;
+	esac
+}

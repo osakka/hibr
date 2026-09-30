@@ -24,7 +24,9 @@ declare -gA CP_PANES
 CP_PANE_LIST=()
 declare -gA CPSRC
 
-# Register a pane: name, title, icon. A pane defines either <name>_rows
+# Register a pane: name, title, icon, and which group it is listed under --
+# system (the default) for the desktop's own settings, app for one app's.
+# A pane defines either <name>_rows
 # (and usually <name>_do, and <name>_drop if any row is a dropdown) for
 # the common row-list shape every pane below uses, or a body of its own --
 # a world map does not fit two columns of text -- with <name>_draw id h w
@@ -40,16 +42,17 @@ declare -gA CPSRC
 # it -- panel_mouse then falls through to <name>_click for that same
 # press, exactly as if _mouse did not exist; only a press it actually
 # accepts (return 0) ever sees the drag or the release that follows it.
-fn cp_pane(pane, title, icon) {
+fn cp_pane(pane, title, icon, group = "system") {
 	CP_PANES[$pane]["title"]="$title"
 	CP_PANES[$pane]["icon"]="${icon:-◆}"
+	CP_PANES[$pane]["group"]=$group
 	CP_PANE_LIST+=("$pane")
 }
 
-# Load every pane in the folders, then sort the list by title without
-# regard to case, the same trick dt_appnames uses -- so the picker's own
-# order does not depend on load order or filenames, just on what a pane
-# calls itself.
+# Load every pane in the folders, then sort the list -- the desktop's own
+# panes first, then the apps', each by title without regard to case, the
+# same trick dt_appnames uses -- so the picker's own order does not depend
+# on load order or filenames, just on what a pane calls itself.
 cp_panes() {
 	local d f b l
 	local -a all
@@ -65,7 +68,11 @@ cp_panes() {
 	done
 	for b in "${CP_PANE_LIST[@]}"; do
 		l := str lower "${CP_PANES[$b]["title"]}"
-		all+=("$l	$b")
+		if [ "${CP_PANES[$b]["group"]}" = app ]; then
+			all+=("1 $l	$b")
+		else
+			all+=("0 $l	$b")
+		fi
 	done
 	arr sort all
 	CP_PANE_LIST=()
@@ -107,7 +114,7 @@ fn panel_pane(w) {
 }
 
 fn panel_draw(id, h, w, row, col) {
-	local i n r t lw=$CP_LISTW side pane bx bw
+	local i n r t lw=$CP_LISTW side pane bx bw g
 
 	dt_wclear "$id"
 	[ "$lw" -ge $((w - 8)) ] && lw=$((w / 2))
@@ -116,7 +123,17 @@ fn panel_draw(id, h, w, row, col) {
 
 	i=0
 	r=1
+	g=
 	for n in "${CP_PANE_LIST[@]}"; do
+		if [ "${CP_PANES[$n]["group"]}" != "$g" ]; then
+			g=${CP_PANES[$n]["group"]}
+			console pen "#718096" "$DT_FACE" bold
+			t=System
+			[ "$g" = app ] && t=Apps
+			t := str pad " $t" $((lw - 1))
+			console put -p "w$id" "$r" 0 "$t"
+			r=$((r + 1))
+		fi
 		if [ "$n" = "$pane" ]; then
 			if [ "$side" = list ]; then
 				console pen "#1a202c" "$DT_ACTIVE" bold
@@ -126,9 +143,10 @@ fn panel_draw(id, h, w, row, col) {
 		else
 			console pen "$DT_INK" "$DT_FACE"
 		fi
-		t := str pad " ${CP_PANES[$n]["icon"]} ${CP_PANES[$n]["title"]}" \
+		t := str pad "  ${CP_PANES[$n]["icon"]} ${CP_PANES[$n]["title"]}" \
 			$((lw - 1))
 		console put -p "w$id" "$r" 0 "$t"
+		dt_wreg "$id" "$r" 0 $((lw - 1)) "pane:$i"
 		r=$((r + 1))
 		i=$((i + 1))
 	done
@@ -170,7 +188,7 @@ fn panel_draw(id, h, w, row, col) {
 # of widget, not what key a click reaches, which is what made it look
 # like a rendering glitch rather than the stale field it was.
 fn cp_rowsdraw(id, pane, h, w, bx) {
-	local i r t v n top sel kind wtype on
+	local i r t v n top sel kind wtype on kv
 
 	unset "CP[$id]"
 	n := "${pane}_rows" "$id"
@@ -178,13 +196,18 @@ fn cp_rowsdraw(id, pane, h, w, bx) {
 	PW[$id]["vis"]=$h
 	sel=${PW[$id]["sel"]}
 	top=${PW[$id]["top"]}
-	[ "$sel" -ge "$n" ] && sel=$((n - 1)) && PW[$id]["sel"]=$sel
-	[ "$sel" -lt 0 ] && sel=0 && PW[$id]["sel"]=$sel
+	while [ "$sel" -lt $((n - 1)) ] && [ "${CP[$id][$sel]["kind"]}" = head ]; do
+		sel=$((sel + 1))
+	done
+	[ "$sel" -ge "$n" ] && sel=$((n - 1))
+	[ "$sel" -lt 0 ] && sel=0
+	PW[$id]["sel"]=$sel
 	i=$top
 	r=1
 	while [ "$r" -le "$h" ]; do
 		t=""
 		v=""
+		kv=""
 		kind=""
 		wtype=""
 		if [ "$i" -lt "$n" ]; then
@@ -208,13 +231,24 @@ fn cp_rowsdraw(id, pane, h, w, bx) {
 			t := str pad "  $t" $((w - 12))
 			# A "set" row's value is drawn as a widget below, in the
 			# same pen, rather than appended to this string -- a real
-			# checkbox or a dropdown caret instead of on/off text.
-			if [ "$kind" != set ]; then
+			# checkbox or a dropdown caret instead of on/off text. A
+			# shortcut's leaves room for the ✕ that clears it.
+			if [ "$kind" = key ]; then
+				kv=$v
+				t := str pad "  ${CP[$id][$i]["text"]}" $((w - 15))
+				v := str pad "$v" 11
+				t="$t$v"
+			elif [ "$kind" != set ]; then
 				v := str pad "$v" 11
 				t="$t$v"
 			fi
 		fi
 		console put -p "w$id" "$r" "$bx" "$t"
+		if [ "$kind" = key ] && [ -n "$kv" ]; then
+			console pen "$DT_INK" "$DT_IDLE"
+			console put -p "w$id" "$r" $((bx + w - 4)) " ✕ "
+			dt_wreg "$id" "$r" $((bx + w - 4)) 3 "clear:$i"
+		fi
 		if [ "$kind" = set ]; then
 			if [ "$wtype" = bool ]; then
 				on=0
@@ -289,6 +323,15 @@ fn cp_next(cur, dir, ...rest) {
 	done
 }
 
+# Flip an on/off setting, named by var -- shared by every pane's checkboxes.
+fn cp_toggle(var) {
+	if [ "${!var}" = 1 ]; then
+		printf -v "$var" 0
+	else
+		printf -v "$var" 1
+	fi
+}
+
 # Change the selected row in the selected pane.
 fn cp_do(w, dir) {
 	local pane sel k
@@ -306,6 +349,13 @@ fn cp_do(w, dir) {
 	esac
 }
 
+# An app's pane with the app not loaded says so, rather than showing
+# nothing at all: one heading row, which nothing can select.
+fn cp_absent(w, what) {
+	CP[$w][0]["kind"]=head
+	CP[$w][0]["text"]="$what is not loaded"
+}
+
 # Every change is kept at once: there is no Save to forget. Shared by
 # every pane, not redefined by each.
 cp_save() {
@@ -314,7 +364,7 @@ cp_save() {
 }
 
 fn panel_key(w, key) {
-	local pane
+	local pane k
 
 	if [ "${PW[$w]["side"]}" = list ]; then
 		case $key in
@@ -345,6 +395,11 @@ fn panel_key(w, key) {
 	down) panel_move "$w" 1 ;;
 	right | enter | " ") cp_do "$w" 1 ;;
 	left) cp_do "$w" -1 ;;
+	delete | backspace)
+		k=${PW[$w]["sel"]}
+		[ "${CP[$w][$k]["kind"]}" = key ] || return 1
+		dt_keyclear "${CP[$w][$k]["key"]}"
+		;;
 	*)
 		if [ -n "$pane" ] && dt_has "${pane}_key"; then
 			"${pane}_key" "$w" "$key"
@@ -363,8 +418,9 @@ fn panel_click(w, r, c, btn = "") {
 	local pane i n top tag k wc
 
 	if [ "$c" -lt "$CP_LISTW" ]; then
-		[ "$r" -lt 1 ] || [ "$r" -gt "${#CP_PANE_LIST[@]}" ] && return 0
-		PW[$w]["pane"]=$((r - 1))
+		tag := dt_hit "$w" "$r" "$c"
+		case $tag in pane:*) ;; *) return 0 ;; esac
+		PW[$w]["pane"]=${tag#pane:}
 		PW[$w]["side"]=list
 		PW[$w]["sel"]=0
 		PW[$w]["top"]=0
@@ -382,6 +438,14 @@ fn panel_click(w, r, c, btn = "") {
 	top=${PW[$w]["top"]}
 	i=$((top + r - 1))
 	[ "$r" -lt 1 ] || [ "$i" -ge "$n" ] && return 0
+	tag := dt_hit "$w" "$r" "$c"
+	case $tag in
+	clear:*)
+		dt_keyclear "${CP[$w][${tag#clear:}]["key"]}"
+		PW[$w]["sel"]=${tag#clear:}
+		return 0
+		;;
+	esac
 	[ "${CP[$w][$i]["kind"]}" = head ] && return 0
 	if [ "${CP[$w][$i]["kind"]}" = set ] &&
 	   [ "${CP[$w][$i]["wtype"]}" != bool ] &&

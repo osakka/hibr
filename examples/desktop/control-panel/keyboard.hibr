@@ -1,0 +1,41 @@
+#!/usr/bin/env hibr
+#
+# keyboard -- the Control Panel pane for every shortcut in one list: the
+# desktop's own actions, then a launch shortcut for any app. Activating a
+# row captures its next key; the ✕ beside a key, or delete or backspace on
+# its row, clears it. wm/keys.hibr does all of it -- including refusing a
+# key the desktop keeps, and asking before taking one another action has.
+# A key two actions share, which only a settings file edited by hand can
+# arrange, is marked ⚠ on both.
+
+command -v cp_pane > /dev/null && cp_pane keyboard "Keyboard" "⌨"
+
+# One row for an action: its label, marked if its key is shared.
+fn keyboard_row(w, n, what) {
+	local l
+
+	l := dt_keylabel "$what"
+	dt_keyshared "$what" && l="$l ⚠"
+	CP[$w][$n]["kind"]=key
+	CP[$w][$n]["text"]=$l
+	CP[$w][$n]["val"] := dt_keyof "$what"
+	CP[$w][$n]["key"]=$what
+}
+
+fn keyboard_rows(w) {
+	local n=0 a names
+
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Desktop"; n=$((n + 1))
+	for a in "${DT_KEYORDER[@]}"; do
+		keyboard_row "$w" "$n" "$a"
+		n=$((n + 1))
+	done
+	names := dt_appnames
+	[ -n "$names" ] || ret "$n"
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Apps"; n=$((n + 1))
+	for a in $names; do
+		keyboard_row "$w" "$n" "app:$a"
+		n=$((n + 1))
+	done
+	ret "$n"
+}

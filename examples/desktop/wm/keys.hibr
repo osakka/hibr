@@ -1,0 +1,174 @@
+# wm/keys -- shortcuts: what each action is called, capturing a new key for
+# one, clearing one, and never letting two actions hold the same key.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+# The desktop's own actions, in the order the Keyboard pane lists them, and
+# what each is called there. Their keys are DT_KEYS, in wm/settings.hibr;
+# an app's launch shortcut is DT_APPKEY, keyed by the app's name.
+DT_KEYORDER=(close detach quit cycle strip)
+declare -gA DT_KEYNAME
+DT_KEYNAME[close]="Close Window"
+DT_KEYNAME[detach]="Detach"
+DT_KEYNAME[quit]="Quit"
+DT_KEYNAME[cycle]="Cycle Windows"
+DT_KEYNAME[strip]="Control Strip"
+
+# Keys the desktop keeps for itself whatever has focus, and why -- offered
+# as a shortcut, one is refused with its reason rather than taken and then
+# never seen. Escape is also how a capture is cancelled.
+declare -gA DT_KEYHELD
+DT_KEYHELD[f10]="opens the menu bar"
+DT_KEYHELD[escape]="opens the menu bar"
+DT_KEYHELD[alt-c]="is Copy"
+DT_KEYHELD[alt-x]="is Cut"
+DT_KEYHELD[alt-v]="is Paste"
+
+# A shortcut in one canonical modifier order, ctrl then alt then shift,
+# whatever order it named them in -- an alt combination arrives as ESC
+# followed by the plain control byte, and is named "alt-" then whatever
+# that byte is, in that order; a CSI-encoded one (some terminals report
+# a modified plain key this way too, not only function keys and arrows)
+# is named "ctrl-" before "alt-". Comparing shortcuts by this instead of
+# by the exact string is what makes alt-ctrl-t and ctrl-alt-t the same
+# shortcut regardless of which encoding a real keypress happened to take
+# -- a user typing what looks like the natural chord should not have to
+# know or care which one their own terminal uses.
+fn dt_keynorm(k) {
+	local base=$k mods= out=
+
+	case $k in *-*) base=${k##*-}; mods=${k%-"$base"} ;; esac
+	case $mods in *ctrl*) out="${out}ctrl-" ;; esac
+	case $mods in *alt*) out="${out}alt-" ;; esac
+	case $mods in *shift*) out="${out}shift-" ;; esac
+	ret "$out$base"
+}
+
+# Launch whichever app, if any, has key as its own shortcut -- the general
+# form the desktop's fixed actions are not: any number of apps, not a few
+# of them by name in a case statement.
+fn dt_appkeyed(key) {
+	local an knorm anorm
+
+	knorm := dt_keynorm "$key"
+	for an in "${!DT_APPKEY[@]}"; do
+		[ -n "${DT_APPKEY[$an]}" ] || continue
+		anorm := dt_keynorm "${DT_APPKEY[$an]}"
+		if [ "$anorm" = "$knorm" ]; then
+			dt_launch "$an"
+			return 0
+		fi
+	done
+}
+
+# What an action is called: "app:term" is the Terminal app's launch, and
+# anything else is one of the desktop's own.
+fn dt_keylabel(what) {
+	case $what in
+	app:*) ret "${DT_APPS[${what#app:}]["title"]:-${what#app:}}" ;;
+	*) ret "${DT_KEYNAME[$what]:-$what}" ;;
+	esac
+}
+
+# The key an action has now, empty for none.
+fn dt_keyof(what) {
+	case $what in
+	app:*) ret "${DT_APPKEY[${what#app:}]}" ;;
+	*) ret "${DT_KEYS[$what]}" ;;
+	esac
+}
+
+# Give an action a key, or with an empty one take its key away, and keep
+# it. An empty one is saved as empty, not left out, so a shortcut that ships
+# with a default stays cleared across a restart.
+fn dt_keyset(what, key) {
+	case $what in
+	app:*) DT_APPKEY[${what#app:}]=$key ;;
+	*) DT_KEYS[$what]=$key ;;
+	esac
+	dt_save
+}
+
+# Which other action already holds key, if any.
+fn dt_keyowner(key, except = "") {
+	local knorm a k
+
+	[ -n "$key" ] || return 1
+	knorm := dt_keynorm "$key"
+	for a in "${DT_KEYORDER[@]}"; do
+		[ "$a" = "$except" ] || [ -z "${DT_KEYS[$a]}" ] && continue
+		k := dt_keynorm "${DT_KEYS[$a]}"
+		[ "$k" = "$knorm" ] && ret "$a"
+	done
+	for a in "${!DT_APPKEY[@]}"; do
+		[ "app:$a" = "$except" ] || [ -z "${DT_APPKEY[$a]}" ] && continue
+		k := dt_keynorm "${DT_APPKEY[$a]}"
+		[ "$k" = "$knorm" ] && ret "app:$a"
+	done
+	return 1
+}
+
+# Whether what shares its key with another action -- which only a settings
+# file edited by hand can arrange, since taking a key moves it.
+fn dt_keyshared(what) {
+	local k
+
+	k := dt_keyof "$what"
+	dt_keyowner "$k" "$what"
+}
+
+# Start capturing the next key as an action's shortcut -- the Keyboard pane
+# calls this when a row is activated; dt_event's own DT_KEYCAP check takes
+# the very next key, of any kind, and hands it to dt_keytake.
+fn dt_keycap(what) {
+	local l
+
+	DT_KEYCAP=$what
+	l := dt_keylabel "$what"
+	dt_note "Press a key for $l…"
+}
+
+# The key captured for what: refused if the desktop keeps it, asked about
+# if another action holds it -- answering yes moves it, so a key never has
+# two owners -- and otherwise taken.
+fn dt_keytake(what, key) {
+	local knorm owner l ol
+
+	knorm := dt_keynorm "$key"
+	if [ -n "${DT_KEYHELD[$knorm]}" ]; then
+		dt_note "$key ${DT_KEYHELD[$knorm]}, so it cannot be a shortcut"
+		return 0
+	fi
+	l := dt_keylabel "$what"
+	if owner := dt_keyowner "$key" "$what"; then
+		ol := dt_keylabel "$owner"
+		DT_KEYPEND_WHAT=$what
+		DT_KEYPEND_KEY=$key
+		DT_KEYPEND_FROM=$owner
+		dt_confirm "$key is $ol's: give it to $l?" dt_keymove
+		return 0
+	fi
+	dt_keyset "$what" "$key"
+	dt_notify "$l is now $key" dt_launch panel
+}
+
+# Yes to dt_keytake's question: the key leaves the action that had it.
+dt_keymove() {
+	local l
+
+	dt_keyset "$DT_KEYPEND_FROM" ""
+	dt_keyset "$DT_KEYPEND_WHAT" "$DT_KEYPEND_KEY"
+	l := dt_keylabel "$DT_KEYPEND_WHAT"
+	dt_notify "$l is now $DT_KEYPEND_KEY" dt_launch panel
+}
+
+# Take an action's shortcut away: the Keyboard pane's clear button, and
+# delete or backspace on its row.
+fn dt_keyclear(what) {
+	local l
+
+	l := dt_keylabel "$what"
+	dt_keyset "$what" ""
+	dt_note "$l has no shortcut now"
+}

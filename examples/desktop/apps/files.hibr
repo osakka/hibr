@@ -45,8 +45,8 @@ FILES_VIEWS=(list details icons)
 FILES_TILE=12
 FB_PATHS=()
 
-# What a directory never shown before opens as -- Control Panel's own
-# setting (behaviour.hibr), kept the plain way a single scalar is.
+# What a directory never shown before opens as -- the Files pane's own
+# setting (control-panel/filesview.hibr), kept the plain way a scalar is.
 FB_DEFAULTVIEW="${FB_DEFAULTVIEW-list}"
 command -v dt_keep > /dev/null && dt_keep FB_DEFAULTVIEW
 
