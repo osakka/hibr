@@ -235,7 +235,14 @@ went in the shell.
 - **Arithmetic overflow** is done in unsigned and cast back; `INT64_MIN / -1`
   is special-cased. Keep the evaluator clean under UBSan.
 - **`printf` widths** must size the buffer (`%02000d` overflowed once).
-- **tcc cannot parse glibc `regex.h`** — use `include/re.h`.
+- **tcc cannot parse glibc `regex.h`** — use `include/re.h`. And since
+  `re.h` declares the C library's types by hand, it has to declare *each*
+  library's: `regoff_t` is an `int` on glibc and 64 bits on macOS, and
+  declaring glibc's everywhere made every regex capture on a Mac overrun its
+  array -- `match` hung and `rsub` crashed, and the desktop froze on closing
+  any window, since a pressed close button's colour goes through `match`.
+  `src/recheck.c` asserts `re.h` against the real `<regex.h>` wherever the
+  compiler can read it (not tcc), so a wrong width fails the build.
 - **Builtins parsing their own flags must stop at the first non-flag**, so a
   subject like `-rw-r--r--` isn't mistaken for an option.
 - **The prompt hook must save and restore shell state.** `pr_hook` runs a

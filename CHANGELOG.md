@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.49.1
+
+**On macOS, `match` and `rsub` read and wrote the wrong memory -- and closing
+a window froze the desktop.** hibr declares the C library's regex types
+itself, because tcc cannot read glibc's `<regex.h>`, and it declared a match
+offset as a 32-bit `int`, which is glibc's `regoff_t`. On macOS and the BSDs
+it is 64 bits. So on a Mac every capture the library wrote overran the array
+hibr gave it, and hibr read each offset from the wrong half: a `match` with
+captures could loop for ever and an `rsub -g` could crash. The desktop draws
+a pressed close button in a lighter shade of its red, worked out with
+`match` -- which is why closing any window hung it, reported as "if I close
+any window on Mac, everything gets stuck". Reproduced on Linux by declaring
+the Mac's width there: `match` hung and `rsub -g` segfaulted.
+
+`include/re.h` now uses each C library's own width -- 64 bits on macOS and
+the BSDs, `int` on glibc, `long` on musl -- and a new `src/recheck.c`, compiled
+by every compiler that can read the real `<regex.h>` (gcc here, clang on a
+Mac; not tcc), asserts that hibr's declarations match it: the offset, the
+match record, room for a compiled pattern, and the flag values. Getting any
+of them wrong now stops the build instead of corrupting a running shell.
+
+Found from a log sent from the Mac, which ended mid-frame, just after the
+title bar's button colours were drawn.
+
+HIBR_VER -> 0.49.1.
+
+Verified: tests/all.py, every suite green in 153 seconds; tests/run.sh under
+ASan and UBSan 93/93; the check fails the build when the width is forced
+wrong.
+
 ## 0.49
 
 Desktop moves to **0.28** alongside this release. **The module ABI is now
