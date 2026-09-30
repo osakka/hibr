@@ -24,8 +24,5 @@ hibr: unexpected end of input
 status 2
 --- standard input
 hibr: command line:1: unquoted-path: rm is handed $f unquoted: a blank or a * in its value makes more paths than meant; write "$f"
---- without the module
-hibr: --explain needs the lint module, which was not found
-status 2
 --- hibr's own examples are clean
 examples linted

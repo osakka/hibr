@@ -1402,6 +1402,16 @@ went in the shell.
   -- `declare -gA` in `wm/input.hibr` is invisible to `apps/files.hibr` --
   so a rule about arrays has to act only on arrays the file itself makes.
 
+- **A recorded test must not depend on what the installed module
+  directory lacks.** `HIBR_MODDIR` is a compile-time `-D`, not an
+  environment variable, and the module search ends there after
+  `HIBR_MODPATH`, so `HIBR_MODDIR=/nonexistent` in a test does nothing.
+  0.59's `850-lint.t` shipped checking the "no lint module" message, which
+  passed only because the installed 0.58 had no `lint.so`, and would have
+  failed the first time 0.59 was installed. A module that reads
+  `HIBR_MODDIR` itself must be built with `SHCFLAGS`, or the `#ifdef` is
+  silently false in it.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then

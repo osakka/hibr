@@ -32,7 +32,7 @@ fn dt_textdraw(int id, int r, int c, int w, text, int cur, int focused) {
 # field in its own array, the same as dt_check and dt_wdrop never own the
 # value they draw either. Status is 1 for a key this does not handle
 # (enter, escape, tab...), so a caller's own _key still decides those for
-# itself; text and cursor come back unchanged in that case.
+# itself; nothing is returned then, and the caller's own pair stands.
 fn dt_textkey(text, int cur, key) {
 	case $key in
 	left) [ "$cur" -gt 0 ] && cur=$((cur - 1)) ;;

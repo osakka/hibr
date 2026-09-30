@@ -63,9 +63,6 @@ echo "--- a syntax error is status 2"
 echo "status $?"
 echo "--- standard input"
 echo 'rm $f' | "$h" --explain 2>&1
-echo "--- without the module"
-HIBR_MODPATH=/nonexistent HIBR_MODDIR=/nonexistent "$h" --explain -c 'echo' 2>&1
-echo "status $?"
 
 echo "--- hibr's own examples are clean"
 n=0

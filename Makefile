@@ -118,8 +118,8 @@ $(B)/mods/trace.so: $(TRACE_SRC) include/hibr.h mods/trace/tr.h mods/display.h |
 
 LINT_SRC = $(wildcard mods/lint/*.c)
 
-$(B)/mods/lint.so: $(LINT_SRC) include/hibr.h mods/lint.h | $(B)/mods
-	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(LINT_SRC)
+$(B)/mods/lint.so: $(LINT_SRC) include/hibr.h mods/lint.h $(B)/.moddir | $(B)/mods
+	$(CC) $(SHCFLAGS) $(SOFLAGS) -o $@ $(LINT_SRC)
 
 IMG_SRC = $(wildcard mods/img/*.c)
 
