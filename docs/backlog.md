@@ -575,13 +575,6 @@ most. Doing it needs a sandbox that makes all four harmless -- its own pid
 namespace, a filesystem it cannot damage, no sudo -- and that is a decision
 about what the test machine allows, to be made before it is built.
 
-### The last function no suite calls
-
-The census stands at 1 of 537: `displays_detach`, the Displays pane's
-right-click Detach, which needs a held session with a second client
-attached. `tests/desktop.py`'s hold section starts held sessions already;
-one with two clients, detaching the second from the pane, would close it.
-
 ## The language
 
 ## For language models

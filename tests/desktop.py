@@ -2268,6 +2268,44 @@ t2.collect(0.3)
 check("choosing Identify flashes the display's own name on its own screen",
       t2.screen().find("│ %s │" % joined) is not None, sc)
 
+# Detach, on a third display joined just for this, so the two the checks
+# below still use stay attached: right-click its rectangle, choose Detach,
+# and that terminal is let go, told why: it was switched off.
+t3 = Term(SESSION, "--join", env=JENV, cols=40, settle=1.5)
+r6 = subprocess.run([screen.HIBR, "-c", HOLDC + "hold clients desktop"],
+                    env=dict(os.environ, **JENV), capture_output=True,
+                    text=True)
+third = next((ln.split()[0] for ln in r6.stdout.splitlines()
+              if ln.split() and ln.split()[0] not in (primary, joined)), None)
+t1.collect(1.0)
+sc = t1.screen()
+# A display's rectangle is drawn to scale, and a narrow one shows only as
+# much of its name as fits -- a 40-column terminal's reads "clie" -- so it
+# is found as the label that starts its name without being another's.
+lbl6 = None
+jrow = sc.find_from(joined, canvas0)
+if third and jrow:
+    line = sc.row(jrow[0])
+    for m in re.finditer(r"│([^│┌┐└┘ ]+)", line):
+        txt = m.group(1)
+        if third.startswith(txt) and txt not in (primary, joined):
+            lbl6 = (jrow[0], m.start(1))
+if lbl6:
+    t1.send(press(lbl6[0], lbl6[1], 2))
+    sc = t1.screen()
+    det = sc.find("Detach")
+    if det:
+        t1.send(press(det[0], det[1]))
+t3.collect(1.0)
+r7 = subprocess.run([screen.HIBR, "-c", HOLDC + "hold clients desktop"],
+                    env=dict(os.environ, **JENV), capture_output=True,
+                    text=True)
+check("Detach on a display's rectangle switches that terminal off",
+      third is not None and lbl6 is not None and
+      b"[desktop: switched off" in t3.out and third not in r7.stdout,
+      r6.stdout + "\n" + r7.stdout + "\n" + t3.out.decode(errors="replace"))
+t3.close()
+
 t1.collect(0.5)
 sc = t1.screen()
 close = sc.find("x├")
@@ -2307,4 +2345,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(311)
+report(312)
