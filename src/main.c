@@ -1,6 +1,7 @@
 #include "pri.h"
 #include "../mods/lint.h"
 #include <errno.h>
+#include <poll.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -66,24 +67,28 @@ void recycle(sh *s)
 	ar_reset(s->xa);
 }
 
-/* Parse a script and hand the tree to the lint module, running nothing:
-   0 when it found nothing, 1 when it found something, 2 when the script
-   does not parse or there is no linter to ask. */
+/* Report text that ended inside a command, at its last line, with bash's status. */
+int sh_eoi(sh *s, const char *src)
+{
+	const char *c;
+
+	for (lg_ln = 1, c = src; *c; c++)
+		lg_ln += *c == '\n';
+	lg(HIBR_LERR, "unexpected end of input");
+	lg_ln = 0;
+	return s->st = 2;
+}
+
+/* Hand a parsed script to the lint module, running nothing: 0 clean, 1 found something, 2 unparsed or no linter. */
 int sh_explain(sh *s, const char *src)
 {
 	const li_api *li;
 	node *n;
 	int more = 0, found;
-	const char *c;
 
 	n = hibr_parse(s, src, &more);
-	if (more) {
-		for (lg_ln = 1, c = src; *c; c++)
-			lg_ln += *c == '\n';
-		lg(HIBR_LERR, "unexpected end of input");
-		lg_ln = 0;
-		return 2;
-	}
+	if (more)
+		return sh_eoi(s, src);
 	if (!n)
 		return s->st == 2 ? 2 : 0;
 	li = (const li_api *)hibr_require(s, "lint", LI_API_VER);
@@ -95,33 +100,191 @@ int sh_explain(sh *s, const char *src)
 	return found ? 1 : 0;
 }
 
-/* Parse and execute a source string in the current shell. */
+/* Run each complete command line of a text, or only the first with one set; with rest set, what is left is handed back: 1 unfinished, 2 a syntax error. */
+int sh_runx(sh *s, const char *src, const char **rest, int one)
+{
+	lex l;
+	amark m, xm2;
+	int okeep = s->keep, kept = 0, part = 0;
+	node *n;
+	const char *at;
+
+	if (rest)
+		*rest = 0;
+	lx_init(&l, s, src);
+	for (;;) {
+		m = ar_mark(s->ar);
+		xm2 = ar_mark(s->xa);
+		lx_next(&l);
+		p_nl(&l);
+		if (l.tk == T_EOF && !l.err && !l.more)
+			break;
+		at = l.tkb;
+		s->keep = 0;
+		n = p_line(&l);
+		if (l.more) {
+			ar_rel(s->xa, xm2);
+			ar_rel(s->ar, m);
+			part = 1;
+			if (rest)
+				*rest = at;
+			else
+				sh_eoi(s, src);
+			break;
+		}
+		if (l.err) {
+			s->st = 2;
+			break;
+		}
+		if (n && !s->noexec)
+			ex(s, n);
+		if (s->keep)
+			kept = 1;
+		else {
+			ar_rel(s->xa, xm2);
+			ar_rel(s->ar, m);
+		}
+		if (l.tk == T_EOF || s->quit || s->stop || s->ret || s->brk ||
+		    s->cont)
+			break;
+		if (one && rest) {
+			*rest = l.p < l.e ? l.p : 0;
+			break;
+		}
+	}
+	v_free(&l.hq);
+	s->keep = kept || okeep;
+	return l.err ? 2 : part;
+}
+
+/* Parse and execute a source string one command line at a time, as bash does. */
 int hibr_run(sh *s, const char *src)
 {
-	amark m = ar_mark(s->ar);
-	amark xm2 = ar_mark(s->xa);
-	int okeep = s->keep;
-	node *n;
-	int more = 0;
+	sh_runx(s, src, 0, 0);
+	return s->st;
+}
 
-	s->keep = 0;
+/* Parse the whole text without running it, reporting the first error: 0 when it parses. */
+int sh_check(sh *s, const char *src)
+{
+	amark m = ar_mark(s->ar);
+	int okeep = s->keep, more = 0, bad;
+	node *n;
+
 	n = hibr_parse(s, src, &more);
-	if (more) {
-		const char *c;
-		for (lg_ln = 1, c = src; *c; c++)
-			lg_ln += *c == '\n';
-		lg(HIBR_LERR, "unexpected end of input");
-		lg_ln = 0;
-		s->keep = okeep;
-		return s->st = HIBR_FAIL;
+	bad = more ? sh_eoi(s, src) : !n && s->st == 2 ? 2 : 0;
+	ar_rel(s->ar, m);
+	s->keep = okeep;
+	lg(HIBR_LDBG, "whole script checked before running: %s", bad ? "refused" : "parses");
+	return bad;
+}
+
+/* Read one line of a script from a descriptor, leaving what follows it unread for the commands it runs. */
+char *in_line(int fd, int seek)
+{
+	str b;
+	char *buf, *nl;
+	ssize_t n;
+	char c;
+
+	s_init(&b);
+	if (seek) {
+		buf = xm(HIBR_IOCH);
+		while ((n = read(fd, buf, HIBR_IOCH)) > 0) {
+			nl = memchr(buf, '\n', (size_t)n);
+			if (nl) {
+				s_add(&b, buf, (size_t)(nl - buf) + 1);
+				lseek(fd, (off_t)((nl - buf) + 1 - n), SEEK_CUR);
+				break;
+			}
+			s_add(&b, buf, (size_t)n);
+		}
+		free(buf);
+	} else {
+		while ((n = read(fd, &c, 1)) == 1 || (n < 0 && errno == EINTR)) {
+			if (n != 1)
+				continue;
+			s_ch(&b, c);
+			if (c == '\n')
+				break;
+		}
 	}
-	if (n && !s->noexec)
-		ex(s, n);
-	if (!s->keep) {
-		ar_rel(s->xa, xm2);
-		ar_rel(s->ar, m);
+	if (!b.n) {
+		s_free(&b);
+		return 0;
 	}
-	s->keep = s->keep || okeep;
+	return b.p;
+}
+
+/* Whether more of a script is waiting on a descriptor right now. */
+int in_ready(int fd)
+{
+	struct pollfd p;
+
+	p.fd = fd;
+	p.events = POLLIN;
+	p.revents = 0;
+	return poll(&p, 1, 0) > 0;
+}
+
+/* Run a script arriving on a descriptor, each complete command as soon as it has been read; a seekable one is left just past what ran. */
+int stream(sh *s, int fd)
+{
+	str acc;
+	char *line;
+	const char *rest, *c;
+	unsigned base = 1;
+	size_t lines = 0, tried = 0, k;
+	int seek = lseek(fd, 0, SEEK_CUR) >= 0, eof = 0, done, rc;
+
+	lg(HIBR_LDBG, "reading the script from descriptor %d %s", fd,
+	   seek ? "a chunk at a time, seeking back" : "a byte at a time");
+	s_init(&acc);
+	while (!s->quit) {
+		fflush(stdout);
+		line = eof ? 0 : in_line(fd, seek);
+		if (line) {
+			s_cat(&acc, line);
+			free(line);
+			lines++;
+		} else
+			eof = 1;
+		if (!eof && lines > HIBR_STREAMN && lines - tried < lines / 4 &&
+		    in_ready(fd))
+			continue;
+		tried = lines;
+		if (!acc.n)
+			break;
+		s->ln = base;
+		rest = 0;
+		rc = sh_runx(s, acc.p, &rest, seek);
+		if (rc == 2 || s->stop)
+			break;
+		if (rc == 1 && eof) {
+			for (lg_ln = base, c = acc.p; *c; c++)
+				lg_ln += *c == '\n';
+			lg(HIBR_LERR, "unexpected end of input");
+			lg_ln = 0;
+			s->st = 2;
+			break;
+		}
+		done = rest ? (int)(rest - acc.p) : (int)acc.n;
+		for (c = acc.p; c < acc.p + done; c++)
+			base += *c == '\n';
+		k = acc.n - (size_t)done;
+		if (seek && k && !rc && lseek(fd, -(off_t)k, SEEK_CUR) >= 0) {
+			lg(HIBR_LDBG, "gave back %lu bytes read ahead", (unsigned long)k);
+			k = 0;
+			eof = 0;
+		}
+		memmove(acc.p, acc.p + done, k + 1);
+		acc.n = k;
+		acc.p[k] = 0;
+		for (lines = 0, c = acc.p; *c; c++)
+			lines += *c == '\n';
+		tried = lines;
+	}
+	s_free(&acc);
 	return s->st;
 }
 
@@ -428,12 +591,17 @@ int main(int ac, char **av)
 			sh_optset(&s, "agent", 1);
 			continue;
 		}
+		if (!strcmp(av[i], "--checkfirst")) {
+			sh_optset(&s, "checkfirst", 1);
+			continue;
+		}
 		if (!strcmp(av[i], "--explain")) {
 			explain = 1;
 			continue;
 		}
 		if (!strcmp(av[i], "-h") || !strcmp(av[i], "--help")) {
-			printf("usage: hibr [-d level] [-n] [--agent] [--explain] [script [args...]]\n"
+			printf("usage: hibr [-d level] [-n] [--agent] [--checkfirst] [--explain]\n"
+			       "            [script [args...]]\n"
 			       "       hibr -c 'commands' [args...]\n"
 			       "       hibr -v | -h\n\n"
 			       "  -c   run the given commands\n"
@@ -441,6 +609,9 @@ int main(int ac, char **av)
 			       "  --agent  for a script a program runs: errors as JSON\n"
 			       "       lines, set -u, strict expansion, no terminal input,\n"
 			       "       HIBR_TIMEOUT seconds per foreground process\n"
+			       "  --checkfirst  parse the whole script before running\n"
+			       "       any of it, so a late syntax error runs nothing;\n"
+			       "       otherwise each command runs as it is read, as in bash\n"
 			       "  --explain  run nothing: name the mistakes the script\n"
 			       "       makes, one per line; status 1 if it found any\n"
 			       "  -d   log level 0-4 (error, warn, info, debug, trace)\n"
@@ -461,7 +632,8 @@ int main(int ac, char **av)
 		}
 		if (i < ac)
 			v_pos(&s, ac - i, av + i);
-		rc = explain ? sh_explain(&s, src) : hibr_run(&s, src);
+		rc = explain ? sh_explain(&s, src) :
+		     (s.sopt & O_CHECK) && sh_check(&s, src) ? 2 : hibr_run(&s, src);
 		free(src);
 		sh_fini(&s);
 		return rc;
@@ -480,7 +652,8 @@ int main(int ac, char **av)
 			v_pos(&s, ac - i - 1, av + i + 1);
 		text = slurp(f);
 		fclose(f);
-		rc = explain ? sh_explain(&s, text) : hibr_run(&s, text);
+		rc = explain ? sh_explain(&s, text) :
+		     (s.sopt & O_CHECK) && sh_check(&s, text) ? 2 : hibr_run(&s, text);
 		free(text);
 		sh_fini(&s);
 		return rc;
@@ -501,10 +674,12 @@ int main(int ac, char **av)
 		rc_load(&s);
 		lg(HIBR_LINF, "interactive shell, pid %ld", (long)getpid());
 		rc = loop(&s);
-	} else {
+	} else if (s.sopt & O_CHECK) {
 		text = slurp(stdin);
-		rc = hibr_run(&s, text);
+		rc = sh_check(&s, text) ? 2 : hibr_run(&s, text);
 		free(text);
+	} else {
+		rc = stream(&s, 0);
 	}
 	sh_fini(&s);
 	return rc;

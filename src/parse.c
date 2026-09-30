@@ -484,6 +484,7 @@ word *p_arrel(lex *l)
 {
 	const char *b = l->tkb, *e, *t;
 	int d = 0;
+	word *w;
 
 	if (!b || b >= l->p || *b != '[')
 		return l->w;
@@ -510,7 +511,8 @@ word *p_arrel(lex *l)
 	}
 	lg(HIBR_LTRC, "array element %.*s read whole", (int)(e - b), b);
 	l->p = e;
-	return lx_sub(l, b, e, 0);
+	w = lx_sub(l, b, e, 0);
+	return w ? w : l->w;
 }
 
 /* Build a synthetic operator word for a [[ ]] expression. */
@@ -583,6 +585,11 @@ node *p_cond(lex *l)
 			}
 			if (memchr(b, '$', (size_t)(e - b))) {
 				w = lx_sub(l, b, e, 0);
+				if (!w) {
+					if (!l->err && !l->more)
+						perr(l, "bad regular expression after =~");
+					return n;
+				}
 			} else if (e - b >= 2 && (*b == '\'' || *b == '"') &&
 				   e[-1] == *b) {
 				w = p_litw(l, b + 1, (size_t)(e - b - 2));
@@ -1033,6 +1040,38 @@ node *p_list(lex *l)
 		if (l->err || p_end(l))
 			break;
 	}
+	return n;
+}
+
+/* Parse one complete command line, leaving the newline that ends it unread. */
+node *p_line(lex *l)
+{
+	node *n = 0, *r, *q;
+
+	for (;;) {
+		if (p_end(l))
+			break;
+		r = p_andor(l);
+		if (!r)
+			break;
+		if (l->tk == T_AMP) {
+			q = nd(l, N_BG);
+			q->l = r;
+			q->tx = r->tx;
+			r = q;
+			lx_next(l);
+		} else if (l->tk == T_SEMI) {
+			lx_next(l);
+		} else {
+			n = p_seq(l, n, r);
+			break;
+		}
+		n = p_seq(l, n, r);
+		if (l->err || l->tk == T_NL || l->tk == T_EOF)
+			break;
+	}
+	if (!l->err && !l->more && l->tk != T_NL && l->tk != T_EOF)
+		perr_near(l);
 	return n;
 }
 

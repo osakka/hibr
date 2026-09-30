@@ -176,6 +176,8 @@ word *lx_sub(lex *l, const char *b, const char *e, int lit)
 	w = lx_word(&t, lit);
 	if (t.more)
 		l->more = 1;
+	if (t.err)
+		l->err = 1;
 	return w;
 }
 

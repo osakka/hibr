@@ -638,11 +638,9 @@ Every place hibr differs from bash is a place a model's bash breaks, and a
 model that has been burned once stops reaching for it. `tests/corpus.py` is
 the instrument: 7 scripts of 465 invocations still differ (see `CLAUDE.md`'s
 open items). Keep driving it to zero for anything not deliberately
-different. The largest known one: bash runs a script a command at a time as
-it reads it, and hibr parses the whole script first, so a syntax error late
-in a file stops hibr before its first line runs. Changing it means
-parsing and running one complete command at a time without losing the parse
-arena functions keep. And make each deliberate difference loud: a one-line
+different. The largest known one -- bash runs a script a command at a time
+as it reads it, where hibr parsed the whole script first -- is gone in
+0.60 (ADR 0026). And make each deliberate difference loud: a one-line
 warning in agent mode the first time a script depends on bash behaviour hibr does
 not have, rather than a silently different result.
 

@@ -1412,6 +1412,21 @@ went in the shell.
   `HIBR_MODDIR` itself must be built with `SHCFLAGS`, or the `#ifdef` is
   silently false in it.
 
+- **A script runs as it is read, one complete command line at a time.**
+  `hibr_run` parses with `p_line`, which stops at the newline without
+  consuming it -- consuming it lexes the next token into the arena that is
+  about to be released. Each command's parse and expansion memory is
+  released after it runs unless it defined a function (`s->keep`), and the
+  mark is taken *before* the `lx_next` that reads its first token. Piped
+  standard input goes through `stream`, which re-parses a pending command
+  on every line only up to `HIBR_STREAMN` lines, then as it grows by a
+  quarter or when nothing more is waiting: every line made a 3,000-line
+  function cost 3.1 seconds. A file on standard input is seeked back past
+  what ran, so a `read` in the script gets the next line; a pipe cannot be,
+  which is the one gap ADR 0026 records. `checkfirst` (on in agent mode)
+  runs `sh_check` over the whole text first -- never inside `hibr_run`,
+  or every `$(…)` child and trap would parse twice.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then

@@ -7,7 +7,7 @@
 #define HIBR_ABI 15u
 #endif
 #ifndef HIBR_VER
-#define HIBR_VER "0.59"
+#define HIBR_VER "0.60"
 #endif
 #ifndef HIBR_OK
 #define HIBR_OK 0
@@ -130,6 +130,7 @@
 #define O_NOCASEMATCH 16u
 #define O_INHERITERR 32u
 #define O_AGENT 64u
+#define O_CHECK 128u
 #define O_FIXON 1
 #define O_FIXOFF 2
 #endif

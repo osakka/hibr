@@ -80,8 +80,13 @@ guards typed function parameters. Inside a function `declare` is local unless
 everything. Options that cannot move — `extglob`, `globstar`,
 `expand_aliases` always on, `pipefail` always off — say so rather than
 appearing to succeed. See [0017](adr/0017-one-namespace-for-options.md).
+**[hibr]** `set -o checkfirst`, or `hibr --checkfirst`, parses a whole
+script, `-c` text, standard input or sourced file before running any of it,
+so one that does not parse runs nothing; without it each command runs as it
+is read, as in bash. `eval`, traps and `$(…)` always run as read -- see
+[0026](adr/0026-a-script-runs-as-it-is-read.md).
 **[hibr]** `set -o agent`, or `hibr --agent`, is agent mode: errors as JSON
-lines, `nounset` and `strict` on, no terminal on standard input, and
+lines, `nounset`, `strict` and `checkfirst` on, no terminal on standard input, and
 `HIBR_TIMEOUT` bounding each foreground process -- see
 [0025](adr/0025-agent-mode.md). `hibr --explain script` parses without
 running and names common mistakes, one per line -- see

@@ -431,11 +431,39 @@ it deliberately does not catch, is [0023](adr/0023-strict-is-per-file.md).
 `$LINENO` is the line of the command running, counted in its own file -- for a
 function, the file it was defined in -- as bash counts it.
 
+## Reading a script, and checking it first
+
+A script runs a command at a time, as it is read, the way bash runs one: a
+syntax error late in a file stops it there, after the lines before it have
+run, with status 2. Piped in, each command runs as soon as its last line has
+arrived, and a `read` in the script takes the script's own next line, as it
+does in bash.
+
+`hibr --checkfirst` (or `set -o checkfirst`, or `shopt -s checkfirst`)
+parses the whole text first instead -- a script file, `-c` text, standard
+input, or a file `source`d while it is on -- and runs none of it when it
+does not parse:
+
+```sh
+$ printf 'echo ran\nif\n' > late.sh
+$ hibr late.sh; echo "status $?"
+ran
+hibr: unexpected end of input
+status 2
+$ hibr --checkfirst late.sh; echo "status $?"
+hibr: unexpected end of input
+status 2
+```
+
+Standard input is read whole under `checkfirst`, so nothing streams. `eval`,
+traps and `$(…)` run as read either way. Why both, and the one case piped
+input cannot match bash, is [0026](adr/0026-a-script-runs-as-it-is-read.md).
+
 ## Agent mode
 
 For a script a program runs rather than a person -- a language model's, a
 build's -- `hibr --agent` (or `set -o agent`) makes errors one line of JSON
-each, turns on `set -u` and strict expansion, and swaps a terminal on
+each, turns on `set -u`, strict expansion and `checkfirst`, and swaps a terminal on
 standard input for `/dev/null` so nothing waits on a person who is not
 there. `HIBR_TIMEOUT=seconds` bounds each foreground process: TERM, KILL two
 seconds later, status 124.

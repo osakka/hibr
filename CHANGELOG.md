@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.60
+
+**A script runs as it is read, as in bash.** hibr used to read a whole
+script, parse all of it, and only then run it. Now it reads one complete
+command, runs it and reads the next -- for a script file, `-c` text,
+`source`, `eval` and standard input -- so:
+
+- **A late syntax error** stops the script there, after the lines before it
+  have run, with status 2. Before, none of it ran.
+- **A script on a pipe streams.** `(echo 'echo a'; sleep 1; echo 'echo b') |
+  hibr` prints `a` at once, not after the second; stdout is flushed before
+  each wait for more input. Measured: `a` at 0.002s, `b` at 1.00s.
+- **A `read` in a script on standard input takes the script's next line**,
+  as POSIX asks and bash does: a pipe is read a byte at a time, and a file
+  on standard input a chunk at a time, seeked back to just past the line.
+- **"Unexpected end of input" is status 2**, as bash's is, not 1.
+
+**`checkfirst`: parse the whole script first, when that is what you want.**
+`hibr --checkfirst`, `set -o checkfirst` or `shopt -s checkfirst` parses a
+script file, `-c` text, standard input (then read whole) or a `source`d file
+before running any of it, and runs none of it when it does not parse -- the
+old behaviour, now a choice. Agent mode turns it on. `eval`, traps and
+`$(…)` run as read either way. ADR 0026 records both, and the one case a
+pipe cannot match: a command still incomplete after 64 lines is re-parsed
+only as it grows by a quarter, since every line made a 3,000-line piped
+function take 3.1 seconds (now 0.02), and lines already waiting past its end
+are read with it -- so a `read` straight after such a command, in a piped
+script, misses the line bash would give it. From a file it is exact.
+
+Cost: the `while` loop's instruction count moved 0.001%; sourcing the whole
+desktop is 0.02% cheaper, since each command's parse memory is released as
+it finishes rather than when the script ends. `tests/860-read-as-you-go.t`
+runs a late syntax error through a file, a pipe, a redirect, `-c`, `source`
+and `-n`, with and without `checkfirst`, and a `read` taking the script's
+next line from a pipe and from a file.
+
+**Found by fuzzing the new pipe path, and fixed:** a malformed `${…}` in the
+regex after `=~` -- `[[ x =~ ${^(a) ]]` -- crashed the parser on a null
+word. It did in 0.59 too; only the new path's fuzz run reached it. It is a
+syntax error with status 2 now, as in bash (`tests/865-regex-bad-sub.t`),
+and an error inside a re-lexed `${…}` now stops the parse rather than being
+dropped.
+
 ## 0.59
 
 **`hibr --explain script`: the mistakes in a script, named, without running

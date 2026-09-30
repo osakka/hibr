@@ -1011,7 +1011,10 @@ int b_src(sh *s, int ac, char **av)
 		s->ac = ac - 2;
 		s->avo = 0;
 	}
-	hibr_run(s, b.p ? b.p : "");
+	if ((s->sopt & O_CHECK) && sh_check(s, b.p ? b.p : ""))
+		lg(HIBR_LDBG, "source: %s not run, it does not parse", s->src);
+	else
+		hibr_run(s, b.p ? b.p : "");
 	if (pos) {
 		if (s->avo && s->av) {
 			int i;

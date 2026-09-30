@@ -98,6 +98,12 @@ void lx_here(lex *l, redir *r, word *d);
 char *w_lit(word *w);
 int w_asg(word *w);
 node *hibr_parse(sh *s, const char *src, int *more);
+node *p_line(lex *l);
+int sh_check(sh *s, const char *src);
+#ifndef HIBR_STREAMN
+#define HIBR_STREAMN 64
+#endif
+void p_nl(lex *l);
 
 int ax_digit(int c, long base, long *out);
 long ax_run(sh *s, const char *src);

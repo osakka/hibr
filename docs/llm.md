@@ -35,7 +35,25 @@ Where hibr is deliberately different:
 | unquoted expansions split and glob | the same by default; `set -S` or `strict expansion` stops it |
 | `"${x:-the machine's zone}"` does not parse | an apostrophe inside `${…}`'s own text is just a character |
 | `echo a=~` expands the tilde | only a real assignment does: `x=~`, `PATH=~/bin:~/x` |
-| a script runs each command as it is read | the whole script is parsed first, so a syntax error anywhere means none of it runs |
+
+A script runs a command at a time, as it is read, as in bash: a syntax
+error late in a file stops it there, after the lines before it have run.
+`hibr --checkfirst` (or `set -o checkfirst`, and agent mode) parses the
+whole script first, so a script that does not parse runs none of it:
+
+```sh
+printf 'echo ran\nif\n' > late.sh
+"$HIBR" late.sh 2>&1; echo "status $?"
+"$HIBR" --checkfirst late.sh 2>&1; echo "status $?"
+```
+
+```output
+ran
+hibr: unexpected end of input
+status 2
+hibr: unexpected end of input
+status 2
+```
 
 Other things that are the same as bash but catch people out: a quoted
 `"$x"` never splits; leading zeros are octal in arithmetic (`$((08))` is an
@@ -339,8 +357,8 @@ status 124
 
 Each error is one line of JSON on stderr: the message keyed by its level,
 the file, the line, the source line, and a column for a syntax error. The
-mode also turns on `set -u` and strict expansion, and swaps a terminal on
-standard input for `/dev/null`. `HIBR_TIMEOUT` bounds each foreground
+mode also turns on `set -u`, strict expansion and `checkfirst`, and swaps
+a terminal on standard input for `/dev/null`. `HIBR_TIMEOUT` bounds each foreground
 process -- TERM, KILL two seconds later, status 124 -- but not the shell's
 own work: a builtin, a function or a loop is not a process to end.
 

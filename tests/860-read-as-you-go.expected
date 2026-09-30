@@ -1,0 +1,59 @@
+0
+=== as read
+ran
+hibr: unexpected end of input
+file: 2
+ran
+hibr: unexpected end of input
+pipe: 2
+ran
+hibr: unexpected end of input
+redirect: 2
+ran
+hibr: unexpected end of input
+-c: 2
+ran
+hibr: unexpected end of input
+source: 2
+f
+hibr: unexpected end of input
+-n: 2
+=== --checkfirst
+hibr: unexpected end of input
+file: 2
+hibr: unexpected end of input
+pipe: 2
+hibr: unexpected end of input
+redirect: 2
+hibr: unexpected end of input
+-c: 2
+hibr: unexpected end of input
+source: 2
+hibr: f: command not found
+hibr: unexpected end of input
+-n: 2
+=== agent mode checks first
+{"error":"unexpected end of input","file":"late.sh","line":4,"source":""}
+agent: 2
+ran
+{"error":"unexpected end of input","file":"./late.sh","line":4,"source":""}
+agent, checkfirst off: 2
+=== the option is an option
+checkfirst      off
+checkfirst      on
+=== a read takes the script's next line
+got hello
+line 3
+got hello
+line 3
+got data
+line 304
+=== eval and source stop where their text stops parsing
+e1
+hibr: syntax error near unexpected token `fi'
+eval: 2
+=== stopping keeps its status
+one
+exit: 7
+hibr: errexit: command failed with status 1
+errexit: 1

@@ -660,19 +660,19 @@ unsigned sh_optbit(const char *nm)
 		return O_INHERITERR;
 	if (!strcmp(nm, "agent"))
 		return O_AGENT;
+	if (!strcmp(nm, "checkfirst"))
+		return O_CHECK;
 	return 0;
 }
 
-/* What turning agent mode on turns on with it: errors come as JSON lines
-   (lg reads the bit), an unset variable is an error, expansions do not
-   split or glob, and a terminal on standard input is replaced by
-   /dev/null, so nothing can wait on a person who is not there. */
+/* Agent mode's companions: set -u, strict expansion, checkfirst, and /dev/null for a terminal on standard input. */
 void sh_agent(sh *s)
 {
 	int fd;
 
 	s->uset = 1;
 	s->strictg = 1;
+	s->sopt |= O_CHECK;
 	sh_sfl(s);
 	if (isatty(0) && (fd = open("/dev/null", O_RDONLY)) >= 0) {
 		dup2(fd, 0);
@@ -707,7 +707,7 @@ const char *sh_optnames[] = { "errexit", "nounset", "xtrace", "noclobber",
 			      "nocaseglob", "dotglob", "failglob",
 			      "nocasematch", "extglob", "globstar",
 			      "expand_aliases", "pipefail", "inherit_errexit",
-			      "agent", 0 };
+			      "agent", "checkfirst", 0 };
 
 /* Read one option by name, or -1 when there is no such option. */
 int sh_optget(sh *s, const char *nm)

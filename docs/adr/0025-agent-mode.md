@@ -49,10 +49,10 @@ an empty `then`, `do`, `{ }` or `( )` is a syntax error naming the token, not
 accepted (an empty `while` body looped for ever); and an error is written
 after whatever the script printed before it, not ahead of it.
 
-The one position that is not exact: hibr parses a whole script before
-running it, where bash runs each command as it reads it, so a syntax error
-late in a file stops hibr before its first line runs. That is recorded in
-the backlog as a bash difference to remove.
+The one position that was not exact: hibr parsed a whole script before
+running it, where bash runs each command as it reads it. Since 0.60 hibr
+reads as bash does, and agent mode keeps the whole-script check by turning
+on `checkfirst` -- see [0026](0026-a-script-runs-as-it-is-read.md).
 
 ---
 
