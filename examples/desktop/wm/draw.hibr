@@ -3,6 +3,8 @@
 # Part of the window manager; desktop.hibr sources it. It only defines
 # functions and sets state, so it can be read on its own and is never run.
 
+strict functions vars
+
 # Repeat a string n times.  One builtin call, not a loop with ${#} in it.
 # The result goes through a variable and then ret: := binds for a builtin,
 # not for a function, so a bare `str repeat` here would print to the screen.

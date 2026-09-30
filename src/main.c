@@ -230,6 +230,9 @@ void sh_fini(sh *s)
 	for (i = 0; i < s->srcs.n; i++)
 		free(s->srcs.p[i]);
 	v_free(&s->srcs);
+	for (i = 0; i < s->sf.n; i++)
+		free(s->sf.p[i]);
+	v_free(&s->sf);
 	v_free(&s->scope);
 	v_free(&s->psub);
 	hsh_clear(s, 0);

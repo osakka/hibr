@@ -143,6 +143,35 @@ int v_dyn(sh *s, const char *k, const char *v)
 	return 0;
 }
 
+/* Names the shell itself fills in -- a result, a match, what read or
+   getopts found, a caught failure -- which a function sets without its
+   author ever having written an assignment. */
+int v_shellvar(const char *k)
+{
+	static const char *nm[] = { "RET", "M", "REPLY", "OPTARG", "OPTIND",
+				    "ERR", "ERRMSG", "ERRSTATUS", "CMD",
+				    "REMOTE", "PIPESTATUS", "MAPFILE", 0 };
+	int i;
+
+	for (i = 0; nm[i]; i++)
+		if (!strcmp(k, nm[i]))
+			return 1;
+	return 0;
+}
+
+/* Whether strict vars refuses creating k here: in a function, from a file
+   that asked, outside a declaration, and not a name the shell manages. */
+int v_strict(sh *s, const char *k)
+{
+	if (!(s->sfl & SF_VAR) || s->decl || s->scope.n <= s->srcdep ||
+	    v_shellvar(k) || asg_local(s, k))
+		return 0;
+	lg(HIBR_LERR, "%s:%u: %s is not declared -- local %s, or declare -g "
+	   "%s (strict vars)", sh_where(s), s->ln, k, k, k);
+	s->srefuse = 1;
+	return 1;
+}
+
 /* Store a variable value, optionally marking it exported. */
 int hibr_set(sh *s, const char *k, const char *v, int ex)
 {
@@ -183,6 +212,10 @@ int hibr_set(sh *s, const char *k, const char *v, int ex)
 			s->ifsok = 0;
 		s_free(&t);
 		return HIBR_OK;
+	}
+	if (s->sfl && v_strict(s, k)) {
+		s->st = 1;
+		return HIBR_FAIL;
 	}
 	e = xm(sizeof *e);
 	memset(e, 0, sizeof *e);

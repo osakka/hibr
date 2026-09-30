@@ -476,13 +476,19 @@ const char *fn_src(sh *s, node *f)
 }
 
 /* Register or replace a shell function. */
-void fn_add(sh *s, node *f)
+int fn_add(sh *s, node *f)
 {
 	if (fn_find(s, f->s)) {
+		if ((s->sfl & SF_FN) && s->fsrc.p[s->fni] == (void *)s->src) {
+			lg(HIBR_LERR, "%s:%u: %s is already defined at line %u "
+			   "(strict functions)", sh_where(s), f->ln, f->s,
+			   ((node *)s->fns.p[s->fni])->ln);
+			return 2;
+		}
 		s->fns.p[s->fni] = f;
 		s->fsrc.p[s->fni] = (void *)s->src;
 		lg(HIBR_LDBG, "redefined function %s", f->s);
-		return;
+		return 0;
 	}
 	v_add(&s->fns, f);
 	v_add(&s->fsrc, (void *)s->src);
@@ -495,6 +501,30 @@ void fn_add(sh *s, node *f)
 		s->fhok = 0;
 	}
 	lg(HIBR_LDBG, "defined function %s", f->s);
+	return 0;
+}
+
+/* What an error says the running code's file is. */
+const char *sh_where(sh *s)
+{
+	return s->src ? s->src : "command line";
+}
+
+/* Which strict checks apply to the code running now: its file's, and
+   strict expansion also wherever set -S is on. */
+void sh_sfl(sh *s)
+{
+	size_t i;
+
+	s->sfl = 0;
+	for (i = 0; i < s->sf.n; i++) {
+		sfe *e = (sfe *)s->sf.p[i];
+		if (e->src == s->src) {
+			s->sfl = e->fl;
+			break;
+		}
+	}
+	s->strict = s->strictg || (s->sfl & SF_EXP);
 }
 
 /* Check a value against a declared parameter type. */
@@ -575,20 +605,28 @@ int fn_bind(sh *s, node *f, vec *fr, int ac, char **av)
 int fn_call(sh *s, node *f, int ac, char **av)
 {
 	char **oav = s->av;
-	int oac = s->ac, oavo = s->avo, st;
+	int oac = s->ac, oavo = s->avo, st, bnd;
 	vec *fr = vb_get(s);
 	const char *osrc = s->src;
 
 	char *orty = s->rty;
 
 	s->src = fn_src(s, f);
+	if (s->sf.n)
+		sh_sfl(s);
 	v_add(&s->scope, fr);
 	s->av = av + 1;
 	s->ac = ac - 1;
 	s->avo = 0;
 	s->dep++;
 	s->rty = f->rt;
-	if (f->f && fn_bind(s, f, fr, ac, av) != HIBR_OK)
+	bnd = HIBR_OK;
+	if (f->f) {
+		s->decl++;
+		bnd = fn_bind(s, f, fr, ac, av);
+		s->decl--;
+	}
+	if (bnd != HIBR_OK)
 		st = 2;
 	else
 		st = ex(s, f->r);
@@ -616,6 +654,8 @@ int fn_call(sh *s, node *f, int ac, char **av)
 	s->avo = oavo;
 	s->rty = orty;
 	s->src = osrc;
+	if (s->sf.n)
+		sh_sfl(s);
 	return st;
 }
 
@@ -687,6 +727,23 @@ void asg_keep(sh *s, vec *old, const char *k)
 	sv->v = v ? xs(v->v) : 0;
 	sv->ex = v ? v->ex : 0;
 	v_add(old, sv);
+}
+
+/* Whether k was declared local by the running function or any function
+   that called it -- set or not yet, since local x on its own hides the
+   name without creating it. */
+int asg_local(sh *s, const char *k)
+{
+	size_t i, j;
+	vec *fr;
+
+	for (i = s->scope.n; i-- > 0;) {
+		fr = (vec *)s->scope.p[i];
+		for (j = 0; j < fr->n; j++)
+			if (!strcmp(((struct sav *)fr->p[j])->k, k))
+				return 1;
+	}
+	return 0;
 }
 
 /* Shadow a variable for the rest of a function: the outer one is set aside
@@ -1079,6 +1136,7 @@ int ex_cmd(sh *s, node *n)
 	unsigned ncap0 = s->ncap;
 	pid_t pid;
 
+	s->ln = n->ln;
 	if (s->dtrap)
 		tr_debug(s, n->tx);
 	if (n->aw) {
@@ -1152,16 +1210,23 @@ int ex_cmd(sh *s, node *n)
 	}
 	if (f || b) {
 		vec old = { 0, 0, 0 };
-		asg_push(s, asg, &old);
+		if (asg != &none) {
+			s->decl++;
+			asg_push(s, asg, &old);
+			s->decl--;
+		}
 		if (rd_do(s, n->rd, &sv) == HIBR_OK) {
 			if (f) {
 				st = fn_call(s, f, ac, av);
 			} else {
 				char **oam = s->amask;
 				s->amask = am;
+				int dcl = (s->sfl & SF_VAR) && (bi_argk(av[0]) & 2);
 				st = ex_arrro(s, n);
+				s->decl += dcl;
 				if (st == HIBR_OK)
 					st = b->fn(s, ac, av);
+				s->decl -= dcl;
 				s->amask = oam;
 				if (st == HIBR_OK)
 					ex_arrlate(s, n);
@@ -1245,6 +1310,10 @@ out:
 	if (n->f == 2) {
 		ex_bind(s, n);
 		s->bind = 0;
+	}
+	if (s->srefuse) {
+		s->srefuse = 0;
+		st = 1;
 	}
 	if (asg != &none) {
 		vb_put(s, asg);
@@ -1481,7 +1550,11 @@ int ex_for(sh *s, node *n)
 		for (i = 0; i < (size_t)s->ac; i++)
 			v_add(&o, s->av[i]);
 	for (i = 0; i < o.n; i++) {
-		hibr_set(s, n->s, (char *)o.p[i], 0);
+		if (hibr_set(s, n->s, (char *)o.p[i], 0) != HIBR_OK) {
+			s->srefuse = 0;
+			st = 1;
+			break;
+		}
 		st = ex(s, n->r);
 		if (s->brk) {
 			s->brk--;
@@ -2021,8 +2094,7 @@ int ex(sh *s, node *n)
 		rd_undo(&sv);
 		return st;
 	case N_FUNC:
-		fn_add(s, n);
-		return s->st = 0;
+		return s->st = fn_add(s, n);
 	}
 	lg(HIBR_LERR, "internal: unknown node kind %d", n->k);
 	return s->st = HIBR_FAIL;

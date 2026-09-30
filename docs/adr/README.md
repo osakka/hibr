@@ -32,6 +32,7 @@ downside is usually a decision nobody had to make.
 | [0020](0020-windows-are-drawn-not-composited.md) | Windows are painted back to front; an app is a hibr file | accepted |
 | [0021](0021-lengths-and-slices-count-characters.md) | `${#s}` and `${s:i:n}` count characters, not bytes | accepted |
 | [0022](0022-the-reading-is-now-highly-intuitive-bash-like-runtime.md) | The reading is now Highly Intuitive Bash-like Runtime | accepted |
+| [0023](0023-strict-is-per-file.md) | Strict checks are asked for per file | accepted |
 
 ---
 

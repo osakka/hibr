@@ -1,5 +1,70 @@
 # Changelog
 
+## 0.49
+
+Desktop moves to **0.28** alongside this release. **The module ABI is now
+15**: a module built for 14 is refused until it is rebuilt. Every bundled
+module is rebuilt with the shell.
+
+**`strict`: a file can ask to be refused what is usually a mistake.** Perl's
+`use strict`, as three named checks, for the file that runs it:
+
+- **`strict functions`** -- defining a function a second time in the same
+  file is refused, naming both lines:
+  `wm/menus.hibr:313: dt_drop is already defined at line 98`. The first stays.
+  Another file may still replace it, which is how a file of your own
+  overrides a bundled one.
+- **`strict vars`** -- a function creating a global because it forgot
+  `local` is refused: `total is not declared -- local total, or declare -g
+  total`. Assigning something that already exists, a local of its own or of
+  a caller, or anything made with `local`, `declare` or `declare -g`, is not.
+- **`strict expansion`** -- `set -S`, for this file alone.
+
+`strict` alone is all three; `strict off vars` puts one back and `strict -p`
+lists what is on. "The file" is `$BASH_SOURCE`, so a function is checked by
+the file that defined it, wherever it is called from. A refused command fails
+-- so `set -e` stops -- and a script that never says `strict` pays 0.25% on a
+loop, measured. The design and what it deliberately does not catch are in
+`docs/adr/0023`.
+
+**`$LINENO`**, which hibr never had: the running command's line, counted in
+its own file -- a function's in the file that defined it -- the same as bash
+on every case compared. It is also what lets every strict message name a
+line, and why the ABI moved: a node now carries the line it was parsed from.
+
+**The window manager and the widgets run under `strict functions vars`.**
+What it found:
+
+- `dt_appmenu` read each app's kind into a global `kind` it never declared.
+- Shared state -- the pending shortcut being reassigned, the wallpaper's
+  geometry, the menu bar's last hit, the button shadow's cache, Quit's
+  button focus -- was created from inside functions; each is declared at the
+  top of its file now, where a reader can see it.
+
+**Found on the way, and fixed:**
+
+- **alt-c, alt-x and alt-v were never reserved.** `DT_KEYHELD[alt-c]`, a key
+  with a dash in it and no quotes, is arithmetic: `alt` minus `c`, key 0. All
+  three were one entry named 0, so Keyboard would let any of them be taken;
+  capturing ctrl-\ also printed an arithmetic error. Every subscript in the
+  shortcut code is quoted now, and a test takes alt-c.
+- **The suites were blind to errors in a running desktop.** It sends its
+  stderr to `desktop.log` so an error cannot draw over the screen, and 0.48's
+  check for shell errors read only the terminal -- so its "none found in the
+  desktop suites" was wrong. Every session's `desktop.log` is read too now.
+- **Task Manager logged an error each time a process ended mid-scan**, from a
+  redirection written in the order that lets the error escape.
+- **The suites use this build's modules**, not whatever is installed:
+  `tests/screen.py` puts `build/mods` first on `HIBR_MODPATH`.
+
+HIBR_VER -> 0.49, HIBR_ABI -> 15, DT_VER -> 0.28.
+
+Verified: tests/all.py -- run.sh 93/93 (and under ASan and UBSan, leak-free),
+desktop.py 299/299, apps.py 272/272, most 23/23, hvi 32/32, console 61/61,
+cat 29/29, mon 16/16, mtr 12/12, editor 11/11, term_diff 66/66 -- with
+desktop.log read for errors; tests/fuzz.py 500 rounds under ASan, no crash
+or hang.
+
 ## 0.48
 
 Desktop moves to **0.27** alongside this release.

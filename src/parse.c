@@ -12,6 +12,7 @@ node *nd(lex *l, int k)
 	node *n = ar_alloc(l->a, sizeof *n);
 
 	n->k = (short)k;
+	n->ln = lx_line(l);
 	return n;
 }
 

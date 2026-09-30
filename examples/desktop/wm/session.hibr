@@ -4,6 +4,8 @@
 # Part of the window manager; desktop.hibr sources it. It only defines
 # functions and sets state, so it can be read on its own and is never run.
 
+strict functions vars
+
 # The longest the desktop sleeps when nothing has asked for a frame. Not a
 # refresh rate: everything that changes on its own -- the bar clock, a
 # blinking cursor, a game, a meter -- asks with dt_want, and input, resize
@@ -100,6 +102,8 @@ dt_close() {
 # An idle desktop must not pay for an animation nobody is watching. The
 # soonest of every ask in a frame wins; anything that shows the time has
 # to ask for its next change, or it stops changing.
+DT_WANT=
+
 fn dt_want(ms) {
 	if [ -z "$DT_WANT" ] || [ "$ms" -lt "$DT_WANT" ]; then
 		DT_WANT=$ms

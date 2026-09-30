@@ -4,6 +4,15 @@
 # Part of the window manager; desktop.hibr sources it. It only defines
 # functions and sets state, so it can be read on its own and is never run.
 
+strict functions vars
+
+# Globals the functions below share, declared here so strict vars knows
+# they are meant to be.
+DT_WALLR=0
+DT_WALLC=0
+DT_WALLH=0
+DT_WALLW=0
+
 # The row/col/h/w to hand img draw for DT_WALLMODE, in DT_WALLR/C/H/W --
 # the same "cols must be 2*sw/sh, not sw/sh" cell-aspect correction
 # wallpaper.hibr's own preview already uses, since img draw's own cell is

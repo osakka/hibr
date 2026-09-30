@@ -4,6 +4,8 @@
 # Part of the window manager; desktop.hibr sources it. It only defines
 # functions and sets state, so it can be read on its own and is never run.
 
+strict functions vars
+
 # Handle one mouse report.
 #
 # An app is told a click in *pane* coordinates -- the same ones it draws in,

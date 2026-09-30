@@ -84,6 +84,8 @@ const char *xval(sh *s, const char *k)
 		return xnum(s, (long)(rand() % 32768));
 	if (k[0] == 'B' && !strcmp(k, "BASH_SOURCE"))
 		return s->src ? s->src : "";
+	if (k[0] == 'L' && !strcmp(k, "LINENO"))
+		return xnum(s, (long)s->ln);
 	if (!strcmp(k, "SECONDS"))
 		return xnum(s, (long)time(0) - s->t0);
 	if (k[0] == 'E' && !strncmp(k, "EPOCH", 5)) {

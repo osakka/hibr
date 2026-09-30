@@ -676,7 +676,7 @@ int *sh_optflag(sh *s, const char *nm)
 	if (!strcmp(nm, "histexpand"))
 		return &s->hx;
 	if (!strcmp(nm, "strict"))
-		return &s->strict;
+		return &s->strictg;
 	return 0;
 }
 
@@ -725,6 +725,8 @@ int sh_optset(sh *s, const char *nm, int on)
 	}
 	if (f) {
 		*f = on;
+		if (f == &s->strictg)
+			sh_sfl(s);
 		return HIBR_OK;
 	}
 	b = sh_optbit(nm);

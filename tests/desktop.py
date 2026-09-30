@@ -12,7 +12,7 @@ import os, re, shutil, sys, tempfile, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen
-from screen import Term, check, report, press, release, drag, wheel, load, tree
+from screen import Term, check, report, press, release, drag, wheel, load, tree, expect
 
 if len(sys.argv) > 1:
     screen.HIBR = os.path.abspath(sys.argv[1])
@@ -1475,6 +1475,7 @@ sc, raw = run("", env={"DT_WALLIMG": IMGFIX}, pre=IMGMOD)
 check("a real image can be the desktop's own wallpaper",
       b"38;2;255;0;0" in raw and b"48;2;0;0;255" in raw, raw)
 
+expect(r"^cannot open /does/not/exist\.png$")
 sc, raw = run("", env={"DT_WALLIMG": "/does/not/exist.png"}, pre=IMGMOD)
 check("an unusable wallpaper image falls back to the glyph instead",
       sc.row(1)[0:1] == "·", sc)

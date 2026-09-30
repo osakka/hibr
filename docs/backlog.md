@@ -593,28 +593,12 @@ then against an ASan build of the shell and its modules.
 
 ## The language
 
-### A strict mode, per file -- agreed, next
+### The window manager under strict expansion too
 
-Perl's `use strict` as a family of named checks, each opt-in, each scoped to
-the file that turns it on -- not the whole shell, since some redefinition
-across files is deliberate: an app in `~/.config/hibr/apps` replaces a
-bundled one of the same name.
-
-- **`strict functions`**: defining a function a second time in the same
-  file is an error that names both lines. The class of bug that once made
-  the desktop's drag and drop replace the function that draws the open
-  menu, and that `tests/540-examples.t` now catches only after the fact.
-- **`strict vars`**: inside a function, assigning a name that is not
-  `local`, `declare`d or explicitly global is an error -- the accidental
-  global behind several of the desktop's own "two windows share one state"
-  bugs.
-- **`strict expansion`**: `set -S`, folded in so the family has one home.
-
-Costs, stated plainly: the function check runs once per definition and is
-free; the variable check touches every assignment inside a function and
-must sit behind a flag bit so a script that never asks pays one test.
-Needs an ADR before any code, since it is a new language concept, and the
-desktop's own `wm/` files are the first place to turn it on.
+`wm/` and `widgets/` run under `strict functions vars` since 0.49, not under
+`strict expansion`: some of their code splits an unquoted expansion on
+purpose -- `set -- $g` in the confirm box, `for id in $names` -- and has to
+become arrays first. Turn it on file by file, each with its suite run.
 
 ### Types on the desktop's parameters -- the second pass
 

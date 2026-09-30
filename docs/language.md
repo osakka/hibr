@@ -45,7 +45,7 @@ spoken to with the same `send` and `recv` as a socket. `mapfile` / `readarray`,
 `|&` and `printf '%(fmt)T'` are all there too.
 
 **Special variables.** `$@ $* $# $? $$ $! $0–$9 $RANDOM $SECONDS $EPOCHSECONDS
-$EPOCHREALTIME $PPID $UID $EUID $HOSTNAME $HIBR_VERSION $HIBR_ABI $HIBR`, plus `$RET`, `$ERRMSG`, `$ERR`, `$ERRSTATUS`,
+$EPOCHREALTIME $LINENO $PPID $UID $EUID $HOSTNAME $HIBR_VERSION $HIBR_ABI $HIBR`, plus `$RET`, `$ERRMSG`, `$ERR`, `$ERRSTATUS`,
 `$REMOTE` and `$M`, and `$BASH_SOURCE`: the file the running code came from --
 the script, a file being sourced, or, inside a function, the file the
 function was defined in, which is how a sourced file finds its own directory
@@ -344,6 +344,46 @@ Whether it should become the default is settled, with the measurements, in
 
 The last line is the deliberate cost, and the point: `rm -rf $dir/*` can no
 longer become `rm -rf /*` because `$dir` was empty. It is off by default.
+
+## Strict checks
+
+`strict` refuses, in the file that says it, the two things a shell script most
+often gets wrong without anything failing: a function defined twice, and a
+function creating a global because a `local` was forgotten.
+
+```sh
+strict
+greet() { echo hello; }
+greet() { echo hi; }
+tally() { total=1; }
+tally
+echo "total=${total-unset}"
+keep() { local n; n=1; declare -g seen=yes; }
+keep
+echo "seen=$seen"
+```
+
+```
+hibr: demo.hibr:3: greet is already defined at line 2 (strict functions)
+hibr: demo.hibr:4: total is not declared -- local total, or declare -g total (strict vars)
+total=unset
+seen=yes
+```
+
+The first definition stays, the undeclared assignment is not made, and each
+refused command fails -- status 2 for the definition, 1 for the assignment --
+so `set -e` stops there. A function may still assign anything that already
+exists, a `local` of its own or of a function that called it, and anything it
+creates with `local`, `declare` or `declare -g`. Name the checks to take only
+some -- `strict functions vars` -- and `strict off vars` to put one back;
+`strict expansion` is `set -S` for this file alone, and `strict -p` lists what
+is on. "This file" is `$BASH_SOURCE`, so a function is checked by the file it
+was defined in, wherever it is called from. The desktop's own window manager
+and widgets run under `strict functions vars`. Why it is per file, and what
+it deliberately does not catch, is [0023](adr/0023-strict-is-per-file.md).
+
+`$LINENO` is the line of the command running, counted in its own file -- for a
+function, the file it was defined in -- as bash counts it.
 
 ## Where to go next
 

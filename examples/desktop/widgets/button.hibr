@@ -2,6 +2,8 @@
 #
 # Part of the widget library apps draw with -- see widgets/README.md.
 
+strict functions vars
+
 # Where a button is drawn: a window's pane, or with id "root" straight onto
 # the screen, for the window manager's own overlays (the confirm box) that
 # have no window and no pane. Either way dt_hit finds it under the same id.
@@ -18,6 +20,9 @@ fn dt_bput(id, r, c, text) {
 # window's depth, which a whole window's worth of darkened cells makes
 # visible; a thin row of half blocks at that depth vanished into midnight's
 # near-black face. DT_BTNSHADOW (wm/settings.hibr) turns it off.
+DT_BTNSHADE=
+DT_BTNSHADE_FOR=
+
 dt_btnshade() {
 	local k="$DT_FACE $DT_SHADOW_PCT" p=$DT_SHADOW_PCT
 

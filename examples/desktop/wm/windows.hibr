@@ -5,6 +5,8 @@
 # Part of the window manager; desktop.hibr sources it. It only defines
 # functions and sets state, so it can be read on its own and is never run.
 
+strict functions vars
+
 # Which of an app's five functions actually exist, asked once.
 fn dt_has(name) {
 	command -v "$name" > /dev/null

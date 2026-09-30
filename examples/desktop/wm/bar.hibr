@@ -4,6 +4,8 @@
 # Part of the window manager; desktop.hibr sources it. It only defines
 # functions and sets state, so it can be read on its own and is never run.
 
+strict functions vars
+
 # The bar clock's own strftime format, chosen in Date & Time. dt_bar
 # measures what it renders and leaves where the clock and the icon landed
 # in DT_CLOCKC/DT_CLOCKW/DT_BELLC/DT_BELLW, so a wider format moves both
@@ -28,6 +30,7 @@ DT_BELLC=-1
 DT_BELLW=0
 DT_CONFIRM=
 DT_CONFIRM_CMD=
+DT_CONFIRM_FOCUS=
 DT_ROWS=24
 DT_COLS=80
 

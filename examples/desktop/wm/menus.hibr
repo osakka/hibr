@@ -4,6 +4,8 @@
 # Part of the window manager; desktop.hibr sources it. It only defines
 # functions and sets state, so it can be read on its own and is never run.
 
+strict functions vars
+
 # System 7's, as closely as a text console allows: the hibr menu on the left
 # where the apple went, then the active application's own menus, then the
 # clock and the application menu on the right.  The menus belong to whatever
@@ -30,6 +32,8 @@ MB_CUR=
 MB_STACK=
 MB_PAR=
 MB_IN=0
+MB_AX=0
+MB_AN=
 
 # A menu that opened at the pointer rather than under its bar title: MB_CX
 # and MB_CY are where it goes instead, MB_CTXWHO is what to ask for its

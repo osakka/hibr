@@ -19,7 +19,9 @@ servers, typed function signatures, result slots (`x := f` without forking),
 declared CLI arguments, and a module ABI that lets modules add *protocols*
 (`/dev/<name>/…`), not just commands.
 
-Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 14).
+Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` -- read them
+there; a number written here goes stale (it said 0.21 for twenty-eight
+releases).
 
 ## Build and test
 
@@ -1211,6 +1213,37 @@ went in the shell.
   test that provokes one on purpose says `expect(pattern)` beside it. The
   pattern refuses a `hibr: ` preceded by a path, since `session.hibr: ...`
   is a script's own message, not the shell's.
+- **A running desktop's errors go to its log, not the screen.** `dt_open`
+  sends stderr to `desktop.log` in the state folder so an error cannot
+  scribble over the drawing -- which also meant the suites' check for shell
+  errors, reading only the terminal, was blind to every error a desktop
+  made. `Term.close` reads that session's `desktop.log` as well now, and the
+  first run with it found a leaked global, three reserved keys that were
+  never reserved, and a stream of `/proc/NNN/stat` noise. The same goes for a
+  person: what went wrong in a desktop is in
+  `~/.local/state/hibr/desktop.log`, not on the screen.
+- **The suites test this build's modules, not the installed ones.** `need`
+  searches `HIBR_MODPATH` and then the installed module directory, so a suite
+  that relied on `need` silently tested yesterday's modules -- and failed
+  outright the day the ABI moved and the installed ones were refused.
+  `tests/screen.py` puts `build/mods` first in `HIBR_MODPATH` for everything a
+  suite starts.
+- **A key with a dash in it is arithmetic when unquoted.** `DT_KEYHELD[alt-c]`
+  is `alt` minus `c`, key 0, so the three alt keys the desktop keeps were all
+  stored as one entry named 0 and never refused -- and `DT_KEYHELD[$knorm]`
+  with `ctrl-\` was a syntax error. Every subscript that is a name, a key or
+  anything with a dash is quoted: `DT_KEYHELD["alt-c"]`, `["$knorm"]`. This is
+  the unquoted-subscript trap above again, in a table whose keys are all
+  dashed.
+- **`local x` hides a name without creating it.** So "does this variable
+  exist" is the wrong question for whether a function may assign it: under
+  `strict vars` every `local m n a; ... m=1` in the desktop was first refused
+  as creating a global. `asg_local` asks the scope frames instead -- this
+  function's and every caller's -- whether the name was declared local there.
+- **A redirection that fails is reported before a later `2>` exists.**
+  `read x < /proc/$pid/stat 2> /dev/null` applies left to right, so the
+  failing `<` prints its error before stderr is redirected -- bash does the
+  same. Put the error redirection first: `read x 2> /dev/null < file`.
 - **A pty suite's count is counted, not assumed.** `report(N)` used to print
   N minus the failures, so a check never reached still read as a pass.
   `tests/screen.py` counts checks as they are made and fails a suite whose

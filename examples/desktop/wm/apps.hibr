@@ -4,6 +4,12 @@
 # Part of the window manager; desktop.hibr sources it. It only defines
 # functions and sets state, so it can be read on its own and is never run.
 
+strict functions vars
+
+# Globals the functions below share, declared here so strict vars knows
+# they are meant to be.
+DT_APPDIR_CUR=
+
 # Register an app the hibr menu can open: name, title, height, width.
 fn dt_app(name, title, h, w, once = "", icon = "", fixed = "", hidden = "") {
 	DT_APPS[$name]["title"]="$title"
@@ -113,7 +119,7 @@ dt_appnames() {
 # submenu is its own menu with its own letters otherwise: About hibr, Quit
 # and the rest only need keeping clear of at the top.
 fn dt_appmenu(prefix, used = "") {
-	local n d l child k path
+	local n d l child k path kind
 	local -a all seen
 
 	for n in "${!DT_APPS[@]}"; do

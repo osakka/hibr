@@ -144,6 +144,13 @@ class Screen:
         return "\n".join("%2d|%s" % (r, self.row(r)) for r in range(self.rows))
 
 
+# `need` loads a module from the module path, which ends at the installed
+# copy -- so a suite could be testing yesterday's modules, or none at all
+# once the ABI moves and the installed ones are refused. Everything a suite
+# runs looks in this tree's own build first.
+os.environ["HIBR_MODPATH"] = tree("build/mods") + (
+    ":" + os.environ["HIBR_MODPATH"] if os.environ.get("HIBR_MODPATH") else "")
+
 # What the desktop prints, when HIBR_TESTIDLE is set, each time a frame is on
 # screen and it is about to wait for input -- an OSC a terminal ignores,
 # carrying how many bytes of input it has read by then.
@@ -188,6 +195,12 @@ class Term:
         self.sent = 0
         self.mark = 0
         self.pid, self.fd = pty.fork()
+        # A desktop sends its own stderr to desktop.log in its state folder
+        # while it runs, so an error there never reaches the terminal:
+        # close() reads that too.
+        state = (env or {}).get("XDG_STATE_HOME") or os.path.join(
+            HOME, str(self.pid), "state")
+        self.log = os.path.join(state, "hibr", "desktop.log")
         if self.pid == 0:
             # A shell this suite happens to run from can itself be a hold
             # client -- inside a held desktop, in CI under one, anywhere --
@@ -311,7 +324,12 @@ class Term:
         if not getattr(self, "scanned", False):
             self.scanned = True
             TERMS[0] += 1
-            for m in ERROR.finditer(self.out):
+            text = self.out
+            try:
+                text += open(self.log, "rb").read()
+            except OSError:
+                pass
+            for m in ERROR.finditer(text):
                 e = m.group(1).decode("utf8", "replace")
                 if not any(x.search(e) for x in EXPECTED):
                     ERRS.append(e)

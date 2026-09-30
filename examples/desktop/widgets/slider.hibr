@@ -2,6 +2,8 @@
 #
 # Part of the widget library apps draw with -- see widgets/README.md.
 
+strict functions vars
+
 # Draw a slider: a track of ─ over w columns with a ● at the position
 # value falls between min and max, arrow keys the way to change it once
 # the row is selected -- clicking selects it, the same as a dropdown

@@ -115,7 +115,7 @@ fn tasks_sysstat(id) {
 	local k mtotal= mavail=
 
 	if [ "$TK_OS" = Linux ]; then
-		read -r line < /proc/stat 2> /dev/null
+		read -r line 2> /dev/null < /proc/stat
 		rest=${line#cpu }
 		set -- $rest
 		idle=${4:-0}
@@ -202,7 +202,7 @@ fn tasks_times(pid) {
 	local line name rest
 	local state a b c d e f g h j k u s _
 
-	read -r line < "/proc/$pid/stat" 2> /dev/null || return 1
+	read -r line 2> /dev/null < "/proc/$pid/stat" || return 1
 	name=${line%)*}
 	name=${name#*\(}
 	rest=${line##*)}
@@ -223,7 +223,7 @@ fn tasks_uidrss(pid) {
 		VmRSS:) rss=$v ;;
 		esac
 		[ -n "$uid" ] && [ -n "$rss" ] && break
-	done < "/proc/$pid/status" 2> /dev/null
+	done 2> /dev/null < "/proc/$pid/status"
 	ret "$uid ${rss:-0}"
 }
 
@@ -417,7 +417,7 @@ fn tasks_cmdline(pid) {
 	while IFS= read -r -d '' part; do
 		[ "$first" = 1 ] && first=0 || out="$out "
 		out="$out$part"
-	done < "/proc/$pid/cmdline" 2> /dev/null
+	done 2> /dev/null < "/proc/$pid/cmdline"
 	[ -z "$out" ] && return 1
 	ret "$out"
 }

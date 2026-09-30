@@ -4,6 +4,8 @@
 # Part of the window manager; desktop.hibr sources it. It only defines
 # functions and sets state, so it can be read on its own and is never run.
 
+strict functions vars
+
 # The three button-icon styles: which glyph and colour each of min, max
 # and close gets, and what wraps the movable (3-button) or fixed
 # (2-button) cluster. Fills BTN_K/BTN_G/BTN_C/BTN_DL/BTN_DR in the same

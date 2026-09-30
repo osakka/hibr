@@ -32,6 +32,20 @@ void lx_init(lex *l, sh *s, const char *src)
 	l->p = src;
 	l->e = src + strlen(src);
 	l->fd = -1;
+	l->lnp = src;
+	l->ln = s->ln ? s->ln : 1;
+}
+
+/* The line the current token starts on, counted forward from the last ask. */
+unsigned lx_line(lex *l)
+{
+	const char *t = l->tkb ? l->tkb : l->p;
+
+	while (l->lnp < t) {
+		if (*l->lnp++ == '\n')
+			l->ln++;
+	}
+	return l->ln;
 }
 
 /* Emit the pending literal run as a word part. */

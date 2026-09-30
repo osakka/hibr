@@ -4,6 +4,8 @@
 # Part of the window manager; desktop.hibr sources it. It only defines
 # functions and sets state, so it can be read on its own and is never run.
 
+strict functions vars
+
 # A clean desktop: Home, the disks if DT_DISKS wants them, and the trash --
 # laid out down from the top right, where the Mac put them.  Nothing else.
 # Apps stay in the hibr menu; the desktop is not a second copy of a folder,

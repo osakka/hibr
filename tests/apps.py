@@ -13,7 +13,7 @@ import os, re, shutil, subprocess, sys, tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
-from screen import Term, check, report, press, release, drag, wheel, load, tree
+from screen import Term, check, report, press, release, drag, wheel, load, tree, expect
 
 if len(sys.argv) > 1:
     sx.HIBR = os.path.abspath(sys.argv[1])
@@ -456,6 +456,10 @@ sc = cprun(KB_CP + [b"\r", b"\x1b[21~"], end=None)
 check("f10 is refused as a shortcut, with the reason",
       "f10" not in brow(sc, "Control Panel") and
       sc.find("opens the menu bar") is not None, sc)
+sc = cprun(KB_CP + [b"\r", b"\x1bc"], end=None)
+check("and so is alt-c, which is Copy -- a key with a dash in its name",
+      "alt-c" not in brow(sc, "Control Panel") and
+      sc.find("is Copy") is not None, sc)
 
 # A key another action holds is asked about, and yes moves it: a key never
 # has two owners. Detach's ctrl-\\ is the one taken here, not Quit's q,
@@ -1169,6 +1173,7 @@ sc = run_img(os.path.abspath("tests/img-2x2.png"), BUILT_MODS,
 check("a missing img module says so, not \"cannot show\" the file",
       sc.find("Image support isn't installed") is not None, sc)
 
+expect(r"broken\.png is not a valid PNG$")
 BADPNG = tempfile.mkdtemp(prefix="hibr-bad-png-")
 open(os.path.join(BADPNG, "broken.png"), "wb").write(b"not a real png")
 sc = run_img(os.path.join(BADPNG, "broken.png"), BUILT_MODS)
@@ -1992,4 +1997,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(271)
+report(272)

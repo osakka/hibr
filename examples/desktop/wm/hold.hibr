@@ -4,6 +4,8 @@
 # Part of the window manager; desktop.hibr sources it. It only defines
 # functions and sets state, so it can be read on its own and is never run.
 
+strict functions vars
+
 # Detach only works when the desktop is a held session.  A session calls
 # dt_autohold once, before dt_open, to make sure it always is: if it is not
 # already held, this restarts it -- the same command, the same arguments --

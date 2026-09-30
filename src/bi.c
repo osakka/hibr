@@ -383,10 +383,12 @@ int b_set(sh *s, int ac, char **av)
 		} else if (!strcmp(av[i], "+H")) {
 			s->hx = 0;
 		} else if (!strcmp(av[i], "-S")) {
-			s->strict = 1;
+			s->strictg = 1;
+			sh_sfl(s);
 			lg(HIBR_LDBG, "strict expansion on");
 		} else if (!strcmp(av[i], "+S")) {
-			s->strict = 0;
+			s->strictg = 0;
+			sh_sfl(s);
 		} else if (!strcmp(av[i], "-C")) {
 			s->noclob = 1;
 		} else if (!strcmp(av[i], "+C")) {
@@ -908,6 +910,55 @@ int b_exec(sh *s, int ac, char **av)
 	return HIBR_NOEXEC;
 }
 
+/* strict [off] [functions|vars|expansion]... -- turn checks on, or off,
+   for the file this runs in; strict -p lists the ones that are on. */
+int b_strict(sh *s, int ac, char **av)
+{
+	static const char *nm[] = { "functions", "vars", "expansion", 0 };
+	int on = 1, fl = 0, i, j;
+	sfe *e = 0;
+	size_t k;
+
+	for (k = 0; k < s->sf.n; k++)
+		if (((sfe *)s->sf.p[k])->src == s->src)
+			e = (sfe *)s->sf.p[k];
+	if (ac == 2 && !strcmp(av[1], "-p")) {
+		for (j = 0; nm[j]; j++)
+			if (e && (e->fl & (1 << j)))
+				printf("%s\n", nm[j]);
+		return HIBR_OK;
+	}
+	for (i = 1; i < ac; i++) {
+		if (!strcmp(av[i], "off")) {
+			on = 0;
+			continue;
+		}
+		for (j = 0; nm[j] && strcmp(av[i], nm[j]); j++)
+			;
+		if (!nm[j]) {
+			lg(HIBR_LERR, "strict: %s: not a check -- functions, vars "
+			   "or expansion", av[i]);
+			return 2;
+		}
+		fl |= 1 << j;
+	}
+	if (!fl)
+		fl = SF_FN | SF_VAR | SF_EXP;
+	if (!e) {
+		e = xm(sizeof *e);
+		memset(e, 0, sizeof *e);
+		e->src = s->src;
+		v_add(&s->sf, e);
+	}
+	if (on)
+		e->fl |= fl;
+	else
+		e->fl &= ~fl;
+	lg(HIBR_LDBG, "strict: %s now %d", sh_where(s), e->fl);
+	sh_sfl(s);
+	return HIBR_OK;
+}
+
 /* Read and execute a file in the current shell. */
 int b_src(sh *s, int ac, char **av)
 {
@@ -919,6 +970,8 @@ int b_src(sh *s, int ac, char **av)
 	int oret, oac = 0, oavo = 0, pos = ac > 2;
 	const char *osrc;
 	char *path;
+	unsigned oln;
+	size_t osd;
 
 	if (ac < 2) {
 		lg(HIBR_LERR, "source: filename required");
@@ -939,7 +992,13 @@ int b_src(sh *s, int ac, char **av)
 	fclose(f);
 	oret = s->ret;
 	osrc = s->src;
+	oln = s->ln;
+	s->ln = 0;
+	osd = s->srcdep;
+	s->srcdep = s->scope.n;
 	s->src = sr_name(s, path ? path : av[1]);
+	if (s->sf.n)
+		sh_sfl(s);
 	free(path);
 	if (pos) {
 		lg(HIBR_LDBG, "source: %d positional arguments for %s", ac - 2,
@@ -965,6 +1024,10 @@ int b_src(sh *s, int ac, char **av)
 	}
 	s->ret = oret;
 	s->src = osrc;
+	s->ln = oln;
+	s->srcdep = osd;
+	if (s->sf.n)
+		sh_sfl(s);
 	s_free(&b);
 	return s->st;
 }
@@ -1599,6 +1662,7 @@ const hibr_bi bitab[] = {
 	{ "shopt", b_shopt, "read or set shell options" },
 	{ "source", b_src, "run a file in this shell" },
 	{ "str", b_str, "text operations" },
+	{ "strict", b_strict, "refuse, in this file, what is usually a mistake" },
 	{ "test", b_test, "evaluate a conditional expression" },
 	{ "time", b_time, "time a command" },
 	{ "title", b_title, "rename the running process" },

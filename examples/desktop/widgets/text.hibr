@@ -3,6 +3,8 @@
 #
 # Part of the widget library apps draw with -- see widgets/README.md.
 
+strict functions vars
+
 # Draw a single-line editable field: the text, padded or truncated to w,
 # and -- while focused -- the character at the cursor shown inverted, the
 # same convention a selected list row already uses. There is no dt_wreg

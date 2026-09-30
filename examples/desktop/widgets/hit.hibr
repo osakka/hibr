@@ -3,6 +3,8 @@
 #
 # Part of the widget library apps draw with -- see widgets/README.md.
 
+strict functions vars
+
 # A checkbox and a dropdown, drawn the same way any other app content is:
 # console put into the window's own pane, in the coordinates it draws in.
 # Neither keeps state of its own -- an app passes in what to show and gets

@@ -3,6 +3,8 @@
 #
 # Part of the widget library apps draw with -- see widgets/README.md.
 
+strict functions vars
+
 # Draw a value that opens a list of choices: "value ▾", padded to w
 # columns. tag is what dt_hit answers for a click on it.
 fn dt_wdrop(id, r, c, w, value, tag) {

@@ -4,26 +4,34 @@
 # Part of the window manager; desktop.hibr sources it. It only defines
 # functions and sets state, so it can be read on its own and is never run.
 
+strict functions vars
+
+# Globals the functions below share, declared here so strict vars knows
+# they are meant to be.
+DT_KEYPEND_WHAT=
+DT_KEYPEND_KEY=
+DT_KEYPEND_FROM=
+
 # The desktop's own actions, in the order the Keyboard pane lists them, and
 # what each is called there. Their keys are DT_KEYS, in wm/settings.hibr;
 # an app's launch shortcut is DT_APPKEY, keyed by the app's name.
 DT_KEYORDER=(close detach quit cycle strip)
 declare -gA DT_KEYNAME
-DT_KEYNAME[close]="Close Window"
-DT_KEYNAME[detach]="Detach"
-DT_KEYNAME[quit]="Quit"
-DT_KEYNAME[cycle]="Cycle Windows"
-DT_KEYNAME[strip]="Control Strip"
+DT_KEYNAME["close"]="Close Window"
+DT_KEYNAME["detach"]="Detach"
+DT_KEYNAME["quit"]="Quit"
+DT_KEYNAME["cycle"]="Cycle Windows"
+DT_KEYNAME["strip"]="Control Strip"
 
 # Keys the desktop keeps for itself whatever has focus, and why -- offered
 # as a shortcut, one is refused with its reason rather than taken and then
 # never seen. Escape is also how a capture is cancelled.
 declare -gA DT_KEYHELD
-DT_KEYHELD[f10]="opens the menu bar"
-DT_KEYHELD[escape]="opens the menu bar"
-DT_KEYHELD[alt-c]="is Copy"
-DT_KEYHELD[alt-x]="is Cut"
-DT_KEYHELD[alt-v]="is Paste"
+DT_KEYHELD["f10"]="opens the menu bar"
+DT_KEYHELD["escape"]="opens the menu bar"
+DT_KEYHELD["alt-c"]="is Copy"
+DT_KEYHELD["alt-x"]="is Cut"
+DT_KEYHELD["alt-v"]="is Paste"
 
 # A shortcut in one canonical modifier order, ctrl then alt then shift,
 # whatever order it named them in -- an alt combination arrives as ESC
@@ -53,8 +61,8 @@ fn dt_appkeyed(key) {
 
 	knorm := dt_keynorm "$key"
 	for an in "${!DT_APPKEY[@]}"; do
-		[ -n "${DT_APPKEY[$an]}" ] || continue
-		anorm := dt_keynorm "${DT_APPKEY[$an]}"
+		[ -n "${DT_APPKEY["$an"]}" ] || continue
+		anorm := dt_keynorm "${DT_APPKEY["$an"]}"
 		if [ "$anorm" = "$knorm" ]; then
 			dt_launch "$an"
 			return 0
@@ -66,16 +74,16 @@ fn dt_appkeyed(key) {
 # anything else is one of the desktop's own.
 fn dt_keylabel(what) {
 	case $what in
-	app:*) ret "${DT_APPS[${what#app:}]["title"]:-${what#app:}}" ;;
-	*) ret "${DT_KEYNAME[$what]:-$what}" ;;
+	app:*) ret "${DT_APPS["${what#app:}"]["title"]:-${what#app:}}" ;;
+	*) ret "${DT_KEYNAME["$what"]:-$what}" ;;
 	esac
 }
 
 # The key an action has now, empty for none.
 fn dt_keyof(what) {
 	case $what in
-	app:*) ret "${DT_APPKEY[${what#app:}]}" ;;
-	*) ret "${DT_KEYS[$what]}" ;;
+	app:*) ret "${DT_APPKEY["${what#app:}"]}" ;;
+	*) ret "${DT_KEYS["$what"]}" ;;
 	esac
 }
 
@@ -84,8 +92,8 @@ fn dt_keyof(what) {
 # with a default stays cleared across a restart.
 fn dt_keyset(what, key) {
 	case $what in
-	app:*) DT_APPKEY[${what#app:}]=$key ;;
-	*) DT_KEYS[$what]=$key ;;
+	app:*) DT_APPKEY["${what#app:}"]=$key ;;
+	*) DT_KEYS["$what"]=$key ;;
 	esac
 	dt_save
 }
@@ -97,13 +105,13 @@ fn dt_keyowner(key, except = "") {
 	[ -n "$key" ] || return 1
 	knorm := dt_keynorm "$key"
 	for a in "${DT_KEYORDER[@]}"; do
-		[ "$a" = "$except" ] || [ -z "${DT_KEYS[$a]}" ] && continue
-		k := dt_keynorm "${DT_KEYS[$a]}"
+		[ "$a" = "$except" ] || [ -z "${DT_KEYS["$a"]}" ] && continue
+		k := dt_keynorm "${DT_KEYS["$a"]}"
 		[ "$k" = "$knorm" ] && ret "$a"
 	done
 	for a in "${!DT_APPKEY[@]}"; do
-		[ "app:$a" = "$except" ] || [ -z "${DT_APPKEY[$a]}" ] && continue
-		k := dt_keynorm "${DT_APPKEY[$a]}"
+		[ "app:$a" = "$except" ] || [ -z "${DT_APPKEY["$a"]}" ] && continue
+		k := dt_keynorm "${DT_APPKEY["$a"]}"
 		[ "$k" = "$knorm" ] && ret "app:$a"
 	done
 	return 1
@@ -136,8 +144,8 @@ fn dt_keytake(what, key) {
 	local knorm owner l ol
 
 	knorm := dt_keynorm "$key"
-	if [ -n "${DT_KEYHELD[$knorm]}" ]; then
-		dt_note "$key ${DT_KEYHELD[$knorm]}, so it cannot be a shortcut"
+	if [ -n "${DT_KEYHELD["$knorm"]}" ]; then
+		dt_note "$key ${DT_KEYHELD["$knorm"]}, so it cannot be a shortcut"
 		return 0
 	fi
 	l := dt_keylabel "$what"

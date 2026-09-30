@@ -3,6 +3,8 @@
 # Part of the window manager; desktop.hibr sources it. It only defines
 # functions and sets state, so it can be read on its own and is never run.
 
+strict functions vars
+
 # Ask before doing something that cannot be taken back by pressing the key
 # again: Yes runs cmd, No forgets it, and so does a click anywhere else,
 # which cancels rather than reaching whatever it landed on. cmd is a single

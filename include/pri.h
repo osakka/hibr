@@ -29,6 +29,14 @@
 #define T_PIPEAMP 22
 
 typedef struct lex lex;
+
+/* The checks strict can ask for, per file -- see docs/adr/0023. */
+#ifndef SF_FN
+#define SF_FN 1
+#define SF_VAR 2
+#define SF_EXP 4
+#endif
+typedef struct sfe { const char *src; int fl; } sfe;
 struct lex {
 	sh *s;
 	arena *a;
@@ -37,6 +45,8 @@ struct lex {
 	int tk, fd, nb, more, err, dash, both, clob, depth;
 	char *fdvar;
 	vec hq;
+	const char *lnp;
+	unsigned ln;
 };
 
 unsigned vh(const char *k);
@@ -162,6 +172,13 @@ void hsh_put(sh *s, const char *nm, const char *path);
 char *findx(sh *s, const char *nm);
 char *findr(sh *s, const char *nm);
 void fn_hash(sh *s);
+void sh_sfl(sh *s);
+int v_strict(sh *s, const char *k);
+int v_shellvar(const char *k);
+int asg_local(sh *s, const char *k);
+const char *sh_where(sh *s);
+int b_strict(sh *s, int ac, char **av);
+unsigned lx_line(lex *l);
 node *fn_hfind(sh *s, const char *nm);
 
 struct sav { char *k, *v; unsigned ex; var *w; };
