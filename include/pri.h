@@ -160,6 +160,9 @@ const char *hsh_get(sh *s, const char *nm);
 void hsh_clear(sh *s, const char *nm);
 void hsh_put(sh *s, const char *nm, const char *path);
 char *findx(sh *s, const char *nm);
+char *findr(sh *s, const char *nm);
+void fn_hash(sh *s);
+node *fn_hfind(sh *s, const char *nm);
 
 struct sav { char *k, *v; unsigned ex; var *w; };
 

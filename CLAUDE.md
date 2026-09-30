@@ -1095,6 +1095,17 @@ went in the shell.
   truncation -- is the right assertion once a title's content depends on
   something a test does not fully control.
 
+- **Function lookup is on every command, so it is indexed.** `ex_cmd` asks
+  `fn_find` before anything else, and a miss -- every builtin, every program
+  -- used to compare the name against every function defined: with the
+  desktop's 201 loaded, 11,600 instructions per command. From
+  `HIBR_FNHASH` (16) functions on, `fn_hfind` uses an open-addressed index
+  of `s->fns` keyed on `vh`, the variable table's hash; a new definition goes
+  straight in, and `unset -f`, which swaps the last function into the hole,
+  marks it stale for the next lookup to rebuild. Anything else that removes
+  from or reorders `s->fns` must clear `fhok` too. The threshold check costs
+  0.17% on a loop with no functions at all, measured against the same build
+  without it; the desktop's loop runs 2.2 times faster.
 - **The desktop declares its parameters, and that closes the `local` trap
   above.** Every function in `examples/desktop/` that takes arguments is
   `fn name(a, b = "", ...rest)` now, not `name() { local a=$1 ...`, so a

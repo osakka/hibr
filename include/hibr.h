@@ -7,7 +7,7 @@
 #define HIBR_ABI 14u
 #endif
 #ifndef HIBR_VER
-#define HIBR_VER "0.46"
+#define HIBR_VER "0.47"
 #endif
 #ifndef HIBR_OK
 #define HIBR_OK 0
@@ -39,6 +39,9 @@
 #endif
 #ifndef HIBR_AXDEPTH
 #define HIBR_AXDEPTH 1000
+#endif
+#ifndef HIBR_FNHASH
+#define HIBR_FNHASH 16
 #endif
 #ifndef HIBR_TAB0
 #define HIBR_TAB0 64
@@ -224,6 +227,8 @@ struct sh {
 	const char *src;
 	vec fsrc, srcs;
 	size_t fni;
+	size_t *fht, fhsz;
+	int fhok;
 };
 
 #ifndef HIBR_MTIM

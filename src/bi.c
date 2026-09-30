@@ -280,6 +280,7 @@ int b_unset(sh *s, int ac, char **av)
 				s->fns.p[j] = s->fns.p[s->fns.n - 1];
 				s->fsrc.p[j] = s->fsrc.p[s->fns.n - 1];
 				s->fns.n--;
+				s->fhok = 0;
 				s->fsrc.n--;
 				break;
 			}
@@ -917,14 +918,17 @@ int b_src(sh *s, int ac, char **av)
 	size_t n;
 	int oret, oac = 0, oavo = 0, pos = ac > 2;
 	const char *osrc;
+	char *path;
 
 	if (ac < 2) {
 		lg(HIBR_LERR, "source: filename required");
 		return HIBR_FAIL;
 	}
-	f = fopen(av[1], "r");
+	path = strchr(av[1], '/') ? 0 : findr(s, av[1]);
+	f = fopen(path ? path : av[1], "r");
 	if (!f) {
 		lg(HIBR_LERR, "source: %s: %s", av[1], strerror(errno));
+		free(path);
 		return HIBR_FAIL;
 	}
 	s_init(&b);
@@ -935,7 +939,8 @@ int b_src(sh *s, int ac, char **av)
 	fclose(f);
 	oret = s->ret;
 	osrc = s->src;
-	s->src = sr_name(s, av[1]);
+	s->src = sr_name(s, path ? path : av[1]);
+	free(path);
 	if (pos) {
 		lg(HIBR_LDBG, "source: %d positional arguments for %s", ac - 2,
 		   av[1]);

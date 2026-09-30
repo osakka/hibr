@@ -117,6 +117,40 @@ char *findx(sh *s, const char *nm)
 	return 0;
 }
 
+/* Find a file to source along PATH: readable and regular, not executable. */
+char *findr(sh *s, const char *nm)
+{
+	const char *p = hibr_get(s, "PATH");
+	const char *q;
+	struct stat st;
+	str b;
+
+	if (!p)
+		p = "/usr/local/bin:/usr/bin:/bin";
+	while (*p) {
+		size_t n;
+		q = strchr(p, ':');
+		n = q ? (size_t)(q - p) : strlen(p);
+		s_init(&b);
+		if (n)
+			s_add(&b, p, n);
+		else
+			s_ch(&b, '.');
+		s_ch(&b, '/');
+		s_cat(&b, nm);
+		if (stat(b.p, &st) == 0 && S_ISREG(st.st_mode) &&
+		    access(b.p, R_OK) == 0) {
+			lg(HIBR_LDBG, "source: %s found as %s", nm, b.p);
+			return b.p;
+		}
+		s_free(&b);
+		if (!q)
+			break;
+		p = q + 1;
+	}
+	return 0;
+}
+
 /* Give a here-document body a readable descriptor. */
 int hdfd(const char *t, size_t n)
 {
@@ -355,12 +389,57 @@ void rd_undo(vec *sv)
 	v_free(sv);
 }
 
+/* Index every function by name, in a table at most half full. */
+void fn_hash(sh *s)
+{
+	size_t i, j, m, n = 64;
+
+	while (n < s->fns.n * 2)
+		n *= 2;
+	if (n != s->fhsz) {
+		free(s->fht);
+		s->fht = xm(n * sizeof *s->fht);
+		s->fhsz = n;
+	}
+	memset(s->fht, 0, n * sizeof *s->fht);
+	m = n - 1;
+	for (i = 0; i < s->fns.n; i++) {
+		j = vh(((node *)s->fns.p[i])->s) & m;
+		while (s->fht[j])
+			j = (j + 1) & m;
+		s->fht[j] = i + 1;
+	}
+	s->fhok = 1;
+	lg(HIBR_LTRC, "indexed %zu functions in %zu slots", s->fns.n, n);
+}
+
+/* Look a function up in the index, building it first if it is stale. */
+node *fn_hfind(sh *s, const char *nm)
+{
+	size_t i, m;
+	node *f;
+
+	if (!s->fhok)
+		fn_hash(s);
+	m = s->fhsz - 1;
+	for (i = vh(nm) & m; s->fht[i]; i = (i + 1) & m) {
+		f = (node *)s->fns.p[s->fht[i] - 1];
+		if (!strcmp(f->s, nm)) {
+			s->fni = s->fht[i] - 1;
+			return f;
+		}
+	}
+	return 0;
+}
+
 /* Find a shell function by name, leaving its index for fn_src. */
 node *fn_find(sh *s, const char *nm)
 {
 	size_t i;
 	node *f;
 
+	if (s->fns.n >= HIBR_FNHASH)
+		return fn_hfind(s, nm);
 	for (i = 0; i < s->fns.n; i++) {
 		f = (node *)s->fns.p[i];
 		if (!strcmp(f->s, nm)) {
@@ -399,20 +478,22 @@ const char *fn_src(sh *s, node *f)
 /* Register or replace a shell function. */
 void fn_add(sh *s, node *f)
 {
-	size_t i;
-	node *o;
-
-	for (i = 0; i < s->fns.n; i++) {
-		o = (node *)s->fns.p[i];
-		if (!strcmp(o->s, f->s)) {
-			s->fns.p[i] = f;
-			s->fsrc.p[i] = (void *)s->src;
-			lg(HIBR_LDBG, "redefined function %s", f->s);
-			return;
-		}
+	if (fn_find(s, f->s)) {
+		s->fns.p[s->fni] = f;
+		s->fsrc.p[s->fni] = (void *)s->src;
+		lg(HIBR_LDBG, "redefined function %s", f->s);
+		return;
 	}
 	v_add(&s->fns, f);
 	v_add(&s->fsrc, (void *)s->src);
+	if (s->fhok && s->fns.n * 2 <= s->fhsz) {
+		size_t j = vh(f->s) & (s->fhsz - 1);
+		while (s->fht[j])
+			j = (j + 1) & (s->fhsz - 1);
+		s->fht[j] = s->fns.n;
+	} else {
+		s->fhok = 0;
+	}
 	lg(HIBR_LDBG, "defined function %s", f->s);
 }
 
@@ -1109,7 +1190,9 @@ int ex_cmd(sh *s, node *n)
 			free(nav);
 			goto out;
 		}
-		lg(HIBR_LERR, "%s: command not found", av[0]);
+		if (!n->rd || rd_do(s, n->rd, &sv) == HIBR_OK)
+			lg(HIBR_LERR, "%s: command not found", av[0]);
+		rd_undo(&sv);
 		st = HIBR_NOCMD;
 		goto out;
 	}

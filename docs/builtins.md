@@ -34,6 +34,11 @@ purpose. Everything else behaves as bash does unless the entry says otherwise.
 
 `source` restores the caller's positional parameters afterwards. With no extra
 arguments the sourced file inherits them, and a `shift` inside leaks, as in bash.
+A name with no slash in it is looked up on `PATH` first -- any readable file
+there, executable or not -- and then in the current directory, as bash does
+with `sourcepath` on (always, here). So a folder of files that only define
+functions, put on `PATH`, is a library: `. mylib`. `$BASH_SOURCE` inside it is
+the path it was found at.
 
 ## Variables
 

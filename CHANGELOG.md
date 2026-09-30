@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.47
+
+**A command in a shell with many functions costs what one in a shell with
+few does.** Every simple command asks first whether its name is a function,
+and a miss -- every builtin, every program -- compared it against every
+function defined. With the desktop's own 201 loaded that was about 11,600
+instructions per command. From 16 functions on, the lookup goes through an
+index now, and the same loop over builtins, with the desktop loaded, takes
+418M instructions instead of 878M: 2.2 times faster per command. Loading the
+desktop itself is 3.6% cheaper, since each definition used to scan for an
+earlier one of the same name. The cost is one comparison per lookup below 16
+functions -- 0.17% on a loop with none at all, measured against the same
+build without it.
+
+**`.` and `source` look a bare name up on `PATH`**, as bash does: the first
+readable file there, executable or not, then the current directory. hibr's
+option table had always said `sourcepath` was on, and it was not; now it is.
+A folder of files that only define functions, put on `PATH`, is a library --
+`. mylib` -- with `$BASH_SOURCE` the path it was found at.
+
+**A command that is not found says so through its own redirections.**
+`cmd 2>/dev/null || fallback` printed "command not found" regardless, which
+bash does not; found while testing the lookup above.
+
+HIBR_VER -> 0.47. The desktop is unchanged.
+
+Verified: tests/run.sh 92/92 (and under ASan and UBSan), tests/apps.py
+270/270, tests/desktop.py 298/298.
+
 ## 0.46
 
 Desktop moves to **0.26** alongside this release.

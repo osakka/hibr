@@ -226,6 +226,7 @@ void sh_fini(sh *s)
 	v_free(&s->vbf);
 	v_free(&s->fns);
 	v_free(&s->fsrc);
+	free(s->fht);
 	for (i = 0; i < s->srcs.n; i++)
 		free(s->srcs.p[i]);
 	v_free(&s->srcs);

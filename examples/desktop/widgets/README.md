@@ -51,5 +51,9 @@ four rules, and every file here keeps them:
    something plausible in the wrong place, and binding costs less than the
    `local` line it replaces.
 
+A library of your own can live anywhere on `PATH` and be loaded by name --
+`. mylib` -- since `.` looks a bare name up there before the current
+directory, the way bash does.
+
 `tests/540-examples.t` parses every file here and fails when a function name
 is defined twice anywhere across the desktop and its parts.

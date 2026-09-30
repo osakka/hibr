@@ -563,31 +563,6 @@ recorded in `CLAUDE.md`. They could be hibr; they should not be.
 
 ## The language
 
-### `.` and `source` search PATH for a name without a slash -- agreed
-
-bash's `.` looks a bare name up on `PATH` when it has no slash in it; hibr's
-opens the name as given, relative to wherever the shell is. That is a
-divergence, not a decision, and closing it is what gives hibr libraries
-without inventing anything: a directory of files that only define -- the
-convention `examples/desktop/widgets/README.md` sets out -- put on `PATH`,
-and `. widgets` finds it. bash searches `PATH` first and, outside posix
-mode, falls back to the current directory when nothing there matches;
-match that, and compare against it in a `.t`. Anything beyond that --
-a `use`, load-once guards, versions -- is a new concept, and `CLAUDE.md`'s
-rule is that the core grows only for what makes it a better shell.
-
-### Find a function without reading every name -- agreed, if it measures
-
-`fn_find` walks every defined function with `strcmp` on each command whose
-first word could be one. A script with a handful costs nothing; the desktop
-defines about four hundred across itself, its apps and panes, so every
-command it runs pays up to four hundred comparisons before it even knows
-it is a builtin or a program. A small hash table beside `s->fns` (the
-variable table already has one, `vh`) turns that into one lookup. Measure
-first, with instruction counts on the desktop's own idle frame and on the
-loop benchmarks -- `fn_find` is also on `unset`, `type`, `command -v` and
-`declare -F`, and `fn_src` relies on the index it leaves behind.
-
 ### A strict mode, per file -- agreed, next
 
 Perl's `use strict` as a family of named checks, each opt-in, each scoped to

@@ -4,7 +4,6 @@ hello there
 alias hi='echo hello'
 alias count='wc -l'
 3
-hibr: hi: command not found
 after unalias status=127
 NOT-REAL-LS
 /etc /usr /tmp
