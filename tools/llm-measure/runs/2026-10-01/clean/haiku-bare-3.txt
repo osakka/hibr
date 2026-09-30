@@ -1,0 +1,99 @@
+=== P1
+sum=0
+while IFS= read -r line; do
+    ((sum += line))
+done
+echo $sum
+
+=== P2
+count=0
+for arg in "$@"; do
+    ((count++))
+    echo "$count: $arg"
+done
+
+=== P3
+while IFS=: read -r name score; do
+    if ((score >= 50)); then
+        echo "$name"
+    fi
+done
+
+=== T1
+line="2026-09-30 ERROR disk full"
+[[ $line =~ ([A-Z]+)\ (.+)$ ]] && echo "${BASH_REMATCH[1]}|${BASH_REMATCH[2]}"
+
+=== T2
+declare -A m=([a]=1 [b]=2 [c]=3)
+k=b
+unset m[$k]
+keys=($(printf '%s\n' "${!m[@]}" | sort))
+echo "${keys[@]}"
+
+=== T3
+declare -A seen
+order=()
+while IFS= read -r word; do
+    if [[ ! -v seen[$word] ]]; then
+        seen[$word]=0
+        order+=("$word")
+    fi
+    ((seen[$word]++))
+done
+for word in "${order[@]}"; do
+    echo "$word ${seen[$word]}"
+done
+
+=== T4
+declare -A arr
+arr[content-type]=text/plain
+arr[x-id]=7
+echo "${arr[content-type]} ${arr[x-id]}"
+
+=== F1
+read line
+[[ $line =~ \"name\":\"([^\"]+)\" ]] && name="${BASH_REMATCH[1]}"
+[[ $line =~ \"roles\":\[(.+)\] ]] && roles_content="${BASH_REMATCH[1]}" && roles="${roles_content//\"/}"
+echo "$name $roles"
+
+=== F2
+add() {
+    ((result = $1 + $2))
+}
+add 2 40
+s=$result
+echo $s
+
+=== F3
+hibr_args -v|--verbose verbose flag -n|--count count int 1 rest string...
+echo "verbose=$verbose count=$count rest=$rest"
+
+=== F4
+fetch() {
+    hibr_fail "no network"
+}
+if ! hibr_call fetch 2>msg; then
+    echo "caught: $(cat msg)"
+fi
+
+=== F5
+declare -A users=([omar.role]=admin [ana.role]=dev)
+order=(omar ana)
+echo "${order[@]}"
+echo "${users[ana.role]}"
+
+=== F6
+arr=("$@")
+for ((i=0; i<${#arr[@]}; i++)); do
+    for ((j=0; j<${#arr[@]}-i-1; j++)); do
+        if ((arr[j] > arr[j+1])); then
+            temp=${arr[j]}
+            arr[j]=${arr[j+1]}
+            arr[j+1]=$temp
+        fi
+    done
+done
+echo "${arr[@]}"
+
+=== END
+I did not run or look anything up. I wrote all scripts based on knowledge of bash scripting patterns and inferred hibr's special features from the task descriptions.

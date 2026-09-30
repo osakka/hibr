@@ -588,15 +588,20 @@ ordered by leverage. Each is measurable the same way: give a model the
 reference and a set of tasks, and count the scripts that run correctly on
 the first try, before and after.
 
-### Measure the reference, and check the other pages the same way
+### Measure the reference, and check the other pages the same way — built
 
-`docs/llm.md` and `llms.txt` shipped in 0.57, and `tests/531-llm.t` runs every
-example on the page. Two things remain. The measurement the idea was judged
-by: hand a model the page and a set of tasks, count the scripts that run
-correctly the first time, with the page and without it. And the same checker
-over `docs/cookbook.md` and `docs/data.md`, whose examples were run once and
-pasted back but are not run again -- they would need their output blocks
-marked the way `docs/llm.md`'s are.
+In 0.63. `tests/531-doc-examples.t` runs every example in `docs/llm.md`,
+`docs/cookbook.md` and `docs/data.md` on every build. `tools/llm-measure/`
+holds thirteen tasks and a scorer, and its first run
+(`runs/2026-10-01/RESULTS.md`) took Haiku 4.5 from 7/12 trap and 10/18
+feature tasks without the page to all of them with it, and Sonnet 5.5 from
+9/12 and 5/18 to all of them, three runs a cell, with ordinary bash never
+once broken. Three of the four gaps it found were in the page and are
+fixed. What is left: a fresh set of tasks, since the fixes were made from
+these; and the one failure no page can prevent -- every script written
+without the page read `BASH_REMATCH`, 6 of 6, and got nothing. Filling
+`BASH_REMATCH` as well as `M` would make that work; ADR 0004 chose `M`
+alone, so it is a decision, not a fix.
 
 ### A linter for the mistakes models make — built
 

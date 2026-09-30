@@ -1,0 +1,109 @@
+=== P1
+sum=0
+while read -r n || [[ -n $n ]]; do
+    [[ -z $n ]] && continue
+    sum=$((sum + n))
+done
+echo "$sum"
+=== P2
+i=1
+for arg in "$@"; do
+    echo "$i: $arg"
+    i=$((i + 1))
+done
+=== P3
+while IFS=: read -r name score || [[ -n $name ]]; do
+    [[ -z $name ]] && continue
+    if (( score >= 50 )); then
+        echo "$name"
+    fi
+done
+=== T1
+line="2026-09-30 ERROR disk full"
+re='^[^ ]+ ([^ ]+) (.*)$'
+if [[ $line =~ $re ]]; then
+    echo "${BASH_REMATCH[1]}|${BASH_REMATCH[2]}"
+fi
+=== T2
+declare -A m=([a]=1 [b]=2 [c]=3)
+k=b
+unset "m[$k]"
+mapfile -t keys < <(printf '%s\n' "${!m[@]}" | sort)
+echo "${keys[*]}"
+=== T3
+declare -A count
+order=()
+while read -r w || [[ -n $w ]]; do
+    [[ -z $w ]] && continue
+    if [[ -z ${count[$w]+x} ]]; then
+        order+=("$w")
+        count[$w]=1
+    else
+        count[$w]=$(( ${count[$w]} + 1 ))
+    fi
+done
+for w in "${order[@]}"; do
+    echo "$w ${count[$w]}"
+done
+=== T4
+declare -A h=([content-type]=text/plain [x-id]=7)
+echo "${h[content-type]} ${h[x-id]}"
+=== F1
+json=$(</dev/stdin)
+name_re='"name":"([^"]*)"'
+roles_re='"roles":\[([^]]*)\]'
+name=""
+roles=""
+if [[ $json =~ $name_re ]]; then
+    name="${BASH_REMATCH[1]}"
+fi
+if [[ $json =~ $roles_re ]]; then
+    roles="${BASH_REMATCH[1]}"
+    roles="${roles//\"/}"
+fi
+echo "$name $roles"
+=== F2
+function add {
+    local a=$1
+    local b=$2
+    result $((a + b))
+}
+add 2 40 -> s
+echo "$s"
+=== F3
+argspec verbose -v --verbose flag
+argspec count -n --count int default=1
+parseargs "$@"
+echo "verbose=$verbose count=$count rest=${REST[*]}"
+=== F4
+function fetch {
+    fail "no network"
+}
+try {
+    fetch
+} catch err {
+    echo "caught: $err"
+}
+=== F5
+map users
+map-put users omar role admin
+map-put users ana role dev
+map-keys users -> names
+echo "${names[*]}"
+map-get users ana role -> r
+echo "$r"
+=== F6
+arr=("$@")
+n=${#arr[@]}
+for ((i = 1; i < n; i++)); do
+    v=${arr[i]}
+    j=$((i - 1))
+    while (( j >= 0 && arr[j] > v )); do
+        arr[j + 1]=${arr[j]}
+        j=$((j - 1))
+    done
+    arr[j + 1]=$v
+done
+echo "${arr[*]}"
+=== END
+I ran and looked up nothing; P1–T4/F1/F6 are plain bash I'm confident in, but the hibr-specific constructs in F2–F5 (`result`, `->`, `argspec`/`parseargs`/`REST`, `fail`/`try`/`catch`, `map`/`map-put`/`map-keys`/`map-get`) are invented guesses since I have no actual knowledge of hibr's syntax.

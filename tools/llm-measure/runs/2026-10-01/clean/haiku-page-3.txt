@@ -1,0 +1,126 @@
+=== P1
+#!/usr/bin/env hibr
+sum=0
+while IFS= read -r line; do
+  sum=$((sum + line))
+done
+echo "$sum"
+
+=== P2
+#!/usr/bin/env hibr
+i=1
+for arg in "$@"; do
+  echo "$i: $arg"
+  i=$((i + 1))
+done
+
+=== P3
+#!/usr/bin/env hibr
+while IFS=: read -r name score; do
+  if (( score >= 50 )); then
+    echo "$name"
+  fi
+done
+
+=== T1
+#!/usr/bin/env hibr
+line="2026-09-30 ERROR disk full"
+if match "$line" '^[^ ]+ ([^ ]+) (.*)$'; then
+  echo "${M[1]}|${M[2]}"
+fi
+
+=== T2
+#!/usr/bin/env hibr
+declare -A m
+m[a]=1
+m[b]=2
+m[c]=3
+k=b
+unset m["$k"]
+keys=(${!m[@]})
+arr sort keys
+echo "${keys[*]}"
+
+=== T3
+#!/usr/bin/env hibr
+declare -A seen
+declare -A count
+order=()
+while IFS= read -r word; do
+  if [ -z "${seen[$word]}" ]; then
+    seen[$word]=1
+    count[$word]=1
+    order+=("$word")
+  else
+    count[$word]=$((count[$word] + 1))
+  fi
+done
+for word in "${order[@]}"; do
+  echo "$word ${count[$word]}"
+done
+
+=== T4
+#!/usr/bin/env hibr
+declare -A m
+m["content-type"]=text/plain
+m["x-id"]=7
+echo "${m["content-type"]} ${m["x-id"]}"
+
+=== F1
+#!/usr/bin/env hibr
+read -r json_str
+json parse doc "$json_str"
+name="${doc[user][name]}"
+result=""
+for i in "${!doc[user][roles][@]}"; do
+  if [ -z "$result" ]; then
+    result="${doc[user][roles][$i]}"
+  else
+    result="$result,${doc[user][roles][$i]}"
+  fi
+done
+echo "$name $result"
+
+=== F2
+#!/usr/bin/env hibr
+fn add(int a, int b) { ret $((a + b)); }
+s := add 2 40
+echo "$s"
+
+=== F3
+#!/usr/bin/env hibr
+opt . "Script"
+opt -v --verbose verbose "Verbose"
+opt -n --count count int=1 "Count"
+args "$@" || exit
+echo "verbose=$verbose count=$count rest=${ARGS[*]}"
+
+=== F4
+#!/usr/bin/env hibr
+fn fetch() { fail "no network"; }
+try fetch
+echo "caught: $ERRMSG"
+
+=== F5
+#!/usr/bin/env hibr
+h[users][omar][role]=admin
+h[users][ana][role]=dev
+echo "${!h[users][*]}"
+echo "${h[users][ana][role]}"
+
+=== F6
+#!/usr/bin/env hibr
+a=("$@")
+for ((i=0; i<${#a[@]}; i++)); do
+  for ((j=i+1; j<${#a[@]}; j++)); do
+    if (( a[j] < a[i] )); then
+      temp=${a[i]}
+      a[i]=${a[j]}
+      a[j]=$temp
+    fi
+  done
+done
+echo "${a[*]}"
+
+=== END
+I wrote from the reference text alone and did not run, read, search or look anything up.

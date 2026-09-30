@@ -1,3 +1,5 @@
+You are writing scripts for hibr, a shell. hibr runs bash scripts and adds features of its own. Its reference follows.
+
 # hibr, for a language model
 
 hibr is a small shell that runs the bash you already write, and adds a few
@@ -432,3 +434,37 @@ nothing for them.
   line.
 - A string of tokens is not a list: `for k in $keys` splits and globs;
   hold the list in an array and write `"${keys[@]}"`.
+
+
+Write one complete script for each task below. Write from this text alone:
+do not run, read, search or look anything up. Reply with the scripts and
+nothing else, each introduced by a line `=== ID` (for example `=== P1`), and
+end with a line `=== END`. No code fences, no commentary. After `=== END`,
+add one line saying whether you ran or looked up anything.
+
+P1. Read integers from standard input, one per line, and print their sum.
+
+P2. Print each command-line argument on its own line, prefixed by its position and a colon and a space: arguments `"a b" c` print `1: a b` then `2: c`.
+
+P3. Standard input has lines of the form `name:score`. Print, one per line and in input order, the names whose score is 50 or more.
+
+T1. Set `line="2026-09-30 ERROR disk full"`. With a regular expression and its capture groups, and no external command, print the level and the message joined by a bar: `ERROR|disk full`.
+
+T2. Make an associative array `m` holding a=1, b=2 and c=3, and set `k=b`. Remove the element whose key is held in `k`, then print the remaining keys in alphabetical order, separated by spaces.
+
+T3. Standard input has one word per line; words may contain dashes and plus signs. Print each distinct word and how many times it occurred, as `word count`, in the order each word first appeared.
+
+T4. Make an associative array whose key `content-type` holds `text/plain` and whose key `x-id` holds `7`, then print both values separated by a space.
+
+F1. Standard input is the JSON document `{"user":{"name":"ana","roles":["admin","dev"]}}`. With no external command (no jq, python or similar), print the user's name, a space, and the roles joined by commas: `ana admin,dev`.
+
+F2. Write a function `add` that hands back the sum of two integers through hibr's result slot -- no command substitution, no subshell, no printing inside the function. Call it with 2 and 40, keep the result in `s`, and print `s`.
+
+F3. Using hibr's declared command-line arguments -- not getopts and not a loop of your own over the arguments -- accept `-v`/`--verbose` (a flag), `-n`/`--count` (an integer, default 1) and any further arguments, then print `verbose=V count=N rest=R`, where V is 1 or 0 and R is the further arguments separated by spaces. Run as `script -v --count 3 f1 f2` it prints `verbose=1 count=3 rest=f1 f2`.
+
+F4. Write a function `fetch` that fails with the message `no network`, using hibr's own way of failing with a message. Call it so that the failure is caught rather than ending the script, and print `caught: ` followed by the message.
+
+F5. In one nested map, record that user omar has role admin and user ana has role dev. Print the user names in the order they were added, separated by a space, then on the next line ana's role.
+
+F6. Sort the command-line arguments numerically, in the shell's own process -- no sort command, no pipeline -- and print them separated by spaces.
+

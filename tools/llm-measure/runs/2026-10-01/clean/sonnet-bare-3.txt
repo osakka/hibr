@@ -1,0 +1,117 @@
+=== P1
+sum=0
+while IFS= read -r n; do
+    [[ -z $n ]] && continue
+    sum=$(( sum + n ))
+done
+echo "$sum"
+
+=== P2
+i=1
+for arg in "$@"; do
+    echo "$i: $arg"
+    i=$(( i + 1 ))
+done
+
+=== P3
+while IFS=: read -r name score; do
+    [[ -z $name ]] && continue
+    if (( score >= 50 )); then
+        echo "$name"
+    fi
+done
+
+=== T1
+line="2026-09-30 ERROR disk full"
+[[ $line =~ ^([0-9-]+)[[:space:]]+([A-Z]+)[[:space:]]+(.*)$ ]]
+level="${BASH_REMATCH[2]}"
+msg="${BASH_REMATCH[3]}"
+echo "$level|$msg"
+
+=== T2
+declare -A m=([a]=1 [b]=2 [c]=3)
+k=b
+unset "m[$k]"
+sorted=($(printf '%s\n' "${!m[@]}" | sort))
+echo "${sorted[*]}"
+
+=== T3
+declare -A count
+order=()
+while IFS= read -r word; do
+    [[ -z $word ]] && continue
+    if [[ -z ${count[$word]+x} ]]; then
+        order+=("$word")
+        count[$word]=0
+    fi
+    count[$word]=$(( count[$word] + 1 ))
+done
+for w in "${order[@]}"; do
+    echo "$w ${count[$w]}"
+done
+
+=== T4
+declare -A h
+h[content-type]="text/plain"
+h[x-id]="7"
+echo "${h[content-type]} ${h[x-id]}"
+
+=== F1
+read -r json
+[[ $json =~ \"name\":\"([^\"]*)\" ]]
+name="${BASH_REMATCH[1]}"
+[[ $json =~ \"roles\":\[([^]]*)\] ]]
+roles="${BASH_REMATCH[1]}"
+roles="${roles//\"/}"
+echo "$name $roles"
+
+=== F2
+add() {
+    return $(( $1 + $2 ))
+}
+
+add 2 40
+s=$?
+echo "$s"
+
+=== F3
+args verbose:-v,--verbose:flag count:-n,--count:int=1 -- rest
+
+echo "verbose=$verbose count=$count rest=${rest[*]}"
+
+=== F4
+fetch() {
+    fail "no network"
+}
+
+try {
+    fetch
+} catch err {
+    echo "caught: $err"
+}
+
+=== F5
+declare -A users
+
+users[omar][role]=admin
+users[ana][role]=dev
+
+echo "${!users[@]}"
+echo "${users[ana][role]}"
+
+=== F6
+args=("$@")
+n=${#args[@]}
+for (( i = 1; i < n; i++ )); do
+    key=${args[i]}
+    j=$(( i - 1 ))
+    while (( j >= 0 && args[j] > key )); do
+        args[j+1]=${args[j]}
+        j=$(( j - 1 ))
+    done
+    args[j+1]=$key
+done
+echo "${args[*]}"
+
+=== END
+I did not run, read, search, or look anything up; all scripts were written from the task text alone.

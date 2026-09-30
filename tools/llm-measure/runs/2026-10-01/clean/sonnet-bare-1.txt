@@ -1,0 +1,141 @@
+=== P1
+sum=0
+while read -r n || [[ -n $n ]]; do
+    [[ -z $n ]] && continue
+    sum=$(( sum + n ))
+done
+echo "$sum"
+
+=== P2
+i=0
+for arg in "$@"; do
+    i=$(( i + 1 ))
+    printf '%d: %s\n' "$i" "$arg"
+done
+
+=== P3
+while IFS=: read -r name score || [[ -n $name ]]; do
+    [[ -z $name ]] && continue
+    if (( score >= 50 )); then
+        echo "$name"
+    fi
+done
+
+=== T1
+line="2026-09-30 ERROR disk full"
+re='^[^ ]+ ([^ ]+) (.*)$'
+[[ $line =~ $re ]]
+echo "${BASH_REMATCH[1]}|${BASH_REMATCH[2]}"
+
+=== T2
+declare -A m=( [a]=1 [b]=2 [c]=3 )
+k=b
+unset "m[$k]"
+keys=("${!m[@]}")
+n=${#keys[@]}
+for (( i = 0; i < n; i++ )); do
+    for (( j = i + 1; j < n; j++ )); do
+        if [[ "${keys[j]}" < "${keys[i]}" ]]; then
+            tmp=${keys[i]}
+            keys[i]=${keys[j]}
+            keys[j]=$tmp
+        fi
+    done
+done
+out=""
+for key in "${keys[@]}"; do
+    if [[ -z $out ]]; then
+        out=$key
+    else
+        out="$out $key"
+    fi
+done
+echo "$out"
+
+=== T3
+declare -A count
+order=()
+while IFS= read -r word || [[ -n $word ]]; do
+    [[ -z $word ]] && continue
+    if [[ -z ${count[$word]+x} ]]; then
+        order+=("$word")
+        count[$word]=1
+    else
+        count[$word]=$(( ${count[$word]} + 1 ))
+    fi
+done
+for word in "${order[@]}"; do
+    echo "$word ${count[$word]}"
+done
+
+=== T4
+declare -A h
+h[content-type]=text/plain
+h[x-id]=7
+echo "${h[content-type]} ${h[x-id]}"
+
+=== F1
+read -r doc
+name_re='"name":"([^"]*)"'
+roles_re='"roles":\[([^]]*)\]'
+[[ $doc =~ $name_re ]]
+name=${BASH_REMATCH[1]}
+[[ $doc =~ $roles_re ]]
+roles_raw=${BASH_REMATCH[1]}
+roles=${roles_raw//\"/}
+echo "$name $roles"
+
+=== F2
+add() {
+    REPLY=$(( $1 + $2 ))
+}
+add 2 40
+s=$REPLY
+echo "$s"
+
+=== F3
+args
+    verbose  -v --verbose   flag
+    count    -n --count     int default=1
+    rest     rest
+end args
+
+printf 'verbose=%d count=%d rest=%s\n' "$verbose" "$count" "${rest[*]}"
+
+=== F4
+fetch() {
+    fail "no network"
+}
+
+try
+    fetch
+catch err
+    echo "caught: $err"
+end try
+
+=== F5
+map users
+users[omar] = map
+users[omar][role] = admin
+users[ana] = map
+users[ana][role] = dev
+
+echo "${!users[@]}"
+echo "${users[ana][role]}"
+
+=== F6
+a=("$@")
+n=${#a[@]}
+for (( i = 1; i < n; i++ )); do
+    v=${a[i]}
+    j=$(( i - 1 ))
+    while (( j >= 0 )) && (( a[j] > v )); do
+        a[j+1]=${a[j]}
+        j=$(( j - 1 ))
+    done
+    a[j+1]=$v
+done
+echo "${a[*]}"
+
+=== END
+I did not run, read, search, or look anything up; I only used the advisor review tool.

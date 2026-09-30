@@ -1,0 +1,97 @@
+=== P1
+sum=0
+while read -r num; do
+  sum=$((sum + num))
+done
+echo "$sum"
+
+=== P2
+i=1
+for arg in "$@"; do
+  echo "$i: $arg"
+  i=$((i + 1))
+done
+
+=== P3
+while read -r line; do
+  name="${line%%:*}"
+  score="${line##*:}"
+  if (( score >= 50 )); then
+    echo "$name"
+  fi
+done
+
+=== T1
+line="2026-09-30 ERROR disk full"
+re='^[^ ]+ ([A-Z]+) (.*)$'
+[[ $line =~ $re ]] && echo "${M[1]}|${M[2]}"
+
+=== T2
+declare -A m
+m[a]=1
+m[b]=2
+m[c]=3
+k=b
+unset m["$k"]
+keys=("${!m[@]}")
+arr sort keys
+echo "${keys[*]}"
+
+=== T3
+declare -A seen
+order=()
+while read -r word; do
+  if [ -z "${seen[$word]}" ]; then
+    seen[$word]=1
+    order+=("$word")
+  else
+    seen[$word]=$((${seen[$word]} + 1))
+  fi
+done
+for w in "${order[@]}"; do
+  echo "$w ${seen[$w]}"
+done
+
+=== T4
+declare -A h
+h["content-type"]=text/plain
+h["x-id"]=7
+echo "${h["content-type"]} ${h["x-id"]}"
+
+=== F1
+json parse doc "$(cat)"
+name="${doc[user][name]}"
+roles=("${doc[user][roles][@]}")
+str join roles , joined
+echo "$name $joined"
+
+=== F2
+fn add(int a, int b) -> int { ret $((a + b)); }
+s := add 2 40
+echo "$s"
+
+=== F3
+opt .  ""
+opt -v --verbose verbose "Verbose"
+opt -n --count count int=1 "Count"
+args "$@" || exit
+echo "verbose=$verbose count=$count rest=${ARGS[*]}"
+
+=== F4
+fn fetch() { fail "no network"; }
+try fetch
+echo "caught: $ERRMSG"
+
+=== F5
+users[omar][role]=admin
+users[ana][role]=dev
+echo "${!users[@]}"
+echo "${users[ana][role]}"
+
+=== F6
+a=("$@")
+arr sort a -n
+echo "${a[*]}"
+
+=== END
+No, I did not run or look anything up.

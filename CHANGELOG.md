@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.63
+
+**What `docs/llm.md` is worth, measured.** `tools/llm-measure/` sets a model
+thirteen tasks -- three ordinary, four where a bash habit means something
+else in hibr, six that need something only hibr has -- and runs what it
+writes. From an empty directory, with no project context and tools off, three
+runs each:
+
+| | plain | trap | feature |
+|---|---|---|---|
+| Haiku 4.5, no page | 9/9 | 7/12 | 10/18 |
+| Haiku 4.5, with the page | 9/9 | 12/12 | 18/18 |
+| Sonnet 5.5, no page | 9/9 | 9/12 | 5/18 |
+| Sonnet 5.5, with the page | 9/9 | 12/12 | 18/18 |
+
+Ordinary bash was never broken. Without the page every regex capture read
+`BASH_REMATCH` (6 of 6) and nothing parsed JSON or declared arguments. The
+"with the page" rows are the page as fixed by this release: the page as 0.62
+shipped it left Haiku at 11/12 and 16/18, and each miss named a gap --
+`json get` on an array gives JSON text, a regex with a blank after `=~` goes
+in a variable, `arr sort` is textual without `-n`, and `fn` always has a
+parameter list. `docs/llm.md` says all four now. Since those fixes came from
+these tasks, a fresh set is the honest next check; the runs, both prompts
+and the replies are kept in `tools/llm-measure/runs/2026-10-01/`.
+
+**The cookbook and the data page are held to their examples.**
+`tests/531-doc-examples.t` runs each example with an output block in
+`docs/llm.md`, `docs/cookbook.md` and `docs/data.md` on every build; a hidden
+`<!-- setup -->` comment supplies the log file or helper an example assumes.
+`docs/data.md`'s results were `# 11`-style comments and are printed and
+compared now -- every one was right. Running them found 0.62's background
+function bug.
+
 ## 0.62
 
 **A function run in the background or as a pipeline stage ran only up to

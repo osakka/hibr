@@ -1,0 +1,102 @@
+=== P1
+sum=0
+while read n; do
+  sum=$((sum + n))
+done
+echo "$sum"
+
+=== P2
+i=1
+for arg in "$@"; do
+  echo "$i: $arg"
+  i=$((i + 1))
+done
+
+=== P3
+while read line; do
+  name="${line%:*}"
+  score="${line#*:}"
+  [ "$score" -ge 50 ] && echo "$name"
+done
+
+=== T1
+line="2026-09-30 ERROR disk full"
+if match "$line" '([A-Z]+) (.*)$'; then
+  echo "${M[1]}|${M[2]}"
+fi
+
+=== T2
+declare -A m=([a]=1 [b]=2 [c]=3)
+k=b
+unset m["$k"]
+keys=("${!m[@]}")
+arr sort keys
+echo "${keys[*]}"
+
+=== T3
+declare -A seen
+order=()
+while read word; do
+  if [ -z "${seen[$word]}" ]; then
+    seen[$word]=1
+    order+=("$word")
+  else
+    seen[$word]=$((seen[$word] + 1))
+  fi
+done
+for word in "${order[@]}"; do
+  echo "$word ${seen[$word]}"
+done
+
+=== T4
+declare -A m
+m["content-type"]="text/plain"
+m["x-id"]="7"
+echo "${m["content-type"]} ${m["x-id"]}"
+
+=== F1
+json parse doc '{"user":{"name":"ana","roles":["admin","dev"]}}'
+echo "${doc[user][name]} ${doc[user][roles][0]},${doc[user][roles][1]}"
+
+=== F2
+fn add(int a, int b) -> int { ret $((a + b)); }
+s := add 2 40
+echo "$s"
+
+=== F3
+fn prog(...argv) {
+  opt . "Count items"
+  opt -v --verbose verbose "Be verbose"
+  opt -n --count count int=1 "How many"
+  args "${argv[@]}" || return
+  echo "verbose=$verbose count=$count rest=${ARGS[*]}"
+}
+prog -v --count 3 f1 f2
+
+=== F4
+fn fetch() { fail "no network"; }
+try fetch
+echo "caught: $ERRMSG"
+
+=== F5
+users[omar][role]=admin
+users[ana][role]=dev
+echo "${!users[@]}"
+echo "${users[ana][role]}"
+
+=== F6
+a=("$@")
+n=${#a[@]}
+for ((i=0; i<n; i++)); do
+  for ((j=0; j<n-i-1; j++)); do
+    if ((a[j] > a[j+1])); then
+      t=${a[j]}
+      a[j]=${a[j+1]}
+      a[j+1]=$t
+    fi
+  done
+done
+echo "${a[*]}"
+
+=== END
+Wrote from prompt text alone, no external lookups or execution.

@@ -1,0 +1,108 @@
+=== P1
+#!/usr/bin/env hibr
+sum=0
+while read -r n; do
+  sum=$((sum + n))
+done
+echo "$sum"
+=== P2
+#!/usr/bin/env hibr
+i=1
+for a in "$@"; do
+  echo "$i: $a"
+  i=$((i + 1))
+done
+=== P3
+#!/usr/bin/env hibr
+while IFS=: read -r name score; do
+  if [ "$score" -ge 50 ]; then
+    echo "$name"
+  fi
+done
+=== T1
+#!/usr/bin/env hibr
+line="2026-09-30 ERROR disk full"
+match "$line" '^([0-9-]+) ([A-Z]+) (.*)$'
+echo "${M[2]}|${M[3]}"
+=== T2
+#!/usr/bin/env hibr
+declare -A m
+m[a]=1
+m[b]=2
+m[c]=3
+k=b
+unset m["$k"]
+keys=("${!m[@]}")
+arr sort keys
+echo "${keys[*]}"
+=== T3
+#!/usr/bin/env hibr
+declare -A count
+order=()
+while read -r w; do
+  if [ -z "${count["$w"]}" ]; then
+    order+=("$w")
+  fi
+  count["$w"]=$(( ${count["$w"]:-0} + 1 ))
+done
+for w in "${order[@]}"; do
+  echo "$w ${count["$w"]}"
+done
+=== T4
+#!/usr/bin/env hibr
+declare -A h
+h["content-type"]=text/plain
+h["x-id"]=7
+echo "${h["content-type"]} ${h["x-id"]}"
+=== F1
+#!/usr/bin/env hibr
+json parse doc '{"user":{"name":"ana","roles":["admin","dev"]}}'
+name=${doc[user][name]}
+roles=("${doc[user][roles][@]}")
+joined := str join roles ","
+echo "$name $joined"
+=== F2
+#!/usr/bin/env hibr
+fn add(int a, int b) -> int { ret $((a + b)); }
+s := add 2 40
+echo "$s"
+=== F3
+#!/usr/bin/env hibr
+fn prog(...argv) {
+  opt -v --verbose verbose "Verbose"
+  opt -n --count count int=1 "Count"
+  args "${argv[@]}" || return
+  echo "verbose=$verbose count=$count rest=${ARGS[*]}"
+}
+prog "$@"
+=== F4
+#!/usr/bin/env hibr
+fn fetch() { fail "no network"; }
+try fetch
+echo "caught: $ERRMSG"
+=== F5
+#!/usr/bin/env hibr
+h[users][omar][role]=admin
+h[users][ana][role]=dev
+echo "${!h[users][@]}"
+echo "${h[users][ana][role]}"
+=== F6
+#!/usr/bin/env hibr
+args=("$@")
+n=${#args[@]}
+i=0
+while [ "$i" -lt "$n" ]; do
+  j=0
+  while [ "$j" -lt $((n - i - 1)) ]; do
+    if (( args[j] > args[j+1] )); then
+      tmp=${args[j]}
+      args[j]=${args[j+1]}
+      args[j+1]=$tmp
+    fi
+    j=$((j + 1))
+  done
+  i=$((i + 1))
+done
+echo "${args[*]}"
+=== END
+I did not run, execute, or look up anything outside this conversation; I attempted one advisor-tool review call, which was rate-limited and returned no information, so the scripts above reflect only my own reasoning from the provided reference text.

@@ -1,0 +1,117 @@
+=== P1
+sum=0
+while read -r n; do
+  sum=$((sum + n))
+done
+echo "$sum"
+
+=== P2
+i=1
+for arg in "$@"; do
+  echo "$i: $arg"
+  i=$((i + 1))
+done
+
+=== P3
+while read -r line; do
+  name="${line%:*}"
+  score="${line#*:}"
+  if [ "$score" -ge 50 ]; then
+    echo "$name"
+  fi
+done
+
+=== T1
+line="2026-09-30 ERROR disk full"
+if [[ "$line" =~ ^[^ ]+ ([^ ]+) (.*)$ ]]; then
+  echo "${M[1]}|${M[2]}"
+fi
+
+=== T2
+declare -A m=([a]=1 [b]=2 [c]=3)
+k=b
+unset m["$k"]
+keys=("${!m[@]}")
+arr sort keys
+echo "${keys[*]}"
+
+=== T3
+declare -A counts
+order=()
+while read -r w; do
+  if [ -z "${counts[$w]}" ]; then
+    order+=("$w")
+    counts[$w]=1
+  else
+    counts[$w]=$((${counts[$w]} + 1))
+  fi
+done
+for w in "${order[@]}"; do
+  echo "$w ${counts[$w]}"
+done
+
+=== T4
+declare -A h
+h["content-type"]="text/plain"
+h["x-id"]=7
+echo "${h["content-type"]} ${h["x-id"]}"
+
+=== F1
+json parse doc "$(cat)"
+json get doc .user.name name
+json get doc .user.roles roles
+result=""
+for r in "${roles[@]}"; do
+  if [ -z "$result" ]; then
+    result="$r"
+  else
+    result="$result,$r"
+  fi
+done
+echo "$name $result"
+
+=== F2
+fn add(int a, int b) {
+  ret $((a + b))
+}
+s := add 2 40
+echo "$s"
+
+=== F3
+fn main(...argv) {
+  opt .  "Process arguments"
+  opt -v --verbose verbose "Verbose mode"
+  opt -n --count count int=1 "Count"
+  args "${argv[@]}" || return
+  echo "verbose=$verbose count=$count rest=${ARGS[*]}"
+}
+main "$@"
+
+=== F4
+fn fetch() {
+  fail "no network"
+}
+try fetch
+echo "caught: $ERRMSG"
+
+=== F5
+h[users][omar][role]=admin
+h[users][ana][role]=dev
+echo "${!h[users][@]}"
+echo "${h[users][ana][role]}"
+
+=== F6
+numbers=("$@")
+for ((i = 0; i < ${#numbers[@]}; i++)); do
+  for ((j = i + 1; j < ${#numbers[@]}; j++)); do
+    if (( numbers[i] > numbers[j] )); then
+      temp="${numbers[i]}"
+      numbers[i]="${numbers[j]}"
+      numbers[j]="$temp"
+    fi
+  done
+done
+echo "${numbers[*]}"
+
+=== END
+I wrote from the reference text alone and did not run, read, search, or look anything up.

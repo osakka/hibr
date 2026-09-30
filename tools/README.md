@@ -27,3 +27,28 @@ terminal size and timing.
 
 Regenerate a doc's screenshots whenever the thing they show changes; a stale
 screenshot is worse than none, since it reads as current when it is not.
+
+## llm-measure/
+
+What `docs/llm.md` is worth to a model writing hibr. Thirteen tasks in three
+groups -- `plain` shell work, `trap` (a bash idiom that means something else
+here) and `feature` (something only hibr has) -- each with fixed arguments,
+input and expected output.
+
+```
+tools/llm-measure/measure.py prompt > bare.txt          # the tasks, no page
+tools/llm-measure/measure.py prompt --page > page.txt   # the tasks and docs/llm.md
+tools/llm-measure/measure.py score -v reply.txt ...     # run each reply's scripts
+```
+
+Hand a model each prompt, keep its reply, and score them. A reply is scripts
+between `=== ID` lines ending in `=== END`. Scoring runs each script under
+`build/hibr` in a scratch directory with its own `HOME`, five seconds at
+most, and refuses -- counts as failed, does not run -- any script that names
+`sudo`, `rm`, `curl`, a write outside that directory, or anything else that
+could touch the machine. `runs/` keeps what the models actually wrote, with
+the date and model in each name, so a later run is compared against the
+scripts and not only against a number.
+
+A dozen tasks on a couple of models is a signal about the page, not a
+benchmark.

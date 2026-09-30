@@ -1,0 +1,93 @@
+=== P1
+sum=0
+while read -r n || [ -n "$n" ]; do
+  [ -n "$n" ] && sum=$((sum + n))
+done
+echo "$sum"
+=== P2
+i=1
+for a in "$@"; do
+  echo "$i: $a"
+  i=$((i + 1))
+done
+=== P3
+while IFS=: read -r name score || [ -n "$name" ]; do
+  if [ "$score" -ge 50 ]; then
+    echo "$name"
+  fi
+done
+=== T1
+line="2026-09-30 ERROR disk full"
+if [[ $line =~ ^[^[:space:]]+[[:space:]]+([A-Z]+)[[:space:]]+(.*)$ ]]; then
+  echo "${M[1]}|${M[2]}"
+fi
+=== T2
+declare -A m=([a]=1 [b]=2 [c]=3)
+k=b
+unset m["$k"]
+out=$(printf '%s\n' "${!m[@]}" | sort)
+echo $out
+=== T3
+declare -A cnt
+order=()
+while read -r w || [ -n "$w" ]; do
+  n=${cnt["$w"]:-0}
+  if [ "$n" -eq 0 ]; then
+    order+=("$w")
+  fi
+  cnt["$w"]=$((n + 1))
+done
+for w in "${order[@]}"; do
+  echo "$w ${cnt["$w"]}"
+done
+=== T4
+declare -A h
+h["content-type"]="text/plain"
+h["x-id"]=7
+echo "${h["content-type"]} ${h["x-id"]}"
+=== F1
+doc=$(cat)
+if [[ $doc =~ \"name\":\"([^\"]*)\".*\"roles\":\[([^]]*)\] ]]; then
+  roles=${M[2]//\"/}
+  echo "${M[1]} $roles"
+fi
+=== F2
+fn add(a, b) {
+  ret $((a + b))
+}
+s := add 2 40
+echo "$s"
+=== F3
+opt -v --verbose flag
+opt -n --count int 1
+args "$@"
+echo "verbose=${verbose:-0} count=${count:-1} rest=${ARGS[*]}"
+=== F4
+fn fetch() {
+  fail "no network"
+}
+try fetch
+echo "caught: $ERROR"
+=== F5
+declare -A users
+users["omar"]["role"]=admin
+users["ana"]["role"]=dev
+echo "${!users[@]}"
+echo "${users["ana"]["role"]}"
+=== F6
+a=("$@")
+n=${#a[@]}
+i=1
+while [ "$i" -lt "$n" ]; do
+  x=${a[i]}
+  j=$((i - 1))
+  while [ "$j" -ge 0 ] && [ "${a[j]}" -gt "$x" ]; do
+    a[j+1]=${a[j]}
+    j=$((j - 1))
+  done
+  a[j+1]=$x
+  i=$((i + 1))
+done
+echo "${a[*]}"
+=== END
+I did not run or look up anything; F3 and F4 use guessed hibr syntax.
