@@ -1,8 +1,9 @@
 # Text, regex and JSON
 
 Four builtins that do in the shell's own process what a shell usually forks for.
-No `sed`, no `awk`, no `jq`, no pipeline, no subshell. Every example below was
-run and its output pasted back.
+No `sed`, no `awk`, no `jq`, no pipeline, no subshell. Every example that
+shows its output is run again on every build by `tests/531-doc-examples.t`,
+and the build fails if it stops printing what the page says.
 
 - [How results come back](#how-results-come-back) · [`str`](#str) · [`arr`](#arr)
 - [`match` and `rsub`](#match-and-rsub) · [`json`](#json) · [Worked examples](#worked-examples)
@@ -14,9 +15,15 @@ one, the answer goes there; given none, it is printed. Either way it also lands
 in `$RET`, so the result slot binds it without forking:
 
 ```sh
-str upper hello U          # $U is HELLO
-str upper hello            # prints HELLO
-U := str upper hello       # $U is HELLO, no subshell
+str upper hello U; echo "$U"
+str upper hello
+U := str upper hello; echo "$U"
+```
+
+```output
+HELLO
+HELLO
+HELLO
 ```
 
 `str starts`, `str ends`, `str contains`, `arr contains` and `match` answer with
@@ -43,25 +50,44 @@ their **exit status** instead, so they read naturally in `if` and `&&`.
 | `str contains text needle` | status: does it contain it |
 
 ```sh
-str len "hello world" n        # 11
-str trim "  padded  " t        # "padded"
-str slice "hello world" 6 5 s  # "world"
-str slice "hello" -3 - s       # "llo"
-str index "hello world" world i  # 6
-str index "hello" zzz i        # -1
-str replace "a-b-c" - + r      # "a+b+c"
-str split "a:b:c" : parts      # parts is (a b c)
-str join parts , j             # "a,b,c"
-str pad 7 4 0 p                # "7000"
-str pad 7 -4 0 p               # "0007"
-str repeat ab 3 r              # "ababab"
-
+str len "hello world" n;        echo "$n"
+str trim "  padded  " t;        echo "[$t]"
+str slice "hello world" 6 5 s;  echo "$s"
+str slice "hello" -3 - s;       echo "$s"
+str index "hello world" world i; echo "$i"
+str index "hello" zzz i;        echo "$i"
+str replace "a-b-c" - + r;      echo "$r"
+str split "a:b:c" : parts;      echo "${parts[*]}"
+str join parts , j;             echo "$j"
+str pad 7 4 0 p;                echo "$p"
+str pad 7 -4 0 p;               echo "$p"
+str repeat ab 3 r;              echo "$r"
+f=/etc/hosts; line="an ERROR here"
 str starts "$f" / && echo absolute
 str contains "$line" ERROR && echo found
+str len "─é漢ab" n;            echo "$n characters"
+str width "─é漢ab" w;          echo "$w columns"
+str pad "漢字" 8 . p;          echo "[$p]"
+```
 
-str len "─é漢ab" n            # 5, characters not bytes
-str width "─é漢ab" w          # 6, columns: 漢 takes two
-str pad "漢字" 8 . p          # "漢字...." -- eight columns, not eight characters
+```output
+11
+[padded]
+world
+llo
+6
+-1
+a+b+c
+a b c
+a,b,c
+7000
+0007
+ababab
+absolute
+found
+5 characters
+6 columns
+[漢字....]
 ```
 
 ## `arr`
@@ -83,18 +109,28 @@ subscript reaches.
 
 ```sh
 a=(banana Apple cherry)
-arr len a n              # 3
-arr push a date          # banana Apple cherry date
-arr pop a last           # last=date
-
+arr len a n;        echo "$n"
+arr push a date;    echo "${a[*]}"
+arr pop a last;     echo "$last, leaving ${a[*]}"
 b=(3 20 100)
-arr sort b               # 100 20 3     (lexical)
-arr sort b -n            # 3 20 100     (numeric)
-arr sort b -n -r         # 100 20 3
-
-e=(a b a c b); arr uniq e     # a b c
-f=(1 2 3);     arr reverse f  # 3 2 1
+arr sort b;         echo "${b[*]}"
+arr sort b -n;      echo "${b[*]}"
+arr sort b -n -r;   echo "${b[*]}"
+e=(a b a c b); arr uniq e;    echo "${e[*]}"
+f=(1 2 3);     arr reverse f; echo "${f[*]}"
 arr contains a Apple && echo yes
+```
+
+```output
+3
+banana Apple cherry date
+date, leaving banana Apple cherry
+100 20 3
+3 20 100
+100 20 3
+a b c
+3 2 1
+yes
 ```
 
 **`map` and `filter` take a command**, run once per element, in this shell. A
@@ -102,10 +138,14 @@ function is the natural thing to give them:
 
 ```sh
 fn shout(str x) { ret "<$x>"; }
-g=(p q); arr map g shout          # <p> <q>
-
+g=(p q); arr map g shout;               echo "${g[*]}"
 fn long(str x) { [ ${#x} -gt 3 ]; }
-h=(ab abcd xy wxyz); arr filter h long   # abcd wxyz
+h=(ab abcd xy wxyz); arr filter h long; echo "${h[*]}"
+```
+
+```output
+<p> <q>
+abcd wxyz
 ```
 
 `map` collects each call's `$RET`; `filter` keeps the element when the call
@@ -126,15 +166,23 @@ every occurrence rather than the first.
 
 ```sh
 match "2024-06-01" '^([0-9]{4})-([0-9]{2})-([0-9]{2})$'
-echo "${M[0]}"                 # 2024-06-01, the whole match
-echo "${M[1]}/${M[2]}/${M[3]}" # 2024/06/01
-
+echo "${M[0]}"
+echo "${M[1]}/${M[2]}/${M[3]}"
 match -i HELLO hello && echo matches
-match -a "a1 b2 c3" '[a-z][0-9]' hits   # hits is (a1 b2 c3)
+match -a "a1 b2 c3" '[a-z][0-9]' hits; echo "${hits[*]}"
+rsub    "a1b2" '[0-9]' '#' one;   echo "$one"
+rsub -g "a1b2" '[0-9]' '#' all;   echo "$all"
+rsub -g "john smith" '([a-z]+) ([a-z]+)' '\2, \1' sw; echo "$sw"
+```
 
-rsub    "a1b2" '[0-9]' '#' one   # a#b2
-rsub -g "a1b2" '[0-9]' '#' all   # a#b#
-rsub -g "john smith" '([a-z]+) ([a-z]+)' '\2, \1' sw   # smith, john
+```output
+2024-06-01
+2024/06/01
+matches
+a1 b2 c3
+a#b2
+a#b#
+smith, john
 ```
 
 `match` fails when there is no match, so it reads as a condition. Captures go to
@@ -161,24 +209,35 @@ element.
 
 ```sh
 json parse cfg '{"name":"hibr","tags":["shell","c"],"meta":{"stars":42,"ok":true}}'
-
-echo "${cfg[name]}"           # hibr        — an ordinary subscript
-echo "${cfg[tags][0]}"        # shell
-echo "${cfg[meta][stars]}"    # 42
-
-json get cfg .meta.stars n    # 42
-json get cfg .tags all        # ["shell","c"] — a subtree comes back as JSON
-n := json get cfg .meta.stars # into the result slot, no fork
-
-json keys cfg .     top       # name tags meta
-json keys cfg .meta mk        # stars ok
-json len  cfg .tags           # 2
-json type cfg .meta.ok        # boolean
-json type cfg .tags           # array
-
+echo "${cfg[name]}"
+echo "${cfg[tags][0]}"
+echo "${cfg[meta][stars]}"
+json get cfg .meta.stars n;  echo "$n"
+json get cfg .tags all;      echo "$all"
+n := json get cfg .meta.stars; echo "$n"
+json keys cfg . top;         echo "$top"
+json keys cfg .meta mk;      echo "$mk"
+json len  cfg .tags
+json type cfg .meta.ok
+json type cfg .tags
 json set cfg .meta.stars 43
-json set cfg .meta.note 007 -s   # stays the string "007", not 7
+json set cfg .meta.note 007 -s
 json emit cfg
+```
+
+```output
+hibr
+shell
+42
+42
+["shell","c"]
+42
+name tags meta
+stars ok
+2
+boolean
+array
+{"name":"hibr","tags":["shell","c"],"meta":{"stars":43,"ok":true,"note":"007"}}
 ```
 
 Types survive the round trip: a number stays a number, `true` stays a boolean,
@@ -190,9 +249,17 @@ out as `7`.
 
 ```sh
 json parse h '{"content-type":"application/json"}'
-echo "${h["content-type"]}"   # application/json
-echo "${h[content-type]}"     # empty: read as arithmetic, lands on key 0
+echo "[${h["content-type"]}]"
+echo "[${h[content-type]}]"
 ```
+
+```output
+[application/json]
+[]
+```
+
+The second is empty: without quotes the key is read as arithmetic, `content`
+minus `type`, and lands on key 0.
 
 See [0006](adr/0006-arrays-are-sparse-maps.md).
 
@@ -200,12 +267,20 @@ See [0006](adr/0006-arrays-are-sparse-maps.md).
 
 ### Parse a log line into fields
 
+<!-- setup
+printf '%s\n' '2024-06-01T10:00:00Z INFO  started' '2024-06-01T10:00:05Z ERROR disk full' '2024-06-01T10:00:30Z WARN  slow request' '2024-06-01T10:01:00Z ERROR timeout' > app.log
+-->
 ```sh
 while read -r line; do
   match "$line" '^([0-9-]+)T([0-9:]+)Z +([A-Z]+) +(.*)$' || continue
   [ "${M[3]}" = ERROR ] || continue
   echo "${M[1]} ${M[2]}: ${M[4]}"
 done < app.log
+```
+
+```output
+2024-06-01 10:00:05: disk full
+2024-06-01 10:01:00: timeout
 ```
 
 No `grep`, no `awk`, no `cut`, and no process started.
@@ -237,11 +312,18 @@ for k in "${!q[@]}"; do
   arr push out "$k=${q[$k]}"
 done
 str join out '&' qs
-echo "?$qs"                    # ?user=omar&limit=10
+echo "?$qs"
+```
+
+```output
+?user=omar&limit=10
 ```
 
 ### Turn a CSV column into a sorted, unique list
 
+<!-- setup
+printf '%s\n' ada,1815,london omar,1990,cairo lin,1970,london sam,1985,berlin > people.csv
+-->
 ```sh
 names=()
 while read -r line; do
@@ -251,6 +333,12 @@ done < people.csv
 arr sort names
 arr uniq names
 str join names $'\n'
+```
+
+```output
+berlin
+cairo
+london
 ```
 
 ---

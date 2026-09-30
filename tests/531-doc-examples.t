@@ -57,5 +57,5 @@ check() {
   [ "$bad" = 0 ] && echo "every example in $page does what it says"
 }
 check docs/llm.md 10
-check docs/cookbook.md 0
-check docs/data.md 0
+check docs/cookbook.md 12
+check docs/data.md 10

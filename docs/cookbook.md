@@ -1,7 +1,9 @@
 # Cookbook
 
-Whole tasks, solved. Every script here was run and its output pasted back
-underneath it. Almost none of them start a process.
+Whole tasks, solved. Almost none of them start a process. Every example that
+shows its output is run again on every build by `tests/531-doc-examples.t`,
+and the build fails if what it prints stops matching the page; the two that
+need root or the network are shown without output, and are not.
 
 - [Text without the toolchain](#text-without-the-toolchain)
 - [Structured data](#structured-data) · [Concurrency](#concurrency)
@@ -24,7 +26,7 @@ for w in "${!count[@]}"; do
 done
 ```
 
-```
+```output
    the 3
  quick 1
  brown 1
@@ -38,6 +40,9 @@ Insertion order is kept, which `sort | uniq -c` cannot do at all.
 
 ### Pull fields out of a log
 
+<!-- setup
+printf '%s\n' '2024-06-01T10:00:00Z INFO  started' '2024-06-01T10:00:05Z ERROR disk full' '2024-06-01T10:00:30Z WARN  slow request' '2024-06-01T10:01:00Z ERROR timeout' > app.log
+-->
 ```sh
 while read -r line; do
   match "$line" '^([0-9-]+)T([0-9:]+)Z +([A-Z]+) +(.*)$' || continue
@@ -46,7 +51,7 @@ while read -r line; do
 done < app.log
 ```
 
-```
+```output
 2024-06-01 10:00:05: disk full
 2024-06-01 10:01:00: timeout
 ```
@@ -78,7 +83,7 @@ for r in "${rows[@]}"; do
 done
 ```
 
-```
+```output
 name  role      years
 omar  founder   12
 ada   engineer  7
@@ -90,6 +95,9 @@ ada   engineer  7
 
 One pass, no temporary files, and the result is addressable by section and key.
 
+<!-- setup
+printf '%s\n' '# settings' '[server]' 'host = example.com' 'port = 8080' '' '[auth]' 'mode = token' > app.ini
+-->
 ```sh
 cfg=()
 section=main
@@ -108,7 +116,7 @@ echo "sections: ${!cfg[@]}"
 echo "host: ${cfg[server][host]}  port: ${cfg[server][port]}"
 ```
 
-```
+```output
 sections: server auth
 host: example.com  port: 8080
 ```
@@ -128,7 +136,7 @@ json set out .tags[1] fast -s
 json emit out -p
 ```
 
-```json
+```output
 {
   "service": "hibr",
   "port": 8080,
@@ -145,11 +153,21 @@ Types are kept: `8080` emits as a number, `true` as a boolean, and `-s` keeps
 
 ### Query a document you have parsed
 
+<!-- setup
+body='{"name":"hibr","tags":["shell","c"],"meta":{"stars":42}}'
+-->
 ```sh
 json parse cfg "$body"
 echo "${cfg[meta][stars]}"        # an ordinary subscript reaches in
-json get cfg .tags all            # or a path, giving JSON back
+json get cfg .tags                # or a path, giving JSON back
 n := json get cfg .meta.stars     # or straight into the result slot
+echo "$n"
+```
+
+```output
+42
+["shell","c"]
+42
 ```
 
 ## Concurrency
@@ -164,7 +182,7 @@ for n in 3 4; do send ${w1[out]} $n; recv ${w1[in]} r; echo "w1: $n -> $r"; done
 for n in 5 6; do send ${w2[out]} $n; recv ${w2[in]} r; echo "w2: $n -> $r"; done
 ```
 
-```
+```output
 w1: 3 -> 9
 w1: 4 -> 16
 w2: 5 -> 25
@@ -176,11 +194,23 @@ bash cannot keep two coprocesses at once — it warns and loses the first. See
 
 ### Wait for whichever finishes first
 
+<!-- setup
+slow() { sleep 0.5; }
+fast() { sleep 0.1; return 3; }
+-->
 ```sh
 slow & fast &
+f=$!
 wait -n -p who
-echo "job $who finished first, status $?"
+st=$?
+[ "$who" = "$f" ] && echo "fast finished first, status $st"
 ```
+
+```output
+fast finished first, status 3
+```
+
+`-p` names the job that finished, and the status is that job's own.
 
 ## Network
 
@@ -220,6 +250,11 @@ No `curl`, no `jq`, no pipe. Certificates are verified by default —
 
 ### Declare the options instead of parsing them
 
+Run as `summarise -n 5`:
+
+<!-- setup
+set -- -n 5
+-->
 ```sh
 opt .  "Summarise a source tree"
 opt -d --dir   dir  path=.   "Directory to inspect"
@@ -228,6 +263,10 @@ opt -j --json  json          "Emit the summary as JSON"
 args "$@"
 
 echo "looking at $dir, showing $top"
+```
+
+```output
+looking at ., showing 5
 ```
 
 `--help` is generated from the declarations, types are checked, and `!` marks an
@@ -239,7 +278,11 @@ replaces.
 ```sh
 fn add(int a, int b) -> int { ret $((a + b)); }
 sum := add 2 3
-echo "$sum"          # 5
+echo "$sum"
+```
+
+```output
+5
 ```
 
 `$(add 2 3)` would fork. `:=` does not — [0005](adr/0005-results-travel-in-a-slot.md).
@@ -248,6 +291,9 @@ echo "$sum"          # 5
 
 ### Retry with a growing delay
 
+<!-- setup
+attempt() { [ "$1" -ge 3 ] && ret 0 || ret 1; }
+-->
 ```sh
 delay=1
 for try in 1 2 3 4 5; do
@@ -260,7 +306,7 @@ for try in 1 2 3 4 5; do
 done
 ```
 
-```
+```output
 attempt 1 failed, waiting 1s
 attempt 2 failed, waiting 2s
 succeeded on attempt 3
@@ -268,11 +314,18 @@ succeeded on attempt 3
 
 ### Catch a failure instead of dying on it
 
+<!-- setup
+risky_thing() { fail -s 3 "disk is full"; }
+-->
 ```sh
 try risky_thing --now
 if [ "$ERR" -ne 0 ]; then
   echo "failed: $ERRMSG (status $ERRSTATUS)"
 fi
+```
+
+```output
+failed: disk is full (status 3)
 ```
 
 `try` catches; `fail msg` raises. `set -e` is scoped to the tested pipeline and
