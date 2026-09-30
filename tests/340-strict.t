@@ -25,6 +25,15 @@ count ${a[@]}
 set -- p "q r"
 count $@
 count "$f"
+# What is written inside ${x:+...} or ${x:-...} is written, so it splits and
+# globs; what expands inside it still does neither.
+on=1
+count ${on:+a b}
+count ${on:+*.c}
+count ${on:+"a b"}
+count ${on:+$f}
+count ${on:+$g}
+count ${off:-x $f}
 set +S
 count $f
 cd /; rm -rf $d

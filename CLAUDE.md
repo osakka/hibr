@@ -1301,12 +1301,28 @@ went in the shell.
   happen -- never for an assignment or a `case` word, which neither split
   nor glob.
 
-- **Under `-S`, text written inside `${x:+…}` is expansion output.**
-  `${hidden:+"$d"/.*}` gives the literal `.*`, not the hidden files, and
-  `${on:+a b}` is one argument. Files listed hidden entries this way; under
-  `strict` the option silently showed nothing extra. Add a conditional glob
-  on its own line (`files+=("$d"/.*)`). Whether `-S` should treat that text
-  as written is an open question in `docs/backlog.md`.
+- **An operator's word keeps its own quoting.** `${x:-word}`, `${x:+word}`
+  and `${x:=word}` used to flatten `word` with `xone`, so its quotes were
+  lost: `${x:-"a b"}` split, `${x:-"*"}` globbed, and under `-S` the whole
+  word was protected, so `${hidden:+"$d"/.*}` listed a file named `.*`.
+  `xarg` expands it with `xone_q` and puts each byte in with its own mask:
+  what was written splits and globs, what was quoted does not, and what
+  expanded inside it follows the mode. A quoted `"${x:-~}"` must not expand
+  the tilde (`HIBR_XNOTIL`), and neither must arithmetic text.
+- **Never change the AST to expand a word.** `xtilde` advanced the first
+  part's text in place and `xwm` put it back afterwards -- and a `$(...)`
+  in the same word forks in between, so the child runs with the part still
+  advanced. Harmless while only a rare `~/$(cmd)` did it; when assignment
+  words began doing it on every `local x=$(f ...)`, a recursive function
+  lost the `n=` of its own `local n=$1` in the child. Expand a copy of the
+  part (`first = *p`) instead.
+- **A tilde in an assignment follows `=` and every `:`.** `x=~`,
+  `PATH=~/bin:~/x`, `local l=~/l` and `export E=~/b` expand as in bash, by
+  `HIBR_XASG` on assignment words and declaration arguments. hibr expanded
+  none of them before 0.53, nor `case ~ in` nor `${x:-~}`: the single-word
+  fast path in `xwm` returned before `xtilde` ran. bash also expands
+  `echo a=~` -- a command argument that only looks like an assignment --
+  and hibr still does not.
 - **A strict file's functions pass back lists and pairs through globals, and
   each must be declared at file level.** `strict vars` refused `DTP_LAT`,
   `DTP_ROW`, `DTZ_HIT` and `FB_CRUMBS` the first time they were set, and

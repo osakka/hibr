@@ -1190,7 +1190,7 @@ int ex_cmd(sh *s, node *n)
 		asgm = vb_get(s);
 		for (w = n->aw; w; w = w->nx) {
 			char *mk = 0;
-			v_add(asg, xone_q(s, w, &mk));
+			v_add(asg, xone_fq(s, w, &mk, HIBR_XONE | HIBR_XASG));
 			v_add(asgm, mk);
 		}
 	}

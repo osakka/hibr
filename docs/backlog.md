@@ -582,19 +582,6 @@ or a function that should not exist. Take them a file at a time.
 
 ## The language
 
-### Should `-S` glob what is written inside `${x:+...}`?
-
-Under `set -S` and `strict expansion`, the text written inside `${x:+...}`
-or `${x:-...}` neither splits nor globs, because it arrives as that
-expansion's result: `${hidden:+"$d"/.*}` is the literal `.*` rather than
-the hidden files. ADR 0009's own rule is "what you write splits; what
-expands does not", and this is text the author wrote, so there is a case
-for globbing and splitting it as if it stood outside the braces. zsh is
-the reference to check before choosing. Files was the one place in the
-desktop that relied on it, and it now adds the glob on a line of its own,
-so nothing waits on the answer -- but the answer changes what `-S` means,
-and is the owner's to give.
-
 ### Types on the desktop's parameters -- the second pass
 
 Every desktop function declares its parameters since 0.44, untyped. Types

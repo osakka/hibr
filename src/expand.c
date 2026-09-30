@@ -673,6 +673,28 @@ const char *xbyname(sh *s, const char *r)
 	return v;
 }
 
+/* Add an operator's word as written: its own text splits and globs, what
+   expands inside it follows the usual rules, and its quotes still protect. */
+const char *xarg(sh *s, part *p, str *b, str *m)
+{
+	char *mk;
+	char *a = xone_fq(s, p->arg, &mk,
+			  p->q ? HIBR_XONE | HIBR_XNOTIL : HIBR_XONE);
+	size_t n = strlen(a), i;
+
+	if (!mk || p->q) {
+		xput(b, m, a, n, p->q);
+		return a;
+	}
+	s_add(b, a, n);
+	s_grow(m, n);
+	for (i = 0; i < n; i++)
+		m->p[m->n + i] = mk[i] ? 1 : 0;
+	m->n += n;
+	m->p[m->n] = 0;
+	return a;
+}
+
 /* Apply the parameter modifier to a resolved value. */
 void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 {
@@ -699,16 +721,13 @@ void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 		return;
 	case V_DEF:
 		if (!ok) {
-			a = xone(s, p->arg);
-			XV(s, p, b, m, a, strlen(a));
+			xarg(s, p, b, m);
 			return;
 		}
 		break;
 	case V_ASG:
 		if (!ok) {
-			a = xone(s, p->arg);
-			hibr_set(s, p->t, a, 0);
-			XV(s, p, b, m, a, strlen(a));
+			hibr_set(s, p->t, xarg(s, p, b, m), 0);
 			return;
 		}
 		break;
@@ -724,10 +743,8 @@ void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 		}
 		break;
 	case V_ALT:
-		if (ok) {
-			a = xone(s, p->arg);
-			XV(s, p, b, m, a, strlen(a));
-		}
+		if (ok)
+			xarg(s, p, b, m);
 		return;
 	case V_RS:
 	case V_RL:
@@ -1330,24 +1347,69 @@ const char *xtilde1(sh *s, const char *t, size_t n)
 	return r;
 }
 
-/* Expand a leading ~ in a word, if it has one. */
-void xtilde(sh *s, word *w, str *b, str *m)
+/* Expand a leading ~ in a word; how many bytes of its first part that used. */
+size_t xtilde(sh *s, word *w, str *b, str *m)
 {
 	part *p = w->p;
 	const char *h;
 	size_t n = 0;
 
 	if (!p || p->k != P_TXT || p->q || !p->n || p->t[0] != '~')
-		return;
+		return 0;
 	while (1 + n < p->n && p->t[1 + n] != '/')
 		n++;
 	h = xtilde1(s, p->t + 1, n);
 	if (!h)
-		return;
+		return 0;
 	lg(HIBR_LTRC, "~%.*s is %s", (int)n, p->t + 1, h);
 	xput(b, m, h, strlen(h), 1);
-	p->t += 1 + n;
-	p->n -= 1 + n;
+	return 1 + n;
+}
+
+/* Expand each ~ after an assignment's = and after each : in its value, as bash
+   does; how many bytes of the first part that used. */
+size_t xtilde_asg(sh *s, word *w, str *b, str *m)
+{
+	part *p = w->p;
+	const char *t, *h;
+	size_t n, i = 0, e;
+
+	if (!p || p->k != P_TXT || p->q)
+		return 0;
+	t = p->t;
+	n = p->n;
+	while (i < n && (isalnum((unsigned char)t[i]) || t[i] == '_'))
+		i++;
+	if (i < n && t[i] == '[')
+		while (i < n && t[i] != ']')
+			i++;
+	if (i < n && t[i] == ']')
+		i++;
+	if (i < n && t[i] == '+')
+		i++;
+	if (!i || i >= n || t[i] != '=')
+		return 0;
+	xput(b, m, t, ++i, 0);
+	while (i < n) {
+		if (t[i] == '~') {
+			for (e = i + 1; e < n && t[e] != '/' && t[e] != ':'; e++)
+				;
+			h = e == n && p->nx ? 0 : xtilde1(s, t + i + 1, e - i - 1);
+			if (h) {
+				lg(HIBR_LTRC, "assignment ~%.*s is %s", (int)(e - i - 1),
+				   t + i + 1, h);
+				xput(b, m, h, strlen(h), 1);
+				i = e;
+			}
+		}
+		for (e = i; e < n && t[e] != ':'; e++)
+			;
+		if (e < n)
+			e++;
+		xput(b, m, t + i, e - i, 0);
+		i = e;
+	}
+	return n;
 }
 
 #ifdef HIBR_CENSUS
@@ -1370,8 +1432,8 @@ void xwm(sh *s, word *w, vec *out, int fl, vec *outm)
 {
 	str *b, *m;
 	part *p;
-	char *sv;
-	size_t svn;
+	size_t k;
+	part first;
 
 	if (!w)
 		return;
@@ -1447,8 +1509,11 @@ normal:
 		const char *v = xval(s, w->p->t);
 		size_t k, n;
 		if (fl & HIBR_XONE) {
-			xout(s, out, outm, v ? v : "", 0,
-			     v ? strlen(v) : 0);
+			if (s->strict && outm)
+				xoutq(s, out, outm, v ? v : "", v ? strlen(v) : 0);
+			else
+				xout(s, out, outm, v ? v : "", 0,
+				     v ? strlen(v) : 0);
 			return;
 		}
 		if (!v)
@@ -1469,7 +1534,9 @@ normal:
 		part *p0 = w->p;
 		size_t k;
 		int plain = 1;
-		if (p0->q || (fl & HIBR_XONE)) {
+		if (p0->q || ((fl & HIBR_XONE) &&
+			      (p0->t[0] != '~' || (fl & HIBR_XNOTIL)) &&
+			      !((fl & HIBR_XASG) && memchr(p0->t, '~', p0->n)))) {
 			if (p0->q)
 				xoutq(s, out, outm, p0->t, p0->n);
 			else
@@ -1486,15 +1553,21 @@ normal:
 	}
 	b = sb_get(s);
 	m = sb_get(s);
-	sv = w->p ? w->p->t : 0;
-	svn = w->p ? w->p->n : 0;
-	xtilde(s, w, b, m);
-	for (p = w->p; p; p = p->nx)
-		xpart(s, p, b, m);
-	if (w->p) {
-		w->p->t = sv;
-		w->p->n = svn;
+	k = 0;
+	if (!(fl & HIBR_XASG))
+		k = fl & HIBR_XNOTIL ? 0 : xtilde(s, w, b, m);
+	else if (w->p && w->p->k == P_TXT && memchr(w->p->t, '~', w->p->n))
+		k = xtilde_asg(s, w, b, m);
+	p = w->p;
+	if (k) {
+		first = *p;
+		first.t += k;
+		first.n -= k;
+		xpart(s, &first, b, m);
+		p = p->nx;
 	}
+	for (; p; p = p->nx)
+		xpart(s, p, b, m);
 	if (fl & HIBR_XPAT) {
 		str *q = sb_get(s);
 		size_t i;
@@ -1523,6 +1596,12 @@ normal:
 /* Expand a word into one field, reporting which of its bytes were quoted. */
 char *xone_q(sh *s, word *w, char **mask)
 {
+	return xone_fq(s, w, mask, HIBR_XONE);
+}
+
+/* Expand a word to one string with flags, and hand back its quote mask. */
+char *xone_fq(sh *s, word *w, char **mask, int fl)
+{
 	vec *o, *om;
 	char *r;
 
@@ -1531,7 +1610,7 @@ char *xone_q(sh *s, word *w, char **mask)
 		return ar_dup(s->xa, "", 0);
 	o = vb_get(s);
 	om = vb_get(s);
-	xwm(s, w, o, HIBR_XONE, om);
+	xwm(s, w, o, fl, om);
 	r = o->n ? (char *)o->p[0] : ar_dup(s->xa, "", 0);
 	if (om->n == o->n && om->n)
 		*mask = (char *)om->p[0];
@@ -1789,7 +1868,7 @@ char **xargv(sh *s, word *w, int *ac, char ***am)
 	int first = 1, decl = 0, plain = !sh_ifs(s);
 
 	for (; w; w = w->nx) {
-		int fl = decl && w_assign(w) ? HIBR_XONE : 0;
+		int fl = decl && w_assign(w) ? HIBR_XONE | HIBR_XASG : 0;
 		if (!fl && plain && w_simple(w)) {
 			xout(s, o, om, w->p->t, 0, w->p->n);
 		} else {
@@ -2375,12 +2454,17 @@ long ax_text(sh *s, const char *t)
 	lex l;
 	word *w;
 	long v;
+	vec *o;
 
 	lx_init(&l, s, t);
 	l.a = s->xa;
 	l.nb = 1;
 	w = lx_word(&l, 0);
-	v = ax_run(s, w ? xone(s, w) : "");
+	o = vb_get(s);
+	if (w)
+		xw(s, w, o, HIBR_XONE | HIBR_XNOTIL);
+	v = ax_run(s, o->n ? (char *)o->p[0] : "");
+	vb_put(s, o);
 	ar_rel(s->xa, m);
 	return v;
 }

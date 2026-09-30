@@ -36,6 +36,23 @@ stated justification for the option, which is a good argument for running the
 example before writing the record. `-S` protects the value that *arrives* in a
 word, not the word you typed.
 
+## What is written inside `${x:+...}` is written
+
+The word inside `${x:+word}`, `${x:-word}` and `${x:=word}` is text the
+author typed, so under `-S` it splits and globs as it would outside the
+braces; only an expansion inside it is protected. `${on:+a b}` is two
+arguments and `${hidden:+"$d"/.*}` is the hidden files, while `${on:+$g}`
+with `g='*.c'` is the one argument `*.c`. Until 0.53 the whole word was
+treated as the expansion's result and neither split nor globbed, which broke
+the Files app's hidden-file listing the day it went strict -- a rule that
+made code the author wrote mean something else is the opposite of what `-S`
+is for.
+
+Doing it meant keeping the word's own quoting instead of flattening it to a
+string, and that fixed the default mode as well, where hibr had disagreed
+with bash: `${x:-"a b"}` split, `${x:-"*"}` globbed and `${x:-~}` kept its
+tilde. Each now matches bash.
+
 ## A pattern from a variable is literal too
 
 "Never globbed" covers pattern matching as well as file names. Under `-S` a

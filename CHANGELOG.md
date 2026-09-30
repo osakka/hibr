@@ -1,5 +1,57 @@
 # Changelog
 
+## 0.53
+
+**Under `-S`, what is written inside `${x:+…}` splits and globs.** The word
+inside `${x:+word}`, `${x:-word}` and `${x:=word}` is text the author typed.
+Until now it was treated as the expansion's result, so under `set -S` and
+`strict expansion` it neither split nor globbed. That is what nearly broke
+the Files app's hidden-file listing in 0.52. Now it behaves as it would
+outside the braces, and only an expansion *inside* it is protected:
+`${on:+a b}` is two arguments, `${on:+./.*/}` lists the hidden directories,
+and `${on:+$g}` with `g='*.c'` is the single argument `*.c`. ADR 0009 and
+`docs/language.md` record the rule with its example run, and
+`tests/340-strict.t` checks six forms of it.
+
+**The default mode now agrees with bash on those words too.** Honouring what
+was written meant keeping the word's own quoting instead of flattening it to
+a string, which is what hibr had done: `${x:-"a b"}` split, `${x:-"*"}`
+globbed the directory, and `${x:-"$y"}` split `$y`. A new `xarg` expands the
+word with its per-byte quote mask. `tests/602-tilde-operators.t` compares
+these with bash.
+
+**A tilde expands where bash expands it.** hibr never expanded one in an
+assignment -- `x=~`, `PATH=~/bin:~/x`, `local l=~/l` and `export E=~/b` all
+kept the `~` -- nor in `case ~ in` or `${x:-~}`, because the single-word fast
+path returned before tilde expansion ran. Now an assignment's value expands
+a tilde after the `=` and after each `:`, as bash does, and single words
+expand a leading one. A quoted `"${x:-~}"` and arithmetic (`$((~0))`) are
+left alone, as in bash. One bash quirk is not copied: bash also expands
+`echo a=~`, a command argument that only looks like an assignment.
+
+**Tilde expansion no longer edits the parse tree.** It used to advance the
+first part of the word in place and restore it afterwards, and a `$(…)` in
+the same word forks in between. The child then ran with that part still
+cut short. Once assignments went through the same step, a recursive function
+lost the `n=` of its own `local n=$1` inside a substitution, and
+`tests/130-local.t` caught it. Each expansion now works on a copy of the
+part.
+
+Measured by instruction count against 0.52, with glibc's address-sensitive
+`strcmp` taken out: a loop of assignments is 0.56% cheaper, a bare `while`
+0.45%, a loop calling a function with two `local`s 0.18%, and a `case` loop
+unchanged. The first version cost 3.5%, scanning every assignment for a
+tilde character by character; one `memchr` gate brought that down, and
+dropping the save and restore of the first part paid for the rest.
+
+HIBR_VER -> 0.53.
+
+Verified: tests/all.py, all thirteen suites green in 162 seconds;
+tests/asan.py, every suite against the sanitizer build with no report;
+`tests/diff.py` 1,000 snippets against bash with no difference;
+`tests/602-tilde-operators.t` compared with bash. `tests/corpus.py` was not
+run this time.
+
 ## 0.52
 
 Desktop moves to **0.31** alongside this release.

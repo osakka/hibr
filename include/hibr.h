@@ -7,7 +7,7 @@
 #define HIBR_ABI 15u
 #endif
 #ifndef HIBR_VER
-#define HIBR_VER "0.52"
+#define HIBR_VER "0.53"
 #endif
 #ifndef HIBR_OK
 #define HIBR_OK 0
@@ -68,6 +68,12 @@
 #endif
 #ifndef HIBR_XPAT
 #define HIBR_XPAT 2
+#endif
+#ifndef HIBR_XASG
+#define HIBR_XASG 4
+#endif
+#ifndef HIBR_XNOTIL
+#define HIBR_XNOTIL 8
 #endif
 
 #ifndef P_TXT

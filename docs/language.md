@@ -355,25 +355,24 @@ strict: a* is only itself
 strict: a* matches a*
 ```
 
-The text written inside `${x:+…}` or `${x:-…}` is part of that expansion's
-result, so under `-S` it does not split or glob either, although you wrote it:
+Text written inside `${x:+…}`, `${x:-…}` or `${x:=…}` is written, not
+expanded, so under `-S` it still splits and globs; an expansion inside it
+still does neither:
 
 ```sh
 # in a directory whose one hidden directory is .h
 c() { echo "$# [$*]"; }
+g="./.*/"
 on=1
-c ${on:+a b} ${on:+./.*/}
+c ${on:+a b} ${on:+./.*/} ${on:+$g}
 set -S
-c ${on:+a b} ${on:+./.*/}
+c ${on:+a b} ${on:+./.*/} ${on:+$g}
 ```
 
 ```
-3 [a b ./.h/]
-2 [a b ./.*/]
+4 [a b ./.h/ ./.h/]
+4 [a b ./.h/ ./.*/]
 ```
-
-To add a glob only when a setting is on, add it on its own line:
-`files=("$d"/*); [ -n "$hidden" ] && files+=("$d"/.*)`.
 
 It guards the value that arrives in a word, not the word you wrote: `$dir/*`
 still globs under `-S`, because that `*` is not the result of an expansion.
