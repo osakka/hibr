@@ -8,7 +8,7 @@ strict
 # Repeat a string n times.  One builtin call, not a loop with ${#} in it.
 # The result goes through a variable and then ret: := binds for a builtin,
 # not for a function, so a bare `str repeat` here would print to the screen.
-fn dt_rep(n, s) {
+fn dt_rep(int n, s) {
 	local o
 
 	str repeat "$s" "$n" o

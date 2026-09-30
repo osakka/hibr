@@ -11,7 +11,7 @@ strict
 
 command -v cs_module > /dev/null && cs_module theme Theme
 
-fn theme_draw(row, col) {
+fn theme_draw(int row, int col) {
 	console pen "$DT_INK" "$DT_FACE"
 	console put "$row" "$col" "Theme"
 }

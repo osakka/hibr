@@ -68,10 +68,10 @@ fn cp_theme(t) {
 # same as picking one theme is choosing it over another -- so it clears
 # DT_WALLIMG rather than leaving it set underneath a glyph that would never
 # actually show while an image wins in dt_wall.
-fn cp_set_theme(id, value) { cp_theme "$value" && cp_save; }
+fn cp_set_theme(int id, value) { cp_theme "$value" && cp_save; }
 fn cp_set_glyph(id = "", value = "") { DT_GLYPH=$value; DT_WALLIMG=; cp_save; }
 
-fn appearance_rows(w) {
+fn appearance_rows(int w) {
 	local n=0 g
 
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Theme"
@@ -125,7 +125,7 @@ fn appearance_rows(w) {
 	ret "$n"
 }
 
-fn appearance_do(w, k, dir) {
+fn appearance_do(int w, k, int dir) {
 	local v
 
 	case $k in
@@ -155,7 +155,7 @@ fn appearance_do(w, k, dir) {
 	cp_save
 }
 
-fn appearance_drop(w, r, c, k) {
+fn appearance_drop(int w, int r, int c, k) {
 	case $k in
 	theme) dt_droplist "$w" "$r" "$c" cp_set_theme "${CP_THEMES[@]}" ;;
 	glyph) dt_droplist "$w" "$r" "$c" cp_set_glyph "${CP_GLYPHS[@]}" ;;

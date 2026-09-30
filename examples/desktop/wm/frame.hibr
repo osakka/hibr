@@ -11,7 +11,7 @@ strict
 # (2-button) cluster. Fills BTN_K/BTN_G/BTN_C/BTN_DL/BTN_DR in the same
 # left-to-right order dt_btn's own fixed offsets (1, 3, 5 or 1, 3) expect,
 # so a fourth style is a branch here, never a change to dt_win or dt_btn.
-fn dt_btnspec(style, fixed) {
+fn dt_btnspec(style, int? fixed) {
 	if [ "$fixed" = 1 ]; then BTN_K=(min close); else BTN_K=(min max close); fi
 	case $style in
 	circles)
@@ -49,7 +49,7 @@ fn dt_btnspec(style, fixed) {
 # right; mirrored on the left it reads close/max/min, so close is always
 # the button nearest the window's own outer corner, whichever side that
 # is -- the same relationship a real title bar keeps moved to either side.
-fn dt_btnorder(style, fixed, side) {
+fn dt_btnorder(style, int? fixed, side) {
 	dt_btnspec "$style" "$fixed"
 	[ "$side" != left ] && return 0
 	if [ "$fixed" = 1 ]; then
@@ -75,7 +75,7 @@ dt_btnstr() {
 }
 
 # Draw one window: its face, then its app, then its frame over the top.
-fn dt_win(id) {
+fn dt_win(int id) {
 	local h=${DT[$id]["h"]} w=${DT[$id]["w"]} on=$DT_IDLE
 	local wr=${DT[$id]["row"]} wc=${DT[$id]["col"]} dr=${DT[$id]["draw"]}
 	local fixed=${DT_APPS[${DT[$id]["app"]}]["fixed"]} pc
@@ -195,7 +195,7 @@ fn dt_win(id) {
 
 # A #rrggbb colour moved pct of the way toward white; anything else as it
 # came.
-fn dt_lighten(c, p) {
+fn dt_lighten(c, int p) {
 	local r g b
 
 	match "$c" '^#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$' ||
@@ -211,7 +211,7 @@ fn dt_lighten(c, p) {
 # Which title-bar button is at this column, if any.  fixed omits max, whose
 # button is not drawn there either, so a click at its old column falls
 # through to the window's body instead of hitting a button that is not there.
-fn dt_btn(w, c, fixed) {
+fn dt_btn(int w, int c, int? fixed) {
 	local bc bw
 
 	if [ "$fixed" = 1 ]; then bw=5; else bw=7; fi

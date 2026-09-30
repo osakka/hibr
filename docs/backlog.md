@@ -582,16 +582,13 @@ or a function that should not exist. Take them a file at a time.
 
 ## The language
 
-### Types on the desktop's parameters -- the second pass
+### Type the rest of the desktop's parameters
 
-Every desktop function declares its parameters since 0.44, untyped. Types
-would turn a wrong argument into an error at the call rather than a drawing
-in the wrong place: `fn dt_button(str id, int r, int c, ...)`. Not done in
-the same pass because a type is a promise the callers have to keep, and
-some deliberately do not -- the Control Strip passes an empty window id,
-which `int` refuses. The census that made the conversion (every call's
-argument count, across the suites) can record whether each argument was an
-integer as well; type what always was, and read each of the rest.
+0.55 typed the 562 parameters the census saw as integers. The other 262 were
+passed words -- ids like `w3`, keys, labels -- and are `str` already in
+effect; 145 functions no suite calls are untyped because there is no
+evidence for them. Each of those wants a test that calls it, and then the
+census can speak for it (`python3 tests/census.py --types`).
 
 ## For language models
 

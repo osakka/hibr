@@ -107,7 +107,7 @@ function    = "fn" name "(" [ params ] ")" [ "->" type ] "{" list "}"
             | name "(" ")" compound ;
 params      = param { "," param } ;
 param       = [ type ] name [ "=" word ] ;
-type        = "int" | "num" | "str" | "path" | "arr" | "map" | "any" ;
+type        = ( "int" | "num" | "str" | "path" | "arr" | "map" | "any" ) [ "?" ] ;
 
 assignment  = name [ "[" subscript "]" ] ( "=" | "+=" ) word
             | name "=" "(" { word | "[" subscript "]" "=" word } ")" ;

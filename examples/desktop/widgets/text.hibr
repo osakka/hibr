@@ -11,7 +11,7 @@ strict
 # here: a field's own tag is for dt_hit to say a click landed on it, which
 # an app's _click uses to move the cursor there and give it focus, not to
 # fire an action the way a checkbox or a dropdown's arrow does.
-fn dt_textdraw(id, r, c, w, text, cur, focused) {
+fn dt_textdraw(int id, int r, int c, int w, text, int cur, int focused) {
 	local shown t ch
 
 	shown="$text"
@@ -33,7 +33,7 @@ fn dt_textdraw(id, r, c, w, text, cur, focused) {
 # value they draw either. Status is 1 for a key this does not handle
 # (enter, escape, tab...), so a caller's own _key still decides those for
 # itself; text and cursor come back unchanged in that case.
-fn dt_textkey(text, cur, key) {
+fn dt_textkey(text, int cur, key) {
 	case $key in
 	left) [ "$cur" -gt 0 ] && cur=$((cur - 1)) ;;
 	right) [ "$cur" -lt "${#text}" ] && cur=$((cur + 1)) ;;

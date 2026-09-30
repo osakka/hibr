@@ -28,7 +28,7 @@ fn cp_set_dblaction(id = "", value = "") { DT_DBLACTION=$value; cp_save; }
 # Modifier Drag: whether a modifier click anywhere in a window's body moves
 # it, the same as dragging its title bar. Titlebar Click: what a double
 # click on a title bar does.
-fn windows_rows(w) {
+fn windows_rows(int w) {
 	local n=0
 
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Frame"
@@ -58,7 +58,7 @@ fn windows_rows(w) {
 	ret "$n"
 }
 
-fn windows_do(w, k, dir) {
+fn windows_do(int w, k, int dir) {
 	local v
 
 	case $k in

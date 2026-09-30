@@ -34,7 +34,7 @@ bk_now() {
 }
 
 # A whole wall.  The bricks are four columns wide and centred.
-fn bk_wall(id) {
+fn bk_wall(int id) {
 	local w r=0 nb row
 
 	w=${BK[$id]["w"]}
@@ -49,7 +49,7 @@ fn bk_wall(id) {
 	BK[$id]["left"]=$((nb * BRICKS_ROWS))
 }
 
-fn bk_new(id) {
+fn bk_new(int id) {
 	BK[$id]["score"]=0
 	BK[$id]["lives"]=3
 	BK[$id]["level"]=1
@@ -58,7 +58,7 @@ fn bk_new(id) {
 }
 
 # The ball back on the bat, waiting for space.
-fn bk_serve(id) {
+fn bk_serve(int id) {
 	local w h bat
 
 	w=${BK[$id]["w"]}
@@ -73,7 +73,7 @@ fn bk_serve(id) {
 }
 
 # Which brick is at a cell, as "row index", or nothing.
-fn bk_at(id, r, c) {
+fn bk_at(int id, int r, int c) {
 	local br k nb ox row
 
 	br=$((r - 3))
@@ -89,7 +89,7 @@ fn bk_at(id, r, c) {
 }
 
 # Knock a brick out and score it: the higher the row, the more it is worth.
-fn bk_hit(id, at) {
+fn bk_hit(int id, at) {
 	local br=${at% *} k=${at#* } row s n
 
 	row=${BK[$id]["b$br"]}
@@ -101,7 +101,7 @@ fn bk_hit(id, at) {
 }
 
 # One step of the ball: across a column at a time, then up or down a row.
-fn bk_step(id) {
+fn bk_step(int id) {
 	local r c dr dc w h bat n i s b o
 
 	r=${BK[$id]["r"]}
@@ -168,7 +168,7 @@ fn bk_step(id) {
 }
 
 # How long a step takes; each wall is a little quicker than the last.
-fn bk_period(id) {
+fn bk_period(int id) {
 	local l=${BK[$id]["level"]} p
 
 	p=$((70 - (l - 1) * 8))
@@ -178,7 +178,7 @@ fn bk_period(id) {
 
 # Move the bat, keeping it on the field.  A ball waiting to be served rides
 # along on it.
-fn bk_bat(id, bat) {
+fn bk_bat(int id, int bat) {
 	local w
 
 	w=${BK[$id]["w"]}
@@ -190,7 +190,7 @@ fn bk_bat(id, bat) {
 	return 0
 }
 
-fn bricks_open(id, arg) {
+fn bricks_open(int id, arg) {
 	BK[$id]["h"]=0
 	BK[$id]["w"]=0
 }
@@ -269,7 +269,7 @@ bricks_draw() {
 	console put -p "w$id" 1 $(((w - ${#t}) / 2 + 1)) "$t"
 }
 
-fn bricks_key(id, key) {
+fn bricks_key(int id, key) {
 	local st bat l
 
 	st=${BK[$id]["state"]}
@@ -302,7 +302,7 @@ fn bricks_key(id, key) {
 }
 
 # A click anywhere puts the middle of the bat under it.
-fn bricks_click(id, r, c, btn) {
+fn bricks_click(int id, int r, int c, btn) {
 	bk_bat "$id" $(($c - BRICKS_BAT / 2))
 }
 

@@ -148,6 +148,8 @@ char *lx_arrow(lex *l)
 	b = p;
 	while (p < l->e && (isalnum((unsigned char)*p) || *p == '_'))
 		p++;
+	if (p < l->e && *p == '?')
+		p++;
 	l->p = p;
 	return ar_dup(l->a, b, (size_t)(p - b));
 }

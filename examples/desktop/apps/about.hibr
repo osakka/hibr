@@ -53,7 +53,7 @@ about_facts() {
 }
 
 # A bar of blocks, pct out of 100, w cells wide.
-fn about_bar(pct, w) {
+fn about_bar(int pct, int w) {
 	local fill empty
 
 	[ "$pct" -lt 0 ] && pct=0
@@ -90,7 +90,7 @@ fn about_bar(pct, w) {
 # second line is the delta between them. Busy is what is not idle. This
 # fallback is the one path in this function that blocks the draw loop for
 # about a second; the darwin module exists specifically to avoid it.
-fn about_cpu(id) {
+fn about_cpu(int id) {
 	local label u n s i io irq soft steal total idle dt di pct
 	local now line _w1 _w2 idlepct raw
 
@@ -153,7 +153,7 @@ fn about_cpu(id) {
 # Elsewhere, the darwin module answers the same formula (free + inactive
 # pages counted as available) natively, if it loaded; sysctl hw.memsize
 # plus vm_stat's own free and inactive pages is the fallback otherwise.
-fn about_mem(id) {
+fn about_mem(int id) {
 	local line k v total avail=0 now pagesize free=0 inactive=0
 
 	now := dt_ms
@@ -208,7 +208,7 @@ about_open() {
 	about_facts
 }
 
-fn about_draw(id, h, w, row, col) {
+fn about_draw(int id, int h, int w, int row, int col) {
 	local cpu mem bar barw=$((w - 12)) pct
 
 	command -v dt_want > /dev/null && dt_want "$AB_SLOWMS"

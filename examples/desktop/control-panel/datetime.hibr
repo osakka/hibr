@@ -58,7 +58,7 @@ DTP_COL=0
 
 # Where a coordinate (hundredths of a degree) falls on the 72x22 mask --
 # copied verbatim from traceroute.hibr's own project().
-fn dtp_project(lat, lon) {
+fn dtp_project(int lat, int lon) {
 	DTP_ROW=$(( ( (8000 - $lat) * 21 + 7000 ) / 14000 ))
 	DTP_COL=$(( ( ($lon + 18000) * 71 + 18000 ) / 36000 ))
 	[ "$DTP_ROW" -lt 0 ] && DTP_ROW=0
@@ -176,7 +176,7 @@ elif [ -e /run/.containerenv ]; then
 fi
 
 # A degree count and a sign into "51N"/"0W", the caption's own format.
-fn dtp_deg(v, pos, neg) {
+fn dtp_deg(int v, pos, neg) {
 	local d=$v
 
 	[ "$v" -lt 0 ] && d=$(( 0 - v ))
@@ -248,7 +248,7 @@ dtp_fmtlabel() {
 
 # The dropdown's own callback: an example back to its format, or the
 # custom dialog.
-fn dtp_pickfmt(id, label) {
+fn dtp_pickfmt(int id, label) {
 	local f t
 
 	if [ "$label" = "$DTP_CUSTOM" ]; then
@@ -296,7 +296,7 @@ dtf_dialog() {
 	DTF[$rid]["focus"]=text
 }
 
-fn dtf_draw(id, h, w, row, col) {
+fn dtf_draw(int id, int h, int w, int row, int col) {
 	local t f=${DTF[$id]["focus"]} on=0
 
 	dt_wclear "$id"
@@ -322,7 +322,7 @@ fn dtf_draw(id, h, w, row, col) {
 }
 
 # Keep the format if it shows something that fits, or say why not.
-fn dtf_save(id) {
+fn dtf_save(int id) {
 	if dtp_fmtok "${DTF[$id]["buf"]}"; then
 		DT_BARTIME=${DTF[$id]["buf"]}
 		cp_save
@@ -344,7 +344,7 @@ fn dtf_click(id, r, c, btn = "") {
 	return 0
 }
 
-fn dtf_key(id, key) {
+fn dtf_key(int id, key) {
 	local res f=${DTF[$id]["focus"]} d onb=1
 
 	[ "$f" = text ] && onb=0
@@ -367,7 +367,7 @@ fn dtf_key(id, key) {
 	return 0
 }
 
-fn dtf_close(id) {
+fn dtf_close(int id) {
 	unset "DTF[$id]"
 }
 
@@ -431,7 +431,7 @@ dtz_dialog() {
 DTZ_HIT=()
 
 # The zones matching the filter, into DTZ_HIT -- a substring, either case.
-fn dtz_match(id) {
+fn dtz_match(int id) {
 	local q i=0 n=${#DTP_ZONES[@]}
 
 	q := str lower "${DTZ[$id]["buf"]}"
@@ -442,7 +442,7 @@ fn dtz_match(id) {
 	done
 }
 
-fn dtz_draw(id, h, w, ...rest) {
+fn dtz_draw(int id, int h, int w, ...rest) {
 	local vis n sel top r i t f=${DTZ[$id]["focus"]} on=0
 
 	dt_wclear "$id"
@@ -506,7 +506,7 @@ fn dtz_click(id = "", r = "", c = "", btn = "") {
 	return 0
 }
 
-fn dtz_key(id, key) {
+fn dtz_key(int id, key) {
 	local res f=${DTZ[$id]["focus"]} d onb=1
 
 	[ "$f" = text ] && onb=0
@@ -533,7 +533,7 @@ fn dtz_key(id, key) {
 	return 0
 }
 
-fn dtz_close(id) {
+fn dtz_close(int id) {
 	unset "DTZ[$id]"
 }
 
@@ -635,7 +635,7 @@ fn dts_key(id = "", key = "") {
 }
 
 # Checked here so a typo is a note, not a failed sudo in a new window.
-fn dts_apply(id = "") {
+fn dts_apply(int? id = "") {
 	local d t y mo dy hh mi ss
 
 	d=${DTS[$id]["dbuf"]}
@@ -665,13 +665,13 @@ fn dts_close(id = "") {
 # --- the pane --------------------------------------------------------------
 
 # A plain button: "[ label ]", registered under tag for datetime_click.
-fn dtp_button(id, r, c, label, tag) {
+fn dtp_button(int id, int r, int c, label, tag) {
 	console pen "$DT_ACTIVE" "$DT_FACE" bold
 	console put -p "w$id" "$r" "$c" "[ $label ]"
 	dt_wreg "$id" "$r" "$c" $((${#label} + 4)) "$tag"
 }
 
-fn datetime_draw(id, h, w, bx) {
+fn datetime_draw(int id, int h, int w, int bx) {
 	local now rw rh r c oc sy sr sc lat lon out lb
 
 	dtp_follow
@@ -749,7 +749,7 @@ fn datetime_draw(id, h, w, bx) {
 	console put -p "w$id" $(( sr + 9 )) $(( bx + sc )) "◉"
 }
 
-fn datetime_click(id, r, c) {
+fn datetime_click(int id, int r, int c) {
 	local tag wc f t
 	local -a vals
 

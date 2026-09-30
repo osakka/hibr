@@ -10,7 +10,7 @@ strict
 
 command -v cs_module > /dev/null && cs_module shadow Shadow
 
-fn shadow_draw(row, col) {
+fn shadow_draw(int row, int col) {
 	if [ "$DT_SHADOW" = 1 ]; then
 		console pen "$DT_ACTIVE" "$DT_FACE" bold
 	else

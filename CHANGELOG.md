@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.55
+
+Desktop moves to **0.33** alongside this release.
+
+**A type can allow empty: `int?`.** A declared parameter's type is checked on
+every call, and `int` refuses the empty string, which is not an integer. So
+an optional integer could not be typed at all: `int col = ""` failed the
+first time the argument was left out. Now a type may end in `?`, and
+`int? col = ""` accepts an integer or nothing, and refuses anything else. It
+works for every type and for a return type (`-> int?`), and plain `int`
+still refuses empty. ADR 0024 records why a mark in the signature won over
+not checking defaults. `tests/220-fn.t` covers both forms.
+
+**The desktop's parameters are typed.** The census now records each
+argument's shape, and it found 562 parameters that were an integer on every
+call the suites made: 528 are now `int` and 34 `int?`, in the 299 functions
+the suites call. Before applying them, every literal call site in the
+source was checked against the plan, and none disagreed. The 145 functions
+no suite calls are left untyped, because the census has nothing to say
+about them -- which is 0.44.1's lesson. A wrong argument now fails at the
+call, naming the parameter, rather than drawing in the wrong place. Three
+fresh fuzz seeds of 300 events each ran clean on top of the suites.
+
+**A type check costs a fifth of what it did.** The check compared the
+type's name against every type there is, on every call: 428 instructions per
+typed argument. The type is now read once, when the signature is parsed,
+into bits on the parameter, and a call only looks at the value: about 100
+instructions, most of them the loop over the digits. An unknown type is now
+reported once, when the function is defined, not on every call.
+
+HIBR_VER -> 0.55.
+
+Verified: tests/all.py, all thirteen suites green in 163 seconds;
+tests/asan.py, every suite against the sanitizer build with no report;
+`tests/diff.py` 500 snippets against bash with no difference.
+
 ## 0.54
 
 Desktop moves to **0.32** alongside this release.

@@ -188,7 +188,7 @@ dt_banddraw() {
 }
 
 # Which icon is at a cell, if any; the last drawn is on top.
-fn dt_iconat(mr, mc) {
+fn dt_iconat(int mr, int mc) {
 	local i=$DI_N r c
 
 	while [ "$i" -gt 0 ]; do
@@ -226,7 +226,7 @@ dt_iconclear() {
 }
 
 # Select or unselect one icon by key.
-fn dt_iconmark(key, on) {
+fn dt_iconmark(key, int on) {
 	if [ "$on" = 1 ]; then
 		DI_MARK["$key"]=1
 	else
@@ -286,7 +286,7 @@ fn dt_iconrange(from = "", to = "") {
 # something already selected leaves the rest selected until the button comes
 # up, so a selection can be picked up and dragged whole.  On nothing: start
 # a rubber band.
-fn dt_iconpress(mr, mc, mods) {
+fn dt_iconpress(int mr, int mc, mods) {
 	local i k now
 
 	DI_PRESS=
@@ -344,7 +344,7 @@ dt_iconclear_keep() {
 }
 
 # Stretch the rubber band, selecting every icon it touches.
-fn dt_iconband(act, mr, mc) {
+fn dt_iconband(act, int mr, int mc) {
 	local r0 c0 r1 c1 i r c k
 
 	if [ "$act" = release ]; then
@@ -377,7 +377,7 @@ fn dt_iconband(act, mr, mc) {
 
 # Moving after a press on an icon drags the selection; letting go without
 # moving is only a click, which settles a deferred one.
-fn dt_iconmove(act, mr, mc) {
+fn dt_iconmove(act, int mr, int mc) {
 	local i pr pc sel n ss
 
 	if [ "$act" = release ]; then
@@ -416,7 +416,7 @@ fn dt_iconmove(act, mr, mc) {
 }
 
 # Open what an icon stands for.
-fn dt_iconopen(i) {
+fn dt_iconopen(int i) {
 	case ${DI[$i]["kind"]} in
 	place) dt_launch files "${DI[$i]["name"]}" ;;
 	trash)
@@ -429,7 +429,7 @@ fn dt_iconopen(i) {
 # Put an icon at a place, kept on the screen, and remember it.
 # A row and column pulled onto the screen an icon is twelve columns wide and
 # three rows tall on, its top-left corner kept below the menu bar.
-fn dt_iconclamp(r, c) {
+fn dt_iconclamp(int r, int c) {
 	[ "$r" -lt 1 ] && r=1
 	[ "$r" -gt $((DT_ROWS - 3)) ] && r=$((DT_ROWS - 3))
 	[ "$c" -lt "$DT_PRIMARY_COL" ] && c=$DT_PRIMARY_COL
@@ -438,7 +438,7 @@ fn dt_iconclamp(r, c) {
 	ret "$r $c"
 }
 
-fn dt_iconset(key, r, c) {
+fn dt_iconset(key, int r, int c) {
 	local cl
 
 	cl := dt_iconclamp "$r" "$c"
@@ -464,7 +464,7 @@ fn dt_iconplace(key = "", r = "", c = "") {
 # does what that icon means for files; onto empty wallpaper, a selection of
 # icons being dragged is repositioned there, and files from anywhere else are
 # refused -- the background holds no files of its own to receive them.
-fn dt_deskdrop(mr, mc, op, ...rest) {
+fn dt_deskdrop(int mr, int mc, op, ...rest) {
 	local from=$DT_DNDICON at=$DT_DNDFROM i dr dc p r fs
 
 	shift 3

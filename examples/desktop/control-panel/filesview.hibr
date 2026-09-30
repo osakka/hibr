@@ -10,7 +10,7 @@ command -v cp_pane > /dev/null && cp_pane filesview "Files" "◫" app
 
 fn cp_set_fileview(id = "", value = "") { FB_DEFAULTVIEW=$value; cp_save; }
 
-fn filesview_rows(w) {
+fn filesview_rows(int w) {
 	local n=0
 
 	[ "${#FILES_VIEWS[@]}" -gt 0 ] || { cp_absent "$w" Files; ret 1; }
@@ -23,7 +23,7 @@ fn filesview_rows(w) {
 	ret "$n"
 }
 
-fn filesview_do(w, k, dir) {
+fn filesview_do(int w, k, int dir) {
 	local v
 
 	case $k in

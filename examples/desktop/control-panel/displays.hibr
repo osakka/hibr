@@ -37,7 +37,7 @@ displays_sess() {
 # where a separate row-scale and column-scale would stretch it. Rounding
 # down and flooring at 1% keeps every display at least a sliver rather
 # than vanishing at zero width.
-fn displays_scale(h, w, urows, ucols) {
+fn displays_scale(int h, int w, int urows, int ucols) {
 	local s sc
 
 	s=$((h * 100 / urows))
@@ -48,7 +48,7 @@ fn displays_scale(h, w, urows, ucols) {
 }
 
 # The dropdown's own callback: choosing a name makes it primary.
-fn displays_setprimary(id, value) {
+fn displays_setprimary(int id, value) {
 	local sess
 
 	sess := displays_sess
@@ -88,7 +88,7 @@ fn displays_identify(nm) {
 	done <<< "$lst"
 }
 
-fn displays_draw(id, h, w, bx) {
+fn displays_draw(int id, int h, int w, int bx) {
 	local sess lst nm row col rows cols pri i n s dropw pname
 	local br bc bh bw namew t r mr mc dragi prow pcol
 	local rr rc minr minc urows ucols
@@ -263,7 +263,7 @@ fn displays_draw(id, h, w, bx) {
 # a right-click or a drag on the primary's own body does not fall
 # through to panel_click; only a press that hit no rectangle at all
 # does (returns 1).
-fn displays_mouse(id, act, button, r, c) {
+fn displays_mouse(int id, act, button, int r, int c) {
 	local n i sess nm mr mc s row col nrow ncol amr amc tag wc vals
 
 	n=${DPY[$id]["n"]:-0}

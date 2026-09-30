@@ -25,3 +25,17 @@ badret 2>/dev/null
 echo "bad ret status=$?"
 old() { echo "untyped still works with $1"; }
 old yes
+fn at(int? col = "", int row = 1) -> int? { echo "col=[$col] row=$row"; ret "$col"; }
+at
+at 7 2
+at "" 3
+at x 2>/dev/null
+echo "a word for int? status=$?"
+c := at 4
+echo "bound=$c"
+fn strictint(int n) { :; }
+strictint "" 2>/dev/null
+echo "empty for plain int status=$?"
+fn opt(path? p = "") { echo "p=[$p]"; }
+opt
+opt /tmp

@@ -43,7 +43,7 @@ CALC_COLS=4
 # answer.  What survives that can still be malformed -- "2 +" is -- so the
 # evaluation runs in a group with its diagnostic sent nowhere, and its status
 # is what decides.
-fn calc_eval(id) {
+fn calc_eval(int id) {
 	local v in
 
 	in=${CA[$id]["in"]}
@@ -63,7 +63,7 @@ fn calc_eval(id) {
 }
 
 # Add to the expression, or act on a key that is not part of one.
-fn calc_push(id, k) {
+fn calc_push(int id, k) {
 	case $k in
 	=) calc_eval "$id" ;;
 	c) CA[$id]["in"]=; CA[$id]["out"]=0; CA[$id]["err"]= ;;
@@ -76,19 +76,19 @@ fn calc_push(id, k) {
 	esac
 }
 
-fn calc_open(id, arg) {
+fn calc_open(int id, arg) {
 	CA[$id]["in"]=
 	CA[$id]["out"]=0
 	CA[$id]["err"]=
 }
 
 # Where a key sits in the window body: five columns wide, two rows apart.
-fn calc_pos(i) {
+fn calc_pos(int i) {
 	ret "$((4 + ($i / CALC_COLS) * 2)) $((2 + ($i % CALC_COLS) * 5))"
 }
 
 # Which key is under a point in the body, if any.
-fn calc_at(mr, mc) {
+fn calc_at(int mr, int mc) {
 	local r=$(($mr - 4)) c=$(($mc - 2)) i
 
 	[ "$r" -lt 0 ] || [ "$c" -lt 0 ] && return 1
@@ -100,7 +100,7 @@ fn calc_at(mr, mc) {
 	ret "${CALC_KEYS[$((r * CALC_COLS + c))]}"
 }
 
-fn calc_draw(id, h, w, row, col) {
+fn calc_draw(int id, int h, int w, int row, int col) {
 	local k p i=0 t
 
 	console pen "#a0aec0" "$DT_FACE"
@@ -144,7 +144,7 @@ calc_menus() {
 
 # Right-click anywhere on the keypad: the same shortcuts as the Calc menu,
 # without reaching for the menu bar first.
-fn calc_context(id = "") {
+fn calc_context(int? id = "") {
 	dt_menu "Calc"
 	dt_item "Use Answer" u calc_recall "$id"
 	dt_item "Copy" p dt_edit copy
@@ -160,19 +160,19 @@ fn calc_recall(id = "") {
 }
 
 # The answer is what a calculator has to copy.
-fn calc_copy(id) {
+fn calc_copy(int id) {
 	ret "${CA[$id]["out"]}"
 }
 
 # A paste keeps only what can be part of an expression.
-fn calc_paste(id, text, op = "") {
+fn calc_paste(int id, text, op = "") {
 	local t=${text//[^0-9+*\/%()<>|&^~ -]/}
 
 	CA[$id]["in"]="${CA[$id]["in"]}$t"
 	CA[$id]["err"]=
 }
 
-fn calc_key(id, key) {
+fn calc_key(int id, key) {
 	case $key in
 	[0-9] | + | - | "*" | / | % | "(" | ")") calc_push "$id" "$key" ;;
 	= | enter) calc_eval "$id" ;;
@@ -182,7 +182,7 @@ fn calc_key(id, key) {
 	esac
 }
 
-fn calc_click(id, r, c, btn) {
+fn calc_click(int id, int r, int c, btn) {
 	local k
 
 	k := calc_at "$r" "$c" || return 0

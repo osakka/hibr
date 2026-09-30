@@ -213,10 +213,14 @@ fn greet(name, greeting = "hello") { echo "$greeting, $name"; }
 fn add(int a, int b) -> int { ret $((a + b)); }
 fn tally(label, ...rest) { echo "$label: ${#rest[@]} items"; }
 fn conf(map m, str key) { echo "${m[$key]}"; }
+fn at(int? col = "", int row = 1) { echo "col=[$col] row=$row"; }
 ```
 
 Parameters become locals, in order; `$1` and `$@` still work. Types are `int
-num str path arr map any`, checked on every call. A missing argument without a
+num str path arr map any`, checked on every call. A type ending in `?` also
+accepts the empty string, so `int? col = ""` is an optional integer, and
+`at "" 3` passes an empty one on purpose -- see
+[0024](adr/0024-a-type-can-allow-empty.md). A missing argument without a
 default, a surplus argument without `...rest`, or a wrong type fails the call
 with status 2 and the body does not run. `arr` and `map` parameters take a
 variable's name and bind a copy. The old `name() { … }` form still works,

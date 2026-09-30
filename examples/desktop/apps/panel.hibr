@@ -94,7 +94,7 @@ declare -gA CP
 # own content once the divider is taken out of it too.
 CP_LISTW=17
 
-fn panel_open(w, arg) {
+fn panel_open(int w, arg) {
 	PW[$w]["pane"]=0
 	PW[$w]["side"]=list
 	PW[$w]["sel"]=0
@@ -106,7 +106,7 @@ fn panel_open(w, arg) {
 # The selected pane's name, clamped to what is actually registered -- a
 # pane can vanish between frames if whatever provided it stops (nothing
 # does today, but the window list already assumes apps can close under it).
-fn panel_pane(w) {
+fn panel_pane(int w) {
 	local i
 
 	i=${PW[$w]["pane"]}
@@ -115,7 +115,7 @@ fn panel_pane(w) {
 	ret "${CP_PANE_LIST[$i]}"
 }
 
-fn panel_draw(id, h, w, row, col) {
+fn panel_draw(int id, int h, int w, int row, int col) {
 	local i n r t lw=$CP_LISTW side pane bx bw g
 
 	dt_wclear "$id"
@@ -189,7 +189,7 @@ fn panel_draw(id, h, w, row, col) {
 # worked when clicked, since that only changes cp_rowsdraw's own choice
 # of widget, not what key a click reaches, which is what made it look
 # like a rendering glitch rather than the stale field it was.
-fn cp_rowsdraw(id, pane, h, w, bx) {
+fn cp_rowsdraw(int id, pane, int h, int w, int bx) {
 	local i r t v n top sel kind wtype on kv
 
 	unset "CP[$id]"
@@ -276,7 +276,7 @@ fn cp_rowsdraw(id, pane, h, w, bx) {
 # own rows, whichever has the arrows right now -- skipping headings in a
 # row list, and wrapping at either end in the pane list, the way the hibr
 # menu's own items already do.
-fn panel_move(w, d) {
+fn panel_move(int w, int d) {
 	local i n vis top k=0 pane
 
 	if [ "${PW[$w]["side"]}" = list ]; then
@@ -308,7 +308,7 @@ fn panel_move(w, d) {
 
 # Step through a list, wrapping at either end -- shared by every ordinary
 # pane's own cycling, not just one.
-fn cp_next(cur, dir, ...rest) {
+fn cp_next(cur, int dir, ...rest) {
 	local n=0 i=0 hit=-1 x
 
 	shift 2
@@ -335,7 +335,7 @@ fn cp_toggle(var) {
 }
 
 # Change the selected row in the selected pane.
-fn cp_do(w, dir) {
+fn cp_do(int w, int dir) {
 	local pane sel k
 
 	pane := panel_pane "$w"
@@ -353,7 +353,7 @@ fn cp_do(w, dir) {
 
 # An app's pane with the app not loaded says so, rather than showing
 # nothing at all: one heading row, which nothing can select.
-fn cp_absent(w, what) {
+fn cp_absent(int w, what) {
 	CP[$w][0]["kind"]=head
 	CP[$w][0]["text"]="$what is not loaded"
 }
@@ -365,7 +365,7 @@ cp_save() {
 	return 0
 }
 
-fn panel_key(w, key) {
+fn panel_key(int w, key) {
 	local pane k
 
 	if [ "${PW[$w]["side"]}" = list ]; then
@@ -416,7 +416,7 @@ fn panel_key(w, key) {
 # in the selected pane's own body works the way it always did -- select,
 # a second click (or enter) activates, and a click on a dropdown's own
 # cell opens the real popup, through the pane's own <name>_drop.
-fn panel_click(w, r, c, btn = "") {
+fn panel_click(int w, int r, int c, btn = "") {
 	local pane i n top tag k wc
 
 	if [ "$c" -lt "$CP_LISTW" ]; then
@@ -488,7 +488,7 @@ fn panel_click(w, r, c, btn = "") {
 # state here is.
 declare -gA CP_MDRAG
 
-fn panel_mouse(id, act, button, r, c, mods) {
+fn panel_mouse(int id, act, button, int r, int c, mods) {
 	local pane
 
 	if [ "$act" = press ]; then
@@ -508,7 +508,7 @@ fn panel_mouse(id, act, button, r, c, mods) {
 	[ "$act" = release ] && CP_MDRAG[$id]=
 }
 
-fn panel_wheel(w = "", dir = "", r = "", c = "") {
+fn panel_wheel(int? w = "", dir = "", int? r = "", int? c = "") {
 	local top max n vis pane
 
 	[ "${PW[$w]["side"]}" = list ] && return 0

@@ -104,7 +104,7 @@ dt_close() {
 # to ask for its next change, or it stops changing.
 DT_WANT=
 
-fn dt_want(ms) {
+fn dt_want(int ms) {
 	if [ -z "$DT_WANT" ] || [ "$ms" -lt "$DT_WANT" ]; then
 		DT_WANT=$ms
 	fi

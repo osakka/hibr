@@ -13,7 +13,7 @@ strict
 command -v cp_pane > /dev/null && cp_pane keyboard "Keyboard" "⌨"
 
 # One row for an action: its label, marked if its key is shared.
-fn keyboard_row(w, n, what) {
+fn keyboard_row(int w, int n, what) {
 	local l
 
 	l := dt_keylabel "$what"
@@ -24,7 +24,7 @@ fn keyboard_row(w, n, what) {
 	CP[$w][$n]["key"]=$what
 }
 
-fn keyboard_rows(w) {
+fn keyboard_rows(int w) {
 	local n=0 a names nl
 
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Desktop"; n=$((n + 1))

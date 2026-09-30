@@ -7,7 +7,7 @@ strict
 # Draw a checkbox: "[x] label" or "[ ] label".  tag is what dt_hit answers
 # for a click on it -- the field the app will toggle, by default the label
 # itself.
-fn dt_check(id, r, c, on, label, tag) {
+fn dt_check(int id, int r, int c, int on, label, tag) {
 	local tag=${tag:-$label} mark=" "
 
 	[ "$on" = 1 ] && mark=x

@@ -104,7 +104,7 @@ app remembers is keyed by the window id it was handed, never a bare global,
 since two windows of the same app must not share one:
 
 ```sh
-fn calc_draw(id, h, w, row, col) {     # window id, body size, where it sits
+fn calc_draw(int id, int h, int w, int row, int col) {  # id, body size, place
     console put -p "w$id" 1 2 "${CA[$id]["out"]}"
 }
 ```
@@ -112,7 +112,10 @@ fn calc_draw(id, h, w, row, col) {     # window id, body size, where it sits
 Every function the desktop defines declares its parameters this way, and a
 callback declares the whole of what it is called with, whether it uses all
 of it or not -- a declared function refuses an argument it has no name for,
-so `fn calc_draw(id)` would fail on the first frame. The calls:
+so `fn calc_draw(id)` would fail on the first frame. The ones every call
+has shown to be integers say so -- `int`, or `int?` where empty is allowed
+(`docs/adr/0024`) -- so a wrong argument fails at the call rather than
+drawing in the wrong place. The calls:
 
 | callback | arguments |
 |---|---|

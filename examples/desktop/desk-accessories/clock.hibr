@@ -10,7 +10,7 @@ app clock "The time and the date"
 
 command -v dt_app > /dev/null && dt_app clock "Clock" 7 26 once "◷"
 
-fn clock_draw(id, h, w, row, col) {
+fn clock_draw(int id, int h, int w, int row, int col) {
 	local now ms
 
 	ms := dt_ms

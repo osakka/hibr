@@ -16,7 +16,7 @@ fn cp_set_cursor(id = "", value = "") { DT_CURSOR=$value; cp_save; }
 CP_TERMCOLOURS=(theme terminal)
 fn cp_set_termcolours(id = "", value = "") { DT_TERMCOLOURS=$value; cp_save; }
 
-fn terminal_rows(w) {
+fn terminal_rows(int w) {
 	local n=0
 
 	[ -n "$DT_TERMBAR" ] || { cp_absent "$w" Terminal; ret 1; }
@@ -40,7 +40,7 @@ fn terminal_rows(w) {
 	ret "$n"
 }
 
-fn terminal_do(w, k, dir) {
+fn terminal_do(int w, k, int dir) {
 	local v
 
 	case $k in

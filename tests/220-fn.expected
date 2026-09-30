@@ -12,3 +12,12 @@ srv1
 total=15
 bad ret status=2
 untyped still works with yes
+col=[] row=1
+col=[7] row=2
+col=[] row=3
+a word for int? status=2
+col=[4] row=1
+bound=4
+empty for plain int status=2
+p=[]
+p=[/tmp]

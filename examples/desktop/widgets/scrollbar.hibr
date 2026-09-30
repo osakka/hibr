@@ -11,7 +11,7 @@ strict
 # checkbox or a dropdown draws nothing it was not asked for. The shape
 # the file browser's own list view and a terminal's scrollback both need,
 # so a fix or a restyle is one place, not two.
-fn dt_scrollbar(id, row0, col, h, total, shown, pos) {
+fn dt_scrollbar(int id, int row0, int col, int h, int total, int shown, int pos) {
 	local thumb r
 
 	[ "$total" -gt "$shown" ] || return 0

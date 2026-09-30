@@ -22,7 +22,7 @@ fn dt_wclear(id) {
 
 # Record a widget's hit region.  The draw helpers below call this; an app
 # does not call it directly.
-fn dt_wreg(id, r, c, w, tag) {
+fn dt_wreg(id, int r, int c, int w, tag) {
 	local n
 
 	n=${WG[$id]["n"]:-0}
@@ -36,7 +36,7 @@ fn dt_wreg(id, r, c, w, tag) {
 # Which widget, if any, sits at a pane-relative row/col -- ret's its tag,
 # empty for none.  An app's _click asks this before falling back to its
 # own per-row logic.
-fn dt_hit(id, r, c) {
+fn dt_hit(id, int r, int c) {
 	local n i=0 wr wc ww
 
 	n=${WG[$id]["n"]:-0}
@@ -58,7 +58,7 @@ fn dt_hit(id, r, c) {
 # something (a dropdown's popup) aligned to the widget itself rather than
 # to wherever inside it happened to be clicked -- id and row the same as
 # the dt_hit call that found tag there.
-fn dt_wcol(id, r, tag) {
+fn dt_wcol(int id, int r, tag) {
 	local n i=0
 
 	n=${WG[$id]["n"]:-0}

@@ -95,7 +95,7 @@ dt_note_clear() {
 # -- the oldest dropped once it is full -- so "what did I miss" has an
 # answer even for one that came and went stacked behind others, not only
 # whichever is on screen right now.
-fn dt_notehist_add(id) {
+fn dt_notehist_add(int id) {
 	local hid=$DT_NOTEHIST_NEXT
 
 	DT_NOTEHIST_NEXT=$((DT_NOTEHIST_NEXT + 1))
@@ -175,7 +175,7 @@ dt_note_draw() {
 # A point against the currently drawn notification stack -- the id whose
 # rectangle contains it, or a miss. Reads DT_NOTERECT, filled by the same
 # dt_note_draw pass that drew them.
-fn dt_note_hit(mr, mc) {
+fn dt_note_hit(int mr, int mc) {
 	local id r c w h
 
 	for id in "${DT_NOTEQ_ORDER[@]}"; do
@@ -195,7 +195,7 @@ fn dt_note_hit(mr, mc) {
 # Run a clicked note's own action, if it has one, and dismiss it either
 # way -- called from dt_mouse's own press dispatch once dt_note_hit
 # names which one.
-fn dt_note_click(id) {
+fn dt_note_click(int id) {
 	local n=${DT_NOTEQ[$id]["argvn"]:-0} i=0 o
 	local -a args keep
 

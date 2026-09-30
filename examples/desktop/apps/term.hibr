@@ -83,7 +83,7 @@ tw_colours() {
 
 # Start the program the first time there is a window to put it in, and keep
 # its size in step with the window afterwards.
-fn tw_fit(id, h, w) {
+fn tw_fit(int id, int h, int w) {
 	local n i fd
 	local -a cmd
 
@@ -136,7 +136,7 @@ fn tw_fit(id, h, w) {
 	return 0
 }
 
-fn term_draw(id, h, w, row, col) {
+fn term_draw(int id, int h, int w, int row, int col) {
 	local t st sb cur=0 ms tw view stored n want rgb
 
 	tw=$w
@@ -218,7 +218,7 @@ fn term_draw(id, h, w, row, col) {
 # so there is always a way back to the menu bar, and shift with pageup or
 # pagedown, which page through the scrollback as they do in xterm.  Any
 # other key goes back to the live screen on its way through.
-fn term_key(id, key) {
+fn term_key(int id, key) {
 	local t=${TW[$id]["t"]} h=${TW[$id]["h"]}
 
 	case $key in
@@ -236,7 +236,7 @@ fn term_key(id, key) {
 # Otherwise the left button selects, as in any terminal: press, drag,
 # release, and alt-c or Edit > Copy takes it.  Holding shift selects even
 # when the program has the mouse, which is xterm's way out of the same bind.
-fn term_mouse(id, act, btn, r, c, mods) {
+fn term_mouse(int id, act, btn, int r, int c, mods) {
 	local t=${TW[$id]["t"]} mode
 
 	[ -n "$t" ] || return 0
@@ -286,7 +286,7 @@ fn term_context(id = "") {
 }
 
 # What is selected, for the desktop's Copy.
-fn term_copy(id) {
+fn term_copy(int id) {
 	local t=${TW[$id]["t"]} x
 
 	[ -n "$t" ] || return 1
@@ -296,7 +296,7 @@ fn term_copy(id) {
 
 # Paste as the terminal's own paste arrives: bracketed, when the program
 # asked for that, so a shell does not run each line as it lands.
-fn term_paste(id, text, op) {
+fn term_paste(int id, text, op) {
 	[ -n "${TW[$id]["t"]}" ] && term key "${TW[$id]["t"]}" "paste $text"
 	return 0
 }
@@ -304,7 +304,7 @@ fn term_paste(id, text, op) {
 # The wheel goes to a program that asked for the mouse.  Otherwise, on the
 # alternate screen it is arrow keys, which is how less and man scroll in
 # every terminal that does this; on the main screen it scrolls back.
-fn term_wheel(id, dir, r, c) {
+fn term_wheel(int id, dir, int r, int c) {
 	local t=${TW[$id]["t"]} s k
 
 	[ -n "$t" ] || return 0
@@ -323,7 +323,7 @@ fn term_wheel(id, dir, r, c) {
 # through a registered handler that wanted a terminal, DT_OPENCMD carries
 # what runs instead of hvi -- read once, here, and cleared, so the next
 # ordinary terminal or file does not inherit it.
-fn term_open(id, arg) {
+fn term_open(int id, arg) {
 	local n i
 
 	TW[$id]["file"]=$arg
@@ -348,7 +348,7 @@ fn term_open(id, arg) {
 
 # Files dropped on a terminal are typed in as their paths, each quoted for a
 # shell and followed by a space, ready to be the arguments of something.
-fn term_drop(id, r, c, op, ...paths) {
+fn term_drop(int id, int r, int c, op, ...paths) {
 	local t=${TW[$id]["t"]} q p out=
 
 	[ -n "$t" ] || return 0
@@ -359,7 +359,7 @@ fn term_drop(id, r, c, op, ...paths) {
 	term write "$t" "$out"
 }
 
-fn term_close(id) {
+fn term_close(int id) {
 	if [ -n "${TW[$id]["fd"]}" ]; then
 		command -v console > /dev/null && console unwatch "${TW[$id]["fd"]}"
 	fi

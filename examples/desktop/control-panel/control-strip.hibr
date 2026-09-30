@@ -24,7 +24,7 @@ cp_csshadow() {
 	cp_save
 }
 
-fn control_strip_rows(w) {
+fn control_strip_rows(int w) {
 	local n=0
 
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Side"
@@ -36,7 +36,7 @@ fn control_strip_rows(w) {
 	ret "$n"
 }
 
-fn control_strip_do(w = "", k = "", dir = "") {
+fn control_strip_do(int? w = "", k = "", int? dir = "") {
 	local v
 
 	case $k in

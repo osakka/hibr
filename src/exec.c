@@ -527,33 +527,113 @@ void sh_sfl(sh *s)
 	s->strict = s->strictg || (s->sfl & SF_EXP);
 }
 
-/* Check a value against a declared parameter type. */
+/* Whether the first n bytes of a declared type are the type name nm. */
+int ty_is(const char *ty, size_t n, const char *nm)
+{
+	size_t i;
+
+	for (i = 0; i < n; i++)
+		if (ty[i] != nm[i])
+			return 0;
+	return !nm[n];
+}
+
+/* A declared type as parameter flags, decided once when the signature is
+   parsed: its kind, and TY_OPT when it ends in ? and so accepts empty. */
+int ty_code(const char *ty)
+{
+	size_t n = strlen(ty);
+	int f = 0;
+
+	if (n && ty[n - 1] == '?') {
+		f = TY_OPT;
+		n--;
+	}
+	if (ty_is(ty, n, "int"))
+		return f | TY_INT;
+	if (ty_is(ty, n, "num"))
+		return f | TY_NUM;
+	if (ty_is(ty, n, "path"))
+		return f | TY_PATH;
+	if (ty_is(ty, n, "arr") || ty_is(ty, n, "map"))
+		return f | TY_COPY;
+	if (!ty_is(ty, n, "str") && !ty_is(ty, n, "any"))
+		lg(HIBR_LWRN, "unknown parameter type %s, not checked", ty);
+	return f;
+}
+
+/* Check a value against parameter flags from ty_code: what fn_bind asks on
+   every call, so it looks at the value and nothing else. */
+int ty_fast(int f, const char *v)
+{
+	int k = f & TY_KIND, dot = 0;
+
+	if (!*v)
+		return (f & TY_OPT) || (k != TY_INT && k != TY_NUM && k != TY_PATH);
+	if (k != TY_INT && k != TY_NUM)
+		return 1;
+	if (*v == '-' || *v == '+')
+		v++;
+	if (!*v)
+		return 0;
+	for (; *v; v++) {
+		if (*v == '.' && !dot && k == TY_NUM) {
+			dot = 1;
+			continue;
+		}
+		if (*v < '0' || *v > '9')
+			return 0;
+	}
+	return 1;
+}
+
+/* Check a value against a declared parameter type; a type ending in ? also
+   accepts an empty value. */
 int ty_ok(const char *ty, const char *v)
 {
-	size_t i = 0;
+	size_t i = 0, n;
 
-	if (!ty || !*ty || !strcmp(ty, "str") || !strcmp(ty, "any"))
+	if (!ty || !*ty)
 		return 1;
-	if (!strcmp(ty, "int") || !strcmp(ty, "num")) {
-		int dot = 0;
-		if (v[i] == '-' || v[i] == '+')
-			i++;
-		if (!v[i])
-			return 0;
-		for (; v[i]; i++) {
-			if (v[i] == '.' && !dot && !strcmp(ty, "num")) {
-				dot = 1;
-				continue;
-			}
-			if (!isdigit((unsigned char)v[i]))
-				return 0;
-		}
-		return 1;
+	n = strlen(ty);
+	if (ty[n - 1] == '?') {
+		if (!*v)
+			return 1;
+		n--;
 	}
-	if (!strcmp(ty, "path"))
-		return *v != 0;
-	if (!strcmp(ty, "arr") || !strcmp(ty, "map"))
-		return 1;
+	switch (ty[0]) {
+	case 'i':
+	case 'n':
+		if (!ty_is(ty, n, "int") && !ty_is(ty, n, "num"))
+			break;
+		{
+			int dot = 0, num = ty[0] == 'n';
+			if (v[i] == '-' || v[i] == '+')
+				i++;
+			if (!v[i])
+				return 0;
+			for (; v[i]; i++) {
+				if (v[i] == '.' && !dot && num) {
+					dot = 1;
+					continue;
+				}
+				if (v[i] < '0' || v[i] > '9')
+					return 0;
+			}
+			return 1;
+		}
+	case 's':
+	case 'a':
+	case 'm':
+		if (ty_is(ty, n, "str") || ty_is(ty, n, "any") ||
+		    ty_is(ty, n, "arr") || ty_is(ty, n, "map"))
+			return 1;
+		break;
+	case 'p':
+		if (ty_is(ty, n, "path"))
+			return *v != 0;
+		break;
+	}
 	lg(HIBR_LWRN, "unknown parameter type %s, not checked", ty);
 	return 1;
 }
@@ -566,7 +646,7 @@ int fn_bind(sh *s, node *f, vec *fr, int ac, char **av)
 	int i = 1;
 
 	for (pm = f->x; pm; pm = pm->x) {
-		if (pm->f) {
+		if (pm->f & TY_REST) {
 			vec *rest = vb_get(s);
 			for (; i < ac; i++)
 				v_add(rest, av[i]);
@@ -583,13 +663,13 @@ int fn_bind(sh *s, node *f, vec *fr, int ac, char **av)
 			lg(HIBR_LERR, "%s: missing argument %s", f->s, pm->s);
 			return HIBR_FAIL;
 		}
-		if (!ty_ok(pm->tx, val)) {
+		if ((pm->f & (TY_KIND | TY_OPT)) && !ty_fast(pm->f, val)) {
 			lg(HIBR_LERR, "%s: %s expects %s, got '%s'", f->s, pm->s,
 			   pm->tx, val);
 			return HIBR_FAIL;
 		}
 		asg_hide(s, fr, pm->s);
-		if (pm->tx && (!strcmp(pm->tx, "arr") || !strcmp(pm->tx, "map")))
+		if ((pm->f & TY_KIND) == TY_COPY)
 			v_copy(s, pm->s, val);
 		else
 			hibr_set(s, pm->s, val, 0);

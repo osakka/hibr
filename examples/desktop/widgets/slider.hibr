@@ -10,7 +10,7 @@ strict
 # before it is opened, but there is no popup to open; the track is a
 # picture of the value, not a control of its own to press at a given
 # column. tag is what dt_hit answers for a click on it.
-fn dt_slider(id, r, c, w, value, min, max, tag) {
+fn dt_slider(int id, int r, int c, int w, int value, int min, int max, tag) {
 	local tag=${tag:-$value}
 	local pos i t
 

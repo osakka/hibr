@@ -17,7 +17,7 @@ command -v dt_app > /dev/null && dt_app imgview "Image Viewer" 16 40 "" "◧"
 # handed, because a global is shared by every window of the same app.
 declare -gA IV
 
-fn imgview_open(id, arg) {
+fn imgview_open(int id, arg) {
 	IV[$id]["path"]=$arg
 }
 
@@ -25,7 +25,7 @@ fn imgview_close(id = "") {
 	unset "IV[$id]"
 }
 
-fn imgview_draw(id, h, w, row, col) {
+fn imgview_draw(int id, int h, int w, int row, int col) {
 	local path=${IV[$id]["path"]}
 
 	if [ -z "$path" ]; then
@@ -58,7 +58,7 @@ imgview_menus() {
 	dt_item "Set as Wallpaper" w imgview_setwall "$DT_FOCUS"
 }
 
-fn imgview_setwall(id) {
+fn imgview_setwall(int id) {
 	local path=${IV[$id]["path"]}
 
 	if [ -z "$path" ]; then

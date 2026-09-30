@@ -36,7 +36,7 @@ cp_clearhist() {
 	DT_NOTEUNSEEN=0
 }
 
-fn notify_rows(w) {
+fn notify_rows(int w) {
 	local n=0
 
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Position"

@@ -116,7 +116,7 @@ cs_width() {
 
 # The column shown-module i's own content starts at -- one past its own
 # opening bracket, and past the arrow too on the side that leads with it.
-fn cs_modcol(idx) {
+fn cs_modcol(int idx) {
 	local w cnt i c m
 
 	w := cs_width
@@ -138,7 +138,7 @@ fn cs_modcol(idx) {
 
 # Which shown module a column belongs to, if any -- ret's its real index
 # into CS_MOD_LIST, not a position among the ones currently shown.
-fn cs_at(mc) {
+fn cs_at(int mc) {
 	local w cnt i c m mw
 
 	w := cs_width
@@ -165,7 +165,7 @@ fn cs_at(mc) {
 # Whether row/col falls on the strip right now -- expanded or its own
 # collapsed tab. What hover, wheel and a press all three ask, instead of
 # three copies of the same rectangle.
-fn cs_hit(mr, mc) {
+fn cs_hit(int mr, int mc) {
 	local row w col
 
 	[ "${#CS_MOD_LIST[@]}" = 0 ] && return 1
@@ -188,7 +188,7 @@ fn cs_hit(mr, mc) {
 
 # Scroll by dir modules, clamped so the shown window never runs past
 # either end of the registered list.
-fn cs_scroll(by) {
+fn cs_scroll(int by) {
 	local total=${#CS_MOD_LIST[@]} cnt
 
 	cnt := cs_count
@@ -204,7 +204,7 @@ fn cs_scroll(by) {
 # fresh from that position every time rather than accumulated one drag
 # event at a time, the same reason a real resize handle tracks the
 # pointer instead of its own last delta.
-fn cs_resize(at) {
+fn cs_resize(int at) {
 	local budget total i m w used=0 cnt=0
 
 	total=${#CS_MOD_LIST[@]}
@@ -280,7 +280,7 @@ dt_stripdraw() {
 # by release, toggles collapsed instead. A click inside a module's own
 # brackets goes to its _click. return 0 alone means handled, so
 # dt_mouse's press case can tell it from a miss with ||.
-fn cs_press(prow, pcol) {
+fn cs_press(int prow, int pcol) {
 	local row w col arrowcol
 
 	cs_hit "$prow" "$pcol" || return 1
@@ -318,7 +318,7 @@ fn cs_press(prow, pcol) {
 # directly. Reuses the same widget/dt_dropcontext machinery, and the same
 # "" DT_POPID a window-less caller already gets away with there, since
 # dt_row drops an empty word rather than handing it to the callback.
-fn cs_dropopen(r, c, cb, ...rest) {
+fn cs_dropopen(int r, int c, cb, ...rest) {
 	local n
 
 	shift 3

@@ -42,17 +42,17 @@ wp_dialog() {
 	dt_new "Wallpaper" "$h" "$w" "$r" "$c" wallpick
 }
 
-fn wallpick_open(id, arg = "") {
+fn wallpick_open(int id, arg = "") {
 	WPK[$id]["focus"]=list
 }
 
-fn wallpick_close(id) {
+fn wallpick_close(int id) {
 	unset "WPK[$id]" "FB[$id]" "FL[$id]"
 }
 
 # Start in the folder the picker was last left in -- run on the first
 # frame, once _draw has laid out the preview box the fit is worked out for.
-fn wp_init(id) {
+fn wp_init(int id) {
 	if [ -z "$WPK_DIR" ]; then
 		if [ -n "$DT_WALLIMG" ]; then
 			WPK_DIR=${DT_WALLIMG%/*}
@@ -70,7 +70,7 @@ fn wp_init(id) {
 # Change directory and remember it, so the picker starts here next time --
 # shared by backspace, entering a directory from the keyboard, and a
 # double-click on one from the mouse, so all three ways in keep it current.
-fn wp_goto(id, dir) {
+fn wp_goto(int id, dir) {
 	fb_go "$id" "$dir"
 	WPK_DIR=${FB[$id]["dir"]}
 	command -v dt_save > /dev/null && dt_save
@@ -97,7 +97,7 @@ fn wp_isimage(path) {
 # same way console put -p already does for text, so this needs no more
 # care than any other window's own content does, and no reading of the
 # window manager's own position table.
-fn wp_preview(id, path) {
+fn wp_preview(int id, path) {
 	dt_has img || need img > /dev/null 2>&1
 	dt_has img || return 1
 	WPK[$id]["previewfor"]=$path
@@ -110,7 +110,7 @@ fn wp_preview(id, path) {
 # updates it when it actually lands on an image. Reads its own sizing
 # from WPK[$id], laid out fresh by _draw every frame before this could
 # ever run from a key or a click.
-fn wp_refresh(id) {
+fn wp_refresh(int id) {
 	local sel path
 
 	sel=${FB[$id]["sel"]}
@@ -143,7 +143,7 @@ fn wp_refresh(id) {
 # decode with no result but the two numbers -- again for nothing; img
 # draw's own cache (keyed the same way) already saves the same repeat for
 # the actual pixels.
-fn wp_fitcache(id, path, boxr, boxc) {
+fn wp_fitcache(int id, path, int boxr, int boxc) {
 	local sw sh out fitr fitc
 
 	if [ "${WPK[$id]["fitfor"]}" = "$path" ] &&
@@ -181,7 +181,7 @@ fn wp_fitcache(id, path, boxr, boxc) {
 
 # The list and preview fill everything but the last two rows, which hold
 # the Apply and Close buttons and their shadow.
-fn wallpick_draw(id, h, w, row, col) {
+fn wallpick_draw(int id, int h, int w, int row, int col) {
 	local listw prevw prevx prevh vis moderow i r n top sel t path bx=1
 	local wh=$h
 
@@ -282,7 +282,7 @@ fn wallpick_draw(id, h, w, row, col) {
 
 # Tab moves between the list and the buttons; enter on a button does it,
 # on the list enters a folder or applies an image; escape closes.
-fn wallpick_key(id, key) {
+fn wallpick_key(int id, key) {
 	local n vis top sel f=${WPK[$id]["focus"]} d onb=1
 
 	[ "$f" = list ] && onb=0
@@ -347,7 +347,7 @@ fn wallpick_key(id, key) {
 # only, same as files_wheel; the selection does not follow, the same as
 # the arrow keys' own up/down already leave it when they scroll without
 # crossing it.
-fn wallpick_wheel(id, dir, r = "", c = "") {
+fn wallpick_wheel(int id, dir, r = "", c = "") {
 	local top n vis max
 
 	n=${FB[$id]["n"]}
@@ -378,7 +378,7 @@ fn wp_setmode(id = "", value = "") {
 # colour -- shared by a click on the button and enter on an already-
 # previewed file, so there is a keyboard way to finish this, not only a
 # mouse one.
-fn wp_apply(id) {
+fn wp_apply(int id) {
 	[ -n "${WPK[$id]["previewfor"]}" ] || return 0
 	DT_WALLIMG=${WPK[$id]["previewfor"]}
 	command -v dt_save > /dev/null && dt_save
@@ -391,7 +391,7 @@ fn wp_apply(id) {
 # files.hibr's own file list both already use, tracked the same way:
 # FB[$id]["last"] (reset to -1 by fb_scan on every directory change, so a
 # stale index from the old listing can never falsely count as a repeat).
-fn wallpick_click(id, r, c, btn = "") {
+fn wallpick_click(int id, int r, int c, btn = "") {
 	local bx=${WPK[$id]["bx"]} listw=${WPK[$id]["listw"]} n i tag
 
 	tag := dt_hit "$id" "$r" "$c"

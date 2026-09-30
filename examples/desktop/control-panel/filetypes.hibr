@@ -28,7 +28,7 @@ fn ft_summary(ext) {
 	ret "$cmd"
 }
 
-fn filetypes_rows(w) {
+fn filetypes_rows(int w) {
 	local n=0 ext v
 	local -a all
 
@@ -51,7 +51,7 @@ fn filetypes_rows(w) {
 	ret "$n"
 }
 
-fn filetypes_do(w, k, ...rest) {
+fn filetypes_do(int w, k, ...rest) {
 	case $k in
 	add) ft_dialog "" ;;
 	edit:*) ft_dialog "${k#edit:}" ;;
@@ -90,7 +90,7 @@ fn ft_dialog(ext) {
 	FT[$rid]["focus"]=ext
 }
 
-fn ft_draw(id, h, w, row, col) {
+fn ft_draw(int id, int h, int w, int row, int col) {
 	local efoc cfoc
 
 	dt_wclear "$id"
@@ -120,7 +120,7 @@ fn ft_draw(id, h, w, row, col) {
 }
 
 # Forget the extension being edited: Delete, or ctrl-d.
-fn ft_delete(id) {
+fn ft_delete(int id) {
 	[ -n "${FT[$id]["orig"]}" ] || return 0
 	unset "DT_HANDLERS[${FT[$id]["orig"]}]"
 	command -v dt_save > /dev/null && dt_save
@@ -128,7 +128,7 @@ fn ft_delete(id) {
 }
 
 # What tab moves through: the fields, then the buttons there are.
-fn ft_order(id) {
+fn ft_order(int id) {
 	if [ -n "${FT[$id]["orig"]}" ]; then
 		ret ext cmd ok del cancel
 	else
@@ -136,7 +136,7 @@ fn ft_order(id) {
 	fi
 }
 
-fn ft_click(id = "", r = "", c = "", btn = "") {
+fn ft_click(int? id = "", int? r = "", int? c = "", btn = "") {
 	local tag cur
 
 	tag := dt_hit "$id" "$r" "$c"
@@ -168,7 +168,7 @@ fn ft_click(id = "", r = "", c = "", btn = "") {
 	esac
 }
 
-fn ft_key(id, k) {
+fn ft_key(int id, k) {
 	local field=${FT[$id]["focus"]} buf cur res d onb=1 order
 
 	case $field in ext | cmd) onb=0 ;; esac
@@ -208,7 +208,7 @@ fn ft_key(id, k) {
 	return 0
 }
 
-fn ft_apply(id) {
+fn ft_apply(int id) {
 	local ext orig cmd words
 
 	ext=${FT[$id]["extbuf"]}
@@ -240,6 +240,6 @@ fn ft_apply(id) {
 	dt_del "$id"
 }
 
-fn ft_close(id) {
+fn ft_close(int id) {
 	unset "FT[$id]"
 }

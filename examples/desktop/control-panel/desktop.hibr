@@ -7,7 +7,7 @@ strict
 
 command -v cp_pane > /dev/null && cp_pane desktop "Desktop" "▣"
 
-fn desktop_rows(w) {
+fn desktop_rows(int w) {
 	local n=0
 
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Icons"
@@ -25,7 +25,7 @@ fn desktop_rows(w) {
 	ret "$n"
 }
 
-fn desktop_do(w, k, dir) {
+fn desktop_do(int w, k, int dir) {
 	local v
 
 	case $k in

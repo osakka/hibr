@@ -31,12 +31,12 @@ MINES_COLS=9
 MINES_COUNT=10
 
 # Set character i of a board string.
-fn ms_set(s, i, ch) {
+fn ms_set(s, int i, ch) {
 	ret "${s:0:i}$ch${s:i+1}"
 }
 
 # The cells around i, as indices, clipped to the board.
-fn ms_around(i) {
+fn ms_around(int i) {
 	local r c dr dc rr cc out=
 
 	r=$((i / MINES_COLS))
@@ -54,7 +54,7 @@ fn ms_around(i) {
 	ret "${out# }"
 }
 
-fn ms_new(id) {
+fn ms_new(int id) {
 	local n=$((MINES_ROWS * MINES_COLS)) s
 
 	s := str repeat "." "$n"
@@ -72,7 +72,7 @@ fn ms_new(id) {
 
 # Lay the mines anywhere but the first cell opened and its neighbours, then
 # count what touches every cell.
-fn ms_lay(id, safe) {
+fn ms_lay(int id, int safe) {
 	local n=$((MINES_ROWS * MINES_COLS)) mine near
 	local keep i k j a laid=0 al
 
@@ -106,7 +106,7 @@ fn ms_lay(id, safe) {
 
 # Open a cell.  A mine ends the game; a zero opens its neighbours, and
 # theirs, until the region is bounded by numbers.
-fn ms_open(id, i) {
+fn ms_open(int id, int i) {
 	local seen mine near stack j a opened al
 
 	[ "${MS[$id]["state"]}" = ready ] && ms_lay "$id" "$i"
@@ -145,7 +145,7 @@ fn ms_open(id, i) {
 }
 
 # Open a number's neighbours once as many flags as it says are round it.
-fn ms_chord(id = "", i = "") {
+fn ms_chord(int? id = "", int? i = "") {
 	local seen near a j f=0 al
 
 	seen=${MS[$id]["seen"]}
@@ -162,7 +162,7 @@ fn ms_chord(id = "", i = "") {
 	done
 }
 
-fn ms_flag(id, i) {
+fn ms_flag(int id, int i) {
 	local seen f
 
 	[ "${MS[$id]["state"]}" = run ] || return 0
@@ -177,13 +177,13 @@ fn ms_flag(id, i) {
 	MS[$id]["flags"]=$f
 }
 
-fn ms_end(id, state) {
+fn ms_end(int id, state) {
 	MS[$id]["state"]=$state
 	MS[$id]["t1"]=$EPOCHSECONDS
 }
 
 # What the player acts on: open it, or if it is already open, chord it.
-fn ms_act(id, cell) {
+fn ms_act(int id, int cell) {
 	local seen=${MS[$id]["seen"]}
 
 	if [ "${seen:$cell:1}" = o ]; then
@@ -193,11 +193,11 @@ fn ms_act(id, cell) {
 	fi
 }
 
-fn mines_open(id, arg) {
+fn mines_open(int id, arg) {
 	ms_new "$id"
 }
 
-fn mines_draw(id, h, w, row, col) {
+fn mines_draw(int id, int h, int w, int row, int col) {
 	local mine seen near cur st i=0 r c ch t secs left t0 t1
 	local cells=$((MINES_ROWS * MINES_COLS))
 
@@ -273,7 +273,7 @@ fn mines_draw(id, h, w, row, col) {
 	console put -p "w$id" "$h" $(((w - ${#t}) / 2 + 1)) "$t"
 }
 
-fn mines_key(id, key) {
+fn mines_key(int id, key) {
 	local cur r c
 
 	cur=${MS[$id]["cur"]}
@@ -294,7 +294,7 @@ fn mines_key(id, key) {
 }
 
 # A click lands on a cell or on nothing; the right button flags.
-fn mines_click(id, mr, mc, btn) {
+fn mines_click(int id, int mr, int mc, btn) {
 	local r=$(($mr - 3)) c=$(($mc - 2)) i
 
 	[ "$r" -lt 0 ] || [ "$c" -lt 0 ] && return 0

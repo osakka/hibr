@@ -565,12 +565,15 @@ const char *p_param(lex *l, node *pm, const char *p, const char *e)
 	b = p;
 	while (p < e && (isalnum((unsigned char)*p) || *p == '_'))
 		p++;
+	if (p < e && *p == '?')
+		p++;
 	s_init(&t);
 	s_add(&t, b, (size_t)(p - b));
 	while (p < e && (*p == ' ' || *p == '\t'))
 		p++;
 	if (p < e && (isalnum((unsigned char)*p) || *p == '_')) {
 		pm->tx = ar_dup(l->a, t.p ? t.p : "", t.n);
+		pm->f |= ty_code(pm->tx);
 		b = p;
 		while (p < e && (isalnum((unsigned char)*p) || *p == '_'))
 			p++;

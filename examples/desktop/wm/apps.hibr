@@ -11,7 +11,7 @@ strict
 DT_APPDIR_CUR=
 
 # Register an app the hibr menu can open: name, title, height, width.
-fn dt_app(name, title, h, w, once = "", icon = "", fixed = "", hidden = "") {
+fn dt_app(name, title, int h, int w, once = "", icon = "", fixed = "", hidden = "") {
 	DT_APPS[$name]["title"]="$title"
 	DT_APPS[$name]["h"]="$h"
 	DT_APPS[$name]["w"]="$w"

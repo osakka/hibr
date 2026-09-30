@@ -119,7 +119,7 @@ fn dt_bellglyph(style) {
 # A time in a strftime format, as the bar draws it: epoch seconds, or -1
 # for now. Leading blanks go, so %l's space-padded hour does not leave a
 # gap against the bell.
-fn dt_clocktext(fmt, when) {
+fn dt_clocktext(fmt, int when) {
 	local out
 
 	printf -v out "%($fmt)T" "$when"

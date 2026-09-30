@@ -19,7 +19,7 @@ NP_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/hibr/notepad.txt"
 
 # Read the note off disk into this window's own lines -- always at least
 # one, even an empty one, so the cursor always has a line to sit on.
-fn np_load(id) {
+fn np_load(int id) {
 	local line n=0
 
 	if [ -r "$NP_FILE" ]; then
@@ -37,7 +37,7 @@ fn np_load(id) {
 
 # Written whole, to a temporary file first, the same atomic rename dt_save
 # already uses for the desktop's own settings.
-fn np_save(id) {
+fn np_save(int id) {
 	local i=0 n=${NP[$id]["n"]} tmp="$NP_FILE.$$"
 
 	mkdir -p "${NP_FILE%/*}" 2> /dev/null || return 1
@@ -49,11 +49,11 @@ fn np_save(id) {
 	} > "$tmp" && mv -f "$tmp" "$NP_FILE"
 }
 
-fn notepad_open(id, arg) {
+fn notepad_open(int id, arg) {
 	np_load "$id"
 }
 
-fn notepad_draw(id, h, w, row, col) {
+fn notepad_draw(int id, int h, int w, int row, int col) {
 	local n=${NP[$id]["n"]} cr=${NP[$id]["cr"]} cc=${NP[$id]["cc"]}
 	local top=${NP[$id]["top"]} i r line hoff shown
 
@@ -93,7 +93,7 @@ fn notepad_draw(id, h, w, row, col) {
 		console put -p "w$id" $((cr - top + 1)) $((cc - hoff + 1)) " "
 }
 
-fn notepad_key(id, key) {
+fn notepad_key(int id, key) {
 	local n=${NP[$id]["n"]} cr=${NP[$id]["cr"]} cc=${NP[$id]["cc"]}
 	local line=${NP[$id][$cr]} rest
 
@@ -157,7 +157,7 @@ fn notepad_key(id, key) {
 }
 
 # Insert a new line at i, moving every line from there down one.
-fn np_insline(id, i, text) {
+fn np_insline(int id, int i, text) {
 	local j=${NP[$id]["n"]}
 
 	while [ "$j" -gt "$i" ]; do
@@ -178,7 +178,7 @@ fn np_delline(id = "", i = "") {
 	unset "NP[$id][$((n - 1))]"
 }
 
-fn notepad_click(id = "", mr = "", mc = "", btn = "") {
+fn notepad_click(int? id = "", int? mr = "", int? mc = "", btn = "") {
 	local r=$(($mr - 1)) c=$(($mc - 1))
 	local top=${NP[$id]["top"]} row
 

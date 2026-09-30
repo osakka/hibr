@@ -20,7 +20,7 @@ fn dt_has(name) {
 # is a prefix -- an app with no clock_key cannot swallow a key by accident,
 # which a single function answering a verb in a case statement does, because
 # a case that matches nothing succeeds.
-fn dt_new(title, h, w, row, col, ap = "", arg = "") {
+fn dt_new(title, int h, int w, int row, int col, ap = "", arg = "") {
 	local id=$DT_NEXT f
 
 	DT[$id]["title"]="$title"
@@ -47,7 +47,7 @@ fn dt_new(title, h, w, row, col, ap = "", arg = "") {
 }
 
 # Close a window and forget it.
-fn dt_del(id) {
+fn dt_del(int id) {
 	[ -n "${DT[$id]["close"]}" ] && ${DT[$id]["close"]} "$id"
 	console pane drop "w$id"
 	unset "DT[$id]"
@@ -63,7 +63,7 @@ fn dt_del(id) {
 # the terminal does, once the program inside has ended cleanly -- rather
 # than calling dt_del there itself, which would pull the pane out from under
 # the border dt_win still has left to draw over it.
-fn dt_wantclose(id) {
+fn dt_wantclose(int id) {
 	DT[$id]["autoclose"]=1
 }
 
@@ -79,7 +79,7 @@ dt_autoclose() {
 # Show or hide a window without destroying it.  A minimised window has no
 # pane, so nothing draws it and nothing can hit it; its only remaining handle
 # is the label dt_wall puts on the bar, which is why that label exists.
-fn dt_min(id) {
+fn dt_min(int id) {
 	local l
 
 	if [ "${DT[$id]["min"]}" = 1 ]; then
@@ -118,17 +118,17 @@ dt_ids() {
 }
 
 # What a window is called.
-fn dt_title(id) {
+fn dt_title(int id) {
 	ret "${DT[$id]["title"]}"
 }
 
 # Is it minimised?
-fn dt_hidden(id) {
+fn dt_hidden(int id) {
 	[ "${DT[$id]["min"]}" = 1 ]
 }
 
 # Put a window on top and give it the keyboard.
-fn dt_raise(id) {
+fn dt_raise(int id) {
 	dt_hidden "$id" && { dt_min "$id"; return 0; }
 	console pane raise "w$id"
 	DT_FOCUS=$id
@@ -145,7 +145,7 @@ DT_MINW=16
 DT_MINH=4
 
 # Put a window at a size, clamped to what is sensible and what fits.
-fn dt_resize(id, h, w) {
+fn dt_resize(int id, int h, int w) {
 	local r c
 
 	[ "$h" -lt "$DT_MINH" ] && h=$DT_MINH
@@ -173,7 +173,7 @@ fn dt_resize(id, h, w) {
 # two, clamped the same way, and hand the other edge (already free of any
 # row/col change) to dt_resize, which clamps it against the screen's own
 # far edge exactly as it always has.
-fn dt_cornersize(id, corner, ar, ac, mr, mc) {
+fn dt_cornersize(int id, corner, int ar, int ac, int mr, int mc) {
 	local r c
 
 	case $corner in
@@ -237,7 +237,7 @@ fn dt_cornersize(id, corner, ar, ac, mr, mc) {
 }
 
 # Move a window, clamped to the screen below the menu bar.
-fn dt_move(id, r, c) {
+fn dt_move(int id, int r, int c) {
 	[ "$r" -lt 1 ] && r=1
 	[ "$c" -lt 0 ] && c=0
 	[ $((r + DT[$id]["h"])) -gt "$DT_ROWS" ] &&
@@ -250,7 +250,7 @@ fn dt_move(id, r, c) {
 }
 
 # Fill the screen, or go back to where the window was.
-fn dt_zoom(id) {
+fn dt_zoom(int id) {
 	if [ -n "${DT[$id]["oh"]}" ]; then
 		DT[$id]["row"]=${DT[$id]["or"]}
 		DT[$id]["col"]=${DT[$id]["oc"]}
@@ -273,7 +273,7 @@ fn dt_zoom(id) {
 
 # Give a window a new title; an app knows what it is showing better than
 # the menu that opened it does.
-fn dt_retitle(id, title) {
+fn dt_retitle(int id, title) {
 	DT[$id]["title"]="$title"
 }
 
@@ -296,7 +296,7 @@ dt_cycle() {
 # clamped to still fit within it, the same shape dt_move already clamps a
 # drag to the whole screen with, just against one display's box instead of
 # the whole union.
-fn dt_movewin(id, drow, dcol, drows, dcols) {
+fn dt_movewin(int id, int drow, int dcol, int drows, int dcols) {
 	local r c
 
 	r=$drow

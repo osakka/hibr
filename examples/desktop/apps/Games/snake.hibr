@@ -34,7 +34,7 @@ sn_now() {
 }
 
 # A fresh snake of three in the middle, heading right, and something to eat.
-fn sn_new(id) {
+fn sn_new(int id) {
 	local r c now
 
 	r=${SN[$id]["rows"]}
@@ -53,7 +53,7 @@ fn sn_new(id) {
 
 # Put food on a free cell.  Random tries first, which is almost always
 # enough; a full scan if the board is so crowded that they keep missing.
-fn sn_food(id) {
+fn sn_food(int id) {
 	local rows cols body r c i=0
 
 	rows=${SN[$id]["rows"]}
@@ -83,7 +83,7 @@ fn sn_food(id) {
 }
 
 # How long a step takes: quicker as the snake grows, down to a floor.
-fn sn_period(id) {
+fn sn_period(int id) {
 	local s=${SN[$id]["score"]} p
 
 	p=$((150 - s * 4))
@@ -92,7 +92,7 @@ fn sn_period(id) {
 }
 
 # One step: turn if a turn is queued, move, then eat or die.
-fn sn_step(id) {
+fn sn_step(int id) {
 	local body head r c d q rows cols
 
 	body=${SN[$id]["body"]}
@@ -135,7 +135,7 @@ fn sn_step(id) {
 	fi
 }
 
-fn sn_over(id) {
+fn sn_over(int id) {
 	local s=${SN[$id]["score"]}
 
 	SN[$id]["state"]=over
@@ -144,7 +144,7 @@ fn sn_over(id) {
 
 # Queue a turn, so two quick keys inside one step are both kept.  A turn
 # straight back into the snake's own neck is dropped, as is a repeat.
-fn sn_turn(id, d) {
+fn sn_turn(int id, d) {
 	local q last
 
 	q=${SN[$id]["q"]}
@@ -162,14 +162,14 @@ fn sn_turn(id, d) {
 	return 0
 }
 
-fn snake_open(id, arg) {
+fn snake_open(int id, arg) {
 	SN[$id]["rows"]=0
 	SN[$id]["cols"]=0
 }
 
 # The board follows the window: a resize starts a new game on the new board,
 # since a snake cut in half by the edge is no fun for anyone.
-fn snake_draw(id, h, w, wr, wc) {
+fn snake_draw(int id, int h, int w, int wr, int wc) {
 	local rows=$((h - 1)) cols=$((w / 2)) now last p n=0 t cell r c st bar body
 
 	if [ "$rows" != "${SN[$id]["rows"]}" ] || [ "$cols" != "${SN[$id]["cols"]}" ]; then
@@ -229,7 +229,7 @@ fn snake_draw(id, h, w, wr, wc) {
 	console put -p "w$id" 1 $((w - ${#bar})) "$bar"
 }
 
-fn snake_key(id, key) {
+fn snake_key(int id, key) {
 	local st
 
 	st=${SN[$id]["state"]}

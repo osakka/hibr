@@ -85,7 +85,7 @@ fn dt_holdattach(base, dname) {
 	exit $?
 }
 
-fn dt_autohold(base, resume, join, dname) {
+fn dt_autohold(base, int resume, int join, dname) {
 	local base=${base:-desktop} have
 
 	# HIBR_HOLD being set does not by itself mean this process already is
@@ -152,7 +152,7 @@ DT_IDCOLS=0
 DT_IDT=0
 DT_IDMS=2000
 
-fn dt_identify(name, row, col, rows, cols) {
+fn dt_identify(name, int row, int col, int rows, int cols) {
 	DT_IDNAME="$name"
 	DT_IDROW=$row
 	DT_IDCOL=$col

@@ -35,7 +35,7 @@ dt_dnddraw() {
 
 # Hand what was dropped to whatever is under the pointer.  Not dt_drop,
 # which already draws the open menu.
-fn dt_ondrop(mr, mc, mods) {
+fn dt_ondrop(int mr, int mc, mods) {
 	local op=move id ap wr wc
 	local -a src
 
@@ -111,7 +111,7 @@ fn dt_fileop1(op, src, dst) {
 # trash" -- so the caller has one note to fire for that case, not two: a
 # second dt_note right after this used to silently replace the first one's
 # still-single DT_NOTE, which the queue would otherwise show as both.
-fn dt_tally(done, bad, what, last, why, detail = "") {
+fn dt_tally(int done, int bad, what, last, why, detail = "") {
 	if [ "$bad" = 0 ]; then
 		[ "$done" = 1 ] && dt_note "$what $last"
 		[ "$done" -gt 1 ] && dt_note "$what $done items${detail:+ $detail}"

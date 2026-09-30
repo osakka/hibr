@@ -25,7 +25,7 @@ command -v dt_app > /dev/null && dt_app notifications "Notifications" 16 54 \
 
 declare -gA NHW
 
-fn notifications_open(id, arg) {
+fn notifications_open(int id, arg) {
 	NHW[$id]["top"]=0
 }
 
@@ -35,7 +35,7 @@ fn notifications_close(id = "") {
 
 # Newest first, each row its own HH:MM and text -- DT_NOTEHIST_ORDER is
 # oldest-first (append order), so the list is walked back to front.
-fn notifications_draw(id, h, w, row, col) {
+fn notifications_draw(int id, int h, int w, int row, int col) {
 	local n i r vis top hid at secs t line
 
 	DT_NOTEUNSEEN=0
@@ -74,7 +74,7 @@ fn notifications_draw(id, h, w, row, col) {
 	done
 }
 
-fn notifications_key(id = "", key = "") {
+fn notifications_key(int? id = "", key = "") {
 	local n=${#DT_NOTEHIST_ORDER[@]} vis=${NHW[$id]["vis"]:-1}
 	local top=${NHW[$id]["top"]}
 
@@ -91,7 +91,7 @@ fn notifications_key(id = "", key = "") {
 }
 
 # The wheel scrolls three rows at a time, like Files' own list does.
-fn notifications_wheel(id = "", dir = "", r = "", c = "") {
+fn notifications_wheel(int? id = "", dir = "", int? r = "", int? c = "") {
 	local top=${NHW[$id]["top"]}
 
 	case $dir in

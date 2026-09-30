@@ -1135,8 +1135,10 @@ went in the shell.
   uses only `id`, and anything taking a list ends in `...rest`. The
   conversion was made from a census of every call's argument count across
   the suites, not from reading call sites, and a parameter the suites never
-  showed being passed is optional (`= ""`). Types are not declared yet: `int`
-  would reject the empty id the Control Strip passes on purpose.
+  showed being passed is optional (`= ""`). Since 0.55 the parameters every
+  observed call passed an integer are typed `int`, or `int?` (ADR 0024) where
+  empty is allowed; functions no suite calls stay untyped, since a type taken
+  from observed calls says nothing about the unobserved ones.
 - **Quoting is not a property of a line.** A rewrite that decides whether a
   `$1` is live by scanning one line at a time is wrong for the second line
   of a single-quoted string that opened on the first -- which is exactly
@@ -1329,6 +1331,15 @@ went in the shell.
   each refusal stopped its path before the next name was reached, so the
   suites found them one round at a time. `tests/strictvars.py` finds them
   all by reading; declare the name just above the function that fills it.
+
+- **A parameter's type is decided when the signature is parsed.** `p_param`
+  turns `int?` into bits on the parameter node (`ty_code`: `TY_INT`,
+  `TY_OPT`, ...) and `fn_bind` checks the value against them with
+  `ty_fast`. Checking the type's *name* on every call, as `ty_ok` did, cost
+  428 instructions per typed argument -- `strlen` and six comparisons to
+  learn again what the parser already knew; now it is about 100, most of it
+  the digits. `ty_ok` remains for `ret` and `declare`. Bit 0 of a parameter
+  node's `f` is still "rest" (`TY_REST`); anything else reading it must mask.
 
 ## Testing discipline
 

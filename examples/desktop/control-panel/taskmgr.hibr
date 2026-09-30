@@ -16,7 +16,7 @@ fn cp_set_tasks(id = "", value = "") { TK_SCANMS=$value; cp_save; }
 fn cp_set_tksort(id = "", value = "") { TK_SORTBY=$value; cp_save; }
 fn cp_set_tkdir(id = "", value = "") { TK_SORTDIR=$value; cp_save; }
 
-fn taskmgr_rows(w) {
+fn taskmgr_rows(int w) {
 	local n=0
 
 	[ -n "$TK_SCANMS" ] || { cp_absent "$w" "Task Manager"; ret 1; }
@@ -38,7 +38,7 @@ fn taskmgr_rows(w) {
 	ret "$n"
 }
 
-fn taskmgr_do(w, k, dir) {
+fn taskmgr_do(int w, k, int dir) {
 	local v
 
 	case $k in

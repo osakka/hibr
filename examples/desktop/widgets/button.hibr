@@ -7,7 +7,7 @@ strict
 # Where a button is drawn: a window's pane, or with id "root" straight onto
 # the screen, for the window manager's own overlays (the confirm box) that
 # have no window and no pane. Either way dt_hit finds it under the same id.
-fn dt_bput(id, r, c, text) {
+fn dt_bput(id, int r, int c, text) {
 	if [ "$id" = root ]; then
 		console put "$r" "$c" "$text"
 	else
@@ -38,7 +38,7 @@ dt_btnshade() {
 # muted when it has not, with Turbo Vision's shadow -- a ▄ beside it and a
 # row of ▀ under it. With DT_DLGBTN=brackets it is [label] on the window's
 # face instead, the same width. tag is what dt_hit answers for a click on it.
-fn dt_button(id, r, c, label, on, tag) {
+fn dt_button(id, int r, int c, label, int on, tag) {
 	local t=" $label " n sh
 
 	n=${#t}
@@ -79,7 +79,7 @@ fn dt_btnw(...labels) {
 
 # Draw a row of buttons from c, two columns apart: pairs of tag and label,
 # the one whose tag is focus drawn as having it.
-fn dt_buttons(id, r, c, focus, ...pairs) {
+fn dt_buttons(id, int r, int c, focus, ...pairs) {
 	local i=0 on n=${#pairs[@]}
 
 	while [ $((i + 1)) -lt "$n" ]; do
@@ -95,7 +95,7 @@ fn dt_buttons(id, r, c, focus, ...pairs) {
 # A dialog's buttons, centred along the bottom of its window: on the last
 # row but one, leaving the last for the shadow. h and w are what the
 # app's _draw was handed; pairs are dt_buttons'.
-fn dt_dlgbtns(id, h, w, focus, ...pairs) {
+fn dt_dlgbtns(int id, int h, int w, focus, ...pairs) {
 	local i=1 bw
 	local -a labels
 
@@ -111,7 +111,7 @@ fn dt_dlgbtns(id, h, w, focus, ...pairs) {
 # The tag after (dir 1) or before (dir -1) cur among tags, wrapping at
 # either end -- how tab moves through a dialog's fields and buttons. A cur
 # that is not one of them gives the first.
-fn dt_focus(cur, dir, ...tags) {
+fn dt_focus(cur, int dir, ...tags) {
 	local n=${#tags[@]} i=0
 
 	while [ "$i" -lt "$n" ]; do
@@ -126,7 +126,7 @@ fn dt_focus(cur, dir, ...tags) {
 # Which way a key moves focus: tab and shift-tab always, the arrows only
 # when a button already has it (onbtn 1), so a text field keeps its cursor
 # keys and a list its scrolling. ret's 1 or -1; fails for any other key.
-fn dt_focuskey(key, onbtn = "") {
+fn dt_focuskey(key, int? onbtn = "") {
 	case $key in
 	tab) ret 1 ;;
 	shift-tab) ret -1 ;;

@@ -304,6 +304,18 @@ int b_send(sh *s, int ac, char **av);
 int b_recv(sh *s, int ac, char **av);
 int ed_search(sh *s, str *b, size_t *pos);
 int ty_ok(const char *ty, const char *v);
+int ty_is(const char *ty, size_t n, const char *nm);
+int ty_code(const char *ty);
+int ty_fast(int f, const char *v);
+#ifndef TY_REST
+#define TY_REST 1
+#define TY_INT 2
+#define TY_NUM 4
+#define TY_PATH 6
+#define TY_COPY 8
+#define TY_KIND 14
+#define TY_OPT 16
+#endif
 void v_copy(sh *s, const char *dst, const char *src);
 
 const hibr_bi *bi_find(const char *nm);

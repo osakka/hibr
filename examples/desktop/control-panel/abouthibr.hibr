@@ -11,7 +11,7 @@ command -v cp_pane > /dev/null && cp_pane abouthibr "About hibr" "ⓘ" app
 CP_ABTICKS=(1000 2000 3000 5000 10000)
 fn cp_set_about(id = "", value = "") { AB_SLOWMS=$value; cp_save; }
 
-fn abouthibr_rows(w) {
+fn abouthibr_rows(int w) {
 	[ -n "$AB_SLOWMS" ] || { cp_absent "$w" "About hibr"; ret 1; }
 	CP[$w][0]["kind"]=set; CP[$w][0]["text"]="Refresh"
 	CP[$w][0]["val"]="$AB_SLOWMS ms"; CP[$w][0]["key"]=about
