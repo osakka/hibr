@@ -659,9 +659,7 @@ Every place hibr differs from bash is a place a model's bash breaks, and a
 model that has been burned once stops reaching for it. `tests/corpus.py` is
 the instrument: 7 scripts of 465 invocations still differ (see `CLAUDE.md`'s
 open items). Keep driving it to zero for anything not deliberately
-different -- including one found while writing `docs/llm.md`: a compound
-assignment splits `[c d]=2` at the space, where bash keeps `c d` as one
-key -- and make each deliberate difference loud: a one-line warning
+different, and make each deliberate difference loud: a one-line warning
 in agent mode the first time a script depends on bash behaviour hibr does
 not have, rather than a silently different result.
 

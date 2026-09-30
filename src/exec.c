@@ -901,7 +901,8 @@ int asg_hide(sh *s, vec *old, const char *k)
 
 /* Assign an array clause, name=(...), from a command's words.  Those after
    a declaration builtin run after it, so `declare -A m=(...)` makes m a
-   local map first and fills it second. */
+   local map first and fills it second.  A [key]=value element is expanded
+   as an assignment is, never split or globbed; the rest split as words. */
 void ex_arrasg(sh *s, node *f)
 {
 	vec *el = vb_get(s);
@@ -909,7 +910,11 @@ void ex_arrasg(sh *s, node *f)
 	word *w;
 
 	for (w = f->w; w; w = w->nx)
-		xw(s, w, el, 0);
+		if (w->p && w->p->k == P_TXT && !w->p->q && w->p->n &&
+		    w->p->t[0] == '[')
+			v_add(el, xone(s, w));
+		else
+			xw(s, w, el, 0);
 	if (nl > 1 && f->s[nl - 1] == '+') {
 		char *nm = ar_dup(s->xa, f->s, nl - 1);
 		vec *cur = vb_get(s);

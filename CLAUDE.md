@@ -1350,8 +1350,15 @@ went in the shell.
   every subscript cost 0.7% on a map loop, this costs 0.04%. The desktop's
   maps are all `declare -gA`, so the unquoted-subscript trap above no longer
   bites there; quote literal keys anyway, since an array without `-A` still
-  follows the old rule. One gap remains: `declare -A m=([c d]=2)` splits at
-  the space, where bash keeps `c d` as one key.
+  follows the old rule.
+- **An array element's key is read to its `]`, blanks and all.** The
+  parser took compound-assignment elements from the ordinary lexer, which
+  cuts at every blank, so `m=([c d]=2)` became `[c` and `d]=2`; and
+  `ex_arrasg` split every element's expansion, so `a=([k]=$v)` with a
+  spaced `$v` became two elements. `p_arrel` re-reads an element that
+  opens with `[` from its start to the matching `]`, and a `[key]=value`
+  element is expanded as an assignment -- never split, never globbed --
+  while a plain element still splits, both as in bash.
 
 ## Testing discipline
 

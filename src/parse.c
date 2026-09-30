@@ -5,6 +5,7 @@
 node *p_list(lex *l);
 node *p_cmd(lex *l);
 node *p_cmd2(lex *l);
+word *p_arrel(lex *l);
 
 /* Allocate an AST node in the parse arena. */
 node *nd(lex *l, int k)
@@ -241,8 +242,8 @@ node *p_simple(lex *l)
 				cl->s = ar_dup(l->a, w->p->t, w->p->n - 1);
 				et = &cl->w;
 				while (l->tk == T_WORD) {
-					*et = l->w;
-					et = &l->w->nx;
+					*et = p_arrel(l);
+					et = &(*et)->nx;
 					lx_next(l);
 					p_nl(l);
 				}
@@ -281,8 +282,8 @@ node *p_simple(lex *l)
 				wt = &nw->nx;
 				et = &cl->w;
 				while (l->tk == T_WORD) {
-					*et = l->w;
-					et = &l->w->nx;
+					*et = p_arrel(l);
+					et = &(*et)->nx;
 					lx_next(l);
 					p_nl(l);
 				}
@@ -422,6 +423,42 @@ node *p_cfor(lex *l)
 	else
 		lx_next(l);
 	return n;
+}
+
+/* The array element the lexer has just read, whole: one opening with a [ is
+   re-read from its start to its matching ], so a key holding blanks stays one
+   element, as bash has it -- [c d]=2 is the key "c d". */
+word *p_arrel(lex *l)
+{
+	const char *b = l->tkb, *e, *t;
+	int d = 0;
+
+	if (!b || b >= l->p || *b != '[')
+		return l->w;
+	for (t = b; t < l->p; t++)
+		if (*t == ']')
+			return l->w;
+	for (e = b; e < l->e; e++) {
+		if (*e == '\\' && e + 1 < l->e) {
+			e++;
+			continue;
+		}
+		if (*e == '\'' || *e == '"') {
+			char qc = *e++;
+			while (e < l->e && *e != qc)
+				e++;
+			continue;
+		}
+		if (*e == '(' || *e == '[')
+			d++;
+		else if ((*e == ')' || *e == ']') && d > 0)
+			d--;
+		else if (!d && (*e == ' ' || *e == '\t' || *e == '\n' || *e == ')'))
+			break;
+	}
+	lg(HIBR_LTRC, "array element %.*s read whole", (int)(e - b), b);
+	l->p = e;
+	return lx_sub(l, b, e, 0);
 }
 
 /* Build a synthetic operator word for a [[ ]] expression. */

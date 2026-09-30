@@ -132,6 +132,11 @@ changes but how its subscripts are read. The check runs only when a
 subscript would otherwise be evaluated, which keeps it off the common path:
 0.04% on a loop reading a map.
 
+In a compound assignment an element's key is read to its closing `]`, so
+`m=([c d]=2)` has the key `c d` and `m=([k]=$v)` keeps a spaced `$v` whole,
+as bash does; a `[key]=value` element is expanded like an assignment, and
+only plain elements split.
+
 ---
 
 [← decisions](README.md)

@@ -33,3 +33,16 @@ echo "typeset: ${!t[*]}"
 a=(10 20 30)
 i=1
 echo "an indexed array still evaluates: ${a[i+1]}"
+declare -A m=([c d]=2 [e]=3)
+printf '%s\n' "${!m[@]}" | sort
+echo "blank key: ${m[c d]}"
+declare -A n
+n=([x  y]=1 [z]=2)
+printf '[%s]\n' "${!n[@]}" | sort
+declare -A t=([$(echo s t)]=1)
+echo "substituted key: ${!t[*]}"
+v="a b"
+b=([k]=$v x)
+echo "a keyed value is not split: ${#b[@]} [${b[k]}]"
+c=($v)
+echo "a plain element still splits: ${#c[@]}"
