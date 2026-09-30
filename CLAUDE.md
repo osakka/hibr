@@ -1430,6 +1430,16 @@ went in the shell.
   runs `sh_check` over the whole text first -- never inside `hibr_run`,
   or every `$(…)` child and trap would parse twice.
 
+- **A loop's depth is counted, and a function or a `( )` starts it from
+  none.** `ex_loops` goes up around every loop and is saved and zeroed in
+  `fn_call` and in the `( )` child, so `break` knows whether there is a loop
+  of its own to leave; `ex_srcs` counts files being `source`d, and with
+  `s->dep` tells `return` and `ret` whether there is anything to return
+  from. Without them a top-level `return` or a stray `break` set a flag
+  that silently ended the whole script, and a function's `break` ended its
+  caller's loop. `$( )`, pipeline stages and `&` inherit the depth, as in
+  bash: each is a child, so its `break` only ends itself.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then

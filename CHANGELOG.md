@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.61
+
+**`return`, `break` and `continue` where they mean nothing are reported, and
+the script runs on**, as in bash. A `return` at the top level of a script,
+of `-c` text or of `eval`, a `break` or `continue` outside any loop, and
+hibr's own `ret` outside a function all used to end the whole script
+silently. Now each says why -- `return: can only `return' from a function or
+sourced script` -- and the script continues: status 2 for `return` and
+`ret`, 0 for `break` and `continue`, bash's numbers.
+
+**A function cannot break its caller's loop**, and neither can a `( )`
+subshell, as in bash: `f() { break; }` called from a loop used to end that
+loop, and now it is an error inside `f` and the loop goes on. A `$( )`, a
+pipeline stage or a `&` job inside a loop may still `break`, which ends only
+itself, and `eval` and `source` are not boundaries, both as in bash. A loop
+counts its depth, and a function call and a `( )` start it again from none.
+
+`tests/870-return-break-outside.t` compares each of these against bash. The
+cost: 9 instructions per function call (0.055% on a loop calling one) and
+nothing measurable on a plain loop.
+
 ## 0.60
 
 **A script runs as it is read, as in bash.** hibr used to read a whole

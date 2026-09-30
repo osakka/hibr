@@ -100,6 +100,7 @@ int w_asg(word *w);
 node *hibr_parse(sh *s, const char *src, int *more);
 node *p_line(lex *l);
 int sh_check(sh *s, const char *src);
+extern int ex_loops, ex_srcs;
 #ifndef HIBR_STREAMN
 #define HIBR_STREAMN 64
 #endif

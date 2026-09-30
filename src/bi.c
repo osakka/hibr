@@ -305,6 +305,10 @@ int b_ret(sh *s, int ac, char **av)
 	vec *o;
 	int i;
 
+	if (!s->dep && !ex_srcs) {
+		lg(HIBR_LERR, "ret: can only `ret' from a function or sourced script");
+		return s->st = 2;
+	}
 	if (s->rty && *s->rty && !ty_ok(s->rty, v)) {
 		lg(HIBR_LERR, "ret: declared %s, got '%s'", s->rty, v);
 		s->ret = 1;
@@ -327,6 +331,10 @@ int b_ret(sh *s, int ac, char **av)
 /* Return from a function or sourced file. */
 int b_retf(sh *s, int ac, char **av)
 {
+	if (!s->dep && !ex_srcs) {
+		lg(HIBR_LERR, "return: can only `return' from a function or sourced script");
+		return s->st = 2;
+	}
 	s->ret = 1;
 	s->st = ac > 1 ? atoi(av[1]) : s->st;
 	return s->st;
@@ -335,6 +343,10 @@ int b_retf(sh *s, int ac, char **av)
 /* Leave one or more enclosing loops. */
 int b_brk(sh *s, int ac, char **av)
 {
+	if (!ex_loops) {
+		lg(HIBR_LERR, "break: only meaningful in a `for', `while', or `until' loop");
+		return HIBR_OK;
+	}
 	s->brk = ac > 1 ? atoi(av[1]) : 1;
 	if (s->brk < 1)
 		s->brk = 1;
@@ -344,6 +356,10 @@ int b_brk(sh *s, int ac, char **av)
 /* Continue one or more enclosing loops. */
 int b_cont(sh *s, int ac, char **av)
 {
+	if (!ex_loops) {
+		lg(HIBR_LERR, "continue: only meaningful in a `for', `while', or `until' loop");
+		return HIBR_OK;
+	}
 	s->cont = ac > 1 ? atoi(av[1]) : 1;
 	if (s->cont < 1)
 		s->cont = 1;
@@ -1013,8 +1029,11 @@ int b_src(sh *s, int ac, char **av)
 	}
 	if ((s->sopt & O_CHECK) && sh_check(s, b.p ? b.p : ""))
 		lg(HIBR_LDBG, "source: %s not run, it does not parse", s->src);
-	else
+	else {
+		ex_srcs++;
 		hibr_run(s, b.p ? b.p : "");
+		ex_srcs--;
+	}
 	if (pos) {
 		if (s->avo && s->av) {
 			int i;

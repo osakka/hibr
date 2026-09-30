@@ -122,10 +122,10 @@ Every operation of each, with examples, is in
 | builtin | synopsis |
 |---|---|
 | `test expr` / `[ expr ]` | evaluate a conditional expression |
-| `break [n]` | leave `n` enclosing loops |
-| `continue [n]` | restart the `n`th enclosing loop |
-| `return [n]` | return from a function with status `n` |
-| `ret [value…]` | **[hibr]** produce a value and return |
+| `break [n]` | leave `n` enclosing loops; outside a loop, an error with status 0 and nothing left |
+| `continue [n]` | restart the `n`th enclosing loop; outside a loop, the same as `break` |
+| `return [n]` | return from a function or sourced file with status `n`; anywhere else, an error with status 2 |
+| `ret [value…]` | **[hibr]** produce a value and return; outside a function or sourced file, an error with status 2 |
 | `try cmd args…` | **[hibr]** run `cmd`, catching failure instead of propagating it |
 | `fail msg…` | **[hibr]** report a failure with a message |
 

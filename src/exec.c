@@ -730,11 +730,13 @@ void ce_exp(sh *s, const char *kind, const char *t, size_t n)
 }
 #endif
 
-/* Invoke a shell function with its own positional parameters. */
+int ex_loops, ex_srcs;
+
+/* Invoke a shell function with its own positional parameters; loops outside it are not its to break. */
 int fn_call(sh *s, node *f, int ac, char **av)
 {
 	char **oav = s->av;
-	int oac = s->ac, oavo = s->avo, st, bnd;
+	int oac = s->ac, oavo = s->avo, st, bnd, oloops = ex_loops;
 	vec *fr = vb_get(s);
 	const char *osrc = s->src;
 
@@ -748,6 +750,7 @@ int fn_call(sh *s, node *f, int ac, char **av)
 	s->ac = ac - 1;
 	s->avo = 0;
 	s->dep++;
+	ex_loops = 0;
 	s->rty = f->rt;
 	bnd = HIBR_OK;
 	if (f->f) {
@@ -772,6 +775,7 @@ int fn_call(sh *s, node *f, int ac, char **av)
 		st = s->st;
 	}
 	s->dep--;
+	ex_loops = oloops;
 	s->scope.n--;
 	asg_pop(s, fr);
 	vb_put(s, fr);
@@ -1634,6 +1638,7 @@ int ex_sub(sh *s, node *n)
 		signal(SIGINT, SIG_DFL);
 		s->it = 0;
 		tr_fork(s);
+		ex_loops = 0;
 		if (rd_do(s, n->rd, 0) != HIBR_OK)
 			_exit(HIBR_FAIL);
 		w = ex(s, n->l);
@@ -2210,9 +2215,11 @@ int ex(sh *s, node *n)
 			rd_undo(&sv);
 			return s->st = HIBR_FAIL;
 		}
+		ex_loops++;
 		st = n->k == N_FOR ? ex_for(s, n) :
 		     n->k == N_CFOR ? ex_cfor(s, n) :
 		     n->k == N_SELECT ? ex_select(s, n) : ex_loop(s, n);
+		ex_loops--;
 		rd_undo(&sv);
 		return st;
 	case N_ARITH: {
