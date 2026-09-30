@@ -5,6 +5,8 @@
 # Its rows appear only once Task Manager itself is loaded, the same way the
 # Terminal pane's wait for the terminal.
 
+strict
+
 command -v cp_pane > /dev/null && cp_pane taskmgr "Task Manager" "⚙" app
 
 CP_TKTICKS=(500 1000 2000 3000 5000 10000)

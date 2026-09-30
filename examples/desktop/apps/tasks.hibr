@@ -10,6 +10,8 @@
 # Sorted by CPU or memory, x or Task > End Task sends the selected one
 # SIGTERM, shift-x sends SIGKILL.
 
+strict
+
 app tasks "What is running, and a way to end one"
 
 command -v dt_app > /dev/null && dt_app tasks "Task Manager" 16 50 once "▤"
@@ -111,15 +113,15 @@ fn tasks_spark(id, key, w) {
 # equivalent formula. Without it, the graphs stay flat at 0 rather than
 # reading something platform doesn't offer.
 fn tasks_sysstat(id) {
-	local line rest v total=0 idle du_total du_idle raw
+	local line rest v total=0 idle du_total du_idle raw f
 	local k mtotal= mavail=
 
 	if [ "$TK_OS" = Linux ]; then
 		read -r line 2> /dev/null < /proc/stat
 		rest=${line#cpu }
-		set -- $rest
-		idle=${4:-0}
-		for v in "$@"; do total=$((total + v)); done
+		read -ra f <<< "$rest"
+		idle=${f[3]:-0}
+		for v in "${f[@]}"; do total=$((total + v)); done
 		if [ -n "${TK_PREV[$id]["cput"]}" ]; then
 			du_total=$((total - TK_PREV[$id]["cput"]))
 			du_idle=$((idle - TK_PREV[$id]["cpui"]))

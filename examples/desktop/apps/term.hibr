@@ -11,6 +11,8 @@
 # Run on its own it just says what it would run, since there is no window to
 # put it in.
 
+strict
+
 app term "A shell in a window"
 
 # What the hibr menu shows, how big a new window is, and whether a second
@@ -135,7 +137,7 @@ fn tw_fit(id, h, w) {
 }
 
 fn term_draw(id, h, w, row, col) {
-	local t st sb cur=0 ms tw view stored n want
+	local t st sb cur=0 ms tw view stored n want rgb
 
 	tw=$w
 	# A visible scrollbar costs the program inside a real column, not just
@@ -152,7 +154,8 @@ fn term_draw(id, h, w, row, col) {
 	want := tw_colours
 	if [ "$want" != "${TW[$id]["rgb"]}" ]; then
 		TW[$id]["rgb"]=$want
-		term colors "$t" $want
+		read -ra rgb <<< "$want"
+		term colors "$t" "${rgb[@]}"
 	fi
 	term poll "$t" 0
 	if ! term alive "$t"; then

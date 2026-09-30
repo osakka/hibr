@@ -16,6 +16,8 @@
 # nothing at all. NHW (this window's own per-id state) is free to be
 # named anything, since nothing looks it up by convention.
 
+strict
+
 app notifications "A read-only look back at recent notifications"
 
 command -v dt_app > /dev/null && dt_app notifications "Notifications" 16 54 \

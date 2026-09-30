@@ -4,6 +4,8 @@
 # until it is given one of its own, and forgetting every folder's. Named
 # filesview, not files, because the app already owns the files_ prefix.
 
+strict
+
 command -v cp_pane > /dev/null && cp_pane filesview "Files" "◫" app
 
 fn cp_set_fileview(id = "", value = "") { FB_DEFAULTVIEW=$value; cp_save; }

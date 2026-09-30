@@ -6,6 +6,8 @@
 # a file browser -- there is no file-open dialog anywhere in this desktop,
 # so a drop is the only way in short of already knowing the path.
 
+strict
+
 app imgview "A picture in a window"
 
 command -v dt_app > /dev/null && dt_app imgview "Image Viewer" 16 40 "" "◧"

@@ -3,6 +3,8 @@
 # desktop -- the Control Panel pane for the bare desktop: which icons sit
 # on it, and how often a busy screen is redrawn.
 
+strict
+
 command -v cp_pane > /dev/null && cp_pane desktop "Desktop" "▣"
 
 fn desktop_rows(w) {

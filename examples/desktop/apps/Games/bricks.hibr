@@ -13,6 +13,8 @@
 #
 # Clear the wall and the next one comes faster.
 
+strict
+
 app bricks "Knock the wall down"
 
 # What the hibr menu shows, how big a new window is, and whether a second

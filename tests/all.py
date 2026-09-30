@@ -21,7 +21,7 @@ ROOT = os.path.dirname(HERE)
 LOGS = (os.environ.get("HIBR_TESTLOGS")
         or os.path.join(ROOT, "build", "test-logs"))
 SUITES = ["run.sh", "desktop", "apps", "most", "hvi", "console", "cat",
-          "mon", "mtr", "editor", "term_diff", "uifuzz"]
+          "mon", "mtr", "editor", "term_diff", "uifuzz", "strictvars"]
 
 
 def one(name):

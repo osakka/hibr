@@ -6,6 +6,8 @@
 # dropdown, the same as Behaviour's own Cursor row does from a click on
 # its value, so the current style is seen and chosen in the same place.
 
+strict
+
 command -v cs_module > /dev/null && cs_module cursor Cursor
 
 CURSOR_STYLES=(block underline bar)

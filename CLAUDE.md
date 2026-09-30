@@ -44,6 +44,7 @@ releases).
     python3 tests/affected.py --run      # only the suites a change reaches
     python3 tests/census.py      # desktop functions no suite calls, and the count
     python3 tests/asan.py        # every suite, pty ones too, under ASan and UBSan
+    python3 tests/strictvars.py  # every global a strict desktop function would create
     python3 tests/screen.py examples/desktop/session.hibr
                                  # the same harness, to look rather than assert
     python3 tests/diff.py --shell ./build/hibr 250   # snippets, diffed against bash
@@ -1299,6 +1300,19 @@ went in the shell.
   (`tests/census.py --expansion`) logs both kinds, each only where it can
   happen -- never for an assignment or a `case` word, which neither split
   nor glob.
+
+- **Under `-S`, text written inside `${x:+…}` is expansion output.**
+  `${hidden:+"$d"/.*}` gives the literal `.*`, not the hidden files, and
+  `${on:+a b}` is one argument. Files listed hidden entries this way; under
+  `strict` the option silently showed nothing extra. Add a conditional glob
+  on its own line (`files+=("$d"/.*)`). Whether `-S` should treat that text
+  as written is an open question in `docs/backlog.md`.
+- **A strict file's functions pass back lists and pairs through globals, and
+  each must be declared at file level.** `strict vars` refused `DTP_LAT`,
+  `DTP_ROW`, `DTZ_HIT` and `FB_CRUMBS` the first time they were set, and
+  each refusal stopped its path before the next name was reached, so the
+  suites found them one round at a time. `tests/strictvars.py` finds them
+  all by reading; declare the name just above the function that fills it.
 
 ## Testing discipline
 

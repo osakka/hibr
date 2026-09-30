@@ -4,6 +4,8 @@
 # memory figures are read again. Named abouthibr, not about, because the
 # app's own about_draw would otherwise be taken for this pane's body.
 
+strict
+
 command -v cp_pane > /dev/null && cp_pane abouthibr "About hibr" "ⓘ" app
 
 CP_ABTICKS=(1000 2000 3000 5000 10000)

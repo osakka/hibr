@@ -7,6 +7,8 @@
 # moved and resized on itself rather than from a settings row -- this pane
 # only carries the two things that are otherwise nowhere to see or change.
 
+strict
+
 command -v cp_pane > /dev/null && cp_pane control_strip "Control Strip" "▤"
 
 CP_CS_SIDES=(left right)

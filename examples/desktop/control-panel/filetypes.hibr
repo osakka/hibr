@@ -6,6 +6,8 @@
 # through a dt_handler line in a script of your own -- which still works
 # exactly as before, and is what dt_save now writes these back out as.
 
+strict
+
 command -v cp_pane > /dev/null && cp_pane filetypes "File Types" "◈"
 command -v dt_app > /dev/null && dt_app ft "File Type" 9 54 "" "" fixed hidden
 

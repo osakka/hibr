@@ -355,6 +355,26 @@ strict: a* is only itself
 strict: a* matches a*
 ```
 
+The text written inside `${x:+…}` or `${x:-…}` is part of that expansion's
+result, so under `-S` it does not split or glob either, although you wrote it:
+
+```sh
+# in a directory whose one hidden directory is .h
+c() { echo "$# [$*]"; }
+on=1
+c ${on:+a b} ${on:+./.*/}
+set -S
+c ${on:+a b} ${on:+./.*/}
+```
+
+```
+3 [a b ./.h/]
+2 [a b ./.*/]
+```
+
+To add a glob only when a setting is on, add it on its own line:
+`files=("$d"/*); [ -n "$hidden" ] && files+=("$d"/.*)`.
+
 It guards the value that arrives in a word, not the word you wrote: `$dir/*`
 still globs under `-S`, because that `*` is not the result of an expansion.
 Whether it should become the default is settled, with the measurements, in
@@ -397,8 +417,9 @@ some -- `strict functions vars` -- and `strict off vars` to put one back;
 `strict expansion` is `set -S` for this file alone, and `strict -p` lists what
 is on. "This file" is `$BASH_SOURCE`, so a function is checked by the file it
 was defined in, wherever it is called from. The desktop's own window manager
-and widgets run under all three -- plain `strict` -- with every list they
-split held in an array, `read -ra list <<< "$words"`. Why it is per file, and what
+and widgets, and every app, pane, desk accessory and strip module, run under
+all three -- plain `strict` -- with every list they split held in an array,
+`read -ra list <<< "$words"`. Why it is per file, and what
 it deliberately does not catch, is [0023](adr/0023-strict-is-per-file.md).
 
 `$LINENO` is the line of the command running, counted in its own file -- for a

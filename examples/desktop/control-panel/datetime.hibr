@@ -12,6 +12,8 @@
 # projection's target size differs, since this map is a corner of a
 # settings pane and not a full screen.
 
+strict
+
 command -v cp_pane > /dev/null && cp_pane datetime "Date & Time" "◷"
 
 # The pane's own dialogs, named so the application menu reads "Time Zone"
@@ -51,6 +53,9 @@ DTP_MAP[21]="                                                                   
 DTP_MAPH=22
 DTP_MAPW=72
 
+DTP_ROW=0
+DTP_COL=0
+
 # Where a coordinate (hundredths of a degree) falls on the 72x22 mask --
 # copied verbatim from traceroute.hibr's own project().
 fn dtp_project(lat, lon) {
@@ -61,6 +66,9 @@ fn dtp_project(lat, lon) {
 	[ "$DTP_COL" -lt 0 ] && DTP_COL=0
 	[ "$DTP_COL" -ge "$DTP_MAPW" ] && DTP_COL=$(( DTP_MAPW - 1 ))
 }
+
+DTP_LAT=
+DTP_LON=
 
 # tzdata folds these four capitals into a neighbour's zone -- Amsterdam
 # into Brussels, the Nordic capitals into Berlin -- so a lookup keyed on
@@ -257,6 +265,8 @@ fn dtp_pickfmt(id, label) {
 	done
 }
 
+DTP_WHY=
+
 # A format the bar can hold: something, no ")" (which ends printf's own
 # %(...)T early), and no wider than 24 columns once rendered, so it
 # cannot run into the menus on the left. Status 1 with DTP_WHY set.
@@ -417,6 +427,8 @@ dtz_dialog() {
 	DTZ[$rid]["top"]=0
 	DTZ[$rid]["focus"]=text
 }
+
+DTZ_HIT=()
 
 # The zones matching the filter, into DTZ_HIT -- a substring, either case.
 fn dtz_match(id) {

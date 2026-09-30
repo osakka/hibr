@@ -10,6 +10,8 @@
 # rather than the one-line note it used to be, because a bar that means
 # something has to keep being redrawn, and a note fades on its own.
 
+strict
+
 app about "About hibr, and the machine it runs on"
 
 command -v dt_app > /dev/null && dt_app about "About hibr" 13 46 once "ⓘ" \

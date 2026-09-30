@@ -13,6 +13,8 @@
 # wallpaper.hibr's own pane id (wallpick, not wallpaper) is this same
 # choice made before.
 
+strict
+
 command -v cp_pane > /dev/null && cp_pane notify "Notifications" "◉"
 
 CP_NOTEPOS=(top-right top-left bottom-right bottom-left)

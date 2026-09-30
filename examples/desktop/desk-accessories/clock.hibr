@@ -4,6 +4,8 @@
 #
 # It only draws, so it can never take a key meant for another window.
 
+strict
+
 app clock "The time and the date"
 
 command -v dt_app > /dev/null && dt_app clock "Clock" 7 26 once "◷"

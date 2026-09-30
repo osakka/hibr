@@ -4,6 +4,8 @@
 # scrollbar, whether its title follows what the program inside reports,
 # whose colours its text and background are, and its cursor.
 
+strict
+
 command -v cp_pane > /dev/null && cp_pane terminal "Terminal" "▸" app
 
 CP_CURSORS=(block underline bar)

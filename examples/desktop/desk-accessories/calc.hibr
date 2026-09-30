@@ -14,6 +14,8 @@
 # integers, like the shell and like bash.  There is no decimal point on the
 # keypad because there would be nothing behind it.
 
+strict
+
 app calc "A calculator"
 
 # What the hibr menu shows, how big a new window is, and whether a second

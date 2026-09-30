@@ -6,6 +6,8 @@
 # double-clicked. Every value here is read by wm/frame.hibr and wm/input;
 # this pane only ever changes the DT_* settings, never the drawing itself.
 
+strict
+
 command -v cp_pane > /dev/null && cp_pane windows "Windows" "▭"
 
 WS_FRAMES=(single double none)

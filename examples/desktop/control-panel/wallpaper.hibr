@@ -23,6 +23,8 @@
 # on purpose; they live in different parts of the UI and do different
 # things (a plain glyph there, an image here), the same way two apps can
 # each have their own File menu.
+strict
+
 declare -gA WPK
 
 # Where the picker starts: wherever it was left, or failing that wherever

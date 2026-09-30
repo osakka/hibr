@@ -6,6 +6,8 @@
 # theme sets the variables the window manager already reads every frame, so
 # a change shows on the next one, in every window at once.
 
+strict
+
 command -v cp_pane > /dev/null && cp_pane appearance "Appearance" "◐"
 
 CP_THEME=midnight

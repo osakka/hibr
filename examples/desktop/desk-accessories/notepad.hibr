@@ -8,6 +8,8 @@
 # editor. This is the System 6 Note Pad, a place to jot something down
 # without leaving the desktop for it.
 
+strict
+
 app notepad "A scratch note, saved as you type"
 
 command -v dt_app > /dev/null && dt_app notepad "Note Pad" 12 40 once "▧"

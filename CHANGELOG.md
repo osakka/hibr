@@ -1,5 +1,55 @@
 # Changelog
 
+## 0.52
+
+Desktop moves to **0.31** alongside this release.
+
+**The whole desktop runs under every strict check.** In 0.51 that was the
+window manager and its widgets. Now it is `desktop.hibr` and every app,
+game, desk accessory, Control Panel pane and strip module: 33 more files,
+each saying `strict`. `tests/540-examples.t` fails if any of them stops
+saying it. `session.hibr` stays as it was, because it is the user's own
+script.
+
+The method was 0.51's. `tests/census.py --expansion` listed ten places in
+the apps where an expansion split: Minesweeper's neighbour lists, the
+snake's body, a `/proc/stat` line in Task Manager, a terminal's colours,
+the Keyboard pane's app names, the puzzle's four directions, and Files'
+selection. Each became `read -ra` into an array. The puzzle's directions
+became an array constant, which also takes a `set --` out of a
+400-iteration loop.
+
+A search for the forms the suites might not reach found one the probe could
+not see. Files lists hidden entries with `${hidden:+"$d"/.*}`, and under
+strict expansion the text inside `${…:+…}` is the expansion's result, so it
+would have listed a file literally named `.*` instead. It now adds that
+glob on a line of its own. `docs/language.md` records the rule with the
+example run. Whether `-S` *should* treat that text as written is a real
+question about the shell, and it is in `docs/backlog.md` for the owner
+rather than decided here. With every site converted and strict switched
+off, the probe listed nothing.
+
+**`tests/strictvars.py` finds every global a strict function would create,
+by reading.** `strict vars` refuses those at run time, but only on paths
+that run, and each refusal stops its path before the next name is reached.
+Turning it on for the apps found six in the first round of suites and a
+seventh in the second. The checker reads every function in every strict
+file and fails on any assignment that is not a parameter, a local, a
+file-level name or one of the shell's own: `x=`, `x[k]=`, `x := f`, `read`,
+`for`, `printf -v` and `(( ))`. It found the seventh without a suite run,
+found nothing else, and is now a suite in `tests/all.py` that takes under a
+second. The seven are all out-parameters, where a function hands back a
+list or a pair: `DTP_LAT`, `DTP_LON`, `DTP_ROW`, `DTP_COL`, `DTP_WHY` and
+`DTZ_HIT` in the Date & Time pane, and `FB_CRUMBS` in Files. Each is now
+declared just above the function that fills it.
+
+HIBR_VER -> 0.52.
+
+Verified: tests/all.py, all thirteen suites green in 161 seconds, strictvars
+included; tests/asan.py, every suite against the sanitizer build with no
+report; `tests/census.py --expansion` listing nothing in the apps with strict
+switched off; uifuzz clean on three fresh seeds of 300 events each.
+
 ## 0.51
 
 Desktop moves to **0.30** alongside this release.

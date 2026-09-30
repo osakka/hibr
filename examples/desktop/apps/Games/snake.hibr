@@ -13,6 +13,8 @@
 #     arrows / hjkl   turn         p   pause
 #     space           start again
 
+strict
+
 app snake "Eat, grow, and do not bite yourself"
 
 # What the hibr menu shows, how big a new window is, and whether a second
@@ -168,7 +170,7 @@ fn snake_open(id, arg) {
 # The board follows the window: a resize starts a new game on the new board,
 # since a snake cut in half by the edge is no fun for anyone.
 fn snake_draw(id, h, w, wr, wc) {
-	local rows=$((h - 1)) cols=$((w / 2)) now last p n=0 t cell r c st bar
+	local rows=$((h - 1)) cols=$((w / 2)) now last p n=0 t cell r c st bar body
 
 	if [ "$rows" != "${SN[$id]["rows"]}" ] || [ "$cols" != "${SN[$id]["cols"]}" ]; then
 		SN[$id]["rows"]=$rows
@@ -203,7 +205,8 @@ fn snake_draw(id, h, w, wr, wc) {
 		console put -p "w$id" $((${cell%,*} + 2)) $((${cell#*,} * 2 + 1)) "●"
 	fi
 	console pen "#276749" "#0b1a12"
-	for cell in ${SN[$id]["body"]}; do
+	read -ra body <<< "${SN[$id]["body"]}"
+	for cell in "${body[@]}"; do
 		r=${cell%,*}
 		c=${cell#*,}
 		console put -p "w$id" $((r + 2)) $((c * 2 + 1)) "██"

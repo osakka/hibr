@@ -7,6 +7,8 @@
 # Panel is not loaded there is nothing to offer, so a click does nothing,
 # honestly, rather than switching only some of the colours.
 
+strict
+
 command -v cs_module > /dev/null && cs_module theme Theme
 
 fn theme_draw(row, col) {

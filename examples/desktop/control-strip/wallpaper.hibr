@@ -5,6 +5,8 @@
 # Its own name, not the glyph itself -- a click opens every glyph as a
 # dropdown, each shown as itself, which is its own preview.
 
+strict
+
 command -v cs_module > /dev/null && cs_module wallpaper Wallpaper
 
 WALL_GLYPHS=("·" "░" "▒" "⋅" "+")

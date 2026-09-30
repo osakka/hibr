@@ -133,14 +133,21 @@ for v in $kept; do
 done
 echo "every kept preference is in the Control Panel"
 
-# The window manager and its widgets run under every strict check, so a
-# function defined twice, a forgotten local and an expansion that splits are
-# each refused rather than silently wrong. Anything that splits a list does
-# it explicitly, with read -ra into an array.
-for f in examples/desktop/wm/*.hibr examples/desktop/widgets/*.hibr; do
+# The window manager, its widgets and every app, pane, desk accessory and
+# strip module run under every strict check -- all but session.hibr, which
+# is the user's own script to write as they like, so a function defined twice, a
+# forgotten local and an expansion that splits are each refused rather than
+# silently wrong. Anything that splits a list does it explicitly, with
+# read -ra into an array.
+for f in examples/desktop/desktop.hibr \
+         examples/desktop/wm/*.hibr examples/desktop/widgets/*.hibr \
+         examples/desktop/apps/*.hibr examples/desktop/apps/*/*.hibr \
+         examples/desktop/desk-accessories/*.hibr \
+         examples/desktop/control-panel/*.hibr \
+         examples/desktop/control-strip/*.hibr; do
   grep -qx 'strict' "$f" || echo "not under every strict check: $f"
 done
-echo "the window manager and widgets are strict"
+echo "the desktop is strict"
 
 # A window's own content must never draw at absolute screen coordinates --
 # console put without -p, or img/term draw without -p anywhere in the call --

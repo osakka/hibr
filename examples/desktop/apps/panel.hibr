@@ -9,6 +9,8 @@
 # Run on its own it does nothing -- there is no pane to show without a
 # desktop around it, unlike calc or panel's own former self.
 
+strict
+
 app panel "Control Panel, a picker of panes, and the window list"
 
 command -v dt_app > /dev/null && dt_app panel "Control Panel" 20 58 once "≡"

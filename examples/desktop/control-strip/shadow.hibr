@@ -6,6 +6,8 @@
 # since a single icon read as nothing in particular to anyone who had not
 # already memorised what it meant.
 
+strict
+
 command -v cs_module > /dev/null && cs_module shadow Shadow
 
 fn shadow_draw(row, col) {

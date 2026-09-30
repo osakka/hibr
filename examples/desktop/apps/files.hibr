@@ -18,6 +18,8 @@
 # view first needs them -- never one stat per row, which would make the
 # browser the slowest thing on the desktop.
 
+strict
+
 app files "A file browser"
 
 # What the hibr menu shows, how big a new window is, and whether a second
@@ -70,7 +72,7 @@ mod load ls > /dev/null 2>&1
 # Entries past ["n"] are left over from a larger directory and never read,
 # because everything that walks the list stops there.
 fn fb_scan(id) {
-	local f n=0 base d
+	local f n=0 base d dirs files
 
 	d=${FB[$id]["dir"]}
 	if [ "$d" != / ]; then
@@ -80,7 +82,13 @@ fn fb_scan(id) {
 		FL[$id][$n]["m"]=
 		n=$((n + 1))
 	fi
-	for f in "$d"/*/ ${FB[$id]["hidden"]:+"$d"/.*/}; do
+	dirs=("$d"/*/)
+	files=("$d"/*)
+	if [ -n "${FB[$id]["hidden"]}" ]; then
+		dirs+=("$d"/.*/)
+		files+=("$d"/.*)
+	fi
+	for f in "${dirs[@]}"; do
 		f=${f%/}
 		base=${f##*/}
 		[ -d "$f" ] || continue
@@ -91,7 +99,7 @@ fn fb_scan(id) {
 		FL[$id][$n]["m"]=
 		n=$((n + 1))
 	done
-	for f in "$d"/* ${FB[$id]["hidden"]:+"$d"/.*}; do
+	for f in "${files[@]}"; do
 		[ -e "$f" ] || [ -L "$f" ] || continue
 		[ -d "$f" ] && continue
 		base=${f##*/}
@@ -184,6 +192,8 @@ fn fb_selected(id) {
 	ret "${out# }"
 }
 
+FB_CRUMBS=()
+
 # Every directory between root and $1, each a full path so the same string
 # is what the breadcrumb shows and what it means -- dt_droplist has no room
 # for a label distinct from the value it hands back. Into FB_CRUMBS.
@@ -205,10 +215,11 @@ fn fb_crumbs(d) {
 
 # The paths of a list of entries, into FB_PATHS.
 fn fb_paths(id, sel) {
-	local i p
+	local i p ss
 
 	FB_PATHS=()
-	for i in $sel; do
+	read -ra ss <<< "$sel"
+	for i in "${ss[@]}"; do
 		p := fb_path "$id" "$i"
 		FB_PATHS+=("$p")
 	done

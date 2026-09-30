@@ -4,7 +4,7 @@ no function is defined twice
 no local reads a name assigned earlier in the same statement
 every callback names what it is called with
 every kept preference is in the Control Panel
-the window manager and widgets are strict
+the desktop is strict
 no window content draws at absolute screen coordinates
 every declared program answers --help
 [auth]

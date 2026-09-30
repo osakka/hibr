@@ -112,6 +112,11 @@ Three more tools sit around it:
   expansion split or a value globbed or matched as a pattern -- what
   `strict expansion` would change -- so a file can be made strict from
   evidence rather than by reading it.
+- **`tests/strictvars.py`** -- reads every function in each desktop file that
+  says `strict` and fails on any assignment that would create a global:
+  what `strict vars` refuses at run time, found on every path rather than
+  only the ones a suite reaches. A suite in `all.py`; it takes under a
+  second.
 - **`tests/uifuzz.py`** -- random keys, clicks, drags and wheel turns inside
   one app's window, then: still running, still answering, nothing printed.
   A suite in `all.py` at the fixed `SEED=1`; `SEED=random` explores, and a

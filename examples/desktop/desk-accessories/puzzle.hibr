@@ -12,6 +12,8 @@
 # permutation of the tiles -- a random permutation is only solvable half
 # the time, and this way it always is.
 
+strict
+
 app puzzle "The sliding tile puzzle"
 
 command -v dt_app > /dev/null && dt_app puzzle "Puzzle" 13 22 once "▦" fixed
@@ -21,7 +23,8 @@ PZ_N=4
 PZ_CELLS=16
 
 fn pz_new(id) {
-	local i r a b tmp
+	local i r
+	local -a dirs=(up down left right)
 
 	i=0
 	while [ "$i" -lt $((PZ_CELLS - 1)) ]; do
@@ -37,9 +40,7 @@ fn pz_new(id) {
 	# be solved again the same way it was scrambled.
 	r=0
 	while [ "$r" -lt 400 ]; do
-		a="up down left right"
-		set -- $a
-		pz_slide "$id" "${@:$((RANDOM % 4 + 1)):1}" 1
+		pz_slide "$id" "${dirs[RANDOM % 4]}" 1
 		r=$((r + 1))
 	done
 	PZ[$id]["moves"]=0

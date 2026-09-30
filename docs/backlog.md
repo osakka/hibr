@@ -582,16 +582,18 @@ or a function that should not exist. Take them a file at a time.
 
 ## The language
 
-### The apps under strict too
+### Should `-S` glob what is written inside `${x:+...}`?
 
-`wm/` and `widgets/` run under every strict check since 0.51. The apps, the
-desk accessories, the Control Panel panes and the strip modules do not say
-`strict` at all yet. The way there is the one the window manager took:
-`python3 tests/census.py --expansion apps desk-accessories ...` lists every
-place an expansion splits or a value matches as a pattern, each becomes an
-array (`read -ra`) or a quoted word, the probe is run again until it lists
-nothing, and then the file says `strict` -- with a search for `for ... in $x`,
-`set -- $x` and variable patterns for the paths no suite reaches.
+Under `set -S` and `strict expansion`, the text written inside `${x:+...}`
+or `${x:-...}` neither splits nor globs, because it arrives as that
+expansion's result: `${hidden:+"$d"/.*}` is the literal `.*` rather than
+the hidden files. ADR 0009's own rule is "what you write splits; what
+expands does not", and this is text the author wrote, so there is a case
+for globbing and splitting it as if it stood outside the braces. zsh is
+the reference to check before choosing. Files was the one place in the
+desktop that relied on it, and it now adds the glob on a line of its own,
+so nothing waits on the answer -- but the answer changes what `-S` means,
+and is the owner's to give.
 
 ### Types on the desktop's parameters -- the second pass
 
