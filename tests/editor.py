@@ -8,7 +8,7 @@ import os, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
-from screen import Term, check, report
+from screen import Term, check, report, expect
 
 if len(sys.argv) > 1:
     sx.HIBR = os.path.abspath(sys.argv[1])
@@ -51,9 +51,10 @@ t = session('PS1="> "\nRPS1="[\\t]"\n', ["x"])
 check("the right prompt takes prompt escapes",
       any(c.isdigit() for c in t.split("G[")[-1][:8]) if "G[" in t else False)
 
+expect(r"^axy: command not found")
 t = session('PS1="> "\nRPS1="[r]"\n', ["abc", "\x7f\x7f", "xy\n", "exit\n"])
 check("editing still works with a right prompt", "\r\nhibr: axy: command not found" in t
       or "axy" in t)
 
 print()
-report(10)
+report(11)

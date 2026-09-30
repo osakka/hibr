@@ -561,6 +561,36 @@ like a clean shell, which is a mistake this project has already made once and
 recorded in `CLAUDE.md`. They could be hibr; they should not be.
 
 
+## Testing
+
+### Run only the suites a change touches
+
+`tests/affected.py`: from `git diff` (or a list of paths), the suites that
+exercise what changed -- `mods/console` reaches console, most, hvi, mon and
+both desktop suites; `examples/desktop/control-panel` reaches apps.py;
+`src/` reaches everything. For iterating; the full run stays the release
+gate.
+
+### A standing report of what no suite reaches
+
+The arity census built for 0.44 -- a scratch build logging every function
+call -- as a tool: run the suites under it and list every desktop function
+never called. At 0.44 that was 71, and they were where 0.44.1's thirteen
+bugs lived. Print the list and the count; watch the count fall.
+
+### Fuzz each app
+
+Random keys, clicks, drags and wheel events against each app and pane, then
+check: the desktop still answers a key, nothing crashed, nothing was printed
+on stderr. Seeded, so a failure replays; `tests/fuzz.py` does the same for
+the parser already.
+
+### The pty suites under the sanitizers
+
+The console, term, pty, hold and img modules are only exercised end to end
+by the pty suites, and those only ever run the tcc build. Run them now and
+then against an ASan build of the shell and its modules.
+
 ## The language
 
 ### A strict mode, per file -- agreed, next

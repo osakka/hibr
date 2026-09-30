@@ -67,4 +67,4 @@ v = screen(run("trace -l -m 3 -w 300 -n 127.0.0.1"))
 check("-n leaves the address unresolved",
       "127.0.0.1" in v and "localhost" not in v.split("\n", 1)[1])
 
-report(11)
+report(12)

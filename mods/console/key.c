@@ -74,9 +74,14 @@ static int cn_watchprune(void)
 	return found;
 }
 
+/* How many bytes of input have been turned into keys since the start -- a
+   test harness compares it with how many it has sent. */
+size_t cn_eaten;
+
 /* Drop the bytes already turned into keys, keeping the buffer small. */
 void cn_eat(size_t n)
 {
+	cn_eaten += n;
 	cn_pendo += (int)n;
 	if ((size_t)cn_pendo >= cn_pend.n) {
 		cn_pend.n = 0;

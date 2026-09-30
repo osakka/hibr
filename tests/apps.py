@@ -87,6 +87,12 @@ def run(app, win, feed=(), pre="", wait=1.0, also=(), end=b"qy", extra=(),
         % (load(*mods), WM, src, pre, app.title(), win, app,
            more + ("dt_raise 1\n" if also else "")))
     t = Term(p, env=dict({"DT_TICK": "60"}, **(env or {})), settle=0.6)
+    # The desktop says when its frame is drawn, but a terminal window's
+    # program starts on its own time: a key sent the moment the window is
+    # up can reach a shell that has not yet set its trap. Give it the time
+    # the old fixed start used to give everything.
+    if "term" in mods:
+        t.collect(0.8)
     t.keys(feed)
     t.quit(end, wait)
     sc = t.screen()
@@ -1314,12 +1320,12 @@ check("the snake waits in the middle for an arrow",
       sc.find("an arrow to start") is not None and
       sc.find("██████") is not None, sc)
 
-sc = run("snake", SW, feed=[b"\x1b[B", b"p"])
+sc = run("snake", SW, feed=[b"\x1b[B", 0.6, b"p"])
 col = [r for r in range(3, 20) if sc.at(r, 23) == "█"]
 check("an arrow sets it off, and it goes that way",
       sc.find("paused") is not None and len(col) >= 3, sc)
 
-sc = run("snake", SW, feed=[b"\x1b[A"] + [b"z"] * 5)
+sc = run("snake", SW, feed=[b"\x1b[A", 3.0])
 check("the wall ends the game", sc.find("bitten") is not None, sc)
 
 MW = "15 31 2 2"
@@ -1364,7 +1370,7 @@ check("the arrows move the bat, and the ball rides along",
 sc = run("bricks", BW, feed=[press(10, 36)])
 check("a click puts the bat under it", sc.find("▀▀▀▀▀▀▀") == (20, 33), sc)
 
-sc = run("bricks", BW, feed=[b" ", b"z", b"z", b"z"])
+sc = run("bricks", BW, feed=[b" ", 2.0])
 check("served, the ball knocks a brick out and scores it",
       sc.row(3)[3:6].strip() not in ("0", ""), sc)
 
@@ -1986,4 +1992,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(270)
+report(271)

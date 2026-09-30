@@ -13,7 +13,7 @@ import os, re, signal, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
-from screen import Term, check, report, tree
+from screen import Term, check, report, tree, expect
 
 if len(sys.argv) > 1:
     sx.HIBR = os.path.abspath(sys.argv[1])
@@ -187,6 +187,7 @@ check("mouse reporting is off unless asked for",
       b"\x1b[?1002h" not in o and b"\x1b[?1000h" not in o
       and b"\x1b[?1003h" not in o)
 
+expect(r"^usage: console mouse")
 o, _ = run('console mouse nonsense\n')
 check("a bad mouse mode is refused", b"usage" in o)
 
@@ -207,4 +208,4 @@ o, _ = run('console open\nconsole flush\nconsole key 3000\nconsole close\n'
            after=bigger, wait=3)
 check("a resize interrupts the wait and is reported", counts(o) == [40, 100])
 
-report(len(WANT) + len(MWANT) + 38)
+report(len(WANT) + len(MWANT) + 39)

@@ -1,5 +1,54 @@
 # Changelog
 
+## 0.48
+
+Desktop moves to **0.27** alongside this release.
+
+**The whole test run takes two and a half minutes, not thirty-five.** The
+full-screen suites spent 99% of their time asleep -- `most.py` did 0.2
+seconds of work in 35 -- because every key waited a fixed 0.45s, every
+session a fixed start, and every quit a full 1.2s whether or not the program
+had already gone. Now:
+
+- **The desktop says when it is ready.** Run with `HIBR_TESTIDLE`, it prints
+  an escape a terminal ignores each time a frame is on screen and it is about
+  to wait, carrying how many bytes of input it has read -- `console consumed`,
+  new -- so the harness waits for the frame that includes its key and no
+  longer, and a frame a timer asked for is never mistaken for it.
+  `desktop.py` went from about 15 minutes to 150 seconds, `apps.py` from
+  about 10 to 75.
+- **A session ends when its program does**, not after a fixed wait.
+- **Every suite runs at once**, one per core: `tests/all.py`, or
+  `make check-all`, with a line per suite and full logs in `build/test-logs`.
+
+Speeding it up exposed two tests that had only passed because they were
+slow: a snake and a brick game were being given time by pressing a harmless
+key several times (a pause is now written as a pause), and a terminal
+window's shell could be sent ctrl-c before it had set its trap (a terminal
+test now gives its program a moment to start). And running side by side
+explained `term_diff`'s one odd run in 0.46: every case started a tmux
+server on the same socket and killed it, and a kill returns before the
+server has gone, so under load the next case's start failed now and then.
+Each case has a socket of its own now, and removes it after.
+
+**A shell error printed anywhere fails the suite.** A too-many-arguments or a
+command-not-found in a desktop session used to scroll past and leave the
+test green if the screen still looked right -- the kind of error 0.44.1 was
+made of. Every session is now scanned, and a suite fails on any shell error
+nothing asked for; a test that provokes one on purpose declares it beside
+itself. None was found in the desktop suites.
+
+Four more ideas are in `docs/backlog.md` under Testing: running only the
+suites a change touches, a standing report of desktop functions no suite
+calls, fuzzing each app, and the pty suites under the sanitizers.
+
+HIBR_VER -> 0.48, DT_VER -> 0.27.
+
+Verified: tests/all.py, four full runs green after the last change -- run.sh
+92/92, desktop.py 299/299, apps.py 271/271, most 23/23, hvi 32/32, console
+61/61, cat 29/29, mon 16/16, mtr 12/12, editor 11/11, term_diff 66/66 -- in
+153 seconds each.
+
 ## 0.47
 
 **A command in a shell with many functions costs what one in a shell with

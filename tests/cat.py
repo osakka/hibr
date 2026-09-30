@@ -10,7 +10,7 @@ import os, sys, tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
-from screen import Term, check, report, load
+from screen import Term, check, report, load, expect
 
 if len(sys.argv) > 1:
     sx.HIBR = os.path.abspath(sys.argv[1])
@@ -89,6 +89,7 @@ t = tty("cat %s %s" % (pl, pl))
 check("numbering runs across files, as cat has always done",
       "\x1b[38;5;240m     4\x1b[0m" in t)
 
+expect(r"^cat: .*nosuchfile: No such file")
 t = tty("cat %s/nosuchfile; echo rc=$?" % D)
 check("a missing file is an error and a status", "rc=1" in t)
 
@@ -112,4 +113,4 @@ print()
 for f in os.listdir(D):
     os.unlink(os.path.join(D, f))
 os.rmdir(D)
-report(28)
+report(29)

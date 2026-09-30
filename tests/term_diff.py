@@ -216,7 +216,10 @@ def hibr_screen(rows, cols, data, attrs):
     return text, cells, p.stderr
 
 
-SOCK = "hibr-td-%d" % os.getpid()
+# One tmux server per case, each on a socket of its own: kill-server returns
+# before the server has finished going, and reusing its name straight away
+# failed now and then under load -- which is how a run once stopped at 62.
+SOCKN = [0]
 
 
 def tmux_screen(rows, cols, data, attrs):
@@ -228,6 +231,8 @@ def tmux_screen(rows, cols, data, attrs):
     open(f, "wb").write(data)
     open(conf, "w").write("set -g status off\nset -g default-terminal xterm-256color\n")
     cmd = "stty -opost -onlcr; cat %s; touch %s; sleep 30" % (f, done)
+    SOCKN[0] += 1
+    SOCK = "hibr-td-%d-%d" % (os.getpid(), SOCKN[0])
     subprocess.run(["tmux", "-L", SOCK, "-f", conf, "new-session", "-d",
                     "-x", str(cols), "-y", str(rows), "-s", "s", cmd],
                    check=True)
@@ -239,6 +244,11 @@ def tmux_screen(rows, cols, data, attrs):
                          + (["-e"] if attrs else []),
                          capture_output=True, text=True).stdout
     subprocess.run(["tmux", "-L", SOCK, "kill-server"], capture_output=True)
+    try:
+        os.unlink(os.path.join(os.environ.get("TMUX_TMPDIR", "/tmp"),
+                               "tmux-%d" % os.getuid(), SOCK))
+    except OSError:
+        pass
     shutil.rmtree(d, True)
     lines = cap.split("\n")[:rows]
     lines += [""] * (rows - len(lines))

@@ -134,6 +134,10 @@ strip: $(BIN)
 check: all
 	tests/run.sh
 
+# Every suite, the pty ones included, side by side: a couple of minutes.
+check-all: all
+	python3 tests/all.py
+
 # What HIBR_VER and the desktop's own DT_VER should probably become next,
 # from what actually changed since the last release tag (or FROM, given
 # explicitly) -- see tools/next-version.sh's own comment for what decides
@@ -162,4 +166,4 @@ uninstall:
 clean:
 	rm -rf $(B)
 
-.PHONY: all clean strip check next-version install uninstall FORCE
+.PHONY: all clean strip check check-all next-version install uninstall FORCE

@@ -46,6 +46,10 @@ terminal's own default colour has no table to scale by, so those cells get
 the dim attribute alone. It reads back what `cn_put` already wrote, which
 `cn_fill` and `cn_put` themselves never do.
 
+`console consumed` answers how many bytes of input have been turned into keys
+since the console was loaded -- what the desktop's idle marker reports, under
+`HIBR_TESTIDLE`, so a test harness knows its keys have been read.
+
 `console shade colour [pct]` answers the colour `darken` would turn a
 `#rrggbb` into, as another `#rrggbb` — through `:=`, or printed. It is how
 something drawn inside a pane, where `darken` cannot reach, gets a shadow of

@@ -27,6 +27,7 @@ Version and ABI: `HIBR_VER` and `HIBR_ABI` in `include/hibr.h` (0.21, ABI 14).
     make TLS=0           # compile TLS out entirely
     make CC=gcc OPT=-O2  # optimised: ~20% smaller text, ~45% faster, not the default
     make check           # = tests/run.sh
+    make check-all       # = tests/all.py: every suite, side by side, ~2.5 min
     make install         # PREFIX=/usr/local, modules to $(PREFIX)/lib/hibr,
                          # the desktop to $(PREFIX)/share/hibr/desktop and
                          # a `desktop` launcher to $(PREFIX)/bin
@@ -1192,6 +1193,24 @@ went in the shell.
   choose a pane's shape, and a pane named `about` would find the About
   app's own window callback. That is why they are `abouthibr`, `filesview`,
   `taskmgr` and `terminal`.
+- **A pty suite waits for the desktop, not for the clock.** Every key used
+  to cost a fixed 0.45s and every session a fixed start and a full 1.2s
+  quit, so the suites were 99% asleep: `most.py` did 0.2s of work in 35s,
+  and a full run took 35 minutes. The desktop now prints an idle marker
+  under `HIBR_TESTIDLE`, with the count of input bytes `console consumed`
+  says it has read, and `Term` waits for the marker that has caught up with
+  what it sent -- the count is what stops a frame a timer asked for (the
+  clock, a blinking cursor) being taken for the key's. What that exposed:
+  tests that padded time with harmless keys (a snake's `z`s) now say
+  `feed=[..., 3.0]`, and a terminal window's program needs a moment to start
+  before a key reaches it (`apps.py`'s `run` gives it one). All of it runs
+  side by side with `tests/all.py`, in about 150 seconds.
+- **A shell error in any session fails the suite.** `hibr: ...` ending in a
+  newline is never drawn -- the console positions the cursor and never
+  sends one -- so `Term.close` collects them and `report` adds a check. A
+  test that provokes one on purpose says `expect(pattern)` beside it. The
+  pattern refuses a `hibr: ` preceded by a path, since `session.hibr: ...`
+  is a script's own message, not the shell's.
 - **A pty suite's count is counted, not assumed.** `report(N)` used to print
   N minus the failures, so a check never reached still read as a pass.
   `tests/screen.py` counts checks as they are made and fails a suite whose

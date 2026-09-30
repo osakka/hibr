@@ -138,6 +138,14 @@ DT_RSTILL=150
 # key handler cannot swallow one", tests/desktop.py): confirmed
 # pre-existing and unrelated to any of this, a matched 100-run baseline
 # on unmodified code still failed about 4% of the time. See CLAUDE.md.
+# A test harness sets HIBR_TESTIDLE to be told, with an escape sequence a
+# terminal ignores, each time a frame is on screen and the loop is about to
+# wait -- and how many bytes of input have been read by then, so a frame a
+# timer asked for is never taken for the one after its key. It can send the
+# next key the moment the last one has been drawn, rather than sleeping for
+# a time long enough on a slow day.
+DT_TESTIDLE=${HIBR_TESTIDLE-}
+
 dt_run() {
 	local k rsz=0 last now pk= skipn=0
 	while [ "$DT_QUIT" = 0 ]; do
@@ -150,6 +158,10 @@ dt_run() {
 				dt_autoclose
 				skipn=0
 			fi
+		fi
+		if [ -n "$DT_TESTIDLE" ]; then
+			k := console consumed
+			printf '\e]7777;idle;%s\a' "$k"
 		fi
 		if [ "$rsz" = 1 ]; then
 			k := console key 80

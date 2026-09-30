@@ -9,7 +9,7 @@ import os, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
-from screen import Term, Screen, check, report, load
+from screen import Term, Screen, check, report, load, expect
 
 if len(sys.argv) > 1:
     sx.HIBR = os.path.abspath(sys.argv[1])
@@ -82,7 +82,8 @@ check("p pauses", "PAUSED" in v)
 v = screen(run("mon -d 0.4", keys=[b"m"], settle=2.0))
 check("m sorts by memory", "PID" in v)
 
+expect(r"^usage: mon ")
 t = run("mon --nonsense", settle=1.0)
 check("a bad option is refused", "usage" in t)
 
-report(15)
+report(16)

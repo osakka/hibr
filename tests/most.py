@@ -12,7 +12,7 @@ import os, sys, tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen
-from screen import Term, Screen, check, report, load
+from screen import Term, Screen, check, report, load, expect
 
 if len(sys.argv) > 1:
     screen.HIBR = os.path.abspath(sys.argv[1])
@@ -95,6 +95,8 @@ check("F says it is following", "FOLLOWING" in v)
 t = run("most %s" % plain, keys=[b"?"])
 check("? lists the keys", "q" in t and "tab" in t)
 
+expect(r"^most: .*nosuchfile: No such file")
+expect(r"^most: give a file, or pipe something in")
 t = run("most %s/nosuchfile; echo rc=$?" % D, settle=0.5)
 check("a missing file is refused", "rc=" in t)
 
@@ -107,4 +109,4 @@ print()
 for f in os.listdir(D):
     os.unlink(os.path.join(D, f))
 os.rmdir(D)
-report(22)
+report(23)

@@ -21,7 +21,7 @@ Run it directly to look at something rather than assert on it:
     python3 tests/screen.py examples/desktop/session.hibr
     python3 tests/screen.py -c 'mod load build/mods/mon.so; mon'
 """
-import fcntl, os, pty, select, signal, struct, sys, termios, time
+import fcntl, os, pty, re, select, signal, struct, sys, termios, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HIBR = os.environ.get("HIBR") or os.path.join(ROOT, "build/hibr")
@@ -89,6 +89,12 @@ class Screen:
                     self.clear()
                 i = j + 1
                 continue
+            if ch == "\x1b" and i + 1 < n and t[i + 1] == "]":
+                j = i + 2
+                while j < n and t[j] != "\x07" and t[j:j + 2] != "\x1b\\":
+                    j += 1
+                i = j + (2 if t[j:j + 2] == "\x1b\\" else 1)
+                continue
             if ch == "\x1b":
                 i += 2
                 continue
@@ -138,8 +144,39 @@ class Screen:
         return "\n".join("%2d|%s" % (r, self.row(r)) for r in range(self.rows))
 
 
+# What the desktop prints, when HIBR_TESTIDLE is set, each time a frame is on
+# screen and it is about to wait for input -- an OSC a terminal ignores,
+# carrying how many bytes of input it has read by then.
+IDLE = re.compile(rb"\x1b\]7777;idle;(\d+)\x07")
+
+# An error the shell printed: "hibr: " and a message, then a newline. The
+# console draws by moving the cursor and never sends one, so a line ending
+# in a newline is never something drawn on screen. Every session is scanned
+# as it closes, and report() fails a suite in which any printed one -- the
+# too-many-arguments or command-not-found that used to scroll past unseen.
+ERROR = re.compile(rb"(?<![\w./-])hibr: ([^\r\n\x1b]*)\r?\n")
+ERRS = []
+TERMS = [0]
+EXPECTED = []
+
+
+def expect(pattern):
+    """An error a test provokes on purpose -- a missing file, a bad option --
+    which is therefore not one to fail the suite over. Named by what it says,
+    not by which session printed it, so an unexpected error beside it still
+    counts."""
+    EXPECTED.append(re.compile(pattern))
+
+
 class Term:
-    """A pty with hibr running on it."""
+    """A pty with hibr running on it.
+
+    A desktop tells the harness when it is idle (IDLE, above), and a Term
+    that has seen it once waits for the next one after each key instead of
+    sleeping for a fixed time: a key costs what drawing it costs. A key
+    sent with an explicit settle still sleeps that long, for a test waiting
+    on something outside the frame -- a terminal's child answering, a
+    timer. Anything that never says it is idle keeps the fixed timings."""
 
     def __init__(self, *argv, rows=ROWS, cols=COLS, env=None, settle=0.4,
                  size=True):
@@ -147,6 +184,9 @@ class Term:
         self.out = b""
         self.status = None
         self.exited = False
+        self.idle = False
+        self.sent = 0
+        self.mark = 0
         self.pid, self.fd = pty.fork()
         if self.pid == 0:
             # A shell this suite happens to run from can itself be a hold
@@ -159,6 +199,7 @@ class Term:
             # hold-dependent check fails confusingly far from this cause.
             os.environ.pop("HIBR_HOLD", None)
             os.environ["TERM"] = "xterm-256color"
+            os.environ["HIBR_TESTIDLE"] = "1"
             own = os.path.join(HOME, str(os.getpid()))
             os.environ["XDG_CONFIG_HOME"] = os.path.join(own, "config")
             os.environ["XDG_STATE_HOME"] = os.path.join(own, "state")
@@ -169,8 +210,10 @@ class Term:
         if size:
             self.resize(rows, cols)
         if settle:
-            time.sleep(settle)
-            self.collect(0.4)
+            if self.until_idle(settle + 0.4):
+                self.idle = True
+            else:
+                self.collect(0.05)
 
     def resize(self, rows, cols):
         self.rows, self.cols = rows, cols
@@ -191,19 +234,62 @@ class Term:
             self.out += d
         return self
 
-    def send(self, data, settle=0.25, collect=0.2):
+    def idled(self):
+        """Whether the desktop has said it is idle with everything sent so
+        far read -- the frame after the last key is on screen."""
+        m = None
+        for m in IDLE.finditer(self.out, self.mark):
+            pass
+        if m is None:
+            return False
+        self.mark = m.start()
+        return int(m.group(1)) >= self.sent
+
+    def until_idle(self, timeout=5.0):
+        """Collect until idled(), the process exits, or timeout; whether it
+        became idle."""
+        end = time.time() + timeout
+        while time.time() < end:
+            if self.idled():
+                return True
+            if not select.select([self.fd], [], [], 0.02)[0]:
+                continue
+            try:
+                d = os.read(self.fd, 65536)
+            except OSError:
+                return False
+            if not d:
+                return False
+            self.out += d
+        return self.idled()
+
+    def send(self, data, settle=None, collect=None):
         if isinstance(data, str):
             data = data.encode()
         os.write(self.fd, data)
+        self.sent += len(data)
+        if self.idle and settle is None and collect is None:
+            self.until_idle()
+            return self
+        if settle is None:
+            settle = 0.25
+        if collect is None:
+            collect = 0.2
         if settle:
             time.sleep(settle)
         if collect:
             self.collect(collect)
         return self
 
-    def keys(self, ks, settle=0.25, collect=0.2):
+    def keys(self, ks, settle=None, collect=None):
+        """Send each key; a number among them is a pause of that many
+        seconds, output collected meanwhile -- for a game or a clock, which
+        moves on time passing rather than on keys."""
         for k in ks:
-            self.send(k, settle, collect)
+            if isinstance(k, (int, float)):
+                self.collect(k)
+            else:
+                self.send(k, settle, collect)
         return self
 
     def signal(self, sig=signal.SIGINT):
@@ -211,17 +297,24 @@ class Term:
         return self
 
     def quit(self, key=b"q", wait=1.2):
-        """Ask it to stop, then wait for it to."""
+        """Ask it to stop, then wait for it to -- no longer than it takes."""
         if key is not None:
             try:
                 os.write(self.fd, key)
             except OSError:
                 pass
-        self.collect(wait)
-        return self.close()
+        return self.wait(wait)
 
     def close(self):
-        """Tear down, recording whether it had already exited on its own."""
+        """Tear down, recording whether it had already exited on its own,
+        and any error the shell printed while it ran."""
+        if not getattr(self, "scanned", False):
+            self.scanned = True
+            TERMS[0] += 1
+            for m in ERROR.finditer(self.out):
+                e = m.group(1).decode("utf8", "replace")
+                if not any(x.search(e) for x in EXPECTED):
+                    ERRS.append(e)
         if self.status is None:
             try:
                 pid, st = os.waitpid(self.pid, os.WNOHANG)
@@ -247,7 +340,7 @@ class Term:
         """Collect until it exits or the time is up."""
         end = time.time() + timeout
         while time.time() < end:
-            self.collect(0.1)
+            self.collect(0.02)
             try:
                 pid, st = os.waitpid(self.pid, os.WNOHANG)
             except ChildProcessError:
@@ -313,6 +406,11 @@ def report(total=None):
     a suite that made a different number -- one skipped by an exception
     caught somewhere, or added without the plan being raised -- fails
     rather than reporting a count it did not earn."""
+    if TERMS[0]:
+        check("no session printed a shell error", not ERRS,
+              "\n".join(dict.fromkeys(ERRS)))
+        if ERRS:
+            print("\n".join("  " + e for e in dict.fromkeys(ERRS)))
     print()
     print("%d passed, %d failed" % (RAN[0] - len(FAIL), len(FAIL)))
     if total is not None and RAN[0] != total:

@@ -49,6 +49,7 @@ void cn_setdim(unsigned fg, unsigned bg);
 void cn_cursor(int row, int col, int vis);
 long cn_flush(void);
 int cn_key(int ms, str *out);
+extern size_t cn_eaten;
 void cn_watchadd(int fd);
 void cn_watchdel(int fd);
 int cn_colour(const char *t, unsigned *out);

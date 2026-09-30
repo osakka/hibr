@@ -2208,4 +2208,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(298)
+report(299)

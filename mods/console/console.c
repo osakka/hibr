@@ -398,6 +398,15 @@ int m_console(sh *s, int ac, char **av)
 			  ac > 6 ? atoi(av[6]) : 55);
 		return HIBR_OK;
 	}
+	if (!strcmp(sub, "consumed")) {
+		s_init(&k);
+		s_num(&k, (long)cn_eaten);
+		hibr_ret(s, k.p);
+		if (!s->bind)
+			printf("%s\n", k.p);
+		s_free(&k);
+		return HIBR_OK;
+	}
 	if (!strcmp(sub, "shade")) {
 		unsigned v;
 		int pct = ac > 3 ? atoi(av[3]) : 55, i;

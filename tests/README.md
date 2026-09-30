@@ -69,6 +69,34 @@ display sends only the cells that changed, so grepping the byte stream finds
 copies of that and five of the model, differing in timings, so fixing one
 fixed one. Do not write a seventh; add what is missing to `screen.py`.
 
+**It waits for the program, not for the clock.** A desktop run with
+`HIBR_TESTIDLE` set -- every `Term` sets it -- prints an escape a terminal
+ignores each time a frame is on screen and it is about to wait, carrying how
+many bytes of input the console has read by then. A `Term` that has seen one
+waits after each key for the one that has caught up with everything sent, so
+a key costs what drawing it costs, and a frame a timer asked for is never
+taken for the key's. A key sent with an explicit `settle` still sleeps it,
+for a test waiting on something outside the frame; a number among the keys
+is a pause, for a game or a clock that moves on time; and `quit` returns the
+moment the program has exited. Programs that never say they are idle -- the
+pager, the editor -- keep the old fixed timings. A terminal window's own
+program starts on its own time, so `tests/apps.py` gives it a moment before
+the first key.
+
+**It fails a suite in which any session printed a shell error.** A line
+`hibr: ...` ending in a newline is never something the console drew, so
+every session is scanned as it closes, and `report` adds the check. An error a
+test provokes on purpose is declared beside it with `expect(pattern)`, by
+what it says, so an unexpected one in the same session still counts.
+
+**It counts its checks.** `report(N)` fails a suite whose checks made are not
+N, so one that stopped being reached cannot read as a pass.
+
+**`tests/all.py` runs everything at once** -- `tests/run.sh` and every pty
+suite, one per core -- with one line each and full logs under
+`build/test-logs/`; `make check-all` is the same. They are independent: each
+pty run has its own terminal, XDG directories and hold sockets.
+
 It is also runnable, which is what to reach for instead of a throwaway script:
 
 ```
