@@ -7,7 +7,7 @@
 #define HIBR_ABI 15u
 #endif
 #ifndef HIBR_VER
-#define HIBR_VER "0.56"
+#define HIBR_VER "0.57"
 #endif
 #ifndef HIBR_OK
 #define HIBR_OK 0
@@ -117,6 +117,7 @@
 #define A_REF 2u
 #define A_LOW 4u
 #define A_UPP 8u
+#define A_ASSOC 16u
 #define A_TYSH 8
 #define A_TYMASK 0xf00u
 #endif

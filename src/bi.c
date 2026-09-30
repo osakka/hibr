@@ -203,10 +203,11 @@ char *bi_keys(sh *s, char *word, const char *mk, vec *ks)
 		if (!end)
 			break;
 		*end = 0;
-		k = xkey_q(s, r, mk ? mk + (r - word) : 0);
+		k = xkey_q(s, word, r, mk ? mk + (r - word) : 0);
 		k = ar_dup(s->xa, k, strlen(k));
 		v_add(ks, k);
-		if (k[0] == '-' && isdigit((unsigned char)k[1]))
+		if (k[0] == '-' && isdigit((unsigned char)k[1]) &&
+		    !xassoc(s, word))
 			ks->p[ks->n - 1] =
 				xneg(s, word, (char **)ks->p, (int)ks->n - 1);
 		*end = ']';
@@ -1177,7 +1178,7 @@ void b_decl1(sh *s, var *v)
 	if (v->ex)
 		s_ch(&f, 'x');
 	if (v->am)
-		s_ch(&f, 'A');
+		s_ch(&f, v->at & A_ASSOC ? 'A' : 'a');
 	if (*ty)
 		printf("declare %s%s%s ", f.n ? "-" : "", f.n ? f.p : "", ty);
 	else
@@ -1251,8 +1252,8 @@ int b_decl(sh *s, int ac, char **av)
 			case 'u': at = (at & ~A_LOW) | A_UPP; break;
 			case 'r': ro = 1; break;
 			case 'x': ex = 1; break;
-			case 'a':
-			case 'A': map = 1; break;
+			case 'a': map = 1; break;
+			case 'A': map = 1; at |= A_ASSOC; break;
 			case 'g': glob = 1; break;
 			case 'p': pr = 1; break;
 			case 'f': fn = 1; break;

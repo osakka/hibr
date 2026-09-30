@@ -1341,6 +1341,18 @@ went in the shell.
   the digits. `ty_ok` remains for `ret` and `declare`. Bit 0 of a parameter
   node's `f` is still "rest" (`TY_REST`); anything else reading it must mask.
 
+- **An array declared `-A` takes every subscript literally.** bash reads an
+  associative array's subscript as a key and an indexed array's as
+  arithmetic; hibr's one kind of array read both as arithmetic, so
+  `declare -A seen; seen[$line]=1` put any line with a dash, a plus or a
+  space at key `0`. `A_ASSOC` on the variable now makes `xkey` leave the key
+  alone, checked only where a key would otherwise change -- a lookup on
+  every subscript cost 0.7% on a map loop, this costs 0.04%. The desktop's
+  maps are all `declare -gA`, so the unquoted-subscript trap above no longer
+  bites there; quote literal keys anyway, since an array without `-A` still
+  follows the old rule. One gap remains: `declare -A m=([c d]=2)` splits at
+  the space, where bash keeps `c d` as one key.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then

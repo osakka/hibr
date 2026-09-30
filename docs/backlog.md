@@ -588,18 +588,15 @@ ordered by leverage. Each is measurable the same way: give a model the
 reference and a set of tasks, and count the scripts that run correctly on
 the first try, before and after.
 
-### A reference written for a model to read
+### Measure the reference, and check the other pages the same way
 
-An `llms.txt` at the root and one page, `docs/llm.md`, that fits in a
-model's context: the grammar as `docs/grammar.md` states it, but condensed
-to the idioms; every divergence from bash in one table (the `docs/adr/`
-decisions, one line each); the features bash lacks, with a runnable example
-each (nested maps, `:=`, `match`/`M`, `json`, `/dev/tcp`, typed functions,
-`args`). Every example is run and its output pasted back, and
-`tests/530-docs.t` fails when one stops matching -- the same rule the
-cookbook already keeps. Cheap, and worth more than any feature: models write
-an unfamiliar language well from a tight reference and badly from scattered
-pages.
+`docs/llm.md` and `llms.txt` shipped in 0.57, and `tests/531-llm.t` runs every
+example on the page. Two things remain. The measurement the idea was judged
+by: hand a model the page and a set of tasks, count the scripts that run
+correctly the first time, with the page and without it. And the same checker
+over `docs/cookbook.md` and `docs/data.md`, whose examples were run once and
+pasted back but are not run again -- they would need their output blocks
+marked the way `docs/llm.md`'s are.
 
 ### An agent mode
 
@@ -662,7 +659,9 @@ Every place hibr differs from bash is a place a model's bash breaks, and a
 model that has been burned once stops reaching for it. `tests/corpus.py` is
 the instrument: 7 scripts of 465 invocations still differ (see `CLAUDE.md`'s
 open items). Keep driving it to zero for anything not deliberately
-different, and make each deliberate difference loud -- a one-line warning
+different -- including one found while writing `docs/llm.md`: a compound
+assignment splits `[c d]=2` at the space, where bash keeps `c d` as one
+key -- and make each deliberate difference loud: a one-line warning
 in agent mode the first time a script depends on bash behaviour hibr does
 not have, rather than a silently different result.
 

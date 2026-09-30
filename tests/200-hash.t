@@ -23,7 +23,7 @@ unset h
 echo "after unset: [${h[users][omar][role]}] count=${#h[@]}"
 
 echo "--- arithmetic reaches a nested subscript"
-declare -A g
+unset g
 g[1][row]=6
 g[1][col]=10
 g[2][row]=9

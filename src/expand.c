@@ -384,8 +384,18 @@ int xall(const char *i)
 	return i && (!strcmp(i, "@") || !strcmp(i, "*"));
 }
 
-/* Resolve a subscript: numeric keys and expressions evaluate, names stay. */
-char *xkey(sh *s, char *t)
+/* Whether a variable was declared with declare -A, whose subscripts are
+   always literal keys, as in bash. */
+int xassoc(sh *s, const char *nm)
+{
+	var *v = nm ? v_find(s, nm) : 0;
+
+	return v && (v->at & A_ASSOC);
+}
+
+/* Resolve a subscript of the variable nm: numeric keys and expressions
+   evaluate, names stay, and every key of a declare -A variable is literal. */
+char *xkey(sh *s, const char *nm, char *t)
 {
 	const char *v;
 	size_t i;
@@ -399,14 +409,14 @@ char *xkey(sh *s, char *t)
 	if (digits)
 		return t;
 	if (strpbrk(t, "+-*/%()<>=!&|^ "))
-		return xnum(s, ax_run(s, t));
+		return xassoc(s, nm) ? t : xnum(s, ax_run(s, t));
 	if (isname(t)) {
 		v = hibr_get(s, t);
 		if (v && *v) {
 			for (i = 0; v[i]; i++)
 				if (!isdigit((unsigned char)v[i]))
 					return t;
-			return ar_dup(s->xa, v, strlen(v));
+			return xassoc(s, nm) ? t : ar_dup(s->xa, v, strlen(v));
 		}
 	}
 	return t;
@@ -445,8 +455,9 @@ int xkeys(sh *s, part *p, char ***out, int *all)
 	for (w = p->idx; w; w = w->nx) {
 		ks[i] = xone(s, w);
 		if (!xall(ks[i]) && !w_hasq(w)) {
-			ks[i] = xkey(s, ks[i]);
-			if (ks[i][0] == '-' && isdigit((unsigned char)ks[i][1]))
+			ks[i] = xkey(s, p->t, ks[i]);
+			if (ks[i][0] == '-' && isdigit((unsigned char)ks[i][1]) &&
+			    !xassoc(s, p->t))
 				ks[i] = xneg(s, p->t, ks, i);
 		}
 		i++;
@@ -658,7 +669,7 @@ const char *xbyname(sh *s, const char *r)
 		if (!end)
 			break;
 		*end = 0;
-		v_add(ks, xkey(s, ar_dup(s->xa, q, strlen(q))));
+		v_add(ks, xkey(s, nm.p, ar_dup(s->xa, q, strlen(q))));
 		*end = ']';
 		q = end + 1;
 		if (*q == '[')
@@ -1220,7 +1231,7 @@ void xpad(vec *out, vec *outm)
 }
 
 /* Resolve a subscript, treating one holding a quoted byte as a literal key. */
-char *xkey_q(sh *s, char *t, const char *mk)
+char *xkey_q(sh *s, const char *nm, char *t, const char *mk)
 {
 	size_t i;
 
@@ -1230,7 +1241,7 @@ char *xkey_q(sh *s, char *t, const char *mk)
 				lg(HIBR_LTRC, "subscript '%s' quoted, literal", t);
 				return t;
 			}
-	return xkey(s, t);
+	return xkey(s, nm, t);
 }
 
 /* Expand one field, globbing it when it holds unquoted patterns. */

@@ -24,3 +24,11 @@ echo "try caught: err=$ERR status=$ERRSTATUS msg=[$ERRMSG]"
 title hibr-worker
 read -r c < /proc/$$/comm
 echo "comm=$c"
+fn again(...argv) {
+  opt -n --count count int=1 "How many"
+  args "${argv[@]}" || return
+  echo "again: count=$count"
+}
+again --count=5
+again -n 6
+again

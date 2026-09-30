@@ -100,6 +100,7 @@ args "$@"
 
 | | |
 |---|---|
+| [hibr, for a language model](docs/llm.md) | The whole language on one page, every example run by the tests; `llms.txt` points to it |
 | [The language](docs/language.md) | Syntax, expansion, arithmetic, conditionals, maps and arrays, typed functions, declared arguments, errors |
 | [Text, regex and JSON](docs/data.md) | In-process text and array operations, POSIX regex, JSON over the map model |
 | [Networking](docs/networking.md) | Sockets, TLS, `/dev/tcp` and friends, `listen` |

@@ -61,8 +61,9 @@ the path it was found at.
 | `getopts optstring name [args…]` | parse option letters, one call at a time |
 
 `declare` takes bash's flags — `-i` integer, `-l` and `-u` lower and upper
-cased on assignment, `-r` readonly, `-x` export, `-a` and `-A` map (they are
-the same thing here), `-n` nameref, `-p` print, `-g` global — and **[hibr]** accepts one of the shell's own type names in their place:
+cased on assignment, `-r` readonly, `-x` export, `-a` and `-A` map (the same map
+either way, but a `-A` array takes every subscript as a literal key, as
+bash's associative arrays do), `-n` nameref, `-p` print, `-g` global — and **[hibr]** accepts one of the shell's own type names in their place:
 
 ```sh
 declare -i n;   n=abc    # bash's: coerces, n becomes 0
@@ -207,8 +208,9 @@ See [Networking](networking.md) and
 
 | builtin | synopsis |
 |---|---|
-| `opt -s --long name [type[!+][=default]] [help…]` | **[hibr]** declare one option |
-| `args "$@"` | **[hibr]** parse the arguments against what was declared |
+| `opt -s --long name [type[!+][=default]] [help…]` | **[hibr]** declare one option; declaring the same name again replaces it |
+| `opt -clear` | **[hibr]** forget every declared option, to start another set |
+| `args "$@"` | **[hibr]** parse the arguments against what was declared, then forget the declarations, so the next `args` starts from its own |
 
 Options are declared, not hand-parsed. `!` marks one required, `+` repeatable,
 `=v` gives a default, and the type is checked:

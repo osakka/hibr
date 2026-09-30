@@ -110,23 +110,26 @@ void hibr_title(const char *name)
 	pt_rename(name);
 }
 
+/* Release one option specification. */
+void op_free(struct ospec *o)
+{
+	size_t i;
+
+	for (i = 0; i < o->sw.n; i++)
+		free(o->sw.p[i]);
+	v_free(&o->sw);
+	free(o->nm);
+	free(o->ty);
+	free(o->dflt);
+	free(o->help);
+	free(o);
+}
+
 /* Release the option specifications. */
 void op_clear(sh *s)
 {
-	struct ospec *o;
-	size_t i;
-
-	while (s->opts.n) {
-		o = (struct ospec *)s->opts.p[--s->opts.n];
-		for (i = 0; i < o->sw.n; i++)
-			free(o->sw.p[i]);
-		v_free(&o->sw);
-		free(o->nm);
-		free(o->ty);
-		free(o->dflt);
-		free(o->help);
-		free(o);
-	}
+	while (s->opts.n)
+		op_free((struct ospec *)s->opts.p[--s->opts.n]);
 	free(s->odesc);
 	s->odesc = 0;
 }
@@ -194,6 +197,13 @@ int b_opt(sh *s, int ac, char **av)
 		s_cat(&h, av[i]);
 	}
 	o->help = h.p ? h.p : xs("");
+	for (i = 0; i < (int)s->opts.n; i++)
+		if (!strcmp(((struct ospec *)s->opts.p[i])->nm, o->nm)) {
+			lg(HIBR_LTRC, "opt %s declared again, replacing it", o->nm);
+			op_free((struct ospec *)s->opts.p[i]);
+			s->opts.p[i] = o;
+			return HIBR_OK;
+		}
 	v_add(&s->opts, o);
 	lg(HIBR_LTRC, "opt %s declared", o->nm);
 	return HIBR_OK;
@@ -304,7 +314,7 @@ int op_put(sh *s, struct ospec *o, const char *v)
 	return HIBR_OK;
 }
 
-/* Parse arguments against the declared options. */
+/* Parse arguments against the declared options, then forget them. */
 int b_args(sh *s, int ac, char **av)
 {
 	vec *pos = vb_get(s);
@@ -326,6 +336,7 @@ int b_args(sh *s, int ac, char **av)
 			if (!op_find(s, t)) {
 				op_usage(s, stdout);
 				vb_put(s, pos);
+				op_clear(s);
 				hibr_set(s, "ARGS_HELP", "1", 0);
 				if (!s->it && !s->dep && !s->intry)
 					s->quit = 1;
@@ -449,5 +460,7 @@ done:
 			s->quit = 1;
 	}
 	vb_put(s, pos);
+	lg(HIBR_LDBG, "args: declarations used up");
+	op_clear(s);
 	return rc;
 }

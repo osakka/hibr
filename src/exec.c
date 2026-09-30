@@ -1176,7 +1176,7 @@ int ex_asg(sh *s, char *kv, const char *mask, int ex_flag)
 		if (!end)
 			break;
 		*end = 0;
-		v_add(ks, xkey_q(s, r, mask ? mask + (r - kv) : 0));
+		v_add(ks, xkey_q(s, kv, r, mask ? mask + (r - kv) : 0));
 		r = end + 1;
 		if (*r == '[')
 			r++;

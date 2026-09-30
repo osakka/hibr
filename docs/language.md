@@ -176,6 +176,7 @@ One syntax serves two purposes, so there is a rule:
 | a bare name — `cfg[host]` | its value when that is a number, the literal key otherwise |
 | **quoted** — `h["content-type"]` | **always the literal key** |
 | negative — `a[-1]` | counted back from the highest key |
+| any subscript of an array made with `declare -A` | the literal key, after expansion, as in bash |
 
 The quoted form is the escape hatch, and it is the one quoting already implies
 everywhere else. Without it a hyphen is an operator, so an unquoted
@@ -273,7 +274,9 @@ $2 …`. It accepts `--count=3`, `--count 3`, `-n3`, bundled `-vn3`,
 `--no-verbose`, and `--`. `-h`/`--help` prints a usage table generated from the
 declarations. On an error it prints the reason and the usage and returns 2; at
 the top level of a script that also ends it, and inside a function or `try` it
-just returns.
+just returns. `args` uses its declarations up: the next `args` starts from the
+`opt` lines before it, so a function can declare and parse on every call, and
+two functions never see each other's options.
 
 ## Errors
 

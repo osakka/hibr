@@ -12,6 +12,7 @@ exists. These pages are the detail.
 
 | | |
 |---|---|
+| [hibr, for a language model](llm.md) | The whole language on one page: every difference from bash, and each addition with a run example -- written to be handed to a model |
 | [The language](language.md) | Syntax, expansion, arithmetic, conditionals, maps and arrays, typed functions, declared arguments, errors, strict expansion |
 | [Text, regex and JSON](data.md) | `str`, `arr`, `match`, `rsub`, and JSON over the map model — every operation, with examples |
 | [Cookbook](cookbook.md) | Whole tasks solved: logs, INI files, JSON, coprocesses, daemons, CLI programs |

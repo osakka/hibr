@@ -20,3 +20,6 @@ usage: 350-args.t [options] [args...]
 help flag=1
 try caught: err=1 status=2 msg=[bad arguments]
 comm=hibr-worker
+again: count=5
+again: count=6
+again: count=1

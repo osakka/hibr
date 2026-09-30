@@ -117,6 +117,21 @@ The keys `json parse` creates are now addressable by subscript, which was the
 sharpest consequence of the original rule. The examples no longer need to fold
 `-` to `_`.
 
+## An array declared `-A` follows bash
+
+bash evaluates an indexed array's subscript as arithmetic and takes an
+associative array's as a literal key. hibr has one kind of array, so until
+0.57 every unquoted subscript followed the rules above, and bash's everyday
+`declare -A seen; seen[$line]=1` broke on any line holding a dash, a plus or
+a space: the key became arithmetic, landed on `0`, or failed to parse. A
+variable made with `declare -A`, `local -A` or `typeset -A` now takes every
+subscript as its literal key after expansion -- `h[content-type]`, `h[$k]`
+with `k=a-b`, `h[-1]` -- exactly as bash does, and every other array keeps
+the rules above. It is the `A_ASSOC` attribute bit, so nothing about a map
+changes but how its subscripts are read. The check runs only when a
+subscript would otherwise be evaluated, which keeps it off the common path:
+0.04% on a loop reading a map.
+
 ---
 
 [← decisions](README.md)

@@ -1,0 +1,25 @@
+# hibr
+
+> A small, fast shell that runs the bash you already write, and adds nested
+> maps, JSON with its types kept, regex capture into `M`, results returned
+> without a fork (`ret` and `x := f`), typed function signatures, declared
+> command-line arguments, native TCP/TLS/Unix sockets, and per-file strict
+> checks.
+
+Write bash; hibr runs it. Where hibr differs from bash, and what it adds, is
+on one page written to be read by a model, and every example on it is run by
+the test suite on every build.
+
+## Docs
+
+- [hibr, for a language model](https://raw.githubusercontent.com/osakka/hibr/main/docs/llm.md): the differences from bash in one table, then each addition with a run example -- start here
+- [The language](https://raw.githubusercontent.com/osakka/hibr/main/docs/language.md): syntax, expansion, maps, typed functions, arguments, errors, strict checks
+- [Builtins](https://raw.githubusercontent.com/osakka/hibr/main/docs/builtins.md): every builtin, what it takes and what it gives back
+- [The grammar](https://raw.githubusercontent.com/osakka/hibr/main/docs/grammar.md): lexical structure, EBNF, precedence and expansion order
+
+## Optional
+
+- [Text, regex and JSON](https://raw.githubusercontent.com/osakka/hibr/main/docs/data.md): `str`, `arr`, `match`, `rsub` and `json`, operation by operation
+- [Cookbook](https://raw.githubusercontent.com/osakka/hibr/main/docs/cookbook.md): whole tasks solved in hibr
+- [Networking](https://raw.githubusercontent.com/osakka/hibr/main/docs/networking.md): sockets, TLS and `listen`
+- [Decisions](https://raw.githubusercontent.com/osakka/hibr/main/docs/adr/README.md): why hibr differs from bash where it does, one record each

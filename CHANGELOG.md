@@ -1,5 +1,53 @@
 # Changelog
 
+## 0.57
+
+**A page for a language model: `docs/llm.md`, and `llms.txt`.** The whole
+language on one page. One table covers every place hibr deliberately
+differs from bash; then each addition has a run example: signatures and
+types, `ret` and `:=`, nested maps, `str` and `arr`, `match` and `rsub`,
+`json`, `try` and `fail`, `opt` and `args`, sockets, and `strict`, and
+the page ends with the mistakes to avoid. Every example was run and its
+output pasted under it, and `tests/531-llm.t` runs each again on every
+build, naming any whose output no longer matches -- a check none of the
+other guides has had. `llms.txt` at the root points a model to it, and the
+project README and the docs index link it.
+
+**Arrays declared `-A` take every subscript as a literal key, as in bash.**
+Writing the page's table found this. bash reads an indexed array's
+subscript as arithmetic and an associative array's as a key; hibr has one
+kind of array and read both as arithmetic. So everyday bash like
+`declare -A seen; seen[$line]=1` sent any line holding a dash, a plus or a
+space to key `0` or to a parse error, silently or noisily. `declare -A`,
+`local -A` and `typeset -A` now mark the variable, and its subscripts stay
+literal after expansion: `h[content-type]`, `h[$k]` with `k=a-b`, and
+`h[-1]`, as bash has them. Other arrays keep hibr's rules, `declare -p`
+prints `-a` or `-A` accordingly, and ADR 0006 records it.
+`tests/604-assoc-keys.t` compares with bash. The desktop's maps are all
+`declare -gA`, so the unquoted-subscript trap no longer applies to them. It
+costs 0.04% on a loop reading a map: the check runs only where a subscript
+would otherwise be evaluated. The first version, a lookup on every
+subscript, cost 0.7%. One gap is known and recorded: `declare -A m=([c d]=2)`
+splits at the space, where bash keeps `c d` as one key.
+
+**`args` works when a function calls it more than once.** `opt` added to
+one table for the whole shell and never replaced, so a function that
+declared its options and parsed them got them right on its first call and
+only defaults afterwards. A redeclared option overwrote the parsed value
+with its default, and every function's options leaked into every later
+`args`, a required one failing calls elsewhere. The page's `args` example
+showed it, printing `count=1` for `--count=5`. Now `args` uses its
+declarations up after parsing, and redeclaring a name replaces its entry,
+so a function declares and parses on every call, and two functions never
+see each other's options. `tests/350-args.t`'s own workaround, `opt -clear`,
+is now documented rather than required.
+
+HIBR_VER -> 0.57.
+
+Verified: tests/all.py, all thirteen suites green in 166 seconds;
+tests/asan.py, every suite against the sanitizer build with no report;
+`tests/diff.py` 1,000 snippets against bash with no difference.
+
 ## 0.56
 
 Desktop moves to **0.34** alongside this release.
