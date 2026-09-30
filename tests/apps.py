@@ -424,8 +424,7 @@ check("Keyboard lists the desktop's actions, the Control Strip's among "
       all(brow(sc, t) != "" for t in ("Close Window", "Detach", "Quit",
                                         "Cycle Windows", "Control Strip",
                                         "Control Panel")) and
-      "alt-s" in brow(sc, "Control Strip") and
-      sc.find("Apps") is not None, sc)
+      "alt-s" in brow(sc, "Control Strip") and brow(sc, "Apps") != "", sc)
 
 # Clearing one: a ✕ beside every key that is set, and delete or backspace
 # on the selected row.

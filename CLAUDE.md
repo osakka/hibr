@@ -575,6 +575,11 @@ went in the shell.
   spawning `hibr.asan` for hours, competing for ptys and making unrelated pty
   suites hang. It has not reproduced on demand either time. `ps -eo pid,ppid,cmd
   | grep run.sh` before believing a pty suite that stalls.
+- **`tests/750-pty.t` has failed once under a full run and not alone.** It
+  passed 23 times in isolation straight after, in 0.46, a release that
+  touches nothing in the pty module. Intermittent, not fixed: if it fails
+  again, run it alone in a loop before believing a regression, and look for
+  another suite still running beside it.
 - **Before trying anything by hand that uses `need`, reinstall.**
   `./deploy.sh update --yes --quiet --no-test`. The tests `mod load` the
   module out of `build/mods`, but `need` autoloads from the module path, which

@@ -61,7 +61,9 @@ HIBR_VER -> 0.46, DT_VER -> 0.26.
 Verified: tests/run.sh 90/90, tests/apps.py 270/270, tests/desktop.py
 298/298, tests/console.py 60/60, tests/cat.py 28/28, tests/most.py 22/22,
 tests/hvi.py 31/31, tests/editor.py 10/10, tests/mon.py 15/15, tests/mtr.py
-11/11, tests/term_diff.py 62/62 -- each count now the checks actually made.
+11/11, tests/term_diff.py 66/66 -- each count now the checks actually made.
+(A term_diff run that overlapped another one, both driving tmux, stopped
+at 62 partway through its own checks; alone it makes all 66 in 12 seconds.)
 tests/750-pty.t failed once in the full run and passed 23 times alone
 since; nothing in this release touches the pty module, so it is recorded
 here as intermittent rather than as fixed.
