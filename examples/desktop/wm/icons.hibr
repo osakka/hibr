@@ -547,6 +547,14 @@ fn dt_iconkey(k) {
 	local i sel ss
 
 	[ "$DI_N" -gt 0 ] || return 1
+	if dt_keyis selectall "$k"; then
+		i=0
+		while [ "$i" -lt "$DI_N" ]; do
+			DI_MARK["${DI[$i]["key"]}"]=1
+			i=$((i + 1))
+		done
+		return 0
+	fi
 	case $k in
 	up | down | left | right | shift-up | shift-down | shift-left | \
 	shift-right)
@@ -571,13 +579,6 @@ fn dt_iconkey(k) {
 		else
 			dt_iconmark "$DI_CUR" 1
 		fi
-		;;
-	ctrl-a)
-		i=0
-		while [ "$i" -lt "$DI_N" ]; do
-			DI_MARK["${DI[$i]["key"]}"]=1
-			i=$((i + 1))
-		done
 		;;
 	enter)
 		sel := dt_iconsel || return 0

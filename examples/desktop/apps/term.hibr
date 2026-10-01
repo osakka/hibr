@@ -230,22 +230,29 @@ fn term_draw(int id, int h, int w, int row, int col) {
 	return 0
 }
 
-# Everything goes to the program except f10, which the window manager keeps
-# so there is always a way back to the menu bar, and shift with pageup or
-# pagedown, which page through the scrollback as they do in xterm.  Any
-# other key goes back to the live screen on its way through.
+# Everything goes to the program except the window manager's Menu Bar key,
+# which it keeps so there is always a way back to the menu bar, and the
+# Terminal Page Back and Page On shortcuts (shift with pageup or pagedown
+# unless changed), which page through the scrollback as they do in xterm.
+# Any other key goes back to the live screen on its way through.
 fn term_key(int id, key) {
 	local t=${TW[$id]["t"]} h=${TW[$id]["h"]}
 
+	if dt_has dt_keyis; then
+		if dt_keyis scrollup "$key"; then
+			term scroll "$t" $((h - 1))
+			return 0
+		fi
+		if dt_keyis scrolldown "$key"; then
+			term scroll "$t" $((1 - h))
+			return 0
+		fi
+	fi
 	if [ "$DT_TERMKEEP" = 1 ] && [ "${TW[$id]["passall"]}" != 1 ] &&
 	   dt_has dt_keyassigned && dt_keyassigned "$key"; then
 		return 1
 	fi
-	case $key in
-	shift-pageup) term scroll "$t" $((h - 1)) ;;
-	shift-pagedown) term scroll "$t" $((1 - h)) ;;
-	*) term key "$t" "$key" ;;
-	esac
+	term key "$t" "$key"
 }
 
 # The mouse belongs to the program when it has asked for it -- vi, htop and

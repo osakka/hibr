@@ -12,26 +12,27 @@ DT_KEYPEND_WHAT=
 DT_KEYPEND_KEY=
 DT_KEYPEND_FROM=
 
-# The desktop's own actions, in the order the Keyboard pane lists them, and
-# what each is called there. Their keys are DT_KEYS, in wm/settings.hibr;
-# an app's launch shortcut is DT_APPKEY, keyed by the app's name.
-DT_KEYORDER=(close detach quit cycle strip)
+# The desktop's own actions, in the order the Shortcuts pane lists them,
+# and what each is called there. Their keys are DT_KEYS, in
+# wm/settings.hibr, and every one can be changed or cleared; an app's
+# launch shortcut is DT_APPKEY, keyed by the app's name. Nothing the
+# desktop does is on a key that is not in one of the two.
+DT_KEYORDER=(menu menu2 copy cut paste selectall scrollup scrolldown close
+	cycle strip detach quit)
 declare -gA DT_KEYNAME
+DT_KEYNAME["menu"]="Menu Bar"
+DT_KEYNAME["menu2"]="Menu Bar, Also"
+DT_KEYNAME["copy"]="Copy"
+DT_KEYNAME["cut"]="Cut"
+DT_KEYNAME["paste"]="Paste"
+DT_KEYNAME["selectall"]="Select All Icons"
+DT_KEYNAME["scrollup"]="Terminal Page Back"
+DT_KEYNAME["scrolldown"]="Terminal Page On"
 DT_KEYNAME["close"]="Close Window"
 DT_KEYNAME["detach"]="Detach"
 DT_KEYNAME["quit"]="Quit"
 DT_KEYNAME["cycle"]="Cycle Windows"
 DT_KEYNAME["strip"]="Control Strip"
-
-# Keys the desktop keeps for itself whatever has focus, and why -- offered
-# as a shortcut, one is refused with its reason rather than taken and then
-# never seen. Escape is also how a capture is cancelled.
-declare -gA DT_KEYHELD
-DT_KEYHELD["f10"]="opens the menu bar"
-DT_KEYHELD["escape"]="opens the menu bar"
-DT_KEYHELD["alt-c"]="is Copy"
-DT_KEYHELD["alt-x"]="is Cut"
-DT_KEYHELD["alt-v"]="is Paste"
 
 # A shortcut in one canonical modifier order, ctrl then alt then shift,
 # whatever order it named them in -- an alt combination arrives as ESC
@@ -56,11 +57,11 @@ fn dt_keynorm(k) {
 # Whether a key is one of the desktop's own shortcuts -- an action's, or an
 # app's launch key -- and a chord or a function key: a window that takes
 # every key may give these back, and a plain key never, since a terminal
-# that cannot receive q or tab cannot be used. ctrl with a single letter
-# is never given back either, whatever is assigned to it: those are the
-# control characters programs read -- ctrl-c, a shell's ctrl-w deleting a
-# word, vi's ctrl-w window commands -- so ctrl-w closes any window but a
-# terminal's, where it reaches the program.
+# that cannot receive q or tab cannot be used. With DT_TERMCTRL on, as it
+# is by default, ctrl with a single letter is not given back either: those
+# are the control characters programs read -- ctrl-c, a shell's ctrl-w
+# deleting a word, vi's ctrl-w window commands -- so ctrl-w closes any
+# window but a terminal's, where it reaches the program.
 fn dt_keyassigned(key) {
 	local knorm an v
 
@@ -68,7 +69,9 @@ fn dt_keyassigned(key) {
 	ctrl-* | alt-* | shift-f[0-9]* | f[0-9]*) ;;
 	*) return 1 ;;
 	esac
-	case $key in ctrl-[a-z]) return 1 ;; esac
+	if [ "$DT_TERMCTRL" = 1 ]; then
+		case $key in ctrl-[a-z]) return 1 ;; esac
+	fi
 	knorm := dt_keynorm "$key"
 	for an in "${!DT_KEYS[@]}"; do
 		[ -n "${DT_KEYS["$an"]}" ] || continue
@@ -107,6 +110,17 @@ fn dt_keylabel(what) {
 	app:*) ret "${DT_APPS["${what#app:}"]["title"]:-${what#app:}}" ;;
 	*) ret "${DT_KEYNAME["$what"]:-$what}" ;;
 	esac
+}
+
+# Whether key is what action is set to, compared in canonical order; an
+# action with no key matches nothing.
+fn dt_keyis(what, key) {
+	local a b
+
+	[ -n "${DT_KEYS["$what"]}" ] || return 1
+	a := dt_keynorm "${DT_KEYS["$what"]}"
+	b := dt_keynorm "$key"
+	[ "$a" = "$b" ]
 }
 
 # The key an action has now, empty for none.
@@ -167,17 +181,13 @@ fn dt_keycap(what) {
 	dt_note "Press a key for $l…"
 }
 
-# The key captured for what: refused if the desktop keeps it, asked about
-# if another action holds it -- answering yes moves it, so a key never has
-# two owners -- and otherwise taken.
+# The key captured for what: asked about if another action holds it --
+# answering yes moves it, so a key never has two owners -- and otherwise
+# taken. No key is refused: the menu bar, copy and paste are actions like
+# any other, so taking one of theirs asks the same question.
 fn dt_keytake(what, key) {
-	local knorm owner l ol
+	local owner l ol
 
-	knorm := dt_keynorm "$key"
-	if [ -n "${DT_KEYHELD["$knorm"]}" ]; then
-		dt_note "$key ${DT_KEYHELD["$knorm"]}, so it cannot be a shortcut"
-		return 0
-	fi
 	l := dt_keylabel "$what"
 	if owner := dt_keyowner "$key" "$what"; then
 		ol := dt_keylabel "$owner"

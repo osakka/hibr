@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.77
+
+**Every key the desktop acts on is a setting.** The menu bar's F10 and
+escape, Copy, Cut and Paste (alt-c, alt-x, alt-v), Select All Icons
+(ctrl-a) and the terminal's page back and on (shift-pageup and
+shift-pagedown) were fixed in code; each is now an action in Control
+Panel > Shortcuts like Close Window or Cycle Windows -- changed or cleared
+there, and the change applies at once in every window and on the Edit
+menu, which shows each one's current key. No key is reserved any more:
+taking one another action has asks first and moves it. What stays fixed
+is how an open menu or a dialog is driven -- the arrows, enter, escape,
+y and n.
+
+**The Keyboard pane is two settings and nothing to decipher.** Shortcuts
+in Terminals (was Desktop Shortcuts Win): the desktop's shortcuts work
+while a terminal has focus. Terminals Keep Ctrl+A-Z: ctrl with a letter
+always reaches the program in a terminal -- ctrl-c, a shell's ctrl-w --
+even where it is a shortcut; it was a fixed rule, and is now a setting,
+on by default. The lines of text that explained the old fixed keys are
+gone, since there are no fixed keys left to explain.
+
 ## 0.76
 
 **The desktop costs half as much sitting idle.** Measured over the same

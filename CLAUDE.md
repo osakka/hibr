@@ -685,8 +685,12 @@ went in the shell.
   window manager at all. An app declares them with `<app>_menus` calling
   `dt_menu`/`dt_item`/`dt_sep`, the same prefix contract as `_draw`, so an
   app without menus shows the desktop's.
-- **Nothing is reserved while the menu bar is shut.** F10 or escape opens it,
-  and only then do letters mean anything. Direct modifier shortcuts were
+- **Nothing is reserved while the menu bar is shut, and no key is fixed.**
+  F10 or escape opens it -- the Menu Bar and Menu Bar Also actions, set in
+  `DT_KEYS` like Copy (alt-c), Cut, Paste and every other, since 0.77 --
+  and only then do letters mean anything. A key the desktop acts on goes
+  in `DT_KEYS` with a name in `DT_KEYNAME` and a place in `DT_KEYORDER`,
+  and is tested with `dt_keyis`; never a literal key in a `case`. Direct modifier shortcuts were
   considered and rejected: ctrl collides with everything a terminal window
   will need, and alt with what a program inside one might. A desktop that
   eats ctrl-c is a desktop nothing can run in. The one exception

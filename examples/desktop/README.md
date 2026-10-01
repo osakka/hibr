@@ -217,8 +217,10 @@ copies the file whose path was pasted into the folder shown.
 
 ## Copy and paste
 
-**alt-c** copies, **alt-x** cuts, and **alt-v** pastes, in every window, and
-all three are on the **Edit** menu, which belongs to the desktop like Window
+**alt-c** copies, **alt-x** cuts, and **alt-v** pastes, in every window --
+each a key you can change in Control Panel > Shortcuts, and the change
+applies everywhere at once -- and all three are on the **Edit** menu, which
+shows the key each has now. The menu belongs to the desktop like Window
 does: the same three items everywhere, dimmed where the focused app cannot
 do them -- most apps have no Cut, since most things there are not files. An
 app offers `<app>_cut` the same way it offers `<app>_copy`, and its
@@ -680,7 +682,7 @@ In `examples/desktop/apps/`, each one also a file you can read in a sitting:
 |---|---|
 | `files` | a file browser, with a scrollbar and the wheel |
 | `panel` | Control Panel: a picker of panes (see below) |
-| `term` | a shell in a window. Each window is its own pty and its own session. The wheel or `shift-pageup` scrolls back, and a program that asks for the mouse gets it. `DT_TERMBAR` (the Terminal pane, off by default) shows a scrollbar down the right edge -- a real column of the pty, not just a drawn one, the same as an xterm's own gutter takes one |
+| `term` | a shell in a window. Each window is its own pty and its own session. The wheel or `shift-pageup` (Terminal Page Back, in Shortcuts) scrolls back, and a program that asks for the mouse gets it. `DT_TERMBAR` (the Terminal pane, on by default) shows a scrollbar down the right edge -- a real column of the pty, not just a drawn one, the same as an xterm's own gutter takes one |
 | `snake` | arrows turn, `p` pauses. It speeds up as it grows |
 | `mines` | Minesweeper, 9 by 9 with ten mines. `space` or a click opens, `f` or a right click flags, and opening a number with its flags placed opens what is round it |
 | `bricks` | after Arkanoid: the arrows or a click move the bat, `space` serves. Where the ball lands on the bat sets its angle |
@@ -796,8 +798,11 @@ the other two: something drawn every frame it is visible, rather than
 only when a window moves or a menu opens, should be a setting of its own
 rather than piggybacking on either.
 
-A focused terminal gets every key except `f10`, so a program inside can have
-`escape`; `f10` is the way back to the menu bar.
+A focused terminal gets every key except the Menu Bar key (`f10` unless
+changed), so a program inside can have `escape`; that key is the way back to
+the menu bar. Copy, Cut and Paste also stay the desktop's, and with Control
+Panel > Keyboard > Shortcuts in Terminals on, so do the other shortcuts --
+except ctrl with a letter while Terminals Keep Ctrl+A-Z is on.
 
 A new terminal's cursor is a block until the program inside sets its own with
 DECSCUSR (`CSI Ps SP q`), as some editors do to mark insert mode with a
@@ -817,13 +822,16 @@ have not seen yet, opening their history when clicked), the clock (in whatever f
 The menus belong to the active application, so they change when you click a
 different window, and when nothing has focus they are the desktop's own.
 
-**F10 or escape opens the bar.** Then the arrows move between menus and
-items, a letter picks the item beside it, enter chooses and escape closes.
-Nothing is reserved while the bar is shut — which is deliberate, and is what
-keeps ctrl-c and the rest free for whatever is running inside a window. The
-one exception is a terminal set to give the desktop's chord
-shortcuts back (Control Panel > Keyboard > Desktop Shortcuts Win, on by
-default).
+**F10 or escape opens the bar** -- Menu Bar and Menu Bar, Also in Control
+Panel > Shortcuts, where either can be changed or cleared. Then the arrows
+move between menus and items, a letter picks the item beside it, enter
+chooses and escape closes. Every key the desktop acts on is in that one
+list, and none is reserved: taking one that an action already has asks
+first and moves it. How they reach a terminal window is Control Panel >
+Keyboard: Shortcuts in Terminals (on) lets the desktop's shortcuts work
+while a terminal has focus, and Terminals Keep Ctrl+A-Z (on) keeps ctrl
+with a letter for the program inside -- ctrl-c, a shell's ctrl-w -- even
+where it is a desktop shortcut.
 
 The application menu lists every window, with `•` against the active one and
 `·` against a hidden one; choosing a hidden one brings it back. That is the

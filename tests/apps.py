@@ -516,22 +516,22 @@ check("clicking it clears the shortcut",
       "✕" not in brow(sc, "Quit"), sc)
 sc = cprun(reach("shortcuts", "Close Window") + [b"\x1b[3~"])
 check("delete on a selected row clears it",
-      brow(sc, "Close Window") != "" and "alt-f4" not in brow(sc, "Close Window"),
+      brow(sc, "Close Window") != "" and "ctrl-w" not in brow(sc, "Close Window"),
       sc)
 sc = cprun(reach("shortcuts", "Cycle Windows") + [b"\x7f"])
 check("and so does backspace",
       brow(sc, "Cycle Windows") != "" and "tab" not in brow(sc, "Cycle Windows"),
       sc)
 
-# A key the desktop keeps for itself is refused, and says why.
+# No key is reserved: the menu bar's and Copy's are actions like any
+# other, so taking one asks the same question taking any held key does.
 sc = cprun(KB_CP + [b"\r", b"\x1b[21~"], end=None)
-check("f10 is refused as a shortcut, with the reason",
-      "f10" not in brow(sc, "Control Panel") and
-      sc.find("opens the menu bar") is not None, sc)
+check("f10 is the Menu Bar's, and taking it asks rather than refusing",
+      sc.find("f10 is Menu Bar's: give it to Control Panel?") is not None,
+      sc)
 sc = cprun(KB_CP + [b"\r", b"\x1bc"], end=None)
-check("and so is alt-c, which is Copy -- a key with a dash in its name",
-      "alt-c" not in brow(sc, "Control Panel") and
-      sc.find("is Copy") is not None, sc)
+check("and so is alt-c, which is Copy's -- a key with a dash in its name",
+      sc.find("alt-c is Copy's: give it to Control Panel?") is not None, sc)
 
 # A key another action holds is asked about, and yes moves it: a key never
 # has two owners. Detach's ctrl-\\ is the one taken here, not Quit's q,
@@ -821,18 +821,44 @@ sc = cprun(reach("mouse", "Titlebar Click") + [b"\x1b[C"])
 check("and it cycles through the other actions",
       "min" in brow(sc, "Titlebar Click"), sc)
 
-# Keyboard is the hardware pane: whether a terminal gives the desktop its
-# shortcuts back, on by default, and the keys that are always the desktop's.
-sc = cprun(reach("keyboard", "Desktop Shortcuts Win"))
-check("Keyboard holds Desktop Shortcuts Win, on by default",
-      "[x]" in brow(sc, "Desktop Shortcuts Win") and
-      sc.find("F10, escape: the menu bar") is not None, sc)
-sc = cprun(reach("keyboard", "Desktop Shortcuts Win") + [b"\r"])
-check("and it can be switched off",
-      "[ ]" in brow(sc, "Desktop Shortcuts Win"), sc)
+# Keyboard is the hardware pane: how keys reach a terminal window. Which
+# key does what is all in Shortcuts.
+sc = cprun(reach("keyboard", "Shortcuts in Terminals"))
+check("Keyboard holds Shortcuts in Terminals and Terminals Keep Ctrl+A-Z, "
+      "both on, and nothing to read but settings",
+      "[x]" in brow(sc, "Shortcuts in Terminals") and
+      "[x]" in brow(sc, "Terminals Keep Ctrl+A-Z") and
+      sc.find("menu bar") is None, sc)
+sc = cprun(reach("keyboard", "Shortcuts in Terminals") + [b"\r"])
+check("and each can be switched off",
+      "[ ]" in brow(sc, "Shortcuts in Terminals"), sc)
 check("the Terminal pane no longer has it",
-      ("set", "Desktop Shortcuts Win")
+      ("set", "Shortcuts in Terminals")
       not in [(k, x.strip()) for k, x in panerows("terminal", ("term",))])
+
+# Every key the desktop acts on is a setting, and a changed one applies
+# everywhere at once: in every window, and on the Edit menu.
+CB = tempfile.mkdtemp(prefix="hibr-keys-")
+run("notepad", "8 30 14 48", pre='DT_KEYS["copy"]="f5"',
+    feed=[b"a", b"b", b"c", b"\x1b[1;2H", b"\x1bc", b"\x1b[15~", b"\x1b[F",
+          b"\x1bv"], env={"XDG_CONFIG_HOME": CB}, end=None)
+note = open(os.path.join(CB, "hibr", "notepad.txt")).read() \
+    if os.path.exists(os.path.join(CB, "hibr", "notepad.txt")) else ""
+check("Copy moved to f5 copies on f5, and alt-c no longer does",
+      note == "abcabc\n", note)
+shutil.rmtree(CB, True)
+sc = run("notepad", "8 30 14 48", pre='DT_KEYS["copy"]="f5"',
+         feed=[b"\x1b[21~", b"\x1b[C"], end=None)
+check("the Edit menu shows the key Copy has now",
+      sc.find("Copy       f5") is not None, sc)
+sc = run("clock", "9 24 3 20", pre='DT_KEYS["menu"]="f9"',
+         feed=[b"\x1b[20~"], end=None)
+check("the Menu Bar key can move too: f9 opens the menu bar",
+      sc.find("About hibr") is not None, sc)
+sc = run("clock", "9 24 3 20", pre='DT_KEYS["menu"]="f9"\nDT_KEYS["menu2"]=',
+         feed=[b"\x1b[21~", b"\x1b"], end=None)
+check("and f10 and escape then do nothing of the menu bar's",
+      sc.find("About hibr") is None, sc)
 
 # A settings file keeps every default as it was when written, so new
 # defaults reach it through DT_SETVER, once: a file with no version gets
@@ -1399,6 +1425,10 @@ sc = run("term", "10 36 2 2", feed=[b"\x17\x17", 0.5], wait=1.6, end=None,
          pre=OD + "\nDT_TERMKEEP=1")
 check("ctrl-w, which closes a window, reaches a terminal's program instead",
       "027" in sc.text() and sc.find("┤ Term") is not None, sc)
+sc = run("term", "10 36 2 2", feed=[b"\x17", 0.5], wait=1.6, end=None,
+         pre=OD + "\nDT_TERMKEEP=1\nDT_TERMCTRL=0")
+check("unless Terminals Keep Ctrl+A-Z is off: then ctrl-w closes it too",
+      sc.find("┤ Term") is None, sc)
 sc = run("term", "10 36 2 2", wait=1.6, end=None,
          feed=[b"\x1b[21~", 0.3, b"\x1b[C", b"\x1b[C", b"\x1b[C", 0.3],
          pre=SH + "\nDT_TERMKEEP=1")
@@ -1448,6 +1478,10 @@ check("the wheel scrolls back through what went off the top",
 sc = run(*TERM, feed=[b"\x1b[5;2~"], pre=LONG, wait=1.2, end=None)
 check("shift-pageup pages back a screenful less one",
       sc.find("↑ 11 of 29") is not None and sc.find("row 19") == (3, 3), sc)
+sc = run(*TERM, feed=[b"\x1b[17~"], pre=LONG + '\nDT_KEYS["scrollup"]="f6"',
+         wait=1.2, end=None)
+check("Terminal Page Back is a setting: moved to f6, f6 pages back",
+      sc.find("↑ 11 of 29") is not None, sc)
 
 sc = run(*TERM, feed=[wheel(8, 10), b"x"], pre=LONG, wait=1.2, end=None)
 check("and a key goes back to the live screen",
@@ -2439,4 +2473,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(346)
+report(352)

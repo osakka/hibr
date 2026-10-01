@@ -193,12 +193,12 @@ the wallpaper — a glyph, or an image chosen in a picker window of its own —
 the menu bar's spacing and icon, and the four shadows; Windows holds a
 window's chrome — frame, button side, title alignment, button glyphs, read by
 `dt_win` and `dt_btn` themselves, not by the pane; Mouse holds how a
-window is moved, resized and double-clicked; Keyboard holds whether a
-terminal window gives the desktop's shortcuts back (on by default) and names
-the keys the desktop always keeps; Shortcuts holds every shortcut, the desktop's own
-and any app's, each cleared by the ✕ beside it or delete on its row, with
-`wm/keys.hibr` refusing a key the desktop keeps and asking before taking one
-another action holds; Date & Time draws its own body
+window is moved, resized and double-clicked; Keyboard holds how keys reach
+a terminal window -- whether the desktop's shortcuts work while one has
+focus, and whether ctrl with a letter always goes to its program; Shortcuts
+holds every key the desktop acts on, the menu bar's and Copy's included, and
+any app's, each cleared by the ✕ beside it or delete on its row, with
+`wm/keys.hibr` asking before taking a key another action holds; Date & Time draws its own body
 instead of rows — the clock, the date, and a small
 world map with a mark near the machine's own time zone, reusing
 `examples/traceroute.hibr`'s own map and zone1970.tab lookup rather than a

@@ -214,6 +214,19 @@ capitalise-word, for one), and nothing else. Both are also on an Edit menu
 the desktop owns, so they can be reached without the keys. No other modifier
 shortcut has been added, and one should need as good a reason.
 
+### Amended again (0.77): every key is a setting
+
+The owner asked that nothing be hard-coded. F10, escape, alt-c, alt-x and
+alt-v are now the defaults of actions in the same list as every other
+shortcut -- Menu Bar, Menu Bar Also, Copy, Cut, Paste -- each changeable or
+clearable, and taking one an action has asks first, as for any other key.
+The reasoning above is kept as the reason for the defaults: they still sit
+off ctrl, and Copy, Cut, Paste and Menu Bar are still looked at before the
+focused window, so they work in every window whatever they are set to.
+What stays fixed is only how an open menu or a dialog is driven -- the
+arrows, enter, escape to close, y and n -- since those answer what is on
+the screen rather than act on the desktop.
+
 ## What the menu bar grew, and why
 
 Ticks, items that cannot be chosen, and one level of submenu — each because

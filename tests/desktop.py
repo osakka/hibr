@@ -1868,13 +1868,19 @@ check("and the next desktop starts with it", sc.find("neon") is not None,
 shutil.rmtree(CONF, True)
 
 # ORDER.index("shortcuts") downs on the picker reaches Shortcuts; entering it
-# lands on its first row that is not a heading, Close Window.
+# lands on its first row that is not a heading, Menu Bar. The rows follow
+# DT_KEYORDER, read from wm/keys.hibr rather than counted here.
+KEYORDER = re.search(r"DT_KEYORDER=\(([^)]*)\)",
+                     open(tree("examples/desktop/wm/keys.hibr")).read()
+                     ).group(1).split()
+NKEYS = len(KEYORDER)
 CONF2 = tempfile.mkdtemp(prefix="hibr-conf2-")
 sc, raw = run('dt_new "Control Panel" 22 58 2 2 panel',
-              feed=DOWN_KB + [b"\r", b"\r", b"x"],
+              feed=DOWN_KB + [b"\r"] + [b"\x1b[B"] * KEYORDER.index("close")
+              + [b"\r", b"x"],
               env={"XDG_CONFIG_HOME": CONF2}, pre=PANEL)
 check("a shortcut row can be rebound to a new key",
-      sc.find("alt-f4") is None, sc)
+      sc.find("ctrl-w") is None, sc)
 saved2 = os.path.join(CONF2, "hibr", "desktop.hibr")
 text2 = open(saved2).read() if os.path.exists(saved2) else ""
 check("and the new binding is saved", 'DT_KEYS["close"]=x' in text2, text2)
@@ -1882,8 +1888,10 @@ shutil.rmtree(CONF2, True)
 
 # Any registered app gets its own row in Shortcuts, under Apps, not just
 # Terminal and Task Manager -- empty by default, assignable the same way the
-# desktop's own are. Past the five desktop rows, Calculator is the first
-# app, since it sorts before Control Panel.
+# desktop's own are. Past the desktop's own rows -- as many as DT_KEYORDER
+# names, read from wm/keys.hibr rather than counted here -- Calculator is the
+# first app, since it sorts before Control Panel.
+
 CALCSRC = '. %s/calc.hibr' % tree("examples/desktop/desk-accessories")
 CONF3 = tempfile.mkdtemp(prefix="hibr-conf3-")
 sc, _ = run('dt_new "Control Panel" 22 58 2 2 panel', feed=DOWN_KB,
@@ -1891,7 +1899,7 @@ sc, _ = run('dt_new "Control Panel" 22 58 2 2 panel', feed=DOWN_KB,
 check("a registered app is listed with no shortcut by default",
       sc.find("Calculator") is not None, sc)
 sc, _ = run('dt_new "Control Panel" 22 58 2 2 panel',
-            feed=DOWN_KB + [b"\r"] + [b"\x1b[B"] * 5 + [b"\r", b"g"],
+            feed=DOWN_KB + [b"\r"] + [b"\x1b[B"] * NKEYS + [b"\r", b"g"],
             env={"XDG_CONFIG_HOME": CONF3}, pre=PANEL + "\n" + CALCSRC)
 check("a shortcut can be assigned to any app, not only the two defaults",
       sc.find("Calculator") is not None and

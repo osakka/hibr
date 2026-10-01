@@ -3,8 +3,9 @@
 # shortcuts -- the Control Panel pane for every shortcut in one list: the
 # desktop's own actions, then a launch shortcut for any app. Activating a
 # row captures its next key; the ✕ beside a key, or delete or backspace on
-# its row, clears it. wm/keys.hibr does all of it -- including refusing a
-# key the desktop keeps, and asking before taking one another action has.
+# its row, clears it. wm/keys.hibr does all of it -- including asking
+# before taking a key another action has. Every key the desktop acts on is
+# here, the menu bar's, Copy's, Cut's and Paste's included.
 # A key two actions share, which only a settings file edited by hand can
 # arrange, is marked ⚠ on both.
 

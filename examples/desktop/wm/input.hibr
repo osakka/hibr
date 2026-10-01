@@ -433,15 +433,15 @@ fn dt_event(k) {
 			return 0
 		fi
 	fi
-	# Copy and paste belong to the desktop, the same keys in every window,
-	# and so does a paste arriving from the terminal the desktop runs on:
-	# it goes to the app's _paste when it has one, and becomes the
-	# desktop's clipboard too, so alt-v pastes it again in any window and
-	# on any display joined to this one.
+	# Copy, Cut and Paste belong to the desktop, the same keys in every
+	# window, whatever they are set to; and so does a paste arriving from
+	# the terminal the desktop runs on: it goes to the app's _paste when it
+	# has one, and becomes the desktop's clipboard too, so Paste pastes it
+	# again in any window and on any display joined to this one.
+	if dt_keyis copy "$k"; then dt_edit copy; return 0; fi
+	if dt_keyis cut "$k"; then dt_edit cut; return 0; fi
+	if dt_keyis paste "$k"; then dt_edit paste; return 0; fi
 	case $k in
-	alt-c) dt_edit copy; return 0 ;;
-	alt-x) dt_edit cut; return 0 ;;
-	alt-v) dt_edit paste; return 0 ;;
 	"paste "*)
 		DT_CLIP=${k#paste }
 		DT_CLIPOP=copy
@@ -452,11 +452,16 @@ fn dt_event(k) {
 		fi
 		;;
 	esac
-	# f10 is the one key an app cannot have, because it is the only way
-	# back to the menu bar from a window that wants everything else --
-	# a terminal running vi wants escape, and must be allowed it.
-	if [ "$k" != f10 ] && [ -n "$DT_FOCUS" ] &&
-	   [ -n "${DT[$DT_FOCUS]["key"]}" ]; then
+	# The Menu Bar key (f10 unless changed) is looked at before any window
+	# sees the key, because it has to be the way back to the menu bar from
+	# a window that wants everything else. Its second key (escape) comes
+	# after, so a terminal running vi still gets escape.
+	if dt_keyis menu "$k"; then
+		CS_ATTN=0
+		dt_mopen 0
+		return 0
+	fi
+	if [ -n "$DT_FOCUS" ] && [ -n "${DT[$DT_FOCUS]["key"]}" ]; then
 		if ${DT[$DT_FOCUS]["key"]} "$DT_FOCUS" "$k"; then
 			return 0
 		fi
@@ -464,13 +469,11 @@ fn dt_event(k) {
 	if [ -z "$DT_FOCUS" ] && [ "$DT_ICONS" = 1 ] && dt_iconkey "$k"; then
 		return 0
 	fi
-	case $k in
-	f10 | escape)
+	if dt_keyis menu2 "$k"; then
 		CS_ATTN=0
 		dt_mopen 0
 		return 0
-		;;
-	esac
+	fi
 	# Compared by dt_keynorm, not as the literal string: a rebound
 	# DT_KEYS entry combining ctrl and alt would have exactly the same
 	# either-order ambiguity dt_appkeyed's own shortcuts do.

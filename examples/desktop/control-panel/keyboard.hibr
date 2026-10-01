@@ -1,9 +1,9 @@
 #!/usr/bin/env hibr
 #
-# keyboard -- the Control Panel pane for the keyboard itself: whether a
-# terminal window gives the desktop its chord shortcuts back, and the keys
-# the desktop always keeps and those a terminal always passes on, written
-# down somewhere a person looks. The shortcuts themselves are the Shortcuts pane's.
+# keyboard -- the Control Panel pane for how keys reach a terminal window:
+# whether the desktop's shortcuts work while a terminal has focus, and
+# whether ctrl with a letter always goes to the program inside. Which key
+# does what is the Shortcuts pane's, where every one can be changed.
 
 strict
 
@@ -12,28 +12,20 @@ command -v cp_pane > /dev/null && cp_pane keyboard "Keyboard" "⌨" hardware
 fn keyboard_rows(int w) {
 	local n=0
 
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Desktop Shortcuts Win"
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Shortcuts in Terminals"
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_TERMKEEP" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=DT_TERMKEEP; n=$((n + 1))
-	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Always the desktop's"
-	n=$((n + 1))
-	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="  F10, escape: the menu bar"
-	n=$((n + 1))
-	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="  alt-c, alt-x, alt-v: copy, cut, paste"
-	n=$((n + 1))
-	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Always a terminal's program's"
-	n=$((n + 1))
-	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="  ctrl with a letter: ctrl-c, ctrl-w"
-	n=$((n + 1))
-	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="  plain keys: q, tab, escape"
-	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Terminals Keep Ctrl+A-Z"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_TERMCTRL" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=DT_TERMCTRL; n=$((n + 1))
 	ret "$n"
 }
 
 fn keyboard_do(int w, k, int dir) {
 	case $k in
-	DT_TERMKEEP) cp_toggle "$k" ;;
+	DT_TERMKEEP | DT_TERMCTRL) cp_toggle "$k" ;;
 	esac
 	cp_save
 }

@@ -7,14 +7,22 @@
 
 strict
 
-# Keyboard shortcuts a script -- or Settings -- can rebind. f10 and escape,
-# which open the menu bar, are not in here: an app cannot have those keys
-# at all, so there is nothing to configure. Everything else an app's own
-# _key sees first, same as always -- a shortcut here only fires once the
-# focused window has declined the key. Quit has none by default: it is in
-# the hibr menu, and one stray key should not end everything. Each is set
-# only if a session has not set it first, like every other default here.
+# Every key the desktop acts on, and every one can be changed -- in the
+# Shortcuts pane, or here. Menu Bar, Copy, Cut and Paste are looked at
+# before the focused window sees the key, so they work in every window;
+# the rest only once the focused window has declined it. Quit has none by
+# default: it is in the hibr menu, and one stray key should not end
+# everything. Each is set only if a session has not set it first, like
+# every other default here.
 declare -gA DT_KEYS
+[ -n "${DT_KEYS["menu"]+x}" ] || DT_KEYS["menu"]="f10"
+[ -n "${DT_KEYS["menu2"]+x}" ] || DT_KEYS["menu2"]="escape"
+[ -n "${DT_KEYS["copy"]+x}" ] || DT_KEYS["copy"]="alt-c"
+[ -n "${DT_KEYS["cut"]+x}" ] || DT_KEYS["cut"]="alt-x"
+[ -n "${DT_KEYS["paste"]+x}" ] || DT_KEYS["paste"]="alt-v"
+[ -n "${DT_KEYS["selectall"]+x}" ] || DT_KEYS["selectall"]="ctrl-a"
+[ -n "${DT_KEYS["scrollup"]+x}" ] || DT_KEYS["scrollup"]="shift-pageup"
+[ -n "${DT_KEYS["scrolldown"]+x}" ] || DT_KEYS["scrolldown"]="shift-pagedown"
 [ -n "${DT_KEYS["close"]+x}" ] || DT_KEYS["close"]="ctrl-w"
 [ -n "${DT_KEYS["detach"]+x}" ] || DT_KEYS["detach"]="ctrl-\\"
 [ -n "${DT_KEYS["quit"]+x}" ] || DT_KEYS["quit"]=
@@ -175,6 +183,12 @@ DT_DRAGKEY="${DT_DRAGKEY-alt}"
 # be told to pass everything (term_passall), for a desktop running inside.
 DT_TERMKEEP="${DT_TERMKEEP-1}"
 
+# Whether ctrl with a single letter always reaches the program in a
+# terminal window, even when one is a desktop shortcut -- they are the
+# control characters programs read: ctrl-c, a shell's ctrl-w, vi's ctrl-w
+# windows. On by default; off, a shortcut on ctrl-w closes even a terminal.
+DT_TERMCTRL="${DT_TERMCTRL-1}"
+
 # A terminal window's scrollbar, on its right edge -- on by default, so the
 # scrollback is visible as something there is. The terminal app keeps it.
 DT_TERMBAR="${DT_TERMBAR-1}"
@@ -207,7 +221,7 @@ DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 	CS_COLLAPSED CS_LEN CS_SHADOW
 	DT_FRAME DT_BTNSIDE DT_TITLEALIGN DT_BTNSTYLE DT_EDGERESIZE
 	DT_DRAGMOD DT_DRAGKEY DT_DRAWSKIP DT_NOTEMS DT_NOTEPOS DT_BARTIME
-	DT_BARGAP DT_BELLICON DT_BTNSHADOW DT_DLGBTN DT_TERMKEEP DT_SETVER)
+	DT_BARGAP DT_BELLICON DT_BTNSHADOW DT_DLGBTN DT_TERMKEEP DT_TERMCTRL DT_SETVER)
 
 # Where the desktop's stderr goes while it holds the screen, so an app's
 # error message cannot scribble over the display, and the reason for a
