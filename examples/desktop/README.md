@@ -142,7 +142,15 @@ them all, sorted by name.
 anything highlighted; `idle` an unfocused frame and dimmed text; `face`
 the inside of windows and menus; `ink` the text on it. `shadow` is how much
 of a colour survives under a shadow, 1 to 100: 55 is soft on a dark face,
-and a light one wants much less of a cut -- paper's is 90. Every colour must
+and a light one wants much less of a cut -- paper's is 90.
+
+A theme may also set seven colour roles, each optional: `dim` (secondary
+text), `selink` (text drawn on the accent, a selection), `good`, `warn` and
+`bad` (the traffic-light buttons, an answer, an error, an exit status),
+`info`, and `well` (the darker surface keys and cells sit in). One left out
+is what the dark themes share, so a theme file with only the seven colours
+keeps working; paper, phosphor and amber set their own, so a light theme is
+not drawn with dark-theme greys and the monochrome ones stay one hue. Every colour must
 be `#rrggbb` and the shadow a whole number in range, or the file is left
 out of the list; a theme added while the desktop runs appears at its next
 start. Why JSON and not a script is

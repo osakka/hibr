@@ -130,7 +130,7 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 		[ "$r" -ge "$h" ] && break
 		if [ "${CP_PANES[$n]["group"]}" != "$g" ]; then
 			g=${CP_PANES[$n]["group"]}
-			console pen "#718096" "$DT_FACE" bold
+			console pen "$DT_DIM" "$DT_FACE" bold
 			case $g in
 			hardware) t=Hardware ;;
 			app) t=Apps ;;
@@ -143,7 +143,7 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 		fi
 		if [ "$n" = "$pane" ]; then
 			if [ "$side" = list ]; then
-				console pen "#1a202c" "$DT_ACTIVE" bold
+				console pen "$DT_SELINK" "$DT_ACTIVE" bold
 			else
 				console pen "$DT_ACTIVE" "$DT_FACE" bold
 			fi
@@ -227,11 +227,11 @@ fn cp_rowsdraw(int id, pane, int h, int w, int bx) {
 			console pen "$DT_INK" "$DT_FACE"
 			t := str repeat " " "$w"
 		elif [ "$kind" = head ]; then
-			console pen "#718096" "$DT_FACE" bold
+			console pen "$DT_DIM" "$DT_FACE" bold
 			t := str pad "$t" "$w"
 		else
 			if [ "$i" = "$sel" ] && [ "${PW[$id]["side"]}" != list ]; then
-				console pen "#1a202c" "$DT_ACTIVE" bold
+				console pen "$DT_SELINK" "$DT_ACTIVE" bold
 			else
 				console pen "$DT_INK" "$DT_FACE"
 			fi

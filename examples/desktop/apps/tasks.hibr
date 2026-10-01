@@ -528,7 +528,7 @@ fn tasks_draw(int id, int h, int w, int row, int col) {
 			line := str pad "" $((pidw + namew + ownerw + 17))
 		fi
 		if [ "$i" = "$sel" ] && [ "$i" -lt "$n" ]; then
-			console pen "#1a202c" "$DT_ACTIVE" bold
+			console pen "$DT_SELINK" "$DT_ACTIVE" bold
 		else
 			console pen "$DT_INK" "$DT_FACE"
 		fi
@@ -782,12 +782,12 @@ fn tdetail_draw(int? id = "", int? h = "", int? w = "", int? row = "", int? col 
 	console put -p "w$id" 3 2 "Owner:  ${TD[$id]["owner"]}"
 	mem := tasks_human "${TD[$id]["mem"]}"
 	console put -p "w$id" 4 2 "CPU:    ${TD[$id]["cpu"]}%       Memory: $mem"
-	console pen "#718096" "$DT_FACE"
+	console pen "$DT_DIM" "$DT_FACE"
 	console put -p "w$id" 6 2 "Command:"
 	console pen "$DT_INK" "$DT_FACE"
 	cmd=${TD[$id]["cmd"]:0:$((w - 4))}
 	console put -p "w$id" 7 2 "$cmd"
-	console pen "#718096" "$DT_FACE"
+	console pen "$DT_DIM" "$DT_FACE"
 	console put -p "w$id" 9 2 "escape closes"
 }
 

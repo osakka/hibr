@@ -1104,6 +1104,13 @@ sc, raw = run(FIXED, [AL])
 check("a fixed window keeps its size", sc.find("┤ Fixed ├") is not None and
       b"keeps its size" in raw, sc)
 
+# The desktop draws with the theme's colour roles, not with midnight's
+# values written into the code: a close button is the theme's "bad".
+sc, _ = run(ONE, pre='DT_BAD="#c53030"')
+xc = sc.row(6).find("x├")
+check("the close button takes the theme's colour for bad",
+      xc > 0 and sc.style(6, xc)["fg"] == "#c53030", sc)
+
 # --- workspaces --------------------------------------------------------------
 #
 # Three by default, for the whole desktop. Switching hides one workspace's
@@ -2631,4 +2638,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(362)
+report(363)

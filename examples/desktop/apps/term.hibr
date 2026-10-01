@@ -198,7 +198,7 @@ fn term_draw(int id, int h, int w, int row, int col) {
 			dt_wantclose "$id"
 			return 0
 		fi
-		console pen "#f56565" "$DT_FACE"
+		console pen "$DT_BAD" "$DT_FACE"
 		console put -p "w$id" 1 2 "[exited $st — close this window]"
 		return 0
 	fi
@@ -255,7 +255,7 @@ fn term_draw(int id, int h, int w, int row, int col) {
 	view=${sb% *}
 	stored=${sb#* }
 	if [ "$view" != 0 ]; then
-		console pen "$DT_FACE" "#ecc94b" bold
+		console pen "$DT_FACE" "$DT_WARN" bold
 		sb=" ${GL[arrowup]} $view of $stored "
 		console put -p "w$id" 1 $((tw + 1 - ${#sb})) "$sb"
 	fi

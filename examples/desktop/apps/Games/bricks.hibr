@@ -244,7 +244,7 @@ bricks_draw() {
 
 	bat=${BK[$id]["bat"]}
 	t := str repeat "${GL[upper]}" "$BRICKS_BAT"
-	console pen "#e2e8f0" "$DT_FACE" bold
+	console pen "$DT_INK" "$DT_FACE" bold
 	console put -p "w$id" "$h" "$bat" "$t"
 	if [ "$st" != over ]; then
 		console pen "#ffffff" "$DT_FACE" bold
@@ -252,12 +252,12 @@ bricks_draw() {
 	fi
 
 	lives=${BK[$id]["lives"]}
-	console pen "#f6ad55" "$DT_FACE" bold
+	console pen "$DT_WARN" "$DT_FACE" bold
 	console put -p "w$id" 1 1 "${BK[$id]["score"]}"
-	console pen "#f56565" "$DT_FACE"
+	console pen "$DT_BAD" "$DT_FACE"
 	[ "$lives" -gt 0 ] && t := str repeat "${GL[heart]}" "$lives" || t=
 	console put -p "w$id" 1 $((w - lives + 1)) "$t"
-	console pen "#718096" "$DT_FACE"
+	console pen "$DT_DIM" "$DT_FACE"
 	case $st in
 	ready) t="space to serve" ;;
 	pause) t="paused -- p" ;;

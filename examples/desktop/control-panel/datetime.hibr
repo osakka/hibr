@@ -310,13 +310,13 @@ fn dtf_draw(int id, int h, int w, int row, int col) {
 	console put -p "w$id" 3 2 "Shows:"
 	if dtp_fmtok "${DTF[$id]["buf"]}"; then
 		t := dt_clocktext "${DTF[$id]["buf"]}" -1
-		console pen "#68d391" "$DT_FACE" bold
+		console pen "$DT_GOOD" "$DT_FACE" bold
 	else
 		t=$DTP_WHY
-		console pen "#f56565" "$DT_FACE"
+		console pen "$DT_BAD" "$DT_FACE"
 	fi
 	console put -p "w$id" 3 11 "$t"
-	console pen "#718096" "$DT_FACE"
+	console pen "$DT_DIM" "$DT_FACE"
 	console put -p "w$id" 5 2 "%H %M %S %l %p %a %d %b %Y, as strftime"
 	dt_dlgbtns "$id" "$h" "$w" "$f" ok Save cancel Cancel
 }
@@ -472,7 +472,7 @@ fn dtz_draw(int id, int h, int w, ...rest) {
 		[ "$t" = "$DTP_TZ" ] && t="$t  (now)"
 		t := str pad " $t" $((w - 4))
 		if [ "$i" = "$sel" ] && [ "$i" -lt "$n" ]; then
-			console pen "#1a202c" "$DT_ACTIVE" bold
+			console pen "$DT_SELINK" "$DT_ACTIVE" bold
 		else
 			console pen "$DT_INK" "$DT_FACE"
 		fi
@@ -589,10 +589,10 @@ fn dts_draw(int? id = "", int? h = "", int? w = "", int? row = "", int? col = ""
 	f=0; [ "${DTS[$id]["focus"]}" = t ] && f=1
 	dt_textdraw "$id" 3 9 10 "${DTS[$id]["tbuf"]}" "${DTS[$id]["tcur"]}" "$f"
 	dt_wreg "$id" 3 9 10 t
-	console pen "#718096" "$DT_FACE"
+	console pen "$DT_DIM" "$DT_FACE"
 	console put -p "w$id" 5 2 "YYYY-MM-DD and HH:MM:SS, local time"
 	if [ "${DTS[$id]["ntp"]}" = yes ]; then
-		console pen "#f6ad55" "$DT_FACE"
+		console pen "$DT_WARN" "$DT_FACE"
 		console put -p "w$id" 6 2 "Turns off automatic time (NTP) first"
 	fi
 	dt_dlgbtns "$id" "$h" "$w" "${DTS[$id]["focus"]}" \
@@ -677,13 +677,13 @@ fn datetime_draw(int id, int h, int w, int bx) {
 	dtp_follow
 	now := dt_ms
 	dt_want $((1000 - now % 1000 + 10))
-	console pen "#68d391" "$DT_FACE" bold
+	console pen "$DT_GOOD" "$DT_FACE" bold
 	printf -v now "%(%H:%M:%S)T" -1
 	console put -p "w$id" 1 "$bx" "$now"
 	console pen "$DT_INK" "$DT_FACE"
 	printf -v now "%(%A %d %B %Y)T" -1
 	console put -p "w$id" 2 "$bx" "$now"
-	console pen "#a0aec0" "$DT_FACE"
+	console pen "$DT_DIM" "$DT_FACE"
 	if [ "$DTP_FOUND" = 1 ]; then
 		lat := dtp_deg "$DTP_LAT" N S
 		lon := dtp_deg "$DTP_LON" E W
@@ -703,7 +703,7 @@ fn datetime_draw(int id, int h, int w, int bx) {
 	console pen "$DT_INK" "$DT_FACE"
 	console put -p "w$id" 7 "$bx" "Date/time"
 	if [ -n "$DTP_HOST" ]; then
-		console pen "#718096" "$DT_FACE"
+		console pen "$DT_DIM" "$DT_FACE"
 		console put -p "w$id" 7 $((bx + 11)) "set by the host ($DTP_HOST)"
 	else
 		dtp_button "$id" 7 $((bx + 11)) "Set…" settime
@@ -727,7 +727,7 @@ fn datetime_draw(int id, int h, int w, int bx) {
 	# same string the land is.
 	sr=$(( DTP_ROW * rh / DTP_MAPH ))
 	sc=$(( DTP_COL * rw / DTP_MAPW ))
-	console pen "#4a5568" "$DT_FACE"
+	console pen "$DT_IDLE" "$DT_FACE"
 	r=0
 	while [ "$r" -lt "$rh" ]; do
 		out=""
@@ -745,7 +745,7 @@ fn datetime_draw(int id, int h, int w, int bx) {
 		console put -p "w$id" $(( r + 9 )) "$bx" "$out"
 		r=$(( r + 1 ))
 	done
-	console pen "#f6ad55" "$DT_FACE" bold
+	console pen "$DT_WARN" "$DT_FACE" bold
 	console put -p "w$id" $(( sr + 9 )) $(( bx + sc )) "${GL[ring]}"
 }
 

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.85
+
+**Every colour follows the theme.** 87 colours in the desktop were written
+as midnight's values -- Files' selection, Note Pad's cursor, the
+calculator's keys and answers, dim labels, the traffic-light buttons, exit
+statuses, Mines' cells -- so on paper they were dark-theme greys on a light
+face. A theme may now set seven colour roles beside its seven colours: dim,
+selink (text on a selection), good, warn, bad, info and well (the surface
+keys and cells sit in), each optional and defaulting to what the dark
+themes share, so a theme file with only the seven colours still works.
+Paper, phosphor and amber set their own; the others look as they did. A
+game's own art -- the bricks, Snake's board -- stays as drawn.
+
 ## 0.84
 
 **Tiling.** Window > Tile Workspace has the desktop lay out the current

@@ -954,6 +954,25 @@ check("a broken file, a colour that is not one, and a shadow out of range "
       "are each left out", out[3] == "refused" and
       "broken" not in out[0] and "bad" not in out[0], out)
 
+# A theme may also set colour roles -- dim, selink, good, warn, bad, info,
+# well -- and gets the dark themes' values for any it leaves out.
+TD = tempfile.mkdtemp(prefix="hibr-themes-")
+os.makedirs(os.path.join(TD, "hibr", "themes"))
+open(os.path.join(TD, "hibr", "themes", "rosy.json"), "w").write(
+    GOOD.replace('"shadow":70', '"bad":"#aa0000","good":"#00aa00","shadow":70'))
+open(os.path.join(TD, "hibr", "themes", "badrole.json"), "w").write(
+    GOOD.replace('"shadow":70', '"bad":"crimson","shadow":70'))
+out = subprocess.run(
+    [sx.HIBR, "-c", CPLOAD + 'cp_theme rosy; echo "$DT_BAD $DT_GOOD $DT_WARN"; '
+     'cp_theme paper; echo "$DT_BAD $DT_SELINK"; echo "${CP_THEMES[*]}"'],
+    env=dict(os.environ, XDG_CONFIG_HOME=TD),
+    capture_output=True, text=True).stdout.split("\n")
+shutil.rmtree(TD, True)
+check("a theme's roles are its own, and one it leaves out is the default",
+      out[0] == "#aa0000 #00aa00 #f6ad55" and out[1] == "#c53030 #f5f2ea", out)
+check("and a role that is not a colour leaves the file out",
+      "badrole" not in out[2], out)
+
 # An app's pane is always listed, and says so when its app is not loaded.
 sc = cprun([b"\x1b[B"] * downs("abouthibr"))
 check("About hibr's pane says so when About hibr is not loaded",
@@ -2568,4 +2587,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(367)
+report(369)

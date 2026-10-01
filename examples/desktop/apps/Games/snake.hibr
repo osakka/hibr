@@ -215,10 +215,10 @@ fn snake_draw(int id, int h, int w, int wr, int wc) {
 	[ "$st" = over ] && console pen "#f56565" "#0b1a12" || console pen "#68d391" "#0b1a12"
 	console put -p "w$id" $((${cell%,*} + 2)) $((${cell#*,} * 2 + 1)) "${GL[block]}${GL[block]}"
 
-	console pen "#68d391" "$DT_FACE" bold
+	console pen "$DT_GOOD" "$DT_FACE" bold
 	t="score ${SN[$id]["score"]}"
 	console put -p "w$id" 1 2 "$t"
-	console pen "#718096" "$DT_FACE"
+	console pen "$DT_DIM" "$DT_FACE"
 	case $st in
 	ready) bar="an arrow to start" ;;
 	pause) bar="paused -- p" ;;

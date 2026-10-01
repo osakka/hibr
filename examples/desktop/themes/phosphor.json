@@ -6,5 +6,12 @@
   "idle": "#0f4d1a",
   "face": "#000f02",
   "ink": "#33ff33",
+  "dim": "#1f9a3a",
+  "selink": "#000f02",
+  "good": "#66ff66",
+  "warn": "#99ff66",
+  "bad": "#ccff99",
+  "info": "#33ff99",
+  "well": "#002a08",
   "shadow": 55
 }

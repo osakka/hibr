@@ -75,6 +75,18 @@ DT_ACTIVE="${DT_ACTIVE-#63b3ed}"
 DT_IDLE="${DT_IDLE-#4a5568}"
 DT_FACE="${DT_FACE-#101820}"
 DT_INK="${DT_INK-#cbd5e0}"
+# Colour roles, beside the seven a theme always has: dim text, text drawn
+# on the accent (a selection), good, warning and bad (the traffic-light
+# buttons, an answer, an error), info, and a darker surface for keys and
+# cells to sit in. A theme file may set any of them; these are what it
+# gets when it does not -- the values every dark theme was drawn with.
+DT_DIM="${DT_DIM-#718096}"
+DT_SELINK="${DT_SELINK-#1a202c}"
+DT_GOOD="${DT_GOOD-#68d391}"
+DT_WARN="${DT_WARN-#f6ad55}"
+DT_BAD="${DT_BAD-#f56565}"
+DT_INFO="${DT_INFO-#4fd1c5}"
+DT_WELL="${DT_WELL-#2d3748}"
 DT_GLYPH="${DT_GLYPH-·}"
 
 # A real image as the wallpaper instead of the repeated glyph, drawn by the
@@ -229,6 +241,7 @@ DT_DRAWSKIP="${DT_DRAWSKIP-0}"
 # variable of its own kept names it with dt_keep.
 DT_CONF="${DT_CONF-${XDG_CONFIG_HOME:-$HOME/.config}/hibr/desktop.hibr}"
 DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
+	DT_DIM DT_SELINK DT_GOOD DT_WARN DT_BAD DT_INFO DT_WELL
 	DT_WALLIMG DT_WALLMODE
 	DT_ICONS DT_DISKS DT_CURSOR DT_CURSOR_BLINK DT_SHADOW
 	DT_MSHADOW DT_BARSHADOW DT_DBLACTION DT_SHADOW_PCT CS_SIDE CS_Y

@@ -215,7 +215,7 @@ fn wallpick_draw(int id, int h, int w, int row, int col) {
 		r=$((r + 1))
 	done
 
-	console pen "#63b3ed" "$DT_FACE" bold
+	console pen "$DT_ACTIVE" "$DT_FACE" bold
 	t=${FB[$id]["dir"]}
 	[ ${#t} -gt "$listw" ] && t="…${t: -$((listw - 1))}"
 	t := str pad "$t" "$listw"
@@ -237,7 +237,7 @@ fn wallpick_draw(int id, int h, int w, int row, int col) {
 		fi
 		if [ "$i" = "$sel" ] && [ "$i" -lt "$n" ] &&
 		   [ "${WPK[$id]["focus"]}" = list ]; then
-			console pen "#1a202c" "$DT_ACTIVE" bold
+			console pen "$DT_SELINK" "$DT_ACTIVE" bold
 		elif [ "$i" = "$sel" ] && [ "$i" -lt "$n" ]; then
 			console pen "$DT_ACTIVE" "$DT_FACE" bold
 		else

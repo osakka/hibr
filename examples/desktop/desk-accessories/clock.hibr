@@ -16,7 +16,7 @@ fn clock_draw(int id, int h, int w, int row, int col) {
 	ms := dt_ms
 	dt_want $((1000 - ms % 1000 + 10))
 	printf -v now "%(%H:%M:%S)T" -1
-	console pen "#68d391" "$DT_FACE" bold
+	console pen "$DT_GOOD" "$DT_FACE" bold
 	console put -p "w$id" 2 4 "$now"
 	console pen "$DT_INK" "$DT_FACE"
 	printf -v now "%(%A %d %B)T" -1

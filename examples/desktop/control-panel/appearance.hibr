@@ -16,7 +16,9 @@ command -v dt_keep > /dev/null && dt_keep CP_THEME
 CP_GLYPHS=("·" "░" "▒" "⋅" "+")
 
 # A theme is a JSON file, one to a theme, named for it: seven colours --
-# wall, dot, bar, active, idle, face, ink -- and shadow, console darken's
+# wall, dot, bar, active, idle, face, ink -- seven optional roles -- dim,
+# selink, good, warn, bad, info, well, each defaulting to the value the
+# dark themes share (CP_THDEF) -- and shadow, console darken's
 # own pct, how much of a colour survives once it is darkened. 55 is a soft
 # shadow on a dark face; a light face needs much less of a cut, which is
 # why paper's is 90. JSON and not a script, because a theme is only data
@@ -28,6 +30,12 @@ CP_THEMEDIRS=("${XDG_CONFIG_HOME:-$HOME/.config}/hibr/themes"
 CP_THEMES=()
 declare -gA CP_TH
 CP_THKEYS=(wall dot bar active idle face ink)
+CP_THROLES=(dim selink good warn bad info well)
+declare -gA CP_THDEF
+CP_THDEF["dim"]="#718096"; CP_THDEF["selink"]="#1a202c"
+CP_THDEF["good"]="#68d391"; CP_THDEF["warn"]="#f6ad55"
+CP_THDEF["bad"]="#f56565"; CP_THDEF["info"]="#4fd1c5"
+CP_THDEF["well"]="#2d3748"
 
 # Read one theme file into CP_TH[name], or refuse it whole: every colour
 # must be #rrggbb and the shadow a number from 1 to 100, so a broken file
@@ -42,11 +50,21 @@ fn cp_themeread(n, f) {
 		[ "${j["$k"]}" = "#$v" ] && [ ${#v} -eq 6 ] &&
 			[ -z "${v//[0-9a-fA-F]/}" ] || return 1
 	done
+	for k in "${CP_THROLES[@]}"; do
+		[ -n "${j["$k"]+x}" ] || continue
+		v=${j["$k"]}
+		v=${v#\#}
+		[ "${j["$k"]}" = "#$v" ] && [ ${#v} -eq 6 ] &&
+			[ -z "${v//[0-9a-fA-F]/}" ] || return 1
+	done
 	v=${j["shadow"]-55}
 	case $v in '' | *[!0-9]*) return 1 ;; esac
 	[ ${#v} -le 3 ] && [ "$v" -ge 1 ] && [ "$v" -le 100 ] || return 1
 	for k in "${CP_THKEYS[@]}"; do
 		CP_TH["$n"]["$k"]=${j["$k"]}
+	done
+	for k in "${CP_THROLES[@]}"; do
+		CP_TH["$n"]["$k"]=${j["$k"]-${CP_THDEF["$k"]}}
 	done
 	CP_TH["$n"]["shadow"]=$v
 }
@@ -80,6 +98,13 @@ fn cp_theme(t) {
 	DT_FACE=${CP_TH["$t"]["face"]}
 	DT_INK=${CP_TH["$t"]["ink"]}
 	DT_SHADOW_PCT=${CP_TH["$t"]["shadow"]}
+	DT_DIM=${CP_TH["$t"]["dim"]}
+	DT_SELINK=${CP_TH["$t"]["selink"]}
+	DT_GOOD=${CP_TH["$t"]["good"]}
+	DT_WARN=${CP_TH["$t"]["warn"]}
+	DT_BAD=${CP_TH["$t"]["bad"]}
+	DT_INFO=${CP_TH["$t"]["info"]}
+	DT_WELL=${CP_TH["$t"]["well"]}
 	command -v console > /dev/null && console darkdefault "$DT_INK" "$DT_FACE"
 }
 

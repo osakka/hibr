@@ -197,7 +197,7 @@ fn notepad_draw(int id, int h, int w, int row, int col) {
 		np_drawsel "$id" "$h" "$w"
 		console pen "$DT_INK" "$DT_FACE"
 	fi
-	console pen "#1a202c" "#63b3ed"
+	console pen "$DT_SELINK" "$DT_ACTIVE"
 	console put -p "w$id" $((cr - top + 1)) $((cc - hoff + 1)) \
 		"${NP[$id][$cr]:$cc:1}"
 	[ -z "${NP[$id][$cr]:$cc:1}" ] &&
@@ -208,7 +208,7 @@ fn notepad_draw(int id, int h, int w, int row, int col) {
 fn np_drawsel(int id, int h, int w) {
 	local i=$NP_SR a b off line top=${NP[$id]["top"]}
 
-	console pen "#1a202c" "$DT_ACTIVE"
+	console pen "$DT_SELINK" "$DT_ACTIVE"
 	while [ "$i" -le "$NP_ER" ]; do
 		if [ "$i" -ge "$top" ] && [ "$i" -lt $((top + h)) ]; then
 			line=${NP[$id][$i]}

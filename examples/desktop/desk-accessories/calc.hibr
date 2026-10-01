@@ -103,14 +103,14 @@ fn calc_at(int mr, int mc) {
 fn calc_draw(int id, int h, int w, int row, int col) {
 	local k p i=0 t
 
-	console pen "#a0aec0" "$DT_FACE"
+	console pen "$DT_DIM" "$DT_FACE"
 	t := str pad "${CA[$id]["in"]:-expression}" $((w - 4))
 	console put -p "w$id" 1 2 "$t"
 	if [ -n "${CA[$id]["err"]}" ]; then
-		console pen "#f56565" "$DT_FACE"
+		console pen "$DT_BAD" "$DT_FACE"
 		t := str pad "${CA[$id]["err"]}" $((w - 4))
 	else
-		console pen "#68d391" "$DT_FACE" bold
+		console pen "$DT_GOOD" "$DT_FACE" bold
 		t := str pad "${CA[$id]["out"]}" $((w - 4))
 	fi
 	console put -p "w$id" 2 2 "$t"
@@ -118,15 +118,15 @@ fn calc_draw(int id, int h, int w, int row, int col) {
 	for k in "${CALC_KEYS[@]}"; do
 		p := calc_pos "$i"
 		case $k in
-		=) console pen "#1a202c" "#68d391" bold ;;
-		c) console pen "#1a202c" "#f56565" bold ;;
-		[0-9]) console pen "$DT_INK" "#2d3748" ;;
-		*) console pen "#f6ad55" "#2d3748" ;;
+		=) console pen "$DT_SELINK" "$DT_GOOD" bold ;;
+		c) console pen "$DT_SELINK" "$DT_BAD" bold ;;
+		[0-9]) console pen "$DT_INK" "$DT_WELL" ;;
+		*) console pen "$DT_WARN" "$DT_WELL" ;;
 		esac
 		console put -p "w$id" ${p% *} ${p#* } " $k  "
 		i=$((i + 1))
 	done
-	console pen "#718096" "$DT_FACE"
+	console pen "$DT_DIM" "$DT_FACE"
 	console put -p "w$id" 14 2 "integers only"
 }
 

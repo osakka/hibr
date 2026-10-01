@@ -49,6 +49,10 @@ reading one costs nothing extra, and anything that can write JSON can make
 one: a converter from another terminal's palette is a few lines in any
 language.
 
+Since 0.85 a theme may also set seven colour roles -- dim, selink, good,
+warn, bad, info, well -- each optional and validated the same way, each
+defaulting to the dark themes' value.
+
 ## Consequences
 
 - The order is alphabetical, not chosen: there is no list to choose it in.

@@ -165,7 +165,7 @@ fourth that falls back; every snap's geometry; a switch hiding and showing,
 a once-app on another workspace, `dt_cycle` never visiting a hidden window,
 `--resume` keeping the workspace; and the idle measurement unmoved.
 
-### Colour roles in themes
+### Colour roles in themes -- built, 0.85
 
 87 colours in the desktop are written as `#rrggbb` -- Files' selection,
 Note Pad's cursor, the calculator's keys, the games, dim text -- most tuned

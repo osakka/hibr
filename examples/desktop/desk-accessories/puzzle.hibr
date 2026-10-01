@@ -105,7 +105,7 @@ fn puzzle_draw(int id, int h, int w, int row, int col) {
 			console pen "$DT_INK" "$DT_FACE"
 			t="    "
 		else
-			console pen "#1a202c" "#63b3ed" bold
+			console pen "$DT_SELINK" "$DT_ACTIVE" bold
 			t := str pad " $v" 3
 			t="$t "
 		fi
@@ -114,14 +114,14 @@ fn puzzle_draw(int id, int h, int w, int row, int col) {
 	done
 
 	case $st in
-	won) console pen "#68d391" "$DT_FACE" bold; t="solved!" ;;
-	*) console pen "#718096" "$DT_FACE"; t="puzzle" ;;
+	won) console pen "$DT_GOOD" "$DT_FACE" bold; t="solved!" ;;
+	*) console pen "$DT_DIM" "$DT_FACE"; t="puzzle" ;;
 	esac
 	console put -p "w$id" 1 $(((w - ${#t}) / 2 + 1)) "$t"
-	console pen "#cbd5e0" "$DT_FACE" bold
+	console pen "$DT_INK" "$DT_FACE" bold
 	t := str pad "moves ${PZ[$id]["moves"]}" $((w - 2))
 	console put -p "w$id" 8 2 "$t"
-	console pen "#718096" "$DT_FACE"
+	console pen "$DT_DIM" "$DT_FACE"
 	t="n for another"
 	console put -p "w$id" "$h" $(((w - ${#t}) / 2 + 1)) "$t"
 }

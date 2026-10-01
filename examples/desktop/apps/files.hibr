@@ -229,9 +229,9 @@ fn fb_paths(int id, sel) {
 # the rest by what they are.
 fn fb_rowpen(int id, int i) {
 	if [ "$i" = "${FB[$id]["sel"]}" ]; then
-		console pen "#1a202c" "#63b3ed" bold
+		console pen "$DT_SELINK" "$DT_ACTIVE" bold
 	elif [ -n "${FL[$id][$i]["m"]}" ]; then
-		console pen "#e2e8f0" "#2c5282" bold
+		console pen "$DT_INK" "$DT_IDLE" bold
 	else
 		fb_pen "${FL[$id][$i]["kind"]}"
 	fi
@@ -557,9 +557,9 @@ fn files_open(int id, d) {
 # The colour an entry is drawn in, by what it is.
 fn fb_pen(kind) {
 	case $kind in
-	up | dir) console pen "#f6ad55" "$DT_FACE" ;;
-	exe) console pen "#68d391" "$DT_FACE" ;;
-	link) console pen "#4fd1c5" "$DT_FACE" ;;
+	up | dir) console pen "$DT_WARN" "$DT_FACE" ;;
+	exe) console pen "$DT_GOOD" "$DT_FACE" ;;
+	link) console pen "$DT_INFO" "$DT_FACE" ;;
 	*) console pen "$DT_INK" "$DT_FACE" ;;
 	esac
 }
@@ -578,7 +578,7 @@ fn fb_glyph(kind) {
 fn files_draw(int id, int h, int w, int row, int col) {
 	local t n sel
 
-	console pen "#63b3ed" "$DT_FACE" bold
+	console pen "$DT_ACTIVE" "$DT_FACE" bold
 	t="${FB[$id]["dir"]}"
 	[ ${#t} -gt "$w" ] && t="…${t: -$((w - 1))}"
 	console put -p "w$id" 1 1 "$t"
@@ -590,7 +590,7 @@ fn files_draw(int id, int h, int w, int row, int col) {
 	fb_bar "$id" "$h" "$w"
 	n=${FB[$id]["n"]}
 	sel=${FB[$id]["sel"]}
-	console pen "#718096" "$DT_FACE"
+	console pen "$DT_DIM" "$DT_FACE"
 	if [ "${FB[$id]["marks"]}" -gt 0 ]; then
 		console put -p "w$id" "$h" 1 "${FB[$id]["marks"]} selected"
 	else
@@ -648,7 +648,7 @@ fn fb_drawdet(int id, int h, int w) {
 		mode) mm=$a ;;
 		esac
 	fi
-	console pen "#718096" "$DT_FACE"
+	console pen "$DT_DIM" "$DT_FACE"
 	line := str pad " Name$mk" "$nw"
 	x=$((1 + nw))
 	hx="name 1 $x"
@@ -1032,7 +1032,7 @@ fn gi_draw(int id, int h, int w, int row, int col) {
 		"${GI[$id]["groupcur"]}" "$gfoc"
 	dt_wreg "$id" 7 31 12 group
 
-	console pen "#718096" "$DT_FACE"
+	console pen "$DT_DIM" "$DT_FACE"
 	console put -p "w$id" 9 9 "R"
 	console put -p "w$id" 9 13 "W"
 	console put -p "w$id" 9 17 "X"

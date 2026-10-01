@@ -17,28 +17,28 @@ fn dt_btnspec(style, int? fixed) {
 	circles)
 		BTN_DL=" "; BTN_DR=" "
 		if [ "$fixed" = 1 ]; then
-			BTN_G=("${GL[circle]}" "${GL[circle]}"); BTN_C=("#f6ad55" "#f56565")
+			BTN_G=("${GL[circle]}" "${GL[circle]}"); BTN_C=("$DT_WARN" "$DT_BAD")
 		else
 			BTN_G=("${GL[circle]}" "${GL[circle]}" "${GL[circle]}")
-			BTN_C=("#f6ad55" "#68d391" "#f56565")
+			BTN_C=("$DT_WARN" "$DT_GOOD" "$DT_BAD")
 		fi
 		;;
 	squares)
 		BTN_DL=" "; BTN_DR=" "
 		if [ "$fixed" = 1 ]; then
-			BTN_G=("${GL[square]}" "${GL[square]}"); BTN_C=("#f6ad55" "#f56565")
+			BTN_G=("${GL[square]}" "${GL[square]}"); BTN_C=("$DT_WARN" "$DT_BAD")
 		else
 			BTN_G=("${GL[square]}" "${GL[square]}" "${GL[square]}")
-			BTN_C=("#f6ad55" "#68d391" "#f56565")
+			BTN_C=("$DT_WARN" "$DT_GOOD" "$DT_BAD")
 		fi
 		;;
 	*)
 		BTN_DL="${GL[teel]}"; BTN_DR="${GL[teer]}"
 		if [ "$fixed" = 1 ]; then
-			BTN_G=("_" "x"); BTN_C=("$DT_INK" "#f56565")
+			BTN_G=("_" "x"); BTN_C=("$DT_INK" "$DT_BAD")
 		else
 			BTN_G=("_" "${GL[box]}" "x")
-			BTN_C=("$DT_INK" "$DT_INK" "#f56565")
+			BTN_C=("$DT_INK" "$DT_INK" "$DT_BAD")
 		fi
 		;;
 	esac

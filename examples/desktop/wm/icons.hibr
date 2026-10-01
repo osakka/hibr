@@ -166,7 +166,7 @@ dt_icondraw() {
 		k=${DI[$i]["key"]}
 		[ "${#l}" -gt $((DT_ICONW - 2)) ] && l="${l:0:$((DT_ICONW - 3))}…"
 		case ${DI[$i]["kind"]} in
-		dir) console pen "#f6ad55" "$DT_WALL" bold ;;
+		dir) console pen "$DT_WARN" "$DT_WALL" bold ;;
 		trash) console pen "$DT_INK" "$DT_WALL" bold ;;
 		*) console pen "$DT_ACTIVE" "$DT_WALL" bold ;;
 		esac

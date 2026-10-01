@@ -1627,6 +1627,13 @@ went in the shell.
   with `read -ra arr <<< "$list"` and loop over `"${arr[@]}"`, as the rest
   of the desktop does.
 
+- **A colour the desktop draws is a theme's, never a literal.** The seven
+  theme colours and the seven roles (`DT_DIM`, `DT_SELINK`, `DT_GOOD`,
+  `DT_WARN`, `DT_BAD`, `DT_INFO`, `DT_WELL`) cover everything an app draws;
+  87 literals tuned for midnight became them in 0.85. The only `#rrggbb`
+  left in drawing code is a game's own art -- Bricks' brick rows, Snake's
+  board, Mines' purple 4 -- which, like an app's icon, is the thing itself.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then
