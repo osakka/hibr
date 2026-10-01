@@ -39,6 +39,15 @@ menu ends the desktop and gives the terminal back -- it has no key of its
 own by default, so no stray keystroke ends everything. Each of these keys
 can be changed, or Quit given one, in Control Panel > Shortcuts.
 
+**Where a new window goes** is Control Panel > Windows > Placement.
+**smart**, the default, puts it in the first spot on the display that
+overlaps nothing -- scanning from the top left, below the menu bar, clear
+of the Control Strip, with room left for each window's shadow -- and where
+there is no such spot, where it covers least. **cascade** steps each new
+one down and across, as the desktop always did; **center** puts it in the
+middle. A window bigger than the display is shrunk to fit. A session's own
+`dt_new` with a position is left where it says.
+
 A button presses then releases, the same as any other clickable thing in a
 real GUI: held down, it shows inverted, and dragging off it before letting
 go cancels whatever it would have done -- nothing fires until release, and
@@ -693,7 +702,7 @@ In `examples/desktop/apps/`, each one also a file you can read in a sitting:
 |---|---|
 | `files` | a file browser, with a scrollbar and the wheel |
 | `panel` | Control Panel: a picker of panes (see below) |
-| `term` | a shell in a window. Each window is its own pty and its own session. The wheel or `shift-pageup` (Terminal Page Back, in Shortcuts) scrolls back, and a program that asks for the mouse gets it. A program's bell rings the real terminal and puts a • before the window's title until it is clicked; its notifications (OSC 9, 777) become the desktop's own, clicking one brings the window up, and are sent on to the real terminal too; a link it prints stays clickable there. `DT_TERMBAR` (the Terminal pane, on by default) shows a scrollbar down the right edge -- a real column of the pty, not just a drawn one, the same as an xterm's own gutter takes one |
+| `term` | a shell in a window. Each window is its own pty and its own session. The wheel or `shift-pageup` (Terminal Page Back, in Shortcuts) scrolls back, and a program that asks for the mouse gets it. A new terminal gives its program 24 rows and 80 columns unless the Terminal pane's Rows and Columns say otherwise, shrunk to fit a smaller screen. A program's bell rings the real terminal and puts a • before the window's title until it is clicked; its notifications (OSC 9, 777) become the desktop's own, clicking one brings the window up, and are sent on to the real terminal too; a link it prints stays clickable there. `DT_TERMBAR` (the Terminal pane, on by default) shows a scrollbar down the right edge -- a real column of the pty, not just a drawn one, the same as an xterm's own gutter takes one |
 | `snake` | arrows turn, `p` pauses. It speeds up as it grows |
 | `mines` | Minesweeper, 9 by 9 with ten mines. `space` or a click opens, `f` or a right click flags, and opening a number with its flags placed opens what is round it |
 | `bricks` | after Arkanoid: the arrows or a click move the bat, `space` serves. Where the ball lands on the bat sets its angle |

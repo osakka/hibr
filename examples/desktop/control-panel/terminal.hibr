@@ -15,6 +15,10 @@ fn cp_set_cursor(int? id = "", value = "") { DT_CURSOR=$value; cp_save; }
 # examples/desktop/apps/term.hibr.
 CP_TERMCOLOURS=(theme terminal)
 fn cp_set_termcolours(int? id = "", value = "") { DT_TERMCOLOURS=$value; cp_save; }
+CP_TERMROWS=(24 30 36 40 50)
+CP_TERMCOLS=(80 100 120 132)
+fn cp_set_termrows(int? id = "", value = "") { DT_TERMROWS=$value; cp_save; }
+fn cp_set_termcols(int? id = "", value = "") { DT_TERMCOLS=$value; cp_save; }
 
 fn terminal_rows(int w) {
 	local n=0
@@ -32,6 +36,12 @@ fn terminal_rows(int w) {
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_TERMCLIP" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=DT_TERMCLIP; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Rows"
+	CP[$w][$n]["val"]="$DT_TERMROWS"; CP[$w][$n]["key"]=termrows
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Columns"
+	CP[$w][$n]["val"]="$DT_TERMCOLS"; CP[$w][$n]["key"]=termcols
+	n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Colours"
 	CP[$w][$n]["val"]="$DT_TERMCOLOURS"
 	CP[$w][$n]["key"]=termcolours; n=$((n + 1))
@@ -55,6 +65,10 @@ fn terminal_do(int w, k, int dir) {
 		;;
 	cursor) v := cp_next "$DT_CURSOR" "$dir" "${CP_CURSORS[@]}"
 		DT_CURSOR=$v ;;
+	termrows) v := cp_next "$DT_TERMROWS" "$dir" "${CP_TERMROWS[@]}"
+		DT_TERMROWS=$v ;;
+	termcols) v := cp_next "$DT_TERMCOLS" "$dir" "${CP_TERMCOLS[@]}"
+		DT_TERMCOLS=$v ;;
 	esac
 	cp_save
 }
@@ -64,5 +78,7 @@ fn terminal_drop(int? w = "", int? r = "", int? c = "", k = "") {
 	termcolours) dt_droplist "$w" "$r" "$c" cp_set_termcolours \
 		"${CP_TERMCOLOURS[@]}" ;;
 	cursor) dt_droplist "$w" "$r" "$c" cp_set_cursor "${CP_CURSORS[@]}" ;;
+	termrows) dt_droplist "$w" "$r" "$c" cp_set_termrows "${CP_TERMROWS[@]}" ;;
+	termcols) dt_droplist "$w" "$r" "$c" cp_set_termcols "${CP_TERMCOLS[@]}" ;;
 	esac
 }

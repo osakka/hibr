@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.81
+
+**A new window goes somewhere sensible.** Every launched window used to
+step down and across from the top left whatever was open, so the third
+covered the first two. Now it goes in the first spot on the display that
+overlaps nothing -- below the menu bar, clear of the Control Strip, with
+room for each window's shadow -- and where there is none, where it covers
+least; a window bigger than the display is shrunk to fit. Control Panel >
+Windows > Placement: smart (the default), cascade (as before) or center.
+An app can say its size as it opens with `<app>_size`.
+
+**A terminal opens at 24 rows by 80 columns** -- the classic size, where
+it was 12 by 50 -- shrunk to fit a smaller screen. Control Panel >
+Terminal > Rows and Columns change it.
+
 ## 0.80
 
 **The arrows belong to your apps again.** Since 0.77 a shortcut could be

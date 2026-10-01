@@ -177,12 +177,14 @@ fn dt_appwin(app) {
 	return 1
 }
 
-# Open a registered app in a fresh window, stepped down and across so a
-# second one does not land exactly on the first.  An app declared `once`
+# Open a registered app in a fresh window, where dt_place puts it -- in the
+# first free spot, by default. An app may say how big it wants to be at
+# the moment it opens with <app>_size, answering "h w" (the terminal's
+# depends on a setting); otherwise its dt_app size. An app declared `once`
 # has one window at most: launching it again brings that one forward,
 # shown if it was hidden.  Anything after the name goes to its _open.
 fn dt_launch(n, arg = "") {
-	local r c id
+	local h w sz id pl r c
 
 	[ -z "${DT_APPS[$n]["title"]}" ] && return 1
 	if [ -n "${DT_APPS[$n]["once"]}" ] && id := dt_appwin "$n"; then
@@ -190,10 +192,15 @@ fn dt_launch(n, arg = "") {
 		ret "$id"
 		return 0
 	fi
-	r=$((2 + (DT_NEXT * 2) % 6))
-	c=$((4 + (DT_NEXT * 4) % 16))
-	dt_new "${DT_APPS[$n]["title"]}" "${DT_APPS[$n]["h"]}" \
-		"${DT_APPS[$n]["w"]}" "$r" "$c" "$n" "$arg"
+	h=${DT_APPS[$n]["h"]}
+	w=${DT_APPS[$n]["w"]}
+	if dt_has "${n}_size" && sz := "${n}_size"; then
+		h=${sz% *}
+		w=${sz#* }
+	fi
+	pl := dt_place "$h" "$w"
+	read -r r c h w <<< "$pl"
+	dt_new "${DT_APPS[$n]["title"]}" "$h" "$w" "$r" "$c" "$n" "$arg"
 }
 
 # The about app shows the machine's own numbers, live; without it (a session

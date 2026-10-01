@@ -366,9 +366,11 @@ check("a style change never moves where a button is clicked, only its glyph",
 
 # An app declared fixed has no maximise button at all -- not dimmed, not
 # there -- so a game whose board is one size does not offer to stretch it.
+# These sessions open their window with dt_launch and then click where it
+# lands, so they keep the old cascade rather than follow smart placement.
 FIXED = ('dt_app fx "Fixed" 6 20 once "◆" fixed\n'
          'fx_draw() { console put -p "w$1" 1 1 "hi"; }\n'
-         'dt_launch fx\n')
+         'DT_PLACE=cascade\ndt_launch fx\n')
 sc, _ = run(FIXED)
 check("a fixed app has no maximise button",
       sc.find("┤_ x├") is not None and sc.find("┤_ □ x├") is None, sc)
@@ -392,7 +394,7 @@ check("a fixed window's double-click does not zoom it either",
 # to merge in -- Clock and About are exactly this shape, and used to show
 # Desktop while focused, since MB_APP was only set as a side effect of
 # finding a _menus function to call.
-NOMENU = 'dt_app nm "NoMenu" 6 20\nnm_draw() { :; }\ndt_launch nm\n'
+NOMENU = 'dt_app nm "NoMenu" 6 20\nnm_draw() { :; }\nDT_PLACE=cascade\ndt_launch nm\n'
 sc, _ = run(NOMENU)
 check("an app with no menus of its own still names itself in the bar",
       sc.find("NoMenu ▾") is not None, sc)
@@ -421,7 +423,7 @@ WIDGETS = ('dt_app wg "Widgets" 10 30 once "▢"\n'
            '\t     dt_droplist "$id" "$r" "$wc" wg_pick one two three ;;\n'
            '\tesac\n'
            '}\n'
-           'dt_launch wg\n')
+           'DT_PLACE=cascade\ndt_launch wg\n')
 sc, _ = run(WIDGETS)
 check("dt_check draws an unchecked box and its label",
       sc.find("[ ] Beep") == (5, 9), sc)
@@ -1040,6 +1042,40 @@ check("a key the mode has no use for ends it, and the arrows are free again",
 sc, _ = run(MENUS, [press(0, WIN), b"m", press(20, 70), b"\x1b[A", b"\x1b[A"])
 check("and so does a click anywhere",
       sc.find("┤ Noted ├") == (6, 12), sc)
+
+# --- where a new window goes ------------------------------------------------
+#
+# A launched window goes to the first spot on the display that overlaps
+# nothing -- scanning from the top left, below the bar, room left for each
+# window's shadow -- and where there is none, to the spot of least overlap.
+DA = tree("examples/desktop/desk-accessories")
+PLACEAPPS = (". %s/calc.hibr\n. %s/clock.hibr\n. %s/notepad.hibr\n"
+             ". %s/puzzle.hibr\nDT_ICONS=0" % (DA, DA, DA, DA))
+sc, _ = run("dt_launch calc\ndt_launch clock\ndt_launch notepad", pre=PLACEAPPS)
+check("three launched windows land side by side, overlapping nothing",
+      sc.find("┤ Calculator ├") == (1, 2) and sc.find("┤ Clock ├") == (1, 28)
+      and sc.find("┤ Note Pad ├") == (9, 28), sc)
+sc, _ = run("dt_launch calc\ndt_launch clock\ndt_launch notepad\n"
+            "dt_launch puzzle", pre=PLACEAPPS)
+p4 = sc.find("┤ Puzzle ├")
+check("a fourth with no free spot left still opens whole, where it covers "
+      "least", p4 is not None and p4[0] + 12 <= 23, sc)
+sc, _ = run("dt_launch clock", pre=PLACEAPPS + "\nDT_PLACE=center")
+check("Placement center puts it in the middle of the display",
+      sc.find("┤ Clock ├") == (9, 29), sc)
+sc, _ = run("dt_launch clock\ndt_launch clock", pre=PLACEAPPS)
+check("and a once-app launched again is brought forward, not placed twice",
+      len([r for r in range(24) if "┤ Clock ├" in sc.row(r)]) == 1, sc)
+TERMLOAD = ("mod load %s\nmod load %s\n. %s/term.hibr\nDT_ICONS=0"
+            % (tree("build/mods/pty.so"), tree("build/mods/term.so"),
+               tree("examples/desktop/apps")))
+sc, _ = run("dt_launch term", pre=TERMLOAD)
+check("a terminal opens at 24 by 80 by default, shrunk to fit a smaller "
+      "screen", sc.at(1, 0) == "┌" and sc.at(23, 79) == "◢", sc)
+sc, _ = run("dt_launch term", pre=TERMLOAD + "\nDT_TERMROWS=10\nDT_TERMCOLS=40"
+            "\nDT_TERMBAR=0")
+check("and at the size the Terminal pane sets, which fits",
+      sc.at(1, 0) == "┌" and sc.at(12, 41) == "◢", sc)
 
 # --- icons on the desktop -------------------------------------------------
 #
@@ -2481,4 +2517,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(328)
+report(334)

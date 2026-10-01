@@ -61,6 +61,23 @@ command -v dt_keep > /dev/null && dt_keep DT_TERMBAR
 DT_TERMTITLE="${DT_TERMTITLE-1}"
 command -v dt_keep > /dev/null && dt_keep DT_TERMTITLE
 
+# How many rows and columns a new terminal window gives its program -- the
+# classic 24 by 80 unless changed in the Terminal pane, shrunk to fit a
+# smaller screen when it opens.
+DT_TERMROWS="${DT_TERMROWS-24}"
+DT_TERMCOLS="${DT_TERMCOLS-80}"
+command -v dt_keep > /dev/null && dt_keep DT_TERMROWS
+command -v dt_keep > /dev/null && dt_keep DT_TERMCOLS
+
+# The window a new terminal needs for that: a border on every side, and the
+# scrollbar's column when it is shown.
+term_size() {
+	local w=$((DT_TERMCOLS + 2))
+
+	[ "$DT_TERMBAR" = 1 ] && w=$((w + 1))
+	ret "$((DT_TERMROWS + 2)) $w"
+}
+
 # Whether a program inside a terminal window may set the clipboard with
 # OSC 52 -- vim's yank to the + register, tmux's set-clipboard -- making it
 # the desktop's clipboard and sending it on to the real terminal, and so to

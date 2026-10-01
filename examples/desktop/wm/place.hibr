@@ -1,0 +1,104 @@
+#!/usr/bin/env hibr
+#
+# wm/place -- where a window the desktop opens lands: dt_launch asks
+# dt_place, a session's own dt_new with a position of its own is left
+# alone.
+#
+# DT_PLACE (Control Panel > Windows > Placement) is smart, cascade or
+# center. Smart takes the first spot on the primary display, scanning from
+# the top left, where the window overlaps no visible window and not the
+# Control Strip, below the menu bar; with no such spot, the one where it
+# overlaps least. Cascade is the step down and across the desktop always
+# did; center is the middle of the display. Every way, a window larger than
+# the display is shrunk to fit it.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+strict
+
+DT_PLACE="${DT_PLACE-smart}"
+DT_PLACES=(smart cascade center)
+
+# Where a window of h rows and w columns goes, as "row col h w" -- h and w
+# shrunk to fit the display if they must.
+fn dt_place(int h, int w) {
+	local top=1 left=${DT_PRIMARY_COL:-0} pw=${DT_PRIMARY_W:-$DT_COLS}
+	local ph=$((DT_ROWS - 1)) n=0 i r c ov best=-1 br bc id x0 x1 y0 y1
+	local sr sw scol dr=0 dc=0
+	local -a R C H W
+
+	[ "$h" -gt "$ph" ] && h=$ph
+	[ "$w" -gt "$pw" ] && w=$pw
+	case $DT_PLACE in
+	center)
+		ret "$((top + (ph - h) / 2)) $((left + (pw - w) / 2)) $h $w"
+		return 0
+		;;
+	cascade)
+		r=$((2 + (DT_NEXT * 2) % 6))
+		c=$((left + 4 + (DT_NEXT * 4) % 16))
+		[ $((r + h)) -gt $((top + ph)) ] && r=$((top + ph - h))
+		[ $((c + w)) -gt $((left + pw)) ] && c=$((left + pw - w))
+		ret "$r $c $h $w"
+		return 0
+		;;
+	esac
+	# With shadows on, a window's shadow -- a row below, two columns to the
+	# right -- counts as part of it, so windows placed side by side leave
+	# room for each other's.
+	if [ "$DT_SHADOW" = 1 ]; then
+		dr=1
+		dc=2
+	fi
+	for id in "${!DT[@]}"; do
+		dt_hidden "$id" && continue
+		R[n]=${DT[$id]["row"]}
+		C[n]=${DT[$id]["col"]}
+		H[n]=${DT[$id]["h"]}
+		W[n]=${DT[$id]["w"]}
+		n=$((n + 1))
+	done
+	if [ "${#CS_MOD_LIST[@]}" -gt 0 ] && [ "$CS_COLLAPSED" != 1 ]; then
+		sr := cs_y
+		sw := cs_width
+		scol=$left
+		[ "$CS_SIDE" = left ] || scol=$((left + pw - sw))
+		R[n]=$sr
+		C[n]=$scol
+		H[n]=1
+		W[n]=$sw
+		n=$((n + 1))
+	fi
+	r=$top
+	while [ $((r + h)) -le $((top + ph)) ]; do
+		c=$left
+		while [ $((c + w)) -le $((left + pw)) ]; do
+			ov=0
+			i=0
+			while [ "$i" -lt "$n" ]; do
+				y0=$((r > R[i] ? r : R[i]))
+				y1=$((r + h + dr < R[i] + H[i] + dr ?
+					r + h + dr : R[i] + H[i] + dr))
+				x0=$((c > C[i] ? c : C[i]))
+				x1=$((c + w + dc < C[i] + W[i] + dc ?
+					c + w + dc : C[i] + W[i] + dc))
+				[ "$y1" -gt "$y0" ] && [ "$x1" -gt "$x0" ] &&
+					ov=$((ov + (y1 - y0) * (x1 - x0)))
+				i=$((i + 1))
+			done
+			if [ "$ov" = 0 ]; then
+				ret "$r $c $h $w"
+				return 0
+			fi
+			if [ "$best" -lt 0 ] || [ "$ov" -lt "$best" ]; then
+				best=$ov
+				br=$r
+				bc=$c
+			fi
+			c=$((c + 2))
+		done
+		r=$((r + 1))
+	done
+	ret "${br:-$top} ${bc:-$left} $h $w"
+}
