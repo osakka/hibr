@@ -35,7 +35,7 @@ endif
 B = build
 BIN = $(B)/hibr
 SRC = src/mem.c src/var.c src/lex.c src/parse.c src/expand.c src/exec.c \
-      src/bi.c src/mod.c src/job.c src/trap.c src/regex.c src/daily.c src/net.c src/json.c src/text.c src/args.c src/edit.c src/main.c
+      src/bi.c src/mod.c src/job.c src/trap.c src/regex.c src/daily.c src/net.c src/json.c src/text.c src/args.c src/edit.c src/plan.c src/main.c
 MODS = $(B)/mods/sys.so $(B)/mods/http.so $(B)/mods/ls.so $(B)/mods/prompt.so \
        $(B)/mods/console.so $(B)/mods/cat.so \
        $(B)/mods/trace.so $(B)/mods/most.so \

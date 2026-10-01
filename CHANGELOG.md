@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.66
+
+**`hibr --plan script`: a dry run.** The script's own logic runs --
+variables, functions, loops, reading files -- but everything that would
+change the machine is refused, and each refusal is listed with its line:
+
+```
+hibr: plan: job.sh:1: would write out.txt
+hibr: plan: job.sh:2: would run curl -sO https://example.com/app.tgz
+hibr: plan: job.sh:5: would run rm -rf build
+```
+
+Writes outside the plan's own scratch `$TMPDIR` open `/dev/null` instead, as
+do network endpoints; a program runs only if it is known to read (`cat`,
+`grep`, `find` without `-delete`/`-exec`, `sed` without `-i`, `git status`
+and the other reading subcommands, ...), and anything else fails with status
+1 and no output -- so a plan stops where the script needed a result it could
+not have, rather than carrying on with empty values and listing writes to
+the wrong paths. `exec`, `kill` (but `-0`), `listen`, `mod load` and `need`
+are refused. The scratch `$TMPDIR` is real and removed at the end, so temp
+files work; the record goes to a copy of standard error a script's
+`2>/dev/null` cannot reach; with `--agent` each record is a JSON line keyed
+`plan`. `awk` and every program that runs another (`env` with arguments,
+`timeout`, `xargs`, `sudo`, `sh -c`) are refused: whether they write cannot
+be told from their arguments. It is not a sandbox, and says so: a program on
+the read-only list runs for real. ADR 0027; `tests/885-plan.t` checks every
+kind of refusal and that nothing the script named was created.
+
+A policy that runs for real, the other half of the backlog item, waits for a
+machine with Landlock: this one's kernel has it switched off.
+
 ## 0.65
 
 **`[[ =~ ]]` fills `BASH_REMATCH` as well as `M`.** Measured, not argued:

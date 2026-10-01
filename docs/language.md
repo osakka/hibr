@@ -459,6 +459,49 @@ Standard input is read whole under `checkfirst`, so nothing streams. `eval`,
 traps and `$(…)` run as read either way. Why both, and the one case piped
 input cannot match bash, is [0026](adr/0026-a-script-runs-as-it-is-read.md).
 
+## A dry run
+
+`hibr --plan script` runs the script's own logic -- variables, functions,
+loops, reading files and standard input -- but refuses everything that would
+change the machine, and says so, one line each:
+
+```sh
+$ printf 'echo built > out.txt\ncurl -sO https://example.com/app.tgz\nn=$(grep -c . job.sh)\necho "job.sh has $n lines"\nrm -rf build\n' > job.sh
+$ hibr --plan job.sh; echo "status $?"; ls
+hibr: plan: job.sh:1: would write out.txt
+hibr: plan: job.sh:2: would run curl -sO https://example.com/app.tgz
+job.sh has 5 lines
+hibr: plan: job.sh:5: would run rm -rf build
+status 1
+job.sh
+```
+
+What it refuses, and what it lets through:
+
+| | in a plan |
+|---|---|
+| `>`, `>>`, `&>`, `<>`, `>\|`, `{fd}>` | open `/dev/null` instead, recorded -- unless inside the plan's own `$TMPDIR` |
+| `/dev/tcp`, `/dev/udp`, `/dev/tls`, `/dev/unix` | open `/dev/null`, recorded as a connection |
+| a program known only to read | runs: `cat grep head tail wc ls stat find` (no `-delete`, `-exec`) `sed` (no `-i`) `sort` (no `-o`) `jq diff date` and the like, and `git status log diff show` and other reading subcommands |
+| `mktemp`, and `rm mkdir touch cp mv ln chmod rmdir` | run when every path they are given is inside the plan's own `$TMPDIR` |
+| any other program | refused and recorded, status 1, no output |
+| `exec`, `kill` (but `kill -0`), `listen`, `mod load`, `need` | refused and recorded |
+
+A plan gets a scratch `$TMPDIR` of its own, removed when it ends, so a
+script that makes a temporary file and reads it back follows its own logic.
+A terminal on standard input is replaced by `/dev/null`. The records go to a
+copy of standard error taken at the start, so a script's own `2>/dev/null`
+cannot hide them; with `--agent` each is a line of JSON keyed `plan`.
+
+What a plan cannot do, stated plainly: a refused program fails, so a script
+that needed its result -- under `set -e`, at once -- stops there, and the
+plan is partial; a branch that depends on a write having happened takes the
+other way. `awk` is refused, because whether an awk program writes cannot
+be told from its text, and so is every program that runs another --
+`env` with arguments, `timeout`, `xargs`, `nice`, `sudo`, `sh -c` -- since
+letting one through would let anything through. A plan reads whatever the
+script reads. Why each choice is [0027](adr/0027-a-dry-run-refuses-what-it-cannot-show-is-harmless.md).
+
 ## Agent mode
 
 For a script a program runs rather than a person -- a language model's, a

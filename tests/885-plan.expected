@@ -1,0 +1,44 @@
+0
+hibr: plan: ../p.sh:1: would write out1
+hibr: plan: ../p.sh:2: would append to out2
+hibr: plan: ../p.sh:3: would write out3
+hibr: plan: ../p.sh:4: would write out4
+hibr: plan: ../p.sh:5: would write out6
+hibr: plan: ../p.sh:6: would write out7
+hibr: plan: ../p.sh:7: would connect to /dev/tcp/127.0.0.1/9
+a temp file is real: kept
+file tools inside it run
+hibr: plan: ../p.sh:12: would write $TMPDIR/../outside
+a reading program runs: 1 line
+hibr: plan: ../p.sh:14: would run rm -rf never
+hibr: plan: ../p.sh:15: would run curl -s https://example.com
+hibr: plan: ../p.sh:15: would write page
+a refused program fails: 1
+hibr: plan: ../p.sh:16: would run sed -i s/a/b/ out1
+sed without -i runs
+hibr: plan: ../p.sh:18: would run awk {print} ../in.txt
+hibr: plan: ../p.sh:19: would run timeout 5 grep x ../in.txt
+hibr: plan: ../p.sh:20: would run find . -name never -delete
+hibr: plan: ../p.sh:21: would run git commit -m x
+kill -0 runs
+hibr: plan: ../p.sh:23: would send a signal: kill 1
+hibr: plan: ../p.sh:24: would listen for connections: listen 9999
+hibr: plan: ../p.sh:25: would load module sys
+hibr: plan: ../p.sh:26: would load the module that provides json
+hibr: plan: ../p.sh:27: would run rm -rf never
+hibr: plan: ../p.sh:30: would redirect descriptor 250, which holds this record; left alone
+hibr: plan: ../p.sh:31: would run rm -rf also-never
+hibr: plan: ../p.sh:32: would run rm -rf $TMPDIR/tmp.X stays
+status 0
+--- nothing was made:
+--- agent mode:
+{"plan":"would run curl -s a.b","file":"command line","line":1}
+{"plan":"would run rm -f z","file":"command line","line":1}
+{"plan":"would run touch y","file":"command line","line":1}
+done
+--- a plan stops where it needed a result it could not have:
+hibr: plan: command line:1: would run curl -sO https://x/y.tgz
+hibr: errexit: command failed with status 1
+status 1
+--- the scratch TMPDIR is gone:
+removed

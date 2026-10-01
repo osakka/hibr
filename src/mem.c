@@ -58,17 +58,46 @@ char *lg_line(const char *path, unsigned n)
 	return l.p ? l.p : xs("");
 }
 
-/* One diagnostic as a line of JSON, for agent mode: the level names the
-   message's key, and where it happened comes with it when it is known. */
+/* One line of JSON keyed by key: the message, and where it happened when that is known. */
+void lg_jline(str *o, const char *key, const char *m)
+{
+	char *src;
+	const char *file = lg_sh->src ? lg_sh->src : "command line";
+	unsigned ln = lg_ln ? lg_ln : lg_sh->ln;
+
+	s_cat(o, "{\"");
+	s_cat(o, key);
+	s_cat(o, "\":\"");
+	lg_jstr(o, m);
+	s_cat(o, "\",\"file\":\"");
+	lg_jstr(o, file);
+	s_ch(o, '"');
+	if (ln) {
+		s_cat(o, ",\"line\":");
+		s_num(o, (long)ln);
+	}
+	if (lg_col) {
+		s_cat(o, ",\"col\":");
+		s_num(o, (long)lg_col);
+	}
+	src = ln && lg_sh->src ? lg_line(lg_sh->src, ln) : 0;
+	if (src) {
+		s_cat(o, ",\"source\":\"");
+		lg_jstr(o, src);
+		s_ch(o, '"');
+		free(src);
+	}
+	s_cat(o, "}\n");
+}
+
+/* One diagnostic as a line of JSON, for agent mode, keyed by its level's name. */
 void lg_json(int lv, const char *f, va_list ap)
 {
 	static const char *lvn[] = { "error", "warning", "info", "debug",
 				     "trace" };
 	va_list ap2;
 	str o;
-	char *m, *src;
-	const char *file = lg_sh->src ? lg_sh->src : "command line";
-	unsigned ln = lg_ln ? lg_ln : lg_sh->ln;
+	char *m;
 	int n;
 
 	va_copy(ap2, ap);
@@ -77,29 +106,7 @@ void lg_json(int lv, const char *f, va_list ap)
 	m = xm((size_t)(n < 0 ? 0 : n) + 1);
 	vsnprintf(m, (size_t)(n < 0 ? 0 : n) + 1, f, ap);
 	s_init(&o);
-	s_cat(&o, "{\"");
-	s_cat(&o, lvn[lv < 0 ? 0 : lv > 4 ? 4 : lv]);
-	s_cat(&o, "\":\"");
-	lg_jstr(&o, m);
-	s_cat(&o, "\",\"file\":\"");
-	lg_jstr(&o, file);
-	s_ch(&o, '"');
-	if (ln) {
-		s_cat(&o, ",\"line\":");
-		s_num(&o, (long)ln);
-	}
-	if (lg_col) {
-		s_cat(&o, ",\"col\":");
-		s_num(&o, (long)lg_col);
-	}
-	src = ln && lg_sh->src ? lg_line(lg_sh->src, ln) : 0;
-	if (src) {
-		s_cat(&o, ",\"source\":\"");
-		lg_jstr(&o, src);
-		s_ch(&o, '"');
-		free(src);
-	}
-	s_cat(&o, "}\n");
+	lg_jline(&o, lvn[lv < 0 ? 0 : lv > 4 ? 4 : lv], m);
 	fputs(o.p, stderr);
 	s_free(&o);
 	free(m);

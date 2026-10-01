@@ -919,6 +919,10 @@ int b_exec(sh *s, int ac, char **av)
 		lg(HIBR_LERR, "exec: %s: command not found", av[1]);
 		return HIBR_NOCMD;
 	}
+	if ((s->sopt & O_PLAN) && !pl_prog(s, av + 1)) {
+		free(path);
+		return HIBR_FAIL;
+	}
 	env = v_envp(s, 0);
 	fflush(0);
 	execve(path, av + 1, env);
@@ -1095,6 +1099,10 @@ int b_mod(sh *s, int ac, char **av)
 			      "mod find <builtin>");
 		return HIBR_FAIL;
 	}
+	if ((s->sopt & O_PLAN) && (!strcmp(av[1], "load") || !strcmp(av[1], "drop"))) {
+		pl_note(s, "would %s module %s", av[1], ac > 2 ? av[2] : "");
+		return HIBR_FAIL;
+	}
 	if (!strcmp(av[1], "load")) {
 		if (ac < 3) {
 			lg(HIBR_LERR, "mod load: path required");
@@ -1154,6 +1162,10 @@ int b_need(sh *s, int ac, char **av)
 	if (ac < 2) {
 		lg(HIBR_LERR, "usage: need name...");
 		return 2;
+	}
+	if (s->sopt & O_PLAN) {
+		pl_note(s, "would load the module that provides %s", av[1]);
+		return HIBR_FAIL;
 	}
 	for (i = 1; i < ac; i++) {
 		if (m_need(s, av[i]) == HIBR_OK) {

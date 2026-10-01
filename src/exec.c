@@ -228,6 +228,14 @@ int rd_do(sh *s, redir *r, vec *sv)
 	for (; r; r = r->nx) {
 		t = xone(s, r->w);
 		fd = -1;
+		if ((s->sopt & O_PLAN) && r->fd == pl_fd && !r->var) {
+			pl_note(s, "would redirect descriptor %d, which holds this "
+				   "record; left alone", r->fd);
+			continue;
+		}
+		if ((s->sopt & O_PLAN) && r->k != R_DUP && r->k != R_HERE &&
+		    pl_redir(s, r->k, t))
+			t = "/dev/null";
 		if (r->k != R_DUP && r->k != R_HERE && net_is(s, t)) {
 			fd = net_open(s, t);
 			if (fd < 0) {
@@ -1401,6 +1409,15 @@ int ex_cmd(sh *s, node *n)
 			lg(HIBR_LERR, "%s: command not found", av[0]);
 		rd_undo(&sv);
 		st = HIBR_NOCMD;
+		goto out;
+	}
+	if ((s->sopt & O_PLAN) && !pl_prog(s, av)) {
+		if (n->rd) {
+			rd_do(s, n->rd, &sv);
+			rd_undo(&sv);
+		}
+		free(path);
+		st = HIBR_FAIL;
 		goto out;
 	}
 	env = v_envp(s, asg);

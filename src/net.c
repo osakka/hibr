@@ -679,6 +679,12 @@ int b_listen(sh *s, int ac, char **av)
 	str cmd;
 	pid_t pid;
 
+	if (s->sopt & O_PLAN) {
+		pl_note(s, "would listen for connections: listen%s%s",
+			ac > 1 ? " " : "", ac > 1 ? av[1] : "");
+		return HIBR_FAIL;
+	}
+
 	for (; i < ac && av[i][0] == '-' && av[i][1]; i++) {
 		if (!strcmp(av[i], "-b"))
 			bnd = 1;

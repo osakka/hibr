@@ -225,6 +225,10 @@ went in the shell.
 12. **A script runs as it is read, and `checkfirst` is the opt-in to parse it
     whole first** (on in agent mode); bash has no such option -- see
     `docs/adr/0026`.
+13. **`--plan` is a dry run bash does not have**: the script's own logic
+    runs, every write, connection and program not known to only read is
+    refused and recorded, and a refused program fails -- see
+    `docs/adr/0027`.
 
 ## Traps already found — don't reintroduce them
 
@@ -1461,6 +1465,18 @@ went in the shell.
   moving for a second after the mouse stopped, and Redraw Skip, a fixed
   count, could only thin it. The idle marker carries the frame count
   (`Term.frames()`), so a test can count frames instead of timing them.
+
+- **A dry run is only as good as its list of what acts on the world.**
+  `src/plan.c` holds it: redirections are refused in `rd_do` (the one place
+  they open anything), programs in `ex_cmd`, `command` and `exec`, and the
+  builtins that reach outside (`kill`, `listen`, `mod`, `need`) each check
+  `O_PLAN` themselves. Anything new that writes, connects or starts a
+  program has to check it too, or a plan silently does it for real. The
+  record goes to a copy of stderr at descriptor 250 or above, closed on
+  exec, and a redirection aimed at that descriptor is refused -- a script's
+  `exec 250>&-` closed it once and the next record vanished. A refused
+  program fails rather than pretending to succeed: an empty `$(mktemp -d)`
+  had a plan listing writes to the wrong paths.
 
 ## Testing discipline
 

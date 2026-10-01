@@ -868,6 +868,10 @@ int b_command(sh *s, int ac, char **av)
 		lg(HIBR_LERR, "command: %s: not found", av[1]);
 		return HIBR_NOCMD;
 	}
+	if ((s->sopt & O_PLAN) && !pl_prog(s, av + 1)) {
+		free(path);
+		return HIBR_FAIL;
+	}
 	env = v_envp(s, 0);
 	fflush(0);
 	pid = (pid_t)jc_fork(s);

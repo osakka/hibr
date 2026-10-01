@@ -101,6 +101,13 @@ node *hibr_parse(sh *s, const char *src, int *more);
 node *p_line(lex *l);
 int sh_check(sh *s, const char *src);
 extern int ex_loops, ex_srcs;
+void lg_jline(str *o, const char *key, const char *m);
+extern int pl_fd;
+void pl_init(sh *s);
+void pl_fini(void);
+void pl_note(sh *s, const char *f, ...);
+int pl_redir(sh *s, int k, const char *t);
+int pl_prog(sh *s, char **av);
 #ifndef HIBR_STREAMN
 #define HIBR_STREAMN 64
 #endif

@@ -399,6 +399,7 @@ void sh_fini(sh *s)
 	var *v, *nv;
 
 	tr_exit(s);
+	pl_fini();
 	tr_fini(s);
 	jc_fini(s);
 	ed_fini(s);
@@ -527,7 +528,7 @@ int main(int ac, char **av)
 	sh s;
 	char *src = 0, *text;
 	FILE *f;
-	int i = 1, rc, explain = 0;
+	int i = 1, rc, explain = 0, plan = 0;
 	char *p;
 
 	memset(&s, 0, sizeof s);
@@ -591,6 +592,10 @@ int main(int ac, char **av)
 			sh_optset(&s, "agent", 1);
 			continue;
 		}
+		if (!strcmp(av[i], "--plan")) {
+			plan = 1;
+			continue;
+		}
 		if (!strcmp(av[i], "--checkfirst")) {
 			sh_optset(&s, "checkfirst", 1);
 			continue;
@@ -601,7 +606,7 @@ int main(int ac, char **av)
 		}
 		if (!strcmp(av[i], "-h") || !strcmp(av[i], "--help")) {
 			printf("usage: hibr [-d level] [-n] [--agent] [--checkfirst] [--explain]\n"
-			       "            [script [args...]]\n"
+			       "            [--plan] [script [args...]]\n"
 			       "       hibr -c 'commands' [args...]\n"
 			       "       hibr -v | -h\n\n"
 			       "  -c   run the given commands\n"
@@ -614,6 +619,10 @@ int main(int ac, char **av)
 			       "       otherwise each command runs as it is read, as in bash\n"
 			       "  --explain  run nothing: name the mistakes the script\n"
 			       "       makes, one per line; status 1 if it found any\n"
+			       "  --plan  run the script's own logic but refuse every\n"
+			       "       write, connection and program not known to only\n"
+			       "       read, and list each one; --explain reads the text,\n"
+			       "       --plan follows what it would do\n"
 			       "  -d   log level 0-4 (error, warn, info, debug, trace)\n"
 			       "  -v   print version and module ABI\n\n"
 			       "Interactive when stdin is a terminal: reads ~/.hibrc,\n"
@@ -624,6 +633,8 @@ int main(int ac, char **av)
 		}
 		break;
 	}
+	if (plan && !explain)
+		pl_init(&s);
 	if (src) {
 		if (i < ac) {
 			free(s.arg0);

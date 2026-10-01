@@ -592,6 +592,13 @@ int b_kill(sh *s, int ac, char **av)
 	job *j;
 	const char *nm;
 
+	if ((s->sopt & O_PLAN) && ac > 1 && strcmp(av[1], "-l") &&
+	    strcmp(av[1], "-L") && strcmp(av[1], "-0")) {
+		pl_note(s, "would send a signal: kill %s%s", av[1],
+			ac > 2 ? " ..." : "");
+		return HIBR_FAIL;
+	}
+
 	if (ac > 1 && av[1][0] == '-' && av[1][1]) {
 		nm = av[1] + 1;
 		if (nm[0] >= '0' && nm[0] <= '9') {

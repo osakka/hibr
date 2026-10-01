@@ -90,7 +90,9 @@ lines, `nounset`, `strict` and `checkfirst` on, no terminal on standard input, a
 `HIBR_TIMEOUT` bounding each foreground process -- see
 [0025](adr/0025-agent-mode.md). `hibr --explain script` parses without
 running and names common mistakes, one per line -- see
-[the language guide](language.md#explaining-a-script).
+[the language guide](language.md#explaining-a-script). `hibr --plan script`
+follows the script but refuses and lists every write, connection and
+program not known to only read -- see [a dry run](language.md#a-dry-run).
 
 ## Text and data
 

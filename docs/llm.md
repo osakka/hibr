@@ -414,6 +414,33 @@ syntax error. It also catches `for f in $(ls)`, `[ $x = y ]`, `unset
 'm[$k]'`, `local a=$1 b=${m[$a]}`, `$?` after `local x=$(cmd)`, a failing
 `return` after `ret`, and `${m[row]}` with `row` never assigned.
 
+## A dry run
+
+`hibr --plan script` follows the script's own logic but refuses every write
+outside a scratch `$TMPDIR` of its own, every connection, and every program
+not known to only read, and lists each one:
+
+```sh
+printf 'echo built > out.txt\ncurl -sO https://example.com/app.tgz\nn=$(grep -c . job.sh)\necho "job.sh has $n lines"\nrm -rf build\n' > job.sh
+"$HIBR" --plan job.sh 2>&1
+echo "status $?"
+ls
+```
+
+```output
+hibr: plan: job.sh:1: would write out.txt
+hibr: plan: job.sh:2: would run curl -sO https://example.com/app.tgz
+job.sh has 5 lines
+hibr: plan: job.sh:5: would run rm -rf build
+status 1
+job.sh
+```
+
+A refused program fails with status 1 and no output, so a plan stops where
+the script needed a result it could not have. With `--agent` each record is
+a line of JSON keyed `plan`. `--explain` reads the text; `--plan` follows
+what it would do.
+
 ## Modules
 
 `need name` loads a module that provides a name, or says it cannot;

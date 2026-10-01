@@ -612,9 +612,19 @@ could come next: a rule for a quoted `"$@"` missing in a wrapper, and
 knowing that `opt ... int=` declares a number, which `test-unquoted` would
 then pass.
 
-### A safety net for commands an agent runs
+### A safety net for commands an agent runs — dry run built
 
-A dry run, `hibr --plan script`, that runs nothing destructive and lists
+`hibr --plan` shipped in 0.66 (ADR 0027): the script's own logic runs, and
+every write outside a scratch `$TMPDIR`, connection and program not known to
+only read is refused and listed. Known gaps, by design: `awk` and every
+program that runs another are refused rather than looked through, and a
+refused program fails, so a plan stops where the script needed its result.
+What remains of the item below is the policy that runs for real; a shell-only
+version is a guard against mistakes, and a real boundary needs Landlock
+(Linux) or a sandbox profile (macOS) on a machine that has them -- this one's
+kernel has Landlock off.
+
+The original item: a dry run, `hibr --plan script`, that runs nothing destructive and lists
 what would have been touched -- files written, removed or moved, commands
 spawned, hosts reached -- by intercepting the builtins and redirections
 that do it and refusing `exec` of anything not known to be read-only. And a
