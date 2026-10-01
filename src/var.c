@@ -95,15 +95,9 @@ const char *v_coerce(sh *s, var *e, const char *v, str *tmp)
 	const char *ty = v_tyname(e->at);
 
 	if (e->at & (A_LOW | A_UPP)) {
-		size_t i;
-		int up = (e->at & A_UPP) != 0;
 		tmp->n = 0;
-		s_cat(tmp, v);
-		for (i = 0; i < tmp->n; i++)
-			tmp->p[i] = (char)(up ?
-					   toupper((unsigned char)tmp->p[i]) :
-					   tolower((unsigned char)tmp->p[i]));
-		v = tmp->p;
+		u8cased(tmp, v, (e->at & A_UPP) != 0, 0);
+		v = tmp->p ? tmp->p : "";
 	}
 	if (e->at & A_INT) {
 		s_num(tmp, ax_run(s, v));

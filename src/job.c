@@ -1,10 +1,12 @@
 #include "pri.h"
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/wait.h>
 #include <termios.h>
 #include <unistd.h>
@@ -19,8 +21,92 @@ const struct signm jc_sigs[] = {
 	{ "KILL", SIGKILL }, { "TERM", SIGTERM }, { "STOP", SIGSTOP },
 	{ "CONT", SIGCONT }, { "TSTP", SIGTSTP }, { "USR1", SIGUSR1 },
 	{ "USR2", SIGUSR2 }, { "ALRM", SIGALRM }, { "PIPE", SIGPIPE },
+	{ "ILL", SIGILL },   { "TRAP", SIGTRAP }, { "ABRT", SIGABRT },
+	{ "BUS", SIGBUS },   { "FPE", SIGFPE },   { "SEGV", SIGSEGV },
+	{ "CHLD", SIGCHLD }, { "TTIN", SIGTTIN }, { "TTOU", SIGTTOU },
+	{ "URG", SIGURG },   { "XCPU", SIGXCPU }, { "XFSZ", SIGXFSZ },
+	{ "VTALRM", SIGVTALRM }, { "PROF", SIGPROF }, { "WINCH", SIGWINCH },
+	{ "IO", SIGIO },     { "SYS", SIGSYS },
+#ifdef SIGSTKFLT
+	{ "STKFLT", SIGSTKFLT },
+#endif
+#ifdef SIGPWR
+	{ "PWR", SIGPWR },
+#endif
+#ifdef SIGEMT
+	{ "EMT", SIGEMT },
+#endif
+#ifdef SIGINFO
+	{ "INFO", SIGINFO },
+#endif
 	{ 0, 0 }
 };
+
+/* A signal's number from its name (with or without SIG, any case) or its number; -1 when it is neither. */
+int jc_signum(const char *t)
+{
+	const struct signm *sm;
+	const char *p;
+	size_t i;
+
+	if (*t >= '0' && *t <= '9') {
+		for (p = t; *p >= '0' && *p <= '9'; p++)
+			;
+		return *p ? -1 : atoi(t);
+	}
+	if (!strncasecmp(t, "SIG", 3))
+		t += 3;
+	for (sm = jc_sigs; sm->nm; sm++) {
+		for (i = 0; sm->nm[i] && toupper((unsigned char)t[i]) == sm->nm[i]; i++)
+			;
+		if (!sm->nm[i] && !t[i])
+			return sm->sig;
+	}
+	return -1;
+}
+
+/* kill -l: every signal with its number, or the name of a number (an exit status above 128 too), or the number of a name. */
+int jc_klist(int ac, char **av)
+{
+	const struct signm *sm, *best;
+	int i, n, last = 0, col = 0, rc = HIBR_OK;
+
+	if (!ac) {
+		for (;;) {
+			best = 0;
+			for (sm = jc_sigs; sm->nm; sm++)
+				if (sm->sig > last && (!best || sm->sig < best->sig))
+					best = sm;
+			if (!best)
+				break;
+			printf("%2d) SIG%s%c", best->sig, best->nm,
+			       ++col % 5 ? '\t' : '\n');
+			last = best->sig;
+		}
+		if (col % 5)
+			putchar('\n');
+		return HIBR_OK;
+	}
+	for (i = 0; i < ac; i++) {
+		if (av[i][0] >= '0' && av[i][0] <= '9') {
+			n = atoi(av[i]);
+			if (n > 128)
+				n -= 128;
+			for (sm = jc_sigs; sm->nm && sm->sig != n; sm++)
+				;
+			if (sm->nm) {
+				printf("%s\n", sm->nm);
+				continue;
+			}
+		} else if ((n = jc_signum(av[i])) >= 0) {
+			printf("%d\n", n);
+			continue;
+		}
+		lg(HIBR_LERR, "kill: %s: invalid signal specification", av[i]);
+		rc = HIBR_FAIL;
+	}
+	return rc;
+}
 
 /* Claim the terminal and take control of our own process group. */
 void jc_init(sh *s)
@@ -588,34 +674,29 @@ int b_wait(sh *s, int ac, char **av)
 int b_kill(sh *s, int ac, char **av)
 {
 	int sig = SIGTERM, i = 1, rc = HIBR_OK;
-	const struct signm *sm;
 	job *j;
 	const char *nm;
 
-	if ((s->sopt & O_PLAN) && ac > 1 && strcmp(av[1], "-l") &&
-	    strcmp(av[1], "-L") && strcmp(av[1], "-0")) {
-		pl_note(s, "would send a signal: kill %s%s", av[1],
-			ac > 2 ? " ..." : "");
+	if (ac > 1 && (!strcmp(av[1], "-l") || !strcmp(av[1], "-L")))
+		return jc_klist(ac - 2, av + 2);
+	if (ac > 2 && (!strcmp(av[1], "-s") || !strcmp(av[1], "-n"))) {
+		nm = av[2];
+		i = 3;
+	} else if (ac > 1 && av[1][0] == '-' && av[1][1] && strcmp(av[1], "--")) {
+		nm = av[1] + 1;
+		i = 2;
+	} else
+		nm = 0;
+	if (nm && (sig = jc_signum(nm)) < 0) {
+		lg(HIBR_LERR, "kill: %s: invalid signal specification", nm);
 		return HIBR_FAIL;
 	}
-
-	if (ac > 1 && av[1][0] == '-' && av[1][1]) {
-		nm = av[1] + 1;
-		if (nm[0] >= '0' && nm[0] <= '9') {
-			sig = atoi(nm);
-		} else {
-			if (!strncmp(nm, "SIG", 3))
-				nm += 3;
-			for (sm = jc_sigs; sm->nm; sm++)
-				if (!strcmp(sm->nm, nm))
-					break;
-			if (!sm->nm) {
-				lg(HIBR_LERR, "kill: %s: unknown signal", av[1]);
-				return HIBR_FAIL;
-			}
-			sig = sm->sig;
-		}
+	if (ac > i && !strcmp(av[i], "--"))
 		i++;
+	if ((s->sopt & O_PLAN) && sig != 0 && i < ac) {
+		pl_note(s, "would send a signal: kill -%d %s%s", sig, av[i],
+			ac > i + 1 ? " ..." : "");
+		return HIBR_FAIL;
 	}
 	if (i >= ac) {
 		lg(HIBR_LERR, "usage: kill [-signal] %%job | pid");

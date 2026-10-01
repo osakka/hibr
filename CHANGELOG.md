@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.70
+
+**The six bash differences found while checking the documentation, fixed.**
+
+- **`mapfile -O n` keeps the array**, as bash does: the lines go to `n`,
+  `n+1`, ... and everything else stays. It padded the keys below `n` with
+  empty strings and replaced the rest; `mapfile` without `-O` still clears.
+- **`exec 3< <(cmd)` reads what `cmd` writes.** The substitution's own pipe
+  took the lowest free descriptor -- 3 -- so `/dev/fd/3` became the
+  redirection, and cleaning up after the substitution closed it. Its
+  descriptor now starts at 60, clear of the 0-9 scripts use and of `{var}`
+  descriptors from 10.
+- **An arithmetic error in an expansion ends a non-interactive script**, as
+  in bash: `echo $(( 1 / 0 ))`, `x=$((08))`, `${a[1/0]}`, in a function, in
+  a condition. `(( ))` and `let` still only fail, with status 1 (and `let`
+  no longer leaves its error to fail the next command); an interactive
+  shell abandons the line; inside `try` only the command fails. The desktop
+  calculator, which relied on `$(( ))` failing quietly, evaluates with
+  `(( v = in, 1 ))` now.
+- **Case conversion knows more than ASCII**: `${x^}`, `${x^^}`, `${x,}`,
+  `${x,,}`, `${x@U}`, `${x@L}`, `${x@u}`, `declare -u`/`-l` and `str
+  upper`/`lower` change the cased letters of Latin (with Turkish `ı`/`İ` and
+  the `ǅ` digraphs), Greek and Cyrillic, and Armenian, by a table of hibr's
+  own, whatever the locale -- the same stance as ADR 0021. Bytes that are
+  not UTF-8 pass through untouched.
+- **`kill -l` and `kill -L`** list the signals, or translate a number (an
+  exit status above 128 too) or a name; `kill -s name` and `kill -n num`
+  work; signal names are matched in any case; the signal table knows the
+  standard set rather than twelve.
+- **`recv` on a UDP socket takes a whole datagram**: a line drops its
+  trailing newline, `-n` keeps that many bytes. It read a byte at a time,
+  which on a datagram socket throws the rest of the datagram away and then
+  waits for ever.
+
+`tests/900-bash-gaps.t` compares the shell behaviour against bash;
+`tests/905-case-udp.t` records the case table, `recv` over UDP and `try`.
+
 ## 0.69
 
 **The documentation, all of it, held to what the shell does.**

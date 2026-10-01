@@ -250,10 +250,10 @@ expansion produced; text written in the word still splits and globs
 | `${x/p/r}` `${x//p/r}` | replace first, replace all |
 | `${x/#p/r}` `${x/%p/r}` | replace only at the start, at the end |
 | `${x:off:len}` | substring; a negative offset counts from the end |
-| `${x^} ${x^^} ${x,} ${x,,}` | upper or lower the first letter, or all; ASCII letters only, so `é` stays `é` |
+| `${x^} ${x^^} ${x,} ${x,,}` | upper or lower the first letter, or all: the cased letters of Latin, Greek, Cyrillic and Armenian, whatever the locale, since hibr reads text as UTF-8 (in bash's C locale `é` stays `é`) |
 | `${x@Q}` | quoted so reading it back gives the same string |
 | `${x@E}` | with backslash escapes expanded |
-| `${x@U} ${x@L} ${x@u}` | upper, lower, first letter upper; ASCII letters only |
+| `${x@U} ${x@L} ${x@u}` | upper, lower, first letter upper, over the same letters |
 | `${!ref}` | the value of the variable *named* by `x`, subscripts and all, keeping any modifier |
 | `${!pre*}` `${!pre@}` | the names that begin with `pre`, sorted |
 | `${a[k]}` | one element; `${a[@]}` all, `${a[*]}` joined |

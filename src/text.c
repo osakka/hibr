@@ -4,6 +4,111 @@
 #include <stdlib.h>
 #include <string.h>
 
+
+/* One character's other case, for the scripts whose case pairs are regular: Latin, Greek, Cyrillic, Armenian. */
+unsigned u8case(unsigned c, int up)
+{
+	if (c < 0x80)
+		return up ? (unsigned)toupper((int)c) : (unsigned)tolower((int)c);
+	if (c == 0x130 || c == 0x131)
+		return up ? (c == 0x131 ? 'I' : c) : (c == 0x130 ? 'i' : c);
+	if (c >= 0x1C4 && c <= 0x1CC) {
+		unsigned b = 0x1C4 + (c - 0x1C4) / 3 * 3;
+		return up ? b : b + 2;
+	}
+	if (up) {
+		if (c == 0x3AC)
+			return 0x386;
+		if (c >= 0x3AD && c <= 0x3AF)
+			return c - 0x25;
+		if (c == 0x3CC)
+			return 0x38C;
+		if (c == 0x3CD || c == 0x3CE)
+			return c - 0x3F;
+		if ((c >= 0xE0 && c <= 0xFE && c != 0xF7) || (c >= 0x3B1 && c <= 0x3CB && c != 0x3C2) ||
+		    (c >= 0x430 && c <= 0x44F))
+			return c - 0x20;
+		if (c == 0xFF)
+			return 0x178;
+		if (c == 0x3C2)
+			return 0x3A3;
+		if (c >= 0x450 && c <= 0x45F)
+			return c - 0x50;
+		if (c >= 0x561 && c <= 0x586)
+			return c - 0x30;
+		if ((c >= 0x100 && c <= 0x137) || (c >= 0x14A && c <= 0x177) ||
+		    (c >= 0x460 && c <= 0x4BF))
+			return c & ~1u;
+		if ((c >= 0x139 && c <= 0x148) || (c >= 0x179 && c <= 0x17E))
+			return (c & 1) ? c : c - 1;
+		return c;
+	}
+	if (c == 0x386)
+		return 0x3AC;
+	if (c >= 0x388 && c <= 0x38A)
+		return c + 0x25;
+	if (c == 0x38C)
+		return 0x3CC;
+	if (c == 0x38E || c == 0x38F)
+		return c + 0x3F;
+	if ((c >= 0xC0 && c <= 0xDE && c != 0xD7) || (c >= 0x391 && c <= 0x3AB && c != 0x3A2) ||
+	    (c >= 0x410 && c <= 0x42F))
+		return c + 0x20;
+	if (c == 0x178)
+		return 0xFF;
+	if (c >= 0x400 && c <= 0x40F)
+		return c + 0x50;
+	if (c >= 0x531 && c <= 0x556)
+		return c + 0x30;
+	if ((c >= 0x100 && c <= 0x137) || (c >= 0x14A && c <= 0x177) ||
+	    (c >= 0x460 && c <= 0x4BF))
+		return c | 1u;
+	if ((c >= 0x139 && c <= 0x148) || (c >= 0x179 && c <= 0x17E))
+		return (c & 1) ? c + 1 : c;
+	return c;
+}
+
+/* Append one character as UTF-8. */
+void u8put(str *o, unsigned c)
+{
+	if (c < 0x80)
+		s_ch(o, (int)c);
+	else if (c < 0x800) {
+		s_ch(o, (int)(0xC0 | (c >> 6)));
+		s_ch(o, (int)(0x80 | (c & 0x3F)));
+	} else if (c < 0x10000) {
+		s_ch(o, (int)(0xE0 | (c >> 12)));
+		s_ch(o, (int)(0x80 | ((c >> 6) & 0x3F)));
+		s_ch(o, (int)(0x80 | (c & 0x3F)));
+	} else {
+		s_ch(o, (int)(0xF0 | (c >> 18)));
+		s_ch(o, (int)(0x80 | ((c >> 12) & 0x3F)));
+		s_ch(o, (int)(0x80 | ((c >> 6) & 0x3F)));
+		s_ch(o, (int)(0x80 | (c & 0x3F)));
+	}
+}
+
+/* Append text in upper or lower case, all of it or only its first character; bytes that are not UTF-8 pass through. */
+void u8cased(str *o, const char *v, int up, int first)
+{
+	size_t n = strlen(v), i = 0;
+	unsigned c;
+	int k;
+
+	while (i < n) {
+		k = u8dec(v + i, n - i, &c);
+		if (k == 1 && (unsigned char)v[i] >= 0x80)
+			s_ch(o, v[i]);
+		else
+			u8put(o, u8case(c, up));
+		i += (size_t)k;
+		if (first) {
+			s_add(o, v + i, n - i);
+			break;
+		}
+	}
+}
+
 /* Deliver a result to a variable, or to standard output. */
 int sx_out(sh *s, const char *nm, const char *v)
 {
@@ -48,11 +153,7 @@ int b_str(sh *s, int ac, char **av)
 	} else if (!strcmp(sub, "width")) {
 		rc = sx_num(s, ac > 3 ? av[3] : 0, (long)ed_width(a));
 	} else if (!strcmp(sub, "upper") || !strcmp(sub, "lower")) {
-		int up = sub[0] == 'u';
-		s_cat(&o, a);
-		for (i = 0; i < o.n; i++)
-			o.p[i] = (char)(up ? toupper((unsigned char)o.p[i]) :
-					     tolower((unsigned char)o.p[i]));
+		u8cased(&o, a, sub[0] == 'u', 0);
 		rc = sx_out(s, ac > 3 ? av[3] : 0, o.p ? o.p : "");
 	} else if (!strcmp(sub, "trim")) {
 		const char *b = a;

@@ -174,7 +174,7 @@ echo "$sum"
 | `fg [%job]` / `bg [%job]` | resume a job in the foreground or background |
 | `wait [%job\|pid]` | wait for jobs to finish |
 | `wait -n [-p var]` | wait for the next one, and name which it was |
-| `kill [-sig] %job\|pid` | signal a job or process |
+| `kill [-sig\|-s sig\|-n num] %job\|pid` | signal a job or process; `kill -l` lists the signals (the real-time ones bash also lists are left out), `kill -l 9` and `kill -l TERM` translate, and an exit status above 128 names its signal |
 | `disown [%job]` | forget a job without signalling it |
 | `coproc [name] cmd args…` | **[hibr]** run a command as a coprocess |
 | `trap [cmd] sig…` | run `cmd` on a signal, on `EXIT`, `ERR`, `DEBUG` or `RETURN` |

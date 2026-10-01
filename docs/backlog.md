@@ -576,20 +576,8 @@ about what the test machine allows, to be made before it is built.
 
 ### Stay a drop-in for bash
 
-Found while checking the documentation for 0.69, each confirmed against
-bash and not yet fixed:
-
-- `mapfile -O n` pads the keys below `n` and clobbers what was there:
-  `x=(z); printf 'a\n' | { mapfile -t -O 1 x; echo "${x[*]}"; }` gives ` a`,
-  bash `z a`.
-- A descriptor opened with `exec` on a process substitution reads nothing:
-  `exec 3< <(printf 'q\n'); read -u 3 a` leaves `a` empty.
-- An arithmetic error (`$(( 1 / 0 ))`) does not end a non-interactive script.
-- `${x^}`, `${x^^}`, `${x,}` and `${x,,}` change ASCII letters only; bash
-  changes `é` under a UTF-8 locale.
-- `kill -l` and `kill -L` do not list the signals.
-- A line read from a UDP socket hangs: `read` and `recv` take a byte at a
-  time, and a datagram socket drops the rest of a datagram after the first.
+The six differences the documentation check of 0.69 found were fixed in
+0.70.
 
 Every place hibr differs from bash is a place a model's bash breaks, and a
 model that has been burned once stops reaching for it. `tests/corpus.py` is

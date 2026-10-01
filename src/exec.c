@@ -1098,6 +1098,11 @@ char *xpsub(sh *s, part *p)
 		close(pf[0]);
 		fd = pf[1];
 	}
+	w = fcntl(fd, F_DUPFD, 60);
+	if (w >= 0) {
+		close(fd);
+		fd = w;
+	}
 	rec = xm(2 * sizeof *rec);
 	rec[0] = fd;
 	rec[1] = (int)pid;
@@ -1303,6 +1308,14 @@ int ex_cmd(sh *s, node *n)
 			ex_arrasg(s, f);
 	av = xargv(s, n->w, &ac, &am);
 	if (s->xerr) {
+		if (s->xerr == 2 && !s->intry) {
+			lg(HIBR_LDBG, "an arithmetic error ends %s, as in bash",
+			   s->it ? "the line" : "the script");
+			if (s->it)
+				s->stop = 1;
+			else
+				s->quit = 1;
+		}
 		s->xerr = 0;
 		st = s->st = 1;
 		goto out;

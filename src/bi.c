@@ -619,6 +619,10 @@ int b_let(sh *s, int ac, char **av)
 	}
 	for (i = 1; i < ac; i++)
 		v = ax_run(s, av[i]);
+	if (s->xerr) {
+		s->xerr = 0;
+		return HIBR_FAIL;
+	}
 	return v ? HIBR_OK : HIBR_FAIL;
 }
 
@@ -1454,8 +1458,8 @@ int b_mapfile(sh *s, int ac, char **av)
 	ssize_t got;
 	const char *nm = "MAPFILE";
 	char *ov;
-	long want = 0, skip = 0, origin = 0, seen = 0;
-	int i = 1, fd = 0, strip = 0, delim = '\n';
+	long want = 0, skip = 0, origin = 0, seen = 0, k;
+	int i = 1, fd = 0, strip = 0, delim = '\n', keep = 0;
 	size_t st;
 
 	for (; i < ac && av[i][0] == '-' && av[i][1]; i++) {
@@ -1476,6 +1480,7 @@ int b_mapfile(sh *s, int ac, char **av)
 			if (!ov)
 				return 2;
 			origin = atol(ov);
+			keep = 1;
 		} else if (!strncmp(av[i], "-u", 2)) {
 			ov = bi_oval(ac, av, &i, 1);
 			if (!ov)
@@ -1494,14 +1499,6 @@ int b_mapfile(sh *s, int ac, char **av)
 	if (i < ac)
 		nm = av[i];
 	el = vb_get(s);
-	if (origin > 0) {
-		vec *cur = vb_get(s);
-		long k;
-		v_list(s, nm, 0, 0, cur, 1);
-		for (k = 0; k < origin; k++)
-			v_add(el, ar_dup(s->xa, "", 0));
-		vb_put(s, cur);
-	}
 	s_init(&b);
 	while ((got = read(fd, &c, 1)) == 1) {
 		if ((unsigned char)c != (unsigned char)delim) {
@@ -1517,17 +1514,21 @@ int b_mapfile(sh *s, int ac, char **av)
 			s_ch(&b, c);
 		v_add(el, ar_dup(s->xa, b.p ? b.p : "", b.n));
 		b.n = 0;
-		if (want && (long)el->n - origin >= want)
+		if (want && (long)el->n >= want)
 			break;
 	}
-	if (b.n && (!want || (long)el->n - origin < want)) {
+	if (b.n && (!want || (long)el->n < want)) {
 		seen++;
 		if (seen > skip)
 			v_add(el, ar_dup(s->xa, b.p, b.n));
 	}
 	s_free(&b);
 	st = el->n;
-	v_arr(s, nm, el);
+	if (keep)
+		for (k = 0; k < (long)el->n; k++)
+			v_setel(s, nm, origin + k, (const char *)el->p[k]);
+	else
+		v_arr(s, nm, el);
 	vb_put(s, el);
 	lg(HIBR_LDBG, "mapfile read %lu elements into %s",
 	   (unsigned long)st, nm);

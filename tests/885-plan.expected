@@ -25,7 +25,7 @@ hibr: plan: ../p.sh:23: would connect to /dev/tcp/127.0.0.1/9
 hibr: plan: ../p.sh:24: would run find . -name never -delete
 hibr: plan: ../p.sh:25: would run git commit -m x
 kill -0 runs
-hibr: plan: ../p.sh:27: would send a signal: kill 1
+hibr: plan: ../p.sh:27: would send a signal: kill -15 1
 hibr: plan: ../p.sh:28: would listen for connections: listen 9999
 hibr: plan: ../p.sh:29: would load module sys
 hibr: plan: ../p.sh:30: would load the module that provides json

@@ -177,8 +177,12 @@ postfix `++`/`--`, `?:`, the comma operator, and `**`. `&&`, `||` and `?:`
 short-circuit for real, so `(( 0 && (x=9) ))` leaves `x` alone and
 `0 && 1/0` is not an error. Overflow wraps as two's complement exactly as in
 bash, `INT64_MIN / -1` is defined rather than trapping, and the evaluator is
-clean under UndefinedBehaviorSanitizer. An arithmetic error aborts the command
-it appears in, with status 1.
+clean under UndefinedBehaviorSanitizer. An arithmetic error in `(( ))` or
+`let` fails that command with status 1; one in an expansion -- `$(( ))`, an
+array subscript -- ends a non-interactive script with status 1, as in bash,
+and abandons the line at the prompt. Inside `try` it fails only the command,
+so `(( v = expr, 1 ))` or `try` is how a script evaluates something that may
+not be an expression.
 
 `+=` appends: `s+=tail`, `list+=(more items)`, `map[key]+=tail`.
 

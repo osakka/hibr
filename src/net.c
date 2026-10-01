@@ -840,6 +840,16 @@ int b_send(sh *s, int ac, char **av)
 	return HIBR_OK;
 }
 
+/* Whether a descriptor is a datagram socket, where every read takes a whole datagram. */
+int net_isdgram(int fd)
+{
+	int ty = 0;
+	socklen_t l = sizeof ty;
+
+	return getsockopt(fd, SOL_SOCKET, SO_TYPE, &ty, &l) == 0 &&
+	       ty == SOCK_DGRAM;
+}
+
 /* Read from a descriptor into a variable. */
 int b_recv(sh *s, int ac, char **av)
 {
@@ -870,7 +880,24 @@ int b_recv(sh *s, int ac, char **av)
 	fflush(0);
 	nm = i < ac ? av[i] : "REPLY";
 	s_init(&b);
-	if (all || want) {
+	if (net_isdgram(fd)) {
+		buf = xm(65536);
+		n = recv(fd, buf, 65536, 0);
+		if (n < 0) {
+			free(buf);
+			s_free(&b);
+			return HIBR_FAIL;
+		}
+		if (want && n > want)
+			n = want;
+		if (!all && !want) {
+			while (n > 0 && (buf[n - 1] == '\n' || buf[n - 1] == '\r'))
+				n--;
+		}
+		s_add(&b, buf, (size_t)n);
+		free(buf);
+		lg(HIBR_LDBG, "recv took one datagram, %ld bytes", (long)n);
+	} else if (all || want) {
 		buf = xm(HIBR_IOCH);
 		while ((n = read(fd, buf, want && want - (int)b.n < HIBR_IOCH ?
 					     (size_t)(want - (int)b.n) :

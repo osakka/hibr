@@ -40,9 +40,9 @@ CALC_COLS=4
 #
 # The characters are checked first, so a typed name cannot reach a shell
 # variable: $(( PATH )) is a valid expression and not one a calculator should
-# answer.  What survives that can still be malformed -- "2 +" is -- so the
-# evaluation runs in a group with its diagnostic sent nowhere, and its status
-# is what decides.
+# answer.  What survives that can still be malformed -- "2 +" is -- so it
+# is evaluated as (( v = in, 1 )), which fails with status 1 on a malformed
+# expression, where $(( )) would end the desktop as it ends any bash script.
 fn calc_eval(int id) {
 	local v in
 
@@ -54,7 +54,7 @@ fn calc_eval(int id) {
 		CA[$id]["err"]="digits and operators"
 		return 0
 	fi
-	if { v=$(( in )); } 2> /dev/null; then
+	if (( v = in, 1 )) 2> /dev/null; then
 		CA[$id]["out"]=$v
 		CA[$id]["in"]=
 	else

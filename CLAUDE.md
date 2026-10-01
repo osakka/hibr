@@ -1492,6 +1492,20 @@ went in the shell.
   every page found transcripts that could not have come from the code shown
   beside them, and two pages that described `set -e` backwards.
 
+- **A process substitution's descriptor starts at 60.** Left at the lowest
+  free one, `<(cmd)` took 3 in `exec 3< <(cmd)`, `/dev/fd/3` became the
+  redirection onto itself, and the clean-up that closes a substitution's
+  descriptor closed the redirection: the read got nothing. It stays
+  inheritable -- the command opens `/dev/fd/N` itself -- just out of reach
+  of 0-9 and of `{var}` descriptors, which start at 10.
+- **An arithmetic error in an expansion ends a non-interactive script**, as
+  in bash, and `s->xerr == 2` is what marks one (1 is `failglob`, which only
+  skips the command). `(( ))` and `let` clear it and fail with status 1;
+  `try` keeps it to the command. The desktop is one non-interactive script,
+  so an app that evaluates something which may not be an expression must use
+  `(( v = expr, 1 ))` or `try`, never a bare `$(( ))`: the calculator did, and
+  a malformed sum ended the desktop.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then

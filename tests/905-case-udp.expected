@@ -1,0 +1,10 @@
+0
+Élan ÉLAN éLAN élan ÉLAN élan Élan
+STRAßE Ǆ Ÿ II İ ΩΜΈΓΑ ПРИВЕТ ĄČĘ
+straße ǆ ÿ ıi i ωμέγα привет ąčę
+ÉA
+ÉLAN élan
+0000000 351   X  \n
+recv a line: [hello]
+recv -n 3: [abc]
+an arithmetic error inside try fails only that command: ERR=1

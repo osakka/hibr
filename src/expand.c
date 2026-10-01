@@ -770,18 +770,14 @@ void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 	case V_UPALL:
 	case V_LOW:
 	case V_LOWALL: {
-		size_t i;
+		str cs;
 		if (!v)
 			return;
-		a = ar_dup(s->xa, v, strlen(v));
-		for (i = 0; a[i]; i++) {
-			if (p->op == V_UP || p->op == V_UPALL)
-				a[i] = (char)toupper((unsigned char)a[i]);
-			else
-				a[i] = (char)tolower((unsigned char)a[i]);
-			if (p->op == V_UP || p->op == V_LOW)
-				break;
-		}
+		s_init(&cs);
+		u8cased(&cs, v, p->op == V_UP || p->op == V_UPALL,
+			p->op == V_UP || p->op == V_LOW);
+		a = ar_dup(s->xa, cs.p ? cs.p : "", cs.n);
+		s_free(&cs);
 		XV(s, p, b, m, a, strlen(a));
 		return;
 	}
@@ -2454,7 +2450,7 @@ long ax_run(sh *s, const char *src)
 	if (*a.p && !a.bad)
 		ax_err(&a, "unexpected text");
 	if (a.bad)
-		s->xerr = 1;
+		s->xerr = 2;
 	return a.bad ? 0 : v;
 }
 
