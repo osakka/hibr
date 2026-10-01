@@ -282,18 +282,12 @@ a mouse.
 Not planned: transparency, sub-cell placement, or a widget toolkit before
 three apps have wanted the same widget.
 
-### Arithmetic and quoted subscripts
+### Arithmetic and quoted subscripts — built
 
-`$(( m["key"] ))` cannot work: the argument to `$(( ))` and `(( ))` is
-expanded with quote removal before the evaluator sees it, so the quotes are
-gone and the subscript is evaluated. `let 'm["key"] = 1'` does work, because
-its argument is a string the shell never unquotes.
-
-Fixing it means carrying a quote mask alongside the arithmetic text the way
-words already carry one — `xone_q` exists, and `struct ax` would need the mask
-plus each name's offset into the original. It is tractable and it is not
-small. Until then the workaround is one line: read the field into a variable
-and use that.
+In 0.67: `$(( m["key"] ))`, `(( m["key"] = 1 ))` and `for (( ))` reach the
+literal key. The text is expanded with its quote mask, and each quoted run
+inside a subscript goes back into quotes before the evaluator reads it, the
+form `let` already understood.
 
 ### A visual traceroute with a world map — built
 

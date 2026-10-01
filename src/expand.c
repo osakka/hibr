@@ -870,7 +870,7 @@ void xpart(sh *s, part *p, str *b, str *m)
 		xput(b, m, a, strlen(a), 1);
 		return;
 	case P_ARI:
-		a = xnum(s, ax_text(s, p->t));
+		a = xnum(s, ax_text(s, p));
 		XV(s, p, b, m, a, strlen(a));
 		return;
 	}
@@ -2458,16 +2458,88 @@ long ax_run(sh *s, const char *src)
 	return a.bad ? 0 : v;
 }
 
-/* Expand then evaluate arithmetic source text. */
-long ax_text(sh *s, const char *t)
+/* Put quotes back around the quoted runs inside a subscript, so the evaluator reads m["key"] as a literal key. */
+char *ax_requote(sh *s, const char *t, const char *mk)
+{
+	size_t i, n = strlen(t);
+	int d = 0, in;
+	str o;
+	char *r;
+
+	if (!mk || !strchr(t, '['))
+		return (char *)t;
+	s_init(&o);
+	for (i = 0; i < n;) {
+		if (mk[i] && d > 0) {
+			in = 0;
+			for (; i < n && mk[i]; i++) {
+				if (t[i] == '\'') {
+					if (in)
+						s_ch(&o, '\'');
+					s_cat(&o, "\"'\"");
+					in = 0;
+					continue;
+				}
+				if (!in)
+					s_ch(&o, '\'');
+				in = 1;
+				s_ch(&o, t[i]);
+			}
+			if (in)
+				s_ch(&o, '\'');
+			continue;
+		}
+		if (!mk[i] && t[i] == '[')
+			d++;
+		else if (!mk[i] && t[i] == ']' && d > 0)
+			d--;
+		s_ch(&o, t[i++]);
+	}
+	r = ar_dup(s->xa, o.p ? o.p : "", o.n);
+	s_free(&o);
+	lg(HIBR_LTRC, "arithmetic keeps its quoted keys: %s", r);
+	return r;
+}
+
+/* Expand and evaluate arithmetic whose text holds a quoted key: the quotes go back around each key. */
+long ax_textq(sh *s, const char *t)
 {
 	amark m = ar_mark(s->xa);
 	lex l;
 	word *w;
 	long v;
-	vec *o;
+	char *e = 0, *mk = 0;
 
 	lx_init(&l, s, t);
+	l.a = s->xa;
+	l.nb = 1;
+	w = lx_word(&l, 0);
+	if (w)
+		e = xone_fq(s, w, &mk, HIBR_XONE | HIBR_XNOTIL);
+	v = ax_run(s, ax_requote(s, e ? e : "", mk));
+	ar_rel(s->xa, m);
+	return v;
+}
+
+/* Expand then evaluate an arithmetic part's text; whether it holds a quoted key is decided on first use and kept in op. */
+long ax_text(sh *s, part *p)
+{
+	amark m;
+	lex l;
+	word *w;
+	long v;
+	vec *o;
+
+	if (p->op != AX_PLAIN) {
+		if (!p->op && !(memchr(p->t, '[', p->n) && strpbrk(p->t, "\"'")))
+			p->op = AX_PLAIN;
+		else {
+			p->op = AX_QKEY;
+			return ax_textq(s, p->t);
+		}
+	}
+	m = ar_mark(s->xa);
+	lx_init(&l, s, p->t);
 	l.a = s->xa;
 	l.nb = 1;
 	w = lx_word(&l, 0);

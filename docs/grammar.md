@@ -250,7 +250,8 @@ whether it is also non-empty.
 
 **[hibr]** A **quoted subscript is a literal key**: `h["content-type"]` is the
 key `content-type`, while `h[content-type]` is still arithmetic and lands on
-`0` — [0006](adr/0006-arrays-are-sparse-maps.md).
+`0` — [0006](adr/0006-arrays-are-sparse-maps.md). That holds inside `$(( ))`,
+`(( ))` and `for (( ))` too: `$(( h["content-type"] + 1 ))` reads the key.
 
 ## Patterns
 

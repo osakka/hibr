@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.67
+
+**A quoted key works inside arithmetic.** `$(( m["content-type"] + 1 ))`,
+`(( m["x-y"] = 5 ))` and `for (( m["i"] = 0; ... ))` reach the literal key,
+the same as `${m["content-type"]}` always has (ADR 0006). The text of
+`$(( ))` and `(( ))` used to lose its quotes before the evaluator read it,
+so the key was evaluated -- `content` minus `type`, key 0 -- and the only
+way round it was to read the field into a variable first. A quoted variable
+works as the key too (`$(( m["$k"] ))`), and so does a key with an
+apostrophe in it. Quotes outside a subscript are removed as before, as bash
+does. Cost: whether a piece of arithmetic holds a quoted key is decided
+once and kept, so an arithmetic loop pays 0.04-0.14%.
+`tests/890-arith-quoted-keys.t`.
+
 ## 0.66
 
 **`hibr --plan script`: a dry run.** The script's own logic runs --

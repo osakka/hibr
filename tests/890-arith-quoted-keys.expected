@@ -1,0 +1,12 @@
+0
+read:     8
+assigned: 5
+updated:  12
+a quoted variable as the key: 18
+a key with an apostrophe: 6
+nested:   16
+for loop: 3
+unquoted stays arithmetic: 50
+quotes outside a subscript are removed, as in bash: 3
+let:      8
+declare -A needs no quotes: 4

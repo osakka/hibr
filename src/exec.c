@@ -1780,11 +1780,11 @@ int ex_cfor(sh *s, node *n)
 	int st = 0;
 
 	if (wi && wi->p->n)
-		ax_text(s, wi->p->t);
+		ax_text(s, wi->p);
 	for (;;) {
 		if (s->quit || s->stop || s->ret)
 			break;
-		if (wc && wc->p->n && !ax_text(s, wc->p->t))
+		if (wc && wc->p->n && !ax_text(s, wc->p))
 			break;
 		if (s->xerr) {
 			s->xerr = 0;
@@ -1804,7 +1804,7 @@ int ex_cfor(sh *s, node *n)
 		if (s->quit || s->stop || s->ret)
 			break;
 		if (wstep && wstep->p->n)
-			ax_text(s, wstep->p->t);
+			ax_text(s, wstep->p);
 	}
 	return s->st = st;
 }
@@ -2261,7 +2261,7 @@ int ex(sh *s, node *n)
 			rd_undo(&sv);
 			return s->st = HIBR_FAIL;
 		}
-		v = ax_text(s, n->w->p->t);
+		v = ax_text(s, n->w->p);
 		rd_undo(&sv);
 		if (s->xerr) {
 			s->xerr = 0;

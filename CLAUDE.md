@@ -560,12 +560,16 @@ went in the shell.
 - **`sh -c cmd name args...` names `$0` with the first operand**, not with the
   shell. hibr used to make it `$1`, so every argument was off by one and `$#`
   one too many. bash and dash agree with each other here; hibr was alone.
-- **Arithmetic never sees the quotes**, so quoting a subscript does not save
-  you there. `$(( ))` and `(( ))` have their argument expanded with quote
-  removal before the evaluator runs, so `$(( DT[$id]["col"] ))` looks for the
-  key `col` *evaluated*, exactly as the unquoted form would. Read the field
-  into a local first. `let` is the exception, because its argument is a string
-  the shell never unquotes, and `ax_unq` strips the quotes for it.
+- **Arithmetic gets its quoted keys back, and only those.** `$(( ))` and
+  `(( ))` expand their text with quote removal, which used to make
+  `$(( DT[$id]["col"] ))` look up `col` *evaluated*. Since 0.67 `ax_text`
+  expands such text with its quote mask and `ax_requote` puts each quoted
+  run inside a `[...]` back in quotes, the form `ax_unq` already reads for
+  `let`. Quotes outside a subscript are still removed, as in bash. Whether a
+  part needs this is decided once, on first use, and kept in the part's
+  `op` (`AX_PLAIN`, `AX_QKEY`): checking the text on every evaluation cost
+  0.33% on an arithmetic loop, the cached check 0.14%, and the quoted path
+  lives in its own function so the common one stays as small as it was.
 - **A variable's value is itself an expression.** `x="3 * (4 + 5)"; echo $((x))`
   is 27 in bash and was 3 here, because `ax_get` took `strtol` of the first
   token. `ax_val` re-reads anything that is not a clean integer as an
