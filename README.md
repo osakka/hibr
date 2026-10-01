@@ -32,9 +32,6 @@ that reads git's object store without forking anything — is the reason to use
 it.
 
 ```text
-brew tap osakka/hibr && brew install hibr     # macOS or Linux, or:
-make && make install                           # from this tree; PREFIX=... elsewhere
-
 hibr script.sh args...
 hibr -c 'echo $((6 * 7))'
 hibr --explain script.sh    # name the mistakes in it, run nothing
@@ -42,7 +39,21 @@ hibr --plan script.sh       # follow it, change nothing, list what it would do
 man hibr                    # every flag, variable and exit status
 ```
 
-On Debian 12, Ubuntu 22.04 or newer (amd64), from the signed apt
+## Install
+
+Every route installs the same things: `hibr`, its modules, `man hibr`, and
+the text desktop with a `desktop` launcher. hibr needs only libc and libdl;
+libssl and libpng are used if they are there, for TLS and images, and
+nothing fails without them until it is asked for.
+
+**macOS** (or Linux), with Homebrew:
+
+```text
+brew tap osakka/hibr
+brew install hibr
+```
+
+**Debian 12, Ubuntu 22.04, or newer** (amd64), from the signed apt
 repository at [osakka.github.io/hibr-apt](https://osakka.github.io/hibr-apt):
 
 ```text
@@ -52,6 +63,32 @@ echo "deb [signed-by=/usr/share/keyrings/hibr.gpg] https://osakka.github.io/hibr
   | sudo tee /etc/apt/sources.list.d/hibr.list
 sudo apt update && sudo apt install hibr
 ```
+
+`apt upgrade` keeps it current from then on.
+
+**Arch Linux** has no package yet (an AUR one is planned); build it from
+source, below, with `base-devel` and `git` installed. `tcc` is in `extra`
+if you want the default compiler; otherwise `make CC=gcc` works as well.
+
+**From source**, anywhere with a C compiler:
+
+```text
+git clone https://github.com/osakka/hibr && cd hibr
+make                       # with tcc, the default
+make CC=gcc OPT=-O2        # or with gcc: smaller and faster code
+make check                 # the test suite, if you want it
+sudo make install          # to /usr/local; PREFIX=$HOME/.local for yours alone
+```
+
+`PREFIX` is compiled into the binary as the place it looks for modules;
+`make install` rebuilds by itself when it is given a different one from the
+build before it. `make TLS=0` leaves TLS out
+entirely. [`deploy.sh`](docs/deployment.md) does the same install but also
+runs every suite first, keeps the previous version to roll back to, and can
+update itself from the tree on a timer.
+
+To take it out again: `brew uninstall hibr`, `sudo apt remove hibr`, or
+`sudo make uninstall` with the same `PREFIX` it went in with.
 
 New to it? [From bash to hibr, in ten minutes](docs/tutorial.md) is the
 place to start.

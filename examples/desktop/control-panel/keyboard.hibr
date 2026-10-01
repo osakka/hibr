@@ -1,44 +1,33 @@
 #!/usr/bin/env hibr
 #
-# keyboard -- the Control Panel pane for every shortcut in one list: the
-# desktop's own actions, then a launch shortcut for any app. Activating a
-# row captures its next key; the ✕ beside a key, or delete or backspace on
-# its row, clears it. wm/keys.hibr does all of it -- including refusing a
-# key the desktop keeps, and asking before taking one another action has.
-# A key two actions share, which only a settings file edited by hand can
-# arrange, is marked ⚠ on both.
+# keyboard -- the Control Panel pane for the keyboard itself: whether a
+# terminal window gives the desktop its chord shortcuts back, and the keys
+# the desktop always keeps, so they are written down somewhere a person
+# looks. The shortcuts themselves are the Shortcuts pane's.
 
 strict
 
-command -v cp_pane > /dev/null && cp_pane keyboard "Keyboard" "⌨"
-
-# One row for an action: its label, marked if its key is shared.
-fn keyboard_row(int w, int n, what) {
-	local l
-
-	l := dt_keylabel "$what"
-	dt_keyshared "$what" && l="$l ⚠"
-	CP[$w][$n]["kind"]=key
-	CP[$w][$n]["text"]=$l
-	CP[$w][$n]["val"] := dt_keyof "$what"
-	CP[$w][$n]["key"]=$what
-}
+command -v cp_pane > /dev/null && cp_pane keyboard "Keyboard" "⌨" hardware
 
 fn keyboard_rows(int w) {
-	local n=0 a names nl
+	local n=0
 
-	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Desktop"; n=$((n + 1))
-	for a in "${DT_KEYORDER[@]}"; do
-		keyboard_row "$w" "$n" "$a"
-		n=$((n + 1))
-	done
-	names := dt_appnames
-	[ -n "$names" ] || ret "$n"
-	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Apps"; n=$((n + 1))
-	read -ra nl <<< "$names"
-	for a in "${nl[@]}"; do
-		keyboard_row "$w" "$n" "app:$a"
-		n=$((n + 1))
-	done
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Desktop Shortcuts Win"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_TERMKEEP" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=DT_TERMKEEP; n=$((n + 1))
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Always the desktop's"
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="  F10, escape: the menu bar"
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="  alt-c, alt-x, alt-v: copy, cut, paste"
+	n=$((n + 1))
 	ret "$n"
+}
+
+fn keyboard_do(int w, k, int dir) {
+	case $k in
+	DT_TERMKEEP) cp_toggle "$k" ;;
+	esac
+	cp_save
 }

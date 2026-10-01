@@ -609,11 +609,19 @@ went in the shell.
   touches nothing in the pty module. Intermittent, not fixed: if it fails
   again, run it alone in a loop before believing a regression, and look for
   another suite still running beside it.
-- **Before trying anything by hand that uses `need`, reinstall.**
-  `./deploy.sh update --yes --quiet --no-test`. The tests `mod load` the
-  module out of `build/mods`, but `need` autoloads from the module path, which
-  is the *installed* copy — so a green test suite and a broken run by hand
-  mean the installed module is yesterday's.
+- **Before trying anything by hand that uses `need`, reinstall** -- on the
+  owner's machine that is the apt package now, not `deploy.sh`:
+  `packaging/deb/build-deb.sh`, `packaging/deb/publish.sh build/deb/...`,
+  then `sudo apt-get update && sudo apt-get install -y hibr`. The tests
+  `mod load` the module out of `build/mods`, but `need` autoloads from the
+  module path, which is the *installed* copy in `/usr/lib/hibr` -- so a green
+  test suite and a broken run by hand mean the installed module is
+  yesterday's. `deploy.sh` would put a second copy in `/usr/local`, which
+  comes first on `PATH` and shadows the package.
+- **A module is built with `-fPIC`.** tcc does not need it; gcc refuses to
+  link a shared object without it ("relocation against `hibr_lv` in
+  read-only section"), so `make CC=gcc` built the shell and no modules, and
+  every suite that loads one hung or failed.
 - **There is one pty harness, `tests/screen.py`.** There used to be six
   `run()`s and five terminal models across the full-screen suites, differing
   only in timings, so a fix to one fixed one. Anything a new suite needs goes
@@ -681,8 +689,9 @@ went in the shell.
   and only then do letters mean anything. Direct modifier shortcuts were
   considered and rejected: ctrl collides with everything a terminal window
   will need, and alt with what a program inside one might. A desktop that
-  eats ctrl-c is a desktop nothing can run in. The one exception is opt-in
-  (`DT_TERMKEEP`, Control Panel > Terminal > Desktop Shortcuts Win, 0.71):
+  eats ctrl-c is a desktop nothing can run in. The one exception
+  (`DT_TERMKEEP`, Control Panel > Keyboard > Desktop Shortcuts Win, 0.71,
+  on by default since 0.72):
   a terminal declines, in `term_key`, a key `dt_keyassigned` says the
   desktop or an app launcher holds -- and only a chord or a function key,
   never a plain one, never ctrl-c/d/z -- so the desktop's own shortcuts
@@ -1216,7 +1225,17 @@ went in the shell.
   who has ever saved anything. That is how a 2000ms default tick went on
   running at 200ms for its own author. Changing a default is not enough to
   change behaviour: either the setting stops mattering (what the tick got)
-  or the old value needs migrating on load.
+  or the old value needs migrating on load. `DT_SETVER` is that migration:
+  `dt_load` blanks it before sourcing the file, so a file written before
+  0.72 leaves it empty and gets the new defaults (`DT_TERMKEEP=1`) once,
+  then `dt_save` writes `DT_SETVER=1` and the person's own choice sticks.
+  The next default that must reach saved files bumps it to 2 and adds a
+  branch -- never change `dt_load` to re-apply a default unconditionally.
+- **The Control Panel picker is one row per pane plus one per heading, and
+  it does not scroll.** Fifteen panes in three groups need 18 rows, and the
+  window's default height of 20 left 18 -- the bottom row drew over the
+  border. The default is 22 now and `panel_draw` stops at the window's
+  edge. A sixteenth pane needs the height again, or a scrolling picker.
 
 - **A setting an app keeps is a setting the Control Panel shows.** Every
   `dt_keep`, and the desktop's own `DT_KEEP`, has to appear in a file that

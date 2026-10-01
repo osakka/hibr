@@ -544,13 +544,15 @@ drawing a second one from scratch.
 
 ![The Date & Time pane, its clock and date above a small world map marking Europe/London](img/desktop-datetime.png)
 
-The bundled panes -- Appearance, Control Strip, Date & Time, Desktop,
-Displays, File Types, Keyboard, Notifications and Windows under System, and
-About hibr, Files, Task Manager and Terminal under Apps -- are ordinary files
-under `examples/desktop/control-panel` themselves, not special-cased in
+The bundled panes -- Displays, Keyboard and Mouse under Hardware;
+Appearance, Control Strip, Date & Time, Desktop, File Types, Notifications,
+Shortcuts and Windows under Desktop; and About hibr, Files, Task Manager and
+Terminal under Apps -- are ordinary files under
+`examples/desktop/control-panel` themselves, not special-cased in
 `panel.hibr`: a file of your own with the same pane name replaces one, the
 same rule `DT_APPDIRS` already has for apps. `cp_pane name "Title" icon`
-registers one under System; a fourth word, `app`, lists it under Apps. An
+registers one under Desktop; a fourth word, `hardware` or `app`, lists it
+under Hardware or Apps. An
 app's pane should say so when its app is not loaded -- `cp_absent w "Title"`
 gives it the one row that does -- rather than show nothing.
 
@@ -740,8 +742,9 @@ different window, and when nothing has focus they are the desktop's own.
 items, a letter picks the item beside it, enter chooses and escape closes.
 Nothing is reserved while the bar is shut — which is deliberate, and is what
 keeps ctrl-c and the rest free for whatever is running inside a window. The
-one opt-in exception is a terminal set to give the desktop's chord
-shortcuts back (Control Panel > Terminal > Desktop Shortcuts Win).
+one exception is a terminal set to give the desktop's chord
+shortcuts back (Control Panel > Keyboard > Desktop Shortcuts Win, on by
+default).
 
 The application menu lists every window, with `•` against the active one and
 `·` against a hidden one; choosing a hidden one brings it back. That is the

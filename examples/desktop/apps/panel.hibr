@@ -13,7 +13,7 @@ strict
 
 app panel "Control Panel, a picker of panes, and the window list"
 
-command -v dt_app > /dev/null && dt_app panel "Control Panel" 20 58 once "≡"
+command -v dt_app > /dev/null && dt_app panel "Control Panel" 22 58 once "≡"
 
 # Where to find panes beyond the bundled ones -- an array, so a session can
 # add its own the same way DT_APPDIRS already works for apps. The bundled
@@ -70,11 +70,11 @@ cp_panes() {
 	done
 	for b in "${CP_PANE_LIST[@]}"; do
 		l := str lower "${CP_PANES[$b]["title"]}"
-		if [ "${CP_PANES[$b]["group"]}" = app ]; then
-			all+=("1 $l	$b")
-		else
-			all+=("0 $l	$b")
-		fi
+		case ${CP_PANES[$b]["group"]} in
+		hardware) all+=("0 $l	$b") ;;
+		app) all+=("2 $l	$b") ;;
+		*) all+=("1 $l	$b") ;;
+		esac
 	done
 	arr sort all
 	CP_PANE_LIST=()
@@ -127,14 +127,19 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 	r=1
 	g=
 	for n in "${CP_PANE_LIST[@]}"; do
+		[ "$r" -ge "$h" ] && break
 		if [ "${CP_PANES[$n]["group"]}" != "$g" ]; then
 			g=${CP_PANES[$n]["group"]}
 			console pen "#718096" "$DT_FACE" bold
-			t=System
-			[ "$g" = app ] && t=Apps
+			case $g in
+			hardware) t=Hardware ;;
+			app) t=Apps ;;
+			*) t=Desktop ;;
+			esac
 			t := str pad " $t" $((lw - 1))
 			console put -p "w$id" "$r" 0 "$t"
 			r=$((r + 1))
+			[ "$r" -ge "$h" ] && break
 		fi
 		if [ "$n" = "$pane" ]; then
 			if [ "$side" = list ]; then

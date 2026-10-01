@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.72
+
+**The Control Panel is grouped by what a pane is about.** Three headings
+now: **Hardware** -- Displays, Keyboard, and a new Mouse pane; **Desktop**
+-- Appearance, Control Strip, Date & Time, Desktop, File Types,
+Notifications, Shortcuts, Windows; and **Apps**, one pane per app. Every
+shortcut binding moved from Keyboard to its own **Shortcuts** pane, and
+**Keyboard** is now about the keyboard: Desktop Shortcuts Win (which was in
+Terminal) and the keys the desktop always keeps. **Mouse** holds what was
+the mouse half of Windows -- edge resizing, modifier drag and its key, and
+what a double click on a title bar does. The window opens two rows taller,
+22, so the picker fits; it used to draw its last row over the border.
+
+**Desktop Shortcuts Win is on by default.** A chord shortcut such as
+alt-tab now works while a terminal has focus, without finding the setting
+first; plain keys and ctrl-c/d/z still reach the program, and Pass Every
+Key in the Window menu still gives one window everything. Settings saved by
+an earlier version have it switched on once, on load (`DT_SETVER`), since
+a saved file holds every default as it was when written; switch it off
+again in Keyboard and that stays.
+
+**A Mac's disks are on the desktop.** The disk icons were read from
+`/proc/mounts`, which macOS does not have, so only Home showed. With no
+mount table the desktop lists `/Volumes` instead, the startup disk as `/`.
+
+**`make CC=gcc` builds the modules.** They were linked without `-fPIC`, which
+tcc does not need and gcc does; the shell built and every module failed to
+link.
+
+**The README says how to install it**: Homebrew, the apt repository, Arch
+(from source for now) and from source, and how to take it out again.
+
 ## 0.71
 
 **A terminal window can give the desktop its shortcuts back.** Every key

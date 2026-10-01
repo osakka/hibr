@@ -61,13 +61,6 @@ command -v dt_keep > /dev/null && dt_keep DT_TERMBAR
 DT_TERMTITLE="${DT_TERMTITLE-1}"
 command -v dt_keep > /dev/null && dt_keep DT_TERMTITLE
 
-# Whether a terminal window gives the desktop's own chord shortcuts back to
-# the desktop -- alt-tab cycling windows rather than reaching the program.
-# Off by default: a program inside sees every key unless asked otherwise,
-# and one window can still be told to pass everything (term_passall), for
-# a desktop running inside it.
-DT_TERMKEEP="${DT_TERMKEEP-0}"
-command -v dt_keep > /dev/null && dt_keep DT_TERMKEEP
 
 # Whose colours a terminal window's default text and background are:
 # "theme" paints them in the desktop's own ink and face, like every other

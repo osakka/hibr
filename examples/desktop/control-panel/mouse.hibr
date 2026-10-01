@@ -1,0 +1,58 @@
+#!/usr/bin/env hibr
+#
+# mouse -- the Control Panel pane for what the mouse does to a window: whether
+# a plain side resizes it as well as a corner, whether a modifier click
+# anywhere in its body moves it and which modifier, and what a double click
+# on its title bar does. Every value is read by wm/input.hibr; this pane only
+# changes the DT_* settings.
+
+strict
+
+command -v cp_pane > /dev/null && cp_pane mouse "Mouse" "◎" hardware
+
+MS_DRAGKEYS=(alt ctrl shift)
+MS_DBLACTIONS=(zoom min close none)
+
+fn cp_set_dragkey(int? id = "", value = "") { DT_DRAGKEY=$value; cp_save; }
+fn cp_set_dblaction(int? id = "", value = "") { DT_DBLACTION=$value; cp_save; }
+
+fn mouse_rows(int w) {
+	local n=0
+
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Edge Resize"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_EDGERESIZE" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=DT_EDGERESIZE; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Modifier Drag"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_DRAGMOD" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=DT_DRAGMOD; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Drag Modifier"
+	CP[$w][$n]["val"]="$DT_DRAGKEY"; CP[$w][$n]["key"]=dragkey
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Titlebar Click"
+	CP[$w][$n]["val"]="$DT_DBLACTION"; CP[$w][$n]["key"]=dblaction
+	n=$((n + 1))
+	ret "$n"
+}
+
+fn mouse_do(int w, k, int dir) {
+	local v
+
+	case $k in
+	DT_EDGERESIZE | DT_DRAGMOD) cp_toggle "$k" ;;
+	dragkey) v := cp_next "$DT_DRAGKEY" "$dir" "${MS_DRAGKEYS[@]}"
+	         DT_DRAGKEY=$v ;;
+	dblaction) v := cp_next "$DT_DBLACTION" "$dir" "${MS_DBLACTIONS[@]}"
+		DT_DBLACTION=$v ;;
+	esac
+	cp_save
+}
+
+fn mouse_drop(int w, int r, int c, k) {
+	case $k in
+	dragkey) dt_droplist "$w" "$r" "$c" cp_set_dragkey "${MS_DRAGKEYS[@]}" ;;
+	dblaction) dt_droplist "$w" "$r" "$c" cp_set_dblaction \
+		"${MS_DBLACTIONS[@]}" ;;
+	esac
+}

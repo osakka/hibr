@@ -181,18 +181,21 @@ long scrolling list:
 
 A pane down the left, its own rows on the right — arrows move the picker,
 tab or right or enter steps into the selected pane, and the same keys then
-move its row cursor instead. The picker has two groups under headings:
-**System** — Appearance, Control Strip, Date & Time, Desktop, Displays, File
-Types, Keyboard, Notifications, Windows — and **Apps**, one pane per app that
-has something to choose: About hibr, Files, Task Manager, Terminal. An app's
+move its row cursor instead. The picker has three groups under headings:
+**Hardware** — Displays, Keyboard, Mouse — then **Desktop** — Appearance,
+Control Strip, Date & Time, Desktop, File Types, Notifications, Shortcuts,
+Windows — and **Apps**, one pane per app that has something to choose: About
+hibr, Files, Task Manager, Terminal. An app's
 pane is always listed and says so when its app is not loaded, so the list
 does not move under you. Everything an app keeps across restarts has a row in
 some pane; `tests/540-examples.t` fails otherwise. Appearance holds the theme,
 the wallpaper — a glyph, or an image chosen in a picker window of its own —
 the menu bar's spacing and icon, and the four shadows; Windows holds a
 window's chrome — frame, button side, title alignment, button glyphs, read by
-`dt_win` and `dt_btn` themselves, not by the pane — and how it is moved,
-resized and double-clicked; Keyboard holds every shortcut, the desktop's own
+`dt_win` and `dt_btn` themselves, not by the pane; Mouse holds how a
+window is moved, resized and double-clicked; Keyboard holds whether a
+terminal window gives the desktop's shortcuts back (on by default) and names
+the keys the desktop always keeps; Shortcuts holds every shortcut, the desktop's own
 and any app's, each cleared by the ✕ beside it or delete on its row, with
 `wm/keys.hibr` refusing a key the desktop keeps and asking before taking one
 another action holds; Date & Time draws its own body

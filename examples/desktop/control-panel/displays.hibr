@@ -21,7 +21,7 @@
 # moment the release this same drag ends in reaches the server.
 strict
 
-command -v cp_pane > /dev/null && cp_pane displays "Displays" "▦"
+command -v cp_pane > /dev/null && cp_pane displays "Displays" "▦" hardware
 
 declare -gA DPY
 

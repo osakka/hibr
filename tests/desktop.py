@@ -1062,6 +1062,22 @@ check("home, the disks and the trash are the desktop's icons",
       sc.find("Home") == (3, 71) and sc.find("backup") == (6, 70) and
       sc.find("usb") == (9, 71) and sc.find("Trash") == (12, 70), sc)
 
+# A Mac has no /proc/mounts; its volumes are directories in /Volumes, the
+# boot disk a link to /. Faked the same way: DT_MOUNTS somewhere unreadable,
+# DT_VOLUMES a directory of our own.
+vols = os.path.join(d, "Volumes")
+os.makedirs(os.path.join(vols, "USB"))
+os.symlink("/", os.path.join(vols, "Macintosh HD"))
+menv = dict(env, DT_MOUNTS=os.path.join(d, "none"), DT_VOLUMES=vols)
+sc, raw = run("", env=menv, pre=pre)
+check("without /proc/mounts, the disks are the volumes in /Volumes",
+      sc.find("Macintosh") is not None and sc.find("USB") is not None, sc)
+mac = sc.find("Macintosh")
+sc, raw = run("", feed=[press(mac[0] - 1, mac[1]), press(mac[0] - 1, mac[1])],
+              env=menv, pre=pre)
+check("and the boot disk, a link to /, opens / itself",
+      sc.find("┤ Files [/] ├") is not None, sc)
+
 sc, raw = run("", env=env, pre=pre + "DT_DISKS=0\n")
 check("and disks off leaves just home and the trash, moved up to meet it",
       sc.find("Home") == (3, 71) and sc.find("Trash") == (6, 70) and
@@ -1690,11 +1706,11 @@ shutil.rmtree(d, True)
 # silent miscount.
 PANEL = ('. %s/panel.hibr\nCP_PANEDIRS+=("%s")\ncp_panes'
          % (tree("examples/desktop/apps"), tree("examples/desktop/control-panel")))
-ORDER = ["appearance", "control_strip", "datetime", "desktop", "displays",
-         "filetypes", "keyboard", "notify", "windows", "abouthibr",
-         "filesview", "taskmgr", "terminal"]
+ORDER = ["displays", "keyboard", "mouse", "appearance", "control_strip",
+         "datetime", "desktop", "filetypes", "notify", "shortcuts", "windows",
+         "abouthibr", "filesview", "taskmgr", "terminal"]
 DOWN_APP = [b"\x1b[B"] * ORDER.index("appearance")
-DOWN_KB = [b"\x1b[B"] * ORDER.index("keyboard")
+DOWN_KB = [b"\x1b[B"] * ORDER.index("shortcuts")
 
 # The bar's notification dot: hollow with nothing unread, filled once a
 # note arrives, hollow again once the history has been opened.
@@ -1830,7 +1846,7 @@ t.quit(None, 0.5); shutil.rmtree(d, True)
 
 
 CONF = tempfile.mkdtemp(prefix="hibr-conf-")
-sc, raw = run('dt_new "Control Panel" 20 58 2 2 panel',
+sc, raw = run('dt_new "Control Panel" 22 58 2 2 panel',
               feed=DOWN_APP + [b"\x1b[C", b"\x1b[C"],
               env={"XDG_CONFIG_HOME": CONF}, pre=PANEL)
 saved = os.path.join(CONF, "hibr", "desktop.hibr")
@@ -1838,16 +1854,16 @@ text = open(saved).read() if os.path.exists(saved) else ""
 check("a changed setting is written at once, as a script",
       "CP_THEME=slate" in text and "DT_WALL=\\#1a202c" in text and
       "DT_ICONS=" in text, text or sc)
-sc, raw = run('dt_new "Control Panel" 20 58 2 2 panel', feed=DOWN_APP,
+sc, raw = run('dt_new "Control Panel" 22 58 2 2 panel', feed=DOWN_APP,
               env={"XDG_CONFIG_HOME": CONF}, pre=PANEL)
 check("and the next desktop starts with it", sc.find("slate") is not None,
       sc)
 shutil.rmtree(CONF, True)
 
-# ORDER.index("keyboard") downs on the picker reaches Keyboard; entering it
+# ORDER.index("shortcuts") downs on the picker reaches Shortcuts; entering it
 # lands on its first row that is not a heading, Close Window.
 CONF2 = tempfile.mkdtemp(prefix="hibr-conf2-")
-sc, raw = run('dt_new "Control Panel" 20 58 2 2 panel',
+sc, raw = run('dt_new "Control Panel" 22 58 2 2 panel',
               feed=DOWN_KB + [b"\r", b"\r", b"x"],
               env={"XDG_CONFIG_HOME": CONF2}, pre=PANEL)
 check("a shortcut row can be rebound to a new key",
@@ -1857,17 +1873,17 @@ text2 = open(saved2).read() if os.path.exists(saved2) else ""
 check("and the new binding is saved", 'DT_KEYS["close"]=x' in text2, text2)
 shutil.rmtree(CONF2, True)
 
-# Any registered app gets its own row in Keyboard, under Apps, not just
+# Any registered app gets its own row in Shortcuts, under Apps, not just
 # Terminal and Task Manager -- empty by default, assignable the same way the
 # desktop's own are. Past the five desktop rows, Calculator is the first
 # app, since it sorts before Control Panel.
 CALCSRC = '. %s/calc.hibr' % tree("examples/desktop/desk-accessories")
 CONF3 = tempfile.mkdtemp(prefix="hibr-conf3-")
-sc, _ = run('dt_new "Control Panel" 20 58 2 2 panel', feed=DOWN_KB,
+sc, _ = run('dt_new "Control Panel" 22 58 2 2 panel', feed=DOWN_KB,
             env={"XDG_CONFIG_HOME": CONF3}, pre=PANEL + "\n" + CALCSRC)
 check("a registered app is listed with no shortcut by default",
       sc.find("Calculator") is not None, sc)
-sc, _ = run('dt_new "Control Panel" 20 58 2 2 panel',
+sc, _ = run('dt_new "Control Panel" 22 58 2 2 panel',
             feed=DOWN_KB + [b"\r"] + [b"\x1b[B"] * 5 + [b"\r", b"g"],
             env={"XDG_CONFIG_HOME": CONF3}, pre=PANEL + "\n" + CALCSRC)
 check("a shortcut can be assigned to any app, not only the two defaults",
@@ -2386,4 +2402,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(316)
+report(318)

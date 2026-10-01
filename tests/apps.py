@@ -272,13 +272,15 @@ out = subprocess.run([sx.HIBR, "-c", CPLOAD + 'for p in "${CP_PANE_LIST[@]}"; '
 ORDER = [l.split()[0] for l in out if l.strip()]
 GROUP = dict(l.split() for l in out if l.strip())
 check("panes register and sort by title within their group, not load order",
-      ORDER == ["appearance", "control_strip", "datetime", "desktop",
-                "displays", "filetypes", "keyboard", "notify", "windows",
+      ORDER == ["displays", "keyboard", "mouse",
+                "appearance", "control_strip", "datetime", "desktop",
+                "filetypes", "notify", "shortcuts", "windows",
                 "abouthibr", "filesview", "taskmgr", "terminal"], out)
-check("the desktop's own panes are System's and each app's is Apps'",
-      [GROUP[n] for n in ORDER] == ["system"] * 9 + ["app"] * 4, out)
+check("Hardware first, then the desktop's own panes, then one per app",
+      [GROUP[n] for n in ORDER] ==
+      ["hardware"] * 3 + ["system"] * 8 + ["app"] * 4, out)
 
-PW = "20 58 2 2"
+PW = "22 58 2 2"
 PANEL = ("panel", PW)
 TICK = "DT_TICK=200"
 CPANES = 'CP_PANEDIRS+=("%s")\ncp_panes' % CP
@@ -296,7 +298,8 @@ BODYCOL = 20
 TITLE = {"appearance": "Appearance", "control_strip": "Control Strip",
          "datetime": "Date & Time", "desktop": "Desktop",
          "displays": "Displays", "filetypes": "File Types",
-         "keyboard": "Keyboard", "notify": "Notifications",
+         "keyboard": "Keyboard", "mouse": "Mouse",
+         "shortcuts": "Shortcuts", "notify": "Notifications",
          "windows": "Windows", "abouthibr": "About hibr",
          "filesview": "Files", "taskmgr": "Task Manager",
          "terminal": "Terminal"}
@@ -304,8 +307,9 @@ TITLE = {"appearance": "Appearance", "control_strip": "Control Strip",
 
 def prow(name):
     """Which screen row a pane's own name sits at in the picker list: under
-    the System heading, and under Apps as well for an app's pane."""
-    return R0 + 1 + ORDER.index(name) + (GROUP[name] == "app")
+    the Hardware heading, and under Desktop and Apps as well further down."""
+    heads = ["hardware", "system", "app"]
+    return R0 + 1 + ORDER.index(name) + heads.index(GROUP[name])
 
 
 def downs(name):
@@ -387,10 +391,15 @@ def cprun(feed=(), also=(), extra=(), tz=None, env=None, pre="", end=b"qy",
 sc = cprun()
 check("the picker lists every pane, sorted by title",
       all(TITLE[n] in sc.row(prow(n)) for n in ORDER), sc)
-check("under a System heading, then an Apps one",
-      "System" in sc.row(R0) and "Apps" in sc.row(prow("abouthibr") - 1), sc)
+check("under a Hardware heading, then Desktop, then Apps",
+      "Hardware" in sc.row(R0) and
+      "Desktop" in sc.row(prow("appearance") - 1) and
+      "Apps" in sc.row(prow("abouthibr") - 1), sc)
+check("the last pane fits above the window's bottom border",
+      sc.row(prow("terminal")).count("│") >= 3, sc)
 check("the first pane's own rows show on the right without entering it",
-      sc.find(TITLE[ORDER[0]]) is not None and brow(sc, "Theme") != "", sc)
+      sc.find(TITLE[ORDER[0]]) is not None and
+      sc.find("nothing to arrange") is not None, sc)
 
 # Every dropdown in every pane, walked the same way: open it by clicking its
 # value, take the next choice with the keyboard, and see the value change.
@@ -452,7 +461,7 @@ for pane, extra, i, text, val in DROPS:
     check("%s's %s dropdown chooses a new value" % (TITLE[pane], text),
           now != "" and val not in now, sc)
 
-# Keyboard (with only panel.hibr loaded here, Control Panel is the only app
+# Shortcuts (with only panel.hibr loaded here, Control Panel is the only app
 # it lists) -- rebinding a shortcut, and the
 # self-cancelling-click bug reported live as "I tried ctrl-l, alt-ctrl-l
 # and l, none of them registered": a row already selected and last (true
@@ -472,9 +481,9 @@ for pane, extra, i, text, val in DROPS:
 # transient "Press a key…"/"X is now Y" notes, which by the time the
 # screen is captured may already have been overwritten by whatever the
 # trailing "qy" went on to do.
-KB_CP = reach("keyboard", "Control Panel")
+KB_CP = reach("shortcuts", "Control Panel")
 sc = cprun(KB_CP + [b"\r", b"z"])
-check("activating an app's Keyboard row starts capture, and the very next "
+check("activating an app's Shortcuts row starts capture, and the very next "
       "key completes it", "z" in brow(sc, "Control Panel"), sc)
 
 sc = cprun(KB_CP + [b"\r", press(R0, VALCOL), b"z"])
@@ -487,8 +496,8 @@ check("escape cancels it -- the next key is ordinary again, not captured",
       brow(sc, "Control Panel") != "" and
       "z" not in brow(sc, "Control Panel"), sc)
 
-sc = cprun([b"\x1b[B"] * downs("keyboard"))
-check("Keyboard lists the desktop's actions, the Control Strip's among "
+sc = cprun([b"\x1b[B"] * downs("shortcuts"))
+check("Shortcuts lists the desktop's actions, the Control Strip's among "
       "them, then each app's under a heading of its own",
       all(brow(sc, t) != "" for t in ("Close Window", "Detach", "Quit",
                                         "Cycle Windows", "Control Strip",
@@ -500,16 +509,16 @@ check("Keyboard lists the desktop's actions, the Control Strip's among "
 check("a set shortcut has a ✕ to clear it, and an unset one has none",
       "✕" in brow(sc, "Quit") and "✕" not in brow(sc, "Control Panel"), sc)
 qr = browi(sc, "Quit")
-sc = cprun([b"\x1b[B"] * downs("keyboard") +
+sc = cprun([b"\x1b[B"] * downs("shortcuts") +
            ([press(qr, sc.row(qr).index("✕"))] if qr else []))
 check("clicking it clears the shortcut",
       brow(sc, "Quit") != "" and "q" not in brow(sc, "Quit").split() and
       "✕" not in brow(sc, "Quit"), sc)
-sc = cprun(reach("keyboard", "Close Window") + [b"\x1b[3~"])
+sc = cprun(reach("shortcuts", "Close Window") + [b"\x1b[3~"])
 check("delete on a selected row clears it",
       brow(sc, "Close Window") != "" and "alt-f4" not in brow(sc, "Close Window"),
       sc)
-sc = cprun(reach("keyboard", "Cycle Windows") + [b"\x7f"])
+sc = cprun(reach("shortcuts", "Cycle Windows") + [b"\x7f"])
 check("and so does backspace",
       brow(sc, "Cycle Windows") != "" and "tab" not in brow(sc, "Cycle Windows"),
       sc)
@@ -542,7 +551,7 @@ check("no leaves both as they were",
 
 # Two actions sharing a key can only come from a settings file edited by
 # hand; both rows say so.
-sc = cprun([b"\x1b[B"] * downs("keyboard"), pre="DT_APPKEY[panel]=q\n")
+sc = cprun([b"\x1b[B"] * downs("shortcuts"), pre="DT_APPKEY[panel]=q\n")
 check("a key two actions share is marked on both",
       brow(sc, "Quit ⚠") != "" and brow(sc, "Control Panel ⚠") != "", sc)
 
@@ -804,13 +813,26 @@ sc = cprun(reach("appearance", "Style") + [b"\x1b[C"])
 check("the dialog button style steps to brackets",
       "brackets" in brow(sc, "Style"), sc)
 
-# What a double click on a title bar does belongs with Windows.
-sc = cprun(reach("windows", "Titlebar Click"))
-check("titlebar double-click defaults to zoom, in Windows",
+# What a double click on a title bar does belongs with the Mouse.
+sc = cprun(reach("mouse", "Titlebar Click"))
+check("titlebar double-click defaults to zoom, in Mouse",
       "zoom" in brow(sc, "Titlebar Click"), sc)
-sc = cprun(reach("windows", "Titlebar Click") + [b"\x1b[C"])
+sc = cprun(reach("mouse", "Titlebar Click") + [b"\x1b[C"])
 check("and it cycles through the other actions",
       "min" in brow(sc, "Titlebar Click"), sc)
+
+# Keyboard is the hardware pane: whether a terminal gives the desktop its
+# shortcuts back, on by default, and the keys that are always the desktop's.
+sc = cprun(reach("keyboard", "Desktop Shortcuts Win"))
+check("Keyboard holds Desktop Shortcuts Win, on by default",
+      "[x]" in brow(sc, "Desktop Shortcuts Win") and
+      sc.find("F10, escape: the menu bar") is not None, sc)
+sc = cprun(reach("keyboard", "Desktop Shortcuts Win") + [b"\r"])
+check("and it can be switched off",
+      "[ ]" in brow(sc, "Desktop Shortcuts Win"), sc)
+check("the Terminal pane no longer has it",
+      ("set", "Desktop Shortcuts Win")
+      not in [(k, x.strip()) for k, x in panerows("terminal", ("term",))])
 
 # An app's pane is always listed, and says so when its app is not loaded.
 sc = cprun([b"\x1b[B"] * downs("abouthibr"))
@@ -1066,26 +1088,26 @@ check("Button Style cycles from brackets to circles",
       sc.find("Button Style") is not None and
       "circles" in sc.row(sc.find("Button Style")[0]), sc)
 
-sc = cprun(reach("windows", "Edge Resize"))
+sc = cprun(reach("mouse", "Edge Resize"))
 check("Edge Resize defaults on",
       sc.find("Edge Resize") is not None and
       "[x]" in sc.row(sc.find("Edge Resize")[0]), sc)
-sc = cprun(reach("windows", "Edge Resize") + [b"\r"])
+sc = cprun(reach("mouse", "Edge Resize") + [b"\r"])
 check("and it can be switched off",
       "[ ]" in sc.row(sc.find("Edge Resize")[0]), sc)
 
-sc = cprun(reach("windows", "Modifier Drag"))
+sc = cprun(reach("mouse", "Modifier Drag"))
 check("Modifier Drag -- #47 -- defaults off",
       sc.find("Modifier Drag") is not None and
       "[ ]" in sc.row(sc.find("Modifier Drag")[0]), sc)
-sc = cprun(reach("windows", "Modifier Drag") + [b"\r"])
+sc = cprun(reach("mouse", "Modifier Drag") + [b"\r"])
 check("and it can be switched on",
       "[x]" in sc.row(sc.find("Modifier Drag")[0]), sc)
-sc = cprun(reach("windows", "Drag Modifier"))
+sc = cprun(reach("mouse", "Drag Modifier"))
 check("Drag Modifier defaults to alt",
       sc.find("Drag Modifier") is not None and
       "alt" in sc.row(sc.find("Drag Modifier")[0]), sc)
-sc = cprun(reach("windows", "Drag Modifier") + [b"\x1b[C"])
+sc = cprun(reach("mouse", "Drag Modifier") + [b"\x1b[C"])
 check("and cycles to the other modifiers",
       "ctrl" in sc.row(sc.find("Drag Modifier")[0]), sc)
 
@@ -1097,15 +1119,15 @@ sc = cprun(DOWN_APP + [press(R0, VALCOL - 10), press(R0, VALCOL - 10)])
 check("a click in the pane's own body selects and a second click acts",
       sc.find("slate") is not None, sc)
 
-sc = cprun([press(20, LISTCOL)])
+sc = cprun([press(prow("terminal") + 1, LISTCOL)])
 check("clicking below the last pane in the picker does nothing",
       sc.find(TITLE[ORDER[0]]) is not None, sc)
-sc = cprun([press(prow("keyboard"), LISTCOL)])
+sc = cprun([press(prow("shortcuts"), LISTCOL)])
 check("clicking a pane in the picker shows it, the headings counted",
       brow(sc, "Close Window") != "", sc)
 sc = cprun([press(R0, LISTCOL)])
 check("and clicking a heading shows nothing new",
-      brow(sc, "Theme") != "", sc)
+      sc.find("nothing to arrange") is not None, sc)
 
 sc2 = run("tasks", "16 50 4 4", feed=[b"\x1b\x14"], extra=("term",))
 check("alt-ctrl-t opens a terminal, even with another app focused",
@@ -2270,4 +2292,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(325)
+report(329)

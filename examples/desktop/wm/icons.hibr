@@ -90,10 +90,26 @@ DT_MOUNTS="${DT_MOUNTS-/proc/mounts}"
 DT_DISKFS="${DT_DISKFS-ext2 ext3 ext4 xfs btrfs vfat exfat ntfs ntfs3 \
 iso9660 udf zfs hfsplus apfs}"
 
-dt_diskscan() {
-	local dev mnt fs rest lbl
+# A Mac has no /proc/mounts: every mounted volume is a directory in
+# /Volumes instead -- disks, disk images and network shares alike -- and the
+# boot disk is there too, as a link to /. DT_VOLUMES is that directory,
+# overridable for a test the same way DT_MOUNTS is.
+DT_VOLUMES="${DT_VOLUMES-/Volumes}"
 
-	[ -r "$DT_MOUNTS" ] || return 0
+dt_diskscan() {
+	local dev mnt fs rest lbl v
+
+	if [ ! -r "$DT_MOUNTS" ]; then
+		[ -d "$DT_VOLUMES" ] || return 0
+		for v in "$DT_VOLUMES"/*; do
+			[ -d "$v" ] || continue
+			lbl=${v##*/}
+			mnt=$v
+			[ "$v" -ef / ] && mnt=/
+			dt_iconadd place "$mnt" "$lbl" "▥" "disk:$mnt"
+		done
+		return 0
+	fi
 	while IFS=' ' read -r dev mnt fs rest; do
 		case $dev in /dev/*) ;; *) continue ;; esac
 		case " $DT_DISKFS " in *" $fs "*) ;; *) continue ;; esac

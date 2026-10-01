@@ -28,7 +28,7 @@ SOFLAGS = -dynamiclib -undefined dynamic_lookup
 DLLIB =
 else
 LDFLAGS = -rdynamic -ldl
-SOFLAGS = -shared
+SOFLAGS = -shared -fPIC
 DLLIB = -ldl
 endif
 

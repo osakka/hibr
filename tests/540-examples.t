@@ -120,7 +120,8 @@ echo "every callback names what it is called with"
 # that registers one with cp_pane. What is kept but is not a preference is
 # named here with its reason: where the strip sits, how long it is and
 # whether it is folded are set by dragging and clicking the strip itself,
-# and WPK_DIR is only where the wallpaper picker was last left.
+# WPK_DIR is only where the wallpaper picker was last left, and DT_SETVER
+# is which version of the settings wrote the file.
 panes=$(grep -l '^command -v cp_pane' examples/desktop/control-panel/*.hibr)
 kept=$( (grep -rhoE 'dt_keep( [A-Z_][A-Z0-9_]*)+' examples/desktop \
           --include='*.hibr' | sed 's/^dt_keep//'
@@ -128,7 +129,7 @@ kept=$( (grep -rhoE 'dt_keep( [A-Z_][A-Z0-9_]*)+' examples/desktop \
           tr -d '()' | sed 's/DT_KEEP=//') | tr ' \t' '\n\n' |
         grep -E '^[A-Z_][A-Z0-9_]*$' | sort -u)
 for v in $kept; do
-  case $v in CS_Y | CS_LEN | CS_COLLAPSED | WPK_DIR) continue ;; esac
+  case $v in CS_Y | CS_LEN | CS_COLLAPSED | WPK_DIR | DT_SETVER) continue ;; esac
   grep -qw "$v" $panes || echo "kept but in no Control Panel pane: $v"
 done
 echo "every kept preference is in the Control Panel"
