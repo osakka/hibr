@@ -10,7 +10,7 @@
    anything reordered or removed breaks every tool already using it. */
 
 #ifndef DP_API_VER
-#define DP_API_VER 3u
+#define DP_API_VER 4u
 #endif
 
 #ifndef DP_ATTRS
@@ -56,6 +56,11 @@ struct dp_api {
 	   reaching into the display backend's internals -- img draw's -p
 	   is the first user. 0 if no such pane is registered. */
 	int (*prect)(const char *nm, int *row, int *col, int *h, int *w);
+	/* Version 4. The link later writes carry, as the pen's colours are
+	   carried: an address, or null or "" for none. A backend that can
+	   make text a link (OSC 8 on a terminal) does; one that cannot
+	   draws the text as it would anyway. */
+	void (*link)(const char *uri);
 };
 
 #endif

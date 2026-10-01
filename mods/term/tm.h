@@ -19,6 +19,7 @@ struct tm_cell {
 	unsigned cp;
 	unsigned fg, bg, attr;
 	unsigned x;
+	unsigned link;
 	unsigned char w;
 };
 
@@ -63,6 +64,11 @@ struct tm_t {
 	int pn, pcap, pcur, pdig;
 	int pfx;
 	str in, os, title, clip;
+	unsigned link;
+	char **lk;
+	int lkn, lkcap;
+	int bells;
+	str out, nq;
 	int ofin, obel;
 	unsigned uacc;
 	int uneed, ulen;
@@ -138,8 +144,16 @@ const char *tm_mname(tm_t *t);
 /* The table offered under "terminal" -- defined in api.c, alongside the
    static instance it hands out, so tm_ini (in term.c) has something to pass
    to hibr_provide without that instance needing to be extern. */
+void tm_pass(tm_t *t, const char *raw, size_t n);
+void tm_bell(tm_t *t);
+void tm_note(tm_t *t, const char *title, size_t tn, const char *body);
+unsigned tm_linkid(tm_t *t, const char *uri);
 void tm_unb64(const char *p, str *out);
 int tm_api_clip(int id, str *out);
+int tm_api_pass(int id, str *out);
+int tm_api_title(int id, str *out);
+unsigned tm_api_linkat(int id, int r, int c);
+const char *tm_api_linkuri(int id, unsigned link);
 const tm_api *tm_apiget(void);
 
 #endif

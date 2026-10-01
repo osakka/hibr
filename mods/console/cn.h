@@ -15,6 +15,7 @@ struct cn_cell {
 	unsigned cp;
 	char *ext;
 	unsigned fg, bg, attr;
+	unsigned link;
 	unsigned char w, cont;
 };
 
@@ -44,6 +45,9 @@ void cn_getpen(unsigned *fg, unsigned *bg, unsigned *attr);
 void cn_clear(void);
 int cn_put(int row, int col, const char *t);
 void cn_fill(int row, int col, int h, int w, const char *t);
+void cn_bell(void);
+void cn_notify(const char *t);
+void cn_link(const char *uri);
 int cn_fitq(void);
 extern volatile sig_atomic_t cn_wgen;
 unsigned cn_dim1(unsigned v, int pct, unsigned deflt);

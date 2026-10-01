@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.78
+
+**A held session rings, notifies, names its tab and keeps its links.**
+hold redraws each attached terminal from an emulator of its own, and
+anything that is not drawn text died there: the bell, notifications (OSC 9
+and 777), the window title (OSC 0 and 2) and clickable links (OSC 8) --
+checked against the same program run unheld, where every one arrives.
+Each reaches every attached terminal now: the bell and notifications as
+the program sent them, the title whenever it changes and to a terminal as
+it attaches, and a link per character, so it stays clickable.
+
+**The desktop does the same for a program in a Terminal window.** Its
+notifications become desktop notifications -- clicking one brings the
+window up -- and are sent on to your real terminal; a bell rings the real
+terminal and marks the window's title with a dot until you click it; a link
+it prints is a link on the real terminal. `console link`, `console bell` and
+`console notify` do the same for a script, and the display interface
+(version 4) carries links, so any tool drawing through it can make one.
+
 ## 0.77
 
 **Every key the desktop acts on is a setting.** The menu bar's F10 and

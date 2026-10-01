@@ -31,6 +31,7 @@ void tm_blank(tm_t *t, tm_cell *c)
 	c->bg = t->bg;
 	c->attr = 0;
 	c->x = 0;
+	c->link = 0;
 	c->w = 1;
 }
 
@@ -78,6 +79,8 @@ tm_t *tm_new(int rows, int cols)
 	s_init(&t->os);
 	s_init(&t->title);
 	s_init(&t->clip);
+	s_init(&t->out);
+	s_init(&t->nq);
 	for (i = 0; i < (size_t)rows * cols; i++)
 		tm_blank(t, t->g + i);
 	tm_tabreset(t);
@@ -112,6 +115,11 @@ void tm_free(tm_t *t)
 	s_free(&t->os);
 	s_free(&t->title);
 	s_free(&t->clip);
+	s_free(&t->out);
+	s_free(&t->nq);
+	for (k = 0; k < t->lkn; k++)
+		free(t->lk[k]);
+	free(t->lk);
 	free(t);
 }
 
@@ -482,6 +490,7 @@ void tm_glyph(tm_t *t, unsigned cp)
 	c->bg = t->bg;
 	c->attr = t->attr;
 	c->x = 0;
+	c->link = t->link;
 	c->w = (unsigned char)w;
 	if (w == 2 && t->cc + 1 < t->cols) {
 		c = tm_at(t, t->cr, t->cc + 1);
@@ -490,6 +499,7 @@ void tm_glyph(tm_t *t, unsigned cp)
 		c->bg = t->bg;
 		c->attr = t->attr;
 		c->x = 0;
+		c->link = t->link;
 		c->w = 0;
 	}
 	if (t->cc + w >= t->cols) {

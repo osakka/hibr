@@ -8,7 +8,7 @@ with.  Run it directly:  python3 tests/desktop.py [path-to-hibr]
 The pty and the terminal model live in tests/screen.py, which every
 full-screen suite shares.
 """
-import os, re, shutil, sys, tempfile, time
+import os, re, shutil, subprocess, sys, tempfile, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen
@@ -2004,6 +2004,38 @@ check("quitting a held desktop ends the session",
       b"[desk ended, status 0]" in t.out and b"back 0" in t.out, t.out.decode(errors="replace"))
 t.close()
 
+# hold redraws each client from an emulator of its own, so anything a
+# program sends for the terminal rather than the screen used to die there:
+# a bell, a notification, the window title, a link. Each is passed on now,
+# and a link is drawn as one.
+EMIT = os.path.join(HOLD, "emit.sh")
+open(EMIT, "w").write(
+    "#!/bin/sh\nsleep 0.5\nprintf 'BEFORE\\a'\n"
+    "printf '\\033]9;built\\007'\n"
+    "printf '\\033]777;notify;make;all green\\007'\n"
+    "printf '\\033]2;WinTitle\\007'\n"
+    "printf '\\033]8;;https://example.com\\007LINK\\033]8;;\\007 after\\n'\n"
+    "sleep 3\n")
+os.chmod(EMIT, 0o755)
+t = Term("-c", HOLDC + "hold new signals %s" % EMIT, env=HENV, settle=2.0)
+t.collect(0.5)
+check("a bell in a held session reaches the terminal attached to it",
+      b"BEFORE" in t.out and
+      b"\x07" in re.sub(rb"\x1b\][^\x07]*\x07", b"", t.out), t.out)
+check("and so do its notifications, as it sent them",
+      b"\x1b]9;built\x07" in t.out and
+      b"\x1b]777;notify;make;all green\x07" in t.out, t.out)
+check("and the window title it sets",
+      b"\x1b]2;WinTitle\x07" in t.out, t.out)
+inside = b"".join(re.findall(
+    rb"\x1b\]8;;https://example\.com\x07(.*?)\x1b\]8;;\x07", t.out, re.S))
+inside = re.sub(rb"\x1b\[[0-9;?]*[A-Za-z]", b"", inside)
+check("and a link stays a link, closed where it ends",
+      b"LINK" in inside and b"after" not in inside, t.out)
+t.close()
+subprocess.run([screen.HIBR, "-c", HOLDC + "hold kill signals"],
+               env=dict(os.environ, **HENV), capture_output=True)
+
 # --- the shipped session holds itself, and --resume comes back to it -----
 #
 # examples/desktop/session.hibr calls dt_autohold on its own, so running it
@@ -2435,4 +2467,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(322)
+report(326)

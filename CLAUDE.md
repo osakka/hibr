@@ -1567,8 +1567,13 @@ went in the shell.
   copy as the control, the only thing that told a broken path from a
   broken probe. The emulator keeps OSC 52 (`clip`, interface version 2) and
   hold forwards it to every client. Anything else a program sends for the
-  terminal rather than the screen -- a bell, a notification, a hyperlink
-  -- needs the same treatment before it can work held.
+  terminal rather than the screen needs the same treatment -- and it did:
+  the bell, notifications (OSC 9, 777), the title and links (OSC 8) all
+  died in hold until 0.78, found the same way, against an unheld control.
+  Interface version 3 adds `pass`, `title`, `linkat` and `linkuri`; a link
+  is a number per cell (`tm_cell.link`, `cn_cell.link`), its address kept
+  once per terminal, and every renderer closes an open link at the end of
+  its frame.
 
 - **A console write must not ask the kernel anything.** `cn_put`, `cn_fill`,
   `cn_clear` and `cn_darken` each began with `cn_fit`, which reads the

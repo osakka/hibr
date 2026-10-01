@@ -71,13 +71,17 @@ settled move) costs under 1KB after it, matching what the console module
 itself would send a directly attached terminal for the same drag -- hold
 is no longer paying to re-derive what console had already worked out.
 
-Drawing from an emulator loses anything that is not drawn, and the one such
-thing a program sends on purpose is OSC 52, setting the clipboard. So the
-emulator keeps it (`"terminal"` version 2's `clip`), and hold sends it on,
-exactly as the program wrote it, to every attached client the moment it
-arrives -- a copy in a held desktop reaches the clipboard of every machine
-attached to it. Before 0.75 it was dropped, and no copy made in a held
-session reached any clipboard at all. A request to read the clipboard is
+Drawing from an emulator loses anything that is not drawn, and a program
+sends several such things on purpose: the clipboard (OSC 52), the bell,
+notifications (OSC 9 and 777), the window title (OSC 0 and 2), and links
+(OSC 8). The emulator keeps each (`"terminal"` version 3), and hold sends
+them on: the clipboard, bells and notifications exactly as the program
+wrote them, to every attached client the moment they arrive; the title as
+part of each client's mode state, sent when it changes and to a client as
+it attaches; and links per cell, drawn the way colours are and closed at
+the end of every frame. Before 0.75 all of them were dropped, and before
+0.78 all but the clipboard -- a held program could not ring, notify, set a
+tab's title or print a clickable link. A request to read the clipboard is
 not passed on.
 
 ## How it works

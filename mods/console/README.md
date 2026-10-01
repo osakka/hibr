@@ -119,7 +119,18 @@ program that is left only through its own Quit wants this -- the desktop does.
 
 `console clip text` puts text on the clipboard of the terminal the screen is
 on, with OSC 52. The terminal decides whether to honour it; nothing depends
-on its answer.
+on its answer. `console bell` rings its bell, and `console notify text`
+asks it for a notification (OSC 9), which a terminal that does not know the
+sequence simply ignores.
+
+`console link url` makes what is written after it a link, the way `console
+pen` colours it, until `console link -`; a cell keeps its link like its
+colours, the diff sends a link only where it changed, and each flush closes
+an open one before it ends, so nothing written outside the console's frame
+is ever caught in a link. On a terminal that knows OSC 8 the text is
+clickable; elsewhere it is plain text. The display interface carries it as
+`link` (version 4), which is how the `term` module keeps a link a program
+printed in a terminal window a link on the real terminal.
 
 **A resize asserts the terminal's modes again and repaints everything.** The
 terminal on the other end may not be the one the screen was opened on: a

@@ -46,6 +46,7 @@ void hd_cdrop(vec *cls, int fd)
 			free(cn->front);
 			s_free(&cn->mbuf);
 			s_free(&cn->name);
+			s_free(&cn->title);
 			free(cn);
 			cls->p[i] = cls->p[--cls->n];
 			return;
@@ -145,6 +146,7 @@ void hd_cclear(vec *cls, const char *why, size_t n)
 		free(cn->front);
 		s_free(&cn->mbuf);
 		s_free(&cn->name);
+		s_free(&cn->title);
 		free(cn);
 	}
 	cls->n = 0;
@@ -181,6 +183,7 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit)
 	case HD_MATTACH:
 		cn = xm(sizeof *cn);
 		memset(cn, 0, sizeof *cn);
+		s_init(&cn->title);
 		cn->fd = c;
 		if (in.n >= 4 * sizeof(int)) {
 			memcpy(v, in.p, sizeof v);
@@ -414,7 +417,7 @@ void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 			k = read(m, rb.p, rb.cap - 1);
 			if (k > 0) {
 				hd_tm->feed(tid, rb.p, (size_t)k);
-				hd_clipsend(&cls, tid);
+				hd_passsend(&cls, tid);
 				fed = 1;
 			} else if (!(k < 0 && (errno == EAGAIN ||
 					       errno == EINTR))) {
@@ -483,6 +486,7 @@ void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 		free(cn->front);
 		s_free(&cn->mbuf);
 		s_free(&cn->name);
+		s_free(&cn->title);
 		free(cn);
 	}
 	v_free(&cls);

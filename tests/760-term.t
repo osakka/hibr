@@ -258,6 +258,22 @@ i=0; while [ $i -lt 6 ]; do term poll $t 100; i=$((i+1)); done
 show $t 1
 term close $t
 
+echo "--- what a program sends for the terminal, not the screen"
+t := term new -r 4 -c 40
+term bell $t; echo "no bell yet: $?"
+term feed $t $'ab\a' $'\e]9;build done\a' $'\e]777;notify;make;all green\a' $'\e]9;4;1;50\a'
+term bell $t; echo "a bell: $?"
+term bell $t; echo "and only once: $?"
+n := term note $t; printf 'note [%s]\n' "$n"
+n := term note $t; printf 'note [%s]\n' "$n"
+term note $t > /dev/null; echo "progress is not a note: $?"
+term feed $t $'\e]52;c;aGVsbG8=\a' $'\e]2;Busy\a'
+c := term clip $t; echo "clip [$c]"
+c := term title $t; echo "title [$c]"
+term feed $t $'\e]8;;https://example.com\aLINK\e]8;;\a after'
+r := term row $t 0; echo "row [$r]"
+term close $t
+
 echo "--- errors"
 term open 2>/dev/null; echo "no command: $?"
 term poll 999 2>/dev/null; echo "no such terminal: $?"

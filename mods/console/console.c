@@ -292,6 +292,22 @@ int m_console(sh *s, int ac, char **av)
 		}
 		return HIBR_OK;
 	}
+	if (!strcmp(sub, "link")) {
+		cn_link(ac > 2 && strcmp(av[2], "-") ? av[2] : 0);
+		return HIBR_OK;
+	}
+	if (!strcmp(sub, "bell")) {
+		cn_bell();
+		return HIBR_OK;
+	}
+	if (!strcmp(sub, "notify")) {
+		if (ac < 3) {
+			lg(HIBR_LERR, "usage: console notify text");
+			return 2;
+		}
+		cn_notify(av[2]);
+		return HIBR_OK;
+	}
 	if (!strcmp(sub, "clip")) {
 		if (ac < 3) {
 			lg(HIBR_LERR, "usage: console clip text");
@@ -592,7 +608,7 @@ int m_console(sh *s, int ac, char **av)
 static const dp_api console_api = {
 	cn_open, cn_close, cn_isopen, cn_size, cn_resized, cn_pen,
 	cn_clear, cn_put, cn_fill, cn_cursor, cn_flush, cn_key,
-	cn_colour, cn_attr, cn_mouseon, cn_prect
+	cn_colour, cn_attr, cn_mouseon, cn_prect, cn_link
 };
 
 /* Offer the drawing table to whatever else wants to draw. */

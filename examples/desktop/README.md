@@ -682,7 +682,7 @@ In `examples/desktop/apps/`, each one also a file you can read in a sitting:
 |---|---|
 | `files` | a file browser, with a scrollbar and the wheel |
 | `panel` | Control Panel: a picker of panes (see below) |
-| `term` | a shell in a window. Each window is its own pty and its own session. The wheel or `shift-pageup` (Terminal Page Back, in Shortcuts) scrolls back, and a program that asks for the mouse gets it. `DT_TERMBAR` (the Terminal pane, on by default) shows a scrollbar down the right edge -- a real column of the pty, not just a drawn one, the same as an xterm's own gutter takes one |
+| `term` | a shell in a window. Each window is its own pty and its own session. The wheel or `shift-pageup` (Terminal Page Back, in Shortcuts) scrolls back, and a program that asks for the mouse gets it. A program's bell rings the real terminal and puts a • before the window's title until it is clicked; its notifications (OSC 9, 777) become the desktop's own, clicking one brings the window up, and are sent on to the real terminal too; a link it prints stays clickable there. `DT_TERMBAR` (the Terminal pane, on by default) shows a scrollbar down the right edge -- a real column of the pty, not just a drawn one, the same as an xterm's own gutter takes one |
 | `snake` | arrows turn, `p` pauses. It speeds up as it grows |
 | `mines` | Minesweeper, 9 by 9 with ten mines. `space` or a click opens, `f` or a right click flags, and opening a number with its flags placed opens what is round it |
 | `bricks` | after Arkanoid: the arrows or a click move the bat, `space` serves. Where the ball lands on the bat sets its angle |

@@ -36,7 +36,7 @@ extern const tm_api *hd_tm;
    tm_api hands back, ~0u a cell this client has not been sent yet at all,
    so a fresh or just-resized front is invalid everywhere without a second
    fill pass). */
-struct hd_cell { unsigned cp, fg, bg, attr; };
+struct hd_cell { unsigned cp, fg, bg, attr, link; };
 
 /* One attached terminal: its connection, where it sits in the session's own
    virtual space -- row,col its top-left corner, rows,cols its own size --
@@ -64,6 +64,9 @@ struct hd_cli {
 	   the first client to attach, until the panel picks another. */
 	str name;
 	int primary;
+	/* The title last sent to this client's terminal (OSC 2), so it is
+	   sent again only when the program changes it. */
+	str title;
 };
 
 void hd_cdrop(vec *cls, int fd);
@@ -75,7 +78,7 @@ void hd_ubox(vec *cls, int *rows, int *cols);
 void hd_union(vec *cls, int id, int tid);
 void hd_cclear(vec *cls, const char *why, size_t n);
 void hd_rensend1(vec *cls, struct hd_cli *cn, int tid);
-void hd_clipsend(vec *cls, int tid);
+void hd_passsend(vec *cls, int tid);
 void hd_rensend(vec *cls, int tid);
 void hd_mtrans(struct hd_cli *cn, const char *p, size_t n, str *out);
 

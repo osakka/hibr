@@ -12,7 +12,7 @@
    anything reordered or removed breaks every module already using it. */
 
 #ifndef TM_API_VER
-#define TM_API_VER 2u
+#define TM_API_VER 3u
 #endif
 
 /* DECSCUSR's six shapes collapse to three: blinking is never drawn as
@@ -59,6 +59,18 @@ struct tm_api {
 	   then forgotten: 1 with it appended to out, 0 when nothing is
 	   waiting or no such id. Added in version 2. */
 	int (*clip)(int id, str *out);
+	/* Version 3. What the program sent for the terminal rather than the
+	   screen -- a bell, a notification (OSC 9, 777) -- exactly as it
+	   came, handed over once: 1 with it appended to out, 0 when nothing
+	   is waiting. */
+	int (*pass)(int id, str *out);
+	/* The title the program last set (OSC 0 or 2), appended to out; 0
+	   when there is none. */
+	int (*title)(int id, str *out);
+	/* The link a cell belongs to (OSC 8), 0 for none -- a number this
+	   terminal gives each address it has seen, and its address. */
+	unsigned (*linkat)(int id, int r, int c);
+	const char *(*linkuri)(int id, unsigned link);
 };
 
 #endif

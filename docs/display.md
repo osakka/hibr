@@ -92,6 +92,9 @@ and the flush cost shown live. Run it and press things.
 | `console darkdefault fg bg` | the colours `darken` takes a cell drawn in the terminal's own default colours to be, so a shadow over it still darkens |
 | `console shade colour [pct]` | the colour `darken` would make of a `#rrggbb` |
 | `console clip text` | put text on the terminal's clipboard (OSC 52) |
+| `console link url\|-` | make later writes a link (OSC 8), or stop |
+| `console bell` | ring the terminal's bell |
+| `console notify text` | ask the terminal for a notification (OSC 9) |
 | `console watch fd` / `console unwatch fd` | let `console key` also wake when a descriptor is readable |
 | `console consumed` | how many bytes of input have become keys |
 | `console pane name row col h w` | define a region, or move one |

@@ -327,6 +327,29 @@ void cn_close(sh *s)
 	lg(HIBR_LDBG, "screen closed");
 }
 
+/* Ring the terminal's bell. */
+void cn_bell(void)
+{
+	if (cn_on)
+		cn_wr(cn_fd, "\a", 1);
+}
+
+/* Ask the terminal to show a notification of its own, with OSC 9; one
+   that does not know it shows nothing. */
+void cn_notify(const char *t)
+{
+	str o;
+
+	if (!cn_on)
+		return;
+	s_init(&o);
+	s_cat(&o, "\033]9;");
+	s_cat(&o, t);
+	s_ch(&o, 7);
+	cn_wr(cn_fd, o.p, o.n);
+	s_free(&o);
+}
+
 /* Append n bytes as base64, which is what OSC 52 carries. */
 void cn_b64(str *o, const unsigned char *p, size_t n)
 {

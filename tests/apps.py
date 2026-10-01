@@ -1624,6 +1624,37 @@ check("text pasted into Files becomes a new file there",
       os.listdir(CB))
 shutil.rmtree(CB, True)
 
+# --- what a program says to the terminal, not the screen ---------------------
+#
+# A notification from a program in a terminal window is the desktop's own
+# and is sent on; a bell is sent on and marks an unfocused window's title
+# until it is clicked; a link stays a link.
+NOTE9 = "TW_CMD=(/bin/sh -c 'sleep 0.5; printf \"\\033]9;build done\\007\"; sleep 5')"
+sc = run(*TERM, pre=NOTE9, wait=1.5, end=None)
+check("a program's notification shows on the desktop",
+      sc.find("build done") is not None, sc)
+check("and is sent on to the real terminal", b"\x1b]9;" in sc.out and
+      b"build done\x07" in sc.out, sc)
+BELL = "TW_CMD=(/bin/sh -c 'sleep 0.5; printf \"\\007\"; sleep 5')"
+sc = run("clock", "8 24 14 50", pre=BELL, wait=1.5, end=None,
+         also=[("Term", TW, "term")])
+check("a bell from a window without focus rings the real terminal",
+      b"\x07" in re.sub(rb"\x1b\][^\x07]*\x07", b"", sc.out), sc)
+check("and marks that window's title", sc.find("• Term") is not None, sc)
+sc = run("clock", "8 24 14 50", pre=BELL, wait=1.5, end=None,
+         also=[("Term", TW, "term")],
+         feed=[1.2, press(5, 10), release(5, 10), 0.5])
+check("until the window is clicked", sc.find("• Term") is None and
+      sc.find("Term") is not None, sc)
+LINK8 = ("TW_CMD=(/bin/sh -c 'printf \"\\033]8;;https://example.com\\007"
+         "LINK\\033]8;;\\007 after\"; sleep 5')")
+sc = run(*TERM, pre=LINK8, wait=1.2, end=None)
+inside = b"".join(re.findall(
+    rb"\x1b\]8;;https://example\.com\x07(.*?)\x1b\]8;;\x07", sc.out, re.S))
+check("a link printed in a terminal window stays a link on the real one",
+      b"LINK" in re.sub(rb"\x1b\[[0-9;?]*[A-Za-z]", b"", inside) and
+      b"after" not in inside, sc)
+
 # --- the games --------------------------------------------------------------
 #
 # Each one steps on the clock, not on keys, so a key it ignores ("z") is how a
@@ -2473,4 +2504,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(352)
+report(358)

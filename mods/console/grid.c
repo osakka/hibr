@@ -117,6 +117,35 @@ int cn_fitq(void)
 	return cn_fit();
 }
 
+/* Links later writes carry, by number: 0 is none, n is cn_lk[n - 1]. The
+   pen's link is cn_plink; cn_llink is the one the terminal was last left
+   inside, always none between flushes. */
+char **cn_lk;
+int cn_lkn, cn_lkcap;
+unsigned cn_plink, cn_llink;
+
+/* Make later writes part of a link to uri, or of none for null or "". */
+void cn_link(const char *uri)
+{
+	int i;
+
+	cn_plink = 0;
+	if (!uri || !*uri)
+		return;
+	for (i = 0; i < cn_lkn; i++)
+		if (!strcmp(cn_lk[i], uri)) {
+			cn_plink = (unsigned)i + 1;
+			return;
+		}
+	if (cn_lkn == cn_lkcap) {
+		cn_lkcap = cn_lkcap ? cn_lkcap * 2 : 8;
+		cn_lk = xr(cn_lk, (size_t)cn_lkcap * sizeof *cn_lk);
+	}
+	cn_lk[cn_lkn] = xm(strlen(uri) + 1);
+	strcpy(cn_lk[cn_lkn], uri);
+	cn_plink = (unsigned)++cn_lkn;
+}
+
 /* Set the pen used by later writes. */
 void cn_pen(unsigned fg, unsigned bg, unsigned attr)
 {
@@ -148,6 +177,7 @@ void cn_clear(void)
 		cn_back.c[i].fg = cn_fg;
 		cn_back.c[i].bg = cn_bg;
 		cn_back.c[i].attr = cn_penat;
+		cn_back.c[i].link = 0;
 	}
 }
 
@@ -278,6 +308,7 @@ int cn_put(int row, int col, const char *t)
 		c->fg = cn_fg;
 		c->bg = cn_bg;
 		c->attr = cn_penat;
+		c->link = cn_plink;
 		if (w == 2) {
 			cn_cellset(c + 1, 0, 0, 0);
 			(c + 1)->w = 0;
@@ -285,6 +316,7 @@ int cn_put(int row, int col, const char *t)
 			(c + 1)->fg = cn_fg;
 			(c + 1)->bg = cn_bg;
 			(c + 1)->attr = cn_penat;
+			(c + 1)->link = cn_plink;
 		}
 		col += w;
 		i += (size_t)l;
@@ -377,7 +409,8 @@ void cn_goto(str *b, int row, int col, int cr, int cc)
 int cn_same(const cn_cell *a, const cn_cell *b)
 {
 	if (a->cp != b->cp || a->fg != b->fg || a->bg != b->bg ||
-	    a->attr != b->attr || a->w != b->w || a->cont != b->cont)
+	    a->attr != b->attr || a->w != b->w || a->cont != b->cont ||
+	    a->link != b->link)
 		return 0;
 	if (!a->ext && !b->ext)
 		return 1;
@@ -449,6 +482,13 @@ long cn_flush(void)
 				cn_lat = bk->attr;
 				cn_lset = 1;
 			}
+			if (bk->link != cn_llink) {
+				s_cat(&b, "\033]8;;");
+				if (bk->link && (int)bk->link <= cn_lkn)
+					s_cat(&b, cn_lk[bk->link - 1]);
+				s_ch(&b, 7);
+				cn_llink = bk->link;
+			}
 			cn_enc(&b, bk->cp ? bk->cp : ' ');
 			if (bk->ext)
 				s_cat(&b, bk->ext);
@@ -459,6 +499,7 @@ long cn_flush(void)
 			ft->fg = bk->fg;
 			ft->bg = bk->bg;
 			ft->attr = bk->attr;
+			ft->link = bk->link;
 			ft->w = bk->w;
 			ft->cont = bk->cont;
 			if (bk->w == 2 && c + 1 < cn_back.cols) {
@@ -469,8 +510,13 @@ long cn_flush(void)
 				f2->fg = b2->fg;
 				f2->bg = b2->bg;
 				f2->attr = b2->attr;
+				f2->link = b2->link;
 			}
 		}
+	}
+	if (cn_llink) {
+		s_cat(&b, "\033]8;;\a");
+		cn_llink = 0;
 	}
 	if (cn_cvis) {
 		cn_goto(&b, cn_crow, cn_ccol, cr, cc);

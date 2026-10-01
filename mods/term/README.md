@@ -44,6 +44,8 @@ same underlying grid, not the interface itself.
     term status t                # its exit status once it has ended
     term title t                 # what it last called itself with OSC 0 or 2
     term clip t                  # text it last put on the clipboard (OSC 52), once
+    term bell t                  # status 0 if it rang the bell since last asked
+    term note t                  # its next notification (OSC 9, 777): title, tab, text
     term fd    t                 # the pty descriptor, for console watch
     term cursor t                # row, column, shown, and its shape
     term cursor t block|underline|bar  # set the shape directly

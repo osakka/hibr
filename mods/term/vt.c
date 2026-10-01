@@ -568,6 +568,7 @@ void tm_reset(tm_t *t, int hard)
 	t->fg = t->dfg;
 	t->bg = t->dbg;
 	t->attr = 0;
+	t->link = 0;
 	t->top = 0;
 	t->bot = t->rows - 1;
 	t->autowrap = 1;
@@ -661,7 +662,10 @@ void tm_dcsend(tm_t *t)
 	}
 }
 
-/* An operating system command is complete: the title, a clipboard set
+/* An operating system command is complete: the title, a link (8), a
+   notification (9, or 777's notify -- 9 followed by a number and a
+   semicolon is ConEmu's progress and the like, passed on but not shown),
+   a clipboard set
    (52, kept whole as "selection;base64" for whoever runs this terminal to
    take -- a request to read the clipboard is never answered), and the colour
    queries a program uses to tell a dark background from a light one --
@@ -684,6 +688,42 @@ void tm_oscend(tm_t *t)
 			t->title.p[0] = 0;
 		s_cat(&t->title, p);
 		lg(HIBR_LDBG, "terminal %d is called '%s'", t->id, p);
+		return;
+	}
+	if (which == 8) {
+		/* params;uri -- an empty uri ends the link. */
+		const char *u = strchr(p, ';');
+
+		u = u ? u + 1 : "";
+		t->link = *u ? tm_linkid(t, u) : 0;
+		return;
+	}
+	if (which == 9 || which == 777) {
+		const char *q = p, *b;
+		str raw;
+
+		s_init(&raw);
+		s_cat(&raw, "\033]");
+		s_cat(&raw, t->os.p ? t->os.p : "");
+		s_ch(&raw, 7);
+		tm_pass(t, raw.p, raw.n);
+		s_free(&raw);
+		if (which == 9) {
+			while (*q >= '0' && *q <= '9')
+				q++;
+			if (q != p && *q == ';')
+				return;
+			tm_note(t, "", 0, p);
+			return;
+		}
+		if (strncmp(p, "notify;", 7))
+			return;
+		q = p + 7;
+		b = strchr(q, ';');
+		if (b)
+			tm_note(t, q, (size_t)(b - q), b + 1);
+		else
+			tm_note(t, "", 0, q);
 		return;
 	}
 	if (which == 52) {
@@ -966,6 +1006,68 @@ void tm_escd(tm_t *t, int f)
 	}
 }
 
+/* Something to pass on to whoever runs this terminal, as the program sent
+   it -- a bell, a notification -- kept until it is asked for, and dropped
+   whole past a bound rather than allowed to grow without one. */
+void tm_pass(tm_t *t, const char *raw, size_t n)
+{
+	if (t->out.n + n > TM_SMAX) {
+		lg(HIBR_LDBG, "terminal %d: nothing asked for what it passed "
+			      "on, dropped", t->id);
+		t->out.n = 0;
+		if (t->out.p)
+			t->out.p[0] = 0;
+	}
+	s_add(&t->out, raw, n);
+}
+
+/* The bell: counted for the desktop, passed on for hold. */
+void tm_bell(tm_t *t)
+{
+	t->bells++;
+	tm_pass(t, "\a", 1);
+	lg(HIBR_LDBG, "terminal %d rang the bell", t->id);
+}
+
+/* A notification, title then a tab then its text, one to a line, for the
+   desktop to show; the oldest are dropped past a bound. */
+void tm_note(tm_t *t, const char *title, size_t tn, const char *body)
+{
+	char *nl;
+
+	if (t->nq.n > TM_SMAX) {
+		nl = strchr(t->nq.p, '\n');
+		if (nl) {
+			memmove(t->nq.p, nl + 1, t->nq.n - (size_t)(nl + 1 - t->nq.p) + 1);
+			t->nq.n -= (size_t)(nl + 1 - t->nq.p);
+		}
+	}
+	s_add(&t->nq, title, tn);
+	s_ch(&t->nq, '\t');
+	s_cat(&t->nq, body);
+	s_ch(&t->nq, '\n');
+	lg(HIBR_LDBG, "terminal %d sent a notification", t->id);
+}
+
+/* The number a link is known by in this terminal, 1 upwards, added the
+   first time it is seen -- a cell keeps the number, not the text. */
+unsigned tm_linkid(tm_t *t, const char *uri)
+{
+	int i;
+
+	for (i = 0; i < t->lkn; i++)
+		if (!strcmp(t->lk[i], uri))
+			return (unsigned)i + 1;
+	if (t->lkn == t->lkcap) {
+		t->lkcap = t->lkcap ? t->lkcap * 2 : 8;
+		t->lk = xr(t->lk, (size_t)t->lkcap * sizeof *t->lk);
+	}
+	t->lk[t->lkn] = xm(strlen(uri) + 1);
+	strcpy(t->lk[t->lkn], uri);
+	t->lkn++;
+	return (unsigned)t->lkn;
+}
+
 /* One C0 control, wherever it arrives -- inside a CSI sequence it still
    acts, which is what a VT does and what programs occasionally rely on. */
 void tm_ctl(tm_t *t, unsigned c)
@@ -987,6 +1089,7 @@ void tm_ctl(tm_t *t, unsigned c)
 			t->cc--;
 		break;
 	case '\t': tm_tab(t, 1); break;
+	case 0x07: tm_bell(t); break;
 	case 0x0E: t->gl = 1; break;
 	case 0x0F: t->gl = 0; break;
 	default: break;

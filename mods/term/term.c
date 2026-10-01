@@ -284,7 +284,7 @@ int m_term(sh *s, int ac, char **av)
 
 	if (ac < 2) {
 		lg(HIBR_LERR, "usage: term open|new|poll|draw|key|write|feed|size|"
-			      "alive|status|fd|title|clip|cursor|row|cells|scroll|mouse|"
+			      "alive|status|fd|title|clip|bell|note|cursor|row|cells|scroll|mouse|"
 			      "focus|colors|screen|select|copy|close ...");
 		return 2;
 	}
@@ -485,6 +485,37 @@ int m_term(sh *s, int ac, char **av)
 	}
 	if (!strcmp(sub, "title")) {
 		tm_ret(s, m->title.p ? m->title.p : "");
+		return HIBR_OK;
+	}
+	if (!strcmp(sub, "bell")) {
+		if (!m->bells)
+			return HIBR_FAIL;
+		m->bells = 0;
+		m->out.n = 0;
+		if (m->out.p)
+			m->out.p[0] = 0;
+		return HIBR_OK;
+	}
+	if (!strcmp(sub, "note")) {
+		char *nl;
+
+		m->out.n = 0;
+		if (m->out.p)
+			m->out.p[0] = 0;
+		if (!m->nq.n)
+			return HIBR_FAIL;
+		nl = strchr(m->nq.p, '\n');
+		s_init(&o);
+		s_add(&o, m->nq.p, nl ? (size_t)(nl - m->nq.p) : m->nq.n);
+		if (nl) {
+			memmove(m->nq.p, nl + 1, m->nq.n - (size_t)(nl + 1 - m->nq.p) + 1);
+			m->nq.n -= (size_t)(nl + 1 - m->nq.p);
+		} else {
+			m->nq.n = 0;
+			m->nq.p[0] = 0;
+		}
+		tm_ret(s, o.p ? o.p : "");
+		s_free(&o);
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "clip")) {

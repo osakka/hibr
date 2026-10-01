@@ -108,7 +108,7 @@ void tm_draw(tm_t *t, const dp_api *dp, int row, int col, int h, int w,
 {
 	int r, c, n, cr, cc;
 	long ar;
-	unsigned fg, bg, at;
+	unsigned fg, bg, at, lk;
 	const tm_cell *k;
 	str run, bar;
 
@@ -134,6 +134,7 @@ void tm_draw(tm_t *t, const dp_api *dp, int row, int col, int h, int w,
 			}
 			fg = k->fg;
 			bg = k->bg;
+			lk = k->link;
 			at = tm_cellattr(t, k, curon, ar, r, c);
 			run.n = 0;
 			if (run.p)
@@ -143,7 +144,7 @@ void tm_draw(tm_t *t, const dp_api *dp, int row, int col, int h, int w,
 				k = tm_dat(t, r, c);
 				if (!k || !k->w)
 					break;
-				if (k->fg != fg || k->bg != bg ||
+				if (k->fg != fg || k->bg != bg || k->link != lk ||
 				    tm_cellattr(t, k, curon, ar, r, c) != at)
 					break;
 				if (k->attr & TM_HIDE) {
@@ -158,6 +159,9 @@ void tm_draw(tm_t *t, const dp_api *dp, int row, int col, int h, int w,
 			if (run.n) {
 				dp->pen(tm_paint(t, fg, 0), tm_paint(t, bg, 1),
 					at);
+				if (dp->link)
+					dp->link(lk && (int)lk <= t->lkn ?
+						 t->lk[lk - 1] : 0);
 				dp->put(row + r, col + n, run.p);
 			}
 			if (c == n)
@@ -165,6 +169,8 @@ void tm_draw(tm_t *t, const dp_api *dp, int row, int col, int h, int w,
 		}
 	}
 	s_free(&run);
+	if (dp->link)
+		dp->link(0);
 	tm_curpos(t, &cr, &cc);
 	if (tm_atcursor(t, curon, cr, cc) && t->cshape == TM_BAR &&
 	    cc < w && cr < h) {

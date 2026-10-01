@@ -101,6 +101,16 @@ no drag in click mode
 0|^[[M !!^[[M#!!
 --- a paste is bracketed when the program asks
 0|^[[200~hi^[[201~
+--- what a program sends for the terminal, not the screen
+no bell yet: 1
+a bell: 0
+and only once: 1
+note [	build done]
+note [make	all green]
+progress is not a note: 1
+clip [hello]
+title [Busy]
+row [abLINK after]
 --- errors
 no command: 2
 no such terminal: 1

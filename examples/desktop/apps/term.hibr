@@ -147,7 +147,7 @@ fn tw_fit(int id, int h, int w) {
 }
 
 fn term_draw(int id, int h, int w, int row, int col) {
-	local t st sb cur=0 ms tw view stored n want rgb c
+	local t st sb cur=0 ms tw view stored n want rgb c note ttl
 
 	tw=$w
 	# A visible scrollbar costs the program inside a real column, not just
@@ -198,6 +198,28 @@ fn term_draw(int id, int h, int w, int row, int col) {
 		DT_CLIPKIND=text
 		console clip "$c"
 	fi
+	# A bell rings on the real terminal, and marks the window's title
+	# with a dot until it has focus; a notification is the desktop's own
+	# -- clicking it brings the window up -- and is sent on to the real
+	# terminal as well.
+	if term bell "$t"; then
+		console bell
+		if [ "$DT_FOCUS" != "$id" ] && [ "${TW[$id]["rang"]}" != 1 ]; then
+			TW[$id]["rang"]=1
+			dt_retitle "$id" "• ${DT[$id]["title"]}"
+		fi
+	fi
+	if [ "$DT_FOCUS" = "$id" ] && [ "${TW[$id]["rang"]}" = 1 ]; then
+		TW[$id]["rang"]=
+		dt_retitle "$id" "${DT[$id]["title"]#• }"
+	fi
+	while note := term note "$t"; do
+		ttl=${note%%$'\t'*}
+		note=${note#*$'\t'}
+		[ -n "$ttl" ] || ttl=${DT[$id]["title"]#• }
+		dt_notify "$ttl: $note" dt_raise "$id"
+		console notify "$ttl: $note"
+	done
 	[ "$DT_FOCUS" = "$id" ] && cur=1
 	# A program that asked for focus reports (mode 1004) hears when its
 	# window gains or loses the keyboard; the module sends nothing unless

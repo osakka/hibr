@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 
 #include "hd.h"
+#include <string.h>
 
 /* Append the escape sequence for one colour -- the same default/256/24-bit
    encoding console's own cn_sgrcol (mods/console/grid.c) emits, duplicated
@@ -83,7 +84,8 @@ void hd_utf8(str *b, unsigned cp)
 
 /* Bring a client's own terminal to the mode state the session is actually
    in right now, transition by transition: the alternate screen, mouse
-   reporting and its encoding, bracketed paste, the cursor's shape. Each is
+   reporting and its encoding, bracketed paste, the cursor's shape, and the
+   window title the program set. Each is
    sent only the first time (cn->primed still 0) or on a genuine change,
    never every frame -- unlike the cell content below, still repainted in
    full every settled frame, this is cheap to get right from the start and
@@ -93,6 +95,7 @@ void hd_utf8(str *b, unsigned cp)
 int hd_modes(int tid, struct hd_cli *cn, str *out)
 {
 	int alt = 0, bpaste = 0, cshape = 0, mmode, sgr = 0, clear;
+	str tt;
 
 	hd_tm->modes(tid, &alt, &bpaste, &cshape);
 	mmode = hd_tm->mouse(tid, &sgr);
@@ -117,6 +120,17 @@ int hd_modes(int tid, struct hd_cli *cn, str *out)
 		if (mmode)
 			s_cat(out, "\033[?1006h");
 	}
+	s_init(&tt);
+	hd_tm->title(tid, &tt);
+	if (tt.n != cn->title.n || (tt.n && memcmp(tt.p, cn->title.p, tt.n))) {
+		s_cat(out, "\033]2;");
+		if (tt.n)
+			s_add(out, tt.p, tt.n);
+		s_ch(out, 7);
+		cn->title.n = 0;
+		s_add(&cn->title, tt.p ? tt.p : "", tt.n);
+	}
+	s_free(&tt);
 	if (!cn->primed || bpaste != cn->bpaste)
 		s_cat(out, bpaste ? "\033[?2004h" : "\033[?2004l");
 	if (!cn->primed || cshape != cn->cshape) {
@@ -151,7 +165,8 @@ int hd_modes(int tid, struct hd_cli *cn, str *out)
 void hd_render(int tid, struct hd_cli *cn, str *out)
 {
 	int r, c, lr, lc, have, cr, cc, cvis, clear;
-	unsigned cp, fg, bg, at, w, lfg = 0, lbg = 0, lat = 0;
+	unsigned cp, fg, bg, at, w, lfg = 0, lbg = 0, lat = 0, lk, llk = 0;
+	const char *uri;
 	struct hd_cell *f;
 	size_t n, i;
 
@@ -174,9 +189,10 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 			if (!hd_tm->at(tid, cn->row + r, cn->col + c, &cp,
 					&fg, &bg, &at, &w) || !w)
 				continue;
+			lk = hd_tm->linkat(tid, cn->row + r, cn->col + c);
 			f = &cn->front[(size_t)r * cn->cols + c];
 			if (f->cp == cp && f->fg == fg && f->bg == bg &&
-			    f->attr == at)
+			    f->attr == at && f->link == lk)
 				continue;
 			if (r != lr || c != lc)
 				hd_goto(out, r, c);
@@ -187,11 +203,20 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 				lat = at;
 				have = 1;
 			}
+			if (lk != llk) {
+				uri = lk ? hd_tm->linkuri(tid, lk) : 0;
+				s_cat(out, "\033]8;;");
+				if (uri)
+					s_cat(out, uri);
+				s_ch(out, 7);
+				llk = lk;
+			}
 			hd_utf8(out, cp ? cp : ' ');
 			f->cp = cp;
 			f->fg = fg;
 			f->bg = bg;
 			f->attr = at;
+			f->link = lk;
 			/* The continuation half is never itself read from
 			   tm_api (w is 0 there, skipped above) so it is never
 			   otherwise kept in step -- left stale, a wide glyph
@@ -204,6 +229,8 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 			lc = c + (int)w;
 		}
 	}
+	if (llk)
+		s_cat(out, "\033]8;;\a");
 	if (hd_tm->cursor(tid, &cr, &cc, &cvis) && cvis &&
 	    cr >= cn->row && cr < cn->row + cn->rows && cc >= cn->col &&
 	    cc < cn->col + cn->cols) {
@@ -233,32 +260,37 @@ void hd_rensend1(vec *cls, struct hd_cli *cn, int tid)
 	s_free(&out);
 }
 
-/* Pass a clipboard the program has just set on to every attached terminal,
-   as it came. The emulator keeps OSC 52 rather than drawing anything for
-   it, so without this a copy made inside a held session reached no
-   machine's clipboard at all; sent to every client, it reaches all of
-   them. */
-void hd_clipsend(vec *cls, int tid)
+/* Pass on to every attached terminal what the program sent for the
+   terminal rather than the screen -- a clipboard set, a bell, a
+   notification -- as it came. The emulator draws nothing for any of them,
+   so without this none reached any machine; sent to every client, each
+   reaches all of them. */
+void hd_passsend(vec *cls, int tid)
 {
 	str c, o;
 	size_t i;
 	struct hd_cli *cn;
 
 	s_init(&c);
-	if (!hd_tm->clip(tid, &c)) {
+	s_init(&o);
+	if (hd_tm->clip(tid, &c)) {
+		s_cat(&o, "\033]52;");
+		s_add(&o, c.p, c.n);
+		s_ch(&o, 7);
+	}
+	hd_tm->pass(tid, &o);
+	if (!o.n) {
+		s_free(&o);
 		s_free(&c);
 		return;
 	}
-	s_init(&o);
-	s_cat(&o, "\033]52;");
-	s_add(&o, c.p, c.n);
-	s_ch(&o, 7);
 	for (i = cls->n; i-- > 0;) {
 		cn = cls->p[i];
 		if (!hd_send(cn->fd, HD_DATA, o.p, o.n))
 			hd_cdrop(cls, cn->fd);
 	}
-	lg(HIBR_LDBG, "hold: a clipboard passed on to %zu terminals", cls->n);
+	lg(HIBR_LDBG, "hold: %zu bytes passed on to %zu terminals", o.n,
+	   cls->n);
 	s_free(&o);
 	s_free(&c);
 }

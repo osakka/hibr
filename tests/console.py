@@ -203,6 +203,22 @@ check("and the signal is not swallowed",
       os.WIFSIGNALED(st) and os.WTERMSIG(st) == signal.SIGINT)
 
 
+o, _ = run('console open\nconsole flush\nconsole link https://example.com\n'
+           'console put 2 2 LINKED\nconsole link -\nconsole put 2 9 plain\n'
+           'console flush\nn := console flush\necho "SECOND $n"\n'
+           'console close\n')
+check("a link is drawn as one, and closed where it ends",
+      b"\x1b]8;;https://example.com\x07LINKED\x1b]8;;\x07" in o and
+      b"\x1b]8;;https://example.com\x07LINKED plain" not in o)
+check("and a flush with nothing new still sends nothing", b"SECOND 0" in o)
+
+o, _ = run('console open\nconsole flush\nconsole bell\n'
+           'console notify "done: all green"\nconsole close\n')
+check("console bell rings, and console notify asks for a notification",
+      b"\x07" in re.sub(rb"\x1b\][^\x07]*\x07", b"", o) and
+      b"\x1b]9;done: all green\x07" in o)
+
+
 def bigger(t):
     t.resize(40, 100)
 
@@ -220,4 +236,4 @@ o, _ = run('console open\nconsole flush\nconsole key 3000\n'
            after=bigger, wait=3)
 check("a write after a resize reaches the new size", b"FARCELL" in o)
 
-report(len(WANT) + len(MWANT) + 40)
+report(len(WANT) + len(MWANT) + 43)
