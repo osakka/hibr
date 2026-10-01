@@ -694,7 +694,7 @@ went in the shell.
   on by default since 0.72):
   a terminal declines, in `term_key`, a key `dt_keyassigned` says the
   desktop or an app launcher holds -- and only a chord or a function key,
-  never a plain one, never ctrl-c/d/z -- so the desktop's own shortcuts
+  never a plain one, never ctrl with one letter -- so the desktop's own shortcuts
   run. A window's Pass Every Key (`TW[$id]["passall"]`) undoes it for that
   window, which a desktop running inside a terminal needs.
 - **`dt_sub` hangs off the menu being declared, not the last one created.**
@@ -1229,8 +1229,18 @@ went in the shell.
   `dt_load` blanks it before sourcing the file, so a file written before
   0.72 leaves it empty and gets the new defaults (`DT_TERMKEEP=1`) once,
   then `dt_save` writes `DT_SETVER=1` and the person's own choice sticks.
-  The next default that must reach saved files bumps it to 2 and adds a
-  branch -- never change `dt_load` to re-apply a default unconditionally.
+  0.73 is version 2: the scrollbar, alt-drag, ctrl-w, alt-tab and no quit
+  key, a key moved only while it still holds its old default. The next
+  default that must reach saved files bumps it to 3 and adds a branch --
+  never change `dt_load` to re-apply a default unconditionally. A key
+  default is set only when a session has not set it already (`${..+x}`),
+  which is how `tests/screen.py`'s `load()` gives every suite `q` to quit
+  with now that the desktop has none.
+- **A theme is a JSON file, not a script** (`examples/desktop/themes/`,
+  ADR 0028). It is the one thing a person configures that is not hibr,
+  because it is the one thing people hand each other: a theme script would
+  run as whoever applied it. `cp_themeread` refuses a file whole on any
+  bad value, so a broken one is missing from the list, never half applied.
 - **The Control Panel picker is one row per pane plus one per heading, and
   it does not scroll.** Fifteen panes in three groups need 18 rows, and the
   window's default height of 20 left 18 -- the bottom row drew over the

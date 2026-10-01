@@ -11,13 +11,15 @@ strict
 # which open the menu bar, are not in here: an app cannot have those keys
 # at all, so there is nothing to configure. Everything else an app's own
 # _key sees first, same as always -- a shortcut here only fires once the
-# focused window has declined the key.
+# focused window has declined the key. Quit has none by default: it is in
+# the hibr menu, and one stray key should not end everything. Each is set
+# only if a session has not set it first, like every other default here.
 declare -gA DT_KEYS
-DT_KEYS[close]="alt-f4"
-DT_KEYS[detach]="ctrl-\\"
-DT_KEYS[quit]=q
-DT_KEYS[cycle]=tab
-DT_KEYS[strip]="alt-s"
+[ -n "${DT_KEYS["close"]+x}" ] || DT_KEYS["close"]="ctrl-w"
+[ -n "${DT_KEYS["detach"]+x}" ] || DT_KEYS["detach"]="ctrl-\\"
+[ -n "${DT_KEYS["quit"]+x}" ] || DT_KEYS["quit"]=
+[ -n "${DT_KEYS["cycle"]+x}" ] || DT_KEYS["cycle"]="alt-tab"
+[ -n "${DT_KEYS["strip"]+x}" ] || DT_KEYS["strip"]="alt-s"
 
 # Any app can have a global shortcut of its own, assigned from Settings --
 # most have none, which is the point: a game or About does not want to
@@ -157,24 +159,25 @@ DT_BTNSTYLE="${DT_BTNSTYLE-brackets}"
 # with this on or off.
 DT_EDGERESIZE="${DT_EDGERESIZE-1}"
 
-# Move a window by holding a modifier and clicking anywhere in its body,
-# not just its title bar -- off by default, the same reasoning
-# console's own mouse motion reporting is: it takes a click away from
-# whatever the app under the pointer would otherwise do with it, alt
-# included, so it is the desktop owner's decision to make, never the
-# default. When it fires, the window manager takes the click outright,
-# before the app under the pointer ever sees it -- there is no "the app
-# declined it" convention anywhere else a click is dispatched, and this
-# does not invent one just for itself.
-DT_DRAGMOD="${DT_DRAGMOD-0}"
+# Move a window by holding a modifier and dragging anywhere in its body,
+# not just its title bar -- on by default with alt, as most desktops do.
+# It takes an alt-click away from the app under the pointer: when it
+# fires, the window manager takes the click outright, before the app ever
+# sees it -- there is no "the app declined it" convention anywhere else a
+# click is dispatched, and this does not invent one just for itself.
+DT_DRAGMOD="${DT_DRAGMOD-1}"
 DT_DRAGKEY="${DT_DRAGKEY-alt}"
 
 # Whether a terminal window gives the desktop's own chord shortcuts back --
 # alt-tab cycling windows rather than reaching the program inside. On by
 # default: only a chord or a function key someone has bound is taken, never
-# a plain key, never ctrl-c/d/z (dt_keyassigned), and one window can still
+# a plain key, never ctrl with one letter (dt_keyassigned), and one window can still
 # be told to pass everything (term_passall), for a desktop running inside.
 DT_TERMKEEP="${DT_TERMKEEP-1}"
+
+# A terminal window's scrollbar, on its right edge -- on by default, so the
+# scrollback is visible as something there is. The terminal app keeps it.
+DT_TERMBAR="${DT_TERMBAR-1}"
 
 # Which version of these settings a saved file was written by. A file from
 # before the number existed is version 0; dt_load brings an older one up to
@@ -226,8 +229,15 @@ dt_load() {
 		if [ -z "$DT_SETVER" ]; then
 			DT_TERMKEEP=1
 		fi
+		if [ "${DT_SETVER:-0}" -lt 2 ]; then
+			DT_TERMBAR=1
+			DT_DRAGMOD=1
+			[ "${DT_KEYS["close"]}" = alt-f4 ] && DT_KEYS["close"]="ctrl-w"
+			[ "${DT_KEYS["cycle"]}" = tab ] && DT_KEYS["cycle"]="alt-tab"
+			[ "${DT_KEYS["quit"]}" = q ] && DT_KEYS["quit"]=
+		fi
 	fi
-	DT_SETVER=1
+	DT_SETVER=2
 	return 0
 }
 

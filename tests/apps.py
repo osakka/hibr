@@ -578,10 +578,10 @@ check("down on the picker moves pane by pane, showing each one's rows",
 
 sc = cprun(DOWN_APP + [b"\x1b[C", b"\x1b[C"])
 check("right enters the pane, and a second right cycles its first row",
-      sc.find("slate") is not None and sc.find("midnight") is None, sc)
-sc = cprun(DOWN_APP + [b"\t", b"\x1b[D"])
+      "neon" in brow(sc, "Theme") and sc.find("midnight") is None, sc)
+sc = cprun(DOWN_APP + [b"\t"] + [b"\x1b[D"] * 6)
 check("tab enters it too, and left cycles the other way, round to the last",
-      sc.find("amber") is not None, sc)
+      "slate" in brow(sc, "Theme"), sc)
 sc = cprun(DOWN_APP + [b"\t", b"\t", b"\x1b[C"])
 check("a second tab leaves the pane, back to moving the picker",
       sc.find("slate") is None and
@@ -590,7 +590,7 @@ check("a second tab leaves the pane, back to moving the picker",
 sc = cprun(DOWN_APP + [press(R0, VALCOL)])
 check("clicking the dropdown's own cell opens a real popup of choices",
       sc.find("slate") is not None and sc.find("dracula") is not None, sc)
-sc = cprun(DOWN_APP + [press(R0, VALCOL), press(R0 + 6, VALCOL + 3)])
+sc = cprun(DOWN_APP + [press(R0, VALCOL), press(R0 + 3, VALCOL + 3)])
 check("choosing one there applies it, the same as cycling would",
       sc.find("dracula") is not None and sc.find("midnight") is None, sc)
 sc = cprun(DOWN_APP + [press(R0, VALCOL)])
@@ -834,6 +834,74 @@ check("the Terminal pane no longer has it",
       ("set", "Desktop Shortcuts Win")
       not in [(k, x.strip()) for k, x in panerows("terminal", ("term",))])
 
+# A settings file keeps every default as it was when written, so new
+# defaults reach it through DT_SETVER, once: a file with no version gets
+# Desktop Shortcuts Win (0.72); one older than 2 gets 0.73's -- the
+# terminal scrollbar, alt-drag, ctrl-w, alt-tab and no quit key -- and a
+# key that was changed from its old default is left alone.
+def loadconf(conf):
+    d = tempfile.mkdtemp(prefix="hibr-mig-")
+    os.makedirs(os.path.join(d, "hibr"))
+    open(os.path.join(d, "hibr", "desktop.hibr"), "w").write(conf)
+    out = subprocess.run(
+        [sx.HIBR, "-c", ". %s\ndt_load\necho \"$DT_SETVER $DT_TERMKEEP "
+         "$DT_TERMBAR $DT_DRAGMOD ${DT_KEYS[close]} ${DT_KEYS[cycle]} "
+         "[${DT_KEYS[quit]}]\"" % WM],
+        env=dict(os.environ, XDG_CONFIG_HOME=d),
+        capture_output=True, text=True).stdout.strip()
+    shutil.rmtree(d, True)
+    return out
+
+
+OLDKEYS = ('DT_KEYS["close"]=alt-f4\nDT_KEYS["cycle"]=tab\n'
+           'DT_KEYS["quit"]=q\nDT_TERMBAR=0\nDT_DRAGMOD=0\n')
+out = loadconf("DT_TERMKEEP=0\n" + OLDKEYS)
+check("a settings file from before 0.72 is brought up to 0.73's defaults",
+      out == "2 1 1 1 ctrl-w alt-tab []", out)
+out = loadconf("DT_SETVER=1\nDT_TERMKEEP=0\n" + OLDKEYS)
+check("one from 0.72 keeps its Shortcuts Win and gets the rest",
+      out == "2 0 1 1 ctrl-w alt-tab []", out)
+out = loadconf('DT_SETVER=1\nDT_KEYS["close"]=alt-x\nDT_KEYS["cycle"]=f6\n'
+               'DT_KEYS["quit"]=ctrl-q\n')
+check("a key changed from its old default is not touched",
+      out.endswith("alt-x f6 [ctrl-q]"), out)
+out = loadconf("DT_SETVER=2\nDT_TERMBAR=0\nDT_DRAGMOD=0\n")
+check("and a 0.73 file is read as it is, choices and all",
+      out.startswith("2 1 0 0 "), out)
+
+# Themes are JSON files, read from the person's own folder first and then
+# the bundled one; a file of the same name replaces a bundled theme, a new
+# name adds one, and a file that is not a valid theme is left out whole.
+TD = tempfile.mkdtemp(prefix="hibr-themes-")
+os.makedirs(os.path.join(TD, "hibr", "themes"))
+TH = os.path.join(TD, "hibr", "themes")
+GOOD = ('{"wall":"#010203","dot":"#111111","bar":"#222222","active":"#333333",'
+        '"idle":"#444444","face":"#555555","ink":"#666666","shadow":70}')
+open(os.path.join(TH, "zinc.json"), "w").write(GOOD)
+open(os.path.join(TH, "paper.json"), "w").write(GOOD)
+open(os.path.join(TH, "broken.json"), "w").write('{"wall":')
+open(os.path.join(TH, "badcolour.json"), "w").write(
+    GOOD.replace("#666666", "red"))
+open(os.path.join(TH, "badshadow.json"), "w").write(
+    GOOD.replace('"shadow":70', '"shadow":500'))
+out = subprocess.run(
+    [sx.HIBR, "-c", CPLOAD + 'echo "${CP_THEMES[*]}"; cp_theme paper; '
+     'echo "$DT_WALL $DT_SHADOW_PCT"; cp_theme midnight; echo "$DT_WALL"; '
+     'cp_theme broken || echo refused'],
+    env=dict(os.environ, XDG_CONFIG_HOME=TD),
+    capture_output=True, text=True).stdout.split("\n")
+shutil.rmtree(TD, True)
+check("every bundled theme is listed, sorted, with a new one of the "
+      "person's own among them",
+      out[0] == "amber black dracula ember forest midnight neon paper "
+      "phosphor slate zinc", out)
+check("a theme of the person's own replaces the bundled one of that name",
+      out[1] == "#010203 70", out)
+check("the bundled ones still apply as before", out[2] == "#0d1b2a", out)
+check("a broken file, a colour that is not one, and a shadow out of range "
+      "are each left out", out[3] == "refused" and
+      "broken" not in out[0] and "bad" not in out[0], out)
+
 # An app's pane is always listed, and says so when its app is not loaded.
 sc = cprun([b"\x1b[B"] * downs("abouthibr"))
 check("About hibr's pane says so when About hibr is not loaded",
@@ -852,8 +920,8 @@ check("Scrollbar and Follow Program Title only appear once term itself is "
       sc.find("Follow Program Title") is not None, sc)
 
 sc = cprun(DOWN_TERM + [b"\x1b[C"], extra=("term",))
-check("Scrollbar defaults off, and Follow Program Title defaults on",
-      "[ ]" in sc.row(sc.find("Scrollbar")[0]) and
+check("Scrollbar and Follow Program Title both default on",
+      "[x]" in sc.row(sc.find("Scrollbar")[0]) and
       "[x]" in sc.row(sc.find("Follow Program Title")[0]), sc)
 check("Colours is a setting too, and terminal windows use the theme's "
       "by default", sc.find("Colours") is not None and
@@ -1097,12 +1165,12 @@ check("and it can be switched off",
       "[ ]" in sc.row(sc.find("Edge Resize")[0]), sc)
 
 sc = cprun(reach("mouse", "Modifier Drag"))
-check("Modifier Drag -- #47 -- defaults off",
+check("Modifier Drag -- #47 -- defaults on",
       sc.find("Modifier Drag") is not None and
-      "[ ]" in sc.row(sc.find("Modifier Drag")[0]), sc)
-sc = cprun(reach("mouse", "Modifier Drag") + [b"\r"])
-check("and it can be switched on",
       "[x]" in sc.row(sc.find("Modifier Drag")[0]), sc)
+sc = cprun(reach("mouse", "Modifier Drag") + [b"\r"])
+check("and it can be switched off",
+      "[ ]" in sc.row(sc.find("Modifier Drag")[0]), sc)
 sc = cprun(reach("mouse", "Drag Modifier"))
 check("Drag Modifier defaults to alt",
       sc.find("Drag Modifier") is not None and
@@ -1117,7 +1185,7 @@ check("clicking the same pane twice in the picker is harmless",
 
 sc = cprun(DOWN_APP + [press(R0, VALCOL - 10), press(R0, VALCOL - 10)])
 check("a click in the pane's own body selects and a second click acts",
-      sc.find("slate") is not None, sc)
+      "neon" in brow(sc, "Theme"), sc)
 
 sc = cprun([press(prow("terminal") + 1, LISTCOL)])
 check("clicking below the last pane in the picker does nothing",
@@ -1327,6 +1395,10 @@ sc = run("term", "10 36 2 2", feed=[b"\x1b\t", 0.5], wait=1.6, end=None,
          also=CLOCKW)
 check("and a window told to pass every key passes it too",
       "033" in sc.text(), sc)
+sc = run("term", "10 36 2 2", feed=[b"\x17\x17", 0.5], wait=1.6, end=None,
+         pre=OD + "\nDT_TERMKEEP=1")
+check("ctrl-w, which closes a window, reaches a terminal's program instead",
+      "027" in sc.text() and sc.find("┤ Term") is not None, sc)
 sc = run("term", "10 36 2 2", wait=1.6, end=None,
          feed=[b"\x1b[21~", 0.3, b"\x1b[C", b"\x1b[C", b"\x1b[C", 0.3],
          pre=SH + "\nDT_TERMKEEP=1")
@@ -1381,20 +1453,19 @@ sc = run(*TERM, feed=[wheel(8, 10), b"x"], pre=LONG, wait=1.2, end=None)
 check("and a key goes back to the live screen",
       sc.find("↑") is None and sc.find("row 40") is not None, sc)
 
-# DT_TERMBAR: off by default (a real column of the pty, not just a drawn
-# one, so it stays opt-in the same way DT_CURSOR_BLINK and the shadows do).
-sc = run(*TERM, pre=LONG, wait=1.2, end=None)
-check("DT_TERMBAR is off by default -- no scrollbar column, full width",
+# DT_TERMBAR: on by default since 0.73 -- a real column of the pty, given
+# back to the program when it is switched off.
+sc = run(*TERM, pre=LONG, wait=1.2, end=None, env={"DT_TERMBAR": "0"})
+check("DT_TERMBAR off -- no scrollbar column, full width",
       sc.at(3, 44) != "│" and sc.at(3, 45) == "│", sc)
 
-sc = run(*TERM, feed=[wheel(8, 10)], pre=LONG, wait=1.2, end=None,
-         env={"DT_TERMBAR": "1"})
+sc = run(*TERM, feed=[wheel(8, 10)], pre=LONG, wait=1.2, end=None)
 check("on, a scrollbar tracks the view -- one column short of the border, "
       "the one it bought back from the program",
       sc.at(3, 44) == "│" and sc.at(3, 45) == "│" and
       sc.at(11, 44) == "█", sc)
 
-sc = run(*TERM, wait=1.2, end=None, env={"DT_TERMBAR": "1"})
+sc = run(*TERM, wait=1.2, end=None)
 check("but nothing draws there at all with no scrollback yet to show",
       sc.at(3, 44) != "│" and sc.at(3, 45) == "│", sc)
 
@@ -2292,4 +2363,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(329)
+report(338)

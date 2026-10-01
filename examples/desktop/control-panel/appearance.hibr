@@ -13,54 +13,73 @@ command -v cp_pane > /dev/null && cp_pane appearance "Appearance" "◐"
 
 CP_THEME=midnight
 command -v dt_keep > /dev/null && dt_keep CP_THEME
-CP_THEMES=(midnight slate forest ember paper dracula black neon phosphor amber)
 CP_GLYPHS=("·" "░" "▒" "⋅" "+")
 
-# wall, dot, bar, active, idle, face, ink, shadow -- shadow is console
-# darken's own pct: how much of a shadow's own colour survives once it is
-# darkened. 55 (its builtin default) is a soft, barely-there shadow against
-# a dark face, since scaling an already-low RGB value down by 45% is a
-# small absolute change; every theme here but paper has a dark face and
-# keeps it. Paper's face is close to white, where the same 45% cut lands
-# on a flat medium grey -- a hard block, not a shadow -- so it gets a much
-# smaller cut instead, chosen by rendering a menu at a few candidates and
-# comparing them to how subtle midnight's own shadow reads, not by eye
-# against paper alone. Black's shadows cannot show at all -- nothing
-# darkens black -- which is the look it is for; phosphor and amber are one
-# hue throughout, as the monitors were.
+# A theme is a JSON file, one to a theme, named for it: seven colours --
+# wall, dot, bar, active, idle, face, ink -- and shadow, console darken's
+# own pct, how much of a colour survives once it is darkened. 55 is a soft
+# shadow on a dark face; a light face needs much less of a cut, which is
+# why paper's is 90. JSON and not a script, because a theme is only data
+# and is the thing people pass around: a file someone else wrote can set
+# colours and nothing else (docs/adr/0028). The person's own folder is
+# searched first, so a file there replaces the bundled one of that name.
+CP_THEMEDIRS=("${XDG_CONFIG_HOME:-$HOME/.config}/hibr/themes"
+	"${BASH_SOURCE%/*}/../themes")
+CP_THEMES=()
+declare -gA CP_TH
+CP_THKEYS=(wall dot bar active idle face ink)
+
+# Read one theme file into CP_TH[name], or refuse it whole: every colour
+# must be #rrggbb and the shadow a number from 1 to 100, so a broken file
+# is left out of the list rather than half applied.
+fn cp_themeread(n, f) {
+	local j k v
+
+	json parse j < "$f" 2> /dev/null || return 1
+	for k in "${CP_THKEYS[@]}"; do
+		v=${j["$k"]}
+		v=${v#\#}
+		[ "${j["$k"]}" = "#$v" ] && [ ${#v} -eq 6 ] &&
+			[ -z "${v//[0-9a-fA-F]/}" ] || return 1
+	done
+	v=${j["shadow"]-55}
+	case $v in '' | *[!0-9]*) return 1 ;; esac
+	[ ${#v} -le 3 ] && [ "$v" -ge 1 ] && [ "$v" -le 100 ] || return 1
+	for k in "${CP_THKEYS[@]}"; do
+		CP_TH["$n"]["$k"]=${j["$k"]}
+	done
+	CP_TH["$n"]["shadow"]=$v
+}
+
+# Every theme in CP_THEMEDIRS, the first of each name winning, sorted.
+fn cp_themes() {
+	local d f n
+
+	CP_THEMES=()
+	for d in "${CP_THEMEDIRS[@]}"; do
+		for f in "$d"/*.json; do
+			[ -r "$f" ] || continue
+			n=${f##*/}
+			n=${n%.json}
+			[ -n "${CP_TH["$n"]["wall"]+x}" ] && continue
+			cp_themeread "$n" "$f" && CP_THEMES+=("$n")
+		done
+	done
+	arr sort CP_THEMES
+}
+cp_themes
+
 fn cp_theme(t) {
-	case $t in
-	midnight) set -- "#0d1b2a" "#16324a" "#1b3a5c" "#63b3ed" "#4a5568" \
-		"#101820" "#cbd5e0" 55 ;;
-	slate)    set -- "#1a202c" "#2d3748" "#2d3748" "#90cdf4" "#4a5568" \
-		"#171923" "#e2e8f0" 55 ;;
-	forest)   set -- "#0b1f16" "#14342a" "#14432f" "#68d391" "#3f5e51" \
-		"#0d1f18" "#d7e8de" 55 ;;
-	ember)    set -- "#1f1410" "#3a241c" "#4a2c1e" "#f6ad55" "#6b4a3a" \
-		"#1a110d" "#ecd9c6" 55 ;;
-	paper)    set -- "#e8e4da" "#d3cec1" "#c3bdae" "#2b6cb0" "#8a8578" \
-		"#f5f2ea" "#2d3748" 90 ;;
-	dracula)  set -- "#282a36" "#383a4c" "#44475a" "#bd93f9" "#6272a4" \
-		"#21222c" "#f8f8f2" 55 ;;
-	black)    set -- "#000000" "#121212" "#0a0a0a" "#7aa2f7" "#3a3a3a" \
-		"#0a0a0a" "#c8c8c8" 55 ;;
-	neon)     set -- "#0d0221" "#2a0a4a" "#1a0533" "#ff2bd6" "#3d2a6b" \
-		"#120428" "#2de2e6" 55 ;;
-	phosphor) set -- "#000a00" "#002a08" "#001a04" "#66ff66" "#0f4d1a" \
-		"#000f02" "#33ff33" 55 ;;
-	amber)    set -- "#0a0600" "#2a1a00" "#1a0f00" "#ffcc33" "#5a3d00" \
-		"#0f0900" "#ffb000" 55 ;;
-	*) return 1 ;;
-	esac
+	[ -n "${CP_TH["$t"]["wall"]+x}" ] || return 1
 	CP_THEME=$t
-	DT_WALL=$1
-	DT_DOT=$2
-	DT_BAR=$3
-	DT_ACTIVE=$4
-	DT_IDLE=$5
-	DT_FACE=$6
-	DT_INK=$7
-	DT_SHADOW_PCT=$8
+	DT_WALL=${CP_TH["$t"]["wall"]}
+	DT_DOT=${CP_TH["$t"]["dot"]}
+	DT_BAR=${CP_TH["$t"]["bar"]}
+	DT_ACTIVE=${CP_TH["$t"]["active"]}
+	DT_IDLE=${CP_TH["$t"]["idle"]}
+	DT_FACE=${CP_TH["$t"]["face"]}
+	DT_INK=${CP_TH["$t"]["ink"]}
+	DT_SHADOW_PCT=${CP_TH["$t"]["shadow"]}
 	command -v console > /dev/null && console darkdefault "$DT_INK" "$DT_FACE"
 }
 

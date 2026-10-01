@@ -419,8 +419,12 @@ class Term:
 
 
 def load(*mods):
-    """The `mod load` prefix for a -c command, from module names or paths."""
-    out = []
+    """The `mod load` prefix for a -c command, from module names or paths --
+    and `q` as the desktop's quit key, which it has none of by default
+    since 0.73, so Term.quit can end a desktop session the way it always
+    has. It is set before the window manager is sourced, which keeps any
+    key a session has already set."""
+    out = ['declare -gA DT_KEYS; DT_KEYS["quit"]=q']
     for m in mods:
         out.append("mod load %s"
                    % tree(m if "/" in m else "build/mods/%s.so" % m))

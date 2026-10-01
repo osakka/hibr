@@ -12,8 +12,9 @@
 #     ./build/hibr examples/desktop/session.hibr --session work --resume
 #
 # Drag a title bar to move a window, click _ to minimise, □ to fill the
-# screen, x to close.  Tab cycles, escape brings back a minimised window,
-# q quits.  ctrl-\ or Detach on the hibr menu leaves it running and gives
+# screen, x to close; alt-drag anywhere in a window moves it too.  alt-tab
+# cycles, ctrl-w closes, escape opens the menu bar, and Quit on the hibr
+# menu ends it.  ctrl-\ or Detach on the hibr menu leaves it running and gives
 # the terminal back; --resume is how you come back to it.  --session names
 # which held session this is, "desktop" unless you say otherwise -- for
 # more than one, running side by side under different names.

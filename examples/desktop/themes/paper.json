@@ -1,0 +1,10 @@
+{
+  "wall": "#e8e4da",
+  "dot": "#d3cec1",
+  "bar": "#c3bdae",
+  "active": "#2b6cb0",
+  "idle": "#8a8578",
+  "face": "#f5f2ea",
+  "ink": "#2d3748",
+  "shadow": 90
+}

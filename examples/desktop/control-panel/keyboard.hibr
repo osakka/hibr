@@ -2,8 +2,8 @@
 #
 # keyboard -- the Control Panel pane for the keyboard itself: whether a
 # terminal window gives the desktop its chord shortcuts back, and the keys
-# the desktop always keeps, so they are written down somewhere a person
-# looks. The shortcuts themselves are the Shortcuts pane's.
+# the desktop always keeps and those a terminal always passes on, written
+# down somewhere a person looks. The shortcuts themselves are the Shortcuts pane's.
 
 strict
 
@@ -21,6 +21,12 @@ fn keyboard_rows(int w) {
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="  F10, escape: the menu bar"
 	n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="  alt-c, alt-x, alt-v: copy, cut, paste"
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Always a terminal's program's"
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="  ctrl with a letter: ctrl-c, ctrl-w"
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="  plain keys: q, tab, escape"
 	n=$((n + 1))
 	ret "$n"
 }

@@ -32,8 +32,12 @@ Drag a title bar to move a window, and any of its four corners to resize
 it -- the `◢` at the bottom-right is the one this always had; the other
 three work the same way, whichever one is dragged staying opposite a
 corner that does not move. `_` minimises, `□` fills the screen, `x`
-closes. `tab` cycles, `escape` brings back a minimised window, and `q`
-quits and gives the terminal back.
+closes, and holding alt while dragging anywhere in a window moves it
+(Control Panel > Mouse). `alt-tab` cycles windows, `ctrl-w` closes the
+focused one, `escape` or `F10` opens the menu bar, and Quit on its hibr
+menu ends the desktop and gives the terminal back -- it has no key of its
+own by default, so no stray keystroke ends everything. Each of these keys
+can be changed, or Quit given one, in Control Panel > Shortcuts.
 
 A button presses then releases, the same as any other clickable thing in a
 real GUI: held down, it shows inverted, and dragging off it before letting
@@ -67,11 +71,47 @@ is drawn every frame it is visible at all (always), which is neither a
 window moving nor a menu opening.
 
 How dark a shadow falls is `DT_SHADOW_PCT`, part of the theme rather than one
-constant: Appearance's `cp_theme` sets it alongside the other seven colours.
+constant: a theme's `shadow` sets it alongside the other seven colours.
 Scaling an already-dark face down by console darken's own default (55, a 45%
 cut) is a small absolute change and reads as soft against a dark theme, but
 the same cut off paper's near-white face lands on a flat medium grey -- a
 hard block, not a shadow -- so paper alone gets a much gentler one.
+
+## Themes
+
+A theme is a JSON file of seven colours and a shadow strength, one file to
+a theme and named for it. The ten that come with the desktop are in
+`examples/desktop/themes/` (installed under `share/hibr/desktop/themes`);
+your own go in `~/.config/hibr/themes/`, which is read first, so a file
+there named `paper.json` replaces the bundled paper and any other name adds
+a theme. Appearance's Theme row and the Control Strip's theme module list
+them all, sorted by name.
+
+<!-- not run: a data file the Appearance pane reads -->
+```text
+{
+  "wall": "#0d1b2a",
+  "dot": "#16324a",
+  "bar": "#1b3a5c",
+  "active": "#63b3ed",
+  "idle": "#4a5568",
+  "face": "#101820",
+  "ink": "#cbd5e0",
+  "shadow": 55
+}
+```
+
+`wall` is the desktop behind everything and `dot` its wallpaper glyph;
+`bar` the menu bar; `active` the focused window's frame, the selection and
+anything highlighted; `idle` an unfocused frame and dimmed text; `face`
+the inside of windows and menus; `ink` the text on it. `shadow` is how much
+of a colour survives under a shadow, 1 to 100: 55 is soft on a dark face,
+and a light one wants much less of a cut -- paper's is 90. Every colour must
+be `#rrggbb` and the shadow a whole number in range, or the file is left
+out of the list; a theme added while the desktop runs appears at its next
+start. Why JSON and not a script is
+[decision 0028](../../docs/adr/0028-a-theme-is-data.md): a theme you were
+given can only ever be colours.
 
 ## The wallpaper
 
@@ -217,13 +257,14 @@ are the only two keys the desktop takes from a program: see the amendment in
 Right-click opens the terminal's own menu (Copy, Paste, Send Interrupt);
 shift-right-click opens it even when the program has the mouse.
 
-**A terminal can give the desktop its shortcuts back.** By default every key
-reaches the program inside, so a shortcut like alt-tab for Cycle Windows
-does nothing while a terminal has focus. Control Panel > Terminal > Desktop
-Shortcuts Win changes that: a shortcut the desktop or an app launcher has
-been given goes to the desktop instead, if it is a chord (ctrl or alt with a
-key) or a function key. A plain key -- `q`, `tab`, escape -- always reaches
-the program, and so do ctrl-c, ctrl-d and ctrl-z whatever is bound to them.
+**A terminal gives the desktop its shortcuts back.** With Control Panel >
+Keyboard > Desktop Shortcuts Win on, as it is by default, a shortcut the
+desktop or an app launcher has been given goes to the desktop even while a
+terminal has focus, so alt-tab cycles windows from inside one -- if it is a
+chord (ctrl or alt with a key) or a function key. A plain key -- `q`, `tab`,
+escape -- always reaches the program, and so does ctrl with a single letter
+whatever is bound to it: those are the control characters programs read, so
+`ctrl-w` closes any window but a terminal, where it deletes a word.
 One window can still be given everything: the Window menu's Pass Every Key,
 ticked, is for a program that needs the chord, or a desktop running inside
 that terminal.
@@ -876,7 +917,7 @@ today, and the one that tried it walked straight into a subscript trap for
 its trouble.
 
 **A key handler returns non-zero for a key it does not want.** That is how
-`q` still quits while your window has focus:
+`alt-tab` still cycles windows while your window has focus:
 
 <!-- not run: an app's callback; the desktop calls it -->
 ```sh

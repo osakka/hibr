@@ -56,8 +56,11 @@ fn dt_keynorm(k) {
 # Whether a key is one of the desktop's own shortcuts -- an action's, or an
 # app's launch key -- and a chord or a function key: a window that takes
 # every key may give these back, and a plain key never, since a terminal
-# that cannot receive q or tab cannot be used. ctrl-c, ctrl-d and ctrl-z
-# are never given back, whatever is assigned to them.
+# that cannot receive q or tab cannot be used. ctrl with a single letter
+# is never given back either, whatever is assigned to it: those are the
+# control characters programs read -- ctrl-c, a shell's ctrl-w deleting a
+# word, vi's ctrl-w window commands -- so ctrl-w closes any window but a
+# terminal's, where it reaches the program.
 fn dt_keyassigned(key) {
 	local knorm an v
 
@@ -65,7 +68,7 @@ fn dt_keyassigned(key) {
 	ctrl-* | alt-* | shift-f[0-9]* | f[0-9]*) ;;
 	*) return 1 ;;
 	esac
-	case $key in ctrl-c | ctrl-d | ctrl-z) return 1 ;; esac
+	case $key in ctrl-[a-z]) return 1 ;; esac
 	knorm := dt_keynorm "$key"
 	for an in "${!DT_KEYS[@]}"; do
 		[ -n "${DT_KEYS["$an"]}" ] || continue

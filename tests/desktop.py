@@ -41,6 +41,9 @@ TWO_DEF = ('dt_new "Under" 8 30 6 10\n'
            'dt_new "Over" 8 30 9 20\n')
 ONE = 'dt_new "Hello" 8 30 6 10'
 
+sc, _ = run(ONE, [b"\x17"])
+check("ctrl-w closes the focused window", sc.find("Hello") is None, sc)
+
 sc, raw = run(ONE)
 check("a window has a top-left corner where it was put",
       sc.g[6][10] == "┌", sc)
@@ -186,13 +189,17 @@ check("clicking the close button closes the window",
 check("and nothing is left where it was", sc.g[6][10] == "·", sc)
 
 # Modifier drag -- #47 -- moves a window from a click anywhere in its
-# body, not just its title bar; off by default, and only for the
-# configured modifier. ALT is bit 8 of the SGR mouse button byte.
+# body, not just its title bar; on by default since 0.73 with alt, and
+# only for the configured modifier. ALT is bit 8 of the SGR mouse button
+# byte.
 ALT = 8
 DRAG_BODY = [press(8, 15, ALT), drag(11, 27, ALT), release(11, 27, ALT)]
 
 sc, _ = run(ONE, DRAG_BODY)
-check("off by default: an alt-click in the body does not move the window",
+check("on by default: an alt-drag in the body moves the window",
+      sc.find("┤ Hello ├") == (9, 24), sc)
+sc, _ = run(ONE, DRAG_BODY, pre="DT_DRAGMOD=0")
+check("and switched off, an alt-click in the body does not move it",
       sc.find("┤ Hello ├") == (6, 12), sc)
 
 sc, _ = run(ONE, DRAG_BODY, pre="DT_DRAGMOD=1\nDT_DRAGKEY=alt")
@@ -692,11 +699,11 @@ check("and the one that was on top is now clipped",
 check("the raised window is whole again", sc.find("┤ Under ├") == (6, 12) and
       sc.g[6][10] == "┌" and sc.g[13][39] == "◢", sc)
 
-sc, _ = run(TWO, [b"\t"])
-check("tab raises the window at the bottom of the stack",
+sc, _ = run(TWO, [b"\x1b\t"])
+check("alt-tab raises the window at the bottom of the stack",
       sc.g[9][39] == "│" and sc.g[13][25] == "─", sc)
-sc, _ = run(TWO, [b"\t", b"\t"])
-check("and tab again brings the other one back",
+sc, _ = run(TWO, [b"\x1b\t", b"\x1b\t"])
+check("and alt-tab again brings the other one back",
       sc.g[9][20] == "┌" and sc.g[9][39] == "─", sc)
 
 sc, _ = run(TWO, [press(6, 12), press(6, 37), release(6, 37)])
@@ -1662,7 +1669,7 @@ def stripdrop(col):
 
 sc, saved = stripdrop(17)
 check("the strip's Theme module applies the theme chosen from its list",
-      "CP_THEME=slate" in saved, sc)
+      "CP_THEME=black" in saved, sc)
 sc, saved = stripdrop(25)
 check("its Wallpaper module applies the glyph chosen from its list",
       re.search(r"DT_GLYPH=.?░", saved) is not None, sc)
@@ -1852,11 +1859,11 @@ sc, raw = run('dt_new "Control Panel" 22 58 2 2 panel',
 saved = os.path.join(CONF, "hibr", "desktop.hibr")
 text = open(saved).read() if os.path.exists(saved) else ""
 check("a changed setting is written at once, as a script",
-      "CP_THEME=slate" in text and "DT_WALL=\\#1a202c" in text and
+      "CP_THEME=neon" in text and "DT_WALL=\\#0d0221" in text and
       "DT_ICONS=" in text, text or sc)
 sc, raw = run('dt_new "Control Panel" 22 58 2 2 panel', feed=DOWN_APP,
               env={"XDG_CONFIG_HOME": CONF}, pre=PANEL)
-check("and the next desktop starts with it", sc.find("slate") is not None,
+check("and the next desktop starts with it", sc.find("neon") is not None,
       sc)
 shutil.rmtree(CONF, True)
 
@@ -1982,7 +1989,8 @@ t.close()
 
 t = Term("-c", HOLDC + "hold attach desk; echo \"back $?\"", env=HENV,
          settle=1.5)
-t.send(b"qy", settle=1.0)
+t.send(b"\x1b[21~")
+t.send(b"q", settle=1.0)
 t.collect(0.5)
 check("quitting a held desktop ends the session",
       b"[desk ended, status 0]" in t.out and b"back 0" in t.out, t.out.decode(errors="replace"))
@@ -2037,7 +2045,8 @@ t = Term(SESSION, "--resume", env=RENV, settle=2.0)
 sc = t.screen()
 check("--resume comes back to the same desktop, windows and all",
       sc.find("┤ Files [") is not None, sc)
-t.send(b"qy", settle=1.0)
+t.send(b"\x1b[21~")
+t.send(b"q", settle=1.0)
 t.collect(0.5)
 check("and quitting it from there ends the whole session",
       b"[desktop ended, status 0]" in t.out, t.out.decode(errors="replace"))
@@ -2085,7 +2094,8 @@ t = Term(SESSION, "--session", "work", "--resume", env=S2ENV, settle=2.0)
 sc = t.screen()
 check("--session with --resume comes back to that one specifically",
       sc.find("┤ Files [") is not None, sc)
-t.send(b"qy", settle=1.0)
+t.send(b"\x1b[21~")
+t.send(b"q", settle=1.0)
 t.close()
 r = subprocess.run([screen.HIBR, "-c", HOLDC + "hold list"],
                    env=dict(os.environ, **S2ENV), capture_output=True,
@@ -2395,11 +2405,12 @@ r2 = subprocess.run([screen.HIBR, "-c", HOLDC + "hold list"],
 check("the first one is still there, unaffected",
       "desktop" in r2.stdout, r2.stdout)
 
-t1.send(b"qy", settle=1.0)
+t1.send(b"\x1b[21~")
+t1.send(b"q", settle=1.0)
 t1.collect(0.5)
 check("quitting from the first ends the whole session",
       b"[desktop ended" in t1.out, t1.out.decode(errors="replace"))
 t1.close()
 unjoin()
 
-report(318)
+report(320)

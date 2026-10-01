@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.73
+
+**Themes are files.** Each of the ten themes is now a small JSON file --
+seven colours and a shadow strength -- in `examples/desktop/themes/`, and
+`~/.config/hibr/themes/` is read first: a file there replaces the bundled
+theme of its name, and any other name adds a theme to Appearance and the
+Control Strip. A file is checked whole, every colour `#rrggbb` and the
+shadow 1 to 100, and one that fails is left out rather than half applied.
+JSON rather than a script because a theme is only data and is the thing
+people share: one you were given can only ever be colours
+([decision 0028](docs/adr/0028-a-theme-is-data.md)). The list is now
+sorted by name, so the order the Theme row cycles through has changed;
+midnight is still the default.
+
+**New defaults**, chosen to match what most desktops do:
+
+- **alt-tab** cycles windows (was tab) -- and works from inside a terminal.
+- **ctrl-w** closes the focused window (was alt-f4). A terminal keeps it
+  for its program, where it deletes a word or drives vi's windows: a
+  terminal now keeps every ctrl with a single letter, not only ctrl-c, d
+  and z, since those are the control characters programs read.
+- **Quit has no key.** It is on the hibr menu; one stray `q` no longer
+  ends the desktop. Shortcuts can give it one.
+- **Holding alt while dragging** anywhere in a window moves it.
+- **A terminal window shows its scrollbar.**
+
+Settings saved by an earlier version are brought up to these once, on
+load: a key still at its old default moves to the new one, and a key you
+had changed stays as you set it. Neither super nor ctrl-escape can open
+the menus: most terminals never report super on its own, and most
+terminals send ctrl-escape as a plain escape -- which already opens the
+menu bar, as F10 does.
+
 ## 0.72
 
 **The Control Panel is grouped by what a pane is about.** Three headings

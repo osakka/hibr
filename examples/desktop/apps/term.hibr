@@ -39,10 +39,10 @@ declare -gA TW
 
 # Whether a scrollbar is drawn down the right edge, showing how far back
 # the view has scrolled through what term keeps -- and a real column of
-# the pty spent on it, the same as an xterm's own gutter takes one. Off
-# by default: that is a real behaviour change for anything reading
-# $COLUMNS, not just a cosmetic one, so it stays opt-in.
-DT_TERMBAR="${DT_TERMBAR-0}"
+# the pty spent on it, the same as an xterm's own gutter takes one. On by
+# default, so scrollback shows as something there is; switched off, the
+# program gets that column back, and $COLUMNS one wider.
+DT_TERMBAR="${DT_TERMBAR-1}"
 command -v dt_keep > /dev/null && dt_keep DT_TERMBAR
 
 # Whether the window's title follows whatever the program inside reports

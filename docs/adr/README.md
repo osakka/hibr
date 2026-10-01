@@ -37,6 +37,7 @@ downside is usually a decision nobody had to make.
 | [0025](0025-agent-mode.md) | Agent mode: JSON errors, `set -u`, strict expansion, no terminal, timeouts | accepted |
 | [0026](0026-a-script-runs-as-it-is-read.md) | A script runs as it is read; `checkfirst` parses it whole first | accepted |
 | [0027](0027-a-dry-run-refuses-what-it-cannot-show-is-harmless.md) | A dry run refuses what it cannot show is harmless | accepted |
+| [0028](0028-a-theme-is-data.md) | A theme is data, kept as JSON | accepted |
 
 ---
 
