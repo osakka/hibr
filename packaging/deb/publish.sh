@@ -21,7 +21,7 @@ set -eu
 REPO=${APT_REPO:-$HOME/hibr-apt}
 GNUPGHOME=${APT_GNUPGHOME:-$HOME/.local/share/hibr-apt/gnupg}
 export GNUPGHOME
-KEY=${APT_KEY:-14ADEEF2502C171E577B840A886297D048CD6BB2}
+KEY=${APT_KEY:-A1E3CA788A8FB02052DA22B413035BE1B1674431}
 SUITE=stable
 
 [ -d "$REPO/.git" ] || { echo "publish: $REPO is not a checkout" >&2; exit 1; }
@@ -64,5 +64,11 @@ gpg --armor --export "$KEY" > hibr.asc
 
 git add -A
 git commit -q -m "Publish $(for deb in "$@"; do basename "$deb" .deb; done | tr '\n' ' ')"
-git push -q origin HEAD 2>&1 | grep -v "^remote:" || true
+if ! git push -q origin HEAD 2> push.err; then
+	cat push.err >&2
+	rm -f push.err
+	echo "publish: committed in $REPO, not pushed" >&2
+	exit 1
+fi
+rm -f push.err
 echo "== published $SUITE: $(echo $archs)"

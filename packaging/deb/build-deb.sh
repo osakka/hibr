@@ -27,6 +27,7 @@ STAGE=$OUT/$PKG
 
 [ -n "$VER" ] || { echo "build-deb: no HIBR_VER in include/hibr.h" >&2; exit 1; }
 echo "== building hibr $VER for $ARCH"
+trap 'make -s > /dev/null' EXIT
 rm -rf "$STAGE"
 mkdir -p "$STAGE/DEBIAN"
 make -s PREFIX=/usr > /dev/null
@@ -46,7 +47,7 @@ cat > "$STAGE/DEBIAN/control" <<EOF
 Package: hibr
 Version: $VER-$REV
 Architecture: $ARCH
-Maintainer: osakka <osakka@home.arpa>
+Maintainer: osakka <osakka@gmail.com>
 Installed-Size: $size
 Depends: libc6 (>= $glibc)
 Suggests: libssl3 | libssl1.1, libpng16-16
@@ -81,5 +82,4 @@ chmod 755 "$STAGE/DEBIAN/postinst" "$STAGE/DEBIAN/postrm"
 
 fakeroot dpkg-deb --build --root-owner-group "$STAGE" "$OUT/$PKG.deb" > /dev/null
 rm -rf "$STAGE"
-make -s > /dev/null
 echo "== $OUT/$PKG.deb"
