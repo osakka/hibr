@@ -577,7 +577,30 @@ about what the test machine allows, to be made before it is built.
 
 ## The language
 
-## For language models
+### Stay a drop-in for bash
+
+Every place hibr differs from bash is a place a model's bash breaks, and a
+model that has been burned once stops reaching for it. `tests/corpus.py` is
+the instrument: 7 scripts of 465 invocations still differ (see `CLAUDE.md`'s
+open items). Keep driving it to zero for anything not deliberately
+different. The largest known one -- bash runs a script a command at a time
+as it reads it, where hibr parsed the whole script first -- is gone in
+0.60 (ADR 0026). And make each deliberate difference loud: a one-line
+warning in agent mode the first time a script depends on bash behaviour hibr does
+not have, rather than a silently different result.
+
+
+## Parked: for language models
+
+Parked on 2026-10-01, by choice rather than because anything here is
+finished: agent mode, `--explain`, `--checkfirst`, `--plan`, `docs/llm.md`
+and its measurement shipped between 0.57 and 0.66, and what is left is
+either blocked (a policy that runs for real needs Landlock, which this
+machine's kernel has off) or optional (an MCP server; packages and public
+examples; a fresh task set for the measurement, and a coverage run of
+`--plan` over system scripts, which wants the owner's say-so first). Pick it
+up from here when it is wanted again.
+
 
 Raised directly: what would make hibr the shell a language model reaches
 for? Models write what their training data is full of, which is bash and
@@ -646,18 +669,6 @@ with type fidelity are exactly what a tool result wants. Agent mode is on
 inside it. Claude Code and other clients could then call hibr directly
 rather than through a generic shell tool. Needs: the JSON-RPC framing, the
 tool schemas, and a decision about how long a session lives.
-
-### Stay a drop-in for bash
-
-Every place hibr differs from bash is a place a model's bash breaks, and a
-model that has been burned once stops reaching for it. `tests/corpus.py` is
-the instrument: 7 scripts of 465 invocations still differ (see `CLAUDE.md`'s
-open items). Keep driving it to zero for anything not deliberately
-different. The largest known one -- bash runs a script a command at a time
-as it reads it, where hibr parsed the whole script first -- is gone in
-0.60 (ADR 0026). And make each deliberate difference loud: a one-line
-warning in agent mode the first time a script depends on bash behaviour hibr does
-not have, rather than a silently different result.
 
 ### Be where models look
 
