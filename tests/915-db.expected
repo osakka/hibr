@@ -1,0 +1,54 @@
+0
+--- create, insert, describe
+ts:int host:str:8 load:float
+4
+--- query: every row, then filters, and a limit
+1	web1	0.5
+2	web2	2.75
+3	web1	3.1
+-4	db1	-1000
+2	web2	2.75
+3	web1	3.1
+1	web1	0.5
+1	web1	0.5
+2	web2	2.75
+none: 1
+--- aggregates
+4
+2
+2
+-993.65
+1.8
+-4
+web2
+min of nothing: 1
+0
+--- into a map with :=, types kept
+web2 2.75 1
+[{"ts":2,"host":"web2","load":2.75}]
+count by := is 4
+--- refused, each with a reason
+hibr: db: ts is an int, not 'x'
+hibr: db: host holds at most 8 bytes, 'averyveryverylongname' is longer
+hibr: db: D/s.db has 3 columns, 2 values given
+hibr: db: no column nope
+hibr: db: no operator like -- eq ne lt le gt ge
+hibr: db sum: host is a str
+hibr: db: cannot create D/s.db: File exists
+hibr: db: unknown column type in 'a:blob'
+hibr: db: D/x.db is not a hibr database
+hibr: db: no open database 99
+--- closed and opened again, it is all still there
+4
+-4	db1	-1000
+--- a thousand rows to a group: growing past one, and import
+hibr: db import: line 2501 skipped
+2500
+2500
+2498	6240004	t2
+2499	6245001	t0
+833
+3123750
+--- a filter skips the row groups its zone maps rule out
+groups skipped by their zones
+2 of 3 groups skipped

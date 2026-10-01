@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.86
+
+**`db`, a small column store module.** `db create stats.db ts:int
+host:str:16 load:float` makes a database of typed columns (int, float,
+fixed-width str) in one file; `db insert` and `db import` (tab-separated)
+append rows; `db query h where load gt 2.5 and host eq web1 limit 10`
+prints the matching rows, or with `r := db query ...` gives them as a map
+with numbers kept as numbers; `db count|sum|min|max|avg` aggregate. Rows
+live in groups of 1024 with a zone map of each column's least and greatest
+value, so a filter skips any group that cannot match without reading it.
+A million rows import in under 0.4 s and a full-scan count takes about
+30 ms. No SQL, no update or delete, one writer, no crash recovery -- see
+`mods/db/README.md`.
+
+**A map copied with `:=` keeps its JSON types.** `r := f`, where `f` left
+a JSON document in `$RET`, gave back every number and boolean as a string.
+
 ## 0.85
 
 **Every colour follows the theme.** 87 colours in the desktop were written

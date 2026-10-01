@@ -37,6 +37,7 @@ hibr -c 'mod load ./build/mods/hello.so; mod list; mod drop hello'
 | `term/` | A terminal emulator, a program's screen as cells; offers `"terminal"` (`mods/term.h`) — [README](term/README.md) |
 | `hold/` | Sessions that outlive their terminal: detach, log off, attach again; offers `"hold"` — [README](hold/README.md) |
 | `img/` | Decode an image and draw it as cells, libpng opened on first use — [README](img/README.md) |
+| `db/` | A small column store: typed columns, appended rows, filters and aggregates, zone maps — [README](db/README.md) |
 
 ## Naming
 

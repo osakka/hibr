@@ -141,6 +141,10 @@ Reference modules in `mods/`:
   attach again, from more than one terminal at once.
 - **`img`** decodes an image and draws it as terminal cells; libpng is opened
   on first use.
+- **`db`** is a small column store: typed columns in one file, rows
+  appended, filters and count/sum/min/max/avg over them, with zone maps
+  that let a filter skip whole groups of rows; results print or come back
+  as a map. See [`mods/db/README.md`](../mods/db/README.md).
 - **`lint`** holds the rules behind `hibr --explain`; it adds no builtin and
   offers **lint**.
 - **`darwin`** (macOS only) gives `cpu` and `mem` from the kernel's own

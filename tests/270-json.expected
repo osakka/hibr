@@ -29,3 +29,4 @@ nested array: 4 len=3
 [1,2,[3,4]]
 {"s":"line\nbreak\ttab \"quoted\""}
 bad status=1
+{"n":5,"s":"x","a":[1,true,null]}

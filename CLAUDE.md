@@ -126,6 +126,7 @@ linked, and no OpenSSL headers are needed to build.
 | `mods/term/` | a terminal emulator: a program's screen as cells, drawn into a window — see `mods/term/README.md` |
 | `mods/hold/` | sessions that outlive their terminal: detach, log off, attach again — see `mods/hold/README.md` |
 | `mods/img/` | decode an image and draw it as terminal cells, jp2a-alike, libpng dlopen'd on first use — see `mods/img/README.md` |
+| `mods/db/` | a small column store: typed columns in one mmap'd file, appended rows, filters and aggregates, zone maps per 1024-row group -- see `mods/db/README.md` |
 | `mods/lint/` | the rules behind `hibr --explain`: walks the parsed tree and names mistakes, runs nothing; offers `"lint"` (`mods/lint.h`) and adds no builtin |
 
 Each directory carries its own `README.md` with the detail: `src/`, `include/`,
@@ -1633,6 +1634,12 @@ went in the shell.
   87 literals tuned for midnight became them in 0.85. The only `#rrggbb`
   left in drawing code is a game's own art -- Bricks' brick rows, Snake's
   board, Mines' purple 4 -- which, like an app's icon, is the thing itself.
+
+- **A copied map keeps its JSON types.** `m_clone` and `v_copy`, which
+  `:=` uses to take a map out of `$RET`, dropped every entry's `ty`, so
+  `r := f` where `f` built JSON gave back numbers as strings -- found when
+  `db query` results did it. A new way of copying a variable or an entry
+  must copy `ty` as well as the text and the map.
 
 ## Testing discipline
 

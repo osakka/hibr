@@ -72,7 +72,7 @@ work today; a name with a `/` in it is opened directly and never searched for.
 Only a bare name goes through the search path. Nothing to do, recorded so the
 question is not asked twice.
 
-### A database module — ultra small, not exhaustive
+### A database module — built, 0.86 (`mods/db/`)
 
 Raised with a concrete starting point: a pasted ~300-line C sketch of a
 column-store analytical engine -- mmap'd row groups (fixed `id`/`val`

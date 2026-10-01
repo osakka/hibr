@@ -24,3 +24,7 @@ json parse esc '{"s":"line\nbreak\ttab \"quoted\""}'
 json emit esc
 json parse bad '{oops' 2>/dev/null
 echo "bad status=$?"
+# A typed map keeps its types when := copies it out of the result slot.
+mk() { json parse RET '{"n":5,"s":"x","a":[1,true,null]}'; }
+q := mk
+json emit q

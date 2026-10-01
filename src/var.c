@@ -675,6 +675,7 @@ ent *m_clone(ent *m)
 		e->s = m->s ? xs(m->s) : 0;
 		e->map = m_clone(m->map);
 		e->n = m->n;
+		e->ty = m->ty;
 		*t = e;
 		t = &e->nx;
 	}
@@ -694,6 +695,7 @@ void v_copy(sh *s, const char *dst, const char *src)
 	b->map = m_clone(a->map);
 	b->n = a->n;
 	b->am = a->am;
+	b->ty = a->ty;
 	lg(HIBR_LTRC, "copied %s to %s", src, dst);
 }
 
