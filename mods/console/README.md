@@ -50,6 +50,13 @@ the dim attribute alone. It reads back what `cn_put` already wrote, which
 since the console was loaded -- what the desktop's idle marker reports, under
 `HIBR_TESTIDLE`, so a test harness knows its keys have been read.
 
+`console waiting` succeeds when more input is already there -- read and not
+yet handed out, or readable on the terminal right now -- and never waits.
+The desktop asks it before drawing a drag or a wheel: while the next report
+is already waiting, the frame would only be overwritten, so a burst of a
+hundred drag reports draws two frames, not a hundred and two, and the window
+never trails behind the mouse.
+
 `console shade colour [pct]` answers the colour `darken` would turn a
 `#rrggbb` into, as another `#rrggbb` — through `:=`, or printed. It is how
 something drawn inside a pane, where `darken` cannot reach, gets a shadow of

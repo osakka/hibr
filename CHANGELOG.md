@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.64
+
+**Dragging no longer leaves a window crawling after the mouse.** Every drag
+report was drawn as its own frame, so whenever a frame took longer than the
+gap between reports -- a big terminal, a busy screen, a held session -- the
+reports queued up and the window went on replaying them in slow motion after
+the hand had stopped. Redraw Skip only thinned that by a fixed count. Now a
+drag or a wheel is drawn only once it has caught up: while the next report
+is already waiting, the frame is skipped, and Redraw Skip thins what is left.
+A burst of a hundred drag reports drew 102 frames and now draws 2; a hundred
+and fifty, on a 140-column desktop with the Control Panel open, took 1.2
+seconds to catch up, held or not, and now take 0.03. `console waiting` is
+the new question the console module answers for it. `tests/desktop.py`
+counts the frames, through a frame count the idle marker now carries.
+
+Measured at the same time, so that it is not taken for the cause: an idle
+desktop of this release, held or not, uses 0.2% of a core, and Redraw Skip
+does work -- set to 5, it cut the same burst from 1.2 seconds to 0.23 before
+this change.
+
 ## 0.63
 
 **What `docs/llm.md` is worth, measured.** `tools/llm-measure/` sets a model

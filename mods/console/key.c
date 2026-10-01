@@ -91,6 +91,21 @@ void cn_eat(size_t n)
 	}
 }
 
+/* Whether input is already waiting: decoded bytes not yet handed out, or the terminal readable right now. */
+int cn_waiting(void)
+{
+	struct timeval tv = { 0, 0 };
+	fd_set r;
+
+	if (cn_pend.p && (size_t)cn_pendo < cn_pend.n)
+		return 1;
+	if (cn_fd < 0)
+		return 0;
+	FD_ZERO(&r);
+	FD_SET(cn_fd, &r);
+	return select(cn_fd + 1, &r, 0, 0, &tv) > 0;
+}
+
 /* Wait for the terminal to have something to say, or for a watched
    descriptor to. 1 means cn_fd itself is readable, the only case a caller
    should act on directly; 2 means only a watched one is -- wake up and let

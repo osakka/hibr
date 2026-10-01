@@ -121,6 +121,12 @@ DT_RSTILL=150
 
 # The event loop.  Draw, wait, dispatch, repeat.
 #
+# A drag or a wheel is drawn only when it has caught up with the mouse:
+# while the next report is already waiting, drawing this one would only be
+# overwritten, and a frame slower than the reports arrive left a window
+# crawling after the hand had stopped. DT_DRAWSKIP thins a drag's frames on
+# top of that.
+#
 # A key read while rsz is waiting out the quiet period is still consumed
 # from the pty whether this looks at it or not, so it has to be kept in pk
 # rather than just skipped -- skipping it reads the byte and throws the
@@ -151,21 +157,24 @@ DT_RSTILL=150
 DT_TESTIDLE=${HIBR_TESTIDLE-}
 
 dt_run() {
-	local k rsz=0 last now pk= skipn=0
+	local k rsz=0 last now pk= skipn=0 frames=0
 	while [ "$DT_QUIT" = 0 ]; do
 		if [ "$rsz" = 0 ]; then
-			if [ "$DT_LASTDRAG" = 1 ] &&
+			if [ "$DT_LASTMOVE" = 1 ] && console waiting; then
+				:
+			elif [ "$DT_LASTDRAG" = 1 ] &&
 			   [ "$skipn" -lt "$DT_DRAWSKIP" ]; then
 				skipn=$((skipn + 1))
 			else
 				dt_draw
 				dt_autoclose
 				skipn=0
+				frames=$((frames + 1))
 			fi
 		fi
 		if [ -n "$DT_TESTIDLE" ]; then
 			k := console consumed
-			printf '\e]7777;idle;%s\a' "$k"
+			printf '\e]7777;idle;%s;%s\a' "$k" "$frames"
 		fi
 		if [ "$rsz" = 1 ]; then
 			k := console key 80

@@ -79,3 +79,6 @@ DT_PRIMARY_COL=0
 # rather than passed back some other way since dt_run already calls
 # dt_event for its only side effect and reads no return value from it.
 DT_LASTDRAG=0
+# And whether it was a drag or a wheel, either of which dt_run will not draw
+# while the next report is already waiting.
+DT_LASTMOVE=0

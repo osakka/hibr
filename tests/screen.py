@@ -184,7 +184,7 @@ os.environ["HIBR_MODPATH"] = tree("build/mods") + (
 # What the desktop prints, when HIBR_TESTIDLE is set, each time a frame is on
 # screen and it is about to wait for input -- an OSC a terminal ignores,
 # carrying how many bytes of input it has read by then.
-IDLE = re.compile(rb"\x1b\]7777;idle;(\d+)\x07")
+IDLE = re.compile(rb"\x1b\]7777;idle;(\d+)(?:;(\d+))?\x07")
 
 # An error the shell printed: "hibr: " and a message, then a newline. The
 # console draws by moving the cursor and never sends one, so a line ending
@@ -287,6 +287,13 @@ class Term:
             return False
         self.mark = m.start()
         return int(m.group(1)) >= self.sent
+
+    def frames(self):
+        """How many frames the desktop has drawn, by its last idle marker."""
+        m = None
+        for m in IDLE.finditer(self.out):
+            pass
+        return int(m.group(2)) if m and m.group(2) else 0
 
     def until_idle(self, timeout=5.0):
         """Collect until idled(), the process exits, or timeout; whether it

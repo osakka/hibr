@@ -1452,6 +1452,14 @@ went in the shell.
   calling it leaves a list only the keys can reach. A window of its own --
   a dialog, the wallpaper picker -- clears; a pane never does.
 
+- **A drag is drawn only when it has caught up with the mouse.** dt_run
+  skips the frame for a drag or wheel report while `console waiting` says
+  the next one is already there. Without it each report was a full frame,
+  and a frame slower than the report rate queued them: the window kept
+  moving for a second after the mouse stopped, and Redraw Skip, a fixed
+  count, could only thin it. The idle marker carries the frame count
+  (`Term.frames()`), so a test can count frames instead of timing them.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then

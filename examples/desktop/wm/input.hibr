@@ -358,8 +358,9 @@ fn dt_event(k) {
 	local an knorm qn cn cln dn sn ev
 
 	case $k in
-	"mouse drag "*) DT_LASTDRAG=1 ;;
-	*) DT_LASTDRAG=0 ;;
+	"mouse drag "*) DT_LASTDRAG=1; DT_LASTMOVE=1 ;;
+	"mouse wheel"*) DT_LASTDRAG=0; DT_LASTMOVE=1 ;;
+	*) DT_LASTDRAG=0; DT_LASTMOVE=0 ;;
 	esac
 	if [ -n "$DT_KEYCAP" ]; then
 		case $k in

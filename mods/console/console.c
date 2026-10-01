@@ -10,6 +10,7 @@ extern cn_grid cn_back;
 extern int cn_crow, cn_ccol, cn_cvis;
 extern str cn_pend;
 extern int cn_pendo;
+int cn_waiting(void);
 
 vec cn_panes;
 
@@ -398,6 +399,8 @@ int m_console(sh *s, int ac, char **av)
 			  ac > 6 ? atoi(av[6]) : 55);
 		return HIBR_OK;
 	}
+	if (!strcmp(sub, "waiting"))
+		return cn_waiting() ? HIBR_OK : HIBR_FAIL;
 	if (!strcmp(sub, "consumed")) {
 		s_init(&k);
 		s_num(&k, (long)cn_eaten);

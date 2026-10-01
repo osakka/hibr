@@ -142,6 +142,29 @@ check("a key right after a resize is not dropped by the debounce",
 t.quit(b"qy", 1.0)
 os.unlink(path)
 
+# A burst of drag reports is drawn once it has caught up, not once per
+# report: a frame slower than the reports arrive left the window crawling
+# after the mouse had stopped. One write, a hundred moves.
+path = "/tmp/hibr-desktop-burst.hibr"
+open(path, "w").write("%s. %s\ndt_open\n%s\ndt_run\ndt_close\n"
+                      % (load(MOD), WM, ONE))
+t = Term(path, rows=ROWS, cols=COLS, settle=0.6)
+f0 = t.frames()
+burst = press(6, 20)
+for i in range(1, 101):
+    burst += drag(6 + i % 8, 20 + i % 40)
+burst += release(6, 60)
+t.send(burst)
+f1 = t.frames()
+sc = t.screen()
+check("a burst of a hundred drag reports draws a handful of frames",
+      0 < f1 - f0 <= 5, "%d frames" % (f1 - f0))
+check("...and leaves the window where the last report put it",
+      sc.find("┤ Hello ├") is not None and
+      sc.find("┤ Hello ├")[0] == 6 + 100 % 8, sc)
+t.quit(b"qy", 1.0)
+os.unlink(path)
+
 sc, _ = run(ONE, [press(6, 20), drag(9, 24), release(9, 24)])
 check("dragging the title bar moves the window",
       sc.find("┤ Hello ├") == (9, 16), sc)
@@ -2363,4 +2386,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(314)
+report(316)
