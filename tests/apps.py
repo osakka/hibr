@@ -496,13 +496,16 @@ check("escape cancels it -- the next key is ordinary again, not captured",
       brow(sc, "Control Panel") != "" and
       "z" not in brow(sc, "Control Panel"), sc)
 
-sc = cprun([b"\x1b[B"] * downs("shortcuts"))
+# Shortcuts is longer than the pane, so the apps' rows are checked with the
+# list moved down to them.
+sc = cprun(reach("shortcuts", "Control Panel"))
 check("Shortcuts lists the desktop's actions, the Control Strip's among "
       "them, then each app's under a heading of its own",
       all(brow(sc, t) != "" for t in ("Close Window", "Detach", "Quit",
                                         "Cycle Windows", "Control Strip",
                                         "Control Panel")) and
       "alt-s" in brow(sc, "Control Strip") and brow(sc, "Apps") != "", sc)
+sc = cprun([b"\x1b[B"] * downs("shortcuts"))
 
 # Clearing one: a ✕ beside every key that is set, and delete or backspace
 # on the selected row.
@@ -573,7 +576,7 @@ check("no leaves both as they were",
 
 # Two actions sharing a key can only come from a settings file edited by
 # hand; both rows say so.
-sc = cprun([b"\x1b[B"] * downs("shortcuts"), pre="DT_APPKEY[panel]=q\n")
+sc = cprun(reach("shortcuts", "Control Panel"), pre="DT_APPKEY[panel]=q\n")
 check("a key two actions share is marked on both",
       brow(sc, "Quit ⚠") != "" and brow(sc, "Control Panel ⚠") != "", sc)
 

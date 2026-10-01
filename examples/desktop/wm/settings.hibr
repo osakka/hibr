@@ -23,6 +23,11 @@ declare -gA DT_KEYS
 [ -n "${DT_KEYS["selectall"]+x}" ] || DT_KEYS["selectall"]="ctrl-a"
 [ -n "${DT_KEYS["scrollup"]+x}" ] || DT_KEYS["scrollup"]="shift-pageup"
 [ -n "${DT_KEYS["scrolldown"]+x}" ] || DT_KEYS["scrolldown"]="shift-pagedown"
+[ -n "${DT_KEYS["snapleft"]+x}" ] || DT_KEYS["snapleft"]="alt-left"
+[ -n "${DT_KEYS["snapright"]+x}" ] || DT_KEYS["snapright"]="alt-right"
+[ -n "${DT_KEYS["snaptop"]+x}" ] || DT_KEYS["snaptop"]="alt-up"
+[ -n "${DT_KEYS["snapbottom"]+x}" ] || DT_KEYS["snapbottom"]="alt-down"
+[ -n "${DT_KEYS["snapcenter"]+x}" ] || DT_KEYS["snapcenter"]=
 [ -n "${DT_KEYS["close"]+x}" ] || DT_KEYS["close"]="ctrl-w"
 [ -n "${DT_KEYS["detach"]+x}" ] || DT_KEYS["detach"]="ctrl-\\"
 [ -n "${DT_KEYS["quit"]+x}" ] || DT_KEYS["quit"]=

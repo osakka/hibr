@@ -512,6 +512,16 @@ fn dt_event(k) {
 		dt_close_focused
 	elif [ "$knorm" = "$dn" ]; then
 		dt_detach
+	elif dt_keyis snapleft "$k"; then
+		dt_snap_focused left
+	elif dt_keyis snapright "$k"; then
+		dt_snap_focused right
+	elif dt_keyis snaptop "$k"; then
+		dt_snap_focused top
+	elif dt_keyis snapbottom "$k"; then
+		dt_snap_focused bottom
+	elif dt_keyis snapcenter "$k"; then
+		dt_snap_focused center
 	elif [ "$knorm" = "$sn" ]; then
 		if [ "$CS_ATTN" = 1 ]; then
 			CS_ATTN=0

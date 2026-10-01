@@ -1077,6 +1077,33 @@ sc, _ = run("dt_launch term", pre=TERMLOAD + "\nDT_TERMROWS=10\nDT_TERMCOLS=40"
 check("and at the size the Terminal pane sets, which fits",
       sc.at(1, 0) == "┌" and sc.at(12, 41) == "◢", sc)
 
+# --- snapping ----------------------------------------------------------------
+#
+# alt and an arrow put the focused window on that half of the display, below
+# the bar; the same again puts it back. ONE is 8 by 30 at row 6, column 10.
+AL, AR, AU, AD = b"\x1b[1;3D", b"\x1b[1;3C", b"\x1b[1;3A", b"\x1b[1;3B"
+sc, _ = run(ONE, [AL])
+check("alt-left snaps the window to the left half",
+      sc.at(1, 0) == "┌" and sc.at(23, 39) == "◢", sc)
+sc, _ = run(ONE, [AR])
+check("alt-right to the right half",
+      sc.at(1, 40) == "┌" and sc.at(23, 79) == "◢", sc)
+sc, _ = run(ONE, [AU])
+check("alt-up to the top half",
+      sc.at(1, 0) == "┌" and sc.at(11, 79) == "◢", sc)
+sc, _ = run(ONE, [AD])
+check("alt-down to the bottom half",
+      sc.at(12, 0) == "┌" and sc.at(23, 79) == "◢", sc)
+sc, _ = run(ONE, [AL, AL])
+check("and the same snap again puts it back where it was",
+      sc.find("┤ Hello ├") == (6, 12) and sc.at(13, 39) == "◢", sc)
+sc, _ = run(ONE, [AL, AR, AR])
+check("back where it was before the first snap, not the one before",
+      sc.find("┤ Hello ├") == (6, 12), sc)
+sc, raw = run(FIXED, [AL])
+check("a fixed window keeps its size", sc.find("┤ Fixed ├") is not None and
+      b"keeps its size" in raw, sc)
+
 # --- icons on the desktop -------------------------------------------------
 #
 # A clean desktop: Home, the disks (faked here through DT_MOUNTS, so the
@@ -1944,7 +1971,8 @@ shutil.rmtree(CONF2, True)
 
 CALCSRC = '. %s/calc.hibr' % tree("examples/desktop/desk-accessories")
 CONF3 = tempfile.mkdtemp(prefix="hibr-conf3-")
-sc, _ = run('dt_new "Control Panel" 22 58 2 2 panel', feed=DOWN_KB,
+sc, _ = run('dt_new "Control Panel" 22 58 2 2 panel',
+            feed=DOWN_KB + [b"\r"] + [b"\x1b[B"] * NKEYS,
             env={"XDG_CONFIG_HOME": CONF3}, pre=PANEL + "\n" + CALCSRC)
 check("a registered app is listed with no shortcut by default",
       sc.find("Calculator") is not None, sc)
@@ -2517,4 +2545,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(334)
+report(341)

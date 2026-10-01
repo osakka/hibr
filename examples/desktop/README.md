@@ -48,6 +48,12 @@ one down and across, as the desktop always did; **center** puts it in the
 middle. A window bigger than the display is shrunk to fit. A session's own
 `dt_new` with a position is left where it says.
 
+**Snapping** puts the focused window on a half of the display: alt and an
+arrow -- left, right, top, bottom -- or Window > Snap, which also has
+Center. Snapping the same way again puts the window back where it was. A
+fixed window can only be centred. The keys are Shortcuts like any other;
+Center has none until you give it one.
+
 A button presses then releases, the same as any other clickable thing in a
 real GUI: held down, it shows inverted, and dragging off it before letting
 go cancels whatever it would have done -- nothing fires until release, and

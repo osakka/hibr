@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.82
+
+**Snapping.** alt with an arrow puts the focused window on the left,
+right, top or bottom half of the display, below the menu bar; the same
+again puts it back where it was. Window > Snap has the four and Center.
+Each is a shortcut in Control Panel > Shortcuts -- Center has no key until
+given one. A fixed window can only be centred. With Shortcuts in Terminals
+on, alt with an arrow snaps from inside a terminal too, as any chord the
+desktop holds does; clear the shortcut, or Pass Every Key on that window,
+to give it to the program.
+
 ## 0.81
 
 **A new window goes somewhere sensible.** Every launched window used to

@@ -244,6 +244,61 @@ fn dt_move(int id, int r, int c) {
 	console pane "w$id" "$r" "$c" "${DT[$id]["h"]}" "${DT[$id]["w"]}"
 }
 
+# Put a window on a half of the primary display -- left, right, top or
+# bottom, below the menu bar -- or in its middle, keeping its size, for
+# center. Snapping the same way again puts it back where it was. A fixed
+# window can only be centred: its size is not the desktop's to change.
+fn dt_snap(int id, dir) {
+	local top=1 left=${DT_PRIMARY_COL:-0} pw=${DT_PRIMARY_W:-$DT_COLS}
+	local ph=$((DT_ROWS - 1)) r c h w
+
+	if [ "${DT[$id]["snap"]}" = "$dir" ] && [ -n "${DT[$id]["sh"]}" ]; then
+		r=${DT[$id]["sr"]}
+		c=${DT[$id]["sc"]}
+		h=${DT[$id]["sh"]}
+		w=${DT[$id]["sw"]}
+		DT[$id]["snap"]=
+	else
+		if [ "$dir" != center ] &&
+		   [ "${DT_APPS[${DT[$id]["app"]}]["fixed"]}" = 1 ]; then
+			dt_note "${DT[$id]["title"]} keeps its size; it can only be centred"
+			return 0
+		fi
+		if [ -z "${DT[$id]["snap"]}" ]; then
+			DT[$id]["sr"]=${DT[$id]["row"]}
+			DT[$id]["sc"]=${DT[$id]["col"]}
+			DT[$id]["sh"]=${DT[$id]["h"]}
+			DT[$id]["sw"]=${DT[$id]["w"]}
+		fi
+		r=$top
+		c=$left
+		h=$ph
+		w=$pw
+		case $dir in
+		left) w=$((pw / 2)) ;;
+		right) c=$((left + pw / 2)); w=$((pw - pw / 2)) ;;
+		top) h=$((ph / 2)) ;;
+		bottom) r=$((top + ph / 2)); h=$((ph - ph / 2)) ;;
+		center)
+			h=${DT[$id]["h"]}
+			w=${DT[$id]["w"]}
+			r=$((top + (ph - h) / 2))
+			c=$((left + (pw - w) / 2))
+			;;
+		*) return 1 ;;
+		esac
+		DT[$id]["snap"]=$dir
+	fi
+	DT[$id]["oh"]=
+	DT[$id]["row"]=$r
+	DT[$id]["col"]=$c
+	DT[$id]["h"]=$h
+	DT[$id]["w"]=$w
+	console pane "w$id" "$r" "$c" "$h" "$w"
+}
+
+dt_snap_focused() { [ -n "$DT_FOCUS" ] && dt_snap "$DT_FOCUS" "$1"; }
+
 # Fill the screen, or go back to where the window was.
 fn dt_zoom(int id) {
 	if [ -n "${DT[$id]["oh"]}" ]; then
