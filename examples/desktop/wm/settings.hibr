@@ -29,6 +29,11 @@ declare -gA DT_KEYS
 [ -n "${DT_KEYS["cycle"]+x}" ] || DT_KEYS["cycle"]="alt-tab"
 [ -n "${DT_KEYS["strip"]+x}" ] || DT_KEYS["strip"]="alt-s"
 
+# The defaults above, kept, so dt_load can put one back.
+declare -gA DT_KEYDEF
+for dt_k in "${!DT_KEYS[@]}"; do DT_KEYDEF["$dt_k"]=${DT_KEYS["$dt_k"]}; done
+unset dt_k
+
 # Any app can have a global shortcut of its own, assigned from Settings --
 # most have none, which is the point: a game or About does not want to
 # steal a key from every window just for existing. term and tasks ship with
@@ -246,7 +251,30 @@ dt_load() {
 		fi
 	fi
 	DT_SETVER=2
+	dt_keyfix
 	dt_glyphs "$DT_GLYPHSET"
+	return 0
+}
+
+# Settings saved by 0.77 to 0.79 could hold a shortcut on an arrow, enter or
+# another key that moves around the panel -- the capture took whatever came
+# next -- and a Menu Bar on the right arrow took every arrow from every
+# window. Such a binding goes back to its default (or to none, for an app's
+# launch key), and an entry for an action that no longer exists is dropped.
+dt_keyfix() {
+	local k
+
+	for k in "${!DT_KEYS[@]}"; do
+		if [ -z "${DT_KEYDEF["$k"]+x}" ]; then
+			unset DT_KEYS["$k"]
+		elif [ -n "${DT_KEYS["$k"]}" ] && dt_keynav "${DT_KEYS["$k"]}"; then
+			DT_KEYS["$k"]=${DT_KEYDEF["$k"]}
+		fi
+	done
+	for k in "${!DT_APPKEY[@]}"; do
+		[ -n "${DT_APPKEY["$k"]}" ] && dt_keynav "${DT_APPKEY["$k"]}" &&
+			DT_APPKEY["$k"]=
+	done
 	return 0
 }
 

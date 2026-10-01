@@ -533,6 +533,28 @@ sc = cprun(KB_CP + [b"\r", b"\x1bc"], end=None)
 check("and so is alt-c, which is Copy's -- a key with a dash in its name",
       sc.find("alt-c is Copy's: give it to Control Panel?") is not None, sc)
 
+# A key that moves around the panel cannot become a shortcut: pressing an
+# arrow after activating a row is moving on, not choosing the arrow -- 0.77
+# took it, and a Menu Bar bound to the right arrow took every arrow from
+# every window. The capture ends unchanged and the arrow moves the row.
+sc = cprun(reach("shortcuts", "Menu Bar") + [b"\r", b"\x1b[C"], end=None)
+check("an arrow after activating a row is not taken as its shortcut",
+      "f10" in brow(sc, "Menu Bar") and sc.find("Not changed") is not None, sc)
+SAVED = tempfile.mkdtemp(prefix="hibr-keyfix-")
+os.makedirs(os.path.join(SAVED, "hibr"))
+open(os.path.join(SAVED, "hibr", "desktop.hibr"), "w").write(
+    'DT_SETVER=2\nDT_KEYS["menu"]=right\nDT_KEYS["close"]=enter\n'
+    'DT_KEYS["terminal"]=alt-ctrl-t\nDT_APPKEY["snake"]=down\n')
+out = subprocess.run(
+    [sx.HIBR, "-c", '. %s\ndt_load\necho "${DT_KEYS[menu]} ${DT_KEYS[close]} '
+     '[${DT_KEYS[terminal]+x}] [${DT_APPKEY[snake]}]"' % WM],
+    env=dict(os.environ, XDG_CONFIG_HOME=SAVED),
+    capture_output=True, text=True).stdout.strip()
+shutil.rmtree(SAVED, True)
+check("a saved shortcut on an arrow or enter goes back to its default, and "
+      "one for an action that no longer exists is dropped",
+      out == "f10 ctrl-w [] []", out)
+
 # A key another action holds is asked about, and yes moves it: a key never
 # has two owners. Detach's ctrl-\\ is the one taken here, not Quit's q,
 # since every run ends by pressing q to quit.
@@ -1535,9 +1557,28 @@ check("ctrl-c reaches the program in a focused terminal window",
 # parser that reads only the digits up to the colon turns it on instead.
 UNDER = "TW_CMD=(/bin/sh -c 'printf \"\\033[4:0mWORD\\033[0m\"; sleep 5')"
 sc = run(*TERM, pre=UNDER, wait=1.0, end=None)
-m = re.search(rb"\x1b\[([0-9;]*)mWORD", sc.out)
+
+
+def underlined(out):
+    """Whether any SGR the desktop sent turned underline on: a parameter 4
+    on its own, not one inside 38;5;n or 38;2;r;g;b. Read from every SGR,
+    not only the one right before the text -- the program's output can
+    arrive in two reads, and then the text is drawn without one."""
+    for m in re.findall(rb"\x1b\[([0-9;]*)m", out):
+        ps = m.split(b";")
+        i = 0
+        while i < len(ps):
+            if ps[i] in (b"38", b"48"):
+                i += 3 if i + 1 < len(ps) and ps[i + 1] == b"5" else 5
+                continue
+            if ps[i] == b"4":
+                return True
+            i += 1
+    return False
+
+
 check("SGR 4:0 turns underline off, not on -- the colon is not a digit",
-      m is not None and b"4" not in m.group(1).split(b";"), sc)
+      sc.find("WORD") is not None and not underlined(sc.out), sc)
 
 # Copy and paste: a drag selects, alt-c copies -- to the desktop and, with
 # OSC 52, to the clipboard of the terminal the desktop runs on -- and alt-v
@@ -2523,4 +2564,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(362)
+report(364)

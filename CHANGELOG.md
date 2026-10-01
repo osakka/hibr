@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.80
+
+**The arrows belong to your apps again.** Since 0.77 a shortcut could be
+set to any key, and the Shortcuts pane takes the very next key after a row
+is activated -- so the arrow pressed to move to the next row became that
+row's shortcut. A Menu Bar on the right arrow opened the menu bar from
+every window, and the open menu then took the other arrows: no arrow
+reached any app. Now:
+
+- An arrow, enter, tab, space, backspace, delete, home, end or a page key
+  pressed during a capture ends it unchanged ("Not changed") and moves on
+  as it would have. With a modifier -- alt-left, ctrl-enter -- each is
+  still a shortcut you can set.
+- Settings saved by 0.77 to 0.79 with a shortcut on one of those keys have
+  it put back to its default when the desktop starts, and entries for
+  actions that no longer exist are dropped.
+- Moving or resizing a window from the keyboard, a file drag, and the
+  Control Strip's arrow mode each end on a click or on any key they have
+  no use for, which then goes where it would have. Each used to swallow
+  every key until its one way out, with a note that had already gone.
+
 ## 0.79
 
 **The desktop's glyphs have names, and an ASCII set.** Every character the

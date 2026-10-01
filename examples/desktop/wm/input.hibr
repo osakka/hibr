@@ -378,10 +378,18 @@ fn dt_event(k) {
 		*)
 			an=$DT_KEYCAP
 			DT_KEYCAP=
-			dt_keytake "$an" "$k"
+			# A key that moves around the panel ends the capture
+			# unchanged and then moves, as it would have: the arrow
+			# pressed to go on to the next row goes on to it.
+			if dt_keynav "$k"; then
+				dt_note "Not changed"
+			else
+				dt_keytake "$an" "$k"
+				return 0
+			fi
 			;;
 		esac
-		return 0
+		[ "$k" = escape ] || [ "${k#mouse }" != "$k" ] && return 0
 	fi
 	if [ -n "$DT_CONFIRM" ]; then
 		case $k in
@@ -400,6 +408,19 @@ fn dt_event(k) {
 		esac
 		return 0
 	fi
+	# A mode that takes the keyboard over -- moving or resizing a window
+	# from the keyboard, the Control Strip's arrows -- ends on a click, and
+	# on any key it has no use for, which then goes where it would have:
+	# a mode nobody can see must not swallow what is typed.
+	case $k in
+	"mouse press "*)
+		if [ -n "$DT_GRAB" ]; then
+			DT_GRAB=
+			dt_note_clear
+		fi
+		CS_ATTN=0
+		;;
+	esac
 	case $k in
 	"mouse "*)
 		read -ra ev <<< "$k"
@@ -409,11 +430,13 @@ fn dt_event(k) {
 	esac
 	if [ -n "$DT_GRAB" ]; then
 		dt_gkey "$k" && return 0
-		return 0
+		DT_GRAB=
+		dt_note_clear
 	fi
 	if [ -n "$DT_DND" ]; then
-		[ "$k" = escape ] && DT_DND= && DT_MOUSE=
-		return 0
+		DT_DND=
+		DT_MOUSE=
+		[ "$k" = escape ] && return 0
 	fi
 	if [ "$MB_OPEN" != -1 ]; then
 		dt_mkey "$k" && return 0
@@ -423,15 +446,13 @@ fn dt_event(k) {
 	# has been given to it explicitly by its own shortcut -- there is no
 	# mouse involved here at all; the wheel scrolls it separately, from
 	# wherever the pointer actually is when it turns.
-	if [ "$k" = left ] || [ "$k" = right ]; then
-		if [ "$CS_ATTN" = 1 ]; then
-			if [ "$k" = left ]; then
-				cs_scroll -1
-			else
-				cs_scroll 1
-			fi
-			return 0
-		fi
+	if [ "$CS_ATTN" = 1 ]; then
+		case $k in
+		left) cs_scroll -1; return 0 ;;
+		right) cs_scroll 1; return 0 ;;
+		escape) CS_ATTN=0; dt_note "Control Strip: released"; return 0 ;;
+		*) CS_ATTN=0 ;;
+		esac
 	fi
 	# Copy, Cut and Paste belong to the desktop, the same keys in every
 	# window, whatever they are set to; and so does a paste arriving from

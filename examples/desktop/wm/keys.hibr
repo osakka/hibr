@@ -112,6 +112,22 @@ fn dt_keylabel(what) {
 	esac
 }
 
+# Whether a key is one that moves around the Control Panel and answers a
+# dialog -- an arrow, enter, tab, space, backspace, delete, home, end, page
+# up or down, unmodified. A shortcut cannot have one: the Shortcuts pane
+# takes the very next key after a row is activated, so the arrow pressed to
+# move on became the shortcut, and Menu Bar on the right arrow took every
+# arrow away from every window (0.77-0.79). With a modifier any of them is
+# fine -- alt-left is a shortcut, left is how you get about.
+fn dt_keynav(key) {
+	case $key in
+	up | down | left | right | enter | tab | shift-tab | " " | space | \
+	backspace | delete | home | end | pageup | pagedown | escape)
+		return 0 ;;
+	esac
+	return 1
+}
+
 # Whether key is what action is set to, compared in canonical order; an
 # action with no key matches nothing.
 fn dt_keyis(what, key) {
@@ -189,6 +205,10 @@ fn dt_keytake(what, key) {
 	local owner l ol
 
 	l := dt_keylabel "$what"
+	if dt_keynav "$key"; then
+		dt_note "$key moves around the Control Panel, so it cannot be a shortcut"
+		return 0
+	fi
 	if owner := dt_keyowner "$key" "$what"; then
 		ol := dt_keylabel "$owner"
 		DT_KEYPEND_WHAT=$what

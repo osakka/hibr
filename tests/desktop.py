@@ -667,9 +667,12 @@ sc, _ = run(ONE, [press(6, 20, 2)])
 check("a right-click on a title bar opens the Window menu's own items there",
       sc.find("Move") == (6, 22) and sc.find("Resize") is not None and
       sc.find("Close") is not None, sc)
-sc, _ = run(ONE, [press(6, 20, 2), press(6, 22)])
+# The session ends with q, which now ends move mode on its way to quitting,
+# so whether the note was drawn is read from everything sent, not from the
+# last frame.
+sc, raw = run(ONE, [press(6, 20, 2), press(6, 22)])
 check("choosing Move from it starts moving, the same as from the menu bar",
-      sc.find("moving") is not None, sc)
+      b"moving" in raw, sc)
 
 sc, _ = run(ONE, [press(0, 40, 2)])
 check("a right-click on empty menu-bar space offers the quick launchers",
@@ -1011,8 +1014,8 @@ check("a dimmed item is stepped over, so down twice wraps past it",
 
 # --- moving and resizing from the keyboard --------------------------------
 
-sc, _ = run(MENUS, [press(0, WIN), b"m"])
-check("move says what it is doing", sc.find("moving") is not None, sc)
+sc, raw = run(MENUS, [press(0, WIN), b"m"])
+check("move says what it is doing", b"moving" in raw, sc)
 
 sc, _ = run(MENUS, [press(0, WIN), b"m", b"\x1b[A", b"\x1b[A",
                     b"\x1b[D", b"\r"])
@@ -1026,6 +1029,17 @@ check("and resize it in the other mode",
 sc, _ = run(MENUS, [press(0, WIN), b"m", b"\x1b[A", b"\x1b"])
 check("escape ends the mode, keeping what it did",
       sc.find("┤ Noted ├") == (5, 12) and sc.find("moving") is None, sc)
+
+# Any other key ends the mode and goes where it would have, so a mode nobody
+# noticed does not swallow what is typed; the arrows after it are ordinary
+# again and the window stays put.
+sc, _ = run(MENUS, [press(0, WIN), b"m", b"\x1b[A", b"z", b"\x1b[A",
+                    b"\x1b[A"])
+check("a key the mode has no use for ends it, and the arrows are free again",
+      sc.find("┤ Noted ├") == (5, 12), sc)
+sc, _ = run(MENUS, [press(0, WIN), b"m", press(20, 70), b"\x1b[A", b"\x1b[A"])
+check("and so does a click anywhere",
+      sc.find("┤ Noted ├") == (6, 12), sc)
 
 # --- icons on the desktop -------------------------------------------------
 #
@@ -2467,4 +2481,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(326)
+report(328)

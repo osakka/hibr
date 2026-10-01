@@ -1602,6 +1602,24 @@ went in the shell.
   not work in hibr until this needed them -- the backslash was dropped --
   and are bash's, tested against it in `910-dollar-unicode.t`.
 
+- **A key capture must not take the key that moves on.** The Shortcuts
+  pane takes the very next key after a row is activated, and from 0.77,
+  when no key was reserved any more, that included the arrow pressed to go
+  to the next row: the owner's Menu Bar ended up on the right arrow, which
+  is looked at before any window, so right opened the menu bar everywhere
+  and the open menu then took up, down and left -- every arrow gone from
+  every app, with nothing on screen to say why. `dt_keynav` names the keys
+  that move around the panel and answer a dialog (unmodified arrows, enter,
+  tab, space, backspace, delete, home, end, page keys, escape); during a
+  capture one of them ends it unchanged and then does its usual job, and
+  `dt_keyfix` puts a saved binding on one back to its default at load.
+  With a modifier any of them is a fine shortcut.
+- **A mode that takes the keyboard over ends on anything it has no use
+  for.** Keyboard move and resize, a file drag, the Control Strip's arrows:
+  each used to swallow every key until its one way out, and their notes
+  time out, so a mode nobody noticed ate what was typed. Now a click ends
+  them, and so does any other key, which then goes where it would have.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then
