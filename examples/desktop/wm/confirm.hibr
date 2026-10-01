@@ -49,19 +49,19 @@ dt_confirm_draw() {
 	read -r y0 x0 w h <<< "$g"
 	console pen "$DT_INK" "$DT_FACE"
 	console fill "$y0" "$x0" "$h" "$w" " "
-	bar := dt_rep $((w - 2)) "─"
+	bar := dt_rep $((w - 2)) "${GL[hline]}"
 	console pen "$DT_ACTIVE" "$DT_FACE" bold
-	console put "$y0" "$x0" "┌$bar┐"
-	console put $((y0 + h - 1)) "$x0" "└$bar┘"
+	console put "$y0" "$x0" "${GL[tl]}$bar${GL[tr]}"
+	console put $((y0 + h - 1)) "$x0" "${GL[bl]}$bar${GL[br]}"
 	console pen "$DT_INK" "$DT_FACE"
 	r=$((y0 + 1))
 	while [ "$r" -lt $((y0 + h - 1)) ]; do
-		console put "$r" "$x0" "│"
-		console put "$r" $((x0 + w - 1)) "│"
+		console put "$r" "$x0" "${GL[vline]}"
+		console put "$r" $((x0 + w - 1)) "${GL[vline]}"
 		r=$((r + 1))
 	done
 	console pen "$DT_ACTIVE" "$DT_FACE" bold
-	console put "$y0" $((x0 + 2)) "┤ Confirm ├"
+	console put "$y0" $((x0 + 2)) "${GL[teel]} Confirm ${GL[teer]}"
 	console pen "$DT_INK" "$DT_FACE" bold
 	console put $((y0 + 2)) $((x0 + (w - ${#msg}) / 2)) "$msg"
 	dt_wclear root

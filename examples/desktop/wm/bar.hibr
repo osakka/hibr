@@ -100,7 +100,7 @@ dt_bar() {
 		console pen "$DT_INK" "$DT_BAR"
 	fi
 	t := dt_appname
-	console put 0 "$MB_AX" " ${t:0:11} ▾"
+	console put 0 "$MB_AX" " ${t:0:11} ${GL[sdown]}"
 }
 
 # The glyph a notification icon name stands for.

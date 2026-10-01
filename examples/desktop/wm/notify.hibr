@@ -163,11 +163,11 @@ dt_note_draw() {
 		DT_NOTERECT[$id]["w"]=$w
 		DT_NOTERECT[$id]["h"]=$h
 		console pen "$DT_ACTIVE" "$DT_FACE" bold
-		bar := dt_rep $((w - 2)) "─"
-		console put "$r" "$c" "┌$bar┐"
-		console put $((r + 2)) "$c" "└$bar┘"
+		bar := dt_rep $((w - 2)) "${GL[hline]}"
+		console put "$r" "$c" "${GL[tl]}$bar${GL[tr]}"
+		console put $((r + 2)) "$c" "${GL[bl]}$bar${GL[br]}"
 		console pen "$DT_INK" "$DT_FACE" bold
-		console put $((r + 1)) "$c" "│ $t │"
+		console put $((r + 1)) "$c" "${GL[vline]} $t ${GL[vline]}"
 		n=$((n + 1))
 	done
 }

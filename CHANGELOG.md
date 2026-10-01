@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.79
+
+**The desktop's glyphs have names, and an ASCII set.** Every character the
+desktop draws that is not plain text is named in `wm/glyphs.hibr` --
+`${GL[vline]}` in the code, not a literal `│` -- written as its code point
+with its Unicode name beside it. Appearance > Glyphs switches the whole
+desktop to plain ASCII for a terminal or a font without box drawing. An
+app's or pane's own icon stays as written on its registration line.
+
+**`$'\u2502'` and `$'\U0001F514'` work**, as in bash: hibr dropped the
+backslash and kept the digits. Found because the glyph table wanted them.
+
+**Date & Time is under Hardware** -- it sets the machine's clock and time
+zone. **The scrollbar follows the theme**: its thumb in the theme's accent,
+its track in the idle colour, where it was always midnight's blue.
+
+**`tests/750-pty.t` stops flaking**: two of its checks counted matching
+lines, and how many arrive in one read is timing; each asks whether the
+thing appeared, reading until it has.
+
 ## 0.78
 
 **A held session rings, notifies, names its tab and keeps its links.**

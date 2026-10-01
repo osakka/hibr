@@ -40,7 +40,7 @@ nothing to switch on — [0017](adr/0017-one-namespace-for-options.md).
 | `\c` | the single character `c`, literally; `\` before a newline joins lines |
 | `'…'` | every byte literal, no escapes, cannot contain `'` |
 | `"…"` | literal except `$` `` ` `` `\` and, inside, `!` when history expansion is on |
-| `$'…'` | ANSI-C escapes: `\n \t \r \a \b \f \v \e \\ \' \xHH \0NNN` |
+| `$'…'` | ANSI-C escapes: `\n \t \r \a \b \f \v \e \\ \' \xHH \0NNN \uHHHH \UHHHHHHHH` |
 | `$"…"` | exactly `"…"` — see below |
 
 `$"…"` is bash's locale-translation form, accepted so that scripts written

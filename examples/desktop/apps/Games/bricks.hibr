@@ -235,7 +235,7 @@ bricks_draw() {
 				else
 					console pen "${BRICKS_SHADES[$r]}" "$DT_FACE"
 				fi
-				console put -p "w$id" $((r + 3)) $((ox + k * 4)) "████"
+				console put -p "w$id" $((r + 3)) $((ox + k * 4)) "${GL[block]}${GL[block]}${GL[block]}${GL[block]}"
 			fi
 			k=$((k + 1))
 		done
@@ -243,19 +243,19 @@ bricks_draw() {
 	done
 
 	bat=${BK[$id]["bat"]}
-	t := str repeat "▀" "$BRICKS_BAT"
+	t := str repeat "${GL[upper]}" "$BRICKS_BAT"
 	console pen "#e2e8f0" "$DT_FACE" bold
 	console put -p "w$id" "$h" "$bat" "$t"
 	if [ "$st" != over ]; then
 		console pen "#ffffff" "$DT_FACE" bold
-		console put -p "w$id" "${BK[$id]["r"]}" "${BK[$id]["c"]}" "●"
+		console put -p "w$id" "${BK[$id]["r"]}" "${BK[$id]["c"]}" "${GL[circle]}"
 	fi
 
 	lives=${BK[$id]["lives"]}
 	console pen "#f6ad55" "$DT_FACE" bold
 	console put -p "w$id" 1 1 "${BK[$id]["score"]}"
 	console pen "#f56565" "$DT_FACE"
-	[ "$lives" -gt 0 ] && t := str repeat "♥" "$lives" || t=
+	[ "$lives" -gt 0 ] && t := str repeat "${GL[heart]}" "$lives" || t=
 	console put -p "w$id" 1 $((w - lives + 1)) "$t"
 	console pen "#718096" "$DT_FACE"
 	case $st in

@@ -478,6 +478,40 @@ part *lx_dol(lex *l, int q)
 	return p;
 }
 
+/* \u and \U in $'...': up to 4 or 8 hex digits naming a code point, put in
+   as UTF-8, as bash does; with no digits after it, left as it was written. */
+void lx_uni(lex *l, str *b, part ***t, int *cq, int max)
+{
+	unsigned long v = 0;
+	int k, n, s;
+
+	l->p++;
+	for (k = 0; k < max && l->p < l->e &&
+		    isxdigit((unsigned char)*l->p); k++) {
+		v = v * 16 + (unsigned long)(isdigit((unsigned char)*l->p) ?
+			*l->p - '0' : tolower(*l->p) - 'a' + 10);
+		l->p++;
+	}
+	if (!k) {
+		lx_ch(l, b, t, cq, 1, '\\');
+		lx_ch(l, b, t, cq, 1, max == 4 ? 'u' : 'U');
+		return;
+	}
+	if (v > 0x10FFFF)
+		v = 0xFFFD;
+	if (v < 0x80) {
+		lx_ch(l, b, t, cq, 1, (int)v);
+		return;
+	}
+	n = v < 0x800 ? 2 : v < 0x10000 ? 3 : 4;
+	s = 6 * (n - 1);
+	lx_ch(l, b, t, cq, 1, (int)((0xF00u >> n) & 0xFF) | (int)(v >> s));
+	while (s > 0) {
+		s -= 6;
+		lx_ch(l, b, t, cq, 1, (int)(0x80 | ((v >> s) & 0x3F)));
+	}
+}
+
 /* Read one shell word, resolving quotes into parts. lit is lx_sub's own
    way of saying this text (a ${...} default and the like) was already
    found inside a double-quoted string, so a bare apostrophe in it is
@@ -617,6 +651,11 @@ word *lx_word(lex *l, int lit)
 					     k++)
 						v = v * 8 + (*l->p++ - '0');
 					lx_ch(l, &b, &t, &cq, 1, v);
+					break;
+				case 'u':
+				case 'U':
+					lx_uni(l, &b, &t, &cq,
+					       *l->p == 'u' ? 4 : 8);
 					break;
 				default:
 					lx_ch(l, &b, &t, &cq, 1, *l->p++);

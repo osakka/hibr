@@ -219,11 +219,11 @@ fn mines_draw(int id, int h, int w, int row, int col) {
 			ch=w
 		fi
 		case $ch in
-		h) console pen "#718096" "#2d3748"; t=" · " ;;
-		f) console pen "#f56565" "#2d3748" bold; t=" ⚑ " ;;
-		x) console pen "#1a202c" "#f56565" bold; t=" ✱ " ;;
-		m) console pen "#e2e8f0" "#4a5568" bold; t=" ✱ " ;;
-		w) console pen "#f6ad55" "#2d3748" bold; t=" ✗ " ;;
+		h) console pen "#718096" "#2d3748"; t=" ${GL[dot]} " ;;
+		f) console pen "#f56565" "#2d3748" bold; t=" ${GL[flag]} " ;;
+		x) console pen "#1a202c" "#f56565" bold; t=" ${GL[star]} " ;;
+		m) console pen "#e2e8f0" "#4a5568" bold; t=" ${GL[star]} " ;;
+		w) console pen "#f6ad55" "#2d3748" bold; t=" ${GL[xmark]} " ;;
 		o)
 			case ${near:i:1} in
 			0) console pen "#4a5568" "#101820"; t="   " ;;
@@ -254,7 +254,7 @@ fn mines_draw(int id, int h, int w, int row, int col) {
 	*) secs=$((t1 - t0)) ;;
 	esac
 	console pen "#f56565" "$DT_FACE" bold
-	console put -p "w$id" 1 2 "⚑ $left"
+	console put -p "w$id" 1 2 "${GL[flag]} $left"
 	console pen "#cbd5e0" "$DT_FACE" bold
 	t="${secs}s"
 	console put -p "w$id" 1 $((w - ${#t})) "$t"

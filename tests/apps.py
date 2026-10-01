@@ -272,13 +272,13 @@ out = subprocess.run([sx.HIBR, "-c", CPLOAD + 'for p in "${CP_PANE_LIST[@]}"; '
 ORDER = [l.split()[0] for l in out if l.strip()]
 GROUP = dict(l.split() for l in out if l.strip())
 check("panes register and sort by title within their group, not load order",
-      ORDER == ["displays", "keyboard", "mouse",
-                "appearance", "control_strip", "datetime", "desktop",
+      ORDER == ["datetime", "displays", "keyboard", "mouse",
+                "appearance", "control_strip", "desktop",
                 "filetypes", "notify", "shortcuts", "windows",
                 "abouthibr", "filesview", "taskmgr", "terminal"], out)
 check("Hardware first, then the desktop's own panes, then one per app",
       [GROUP[n] for n in ORDER] ==
-      ["hardware"] * 3 + ["system"] * 8 + ["app"] * 4, out)
+      ["hardware"] * 4 + ["system"] * 7 + ["app"] * 4, out)
 
 PW = "22 58 2 2"
 PANEL = ("panel", PW)
@@ -399,7 +399,7 @@ check("the last pane fits above the window's bottom border",
       sc.row(prow("terminal")).count("│") >= 3, sc)
 check("the first pane's own rows show on the right without entering it",
       sc.find(TITLE[ORDER[0]]) is not None and
-      sc.find("nothing to arrange") is not None, sc)
+      sc.find("Change…") is not None, sc)
 
 # Every dropdown in every pane, walked the same way: open it by clicking its
 # value, take the next choice with the keyboard, and see the value change.
@@ -1221,7 +1221,7 @@ check("clicking a pane in the picker shows it, the headings counted",
       brow(sc, "Close Window") != "", sc)
 sc = cprun([press(R0, LISTCOL)])
 check("and clicking a heading shows nothing new",
-      sc.find("nothing to arrange") is not None, sc)
+      sc.find("Change…") is not None, sc)
 
 sc2 = run("tasks", "16 50 4 4", feed=[b"\x1b\x14"], extra=("term",))
 check("alt-ctrl-t opens a terminal, even with another app focused",
@@ -1499,6 +1499,13 @@ check("on, a scrollbar tracks the view -- one column short of the border, "
       sc.at(3, 44) == "│" and sc.at(3, 45) == "│" and
       sc.at(11, 44) == "█", sc)
 
+sc = run(*TERM, feed=[wheel(8, 10)], wait=1.2, end=None,
+         pre=LONG + '\nDT_ACTIVE="#2b6cb0"\nDT_IDLE="#8a8578"')
+check("the scrollbar is drawn in the theme's colours: accent thumb, idle track",
+      sc.at(11, 44) == "█" and sc.style(11, 44)["fg"] == "#2b6cb0" and
+      sc.style(4, 44)["fg"] == "#8a8578", sc)
+
+
 sc = run(*TERM, wait=1.2, end=None)
 check("but nothing draws there at all with no scrollback yet to show",
       sc.at(3, 44) != "│" and sc.at(3, 45) == "│", sc)
@@ -1547,6 +1554,18 @@ CLICK = ("TW_CMD=(/bin/sh -c 'stty raw -echo; "
 sc = run(*TERM, feed=[press(6, 10), release(6, 10)], pre=CLICK, wait=1.2, end=None)
 check("a click reaches a program that asked for the mouse, where it landed",
       sc.find("^[[<0;8;4M^[[<0;8;4m") is not None, sc)
+
+# --- glyphs ------------------------------------------------------------------
+#
+# Every glyph the desktop draws is named in wm/glyphs.hibr; the plain-ASCII
+# set draws the same desktop for a terminal or a font without them.
+sc = run("clock", "8 24 6 10", pre="DT_GLYPHSET=ascii")
+check("in the ASCII glyph set a window is drawn in plain ASCII",
+      sc.at(6, 10) == "+" and sc.at(7, 10) == "|" and sc.find("[ Clock ]") is not None,
+      sc)
+sc = cprun(reach("appearance", "Glyphs") + [b"\x1b[C"])
+check("Appearance chooses the set, and the change shows at once",
+      "ascii" in brow(sc, "Glyphs") and sc.find("+") is not None, sc)
 
 # --- what a frame redraws ----------------------------------------------------
 #
@@ -2504,4 +2523,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(358)
+report(362)

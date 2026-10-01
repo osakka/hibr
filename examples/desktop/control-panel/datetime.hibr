@@ -14,7 +14,7 @@
 
 strict
 
-command -v cp_pane > /dev/null && cp_pane datetime "Date & Time" "◷"
+command -v cp_pane > /dev/null && cp_pane datetime "Date & Time" "◷" hardware
 
 # The pane's own dialogs, named so the application menu reads "Time Zone"
 # rather than their prefix, and fixed: nothing in them grows with the window.
@@ -736,7 +736,7 @@ fn datetime_draw(int id, int h, int w, int bx) {
 		while [ "$oc" -lt "$rw" ]; do
 			c=$(( oc * DTP_MAPW / rw ))
 			if [ "${DTP_MAP[$sy]:$c:1}" = "#" ]; then
-				out="${out}·"
+				out="${out}${GL[dot]}"
 			else
 				out="${out} "
 			fi
@@ -746,7 +746,7 @@ fn datetime_draw(int id, int h, int w, int bx) {
 		r=$(( r + 1 ))
 	done
 	console pen "#f6ad55" "$DT_FACE" bold
-	console put -p "w$id" $(( sr + 9 )) $(( bx + sc )) "◉"
+	console put -p "w$id" $(( sr + 9 )) $(( bx + sc )) "${GL[ring]}"
 }
 
 fn datetime_click(int id, int r, int c) {

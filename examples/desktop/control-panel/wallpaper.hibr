@@ -211,7 +211,7 @@ fn wallpick_draw(int id, int h, int w, int row, int col) {
 	console pen "$DT_IDLE" "$DT_FACE"
 	r=1
 	while [ "$r" -le $((h - 1)) ]; do
-		console put -p "w$id" "$r" $((bx + listw + 1)) "│"
+		console put -p "w$id" "$r" $((bx + listw + 1)) "${GL[vline]}"
 		r=$((r + 1))
 	done
 
@@ -273,7 +273,7 @@ fn wallpick_draw(int id, int h, int w, int row, int col) {
 	fi
 
 	console pen "$DT_INK" "$DT_FACE"
-	t="Mode: ${DT_WALLMODE^} ▾"
+	t="Mode: ${DT_WALLMODE^} ${GL[sdown]}"
 	t := str pad "$t" "$prevw"
 	console put -p "w$id" "$moderow" "$prevx" "$t"
 	dt_wreg "$id" "$moderow" "$prevx" "$prevw" mode

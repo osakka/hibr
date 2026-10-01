@@ -1713,9 +1713,9 @@ shutil.rmtree(d, True)
 # silent miscount.
 PANEL = ('. %s/panel.hibr\nCP_PANEDIRS+=("%s")\ncp_panes'
          % (tree("examples/desktop/apps"), tree("examples/desktop/control-panel")))
-ORDER = ["displays", "keyboard", "mouse", "appearance", "control_strip",
-         "datetime", "desktop", "filetypes", "notify", "shortcuts", "windows",
-         "abouthibr", "filesview", "taskmgr", "terminal"]
+ORDER = ["datetime", "displays", "keyboard", "mouse", "appearance",
+         "control_strip", "desktop", "filetypes", "notify", "shortcuts",
+         "windows", "abouthibr", "filesview", "taskmgr", "terminal"]
 DOWN_APP = [b"\x1b[B"] * ORDER.index("appearance")
 DOWN_KB = [b"\x1b[B"] * ORDER.index("shortcuts")
 

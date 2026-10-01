@@ -22,7 +22,7 @@ fn dt_slider(int id, int r, int c, int w, int value, int min, int max, tag) {
 	t=""
 	i=0
 	while [ "$i" -lt "$w" ]; do
-		[ "$i" = "$pos" ] && t="$t●" || t="$t─"
+		[ "$i" = "$pos" ] && t="$t${GL[circle]}" || t="$t${GL[hline]}"
 		i=$((i + 1))
 	done
 	console put -p "w$id" "$r" "$c" "$t"

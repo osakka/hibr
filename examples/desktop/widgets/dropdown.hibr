@@ -11,7 +11,7 @@ fn dt_wdrop(int id, int r, int c, int w, value, tag) {
 	local tag=${tag:-$value} lb
 
 	lb := str pad "$value" $((w - 2))
-	console put -p "w$id" "$r" "$c" "$lb ▾"
+	console put -p "w$id" "$r" "$c" "$lb ${GL[sdown]}"
 	dt_wreg "$id" "$r" "$c" "$w" "$tag"
 }
 

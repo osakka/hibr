@@ -166,7 +166,7 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 	console pen "$DT_IDLE" "$DT_FACE"
 	r=1
 	while [ "$r" -lt "$h" ]; do
-		console put -p "w$id" "$r" "$lw" "│"
+		console put -p "w$id" "$r" "$lw" "${GL[vline]}"
 		r=$((r + 1))
 	done
 
@@ -253,7 +253,7 @@ fn cp_rowsdraw(int id, pane, int h, int w, int bx) {
 		console put -p "w$id" "$r" "$bx" "$t"
 		if [ "$kind" = key ] && [ -n "$kv" ]; then
 			console pen "$DT_INK" "$DT_IDLE"
-			console put -p "w$id" "$r" $((bx + w - 4)) " ✕ "
+			console put -p "w$id" "$r" $((bx + w - 4)) " ${GL[cross]} "
 			dt_wreg "$id" "$r" $((bx + w - 4)) 3 "clear:$i"
 		fi
 		if [ "$kind" = set ]; then

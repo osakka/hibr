@@ -567,11 +567,11 @@ fn fb_pen(kind) {
 # The picture an entry has in the icon view.
 fn fb_glyph(kind) {
 	case $kind in
-	up) ret "▲" ;;
-	dir) ret "▤▤" ;;
-	exe) ret "▶" ;;
-	link) ret "↪" ;;
-	*) ret "▯" ;;
+	up) ret "${GL[up]}" ;;
+	dir) ret "${GL[folder]}${GL[folder]}" ;;
+	exe) ret "${GL[right]}" ;;
+	link) ret "${GL[hook]}" ;;
+	*) ret "${GL[file]}" ;;
 	esac
 }
 
@@ -639,8 +639,8 @@ fn fb_drawdet(int id, int h, int w) {
 	[ "$nw" -ge 24 ] && cp=1 && nw=$((nw - 11))
 	mk=; ms=; mt=; mm=
 	if [ -n "${FB[$id]["sort"]}" ]; then
-		a="▼"
-		[ "${FB[$id]["sdir"]}" = asc ] && a="▲"
+		a="${GL[down]}"
+		[ "${FB[$id]["sdir"]}" = asc ] && a="${GL[up]}"
 		case ${FB[$id]["sort"]} in
 		name) mk=$a ;;
 		size) ms=$a ;;

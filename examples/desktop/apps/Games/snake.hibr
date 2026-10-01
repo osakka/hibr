@@ -202,18 +202,18 @@ fn snake_draw(int id, int h, int w, int wr, int wc) {
 	cell=${SN[$id]["food"]}
 	if [ -n "$cell" ]; then
 		console pen "#f56565" "#0b1a12" bold
-		console put -p "w$id" $((${cell%,*} + 2)) $((${cell#*,} * 2 + 1)) "●"
+		console put -p "w$id" $((${cell%,*} + 2)) $((${cell#*,} * 2 + 1)) "${GL[circle]}"
 	fi
 	console pen "#276749" "#0b1a12"
 	read -ra body <<< "${SN[$id]["body"]}"
 	for cell in "${body[@]}"; do
 		r=${cell%,*}
 		c=${cell#*,}
-		console put -p "w$id" $((r + 2)) $((c * 2 + 1)) "██"
+		console put -p "w$id" $((r + 2)) $((c * 2 + 1)) "${GL[block]}${GL[block]}"
 	done
 	cell=${SN[$id]["body"]%% *}
 	[ "$st" = over ] && console pen "#f56565" "#0b1a12" || console pen "#68d391" "#0b1a12"
-	console put -p "w$id" $((${cell%,*} + 2)) $((${cell#*,} * 2 + 1)) "██"
+	console put -p "w$id" $((${cell%,*} + 2)) $((${cell#*,} * 2 + 1)) "${GL[block]}${GL[block]}"
 
 	console pen "#68d391" "$DT_FACE" bold
 	t="score ${SN[$id]["score"]}"

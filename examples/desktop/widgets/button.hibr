@@ -58,8 +58,8 @@ fn dt_button(id, int r, int c, label, int on, tag) {
 	if [ "$DT_BTNSHADOW" = 1 ]; then
 		sh := dt_btnshade
 		console pen "$sh" "$DT_FACE"
-		dt_bput "$id" "$r" $((c + n)) "▄"
-		t := dt_rep "$n" "▀"
+		dt_bput "$id" "$r" $((c + n)) "${GL[lower]}"
+		t := dt_rep "$n" "${GL[upper]}"
 		dt_bput "$id" $((r + 1)) $((c + 1)) "$t"
 	fi
 	dt_wreg "$id" "$r" "$c" "$n" "$tag"

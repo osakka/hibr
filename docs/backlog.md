@@ -123,6 +123,58 @@ file-by-file breakdown first and follow an existing module's own shape
 reads a fixed structure fast) rather than growing this one feature by
 feature into something bigger than "ultra small" meant.
 
+### Window placement, snapping, workspaces, tiling -- planned, in order
+
+Raised by the owner (2026-10-01): where a new window lands, snapping one to
+a half of the screen, virtual workspaces, and a path to a tiling window
+manager. All of it is the window manager's -- scripts in
+`examples/desktop/wm/`, nothing in the core. Four releases, each built on
+the one before:
+
+1. **Smart placement.** `dt_launch` cascades from a counter and never looks
+   at what is open. `dt_place h w` finds the first position on the primary
+   display -- or the one holding the focused window -- where a window of
+   that size overlaps nothing, below the bar and clear of the strip; then
+   the position of least overlap; then the cascade. `DT_PLACE`: smart
+   (default), cascade or center, in the Windows pane.
+2. **Snapping.** `dt_snap left|right|top|bottom|center` sets the focused
+   window to that half, or centres it, on its own display -- the shape
+   `dt_zoom` already has. Each is a `DT_KEYS` action with a default
+   (alt-arrows), and on the Window menu.
+3. **Virtual workspaces.** `DT[$id]["ws"]` and a current `DT_WS`; switching
+   hides what is not on it with the mechanism `dt_min` uses, so a hidden
+   window costs nothing. Three by default (`DT_WSN`), `DT_KEYS` for each and
+   for next and previous, the bar showing them with the current one lit, a
+   window dragged onto a workspace's number moved there, and Move to
+   Workspace on the Window menu. Every place that walks `"${!DT[@]}"` has to
+   choose all workspaces or the current one: `dt_cycle` and the application
+   menu's list are current-only; `dt_appwin` finds a once-app on another
+   workspace and switches there rather than open a second; Task Manager's
+   `dt_ids` lists all; `--resume` comes back on the workspace it left.
+   Open question for the owner: one workspace number for the whole desktop,
+   or one per display.
+4. **Tiling.** The model needs one thing it does not have: windows whose
+   geometry the window manager owns. `DT[$id]["tiled"]`, a layout
+   (master and stack first, grid second) re-applied on open, close and
+   resize, and dragging a tiled window swapping it rather than floating it --
+   a redesign of `dt_new`, `dt_zoom`, `dt_del`, drag and the resize corners,
+   and a release of its own after the three above.
+
+Each lands with tests of its own: three launches that do not overlap and a
+fourth that falls back; every snap's geometry; a switch hiding and showing,
+a once-app on another workspace, `dt_cycle` never visiting a hidden window,
+`--resume` keeping the workspace; and the idle measurement unmoved.
+
+### Colour roles in themes
+
+87 colours in the desktop are written as `#rrggbb` -- Files' selection,
+Note Pad's cursor, the calculator's keys, the games, dim text -- most tuned
+for midnight, so they ignore the theme. A theme file gains roles beside its
+seven colours (dim, selection, good, warning, danger), each defaulted from
+the colours a theme already has so an existing theme file keeps working,
+and the desktop draws with the roles. The scrollbar was themed in 0.79 with
+the colours themes already had.
+
 ## Ports
 
 ### macOS

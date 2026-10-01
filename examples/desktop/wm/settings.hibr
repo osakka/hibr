@@ -139,16 +139,10 @@ DT_DBLT=0
 # blank frame, not no frame: the border ring -- corners, sides, grow box --
 # goes undrawn, but the title and its buttons are still there, still
 # clickable, exactly as under single or double. A style is a table entry:
-# DT_FRAMES[name] carries its own six glyphs, so a fifth frame is six
-# lines here, not a change to dt_win.
+# DT_FRAMES[name] carries its own six glyphs, filled from the glyph set by
+# dt_glyphs (wm/glyphs.hibr), so a fifth frame is six lines there, not a
+# change to dt_win.
 DT_FRAME="${DT_FRAME-single}"
-declare -gA DT_FRAMES
-DT_FRAMES[single]["tl"]="┌"; DT_FRAMES[single]["tr"]="┐"
-DT_FRAMES[single]["bl"]="└"; DT_FRAMES[single]["br"]="┘"
-DT_FRAMES[single]["h"]="─";  DT_FRAMES[single]["v"]="│"
-DT_FRAMES[double]["tl"]="╔"; DT_FRAMES[double]["tr"]="╗"
-DT_FRAMES[double]["bl"]="╚"; DT_FRAMES[double]["br"]="╝"
-DT_FRAMES[double]["h"]="═";  DT_FRAMES[double]["v"]="║"
 
 # Which side the min/max/close cluster docks to, where the title sits in
 # whatever room that leaves, and which glyphs the cluster is drawn with:
@@ -221,7 +215,7 @@ DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 	CS_COLLAPSED CS_LEN CS_SHADOW
 	DT_FRAME DT_BTNSIDE DT_TITLEALIGN DT_BTNSTYLE DT_EDGERESIZE
 	DT_DRAGMOD DT_DRAGKEY DT_DRAWSKIP DT_NOTEMS DT_NOTEPOS DT_BARTIME
-	DT_BARGAP DT_BELLICON DT_BTNSHADOW DT_DLGBTN DT_TERMKEEP DT_TERMCTRL DT_SETVER)
+	DT_BARGAP DT_BELLICON DT_BTNSHADOW DT_DLGBTN DT_TERMKEEP DT_TERMCTRL DT_GLYPHSET DT_SETVER)
 
 # Where the desktop's stderr goes while it holds the screen, so an app's
 # error message cannot scribble over the display, and the reason for a
@@ -252,6 +246,7 @@ dt_load() {
 		fi
 	fi
 	DT_SETVER=2
+	dt_glyphs "$DT_GLYPHSET"
 	return 0
 }
 

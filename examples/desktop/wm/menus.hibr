@@ -66,7 +66,7 @@ fn dt_mark(lb, k, int on, ...rest) {
 	if [ "$on" = 0 ] || [ -z "$on" ]; then
 		dt_row " " 0 "$lb" "$k" "$@"
 	else
-		dt_row "✓" 0 "$lb" "$k" "$@"
+		dt_row "${GL[check]}" 0 "$lb" "$k" "$@"
 	fi
 }
 
@@ -368,7 +368,7 @@ fn dt_menu_draw(int m, int? px, int parent) {
 	while [ "$i" -lt "$n" ]; do
 		if [ "${MI[$m][$i]["sep"]}" = 1 ]; then
 			console pen "$DT_IDLE" "$DT_FACE"
-			lb := dt_rep "$w" "─"
+			lb := dt_rep "$w" "${GL[hline]}"
 			console put "$r" "$x" "$lb"
 			r=$((r + 1))
 			i=$((i + 1))
@@ -391,7 +391,7 @@ fn dt_menu_draw(int m, int? px, int parent) {
 		t=${MI[$m][$i]["tick"]}
 		sub=${MI[$m][$i]["sub"]}
 		if [ -n "$sub" ]; then
-			k="▸"
+			k="${GL[sright]}"
 			pos=-1
 		else
 			pos := dt_akeypos "$lb" "$k"
@@ -460,8 +460,8 @@ dt_drop_apps() {
 			console pen "$DT_INK" "$DT_FACE"
 		fi
 		mark=" "
-		[ "$id" = "$DT_FOCUS" ] && mark="•"
-		dt_hidden "$id" && mark="·"
+		[ "$id" = "$DT_FOCUS" ] && mark="${GL[bullet]}"
+		dt_hidden "$id" && mark="${GL[dot]}"
 		t := dt_title "$id"
 		t := str pad "$mark ${t}" "$w"
 		console put "$r" "$x" "$t"

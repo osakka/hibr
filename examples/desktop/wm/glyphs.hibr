@@ -1,0 +1,121 @@
+#!/usr/bin/env hibr
+#
+# wm/glyphs -- every character the desktop draws that is not plain text,
+# by name: GL[vline] rather than a literal │ in the middle of a line of
+# code. One place to read what a glyph is for, one place to change it, and
+# a second set in plain ASCII for a terminal or a font that has none of
+# them -- a Linux console, an old ssh client -- chosen by DT_GLYPHSET
+# (Control Panel > Appearance > Glyphs).
+#
+# Written as $'\uXXXX', the character's code point, with its Unicode name
+# beside it, so a line says what the character is even where the editor
+# shows nothing. Named for what it is drawn as, not where: one shape has
+# one plain-ASCII stand-in wherever it appears.
+#
+# Not here, on purpose: the icon an app or a pane chooses for itself (its
+# dt_app or cp_pane line is the clearest place to read it), lists that are
+# themselves choices of character (the wallpaper glyphs, the notification
+# icons), and punctuation in prose ("Custom…", "moving — arrows").
+#
+# Part of the window manager; desktop.hibr sources it first, since the
+# frame styles in settings are built from it.
+
+strict
+
+declare -gA GL
+declare -gA DT_FRAMES
+DT_GLYPHSET="${DT_GLYPHSET-unicode}"
+DT_GLYPHSETS=(unicode ascii)
+
+# Fill GL, and the frame styles drawn from it, with one set: unicode or
+# ascii. Anything else is unicode.
+fn dt_glyphs(set = "unicode") {
+	if [ "$set" = ascii ]; then
+		GL["hline"]="-"; GL["vline"]="|"
+		GL["tl"]="+"; GL["tr"]="+"; GL["bl"]="+"; GL["br"]="+"
+		GL["dhline"]="="; GL["dvline"]="|"
+		GL["dtl"]="+"; GL["dtr"]="+"; GL["dbl"]="+"; GL["dbr"]="+"
+		GL["teel"]="["; GL["teer"]="]"
+		GL["dashh"]="-"; GL["dashv"]=":"
+		GL["grow"]="/"
+		GL["block"]="#"; GL["light"]="."; GL["medium"]=":"
+		GL["upper"]="="; GL["lower"]="_"
+		GL["dot"]="."; GL["bullet"]="*"; GL["circle"]="o"
+		GL["square"]="#"; GL["box"]="o"; GL["ring"]="@"
+		GL["up"]="^"; GL["down"]="v"; GL["right"]=">"
+		GL["sright"]=">"; GL["sleft"]="<"; GL["sdown"]="v"
+		GL["arrowup"]="^"; GL["hook"]=">"
+		GL["file"]="-"; GL["folder"]="+"
+		GL["cross"]="x"; GL["xmark"]="x"; GL["check"]="*"
+		GL["star"]="*"; GL["flag"]="!"; GL["heart"]="*"; GL["warn"]="!"
+		GL["home"]="H"; GL["trash"]="u"; GL["trashfull"]="U"; GL["disk"]="D"
+		GL["spark1"]="_"; GL["spark2"]="."; GL["spark3"]="-"
+		GL["spark4"]=":"; GL["spark5"]="="; GL["spark6"]="+"
+		GL["spark7"]="*"; GL["spark8"]="#"
+	else
+		GL["hline"]=$'─'     # BOX DRAWINGS LIGHT HORIZONTAL
+		GL["vline"]=$'│'     # BOX DRAWINGS LIGHT VERTICAL
+		GL["tl"]=$'┌'        # BOX DRAWINGS LIGHT DOWN AND RIGHT
+		GL["tr"]=$'┐'        # BOX DRAWINGS LIGHT DOWN AND LEFT
+		GL["bl"]=$'└'        # BOX DRAWINGS LIGHT UP AND RIGHT
+		GL["br"]=$'┘'        # BOX DRAWINGS LIGHT UP AND LEFT
+		GL["dhline"]=$'═'    # BOX DRAWINGS DOUBLE HORIZONTAL
+		GL["dvline"]=$'║'    # BOX DRAWINGS DOUBLE VERTICAL
+		GL["dtl"]=$'╔'       # BOX DRAWINGS DOUBLE DOWN AND RIGHT
+		GL["dtr"]=$'╗'       # BOX DRAWINGS DOUBLE DOWN AND LEFT
+		GL["dbl"]=$'╚'       # BOX DRAWINGS DOUBLE UP AND RIGHT
+		GL["dbr"]=$'╝'       # BOX DRAWINGS DOUBLE UP AND LEFT
+		GL["teel"]=$'┤'      # BOX DRAWINGS LIGHT VERTICAL AND LEFT
+		GL["teer"]=$'├'      # BOX DRAWINGS LIGHT VERTICAL AND RIGHT
+		GL["dashh"]=$'┄'     # BOX DRAWINGS LIGHT TRIPLE DASH HORIZONTAL
+		GL["dashv"]=$'┆'     # BOX DRAWINGS LIGHT TRIPLE DASH VERTICAL
+		GL["grow"]=$'◢'      # BLACK LOWER RIGHT TRIANGLE
+		GL["block"]=$'█'     # FULL BLOCK
+		GL["light"]=$'░'     # LIGHT SHADE
+		GL["medium"]=$'▒'    # MEDIUM SHADE
+		GL["upper"]=$'▀'     # UPPER HALF BLOCK
+		GL["lower"]=$'▄'     # LOWER HALF BLOCK
+		GL["dot"]=$'·'       # MIDDLE DOT
+		GL["bullet"]=$'•'    # BULLET
+		GL["circle"]=$'●'    # BLACK CIRCLE
+		GL["square"]=$'■'    # BLACK SQUARE
+		GL["box"]=$'□'       # WHITE SQUARE
+		GL["ring"]=$'◉'      # FISHEYE
+		GL["up"]=$'▲'        # BLACK UP-POINTING TRIANGLE
+		GL["down"]=$'▼'      # BLACK DOWN-POINTING TRIANGLE
+		GL["right"]=$'▶'     # BLACK RIGHT-POINTING TRIANGLE
+		GL["sright"]=$'▸'    # BLACK RIGHT-POINTING SMALL TRIANGLE
+		GL["sleft"]=$'◂'     # BLACK LEFT-POINTING SMALL TRIANGLE
+		GL["sdown"]=$'▾'     # BLACK DOWN-POINTING SMALL TRIANGLE
+		GL["arrowup"]=$'↑'   # UPWARDS ARROW
+		GL["hook"]=$'↪'      # RIGHTWARDS ARROW WITH HOOK
+		GL["file"]=$'▯'      # WHITE VERTICAL RECTANGLE
+		GL["folder"]=$'▤'    # SQUARE WITH HORIZONTAL FILL
+		GL["cross"]=$'✕'     # MULTIPLICATION X
+		GL["xmark"]=$'✗'     # BALLOT X
+		GL["check"]=$'✓'     # CHECK MARK
+		GL["star"]=$'✱'      # HEAVY ASTERISK
+		GL["flag"]=$'⚑'      # BLACK FLAG
+		GL["heart"]=$'♥'     # BLACK HEART SUIT
+		GL["warn"]=$'⚠'      # WARNING SIGN
+		GL["home"]=$'⌂'      # HOUSE
+		GL["trash"]=$'▽'     # WHITE DOWN-POINTING TRIANGLE
+		GL["trashfull"]=$'▼' # BLACK DOWN-POINTING TRIANGLE
+		GL["disk"]=$'▥'      # SQUARE WITH VERTICAL FILL
+		GL["spark1"]=$'▁'    # LOWER ONE EIGHTH BLOCK
+		GL["spark2"]=$'▂'    # LOWER ONE QUARTER BLOCK
+		GL["spark3"]=$'▃'    # LOWER THREE EIGHTHS BLOCK
+		GL["spark4"]=$'▄'    # LOWER HALF BLOCK
+		GL["spark5"]=$'▅'    # LOWER FIVE EIGHTHS BLOCK
+		GL["spark6"]=$'▆'    # LOWER THREE QUARTERS BLOCK
+		GL["spark7"]=$'▇'    # LOWER SEVEN EIGHTHS BLOCK
+		GL["spark8"]=$'█'    # FULL BLOCK
+	fi
+	DT_FRAMES["single"]["tl"]=${GL["tl"]}; DT_FRAMES["single"]["tr"]=${GL["tr"]}
+	DT_FRAMES["single"]["bl"]=${GL["bl"]}; DT_FRAMES["single"]["br"]=${GL["br"]}
+	DT_FRAMES["single"]["h"]=${GL["hline"]}; DT_FRAMES["single"]["v"]=${GL["vline"]}
+	DT_FRAMES["double"]["tl"]=${GL["dtl"]}; DT_FRAMES["double"]["tr"]=${GL["dtr"]}
+	DT_FRAMES["double"]["bl"]=${GL["dbl"]}; DT_FRAMES["double"]["br"]=${GL["dbr"]}
+	DT_FRAMES["double"]["h"]=${GL["dhline"]}; DT_FRAMES["double"]["v"]=${GL["dvline"]}
+}
+dt_glyphs "$DT_GLYPHSET"

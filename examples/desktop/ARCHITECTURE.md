@@ -182,9 +182,9 @@ long scrolling list:
 A pane down the left, its own rows on the right — arrows move the picker,
 tab or right or enter steps into the selected pane, and the same keys then
 move its row cursor instead. The picker has three groups under headings:
-**Hardware** — Displays, Keyboard, Mouse — then **Desktop** — Appearance,
-Control Strip, Date & Time, Desktop, File Types, Notifications, Shortcuts,
-Windows — and **Apps**, one pane per app that has something to choose: About
+**Hardware** — Date & Time (the machine's clock and time zone), Displays,
+Keyboard, Mouse — then **Desktop** — Appearance, Control Strip, Desktop,
+File Types, Notifications, Shortcuts, Windows — and **Apps**, one pane per app that has something to choose: About
 hibr, Files, Task Manager, Terminal. An app's
 pane is always listed and says so when its app is not loaded, so the list
 does not move under you. Everything an app keeps across restarts has a row in

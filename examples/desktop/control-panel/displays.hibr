@@ -233,16 +233,16 @@ fn displays_draw(int id, int h, int w, int bx) {
 		else
 			console pen "$DT_IDLE" "$DT_FACE"
 		fi
-		t := dt_rep $((bw - 2)) "─"
-		console put -p "w$id" "$br" "$bc" "┌${t}┐"
+		t := dt_rep $((bw - 2)) "${GL[hline]}"
+		console put -p "w$id" "$br" "$bc" "${GL[tl]}${t}${GL[tr]}"
 		r=1
 		while [ "$r" -lt $((bh - 1)) ]; do
-			console put -p "w$id" $((br + r)) "$bc" "│"
-			console put -p "w$id" $((br + r)) $((bc + bw - 1)) "│"
+			console put -p "w$id" $((br + r)) "$bc" "${GL[vline]}"
+			console put -p "w$id" $((br + r)) $((bc + bw - 1)) "${GL[vline]}"
 			r=$((r + 1))
 		done
-		t := dt_rep $((bw - 2)) "─"
-		console put -p "w$id" $((br + bh - 1)) "$bc" "└${t}┘"
+		t := dt_rep $((bw - 2)) "${GL[hline]}"
+		console put -p "w$id" $((br + bh - 1)) "$bc" "${GL[bl]}${t}${GL[br]}"
 		namew=$((bw - 2))
 		[ "$namew" -lt 1 ] && namew=1
 		t=$nm

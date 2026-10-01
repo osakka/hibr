@@ -54,7 +54,7 @@ fn tasks_ownername(int uid) {
 # window's current width (samples are trimmed to fit at draw time, not
 # at collection time), so a resize never throws a real sample away.
 TK_HISTMAX=120
-TK_SPARK=(▁ ▂ ▃ ▄ ▅ ▆ ▇ █)
+TK_SPARK=("${GL[spark1]}" "${GL[spark2]}" "${GL[spark3]}" "${GL[spark4]}" "${GL[spark5]}" "${GL[spark6]}" "${GL[spark7]}" "${GL[spark8]}")
 
 # Append one value, shifting the oldest out once TK_HISTMAX is reached.
 # Once a second (TK_SCANMS), never once a frame, so an O(n) shift over
@@ -485,8 +485,8 @@ fn tasks_draw(int id, int h, int w, int row, int col) {
 	full=${TK[$id]["full"]:-0}
 	# The sorted column's heading carries its direction; a number column's
 	# mark goes in front, where its right-justified digits leave room.
-	mk="▼"
-	[ "$dir" = asc ] && mk="▲"
+	mk="${GL[down]}"
+	[ "$dir" = asc ] && mk="${GL[up]}"
 	lp=PID; ln=Name; lo=Owner; lc="CPU%"; lm=Mem
 	case $by in
 	pid) lp="$mk$lp" ;;

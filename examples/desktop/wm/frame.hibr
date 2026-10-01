@@ -17,27 +17,27 @@ fn dt_btnspec(style, int? fixed) {
 	circles)
 		BTN_DL=" "; BTN_DR=" "
 		if [ "$fixed" = 1 ]; then
-			BTN_G=("●" "●"); BTN_C=("#f6ad55" "#f56565")
+			BTN_G=("${GL[circle]}" "${GL[circle]}"); BTN_C=("#f6ad55" "#f56565")
 		else
-			BTN_G=("●" "●" "●")
+			BTN_G=("${GL[circle]}" "${GL[circle]}" "${GL[circle]}")
 			BTN_C=("#f6ad55" "#68d391" "#f56565")
 		fi
 		;;
 	squares)
 		BTN_DL=" "; BTN_DR=" "
 		if [ "$fixed" = 1 ]; then
-			BTN_G=("■" "■"); BTN_C=("#f6ad55" "#f56565")
+			BTN_G=("${GL[square]}" "${GL[square]}"); BTN_C=("#f6ad55" "#f56565")
 		else
-			BTN_G=("■" "■" "■")
+			BTN_G=("${GL[square]}" "${GL[square]}" "${GL[square]}")
 			BTN_C=("#f6ad55" "#68d391" "#f56565")
 		fi
 		;;
 	*)
-		BTN_DL="┤"; BTN_DR="├"
+		BTN_DL="${GL[teel]}"; BTN_DR="${GL[teer]}"
 		if [ "$fixed" = 1 ]; then
 			BTN_G=("_" "x"); BTN_C=("$DT_INK" "#f56565")
 		else
-			BTN_G=("_" "□" "x")
+			BTN_G=("_" "${GL[box]}" "x")
 			BTN_C=("$DT_INK" "$DT_INK" "#f56565")
 		fi
 		;;
@@ -106,7 +106,7 @@ fn dt_win(int id) {
 		# instead of the grow box: no drag can resize it, so nothing
 		# should invite one.
 		[ "$fixed" != 1 ] &&
-			console put -p "w$id" $((h - 1)) $((w - 1)) "◢"
+			console put -p "w$id" $((h - 1)) $((w - 1)) "${GL[grow]}"
 		local r=1
 		while [ "$r" -lt $((h - 1)) ]; do
 			console put -p "w$id" "$r" 0 "$fv"
@@ -165,7 +165,7 @@ fn dt_win(int id) {
 	right)  tc=$tmax ;;
 	*)      tc=$tc0 ;;
 	esac
-	local tdl="┤" tdr="├"
+	local tdl="${GL[teel]}" tdr="${GL[teer]}"
 	[ "$DT_FRAME" = none ] && { tdl=" "; tdr=" "; }
 	console pen "$on" "$DT_FACE" bold
 	console put -p "w$id" 0 "$tc" "$tdl $t $tdr"

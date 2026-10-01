@@ -61,9 +61,9 @@ fn about_bar(int pct, int w) {
 	fill=$((pct * w / 100))
 	empty=$((w - fill))
 	local b
-	b := dt_rep "$fill" "█"
+	b := dt_rep "$fill" "${GL[block]}"
 	local e
-	e := dt_rep "$empty" "░"
+	e := dt_rep "$empty" "${GL[light]}"
 	ret "$b$e"
 }
 

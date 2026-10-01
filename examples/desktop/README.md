@@ -113,6 +113,17 @@ start. Why JSON and not a script is
 [decision 0028](../../docs/adr/0028-a-theme-is-data.md): a theme you were
 given can only ever be colours.
 
+## Glyphs
+
+Every character the desktop draws that is not plain text -- a border, a
+scrollbar, a slider's knob, a sort arrow, a menu's tick -- is named in
+`wm/glyphs.hibr` and drawn by its name, `${GL[vline]}` rather than a
+literal `│`. Appearance > Glyphs picks the set: **unicode**, the default,
+or **ascii**, which draws the same desktop in plain characters (`+-|`, `#`,
+`[ Title ]`) for a terminal or a font without the others -- a Linux
+console, an older ssh client. The icon each app and pane chooses for
+itself stays as its own `dt_app` or `cp_pane` line writes it.
+
 ## The wallpaper
 
 `dt_wall` fills the whole screen before anything else draws: `DT_GLYPH`
@@ -625,8 +636,8 @@ drawing a second one from scratch.
 
 ![The Date & Time pane, its clock and date above a small world map marking Europe/London](img/desktop-datetime.png)
 
-The bundled panes -- Displays, Keyboard and Mouse under Hardware;
-Appearance, Control Strip, Date & Time, Desktop, File Types, Notifications,
+The bundled panes -- Date & Time, Displays, Keyboard and Mouse under
+Hardware; Appearance, Control Strip, Desktop, File Types, Notifications,
 Shortcuts and Windows under Desktop; and About hibr, Files, Task Manager and
 Terminal under Apps -- are ordinary files under
 `examples/desktop/control-panel` themselves, not special-cased in

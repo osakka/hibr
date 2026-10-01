@@ -176,10 +176,10 @@ dt_identify_draw() {
 	r=$((DT_IDROW + DT_IDROWS / 2))
 	c=$((DT_IDCOL + (DT_IDCOLS - w) / 2))
 	console pen "$DT_ACTIVE" "$DT_FACE" bold
-	t := dt_rep $((w - 2)) "─"
-	console put "$r" "$c" "┌$t┐"
-	console put $((r + 2)) "$c" "└$t┘"
+	t := dt_rep $((w - 2)) "${GL[hline]}"
+	console put "$r" "$c" "${GL[tl]}$t${GL[tr]}"
+	console put $((r + 2)) "$c" "${GL[bl]}$t${GL[br]}"
 	console pen "$DT_INK" "$DT_FACE" bold
-	console put $((r + 1)) "$c" "│ ${DT_IDNAME:0:$((w - 4))} │"
+	console put $((r + 1)) "$c" "${GL[vline]} ${DT_IDNAME:0:$((w - 4))} ${GL[vline]}"
 	dt_want "$DT_IDMS"
 }

@@ -239,9 +239,9 @@ dt_stripdraw() {
 	if [ "$CS_COLLAPSED" = 1 ]; then
 		console pen "$DT_ACTIVE" "$DT_FACE" bold
 		if [ "$CS_SIDE" = left ]; then
-			console put "$row" "$DT_PRIMARY_COL" "▸"
+			console put "$row" "$DT_PRIMARY_COL" "${GL[sright]}"
 		else
-			console put "$row" $((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - 1)) "◂"
+			console put "$row" $((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - 1)) "${GL[sleft]}"
 		fi
 		return 0
 	fi
@@ -256,7 +256,7 @@ dt_stripdraw() {
 	c=$col
 	console pen "$DT_ACTIVE" "$DT_FACE" bold
 	if [ "$CS_SIDE" = right ]; then
-		console put "$row" "$c" "◂"
+		console put "$row" "$c" "${GL[sleft]}"
 		c=$((c + 1))
 	fi
 	i=$CS_SCROLL
@@ -271,7 +271,7 @@ dt_stripdraw() {
 		i=$((i + 1))
 	done
 	[ "$CS_SIDE" = left ] && { console pen "$DT_ACTIVE" "$DT_FACE" bold
-		console put "$row" "$c" "▸"; }
+		console put "$row" "$c" "${GL[sright]}"; }
 }
 
 # A press on the strip's own row: the arrow starts a drag -- vertical

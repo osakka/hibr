@@ -21,7 +21,7 @@ DT_WHY=
 # paths carried.  Icons dragged about the desktop may carry none.
 dt_dnd() {
 	DT_DNDN=$1
-	DT_DNDG=${2:-▯}
+	DT_DNDG=${2:-${GL[file]}}
 	shift 2
 	DT_DNDS=("$@")
 	DT_DND=1

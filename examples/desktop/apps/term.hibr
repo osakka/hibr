@@ -206,17 +206,17 @@ fn term_draw(int id, int h, int w, int row, int col) {
 		console bell
 		if [ "$DT_FOCUS" != "$id" ] && [ "${TW[$id]["rang"]}" != 1 ]; then
 			TW[$id]["rang"]=1
-			dt_retitle "$id" "• ${DT[$id]["title"]}"
+			dt_retitle "$id" "${GL[bullet]} ${DT[$id]["title"]}"
 		fi
 	fi
 	if [ "$DT_FOCUS" = "$id" ] && [ "${TW[$id]["rang"]}" = 1 ]; then
 		TW[$id]["rang"]=
-		dt_retitle "$id" "${DT[$id]["title"]#• }"
+		dt_retitle "$id" "${DT[$id]["title"]#${GL[bullet]} }"
 	fi
 	while note := term note "$t"; do
 		ttl=${note%%$'\t'*}
 		note=${note#*$'\t'}
-		[ -n "$ttl" ] || ttl=${DT[$id]["title"]#• }
+		[ -n "$ttl" ] || ttl=${DT[$id]["title"]#${GL[bullet]} }
 		dt_notify "$ttl: $note" dt_raise "$id"
 		console notify "$ttl: $note"
 	done
@@ -239,7 +239,7 @@ fn term_draw(int id, int h, int w, int row, int col) {
 	stored=${sb#* }
 	if [ "$view" != 0 ]; then
 		console pen "$DT_FACE" "#ecc94b" bold
-		sb=" ↑ $view of $stored "
+		sb=" ${GL[arrowup]} $view of $stored "
 		console put -p "w$id" 1 $((tw + 1 - ${#sb})) "$sb"
 	fi
 	# tw columns is all the pty was given, so its own content never

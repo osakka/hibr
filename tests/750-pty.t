@@ -38,8 +38,24 @@ echo "--- what is written arrives"
 i := pty spawn /bin/sh
 pty write $i 'echo "typed in"
 '
-o := pty read $i 700
-printf '%s' "$o" | tr -d '\r' | grep -c 'typed in' | sed 's/^/saw it echoed and run: /' 
+# Read until the command's own output is there -- a line that is not the
+# echo of the command and ends in its text, after the shell's prompt where
+# that comes first -- not a fixed number of times: one read may hold only
+# the echo, or both, and counting the lines that matched made this flake
+# (2, now and then, for 1).
+o=
+n=0
+while [ $n -lt 8 ]; do
+	r := pty read $i 300
+	o="$o$r"
+	printf '%s' "$o" | tr -d '\r' | grep -v echo | grep -q 'typed in$' && break
+	n=$((n + 1))
+done
+if printf '%s' "$o" | tr -d '\r' | grep -v echo | grep -q 'typed in$'; then
+	echo "saw it echoed and run: 1"
+else
+	echo "saw it echoed and run: 0"
+fi
 pty write $i 'exit 5
 '
 st := pty wait $i 1200
@@ -87,7 +103,11 @@ i := pty spawn -r 24 -c 60 $H -c 'echo $((6 * 7)) from inside'
 o := pty drain $i 1200
 st := pty wait $i 1200
 pty close $i
-printf '%s' "$o" | tr -d '\r' | grep -c '42 from inside' | sed 's/^/saw the answer: /'
+if printf '%s' "$o" | tr -d '\r' | grep -q '42 from inside'; then
+	echo "saw the answer: 1"
+else
+	echo "saw the answer: 0"
+fi
 echo "inner exit $st"
 
 echo "--- and an interactive one, with its line editor running"
@@ -99,7 +119,14 @@ pty write $i 'exit
 '
 st := pty wait $i 1500
 pty close $i
-printf '%s' "$o" | tr -d '\r' | grep -c 'inner> ' | sed 's/^/drew its own prompt: /'
+# Whether the prompt appeared, not how many times: the line editor may
+# redraw it within the read, and counting made the test flaky (3, now and
+# then, instead of 1).
+if printf '%s' "$o" | grep -q 'inner> '; then
+	echo "drew its own prompt: 1"
+else
+	echo "drew its own prompt: 0"
+fi
 echo "inner exit $st"
 
 echo "--- errors"

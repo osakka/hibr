@@ -18,7 +18,7 @@ fn shortcuts_row(int w, int n, what) {
 	local l
 
 	l := dt_keylabel "$what"
-	dt_keyshared "$what" && l="$l ⚠"
+	dt_keyshared "$what" && l="$l ${GL[warn]}"
 	CP[$w][$n]["kind"]=key
 	CP[$w][$n]["text"]=$l
 	CP[$w][$n]["val"] := dt_keyof "$what"

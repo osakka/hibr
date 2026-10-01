@@ -117,6 +117,9 @@ fn appearance_rows(int w) {
 	g := dt_bellglyph "$DT_BELLICON"
 	CP[$w][$n]["val"]="$g $DT_BELLICON"; CP[$w][$n]["key"]=bellicon
 	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Glyphs"
+	CP[$w][$n]["val"]="$DT_GLYPHSET"; CP[$w][$n]["key"]=glyphset
+	n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Shadows"; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Windows"
 	CP[$w][$n]["wtype"]=bool
@@ -162,6 +165,8 @@ fn appearance_do(int w, k, int dir) {
 	wallimg) wp_dialog; return 0 ;;
 	wallmode) v := cp_next "$DT_WALLMODE" "$dir" "${WP_MODES[@]}"
 		DT_WALLMODE=$v ;;
+	glyphset) v := cp_next "$DT_GLYPHSET" "$dir" "${DT_GLYPHSETS[@]}"
+		cp_set_glyphset "" "$v"; return 0 ;;
 	dlgbtn) v := cp_next "$DT_DLGBTN" "$dir" "${DT_DLGBTNS[@]}"
 		DT_DLGBTN=$v ;;
 	DT_SHADOW | DT_MSHADOW | DT_BARSHADOW | DT_BTNSHADOW) cp_toggle "$k" ;;
@@ -174,6 +179,7 @@ fn appearance_drop(int w, int r, int c, k) {
 	theme) dt_droplist "$w" "$r" "$c" cp_set_theme "${CP_THEMES[@]}" ;;
 	glyph) dt_droplist "$w" "$r" "$c" cp_set_glyph "${CP_GLYPHS[@]}" ;;
 	wallmode) dt_droplist "$w" "$r" "$c" wp_setmode "${WP_MODES[@]}" ;;
+	glyphset) dt_droplist "$w" "$r" "$c" cp_set_glyphset "${DT_GLYPHSETS[@]}" ;;
 	dlgbtn) dt_droplist "$w" "$r" "$c" cp_set_dlgbtn "${DT_DLGBTNS[@]}" ;;
 	bellicon)
 		local -a vals
@@ -188,6 +194,12 @@ fn appearance_drop(int w, int r, int c, k) {
 }
 
 fn cp_set_dlgbtn(int? id = "", value = "") { DT_DLGBTN=$value; cp_save; }
+# The glyph set takes effect at once: every name in GL, and the frames.
+fn cp_set_glyphset(int? id = "", value = "") {
+	DT_GLYPHSET=$value
+	dt_glyphs "$value"
+	cp_save
+}
 
 # A choice from the icon list, shown as "glyph name": the name is kept.
 fn cp_set_bellicon(int? id = "", value = "") { DT_BELLICON=${value##* }; cp_save; }

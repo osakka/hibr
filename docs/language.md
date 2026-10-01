@@ -14,7 +14,7 @@ written `name() { … }`, bash's `function name { … }`, or hibr's `fn` -- and
 `local`. An empty `then`, `do` or `{ }` is a syntax error, as in bash, and a
 syntax error is status 2.
 
-**Expansion.** Single, double and `$'…'` quoting (`\n \t \e \xHH \0NNN`).
+**Expansion.** Single, double and `$'…'` quoting (`\n \t \e \xHH \0NNN \uHHHH \UHHHHHHHH`, the last two a character by its Unicode code point).
 `${x:-d} ${x:=d} ${x:?msg} ${x:+alt}`, `${#x}`, `${x#p} ${x##p} ${x%p} ${x%%p}`,
 `${x/p/r} ${x//p/r}`, anchored `${x/#p/r}` and `${x/%p/r}`, `${x:off:len}` with
 negative offsets and negative lengths, over a scalar's characters or a list's

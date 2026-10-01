@@ -604,11 +604,14 @@ went in the shell.
   spawning `hibr.asan` for hours, competing for ptys and making unrelated pty
   suites hang. It has not reproduced on demand either time. `ps -eo pid,ppid,cmd
   | grep run.sh` before believing a pty suite that stalls.
-- **`tests/750-pty.t` has failed once under a full run and not alone.** It
-  passed 23 times in isolation straight after, in 0.46, a release that
-  touches nothing in the pty module. Intermittent, not fixed: if it fails
-  again, run it alone in a loop before believing a regression, and look for
-  another suite still running beside it.
+- **`tests/750-pty.t` flaked, and the cause was the test.** It failed now
+  and then under a full run and once in fifteen alone, showing "drew its own
+  prompt: 3" for 1, and then "saw it echoed and run: 2" for 1: each check
+  counted matching lines, and how many arrive within one read is timing.
+  Each asks whether the thing appeared now, and the echo check reads until
+  the command's output is there -- after the prompt, on the prompt's line --
+  rather than a fixed number of times (0.79). Before believing any pty
+  test is intermittent, read what it counts.
 - **Before trying anything by hand that uses `need`, reinstall** -- on the
   owner's machine that is the apt package now, not `deploy.sh`:
   `packaging/deb/build-deb.sh`, `packaging/deb/publish.sh build/deb/...`,
@@ -1587,6 +1590,17 @@ went in the shell.
   what a *shut* menu bar shows without input -- a title on the bar, the
   focused app's name -- has to clear `DT_MENUIN` so the next frame
   rebuilds; an open menu rebuilds every frame regardless.
+
+- **A glyph the desktop draws is named, never written.** `wm/glyphs.hibr`
+  fills `GL` -- `GL[vline]`, `GL[tl]`, `GL[spark3]` -- from one of two sets,
+  unicode (`$'\u2502'` with the Unicode name beside it) or ascii, chosen
+  by `DT_GLYPHSET`; drawing code reads `${GL[name]}`, and a loop that draws
+  many cells takes it into a local first. Three things stay literal, on
+  purpose: the icon an app or pane picks on its `dt_app`/`cp_pane` line, a
+  list that is itself a choice of characters (wallpaper glyphs, the
+  notification icons), and punctuation in prose. `$'\u'` and `$'\U'` did
+  not work in hibr until this needed them -- the backslash was dropped --
+  and are bash's, tested against it in `910-dollar-unicode.t`.
 
 ## Testing discipline
 

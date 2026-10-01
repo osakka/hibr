@@ -4,15 +4,16 @@
 
 strict
 
-# A vertical scrollbar: a track of │ over h rows starting at row0, one
-# cell shown as the thumb █ at a position proportional to how far through
-# total the view already is. shown is how many of total are visible at
-# once; nothing is drawn when everything already is, the same as a
-# checkbox or a dropdown draws nothing it was not asked for. The shape
-# the file browser's own list view and a terminal's scrollback both need,
-# so a fix or a restyle is one place, not two.
+# A vertical scrollbar: a track of GL[vline] over h rows starting at row0,
+# one cell shown as the thumb GL[block] at a position proportional to how
+# far through total the view already is, both in the theme's colours -- the
+# thumb in its accent, the track in its idle colour. shown is how many of
+# total are visible at once; nothing is drawn when everything already is,
+# the same as a checkbox or a dropdown draws nothing it was not asked for.
+# The shape the file browser's own list view and a terminal's scrollback
+# both need, so a fix or a restyle is one place, not two.
 fn dt_scrollbar(int id, int row0, int col, int h, int total, int shown, int pos) {
-	local thumb r
+	local thumb r tg=${GL[block]} kg=${GL[vline]}
 
 	[ "$total" -gt "$shown" ] || return 0
 	thumb=$((row0 + pos * (h - 1) / (total - shown)))
@@ -20,11 +21,11 @@ fn dt_scrollbar(int id, int row0, int col, int h, int total, int shown, int pos)
 	r=$row0
 	while [ "$r" -lt $((row0 + h)) ]; do
 		if [ "$r" = "$thumb" ]; then
-			console pen "#63b3ed" "$DT_FACE"
-			console put -p "w$id" "$r" "$col" "█"
+			console pen "$DT_ACTIVE" "$DT_FACE"
+			console put -p "w$id" "$r" "$col" "$tg"
 		else
-			console pen "#2d3748" "$DT_FACE"
-			console put -p "w$id" "$r" "$col" "│"
+			console pen "$DT_IDLE" "$DT_FACE"
+			console put -p "w$id" "$r" "$col" "$kg"
 		fi
 		r=$((r + 1))
 	done
