@@ -214,6 +214,19 @@ terminal's own paste would, bracketed when the program asked for that. The
 calculator copies its answer and keeps only arithmetic from a paste. These
 are the only two keys the desktop takes from a program: see the amendment in
 [decision 0020](../../docs/adr/0020-windows-are-drawn-not-composited.md).
+Right-click opens the terminal's own menu (Copy, Paste, Send Interrupt);
+shift-right-click opens it even when the program has the mouse.
+
+**A terminal can give the desktop its shortcuts back.** By default every key
+reaches the program inside, so a shortcut like alt-tab for Cycle Windows
+does nothing while a terminal has focus. Control Panel > Terminal > Desktop
+Shortcuts Win changes that: a shortcut the desktop or an app launcher has
+been given goes to the desktop instead, if it is a chord (ctrl or alt with a
+key) or a function key. A plain key -- `q`, `tab`, escape -- always reaches
+the program, and so do ctrl-c, ctrl-d and ctrl-z whatever is bound to them.
+One window can still be given everything: the Window menu's Pass Every Key,
+ticked, is for a program that needs the chord, or a desktop running inside
+that terminal.
 
 ## Detaching, and coming back
 
@@ -726,7 +739,9 @@ different window, and when nothing has focus they are the desktop's own.
 **F10 or escape opens the bar.** Then the arrows move between menus and
 items, a letter picks the item beside it, enter chooses and escape closes.
 Nothing is reserved while the bar is shut — which is deliberate, and is what
-keeps ctrl-c and the rest free for whatever is running inside a window.
+keeps ctrl-c and the rest free for whatever is running inside a window. The
+one opt-in exception is a terminal set to give the desktop's chord
+shortcuts back (Control Panel > Terminal > Desktop Shortcuts Win).
 
 The application menu lists every window, with `•` against the active one and
 `·` against a hidden one; choosing a hidden one brings it back. That is the

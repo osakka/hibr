@@ -53,6 +53,33 @@ fn dt_keynorm(k) {
 	ret "$out$base"
 }
 
+# Whether a key is one of the desktop's own shortcuts -- an action's, or an
+# app's launch key -- and a chord or a function key: a window that takes
+# every key may give these back, and a plain key never, since a terminal
+# that cannot receive q or tab cannot be used. ctrl-c, ctrl-d and ctrl-z
+# are never given back, whatever is assigned to them.
+fn dt_keyassigned(key) {
+	local knorm an v
+
+	case $key in
+	ctrl-* | alt-* | shift-f[0-9]* | f[0-9]*) ;;
+	*) return 1 ;;
+	esac
+	case $key in ctrl-c | ctrl-d | ctrl-z) return 1 ;; esac
+	knorm := dt_keynorm "$key"
+	for an in "${!DT_KEYS[@]}"; do
+		[ -n "${DT_KEYS["$an"]}" ] || continue
+		v := dt_keynorm "${DT_KEYS["$an"]}"
+		[ "$v" = "$knorm" ] && return 0
+	done
+	for an in "${!DT_APPKEY[@]}"; do
+		[ -n "${DT_APPKEY["$an"]}" ] || continue
+		v := dt_keynorm "${DT_APPKEY["$an"]}"
+		[ "$v" = "$knorm" ] && return 0
+	done
+	return 1
+}
+
 # Launch whichever app, if any, has key as its own shortcut -- the general
 # form the desktop's fixed actions are not: any number of apps, not a few
 # of them by name in a case statement.

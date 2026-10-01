@@ -1283,6 +1283,43 @@ check("and what is typed in one does not reach the other",
       sc.row(4).count("echo one") == 1 and sc.row(5).count("one") == 1 and
       "│sh>  " in sc.row(4), sc)
 
+# With "Desktop Shortcuts Win" (DT_TERMKEEP) on, a terminal gives back the
+# desktop's own chord shortcuts: alt-tab, bound to Cycle Windows, raises the
+# next window rather than reaching the program. Off, or with the window's own
+# "Pass Every Key", the program gets it. The program prints the bytes it is
+# sent, so "033" on its screen means the chord reached it.
+OD = ("TW_CMD=(/bin/sh -c 'stty raw -echo; dd bs=2 count=1 2>/dev/null | "
+      "od -c | head -1; sleep 5')")
+CYC = '\nDT_KEYS[cycle]="alt-tab"'
+CLOCKW = [("Clock", "8 30 5 12", "clock")]
+sc = run("term", "10 36 2 2", feed=[b"\x1b\t", 0.5], wait=1.6, end=None,
+         pre=OD + "\nDT_TERMKEEP=1" + CYC, also=CLOCKW)
+check("with Desktop Shortcuts Win, alt-tab cycles windows from a terminal",
+      "033" not in sc.text() and sc.find("┤ Clock ├") is not None, sc)
+sc = run("term", "10 36 2 2", feed=[b"\x1b\t", 0.5], wait=1.6, end=None,
+         pre=OD + "\nDT_TERMKEEP=0" + CYC, also=CLOCKW)
+check("without it, the same chord reaches the program",
+      "033" in sc.text() and sc.find("┤ Clock ├") is None, sc)
+sc = run("term", "10 36 2 2", feed=[b"\x1b\t", 0.5], wait=1.6, end=None,
+         pre=OD + "\nDT_TERMKEEP=1" + CYC + '\nTW[1]["passall"]=1',
+         also=CLOCKW)
+check("and a window told to pass every key passes it too",
+      "033" in sc.text(), sc)
+sc = run("term", "10 36 2 2", wait=1.6, end=None,
+         feed=[b"\x1b[21~", 0.3, b"\x1b[C", b"\x1b[C", b"\x1b[C", 0.3],
+         pre=SH + "\nDT_TERMKEEP=1")
+check("the Window menu offers Pass Every Key on a terminal",
+      sc.find("Pass Every Key") is not None, sc)
+
+# Shift bypasses a program that has taken the mouse, so shift-right-click
+# still opens the terminal's own menu.
+GRAB = ("TW_CMD=(/bin/sh -c 'printf \"\\033[?1000h\\033[?1006h\"; "
+        "sleep 9')")
+sc = run("term", "10 36 2 2", feed=[press(6, 12, 2 + 4), 0.3], wait=1.6,
+         end=None, pre=GRAB)
+check("shift-right-click opens the terminal's menu over a program's mouse",
+      sc.find("Send Interrupt") is not None, sc)
+
 # DT_CURSOR is what a new terminal starts with, and only the focused one
 # draws a cursor at all -- end=None, since the default quit key would land
 # on the prompt and move it before the screen is read.
@@ -2233,4 +2270,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(320)
+report(325)

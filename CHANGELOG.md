@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.71
+
+**A terminal window can give the desktop its shortcuts back.** Every key
+used to reach the program inside a focused terminal, so a shortcut bound to
+a chord -- alt-tab for Cycle Windows -- never worked while one had focus.
+Control Panel > Terminal > **Desktop Shortcuts Win** (off by default) makes
+a terminal decline any shortcut the desktop or an app launcher has been
+given, so the desktop runs it instead -- but only a chord (ctrl or alt with
+a key) or a function key. A plain key such as `q` or `tab` always reaches
+the program, and so do ctrl-c, ctrl-d and ctrl-z, whatever is bound to them.
+One window can still be given everything: **Pass Every Key** in the Window
+menu, ticked, for a program that needs the chord or a desktop running inside
+that terminal. Shift-right-click opens the terminal's own menu even when the
+program has taken the mouse, which was already so and is now tested.
+`tests/apps.py` checks each case through a real pty: the chord raising the
+next window, reaching the program with the setting off, reaching it with
+the window's override, the menu item, and the right-click.
+
 ## 0.70
 
 **The six bash differences found while checking the documentation, fixed.**

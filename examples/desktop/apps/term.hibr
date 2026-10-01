@@ -61,6 +61,14 @@ command -v dt_keep > /dev/null && dt_keep DT_TERMBAR
 DT_TERMTITLE="${DT_TERMTITLE-1}"
 command -v dt_keep > /dev/null && dt_keep DT_TERMTITLE
 
+# Whether a terminal window gives the desktop's own chord shortcuts back to
+# the desktop -- alt-tab cycling windows rather than reaching the program.
+# Off by default: a program inside sees every key unless asked otherwise,
+# and one window can still be told to pass everything (term_passall), for
+# a desktop running inside it.
+DT_TERMKEEP="${DT_TERMKEEP-0}"
+command -v dt_keep > /dev/null && dt_keep DT_TERMKEEP
+
 # Whose colours a terminal window's default text and background are:
 # "theme" paints them in the desktop's own ink and face, like every other
 # window, and tells a program that asks (OSC 10/11) what they are, so one
@@ -221,6 +229,10 @@ fn term_draw(int id, int h, int w, int row, int col) {
 fn term_key(int id, key) {
 	local t=${TW[$id]["t"]} h=${TW[$id]["h"]}
 
+	if [ "$DT_TERMKEEP" = 1 ] && [ "${TW[$id]["passall"]}" != 1 ] &&
+	   dt_has dt_keyassigned && dt_keyassigned "$key"; then
+		return 1
+	fi
 	case $key in
 	shift-pageup) term scroll "$t" $((h - 1)) ;;
 	shift-pagedown) term scroll "$t" $((1 - h)) ;;
@@ -265,6 +277,18 @@ fn term_mouse(int id, act, btn, int r, int c, mods) {
 	drag | release) term select "$t" to $(($r - 1)) $(($c - 1)) ;;
 	esac
 	return 0
+}
+
+# The Window menu's tick for one terminal window: pass it every key, the
+# desktop's own chords included, whatever DT_TERMKEEP says.
+fn term_passall(int id) {
+	if [ "${TW[$id]["passall"]}" = 1 ]; then
+		TW[$id]["passall"]=
+		dt_note "This window: desktop shortcuts work again"
+	else
+		TW[$id]["passall"]=1
+		dt_note "This window: every key goes to the program"
+	fi
 }
 
 # Right-click in the terminal's body, when the program has not grabbed the

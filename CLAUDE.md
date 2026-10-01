@@ -681,7 +681,13 @@ went in the shell.
   and only then do letters mean anything. Direct modifier shortcuts were
   considered and rejected: ctrl collides with everything a terminal window
   will need, and alt with what a program inside one might. A desktop that
-  eats ctrl-c is a desktop nothing can run in.
+  eats ctrl-c is a desktop nothing can run in. The one exception is opt-in
+  (`DT_TERMKEEP`, Control Panel > Terminal > Desktop Shortcuts Win, 0.71):
+  a terminal declines, in `term_key`, a key `dt_keyassigned` says the
+  desktop or an app launcher holds -- and only a chord or a function key,
+  never a plain one, never ctrl-c/d/z -- so the desktop's own shortcuts
+  run. A window's Pass Every Key (`TW[$id]["passall"]`) undoes it for that
+  window, which a desktop running inside a terminal needs.
 - **`dt_sub` hangs off the menu being declared, not the last one created.**
   After one `dt_end` the most recently created menu is the submenu that just
   closed, so a second `dt_sub` attached itself to the first submenu — and it
