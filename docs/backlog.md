@@ -223,6 +223,65 @@ off-centre, reported from real use) and the redraw-skip slider's own
 not Darwin-specific -- listed in [CLAUDE.md](../CLAUDE.md)'s own traps, not
 here, since neither is actually a port issue.
 
+### Arch Linux (AUR) — parked, ready to publish
+
+Parked on 2026-10-01: the package is built and checked, and nothing is
+left but publishing it, which needs an AUR account the owner does not have
+-- and AUR registration was temporarily stopped when this was written.
+
+What exists, in `packaging/aur/`:
+
+- `PKGBUILD` -- builds with gcc (`make CC=gcc OPT=-O2 PREFIX=/usr`), since
+  `base-devel` has gcc and not tcc; `check()` runs `tests/self.hibr`;
+  `package()` is `make install` with `DESTDIR` plus the licence. Depends on
+  glibc only; openssl and libpng are optional, because both are opened on
+  first use and never linked. `arch=('x86_64' 'aarch64')`.
+- `hibr.install` -- adds `/usr/bin/hibr` to `/etc/shells` on install and
+  upgrade and removes it on removal, as the Debian package's scripts do.
+- `.SRCINFO` -- what the AUR reads instead of running the PKGBUILD.
+- `update.sh <version>` -- takes the checksum from the GitHub release
+  tarball, rewrites `pkgver` and `sha256sums`, writes `.SRCINFO` without
+  needing `makepkg`, and, if `~/aur-hibr` (or `AUR_REPO`) is a clone of the
+  AUR repository, commits and pushes there. Without a clone it stops after
+  updating `packaging/aur/`, which is what every release has done so far.
+
+How it was checked: no Arch machine or container was available, so the
+PKGBUILD was sourced in bash and its `build`, `check` and `package` run
+against the real v0.74 release tarball. It builds with no warnings, the
+self suite passes (91), and the tree is right: `/usr/bin/hibr` and
+`desktop`, the modules in `/usr/lib/hibr` (compiled in as the module
+directory), the desktop and its themes under `/usr/share/hibr/desktop`,
+`hibr.1`, the header and the licence. The install hooks were run against a
+scratch `etc/shells`. **Not yet done:** a real `makepkg` (namcap, a clean
+chroot), and any build on aarch64.
+
+The name `hibr` was free on the AUR on 2026-10-01. This machine's SSH key
+is not on any AUR account: `ssh aur@aur.archlinux.org help` answers
+"Permission denied (publickey)".
+
+To publish, once an account can be made:
+
+1. Register at aur.archlinux.org and add an SSH public key to the account
+   (this machine's is `~/.ssh/id_ed25519.pub`).
+2. `git clone ssh://aur@aur.archlinux.org/hibr.git ~/aur-hibr` -- an empty
+   repository the first time; the first push creates the package.
+3. `packaging/aur/update.sh <current version>` -- copies the three files
+   in, commits and pushes.
+4. Change the README's Arch line from "build it from source" to the AUR
+   install (`yay -S hibr`, or `git clone https://aur.archlinux.org/hibr.git
+   && cd hibr && makepkg -si`), and run `update.sh` as part of every
+   release from then on.
+
+Also worth doing then: `namcap PKGBUILD` and a `makepkg` in a clean chroot
+(`extra-x86_64-build`), on any Arch machine.
+
+### arm64 Debian packages
+
+The apt repository serves amd64 only. An arm64 build needs a cross
+toolchain or an arm64 machine; `packaging/deb/build-deb.sh` takes the
+architecture from `dpkg --print-architecture`, and `publish.sh` already
+indexes every architecture it finds in `pool/`.
+
 ## Wanted
 
 ### A desktop on the console — built, all six steps
