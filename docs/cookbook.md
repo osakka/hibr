@@ -330,8 +330,10 @@ fi
 failed: disk is full (status 3)
 ```
 
-`try` catches; `fail msg` raises. `set -e` is scoped to the tested pipeline and
-does not reach into functions it calls —
+`try` catches; `fail msg` raises. Inside `try` neither `set -e` nor an `ERR`
+trap fires. Elsewhere `set -e`'s exemption covers only the pipeline being
+tested, so a failure inside a function called from an `if` still stops the
+script, where bash would let it pass —
 [0002](adr/0002-errexit-is-scoped.md).
 
 ### Clean up whatever happens

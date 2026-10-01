@@ -1,5 +1,47 @@
 # Changelog
 
+## 0.69
+
+**The documentation, all of it, held to what the shell does.**
+
+- **Every example is checked or says why not.** `tests/531-doc-examples.t`
+  reads every page with examples -- all of `docs/`, the READMEs, the
+  decision records and the desktop guides. A ```` ```sh ```` block must be
+  followed by its real ```` ```output ```` or carry `<!-- not run: why -->`
+  (it needs a terminal, root or the network), and any other code block must
+  say what it is. Every example was run and its output pasted back.
+- **That found the pages wrong in places.** `language.md`'s declared-arguments
+  transcript could not have come from its declarations; `cookbook.md` and
+  `llm.md` each described `set -e` backwards in one line; `display.md` still
+  said `mod load screen` and that panes have no order; `prompt.md` said
+  right-hand prompts did not exist; the desktop README described a Displays
+  pane that works differently; and builtin counts, ABI numbers, module lists,
+  test counts and callback tables were stale across a dozen pages.
+- **Every page was then read end to end** for what 0.57-0.68 added and the
+  pages had not caught up with, and for duplication; the README and the docs
+  index were rewritten around a start-here path, and the README's
+  measurements were taken again on this release (398 KB, 87 ms on the loop
+  against bash's 211, 1852 kB at startup).
+- **`docs/tutorial.md`: from bash to hibr in ten minutes**, install to
+  `--plan`, nine checked examples.
+- **`man hibr`.** `docs/hibr.1.in`, with the version and module directory
+  filled in by `make`, installed under `share/man/man1`.
+
+**Four bugs the checking found, fixed:**
+
+- A plain assignment refused because the variable is readonly, or typed and
+  given a value of the wrong kind, ends a non-interactive script with status
+  1, as bash does; hibr carried on. An interactive shell abandons the line; a
+  prefix assignment (`r=2 cmd`) still only warns; a strict-mode refusal
+  stays catchable.
+- `send` and `recv` refuse a descriptor that is not a number: `send "" x`
+  wrote to standard input.
+- The `sys` module's `epoch` fills `:=`.
+- The console module's messages said `screen:`, its old name.
+
+Six more were found and are recorded in `docs/backlog.md` rather than
+fixed in a documentation release.
+
 ## 0.68
 
 **Four differences from bash, found by running real system scripts under

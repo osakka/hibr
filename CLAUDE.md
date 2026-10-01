@@ -6,9 +6,9 @@ decisions and the traps already found, so they don't get rediscovered.
 
 ## What hibr is
 
-A shell that runs a useful subset of bash syntax in ~15,000 lines and a 358 KB
-binary, with resident memory about half of bash's (and about 110 kB more than
-dash's — see the README's own Measurements table for the honest comparison),
+A shell that runs a useful subset of bash syntax in ~17,500 lines and a 398 KB
+binary, with resident memory under two-thirds of bash's (and about 160 kB more
+than dash's — see the README's own Measurements table for the honest comparison),
 and faster than bash on tight loops. It is *not* a drop-in bash replacement
 and must not be described as one: some divergences are deliberate (see Design
 decisions).
@@ -1482,6 +1482,16 @@ went in the shell.
   program fails rather than pretending to succeed: an empty `$(mktemp -d)`
   had a plan listing writes to the wrong paths.
 
+- **Every example in the documentation is run, or says why it cannot be.**
+  `tests/531-doc-examples.t` reads every page: a ```` ```sh ```` block is
+  followed by its real ```` ```output ```` (a `<!-- setup ... -->` comment
+  before it supplies any file or helper it assumes) or carries `<!-- not
+  run: reason -->` on the line before it, and every other code block is
+  labelled (`text`, `c`, `ebnf`). A bare fence fails. Writing a page means
+  running each example and pasting what it printed -- 0.69's pass over
+  every page found transcripts that could not have come from the code shown
+  beside them, and two pages that described `set -e` backwards.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then
@@ -1545,8 +1555,8 @@ went in the shell.
   tests: the command cache's 96 bytes were found by noticing that only one test
   file reported anything, and then that `hash` reported the same number, which
   is what said cache rather than new code.
-- hibr uses about 110 kB more than dash, and that is the binary rather than the
-  heap: 29 kB of a 1792 kB resident set is heap, so there is no allocator work
+- hibr uses about 160 kB more than dash (measured on 0.68), and that is the
+  binary rather than the heap: 36 kB of a 1852 kB resident set is heap, so there is no allocator work
   left that would move it. Shrinking it means less code. The README says so.
   Measure memory as a median of many runs; the spread is about 180 kB.
 - `set -S` stays opt-in, measured in `docs/adr/0009`. It now changes a working
@@ -1569,9 +1579,10 @@ went in the shell.
   window changed, recomposite the rest from their existing panes) is the
   next step. The console's own output diff already sends only changed
   cells; the cost is building frames, not sending them.
-- The core binary is 358 KB stripped, 15,369 lines across `src/*.c` -- both
-  the README and this file's own opening line had drifted stale (313 KB,
-  ~13,000/~12,000 lines) before being re-measured and corrected. Per-file
+- The core binary is 398 KB stripped, 17,566 lines across `src/*.c`
+  (measured on 0.68) -- the README and this file's opening line had drifted
+  stale twice (313 KB, then 358 KB) before being re-measured and corrected.
+  The per-file sizes below are from the 358 KB measurement. Per-file
   text size, compiled separately with `tcc -c`: `expand.c` 52.6K, `exec.c`
   36.7K, `bi.c` 31.4K, `edit.c` 20.2K, `daily.c` 19.0K, `lex.c` 19.0K,
   `net.c` 15.9K, `parse.c` 15.8K, the rest under 13K each. Nothing

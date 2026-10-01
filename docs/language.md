@@ -8,8 +8,11 @@ precedence tables and the order expansions happen in — see
 ## Everything you expect from a shell
 
 Pipelines, `&&`, `||`, `!`, `;`, background `&`, subshells `( )`, groups `{ }`,
-`if`/`elif`/`else`, `while`, `until`, `for`, `case` (with `|`, a leading `(`,
-and the `;&` / `;;&` fallthroughs), functions with recursion, and `local`.
+`if`/`elif`/`else`, `while`, `until`, `for`, `select`, `case` (with `|`, a
+leading `(`, and the `;&` / `;;&` fallthroughs), functions with recursion --
+written `name() { … }`, bash's `function name { … }`, or hibr's `fn` -- and
+`local`. An empty `then`, `do` or `{ }` is a syntax error, as in bash, and a
+syntax error is status 2.
 
 **Expansion.** Single, double and `$'…'` quoting (`\n \t \e \xHH \0NNN`).
 `${x:-d} ${x:=d} ${x:?msg} ${x:+alt}`, `${#x}`, `${x#p} ${x##p} ${x%p} ${x%%p}`,
@@ -20,7 +23,8 @@ the joined text, `${x^^} ${x,,} ${x^} ${x,}`, the transforms `${x@Q} ${x@E}
 ${x@U} ${x@L} ${x@u}`, indirection `${!ref}` (which keeps any modifier after
 it, so `${!ref:-d}` works), the names starting with a prefix `${!pre*}` and
 `${!pre@}`, and negative subscripts `${a[-1]}`, counted back from the highest
-key so a sparse array answers the same as bash. Command substitution `$( )` and backquotes, arithmetic `$(( ))`, tilde,
+key so a sparse array answers the same as bash. Command substitution `$( )` and
+backquotes, arithmetic `$(( ))` (and bash's older `$[ ]`), tilde,
 field splitting on `IFS`, globbing with `*`, `?`, `[…]` and `**` across
 directories, and brace expansion — `{a,b}`, `{1..9}`, `{01..12}`, `{a..e}`,
 `{1..9..2}`, nested and multiplied.
@@ -115,6 +119,27 @@ done; echo
 [1][3]
 ```
 
+The loop a `break` leaves is one in the same function: a function cannot
+break its caller's loop, as in bash. `break` or `continue` with no loop
+around it, and `return` or `ret` outside a function or a sourced file, are
+reported and do nothing -- the script carries on, with status 0 for `break`
+and 2 for `return`. And an `exit` or `return` inside an `if`, `while` or `!`
+condition keeps its own status:
+
+```sh
+f() { break; }
+for i in 1 2; do f 2>/dev/null; echo "loop $i"; done
+return 3 2>/dev/null; echo "return outside a function: status $?"
+(if exit 3; then :; fi); echo "an exit inside a condition keeps its status: $?"
+```
+
+```output
+loop 1
+loop 2
+return outside a function: status 2
+an exit inside a condition keeps its status: 3
+```
+
 `case` matches patterns, `|` separates alternatives, `;&` falls through to the
 next body and `;;&` re-tests from the next arm. The last arm may omit its `;;`.
 
@@ -157,6 +182,18 @@ it appears in, with status 1.
 
 `+=` appends: `s+=tail`, `list+=(more items)`, `map[key]+=tail`.
 
+A quoted subscript is a literal key inside arithmetic as everywhere else,
+and `$[ ]` is bash's older spelling of `$(( ))`:
+
+```sh
+m["x-y"]=4
+echo $(( m["x-y"] * 2 )) $[ 1 + 1 ]
+```
+
+```output
+8 2
+```
+
 ## Conditionals
 
 `[[ … ]]` never splits or globs its operands. It has `&& || ! ( )`, pattern
@@ -169,13 +206,17 @@ the answer.
 name=prefix-1 other=y
 [[ $name == prefix* && -n $other ]] && echo "both hold"
 line="port=8080"
-[[ $line =~ ^([a-z]+)=(.*)$ ]] && echo "${M[1]} is ${M[2]}"
+[[ $line =~ ^([a-z]+)=(.*)$ ]] && echo "${M[1]} is ${M[2]}, and ${BASH_REMATCH[1]} in bash's name"
 ```
 
 ```output
 both hold
-port is 8080
+port is 8080, and port in bash's name
 ```
+
+**[hibr]** `=~` puts its captures in `M`, and fills bash's `BASH_REMATCH`
+with the same values; the `match` builtin fills `M` only --
+[0004](adr/0004-regex-captures-go-to-M.md).
 
 `test` and `[` are there as well.
 
@@ -416,7 +457,17 @@ command substitution, a background job or a pipeline element, while an
 Three more things that stop a script rather than letting it limp on: an unset
 variable under `set -u`, a `${x:?message}` guard, and an assignment to a
 readonly or to a declared type that refuses the value. Each prints the reason
-and, in a non-interactive shell, leaves.
+and, in a non-interactive shell, leaves; an interactive one abandons the line.
+An assignment in front of a command, `r=2 cmd`, only warns, as in bash:
+
+```sh
+( readonly r=1; r=2; echo never ) 2>&1; echo "status $?"
+```
+
+```output
+hibr: r: readonly variable
+status 1
+```
 
 **[hibr]** `set -e` is scoped to the tested pipeline and does not reach into the
 bodies of functions it calls, and there is no `pipefail` —

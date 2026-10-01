@@ -35,8 +35,18 @@ Options: `--prefix DIR` (default `/usr/local`), `--yes`, `--quiet`,
    byte-identical and exits 1, which is what makes the timer report a failure
    instead of quietly doing nothing.
 3. Copies the current installation aside, so `rollback` has somewhere to go.
-4. Installs, and records a manifest next to the modules: version, a checksum
-   of every source file, where it was built from, and when.
+4. Installs with `make install`, and records a manifest next to the modules:
+   version, a checksum of every source file, where it was built from, and
+   when. What lands where, under the prefix:
+
+   | path | what |
+   |---|---|
+   | `bin/hibr` | the shell |
+   | `bin/desktop` | a launcher for the desktop |
+   | `lib/hibr/*.so` | the modules, and the manifest |
+   | `share/hibr/desktop/` | the window manager, its apps and accessories |
+   | `share/man/man1/hibr.1` | `man hibr`, with the version and module directory filled in |
+   | `include/hibr/hibr.h` | the module ABI, for building a module of your own |
 5. Runs the installed copy — not the one in the build tree — to check that it
    starts and that **every** module in the installed directory loads, one at a
    time, so an ABI bump that leaves a stale module behind is caught here rather
@@ -78,6 +88,8 @@ entirely:
 
 `rollback` restores the binary, the modules and the manifest from the copy made
 during the last install, then runs the same checks against the restored copy.
+The desktop, the man page and the header are not part of that copy: they are
+whatever the last install put there.
 It is one version deep, which is the version you care about when an update has
 just gone wrong.
 

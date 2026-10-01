@@ -1,6 +1,6 @@
 # hibr documentation
 
-A shell that runs a useful subset of bash in ~15,000 lines of C, and adds
+A shell that runs a useful subset of bash in about 17,500 lines of C, and adds
 nested maps, JSON, regex capture, native sockets and TLS, typed functions,
 results without forking, declared command-line arguments, and modules that can
 add whole protocols.
@@ -29,7 +29,8 @@ exists. These pages are the detail.
 | | |
 |---|---|
 | [The grammar](grammar.md) | Lexical structure, EBNF, operator precedence, expansion order, patterns |
-| [Builtins](builtins.md) | All seventy, what each takes and what it gives back |
+| [Builtins](builtins.md) | All 73, what each takes and what it gives back |
+| `man hibr` | Every flag (`--agent`, `--explain`, `--plan`, `--checkfirst`), environment variable, file and exit status |
 | [Modules](modules.md) | The module ABI, and writing one |
 
 ## Build on it
@@ -59,6 +60,12 @@ Every divergence has a record. The short version:
 | [The display assumes an xterm](adr/0019-the-console-display-assumes-xterm.md) | no terminfo, no ncurses, and what that costs |
 | [Windows are painted, not composited](adr/0020-windows-are-drawn-not-composited.md) | and an app is a hibr file that says what it needs |
 | [Privileges only go one way](adr/0016-privileges-are-dropped-never-gained.md) | `drop` gives up root; hibr is never setuid |
+| [Lengths count characters](adr/0021-lengths-and-slices-count-characters.md) | `${#s}` and `${s:i:n}` count characters, never bytes |
+| [Strict checks are per file](adr/0023-strict-is-per-file.md) | `strict` turns on checks for the file that says it |
+| [A type can allow empty](adr/0024-a-type-can-allow-empty.md) | `int?` takes a number or nothing |
+| [Agent mode](adr/0025-agent-mode.md) | `--agent`: JSON errors, `set -u`, strict expansion, a timeout per process |
+| [A script runs as it is read](adr/0026-a-script-runs-as-it-is-read.md) | as in bash; `--checkfirst` parses the whole of it first |
+| [A dry run](adr/0027-a-dry-run-refuses-what-it-cannot-show-is-harmless.md) | `--plan` refuses what it cannot show is harmless, and lists it |
 
 ## Reading these pages in a browser
 

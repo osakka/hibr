@@ -21,7 +21,7 @@ Where hibr is deliberately different:
 
 | bash | hibr |
 |---|---|
-| `set -e` reaches into functions called from any context | only the tested pipeline is exempt; a failure inside a function it calls still stops |
+| `set -e` is switched off inside a function called from a condition (`if f`, `f \|\| …`) | only the tested pipeline is exempt; a failure inside a function it calls still stops |
 | a failing `((expr))` trips `set -e` | `((expr))` never trips `set -e`; its status is a value |
 | `pipefail` is an option | any failing stage fails the pipeline for `set -e`; there is no `pipefail` |
 | `=~` captures into `BASH_REMATCH` | the same, and into `M` too: `${M[1]}` is shorter; `match` fills only `M` |

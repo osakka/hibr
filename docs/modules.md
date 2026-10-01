@@ -27,6 +27,8 @@ hibr -c 'mod load ./build/mods/hello.so; mod list; mod drop hello'
 | `mod list` | the modules loaded in this shell |
 | `mod avail`, `mod list -a` | every module that *could* be loaded |
 | `mod drop <name>` | unload one |
+| `mod find <builtin>` | which module would provide that builtin, without loading it |
+| `need <name>...` | load whatever offers each interface or module name, or fail saying which is missing |
 
 A name containing a `/` is a path and is opened directly. Everything else is
 searched for: the current directory, then each entry of `HIBR_MODPATH`, then

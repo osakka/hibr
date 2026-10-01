@@ -19,8 +19,8 @@ Try it, from a checkout:
     ./build/hibr examples/desktop/session.hibr
 
 Or, once `make install` has put this whole directory at
-`$PREFIX/share/hibr/desktop` (`$PREFIX/lib/hibr` alongside the modules'
-own, `/usr/local` by default) and a small wrapper at `$PREFIX/bin/desktop`:
+`$PREFIX/share/hibr/desktop` (`/usr/local` by default) and a small wrapper
+at `$PREFIX/bin/desktop`:
 
     desktop
 
@@ -301,9 +301,12 @@ See [`mods/hold/README.md`](../../mods/hold/README.md) for the rest of
 what a held session can do.
 
 The Control Panel's own **Displays** pane draws the whole arrangement to
-scale, from the same `hold clients`: drag a display to reposition it,
-click one with the mouse held still to make it primary, or press the x in
-its own corner to switch it off.
+scale, from the same `hold clients`, with the primary display as its fixed
+anchor. The **Primary:** dropdown beside its label chooses which display is
+primary; drag any other display to reposition it (the primary itself does
+not drag -- the dropdown is the one way to change it); right-click a
+display for **Detach** (switch it off) or **Identify** (flash its name on
+its own screen).
 
 ## Keys that would be signals
 
@@ -562,6 +565,12 @@ their shadow. While focus is in a dialog's field or list, its first button
 -- always the action: Apply, Rename, Save, Yes -- is drawn as the default,
 its label in the accent colour, because that is what enter does from
 there; a button that has focus is filled with the accent instead.
+
+The Desktop pane's **Redraw Skip** (0-9, `DT_DRAWSKIP`) leaves out that many
+frames of a window drag between each one drawn. A drag is already drawn only
+once it has caught up with the mouse -- while the next report is waiting,
+the frame is skipped -- so the window never trails behind the pointer;
+Redraw Skip thins what is left, for a terminal that draws slowly.
 
 Control Strip's own pane carries only `CS_SIDE` and `CS_SHADOW` -- which
 side it docks to, and whether it casts its own shadow. Its position,

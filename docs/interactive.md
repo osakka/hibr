@@ -7,10 +7,12 @@ back.
 
 - [Starting up](#starting-up) · [Prompts](#prompts) · [Line editing](#line-editing)
 - [History](#history) · [Completion](#completion)
-- [Getting around](#getting-around) · [Jobs](#jobs) · [Reading input](#reading-input)
+- [Getting around](#getting-around) · [Jobs](#jobs) · [When something fails](#when-something-fails)
+- [Reading input](#reading-input)
 
 ## Starting up
 
+`man hibr` lists every flag, environment variable and exit status.
 `~/.hibrc` is read by interactive shells only — a script pays nothing for it.
 `$HIBR_RC` names a different file, which is how the test harness starts a shell
 with a prompt of its own.
@@ -237,6 +239,23 @@ kill %1 %2
 name or a `%job`, `disown` forgets one without signalling it, and `wait` waits —
 for a job, a pid, or with `-n` for whichever finishes first, naming it with
 `-p`.
+
+## When something fails
+
+At the prompt a failure costs at most the line it is on; the shell itself
+goes on. Under `set -e` a failing command abandons the rest of the line
+rather than ending the shell, and so does an assignment the variable refuses
+-- a readonly variable, or a typed one given a value of the wrong kind --
+which in a script ends the script, as in bash. `return` outside a function,
+and `break` or `continue` outside a loop, say so and do nothing else:
+
+```text
+> readonly r=1; r=2; echo same-line
+hibr: r: readonly variable
+> return 3; echo after-return
+hibr: return: can only `return' from a function or sourced script
+after-return
+```
 
 ## Reading input
 

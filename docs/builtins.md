@@ -1,7 +1,8 @@
 # Builtins
 
-Every builtin the shell carries, seventy of them. `help` lists the same set at
-runtime, and `type name` says what a name resolves to.
+Every builtin the shell carries, seventy-three of them, and the `cat` a module
+adds. `help` lists the same set at runtime, and `type name` says what a name
+resolves to.
 
 Builtins marked **[hibr]** have no bash equivalent, or differ from it on
 purpose. Everything else behaves as bash does unless the entry says otherwise.
@@ -68,7 +69,8 @@ bash's associative arrays do), `-n` nameref, `-p` print, `-g` global — and **[
 ```sh
 declare -i n;   n=abc; echo "n=$n"   # bash's: coerces
 declare num f=1.5;     echo "f=$f"   # also path, str, arr, map, any
-declare int m;  m=abc                # ours: refuses, and stops
+declare int m;  m=abc                # ours: refuses, and stops the script
+echo never
 ```
 
 ```output
@@ -112,7 +114,7 @@ All four work in the shell's own process. No pipeline, no fork.
 | `match [-i] [-a] subject pattern [var]` | **[hibr]** match a regex, groups land in `M` |
 | `rsub [-i] [-g] subject pattern replacement [var]` | **[hibr]** substitute regex matches |
 | `printf fmt [args…]` | formatted output, including `%q` and `%(fmt)T` |
-| `echo [-n] [-e] args…` | write arguments |
+| `echo [-n] [-e] [-E] args…` | write arguments |
 
 <!-- setup
 body='{"items":[{"name":"hibr"}]}'
@@ -141,7 +143,7 @@ Every operation of each, with examples, is in
 | builtin | synopsis |
 |---|---|
 | `test expr` / `[ expr ]` | evaluate a conditional expression |
-| `break [n]` | leave `n` enclosing loops; outside a loop, an error with status 0 and nothing left |
+| `break [n]` | leave `n` enclosing loops of this function; outside a loop, an error with status 0 and nothing left |
 | `continue [n]` | restart the `n`th enclosing loop; outside a loop, the same as `break` |
 | `return [n]` | return from a function or sourced file with status `n`; anywhere else, an error with status 2 |
 | `ret [value…]` | **[hibr]** produce a value and return; outside a function or sourced file, an error with status 2 |
@@ -234,7 +236,9 @@ the next entry, `~-1` the one before last, and `~+` and `~-` are `$PWD` and
 | `send [-n\|-r] fd text…` | **[hibr]** write to a descriptor; `-r` ends CRLF |
 | `recv [-a\|-n bytes] fd [var]` | **[hibr]** read one line, all of it, or `n` bytes |
 
-Descriptors come back above 9, so a redirection cannot tread on one. `listen -b`
+Descriptors come back above 9, so a redirection cannot tread on one. `send`
+and `recv` take a descriptor as a number and refuse anything else, with
+status 2, rather than reading an empty one as descriptor 0. `listen -b`
 is what lets a daemon bind a privileged port as root and then stop being root:
 
 <!-- not run: needs root, and serves until stopped -->
@@ -308,7 +312,7 @@ shadows a real program the way checking modules *before* PATH would.
 
 | builtin | synopsis |
 |---|---|
-| `history [-c] [-s text]` | print the command history, clear it, or add to it |
+| `history [-c] [-s text] [-p text]` | print the command history, clear it, add to it, or print `text` with history expansion |
 | `alias [name[=value]…]` | define or list aliases |
 | `unalias [-a] name…` | remove aliases |
 

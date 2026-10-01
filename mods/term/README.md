@@ -43,6 +43,7 @@ same underlying grid, not the interface itself.
     term alive t                 # status 0 while the program runs
     term status t                # its exit status once it has ended
     term title t                 # what it last called itself with OSC 0 or 2
+    term fd    t                 # the pty descriptor, for console watch
     term cursor t                # row, column, shown, and its shape
     term cursor t block|underline|bar  # set the shape directly
     term row   t n               # one row of what is shown, as text

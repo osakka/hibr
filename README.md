@@ -2,12 +2,12 @@
 
 **hibr** is a shell that finally behaves the way you already expect a shell
 to behave. Familiar bash syntax, its sharpest edges resolved instead of
-carried forward, in about 15,000 lines of C and a 358 KB binary — a little
-over half of bash's memory, and two and a half times its speed on a tight
-loop. Built with `tcc`, depending on nothing but libc and libdl.
+carried forward, in about 17,500 lines of C and a 398 KB binary — under
+two-thirds of bash's memory, and about two and a half times its speed on a
+tight loop. Built with `tcc`, depending on nothing but libc and libdl.
 
-The name says what it is. **Highly**: half of bash's memory, tight loops two
-and a half times faster, in a 358 KB binary — the numbers above. **Intuitive**:
+The name says what it is. **Highly**: two-thirds of bash's memory, tight
+loops two and a half times faster, in a 398 KB binary — the numbers below. **Intuitive**:
 the things that make bash surprising the first time you hit them —
 `test`'s word-splitting traps, `$BASH_REMATCH`'s awkward capture, a dozen more
 in [the decision records](docs/adr/README.md) — fixed, so the shell does what
@@ -32,53 +32,54 @@ that reads git's object store without forking anything — is the reason to use
 it.
 
 ```text
-make                 # builds ./build/hibr and the modules in mods/
-make check           # runs the test suite
-./deploy.sh          # build, test, install, verify, keep current
-make TLS=0           # build without TLS support
+brew tap osakka/hibr && brew install hibr     # or, from this tree:
+make && make install                           # /usr/local; PREFIX=... elsewhere
 
-./build/hibr script.sh args...
-./build/hibr -c 'echo $((6 * 7))'
-./build/hibr -n script.sh   # parse only: report syntax errors, run nothing
-./build/hibr -d 3           # log level: 0 error, 1 warn, 2 info, 3 debug, 4 trace
-./build/hibr --help | --version
+hibr script.sh args...
+hibr -c 'echo $((6 * 7))'
+hibr --explain script.sh    # name the mistakes in it, run nothing
+hibr --plan script.sh       # follow it, change nothing, list what it would do
+man hibr                    # every flag, variable and exit status
 ```
+
+New to it? [From bash to hibr, in ten minutes](docs/tutorial.md) is the
+place to start.
 
 ## Measurements
 
-Same host; the loop is `while [ $i -lt 50000 ]; do i=$((i+1)); done`. Times are
-the best of eleven runs. Memory is the shell's own `VmHWM`, read without
-forking, as the median of twenty-five runs — a single reading is worthless
-here, because run-to-run spread is about 180 kB either way.
+Measured on 0.68, on one host; the loop is
+`while [ $i -lt 50000 ]; do i=$((i+1)); done`. Times are the best of eleven
+runs. Memory is the shell's own `VmHWM`, read without forking, as the median
+of twenty-five runs — a single reading is worthless here, because run-to-run
+spread is about 180 kB either way.
 
 | | hibr | dash | bash |
 |---|---|---|---|
-| binary, stripped | 358 KB | 122 KB | 1235 KB |
-| resident memory at startup | 1792 kB | 1680 kB | 3104 kB |
-| resident memory after the loop | 1796 kB | 1712 kB | 3120 kB |
-| the loop | 90 ms | 76 ms | 233 ms |
-| 5000 function calls, results via `:=` | **23 ms** | — | — |
-| the same through `$( )` | 1218 ms | 1159 ms | 2168 ms |
-| startup, `-c true` | 1.05 ms | 1.01 ms | 2.82 ms |
+| binary, stripped | 398 KB | 122 KB | 1235 KB |
+| resident memory at startup | 1852 kB | 1688 kB | 2900 kB |
+| resident memory after the loop | 1888 kB | 1656 kB | 2944 kB |
+| the loop | 87 ms | 79 ms | 211 ms |
+| 5000 function calls, results via `:=` | **19 ms** | — | — |
+| the same through `$( )` | 1145 ms | 1018 ms | 1836 ms |
+| startup, `-c true` | 1.67 ms | 1.70 ms | 2.30 ms |
 
-Read honestly. Against bash hibr is a little over half the memory and two and a
-half times the speed on a tight loop. Against dash it is close on startup and
-within 20% on the loop, and still about 110 kB heavier — and dash is a far
+Read honestly. Against bash hibr is under two-thirds of the memory and two and
+a half times the speed on a tight loop. Against dash it is level on startup
+and within 10% on the loop, and about 160 kB heavier — and dash is a far
 smaller language, so being close is the claim, not being ahead. The loop gap
-was 1.7x before a round of profiling and is 1.2x now.
+was 1.7x before a round of profiling.
 
-Where the memory goes is worth knowing: the heap at startup is only 29 kB of
-that 1792, so memory here means the binary, and the binary means how much
-language there is. There is no allocator trick left that would move it.
+Where the memory goes is worth knowing: the heap at startup is 36 kB of the
+1852, so memory here means the binary, and the binary means how
+much language there is. There is no allocator trick left that would move it.
 
 The row that is not a near-miss is the fifth. Returning a value through `$( )`
-costs a fork per call in every shell; `:=` costs none, which is where the 53x
+costs a fork per call in every shell; `:=` costs none, which is where the 60x
 comes from. That is the argument for the whole in-process design, in one line.
 
-A full prompt with git branch, working-tree status and upstream distance costs
-35 ms in a 2,600-file repository — against 32 ms for `git status
---porcelain=v2 --branch` alone, with no fork on top. Three milliseconds in a
-small repository, 1.4 ms outside one.
+A full prompt with git branch, working-tree status and upstream distance cost
+35 ms in a 2,600-file repository when it was measured — against 32 ms for
+`git status --porcelain=v2 --branch` alone, with no fork on top.
 
 ## What it looks like
 
@@ -101,51 +102,33 @@ args "$@"
 
 | | |
 |---|---|
-| [From bash to hibr, in ten minutes](docs/tutorial.md) | Start here: install, then each thing hibr adds, one checked example each |
-| [hibr, for a language model](docs/llm.md) | The whole language on one page, every example run by the tests; `llms.txt` points to it |
-| [The language](docs/language.md) | Syntax, expansion, arithmetic, conditionals, maps and arrays, typed functions, declared arguments, errors |
-| [Text, regex and JSON](docs/data.md) | In-process text and array operations, POSIX regex, JSON over the map model |
-| [Networking](docs/networking.md) | Sockets, TLS, `/dev/tcp` and friends, `listen` |
-| [Interactive use](docs/interactive.md) | `~/.hibrc`, line editing, history, completion, job control |
-| [The prompt](docs/prompt.md) | The prompt hook, the segment module, and its native git support |
-| [Windows on a console](examples/desktop/README.md) | Draggable windows and apps written as ordinary hibr scripts, on a display module built for it |
-| [Modules](docs/modules.md) | The module ABI, and writing one |
-| [Deployment](docs/deployment.md) | `deploy.sh`: install, verify, update, roll back |
-| [Testing](docs/testing.md) | The harness, the recording discipline, sanitizers and fuzzing |
-| [Decisions](docs/adr/README.md) | Why hibr behaves the way it does — one record per decision |
+| [From bash to hibr, in ten minutes](docs/tutorial.md) | **Start here**: install, then each thing hibr adds, one checked example each |
+| [The language](docs/language.md) | The whole language, and every place it differs from bash |
+| [Builtins](docs/builtins.md) | All 73, what each takes and what it gives back |
+| [hibr, for a language model](docs/llm.md) | The whole language on one page, for a model to read; `llms.txt` points to it |
+| [Everything else](docs/README.md) | Data, networking, the prompt, interactive use, full-screen programs, the desktop, modules, deployment, testing |
+| `man hibr` | Every flag, environment variable, file and exit status |
 
-## Builtins
-
-`.` `:` `[` `accept` `alias` `args` `arr` `bg` `break` `builtin` `cd` `command`
-`connect` `continue` `dirs` `disown` `echo` `eval` `exec` `exit` `export`
-`fail` `false` `fg` `getopts` `help` `history` `jobs` `json` `kill` `let`
-`listen` `local` `match` `mod` `opt` `popd` `printf` `pushd` `pwd` `read`
-`recv` `ret` `return` `rsub` `send` `set` `shift` `source` `str` `test` `time`
-`title` `trap` `true` `try` `type` `umask` `unalias` `unset` `wait`
+Every example in these pages is run on every build and its output compared
+with what the page prints (`tests/531-doc-examples.t`), so the documentation
+cannot quietly drift from the shell.
 
 ## Deliberate differences from bash
 
-Each of these has a record explaining the reasoning and the cost.
+Each has a record of its own explaining the reasoning and the cost, all
+indexed in [the decisions](docs/adr/README.md). The ones met first:
 
-- [`set -e` is scoped](docs/adr/0002-errexit-is-scoped.md) to the tested
-  pipeline, not to the bodies of functions it calls. No `pipefail` needed.
-- [`((expr))` never trips `set -e`](docs/adr/0003-arithmetic-status-is-a-value.md)
-  — its status is a value, not a failure.
-- [Regex captures go to `M`](docs/adr/0004-regex-captures-go-to-M.md), for both
-  `[[ =~ ]]` and `match`; `=~` fills `BASH_REMATCH` too, so bash's scripts
-  find them where they look.
-- [`ret` does not print](docs/adr/0005-results-travel-in-a-slot.md); functions
-  return through `$RET` and `:=`, without forking.
-- [Arrays are sparse maps](docs/adr/0006-arrays-are-sparse-maps.md), and maps
-  nest without new syntax.
+- [`set -e` is scoped](docs/adr/0002-errexit-is-scoped.md): a failure inside
+  a function called from a condition still stops the script, and a failing
+  stage of a pipeline fails it, so there is no `pipefail`.
+- [A quoted subscript is a literal key](docs/adr/0006-arrays-are-sparse-maps.md),
+  `h["content-type"]`; arrays are sparse maps, and maps nest.
+- [Regex captures go to `M`](docs/adr/0004-regex-captures-go-to-M.md), and
+  `=~` fills `BASH_REMATCH` as well.
+- [`ret` does not print](docs/adr/0005-results-travel-in-a-slot.md);
+  functions hand back a value through `:=` without forking.
 - [Brace expansion is literal-only](docs/adr/0007-brace-expansion-is-literal.md)
   — `{$a,$b}` is left as written.
-- [`**` is always on](docs/adr/0008-globstar-is-always-on.md) and does not
-  follow symlinked directories.
-- [Strict expansion exists](docs/adr/0009-strict-expansion-is-opt-in.md) as
-  `set -S`, and is opt-in.
-- [TLS verifies certificates](docs/adr/0010-tls-verifies-and-is-dlopened.md)
-  unless told otherwise.
 
 ## Not implemented
 
@@ -163,7 +146,7 @@ text.
 | [`include/`](include/) | Public header and module ABI, internal declarations, regex declarations |
 | [`src/`](src/) | The shell itself — lexer, parser, expansion, execution, builtins, editor, networking |
 | [`mods/`](mods/) | Reference modules, including the prompt and its git implementation |
-| [`tests/`](tests/) | The harness, 43 test scripts, and the suite hibr runs on itself |
+| [`tests/`](tests/) | The harness, the scripts compared against bash or recorded, the full-screen suites, and the suite hibr runs on itself |
 | [`examples/`](examples/) | Complete scripts showing the pieces working together |
 | [`docs/`](docs/) | Everything above, in detail |
 

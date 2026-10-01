@@ -7,7 +7,7 @@ a prompt can be assembled without forking anything:
 <!-- not run: a prompt is drawn only by an interactive shell -->
 ```sh
 PROMPT_FN=myprompt          # a function, a builtin or a module builtin
-fn myprompt() { ret "$(id -un) $PWD> "; }
+fn myprompt() { ret "$USER ${PWD##*/}> "; }
 ```
 
 Whatever the command leaves in the result slot becomes the prompt, verbatim —
@@ -148,8 +148,8 @@ submodule is clean unless its directory is missing; its own working tree is not
 inspected. In a `.gitignore` pattern, `**` in the middle of a path is treated
 as `*`; leading `**/` and trailing `/**` work as documented.
 
-What is not there yet: a right-hand or transient prompt, which needs work in
-the line editor.
+A right-hand prompt (`RPS1`) and a transient prompt (`TPS1`) are the line
+editor's, and take `PS1`'s escapes: see [Interactive use](interactive.md#prompts).
 
 ---
 

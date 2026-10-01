@@ -40,17 +40,21 @@ hibr: connect /nosuchsock: No such file or directory
 | `recv [-a\|-n bytes] fd [var]` | read one line; `-a` everything to end of stream, `-n` exactly that many bytes |
 | `accept listenfd [var]` | wait for one connection; sets `$var` (default `FD`) and `$REMOTE` |
 | `listen [-f] [-n count] port handler` | serve; `-f` forks per connection, `-n` stops after that many |
-| `listen -b port [var]` | bind only, and hand back the descriptor |
+| `listen -b [-u] port [var]` | bind only, and hand back the descriptor; `-u` binds UDP |
 
 Descriptors come back above 9, so a redirection cannot tread on one. A failure
-says what went wrong and returns non-zero:
+says what went wrong and returns non-zero, and a descriptor that is not a
+number is refused rather than taken as 0:
 
 ```sh
 connect 127.0.0.1 1 S
+send "$unset" hello; echo "status $?"
 ```
 
 ```output
 hibr: connect 127.0.0.1:1: Connection refused
+hibr: : not a descriptor
+status 2
 ```
 
 `$REMOTE` is the peer, as `host:port` — `127.0.0.1:39254`.
@@ -157,7 +161,7 @@ memory in every shell. No OpenSSL headers are needed to build.
 A shell that can open a socket, speak TLS, parse the reply as JSON and serve a
 port needs no `curl`, no `nc`, no `jq` and no `socat` for most of what those get
 used for. [`examples/httpd.hibr`](../examples/httpd.hibr) is a static web server
-in eighty lines that forks for nothing, and
+in a little over a hundred lines that forks for nothing, and
 [`examples/fetch.hibr`](../examples/fetch.hibr) is an HTTP client with declared
 options. More end-to-end recipes are in the [cookbook](cookbook.md).
 

@@ -259,50 +259,49 @@ echo "[${h[content-type]}]"
 ```
 
 The second is empty: without quotes the key is read as arithmetic, `content`
-minus `type`, and lands on key 0.
+minus `type`, and lands on key 0. A quoted key stays literal inside `$(( ))`
+and `(( ))` too, and an array made with `declare -A` takes every key
+literally, as bash's associative arrays do:
+
+```sh
+json parse h '{"content-type":"application/json","x-count":3}'
+echo $(( h["x-count"] + 1 ))
+declare -A seen
+seen[a-b]=1
+echo "${!seen[@]}"
+```
+
+```output
+4
+a-b
+```
 
 See [0006](adr/0006-arrays-are-sparse-maps.md).
 
 ## Worked examples
 
-### Parse a log line into fields
+Two of the obvious ones are whole recipes elsewhere: pulling fields out of a
+log with `match` is in [the cookbook](cookbook.md#pull-fields-out-of-a-log),
+and reading an API over TLS and parsing its reply is in
+[Networking](networking.md).
 
-<!-- setup
-printf '%s\n' '2024-06-01T10:00:00Z INFO  started' '2024-06-01T10:00:05Z ERROR disk full' '2024-06-01T10:00:30Z WARN  slow request' '2024-06-01T10:01:00Z ERROR timeout' > app.log
--->
+### Walk an array inside a document
+
+A JSON array is a map with numeric keys, so its keys are its indexes:
+
 ```sh
-while read -r line; do
-  match "$line" '^([0-9-]+)T([0-9:]+)Z +([A-Z]+) +(.*)$' || continue
-  [ "${M[3]}" = ERROR ] || continue
-  echo "${M[1]} ${M[2]}: ${M[4]}"
-done < app.log
+json parse api '{"items":[{"name":"disk","free":12},{"name":"net","free":3}]}'
+for i in "${!api[items][@]}"; do
+  echo "${api[items][$i][name]}: ${api[items][$i][free]}"
+done
+json len api .items
 ```
 
 ```output
-2024-06-01 10:00:05: disk full
-2024-06-01 10:01:00: timeout
+disk: 12
+net: 3
+2
 ```
-
-No `grep`, no `awk`, no `cut`, and no process started.
-
-### Read an API and pick fields out
-
-<!-- not run: needs the public network -->
-```sh
-exec 3<>/dev/tls/api.example.com/443
-send -r 3 "GET /v1/items HTTP/1.0"; send -r 3 "Host: api.example.com"; send -r 3 ""
-recv 3 status
-[[ $status =~ ^HTTP/1\.[01]\ ([0-9]{3}) ]] && echo "HTTP ${M[1]}"
-while recv 3 h; do [ -z "$h" ] && break; done
-recv -a 3 body
-
-json parse api "$body"
-for i in $(seq 0 $(( $(json len api .items) - 1 ))); do
-  echo "${api[items][$i][name]}"
-done
-```
-
-TLS, HTTP, and JSON without a single external command.
 
 ### Build a query string from a map
 

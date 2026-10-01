@@ -15,6 +15,10 @@ system monitor, and anything else full-screen. Building it once is the point.
 | `key.c` | bytes to key names: CSI, SS3, modifiers, mouse, bracketed paste |
 | `console.c` | panes, colour parsing, and the `console` builtin |
 
+Every `console` subcommand, with what it takes, is in the command table of
+[Full-screen programs](../../docs/display.md); this page is how the module
+works underneath.
+
 ## The model
 
 Two grids. `cn_put` writes into the **back** buffer, which is just memory;

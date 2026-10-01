@@ -7,12 +7,16 @@
 > checks.
 
 Write bash; hibr runs it. Where hibr differs from bash, and what it adds, is
-on one page written to be read by a model, and every example on it is run by
-the test suite on every build.
+on one page written to be read by a model, and every runnable example in the
+documentation is run by the test suite on every build. `hibr --explain`
+checks a script for common mistakes without running it, `hibr --plan` runs
+its logic while refusing every write, connection and unlisted program, and
+`hibr --agent` reports errors as JSON lines.
 
 ## Docs
 
 - [hibr, for a language model](https://raw.githubusercontent.com/osakka/hibr/main/docs/llm.md): the differences from bash in one table, then each addition with a run example -- start here
+- [From bash to hibr, in ten minutes](https://raw.githubusercontent.com/osakka/hibr/main/docs/tutorial.md): install, then each thing hibr adds, one checked example each
 - [The language](https://raw.githubusercontent.com/osakka/hibr/main/docs/language.md): syntax, expansion, maps, typed functions, arguments, errors, strict checks
 - [Builtins](https://raw.githubusercontent.com/osakka/hibr/main/docs/builtins.md): every builtin, what it takes and what it gives back
 - [The grammar](https://raw.githubusercontent.com/osakka/hibr/main/docs/grammar.md): lexical structure, EBNF, precedence and expansion order

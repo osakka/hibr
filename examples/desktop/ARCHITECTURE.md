@@ -131,7 +131,8 @@ drawing in the wrong place. The calls:
 | `_mouse` | `id act btn r c mods` |
 | `_wheel` | `id dir r c` |
 | `_drop` | `id r c op paths...` |
-| `_menus`, `_context` | `id` |
+| `_menus` | nothing -- the menus are built for whichever window has focus, `$DT_FOCUS` |
+| `_context` | `id` |
 
 A Control Panel pane is called with its own set -- `_draw id h w x`,
 `_key id key`, `_click id r c`, `_drop id r c key`, `_wheel id dir` -- and a

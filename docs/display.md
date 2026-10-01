@@ -103,8 +103,9 @@ and the flush cost shown live. Run it and press things.
 
 Rows and columns count from zero. `console flush`, `console key`, `console
 size`, `console shade` and `console hit` fill the result slot, so `n := console
-flush` and `k := console key 1000` are how you read them without forking. Two
-of them work before `console open`, with no terminal at all:
+flush` and `k := console key 1000` are how you read them without forking.
+`console shade`, and the pane commands with `console hit` (see
+[Panes](#panes)), work before `console open`, with no terminal at all:
 
 ```sh
 need console
@@ -177,6 +178,28 @@ promptly when the window changes:
 k := console key 1000
 if console resized; then relayout; console clear; fi
 ```
+
+## Keeping up with a burst of input
+
+A frame that takes longer to draw than the gap between two reports -- a drag
+across a large terminal, a held wheel -- leaves the reports queued, and a
+program that draws once per report goes on replaying them after the hand has
+stopped. `console waiting` answers, without waiting, whether the next report
+is already there; skip the frame while it is, and draw once it is not:
+
+<!-- not run: needs a terminal: it reads keys and draws -->
+```sh
+while true; do
+  k := console key 1000
+  handle "$k"
+  console waiting && continue   # more already queued: this frame is stale
+  draw
+  console flush
+done
+```
+
+The desktop does exactly this for drags and the wheel: a burst of a hundred
+drag reports draws two frames, not a hundred.
 
 ## Keys that would be signals
 

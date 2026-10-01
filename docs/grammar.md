@@ -52,13 +52,15 @@ is what bash gives you too when no translation is installed.
 ### Reserved words
 
 `!` `[[` `]]` `{` `}` `case` `do` `done` `elif` `else` `esac` `fi` `for` `fn`
-`if` `in` `select` `then` `until` `while`
+`function` `if` `in` `select` `then` `until` `while`
 
 They are only reserved where a command word may start. `esac` closes a `case`
 arm even with no `;;` before it, and `echo esac` prints `esac`.
 
-**[hibr]** `fn` declares a function with typed parameters and a return type. The
-POSIX `name() { … }` form works too.
+**[hibr]** `fn` declares a function with typed parameters and a return type,
+and always takes a parenthesised list, `fn f() { … }` when it has no
+parameters. The POSIX `name() { … }` form works too, and so does bash's
+`function name { … }`, with or without the `()`.
 
 ## Grammar
 
@@ -121,6 +123,15 @@ redirect_op = "<" | ">" | ">>" | ">|" | "<&" | ">&" | "<>"
 The last arm of a `case` may omit its `;;`, as POSIX allows. `;&` falls through
 to the next arm's body; `;;&` re-tests from the next arm.
 
+Every `list` inside a compound command must hold at least one command: an
+empty `then`, `else`, `do`, `{ }` or `( )` is a syntax error, as in bash.
+Text that does not parse is reported with the token that came too soon --
+`` syntax error near unexpected token `fi' `` -- and the status is 2; input that
+ends inside a command is "unexpected end of input", status 2 as well. A
+script is parsed and run one complete command at a time, so a syntax error
+late in it stops it after the commands before it have run, unless
+`checkfirst` is on -- [0026](adr/0026-a-script-runs-as-it-is-read.md).
+
 ### Redirections
 
 | form | meaning |
@@ -168,7 +179,9 @@ Loosest first. From `ax_tk` and `ax_pr` in `src/expand.c`.
 
 A number is decimal, `0x…` hexadecimal, `0…` octal, or `base#digits` for any
 base from 2 to 64. Above base 36 case is significant, and `@` and `_` are 62 and
-63. Names are read without a `$`; `a[i]` reads an element.
+63. Names are read without a `$`; `a[i]` reads an element, and a quoted
+subscript, `a["k-1"]`, is the literal key. A variable's value is itself read
+as an expression, so `x="3 * (4 + 5)"; echo $((x))` is 27, as in bash.
 
 Overflow is computed in unsigned and cast back, so it wraps rather than being
 undefined, and `INT64_MIN / -1` is special-cased. Division by zero is an error.
@@ -222,7 +235,8 @@ quoted byte is never split, globbed, or read as an operator.
 6. **Quote removal**.
 
 Steps 4 and 5 are skipped where one word is required — an assignment's value, a
-`case` subject, the right of `=~`, and everything under `set -S`
+`case` subject, the right of `=~` — and, under `set -S`, for whatever an
+expansion produced; text written in the word still splits and globs
 ([0009](adr/0009-strict-expansion-is-opt-in.md)).
 
 ### Parameter expansion
@@ -236,10 +250,10 @@ Steps 4 and 5 are skipped where one word is required — an assignment's value, 
 | `${x/p/r}` `${x//p/r}` | replace first, replace all |
 | `${x/#p/r}` `${x/%p/r}` | replace only at the start, at the end |
 | `${x:off:len}` | substring; a negative offset counts from the end |
-| `${x^} ${x^^} ${x,} ${x,,}` | upper or lower the first byte, or all |
+| `${x^} ${x^^} ${x,} ${x,,}` | upper or lower the first letter, or all; ASCII letters only, so `é` stays `é` |
 | `${x@Q}` | quoted so reading it back gives the same string |
 | `${x@E}` | with backslash escapes expanded |
-| `${x@U} ${x@L} ${x@u}` | upper, lower, first byte upper |
+| `${x@U} ${x@L} ${x@u}` | upper, lower, first letter upper; ASCII letters only |
 | `${!ref}` | the value of the variable *named* by `x`, subscripts and all, keeping any modifier |
 | `${!pre*}` `${!pre@}` | the names that begin with `pre`, sorted |
 | `${a[k]}` | one element; `${a[@]}` all, `${a[*]}` joined |

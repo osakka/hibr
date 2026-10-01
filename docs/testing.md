@@ -71,6 +71,16 @@ insertion order where bash's associative arrays do not, that a negative
 subscript counts back from the highest key even on a map, and that an
 arithmetic expansion error was not failing the command at all.
 
+## Real scripts, and the documentation
+
+`tests/corpus.py` runs real scripts under both shells, each in a sandbox of
+its own, and compares their output and status; every difference it has
+found was read and fixed one at a time, each with a test of its own. It
+executes what it is given, so it takes a list. `tests/531-doc-examples.t` runs every example on every page of
+the documentation and fails when one stops printing what the page says --
+see [tests/README.md](../tests/README.md) for both, and for the rest of the
+tests that guard the docs and the examples.
+
 ## The line editor
 
 `tests/run.sh` cannot reach the editor at all, because it only runs when stdin

@@ -98,7 +98,7 @@ suite, one per core -- with one line each and full logs under
 `build/test-logs/`; `make check-all` is the same. They are independent: each
 pty run has its own terminal, XDG directories and hold sockets.
 
-Three more tools sit around it:
+Four more tools sit around it:
 
 - **`tests/affected.py`** -- the suites a change reaches, from `git diff` or
   from paths given; `--run` runs just those, `--why` says which path chose
@@ -138,6 +138,52 @@ It is also runnable, which is what to reach for instead of a throwaway script:
 python3 tests/screen.py examples/desktop/session.hibr
 python3 tests/screen.py -c 'mod load build/mods/mon.so; mon'
 ```
+
+## Tests that guard the documentation and the examples
+
+- **`530-docs.t`** fails when a builtin has no entry in `docs/builtins.md`,
+  when an internal link stops resolving, or when a decision record is not
+  indexed.
+- **`531-doc-examples.t`** reads every page with code in it -- all of
+  `docs/`, the READMEs, the decision records and the desktop guides. Each
+  ```` ```sh ```` block followed by an ```` ```output ```` block is run in an
+  empty directory and must print exactly that; one that cannot run says why
+  in a `<!-- not run: ... -->` line just before it; a `<!-- setup ... -->`
+  comment supplies a file or helper an example assumes; and every other code
+  block names what it is (```` ```text ````, ```` ```c ````). A bare fence, or
+  an example that neither shows its output nor says why not, fails.
+- **`540-examples.t`** runs every script in `examples/`, and fails on a
+  function defined twice or a desktop callback that names fewer arguments
+  than the window manager hands it.
+- **`850-lint.t`** lints every example with `hibr --explain` and fails on
+  any finding, beside a firing and a quiet case for each lint rule.
+
+## Comparing against bash
+
+Two tools sit outside `run.sh` because they need bash and a generator, and a
+generator written in the shell under test could not be trusted to report that
+shell's failure:
+
+```text
+python3 tests/diff.py --shell ./build/hibr 250     # random snippets, both shells
+python3 tests/corpus.py --shell ./build/hibr --list scripts.txt
+```
+
+`diff.py` skips a snippet only when one of its `DELIBERATE` patterns -- each a
+decision record -- can fire in it, and each pattern matches only the
+construct it names. `corpus.py` runs real scripts with `--help`, `--version`
+and no arguments under both shells, each in a sandbox of its own (its own
+`HOME`, `TMPDIR` and directory, stdin closed, five seconds), and compares
+standard output and status; the sandbox path and a `mktemp` suffix inside it
+are normalised first. It executes the scripts it is given, so give it a list.
+
+Each difference these find and fix gets a test of its own, compared against
+bash: `855` (an exit inside a condition), `860` (a script runs as it is read),
+`865` (a malformed `${…}` after `=~`), `870` (return and break outside a
+function or loop), `875` (a function
+in a pipeline or the background), `880` (`BASH_REMATCH`), `895` (the four
+`corpus.py` found in real system scripts), and the recorded `885` (`--plan`)
+and `890` (quoted keys in arithmetic) for what is hibr's own.
 
 ## Fixtures without dependencies
 
