@@ -266,7 +266,12 @@ dt_trash() {
 # of copying it.  The desktop keeps one clipboard for every window, and also
 # sends a copy to the clipboard of the terminal it runs on, where that
 # terminal allows it -- so what is copied or cut here pastes into anything
-# else on the machine.
+# else on the machine, and, through hold, on every machine joined to it.
+#
+# DT_CLIPKIND says what the text is: "text", or "paths" -- files, one to a
+# line, which Files pastes as the files themselves and anything else pastes
+# as their names. An app's _copy that hands back paths sets it to paths;
+# dt_edit has already set it to text before asking.
 fn dt_edit(op) {
 	local cb t
 
@@ -275,6 +280,7 @@ fn dt_edit(op) {
 		if t := dt_iconcopy && [ -n "$t" ]; then
 			DT_CLIP=$t
 			DT_CLIPOP=copy
+			DT_CLIPKIND=paths
 			console clip "$t"
 			dt_note "Copied the paths of what is selected"
 		else
@@ -291,6 +297,7 @@ fn dt_edit(op) {
 		[ -n "$DT_CLIP" ] && $cb "$DT_FOCUS" "$DT_CLIP" "${DT_CLIPOP:-copy}"
 		return 0
 	fi
+	DT_CLIPKIND=text
 	if ! t := $cb "$DT_FOCUS" || [ -z "$t" ]; then
 		dt_note "Nothing is selected"
 		return 0

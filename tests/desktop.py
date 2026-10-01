@@ -2050,6 +2050,15 @@ t.send(b"\x1b", settle=1.0)
 sc = t.screen()
 check("a lone escape reaches a held desktop on its own, not with the next "
       "key", sc.find("About hibr") is None, sc)
+# hold keeps its own emulator of the session's screen, which drew nothing
+# for OSC 52 and so dropped every copy made in a held desktop: Copy reached
+# no machine's clipboard. It is passed on to every attached terminal now.
+hm = sc.find("Home")
+if hm:
+    t.send(press(hm[0], hm[1] + 1) + release(hm[0], hm[1] + 1), settle=0.6)
+t.send(b"\x1bc", settle=1.0)
+check("Copy in a held desktop reaches the terminal attached to it",
+      hm is not None and b"\x1b]52;c;" in t.out, t.screen())
 t.send(b"\x1b[21~")
 t.send(b"q", settle=1.0)
 t.collect(0.5)
@@ -2418,4 +2427,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(321)
+report(322)

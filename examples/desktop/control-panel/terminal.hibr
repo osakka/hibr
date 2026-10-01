@@ -19,7 +19,7 @@ fn cp_set_termcolours(int? id = "", value = "") { DT_TERMCOLOURS=$value; cp_save
 fn terminal_rows(int w) {
 	local n=0
 
-	[ -n "$DT_TERMBAR" ] || { cp_absent "$w" Terminal; ret 1; }
+	[ -n "$DT_TERMCLIP" ] || { cp_absent "$w" Terminal; ret 1; }
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Scrollbar"
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_TERMBAR" = 1 ] && CP[$w][$n]["val"]=on
@@ -28,6 +28,10 @@ fn terminal_rows(int w) {
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_TERMTITLE" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=DT_TERMTITLE; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Programs Set Clipboard"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_TERMCLIP" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=DT_TERMCLIP; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Colours"
 	CP[$w][$n]["val"]="$DT_TERMCOLOURS"
 	CP[$w][$n]["key"]=termcolours; n=$((n + 1))
@@ -44,7 +48,7 @@ fn terminal_do(int w, k, int dir) {
 	local v
 
 	case $k in
-	DT_TERMBAR | DT_TERMTITLE | DT_CURSOR_BLINK) cp_toggle "$k" ;;
+	DT_TERMBAR | DT_TERMTITLE | DT_TERMCLIP | DT_CURSOR_BLINK) cp_toggle "$k" ;;
 	termcolours)
 		v := cp_next "$DT_TERMCOLOURS" "$dir" "${CP_TERMCOLOURS[@]}"
 		DT_TERMCOLOURS=$v

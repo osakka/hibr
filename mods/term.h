@@ -12,7 +12,7 @@
    anything reordered or removed breaks every module already using it. */
 
 #ifndef TM_API_VER
-#define TM_API_VER 1u
+#define TM_API_VER 2u
 #endif
 
 /* DECSCUSR's six shapes collapse to three: blinking is never drawn as
@@ -54,6 +54,11 @@ struct tm_api {
 	   has asked for bracketed paste, cshape one of TM_BLOCK/TM_UNDER/
 	   TM_BAR. 0 for no such id. */
 	int (*modes)(int id, int *alt, int *bpaste, int *cshape);
+	/* What the program last asked to put on the clipboard with OSC 52,
+	   exactly as it sent it -- "selection;base64" -- handed over once and
+	   then forgotten: 1 with it appended to out, 0 when nothing is
+	   waiting or no such id. Added in version 2. */
+	int (*clip)(int id, str *out);
 };
 
 #endif

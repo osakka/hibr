@@ -1514,6 +1514,60 @@ sc = run(*TERM, feed=[press(6, 10), release(6, 10)], pre=CLICK, wait=1.2, end=No
 check("a click reaches a program that asked for the mouse, where it landed",
       sc.find("^[[<0;8;4M^[[<0;8;4m") is not None, sc)
 
+# --- one clipboard, every app ----------------------------------------------
+#
+# Copy in one window, paste in another: a terminal and Note Pad share the
+# desktop's clipboard both ways, a program in a terminal can set it with
+# OSC 52, a paste from the machine the desktop runs on sets it too, and
+# Files takes text as a new file.
+NPW = "8 30 14 48"
+CB = tempfile.mkdtemp(prefix="hibr-clip-")
+run("notepad", NPW, also=[("Terminal", TW, "term")], pre=LONG, wait=1.2,
+    feed=[press(3, 3), drag(3, 8), release(3, 8), b"\x1bc",
+          press(16, 55), release(16, 55), b"\x1bv"],
+    env={"XDG_CONFIG_HOME": CB}, end=None)
+note = open(os.path.join(CB, "hibr", "notepad.txt")).read() \
+    if os.path.exists(os.path.join(CB, "hibr", "notepad.txt")) else ""
+check("text copied in a terminal pastes into Note Pad", "row 30" in note, note)
+shutil.rmtree(CB, True)
+
+CB = tempfile.mkdtemp(prefix="hibr-clip-")
+os.makedirs(os.path.join(CB, "hibr"))
+open(os.path.join(CB, "hibr", "notepad.txt"), "w").write("hello note\n")
+sc = run("notepad", NPW, also=[("Terminal", TW, "term")], pre=SH, wait=1.2,
+         feed=[0.5, press(15, 52), release(15, 52), b"\x1b[F", b"\x1b[1;2H",
+               b"\x1bc", press(6, 10), release(6, 10), b"\x1bv", 0.5],
+         env={"XDG_CONFIG_HOME": CB}, end=None)
+check("and text selected in Note Pad pastes into a terminal's program",
+      sc.find("sh> hello note") is not None, sc)
+shutil.rmtree(CB, True)
+
+OSC52 = "TW_CMD=(/bin/sh -c 'printf \"\\033]52;c;aGVsbG8=\\007\"; sleep 5')"
+sc = run(*TERM, pre=OSC52, wait=1.2, end=None)
+check("a program in a terminal that sets the clipboard sets it everywhere",
+      b"\x1b]52;c;aGVsbG8=\x07" in sc.out, sc)
+sc = run(*TERM, pre=OSC52 + "\nDT_TERMCLIP=0", wait=1.2, end=None)
+check("unless Programs Set Clipboard is off",
+      b"\x1b]52;c;aGVsbG8=\x07" not in sc.out, sc)
+
+CB = tempfile.mkdtemp(prefix="hibr-clip-")
+run("notepad", NPW, feed=[b"\x1b[200~hi\x1b[201~", b"\x1bv"],
+    env={"XDG_CONFIG_HOME": CB}, end=None)
+note = open(os.path.join(CB, "hibr", "notepad.txt")).read() \
+    if os.path.exists(os.path.join(CB, "hibr", "notepad.txt")) else ""
+check("a paste from the machine the desktop runs on becomes the clipboard",
+      note == "hihi\n", note)
+shutil.rmtree(CB, True)
+
+CB = tempfile.mkdtemp(prefix="hibr-clip-")
+run("files", FW, feed=[b"\x1b[200~some text\x1b[201~", 0.3],
+    pre="FB_DIR=%s" % CB)
+f = os.path.join(CB, "Pasted text.txt")
+check("text pasted into Files becomes a new file there",
+      os.path.exists(f) and open(f).read() == "some text\n",
+      os.listdir(CB))
+shutil.rmtree(CB, True)
+
 # --- the games --------------------------------------------------------------
 #
 # Each one steps on the clock, not on keys, so a key it ignores ("z") is how a
@@ -2363,4 +2417,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(338)
+report(344)

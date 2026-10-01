@@ -1555,6 +1555,17 @@ went in the shell.
   and clicking, not by reading the code: every click registered, and only
   a click after escape went missing.
 
+- **An emulator that redraws loses what it does not draw.** `hold` sends
+  each client cells from its own `"terminal"` emulator, never the program's
+  bytes, so an escape that draws nothing -- OSC 52, setting the clipboard
+  -- died there, and no copy made in a held desktop (which is every
+  desktop) reached any clipboard. Measured with an unheld run of the same
+  copy as the control, the only thing that told a broken path from a
+  broken probe. The emulator keeps OSC 52 (`clip`, interface version 2) and
+  hold forwards it to every client. Anything else a program sends for the
+  terminal rather than the screen -- a bell, a notification, a hyperlink
+  -- needs the same treatment before it can work held.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then

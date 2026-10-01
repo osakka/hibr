@@ -275,6 +275,41 @@ To publish, once an account can be made:
 Also worth doing then: `namcap PKGBUILD` and a `makepkg` in a clean chroot
 (`extra-x86_64-build`), on any Arch machine.
 
+### One mouse across two machines -- decided against, for now
+
+Raised directly: two machines, each a terminal on the same desktop
+(`--join`), and one mouse and keyboard usable across both, as Synergy does.
+Most of it is already there: every attached terminal's keys and clicks reach
+the one desktop, there is one focus and one clipboard (0.75), and Move to
+hands a window between displays. What is missing is a pointer *crossing*
+from one machine's screen to the other's, and a terminal cannot give it: it
+reports the mouse only inside its own window, so motion past the edge never
+arrives, and nothing in a terminal can move or hide the real pointer on the
+other machine. That takes an input hook on each machine (XTest, SendInput,
+CGEvent) -- a driver per operating system, which is what Deskflow, the
+open-source successor to Barrier and Synergy, already is, and which has
+nothing to do with being a better shell. Run Deskflow underneath for that.
+
+What hibr could still do, if wanted:
+
+- **Drag a window off a display's edge onto its neighbour.** Some terminals
+  go on reporting a held drag past their own edge; where they do the hand-off
+  can follow the pointer, and where they clamp a pause at the edge can
+  trigger it. Measure the owner's terminals first.
+- **A keyboard-driven pointer** drawn by the desktop, moved with the arrows
+  across every display and clicked with enter: works from either machine in
+  any terminal, and is clumsier than a mouse.
+
+### Pictures and files from a machine's own clipboard
+
+0.75 gives the desktop one clipboard that text crosses both ways, and files
+and pictures copy as files inside it. What cannot arrive is a picture or a
+file on a machine's own clipboard: a terminal carries text, OSC 52 is text
+(and many terminals cap it at tens of kilobytes), and reading a machine's
+clipboard through OSC 52 is off by default in xterm, iTerm2 and kitty. It
+needs a helper outside the terminal on each machine -- an upload route over
+ssh, or a small agent -- and is a design of its own.
+
 ### arm64 Debian packages
 
 The apt repository serves amd64 only. An arm64 build needs a cross

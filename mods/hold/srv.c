@@ -414,6 +414,7 @@ void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 			k = read(m, rb.p, rb.cap - 1);
 			if (k > 0) {
 				hd_tm->feed(tid, rb.p, (size_t)k);
+				hd_clipsend(&cls, tid);
 				fed = 1;
 			} else if (!(k < 0 && (errno == EAGAIN ||
 					       errno == EINTR))) {

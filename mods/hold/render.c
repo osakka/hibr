@@ -233,6 +233,36 @@ void hd_rensend1(vec *cls, struct hd_cli *cn, int tid)
 	s_free(&out);
 }
 
+/* Pass a clipboard the program has just set on to every attached terminal,
+   as it came. The emulator keeps OSC 52 rather than drawing anything for
+   it, so without this a copy made inside a held session reached no
+   machine's clipboard at all; sent to every client, it reaches all of
+   them. */
+void hd_clipsend(vec *cls, int tid)
+{
+	str c, o;
+	size_t i;
+	struct hd_cli *cn;
+
+	s_init(&c);
+	if (!hd_tm->clip(tid, &c)) {
+		s_free(&c);
+		return;
+	}
+	s_init(&o);
+	s_cat(&o, "\033]52;");
+	s_add(&o, c.p, c.n);
+	s_ch(&o, 7);
+	for (i = cls->n; i-- > 0;) {
+		cn = cls->p[i];
+		if (!hd_send(cn->fd, HD_DATA, o.p, o.n))
+			hd_cdrop(cls, cn->fd);
+	}
+	lg(HIBR_LDBG, "hold: a clipboard passed on to %zu terminals", cls->n);
+	s_free(&o);
+	s_free(&c);
+}
+
 /* Render and send every attached client its own rectangle. */
 void hd_rensend(vec *cls, int tid)
 {

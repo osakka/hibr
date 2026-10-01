@@ -435,12 +435,17 @@ fn dt_event(k) {
 	fi
 	# Copy and paste belong to the desktop, the same keys in every window,
 	# and so does a paste arriving from the terminal the desktop runs on:
-	# it goes to the app's _paste when it has one.
+	# it goes to the app's _paste when it has one, and becomes the
+	# desktop's clipboard too, so alt-v pastes it again in any window and
+	# on any display joined to this one.
 	case $k in
 	alt-c) dt_edit copy; return 0 ;;
 	alt-x) dt_edit cut; return 0 ;;
 	alt-v) dt_edit paste; return 0 ;;
 	"paste "*)
+		DT_CLIP=${k#paste }
+		DT_CLIPOP=copy
+		DT_CLIPKIND=text
 		if [ -n "$DT_FOCUS" ] && [ -n "${DT[$DT_FOCUS]["paste"]}" ]; then
 			${DT[$DT_FOCUS]["paste"]} "$DT_FOCUS" "${k#paste }"
 			return 0

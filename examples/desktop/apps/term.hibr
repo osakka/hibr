@@ -61,6 +61,15 @@ command -v dt_keep > /dev/null && dt_keep DT_TERMBAR
 DT_TERMTITLE="${DT_TERMTITLE-1}"
 command -v dt_keep > /dev/null && dt_keep DT_TERMTITLE
 
+# Whether a program inside a terminal window may set the clipboard with
+# OSC 52 -- vim's yank to the + register, tmux's set-clipboard -- making it
+# the desktop's clipboard and sending it on to the real terminal, and so to
+# every machine attached. On by default, as tmux's own is; any program in a
+# window can then overwrite the clipboard, which is what the switch is for.
+# A program asking to read the clipboard is never answered.
+DT_TERMCLIP="${DT_TERMCLIP-1}"
+command -v dt_keep > /dev/null && dt_keep DT_TERMCLIP
+
 
 # Whose colours a terminal window's default text and background are:
 # "theme" paints them in the desktop's own ink and face, like every other
@@ -138,7 +147,7 @@ fn tw_fit(int id, int h, int w) {
 }
 
 fn term_draw(int id, int h, int w, int row, int col) {
-	local t st sb cur=0 ms tw view stored n want rgb
+	local t st sb cur=0 ms tw view stored n want rgb c
 
 	tw=$w
 	# A visible scrollbar costs the program inside a real column, not just
@@ -182,6 +191,12 @@ fn term_draw(int id, int h, int w, int row, int col) {
 			TW[$id]["ptitle"]="$n"
 			command -v dt_retitle > /dev/null && dt_retitle "$id" "Terminal [$n]"
 		fi
+	fi
+	if c := term clip "$t" && [ "$DT_TERMCLIP" = 1 ]; then
+		DT_CLIP=$c
+		DT_CLIPOP=copy
+		DT_CLIPKIND=text
+		console clip "$c"
 	fi
 	[ "$DT_FOCUS" = "$id" ] && cur=1
 	# A program that asked for focus reports (mode 1004) hears when its

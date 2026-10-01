@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.75
+
+**One clipboard, everywhere.**
+
+- **A copy in the desktop reaches your machine's clipboard again.** The
+  desktop runs held, and `hold` draws from an emulator that kept nothing
+  it did not draw -- so the OSC 52 a copy sends was dropped, and no copy
+  ever reached any machine's clipboard. The emulator keeps it now and hold
+  passes it to every attached terminal, so with a second machine joined, a
+  copy lands on both.
+- **Note Pad copies, cuts and pastes**, with a selection: shift and the
+  arrows, home and end, or a drag. Text copied in a terminal pastes into it
+  and back, which it could not before -- Note Pad had no copy or paste.
+- **A program in a Terminal window can set the clipboard** (OSC 52: vim's
+  `"+y` through a provider that uses it, tmux's `set-clipboard`), reaching
+  the desktop and every attached machine. On by default; Control Panel >
+  Terminal > Programs Set Clipboard turns it off. A request to read the
+  clipboard is never answered.
+- **A paste from your machine becomes the desktop's clipboard**, so alt-v
+  pastes it again in any window, on either display.
+- **Files and pictures copy as files.** Image Viewer copies its picture as
+  its file; Files pastes copied files as copies (after Cut, moves them),
+  and text that names no file as a new `Pasted text.txt`.
+
+What does not cross: a terminal carries text only, so a picture or a file
+on a machine's own clipboard cannot reach the desktop. That is recorded in
+the backlog, with the cross-machine pointer.
+
+The `"terminal"` interface is version 2, adding `clip`; `term clip t`
+gives a script the text a program set.
+
 ## 0.74
 
 **Escape works straight away in a held desktop, and a click after it is

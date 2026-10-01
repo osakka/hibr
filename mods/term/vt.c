@@ -661,7 +661,9 @@ void tm_dcsend(tm_t *t)
 	}
 }
 
-/* An operating system command is complete: the title, and the colour
+/* An operating system command is complete: the title, a clipboard set
+   (52, kept whole as "selection;base64" for whoever runs this terminal to
+   take -- a request to read the clipboard is never answered), and the colour
    queries a program uses to tell a dark background from a light one --
    answered only when whoever runs this terminal has said what its colours
    are, since a guessed answer is worse than none. */
@@ -682,6 +684,19 @@ void tm_oscend(tm_t *t)
 			t->title.p[0] = 0;
 		s_cat(&t->title, p);
 		lg(HIBR_LDBG, "terminal %d is called '%s'", t->id, p);
+		return;
+	}
+	if (which == 52) {
+		if (strchr(p, ';') && strcmp(strchr(p, ';') + 1, "?")) {
+			t->clip.n = 0;
+			if (t->clip.p)
+				t->clip.p[0] = 0;
+			s_cat(&t->clip, p);
+			lg(HIBR_LDBG, "terminal %d set the clipboard", t->id);
+		} else {
+			lg(HIBR_LDBG, "terminal %d asked to read the clipboard; "
+				      "not answered", t->id);
+		}
 		return;
 	}
 	if ((which == 10 || which == 11) && !strcmp(p, "?") && t->hasrgb) {

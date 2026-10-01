@@ -1467,15 +1467,18 @@ fn files_drop(int id, int r, int c, op, ...rest) {
 
 # The paths of what is selected, one to a line, for the desktop's Copy; and
 # paths pasted here, one to a line, copy those files into the folder shown.
+# Text that names no file -- copied in Note Pad or a terminal -- becomes a
+# new file here instead, so text and files paste into each other both ways.
 fn files_copy(int id) {
 	local sel p out=
 
 	sel := fb_selected "$id" || return 1
 	fb_paths "$id" "$sel"
 	for p in "${FB_PATHS[@]}"; do out="$out$p"$'\n'; done
+	DT_CLIPKIND=paths
 	ret "${out%$'\n'}"
 }
-fn files_paste(int id, text, op) {
+fn files_paste(int id, text, op = "") {
 	local p
 	local -a ps
 
@@ -1488,10 +1491,28 @@ fn files_paste(int id, text, op) {
 		fi
 	done <<< "$text"
 	if [ "${#ps[@]}" = 0 ]; then
-		dt_note "Paste a path to copy that file here"
+		fb_pastetext "$id" "$text"
 		return 0
 	fi
 	dt_fileop "$op" "${FB[$id]["dir"]}" "${ps[@]}"
+}
+
+# Save pasted text as a new file in the folder shown, named so it takes
+# nothing's place: "Pasted text.txt", then "Pasted text 2.txt" and on.
+fn fb_pastetext(int id, text) {
+	local dir=${FB[$id]["dir"]} f i=2
+
+	f="$dir/Pasted text.txt"
+	while [ -e "$f" ] || [ -L "$f" ]; do
+		f="$dir/Pasted text $i.txt"
+		i=$((i + 1))
+	done
+	if printf '%s\n' "$text" 2> /dev/null > "$f"; then
+		dt_note "Pasted as ${f##*/}"
+		files_refresh "$id"
+	else
+		dt_note "Cannot write in ${dir##*/}"
+	fi
 }
 
 # Something changed on disk: read the folder again, keeping the selection

@@ -227,7 +227,32 @@ browser is the one thing so far that tells them apart. There is one
 clipboard for the whole desktop, and a copy or cut also goes to the
 clipboard of the terminal the desktop runs on through OSC 52, so it pastes
 into anything else on the machine -- where that terminal allows it, which
-most modern ones do and some ask about first.
+most modern ones do and some ask about first. A held desktop sends it to
+every terminal attached, so with a second machine joined (`--join`) a copy
+lands on both machines' clipboards.
+
+What each app copies and takes:
+
+| app | copies | a paste |
+|---|---|---|
+| Terminal | the text dragged over | is typed into the program |
+| Note Pad | the text selected -- shift with the arrows, home and end, or a drag | goes in at the cursor, over any selection |
+| Files | the selected files, as paths | of paths copies (or after Cut, moves) those files here; of other text saves it as `Pasted text.txt` |
+| Image Viewer | the picture, as its file | -- |
+| Calculator | its answer | of arithmetic is taken as input |
+
+A paste from the machine itself -- the terminal's own paste, cmd-v or
+ctrl-shift-v -- goes to the focused window and also becomes the desktop's
+clipboard, so alt-v pastes it again anywhere, on any display. A program
+inside a Terminal window can set the clipboard too, with OSC 52 -- vim's
+`"+y` with a clipboard provider that uses it, tmux's `set-clipboard` -- and
+it reaches the desktop and every attached machine; Control Panel >
+Terminal > Programs Set Clipboard switches that off. A program asking to
+*read* the clipboard is never answered.
+
+Text is what crosses between a machine and the desktop. Files and pictures
+copy and paste as files inside the desktop, but a picture or a file on a
+machine's own clipboard cannot reach it: a terminal carries text only.
 
 ## Application handlers
 

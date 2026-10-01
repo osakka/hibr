@@ -49,6 +49,14 @@ fn imgview_draw(int id, int h, int w, int row, int col) {
 
 # A file dragged in from a file browser replaces whatever was shown: the
 # first of the paths, which come after op ("move" or "copy").
+# Copy is the picture itself, as a file: Files pastes a copy of it, and
+# anything that takes text gets its path.
+fn imgview_copy(int id) {
+	[ -n "${IV[$id]["path"]}" ] || return 1
+	DT_CLIPKIND=paths
+	ret "${IV[$id]["path"]}"
+}
+
 fn imgview_drop(int id, int r, int c, op, ...paths) {
 	IV[$id]["path"]=${paths[0]}
 }

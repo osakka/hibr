@@ -6,7 +6,9 @@
 #
 # Deliberately small: one page, no word wrap, no search -- hvi is the real
 # editor. This is the System 6 Note Pad, a place to jot something down
-# without leaving the desktop for it.
+# without leaving the desktop for it. Text is selected with shift and the
+# arrows, home and end, or by dragging; the desktop's Cut, Copy and Paste
+# work on it, so what is copied in a terminal pastes here and back.
 
 strict
 
@@ -33,6 +35,111 @@ fn np_load(int id) {
 	NP[$id]["cr"]=0
 	NP[$id]["cc"]=0
 	NP[$id]["top"]=0
+	NP[$id]["sel"]=
+}
+
+# The selection in order, start before end, into NP_SR NP_SC NP_ER NP_EC;
+# fails when there is none, or it is empty.
+NP_SR=0
+NP_SC=0
+NP_ER=0
+NP_EC=0
+fn np_order(int id) {
+	local ar ac cr=${NP[$id]["cr"]} cc=${NP[$id]["cc"]}
+
+	[ "${NP[$id]["sel"]}" = 1 ] || return 1
+	ar=${NP[$id]["ar"]}
+	ac=${NP[$id]["ac"]}
+	if [ "$ar" -lt "$cr" ] || { [ "$ar" = "$cr" ] && [ "$ac" -le "$cc" ]; }; then
+		NP_SR=$ar NP_SC=$ac NP_ER=$cr NP_EC=$cc
+	else
+		NP_SR=$cr NP_SC=$cc NP_ER=$ar NP_EC=$ac
+	fi
+	[ "$NP_SR" != "$NP_ER" ] || [ "$NP_SC" != "$NP_EC" ]
+}
+
+# The selected text, its lines joined by newlines.
+fn np_seltext(int id) {
+	local i out
+
+	np_order "$id" || return 1
+	if [ "$NP_SR" = "$NP_ER" ]; then
+		out=${NP[$id][$NP_SR]:$NP_SC:$((NP_EC - NP_SC))}
+	else
+		out=${NP[$id][$NP_SR]:$NP_SC}
+		i=$((NP_SR + 1))
+		while [ "$i" -lt "$NP_ER" ]; do
+			out="$out"$'\n'"${NP[$id][$i]}"
+			i=$((i + 1))
+		done
+		out="$out"$'\n'"${NP[$id][$NP_ER]:0:$NP_EC}"
+	fi
+	ret "$out"
+}
+
+# Remove the selection, leaving the cursor where it began; nothing to do
+# without one.
+fn np_delsel(int id) {
+	local n
+
+	np_order "$id" || { NP[$id]["sel"]=; return 0; }
+	NP[$id][$NP_SR]="${NP[$id][$NP_SR]:0:$NP_SC}${NP[$id][$NP_ER]:$NP_EC}"
+	while [ "$NP_ER" -gt "$NP_SR" ]; do
+		np_delline "$id" $((NP_SR + 1))
+		n=${NP[$id]["n"]}
+		NP[$id]["n"]=$((n - 1))
+		NP_ER=$((NP_ER - 1))
+	done
+	NP[$id]["cr"]=$NP_SR
+	NP[$id]["cc"]=$NP_SC
+	NP[$id]["sel"]=
+}
+
+# Put text in at the cursor, newlines and all, leaving the cursor after it.
+fn np_insert(int id, text) {
+	local cr=${NP[$id]["cr"]} cc=${NP[$id]["cc"]} line after part first=1
+
+	line=${NP[$id][$cr]}
+	after=${line:$cc}
+	NP[$id][$cr]=${line:0:$cc}
+	while :; do
+		part=${text%%$'\n'*}
+		if [ "$first" = 1 ]; then
+			NP[$id][$cr]="${NP[$id][$cr]}$part"
+			first=0
+		else
+			cr=$((cr + 1))
+			np_insline "$id" "$cr" "$part"
+			NP[$id]["n"]=$((${NP[$id]["n"]} + 1))
+		fi
+		[ "$part" = "$text" ] && break
+		text=${text#*$'\n'}
+	done
+	NP[$id]["cr"]=$cr
+	NP[$id]["cc"]=${#NP[$id][$cr]}
+	NP[$id][$cr]="${NP[$id][$cr]}$after"
+}
+
+fn notepad_copy(int id) {
+	local t
+
+	t := np_seltext "$id" || return 1
+	ret "$t"
+}
+
+fn notepad_cut(int id) {
+	local t
+
+	t := np_seltext "$id" || return 1
+	np_delsel "$id"
+	np_save "$id"
+	ret "$t"
+}
+
+fn notepad_paste(int id, text, op = "") {
+	np_delsel "$id"
+	np_insert "$id" "$text"
+	np_save "$id"
 }
 
 # Written whole, to a temporary file first, the same atomic rename dt_save
@@ -86,6 +193,10 @@ fn notepad_draw(int id, int h, int w, int row, int col) {
 		r=$((r + 1))
 		i=$((i + 1))
 	done
+	if np_order "$id"; then
+		np_drawsel "$id" "$h" "$w"
+		console pen "$DT_INK" "$DT_FACE"
+	fi
 	console pen "#1a202c" "#63b3ed"
 	console put -p "w$id" $((cr - top + 1)) $((cc - hoff + 1)) \
 		"${NP[$id][$cr]:$cc:1}"
@@ -93,10 +204,62 @@ fn notepad_draw(int id, int h, int w, int row, int col) {
 		console put -p "w$id" $((cr - top + 1)) $((cc - hoff + 1)) " "
 }
 
+# Draw the selected part of each line on screen over the plain text.
+fn np_drawsel(int id, int h, int w) {
+	local i=$NP_SR a b off line top=${NP[$id]["top"]}
+
+	console pen "#1a202c" "$DT_ACTIVE"
+	while [ "$i" -le "$NP_ER" ]; do
+		if [ "$i" -ge "$top" ] && [ "$i" -lt $((top + h)) ]; then
+			line=${NP[$id][$i]}
+			a=0
+			b=${#line}
+			[ "$i" = "$NP_SR" ] && a=$NP_SC
+			[ "$i" = "$NP_ER" ] && b=$NP_EC
+			off=0
+			[ "$i" = "${NP[$id]["cr"]}" ] && off=${NP[$id]["hoff"]}
+			[ $((a - off)) -lt 0 ] && a=$off
+			[ $((b - off)) -gt "$w" ] && b=$((off + w))
+			[ "$b" -gt "$a" ] &&
+				console put -p "w$id" $((i - top + 1)) $((a - off + 1)) \
+					"${line:$a:$((b - a))}"
+		fi
+		i=$((i + 1))
+	done
+}
+
 fn notepad_key(int id, key) {
 	local n=${NP[$id]["n"]} cr=${NP[$id]["cr"]} cc=${NP[$id]["cc"]}
 	local line=${NP[$id][$cr]} rest
 
+	case $key in
+	shift-up | shift-down | shift-left | shift-right | shift-home | shift-end)
+		if [ "${NP[$id]["sel"]}" != 1 ]; then
+			NP[$id]["sel"]=1
+			NP[$id]["ar"]=$cr
+			NP[$id]["ac"]=$cc
+		fi
+		key=${key#shift-}
+		;;
+	up | down | left | right | home | end) NP[$id]["sel"]= ;;
+	backspace)
+		if np_order "$id"; then
+			np_delsel "$id"
+			np_save "$id"
+			return 0
+		fi
+		NP[$id]["sel"]=
+		;;
+	*)
+		if [ "$key" = enter ] || [ "${#key}" = 1 ]; then
+			np_delsel "$id"
+			n=${NP[$id]["n"]}
+			cr=${NP[$id]["cr"]}
+			cc=${NP[$id]["cc"]}
+			line=${NP[$id][$cr]}
+		fi
+		;;
+	esac
 	case $key in
 	up)
 		[ "$cr" -gt 0 ] && cr=$((cr - 1))
@@ -145,7 +308,7 @@ fn notepad_key(int id, key) {
 		cc=0
 		;;
 	*)
-		[ "${#2}" = 1 ] || return 1
+		[ "${#key}" = 1 ] || return 1
 		NP[$id][$cr]="${line:0:$cc}$key${line:$cc}"
 		cc=$((cc + 1))
 		;;
@@ -178,19 +341,38 @@ fn np_delline(int? id = "", int? i = "") {
 	unset "NP[$id][$((n - 1))]"
 }
 
-fn notepad_click(int? id = "", int? mr = "", int? mc = "", btn = "") {
+# A press puts the cursor where it lands and starts a selection there; a
+# drag carries the cursor, and so the selection, with it. A press with
+# shift extends the selection already there instead.
+fn notepad_mouse(int id, act, btn, int mr, int mc, mods = "") {
 	local r=$(($mr - 1)) c=$(($mc - 1))
 	local top=${NP[$id]["top"]} row
 
+	[ "$btn" = left ] || return 0
 	row=$((top + r))
 	[ "$row" -ge "${NP[$id]["n"]}" ] && row=$((${NP[$id]["n"]} - 1))
-	[ "$row" -lt 0 ] && return 0
-	# Only the row that was already the cursor's own row was drawn scrolled
-	# sideways -- everywhere else column 0 on screen is column 0 of the line.
+	[ "$row" -lt 0 ] && row=0
+	# Only the cursor's own row was drawn scrolled sideways -- everywhere
+	# else column 0 on screen is column 0 of the line.
 	[ "$row" = "${NP[$id]["cr"]}" ] && c=$((c + ${NP[$id]["hoff"]:-0}))
-	NP[$id]["cr"]=$row
 	[ "$c" -gt "${#NP[$id][$row]}" ] && c=${#NP[$id][$row]}
 	[ "$c" -lt 0 ] && c=0
+	if [ "$act" = press ]; then
+		case $mods in
+		*shift*)
+			if [ "${NP[$id]["sel"]}" != 1 ]; then
+				NP[$id]["ar"]=${NP[$id]["cr"]}
+				NP[$id]["ac"]=${NP[$id]["cc"]}
+			fi
+			;;
+		*)
+			NP[$id]["ar"]=$row
+			NP[$id]["ac"]=$c
+			;;
+		esac
+		NP[$id]["sel"]=1
+	fi
+	NP[$id]["cr"]=$row
 	NP[$id]["cc"]=$c
 }
 

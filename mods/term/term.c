@@ -247,6 +247,34 @@ int tm_hex(const char *p, unsigned *v)
 }
 
 /* Run a program on a terminal of its own and keep a picture of its screen. */
+/* Decode base64 onto out, skipping anything that is not part of it. */
+void tm_unb64(const char *p, str *out)
+{
+	unsigned acc = 0;
+	int bits = 0, v;
+
+	for (; *p && *p != '='; p++) {
+		if (*p >= 'A' && *p <= 'Z')
+			v = *p - 'A';
+		else if (*p >= 'a' && *p <= 'z')
+			v = *p - 'a' + 26;
+		else if (*p >= '0' && *p <= '9')
+			v = *p - '0' + 52;
+		else if (*p == '+')
+			v = 62;
+		else if (*p == '/')
+			v = 63;
+		else
+			continue;
+		acc = (acc << 6) | (unsigned)v;
+		bits += 6;
+		if (bits >= 8) {
+			bits -= 8;
+			s_ch(out, (int)((acc >> bits) & 0xFF));
+		}
+	}
+}
+
 int m_term(sh *s, int ac, char **av)
 {
 	const char *sub = ac > 1 ? av[1] : "";
@@ -256,7 +284,7 @@ int m_term(sh *s, int ac, char **av)
 
 	if (ac < 2) {
 		lg(HIBR_LERR, "usage: term open|new|poll|draw|key|write|feed|size|"
-			      "alive|status|fd|title|cursor|row|cells|scroll|mouse|"
+			      "alive|status|fd|title|clip|cursor|row|cells|scroll|mouse|"
 			      "focus|colors|screen|select|copy|close ...");
 		return 2;
 	}
@@ -457,6 +485,18 @@ int m_term(sh *s, int ac, char **av)
 	}
 	if (!strcmp(sub, "title")) {
 		tm_ret(s, m->title.p ? m->title.p : "");
+		return HIBR_OK;
+	}
+	if (!strcmp(sub, "clip")) {
+		if (!m->clip.n)
+			return HIBR_FAIL;
+		s_init(&o);
+		tm_unb64(strchr(m->clip.p, ';') ? strchr(m->clip.p, ';') + 1 : "",
+			 &o);
+		m->clip.n = 0;
+		m->clip.p[0] = 0;
+		tm_ret(s, o.p ? o.p : "");
+		s_free(&o);
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "cursor")) {

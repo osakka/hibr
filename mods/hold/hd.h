@@ -75,6 +75,7 @@ void hd_ubox(vec *cls, int *rows, int *cols);
 void hd_union(vec *cls, int id, int tid);
 void hd_cclear(vec *cls, const char *why, size_t n);
 void hd_rensend1(vec *cls, struct hd_cli *cn, int tid);
+void hd_clipsend(vec *cls, int tid);
 void hd_rensend(vec *cls, int tid);
 void hd_mtrans(struct hd_cli *cn, const char *p, size_t n, str *out);
 

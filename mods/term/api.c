@@ -98,9 +98,24 @@ int tm_api_modes(int id, int *alt, int *bpaste, int *cshape)
 	return 1;
 }
 
+/* The clipboard the program last set, as OSC 52's own "selection;base64",
+   handed over once: 1 and appended to out, or 0 when nothing is waiting. */
+int tm_api_clip(int id, str *out)
+{
+	tm_t *t = tm_find(id);
+
+	if (!t || !t->clip.n)
+		return 0;
+	s_add(out, t->clip.p, t->clip.n);
+	t->clip.n = 0;
+	t->clip.p[0] = 0;
+	return 1;
+}
+
 static const tm_api term_api = {
 	tm_api_new, tm_api_free, tm_api_resize, tm_api_rows, tm_api_cols,
-	tm_api_feed, tm_api_at, tm_api_mouse, tm_api_cursor, tm_api_modes
+	tm_api_feed, tm_api_at, tm_api_mouse, tm_api_cursor, tm_api_modes,
+	tm_api_clip
 };
 
 const tm_api *tm_apiget(void)

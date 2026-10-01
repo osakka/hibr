@@ -71,6 +71,15 @@ settled move) costs under 1KB after it, matching what the console module
 itself would send a directly attached terminal for the same drag -- hold
 is no longer paying to re-derive what console had already worked out.
 
+Drawing from an emulator loses anything that is not drawn, and the one such
+thing a program sends on purpose is OSC 52, setting the clipboard. So the
+emulator keeps it (`"terminal"` version 2's `clip`), and hold sends it on,
+exactly as the program wrote it, to every attached client the moment it
+arrives -- a copy in a held desktop reaches the clipboard of every machine
+attached to it. Before 0.75 it was dropped, and no copy made in a held
+session reached any clipboard at all. A request to read the clipboard is
+not passed on.
+
 ## How it works
 
 `hold new` forks a server that leaves the shell's session with `setsid`,
