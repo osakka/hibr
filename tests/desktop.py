@@ -2045,6 +2045,11 @@ t = Term(SESSION, "--resume", env=RENV, settle=2.0)
 sc = t.screen()
 check("--resume comes back to the same desktop, windows and all",
       sc.find("┤ Files [") is not None, sc)
+t.send(b"\x1b[21~", settle=0.6)
+t.send(b"\x1b", settle=1.0)
+sc = t.screen()
+check("a lone escape reaches a held desktop on its own, not with the next "
+      "key", sc.find("About hibr") is None, sc)
 t.send(b"\x1b[21~")
 t.send(b"q", settle=1.0)
 t.collect(0.5)
@@ -2413,4 +2418,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(320)
+report(321)

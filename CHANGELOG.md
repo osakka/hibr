@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.74
+
+**Escape works straight away in a held desktop, and a click after it is
+no longer lost.** `hold` -- which the desktop runs under, so it can be
+detached -- kept a lone escape back until the next byte arrived, to see
+whether it began a mouse report. So escape did nothing until another key
+or click came, and then the two reached the desktop stuck together: a
+click straight after escape read as alt-escape and stray characters, and
+did nothing. That was the mouse "not working sometimes". A read that ends
+on an escape is now passed on at once.
+
+**Inside GNU screen too.** Screen 4.09 has the same habit of its own,
+whenever the program in it has the mouse on, and that cannot be fixed from
+inside: escape still waits there for the next key (F10 does not). But the
+desktop now reads an escape that arrives glued to a following sequence as
+an escape and then that sequence, so the click or key after it still
+lands. tmux sends escape on after its `escape-time`. Both are described in
+the desktop README, under Inside GNU screen or tmux.
+
+**An Arch package.** `packaging/aur/` holds a PKGBUILD built with gcc,
+checked by running its build, check and package steps against the release
+tarball; `packaging/aur/update.sh` points it at a release and publishes it
+to the AUR once the account to push from exists.
+
 ## 0.73
 
 **Themes are files.** Each of the ten themes is now a small JSON file --

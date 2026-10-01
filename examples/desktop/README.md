@@ -375,6 +375,19 @@ hangup or a crash in a module. While it holds the screen its stderr goes to
 app's error message cannot scribble over the display and the reason for a
 failure is still there to read afterwards.
 
+## Inside GNU screen or tmux
+
+The desktop runs inside either, mouse and all: both pass its mouse reports
+through as they came. One difference is GNU screen's own. While the program
+inside it has the mouse switched on -- the desktop always does -- screen
+4.09 holds back a lone escape until the next key or click arrives, waiting
+to see whether it starts a mouse report, and never times out on it. So
+escape seems to do nothing until you press something else; the desktop then
+takes the escape and whatever followed it, in that order, and the click
+after an escape still lands. F10 opens and closes the menu bar without the
+wait. tmux sends a lone escape on after its `escape-time`, half a second by
+default; `set -sg escape-time 10` in `~/.tmux.conf` makes it quicker.
+
 ## Settings are kept
 
 Every change in the Control Panel window is saved the moment it is made, to

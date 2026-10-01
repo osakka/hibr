@@ -378,6 +378,12 @@ int cn_dec(const char *p, size_t n, str *o, size_t *used, int last)
 	}
 	if (n == 1)
 		return last ? (s_cat(o, "escape"), *used = 1, 1) : 0;
+	if ((unsigned char)p[1] == 27 && n > 2) {
+		lg(HIBR_LDBG, "console: an escape held back and sent with what followed");
+		s_cat(o, "escape");
+		*used = 1;
+		return 1;
+	}
 	if (p[1] == '[' && n >= 3 && p[2] == '<')
 		return cn_mouse(p, n, o, used);
 	if (p[1] == '[' && n >= 6 && !memcmp(p + 2, "200~", 4))

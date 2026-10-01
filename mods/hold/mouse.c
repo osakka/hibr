@@ -85,7 +85,15 @@ void hd_mrewrite(struct hd_cli *cn, str *out)
    complete, well-formed report -- a different escape, or one that runs
    past a sane length -- flushes what was buffered as-is and starts over;
    nothing is ever dropped, only possibly forwarded a few bytes later than
-   a byte-for-byte relay would have. */
+   a byte-for-byte relay would have.
+
+   Except a read that ends on ESC or ESC[: that is passed on at once, not
+   held for the next read. A lone escape is a key, and holding it until the
+   next byte arrived kept the escape key from doing anything until another
+   key or click came -- and then glued the two together, so a click straight
+   after escape reached the program as alt-escape and stray text, and was
+   lost. A terminal writes a whole report in one go; only a report already
+   past ESC[< is worth waiting for. */
 void hd_mtrans(struct hd_cli *cn, const char *p, size_t n, str *out)
 {
 	size_t i;
@@ -157,5 +165,11 @@ void hd_mtrans(struct hd_cli *cn, const char *p, size_t n, str *out)
 				break;
 			}
 		}
+	}
+	if (cn->mst == 1 || cn->mst == 2) {
+		s_add(out, cn->mbuf.p, cn->mbuf.n);
+		cn->mbuf.n = 0;
+		cn->mst = 0;
+		lg(HIBR_LDBG, "hold: a lone escape passed on at the end of a read");
 	}
 }

@@ -1541,6 +1541,20 @@ went in the shell.
   `(( v = expr, 1 ))` or `try`, never a bare `$(( ))`: the calculator did, and
   a malformed sum ended the desktop.
 
+- **Nothing between a terminal and a program may hold a lone escape for
+  the next read.** `hold`'s mouse rewriter buffered ESC until the next byte
+  said whether it began a report, so the escape key did nothing until
+  another input came, and then `ESC` and a click's `ESC[<...M` arrived as
+  one read the console decoded as alt-escape plus text: the click was lost.
+  `hd_mtrans` now passes on a read that ends in ESC or `ESC[`; only a
+  report already past `ESC[<` is worth waiting for. GNU screen 4.09 does
+  the same whenever its program has mouse mode 1000/1002 on, with no
+  timeout at all, which cannot be fixed from inside -- so `cn_dec` reads
+  `ESC ESC` followed by more as an escape and then the rest, not as
+  alt-escape. Found by driving a held desktop inside screen through a pty
+  and clicking, not by reading the code: every click registered, and only
+  a click after escape went missing.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then

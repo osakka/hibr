@@ -165,14 +165,18 @@ for i, w in enumerate(WANT):
 
 MOUSE = [b"\x1b[<0;13;4M", b"\x1b[<0;13;4m", b"\x1b[<2;40;10M",
          b"\x1b[<32;41;10M", b"\x1b[<64;5;5M", b"\x1b[<65;5;5M",
-         b"\x1b[<16;7;7M", b"\x1b[<4;9;9M"]
+         b"\x1b[<16;7;7M", b"\x1b[<4;9;9M", b"\x1b\x1b[<0;20;6M"]
+# The last is GNU screen's: with mouse reporting on it holds a lone escape
+# until the next input, then sends both at once -- an escape, then a click,
+# not alt-escape and stray text.
 MWANT = ["mouse press left 3 12", "mouse release left 3 12",
          "mouse press right 9 39", "mouse drag left 9 40",
          "mouse wheelup 4 4", "mouse wheeldown 4 4",
-         "mouse ctrl-press left 6 6", "mouse shift-press left 8 8"]
+         "mouse ctrl-press left 6 6", "mouse shift-press left 8 8",
+         "escape", "mouse press left 5 19"]
 o, _ = run('console open\nconsole mouse drag\ni=0\nwhile [ $i -lt %d ]; do\n'
            '  k := console key 2000\n  if [ -z "$k" ]; then break; fi\n'
-           '  echo "KEY[$k]"\n  i=$((i+1))\ndone\nconsole close\n' % len(MOUSE),
+           '  echo "KEY[$k]"\n  i=$((i+1))\ndone\nconsole close\n' % len(MWANT),
            feed=MOUSE, wait=3)
 check("mouse reporting is asked for when wanted",
       b"\x1b[?1002h" in o and b"\x1b[?1006h" in o)

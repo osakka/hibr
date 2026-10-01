@@ -1,0 +1,35 @@
+# Maintainer: osakka <osakka@gmail.com>
+#
+# Built with gcc, not hibr's default tcc: base-devel has gcc and not tcc,
+# and gcc's -O2 build is both smaller and faster. libssl and libpng are
+# opened on first use, never linked, so they are optional.
+
+pkgname=hibr
+pkgver=0.73
+pkgrel=1
+pkgdesc="Small, fast bash-flavoured shell with nested maps, JSON, and native networking"
+arch=('x86_64' 'aarch64')
+url="https://github.com/osakka/hibr"
+license=('MIT')
+depends=('glibc')
+optdepends=('openssl: TLS -- /dev/tls and https'
+            'libpng: pictures in the img module and desktop wallpapers')
+install=hibr.install
+source=("$pkgname-$pkgver.tar.gz::https://github.com/osakka/hibr/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('84789435cb0c0629c001e21fe1999036dd0e051a85260198a5628587b4656691')
+
+build() {
+	cd "$pkgname-$pkgver"
+	make CC=gcc OPT=-O2 PREFIX=/usr
+}
+
+check() {
+	cd "$pkgname-$pkgver"
+	./build/hibr tests/self.hibr
+}
+
+package() {
+	cd "$pkgname-$pkgver"
+	make CC=gcc OPT=-O2 PREFIX=/usr DESTDIR="$pkgdir" install
+	install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}
