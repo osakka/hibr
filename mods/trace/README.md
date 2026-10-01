@@ -46,7 +46,7 @@ redirect the subscript. See
 `-l` keeps probing and draws what a single traceroute cannot show: how much is
 being *lost*, and how much the timing *moves*.
 
-```
+```text
  1.1.1.1 (1.1.1.1)   11 rounds   q quit  p pause  r reset
  Hop  Address           Loss   Snt   Last    Avg   Best   Wrst   Jttr  History
    1  san-cr-2.uk.home.   0.0%    11    0.4    0.6    0.2    3.6    0.7 ▁▁▁▁▁▁▁▁▁▁▁

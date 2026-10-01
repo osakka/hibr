@@ -68,6 +68,7 @@ There is no app directory and no app format. An app is an ordinary `.hibr`
 file that declares what it cannot run without, the same way a module declares
 what it offers:
 
+<!-- not run: an outline -- the ... stand for an app's own drawing and keys -->
 ```sh
 #!/usr/bin/env hibr
 need display                    # or this line fails, with a status

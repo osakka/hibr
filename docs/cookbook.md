@@ -216,6 +216,7 @@ fast finished first, status 3
 
 ### A daemon that binds a privileged port and then stops being root
 
+<!-- not run: needs root, and serves until stopped -->
 ```sh
 mod load sys
 listen -b 80 LFD          # needs root, because the port is below 1024
@@ -231,6 +232,7 @@ Only opening the port needed privilege, and the descriptor outlives it. See
 
 ### An HTTPS request, parsed, with nothing external
 
+<!-- not run: needs the public network -->
 ```sh
 exec 3<>/dev/tls/api.example.com/443
 send -r 3 "GET /v1/items HTTP/1.0"
@@ -335,8 +337,17 @@ does not reach into functions it calls —
 ### Clean up whatever happens
 
 ```sh
-tmp=$(mktemp -d)
-trap 'rm -rf "$tmp"' EXIT
+(
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' EXIT
+  touch "$tmp/scratch"
+  echo "$tmp" > where
+)
+[ -e "$(cat where)" ] && echo "still there" || echo "cleaned up"
+```
+
+```output
+cleaned up
 ```
 
 The trap fires in a subshell, a command substitution, a background job and a

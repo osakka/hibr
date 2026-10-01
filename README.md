@@ -31,7 +31,7 @@ forking, declared command-line arguments, protocol-level modules, and a prompt
 that reads git's object store without forking anything — is the reason to use
 it.
 
-```
+```text
 make                 # builds ./build/hibr and the modules in mods/
 make check           # runs the test suite
 ./deploy.sh          # build, test, install, verify, keep current
@@ -82,6 +82,7 @@ small repository, 1.4 ms outside one.
 
 ## What it looks like
 
+<!-- not run: a sampler -- it wants a JSON body, a TLS host and arguments -->
 ```sh
 h[users][omar][role]=admin                  # maps nest, no new syntax
 json parse doc "$body"; json get doc .items[0].name
@@ -100,6 +101,7 @@ args "$@"
 
 | | |
 |---|---|
+| [From bash to hibr, in ten minutes](docs/tutorial.md) | Start here: install, then each thing hibr adds, one checked example each |
 | [hibr, for a language model](docs/llm.md) | The whole language on one page, every example run by the tests; `llms.txt` points to it |
 | [The language](docs/language.md) | Syntax, expansion, arithmetic, conditionals, maps and arrays, typed functions, declared arguments, errors |
 | [Text, regex and JSON](docs/data.md) | In-process text and array operations, POSIX regex, JSON over the map model |

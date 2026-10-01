@@ -1,7 +1,8 @@
 # Modules
 
 Modules are shared objects exporting one `hibr_module` symbol. The ABI version
-(currently 11) is checked when a module loads.
+-- `HIBR_ABI` in `include/hibr.h`, and `$HIBR_ABI` in the shell -- is checked
+when a module loads.
 
 ```c
 #include "hibr.h"
@@ -12,9 +13,9 @@ const hibr_bi hello_bi[] = { { "hello", m_hello, "say hello" }, HIBR_BI_END };
 HIBR_MODULE("hello", "1.0", "greeting builtins", hello_bi, 0, 0);
 ```
 
-```
+```text
 tcc -Iinclude -shared -o build/mods/hello.so mods/hello.c
-mod load ./build/mods/hello.so;  mod list;  mod drop hello
+hibr -c 'mod load ./build/mods/hello.so; mod list; mod drop hello'
 ```
 
 ## Finding and loading them
@@ -36,14 +37,25 @@ only the install directory — see
 `mod avail` walks that same search order and reports what it finds, one line
 per module plus its builtins:
 
-```
-$ mod avail
+```text
+$ mod load sys; mod avail
 NAME         VERSION  ABI      STATE      PATH
-ls           0.21     abi 11   available  /usr/local/lib/hibr/ls.so
+cat          0.21     abi 15   available  /usr/local/lib/hibr/cat.so
+             cat   offers highlight
+console      0.21     abi 15   available  /usr/local/lib/hibr/console.so
+             console   offers display
+...
+lint         1.0      abi 15   available  /usr/local/lib/hibr/lint.so
+             offers lint
+ls           0.68     abi 15   available  /usr/local/lib/hibr/ls.so
              ls
-sys          0.21     abi 11   loaded     /usr/local/lib/hibr/sys.so
+...
+sys          0.68     abi 15   loaded     /usr/local/lib/hibr/sys.so
              drop, epoch, sleepms, state, upper
 ```
+
+The second line of each entry is its builtins, then the interface it offers,
+if any.
 
 It reads each candidate's descriptor and closes it again; nothing is
 initialised and no builtin is registered, so listing is not loading. The state
@@ -118,7 +130,21 @@ Reference modules in `mods/`:
   [The prompt](prompt.md).
 - **`ls`** is an in-process `ls` with columns, `-l -a -A -h -t -S -r -d -1 -F`
   and colour, whose listing also lands in `$RET` — `files := ls -q src`.
-- **`sys`** is a minimal example.
+- **`pty`** runs a program on a pseudo terminal and drives it: keys in,
+  output out, resize, signal, exit status. It offers **pty**.
+- **`term`** is a terminal emulator: a program's screen as cells, drawn into a
+  window. It offers **terminal**, and is what the desktop's terminal window
+  is built on.
+- **`hold`** keeps a session alive when its terminal goes: detach, log off,
+  attach again, from more than one terminal at once.
+- **`img`** decodes an image and draws it as terminal cells; libpng is opened
+  on first use.
+- **`lint`** holds the rules behind `hibr --explain`; it adds no builtin and
+  offers **lint**.
+- **`darwin`** (macOS only) gives `cpu` and `mem` from the kernel's own
+  counters, with no fork.
+- **`sys`** is a minimal example. **`http`** also carries two test builtins,
+  `msum` and `oops`.
 
 `examples/ls-report.hibr` loads a module, uses it through the result slot,
 declared arguments, maps, regex and JSON, and unloads it.

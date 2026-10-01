@@ -13,9 +13,9 @@ const hibr_bi hello_bi[] = { { "hello", m_hello, "say hello" }, HIBR_BI_END };
 HIBR_MODULE("hello", "1.0", "greeting builtins", hello_bi, 0, 0);
 ```
 
-```
+```text
 tcc -Iinclude -shared -o build/mods/hello.so mods/hello.c
-mod load ./build/mods/hello.so;  mod list;  mod drop hello
+hibr -c 'mod load ./build/mods/hello.so; mod list; mod drop hello'
 ```
 
 | module | what it is |
@@ -25,6 +25,18 @@ mod load ./build/mods/hello.so;  mod list;  mod drop hello
 | `ls.c` | An in-process `ls` with columns, `-l -a -A -h -t -S -r -d -1 -F` and colour, whose listing also lands in `$RET` |
 | `prompt/` | A segmented prompt, and a native reader for git's object store |
 | `lint/` | The rules behind `hibr --explain`: reads a parsed script and names the mistakes in it, without running it. It adds no builtin; it offers `"lint"` (`mods/lint.h`), which `--explain` asks for |
+| `darwin.c` | macOS only: `cpu` and `mem` from the kernel's own counters, with no fork |
+| `console/` | The text display: alternate screen, a cell grid redrawn by damage, panes, decoded keys; offers `"display"` (`mods/display.h`) — [README](console/README.md) |
+| `cat/` | `cat`, byte-identical in a pipe and coloured on a terminal; offers `"highlight"` (`mods/highlight.h`) — [README](cat/README.md) |
+| `most/` | A pager on the display interface — [README](most/README.md) |
+| `hvi/` | hibr's vi: gap buffer, lazy line index, linear undo — [README](hvi/README.md) |
+| `mon/` | A system monitor over `/proc` — [README](mon/README.md) |
+| `sysinfo/` | What the machine is, with a picture — [README](sysinfo/README.md) |
+| `trace/` | Unprivileged traceroute over UDP, one-shot and live — [README](trace/README.md) |
+| `pty/` | Pseudo terminals: run a program on one and drive it; offers `"pty"` (`mods/pty.h`) — [README](pty/README.md) |
+| `term/` | A terminal emulator, a program's screen as cells; offers `"terminal"` (`mods/term.h`) — [README](term/README.md) |
+| `hold/` | Sessions that outlive their terminal: detach, log off, attach again; offers `"hold"` — [README](hold/README.md) |
+| `img/` | Decode an image and draw it as cells, libpng opened on first use — [README](img/README.md) |
 
 ## Naming
 
@@ -33,7 +45,7 @@ exports is preempted by the shell's. `m_` belongs to `src/mod.c`; a module uses
 its own prefix (`sy_`, `pr_`). A collision is silent until the call, and then it
 is a crash, so it is worth checking:
 
-```
+```text
 nm -D build/mods/x.so | awk '$2=="T"{print $3}' | sort -u |
 comm -12 - <(nm -D build/hibr | awk '$2=="T"{print $3}' | sort -u)
 ```
@@ -48,7 +60,8 @@ shell rather than continue half dropped.
 
 Two patterns. `listen -b` binds without serving, so nothing stays root:
 
-```
+<!-- not run: binding port 80 needs root -->
+```sh
 mod load sys
 listen -b 80 LFD
 drop www-data
@@ -58,7 +71,8 @@ while accept $LFD C; do serve <&$C >&$C; exec {C}<&-; done
 Or `listen -f`, which forks before running its handler, so the handler drops
 and the accepting parent stays root — the inetd arrangement:
 
-```
+<!-- not run: a sketch -- serve's body is elided, and port 80 needs root -->
+```sh
 serve() { drop www-data; ... }
 listen -f 80 serve
 ```
@@ -67,8 +81,8 @@ See [0016](../docs/adr/0016-privileges-are-dropped-never-gained.md).
 
 ## prompt/
 
-The only multi-file module, built by its own Makefile rule. It is the largest
-thing here because it contains a working subset of git.
+The largest module, built by its own Makefile rule from every file in the
+directory, because it contains a working subset of git.
 
 | file | role |
 |---|---|

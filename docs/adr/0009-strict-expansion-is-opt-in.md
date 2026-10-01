@@ -14,10 +14,24 @@ neither is visible at the call site.
 `set -S` changes one rule: the result of an expansion is never split and never
 globbed. What you write splits; what expands does not. It is off by default.
 
+<!-- setup
+touch a.txt b.txt
+show() { echo "$# argument(s): $*"; }
+-->
 ```sh
 f='my report.txt'; p='*.txt'
-show $f       # default: two arguments      strict: one
-show $p       # default: every .txt file    strict: the literal *.txt
+show $f       # default: two arguments
+show $p       # default: every .txt file
+set -S
+show $f       # strict: one
+show $p       # strict: the literal *.txt
+```
+
+```output
+2 argument(s): my report.txt
+2 argument(s): a.txt b.txt
+1 argument(s): my report.txt
+1 argument(s): *.txt
 ```
 
 ## What it does not do
@@ -25,6 +39,7 @@ show $p       # default: every .txt file    strict: the literal *.txt
 It does not stop a pattern written *in* the word from globbing, because that
 pattern is not the result of an expansion:
 
+<!-- not run: it lists whatever is in the machine's own / -->
 ```sh
 dir=
 show $dir/*   # every entry in /, with or without -S

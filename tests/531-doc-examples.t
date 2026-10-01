@@ -1,22 +1,56 @@
-# Every page that says its examples were run is held to it: each ```sh block
-# followed by an ```output block is run, in a directory of its own, and its
-# output compared. A <!-- setup ... --> comment just before a block is run
-# first, unseen by a reader -- the log file or the helper an example assumes.
+# Every page is held to its examples. Each ```sh block followed by an
+# ```output block is run, in a directory of its own, and its output compared.
+# A <!-- setup ... --> comment just before a block is run first, unseen by a
+# reader -- the log file or the helper an example assumes. A ```sh block that
+# cannot run here (it needs a terminal, a display, root or the network) says
+# so in a <!-- not run: why --> line just before it. A code block of any
+# other kind says what it is: ```text, ```c, ```ebnf. A bare ``` fence, or an
+# example that neither shows its output nor says why not, fails.
 h=$HIBR
 case $h in /*) ;; *) h=$PWD/$h ;; esac
 export HIBR_MODPATH=$PWD/build/mods
+fails=0
 check() {
-  local page=$1 least=$2 n=0 bad=0 state=none src= want= setup= pend= got d line
+  local page=$1 least=$2 n=0 bad=0 state=none src= want= setup= pend= got d
+  local line ln=0 at=0 excused=0 prev=
   while IFS= read -r line; do
+    ln=$((ln + 1))
     case $state in
-    none)
-      if [ "$line" = '<!-- setup' ]; then
+    none|gap)
+      if [ "$state" = gap ]; then
+        if [ "$line" = '```output' ]; then
+          state=out
+          want=
+          continue
+        fi
+        [ -z "$line" ] && continue
+        if [ "$excused" = 0 ]; then
+          echo "$page:$at: an example that neither shows its output nor says why not"
+          bad=$((bad + 1))
+        fi
+        state=none
+        setup=
+      fi
+      case $line in
+      '<!-- setup')
         state=setup
         pend=
-      elif [ "$line" = '```sh' ]; then
+        ;;
+      '```sh')
         state=sh
         src=
-      fi
+        at=$ln
+        case $prev in '<!-- not run: '*' -->') excused=1 ;; *) excused=0 ;; esac
+        ;;
+      '```')
+        echo "$page:$ln: a code block that does not say what it is"
+        bad=$((bad + 1))
+        state=other
+        ;;
+      '```'*)
+        state=other
+        ;;
+      esac
       ;;
     setup)
       if [ "$line" = '-->' ]; then state=none; setup=$pend; else pend+="$line"$'\n'; fi
@@ -24,14 +58,8 @@ check() {
     sh)
       if [ "$line" = '```' ]; then state=gap; else src+="$line"$'\n'; fi
       ;;
-    gap)
-      if [ "$line" = '```output' ]; then
-        state=out
-        want=
-      elif [ -n "$line" ]; then
-        state=none
-        setup=
-      fi
+    other)
+      [ "$line" = '```' ] && state=none
       ;;
     out)
       if [ "$line" = '```' ]; then
@@ -41,7 +69,7 @@ check() {
         rm -rf "$d"
         if [ "$got" != "${want%$'\n'}" ]; then
           bad=$((bad + 1))
-          echo "example $n in $page does not match what it says:"
+          echo "$page:$at: the example does not print what the page says:"
           echo "$src"
           diff <(echo "${want%$'\n'}") <(echo "$got")
         fi
@@ -52,10 +80,26 @@ check() {
       fi
       ;;
     esac
+    [ -n "$line" ] && prev=$line
   done < "$page"
-  [ "$n" -ge "$least" ] || echo "only $n examples found in $page, expected at least $least"
-  [ "$bad" = 0 ] && echo "every example in $page does what it says"
+  if [ "$state" = gap ] && [ "$excused" = 0 ]; then
+    echo "$page:$at: an example that neither shows its output nor says why not"
+    bad=$((bad + 1))
+  fi
+  [ "$n" -ge "$least" ] || { echo "only $n examples run in $page, expected at least $least"; bad=$((bad + 1)); }
+  fails=$((fails + bad))
 }
 check docs/llm.md 10
 check docs/cookbook.md 12
 check docs/data.md 10
+check docs/tutorial.md 9
+for page in docs/README.md docs/language.md docs/builtins.md docs/grammar.md \
+            docs/interactive.md docs/networking.md docs/display.md \
+            docs/modules.md docs/prompt.md docs/deployment.md docs/testing.md \
+            docs/backlog.md docs/adr/*.md README.md examples/README.md \
+            examples/desktop/README.md examples/desktop/ARCHITECTURE.md \
+            mods/README.md mods/*/README.md tests/README.md tools/README.md \
+            include/README.md src/README.md; do
+  check "$page" 0
+done
+[ "$fails" = 0 ] && echo "every example in the documentation does what it says"

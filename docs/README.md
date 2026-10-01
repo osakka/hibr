@@ -12,6 +12,7 @@ exists. These pages are the detail.
 
 | | |
 |---|---|
+| [From bash to hibr, in ten minutes](tutorial.md) | **Start here.** Install, then each thing hibr does that bash cannot, one short example each |
 | [hibr, for a language model](llm.md) | The whole language on one page: every difference from bash, and each addition with a run example -- written to be handed to a model |
 | [The language](language.md) | Syntax, expansion, arithmetic, conditionals, maps and arrays, typed functions, declared arguments, errors, strict expansion |
 | [Text, regex and JSON](data.md) | `str`, `arr`, `match`, `rsub`, and JSON over the map model — every operation, with examples |
@@ -63,6 +64,7 @@ Every divergence has a record. The short version:
 
 hibr serves them itself, with no other software involved:
 
+<!-- not run: a server, which answers until it is stopped -->
 ```sh
 hibr examples/httpd.hibr --root ./docs --port 8080
 ```

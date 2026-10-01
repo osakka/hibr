@@ -7,6 +7,7 @@ Status: accepted
 A window manager written in hibr draws a border by repeating `─` until it is
 as wide as the window, then trimming:
 
+<!-- not run: an excerpt from the middle of a function -->
 ```sh
 while [ ${#o} -lt "$n" ]; do o="$o─"; done
 ret "${o:0:$n}"

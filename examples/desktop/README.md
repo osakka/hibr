@@ -241,15 +241,19 @@ Plain `--resume` is short for `--session desktop --resume`.
 
 Underneath, this is a session held by name -- `hold list` shows every one
 running, and `hold kill work` ends that one outright. A session gets this
-by calling `dt_autohold` once, before `dt_open`, with the name and whether
-it was asked to resume:
+by calling `dt_autohold` once, before `dt_open`, with the name, whether it
+was asked to resume, whether to join one already running beside it, and a
+name for this display -- what `session.hibr` passes:
 
+<!-- not run: it starts or attaches to a held desktop -->
 ```sh
 opt -r --resume  resume          "Reattach to it if it is already running"
 opt -s --session session str=desktop "Which held session this is"
+opt -j --join    join            "Attach beside an already-running one"
+opt -n --name    name str        "Name this display"
 args "$@"
 . desktop.hibr
-dt_autohold "$session" "$resume"
+dt_autohold "$session" "$resume" "$join" "$name"
 ```
 
 It does nothing, quietly, wherever holding cannot make sense -- no `hold`
@@ -320,6 +324,7 @@ Every change in the Control Panel window is saved the moment it is made, to
 `~/.config/hibr/desktop.hibr` (`$XDG_CONFIG_HOME`, or `DT_CONF`), and read
 back by `dt_open` at the next start. It is a script, not a format:
 
+<!-- not run: a settings file, which dt_open sources -->
 ```sh
 # The desktop's settings, written whenever one changes and
 # read at the next start.  A script like any other.
@@ -338,6 +343,7 @@ was chosen last wins. An app that wants a variable of its own kept calls
 A session sources the window manager, defines or loads some apps, opens
 windows and runs the loop:
 
+<!-- not run: needs a terminal: it opens the desktop -->
 ```sh
 #!/usr/bin/env hibr
 . "${0%/*}/desktop.hibr"
@@ -454,6 +460,7 @@ this one widget rather than each drawing their own.
 `_click` asks it first, and falls back to its own per-row logic when it
 comes back empty:
 
+<!-- not run: an app's callback; the desktop calls it -->
 ```sh
 fn hello_click(id, r, c, btn) {
 	local tag
@@ -732,6 +739,7 @@ An app declares them by providing `<app>_menus`, which calls `dt_menu`,
 and the same prefix contract as `_draw` and `_key`. An app with no `_menus`
 simply has none, and the desktop's show instead.
 
+<!-- not run: an app's callback; the desktop calls it -->
 ```sh
 clock_menus() {
 	dt_menu "Clock"
@@ -771,16 +779,20 @@ an app in a subfolder becomes a submenu named after that folder, sorted in
 among the flat ones by the folder's own name, to any depth. Each app says
 who it is in its own file, one line near the top:
 
+<!-- not run: a line from an app's file, read when the desktop loads it -->
 ```sh
-command -v dt_app > /dev/null && dt_app calc "Calculator" 16 24 once "±"
+command -v dt_app > /dev/null && dt_app calc "Calculator" 16 24 once "±" fixed
 ```
 
-`dt_app <name> <title> <height> <width> [once|many] [icon] [fixed]`. `once`
+`dt_app <name> <title> <height> <width> [once|many] [icon] [fixed] [hidden]`. `once`
 means one window at most: launching it again brings that window forward,
 shown if it was hidden. The calculator, Control Panel, the clock and the games
 are `once`; the terminal and the file browser are `many`. The icon is what
-the desktop shows for it. The `command -v` guard is what lets the same file
-run on its own, where there is no desktop to register with.
+the desktop shows for it. `hidden` keeps an app off the hibr menu and out
+of App Shortcuts while `dt_launch` can still open it by name -- Rename and Get
+Info, which only ever open on a particular file. The `command -v` guard is
+what lets the same file run on its own, where there is no desktop to
+register with.
 
 There are two window types, and the seventh argument picks between them.
 Leave it off and a window is fully manipulable: it can be moved, resized (by
@@ -796,6 +808,7 @@ drag-resize but a dimmed menu item, or the reverse.
 
 A session names the folders and loads them:
 
+<!-- not run: part of a session, which needs the desktop -->
 ```sh
 DT_APPDIRS+=("$d/apps")     # after ~/.config/hibr/apps, which is always first
 dt_apps
@@ -838,6 +851,7 @@ its trouble.
 **A key handler returns non-zero for a key it does not want.** That is how
 `q` still quits while your window has focus:
 
+<!-- not run: an app's callback; the desktop calls it -->
 ```sh
 fn hello_key(id, key) {
 	case $key in

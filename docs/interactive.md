@@ -1,7 +1,9 @@
 # Using it every day
 
-What the shell is like to sit in front of. Everything below was run before it
-was written down; the terminal transcripts are what actually came back.
+What the shell is like to sit in front of. Every example below that shows its output is
+run again on every build by `tests/531-doc-examples.t`; the ones that need a
+person at a terminal say so, and their transcripts are what actually came
+back.
 
 - [Starting up](#starting-up) · [Prompts](#prompts) · [Line editing](#line-editing)
 - [History](#history) · [Completion](#completion)
@@ -13,6 +15,7 @@ was written down; the terminal transcripts are what actually came back.
 `$HIBR_RC` names a different file, which is how the test harness starts a shell
 with a prompt of its own.
 
+<!-- not run: a ~/.hibrc, read when an interactive shell starts -->
 ```sh
 mod load sys
 mod load prompt
@@ -31,14 +34,12 @@ command_not_found() {
 	mod find "$1" > /dev/null 2>&1 && "$@" ||
 		{ echo "hibr: $1: command not found" >&2; return 127; }
 }
+upper hello world
+totally-bogus-command
 ```
 
-Run:
-
-```
-$ upper hello world
+```output
 HELLO WORLD
-$ totally-bogus-command
 hibr: totally-bogus-command: command not found
 ```
 
@@ -70,12 +71,13 @@ All four take the same escapes, and are then expanded like any other word, so
 | `\j` | how many jobs | `\[` `\]` | around bytes that take no width |
 | `\$` | `#` for root, `$` otherwise | | |
 
+<!-- not run: a prompt is drawn only by an interactive shell -->
 ```sh
 PS1='[\u|\h|\w|\s|\v|\$]'
 ```
 
-```
-[osakka|claude-code|~/hibr|hibr|0.21|$]
+```text
+[osakka|claude-code|~/hibr|hibr|0.68|$]
 ```
 
 Colour goes inside `\[ \]` so the editor does not count it as width, and the
@@ -87,6 +89,7 @@ cursor lands where it should on a line that wraps.
 the line leaves room for it, so a long command simply takes the space back, and
 it never moves the cursor.
 
+<!-- not run: a prompt is drawn only by an interactive shell -->
 ```sh
 RPS1='[\t]'                          # the time, on the right
 RPS1='$(git branch --show-current)'
@@ -98,6 +101,7 @@ When a line is accepted it is redrawn with `TPS1` before the command runs, so
 scrollback keeps the commands and not the decoration. The right-hand prompt is
 dropped from that line too.
 
+<!-- not run: a prompt is drawn only by an interactive shell -->
 ```sh
 PS1='\u@\h \w\$ '     # what you type at
 TPS1='\$ '            # what stays behind
@@ -133,9 +137,15 @@ without running it, and `history -p` shows what an expansion would become:
 set -H
 history -s "echo first"
 history -s "echo second"
-history -p '!!'        # echo second
-history -p '!-2'       # echo first
-history -p '!echo'     # echo second
+history -p '!!'
+history -p '!-2'
+history -p '!echo'
+```
+
+```output
+echo second
+echo first
+echo second
 ```
 
 Expansion — `!!`, `!$`, `!n`, `!-n`, `!prefix` — happens in interactive shells
@@ -151,7 +161,7 @@ under `set -H`, and `set +H` turns it off. A script never sees it.
 | after `$` | variable names |
 | anywhere else | paths |
 
-```
+```text
 > unal<Tab>                → unalias
 > echo $HIBR_VERS<Tab>     → echo $HIBR_VERSION
 > ls some/dir/uniq<Tab>    → ls some/dir/unique-name.txt
@@ -164,12 +174,13 @@ line left alone.
 called with the command and the partial word, and whatever it `ret`s becomes
 the candidates:
 
+<!-- not run: completion happens when Tab is pressed at the prompt -->
 ```sh
 fn gitc(str cmd, str word) { ret commit checkout cherry-pick; }
 COMPLETE[git]=gitc
 ```
 
-```
+```text
 > git c<Tab>
 checkout cherry-pick commit
 > git c
@@ -186,11 +197,24 @@ a relative name, and `cd` prints where it landed when it used it, as bash does.
 A directory stack, reachable from a word as well as from the builtins:
 
 ```sh
-pushd /tmp; pushd /usr; dirs      # /usr /tmp ~/hibr
-popd;                    dirs     # /tmp ~/hibr
+cd /
+pushd /tmp; pushd /usr; dirs
+popd;                    dirs
 echo ~1                           # the next entry down
 echo ~+ ~-                        # $PWD and $OLDPWD
 ```
+
+```output
+/tmp /
+/usr /tmp /
+/usr /tmp /
+/tmp /
+/tmp /
+/
+/tmp /usr
+```
+
+`pushd` and `popd` print the stack as they change it, as bash's do.
 
 ## Jobs
 
@@ -201,9 +225,10 @@ Scripts skip all of it and pay nothing.
 sleep 30 &
 sleep 60 &
 jobs
+kill %1 %2
 ```
 
-```
+```output
 [1]-  Running                sleep 30
 [2]+  Running                sleep 60
 ```
@@ -221,21 +246,30 @@ descriptor) and `-a` (into an array). Attached values work too, so `-n3` is
 `-n 3`.
 
 ```sh
-printf abc | { read -r -n2 x; echo "$x"; }     # ab
-printf a:b | { read -r -d: y; echo "$y"; }     # a
-read -r -t 1 z < /dev/null; echo "$?"          # 1, it timed out
+printf abc | { read -r -n2 x; echo "$x"; }
+printf a:b | { read -r -d: y; echo "$y"; }
+read -r -t 1 z < /dev/null; echo "$?"
 ```
+
+```output
+ab
+a
+1
+```
+
+The last is 1 because the read met the end of its input.
 
 `select` builds a menu and loops until something breaks it. A long list is laid
 out in columns, as many as the terminal takes, filled down each column in turn —
 the same shape bash chooses, padded with spaces rather than tabs so the columns
 line up whatever the terminal's tab stops are:
 
+<!-- not run: the choice is typed at the terminal -->
 ```sh
 select x in alpha beta; do echo "picked $x"; break; done
 ```
 
-```
+```text
 1) alpha
 2) beta
 #? 2

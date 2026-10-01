@@ -35,7 +35,7 @@ releases).
                          # a `desktop` launcher to $(PREFIX)/bin
     ./build/hibr -n script      # parse only
 
-    tests/run.sh [-v] [prefix]           # C-side harness, 82 tests
+    tests/run.sh [-v] [prefix]           # C-side harness, every tests/*.t
     ./build/hibr tests/self.hibr                 # suite in hibr, 91 assertions, planned
     python3 tests/{console,cat,most,hvi,mon,mtr,editor,desktop,apps}.py
                                  # the full-screen suites, each through a pty
@@ -90,7 +90,7 @@ linked, and no OpenSSL headers are needed to build.
 
 | file | role |
 |---|---|
-| `include/hibr.h` | public types, macros and the module ABI (v14) |
+| `include/hibr.h` | public types, macros and the module ABI (`HIBR_ABI`) |
 | `include/pri.h` | internal declarations, tokens, the `lex` struct |
 | `include/re.h` | our own regex declarations (tcc cannot parse glibc's) |
 | `src/mem.c` | arenas with mark/release, `str`, `vec`, pools, `lg` logging |

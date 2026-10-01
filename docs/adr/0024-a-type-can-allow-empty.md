@@ -31,11 +31,20 @@ for a return type, `-> int?`. Without the `?` nothing changes: `int` still
 refuses empty.
 
 ```sh
-fn at(int? col = "", int row = 1) { ... }
+fn at(int? col = "", int row = 1) { echo "col=[$col] row=$row"; }
 at            # col empty, row 1
 at 7 2
 at "" 3       # an empty col, passed on purpose
-at x          # at: col expects int?, got 'x' -- status 2, the body does not run
+at x          # refused: status 2, the body does not run
+echo "status $?"
+```
+
+```output
+col=[] row=1
+col=[7] row=2
+col=[] row=3
+hibr: at: col expects int?, got 'x'
+status 2
 ```
 
 The `?` is the one mark other languages use for the same idea, and it puts

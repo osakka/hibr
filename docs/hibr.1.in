@@ -1,0 +1,250 @@
+.TH HIBR 1 "" "hibr @VERSION@" "User Commands"
+.SH NAME
+hibr \- a small, fast shell that runs the bash you already write
+.SH SYNOPSIS
+.B hibr
+.RB [ \-d
+.IR level ]
+.RB [ \-n ]
+.RB [ \-\-agent ]
+.RB [ \-\-checkfirst ]
+.RB [ \-\-explain ]
+.RB [ \-\-plan ]
+.RI [ script
+.RI [ arg ...]]
+.br
+.B hibr
+.RI [ options ]
+.B \-c
+.I commands
+.RI [ name
+.RI [ arg ...]]
+.br
+.B hibr
+.BR \-v " | " \-h
+.SH DESCRIPTION
+.B hibr
+is a command interpreter that runs a large subset of bash: variables,
+quoting, the compound commands, functions, pipelines, redirections,
+here-documents, command and process substitution, arithmetic,
+.BR [[ " " ]] ,
+arrays, parameter expansion, traps and job control behave as in bash.
+To that it adds nested ordered maps, JSON that keeps its types, regular
+expression capture into
+.BR M ,
+functions with typed parameters, results returned without a fork
+.RB ( ret
+and
+.IR x " := " f ),
+declared command-line arguments, in-process text and array operations,
+native TCP, UDP, TLS and Unix-domain sockets, and modules loaded on demand.
+.PP
+Where it differs from bash on purpose, the difference is recorded as a
+decision under
+.I docs/adr
+in the source; the language guide lists them.
+.PP
+With no
+.I script
+and no
+.BR \-c ,
+.B hibr
+reads commands from standard input. When standard input is a terminal it is
+interactive: it reads
+.IR ~/.hibrc ,
+and offers line editing, history, completion and job control. Otherwise it
+runs what it reads, each complete command as soon as it has been read.
+.PP
+A script, like bash's, runs a command at a time as it is read: a syntax
+error late in a file stops it there, after the lines before it have run,
+with status 2.
+.SH OPTIONS
+.TP
+.BI \-c " commands"
+Run
+.I commands
+and exit. The first argument after them, if any, becomes
+.BR $0 ,
+and the rest the positional parameters, as in bash.
+.TP
+.B \-n
+Parse only: report the first syntax error, run nothing.
+.TP
+.B \-\-checkfirst
+Parse the whole script,
+.B \-c
+text or standard input before running any of it, so one that does not parse
+runs nothing. The same as
+.B set \-o checkfirst
+or
+.BR "shopt \-s checkfirst" ,
+which also applies it to files
+.BR source d
+afterwards.
+.TP
+.B \-\-agent
+For a script a program runs rather than a person: each error is one line of
+JSON on standard error (the message keyed by its level, the file, the line,
+the source line, and a column for a syntax error);
+.BR "set \-u" ,
+strict expansion and
+.B checkfirst
+are on; a terminal on standard input is replaced by
+.IR /dev/null ;
+and
+.B HIBR_TIMEOUT
+bounds each foreground process. The same as
+.BR "set \-o agent" .
+.TP
+.B \-\-explain
+Run nothing: parse the script and name the common mistakes in it, one per
+line with the line number and what to write instead. The rules live in the
+.B lint
+module. Status 0 when it found nothing, 1 when it found something, 2 for a
+syntax error.
+.TP
+.B \-\-plan
+A dry run: follow the script's own logic, but refuse every write outside a
+scratch
+.B TMPDIR
+of the plan's own, every network connection, and every program not known to
+only read, and list each refusal with its line on standard error. A refused
+program fails with status 1 and no output, so a plan stops where the script
+needed a result it could not have. Not a sandbox: a program on the read-only
+list runs for real. Given with
+.BR \-\-explain ,
+.B \-\-explain
+wins.
+.TP
+.BI \-d " level"
+Log at
+.IR level :
+0 errors, 1 warnings (the default), 2 information, 3 debugging, 4 tracing.
+.TP
+.BR \-v ", " \-\-version
+Print the version and the module ABI, and exit.
+.TP
+.BR \-h ", " \-\-help
+Print a summary of these options, and exit.
+.SH ENVIRONMENT
+.TP
+.B HIBR_MODPATH
+Directories, separated by colons, searched for modules before the installed
+module directory. Not consulted when running as root, which loads modules
+only from the installed directory.
+.TP
+.B HIBR_RC
+The startup file an interactive shell reads, in place of
+.IR ~/.hibrc .
+.TP
+.B HIBR_HISTFILE
+Where an interactive shell keeps its history, in place of
+.IR ~/.hibr_history .
+.TP
+.B HIBR_TIMEOUT
+In agent mode, the seconds each foreground process may run: TERM when they
+run out, KILL two seconds later, and status 124.
+.TP
+.B HIBR_TLS_INSECURE
+Set to 1 to accept a TLS certificate that does not verify. Certificates are
+verified by default.
+.TP
+.B HIBR_DEBUG
+The log level, as
+.B \-d
+sets it.
+.TP
+.B PROMPT_FN
+The name of a function whose result is the interactive prompt, in place of
+.BR PS1 .
+.TP
+.BR PS1 ", " PS2 ", " PS3
+The primary and continuation prompts, and the prompt
+.B select
+prints, as in bash.
+.TP
+.B HIBR
+Set by the shell to the absolute path of the running binary, so a script can
+run itself, or another script, under the same shell.
+.TP
+.B HIBR_VERSION
+Set by the shell to its version.
+.SH FILES
+.TP
+.I ~/.hibrc
+Read by an interactive shell when it starts.
+.TP
+.I ~/.hibr_history
+The interactive history.
+.TP
+.I @MODDIR@
+The installed modules, loaded with
+.BR "mod load" ,
+.B need
+or on first use of a command a module provides.
+.TP
+.I ~/.local/state/hibr/desktop.log
+Errors from a running desktop, which are kept off its screen.
+.SH EXIT STATUS
+The status of the last command run, as in bash, with these of its own:
+.TP
+.B 0
+Success.
+.TP
+.B 1
+A command failed; with
+.BR \-\-explain ,
+the script had something to explain.
+.TP
+.B 2
+A syntax error, input that ended inside a command, a misused builtin, or a
+typed function given an argument it refuses.
+.TP
+.B 124
+A foreground process ran past
+.B HIBR_TIMEOUT
+in agent mode.
+.TP
+.B 126
+A program was found but could not be run.
+.TP
+.B 127
+A command was not found.
+.TP
+.B 128 + n
+A command was ended by signal
+.IR n .
+.SH EXAMPLES
+Run a script, check one before running it, and see what it would do:
+.PP
+.RS
+.nf
+hibr build.sh
+hibr \-\-explain build.sh
+hibr \-\-plan build.sh
+.fi
+.RE
+.PP
+Keep a function's result without a fork, and read JSON with its types:
+.PP
+.RS
+.nf
+fn add(int a, int b) { ret $((a + b)); }
+sum := add 2 3
+json parse doc '{"meta":{"stars":42}}'
+echo "$sum ${doc[meta][stars]}"
+.fi
+.RE
+.SH SEE ALSO
+.BR bash (1),
+.BR dash (1).
+The guides that come with the source:
+.I docs/language.md
+(the language, and every deliberate difference from bash),
+.I docs/builtins.md
+(every builtin),
+.I docs/llm.md
+(the whole of it on one page),
+.I docs/grammar.md
+(the formal grammar).
+Online at https://github.com/osakka/hibr.

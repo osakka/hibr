@@ -287,6 +287,7 @@ No `grep`, no `awk`, no `cut`, and no process started.
 
 ### Read an API and pick fields out
 
+<!-- not run: needs the public network -->
 ```sh
 exec 3<>/dev/tls/api.example.com/443
 send -r 3 "GET /v1/items HTTP/1.0"; send -r 3 "Host: api.example.com"; send -r 3 ""

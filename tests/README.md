@@ -1,8 +1,8 @@
 # tests
 
-```
-tests/run.sh [-v] [prefix]              # 43 test scripts
-./build/hibr tests/self.hibr                # 84 assertions, written in hibr
+```text
+tests/run.sh [-v] [prefix]                  # 109 test scripts
+./build/hibr tests/self.hibr                # 91 assertions, written in hibr
 HIBR=./build/hibr REF=dash tests/run.sh     # compare against another shell
 ```
 
@@ -40,7 +40,7 @@ its apps -- cannot be reached from a `.t` file, because `run.sh` gives it a
 pipe. Those live in the Python suites, and every one of them drives a real
 pseudo terminal:
 
-```
+```text
 python3 tests/console.py    the display: cells, panes, damage, decoded keys
 python3 tests/cat.py        what cat adds when its output is a terminal
 python3 tests/most.py       the pager
@@ -49,8 +49,9 @@ python3 tests/mon.py        the system monitor
 python3 tests/mtr.py        the live traceroute
 python3 tests/editor.py     the line editor
 python3 tests/desktop.py    the window manager
-python3 tests/apps.py       the calculator and the file browser
+python3 tests/apps.py       the apps, desk accessories and control panel
 python3 tests/term_diff.py  the terminal emulator, cell by cell against tmux
+python3 tests/uifuzz.py     random input into each app, seeded
 ```
 
 `term_diff.py` is the odd one out: it drives no pty of its own. It feeds the
@@ -133,7 +134,7 @@ not only what is written.
 
 It is also runnable, which is what to reach for instead of a throwaway script:
 
-```
+```text
 python3 tests/screen.py examples/desktop/session.hibr
 python3 tests/screen.py -c 'mod load build/mods/mon.so; mon'
 ```
@@ -154,12 +155,12 @@ arguments, and the assertion silently never runs.
 
 ## Before calling anything done
 
-```
+```text
 gcc -Iinclude -DHIBR_TLS -g -O1 -fsanitize=address,undefined \
     -fno-sanitize-recover=undefined -w -rdynamic -o build/hibr.asan src/*.c -ldl
 ASAN_OPTIONS=detect_leaks=0 HIBR=./build/hibr.asan tests/run.sh
 ASAN_OPTIONS=detect_leaks=1 ./build/hibr.asan tests/<one>.t
-SEED=7 python3 fuzz.py ./build/hibr.asan 500
+SEED=7 python3 tests/fuzz.py ./build/hibr.asan 500
 ```
 
 `python3 tests/asan.py [suite...]` does the pty suites as well: `make asan`
@@ -172,10 +173,12 @@ On a kernel with high ASLR entropy the sanitizer build loops printing
 `AddressSanitizer:DEADLYSIGNAL` instead of running. Wrap it in `setarch -R` and
 point `HIBR` at the wrapper.
 
-The prompt module is compiled separately, so sanitizing the shell does not
-sanitize it. To cover it, build it with the same flags and load that copy:
+A module is compiled separately, so a sanitized shell alone does not sanitize
+it. `make asan` builds every module, the prompt module included, into
+`build/asan/mods`; to cover one by hand, build it with the same flags and load
+that copy:
 
-```
+```text
 gcc -Iinclude -g -O1 -fsanitize=address,undefined -w -shared -fPIC \
     -o build/prompt-asan.so mods/prompt/*.c
 ```

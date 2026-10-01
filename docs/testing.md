@@ -1,11 +1,15 @@
 # Tests
 
+```text
+make check                                    # tests/run.sh: 109 test scripts
+./build/hibr tests/self.hibr                  # 91 assertions written in hibr
+HIBR=./build/hibr REF=dash tests/run.sh       # compare with another shell
+python3 tests/fuzz.py ./build/hibr.asan 500   # mutation fuzzing of the parser
+make check-all                                # tests/all.py: every suite at once
 ```
-make check                                 # tests/run.sh: 43 test scripts
-./build/hibr tests/self.hibr                       # 84 assertions written in hibr
-HIBR=./build/hibr REF=dash tests/run.sh            # compare with another shell
-python3 tests/fuzz.py ./build/hibr.asan 500       # mutation fuzzing of the parser
-```
+
+The full-screen suites, the sanitizer runner and the other harnesses are
+listed in [tests/README.md](../tests/README.md).
 
 Each `tests/*.t` is a script. When a matching `.expected` file exists, the test
 is compared with that recording — exit status on the first line, then the
@@ -19,10 +23,11 @@ levels of map nesting, a 2000-element array sorted, a 20,000-character string,
 
 The whole suite runs clean under AddressSanitizer and UndefinedBehaviorSanitizer:
 
-```
+```text
 gcc -Iinclude -DHIBR_TLS -g -O1 -fsanitize=address,undefined -w -rdynamic \
     -o build/hibr.asan src/*.c -ldl
 ASAN_OPTIONS=detect_leaks=0 HIBR=./build/hibr.asan tests/run.sh
+python3 tests/asan.py        # the same for every suite, the pty ones too
 ```
 
 `tests/fuzz.py` mutates the test scripts — byte flips, deletions, inserted
@@ -44,10 +49,11 @@ generates snippets from a grammar — expansions, arithmetic, conditionals,
 loops, `case`, functions, arrays, subscripts, `IFS` changes — runs each under
 both shells and compares the output and the status.
 
-```
-python3 tests/diff.py 250              # 250 snippets against bash
-SEED=7 python3 tests/diff.py 500       # a different stream
-python3 tests/diff.py --shell /bin/dash   # or point it somewhere else
+```text
+python3 tests/diff.py 250                     # 250 snippets against bash
+SEED=7 python3 tests/diff.py 500              # a different stream
+python3 tests/diff.py --ref /bin/dash 250     # against dash instead
+python3 tests/diff.py --shell ./build/hibr.asan 250   # a different hibr
 ```
 
 Everything it generates is deterministic and touches nothing: no `$RANDOM`, no
@@ -72,7 +78,7 @@ is a terminal. `python3 tests/editor.py` starts interactive shells on a pseudo
 terminal, sends keystrokes and checks what was drawn — that the right-hand
 prompt lands on the right column, that it gives way to a long line, that the
 transient prompt replaces an accepted one, and that ordinary editing still
-works underneath. It takes the shell to test as its first argument.
+works underneath. It takes the shell to test as an optional first argument.
 
 ---
 

@@ -83,14 +83,22 @@ Everything POSIX has, plus what bash added, plus extended patterns with nothing
 to switch on.
 
 ```sh
-for f in a b c; do printf '%s ' "$f"; done           # a b c
-for ((i = 0; i < 3; i++)); do printf '%s ' "$i"; done # 0 1 2
+for f in a b c; do printf '[%s]' "$f"; done; echo
+for ((i = 0; i < 3; i++)); do printf '[%s]' "$i"; done; echo
 
-i=0; while [ $i -lt 3 ]; do printf '%s ' "$i"; i=$((i+1)); done  # 0 1 2
-i=0; until [ $i -ge 3 ]; do printf '%s ' "$i"; i=$((i+1)); done  # 0 1 2
+i=0; while [ $i -lt 3 ]; do printf '[%s]' "$i"; i=$((i+1)); done; echo
+i=0; until [ $i -ge 3 ]; do printf '[%s]' "$i"; i=$((i+1)); done; echo
 
 m=([a]=1 [b]=2)
-for k in "${!m[@]}"; do printf '%s=%s ' "$k" "${m[$k]}"; done    # a=1 b=2
+for k in "${!m[@]}"; do printf '[%s=%s]' "$k" "${m[$k]}"; done; echo
+```
+
+```output
+[a][b][c]
+[0][1][2]
+[0][1][2]
+[0][1][2]
+[a=1][b=2]
 ```
 
 `break n` and `continue n` reach outward through `n` loops:
@@ -99,8 +107,12 @@ for k in "${!m[@]}"; do printf '%s=%s ' "$k" "${m[$k]}"; done    # a=1 b=2
 for x in 1 2 3 4; do
   [ $x = 2 ] && continue
   [ $x = 4 ] && break
-  printf '%s ' "$x"
-done                                                  # 1 3
+  printf '[%s]' "$x"
+done; echo
+```
+
+```output
+[1][3]
 ```
 
 `case` matches patterns, `|` separates alternatives, `;&` falls through to the
@@ -114,13 +126,25 @@ case foo.log in
 esac
 ```
 
+```output
+not a text file
+```
+
 ## Arithmetic
 
-```
-((i++)); ((n > 3)) && echo big
-let "total = a * b"
-for ((i = 0; i < 10; i += 2)); do …; done       # or { …; } as the body
+```sh
+n=5; ((n++)); ((n > 3)) && echo "big: $n"
+a=2 b=3; let "total = a * b"; echo "total=$total"
+for ((i = 0; i < 10; i += 2)); do printf '[%s]' "$i"; done; echo
+x=-7
 echo $(( x > 0 ? x : -x )) $(( 2 ** 10 )) $(( a = 3, b = 4, a * b ))
+```
+
+```output
+big: 6
+total=6
+[0][2][4][6][8]
+7 1024 12
 ```
 
 The full C operator set: `= += -= *= /= %= <<= >>= &= |= ^= **=`, prefix and
@@ -141,9 +165,16 @@ it appears in, with status 1.
 The right side of `&&` or `||` is not even expanded when the left side decides
 the answer.
 
-```
-[[ $name == prefix* && -n $other ]]
+```sh
+name=prefix-1 other=y
+[[ $name == prefix* && -n $other ]] && echo "both hold"
+line="port=8080"
 [[ $line =~ ^([a-z]+)=(.*)$ ]] && echo "${M[1]} is ${M[2]}"
+```
+
+```output
+both hold
+port is 8080
 ```
 
 `test` and `[` are there as well.
@@ -153,16 +184,29 @@ the answer.
 One value model: a variable is a scalar or an ordered map, and an array is just
 a map with numeric keys. Subscripts chain, so nesting needs no new syntax.
 
-```
+```sh
 h[users][omar][role]=admin          # intermediate levels are created as needed
+h[users][ana][role]=dev
 echo ${h[users][omar][role]}
 echo ${!h[users][@]}                # keys at that level
 echo ${h[users][omar][@]}           # values at that level
 echo ${#h[users][@]}                # entry count
 cfg=([host]=localhost [port]=8080)
-a=(one two three); a[7]=eight       # sparse: keys 0 1 2 7, count 4
+echo "${cfg[host]}:${cfg[port]}"
+a=(one two three); a[7]=eight       # sparse
+echo "keys ${!a[*]}, count ${#a[@]}"
 unset a[1]
 echo "${a[@]:1:2}"                  # slices
+```
+
+```output
+admin
+omar ana
+admin
+2
+localhost:8080
+keys 0 1 2 7, count 4
+three eight
 ```
 
 ### What a subscript means
@@ -185,11 +229,17 @@ silently and in both directions:
 
 ```sh
 h["content-type"]=applicaton/json
-echo "${h["content-type"]}"   # applicaton/json
-echo "${!h[@]}"               # content-type
+echo "${h["content-type"]}"
+echo "${!h[@]}"
 
 h[content-type]=elsewhere     # unquoted: still arithmetic
-echo "${!h[@]}"               # content-type 0
+echo "${!h[@]}"
+```
+
+```output
+applicaton/json
+content-type
+content-type 0
 ```
 
 That is why `json parse` can hand back a document with any field name at all and
@@ -202,19 +252,42 @@ character of `IFS`. Unquoted, both split.
 ### Reaching a name held in a variable
 
 ```sh
+coproc w1 cat
 w=w1
 to="$w[out]"
+from="$w[in]"
 send "${!to}" hello           # ${!ref} follows subscripts, and nests
+recv "${!from}" reply
+echo "$reply"
+```
+
+```output
+hello
 ```
 
 ## Functions with real signatures
 
-```
+```sh
 fn greet(name, greeting = "hello") { echo "$greeting, $name"; }
 fn add(int a, int b) -> int { ret $((a + b)); }
 fn tally(label, ...rest) { echo "$label: ${#rest[@]} items"; }
 fn conf(map m, str key) { echo "${m[$key]}"; }
 fn at(int? col = "", int row = 1) { echo "col=[$col] row=$row"; }
+greet world; greet world hi
+tally fruit apple pear fig
+c=([host]=localhost); conf c host
+at; at "" 3
+add 2 x 2> /dev/null || echo "add refused a word: status $?"
+```
+
+```output
+hello, world
+hi, world
+fruit: 3 items
+localhost
+col=[] row=1
+col=[] row=3
+add refused a word: status 2
 ```
 
 Parameters become locals, in order; `$1` and `$@` still work. Types are `int
@@ -230,12 +303,26 @@ unchecked.
 **Results without a subshell.** `ret` puts a value in the result slot; `:=` runs
 a command and binds that slot to a variable. Nothing forks.
 
-```
-add 2 3              # $RET is 5
-sum := add 10 32     # sum is 42
+<!-- setup
+fn add(int a, int b) -> int { ret $((a + b)); }
+mkdir src; touch src/a.c src/b.h
+-->
+```sh
+add 2 3; echo "RET=$RET"
+sum := add 10 32; echo "sum=$sum"
 fn pair() { ret left right; }
 p := pair            # several values become an array
-files := ls -q src   # works with builtins and modules too
+echo "${#p[@]}: ${p[*]}"
+need ls              # a module's builtins bind too
+files := ls -q src
+echo "${#files[@]}: ${files[*]}"
+```
+
+```output
+RET=5
+sum=42
+2: left right
+2: a.c b.h
 ```
 
 `:=` clears the slot first, so a command that never sets it binds an empty
@@ -250,22 +337,27 @@ locals, and every binding is restored on return, including its export flag.
 
 No `getopts` loop, no `shift`, no `case`:
 
-```
-opt .  "Frobnicate the widgets"
-opt -v --verbose  verbose         "Chatty output"
-opt -n --count    count  int=1    "How many times"
-opt -o --output   out    path!    "Where to write"     # ! = required
-opt -t --tag      tags   str+     "A tag, repeatable"  # + = collects an array
-args "$@"
+```sh
+prog() {
+  opt .  "Frobnicate the widgets"
+  opt -v --verbose  verbose         "Chatty output"
+  opt -n --count    count  int=1    "How many times"
+  opt -o --output   out    path!    "Where to write"     # ! = required
+  opt -t --tag      tags   str+     "A tag, repeatable"  # + = collects an array
+  args "$@" || return
+  echo "verbose=$verbose count=$count out=$out tags=[${tags[*]}] rest=[${ARGS[*]}] \$1=$1"
+}
+prog -vn3 -o log.txt --tag a --tag b x y
+prog --count=5 --output=log.txt
+prog -o log.txt -t one -t two -- -notanopt
+prog -v 2> /dev/null || echo "no --output: status $?"
 ```
 
-```
-$ prog -vn3 --tag a --tag b x y
-verbose=1 count=3 tags=[a b] rest=[x y] dollar1=x
-$ prog --count=5
-verbose=0 count=5 tags=[] rest=[] dollar1=
-$ prog -t one -t two -- -notanopt
-verbose=0 count=1 tags=[one two] rest=[-notanopt] dollar1=-notanopt
+```output
+verbose=1 count=3 out=log.txt tags=[a b] rest=[x y] $1=x
+verbose=0 count=5 out=log.txt tags=[] rest=[] $1=
+verbose=0 count=1 out=log.txt tags=[one two] rest=[-notanopt] $1=-notanopt
+no --output: status 2
 ```
 
 After `args`, `$verbose` is 1 or 0, `$count` has been type-checked, `${tags[@]}`
@@ -280,12 +372,22 @@ two functions never see each other's options.
 
 ## Errors
 
-```
+<!-- setup
+something() { [ "$1" = up ] && ret "fetched $1" || fail "no route to $1"; }
+-->
+```sh
 fn fetch(str url) {
   try something "$url"
   [ "$ERR" -eq 0 ] || fail "fetch failed: $ERRMSG"
   ret "$RET"
 }
+r := fetch up; echo "$r"
+try fetch down; echo "$ERRMSG"
+```
+
+```output
+fetched up
+fetch failed: no route to down
 ```
 
 `fail [-s status] message` sets `$ERRMSG` and returns from the function, as the
@@ -301,7 +403,7 @@ try true
 echo "after success: ERR=$ERR"
 ```
 
-```
+```output
 ERR=1 ERRSTATUS=1 ERRMSG=cannot reach example.com
 after success: ERR=0
 ```
@@ -333,7 +435,7 @@ set -S
 echo "strict:  $(count $f) $(count $empty)"
 ```
 
-```
+```output
 default: 2 0
 strict:  1 0
 ```
@@ -356,7 +458,7 @@ case abc in $p) echo "strict: matches" ;; *) echo "strict: $p is only itself" ;;
 case "a*" in $p) echo "strict: $p matches a*" ;; esac
 ```
 
-```
+```output
 default: a* matches abc
 strict: a* is only itself
 strict: a* matches a*
@@ -366,6 +468,9 @@ Text written inside `${x:+…}`, `${x:-…}` or `${x:=…}` is written, not
 expanded, so under `-S` it still splits and globs; an expansion inside it
 still does neither:
 
+<!-- setup
+mkdir .h
+-->
 ```sh
 # in a directory whose one hidden directory is .h
 c() { echo "$# [$*]"; }
@@ -376,7 +481,7 @@ set -S
 c ${on:+a b} ${on:+./.*/} ${on:+$g}
 ```
 
-```
+```output
 4 [a b ./.h/ ./.h/]
 4 [a b ./.h/ ./.*/]
 ```
@@ -396,6 +501,7 @@ often gets wrong without anything failing: a function defined twice, and a
 function creating a global because a `local` was forgotten.
 
 ```sh
+cat > demo.hibr <<'EOF'
 strict
 greet() { echo hello; }
 greet() { echo hi; }
@@ -405,9 +511,11 @@ echo "total=${total-unset}"
 keep() { local n; n=1; declare -g seen=yes; }
 keep
 echo "seen=$seen"
+EOF
+"$HIBR" demo.hibr 2>&1
 ```
 
-```
+```output
 hibr: demo.hibr:3: greet is already defined at line 2 (strict functions)
 hibr: demo.hibr:4: total is not declared -- local total, or declare -g total (strict vars)
 total=unset
@@ -445,12 +553,15 @@ input, or a file `source`d while it is on -- and runs none of it when it
 does not parse:
 
 ```sh
-$ printf 'echo ran\nif\n' > late.sh
-$ hibr late.sh; echo "status $?"
+printf 'echo ran\nif\n' > late.sh
+"$HIBR" late.sh 2>&1; echo "status $?"
+"$HIBR" --checkfirst late.sh 2>&1; echo "status $?"
+```
+
+```output
 ran
 hibr: unexpected end of input
 status 2
-$ hibr --checkfirst late.sh; echo "status $?"
 hibr: unexpected end of input
 status 2
 ```
@@ -466,8 +577,11 @@ loops, reading files and standard input -- but refuses everything that would
 change the machine, and says so, one line each:
 
 ```sh
-$ printf 'echo built > out.txt\ncurl -sO https://example.com/app.tgz\nn=$(grep -c . job.sh)\necho "job.sh has $n lines"\nrm -rf build\n' > job.sh
-$ hibr --plan job.sh; echo "status $?"; ls
+printf 'echo built > out.txt\ncurl -sO https://example.com/app.tgz\nn=$(grep -c . job.sh)\necho "job.sh has $n lines"\nrm -rf build\n' > job.sh
+"$HIBR" --plan job.sh 2>&1; echo "status $?"; ls
+```
+
+```output
 hibr: plan: job.sh:1: would write out.txt
 hibr: plan: job.sh:2: would run curl -sO https://example.com/app.tgz
 job.sh has 5 lines
@@ -513,12 +627,15 @@ there. `HIBR_TIMEOUT=seconds` bounds each foreground process: TERM, KILL two
 seconds later, status 124.
 
 ```sh
-$ printf 'echo start\necho "$missing"\n' > run.sh
-$ hibr --agent run.sh; echo "status $?"
+printf 'echo start\necho "$missing"\n' > run.sh
+"$HIBR" --agent run.sh 2>&1; echo "status $?"
+HIBR_TIMEOUT=1 "$HIBR" --agent -c 'sleep 30; echo "status $?"' 2>&1
+```
+
+```output
 start
 {"error":"missing: unbound variable","file":"run.sh","line":2,"source":"echo \"$missing\""}
 status 1
-$ HIBR_TIMEOUT=1 hibr --agent -c 'sleep 30; echo "status $?"'
 {"error":"timed out after 1 seconds (HIBR_TIMEOUT)","file":"command line","line":1}
 status 124
 ```
@@ -533,8 +650,11 @@ choice, and what it leaves out, is [0025](adr/0025-agent-mode.md).
 common mistake it finds, with the line and what to write instead:
 
 ```sh
-$ printf 'cd build\nrm $out\nres := uname\n' > go.sh
-$ hibr --explain go.sh; echo "status $?"
+printf 'cd build\nrm $out\nres := uname\n' > go.sh
+"$HIBR" --explain go.sh 2>&1; echo "status $?"
+```
+
+```output
 hibr: go.sh:1: cd-unchecked: cd can fail, and then everything after it runs in the wrong directory; write cd ... || exit
 hibr: go.sh:2: unquoted-path: rm is handed $out unquoted: a blank or a * in its value makes more paths than meant; write "$out"
 hibr: go.sh:3: bind-program: := binds what a builtin or a function returns, and uname is a program: it prints and the variable stays empty; write x=$(uname ...)

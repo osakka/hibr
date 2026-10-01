@@ -11,7 +11,7 @@ render of real output, which is the point — a picture in the docs cannot
 drift from what hibr actually does once it is made this way, and cannot show
 something hibr does not actually do.
 
-```
+```text
 tools/screenshot.py docs/img/hello.png 'dt_new "Hello" 8 30 6 10'
 tools/screenshot.py docs/img/calc.png 'dt_new "Calc" 16 24 2 2 calc' --apps calc
 tools/screenshot.py docs/img/menu.png 'dt_new "Hello" 8 30 6 10' --keys f10
@@ -35,7 +35,7 @@ groups -- `plain` shell work, `trap` (a bash idiom that means something else
 here) and `feature` (something only hibr has) -- each with fixed arguments,
 input and expected output.
 
-```
+```text
 tools/llm-measure/measure.py prompt > bare.txt          # the tasks, no page
 tools/llm-measure/measure.py prompt --page > page.txt   # the tasks and docs/llm.md
 tools/llm-measure/measure.py score -v reply.txt ...     # run each reply's scripts
@@ -52,3 +52,22 @@ scripts and not only against a number.
 
 A dozen tasks on a couple of models is a signal about the page, not a
 benchmark.
+
+## next-version.sh
+
+Suggests the next `HIBR_VER` and `DT_VER` from what changed since the last
+release tag: a change to `HIBR_ABI`, or a commit carrying a `Breaking:`
+trailer, means more than a patch. `make next-version` runs it; `release.sh`
+still does the bump.
+
+## homebrew-sync.sh
+
+Keeps the published Homebrew tap's formula on the newest tag the public
+mirror can serve: it fetches that tag's tarball, takes its checksum and pushes
+the formula when it is behind. Run on a timer, not by hand.
+
+## desktop-launcher.in
+
+The template for the installed `desktop` command: `make install` fills in
+where the desktop went and writes it to `$(PREFIX)/bin/desktop`.
+

@@ -2,6 +2,7 @@
 
 Sockets are file descriptors, so they work with everything else.
 
+<!-- not run: needs a Redis server on port 6379 -->
 ```sh
 exec 3<>/dev/tcp/127.0.0.1/6379
 printf 'PING\r\n' >&3; read pong <&3
@@ -22,8 +23,11 @@ anything that opens a file.
 
 A scheme that cannot open says why and fails, like any other redirection:
 
+```sh
+exec 3<>/dev/unix/nosuchsock
 ```
-$ hibr -c 'exec 3<>/dev/unix/nosuchsock'
+
+```output
 hibr: connect /nosuchsock: No such file or directory
 ```
 
@@ -41,8 +45,11 @@ hibr: connect /nosuchsock: No such file or directory
 Descriptors come back above 9, so a redirection cannot tread on one. A failure
 says what went wrong and returns non-zero:
 
+```sh
+connect 127.0.0.1 1 S
 ```
-$ hibr -c 'connect 127.0.0.1 1 S'
+
+```output
 hibr: connect 127.0.0.1:1: Connection refused
 ```
 
@@ -55,12 +62,12 @@ variables; `-f` forks per connection instead.
 ### A server and a client, whole
 
 ```sh
-port=19700
+port=$(( 20000 + $$ % 20000 ))
 listen -b $port LFD
 
 srv() {
   accept $LFD C
-  echo "server sees REMOTE=$REMOTE"
+  echo "server sees a client from ${REMOTE%:*}"
   recv $C line
   send $C "echo:$line"
   recv -n 4 $C four          # exactly four bytes
@@ -75,8 +82,8 @@ send -n $S "abcdefgh";  recv $S r2; echo "client: $r2"
 wait
 ```
 
-```
-server sees REMOTE=127.0.0.1:39254
+```output
+server sees a client from 127.0.0.1
 client: echo:hello
 client: got4:abcd
 ```
@@ -87,7 +94,8 @@ Two processes, one shell, no external program.
 being root. Only opening the port needs privilege, so bind first, give it up,
 and then serve — the descriptor outlives the privilege that opened it:
 
-```
+<!-- not run: needs root, and serves until stopped -->
+```sh
 mod load sys
 listen -b 80 LFD
 drop www-data
@@ -97,11 +105,20 @@ while accept $LFD C; do serve <&$C >&$C; exec {C}<&-; done
 A coprocess is reached with the same two verbs, because it is the same shape of
 thing — see [0018](adr/0018-a-coprocess-is-an-endpoint.md):
 
-```
+```sh
 worker() { while recv 0 line; do send 1 "got:$line"; done; }
 coproc cp worker
 send ${cp[out]} hello
-recv ${cp[in]} answer        # ${cp[0]} and ${cp[1]} read the same, for bash
+recv ${cp[in]} answer
+echo "$answer"
+send ${cp[1]} again          # ${cp[0]} and ${cp[1]} name the same ends, for bash
+recv ${cp[0]} answer
+echo "$answer"
+```
+
+```output
+got:hello
+got:again
 ```
 
 `drop user[:group]` comes from the `sys` module and gives up root for good: it
@@ -117,7 +134,8 @@ unprivileged while the parent keeps accepting.
 
 An HTTPS request, parsed, with no external tools:
 
-```
+<!-- not run: needs the public network -->
+```sh
 exec 3<>/dev/tls/api.example.com/443
 send -r 3 "GET /v1/services HTTP/1.0"; send -r 3 "Host: api.example.com"; send -r 3 ""
 recv 3 status

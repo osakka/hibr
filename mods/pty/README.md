@@ -5,17 +5,28 @@ keystrokes in, read what was drawn out, resize it, signal it, collect its
 exit status.
 
 ```sh
-mod load pty                 # or: need pty
+need pty                     # or: mod load pty
 
-id := pty spawn -r 24 -c 80 hibr
-pty write $id 'echo hello
+id := pty spawn -r 24 -c 80 sh -c 'read line; echo "got: $line"; exit 3'
+pty write $id 'hello
 '
 out := pty drain $id 500
-pty write $id 'exit
-'
 st := pty wait $id 1000
 pty close $id
+echo "status $st"
+printf '%s' "$out" | tr -d '\r'
 ```
+
+```output
+status 3
+hello
+got: hello
+```
+
+What came back is what a terminal shows: the line as the terminal echoed it,
+then the program's answer. A terminal ends its lines with `\r\n`, hence the
+`tr`. Spawning `hibr` itself works the same way, and is how the shell is
+driven through a terminal of its own.
 
 | form | does |
 |---|---|

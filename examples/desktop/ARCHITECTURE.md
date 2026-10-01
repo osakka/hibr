@@ -36,7 +36,8 @@ what a window shows is faked or simulated for the picture.
 
 `dt_run`, in `wm/session.hibr`, is the whole of it:
 
-```
+<!-- not run: a sketch of the loop in wm/session.hibr; it needs the desktop -->
+```sh
 while [ "$DT_QUIT" = 0 ]; do
     dt_draw
     k := console key "${DT_WANT:-$DT_IDLEMS}"
@@ -45,7 +46,9 @@ done
 ```
 
 (Simplified — the real loop also debounces a burst of resize events into one
-settled redraw, described in `wm/session.hibr`'s own comments.) `console key
+settled redraw, and skips drawing a drag or wheel report while the next one
+is already waiting (`console waiting`), described in `wm/session.hibr`'s own
+comments.) `console key
 MS` blocks for up to `MS` milliseconds waiting for one decoded key or mouse
 report, and returns the instant one arrives. A resize interrupts the wait
 the same way (`SIGWINCH`), and so does output from any terminal window's
@@ -103,6 +106,7 @@ window is made, and only the ones that exist are ever called. Everything an
 app remembers is keyed by the window id it was handed, never a bare global,
 since two windows of the same app must not share one:
 
+<!-- not run: an app's callback; the desktop calls it -->
 ```sh
 fn calc_draw(int id, int h, int w, int row, int col) {  # id, body size, place
     console put -p "w$id" 1 2 "${CA[$id]["out"]}"

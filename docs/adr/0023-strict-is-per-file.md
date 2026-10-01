@@ -27,6 +27,7 @@ Asking is the point. A script written for bash must keep running as it did.
 `strict` is a builtin that turns on named checks for **the file that runs
 it**:
 
+<!-- not run: three forms of the one command, side by side -->
 ```sh
 strict                        # all three
 strict functions vars         # just these

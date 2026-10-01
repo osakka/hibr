@@ -10,11 +10,14 @@ features together rather than demonstrating a single builtin.
 | [`workers.hibr`](workers.hibr) | A pool of named coprocesses, handed work round robin and reached through indirect expansion |
 | [`fetch.hibr`](fetch.hibr) | An HTTP and HTTPS client that queries JSON responses. No curl, no jq |
 | [`ls-report.hibr`](ls-report.hibr) | Loads a module, uses it through the result slot, and summarises a source tree with declared arguments, maps, regex and JSON |
+| [`traceroute.hibr`](traceroute.hibr) | Traces a route with the trace module, places each hop from its name and the zone table, and draws the route on a world map; `--demo` draws a made-up one |
+| [`console-demo.hibr`](console-demo.hibr) | A small full-console program: panes, colour, decoded keys, and a redraw that costs only what changed |
+| [`desktop/`](desktop/README.md) | The desktop: a window manager written in hibr, and the apps, desk accessories and control panel built on it |
 | [`hibrc`](hibrc) | A starter `~/.hibrc`, which is what `deploy.sh` writes if you do not already have one |
 
 ## httpd
 
-```
+```text
 hibr examples/httpd.hibr --root ./docs --port 8080
 hibr examples/httpd.hibr --root ./docs --count 1 --quiet   # serve once and stop
 ```
@@ -32,7 +35,7 @@ process per connection if you want isolation instead.
 
 ## fetch
 
-```
+```text
 hibr examples/fetch.hibr https://example.com/
 hibr examples/fetch.hibr --query .slideshow.title https://httpbin.org/json
 hibr examples/fetch.hibr --status http://127.0.0.1:8080/missing
@@ -46,16 +49,20 @@ nothing for the capability.
 
 The two together make a round trip with no external programs involved:
 
-```
+```text
+echo '{"shell":"hibr"}' > api.json
 hibr examples/httpd.hibr --root . --count 1 --quiet &
 hibr examples/fetch.hibr --query .shell http://127.0.0.1:8080/api.json
 ```
+
+That prints `hibr`.
 
 ## A note on map keys
 
 Both HTTP examples fold `-` to `_` in header names before using them as map
 keys. A subscript containing an operator is evaluated arithmetically, so
-`head[content-type]` reads as subtraction rather than as a key. See
+`head[content-type]` reads as subtraction rather than as a key; a quoted one,
+`head["content-type"]`, is always a literal key. See
 [decision 0006](../docs/adr/0006-arrays-are-sparse-maps.md).
 
 ---

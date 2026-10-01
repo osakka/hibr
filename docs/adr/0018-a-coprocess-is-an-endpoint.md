@@ -22,11 +22,16 @@ descriptor to write to and a descriptor to read from.
 `coproc [name] command [args…]` starts a command as a coprocess and records its
 ends the way `connect` records a socket. They are named for what they do:
 
-```
+```sh
 worker() { while recv 0 line; do send 1 "got:$line"; done; }
 coproc cp worker
 send ${cp[out]} hello
 recv ${cp[in]} answer
+echo "$answer"
+```
+
+```output
+got:hello
 ```
 
 `${cp[in]}` is read from, `${cp[out]}` is written to, and `$cp_PID` is the

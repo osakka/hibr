@@ -50,7 +50,11 @@ every run and on every machine:
 
 ```sh
 e[k]=1; e[0]=2; e[zz]=3; e[b]=4
-echo "${!e[*]}"        # k 0 zz b   — the order they were set
+echo "${!e[*]}"        # the order they were set
+```
+
+```output
+k 0 zz b
 ```
 
 bash answers `0 k b zz` for the same input: its associative arrays are hash

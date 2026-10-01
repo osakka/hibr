@@ -61,10 +61,17 @@ CAT_SRC = $(wildcard mods/cat/*.c)
 PREFIX ?= /usr/local
 MODDIR ?= $(PREFIX)/lib/hibr
 SHAREDIR ?= $(PREFIX)/share/hibr
+MANDIR ?= $(PREFIX)/share/man
 DESKDIR = $(SHAREDIR)/desktop
 SHCFLAGS = $(CFLAGS) -DHIBR_MODDIR=\"$(MODDIR)\"
 
-all: $(BIN) $(MODS)
+all: $(BIN) $(MODS) $(B)/hibr.1
+
+# The manual page, with the version and the module directory filled in from
+# the same places the binary takes them, so neither can go stale in it.
+$(B)/hibr.1: docs/hibr.1.in include/hibr.h $(B)/.moddir | $(B)/mods
+	sed -e "s|@VERSION@|$$(sed -n 's/^#define HIBR_VER "\(.*\)"/\1/p' include/hibr.h)|" \
+	    -e 's|@MODDIR@|$(MODDIR)|' docs/hibr.1.in > $@
 
 $(B)/mods:
 	@mkdir -p $@
@@ -170,6 +177,8 @@ install: all
 	install -m 755 $(BIN) $(DESTDIR)$(PREFIX)/bin/hibr
 	install -m 644 $(MODS) $(DESTDIR)$(MODDIR)
 	install -m 644 include/hibr.h $(DESTDIR)$(PREFIX)/include/hibr/hibr.h
+	install -d $(DESTDIR)$(MANDIR)/man1
+	install -m 644 $(B)/hibr.1 $(DESTDIR)$(MANDIR)/man1/hibr.1
 	rm -rf $(DESTDIR)$(DESKDIR)
 	install -d $(DESTDIR)$(DESKDIR)
 	cp -R examples/desktop/. $(DESTDIR)$(DESKDIR)/
@@ -178,7 +187,8 @@ install: all
 	chmod 755 $(DESTDIR)$(PREFIX)/bin/desktop
 
 uninstall:
-	rm -f $(DESTDIR)$(PREFIX)/bin/hibr $(DESTDIR)$(PREFIX)/bin/desktop
+	rm -f $(DESTDIR)$(PREFIX)/bin/hibr $(DESTDIR)$(PREFIX)/bin/desktop \
+		$(DESTDIR)$(MANDIR)/man1/hibr.1
 	rm -rf $(DESTDIR)$(MODDIR) $(DESTDIR)$(PREFIX)/include/hibr \
 		$(DESTDIR)$(DESKDIR)
 

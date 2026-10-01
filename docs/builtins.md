@@ -66,9 +66,15 @@ either way, but a `-A` array takes every subscript as a literal key, as
 bash's associative arrays do), `-n` nameref, `-p` print, `-g` global — and **[hibr]** accepts one of the shell's own type names in their place:
 
 ```sh
-declare -i n;   n=abc    # bash's: coerces, n becomes 0
-declare int n;  n=abc    # ours: refuses, and stops
-declare num f=1.5        # also path, str, arr, map, any
+declare -i n;   n=abc; echo "n=$n"   # bash's: coerces
+declare num f=1.5;     echo "f=$f"   # also path, str, arr, map, any
+declare int m;  m=abc                # ours: refuses, and stops
+```
+
+```output
+n=0
+f=1.5
+hibr: m: declared int, got 'abc'
 ```
 
 A flagged `-i` coerces; a declared type *validates*, with the same check that
@@ -108,11 +114,22 @@ All four work in the shell's own process. No pipeline, no fork.
 | `printf fmt [args…]` | formatted output, including `%q` and `%(fmt)T` |
 | `echo [-n] [-e] args…` | write arguments |
 
+<!-- setup
+body='{"items":[{"name":"hibr"}]}'
+line=port=8080
+-->
 ```sh
-str upper hello                      # HELLO
+str upper hello                      # prints, and fills $RET
 json parse cfg "$body"               # a document becomes a nested map
 echo "${cfg[items][0][name]}"        # read it with ordinary subscripts
-match "$line" '^([a-z]+)=([0-9]+)$'  # ${M[1]} and ${M[2]}
+match "$line" '^([a-z]+)=([0-9]+)$'
+echo "${M[1]} ${M[2]}"
+```
+
+```output
+HELLO
+hibr
+port 8080
 ```
 
 Every operation of each, with examples, is in
@@ -136,7 +153,11 @@ Every operation of each, with examples, is in
 ```sh
 fn add(int a, int b) -> int { ret $((a + b)); }
 sum := add 2 3          # no subshell, no fork
-echo "$sum"             # 5
+echo "$sum"
+```
+
+```output
+5
 ```
 
 `try` catches a failure and leaves the details in `$ERR`, `$ERRMSG` and
@@ -166,7 +187,16 @@ socket:
 worker() { while recv 0 line; do send 1 "got:$line"; done; }
 coproc cp worker
 send ${cp[out]} hello
-recv ${cp[in]} answer          # ${cp[0]} and ${cp[1]} read the same
+recv ${cp[in]} answer
+echo "$answer"
+send ${cp[1]} again            # ${cp[0]} and ${cp[1]} name the same ends
+recv ${cp[0]} answer
+echo "$answer"
+```
+
+```output
+got:hello
+got:again
 ```
 
 As many as you like, at once. See
@@ -207,6 +237,7 @@ the next entry, `~-1` the one before last, and `~+` and `~-` are `$PWD` and
 Descriptors come back above 9, so a redirection cannot tread on one. `listen -b`
 is what lets a daemon bind a privileged port as root and then stop being root:
 
+<!-- not run: needs root, and serves until stopped -->
 ```sh
 mod load sys
 listen -b 80 LFD
@@ -226,13 +257,21 @@ See [Networking](networking.md) and
 | `args "$@"` | **[hibr]** parse the arguments against what was declared, then forget the declarations, so the next `args` starts from its own |
 
 Options are declared, not hand-parsed. `!` marks one required, `+` repeatable,
-`=v` gives a default, and the type is checked:
+`=v` gives a default, and the type is checked. Run with `-n 5 --dir /tmp`:
 
+<!-- setup
+set -- -n 5 --dir /tmp
+-->
 ```sh
 opt .  "Summarise a source tree"
 opt -d --dir  dir  path=.  "Directory to inspect"
 opt -n --top  top  int=3   "How many to show"
 args "$@"
+echo "dir=$dir top=$top"
+```
+
+```output
+dir=/tmp top=5
 ```
 
 `--help` is generated. **[hibr]** `args` ends the script only at the top level;

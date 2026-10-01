@@ -40,7 +40,8 @@ root. That is the inetd arrangement, with the same limit inetd has.
 `listen -b port [var]` binds without serving and hands back the descriptor, so
 nothing has to stay root at all:
 
-```
+<!-- not run: needs root, and serves until stopped -->
+```sh
 listen -b 80 LFD
 drop www-data
 while accept $LFD C; do serve <&$C >&$C; exec {C}<&-; done

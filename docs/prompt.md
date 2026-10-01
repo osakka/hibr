@@ -4,7 +4,8 @@
 an interactive shell will build its prompt by calling a command in process, so
 a prompt can be assembled without forking anything:
 
-```
+<!-- not run: a prompt is drawn only by an interactive shell -->
+```sh
 PROMPT_FN=myprompt          # a function, a builtin or a module builtin
 fn myprompt() { ret "$(id -un) $PWD> "; }
 ```
@@ -21,12 +22,17 @@ command took in milliseconds.
 with no configuration file, no second binary and no forks — the configuration
 lives in an ordinary nested map.
 
-```
+```sh
 mod load prompt             # found on $HIBR_MODPATH, or where make install put it
 PROMPT[format]='$dir$git$duration$status$char'
 PROMPT[dir][style]='bold cyan'
 PROMPT[git][symbol]='on '
 PROMPT[char][symbol]='>'
+echo "${PROMPT[dir][style]}"
+```
+
+```output
+bold cyan
 ```
 
 Loading the module points `PROMPT_FN` at itself, so a `.hibrc` that loads it
@@ -95,7 +101,7 @@ chains through both `OFS_DELTA` and `REF_DELTA`, and `info/alternates`. Linked
 worktrees work too: the `.git` file and `commondir` are followed back to the
 shared object store.
 
-```
+```text
 prompt object <sha>          # type and size
 prompt object -p <sha>       # the object's contents
 ```
@@ -114,7 +120,7 @@ tree is walked for untracked files, honouring `.gitignore` at every level,
 `.git/info/exclude` and `core.excludesFile`. Distance from the upstream branch
 comes from walking both histories by commit date until they meet.
 
-```
+```text
 main ↑2 ↓1 +1 !1 ?1
 ```
 
