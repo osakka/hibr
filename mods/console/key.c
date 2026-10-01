@@ -67,7 +67,7 @@ static int cn_watchprune(void)
 	for (i = (int)cn_wn - 1; i >= 0; i--) {
 		if (fcntl(cn_wfd[i], F_GETFD) >= 0)
 			continue;
-		lg(HIBR_LDBG, "screen: dropped a stale watched descriptor");
+		lg(HIBR_LDBG, "console: dropped a stale watched descriptor");
 		cn_watchdel(cn_wfd[i]);
 		found = 1;
 	}
@@ -124,7 +124,7 @@ int cn_wait(int ms)
 	if (cn_wgen != cn_wseen) {
 		cn_wseen = cn_wgen;
 		sigprocmask(SIG_SETMASK, &old, 0);
-		lg(HIBR_LDBG, "screen: a resize arrived before the wait began");
+		lg(HIBR_LDBG, "console: a resize arrived before the wait began");
 		return 0;
 	}
 	FD_ZERO(&r);
@@ -149,7 +149,7 @@ int cn_wait(int ms)
 	if (errno == EBADF)
 		return cn_watchprune() ? 0 : -1;
 	if (errno == EINTR) {
-		lg(HIBR_LDBG, "screen: wait interrupted, probably a resize");
+		lg(HIBR_LDBG, "console: wait interrupted, probably a resize");
 		return 0;
 	}
 	return -1;
@@ -451,7 +451,7 @@ int cn_key(int ms, str *out)
 	long remain;
 
 	if (!cn_on) {
-		lg(HIBR_LERR, "screen: not open");
+		lg(HIBR_LERR, "console: not open");
 		return -1;
 	}
 	for (;;) {
@@ -464,7 +464,7 @@ int cn_key(int ms, str *out)
 				return 1;
 			}
 			if (r < 0) {
-				lg(HIBR_LDBG, "screen: unknown sequence, "
+				lg(HIBR_LDBG, "console: unknown sequence, "
 					      "skipping a byte");
 				cn_eat(1);
 				out->n = 0;

@@ -100,7 +100,7 @@ int w_asg(word *w);
 node *hibr_parse(sh *s, const char *src, int *more);
 node *p_line(lex *l);
 int sh_check(sh *s, const char *src);
-extern int ex_loops, ex_srcs;
+extern int ex_loops, ex_srcs, v_refused;
 void lg_jline(str *o, const char *key, const char *m);
 extern int pl_fd;
 void pl_init(sh *s);

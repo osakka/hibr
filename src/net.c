@@ -773,6 +773,21 @@ int b_listen(sh *s, int ac, char **av)
 	return HIBR_OK;
 }
 
+/* Read a descriptor argument: digits and nothing else, or a refusal that names it. */
+int net_fdarg(const char *t, int *fd)
+{
+	const char *p = t;
+
+	while (*p >= '0' && *p <= '9')
+		p++;
+	if (!*t || *p) {
+		lg(HIBR_LERR, "%s: not a descriptor", t);
+		return HIBR_FAIL;
+	}
+	*fd = atoi(t);
+	return HIBR_OK;
+}
+
 /* Write arguments to a descriptor. */
 int b_send(sh *s, int ac, char **av)
 {
@@ -794,7 +809,9 @@ int b_send(sh *s, int ac, char **av)
 		lg(HIBR_LERR, "usage: send [-n|-r] fd text...");
 		return 2;
 	}
-	fd = atoi(av[i++]);
+	if (net_fdarg(av[i], &fd) != HIBR_OK)
+		return 2;
+	i++;
 	for (; i < ac && av[i][0] == '-' && av[i][1]; i++) {
 		if (!strcmp(av[i], "-n"))
 			nl = 0;
@@ -847,7 +864,9 @@ int b_recv(sh *s, int ac, char **av)
 		lg(HIBR_LERR, "usage: recv [-a|-n bytes] fd [var]");
 		return 2;
 	}
-	fd = atoi(av[i++]);
+	if (net_fdarg(av[i], &fd) != HIBR_OK)
+		return 2;
+	i++;
 	fflush(0);
 	nm = i < ac ? av[i] : "REPLY";
 	s_init(&b);

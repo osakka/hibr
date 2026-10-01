@@ -39,8 +39,6 @@ bash style -i: 0
 typed ok: 5
 num ok: 1.5
 declare int strict="5"
-hibr: bad: declared int, got 'oops'
-a declared type refuses: rc=1 value still 1
-hibr: frozen: readonly variable
-readonly refuses: rc=1 value still 1
-and the script carries on
+a declared type refuses, and stops the script: rc=1 value still 1
+readonly refuses, and stops the script: rc=1 value still 1
+an assignment before a command only warns

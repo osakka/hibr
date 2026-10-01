@@ -261,12 +261,12 @@ int cn_open(sh *s)
 	if (cn_fd < 0) {
 		cn_fd = open("/dev/tty", O_RDWR);
 		if (cn_fd < 0) {
-			lg(HIBR_LERR, "screen: no terminal to draw on");
+			lg(HIBR_LERR, "console: no terminal to draw on");
 			return HIBR_FAIL;
 		}
 	}
 	if (tcgetattr(cn_fd, &cn_sv) != 0) {
-		lg(HIBR_LERR, "screen: %s", strerror(errno));
+		lg(HIBR_LERR, "console: %s", strerror(errno));
 		return HIBR_FAIL;
 	}
 	r = cn_sv;
@@ -278,7 +278,7 @@ int cn_open(sh *s)
 	r.c_cc[VMIN] = 0;
 	r.c_cc[VTIME] = 0;
 	if (tcsetattr(cn_fd, TCSADRAIN, &r) != 0) {
-		lg(HIBR_LERR, "screen: %s", strerror(errno));
+		lg(HIBR_LERR, "console: %s", strerror(errno));
 		return HIBR_FAIL;
 	}
 	fflush(0);

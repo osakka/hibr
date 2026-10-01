@@ -6,6 +6,8 @@
 
 extern char **environ;
 
+int v_refused;
+
 /* FNV-1a hash of a variable name. */
 unsigned vh(const char *k)
 {
@@ -110,6 +112,7 @@ const char *v_coerce(sh *s, var *e, const char *v, str *tmp)
 	}
 	if (*ty && !ty_ok(ty, v)) {
 		lg(HIBR_LERR, "%s: declared %s, got '%s'", e->k, ty, v);
+		v_refused = 1;
 		return 0;
 	}
 	return v;
@@ -189,6 +192,7 @@ int hibr_set(sh *s, const char *k, const char *v, int ex)
 		if (e->ro) {
 			lg(HIBR_LERR, "%s: readonly variable", k);
 			s->st = 1;
+			v_refused = 1;
 			return HIBR_FAIL;
 		}
 		if (e->at & A_REF)
@@ -517,6 +521,7 @@ void v_setp(sh *s, const char *nm, char **ks, int nk, const char *val)
 	if (v && v->ro) {
 		lg(HIBR_LERR, "%s: readonly variable", nm);
 		s->st = 1;
+		v_refused = 1;
 		return;
 	}
 	e = v_path(s, nm, ks, nk, 1);

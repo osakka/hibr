@@ -1313,12 +1313,21 @@ int ex_cmd(sh *s, node *n)
 	}
 	if (!ac) {
 		int bad = 0;
+		v_refused = 0;
 		for (i = 0; i < asg->n; i++)
 			if (ex_asg(s, (char *)asg->p[i],
 				   i < asgm->n ? (const char *)asgm->p[i] : 0,
 				   0) != HIBR_OK)
 				bad = 1;
-		if (bad)
+		if (bad && v_refused) {
+			lg(HIBR_LDBG, "a refused assignment ends %s, as in bash",
+			   s->it ? "the line" : "the script");
+			st = s->st = HIBR_FAIL;
+			if (s->it)
+				s->stop = 1;
+			else
+				s->quit = 1;
+		} else if (bad)
 			st = s->st ? s->st : HIBR_FAIL;
 		else if (s->ncap != ncap0)
 			st = s->st;

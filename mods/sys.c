@@ -11,13 +11,19 @@
 #include <time.h>
 #include <unistd.h>
 
-/* Print seconds since the epoch. */
+/* Seconds since the epoch: into the result slot, and printed unless := is catching it. */
 int m_epoch(sh *s, int ac, char **av)
 {
-	(void)s;
+	str v;
+
 	(void)ac;
 	(void)av;
-	printf("%ld\n", (long)time(0));
+	s_init(&v);
+	s_num(&v, (long)time(0));
+	hibr_ret(s, v.p);
+	if (!s->bind)
+		printf("%s\n", v.p);
+	s_free(&v);
 	return HIBR_OK;
 }
 

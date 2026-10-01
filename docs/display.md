@@ -302,7 +302,7 @@ console open || { echo "needs a terminal" >&2; exit 1; }
 ```
 
 ```output
-hibr: screen: no terminal to draw on
+hibr: console: no terminal to draw on
 needs a terminal
 ```
 

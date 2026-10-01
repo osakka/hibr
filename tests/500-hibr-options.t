@@ -57,9 +57,9 @@ declare num f=1.5
 echo "num ok: $f"
 declare -p strict
 declare int bad=1
-bad=oops 2>/dev/null
-echo "a declared type refuses: rc=$? value still $bad"
+( bad=oops; echo "never" ) 2>/dev/null
+echo "a declared type refuses, and stops the script: rc=$? value still $bad"
 readonly frozen=1
-frozen=2 2>/dev/null
-echo "readonly refuses: rc=$? value still $frozen"
-echo "and the script carries on"
+( frozen=2; echo "never" ) 2>/dev/null
+echo "readonly refuses, and stops the script: rc=$? value still $frozen"
+( frozen=3 echo "an assignment before a command only warns" ) 2>/dev/null
