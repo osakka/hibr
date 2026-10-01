@@ -63,3 +63,16 @@ show much beyond these thirteen tasks: the last three page fixes were made
 *from* failures on them, so the "after" rows are partly fitted to the tasks
 that found the gaps. A fresh set of tasks is the honest check of the fixed
 page. Three runs per cell on two models is a signal, not a benchmark.
+
+## Re-scored on 0.65, which fills `BASH_REMATCH`
+
+The same no-page replies, unchanged, run again after `=~` began filling
+`BASH_REMATCH` as well as `M` (ADR 0004, amended):
+
+| model | page | runs | plain | trap | feature |
+|---|---|---|---|---|---|
+| Haiku 4.5 | none | 3 | 9/9 | 10/12 | 12/18 |
+| Sonnet 5.5 | none | 3 | 9/9 | 12/12 | 7/18 |
+
+T1 went from 0/6 to 6/6, and three feature replies that pulled fields out
+with a regex passed too.

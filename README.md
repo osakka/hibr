@@ -130,7 +130,8 @@ Each of these has a record explaining the reasoning and the cost.
 - [`((expr))` never trips `set -e`](docs/adr/0003-arithmetic-status-is-a-value.md)
   — its status is a value, not a failure.
 - [Regex captures go to `M`](docs/adr/0004-regex-captures-go-to-M.md), for both
-  `[[ =~ ]]` and `match`, not `BASH_REMATCH`.
+  `[[ =~ ]]` and `match`; `=~` fills `BASH_REMATCH` too, so bash's scripts
+  find them where they look.
 - [`ret` does not print](docs/adr/0005-results-travel-in-a-slot.md); functions
   return through `$RET` and `:=`, without forking.
 - [Arrays are sparse maps](docs/adr/0006-arrays-are-sparse-maps.md), and maps
@@ -146,8 +147,9 @@ Each of these has a record explaining the reasoning and the cost.
 
 ## Not implemented
 
-`declare`/`typeset`, `shopt`, `set -o` by option name, coprocesses, anchored
-replacement `${x/#p/r}` and `${x/%p/r}`, extended globs, and `BASH_REMATCH`.
+bash's compound coprocess, `coproc name { …; }`: hibr's `coproc` takes a
+command, `coproc name cmd args…` -- see
+[0018](docs/adr/0018-a-coprocess-is-an-endpoint.md).
 The line editor stores bidirectional text in logical order and leaves
 reordering to the terminal, so the cursor moves in logical order through Arabic
 text.

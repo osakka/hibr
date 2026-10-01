@@ -1842,6 +1842,19 @@ int cx_files(const char *a, const char *op, const char *b)
 	return hx && hy && x.st_dev == y.st_dev && x.st_ino == y.st_ino;
 }
 
+/* Copy what =~ put in M into BASH_REMATCH too, so a script written for bash finds its captures there. */
+void cx_rematch(sh *s)
+{
+	size_t i, n = v_alen(s, "M");
+	const char *v;
+
+	v_del(s, "BASH_REMATCH");
+	for (i = 0; i < n; i++) {
+		v = v_getel(s, "M", (long)i);
+		v_setel(s, "BASH_REMATCH", (long)i, v ? v : "");
+	}
+}
+
 /* Evaluate a primary: group, unary test, binary test or bare string. */
 int cx_prim(struct cx *c)
 {
@@ -1900,6 +1913,7 @@ int cx_prim(struct cx *c)
 			r = b_match(c->s, 4, mv);
 			if (r == 2)
 				c->bad = 1;
+			cx_rematch(c->s);
 			return r == HIBR_OK;
 		}
 		if (!strcmp(op, "<"))

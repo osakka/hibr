@@ -29,7 +29,6 @@ DELIBERATE = [
     (re.compile(r"\*\*"), "globstar is always on -- 0008"),
     (re.compile(r"\$\{[^}]*:\?"), "our fatal-expansion status is 1, bash's 127"),
     (re.compile(r"\bset -u\b"), "same"),
-    (re.compile(r"BASH_REMATCH"), "captures land in M -- 0004"),
     (re.compile(r"\$\{!?e\[[*@]\]\}"),
      "our maps keep insertion order, bash's hash order -- 0006"),
     # An arithmetic expansion that can fail -- division, or an operand that

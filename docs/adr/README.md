@@ -13,7 +13,7 @@ downside is usually a decision nobody had to make.
 | [0001](0001-build-with-tcc-and-no-dependencies.md) | Build with tcc, depend on libc and libdl only | accepted |
 | [0002](0002-errexit-is-scoped.md) | `set -e` is scoped to the tested pipeline | accepted |
 | [0003](0003-arithmetic-status-is-a-value.md) | `((expr))` yields a value, not a failure | accepted |
-| [0004](0004-regex-captures-go-to-M.md) | Regex captures land in `M` | accepted |
+| [0004](0004-regex-captures-go-to-M.md) | Regex captures land in `M` (and, since 0.65, `BASH_REMATCH`) | accepted, amended |
 | [0005](0005-results-travel-in-a-slot.md) | `ret` does not print; results travel in a slot | accepted |
 | [0006](0006-arrays-are-sparse-maps.md) | Arrays are sparse maps | accepted |
 | [0007](0007-brace-expansion-is-literal.md) | Brace expansion is literal-only | accepted |

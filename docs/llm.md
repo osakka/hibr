@@ -24,7 +24,7 @@ Where hibr is deliberately different:
 | `set -e` reaches into functions called from any context | only the tested pipeline is exempt; a failure inside a function it calls still stops |
 | a failing `((expr))` trips `set -e` | `((expr))` never trips `set -e`; its status is a value |
 | `pipefail` is an option | any failing stage fails the pipeline for `set -e`; there is no `pipefail` |
-| `=~` captures into `BASH_REMATCH` | captures go into `M`: `${M[0]}`, `${M[1]}`, … |
+| `=~` captures into `BASH_REMATCH` | the same, and into `M` too: `${M[1]}` is shorter; `match` fills only `M` |
 | functions return data by printing it | `ret value` sets the result slot; `x := f args` binds it without a fork |
 | an indexed array is a list | arrays are sparse ordered maps; subscripts chain: `${m[a][b]}` |
 | an indexed array's subscript is arithmetic, an associative one's a key | the same for `declare -A`; an array made without it reads `h[content-type]` as `content - type`, so quote a literal key: `h["content-type"]` |

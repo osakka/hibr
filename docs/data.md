@@ -186,8 +186,8 @@ smith, john
 ```
 
 `match` fails when there is no match, so it reads as a condition. Captures go to
-`M`, not `BASH_REMATCH` — [0004](adr/0004-regex-captures-go-to-M.md). The same
-engine backs `=~` inside `[[ ]]`.
+`M` — [0004](adr/0004-regex-captures-go-to-M.md). The same engine backs `=~`
+inside `[[ ]]`, which fills bash's `BASH_REMATCH` as well.
 
 ## `json`
 

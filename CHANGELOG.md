@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.65
+
+**`[[ =~ ]]` fills `BASH_REMATCH` as well as `M`.** Measured, not argued:
+every reply `tools/llm-measure/` got from a model writing hibr without its
+reference page read its captures from `BASH_REMATCH` -- six of six -- and
+printed nothing, because hibr filled only `M`. ADR 0004 had left the name out
+so scripts would not work "by accident"; these were bash scripts failing for
+a name, so it is amended. `=~` copies its captures into `BASH_REMATCH` after
+filling `M` and clears it on a miss, as bash does; `M` stays the documented
+place, and `match`, which bash does not have, fills only `M`. The same
+replies, unchanged, now pass that task six times of six, and three that
+pulled JSON fields out with a regex pass as well. `tests/880-bash-rematch.t`
+compares against bash.
+
+The README's "not implemented" list said `declare`, `shopt`, `set -o`,
+coprocesses, anchored replacement, extended globs and `BASH_REMATCH`; all of
+them work now. What is left there is bash's compound coprocess, `coproc name
+{ ...; }`, since hibr's `coproc` takes a command.
+
 ## 0.64
 
 **Dragging no longer leaves a window crawling after the mouse.** Every drag

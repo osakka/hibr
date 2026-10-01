@@ -193,7 +193,9 @@ went in the shell.
    bodies of functions it calls. Any failing pipeline stage fails the pipeline
    for errexit (no `pipefail` flag). Interactive shells abandon the line.
 2. **`((expr))` never trips `set -e`** — its status is a value, not a failure.
-3. **`=~` and `match` capture into `M`**, not `BASH_REMATCH`.
+3. **`=~` and `match` capture into `M`**; `=~` fills `BASH_REMATCH` as well
+   (since 0.65, ADR 0004), because every model that wrote hibr without the
+   reference read it and got nothing.
 4. **Strict expansion is opt-in** with `set -S`: expansions never split or glob.
    Default stays bash-like until real scripts have been run under both.
 5. **`**` globstar is always on**; symlinked directories are not followed.

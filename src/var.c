@@ -150,7 +150,8 @@ int v_shellvar(const char *k)
 {
 	static const char *nm[] = { "RET", "M", "REPLY", "OPTARG", "OPTIND",
 				    "ERR", "ERRMSG", "ERRSTATUS", "CMD",
-				    "REMOTE", "PIPESTATUS", "MAPFILE", 0 };
+				    "REMOTE", "PIPESTATUS", "MAPFILE",
+				    "BASH_REMATCH", 0 };
 	int i;
 
 	for (i = 0; nm[i]; i++)

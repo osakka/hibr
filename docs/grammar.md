@@ -200,8 +200,9 @@ Unlike `[`, no expansion splitting happens inside, so quoting is rarely needed.
 | `-eq -ne -lt -le -gt -ge` | numeric comparison |
 | `-nt` `-ot` `-ef` | newer, older, the same file |
 
-**[hibr]** `=~` captures into `M`, not `BASH_REMATCH`: `${M[0]}` is the whole
-match and `${M[1]}` the first group —
+**[hibr]** `=~` captures into `M`: `${M[0]}` is the whole match and
+`${M[1]}` the first group. It fills bash's `BASH_REMATCH` with the same
+values, so a script written for bash works unchanged —
 [0004](adr/0004-regex-captures-go-to-M.md).
 
 ## Expansion

@@ -48,7 +48,7 @@ Every divergence has a record. The short version:
 |---|---|
 | [Arrays are sparse maps](adr/0006-arrays-are-sparse-maps.md) | One container, nested, and a quoted subscript is a literal key |
 | [Results travel in a slot](adr/0005-results-travel-in-a-slot.md) | `x := f` returns a value without forking |
-| [Captures land in `M`](adr/0004-regex-captures-go-to-M.md) | not `BASH_REMATCH` |
+| [Captures land in `M`](adr/0004-regex-captures-go-to-M.md) | and, for `=~`, in `BASH_REMATCH` too |
 | [`set -e` is scoped](adr/0002-errexit-is-scoped.md) | and there is no `pipefail` |
 | [`((expr))` is a value](adr/0003-arithmetic-status-is-a-value.md) | so it never trips `set -e` |
 | [Brace expansion is literal](adr/0007-brace-expansion-is-literal.md) | `{$a,$b}` is not expanded |
