@@ -206,7 +206,7 @@ int pl_safe(char **av)
 {
 	static const char *ro[] = { "cat", "head", "tail", "wc", "grep",
 		"egrep", "fgrep", "cut", "tr", "comm", "diff", "cmp", "ls",
-		"stat", "file", "du", "df", "date", "basename", "dirname",
+		"stat", "du", "df", "basename", "dirname",
 		"realpath", "readlink", "pwd", "id", "whoami", "groups",
 		"uname", "hostname", "printenv", "which", "test", "[", "true",
 		"false", "echo", "printf", "seq", "expr", "nproc", "tty",
@@ -237,8 +237,19 @@ int pl_safe(char **av)
 		return 1;
 	if (!strcmp(nm, "sed")) {
 		for (i = 1; av[i]; i++)
-			if (!strncmp(av[i], "-i", 2) || !strncmp(av[i], "--in-place", 10) ||
-			    (av[i][0] != '-' && (strstr(av[i], "w ") || strstr(av[i], "/w"))))
+			if (!strncmp(av[i], "-i", 2) || !strncmp(av[i], "--in-place", 10))
+				return 0;
+		return 1;
+	}
+	if (!strcmp(nm, "date")) {
+		for (i = 1; av[i]; i++)
+			if (!strncmp(av[i], "-s", 2) || !strncmp(av[i], "--set", 5))
+				return 0;
+		return 1;
+	}
+	if (!strcmp(nm, "file")) {
+		for (i = 1; av[i]; i++)
+			if (!strcmp(av[i], "-C") || !strcmp(av[i], "--compile"))
 				return 0;
 		return 1;
 	}

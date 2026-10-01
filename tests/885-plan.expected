@@ -18,17 +18,21 @@ hibr: plan: ../p.sh:16: would run sed -i s/a/b/ out1
 sed without -i runs
 hibr: plan: ../p.sh:18: would run awk {print} ../in.txt
 hibr: plan: ../p.sh:19: would run timeout 5 grep x ../in.txt
-hibr: plan: ../p.sh:20: would run find . -name never -delete
-hibr: plan: ../p.sh:21: would run git commit -m x
+hibr: plan: ../p.sh:20: would run env rm -rf never
+env with no program runs
+hibr: plan: ../p.sh:22: would run date -s now
+hibr: plan: ../p.sh:23: would connect to /dev/tcp/127.0.0.1/9
+hibr: plan: ../p.sh:24: would run find . -name never -delete
+hibr: plan: ../p.sh:25: would run git commit -m x
 kill -0 runs
-hibr: plan: ../p.sh:23: would send a signal: kill 1
-hibr: plan: ../p.sh:24: would listen for connections: listen 9999
-hibr: plan: ../p.sh:25: would load module sys
-hibr: plan: ../p.sh:26: would load the module that provides json
-hibr: plan: ../p.sh:27: would run rm -rf never
-hibr: plan: ../p.sh:30: would redirect descriptor 250, which holds this record; left alone
-hibr: plan: ../p.sh:31: would run rm -rf also-never
-hibr: plan: ../p.sh:32: would run rm -rf $TMPDIR/tmp.X stays
+hibr: plan: ../p.sh:27: would send a signal: kill 1
+hibr: plan: ../p.sh:28: would listen for connections: listen 9999
+hibr: plan: ../p.sh:29: would load module sys
+hibr: plan: ../p.sh:30: would load the module that provides json
+hibr: plan: ../p.sh:31: would run rm -rf never
+hibr: plan: ../p.sh:34: would redirect descriptor 250, which holds this record; left alone
+hibr: plan: ../p.sh:35: would run rm -rf also-never
+hibr: plan: ../p.sh:36: would run rm -rf $TMPDIR/tmp.X stays
 status 0
 --- nothing was made:
 --- agent mode:

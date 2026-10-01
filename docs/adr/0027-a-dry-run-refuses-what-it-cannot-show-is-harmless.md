@@ -24,8 +24,12 @@ effect it cannot show is harmless:
   `/dev/null` and is recorded as a connection. Reading is not refused: a plan
   that pretended not to read would mislead about what it touched.
 - A program runs only if it is known to read and nothing more, judged from
-  its name and, for `sed`, `sort`, `find`, `git`, `uniq` and `tee`, its
-  arguments. Anything else fails with status 1 and no output. A failure
+  its name and, for `sed`, `sort`, `find`, `git`, `uniq`, `tee`, `date`,
+  `file` and `mktemp`, its arguments. Arguments are all it judges: a `w`
+  command inside a `sed` script writes a file and is not caught, for the
+  same reason `awk` is refused -- what a program's own language does cannot
+  be read from its text without guessing, and a guess that fires on prose
+  (`s/x/now what/`) refuses honest scripts. Anything else fails with status 1 and no output. A failure
   rather than a pretended success: an empty `$(mktemp -d)` made every later
   path relative to the wrong directory, and a plan listing writes to the
   wrong paths is worse than one that stops.

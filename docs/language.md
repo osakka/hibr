@@ -497,7 +497,8 @@ What a plan cannot do, stated plainly: a refused program fails, so a script
 that needed its result -- under `set -e`, at once -- stops there, and the
 plan is partial; a branch that depends on a write having happened takes the
 other way. `awk` is refused, because whether an awk program writes cannot
-be told from its text, and so is every program that runs another --
+be told from its text, and a `sed` script's own `w` command is not caught
+for the same reason; every program that runs another is refused --
 `env` with arguments, `timeout`, `xargs`, `nice`, `sudo`, `sh -c` -- since
 letting one through would let anything through. A plan reads whatever the
 script reads. Why each choice is [0027](adr/0027-a-dry-run-refuses-what-it-cannot-show-is-harmless.md).

@@ -29,6 +29,10 @@ sed -i s/a/b/ out1
 sed s/a/b/ ../in.txt > /dev/null && echo "sed without -i runs"
 awk '{print}' ../in.txt
 timeout 5 grep x ../in.txt
+env rm -rf never
+env > /dev/null && echo "env with no program runs"
+date -s now
+cat < /dev/tcp/127.0.0.1/9
 find . -name never -delete
 git commit -m x
 kill -0 $$ && echo "kill -0 runs"
