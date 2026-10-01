@@ -225,7 +225,10 @@ here, since neither is actually a port issue.
 
 ## Wanted
 
-### A desktop on the console — five steps of six built
+### A desktop on the console — built, all six steps
+
+The sixth, the terminal window, was built some releases before this heading
+caught up with it: see step 6 in decision 0020.
 
 Draggable, closable, minimisable windows on a text terminal, with apps
 written as hibr functions. [Decision 0020](adr/0020-windows-are-drawn-not-composited.md)
@@ -575,8 +578,8 @@ about what the test machine allows, to be made before it is built.
 
 Every place hibr differs from bash is a place a model's bash breaks, and a
 model that has been burned once stops reaching for it. `tests/corpus.py` is
-the instrument: 7 scripts of 465 invocations still differ (see `CLAUDE.md`'s
-open items). Keep driving it to zero for anything not deliberately
+the instrument: 7 scripts of 465 invocations differed, and four of them
+were read and fixed in 0.68 (see `CLAUDE.md`'s open items). Keep driving it to zero for anything not deliberately
 different. The largest known one -- bash runs a script a command at a time
 as it reads it, where hibr parsed the whole script first -- is gone in
 0.60 (ADR 0026). And make each deliberate difference loud: a one-line

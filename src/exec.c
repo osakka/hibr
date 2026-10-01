@@ -2121,6 +2121,11 @@ int ex_select(sh *s, node *n)
 	else
 		for (i = 0; i < (size_t)s->ac; i++)
 			v_add(&o, s->av[i]);
+	if (!o.n) {
+		lg(HIBR_LDBG, "select over nothing: no prompt, no read");
+		ar_rel(s->xa, m);
+		return s->st = 0;
+	}
 	for (;;) {
 		if (show)
 			sel_show(&o, ed_cols());
@@ -2133,7 +2138,7 @@ int ex_select(sh *s, node *n)
 			s_ch(&line, c);
 		if (got != 1 && !line.n) {
 			s_free(&line);
-			fputc('\n', stderr);
+			fputc('\n', stdout);
 			st = HIBR_FAIL;
 			break;
 		}
@@ -2208,7 +2213,7 @@ int ex(sh *s, node *n)
 	case N_PIPE:
 		s->ln = n->ln;
 		st = ex_pipe(s, n);
-		ex_chk(s, s->pfs, t);
+		ex_chk(s, st ? st : s->pfs, t);
 		return st;
 	case N_BG:
 		return ex_bg(s, n);

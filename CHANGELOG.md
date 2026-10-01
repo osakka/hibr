@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.68
+
+**Four differences from bash, found by running real system scripts under
+both shells and read one at a time.** All twelve invocations of the four
+scripts that showed them now agree with bash:
+
+- **A `set -e` pipeline whose last stage fails stops with that stage's
+  status**, as bash does: `set -e; false | (exit 2)` exits 2, not 1. hibr
+  still stops when only an earlier stage fails (ADR 0002), and then the
+  failing stage's status is the one it has. (`uz`)
+- **`select` over an empty list does nothing**, without a prompt or a read,
+  and at end of input it writes its newline to standard output, not to
+  standard error. (`tzselect`, which probes for `select` that way)
+- **`$[ … ]` is arithmetic**, bash's old spelling of `$(( … ))`; hibr left
+  it as text. (`byobu-ulevel`, which shifts by `$[$OPTIND-1]`)
+- **`tests/corpus.py` normalises a `mktemp` suffix** inside the sandbox, the
+  way it already normalises the sandbox path: `aptitude-run-state-bundle`
+  differed only in its temporary directory's random name.
+
+`tests/895-corpus-four.t` compares each against bash. The full set of 465
+was not re-run here.
+
+**The desktop's backlog entry said five steps of six.** The sixth, the
+terminal window -- a hibr inside a hibr -- had been built for some time;
+the backlog and decision 0020 now say so.
+
 ## 0.67
 
 **A quoted key works inside arithmetic.** `$(( m["content-type"] + 1 ))`,

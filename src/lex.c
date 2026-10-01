@@ -435,6 +435,18 @@ part *lx_dol(lex *l, int q)
 		}
 		return p;
 	}
+	if (c == '[') {
+		b = l->p + 1;
+		e = sk_bal(l, b, '[', ']', q);
+		if (!e)
+			return 0;
+		l->p = e + 1;
+		p->k = P_ARI;
+		p->t = ar_dup(l->a, b, (size_t)(e - b));
+		p->n = (size_t)(e - b);
+		lg(HIBR_LTRC, "lex: $[...] is bash's old spelling of $((...))");
+		return p;
+	}
 	if (c == '{') {
 		b = l->p + 1;
 		e = sk_bal(l, b, '{', '}', q);

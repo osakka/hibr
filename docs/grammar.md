@@ -216,6 +216,7 @@ quoted byte is never split, globbed, or read as an operator.
 2. **Tilde** — `~`, `~user`, `~+`, `~-`, `~N`.
 3. **Parameter, command, arithmetic and process substitution**, left to right in
    one pass: `$name`, `${…}`, `$(…)`, `` `…` ``, `$((…))`, `<(…)`, `>(…)`.
+   bash's old spelling of arithmetic, `$[…]`, is the same as `$((…))`.
 4. **Word splitting** on `IFS`, over unquoted bytes only.
 5. **Pathname expansion**, over unquoted bytes only.
 6. **Quote removal**.

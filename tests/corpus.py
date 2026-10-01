@@ -16,9 +16,10 @@ ssh-agent per invocation and the sandbox contains files, not daemons.
 Only stdout and exit status are compared. Error wording differs between shells
 on purpose and is not a divergence. The sandbox path is replaced in the output
 before comparing, because a script that prints its own temp directory would
-otherwise differ from itself.
+otherwise differ from itself, and so is the random suffix mktemp gives a name
+inside it.
 """
-import os, shutil, subprocess, sys, tempfile
+import os, re, shutil, subprocess, sys, tempfile
 
 ARGS = [["--help"], ["--version"], []]
 SKIP_DIRS = ("/etc/init.d",)
@@ -41,6 +42,7 @@ def sandbox_run(shell, script, args, keep):
     except Exception as e:
         out, rc = "", "error:%s" % e
     out = out.replace(d, "<sandbox>")
+    out = re.sub(r"(<sandbox>/[^\s/]*\.)[A-Za-z0-9]{6,}", r"\1XXXXXX", out)
     wrote = sorted(os.listdir(d)) if os.path.isdir(d) else []
     if keep is not None:
         keep.extend(wrote)

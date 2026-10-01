@@ -1524,13 +1524,16 @@ went in the shell.
   discarding its substitution's status, `command -v` not existing, and a
   command substitution inheriting errexit. Keep using it; what is left is a
   short list, not a research project.
-- The seven that remain, each needing its own read: `uz` (status 2 vs 1),
-  `tzselect` with no arguments (status 1 vs 0, and bash prints an empty line),
-  `byobu-ulevel --version` (no output from hibr), and
-  `aptitude-run-state-bundle`, which differs only in the random suffix `mktemp`
-  gave it -- harness noise that `corpus.py` should normalise the way it already
-  normalises the sandbox path. `cc_aiwo_bootstrap.sh` is the owner's own script
-  and **bash** is the one that fails it, with 127.
+- Of the seven that remained, four were read and fixed in 0.68, each run
+  on its own under both shells (`corpus.py --list`), all twelve of their
+  invocations now agreeing: `uz` exited with a `set -e` pipeline's first
+  failing stage rather than its own status; `tzselect` met a `select` that
+  read over an empty list and wrote its end-of-input newline to stderr;
+  `byobu-ulevel` used bash's old `$[ ]` arithmetic; and
+  `aptitude-run-state-bundle` differed only in a `mktemp` suffix, which
+  `corpus.py` now normalises. The full set has not been re-run on this
+  machine since. `cc_aiwo_bootstrap.sh` is the owner's own script and
+  **bash** is the one that fails it, with 127.
 - Loop throughput is 1.2x behind dash on a `while` loop and 1.4x on `case`,
   from 1.7x and 1.6x. What is left is genuinely diffuse. Measure this with
   instruction counts, not the clock: the wall time between two separately

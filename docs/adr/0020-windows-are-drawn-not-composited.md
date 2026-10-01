@@ -281,14 +281,17 @@ Each step is usable before the next one starts.
    reading `DT`, which is the window manager's own table and not an
    interface. The browser had already been moved off `DT` for the same
    reason, and had walked into a subscript trap on the way.
-6. **The terminal window.** The emulator, and a hibr inside a hibr.
+6. **The terminal window.** *Done.* `examples/desktop/apps/term.hibr` on
+   `mods/pty` and `mods/term`: the emulator, and a hibr inside a hibr -- a
+   whole desktop runs inside a terminal window on another one.
+   `tests/apps.py` drives it, and `tests/term_diff.py` compares the emulator
+   with tmux cell by cell.
 
 ## What this costs
 
 A slow app stalls the desktop, and will keep doing so. Windows cannot overlap
-transparently. There is no way to run an app that is not written in hibr until
-the terminal window exists, and after that the only way is to run it inside
-one. None of these is fixable without giving up "apps are hibr functions",
+transparently. An app not written in hibr runs only inside the terminal
+window. None of these is fixable without giving up "apps are hibr functions",
 which is the thing that makes the rest of it small.
 
 ## Questions, both now closed
