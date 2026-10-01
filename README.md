@@ -67,8 +67,8 @@ sudo apt update && sudo apt install hibr
 `apt upgrade` keeps it current from then on.
 
 **Arch Linux** has no package yet (an AUR one is planned); build it from
-source, below, with `base-devel` and `git` installed. `tcc` is in `extra`
-if you want the default compiler; otherwise `make CC=gcc` works as well.
+source, below, with `base-devel` and `git` installed, and `make CC=gcc`
+unless you have installed `tcc` as well.
 
 **From source**, anywhere with a C compiler:
 
