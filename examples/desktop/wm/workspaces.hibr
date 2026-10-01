@@ -64,6 +64,7 @@ fn dt_wsgo(int n) {
 	l := console pane list
 	l=${l##* }
 	DT_FOCUS=${l#w}
+	dt_tile
 	dt_wsnote "$n"
 }
 
@@ -111,6 +112,8 @@ fn dt_wsmove(int id, int n) {
 		l=${l##* }
 		DT_FOCUS=${l#w}
 	fi
+	dt_tile
+	dt_tile "$n"
 	dt_note "${DT[$id]["title"]} moved to workspace $n"
 }
 

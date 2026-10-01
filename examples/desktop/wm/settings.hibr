@@ -36,6 +36,8 @@ for dt_k in 4 5 6 7 8 9; do
 done
 [ -n "${DT_KEYS["wsnext"]+x}" ] || DT_KEYS["wsnext"]="ctrl-alt-right"
 [ -n "${DT_KEYS["wsprev"]+x}" ] || DT_KEYS["wsprev"]="ctrl-alt-left"
+[ -n "${DT_KEYS["tile"]+x}" ] || DT_KEYS["tile"]=
+[ -n "${DT_KEYS["tilemain"]+x}" ] || DT_KEYS["tilemain"]=
 [ -n "${DT_KEYS["close"]+x}" ] || DT_KEYS["close"]="ctrl-w"
 [ -n "${DT_KEYS["detach"]+x}" ] || DT_KEYS["detach"]="ctrl-\\"
 [ -n "${DT_KEYS["quit"]+x}" ] || DT_KEYS["quit"]=
@@ -233,7 +235,7 @@ DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 	CS_COLLAPSED CS_LEN CS_SHADOW
 	DT_FRAME DT_BTNSIDE DT_TITLEALIGN DT_BTNSTYLE DT_EDGERESIZE
 	DT_DRAGMOD DT_DRAGKEY DT_DRAWSKIP DT_NOTEMS DT_NOTEPOS DT_BARTIME
-	DT_BARGAP DT_BELLICON DT_BTNSHADOW DT_DLGBTN DT_TERMKEEP DT_TERMCTRL DT_GLYPHSET DT_PLACE DT_WSN DT_SETVER)
+	DT_BARGAP DT_BELLICON DT_BTNSHADOW DT_DLGBTN DT_TERMKEEP DT_TERMCTRL DT_GLYPHSET DT_PLACE DT_WSN DT_TILEMAIN DT_SETVER)
 
 # Where the desktop's stderr goes while it holds the screen, so an app's
 # error message cannot scribble over the display, and the reason for a

@@ -82,6 +82,8 @@ dt_size() {
 	fi
 	dt_iconlay
 	cs_clamp
+	dt_has dt_tile && dt_tile
+	return 0
 }
 
 # Give the terminal back.

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.84
+
+**Tiling.** Window > Tile Workspace has the desktop lay out the current
+workspace's windows itself: the main one on the left (Control Panel >
+Windows > Tiled Main, 30 to 70 per cent), the rest stacked down the right,
+laid out again as windows open, close, hide or move between workspaces,
+and when the screen changes size. Make Main puts the focused window on
+the left; a tiled window dragged onto another swaps places with it, and
+anywhere else goes back. Each workspace is tiled or not on its own; a
+fixed window floats over the layout; resizing a tiled window by hand is
+refused with a note. Tile Workspace and Make Main are shortcuts with no
+key until given one. With 0.81 to 0.83 this completes placement, snapping,
+workspaces and tiling.
+
 ## 0.83
 
 **Workspaces.** Three by default, for the whole desktop -- Control Panel >

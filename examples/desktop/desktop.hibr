@@ -25,7 +25,7 @@ need display || { echo "desktop: no display available" >&2; exit 1; }
 # change that never touched a single line of src/*.c. HIBR_ABI is what
 # actually needs cross-checking between the two -- whether a module is
 # built against what this shell offers -- and that already exists.
-DT_VER=0.50
+DT_VER=0.51
 
 # Where the rest of the window manager is: beside this file, wherever it was
 # installed or copied to. BASH_SOURCE is this file's own path while it is
@@ -45,7 +45,7 @@ DT_HERE=${BASH_SOURCE%/*}
 # The window manager, one concern to a file. Nothing in them runs a desktop
 # function while loading, so the order is for reading: the state everything
 # shares first, then what is built on it.
-for dt_part in glyphs state settings session windows workspaces place frame draw \
+for dt_part in glyphs state settings session windows workspaces tile place frame draw \
 	wallpaper input keys menus bar context apps \
 	files handlers icons hold notify confirm strip; do
 	. "$DT_HERE/wm/$dt_part.hibr"

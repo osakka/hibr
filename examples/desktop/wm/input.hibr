@@ -301,6 +301,13 @@ dt_mouse() {
 			return 0
 		fi
 		if [ -n "$DT_SIZE" ]; then
+			# A tiled window's size is the layout's; say so once.
+			if dt_intile "$DT_SIZE"; then
+				[ "$DT_SIZENOTE" = "$DT_SIZE" ] ||
+					dt_note "Tiled: the layout sizes this window"
+				DT_SIZENOTE=$DT_SIZE
+				return 0
+			fi
 			dt_cornersize "$DT_SIZE" "$DT_SIZECORNER" "$DT_SIZE_AR" \
 				"$DT_SIZE_AC" "$mr" "$mc"
 			return 0
@@ -317,6 +324,18 @@ dt_mouse() {
 			DT_DRAG=
 			return 0
 		fi
+		# A tiled window let go over another swaps places with it, and
+		# anywhere else goes back to its own.
+		if [ -n "$DT_DRAG" ] && dt_intile "$DT_DRAG"; then
+			if wsn := dt_tileat "$mr" "$mc" "$DT_DRAG"; then
+				dt_tileswap "$DT_DRAG" "$wsn"
+			else
+				dt_tile
+			fi
+			DT_DRAG=
+			return 0
+		fi
+		DT_SIZENOTE=
 		if [ -n "$CS_DRAG" ]; then
 			case $CS_DRAGKIND in
 			"")
@@ -529,6 +548,10 @@ fn dt_event(k) {
 		dt_detach
 	elif dt_wskey "$k"; then
 		:
+	elif dt_keyis tile "$k"; then
+		dt_tiletoggle
+	elif dt_keyis tilemain "$k"; then
+		dt_tilemain
 	elif dt_keyis snapleft "$k"; then
 		dt_snap_focused left
 	elif dt_keyis snapright "$k"; then

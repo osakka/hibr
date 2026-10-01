@@ -123,7 +123,7 @@ file-by-file breakdown first and follow an existing module's own shape
 reads a fixed structure fast) rather than growing this one feature by
 feature into something bigger than "ultra small" meant.
 
-### Window placement, snapping, workspaces, tiling -- planned, in order
+### Window placement, snapping, workspaces, tiling -- built, 0.81 to 0.84
 
 Raised by the owner (2026-10-01): where a new window lands, snapping one to
 a half of the screen, virtual workspaces, and a path to a tiling window

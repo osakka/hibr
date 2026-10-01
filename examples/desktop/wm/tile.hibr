@@ -1,0 +1,173 @@
+#!/usr/bin/env hibr
+#
+# wm/tile -- a workspace the window manager lays out by itself. Turned on
+# one workspace at a time (Window > Tile Workspace, or its shortcut), a
+# tiled workspace gives its windows their geometry: the main window on the
+# left, DT_TILEMAIN per cent of the display wide, and the rest stacked
+# down the right; one window alone fills the display. The layout is redone
+# whenever a window opens, closes, hides or moves between workspaces, and
+# when the screen changes size.
+#
+# Which window is where is DT_TORD[ws], the order of the workspace's tiled
+# windows, main first. Make Main puts the focused window first; dragging a
+# tiled window by its title onto another swaps the two. A fixed window --
+# one whose size is not the desktop's to change -- floats over the layout,
+# as does a minimised one by having no place in it. Resizing a tiled window
+# by hand is refused: the layout would undo it on the next change.
+#
+# Turned off, the windows stay where the layout last put them.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+strict
+
+DT_TILEMAIN="${DT_TILEMAIN-50}"
+declare -gA DT_TILED
+declare -gA DT_TORD
+
+# Whether workspace n is tiled.
+fn dt_tiled(int n) {
+	[ "${DT_TILED["$n"]}" = 1 ]
+}
+
+# Whether a window takes part in its workspace's layout: on a tiled one,
+# shown, and not fixed.
+fn dt_intile(int id) {
+	dt_tiled "${DT[$id]["ws"]:-1}" || return 1
+	dt_hidden "$id" && return 1
+	[ "${DT_APPS[${DT[$id]["app"]}]["fixed"]}" = 1 ] && return 1
+	return 0
+}
+
+# The tiled windows of workspace n in layout order, main first: the order
+# kept for it, less any window that has gone or left the layout, then any
+# newly in it, in the order they were opened.
+fn dt_tilelist(int n) {
+	local id out=
+	local -a ids
+
+	read -ra ids <<< "${DT_TORD["$n"]}"
+	for id in "${ids[@]}"; do
+		[ -n "${DT[$id]["title"]}" ] || continue
+		[ "${DT[$id]["ws"]:-1}" = "$n" ] || continue
+		dt_intile "$id" || continue
+		out="$out $id"
+	done
+	for id in "${!DT[@]}"; do
+		[ "${DT[$id]["ws"]:-1}" = "$n" ] || continue
+		dt_intile "$id" || continue
+		case " $out " in *" $id "*) continue ;; esac
+		out="$out $id"
+	done
+	DT_TORD["$n"]=${out# }
+	ret "${out# }"
+}
+
+# Lay out workspace n, the current one unless named: give every tiled
+# window its place. A workspace that is not tiled is left alone.
+fn dt_tile(int? n = "") {
+	local top=1 left=${DT_PRIMARY_COL:-0} pw=${DT_PRIMARY_W:-$DT_COLS}
+	local ph=$((DT_ROWS - 1)) mw sh r i k l id
+	local -a ids
+
+	[ -n "$n" ] || n=$DT_WS
+	dt_tiled "$n" || return 0
+	l := dt_tilelist "$n"
+	read -ra ids <<< "$l"
+	k=${#ids[@]}
+	[ "$k" = 0 ] && return 0
+	if [ "$k" = 1 ]; then
+		dt_tileput "${ids[0]}" "$top" "$left" "$ph" "$pw"
+		return 0
+	fi
+	mw=$((pw * DT_TILEMAIN / 100))
+	dt_tileput "${ids[0]}" "$top" "$left" "$ph" "$mw"
+	sh=$((ph / (k - 1)))
+	[ "$sh" -lt "$DT_MINH" ] && sh=$DT_MINH
+	r=$top
+	i=1
+	while [ "$i" -lt "$k" ]; do
+		if [ "$i" = $((k - 1)) ] && [ $((top + ph - r)) -ge "$DT_MINH" ]; then
+			sh=$((top + ph - r))
+		fi
+		[ $((r + sh)) -gt $((top + ph)) ] && r=$((top + ph - sh))
+		dt_tileput "${ids[$i]}" "$r" $((left + mw)) "$sh" $((pw - mw))
+		r=$((r + sh))
+		i=$((i + 1))
+	done
+}
+
+# Put one window at its place in the layout, and its pane with it when it
+# is on screen.
+fn dt_tileput(int id, int r, int c, int h, int w) {
+	DT[$id]["row"]=$r
+	DT[$id]["col"]=$c
+	DT[$id]["h"]=$h
+	DT[$id]["w"]=$w
+	DT[$id]["oh"]=
+	DT[$id]["snap"]=
+	dt_away "$id" || console pane "w$id" "$r" "$c" "$h" "$w"
+}
+
+# Turn tiling on or off for the current workspace.
+dt_tiletoggle() {
+	if dt_tiled "$DT_WS"; then
+		DT_TILED["$DT_WS"]=
+		dt_note "Workspace $DT_WS: windows float"
+	else
+		DT_TILED["$DT_WS"]=1
+		dt_tile
+		dt_note "Workspace $DT_WS: tiled"
+	fi
+}
+
+# Make the focused window the main one.
+dt_tilemain() {
+	local l
+
+	[ -n "$DT_FOCUS" ] && dt_intile "$DT_FOCUS" || return 0
+	l := dt_tilelist "$DT_WS"
+	l=" $l "
+	l=${l/ $DT_FOCUS / }
+	DT_TORD["$DT_WS"]="$DT_FOCUS${l% }"
+	dt_tile
+}
+
+# Swap two tiled windows' places, for a drag of one onto the other.
+fn dt_tileswap(int a, int b) {
+	local l out= id
+	local -a ids
+
+	l := dt_tilelist "$DT_WS"
+	read -ra ids <<< "$l"
+	for id in "${ids[@]}"; do
+		if [ "$id" = "$a" ]; then
+			out="$out $b"
+		elif [ "$id" = "$b" ]; then
+			out="$out $a"
+		else
+			out="$out $id"
+		fi
+	done
+	DT_TORD["$DT_WS"]=${out# }
+	dt_tile
+}
+
+# The tiled window on screen at row r, column c, other than skip.
+fn dt_tileat(int r, int c, int skip) {
+	local l id
+	local -a ids
+
+	l := dt_tilelist "$DT_WS"
+	read -ra ids <<< "$l"
+	for id in "${ids[@]}"; do
+		[ "$id" = "$skip" ] && continue
+		[ "$r" -ge "${DT[$id]["row"]}" ] &&
+		[ "$r" -lt $((DT[$id]["row"] + DT[$id]["h"])) ] &&
+		[ "$c" -ge "${DT[$id]["col"]}" ] &&
+		[ "$c" -lt $((DT[$id]["col"] + DT[$id]["w"])) ] &&
+		{ ret "$id"; return 0; }
+	done
+	return 1
+}

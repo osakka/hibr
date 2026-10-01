@@ -65,6 +65,16 @@ window. The application menu lists every window, marked with its
 workspace's number when it is on another; choosing it goes there, and so
 does opening an app that is already open on another.
 
+**Tiling** is a workspace's own: Window > Tile Workspace (or its
+shortcut, unset until you give it one) and the desktop lays that
+workspace's windows out itself -- the main one on the left, Control Panel
+> Windows > Tiled Main per cent of the display wide, the rest stacked down
+the right -- and lays them out again whenever one opens, closes, hides or
+moves between workspaces. Window > Make Main puts the focused window on
+the left; dragging a tiled window by its title onto another swaps the two.
+A fixed window floats over the layout, and a tiled window cannot be
+resized by hand. Turned off, the windows stay where the layout put them.
+
 A button presses then releases, the same as any other clickable thing in a
 real GUI: held down, it shows inverted, and dragging off it before letting
 go cancels whatever it would have done -- nothing fires until release, and

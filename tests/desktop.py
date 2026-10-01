@@ -1149,6 +1149,47 @@ sc, _ = run(WS2 + "dt_wsmove 2 3\ndt_wsset 2\n", [b"\x1b2"])
 check("fewer workspaces: windows on one that went move to the last left",
       sc.find("┤ Over ├") == (9, 27) and "1 2 3" not in sc.row(0), sc)
 
+# --- tiling ------------------------------------------------------------------
+#
+# A tiled workspace lays its windows out itself: the main one on the left,
+# the rest stacked down the right, redone as windows come and go.
+W3 = ('dt_new "One" 8 30 6 10\ndt_new "Two" 8 30 9 25\n'
+      'dt_new "Three" 6 20 3 40\ndt_tiletoggle\n')
+sc, _ = run(W3)
+check("tiling puts the first window on the left and stacks the rest",
+      sc.find("┤ One ├") == (1, 2) and sc.find("┤ Two ├") == (1, 42) and
+      sc.find("┤ Three ├") == (12, 42) and sc.at(23, 39) == "◢", sc)
+sc, _ = run(W3 + 'dt_new "Four" 5 20 2 2\n')
+check("a window opened on a tiled workspace joins the stack",
+      sc.find("┤ Four ├") is not None and sc.find("┤ Four ├")[1] == 42 and
+      sc.find("┤ Two ├") == (1, 42), sc)
+sc, _ = run(W3 + "dt_del 2\n")
+check("closing one lays out the rest again",
+      sc.find("┤ Two ├") is None and sc.find("┤ Three ├") == (1, 42) and
+      sc.at(23, 79) == "◢", sc)
+sc, _ = run(W3 + "dt_raise 3\ndt_tilemain\n")
+check("Make Main puts the focused window on the left",
+      sc.find("┤ Three ├") == (1, 2) and sc.find("┤ One ├") == (1, 42), sc)
+sc, _ = run(W3, [press(1, 20), drag(15, 60), release(15, 60)])
+check("a tiled window dragged onto another swaps places with it",
+      sc.find("┤ Three ├") == (1, 2) and sc.find("┤ One ├") == (12, 42), sc)
+sc, _ = run(W3, [press(1, 20), drag(5, 30), release(5, 30)])
+check("and let go anywhere else goes back to its place",
+      sc.find("┤ One ├") == (1, 2), sc)
+sc, raw = run(W3, [press(23, 39), drag(18, 30), release(18, 30)])
+check("resizing a tiled window by hand is refused, and says why",
+      sc.at(23, 39) == "◢" and b"the layout sizes this window" in raw, sc)
+sc, _ = run(W3 + "dt_tiletoggle\n")
+check("turned off, the windows stay where the layout put them",
+      sc.find("┤ One ├") == (1, 2) and sc.find("┤ Three ├") == (12, 42), sc)
+sc, _ = run(W3 + 'dt_wsgo 2\ndt_new "Free" 8 30 6 10\n')
+check("tiling is a workspace's own: another one's windows float",
+      sc.find("┤ Free ├") == (6, 12), sc)
+sc, _ = run(W3, [b"\x1b[21~", b"\x1b[C", b"\x1b[C"])
+check("the Window menu shows Tile Workspace ticked, and Make Main",
+      sc.find("Tile Workspace") is not None and
+      sc.find("Make Main") is not None, sc)
+
 # --- icons on the desktop -------------------------------------------------
 #
 # A clean desktop: Home, the disks (faked here through DT_MOUNTS, so the
@@ -2590,4 +2631,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(352)
+report(362)

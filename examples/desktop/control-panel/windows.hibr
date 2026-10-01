@@ -2,7 +2,8 @@
 #
 # windows -- the Control Panel pane for how a window looks and where a new
 # one goes: its frame, which side its buttons dock to, where its title
-# sits, which glyphs the buttons are drawn with, and Placement. How the mouse moves, resizes and double-clicks one is the
+# sits, which glyphs the buttons are drawn with, Placement, and how wide a
+# tiled workspace's main window is. How the mouse moves, resizes and double-clicks one is the
 # Mouse pane's. Every value here is read by wm/frame.hibr; this pane only
 # ever changes the DT_* settings, never the drawing itself.
 
@@ -37,6 +38,11 @@ fn windows_rows(int w) {
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Placement"
 	CP[$w][$n]["val"]="$DT_PLACE"; CP[$w][$n]["key"]=place
 	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Tiled Main ($DT_TILEMAIN%)"
+	CP[$w][$n]["wtype"]=slider
+	CP[$w][$n]["val"]=$((DT_TILEMAIN / 10)); CP[$w][$n]["min"]=3
+	CP[$w][$n]["max"]=7
+	CP[$w][$n]["key"]=tilemain; n=$((n + 1))
 	ret "$n"
 }
 
@@ -54,6 +60,13 @@ fn windows_do(int w, k, int dir) {
 	          DT_BTNSTYLE=$v ;;
 	place) v := cp_next "$DT_PLACE" "$dir" "${DT_PLACES[@]}"
 	       DT_PLACE=$v ;;
+	tilemain)
+		v=$((DT_TILEMAIN + dir * 10))
+		[ "$v" -lt 30 ] && v=30
+		[ "$v" -gt 70 ] && v=70
+		DT_TILEMAIN=$v
+		dt_tile
+		;;
 	esac
 	cp_save
 }

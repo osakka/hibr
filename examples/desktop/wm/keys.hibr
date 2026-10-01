@@ -19,7 +19,7 @@ DT_KEYPEND_FROM=
 # desktop does is on a key that is not in one of the two.
 DT_KEYORDER=(menu menu2 copy cut paste selectall scrollup scrolldown
 	snapleft snapright snaptop snapbottom snapcenter ws1 ws2 ws3 ws4 ws5 ws6
-	ws7 ws8 ws9 wsnext wsprev close cycle strip detach quit)
+	ws7 ws8 ws9 wsnext wsprev tile tilemain close cycle strip detach quit)
 declare -gA DT_KEYNAME
 DT_KEYNAME["menu"]="Menu Bar"
 DT_KEYNAME["menu2"]="Menu Bar, Also"
@@ -38,6 +38,8 @@ for dt_k in 1 2 3 4 5 6 7 8 9; do DT_KEYNAME["ws$dt_k"]="Workspace $dt_k"; done
 unset dt_k
 DT_KEYNAME["wsnext"]="Next Workspace"
 DT_KEYNAME["wsprev"]="Previous Workspace"
+DT_KEYNAME["tile"]="Tile Workspace"
+DT_KEYNAME["tilemain"]="Make Main"
 DT_KEYNAME["close"]="Close Window"
 DT_KEYNAME["detach"]="Detach"
 DT_KEYNAME["quit"]="Quit"

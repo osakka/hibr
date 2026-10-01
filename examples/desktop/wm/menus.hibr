@@ -270,6 +270,14 @@ dt_menus() {
 		dt_item "Close" w dt_close_focused
 	fi
 	dt_sep
+	local tv=0
+	dt_tiled "$DT_WS" && tv=1
+	dt_mark "Tile Workspace" i "$tv" dt_tiletoggle
+	if [ -n "$DT_FOCUS" ] && dt_intile "$DT_FOCUS"; then
+		dt_item "Make Main" a dt_tilemain
+	else
+		dt_dim "Make Main"
+	fi
 	dt_item "Cycle" c dt_cycle
 	dt_layout
 }

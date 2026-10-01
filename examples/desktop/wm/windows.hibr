@@ -44,11 +44,14 @@ fn dt_new(title, int h, int w, int row, int col, ap = "", arg = "") {
 	console pane "w$id" "$row" "$col" "$h" "$w"
 	DT_FOCUS=$id
 	[ -n "${DT[$id]["open"]}" ] && ${DT[$id]["open"]} "$id" "$arg"
+	dt_tile
 	ret "$id"
 }
 
 # Close a window and forget it.
 fn dt_del(int id) {
+	local ws=${DT[$id]["ws"]:-1}
+
 	[ -n "${DT[$id]["close"]}" ] && ${DT[$id]["close"]} "$id"
 	console pane drop "w$id"
 	unset "DT[$id]"
@@ -58,6 +61,7 @@ fn dt_del(int id) {
 		l=${l##* }
 		DT_FOCUS=${l#w}
 	fi
+	dt_tile "$ws"
 }
 
 # An app calls this from its own _draw to ask that its window be closed --
@@ -98,6 +102,7 @@ fn dt_min(int id) {
 			DT_FOCUS=${l#w}
 		fi
 	fi
+	dt_tile "${DT[$id]["ws"]:-1}"
 }
 
 #
