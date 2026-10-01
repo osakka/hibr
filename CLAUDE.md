@@ -1604,8 +1604,15 @@ went in the shell.
   read over an empty list and wrote its end-of-input newline to stderr;
   `byobu-ulevel` used bash's old `$[ ]` arithmetic; and
   `aptitude-run-state-bundle` differed only in a `mktemp` suffix, which
-  `corpus.py` now normalises. The full set has not been re-run on this
-  machine since. `cc_aiwo_bootstrap.sh` is the owner's own script and
+  `corpus.py` now normalises. Re-run on 0.74 (2026-10-01): **312 of 312
+  invocations over 104 scripts agree.** The list was every sh or bash
+  script in `/usr/bin`, 177, less anything that acts on the machine with no
+  arguments -- this box has passwordless sudo, and the five-second timeout
+  kills the script, not what it started: browsers, qemu, byobu (it starts
+  tmux servers), the printer and D-Bus services, kernel and boot tools, the
+  `xdg-*` and `sensible-*` launchers, and any script that names `sudo`,
+  `pkexec`, `systemctl`, `dbus-send`, `nohup` or `setsid`. Build the list
+  that way again rather than running all of `/usr/bin`. `cc_aiwo_bootstrap.sh` is the owner's own script and
   **bash** is the one that fails it, with 127.
 - Loop throughput is 1.2x behind dash on a `while` loop and 1.4x on `case`,
   from 1.7x and 1.6x. What is left is genuinely diffuse. Measure this with
