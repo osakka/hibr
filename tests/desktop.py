@@ -1104,6 +1104,51 @@ sc, raw = run(FIXED, [AL])
 check("a fixed window keeps its size", sc.find("┤ Fixed ├") is not None and
       b"keeps its size" in raw, sc)
 
+# --- workspaces --------------------------------------------------------------
+#
+# Three by default, for the whole desktop. Switching hides one workspace's
+# windows the way minimising does and shows the other's as they were
+# stacked; the bar shows the numbers, a click switches, a window dragged by
+# its title onto a number goes there.
+WS2 = 'dt_new "Under" 8 30 6 10\ndt_new "Over" 8 30 9 25\n'
+sc, _ = run(WS2, [b"\x1b2"])
+check("alt-2 switches to an empty workspace: no window is drawn",
+      sc.find("Under") is None and sc.find("Over") is None, sc)
+w2 = sc.row(0).find("1 2 3")
+check("and the bar shows the three workspaces", w2 > 0, sc)
+sc, _ = run(WS2)
+w2 = sc.row(0).find("1 2 3")
+sc, _ = run(WS2, [b"\x1b2", b"\x1b1"])
+check("alt-1 comes back to both, stacked as they were",
+      sc.find("┤ Under ├") == (6, 12) and sc.at(9, 25) == "┌", sc)
+sc, _ = run(WS2, [press(0, w2 + 2)] if w2 > 0 else [])
+check("clicking a number on the bar switches to it",
+      sc.find("Under") is None, sc)
+sc, raw = run(WS2 + "dt_wsmove 2 3\n", [])
+check("a window sent to another workspace leaves this one",
+      sc.find("Over") is None and sc.find("┤ Under ├") == (6, 12), sc)
+sc, _ = run(WS2 + "dt_wsmove 2 3\n", [b"\x1b3"])
+check("and is there on its own", sc.find("┤ Over ├") == (9, 27) and
+      sc.find("Under") is None, sc)
+sc, _ = run(WS2, [press(9, 35), drag(0, w2 + 4), release(0, w2 + 4)]
+            if w2 > 0 else [])
+check("a window dragged by its title onto a number goes to that workspace",
+      sc.find("Over") is None and sc.find("┤ Under ├") == (6, 12), sc)
+sc, _ = run(WS2, [press(9, 35), drag(0, w2 + 4), release(0, w2 + 4),
+                  b"\x1b3"] if w2 > 0 else [])
+check("where it is, as it was before the drag",
+      sc.find("┤ Over ├") == (9, 27), sc)
+sc, _ = run("dt_launch calc\ndt_wsgo 2\ndt_launch calc", pre=PLACEAPPS)
+check("launching a once-app open on another workspace goes there, not a "
+      "second copy", sc.find("┤ Calculator ├") is not None and
+      sc.row(0).find("1 2 3") > 0, sc)
+sc, _ = run("dt_launch calc\ndt_wsgo 2\ndt_launch clock", pre=PLACEAPPS)
+check("a new window is placed as if the other workspaces' were not there",
+      sc.find("┤ Clock ├") == (1, 2), sc)
+sc, _ = run(WS2 + "dt_wsmove 2 3\ndt_wsset 2\n", [b"\x1b2"])
+check("fewer workspaces: windows on one that went move to the last left",
+      sc.find("┤ Over ├") == (9, 27) and "1 2 3" not in sc.row(0), sc)
+
 # --- icons on the desktop -------------------------------------------------
 #
 # A clean desktop: Home, the disks (faked here through DT_MOUNTS, so the
@@ -2545,4 +2590,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(341)
+report(352)

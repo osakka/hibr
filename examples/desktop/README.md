@@ -54,6 +54,17 @@ Center. Snapping the same way again puts the window back where it was. A
 fixed window can only be centred. The keys are Shortcuts like any other;
 Center has none until you give it one.
 
+**Workspaces**: three by default (Control Panel > Desktop > Workspaces, 1
+to 9), for the whole desktop at once, every window on the one that was
+current when it opened. The bar shows the numbers left of the notification
+icon, the current one lit; click one to go there, or drag a window by its
+title onto one to send it there. alt-1, alt-2 and alt-3 switch,
+ctrl-alt-right and ctrl-alt-left step through them (Workspace 4 to 9 have
+no key until given one), and Window > Move to Workspace sends the focused
+window. The application menu lists every window, marked with its
+workspace's number when it is on another; choosing it goes there, and so
+does opening an app that is already open on another.
+
 A button presses then releases, the same as any other clickable thing in a
 real GUI: held down, it shows inverted, and dragging off it before letting
 go cancels whatever it would have done -- nothing fires until release, and

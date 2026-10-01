@@ -26,6 +26,7 @@ fn dt_new(title, int h, int w, int row, int col, ap = "", arg = "") {
 	DT[$id]["title"]="$title"
 	DT[$id]["h"]="$h"
 	DT[$id]["w"]="$w"
+	DT[$id]["ws"]=$DT_WS
 	DT[$id]["row"]="$row"
 	DT[$id]["col"]="$col"
 	DT[$id]["app"]="$ap"
@@ -129,6 +130,7 @@ fn dt_hidden(int id) {
 
 # Put a window on top and give it the keyboard.
 fn dt_raise(int id) {
+	dt_away "$id" && dt_wsgo "${DT[$id]["ws"]}"
 	dt_hidden "$id" && { dt_min "$id"; return 0; }
 	console pane raise "w$id"
 	DT_FOCUS=$id

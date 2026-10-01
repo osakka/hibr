@@ -1,7 +1,7 @@
 #!/usr/bin/env hibr
 #
 # desktop -- the Control Panel pane for the bare desktop: which icons sit
-# on it, and how often a busy screen is redrawn.
+# on it, how many workspaces it has, and how often a busy screen is redrawn.
 
 strict
 
@@ -18,6 +18,10 @@ fn desktop_rows(int w) {
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_DISKS" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=DT_DISKS; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Workspaces ($DT_WSN)"
+	CP[$w][$n]["wtype"]=slider
+	CP[$w][$n]["val"]=$DT_WSN; CP[$w][$n]["min"]=1; CP[$w][$n]["max"]=9
+	CP[$w][$n]["key"]=wsn; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Redraw Skip ($DT_DRAWSKIP)"
 	CP[$w][$n]["wtype"]=slider
 	CP[$w][$n]["val"]=$DT_DRAWSKIP; CP[$w][$n]["min"]=0; CP[$w][$n]["max"]=9
@@ -33,6 +37,7 @@ fn desktop_do(int w, k, int dir) {
 		cp_toggle "$k"
 		command -v dt_deskscan > /dev/null && dt_deskscan
 		;;
+	wsn) dt_wsset $((DT_WSN + dir)) ;;
 	drawskip)
 		v=$((DT_DRAWSKIP + dir))
 		[ "$v" -lt 0 ] && v=0

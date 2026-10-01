@@ -27,7 +27,7 @@ strict
 
 dt_mouse() {
 	local act=${1##*-} mr mc mods
-	local id b wr wc wh ww ap mo now dr dc
+	local id b wr wc wh ww ap mo now dr dc wsn
 
 	mods=${1%"$act"}
 	mods=${mods%-}
@@ -40,6 +40,11 @@ dt_mouse() {
 	case $act in
 	press)
 		if [ "$mr" = 0 ]; then
+			if [ "$1" != right ] && wsn := dt_wshit "$mc"; then
+				dt_mclose
+				dt_wsgo "$wsn"
+				return 0
+			fi
 			if [ "$mc" -ge "$DT_BELLC" ] &&
 			   [ "$mc" -lt $((DT_BELLC + DT_BELLW)) ]; then
 				dt_mclose
@@ -198,6 +203,8 @@ dt_mouse() {
 		DT_DBLID=$id
 		DT_DBLT=$now
 		DT_DRAG=$id
+		DT_DRAGR0=$wr
+		DT_DRAGC0=$wc
 		DT_DR=$((mr - wr))
 		DT_DC=$((mc - wc))
 		;;
@@ -302,6 +309,14 @@ dt_mouse() {
 		dt_move "$DT_DRAG" $((mr - DT_DR)) $((mc - DT_DC))
 		;;
 	release)
+		# Let go over a workspace's number on the bar: the window goes to
+		# that workspace, where it was before the drag began.
+		if [ -n "$DT_DRAG" ] && [ "$mr" = 0 ] && wsn := dt_wshit "$mc"; then
+			dt_move "$DT_DRAG" "$DT_DRAGR0" "$DT_DRAGC0"
+			dt_wsmove "$DT_DRAG" "$wsn"
+			DT_DRAG=
+			return 0
+		fi
 		if [ -n "$CS_DRAG" ]; then
 			case $CS_DRAGKIND in
 			"")
@@ -512,6 +527,8 @@ fn dt_event(k) {
 		dt_close_focused
 	elif [ "$knorm" = "$dn" ]; then
 		dt_detach
+	elif dt_wskey "$k"; then
+		:
 	elif dt_keyis snapleft "$k"; then
 		dt_snap_focused left
 	elif dt_keyis snapright "$k"; then

@@ -246,6 +246,20 @@ dt_menus() {
 		dt_item "Bottom" b dt_snap_focused bottom
 		dt_item "Center" c dt_snap_focused center
 		dt_end
+		if [ "$DT_WSN" -gt 1 ]; then
+			local wsi=1
+			dt_sub "Move to Workspace"
+			while [ "$wsi" -le "$DT_WSN" ]; do
+				if [ "$wsi" = "$DT_WS" ]; then
+					dt_dim "Workspace $wsi"
+				else
+					dt_item "Workspace $wsi" "$wsi" \
+						dt_wsmove_focused "$wsi"
+				fi
+				wsi=$((wsi + 1))
+			done
+			dt_end
+		fi
 		dt_item "Hide" h dt_hide_focused
 		if [ "${DT[$DT_FOCUS]["app"]}" = term ] && [ "$DT_TERMKEEP" = 1 ] &&
 		   dt_has term_passall; then
@@ -449,7 +463,9 @@ fn dt_menu_draw(int m, int? px, int parent) {
 	console put "$r" "$x" "$lb"
 }
 
-# The application menu: every window, the hidden ones marked.
+# The application menu: every window, the hidden ones marked, and one on
+# another workspace marked with that workspace's number -- choosing it
+# switches there.
 dt_drop_apps() {
 	local ids id i=0 r=1 x w=18 t mark n il
 
@@ -470,6 +486,7 @@ dt_drop_apps() {
 		mark=" "
 		[ "$id" = "$DT_FOCUS" ] && mark="${GL[bullet]}"
 		dt_hidden "$id" && mark="${GL[dot]}"
+		dt_away "$id" && mark=${DT[$id]["ws"]}
 		t := dt_title "$id"
 		t := str pad "$mark ${t}" "$w"
 		console put "$r" "$x" "$t"

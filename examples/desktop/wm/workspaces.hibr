@@ -1,0 +1,167 @@
+#!/usr/bin/env hibr
+#
+# wm/workspaces -- virtual workspaces, for the whole desktop at once: one
+# current workspace, DT_WS, of DT_WSN (three unless the Desktop pane says
+# otherwise). Every window belongs to one, DT[$id]["ws"], the one that was
+# current when it opened. Switching hides the windows of the workspace being
+# left the way minimising does -- a hidden window has no pane, so nothing
+# draws it, nothing can click it and it costs nothing -- and shows the
+# others in the order they were last stacked.
+#
+# The bar shows the numbers, the current one lit: a click switches, and a
+# window dragged by its title onto a number goes to that workspace. The
+# Workspace 1 to 9 shortcuts switch, Next and Previous step through them,
+# and the Window menu's Move to Workspace sends the focused window.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+strict
+
+DT_WS=1
+DT_WSN="${DT_WSN-3}"
+declare -gA DT_WSORD
+DT_WSC=0
+DT_WSW=0
+
+# Whether a window is on a workspace other than the current one.
+fn dt_away(int id) {
+	[ "${DT[$id]["ws"]:-1}" != "$DT_WS" ]
+}
+
+# Switch to workspace n.
+fn dt_wsgo(int n) {
+	local l p id ord
+	local -a ps
+
+	[ "$n" -lt 1 ] && n=1
+	[ "$n" -gt "$DT_WSN" ] && n=$DT_WSN
+	[ "$n" = "$DT_WS" ] && return 0
+	l := console pane list
+	DT_WSORD["$DT_WS"]=$l
+	read -ra ps <<< "$l"
+	for p in "${ps[@]}"; do
+		console pane drop "$p"
+	done
+	DT_WS=$n
+	ord=${DT_WSORD["$n"]}
+	read -ra ps <<< "$ord"
+	for p in "${ps[@]}"; do
+		id=${p#w}
+		[ -n "${DT[$id]["title"]}" ] || continue
+		dt_away "$id" && continue
+		dt_hidden "$id" && continue
+		console pane "w$id" "${DT[$id]["row"]}" "${DT[$id]["col"]}" \
+			"${DT[$id]["h"]}" "${DT[$id]["w"]}"
+	done
+	for id in "${!DT[@]}"; do
+		dt_away "$id" && continue
+		dt_hidden "$id" && continue
+		case " $ord " in *" w$id "*) continue ;; esac
+		console pane "w$id" "${DT[$id]["row"]}" "${DT[$id]["col"]}" \
+			"${DT[$id]["h"]}" "${DT[$id]["w"]}"
+	done
+	l := console pane list
+	l=${l##* }
+	DT_FOCUS=${l#w}
+	dt_wsnote "$n"
+}
+
+# Say which workspace is current, briefly.
+fn dt_wsnote(int n) {
+	dt_note "Workspace $n"
+}
+
+# Have n workspaces, 1 to 9. Windows on one that goes away move to the last
+# that remains, and so does the desktop if it was on one.
+fn dt_wsset(int n) {
+	local id
+
+	[ "$n" -lt 1 ] && n=1
+	[ "$n" -gt 9 ] && n=9
+	[ "$DT_WS" -gt "$n" ] && dt_wsgo "$n"
+	for id in "${!DT[@]}"; do
+		[ "${DT[$id]["ws"]:-1}" -gt "$n" ] && DT[$id]["ws"]=$n
+	done
+	DT_WSN=$n
+}
+
+# Step to the next workspace, or with -1 the previous, wrapping round.
+fn dt_wsstep(int by) {
+	local n=$((DT_WS + by))
+
+	[ "$n" -lt 1 ] && n=$DT_WSN
+	[ "$n" -gt "$DT_WSN" ] && n=1
+	dt_wsgo "$n"
+}
+
+# Send a window to workspace n; it goes on top there.
+fn dt_wsmove(int id, int n) {
+	local l
+
+	[ "$n" -lt 1 ] || [ "$n" -gt "$DT_WSN" ] && return 1
+	[ "${DT[$id]["ws"]:-1}" = "$n" ] && return 0
+	if ! dt_away "$id" && ! dt_hidden "$id"; then
+		console pane drop "w$id"
+	fi
+	DT[$id]["ws"]=$n
+	DT_WSORD["$n"]="${DT_WSORD["$n"]} w$id"
+	if [ "$DT_FOCUS" = "$id" ]; then
+		l := console pane list
+		l=${l##* }
+		DT_FOCUS=${l#w}
+	fi
+	dt_note "${DT[$id]["title"]} moved to workspace $n"
+}
+
+fn dt_wsmove_focused(int n) {
+	[ -n "$DT_FOCUS" ] && dt_wsmove "$DT_FOCUS" "$n"
+}
+
+# A workspace shortcut: Workspace 1 to 9, Next, Previous. Fails for any
+# other key, so dt_event goes on to the rest.
+fn dt_wskey(k) {
+	local i=1
+
+	if dt_keyis wsnext "$k"; then dt_wsstep 1; return 0; fi
+	if dt_keyis wsprev "$k"; then dt_wsstep -1; return 0; fi
+	while [ "$i" -le 9 ]; do
+		if dt_keyis "ws$i" "$k"; then
+			[ "$i" -le "$DT_WSN" ] && dt_wsgo "$i"
+			return 0
+		fi
+		i=$((i + 1))
+	done
+	return 1
+}
+
+# Draw the numbers on the bar, ending just before column end, and remember
+# where they are for a click or a drop. One workspace draws nothing.
+fn dt_wsdraw(int end) {
+	local i=1
+
+	DT_WSW=0
+	[ "$DT_WSN" -gt 1 ] || return 0
+	DT_WSW=$((DT_WSN * 2 - 1))
+	DT_WSC=$((end - DT_WSW))
+	while [ "$i" -le "$DT_WSN" ]; do
+		if [ "$i" = "$DT_WS" ]; then
+			console pen "$DT_BAR" "$DT_ACTIVE" bold
+		else
+			console pen "$DT_IDLE" "$DT_BAR"
+		fi
+		console put 0 $((DT_WSC + (i - 1) * 2)) "$i"
+		i=$((i + 1))
+	done
+}
+
+# Which workspace number is at column c on the bar, if any.
+fn dt_wshit(int c) {
+	local k
+
+	[ "$DT_WSW" -gt 0 ] || return 1
+	[ "$c" -ge "$DT_WSC" ] && [ "$c" -lt $((DT_WSC + DT_WSW)) ] || return 1
+	k=$((c - DT_WSC))
+	[ $((k % 2)) = 0 ] || return 1
+	ret $((k / 2 + 1))
+}

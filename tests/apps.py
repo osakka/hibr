@@ -152,7 +152,7 @@ sc = run("calc", CW, [b"1", b"2", b"\x7f"])
 # 12 o'clock. " 1 " at this exact spot already rules out "12" being there
 # instead: the character right after "1" would be "2", not a space.
 check("backspace takes the last character back",
-      sc.find(" 1 ") == (3, 3), sc)
+      sc.row(3)[3:6] == " 1 ", sc)
 
 sc = run("calc", CW, [b"2", b"+", b"="])
 check("an incomplete expression says so rather than answering",
@@ -505,14 +505,15 @@ check("Shortcuts lists the desktop's actions, the Control Strip's among "
                                         "Cycle Windows", "Control Strip",
                                         "Control Panel")) and
       "alt-s" in brow(sc, "Control Strip") and brow(sc, "Apps") != "", sc)
-sc = cprun([b"\x1b[B"] * downs("shortcuts"))
+sc = cprun(reach("shortcuts", "Control Panel"))
 
 # Clearing one: a ✕ beside every key that is set, and delete or backspace
-# on the selected row.
+# on the selected row -- with the list moved down so Quit and the apps'
+# rows are on screen.
 check("a set shortcut has a ✕ to clear it, and an unset one has none",
       "✕" in brow(sc, "Quit") and "✕" not in brow(sc, "Control Panel"), sc)
 qr = browi(sc, "Quit")
-sc = cprun([b"\x1b[B"] * downs("shortcuts") +
+sc = cprun(reach("shortcuts", "Control Panel") +
            ([press(qr, sc.row(qr).index("✕"))] if qr else []))
 check("clicking it clears the shortcut",
       brow(sc, "Quit") != "" and "q" not in brow(sc, "Quit").split() and
@@ -1243,7 +1244,7 @@ check("clicking below the last pane in the picker does nothing",
       sc.find(TITLE[ORDER[0]]) is not None, sc)
 sc = cprun([press(prow("shortcuts"), LISTCOL)])
 check("clicking a pane in the picker shows it, the headings counted",
-      brow(sc, "Close Window") != "", sc)
+      brow(sc, "Menu Bar") != "", sc)
 sc = cprun([press(R0, LISTCOL)])
 check("and clicking a heading shows nothing new",
       sc.find("Change…") is not None, sc)

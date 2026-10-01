@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.83
+
+**Workspaces.** Three by default, for the whole desktop -- Control Panel >
+Desktop > Workspaces sets 1 to 9. The bar shows the numbers with the
+current one lit: click one to switch, or drag a window by its title onto
+one to send it there. alt-1 to alt-3 switch, ctrl-alt-right and
+ctrl-alt-left step, Window > Move to Workspace sends the focused window --
+every key a shortcut you can change. A hidden workspace's windows have no
+pane, so they cost nothing; each comes back stacked as it was left.
+Opening an app that is open on another workspace goes there rather than
+opening a second; new windows are placed as if the other workspaces' were
+not there; the application menu lists every window with the number of the
+workspace it is on. Fewer workspaces moves the windows of the ones that go
+onto the last that stays.
+
 ## 0.82
 
 **Snapping.** alt with an arrow puts the focused window on the left,

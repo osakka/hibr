@@ -1620,6 +1620,13 @@ went in the shell.
   time out, so a mode nobody noticed ate what was typed. Now a click ends
   them, and so does any other key, which then goes where it would have.
 
+- **A strict file does not split.** `for p in $list` over a
+  space-separated string is one word, the whole string, in every desktop
+  file -- the workspaces' first switch dropped no pane at all, because
+  `console pane drop "w1 w2"` names no pane, and nothing errored. Split
+  with `read -ra arr <<< "$list"` and loop over `"${arr[@]}"`, as the rest
+  of the desktop does.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then

@@ -53,6 +53,7 @@ fn dt_place(int h, int w) {
 	fi
 	for id in "${!DT[@]}"; do
 		dt_hidden "$id" && continue
+		dt_away "$id" && continue
 		R[n]=${DT[$id]["row"]}
 		C[n]=${DT[$id]["col"]}
 		H[n]=${DT[$id]["h"]}

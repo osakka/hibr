@@ -80,6 +80,7 @@ dt_bar() {
 	fi
 	DT_BELLW := str width "$bell"
 	DT_BELLC=$((DT_CLOCKC - gap - DT_BELLW))
+	dt_wsdraw $((DT_BELLC - gap))
 	t := dt_ms
 	case $DT_BARTIME in
 	*%S* | *%T* | *%r* | *%s* | *%X* | *%c*)
