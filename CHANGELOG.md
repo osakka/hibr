@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.76
+
+**The desktop costs half as much sitting idle.** Measured over the same
+four windows (a terminal, the clock, Files and Note Pad): 0.57% of a core
+idle before, 0.31% now, and a 30-report window drag 32 ms of CPU against
+39. Two things were most of an idle frame, and neither was a window:
+
+- **Every console write asked the kernel for the terminal's size**, so
+  filling the wallpaper was 1920 system calls a frame. Writes now use the
+  size found when the frame was last flushed, unless a resize has arrived;
+  the fill went from 0.80 ms to 0.11.
+- **The menus were rebuilt on every frame**, including the clock's once a
+  second, though only input or a change of focus can alter a shut menu
+  bar. A frame a timer asked for reuses the last build.
+
+Redrawing only the windows that changed was weighed and not done: what is
+left to save is a few tenths of a percent, against a change to the console
+and a rule every app would have to keep. The numbers are in CLAUDE.md.
+
 ## 0.75
 
 **One clipboard, everywhere.**

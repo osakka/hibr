@@ -3,6 +3,7 @@
 
 #include "../display.h"
 #include <termios.h>
+#include <signal.h>
 
 
 
@@ -43,6 +44,8 @@ void cn_getpen(unsigned *fg, unsigned *bg, unsigned *attr);
 void cn_clear(void);
 int cn_put(int row, int col, const char *t);
 void cn_fill(int row, int col, int h, int w, const char *t);
+int cn_fitq(void);
+extern volatile sig_atomic_t cn_wgen;
 unsigned cn_dim1(unsigned v, int pct, unsigned deflt);
 void cn_darken(int row, int col, int h, int w, int pct);
 void cn_setdim(unsigned fg, unsigned bg);

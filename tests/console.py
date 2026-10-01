@@ -212,4 +212,12 @@ o, _ = run('console open\nconsole flush\nconsole key 3000\nconsole close\n'
            after=bigger, wait=3)
 check("a resize interrupts the wait and is reported", counts(o) == [40, 100])
 
-report(len(WANT) + len(MWANT) + 39)
+# Writes take the size the last check found rather than asking the kernel
+# for every cell, so a resize must still reach them: a write past the old
+# edge, straight after the terminal grew, lands.
+o, _ = run('console open\nconsole flush\nconsole key 3000\n'
+           'console put 35 90 FARCELL\nconsole flush\nconsole close\n',
+           after=bigger, wait=3)
+check("a write after a resize reaches the new size", b"FARCELL" in o)
+
+report(len(WANT) + len(MWANT) + 40)

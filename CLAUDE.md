@@ -1566,6 +1566,19 @@ went in the shell.
   terminal rather than the screen -- a bell, a notification, a hyperlink
   -- needs the same treatment before it can work held.
 
+- **A console write must not ask the kernel anything.** `cn_put`, `cn_fill`,
+  `cn_clear` and `cn_darken` each began with `cn_fit`, which reads the
+  terminal's size with `ioctl` -- and `cn_fill` calls `cn_put` per cell,
+  so one wallpaper was 1920 system calls a frame. Writes use `cn_fitq`,
+  the size the last fit found unless `cn_wgen` (bumped by SIGWINCH) has
+  moved; `cn_flush` still does a full `cn_fit` every frame, which is what
+  the trap about `console flush` re-fitting relies on.
+- **The menus are rebuilt only when input or focus changed, or one is
+  open** (`dt_draw`, by `console consumed`). Anything new that can change
+  what a *shut* menu bar shows without input -- a title on the bar, the
+  focused app's name -- has to clear `DT_MENUIN` so the next frame
+  rebuilds; an open menu rebuilds every frame regardless.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then
@@ -1654,12 +1667,23 @@ went in the shell.
   sleeps until input, resize, terminal output or the soonest `dt_want`,
   and everything that changes on its own asks (bar clock per minute,
   Clock/Date & Time per second, cursor blink per half-second, icons' mount
-  rescan every 5s). Idle measures 0.2% with a terminal open. What is left:
-  a blinking cursor is 1.5%, because each blink still re-runs every
-  window's `_draw` -- per-window damage (re-run only the `_draw` whose
-  window changed, recomposite the rest from their existing panes) is the
-  next step. The console's own output diff already sends only changed
-  cells; the cost is building frames, not sending them.
+  rescan every 5s). Idle measures 0.2% with a terminal open. 0.76 measured
+  where an idle frame goes (four windows: Terminal, Clock, Files, Note Pad,
+  the clock asking once a second): 0.57% of a core, of which windows' own
+  `_draw`s were under half. Two cheaper costs were most of the rest and are
+  gone -- every console write asked the kernel for the terminal's size, so
+  the wallpaper fill alone was 1920 system calls a frame (0.80 ms, now
+  0.11), and the menus were rebuilt every frame though only input or a
+  focus change can alter a shut bar (1.1 ms, now skipped on timer frames).
+  Idle is 0.31%, a 30-report drag 32 ms of CPU against 39. Per-window
+  damage -- the console keeping each window's cells so an unchanged window
+  is copied back instead of redrawn -- was weighed and not built: it would
+  save perhaps another 0.15-0.3% of a core, and needs a console change plus
+  a "what made this window dirty" rule every app must keep, where a missed
+  case is a stale window. If it is ever wanted, it needs an oracle first:
+  a forced-full-redraw mode compared cell for cell after each random event
+  in `uifuzz.py`. Measure with `/proc/<pid>/schedstat` over a fixed
+  scenario, not frame counts.
 - The core binary is 398 KB stripped, 17,566 lines across `src/*.c`
   (measured on 0.68) -- the README and this file's opening line had drifted
   stale twice (313 KB, then 358 KB) before being re-measured and corrected.

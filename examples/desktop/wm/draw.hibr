@@ -16,8 +16,17 @@ fn dt_rep(int n, s) {
 }
 
 # One full frame, bottom of the stack upwards.
+#
+# The menus are rebuilt only when something could have changed them: input
+# arrived since the last build, focus moved, or a menu is open. A frame a
+# timer asked for -- the clock's second, a cursor's blink -- reuses the last
+# build, which cost a fifth of every idle frame. What a shut bar shows is
+# its titles and the focused app's name, and only input or a focus change
+# can alter those; an open menu is rebuilt every frame as before.
+DT_MENUIN=
+DT_MENUFOC=
 dt_draw() {
-	local l id ls
+	local l id ls in
 
 	DT_WANT=
 	dt_wall
@@ -25,8 +34,14 @@ dt_draw() {
 	read -ra ls <<< "$l"
 	for id in "${ls[@]}"; do dt_win "${id#w}"; done
 	[ -n "$DT_DND" ] && dt_dnddraw
-	dt_menus
-	dt_ctxbuild
+	in := console consumed
+	if [ "$in" != "$DT_MENUIN" ] || [ "$DT_FOCUS" != "$DT_MENUFOC" ] ||
+	   [ "$MB_OPEN" != -1 ] || [ -n "$MB_CTXWHO" ] || [ -z "$in" ]; then
+		dt_menus
+		dt_ctxbuild
+		DT_MENUIN=$in
+		DT_MENUFOC=$DT_FOCUS
+	fi
 	dt_bar
 	dt_stripdraw
 	dt_drop

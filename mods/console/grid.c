@@ -104,6 +104,19 @@ int cn_fit(void)
 	return HIBR_OK;
 }
 
+/* cn_fit for a write: the size the last fit found, unless a resize has
+   arrived since. Asking the kernel on every write made each cell of a fill
+   a system call -- 1920 of them for one wallpaper. cn_flush still asks on
+   every frame. */
+int cn_fitg = -1;
+int cn_fitq(void)
+{
+	if (cn_back.c && cn_fitg == (int)cn_wgen)
+		return HIBR_OK;
+	cn_fitg = (int)cn_wgen;
+	return cn_fit();
+}
+
 /* Set the pen used by later writes. */
 void cn_pen(unsigned fg, unsigned bg, unsigned attr)
 {
@@ -125,7 +138,7 @@ void cn_clear(void)
 {
 	int i, n;
 
-	if (cn_fit() != HIBR_OK)
+	if (cn_fitq() != HIBR_OK)
 		return;
 	n = cn_back.rows * cn_back.cols;
 	for (i = 0; i < n; i++) {
@@ -178,7 +191,7 @@ void cn_darken(int row, int col, int h, int w, int pct)
 	int r, c;
 	cn_cell *k;
 
-	if (cn_fit() != HIBR_OK)
+	if (cn_fitq() != HIBR_OK)
 		return;
 	if (pct < 0)
 		pct = 0;
@@ -225,7 +238,7 @@ int cn_put(int row, int col, const char *t)
 	unsigned cp;
 	cn_cell *c;
 
-	if (cn_fit() != HIBR_OK || !t)
+	if (cn_fitq() != HIBR_OK || !t)
 		return 0;
 	n = strlen(t);
 	while (i < n) {

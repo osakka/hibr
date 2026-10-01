@@ -1514,6 +1514,28 @@ sc = run(*TERM, feed=[press(6, 10), release(6, 10)], pre=CLICK, wait=1.2, end=No
 check("a click reaches a program that asked for the mouse, where it landed",
       sc.find("^[[<0;8;4M^[[<0;8;4m") is not None, sc)
 
+# --- what a frame redraws ----------------------------------------------------
+#
+# A frame nobody's input caused -- the clock's second -- reuses the last
+# build of the menus instead of rebuilding them, which was a fifth of every
+# idle frame. Counted by wrapping the two functions, not timed: the log
+# reads m for a build and b for a frame, and the clock's seconds with
+# nothing pressed must show frames in a row with no build between them.
+CNT = tempfile.mkdtemp(prefix="hibr-frames-")
+COUNTED = ('eval "$(declare -f dt_menus | sed \'1s/^dt_menus/dt_menus0/\')"\n'
+           'eval "$(declare -f dt_bar | sed \'1s/^dt_bar/dt_bar0/\')"\n'
+           'dt_menus() { echo m >> %s/n; dt_menus0; }\n'
+           'dt_bar() { echo b >> %s/n; dt_bar0; }\n' % (CNT, CNT))
+run("clock", "9 24 3 20", feed=[3.5], pre=COUNTED)
+seen = open(os.path.join(CNT, "n")).read().split() \
+    if os.path.exists(os.path.join(CNT, "n")) else []
+check("a frame the clock asked for does not rebuild the menus",
+      "bbb" in "".join(seen), "".join(seen))
+shutil.rmtree(CNT, True)
+sc = run("clock", "9 24 3 20", feed=[1.5, b"\x1b[21~", 0.5, b"\x1b[C", 0.5])
+check("while input still rebuilds them, so the menus open and move as before",
+      sc.find("Edit") is not None and sc.find("Copy") is not None, sc)
+
 # --- one clipboard, every app ----------------------------------------------
 #
 # Copy in one window, paste in another: a terminal and Note Pad share the
@@ -2417,4 +2439,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(344)
+report(346)
