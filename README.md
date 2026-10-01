@@ -32,14 +32,25 @@ that reads git's object store without forking anything — is the reason to use
 it.
 
 ```text
-brew tap osakka/hibr && brew install hibr     # or, from this tree:
-make && make install                           # /usr/local; PREFIX=... elsewhere
+brew tap osakka/hibr && brew install hibr     # macOS or Linux, or:
+make && make install                           # from this tree; PREFIX=... elsewhere
 
 hibr script.sh args...
 hibr -c 'echo $((6 * 7))'
 hibr --explain script.sh    # name the mistakes in it, run nothing
 hibr --plan script.sh       # follow it, change nothing, list what it would do
 man hibr                    # every flag, variable and exit status
+```
+
+On Debian 12, Ubuntu 22.04 or newer (amd64), from the signed apt
+repository at [osakka.github.io/hibr-apt](https://osakka.github.io/hibr-apt):
+
+```text
+curl -fsSL https://osakka.github.io/hibr-apt/hibr.gpg \
+  | sudo tee /usr/share/keyrings/hibr.gpg > /dev/null
+echo "deb [signed-by=/usr/share/keyrings/hibr.gpg] https://osakka.github.io/hibr-apt stable main" \
+  | sudo tee /etc/apt/sources.list.d/hibr.list
+sudo apt update && sudo apt install hibr
 ```
 
 New to it? [From bash to hibr, in ten minutes](docs/tutorial.md) is the

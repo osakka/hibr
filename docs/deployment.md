@@ -96,3 +96,27 @@ just gone wrong.
 ---
 
 [← documentation index](README.md) · [← project README](../README.md)
+
+## Packages
+
+For a machine that should simply have hibr, a package manager is the shorter
+way, and keeps it current with everything else:
+
+| | |
+|---|---|
+| Debian 12, Ubuntu 22.04 or newer, amd64 | the signed apt repository at [osakka.github.io/hibr-apt](https://osakka.github.io/hibr-apt), whose page has the four commands |
+| macOS, or Linux with Homebrew | `brew tap osakka/hibr && brew install hibr` |
+
+A package installs under `/usr`: the shell in `/usr/bin`, its modules in
+`/usr/lib/hibr`, the manual page and the desktop beside them, and the
+`desktop` launcher.
+
+Each release is packaged from this tree. `packaging/deb/build-deb.sh` runs
+`make install` with `PREFIX=/usr` into a staging directory and packs it with
+`dpkg-deb`, depending on the newest glibc symbol version the binary and its
+modules actually use. `packaging/deb/publish.sh` adds the package to the
+repository (`itdlabs/hibr-apt`, mirrored to GitHub, served by Pages),
+regenerates its index with `apt-ftparchive`, signs it with the repository's
+own key, and pushes; it fails loudly if the push does. Every version ever
+published stays in the pool. The Homebrew formula is refreshed by
+`release.sh --formula` and `tools/homebrew-sync.sh`.

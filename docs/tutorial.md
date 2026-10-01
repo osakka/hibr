@@ -7,6 +7,16 @@ printed here, so what you read is what hibr does.
 
 ## Install
 
+On Debian 12, Ubuntu 22.04 or newer (amd64), from hibr's own apt repository:
+
+```text
+curl -fsSL https://osakka.github.io/hibr-apt/hibr.gpg \
+  | sudo tee /usr/share/keyrings/hibr.gpg > /dev/null
+echo "deb [signed-by=/usr/share/keyrings/hibr.gpg] https://osakka.github.io/hibr-apt stable main" \
+  | sudo tee /etc/apt/sources.list.d/hibr.list
+sudo apt update && sudo apt install hibr
+```
+
 On macOS or Linux with Homebrew:
 
 ```text
