@@ -6,6 +6,7 @@ every callback names what it is called with
 every kept preference is in the Control Panel
 the desktop is strict
 no window content draws at absolute screen coordinates
+every glyph drawn is named
 every declared program answers --help
 [auth]
   token = abc123

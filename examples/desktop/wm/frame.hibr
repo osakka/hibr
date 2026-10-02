@@ -75,10 +75,53 @@ dt_btnstr() {
 }
 
 # Draw one window: its face, then its app, then its frame over the top.
+# A bare window: the window's own colour throughout, the app drawing in
+# the same place as in a framed one, a strip along the top a shade darker
+# -- darker still with focus -- with a close box at its left and the title
+# faint beside it, and a grow mark in the corner.
+fn dt_winbare(int id) {
+	local h=${DT[$id]["h"]} w=${DT[$id]["w"]} dr=${DT[$id]["draw"]}
+	local wr=${DT[$id]["row"]} wc=${DT[$id]["col"]}
+	local bg=${DT[$id]["bg"]:-$DT_FACE} fg=${DT[$id]["fg"]:-$DT_INK} t pct=88
+
+	console pen "$fg" "$bg"
+	console fill "$wr" "$wc" "$h" "$w" " "
+	[ -n "$dr" ] && $dr "$id" $((h - 2)) $((w - 2)) "$wr" "$wc"
+	console pen "$fg" "$bg"
+	t := str repeat " " "$w"
+	console put -p "w$id" 0 0 "$t"
+	t=${DT[$id]["title"]}
+	[ ${#t} -gt $((w - 5)) ] && t="${t:0:$((w - 5))}"
+	console put -p "w$id" 0 1 "${GL[cross]}"
+	console pen "$fg" "$bg" dim
+	console put -p "w$id" 0 3 "$t"
+	[ "$DT_FOCUS" = "$id" ] && pct=78
+	console darken "$wr" "$wc" 1 "$w" "$pct"
+	if [ "${DT_APPS[${DT[$id]["app"]}]["fixed"]}" != 1 ]; then
+		console pen "$fg" "$bg" dim
+		console put -p "w$id" $((h - 1)) $((w - 1)) "${GL[grow]}"
+	fi
+}
+
+# Which title-bar button is at column c of window id, if any -- for a bare
+# window only its close box.
+fn dt_btnat(int id, int c) {
+	if [ "${DT_APPS[${DT[$id]["app"]}]["bare"]}" = 1 ]; then
+		[ "$c" = 1 ] && ret close
+		return 0
+	fi
+	dt_btn "${DT[$id]["w"]}" "$c" "${DT_APPS[${DT[$id]["app"]}]["fixed"]}"
+}
+
 fn dt_win(int id) {
 	local h=${DT[$id]["h"]} w=${DT[$id]["w"]} on=$DT_IDLE
 	local wr=${DT[$id]["row"]} wc=${DT[$id]["col"]} dr=${DT[$id]["draw"]}
 	local fixed=${DT_APPS[${DT[$id]["app"]}]["fixed"]} pc
+
+	if [ "${DT_APPS[${DT[$id]["app"]}]["bare"]}" = 1 ]; then
+		dt_winbare "$id"
+		return 0
+	fi
 
 	[ "$DT_SHADOW" = 1 ] &&
 		console darken $((wr + 1)) $((wc + 2)) "$h" "$w" "$DT_SHADOW_PCT"

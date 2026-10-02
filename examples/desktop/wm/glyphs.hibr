@@ -48,6 +48,8 @@ fn dt_glyphs(set = "unicode") {
 		GL["file"]="-"; GL["folder"]="+"
 		GL["cross"]="x"; GL["xmark"]="x"; GL["check"]="*"
 		GL["star"]="*"; GL["flag"]="!"; GL["heart"]="*"; GL["warn"]="!"
+		GL["task"]="[ ]"; GL["taskdone"]="[x]"; GL["pin"]="*"
+		GL["newline"]="~"; GL["ellipsis"]="~"; GL["quote"]='"'; GL["dash"]="-"
 		GL["home"]="H"; GL["trash"]="u"; GL["trashfull"]="U"; GL["disk"]="D"
 		GL["spark1"]="_"; GL["spark2"]="."; GL["spark3"]="-"
 		GL["spark4"]=":"; GL["spark5"]="="; GL["spark6"]="+"
@@ -95,6 +97,13 @@ fn dt_glyphs(set = "unicode") {
 		GL["xmark"]=$'✗'     # BALLOT X
 		GL["check"]=$'✓'     # CHECK MARK
 		GL["star"]=$'✱'      # HEAVY ASTERISK
+		GL["task"]=$'☐'      # BALLOT BOX
+		GL["taskdone"]=$'☑'  # BALLOT BOX WITH CHECK
+		GL["pin"]=$'★'       # BLACK STAR
+		GL["newline"]=$'⏎'   # RETURN SYMBOL
+		GL["ellipsis"]=$'…'  # HORIZONTAL ELLIPSIS
+		GL["quote"]=$'❝'     # HEAVY DOUBLE TURNED COMMA QUOTATION MARK ORNAMENT
+		GL["dash"]=$'—'      # EM DASH
 		GL["flag"]=$'⚑'      # BLACK FLAG
 		GL["heart"]=$'♥'     # BLACK HEART SUIT
 		GL["warn"]=$'⚠'      # WARNING SIGN

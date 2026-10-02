@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.99.1
+
+**One Open, Save As and Export dialog for everything.** A folder's
+contents, folders first, filtered to the app's kinds of file (and All
+files), with a preview of what is selected; Save As adds the extension and
+asks before replacing. Write's Open…, Save As… and a new Export… (HTML, or
+plain text as it reads), and dBASE's New Database… and Open Database…, all
+use it; `dt_filepick` gives it to any app.
+
+**Stickies have no frame.** A new window style, `bare`: the window's own
+colour, a strip across the top a shade darker with a close box -- drag it
+to move -- and a grow mark, and no shadow. Stickies use it.
+
+**Every glyph is named again.** Write, Stickies, the Clipboard and the file
+dialog had written •, ☐, ☑, ★, ⏎ and … straight into the code; they are in
+`GL` now, with ASCII stand-ins, and `tests/540-examples.t` fails on the
+next one. A one-line field takes ctrl-u and ctrl-k.
+
 ## 0.99
 
 **Write, a word processor for markdown,** in Office. Markdown is shown as it

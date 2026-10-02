@@ -536,7 +536,7 @@ fn dbase_answer(int id, a) {
 
 # The structure is done: make the database and USE it.
 fn dbase_finish(int id) {
-	local path h
+	local path h nm
 	local -a defs
 
 	DBA[$id]["mode"]=dot
@@ -547,12 +547,13 @@ fn dbase_finish(int id) {
 	fi
 	mkdir -p "$DBASE_DIR" 2> /dev/null
 	path := dbase_path "${DBA[$id]["cname"]}"
+	nm=${DBA[$id]["cname"]##*/}
 	if ! h := db create "$path" "${defs[@]}" 2> /dev/null; then
-		dbase_say "$id" "*** File already exists, or cannot be written: ${DBA[$id]["cname"]^^}"
+		dbase_say "$id" "*** File already exists, or cannot be written: ${nm^^}"
 		return 0
 	fi
 	db close "$h"
-	dbase_say "$id" "Database ${DBA[$id]["cname"]^^} created."
+	dbase_say "$id" "Database ${nm^^} created."
 	dbase_run "$id" "USE ${DBA[$id]["cname"]}"
 }
 
@@ -977,8 +978,9 @@ dbase_menus() {
 	[ -n "${DBA[$id]["h"]}" ] && used=1
 	dbase_files
 	dt_menu "File"
-	dt_item "New Database…" n dbase_start "$id" "CREATE "
-	dt_sub "Open Database"
+	dt_item "New Database…" n dbase_pick "$id" new
+	dt_item "Open Database…" o dbase_pick "$id" open
+	dt_sub "Databases"
 	if [ "${#DBASE_FILES[@]}" = 0 ]; then
 		dt_dim "(none yet)"
 	else
@@ -1071,3 +1073,29 @@ fn dbase_cut(int id) {
 	esac
 	ret "$t"
 }
+
+# New Database… and Open Database… choose the file with the desktop's
+# file dialog, starting in DBASE_DIR; what is chosen is typed at the
+# prompt as CREATE or USE, so the command is there to be learnt.
+fn dbase_pick(int id, what) {
+	[ -d "$DBASE_DIR" ] || mkdir -p "$DBASE_DIR" 2> /dev/null
+	if [ "$what" = new ]; then
+		dt_filepick save "New Database" "Databases:db" "$DBASE_DIR" \
+			"untitled.db" dbase_picked_new "$id"
+	else
+		dt_filepick open "Open Database" "Databases:db|All files:*" \
+			"$DBASE_DIR" "" dbase_picked_open "$id"
+	fi
+}
+
+fn dbase_picked_open(int id, path, type = "") {
+	[ -n "${DT[$id]["title"]}" ] || return 0
+	dbase_do "$id" "USE $path"
+}
+
+fn dbase_picked_new(int id, path, type = "") {
+	[ -n "${DT[$id]["title"]}" ] || return 0
+	[ -e "$path" ] && rm -f "$path"
+	dbase_do "$id" "CREATE ${path%.db}"
+}
+

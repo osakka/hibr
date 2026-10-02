@@ -231,6 +231,26 @@ alt-c is still allowed, since that only ever produces text. Icons can be
 switched off in Control Panel (`DT_ICONS`), and the disks specifically with
 `DT_DISKS`, or with either in the session.
 
+## Open, Save As and Export
+
+One dialog does all three, in every app: a folder's contents, folders first,
+only the kinds of file the app works with -- the Type dropdown shows the
+others, and All files -- and beside the list a preview of what is selected,
+a text file's first lines or a folder's count. Arrows move, enter opens a
+folder or chooses a file, backspace goes up, `~` goes home, and a `/`
+starts typing a path. Save As adds the type's extension when the name has
+none and asks before replacing a file; each app comes back to the folder it
+last used. Write's Open…, Save As… and Export… (HTML, or plain text as it
+reads) and dBASE's New Database… and Open Database… are this dialog; an app
+asks for it with
+
+<!-- not run: a desktop function, called from an app's menu -->
+```sh
+dt_filepick save "Export" "HTML:html htm|Plain text:txt" "$dir" "notes" my_export "$id"
+```
+
+and is called back as `my_export id path type`.
+
 ## Open With, and a terminal in a folder
 
 Right-click a file in Files and **Open With** lists every app that can open
@@ -1093,7 +1113,11 @@ who it is in its own file, one line near the top:
 command -v dt_app > /dev/null && dt_app calc "Calculator" 16 24 once "±" fixed
 ```
 
-`dt_app <name> <title> <height> <width> [once|many] [icon] [fixed] [hidden]`. `once`
+`dt_app <name> <title> <height> <width> [once|many] [icon] [fixed] [hidden] [bare]`. `bare`
+is a window with no frame, title bar or shadow: the window's own colour,
+which the app sets in `DT[$id]["bg"]` and `["fg"]`, a strip across the top
+a shade darker with a close box on it -- drag the strip to move it -- and a
+grow mark in the corner. Stickies are bare. `once`
 means one window at most: launching it again brings that window forward,
 shown if it was hidden. The calculator, Control Panel, the clock and the games
 are `once`; the terminal and the file browser are `many`. The icon is what

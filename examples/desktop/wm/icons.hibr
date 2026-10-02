@@ -164,7 +164,7 @@ dt_icondraw() {
 		g=${DI[$i]["glyph"]}
 		l=${DI[$i]["label"]}
 		k=${DI[$i]["key"]}
-		[ "${#l}" -gt $((DT_ICONW - 2)) ] && l="${l:0:$((DT_ICONW - 3))}…"
+		[ "${#l}" -gt $((DT_ICONW - 2)) ] && l="${l:0:$((DT_ICONW - 3))}${GL[ellipsis]}"
 		case ${DI[$i]["kind"]} in
 		dir) console pen "$DT_WARN" "$DT_WALL" bold ;;
 		trash) console pen "$DT_INK" "$DT_WALL" bold ;;

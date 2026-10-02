@@ -217,7 +217,7 @@ fn wallpick_draw(int id, int h, int w, int row, int col) {
 
 	console pen "$DT_ACTIVE" "$DT_FACE" bold
 	t=${FB[$id]["dir"]}
-	[ ${#t} -gt "$listw" ] && t="…${t: -$((listw - 1))}"
+	[ ${#t} -gt "$listw" ] && t="${GL[ellipsis]}${t: -$((listw - 1))}"
 	t := str pad "$t" "$listw"
 	console put -p "w$id" 1 "$bx" "$t"
 

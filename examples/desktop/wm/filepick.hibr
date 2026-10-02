@@ -1,0 +1,543 @@
+#!/usr/bin/env hibr
+#
+# wm/filepick -- the Open and Save dialog any app can use: a folder's
+# contents, folders first, filtered by the kind of file the app works
+# with, a preview of what is selected, and for Save a name to give it.
+#
+#   dt_filepick mode title types dir name callback for
+#
+# mode is open or save; types is "Label:ext ext|Label:ext|All files:*",
+# the first the one shown first; dir is where to start (the last folder
+# this app used, when it has used one); name is the starting name for
+# save; the callback is run as `callback for path type`, the path chosen
+# and the label of the type it was chosen under -- which is how an Export
+# knows which format to write. Open, Save As and Export in every app are
+# this one dialog.
+#
+# Arrows move, enter opens a folder or chooses a file, backspace goes up a
+# folder, ~ goes home; tab moves between the list, the name, the type and
+# the buttons. A name typed with a / in it is a path, from here or from /.
+# Saving over a file that is there asks first, and a name with no
+# extension gets the type's first.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+strict
+
+command -v dt_app > /dev/null && dt_app fpick "Open" 20 76 "" "" fixed hidden
+
+declare -gA FP
+declare -gA DT_FPLAST
+DT_FPPEND=
+
+fn dt_filepick(mode, title, types, dir, name, callback, for) {
+	local h=20 w=76 r c rid
+
+	[ "$w" -gt $((DT_COLS - 2)) ] && w=$((DT_COLS - 2))
+	[ "$h" -gt $((DT_ROWS - 2)) ] && h=$((DT_ROWS - 2))
+	r=$(((DT_ROWS - h) / 2))
+	c=$(((DT_COLS - w) / 2))
+	[ -n "${DT_FPLAST["$callback"]}" ] && [ -d "${DT_FPLAST["$callback"]}" ] &&
+		[ -z "$dir" ] && dir=${DT_FPLAST["$callback"]}
+	[ -d "$dir" ] || dir=${HOME:-/}
+	rid := dt_new "$title" "$h" "$w" "$r" "$c" fpick
+	FP[$rid]["mode"]=$mode
+	FP[$rid]["types"]=$types
+	FP[$rid]["ti"]=0
+	FP[$rid]["cb"]=$callback
+	FP[$rid]["for"]=$for
+	FP[$rid]["buf"]=$name
+	FP[$rid]["cur"]=${#name}
+	FP[$rid]["focus"]=list
+	[ "$mode" = save ] && FP[$rid]["focus"]=name
+	fp_go "$rid" "$dir"
+}
+
+# The extensions of the type chosen now, space-separated, or *.
+fn fp_exts(int id) {
+	local -a ts
+	local t
+
+	IFS='|' read -ra ts <<< "${FP[$id]["types"]}"
+	t=${ts[${FP[$id]["ti"]}]}
+	ret "${t#*:}"
+}
+
+# The labels of the types, for the dropdown.
+fn fp_labels(int id) {
+	local -a ts
+	local t out=
+
+	IFS='|' read -ra ts <<< "${FP[$id]["types"]}"
+	for t in "${ts[@]}"; do
+		out="$out|${t%%:*}"
+	done
+	ret "${out#|}"
+}
+
+# Whether a file's name has one of the extensions chosen.
+fn fp_match(int id, nm) {
+	local e
+	local -a ex
+
+	e := fp_exts "$id"
+	[ "$e" = "*" ] && return 0
+	read -ra ex <<< "$e"
+	for e in "${ex[@]}"; do
+		case ${nm,,} in *."$e") return 0 ;; esac
+	done
+	return 1
+}
+
+# Read a folder: its folders, then its files of the type chosen.
+fn fp_go(int id, d) {
+	local f n=0 nm
+
+	while [ "${#d}" -gt 1 ] && [ "${d%/}" != "$d" ]; do d=${d%/}; done
+	if [ ! -d "$d" ] || [ ! -r "$d" ]; then
+		dt_note "Cannot open the folder $d"
+		return 1
+	fi
+	FP[$id]["dir"]=$d
+	if [ "$d" = / ]; then
+		d=
+	else
+		FP[$id]["e$n"]=".."
+		FP[$id]["k$n"]=up
+		n=$((n + 1))
+	fi
+	for f in "$d"/*/; do
+		[ -d "$f" ] || continue
+		nm=${f%/}
+		nm=${nm##*/}
+		FP[$id]["e$n"]=$nm
+		FP[$id]["k$n"]=dir
+		n=$((n + 1))
+	done
+	for f in "$d"/*; do
+		[ -f "$f" ] || continue
+		nm=${f##*/}
+		fp_match "$id" "$nm" || continue
+		FP[$id]["e$n"]=$nm
+		FP[$id]["k$n"]=file
+		n=$((n + 1))
+	done
+	FP[$id]["n"]=$n
+	FP[$id]["sel"]=0
+	FP[$id]["top"]=0
+	[ "${FP[$id]["mode"]}" = open ] && fp_takesel "$id"
+	FP[$id]["pv"]=
+}
+
+# The selected entry's full path.
+fn fp_path(int id, int i) {
+	local d=${FP[$id]["dir"]}
+
+	[ "$d" = / ] && d=
+	ret "$d/${FP[$id]["e$i"]}"
+}
+
+# In Open, the name field follows the selection when it is a file.
+fn fp_takesel(int id) {
+	local i=${FP[$id]["sel"]}
+
+	[ "${FP[$id]["k$i"]}" = file ] || return 0
+	FP[$id]["buf"]=${FP[$id]["e$i"]}
+	FP[$id]["cur"]=${#FP[$id]["buf"]}
+}
+
+fn fpick_draw(int id, int h, int w, int row, int col) {
+	local lw vis=$((h - 6)) n=${FP[$id]["n"]} sel top i r
+	local t d f=${FP[$id]["focus"]} on lab glyph pw
+	local -a labs
+
+	lw=$((w * 11 / 20))
+	dt_wclear "$id"
+	d=${FP[$id]["dir"]}
+	d=${d/#$HOME/\~}
+	console pen "$DT_DIM" "$DT_FACE"
+	console put -p "w$id" 1 2 "In:"
+	console pen "$DT_INK" "$DT_FACE" bold
+	t="$d"
+	[ ${#t} -gt $((w - 8)) ] && t="${GL[ellipsis]}${t:$((${#t} - w + 9))}"
+	console put -p "w$id" 1 6 "$t"
+	FP[$id]["vis"]=$vis
+	sel=${FP[$id]["sel"]}
+	top=${FP[$id]["top"]}
+	[ "$sel" -lt "$top" ] && top=$sel
+	[ "$sel" -ge $((top + vis)) ] && top=$((sel - vis + 1))
+	[ "$top" -lt 0 ] && top=0
+	FP[$id]["top"]=$top
+	r=0
+	while [ "$r" -lt "$vis" ]; do
+		i=$((top + r))
+		t=
+		if [ "$i" -lt "$n" ]; then
+			case ${FP[$id]["k$i"]} in
+			up) glyph="${GL[up]:-^}" ;;
+			dir) glyph="${GL[folder]:-+}" ;;
+			*) glyph="${GL[file]:--}" ;;
+			esac
+			t="$glyph ${FP[$id]["e$i"]}"
+			[ "${FP[$id]["k$i"]}" = dir ] && t="$t/"
+		fi
+		t := str pad "${t:0:$((lw - 2))}" $((lw - 2))
+		if [ "$i" = "$sel" ] && [ "$i" -lt "$n" ]; then
+			if [ "$f" = list ]; then
+				console pen "$DT_SELINK" "$DT_ACTIVE"
+			else
+				console pen "$DT_INK" "$DT_WELL"
+			fi
+		elif [ "${FP[$id]["k$i"]}" = dir ] || [ "${FP[$id]["k$i"]}" = up ]; then
+			console pen "$DT_WARN" "$DT_FACE"
+		else
+			console pen "$DT_INK" "$DT_FACE"
+		fi
+		console put -p "w$id" $((r + 2)) 1 " $t"
+		dt_wreg "$id" $((r + 2)) 1 $((lw - 1)) "row$i"
+		r=$((r + 1))
+	done
+	dt_scrollbar "$id" 2 "$lw" "$vis" "$n" "$vis" "$top"
+	console pen "$DT_IDLE" "$DT_FACE"
+	r=2
+	while [ "$r" -lt $((vis + 2)) ]; do
+		console put -p "w$id" "$r" $((lw + 1)) "${GL[vline]}"
+		r=$((r + 1))
+	done
+	pw=$((w - lw - 3))
+	fp_preview "$id" 2 $((lw + 3)) "$vis" "$pw"
+	on=0
+	[ "$f" = name ] && on=1
+	console pen "$DT_INK" "$DT_FACE"
+	console put -p "w$id" $((h - 3)) 2 "Name:"
+	dt_textdraw "$id" $((h - 3)) 9 $((lw - 9)) "${FP[$id]["buf"]}" "${FP[$id]["cur"]}" "$on"
+	dt_wreg "$id" $((h - 3)) 9 $((lw - 9)) name
+	console pen "$DT_INK" "$DT_FACE"
+	console put -p "w$id" $((h - 3)) $((lw + 3)) "Type:"
+	lab := fp_labels "$id"
+	IFS='|' read -ra labs <<< "$lab"
+	if [ "$f" = type ]; then
+		console pen "$DT_SELINK" "$DT_ACTIVE"
+	else
+		console pen "$DT_INK" "$DT_FACE"
+	fi
+	dt_wdrop "$id" $((h - 3)) $((lw + 9)) $((pw - 7)) "${labs[${FP[$id]["ti"]}]}" type
+	lab=Open
+	[ "${FP[$id]["mode"]}" = save ] && lab=Save
+	dt_dlgbtns "$id" "$h" "$w" "$f" ok "$lab" cancel Cancel
+}
+
+# What is selected, beside the list: a text file's first lines, a folder's
+# count, or what kind of file it is.
+fn fp_preview(int id, int r0, int c0, int h, int w) {
+	local i=${FP[$id]["sel"]} p k r=0 line n=0 f
+	local -a lines
+
+	k=${FP[$id]["k$i"]}
+	p := fp_path "$id" "$i"
+	while [ "$r" -lt "$h" ]; do
+		line := str repeat " " "$w"
+		console pen "$DT_INK" "$DT_FACE"
+		console put -p "w$id" $((r0 + r)) "$c0" "$line"
+		r=$((r + 1))
+	done
+	[ "$i" -lt "${FP[$id]["n"]:-0}" ] || return 0
+	if [ "$k" = dir ] || [ "$k" = up ]; then
+		for f in "$p"/*; do [ -e "$f" ] && n=$((n + 1)); done
+		console pen "$DT_DIM" "$DT_FACE"
+		console put -p "w$id" "$r0" "$c0" "Folder, $n items"
+		return 0
+	fi
+	if [ "${FP[$id]["pv"]}" != "$p" ]; then
+		FP[$id]["pv"]=$p
+		FP[$id]["pvn"]=0
+		[ -r "$p" ] && readarray -n "$h" -t lines < "$p" 2> /dev/null
+		for line in "${lines[@]}"; do
+			case $line in *$'\001'* | *$'\002'* | *$'\003'*) FP[$id]["pvn"]=-1; break ;; esac
+			FP[$id]["pv${FP[$id]["pvn"]}"]=${line//$'\t'/    }
+			FP[$id]["pvn"]=$((FP[$id]["pvn"] + 1))
+		done
+	fi
+	if [ "${FP[$id]["pvn"]}" = -1 ]; then
+		console pen "$DT_DIM" "$DT_FACE"
+		console put -p "w$id" "$r0" "$c0" "Not text"
+		return 0
+	fi
+	r=0
+	console pen "$DT_DIM" "$DT_FACE"
+	while [ "$r" -lt "${FP[$id]["pvn"]}" ]; do
+		line=${FP[$id]["pv$r"]}
+		console put -p "w$id" $((r0 + r)) "$c0" "${line:0:$w}"
+		r=$((r + 1))
+	done
+	[ "${FP[$id]["pvn"]}" = 0 ] && console put -p "w$id" "$r0" "$c0" "(empty)"
+	return 0
+}
+
+# Enter, or Open/Save: a folder is gone into; a file, or a name, chosen.
+fn fp_choose(int id) {
+	local i=${FP[$id]["sel"]} k p b=${FP[$id]["buf"]} e
+	local -a ex
+
+	k=${FP[$id]["k$i"]}
+	if [ "${FP[$id]["focus"]}" = list ] && { [ "$k" = dir ] || [ "$k" = up ]; }; then
+		if [ "$k" = up ]; then
+			fp_go "$id" "${FP[$id]["dir"]%/*}"
+			[ -n "${FP[$id]["dir"]}" ] || fp_go "$id" /
+		else
+			p := fp_path "$id" "$i"
+			fp_go "$id" "$p"
+		fi
+		return 0
+	fi
+	[ -n "$b" ] || { [ "$k" = file ] && b=${FP[$id]["e$i"]}; }
+	[ -n "$b" ] || return 0
+	case $b in
+	"~") p=$HOME ;;
+	"~/"*) p="$HOME/${b#"~/"}" ;;
+	/*) p=$b ;;
+	*) p="${FP[$id]["dir"]%/}/$b" ;;
+	esac
+	if [ -d "$p" ]; then
+		FP[$id]["buf"]=
+		FP[$id]["cur"]=0
+		fp_go "$id" "$p"
+		return 0
+	fi
+	if [ "${FP[$id]["mode"]}" = open ]; then
+		if [ ! -f "$p" ]; then
+			dt_note "There is no file ${p##*/}"
+			return 0
+		fi
+		fp_done "$id" "$p"
+		return 0
+	fi
+	e := fp_exts "$id"
+	read -ra ex <<< "$e"
+	if [ "$e" != "*" ]; then
+		case ${p##*/} in
+		*.*) ;;
+		*) p="$p.${ex[0]}" ;;
+		esac
+	fi
+	if [ ! -d "${p%/*}" ]; then
+		dt_note "There is no folder ${p%/*}"
+		return 0
+	fi
+	if [ -e "$p" ]; then
+		DT_FPPEND="$id"$'\t'"$p"
+		dt_confirm "${p##*/} is there already. Replace it?" fp_replace
+		return 0
+	fi
+	fp_done "$id" "$p"
+}
+
+fp_replace() {
+	local id=${DT_FPPEND%%$'\t'*} p=${DT_FPPEND#*$'\t'}
+
+	DT_FPPEND=
+	[ -n "${FP[$id]["cb"]}" ] && fp_done "$id" "$p"
+}
+
+# Hand the path to whoever asked, and close.
+fn fp_done(int id, p) {
+	local cb=${FP[$id]["cb"]} for=${FP[$id]["for"]} lab
+	local -a labs
+
+	lab := fp_labels "$id"
+	IFS='|' read -ra labs <<< "$lab"
+	lab=${labs[${FP[$id]["ti"]}]}
+	DT_FPLAST["$cb"]=${p%/*}
+	dt_del "$id"
+	"$cb" "$for" "$p" "$lab"
+}
+
+fn fpick_key(int id, key) {
+	local f=${FP[$id]["focus"]} sel=${FP[$id]["sel"]} n=${FP[$id]["n"]} d res
+	local vis=${FP[$id]["vis"]:-10} i k
+
+	case $key in
+	escape) dt_del "$id"; return 0 ;;
+	tab | shift-tab | btab)
+		d=1
+		[ "$key" = tab ] || d=-1
+		FP[$id]["focus"] := dt_focus "$f" "$d" list name type ok cancel
+		return 0
+		;;
+	enter)
+		case $f in
+		cancel) dt_del "$id" ;;
+		type) fp_type "$id" 1 ;;
+		*) fp_choose "$id" ;;
+		esac
+		return 0
+		;;
+	esac
+	case $f in
+	list)
+		case $key in
+		up) [ "$sel" -gt 0 ] && FP[$id]["sel"]=$((sel - 1)) ;;
+		down) [ "$sel" -lt $((n - 1)) ] && FP[$id]["sel"]=$((sel + 1)) ;;
+		pageup) FP[$id]["sel"]=$((sel - vis)); [ "${FP[$id]["sel"]}" -lt 0 ] && FP[$id]["sel"]=0 ;;
+		pagedown) FP[$id]["sel"]=$((sel + vis)); [ "${FP[$id]["sel"]}" -ge "$n" ] && FP[$id]["sel"]=$((n - 1)) ;;
+		home) FP[$id]["sel"]=0 ;;
+		end) FP[$id]["sel"]=$((n - 1)) ;;
+		backspace | left)
+			fp_go "$id" "${FP[$id]["dir"]%/*}"
+			[ -n "${FP[$id]["dir"]}" ] || fp_go "$id" /
+			;;
+		right)
+			[ "${FP[$id]["k$sel"]}" = dir ] && fp_choose "$id"
+			;;
+		"~") fp_go "$id" "$HOME" ;;
+		/)
+			FP[$id]["focus"]=name
+			FP[$id]["buf"]=/
+			FP[$id]["cur"]=1
+			return 0
+			;;
+		*)
+			# A letter goes to the next entry beginning with it.
+			[ "${#key}" = 1 ] && [ "$n" -gt 0 ] || return 1
+			i=$(((sel + 1) % n))
+			k=0
+			while [ "$k" -lt "$n" ]; do
+				if [ "${FP[$id]["e$i"]:0:1}" = "$key" ] ||
+				   [ "${FP[$id]["e$i"]:0:1}" = "${key,,}" ] ||
+				   [ "${FP[$id]["e$i"]:0:1}" = "${key^^}" ]; then
+					FP[$id]["sel"]=$i
+					break
+				fi
+				i=$(((i + 1) % n))
+				k=$((k + 1))
+			done
+			;;
+		esac
+		[ "${FP[$id]["mode"]}" = open ] && fp_takesel "$id"
+		return 0
+		;;
+	name)
+		res := dt_textkey "${FP[$id]["buf"]}" "${FP[$id]["cur"]}" "$key" ||
+			return 1
+		FP[$id]["buf"]=${res% *}
+		FP[$id]["cur"]=${res##* }
+		return 0
+		;;
+	type)
+		case $key in
+		up | left) fp_type "$id" -1 ;;
+		down | right | " ") fp_type "$id" 1 ;;
+		*) return 1 ;;
+		esac
+		return 0
+		;;
+	ok | cancel)
+		case $key in
+		left | right | up | down)
+			d=1
+			case $key in left | up) d=-1 ;; esac
+			FP[$id]["focus"] := dt_focus "$f" "$d" list name type ok cancel
+			;;
+		esac
+		return 0
+		;;
+	esac
+	return 1
+}
+
+# The next type, or the one before, and the folder read again for it.
+fn fp_type(int id, int d) {
+	local -a ts
+	local n
+
+	IFS='|' read -ra ts <<< "${FP[$id]["types"]}"
+	n=${#ts[@]}
+	FP[$id]["ti"]=$(((FP[$id]["ti"] + d + n) % n))
+	fp_go "$id" "${FP[$id]["dir"]}"
+}
+
+fn fp_settype(int? id = "", value = "") {
+	local -a ts
+	local i=0
+
+	IFS='|' read -ra ts <<< "${FP[$id]["types"]}"
+	while [ "$i" -lt "${#ts[@]}" ]; do
+		[ "${ts[$i]%%:*}" = "$value" ] && FP[$id]["ti"]=$i
+		i=$((i + 1))
+	done
+	fp_go "$id" "${FP[$id]["dir"]}"
+}
+
+FP_LASTCLICK=
+fn fpick_click(int id, int r, int c, btn = "") {
+	local tag now i lab
+	local -a labs
+
+	tag := dt_hit "$id" "$r" "$c"
+	case $tag in
+	row*)
+		i=${tag#row}
+		[ "$i" -lt "${FP[$id]["n"]}" ] || return 0
+		FP[$id]["focus"]=list
+		now := dt_ms
+		if [ "${FP[$id]["sel"]}" = "$i" ] &&
+		   [ "${FP_LASTCLICK%%:*}" = "$id-$i" ] &&
+		   [ $((now - ${FP_LASTCLICK#*:})) -lt 500 ]; then
+			FP_LASTCLICK=
+			fp_choose "$id"
+			return 0
+		fi
+		FP_LASTCLICK="$id-$i:$now"
+		FP[$id]["sel"]=$i
+		[ "${FP[$id]["mode"]}" = open ] && fp_takesel "$id"
+		;;
+	name) FP[$id]["focus"]=name ;;
+	type)
+		FP[$id]["focus"]=type
+		lab := fp_labels "$id"
+		IFS='|' read -ra labs <<< "$lab"
+		dt_droplist "$id" "$r" "$c" fp_settype "${labs[@]}"
+		;;
+	ok) fp_choose "$id" ;;
+	cancel) dt_del "$id" ;;
+	esac
+	return 0
+}
+
+fn fpick_wheel(int id, dir, int r = 0, int c = 0) {
+	local sel=${FP[$id]["sel"]} n=${FP[$id]["n"]}
+
+	case $dir in
+	up) sel=$((sel - 3)) ;;
+	down) sel=$((sel + 3)) ;;
+	esac
+	[ "$sel" -ge "$n" ] && sel=$((n - 1))
+	[ "$sel" -lt 0 ] && sel=0
+	FP[$id]["sel"]=$sel
+	return 0
+}
+
+fn fpick_paste(int id, text, op = "") {
+	local r
+
+	FP[$id]["focus"]=name
+	r := dt_textpaste "${FP[$id]["buf"]}" "${FP[$id]["cur"]}" "$text"
+	FP[$id]["buf"]=${r% *}
+	FP[$id]["cur"]=${r##* }
+}
+
+fn fpick_copy(int id) {
+	local p
+
+	if [ "${FP[$id]["focus"]}" = name ]; then
+		ret "${FP[$id]["buf"]}"
+		return 0
+	fi
+	p := fp_path "$id" "${FP[$id]["sel"]}"
+	ret "$p"
+}
+
+fn fpick_close(int id) {
+	unset "FP[$id]"
+}

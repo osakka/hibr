@@ -1647,6 +1647,10 @@ went in the shell.
   notification icons), and punctuation in prose. `$'\u'` and `$'\U'` did
   not work in hibr until this needed them -- the backslash was dropped --
   and are bash's, tested against it in `910-dollar-unicode.t`.
+  `tests/540-examples.t` fails on a non-ASCII character in a desktop code
+  line outside those places -- 0.95 to 0.99 had let •, ☐, ☑, ★, ⏎ and …
+  back into Write, Stickies, the Clipboard and the file dialog, one
+  convenient literal at a time.
 
 - **A key capture must not take the key that moves on.** The Shortcuts
   pane takes the very next key after a row is activated, and from 0.77,

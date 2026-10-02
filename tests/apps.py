@@ -1378,7 +1378,7 @@ NPD = stdir()
 sc = run("stickies", "12 40 2 2", feed=[b"h", b"i"], env=stenv(NPD), end=None)
 check("typing appears in the note", sc.find("hi") is not None, sc)
 check("and is saved to disk as it is typed", stnote(NPD) == "hi", stnote(NPD))
-check("its first line is its title", sc.find("┤ hi ├") is not None, sc)
+check("its first line is its title", sc.find("✕ hi") is not None, sc)
 shutil.rmtree(NPD, True)
 
 NPD2 = stdir()
@@ -1407,9 +1407,8 @@ sc = run("stickies", "8 20 2 2", feed=[c.encode() for c in
                                        "one two three four five six"],
          env=stenv(NPD4), end=None)
 check("a long line wraps at the note's width, at a space",
-      sc.find("│one two three     │") is not None and
-      sc.find("│four five six     │") is not None and
-      sc.find("four five")[0] == sc.find("one two")[0] + 1, sc)
+      "one two three " in sc.row(3) and "four five six" in sc.row(4)
+      and "four" not in sc.row(3), sc)
 shutil.rmtree(NPD4, True)
 NPD4 = stdir()
 sc = run("stickies", "8 20 2 2", feed=[b"a", b"b", b" ", b"\r", b"c",
@@ -1425,6 +1424,22 @@ check("and redo puts it back", stnote(NPD4) == "x", stnote(NPD4))
 shutil.rmtree(NPD4, True)
 
 NPD4 = stdir()
+sc = run("stickies", "10 30 2 4", feed=[c.encode() for c in "Buy milk"],
+         env=stenv(NPD4), end=None)
+check("a sticky is bare: no frame, a strip with a close box and its title",
+      sc.find("┤ Buy milk ├") is None and sc.find("✕ Buy milk") == (2, 5),
+      sc)
+sc = run("stickies", "10 30 2 4", feed=[press(2, 15), drag(6, 30),
+                                        release(6, 30), 0.3],
+         env=stenv(NPD4), end=None)
+check("dragging the strip moves it", sc.find("✕ Buy milk") == (6, 20), sc)
+sc = run("stickies", "10 30 2 4", feed=[press(2, 5), release(2, 5), 0.3],
+         env=stenv(NPD4), end=None)
+check("its close box puts it away, the note kept",
+      sc.find("Buy milk") is None and stnote(NPD4) == "Buy milk", sc)
+shutil.rmtree(NPD4, True)
+
+NPD4 = stdir()
 open(os.path.join(NPD4, "1.txt"), "w").write("first")
 open(os.path.join(NPD4, "2.txt"), "w").write("second")
 open(os.path.join(NPD4, "notes.json"), "w").write(
@@ -1432,7 +1447,7 @@ open(os.path.join(NPD4, "notes.json"), "w").write(
 sc = run("calc", CW, [], pre="dt_launch stickies", extra=("stickies",),
          env=stenv(NPD4), end=None)
 check("launching Stickies opens every note",
-      sc.find("┤ first ├") is not None and sc.find("┤ second ├") is not None,
+      sc.find("✕ first") is not None and sc.find("✕ second") is not None,
       sc)
 shutil.rmtree(NPD4, True)
 
@@ -1444,7 +1459,7 @@ sc = run("calc", CW, [], pre="dt_launch stickies", extra=("stickies",),
          env=dict(stenv(NPD4), XDG_CONFIG_HOME=OLDN), end=None)
 check("the first time, Note Pad's note becomes the first sticky",
       stnote(NPD4) == "from note pad" and
-      sc.find("┤ from note pad ├") is not None, sc)
+      sc.find("✕ from note pad") is not None, sc)
 shutil.rmtree(NPD4, True)
 shutil.rmtree(OLDN, True)
 
@@ -2750,9 +2765,10 @@ sc = dbrun(typed("USE big") + F10 + [0.3])
 check("the menus are System 7's order: File, Edit, then dBASE's own",
       re.search(r"✎  File  Edit  Records  Query  Help  Window", sc.row(0)),
       sc)
-sc = dbrun(typed("USE big") + F10 + [b"\x1b[C", b"\x1b[B", b"\x1b[C", 0.3])
-check("File > Open Database lists the databases there are",
-      sc.find("Open Database") and sc.find(" BIG "), sc)
+sc = dbrun(typed("USE big") + F10 + [b"\x1b[C", b"\x1b[B", b"\x1b[B",
+                                     b"\x1b[C", 0.3])
+check("File > Databases lists the databases there are",
+      sc.find("Databases") and sc.find(" BIG "), sc)
 sc = dbrun(typed("USE big") + F10 + [b"\x1b[C"] * 4 + [b"c", 0.3])
 check("Query > Count runs COUNT at the dot prompt",
       sc.find(". COUNT") and sc.find("60 records"), sc)
@@ -2953,6 +2969,55 @@ sc = run("files", "16 50 2 2", [b"\x1b[B", b"\r", 1.0],
          pre="FB_DIR=%s" % sc.dir, extra=("write",), end=None)
 check("Files opens a .md in Write", sc.find("┤ Write [doc.md] ├") is not None,
       sc)
+# The file dialog: one for Open, Save As and Export everywhere, a folder's
+# contents filtered by type, folders first, a preview of what is selected.
+def pkdir():
+    d = tempfile.mkdtemp(prefix="hibr-pick-")
+    os.mkdir(os.path.join(d, "notes"))
+    open(os.path.join(d, "readme.txt"), "w").write("plain text\nsecond\n")
+    open(os.path.join(d, "data.db"), "w").write("x")
+    return d
+
+
+OPEN = [b"\x1b[21~", b"\x1b[C", b"o", 0.5]
+sc = wrrun(OPEN + [b"\x1b[B", b"\x1b[B", 0.3])
+check("Open shows the folder, its folders first, only the type's files",
+      sc.find("┤ Open ├") is not None and sc.find("notes/") is None and
+      sc.find("doc.md") is not None, sc)
+check("and a preview of the file selected",
+      sc.find("# Shopping list") is not None, sc)
+d = pkdir()
+sc = wrrun([b"\x1b[21~", b"\x1b[C", b"o", 0.5] +
+           [c.encode() for c in d + "/readme.txt"] + [b"\r", 0.5])
+check("a path typed in the name opens that file, from anywhere",
+      sc.find("┤ Write [readme.txt] ├") is not None, sc)
+sc = wrrun([b"\x1b[21~", b"\x1b[C", b"o", 0.5, b"\t", b"\t", b"\x1b[B", 0.3,
+            b"\t", b"\t", b"\t"] + [c.encode() for c in d] + [b"\r", 0.4])
+check("the type chooses what is listed: Text shows the .txt",
+      sc.find("readme.txt") is not None and sc.find("data.db") is None, sc)
+sc = wrrun([b"x", b"\x1b[21~", b"\x1b[C", b"a", 0.5, b"\x15"]
+           + [c.encode() for c in d + "/fresh"] + [b"\r", 0.5])
+check("Save As writes where it is told, the type's extension added",
+      os.path.exists(os.path.join(d, "fresh.md")) and
+      sc.find("┤ Write [fresh.md] ├") is not None, sc)
+sc = wrrun([b"\x1b[21~", b"\x1b[C", b"a", 0.5, b"\x15"]
+           + [c.encode() for c in d + "/fresh.md"] + [b"\r", 0.5])
+check("and asks before replacing a file that is there",
+      sc.find("fresh.md is there already. Replace it?") is not None, sc)
+sc = wrrun([b"\x1b[21~", b"\x1b[C", b"e", 0.5, b"\x15"]
+           + [c.encode() for c in d + "/page"] + [b"\r", 0.5])
+html = open(os.path.join(d, "page.html")).read() \
+    if os.path.exists(os.path.join(d, "page.html")) else ""
+check("Export writes the document as an HTML page, through the same dialog",
+      "<h1>Shopping list</h1>" in html and "<strong>today</strong>" in html
+      and '<input type="checkbox" checked disabled> eggs' in html, html[:300])
+sc = run("dbase", "20 72 1 2", [b"\x1b[21~", b"\x1b[C", b"o", 0.5,
+                                b"\x15"] + [c.encode() for c in d]
+         + [b"\r", 0.5], pre=DBPRE, end=None)
+check("dBASE opens databases with the same dialog, filtered to .db",
+      sc.find("┤ Open Database ├") is not None and
+      sc.find("data.db") is not None and sc.find("readme.txt") is None, sc)
+shutil.rmtree(d, True)
 RSW = wrrun([])
 shutil.rmtree(RSW.dir, True)
 sc = run("write", "18 60 2 2", [c.encode() for c in "unsaved words"]
@@ -3023,4 +3088,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(443)
+report(454)

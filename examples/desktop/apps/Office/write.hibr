@@ -83,7 +83,7 @@ fn write_savefile(int id) {
 	local p=${WR[$id]["path"]} t
 
 	if [ -z "$p" ]; then
-		wr_dialog "$id" saveas
+		wr_saveas "$id"
 		return 0
 	fi
 	t := tb_text "$id"
@@ -109,7 +109,7 @@ fn wr_retitle(int id) {
 
 	t=${p##*/}
 	[ -n "$t" ] || t=Untitled
-	wr_dirty "$id" && t="$t •"
+	wr_dirty "$id" && t="$t ${GL[bullet]}"
 	[ "Write [$t]" = "${DT[$id]["title"]}" ] || dt_retitle "$id" "Write [$t]"
 }
 
@@ -322,9 +322,9 @@ fn wr_render(line, int show, int fence, int w) {
 		if [ "$show" = 1 ]; then
 			wr_put "${line:${#pre}:6}" m "${#pre}"
 		elif [ "$mark" = " " ]; then
-			wr_glyph "☐ " k "${#pre}"
+			wr_glyph "${GL[task]} " k "${#pre}"
 		else
-			wr_glyph "☑ " k "${#pre}"
+			wr_glyph "${GL[taskdone]} " k "${#pre}"
 		fi
 		wr_inline "$body" $((${#pre} + 6)) "$show" p
 		return 0
@@ -336,7 +336,7 @@ fn wr_render(line, int show, int fence, int w) {
 		if [ "$show" = 1 ]; then
 			wr_put "${line:${#pre}:2}" m "${#pre}"
 		else
-			wr_glyph "• " u "${#pre}"
+			wr_glyph "${GL[bullet]} " u "${#pre}"
 		fi
 		wr_inline "$body" $((${#pre} + 2)) "$show" p
 		return 0
@@ -582,7 +582,7 @@ fn wr_status(int id, int h, int w) {
 	t=${p##*/}
 	[ -n "$t" ] || t=Untitled
 	wr_dirty "$id" && t="$t  (changed)"
-	t="$t  ${GL[dot]:-·}  line $((TB[$id]["cr"] + 1)), column $((TB[$id]["cc"] + 1))  ${GL[dot]:-·}  $k"
+	t="$t  ${GL[dot]}  line $((TB[$id]["cr"] + 1)), column $((TB[$id]["cc"] + 1))  ${GL[dot]}  $k"
 	t := str pad "${t:0:$w}" "$w"
 	console pen "$DT_DIM" "$DT_FACE"
 	console put -p "w$id" "$h" 1 "$t"
@@ -590,8 +590,11 @@ fn wr_status(int id, int h, int w) {
 
 # --- the toolbar ----------------------------------------------------------------
 
+# The toolbar's buttons, label:action; a label that is a glyph is the
+# glyph's name in GL, in braces, filled in when drawn.
 WR_TOOLS=("B:bold" "I:italic" "S:strike" "<>:code" "H1:h1" "H2:h2" "H3:h3"
-	"•:bullet" "1.:number" "☐:task" "❝:quote" "Link:link" "—:rule")
+	"{bullet}:bullet" "1.:number" "{task}:task" "{quote}:quote" "Link:link"
+	"{dash}:rule")
 
 fn wr_toolbar(int id, int w) {
 	local c=1 tl lab tag t
@@ -607,6 +610,7 @@ fn wr_toolbar(int id, int w) {
 	for tl in "${WR_TOOLS[@]}"; do
 		lab=${tl%%:*}
 		tag=${tl#*:}
+		case $lab in "{"*"}") lab=${lab#"{"}; lab=${GL[${lab%"}"}]} ;; esac
 		[ $((c + ${#lab} + 2)) -gt "$w" ] && break
 		case $tag in
 		bold) console pen "$DT_INK" "$DT_WELL" bold ;;
@@ -907,29 +911,234 @@ fn wr_findnext(int id) {
 		dt_notep low "\"${WR[$id]["find"]}\" is not here"
 }
 
-# --- the dialog: Open, Save As and Find, one field each ------------------------------
+# --- Open, Save As and Export: the desktop's file dialog ----------------------------
+
+WR_TYPES="Markdown:md markdown mdown|Text:txt text log|All files:*"
+
+fn wr_dir(int id) {
+	local p=${WR[$id]["path"]}
+
+	[ -n "$p" ] && ret "${p%/*}" || ret ""
+}
+
+fn wr_open(int id) {
+	local d
+
+	d := wr_dir "$id"
+	dt_filepick open "Open" "$WR_TYPES" "$d" "" wr_picked_open "$id"
+}
+
+fn wr_saveas(int id) {
+	local d n=${WR[$id]["path"]##*/}
+
+	d := wr_dir "$id"
+	[ -n "$n" ] || n=untitled.md
+	dt_filepick save "Save As" "$WR_TYPES" "$d" "$n" wr_picked_save "$id"
+}
+
+fn wr_export(int id) {
+	local d n=${WR[$id]["path"]##*/}
+
+	d := wr_dir "$id"
+	n=${n%.*}
+	dt_filepick save "Export" "HTML:html htm|Plain text:txt" "$d" "${n:-untitled}" \
+		wr_picked_export "$id"
+}
+
+fn wr_picked_open(int id, path, type = "") {
+	[ -n "${DT[$id]["title"]}" ] || { dt_launch write "$path"; return 0; }
+	if wr_dirty "$id" || [ -n "${WR[$id]["path"]}" ]; then
+		dt_launch write "$path"
+	else
+		wr_load "$id" "$path"
+	fi
+}
+
+fn wr_picked_save(int id, path, type = "") {
+	[ -n "${DT[$id]["title"]}" ] || return 0
+	WR[$id]["path"]=$path
+	WR[$id]["kind"]=txt
+	wr_ismd "$path" && WR[$id]["kind"]=md
+	write_savefile "$id"
+}
+
+# Write the document as HTML or as plain text, as it reads; the document
+# itself stays as it is, with its own name.
+fn wr_picked_export(int id, path, type = "") {
+	local out
+
+	case $type in
+	HTML) out := wr_html "$id" ;;
+	*) out := wr_plain "$id" ;;
+	esac
+	if ! printf '%s\n' "$out" > "$path" 2> /dev/null; then
+		dt_notep high "Cannot write $path"
+		return 1
+	fi
+	dt_notep low "Exported ${path##*/}"
+	command -v dt_changed > /dev/null && dt_changed
+}
+
+# The text as it reads: every line rendered, the marks gone.
+fn wr_plain(int id) {
+	local i=0 n=${TB[$id]["n"]} fz out=
+
+	fz := wr_fences "$id"
+	while [ "$i" -lt "$n" ]; do
+		wr_render "${TB[$id][$i]}" 0 "${fz:$i:1}" 60
+		[ "${TB[$id][$i]:0:3}" = '```' ] || out="$out$WR_S"$'\n'
+		i=$((i + 1))
+	done
+	ret "${out%$'\n'}"
+}
+
+# HTML-escape text.
+fn wr_esc(t) {
+	t=${t//&/&amp;}
+	t=${t//</&lt;}
+	t=${t//>/&gt;}
+	ret "$t"
+}
+
+# One line's inline marks as HTML.
+fn wr_inhtml(text) {
+	local i=0 n=${#text} c two out= b=0 it=0 s=0 rest code lab url e
+
+	while [ "$i" -lt "$n" ]; do
+		c=${text:$i:1}
+		two=${text:$i:2}
+		if [ "$c" = "\\" ] && [ $((i + 1)) -lt "$n" ]; then
+			e := wr_esc "${text:$((i + 1)):1}"
+			out="$out$e"; i=$((i + 2)); continue
+		fi
+		if [ "$c" = '`' ]; then
+			rest=${text:$((i + 1))}
+			code=${rest%%\`*}
+			if [ "$code" != "$rest" ]; then
+				e := wr_esc "$code"
+				out="$out<code>$e</code>"; i=$((i + ${#code} + 2)); continue
+			fi
+		fi
+		if [ "$two" = "**" ] || [ "$two" = "__" ]; then
+			[ "$b" = 0 ] && out="$out<strong>" || out="$out</strong>"
+			b=$((1 - b)); i=$((i + 2)); continue
+		fi
+		if [ "$two" = "~~" ]; then
+			[ "$s" = 0 ] && out="$out<del>" || out="$out</del>"
+			s=$((1 - s)); i=$((i + 2)); continue
+		fi
+		if [ "$c" = "*" ] && { [ "$it" = 1 ] || [ "${text:$((i + 1)):1}" != " " ]; }; then
+			[ "$it" = 0 ] && out="$out<em>" || out="$out</em>"
+			it=$((1 - it)); i=$((i + 1)); continue
+		fi
+		if [ "$c" = "[" ]; then
+			rest=${text:$((i + 1))}
+			lab=${rest%%]*}
+			rest=${rest#*]}
+			if [ "$lab" != "${text:$((i + 1))}" ] && [ "${rest:0:1}" = "(" ] &&
+			   [ "${rest#*)}" != "$rest" ]; then
+				url=${rest:1}
+				url=${url%%)*}
+				e := wr_esc "$lab"
+				url := wr_esc "$url"
+				out="$out<a href=\"$url\">$e</a>"
+				i=$((i + ${#lab} + ${#url} + 4))
+				continue
+			fi
+		fi
+		e := wr_esc "$c"
+		out="$out$e"
+		i=$((i + 1))
+	done
+	[ "$b" = 1 ] && out="$out</strong>"
+	[ "$it" = 1 ] && out="$out</em>"
+	[ "$s" = 1 ] && out="$out</del>"
+	ret "$out"
+}
+
+# The whole document as an HTML page.
+fn wr_html(int id) {
+	local i=0 n=${TB[$id]["n"]} line out list= para= in=0 t lvl title want
+	local nm=${WR[$id]["path"]##*/}
+
+	title := wr_esc "${nm:-Untitled}"
+	out="<!doctype html>"$'\n'"<meta charset=\"utf-8\">"$'\n'"<title>$title</title>"$'\n'
+	while [ "$i" -lt "$n" ]; do
+		line=${TB[$id][$i]}
+		if [ "${line:0:3}" = '```' ]; then
+			if [ "$in" = 0 ]; then
+				[ -n "$list" ] && out="$out</$list>"$'\n' && list=
+				[ -n "$para" ] && out="$out<p>$para</p>"$'\n' && para=
+				out="$out<pre><code>"; in=1
+			else
+				out="$out</code></pre>"$'\n'; in=0
+			fi
+			i=$((i + 1)); continue
+		fi
+		if [ "$in" = 1 ]; then
+			t := wr_esc "$line"
+			out="$out$t"$'\n'
+			i=$((i + 1)); continue
+		fi
+		if match "$line" '^( *)[-*+] (\[([ xX])\] )?(.*)$' ||
+		   match "$line" '^( *)([0-9]+)[.)] ()(.*)$'; then
+			want=ul
+			[ "${M[2]}" != "${M[2]#[0-9]}" ] && want=ol
+			[ -n "$para" ] && out="$out<p>$para</p>"$'\n' && para=
+			if [ "$list" != "$want" ]; then
+				[ -n "$list" ] && out="$out</$list>"$'\n'
+				out="$out<$want>"$'\n'; list=$want
+			fi
+			t := wr_inhtml "${M[4]}"
+			case ${M[3]} in
+			" ") t="<input type=\"checkbox\" disabled> $t" ;;
+			x | X) t="<input type=\"checkbox\" checked disabled> $t" ;;
+			esac
+			out="$out<li>$t</li>"$'\n'
+			i=$((i + 1)); continue
+		fi
+		[ -n "$list" ] && out="$out</$list>"$'\n' && list=
+		if [ -z "${line// /}" ]; then
+			[ -n "$para" ] && out="$out<p>$para</p>"$'\n' && para=
+		elif match "$line" '^(#{1,6}) (.*)$'; then
+			[ -n "$para" ] && out="$out<p>$para</p>"$'\n' && para=
+			lvl=${#M[1]}
+			t := wr_inhtml "${M[2]}"
+			out="$out<h$lvl>$t</h$lvl>"$'\n'
+		elif match "$line" '^ {0,3}([-*_])( *[-*_]){2,} *$'; then
+			[ -n "$para" ] && out="$out<p>$para</p>"$'\n' && para=
+			out="$out<hr>"$'\n'
+		elif match "$line" '^> ?(.*)$'; then
+			[ -n "$para" ] && out="$out<p>$para</p>"$'\n' && para=
+			t := wr_inhtml "${M[1]}"
+			out="$out<blockquote>$t</blockquote>"$'\n'
+		else
+			t := wr_inhtml "$line"
+			para="${para:+$para }$t"
+		fi
+		i=$((i + 1))
+	done
+	[ -n "$list" ] && out="$out</$list>"$'\n'
+	[ -n "$para" ] && out="$out<p>$para</p>"$'\n'
+	[ "$in" = 1 ] && out="$out</code></pre>"$'\n'
+	ret "${out%$'\n'}"
+}
+
+# --- the Find dialog: one field --------------------------------------------------------
 
 fn wr_dialog(int id, mode) {
 	local h=8 w=56 r c rid v=
 
 	r=$((DT_ROWS / 2 - h / 2))
 	c=$(((DT_COLS - w) / 2))
-	case $mode in
-	open) v="${WR[$id]["path"]%/*}/"; [ -n "${WR[$id]["path"]}" ] || v="$PWD/" ;;
-	saveas) v=${WR[$id]["path"]:-$PWD/untitled.md} ;;
-	find) v=${WR[$id]["find"]} ;;
-	esac
+	v=${WR[$id]["find"]}
 	rid := dt_new "Write" "$h" "$w" "$r" "$c" wrfile
 	WRF[$rid]["mode"]=$mode
 	WRF[$rid]["for"]=$id
 	WRF[$rid]["buf"]=$v
 	WRF[$rid]["cur"]=${#v}
 	WRF[$rid]["focus"]=text
-	case $mode in
-	open) dt_retitle "$rid" "Open" ;;
-	saveas) dt_retitle "$rid" "Save As" ;;
-	find) dt_retitle "$rid" "Find" ;;
-	esac
+	dt_retitle "$rid" "Find"
 }
 
 fn wrfile_draw(int id, int h, int w, int row, int col) {
@@ -937,20 +1146,14 @@ fn wrfile_draw(int id, int h, int w, int row, int col) {
 
 	dt_wclear "$id"
 	[ "$f" = text ] && on=1
-	case ${WRF[$id]["mode"]} in
-	open) lab="Open the file:"; ok=Open ;;
-	saveas) lab="Save it as:"; ok=Save ;;
-	*) lab="Find:"; ok=Find ;;
-	esac
+	lab="Find:"
+	ok=Find
 	console pen "$DT_INK" "$DT_FACE"
 	console put -p "w$id" 1 2 "$lab"
 	dt_textdraw "$id" 2 2 $((w - 4)) "${WRF[$id]["buf"]}" "${WRF[$id]["cur"]}" "$on"
 	dt_wreg "$id" 2 2 $((w - 4)) text
 	console pen "$DT_DIM" "$DT_FACE"
-	case ${WRF[$id]["mode"]} in
-	find) console put -p "w$id" 3 2 "case does not matter" ;;
-	*) console put -p "w$id" 3 2 "a path; ~ is your home" ;;
-	esac
+	console put -p "w$id" 3 2 "case does not matter"
 	dt_dlgbtns "$id" "$h" "$w" "$f" ok "$ok" cancel Cancel
 }
 
@@ -961,32 +1164,7 @@ fn wrfile_go(int id) {
 		dt_del "$id"
 		return 0
 	fi
-	case $p in "~") p=$HOME ;; "~/"*) p="$HOME/${p#"~/"}" ;; esac
 	case ${WRF[$id]["mode"]} in
-	open)
-		if [ ! -f "$p" ]; then
-			dt_note "There is no file $p"
-			return 0
-		fi
-		dt_del "$id"
-		if wr_dirty "$t" || [ -n "${WR[$t]["path"]}" ]; then
-			dt_launch write "$p"
-		else
-			wr_load "$t" "$p"
-		fi
-		;;
-	saveas)
-		[ -n "$p" ] || return 0
-		if [ -d "$p" ]; then
-			dt_note "$p is a folder"
-			return 0
-		fi
-		dt_del "$id"
-		WR[$t]["path"]=$p
-		WR[$t]["kind"]=txt
-		wr_ismd "$p" && WR[$t]["kind"]=md
-		write_savefile "$t"
-		;;
 	find)
 		dt_del "$id"
 		WR[$t]["find"]=$p
@@ -1056,9 +1234,10 @@ write_menus() {
 
 	dt_menu "File"
 	dt_item "New" n dt_launch write
-	dt_item "Open…" o wr_dialog "$id" open
+	dt_item "Open…" o wr_open "$id"
 	dt_item "Save" s write_savefile "$id"
-	dt_item "Save As…" a wr_dialog "$id" saveas
+	dt_item "Save As…" a wr_saveas "$id"
+	dt_item "Export…" e wr_export "$id"
 	dt_sep
 	dt_item "Close" w dt_close_focused
 	dt_editmenu

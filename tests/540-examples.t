@@ -174,6 +174,28 @@ for e in examples/desktop/apps/*.hibr examples/desktop/control-panel/*.hibr \
 done
 echo "no window content draws at absolute screen coordinates"
 
+# A glyph the desktop draws is named in GL (wm/glyphs.hibr), never written
+# into the code -- see CLAUDE.md. What stays literal: an app's or a pane's
+# icon, a menu's or a note's own words (an ellipsis, a dash), and lists
+# that are themselves a choice of characters -- the wallpaper's, the
+# bell's.
+for e in examples/desktop/*.hibr examples/desktop/*/*.hibr \
+         examples/desktop/*/*/*.hibr; do
+  case $e in */wm/glyphs.hibr) continue ;; esac
+  sed -e :a -e '/\\$/N; s/\\\n[[:space:]]*/ /; ta' "$e" | LC_ALL=C awk -v f="$e" '
+    /^[[:space:]]*#/ { next }
+    /dt_app |cp_pane |dt_item |dt_dim |dt_sub |dt_mark |dt_menu |dt_note|dt_confirm |dbase_say / { next }
+    /GLYPHS=\(|DT_GLYPH=|icon:-/ { next }
+    f ~ /wm\/bar.hibr$/ && /ret "/ { next }
+    {
+      l = $0
+      gsub(/\342\200\246|\342\200\224/, "", l)
+      if (l ~ /[\200-\377]/) print f ": a glyph written, not named: " $0
+    }
+  '
+done
+echo "every glyph drawn is named"
+
 for e in examples/fetch.hibr examples/ls-report.hibr examples/conf.hibr examples/workers.hibr; do
   ./build/hibr "$e" --help > /dev/null 2>&1 || echo "no --help: $e"
 done

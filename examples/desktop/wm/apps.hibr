@@ -29,7 +29,7 @@ dt_runatstart() {
 }
 
 # Register an app the hibr menu can open: name, title, height, width.
-fn dt_app(name, title, int h, int w, once = "", icon = "", fixed = "", hidden = "") {
+fn dt_app(name, title, int h, int w, once = "", icon = "", fixed = "", hidden = "", bare = "") {
 	DT_APPS[$name]["title"]="$title"
 	DT_APPS[$name]["h"]="$h"
 	DT_APPS[$name]["w"]="$w"
@@ -46,6 +46,12 @@ fn dt_app(name, title, int h, int w, once = "", icon = "", fixed = "", hidden = 
 	# hardcodes a name the way dt_appmenu once hardcoded "about".
 	DT_APPS[$name]["hidden"]=
 	[ "$hidden" = hidden ] && DT_APPS[$name]["hidden"]=1
+	# bare: no frame, no shadow, no title bar -- a strip across the top in
+	# a darker shade of the window's own colour (DT[$id]["bg"], which the
+	# app sets), with a close box on it, and a grow mark in the corner. A
+	# sticky note is one.
+	DT_APPS[$name]["bare"]=
+	[ "$bare" = bare ] && DT_APPS[$name]["bare"]=1
 	# Set by dt_apps while it sources this file, from where it found it --
 	# empty for one sourced any other way, which stays a flat item.
 	DT_APPS[$name]["dir"]="$DT_APPDIR_CUR"

@@ -19,7 +19,8 @@ strict
 
 app stickies "Notes stuck on the desktop, each its own colour"
 
-command -v dt_app > /dev/null && dt_app stickies "Stickies" 10 34 "" "▤"
+command -v dt_app > /dev/null &&
+	dt_app stickies "Stickies" 10 34 "" "▤" "" "" bare
 
 ST_DIR="${ST_DIR-${XDG_DATA_HOME:-$HOME/.local/share}/hibr/stickies}"
 ST_INDEX="$ST_DIR/notes.json"
@@ -149,6 +150,8 @@ fn stickies_open(int id, arg = "") {
 	TB[$id]["cr"]=$((TB[$id]["n"] - 1))
 	TB[$id]["cc"]=${#TB[$id][$((TB[$id]["n"] - 1))]}
 	SW[$id]["saved"]=0
+	DT[$id]["bg"]=${ST_FACE[${ST[$note]["color"]:-yellow}]}
+	DT[$id]["fg"]=${ST_INK[${ST[$note]["color"]:-yellow}]}
 	st_retitle "$id"
 }
 
@@ -171,7 +174,7 @@ fn st_retitle(int id) {
 
 	t=${t#"${t%%[! ]*}"}
 	[ -n "$t" ] || t="Sticky"
-	[ ${#t} -gt 24 ] && t="${t:0:23}…"
+	[ ${#t} -gt 24 ] && t="${t:0:23}${GL[ellipsis]}"
 	[ "$t" = "${DT[$id]["title"]}" ] || dt_retitle "$id" "$t"
 }
 
@@ -210,6 +213,8 @@ fn stickies_draw(int id, int h, int w, int row, int col) {
 	c=${ST[$note]["color"]:-yellow}
 	face=${ST_FACE[$c]:-${ST_FACE["yellow"]}}
 	ink=${ST_INK[$c]:-${ST_INK["yellow"]}}
+	DT[$id]["bg"]=$face
+	DT[$id]["fg"]=$ink
 	tb_draw "$id" 1 1 "$h" "$w" "$ink" "$face" "$face" "$ink"
 	st_where "$id"
 }
@@ -272,6 +277,8 @@ fn st_color(int id, color) {
 
 	[ -n "$note" ] || return 0
 	ST[$note]["color"]=$color
+	DT[$id]["bg"]=${ST_FACE[$color]}
+	DT[$id]["fg"]=${ST_INK[$color]}
 	DT_STICKYCOLOR=$color
 	st_save
 	command -v cp_save > /dev/null && cp_save

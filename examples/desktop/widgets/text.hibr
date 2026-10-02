@@ -39,6 +39,11 @@ fn dt_textkey(text, int cur, key) {
 	right) [ "$cur" -lt "${#text}" ] && cur=$((cur + 1)) ;;
 	home) cur=0 ;;
 	end) cur=${#text} ;;
+	ctrl-u)
+		text=${text:$cur}
+		cur=0
+		;;
+	ctrl-k) text=${text:0:$cur} ;;
 	backspace)
 		if [ "$cur" -gt 0 ]; then
 			text="${text:0:$((cur - 1))}${text:$cur}"

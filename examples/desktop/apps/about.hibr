@@ -275,7 +275,7 @@ fn about_draw(int id, int h, int w, int row, int col) {
 	up := about_uptime
 	console put -p "w$id" 9 2 "Uptime: $up"
 	who := about_users
-	[ ${#who} -gt $((w - 11)) ] && who="${who:0:$((w - 12))}…"
+	[ ${#who} -gt $((w - 11)) ] && who="${who:0:$((w - 12))}${GL[ellipsis]}"
 	console put -p "w$id" 10 2 "Users: $who"
 
 	cpu := about_cpu "$id"

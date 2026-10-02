@@ -596,7 +596,7 @@ fn files_draw(int id, int h, int w, int row, int col) {
 
 	console pen "$DT_ACTIVE" "$DT_FACE" bold
 	t="${FB[$id]["dir"]}"
-	[ ${#t} -gt "$w" ] && t="…${t: -$((w - 1))}"
+	[ ${#t} -gt "$w" ] && t="${GL[ellipsis]}${t: -$((w - 1))}"
 	console put -p "w$id" 1 1 "$t"
 	case ${FB[$id]["view"]} in
 	details) fb_drawdet "$id" "$h" "$w" ;;
@@ -694,7 +694,7 @@ fn fb_drawdet(int id, int h, int w) {
 	while [ "$r" -lt "$h" ] && [ "$i" -lt "$n" ]; do
 		nm=${FL[$id][$i]["name"]}
 		[ "${FL[$id][$i]["dir"]}" = 1 ] && nm="$nm/"
-		[ "${#nm}" -ge "$nw" ] && nm="${nm:0:$((nw - 2))}…"
+		[ "${#nm}" -ge "$nw" ] && nm="${nm:0:$((nw - 2))}${GL[ellipsis]}"
 		line := str pad " $nm" "$nw"
 		if [ "$cs" = 1 ]; then
 			if [ "${FL[$id][$i]["dir"]}" = 1 ]; then
@@ -742,7 +742,7 @@ fn fb_drawicons(int id, int h, int w) {
 		fb_pen "${FL[$id][$i]["kind"]}"
 		console put -p "w$id" "$y" $((x + (tw - ${#g}) / 2)) "$g"
 		nm=${FL[$id][$i]["name"]}
-		[ "${#nm}" -gt $((tw - 2)) ] && nm="${nm:0:$((tw - 3))}…"
+		[ "${#nm}" -gt $((tw - 2)) ] && nm="${nm:0:$((tw - 3))}${GL[ellipsis]}"
 		fb_rowpen "$id" "$i"
 		console put -p "w$id" $((y + 1)) $((x + (tw - ${#nm}) / 2)) "$nm"
 		i=$((i + 1))
