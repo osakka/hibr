@@ -25,6 +25,21 @@ fn dt_rep(int n, s) {
 # can alter those; an open menu is rebuilt every frame as before.
 DT_MENUIN=
 DT_MENUFOC=
+
+# A window that is not drawn -- minimised, or on another workspace -- still
+# has its app's _idle called each frame, for what must go on unseen: a
+# terminal reads its program's output there, or the pty stays readable, the
+# desktop wakes on it at once, draws nothing that reads it, and holds a core.
+dt_idle() {
+	local id
+
+	for id in "${!DT[@]}"; do
+		[ -n "${DT[$id]["idle"]}" ] || continue
+		dt_away "$id" || dt_hidden "$id" || continue
+		${DT[$id]["idle"]} "$id"
+	done
+}
+
 dt_draw() {
 	local l id ls in
 
@@ -33,6 +48,7 @@ dt_draw() {
 	l := console pane list
 	read -ra ls <<< "$l"
 	for id in "${ls[@]}"; do dt_win "${id#w}"; done
+	dt_idle
 	[ -n "$DT_DND" ] && dt_dnddraw
 	in := console consumed
 	if [ "$in" != "$DT_MENUIN" ] || [ "$DT_FOCUS" != "$DT_MENUFOC" ] ||

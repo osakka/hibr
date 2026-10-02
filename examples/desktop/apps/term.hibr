@@ -447,6 +447,23 @@ fn term_close(int id) {
 	TW[$id]["fd"]=
 }
 
+# Unseen -- minimised, or on another workspace -- the program's output is
+# still read, so the screen is current when the window comes back and the
+# pty does not keep waking the desktop. A program that has ended stops
+# being watched here too; the window says so when it is next drawn.
+fn term_idle(int id) {
+	local t=${TW[$id]["t"]}
+
+	[ -n "$t" ] || return 0
+	term poll "$t" 0
+	term alive "$t" && return 0
+	if [ -n "${TW[$id]["fd"]}" ]; then
+		command -v console > /dev/null && console unwatch "${TW[$id]["fd"]}"
+		TW[$id]["fd"]=
+	fi
+	return 0
+}
+
 # Restart Desktop: the program keeps running, so write down its pty's
 # descriptor and pid for the next desktop to adopt, and its screen and
 # scrollback to load. A program that has ended is not kept.

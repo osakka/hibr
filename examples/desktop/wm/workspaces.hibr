@@ -121,6 +121,25 @@ fn dt_wsmove_focused(int n) {
 	[ -n "$DT_FOCUS" ] && dt_wsmove "$DT_FOCUS" "$n"
 }
 
+# The wheel over the bare desktop or the bar steps through the workspaces,
+# down to the next, up to the previous. A wheel sends several reports a
+# notch, and a trackpad a stream, so one step is taken per DT_WSWHEELMS.
+DT_WSWHEELMS=250
+DT_WSWHEELT=0
+fn dt_wswheel(act) {
+	local now
+
+	[ "$DT_WSN" -gt 1 ] || return 0
+	now := dt_ms
+	[ $((now - DT_WSWHEELT)) -ge "$DT_WSWHEELMS" ] || return 0
+	DT_WSWHEELT=$now
+	if [ "$act" = wheelup ]; then
+		dt_wsstep -1
+	else
+		dt_wsstep 1
+	fi
+}
+
 # A workspace shortcut: Workspace 1 to 9, Next, Previous. Fails for any
 # other key, so dt_event goes on to the rest.
 fn dt_wskey(k) {

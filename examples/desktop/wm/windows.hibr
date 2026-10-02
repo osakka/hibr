@@ -47,7 +47,7 @@ fn dt_hooks(int id, ap = "") {
 	local f
 
 	for f in draw key click mouse wheel open close copy cut paste drop \
-		refresh; do
+		refresh idle; do
 		if [ -n "$ap" ] && dt_has "${ap}_$f"; then
 			DT[$id]["$f"]="${ap}_$f"
 		else

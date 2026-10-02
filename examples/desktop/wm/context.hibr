@@ -95,11 +95,27 @@ fn dt_titlecontext(int id) {
 		dt_item "Zoom" z dt_zoom "$id"
 	fi
 	dt_item "Hide" h dt_min "$id"
+	if [ "$DT_WSN" -gt 1 ]; then
+		local wsi=1
+		dt_sub "Move to Workspace"
+		while [ "$wsi" -le "$DT_WSN" ]; do
+			if [ "$wsi" = "${DT[$id]["ws"]:-1}" ]; then
+				dt_dim "Workspace $wsi"
+			else
+				dt_item "Workspace $wsi" "$wsi" dt_wsmove "$id" "$wsi"
+			fi
+			wsi=$((wsi + 1))
+		done
+		dt_end
+	fi
+	# Another display only when there is one: with a single terminal
+	# attached the list would hold just the one this window is on.
 	if [ -n "$HIBR_HOLD" ] && need hold; then
 		sess := dt_holdsess
 		lst := hold clients "$sess"
-		if [ -n "$lst" ]; then
-			dt_sub "Move to"
+		while [ "${lst%$'\n'}" != "$lst" ]; do lst=${lst%$'\n'}; done
+		if [ "${lst//[!$'\n']/}" != "" ]; then
+			dt_sub "Move to Display"
 			while IFS=' ' read -r nm row col rows cols pri; do
 				[ -z "$nm" ] && continue
 				dt_item "$nm" "" \

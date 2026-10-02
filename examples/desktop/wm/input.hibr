@@ -372,7 +372,10 @@ dt_mouse() {
 			return 0
 		fi
 		id := console hit "$mr" "$mc"
-		[ -z "$id" ] && return 0
+		if [ -z "$id" ]; then
+			dt_wswheel "$act"
+			return 0
+		fi
 		id=${id#w}
 		ap=${DT[$id]["wheel"]}
 		[ -z "$ap" ] && return 0

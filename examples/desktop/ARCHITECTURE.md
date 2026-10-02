@@ -133,6 +133,7 @@ drawing in the wrong place. The calls:
 | `_drop` | `id r c op paths...` |
 | `_menus` | nothing -- the menus are built for whichever window has focus, `$DT_FOCUS` |
 | `_context` | `id` |
+| `_idle` | `id` -- each frame, for a window that is not drawn (minimised, or on another workspace) |
 | `_stash` | `id dir` -- Restart Desktop is about to exec; write down what a map cannot hold, in `dir` if it is a file |
 | `_resume` | `id` -- after a restart, once the maps named by `dt_keepstate` are back |
 

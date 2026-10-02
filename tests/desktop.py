@@ -581,7 +581,7 @@ shutil.rmtree(BELL, True)
 # happening. The bar clock asks once a minute and the desktop icons' own
 # mount rescan every 5s, so a quiet desktop is well under one wake a
 # second; a blinking cursor is two draws a second by design.
-def idle_wakes(env, session):
+def idle_wakes(env, session, act=None):
     d = tempfile.mkdtemp(prefix="hibr-idle-")
     p = os.path.join(d, "session.hibr")
     apps = 'DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/desktop/apps")
@@ -589,6 +589,9 @@ def idle_wakes(env, session):
                        % (load(MOD), WM, apps, session))
     t = Term(p, env=env, rows=ROWS, cols=COLS, settle=1.5)
     t.collect(1.5)
+    if act:
+        act(t)
+        t.collect(1.0)
 
     def vol():
         for l in open("/proc/%d/status" % t.pid):
@@ -624,6 +627,38 @@ rate, sc = idle_wakes({"DT_CURSOR_BLINK": "1"},
 check("a terminal whose program has exited leaves the desktop idle "
       "(%.0f%% of a core)" % (sc.cpu * 100),
       sc.cpu < 0.05 and sc.find("[exited 1") is not None, sc)
+
+# A terminal that is not drawn -- minimised, or on another workspace --
+# while its program keeps writing: its output must still be read, or the
+# pty stays readable and the desktop spins on it.
+CHATTY = ("TW_CMD=(sh -c 'while :; do echo tick; sleep 0.2; done')\n"
+          "dt_launch term")
+
+
+def minimise(t):
+    sc = t.screen()
+    b = sc.find("_ □ x")
+    if b:
+        t.send(press(b[0], b[1]))
+        t.send(release(b[0], b[1]))
+
+
+def away(t):
+    t.send(b"\x1b2")
+
+
+rate, sc = idle_wakes({"DT_CURSOR_BLINK": "0"}, CHATTY, minimise)
+check("a minimised terminal still writing leaves the desktop idle "
+      "(%.0f%% of a core)" % (sc.cpu * 100),
+      sc.cpu < 0.05 and sc.find("tick") is None, sc)
+rate, sc = idle_wakes({"DT_CURSOR_BLINK": "0"}, CHATTY, away)
+check("so does one on another workspace (%.0f%% of a core)" % (sc.cpu * 100),
+      sc.cpu < 0.05 and sc.find("tick") is None, sc)
+rate, sc = idle_wakes({"DT_CURSOR_BLINK": "0"},
+                      "TW_CMD=(sh -c 'sleep 0.5; exit 3')\ndt_launch term",
+                      away)
+check("and one whose program ends while it is away (%.0f%% of a core)"
+      % (sc.cpu * 100), sc.cpu < 0.05, sc)
 
 # --- right-click context menus ---------------------------------------------
 #
@@ -1155,6 +1190,31 @@ check("a new window is placed as if the other workspaces' were not there",
 sc, _ = run(WS2 + "dt_wsmove 2 3\ndt_wsset 2\n", [b"\x1b2"])
 check("fewer workspaces: windows on one that went move to the last left",
       sc.find("┤ Over ├") == (9, 27) and "1 2 3" not in sc.row(0), sc)
+
+sc, _ = run(WS2, [wheel(20, 5, up=False)])
+check("the wheel over the bare desktop goes to the next workspace",
+      sc.find("Under") is None and sc.find("Over") is None, sc)
+sc, _ = run(WS2, [wheel(20, 5, up=False), 0.4, wheel(20, 5, up=True)])
+check("and back up to the previous one",
+      sc.find("┤ Under ├") == (6, 12), sc)
+sc, _ = run(WS2, [wheel(20, 5, up=False)] * 3)
+check("a burst of wheel reports is one step, not one per report",
+      sc.find("Under") is None and sc.row(0).find("1 2 3") > 0, sc)
+sc, _ = run(WS2, [wheel(20, 5, up=True)])
+check("up from the first wraps round to the last", sc.find("Under") is None,
+      sc)
+sc, _ = run(WS2, [press(9, 35, 2)])
+check("a title bar's menu can send the window to another workspace",
+      sc.find("Move to Workspace") is not None, sc)
+check("and offers no other display when there is only this one",
+      sc.find("Move to Display") is None, sc)
+sc, _ = run(WS2, [press(9, 35, 2)], pre="DT_WSN=1")
+check("with one workspace there is nothing to move it to",
+      sc.find("Move to Workspace") is None, sc)
+sc, _ = run(WS2, [wheel(20, 5, up=False)], pre="DT_WSN=1")
+check("and the bar shows no numbers, and the wheel stays put",
+      not re.search(r"\b1 2\b", sc.row(0)) and
+      sc.find("┤ Under ├") == (6, 12), sc)
 
 # --- tiling ------------------------------------------------------------------
 #
@@ -2415,9 +2475,9 @@ check("double-clicking home opens Files, with a titlebar to right-click",
       tb is not None, sc)
 t1.send(press(tb[0], tb[1], 2))
 sc = t1.screen()
-check("the titlebar's own context menu gets a Move to submenu",
-      sc.find("Move to") is not None, sc)
-for _ in range(4):
+check("the titlebar's own context menu gets a Move to Display submenu",
+      sc.find("Move to Display") is not None, sc)
+for _ in range(5):
     t1.send(b"\x1b[B")
 t1.send(b"\x1b[C")
 sc = t1.screen()
@@ -2638,4 +2698,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(363)
+report(374)

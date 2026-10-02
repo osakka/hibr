@@ -1556,6 +1556,12 @@ went in the shell.
   would make every restart hang up every shell. After the exec the input
   count `console consumed` restarts at zero, so `DT_INBASE` carries the old
   one into the test idle marker, or every pty suite would wait for ever.
+- **A watched descriptor must be read whether or not its window is drawn.**
+  `term_draw` was the only reader of a terminal's pty, and a minimised or
+  away window is not drawn, so a program still writing kept the fd readable
+  and `dt_run` spun at 100% with no voluntary sleeps. `dt_idle` calls
+  `<app>_idle` for every undrawn window each frame; anything else an app
+  watches with `console watch` needs the same, or must unwatch while unseen.
 - **A restart callback must not share a name with anything.** The hooks were
   first `_save` and `_restore`, and the date and time dialog's prefix is
   `dtf` -- `dtf_save` sets the system clock, under passwordless sudo on the

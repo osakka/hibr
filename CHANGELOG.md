@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.90
+
+**A minimised terminal no longer holds a core.** A terminal window's
+output was read only while it was drawn, so one minimised or on another
+workspace whose program kept writing -- `screen -r`, a build, a clock --
+left its pty readable: the desktop woke at once, drew nothing that read
+it, and went round again at 100% of a core. Windows that are not drawn now
+have their app's `_idle` called each frame, and the terminal reads its
+program there; a minimised one costs nothing again, and its screen is
+current when it comes back. A Restart Desktop made it likely, by bringing
+back a busy terminal minimised or on another workspace, but any of these
+did it.
+
+**The wheel flips workspaces.** Over the bare desktop or the menu bar, the
+wheel goes to the next workspace (down) or the previous (up), wrapping
+round; a burst of reports from one notch, or a trackpad, is one step.
+
+**A title bar's menu moves the window to another workspace.** Right-click a
+title: Move to Workspace, beside Hide. Move to Display is there only when
+another display is attached -- it used to appear with just the one.
+
 ## 0.89
 
 **Restart Desktop keeps your sessions.** On the hibr menu: the desktop

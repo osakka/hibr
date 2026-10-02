@@ -60,8 +60,11 @@ current when it opened. The bar shows the numbers left of the notification
 icon, the current one lit; click one to go there, or drag a window by its
 title onto one to send it there. alt-1, alt-2 and alt-3 switch,
 ctrl-alt-right and ctrl-alt-left step through them (Workspace 4 to 9 have
-no key until given one), and Window > Move to Workspace sends the focused
-window. The application menu lists every window, marked with its
+no key until given one), and so does the mouse wheel over the bare
+desktop or the bar -- down to the next, up to the previous, one step a
+notch. Window > Move to Workspace sends the focused window, and a title
+bar's right-click menu has the same for its own. With one workspace the
+bar shows no numbers and none of this appears. The application menu lists every window, marked with its
 workspace's number when it is on another; choosing it goes there, and so
 does opening an app that is already open on another.
 
