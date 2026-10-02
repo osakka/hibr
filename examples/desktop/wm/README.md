@@ -25,6 +25,7 @@ can be read on its own, and the order is only for reading.
 | `handlers.hibr` | `dt_handler`: what opens a file, by its extension |
 | `icons.hibr` | the desktop's own icons: home, disks, trash |
 | `hold.hibr` | staying detachable, and the displays attached to a held session |
+| `standby.hibr` | displays that wait to be joined (`--standby`) and wait again when let go, and displays blanked: joined but dark and out of use |
 | `notify.hibr` | `dt_note`, `dt_notify`: stacked notifications and their history |
 | `confirm.hibr` | `dt_confirm`: a question with a yes and a no |
 | `strip.hibr` | the Control Strip |

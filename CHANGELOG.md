@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.99.9
+
+**Standby displays.** `desktop --standby --name NAME` is a terminal that
+waits to be a screen of the desktop: a quiet screen with its name until the
+desktop runs, then it joins on its own; let go from the desktop (Detach),
+it waits again -- marked *let go*, so it is not pulled straight back -- and
+when the desktop quits it waits for the next. Control Panel > Displays has
+a **Standby** line listing the ones waiting (a click asks one to join) and
+**Standby displays join on their own**, on unless switched off, for
+whether they come by themselves or only when asked. `q` stops waiting.
+
+**Blank a display.** Right-click it in the Displays pane: it stays joined
+and keeps its place in the arrangement, but goes dark and out of use --
+windows on it move to the primary, none are placed there -- until it is
+unblanked. Kept across restarts. The primary cannot be blanked.
+
 ## 0.99.8
 
 **Sheet, a spreadsheet whose formulas are hibr,** in Office. A cell holds

@@ -82,6 +82,7 @@ dt_size() {
 			fi
 		done <<< "$lst"
 	fi
+	dt_has dt_blankregions && dt_blankregions
 	dt_iconlay
 	cs_clamp
 	dt_has dt_tile && dt_tile

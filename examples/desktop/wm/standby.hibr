@@ -1,0 +1,273 @@
+# wm/standby -- displays that wait to be joined, and displays blanked.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+#
+# A terminal started with --standby waits for the desktop instead of
+# joining it once: it shows its name on a quiet screen until it is asked
+# to join, joins beside whoever is there, and when it is let go -- Detach
+# from the desktop, or the desktop quitting -- it waits again. Each one
+# waiting says so with a file in DT_STANDBYDIR, its name, holding its pid,
+# whether it is waiting or released, and the session it waits for; a file
+# NAME.join beside it is the desktop asking it to come. With Standby
+# Displays Join on their own (DT_STANDBYAUTO, on unless set) the desktop
+# asks every one that is waiting; one it let go stays released until it is
+# attached again from the Displays pane, or until its own enter.
+#
+# Blank is the other way round: a joined display stays joined but goes dark
+# and out of use -- windows on it move to the primary, and none are placed
+# there -- until it is unblanked. Which ones are blank is kept in the state
+# folder, so a restart leaves them as they were. The primary cannot be
+# blanked: the bar lives there.
+
+strict
+
+DT_STANDBYDIR="${DT_STANDBYDIR-${XDG_STATE_HOME:-$HOME/.local/state}/hibr/standby}"
+DT_STANDBYAUTO="${DT_STANDBYAUTO-1}"
+DT_BLANK=
+DT_BLANKR=()
+DT_SBNAME=
+DT_SBBASE=
+DT_SBSTATE=waiting
+DT_SBLIST=()
+
+# --- the waiting terminal -------------------------------------------------------
+
+# Say in the registry what this terminal is doing now.
+dt_sbwrite() {
+	printf '%s %s %s\n' "$$" "$DT_SBSTATE" "$DT_SBBASE" > \
+		"$DT_STANDBYDIR/$DT_SBNAME" 2> /dev/null
+}
+
+# Leave the registry, on the way out.
+dt_sbgone() {
+	rm -f "$DT_STANDBYDIR/$DT_SBNAME" "$DT_STANDBYDIR/$DT_SBNAME.join" 2> /dev/null
+}
+
+# The quiet screen a waiting terminal shows: its name, what it waits for,
+# and its two keys.
+dt_sbdraw() {
+	local sz rows cols r t1 t2 t3
+
+	sz := console size
+	rows=${sz% *}
+	cols=${sz#* }
+	console pen "$DT_DIM" "$DT_WALL"
+	console fill 0 0 "$rows" "$cols" " "
+	r=$((rows / 2 - 1))
+	t1=$DT_SBNAME
+	if [ "$DT_SBSTATE" = released ]; then
+		t2="let go -- attach it again from the desktop's Displays"
+	else
+		t2="waiting for the desktop ($DT_SBBASE)"
+	fi
+	t3="enter joins now ${GL[dot]} q stops waiting"
+	console pen "$DT_ACTIVE" "$DT_WALL" bold
+	console put "$r" $(((cols - ${#t1}) / 2)) "$t1"
+	console pen "$DT_DIM" "$DT_WALL"
+	console put $((r + 1)) $(((cols - ${#t2}) / 2)) "$t2"
+	console put $((r + 3)) $(((cols - ${#t3}) / 2)) "$t3"
+	console flush
+}
+
+# Join the desktop now, at the union's width, beside whoever is there; back
+# here when it lets this terminal go. Still running then means it was let
+# go on purpose -- released, until asked again; gone means it quit, and the
+# next one is waited for.
+fn dt_sbjoin(base) {
+	local line wxh cols
+
+	line := dt_holdline "$base"
+	[ -n "$line" ] || return 1
+	wxh=${line##* }
+	cols=${wxh#*x}
+	console close
+	DT_SBSTATE=joined
+	dt_sbwrite
+	hold attach -m -n "$DT_SBNAME" "$base" 0 "$cols"
+	line := dt_holdline "$base"
+	if [ -n "$line" ]; then
+		DT_SBSTATE=released
+	else
+		DT_SBSTATE=waiting
+	fi
+	dt_sbwrite
+	console open
+	console mouse off
+	return 0
+}
+
+# --standby: wait to be joined, join, and wait again, until q. Never
+# returns.
+fn dt_standby(base, dname = "") {
+	local k line
+
+	need console || { echo "$0: --standby needs the console module" >&2; exit 1; }
+	DT_SBNAME=${dname:-standby-$$}
+	DT_SBBASE=$base
+	DT_SBSTATE=waiting
+	mkdir -p "$DT_STANDBYDIR" 2> /dev/null
+	if [ -e "$DT_STANDBYDIR/$DT_SBNAME" ]; then
+		read -r line < "$DT_STANDBYDIR/$DT_SBNAME" 2> /dev/null
+		if [ -n "$line" ] && kill -0 "${line%% *}" 2> /dev/null; then
+			echo "$0: a display called $DT_SBNAME is already waiting" >&2
+			exit 1
+		fi
+	fi
+	dt_sbwrite
+	trap dt_sbgone EXIT
+	console open
+	console mouse off
+	while :; do
+		if [ -e "$DT_STANDBYDIR/$DT_SBNAME.join" ]; then
+			rm -f "$DT_STANDBYDIR/$DT_SBNAME.join"
+			dt_sbjoin "$base" && continue
+		fi
+		dt_sbdraw
+		k := console key 1000
+		case $k in
+		q | Q | escape | ctrl-c) break ;;
+		enter | j) dt_sbjoin "$base" ;;
+		esac
+	done
+	console close
+	exit 0
+}
+
+# --- the desktop's side ----------------------------------------------------------
+
+# Every terminal waiting for this desktop, as "name state" into DT_SBLIST;
+# one whose process is gone is cleared away.
+dt_sbscan() {
+	local f nm line pid st base sess
+
+	DT_SBLIST=()
+	[ -d "$DT_STANDBYDIR" ] || return 0
+	sess := dt_holdsess
+	for f in "$DT_STANDBYDIR"/*; do
+		[ -f "$f" ] || continue
+		nm=${f##*/}
+		[[ $nm == *.join ]] && continue
+		read -r pid st base < "$f" 2> /dev/null || continue
+		if ! kill -0 "$pid" 2> /dev/null; then
+			rm -f "$f" "$f.join"
+			continue
+		fi
+		[ "$base" = "$sess" ] || continue
+		DT_SBLIST+=("$nm $st")
+	done
+}
+
+# Ask a waiting terminal to join.
+fn dt_sbcall(nm) {
+	[ -e "$DT_STANDBYDIR/$nm" ] || return 1
+	: > "$DT_STANDBYDIR/$nm.join" 2> /dev/null
+}
+
+# With Standby Displays Join on their own, ask every one that is waiting
+# -- not one this desktop let go.
+dt_sbauto() {
+	local e
+
+	[ "$DT_STANDBYAUTO" = 1 ] && [ -n "$HIBR_HOLD" ] || return 0
+	dt_sbscan
+	for e in "${DT_SBLIST[@]}"; do
+		[ "${e#* }" = waiting ] && dt_sbcall "${e%% *}"
+	done
+	return 0
+}
+
+# --- blank ------------------------------------------------------------------------
+
+DT_BLANKFILE="${XDG_STATE_HOME:-$HOME/.local/state}/hibr/blanked"
+
+# Whether a display is blank.
+fn dt_isblank(nm) {
+	[[ " $DT_BLANK " == *" $nm "* ]]
+}
+
+# Where each blank display is, from hold clients, into DT_BLANKR as "row
+# col rows cols" -- read again with every resize, as the primary is.
+dt_blankregions() {
+	local lst nm row col rows cols pri
+
+	DT_BLANKR=()
+	[ -n "$DT_BLANK" ] && [ -n "$HIBR_HOLD" ] && need hold || return 0
+	lst := hold clients
+	while IFS=' ' read -r nm row col rows cols pri; do
+		[ -n "$nm" ] && [ "$pri" != 1 ] || continue
+		dt_isblank "$nm" && DT_BLANKR+=("$row $col $rows $cols")
+	done <<< "$lst"
+}
+
+# Darken every blank display to nothing, over whatever was drawn there.
+dt_blankdraw() {
+	local e r c h w
+
+	for e in "${DT_BLANKR[@]}"; do
+		read -r r c h w <<< "$e"
+		console darken "$r" "$c" "$h" "$w" 0
+	done
+}
+
+# Blank a display, or unblank it: windows on it go to the primary first.
+fn dt_blank(nm) {
+	local lst n2 row col rows cols pri id out=
+	local -a bl
+
+	if dt_isblank "$nm"; then
+		read -ra bl <<< "$DT_BLANK"
+		for n2 in "${bl[@]}"; do [ "$n2" = "$nm" ] || out="$out $n2"; done
+		DT_BLANK=${out# }
+		dt_notep low "$nm is in use again"
+	else
+		lst := hold clients
+		while IFS=' ' read -r n2 row col rows cols pri; do
+			[ "$n2" = "$nm" ] || continue
+			if [ "$pri" = 1 ]; then
+				dt_notep low "$nm is the primary display -- make another primary first"
+				return 1
+			fi
+			for id in "${!DT[@]}"; do
+				[ -n "${DT[$id]["title"]}" ] || continue
+				if [ "${DT[$id]["col"]}" -ge "$col" ] &&
+				   [ "${DT[$id]["col"]}" -lt $((col + cols)) ]; then
+					dt_movewin "$id" 1 "$DT_PRIMARY_COL" "$DT_ROWS" \
+						"${DT_PRIMARY_W:-$DT_COLS}"
+				fi
+			done
+		done <<< "$lst"
+		DT_BLANK="${DT_BLANK:+$DT_BLANK }$nm"
+		dt_notep low "$nm is blank"
+	fi
+	mkdir -p "${DT_BLANKFILE%/*}" 2> /dev/null
+	printf '%s\n' "$DT_BLANK" > "$DT_BLANKFILE" 2> /dev/null
+	dt_blankregions
+}
+
+# The blank displays a desktop left behind, read at start.
+dt_blankload() {
+	[ -r "$DT_BLANKFILE" ] && read -r DT_BLANK < "$DT_BLANKFILE"
+	return 0
+}
+
+# Every five seconds while held: ask waiting displays to join, so one that
+# starts waiting after the desktop does is not left there.
+DT_SBT=0
+
+dt_sbtick() {
+	[ -n "$HIBR_HOLD" ] || return 0
+	if [ $((EPOCHSECONDS - DT_SBT)) -ge 5 ]; then
+		DT_SBT=$EPOCHSECONDS
+		dt_sbauto
+	fi
+	dt_want 5000
+}
+
+# At start: the blank displays the last desktop left, and anyone waiting.
+dt_sbstart() {
+	dt_blankload
+	dt_blankregions
+	dt_sbauto
+}
+DT_ATSTART+=(dt_sbstart)

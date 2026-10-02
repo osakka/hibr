@@ -559,6 +559,25 @@ answers directly:
     hold drop desktop NAME      # switch one off
     hold primary desktop NAME   # change which one anchors the bar
 
+A terminal that should always be a screen of this desktop waits for it
+instead of joining once:
+
+    hibr examples/desktop/session.hibr --standby --name right
+
+It shows its name on a quiet screen until the desktop is running, then
+joins on its own -- unless Control Panel > Displays > **Standby displays
+join on their own** is off, in which case it waits until a click on its
+name in that pane's **Standby** line asks it to. Detach from the desktop
+lets it go: it waits again, marked *let go*, and is not joined again on
+its own until asked from the pane (or its own enter). When the desktop
+quits it waits for the next one; `q` on the waiting screen stops it.
+
+Right-click a display in the Displays pane for **Blank**: it stays joined
+and keeps its place, but goes dark and out of use -- windows on it move to
+the primary and none are placed there -- until it is unblanked the same
+way. Which displays are blank is kept in the state folder, so a restart
+leaves them so. The primary cannot be blanked; make another primary first.
+
 A display's name is whatever `hold attach -n NAME` gave it, or
 `client-<fd>` if nothing did -- `--name` gives it one directly:
 

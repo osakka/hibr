@@ -58,9 +58,22 @@ fn displays_setprimary(int id, value) {
 # Right-click on a rectangle: detach it, or flash its own name where it
 # actually is.
 fn displays_context(nm) {
+	local on=0
+
 	dt_menu "Display"
 	dt_item "Detach" d displays_detach "$nm"
 	dt_item "Identify" i displays_identify "$nm"
+	dt_isblank "$nm" && on=1
+	dt_mark "Blank" b "$on" dt_blank "$nm"
+}
+
+# Standby displays join on their own when the desktop is running, or wait
+# to be attached from here -- the row's own checkbox.
+fn displays_sbauto(int? id = "") {
+	if [ "$DT_STANDBYAUTO" = 1 ]; then DT_STANDBYAUTO=0; else DT_STANDBYAUTO=1; fi
+	command -v dt_save > /dev/null && dt_save
+	[ "$DT_STANDBYAUTO" = 1 ] && dt_sbauto
+	return 0
 }
 
 fn displays_detach(nm = "") {
@@ -193,7 +206,7 @@ fn displays_draw(int id, int h, int w, int bx) {
 	done
 	[ "$urows" -lt 1 ] && urows=1
 	[ "$ucols" -lt 1 ] && ucols=1
-	s := displays_scale $((h - 2)) "$w" "$urows" "$ucols"
+	s := displays_scale $((h - 4)) "$w" "$urows" "$ucols"
 	DPY[$id]["s"]=$s
 
 	i=0
@@ -246,11 +259,47 @@ fn displays_draw(int id, int h, int w, int bx) {
 		namew=$((bw - 2))
 		[ "$namew" -lt 1 ] && namew=1
 		t=$nm
+		dt_isblank "$nm" && t="$t (blank)"
 		[ "${#t}" -gt "$namew" ] && t=${t:0:$namew}
-		console pen "$DT_INK" "$DT_FACE"
+		if dt_isblank "$nm"; then
+			console pen "$DT_DIM" "$DT_FACE"
+		else
+			console pen "$DT_INK" "$DT_FACE"
+		fi
 		console put -p "w$id" $((br + bh / 2)) $((bc + 1)) "$t"
 		i=$((i + 1))
 	done
+	displays_standby "$id" "$h" "$w" "$bx"
+}
+
+# The terminals waiting to join, along the bottom: a click on one attaches
+# it; and whether they join on their own.
+fn displays_standby(int id, int h, int w, int bx) {
+	local e nm st x t on=0
+
+	dt_sbscan
+	x=$bx
+	console pen "$DT_DIM" "$DT_FACE"
+	t="Standby:"
+	console put -p "w$id" $((h - 1)) "$x" "$t"
+	x=$((x + ${#t} + 1))
+	if [ "${#DT_SBLIST[@]}" = 0 ]; then
+		console put -p "w$id" $((h - 1)) "$x" "none waiting"
+	fi
+	for e in "${DT_SBLIST[@]}"; do
+		nm=${e%% *}
+		st=${e#* }
+		t="$nm"
+		[ "$st" = released ] && t="$t (let go)"
+		[ "$st" = joined ] && continue
+		[ $((x + ${#t})) -gt $((bx + w)) ] && break
+		console pen "$DT_INK" "$DT_WELL"
+		console put -p "w$id" $((h - 1)) "$x" "$t"
+		dt_wreg "$id" $((h - 1)) "$x" "${#t}" "sb:$nm"
+		x=$((x + ${#t} + 1))
+	done
+	[ "$DT_STANDBYAUTO" = 1 ] && on=1
+	dt_check "$id" "$h" "$bx" "$on" "Standby displays join on their own" sbauto
 }
 
 # Press: on the dropdown, open its own popup of every attached display's
@@ -268,6 +317,17 @@ fn displays_mouse(int id, act, button, int r, int c) {
 	n=${DPY[$id]["n"]:-0}
 	if [ "$act" = press ]; then
 		tag := dt_hit "$id" "$r" "$c"
+		case $tag in
+		sbauto)
+			displays_sbauto "$id"
+			return 0
+			;;
+		sb:*)
+			dt_sbcall "${tag#sb:}"
+			dt_notep low "Asked ${tag#sb:} to join"
+			return 0
+			;;
+		esac
 		if [ "$tag" = primary ]; then
 			wc := dt_wcol "$id" "$r" primary
 			vals=()

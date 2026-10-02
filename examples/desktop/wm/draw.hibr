@@ -65,6 +65,8 @@ dt_draw() {
 	dt_drop
 	dt_note_draw
 	dt_identify_draw
+	dt_blankdraw
+	dt_sbtick
 	dt_confirm_draw
 	dt_shot_draw
 	console flush

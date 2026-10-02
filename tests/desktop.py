@@ -2833,4 +2833,89 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(394)
+# --standby: a terminal that waits to be joined, joins, and when it is let
+# go waits again. Blank keeps a joined display joined but dark.
+SB = tempfile.mkdtemp(prefix="hibr-standby-")
+SBENV = {"HOME": SB, "TMPDIR": SB,
+         "XDG_CONFIG_HOME": os.path.join(SB, "config"),
+         "XDG_STATE_HOME": os.path.join(SB, "state"),
+         "XDG_DATA_HOME": os.path.join(SB, "data"),
+         "HIBR_MODPATH": tree("build/mods")}
+SBDIR = os.path.join(SB, "state", "hibr", "standby")
+
+
+def unstandby():
+    subprocess.run([screen.HIBR, "-c", HOLDC + "hold kill desktop"],
+                   env=dict(os.environ, **SBENV), capture_output=True)
+    shutil.rmtree(SB, True)
+
+
+def sbclients():
+    r = subprocess.run([screen.HIBR, "-c", HOLDC + "hold clients desktop"],
+                       env=dict(os.environ, **SBENV), capture_output=True,
+                       text=True)
+    return [ln.split()[0] for ln in r.stdout.splitlines() if ln.split()]
+
+
+def sbstate(nm):
+    try:
+        return open(os.path.join(SBDIR, nm)).read().split()[1]
+    except (OSError, IndexError):
+        return None
+
+
+atexit.register(unstandby)
+
+ts = Term(SESSION, "--standby", "--name", "spare", env=SBENV, cols=60,
+          settle=1.5)
+sc = ts.screen()
+check("--standby with nothing running waits, saying so with its name",
+      sc.find("spare") is not None and
+      sc.find("waiting for the desktop") is not None and
+      sbstate("spare") == "waiting", sc)
+t1 = Term(SESSION, env=SBENV, cols=80, settle=2.0)
+ts.collect(3.0)
+check("when the desktop starts, a waiting display joins it on its own",
+      "spare" in sbclients(), sbclients())
+subprocess.run([screen.HIBR, "-c", HOLDC + "hold drop desktop spare"],
+               env=dict(os.environ, **SBENV), capture_output=True)
+ts.collect(2.0)
+sc = ts.screen()
+check("let go from the desktop, it waits again instead of ending",
+      sc.find("let go") is not None and sbstate("spare") == "released", sc)
+t1.collect(6.0)
+check("and a display the desktop let go is not joined again on its own",
+      "spare" not in sbclients(), sbclients())
+open(os.path.join(SBDIR, "spare.join"), "w").close()
+ts.collect(2.5)
+check("asked by the desktop (Displays > Standby), it joins again",
+      "spare" in sbclients(), sbclients())
+t1.send(b"\x1b[21~")
+t1.send(b"q", settle=1.0)
+ts.collect(2.5)
+sc = ts.screen()
+check("when the desktop quits, it goes back to waiting for the next",
+      sc.find("waiting for the desktop") is not None and
+      sbstate("spare") == "waiting", sc)
+t1.close()
+os.makedirs(os.path.join(SB, "state", "hibr"), exist_ok=True)
+open(os.path.join(SB, "state", "hibr", "blanked"), "w").write("spare\n")
+t1 = Term(SESSION, env=SBENV, cols=80, settle=2.0)
+ts.collect(3.5)
+sc = ts.screen()
+st = sc.style(10, 30)
+check("a blank display stays joined and goes dark",
+      "spare" in sbclients() and st.get("bg") == "#000000" and
+      st.get("fg") == "#000000", (sbclients(), st, sc))
+t1.send(b"\x1b[21~")
+t1.send(b"q", settle=1.0)
+ts.collect(2.0)
+ts.send(b"q", settle=1.0)
+ts.close()
+check("q on the waiting screen stops waiting, and leaves no trace",
+      not os.path.exists(os.path.join(SBDIR, "spare")) and ts.exited,
+      os.listdir(SBDIR) if os.path.isdir(SBDIR) else "gone")
+t1.close()
+unstandby()
+
+report(402)

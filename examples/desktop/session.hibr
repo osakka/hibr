@@ -36,6 +36,8 @@ opt -s --session session str=desktop \
 	"Which held session this is, for keeping more than one"
 opt -j --join    join \
 	"Attach beside an already-running one instead of starting or resuming"
+opt -w --standby standby \
+	"Wait to be joined -- now, and again each time this display is let go"
 opt -n --name    name str \
 	"Name this display for the control panel (client-<fd> if not given)"
 args "$@"
@@ -51,7 +53,7 @@ d=${0%/*}
 # second terminal on this same desktop, side by side with the first, rather
 # than a session of its own -- see dt_autohold in desktop.hibr for what
 # "always" leaves out.
-dt_autohold "$session" "$resume" "$join" "$name"
+dt_autohold "$session" "$resume" "$join" "$name" "${standby:-0}"
 
 # Apps are ordinary hibr files, found in folders: your own
 # ~/.config/hibr/apps first, then the ones that come with hibr.  Each file
