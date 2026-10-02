@@ -101,6 +101,21 @@ def run(app, win, feed=(), pre="", wait=1.0, also=(), end=b"qy", extra=(),
     return sc
 
 
+def stdir():
+    """A folder of notes of its own, for a Stickies test."""
+    return tempfile.mkdtemp(prefix="hibr-stickies-")
+
+
+def stnote(d, n=1):
+    """What note n holds on disk, or None."""
+    f = os.path.join(d, "%d.txt" % n)
+    return open(f).read() if os.path.exists(f) else None
+
+
+def stenv(d):
+    return {"ST_DIR": d, "DT_STICKYSTART": "0"}
+
+
 def calc_key(i):
     """Where key i of the keypad lands on screen, for a window at row 2 col 2."""
     return 6 + (i // 4) * 2, 4 + (i % 4) * 5 + 1
@@ -276,10 +291,10 @@ check("panes register and sort by title within their group, not load order",
       ORDER == ["datetime", "displays", "keyboard", "mouse",
                 "appearance", "cliphist", "control_strip", "desktop",
                 "filetypes", "notify", "shortcuts", "windows",
-                "abouthibr", "filesview", "taskmgr", "terminal"], out)
+                "abouthibr", "filesview", "notes", "taskmgr", "terminal"], out)
 check("Hardware first, then the desktop's own panes, then one per app",
       [GROUP[n] for n in ORDER] ==
-      ["hardware"] * 4 + ["system"] * 8 + ["app"] * 4, out)
+      ["hardware"] * 4 + ["system"] * 8 + ["app"] * 5, out)
 
 PW = "22 58 2 2"
 PANEL = ("panel", PW)
@@ -297,7 +312,7 @@ R0, VALCOL = 3, 47
 LISTCOL = 5
 BODYCOL = 20
 TITLE = {"appearance": "Appearance", "control_strip": "Control Strip",
-         "cliphist": "Clipboard",
+         "cliphist": "Clipboard", "notes": "Stickies",
          "datetime": "Date & Time", "desktop": "Desktop",
          "displays": "Displays", "filetypes": "File Types",
          "keyboard": "Keyboard", "mouse": "Mouse",
@@ -391,14 +406,16 @@ def cprun(feed=(), also=(), extra=(), tz=None, env=None, pre="", end=b"qy",
 
 
 sc = cprun()
-check("the picker lists every pane, sorted by title",
-      all(TITLE[n] in sc.row(prow(n)) for n in ORDER), sc)
+check("the picker lists every pane it has room for, sorted by title",
+      all(TITLE[n] in sc.row(prow(n)) for n in ORDER if prow(n) < R0 + 19),
+      sc)
 check("under a Hardware heading, then Desktop, then Apps",
       "Hardware" in sc.row(R0) and
       "Desktop" in sc.row(prow("appearance") - 1) and
       "Apps" in sc.row(prow("abouthibr") - 1), sc)
-check("the last pane fits above the window's bottom border",
-      sc.row(prow("terminal")).count("│") >= 3, sc)
+check("a list longer than the window scrolls, with a bar to say so",
+      sc.find("Hardware") is not None and "█" in "".join(
+          r[2:20] for r in sc.text().split("\n")), sc)
 
 
 # The list and the pane beside it scroll on their own, each with its own
@@ -892,17 +909,16 @@ check("the Terminal pane no longer has it",
 
 # Every key the desktop acts on is a setting, and a changed one applies
 # everywhere at once: in every window, and on the Edit menu.
-CB = tempfile.mkdtemp(prefix="hibr-keys-")
-run("notepad", "8 30 14 48", pre='DT_KEYS["copy"]="f5"',
+CB = stdir()
+run("stickies", "8 30 14 48", pre='DT_KEYS["copy"]="f5"',
     feed=[b"a", b"b", b"c", b"\x1b[1;2H", b"\x1bc", b"\x1b[15~", b"\x1b[F",
-          b"\x1bv"], env={"XDG_CONFIG_HOME": CB}, end=None)
-note = open(os.path.join(CB, "hibr", "notepad.txt")).read() \
-    if os.path.exists(os.path.join(CB, "hibr", "notepad.txt")) else ""
+          b"\x1bv"], env=stenv(CB), end=None)
+note = stnote(CB) or ""
 check("Copy moved to f5 copies on f5, and alt-c no longer does",
-      note == "abcabc\n", note)
+      note == "abcabc", note)
 shutil.rmtree(CB, True)
-sc = run("notepad", "8 30 14 48", pre='DT_KEYS["copy"]="f5"',
-         feed=[b"\x1b[21~", b"\x1b[C"], end=None)
+sc = run("stickies", "8 30 14 48", pre='DT_KEYS["copy"]="f5"',
+         feed=[b"\x1b[21~", b"\x1b[C", b"\x1b[C"], env=stenv(stdir()), end=None)
 check("the Edit menu shows the key Copy has now",
       sc.find("Copy       f5") is not None, sc)
 sc = run("clock", "9 24 3 20", pre='DT_KEYS["menu"]="f9"',
@@ -1354,42 +1370,83 @@ check("sliding the last tile into place is recognised as solved",
       out == "won", out)
 os.unlink(WINSCRIPT)
 
-# end=None throughout: notepad_key takes every printable character as
+# Stickies. end=None throughout: a note takes every printable character as
 # text, q included, so the usual qy quit sequence would type itself into
 # the note rather than closing the window -- the same reason a terminal
 # test never uses the default end either.
-NPD = tempfile.mkdtemp(prefix="hibr-notepad-")
-sc = run("notepad", "12 40 2 2", feed=[b"h", b"i"],
-         env={"XDG_CONFIG_HOME": NPD}, end=None)
-check("typing appears in the window", sc.find("hi") is not None, sc)
-NPFILE = os.path.join(NPD, "hibr", "notepad.txt")
-text = open(NPFILE).read() if os.path.exists(NPFILE) else ""
-check("and is saved to disk as it is typed", text == "hi\n", text)
+NPD = stdir()
+sc = run("stickies", "12 40 2 2", feed=[b"h", b"i"], env=stenv(NPD), end=None)
+check("typing appears in the note", sc.find("hi") is not None, sc)
+check("and is saved to disk as it is typed", stnote(NPD) == "hi", stnote(NPD))
+check("its first line is its title", sc.find("┤ hi ├") is not None, sc)
 shutil.rmtree(NPD, True)
 
-NPD2 = tempfile.mkdtemp(prefix="hibr-notepad-")
-sc = run("notepad", "12 40 2 2", feed=[b"h", b"i", b"\x08"],
-         env={"XDG_CONFIG_HOME": NPD2}, end=None)
+NPD2 = stdir()
+sc = run("stickies", "12 40 2 2", feed=[b"h", b"i", b"\x08"],
+         env=stenv(NPD2), end=None)
 check("backspace removes the last character typed",
-      sc.find("hi") is None and sc.find("h") is not None, sc)
+      stnote(NPD2) == "h", stnote(NPD2))
 shutil.rmtree(NPD2, True)
 
-NPD3 = tempfile.mkdtemp(prefix="hibr-notepad-")
-sc = run("notepad", "12 40 2 2", feed=[b"a", b"\r", b"b"],
-         env={"XDG_CONFIG_HOME": NPD3}, end=None)
-posa, posb = sc.find("a"), sc.find("b")
-check("enter starts a new line",
-      posa is not None and posb is not None and posa[0] != posb[0], sc)
-text3 = open(os.path.join(NPD3, "hibr", "notepad.txt")).read()
-check("both lines are saved", text3 == "a\nb\n", text3)
+NPD3 = stdir()
+sc = run("stickies", "12 40 2 2", feed=[b"a", b"\r", b"b"], env=stenv(NPD3),
+         end=None)
+check("enter starts a new line, and both are saved",
+      stnote(NPD3) == "a\nb", stnote(NPD3))
 shutil.rmtree(NPD3, True)
 
-NPD4 = tempfile.mkdtemp(prefix="hibr-notepad-")
-run("notepad", "12 40 2 2", feed=[b"h", b"e", b"l", b"l", b"o"],
-    env={"XDG_CONFIG_HOME": NPD4}, end=None)
-sc = run("notepad", "12 40 2 2", env={"XDG_CONFIG_HOME": NPD4}, end=None)
+NPD4 = stdir()
+run("stickies", "12 40 2 2", feed=[b"h", b"e", b"l", b"l", b"o"],
+    env=stenv(NPD4), end=None)
+sc = run("stickies", "12 40 2 2", env=stenv(NPD4), end=None)
 check("reopening it loads the saved note", sc.find("hello") is not None, sc)
 shutil.rmtree(NPD4, True)
+
+NPD4 = stdir()
+sc = run("stickies", "8 20 2 2", feed=[c.encode() for c in
+                                       "one two three four five six"],
+         env=stenv(NPD4), end=None)
+check("a long line wraps at the note's width, at a space",
+      sc.find("│one two three     │") is not None and
+      sc.find("│four five six     │") is not None and
+      sc.find("four five")[0] == sc.find("one two")[0] + 1, sc)
+shutil.rmtree(NPD4, True)
+NPD4 = stdir()
+sc = run("stickies", "8 20 2 2", feed=[b"a", b"b", b" ", b"\r", b"c",
+                                       b"\x1bz", 0.3],
+         env=stenv(NPD4), end=None)
+check("undo takes back the last change: typing is one, a new line another",
+      stnote(NPD4) == "ab \n", repr(stnote(NPD4)))
+shutil.rmtree(NPD4, True)
+NPD4 = stdir()
+sc = run("stickies", "8 20 2 2", feed=[b"x", b"\x1bz", b"\x1by", 0.3],
+         env=stenv(NPD4), end=None)
+check("and redo puts it back", stnote(NPD4) == "x", stnote(NPD4))
+shutil.rmtree(NPD4, True)
+
+NPD4 = stdir()
+open(os.path.join(NPD4, "1.txt"), "w").write("first")
+open(os.path.join(NPD4, "2.txt"), "w").write("second")
+open(os.path.join(NPD4, "notes.json"), "w").write(
+    '{"1":{"color":"blue","h":8,"w":24},"2":{"color":"pink","h":8,"w":24}}')
+sc = run("calc", CW, [], pre="dt_launch stickies", extra=("stickies",),
+         env=stenv(NPD4), end=None)
+check("launching Stickies opens every note",
+      sc.find("┤ first ├") is not None and sc.find("┤ second ├") is not None,
+      sc)
+shutil.rmtree(NPD4, True)
+
+NPD4 = stdir()
+OLDN = tempfile.mkdtemp(prefix="hibr-oldnote-")
+os.makedirs(os.path.join(OLDN, "hibr"))
+open(os.path.join(OLDN, "hibr", "notepad.txt"), "w").write("from note pad\n")
+sc = run("calc", CW, [], pre="dt_launch stickies", extra=("stickies",),
+         env=dict(stenv(NPD4), XDG_CONFIG_HOME=OLDN), end=None)
+check("the first time, Note Pad's note becomes the first sticky",
+      stnote(NPD4) == "from note pad" and
+      sc.find("┤ from note pad ├") is not None, sc)
+shutil.rmtree(NPD4, True)
+shutil.rmtree(OLDN, True)
 
 # imgview: draws a decoded picture, or says why not -- #48 found this
 # folding two very different failures ("the img module was never
@@ -1693,29 +1750,28 @@ check("while input still rebuilds them, so the menus open and move as before",
 
 # --- one clipboard, every app ----------------------------------------------
 #
-# Copy in one window, paste in another: a terminal and Note Pad share the
+# Copy in one window, paste in another: a terminal and a sticky share the
 # desktop's clipboard both ways, a program in a terminal can set it with
 # OSC 52, a paste from the machine the desktop runs on sets it too, and
 # Files takes text as a new file.
 NPW = "8 30 14 48"
-CB = tempfile.mkdtemp(prefix="hibr-clip-")
-run("notepad", NPW, also=[("Terminal", TW, "term")], pre=LONG, wait=1.2,
+CB = stdir()
+run("stickies", NPW, also=[("Terminal", TW, "term")], pre=LONG, wait=1.2,
     feed=[press(3, 3), drag(3, 8), release(3, 8), b"\x1bc",
           press(16, 55), release(16, 55), b"\x1bv"],
-    env={"XDG_CONFIG_HOME": CB}, end=None)
-note = open(os.path.join(CB, "hibr", "notepad.txt")).read() \
-    if os.path.exists(os.path.join(CB, "hibr", "notepad.txt")) else ""
-check("text copied in a terminal pastes into Note Pad", "row 30" in note, note)
+    env=stenv(CB), end=None)
+note = stnote(CB) or ""
+check("text copied in a terminal pastes into a sticky", "row 30" in note, note)
 shutil.rmtree(CB, True)
 
-CB = tempfile.mkdtemp(prefix="hibr-clip-")
-os.makedirs(os.path.join(CB, "hibr"))
-open(os.path.join(CB, "hibr", "notepad.txt"), "w").write("hello note\n")
-sc = run("notepad", NPW, also=[("Terminal", TW, "term")], pre=SH, wait=1.2,
+CB = stdir()
+open(os.path.join(CB, "1.txt"), "w").write("hello note")
+open(os.path.join(CB, "notes.json"), "w").write('{"1":{"color":"yellow"}}')
+sc = run("stickies", NPW, also=[("Terminal", TW, "term")], pre=SH, wait=1.2,
          feed=[0.5, press(15, 52), release(15, 52), b"\x1b[F", b"\x1b[1;2H",
                b"\x1bc", press(6, 10), release(6, 10), b"\x1bv", 0.5],
-         env={"XDG_CONFIG_HOME": CB}, end=None)
-check("and text selected in Note Pad pastes into a terminal's program",
+         env=stenv(CB), end=None)
+check("and text selected in a sticky pastes into a terminal's program",
       sc.find("sh> hello note") is not None, sc)
 shutil.rmtree(CB, True)
 
@@ -1727,13 +1783,12 @@ sc = run(*TERM, pre=OSC52 + "\nDT_TERMCLIP=0", wait=1.2, end=None)
 check("unless Programs Set Clipboard is off",
       b"\x1b]52;c;aGVsbG8=\x07" not in sc.out, sc)
 
-CB = tempfile.mkdtemp(prefix="hibr-clip-")
-run("notepad", NPW, feed=[b"\x1b[200~hi\x1b[201~", b"\x1bv"],
-    env={"XDG_CONFIG_HOME": CB}, end=None)
-note = open(os.path.join(CB, "hibr", "notepad.txt")).read() \
-    if os.path.exists(os.path.join(CB, "hibr", "notepad.txt")) else ""
+CB = stdir()
+run("stickies", NPW, feed=[b"\x1b[200~hi\x1b[201~", b"\x1bv"],
+    env=stenv(CB), end=None)
+note = stnote(CB) or ""
 check("a paste from the machine the desktop runs on becomes the clipboard",
-      note == "hihi\n", note)
+      note == "hihi", note)
 shutil.rmtree(CB, True)
 
 CB = tempfile.mkdtemp(prefix="hibr-clip-")
@@ -2498,11 +2553,11 @@ sc = run("calc", CW, [b"6", b"*", b"7", b"=", press(*calc_key(0), 2), b"u"])
 check("Use Answer puts the last answer back into the expression",
       sc.find("expression") is None and sc.find("42") is not None, sc)
 
-NPD5 = tempfile.mkdtemp(prefix="hibr-notepad-")
-run("notepad", "12 40 2 2", feed=[b"a", b"\r", b"b", b"\x08", b"\x08"],
-    env={"XDG_CONFIG_HOME": NPD5}, end=None)
+NPD5 = stdir()
+run("stickies", "12 40 2 2", feed=[b"a", b"\r", b"b", b"\x08", b"\x08"],
+    env=stenv(NPD5), end=None)
 check("backspace at the start of a line joins it to the one above",
-      open(os.path.join(NPD5, "hibr", "notepad.txt")).read() == "a\n")
+      stnote(NPD5) == "a", stnote(NPD5))
 shutil.rmtree(NPD5, True)
 
 HID = tempfile.mkdtemp(prefix="hibr-hidden-")
@@ -2728,15 +2783,15 @@ shutil.rmtree(SHD2, True)
 # that can open it, the default first, and Other…; nothing chosen there
 # sticks. File Types sets each type's list and default.
 OWD = tempfile.mkdtemp(prefix="hibr-ow-")
-open(os.path.join(OWD, "a.txt"), "w").write("hello\n")
+open(os.path.join(OWD, "a.ans"), "w").write("hello\n")
 OWPRE = "FB_DIR=%s" % OWD
-OWX = ("term", "notepad")
+OWX = ("term", "imgview")
 CTX = [b"\x1b[B", press(5, 6, 2), 0.3]
 sc = run("files", "16 50 2 2", CTX + [b"\x1b[B", b"\x1b[C", 0.3], pre=OWPRE,
          extra=OWX, end=None)
 check("right-click offers Open With: the apps that open the type, the "
       "default marked, then Other…",
-      sc.find("Note Pad (default)") is not None and
+      sc.find("Image Viewer (default)") is not None and
       sc.find("Text Editor (hvi)") is not None and
       sc.find("Other…") is not None, sc)
 check("and Open Terminal Here", sc.find("Open Terminal Here") is not None, sc)
@@ -2748,28 +2803,28 @@ sc = run("files", "16 50 2 2", CTX + [b"\x1b[B", b"\x1b[C", b"\x1b[B",
                                       b"\r", 1.5],
          pre=OWPRE, extra=OWX, end=None)
 check("choosing another opens it there, this once: hvi in a terminal",
-      sc.find("┤ Terminal [a.txt] ├") is not None, sc)
+      sc.find("┤ Terminal [a.ans] ├") is not None, sc)
 sc = run("files", "16 50 2 2", [b"\x1b[B", b"\r", 1.5],
          pre=OWPRE, extra=OWX, end=None)
-check("and the double-click is still the default's", sc.find("Note Pad")
-      is not None and sc.find("┤ Terminal") is None, sc)
+check("and the double-click is still the default's",
+      sc.find("┤ a.ans ├") is not None and sc.find("┤ Terminal") is None, sc)
 sc = run("files", "16 50 2 2", [b"\x1b[B", b"\r", 1.5],
-         pre=OWPRE + '\nDT_OPENWITH="txt:hvi,notepad"', extra=OWX, end=None)
+         pre=OWPRE + '\nDT_OPENWITH="ans:hvi,imgview"', extra=OWX, end=None)
 check("a type's default, set in File Types, is what a double-click does",
-      sc.find("┤ Terminal [a.txt] ├") is not None, sc)
+      sc.find("┤ Terminal [a.ans] ├") is not None, sc)
 sc = run("files", "16 50 2 2", [b"\x1b[B", press(5, 6, 2), 0.3, b"h", 2.0]
          + [c.encode() for c in "pwd"] + [b"\r", 1.0],
          pre=OWPRE, extra=OWX, end=None)
 check("Open Terminal Here starts a shell in the folder",
       sc.find(OWD) is not None and sc.find("┤ Terminal") is not None, sc)
 shutil.rmtree(OWD, True)
-sc = cprun(reach("filetypes", ".txt"), extra=("notepad",))
+sc = cprun(reach("filetypes", ".ans"), extra=("imgview",))
 check("File Types lists each type with its default, and how many others",
-      sc.find(".txt  Note Pad (+1)") is not None, sc)
-sc = cprun(reach("filetypes", ".txt") + [b"\r", 0.4, b"\x1b[B", b"d", b"\r",
-                                         0.4], extra=("notepad",))
+      sc.find(".ans  Image Viewer (+1)") is not None, sc)
+sc = cprun(reach("filetypes", ".ans") + [b"\r", 0.4, b"\x1b[B", b"d", b"\r",
+                                         0.4], extra=("imgview",))
 check("its dialog makes another app the default, and the row says so",
-      sc.find(".txt  Text Editor (hvi) (+1)") is not None, sc)
+      sc.find(".ans  Text Editor (hvi) (+1)") is not None, sc)
 sc = run("about", "16 50 2 2", [])
 check("About hibr Desktop shows the module ABI, the uptime and who is in",
       re.search(r"module ABI \d+", sc.text()) and
@@ -2849,10 +2904,13 @@ check("two terminals each keep their own shell across a restart",
       pids["one"].group(1) == pids["ONE"].group(1) and
       pids["two"].group(1) == pids["TWO"].group(1) and
       pids["one"].group(1) != pids["two"].group(1), sc)
-sc = run("notepad", "12 40 3 6", feed=[c.encode() for c in "kept text"]
-         + RESTART + [c.encode() for c in " more"], end=None)
-check("Note Pad keeps its text and its cursor across a restart",
-      sc.find("kept text more") is not None, sc)
+RSD = stdir()
+sc = run("stickies", "12 40 3 6", feed=[c.encode() for c in "kept text"]
+         + RESTART + [c.encode() for c in " more"], env=stenv(RSD), end=None)
+check("a sticky keeps its text and its cursor across a restart",
+      sc.find("kept text more") is not None and
+      stnote(RSD) == "kept text more", sc)
+shutil.rmtree(RSD, True)
 sc = run("calc", CW, [b"1", b"2", b"+", b"3"] + RESTART + [b"="])
 check("the calculator keeps what was typed, and finishes the sum after",
       sc.find("15") is not None, sc)
@@ -2877,4 +2935,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(424)
+report(429)

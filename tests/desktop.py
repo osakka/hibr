@@ -1084,13 +1084,13 @@ check("and so does a click anywhere",
 # nothing -- scanning from the top left, below the bar, room left for each
 # window's shadow -- and where there is none, to the spot of least overlap.
 DA = tree("examples/desktop/desk-accessories")
-PLACEAPPS = (". %s/calc.hibr\n. %s/clock.hibr\n. %s/notepad.hibr\n"
+PLACEAPPS = (". %s/calc.hibr\n. %s/clock.hibr\n. %s/imgview.hibr\n"
              ". %s/puzzle.hibr\nDT_ICONS=0" % (DA, DA, DA, DA))
-sc, _ = run("dt_launch calc\ndt_launch clock\ndt_launch notepad", pre=PLACEAPPS)
+sc, _ = run("dt_launch calc\ndt_launch clock\ndt_launch imgview", pre=PLACEAPPS)
 check("three launched windows land side by side, overlapping nothing",
       sc.find("┤ Calculator ├") == (1, 2) and sc.find("┤ Clock ├") == (1, 28)
-      and sc.find("┤ Note Pad ├") == (9, 28), sc)
-sc, _ = run("dt_launch calc\ndt_launch clock\ndt_launch notepad\n"
+      and sc.find("┤ Image Viewer ├") == (8, 42), sc)
+sc, _ = run("dt_launch calc\ndt_launch clock\ndt_launch imgview\n"
             "dt_launch puzzle", pre=PLACEAPPS)
 p4 = sc.find("┤ Puzzle ├")
 check("a fourth with no free spot left still opens whole, where it covers "
@@ -1691,8 +1691,8 @@ check("desk accessories are grouped under their own submenu",
       pos is not None, sc)
 sc2, _ = run("", feed=[b"\x1b[21~", press(pos[0], pos[1] + 2)],
              env={"XDG_CONFIG_HOME": DACONF}, pre=DASRC)
-check("which lists Note Pad and Puzzle rather than folding them in flat",
-      sc2.find("Note Pad") is not None and sc2.find("Puzzle") is not None,
+check("which lists Stickies and Puzzle rather than folding them in flat",
+      sc2.find("Stickies") is not None and sc2.find("Puzzle") is not None,
       sc2)
 shutil.rmtree(DACONF, True)
 
@@ -2017,7 +2017,7 @@ PANEL = ('. %s/panel.hibr\nCP_PANEDIRS+=("%s")\ncp_panes'
          % (tree("examples/desktop/apps"), tree("examples/desktop/control-panel")))
 ORDER = ["datetime", "displays", "keyboard", "mouse", "appearance",
          "cliphist", "control_strip", "desktop", "filetypes", "notify", "shortcuts",
-         "windows", "abouthibr", "filesview", "taskmgr", "terminal"]
+         "windows", "abouthibr", "filesview", "notes", "taskmgr", "terminal"]
 DOWN_APP = [b"\x1b[B"] * ORDER.index("appearance")
 DOWN_KB = [b"\x1b[B"] * ORDER.index("shortcuts")
 

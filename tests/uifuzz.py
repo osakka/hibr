@@ -50,7 +50,7 @@ TARGETS = {
     "calc": "desk-accessories/calc.hibr",
     "clock": "desk-accessories/clock.hibr",
     "imgview": "desk-accessories/imgview.hibr",
-    "notepad": "desk-accessories/notepad.hibr",
+    "stickies": "desk-accessories/stickies.hibr",
     "puzzle": "desk-accessories/puzzle.hibr",
     "about": "apps/about.hibr",
     "notifications": "apps/notifications.hibr",
@@ -134,7 +134,7 @@ def fuzz(name, seed, n, pdir, where):
     geom = PANEL_GEOM if name == "panel" else GEOM
     p = session(name, TARGETS[name], geom, pdir, where)
     rng = random.Random("%s:%s" % (seed, name))
-    env = {"NP_FILE": os.path.join(where, "notepad.txt")}
+    env = {"ST_DIR": os.path.join(where, "stickies"), "DT_STICKYSTART": "0"}
     t = Term(p, env=env, settle=0.6)
     sent, answered = [], t.idle
     for _ in range(n):

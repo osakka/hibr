@@ -81,7 +81,7 @@ fn dt_runhandler(ext, path) {
 
 # Open a path: a folder in a file browser, a registered extension with its
 # own handler, an executable run directly in a terminal, a picture in the
-# image viewer and plain text in Note Pad if either is loaded, and anything
+# image viewer if it is loaded, and anything
 # else in a terminal with hvi, since every file a terminal can show is one
 # it can edit. A user's own dt_handler for the same extension is checked
 # first and wins, the same rule a file of your own replacing a bundled app
@@ -120,8 +120,6 @@ fn dt_openfile(path) {
 		dt_launch term "$path"
 	elif [ "$ext" = png ] || [ "$ext" = ans ] && dt_has imgview_open; then
 		dt_launch imgview "$path"
-	elif [ "$ext" = txt ] && dt_has notepad_open; then
-		dt_launch notepad "$path"
 	elif [ -n "${DT_APPS[term]["title"]}" ]; then
 		DT_OPENPENDING=$path
 		if [ -n "$ext" ]; then
@@ -140,7 +138,7 @@ fn dt_openfile(path) {
 #
 # What can open a file, for Files' Open With menu: every opener whose types
 # take the file's extension, in the order DT_OPENWITH gives for that
-# extension -- "png:imgview,hvi txt:notepad,hvi" -- or else in the order
+# extension -- "png:imgview,hvi txt:hvi" -- or else in the order
 # they were registered, a File Types handler for the extension first. The
 # first is the default, what a double-click does; choosing another from
 # Open With opens it there once and remembers nothing. Control Panel >
@@ -164,7 +162,6 @@ fn dt_opener(name, title, types, how, app = "") {
 }
 
 dt_opener imgview "Image Viewer" "png ans" app imgview
-dt_opener notepad "Note Pad" "txt md log text" app notepad
 dt_opener dbase "dBASE" "db" app dbase
 dt_opener hvi "Text Editor (hvi)" "*" edit
 dt_opener run "Run in Terminal" "x" run

@@ -6,7 +6,7 @@
 # Every window is kept under its own id: its place, size, workspace,
 # whether it is minimised, the stacking order, which has focus, and the
 # tiling. What is inside a window is the app's: an app names the maps it
-# keeps a window's state in, `dt_keepstate notepad NP`, and the desktop
+# keeps a window's state in, `dt_keepstate stickies SW`, and the desktop
 # saves that window's part of each as JSON and puts it back under the same
 # id. An app holding something that cannot be written down -- a terminal's
 # program, an open database -- also gives <app>_stash(id, dir), run before

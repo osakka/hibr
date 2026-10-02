@@ -44,6 +44,8 @@ done
 [ -n "${DT_KEYS["cycle"]+x}" ] || DT_KEYS["cycle"]="alt-tab"
 [ -n "${DT_KEYS["strip"]+x}" ] || DT_KEYS["strip"]="alt-s"
 [ -n "${DT_KEYS["shot"]+x}" ] || DT_KEYS["shot"]="ctrl-alt-g"
+[ -n "${DT_KEYS["undo"]+x}" ] || DT_KEYS["undo"]="alt-z"
+[ -n "${DT_KEYS["redo"]+x}" ] || DT_KEYS["redo"]="alt-y"
 
 # The defaults above, kept, so dt_load can put one back.
 declare -gA DT_KEYDEF

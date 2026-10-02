@@ -194,13 +194,15 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 		esac
 		r=$((r + 1))
 	done
-	dt_scrollbar "$id" 1 $((lw - 1)) "$vis" "${#lines[@]}" "$vis" "$lt"
 	console pen "$DT_IDLE" "$DT_FACE"
 	r=1
 	while [ "$r" -lt "$h" ]; do
 		console put -p "w$id" "$r" "$lw" "${GL[vline]}"
 		r=$((r + 1))
 	done
+	# The list's own bar, on the divider rather than over the list, so the
+	# titles keep every column.
+	dt_scrollbar "$id" 1 "$lw" "$vis" "${#lines[@]}" "$vis" "$lt"
 
 	[ -z "$pane" ] && return 0
 	bx=$((lw + 1))

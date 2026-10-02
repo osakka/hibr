@@ -1,0 +1,51 @@
+#!/usr/bin/env hibr
+#
+# notes -- the Control Panel pane for Stickies: the colour a new note
+# starts in, whether every note opens with the desktop, and the way to a
+# new note or to all of them. Named notes, not stickies, which is the desk
+# accessory's own prefix.
+
+strict
+
+command -v cp_pane > /dev/null && cp_pane notes "Stickies" "▤" app
+
+fn cp_set_stickycolor(int? id = "", value = "") { DT_STICKYCOLOR=$value; cp_save; }
+
+fn notes_rows(int w) {
+	local n=0
+
+	[ "${#ST_COLORS[@]}" -gt 0 ] || { cp_absent "$w" Stickies; ret 1; }
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="New Notes Are"
+	CP[$w][$n]["val"]="$DT_STICKYCOLOR"; CP[$w][$n]["key"]=stickycolor
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Open Notes at Start"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_STICKYSTART" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=DT_STICKYSTART; n=$((n + 1))
+	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="New Note"
+	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=stickynew
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Show All Notes"
+	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=stickyall
+	n=$((n + 1))
+	ret "$n"
+}
+
+fn notes_do(int? w = "", k = "", int? dir = "") {
+	local v
+
+	case $k in
+	stickycolor) v := cp_next "$DT_STICKYCOLOR" "$dir" "${ST_COLORS[@]}"
+		DT_STICKYCOLOR=$v ;;
+	DT_STICKYSTART) cp_toggle "$k" ;;
+	stickynew) st_new ;;
+	stickyall) stickies_launch ;;
+	esac
+	cp_save
+}
+
+fn notes_drop(int? w = "", int? r = "", int? c = "", k = "") {
+	case $k in
+	stickycolor) dt_droplist "$w" "$r" "$c" cp_set_stickycolor "${ST_COLORS[@]}" ;;
+	esac
+}

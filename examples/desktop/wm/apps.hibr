@@ -10,6 +10,24 @@ strict
 # they are meant to be.
 DT_APPDIR_CUR=
 
+# What runs once when the desktop starts, after any restart has put its
+# windows back: an app registers a function of its own with dt_atstart
+# (Stickies opens its notes), and dt_run calls each one before its first
+# frame.
+DT_ATSTART=()
+fn dt_atstart(f) {
+	DT_ATSTART+=("$f")
+}
+
+dt_runatstart() {
+	local f
+
+	for f in "${DT_ATSTART[@]}"; do
+		dt_has "$f" && "$f"
+	done
+	DT_ATSTART=()
+}
+
 # Register an app the hibr menu can open: name, title, height, width.
 fn dt_app(name, title, int h, int w, once = "", icon = "", fixed = "", hidden = "") {
 	DT_APPS[$name]["title"]="$title"

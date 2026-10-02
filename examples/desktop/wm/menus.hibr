@@ -270,11 +270,24 @@ dt_menus() {
 # each showing the key it is set to now. Once a bar: an app that placed it
 # after its File menu has it there and nowhere else.
 dt_editmenu() {
-	local who=${DT_FOCUS:-} lc lt lp
+	local who=${DT_FOCUS:-} lc lt lp lu lr
 
 	[ "$MB_EDITED" = 1 ] && return 0
 	MB_EDITED=1
 	dt_menu "Edit"
+	printf -v lu '%-11s%s' Undo "${DT_KEYS["undo"]}"
+	printf -v lr '%-11s%s' Redo "${DT_KEYS["redo"]}"
+	if [ -n "$who" ] && [ -n "${DT[$who]["undo"]}" ]; then
+		dt_item "$lu" u dt_editdo undo
+	else
+		dt_dim "$lu"
+	fi
+	if [ -n "$who" ] && [ -n "${DT[$who]["redo"]}" ]; then
+		dt_item "$lr" r dt_editdo redo
+	else
+		dt_dim "$lr"
+	fi
+	dt_sep
 	printf -v lc '%-11s%s' Copy "${DT_KEYS["copy"]}"
 	printf -v lt '%-11s%s' Cut "${DT_KEYS["cut"]}"
 	printf -v lp '%-11s%s' Paste "${DT_KEYS["paste"]}"
@@ -294,6 +307,27 @@ dt_editmenu() {
 	else
 		dt_dim "$lp"
 	fi
+	dt_sep
+	if [ -n "$who" ] && [ -n "${DT[$who]["selall"]}" ]; then
+		dt_item "Select All" a dt_editdo selall
+	else
+		dt_dim "Select All"
+	fi
+}
+
+# Undo, Redo or Select All in the focused window, through its own _undo,
+# _redo or _selall; nothing for a window that has none.
+fn dt_editdo(op) {
+	local cb
+
+	[ -n "$DT_FOCUS" ] || return 0
+	cb=${DT[$DT_FOCUS]["$op"]}
+	if [ -z "$cb" ]; then
+		dt_notep low "${DT[$DT_FOCUS]["title"]} cannot $op"
+		return 0
+	fi
+	$cb "$DT_FOCUS" || dt_notep low "Nothing to $op"
+	return 0
 }
 
 # Pick an accelerator for a label that nothing else in the menu has taken.

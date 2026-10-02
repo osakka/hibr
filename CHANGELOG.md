@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.98
+
+**Stickies replace Note Pad.** Notes stuck on the desktop, as many as you
+like, each yellow, blue, green, pink, purple or grey, saved as you type with
+their place and size. Launching Stickies opens every note; the Note menu
+makes a new one, changes its colour, or deletes it after asking. Text wraps
+at the note's width, and its first line is its title. Control Panel >
+Stickies sets new notes' colour and whether the notes open with the
+desktop. Note Pad's note becomes the first sticky.
+
+**Undo, Redo and Select All** are on the Edit menu, undo and redo on alt-z
+and alt-y -- settable, like Copy -- through each window's `_undo`, `_redo`
+and `_selall`.
+
+**`widgets/textarea.hibr`**, a multi-line editor any app can use: cursor,
+selection with shift and the mouse, word moves with ctrl, cut, copy,
+paste, undo and redo, and soft wrap.
+
+**`$(< file)`** gives the file's contents, as in bash, without a fork; it
+gave nothing. And `dt_atstart` lets an app run something as the desktop
+starts.
+
 ## 0.97
 
 **The Clipboard.** Everything copied -- in any window, pasted from the

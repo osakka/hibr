@@ -306,6 +306,9 @@ copies the file whose path was pasted into the folder shown.
 
 ## Copy and paste
 
+**alt-z** undoes and **alt-y** redoes in anything that edits text, and
+Select All is on the Edit menu beside them.
+
 **alt-c** copies, **alt-x** cuts, and **alt-v** pastes, in every window --
 each a key you can change in Control Panel > Shortcuts, and the change
 applies everywhere at once -- and all three are on the **Edit** menu, which
@@ -327,7 +330,7 @@ What each app copies and takes:
 | app | copies | a paste |
 |---|---|---|
 | Terminal | the text dragged over | is typed into the program |
-| Note Pad | the text selected -- shift with the arrows, home and end, or a drag | goes in at the cursor, over any selection |
+| Stickies | the text selected -- shift with the arrows, home and end, ctrl with them for words, or a drag | goes in at the cursor, over any selection |
 | Files | the selected files, as paths | of paths copies (or after Cut, moves) those files here; of other text saves it as `Pasted text.txt` |
 | Image Viewer | the picture, as its file | -- |
 | Calculator | its answer | of arithmetic is taken as input |
@@ -428,7 +431,7 @@ it was: every window in its place, on its workspace, minimised or not, in
 the same stacking order and with the same focus, and the tiling as it was.
 A terminal's program does not stop -- the same shell, its variables, its
 jobs, what is running in it -- and its screen and scrollback come back with
-it. Note Pad keeps its text, the calculator its sum, Files its folder and
+it. Stickies keep their text, the calculator its sum, Files its folder and
 selection, dBASE its database and output, and a game its board; a game in
 play comes back paused. Nothing needs screen or tmux around the terminals.
 
@@ -443,7 +446,7 @@ by window id:
 
 <!-- not run: a line from an app's file, read when the desktop loads it -->
 ```sh
-command -v dt_keepstate > /dev/null && dt_keepstate notepad NP
+command -v dt_keepstate > /dev/null && dt_keepstate stickies SW
 ```
 
 and, for what a map cannot hold -- a program, an open file --
@@ -874,8 +877,10 @@ The bundled accessories live in `examples/desktop/desk-accessories/`:
 |---|---|
 | `calc` | a calculator, and `hibr calc.hibr '3 * 4'` on its own |
 | `clock` | the time, large, and the date under it |
-| `imgview` | a picture in a window, decoded and drawn by the `img` module -- drop one on it to open it, there is no file-open dialog |
-| `notepad` | one plain-text scratch note, saved to disk the moment it changes -- no word wrap, no search; `hvi` is the real editor |
+| `imgview` | a picture in a window, decoded and drawn by the `img` module -- drop one on it to open it, there is no file-open dialog -- or an `.ans` screenshot, as the cells it was |
+| `stickies` | notes stuck on the desktop, as many as you like, each one of six colours -- yellow, blue, green, pink, purple, grey -- and saved as you type. Launching Stickies opens every note; the Note menu makes a new one, changes its colour, or deletes it (closing only puts it away). Text wraps at the note's width; undo and redo (alt-z, alt-y), cut, copy, paste and select all are on the Edit menu. Control Panel > Stickies sets the colour new notes get and whether every note opens with the desktop. Note Pad's note became the first sticky |
+| `clipboard` | the clipboard's history: see Copy and paste |
+| `screenshot` | takes one: see Screenshots |
 | `puzzle` | the sliding tile puzzle, 4 by 4. Arrows or a click move the gap; shuffled by real moves from solved, so it is always solvable |
 
 ## Control Strip

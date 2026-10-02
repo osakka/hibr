@@ -1,0 +1,687 @@
+#!/usr/bin/env hibr
+#
+# textarea -- a multi-line editor an app puts in its window: lines of text,
+# a cursor, a selection, undo and redo, and soft wrap at the window's width.
+# Stickies uses it as it is; the markdown editor uses its editing and draws
+# the text its own way.
+#
+# Unlike the other widgets it keeps state, because a buffer cannot be handed
+# in afresh every frame: everything is in TB under the window id -- lines at
+# TB[$id][0..n-1], the cursor at "cr" "cc", the selection's anchor at "ar"
+# "ac" while "sel" is 1 -- and the app calls tb_free from its _close. Two
+# windows never share one.
+#
+#   tb_set id text          replace everything, cursor at the start
+#   tb_text id              the whole text, lines joined by newlines (ret)
+#   tb_key id key           a key: typing, arrows, shift-arrows, home, end,
+#                           page keys, enter, backspace, delete, tab; fails
+#                           for a key it has no use for
+#   tb_mouse id act btn r c mods   press, drag, release, in body coordinates
+#   tb_insert id text       insert at the cursor, over any selection
+#   tb_seltext id           the selected text (ret); fails with none
+#   tb_cut id / tb_selall id / tb_undo id / tb_redo id
+#   tb_draw id r0 c0 h w ink face [selink active]   draw it, wrapped
+#
+# Every change bumps TB[$id]["ver"], so an app can tell when to save.
+
+strict
+
+declare -gA TB
+TB_SR=0
+TB_SC=0
+TB_ER=0
+TB_EC=0
+TB_UNDOMAX=100
+
+# Replace the whole buffer.
+fn tb_set(int id, text = "") {
+	local n=0 line
+
+	tb_free "$id"
+	while :; do
+		line=${text%%$'\n'*}
+		TB[$id][$n]=$line
+		n=$((n + 1))
+		[ "$line" = "$text" ] && break
+		text=${text#*$'\n'}
+	done
+	TB[$id]["n"]=$n
+	TB[$id]["cr"]=0
+	TB[$id]["cc"]=0
+	TB[$id]["sel"]=
+	TB[$id]["top"]=0
+	TB[$id]["goal"]=-1
+	TB[$id]["ver"]=0
+	TB[$id]["un"]=0
+	TB[$id]["rn"]=0
+	TB[$id]["run"]=
+}
+
+fn tb_free(int id) {
+	unset "TB[$id]"
+}
+
+# The whole text, lines joined by newlines.
+fn tb_text(int id) {
+	local i=1 n=${TB[$id]["n"]:-0} out=${TB[$id][0]}
+
+	while [ "$i" -lt "$n" ]; do
+		out="$out"$'\n'"${TB[$id][$i]}"
+		i=$((i + 1))
+	done
+	ret "$out"
+}
+
+# --- undo ----------------------------------------------------------------
+#
+# A snapshot of the text and cursor before a change; a run of typing, or of
+# deleting, is one change, ended by anything else.
+fn tb_snap(int id, kind) {
+	local u=${TB[$id]["un"]:-0} t
+
+	[ -n "$kind" ] && [ "${TB[$id]["run"]}" = "$kind" ] && return 0
+	TB[$id]["run"]=$kind
+	t := tb_text "$id"
+	TB[$id]["u$u"]="${TB[$id]["cr"]} ${TB[$id]["cc"]}"$'\n'"$t"
+	u=$((u + 1))
+	if [ "$u" -gt "$TB_UNDOMAX" ]; then
+		local i=1
+		while [ "$i" -lt "$u" ]; do
+			TB[$id]["u$((i - 1))"]=${TB[$id]["u$i"]}
+			i=$((i + 1))
+		done
+		u=$((u - 1))
+		unset "TB[$id][u$u]"
+	fi
+	TB[$id]["un"]=$u
+	TB[$id]["rn"]=0
+}
+
+# Put a snapshot back: "cr cc", a newline, then the text.
+fn tb_restore(int id, snap) {
+	local pos=${snap%%$'\n'*} un=${TB[$id]["un"]} rn=${TB[$id]["rn"]} k
+	local -a keep
+
+	k=0
+	while [ "$k" -lt "$un" ]; do keep+=("${TB[$id]["u$k"]}"); k=$((k + 1)); done
+	k=0
+	while [ "$k" -lt "$rn" ]; do keep+=("${TB[$id]["r$k"]}"); k=$((k + 1)); done
+	tb_set "$id" "${snap#*$'\n'}"
+	k=0
+	while [ "$k" -lt "$un" ]; do TB[$id]["u$k"]=${keep[$k]}; k=$((k + 1)); done
+	while [ "$k" -lt $((un + rn)) ]; do
+		TB[$id]["r$((k - un))"]=${keep[$k]}
+		k=$((k + 1))
+	done
+	TB[$id]["un"]=$un
+	TB[$id]["rn"]=$rn
+	TB[$id]["cr"]=${pos% *}
+	TB[$id]["cc"]=${pos#* }
+	[ "${TB[$id]["cr"]}" -ge "${TB[$id]["n"]}" ] && TB[$id]["cr"]=$((TB[$id]["n"] - 1))
+	tb_clampc "$id"
+}
+
+fn tb_undo(int id) {
+	local u=${TB[$id]["un"]:-0} r=${TB[$id]["rn"]:-0} t s
+
+	[ "$u" -gt 0 ] || return 1
+	t := tb_text "$id"
+	TB[$id]["r$r"]="${TB[$id]["cr"]} ${TB[$id]["cc"]}"$'\n'"$t"
+	TB[$id]["rn"]=$((r + 1))
+	u=$((u - 1))
+	s=${TB[$id]["u$u"]}
+	unset "TB[$id][u$u]"
+	TB[$id]["un"]=$u
+	tb_restore "$id" "$s"
+	TB[$id]["run"]=
+	tb_changed "$id"
+}
+
+fn tb_redo(int id) {
+	local u=${TB[$id]["un"]:-0} r=${TB[$id]["rn"]:-0} t s
+
+	[ "$r" -gt 0 ] || return 1
+	t := tb_text "$id"
+	TB[$id]["u$u"]="${TB[$id]["cr"]} ${TB[$id]["cc"]}"$'\n'"$t"
+	TB[$id]["un"]=$((u + 1))
+	r=$((r - 1))
+	s=${TB[$id]["r$r"]}
+	unset "TB[$id][r$r]"
+	TB[$id]["rn"]=$r
+	tb_restore "$id" "$s"
+	TB[$id]["run"]=
+	tb_changed "$id"
+}
+
+# Mark the text changed.
+fn tb_changed(int id) {
+	TB[$id]["ver"]=$((${TB[$id]["ver"]:-0} + 1))
+}
+
+fn tb_clampc(int id) {
+	local cr=${TB[$id]["cr"]} l
+
+	l=${#TB[$id][$cr]}
+	[ "${TB[$id]["cc"]}" -gt "$l" ] && TB[$id]["cc"]=$l
+	[ "${TB[$id]["cc"]}" -lt 0 ] && TB[$id]["cc"]=0
+	return 0
+}
+
+# --- lines and selection --------------------------------------------------
+
+# Insert a new line at i, moving every line from there down one.
+fn tb_insline(int id, int i, text) {
+	local j=${TB[$id]["n"]}
+
+	while [ "$j" -gt "$i" ]; do
+		TB[$id][$j]=${TB[$id][$((j - 1))]}
+		j=$((j - 1))
+	done
+	TB[$id][$i]=$text
+	TB[$id]["n"]=$((TB[$id]["n"] + 1))
+}
+
+# Remove line i, moving every line after it up one.
+fn tb_delline(int id, int i) {
+	local j=$i n=${TB[$id]["n"]}
+
+	while [ "$j" -lt $((n - 1)) ]; do
+		TB[$id][$j]=${TB[$id][$((j + 1))]}
+		j=$((j + 1))
+	done
+	unset "TB[$id][$((n - 1))]"
+	TB[$id]["n"]=$((n - 1))
+}
+
+# The selection in order into TB_SR TB_SC TB_ER TB_EC; fails when there is
+# none, or it is empty.
+fn tb_order(int id) {
+	local ar ac cr=${TB[$id]["cr"]} cc=${TB[$id]["cc"]}
+
+	[ "${TB[$id]["sel"]}" = 1 ] || return 1
+	ar=${TB[$id]["ar"]}
+	ac=${TB[$id]["ac"]}
+	if [ "$ar" -lt "$cr" ] || { [ "$ar" = "$cr" ] && [ "$ac" -le "$cc" ]; }; then
+		TB_SR=$ar TB_SC=$ac TB_ER=$cr TB_EC=$cc
+	else
+		TB_SR=$cr TB_SC=$cc TB_ER=$ar TB_EC=$ac
+	fi
+	[ "$TB_SR" != "$TB_ER" ] || [ "$TB_SC" != "$TB_EC" ]
+}
+
+fn tb_seltext(int id) {
+	local i out
+
+	tb_order "$id" || return 1
+	if [ "$TB_SR" = "$TB_ER" ]; then
+		out=${TB[$id][$TB_SR]:$TB_SC:$((TB_EC - TB_SC))}
+	else
+		out=${TB[$id][$TB_SR]:$TB_SC}
+		i=$((TB_SR + 1))
+		while [ "$i" -lt "$TB_ER" ]; do
+			out="$out"$'\n'"${TB[$id][$i]}"
+			i=$((i + 1))
+		done
+		out="$out"$'\n'"${TB[$id][$TB_ER]:0:$TB_EC}"
+	fi
+	ret "$out"
+}
+
+# Remove the selection, the cursor where it began.
+fn tb_delsel(int id) {
+	tb_order "$id" || { TB[$id]["sel"]=; return 1; }
+	TB[$id][$TB_SR]="${TB[$id][$TB_SR]:0:$TB_SC}${TB[$id][$TB_ER]:$TB_EC}"
+	while [ "$TB_ER" -gt "$TB_SR" ]; do
+		tb_delline "$id" $((TB_SR + 1))
+		TB_ER=$((TB_ER - 1))
+	done
+	TB[$id]["cr"]=$TB_SR
+	TB[$id]["cc"]=$TB_SC
+	TB[$id]["sel"]=
+	tb_changed "$id"
+	return 0
+}
+
+fn tb_selall(int id) {
+	local n=${TB[$id]["n"]}
+
+	TB[$id]["sel"]=1
+	TB[$id]["ar"]=0
+	TB[$id]["ac"]=0
+	TB[$id]["cr"]=$((n - 1))
+	TB[$id]["cc"]=${#TB[$id][$((n - 1))]}
+}
+
+fn tb_cut(int id) {
+	local t
+
+	t := tb_seltext "$id" || return 1
+	tb_snap "$id" ""
+	tb_delsel "$id"
+	ret "$t"
+}
+
+# Put text in at the cursor, newlines and all, over any selection, leaving
+# the cursor after it.
+fn tb_insert(int id, text) {
+	local cr cc line after part first=1
+
+	tb_snap "$id" ""
+	tb_delsel "$id"
+	cr=${TB[$id]["cr"]}
+	cc=${TB[$id]["cc"]}
+	line=${TB[$id][$cr]}
+	after=${line:$cc}
+	TB[$id][$cr]=${line:0:$cc}
+	text=${text//$'\r'/}
+	while :; do
+		part=${text%%$'\n'*}
+		if [ "$first" = 1 ]; then
+			TB[$id][$cr]="${TB[$id][$cr]}$part"
+			first=0
+		else
+			cr=$((cr + 1))
+			tb_insline "$id" "$cr" "$part"
+		fi
+		[ "$part" = "$text" ] && break
+		text=${text#*$'\n'}
+	done
+	TB[$id]["cr"]=$cr
+	TB[$id]["cc"]=${#TB[$id][$cr]}
+	TB[$id][$cr]="${TB[$id][$cr]}$after"
+	TB[$id]["run"]=
+	tb_changed "$id"
+}
+
+# --- keys -----------------------------------------------------------------
+
+# One key. The arrows move by what is on screen: up and down go to the row
+# above or below as wrapped, keeping the column they set out from.
+fn tb_key(int id, key) {
+	local n=${TB[$id]["n"]} cr=${TB[$id]["cr"]} cc=${TB[$id]["cc"]}
+	local line=${TB[$id][$cr]} rest shift=0 vis=${TB[$id]["vis"]:-10}
+
+	case $key in
+	shift-up | shift-down | shift-left | shift-right | shift-home | \
+	shift-end | shift-pageup | shift-pagedown | ctrl-shift-left | \
+	ctrl-shift-right | ctrl-shift-home | ctrl-shift-end)
+		if [ "${TB[$id]["sel"]}" != 1 ]; then
+			TB[$id]["sel"]=1
+			TB[$id]["ar"]=$cr
+			TB[$id]["ac"]=$cc
+		fi
+		key=${key/shift-/}
+		shift=1
+		;;
+	esac
+	case $key in
+	up | down | pageup | pagedown)
+		[ "$shift" = 1 ] || TB[$id]["sel"]=
+		TB[$id]["run"]=
+		case $key in
+		up) tb_vmove "$id" -1 ;;
+		down) tb_vmove "$id" 1 ;;
+		pageup) tb_vmove "$id" $((-vis)) ;;
+		pagedown) tb_vmove "$id" "$vis" ;;
+		esac
+		return 0
+		;;
+	left | right | home | end | ctrl-left | ctrl-right | ctrl-home | ctrl-end)
+		[ "$shift" = 1 ] || {
+			if [ "$key" = left ] || [ "$key" = right ] && tb_order "$id"; then
+				TB[$id]["sel"]=
+				if [ "$key" = left ]; then
+					TB[$id]["cr"]=$TB_SR TB[$id]["cc"]=$TB_SC
+				else
+					TB[$id]["cr"]=$TB_ER TB[$id]["cc"]=$TB_EC
+				fi
+				TB[$id]["goal"]=-1
+				return 0
+			fi
+			TB[$id]["sel"]=
+		}
+		TB[$id]["run"]=
+		TB[$id]["goal"]=-1
+		case $key in
+		left)
+			if [ "$cc" -gt 0 ]; then
+				cc=$((cc - 1))
+			elif [ "$cr" -gt 0 ]; then
+				cr=$((cr - 1))
+				cc=${#TB[$id][$cr]}
+			fi
+			;;
+		right)
+			if [ "$cc" -lt "${#line}" ]; then
+				cc=$((cc + 1))
+			elif [ "$cr" -lt $((n - 1)) ]; then
+				cr=$((cr + 1))
+				cc=0
+			fi
+			;;
+		ctrl-left)
+			if [ "$cc" = 0 ] && [ "$cr" -gt 0 ]; then
+				cr=$((cr - 1))
+				cc=${#TB[$id][$cr]}
+			else
+				while [ "$cc" -gt 0 ] && [ "${line:$((cc - 1)):1}" = " " ]; do
+					cc=$((cc - 1))
+				done
+				while [ "$cc" -gt 0 ] && [ "${line:$((cc - 1)):1}" != " " ]; do
+					cc=$((cc - 1))
+				done
+			fi
+			;;
+		ctrl-right)
+			if [ "$cc" -ge "${#line}" ] && [ "$cr" -lt $((n - 1)) ]; then
+				cr=$((cr + 1))
+				cc=0
+			else
+				while [ "$cc" -lt "${#line}" ] && [ "${line:$cc:1}" != " " ]; do
+					cc=$((cc + 1))
+				done
+				while [ "$cc" -lt "${#line}" ] && [ "${line:$cc:1}" = " " ]; do
+					cc=$((cc + 1))
+				done
+			fi
+			;;
+		home) cc=0 ;;
+		end) cc=${#line} ;;
+		ctrl-home) cr=0; cc=0 ;;
+		ctrl-end) cr=$((n - 1)); cc=${#TB[$id][$cr]} ;;
+		esac
+		TB[$id]["cr"]=$cr
+		TB[$id]["cc"]=$cc
+		return 0
+		;;
+	backspace)
+		if tb_order "$id"; then
+			tb_snap "$id" ""
+			tb_delsel "$id"
+			return 0
+		fi
+		TB[$id]["sel"]=
+		[ "$cc" -gt 0 ] || [ "$cr" -gt 0 ] || return 0
+		tb_snap "$id" del
+		if [ "$cc" -gt 0 ]; then
+			TB[$id][$cr]="${line:0:$((cc - 1))}${line:$cc}"
+			cc=$((cc - 1))
+		else
+			cc=${#TB[$id][$((cr - 1))]}
+			TB[$id][$((cr - 1))]="${TB[$id][$((cr - 1))]}$line"
+			tb_delline "$id" "$cr"
+			cr=$((cr - 1))
+		fi
+		;;
+	delete)
+		if tb_order "$id"; then
+			tb_snap "$id" ""
+			tb_delsel "$id"
+			return 0
+		fi
+		TB[$id]["sel"]=
+		[ "$cc" -lt "${#line}" ] || [ "$cr" -lt $((n - 1)) ] || return 0
+		tb_snap "$id" del
+		if [ "$cc" -lt "${#line}" ]; then
+			TB[$id][$cr]="${line:0:$cc}${line:$((cc + 1))}"
+		else
+			TB[$id][$cr]="$line${TB[$id][$((cr + 1))]}"
+			tb_delline "$id" $((cr + 1))
+		fi
+		;;
+	enter)
+		tb_snap "$id" ""
+		tb_delsel "$id"
+		cr=${TB[$id]["cr"]}
+		cc=${TB[$id]["cc"]}
+		line=${TB[$id][$cr]}
+		rest=${line:$cc}
+		TB[$id][$cr]="${line:0:$cc}"
+		tb_insline "$id" $((cr + 1)) "$rest"
+		cr=$((cr + 1))
+		cc=0
+		TB[$id]["run"]=
+		;;
+	tab) tb_insert "$id" "    "; return 0 ;;
+	*)
+		[ "${#key}" = 1 ] || return 1
+		if tb_order "$id"; then
+			tb_snap "$id" ""
+			tb_delsel "$id"
+			cr=${TB[$id]["cr"]}
+			cc=${TB[$id]["cc"]}
+			line=${TB[$id][$cr]}
+			TB[$id]["run"]=type
+		else
+			TB[$id]["sel"]=
+			tb_snap "$id" type
+		fi
+		TB[$id][$cr]="${line:0:$cc}$key${line:$cc}"
+		cc=$((cc + 1))
+		;;
+	esac
+	TB[$id]["cr"]=$cr
+	TB[$id]["cc"]=$cc
+	TB[$id]["goal"]=-1
+	tb_changed "$id"
+	return 0
+}
+
+# --- wrapping -------------------------------------------------------------
+#
+# The rows a line takes at width w, as start columns: a line breaks after
+# the last space that fits, or at w when a word is longer than a row.
+fn tb_wrap(line, int w) {
+	local out=0 s=0 l=${#line} cut seg
+
+	[ "$w" -lt 2 ] && w=2
+	while [ $((l - s)) -gt "$w" ]; do
+		seg=${line:$s:$w}
+		cut=${seg% *}
+		if [ "$cut" = "$seg" ] || [ -z "${cut// /}" ]; then
+			s=$((s + w))
+		else
+			s=$((s + ${#cut} + 1))
+		fi
+		out="$out $s"
+	done
+	ret "$out"
+}
+
+# Lay the text out at width w into rows: TB[$id]["v$k"] is "line start
+# end" for row k, TB[$id]["vl$i"] the first row of line i. Done again only
+# when the text or the width changed.
+fn tb_layout(int id, int w) {
+	local i=0 n=${TB[$id]["n"]} k=0 st j e
+	local -a ss
+
+	[ "${TB[$id]["lw"]}" = "$w" ] && [ "${TB[$id]["lv"]}" = "${TB[$id]["ver"]}" ] &&
+		return 0
+	while [ "$i" -lt "$n" ]; do
+		st := tb_wrap "${TB[$id][$i]}" "$w"
+		read -ra ss <<< "$st"
+		TB[$id]["vl$i"]=$k
+		j=0
+		while [ "$j" -lt "${#ss[@]}" ]; do
+			if [ $((j + 1)) -lt "${#ss[@]}" ]; then
+				e=${ss[$((j + 1))]}
+			else
+				e=${#TB[$id][$i]}
+			fi
+			TB[$id]["v$k"]="$i ${ss[$j]} $e"
+			k=$((k + 1))
+			j=$((j + 1))
+		done
+		i=$((i + 1))
+	done
+	TB[$id]["vn"]=$k
+	TB[$id]["lw"]=$w
+	TB[$id]["lv"]=${TB[$id]["ver"]}
+}
+
+# The row the cursor is on, and its column there: "row col".
+fn tb_vpos(int id) {
+	local cr=${TB[$id]["cr"]} cc=${TB[$id]["cc"]} k vn=${TB[$id]["vn"]}
+	local -a v nx
+
+	k=${TB[$id]["vl$cr"]:-0}
+	read -ra v <<< "${TB[$id]["v$k"]}"
+	while [ "$cc" -ge "${v[2]}" ] && [ $((k + 1)) -lt "$vn" ]; do
+		read -ra nx <<< "${TB[$id]["v$((k + 1))"]}"
+		[ "${nx[0]}" = "$cr" ] || break
+		k=$((k + 1))
+		v=("${nx[@]}")
+	done
+	ret "$k $((cc - v[1]))"
+}
+
+# Move the cursor d rows as laid out, keeping its goal column.
+fn tb_vmove(int id, int d) {
+	local p k col vn=${TB[$id]["vn"]:-0} goal
+	local -a v
+
+	tb_layout "$id" "${TB[$id]["lw"]:-80}"
+	vn=${TB[$id]["vn"]:-0}
+	[ "$vn" -gt 0 ] || return 0
+	p := tb_vpos "$id"
+	k=${p% *}
+	col=${p#* }
+	goal=${TB[$id]["goal"]:--1}
+	[ "$goal" -lt 0 ] && goal=$col
+	k=$((k + d))
+	if [ "$k" -lt 0 ]; then
+		k=0
+		goal=0
+	elif [ "$k" -ge "$vn" ]; then
+		k=$((vn - 1))
+		goal=99999
+	fi
+	read -ra v <<< "${TB[$id]["v$k"]}"
+	col=$((v[1] + goal))
+	if [ "$col" -gt "${v[2]}" ]; then
+		col=${v[2]}
+	fi
+	if [ "$col" = "${v[2]}" ] && [ "${v[2]}" != "${#TB[$id][${v[0]}]}" ]; then
+		col=$((v[2] - 1))
+	fi
+	TB[$id]["cr"]=${v[0]}
+	TB[$id]["cc"]=$col
+	TB[$id]["goal"]=$goal
+}
+
+# --- drawing and the mouse --------------------------------------------------
+
+# Draw h rows of w columns at r0 c0 of the window's pane: the text wrapped,
+# the selection over it, the cursor on top.
+fn tb_draw(int id, int r0, int c0, int h, int w, ink, face, selink = "", act = "") {
+	local p k col top=${TB[$id]["top"]:-0} vn r i line a b s e sr
+	local -a v
+
+	selink=${selink:-$DT_SELINK}
+	act=${act:-$DT_ACTIVE}
+	tb_layout "$id" "$w"
+	TB[$id]["vis"]=$h
+	vn=${TB[$id]["vn"]}
+	p := tb_vpos "$id"
+	k=${p% *}
+	col=${p#* }
+	[ "$k" -lt "$top" ] && top=$k
+	[ "$k" -ge $((top + h)) ] && top=$((k - h + 1))
+	[ "$top" -gt $((vn - 1)) ] && top=$((vn - 1))
+	[ "$top" -lt 0 ] && top=0
+	TB[$id]["top"]=$top
+	tb_order "$id"
+	sr=$?
+	r=0
+	while [ "$r" -lt "$h" ]; do
+		i=$((top + r))
+		console pen "$ink" "$face"
+		if [ "$i" -lt "$vn" ]; then
+			read -ra v <<< "${TB[$id]["v$i"]}"
+			line=${TB[$id][${v[0]}]:${v[1]}:$((v[2] - v[1]))}
+			line := str pad "$line" "$w"
+			console put -p "w$id" $((r0 + r)) "$c0" "$line"
+			if [ "$sr" = 0 ] && [ "${v[0]}" -ge "$TB_SR" ] &&
+			   [ "${v[0]}" -le "$TB_ER" ]; then
+				a=${v[1]}
+				b=${v[2]}
+				[ "${v[0]}" = "$TB_SR" ] && [ "$TB_SC" -gt "$a" ] && a=$TB_SC
+				[ "${v[0]}" = "$TB_ER" ] && [ "$TB_EC" -lt "$b" ] && b=$TB_EC
+				[ "${v[0]}" != "$TB_ER" ] && [ "$b" = "${#TB[$id][${v[0]}]}" ] &&
+					b=$((b + 1))
+				if [ "$b" -gt "$a" ]; then
+					s=${TB[$id][${v[0]}]:$a:$((b - a))}
+					[ ${#s} -lt $((b - a)) ] && s="$s "
+					console pen "$selink" "$act"
+					console put -p "w$id" $((r0 + r)) $((c0 + a - v[1])) "$s"
+				fi
+			fi
+		else
+			line := str repeat " " "$w"
+			console put -p "w$id" $((r0 + r)) "$c0" "$line"
+		fi
+		r=$((r + 1))
+	done
+	if [ "$k" -ge "$top" ] && [ "$k" -lt $((top + h)) ] && [ "$col" -lt "$w" ]; then
+		e=${TB[$id][${TB[$id]["cr"]}]:${TB[$id]["cc"]}:1}
+		console pen "$face" "$ink"
+		console put -p "w$id" $((r0 + k - top)) $((c0 + col)) "${e:- }"
+	fi
+	TB[$id]["r0"]=$r0
+	TB[$id]["c0"]=$c0
+}
+
+# Where a point in the drawn text is, as "line col".
+fn tb_at(int id, int mr, int mc) {
+	local k=$((${TB[$id]["top"]:-0} + mr - ${TB[$id]["r0"]:-1})) c
+	local -a v
+
+	tb_layout "$id" "${TB[$id]["lw"]:-80}"
+	[ "$k" -lt 0 ] && k=0
+	[ "$k" -ge "${TB[$id]["vn"]:-1}" ] && k=$((${TB[$id]["vn"]:-1} - 1))
+	read -ra v <<< "${TB[$id]["v$k"]}"
+	c=$((v[1] + mc - ${TB[$id]["c0"]:-1}))
+	[ "$c" -lt "${v[1]}" ] && c=${v[1]}
+	[ "$c" -gt "${v[2]}" ] && c=${v[2]}
+	[ "$c" = "${v[2]}" ] && [ "${v[2]}" != "${#TB[$id][${v[0]}]}" ] && c=$((c - 1))
+	ret "${v[0]} $c"
+}
+
+# A press puts the cursor where it lands and starts a selection there; a
+# drag carries it, and so the selection; shift with a press extends.
+fn tb_mouse(int id, act, btn, int mr, int mc, mods = "") {
+	local p
+
+	[ "$btn" = left ] || return 0
+	p := tb_at "$id" "$mr" "$mc"
+	if [ "$act" = press ]; then
+		case $mods in
+		*shift*)
+			if [ "${TB[$id]["sel"]}" != 1 ]; then
+				TB[$id]["ar"]=${TB[$id]["cr"]}
+				TB[$id]["ac"]=${TB[$id]["cc"]}
+			fi
+			;;
+		*)
+			TB[$id]["ar"]=${p% *}
+			TB[$id]["ac"]=${p#* }
+			;;
+		esac
+		TB[$id]["sel"]=1
+		TB[$id]["run"]=
+	fi
+	TB[$id]["cr"]=${p% *}
+	TB[$id]["cc"]=${p#* }
+	TB[$id]["goal"]=-1
+}
+
+# Scroll by d rows, the cursor kept on screen.
+fn tb_scroll(int id, int d) {
+	local top vn=${TB[$id]["vn"]:-1}
+
+	top=$((${TB[$id]["top"]:-0} + d))
+	[ "$top" -gt $((vn - 1)) ] && top=$((vn - 1))
+	[ "$top" -lt 0 ] && top=0
+	TB[$id]["top"]=$top
+	tb_vmove "$id" "$d"
+}

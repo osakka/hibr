@@ -500,6 +500,8 @@ fn dt_event(k) {
 	# the terminal the desktop runs on: it goes to the app's _paste when it
 	# has one, and becomes the desktop's clipboard too, so Paste pastes it
 	# again in any window and on any display joined to this one.
+	if dt_keyis undo "$k"; then dt_editdo undo; return 0; fi
+	if dt_keyis redo "$k"; then dt_editdo redo; return 0; fi
 	if dt_keyis copy "$k"; then dt_edit copy; return 0; fi
 	if dt_keyis cut "$k"; then dt_edit cut; return 0; fi
 	if dt_keyis paste "$k"; then dt_edit paste; return 0; fi

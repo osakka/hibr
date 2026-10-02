@@ -135,6 +135,7 @@ int w_simple(word *w);
 char *xnum(sh *s, long v);
 char *xclock(sh *s);
 char *xcap(sh *s, const char *src);
+char *xcapfile(sh *s, const char *src);
 char *xpat(sh *s, word *w);
 char *xone(sh *s, word *w);
 char *xkey(sh *s, const char *nm, char *t);

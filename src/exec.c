@@ -803,6 +803,54 @@ int fn_call(sh *s, node *f, int ac, char **av)
 	return st;
 }
 
+/* $(< file): the file's contents, read here with no fork, as bash does;
+   0 when the substitution is anything else. */
+char *xcapfile(sh *s, const char *src)
+{
+	const char *p = src;
+	amark m;
+	node *nd;
+	char *path, *buf, *r = 0;
+	str o;
+	ssize_t n;
+	int fd;
+
+	while (*p == ' ' || *p == '\t' || *p == '\n')
+		p++;
+	if (*p != '<' || p[1] == '<' || p[1] == '(' || p[1] == '&')
+		return 0;
+	m = ar_mark(s->ar);
+	nd = hibr_parse(s, src, 0);
+	if (!nd || nd->k != N_CMD || nd->w || nd->aw || !nd->rd ||
+	    nd->rd->nx || nd->rd->k != R_IN || nd->rd->fd != 0 ||
+	    nd->rd->var) {
+		ar_rel(s->ar, m);
+		return 0;
+	}
+	path = xone(s, nd->rd->w);
+	ar_rel(s->ar, m);
+	s->ncap++;
+	fd = open(path, O_RDONLY | O_CLOEXEC);
+	if (fd < 0) {
+		lg(HIBR_LERR, "%s: %s", path, strerror(errno));
+		s->st = 1;
+		return ar_dup(s->xa, "", 0);
+	}
+	s_init(&o);
+	buf = xm(HIBR_IOCH);
+	while ((n = read(fd, buf, HIBR_IOCH)) > 0)
+		s_add(&o, buf, (size_t)n);
+	free(buf);
+	close(fd);
+	while (o.n && o.p[o.n - 1] == '\n')
+		o.n--;
+	r = ar_dup(s->xa, o.p ? o.p : "", o.n);
+	s_free(&o);
+	s->st = 0;
+	lg(HIBR_LDBG, "$(< %s) read without a fork", path);
+	return r;
+}
+
 /* Capture the standard output of a command substitution. */
 char *xcap(sh *s, const char *src)
 {
@@ -814,6 +862,8 @@ char *xcap(sh *s, const char *src)
 	char *r;
 	int w;
 
+	if ((r = xcapfile(s, src)))
+		return r;
 	if (pipe(pf) < 0) {
 		lg(HIBR_LERR, "pipe: %s", strerror(errno));
 		return ar_dup(s->xa, "", 0);

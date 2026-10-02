@@ -1,0 +1,329 @@
+#!/usr/bin/env hibr
+#
+# stickies -- notes stuck on the desktop, as many as you like, each its own
+# colour, each saved as you type. Launching Stickies opens every note there
+# is (a first, empty one if there are none); the Note menu makes a new one,
+# changes the colour, and deletes one. Closing a note only puts it away
+# until Stickies is opened again -- it is still there.
+#
+# The colours are the notes' own, not the theme's, the way a game's art is:
+# a yellow note is yellow on every theme. Text wraps at the window's width,
+# and the desktop's Edit menu works on it -- undo and redo, cut, copy,
+# paste, select all.
+#
+# Each note is a plain text file in ST_DIR, N.txt, and ST_DIR/notes.json
+# keeps each one's colour and where its window was. Note Pad's own note, if
+# there is one, becomes the first sticky the first time Stickies opens.
+
+strict
+
+app stickies "Notes stuck on the desktop, each its own colour"
+
+command -v dt_app > /dev/null && dt_app stickies "Stickies" 10 34 "" "▤"
+
+ST_DIR="${ST_DIR-${XDG_DATA_HOME:-$HOME/.local/share}/hibr/stickies}"
+ST_INDEX="$ST_DIR/notes.json"
+ST_OLDNOTE="${XDG_CONFIG_HOME:-$HOME/.config}/hibr/notepad.txt"
+DT_STICKYCOLOR="${DT_STICKYCOLOR-yellow}"
+DT_STICKYSTART="${DT_STICKYSTART-1}"
+command -v dt_keep > /dev/null && dt_keep DT_STICKYCOLOR DT_STICKYSTART
+
+ST_COLORS=(yellow blue green pink purple grey)
+declare -gA ST_FACE
+declare -gA ST_INK
+ST_FACE["yellow"]="#fff1a6"; ST_INK["yellow"]="#3b3000"
+ST_FACE["blue"]="#c4e4ff";   ST_INK["blue"]="#0c2c44"
+ST_FACE["green"]="#cdf0c4";  ST_INK["green"]="#143d12"
+ST_FACE["pink"]="#ffcde3";   ST_INK["pink"]="#4b1030"
+ST_FACE["purple"]="#e2d0ff"; ST_INK["purple"]="#2c1652"
+ST_FACE["grey"]="#e6e6e6";   ST_INK["grey"]="#242424"
+
+declare -gA ST
+declare -gA SW
+command -v dt_keepstate > /dev/null && dt_keepstate stickies SW
+ST_LOADED=
+ST_NEW=
+
+# The index of notes, read once.
+st_load() {
+	[ -n "$ST_LOADED" ] && return 0
+	ST_LOADED=1
+	[ -s "$ST_INDEX" ] && json parse ST < "$ST_INDEX" 2> /dev/null
+	return 0
+}
+
+st_save() {
+	[ -d "$ST_DIR" ] || mkdir -p "$ST_DIR" 2> /dev/null || return 1
+	if [ "${#ST[@]}" = 0 ]; then
+		echo "{}" > "$ST_INDEX"
+	else
+		json emit ST > "$ST_INDEX"
+	fi
+}
+
+# A new note: its file, its entry in the index, and its id.
+fn st_newnote(text = "") {
+	local n=1
+
+	st_load
+	while [ -n "${ST[$n]["color"]}" ] || [ -e "$ST_DIR/$n.txt" ]; do
+		n=$((n + 1))
+	done
+	[ -d "$ST_DIR" ] || mkdir -p "$ST_DIR" 2> /dev/null || return 1
+	printf '%s' "$text" > "$ST_DIR/$n.txt" || return 1
+	ST[$n]["color"]=$DT_STICKYCOLOR
+	ST[$n]["h"]=10
+	ST[$n]["w"]=34
+	st_save
+	ret "$n"
+}
+
+# Open a note in a window of its own, where it last was.
+fn st_show(int note) {
+	local id h=${ST[$note]["h"]:-10} w=${ST[$note]["w"]:-34} r c pl
+
+	for id in "${!SW[@]}"; do
+		if [ "${SW[$id]["note"]}" = "$note" ] && [ -n "${DT[$id]["title"]}" ]; then
+			dt_raise "$id"
+			return 0
+		fi
+	done
+	r=${ST[$note]["row"]}
+	c=${ST[$note]["col"]}
+	if [ -z "$r" ] || [ -z "$c" ]; then
+		pl := dt_place "$h" "$w"
+		read -r r c h w <<< "$pl"
+	fi
+	ST_NEW=$note
+	id := dt_new "Sticky" "$h" "$w" "$r" "$c" stickies "$note"
+	ST_NEW=
+}
+
+# Launching Stickies opens every note, or makes the first: Note Pad's text,
+# when there is any, otherwise an empty one.
+fn stickies_launch(arg = "") {
+	local n any= t=
+	local -a ids
+
+	st_load
+	ids=("${!ST[@]}")
+	for n in "${ids[@]}"; do
+		[ -n "${ST[$n]["color"]}" ] || continue
+		st_show "$n"
+		any=1
+	done
+	[ -n "$any" ] && return 0
+	[ -s "$ST_OLDNOTE" ] && t=$(< "$ST_OLDNOTE")
+	n := st_newnote "$t" || return 0
+	st_show "$n"
+}
+
+# The Note menu's New Note: a note of its own, the default colour.
+st_new() {
+	local n
+
+	n := st_newnote "" || return 0
+	st_show "$n"
+}
+
+fn stickies_open(int id, arg = "") {
+	local note=${arg:-$ST_NEW} t= n o
+
+	st_load
+	# Opened with no note named: the first one not already open, or a new
+	# one when every note is.
+	if [ -z "$note" ]; then
+		for n in "${!ST[@]}"; do
+			[ -n "${ST[$n]["color"]}" ] || continue
+			for o in "${!SW[@]}"; do
+				[ "${SW[$o]["note"]}" = "$n" ] && continue 2
+			done
+			note=$n
+			break
+		done
+		[ -n "$note" ] || note := st_newnote ""
+	fi
+	SW[$id]["note"]=$note
+	[ -r "$ST_DIR/$note.txt" ] && t=$(< "$ST_DIR/$note.txt")
+	tb_set "$id" "$t"
+	TB[$id]["cr"]=$((TB[$id]["n"] - 1))
+	TB[$id]["cc"]=${#TB[$id][$((TB[$id]["n"] - 1))]}
+	SW[$id]["saved"]=0
+	st_retitle "$id"
+}
+
+# After Restart Desktop the text is read again from its file; the window
+# knows which note it is.
+fn stickies_resume(int id) {
+	stickies_open "$id" "${SW[$id]["note"]}"
+}
+
+fn stickies_close(int id) {
+	st_write "$id"
+	st_where "$id"
+	tb_free "$id"
+	unset "SW[$id]"
+}
+
+# The title is the note's first line.
+fn st_retitle(int id) {
+	local t=${TB[$id][0]}
+
+	t=${t#"${t%%[! ]*}"}
+	[ -n "$t" ] || t="Sticky"
+	[ ${#t} -gt 24 ] && t="${t:0:23}…"
+	[ "$t" = "${DT[$id]["title"]}" ] || dt_retitle "$id" "$t"
+}
+
+# Write the note when it has changed since it was last written.
+fn st_write(int id) {
+	local note=${SW[$id]["note"]} t
+
+	[ -n "$note" ] || return 0
+	[ "${TB[$id]["ver"]}" = "${SW[$id]["saved"]}" ] && return 0
+	t := tb_text "$id"
+	[ -d "$ST_DIR" ] || mkdir -p "$ST_DIR" 2> /dev/null
+	printf '%s' "$t" > "$ST_DIR/$note.txt.new" &&
+		mv -f "$ST_DIR/$note.txt.new" "$ST_DIR/$note.txt"
+	SW[$id]["saved"]=${TB[$id]["ver"]}
+	st_retitle "$id"
+}
+
+# Keep where the window is, when it has moved or changed size.
+fn st_where(int id) {
+	local note=${SW[$id]["note"]} k ch=
+
+	[ -n "$note" ] && [ -n "${ST[$note]["color"]}" ] || return 0
+	for k in row col h w; do
+		if [ "${ST[$note][$k]}" != "${DT[$id][$k]}" ]; then
+			ST[$note][$k]=${DT[$id][$k]}
+			ch=1
+		fi
+	done
+	[ -n "$ch" ] && st_save
+	return 0
+}
+
+fn stickies_draw(int id, int h, int w, int row, int col) {
+	local note=${SW[$id]["note"]} c face ink
+
+	c=${ST[$note]["color"]:-yellow}
+	face=${ST_FACE[$c]:-${ST_FACE["yellow"]}}
+	ink=${ST_INK[$c]:-${ST_INK["yellow"]}}
+	tb_draw "$id" 1 1 "$h" "$w" "$ink" "$face" "$face" "$ink"
+	st_where "$id"
+}
+
+fn stickies_key(int id, key) {
+	tb_key "$id" "$key" || return 1
+	st_write "$id"
+	return 0
+}
+
+fn stickies_mouse(int id, act, btn, int r, int c, mods = "") {
+	tb_mouse "$id" "$act" "$btn" "$r" "$c" "$mods"
+}
+
+fn stickies_wheel(int id, dir, int r = 0, int c = 0) {
+	case $dir in
+	up) tb_scroll "$id" -3 ;;
+	down) tb_scroll "$id" 3 ;;
+	esac
+	return 0
+}
+
+fn stickies_copy(int id) {
+	local t
+
+	t := tb_seltext "$id" || return 1
+	ret "$t"
+}
+
+fn stickies_cut(int id) {
+	local t
+
+	t := tb_cut "$id" || return 1
+	st_write "$id"
+	ret "$t"
+}
+
+fn stickies_paste(int id, text, op = "") {
+	tb_insert "$id" "$text"
+	st_write "$id"
+}
+
+fn stickies_undo(int id) {
+	tb_undo "$id" || return 1
+	st_write "$id"
+}
+
+fn stickies_redo(int id) {
+	tb_redo "$id" || return 1
+	st_write "$id"
+}
+
+fn stickies_selall(int id) {
+	tb_selall "$id"
+}
+
+# A note's colour, from the Note menu.
+fn st_color(int id, color) {
+	local note=${SW[$id]["note"]}
+
+	[ -n "$note" ] || return 0
+	ST[$note]["color"]=$color
+	DT_STICKYCOLOR=$color
+	st_save
+	command -v cp_save > /dev/null && cp_save
+}
+
+# Delete a note, after asking: its file and its entry, and its window.
+DT_STICKYDEL=
+fn st_delete(int id) {
+	DT_STICKYDEL=$id
+	dt_confirm "Delete this note? It cannot be brought back." st_delete_yes
+}
+
+st_delete_yes() {
+	local id=$DT_STICKYDEL note
+
+	DT_STICKYDEL=
+	[ -n "$id" ] || return 0
+	note=${SW[$id]["note"]}
+	if [ -n "$note" ]; then
+		rm -f "$ST_DIR/$note.txt"
+		unset "ST[$note]"
+		st_save
+	fi
+	SW[$id]["note"]=
+	dt_del "$id"
+}
+
+stickies_menus() {
+	local id=$DT_FOCUS c on
+
+	dt_menu "Note"
+	dt_item "New Note" n st_new
+	dt_sub "Color"
+	for c in "${ST_COLORS[@]}"; do
+		on=0
+		[ "${ST[${SW[$id]["note"]}]["color"]}" = "$c" ] && on=1
+		dt_mark "${c^}" "" "$on" st_color "$id" "$c"
+	done
+	dt_end
+	dt_sep
+	dt_item "Delete Note…" d st_delete "$id"
+	dt_sep
+	dt_item "Close" w dt_close_focused
+}
+
+# Opened with the desktop, when Control Panel > Stickies says so -- unless
+# a restart already brought the notes back.
+stickies_atstart() {
+	[ "$DT_STICKYSTART" = 1 ] || return 0
+	[ "${DT_RESTORED:-0}" = 1 ] && return 0
+	st_load
+	[ "${#ST[@]}" -gt 0 ] || return 0
+	stickies_launch
+}
+command -v dt_atstart > /dev/null && dt_atstart stickies_atstart

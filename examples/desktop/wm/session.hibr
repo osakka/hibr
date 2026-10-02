@@ -162,6 +162,8 @@ DT_TESTIDLE=${HIBR_TESTIDLE-}
 
 dt_run() {
 	local k rsz=0 last now pk= skipn=0 frames=0
+
+	dt_runatstart
 	while [ "$DT_QUIT" = 0 ]; do
 		if [ "$rsz" = 0 ]; then
 			if [ "$DT_LASTMOVE" = 1 ] && console waiting; then
