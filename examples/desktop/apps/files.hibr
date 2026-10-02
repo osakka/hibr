@@ -44,6 +44,14 @@ command -v dt_keepstate > /dev/null && dt_keepstate files FB
 declare -gA FL
 declare -gA RN
 declare -gA GI
+declare -gA OW
+command -v dt_app > /dev/null && dt_app ow "Open With" 8 54 "" "" fixed hidden
+
+# Whether Files' right-click menu offers Open With and Open Terminal Here,
+# set in Control Panel > Files.
+DT_FBOPENWITH="${DT_FBOPENWITH-1}"
+DT_FBTERMHERE="${DT_FBTERMHERE-1}"
+command -v dt_keep > /dev/null && dt_keep DT_FBOPENWITH DT_FBTERMHERE
 FILES_VIEWS=(list details icons)
 FILES_TILE=12
 FB_PATHS=()
@@ -1197,14 +1205,44 @@ fn gi_close(int id) {
 # Open the entry under the cursor with a specific handler, chosen from Open
 # With rather than by its own extension -- the desktop's dt_runhandler is
 # generic on the path once given which one to use.
-fn files_openwith(int id, ext) {
+# Open the selected file with one opener, this once: Open With never
+# changes what a double-click does -- File Types does that.
+fn files_openwith(int id, name) {
 	local sel p
 
 	sel=${FB[$id]["sel"]}
 	[ "${FB[$id]["n"]}" = 0 ] && return 0
 	[ "${FL[$id][$sel]["dir"]}" = 1 ] && return 0
 	p := fb_path "$id" "$sel"
-	command -v dt_runhandler > /dev/null && dt_runhandler "$ext" "$p"
+	dt_has dt_openwith && dt_openwith "$name" "$p"
+}
+
+# Open With > Other…: a command typed for the selected file, run in a
+# terminal with the path after it, this once.
+fn files_openother(int id) {
+	local sel p h=8 w=54 r c rid
+
+	sel=${FB[$id]["sel"]}
+	[ "${FL[$id][$sel]["dir"]}" = 1 ] && return 0
+	p := fb_path "$id" "$sel"
+	r=$((DT_ROWS / 2 - h / 2))
+	c=$(((DT_COLS - w) / 2))
+	rid := dt_new "Open With" "$h" "$w" "$r" "$c" ow
+	OW[$rid]["path"]=$p
+	OW[$rid]["buf"]=
+	OW[$rid]["cur"]=0
+	OW[$rid]["focus"]=text
+}
+
+# Open Terminal Here: the selected folder, or the one shown.
+fn files_termhere(int id) {
+	local sel=${FB[$id]["sel"]} d=${FB[$id]["dir"]}
+
+	if [ "${FL[$id][$sel]["dir"]}" = 1 ] &&
+	   [ "${FL[$id][$sel]["kind"]}" != up ]; then
+		d := fb_path "$id" "$sel"
+	fi
+	dt_has dt_termhere && dt_termhere "$d"
 }
 
 # Cut is what Copy is, plus marking the clipboard so a paste after it moves
@@ -1417,7 +1455,7 @@ fn files_mouse(int id, act, btn, int r, int c, mods) {
 # dt_handler, regardless of the entry's own extension -- that is what Open
 # With is for.
 fn files_context(int id) {
-	local sel=${FB[$id]["sel"]} n=${FB[$id]["n"]} none isdir ext
+	local sel=${FB[$id]["sel"]} n=${FB[$id]["n"]} none isdir ext p t first o
 
 	none=0
 	[ "$n" = 0 ] || [ "${FL[$id][$sel]["kind"]}" = up ] && none=1
@@ -1427,14 +1465,27 @@ fn files_context(int id) {
 	else
 		isdir=${FL[$id][$sel]["dir"]}
 		dt_item "Open" o fb_open "$id"
-		if [ "$isdir" != 1 ] && [ "${#DT_HANDLERS[@]}" -gt 0 ]; then
+		if [ "$isdir" != 1 ] && [ "$DT_FBOPENWITH" = 1 ] &&
+		   dt_has dt_openers; then
+			p := fb_path "$id" "$sel"
+			ext := dt_ext "$p"
+			dt_openers "$p"
 			dt_sub "Open With"
-			for ext in "${!DT_HANDLERS[@]}"; do
-				dt_item "${DT_HANDLERS[$ext][0]##*/} (.$ext)" "" \
-					files_openwith "$id" "$ext"
+			first=1
+			for o in "${DT_OWLIST[@]}"; do
+				t := dt_openertitle "$o" "$ext"
+				[ "$first" = 1 ] && t="$t (default)"
+				first=0
+				dt_item "$t" "" files_openwith "$id" "$o"
 			done
+			[ "${#DT_OWLIST[@]}" -gt 0 ] && dt_sep
+			dt_item "Other…" "" files_openother "$id"
 			dt_end
 		fi
+	fi
+	if [ "$DT_FBTERMHERE" = 1 ] && dt_has dt_termhere &&
+	   dt_has term_draw; then
+		dt_item "Open Terminal Here" h files_termhere "$id"
 	fi
 	dt_sep
 	if [ "$none" = 1 ]; then
@@ -1641,3 +1692,99 @@ fn gi_paste(int id, text, op = "") {
 	GI[$id]["${k% *}"]=${r% *}
 	GI[$id]["${k#* }"]=${r##* }
 }
+
+# Open With > Other…: one field, the command; enter runs it on the file.
+fn ow_draw(int id, int h, int w, int row, int col) {
+	local f=${OW[$id]["focus"]} on=0
+
+	dt_wclear "$id"
+	[ "$f" = text ] && on=1
+	console pen "$DT_INK" "$DT_FACE"
+	console put -p "w$id" 1 2 "Open ${OW[$id]["path"]##*/} with:"
+	dt_textdraw "$id" 2 2 $((w - 4)) "${OW[$id]["buf"]}" \
+		"${OW[$id]["cur"]}" "$on"
+	dt_wreg "$id" 2 2 $((w - 4)) text
+	console pen "$DT_DIM" "$DT_FACE"
+	console put -p "w$id" 3 2 "a command; the file goes after it, in a terminal"
+	dt_dlgbtns "$id" "$h" "$w" "$f" ok Open cancel Cancel
+}
+
+fn ow_go(int id) {
+	if [ -z "${OW[$id]["buf"]// /}" ]; then
+		dt_note "A command is needed"
+		return 0
+	fi
+	dt_openwithcmd "${OW[$id]["buf"]}" "${OW[$id]["path"]}"
+	dt_del "$id"
+}
+
+fn ow_click(int id, int r, int c, btn = "") {
+	local tag
+
+	tag := dt_hit "$id" "$r" "$c"
+	case $tag in
+	text) OW[$id]["focus"]=text ;;
+	ok) ow_go "$id" ;;
+	cancel) dt_del "$id" ;;
+	esac
+	return 0
+}
+
+fn ow_key(int id, key) {
+	local res f=${OW[$id]["focus"]} d onb=1
+
+	[ "$f" = text ] && onb=0
+	if d := dt_focuskey "$key" "$onb"; then
+		OW[$id]["focus"] := dt_focus "$f" "$d" text ok cancel
+		return 0
+	fi
+	case $key in
+	escape) dt_del "$id"; return 0 ;;
+	enter)
+		if [ "$f" = cancel ]; then dt_del "$id"; else ow_go "$id"; fi
+		return 0
+		;;
+	esac
+	[ "$f" = text ] || return 0
+	res := dt_textkey "${OW[$id]["buf"]}" "${OW[$id]["cur"]}" "$key" ||
+		return 1
+	OW[$id]["buf"]=${res% *}
+	OW[$id]["cur"]=${res##* }
+	return 0
+}
+
+fn ow_field(int id) {
+	[ "${OW[$id]["focus"]}" = text ] || return 1
+	ret "buf cur"
+}
+
+fn ow_copy(int id) {
+	local k
+
+	k := ow_field "$id" || return 1
+	ret "${OW[$id]["buf"]}"
+}
+
+fn ow_cut(int id) {
+	local t
+
+	ow_field "$id" > /dev/null || return 1
+	t=${OW[$id]["buf"]}
+	OW[$id]["buf"]=
+	OW[$id]["cur"]=0
+	ret "$t"
+}
+
+fn ow_paste(int id, text, op = "") {
+	local r
+
+	OW[$id]["focus"]=text
+	r := dt_textpaste "${OW[$id]["buf"]}" "${OW[$id]["cur"]}" "$text"
+	OW[$id]["buf"]=${r% *}
+	OW[$id]["cur"]=${r##* }
+}
+
+fn ow_close(int id) {
+	unset "OW[$id]"
+}
+

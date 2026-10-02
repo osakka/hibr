@@ -216,7 +216,7 @@ looked up again.
 
 | builtin | synopsis |
 |---|---|
-| `cd [dir]` | change directory; `cd -` returns to the previous one |
+| `cd [-L\|-P] [--] [dir]` | change directory; `cd -` returns to the previous one. `-L` and `-P` are accepted; hibr's `cd` always follows the physical path, which is `-P` |
 | `pwd` | print the working directory |
 | `pushd dir` / `popd` | push a directory and change to it / pop the stack |
 | `dirs` | show the directory stack |

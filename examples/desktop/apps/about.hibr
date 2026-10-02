@@ -12,9 +12,9 @@
 
 strict
 
-app about "About hibr, and the machine it runs on"
+app about "About hibr Desktop, and the machine it runs on"
 
-command -v dt_app > /dev/null && dt_app about "About hibr" 13 46 once "ⓘ" \
+command -v dt_app > /dev/null && dt_app about "About hibr Desktop" 16 46 once "ⓘ" \
 	fixed hidden
 
 declare -gA AB
@@ -50,6 +50,56 @@ about_facts() {
 		AB_HOST=$(command hostname)
 		AB_KERNEL=$(command uname -r)
 	fi
+}
+
+# How long the machine has been up, as days, hours and minutes: from
+# /proc/uptime on Linux, with no fork; from the boot time sysctl gives
+# anywhere else.
+about_uptime() {
+	local s b t=
+
+	if [ -r /proc/uptime ]; then
+		read -r s b < /proc/uptime
+		s=${s%%.*}
+	else
+		b=$(command sysctl -n kern.boottime 2> /dev/null)
+		b=${b#*sec = }
+		b=${b%%,*}
+		[ -n "$b" ] || { ret "unknown"; return 0; }
+		s=$((EPOCHSECONDS - b))
+	fi
+	[ "$s" -ge 86400 ] && t="$((s / 86400))d "
+	t="$t$((s % 86400 / 3600))h $((s % 3600 / 60))m"
+	ret "$t"
+}
+
+# Who is logged in, as who says, each user once with how many sessions --
+# "osakka (3), root (1)". who is a program, so it runs at most every
+# AB_USERMS, not every frame.
+AB_USERS=
+AB_USERT=0
+AB_USERMS=30000
+about_users() {
+	local now l u out= n
+	local -a seen
+	declare -A cnt
+
+	now := dt_ms
+	if [ -z "$AB_USERS" ] || [ $((now - AB_USERT)) -ge "$AB_USERMS" ]; then
+		AB_USERT=$now
+		while read -r u l; do
+			[ -n "$u" ] || continue
+			[ -n "${cnt["$u"]}" ] || seen+=("$u")
+			cnt["$u"]=$((${cnt["$u"]:-0} + 1))
+		done < <(command who 2> /dev/null)
+		for u in "${seen[@]}"; do
+			n=${cnt["$u"]}
+			out="$out, $u ($n)"
+		done
+		AB_USERS=${out#, }
+		[ -n "$AB_USERS" ] || AB_USERS="nobody"
+	fi
+	ret "$AB_USERS"
 }
 
 # A bar of blocks, pct out of 100, w cells wide.
@@ -209,39 +259,44 @@ about_open() {
 }
 
 fn about_draw(int id, int h, int w, int row, int col) {
-	local cpu mem bar barw=$((w - 12)) pct
+	local cpu mem bar barw=$((w - 12)) pct up who
 
 	command -v dt_want > /dev/null && dt_want "$AB_SLOWMS"
 	console pen "$DT_INK" "$DT_FACE" bold
 	if [ -n "$DT_VER" ]; then
 		console put -p "w$id" 2 2 "hibr desktop v$DT_VER"
 	fi
-	console put -p "w$id" 3 2 "hibr v$HIBR_VERSION"
+	console put -p "w$id" 3 2 "hibr v$HIBR_VERSION, module ABI ${HIBR_ABI:-?}"
 	console pen "$DT_INK" "$DT_FACE"
 	console put -p "w$id" 4 2 "Highly Intuitive Bash-like Runtime"
 	console put -p "w$id" 5 2 "a desktop written in the shell it runs on"
 	console put -p "w$id" 7 2 "Hostname: $AB_HOST"
 	console put -p "w$id" 8 2 "Kernel: $AB_KERNEL"
+	up := about_uptime
+	console put -p "w$id" 9 2 "Uptime: $up"
+	who := about_users
+	[ ${#who} -gt $((w - 11)) ] && who="${who:0:$((w - 12))}…"
+	console put -p "w$id" 10 2 "Users: $who"
 
 	cpu := about_cpu "$id"
 	bar := about_bar "$cpu" "$barw"
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 10 2 "CPU"
+	console put -p "w$id" 12 2 "CPU"
 	console pen "$DT_ACTIVE" "$DT_FACE"
-	console put -p "w$id" 10 6 "$bar"
+	console put -p "w$id" 12 6 "$bar"
 	console pen "$DT_INK" "$DT_FACE"
 	printf -v pct '%3d%%' "$cpu"
-	console put -p "w$id" 10 $((w - 6)) "$pct"
+	console put -p "w$id" 12 $((w - 6)) "$pct"
 
 	mem := about_mem "$id"
 	bar := about_bar "$mem" "$barw"
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 11 2 "MEM"
+	console put -p "w$id" 13 2 "MEM"
 	console pen "$DT_ACTIVE" "$DT_FACE"
-	console put -p "w$id" 11 6 "$bar"
+	console put -p "w$id" 13 6 "$bar"
 	console pen "$DT_INK" "$DT_FACE"
 	printf -v pct '%3d%%' "$mem"
-	console put -p "w$id" 11 $((w - 6)) "$pct"
+	console put -p "w$id" 13 $((w - 6)) "$pct"
 }
 
 if [ -z "$DT_ROWS" ]; then
@@ -250,7 +305,13 @@ fi
 
 # Copy takes what About says, as text to paste into a report.
 fn about_copy(int id) {
-	ret "hibr v$HIBR_VERSION${DT_VER:+, desktop v$DT_VER}
+	local up who
+
+	up := about_uptime
+	who := about_users
+	ret "hibr v$HIBR_VERSION (module ABI ${HIBR_ABI:-?})${DT_VER:+, desktop v$DT_VER}
 Hostname: $AB_HOST
-Kernel: $AB_KERNEL"
+Kernel: $AB_KERNEL
+Uptime: $up
+Users: $who"
 }

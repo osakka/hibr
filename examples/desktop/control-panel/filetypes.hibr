@@ -10,8 +10,10 @@ strict
 
 command -v cp_pane > /dev/null && cp_pane filetypes "File Types" "◈"
 command -v dt_app > /dev/null && dt_app ft "File Type" 9 54 "" "" fixed hidden
+command -v dt_app > /dev/null && dt_app owt "Open With" 14 50 "" "" fixed hidden
 
 declare -gA FT
+declare -gA OWT
 
 # The command DT_HANDLERS[$ext] holds, back into one line, for the row's
 # own value column and the Edit dialog's own starting text.
@@ -29,8 +31,8 @@ fn ft_summary(ext) {
 }
 
 fn filetypes_rows(int w) {
-	local n=0 ext v
-	local -a all
+	local n=0 ext v el
+	local -a all exts
 
 	all=("${!DT_HANDLERS[@]}")
 	arr sort all
@@ -48,11 +50,62 @@ fn filetypes_rows(int w) {
 	CP[$w][$n]["val"]=""
 	CP[$w][$n]["key"]=add
 	n=$((n + 1))
+	dt_has dt_openers || { ret "$n"; return 0; }
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Open With"
+	n=$((n + 1))
+	el := owt_exts
+	read -ra exts <<< "$el"
+	for ext in "${exts[@]}"; do
+		v := owt_summary "$ext"
+		CP[$w][$n]["kind"]=action
+		CP[$w][$n]["text"]=".$ext  $v"
+		CP[$w][$n]["val"]=""
+		CP[$w][$n]["key"]="ow:$ext"
+		n=$((n + 1))
+	done
 	ret "$n"
+}
+
+# Every extension Open With has a choice for: those an opener names, those
+# with a handler, and those already given a list.
+owt_exts() {
+	local n t e out=" "
+	local -a ty ow
+
+	for n in "${DT_OPENERORDER[@]}"; do
+		read -ra ty <<< "${DT_OPENERS[$n]["types"]}"
+		for t in "${ty[@]}"; do
+			case $t in "*" | x) continue ;; esac
+			case $out in *" $t "*) ;; *) out="$out$t " ;; esac
+		done
+	done
+	for t in "${!DT_HANDLERS[@]}"; do
+		case $out in *" $t "*) ;; *) out="$out$t " ;; esac
+	done
+	read -ra ow <<< "$DT_OPENWITH"
+	for e in "${ow[@]}"; do
+		t=${e%%:*}
+		case $out in *" $t "*) ;; *) out="$out$t " ;; esac
+	done
+	ret "${out# }"
+}
+
+# A type's Open With list as its row shows it: the default, and how many
+# others Open With offers.
+fn owt_summary(ext) {
+	local t k
+
+	dt_openers "x.$ext"
+	[ "${#DT_OWLIST[@]}" -gt 0 ] || { ret "nothing"; return 0; }
+	t := dt_openertitle "${DT_OWLIST[0]}" "$ext"
+	k=$((${#DT_OWLIST[@]} - 1))
+	[ "$k" -gt 0 ] && t="$t (+$k)"
+	ret "$t"
 }
 
 fn filetypes_do(int w, k, ...rest) {
 	case $k in
+	ow:*) owt_dialog "${k#ow:}" ;;
 	add) ft_dialog "" ;;
 	edit:*) ft_dialog "${k#edit:}" ;;
 	esac
@@ -278,3 +331,169 @@ fn ft_paste(int id, text, op = "") {
 	FT[$id]["${k% *}"]=${r% *}
 	FT[$id]["${k#* }"]=${r##* }
 }
+
+# --- Open With, per type ---------------------------------------------------
+#
+# A list of every opener that can take the type, each ticked if Open With
+# shows it; the one marked default is what a double-click does. Space or a
+# click on the box ticks, d makes the selected one the default, Reset goes
+# back to every opener in its own order.
+fn owt_dialog(ext) {
+	local h=14 w=50 r c rid n i=0 o
+	local -a cand
+
+	dt_openers "x.$ext"
+	cand=("${DT_OWLIST[@]}")
+	r=$((DT_ROWS / 2 - h / 2))
+	c=$(((DT_COLS - w) / 2))
+	rid := dt_new "Open With: .$ext" "$h" "$w" "$r" "$c" owt
+	OWT[$rid]["ext"]=$ext
+	for o in "${cand[@]}"; do
+		OWT[$rid]["o$i"]=$o
+		OWT[$rid]["on$i"]=1
+		i=$((i + 1))
+	done
+	DT_OPENWITH_SAVE=$DT_OPENWITH
+	owt_without "$ext"
+	dt_openers "x.$ext"
+	DT_OPENWITH=$DT_OPENWITH_SAVE
+	for o in "${DT_OWLIST[@]}"; do
+		case " ${cand[*]} " in *" $o "*) continue ;; esac
+		OWT[$rid]["o$i"]=$o
+		OWT[$rid]["on$i"]=0
+		i=$((i + 1))
+	done
+	OWT[$rid]["n"]=$i
+	OWT[$rid]["def"]=${cand[0]}
+	OWT[$rid]["sel"]=0
+	OWT[$rid]["focus"]=list
+}
+DT_OPENWITH_SAVE=
+
+# DT_OPENWITH without the given type's entry.
+fn owt_without(ext) {
+	local e out=
+	local -a ow
+
+	read -ra ow <<< "$DT_OPENWITH"
+	for e in "${ow[@]}"; do
+		[ "${e%%:*}" = "$ext" ] || out="$out $e"
+	done
+	DT_OPENWITH=${out# }
+}
+
+fn owt_draw(int id, int h, int w, int row, int col) {
+	local i=0 n=${OWT[$id]["n"]} ext=${OWT[$id]["ext"]} t box f
+	local sel=${OWT[$id]["sel"]}
+
+	f=${OWT[$id]["focus"]}
+	dt_wclear "$id"
+	while [ "$i" -lt "$n" ]; do
+		t := dt_openertitle "${OWT[$id]["o$i"]}" "$ext"
+		box="[ ]"
+		[ "${OWT[$id]["on$i"]}" = 1 ] && box="[x]"
+		[ "${OWT[$id]["o$i"]}" = "${OWT[$id]["def"]}" ] && t="$t  (default)"
+		if [ "$i" = "$sel" ] && [ "$f" = list ]; then
+			console pen "$DT_SELINK" "$DT_ACTIVE"
+		else
+			console pen "$DT_INK" "$DT_FACE"
+		fi
+		t := str pad "$box $t" $((w - 4))
+		console put -p "w$id" $((i + 1)) 2 "$t"
+		dt_wreg "$id" $((i + 1)) 2 3 "box$i"
+		dt_wreg "$id" $((i + 1)) 6 $((w - 8)) "row$i"
+		i=$((i + 1))
+	done
+	console pen "$DT_DIM" "$DT_FACE"
+	console put -p "w$id" $((h - 3)) 2 "space ticks, d makes the default"
+	dt_dlgbtns "$id" "$h" "$w" "$f" ok Save reset Reset cancel Cancel
+}
+
+# Tick or untick a row; the default is always ticked.
+fn owt_toggle(int id, int i) {
+	[ "${OWT[$id]["o$i"]}" = "${OWT[$id]["def"]}" ] && return 0
+	if [ "${OWT[$id]["on$i"]}" = 1 ]; then
+		OWT[$id]["on$i"]=0
+	else
+		OWT[$id]["on$i"]=1
+	fi
+}
+
+fn owt_default(int id, int i) {
+	OWT[$id]["def"]=${OWT[$id]["o$i"]}
+	OWT[$id]["on$i"]=1
+}
+
+# Keep the list: the default first, then each ticked one in order.
+fn owt_save(int id) {
+	local i=0 n=${OWT[$id]["n"]} ext=${OWT[$id]["ext"]} out
+	local def=${OWT[$id]["def"]}
+
+	out=$def
+	while [ "$i" -lt "$n" ]; do
+		if [ "${OWT[$id]["on$i"]}" = 1 ] &&
+		   [ "${OWT[$id]["o$i"]}" != "$def" ]; then
+			out="$out,${OWT[$id]["o$i"]}"
+		fi
+		i=$((i + 1))
+	done
+	owt_without "$ext"
+	DT_OPENWITH="${DT_OPENWITH:+$DT_OPENWITH }$ext:$out"
+	cp_save
+	dt_del "$id"
+}
+
+fn owt_reset(int id) {
+	owt_without "${OWT[$id]["ext"]}"
+	cp_save
+	dt_del "$id"
+}
+
+fn owt_click(int id, int r, int c, btn = "") {
+	local tag
+
+	tag := dt_hit "$id" "$r" "$c"
+	case $tag in
+	box*) OWT[$id]["sel"]=${tag#box}; OWT[$id]["focus"]=list
+		owt_toggle "$id" "${tag#box}" ;;
+	row*) OWT[$id]["sel"]=${tag#row}; OWT[$id]["focus"]=list ;;
+	ok) owt_save "$id" ;;
+	reset) owt_reset "$id" ;;
+	cancel) dt_del "$id" ;;
+	esac
+	return 0
+}
+
+fn owt_key(int id, key) {
+	local f=${OWT[$id]["focus"]} d sel=${OWT[$id]["sel"]} n=${OWT[$id]["n"]}
+
+	if [ "$f" = list ]; then
+		case $key in
+		up) [ "$sel" -gt 0 ] && OWT[$id]["sel"]=$((sel - 1)); return 0 ;;
+		down) [ "$sel" -lt $((n - 1)) ] && OWT[$id]["sel"]=$((sel + 1)); return 0 ;;
+		" ") owt_toggle "$id" "$sel"; return 0 ;;
+		d | D) owt_default "$id" "$sel"; return 0 ;;
+		enter) owt_save "$id"; return 0 ;;
+		esac
+	fi
+	if d := dt_focuskey "$key" 1; then
+		OWT[$id]["focus"] := dt_focus "$f" "$d" list ok reset cancel
+		return 0
+	fi
+	case $key in
+	escape) dt_del "$id" ;;
+	enter)
+		case $f in
+		cancel) dt_del "$id" ;;
+		reset) owt_reset "$id" ;;
+		*) owt_save "$id" ;;
+		esac
+		;;
+	esac
+	return 0
+}
+
+fn owt_close(int id) {
+	unset "OWT[$id]"
+}
+

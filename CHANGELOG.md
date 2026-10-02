@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.96
+
+**Open With, as on a Mac.** Right-click a file in Files: Open With lists
+every app that can open it, the default first, then Other… to type a
+command for it; a choice opens it there once and is not remembered.
+Control Panel > File Types gives every type an Open With row -- tick what
+it lists, choose its default, which is what a double-click does. Apps
+declare what they open with `dt_opener`.
+
+**Open Terminal Here** on Files' right-click starts a terminal in the folder.
+Control Panel > Files can take either item off the menu and chooses the
+shell it runs.
+
+**About hibr Desktop** (renamed) shows the module ABI, the uptime and who is
+logged in, each user with their number of sessions. **Screenshot…** moves to
+Desk Accessories, beside the Image Viewer that shows what it took.
+
+**`cd` takes `-L`, `-P` and `--`**, as in bash; it refused all three.
+
 ## 0.95
 
 **Screenshots show up and open.** A screenshot appears at once in a Files

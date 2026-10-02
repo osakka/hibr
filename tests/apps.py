@@ -1003,7 +1003,7 @@ check("and a role that is not a colour leaves the file out",
 # An app's pane is always listed, and says so when its app is not loaded.
 sc = cprun([b"\x1b[B"] * downs("abouthibr"))
 check("About hibr's pane says so when About hibr is not loaded",
-      sc.find("About hibr is not loaded") is not None, sc)
+      sc.find("About hibr Desktop is not loaded") is not None, sc)
 sc = cprun([b"\x1b[B"] * downs("abouthibr"), extra=("about",))
 check("and once it is, holds its Refresh",
       brow(sc, "Refresh") != "" and "3000 ms" in brow(sc, "Refresh"), sc)
@@ -2044,7 +2044,7 @@ shutil.rmtree(TRASH, True)
 HD = tempfile.mkdtemp(prefix="hibr-hfiles-")
 open(os.path.join(HD, "note.txt"), "w").write("hello\n")
 open(os.path.join(HD, "pic.jpg"), "w").write("")
-HPRE = "FB_DIR=%s" % HD
+HPRE = "FB_DIR=%s\nDT_FBOPENWITH=0" % HD
 
 sc = run("files", FW, [press(5, 10, 2)], pre=HPRE)
 check("a right-click opens a File menu at the pointer, on the entry there",
@@ -2203,7 +2203,7 @@ check("Cut puts its paths on the clipboard, the same as Copy does",
 HD2 = tempfile.mkdtemp(prefix="hibr-hfiles2-")
 os.mkdir(os.path.join(HD2, "sub"))
 open(os.path.join(HD2, "note.txt"), "w").write("hello\n")
-H2PRE = "FB_DIR=%s" % HD2
+H2PRE = "FB_DIR=%s\nDT_FBOPENWITH=0" % HD2
 H2TWO = [("Files", "12 34 2 40", "files")]
 H2INTO = [press(5, 44), press(5, 44)]
 
@@ -2227,13 +2227,13 @@ check("a registered handler adds Open With to the menu",
       sc.find("Open With") == (6, 12), sc)
 
 sc = run("files", FW, [press(5, 10, 2), press(6, 12)], pre=HWPRE)
-check("and lists it by its own program name and the extension it is for",
-      sc.find("touch (.txt)") is not None, sc)
+check("and lists it by its own program name, the default for its type",
+      sc.find("touch (default)") is not None, sc)
 
 # Click where the entry actually rendered just above, not a row copied by
 # eye -- a hardcoded one is exactly what let the submenu-position bug
 # below go unnoticed: it happened to match the (buggy) implementation.
-pos = sc.find("touch (.txt)")
+pos = sc.find("touch (default)")
 sc = run("files", FW, [press(5, 10, 2), press(6, 12), press(*pos)],
          pre=HWPRE)
 check("choosing it runs that handler on the entry", os.path.exists(MARK), sc)
@@ -2519,7 +2519,7 @@ check("File > Home goes to the home directory",
       sc.find("homesub/") is not None, sc)
 shutil.rmtree(HOMED, True)
 sc = run("files", FW, [press(5, 10, 2), press(12, 12), b"\x7f", b"X", b"\r"],
-         pre="FB_DIR=%s" % HID)
+         pre="FB_DIR=%s\nDT_FBOPENWITH=0" % HID)
 check("enter in Get Info's name field applies the new name",
       os.path.exists(os.path.join(HID, "shown.txX")), sc)
 shutil.rmtree(HID, True)
@@ -2723,6 +2723,61 @@ check("a screenshot shows up at once in a Files window open on its folder",
       re.search(r"hibr-\d{4}-\d\d-\d\d-\d{6}\.ans", sc.text()) is not None, sc)
 shutil.rmtree(SHD2, True)
 
+# Open With, Open Terminal Here: a right-click on a file offers every app
+# that can open it, the default first, and Other…; nothing chosen there
+# sticks. File Types sets each type's list and default.
+OWD = tempfile.mkdtemp(prefix="hibr-ow-")
+open(os.path.join(OWD, "a.txt"), "w").write("hello\n")
+OWPRE = "FB_DIR=%s" % OWD
+OWX = ("term", "notepad")
+CTX = [b"\x1b[B", press(5, 6, 2), 0.3]
+sc = run("files", "16 50 2 2", CTX + [b"\x1b[B", b"\x1b[C", 0.3], pre=OWPRE,
+         extra=OWX, end=None)
+check("right-click offers Open With: the apps that open the type, the "
+      "default marked, then Other…",
+      sc.find("Note Pad (default)") is not None and
+      sc.find("Text Editor (hvi)") is not None and
+      sc.find("Other…") is not None, sc)
+check("and Open Terminal Here", sc.find("Open Terminal Here") is not None, sc)
+sc = run("files", "16 50 2 2", CTX, pre=OWPRE + "\nDT_FBOPENWITH=0\n"
+         "DT_FBTERMHERE=0", extra=OWX, end=None)
+check("both can be taken off the menu in Control Panel > Files",
+      sc.find("Open With") is None and sc.find("Terminal Here") is None, sc)
+sc = run("files", "16 50 2 2", CTX + [b"\x1b[B", b"\x1b[C", b"\x1b[B",
+                                      b"\r", 1.5],
+         pre=OWPRE, extra=OWX, end=None)
+check("choosing another opens it there, this once: hvi in a terminal",
+      sc.find("┤ Terminal [a.txt] ├") is not None, sc)
+sc = run("files", "16 50 2 2", [b"\x1b[B", b"\r", 1.5],
+         pre=OWPRE, extra=OWX, end=None)
+check("and the double-click is still the default's", sc.find("Note Pad")
+      is not None and sc.find("┤ Terminal") is None, sc)
+sc = run("files", "16 50 2 2", [b"\x1b[B", b"\r", 1.5],
+         pre=OWPRE + '\nDT_OPENWITH="txt:hvi,notepad"', extra=OWX, end=None)
+check("a type's default, set in File Types, is what a double-click does",
+      sc.find("┤ Terminal [a.txt] ├") is not None, sc)
+sc = run("files", "16 50 2 2", [b"\x1b[B", press(5, 6, 2), 0.3, b"h", 2.0]
+         + [c.encode() for c in "pwd"] + [b"\r", 1.0],
+         pre=OWPRE, extra=OWX, end=None)
+check("Open Terminal Here starts a shell in the folder",
+      sc.find(OWD) is not None and sc.find("┤ Terminal") is not None, sc)
+shutil.rmtree(OWD, True)
+sc = cprun(reach("filetypes", ".txt"), extra=("notepad",))
+check("File Types lists each type with its default, and how many others",
+      sc.find(".txt  Note Pad (+1)") is not None, sc)
+sc = cprun(reach("filetypes", ".txt") + [b"\r", 0.4, b"\x1b[B", b"d", b"\r",
+                                         0.4], extra=("notepad",))
+check("its dialog makes another app the default, and the row says so",
+      sc.find(".txt  Text Editor (hvi) (+1)") is not None, sc)
+sc = run("about", "16 50 2 2", [])
+check("About hibr Desktop shows the module ABI, the uptime and who is in",
+      re.search(r"module ABI \d+", sc.text()) and
+      sc.find("Uptime: ") is not None and sc.find("Users: ") is not None,
+      sc)
+sc = run("calc", CW, [], pre="dt_launch screenshot", extra=("screenshot",))
+check("Screenshot is a desk accessory: launching it asks what to take",
+      sc.find("Screen ") is not None and sc.find("Area") is not None, sc)
+
 # Restart Desktop: the desktop execs the hibr installed now in the same
 # process, and every window comes back -- a terminal's program still
 # running with its screen, an app's state from the maps it keeps.
@@ -2782,4 +2837,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(403)
+report(415)

@@ -187,6 +187,12 @@ fn dt_launch(n, arg = "") {
 	local h w sz id pl r c
 
 	[ -z "${DT_APPS[$n]["title"]}" ] && return 1
+	# An app that does something rather than showing a window -- the
+	# Screenshot desk accessory -- gives <app>_launch, and that is all.
+	if dt_has "${n}_launch"; then
+		"${n}_launch" "$arg"
+		return 0
+	fi
 	if [ -n "${DT_APPS[$n]["once"]}" ] && id := dt_appwin "$n"; then
 		dt_raise "$id"
 		ret "$id"

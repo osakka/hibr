@@ -1923,7 +1923,7 @@ check("and one that is not opens another window each time",
 
 sc, _ = run("", feed=[press(0, 2), b"a"], pre=APPS)
 check("About hibr opens a window with the machine's own numbers",
-      sc.find("┤ About hibr ├") is not None and
+      sc.find("┤ About hibr Desktop ├") is not None and
       sc.find("CPU") is not None and sc.find("MEM") is not None and
       sc.find("%") is not None, sc)
 check("and it has no maximise button, being a fixed size",

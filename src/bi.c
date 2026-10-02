@@ -31,13 +31,25 @@ char *cwd(void)
 /* Change the working directory. */
 int b_cd(sh *s, int ac, char **av)
 {
-	const char *t = ac > 1 ? av[1] : hibr_get(s, "HOME");
-	char *old = cwd();
-	char *now;
+	const char *t;
+	char *old, *now;
+	int i = 1;
 
+	for (; i < ac && av[i][0] == '-' && av[i][1]; i++) {
+		if (!strcmp(av[i], "--")) {
+			i++;
+			break;
+		}
+		if (strspn(av[i] + 1, "LPe@") != strlen(av[i] + 1)) {
+			lg(HIBR_LERR, "cd: %s: invalid option", av[i]);
+			return 2;
+		}
+	}
+	t = i < ac ? av[i] : hibr_get(s, "HOME");
+	old = cwd();
 	if (!t)
 		t = "/";
-	if (ac > 1 && !strcmp(av[1], "-")) {
+	if (i < ac && !strcmp(av[i], "-")) {
 		t = hibr_get(s, "OLDPWD");
 		if (!t) {
 			lg(HIBR_LERR, "cd: OLDPWD not set");

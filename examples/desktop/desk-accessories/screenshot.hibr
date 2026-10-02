@@ -1,0 +1,16 @@
+#!/usr/bin/env hibr
+#
+# screenshot -- the desk accessory that takes one: Screenshot… asks Screen,
+# Window or Area, the same as its shortcut (wm/shot.hibr does the taking).
+# It opens no window of its own, so it gives screenshot_launch and nothing
+# else; the Image Viewer, beside it, is what shows an .ans one afterwards.
+
+strict
+
+app screenshot "Take a screenshot of the screen, a window or an area"
+
+command -v dt_app > /dev/null && dt_app screenshot "Screenshot…" 3 20 "" "▣"
+
+fn screenshot_launch(arg = "") {
+	dt_has dt_shot && dt_shot
+}

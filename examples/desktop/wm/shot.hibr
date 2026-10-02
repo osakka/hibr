@@ -1,7 +1,7 @@
 #!/usr/bin/env hibr
 #
 # wm/shot -- screenshots. The Screenshot shortcut (ctrl-alt-g unless set
-# otherwise) or the hibr menu's Screenshot… asks what to take: the whole
+# otherwise) or Desk Accessories' Screenshot… asks what to take: the whole
 # Screen, the focused Window, or an Area dragged out with the mouse -- or,
 # from the keyboard, the arrows move a corner, enter fixes it, the arrows
 # stretch the band and enter takes it. Whichever was taken last is chosen

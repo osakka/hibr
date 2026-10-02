@@ -109,7 +109,10 @@ fn dt_openfile(path) {
 		return 0
 	fi
 	ext := dt_ext "$path"
-	if [ -n "${DT_HANDLERS[$ext]["n"]}" ]; then
+	dt_openers "$path"
+	if [ -n "$DT_OWCONF" ] && [ "${#DT_OWLIST[@]}" -gt 0 ]; then
+		dt_openwith "${DT_OWLIST[0]}" "$path"
+	elif [ -n "${DT_HANDLERS[$ext]["n"]}" ]; then
 		dt_runhandler "$ext" "$path"
 	elif [ -x "$path" ]; then
 		DT_OPENCMD=("$path")
@@ -132,3 +135,140 @@ fn dt_openfile(path) {
 		dt_note "Nothing here opens ${path##*/}"
 	fi
 }
+
+# --- Open With ---------------------------------------------------------------
+#
+# What can open a file, for Files' Open With menu: every opener whose types
+# take the file's extension, in the order DT_OPENWITH gives for that
+# extension -- "png:imgview,hvi txt:notepad,hvi" -- or else in the order
+# they were registered, a File Types handler for the extension first. The
+# first is the default, what a double-click does; choosing another from
+# Open With opens it there once and remembers nothing. Control Panel >
+# File Types sets the list and the default for each type.
+#
+# A type is a space-separated list of extensions, "*" for any file, "x" for
+# one that may be run. How it opens: app, given the path (dt_launch); edit,
+# hvi in a terminal; run, the file itself in a terminal.
+declare -gA DT_OPENERS
+DT_OPENERORDER=()
+DT_OPENWITH="${DT_OPENWITH-}"
+DT_OWLIST=()
+DT_OWCONF=
+
+fn dt_opener(name, title, types, how, app = "") {
+	[ -n "${DT_OPENERS[$name]["title"]}" ] || DT_OPENERORDER+=("$name")
+	DT_OPENERS[$name]["title"]=$title
+	DT_OPENERS[$name]["types"]=" $types "
+	DT_OPENERS[$name]["how"]=$how
+	DT_OPENERS[$name]["app"]=$app
+}
+
+dt_opener imgview "Image Viewer" "png ans" app imgview
+dt_opener notepad "Note Pad" "txt md log text" app notepad
+dt_opener dbase "dBASE" "db" app dbase
+dt_opener hvi "Text Editor (hvi)" "*" edit
+dt_opener run "Run in Terminal" "x" run
+
+# Whether an opener can open this path, and is there to do it.
+fn dt_opencan(name, path, ext) {
+	local ty=${DT_OPENERS[$name]["types"]} ap=${DT_OPENERS[$name]["app"]}
+
+	[ -n "$ty" ] || return 1
+	if [ -n "$ap" ]; then
+		dt_has "${ap}_open" || dt_has "${ap}_draw" || return 1
+	fi
+	case $ty in
+	*" * "*) return 0 ;;
+	*" x "*) [ -x "$path" ] && return 0 ;;
+	esac
+	[ -n "$ext" ] && case $ty in *" $ext "*) return 0 ;; esac
+	return 1
+}
+
+# The openers for a path, in their order, into DT_OWLIST: the configured
+# list for its extension where there is one, then anything else that can
+# open it; "handler" stands for a File Types handler of the extension.
+fn dt_openers(path) {
+	local ext n e
+	local -a conf all ow
+
+	DT_OWLIST=()
+	DT_OWCONF=
+	ext := dt_ext "$path"
+	read -ra ow <<< "$DT_OPENWITH"
+	for e in "${ow[@]}"; do
+		[ "${e%%:*}" = "$ext" ] || continue
+		IFS=, read -ra conf <<< "${e#*:}"
+	done
+	[ -n "$ext" ] && [ -n "${DT_HANDLERS[$ext]["n"]}" ] && all+=(handler)
+	for n in "${DT_OPENERORDER[@]}"; do
+		dt_opencan "$n" "$path" "$ext" && all+=("$n")
+	done
+	if [ "${#conf[@]}" -gt 0 ]; then
+		DT_OWCONF=1
+		for n in "${conf[@]}"; do
+			case " ${all[*]} " in *" $n "*) DT_OWLIST+=("$n") ;; esac
+		done
+		return 0
+	fi
+	DT_OWLIST=("${all[@]}")
+}
+
+# An opener's name for a menu.
+fn dt_openertitle(name, ext = "") {
+	if [ "$name" = handler ]; then
+		ret "${DT_HANDLERS[$ext][0]##*/}"
+	else
+		ret "${DT_OPENERS[$name]["title"]:-$name}"
+	fi
+}
+
+# Open a path with one opener, this once.
+fn dt_openwith(name, path) {
+	local ext ap
+
+	ext := dt_ext "$path"
+	case $name in
+	handler) dt_runhandler "$ext" "$path"; return 0 ;;
+	esac
+	ap=${DT_OPENERS[$name]["app"]}
+	case ${DT_OPENERS[$name]["how"]} in
+	app) dt_launch "$ap" "$path" ;;
+	edit) DT_OPENCMD=(); dt_launch term "$path" ;;
+	run)
+		DT_OPENCMD=("$path")
+		DT_OPENSELF=1
+		dt_launch term "$path"
+		;;
+	*) return 1 ;;
+	esac
+}
+
+# Open a path with a command typed for it, this once, in a terminal: the
+# command's words, then the path.
+fn dt_openwithcmd(cmd, path) {
+	local -a words
+
+	read -ra words <<< "$cmd"
+	[ "${#words[@]}" -gt 0 ] || return 1
+	DT_OPENCMD=("${words[@]}")
+	dt_launch term "$path"
+}
+
+# --- Open Terminal Here --------------------------------------------------------
+#
+# A terminal window whose shell starts in a folder. DT_TERMHERE is what it
+# runs: "shell" for $SHELL, or a command's name.
+DT_TERMHERE="${DT_TERMHERE-shell}"
+
+fn dt_termhere(dir) {
+	local sh=$DT_TERMHERE
+
+	[ -d "$dir" ] || return 1
+	[ "$sh" = shell ] && sh=${SHELL:-${HIBR:-hibr}}
+	[ "$sh" = hibr ] && sh=${HIBR:-hibr}
+	DT_OPENCMD=("${HIBR:-hibr}" -c 'cd -- "$1" && exec "$2"' termhere "$dir" "$sh")
+	DT_OPENSELF=1
+	dt_launch term "$dir"
+}
+

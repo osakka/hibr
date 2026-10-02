@@ -1,7 +1,9 @@
 #!/usr/bin/env hibr
 #
 # filesview -- the Control Panel pane for Files: the view a folder opens in
-# until it is given one of its own, and forgetting every folder's. Named
+# until it is given one of its own, and forgetting every folder's; whether
+# its right-click menu offers Open With and Open Terminal Here, and what
+# shell the second starts. Named
 # filesview, not files, because the app already owns the files_ prefix.
 
 strict
@@ -9,6 +11,9 @@ strict
 command -v cp_pane > /dev/null && cp_pane filesview "Files" "◫" app
 
 fn cp_set_fileview(int? id = "", value = "") { FB_DEFAULTVIEW=$value; cp_save; }
+fn cp_set_termhere(int? id = "", value = "") { DT_TERMHERE=$value; cp_save; }
+
+FV_SHELLS=(shell hibr bash zsh sh)
 
 fn filesview_rows(int w) {
 	local n=0
@@ -20,6 +25,17 @@ fn filesview_rows(int w) {
 	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Reset All Views"
 	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=resetviews
 	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Open With in Menu"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_FBOPENWITH" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=DT_FBOPENWITH; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Terminal Here in Menu"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_FBTERMHERE" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=DT_FBTERMHERE; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Terminal Here Runs"
+	CP[$w][$n]["val"]="$DT_TERMHERE"; CP[$w][$n]["key"]=termhere
+	n=$((n + 1))
 	ret "$n"
 }
 
@@ -30,6 +46,9 @@ fn filesview_do(int w, k, int dir) {
 	fileview) v := cp_next "${FB_DEFAULTVIEW:-list}" "$dir" "${FILES_VIEWS[@]}"
 		FB_DEFAULTVIEW=$v ;;
 	resetviews) fb_reset_views ;;
+	DT_FBOPENWITH | DT_FBTERMHERE) cp_toggle "$k" ;;
+	termhere) v := cp_next "$DT_TERMHERE" "$dir" "${FV_SHELLS[@]}"
+		DT_TERMHERE=$v ;;
 	esac
 	cp_save
 }
@@ -37,5 +56,6 @@ fn filesview_do(int w, k, int dir) {
 fn filesview_drop(int w, int r, int c, k) {
 	case $k in
 	fileview) dt_droplist "$w" "$r" "$c" cp_set_fileview "${FILES_VIEWS[@]}" ;;
+	termhere) dt_droplist "$w" "$r" "$c" cp_set_termhere "${FV_SHELLS[@]}" ;;
 	esac
 }

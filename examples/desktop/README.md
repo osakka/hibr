@@ -231,6 +231,33 @@ alt-c is still allowed, since that only ever produces text. Icons can be
 switched off in Control Panel (`DT_ICONS`), and the disks specifically with
 `DT_DISKS`, or with either in the session.
 
+## Open With, and a terminal in a folder
+
+Right-click a file in Files and **Open With** lists every app that can open
+it -- the one a double-click uses first, marked default, then the others,
+then **Other…**, which takes a command and runs it on the file in a
+terminal. Choosing one opens the file there this once; nothing is
+remembered. Control Panel > File Types has an **Open With** row for each
+type: tick the apps it lists, press d on the one that should be the
+default -- what a double-click does from then on -- and Save, or Reset to
+go back to every app in its usual order.
+
+**Open Terminal Here** opens a terminal whose shell starts in the folder
+right-clicked, or in the one shown. Control Panel > Files can take either
+item off the menu, and sets the shell Terminal Here starts: your `$SHELL`,
+or hibr, bash, zsh or sh.
+
+An app that opens files says which, so it is offered:
+
+<!-- not run: a line from a desktop file, read when the desktop loads it -->
+```sh
+dt_opener imgview "Image Viewer" "png ans" app imgview
+```
+
+`dt_opener <name> <title> <extensions> app|edit|run [app]` -- the
+extensions space-separated, `*` for any file and `x` for one that may be
+run.
+
 ## Files between windows
 
 Drag a file out of a Files window and let go over another: over a Files
@@ -366,8 +393,8 @@ that terminal.
 
 ## Screenshots
 
-**ctrl-alt-g** (Screenshot, in Shortcuts) or **Screenshot…** on the hibr
-menu asks what to take: **Screen**, the focused **Window**, or an **Area**
+**ctrl-alt-g** (Screenshot, in Shortcuts) or **Screenshot…** in Desk
+Accessories asks what to take: **Screen**, the focused **Window**, or an **Area**
 -- drag it out with the mouse, or move a corner with the arrows, press
 enter, stretch the band and press enter again. Whichever was taken last is
 chosen already, so the shortcut and enter repeat it; escape cancels.
