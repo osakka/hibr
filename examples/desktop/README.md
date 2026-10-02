@@ -358,6 +358,23 @@ One window can still be given everything: the Window menu's Pass Every Key,
 ticked, is for a program that needs the chord, or a desktop running inside
 that terminal.
 
+## Screenshots
+
+**ctrl-alt-g** (Screenshot, in Shortcuts) or **Screenshot…** on the hibr
+menu asks what to take: **Screen**, the focused **Window**, or an **Area**
+-- drag it out with the mouse, or move a corner with the arrows, press
+enter, stretch the band and press enter again. Whichever was taken last is
+chosen already, so the shortcut and enter repeat it; escape cancels.
+
+A screenshot is the screen's own cells, not pixels. **ANSI text** by
+default: `cat` it in any terminal and it is there as it was, colours and
+all. Or **HTML**, for a browser and for sharing, or **plain text**. They go
+to `~/Pictures/hibr` as `hibr-2026-10-02-101530.ans` and the like; the note
+that says so opens the folder when clicked. Control Panel > Desktop sets the
+format, which choice the chooser starts on, and the folder, and opens it.
+Nothing is in the picture but what was on screen: the chooser, the band and
+any notes are taken out first.
+
 ## Staying current
 
 **Restart Desktop**, on the hibr menu, replaces the running desktop with

@@ -82,6 +82,7 @@ and the flush cost shown live. Run it and press things.
 | `console fill row col h w [char]` | repeat a character over a rectangle |
 | `console cursor row col` / `console cursor off` | where the cursor should be seen |
 | `console flush` | send what changed; gives the byte count |
+| `console shot [-f ansi\|html\|text] file [row col h w]` | write what is on screen -- the last flush -- or a rectangle of it: `ansi` the cells with their colours as a terminal draws them (`cat` it), `html` the same as a page, `text` the characters alone |
 | `console key [ms]` | wait for a key, up to ms; gives its name |
 | `console waiting` | true when more input is already there; never waits |
 | `console resizing` | true while a resize is pending, without consuming it |

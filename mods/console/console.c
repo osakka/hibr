@@ -254,7 +254,7 @@ int m_console(sh *s, int ac, char **av)
 
 	if (ac < 2) {
 		lg(HIBR_LERR, "usage: console open|close|size|clear|pen|put|"
-			      "fill|cursor|flush|key|watch|unwatch|pane|hit|mouse");
+			      "fill|cursor|flush|shot|key|watch|unwatch|pane|hit|mouse");
 		return 2;
 	}
 	if (!strcmp(sub, "open"))
@@ -452,6 +452,23 @@ int m_console(sh *s, int ac, char **av)
 			printf("%s\n", k.p);
 		s_free(&k);
 		return HIBR_OK;
+	}
+	if (!strcmp(sub, "shot")) {
+		const char *fm = "ansi";
+		int i = 2, q[4] = { 0, 0, 0, 0 }, k = 0;
+
+		if (i + 1 < ac && !strcmp(av[i], "-f")) {
+			fm = av[i + 1];
+			i += 2;
+		}
+		if (i >= ac) {
+			lg(HIBR_LERR, "usage: console shot [-f ansi|html|text] file "
+				      "[row col h w]");
+			return 2;
+		}
+		for (k = 0; k < 4 && i + 1 + k < ac; k++)
+			q[k] = atoi(av[i + 1 + k]);
+		return cn_shot(av[i], fm, q[0], q[1], q[2], q[3]);
 	}
 	if (!strcmp(sub, "darkdefault")) {
 		if (ac < 4) {

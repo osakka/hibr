@@ -2,7 +2,8 @@
 #
 # desktop -- the Control Panel pane for the bare desktop: which icons sit
 # on it, how many workspaces it has, whether Cycle goes through this one's
-# windows or every one's, and how often a busy screen is redrawn.
+# windows or every one's, how often a busy screen is redrawn, and how
+# screenshots are taken and where they go.
 
 strict
 
@@ -13,7 +14,7 @@ DK_CYCLES=(workspace all)
 fn cp_set_cycle(int? id = "", value = "") { DT_CYCLE=$value; cp_save; }
 
 fn desktop_rows(int w) {
-	local n=0
+	local n=0 d=$DT_SHOTDIR
 
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Icons"
 	CP[$w][$n]["wtype"]=bool
@@ -34,6 +35,19 @@ fn desktop_rows(int w) {
 	CP[$w][$n]["wtype"]=slider
 	CP[$w][$n]["val"]=$DT_DRAWSKIP; CP[$w][$n]["min"]=0; CP[$w][$n]["max"]=9
 	CP[$w][$n]["key"]=drawskip; n=$((n + 1))
+	[ "${d#"$HOME"/}" != "$d" ] && d="~/${d#"$HOME"/}"
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Screenshot Format"
+	CP[$w][$n]["val"]="$DT_SHOTFMT"; CP[$w][$n]["key"]=shotfmt
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Screenshot Starts On"
+	CP[$w][$n]["val"]="$DT_SHOTLAST"; CP[$w][$n]["key"]=shotlast
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Screenshots In: $d"
+	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=shotdir
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Open Screenshots"
+	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=shotopen
+	n=$((n + 1))
 	ret "$n"
 }
 
@@ -48,6 +62,15 @@ fn desktop_do(int w, k, int dir) {
 	wsn) dt_wsset $((DT_WSN + dir)) ;;
 	cycle) v := cp_next "$DT_CYCLE" "$dir" "${DK_CYCLES[@]}"
 		DT_CYCLE=$v ;;
+	shotfmt) v := cp_next "$DT_SHOTFMT" "$dir" "${SH_FMTS[@]}"
+		DT_SHOTFMT=$v ;;
+	shotlast) v := cp_next "$DT_SHOTLAST" "$dir" "${SH_STARTS[@]}"
+		DT_SHOTLAST=$v ;;
+	shotdir) shd_dialog ;;
+	shotopen)
+		[ -d "$DT_SHOTDIR" ] || mkdir -p "$DT_SHOTDIR" 2> /dev/null
+		dt_has files_draw && dt_launch files "$DT_SHOTDIR"
+		;;
 	drawskip)
 		v=$((DT_DRAWSKIP + dir))
 		[ "$v" -lt 0 ] && v=0
@@ -61,5 +84,7 @@ fn desktop_do(int w, k, int dir) {
 fn desktop_drop(int w, int r, int c, k) {
 	case $k in
 	cycle) dt_droplist "$w" "$r" "$c" cp_set_cycle "${DK_CYCLES[@]}" ;;
+	shotfmt) dt_droplist "$w" "$r" "$c" cp_set_shotfmt "${SH_FMTS[@]}" ;;
+	shotlast) dt_droplist "$w" "$r" "$c" cp_set_shotlast "${SH_STARTS[@]}" ;;
 	esac
 }

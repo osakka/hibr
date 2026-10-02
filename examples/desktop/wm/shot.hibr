@@ -1,0 +1,267 @@
+#!/usr/bin/env hibr
+#
+# wm/shot -- screenshots. The Screenshot shortcut (ctrl-alt-g unless set
+# otherwise) or the hibr menu's Screenshot… asks what to take: the whole
+# Screen, the focused Window, or an Area dragged out with the mouse -- or,
+# from the keyboard, the arrows move a corner, enter fixes it, the arrows
+# stretch the band and enter takes it. Whichever was taken last is chosen
+# already, so the shortcut and enter repeat it; escape cancels at any
+# point.
+#
+# A screenshot is the screen's own cells, not pixels: ANSI text by default
+# (cat it in a terminal and it is there, colours and all), or HTML for a
+# browser, or plain text, as Control Panel > Screenshots sets, into
+# DT_SHOTDIR. It is taken from a frame drawn without the chooser, the band
+# or any notes on it.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+strict
+
+DT_SHOTDIR="${DT_SHOTDIR-$HOME/Pictures/hibr}"
+DT_SHOTFMT="${DT_SHOTFMT-ansi}"
+DT_SHOTLAST="${DT_SHOTLAST-screen}"
+DT_SHOT=
+DT_SHOTFOCUS=
+DT_SHOTR=0
+DT_SHOTC=0
+DT_SHOTAR=
+DT_SHOTAC=
+DT_SHOTDRAG=
+DT_SHOTFILE=
+
+# Ask what to take.
+dt_shot() {
+	dt_mclose
+	dt_note_clear
+	DT_SHOT=choose
+	DT_SHOTFOCUS=$DT_SHOTLAST
+}
+
+# Where the chooser sits: a small box in the middle of the primary display.
+dt_shot_geom() {
+	local w=40 h=7 y0 x0
+
+	y0=$((DT_ROWS / 2 - h / 2))
+	x0=$((DT_PRIMARY_COL + (${DT_PRIMARY_W:-$DT_COLS} - w) / 2))
+	ret "$y0 $x0 $w $h"
+}
+
+# The chooser, or the band being dragged out, over everything else.
+dt_shot_draw() {
+	local g y0 x0 w h bar r bw t
+
+	case $DT_SHOT in
+	choose)
+		g := dt_shot_geom
+		read -r y0 x0 w h <<< "$g"
+		console pen "$DT_INK" "$DT_FACE"
+		console fill "$y0" "$x0" "$h" "$w" " "
+		bar := dt_rep $((w - 2)) "${GL[hline]}"
+		console pen "$DT_ACTIVE" "$DT_FACE" bold
+		console put "$y0" "$x0" "${GL[tl]}$bar${GL[tr]}"
+		console put $((y0 + h - 1)) "$x0" "${GL[bl]}$bar${GL[br]}"
+		r=$((y0 + 1))
+		while [ "$r" -lt $((y0 + h - 1)) ]; do
+			console put "$r" "$x0" "${GL[vline]}"
+			console put "$r" $((x0 + w - 1)) "${GL[vline]}"
+			r=$((r + 1))
+		done
+		console put "$y0" $((x0 + 2)) "${GL[teel]} Screenshot ${GL[teer]}"
+		console pen "$DT_DIM" "$DT_FACE"
+		t="enter takes it, escape cancels"
+		console put $((y0 + 4)) $((x0 + (w - ${#t}) / 2)) "$t"
+		dt_wclear root
+		bw := dt_btnw Screen Window Area
+		dt_buttons root $((y0 + 2)) $((x0 + (w - bw) / 2)) \
+			"$DT_SHOTFOCUS" screen Screen window Window area Area
+		;;
+	area)
+		dt_shot_band
+		;;
+	esac
+}
+
+# The band: its outline drawn over the screen, and a line saying how big
+# it is and what the keys do.
+dt_shot_band() {
+	local r0 c0 r1 c1 t r bar
+
+	if [ -z "$DT_SHOTAR" ]; then
+		r0=$DT_SHOTR; r1=$DT_SHOTR; c0=$DT_SHOTC; c1=$DT_SHOTC
+		t="drag, or arrows then enter: a corner"
+	else
+		r0=$DT_SHOTAR; r1=$DT_SHOTR; c0=$DT_SHOTAC; c1=$DT_SHOTC
+		[ "$r0" -gt "$r1" ] && { r=$r0; r0=$r1; r1=$r; }
+		[ "$c0" -gt "$c1" ] && { r=$c0; c0=$c1; c1=$r; }
+		t="$((r1 - r0 + 1)) x $((c1 - c0 + 1)): enter takes it"
+	fi
+	console pen "$DT_ACTIVE" "$DT_FACE" bold
+	if [ "$r0" = "$r1" ] && [ "$c0" = "$c1" ]; then
+		console put "$r0" "$c0" "+"
+	else
+		bar := dt_rep $((c1 - c0 + 1)) "${GL[hline]}"
+		console put "$r0" "$c0" "$bar"
+		console put "$r1" "$c0" "$bar"
+		r=$r0
+		while [ "$r" -le "$r1" ]; do
+			console put "$r" "$c0" "${GL[vline]}"
+			console put "$r" "$c1" "${GL[vline]}"
+			r=$((r + 1))
+		done
+	fi
+	console pen "$DT_BAR" "$DT_ACTIVE" bold
+	console put 0 0 " $t, escape cancels "
+}
+
+# Every key and click goes here while the chooser or the band is up.
+fn dt_shot_event(k) {
+	local -a ev
+	local d hit
+
+	case $DT_SHOT in
+	choose)
+		case $k in
+		"mouse press "*)
+			read -ra ev <<< "$k"
+			if hit := dt_hit root "${ev[3]}" "${ev[4]}"; then
+				dt_shot_pick "$hit"
+			else
+				DT_SHOT=
+			fi
+			;;
+		"mouse "*) ;;
+		escape) DT_SHOT= ;;
+		enter) dt_shot_pick "$DT_SHOTFOCUS" ;;
+		s | S) dt_shot_pick screen ;;
+		w | W) dt_shot_pick window ;;
+		a | A) dt_shot_pick area ;;
+		*)
+			if d := dt_focuskey "$k" 1; then
+				DT_SHOTFOCUS := dt_focus "$DT_SHOTFOCUS" "$d" \
+					screen window area
+			fi
+			;;
+		esac
+		;;
+	area) dt_shot_areaevent "$k" ;;
+	esac
+	return 0
+}
+
+# What the chooser was asked for.
+fn dt_shot_pick(what) {
+	local id=$DT_FOCUS
+
+	DT_SHOTLAST=$what
+	dt_save
+	case $what in
+	screen) dt_shot_take 0 0 "$DT_ROWS" "$DT_COLS" ;;
+	window)
+		if [ -n "$id" ] && [ -n "${DT[$id]["title"]}" ] &&
+		   ! dt_away "$id" && ! dt_hidden "$id"; then
+			dt_shot_take "${DT[$id]["row"]}" "${DT[$id]["col"]}" \
+				"${DT[$id]["h"]}" "${DT[$id]["w"]}"
+		else
+			dt_shot_take 0 0 "$DT_ROWS" "$DT_COLS"
+		fi
+		;;
+	area)
+		DT_SHOT=area
+		DT_SHOTR=$((DT_ROWS / 2))
+		DT_SHOTC=$((DT_COLS / 2))
+		DT_SHOTAR=
+		DT_SHOTAC=
+		DT_SHOTDRAG=
+		;;
+	esac
+}
+
+# The band, from the mouse or the keyboard.
+fn dt_shot_areaevent(k) {
+	local -a ev
+	local r c
+
+	case $k in
+	"mouse press "* | "mouse drag "* | "mouse release "*)
+		read -ra ev <<< "$k"
+		r=${ev[3]}
+		c=${ev[4]}
+		case ${ev[1]} in
+		press)
+			DT_SHOTAR=$r
+			DT_SHOTAC=$c
+			DT_SHOTDRAG=1
+			;;
+		drag) [ -n "$DT_SHOTDRAG" ] || return 0 ;;
+		release)
+			[ -n "$DT_SHOTDRAG" ] || return 0
+			DT_SHOTR=$r
+			DT_SHOTC=$c
+			dt_shot_band_take
+			return 0
+			;;
+		esac
+		DT_SHOTR=$r
+		DT_SHOTC=$c
+		;;
+	"mouse "*) ;;
+	escape) DT_SHOT= ;;
+	up) [ "$DT_SHOTR" -gt 0 ] && DT_SHOTR=$((DT_SHOTR - 1)) ;;
+	down) [ "$DT_SHOTR" -lt $((DT_ROWS - 1)) ] && DT_SHOTR=$((DT_SHOTR + 1)) ;;
+	left) [ "$DT_SHOTC" -gt 0 ] && DT_SHOTC=$((DT_SHOTC - 1)) ;;
+	right) [ "$DT_SHOTC" -lt $((DT_COLS - 1)) ] && DT_SHOTC=$((DT_SHOTC + 1)) ;;
+	enter | " ")
+		if [ -z "$DT_SHOTAR" ]; then
+			DT_SHOTAR=$DT_SHOTR
+			DT_SHOTAC=$DT_SHOTC
+		else
+			dt_shot_band_take
+		fi
+		;;
+	esac
+	return 0
+}
+
+# Take what the band covers, corners included.
+dt_shot_band_take() {
+	local r0=$DT_SHOTAR c0=$DT_SHOTAC r1=$DT_SHOTR c1=$DT_SHOTC t
+
+	[ "$r0" -gt "$r1" ] && { t=$r0; r0=$r1; r1=$t; }
+	[ "$c0" -gt "$c1" ] && { t=$c0; c0=$c1; c1=$t; }
+	dt_shot_take "$r0" "$c0" $((r1 - r0 + 1)) $((c1 - c0 + 1))
+}
+
+# Draw a clean frame, write the rectangle of it, and say where it went.
+fn dt_shot_take(int r, int c, int h, int w) {
+	local ext name f
+
+	DT_SHOT=
+	dt_note_clear
+	case $DT_SHOTFMT in
+	html) ext=html ;;
+	text) ext=txt ;;
+	*) ext=ans ;;
+	esac
+	if [ ! -d "$DT_SHOTDIR" ] && ! mkdir -p "$DT_SHOTDIR" 2> /dev/null; then
+		dt_notep high "Screenshot: $DT_SHOTDIR cannot be made"
+		return 1
+	fi
+	printf -v name 'hibr-%(%Y-%m-%d-%H%M%S)T' -1
+	f="$DT_SHOTDIR/$name.$ext"
+	[ -e "$f" ] && f="$DT_SHOTDIR/$name-$RANDOM.$ext"
+	dt_draw
+	console flush
+	if ! console shot -f "$DT_SHOTFMT" "$f" "$r" "$c" "$h" "$w"; then
+		dt_notep high "Screenshot could not be written to $DT_SHOTDIR"
+		return 1
+	fi
+	DT_SHOTFILE=$f
+	dt_notify "Screenshot saved: ${f##*/}" dt_shot_show
+}
+
+# Show where the last screenshot went, in a file browser.
+dt_shot_show() {
+	dt_has files_draw && dt_launch files "$DT_SHOTDIR"
+}

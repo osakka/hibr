@@ -428,6 +428,10 @@ fn dt_event(k) {
 		esac
 		[ "$k" = escape ] || [ "${k#mouse }" != "$k" ] && return 0
 	fi
+	if [ -n "$DT_SHOT" ]; then
+		dt_shot_event "$k"
+		return 0
+	fi
 	if [ -n "$DT_CONFIRM" ]; then
 		case $k in
 		"mouse press "*)
@@ -551,6 +555,8 @@ fn dt_event(k) {
 		dt_detach
 	elif dt_wskey "$k"; then
 		:
+	elif dt_keyis shot "$k"; then
+		dt_shot
 	elif dt_keyis tile "$k"; then
 		dt_tiletoggle
 	elif dt_keyis tilemain "$k"; then

@@ -14,6 +14,7 @@ system monitor, and anything else full-screen. Building it once is the point.
 | `grid.c` | the front and back buffers, placement, and the diffing flush |
 | `key.c` | bytes to key names: CSI, SS3, modifiers, mouse, bracketed paste |
 | `console.c` | panes, colour parsing, and the `console` builtin |
+| `shot.c` | `console shot`: the front grid written out as ANSI, HTML or plain text |
 
 Every `console` subcommand, with what it takes, is in the command table of
 [Full-screen programs](../../docs/display.md); this page is how the module

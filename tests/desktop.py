@@ -1232,6 +1232,62 @@ sc, _ = run(CYC + "dt_min 1\n", [b"\x1b\t"], pre="DT_CYCLE=all")
 check("a minimised window is passed over, as on one workspace",
       sc.find("┤ Over ├") == (9, 27) and sc.find("Under") is None, sc)
 
+# Screenshots: ctrl-alt-g asks Screen, Window or Area, the last one taken
+# already chosen; what is written is the screen's cells, ANSI by default.
+SHOTD = tempfile.mkdtemp(prefix="hibr-shots-")
+SHOTPRE = "DT_SHOTDIR=%s\n" % SHOTD
+SHOTK = b"\x1b\x07"
+
+
+def shots():
+    return sorted(os.listdir(SHOTD))
+
+
+def shotclear():
+    for f in os.listdir(SHOTD):
+        os.unlink(os.path.join(SHOTD, f))
+
+
+sc, _ = run(WS2, [SHOTK], pre=SHOTPRE)
+check("the Screenshot shortcut asks what to take",
+      sc.find("Screenshot") is not None and sc.find("Screen") is not None
+      and sc.find("Window") is not None and sc.find("Area") is not None, sc)
+sc, _ = run(WS2, [SHOTK, b"\x1b"], pre=SHOTPRE)
+check("escape cancels it and writes nothing",
+      sc.find("enter takes it") is None and shots() == [], sc)
+sc, raw = run(WS2, [SHOTK, b"\r"], pre=SHOTPRE)
+f = shots()
+txt = open(os.path.join(SHOTD, f[0]), encoding="utf-8").read() if f else ""
+check("enter takes the whole screen, as ANSI text with its colours",
+      len(f) == 1 and f[0].endswith(".ans") and "┤ Over ├" in txt and
+      "\x1b[0;" in txt and txt.count("\n") == ROWS and
+      "enter takes it" not in txt, txt[:300])
+check("and a note says where it went", b"Screenshot saved" in raw, sc)
+shotclear()
+sc, _ = run(WS2, [SHOTK, b"w"], pre=SHOTPRE)
+f = shots()
+txt = open(os.path.join(SHOTD, f[0]), encoding="utf-8").read() if f else ""
+check("w takes the focused window, its own size",
+      len(f) == 1 and txt.count("\n") == 8 and "Over" in txt and
+      "Under" not in txt, txt)
+shotclear()
+sc, _ = run(WS2, [SHOTK, b"a", press(7, 13), drag(9, 20), release(9, 20)],
+            pre=SHOTPRE + "DT_SHOTFMT=text\n")
+f = shots()
+txt = open(os.path.join(SHOTD, f[0]), encoding="utf-8").read() if f else ""
+check("an area dragged out is taken, corners included, as plain text",
+      len(f) == 1 and f[0].endswith(".txt") and txt.count("\n") == 3 and
+      "\x1b" not in txt, repr(txt))
+shotclear()
+sc, _ = run(WS2, [SHOTK, b"\r"], pre=SHOTPRE + "DT_SHOTFMT=html\n"
+            "DT_SHOTLAST=window\n")
+f = shots()
+txt = open(os.path.join(SHOTD, f[0]), encoding="utf-8").read() if f else ""
+check("the chooser starts on the last one taken, and HTML is a page",
+      len(f) == 1 and f[0].endswith(".html") and "<span style=" in txt and
+      txt.count("\n") < ROWS, txt[:200])
+shutil.rmtree(SHOTD, True)
+
 # --- tiling ------------------------------------------------------------------
 #
 # A tiled workspace lays its windows out itself: the main one on the left,
@@ -2752,4 +2808,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(383)
+report(390)

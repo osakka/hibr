@@ -19,7 +19,7 @@ DT_KEYPEND_FROM=
 # desktop does is on a key that is not in one of the two.
 DT_KEYORDER=(menu menu2 copy cut paste selectall scrollup scrolldown
 	snapleft snapright snaptop snapbottom snapcenter ws1 ws2 ws3 ws4 ws5 ws6
-	ws7 ws8 ws9 wsnext wsprev tile tilemain close cycle strip detach quit)
+	ws7 ws8 ws9 wsnext wsprev tile tilemain close cycle strip shot detach quit)
 declare -gA DT_KEYNAME
 DT_KEYNAME["menu"]="Menu Bar"
 DT_KEYNAME["menu2"]="Menu Bar, Also"
@@ -45,6 +45,7 @@ DT_KEYNAME["detach"]="Detach"
 DT_KEYNAME["quit"]="Quit"
 DT_KEYNAME["cycle"]="Cycle Windows"
 DT_KEYNAME["strip"]="Control Strip"
+DT_KEYNAME["shot"]="Screenshot"
 
 # A shortcut in one canonical modifier order, ctrl then alt then shift,
 # whatever order it named them in -- an alt combination arrives as ESC

@@ -67,6 +67,8 @@ void cn_gfree(cn_grid *g);
 int cn_gsize(cn_grid *g, int rows, int cols);
 void cn_cellset(cn_cell *c, unsigned cp, const char *ext, size_t en);
 
+int cn_shot(const char *path, const char *fmt, int r0, int c0, int h, int w);
+
 cn_pane *cn_pfind(const char *nm);
 cn_pane *cn_pset(const char *nm, int row, int col, int h, int w);
 int cn_prect(const char *nm, int *row, int *col, int *h, int *w);

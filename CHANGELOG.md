@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.93
+
+**Screenshots.** ctrl-alt-g (settable, as Screenshot) or the hibr menu's
+Screenshot… asks Screen, Window or Area -- an area dragged out with the
+mouse, or drawn with the arrows and enter -- the last one taken already
+chosen, so the shortcut and enter repeat it. The picture is the screen's
+cells: ANSI text by default, which `cat` shows as it was, or HTML or plain
+text, into `~/Pictures/hibr`, set in Control Panel > Desktop. The chooser,
+the band and any notes are kept out of it.
+
+**`console shot`** writes what is on screen, or a rectangle of it, as ANSI,
+HTML or text.
+
 ## 0.92
 
 **Notifications have a priority, and the count means something again.**
