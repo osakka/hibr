@@ -375,8 +375,11 @@ chosen already, so the shortcut and enter repeat it; escape cancels.
 A screenshot is the screen's own cells, not pixels. **ANSI text** by
 default: `cat` it in any terminal and it is there as it was, colours and
 all. Or **HTML**, for a browser and for sharing, or **plain text**. They go
-to `~/Pictures/hibr` as `hibr-2026-10-02-101530.ans` and the like; the note
-that says so opens the folder when clicked. Control Panel > Desktop sets the
+to `~/Pictures/hibr` as `hibr-2026-10-02-101530.ans` and the like, and a
+Files window open on that folder shows it at once. The note that says so
+opens it when clicked: an `.ans` in the Image Viewer, which plays it into a
+terminal emulator of its own and shows the cells as they were (double-click
+one in Files for the same), anything else as the folder. Control Panel > Desktop sets the
 format, which choice the chooser starts on, and the folder, and opens it.
 Nothing is in the picture but what was on screen: the chooser, the band and
 any notes are taken out first.

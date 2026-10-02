@@ -1413,6 +1413,16 @@ def run_img(path, moddir, pre=""):
     return t.screen()
 
 
+ANSD = tempfile.mkdtemp(prefix="hibr-ans-")
+ANSF = os.path.join(ANSD, "shot.ans")
+open(ANSF, "w").write("\x1b[0;1;38;2;255;0;0;49mRED\x1b[0;39;49m and"
+                      " more\x1b[0m\n\x1b[0;39;49mplain line two\x1b[0m\n")
+sc = run_img(ANSF, BUILT_MODS)
+check("a screenshot (.ans) opens in the viewer as the cells it was",
+      sc.find("RED and more") is not None and
+      sc.find("plain line two") is not None and
+      sc.find("┤ shot.ans ├") is not None, sc)
+shutil.rmtree(ANSD, True)
 sc = run_img(os.path.abspath("tests/img-2x2.png"), BUILT_MODS)
 check("a decodable picture is drawn, not an error message",
       sc.find("Cannot show") is None and
@@ -2706,6 +2716,13 @@ sc = run("dbase", "20 72 1 2", [c.encode() for c in "LIST"] +
          [b"\x1bx", b"\x1bv", b"\x1bv"], pre=DBPRE, end=None)
 check("dBASE's prompt cuts and pastes", sc.find(". LISTLIST") is not None, sc)
 
+SHD2 = tempfile.mkdtemp(prefix="hibr-shotfiles-")
+sc = run("files", "16 50 2 2", [b"\x1b\x07", b"\r", 0.5],
+         pre="FB_DIR=%s\nDT_SHOTDIR=%s" % (SHD2, SHD2), end=None)
+check("a screenshot shows up at once in a Files window open on its folder",
+      re.search(r"hibr-\d{4}-\d\d-\d\d-\d{6}\.ans", sc.text()) is not None, sc)
+shutil.rmtree(SHD2, True)
+
 # Restart Desktop: the desktop execs the hibr installed now in the same
 # process, and every window comes back -- a terminal's program still
 # running with its screen, an app's state from the maps it keeps.
@@ -2765,4 +2782,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(401)
+report(403)

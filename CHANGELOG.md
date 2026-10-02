@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.95
+
+**Screenshots show up and open.** A screenshot appears at once in a Files
+window open on its folder -- it waited for the folder to be left and
+entered again. An `.ans` screenshot opens in the Image Viewer, double-clicked
+in Files or from the note that announces it: the viewer plays it into a
+terminal emulator of its own and draws those cells, colours and wide
+characters exactly, in a window sized to the shot.
+
 ## 0.94
 
 **Copy and paste reach everything.** Every dialog's text field -- Rename,

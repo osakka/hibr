@@ -20,9 +20,57 @@ command -v dt_keepstate > /dev/null && dt_keepstate imgview IV
 
 fn imgview_open(int id, arg) {
 	IV[$id]["path"]=$arg
+	iv_fitans "$id"
+}
+
+# A screenshot (.ans) is cells, not pixels: it is played into a terminal
+# emulator of its own size, once, and drawn from there -- colours, wide
+# characters and all, exactly as they were. The window takes the shot's
+# size when it can.
+fn iv_ansload(int id) {
+	local path=${IV[$id]["path"]} line plain r=0 c=0 w t text=
+	local -a lines
+
+	[ -n "${IV[$id]["tm"]}" ] && return 0
+	need terminal 2> /dev/null || return 1
+	readarray -t lines < "$path" 2> /dev/null || return 1
+	for line in "${lines[@]}"; do
+		plain := rsub -g "$line" $'\e\\[[0-9;]*m' ""
+		w := str width "$plain"
+		[ "$w" -gt "$c" ] && c=$w
+		r=$((r + 1))
+	done
+	[ "$r" -gt 0 ] && [ "$c" -gt 0 ] || return 1
+	t := term new -r "$r" -c "$c"
+	for line in "${lines[@]}"; do
+		[ -n "$text" ] && text="$text"$'\r\n'
+		text="$text$line"
+	done
+	term feed "$t" "$text"
+	IV[$id]["tm"]=$t
+	IV[$id]["ar"]=$r
+	IV[$id]["ac"]=$c
+}
+
+# Size the window to a screenshot it has just been given.
+fn iv_fitans(int id) {
+	case ${IV[$id]["path"]} in *.ans) ;; *) return 0 ;; esac
+	iv_ansload "$id" || return 0
+	dt_retitle "$id" "${IV[$id]["path"]##*/}"
+	local w=$((IV[$id]["ac"] + 2))
+
+	[ "$w" -lt 30 ] && w=30
+	dt_resize "$id" $((IV[$id]["ar"] + 2)) "$w"
+}
+
+# After Restart Desktop the emulator is gone with the old process; the
+# path is kept, so it is played again on the next draw.
+fn imgview_resume(int id) {
+	IV[$id]["tm"]=
 }
 
 fn imgview_close(int? id = "") {
+	[ -n "${IV[$id]["tm"]}" ] && term close "${IV[$id]["tm"]}" 2> /dev/null
 	unset "IV[$id]"
 }
 
@@ -34,6 +82,17 @@ fn imgview_draw(int id, int h, int w, int row, int col) {
 		console put -p "w$id" $((h / 2)) 2 "Drop a picture here to open it"
 		return 0
 	fi
+	case $path in
+	*.ans)
+		if iv_ansload "$id"; then
+			term draw "${IV[$id]["tm"]}" 1 1 "$h" "$w" 0 -p "w$id"
+		else
+			console pen "$DT_BAD" "$DT_FACE"
+			console put -p "w$id" $((h / 2)) 2 "Cannot show ${path##*/}"
+		fi
+		return 0
+		;;
+	esac
 	if ! dt_has img && [ -z "${IV[$id]["tried"]}" ]; then
 		IV[$id]["tried"]=1
 		need img
@@ -59,7 +118,10 @@ fn imgview_copy(int id) {
 }
 
 fn imgview_drop(int id, int r, int c, op, ...paths) {
+	[ -n "${IV[$id]["tm"]}" ] && term close "${IV[$id]["tm"]}" 2> /dev/null
+	IV[$id]["tm"]=
 	IV[$id]["path"]=${paths[0]}
+	iv_fitans "$id"
 }
 
 imgview_menus() {

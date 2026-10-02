@@ -258,10 +258,16 @@ fn dt_shot_take(int r, int c, int h, int w) {
 		return 1
 	fi
 	DT_SHOTFILE=$f
+	dt_changed
 	dt_notify "Screenshot saved: ${f##*/}" dt_shot_show
 }
 
-# Show where the last screenshot went, in a file browser.
+# Show the last screenshot -- in the Image Viewer when it is ANSI, which
+# shows it as it was -- or else where it went, in a file browser.
 dt_shot_show() {
-	dt_has files_draw && dt_launch files "$DT_SHOTDIR"
+	if [ "${DT_SHOTFILE##*.}" = ans ] && dt_has imgview_open; then
+		dt_launch imgview "$DT_SHOTFILE"
+	elif dt_has files_draw; then
+		dt_launch files "$DT_SHOTDIR"
+	fi
 }
