@@ -36,8 +36,10 @@ dt_idle() {
 	for id in "${!DT[@]}"; do
 		[ -n "${DT[$id]["idle"]}" ] || continue
 		dt_away "$id" || dt_hidden "$id" || continue
+		DT_NOTEWIN=$id
 		${DT[$id]["idle"]} "$id"
 	done
+	DT_NOTEWIN=
 }
 
 dt_draw() {

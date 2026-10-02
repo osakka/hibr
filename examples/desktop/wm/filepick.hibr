@@ -96,7 +96,7 @@ fn fp_go(int id, d) {
 
 	while [ "${#d}" -gt 1 ] && [ "${d%/}" != "$d" ]; do d=${d%/}; done
 	if [ ! -d "$d" ] || [ ! -r "$d" ]; then
-		dt_note "Cannot open the folder $d"
+		dt_notep high "Cannot open the folder $d"
 		return 1
 	fi
 	FP[$id]["dir"]=$d
@@ -310,7 +310,7 @@ fn fp_choose(int id) {
 	fi
 	if [ "${FP[$id]["mode"]}" = open ]; then
 		if [ ! -f "$p" ]; then
-			dt_note "There is no file ${p##*/}"
+			dt_notep low "There is no file ${p##*/}"
 			return 0
 		fi
 		fp_done "$id" "$p"
@@ -325,7 +325,7 @@ fn fp_choose(int id) {
 		esac
 	fi
 	if [ ! -d "${p%/*}" ]; then
-		dt_note "There is no folder ${p%/*}"
+		dt_notep low "There is no folder ${p%/*}"
 		return 0
 	fi
 	if [ -e "$p" ]; then

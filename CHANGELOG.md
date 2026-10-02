@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.99.3
+
+**Notifications say who they are from.** The window manager marks the
+window whose app it is handling -- a key, a click, a menu item, a frame --
+and a note made meanwhile is from that app; the desktop's own are from
+Desktop, and a terminal program's are from its title. The sender is on the
+note's top border and in its own column in Notifications.
+
+**Priorities mean what they say.** Feedback on what you just did -- Record
+4 added, Wallpaper set, Not a valid name -- is low: it pops up and is not
+counted. A failure -- could not rename, cannot write -- is high.
+
+**Open Terminal Here closes on exit,** as any terminal does, instead of
+staying up to say it exited with 0. And a window that closes itself is
+taken off the screen at once, not at the next key.
+
+**The Control Panel's list sits inside its window,** its highlight a
+column in from the border and the divider, reaching the bottom border, and
+the window opens larger (26 by 70). A setting's label too long for the pane
+ends in an ellipsis instead of running into its control.
+
 ## 0.99.2
 
 **Markdown, complete: the `md` module.** CommonMark with GitHub's

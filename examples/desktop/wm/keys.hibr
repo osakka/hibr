@@ -222,7 +222,7 @@ fn dt_keytake(what, key) {
 
 	l := dt_keylabel "$what"
 	if dt_keynav "$key"; then
-		dt_note "$key moves around the Control Panel, so it cannot be a shortcut"
+		dt_notep low "$key moves around the Control Panel, so it cannot be a shortcut"
 		return 0
 	fi
 	if owner := dt_keyowner "$key" "$what"; then
@@ -254,5 +254,5 @@ fn dt_keyclear(what) {
 
 	l := dt_keylabel "$what"
 	dt_keyset "$what" ""
-	dt_note "$l has no shortcut now"
+	dt_notep low "$l has no shortcut now"
 }

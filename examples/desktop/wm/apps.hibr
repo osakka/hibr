@@ -238,5 +238,5 @@ fn dt_launch(n, arg = "") {
 # what this is, since About hibr must never be a dead menu item.
 dt_about() {
 	dt_has about_draw && { dt_launch about; return 0; }
-	dt_note "hibr $HIBR_VERSION — a desktop written in the shell it runs on"
+	dt_notep low "hibr $HIBR_VERSION — a desktop written in the shell it runs on"
 }

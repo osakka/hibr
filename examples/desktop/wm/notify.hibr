@@ -40,13 +40,41 @@ DT_NOTEPOS="${DT_NOTEPOS-top-right}"
 # Notes that have arrived since the history was last looked at: the bar's
 # dot is filled while this is above zero, hollow once it has been read.
 DT_NOTEUNSEEN=0
-# Every note has a priority. What the desktop says about what it is doing
-# -- "Workspace 2", "Copied 12 characters" -- is low; a program's own
-# notification, and anything an app reports, normal; a failure, high or
-# urgent. Only notes at DT_NOTECOUNT or above raise the bar's count, so the
+# Every note has a priority. Feedback on what you just did -- "Workspace
+# 2", "Record 4 added", "Not a valid name" -- is low, since you were looking
+# at it; something you were not watching -- a program's own notification --
+# is normal; a failure is high, and urgent is for what cannot wait. Only notes at DT_NOTECOUNT or above raise the bar's count, so the
 # count means something; every note still pops up, and still goes to the
 # history, which shows each one's priority and clears them by it.
 DT_NOTELEVELS=(low normal high urgent)
+
+# Who a note is from. The window manager marks the window whose app it is
+# handling -- a key, a click, a menu item, a frame, an idle tick -- in
+# DT_NOTEWIN, and a note made meanwhile is from that app; one made with no
+# window marked is the desktop's own. DT_NOTEFROM names a sender outright,
+# for the next note only.
+DT_NOTEWIN=
+DT_NOTEFROM=
+
+# The name a note made now is from.
+dt_notefrom() {
+	local w=$DT_NOTEWIN ap
+
+	if [ -n "$DT_NOTEFROM" ]; then
+		ret "$DT_NOTEFROM"
+		return 0
+	fi
+	if [ -n "$w" ] && [ -n "${DT[$w]["title"]}" ]; then
+		ap=${DT[$w]["app"]}
+		if [ -n "$ap" ] && [ -n "${DT_APPS[$ap]["title"]}" ]; then
+			ret "${DT_APPS[$ap]["title"]}"
+		else
+			ret "${DT[$w]["title"]}"
+		fi
+		return 0
+	fi
+	ret Desktop
+}
 DT_NOTECOUNT="${DT_NOTECOUNT-normal}"
 
 # A priority's place, 1 for low to 4 for urgent; anything else is normal.
@@ -69,6 +97,8 @@ dt_noteq() {
 	DT_NOTEQ[$id]["prio"]="$1"
 	shift
 	DT_NOTEQ[$id]["text"]="$1"
+	DT_NOTEQ[$id]["from"] := dt_notefrom
+	DT_NOTEFROM=
 	DT_NOTEQ[$id]["created"] := dt_ms
 	shift
 	for a in "$@"; do
@@ -131,6 +161,7 @@ fn dt_notehist_add(int id) {
 	DT_NOTEHIST_NEXT=$((DT_NOTEHIST_NEXT + 1))
 	DT_NOTEHIST[$hid]["text"]=${DT_NOTEQ[$id]["text"]}
 	DT_NOTEHIST[$hid]["prio"]=${DT_NOTEQ[$id]["prio"]:-normal}
+	DT_NOTEHIST[$hid]["from"]=${DT_NOTEQ[$id]["from"]:-Desktop}
 	DT_NOTEHIST[$hid]["at"] := dt_ms
 	DT_NOTEHIST_ORDER+=("$hid")
 	lv := dt_notelevel "${DT_NOTEHIST[$hid]["prio"]}"
@@ -155,7 +186,7 @@ fn dt_notehist_add(int id) {
 # point-in-rect test can never drift from what is actually on screen --
 # the same discipline dt_confirm_hit/dt_confirm_geom already follow.
 dt_note_draw() {
-	local id now age w h r c t maxw n=0 top bar
+	local id now age w h r c t maxw n=0 top bar f fw
 	local -a keep
 
 	now := dt_ms
@@ -180,7 +211,11 @@ dt_note_draw() {
 	for id in "${DT_NOTEQ_ORDER[@]}"; do
 		t=${DT_NOTEQ[$id]["text"]}
 		[ ${#t} -gt "$maxw" ] && t="${t:0:$maxw}"
+		f=${DT_NOTEQ[$id]["from"]}
+		[ ${#f} -gt $((maxw - 2)) ] && f="${f:0:$((maxw - 2))}"
 		w=$((${#t} + 4))
+		fw=$((${#f} + 6))
+		[ "$fw" -gt "$w" ] && w=$fw
 		h=3
 		case $DT_NOTEPOS in
 		*left*) c=1 ;;
@@ -204,6 +239,9 @@ dt_note_draw() {
 		bar := dt_rep $((w - 2)) "${GL[hline]}"
 		console put "$r" "$c" "${GL[tl]}$bar${GL[tr]}"
 		console put $((r + 2)) "$c" "${GL[bl]}$bar${GL[br]}"
+		console pen "$DT_INK" "$DT_FACE" bold
+		[ -n "$f" ] && console put "$r" $((c + 2)) " $f "
+		t := str pad "$t" $((w - 4))
 		console pen "$DT_INK" "$DT_FACE" bold
 		console put $((r + 1)) "$c" "${GL[vline]} $t ${GL[vline]}"
 		n=$((n + 1))

@@ -505,7 +505,7 @@ fn dt_deskdrop(int mr, int mc, op, ...rest) {
 		dt_save
 		return 0
 	fi
-	[ $# -gt 0 ] && dt_note "Drop onto Home, a disk, or the trash"
+	[ $# -gt 0 ] && dt_notep low "Drop onto Home, a disk, or the trash"
 }
 
 # The icon nearest the current one in a direction: what is that way, and of

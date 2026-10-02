@@ -1,7 +1,7 @@
 #!/usr/bin/env hibr
 #
 # notifications -- a look back at what DT_NOTEHIST kept: newest first, each
-# note's time, priority and text. Up and down select one, delete clears it,
+# note's time, priority, sender and text. Up and down select one, delete clears it,
 # and the History menu clears the low ones or all of them.
 #
 # Opened directly by the menu bar's icon (dt_bar in wm/bar.hibr, dt_mouse in
@@ -22,7 +22,7 @@ strict
 
 app notifications "A read-only look back at recent notifications"
 
-command -v dt_app > /dev/null && dt_app notifications "Notifications" 16 54 \
+command -v dt_app > /dev/null && dt_app notifications "Notifications" 16 66 \
 	once "◉" fixed hidden
 
 declare -gA NHW
@@ -59,9 +59,10 @@ fn nh_at(int i) {
 	ret "${DT_NOTEHIST_ORDER[$((n - 1 - i))]}"
 }
 
-# Newest first, each row its time, its priority and its text.
+# Newest first, each row its time, its priority, who it is from and its
+# text.
 fn notifications_draw(int id, int h, int w, int row, int col) {
-	local n i r vis top hid at t line p sel
+	local n i r vis top hid at t line p sel f
 
 	DT_NOTEUNSEEN=0
 	n=${#DT_NOTEHIST_ORDER[@]}
@@ -84,10 +85,12 @@ fn notifications_draw(int id, int h, int w, int row, int col) {
 			printf -v t "%(%H:%M)T" $((at / 1000))
 			p=${DT_NOTEHIST[$hid]["prio"]:-normal}
 			line="${DT_NOTEHIST[$hid]["text"]}"
-			[ ${#line} -gt $((w - 17)) ] && line="${line:0:$((w - 17))}"
+			[ ${#line} -gt $((w - 30)) ] && line="${line:0:$((w - 30))}"
+			f=${DT_NOTEHIST[$hid]["from"]:-Desktop}
+			f := str pad "${f:0:12}" 13
 			if [ $((top + i)) = "$sel" ] && [ "$DT_FOCUS" = "$id" ]; then
 				console pen "$DT_SELINK" "$DT_ACTIVE"
-				printf -v line '%s  %-7s %s' "$t" "$p" "$line"
+				printf -v line '%s  %-7s %s%s' "$t" "$p" "$f" "$line"
 				line := str pad "$line" $((w - 2))
 				console put -p "w$id" "$r" 1 "$line"
 			else
@@ -101,9 +104,11 @@ fn notifications_draw(int id, int h, int w, int row, int col) {
 				esac
 				printf -v p '%-7s ' "$p"
 				console put -p "w$id" "$r" 8 "$p"
+				console pen "$DT_DIM" "$DT_FACE" bold
+				console put -p "w$id" "$r" 16 "$f"
 				console pen "$DT_INK" "$DT_FACE"
-				line := str pad "$line" $((w - 17))
-				console put -p "w$id" "$r" 16 "$line"
+				line := str pad "$line" $((w - 30))
+				console put -p "w$id" "$r" 29 "$line"
 			fi
 		fi
 		i=$((i + 1))

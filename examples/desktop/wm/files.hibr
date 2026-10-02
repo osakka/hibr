@@ -50,15 +50,16 @@ fn dt_ondrop(int mr, int mc, mods) {
 		DT_DNDICON=
 		ap=${DT[$id]["drop"]}
 		if [ "${#src[@]}" = 0 ]; then
-			dt_note "Only files can be dropped on a window"
+			dt_notep low "Only files can be dropped on a window"
 			return 0
 		fi
 		if [ -z "$ap" ]; then
-			dt_note "${DT[$id]["title"]} does not take files"
+			dt_notep low "${DT[$id]["title"]} does not take files"
 			return 0
 		fi
 		wr=${DT[$id]["row"]}
 		wc=${DT[$id]["col"]}
+		DT_NOTEWIN=$id
 		$ap "$id" $((mr - wr)) $((mc - wc)) "$op" "${src[@]}"
 		return 0
 	fi
@@ -113,16 +114,16 @@ fn dt_fileop1(op, src, dst) {
 # still-single DT_NOTE, which the queue would otherwise show as both.
 fn dt_tally(int done, int bad, what, last, why, detail = "") {
 	if [ "$bad" = 0 ]; then
-		[ "$done" = 1 ] && dt_note "$what $last"
-		[ "$done" -gt 1 ] && dt_note "$what $done items${detail:+ $detail}"
+		[ "$done" = 1 ] && dt_notep low "$what $last"
+		[ "$done" -gt 1 ] && dt_notep low "$what $done items${detail:+ $detail}"
 	elif [ "$done" = 0 ]; then
 		if [ "$bad" = 1 ]; then
-			dt_note "$why"
+			dt_notep high "$why"
 		else
-			dt_note "$why, and $((bad - 1)) more could not go"
+			dt_notep high "$why, and $((bad - 1)) more could not go"
 		fi
 	else
-		dt_note "$what $done; $why"
+		dt_notep high "$what $done; $why"
 	fi
 }
 
@@ -155,8 +156,9 @@ dt_changed() {
 
 	for id in "${!DT[@]}"; do
 		cb=${DT[$id]["refresh"]}
-		[ -n "$cb" ] && $cb "$id"
+		[ -n "$cb" ] && DT_NOTEWIN=$id && $cb "$id"
 	done
+	DT_NOTEWIN=
 	dt_has dt_deskscan && dt_deskscan
 	return 0
 }
@@ -281,13 +283,13 @@ fn dt_edit(op) {
 			dt_clipset "$t" copy paths
 			dt_notep low "Copied the paths of what is selected"
 		else
-			dt_note "No file is selected"
+			dt_notep low "No file is selected"
 		fi
 		return 0
 	fi
 	cb=${DT[$DT_FOCUS]["$op"]}
 	if [ -z "$cb" ]; then
-		dt_note "${DT[$DT_FOCUS]["title"]} cannot $op"
+		dt_notep low "${DT[$DT_FOCUS]["title"]} cannot $op"
 		return 0
 	fi
 	if [ "$op" = paste ]; then
@@ -296,7 +298,7 @@ fn dt_edit(op) {
 	fi
 	DT_CLIPKIND=text
 	if ! t := $cb "$DT_FOCUS" || [ -z "$t" ]; then
-		dt_note "Nothing is selected"
+		dt_notep low "Nothing is selected"
 		return 0
 	fi
 	dt_clipset "$t" "$op" "$DT_CLIPKIND"

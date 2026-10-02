@@ -599,7 +599,7 @@ fn dbase_formsave(int id) {
 		int)
 			[ -z "$v" ] && v=0
 			if ! match "$v" '^-?[0-9]+$'; then
-				dt_note "${DBA[$id]["c$i"]} is a whole number"
+				dt_notep low "${DBA[$id]["c$i"]} is a whole number"
 				DBA[$id]["ff"]=$i
 				return 0
 			fi
@@ -607,7 +607,7 @@ fn dbase_formsave(int id) {
 		float)
 			[ -z "$v" ] && v=0
 			if ! match "$v" '^-?([0-9]+[.]?[0-9]*|[.][0-9]+)$'; then
-				dt_note "${DBA[$id]["c$i"]} is a number"
+				dt_notep low "${DBA[$id]["c$i"]} is a number"
 				DBA[$id]["ff"]=$i
 				return 0
 			fi
@@ -618,10 +618,10 @@ fn dbase_formsave(int id) {
 	done
 	if db insert "${DBA[$id]["h"]}" "${vals[@]}" 2> /dev/null; then
 		n := db size "${DBA[$id]["h"]}"
-		dt_note "Record $n added"
+		dt_notep low "Record $n added"
 		dbase_formreset "$id"
 	else
-		dt_note "The record could not be added"
+		dt_notep high "The record could not be added"
 	fi
 }
 

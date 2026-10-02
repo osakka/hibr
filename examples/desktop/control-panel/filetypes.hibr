@@ -267,12 +267,12 @@ fn ft_apply(int id) {
 	ext=${FT[$id]["extbuf"]}
 	ext=${ext#.}
 	if [ -z "$ext" ]; then
-		dt_note "Needs an extension"
+		dt_notep low "Needs an extension"
 		return 0
 	fi
 	cmd=${FT[$id]["cmdbuf"]}
 	if [ -z "$cmd" ]; then
-		dt_note "Needs a command"
+		dt_notep low "Needs a command"
 		return 0
 	fi
 	orig=${FT[$id]["orig"]}

@@ -97,6 +97,7 @@ dt_mouse() {
 		ww=${DT[$id]["w"]}
 		wh=${DT[$id]["h"]}
 		ap=${DT[$id]["click"]}
+		DT_NOTEWIN=$id
 		if [ "${DT_APPS[${DT[$id]["app"]}]["fixed"]}" != 1 ]; then
 			# Any of the four corners starts a resize, the opposite one
 			# anchored: captured once, here, since the window's own row
@@ -263,6 +264,7 @@ dt_mouse() {
 		# wherever the pointer goes, until the button comes up.
 		if [ -n "$DT_MOUSE" ]; then
 			id=$DT_MOUSE
+			DT_NOTEWIN=$id
 			mo=${DT[$id]["mouse"]}
 			wr=${DT[$id]["row"]}
 			wc=${DT[$id]["col"]}
@@ -378,6 +380,7 @@ dt_mouse() {
 		id=${id#w}
 		ap=${DT[$id]["wheel"]}
 		[ -z "$ap" ] && return 0
+		DT_NOTEWIN=$id
 		wr=${DT[$id]["row"]}
 		wc=${DT[$id]["col"]}
 		$ap "$id" "${act#wheel}" $((mr - wr)) $((mc - wc))
@@ -393,6 +396,7 @@ dt_mouse() {
 fn dt_event(k) {
 	local an knorm qn cn cln dn sn ev
 
+	DT_NOTEWIN=
 	case $k in
 	"mouse drag "*) DT_LASTDRAG=1; DT_LASTMOVE=1 ;;
 	"mouse wheel"*) DT_LASTDRAG=0; DT_LASTMOVE=1 ;;
@@ -503,6 +507,7 @@ fn dt_event(k) {
 	# window's, so a terminal still gets ctrl-s.
 	if [ -n "$DT_FOCUS" ] && [ -n "${DT[$DT_FOCUS]["savefile"]}" ] &&
 	   dt_keyis save "$k"; then
+		DT_NOTEWIN=$DT_FOCUS
 		${DT[$DT_FOCUS]["savefile"]} "$DT_FOCUS"
 		return 0
 	fi
@@ -515,6 +520,7 @@ fn dt_event(k) {
 	"paste "*)
 		dt_clipset "${k#paste }" copy text 0
 		if [ -n "$DT_FOCUS" ] && [ -n "${DT[$DT_FOCUS]["paste"]}" ]; then
+			DT_NOTEWIN=$DT_FOCUS
 			${DT[$DT_FOCUS]["paste"]} "$DT_FOCUS" "${k#paste }"
 			return 0
 		fi
@@ -530,9 +536,11 @@ fn dt_event(k) {
 		return 0
 	fi
 	if [ -n "$DT_FOCUS" ] && [ -n "${DT[$DT_FOCUS]["key"]}" ]; then
+		DT_NOTEWIN=$DT_FOCUS
 		if ${DT[$DT_FOCUS]["key"]} "$DT_FOCUS" "$k"; then
 			return 0
 		fi
+		DT_NOTEWIN=
 	fi
 	if [ -z "$DT_FOCUS" ] && [ "$DT_ICONS" = 1 ] && dt_iconkey "$k"; then
 		return 0

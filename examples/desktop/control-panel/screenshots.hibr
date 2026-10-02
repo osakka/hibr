@@ -50,11 +50,11 @@ fn shotdir_ok(int id) {
 
 	case $d in "~") d=$HOME ;; "~/"*) d="$HOME/${d#"~/"}" ;; esac
 	if [ -z "$d" ]; then
-		dt_note "A folder is needed"
+		dt_notep low "A folder is needed"
 		return 0
 	fi
 	if [ ! -d "$d" ] && ! mkdir -p "$d" 2> /dev/null; then
-		dt_note "$d cannot be made"
+		dt_notep high "$d cannot be made"
 		return 0
 	fi
 	DT_SHOTDIR=$d

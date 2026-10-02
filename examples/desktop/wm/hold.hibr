@@ -125,7 +125,7 @@ fn dt_autohold(base, int resume, int join, dname) {
 # this one opens.
 dt_detach() {
 	if [ -z "$HIBR_HOLD" ]; then
-		dt_note "Not held -- nothing to detach from"
+		dt_notep low "Not held -- nothing to detach from"
 		return 1
 	fi
 	need hold && hold detach

@@ -382,7 +382,7 @@ fn wp_apply(int id) {
 	[ -n "${WPK[$id]["previewfor"]}" ] || return 0
 	DT_WALLIMG=${WPK[$id]["previewfor"]}
 	command -v dt_save > /dev/null && dt_save
-	command -v dt_note > /dev/null && dt_note "Wallpaper set"
+	command -v dt_note > /dev/null && dt_notep low "Wallpaper set"
 }
 
 # A click selects a row; a second click on the same, already-selected row

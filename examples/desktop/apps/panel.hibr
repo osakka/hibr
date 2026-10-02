@@ -13,7 +13,7 @@ strict
 
 app panel "Control Panel, a picker of panes, and the window list"
 
-command -v dt_app > /dev/null && dt_app panel "Control Panel" 22 58 once "≡"
+command -v dt_app > /dev/null && dt_app panel "Control Panel" 26 70 once "≡"
 
 # Where to find panes beyond the bundled ones -- an array, so a session can
 # add its own the same way DT_APPDIRS already works for apps. The bundled
@@ -93,8 +93,8 @@ declare -gA CP
 # How wide the pane list is, and how much is left for the selected pane's
 # own content once the divider is taken out of it too. The divider can be
 # dragged (widgets/split.hibr), and where it was left is kept.
-CP_LISTW="${CP_LISTW-17}"
-command -v dt_keep > /dev/null && dt_keep CP_LISTW
+CP_DIVCOL="${CP_DIVCOL-19}"
+command -v dt_keep > /dev/null && dt_keep CP_DIVCOL
 
 fn panel_open(int w, arg) {
 	PW[$w]["pane"]=0
@@ -145,7 +145,7 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 	local -a lines
 
 	dt_wclear "$id"
-	lw := dt_split CP_LISTW "$w" 8
+	lw := dt_split CP_DIVCOL "$w" 8
 	PW[$id]["lw"]=$lw
 	PW[$id]["w"]=$w
 	side=${PW[$id]["side"]}
@@ -157,7 +157,7 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 	# the wheel puts the list where it likes.
 	sel=${PW[$id]["pane"]}
 	lt=${PW[$id]["ltop"]:-0}
-	vis=$((h - 1))
+	vis=$h
 	i=0
 	g=
 	for n in "${CP_PANE_LIST[@]}"; do
@@ -181,7 +181,7 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 	PW[$id]["lvis"]=$vis
 	PW[$id]["ln"]=${#lines[@]}
 	r=1
-	while [ "$r" -lt "$h" ]; do
+	while [ "$r" -le "$h" ]; do
 		t=${lines[$((lt + r - 1))]}
 		case $t in
 		h:*)
@@ -191,9 +191,9 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 			app) t=Apps ;;
 			*) t=Desktop ;;
 			esac
-			t := str pad " $t" $((lw - 1))
-			t=${t:0:$lw}
-			console put -p "w$id" "$r" 0 "$t"
+			t := str pad "$t" $((lw - 3))
+			t=${t:0:$((lw - 3))}
+			console put -p "w$id" "$r" 2 "$t"
 			;;
 		p:*)
 			i=${t#p:}
@@ -207,11 +207,11 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 			else
 				console pen "$DT_INK" "$DT_FACE"
 			fi
-			t := str pad "  ${CP_PANES[$n]["icon"]} ${CP_PANES[$n]["title"]}" \
-				$((lw - 1))
-			t=${t:0:$lw}
-			console put -p "w$id" "$r" 0 "$t"
-			dt_wreg "$id" "$r" 0 $((lw - 1)) "pane:$i"
+			t := str pad " ${CP_PANES[$n]["icon"]} ${CP_PANES[$n]["title"]}" \
+				$((lw - 3))
+			t=${t:0:$((lw - 3))}
+			console put -p "w$id" "$r" 2 "$t"
+			dt_wreg "$id" "$r" 1 $((lw - 1)) "pane:$i"
 			;;
 		*)
 			console pen "$DT_INK" "$DT_FACE"
@@ -221,7 +221,7 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 		esac
 		r=$((r + 1))
 	done
-	dt_splitbar "$id" "$lw" 1 $((h - 1)) "${PW[$id]["split"]:-0}"
+	dt_splitbar "$id" "$lw" 1 "$h" "${PW[$id]["split"]:-0}"
 	# The list's own bar, on the divider rather than over the list, so the
 	# titles keep every column.
 	dt_scrollbar "$id" 1 "$lw" "$vis" "${#lines[@]}" "$vis" "$lt"
@@ -291,14 +291,19 @@ fn cp_rowsdraw(int id, pane, int h, int w, int bx) {
 			else
 				console pen "$DT_INK" "$DT_FACE"
 			fi
-			t := str pad "  $t" $((w - 12))
+			t="  $t"
+			[ "${#t}" -gt $((w - 13)) ] && t="${t:0:$((w - 14))}${GL[ellipsis]}"
+			t := str pad "$t" $((w - 12))
 			# A "set" row's value is drawn as a widget below, in the
 			# same pen, rather than appended to this string -- a real
 			# checkbox or a dropdown caret instead of on/off text. A
 			# shortcut's leaves room for the ✕ that clears it.
 			if [ "$kind" = key ]; then
 				kv=$v
-				t := str pad "  ${CP[$id][$i]["text"]}" $((w - 15))
+				t="  ${CP[$id][$i]["text"]}"
+				[ "${#t}" -gt $((w - 16)) ] &&
+					t="${t:0:$((w - 17))}${GL[ellipsis]}"
+				t := str pad "$t" $((w - 15))
 				v := str pad "$v" 11
 				t="$t$v"
 			elif [ "$kind" != set ]; then
@@ -484,7 +489,7 @@ fn panel_key(int w, key) {
 fn panel_click(int w, int r, int c, btn = "") {
 	local pane i n top tag k wc
 
-	if [ "$c" -lt "${PW[$w]["lw"]:-$CP_LISTW}" ]; then
+	if [ "$c" -lt "${PW[$w]["lw"]:-$CP_DIVCOL}" ]; then
 		tag := dt_hit "$w" "$r" "$c"
 		case $tag in pane:*) ;; *) return 0 ;; esac
 		PW[$w]["pane"]=${tag#pane:}
@@ -557,7 +562,7 @@ fn panel_mouse(int id, act, button, int r, int c, mods) {
 	local pane
 
 	if [ "${PW[$id]["split"]}" = 1 ]; then
-		dt_splitmove CP_LISTW "$c" "${PW[$id]["w"]:-40}" 8
+		dt_splitmove CP_DIVCOL "$c" "${PW[$id]["w"]:-40}" 8
 		if [ "$act" = release ]; then
 			PW[$id]["split"]=
 			cp_save
@@ -571,7 +576,7 @@ fn panel_mouse(int id, act, button, int r, int c, mods) {
 			return 0
 		fi
 		pane := panel_pane "$id"
-		if [ "$c" -ge "${PW[$id]["lw"]:-$CP_LISTW}" ] && [ -n "$pane" ] &&
+		if [ "$c" -ge "${PW[$id]["lw"]:-$CP_DIVCOL}" ] && [ -n "$pane" ] &&
 		   dt_has "${pane}_mouse" &&
 		   "${pane}_mouse" "$id" press "$button" "$r" "$c"; then
 			CP_MDRAG[$id]=$pane
@@ -589,7 +594,7 @@ fn panel_wheel(int? w = "", dir = "", int? r = "", int? c = "") {
 	local top max n vis pane
 
 	# Each side scrolls on its own, whichever the pointer is over.
-	if [ -n "$c" ] && [ "$c" -lt "${PW[$w]["lw"]:-$CP_LISTW}" ]; then
+	if [ -n "$c" ] && [ "$c" -lt "${PW[$w]["lw"]:-$CP_DIVCOL}" ]; then
 		top=${PW[$w]["ltop"]:-0}
 		max=$((${PW[$w]["ln"]:-0} - ${PW[$w]["lvis"]:-1}))
 		case $dir in

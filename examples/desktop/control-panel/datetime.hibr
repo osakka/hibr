@@ -328,7 +328,7 @@ fn dtf_save(int id) {
 		cp_save
 		dt_del "$id"
 	else
-		dt_note "$DTP_WHY"
+		dt_notep high "$DTP_WHY"
 	fi
 }
 
@@ -382,7 +382,7 @@ dtp_run() {
 	dt_launch term && return 0
 	DT_OPENCMD=()
 	DT_OPENSELF=
-	dt_note "No terminal app to run it in"
+	dt_notep low "No terminal app to run it in"
 }
 
 # --- the time zone ---------------------------------------------------------
@@ -489,7 +489,7 @@ fn dtz_set(int id) {
 
 	dtz_match "$id"
 	z=${DTZ_HIT[${DTZ[$id]["sel"]}]}
-	[ -z "$z" ] && { dt_note "No zone matches"; return 0; }
+	[ -z "$z" ] && { dt_notep low "No zone matches"; return 0; }
 	dt_del "$id"
 	dtp_zoneset "$z"
 }
@@ -641,10 +641,10 @@ fn dts_apply(int? id = "") {
 	d=${DTS[$id]["dbuf"]}
 	t=${DTS[$id]["tbuf"]}
 	match "$d" '^([0-9]{4})-([0-9]{2})-([0-9]{2})$' ||
-		{ dt_note "The date is YYYY-MM-DD"; return 0; }
+		{ dt_notep low "The date is YYYY-MM-DD"; return 0; }
 	y=${M[1]}; mo=${M[2]}; dy=${M[3]}
 	match "$t" '^([0-9]{2}):([0-9]{2})(:([0-9]{2}))?$' ||
-		{ dt_note "The time is HH:MM or HH:MM:SS"; return 0; }
+		{ dt_notep low "The time is HH:MM or HH:MM:SS"; return 0; }
 	hh=${M[1]}; mi=${M[2]}; ss=${M[4]:-00}
 	dt_del "$id"
 	if command -v timedatectl > /dev/null; then

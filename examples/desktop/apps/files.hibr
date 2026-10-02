@@ -914,7 +914,7 @@ fn rn_commit(int id) {
 	old=${RN[$id]["path"]}
 	if [ -z "$name" ] || [ "$name" = "." ] || [ "$name" = ".." ] ||
 	   [ "${name#*/}" != "$name" ]; then
-		dt_note "Not a valid name"
+		dt_notep low "Not a valid name"
 		return 0
 	fi
 	new="$dir/$name"
@@ -923,14 +923,14 @@ fn rn_commit(int id) {
 		return 0
 	fi
 	if [ -e "$new" ] || [ -L "$new" ]; then
-		dt_note "${dir##*/} already has a $name"
+		dt_notep low "${dir##*/} already has a $name"
 		return 0
 	fi
 	if command mv -- "$old" "$new" 2>> "$DT_LOG"; then
 		dt_del "$id"
 		dt_changed
 	else
-		dt_note "Could not rename it"
+		dt_notep high "Could not rename it"
 	fi
 }
 
@@ -1084,7 +1084,7 @@ fn gi_chmod(int id) {
 	if command chmod "$u$g$o" -- "${GI[$id]["path"]}" 2>> "$DT_LOG"; then
 		dt_changed
 	else
-		dt_note "Could not change permissions"
+		dt_notep high "Could not change permissions"
 	fi
 }
 
@@ -1141,14 +1141,14 @@ fn gi_apply(int? id = "") {
 		new="$dir/$name"
 		if [ "$new" != "$old" ]; then
 			if [ -e "$new" ] || [ -L "$new" ]; then
-				dt_note "${dir##*/} already has a $name"
+				dt_notep low "${dir##*/} already has a $name"
 				ok=0
 			elif command mv -- "$old" "$new" 2>> "$DT_LOG"; then
 				old=$new
 				GI[$id]["path"]=$new
 				dt_changed
 			else
-				dt_note "Could not rename it"
+				dt_notep high "Could not rename it"
 				ok=0
 			fi
 		fi
@@ -1160,7 +1160,7 @@ fn gi_apply(int? id = "") {
 		if command chown "$own:$grp" -- "$old" 2>> "$DT_LOG"; then
 			dt_changed
 		else
-			dt_note "Could not change owner or group"
+			dt_notep high "Could not change owner or group"
 			ok=0
 		fi
 	fi
@@ -1568,10 +1568,10 @@ fn fb_pastetext(int id, text) {
 		i=$((i + 1))
 	done
 	if printf '%s\n' "$text" 2> /dev/null > "$f"; then
-		dt_note "Pasted as ${f##*/}"
+		dt_notep low "Pasted as ${f##*/}"
 		files_refresh "$id"
 	else
-		dt_note "Cannot write in ${dir##*/}"
+		dt_notep high "Cannot write in ${dir##*/}"
 	fi
 }
 
@@ -1711,7 +1711,7 @@ fn ow_draw(int id, int h, int w, int row, int col) {
 
 fn ow_go(int id) {
 	if [ -z "${OW[$id]["buf"]// /}" ]; then
-		dt_note "A command is needed"
+		dt_notep low "A command is needed"
 		return 0
 	fi
 	dt_openwithcmd "${OW[$id]["buf"]}" "${OW[$id]["path"]}"

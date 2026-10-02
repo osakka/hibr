@@ -195,7 +195,8 @@ fn term_draw(int id, int h, int w, int row, int col) {
 			TW[$id]["fd"]=
 		fi
 		st := term status "$t"
-		if [ "$st" = 0 ] && [ "${TW[$id]["selfrun"]}" != 1 ]; then
+		if [ "$st" = 0 ] && { [ "${TW[$id]["selfrun"]}" != 1 ] ||
+		   [ "${TW[$id]["shell"]}" = 1 ]; }; then
 			dt_wantclose "$id"
 			return 0
 		fi
@@ -239,7 +240,8 @@ fn term_draw(int id, int h, int w, int row, int col) {
 		ttl=${note%%$'\t'*}
 		note=${note#*$'\t'}
 		[ -n "$ttl" ] || ttl=${DT[$id]["title"]#${GL[bullet]} }
-		dt_notify "$ttl: $note" dt_raise "$id"
+		DT_NOTEFROM=$ttl
+		dt_notify "$note" dt_raise "$id"
 		console notify "$ttl: $note"
 	done
 	[ "$DT_FOCUS" = "$id" ] && cur=1
@@ -343,10 +345,10 @@ fn term_mouse(int id, act, btn, int r, int c, mods) {
 fn term_passall(int id) {
 	if [ "${TW[$id]["passall"]}" = 1 ]; then
 		TW[$id]["passall"]=
-		dt_note "This window: desktop shortcuts work again"
+		dt_notep low "This window: desktop shortcuts work again"
 	else
 		TW[$id]["passall"]=1
-		dt_note "This window: every key goes to the program"
+		dt_notep low "This window: every key goes to the program"
 	fi
 }
 
@@ -421,7 +423,9 @@ fn term_open(int id, arg) {
 		DT_OPENCMD=()
 	fi
 	TW[$id]["selfrun"]=$DT_OPENSELF
+	TW[$id]["shell"]=$DT_OPENSHELL
 	DT_OPENSELF=
+	DT_OPENSHELL=
 	if [ -n "$arg" ]; then
 		command -v dt_retitle > /dev/null &&
 			dt_retitle "$id" "Terminal [${arg##*/}]"

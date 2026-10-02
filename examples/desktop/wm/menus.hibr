@@ -55,6 +55,7 @@ fn dt_menu(title) {
 	MB[$MB_N]["n"]=0
 	MB[$MB_N]["w"]=0
 	MB[$MB_N]["bar"]=1
+	MB[$MB_N]["own"]=
 	MB_CUR=$MB_N
 	MB_N=$((MB_N + 1))
 }
@@ -198,7 +199,12 @@ dt_menus() {
 	MB_APP=$ap
 	MB_EDITED=0
 	if [ -n "$ap" ] && dt_has "${ap}_menus"; then
+		local m0=$MB_N
 		${ap}_menus
+		while [ "$m0" -lt "$MB_N" ]; do
+			MB[$m0]["own"]=$DT_FOCUS
+			m0=$((m0 + 1))
+		done
 	fi
 	[ "$MB_EDITED" = 1 ] || dt_editmenu
 
@@ -326,6 +332,7 @@ fn dt_editdo(op) {
 		dt_notep low "${DT[$DT_FOCUS]["title"]} cannot $op"
 		return 0
 	fi
+	DT_NOTEWIN=$DT_FOCUS
 	$cb "$DT_FOCUS" || dt_notep low "Nothing to $op"
 	return 0
 }
@@ -671,7 +678,9 @@ dt_mdo() {
 		argv+=("${MI[$m][$i]["a$j"]}")
 		j=$((j + 1))
 	done
+	DT_NOTEWIN=${MB[$m]["own"]}
 	[ "$argc" -gt 0 ] && "${argv[@]}"
+	DT_NOTEWIN=
 }
 
 # Is a click inside the open menu?  Sets the highlight if it is.

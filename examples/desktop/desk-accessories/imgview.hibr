@@ -133,12 +133,12 @@ fn imgview_setwall(int id) {
 	local path=${IV[$id]["path"]}
 
 	if [ -z "$path" ]; then
-		dt_note "No picture open to set as wallpaper"
+		dt_notep low "No picture open to set as wallpaper"
 		return 0
 	fi
 	DT_WALLIMG=$path
 	dt_save
-	dt_note "Wallpaper set"
+	dt_notep low "Wallpaper set"
 }
 
 if [ -z "$DT_ROWS" ] && [ -n "$1" ]; then

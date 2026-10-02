@@ -570,7 +570,7 @@ sc = t.screen()
 check("the menu bar's own bell opens the notification history",
       sc.find("┤ Notifications ├") is not None, sc)
 check("and it lists a note already shown, timestamped",
-      re.search(r"\d\d:\d\d  normal  Remembered", sc.text()) is not None, sc)
+      re.search(r"\d\d:\d\d  normal  Desktop\s+Remembered", sc.text()) is not None, sc)
 t.quit(None, 1.0)
 shutil.rmtree(BELL, True)
 
@@ -2081,16 +2081,36 @@ t, d = dotrun('dt_notep high "Disk full"\ndt_notep low "Workspace 2"\n'
               'dt_note "Build done"', keys=[press(0, COLS - 24)])
 sc = t.screen()
 hist = sc.text()
-check("the history shows each note's priority beside it",
-      re.search(r"\d\d:\d\d  normal  Build done", hist) and
-      re.search(r"\d\d:\d\d  low     Workspace 2", hist) and
-      re.search(r"\d\d:\d\d  high    Disk full", hist), sc)
+check("the history shows each note's priority beside it, and who sent it",
+      re.search(r"\d\d:\d\d  normal  Desktop\s+Build done", hist) and
+      re.search(r"\d\d:\d\d  low     Desktop\s+Workspace 2", hist) and
+      re.search(r"\d\d:\d\d  high    Desktop\s+Disk full", hist), sc)
 t.keys([b"\x1b[B", b"\x1b[3~"], settle=0.4)
 sc = t.screen()
 hist = "\n".join(sc.row(r)[:54] for r in range(2, 8))
 check("delete clears the selected note and leaves the rest",
       "Workspace 2" not in hist and "Build done" in hist and
       "Disk full" in hist, sc)
+t.quit(None, 0.5); shutil.rmtree(d, True)
+# A note says who it is from: the app whose window the desktop was
+# handling when it was made, in the note's top border and in the history.
+NOTER = ('noter_key() { dt_note "Made by the app"; }\n'
+         'dt_app noter "Noter" 6 24\ndt_launch noter\n')
+t, d = dotrun(NOTER, keys=[b"x"])
+sc = t.screen()
+r = sc.find("Made by the app")
+check("a note made in an app's key handler is from that app, on its border",
+      r is not None and "Noter" in sc.row(r[0] - 1), sc)
+t.keys([press(0, COLS - 24)], settle=0.6)
+check("and the history says so too",
+      re.search(r"normal  Noter\s+Made by the app", t.screen().text()),
+      t.screen())
+t.quit(None, 0.5); shutil.rmtree(d, True)
+t, d = dotrun('dt_note "On its own"')
+sc = t.screen()
+r = sc.find("On its own")
+check("one the desktop makes on its own is from the Desktop",
+      r is not None and "Desktop" in sc.row(r[0] - 1), sc)
 t.quit(None, 0.5); shutil.rmtree(d, True)
 t, d = dotrun('dt_notep high "Disk full"\ndt_notep low "Workspace 2"\n'
               'dt_notep low "Copied"\ndt_note "Build done"',
@@ -2813,4 +2833,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(391)
+report(394)

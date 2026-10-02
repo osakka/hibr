@@ -131,7 +131,7 @@ kept=$( (grep -rhoE 'dt_keep( [A-Z_][A-Z0-9_]*)+' examples/desktop \
           tr -d '()' | sed 's/DT_KEEP=//') | tr ' \t' '\n\n' |
         grep -E '^[A-Z_][A-Z0-9_]*$' | sort -u)
 for v in $kept; do
-  case $v in CS_Y | CS_LEN | CS_COLLAPSED | CP_LISTW | FP_LISTW | WPK_DIR | DT_SETVER) continue ;; esac
+  case $v in CS_Y | CS_LEN | CS_COLLAPSED | CP_DIVCOL | FP_LISTW | WPK_DIR | DT_SETVER) continue ;; esac
   grep -qw "$v" $panes || echo "kept but in no Control Panel pane: $v"
 done
 echo "every kept preference is in the Control Panel"

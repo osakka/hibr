@@ -36,7 +36,10 @@ fn dt_new(title, int h, int w, int row, int col, ap = "", arg = "") {
 	DT_NEXT=$((DT_NEXT + 1))
 	console pane "w$id" "$row" "$col" "$h" "$w"
 	DT_FOCUS=$id
+	local nw=$DT_NOTEWIN
+	DT_NOTEWIN=$id
 	[ -n "${DT[$id]["open"]}" ] && ${DT[$id]["open"]} "$id" "$arg"
+	DT_NOTEWIN=$nw
 	dt_tile
 	ret "$id"
 }
@@ -60,7 +63,9 @@ fn dt_hooks(int id, ap = "") {
 fn dt_del(int id) {
 	local ws=${DT[$id]["ws"]:-1}
 
+	DT_NOTEWIN=$id
 	[ -n "${DT[$id]["close"]}" ] && ${DT[$id]["close"]} "$id"
+	DT_NOTEWIN=
 	console pane drop "w$id"
 	unset "DT[$id]"
 	if [ "$DT_FOCUS" = "$id" ]; then
@@ -80,12 +85,17 @@ fn dt_wantclose(int id) {
 	DT[$id]["autoclose"]=1
 }
 
-# Close whatever asked to be, once the frame it asked in is fully drawn.
+# Close whatever asked to be, once the frame it asked in is fully drawn,
+# and ask for one more frame without it -- nothing else may be coming to
+# wake the desktop, and the closed window would stay on the screen.
 dt_autoclose() {
 	local id
 
 	for id in "${!DT[@]}"; do
-		[ -n "${DT[$id]["autoclose"]}" ] && dt_del "$id"
+		if [ -n "${DT[$id]["autoclose"]}" ]; then
+			dt_del "$id"
+			dt_want 1
+		fi
 	done
 }
 
@@ -276,7 +286,7 @@ fn dt_snap(int id, dir) {
 	else
 		if [ "$dir" != center ] &&
 		   [ "${DT_APPS[${DT[$id]["app"]}]["fixed"]}" = 1 ]; then
-			dt_note "${DT[$id]["title"]} keeps its size; it can only be centred"
+			dt_notep low "${DT[$id]["title"]} keeps its size; it can only be centred"
 			return 0
 		fi
 		if [ -z "${DT[$id]["snap"]}" ]; then
@@ -350,6 +360,7 @@ dt_close_focused() { [ -n "$DT_FOCUS" ] && dt_closereq "$DT_FOCUS"; }
 fn dt_closereq(int id) {
 	local cb=${DT[$id]["canclose"]}
 
+	DT_NOTEWIN=$id
 	if [ -n "$cb" ] && ! $cb "$id"; then
 		return 0
 	fi

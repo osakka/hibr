@@ -25,7 +25,7 @@ fn dt_context_open(who, id, int r, int c) {
 # the hibr menu dt_menus just built, rather than building anything of its
 # own.
 dt_ctxbuild() {
-	local before who=$MB_CTXWHO
+	local before who=$MB_CTXWHO k
 
 	[ -z "$who" ] && return 0
 	case $who in
@@ -40,6 +40,11 @@ dt_ctxbuild() {
 		fi
 		before=$MB_N
 		"${who}_context" "$MB_CTXID"
+		k=$before
+		while [ "$k" -lt "$MB_N" ]; do
+			MB[$k]["own"]=$MB_CTXID
+			k=$((k + 1))
+		done
 		;;
 	esac
 	if [ "$MB_N" = "$before" ]; then

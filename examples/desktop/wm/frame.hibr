@@ -86,7 +86,9 @@ fn dt_winbare(int id) {
 
 	console pen "$fg" "$bg"
 	console fill "$wr" "$wc" "$h" "$w" " "
+	DT_NOTEWIN=$id
 	[ -n "$dr" ] && $dr "$id" $((h - 2)) $((w - 2)) "$wr" "$wc"
+	DT_NOTEWIN=
 	console pen "$fg" "$bg"
 	t := str repeat " " "$w"
 	console put -p "w$id" 0 0 "$t"
@@ -128,7 +130,9 @@ fn dt_win(int id) {
 	[ "$DT_FOCUS" = "$id" ] && on=$DT_ACTIVE
 	console pen "$DT_INK" "$DT_FACE"
 	console fill "$wr" "$wc" "$h" "$w" " "
+	DT_NOTEWIN=$id
 	[ -n "$dr" ] && $dr "$id" $((h - 2)) $((w - 2)) "$wr" "$wc"
+	DT_NOTEWIN=
 
 	# None is a blank frame, not no frame: the ring of border glyphs is
 	# left undrawn -- no corners, no sides, no grow box -- but the title

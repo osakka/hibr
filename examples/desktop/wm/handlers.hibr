@@ -61,6 +61,11 @@ DT_OPENCMD=()
 # clean exit so there is something to read rather than a flash and gone.
 DT_OPENSELF=
 
+# Set with DT_OPENSELF when what runs is an interactive shell -- Open
+# Terminal Here -- whose window closes on a clean exit like any terminal's,
+# since there is no output left to read once someone has typed exit.
+DT_OPENSHELL=
+
 # Run a registered handler on a path.
 fn dt_runhandler(ext, path) {
 	local n i=0
@@ -131,7 +136,7 @@ fn dt_openfile(path) {
 				dt_openfile_confirmed
 		fi
 	else
-		dt_note "Nothing here opens ${path##*/}"
+		dt_notep low "Nothing here opens ${path##*/}"
 	fi
 }
 
@@ -273,6 +278,7 @@ fn dt_termhere(dir) {
 	[ "$sh" = hibr ] && sh=${HIBR:-hibr}
 	DT_OPENCMD=("${HIBR:-hibr}" -c 'cd -- "$1" && exec "$2"' termhere "$dir" "$sh")
 	DT_OPENSELF=1
+	DT_OPENSHELL=1
 	dt_launch term "$dir"
 }
 

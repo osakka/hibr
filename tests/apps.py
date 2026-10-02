@@ -296,21 +296,21 @@ check("Hardware first, then the desktop's own panes, then one per app",
       [GROUP[n] for n in ORDER] ==
       ["hardware"] * 4 + ["system"] * 8 + ["app"] * 5, out)
 
-PW = "22 58 2 2"
+PW = "22 70 2 2"
 PANEL = ("panel", PW)
 TICK = "DT_TICK=200"
 CPANES = 'CP_PANEDIRS+=("%s")\ncp_panes' % CP
 
 # Absolute screen coordinates for PW's geometry (row 2, col 2): a pane's
 # own first content row is at 3, its dropdown/checkbox column at 47 --
-# derived once here from CP_LISTW and the window's body width, rather than
+# derived once here from CP_DIVCOL and the window's body width, rather than
 # copied by eye into every check below. BODYCOL is a body-shape pane's own
-# left content column (CP_LISTW + 1, plus the window's own left edge) --
+# left content column (CP_DIVCOL + 1, plus the window's own left edge) --
 # where Wallpaper's own file list starts, not LISTCOL, which is the
 # picker's own sidebar column to its left.
-R0, VALCOL = 3, 47
+R0, VALCOL = 3, 59
 LISTCOL = 5
-BODYCOL = 20
+BODYCOL = 22
 TITLE = {"appearance": "Appearance", "control_strip": "Control Strip",
          "cliphist": "Clipboard", "notes": "Stickies",
          "datetime": "Date & Time", "desktop": "Desktop",
@@ -413,9 +413,9 @@ check("under a Hardware heading, then Desktop, then Apps",
       "Hardware" in sc.row(R0) and
       "Desktop" in sc.row(prow("appearance") - 1) and
       "Apps" in sc.row(prow("abouthibr") - 1), sc)
-check("a list longer than the window scrolls, with a bar to say so",
-      sc.find("Hardware") is not None and "█" in "".join(
-          r[2:20] for r in sc.text().split("\n")), sc)
+check("at full height every pane fits, down to the bottom border, no bar",
+      sc.find("Hardware") is not None and sc.find(TITLE["taskmgr"]) is not None
+      and "█" not in "".join(r[2:22] for r in sc.text().split("\n")), sc)
 
 
 # The list and the pane beside it scroll on their own, each with its own
@@ -423,7 +423,7 @@ check("a list longer than the window scrolls, with a bar to say so",
 # view, and the wheel over the list scrolls the list alone.
 def shortcp(feed):
     d = tempfile.mkdtemp(prefix="hibr-cp-")
-    sc = run(PANEL[0], "12 58 2 2", feed=feed,
+    sc = run(PANEL[0], "12 70 2 2", feed=feed,
              pre="export XDG_CONFIG_HOME=%s\n%s\n%s\n" % (d, TICK, CPANES))
     shutil.rmtree(d, True)
     return sc
@@ -674,7 +674,7 @@ check("and choosing phosphor applies it",
 
 sc = cprun(DOWN_APP + [b"\x1b[C", b"\x1b[B", b"\x1b[C"])
 check("the wallpaper glyph changes, and the desktop follows",
-      sc.at(0, 78) != "·" and sc.at(23, 60) == "░", sc)
+      sc.at(0, 78) != "·" and sc.at(23, 76) == "░", sc)
 
 # Wallpaper -- #2 -- browses for an image and previews it, in a window of
 # its own opened from Appearance's "Wallpaper Image…" row, reusing files.hibr's
@@ -836,16 +836,16 @@ check("and Close closes the picker, leaving the Control Panel",
 
 # Change Wallpaper… on the desktop's own menu opens the Control Panel at
 # Appearance, where the wallpaper is chosen.
-sc = cprun(feed=[press(20, 70, 2), b"w", 0.5])
+sc = cprun(feed=[press(20, 76, 2), b"w", 0.5])
 check("Change Wallpaper on the desktop opens the Control Panel at Appearance",
       sc.find("Wallpaper") is not None and sc.find("Theme") is not None, sc)
 
 # The divider between the list and the pane is dragged (widgets/split.hibr),
 # and where it is left is a setting kept for next time.
-sc = run(*PANEL, feed=[press(10, 19), drag(10, 23), drag(10, 27),
-                       release(10, 27), 0.3], pre=CPANES)
+sc = run(*PANEL, feed=[press(10, 21), drag(10, 25), drag(10, 29),
+                       release(10, 29), 0.3], pre=CPANES)
 check("the Control Panel's divider drags: the list wider, the pane narrower",
-      sc.at(10, 27) == "│" and sc.at(10, 19) != "│" and
+      sc.at(10, 29) == "│" and sc.at(10, 21) != "│" and
       sc.find("Notifications") is not None, sc)
 
 # Once it has browsed somewhere else, that becomes the new starting
@@ -2850,6 +2850,10 @@ sc = run("files", "16 50 2 2", [b"\x1b[B", press(5, 6, 2), 0.3, b"h", 2.0]
          pre=OWPRE, extra=OWX, end=None)
 check("Open Terminal Here starts a shell in the folder",
       sc.find(OWD) is not None and sc.find("┤ Terminal") is not None, sc)
+sc = run("files", "16 50 2 2", [b"\x1b[B", press(5, 6, 2), 0.3, b"h", 2.0,
+                                b"\x04", 1.5], pre=OWPRE, extra=OWX, end=None)
+check("and ctrl-d closes its window, as any terminal's, not left showing 0",
+      sc.find("┤ Terminal") is None and sc.find("exited 0") is None, sc)
 shutil.rmtree(OWD, True)
 sc = cprun(reach("filetypes", ".ans"), extra=("imgview",))
 check("File Types lists each type with its default, and how many others",
@@ -3115,4 +3119,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(459)
+report(460)
