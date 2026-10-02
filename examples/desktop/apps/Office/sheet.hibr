@@ -27,6 +27,13 @@
 # as it was; delete clears what is selected. A column's right edge in the
 # header drags its width; the Sheet menu inserts and deletes rows and
 # columns -- formulas follow the cells they name -- and adds more of both.
+#
+# The Format menu works on the selection: bold, italic, a text colour and a
+# fill from the theme's own roles, alignment, a number's decimals,
+# thousands, percent or currency, a bottom or right border, a rule that
+# colours a number by its value (negatives red, say, or > 100 green), and
+# rows and columns frozen at the top and left while the rest scroll. A
+# cell's format is kept beside its text, as items: b;i;fg=bad;al=r;nf=2.
 
 strict
 
@@ -35,8 +42,11 @@ app sheet "A spreadsheet whose formulas are hibr"
 command -v dt_app > /dev/null && dt_app sheet "Sheet" 24 84 many "⊞"
 command -v dt_opener > /dev/null && dt_opener sheet "Sheet" "hsheet csv" app sheet
 
+command -v dt_app > /dev/null && dt_app ssask "Sheet" 9 56 "" "" fixed hidden
+
 declare -gA SS
 declare -gA SC
+declare -gA SSA
 command -v dt_keepstate > /dev/null && dt_keepstate sheet SS
 
 SS_DIR="${SS_DIR-${XDG_DATA_HOME:-$HOME/.local/share}/hibr/sheets}"
@@ -51,6 +61,10 @@ SS_SCHEMA=(r:int c:int v:str:4096 f:str:128)
 SS_REFS=()
 SS_CELLS=()
 SS_TRUSTID=
+SS_CURRENCY="${SS_CURRENCY-\$}"
+SS_FG=
+SS_BG=
+SS_AT=
 SS_FROMCSV=()
 
 # What every run of the formulas begins with: math, the list functions a
@@ -175,14 +189,158 @@ fn ss_isnum(v) {
 	[[ $v =~ ^[-+]?([0-9]+\.?[0-9]*|\.[0-9]+)([eE][-+]?[0-9]+)?$ ]]
 }
 
+# --- formats ------------------------------------------------------------------
+
+# A format item's value -- 1 for a flag that is set -- or fail when it is
+# not there.
+fn ss_fget(fmt, k) {
+	local it
+	local -a its
+
+	IFS=';' read -ra its <<< "$fmt"
+	for it in "${its[@]}"; do
+		if [ "$it" = "$k" ]; then
+			ret 1
+			return 0
+		fi
+		if [ "${it%%=*}" = "$k" ]; then
+			ret "${it#*=}"
+			return 0
+		fi
+	done
+	return 1
+}
+
+# A format with one item set -- v 1 is a flag -- or taken out, v empty.
+fn ss_fput(fmt, k, v = "") {
+	local it out=
+	local -a its
+
+	IFS=';' read -ra its <<< "$fmt"
+	for it in "${its[@]}"; do
+		[ -n "$it" ] || continue
+		[ "${it%%=*}" = "$k" ] && continue
+		out+="$it;"
+	done
+	if [ "$v" = 1 ]; then
+		out+="$k;"
+	elif [ -n "$v" ]; then
+		out+="$k=$v;"
+	fi
+	ret "${out%;}"
+}
+
+# A theme role's colour, by the name a format keeps.
+fn ss_role(nm) {
+	case $nm in
+	good) ret "$DT_GOOD" ;;
+	warn) ret "$DT_WARN" ;;
+	bad) ret "$DT_BAD" ;;
+	info) ret "$DT_INFO" ;;
+	dim) ret "$DT_DIM" ;;
+	active) ret "$DT_ACTIVE" ;;
+	well) ret "$DT_WELL" ;;
+	*) return 1 ;;
+	esac
+}
+
+# A number with a comma between every three digits of its whole part.
+fn ss_thousands(v) {
+	local sg= i f= out=
+
+	[ "${v:0:1}" = - ] && { sg=-; v=${v:1}; }
+	i=${v%%.*}
+	[ "$i" != "$v" ] && f=".${v#*.}"
+	while [ "${#i}" -gt 3 ]; do
+		out=",${i:$((${#i} - 3))}$out"
+		i=${i:0:$((${#i} - 3))}
+	done
+	ret "$sg$i$out$f"
+}
+
+# Whether a number meets a rule like <0 or >=100.
+fn ss_meets(v, rule) {
+	local op num r
+
+	op=${rule%%[!<>=!]*}
+	num=${rule#"$op"}
+	[ -n "$op" ] && ss_isnum "$num" || return 1
+	[ "$op" = = ] && op===
+	r := math "$v $op $num" 2> /dev/null || return 1
+	[ "$r" = 1 ]
+}
+
+# A cell drawn: its text in w columns, formatted, aligned and bordered, and
+# its pen in SS_FG, SS_BG and SS_AT.
+fn ss_render(int id, k, int cw) {
+	local v raw f n=0 x al t sp attr=
+
+	v := ss_show "$id" "$k"
+	raw=$v
+	f=${SC[$id][$k]["fmt"]}
+	ss_isnum "$v" && n=1
+	SS_FG=$DT_INK
+	SS_BG=$DT_FACE
+	if [ -n "$f" ]; then
+		if [ "$n" = 1 ]; then
+			ss_fget "$f" pct > /dev/null && v := math "$v * 100"
+			x := ss_fget "$f" nf && v := math -s "$x" "$v"
+			ss_fget "$f" th > /dev/null && v := ss_thousands "$v"
+			ss_fget "$f" pct > /dev/null && v="$v%"
+			if x := ss_fget "$f" cur; then
+				[ "$x" = 1 ] && x=$SS_CURRENCY
+				if [ "${v:0:1}" = - ]; then v="-$x${v:1}"; else v="$x$v"; fi
+			fi
+		fi
+		x := ss_fget "$f" fg && x := ss_role "$x" && SS_FG=$x
+		x := ss_fget "$f" bg && x := ss_role "$x" && SS_BG=$x
+		if [ "$n" = 1 ] && x := ss_fget "$f" cond; then
+			if ss_meets "$raw" "${x%:*}"; then
+				x := ss_role "${x##*:}" && SS_FG=$x
+			fi
+		fi
+		ss_fget "$f" b > /dev/null && attr+=" bold"
+		ss_fget "$f" i > /dev/null && attr+=" italic"
+		x := ss_fget "$f" bd && [[ $x == *b* ]] && attr+=" underline"
+	fi
+	if [ "${v:0:1}" = "#" ] && [ -n "${SC[$id][$k]["err"]}" ]; then
+		SS_FG=$DT_BAD
+	fi
+	SS_AT=${attr# }
+	al=
+	[ -n "$f" ] && al := ss_fget "$f" al
+	if [ -z "$al" ] || [ "$al" = 1 ]; then
+		al=l
+		[ "$n" = 1 ] && al=r
+	fi
+	[ ${#v} -gt $((cw - 1)) ] && v="${v:0:$((cw - 2))}${GL[ellipsis]}"
+	case $al in
+	r)
+		t := ss_rpad "$v" $((cw - 1))
+		t+=" "
+		;;
+	c)
+		sp=$(((cw - ${#v}) / 2))
+		t := ss_rpad "$v" $((sp + ${#v}))
+		t := str pad "$t" "$cw"
+		;;
+	*) t := str pad "$v" "$cw" ;;
+	esac
+	if [ -n "$f" ] && x := ss_fget "$f" bd && [[ $x == *r* ]]; then
+		t="${t:0:$((cw - 1))}${GL[vline]}"
+	fi
+	ret "$t"
+}
+
 # --- the file ---------------------------------------------------------------
 
 # Open a sheet's file, making it if it is not there, and read every cell.
 fn ss_load(int id, path) {
-	local h i n r c k rxr='rows=([0-9]+)' rxc='cols=([0-9]+)'
+	local h i n r c k rxr='rows=([0-9]+)' rxc='cols=([0-9]+)' rxf='frz=([0-9]+),([0-9]+)'
 	local -a rows
 
 	need db 2> /dev/null || { dt_notep high "Sheet needs the db module"; return 1; }
+	need math 2> /dev/null
 	if [ -e "$path" ]; then
 		h := db open "$path" 2> /dev/null || {
 			dt_notep high "Cannot open ${path##*/} as a sheet"
@@ -206,6 +364,8 @@ fn ss_load(int id, path) {
 	SS[$id]["rows"]=$SS_ROWS
 	SS[$id]["cols"]=$SS_COLS
 	SS[$id]["mrec"]=
+	SS[$id]["fr"]=0
+	SS[$id]["fc"]=0
 	SS[$id]["un"]=0
 	SS[$id]["rn"]=0
 	if rows := db query "$h" -n 2> /dev/null; then
@@ -228,6 +388,10 @@ fn ss_load(int id, path) {
 					SS[$id]["rows"]=${BASH_REMATCH[1]}
 				[[ ${rows[$i]["v"]} =~ $rxc ]] &&
 					SS[$id]["cols"]=${BASH_REMATCH[1]}
+				if [[ ${rows[$i]["v"]} =~ $rxf ]]; then
+					SS[$id]["fr"]=${BASH_REMATCH[1]}
+					SS[$id]["fc"]=${BASH_REMATCH[2]}
+				fi
 			fi
 			i=$((i + 1))
 		done
@@ -262,6 +426,27 @@ fn ss_store(int id, int r, int c, src) {
 	SC[$id][$k]["src"]=$src
 }
 
+# Put a cell's format in the file, beside its text; a cell with neither is
+# taken out.
+fn ss_fmtstore(int id, int r, int c, fmt) {
+	local h=${SS[$id]["h"]} k="$r:$c" rec
+
+	rec=${SC[$id][$k]["rec"]}
+	if [ -z "$fmt" ] && [ -z "${SC[$id][$k]["src"]}" ]; then
+		[ -n "$rec" ] && db delete "$h" "$rec" > /dev/null 2>&1
+		unset "SC[$id][$k]"
+		return 0
+	fi
+	if [ -n "$rec" ]; then
+		db set "$h" "$rec" f "$fmt" 2> /dev/null || return 1
+	else
+		rec := db insert "$h" "$r" "$c" "" "$fmt" 2> /dev/null || return 1
+		SC[$id][$k]["rec"]=$rec
+		SC[$id][$k]["src"]=
+	fi
+	SC[$id][$k]["fmt"]=$fmt
+}
+
 # Move a stored cell to another place, file and all.
 fn ss_move(int id, from, to) {
 	local h=${SS[$id]["h"]} rec=${SC[$id][$from]["rec"]}
@@ -279,7 +464,7 @@ fn ss_move(int id, from, to) {
 fn ss_setmeta(int id) {
 	local h=${SS[$id]["h"]} v rec
 
-	v="rows=${SS[$id]["rows"]} cols=${SS[$id]["cols"]}"
+	v="rows=${SS[$id]["rows"]} cols=${SS[$id]["cols"]} frz=${SS[$id]["fr"]:-0},${SS[$id]["fc"]:-0}"
 	rec=${SS[$id]["mrec"]}
 	if [ -n "$rec" ]; then
 		db set "$h" "$rec" v "$v" 2> /dev/null
@@ -547,47 +732,44 @@ fn ss_set(int id, int r, int c, src) {
 	ss_store "$id" "$r" "$c" "$src"
 }
 
+# Make one recorded change, and give the change that takes it back: a
+# cell's text, or -- F first -- its format.
+fn ss_undo1(int id, e) {
+	local f r c old cur
+
+	if [ "${e%%$'\037'*}" = F ]; then
+		IFS=$'\037' read -r f r c old <<< "$e"
+		cur=${SC[$id]["$r:$c"]["fmt"]}
+		ss_fmtstore "$id" "$r" "$c" "$old"
+		ret "F"$'\037'"$r"$'\037'"$c"$'\037'"$cur"
+	else
+		IFS=$'\037' read -r r c old <<< "$e"
+		cur=${SC[$id]["$r:$c"]["src"]}
+		ss_store "$id" "$r" "$c" "$old"
+		ret "$r"$'\037'"$c"$'\037'"$cur"
+	fi
+}
+
 # Take the last group of changes back, or put it back again.
 fn ss_undo(int id, dir) {
-	local n m e r c old cur k
+	local n m e inv from=u to=r
 
-	if [ "$dir" = undo ]; then
-		n=${SS[$id]["un"]:-0}
-		[ "$n" -gt 0 ] || return 1
-		m=${SS[$id]["rn"]:-0}
-		SS[$id]["r$m"]=mark
+	[ "$dir" = redo ] && { from=r; to=u; }
+	n=${SS[$id]["${from}n"]:-0}
+	[ "$n" -gt 0 ] || return 1
+	m=${SS[$id]["${to}n"]:-0}
+	SS[$id]["$to$m"]=mark
+	m=$((m + 1))
+	while [ "$n" -gt 0 ]; do
+		n=$((n - 1))
+		e=${SS[$id]["$from$n"]}
+		[ "$e" = mark ] && break
+		inv := ss_undo1 "$id" "$e"
+		SS[$id]["$to$m"]=$inv
 		m=$((m + 1))
-		while [ "$n" -gt 0 ]; do
-			n=$((n - 1))
-			e=${SS[$id]["u$n"]}
-			[ "$e" = mark ] && break
-			IFS=$'\037' read -r r c old <<< "$e"
-			cur=${SC[$id]["$r:$c"]["src"]}
-			SS[$id]["r$m"]="$r"$'\037'"$c"$'\037'"$cur"
-			m=$((m + 1))
-			ss_store "$id" "$r" "$c" "$old"
-		done
-		SS[$id]["un"]=$n
-		SS[$id]["rn"]=$m
-	else
-		m=${SS[$id]["rn"]:-0}
-		[ "$m" -gt 0 ] || return 1
-		n=${SS[$id]["un"]:-0}
-		SS[$id]["u$n"]=mark
-		n=$((n + 1))
-		while [ "$m" -gt 0 ]; do
-			m=$((m - 1))
-			e=${SS[$id]["r$m"]}
-			[ "$e" = mark ] && break
-			IFS=$'\037' read -r r c old <<< "$e"
-			cur=${SC[$id]["$r:$c"]["src"]}
-			SS[$id]["u$n"]="$r"$'\037'"$c"$'\037'"$cur"
-			n=$((n + 1))
-			ss_store "$id" "$r" "$c" "$old"
-		done
-		SS[$id]["un"]=$n
-		SS[$id]["rn"]=$m
-	fi
+	done
+	SS[$id]["${from}n"]=$n
+	SS[$id]["${to}n"]=$m
 	ss_recalc "$id"
 	return 0
 }
@@ -606,6 +788,60 @@ fn ss_sel(int id) {
 	[ "$r0" -gt "$r1" ] && { t=$r0; r0=$r1; r1=$t; }
 	[ "$c0" -gt "$c1" ] && { t=$c0; c0=$c1; c1=$t; }
 	ret "$r0 $c0 $r1 $c1"
+}
+
+# Set one format item on every cell selected -- v 1 a flag, empty takes
+# it away -- as one change Undo takes back.
+fn ss_format(int id, k, v = "") {
+	local s r c r0 c0 r1 c1 old new n
+
+	s := ss_sel "$id"
+	read -r r0 c0 r1 c1 <<< "$s"
+	ss_undomark "$id"
+	r=$r0
+	while [ "$r" -le "$r1" ]; do
+		c=$c0
+		while [ "$c" -le "$c1" ]; do
+			old=${SC[$id]["$r:$c"]["fmt"]}
+			new := ss_fput "$old" "$k" "$v"
+			if [ "$new" != "$old" ]; then
+				n=${SS[$id]["un"]:-0}
+				SS[$id]["u$n"]="F"$'\037'"$r"$'\037'"$c"$'\037'"$old"
+				SS[$id]["un"]=$((n + 1))
+				SS[$id]["rn"]=0
+				ss_fmtstore "$id" "$r" "$c" "$new"
+			fi
+			c=$((c + 1))
+		done
+		r=$((r + 1))
+	done
+}
+
+# A flag on or off, by what the cursor's own cell has.
+fn ss_toggle(int id, k) {
+	local f=${SC[$id]["${SS[$id]["cr"]}:${SS[$id]["cc"]}"]["fmt"]}
+
+	if ss_fget "$f" "$k" > /dev/null; then
+		ss_format "$id" "$k" ""
+	else
+		ss_format "$id" "$k" 1
+	fi
+}
+
+# Whether the cursor's own cell has a format item, or has it at a value.
+fn ss_has(int id, k, v = "") {
+	local f=${SC[$id]["${SS[$id]["cr"]}:${SS[$id]["cc"]}"]["fmt"]} x
+
+	x := ss_fget "$f" "$k" || return 1
+	[ -z "$v" ] || [ "$x" = "$v" ]
+}
+
+# Freeze the rows above and the columns left of a place; 0 0 unfreezes.
+fn ss_freeze(int id, int r, int c) {
+	SS[$id]["fr"]=$r
+	SS[$id]["fc"]=$c
+	ss_setmeta "$id"
+	ss_view "$id"
 }
 
 # Empty every cell selected.
@@ -768,25 +1004,41 @@ fn sheet_resume(int id) {
 	[ -n "$p" ] && ss_load "$id" "$p"
 }
 
-# Keep the cursor's cell in view.
+# Keep the cursor's cell in view, past the frozen rows and columns, which
+# never scroll.
 fn ss_view(int id) {
 	local cr=${SS[$id]["cr"]} cc=${SS[$id]["cc"]} top=${SS[$id]["top"]}
-	local left=${SS[$id]["left"]} vr=${SS[$id]["vr"]:-10} ww=${SS[$id]["ww"]:-60} c x w
+	local left=${SS[$id]["left"]} vr=${SS[$id]["vr"]:-10} ww=${SS[$id]["ww"]:-60}
+	local fr=${SS[$id]["fr"]:-0} fc=${SS[$id]["fc"]:-0} c x w fw=0 sv
 
-	[ "$cr" -lt "$top" ] && top=$cr
-	[ "$cr" -ge $((top + vr)) ] && top=$((cr - vr + 1))
-	[ "$cc" -lt "$left" ] && left=$cc
-	while :; do
-		x=0
-		c=$left
-		while [ "$c" -le "$cc" ]; do
-			w := ss_w "$id" "$c"
-			x=$((x + w))
-			c=$((c + 1))
-		done
-		[ "$x" -le "$ww" ] || [ "$left" -ge "$cc" ] && break
-		left=$((left + 1))
+	sv=$((vr - fr))
+	[ "$sv" -lt 1 ] && sv=1
+	[ "$top" -lt "$fr" ] && top=$fr
+	[ "$left" -lt "$fc" ] && left=$fc
+	if [ "$cr" -ge "$fr" ]; then
+		[ "$cr" -lt "$top" ] && top=$cr
+		[ "$cr" -ge $((top + sv)) ] && top=$((cr - sv + 1))
+	fi
+	c=0
+	while [ "$c" -lt "$fc" ]; do
+		w := ss_w "$id" "$c"
+		fw=$((fw + w))
+		c=$((c + 1))
 	done
+	if [ "$cc" -ge "$fc" ]; then
+		[ "$cc" -lt "$left" ] && left=$cc
+		while :; do
+			x=$fw
+			c=$left
+			while [ "$c" -le "$cc" ]; do
+				w := ss_w "$id" "$c"
+				x=$((x + w))
+				c=$((c + 1))
+			done
+			[ "$x" -le "$ww" ] || [ "$left" -ge "$cc" ] && break
+			left=$((left + 1))
+		done
+	fi
 	SS[$id]["top"]=$top
 	SS[$id]["left"]=$left
 }
@@ -836,7 +1088,8 @@ fn ss_commit(int id) {
 
 fn sheet_draw(int id, int h, int w, int row, int col) {
 	local cr=${SS[$id]["cr"]} cc=${SS[$id]["cc"]} top left vr nm t s r c x cw
-	local k v sel r0 c0 r1 c1 y ed=${SS[$id]["ed"]} rows cols e
+	local k v sel r0 c0 r1 c1 y ed=${SS[$id]["ed"]} rows cols e fr fc at
+	local -a dc dr ats
 
 	dt_wclear "$id"
 	vr=$((h - 3))
@@ -870,9 +1123,16 @@ fn sheet_draw(int id, int h, int w, int row, int col) {
 	t := str pad "" "$SS_GUT"
 	console put -p "w$id" 2 1 "$t"
 	x=$((SS_GUT + 1))
+	fr=${SS[$id]["fr"]:-0}
+	fc=${SS[$id]["fc"]:-0}
+	dc=()
+	c=0
+	while [ "$c" -lt "$fc" ] && [ "$c" -lt "$cols" ]; do dc+=("$c"); c=$((c + 1)); done
 	c=$left
+	while [ "$c" -lt "$cols" ] && [ "${#dc[@]}" -lt 200 ]; do dc+=("$c"); c=$((c + 1)); done
 	SS[$id]["vcols"]=
-	while [ "$c" -lt "$cols" ] && [ "$x" -le "$w" ]; do
+	for c in "${dc[@]}"; do
+		[ "$x" -le "$w" ] || break
 		cw := ss_w "$id" "$c"
 		t := ss_colname "$c"
 		s=$(((cw - ${#t}) / 2))
@@ -890,12 +1150,16 @@ fn sheet_draw(int id, int h, int w, int row, int col) {
 		dt_wreg "$id" 2 $((x + cw - 1)) 1 "edge:$c"
 		SS[$id]["vcols"]="${SS[$id]["vcols"]} $c:$x:$cw"
 		x=$((x + cw))
-		c=$((c + 1))
 	done
 
-	y=3
+	dr=()
+	r=0
+	while [ "$r" -lt "$fr" ] && [ "$r" -lt "$rows" ]; do dr+=("$r"); r=$((r + 1)); done
 	r=$top
-	while [ "$y" -le $((h - 1)) ] && [ "$r" -lt "$rows" ]; do
+	while [ "$r" -lt "$rows" ] && [ "${#dr[@]}" -lt "$vr" ]; do dr+=("$r"); r=$((r + 1)); done
+	SS[$id]["vrows"]="${dr[*]}"
+	y=3
+	for r in "${dr[@]}"; do
 		if [ "$r" -ge "$r0" ] && [ "$r" -le "$r1" ]; then
 			console pen "$DT_ACTIVE" "$DT_WELL" bold
 		else
@@ -906,35 +1170,28 @@ fn sheet_draw(int id, int h, int w, int row, int col) {
 		console put -p "w$id" "$y" 1 "$t"
 		dt_wreg "$id" "$y" 1 "$SS_GUT" "rowh:$r"
 		x=$((SS_GUT + 1))
-		c=$left
-		while [ "$c" -lt "$cols" ] && [ "$x" -le "$w" ]; do
+		for c in "${dc[@]}"; do
+			[ "$x" -le "$w" ] || break
 			cw := ss_w "$id" "$c"
 			k="$r:$c"
-			v := ss_show "$id" "$k"
-			if ss_isnum "$v"; then
-				[ ${#v} -gt $((cw - 1)) ] && v="${v:0:$((cw - 2))}${GL[ellipsis]}"
-				t := ss_rpad "$v" $((cw - 1))
-				t+=" "
-			else
-				[ ${#v} -gt $((cw - 1)) ] && v="${v:0:$((cw - 2))}${GL[ellipsis]}"
-				t := str pad "$v" "$cw"
-			fi
+			t := ss_render "$id" "$k" "$cw"
+			at=$SS_AT
+			[ "$fr" -gt 0 ] && [ "$r" = $((fr - 1)) ] && at="$at underline"
+			[ "$fc" -gt 0 ] && [ "$c" = $((fc - 1)) ] &&
+				t="${t:0:$((cw - 1))}${GL[vline]}"
+			read -ra ats <<< "$at"
 			if [ "$r" = "$cr" ] && [ "$c" = "$cc" ]; then
-				console pen "$DT_SELINK" "$DT_ACTIVE"
+				console pen "$DT_SELINK" "$DT_ACTIVE" "${ats[@]}"
 			elif [ "$r" -ge "$r0" ] && [ "$r" -le "$r1" ] &&
 			     [ "$c" -ge "$c0" ] && [ "$c" -le "$c1" ]; then
-				console pen "$DT_INK" "$DT_WELL"
-			elif [ "${v:0:1}" = "#" ] && [ -n "${SC[$id][$k]["err"]}" ]; then
-				console pen "$DT_BAD" "$DT_FACE"
+				console pen "$SS_FG" "$DT_WELL" "${ats[@]}"
 			else
-				console pen "$DT_INK" "$DT_FACE"
+				console pen "$SS_FG" "$SS_BG" "${ats[@]}"
 			fi
 			[ $((x + cw - 1)) -gt "$w" ] && t=${t:0:$((w - x + 1))}
 			console put -p "w$id" "$y" "$x" "$t"
 			x=$((x + cw))
-			c=$((c + 1))
 		done
-		r=$((r + 1))
 		y=$((y + 1))
 	done
 
@@ -1007,15 +1264,17 @@ fn sheet_key(int id, key) {
 
 # Which cell a point in the window is, as "r c", or fail.
 fn ss_at(int id, int r, int c) {
-	local -a vc
+	local -a vc vw
 	local e cn x cw
 
 	[ "$r" -ge 3 ] || return 1
+	read -ra vw <<< "${SS[$id]["vrows"]}"
+	[ $((r - 3)) -lt "${#vw[@]}" ] || return 1
 	read -ra vc <<< "${SS[$id]["vcols"]}"
 	for e in "${vc[@]}"; do
 		cn=${e%%:*} x=${e#*:} x=${x%%:*} cw=${e##*:}
 		if [ "$c" -ge "$x" ] && [ "$c" -lt $((x + cw)) ]; then
-			ret "$((SS[$id]["top"] + r - 3)) $cn"
+			ret "${vw[$((r - 3))]} $cn"
 			return 0
 		fi
 	done
@@ -1091,7 +1350,7 @@ fn sheet_wheel(int id, dir, int r = 0, int c = 0) {
 	down) top=$((top + 3)) ;;
 	esac
 	[ "$top" -gt $((rows - vr)) ] && top=$((rows - vr))
-	[ "$top" -lt 0 ] && top=0
+	[ "$top" -lt "${SS[$id]["fr"]:-0}" ] && top=${SS[$id]["fr"]:-0}
 	SS[$id]["top"]=$top
 	[ "${SS[$id]["cr"]}" -lt "$top" ] && SS[$id]["cr"]=$top
 	[ "${SS[$id]["cr"]}" -ge $((top + vr)) ] && SS[$id]["cr"]=$((top + vr - 1))
@@ -1372,6 +1631,128 @@ ss_trustyes() {
 	ss_recalc "$id"
 }
 
+# --- the conditional rule dialog ------------------------------------------------
+
+# Ask for a rule that colours a number by its value: an operator, a number
+# and one of the colours, as "> 100 good".
+fn ss_ruleask(int id) {
+	local h=9 w=56 r c rid v= f
+
+	f=${SC[$id]["${SS[$id]["cr"]}:${SS[$id]["cc"]}"]["fmt"]}
+	if v := ss_fget "$f" cond; then
+		v="${v%:*} ${v##*:}"
+	else
+		v=
+	fi
+	r=$((DT_ROWS / 2 - h / 2))
+	c=$(((DT_COLS - w) / 2))
+	rid := dt_new "Sheet" "$h" "$w" "$r" "$c" ssask
+	SSA[$rid]["for"]=$id
+	SSA[$rid]["buf"]=$v
+	SSA[$rid]["cur"]=${#v}
+	SSA[$rid]["focus"]=text
+	dt_retitle "$rid" "Colour by Value"
+}
+
+fn ssask_draw(int id, int h, int w, int row, int col) {
+	local f=${SSA[$id]["focus"]} on=0
+
+	dt_wclear "$id"
+	[ "$f" = text ] && on=1
+	console pen "$DT_INK" "$DT_FACE"
+	console put -p "w$id" 1 2 "Colour a number when it is:"
+	dt_textdraw "$id" 2 2 $((w - 4)) "${SSA[$id]["buf"]}" "${SSA[$id]["cur"]}" "$on"
+	dt_wreg "$id" 2 2 $((w - 4)) text
+	console pen "$DT_DIM" "$DT_FACE"
+	console put -p "w$id" 3 2 "< <= > >= = !=, a number, then good, warn, bad,"
+	console put -p "w$id" 4 2 "info or dim -- \"< 0 bad\"; empty clears it"
+	dt_dlgbtns "$id" "$h" "$w" "$f" ok OK cancel Cancel
+}
+
+# Put the rule on the selection, or say what is wrong with it.
+fn ssask_go(int id) {
+	local t=${SSA[$id]["for"]} v=${SSA[$id]["buf"]} op num role
+	local rx='^ *(<=|>=|!=|<|>|=) *([-+]?[0-9.]+) +([a-z]+) *$'
+
+	if [ -z "${DT[$t]["title"]}" ]; then
+		dt_del "$id"
+		return 0
+	fi
+	if [ -z "${v// /}" ]; then
+		dt_del "$id"
+		ss_format "$t" cond ""
+		return 0
+	fi
+	if ! [[ $v =~ $rx ]]; then
+		dt_notep low "A rule is an operator, a number and a colour: < 0 bad"
+		return 0
+	fi
+	op=${BASH_REMATCH[1]}
+	num=${BASH_REMATCH[2]}
+	role=${BASH_REMATCH[3]}
+	[ "$role" = warning ] && role=warn
+	if ! ss_role "$role" > /dev/null; then
+		dt_notep low "The colours are good, warn, bad, info and dim"
+		return 0
+	fi
+	dt_del "$id"
+	dt_raise "$t"
+	ss_format "$t" cond "$op$num:$role"
+}
+
+fn ssask_click(int id, int r, int c, btn = "") {
+	local tag
+
+	tag := dt_hit "$id" "$r" "$c"
+	case $tag in
+	text) SSA[$id]["focus"]=text ;;
+	ok) ssask_go "$id" ;;
+	cancel) dt_del "$id" ;;
+	esac
+	return 0
+}
+
+fn ssask_key(int id, key) {
+	local res f=${SSA[$id]["focus"]} d onb=1
+
+	[ "$f" = text ] && onb=0
+	if d := dt_focuskey "$key" "$onb"; then
+		SSA[$id]["focus"] := dt_focus "$f" "$d" text ok cancel
+		return 0
+	fi
+	case $key in
+	escape) dt_del "$id"; return 0 ;;
+	enter)
+		if [ "$f" = cancel ]; then dt_del "$id"; else ssask_go "$id"; fi
+		return 0
+		;;
+	esac
+	[ "$f" = text ] || return 0
+	res := dt_textkey "${SSA[$id]["buf"]}" "${SSA[$id]["cur"]}" "$key" ||
+		return 1
+	SSA[$id]["buf"]=${res% *}
+	SSA[$id]["cur"]=${res##* }
+	return 0
+}
+
+fn ssask_paste(int id, text, op = "") {
+	local r
+
+	SSA[$id]["focus"]=text
+	r := dt_textpaste "${SSA[$id]["buf"]}" "${SSA[$id]["cur"]}" "$text"
+	SSA[$id]["buf"]=${r% *}
+	SSA[$id]["cur"]=${r##* }
+}
+
+fn ssask_copy(int id) {
+	[ "${SSA[$id]["focus"]}" = text ] || return 1
+	ret "${SSA[$id]["buf"]}"
+}
+
+fn ssask_close(int id) {
+	unset "SSA[$id]"
+}
+
 # --- menus -----------------------------------------------------------------------
 
 fn ss_insrow(int id, int below) { ss_shift "$id" row $((SS[$id]["cr"] + below)) 1; }
@@ -1433,4 +1814,73 @@ sheet_menus() {
 	dt_item "Work Out Again" k ss_recalcnow "$id"
 	ss_trusted "$id" && on=1
 	dt_mark "Trust This Sheet${GL[ellipsis]}" t "$on" ss_trust "$id"
+	ss_formatmenu "$id"
+}
+
+# A mark for whether the cursor's cell has a format item at a value.
+fn ss_fmark(int id, label, key, k, v, ...cmd) {
+	local on=0
+
+	ss_has "$id" "$k" "$v" && on=1
+	dt_mark "$label" "$key" "$on" "${cmd[@]}"
+}
+
+# The Format menu: what the selection looks like.
+fn ss_formatmenu(int id) {
+	local on=0 r
+
+	dt_menu "Format"
+	ss_fmark "$id" "Bold" b b "" ss_toggle "$id" b
+	ss_fmark "$id" "Italic" i i "" ss_toggle "$id" i
+	dt_sub "Text Colour"
+	dt_item "Plain" p ss_format "$id" fg ""
+	for r in good warn bad info dim; do
+		ss_fmark "$id" "${r^}" "${r:0:1}" fg "$r" ss_format "$id" fg "$r"
+	done
+	dt_end
+	dt_sub "Fill"
+	dt_item "None" n ss_format "$id" bg ""
+	for r in well good warn bad info; do
+		ss_fmark "$id" "${r^}" "${r:0:1}" bg "$r" ss_format "$id" bg "$r"
+	done
+	dt_end
+	dt_sub "Align"
+	dt_item "By Kind" k ss_format "$id" al ""
+	ss_fmark "$id" "Left" l al l ss_format "$id" al l
+	ss_fmark "$id" "Centre" c al c ss_format "$id" al c
+	ss_fmark "$id" "Right" r al r ss_format "$id" al r
+	dt_end
+	dt_sub "Number"
+	dt_item "As It Is" a ss_format "$id" nf ""
+	ss_fmark "$id" "Whole" w nf 0 ss_format "$id" nf 0
+	ss_fmark "$id" "1 Decimal" 1 nf 1 ss_format "$id" nf 1
+	ss_fmark "$id" "2 Decimals" 2 nf 2 ss_format "$id" nf 2
+	ss_fmark "$id" "3 Decimals" 3 nf 3 ss_format "$id" nf 3
+	dt_sep
+	ss_fmark "$id" "Thousands" t th "" ss_toggle "$id" th
+	ss_fmark "$id" "Percent" p pct "" ss_toggle "$id" pct
+	ss_fmark "$id" "Currency ($SS_CURRENCY)" c cur "" ss_toggle "$id" cur
+	dt_end
+	dt_sub "Border"
+	ss_fmark "$id" "Bottom" b bd b ss_format "$id" bd b
+	ss_fmark "$id" "Right" r bd r ss_format "$id" bd r
+	ss_fmark "$id" "Both" o bd br ss_format "$id" bd br
+	dt_item "None" n ss_format "$id" bd ""
+	dt_end
+	dt_sub "Colour by Value"
+	ss_fmark "$id" "Negatives Bad" n cond "<0:bad" ss_format "$id" cond "<0:bad"
+	ss_fmark "$id" "Positives Good" p cond ">0:good" ss_format "$id" cond ">0:good"
+	dt_item "Rule${GL[ellipsis]}" r ss_ruleask "$id"
+	dt_item "No Rule" o ss_format "$id" cond ""
+	dt_end
+	dt_sep
+	dt_item "Freeze Top Row" f ss_freeze "$id" 1 0
+	dt_item "Freeze First Column" z ss_freeze "$id" 0 1
+	dt_item "Freeze Above and Left" a ss_freeze "$id" "${SS[$id]["cr"]}" "${SS[$id]["cc"]}"
+	[ "${SS[$id]["fr"]:-0}" != 0 ] || [ "${SS[$id]["fc"]:-0}" != 0 ] && on=1
+	if [ "$on" = 1 ]; then
+		dt_item "Unfreeze" u ss_freeze "$id" 0 0
+	else
+		dt_dim "Unfreeze"
+	fi
 }

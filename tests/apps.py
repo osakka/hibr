@@ -3018,6 +3018,50 @@ os.remove(SHEET)
 sc = shrun([press(3, 17), drag(3, 19), drag(3, 21), release(3, 21), 0.3])
 check("a column's edge in the header drags it wider",
       sc.at(3, 26) == "B" and sc.at(3, 22) != "B", sc)
+os.remove(SHEET)
+sc = shrun(shk("1234.5") + [b"\r"] + shk("-7") + [b"\r", b"\x1b[A", b"\x1b[A",
+                                                   b"\x1b[1;2B", b"\x1b[21~"] +
+           [b"\x1b[C"] * 4 + [b"\x1b[B"] * 5 + [b"\x1b[C"] + [b"\x1b[B"] * 3 +
+           [b"\r"])
+check("Format > Number > 2 Decimals formats the whole selection",
+      "1234.50" in shcells(sc, 4) and "-7.00" in shcells(sc, 5), sc)
+os.remove(SHEET)
+FMT = SHD + "/formats.hsheet"
+subprocess.run([sx.HIBR, "-c", 'need db; h := db create "$1" r:int c:int '
+                'v:str:4096 f:str:128; db insert $h -1 0 w=16 ""; '
+                'db insert $h -2 0 "rows=100 cols=26 frz=1,0" ""; '
+                'db insert $h 0 0 1234567.891 "nf=2;th"; '
+                'db insert $h 1 0 0.256 "pct;nf=1"; '
+                'db insert $h 2 0 -5 "cur"; '
+                'db insert $h 3 0 -3 "cond=<0:bad"; '
+                'db insert $h 4 0 3 "cond=<0:bad"; '
+                'db insert $h 5 0 hi "al=r;b"; db close $h', "x", FMT],
+               env=dict(os.environ, HIBR_MODPATH=tree("build/mods")),
+               capture_output=True)
+sc = shrun([], arg=FMT)
+check("thousands, decimals, percent and currency show as asked",
+      "1,234,567.89" in shcells(sc, 4) and "25.6%" in shcells(sc, 5) and
+      "-$5" in shcells(sc, 6), sc)
+check("a rule colours a negative number, and leaves a positive one alone",
+      sc.style(7, 22)["fg"] != sc.style(8, 22)["fg"], (sc.style(7, 22),
+                                                         sc.style(8, 22)))
+check("bold, and alignment to the right, for text",
+      sc.style(9, 22)["bold"] and shcells(sc, 9).rstrip().endswith("hi") and
+      shcells(sc, 9).index("hi") > 10, sc)
+if os.path.exists(SHEET):
+    os.remove(SHEET)
+sc = shrun(shk("150") + [b"\r"] + shk("50") + [b"\r", b"\x1b[A", b"\x1b[A",
+                                               b"\x1b[1;2B", b"\x1b[21~"] +
+           [b"\x1b[C"] * 4 + [b"\x1b[B"] * 7 + [b"\x1b[C"] + [b"\x1b[B"] * 2 +
+           [b"\r", 0.5] + shk("> 100 good") + [b"\r", 0.5, b"\x1b[B",
+                                                 b"\x1b[B"])
+check("Colour by Value > Rule takes \"> 100 good\" and colours only what meets it",
+      sc.style(4, 12)["fg"] != sc.style(5, 12)["fg"], (sc.style(4, 12),
+                                                         sc.style(5, 12)))
+sc = shrun([b"\x1b[6~", b"\x1b[6~", b"\x1b[6~"], arg=FMT)
+check("a frozen top row stays while the rest scrolls",
+      "1,234,567.89" in shcells(sc, 4) and "   1 " in sc.row(4) and
+      "25.6%" not in sc.text(), sc)
 shutil.rmtree(SHD, True)
 
 # Write: markdown shown as it reads, the cursor's line raw; the toolbar
@@ -3229,4 +3273,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(476)
+report(482)

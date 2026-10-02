@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.99.10
+
+**Sheet formats its cells.** A Format menu works on the selection: **bold**
+and *italic*; a text colour and a fill from the theme's own roles, so a
+sheet follows the theme; alignment left, centre or right (numbers right
+and text left unless told); a number's decimals, thousands separators,
+percent and currency (`SS_CURRENCY`, `$` unless set); a bottom or right
+border; a rule that colours a number by its value -- Negatives Bad,
+Positives Good, or Rule... for anything like `> 100 good`; and frozen rows
+and columns that stay while the rest scrolls. A format is kept with its
+cell in the file, and Undo takes it back like any change.
+
 ## 0.99.9
 
 **Standby displays.** `desktop --standby --name NAME` is a terminal that
