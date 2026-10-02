@@ -2639,11 +2639,15 @@ check("page down moves on, keeping the last record of the page in view",
       re.match(r"..│41 +41 +row41", sc.row(20)), sc)
 
 F10 = [b"\x1b[21~", 0.3]
-sc = dbrun(typed("USE big") + F10 + [b"\x1b[C"] * 2 + [0.3])
-check("Set Up > Database file lists the databases there are",
-      sc.find("Database file") and sc.find(" BIG "), sc)
-sc = dbrun(typed("USE big") + F10 + [b"\x1b[C"] * 5 + [b"c", 0.3])
-check("Retrieve > Count runs COUNT at the dot prompt",
+sc = dbrun(typed("USE big") + F10 + [0.3])
+check("the menus are System 7's order: File, Edit, then dBASE's own",
+      re.search(r"✎  File  Edit  Records  Query  Help  Window", sc.row(0)),
+      sc)
+sc = dbrun(typed("USE big") + F10 + [b"\x1b[C", b"\x1b[B", b"\x1b[C", 0.3])
+check("File > Open Database lists the databases there are",
+      sc.find("Open Database") and sc.find(" BIG "), sc)
+sc = dbrun(typed("USE big") + F10 + [b"\x1b[C"] * 4 + [b"c", 0.3])
+check("Query > Count runs COUNT at the dot prompt",
       sc.find(". COUNT") and sc.find("60 records"), sc)
 sc = dbrun(typed("USE big") + typed("COUNT") + [b"\x1b[A", b"\r"])
 txt = "\n".join(sc.row(r) for r in range(24))
@@ -2661,4 +2665,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(380)
+report(381)

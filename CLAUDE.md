@@ -111,7 +111,7 @@ linked, and no OpenSSL headers are needed to build.
 | `src/args.c` | `opt`/`args` declared CLI parsing, `title` |
 | `src/mod.c` | module loading |
 | `mods/*.c` | reference modules: `sys`, `http` (scheme), `ls`, `darwin` (macOS-only: `cpu`, `mem`, native `host_statistics`, no fork) |
-| `examples/desktop/` | the window manager (`desktop.hibr`, a table of contents sourcing `wm/`, one concern to a file, and `widgets/`, the widget library apps draw with) and everything built on it — `apps/` (file browser, control panel, terminal, task manager, About hibr, three games), `desk-accessories/` (calculator, clock, image viewer, note pad, sliding puzzle), `control-panel/` panes, `control-strip/` modules — see `examples/desktop/README.md` for how to use it and `examples/desktop/ARCHITECTURE.md` for how it is built |
+| `examples/desktop/` | the window manager (`desktop.hibr`, a table of contents sourcing `wm/`, one concern to a file, and `widgets/`, the widget library apps draw with) and everything built on it — `apps/` (file browser, control panel, terminal, task manager, About hibr, three games in `Games/`, dBASE in `Office/`), `desk-accessories/` (calculator, clock, image viewer, note pad, sliding puzzle), `control-panel/` panes, `control-strip/` modules — see `examples/desktop/README.md` for how to use it and `examples/desktop/ARCHITECTURE.md` for how it is built |
 | `tests/screen.py` | **the** pty harness and terminal model, shared by every full-screen suite |
 | `mods/prompt/` | the prompt module, including a native reader for git's object store — see `mods/README.md` for the file-by-file breakdown |
 | `mods/console/` | the text display: alternate screen, cell grid with damage-based redraw, panes, decoded keys — see `mods/console/README.md` |
@@ -688,7 +688,10 @@ went in the shell.
   follow focus, which is System 7's model and the reason it maps onto a
   window manager at all. An app declares them with `<app>_menus` calling
   `dt_menu`/`dt_item`/`dt_sep`, the same prefix contract as `_draw`, so an
-  app without menus shows the desktop's.
+  app without menus shows the desktop's. Edit is the desktop's and follows
+  the app's menus, unless the app calls `dt_editmenu` after its File menu
+  for System 7's File, Edit order (0.88) -- once per bar, so never call it
+  twice.
 - **Nothing is reserved while the menu bar is shut, and no key is fixed.**
   F10 or escape opens it -- the Menu Bar and Menu Bar Also actions, set in
   `DT_KEYS` like Copy (alt-c), Cut, Paste and every other, since 0.77 --

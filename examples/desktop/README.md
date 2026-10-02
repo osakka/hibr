@@ -742,7 +742,7 @@ In `examples/desktop/apps/`, each one also a file you can read in a sitting:
 | `mines` | Minesweeper, 9 by 9 with ten mines. `space` or a click opens, `f` or a right click flags, and opening a number with its flags placed opens what is round it |
 | `bricks` | after Arkanoid: the arrows or a click move the bat, `space` serves. Where the ball lands on the bat sets its angle |
 | `about` | the version, the machine's hostname and kernel, and a CPU and a memory bar read live from `/proc` -- no forking, the same way `mods/sysinfo` reads them in C |
-| `dbase` | a little dBASE III on the `db` module. The dot prompt takes `CREATE`, `USE`, `APPEND` (a form), `BROWSE`, `LIST`/`DISPLAY [FOR ...]`, `DISPLAY STRUCTURE`, `COUNT`, `SUM`, `AVERAGE`, `?`, `DIR`, `HELP` and `QUIT`, cut to four letters as dBASE allowed; up and down step through what was typed. A `FOR` is conditions joined with `.AND.` (`load > 2.5 .AND. host = 'web1'`); `.OR.` is refused, since a db query is one set of conditions that all hold. The Assistant's menus -- Set Up, Create, Update, Retrieve, Tools -- type the same commands at the prompt. Records are only appended: no `EDIT`, `DELETE` or `PACK`, because `db` has no update. Databases live in `DBASE_DIR`, `~/.local/share/hibr/dbase` unless set |
+| `dbase` | a little dBASE III on the `db` module. The dot prompt takes `CREATE`, `USE`, `APPEND` (a form), `BROWSE`, `LIST`/`DISPLAY [FOR ...]`, `DISPLAY STRUCTURE`, `COUNT`, `SUM`, `AVERAGE`, `?`, `DIR`, `HELP` and `QUIT`, cut to four letters as dBASE allowed; up and down step through what was typed. A `FOR` is conditions joined with `.AND.` (`load > 2.5 .AND. host = 'web1'`); `.OR.` is refused, since a db query is one set of conditions that all hold. Its menus -- File, Edit, Records, Query, Help, System 7's order -- type the same commands at the prompt. It lives in `apps/Office/`, so it is on the hibr menu's Office submenu. Records are only appended: no `EDIT`, `DELETE` or `PACK`, because `db` has no update. Databases live in `DBASE_DIR`, `~/.local/share/hibr/dbase` unless set |
 | `tasks` | every process, name, CPU% and memory, sorted by either (`c`, `m`); `x` ends the selected one, `shift-x` forces it |
 
 ## Desk Accessories
@@ -930,6 +930,22 @@ clock_menus() {
 
 `dt_item <label> <key> <command> [args…]` — the key is the letter that picks
 it while the menu is open, and the command is run when it is chosen.
+
+Edit is the desktop's, and comes after an app's own menus -- unless the app
+calls `dt_editmenu` itself, which is how an app with a File menu puts Edit
+second, System 7's order: File, Edit, then its own, then Window. Files and
+dBASE do.
+
+<!-- not run: an app's callback; the desktop calls it -->
+```sh
+notes_menus() {
+	dt_menu "File"
+	dt_item "Save"   s  notes_save
+	dt_editmenu
+	dt_menu "Format"
+	dt_item "Wrap"   w  notes_wrap
+}
+```
 
 A submenu opens with `→` and closes with `←`, and its parent stays on screen
 beside it. One level is all there is, because nothing has wanted two. The

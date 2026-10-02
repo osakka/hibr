@@ -1254,6 +1254,7 @@ files_menus() {
 	dt_item "Move to Trash" t files_trash "$id"
 	dt_sep
 	dt_item "Close" w dt_close_focused
+	dt_editmenu
 	dt_menu "View"
 	for v in "${FILES_VIEWS[@]}"; do
 		on=0

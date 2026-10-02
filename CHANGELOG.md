@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.88
+
+**dBASE's menus are System 7's.** File (New Database, Open Database, Close
+Database, Directory, Quit dBASE), Edit, Records (Append, Browse, Display
+Structure), Query (List, Count, Sum, Average), Help -- in place of dBASE
+III's own Assistant names, which nobody reaches for any more. dBASE moves
+to a new Office folder, a submenu of the hibr menu.
+
+**An app's File menu comes before Edit.** An app that calls `dt_editmenu`
+after declaring its File menu gets the desktop's Edit there, as on a Mac;
+one that does not still has it after its own menus. dBASE and Files do.
+
 ## 0.87
 
 **dBASE, a desktop app.** A little dBASE III on the `db` module: the dot

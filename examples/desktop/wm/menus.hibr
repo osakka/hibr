@@ -17,6 +17,10 @@ strict
 # same prefix contract as _draw and _key: an app with no _menus simply has
 # none, and the bar shows the desktop's.
 #
+# Edit is the desktop's, and comes after the app's menus unless the app
+# calls dt_editmenu itself -- which an app with a File menu does right after
+# it, for System 7's File, Edit, then the rest.
+#
 # F10 or escape opens the bar; then the arrows move, a letter picks the item
 # beside it, enter chooses and escape closes.  Nothing is reserved while the
 # bar is shut, which is what keeps ctrl-c free for whatever runs in a window.
@@ -29,6 +33,7 @@ MB_OPEN=-1
 MB_SEL=0
 MB_APP=
 MB_CUR=
+MB_EDITED=0
 MB_STACK=
 MB_PAR=
 MB_IN=0
@@ -190,34 +195,11 @@ dt_menus() {
 	# a name.  A window with no registered app (a bare dt_new) has no name
 	# to show either, so this still falls back to Desktop for it.
 	MB_APP=$ap
+	MB_EDITED=0
 	if [ -n "$ap" ] && dt_has "${ap}_menus"; then
 		${ap}_menus
 	fi
-
-	# Edit is the desktop's, like Window: the same three items everywhere,
-	# dimmed where the focused app cannot do them, so it never changes
-	# shape, each showing the key it is set to now.
-	dt_menu "Edit"
-	local lc lt lp
-	printf -v lc '%-11s%s' Copy "${DT_KEYS["copy"]}"
-	printf -v lt '%-11s%s' Cut "${DT_KEYS["cut"]}"
-	printf -v lp '%-11s%s' Paste "${DT_KEYS["paste"]}"
-	if [ -n "$who" ] && [ -n "${DT[$who]["copy"]}" ]; then
-		dt_item "$lc" c dt_edit copy
-	else
-		dt_dim "$lc"
-	fi
-	if [ -n "$who" ] && [ -n "${DT[$who]["cut"]}" ]; then
-		dt_item "$lt" t dt_edit cut
-	else
-		dt_dim "$lt"
-	fi
-	if [ -n "$who" ] && [ -n "${DT[$who]["paste"]}" ] &&
-	   [ -n "$DT_CLIP" ]; then
-		dt_item "$lp" v dt_edit paste
-	else
-		dt_dim "$lp"
-	fi
+	[ "$MB_EDITED" = 1 ] || dt_editmenu
 
 	# Always last, and always there: an app that has its own menus must
 	# not be able to hide the only way to move or close its window.
@@ -280,6 +262,37 @@ dt_menus() {
 	fi
 	dt_item "Cycle" c dt_cycle
 	dt_layout
+}
+
+# Edit is the desktop's, like Window: the same three items everywhere,
+# dimmed where the focused app cannot do them, so it never changes shape,
+# each showing the key it is set to now. Once a bar: an app that placed it
+# after its File menu has it there and nowhere else.
+dt_editmenu() {
+	local who=${DT_FOCUS:-} lc lt lp
+
+	[ "$MB_EDITED" = 1 ] && return 0
+	MB_EDITED=1
+	dt_menu "Edit"
+	printf -v lc '%-11s%s' Copy "${DT_KEYS["copy"]}"
+	printf -v lt '%-11s%s' Cut "${DT_KEYS["cut"]}"
+	printf -v lp '%-11s%s' Paste "${DT_KEYS["paste"]}"
+	if [ -n "$who" ] && [ -n "${DT[$who]["copy"]}" ]; then
+		dt_item "$lc" c dt_edit copy
+	else
+		dt_dim "$lc"
+	fi
+	if [ -n "$who" ] && [ -n "${DT[$who]["cut"]}" ]; then
+		dt_item "$lt" t dt_edit cut
+	else
+		dt_dim "$lt"
+	fi
+	if [ -n "$who" ] && [ -n "${DT[$who]["paste"]}" ] &&
+	   [ -n "$DT_CLIP" ]; then
+		dt_item "$lp" v dt_edit paste
+	else
+		dt_dim "$lp"
+	fi
 }
 
 # Pick an accelerator for a label that nothing else in the menu has taken.

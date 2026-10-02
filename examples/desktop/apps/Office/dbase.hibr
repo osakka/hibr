@@ -1,7 +1,7 @@
 #!/usr/bin/env hibr
 #
 # dbase -- a little dBASE III, on the db module: the dot prompt, BROWSE, an
-# APPEND form, and the Assistant's menus driving the same commands.
+# APPEND form, and System 7 style menus driving the same commands.
 #
 #   . CREATE stats          fields asked for one at a time, as below
 #   . USE stats
@@ -448,7 +448,7 @@ fn dbase_help(int id) {
 LIST [FOR ...], DISPLAY STRUCTURE, COUNT [FOR ...]
 SUM field [FOR ...], AVERAGE field [FOR ...]
 ? RECCOUNT() | DATE() | TIME() | 'text' | 1+2
-DIR, CLEAR, CLOSE, QUIT -- and the Assistant in the menus.
+DIR, CLEAR, CLOSE, QUIT -- and the same in the menus.
 FOR: field = value .AND. field > value, ops = <> < <= > >="
 }
 
@@ -923,8 +923,7 @@ fn dbase_paste(int id, text, op = "") {
 	esac
 }
 
-# The Assistant: dBASE III Plus's menus, each item running the command it
-# stands for at the prompt, so the command is there to be learnt.
+# The databases there are, for File > Open Database.
 DBASE_FILES=()
 fn dbase_files() {
 	local f
@@ -949,12 +948,17 @@ fn dbase_start(int id, line) {
 	DBA[$id]["cur"]=${#line}
 }
 
+# The menus, System 7's order: File, the desktop's Edit, then the app's
+# own. Each item types the command it stands for at the prompt and runs
+# it, so the command is there to be learnt.
 dbase_menus() {
 	local id=$DT_FOCUS f i=0 used=0
 
+	[ -n "${DBA[$id]["h"]}" ] && used=1
 	dbase_files
-	dt_menu "Set Up"
-	dt_sub "Database file"
+	dt_menu "File"
+	dt_item "New Database…" n dbase_start "$id" "CREATE "
+	dt_sub "Open Database"
 	if [ "${#DBASE_FILES[@]}" = 0 ]; then
 		dt_dim "(none yet)"
 	else
@@ -963,24 +967,31 @@ dbase_menus() {
 		done
 	fi
 	dt_end
-	dt_item "Close" c dbase_do "$id" "CLOSE"
+	if [ "$used" = 1 ]; then
+		dt_item "Close Database" c dbase_do "$id" "CLOSE"
+	else
+		dt_dim "Close Database"
+	fi
+	dt_sep
+	dt_item "Directory" d dbase_do "$id" "DIR"
 	dt_sep
 	dt_item "Quit dBASE" q dbase_do "$id" "QUIT"
-	dt_menu "Create"
-	dt_item "Database file" d dbase_start "$id" "CREATE "
-	dt_menu "Update"
-	if [ -n "${DBA[$id]["h"]}" ]; then used=1; fi
+	dt_editmenu
+	dt_menu "Records"
 	if [ "$used" = 1 ]; then
 		dt_item "Append" a dbase_do "$id" "APPEND"
 		dt_item "Browse" b dbase_do "$id" "BROWSE"
+		dt_sep
+		dt_item "Display Structure" s dbase_do "$id" "DISPLAY STRUCTURE"
 	else
 		dt_dim "Append"
 		dt_dim "Browse"
+		dt_sep
+		dt_dim "Display Structure"
 	fi
-	dt_menu "Retrieve"
+	dt_menu "Query"
 	if [ "$used" = 1 ]; then
 		dt_item "List" l dbase_do "$id" "LIST"
-		dt_item "Display Structure" d dbase_do "$id" "DISPLAY STRUCTURE"
 		dt_item "Count" c dbase_do "$id" "COUNT"
 		dt_sub "Sum"
 		while [ "$i" -lt "${DBA[$id]["cn"]}" ]; do
@@ -999,14 +1010,12 @@ dbase_menus() {
 		dt_end
 	else
 		dt_dim "List"
-		dt_dim "Display Structure"
 		dt_dim "Count"
 		dt_dim "Sum"
 		dt_dim "Average"
 	fi
-	dt_menu "Tools"
-	dt_item "Directory" d dbase_do "$id" "DIR"
-	dt_item "Help" h dbase_do "$id" "HELP"
+	dt_menu "Help"
+	dt_item "dBASE Help" h dbase_do "$id" "HELP"
 }
 
 # Run directly: a dot prompt on standard input, no desktop needed.
