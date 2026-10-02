@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.99
+
+**Write, a word processor for markdown,** in Office. Markdown is shown as it
+reads -- headings, bold, italic, strikethrough, code, links, bulleted,
+numbered and task lists, quotes, rules, fenced code -- and only the cursor's
+line shows its marks, dimmed, to edit exactly, as Typora does. A toolbar and
+a Format menu add the marks to the selection or the line; a click on a
+task's box ticks it. File > New, Open…, Save (ctrl-s), Save As…; Find… and
+Find Next; undo, redo, cut, copy, paste and select all. Plain text files
+are edited plain. Files opens `.md` and `.txt` in it.
+
+**An app can keep a window open:** `_canclose` is asked by the close
+button, Close and the Close Window key -- Write uses it to ask before
+losing unsaved changes. **Save** (ctrl-s) is a desktop key that goes only
+to a window with `_savefile`, so a terminal still gets ctrl-s. A file's
+double-click uses its type's first Open With app.
+
 ## 0.98
 
 **Stickies replace Note Pad.** Notes stuck on the desktop, as many as you

@@ -196,7 +196,7 @@ dt_mouse() {
 					!= 1 ] && dt_zoom "$id"
 				;;
 			min) dt_min "$id" ;;
-			close) dt_del "$id" ;;
+			close) dt_closereq "$id" ;;
 			esac
 			return 0
 		fi
@@ -228,7 +228,7 @@ dt_mouse() {
 			if [ "$act" = release ]; then
 				if [ "$DT_BTNOVER" = 1 ]; then
 					case $DT_BTNKIND in
-					close) dt_del "$id" ;;
+					close) dt_closereq "$id" ;;
 					min) dt_min "$id" ;;
 					max) dt_zoom "$id" ;;
 					esac
@@ -500,6 +500,13 @@ fn dt_event(k) {
 	# the terminal the desktop runs on: it goes to the app's _paste when it
 	# has one, and becomes the desktop's clipboard too, so Paste pastes it
 	# again in any window and on any display joined to this one.
+	# Save goes only to a window that saves -- anywhere else the key is the
+	# window's, so a terminal still gets ctrl-s.
+	if [ -n "$DT_FOCUS" ] && [ -n "${DT[$DT_FOCUS]["savefile"]}" ] &&
+	   dt_keyis save "$k"; then
+		${DT[$DT_FOCUS]["savefile"]} "$DT_FOCUS"
+		return 0
+	fi
 	if dt_keyis undo "$k"; then dt_editdo undo; return 0; fi
 	if dt_keyis redo "$k"; then dt_editdo redo; return 0; fi
 	if dt_keyis copy "$k"; then dt_edit copy; return 0; fi

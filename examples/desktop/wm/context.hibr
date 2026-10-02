@@ -125,5 +125,5 @@ fn dt_titlecontext(int id) {
 		fi
 	fi
 	dt_sep
-	dt_item "Close" w dt_del "$id"
+	dt_item "Close" w dt_closereq "$id"
 }

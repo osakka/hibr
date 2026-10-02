@@ -2873,6 +2873,94 @@ check("past its size the oldest go, but never a pinned one",
       sc.find("second one") is None and sc.find("first one") is not None, sc)
 shutil.rmtree(CLD, True)
 
+# Write: markdown shown as it reads, the cursor's line raw; the toolbar
+# and Format menu put the marks in; files open, save, and ask before an
+# unsaved one closes.
+WRDOC = """# Shopping list
+
+Things to get **today**, and *maybe* tomorrow.
+
+- milk
+- [ ] bread
+- [x] eggs
+
+> remember the `coupon`
+"""
+
+
+def wrrun(feed, name="doc.md", text=WRDOC, extra=()):
+    d = tempfile.mkdtemp(prefix="hibr-write-")
+    f = os.path.join(d, name)
+    open(f, "w").write(text)
+    p = os.path.join(S, "session.hibr")
+    open(p, "w").write("%s\n. %s\n. %s\n%s\ndt_open\n"
+                       'dt_new "Write" 22 70 1 2 write "%s"\ndt_run\ndt_close\n'
+                       % (load("console"), WM, appdir("write") + "/write.hibr",
+                          "".join(". %s/%s.hibr\n" % (appdir(x), x) for x in extra),
+                          f))
+    tt = Term(p, env={}, settle=1.0)
+    tt.keys(list(feed), settle=0.3)
+    sc = tt.screen()
+    tt.quit(None, 0.5)
+    sc.saved = open(f).read() if os.path.exists(f) else None
+    sc.dir = d
+    return sc
+
+
+sc = wrrun([])
+check("Write shows markdown as it reads: the marks gone, the styles there",
+      sc.find("Things to get today, and maybe tomorrow.") is not None and
+      sc.find("• milk") is not None and sc.find("☐ bread") is not None and
+      sc.find("☑ eggs") is not None and sc.find("remember the coupon")
+      is not None, sc)
+check("and the line the cursor is on shows its markdown, to edit exactly",
+      sc.find("# Shopping list") is not None, sc)
+check("its toolbar is there", sc.find(" B  I  S ") is not None, sc)
+sc = wrrun([b"\x1b[B", b"\x1b[B", b"\x1b[F", b" fresh"])
+check("typing marks the document changed, in its title",
+      sc.find("┤ Write [doc.md •] ├") is not None and
+      sc.saved == WRDOC, sc)
+sc = wrrun([b"\x1b[B", b"\x1b[B", b"\x1b[F", b" fresh"] + [b"\x1b[1;2D"] * 5
+           + [press(2, 4), 0.3, b"\x13", 0.4])
+check("Bold puts the marks round the selection, and ctrl-s saves",
+      sc.saved is not None and "tomorrow. **fresh**" in sc.saved and
+      sc.find("┤ Write [doc.md] ├") is not None, sc.saved)
+sc = wrrun([b"\x1b[B", b"\x1b[B", press(2, 22), 0.3, b"\x13", 0.4])
+check("H2 makes the line a heading", sc.saved is not None and
+      "\n## Things to get" in sc.saved, sc.saved)
+sc = wrrun([b"\x1b[B", b"\x1b[B", b"\x1b[1;2B", b"\x1b[1;2B", press(2, 29),
+            0.3, b"\x13", 0.4], text="a\nb\nc\nd\n")
+check("a list goes on every line of the selection",
+      sc.saved == "a\nb\n- c\n- d\n", repr(sc.saved))
+sc = wrrun([press(8, 3), 0.3, b"\x13", 0.4])
+check("a click on a task's box ticks it", sc.saved is not None and
+      "- [x] bread" in sc.saved, sc.saved)
+sc = wrrun([b"x", b"\x17", 0.4])
+check("closing with unsaved changes asks first",
+      sc.find("Close without saving?") is not None, sc)
+sc = wrrun([b"x", b"\x17", 0.4, b"n", 0.3])
+check("and no keeps the window, and the changes",
+      sc.find("┤ Write [doc.md •] ├") is not None, sc)
+sc = wrrun([], name="plain.txt", text="**not bold** here\n- not a list\n")
+check("a .txt is plain text: nothing rendered",
+      sc.find("- not a list") is not None and sc.find("Plain text") is not None,
+      sc)
+sc = wrrun([b"\x1b[21~", b"\x1b[C", b"\x1b[C", b"\x1b[C", b"\x1b[C", b"f",
+            0.4] + [c.encode() for c in "BREAD"] + [b"\r", 0.4])
+check("Find… finds, whatever its case, and puts the cursor there",
+      sc.find("line 6, column 12") is not None, sc)
+sc = run("files", "16 50 2 2", [b"\x1b[B", b"\r", 1.0],
+         pre="FB_DIR=%s" % sc.dir, extra=("write",), end=None)
+check("Files opens a .md in Write", sc.find("┤ Write [doc.md] ├") is not None,
+      sc)
+RSW = wrrun([])
+shutil.rmtree(RSW.dir, True)
+sc = run("write", "18 60 2 2", [c.encode() for c in "unsaved words"]
+         + [b"\x1b[21~", 0.3, b"r", 2.5] + [c.encode() for c in " more"],
+         end=None)
+check("unsaved text in Write comes back after a restart",
+      sc.find("unsaved words more") is not None, sc)
+
 # Restart Desktop: the desktop execs the hibr installed now in the same
 # process, and every window comes back -- a terminal's program still
 # running with its screen, an app's state from the maps it keeps.
@@ -2935,4 +3023,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(429)
+report(443)

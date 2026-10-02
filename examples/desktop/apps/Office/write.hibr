@@ -1,0 +1,1102 @@
+#!/usr/bin/env hibr
+#
+# write -- a word processor for markdown, after MacWrite: what you write is
+# shown as it will read -- headings large, bold bold, italic italic, lists
+# with their bullets, quotes with their bar, code shaded, links underlined,
+# rules drawn -- and only the line the cursor is on shows its markdown, the
+# marks dimmed, so it can always be edited exactly. The toolbar and the
+# Format menu put the marks in for you: on the selection, or on the line.
+#
+# A .txt file -- or anything that is not markdown -- is edited as plain
+# text, wrapped, nothing rendered. Files are opened from Files (Write is
+# what .md and .txt open in), with File > Open…, or dropped on the window;
+# File > Save writes the file (ctrl-s, settable as Save), Save As… asks
+# where. A window with unsaved changes asks before it closes, and keeps them
+# across Restart Desktop.
+#
+# The editing itself -- cursor, selection, undo, wrapping -- is
+# widgets/textarea.hibr's; this file decides what each line looks like.
+
+strict
+
+app write "A word processor for markdown, shown as it reads"
+
+command -v dt_app > /dev/null && dt_app write "Write" 22 78 many "¶"
+command -v dt_app > /dev/null && dt_app wrfile "Write" 8 56 "" "" fixed hidden
+command -v dt_opener > /dev/null &&
+	dt_opener write "Write" "md markdown txt text log" app write
+
+declare -gA WR
+declare -gA WRF
+command -v dt_keepstate > /dev/null && dt_keepstate write WR
+
+WR_S=
+WR_Y=
+WR_OA=()
+WR_CLOSEID=
+
+# --- files ------------------------------------------------------------------
+
+# Whether a path is markdown, by its name; a new document is.
+fn wr_ismd(path = "") {
+	case ${path##*/} in
+	"" | *.md | *.markdown | *.mdown | *.mkd) return 0 ;;
+	esac
+	return 1
+}
+
+fn write_open(int id, arg = "") {
+	WR[$id]["top"]=0
+	WR[$id]["path"]=
+	WR[$id]["kind"]=md
+	tb_set "$id" ""
+	WR[$id]["saved"]=0
+	[ -n "$arg" ] && wr_load "$id" "$arg"
+	wr_retitle "$id"
+}
+
+fn write_close(int id) {
+	tb_free "$id"
+	unset "WR[$id]"
+}
+
+# Read a file into the window.
+fn wr_load(int id, path) {
+	local t=
+
+	if [ -e "$path" ] && [ ! -r "$path" ]; then
+		dt_notep high "Cannot read $path"
+		return 1
+	fi
+	[ -r "$path" ] && t=$(< "$path")
+	tb_set "$id" "$t"
+	WR[$id]["path"]=$path
+	WR[$id]["kind"]=txt
+	wr_ismd "$path" && WR[$id]["kind"]=md
+	WR[$id]["saved"]=${TB[$id]["ver"]}
+	WR[$id]["top"]=0
+	wr_retitle "$id"
+}
+
+# Write the window's text to its file, or ask where first.
+fn write_savefile(int id) {
+	local p=${WR[$id]["path"]} t
+
+	if [ -z "$p" ]; then
+		wr_dialog "$id" saveas
+		return 0
+	fi
+	t := tb_text "$id"
+	if ! printf '%s\n' "$t" > "$p.new" 2> /dev/null ||
+	   ! mv -f "$p.new" "$p" 2> /dev/null; then
+		rm -f "$p.new" 2> /dev/null
+		dt_notep high "Cannot write $p"
+		return 1
+	fi
+	WR[$id]["saved"]=${TB[$id]["ver"]}
+	wr_retitle "$id"
+	dt_notep low "Saved ${p##*/}"
+	command -v dt_changed > /dev/null && dt_changed
+	return 0
+}
+
+fn wr_dirty(int id) {
+	[ "${TB[$id]["ver"]}" != "${WR[$id]["saved"]}" ]
+}
+
+fn wr_retitle(int id) {
+	local p=${WR[$id]["path"]} t
+
+	t=${p##*/}
+	[ -n "$t" ] || t=Untitled
+	wr_dirty "$id" && t="$t •"
+	[ "Write [$t]" = "${DT[$id]["title"]}" ] || dt_retitle "$id" "Write [$t]"
+}
+
+# A window with unsaved changes asks before it goes.
+fn write_canclose(int id) {
+	wr_dirty "$id" || return 0
+	WR_CLOSEID=$id
+	dt_confirm "Close without saving? The changes are lost." wr_closeyes
+	return 1
+}
+
+wr_closeyes() {
+	local id=$WR_CLOSEID
+
+	WR_CLOSEID=
+	[ -n "$id" ] && [ -n "${DT[$id]["title"]}" ] && dt_del "$id"
+}
+
+# Restart Desktop: unsaved text goes to a file of its own, and comes back.
+fn write_stash(int id, dir) {
+	local t
+
+	WR[$id]["rec"]=
+	WR[$id]["cr"]=${TB[$id]["cr"]}
+	WR[$id]["cc"]=${TB[$id]["cc"]}
+	WR[$id]["dirty"]=
+	wr_dirty "$id" || return 0
+	t := tb_text "$id"
+	printf '%s' "$t" > "$dir/write-$id.txt" || return 0
+	WR[$id]["rec"]="$dir/write-$id.txt"
+	WR[$id]["dirty"]=1
+}
+
+fn write_resume(int id) {
+	local p=${WR[$id]["path"]} t
+
+	if [ -n "${WR[$id]["rec"]}" ] && [ -r "${WR[$id]["rec"]}" ]; then
+		t=$(< "${WR[$id]["rec"]}")
+		tb_set "$id" "$t"
+		rm -f "${WR[$id]["rec"]}"
+	elif [ -n "$p" ] && [ -r "$p" ]; then
+		t=$(< "$p")
+		tb_set "$id" "$t"
+	else
+		tb_set "$id" ""
+	fi
+	WR[$id]["saved"]=${TB[$id]["ver"]}
+	[ "${WR[$id]["dirty"]}" = 1 ] && WR[$id]["saved"]=-1
+	TB[$id]["cr"]=${WR[$id]["cr"]:-0}
+	[ "${TB[$id]["cr"]}" -ge "${TB[$id]["n"]}" ] && TB[$id]["cr"]=0
+	TB[$id]["cc"]=${WR[$id]["cc"]:-0}
+	tb_clampc "$id"
+	WR[$id]["rec"]=
+}
+
+# A file dropped on the window opens in it, when nothing would be lost.
+fn write_drop(int id, int r, int c, op, ...paths) {
+	if wr_dirty "$id"; then
+		dt_launch write "${paths[0]}"
+	else
+		wr_load "$id" "${paths[0]}"
+	fi
+}
+
+# --- rendering a line -------------------------------------------------------
+#
+# A line as it is shown, into WR_S, with a style letter for each of its
+# characters in WR_Y, and in WR_OA the column of the line each came from.
+# With show set -- the cursor's line -- the marks stay, dimmed, and WR_S is
+# the line itself. The letters: p plain, b bold, i italic, B both, s
+# strike, c code, l link, 1 2 3 headings, q quote, u a list's mark, k a
+# task's box, r a rule, m a mark, f fenced code.
+
+# Append a run of n characters of text, all in style y, from raw column o.
+fn wr_put(text, y, int o) {
+	local k=0 n=${#text}
+
+	WR_S="$WR_S$text"
+	while [ "$k" -lt "$n" ]; do
+		WR_Y="$WR_Y$y"
+		WR_OA+=("$((o + k))")
+		k=$((k + 1))
+	done
+}
+
+# Append a glyph standing for raw text that is hidden: one style, all of it
+# mapped to raw column o.
+fn wr_glyph(text, y, int o) {
+	local k=0
+
+	WR_S="$WR_S$text"
+	while [ "$k" -lt "${#text}" ]; do
+		WR_Y="$WR_Y$y"
+		WR_OA+=("$o")
+		k=$((k + 1))
+	done
+}
+
+# The inline marks of text from raw column o: **bold**, *italic* or
+# _italic_, ~~strike~~, `code`, [link](url), and \ escapes.
+fn wr_inline(text, int o, int show, base = p) {
+	local i=0 n=${#text} c two bold=0 ital=0 strike=0 y rest code lab url
+
+	while [ "$i" -lt "$n" ]; do
+		c=${text:$i:1}
+		two=${text:$i:2}
+		if [ "$c" = "\\" ] && [ $((i + 1)) -lt "$n" ]; then
+			[ "$show" = 1 ] && wr_put "\\" m $((o + i))
+			c=${text:$((i + 1)):1}
+			wr_put "$c" "$base" $((o + i + 1))
+			i=$((i + 2))
+			continue
+		fi
+		if [ "$c" = '`' ]; then
+			rest=${text:$((i + 1))}
+			code=${rest%%\`*}
+			if [ "$code" != "$rest" ]; then
+				[ "$show" = 1 ] && wr_put '`' m $((o + i))
+				wr_put "$code" c $((o + i + 1))
+				[ "$show" = 1 ] && wr_put '`' m $((o + i + 1 + ${#code}))
+				i=$((i + ${#code} + 2))
+				continue
+			fi
+		fi
+		if [ "$two" = "**" ] || [ "$two" = "__" ]; then
+			bold=$((1 - bold))
+			[ "$show" = 1 ] && wr_put "$two" m $((o + i))
+			i=$((i + 2))
+			continue
+		fi
+		if [ "$two" = "~~" ]; then
+			strike=$((1 - strike))
+			[ "$show" = 1 ] && wr_put "$two" m $((o + i))
+			i=$((i + 2))
+			continue
+		fi
+		if [ "$c" = "*" ] || { [ "$c" = _ ] && {
+		     [ "$i" = 0 ] || [ "$ital" = 1 ] ||
+		     [ "${text:$((i - 1)):1}" = " " ]; }; }; then
+			if [ "$ital" = 1 ] || [ "${text:$((i + 1)):1}" != " " ]; then
+				ital=$((1 - ital))
+				[ "$show" = 1 ] && wr_put "$c" m $((o + i))
+				i=$((i + 1))
+				continue
+			fi
+		fi
+		if [ "$c" = "[" ]; then
+			rest=${text:$((i + 1))}
+			lab=${rest%%]*}
+			rest=${rest#*]}
+			if [ "$lab" != "${text:$((i + 1))}" ] && [ "${rest:0:1}" = "(" ] &&
+			   [ "${rest#*)}" != "$rest" ]; then
+				url=${rest:1}
+				url=${url%%)*}
+				[ "$show" = 1 ] && wr_put "[" m $((o + i))
+				wr_put "$lab" l $((o + i + 1))
+				[ "$show" = 1 ] &&
+					wr_put "]($url)" m $((o + i + 1 + ${#lab}))
+				i=$((i + ${#lab} + ${#url} + 4))
+				continue
+			fi
+		fi
+		y=$base
+		if [ "$base" = p ] || [ "$base" = q ]; then
+			if [ "$strike" = 1 ]; then y=s
+			elif [ "$bold" = 1 ] && [ "$ital" = 1 ]; then y=B
+			elif [ "$bold" = 1 ]; then y=b
+			elif [ "$ital" = 1 ]; then y=i
+			fi
+		fi
+		wr_put "$c" "$y" $((o + i))
+		i=$((i + 1))
+	done
+}
+
+# One line, as a block: a heading, a list item or task, a quote, a rule,
+# fenced code, or a paragraph. fence is 1 inside ``` fences.
+fn wr_render(line, int show, int fence, int w) {
+	local pre lvl body mark t
+
+	WR_S=
+	WR_Y=
+	WR_OA=()
+	if [ "$fence" = 1 ] || [ "${line:0:3}" = '```' ]; then
+		if [ "${line:0:3}" = '```' ]; then
+			wr_put "$line" m 0
+		else
+			wr_put "$line" f 0
+		fi
+		return 0
+	fi
+	if match "$line" '^(#{1,6}) (.*)$'; then
+		pre="${M[1]} "
+		lvl=${#M[1]}
+		[ "$lvl" -gt 3 ] && lvl=3
+		[ "$show" = 1 ] && wr_put "$pre" m 0
+		wr_inline "${M[2]}" "${#pre}" "$show" "$lvl"
+		return 0
+	fi
+	if [ "$show" != 1 ] && match "$line" '^ {0,3}([-*_])( *[-*_]){2,} *$'; then
+		t := str repeat "${GL[hline]}" "$w"
+		wr_glyph "$t" r 0
+		return 0
+	fi
+	if match "$line" '^( *)[-*+] \[([ xX])\] (.*)$'; then
+		pre=${M[1]}
+		mark=${M[2]}
+		body=${M[3]}
+		wr_put "$pre" p 0
+		if [ "$show" = 1 ]; then
+			wr_put "${line:${#pre}:6}" m "${#pre}"
+		elif [ "$mark" = " " ]; then
+			wr_glyph "☐ " k "${#pre}"
+		else
+			wr_glyph "☑ " k "${#pre}"
+		fi
+		wr_inline "$body" $((${#pre} + 6)) "$show" p
+		return 0
+	fi
+	if match "$line" '^( *)[-*+] (.*)$'; then
+		pre=${M[1]}
+		body=${M[2]}
+		wr_put "$pre" p 0
+		if [ "$show" = 1 ]; then
+			wr_put "${line:${#pre}:2}" m "${#pre}"
+		else
+			wr_glyph "• " u "${#pre}"
+		fi
+		wr_inline "$body" $((${#pre} + 2)) "$show" p
+		return 0
+	fi
+	if match "$line" '^( *)([0-9]+[.)]) (.*)$'; then
+		pre="${M[1]}${M[2]} "
+		wr_put "$pre" u 0
+		wr_inline "${M[3]}" "${#pre}" "$show" p
+		return 0
+	fi
+	if match "$line" '^> ?(.*)$'; then
+		pre=$((${#line} - ${#M[1]}))
+		if [ "$show" = 1 ]; then
+			wr_put "${line:0:$pre}" m 0
+		else
+			wr_glyph "${GL[vline]} " q 0
+		fi
+		wr_inline "${M[1]}" "$pre" "$show" q
+		return 0
+	fi
+	wr_inline "$line" 0 "$show" p
+}
+
+# The pen for a style letter.
+fn wr_pen(y) {
+	case $y in
+	b) console pen "$DT_INK" "$DT_FACE" bold ;;
+	i) console pen "$DT_INK" "$DT_FACE" italic ;;
+	B) console pen "$DT_INK" "$DT_FACE" bold italic ;;
+	s) console pen "$DT_DIM" "$DT_FACE" strike ;;
+	c) console pen "$DT_INFO" "$DT_WELL" ;;
+	f) console pen "$DT_INK" "$DT_WELL" ;;
+	l) console pen "$DT_INFO" "$DT_FACE" underline ;;
+	1) console pen "$DT_ACTIVE" "$DT_FACE" bold underline ;;
+	2) console pen "$DT_ACTIVE" "$DT_FACE" bold ;;
+	3) console pen "$DT_INK" "$DT_FACE" bold ;;
+	q) console pen "$DT_DIM" "$DT_FACE" italic ;;
+	u | k) console pen "$DT_ACTIVE" "$DT_FACE" bold ;;
+	r | m) console pen "$DT_DIM" "$DT_FACE" ;;
+	*) console pen "$DT_INK" "$DT_FACE" ;;
+	esac
+}
+
+# Draw text with its style letters at row r, column c of the window.
+fn wr_runs(int id, int r, int c, text, sty) {
+	local k=0 n=${#text} a=0 y
+
+	while [ "$k" -le "$n" ]; do
+		if [ "$k" = "$n" ] || [ "${sty:$k:1}" != "${sty:$a:1}" ]; then
+			if [ "$k" -gt "$a" ]; then
+				y=${sty:$a:1}
+				wr_pen "$y"
+				console put -p "w$id" "$r" $((c + a)) "${text:$a:$((k - a))}"
+			fi
+			a=$k
+		fi
+		k=$((k + 1))
+	done
+}
+
+# --- layout and drawing -------------------------------------------------------
+#
+# Each line's rows at width w, as start columns in its shown text: cached
+# by the line's text, so only a changed line is laid out again.
+fn wr_rows(int id, int i, int show, int fence, int w) {
+	local raw=${TB[$id][$i]} key st
+
+	key="$show$fence$w:$raw"
+	if [ "${WR[$id]["ck$i"]}" = "$key" ]; then
+		WR_S=${WR[$id]["cs$i"]}
+		WR_Y=${WR[$id]["cy$i"]}
+		ret "${WR[$id]["cw$i"]}"
+		return 0
+	fi
+	wr_render "$raw" "$show" "$fence" "$w"
+	st := tb_wrap "$WR_S" "$w"
+	WR[$id]["ck$i"]=$key
+	WR[$id]["cs$i"]=$WR_S
+	WR[$id]["cy$i"]=$WR_Y
+	WR[$id]["cw$i"]=$st
+	ret "$st"
+}
+
+# Which lines are inside a ``` fence, as a string of 0s and 1s.
+fn wr_fences(int id) {
+	local i=0 n=${TB[$id]["n"]} in=0 out=
+
+	while [ "$i" -lt "$n" ]; do
+		if [ "${TB[$id][$i]:0:3}" = '```' ]; then
+			out="${out}0"
+			in=$((1 - in))
+		else
+			out="$out$in"
+		fi
+		i=$((i + 1))
+	done
+	ret "$out"
+}
+
+fn write_draw(int id, int h, int w, int row, int col) {
+	local bh=$((h - 2)) cr=${TB[$id]["cr"]} cc=${TB[$id]["cc"]} n fz
+	local i st r k top crow ccol show line t fe a b
+	local -a ss
+
+	dt_wclear "$id"
+	wr_toolbar "$id" "$w"
+	n=${TB[$id]["n"]}
+	if [ "${WR[$id]["kind"]}" != md ]; then
+		tb_draw "$id" 2 1 "$bh" "$w" "$DT_INK" "$DT_FACE"
+		wr_status "$id" "$h" "$w"
+		wr_retitle "$id"
+		return 0
+	fi
+	TB[$id]["vis"]=$bh
+	tb_layout "$id" "$w"
+	fz := wr_fences "$id"
+	WR[$id]["fz"]=$fz
+	# Where the cursor is, in rows from the top of the document.
+	i=0
+	crow=0
+	while [ "$i" -lt "$cr" ]; do
+		st := wr_rows "$id" "$i" 0 "${fz:$i:1}" "$w"
+		read -ra ss <<< "$st"
+		crow=$((crow + ${#ss[@]}))
+		i=$((i + 1))
+	done
+	st := wr_rows "$id" "$cr" 1 "${fz:$cr:1}" "$w"
+	read -ra ss <<< "$st"
+	k=0
+	while [ $((k + 1)) -lt "${#ss[@]}" ] && [ "$cc" -ge "${ss[$((k + 1))]}" ]; do
+		k=$((k + 1))
+	done
+	crow=$((crow + k))
+	ccol=$((cc - ss[k]))
+	top=${WR[$id]["top"]:-0}
+	[ "$crow" -lt "$top" ] && top=$crow
+	[ "$crow" -ge $((top + bh)) ] && top=$((crow - bh + 1))
+	[ "$top" -lt 0 ] && top=0
+	WR[$id]["top"]=$top
+	WR[$id]["w"]=$w
+	# Draw from the line holding row top.
+	i=0
+	r=0
+	while [ "$i" -lt "$n" ]; do
+		show=0
+		[ "$i" = "$cr" ] && show=1
+		st := wr_rows "$id" "$i" "$show" "${fz:$i:1}" "$w"
+		read -ra ss <<< "$st"
+		[ $((r + ${#ss[@]})) -gt "$top" ] && break
+		r=$((r + ${#ss[@]}))
+		i=$((i + 1))
+	done
+	k=$((top - r))
+	r=0
+	while [ "$r" -lt "$bh" ]; do
+		t := str repeat " " "$w"
+		console pen "$DT_INK" "$DT_FACE"
+		console put -p "w$id" $((r + 2)) 1 "$t"
+		if [ "$i" -lt "$n" ]; then
+			show=0
+			[ "$i" = "$cr" ] && show=1
+			fe=${fz:$i:1}
+			st := wr_rows "$id" "$i" "$show" "$fe" "$w"
+			read -ra ss <<< "$st"
+			a=${ss[$k]}
+			b=${#WR_S}
+			[ $((k + 1)) -lt "${#ss[@]}" ] && b=${ss[$((k + 1))]}
+			if [ "$fe" = 1 ]; then
+				console pen "$DT_INK" "$DT_WELL"
+				console put -p "w$id" $((r + 2)) 1 "$t"
+			fi
+			wr_runs "$id" $((r + 2)) 1 "${WR_S:$a:$((b - a))}" "${WR_Y:$a:$((b - a))}"
+			WR[$id]["row$r"]="$i $a"
+			k=$((k + 1))
+			if [ "$k" -ge "${#ss[@]}" ]; then
+				k=0
+				i=$((i + 1))
+			fi
+		else
+			WR[$id]["row$r"]=""
+		fi
+		r=$((r + 1))
+	done
+	wr_selection "$id" "$w" "$bh"
+	if [ $((crow - top)) -ge 0 ] && [ $((crow - top)) -lt "$bh" ] &&
+	   [ "$ccol" -lt "$w" ]; then
+		line=${TB[$id][$cr]}
+		t=${line:$cc:1}
+		console pen "$DT_FACE" "$DT_INK"
+		console put -p "w$id" $((crow - top + 2)) $((ccol + 1)) "${t:- }"
+	fi
+	wr_status "$id" "$h" "$w"
+	wr_retitle "$id"
+}
+
+# The selection, over the text: only on the cursor's line is the shown
+# text the line itself, so the selection is drawn on rows of the lines it
+# covers by their shown columns, through each row's raw-column map.
+fn wr_selection(int id, int w, int bh) {
+	local r=0 i a s e x y line sr sc er ec
+	local -a rw
+
+	tb_order "$id" || return 0
+	sr=$TB_SR sc=$TB_SC er=$TB_ER ec=$TB_EC
+	while [ "$r" -lt "$bh" ]; do
+		read -ra rw <<< "${WR[$id]["row$r"]}"
+		if [ "${#rw[@]}" = 2 ] && [ "${rw[0]}" -ge "$sr" ] &&
+		   [ "${rw[0]}" -le "$er" ]; then
+			i=${rw[0]}
+			a=${rw[1]}
+			line=${WR[$id]["cs$i"]}
+			e=$((a + w))
+			[ "$e" -gt "${#line}" ] && e=${#line}
+			if [ "$i" = "${TB[$id]["cr"]}" ]; then
+				x=$a
+				y=$e
+				[ "$i" = "$sr" ] && [ "$sc" -gt "$x" ] && x=$sc
+				[ "$i" = "$er" ] && [ "$ec" -lt "$y" ] && y=$ec
+			else
+				x=$a
+				y=$e
+				[ "$i" = "$sr" ] || [ "$i" = "$er" ] && {
+					x=$a
+					y=$e
+				}
+			fi
+			if [ "$y" -gt "$x" ]; then
+				s=${line:$x:$((y - x))}
+				console pen "$DT_SELINK" "$DT_ACTIVE"
+				console put -p "w$id" $((r + 2)) $((x - a + 1)) "$s"
+			fi
+		fi
+		r=$((r + 1))
+	done
+}
+
+# The status line: the file, whether it has changed, where the cursor is.
+fn wr_status(int id, int h, int w) {
+	local p=${WR[$id]["path"]} t k
+
+	k=Markdown
+	[ "${WR[$id]["kind"]}" = md ] || k=Text
+	t=${p##*/}
+	[ -n "$t" ] || t=Untitled
+	wr_dirty "$id" && t="$t  (changed)"
+	t="$t  ${GL[dot]:-·}  line $((TB[$id]["cr"] + 1)), column $((TB[$id]["cc"] + 1))  ${GL[dot]:-·}  $k"
+	t := str pad "${t:0:$w}" "$w"
+	console pen "$DT_DIM" "$DT_FACE"
+	console put -p "w$id" "$h" 1 "$t"
+}
+
+# --- the toolbar ----------------------------------------------------------------
+
+WR_TOOLS=("B:bold" "I:italic" "S:strike" "<>:code" "H1:h1" "H2:h2" "H3:h3"
+	"•:bullet" "1.:number" "☐:task" "❝:quote" "Link:link" "—:rule")
+
+fn wr_toolbar(int id, int w) {
+	local c=1 tl lab tag t
+
+	t := str repeat " " "$w"
+	console pen "$DT_INK" "$DT_WELL"
+	console put -p "w$id" 1 1 "$t"
+	if [ "${WR[$id]["kind"]}" != md ]; then
+		console pen "$DT_DIM" "$DT_WELL"
+		console put -p "w$id" 1 2 "Plain text"
+		return 0
+	fi
+	for tl in "${WR_TOOLS[@]}"; do
+		lab=${tl%%:*}
+		tag=${tl#*:}
+		[ $((c + ${#lab} + 2)) -gt "$w" ] && break
+		case $tag in
+		bold) console pen "$DT_INK" "$DT_WELL" bold ;;
+		italic) console pen "$DT_INK" "$DT_WELL" italic ;;
+		strike) console pen "$DT_INK" "$DT_WELL" strike ;;
+		*) console pen "$DT_INK" "$DT_WELL" ;;
+		esac
+		console put -p "w$id" 1 "$c" " $lab "
+		dt_wreg "$id" 1 "$c" $((${#lab} + 2)) "tool:$tag"
+		c=$((c + ${#lab} + 2))
+	done
+}
+
+# --- what the toolbar and the Format menu do ---------------------------------------
+
+# Put marks round the selection, or a pair at the cursor to type between.
+fn wr_wrap(int id, l, r) {
+	local t cr
+
+	if t := tb_seltext "$id"; then
+		tb_insert "$id" "$l$t$r"
+	else
+		tb_insert "$id" "$l$r"
+		TB[$id]["cc"]=$((TB[$id]["cc"] - ${#r}))
+	fi
+}
+
+# The lines the selection covers, or the cursor's line: "first last".
+fn wr_span(int id) {
+	if tb_order "$id"; then
+		ret "$TB_SR $TB_ER"
+	else
+		ret "${TB[$id]["cr"]} ${TB[$id]["cr"]}"
+	fi
+}
+
+# Give each line a block mark, taking off any other; take it off when every
+# line has it already. A numbered list counts up.
+fn wr_block(int id, kind) {
+	local sp a z i line body all=1 m num=1
+
+	sp := wr_span "$id"
+	a=${sp% *}
+	z=${sp#* }
+	tb_snap "$id" ""
+	i=$a
+	while [ "$i" -le "$z" ]; do
+		wr_mark "$kind" "${TB[$id][$i]}" 1 || all=0
+		i=$((i + 1))
+	done
+	i=$a
+	while [ "$i" -le "$z" ]; do
+		line=${TB[$id][$i]}
+		body=$line
+		if match "$line" '^(#{1,6} |> ?|( *)[-*+] \[[ xX]\] |( *)[-*+] |( *)[0-9]+[.)] )(.*)$'; then
+			body=${M[5]}
+		fi
+		m=
+		if [ "$all" = 0 ]; then
+			case $kind in
+			h1) m="# " ;;
+			h2) m="## " ;;
+			h3) m="### " ;;
+			bullet) m="- " ;;
+			task) m="- [ ] " ;;
+			quote) m="> " ;;
+			number) m="$num. "; num=$((num + 1)) ;;
+			esac
+		fi
+		TB[$id][$i]="$m$body"
+		i=$((i + 1))
+	done
+	TB[$id]["cc"]=${#TB[$id][${TB[$id]["cr"]}]}
+	TB[$id]["sel"]=
+	tb_changed "$id"
+}
+
+# Whether a line already has this block's mark.
+fn wr_mark(kind, line, int any = 0) {
+	case $kind in
+	h1) match "$line" '^# ' ;;
+	h2) match "$line" '^## ' ;;
+	h3) match "$line" '^### ' ;;
+	bullet) match "$line" '^ *[-*+] ' && ! match "$line" '^ *[-*+] \[[ xX]\] ' ;;
+	task) match "$line" '^ *[-*+] \[[ xX]\] ' ;;
+	number) match "$line" '^ *[0-9]+[.)] ' ;;
+	quote) match "$line" '^>' ;;
+	*) return 1 ;;
+	esac
+}
+
+# Tick or untick the task on the cursor's line.
+fn wr_tick(int id) {
+	local cr=${TB[$id]["cr"]} line
+
+	line=${TB[$id][$cr]}
+	match "$line" '^( *[-*+] \[)([ xX])(\] .*)$' || return 1
+	tb_snap "$id" ""
+	if [ "${M[2]}" = " " ]; then
+		TB[$id][$cr]="${M[1]}x${M[3]}"
+	else
+		TB[$id][$cr]="${M[1]} ${M[3]}"
+	fi
+	tb_changed "$id"
+}
+
+fn wr_tool(int id, tag) {
+	local cr t
+
+	case $tag in
+	bold) wr_wrap "$id" "**" "**" ;;
+	italic) wr_wrap "$id" "*" "*" ;;
+	strike) wr_wrap "$id" "~~" "~~" ;;
+	code) wr_wrap "$id" '`' '`' ;;
+	link)
+		if t := tb_seltext "$id"; then
+			tb_insert "$id" "[$t]()"
+		else
+			tb_insert "$id" "[]()"
+			TB[$id]["cc"]=$((TB[$id]["cc"] - 3))
+			return 0
+		fi
+		TB[$id]["cc"]=$((TB[$id]["cc"] - 1))
+		;;
+	rule)
+		cr=${TB[$id]["cr"]}
+		tb_snap "$id" ""
+		TB[$id]["sel"]=
+		tb_insline "$id" $((cr + 1)) "---"
+		tb_insline "$id" $((cr + 2)) ""
+		TB[$id]["cr"]=$((cr + 2))
+		TB[$id]["cc"]=0
+		tb_changed "$id"
+		;;
+	*) wr_block "$id" "$tag" ;;
+	esac
+}
+
+# --- keys and the mouse ---------------------------------------------------------------
+
+fn write_key(int id, key) {
+	case $key in
+	escape) TB[$id]["sel"]=; return 0 ;;
+	esac
+	tb_key "$id" "$key" || return 1
+	return 0
+}
+
+# A row of the window as "line column" of the text, through the row map
+# the last frame drew.
+fn wr_at(int id, int r, int c) {
+	local -a rw
+	local i a k
+
+	read -ra rw <<< "${WR[$id]["row$((r - 2))"]}"
+	if [ "${#rw[@]}" != 2 ]; then
+		i=$((TB[$id]["n"] - 1))
+		ret "$i ${#TB[$id][$i]}"
+		return 0
+	fi
+	i=${rw[0]}
+	a=${rw[1]}
+	k=$((a + c - 1))
+	if [ "$i" = "${TB[$id]["cr"]}" ] || [ "${WR[$id]["kind"]}" != md ]; then
+		[ "$k" -gt "${#TB[$id][$i]}" ] && k=${#TB[$id][$i]}
+		ret "$i $k"
+		return 0
+	fi
+	wr_render "${TB[$id][$i]}" 0 "${WR[$id]["fz"]:$i:1}" "${WR[$id]["w"]:-80}"
+	if [ "$k" -ge "${#WR_OA[@]}" ]; then
+		k=${#TB[$id][$i]}
+	else
+		k=${WR_OA[$k]}
+	fi
+	ret "$i $k"
+}
+
+fn write_mouse(int id, act, btn, int r, int c, mods = "") {
+	local p
+
+	[ "$btn" = left ] || return 0
+	if [ "$r" = 1 ]; then
+		[ "$act" = press ] || return 0
+		p := dt_hit "$id" "$r" "$c" || return 0
+		case $p in tool:*) wr_tool "$id" "${p#tool:}" ;; esac
+		return 0
+	fi
+	if [ "${WR[$id]["kind"]}" != md ]; then
+		tb_mouse "$id" "$act" "$btn" "$r" "$c" "$mods"
+		return 0
+	fi
+	p := wr_at "$id" "$r" "$c"
+	if [ "$act" = press ]; then
+		case $mods in
+		*shift*)
+			if [ "${TB[$id]["sel"]}" != 1 ]; then
+				TB[$id]["ar"]=${TB[$id]["cr"]}
+				TB[$id]["ac"]=${TB[$id]["cc"]}
+			fi
+			;;
+		*)
+			TB[$id]["ar"]=${p% *}
+			TB[$id]["ac"]=${p#* }
+			;;
+		esac
+		TB[$id]["sel"]=1
+		TB[$id]["run"]=
+		# A press on a task's box ticks it.
+		if [ -z "$mods" ] && [ "${p% *}" != "${TB[$id]["cr"]}" ] &&
+		   match "${TB[$id][${p% *}]}" '^( *)[-*+] \[[ xX]\] ' &&
+		   [ "$c" -le $((${#M[1]} + 2)) ]; then
+			TB[$id]["cr"]=${p% *}
+			TB[$id]["cc"]=${#TB[$id][${p% *}]}
+			TB[$id]["sel"]=
+			wr_tick "$id"
+			return 0
+		fi
+	fi
+	TB[$id]["cr"]=${p% *}
+	TB[$id]["cc"]=${p#* }
+	TB[$id]["goal"]=-1
+}
+
+fn write_wheel(int id, dir, int r = 0, int c = 0) {
+	case $dir in
+	up) tb_vmove "$id" -3 ;;
+	down) tb_vmove "$id" 3 ;;
+	esac
+	return 0
+}
+
+fn write_copy(int id) {
+	local t
+
+	t := tb_seltext "$id" || return 1
+	ret "$t"
+}
+
+fn write_cut(int id) {
+	local t
+
+	t := tb_cut "$id" || return 1
+	ret "$t"
+}
+
+fn write_paste(int id, text, op = "") {
+	tb_insert "$id" "$text"
+}
+
+fn write_undo(int id) {
+	tb_undo "$id"
+}
+
+fn write_redo(int id) {
+	tb_redo "$id"
+}
+
+fn write_selall(int id) {
+	tb_selall "$id"
+}
+
+# --- finding ------------------------------------------------------------------------
+
+# Select the next place the text is found after the cursor, wrapping
+# round to the start; fails when it is nowhere.
+fn wr_find(int id, what) {
+	local n=${TB[$id]["n"]} i=${TB[$id]["cr"]} from=$((TB[$id]["cc"] + 1)) k=0
+	local line low w2 rest
+
+	[ -n "$what" ] || return 1
+	w2=${what,,}
+	while [ "$k" -le "$n" ]; do
+		line=${TB[$id][$i]}
+		low=${line,,}
+		rest=${low:$from}
+		if [ "${rest#*"$w2"}" != "$rest" ]; then
+			rest=${rest%%"$w2"*}
+			TB[$id]["sel"]=1
+			TB[$id]["ar"]=$i
+			TB[$id]["ac"]=$((from + ${#rest}))
+			TB[$id]["cr"]=$i
+			TB[$id]["cc"]=$((from + ${#rest} + ${#what}))
+			return 0
+		fi
+		i=$(((i + 1) % n))
+		from=0
+		k=$((k + 1))
+	done
+	return 1
+}
+
+fn wr_findnext(int id) {
+	if [ -z "${WR[$id]["find"]}" ]; then
+		wr_dialog "$id" find
+		return 0
+	fi
+	wr_find "$id" "${WR[$id]["find"]}" ||
+		dt_notep low "\"${WR[$id]["find"]}\" is not here"
+}
+
+# --- the dialog: Open, Save As and Find, one field each ------------------------------
+
+fn wr_dialog(int id, mode) {
+	local h=8 w=56 r c rid v=
+
+	r=$((DT_ROWS / 2 - h / 2))
+	c=$(((DT_COLS - w) / 2))
+	case $mode in
+	open) v="${WR[$id]["path"]%/*}/"; [ -n "${WR[$id]["path"]}" ] || v="$PWD/" ;;
+	saveas) v=${WR[$id]["path"]:-$PWD/untitled.md} ;;
+	find) v=${WR[$id]["find"]} ;;
+	esac
+	rid := dt_new "Write" "$h" "$w" "$r" "$c" wrfile
+	WRF[$rid]["mode"]=$mode
+	WRF[$rid]["for"]=$id
+	WRF[$rid]["buf"]=$v
+	WRF[$rid]["cur"]=${#v}
+	WRF[$rid]["focus"]=text
+	case $mode in
+	open) dt_retitle "$rid" "Open" ;;
+	saveas) dt_retitle "$rid" "Save As" ;;
+	find) dt_retitle "$rid" "Find" ;;
+	esac
+}
+
+fn wrfile_draw(int id, int h, int w, int row, int col) {
+	local f=${WRF[$id]["focus"]} on=0 lab ok
+
+	dt_wclear "$id"
+	[ "$f" = text ] && on=1
+	case ${WRF[$id]["mode"]} in
+	open) lab="Open the file:"; ok=Open ;;
+	saveas) lab="Save it as:"; ok=Save ;;
+	*) lab="Find:"; ok=Find ;;
+	esac
+	console pen "$DT_INK" "$DT_FACE"
+	console put -p "w$id" 1 2 "$lab"
+	dt_textdraw "$id" 2 2 $((w - 4)) "${WRF[$id]["buf"]}" "${WRF[$id]["cur"]}" "$on"
+	dt_wreg "$id" 2 2 $((w - 4)) text
+	console pen "$DT_DIM" "$DT_FACE"
+	case ${WRF[$id]["mode"]} in
+	find) console put -p "w$id" 3 2 "case does not matter" ;;
+	*) console put -p "w$id" 3 2 "a path; ~ is your home" ;;
+	esac
+	dt_dlgbtns "$id" "$h" "$w" "$f" ok "$ok" cancel Cancel
+}
+
+fn wrfile_go(int id) {
+	local t=${WRF[$id]["for"]} p=${WRF[$id]["buf"]}
+
+	if [ -z "${DT[$t]["title"]}" ]; then
+		dt_del "$id"
+		return 0
+	fi
+	case $p in "~") p=$HOME ;; "~/"*) p="$HOME/${p#"~/"}" ;; esac
+	case ${WRF[$id]["mode"]} in
+	open)
+		if [ ! -f "$p" ]; then
+			dt_note "There is no file $p"
+			return 0
+		fi
+		dt_del "$id"
+		if wr_dirty "$t" || [ -n "${WR[$t]["path"]}" ]; then
+			dt_launch write "$p"
+		else
+			wr_load "$t" "$p"
+		fi
+		;;
+	saveas)
+		[ -n "$p" ] || return 0
+		if [ -d "$p" ]; then
+			dt_note "$p is a folder"
+			return 0
+		fi
+		dt_del "$id"
+		WR[$t]["path"]=$p
+		WR[$t]["kind"]=txt
+		wr_ismd "$p" && WR[$t]["kind"]=md
+		write_savefile "$t"
+		;;
+	find)
+		dt_del "$id"
+		WR[$t]["find"]=$p
+		dt_raise "$t"
+		wr_find "$t" "$p" || dt_notep low "\"$p\" is not here"
+		;;
+	esac
+}
+
+fn wrfile_click(int id, int r, int c, btn = "") {
+	local tag
+
+	tag := dt_hit "$id" "$r" "$c"
+	case $tag in
+	text) WRF[$id]["focus"]=text ;;
+	ok) wrfile_go "$id" ;;
+	cancel) dt_del "$id" ;;
+	esac
+	return 0
+}
+
+fn wrfile_key(int id, key) {
+	local res f=${WRF[$id]["focus"]} d onb=1
+
+	[ "$f" = text ] && onb=0
+	if d := dt_focuskey "$key" "$onb"; then
+		WRF[$id]["focus"] := dt_focus "$f" "$d" text ok cancel
+		return 0
+	fi
+	case $key in
+	escape) dt_del "$id"; return 0 ;;
+	enter)
+		if [ "$f" = cancel ]; then dt_del "$id"; else wrfile_go "$id"; fi
+		return 0
+		;;
+	esac
+	[ "$f" = text ] || return 0
+	res := dt_textkey "${WRF[$id]["buf"]}" "${WRF[$id]["cur"]}" "$key" ||
+		return 1
+	WRF[$id]["buf"]=${res% *}
+	WRF[$id]["cur"]=${res##* }
+	return 0
+}
+
+fn wrfile_paste(int id, text, op = "") {
+	local r
+
+	WRF[$id]["focus"]=text
+	r := dt_textpaste "${WRF[$id]["buf"]}" "${WRF[$id]["cur"]}" "$text"
+	WRF[$id]["buf"]=${r% *}
+	WRF[$id]["cur"]=${r##* }
+}
+
+fn wrfile_copy(int id) {
+	[ "${WRF[$id]["focus"]}" = text ] || return 1
+	ret "${WRF[$id]["buf"]}"
+}
+
+fn wrfile_close(int id) {
+	unset "WRF[$id]"
+}
+
+# --- menus ------------------------------------------------------------------------------
+
+write_menus() {
+	local id=$DT_FOCUS
+
+	dt_menu "File"
+	dt_item "New" n dt_launch write
+	dt_item "Open…" o wr_dialog "$id" open
+	dt_item "Save" s write_savefile "$id"
+	dt_item "Save As…" a wr_dialog "$id" saveas
+	dt_sep
+	dt_item "Close" w dt_close_focused
+	dt_editmenu
+	dt_menu "Format"
+	if [ "${WR[$id]["kind"]}" = md ]; then
+		dt_item "Bold" b wr_tool "$id" bold
+		dt_item "Italic" i wr_tool "$id" italic
+		dt_item "Strikethrough" s wr_tool "$id" strike
+		dt_item "Code" c wr_tool "$id" code
+		dt_item "Link" l wr_tool "$id" link
+		dt_sep
+		dt_item "Heading 1" 1 wr_tool "$id" h1
+		dt_item "Heading 2" 2 wr_tool "$id" h2
+		dt_item "Heading 3" 3 wr_tool "$id" h3
+		dt_sep
+		dt_item "Bulleted List" u wr_tool "$id" bullet
+		dt_item "Numbered List" n wr_tool "$id" number
+		dt_item "Task List" t wr_tool "$id" task
+		dt_item "Tick Task" k wr_tick "$id"
+		dt_item "Quote" q wr_tool "$id" quote
+		dt_item "Rule" r wr_tool "$id" rule
+	else
+		dt_dim "Bold"
+		dt_dim "Italic"
+		dt_sep
+		dt_item "Edit as Markdown" m wr_setkind "$id" md
+	fi
+	if [ "${WR[$id]["kind"]}" = md ]; then
+		dt_sep
+		dt_item "Edit as Plain Text" p wr_setkind "$id" txt
+	fi
+	dt_menu "Find"
+	dt_item "Find…" f wr_dialog "$id" find
+	dt_item "Find Next" n wr_findnext "$id"
+}
+
+# Edit a document as markdown, or as plain text, whatever its name says.
+fn wr_setkind(int id, kind) {
+	WR[$id]["kind"]=$kind
+	WR[$id]["top"]=0
+}

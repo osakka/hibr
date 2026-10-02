@@ -47,7 +47,7 @@ fn dt_hooks(int id, ap = "") {
 	local f
 
 	for f in draw key click mouse wheel open close copy cut paste drop \
-		refresh idle undo redo selall; do
+		refresh idle undo redo selall canclose savefile; do
 		if [ -n "$ap" ] && dt_has "${ap}_$f"; then
 			DT[$id]["$f"]="${ap}_$f"
 		else
@@ -342,7 +342,19 @@ fn dt_retitle(int id, title) {
 	DT[$id]["title"]="$title"
 }
 
-dt_close_focused() { [ -n "$DT_FOCUS" ] && dt_del "$DT_FOCUS"; }
+dt_close_focused() { [ -n "$DT_FOCUS" ] && dt_closereq "$DT_FOCUS"; }
+
+# Close a window someone asked to close -- the close button, Close on a
+# menu, the Close Window key -- unless its app's _canclose says not yet: an
+# editor with unsaved changes asks first, and closes it itself if told to.
+fn dt_closereq(int id) {
+	local cb=${DT[$id]["canclose"]}
+
+	if [ -n "$cb" ] && ! $cb "$id"; then
+		return 0
+	fi
+	dt_del "$id"
+}
 
 dt_hide_focused() { [ -n "$DT_FOCUS" ] && dt_min "$DT_FOCUS"; }
 
