@@ -49,6 +49,11 @@ hibr: db import: line 2501 skipped
 2499	6245001	t0
 833
 3123750
+--- record numbers, counted from 1, and starting from one
+1024	1023	1046529	t0
+1025	1024	1048576	t1
+record 2499 holds n=2498, 2 rows
+500
 --- a filter skips the row groups its zone maps rule out
 groups skipped by their zones
 2 of 3 groups skipped

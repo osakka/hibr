@@ -1,0 +1,1015 @@
+#!/usr/bin/env hibr
+#
+# dbase -- a little dBASE III, on the db module: the dot prompt, BROWSE, an
+# APPEND form, and the Assistant's menus driving the same commands.
+#
+#   . CREATE stats          fields asked for one at a time, as below
+#   . USE stats
+#   . APPEND                a form: tab or enter between fields, escape out
+#   . LIST FOR load > 2.5 .AND. host = 'web1'
+#   . COUNT FOR host = 'web1'
+#   . SUM load    . AVERAGE load FOR host = 'web2'
+#   . BROWSE                arrows and page keys, escape back
+#   . DISPLAY STRUCTURE     . DIR     . ? RECCOUNT()     . HELP     . QUIT
+#
+# A field is C (character, a width) or N (numeric: no decimals is a whole
+# number, decimals a fractional one). Records are only ever appended: the
+# db module has no update or delete, so neither has this -- no EDIT, no
+# DELETE, no PACK. FOR conditions join with .AND.; .OR. is refused, since a
+# db query is one set of conditions that all hold. Databases are files in
+# DBASE_DIR, ~/.local/share/hibr/dbase unless set.
+#
+# Every window is its own session: its own database in USE, its own output,
+# its own history.
+
+strict
+
+app dbase "A little dBASE III: dot prompt, BROWSE, APPEND"
+
+command -v dt_app > /dev/null && dt_app dbase "dBASE" 20 72 many "▦"
+
+declare -gA DBA
+DBASE_DIR="${DBASE_DIR-${XDG_DATA_HOME:-$HOME/.local/share}/hibr/dbase}"
+DBASE_MAXOUT=300
+DBASE_MAXLIST=1000
+DBASE_WORD=
+DBASE_REST=
+DBASE_WHERE=
+DBASE_WA=()
+
+# Where a database name lives: a bare name in DBASE_DIR, lower-cased, as
+# NAME.db; anything with a slash where it says.
+fn dbase_path(nm) {
+	case $nm in
+	*/*) [ "${nm%.db}" = "$nm" ] && nm="$nm.db"; ret "$nm" ;;
+	*) ret "$DBASE_DIR/${nm,,}.db" ;;
+	esac
+}
+
+fn dbase_open(int id, arg = "") {
+	DBA[$id]["mode"]=dot
+	DBA[$id]["h"]=
+	DBA[$id]["name"]=
+	DBA[$id]["in"]=
+	DBA[$id]["cur"]=0
+	DBA[$id]["on"]=0
+	DBA[$id]["scroll"]=0
+	DBA[$id]["hn"]=0
+	DBA[$id]["hi"]=0
+	DBA[$id]["cn"]=0
+	need db 2> /dev/null || dbase_say "$id" "*** The db module is not installed."
+	dbase_say "$id" "dBASE -- a little dBASE III on hibr's db module. HELP lists the commands."
+	[ -n "$arg" ] && dbase_run "$id" "USE $arg"
+}
+
+fn dbase_close(int id) {
+	[ -n "${DBA[$id]["h"]}" ] && db close "${DBA[$id]["h"]}"
+	unset "DBA[$id]"
+}
+
+# One line of output, or several split at newlines, kept to DBASE_MAXOUT.
+fn dbase_say(int id, text) {
+	local n line
+
+	while :; do
+		line=${text%%$'\n'*}
+		n=${DBA[$id]["on"]}
+		DBA[$id]["o"][$n]=$line
+		n=$((n + 1))
+		DBA[$id]["on"]=$n
+		[ "$line" = "$text" ] && break
+		text=${text#*$'\n'}
+	done
+	if [ "$n" -gt $((DBASE_MAXOUT * 2)) ]; then
+		dbase_trim "$id"
+	fi
+	DBA[$id]["scroll"]=0
+}
+
+# Keep only the last DBASE_MAXOUT lines of output.
+fn dbase_trim(int id) {
+	local n=${DBA[$id]["on"]} i=0 from
+
+	from=$((n - DBASE_MAXOUT))
+	while [ "$i" -lt "$DBASE_MAXOUT" ]; do
+		DBA[$id]["o"][$i]=${DBA[$id]["o"][$((from + i))]}
+		i=$((i + 1))
+	done
+	while [ "$i" -lt "$n" ]; do
+		unset "DBA[$id][o][$i]"
+		i=$((i + 1))
+	done
+	DBA[$id]["on"]=$DBASE_MAXOUT
+}
+
+# Read the structure of the database in USE into the window: names,
+# db types and widths.
+fn dbase_cols(int id) {
+	local cl i=0 c nm rest
+	local -a cs
+
+	cl := db cols "${DBA[$id]["h"]}"
+	read -ra cs <<< "$cl"
+	for c in "${cs[@]}"; do
+		nm=${c%%:*}
+		rest=${c#*:}
+		DBA[$id]["c$i"]=$nm
+		DBA[$id]["t$i"]=${rest%%:*}
+		case $rest in
+		str:*) DBA[$id]["w$i"]=${rest#str:} ;;
+		*) DBA[$id]["w$i"]=10 ;;
+		esac
+		i=$((i + 1))
+	done
+	DBA[$id]["cn"]=$i
+}
+
+# The column a field name names, case aside, as its index; fails for none.
+fn dbase_col(int id, nm) {
+	local i=0
+
+	while [ "$i" -lt "${DBA[$id]["cn"]}" ]; do
+		if [ "${DBA[$id]["c$i"],,}" = "${nm,,}" ]; then
+			ret "$i"
+			return 0
+		fi
+		i=$((i + 1))
+	done
+	return 1
+}
+
+# Split a command into its verb (upper-cased, cut to four letters, as dBASE
+# read them) and the rest: DBASE_WORD, DBASE_REST.
+fn dbase_verb(line) {
+	line="${line#"${line%%[![:space:]]*}"}"
+	DBASE_WORD=${line%%[[:space:]]*}
+	DBASE_REST=${line:${#DBASE_WORD}}
+	DBASE_REST="${DBASE_REST#"${DBASE_REST%%[![:space:]]*}"}"
+	DBASE_WORD=${DBASE_WORD^^}
+	DBASE_WORD=${DBASE_WORD:0:4}
+}
+
+# A FOR condition in dBASE's words -- load > 2.5 .AND. host = 'web1' --
+# made into db's: where load gt 2.5 and host eq web1, as the words of
+# DBASE_WA, and those joined with tabs in DBASE_WHERE for a window to keep.
+# Words, not a string: a strict file does not split, and a value can hold a
+# space. Fails, having said why, on anything db cannot ask.
+fn dbase_for(int id, cond) {
+	local clause f op v up i
+	local -a parts
+
+	DBASE_WHERE=
+	DBASE_WA=()
+	up=${cond^^}
+	case $up in *.OR.*)
+		dbase_say "$id" "*** .OR. is not supported: a FOR here is conditions that all hold, joined with .AND."
+		return 1 ;;
+	esac
+	cond=${cond//.AND./$'\n'}
+	cond=${cond//.and./$'\n'}
+	readarray -t parts <<< "$cond"
+	for clause in "${parts[@]}"; do
+		if ! match "$clause" '^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*(<>|#|!=|<=|>=|==|=|<|>)[[:space:]]*(.*[^[:space:]])[[:space:]]*$'; then
+			dbase_say "$id" "*** Syntax error in FOR: $clause"
+			return 1
+		fi
+		f=${M[1]}
+		op=${M[2]}
+		v=${M[3]}
+		if ! i := dbase_col "$id" "$f"; then
+			dbase_say "$id" "*** Variable not found: ${f^^}"
+			return 1
+		fi
+		case $op in
+		"=" | "==") op=eq ;;
+		"<>" | "#" | "!=") op=ne ;;
+		"<") op=lt ;;
+		"<=") op=le ;;
+		">") op=gt ;;
+		">=") op=ge ;;
+		esac
+		case $v in
+		\'*\' | \"*\") v=${v:1:${#v}-2} ;;
+		esac
+		if [ "${#DBASE_WA[@]}" = 0 ]; then
+			DBASE_WA=(where)
+		else
+			DBASE_WA+=(and)
+		fi
+		DBASE_WA+=("${DBA[$id]["c$i"]}" "$op" "$v")
+	done
+	local IFS=$'\t'
+	DBASE_WHERE="${DBASE_WA[*]}"
+}
+
+# Split "rest [FOR cond]" into the part before FOR and the db words for the
+# condition after it, in DBASE_REST and DBASE_WHERE.
+fn dbase_forsplit(int id, rest) {
+	local before=$rest cond= up=${rest^^}
+
+	DBASE_WHERE=
+	DBASE_WA=()
+	case " $up " in
+	*" FOR "*)
+		before=${up%% FOR *}
+		before=${rest:0:${#before}}
+		[ "${up:0:4}" = "FOR " ] && before=
+		cond=${rest:${#before}}
+		cond="${cond#"${cond%%[![:space:]]*}"}"
+		cond=${cond:4}
+		dbase_for "$id" "$cond" || return 1
+		;;
+	FOR\ *)
+		dbase_for "$id" "${rest:4}" || return 1
+		before=
+		;;
+	esac
+	DBASE_REST=$before
+}
+
+# Whether a database is in USE, saying so when not.
+fn dbase_inuse(int id) {
+	[ -n "${DBA[$id]["h"]}" ] && return 0
+	dbase_say "$id" "*** No database is in USE."
+	return 1
+}
+
+# Run one command line, echoed as the dot prompt shows it.
+fn dbase_run(int id, line) {
+	local n h path out fl
+
+	dbase_say "$id" ". $line"
+	[ -n "${line// /}" ] || return 0
+	n=${DBA[$id]["hn"]}
+	DBA[$id]["hist"][$n]=$line
+	DBA[$id]["hn"]=$((n + 1))
+	DBA[$id]["hi"]=$((n + 1))
+	dbase_verb "$line"
+	case $DBASE_WORD in
+	USE)
+		[ -n "${DBA[$id]["h"]}" ] && db close "${DBA[$id]["h"]}"
+		DBA[$id]["h"]=
+		DBA[$id]["name"]=
+		[ -n "$DBASE_REST" ] || return 0
+		path := dbase_path "$DBASE_REST"
+		if ! h := db open "$path" 2> /dev/null; then
+			dbase_say "$id" "*** File does not exist: ${DBASE_REST^^}"
+			return 0
+		fi
+		DBA[$id]["h"]=$h
+		DBA[$id]["name"]=${DBASE_REST##*/}
+		DBA[$id]["name"]=${DBA[$id]["name"]%.db}
+		DBA[$id]["name"]=${DBA[$id]["name"]^^}
+		dbase_cols "$id"
+		;;
+	CREA) dbase_create "$id" "$DBASE_REST" ;;
+	APPE)
+		dbase_inuse "$id" || return 0
+		dbase_formreset "$id"
+		DBA[$id]["mode"]=append
+		;;
+	BROW)
+		dbase_inuse "$id" || return 0
+		dbase_forsplit "$id" "$DBASE_REST" || return 0
+		DBA[$id]["bwhere"]=$DBASE_WHERE
+		DBA[$id]["btop"]=1
+		DBA[$id]["bsel"]=0
+		DBA[$id]["btops"]=
+		DBA[$id]["mode"]=browse
+		;;
+	LIST | DISP)
+		dbase_inuse "$id" || return 0
+		case ${DBASE_REST^^} in
+		STRU*) dbase_struct "$id"; return 0 ;;
+		esac
+		dbase_forsplit "$id" "$DBASE_REST" || return 0
+		dbase_list "$id"
+		;;
+	COUN)
+		dbase_inuse "$id" || return 0
+		dbase_forsplit "$id" "$DBASE_REST" || return 0
+		out := db count "${DBA[$id]["h"]}" "${DBASE_WA[@]}"
+		fl=s
+		[ "$out" = 1 ] && fl=
+		printf -v out '%6s record%s' "$out" "$fl"
+		dbase_say "$id" "$out"
+		;;
+	SUM | AVER)
+		dbase_inuse "$id" || return 0
+		dbase_forsplit "$id" "$DBASE_REST" || return 0
+		fl=${DBASE_REST%% *}
+		if [ -z "$fl" ] || ! n := dbase_col "$id" "$fl"; then
+			dbase_say "$id" "*** ${DBASE_WORD} needs a numeric field: ${DBASE_WORD} field [FOR ...]"
+			return 0
+		fi
+		if [ "${DBA[$id]["t$n"]}" = str ]; then
+			dbase_say "$id" "*** Data type mismatch: ${DBA[$id]["c$n"]} is character"
+			return 0
+		fi
+		if [ "$DBASE_WORD" = SUM ]; then
+			out := db sum "${DBA[$id]["h"]}" "${DBA[$id]["c$n"]}" "${DBASE_WA[@]}"
+		elif ! out := db avg "${DBA[$id]["h"]}" "${DBA[$id]["c$n"]}" "${DBASE_WA[@]}"; then
+			out=0
+		fi
+		dbase_say "$id" "  ${DBA[$id]["c$n"]}"
+		dbase_say "$id" "  $out"
+		;;
+	"?") dbase_eval "$id" "$DBASE_REST" ;;
+	DIR) dbase_dir "$id" ;;
+	CLEA) DBA[$id]["on"]=0 ;;
+	CLOS)
+		[ -n "${DBA[$id]["h"]}" ] && db close "${DBA[$id]["h"]}"
+		DBA[$id]["h"]=
+		DBA[$id]["name"]=
+		;;
+	HELP) dbase_help "$id" ;;
+	QUIT) dt_del "$id" ;;
+	*) dbase_say "$id" "*** Unrecognized command verb." ;;
+	esac
+}
+
+# The structure of the database in USE, as DISPLAY STRUCTURE shows it.
+fn dbase_struct(int id) {
+	local i=0 n t ty w
+
+	n := db size "${DBA[$id]["h"]}"
+	dbase_say "$id" "Structure for database: ${DBA[$id]["name"]}"
+	printf -v n '%9s' "$n"
+	dbase_say "$id" "Number of data records: $n"
+	dbase_say "$id" "Field  Field Name  Type       Width"
+	while [ "$i" -lt "${DBA[$id]["cn"]}" ]; do
+		ty=${DBA[$id]["t$i"]}
+		w=${DBA[$id]["w$i"]}
+		case $ty in
+		str) t=Character ;;
+		int) t=Numeric ;;
+		*) t="Numeric(.)" ;;
+		esac
+		printf -v t '%5d  %-10s  %-10s %5s' $((i + 1)) "${DBA[$id]["c$i"]}" "$t" "$w"
+		dbase_say "$id" "$t"
+		i=$((i + 1))
+	done
+}
+
+# LIST: a heading, then each matching record with its number, at most
+# DBASE_MAXLIST of them.
+fn dbase_list(int id) {
+	local h=${DBA[$id]["h"]} i k=0 hd="Record#" n cell w rec c
+	local -a wd
+	local r
+
+	i=0
+	while [ "$i" -lt "${DBA[$id]["cn"]}" ]; do
+		w := dbase_colw "$id" "$i"
+		wd[$i]=$w
+		printf -v c "%-${w}s" "${DBA[$id]["c$i"]}"
+		hd="$hd  $c"
+		i=$((i + 1))
+	done
+	dbase_say "$id" "$hd"
+	r := db query "$h" -n "${DBASE_WA[@]}" limit "$DBASE_MAXLIST" 2> /dev/null || return 0
+	n=${#r[@]}
+	while [ "$k" -lt "$n" ]; do
+		printf -v rec '%7s' "${r[$k]["#"]}"
+		i=0
+		while [ "$i" -lt "${DBA[$id]["cn"]}" ]; do
+			w=${wd[$i]}
+			cell=${r[$k]["${DBA[$id]["c$i"]}"]}
+			printf -v c "%-${w}s" "${cell:0:$w}"
+			rec="$rec  $c"
+			i=$((i + 1))
+		done
+		dbase_say "$id" "$rec"
+		k=$((k + 1))
+	done
+	[ "$n" -ge "$DBASE_MAXLIST" ] &&
+		dbase_say "$id" "(the first $DBASE_MAXLIST records; narrow it with FOR)"
+	return 0
+}
+
+# How wide a column is shown: its own width or its name's, at most 20.
+fn dbase_colw(int id, int i) {
+	local w=${DBA[$id]["w$i"]} nl=${#DBA[$id]["c$i"]}
+
+	[ "$nl" -gt "$w" ] && w=$nl
+	[ "$w" -gt 20 ] && w=20
+	ret "$w"
+}
+
+# ? -- a string, a whole-number sum, or one of a few functions.
+fn dbase_eval(int id, e) {
+	local v
+
+	case ${e^^} in
+	"RECCOUNT()")
+		dbase_inuse "$id" || return 0
+		v := db size "${DBA[$id]["h"]}"
+		;;
+	"DATE()") v=$(date +%m/%d/%y) ;;
+	"TIME()") v=$(date +%H:%M:%S) ;;
+	\'*\' | \"*\") v=${e:1:${#e}-2} ;;
+	*)
+		if [ -z "${e//[0-9+*\/() -]/}" ] && [ -n "$e" ] &&
+		   (( v = e, 1 )) 2> /dev/null; then
+			:
+		else
+			dbase_say "$id" "*** Variable not found."
+			return 0
+		fi
+		;;
+	esac
+	dbase_say "$id" "$v"
+}
+
+# DIR: the databases in DBASE_DIR, with their record counts.
+fn dbase_dir(int id) {
+	local f h n nm any=
+
+	dbase_say "$id" "Database Files    # Records"
+	for f in "$DBASE_DIR"/*.db; do
+		[ -e "$f" ] || continue
+		any=1
+		nm=${f##*/}
+		nm=${nm%.db}
+		n=?
+		if h := db open "$f" 2> /dev/null; then
+			n := db size "$h"
+			db close "$h"
+		fi
+		printf -v nm '%-16s %10s' "${nm^^}.DBF" "$n"
+		dbase_say "$id" "$nm"
+	done
+	[ -n "$any" ] || dbase_say "$id" "None"
+	return 0
+}
+
+fn dbase_help(int id) {
+	dbase_say "$id" "USE name, CREATE name, APPEND, BROWSE [FOR ...]
+LIST [FOR ...], DISPLAY STRUCTURE, COUNT [FOR ...]
+SUM field [FOR ...], AVERAGE field [FOR ...]
+? RECCOUNT() | DATE() | TIME() | 'text' | 1+2
+DIR, CLEAR, CLOSE, QUIT -- and the Assistant in the menus.
+FOR: field = value .AND. field > value, ops = <> < <= > >="
+}
+
+# CREATE: the structure, asked for one field at a time at the prompt.
+fn dbase_create(int id, nm) {
+	if [ -z "$nm" ]; then
+		dbase_say "$id" "*** CREATE needs a name: CREATE name"
+		return 0
+	fi
+	DBA[$id]["cname"]=$nm
+	DBA[$id]["cdefs"]=
+	DBA[$id]["mode"]=ask
+	DBA[$id]["ask"]=name
+	dbase_say "$id" "A field is C, character, or N, numeric. An empty name ends the structure."
+}
+
+# The question the CREATE prompt is asking now.
+fn dbase_question(int id) {
+	case ${DBA[$id]["ask"]} in
+	name) ret "Field name: " ;;
+	type) ret "Type (C/N): " ;;
+	width) ret "Width: " ;;
+	*) ret "Decimal places: " ;;
+	esac
+}
+
+# One answer to the CREATE prompt.
+fn dbase_answer(int id, a) {
+	local q path h
+
+	q := dbase_question "$id"
+	dbase_say "$id" "$q$a"
+	a="${a#"${a%%[![:space:]]*}"}"
+	a="${a%"${a##*[![:space:]]}"}"
+	case ${DBA[$id]["ask"]} in
+	name)
+		if [ -z "$a" ]; then
+			dbase_finish "$id"
+			return 0
+		fi
+		if ! match "$a" '^[A-Za-z][A-Za-z0-9_]{0,9}$'; then
+			dbase_say "$id" "*** A field name is a letter, then letters, digits or _, ten at most"
+			return 0
+		fi
+		DBA[$id]["cf"]=${a^^}
+		DBA[$id]["ask"]=type
+		;;
+	type)
+		case ${a^^} in
+		C) DBA[$id]["ct"]=C; DBA[$id]["ask"]=width ;;
+		N) DBA[$id]["ct"]=N; DBA[$id]["ask"]=width ;;
+		*) dbase_say "$id" "*** C or N" ;;
+		esac
+		;;
+	width)
+		if [ -z "${a//[0-9]/}" ] && [ -n "$a" ] && [ "$a" -ge 1 ] && [ "$a" -le 254 ]; then
+			DBA[$id]["cw"]=$a
+			if [ "${DBA[$id]["ct"]}" = C ]; then
+				DBA[$id]["cdefs"]="${DBA[$id]["cdefs"]} ${DBA[$id]["cf"]}:str:$a"
+				DBA[$id]["ask"]=name
+			else
+				DBA[$id]["ask"]=dec
+			fi
+		else
+			dbase_say "$id" "*** A width is 1 to 254"
+		fi
+		;;
+	dec)
+		if [ -z "${a//[0-9]/}" ] && [ -n "$a" ]; then
+			if [ "$a" = 0 ]; then
+				DBA[$id]["cdefs"]="${DBA[$id]["cdefs"]} ${DBA[$id]["cf"]}:int"
+			else
+				DBA[$id]["cdefs"]="${DBA[$id]["cdefs"]} ${DBA[$id]["cf"]}:float"
+			fi
+			DBA[$id]["ask"]=name
+		else
+			dbase_say "$id" "*** Decimal places are a whole number"
+		fi
+		;;
+	esac
+}
+
+# The structure is done: make the database and USE it.
+fn dbase_finish(int id) {
+	local path h
+	local -a defs
+
+	DBA[$id]["mode"]=dot
+	read -ra defs <<< "${DBA[$id]["cdefs"]}"
+	if [ "${#defs[@]}" = 0 ]; then
+		dbase_say "$id" "No fields, so no database."
+		return 0
+	fi
+	mkdir -p "$DBASE_DIR" 2> /dev/null
+	path := dbase_path "${DBA[$id]["cname"]}"
+	if ! h := db create "$path" "${defs[@]}" 2> /dev/null; then
+		dbase_say "$id" "*** File already exists, or cannot be written: ${DBA[$id]["cname"]^^}"
+		return 0
+	fi
+	db close "$h"
+	dbase_say "$id" "Database ${DBA[$id]["cname"]^^} created."
+	dbase_run "$id" "USE ${DBA[$id]["cname"]}"
+}
+
+# APPEND's form, emptied for the next record.
+fn dbase_formreset(int id) {
+	local i=0
+
+	while [ "$i" -lt "${DBA[$id]["cn"]}" ]; do
+		DBA[$id]["f$i"]=
+		i=$((i + 1))
+	done
+	DBA[$id]["ff"]=0
+	DBA[$id]["fc"]=0
+}
+
+# The form is filled: check each field against its type, and append it
+# as a record -- in this process, never a subshell, since a database that
+# grows remaps its file and a child's remap is not this window's.
+fn dbase_formsave(int id) {
+	local i=0 n v
+	local -a vals
+
+	while [ "$i" -lt "${DBA[$id]["cn"]}" ]; do
+		v=${DBA[$id]["f$i"]}
+		case ${DBA[$id]["t$i"]} in
+		int)
+			[ -z "$v" ] && v=0
+			if ! match "$v" '^-?[0-9]+$'; then
+				dt_note "${DBA[$id]["c$i"]} is a whole number"
+				DBA[$id]["ff"]=$i
+				return 0
+			fi
+			;;
+		float)
+			[ -z "$v" ] && v=0
+			if ! match "$v" '^-?([0-9]+[.]?[0-9]*|[.][0-9]+)$'; then
+				dt_note "${DBA[$id]["c$i"]} is a number"
+				DBA[$id]["ff"]=$i
+				return 0
+			fi
+			;;
+		esac
+		vals+=("$v")
+		i=$((i + 1))
+	done
+	if db insert "${DBA[$id]["h"]}" "${vals[@]}" 2> /dev/null; then
+		n := db size "${DBA[$id]["h"]}"
+		dt_note "Record $n added"
+		dbase_formreset "$id"
+	else
+		dt_note "The record could not be added"
+	fi
+}
+
+fn dbase_key(int id, key) {
+	case ${DBA[$id]["mode"]} in
+	browse) dbase_bkey "$id" "$key"; return $? ;;
+	append) dbase_fkey "$id" "$key"; return $? ;;
+	esac
+	dbase_dkey "$id" "$key"
+}
+
+# A key at the dot prompt, or at a CREATE question.
+fn dbase_dkey(int id, key) {
+	local r line n i
+
+	case $key in
+	enter)
+		line=${DBA[$id]["in"]}
+		DBA[$id]["in"]=
+		DBA[$id]["cur"]=0
+		if [ "${DBA[$id]["mode"]}" = ask ]; then
+			dbase_answer "$id" "$line"
+		else
+			dbase_run "$id" "$line"
+		fi
+		return 0
+		;;
+	up | down)
+		[ "${DBA[$id]["mode"]}" = ask ] && return 0
+		n=${DBA[$id]["hn"]}
+		i=${DBA[$id]["hi"]}
+		[ "$key" = up ] && [ "$i" -gt 0 ] && i=$((i - 1))
+		[ "$key" = down ] && [ "$i" -lt "$n" ] && i=$((i + 1))
+		DBA[$id]["hi"]=$i
+		DBA[$id]["in"]=${DBA[$id]["hist"][$i]}
+		DBA[$id]["cur"]=${#DBA[$id]["in"]}
+		return 0
+		;;
+	pageup) DBA[$id]["scroll"]=$((DBA[$id]["scroll"] + 5)); return 0 ;;
+	pagedown)
+		n=$((DBA[$id]["scroll"] - 5))
+		[ "$n" -lt 0 ] && n=0
+		DBA[$id]["scroll"]=$n
+		return 0
+		;;
+	escape)
+		if [ "${DBA[$id]["mode"]}" = ask ]; then
+			DBA[$id]["mode"]=dot
+			dbase_say "$id" "CREATE cancelled."
+			return 0
+		fi
+		return 1
+		;;
+	esac
+	r := dt_textkey "${DBA[$id]["in"]}" "${DBA[$id]["cur"]}" "$key" || return 1
+	DBA[$id]["in"]=${r% *}
+	DBA[$id]["cur"]=${r##* }
+}
+
+# A key in the APPEND form.
+fn dbase_fkey(int id, key) {
+	local f=${DBA[$id]["ff"]} n=${DBA[$id]["cn"]} r w t
+
+	case $key in
+	escape) DBA[$id]["mode"]=dot; return 0 ;;
+	up | shift-tab)
+		[ "$f" -gt 0 ] && f=$((f - 1))
+		DBA[$id]["ff"]=$f
+		DBA[$id]["fc"]=${#DBA[$id]["f$f"]}
+		return 0
+		;;
+	enter | tab | down)
+		if [ $((f + 1)) -ge "$n" ]; then
+			[ "$key" = enter ] && dbase_formsave "$id"
+			[ "$key" = enter ] || DBA[$id]["ff"]=0
+			return 0
+		fi
+		f=$((f + 1))
+		DBA[$id]["ff"]=$f
+		DBA[$id]["fc"]=${#DBA[$id]["f$f"]}
+		return 0
+		;;
+	esac
+	r := dt_textkey "${DBA[$id]["f$f"]}" "${DBA[$id]["fc"]}" "$key" || return 1
+	w=${DBA[$id]["w$f"]}
+	t=${r% *}
+	[ "${#t}" -gt "$w" ] && return 0
+	DBA[$id]["f$f"]=$t
+	DBA[$id]["fc"]=${r##* }
+}
+
+# A key in BROWSE: the arrows and page keys move, escape goes back.
+fn dbase_bkey(int id, key) {
+	local sel=${DBA[$id]["bsel"]} vis=${DBA[$id]["bvis"]:-10}
+	local shown=${DBA[$id]["bshown"]:-0}
+
+	case $key in
+	escape) DBA[$id]["mode"]=dot; return 0 ;;
+	up)
+		if [ "$sel" -gt 0 ]; then
+			DBA[$id]["bsel"]=$((sel - 1))
+		else
+			dbase_bback "$id" 1
+		fi
+		;;
+	down)
+		if [ $((sel + 1)) -lt "$shown" ]; then
+			DBA[$id]["bsel"]=$((sel + 1))
+		elif [ "$shown" -ge "$vis" ]; then
+			dbase_bfwd "$id" 1
+		fi
+		;;
+	pagedown) [ "$shown" -ge "$vis" ] && dbase_bfwd "$id" "$vis" ;;
+	pageup) dbase_bback "$id" "$vis" ;;
+	home)
+		DBA[$id]["btop"]=1
+		DBA[$id]["btops"]=
+		DBA[$id]["bsel"]=0
+		;;
+	*) return 1 ;;
+	esac
+	return 0
+}
+
+# Move BROWSE's first record forward by n of the records it shows,
+# remembering where it was so going back can return there.
+fn dbase_bfwd(int id, int n) {
+	local next=${DBA[$id]["brec$n"]}
+
+	[ -n "$next" ] || next=${DBA[$id]["blast"]}
+	[ -n "$next" ] || return 0
+	[ "$next" = "${DBA[$id]["btop"]}" ] && return 0
+	DBA[$id]["btops"]="${DBA[$id]["btops"]} ${DBA[$id]["btop"]}"
+	DBA[$id]["btop"]=$next
+}
+
+# Move it back n steps through where it has been.
+fn dbase_bback(int id, int n) {
+	local tops=${DBA[$id]["btops"]} t
+
+	while [ "$n" -gt 0 ] && [ -n "${tops// /}" ]; do
+		t=${tops##* }
+		tops=${tops% *}
+		DBA[$id]["btop"]=$t
+		n=$((n - 1))
+	done
+	DBA[$id]["btops"]=$tops
+	DBA[$id]["bsel"]=0
+}
+
+fn dbase_draw(int id, int h, int w, int row, int col) {
+	case ${DBA[$id]["mode"]} in
+	browse) dbase_bdraw "$id" "$h" "$w" ;;
+	append) dbase_fdraw "$id" "$h" "$w" ;;
+	*) dbase_ddraw "$id" "$h" "$w" ;;
+	esac
+	dbase_status "$id" "$h" "$w"
+}
+
+# The status bar along the bottom, as dBASE III Plus drew it.
+fn dbase_status(int id, int h, int w) {
+	local m t n=EOF
+
+	case ${DBA[$id]["mode"]} in
+	browse) m=BROWSE ;;
+	append) m=APPEND ;;
+	ask) m=CREATE ;;
+	*) m="Command Line" ;;
+	esac
+	[ -n "${DBA[$id]["h"]}" ] && n := db size "${DBA[$id]["h"]}"
+	t=" $m ${GL[vline]}<C:>${GL[vline]}${DBA[$id]["name"]:-}"
+	[ -n "${DBA[$id]["h"]}" ] && t="$t ${GL[vline]}Rec: $n"
+	t := str pad "$t" "$w"
+	console pen "$DT_SELINK" "$DT_ACTIVE"
+	console put -p "w$id" "$h" 1 "$t"
+}
+
+# The dot prompt: the output so far, then the prompt line.
+fn dbase_ddraw(int id, int h, int w) {
+	local n=${DBA[$id]["on"]} rows=$((h - 2)) first r=1 line q
+
+	first=$((n - rows - DBA[$id]["scroll"]))
+	[ "$first" -lt 0 ] && first=0
+	console pen "$DT_INK" "$DT_FACE"
+	while [ "$r" -le "$rows" ]; do
+		line=
+		[ $((first + r - 1)) -lt "$n" ] && line=${DBA[$id]["o"][$((first + r - 1))]}
+		console put -p "w$id" "$r" 1 "${line:0:$w}"
+		r=$((r + 1))
+	done
+	if [ "${DBA[$id]["mode"]}" = ask ]; then
+		q := dbase_question "$id"
+	else
+		q=". "
+	fi
+	console pen "$DT_ACTIVE" "$DT_FACE" bold
+	console put -p "w$id" $((h - 1)) 1 "$q"
+	dt_textdraw "$id" $((h - 1)) $((1 + ${#q})) $((w - ${#q})) \
+		"${DBA[$id]["in"]}" "${DBA[$id]["cur"]}" 1
+}
+
+# APPEND: each field with a slot as wide as it holds, the current one lit.
+fn dbase_fdraw(int id, int h, int w) {
+	local i=0 n=${DBA[$id]["cn"]} fw slot r size
+
+	size := db size "${DBA[$id]["h"]}"
+	console pen "$DT_DIM" "$DT_FACE"
+	console put -p "w$id" 1 1 "Record No. $((size + 1)) -- enter after the last field adds it, escape stops"
+	while [ "$i" -lt "$n" ] && [ $((i + 3)) -lt "$h" ]; do
+		r=$((i + 3))
+		fw=${DBA[$id]["w$i"]}
+		[ "$fw" -gt $((w - 14)) ] && fw=$((w - 14))
+		console pen "$DT_INK" "$DT_FACE"
+		printf -v slot '%-10s' "${DBA[$id]["c$i"]}"
+		console put -p "w$id" "$r" 2 "$slot"
+		console pen "$DT_SELINK" "$DT_WELL"
+		slot := str pad "${DBA[$id]["f$i"]}" "$fw"
+		if [ "$i" = "${DBA[$id]["ff"]}" ]; then
+			dt_textdraw "$id" "$r" 13 "$fw" "${DBA[$id]["f$i"]}" \
+				"${DBA[$id]["fc"]}" 1
+		else
+			console pen "$DT_INK" "$DT_WELL"
+			console put -p "w$id" "$r" 13 "$slot"
+		fi
+		i=$((i + 1))
+	done
+}
+
+# BROWSE: the field names along the top, then one record a row from the
+# first one shown, the selected one lit.
+fn dbase_bdraw(int id, int h, int w) {
+	local vis=$((h - 2)) hd="Rec#  " i=0 cw rr=2 rec t k=0 cell n c
+	local -a wd bw
+	local r
+
+	DBA[$id]["bvis"]=$vis
+	while [ "$i" -lt "${DBA[$id]["cn"]}" ]; do
+		cw := dbase_colw "$id" "$i"
+		wd[$i]=$cw
+		printf -v c "%-${cw}s " "${DBA[$id]["c$i"]}"
+		hd="$hd$c"
+		i=$((i + 1))
+	done
+	console pen "$DT_ACTIVE" "$DT_FACE" bold
+	console put -p "w$id" 1 1 "${hd:0:$w}"
+	DBA[$id]["blast"]=
+	n=0
+	IFS=$'\t' read -ra bw <<< "${DBA[$id]["bwhere"]}"
+	r := db query "${DBA[$id]["h"]}" -n "${bw[@]}" \
+		from "${DBA[$id]["btop"]}" limit "$vis" 2> /dev/null && n=${#r[@]}
+	while [ "$k" -lt "$n" ]; do
+		DBA[$id]["brec$k"]=${r[$k]["#"]}
+		DBA[$id]["blast"]=${r[$k]["#"]}
+		printf -v rec '%-5s ' "${r[$k]["#"]}"
+		i=0
+		while [ "$i" -lt "${DBA[$id]["cn"]}" ]; do
+			cw=${wd[$i]}
+			cell=${r[$k]["${DBA[$id]["c$i"]}"]}
+			printf -v c "%-${cw}s " "${cell:0:$cw}"
+			rec="$rec$c"
+			i=$((i + 1))
+		done
+		if [ "$k" = "${DBA[$id]["bsel"]}" ]; then
+			console pen "$DT_SELINK" "$DT_ACTIVE"
+		else
+			console pen "$DT_INK" "$DT_FACE"
+		fi
+		t := str pad "${rec:0:$w}" "$w"
+		console put -p "w$id" "$rr" 1 "$t"
+		rr=$((rr + 1))
+		k=$((k + 1))
+	done
+	DBA[$id]["bshown"]=$k
+	[ "${DBA[$id]["bsel"]}" -ge "$k" ] && [ "$k" -gt 0 ] &&
+		DBA[$id]["bsel"]=$((k - 1))
+	if [ "$k" = 0 ]; then
+		console pen "$DT_DIM" "$DT_FACE"
+		console put -p "w$id" 2 1 "No records."
+	fi
+}
+
+fn dbase_wheel(int id, dir, int r, int c) {
+	case ${DBA[$id]["mode"]} in
+	browse)
+		if [ "$dir" = up ]; then dbase_bback "$id" 3; else dbase_bfwd "$id" 3; fi
+		;;
+	*)
+		if [ "$dir" = up ]; then
+			DBA[$id]["scroll"]=$((DBA[$id]["scroll"] + 3))
+		elif [ "${DBA[$id]["scroll"]}" -gt 0 ]; then
+			DBA[$id]["scroll"]=$((DBA[$id]["scroll"] - 3))
+			[ "${DBA[$id]["scroll"]}" -lt 0 ] && DBA[$id]["scroll"]=0
+		fi
+		;;
+	esac
+}
+
+fn dbase_click(int id, int r, int c, btn) {
+	if [ "${DBA[$id]["mode"]}" = browse ] && [ "$r" -ge 2 ] &&
+	   [ $((r - 2)) -lt "${DBA[$id]["bshown"]:-0}" ]; then
+		DBA[$id]["bsel"]=$((r - 2))
+	fi
+}
+
+# A paste goes into the line being typed, its first line only.
+fn dbase_paste(int id, text, op = "") {
+	local line=${DBA[$id]["in"]} cur=${DBA[$id]["cur"]}
+
+	text=${text%%$'\n'*}
+	case ${DBA[$id]["mode"]} in
+	append)
+		local f=${DBA[$id]["ff"]}
+		DBA[$id]["f$f"]="${DBA[$id]["f$f"]}$text"
+		DBA[$id]["fc"]=${#DBA[$id]["f$f"]}
+		;;
+	*)
+		DBA[$id]["in"]="${line:0:$cur}$text${line:$cur}"
+		DBA[$id]["cur"]=$((cur + ${#text}))
+		;;
+	esac
+}
+
+# The Assistant: dBASE III Plus's menus, each item running the command it
+# stands for at the prompt, so the command is there to be learnt.
+DBASE_FILES=()
+fn dbase_files() {
+	local f
+
+	DBASE_FILES=()
+	for f in "$DBASE_DIR"/*.db; do
+		[ -e "$f" ] || continue
+		f=${f##*/}
+		DBASE_FILES+=("${f%.db}")
+	done
+}
+
+fn dbase_do(int id, line) {
+	DBA[$id]["mode"]=dot
+	dbase_run "$id" "$line"
+}
+
+# Put a command at the prompt for the rest to be typed.
+fn dbase_start(int id, line) {
+	DBA[$id]["mode"]=dot
+	DBA[$id]["in"]=$line
+	DBA[$id]["cur"]=${#line}
+}
+
+dbase_menus() {
+	local id=$DT_FOCUS f i=0 used=0
+
+	dbase_files
+	dt_menu "Set Up"
+	dt_sub "Database file"
+	if [ "${#DBASE_FILES[@]}" = 0 ]; then
+		dt_dim "(none yet)"
+	else
+		for f in "${DBASE_FILES[@]}"; do
+			dt_item "${f^^}" "" dbase_do "$id" "USE $f"
+		done
+	fi
+	dt_end
+	dt_item "Close" c dbase_do "$id" "CLOSE"
+	dt_sep
+	dt_item "Quit dBASE" q dbase_do "$id" "QUIT"
+	dt_menu "Create"
+	dt_item "Database file" d dbase_start "$id" "CREATE "
+	dt_menu "Update"
+	if [ -n "${DBA[$id]["h"]}" ]; then used=1; fi
+	if [ "$used" = 1 ]; then
+		dt_item "Append" a dbase_do "$id" "APPEND"
+		dt_item "Browse" b dbase_do "$id" "BROWSE"
+	else
+		dt_dim "Append"
+		dt_dim "Browse"
+	fi
+	dt_menu "Retrieve"
+	if [ "$used" = 1 ]; then
+		dt_item "List" l dbase_do "$id" "LIST"
+		dt_item "Display Structure" d dbase_do "$id" "DISPLAY STRUCTURE"
+		dt_item "Count" c dbase_do "$id" "COUNT"
+		dt_sub "Sum"
+		while [ "$i" -lt "${DBA[$id]["cn"]}" ]; do
+			[ "${DBA[$id]["t$i"]}" = str ] ||
+				dt_item "${DBA[$id]["c$i"]}" "" dbase_do "$id" "SUM ${DBA[$id]["c$i"]}"
+			i=$((i + 1))
+		done
+		dt_end
+		i=0
+		dt_sub "Average"
+		while [ "$i" -lt "${DBA[$id]["cn"]}" ]; do
+			[ "${DBA[$id]["t$i"]}" = str ] ||
+				dt_item "${DBA[$id]["c$i"]}" "" dbase_do "$id" "AVERAGE ${DBA[$id]["c$i"]}"
+			i=$((i + 1))
+		done
+		dt_end
+	else
+		dt_dim "List"
+		dt_dim "Display Structure"
+		dt_dim "Count"
+		dt_dim "Sum"
+		dt_dim "Average"
+	fi
+	dt_menu "Tools"
+	dt_item "Directory" d dbase_do "$id" "DIR"
+	dt_item "Help" h dbase_do "$id" "HELP"
+}
+
+# Run directly: a dot prompt on standard input, no desktop needed.
+if [ -z "$DT_ROWS" ] && [ "${BASH_SOURCE[0]}" = "$0" ]; then
+	echo "dbase is a desktop app: open it from the hibr menu."
+fi

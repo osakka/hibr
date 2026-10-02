@@ -2577,6 +2577,80 @@ check("Custom… opens Clock Format, which takes a click and closes on escape",
       fm is not None and sc.find("┤ Clock Format ├") is None, sc)
 shutil.rmtree(FAKESU, True)
 
+# dBASE: a dot prompt, CREATE, APPEND, LIST/COUNT/AVERAGE with FOR,
+# BROWSE and the Assistant menus, all over the db module built here.
+DBD = tempfile.mkdtemp(prefix="hibr-dbase-")
+DBPRE = "mod load %s" % tree("build/mods/db.so")
+subprocess.run([sx.HIBR, "-c",
+                "mod load %s; h := db create %s/big.db n:int name:str:10 "
+                "v:float; i=1; while [ $i -le 60 ]; do db insert $h $i "
+                "row$i $((i*3)).5; i=$((i+1)); done; db close $h"
+                % (tree("build/mods/db.so"), DBD)], check=True)
+
+
+def typed(s):
+    return [c.encode() for c in s] + [b"\r"]
+
+
+def dbrun(feed):
+    return run("dbase", "22 72 1 2", feed=feed, env={"DBASE_DIR": DBD},
+               end=None, wait=2.0, pre=DBPRE)
+
+
+sc = dbrun(typed("CREATE stats") + typed("HOST") + typed("C") + typed("8") +
+           typed("LOAD") + typed("N") + typed("6") + typed("2") + typed("") +
+           typed("APPEND") + typed("web1") + typed("0.5") + typed("web2") +
+           typed("2.75") + [b"\x1b", 0.3] + typed("LIST FOR load > 1") +
+           typed("COUNT") + typed("AVERAGE load") +
+           typed("DISPLAY STRUCTURE"))
+txt = "\n".join(sc.row(r) for r in range(24))
+check("CREATE asks for the fields and makes the file",
+      "Database STATS created." in txt and
+      os.path.exists(os.path.join(DBD, "stats.db")), sc)
+check("APPEND's form stores records, and LIST FOR shows only those matching",
+      re.search(r"\b2  web2 +2\.75", txt) and
+      not re.search(r"\b1  web1 +0\.5", txt), sc)
+check("COUNT and AVERAGE answer over the records appended",
+      "2 records" in txt and "1.625" in txt, sc)
+check("DISPLAY STRUCTURE lists each field with its type and width",
+      re.search(r"1  HOST +Character +8", txt) and
+      re.search(r"2  LOAD +Numeric", txt), sc)
+
+sc = dbrun(typed("USE big") + typed("LIST FOR v > 20 .OR. n < 3") +
+           typed("FROBNICATE") + typed("? 2 + 3 * 4") +
+           typed("COUNT FOR v >= 30 .AND. n < 20") + typed("SUM n FOR n <= 4"))
+txt = "\n".join(sc.row(r) for r in range(24))
+check(".OR. is refused with the reason, an unknown verb is named as one",
+      ".OR. is not supported" in txt and
+      "Unrecognized command verb" in txt, sc)
+check("? evaluates arithmetic, and FOR conditions join with .AND.",
+      re.search(r"^..│14 ", txt, re.M) and "10 records" in txt and
+      re.search(r"^..│ +10 ", txt, re.M), sc)
+
+sc = dbrun(typed("USE big") + typed("BROWSE FOR v > 20") +
+           [b"\x1b[B", b"\x1b[B"])
+check("BROWSE shows one matching record a row, from the first",
+      sc.find("BROWSE") and re.match(r"..│7 +7 +row7 +21\.5", sc.row(3)),
+      sc)
+sc = dbrun(typed("USE big") + typed("BROWSE FOR v > 20") +
+           [b"\x1b[B", b"\x1b[6~"])
+check("page down moves on, keeping the last record of the page in view",
+      re.match(r"..│24 +24 +row24", sc.row(3)) and
+      re.match(r"..│41 +41 +row41", sc.row(20)), sc)
+
+F10 = [b"\x1b[21~", 0.3]
+sc = dbrun(typed("USE big") + F10 + [b"\x1b[C"] * 2 + [0.3])
+check("Set Up > Database file lists the databases there are",
+      sc.find("Database file") and sc.find(" BIG "), sc)
+sc = dbrun(typed("USE big") + F10 + [b"\x1b[C"] * 5 + [b"c", 0.3])
+check("Retrieve > Count runs COUNT at the dot prompt",
+      sc.find(". COUNT") and sc.find("60 records"), sc)
+sc = dbrun(typed("USE big") + typed("COUNT") + [b"\x1b[A", b"\r"])
+txt = "\n".join(sc.row(r) for r in range(24))
+check("up brings the last command back to the dot prompt",
+      txt.count(". COUNT") == 2 and txt.count("60 records") == 2, sc)
+shutil.rmtree(DBD, True)
+
 for f in os.listdir(D):
     p = os.path.join(D, f)
     if os.path.isdir(p):
@@ -2587,4 +2661,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(369)
+report(380)

@@ -38,8 +38,8 @@ column, is refused with the reason, and nothing of that row is written.
 | `db open file` | open one; gives a handle |
 | `db insert h val...` | append a row, values in column order |
 | `db import h file` | append every line of a tab-separated file (`-` for standard input); gives how many, and fails if any line was skipped |
-| `db query h [where col op val [and ...]] [limit n]` | the matching rows: printed tab-separated, or with `:=` a map, `r[i][col]`, numbers kept as numbers |
-| `db count h [where ...]` | how many rows match |
+| `db query h [-n] [where col op val [and ...]] [limit n] [from n]` | the matching rows: printed tab-separated, or with `:=` a map, `r[i][col]`, numbers kept as numbers. `-n` adds each row's record number, counted from 1, first (in a map, `r[i][#]`); `from n` starts at record n, skipping the groups before it unread |
+| `db count h [where ...] [from n]` | how many rows match |
 | `db sum\|avg h col [where ...]` | over an `int` or `float` column |
 | `db min\|max h col [where ...]` | any column; a `str` is ordered byte by byte |
 | `db size h` | how many rows |

@@ -1535,6 +1535,16 @@ went in the shell.
   every page found transcripts that could not have come from the code shown
   beside them, and two pages that described `set -e` backwards.
 
+- **`$*` and `[*]` join with IFS's first character, not a space.** hibr
+  joined every one with a space until 0.87, so `local IFS=$'\t';
+  s="${a[*]}"` silently gave a space-joined string, and a strict desktop
+  file that keeps a word list as a tab-joined string to split later with
+  `IFS=$'\t' read -ra` got one word back. `xsep` decides the separator, and
+  `xstar` tells `[*]` from `[@]` by the subscript `xkeys` leaves past `nk`.
+- **A bracket pattern's `[:class:]` is `gclass`'s.** `gmatch` had no POSIX
+  classes at all before 0.87: `[[:space:]]` was a bracket of the letters
+  `:`, `s`, `p`... and never matched a blank. Anything that trims or
+  classifies text with a class in a pattern was silently wrong until then.
 - **A process substitution's descriptor starts at 60.** Left at the lowest
   free one, `<(cmd)` took 3 in `exec 3< <(cmd)`, `/dev/fd/3` became the
   redirection onto itself, and the clean-up that closes a substitution's

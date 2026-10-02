@@ -147,6 +147,12 @@ fn dt_wsdraw(int end) {
 	[ "$DT_WSN" -gt 1 ] || return 0
 	DT_WSW=$((DT_WSN * 2 - 1))
 	DT_WSC=$((end - DT_WSW))
+	# A long row of an app's menus wins: the numbers give way rather than
+	# draw over a menu's title.
+	if [ "$DT_WSC" -le "${DT_MENUEND:-0}" ]; then
+		DT_WSW=0
+		return 0
+	fi
 	while [ "$i" -le "$DT_WSN" ]; do
 		if [ "$i" = "$DT_WS" ]; then
 			console pen "$DT_BAR" "$DT_ACTIVE" bold

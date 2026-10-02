@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.87
+
+**dBASE, a desktop app.** A little dBASE III on the `db` module: the dot
+prompt (`CREATE`, `USE`, `APPEND`, `BROWSE`, `LIST FOR load > 2.5 .AND.
+host = 'web1'`, `COUNT`, `SUM`, `AVERAGE`, `DISPLAY STRUCTURE`, `?`,
+`DIR`), an `APPEND` form, a scrolling `BROWSE`, and the Assistant's menus
+typing the same commands. Records are only appended, as `db` has no update.
+
+**`"$*"` and `"${a[*]}"` join with IFS's first character**, as in bash, and
+`"${!a[*]}"` and the `[*]` slices with them. Every one of them joined with
+a space whatever IFS said, so `local IFS=:; echo "${a[*]}"` printed spaces,
+and a quoted `"${a[*]:0:2}"` came out as separate words.
+
+**Bracket patterns know the POSIX classes.** `[[:space:]]`, `[[:alpha:]]`
+and the other ten matched nothing in `case`, `[[ == ]]`, `${x#...}` or a
+glob; they work now, alongside escaped members in a bracket.
+
+**`db query -n` and `from n`.** `-n` gives each row's record number, from
+1, first (`r[i]["#"]` in a map); `from n` starts at record n, skipping the
+groups before it unread -- what a browser needs to page through a file.
+
+**The bar gives way to long menus.** An app with many menus no longer has
+the workspace numbers, the bell or the clock drawn over its titles; they
+step aside until there is room.
+
 ## 0.86
 
 **`db`, a small column store module.** `db create stats.db ts:int

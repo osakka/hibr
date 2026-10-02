@@ -44,12 +44,15 @@ dt_bar() {
 	line := dt_rep "$w" " "
 	console put 0 "$DT_PRIMARY_COL" "$line"
 
+	DT_MENUEND=0
 	while [ "$i" -lt "$MB_N" ]; do
 		if [ "${MB[$i]["bar"]}" != 1 ]; then
 			i=$((i + 1))
 			continue
 		fi
 		t=${MB[$i]["title"]}
+		[ $((MB[$i]["x"] + ${#t} + 2)) -gt "$DT_MENUEND" ] &&
+			DT_MENUEND=$((MB[$i]["x"] + ${#t} + 2))
 		if [ "$i" = "$MB_OPEN" ] || [ "$i" = "$MB_PAR" ]; then
 			console pen "$DT_BAR" "$DT_ACTIVE" bold
 		elif [ "$i" = 0 ]; then
@@ -80,6 +83,10 @@ dt_bar() {
 	fi
 	DT_BELLW := str width "$bell"
 	DT_BELLC=$((DT_CLOCKC - gap - DT_BELLW))
+	# Long app menus win here too: what would draw over a menu's title
+	# gives way, and with no width it cannot be clicked either.
+	[ "$DT_CLOCKC" -le "$DT_MENUEND" ] && DT_CLOCKW=0
+	[ "$DT_BELLC" -le "$DT_MENUEND" ] && DT_BELLW=0
 	dt_wsdraw $((DT_BELLC - gap))
 	t := dt_ms
 	case $DT_BARTIME in
@@ -92,9 +99,9 @@ dt_bar() {
 	else
 		console pen "$DT_INK" "$DT_BAR"
 	fi
-	console put 0 "$DT_BELLC" "$bell"
+	[ "$DT_BELLW" -gt 0 ] && console put 0 "$DT_BELLC" "$bell"
 	console pen "$DT_INK" "$DT_BAR"
-	console put 0 "$DT_CLOCKC" "$now"
+	[ "$DT_CLOCKW" -gt 0 ] && console put 0 "$DT_CLOCKC" "$now"
 	if [ "$MB_OPEN" = app ]; then
 		console pen "$DT_BAR" "$DT_ACTIVE" bold
 	else

@@ -73,6 +73,14 @@ db count $g where tag eq t1
 db sum $g n
 db close $g
 
+echo "--- record numbers, counted from 1, and starting from one"
+g := db open "$D/g.db"
+db query $g -n from 1024 limit 2
+r := db query $g -n where n gt 2497
+echo "record ${r[0]["#"]} holds n=${r[0]["n"]}, ${#r[@]} rows"
+db count $g from 2001
+db close $g
+
 echo "--- a filter skips the row groups its zone maps rule out"
 $H -d 3 -c "mod load ./build/mods/db.so; g := db open '$D/g.db'; db count \$g where n gt 2100" 2>&1 |
 	grep -o 'groups skipped by their zones' | head -1

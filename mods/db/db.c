@@ -471,8 +471,10 @@ void dm_text(dm_col *c, const unsigned char *cell, str *out)
 	s_add(out, (const char *)cell, len);
 }
 
-/* Read "where col op value [and col op value]... [limit n]" from av into
-   predicates; where it begins is *at, and *at is left past it. */
+/* Read "where col op value [and col op value]... [limit n] [from n]" from
+   av into predicates, a limit and a first row; where it begins is *at, and
+   *at is left past it. */
+long dm_from;
 int dm_where(dm_db *d, int ac, char **av, int *at, vec *ps, long *limit)
 {
 	static const char *ops[] = { "eq", "ne", "lt", "le", "gt", "ge", 0 };
@@ -481,9 +483,17 @@ int dm_where(dm_db *d, int ac, char **av, int *at, vec *ps, long *limit)
 	size_t w;
 
 	*limit = -1;
+	dm_from = 0;
 	while (i < ac) {
 		if (!strcmp(av[i], "limit") && i + 1 < ac) {
 			*limit = strtol(av[i + 1], 0, 10);
+			i += 2;
+			continue;
+		}
+		if (!strcmp(av[i], "from") && i + 1 < ac) {
+			dm_from = strtol(av[i + 1], 0, 10) - 1;
+			if (dm_from < 0)
+				dm_from = 0;
 			i += 2;
 			continue;
 		}
@@ -565,14 +575,14 @@ int dm_skip(dm_db *d, dm_pred *p, unsigned char *gp)
 long dm_scan(dm_db *d, vec *ps, long limit,
 	     void (*fn)(dm_db *, unsigned char *, size_t, void *), void *arg)
 {
-	size_t g, k, n, ng = (size_t)((d->h->nrows + d->h->grp - 1) / d->h->grp);
+	size_t g, k, k0, n, ng = (size_t)((d->h->nrows + d->h->grp - 1) / d->h->grp);
 	size_t i, skipped = 0;
 	unsigned char *gp;
 	dm_pred *p;
 	long hits = 0;
 	int ok;
 
-	for (g = 0; g < ng; g++) {
+	for (g = (size_t)dm_from / d->h->grp; g < ng; g++) {
 		gp = d->map + d->h->doff + g * d->gbytes;
 		for (i = 0; i < ps->n; i++)
 			if (dm_skip(d, ps->p[i], gp))
@@ -584,7 +594,8 @@ long dm_scan(dm_db *d, vec *ps, long limit,
 		n = d->h->grp;
 		if ((uint64_t)(g + 1) * d->h->grp > d->h->nrows)
 			n = (size_t)(d->h->nrows - (uint64_t)g * d->h->grp);
-		for (k = 0; k < n; k++) {
+		k0 = g == (size_t)dm_from / d->h->grp ? (size_t)dm_from % d->h->grp : 0;
+		for (k = k0; k < n; k++) {
 			ok = 1;
 			for (i = 0; ok && i < ps->n; i++) {
 				p = ps->p[i];
@@ -609,7 +620,7 @@ done:
 
 struct dm_out {
 	sh *s;
-	int bind;
+	int bind, num;
 	long n;
 	str line;
 };
@@ -625,6 +636,11 @@ void dm_row(dm_db *d, unsigned char *gp, size_t k, void *arg)
 
 	if (!o->bind) {
 		o->line.n = 0;
+		if (o->num) {
+			s_num(&o->line, (long)(((gp - d->map) - d->h->doff) /
+					       d->gbytes * d->h->grp + k + 1));
+			s_ch(&o->line, '\t');
+		}
 		for (i = 0; i < d->nc; i++) {
 			if (i)
 				s_ch(&o->line, '\t');
@@ -639,6 +655,17 @@ void dm_row(dm_db *d, unsigned char *gp, size_t k, void *arg)
 	s_init(&key);
 	s_num(&key, o->n);
 	ks[0] = key.p;
+	if (o->num) {
+		o->line.n = 0;
+		s_num(&o->line, (long)(((gp - d->map) - d->h->doff) /
+				       d->gbytes * d->h->grp + k + 1));
+		s_ch(&o->line, 0);
+		ks[1] = "#";
+		v_setp(o->s, "RET", ks, 2, o->line.p);
+		e = v_path(o->s, "RET", ks, 2, 0);
+		if (e)
+			e->ty = J_NUM;
+	}
 	for (i = 0; i < d->nc; i++) {
 		o->line.n = 0;
 		dm_text(&d->c[i], gp + d->c[i].doff + k * d->c[i].w, &o->line);
@@ -785,8 +812,8 @@ int m_db(sh *s, int ac, char **av)
 
 	if (ac < 3) {
 		lg(HIBR_LERR, "usage: db create file col:type... | open file | "
-			      "insert h val... | import h file | query h [where "
-			      "col op val [and ...]] [limit n] | count|sum|min|"
+			      "insert h val... | import h file | query h [-n] [where "
+			      "col op val [and ...]] [limit n] [from n] | count|sum|min|"
 			      "max|avg h [col] [where ...] | size h | cols h | "
 			      "flush h | close h");
 		return 2;
@@ -895,6 +922,11 @@ int m_db(sh *s, int ac, char **av)
 	}
 	if (!strcmp(sub, "query")) {
 		at = 3;
+		memset(&out, 0, sizeof out);
+		if (at < ac && !strcmp(av[at], "-n")) {
+			out.num = 1;
+			at++;
+		}
 		if (dm_where(d, ac, av, &at, &ps, &limit) != HIBR_OK) {
 			dm_wfree(&ps);
 			return 2;
@@ -904,7 +936,6 @@ int m_db(sh *s, int ac, char **av)
 			dm_wfree(&ps);
 			return 2;
 		}
-		memset(&out, 0, sizeof out);
 		out.s = s;
 		out.bind = s->bind;
 		s_init(&out.line);

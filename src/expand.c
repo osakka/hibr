@@ -58,6 +58,29 @@ char *xjoin(sh *s, const char *sep)
 	return r;
 }
 
+/* What $* and ${a[*]} join with: IFS's first character, a space when IFS
+   is unset, and nothing when it is empty and the expansion is quoted. */
+const char *xsep(sh *s, int q)
+{
+	const char *f = sh_ifs(s);
+	size_t n = 1;
+
+	if (!f)
+		return " ";
+	if (!*f)
+		return q ? "" : " ";
+	if ((unsigned char)*f >= 0xc0)
+		while (n < 4 && ((unsigned char)f[n] & 0xc0) == 0x80)
+			n++;
+	return ar_dup(s->xa, f, n);
+}
+
+/* Whether a subscript list ends in [*] rather than [@]. */
+int xstar(char **ks, int nk)
+{
+	return ks && ks[nk] && ks[nk][0] == '*';
+}
+
 /* Resolve a parameter name to its value or NULL. */
 const char *xval(sh *s, const char *k)
 {
@@ -72,6 +95,7 @@ const char *xval(sh *s, const char *k)
 		case '0':
 			return s->arg0 ? s->arg0 : "hibr";
 		case '*':
+			return xjoin(s, xsep(s, 0));
 		case '@':
 			return xjoin(s, " ");
 		case '-':
@@ -510,7 +534,8 @@ void xvar(sh *s, part *p, str *b, str *m)
 			return;
 		}
 		if (p->op == V_KEYS) {
-			a = xajoin(s, p->t, ks, nk, " ", 1);
+			a = xajoin(s, p->t, ks, nk, xstar(ks, nk) ?
+				   xsep(s, p->q || s->strict) : " ", 1);
 			XV(s, p, b, m, a, strlen(a));
 			return;
 		}
@@ -518,12 +543,14 @@ void xvar(sh *s, part *p, str *b, str *m)
 			vec *lst = vb_get(s);
 			long off, len, k2;
 			str j;
+			const char *sp = xstar(ks, nk) ?
+				xsep(s, p->q || s->strict) : " ";
 			v_list(s, p->t, ks, nk, lst, 0);
 			xslice(s, p, lst->n, &off, &len);
 			s_init(&j);
 			for (k2 = off; k2 < off + len; k2++) {
-				if (j.n)
-					s_ch(&j, ' ');
+				if (k2 > off)
+					s_cat(&j, sp);
 				s_cat(&j, (char *)lst->p[k2]);
 			}
 			vb_put(s, lst);
@@ -532,7 +559,9 @@ void xvar(sh *s, part *p, str *b, str *m)
 			return;
 		}
 		if (all)
-			v = v_find(s, p->t) ? xajoin(s, p->t, ks, nk, " ", 0) : 0;
+			v = v_find(s, p->t) ?
+				xajoin(s, p->t, ks, nk, xstar(ks, nk) ?
+				       xsep(s, p->q || s->strict) : " ", 0) : 0;
 		else
 			v = v_getp(s, p->t, ks, nk);
 		if (!v && nk <= 1 && (all || !strcmp(ks[0], "0")) &&
@@ -579,6 +608,8 @@ void xvar(sh *s, part *p, str *b, str *m)
 		v = xbyname(s, r);
 		xvar2(s, p, b, m, v);
 		return;
+	} else if (p->t[0] == '*' && !p->t[1]) {
+		v = xjoin(s, xsep(s, p->q || s->strict));
 	} else {
 		v = xval(s, p->t);
 	}
@@ -788,12 +819,14 @@ void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 			vec *lst = vb_get(s);
 			long k2;
 			str j;
+			const char *sp = p->t[0] == '*' ?
+				xsep(s, p->q || s->strict) : " ";
 			xposlist(s, lst);
 			xslice(s, p, lst->n, &off, &len);
 			s_init(&j);
 			for (k2 = off; k2 < off + len; k2++) {
-				if (j.n)
-					s_ch(&j, ' ');
+				if (k2 > off)
+					s_cat(&j, sp);
 				s_cat(&j, (char *)lst->p[k2]);
 			}
 			vb_put(s, lst);
@@ -963,6 +996,36 @@ int gext(const char *p, const char *t)
 	return ok;
 }
 
+/* Whether a byte is in a POSIX character class, named by its n bytes:
+   [:alpha:], [:space:] and the rest, in the C locale. An unknown name
+   holds nothing. */
+int gclass(const char *nm, size_t n, int c)
+{
+	static const char *names[] = { "alnum", "alpha", "blank", "cntrl",
+		"digit", "graph", "lower", "print", "punct", "space", "upper",
+		"xdigit", 0 };
+	int i;
+
+	for (i = 0; names[i]; i++)
+		if (strlen(names[i]) == n && !strncmp(names[i], nm, n))
+			break;
+	switch (i) {
+	case 0: return isalnum(c) != 0;
+	case 1: return isalpha(c) != 0;
+	case 2: return c == ' ' || c == '\t';
+	case 3: return iscntrl(c) != 0;
+	case 4: return isdigit(c) != 0;
+	case 5: return isgraph(c) != 0;
+	case 6: return islower(c) != 0;
+	case 7: return isprint(c) != 0;
+	case 8: return ispunct(c) != 0;
+	case 9: return isspace(c) != 0;
+	case 10: return isupper(c) != 0;
+	case 11: return isxdigit(c) != 0;
+	}
+	return 0;
+}
+
 /* Match a pattern against text with escapes, star and class support. */
 int gmatch(const char *p, const char *t)
 {
@@ -989,13 +1052,27 @@ int gmatch(const char *p, const char *t)
 			continue;
 		}
 		if (*p == '[') {
-			int neg = 0, hit = 0;
-			const char *q = p + 1;
+			int neg = 0, hit = 0, k;
+			const char *q = p + 1, *e;
 			if (*q == '!' || *q == '^') {
 				neg = 1;
 				q++;
 			}
-			for (; *q && *q != ']'; q++) {
+			for (k = 0; *q && (*q != ']' || !k); q++, k++) {
+				if (q[0] == '[' && q[1] == ':' &&
+				    (e = strstr(q + 2, ":]")) != 0) {
+					if (gclass(q + 2, (size_t)(e - q - 2),
+						   (unsigned char)*t))
+						hit = 1;
+					q = e + 1;
+					continue;
+				}
+				if (q[0] == '\\' && q[1]) {
+					q++;
+					if (*q == *t)
+						hit = 1;
+					continue;
+				}
 				if (q[1] == '-' && q[2] && q[2] != ']') {
 					if ((unsigned char)*t >= (unsigned char)q[0] &&
 					    (unsigned char)*t <= (unsigned char)q[2])
@@ -1472,7 +1549,7 @@ void xwm(sh *s, word *w, vec *out, int fl, vec *outm)
 			int all, nk = xkeys(s, p0, &ks, &all);
 			vec *lst;
 			long off, len, k2;
-			if (!all)
+			if (!all || xstar(ks, nk))
 				goto normal;
 			lst = vb_get(s);
 			v_list(s, p0->t, ks, nk, lst, 0);
