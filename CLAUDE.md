@@ -111,7 +111,7 @@ linked, and no OpenSSL headers are needed to build.
 | `src/args.c` | `opt`/`args` declared CLI parsing, `title` |
 | `src/mod.c` | module loading |
 | `mods/*.c` | reference modules: `sys`, `http` (scheme), `ls`, `math` (floating point; one of the two modules `--plan` may load, see `pl_pure`), `darwin` (macOS-only: `cpu`, `mem`, native `host_statistics`, no fork) |
-| `examples/desktop/` | the window manager (`desktop.hibr`, a table of contents sourcing `wm/`, one concern to a file, and `widgets/`, the widget library apps draw with) and everything built on it — `apps/` (file browser, control panel, terminal, task manager, About hibr, three games in `Games/`, dBASE in `Office/`), `desk-accessories/` (calculator, clock, image viewer, note pad, sliding puzzle), `control-panel/` panes, `control-strip/` modules — see `examples/desktop/README.md` for how to use it and `examples/desktop/ARCHITECTURE.md` for how it is built |
+| `examples/desktop/` | the window manager (`desktop.hibr`, a table of contents sourcing `wm/`, one concern to a file, and `widgets/`, the widget library apps draw with) and everything built on it — `apps/` (file browser, control panel, terminal, task manager, About hibr, three games in `Games/`, dBASE, Write and Sheet in `Office/`), `desk-accessories/` (calculator, clock, image viewer, note pad, sliding puzzle), `control-panel/` panes, `control-strip/` modules — see `examples/desktop/README.md` for how to use it and `examples/desktop/ARCHITECTURE.md` for how it is built |
 | `tests/screen.py` | **the** pty harness and terminal model, shared by every full-screen suite |
 | `mods/prompt/` | the prompt module, including a native reader for git's object store — see `mods/README.md` for the file-by-file breakdown |
 | `mods/console/` | the text display: alternate screen, cell grid with damage-based redraw, panes, decoded keys — see `mods/console/README.md` |
@@ -1685,6 +1685,14 @@ went in the shell.
   left in drawing code is a game's own art -- Bricks' brick rows, Snake's
   board, Mines' purple 4 -- which, like an app's icon, is the thing itself.
 
+- **Assignments in one command are made left to right.** `x=1 y=$x`
+  sets `y` to 1 in bash, and `a=5:6 a=${a%:*}` gives 5; hibr expanded
+  every assignment word before making any, so both came out empty --
+  which a spreadsheet's mouse code found, not a test. `ex_cmd` now expands
+  the command words first, then expands and applies each assignment in
+  turn: for good with no command word, temporarily (`asg_push`, popped at
+  `out`) with one, so `x=1 y=$x cmd` sees `y=1` and `x=1 echo $x` still
+  prints nothing, both as in bash. `tests/965-assign-order.t` compares it.
 - **A copied map keeps its JSON types.** `m_clone` and `v_copy`, which
   `:=` uses to take a map out of `$RET`, dropped every entry's `ty`, so
   `r := f` where `f` built JSON gave back numbers as strings -- found when

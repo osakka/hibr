@@ -1,0 +1,1436 @@
+#!/usr/bin/env hibr
+#
+# sheet -- a spreadsheet whose formulas are hibr. A cell holds text, a
+# number, or a formula: = and then hibr. What a formula prints is its value
+# -- =math "A1 * 1.2", =sum "${B1_B9[@]}", =date +%F -- and one that begins
+# with an expansion is that expansion: =$((A1 * 2)), ="${A1} each". Every
+# cell a formula names is a variable of that name, holding its value, and a
+# range A1_B9 an array of its values, row by row; formulas are worked out in
+# the order their cells need them, and one that needs itself says #CYCLE.
+#
+# Formulas run in a hibr of their own, under --plan: they can compute and
+# read what you can read, and anything that would write, connect or start a
+# program that does is refused and the cell says #REFUSED. Sheet > Trust
+# This Sheet lets one sheet's formulas run for real; that is kept on this
+# machine, never in the sheet, so a sheet cannot arrive trusted. Every run
+# has two seconds of CPU, so a formula that loops says #TIME rather than
+# holding the desktop. math is loaded for every run: floating point,
+# shell variables by name, sum avg min max count over arrays.
+#
+# A sheet is a file of the db module (.hsheet): one row per cell, written
+# as it is changed, so there is nothing to save; Save As writes a copy
+# under another name. Edit > Undo undoes this session's changes. CSV
+# comes in and goes out through File > Import and Export.
+#
+# Arrows move; shift with them selects; typing replaces the cell, enter or
+# f2 edits it, enter puts it in and moves down, tab right, escape leaves it
+# as it was; delete clears what is selected. A column's right edge in the
+# header drags its width; the Sheet menu inserts and deletes rows and
+# columns -- formulas follow the cells they name -- and adds more of both.
+
+strict
+
+app sheet "A spreadsheet whose formulas are hibr"
+
+command -v dt_app > /dev/null && dt_app sheet "Sheet" 24 84 many "⊞"
+command -v dt_opener > /dev/null && dt_opener sheet "Sheet" "hsheet csv" app sheet
+
+declare -gA SS
+declare -gA SC
+command -v dt_keepstate > /dev/null && dt_keepstate sheet SS
+
+SS_DIR="${SS_DIR-${XDG_DATA_HOME:-$HOME/.local/share}/hibr/sheets}"
+SS_TRUST="${SS_TRUST-}"
+command -v dt_keep > /dev/null && dt_keep SS_TRUST
+SS_ROWS=100
+SS_COLS=26
+SS_COLW=10
+SS_GUT=5
+SS_CPU=2
+SS_SCHEMA=(r:int c:int v:str:4096 f:str:128)
+SS_REFS=()
+SS_CELLS=()
+SS_TRUSTID=
+SS_FROMCSV=()
+
+# What every run of the formulas begins with: math, the list functions a
+# spreadsheet expects, and how one formula is run -- what it prints, or the
+# expansion it is, becomes its cell's value, and one record goes out per
+# cell: name, status, value, the first line of what it said on stderr.
+read -r -d '' SS_PRELUDE <<'PRELUDE'
+need math 2> /dev/null
+sum() { local -a __a=("$@"); math "sum(__a)"; }
+avg() { local -a __a=("$@"); math "avg(__a)"; }
+min() { local -a __a=("$@"); math "min(__a)"; }
+max() { local -a __a=("$@"); math "max(__a)"; }
+count() { local -a __a=("$@"); math "count(__a)"; }
+__eval() {
+	local __n=$1 __o __s __e
+	printf '\036%s\n' "$__n" >&2
+	case $__c in
+	'$'* | '"'* | "'"*) __o=$(eval "printf %s $__c" 2> "$TMPDIR/__e") ;;
+	*) __o=$(eval "$__c" 2> "$TMPDIR/__e") ;;
+	esac
+	__s=$?
+	printf -v "$__n" '%s' "$__o"
+	__e=$(< "$TMPDIR/__e")
+	__e=${__e%%$'\n'*}
+	printf '%s\037%s\037%s\037%s\036' "$__n" "$__s" "${__o//$'\036'/}" "${__e//$'\036'/}"
+}
+PRELUDE
+
+# --- names ----------------------------------------------------------------
+
+# A column's letters from its index, counted from 0: A, Z, AA.
+fn ss_colname(int c) {
+	local s= n=$((c + 1)) d
+	local -a az=(A B C D E F G H I J K L M N O P Q R S T U V W X Y Z)
+
+	while [ "$n" -gt 0 ]; do
+		d=$(((n - 1) % 26))
+		s="${az[$d]}$s"
+		n=$(((n - 1) / 26))
+	done
+	ret "$s"
+}
+
+# A column's index from its letters.
+fn ss_colnum(l) {
+	local n=0 i=0 ch
+	local abc=ABCDEFGHIJKLMNOPQRSTUVWXYZ
+
+	while [ "$i" -lt "${#l}" ]; do
+		ch=${l:$i:1}
+		ch=${abc%%"$ch"*}
+		n=$((n * 26 + ${#ch} + 1))
+		i=$((i + 1))
+	done
+	ret $((n - 1))
+}
+
+# A cell's name, A1, from its row and column counted from 0.
+fn ss_name(int r, int c) {
+	local l
+
+	l := ss_colname "$c"
+	ret "$l$((r + 1))"
+}
+
+# A cell's name as "row col", counted from 0; fails for what is not one.
+fn ss_cell(nm) {
+	local c
+
+	[[ $nm =~ ^([A-Z]{1,3})([0-9]{1,6})$ ]] || return 1
+	[ "${BASH_REMATCH[2]}" -ge 1 ] || return 1
+	c := ss_colnum "${BASH_REMATCH[1]}"
+	ret "$((BASH_REMATCH[2] - 1)) $c"
+}
+
+# Every cell of a range A1_C3, by name, row by row, into SS_CELLS.
+fn ss_range(a, b) {
+	local p q r0 c0 r1 c1 r c t n
+
+	SS_CELLS=()
+	p := ss_cell "$a" || return 1
+	q := ss_cell "$b" || return 1
+	r0=${p% *} c0=${p#* } r1=${q% *} c1=${q#* }
+	[ "$r0" -gt "$r1" ] && { t=$r0; r0=$r1; r1=$t; }
+	[ "$c0" -gt "$c1" ] && { t=$c0; c0=$c1; c1=$t; }
+	[ $(((r1 - r0 + 1) * (c1 - c0 + 1))) -gt 20000 ] && return 1
+	r=$r0
+	while [ "$r" -le "$r1" ]; do
+		c=$c0
+		while [ "$c" -le "$c1" ]; do
+			n := ss_name "$r" "$c"
+			SS_CELLS+=("$n")
+			c=$((c + 1))
+		done
+		r=$((r + 1))
+	done
+}
+
+# The cell names and ranges a formula mentions, into SS_REFS. Read from
+# the text, so a name in a quoted string counts as well and one made up
+# while it runs (${!x}, eval) does not.
+fn ss_refs(code) {
+	local rest=$code
+
+	SS_REFS=()
+	while [[ $rest =~ (^|[^A-Za-z0-9_])([A-Z]{1,3}[0-9]{1,6}(_[A-Z]{1,3}[0-9]{1,6})?) ]]; do
+		SS_REFS+=("${BASH_REMATCH[2]}")
+		rest=${rest#*"${BASH_REMATCH[0]}"}
+	done
+}
+
+# Text right-aligned in w columns.
+fn ss_rpad(t, int w) {
+	local p=
+
+	[ "${#t}" -lt "$w" ] && p := str repeat " " $((w - ${#t}))
+	ret "$p$t"
+}
+
+# Whether text is a number, for lining it up on the right.
+fn ss_isnum(v) {
+	[[ $v =~ ^[-+]?([0-9]+\.?[0-9]*|\.[0-9]+)([eE][-+]?[0-9]+)?$ ]]
+}
+
+# --- the file ---------------------------------------------------------------
+
+# Open a sheet's file, making it if it is not there, and read every cell.
+fn ss_load(int id, path) {
+	local h i n r c k rxr='rows=([0-9]+)' rxc='cols=([0-9]+)'
+	local -a rows
+
+	need db 2> /dev/null || { dt_notep high "Sheet needs the db module"; return 1; }
+	if [ -e "$path" ]; then
+		h := db open "$path" 2> /dev/null || {
+			dt_notep high "Cannot open ${path##*/} as a sheet"
+			return 1
+		}
+		if [ "$(db cols "$h")" != "r:int c:int v:str:4096 f:str:128" ]; then
+			db close "$h"
+			dt_notep high "${path##*/} is a database, not a sheet"
+			return 1
+		fi
+	else
+		mkdir -p "${path%/*}" 2> /dev/null
+		h := db create "$path" "${SS_SCHEMA[@]}" 2> /dev/null || {
+			dt_notep high "Cannot make ${path##*/}"
+			return 1
+		}
+	fi
+	unset "SC[$id]"
+	SS[$id]["h"]=$h
+	SS[$id]["path"]=$path
+	SS[$id]["rows"]=$SS_ROWS
+	SS[$id]["cols"]=$SS_COLS
+	SS[$id]["mrec"]=
+	SS[$id]["un"]=0
+	SS[$id]["rn"]=0
+	if rows := db query "$h" -n 2> /dev/null; then
+		n=${#rows[@]}
+		i=0
+		while [ "$i" -lt "$n" ]; do
+			r=${rows[$i]["r"]}
+			c=${rows[$i]["c"]}
+			if [ "$r" -ge 0 ] && [ "$c" -ge 0 ]; then
+				k="$r:$c"
+				SC[$id][$k]["src"]=${rows[$i]["v"]}
+				SC[$id][$k]["fmt"]=${rows[$i]["f"]}
+				SC[$id][$k]["rec"]=${rows[$i]["#"]}
+			elif [ "$r" = -1 ]; then
+				SS[$id]["w$c"]=${rows[$i]["v"]#w=}
+				SS[$id]["wrec$c"]=${rows[$i]["#"]}
+			elif [ "$r" = -2 ]; then
+				SS[$id]["mrec"]=${rows[$i]["#"]}
+				[[ ${rows[$i]["v"]} =~ $rxr ]] &&
+					SS[$id]["rows"]=${BASH_REMATCH[1]}
+				[[ ${rows[$i]["v"]} =~ $rxc ]] &&
+					SS[$id]["cols"]=${BASH_REMATCH[1]}
+			fi
+			i=$((i + 1))
+		done
+	fi
+	ss_retitle "$id"
+	ss_recalc "$id"
+}
+
+# Put a cell's text in the file: changed where it is, added if new, and
+# taken out when it is emptied. Fails, saying why, when the file refuses.
+fn ss_store(int id, int r, int c, src) {
+	local h=${SS[$id]["h"]} k="$r:$c" rec
+
+	rec=${SC[$id][$k]["rec"]}
+	if [ -z "$src" ] && [ -z "${SC[$id][$k]["fmt"]}" ]; then
+		[ -n "$rec" ] && db delete "$h" "$rec" > /dev/null 2>&1
+		unset "SC[$id][$k]"
+		return 0
+	fi
+	if [ -n "$rec" ]; then
+		db set "$h" "$rec" v "$src" 2> /dev/null || {
+			dt_notep low "A cell holds at most 4096 bytes"
+			return 1
+		}
+	else
+		rec := db insert "$h" "$r" "$c" "$src" "" 2> /dev/null || {
+			dt_notep low "A cell holds at most 4096 bytes"
+			return 1
+		}
+		SC[$id][$k]["rec"]=$rec
+	fi
+	SC[$id][$k]["src"]=$src
+}
+
+# Move a stored cell to another place, file and all.
+fn ss_move(int id, from, to) {
+	local h=${SS[$id]["h"]} rec=${SC[$id][$from]["rec"]}
+
+	if [ -n "$rec" ]; then
+		db set "$h" "$rec" r "${to%:*}" c "${to#*:}" 2> /dev/null
+	fi
+	SC[$id][$to]["src"]=${SC[$id][$from]["src"]}
+	SC[$id][$to]["fmt"]=${SC[$id][$from]["fmt"]}
+	SC[$id][$to]["rec"]=$rec
+	unset "SC[$id][$from]"
+}
+
+# Keep the grid's size in the file.
+fn ss_setmeta(int id) {
+	local h=${SS[$id]["h"]} v rec
+
+	v="rows=${SS[$id]["rows"]} cols=${SS[$id]["cols"]}"
+	rec=${SS[$id]["mrec"]}
+	if [ -n "$rec" ]; then
+		db set "$h" "$rec" v "$v" 2> /dev/null
+	else
+		rec := db insert "$h" -2 0 "$v" "" 2> /dev/null && SS[$id]["mrec"]=$rec
+	fi
+}
+
+# Keep a column's width in the file.
+fn ss_setwidth(int id, int c, int w) {
+	local h=${SS[$id]["h"]} rec=${SS[$id]["wrec$c"]}
+
+	SS[$id]["w$c"]=$w
+	if [ -n "$rec" ]; then
+		db set "$h" "$rec" v "w=$w" 2> /dev/null
+	else
+		rec := db insert "$h" -1 "$c" "w=$w" "" 2> /dev/null &&
+			SS[$id]["wrec$c"]=$rec
+	fi
+}
+
+# A column's width.
+fn ss_w(int id, int c) {
+	ret "${SS[$id]["w$c"]:-$SS_COLW}"
+}
+
+fn ss_retitle(int id) {
+	local p=${SS[$id]["path"]} t
+
+	t=${p##*/}
+	t=${t%.hsheet}
+	[[ $t == untitled-* ]] && t=Untitled
+	command -v dt_retitle > /dev/null && dt_retitle "$id" "Sheet [$t]"
+}
+
+# --- working the formulas out ---------------------------------------------
+
+SS_WALL=10
+declare -gA SS_NOTE
+
+# What runs the formulas' hibr: a CPU limit every process it starts keeps,
+# and a wall-clock one for the whole run, kept by this wrapper, which runs
+# none of the sheet's own code itself.
+SS_RUNNER='ulimit -t "$1" 2> /dev/null
+w=$2
+shift 2
+"$@" &
+p=$!
+( sleep "$w"; kill -9 "$p" ) > /dev/null 2>&1 < /dev/null &
+k=$!
+wait "$p"
+s=$?
+kill "$k" 2> /dev/null
+exit "$s"'
+
+# The first refusal a plan recorded for each formula, from its stderr: each
+# formula marks where its part begins, so a refusal is the formula's whose
+# mark came before it.
+fn ss_notes(f) {
+	local line cur=
+
+	for line in "${!SS_NOTE[@]}"; do unset SS_NOTE["$line"]; done
+	[ -r "$f" ] || return 0
+	while IFS= read -r line; do
+		if [ "${line:0:1}" = $'\036' ]; then
+			cur=${line:1}
+		elif [ -n "$cur" ] && [[ $line == *"plan:"*"would "* ]] &&
+		     [ -z "${SS_NOTE["$cur"]}" ]; then
+			SS_NOTE["$cur"]=${line#*would }
+		fi
+	done < "$f"
+}
+
+# Text in single quotes, as hibr reads it back exactly.
+fn ss_q(t) {
+	ret "'${t//\'/\'\\\'\'}'"
+}
+
+# Whether this sheet's formulas may run for real.
+fn ss_trusted(int id) {
+	local p=${SS[$id]["path"]}
+
+	[ -n "$p" ] && [[ $'\n'"$SS_TRUST"$'\n' == *$'\n'"$p"$'\n'* ]]
+}
+
+# Work out every formula: the order they need each other in, then one hibr
+# that runs them all -- under --plan unless the sheet is trusted, with two
+# seconds of CPU -- and each one's value or what went wrong.
+fn ss_recalc(int id) {
+	local k nm code q n i f dep out rc st v e prog tmp dir
+	local -a forms order lits rec fld ev
+	local -A deg need users isform litset done rng emitted
+
+	for k in "${!SC[$id][@]}"; do
+		[ "${SC[$id][$k]["src"]:0:1}" = "=" ] || continue
+		nm := ss_name "${k%:*}" "${k#*:}"
+		forms+=("$nm")
+		isform["$nm"]=$k
+	done
+	[ "${#forms[@]}" -gt 0 ] || return 0
+	for nm in "${forms[@]}"; do
+		k=${isform["$nm"]}
+		ss_refs "${SC[$id][$k]["src"]:1}"
+		deg["$nm"]=0
+		need["$nm"]=
+		for f in "${SS_REFS[@]}"; do
+			if [[ $f == *_* ]]; then
+				ss_range "${f%_*}" "${f#*_}" || continue
+				rng["$f"]="${SS_CELLS[*]}"
+				need["$nm"]="${need["$nm"]} $f"
+				for dep in "${SS_CELLS[@]}"; do
+					if [ -n "${isform["$dep"]}" ]; then
+						deg["$nm"]=$((deg["$nm"] + 1))
+						users["$dep"]="${users["$dep"]} $nm"
+					else
+						litset["$dep"]=1
+					fi
+				done
+			else
+				ss_cell "$f" > /dev/null || continue
+				if [ -n "${isform["$f"]}" ]; then
+					deg["$nm"]=$((deg["$nm"] + 1))
+					users["$f"]="${users["$f"]} $nm"
+				else
+					litset["$f"]=1
+				fi
+			fi
+		done
+	done
+	for nm in "${forms[@]}"; do
+		[ "${deg["$nm"]}" = 0 ] && order+=("$nm")
+	done
+	i=0
+	while [ "$i" -lt "${#order[@]}" ]; do
+		nm=${order[$i]}
+		done["$nm"]=1
+		read -ra fld <<< "${users["$nm"]}"
+		for f in "${fld[@]}"; do
+			deg["$f"]=$((deg["$f"] - 1))
+			[ "${deg["$f"]}" = 0 ] && order+=("$f")
+		done
+		i=$((i + 1))
+	done
+	for nm in "${forms[@]}"; do
+		k=${isform["$nm"]}
+		SC[$id][$k]["val"]=
+		SC[$id][$k]["err"]=
+		if [ -z "${done["$nm"]}" ]; then
+			SC[$id][$k]["val"]="#CYCLE"
+			SC[$id][$k]["err"]="$nm needs its own value, through the cells it names"
+		fi
+	done
+	[ "${#order[@]}" -gt 0 ] || return 0
+
+	tmp=${XDG_STATE_HOME:-$HOME/.local/state}/hibr/sheet
+	mkdir -p "$tmp" 2> /dev/null
+	dir=${SS[$id]["path"]%/*}
+	prog="$SS_PRELUDE"$'\n'
+	q := ss_q "$dir"
+	prog+="cd -- $q 2> /dev/null"$'\n'
+	for nm in "${!litset[@]}"; do
+		v=
+		q := ss_cell "$nm" && v=${SC[$id]["${q% *}:${q#* }"]["src"]}
+		q := ss_q "$v"
+		prog+="$nm=$q"$'\n'
+	done
+	for nm in "${order[@]}"; do
+		k=${isform["$nm"]}
+		code=${SC[$id][$k]["src"]:1}
+		read -ra fld <<< "${need["$nm"]}"
+		for f in "${fld[@]}"; do
+			read -ra fld <<< "${rng["$f"]}"
+			v=
+			for dep in "${fld[@]}"; do v+=" \"\${$dep-}\""; done
+			prog+="$f=($v )"$'\n'
+		done
+		q := ss_q "$code"
+		prog+="__c=$q; __eval $nm"$'\n'
+	done
+	printf '%s' "$prog" > "$tmp/run-$id.hibr" 2> /dev/null || return 0
+	local -a cmd=("$HIBR")
+	ss_trusted "$id" || cmd+=(--plan)
+	ev=("HOME=$HOME" "PATH=$PATH" "LANG=${LANG:-C.UTF-8}"
+		"HIBR_MODPATH=${HIBR_MODPATH-}" "TMPDIR=$tmp")
+	out=$(cd "$tmp" && env -i "${ev[@]}" \
+		"$HIBR" -c "$SS_RUNNER" x "$SS_CPU" "$SS_WALL" "${cmd[@]}" \
+		"$tmp/run-$id.hibr" < /dev/null 2> "$tmp/err-$id")
+	rc=$?
+	ss_notes "$tmp/err-$id"
+	for nm in "${order[@]}"; do emitted["$nm"]=; done
+	while [ -n "$out" ]; do
+		f=${out%%$'\036'*}
+		out=${out#*$'\036'}
+		nm=${f%%$'\037'*}
+		f=${f#*$'\037'}
+		st=${f%%$'\037'*}
+		f=${f#*$'\037'}
+		v=${f%%$'\037'*}
+		e=${f#*$'\037'}
+		[ -n "${isform["$nm"]}" ] || continue
+		k=${isform["$nm"]}
+		emitted["$nm"]=1
+		if [ "$st" = 0 ]; then
+			SC[$id][$k]["val"]=$v
+		elif [ -n "${SS_NOTE["$nm"]}" ]; then
+			SC[$id][$k]["val"]="#REFUSED"
+			SC[$id][$k]["err"]="would ${SS_NOTE["$nm"]} -- refused: this sheet is not trusted"
+		elif [ "$st" -ge 128 ]; then
+			SC[$id][$k]["val"]="#TIME"
+			SC[$id][$k]["err"]="it ran out of time -- $SS_CPU seconds of CPU"
+		else
+			SC[$id][$k]["val"]="#ERR"
+			SC[$id][$k]["err"]=${e:-it ended with status $st}
+		fi
+	done
+	for nm in "${order[@]}"; do
+		[ -n "${emitted["$nm"]}" ] && continue
+		k=${isform["$nm"]}
+		if [ "$rc" -ge 128 ]; then
+			SC[$id][$k]["val"]="#TIME"
+			SC[$id][$k]["err"]="the formulas ran out of time -- $SS_WALL seconds"
+		else
+			SC[$id][$k]["val"]="#ERR"
+			SC[$id][$k]["err"]="it did not finish (status $rc)"
+		fi
+	done
+}
+
+# What a cell shows: its value, worked out if it is a formula.
+fn ss_show(int id, k) {
+	local s=${SC[$id][$k]["src"]}
+
+	if [ "${s:0:1}" = "=" ]; then
+		ret "${SC[$id][$k]["val"]}"
+	else
+		ret "$s"
+	fi
+}
+
+# --- changing cells ---------------------------------------------------------
+
+# Record a change for Undo: row, column, what was there before.
+fn ss_undopush(int id, int r, int c, old) {
+	local n=${SS[$id]["un"]:-0}
+
+	SS[$id]["u$n"]="$r"$'\037'"$c"$'\037'"$old"
+	SS[$id]["un"]=$((n + 1))
+	SS[$id]["rn"]=0
+}
+
+# Begin a group of changes Undo takes back as one.
+fn ss_undomark(int id) {
+	local n=${SS[$id]["un"]:-0}
+
+	SS[$id]["u$n"]=mark
+	SS[$id]["un"]=$((n + 1))
+}
+
+# Set a cell, keeping what was there for Undo.
+fn ss_set(int id, int r, int c, src) {
+	local old=${SC[$id]["$r:$c"]["src"]}
+
+	[ "$old" = "$src" ] && return 0
+	ss_undopush "$id" "$r" "$c" "$old"
+	ss_store "$id" "$r" "$c" "$src"
+}
+
+# Take the last group of changes back, or put it back again.
+fn ss_undo(int id, dir) {
+	local n m e r c old cur k
+
+	if [ "$dir" = undo ]; then
+		n=${SS[$id]["un"]:-0}
+		[ "$n" -gt 0 ] || return 1
+		m=${SS[$id]["rn"]:-0}
+		SS[$id]["r$m"]=mark
+		m=$((m + 1))
+		while [ "$n" -gt 0 ]; do
+			n=$((n - 1))
+			e=${SS[$id]["u$n"]}
+			[ "$e" = mark ] && break
+			IFS=$'\037' read -r r c old <<< "$e"
+			cur=${SC[$id]["$r:$c"]["src"]}
+			SS[$id]["r$m"]="$r"$'\037'"$c"$'\037'"$cur"
+			m=$((m + 1))
+			ss_store "$id" "$r" "$c" "$old"
+		done
+		SS[$id]["un"]=$n
+		SS[$id]["rn"]=$m
+	else
+		m=${SS[$id]["rn"]:-0}
+		[ "$m" -gt 0 ] || return 1
+		n=${SS[$id]["un"]:-0}
+		SS[$id]["u$n"]=mark
+		n=$((n + 1))
+		while [ "$m" -gt 0 ]; do
+			m=$((m - 1))
+			e=${SS[$id]["r$m"]}
+			[ "$e" = mark ] && break
+			IFS=$'\037' read -r r c old <<< "$e"
+			cur=${SC[$id]["$r:$c"]["src"]}
+			SS[$id]["u$n"]="$r"$'\037'"$c"$'\037'"$cur"
+			n=$((n + 1))
+			ss_store "$id" "$r" "$c" "$old"
+		done
+		SS[$id]["un"]=$n
+		SS[$id]["rn"]=$m
+	fi
+	ss_recalc "$id"
+	return 0
+}
+
+# The selection's corners, top-left then bottom-right, into SS_CELLS as
+# "r0 c0 r1 c1"; the cursor alone when nothing is selected.
+fn ss_sel(int id) {
+	local r0=${SS[$id]["cr"]} c0=${SS[$id]["cc"]} r1 c1 t
+
+	r1=$r0
+	c1=$c0
+	if [ "${SS[$id]["sel"]}" = 1 ]; then
+		r1=${SS[$id]["ar"]}
+		c1=${SS[$id]["ac"]}
+	fi
+	[ "$r0" -gt "$r1" ] && { t=$r0; r0=$r1; r1=$t; }
+	[ "$c0" -gt "$c1" ] && { t=$c0; c0=$c1; c1=$t; }
+	ret "$r0 $c0 $r1 $c1"
+}
+
+# Empty every cell selected.
+fn ss_clear(int id) {
+	local s r c r0 c0 r1 c1
+
+	s := ss_sel "$id"
+	read -r r0 c0 r1 c1 <<< "$s"
+	ss_undomark "$id"
+	r=$r0
+	while [ "$r" -le "$r1" ]; do
+		c=$c0
+		while [ "$c" -le "$c1" ]; do
+			[ -n "${SC[$id]["$r:$c"]["src"]}" ] && ss_set "$id" "$r" "$c" ""
+			c=$((c + 1))
+		done
+		r=$((r + 1))
+	done
+	ss_recalc "$id"
+}
+
+# Shift every cell name in a formula past a row or column inserted (d 1)
+# or deleted (d -1) at index at; a name in a deleted row or column itself
+# is left as it is.
+fn ss_shiftrefs(code, axis, int at, int d) {
+	local out= rest=$code nm r c p n
+
+	while [[ $rest =~ (^|[^A-Za-z0-9_])([A-Z]{1,3})([0-9]{1,6}) ]]; do
+		p=${rest%%"${BASH_REMATCH[0]}"*}
+		out+="$p${BASH_REMATCH[1]}"
+		rest=${rest#*"${BASH_REMATCH[0]}"}
+		r=$((BASH_REMATCH[3] - 1))
+		c := ss_colnum "${BASH_REMATCH[2]}"
+		if [ "$axis" = row ] && [ "$r" -ge "$at" ] && { [ "$d" = 1 ] || [ "$r" -gt "$at" ]; }; then
+			r=$((r + d))
+		elif [ "$axis" = col ] && [ "$c" -ge "$at" ] && { [ "$d" = 1 ] || [ "$c" -gt "$at" ]; }; then
+			c=$((c + d))
+		fi
+		n := ss_name "$r" "$c"
+		out+=$n
+	done
+	ret "$out$rest"
+}
+
+# Insert (d 1) or delete (d -1) a row or a column at index at: cells past
+# it move, a deleted one's cells go, and every formula's names follow.
+fn ss_shift(int id, axis, int at, int d) {
+	local k r c to s n ord
+	local -a keys sorted
+
+	if [ "$d" = -1 ]; then
+		for k in "${!SC[$id][@]}"; do
+			r=${k%:*} c=${k#*:}
+			if { [ "$axis" = row ] && [ "$r" = "$at" ]; } ||
+			   { [ "$axis" = col ] && [ "$c" = "$at" ]; }; then
+				ss_store "$id" "$r" "$c" ""
+			fi
+		done
+	fi
+	for k in "${!SC[$id][@]}"; do
+		r=${k%:*} c=${k#*:}
+		if [ "$axis" = row ]; then sorted+=("$r:$c:$k"); else sorted+=("$c:$r:$k"); fi
+	done
+	ord=-k1,1n
+	[ "$d" = 1 ] && ord=-k1,1nr
+	if [ "${#sorted[@]}" -gt 0 ]; then
+		while IFS= read -r k; do
+			[ -n "$k" ] && keys+=("${k#*:*:}")
+		done <<< "$(printf '%s\n' "${sorted[@]}" | sort -t: "$ord")"
+	fi
+	for k in "${keys[@]}"; do
+		r=${k%:*} c=${k#*:}
+		if [ "$axis" = row ] && [ "$r" -ge "$at" ] && { [ "$d" = 1 ] || [ "$r" -gt "$at" ]; }; then
+			ss_move "$id" "$k" "$((r + d)):$c"
+		elif [ "$axis" = col ] && [ "$c" -ge "$at" ] && { [ "$d" = 1 ] || [ "$c" -gt "$at" ]; }; then
+			ss_move "$id" "$k" "$r:$((c + d))"
+		fi
+	done
+	for k in "${!SC[$id][@]}"; do
+		s=${SC[$id][$k]["src"]}
+		[ "${s:0:1}" = "=" ] || continue
+		n := ss_shiftrefs "$s" "$axis" "$at" "$d"
+		[ "$n" != "$s" ] && ss_store "$id" "${k%:*}" "${k#*:}" "$n"
+	done
+	if [ "$axis" = row ]; then
+		SS[$id]["rows"]=$((SS[$id]["rows"] + d))
+	else
+		SS[$id]["cols"]=$((SS[$id]["cols"] + d))
+	fi
+	ss_setmeta "$id"
+	SS[$id]["un"]=0
+	SS[$id]["rn"]=0
+	ss_recalc "$id"
+}
+
+# --- the window ---------------------------------------------------------------
+
+fn sheet_open(int id, arg = "") {
+	local o n=1 p ids
+	local -a il
+
+	SS[$id]["cr"]=0
+	SS[$id]["cc"]=0
+	SS[$id]["top"]=0
+	SS[$id]["left"]=0
+	SS[$id]["sel"]=
+	SS[$id]["ed"]=
+	SS[$id]["drag"]=
+	if [ -n "$arg" ] && [ "${arg%.csv}" = "$arg" ]; then
+		ids := dt_ids
+		read -ra il <<< "$ids"
+		for o in "${il[@]}"; do
+			[ "$o" = "$id" ] && continue
+			if [ "${SS[$o]["path"]}" = "$arg" ] && [ -n "${DT[$o]["title"]}" ]; then
+				dt_raise "$o"
+				dt_wantclose "$id"
+				return 0
+			fi
+		done
+		ss_load "$id" "$arg" || dt_wantclose "$id"
+		return 0
+	fi
+	while p="$SS_DIR/untitled-$n.hsheet" && [ -e "$p" ]; do n=$((n + 1)); done
+	ss_load "$id" "$p" || { dt_wantclose "$id"; return 0; }
+	[ -n "$arg" ] && ss_importcsv "$id" "$arg"
+}
+
+fn sheet_close(int id) {
+	local h=${SS[$id]["h"]} p=${SS[$id]["path"]} n
+
+	[ -n "$h" ] && db close "$h" 2> /dev/null
+	if [[ ${p##*/} == untitled-*.hsheet ]]; then
+		n := ss_count "$p"
+		[ "$n" = 0 ] && rm -f "$p"
+	fi
+	unset "SS[$id]"
+	unset "SC[$id]"
+}
+
+# How many cells a closed sheet file holds; an untitled one with none is
+# thrown away when its window closes.
+fn ss_count(p) {
+	local h n=1
+
+	if h := db open "$p" 2> /dev/null; then
+		n := db count "$h" where r ge 0
+		db close "$h"
+	fi
+	ret "$n"
+}
+
+fn sheet_stash(int id, dir) {
+	return 0
+}
+
+fn sheet_resume(int id) {
+	local p=${SS[$id]["path"]}
+
+	SS[$id]["h"]=
+	[ -n "$p" ] && ss_load "$id" "$p"
+}
+
+# Keep the cursor's cell in view.
+fn ss_view(int id) {
+	local cr=${SS[$id]["cr"]} cc=${SS[$id]["cc"]} top=${SS[$id]["top"]}
+	local left=${SS[$id]["left"]} vr=${SS[$id]["vr"]:-10} ww=${SS[$id]["ww"]:-60} c x w
+
+	[ "$cr" -lt "$top" ] && top=$cr
+	[ "$cr" -ge $((top + vr)) ] && top=$((cr - vr + 1))
+	[ "$cc" -lt "$left" ] && left=$cc
+	while :; do
+		x=0
+		c=$left
+		while [ "$c" -le "$cc" ]; do
+			w := ss_w "$id" "$c"
+			x=$((x + w))
+			c=$((c + 1))
+		done
+		[ "$x" -le "$ww" ] || [ "$left" -ge "$cc" ] && break
+		left=$((left + 1))
+	done
+	SS[$id]["top"]=$top
+	SS[$id]["left"]=$left
+}
+
+# Move the cursor, keeping it on the grid; with sel, carry a selection.
+fn ss_go(int id, int r, int c, sel = "") {
+	local rows=${SS[$id]["rows"]} cols=${SS[$id]["cols"]}
+
+	if [ -n "$sel" ]; then
+		if [ "${SS[$id]["sel"]}" != 1 ]; then
+			SS[$id]["sel"]=1
+			SS[$id]["ar"]=${SS[$id]["cr"]}
+			SS[$id]["ac"]=${SS[$id]["cc"]}
+		fi
+	else
+		SS[$id]["sel"]=
+	fi
+	[ "$r" -lt 0 ] && r=0
+	[ "$c" -lt 0 ] && c=0
+	[ "$r" -ge "$rows" ] && r=$((rows - 1))
+	[ "$c" -ge "$cols" ] && c=$((cols - 1))
+	SS[$id]["cr"]=$r
+	SS[$id]["cc"]=$c
+	ss_view "$id"
+}
+
+# Start editing the cursor's cell, from its text or from a key.
+fn ss_edit(int id, start = "", int fresh = 0) {
+	local k="${SS[$id]["cr"]}:${SS[$id]["cc"]}" t
+
+	t=${SC[$id][$k]["src"]}
+	[ "$fresh" = 1 ] && t=$start
+	SS[$id]["ed"]=1
+	SS[$id]["buf"]=$t
+	SS[$id]["cur"]=${#t}
+	SS[$id]["sel"]=
+}
+
+# Put what was typed in the cell, and work the formulas out again.
+fn ss_commit(int id) {
+	[ "${SS[$id]["ed"]}" = 1 ] || return 0
+	SS[$id]["ed"]=
+	ss_undomark "$id"
+	ss_set "$id" "${SS[$id]["cr"]}" "${SS[$id]["cc"]}" "${SS[$id]["buf"]}"
+	ss_recalc "$id"
+}
+
+fn sheet_draw(int id, int h, int w, int row, int col) {
+	local cr=${SS[$id]["cr"]} cc=${SS[$id]["cc"]} top left vr nm t s r c x cw
+	local k v sel r0 c0 r1 c1 y ed=${SS[$id]["ed"]} rows cols e
+
+	dt_wclear "$id"
+	vr=$((h - 3))
+	SS[$id]["vr"]=$vr
+	SS[$id]["ww"]=$((w - SS_GUT))
+	ss_view "$id"
+	top=${SS[$id]["top"]}
+	left=${SS[$id]["left"]}
+	rows=${SS[$id]["rows"]}
+	cols=${SS[$id]["cols"]}
+	sel := ss_sel "$id"
+	read -r r0 c0 r1 c1 <<< "$sel"
+
+	nm := ss_name "$cr" "$cc"
+	console pen "$DT_ACTIVE" "$DT_FACE" bold
+	t := str pad " $nm" "$SS_GUT"
+	console put -p "w$id" 1 1 "$t"
+	console pen "$DT_IDLE" "$DT_FACE"
+	console put -p "w$id" 1 $((SS_GUT + 1)) "${GL[vline]}"
+	if [ "$ed" = 1 ]; then
+		dt_textdraw "$id" 1 $((SS_GUT + 3)) $((w - SS_GUT - 3)) \
+			"${SS[$id]["buf"]}" "${SS[$id]["cur"]}" 1
+	else
+		s=${SC[$id]["$cr:$cc"]["src"]}
+		console pen "$DT_INK" "$DT_FACE"
+		t := str pad "${s:0:$((w - SS_GUT - 3))}" $((w - SS_GUT - 3))
+		console put -p "w$id" 1 $((SS_GUT + 3)) "$t"
+	fi
+
+	console pen "$DT_DIM" "$DT_WELL"
+	t := str pad "" "$SS_GUT"
+	console put -p "w$id" 2 1 "$t"
+	x=$((SS_GUT + 1))
+	c=$left
+	SS[$id]["vcols"]=
+	while [ "$c" -lt "$cols" ] && [ "$x" -le "$w" ]; do
+		cw := ss_w "$id" "$c"
+		t := ss_colname "$c"
+		s=$(((cw - ${#t}) / 2))
+		[ "$s" -lt 0 ] && s=0
+		t := ss_rpad "$t" $((s + ${#t}))
+		t := str pad "$t" "$cw"
+		if [ "$c" -ge "$c0" ] && [ "$c" -le "$c1" ]; then
+			console pen "$DT_ACTIVE" "$DT_WELL" bold
+		else
+			console pen "$DT_DIM" "$DT_WELL"
+		fi
+		[ $((x + cw - 1)) -gt "$w" ] && t=${t:0:$((w - x + 1))}
+		console put -p "w$id" 2 "$x" "$t"
+		dt_wreg "$id" 2 "$x" $((cw - 1)) "colh:$c"
+		dt_wreg "$id" 2 $((x + cw - 1)) 1 "edge:$c"
+		SS[$id]["vcols"]="${SS[$id]["vcols"]} $c:$x:$cw"
+		x=$((x + cw))
+		c=$((c + 1))
+	done
+
+	y=3
+	r=$top
+	while [ "$y" -le $((h - 1)) ] && [ "$r" -lt "$rows" ]; do
+		if [ "$r" -ge "$r0" ] && [ "$r" -le "$r1" ]; then
+			console pen "$DT_ACTIVE" "$DT_WELL" bold
+		else
+			console pen "$DT_DIM" "$DT_WELL"
+		fi
+		t := ss_rpad $((r + 1)) $((SS_GUT - 1))
+		t+=" "
+		console put -p "w$id" "$y" 1 "$t"
+		dt_wreg "$id" "$y" 1 "$SS_GUT" "rowh:$r"
+		x=$((SS_GUT + 1))
+		c=$left
+		while [ "$c" -lt "$cols" ] && [ "$x" -le "$w" ]; do
+			cw := ss_w "$id" "$c"
+			k="$r:$c"
+			v := ss_show "$id" "$k"
+			if ss_isnum "$v"; then
+				[ ${#v} -gt $((cw - 1)) ] && v="${v:0:$((cw - 2))}${GL[ellipsis]}"
+				t := ss_rpad "$v" $((cw - 1))
+				t+=" "
+			else
+				[ ${#v} -gt $((cw - 1)) ] && v="${v:0:$((cw - 2))}${GL[ellipsis]}"
+				t := str pad "$v" "$cw"
+			fi
+			if [ "$r" = "$cr" ] && [ "$c" = "$cc" ]; then
+				console pen "$DT_SELINK" "$DT_ACTIVE"
+			elif [ "$r" -ge "$r0" ] && [ "$r" -le "$r1" ] &&
+			     [ "$c" -ge "$c0" ] && [ "$c" -le "$c1" ]; then
+				console pen "$DT_INK" "$DT_WELL"
+			elif [ "${v:0:1}" = "#" ] && [ -n "${SC[$id][$k]["err"]}" ]; then
+				console pen "$DT_BAD" "$DT_FACE"
+			else
+				console pen "$DT_INK" "$DT_FACE"
+			fi
+			[ $((x + cw - 1)) -gt "$w" ] && t=${t:0:$((w - x + 1))}
+			console put -p "w$id" "$y" "$x" "$t"
+			x=$((x + cw))
+			c=$((c + 1))
+		done
+		r=$((r + 1))
+		y=$((y + 1))
+	done
+
+	e=${SC[$id]["$cr:$cc"]["err"]}
+	if [ -n "${SS[$id]["msg"]}" ]; then
+		e=${SS[$id]["msg"]}
+		SS[$id]["msg"]=
+	fi
+	if [ -n "$e" ]; then
+		console pen "$DT_BAD" "$DT_FACE"
+		t="$nm: $e"
+	else
+		console pen "$DT_DIM" "$DT_FACE"
+		t="${rows} rows ${GL[dot]} ${cols} columns ${GL[dot]} "
+		if ss_trusted "$id"; then t+="trusted"; else t+="sandboxed"; fi
+	fi
+	t := str pad "${t:0:$w}" "$w"
+	console put -p "w$id" "$h" 1 "$t"
+	[ "$top" -gt 0 ] || [ "$rows" -gt "$vr" ] &&
+		dt_scrollbar "$id" 3 "$w" "$vr" "$rows" "$vr" "$top"
+}
+
+fn sheet_key(int id, key) {
+	local cr=${SS[$id]["cr"]} cc=${SS[$id]["cc"]} vr=${SS[$id]["vr"]:-10} r ext=
+
+	if [ "${SS[$id]["ed"]}" = 1 ]; then
+		case $key in
+		enter | down) ss_commit "$id"; ss_go "$id" $((cr + 1)) "$cc" ;;
+		up) ss_commit "$id"; ss_go "$id" $((cr - 1)) "$cc" ;;
+		tab) ss_commit "$id"; ss_go "$id" "$cr" $((cc + 1)) ;;
+		shift-tab) ss_commit "$id"; ss_go "$id" "$cr" $((cc - 1)) ;;
+		escape) SS[$id]["ed"]= ;;
+		*)
+			r := dt_textkey "${SS[$id]["buf"]}" "${SS[$id]["cur"]}" "$key" ||
+				return 1
+			SS[$id]["buf"]=${r% *}
+			SS[$id]["cur"]=${r##* }
+			;;
+		esac
+		return 0
+	fi
+	case $key in shift-*) ext=1; key=${key#shift-} ;; esac
+	case $key in
+	up) ss_go "$id" $((cr - 1)) "$cc" "$ext" ;;
+	down) ss_go "$id" $((cr + 1)) "$cc" "$ext" ;;
+	left) ss_go "$id" "$cr" $((cc - 1)) "$ext" ;;
+	right) ss_go "$id" "$cr" $((cc + 1)) "$ext" ;;
+	tab) [ -n "$ext" ] && ss_go "$id" "$cr" $((cc - 1)) || ss_go "$id" "$cr" $((cc + 1)) ;;
+	pageup) ss_go "$id" $((cr - vr)) "$cc" "$ext" ;;
+	pagedown) ss_go "$id" $((cr + vr)) "$cc" "$ext" ;;
+	home) ss_go "$id" "$cr" 0 "$ext" ;;
+	end) ss_go "$id" "$cr" $((SS[$id]["cols"] - 1)) "$ext" ;;
+	enter | f2) ss_edit "$id" ;;
+	delete | backspace) ss_clear "$id" ;;
+	escape)
+		[ "${SS[$id]["sel"]}" = 1 ] || return 1
+		SS[$id]["sel"]=
+		;;
+	*)
+		[ -z "$ext" ] && [ "${#key}" = 1 ] || return 1
+		local k
+		for k in "${!DT_KEYS[@]}"; do
+			[ "${DT_KEYS["$k"]}" = "$key" ] && return 1
+		done
+		ss_edit "$id" "$key" 1
+		;;
+	esac
+	return 0
+}
+
+# Which cell a point in the window is, as "r c", or fail.
+fn ss_at(int id, int r, int c) {
+	local -a vc
+	local e cn x cw
+
+	[ "$r" -ge 3 ] || return 1
+	read -ra vc <<< "${SS[$id]["vcols"]}"
+	for e in "${vc[@]}"; do
+		cn=${e%%:*} x=${e#*:} x=${x%%:*} cw=${e##*:}
+		if [ "$c" -ge "$x" ] && [ "$c" -lt $((x + cw)) ]; then
+			ret "$((SS[$id]["top"] + r - 3)) $cn"
+			return 0
+		fi
+	done
+	return 1
+}
+
+fn sheet_mouse(int id, act, btn, int r, int c, mods = "") {
+	local tag p x cw e
+	local -a vc
+
+	[ "$btn" = left ] || return 0
+	if [ -n "${SS[$id]["drag"]}" ]; then
+		read -ra vc <<< "${SS[$id]["vcols"]}"
+		for e in "${vc[@]}"; do
+			[ "${e%%:*}" = "${SS[$id]["drag"]}" ] || continue
+			x=${e#*:} x=${x%%:*}
+			cw=$((c - x + 1))
+			[ "$cw" -lt 3 ] && cw=3
+			[ "$cw" -gt 60 ] && cw=60
+			SS[$id]["w${SS[$id]["drag"]}"]=$cw
+		done
+		if [ "$act" = release ]; then
+			ss_setwidth "$id" "${SS[$id]["drag"]}" \
+				"${SS[$id]["w${SS[$id]["drag"]}"]:-$SS_COLW}"
+			SS[$id]["drag"]=
+		fi
+		return 0
+	fi
+	if [ "$act" = press ]; then
+		[ "${SS[$id]["ed"]}" = 1 ] && ss_commit "$id"
+		tag := dt_hit "$id" "$r" "$c"
+		case $tag in
+		edge:*)
+			SS[$id]["drag"]=${tag#edge:}
+			return 0
+			;;
+		colh:*)
+			ss_go "$id" 0 "${tag#colh:}"
+			ss_go "$id" $((SS[$id]["rows"] - 1)) "${tag#colh:}" 1
+			SS[$id]["top"]=0
+			return 0
+			;;
+		rowh:*)
+			ss_go "$id" "${tag#rowh:}" 0
+			ss_go "$id" "${tag#rowh:}" $((SS[$id]["cols"] - 1)) 1
+			SS[$id]["left"]=0
+			return 0
+			;;
+		esac
+		p := ss_at "$id" "$r" "$c" || return 0
+		if [[ $mods == *shift* ]]; then
+			ss_go "$id" "${p% *}" "${p#* }" 1
+		else
+			ss_go "$id" "${p% *}" "${p#* }"
+		fi
+		SS[$id]["press"]=1
+		return 0
+	fi
+	if [ "$act" = drag ] && [ "${SS[$id]["press"]}" = 1 ]; then
+		p := ss_at "$id" "$r" "$c" || return 0
+		ss_go "$id" "${p% *}" "${p#* }" 1
+		return 0
+	fi
+	[ "$act" = release ] && SS[$id]["press"]=
+	return 0
+}
+
+fn sheet_wheel(int id, dir, int r = 0, int c = 0) {
+	local top=${SS[$id]["top"]} rows=${SS[$id]["rows"]} vr=${SS[$id]["vr"]:-10}
+
+	case $dir in
+	up) top=$((top - 3)) ;;
+	down) top=$((top + 3)) ;;
+	esac
+	[ "$top" -gt $((rows - vr)) ] && top=$((rows - vr))
+	[ "$top" -lt 0 ] && top=0
+	SS[$id]["top"]=$top
+	[ "${SS[$id]["cr"]}" -lt "$top" ] && SS[$id]["cr"]=$top
+	[ "${SS[$id]["cr"]}" -ge $((top + vr)) ] && SS[$id]["cr"]=$((top + vr - 1))
+	return 0
+}
+
+# --- the clipboard ------------------------------------------------------------
+
+# The selection as tab-separated lines, a cell's text as it was typed.
+fn sheet_copy(int id) {
+	local s r c r0 c0 r1 c1 out= line
+
+	[ "${SS[$id]["ed"]}" = 1 ] && { ret "${SS[$id]["buf"]}"; return 0; }
+	s := ss_sel "$id"
+	read -r r0 c0 r1 c1 <<< "$s"
+	r=$r0
+	while [ "$r" -le "$r1" ]; do
+		line=
+		c=$c0
+		while [ "$c" -le "$c1" ]; do
+			[ "$c" -gt "$c0" ] && line+=$'\t'
+			line+=${SC[$id]["$r:$c"]["src"]}
+			c=$((c + 1))
+		done
+		out+="$line"$'\n'
+		r=$((r + 1))
+	done
+	ret "${out%$'\n'}"
+}
+
+fn sheet_cut(int id) {
+	local t
+
+	t := sheet_copy "$id"
+	[ "${SS[$id]["ed"]}" = 1 ] && { SS[$id]["buf"]=; SS[$id]["cur"]=0; ret "$t"; return 0; }
+	ss_clear "$id"
+	ret "$t"
+}
+
+# Lines of tab-separated text into the grid from the cursor; one value is
+# just the cursor's cell.
+fn sheet_paste(int id, text, op = "") {
+	local r=${SS[$id]["cr"]} c0=${SS[$id]["cc"]} c line p
+	local -a cells
+
+	if [ "${SS[$id]["ed"]}" = 1 ]; then
+		p := dt_textpaste "${SS[$id]["buf"]}" "${SS[$id]["cur"]}" "$text"
+		SS[$id]["buf"]=${p% *}
+		SS[$id]["cur"]=${p##* }
+		return 0
+	fi
+	ss_undomark "$id"
+	while IFS= read -r line; do
+		IFS=$'\t' read -ra cells <<< "$line"
+		c=$c0
+		for p in "${cells[@]}"; do
+			[ "$c" -lt "${SS[$id]["cols"]}" ] && ss_set "$id" "$r" "$c" "$p"
+			c=$((c + 1))
+		done
+		r=$((r + 1))
+		[ "$r" -ge "${SS[$id]["rows"]}" ] && break
+	done <<< "$text"
+	ss_recalc "$id"
+}
+
+fn sheet_undo(int id) { ss_undo "$id" undo; }
+fn sheet_redo(int id) { ss_undo "$id" redo; }
+
+fn sheet_selall(int id) {
+	ss_go "$id" 0 0
+	ss_go "$id" $((SS[$id]["rows"] - 1)) $((SS[$id]["cols"] - 1)) 1
+	SS[$id]["top"]=0
+	SS[$id]["left"]=0
+}
+
+# --- CSV ---------------------------------------------------------------------
+
+# One CSV line's fields into SS_FROMCSV: commas between, a field in double
+# quotes may hold commas, and "" inside one is a quote.
+fn ss_csvline(line) {
+	local i=0 n=${#line} ch f= q=0
+
+	SS_FROMCSV=()
+	while [ "$i" -lt "$n" ]; do
+		ch=${line:$i:1}
+		if [ "$q" = 1 ]; then
+			if [ "$ch" = '"' ]; then
+				if [ "${line:$((i + 1)):1}" = '"' ]; then
+					f+='"'
+					i=$((i + 1))
+				else
+					q=0
+				fi
+			else
+				f+=$ch
+			fi
+		elif [ "$ch" = '"' ]; then
+			q=1
+		elif [ "$ch" = , ]; then
+			SS_FROMCSV+=("$f")
+			f=
+		else
+			f+=$ch
+		fi
+		i=$((i + 1))
+	done
+	SS_FROMCSV+=("$f")
+}
+
+# A CSV file's rows into the grid, from the cursor.
+fn ss_importcsv(int id, path) {
+	local r=${SS[$id]["cr"]} c0=${SS[$id]["cc"]} c line f n=0
+
+	[ -r "$path" ] || { dt_notep high "Cannot read ${path##*/}"; return 1; }
+	ss_undomark "$id"
+	while IFS= read -r line || [ -n "$line" ]; do
+		line=${line%$'\r'}
+		ss_csvline "$line"
+		[ "${#SS_FROMCSV[@]}" -gt $((SS[$id]["cols"] - c0)) ] &&
+			SS[$id]["cols"]=$((c0 + ${#SS_FROMCSV[@]}))
+		[ "$r" -ge "${SS[$id]["rows"]}" ] && SS[$id]["rows"]=$((r + 1))
+		c=$c0
+		for f in "${SS_FROMCSV[@]}"; do
+			[ -n "$f" ] && ss_set "$id" "$r" "$c" "$f"
+			c=$((c + 1))
+		done
+		r=$((r + 1))
+		n=$((n + 1))
+	done < "$path"
+	ss_setmeta "$id"
+	ss_recalc "$id"
+	dt_notep low "Imported $n rows from ${path##*/}"
+}
+
+# A field for CSV: quoted when it holds a comma, a quote or a line break.
+fn ss_csvq(f) {
+	if [[ $f == *[,\"$'\n']* ]]; then
+		ret "\"${f//\"/\"\"}\""
+	else
+		ret "$f"
+	fi
+}
+
+# Every row up to the last that holds anything, as CSV of what the cells
+# show.
+fn ss_exportcsv(int id, path) {
+	local k r c mr=-1 mc=-1 line out= v
+
+	for k in "${!SC[$id][@]}"; do
+		r=${k%:*} c=${k#*:}
+		[ "$r" -gt "$mr" ] && mr=$r
+		[ "$c" -gt "$mc" ] && mc=$c
+	done
+	r=0
+	while [ "$r" -le "$mr" ]; do
+		line=
+		c=0
+		while [ "$c" -le "$mc" ]; do
+			[ "$c" -gt 0 ] && line+=,
+			v := ss_show "$id" "$r:$c"
+			v := ss_csvq "$v"
+			line+=$v
+			c=$((c + 1))
+		done
+		out+="$line"$'\n'
+		r=$((r + 1))
+	done
+	if ! printf '%s' "$out" > "$path" 2> /dev/null; then
+		dt_notep high "Cannot write ${path##*/}"
+		return 1
+	fi
+	dt_notep low "Exported ${path##*/}"
+	command -v dt_changed > /dev/null && dt_changed
+}
+
+# --- the file dialog -------------------------------------------------------------
+
+fn ss_dir(int id) {
+	local p=${SS[$id]["path"]}
+
+	if [[ ${p##*/} == untitled-* ]] || [ -z "$p" ]; then
+		ret "$HOME"
+	else
+		ret "${p%/*}"
+	fi
+}
+
+fn ss_pick(int id, what) {
+	local d n
+
+	d := ss_dir "$id"
+	n=${SS[$id]["path"]##*/}
+	n=${n%.hsheet}
+	case $what in
+	open)
+		dt_filepick open "Open Sheet" "Sheets:hsheet|CSV:csv|All files:*" \
+			"$d" "" ss_picked_open "$id"
+		;;
+	saveas)
+		[[ $n == untitled-* ]] && n=sheet
+		dt_filepick save "Save As" "Sheets:hsheet" "$d" "$n" \
+			ss_picked_saveas "$id"
+		;;
+	import)
+		dt_filepick open "Import CSV" "CSV:csv|All files:*" "$d" "" \
+			ss_picked_import "$id"
+		;;
+	export)
+		[[ $n == untitled-* ]] && n=sheet
+		dt_filepick save "Export CSV" "CSV:csv" "$d" "$n" ss_picked_export "$id"
+		;;
+	esac
+}
+
+fn ss_picked_open(int id, path, type = "") {
+	dt_launch sheet "$path"
+}
+
+fn ss_picked_import(int id, path, type = "") {
+	[ -n "${DT[$id]["title"]}" ] || return 0
+	ss_importcsv "$id" "$path"
+}
+
+fn ss_picked_export(int id, path, type = "") {
+	[ -n "${DT[$id]["title"]}" ] || return 0
+	ss_exportcsv "$id" "$path"
+}
+
+# Save As: the file as it is, copied under the new name, and the window
+# goes on with the copy; an untitled one's own file is let go.
+fn ss_picked_saveas(int id, path, type = "") {
+	local old=${SS[$id]["path"]} h=${SS[$id]["h"]}
+
+	[ -n "${DT[$id]["title"]}" ] || return 0
+	[ "${path%.hsheet}" = "$path" ] && path="$path.hsheet"
+	[ "$path" = "$old" ] && return 0
+	db close "$h" 2> /dev/null
+	if ! cp -f "$old" "$path" 2> /dev/null; then
+		dt_notep high "Cannot write ${path##*/}"
+		ss_load "$id" "$old"
+		return 1
+	fi
+	[[ ${old##*/} == untitled-*.hsheet ]] && rm -f "$old"
+	ss_load "$id" "$path"
+	dt_notep low "Saved as ${path##*/}"
+	command -v dt_changed > /dev/null && dt_changed
+}
+
+# --- trust ---------------------------------------------------------------------
+
+fn ss_trust(int id) {
+	local p=${SS[$id]["path"]} l out=
+	local -a ls
+
+	if ss_trusted "$id"; then
+		IFS=$'\n' read -d '' -ra ls <<< "$SS_TRUST"
+		for l in "${ls[@]}"; do
+			[ -n "$l" ] && [ "$l" != "$p" ] && out+="$l"$'\n'
+		done
+		SS_TRUST=${out%$'\n'}
+		command -v dt_save > /dev/null && dt_save
+		dt_notep low "${p##*/} is sandboxed again"
+		ss_recalc "$id"
+		return 0
+	fi
+	SS_TRUSTID=$id
+	dt_confirm "Trust ${p##*/}? Its formulas will run as you: write files, start programs, use the network." ss_trustyes
+}
+
+ss_trustyes() {
+	local id=$SS_TRUSTID p
+
+	[ -n "$id" ] && [ -n "${SS[$id]["path"]}" ] || return 0
+	p=${SS[$id]["path"]}
+	SS_TRUST="${SS_TRUST:+$SS_TRUST$'\n'}$p"
+	command -v dt_save > /dev/null && dt_save
+	dt_notep low "${p##*/} is trusted"
+	ss_recalc "$id"
+}
+
+# --- menus -----------------------------------------------------------------------
+
+fn ss_insrow(int id, int below) { ss_shift "$id" row $((SS[$id]["cr"] + below)) 1; }
+fn ss_delrow(int id) { ss_shift "$id" row "${SS[$id]["cr"]}" -1; }
+fn ss_inscol(int id, int right) { ss_shift "$id" col $((SS[$id]["cc"] + right)) 1; }
+fn ss_delcol(int id) { ss_shift "$id" col "${SS[$id]["cc"]}" -1; }
+
+fn ss_more(int id, axis, int n) {
+	if [ "$axis" = row ]; then
+		SS[$id]["rows"]=$((SS[$id]["rows"] + n))
+	else
+		SS[$id]["cols"]=$((SS[$id]["cols"] + n))
+	fi
+	ss_setmeta "$id"
+}
+
+fn ss_width(int id, int d) {
+	local c=${SS[$id]["cc"]} w
+
+	w := ss_w "$id" "$c"
+	w=$((w + d))
+	[ "$w" -lt 3 ] && w=3
+	[ "$w" -gt 60 ] && w=60
+	ss_setwidth "$id" "$c" "$w"
+}
+
+fn ss_recalcnow(int id) {
+	ss_recalc "$id"
+	dt_notep low "Worked out again"
+}
+
+sheet_menus() {
+	local id=$DT_FOCUS on=0
+
+	dt_menu "File"
+	dt_item "New" n dt_launch sheet
+	dt_item "Open${GL[ellipsis]}" o ss_pick "$id" open
+	dt_item "Save As${GL[ellipsis]}" a ss_pick "$id" saveas
+	dt_sep
+	dt_item "Import CSV${GL[ellipsis]}" i ss_pick "$id" import
+	dt_item "Export CSV${GL[ellipsis]}" e ss_pick "$id" export
+	dt_sep
+	dt_item "Close" w dt_close_focused
+	dt_editmenu
+	dt_menu "Sheet"
+	dt_item "Insert Row Above" a ss_insrow "$id" 0
+	dt_item "Insert Row Below" b ss_insrow "$id" 1
+	dt_item "Delete Row" d ss_delrow "$id"
+	dt_sep
+	dt_item "Insert Column Left" l ss_inscol "$id" 0
+	dt_item "Insert Column Right" r ss_inscol "$id" 1
+	dt_item "Delete Column" c ss_delcol "$id"
+	dt_sep
+	dt_item "Add 10 Rows" o ss_more "$id" row 10
+	dt_item "Add 5 Columns" m ss_more "$id" col 5
+	dt_item "Wider Column" + ss_width "$id" 1
+	dt_item "Narrower Column" - ss_width "$id" -1
+	dt_sep
+	dt_item "Work Out Again" k ss_recalcnow "$id"
+	ss_trusted "$id" && on=1
+	dt_mark "Trust This Sheet${GL[ellipsis]}" t "$on" ss_trust "$id"
+}

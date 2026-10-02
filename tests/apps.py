@@ -2937,6 +2937,89 @@ check("past its size the oldest go, but never a pinned one",
       sc.find("second one") is None and sc.find("first one") is not None, sc)
 shutil.rmtree(CLD, True)
 
+# Sheet: a spreadsheet whose formulas are hibr, run under --plan unless the
+# sheet is trusted, kept in a db file one row per cell.
+SHD = tempfile.mkdtemp(prefix="hibr-sheet-")
+
+
+def shrun(feed, pre="", arg="", wait=0.6):
+    p = os.path.join(S, "session.hibr")
+    open(p, "w").write("%s\n. %s\n. %s\nSS_DIR=%s\n%s\ndt_open\n"
+                       'dt_new "Sheet" 22 76 1 2 sheet %s\ndt_run\ndt_close\n'
+                       % (load("console"), WM, appdir("sheet") + "/sheet.hibr",
+                          SHD, pre, arg))
+    tt = Term(p, env={}, settle=1.0)
+    tt.keys(list(feed) + [wait], settle=0.4)
+    sc = tt.screen()
+    tt.quit(None, 0.5)
+    return sc
+
+
+def shcells(sc, row):
+    """A sheet's row of cells, by screen row: the text after the gutter."""
+    return sc.row(row)[8:76]
+
+
+def shk(t):
+    return [c.encode() for c in t]
+
+
+SHEET = SHD + "/untitled-1.hsheet"
+sc = shrun(shk("5") + [b"\r"] + shk("7") + [b"\r"] +
+           shk('=math "A1+A2*1.5"') + [b"\r"])
+check("Sheet takes numbers and a formula, and math works it out",
+      "15.5" in shcells(sc, 6) and "5" in shcells(sc, 4), sc)
+check("its formula bar names the cell", sc.find(" A4 ") is not None, sc)
+sc = shrun([], arg=SHEET)
+check("what was typed is in the file, there when it is opened again",
+      "15.5" in shcells(sc, 6) and "Sheet [Untitled]" in sc.text(), sc)
+os.remove(SHEET)
+sc = shrun(shk("1") + [b"\r"] + shk("2") + [b"\r"] + shk("3") + [b"\r"] +
+           shk('=sum "${A1_A3[@]}"') + [b"\r"] + shk("=$((A4 * 10))") +
+           [b"\r"])
+check("a range is an array of its cells, and a formula can be an expansion",
+      "6" in shcells(sc, 7) and "60" in shcells(sc, 8), sc)
+os.remove(SHEET)
+sc = shrun(shk("=touch %s/made" % SHD) + [b"\r", b"\x1b[A"])
+check("a formula that would write is refused, and says what it would do",
+      "#REFUSED" in shcells(sc, 4) and "would run touch" in sc.text() and
+      not os.path.exists(SHD + "/made"), sc)
+os.remove(SHEET)
+sc = shrun(shk("=echo $A2") + [b"\r"] + shk("=echo $A1") + [b"\r"])
+check("two formulas that need each other say #CYCLE",
+      "#CYCLE" in shcells(sc, 4) and "#CYCLE" in shcells(sc, 5), sc)
+os.remove(SHEET)
+sc = shrun(shk("=touch %s/made" % SHD) + [b"\r"],
+           pre="SS_TRUST=%s" % SHEET)
+check("a trusted sheet's formulas run for real",
+      os.path.exists(SHD + "/made") and "trusted" in sc.text(), sc)
+os.remove(SHEET)
+sc = shrun(shk("1") + [b"\r", b"\x1b[21~", b"\x1b[C", b"\x1b[C", b"\x1b[C",
+                        b"t", 0.4, b"y", 0.4])
+check("Sheet > Trust This Sheet asks first, and then trusts it",
+      "trusted" in sc.text(), sc)
+os.remove(SHEET)
+sc = shrun(shk("2") + [b"\r"] + shk("=$((A1 * 3))") + [b"\r", b"\x1b[A",
+                                                        b"\x1b[A", b"\x1b[21~",
+                                                        b"\x1b[C", b"\x1b[C",
+                                                        b"\x1b[C", b"a", 0.4,
+                                                        b"\x1b[B", b"\x1b[B"])
+check("a row inserted above moves the cells down, and the formula follows",
+      shcells(sc, 4).strip() == "" and "2" in shcells(sc, 5) and
+      "6" in shcells(sc, 6) and "=$((A2 * 3))" in sc.row(2), sc)
+os.remove(SHEET)
+sc = shrun(shk("a") + [b"\r"] + shk("1,5") + [b"\r", b"\x1b[21~", b"\x1b[C",
+                                              b"e", 0.5, b"\x15"] +
+           shk(SHD + "/out") + [b"\r", 0.5])
+out = open(SHD + "/out.csv").read() if os.path.exists(SHD + "/out.csv") else ""
+check("File > Export CSV writes what the cells show, quoting a comma",
+      out == 'a\n"1,5"\n', repr(out))
+os.remove(SHEET)
+sc = shrun([press(3, 17), drag(3, 19), drag(3, 21), release(3, 21), 0.3])
+check("a column's edge in the header drags it wider",
+      sc.at(3, 26) == "B" and sc.at(3, 22) != "B", sc)
+shutil.rmtree(SHD, True)
+
 # Write: markdown shown as it reads, the cursor's line raw; the toolbar
 # and Format menu put the marks in; files open, save, and ask before an
 # unsaved one closes.
@@ -3146,4 +3229,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(465)
+report(476)

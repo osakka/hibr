@@ -1328,15 +1328,14 @@ int ex_cmd(sh *s, node *n)
 	amark m = ar_mark(s->xa);
 	vec none = { 0, 0, 0 };
 	vec *asg = &none, *asgm = &none;
-	vec sv = { 0, 0, 0 };
+	vec sv = { 0, 0, 0 }, old = { 0, 0, 0 };
 	char **av, **env, **am = 0;
 	char *path;
 	job *jb = 0;
 	node *f;
 	const hibr_bi *b = 0;
 	word *w;
-	size_t i;
-	int ac = 0, st = 0, w2, nofork = s->nofork;
+	int ac = 0, st = 0, w2, nofork = s->nofork, abad = 0;
 	unsigned ncap0 = s->ncap;
 	pid_t pid;
 
@@ -1344,19 +1343,44 @@ int ex_cmd(sh *s, node *n)
 	s->ln = n->ln;
 	if (s->dtrap)
 		tr_debug(s, n->tx);
-	if (n->aw) {
+	av = xargv(s, n->w, &ac, &am);
+	if (n->aw && !s->xerr && !s->stop && !s->quit) {
+		v_refused = 0;
 		asg = vb_get(s);
 		asgm = vb_get(s);
-		for (w = n->aw; w; w = w->nx) {
-			char *mk = 0;
-			v_add(asg, xone_fq(s, w, &mk, HIBR_XONE | HIBR_XASG));
+		for (w = n->aw; w && !s->xerr; w = w->nx) {
+			char *mk = 0, *kv = xone_fq(s, w, &mk, HIBR_XONE | HIBR_XASG);
+			v_add(asg, kv);
 			v_add(asgm, mk);
+			if (s->xerr)
+				break;
+			if (ac) {
+				vec one = { 0, 0, 0 };
+				v_add(&one, kv);
+				s->decl++;
+				asg_push(s, &one, &old);
+				s->decl--;
+				v_free(&one);
+			} else if (ex_asg(s, kv, mk, 0) != HIBR_OK) {
+				abad = 1;
+			}
 		}
+		if (!ac && !s->xerr && abad && v_refused) {
+			lg(HIBR_LDBG, "a refused assignment ends %s, as in bash",
+			   s->it ? "the line" : "the script");
+			st = s->st = HIBR_FAIL;
+			if (s->it)
+				s->stop = 1;
+			else
+				s->quit = 1;
+			goto out;
+		}
+		if (!ac && abad)
+			st = s->st ? s->st : HIBR_FAIL;
 	}
 	for (f = n->x; f; f = f->x)
 		if (f->f != 4)
 			ex_arrasg(s, f);
-	av = xargv(s, n->w, &ac, &am);
 	if (s->xerr) {
 		if (s->xerr == 2 && !s->intry) {
 			lg(HIBR_LDBG, "an arithmetic error ends %s, as in bash",
@@ -1375,25 +1399,8 @@ int ex_cmd(sh *s, node *n)
 		goto out;
 	}
 	if (!ac) {
-		int bad = 0;
-		v_refused = 0;
-		for (i = 0; i < asg->n; i++)
-			if (ex_asg(s, (char *)asg->p[i],
-				   i < asgm->n ? (const char *)asgm->p[i] : 0,
-				   0) != HIBR_OK)
-				bad = 1;
-		if (bad && v_refused) {
-			lg(HIBR_LDBG, "a refused assignment ends %s, as in bash",
-			   s->it ? "the line" : "the script");
-			st = s->st = HIBR_FAIL;
-			if (s->it)
-				s->stop = 1;
-			else
-				s->quit = 1;
-		} else if (bad)
-			st = s->st ? s->st : HIBR_FAIL;
-		else if (s->ncap != ncap0)
-			st = s->st;
+		if (!abad)
+			st = s->ncap != ncap0 ? s->st : 0;
 		if (n->rd && rd_do(s, n->rd, &sv) == HIBR_OK)
 			rd_undo(&sv);
 		else if (n->rd)
@@ -1431,12 +1438,6 @@ int ex_cmd(sh *s, node *n)
 		goto out;
 	}
 	if (f || b) {
-		vec old = { 0, 0, 0 };
-		if (asg != &none) {
-			s->decl++;
-			asg_push(s, asg, &old);
-			s->decl--;
-		}
 		if (rd_do(s, n->rd, &sv) == HIBR_OK) {
 			if (f) {
 				st = fn_call(s, f, ac, av);
@@ -1456,7 +1457,6 @@ int ex_cmd(sh *s, node *n)
 		} else
 			st = HIBR_FAIL;
 		rd_undo(&sv);
-		asg_pop(s, &old);
 		goto out;
 	}
 	path = findx(s, av[0]);
@@ -1545,6 +1545,10 @@ out:
 	if (s->srefuse) {
 		s->srefuse = 0;
 		st = 1;
+	}
+	if (old.n || old.p) {
+		asg_pop(s, &old);
+		v_free(&old);
 	}
 	if (asg != &none) {
 		vb_put(s, asg);

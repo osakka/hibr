@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.99.8
+
+**Sheet, a spreadsheet whose formulas are hibr,** in Office. A cell holds
+text, a number, or `=` and hibr -- what a formula prints is its value
+(`=math "A1 * 1.2"`, `=sum "${B1_B9[@]}"`), and one that is an expansion
+is that (`=$((A1 * 2))`, `="${A1} each"`). Every cell a formula names is a
+variable holding its value and a range `A1_B9` an array of them; formulas
+are worked out in the order they need each other, and one that needs
+itself says `#CYCLE`.
+
+Formulas run in a hibr of their own under `--plan`, with `math` loaded,
+two seconds of CPU and ten of the clock: they compute and read what you
+can read, and a formula that would write, connect or start a program says
+`#REFUSED` and what it would have done; one that loops says `#TIME`.
+**Sheet > Trust This Sheet** asks, then lets one sheet's formulas run for
+real -- remembered on this machine, never inside the sheet, so a sheet
+cannot arrive trusted.
+
+A sheet is a `db` file (`.hsheet`), one row per cell, written as it
+changes: there is nothing to save, and Save As copies it. Typing replaces
+a cell, enter or f2 edits it, shift and the arrows select, delete clears;
+a column's edge in the header drags its width; the Sheet menu inserts and
+deletes rows and columns -- formulas follow the cells they name -- and
+adds more of either. Copy, cut and paste are tab-separated; CSV comes in
+and goes out through File. Undo and Redo cover the session.
+
+**Assignments in one command are made left to right,** as in bash:
+`x=1 y=$x` sets `y` to 1, and `p=/a/b d=${p%/*}` sees `p`. hibr expanded
+every assignment before making any, so the later ones saw the old values.
+The command's own words are still expanded first, so `x=1 echo $x` prints
+nothing, as in bash.
+
 ## 0.99.7
 
 **Floating point: the `math` module.** `$(( ))` has only integers, as in
