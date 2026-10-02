@@ -1,0 +1,60 @@
+#!/usr/bin/env hibr
+#
+# cliphist -- the Control Panel pane for the clipboard's history
+# (wm/clip.hibr): whether it is kept on disk between desktops, how many
+# entries it keeps besides the pinned ones, and the way to it and to
+# emptying it. Named cliphist, not clipboard, which is the desk
+# accessory's own prefix.
+
+strict
+
+command -v cp_pane > /dev/null && cp_pane cliphist "Clipboard" "⎘"
+
+CH_SIZES=(10 25 50 100 200)
+
+fn cp_set_clipmax(int? id = "", int? value = "") {
+	DT_CLIPMAX=$value
+	dt_cliptrim
+	dt_clipsave
+	cp_save
+}
+
+fn cliphist_rows(int w) {
+	local n=0
+
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Keep History on Disk"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_CLIPKEEP" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=DT_CLIPKEEP; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="History Size"
+	CP[$w][$n]["val"]="$DT_CLIPMAX"; CP[$w][$n]["key"]=clipmax
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Open Clipboard"
+	CP[$w][$n]["val"]="${#DT_CHORDER[@]} kept"; CP[$w][$n]["key"]=clipopen
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Clear History"
+	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=clipclear
+	n=$((n + 1))
+	ret "$n"
+}
+
+fn cliphist_do(int? w = "", k = "", int? dir = "") {
+	local v
+
+	case $k in
+	DT_CLIPKEEP) cp_toggle "$k"; dt_clipsave ;;
+	clipmax) v := cp_next "$DT_CLIPMAX" "$dir" "${CH_SIZES[@]}"
+		DT_CLIPMAX=$v
+		dt_cliptrim
+		dt_clipsave ;;
+	clipopen) dt_has clipboard_draw && dt_launch clipboard ;;
+	clipclear) dt_clipclear; dt_notep low "Clipboard history cleared, pins kept" ;;
+	esac
+	cp_save
+}
+
+fn cliphist_drop(int? w = "", int? r = "", int? c = "", k = "") {
+	case $k in
+	clipmax) dt_droplist "$w" "$r" "$c" cp_set_clipmax "${CH_SIZES[@]}" ;;
+	esac
+}

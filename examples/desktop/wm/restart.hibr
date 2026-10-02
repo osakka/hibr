@@ -163,21 +163,26 @@ fn dt_rslog(text) {
 # Called from dt_open, before a session file's own windows; DT_RESTORED
 # tells a session file that would open some that they are already there.
 dt_restore() {
-	local f=$DT_RESTORE id ap m j p
+	local f=$DT_RESTORE id ap m j p e
 	local -a ms ps
 
 	[ -n "$f" ] || return 0
 	export -n DT_RESTORE
 	DT_RESTORE=
 	[ -r "$f" ] || return 0
-	if ! json parse DT_RS < "$f" 2> /dev/null; then
-		dt_notep high "Restarted, but the saved desktop could not be read"
+	if ! json parse DT_RS < "$f" 2> "$f.err"; then
+		read -r e < "$f.err"
+		dt_rslog "could not read $f: ${e:-no reason given}; kept as $f.bad"
+		mv -f "$f" "$f.bad" 2> /dev/null
+		dt_notep high "Restarted, but the saved desktop could not be read -- see desktop.log"
 		return 0
 	fi
 	read -ra DT_RSCARRY <<< "${DT_RS["carry"]}"
 	if [ "${DT_RS["ver"]}" != "$DT_RSVER" ]; then
+		dt_rslog "$f was saved as version ${DT_RS["ver"]:-none}, this reads $DT_RSVER; kept as $f.bad"
+		mv -f "$f" "$f.bad" 2> /dev/null
 		dt_rsorphans
-		dt_notep high "Restarted, but the saved desktop could not be read"
+		dt_notep high "Restarted, but the saved desktop is from another version"
 		return 0
 	fi
 	DT_WSN=${DT_RS["wsn"]:-$DT_WSN}
@@ -229,7 +234,7 @@ dt_restore() {
 	fi
 	dt_tile
 	dt_rsorphans
-	rm -f "$f" "$DT_RSDIR"/term-*.save 2> /dev/null
+	rm -f "$f" "$f.err" "$DT_RSDIR"/term-*.save 2> /dev/null
 	DT_RESTORED=1
 	dt_rslog "restored ${#DT[@]} windows from $f"
 	dt_notep low "Restarted: hibr $HIBR_VERSION"

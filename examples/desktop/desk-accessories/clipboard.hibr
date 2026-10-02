@@ -1,0 +1,175 @@
+#!/usr/bin/env hibr
+#
+# clipboard -- the clipboard's history, newest first (wm/clip.hibr keeps
+# it). Each line is when it was copied, a ★ if pinned, a • on what is on
+# the clipboard now, and the start of the text. Enter makes the selected
+# one the clipboard again; p pins it, so it is never dropped; delete takes
+# it away. A paste into this window -- alt-v, or the machine's own -- keeps
+# what was pasted, to come back to later; Copy takes the selected one.
+
+strict
+
+app clipboard "The clipboard's history: copy something back, pin it, keep it"
+
+command -v dt_app > /dev/null && dt_app clipboard "Clipboard" 16 52 once "⎘"
+
+declare -gA CB
+command -v dt_keepstate > /dev/null && dt_keepstate clipboard CB
+
+fn clipboard_open(int id, arg = "") {
+	CB[$id]["sel"]=0
+	CB[$id]["top"]=0
+}
+
+fn clipboard_close(int id) {
+	unset "CB[$id]"
+}
+
+# The history id at list position i, newest first.
+fn cb_at(int i) {
+	local n=${#DT_CHORDER[@]}
+
+	[ "$i" -ge 0 ] && [ "$i" -lt "$n" ] || return 1
+	ret "${DT_CHORDER[$((n - 1 - i))]}"
+}
+
+# Keep the selection on an entry there is, and in view.
+fn cb_fit(int id) {
+	local n=${#DT_CHORDER[@]} vis=${CB[$id]["vis"]:-1}
+	local sel=${CB[$id]["sel"]:-0} top=${CB[$id]["top"]:-0}
+
+	[ "$sel" -ge "$n" ] && sel=$((n - 1))
+	[ "$sel" -lt 0 ] && sel=0
+	[ "$sel" -lt "$top" ] && top=$sel
+	[ "$sel" -ge $((top + vis)) ] && top=$((sel - vis + 1))
+	[ "$top" -lt 0 ] && top=0
+	CB[$id]["sel"]=$sel
+	CB[$id]["top"]=$top
+}
+
+fn clipboard_draw(int id, int h, int w, int row, int col) {
+	local n=${#DT_CHORDER[@]} vis=$((h - 2)) r=1 i hid t at mark line
+
+	CB[$id]["vis"]=$vis
+	cb_fit "$id"
+	if [ "$n" = 0 ]; then
+		console pen "$DT_DIM" "$DT_FACE"
+		console put -p "w$id" 1 2 "Nothing copied yet"
+		console put -p "w$id" 3 2 "Copy something anywhere, or paste here,"
+		console put -p "w$id" 4 2 "and it is kept to come back to."
+		return 0
+	fi
+	i=${CB[$id]["top"]}
+	while [ "$r" -le "$vis" ] && hid := cb_at "$i"; do
+		at=${DT_CH[$hid]["at"]:-0}
+		printf -v t "%(%H:%M)T" "$at"
+		mark=" "
+		[ "${DT_CH[$hid]["pin"]}" = 1 ] && mark="★"
+		[ "${DT_CH[$hid]["text"]}" = "$DT_CLIP" ] && mark="${mark}•" || mark="$mark "
+		line=${DT_CH[$hid]["text"]}
+		line=${line//$'\n'/ ⏎ }
+		line=${line//$'\t'/ }
+		line="$t $mark $line"
+		line := str pad "${line:0:$((w - 2))}" $((w - 2))
+		if [ "$i" = "${CB[$id]["sel"]}" ] && [ "$DT_FOCUS" = "$id" ]; then
+			console pen "$DT_SELINK" "$DT_ACTIVE"
+		elif [ "${DT_CH[$hid]["pin"]}" = 1 ]; then
+			console pen "$DT_WARN" "$DT_FACE"
+		else
+			console pen "$DT_INK" "$DT_FACE"
+		fi
+		console put -p "w$id" "$r" 1 "$line"
+		r=$((r + 1))
+		i=$((i + 1))
+	done
+	dt_scrollbar "$id" 1 "$w" "$vis" "$n" "$vis" "${CB[$id]["top"]}"
+	console pen "$DT_DIM" "$DT_FACE"
+	console put -p "w$id" "$h" 2 "enter uses it · p pins · delete removes"
+}
+
+fn clipboard_key(int id, key) {
+	local sel=${CB[$id]["sel"]:-0} vis=${CB[$id]["vis"]:-1} hid
+
+	case $key in
+	up) CB[$id]["sel"]=$((sel - 1)) ;;
+	down) CB[$id]["sel"]=$((sel + 1)) ;;
+	pageup) CB[$id]["sel"]=$((sel - vis)) ;;
+	pagedown) CB[$id]["sel"]=$((sel + vis)) ;;
+	home) CB[$id]["sel"]=0 ;;
+	end) CB[$id]["sel"]=${#DT_CHORDER[@]} ;;
+	enter) cb_use "$id" ;;
+	p | P) hid := cb_at "$sel" && dt_clippin "$hid" ;;
+	delete | backspace) hid := cb_at "$sel" && dt_clipdel "$hid" ;;
+	*) return 1 ;;
+	esac
+	cb_fit "$id"
+	return 0
+}
+
+# Make the selected entry the clipboard; it becomes the newest, at the top.
+fn cb_use(int id) {
+	local hid
+
+	hid := cb_at "${CB[$id]["sel"]:-0}" || return 0
+	dt_clipuse "$hid"
+	CB[$id]["sel"]=0
+}
+
+fn clipboard_click(int id, int r, int c, btn = "") {
+	CB[$id]["sel"]=$((${CB[$id]["top"]:-0} + r - 1))
+	cb_fit "$id"
+}
+
+fn clipboard_wheel(int id, dir, int r = 0, int c = 0) {
+	local sel=${CB[$id]["sel"]:-0}
+
+	case $dir in
+	up) CB[$id]["sel"]=$((sel - 3)) ;;
+	down) CB[$id]["sel"]=$((sel + 3)) ;;
+	esac
+	cb_fit "$id"
+	return 0
+}
+
+# Copy takes the selected entry, which makes it the clipboard again.
+fn clipboard_copy(int id) {
+	local hid
+
+	hid := cb_at "${CB[$id]["sel"]:-0}" || return 1
+	ret "${DT_CH[$hid]["text"]}"
+}
+
+# Cut takes it and removes it from the history.
+fn clipboard_cut(int id) {
+	local hid t
+
+	hid := cb_at "${CB[$id]["sel"]:-0}" || return 1
+	t=${DT_CH[$hid]["text"]}
+	dt_clipdel "$hid"
+	ret "$t"
+}
+
+# A paste here is kept: it is already the clipboard, and so in the history;
+# pasting what is already there still keeps it, at the top.
+fn clipboard_paste(int id, text, op = "") {
+	dt_clipkeep "$text"
+	CB[$id]["sel"]=0
+}
+
+clipboard_menus() {
+	local id=$DT_FOCUS hid on=0
+
+	dt_menu "Clip"
+	if hid := cb_at "${CB[$id]["sel"]:-0}"; then
+		[ "${DT_CH[$hid]["pin"]}" = 1 ] && on=1
+		dt_item "Use" u cb_use "$id"
+		dt_mark "Pinned" p "$on" dt_clippin "$hid"
+		dt_item "Delete" d dt_clipdel "$hid"
+	else
+		dt_dim "Use"
+		dt_dim "Pinned"
+		dt_dim "Delete"
+	fi
+	dt_sep
+	dt_item "Clear History" c dt_clipclear
+}

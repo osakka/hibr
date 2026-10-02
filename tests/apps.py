@@ -274,12 +274,12 @@ ORDER = [l.split()[0] for l in out if l.strip()]
 GROUP = dict(l.split() for l in out if l.strip())
 check("panes register and sort by title within their group, not load order",
       ORDER == ["datetime", "displays", "keyboard", "mouse",
-                "appearance", "control_strip", "desktop",
+                "appearance", "cliphist", "control_strip", "desktop",
                 "filetypes", "notify", "shortcuts", "windows",
                 "abouthibr", "filesview", "taskmgr", "terminal"], out)
 check("Hardware first, then the desktop's own panes, then one per app",
       [GROUP[n] for n in ORDER] ==
-      ["hardware"] * 4 + ["system"] * 7 + ["app"] * 4, out)
+      ["hardware"] * 4 + ["system"] * 8 + ["app"] * 4, out)
 
 PW = "22 58 2 2"
 PANEL = ("panel", PW)
@@ -297,6 +297,7 @@ R0, VALCOL = 3, 47
 LISTCOL = 5
 BODYCOL = 20
 TITLE = {"appearance": "Appearance", "control_strip": "Control Strip",
+         "cliphist": "Clipboard",
          "datetime": "Date & Time", "desktop": "Desktop",
          "displays": "Displays", "filetypes": "File Types",
          "keyboard": "Keyboard", "mouse": "Mouse",
@@ -2778,6 +2779,45 @@ sc = run("calc", CW, [], pre="dt_launch screenshot", extra=("screenshot",))
 check("Screenshot is a desk accessory: launching it asks what to take",
       sc.find("Screen ") is not None and sc.find("Area") is not None, sc)
 
+# The clipboard keeps what was copied: the Clipboard desk accessory lists
+# it newest first, makes any of it the clipboard again, pins it past the
+# history's size, removes it, and keeps what is pasted into it.
+CLD = tempfile.mkdtemp(prefix="hibr-clip-")
+CLF = os.path.join(CLD, "clipboard.json")
+CLPRE = 'DT_CLIPFILE=%s\ndt_clipset "first one"\ndt_clipset "second one"' % CLF
+CBW = "14 50 2 2"
+sc = run("clipboard", CBW, [], pre=CLPRE, end=None)
+txt = sc.text()
+check("what was copied is in the Clipboard, newest first, the current one "
+      "marked", txt.find("second one") < txt.find("first one") and
+      re.search(r"\d\d:\d\d  • second one", txt) is not None, sc)
+sc = run("clipboard", CBW, [b"\x1b[B", b"\r"], pre=CLPRE, end=None)
+check("enter makes an older one the clipboard again, and the newest",
+      re.search(r"\d\d:\d\d  • first one", sc.row(3)) is not None, sc)
+sc = run("clipboard", CBW, [b"\x1b[B", b"p"], pre=CLPRE, end=None)
+check("p pins it", re.search(r"\d\d:\d\d ★  first one", sc.text()), sc)
+sc = run("clipboard", CBW, [b"\x1b[3~"], pre=CLPRE, end=None)
+check("delete removes it", sc.find("second one") is None and
+      sc.find("first one") is not None, sc)
+sc = run("clipboard", CBW, [b"\x1b[200~kept for later\x1b[201~"], pre=CLPRE,
+         end=None)
+check("a paste into it is kept, at the top",
+      re.search(r"• kept for later", sc.row(3)) is not None, sc)
+sc = run("clipboard", CBW, [], pre="DT_CLIPFILE=%s" % CLF, end=None)
+check("the history is there again in the next desktop",
+      sc.find("kept for later") is not None and
+      sc.find("first one") is not None, sc)
+check("and its file is readable by its owner alone",
+      os.path.exists(CLF) and oct(os.stat(CLF).st_mode & 0o777) == "0o600",
+      oct(os.stat(CLF).st_mode) if os.path.exists(CLF) else "missing")
+os.unlink(CLF)
+sc = run("clipboard", CBW, [], pre=CLPRE + '\ndt_clippin 0\nDT_CLIPMAX=1\n'
+         'dt_clipset "third"\ndt_clipset "fourth"', end=None)
+check("past its size the oldest go, but never a pinned one",
+      sc.find("fourth") is not None and sc.find("third") is None and
+      sc.find("second one") is None and sc.find("first one") is not None, sc)
+shutil.rmtree(CLD, True)
+
 # Restart Desktop: the desktop execs the hibr installed now in the same
 # process, and every window comes back -- a terminal's program still
 # running with its screen, an app's state from the maps it keeps.
@@ -2837,4 +2877,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(415)
+report(424)

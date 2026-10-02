@@ -338,6 +338,15 @@ What each app copies and takes:
 | Notifications | the selected note (cut also clears it) | -- |
 | Clock | the time and date | -- |
 
+**Everything copied is kept.** The **Clipboard** desk accessory lists it,
+newest first: when it was copied, ★ on what is pinned, • on what is on the
+clipboard now. Enter makes one the clipboard again, p pins it -- pinned
+ones are never dropped -- and delete removes it; pasting into the
+Clipboard keeps what was pasted, to come back to later. The last 50 are
+kept between desktops, in a file in the state folder only you can read;
+Control Panel > Clipboard sets how many, or keeps none on disk at all, and
+clears the history (pins stay).
+
 A paste from the machine itself -- the terminal's own paste, cmd-v or
 ctrl-shift-v -- goes to the focused window and also becomes the desktop's
 clipboard, so alt-v pastes it again anywhere, on any display. A program

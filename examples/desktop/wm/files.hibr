@@ -278,10 +278,7 @@ fn dt_edit(op) {
 	if [ -z "$DT_FOCUS" ]; then
 		[ "$op" = copy ] || return 0
 		if t := dt_iconcopy && [ -n "$t" ]; then
-			DT_CLIP=$t
-			DT_CLIPOP=copy
-			DT_CLIPKIND=paths
-			console clip "$t"
+			dt_clipset "$t" copy paths
 			dt_notep low "Copied the paths of what is selected"
 		else
 			dt_note "No file is selected"
@@ -302,9 +299,7 @@ fn dt_edit(op) {
 		dt_note "Nothing is selected"
 		return 0
 	fi
-	DT_CLIP=$t
-	DT_CLIPOP=$op
-	console clip "$t"
+	dt_clipset "$t" "$op" "$DT_CLIPKIND"
 	if [ "$op" = cut ]; then
 		dt_notep low "Cut ${#t} characters"
 	else

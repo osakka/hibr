@@ -505,9 +505,7 @@ fn dt_event(k) {
 	if dt_keyis paste "$k"; then dt_edit paste; return 0; fi
 	case $k in
 	"paste "*)
-		DT_CLIP=${k#paste }
-		DT_CLIPOP=copy
-		DT_CLIPKIND=text
+		dt_clipset "${k#paste }" copy text 0
 		if [ -n "$DT_FOCUS" ] && [ -n "${DT[$DT_FOCUS]["paste"]}" ]; then
 			${DT[$DT_FOCUS]["paste"]} "$DT_FOCUS" "${k#paste }"
 			return 0

@@ -1,0 +1,164 @@
+#!/usr/bin/env hibr
+#
+# wm/clip -- the clipboard and its history. Everything that sets the
+# clipboard -- Copy and Cut in any window, a paste from the machine, a
+# program in a Terminal window using OSC 52 -- goes through dt_clipset, and
+# each one is kept: the newest DT_CLIPMAX, newest last, plus whatever has
+# been pinned, which is never dropped. The history is written to the state
+# folder, readable only by you, unless DT_CLIPKEEP is off, when it lives
+# only as long as the desktop does. The Clipboard desk accessory shows it,
+# makes any of it the clipboard again, pins, removes, and takes a paste of
+# its own to keep for later.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+strict
+
+DT_CLIPKEEP="${DT_CLIPKEEP-1}"
+DT_CLIPMAX="${DT_CLIPMAX-50}"
+DT_CLIPFILE="${DT_LOG%/*}/clipboard.json"
+declare -gA DT_CH
+DT_CHORDER=()
+DT_CHNEXT=0
+
+# Make text the clipboard, the desktop's and, unless it came from there,
+# the real terminal's, and keep it in the history.
+fn dt_clipset(text, op = copy, kind = text, send = 1) {
+	DT_CLIP=$text
+	DT_CLIPOP=$op
+	DT_CLIPKIND=$kind
+	[ "$send" = 1 ] && console clip "$text"
+	dt_clipkeep "$text" "$kind"
+}
+
+# Add text to the history as its newest entry; the same text as the newest
+# only moves its time.
+fn dt_clipkeep(text, kind = text) {
+	local n=${#DT_CHORDER[@]} last id
+
+	[ -n "$text" ] || return 0
+	if [ "$n" -gt 0 ]; then
+		last=${DT_CHORDER[$((n - 1))]}
+		if [ "${DT_CH[$last]["text"]}" = "$text" ]; then
+			DT_CH[$last]["at"]=$EPOCHSECONDS
+			dt_clipsave
+			return 0
+		fi
+	fi
+	id=$DT_CHNEXT
+	DT_CHNEXT=$((DT_CHNEXT + 1))
+	DT_CH[$id]["text"]=$text
+	DT_CH[$id]["kind"]=$kind
+	DT_CH[$id]["at"]=$EPOCHSECONDS
+	DT_CH[$id]["pin"]=0
+	DT_CHORDER+=("$id")
+	dt_cliptrim
+	dt_clipsave
+}
+
+# Drop the oldest unpinned entries past DT_CLIPMAX.
+dt_cliptrim() {
+	local id k=0 over
+	local -a keep
+
+	for id in "${DT_CHORDER[@]}"; do
+		[ "${DT_CH[$id]["pin"]}" = 1 ] || k=$((k + 1))
+	done
+	over=$((k - DT_CLIPMAX))
+	[ "$over" -gt 0 ] || return 0
+	for id in "${DT_CHORDER[@]}"; do
+		if [ "$over" -gt 0 ] && [ "${DT_CH[$id]["pin"]}" != 1 ]; then
+			unset "DT_CH[$id]"
+			over=$((over - 1))
+		else
+			keep+=("$id")
+		fi
+	done
+	DT_CHORDER=("${keep[@]}")
+}
+
+# Forget one entry.
+fn dt_clipdel(int id) {
+	local o
+	local -a keep
+
+	unset "DT_CH[$id]"
+	for o in "${DT_CHORDER[@]}"; do
+		[ "$o" = "$id" ] || keep+=("$o")
+	done
+	DT_CHORDER=("${keep[@]}")
+	dt_clipsave
+}
+
+# Pin an entry, or unpin it.
+fn dt_clippin(int id) {
+	if [ "${DT_CH[$id]["pin"]}" = 1 ]; then
+		DT_CH[$id]["pin"]=0
+		dt_cliptrim
+	else
+		DT_CH[$id]["pin"]=1
+	fi
+	dt_clipsave
+}
+
+# Make an entry the clipboard again, and the newest.
+fn dt_clipuse(int id) {
+	local t=${DT_CH[$id]["text"]} k=${DT_CH[$id]["kind"]:-text}
+
+	dt_clipdel "$id"
+	dt_clipset "$t" copy "$k"
+	dt_notep low "On the clipboard: ${#t} characters"
+}
+
+# Forget every entry that is not pinned.
+dt_clipclear() {
+	local id
+	local -a keep
+
+	for id in "${DT_CHORDER[@]}"; do
+		if [ "${DT_CH[$id]["pin"]}" = 1 ]; then
+			keep+=("$id")
+		else
+			unset "DT_CH[$id]"
+		fi
+	done
+	DT_CHORDER=("${keep[@]}")
+	dt_clipsave
+}
+
+# Write the history, made readable by its owner alone the first time; with
+# DT_CLIPKEEP off, take it off the disk instead.
+dt_clipsave() {
+	local d=${DT_CLIPFILE%/*} id
+	local -a order
+
+	if [ "$DT_CLIPKEEP" != 1 ]; then
+		[ -e "$DT_CLIPFILE" ] && rm -f "$DT_CLIPFILE" 2> /dev/null
+		return 0
+	fi
+	[ -d "$d" ] || mkdir -p "$d" 2> /dev/null || return 0
+	if [ ! -e "$DT_CLIPFILE" ]; then
+		: > "$DT_CLIPFILE" 2> /dev/null || return 0
+		chmod 600 "$DT_CLIPFILE" 2> /dev/null
+	fi
+	if [ "${#DT_CHORDER[@]}" = 0 ]; then
+		echo "{}" > "$DT_CLIPFILE"
+		return 0
+	fi
+	json emit DT_CH > "$DT_CLIPFILE" 2> /dev/null
+}
+
+# Read the history back at start, in the order it was kept.
+dt_clipload() {
+	local id
+
+	[ "$DT_CLIPKEEP" = 1 ] && [ -s "$DT_CLIPFILE" ] || return 0
+	json parse DT_CH < "$DT_CLIPFILE" 2> /dev/null || return 0
+	DT_CHORDER=()
+	for id in "${!DT_CH[@]}"; do
+		DT_CHORDER+=("$id")
+		[ "$id" -ge "$DT_CHNEXT" ] && DT_CHNEXT=$((id + 1))
+	done
+	return 0
+}

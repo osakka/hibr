@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.97
+
+**The Clipboard.** Everything copied -- in any window, pasted from the
+machine, or set by a program in a terminal -- is kept, and the Clipboard
+desk accessory lists it newest first: Enter puts one back on the
+clipboard, p pins it so it is never dropped, delete removes it, and a
+paste into the Clipboard keeps that too. The last 50 are kept between
+desktops in a file only you can read; Control Panel > Clipboard sets how
+many, or none on disk, and clears it. Every clipboard change goes through
+`dt_clipset`.
+
+**A restart that cannot read its saved desktop says why** -- in
+desktop.log, with the parser's own message -- and keeps the file as
+`state.json.bad`, saying separately when it was saved by another version.
+
 ## 0.96
 
 **Open With, as on a Mac.** Right-click a file in Files: Open With lists

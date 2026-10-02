@@ -55,6 +55,7 @@ dt_open() {
 	fi
 	dt_size
 	dt_deskscan
+	dt_clipload
 	dt_restore
 }
 

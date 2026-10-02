@@ -211,10 +211,14 @@ fn term_draw(int id, int h, int w, int row, int col) {
 		fi
 	fi
 	if c := term clip "$t" && [ "$DT_TERMCLIP" = 1 ]; then
-		DT_CLIP=$c
-		DT_CLIPOP=copy
-		DT_CLIPKIND=text
-		console clip "$c"
+		if command -v dt_clipset > /dev/null; then
+			dt_clipset "$c"
+		else
+			DT_CLIP=$c
+			DT_CLIPOP=copy
+			DT_CLIPKIND=text
+			console clip "$c"
+		fi
 	fi
 	# A bell rings on the real terminal, and marks the window's title
 	# with a dot until it has focus; a notification is the desktop's own
