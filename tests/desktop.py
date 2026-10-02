@@ -1216,6 +1216,22 @@ check("and the bar shows no numbers, and the wheel stays put",
       not re.search(r"\b1 2\b", sc.row(0)) and
       sc.find("┤ Under ├") == (6, 12), sc)
 
+# Cycle Windows On: this workspace by default, every one when asked.
+# "Under" stays on 1, "Over" goes to 3; focus is on Under.
+CYC = WS2 + "dt_wsmove 2 3\ndt_raise 1\n"
+sc, _ = run(CYC, [b"\x1b\t"])
+check("by default alt-tab stays on this workspace",
+      sc.find("┤ Under ├") == (6, 12) and sc.find("Over") is None, sc)
+sc, _ = run(CYC, [b"\x1b\t"], pre="DT_CYCLE=all")
+check("set to all, it goes to the next window on another workspace",
+      sc.find("┤ Over ├") == (9, 27) and sc.find("Under") is None, sc)
+sc, _ = run(CYC, [b"\x1b\t", b"\x1b\t"], pre="DT_CYCLE=all")
+check("and round again to where it started",
+      sc.find("┤ Under ├") == (6, 12) and sc.find("Over") is None, sc)
+sc, _ = run(CYC + "dt_min 1\n", [b"\x1b\t"], pre="DT_CYCLE=all")
+check("a minimised window is passed over, as on one workspace",
+      sc.find("┤ Over ├") == (9, 27) and sc.find("Under") is None, sc)
+
 # --- tiling ------------------------------------------------------------------
 #
 # A tiled workspace lays its windows out itself: the main one on the left,
@@ -2698,4 +2714,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(374)
+report(378)

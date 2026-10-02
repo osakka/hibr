@@ -350,10 +350,31 @@ dt_zoom_focused() { [ -n "$DT_FOCUS" ] && dt_zoom "$DT_FOCUS"; }
 
 # Bring the bottom window to the top.
 dt_cycle() {
-	local l
-	l := console pane list
-	l=${l%% *}
-	[ -n "$l" ] && dt_raise "${l#w}"
+	local l id i=0 f=-1 n ws
+	local -a ids
+
+	if [ "$DT_CYCLE" != all ] || [ "$DT_WSN" -le 1 ]; then
+		l := console pane list
+		l=${l%% *}
+		[ -n "$l" ] && dt_raise "${l#w}"
+		return 0
+	fi
+	# Every workspace, from this one on and round, each one's windows in
+	# the order they were opened; a minimised window is skipped, as it is
+	# on this workspace alone.
+	while [ "$i" -lt "$DT_WSN" ]; do
+		ws=$(((DT_WS - 1 + i) % DT_WSN + 1))
+		for id in "${!DT[@]}"; do
+			[ "${DT[$id]["ws"]:-1}" = "$ws" ] || continue
+			dt_hidden "$id" && continue
+			[ "$id" = "$DT_FOCUS" ] && f=${#ids[@]}
+			ids+=("$id")
+		done
+		i=$((i + 1))
+	done
+	n=${#ids[@]}
+	[ "$n" -gt 0 ] || return 0
+	dt_raise "${ids[$(((f + 1) % n))]}"
 }
 
 # Move a window onto a specific display's own rectangle -- the titlebar

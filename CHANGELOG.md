@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.91
+
+**Cycle through every workspace.** Control Panel > Desktop > Cycle Windows
+On: `workspace`, the default, goes through this workspace's windows as
+before; `all` goes through every workspace's -- from this one on and round,
+each one's windows in the order they were opened, minimised ones passed
+over -- switching to whichever workspace holds the next window. Both alt-tab
+and Window > Cycle follow it.
+
 ## 0.90
 
 **A minimised terminal no longer holds a core.** A terminal window's

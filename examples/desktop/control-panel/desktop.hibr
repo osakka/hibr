@@ -1,11 +1,16 @@
 #!/usr/bin/env hibr
 #
 # desktop -- the Control Panel pane for the bare desktop: which icons sit
-# on it, how many workspaces it has, and how often a busy screen is redrawn.
+# on it, how many workspaces it has, whether Cycle goes through this one's
+# windows or every one's, and how often a busy screen is redrawn.
 
 strict
 
 command -v cp_pane > /dev/null && cp_pane desktop "Desktop" "▣"
+
+DK_CYCLES=(workspace all)
+
+fn cp_set_cycle(int? id = "", value = "") { DT_CYCLE=$value; cp_save; }
 
 fn desktop_rows(int w) {
 	local n=0
@@ -22,6 +27,9 @@ fn desktop_rows(int w) {
 	CP[$w][$n]["wtype"]=slider
 	CP[$w][$n]["val"]=$DT_WSN; CP[$w][$n]["min"]=1; CP[$w][$n]["max"]=9
 	CP[$w][$n]["key"]=wsn; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Cycle Windows On"
+	CP[$w][$n]["val"]="$DT_CYCLE"; CP[$w][$n]["key"]=cycle
+	n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Redraw Skip ($DT_DRAWSKIP)"
 	CP[$w][$n]["wtype"]=slider
 	CP[$w][$n]["val"]=$DT_DRAWSKIP; CP[$w][$n]["min"]=0; CP[$w][$n]["max"]=9
@@ -38,6 +46,8 @@ fn desktop_do(int w, k, int dir) {
 		command -v dt_deskscan > /dev/null && dt_deskscan
 		;;
 	wsn) dt_wsset $((DT_WSN + dir)) ;;
+	cycle) v := cp_next "$DT_CYCLE" "$dir" "${DK_CYCLES[@]}"
+		DT_CYCLE=$v ;;
 	drawskip)
 		v=$((DT_DRAWSKIP + dir))
 		[ "$v" -lt 0 ] && v=0
@@ -46,4 +56,10 @@ fn desktop_do(int w, k, int dir) {
 		;;
 	esac
 	cp_save
+}
+
+fn desktop_drop(int w, int r, int c, k) {
+	case $k in
+	cycle) dt_droplist "$w" "$r" "$c" cp_set_cycle "${DK_CYCLES[@]}" ;;
+	esac
 }

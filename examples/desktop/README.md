@@ -64,7 +64,11 @@ no key until given one), and so does the mouse wheel over the bare
 desktop or the bar -- down to the next, up to the previous, one step a
 notch. Window > Move to Workspace sends the focused window, and a title
 bar's right-click menu has the same for its own. With one workspace the
-bar shows no numbers and none of this appears. The application menu lists every window, marked with its
+bar shows no numbers and none of this appears. Cycle (alt-tab, or
+Window > Cycle) goes through this workspace's windows; Control Panel >
+Desktop > Cycle Windows On set to `all` goes through every workspace's,
+from this one on and round, going to whichever one holds the next window.
+The application menu lists every window, marked with its
 workspace's number when it is on another; choosing it goes there, and so
 does opening an app that is already open on another.
 
