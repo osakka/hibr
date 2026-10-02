@@ -70,7 +70,7 @@ fn dt_wsgo(int n) {
 
 # Say which workspace is current, briefly.
 fn dt_wsnote(int n) {
-	dt_note "Workspace $n"
+	dt_notep low "Workspace $n"
 }
 
 # Have n workspaces, 1 to 9. Windows on one that goes away move to the last
@@ -114,7 +114,7 @@ fn dt_wsmove(int id, int n) {
 	fi
 	dt_tile
 	dt_tile "$n"
-	dt_note "${DT[$id]["title"]} moved to workspace $n"
+	dt_notep low "${DT[$id]["title"]} moved to workspace $n"
 }
 
 fn dt_wsmove_focused(int n) {

@@ -206,7 +206,7 @@ fn dt_keycap(what) {
 
 	DT_KEYCAP=$what
 	l := dt_keylabel "$what"
-	dt_note "Press a key for $l…"
+	dt_notep low "Press a key for $l…"
 }
 
 # The key captured for what: asked about if another action holds it --

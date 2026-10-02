@@ -570,7 +570,7 @@ sc = t.screen()
 check("the menu bar's own bell opens the notification history",
       sc.find("┤ Notifications ├") is not None, sc)
 check("and it lists a note already shown, timestamped",
-      re.search(r"\d\d:\d\d  Remembered", sc.text()) is not None, sc)
+      re.search(r"\d\d:\d\d  normal  Remembered", sc.text()) is not None, sc)
 t.quit(None, 1.0)
 shutil.rmtree(BELL, True)
 
@@ -2003,6 +2003,44 @@ check("and opening the history clears the count again",
       re.search(r"⚑  \d\d:\d\d", sc.row(0)) is not None, sc)
 t.quit(None, 0.5); shutil.rmtree(d, True)
 
+# Priorities: the desktop's own chatter is low and does not count, a
+# program's or an app's note is normal and does; DT_NOTECOUNT moves the line.
+t, d = dotrun('dt_notep low "Workspace 9"\ndt_notep low "Copied"')
+sc = t.screen()
+check("low notes still pop up but leave the count alone",
+      sc.find("Workspace 9") is not None and
+      re.search(r"⚑  \d\d:\d\d", sc.row(0)) is not None, sc)
+t.quit(None, 0.5); shutil.rmtree(d, True)
+t, d = dotrun('dt_notep low "Workspace 9"', pre="DT_NOTECOUNT=low\n")
+sc = t.screen()
+check("counting from low counts them",
+      re.search(r"⚑1  \d\d:\d\d", sc.row(0)) is not None, sc)
+t.quit(None, 0.5); shutil.rmtree(d, True)
+t, d = dotrun('dt_notep high "Disk full"\ndt_notep low "Workspace 2"\n'
+              'dt_note "Build done"', keys=[press(0, COLS - 24)])
+sc = t.screen()
+hist = sc.text()
+check("the history shows each note's priority beside it",
+      re.search(r"\d\d:\d\d  normal  Build done", hist) and
+      re.search(r"\d\d:\d\d  low     Workspace 2", hist) and
+      re.search(r"\d\d:\d\d  high    Disk full", hist), sc)
+t.keys([b"\x1b[B", b"\x1b[3~"], settle=0.4)
+sc = t.screen()
+hist = "\n".join(sc.row(r)[:54] for r in range(2, 8))
+check("delete clears the selected note and leaves the rest",
+      "Workspace 2" not in hist and "Build done" in hist and
+      "Disk full" in hist, sc)
+t.quit(None, 0.5); shutil.rmtree(d, True)
+t, d = dotrun('dt_notep high "Disk full"\ndt_notep low "Workspace 2"\n'
+              'dt_notep low "Copied"\ndt_note "Build done"',
+              keys=[press(0, COLS - 24), b"\x1b[21~", b"\x1b[C", b"l"])
+sc = t.screen()
+hist = "\n".join(sc.row(r)[:54] for r in range(2, 8))
+check("History > Clear Low clears every low note and nothing else",
+      "Workspace 2" not in hist and "Copied" not in hist and
+      "Build done" in hist and "Disk full" in hist, sc)
+t.quit(None, 0.5); shutil.rmtree(d, True)
+
 # The bell is a choice, not the default: it is an emoji, two cells wide,
 # and a terminal without an emoji font draws it as an empty box. Chosen,
 # the layout measures it and its click still lands. (A wide character's
@@ -2714,4 +2752,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(378)
+report(383)

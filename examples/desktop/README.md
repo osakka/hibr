@@ -921,6 +921,15 @@ among them, which needs an emoji font -- with a count beside it of notes you
 have not seen yet, opening their history when clicked), the clock (in whatever format Date & Time sets) and the
 **application menu** on the right. Windows cannot be dragged over it.
 
+**Notifications have a priority**: low for the desktop telling you what it
+did -- "Workspace 2", "Copied 12 characters" -- normal for a program's or
+an app's own, high and urgent for failures. Every one pops up, high in the
+warning colour and urgent in the error colour, and every one goes to the
+history; only those at Control Panel > Notifications > Count From (normal
+unless set) or above raise the count, so the count stays worth reading. The
+history lists each with its time and priority; up and down select one,
+delete clears it, and its History menu clears the low ones or all.
+
 The menus belong to the active application, so they change when you click a
 different window, and when nothing has focus they are the desktop's own.
 
@@ -1069,6 +1078,7 @@ manager's own table:
 | `dt_close_focused`, `dt_hide_focused`, `dt_zoom_focused` | act on whatever has focus, for menu items |
 | `dt_note <text>` | a corner-stacked toast, gone on its own after a timeout |
 | `dt_notify <text> <cmd> [args...]` | the same, but clicking it runs `cmd` |
+| `dt_notep <prio> <text>`, `dt_notifyp <prio> <text> <cmd>...` | either at a priority: `low`, `normal` (what the two above give), `high`, `urgent` |
 | `dt_move <id> <row> <col>` | put a window somewhere, clamped to the screen |
 | `dt_resize <id> <h> <w>` | give it a size, clamped to what is usable and what fits |
 | `dt_min <id>` | minimise it, or restore it if it already is |

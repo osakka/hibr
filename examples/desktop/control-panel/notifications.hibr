@@ -22,13 +22,14 @@ CP_NOTETICKS=(1000 1500 2500 4000 6000 10000)
 
 fn cp_set_notepos(int? id = "", value = "") { DT_NOTEPOS=$value; cp_save; }
 fn cp_set_notems(int? id = "", int? value = "") { DT_NOTEMS=$value; cp_save; }
+fn cp_set_notecount(int? id = "", value = "") { DT_NOTECOUNT=$value; cp_save; }
 
 # Empties the in-memory-only history log -- what is currently stacked and
 # showing is untouched, since that lives in DT_NOTEQ, a separate array.
 cp_clearhist() {
 	local hid
 
-	dt_note "History cleared"
+	dt_notep low "History cleared"
 	for hid in "${DT_NOTEHIST_ORDER[@]}"; do
 		unset "DT_NOTEHIST[$hid]"
 	done
@@ -44,6 +45,9 @@ fn notify_rows(int w) {
 	n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Timeout"
 	CP[$w][$n]["val"]="$DT_NOTEMS ms"; CP[$w][$n]["key"]=notems
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Count From"
+	CP[$w][$n]["val"]="$DT_NOTECOUNT"; CP[$w][$n]["key"]=notecount
 	n=$((n + 1))
 	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="View History"
 	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=history
@@ -62,6 +66,8 @@ fn notify_do(int? w = "", k = "", int? dir = "") {
 	         DT_NOTEPOS=$v ;;
 	notems) v := cp_next "$DT_NOTEMS" "$dir" "${CP_NOTETICKS[@]}"
 	        DT_NOTEMS=$v ;;
+	notecount) v := cp_next "$DT_NOTECOUNT" "$dir" "${DT_NOTELEVELS[@]}"
+	        DT_NOTECOUNT=$v ;;
 	history) dt_has notifications_draw && dt_launch notifications ;;
 	clearhist) cp_clearhist ;;
 	esac
@@ -72,5 +78,7 @@ fn notify_drop(int? w = "", int? r = "", int? c = "", k = "") {
 	case $k in
 	notepos) dt_droplist "$w" "$r" "$c" cp_set_notepos "${CP_NOTEPOS[@]}" ;;
 	notems) dt_droplist "$w" "$r" "$c" cp_set_notems "${CP_NOTETICKS[@]}" ;;
+	notecount) dt_droplist "$w" "$r" "$c" cp_set_notecount \
+		"${DT_NOTELEVELS[@]}" ;;
 	esac
 }

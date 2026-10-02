@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.92
+
+**Notifications have a priority, and the count means something again.**
+Low, normal, high, urgent. The desktop's own chatter -- switching or moving
+to a workspace, tiling, Copied and Cut, keyboard move and resize, shortcut
+capture, the Control Strip -- is low; a program's notification and anything
+an app reports is normal; a failed restart is high. Every note still pops
+up (high in the warning colour, urgent in the error colour, low dimmed) and
+goes to the history, but only notes at Control Panel > Notifications >
+Count From (normal by default) or above raise the bar's count.
+
+The history shows each note's time and priority. Up and down select, delete
+clears the selected one, and a History menu clears the low ones or all of
+them. `dt_notep` and `dt_notifyp` post at a priority.
+
 ## 0.91
 
 **Cycle through every workspace.** Control Panel > Desktop > Cycle Windows

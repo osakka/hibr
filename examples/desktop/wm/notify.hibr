@@ -40,6 +40,24 @@ DT_NOTEPOS="${DT_NOTEPOS-top-right}"
 # Notes that have arrived since the history was last looked at: the bar's
 # dot is filled while this is above zero, hollow once it has been read.
 DT_NOTEUNSEEN=0
+# Every note has a priority. What the desktop says about what it is doing
+# -- "Workspace 2", "Copied 12 characters" -- is low; a program's own
+# notification, and anything an app reports, normal; a failure, high or
+# urgent. Only notes at DT_NOTECOUNT or above raise the bar's count, so the
+# count means something; every note still pops up, and still goes to the
+# history, which shows each one's priority and clears them by it.
+DT_NOTELEVELS=(low normal high urgent)
+DT_NOTECOUNT="${DT_NOTECOUNT-normal}"
+
+# A priority's place, 1 for low to 4 for urgent; anything else is normal.
+fn dt_notelevel(p) {
+	case $p in
+	low) ret 1 ;;
+	high) ret 3 ;;
+	urgent) ret 4 ;;
+	*) ret 2 ;;
+	esac
+}
 
 # Append a note's own fields to the queue, shared by dt_note and
 # dt_notify -- the only difference between them is whether there is
@@ -48,6 +66,8 @@ dt_noteq() {
 	local id=$DT_NOTE_NEXT n=0 a
 
 	DT_NOTE_NEXT=$((DT_NOTE_NEXT + 1))
+	DT_NOTEQ[$id]["prio"]="$1"
+	shift
 	DT_NOTEQ[$id]["text"]="$1"
 	DT_NOTEQ[$id]["created"] := dt_ms
 	shift
@@ -64,7 +84,12 @@ dt_noteq() {
 # own after DT_NOTEMS -- inert, the same as this always worked, every
 # existing call site untouched by anything dt_notify adds.
 fn dt_note(text) {
-	dt_noteq "$text"
+	dt_noteq normal "$text"
+}
+
+# A note at a priority of its own: low, normal, high or urgent.
+fn dt_notep(prio, text) {
+	dt_noteq "$prio" "$text"
 }
 
 # The clickable form: args after the message are an action -- clicking
@@ -74,7 +99,12 @@ fn dt_note(text) {
 # same one word-split "gfeh -g" back to front once building the File
 # Types pane.
 dt_notify() {
-	dt_noteq "$@"
+	dt_noteq normal "$@"
+}
+
+# The clickable form at a priority: dt_notifyp prio text action...
+fn dt_notifyp(prio, ...rest) {
+	dt_noteq "$prio" "${rest[@]}"
 }
 
 # Dismiss every note on screen at once -- what a single DT_NOTE= used to do
@@ -96,13 +126,16 @@ dt_note_clear() {
 # answer even for one that came and went stacked behind others, not only
 # whichever is on screen right now.
 fn dt_notehist_add(int id) {
-	local hid=$DT_NOTEHIST_NEXT
+	local hid=$DT_NOTEHIST_NEXT lv min
 
 	DT_NOTEHIST_NEXT=$((DT_NOTEHIST_NEXT + 1))
 	DT_NOTEHIST[$hid]["text"]=${DT_NOTEQ[$id]["text"]}
+	DT_NOTEHIST[$hid]["prio"]=${DT_NOTEQ[$id]["prio"]:-normal}
 	DT_NOTEHIST[$hid]["at"] := dt_ms
 	DT_NOTEHIST_ORDER+=("$hid")
-	DT_NOTEUNSEEN=$((DT_NOTEUNSEEN + 1))
+	lv := dt_notelevel "${DT_NOTEHIST[$hid]["prio"]}"
+	min := dt_notelevel "$DT_NOTECOUNT"
+	[ "$lv" -ge "$min" ] && DT_NOTEUNSEEN=$((DT_NOTEUNSEEN + 1))
 	if [ "${#DT_NOTEHIST_ORDER[@]}" -gt "$DT_NOTEHISTMAX" ]; then
 		unset "DT_NOTEHIST[${DT_NOTEHIST_ORDER[0]}]"
 		DT_NOTEHIST_ORDER=("${DT_NOTEHIST_ORDER[@]:1}")
@@ -162,7 +195,12 @@ dt_note_draw() {
 		DT_NOTERECT[$id]["c"]=$c
 		DT_NOTERECT[$id]["w"]=$w
 		DT_NOTERECT[$id]["h"]=$h
-		console pen "$DT_ACTIVE" "$DT_FACE" bold
+		case ${DT_NOTEQ[$id]["prio"]} in
+		urgent) console pen "$DT_BAD" "$DT_FACE" bold ;;
+		high) console pen "$DT_WARN" "$DT_FACE" bold ;;
+		low) console pen "$DT_DIM" "$DT_FACE" ;;
+		*) console pen "$DT_ACTIVE" "$DT_FACE" bold ;;
+		esac
 		bar := dt_rep $((w - 2)) "${GL[hline]}"
 		console put "$r" "$c" "${GL[tl]}$bar${GL[tr]}"
 		console put $((r + 2)) "$c" "${GL[bl]}$bar${GL[br]}"
@@ -209,4 +247,36 @@ fn dt_note_click(int id) {
 	done
 	DT_NOTEQ_ORDER=("${keep[@]}")
 	[ "$n" -gt 0 ] && "${args[@]}"
+}
+
+# Forget one note from the history.
+fn dt_notehist_del(int hid) {
+	local o
+	local -a keep
+
+	unset "DT_NOTEHIST[$hid]"
+	for o in "${DT_NOTEHIST_ORDER[@]}"; do
+		[ "$o" != "$hid" ] && keep+=("$o")
+	done
+	DT_NOTEHIST_ORDER=("${keep[@]}")
+}
+
+# Forget every note in the history at a priority up to and including prio
+# -- low clears only the low ones, urgent clears them all.
+fn dt_notehist_clear(prio) {
+	local hid lv max
+	local -a keep
+
+	max := dt_notelevel "$prio"
+	for hid in "${DT_NOTEHIST_ORDER[@]}"; do
+		lv := dt_notelevel "${DT_NOTEHIST[$hid]["prio"]}"
+		if [ "$lv" -le "$max" ]; then
+			unset "DT_NOTEHIST[$hid]"
+		else
+			keep+=("$hid")
+		fi
+	done
+	DT_NOTEHIST_ORDER=("${keep[@]}")
+	[ "${#keep[@]}" = 0 ] && DT_NOTEUNSEEN=0
+	return 0
 }

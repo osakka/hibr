@@ -407,9 +407,9 @@ fn dt_grab(mode) {
 	[ -z "$DT_FOCUS" ] && return 1
 	DT_GRAB=$mode
 	if [ "$mode" = move ]; then
-		dt_note "moving — arrows, then enter"
+		dt_notep low "moving — arrows, then enter"
 	else
-		dt_note "resizing — arrows, then enter"
+		dt_notep low "resizing — arrows, then enter"
 	fi
 }
 

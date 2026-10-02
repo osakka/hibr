@@ -1,6 +1,8 @@
 #!/usr/bin/env hibr
 #
-# notifications -- a read-only look back at what DT_NOTEHIST already kept.
+# notifications -- a look back at what DT_NOTEHIST kept: newest first, each
+# note's time, priority and text. Up and down select one, delete clears it,
+# and the History menu clears the low ones or all of them.
 #
 # Opened directly by the menu bar's icon (dt_bar in wm/bar.hibr, dt_mouse in
 # wm/input.hibr) and by the Notifications pane's own "View History" row,
@@ -27,26 +29,47 @@ declare -gA NHW
 
 fn notifications_open(int id, arg) {
 	NHW[$id]["top"]=0
+	NHW[$id]["sel"]=0
 }
 
 fn notifications_close(int? id = "") {
 	unset "NHW[$id]"
 }
 
-# Newest first, each row its own HH:MM and text -- DT_NOTEHIST_ORDER is
-# oldest-first (append order), so the list is walked back to front.
+# Keep the selection on a note there is, and in view.
+fn nh_fit(int id) {
+	local n=${#DT_NOTEHIST_ORDER[@]} vis=${NHW[$id]["vis"]:-1}
+	local sel=${NHW[$id]["sel"]:-0} top=${NHW[$id]["top"]:-0}
+
+	[ "$sel" -ge "$n" ] && sel=$((n - 1))
+	[ "$sel" -lt 0 ] && sel=0
+	[ "$sel" -lt "$top" ] && top=$sel
+	[ "$sel" -ge $((top + vis)) ] && top=$((sel - vis + 1))
+	[ "$top" -gt $((n - vis)) ] && top=$((n - vis))
+	[ "$top" -lt 0 ] && top=0
+	NHW[$id]["sel"]=$sel
+	NHW[$id]["top"]=$top
+}
+
+# The history id of the note at list position i, newest first.
+fn nh_at(int i) {
+	local n=${#DT_NOTEHIST_ORDER[@]}
+
+	[ "$i" -ge 0 ] && [ "$i" -lt "$n" ] || return 1
+	ret "${DT_NOTEHIST_ORDER[$((n - 1 - i))]}"
+}
+
+# Newest first, each row its time, its priority and its text.
 fn notifications_draw(int id, int h, int w, int row, int col) {
-	local n i r vis top hid at secs t line
+	local n i r vis top hid at t line p sel
 
 	DT_NOTEUNSEEN=0
 	n=${#DT_NOTEHIST_ORDER[@]}
 	vis=$((h - 1))
 	NHW[$id]["vis"]=$vis
+	nh_fit "$id"
 	top=${NHW[$id]["top"]}
-	[ "$top" -lt 0 ] && top=0
-	[ "$top" -gt $((n - vis)) ] && top=$((n - vis))
-	[ "$top" -lt 0 ] && top=0
-	NHW[$id]["top"]=$top
+	sel=${NHW[$id]["sel"]}
 
 	console pen "$DT_INK" "$DT_FACE"
 	if [ "$n" = 0 ]; then
@@ -56,47 +79,95 @@ fn notifications_draw(int id, int h, int w, int row, int col) {
 	i=0
 	r=1
 	while [ "$r" -le "$vis" ]; do
-		if [ "$i" -lt $((n - top)) ]; then
-			hid=${DT_NOTEHIST_ORDER[$((n - 1 - top - i))]}
+		if hid := nh_at $((top + i)); then
 			at=${DT_NOTEHIST[$hid]["at"]}
-			secs=$((at / 1000))
-			printf -v t "%(%H:%M)T" "$secs"
+			printf -v t "%(%H:%M)T" $((at / 1000))
+			p=${DT_NOTEHIST[$hid]["prio"]:-normal}
 			line="${DT_NOTEHIST[$hid]["text"]}"
-			[ ${#line} -gt $((w - 9)) ] && line="${line:0:$((w - 9))}"
-			line="$t  $line"
-		else
-			line=
+			[ ${#line} -gt $((w - 17)) ] && line="${line:0:$((w - 17))}"
+			if [ $((top + i)) = "$sel" ] && [ "$DT_FOCUS" = "$id" ]; then
+				console pen "$DT_SELINK" "$DT_ACTIVE"
+				printf -v line '%s  %-7s %s' "$t" "$p" "$line"
+				line := str pad "$line" $((w - 2))
+				console put -p "w$id" "$r" 1 "$line"
+			else
+				console pen "$DT_DIM" "$DT_FACE"
+				console put -p "w$id" "$r" 1 "$t  "
+				case $p in
+				urgent) console pen "$DT_BAD" "$DT_FACE" bold ;;
+				high) console pen "$DT_WARN" "$DT_FACE" bold ;;
+				low) console pen "$DT_DIM" "$DT_FACE" ;;
+				*) console pen "$DT_INK" "$DT_FACE" ;;
+				esac
+				printf -v p '%-7s ' "$p"
+				console put -p "w$id" "$r" 8 "$p"
+				console pen "$DT_INK" "$DT_FACE"
+				line := str pad "$line" $((w - 17))
+				console put -p "w$id" "$r" 16 "$line"
+			fi
 		fi
-		line := str pad "$line" $((w - 2))
-		console put -p "w$id" "$r" 1 "$line"
 		i=$((i + 1))
 		r=$((r + 1))
 	done
 }
 
 fn notifications_key(int? id = "", key = "") {
-	local n=${#DT_NOTEHIST_ORDER[@]} vis=${NHW[$id]["vis"]:-1}
-	local top=${NHW[$id]["top"]}
+	local sel=${NHW[$id]["sel"]:-0} vis=${NHW[$id]["vis"]:-1}
 
 	case $key in
-	up) top=$((top - 1)) ;;
-	down) top=$((top + 1)) ;;
+	up) NHW[$id]["sel"]=$((sel - 1)) ;;
+	down) NHW[$id]["sel"]=$((sel + 1)) ;;
+	pageup) NHW[$id]["sel"]=$((sel - vis)) ;;
+	pagedown) NHW[$id]["sel"]=$((sel + vis)) ;;
+	home) NHW[$id]["sel"]=0 ;;
+	end) NHW[$id]["sel"]=${#DT_NOTEHIST_ORDER[@]} ;;
+	delete | backspace) nh_clearsel "$id" ;;
 	*) return 1 ;;
 	esac
-	[ "$top" -lt 0 ] && top=0
-	[ "$top" -gt $((n - vis)) ] && top=$((n - vis))
-	[ "$top" -lt 0 ] && top=0
-	NHW[$id]["top"]=$top
+	nh_fit "$id"
 	return 0
+}
+
+# A click selects the note on that row.
+fn notifications_click(int id, int r, int c, btn) {
+	NHW[$id]["sel"]=$((${NHW[$id]["top"]:-0} + r - 1))
+	nh_fit "$id"
 }
 
 # The wheel scrolls three rows at a time, like Files' own list does.
 fn notifications_wheel(int? id = "", dir = "", int? r = "", int? c = "") {
-	local top=${NHW[$id]["top"]}
+	local sel=${NHW[$id]["sel"]:-0}
 
 	case $dir in
-	up) NHW[$id]["top"]=$((top - 3)) ;;
-	down) NHW[$id]["top"]=$((top + 3)) ;;
+	up) NHW[$id]["sel"]=$((sel - 3)) ;;
+	down) NHW[$id]["sel"]=$((sel + 3)) ;;
 	esac
+	nh_fit "$id"
 	return 0
+}
+
+# Clear the selected note; the next one down takes its place.
+fn nh_clearsel(int id) {
+	local hid
+
+	hid := nh_at "${NHW[$id]["sel"]:-0}" || return 0
+	dt_notehist_del "$hid"
+	nh_fit "$id"
+}
+
+notifications_menus() {
+	local id=$DT_FOCUS
+
+	dt_menu "History"
+	if [ "${#DT_NOTEHIST_ORDER[@]}" -gt 0 ]; then
+		dt_item "Clear Selected" s nh_clearsel "$id"
+		dt_sep
+		dt_item "Clear Low" l dt_notehist_clear low
+		dt_item "Clear All" a dt_notehist_clear urgent
+	else
+		dt_dim "Clear Selected"
+		dt_sep
+		dt_dim "Clear Low"
+		dt_dim "Clear All"
+	fi
 }

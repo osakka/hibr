@@ -282,7 +282,7 @@ fn dt_edit(op) {
 			DT_CLIPOP=copy
 			DT_CLIPKIND=paths
 			console clip "$t"
-			dt_note "Copied the paths of what is selected"
+			dt_notep low "Copied the paths of what is selected"
 		else
 			dt_note "No file is selected"
 		fi
@@ -306,8 +306,8 @@ fn dt_edit(op) {
 	DT_CLIPOP=$op
 	console clip "$t"
 	if [ "$op" = cut ]; then
-		dt_note "Cut ${#t} characters"
+		dt_notep low "Cut ${#t} characters"
 	else
-		dt_note "Copied ${#t} characters"
+		dt_notep low "Copied ${#t} characters"
 	fi
 }

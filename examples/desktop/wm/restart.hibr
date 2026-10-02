@@ -89,11 +89,11 @@ dt_restart() {
 	local -a ms
 
 	if [ ! -x "$HIBR" ] || [ ! -r "$DT_SELF0" ]; then
-		dt_note "Cannot restart: no hibr at ${HIBR:-?}, or no $DT_SELF0"
+		dt_notep high "Cannot restart: no hibr at ${HIBR:-?}, or no $DT_SELF0"
 		return 1
 	fi
 	[ -d "$DT_RSDIR" ] || mkdir -p "$DT_RSDIR" 2> /dev/null || {
-		dt_note "Cannot restart: $DT_RSDIR cannot be made"
+		dt_notep high "Cannot restart: $DT_RSDIR cannot be made"
 		return 1
 	}
 	k := console consumed
@@ -133,7 +133,7 @@ dt_restart() {
 	done
 	json set DT_RS .carry "${DT_RSCARRY[*]}" -s
 	if ! json emit DT_RS > "$f.new" || ! mv -f "$f.new" "$f"; then
-		dt_note "Cannot restart: the state could not be written"
+		dt_notep high "Cannot restart: the state could not be written"
 		return 1
 	fi
 	dt_rslog "restarting into $HIBR: ${#DT[@]} windows kept in $f"
@@ -147,7 +147,7 @@ dt_restart() {
 	export -n DT_RESTORE
 	DT_RESTORE=
 	dt_open
-	dt_note "Restart failed: $HIBR would not run"
+	dt_notep high "Restart failed: $HIBR would not run"
 	return 1
 }
 
@@ -171,13 +171,13 @@ dt_restore() {
 	DT_RESTORE=
 	[ -r "$f" ] || return 0
 	if ! json parse DT_RS < "$f" 2> /dev/null; then
-		dt_note "Restarted, but the saved desktop could not be read"
+		dt_notep high "Restarted, but the saved desktop could not be read"
 		return 0
 	fi
 	read -ra DT_RSCARRY <<< "${DT_RS["carry"]}"
 	if [ "${DT_RS["ver"]}" != "$DT_RSVER" ]; then
 		dt_rsorphans
-		dt_note "Restarted, but the saved desktop could not be read"
+		dt_notep high "Restarted, but the saved desktop could not be read"
 		return 0
 	fi
 	DT_WSN=${DT_RS["wsn"]:-$DT_WSN}
@@ -232,7 +232,7 @@ dt_restore() {
 	rm -f "$f" "$DT_RSDIR"/term-*.save 2> /dev/null
 	DT_RESTORED=1
 	dt_rslog "restored ${#DT[@]} windows from $f"
-	dt_note "Restarted: hibr $HIBR_VERSION"
+	dt_notep low "Restarted: hibr $HIBR_VERSION"
 }
 
 # Whether the hibr this desktop runs has been replaced on disk since it
