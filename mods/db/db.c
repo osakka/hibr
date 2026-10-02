@@ -44,10 +44,11 @@ struct dm_db {
 	int fd;
 	char *path;
 	unsigned char *map;
-	size_t mlen, gbytes;
+	size_t mlen, gbytes, bbytes;
 	struct dm_head *h;
-	int nc;
+	int nc, ver;
 	dm_col *c;
+	uint64_t ndel;
 };
 
 typedef struct dm_pred dm_pred;
@@ -59,6 +60,7 @@ struct dm_pred {
 };
 
 static const char dm_magic[8] = { 'H', 'I', 'B', 'R', 'D', 'B', '1', '\n' };
+static const char dm_magic2[8] = { 'H', 'I', 'B', 'R', 'D', 'B', '2', '\n' };
 
 vec dm_open_dbs;
 
@@ -94,8 +96,10 @@ long dm_keep(dm_db *d)
    long a group is. */
 void dm_layout(dm_db *d)
 {
-	size_t z = 0, i;
+	size_t z, i;
 
+	d->bbytes = d->ver >= 2 ? (size_t)d->h->grp / 8 : 0;
+	z = d->bbytes;
 	for (i = 0; i < (size_t)d->nc; i++) {
 		d->c[i].zoff = z;
 		z += 2 * d->c[i].w;
@@ -156,6 +160,28 @@ void dm_free(dm_db *d)
 	free(d);
 }
 
+/* How many rows are deleted, counted from each group's marks. */
+void dm_count(dm_db *d)
+{
+	size_t g, ng, i;
+	unsigned char *gp;
+
+	d->ndel = 0;
+	if (!d->bbytes)
+		return;
+	ng = (size_t)((d->h->nrows + d->h->grp - 1) / d->h->grp);
+	for (g = 0; g < ng; g++) {
+		gp = d->map + d->h->doff + g * d->gbytes;
+		for (i = 0; i < d->bbytes; i++) {
+			unsigned b = gp[i];
+			while (b) {
+				d->ndel += b & 1;
+				b >>= 1;
+			}
+		}
+	}
+}
+
 /* Read the schema after the header into the column list, checking every
    length against the file, so a damaged file is refused rather than read
    past its end. */
@@ -164,7 +190,12 @@ int dm_schema(dm_db *d)
 	unsigned char *p, *e;
 	int i;
 
-	if (d->mlen < sizeof *d->h || memcmp(d->h->magic, dm_magic, 8) ||
+	if (d->mlen >= sizeof *d->h && !memcmp(d->h->magic, dm_magic2, 8))
+		d->ver = 2;
+	else
+		d->ver = 1;
+	if (d->mlen < sizeof *d->h ||
+	    (memcmp(d->h->magic, dm_magic, 8) && memcmp(d->h->magic, dm_magic2, 8)) ||
 	    !d->h->ncols || d->h->grp != DM_GROUP ||
 	    sizeof *d->h + d->h->slen > d->mlen || d->h->doff > d->mlen) {
 		lg(HIBR_LERR, "db: %s is not a hibr database", d->path);
@@ -190,6 +221,7 @@ int dm_schema(dm_db *d)
 	dm_layout(d);
 	if (d->h->nrows > (uint64_t)dm_groups(d) * d->h->grp)
 		goto bad;
+	dm_count(d);
 	return HIBR_OK;
 bad:
 	lg(HIBR_LERR, "db: %s has a damaged schema", d->path);
@@ -269,7 +301,8 @@ dm_db *dm_create(const char *path, int ac, char **defs)
 		s_cat(&sch, d->c[i].nm);
 	}
 	memset(&h, 0, sizeof h);
-	memcpy(h.magic, dm_magic, 8);
+	memcpy(h.magic, dm_magic2, 8);
+	d->ver = 2;
 	h.ncols = (uint32_t)ac;
 	h.grp = DM_GROUP;
 	h.slen = (uint32_t)sch.n;
@@ -387,12 +420,51 @@ int dm_cmp(dm_col *c, const unsigned char *a, const unsigned char *b)
 	return memcmp(a, b, c->w);
 }
 
+/* Widen a column's zone in a group to take in a cell; the first row of a
+   group sets it. */
+void dm_widen(dm_db *d, int i, unsigned char *gp, unsigned char *cell, int first)
+{
+	unsigned char *mn = gp + d->c[i].zoff, *mx = mn + d->c[i].w;
+
+	if (first || dm_cmp(&d->c[i], cell, mn) < 0)
+		memcpy(mn, cell, d->c[i].w);
+	if (first || dm_cmp(&d->c[i], cell, mx) > 0)
+		memcpy(mx, cell, d->c[i].w);
+}
+
+/* Append a row of raw cells, every column's bytes one after another. */
+int dm_put(dm_db *d, const unsigned char *buf)
+{
+	uint64_t row = d->h->nrows;
+	size_t g = (size_t)(row / d->h->grp), k = (size_t)(row % d->h->grp), o = 0;
+	unsigned char *gp, *cell;
+	int i;
+
+	if (g >= dm_groups(d)) {
+		if (ftruncate(d->fd, (off_t)(d->h->doff + (g + 1) * d->gbytes)) < 0 ||
+		    dm_remap(d) != HIBR_OK) {
+			lg(HIBR_LERR, "db: cannot grow %s: %s", d->path,
+			   strerror(errno));
+			return HIBR_FAIL;
+		}
+		lg(HIBR_LDBG, "db: %s grew to %zu groups", d->path, g + 1);
+	}
+	gp = d->map + d->h->doff + g * d->gbytes;
+	for (i = 0; i < d->nc; i++) {
+		cell = gp + d->c[i].doff + k * d->c[i].w;
+		memcpy(cell, buf + o, d->c[i].w);
+		dm_widen(d, i, gp, cell, !k);
+		o += d->c[i].w;
+	}
+	if (d->bbytes)
+		gp[k >> 3] &= (unsigned char)~(1u << (k & 7));
+	d->h->nrows = row + 1;
+	return HIBR_OK;
+}
+
 /* Append one row; vals are the columns in order. */
 int dm_insert(dm_db *d, int ac, char **vals)
 {
-	uint64_t row = d->h->nrows;
-	size_t g = (size_t)(row / d->h->grp), k = (size_t)(row % d->h->grp);
-	unsigned char *gp, *cell, *mn, *mx;
 	unsigned char *buf;
 	size_t tot = 0, o = 0;
 	int i;
@@ -412,32 +484,9 @@ int dm_insert(dm_db *d, int ac, char **vals)
 		}
 		o += d->c[i].w;
 	}
-	if (g >= dm_groups(d)) {
-		if (ftruncate(d->fd, (off_t)(d->h->doff + (g + 1) * d->gbytes)) < 0 ||
-		    dm_remap(d) != HIBR_OK) {
-			lg(HIBR_LERR, "db: cannot grow %s: %s", d->path,
-			   strerror(errno));
-			free(buf);
-			return HIBR_FAIL;
-		}
-		lg(HIBR_LDBG, "db: %s grew to %zu groups", d->path, g + 1);
-	}
-	gp = d->map + d->h->doff + g * d->gbytes;
-	o = 0;
-	for (i = 0; i < d->nc; i++) {
-		cell = gp + d->c[i].doff + k * d->c[i].w;
-		mn = gp + d->c[i].zoff;
-		mx = mn + d->c[i].w;
-		memcpy(cell, buf + o, d->c[i].w);
-		if (!k || dm_cmp(&d->c[i], cell, mn) < 0)
-			memcpy(mn, cell, d->c[i].w);
-		if (!k || dm_cmp(&d->c[i], cell, mx) > 0)
-			memcpy(mx, cell, d->c[i].w);
-		o += d->c[i].w;
-	}
+	i = dm_put(d, buf);
 	free(buf);
-	d->h->nrows = row + 1;
-	return HIBR_OK;
+	return i;
 }
 
 /* A cell as text, appended to out: an int in decimal, a float in the
@@ -596,6 +645,8 @@ long dm_scan(dm_db *d, vec *ps, long limit,
 			n = (size_t)(d->h->nrows - (uint64_t)g * d->h->grp);
 		k0 = g == (size_t)dm_from / d->h->grp ? (size_t)dm_from % d->h->grp : 0;
 		for (k = k0; k < n; k++) {
+			if (d->bbytes && (gp[k >> 3] >> (k & 7)) & 1)
+				continue;
 			ok = 1;
 			for (i = 0; ok && i < ps->n; i++) {
 				p = ps->p[i];
@@ -616,6 +667,249 @@ done:
 	lg(HIBR_LDBG, "db: %ld rows matched, %zu of %zu groups skipped by "
 		      "their zones", hits, skipped, ng);
 	return hits;
+}
+
+
+/* A record number, counted from 1, as its group and its row there; one
+   past the end, or a deleted one, is refused. */
+int dm_rec(dm_db *d, const char *t, unsigned char **gp, size_t *k)
+{
+	char *e;
+	long n = strtol(t ? t : "", &e, 10);
+	uint64_t r;
+
+	if (!t || !*t || *e || n < 1 || (uint64_t)n > d->h->nrows) {
+		lg(HIBR_LERR, "db: no record %s", t ? t : "");
+		return HIBR_FAIL;
+	}
+	r = (uint64_t)n - 1;
+	*gp = d->map + d->h->doff + (size_t)(r / d->h->grp) * d->gbytes;
+	*k = (size_t)(r % d->h->grp);
+	if (d->bbytes && ((*gp)[*k >> 3] >> (*k & 7)) & 1) {
+		lg(HIBR_LERR, "db: record %s is deleted", t);
+		return HIBR_FAIL;
+	}
+	return HIBR_OK;
+}
+
+struct dm_set {
+	int n;
+	int *col;
+	unsigned char **val;
+};
+
+/* Free the values a set holds. */
+void dm_setfree(struct dm_set *st)
+{
+	int i;
+
+	for (i = 0; i < st->n; i++)
+		free(st->val[i]);
+	free(st->val);
+	free(st->col);
+	memset(st, 0, sizeof *st);
+}
+
+/* Read "col val [col val ...]" from av[at] on, each value checked against
+   its column, so nothing is written unless all of it can be. */
+int dm_pairs(dm_db *d, int ac, char **av, int at, struct dm_set *st)
+{
+	int i, n = (ac - at) / 2;
+
+	memset(st, 0, sizeof *st);
+	if (n < 1 || (ac - at) % 2) {
+		lg(HIBR_LERR, "db: give a column and a value, as many as are set");
+		return HIBR_FAIL;
+	}
+	st->col = xm(sizeof *st->col * (size_t)n);
+	st->val = xm(sizeof *st->val * (size_t)n);
+	memset(st->val, 0, sizeof *st->val * (size_t)n);
+	for (i = 0; i < n; i++) {
+		st->n = i + 1;
+		st->col[i] = dm_colof(d, av[at + 2 * i]);
+		if (st->col[i] < 0)
+			return HIBR_FAIL;
+		st->val[i] = xm(d->c[st->col[i]].w);
+		if (dm_parse(&d->c[st->col[i]], av[at + 2 * i + 1], st->val[i]) !=
+		    HIBR_OK)
+			return HIBR_FAIL;
+	}
+	return HIBR_OK;
+}
+
+/* Write a set's values into one row, widening the zones they land in. */
+void dm_setrow(dm_db *d, unsigned char *gp, size_t k, void *arg)
+{
+	struct dm_set *st = arg;
+	unsigned char *cell;
+	int i, c;
+
+	for (i = 0; i < st->n; i++) {
+		c = st->col[i];
+		cell = gp + d->c[c].doff + k * d->c[c].w;
+		memcpy(cell, st->val[i], d->c[c].w);
+		dm_widen(d, c, gp, cell, 0);
+	}
+}
+
+/* Mark one row deleted. Its zones are left as they were: still a bound on
+   what the group holds, which is all a zone has to be. */
+void dm_delrow(dm_db *d, unsigned char *gp, size_t k, void *arg)
+{
+	(void)arg;
+	gp[k >> 3] |= (unsigned char)(1u << (k & 7));
+	d->ndel++;
+}
+
+/* A new file beside a database's, holding its header and schema with no
+   rows: where an upgrade or a compaction is built before it is renamed
+   over the original, which is untouched until then. */
+int dm_newbeside(dm_db *d, str *tmp, uint64_t nrows)
+{
+	struct dm_head h = *d->h;
+	int fd;
+
+	s_init(tmp);
+	s_cat(tmp, d->path);
+	s_cat(tmp, ".tmp");
+	fd = open(tmp->p, O_RDWR | O_CREAT | O_EXCL | O_CLOEXEC, 0644);
+	if (fd < 0) {
+		lg(HIBR_LERR, "db: cannot create %s: %s", tmp->p, strerror(errno));
+		return -1;
+	}
+	memcpy(h.magic, dm_magic2, 8);
+	h.nrows = nrows;
+	if (write(fd, &h, sizeof h) != (ssize_t)sizeof h ||
+	    write(fd, d->map + sizeof h, d->h->slen) != (ssize_t)d->h->slen ||
+	    ftruncate(fd, (off_t)h.doff) < 0) {
+		lg(HIBR_LERR, "db: cannot write %s: %s", tmp->p, strerror(errno));
+		close(fd);
+		unlink(tmp->p);
+		return -1;
+	}
+	return fd;
+}
+
+/* Put a rebuilt file in place of a database's own and open it again under
+   the same handle. */
+int dm_swap(dm_db *d, str *tmp)
+{
+	if (rename(tmp->p, d->path) < 0) {
+		lg(HIBR_LERR, "db: cannot replace %s: %s", d->path, strerror(errno));
+		unlink(tmp->p);
+		return HIBR_FAIL;
+	}
+	msync(d->map, d->mlen, MS_SYNC);
+	munmap(d->map, d->mlen);
+	d->map = 0;
+	close(d->fd);
+	d->fd = open(d->path, O_RDWR | O_CLOEXEC);
+	if (d->fd < 0 || dm_remap(d) != HIBR_OK) {
+		lg(HIBR_LERR, "db: cannot open %s again: %s", d->path,
+		   strerror(errno));
+		return HIBR_FAIL;
+	}
+	d->ver = 2;
+	dm_layout(d);
+	dm_count(d);
+	return HIBR_OK;
+}
+
+/* Give a database made before rows could be deleted each group's marks,
+   by writing it again beside itself: what it holds and its record numbers
+   are kept. */
+int dm_upgrade(dm_db *d)
+{
+	str tmp;
+	size_t ng = dm_groups(d), g, nb = (size_t)d->h->grp / 8, ng2;
+	unsigned char *z;
+	int fd, bad = 0;
+
+	if (d->ver >= 2)
+		return HIBR_OK;
+	fd = dm_newbeside(d, &tmp, d->h->nrows);
+	if (fd < 0) {
+		s_free(&tmp);
+		return HIBR_FAIL;
+	}
+	ng2 = d->gbytes + nb;
+	z = xm(nb);
+	memset(z, 0, nb);
+	if (ftruncate(fd, (off_t)(d->h->doff + ng * ng2)) < 0)
+		bad = 1;
+	for (g = 0; !bad && g < ng; g++)
+		if (pwrite(fd, z, nb, (off_t)(d->h->doff + g * ng2)) != (ssize_t)nb ||
+		    pwrite(fd, d->map + d->h->doff + g * d->gbytes, d->gbytes,
+			   (off_t)(d->h->doff + g * ng2 + nb)) != (ssize_t)d->gbytes)
+			bad = 1;
+	free(z);
+	if (bad || fsync(fd) < 0) {
+		lg(HIBR_LERR, "db: cannot write %s: %s", tmp.p, strerror(errno));
+		close(fd);
+		unlink(tmp.p);
+		s_free(&tmp);
+		return HIBR_FAIL;
+	}
+	close(fd);
+	bad = dm_swap(d, &tmp);
+	lg(HIBR_LDBG, "db: %s now keeps deletions", d->path);
+	s_free(&tmp);
+	return bad;
+}
+
+/* Write a database again without its deleted rows, which renumbers what
+   follows them; how many rows it keeps goes in *kept. */
+int dm_compact(dm_db *d, long *kept)
+{
+	str tmp;
+	dm_db *n;
+	size_t g, k, ng, rows, tot = 0, o;
+	unsigned char *gp, *buf;
+	int fd, i, bad = 0;
+
+	fd = dm_newbeside(d, &tmp, 0);
+	if (fd < 0) {
+		s_free(&tmp);
+		return HIBR_FAIL;
+	}
+	close(fd);
+	n = dm_open(tmp.p);
+	if (!n) {
+		unlink(tmp.p);
+		s_free(&tmp);
+		return HIBR_FAIL;
+	}
+	for (i = 0; i < d->nc; i++)
+		tot += d->c[i].w;
+	buf = xm(tot);
+	ng = (size_t)((d->h->nrows + d->h->grp - 1) / d->h->grp);
+	for (g = 0; !bad && g < ng; g++) {
+		gp = d->map + d->h->doff + g * d->gbytes;
+		rows = d->h->grp;
+		if ((uint64_t)(g + 1) * d->h->grp > d->h->nrows)
+			rows = (size_t)(d->h->nrows - (uint64_t)g * d->h->grp);
+		for (k = 0; !bad && k < rows; k++) {
+			if (d->bbytes && (gp[k >> 3] >> (k & 7)) & 1)
+				continue;
+			for (o = 0, i = 0; i < d->nc; i++) {
+				memcpy(buf + o, gp + d->c[i].doff + k * d->c[i].w,
+				       d->c[i].w);
+				o += d->c[i].w;
+			}
+			bad = dm_put(n, buf) != HIBR_OK;
+		}
+	}
+	free(buf);
+	*kept = n->h ? (long)n->h->nrows : 0;
+	dm_free(n);
+	if (bad) {
+		unlink(tmp.p);
+		s_free(&tmp);
+		return HIBR_FAIL;
+	}
+	bad = dm_swap(d, &tmp);
+	s_free(&tmp);
+	return bad;
 }
 
 struct dm_out {
@@ -798,8 +1092,119 @@ int dm_aggregate(sh *s, dm_db *d, const char *fn, int ac, char **av, int at)
 	return HIBR_OK;
 }
 
+
+/* db set h N col val...: one record, by the number query -n gives it. */
+int dm_cmdset(sh *s, dm_db *d, int ac, char **av)
+{
+	struct dm_set st;
+	unsigned char *gp;
+	size_t k;
+
+	(void)s;
+	if (ac < 6) {
+		lg(HIBR_LERR, "db set: a record number, then a column and a value");
+		return 2;
+	}
+	if (dm_rec(d, av[3], &gp, &k) != HIBR_OK)
+		return HIBR_FAIL;
+	if (dm_pairs(d, ac, av, 4, &st) != HIBR_OK) {
+		dm_setfree(&st);
+		return HIBR_FAIL;
+	}
+	dm_setrow(d, gp, k, &st);
+	dm_setfree(&st);
+	return HIBR_OK;
+}
+
+/* db update h [where ...] set col val...: every row that matches; says how
+   many. */
+int dm_cmdupdate(sh *s, dm_db *d, int ac, char **av)
+{
+	struct dm_set st;
+	vec ps = { 0, 0, 0 };
+	long limit, n;
+	int at = 3;
+	str o;
+
+	if (dm_where(d, ac, av, &at, &ps, &limit) != HIBR_OK) {
+		dm_wfree(&ps);
+		return 2;
+	}
+	if (at >= ac || strcmp(av[at], "set")) {
+		lg(HIBR_LERR, "db update: say what to set: set col val...");
+		dm_wfree(&ps);
+		return 2;
+	}
+	if (dm_pairs(d, ac, av, at + 1, &st) != HIBR_OK) {
+		dm_setfree(&st);
+		dm_wfree(&ps);
+		return HIBR_FAIL;
+	}
+	n = dm_scan(d, &ps, limit, dm_setrow, &st);
+	dm_setfree(&st);
+	dm_wfree(&ps);
+	s_init(&o);
+	s_num(&o, n);
+	dm_say(s, o.p);
+	s_free(&o);
+	return HIBR_OK;
+}
+
+/* db delete h N... or db delete h where ...: by record number, or every
+   row that matches -- never every row for want of saying which; says how
+   many. */
+int dm_cmddelete(sh *s, dm_db *d, int ac, char **av)
+{
+	vec ps = { 0, 0, 0 };
+	long limit, n = 0;
+	int at = 3, i;
+	unsigned char *gp;
+	size_t k;
+	str o;
+
+	if (ac < 4) {
+		lg(HIBR_LERR, "db delete: record numbers, or where ...");
+		return 2;
+	}
+	if (!strcmp(av[3], "where") || !strcmp(av[3], "from")) {
+		if (dm_where(d, ac, av, &at, &ps, &limit) != HIBR_OK) {
+			dm_wfree(&ps);
+			return 2;
+		}
+		if (at < ac || !ps.n) {
+			lg(HIBR_LERR, at < ac ? "db: did not understand '%s'" :
+			   "db delete: a where is needed; it will not delete every row",
+			   at < ac ? av[at] : "");
+			dm_wfree(&ps);
+			return 2;
+		}
+		if (dm_upgrade(d) != HIBR_OK) {
+			dm_wfree(&ps);
+			return HIBR_FAIL;
+		}
+		n = dm_scan(d, &ps, limit, dm_delrow, 0);
+		dm_wfree(&ps);
+	} else {
+		for (i = 3; i < ac; i++)
+			if (dm_rec(d, av[i], &gp, &k) != HIBR_OK)
+				return HIBR_FAIL;
+		if (dm_upgrade(d) != HIBR_OK)
+			return HIBR_FAIL;
+		for (i = 3; i < ac; i++)
+			if (dm_rec(d, av[i], &gp, &k) == HIBR_OK) {
+				dm_delrow(d, gp, k, 0);
+				n++;
+			}
+	}
+	s_init(&o);
+	s_num(&o, n);
+	dm_say(s, o.p);
+	s_free(&o);
+	return HIBR_OK;
+}
+
 /* db create|open|close|flush|insert|import|query|count|sum|min|max|avg|
-   size|cols. */
+   size|cols|set|update|delete|compact. */
 int m_db(sh *s, int ac, char **av)
 {
 	const char *sub = ac > 1 ? av[1] : "";
@@ -815,7 +1220,9 @@ int m_db(sh *s, int ac, char **av)
 			      "insert h val... | import h file | query h [-n] [where "
 			      "col op val [and ...]] [limit n] [from n] | count|sum|min|"
 			      "max|avg h [col] [where ...] | size h | cols h | "
-			      "flush h | close h");
+			      "set h N col val... | update h [where ...] set col "
+			      "val... | delete h N... | delete h where ... | "
+			      "compact h | flush h | close h");
 		return 2;
 	}
 	if (!strcmp(sub, "create") || !strcmp(sub, "open")) {
@@ -845,11 +1252,18 @@ int m_db(sh *s, int ac, char **av)
 	}
 	if (!strcmp(sub, "flush"))
 		return msync(d->map, d->mlen, MS_SYNC) ? HIBR_FAIL : HIBR_OK;
-	if (!strcmp(sub, "insert"))
-		return dm_insert(d, ac - 3, av + 3);
-	if (!strcmp(sub, "size")) {
+	if (!strcmp(sub, "insert")) {
+		if (dm_insert(d, ac - 3, av + 3) != HIBR_OK)
+			return HIBR_FAIL;
 		s_init(&o);
 		s_num(&o, (long)d->h->nrows);
+		hibr_ret(s, o.p);
+		s_free(&o);
+		return HIBR_OK;
+	}
+	if (!strcmp(sub, "size")) {
+		s_init(&o);
+		s_num(&o, (long)(d->h->nrows - d->ndel));
 		dm_say(s, o.p);
 		s_free(&o);
 		return HIBR_OK;
@@ -953,6 +1367,23 @@ int m_db(sh *s, int ac, char **av)
 	if (!strcmp(sub, "count") || !strcmp(sub, "sum") ||
 	    !strcmp(sub, "min") || !strcmp(sub, "max") || !strcmp(sub, "avg"))
 		return dm_aggregate(s, d, sub, ac, av, 3);
+	if (!strcmp(sub, "set"))
+		return dm_cmdset(s, d, ac, av);
+	if (!strcmp(sub, "update"))
+		return dm_cmdupdate(s, d, ac, av);
+	if (!strcmp(sub, "delete"))
+		return dm_cmddelete(s, d, ac, av);
+	if (!strcmp(sub, "compact")) {
+		long kept = 0;
+
+		if (dm_compact(d, &kept) != HIBR_OK)
+			return HIBR_FAIL;
+		s_init(&o);
+		s_num(&o, kept);
+		dm_say(s, o.p);
+		s_free(&o);
+		return HIBR_OK;
+	}
 	lg(HIBR_LERR, "db: no subcommand %s", sub);
 	return 2;
 }
@@ -969,9 +1400,9 @@ void dm_fini(sh *s)
 }
 
 const hibr_bi db_bi[] = {
-	{ "db", m_db, "a small column store: create, insert, query, aggregate" },
+	{ "db", m_db, "a small column store: create, insert, update, delete, query, aggregate" },
 	HIBR_BI_END
 };
 
-HIBR_MODULE("db", "0.1", "a small column store with zone maps", db_bi, 0,
+HIBR_MODULE("db", "0.2", "a small column store with zone maps", db_bi, 0,
 	    dm_fini);

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.99.6
+
+**The db module changes and deletes rows.** `db set h N col val...` changes
+a record by the number `query -n` gives it; `db update h where ... set col
+val...` changes every row that matches; `db delete h N...` or `db delete h
+where ...` deletes (a `where` is required -- nothing deletes every row by
+accident); `db compact h` writes the file again without its deleted rows,
+the one thing that renumbers. Values are written where they are, zone
+maps widened when a value moves outside them, and a deleted row is marked
+in its group and passed over by every query, count and aggregate.
+
+A database made before this (`HIBRDB1`, dBASE's included) reads and updates
+as it was, and its first delete writes it again beside itself with the
+marks, keeping every record's number. This is the ground the spreadsheet
+stands on.
+
 ## 0.99.5
 
 **Files has a search box,** on the right of the path. `/`, ctrl-f, View >

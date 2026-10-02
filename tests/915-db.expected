@@ -57,3 +57,60 @@ record 2499 holds n=2498, 2 rows
 --- a filter skips the row groups its zone maps rule out
 groups skipped by their zones
 2 of 3 groups skipped
+--- set one record, update by a filter, delete by number and by filter
+2	2	two	20
+updated 2
+5	n5	0
+6	n6	0
+0
+deleted 1, size now 5
+1
+1	1	n1	1.5
+2	2	two	20
+4	4	n4	4.5
+5	5	n5	0
+count 4, sum 12, max 5
+--- what is refused, and why
+hibr: db: record 3 is deleted
+set a deleted record: 1
+hibr: db: no record 99
+set past the end: 1
+hibr: db: qty is a float, not 'lots'
+set a float to text: 1
+hibr: db set: a record number, then a column and a value
+set with no value: 2
+hibr: db delete: record numbers, or where ...
+delete with nothing named: 2
+hibr: db: 'where' wants a column, an operator and a value
+delete where, with no condition: 2
+hibr: db update: say what to set: set col val...
+update with no set: 2
+1	1	n1	1.5
+--- numbers stay put until compact, which renumbers and keeps the rest
+reopened: size 4
+1	1	n1	1.5
+2	2	two	20
+4	4	n4	4.5
+5	5	n5	0
+compact kept 4
+1	1	n1	1.5
+2	2	two	20
+3	4	n4	4.5
+4	5	n5	0
+inserted as record 5
+5	7	n7	7.5
+--- a database from before deletion upgrades on its first delete
+1	1	apple	3
+2	2	pear	0.5
+3	3	plum	12
+1
+2	2	pear	9
+3	3	plum	12
+HIBRDB2
+after reopening: size 2
+2	2	pear	9
+3	3	plum	12
+0
+--- an update past a group's old range is still found by a filter
+5	999999	16	t1
+deleted 833 of 2500; 1667 left; t1 now 0

@@ -86,3 +86,64 @@ $H -d 3 -c "mod load ./build/mods/db.so; g := db open '$D/g.db'; db count \$g wh
 	grep -o 'groups skipped by their zones' | head -1
 $H -d 3 -c "mod load ./build/mods/db.so; g := db open '$D/g.db'; db count \$g where n gt 2100" 2>&1 |
 	grep -o '[0-9]* of [0-9]* groups skipped'
+
+echo "--- set one record, update by a filter, delete by number and by filter"
+u := db create "$D/u.db" id:int name:str:8 qty:float
+for i in 1 2 3 4 5 6; do db insert $u $i n$i $i.5; done
+db set $u 2 name two qty 20
+db query $u -n where id eq 2
+n := db update $u where id ge 5 set qty 0
+echo "updated $n"
+db query $u where qty eq 0
+db update $u where id eq 99 set qty 1
+n := db delete $u 3
+echo "deleted $n, size now $(db size $u)"
+db delete $u where name eq n6
+db query $u -n
+echo "count $(db count $u), sum $(db sum $u id), max $(db max $u id)"
+
+echo "--- what is refused, and why"
+db set $u 3 qty 1; echo "set a deleted record: $?"
+db set $u 99 qty 1; echo "set past the end: $?"
+db set $u 1 qty lots; echo "set a float to text: $?"
+db set $u 1 qty; echo "set with no value: $?"
+db delete $u; echo "delete with nothing named: $?"
+db delete $u where; echo "delete where, with no condition: $?"
+db update $u where id eq 1; echo "update with no set: $?"
+db query $u -n where id eq 1
+
+echo "--- numbers stay put until compact, which renumbers and keeps the rest"
+db close $u
+u := db open "$D/u.db"
+echo "reopened: size $(db size $u)"
+db query $u -n
+n := db compact $u
+echo "compact kept $n"
+db query $u -n
+r := db insert $u 7 n7 7.5
+echo "inserted as record $r"
+db query $u -n where id eq 7
+db close $u
+
+echo "--- a database from before deletion upgrades on its first delete"
+cp "$(dirname "$H")/../tests/915-db-v1.db" "$D/v1.db"
+v := db open "$D/v1.db"
+db query $v -n
+db set $v 2 qty 9
+db delete $v 1
+db query $v -n
+db close $v
+head -c 7 "$D/v1.db"; echo
+v := db open "$D/v1.db"
+echo "after reopening: size $(db size $v)"
+db query $v -n
+db close $v
+ls "$D" | grep -c tmp
+
+echo "--- an update past a group's old range is still found by a filter"
+g := db open "$D/g.db"
+db set $g 5 n 999999
+db query $g -n where n gt 999000
+n := db delete $g where tag eq t1
+echo "deleted $n of 2500; $(db size $g) left; t1 now $(db count $g where tag eq t1)"
+db close $g
