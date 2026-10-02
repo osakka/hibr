@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.99.5
+
+**Files has a search box,** on the right of the path. `/`, ctrl-f, View >
+Search… or a click puts the keyboard in it, and the list narrows to the
+names that hold what is typed, whatever its case. Enter keeps the filter
+and goes back to the list; escape clears it; another folder starts clear.
+A paste while it is open goes into it.
+
 ## 0.99.4
 
 **The Control Panel has a search.** It sits at the top of the list: type

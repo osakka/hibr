@@ -81,7 +81,7 @@ mod load ls > /dev/null 2>&1
 # Entries past ["n"] are left over from a larger directory and never read,
 # because everything that walks the list stops there.
 fn fb_scan(int id) {
-	local f n=0 base d dirs files
+	local f n=0 base d dirs files q=${FB[$id]["q"]}
 
 	d=${FB[$id]["dir"]}
 	if [ "$d" != / ]; then
@@ -102,6 +102,7 @@ fn fb_scan(int id) {
 		base=${f##*/}
 		[ -d "$f" ] || continue
 		[ "$base" = "." ] || [ "$base" = ".." ] && continue
+		[ -n "$q" ] && [[ ${base,,} != *"${q,,}"* ]] && continue
 		FL[$id][$n]["name"]="$base"
 		FL[$id][$n]["dir"]=1
 		FL[$id][$n]["kind"]=dir
@@ -112,6 +113,7 @@ fn fb_scan(int id) {
 		[ -e "$f" ] || [ -L "$f" ] || continue
 		[ -d "$f" ] && continue
 		base=${f##*/}
+		[ -n "$q" ] && [[ ${base,,} != *"${q,,}"* ]] && continue
 		FL[$id][$n]["name"]="$base"
 		FL[$id][$n]["dir"]=0
 		FL[$id][$n]["m"]=
@@ -473,6 +475,8 @@ fn fb_go(int id, d) {
 	esac
 	[ "$d" != / ] && d=${d%/}
 	[ -d "$d" ] || return 1
+	FB[$id]["q"]=
+	FB[$id]["qon"]=
 	FB[$id]["dir"]=$d
 	FB[$id]["view"] := fb_dirview "$d"
 	fb_retitle "$id" "$d"
@@ -592,12 +596,30 @@ fn fb_glyph(kind) {
 }
 
 fn files_draw(int id, int h, int w, int row, int col) {
-	local t n sel
+	local t n sel pw=$w bw=0 q=${FB[$id]["q"]} on
 
+	dt_wclear "$id"
+	if [ "$w" -ge 36 ]; then
+		bw=16
+		pw=$((w - bw - 2))
+	fi
 	console pen "$DT_ACTIVE" "$DT_FACE" bold
 	t="${FB[$id]["dir"]}"
-	[ ${#t} -gt "$w" ] && t="${GL[ellipsis]}${t: -$((w - 1))}"
+	[ ${#t} -gt "$pw" ] && t="${GL[ellipsis]}${t: -$((pw - 1))}"
+	t := str pad "$t" "$pw"
 	console put -p "w$id" 1 1 "$t"
+	if [ "$bw" -gt 0 ]; then
+		if [ -n "$q" ] || [ -n "${FB[$id]["qon"]}" ]; then
+			on=0
+			[ -n "${FB[$id]["qon"]}" ] && on=1
+			dt_textdraw "$id" 1 $((w - bw + 1)) "$bw" "$q" "${#q}" "$on"
+		else
+			console pen "$DT_DIM" "$DT_WELL"
+			t := str pad " Search  /" "$bw"
+			console put -p "w$id" 1 $((w - bw + 1)) "$t"
+		fi
+		dt_wreg "$id" 1 $((w - bw + 1)) "$bw" search
+	fi
 	case ${FB[$id]["view"]} in
 	details) fb_drawdet "$id" "$h" "$w" ;;
 	icons) fb_drawicons "$id" "$h" "$w" ;;
@@ -779,6 +801,21 @@ fn files_key(int id, k) {
 	sel=${FB[$id]["sel"]}
 	n=${FB[$id]["n"]}
 	[ "${FB[$id]["view"]}" = icons ] && icons=1
+	if [ -n "${FB[$id]["qon"]}" ]; then
+		fb_searchkey "$id" "$k" && return 0
+	fi
+	case $k in
+	/ | ctrl-f)
+		FB[$id]["qon"]=1
+		return 0
+		;;
+	escape)
+		[ -n "${FB[$id]["q"]}" ] || return 1
+		FB[$id]["q"]=
+		fb_scan "$id"
+		return 0
+		;;
+	esac
 	case $k in shift-*) ext=1; k=${k#shift-} ;; esac
 	case $k in
 	up) to=$((sel - per)) ;;
@@ -837,6 +874,40 @@ fn files_key(int id, k) {
 		FB[$id]["anchor"]=$to
 		;;
 	esac
+	return 0
+}
+
+# A key while the search box has the keyboard: typing narrows the list as it
+# goes, enter keeps what it found and goes back to the list, escape clears
+# it. The arrows leave the box and move in the list, as anything else does.
+fn fb_searchkey(int id, k) {
+	local q=${FB[$id]["q"]} r
+
+	case $k in
+	enter)
+		FB[$id]["qon"]=
+		return 0
+		;;
+	escape)
+		FB[$id]["qon"]=
+		FB[$id]["q"]=
+		fb_scan "$id"
+		return 0
+		;;
+	up | down | pageup | pagedown | tab)
+		FB[$id]["qon"]=
+		return 1
+		;;
+	esac
+	for r in "${!DT_KEYS[@]}"; do
+		if [ "${DT_KEYS["$r"]}" = "$k" ]; then
+			FB[$id]["qon"]=
+			return 1
+		fi
+	done
+	r := dt_textkey "$q" "${#q}" "$k" || return 0
+	FB[$id]["q"]=${r% *}
+	fb_scan "$id"
 	return 0
 }
 
@@ -1279,6 +1350,9 @@ fn files_cycle(int id) {
 
 fn fb_home(int? id = "") { fb_go "$id" "$HOME"; }
 
+# Put the keyboard in the search box.
+fn files_search(int id) { FB[$id]["qon"]=1; }
+
 # Move what is selected to the trash, where the desktop keeps one.
 fn files_trash(int id) {
 	local sel
@@ -1311,6 +1385,7 @@ files_menus() {
 	on=0
 	[ -n "${FB[$id]["hidden"]}" ] && on=1
 	dt_mark "Hidden Files" f "$on" files_hidden "$id"
+	dt_item "Search${GL[ellipsis]}" s files_search "$id"
 	dt_item "Refresh" r fb_scan "$id"
 }
 
@@ -1344,6 +1419,11 @@ fn files_mouse(int id, act, btn, int r, int c, mods) {
 	local -a hx
 
 	if [ "$btn" = left ] && [ "$act" = press ] && [ "$r" = 1 ]; then
+		if g := dt_hit "$id" "$r" "$c" && [ "$g" = search ]; then
+			FB[$id]["qon"]=1
+			return 0
+		fi
+		FB[$id]["qon"]=
 		fb_crumbs "${FB[$id]["dir"]}"
 		dt_droplist "$id" 1 1 fb_go "${FB_CRUMBS[@]}"
 		return 0
@@ -1542,6 +1622,12 @@ fn files_paste(int id, text, op = "") {
 	local p
 	local -a ps
 
+	if [ -n "${FB[$id]["qon"]}" ]; then
+		p := dt_textpaste "${FB[$id]["q"]}" "${#FB[$id]["q"]}" "$text"
+		FB[$id]["q"]=${p% *}
+		fb_scan "$id"
+		return 0
+	fi
 	[ "$op" = cut ] && op=move
 	[ -z "$op" ] && op=copy
 	while IFS= read -r p; do

@@ -418,6 +418,19 @@ check("a list longer than the window scrolls, with a bar to say so",
           r[2:22] for r in sc.text().split("\n")), sc)
 
 
+# Files' search box: / starts it, the list narrows as it is typed, escape
+# clears it.
+sc = run("files", "16 50 2 2", [b"/"] + [c.encode() for c in "FILE1"] + [0.3],
+         pre="FB_DIR=%s" % D)
+check("Files' search narrows the list as it is typed, whatever the case",
+      sc.find("file10.txt") is not None and sc.find("file11.txt") is not None
+      and sc.find("file02.txt") is None and sc.find("alpha/") is None and
+      sc.find("FILE1") is not None, sc)
+sc = run("files", "16 50 2 2", [b"/"] + [c.encode() for c in "file1"] +
+         [b"\x1b", 0.6], pre="FB_DIR=%s" % D)
+check("and escape clears it, every entry back",
+      sc.find("file02.txt") is not None and sc.find("alpha/") is not None, sc)
+
 # The list and the pane beside it scroll on their own, each with its own
 # bar: in a window too short for every pane, the arrows bring the last into
 # view, and the wheel over the list scrolls the list alone.
@@ -3133,4 +3146,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(463)
+report(465)
