@@ -127,6 +127,7 @@ linked, and no OpenSSL headers are needed to build.
 | `mods/hold/` | sessions that outlive their terminal: detach, log off, attach again — see `mods/hold/README.md` |
 | `mods/img/` | decode an image and draw it as terminal cells, jp2a-alike, libpng dlopen'd on first use — see `mods/img/README.md` |
 | `mods/db/` | a small column store: typed columns in one mmap'd file, appended rows changed with `set`/`update` and deleted by a per-group mark (`compact` renumbers), filters and aggregates, zone maps per 1024-row group -- see `mods/db/README.md` |
+| `mods/web/` | a browser: headless Chromium over `--remote-debugging-pipe` (CDP, no WebSocket), each page as cells -- its text placed where laid out, over a half-block screenshot taken with the text made transparent; the Browser app in `examples/desktop/apps/Internet/` is built on it -- see `mods/web/README.md` |
 | `mods/md/` | markdown: CommonMark and GFM, every spec example passing byte for byte (`tests/md_spec.py`); `md html` and `md lines`, the per-character styles Write draws from -- see `mods/md/README.md` |
 | `mods/lint/` | the rules behind `hibr --explain`: walks the parsed tree and names mistakes, runs nothing; offers `"lint"` (`mods/lint.h`) and adds no builtin |
 

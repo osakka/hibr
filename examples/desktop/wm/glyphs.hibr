@@ -44,6 +44,7 @@ fn dt_glyphs(set = "unicode") {
 		GL["square"]="#"; GL["box"]="o"; GL["ring"]="@"
 		GL["up"]="^"; GL["down"]="v"; GL["right"]=">"
 		GL["sright"]=">"; GL["sleft"]="<"; GL["sdown"]="v"
+		GL["reload"]="@"; GL["plus"]="+"; GL["larr"]="<"; GL["rarr"]=">"
 		GL["arrowup"]="^"; GL["hook"]=">"
 		GL["file"]="-"; GL["folder"]="+"
 		GL["cross"]="x"; GL["xmark"]="x"; GL["check"]="*"
@@ -88,6 +89,10 @@ fn dt_glyphs(set = "unicode") {
 		GL["right"]=$'▶'     # BLACK RIGHT-POINTING TRIANGLE
 		GL["sright"]=$'▸'    # BLACK RIGHT-POINTING SMALL TRIANGLE
 		GL["sleft"]=$'◂'     # BLACK LEFT-POINTING SMALL TRIANGLE
+		GL["reload"]=$'\u21bb'  # CLOCKWISE OPEN CIRCLE ARROW
+		GL["plus"]="+"
+		GL["larr"]=$'\u2190'    # LEFTWARDS ARROW
+		GL["rarr"]=$'\u2192'    # RIGHTWARDS ARROW
 		GL["sdown"]=$'▾'     # BLACK DOWN-POINTING SMALL TRIANGLE
 		GL["arrowup"]=$'↑'   # UPWARDS ARROW
 		GL["hook"]=$'↪'      # RIGHTWARDS ARROW WITH HOOK

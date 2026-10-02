@@ -15,6 +15,7 @@ struct image {
 
 void im_free(image *im);
 int im_pngload(const char *path, image *out, str *err);
+int im_pngmem(const unsigned char *b, size_t n, image *out, str *err);
 
 /* One character cell's worth of a resampled image: the average colour of
    the source pixels it covers, top half and bottom half kept apart so a

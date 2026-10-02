@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.99.11
+
+**A web browser.** The `web` module runs Chromium (or Chrome) headless and
+drives it over its own DevTools protocol on a pipe -- no port, no
+WebSocket -- turning each page into cells: the page's text placed where the
+browser laid it out, in its colours and weights, over a half-block picture
+of its backgrounds and images, taken with the text made transparent so the
+two never fight. Links carry their addresses; wide characters take two
+cells. Scripts get it too: `web open`, `web text`, `web links` (a map with
+`:=`), `web eval`, `web click`, `web type`, `web key`, history and tabs.
+
+**Browser,** in a new Internet folder on the hibr menu, is built on it:
+tabs (click to switch, x to close, + for another), back, forward, reload
+and an address bar that goes to an address or searches for anything else;
+links followed with a click, fields typed into, the wheel scrolling, alt-
+left and alt-right through history; bookmarks kept in a file of their own;
+every tab back after a restart. Without Chromium installed it says what is
+missing. This is ticket #38.
+
+The image module's PNG decoder also reads from memory now (`im_pngmem`).
+
 ## 0.99.10
 
 **Sheet formats its cells.** A Format menu works on the selection: **bold**

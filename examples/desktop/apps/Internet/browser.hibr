@@ -1,0 +1,494 @@
+#!/usr/bin/env hibr
+#
+# browser -- the web, in a window: a headless Chromium driven by the web
+# module, each page drawn as cells -- its text where the browser laid it
+# out, in its colours, over a half-block picture of its backgrounds and
+# images. Links are followed with a click, fields typed into, pages
+# scrolled with the wheel or the page keys.
+#
+# A tab strip along the top -- a click switches, x closes, + opens another
+# -- then back, forward, reload and the address: what is typed there is
+# gone to as it is, with https:// put in front of a bare name, or searched
+# for when it is not an address at all (BW_SEARCH). f6 or ctrl-l puts the
+# keyboard in it; enter goes, escape gives it back to the page. Every other
+# key goes to the page, except one the desktop holds.
+#
+# Bookmarks are a file of their own, a title and an address to a line,
+# tab between (~/.local/share/hibr/bookmarks.tsv): Bookmarks > Add Bookmark
+# keeps the page, and the rest of that menu goes to one. A restart brings
+# every tab back. Without Chromium or Chrome installed the window says so.
+
+strict
+
+app browser "The web, in a window"
+
+command -v dt_app > /dev/null && dt_app browser "Browser" 26 96 many "◎"
+
+declare -gA BW
+command -v dt_keepstate > /dev/null && dt_keepstate browser BW
+
+BW_SEARCH="${BW_SEARCH-https://lite.duckduckgo.com/lite/?q=}"
+BW_HOME="${BW_HOME-https://lite.duckduckgo.com/lite/}"
+BW_MARKS="${BW_MARKS-${XDG_DATA_HOME:-$HOME/.local/share}/hibr/bookmarks.tsv}"
+BW_FD=
+BW_TABS=()
+BW_MARKT=()
+BW_MARKU=()
+
+# The address a typed text means: as it is with a scheme, https:// before a
+# bare name, a search for anything else.
+fn bw_addr(t) {
+	local q
+
+	t=${t#"${t%%[! ]*}"}
+	t=${t%"${t##*[! ]}"}
+	case $t in
+	*://* | about:* | data:* | file:*) ret "$t"; return 0 ;;
+	esac
+	if [[ $t != *" "* && $t == *.* ]] || [[ $t == localhost* ]]; then
+		ret "https://$t"
+		return 0
+	fi
+	q=${t// /+}
+	ret "$BW_SEARCH$q"
+}
+
+# This window's tabs, by the web module's numbers, into BW_TABS.
+fn bw_tabs(int id) {
+	read -ra BW_TABS <<< "${BW[$id]["tabs"]}"
+}
+
+# The browser's pipe, watched once for every window, so a page that
+# changes on its own wakes the desktop.
+bw_watch() {
+	local fd
+
+	[ -n "$BW_FD" ] && return 0
+	fd := web fd 2> /dev/null || return 1
+	BW_FD=$fd
+	command -v console > /dev/null && console watch "$fd"
+	return 0
+}
+
+# Open a tab in a window, at an address or blank, and make it the one shown.
+fn bw_newtab(int id, url = "") {
+	local t
+
+	t := web open "$url" 2> /dev/null || {
+		BW[$id]["err"]="No Chromium or Chrome to show pages with -- install one, or set HIBR_WEB_BROWSER"
+		return 1
+	}
+	bw_watch
+	BW[$id]["tabs"]="${BW[$id]["tabs"]:+${BW[$id]["tabs"]} }$t"
+	BW[$id]["cur"]=$t
+	BW[$id]["err"]=
+	BW[$id]["sized"]=
+	[ -z "$url" ] && bw_editaddr "$id"
+	return 0
+}
+
+# Close one of a window's tabs; the window goes with its last one.
+fn bw_closetab(int id, t) {
+	local out= x n=0
+
+	bw_tabs "$id"
+	for x in "${BW_TABS[@]}"; do
+		[ "$x" = "$t" ] && continue
+		out="${out:+$out }$x"
+		n=$((n + 1))
+	done
+	web close "$t" 2> /dev/null
+	BW[$id]["tabs"]=$out
+	if [ "$n" = 0 ]; then
+		BW[$id]["cur"]=
+		dt_wantclose "$id"
+		return 0
+	fi
+	if [ "${BW[$id]["cur"]}" = "$t" ]; then
+		bw_tabs "$id"
+		BW[$id]["cur"]=${BW_TABS[$((n - 1))]}
+		BW[$id]["sized"]=
+	fi
+}
+
+fn browser_open(int id, arg = "") {
+	BW[$id]["tabs"]=
+	BW[$id]["cur"]=
+	BW[$id]["aed"]=
+	BW[$id]["abuf"]=
+	BW[$id]["acur"]=0
+	BW[$id]["sized"]=
+	BW[$id]["err"]=
+	need web 2> /dev/null || {
+		BW[$id]["err"]="The web module is not installed"
+		return 0
+	}
+	bw_newtab "$id" "$arg"
+}
+
+fn browser_close(int id) {
+	local t ids o other=0
+	local -a il
+
+	bw_tabs "$id"
+	for t in "${BW_TABS[@]}"; do web close "$t" 2> /dev/null; done
+	unset "BW[$id]"
+	ids := dt_ids
+	read -ra il <<< "$ids"
+	for o in "${il[@]}"; do
+		[ "$o" != "$id" ] && [ "${DT[$o]["app"]}" = browser ] && other=1
+	done
+	if [ "$other" = 0 ] && [ -n "$BW_FD" ]; then
+		command -v console > /dev/null && console unwatch "$BW_FD"
+		BW_FD=
+		web quit 2> /dev/null
+	fi
+}
+
+# A restart starts a new browser: every tab is opened again where it was.
+fn browser_stash(int id, dir) {
+	local t urls= u
+
+	bw_tabs "$id"
+	for t in "${BW_TABS[@]}"; do
+		u := web url "$t" 2> /dev/null
+		[ "$t" = "${BW[$id]["cur"]}" ] && urls="${urls:+$urls }*$u" ||
+			urls="${urls:+$urls }$u"
+	done
+	BW[$id]["urls"]=$urls
+}
+
+fn browser_resume(int id) {
+	local u cur=
+	local -a us
+
+	read -ra us <<< "${BW[$id]["urls"]}"
+	BW[$id]["tabs"]=
+	BW[$id]["cur"]=
+	BW[$id]["sized"]=
+	BW_FD=
+	need web 2> /dev/null || return 0
+	for u in "${us[@]}"; do
+		if [ "${u:0:1}" = "*" ]; then
+			u=${u:1}
+			bw_newtab "$id" "$u" && cur=${BW[$id]["cur"]}
+		else
+			bw_newtab "$id" "$u"
+		fi
+	done
+	[ -n "$cur" ] && BW[$id]["cur"]=$cur
+	[ "${#us[@]}" = 0 ] && bw_newtab "$id"
+	BW[$id]["aed"]=
+}
+
+# Drain the browser's messages for a window not drawn, or its pipe would
+# wake the desktop for ever.
+fn browser_idle(int id) {
+	[ -n "$BW_FD" ] && web poll > /dev/null 2>&1
+	return 0
+}
+
+# Put the keyboard in the address bar, with the page's address to edit.
+fn bw_editaddr(int id) {
+	local t=${BW[$id]["cur"]} u=
+
+	[ -n "$t" ] && u := web url "$t" 2> /dev/null
+	[ "$u" = about:blank ] && u=
+	BW[$id]["aed"]=1
+	BW[$id]["abuf"]=$u
+	BW[$id]["acur"]=${#u}
+}
+
+# Go where the address bar says.
+fn bw_goaddr(int id) {
+	local t=${BW[$id]["cur"]} a
+
+	BW[$id]["aed"]=
+	[ -n "${BW[$id]["abuf"]// /}" ] || return 0
+	a := bw_addr "${BW[$id]["abuf"]}"
+	if [ -z "$t" ]; then
+		bw_newtab "$id" "$a"
+	else
+		web go "$t" "$a" 2> /dev/null
+	fi
+}
+
+fn browser_draw(int id, int h, int w, int row, int col) {
+	local t=${BW[$id]["cur"]} x=1 n tt lab ph=$((h - 3)) u st on
+	local g=${GL[vline]}
+
+	dt_wclear "$id"
+	bw_tabs "$id"
+	console pen "$DT_DIM" "$DT_WELL"
+	lab := str repeat " " "$w"
+	console put -p "w$id" 1 1 "$lab"
+	for n in "${BW_TABS[@]}"; do
+		tt := web title "$n" 2> /dev/null
+		[ -n "$tt" ] || tt := web url "$n" 2> /dev/null
+		[ -n "$tt" ] && [ "$tt" != about:blank ] || tt="New Tab"
+		tt=${tt:0:18}
+		lab=" $tt ${GL[cross]} "
+		[ $((x + ${#lab})) -gt $((w - 3)) ] && break
+		if [ "$n" = "$t" ]; then
+			console pen "$DT_INK" "$DT_FACE" bold
+		else
+			console pen "$DT_DIM" "$DT_WELL"
+		fi
+		console put -p "w$id" 1 "$x" "$lab"
+		dt_wreg "$id" 1 "$x" $((${#lab} - 3)) "tab:$n"
+		dt_wreg "$id" 1 $((x + ${#lab} - 2)) 1 "close:$n"
+		x=$((x + ${#lab}))
+		console pen "$DT_IDLE" "$DT_WELL"
+		console put -p "w$id" 1 "$x" "$g"
+		x=$((x + 1))
+	done
+	console pen "$DT_ACTIVE" "$DT_WELL" bold
+	console put -p "w$id" 1 "$x" " ${GL[plus]} "
+	dt_wreg "$id" 1 "$x" 3 newtab
+
+	console pen "$DT_INK" "$DT_FACE"
+	console put -p "w$id" 2 1 " ${GL[larr]} ${GL[rarr]} ${GL[reload]} "
+	dt_wreg "$id" 2 2 1 back
+	dt_wreg "$id" 2 4 1 forward
+	dt_wreg "$id" 2 6 1 reload
+	on=0
+	[ "${BW[$id]["aed"]}" = 1 ] && on=1
+	if [ "$on" = 1 ]; then
+		dt_textdraw "$id" 2 9 $((w - 9)) "${BW[$id]["abuf"]}" "${BW[$id]["acur"]}" 1
+	else
+		u=
+		[ -n "$t" ] && u := web url "$t" 2> /dev/null
+		[ "$u" = about:blank ] && u=
+		console pen "$DT_INK" "$DT_WELL"
+		lab := str pad "${u:0:$((w - 9))}" $((w - 9))
+		console put -p "w$id" 2 9 "$lab"
+	fi
+	dt_wreg "$id" 2 9 $((w - 9)) addr
+
+	if [ -n "${BW[$id]["err"]}" ] || [ -z "$t" ]; then
+		console pen "$DT_DIM" "$DT_FACE"
+		console put -p "w$id" 4 2 "${BW[$id]["err"]:-Type an address above.}"
+		bw_status "$id" "$h" "$w" ""
+		return 0
+	fi
+	if [ "${BW[$id]["sized"]}" != "$ph $w" ]; then
+		web size "$t" "$ph" "$w" 2> /dev/null
+		BW[$id]["sized"]="$ph $w"
+	fi
+	web poll > /dev/null 2>&1
+	st=
+	web loading "$t" 2> /dev/null && st=loading
+	if web dirty "$t" 2> /dev/null || [ "${BW[$id]["drawn"]}" != "$t" ]; then
+		web render "$t" 2> /dev/null && BW[$id]["drawn"]=$t
+	fi
+	web draw "$t" 3 1 -p "w$id" 2> /dev/null
+	[ "$st" = loading ] && dt_want 400
+	bw_status "$id" "$h" "$w" "$st"
+	command -v dt_retitle > /dev/null && {
+		tt := web title "$t" 2> /dev/null
+		dt_retitle "$id" "Browser${tt:+ [$tt]}"
+	}
+}
+
+# The bottom line: loading, or the page's address.
+fn bw_status(int id, int h, int w, st = "") {
+	local t
+
+	if [ "$st" = loading ]; then
+		t="Loading${GL[ellipsis]}"
+	else
+		t="f6 address ${GL[dot]} alt-left back ${GL[dot]} alt-right forward"
+	fi
+	t := str pad "${t:0:$w}" "$w"
+	console pen "$DT_DIM" "$DT_FACE"
+	console put -p "w$id" "$h" 1 "$t"
+}
+
+fn browser_key(int id, key) {
+	local t=${BW[$id]["cur"]} r k
+
+	if [ "${BW[$id]["aed"]}" = 1 ]; then
+		case $key in
+		enter) bw_goaddr "$id"; return 0 ;;
+		escape | tab) BW[$id]["aed"]=; return 0 ;;
+		esac
+		r := dt_textkey "${BW[$id]["abuf"]}" "${BW[$id]["acur"]}" "$key" || return 1
+		BW[$id]["abuf"]=${r% *}
+		BW[$id]["acur"]=${r##* }
+		return 0
+	fi
+	case $key in
+	f6 | ctrl-l) bw_editaddr "$id"; return 0 ;;
+	alt-left) [ -n "$t" ] && web back "$t" 2> /dev/null; return 0 ;;
+	alt-right) [ -n "$t" ] && web forward "$t" 2> /dev/null; return 0 ;;
+	f5) [ -n "$t" ] && web reload "$t" 2> /dev/null; return 0 ;;
+	esac
+	for k in "${!DT_KEYS[@]}"; do
+		[ "${DT_KEYS["$k"]}" = "$key" ] && return 1
+	done
+	[ -n "$t" ] || return 1
+	web key "$t" "$key" 2> /dev/null || return 1
+	return 0
+}
+
+fn browser_click(int id, int r, int c, btn = "") {
+	local tag t=${BW[$id]["cur"]}
+
+	tag := dt_hit "$id" "$r" "$c"
+	case $tag in
+	tab:*)
+		BW[$id]["cur"]=${tag#tab:}
+		BW[$id]["sized"]=
+		BW[$id]["aed"]=
+		return 0
+		;;
+	close:*) bw_closetab "$id" "${tag#close:}"; return 0 ;;
+	newtab) bw_newtab "$id"; return 0 ;;
+	back) [ -n "$t" ] && web back "$t" 2> /dev/null; return 0 ;;
+	forward) [ -n "$t" ] && web forward "$t" 2> /dev/null; return 0 ;;
+	reload) [ -n "$t" ] && web reload "$t" 2> /dev/null; return 0 ;;
+	addr) bw_editaddr "$id"; return 0 ;;
+	esac
+	BW[$id]["aed"]=
+	[ -n "$t" ] && [ "$r" -ge 3 ] && web click "$t" $((r - 3)) $((c - 1)) 2> /dev/null
+	return 0
+}
+
+fn browser_wheel(int id, dir, int r = 0, int c = 0) {
+	local t=${BW[$id]["cur"]}
+
+	[ -n "$t" ] || return 0
+	case $dir in
+	up) web wheel "$t" -3 2> /dev/null ;;
+	down) web wheel "$t" 3 2> /dev/null ;;
+	esac
+	return 0
+}
+
+# Copy: the address while it is being typed, else what is selected on the
+# page, else the page's address.
+fn browser_copy(int id) {
+	local t=${BW[$id]["cur"]} s=
+
+	if [ "${BW[$id]["aed"]}" = 1 ]; then
+		ret "${BW[$id]["abuf"]}"
+		return 0
+	fi
+	[ -n "$t" ] || return 1
+	s := web eval "$t" "String(getSelection())" 2> /dev/null
+	[ -n "$s" ] || s := web url "$t" 2> /dev/null
+	ret "$s"
+}
+
+fn browser_paste(int id, text, op = "") {
+	local t=${BW[$id]["cur"]} r
+
+	if [ "${BW[$id]["aed"]}" = 1 ]; then
+		r := dt_textpaste "${BW[$id]["abuf"]}" "${BW[$id]["acur"]}" "$text"
+		BW[$id]["abuf"]=${r% *}
+		BW[$id]["acur"]=${r##* }
+		return 0
+	fi
+	[ -n "$t" ] && web type "$t" "$text" 2> /dev/null
+}
+
+# --- bookmarks ----------------------------------------------------------------
+
+# Every bookmark, titles into BW_MARKT and addresses into BW_MARKU.
+bw_marks() {
+	local t u
+
+	BW_MARKT=()
+	BW_MARKU=()
+	[ -r "$BW_MARKS" ] || return 0
+	while IFS=$'\t' read -r t u; do
+		[ -n "$u" ] || continue
+		BW_MARKT+=("$t")
+		BW_MARKU+=("$u")
+	done < "$BW_MARKS"
+}
+
+# Keep the page shown as a bookmark.
+fn bw_mark(int id) {
+	local t=${BW[$id]["cur"]} u tt
+
+	[ -n "$t" ] || return 0
+	u := web url "$t" 2> /dev/null
+	tt := web title "$t" 2> /dev/null
+	[ -n "$u" ] && [ "$u" != about:blank ] || return 0
+	mkdir -p "${BW_MARKS%/*}" 2> /dev/null
+	printf '%s\t%s\n' "${tt:-$u}" "$u" >> "$BW_MARKS" ||
+		{ dt_notep high "Cannot write ${BW_MARKS##*/}"; return 1; }
+	dt_notep low "Bookmarked ${tt:-$u}"
+}
+
+# Take the page shown out of the bookmarks.
+fn bw_unmark(int id) {
+	local t=${BW[$id]["cur"]} u i out=
+
+	[ -n "$t" ] || return 0
+	u := web url "$t" 2> /dev/null
+	bw_marks
+	i=0
+	while [ "$i" -lt "${#BW_MARKU[@]}" ]; do
+		[ "${BW_MARKU[$i]}" = "$u" ] ||
+			out+="${BW_MARKT[$i]}"$'\t'"${BW_MARKU[$i]}"$'\n'
+		i=$((i + 1))
+	done
+	printf '%s' "$out" > "$BW_MARKS" 2> /dev/null
+	dt_notep low "Bookmark removed"
+}
+
+fn bw_open(int id, url) {
+	local t=${BW[$id]["cur"]}
+
+	if [ -n "$t" ]; then
+		web go "$t" "$url" 2> /dev/null
+	else
+		bw_newtab "$id" "$url"
+	fi
+}
+
+fn bw_back(int id) { [ -n "${BW[$id]["cur"]}" ] && web back "${BW[$id]["cur"]}" 2> /dev/null; return 0; }
+fn bw_fwd(int id) { [ -n "${BW[$id]["cur"]}" ] && web forward "${BW[$id]["cur"]}" 2> /dev/null; return 0; }
+fn bw_reload(int id) { [ -n "${BW[$id]["cur"]}" ] && web reload "${BW[$id]["cur"]}" 2> /dev/null; return 0; }
+
+browser_menus() {
+	local id=$DT_FOCUS i=0 u= on=0
+
+	dt_menu "File"
+	dt_item "New Window" n dt_launch browser
+	dt_item "New Tab" t bw_newtab "$id"
+	dt_item "Open Location${GL[ellipsis]}" l bw_editaddr "$id"
+	dt_sep
+	if [ -n "${BW[$id]["cur"]}" ]; then
+		dt_item "Close Tab" c bw_closetab "$id" "${BW[$id]["cur"]}"
+	else
+		dt_dim "Close Tab"
+	fi
+	dt_item "Close Window" w dt_close_focused
+	dt_editmenu
+	dt_menu "Go"
+	dt_item "Back" b bw_back "$id"
+	dt_item "Forward" f bw_fwd "$id"
+	dt_item "Reload" r bw_reload "$id"
+	dt_item "Home" h bw_open "$id" "$BW_HOME"
+	dt_menu "Bookmarks"
+	bw_marks
+	[ -n "${BW[$id]["cur"]}" ] && u := web url "${BW[$id]["cur"]}" 2> /dev/null
+	while [ "$i" -lt "${#BW_MARKU[@]}" ]; do
+		[ "${BW_MARKU[$i]}" = "$u" ] && on=1
+		i=$((i + 1))
+	done
+	if [ "$on" = 1 ]; then
+		dt_item "Remove Bookmark" r bw_unmark "$id"
+	else
+		dt_item "Add Bookmark" a bw_mark "$id"
+	fi
+	[ "${#BW_MARKU[@]}" -gt 0 ] && dt_sep
+	i=0
+	while [ "$i" -lt "${#BW_MARKU[@]}" ] && [ "$i" -lt 30 ]; do
+		dt_item "${BW_MARKT[$i]:0:40}" "" bw_open "$id" "${BW_MARKU[$i]}"
+		i=$((i + 1))
+	done
+}

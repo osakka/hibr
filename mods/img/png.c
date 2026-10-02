@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include "im.h"
 #include <dlfcn.h>
 #include <setjmp.h>
@@ -101,13 +103,13 @@ static int png_load(void)
 	return HIBR_OK;
 }
 
-/* Decode a PNG file into 8-bit RGB, dropping any alpha. user_png_ver is
-   asked of the library itself rather than assumed, since there is no
-   compile-time png.h here to have baked one in -- passing back what it
-   just told us always "matches". */
-int im_pngload(const char *path, image *out, str *err)
+/* Decode a PNG from an open stream into 8-bit RGB, dropping any alpha;
+   name is what an error calls it. user_png_ver is asked of the library
+   itself rather than assumed, since there is no compile-time png.h here to
+   have baked one in -- passing back what it just told us always
+   "matches". */
+int im_pngfile(FILE *fp, const char *name, image *out, str *err)
 {
-	FILE *fp;
 	png_struct *p;
 	png_info *info;
 	jmp_buf *jb;
@@ -115,34 +117,26 @@ int im_pngload(const char *path, image *out, str *err)
 	unsigned char ch;
 	unsigned char **rows;
 	unsigned r, c;
+	const char *path = name;
 
 	if (png_load() != HIBR_OK) {
 		s_cat(err, "libpng is not available");
 		return HIBR_FAIL;
 	}
-	fp = fopen(path, "rb");
-	if (!fp) {
-		s_cat(err, "cannot open ");
-		s_cat(err, path);
-		return HIBR_FAIL;
-	}
 	p = png.create_read(png.ver(0), 0, 0, 0);
 	if (!p) {
-		fclose(fp);
 		s_cat(err, "png_create_read_struct failed");
 		return HIBR_FAIL;
 	}
 	info = png.create_info(p);
 	if (!info) {
 		png.destroy_read(&p, 0, 0);
-		fclose(fp);
 		s_cat(err, "png_create_info_struct failed");
 		return HIBR_FAIL;
 	}
 	jb = png.set_longjmp(p, longjmp, sizeof(jmp_buf));
 	if (setjmp(*jb)) {
 		png.destroy_read(&p, &info, 0);
-		fclose(fp);
 		s_cat(err, path);
 		s_cat(err, " is not a valid PNG");
 		return HIBR_FAIL;
@@ -157,7 +151,6 @@ int im_pngload(const char *path, image *out, str *err)
 	rows = png.get_rows(p, info);
 	if (w < 1 || h < 1 || (ch != 3 && ch != 4)) {
 		png.destroy_read(&p, &info, 0);
-		fclose(fp);
 		s_cat(err, path);
 		s_cat(err, " decoded to an unsupported shape");
 		return HIBR_FAIL;
@@ -176,6 +169,36 @@ int im_pngload(const char *path, image *out, str *err)
 		}
 	}
 	png.destroy_read(&p, &info, 0);
-	fclose(fp);
 	return HIBR_OK;
+}
+
+/* Decode a PNG file. */
+int im_pngload(const char *path, image *out, str *err)
+{
+	FILE *fp = fopen(path, "rb");
+	int r;
+
+	if (!fp) {
+		s_cat(err, "cannot open ");
+		s_cat(err, path);
+		return HIBR_FAIL;
+	}
+	r = im_pngfile(fp, path, out, err);
+	fclose(fp);
+	return r;
+}
+
+/* Decode a PNG held in memory. */
+int im_pngmem(const unsigned char *b, size_t n, image *out, str *err)
+{
+	FILE *fp = fmemopen((void *)b, n, "rb");
+	int r;
+
+	if (!fp) {
+		s_cat(err, "cannot read the image from memory");
+		return HIBR_FAIL;
+	}
+	r = im_pngfile(fp, "the image", out, err);
+	fclose(fp);
+	return r;
 }

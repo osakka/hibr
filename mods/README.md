@@ -39,6 +39,7 @@ hibr -c 'mod load ./build/mods/hello.so; mod list; mod drop hello'
 | `hold/` | Sessions that outlive their terminal: detach, log off, attach again; offers `"hold"` — [README](hold/README.md) |
 | `img/` | Decode an image and draw it as cells, libpng opened on first use — [README](img/README.md) |
 | `db/` | A small column store: typed columns, appended rows changed and deleted in place, filters and aggregates, zone maps — [README](db/README.md) |
+| `web/` | A web browser: headless Chromium driven over its own pipe, each page drawn as cells -- text where it was laid out, over a half-block picture; tabs, links, forms, scripting -- [README](web/README.md) |
 | `md/` | Markdown as CommonMark and GitHub write it: HTML, or a style per character for a program that draws it; every spec example passes — [README](md/README.md) |
 
 ## Naming
