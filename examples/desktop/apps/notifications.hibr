@@ -171,3 +171,22 @@ notifications_menus() {
 		dt_dim "Clear All"
 	fi
 }
+
+# Copy takes the selected note's text.
+fn notifications_copy(int id) {
+	local hid
+
+	hid := nh_at "${NHW[$id]["sel"]:-0}" || return 1
+	ret "${DT_NOTEHIST[$hid]["text"]}"
+}
+
+# Cut takes it and clears it from the history.
+fn notifications_cut(int id) {
+	local hid t
+
+	hid := nh_at "${NHW[$id]["sel"]:-0}" || return 1
+	t=${DT_NOTEHIST[$hid]["text"]}
+	dt_notehist_del "$hid"
+	nh_fit "$id"
+	ret "$t"
+}

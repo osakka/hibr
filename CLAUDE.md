@@ -1253,10 +1253,13 @@ went in the shell.
   run as whoever applied it. `cp_themeread` refuses a file whole on any
   bad value, so a broken one is missing from the list, never half applied.
 - **The Control Panel picker is one row per pane plus one per heading, and
-  it does not scroll.** Fifteen panes in three groups need 18 rows, and the
+  until 0.94 it did not scroll.** Fifteen panes in three groups need 18 rows, and the
   window's default height of 20 left 18 -- the bottom row drew over the
   border. The default is 22 now and `panel_draw` stops at the window's
-  edge. A sixteenth pane needs the height again, or a scrolling picker.
+  edge. Since 0.94 the list scrolls on its own (`PW[..]["ltop"]`), with
+  its own scrollbar, brought to the selection only when the selection moves
+  (`lseen`) -- so a sixteenth pane is fine, and a wheel-scrolled list does
+  not snap back on the next frame.
 
 - **A setting an app keeps is a setting the Control Panel shows.** Every
   `dt_keep`, and the desktop's own `DT_KEEP`, has to appear in a file that

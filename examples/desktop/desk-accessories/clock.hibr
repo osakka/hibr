@@ -26,3 +26,11 @@ fn clock_draw(int id, int h, int w, int row, int col) {
 if [ -z "$DT_ROWS" ]; then
 	printf '%(%H:%M:%S  %A %d %B)T\n' -1
 fi
+
+# Copy takes the time and the date, as the clock shows them.
+fn clock_copy(int id) {
+	local t
+
+	printf -v t "%(%H:%M:%S %A %d %B %Y)T" -1
+	ret "$t"
+}

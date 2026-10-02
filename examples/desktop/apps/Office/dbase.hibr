@@ -1042,3 +1042,32 @@ dbase_menus() {
 if [ -z "$DT_ROWS" ] && [ "${BASH_SOURCE[0]}" = "$0" ]; then
 	echo "dbase is a desktop app: open it from the hibr menu."
 fi
+
+# Copy and cut take the line being typed -- at the dot prompt, or the
+# APPEND field the cursor is in; BROWSE and LIST have nothing typed.
+fn dbase_copy(int id) {
+	case ${DBA[$id]["mode"]} in
+	append) ret "${DBA[$id]["f${DBA[$id]["ff"]}"]}" ;;
+	dot | ask) ret "${DBA[$id]["in"]}" ;;
+	*) return 1 ;;
+	esac
+}
+
+fn dbase_cut(int id) {
+	local t f=${DBA[$id]["ff"]}
+
+	case ${DBA[$id]["mode"]} in
+	append)
+		t=${DBA[$id]["f$f"]}
+		DBA[$id]["f$f"]=
+		DBA[$id]["fc"]=0
+		;;
+	dot | ask)
+		t=${DBA[$id]["in"]}
+		DBA[$id]["in"]=
+		DBA[$id]["cur"]=0
+		;;
+	*) return 1 ;;
+	esac
+	ret "$t"
+}

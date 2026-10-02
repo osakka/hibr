@@ -100,3 +100,26 @@ fn shotdir_key(int id, key) {
 fn shotdir_close(int id) {
 	unset "SHD[$id]"
 }
+
+fn shotdir_copy(int id) {
+	[ "${SHD[$id]["focus"]}" = text ] || return 1
+	ret "${SHD[$id]["buf"]}"
+}
+
+fn shotdir_cut(int id) {
+	[ "${SHD[$id]["focus"]}" = text ] || return 1
+	local t=${SHD[$id]["buf"]}
+
+	SHD[$id]["buf"]=
+	SHD[$id]["cur"]=0
+	ret "$t"
+}
+
+fn shotdir_paste(int id, text, op = "") {
+	local r
+
+	SHD[$id]["focus"]=text
+	r := dt_textpaste "${SHD[$id]["buf"]}" "${SHD[$id]["cur"]}" "$text"
+	SHD[$id]["buf"]=${r% *}
+	SHD[$id]["cur"]=${r##* }
+}

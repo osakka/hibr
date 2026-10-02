@@ -101,6 +101,8 @@ fn panel_open(int w, arg) {
 	PW[$w]["top"]=0
 	PW[$w]["vis"]=1
 	PW[$w]["last"]=-1
+	PW[$w]["ltop"]=0
+	PW[$w]["lseen"]=-1
 }
 
 # The selected pane's name, clamped to what is actually registered -- a
@@ -116,53 +118,83 @@ fn panel_pane(int w) {
 }
 
 fn panel_draw(int id, int h, int w, int row, int col) {
-	local i n r t lw=$CP_LISTW side pane bx bw g
+	local i n r t lw=$CP_LISTW side pane bx bw g sel at=0 lt vis
+	local -a lines
 
 	dt_wclear "$id"
 	[ "$lw" -ge $((w - 8)) ] && lw=$((w / 2))
 	side=${PW[$id]["side"]}
 	pane := panel_pane "$id"
 
+	# The list is its rows -- a heading for each group, then its panes --
+	# scrolled on its own, apart from the pane beside it: the selected
+	# pane is brought into view when the selection moves, and otherwise
+	# the wheel puts the list where it likes.
+	sel=${PW[$id]["pane"]}
+	lt=${PW[$id]["ltop"]:-0}
+	vis=$((h - 1))
 	i=0
-	r=1
 	g=
 	for n in "${CP_PANE_LIST[@]}"; do
-		[ "$r" -ge "$h" ] && break
 		if [ "${CP_PANES[$n]["group"]}" != "$g" ]; then
 			g=${CP_PANES[$n]["group"]}
+			lines+=("h:$g")
+		fi
+		[ "$i" = "$sel" ] && at=${#lines[@]}
+		lines+=("p:$i")
+		i=$((i + 1))
+	done
+	if [ "$sel" != "${PW[$id]["lseen"]}" ]; then
+		PW[$id]["lseen"]=$sel
+		[ "$at" -lt "$lt" ] && lt=$at
+		[ "$at" -ge $((lt + vis)) ] && lt=$((at - vis + 1))
+		[ "$sel" = 0 ] && lt=0
+	fi
+	[ "$lt" -gt $((${#lines[@]} - vis)) ] && lt=$((${#lines[@]} - vis))
+	[ "$lt" -lt 0 ] && lt=0
+	PW[$id]["ltop"]=$lt
+	PW[$id]["lvis"]=$vis
+	PW[$id]["ln"]=${#lines[@]}
+	r=1
+	while [ "$r" -lt "$h" ]; do
+		t=${lines[$((lt + r - 1))]}
+		case $t in
+		h:*)
 			console pen "$DT_DIM" "$DT_FACE" bold
-			case $g in
+			case ${t#h:} in
 			hardware) t=Hardware ;;
 			app) t=Apps ;;
 			*) t=Desktop ;;
 			esac
 			t := str pad " $t" $((lw - 1))
 			console put -p "w$id" "$r" 0 "$t"
-			r=$((r + 1))
-			[ "$r" -ge "$h" ] && break
-		fi
-		if [ "$n" = "$pane" ]; then
-			if [ "$side" = list ]; then
-				console pen "$DT_SELINK" "$DT_ACTIVE" bold
+			;;
+		p:*)
+			i=${t#p:}
+			n=${CP_PANE_LIST[$i]}
+			if [ "$n" = "$pane" ]; then
+				if [ "$side" = list ]; then
+					console pen "$DT_SELINK" "$DT_ACTIVE" bold
+				else
+					console pen "$DT_ACTIVE" "$DT_FACE" bold
+				fi
 			else
-				console pen "$DT_ACTIVE" "$DT_FACE" bold
+				console pen "$DT_INK" "$DT_FACE"
 			fi
-		else
+			t := str pad "  ${CP_PANES[$n]["icon"]} ${CP_PANES[$n]["title"]}" \
+				$((lw - 1))
+			console put -p "w$id" "$r" 0 "$t"
+			dt_wreg "$id" "$r" 0 $((lw - 1)) "pane:$i"
+			;;
+		*)
 			console pen "$DT_INK" "$DT_FACE"
-		fi
-		t := str pad "  ${CP_PANES[$n]["icon"]} ${CP_PANES[$n]["title"]}" \
-			$((lw - 1))
-		console put -p "w$id" "$r" 0 "$t"
-		dt_wreg "$id" "$r" 0 $((lw - 1)) "pane:$i"
-		r=$((r + 1))
-		i=$((i + 1))
-	done
-	console pen "$DT_INK" "$DT_FACE"
-	while [ "$r" -lt "$h" ]; do
-		t := str repeat " " "$lw"
-		console put -p "w$id" "$r" 0 "$t"
+			t := str repeat " " "$lw"
+			console put -p "w$id" "$r" 0 "$t"
+			;;
+		esac
 		r=$((r + 1))
 	done
+	dt_scrollbar "$id" 1 $((lw - 1)) "$vis" "${#lines[@]}" "$vis" "$lt"
 	console pen "$DT_IDLE" "$DT_FACE"
 	r=1
 	while [ "$r" -lt "$h" ]; do
@@ -275,6 +307,10 @@ fn cp_rowsdraw(int id, pane, int h, int w, int bx) {
 		r=$((r + 1))
 		i=$((i + 1))
 	done
+	# A pane longer than the window says so: Shortcuts outgrew it, and a
+	# row below the edge with nothing to show it was there is one nobody
+	# finds. The wheel and the arrows scroll it.
+	dt_scrollbar "$id" 1 $((bx + w)) "$h" "$n" "$h" "$top"
 }
 
 # Move the selection within the pane list, or within the selected pane's
@@ -516,7 +552,19 @@ fn panel_mouse(int id, act, button, int r, int c, mods) {
 fn panel_wheel(int? w = "", dir = "", int? r = "", int? c = "") {
 	local top max n vis pane
 
-	[ "${PW[$w]["side"]}" = list ] && return 0
+	# Each side scrolls on its own, whichever the pointer is over.
+	if [ -n "$c" ] && [ "$c" -lt "$CP_LISTW" ]; then
+		top=${PW[$w]["ltop"]:-0}
+		max=$((${PW[$w]["ln"]:-0} - ${PW[$w]["lvis"]:-1}))
+		case $dir in
+		up) top=$((top - 2)) ;;
+		down) top=$((top + 2)) ;;
+		esac
+		[ "$top" -gt "$max" ] && top=$max
+		[ "$top" -lt 0 ] && top=0
+		PW[$w]["ltop"]=$top
+		return 0
+	fi
 	pane := panel_pane "$w"
 	if [ -n "$pane" ] && dt_has "${pane}_draw"; then
 		dt_has "${pane}_wheel" && "${pane}_wheel" "$w" "$dir"

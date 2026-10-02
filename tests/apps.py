@@ -398,6 +398,32 @@ check("under a Hardware heading, then Desktop, then Apps",
       "Apps" in sc.row(prow("abouthibr") - 1), sc)
 check("the last pane fits above the window's bottom border",
       sc.row(prow("terminal")).count("│") >= 3, sc)
+
+
+# The list and the pane beside it scroll on their own, each with its own
+# bar: in a window too short for every pane, the arrows bring the last into
+# view, and the wheel over the list scrolls the list alone.
+def shortcp(feed):
+    d = tempfile.mkdtemp(prefix="hibr-cp-")
+    sc = run(PANEL[0], "12 58 2 2", feed=feed,
+             pre="export XDG_CONFIG_HOME=%s\n%s\n%s\n" % (d, TICK, CPANES))
+    shutil.rmtree(d, True)
+    return sc
+
+
+sc = shortcp([])
+check("a short window shows the list's first rows, and a bar to say there "
+      "are more", sc.find("Hardware") is not None and
+      sc.find("Terminal") is None and sc.find("█") is not None, sc)
+sc = shortcp([b"\x1b[B"] * (len(ORDER) - 1))
+check("the arrows bring the last pane into view",
+      sc.find(TITLE["terminal"]) is not None and
+      sc.find("Hardware") is None, sc)
+sc = shortcp([wheel(8, 5, up=False)] * 6)
+check("the wheel over the list scrolls the list, not the pane beside it",
+      sc.find("Hardware") is None and sc.find(TITLE["terminal"]) is not None
+      and sc.find(TITLE["datetime"]) is None, sc)
+sc = cprun()
 check("the first pane's own rows show on the right without entering it",
       sc.find(TITLE[ORDER[0]]) is not None and
       sc.find("Change…") is not None, sc)
@@ -2051,6 +2077,20 @@ check("enter renames it and closes the window",
 check("and it is the real file on disk that moved",
       os.path.exists(os.path.join(RD, "new.txt")) and
       not os.path.exists(os.path.join(RD, "old.txt")), sc)
+for f in os.listdir(RD):
+    os.unlink(os.path.join(RD, f))
+open(os.path.join(RD, "old.txt"), "w").write("hi\n")
+sc = run("files", FW,
+         [b"\x1b[B", b"n", b"\x1bx", b"\x1bv", b"\x1bv", b"\r"],
+         pre=RPRE)
+check("cut and paste reach the Rename field: cut empties it, paste puts "
+      "the name back at the cursor, twice",
+      os.path.exists(os.path.join(RD, "old.txtold.txt")), sc)
+sc = run("files", FW,
+         [b"\x1b[B", b"n", b"\x1bx", b"\x1b[200~pasted.txt\x1b[201~",
+          b"\r"], pre=RPRE)
+check("and a paste from the real terminal lands in the field the same way",
+      os.path.exists(os.path.join(RD, "pasted.txt")), sc)
 shutil.rmtree(RD, True)
 
 # Rename and Cancel are buttons: tab reaches them from the field, the
@@ -2656,6 +2696,16 @@ check("up brings the last command back to the dot prompt",
       txt.count(". COUNT") == 2 and txt.count("60 records") == 2, sc)
 shutil.rmtree(DBD, True)
 
+# Copy works in every window that shows something to copy, not only the
+# editors: what About says, the time, a dBASE line being typed.
+sc = run("about", "16 50 2 2", [b"\x1bc"])
+check("About can be copied", b"Copied" in sc.out, sc)
+sc = run("clock", "8 24 2 2", [b"\x1bc"])
+check("so can the clock's time", b"Copied" in sc.out, sc)
+sc = run("dbase", "20 72 1 2", [c.encode() for c in "LIST"] +
+         [b"\x1bx", b"\x1bv", b"\x1bv"], pre=DBPRE, end=None)
+check("dBASE's prompt cuts and pastes", sc.find(". LISTLIST") is not None, sc)
+
 # Restart Desktop: the desktop execs the hibr installed now in the same
 # process, and every window comes back -- a terminal's program still
 # running with its screen, an app's state from the maps it keeps.
@@ -2715,4 +2765,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(393)
+report(401)

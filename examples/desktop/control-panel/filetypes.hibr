@@ -243,3 +243,38 @@ fn ft_apply(int id) {
 fn ft_close(int id) {
 	unset "FT[$id]"
 }
+
+# Copy, cut and paste reach the File Type dialog's two fields.
+fn ft_field(int id) {
+	case ${FT[$id]["focus"]} in
+	ext) ret "extbuf extcur" ;;
+	cmd) ret "cmdbuf cmdcur" ;;
+	*) return 1 ;;
+	esac
+}
+
+fn ft_copy(int id) {
+	local k
+
+	k := ft_field "$id" || return 1
+	ret "${FT[$id]["${k% *}"]}"
+}
+
+fn ft_cut(int id) {
+	local k t
+
+	k := ft_field "$id" || return 1
+	t=${FT[$id]["${k% *}"]}
+	FT[$id]["${k% *}"]=
+	FT[$id]["${k#* }"]=0
+	ret "$t"
+}
+
+fn ft_paste(int id, text, op = "") {
+	local k r
+
+	k := ft_field "$id" || return 0
+	r := dt_textpaste "${FT[$id]["${k% *}"]}" "${FT[$id]["${k#* }"]}" "$text"
+	FT[$id]["${k% *}"]=${r% *}
+	FT[$id]["${k#* }"]=${r##* }
+}

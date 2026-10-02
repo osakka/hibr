@@ -779,3 +779,78 @@ if [ -z "$DT_ROWS" ]; then
 		echo "no coordinates found for the local zone (${DTP_TZ:-unset})"
 	fi
 fi
+
+# Copy, cut and paste reach each dialog's text field: a field has no
+# selection of its own, so copy takes the whole of it and cut empties it.
+fn dtf_copy(int id) {
+	[ "${DTF[$id]["focus"]}" = text ] || return 1
+	ret "${DTF[$id]["buf"]}"
+}
+
+fn dtf_cut(int id) {
+	[ "${DTF[$id]["focus"]}" = text ] || return 1
+	local t=${DTF[$id]["buf"]}
+
+	DTF[$id]["buf"]=
+	DTF[$id]["cur"]=0
+	ret "$t"
+}
+
+fn dtf_paste(int id, text, op = "") {
+	local r
+
+	DTF[$id]["focus"]=text
+	r := dt_textpaste "${DTF[$id]["buf"]}" "${DTF[$id]["cur"]}" "$text"
+	DTF[$id]["buf"]=${r% *}
+	DTF[$id]["cur"]=${r##* }
+}
+
+fn dtz_copy(int id) {
+	[ "${DTZ[$id]["focus"]}" = text ] || return 1
+	ret "${DTZ[$id]["buf"]}"
+}
+
+fn dtz_cut(int id) {
+	[ "${DTZ[$id]["focus"]}" = text ] || return 1
+	local t=${DTZ[$id]["buf"]}
+
+	DTZ[$id]["buf"]=
+	DTZ[$id]["cur"]=0
+	ret "$t"
+}
+
+fn dtz_paste(int id, text, op = "") {
+	local r
+
+	DTZ[$id]["focus"]=text
+	r := dt_textpaste "${DTZ[$id]["buf"]}" "${DTZ[$id]["cur"]}" "$text"
+	DTZ[$id]["buf"]=${r% *}
+	DTZ[$id]["cur"]=${r##* }
+}
+
+fn dts_copy(int id) {
+	local f=${DTS[$id]["focus"]}
+
+	case $f in d | t) ;; *) return 1 ;; esac
+	ret "${DTS[$id]["${f}buf"]}"
+}
+
+fn dts_cut(int id) {
+	local f=${DTS[$id]["focus"]}
+
+	case $f in d | t) ;; *) return 1 ;; esac
+	local t=${DTS[$id]["${f}buf"]}
+
+	DTS[$id]["${f}buf"]=
+	DTS[$id]["${f}cur"]=0
+	ret "$t"
+}
+
+fn dts_paste(int id, text, op = "") {
+	local f=${DTS[$id]["focus"]} r
+
+	case $f in d | t) ;; *) return 0 ;; esac
+	r := dt_textpaste "${DTS[$id]["${f}buf"]}" "${DTS[$id]["${f}cur"]}" "$text"
+	DTS[$id]["${f}buf"]=${r% *}
+	DTS[$id]["${f}cur"]=${r##* }
+}

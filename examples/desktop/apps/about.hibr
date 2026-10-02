@@ -247,3 +247,10 @@ fn about_draw(int id, int h, int w, int row, int col) {
 if [ -z "$DT_ROWS" ]; then
 	echo "about: this is a desktop app; open it from the hibr menu"
 fi
+
+# Copy takes what About says, as text to paste into a report.
+fn about_copy(int id) {
+	ret "hibr v$HIBR_VERSION${DT_VER:+, desktop v$DT_VER}
+Hostname: $AB_HOST
+Kernel: $AB_KERNEL"
+}

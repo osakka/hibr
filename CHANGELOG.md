@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.94
+
+**Copy and paste reach everything.** Every dialog's text field -- Rename,
+Get Info, File Type, Clock Format, Set Date & Time, Time Zone, Screenshot
+Folder -- takes copy (the whole field), cut (which empties it) and paste
+(at the cursor, on one line), with the shortcuts, the Edit menu and a
+paste from the real terminal alike. dBASE copies and cuts the line being
+typed. Task Manager copies the selected process, Process Details and About
+what they show, Notifications the selected note (cut clears it), and Clock
+the time. `dt_textpaste` is the one-line paste every field uses.
+
+**The Control Panel scrolls on both sides, each on its own.** The list of
+panes has a scrollbar and its own scrolling, so it no longer stops at the
+window's height; the pane beside it has its own, which shows when a pane is
+longer than the window -- Shortcuts, where Screenshot sat out of sight.
+The wheel scrolls whichever side the pointer is over.
+
 ## 0.93
 
 **Screenshots.** ctrl-alt-g (settable, as Screenshot) or the hibr menu's

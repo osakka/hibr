@@ -304,6 +304,12 @@ What each app copies and takes:
 | Files | the selected files, as paths | of paths copies (or after Cut, moves) those files here; of other text saves it as `Pasted text.txt` |
 | Image Viewer | the picture, as its file | -- |
 | Calculator | its answer | of arithmetic is taken as input |
+| dBASE | the line being typed, at the prompt or in an APPEND field | goes in at the cursor |
+| every dialog's text field -- Rename, Get Info, File Type, Clock Format, Set Date & Time, Time Zone, Screenshot Folder | the whole field (cut empties it) | goes in at the cursor, on one line |
+| Task Manager | the selected process, its pid and name | -- |
+| Process Details, About | what they show | -- |
+| Notifications | the selected note (cut also clears it) | -- |
+| Clock | the time and date | -- |
 
 A paste from the machine itself -- the terminal's own paste, cmd-v or
 ctrl-shift-v -- goes to the focused window and also becomes the desktop's

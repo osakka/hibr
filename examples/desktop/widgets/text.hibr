@@ -60,3 +60,13 @@ fn dt_textkey(text, int cur, key) {
 	esac
 	ret "$text $cur"
 }
+
+# Paste into a one-line field at its cursor: what was copied on several
+# lines becomes one, its newlines and tabs spaces. Gives "text cur", the
+# same as dt_textkey.
+fn dt_textpaste(text, int cur, ins) {
+	ins=${ins//$'\r'/}
+	ins=${ins//$'\n'/ }
+	ins=${ins//$'\t'/ }
+	ret "${text:0:$cur}$ins${text:$cur} $((cur + ${#ins}))"
+}

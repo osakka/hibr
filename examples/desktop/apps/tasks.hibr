@@ -805,3 +805,19 @@ fn tdetail_close(int? id = "") {
 if [ -z "$DT_ROWS" ]; then
 	echo "tasks: this is a desktop app; open it from the hibr menu"
 fi
+
+# Copy takes the selected process, as its pid and its name.
+fn tasks_copy(int id) {
+	local sel=${TK[$id]["sel"]}
+
+	[ -n "${TK[$id][$sel]["pid"]}" ] || return 1
+	ret "${TK[$id][$sel]["pid"]} ${TK[$id][$sel]["name"]}"
+}
+
+# Copy takes everything Process Details shows, a line each.
+fn tdetail_copy(int id) {
+	ret "PID: ${TD[$id]["pid"]}
+Name: ${TD[$id]["name"]}
+Owner: ${TD[$id]["owner"]}
+Command: ${TD[$id]["cmd"]}"
+}

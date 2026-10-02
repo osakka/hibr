@@ -1573,3 +1573,71 @@ if [ -z "$DT_ROWS" ]; then
 		i=$((i + 1))
 	done
 fi
+
+# Copy, cut and paste reach the Rename and Get Info fields: the focused
+# field's text and cursor keys, as "text cur", or a miss off a field.
+fn rn_field(int id) {
+	[ "${RN[$id]["focus"]}" = text ] || return 1
+	ret "text cur"
+}
+
+fn gi_field(int id) {
+	case ${GI[$id]["focus"]} in
+	name) ret "namebuf namecur" ;;
+	owner) ret "userbuf usercur" ;;
+	group) ret "groupbuf groupcur" ;;
+	*) return 1 ;;
+	esac
+}
+
+fn rn_copy(int id) {
+	local k
+
+	k := rn_field "$id" || return 1
+	ret "${RN[$id]["${k% *}"]}"
+}
+
+fn rn_cut(int id) {
+	local k t
+
+	k := rn_field "$id" || return 1
+	t=${RN[$id]["${k% *}"]}
+	RN[$id]["${k% *}"]=
+	RN[$id]["${k#* }"]=0
+	ret "$t"
+}
+
+fn rn_paste(int id, text, op = "") {
+	local k r
+
+	k := rn_field "$id" || return 0
+	r := dt_textpaste "${RN[$id]["${k% *}"]}" "${RN[$id]["${k#* }"]}" "$text"
+	RN[$id]["${k% *}"]=${r% *}
+	RN[$id]["${k#* }"]=${r##* }
+}
+
+fn gi_copy(int id) {
+	local k
+
+	k := gi_field "$id" || return 1
+	ret "${GI[$id]["${k% *}"]}"
+}
+
+fn gi_cut(int id) {
+	local k t
+
+	k := gi_field "$id" || return 1
+	t=${GI[$id]["${k% *}"]}
+	GI[$id]["${k% *}"]=
+	GI[$id]["${k#* }"]=0
+	ret "$t"
+}
+
+fn gi_paste(int id, text, op = "") {
+	local k r
+
+	k := gi_field "$id" || return 0
+	r := dt_textpaste "${GI[$id]["${k% *}"]}" "${GI[$id]["${k#* }"]}" "$text"
+	GI[$id]["${k% *}"]=${r% *}
+	GI[$id]["${k#* }"]=${r##* }
+}
