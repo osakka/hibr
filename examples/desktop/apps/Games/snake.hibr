@@ -22,6 +22,7 @@ app snake "Eat, grow, and do not bite yourself"
 command -v dt_app > /dev/null && dt_app snake "Snake" 18 42 once "∿" fixed
 
 declare -gA SN
+command -v dt_keepstate > /dev/null && dt_keepstate snake SN
 SNAKE_BEST=0
 
 # Milliseconds since the epoch.  The point comes out and the last three
@@ -263,3 +264,10 @@ snake_menus() {
 if [ -z "$DT_ROWS" ]; then
 	echo "snake: a desktop app; open it from the hibr menu"
 fi
+
+# After Restart Desktop a game in play waits, paused, rather than counting
+# the seconds the restart took as time it was playing.
+fn snake_resume(int id) {
+	[ "${SN[$id]["state"]}" = run ] && SN[$id]["state"]=pause
+	return 0
+}

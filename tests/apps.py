@@ -82,7 +82,8 @@ def run(app, win, feed=(), pre="", wait=1.0, also=(), end=b"qy", extra=(),
     if app == "term" or "term" in extra or any(x[2] == "term" for x in also):
         mods += ["pty", "term"]
     open(p, "w").write(
-        "%s. %s\n%s%s\ndt_open\ndt_new \"%s\" %s %s\n%s"
+        "%s. %s\n%s%s\ndt_open\n"
+        "if [ \"$DT_RESTORED\" != 1 ]; then\ndt_new \"%s\" %s %s\n%s:\nfi\n"
         "dt_run\ndt_close\n"
         % (load(*mods), WM, src, pre, app.title(), win, app,
            more + ("dt_raise 1\n" if also else "")))
@@ -2655,6 +2656,55 @@ check("up brings the last command back to the dot prompt",
       txt.count(". COUNT") == 2 and txt.count("60 records") == 2, sc)
 shutil.rmtree(DBD, True)
 
+# Restart Desktop: the desktop execs the hibr installed now in the same
+# process, and every window comes back -- a terminal's program still
+# running with its screen, an app's state from the maps it keeps.
+RESTART = [b"\x1b[21~", 0.3, b"r", 2.5]
+sc = run("term", "14 52 2 4", feed=[1.5] + typed("X=42; seq 1 30; echo was $$")
+         + RESTART + typed("echo X is $X now $$") + [0.6], end=None,
+         wait=2.0)
+txt = "\n".join(sc.row(r) for r in range(24))
+was = re.search(r"was (\d+)", txt)
+now = re.search(r"X is (\S*) now (\d+)", txt)
+check("after a restart the terminal's shell is the same one, still running",
+      was and now and was.group(1) == now.group(2) and now.group(1) == "42",
+      sc)
+check("and its screen came back with it, the old output still there",
+      re.search(r"│30 ", txt) is not None, sc)
+check("the window is where it was, once -- not opened again beside it",
+      sc.find("┤ Term ├") == (2, 6) and txt.count("┤ Term ├") == 1, sc)
+IN2 = [press(16, 55), release(16, 55), 0.3]
+IN1 = [press(5, 20), release(5, 20), 0.3]
+sc = run("term", "9 34 2 4", also=[("Terminal", "10 36 12 40", "term")],
+         feed=[1.5] + IN1 + typed("echo one $$") + IN2 + typed("echo two $$")
+         + RESTART + IN1 + typed("echo ONE $$") + IN2 + typed("echo TWO $$")
+         + [0.6], end=None, wait=2.0)
+txt = "\n".join(sc.row(r) for r in range(24))
+pids = dict((k, re.search(r"│%s (\d+)" % k, txt))
+            for k in ("one", "two", "ONE", "TWO"))
+check("two terminals each keep their own shell across a restart",
+      all(pids.values()) and
+      pids["one"].group(1) == pids["ONE"].group(1) and
+      pids["two"].group(1) == pids["TWO"].group(1) and
+      pids["one"].group(1) != pids["two"].group(1), sc)
+sc = run("notepad", "12 40 3 6", feed=[c.encode() for c in "kept text"]
+         + RESTART + [c.encode() for c in " more"], end=None)
+check("Note Pad keeps its text and its cursor across a restart",
+      sc.find("kept text more") is not None, sc)
+sc = run("calc", CW, [b"1", b"2", b"+", b"3"] + RESTART + [b"="])
+check("the calculator keeps what was typed, and finishes the sum after",
+      sc.find("15") is not None, sc)
+sc = run("snake", "18 42 2 4", [b"\x1b[B", 0.3] + RESTART, end=None)
+check("a game in play comes back paused, not having run on in the restart",
+      sc.find("paused -- p") is not None, sc)
+HCOPY = os.path.join(S, "hibr-newer")
+shutil.copy(sx.HIBR, HCOPY)
+sc = run("calc", CW, [1.0], pre="HIBR=%s\nDT_NOTEMS=60000" % HCOPY,
+         end=None)
+check("a hibr replaced on disk is noticed, and the restart offered",
+      sc.find("is installed") is not None, sc)
+os.unlink(HCOPY)
+
 for f in os.listdir(D):
     p = os.path.join(D, f)
     if os.path.isdir(p):
@@ -2665,4 +2715,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(381)
+report(389)

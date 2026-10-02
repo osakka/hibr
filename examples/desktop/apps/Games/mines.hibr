@@ -26,6 +26,7 @@ app mines "Clear the field"
 command -v dt_app > /dev/null && dt_app mines "Mines" 15 31 once "✱" fixed
 
 declare -gA MS
+command -v dt_keepstate > /dev/null && dt_keepstate mines MS
 MINES_ROWS=9
 MINES_COLS=9
 MINES_COUNT=10

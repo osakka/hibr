@@ -19,6 +19,7 @@ app puzzle "The sliding tile puzzle"
 command -v dt_app > /dev/null && dt_app puzzle "Puzzle" 13 22 once "▦" fixed
 
 declare -gA PZ
+command -v dt_keepstate > /dev/null && dt_keepstate puzzle PZ
 PZ_N=4
 PZ_CELLS=16
 

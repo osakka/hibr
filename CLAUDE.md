@@ -1548,6 +1548,29 @@ went in the shell.
   classes at all before 0.87: `[[:space:]]` was a bracket of the letters
   `:`, `s`, `p`... and never matched a blank. Anything that trims or
   classifies text with a class in a pattern was silently wrong until then.
+- **Restart Desktop never closes a terminal on the way out.** A pty master
+  survives `exec` only because nothing closed it: `term close`, `pty close`
+  and `tt_drop` all kill the program. `dt_restart` writes the state, closes
+  the console and execs; it must never pass through `dt_close`, `exit` or
+  any `_close`. A pty is opened without `O_CLOEXEC` on purpose -- adding it
+  would make every restart hang up every shell. After the exec the input
+  count `console consumed` restarts at zero, so `DT_INBASE` carries the old
+  one into the test idle marker, or every pty suite would wait for ever.
+- **A restart callback must not share a name with anything.** The hooks were
+  first `_save` and `_restore`, and the date and time dialog's prefix is
+  `dtf` -- `dtf_save` sets the system clock, under passwordless sudo on the
+  owner's machine. `tests/540-examples.t` caught it as an arity mismatch.
+  They are `_stash` and `_resume`; check a new callback suffix against every
+  existing function before adding it.
+- **A session that opens windows must skip them after a restart.** The
+  restored windows are already there when the session file's own `dt_new`
+  runs, and it opens a second on top -- with a new shell, which looks
+  exactly like the restart having lost the old one. `DT_RESTORED` is 1
+  then; `tests/apps.py`'s `run` checks it.
+- **An update is noticed with `[ /proc/$$/exe -ef "$HIBR" ]`.** apt replaces
+  the binary, so the running image's exe no longer is `$HIBR`. A timestamp
+  is wrong both ways: dpkg keeps the build's mtime, which can be older than
+  a desktop started between build and install.
 - **A process substitution's descriptor starts at 60.** Left at the lowest
   free one, `<(cmd)` took 3 in `exec 3< <(cmd)`, `/dev/fd/3` became the
   redirection onto itself, and the clean-up that closes a substitution's

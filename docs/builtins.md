@@ -50,7 +50,7 @@ the path it was found at.
 | `typeset …` | the same builtin under its other name |
 | `readonly [-p] [name[=v]…]` | make variables readonly, or list the ones that are |
 | `local name[=v]…` | declare function-local variables |
-| `export [-p] [name[=v]…]` | mark variables for export; `-p` lists them |
+| `export [-p] [-n] [name[=v]…]` | mark variables for export; `-p` lists them; `-n` takes them out of the environment and keeps their values |
 | `unset [-f] name…` | remove variables, array elements or functions |
 | | `unset a[1]`, `a[-1]` and `h["a-b"]` all reach what they name |
 | `set [-/+flags] [--] [args…]` | set options, or replace the positional parameters |

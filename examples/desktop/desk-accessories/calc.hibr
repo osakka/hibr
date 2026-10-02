@@ -26,6 +26,7 @@ command -v dt_app > /dev/null && dt_app calc "Calculator" 16 24 once "±" fixed
 # different sums.  Everything an app remembers goes under the window id it
 # was handed, because a global is shared by every window of the same app.
 declare -gA CA
+command -v dt_keepstate > /dev/null && dt_keepstate calc CA
 
 # Four columns, five rows.  ^ inserts ** and c clears.
 #

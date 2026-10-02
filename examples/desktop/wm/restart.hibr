@@ -1,0 +1,256 @@
+#!/usr/bin/env hibr
+#
+# wm/restart -- Restart Desktop: the desktop replaces itself with whatever
+# hibr is installed now, in the same process, and carries on where it was.
+#
+# Every window is kept under its own id: its place, size, workspace,
+# whether it is minimised, the stacking order, which has focus, and the
+# tiling. What is inside a window is the app's: an app names the maps it
+# keeps a window's state in, `dt_keepstate notepad NP`, and the desktop
+# saves that window's part of each as JSON and puts it back under the same
+# id. An app holding something that cannot be written down -- a terminal's
+# program, an open database -- also gives <app>_stash(id, dir), run before
+# the maps are read, and <app>_resume(id), run after they are back -- names
+# no other callback uses, so nothing that saves a file or sets the clock
+# (dtf_save does) is ever called by mistake. An
+# app with neither reopens fresh, in the same place.
+#
+# Programs in terminal windows do not stop: a pty's master descriptor is
+# open without close-on-exec, and the program on it stays this process's
+# child across exec, so the new desktop adopts each one (pty adopt, term
+# adopt) with the screen and scrollback the old one saved. Nothing may close
+# a terminal on the way out, or its program gets a hangup -- which is why
+# this never goes through dt_close.
+#
+# A newer hibr installed under a running desktop is noticed without a
+# fork: /proc/$$/exe still names the binary this process started from,
+# which apt has replaced, so it stops being the same file as $HIBR. The
+# desktop then offers the restart in a note; nothing happens until it is
+# clicked.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+strict
+
+DT_RESTORE=${DT_RESTORE-}
+# The session script this desktop runs, made absolute now: by the time of a
+# restart the desktop may be in another directory.
+DT_SELF0=$0
+case $DT_SELF0 in /*) ;; *) DT_SELF0="$PWD/$DT_SELF0" ;; esac
+DT_RESTORED=0
+DT_INBASE=0
+DT_RSDIR="${DT_LOG%/*}/restart"
+DT_RSVER=1
+DT_UPDT=0
+DT_UPNOTED=
+declare -gA DT_KEEPSTATE
+declare -gA DT_RS
+# Each program a restart carries across the exec on a pty, as fd:pid -- what
+# an app's _stash hands over with dt_rscarry, and what its _resume claims
+# back with dt_rsclaim. One nobody claims is ended after the restore, the
+# same as closing its window, rather than left running unseen.
+DT_RSCARRY=()
+DT_RSCLAIMED=()
+
+fn dt_rscarry(int fd, int pid) {
+	DT_RSCARRY+=("$fd:$pid")
+}
+
+fn dt_rsclaim(int fd) {
+	DT_RSCLAIMED+=("$fd")
+}
+
+# End what crossed the exec and nothing took back.
+dt_rsorphans() {
+	local c fd p
+
+	[ "${#DT_RSCARRY[@]}" -gt 0 ] || return 0
+	need pty 2> /dev/null
+	for c in "${DT_RSCARRY[@]}"; do
+		fd=${c%%:*}
+		case " ${DT_RSCLAIMED[*]} " in *" $fd "*) continue ;; esac
+		dt_rslog "pty on fd $fd, pid ${c#*:}: no window took it back, ended"
+		p := pty adopt "$fd" "${c#*:}" 2> /dev/null && pty close "$p"
+	done
+	DT_RSCARRY=()
+	DT_RSCLAIMED=()
+}
+
+# An app's maps that hold a window's state under its id.
+fn dt_keepstate(app, ...maps) {
+	DT_KEEPSTATE["$app"]="${maps[*]}"
+}
+
+# Write everything down and exec the hibr installed now. Returns only if
+# the exec failed, with the desktop put back as it was.
+dt_restart() {
+	local f="$DT_RSDIR/state.json" id ap m j k l
+	local -a ms
+
+	if [ ! -x "$HIBR" ] || [ ! -r "$DT_SELF0" ]; then
+		dt_note "Cannot restart: no hibr at ${HIBR:-?}, or no $DT_SELF0"
+		return 1
+	fi
+	[ -d "$DT_RSDIR" ] || mkdir -p "$DT_RSDIR" 2> /dev/null || {
+		dt_note "Cannot restart: $DT_RSDIR cannot be made"
+		return 1
+	}
+	k := console consumed
+	l := console pane list
+	json parse DT_RS "{\"ver\":$DT_RSVER}"
+	json set DT_RS .ws "$DT_WS"
+	json set DT_RS .wsn "$DT_WSN"
+	json set DT_RS .next "$DT_NEXT"
+	json set DT_RS .focus "$DT_FOCUS" -s
+	json set DT_RS .stack "$l" -s
+	json set DT_RS .inbase $((DT_INBASE + k))
+	DT_RSCARRY=()
+	j := json get DT_WSORD . 2> /dev/null
+	[ -n "$j" ] || j="{}"
+	json parse DT_RS["wsord"] "$j"
+	j := json get DT_TORD . 2> /dev/null
+	[ -n "$j" ] || j="{}"
+	json parse DT_RS["tord"] "$j"
+	j := json get DT_TILED . 2> /dev/null
+	[ -n "$j" ] || j="{}"
+	json parse DT_RS["tiled"] "$j"
+	json parse DT_RS["win"] "{}"
+	json parse DT_RS["app"] "{}"
+	for id in "${!DT[@]}"; do
+		ap=${DT[$id]["app"]}
+		if [ -n "$ap" ] && dt_has "${ap}_stash"; then
+			${ap}_stash "$id" "$DT_RSDIR"
+		fi
+		j := json get DT ".$id"
+		json parse DT_RS["win"]["$id"] "$j"
+		[ -n "$ap" ] || continue
+		read -ra ms <<< "${DT_KEEPSTATE["$ap"]}"
+		for m in "${ms[@]}"; do
+			j := json get "$m" ".$id" 2> /dev/null || continue
+			json parse DT_RS["app"]["$id"]["$m"] "$j"
+		done
+	done
+	json set DT_RS .carry "${DT_RSCARRY[*]}" -s
+	if ! json emit DT_RS > "$f.new" || ! mv -f "$f.new" "$f"; then
+		dt_note "Cannot restart: the state could not be written"
+		return 1
+	fi
+	dt_rslog "restarting into $HIBR: ${#DT[@]} windows kept in $f"
+	console close
+	if [ -n "$DT_ERR" ]; then
+		exec 2>&"$DT_ERR"
+		exec {DT_ERR}>&-
+	fi
+	export DT_RESTORE=$f
+	exec "$HIBR" "$DT_SELF0" "${DT_SELFARGS[@]}"
+	export -n DT_RESTORE
+	DT_RESTORE=
+	dt_open
+	dt_note "Restart failed: $HIBR would not run"
+	return 1
+}
+
+# A line in the desktop's log, the one place a restart can say what it did
+# once the screen has been handed over.
+fn dt_rslog(text) {
+	echo "desktop: $text" >&2
+	[ -n "$DT_RSDEBUG" ] && echo "$text" >> "$DT_RSDEBUG"
+	return 0
+}
+
+# Put back what dt_restart wrote, if this desktop was started by one.
+# Called from dt_open, before a session file's own windows; DT_RESTORED
+# tells a session file that would open some that they are already there.
+dt_restore() {
+	local f=$DT_RESTORE id ap m j p
+	local -a ms ps
+
+	[ -n "$f" ] || return 0
+	export -n DT_RESTORE
+	DT_RESTORE=
+	[ -r "$f" ] || return 0
+	if ! json parse DT_RS < "$f" 2> /dev/null; then
+		dt_note "Restarted, but the saved desktop could not be read"
+		return 0
+	fi
+	read -ra DT_RSCARRY <<< "${DT_RS["carry"]}"
+	if [ "${DT_RS["ver"]}" != "$DT_RSVER" ]; then
+		dt_rsorphans
+		dt_note "Restarted, but the saved desktop could not be read"
+		return 0
+	fi
+	DT_WSN=${DT_RS["wsn"]:-$DT_WSN}
+	DT_WS=${DT_RS["ws"]:-1}
+	DT_INBASE=${DT_RS["inbase"]:-0}
+	j := json get DT_RS .wsord 2> /dev/null
+	[ -n "$j" ] && [ "$j" != '""' ] && json parse DT_WSORD "$j"
+	j := json get DT_RS .tord 2> /dev/null
+	[ -n "$j" ] && [ "$j" != '""' ] && json parse DT_TORD "$j"
+	j := json get DT_RS .tiled 2> /dev/null
+	[ -n "$j" ] && [ "$j" != '""' ] && json parse DT_TILED "$j"
+	for id in "${!DT_RS["win"][@]}"; do
+		ap=${DT_RS["win"][$id]["app"]}
+		if [ -n "$ap" ] && [ -z "${DT_APPS[$ap]["title"]}" ]; then
+			dt_rslog "window $id: no app $ap any more, left closed"
+			continue
+		fi
+		j := json get DT_RS ".win.$id"
+		json parse DT["$id"] "$j"
+		dt_hooks "$id" "$ap"
+		DT[$id]["autoclose"]=
+		read -ra ms <<< "${DT_KEEPSTATE["$ap"]}"
+		for m in "${ms[@]}"; do
+			j := json get DT_RS ".app.$id.$m" 2> /dev/null || continue
+			json parse "$m[$id]" "$j"
+		done
+		if [ -n "$ap" ] && dt_has "${ap}_resume"; then
+			${ap}_resume "$id"
+		elif [ "${#ms[@]}" = 0 ] && [ -n "${DT[$id]["open"]}" ]; then
+			${DT[$id]["open"]} "$id" ""
+		fi
+		dt_away "$id" || dt_hidden "$id" ||
+			console pane "w$id" "${DT[$id]["row"]}" "${DT[$id]["col"]}" \
+				"${DT[$id]["h"]}" "${DT[$id]["w"]}"
+	done
+	read -ra ps <<< "${DT_RS["stack"]}"
+	for p in "${ps[@]}"; do
+		[ -n "${DT[${p#w}]["title"]}" ] || continue
+		dt_away "${p#w}" || dt_hidden "${p#w}" || console pane raise "$p"
+	done
+	DT_NEXT=${DT_RS["next"]:-$DT_NEXT}
+	id=${DT_RS["focus"]}
+	if [ -n "$id" ] && [ -n "${DT[$id]["title"]}" ]; then
+		DT_FOCUS=$id
+	else
+		p := console pane list
+		p=${p##* }
+		DT_FOCUS=${p#w}
+	fi
+	dt_tile
+	dt_rsorphans
+	rm -f "$f" "$DT_RSDIR"/term-*.save 2> /dev/null
+	DT_RESTORED=1
+	dt_rslog "restored ${#DT[@]} windows from $f"
+	dt_note "Restarted: hibr $HIBR_VERSION"
+}
+
+# Whether the hibr this desktop runs has been replaced on disk since it
+# started, checked at most every DT_UPMS, and said once.
+DT_UPMS=60000
+dt_updcheck() {
+	local v
+
+	[ -z "$DT_UPNOTED" ] || return 0
+	[ -e /proc/$$/exe ] && [ -n "$HIBR" ] || return 0
+	dt_want "$DT_UPMS"
+	[ $((EPOCHSECONDS - DT_UPDT)) -ge $((DT_UPMS / 1000)) ] || return 0
+	DT_UPDT=$EPOCHSECONDS
+	[ /proc/$$/exe -ef "$HIBR" ] && return 0
+	[ -x "$HIBR" ] || return 0
+	DT_UPNOTED=1
+	v=$("$HIBR" -c 'echo "$HIBR_VERSION"' 2> /dev/null)
+	dt_notify "hibr ${v:-update} is installed -- click to restart the desktop" \
+		dt_restart
+	dt_want 10
+}

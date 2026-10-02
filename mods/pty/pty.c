@@ -263,6 +263,51 @@ void tt_drop(tt_p *p)
 	free(p);
 }
 
+/* Take over a pty another process image left open: its master descriptor
+   and the program on it, still this process's child, as after the desktop
+   execs a newer version of itself. Nothing is started, nothing is sent. */
+tt_p *tt_adopt(int fd, long pid, int rows, int cols)
+{
+	tt_p *p;
+
+	if (fd < 0 || pid <= 0 || !isatty(fd)) {
+		lg(HIBR_LERR, "pty adopt: %d is not an open terminal", fd);
+		return 0;
+	}
+	fcntl(fd, F_SETFL, O_NONBLOCK);
+	p = xm(sizeof *p);
+	memset(p, 0, sizeof *p);
+	p->id = tt_next++;
+	p->fd = fd;
+	p->pid = pid;
+	p->rows = rows;
+	p->cols = cols;
+	v_add(&tt_list, p);
+	if (kill((pid_t)pid, 0) < 0)
+		lg(HIBR_LINF, "pty %d adopted, pid %ld already gone", p->id, pid);
+	else
+		lg(HIBR_LINF, "pty %d adopted: pid %ld on fd %d", p->id, pid, fd);
+	return p;
+}
+
+/* Forget a pty without ending its program or closing its descriptor, for
+   a process about to exec and adopt it again. */
+void tt_release(tt_p *p)
+{
+	size_t i;
+
+	for (i = 0; i < tt_list.n; i++)
+		if (tt_list.p[i] == (void *)p) {
+			memmove(tt_list.p + i, tt_list.p + i + 1,
+				(tt_list.n - i - 1) * sizeof *tt_list.p);
+			tt_list.n--;
+			break;
+		}
+	lg(HIBR_LDBG, "pty %d let go, pid %ld left running on fd %d", p->id,
+	   p->pid, p->fd);
+	free(p);
+}
+
 /* Release every pty, for the module finaliser. */
 void tt_all(void)
 {

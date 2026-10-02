@@ -22,6 +22,7 @@ app bricks "Knock the wall down"
 command -v dt_app > /dev/null && dt_app bricks "Bricks" 20 44 once "▀▀" fixed
 
 declare -gA BK
+command -v dt_keepstate > /dev/null && dt_keepstate bricks BK
 BRICKS_ROWS=5
 BRICKS_BAT=7
 BRICKS_COLOURS=("#f56565" "#f6ad55" "#ecc94b" "#68d391" "#63b3ed")
@@ -317,3 +318,10 @@ bricks_menus() {
 if [ -z "$DT_ROWS" ]; then
 	echo "bricks: a desktop app; open it from the hibr menu"
 fi
+
+# After Restart Desktop a game in play waits, paused, rather than counting
+# the seconds the restart took as time it was playing.
+fn bricks_resume(int id) {
+	[ "${BK[$id]["state"]}" = run ] && BK[$id]["state"]=pause
+	return 0
+}

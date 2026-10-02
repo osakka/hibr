@@ -17,6 +17,7 @@ app notepad "A scratch note, saved as you type"
 command -v dt_app > /dev/null && dt_app notepad "Note Pad" 12 40 once "▧"
 
 declare -gA NP
+command -v dt_keepstate > /dev/null && dt_keepstate notepad NP
 NP_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/hibr/notepad.txt"
 
 # Read the note off disk into this window's own lines -- always at least

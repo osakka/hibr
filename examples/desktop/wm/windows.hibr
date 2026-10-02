@@ -21,7 +21,7 @@ fn dt_has(name) {
 # which a single function answering a verb in a case statement does, because
 # a case that matches nothing succeeds.
 fn dt_new(title, int h, int w, int row, int col, ap = "", arg = "") {
-	local id=$DT_NEXT f
+	local id=$DT_NEXT
 
 	DT[$id]["title"]="$title"
 	DT[$id]["h"]="$h"
@@ -32,6 +32,20 @@ fn dt_new(title, int h, int w, int row, int col, ap = "", arg = "") {
 	DT[$id]["app"]="$ap"
 	DT[$id]["min"]=0
 	DT[$id]["autoclose"]=
+	dt_hooks "$id" "$ap"
+	DT_NEXT=$((DT_NEXT + 1))
+	console pane "w$id" "$row" "$col" "$h" "$w"
+	DT_FOCUS=$id
+	[ -n "${DT[$id]["open"]}" ] && ${DT[$id]["open"]} "$id" "$arg"
+	dt_tile
+	ret "$id"
+}
+
+# Which of an app's callbacks a window calls, asked once: a restored window
+# asks again, since the hibr it was saved by may have had other ones.
+fn dt_hooks(int id, ap = "") {
+	local f
+
 	for f in draw key click mouse wheel open close copy cut paste drop \
 		refresh; do
 		if [ -n "$ap" ] && dt_has "${ap}_$f"; then
@@ -40,12 +54,6 @@ fn dt_new(title, int h, int w, int row, int col, ap = "", arg = "") {
 			DT[$id]["$f"]=
 		fi
 	done
-	DT_NEXT=$((DT_NEXT + 1))
-	console pane "w$id" "$row" "$col" "$h" "$w"
-	DT_FOCUS=$id
-	[ -n "${DT[$id]["open"]}" ] && ${DT[$id]["open"]} "$id" "$arg"
-	dt_tile
-	ret "$id"
 }
 
 # Close a window and forget it.

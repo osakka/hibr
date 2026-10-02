@@ -109,6 +109,7 @@ awk '
   BEGIN {
     W["open"] = 2; W["close"] = 1; W["draw"] = 5; W["key"] = 2; W["click"] = 4
     W["mouse"] = 6; W["wheel"] = 4; W["drop"] = 5; W["context"] = 1
+    W["stash"] = 2; W["resume"] = 1
     P["draw"] = 4; P["key"] = 2; P["click"] = 3; P["drop"] = 4; P["wheel"] = 2
     S["draw"] = 2; S["click"] = 2
   }' $desk $desk

@@ -142,17 +142,37 @@ int b_echo(sh *s, int ac, char **av)
 	return HIBR_OK;
 }
 
+/* Take a variable out of the environment children get, keeping its value. */
+void b_unexp(sh *s, const char *nm)
+{
+	var *v = v_find(s, nm);
+
+	if (v)
+		v->ex = 0;
+	unsetenv(nm);
+	lg(HIBR_LDBG, "%s is no longer exported", nm);
+}
+
 /* Mark variables for export or list the exported set. */
 int b_exp(sh *s, int ac, char **av)
 {
-	int i;
+	int i, un = 0;
 	char *q, *e;
 	var *v;
 	size_t j;
 
-	i = 1;
-	if (ac > 1 && !strcmp(av[1], "-p"))
-		i++;
+	for (i = 1; i < ac && av[i][0] == '-' && av[i][1]; i++) {
+		if (!strcmp(av[i], "--")) {
+			i++;
+			break;
+		}
+		if (!strcmp(av[i], "-n"))
+			un = 1;
+		else if (strcmp(av[i], "-p")) {
+			lg(HIBR_LERR, "export: %s: invalid option", av[i]);
+			return 2;
+		}
+	}
 	if (i >= ac) {
 		for (j = 0; j < s->tsz; j++)
 			for (v = s->tab[j]; v; v = v->nx)
@@ -173,8 +193,14 @@ int b_exp(sh *s, int ac, char **av)
 		q = strchr(av[i], '=');
 		if (q) {
 			*q = 0;
-			hibr_set(s, av[i], q + 1, 1);
+			hibr_set(s, av[i], q + 1, !un);
+			if (un)
+				b_unexp(s, av[i]);
 			*q = '=';
+			continue;
+		}
+		if (un) {
+			b_unexp(s, av[i]);
 			continue;
 		}
 		v = v_find(s, av[i]);
@@ -244,6 +270,8 @@ int bi_argk(const char *nm)
 		return !strcmp(nm, "typeset") ? 2 : 0;
 	case 'e':
 		return !strcmp(nm, "export") ? 6 : 0;
+	case 'j':
+		return !strcmp(nm, "json") ? 1 : 0;
 	}
 	return 0;
 }

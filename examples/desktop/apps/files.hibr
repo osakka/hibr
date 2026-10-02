@@ -40,6 +40,7 @@ command -v dt_app > /dev/null && dt_app gi "Get Info" 18 48 "" "" fixed hidden
 # directories; a global would put them both in the last one opened.  FB holds
 # each window's state and FL holds its listing.
 declare -gA FB
+command -v dt_keepstate > /dev/null && dt_keepstate files FB
 declare -gA FL
 declare -gA RN
 declare -gA GI
@@ -551,6 +552,13 @@ fn files_open(int id, d) {
 	FB[$id]["vis"]=1
 	FB[$id]["per"]=1
 	fb_retitle "$id" "$d"
+	fb_scan "$id"
+}
+
+# After Restart Desktop the folder is read again, since its listing is not
+# kept; where it was, the view and the selection are.
+fn files_resume(int id) {
+	[ -d "${FB[$id]["dir"]}" ] || FB[$id]["dir"]=$HOME
 	fb_scan "$id"
 }
 

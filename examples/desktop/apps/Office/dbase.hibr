@@ -29,6 +29,7 @@ app dbase "A little dBASE III: dot prompt, BROWSE, APPEND"
 command -v dt_app > /dev/null && dt_app dbase "dBASE" 20 72 many "▦"
 
 declare -gA DBA
+command -v dt_keepstate > /dev/null && dt_keepstate dbase DBA
 DBASE_DIR="${DBASE_DIR-${XDG_DATA_HOME:-$HOME/.local/share}/hibr/dbase}"
 DBASE_MAXOUT=300
 DBASE_MAXLIST=1000
@@ -249,6 +250,7 @@ fn dbase_run(int id, line) {
 	USE)
 		[ -n "${DBA[$id]["h"]}" ] && db close "${DBA[$id]["h"]}"
 		DBA[$id]["h"]=
+		DBA[$id]["path"]=
 		DBA[$id]["name"]=
 		[ -n "$DBASE_REST" ] || return 0
 		path := dbase_path "$DBASE_REST"
@@ -257,6 +259,7 @@ fn dbase_run(int id, line) {
 			return 0
 		fi
 		DBA[$id]["h"]=$h
+		DBA[$id]["path"]=$path
 		DBA[$id]["name"]=${DBASE_REST##*/}
 		DBA[$id]["name"]=${DBA[$id]["name"]%.db}
 		DBA[$id]["name"]=${DBA[$id]["name"]^^}
@@ -551,6 +554,23 @@ fn dbase_finish(int id) {
 	db close "$h"
 	dbase_say "$id" "Database ${DBA[$id]["cname"]^^} created."
 	dbase_run "$id" "USE ${DBA[$id]["cname"]}"
+}
+
+# After Restart Desktop the database in USE is opened again: a handle does
+# not outlive the process that opened it, the file does.
+fn dbase_resume(int id) {
+	local h
+
+	need db 2> /dev/null || DBA[$id]["h"]=
+	[ -n "${DBA[$id]["h"]}" ] || return 0
+	DBA[$id]["h"]=
+	[ -n "${DBA[$id]["path"]}" ] || return 0
+	if h := db open "${DBA[$id]["path"]}" 2> /dev/null; then
+		DBA[$id]["h"]=$h
+	else
+		dbase_say "$id" "*** ${DBA[$id]["name"]} could not be opened again."
+		DBA[$id]["name"]=
+	fi
 }
 
 # APPEND's form, emptied for the next record.

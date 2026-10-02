@@ -179,10 +179,11 @@ dt_menus() {
 	# dt_app only so dt_launch about can find it, not to be listed a
 	# second time as an ordinary app -- its own dt_app call marks it
 	# hidden, which is what dt_appmenu actually skips.
-	dt_appmenu "" aqdu
+	dt_appmenu "" aqdur
 	dt_sep
 	dt_item "Clean Up Icons" u dt_iconclean
 	dt_sep
+	dt_item "Restart Desktop" r dt_restart
 	if [ -n "$HIBR_HOLD" ]; then
 		dt_item "Detach" d dt_detach
 	else

@@ -30,6 +30,7 @@ need terminal || { echo "term: no terminal module" >&2; exit 1; }
 # each other keystroke for keystroke, and for a file browser means two
 # windows that cannot be in different directories.
 declare -gA TW
+command -v dt_keepstate > /dev/null && dt_keepstate term TW
 # What each window runs, as words rather than a string, so a command with
 # quoted arguments survives: a test sets it to a /bin/sh with a known prompt.
 [ -n "${TW_CMD[*]}" ] || TW_CMD=(hibr)
@@ -444,6 +445,48 @@ fn term_close(int id) {
 	[ -n "${TW[$id]["t"]}" ] && term close "${TW[$id]["t"]}"
 	TW[$id]["t"]=
 	TW[$id]["fd"]=
+}
+
+# Restart Desktop: the program keeps running, so write down its pty's
+# descriptor and pid for the next desktop to adopt, and its screen and
+# scrollback to load. A program that has ended is not kept.
+fn term_stash(int id, dir) {
+	local t=${TW[$id]["t"]} f="$dir/term-$id.save" fd pid
+
+	TW[$id]["rfd"]=
+	[ -n "$t" ] && term alive "$t" || return 0
+	fd := term fd "$t"
+	pid := term pid "$t"
+	term save "$t" "$f" || return 0
+	TW[$id]["rfd"]=$fd
+	TW[$id]["rpid"]=$pid
+	TW[$id]["rsave"]=$f
+	dt_rscarry "$fd" "$pid"
+	dt_rslog "term $id: saved fd=$fd pid=$pid"
+}
+
+# Take the program back after a restart, as it was; with nothing to take
+# back, the window starts a new one when it is next drawn.
+fn term_resume(int id) {
+	local fd=${TW[$id]["rfd"]} p t
+	local h=${TW[$id]["h"]} w=${TW[$id]["w"]}
+
+	TW[$id]["t"]=
+	TW[$id]["fd"]=
+	TW[$id]["rfd"]=
+	dt_rslog "term $id: restoring fd=$fd pid=${TW[$id]["rpid"]} h=$h w=$w"
+	[ -n "$fd" ] || return 0
+	p := pty adopt "$fd" "${TW[$id]["rpid"]}" "$h" "$w" || return 0
+	if ! t := term adopt -r "$h" -c "$w" "$p" "${TW[$id]["rsave"]}"; then
+		pty close "$p"
+		return 0
+	fi
+	TW[$id]["t"]=$t
+	TW[$id]["fd"]=$fd
+	dt_rsclaim "$fd"
+	[ -n "$DT_CURSOR" ] && term cursor "$t" "$DT_CURSOR"
+	command -v console > /dev/null && console watch "$fd"
+	return 0
 }
 
 # The window's title follows whatever the program calls itself.

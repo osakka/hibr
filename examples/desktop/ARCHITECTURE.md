@@ -133,6 +133,8 @@ drawing in the wrong place. The calls:
 | `_drop` | `id r c op paths...` |
 | `_menus` | nothing -- the menus are built for whichever window has focus, `$DT_FOCUS` |
 | `_context` | `id` |
+| `_stash` | `id dir` -- Restart Desktop is about to exec; write down what a map cannot hold, in `dir` if it is a file |
+| `_resume` | `id` -- after a restart, once the maps named by `dt_keepstate` are back |
 
 A Control Panel pane is called with its own set -- `_draw id h w x`,
 `_key id key`, `_click id r c`, `_drop id r c key`, `_wheel id dir` -- and a

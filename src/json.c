@@ -329,6 +329,43 @@ char *j_slurp(FILE *f)
 	return b.p;
 }
 
+/* Parse into a subscripted target, name[k]..., replacing what was there;
+   0 when the name holds no subscript after all. Takes root's contents. */
+int j_parsep(sh *s, char *nm, ent *root)
+{
+	vec *ks = vb_get(s);
+	char *br = bi_keys(s, nm, s->amask ? s->amask[2] : 0, ks);
+	var *v;
+	ent *e;
+
+	if (!br || !ks->n) {
+		if (br)
+			*br = '[';
+		vb_put(s, ks);
+		return 0;
+	}
+	e = v_path(s, nm, (char **)ks->p, (int)ks->n, 1);
+	v = v_find(s, nm);
+	if (v)
+		v->am = 1;
+	if (e) {
+		mp_free(e->map);
+		free(e->s);
+		e->map = root->map;
+		e->n = root->n;
+		e->ty = root->ty;
+		e->s = root->s ? root->s : xs("");
+		lg(HIBR_LDBG, "json parsed into %s at depth %d", nm,
+		   (int)ks->n);
+	} else {
+		mp_free(root->map);
+		free(root->s);
+	}
+	*br = '[';
+	vb_put(s, ks);
+	return 1;
+}
+
 /* Parse, query, edit and print JSON documents. */
 int b_json(sh *s, int ac, char **av)
 {
@@ -357,6 +394,10 @@ int b_json(sh *s, int ac, char **av)
 			free(root.s);
 			free(txt);
 			return HIBR_FAIL;
+		}
+		if (strchr(av[2], '[') && j_parsep(s, av[2], &root)) {
+			free(txt);
+			return HIBR_OK;
 		}
 		hibr_set(s, av[2], root.s ? root.s : "", 0);
 		v = v_find(s, av[2]);

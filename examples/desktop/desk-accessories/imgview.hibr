@@ -16,6 +16,7 @@ command -v dt_app > /dev/null && dt_app imgview "Image Viewer" 16 40 "" "◧"
 # pictures. Everything an app remembers goes under the window id it was
 # handed, because a global is shared by every window of the same app.
 declare -gA IV
+command -v dt_keepstate > /dev/null && dt_keepstate imgview IV
 
 fn imgview_open(int id, arg) {
 	IV[$id]["path"]=$arg

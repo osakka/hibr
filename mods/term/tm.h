@@ -96,6 +96,8 @@ struct tm_t {
 };
 
 tm_t *tm_find(int id);
+int tm_savefile(tm_t *t, const char *path);
+int tm_loadfile(tm_t *t, const char *path);
 tm_t *tm_new(int rows, int cols);
 void tm_free(tm_t *t);
 int tm_size(tm_t *t, int rows, int cols);

@@ -41,6 +41,8 @@ driven through a terminal of its own.
 | `pty signal <id> n` | send it a signal |
 | `pty pid <id>` | its process id |
 | `pty close <id>` | kill it if it is still going, and release the pty |
+| `pty adopt <fd> <pid> [rows cols]` | take over a pty this process already has open -- after an `exec`, which keeps the master descriptor (it is not close-on-exec) and the program as this process's child; the id lands in `$RET` |
+| `pty release <id>` | forget it without ending the program or closing the descriptor |
 | `pty list` | every open id |
 
 ## What it is for

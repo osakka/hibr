@@ -38,7 +38,7 @@ int m_pty(sh *s, int ac, char **av)
 
 	if (ac < 2) {
 		lg(HIBR_LERR, "usage: pty spawn|read|drain|write|resize|size|"
-			      "alive|wait|signal|pid|close|list ...");
+			      "alive|wait|signal|pid|close|adopt|release|list ...");
 		return 2;
 	}
 	if (!strcmp(sub, "spawn")) {
@@ -196,6 +196,33 @@ int m_pty(sh *s, int ac, char **av)
 		if (!p)
 			return HIBR_FAIL;
 		tt_drop(p);
+		return HIBR_OK;
+	}
+	if (!strcmp(sub, "adopt")) {
+		if (ac < 4) {
+			lg(HIBR_LERR, "usage: pty adopt fd pid [rows cols]");
+			return 2;
+		}
+		if (ac > 5) {
+			rows = atoi(av[4]);
+			cols = atoi(av[5]);
+		}
+		p = tt_adopt(atoi(av[2]), atol(av[3]), rows, cols);
+		if (!p)
+			return HIBR_FAIL;
+		s_init(&o);
+		s_num(&o, (long)p->id);
+		tt_ret(s, o.p);
+		s_free(&o);
+		return HIBR_OK;
+	}
+	if (!strcmp(sub, "release")) {
+		if (ac < 3)
+			return 2;
+		p = tt_arg(sub, av[2]);
+		if (!p)
+			return HIBR_FAIL;
+		tt_release(p);
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "list")) {

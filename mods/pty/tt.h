@@ -23,6 +23,8 @@ int tt_read(tt_p *p, int ms, str *out);
 int tt_alive(tt_p *p);
 int tt_wait(tt_p *p, int ms);
 void tt_drop(tt_p *p);
+tt_p *tt_adopt(int fd, long pid, int rows, int cols);
+void tt_release(tt_p *p);
 void tt_all(void);
 
 #endif

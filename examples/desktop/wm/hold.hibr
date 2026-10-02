@@ -101,6 +101,8 @@ fn dt_autohold(base, int resume, int join, dname) {
 	# actually happened is dt_autohold returned immediately, mistaking
 	# some other session's own HIBR_HOLD for this one's.
 	[ -n "$HIBR_HOLD" ] && [ "${HIBR_HOLD##*/}" = "$base" ] && return 0
+	# A restart carries on in this process, wherever it was running.
+	[ -n "$DT_RESTORE" ] && return 0
 	[ -t 0 ] && [ -t 1 ] || return 0
 	need hold || return 0
 	[ "$join" = 1 ] && dt_autojoin "$base" "$dname"

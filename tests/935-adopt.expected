@@ -1,0 +1,15 @@
+0
+saved
+an unwritable save fails
+a descriptor that is not a terminal is refused
+the same program, adopted
+screen 0 [line4]
+screen 1 [line5]
+screen 2 [line6]
+screen 3 [line7]
+screen 4 [line8]
+screen 5 [$]
+scrollback [line2]
+after the exec [X is 42]
+a save of another size loads blank: []
+a damaged save loads blank: []

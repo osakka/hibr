@@ -284,7 +284,8 @@ int m_term(sh *s, int ac, char **av)
 
 	if (ac < 2) {
 		lg(HIBR_LERR, "usage: term open|new|poll|draw|key|write|feed|size|"
-			      "alive|status|fd|title|clip|bell|note|cursor|row|cells|scroll|mouse|"
+			      "alive|status|fd|pid|save|adopt|title|clip|bell|note|cursor|row|cells|"
+			      "scroll|mouse|"
 			      "focus|colors|screen|select|copy|close ...");
 		return 2;
 	}
@@ -327,6 +328,51 @@ int m_term(sh *s, int ac, char **av)
 			tm_free(m);
 			return HIBR_FAIL;
 		}
+		s_init(&o);
+		s_num(&o, (long)m->id);
+		tm_ret(s, o.p);
+		s_free(&o);
+		return HIBR_OK;
+	}
+	if (!strcmp(sub, "adopt")) {
+		const char *fp = 0;
+		int pid;
+
+		if (!tm_pty) {
+			lg(HIBR_LERR, "term: no pty module");
+			return HIBR_FAIL;
+		}
+		i = 2;
+		while (i < ac && av[i][0] == '-' && av[i][1]) {
+			if (!strcmp(av[i], "-r") && i + 1 < ac)
+				rows = atoi(av[++i]);
+			else if (!strcmp(av[i], "-c") && i + 1 < ac)
+				cols = atoi(av[++i]);
+			else if (!strcmp(av[i], "-s") && i + 1 < ac)
+				lines = atoi(av[++i]);
+			else {
+				lg(HIBR_LERR, "term adopt: %s: unknown option",
+				   av[i]);
+				return 2;
+			}
+			i++;
+		}
+		if (i >= ac || rows < 1 || cols < 1) {
+			lg(HIBR_LERR, "usage: term adopt [-r rows] [-c cols] "
+				      "[-s lines] pty-id [saved-file]");
+			return 2;
+		}
+		pid = atoi(av[i]);
+		if (tm_pty->fd(pid) < 0) {
+			lg(HIBR_LERR, "term adopt: %s: no such pty", av[i]);
+			return HIBR_FAIL;
+		}
+		fp = i + 1 < ac ? av[i + 1] : 0;
+		m = tm_new(rows, cols);
+		m->sbmax = lines < 0 ? 0 : lines;
+		m->pty = pid;
+		if (fp && !tm_loadfile(m, fp))
+			lg(HIBR_LINF, "term adopt: starting %d blank", m->id);
 		s_init(&o);
 		s_num(&o, (long)m->id);
 		tm_ret(s, o.p);
@@ -474,6 +520,25 @@ int m_term(sh *s, int ac, char **av)
 		s_num(&o, (long)(tm_pty ? tm_pty->status(m->pty) : -1));
 		tm_ret(s, o.p);
 		s_free(&o);
+		return HIBR_OK;
+	}
+	if (!strcmp(sub, "pid")) {
+		s_init(&o);
+		s_num(&o, tm_pty ? tm_pty->pid(m->pty) : -1L);
+		tm_ret(s, o.p);
+		s_free(&o);
+		return HIBR_OK;
+	}
+	if (!strcmp(sub, "save")) {
+		if (ac < 4) {
+			lg(HIBR_LERR, "usage: term save id file");
+			return 2;
+		}
+		tm_pump(m, 0);
+		if (!tm_savefile(m, av[3])) {
+			lg(HIBR_LERR, "term save: %s: cannot write it", av[3]);
+			return HIBR_FAIL;
+		}
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "fd")) {

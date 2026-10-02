@@ -29,6 +29,7 @@ same underlying grid, not the interface itself.
 | `key.c` | turning a decoded key name (`up`, `ctrl-c`, `f5`) back into the bytes a program expects, and a mouse event into the report it asked for |
 | `api.c` | the `"terminal"` interface itself: an emulator addressed by id, for a module rather than a script |
 | `term.c` | the builtin and the module's life cycle |
+| `save.c` | `term save` and the loading half of `term adopt`: a versioned file of named fields, so an older save still loads and an unknown field is skipped |
 
 ## The builtin
 
@@ -47,6 +48,11 @@ same underlying grid, not the interface itself.
     term bell t                  # status 0 if it rang the bell since last asked
     term note t                  # its next notification (OSC 9, 777): title, tab, text
     term fd    t                 # the pty descriptor, for console watch
+    term pid   t                 # the program's process id
+    term save  t file            # screen, scrollback, cursor, modes, title -- for a restart
+    t := term adopt [-r rows] [-c cols] [-s lines] pty-id [file]
+                                 # an emulator for a pty already running (pty adopt),
+                                 # loaded from a save of the same size if given
     term cursor t                # row, column, shown, and its shape
     term cursor t block|underline|bar  # set the shape directly
     term row   t n               # one row of what is shown, as text

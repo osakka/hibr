@@ -351,6 +351,45 @@ One window can still be given everything: the Window menu's Pass Every Key,
 ticked, is for a program that needs the chord, or a desktop running inside
 that terminal.
 
+## Staying current
+
+**Restart Desktop**, on the hibr menu, replaces the running desktop with
+whatever hibr is installed now, in the same process, and carries on where
+it was: every window in its place, on its workspace, minimised or not, in
+the same stacking order and with the same focus, and the tiling as it was.
+A terminal's program does not stop -- the same shell, its variables, its
+jobs, what is running in it -- and its screen and scrollback come back with
+it. Note Pad keeps its text, the calculator its sum, Files its folder and
+selection, dBASE its database and output, and a game its board; a game in
+play comes back paused. Nothing needs screen or tmux around the terminals.
+
+When a newer hibr is installed under a running desktop -- `apt upgrade`
+and the like -- a note says so; click it to restart into it. Nothing
+happens until you do. Noticing it needs `/proc`, so it is Linux only;
+Restart Desktop itself works anywhere. The check rides the bar clock's
+own once-a-minute wake, so an idle desktop draws no extra frames for it.
+
+An app keeps its windows' state by naming the maps it holds them in, keyed
+by window id:
+
+<!-- not run: a line from an app's file, read when the desktop loads it -->
+```sh
+command -v dt_keepstate > /dev/null && dt_keepstate notepad NP
+```
+
+and, for what a map cannot hold -- a program, an open file --
+`<app>_stash id dir` before the restart and `<app>_resume id` after. An app
+with neither reopens fresh, in the same place.
+
+What it does not do: a terminal whose program had already ended comes
+back with a new shell rather than the exit message; a window whose app is
+no longer installed stays closed, and its program, if it had one, is ended
+as closing the window would. The `hold` process that a session is attached through
+keeps running the hibr it was started with until the session is ended; and
+between installing and restarting, a module the running desktop has not
+loaded yet would be the new one, which the old shell refuses. Restart soon
+after an upgrade.
+
 ## Detaching, and coming back
 
 The shipped session holds itself, so this is already detachable:

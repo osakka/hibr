@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.89
+
+**Restart Desktop keeps your sessions.** On the hibr menu: the desktop
+replaces itself with the hibr installed now, in the same process, and
+carries on -- every window in its place, workspace, stacking and focus, and
+tiling as they were. A terminal's program never stops: the same shell, with
+its variables and jobs, and its screen and scrollback come back. Note Pad,
+Calculator, Puzzle, Mines, Snake, Bricks, Files, Image Viewer and dBASE keep
+their state; a game in play comes back paused. When apt or brew installs a
+newer hibr under a running desktop, a note says so, and clicking it
+restarts (Linux; it reads `/proc`). No screen or tmux needed around the
+terminals any more. The update check rides the clock's once-a-minute wake,
+so an idle desktop draws no more frames than before.
+
+An app keeps state with `dt_keepstate app MAP...`, and `<app>_stash` /
+`<app>_resume` for what a map cannot hold.
+
+**`pty adopt` and `pty release`; `term adopt`, `term save` and `term pid`.**
+A pty survives `exec` -- its master is not close-on-exec and the program
+stays the process's child -- and the new image takes it over with its
+screen, scrollback, cursor and modes.
+
+**`json parse` into a subscript** -- `json parse m[3] "$doc"` replaces just
+that entry.
+
+**`export -n`** takes a name out of the environment, as in bash. hibr took
+`-n` for a variable name and exported it.
+
 ## 0.88
 
 **dBASE's menus are System 7's.** File (New Database, Open Database, Close

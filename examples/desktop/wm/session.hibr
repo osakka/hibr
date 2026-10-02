@@ -55,6 +55,7 @@ dt_open() {
 	fi
 	dt_size
 	dt_deskscan
+	dt_restore
 }
 
 # Re-read the screen size after a resize, and this desktop's own primary
@@ -174,8 +175,10 @@ dt_run() {
 				frames=$((frames + 1))
 			fi
 		fi
+		dt_updcheck
 		if [ -n "$DT_TESTIDLE" ]; then
 			k := console consumed
+			k=$((k + DT_INBASE))
 			printf '\e]7777;idle;%s;%s\a' "$k" "$frames"
 		fi
 		if [ "$rsz" = 1 ]; then

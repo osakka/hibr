@@ -196,7 +196,7 @@ reaches into it and no query language is needed to read a field.
 
 | form | does |
 |---|---|
-| `json parse var [text]` | parse text, or standard input, into `var` |
+| `json parse var [text]` | parse text, or standard input, into `var`; a subscripted `var` -- `m[3]`, `m["a-b"]["in"]` -- replaces just that entry |
 | `json get var path [out]` | read a value or a whole subtree |
 | `json set var path value [-s]` | write one; `-s` keeps a numeric-looking value a string |
 | `json emit var [-p]` | print the document; `-p` indents |
