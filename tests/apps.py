@@ -326,7 +326,7 @@ def prow(name):
     """Which screen row a pane's own name sits at in the picker list: under
     the Hardware heading, and under Desktop and Apps as well further down."""
     heads = ["hardware", "system", "app"]
-    return R0 + 1 + ORDER.index(name) + heads.index(GROUP[name])
+    return R0 + 2 + ORDER.index(name) + heads.index(GROUP[name])
 
 
 def downs(name):
@@ -410,12 +410,12 @@ check("the picker lists every pane it has room for, sorted by title",
       all(TITLE[n] in sc.row(prow(n)) for n in ORDER if prow(n) < R0 + 19),
       sc)
 check("under a Hardware heading, then Desktop, then Apps",
-      "Hardware" in sc.row(R0) and
+      "Hardware" in sc.row(R0 + 1) and
       "Desktop" in sc.row(prow("appearance") - 1) and
       "Apps" in sc.row(prow("abouthibr") - 1), sc)
-check("at full height every pane fits, down to the bottom border, no bar",
-      sc.find("Hardware") is not None and sc.find(TITLE["taskmgr"]) is not None
-      and "█" not in "".join(r[2:22] for r in sc.text().split("\n")), sc)
+check("a list longer than the window scrolls, with a bar to say so",
+      sc.find("Hardware") is not None and "█" in "".join(
+          r[2:22] for r in sc.text().split("\n")), sc)
 
 
 # The list and the pane beside it scroll on their own, each with its own
@@ -833,6 +833,20 @@ sc = run(*PANEL, feed=DOWN_WP + [b"\r"] +
 check("and Close closes the picker, leaving the Control Panel",
       cl is not None and sc.find("┤ Wallpaper ├") is None and
       sc.find("┤ Panel ├") is not None, sc)
+
+# A search at the top of the list: typing finds panes by their titles and
+# by their rows, so "wall" finds Appearance; escape clears it.
+sc = cprun([c.encode() for c in "wall"] + [0.3])
+check("the Control Panel's search finds a pane by a row inside it",
+      "wall" in sc.row(R0) and "Appearance" in sc.row(R0 + 2) and
+      sc.find("Date & Time") is None and sc.find("Mouse") is None, sc)
+sc = cprun([c.encode() for c in "zzzx"] + [0.3])
+check("and says when nothing matches", sc.find("Nothing found") is not None,
+      sc)
+sc = cprun([c.encode() for c in "wall"] + [b"\x1b", 0.6])
+check("escape clears it, and every pane is back",
+      sc.find("Search") is not None and sc.find("Date & Time") is not None,
+      sc)
 
 # Change Wallpaper… on the desktop's own menu opens the Control Panel at
 # Appearance, where the wallpaper is chosen.
@@ -3119,4 +3133,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(460)
+report(463)

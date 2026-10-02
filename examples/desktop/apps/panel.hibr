@@ -140,9 +140,49 @@ fn panel_pane(int w) {
 	ret "${CP_PANE_LIST[$i]}"
 }
 
+# The panes a search finds, as their indices: a pane whose title has the
+# text in it, or one with a row that does -- "wallpaper" finds Appearance.
+# Worked out again only when the text changes, since asking every pane
+# for its rows is not free; each pane's rows are built under a window id
+# no window has, and thrown away.
+fn panel_find(int id) {
+	local q=${PW[$id]["q"]} i=0 n k t hit out= scratch=999999
+
+	q=${q,,}
+	[ "${PW[$id]["mq"]}" = "$q" ] && [ -n "${PW[$id]["mq"]+x}" ] && return 0
+	PW[$id]["mq"]=$q
+	for n in "${CP_PANE_LIST[@]}"; do
+		hit=0
+		if [ -z "$q" ]; then
+			hit=1
+		else
+			t=${CP_PANES[$n]["title"]}
+			[[ ${t,,} == *"$q"* ]] && hit=1
+			if [ "$hit" = 0 ] && ! dt_has "${n}_draw" && dt_has "${n}_rows"; then
+				unset "CP[$scratch]"
+				k := "${n}_rows" "$scratch"
+				while [ "$k" -gt 0 ]; do
+					k=$((k - 1))
+					t=${CP[$scratch][$k]["text"]}
+					[[ ${t,,} == *"$q"* ]] && { hit=1; break; }
+				done
+				unset "CP[$scratch]"
+			fi
+		fi
+		[ "$hit" = 1 ] && out="$out $i"
+		i=$((i + 1))
+	done
+	PW[$id]["m"]=${out# }
+}
+
+# Whether pane index i is among what the search found.
+fn panel_shown(int id, int i) {
+	[[ " ${PW[$id]["m"]} " == *" $i "* ]]
+}
+
 fn panel_draw(int id, int h, int w, int row, int col) {
-	local i n r t lw side pane bx bw g sel at=0 lt vis
-	local -a lines
+	local i n r t lw side pane bx bw g sel at=0 lt vis on
+	local -a lines m
 
 	dt_wclear "$id"
 	lw := dt_split CP_DIVCOL "$w" 8
@@ -155,12 +195,40 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 	# scrolled on its own, apart from the pane beside it: the selected
 	# pane is brought into view when the selection moves, and otherwise
 	# the wheel puts the list where it likes.
+	panel_find "$id"
+	read -ra m <<< "${PW[$id]["m"]}"
+	if [ "${#m[@]}" -gt 0 ] && ! panel_shown "$id" "${PW[$id]["pane"]}"; then
+		PW[$id]["pane"]=${m[0]}
+		PW[$id]["sel"]=0
+		PW[$id]["top"]=0
+		PW[$id]["last"]=-1
+		pane := panel_pane "$id"
+	fi
+	on=0
+	[ "$side" = list ] && [ "$DT_FOCUS" = "$id" ] && on=1
+	if [ -z "${PW[$id]["q"]}" ]; then
+		console pen "$DT_DIM" "$DT_FACE"
+		t := str pad "Search${GL[ellipsis]}" $((lw - 3))
+		console put -p "w$id" 1 2 "$t"
+		if [ "$on" = 1 ]; then
+			console pen "$DT_FACE" "$DT_INK"
+			console put -p "w$id" 1 2 "S"
+		fi
+	else
+		dt_textdraw "$id" 1 2 $((lw - 3)) "${PW[$id]["q"]}" \
+			"${#PW[$id]["q"]}" "$on"
+	fi
+	dt_wreg "$id" 1 1 $((lw - 1)) search
 	sel=${PW[$id]["pane"]}
 	lt=${PW[$id]["ltop"]:-0}
-	vis=$h
+	vis=$((h - 1))
 	i=0
 	g=
 	for n in "${CP_PANE_LIST[@]}"; do
+		if ! panel_shown "$id" "$i"; then
+			i=$((i + 1))
+			continue
+		fi
 		if [ "${CP_PANES[$n]["group"]}" != "$g" ]; then
 			g=${CP_PANES[$n]["group"]}
 			lines+=("h:$g")
@@ -180,9 +248,9 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 	PW[$id]["ltop"]=$lt
 	PW[$id]["lvis"]=$vis
 	PW[$id]["ln"]=${#lines[@]}
-	r=1
+	r=2
 	while [ "$r" -le "$h" ]; do
-		t=${lines[$((lt + r - 1))]}
+		t=${lines[$((lt + r - 2))]}
 		case $t in
 		h:*)
 			console pen "$DT_DIM" "$DT_FACE" bold
@@ -224,7 +292,13 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 	dt_splitbar "$id" "$lw" 1 "$h" "${PW[$id]["split"]:-0}"
 	# The list's own bar, on the divider rather than over the list, so the
 	# titles keep every column.
-	dt_scrollbar "$id" 1 "$lw" "$vis" "${#lines[@]}" "$vis" "$lt"
+	dt_scrollbar "$id" 2 "$lw" "$vis" "${#lines[@]}" "$vis" "$lt"
+	if [ "${#lines[@]}" = 0 ]; then
+		console pen "$DT_DIM" "$DT_FACE"
+		t="Nothing found"
+		console put -p "w$id" 2 2 "${t:0:$((lw - 3))}"
+		return 0
+	fi
 
 	[ -z "$pane" ] && return 0
 	bx=$((lw + 1))
@@ -352,7 +426,12 @@ fn panel_move(int w, int d) {
 	if [ "${PW[$w]["side"]}" = list ]; then
 		n=${#CP_PANE_LIST[@]}
 		[ "$n" -lt 1 ] && return 0
-		i=$(((PW[$w]["pane"] + d + n) % n))
+		[ -n "${PW[$w]["m"]}" ] || return 0
+		i=${PW[$w]["pane"]}
+		while :; do
+			i=$(((i + d + n) % n))
+			panel_shown "$w" "$i" && break
+		done
 		PW[$w]["pane"]=$i
 		PW[$w]["sel"]=0
 		PW[$w]["top"]=0
@@ -436,14 +515,37 @@ cp_save() {
 }
 
 fn panel_key(int w, key) {
-	local pane k
+	local pane k q r
 
 	if [ "${PW[$w]["side"]}" = list ]; then
+		q=${PW[$w]["q"]}
 		case $key in
-		tab | right | enter | " ") PW[$w]["side"]=pane ;;
+		" ")
+			if [ -z "$q" ]; then
+				PW[$w]["side"]=pane
+			else
+				PW[$w]["q"]="$q "
+			fi
+			;;
+		tab | right | enter) [ -n "${PW[$w]["m"]}" ] && PW[$w]["side"]=pane ;;
 		up) panel_move "$w" -1 ;;
 		down) panel_move "$w" 1 ;;
-		*) return 1 ;;
+		escape)
+			[ -n "$q" ] || return 1
+			PW[$w]["q"]=
+			;;
+		backspace | ctrl-u)
+			[ -n "$q" ] || return 1
+			r := dt_textkey "$q" "${#q}" "$key"
+			PW[$w]["q"]=${r% *}
+			;;
+		*)
+			[ "${#key}" = 1 ] || return 1
+			for k in "${!DT_KEYS[@]}"; do
+				[ "${DT_KEYS["$k"]}" = "$key" ] && return 1
+			done
+			PW[$w]["q"]="$q$key"
+			;;
 		esac
 		return 0
 	fi
@@ -491,6 +593,10 @@ fn panel_click(int w, int r, int c, btn = "") {
 
 	if [ "$c" -lt "${PW[$w]["lw"]:-$CP_DIVCOL}" ]; then
 		tag := dt_hit "$w" "$r" "$c"
+		if [ "$tag" = search ]; then
+			PW[$w]["side"]=list
+			return 0
+		fi
 		case $tag in pane:*) ;; *) return 0 ;; esac
 		PW[$w]["pane"]=${tag#pane:}
 		PW[$w]["side"]=list

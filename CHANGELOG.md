@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.99.4
+
+**The Control Panel has a search.** It sits at the top of the list: type
+while the list has the keyboard, and only the panes that match are shown
+-- by title, or by any row inside them, so "wall" finds Appearance through
+its Wallpaper rows. The arrows move among what was found, escape clears
+it, and a key the desktop holds still goes to the desktop.
+
 ## 0.99.3
 
 **Notifications say who they are from.** The window manager marks the
