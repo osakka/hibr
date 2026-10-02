@@ -51,6 +51,18 @@ char *gt_read(const char *dir, const char *sub, size_t max)
 	return t;
 }
 
+/* Whether a directory holds a repository: an empty .git has no HEAD. */
+int gt_isrepo(const char *dir)
+{
+	char *h = gt_join(dir, "HEAD");
+	int ok = access(h, F_OK) == 0;
+
+	free(h);
+	if (!ok)
+		lg(HIBR_LDBG, "prompt: %s is not a repository", dir);
+	return ok;
+}
+
 /* Walk up from a directory looking for the repository marker. */
 int gt_find(pctx *c, grepo *g)
 {
@@ -66,7 +78,7 @@ int gt_find(pctx *c, grepo *g)
 		base = b.n;
 		s_cat(&b, "/.git");
 		dot = b.p;
-		if (gt_isdir(dot)) {
+		if (gt_isdir(dot) && gt_isrepo(dot)) {
 			g->dir = xs(dot);
 			b.n = base;
 			b.p[b.n] = 0;
@@ -100,7 +112,7 @@ int gt_find(pctx *c, grepo *g)
 		b.p[b.n] = 0;
 		if (!b.n) {
 			s_cat(&b, "");
-			if (gt_isdir("/.git")) {
+			if (gt_isdir("/.git") && gt_isrepo("/.git")) {
 				g->dir = xs("/.git");
 				g->top = xs("/");
 				s_free(&b);

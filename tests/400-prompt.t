@@ -149,6 +149,11 @@ echo "-- outside a repository"
 cd "$d"
 PROMPT[format]='<$git>after'
 show
+echo "-- an empty .git is not a repository"
+mkdir -p "$d/hollow/.git"
+cd "$d/hollow"
+show
+cd "$d"
 
 echo "== newline option"
 cd "$root"

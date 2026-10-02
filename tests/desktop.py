@@ -1988,12 +1988,17 @@ check("hides it", sc.find("┤ Hello ├") is None, sc)
 sc, _ = run(ONE, WMENU + [b"w"])
 check("and closes it", sc.find("┤ Hello ├") is None, sc)
 
-# Change Wallpaper on the desktop's own right-click menu steps to the next
-# glyph, so an empty cell of the wallpaper shows something else.
+# Next Wallpaper on the desktop's own right-click menu steps to the next
+# glyph, so an empty cell of the wallpaper shows something else; Change
+# Wallpaper… is the Control Panel's, dimmed without it.
 before, _ = run(ONE)
-sc, _ = run(ONE, [press(15, 50, 2), b"w"])
-check("Change Wallpaper steps the wallpaper to its next glyph",
+sc, _ = run(ONE, [press(15, 50, 2), b"n"])
+check("Next Wallpaper steps the wallpaper to its next glyph",
       sc.at(20, 70) != before.at(20, 70), sc)
+sc, raw = run(ONE, [press(15, 50, 2), b"r"])
+check("Refresh Desktop draws everything again, and says so, uncounted",
+      b"Refreshed" in raw and sc.find("┤ Hello ├") is not None and
+      sc.find("⚑1") is None, sc)
 
 # A shift-click on a desktop icon takes the run from the last one clicked,
 # which alt-c then copies as their paths.
@@ -2808,4 +2813,4 @@ check("quitting from the first ends the whole session",
 t1.close()
 unjoin()
 
-report(390)
+report(391)

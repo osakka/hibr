@@ -834,6 +834,20 @@ check("and Close closes the picker, leaving the Control Panel",
       cl is not None and sc.find("┤ Wallpaper ├") is None and
       sc.find("┤ Panel ├") is not None, sc)
 
+# Change Wallpaper… on the desktop's own menu opens the Control Panel at
+# Appearance, where the wallpaper is chosen.
+sc = cprun(feed=[press(20, 70, 2), b"w", 0.5])
+check("Change Wallpaper on the desktop opens the Control Panel at Appearance",
+      sc.find("Wallpaper") is not None and sc.find("Theme") is not None, sc)
+
+# The divider between the list and the pane is dragged (widgets/split.hibr),
+# and where it is left is a setting kept for next time.
+sc = run(*PANEL, feed=[press(10, 19), drag(10, 23), drag(10, 27),
+                       release(10, 27), 0.3], pre=CPANES)
+check("the Control Panel's divider drags: the list wider, the pane narrower",
+      sc.at(10, 27) == "│" and sc.at(10, 19) != "│" and
+      sc.find("Notifications") is not None, sc)
+
 # Once it has browsed somewhere else, that becomes the new starting
 # point -- a directory distinct from both $HOME and the wallpaper's own,
 # so this is not just the check above by coincidence.
@@ -1652,12 +1666,15 @@ sc = run(*TERM, feed=[wheel(8, 10)], pre=LONG, wait=1.2, end=None)
 check("on, a scrollbar tracks the view -- one column short of the border, "
       "the one it bought back from the program",
       sc.at(3, 44) == "│" and sc.at(3, 45) == "│" and
-      sc.at(11, 44) == "█", sc)
+      sc.at(12, 44) == "█", sc)
+check("from the first row of the terminal to its last, not into the title bar",
+      sc.at(2, 44) != "│" and sc.at(14, 44) == "│" and
+      sc.at(15, 44) != "│", sc)
 
 sc = run(*TERM, feed=[wheel(8, 10)], wait=1.2, end=None,
          pre=LONG + '\nDT_ACTIVE="#2b6cb0"\nDT_IDLE="#8a8578"')
 check("the scrollbar is drawn in the theme's colours: accent thumb, idle track",
-      sc.at(11, 44) == "█" and sc.style(11, 44)["fg"] == "#2b6cb0" and
+      sc.at(12, 44) == "█" and sc.style(12, 44)["fg"] == "#2b6cb0" and
       sc.style(4, 44)["fg"] == "#8a8578", sc)
 
 
@@ -2932,6 +2949,16 @@ check("Write shows markdown as it reads: the marks gone, the styles there",
 check("and the line the cursor is on shows its markdown, to edit exactly",
       sc.find("# Shopping list") is not None, sc)
 check("its toolbar is there", sc.find(" B  I  S ") is not None, sc)
+sc = wrrun([], text="top\n\n- one\n  - two *deep*\n    1. three\n\n"
+           "> quoted\n> > twice\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n"
+           "Under\n===\n")
+check("the md module lays it out: nested lists keep their indent",
+      sc.find("• one") is not None and sc.find("  • two deep") is not None and
+      sc.find("    1. three") is not None, sc)
+check("quotes in quotes, tables with their rules, setext headings",
+      sc.find("│ quoted") is not None and sc.find("│ │ twice") is not None and
+      sc.find("│ a │ b │") is not None and sc.find("│ 1 │ 2 │") is not None and
+      sc.find("Under") is not None and sc.find("===") is None, sc)
 sc = wrrun([b"\x1b[B", b"\x1b[B", b"\x1b[F", b" fresh"])
 check("typing marks the document changed, in its title",
       sc.find("┤ Write [doc.md •] ├") is not None and
@@ -3010,7 +3037,7 @@ html = open(os.path.join(d, "page.html")).read() \
     if os.path.exists(os.path.join(d, "page.html")) else ""
 check("Export writes the document as an HTML page, through the same dialog",
       "<h1>Shopping list</h1>" in html and "<strong>today</strong>" in html
-      and '<input type="checkbox" checked disabled> eggs' in html, html[:300])
+      and '<input checked="" disabled="" type="checkbox"> eggs' in html, html[:300])
 sc = run("dbase", "20 72 1 2", [b"\x1b[21~", b"\x1b[C", b"o", 0.5,
                                 b"\x15"] + [c.encode() for c in d]
          + [b"\r", 0.5], pre=DBPRE, end=None)
@@ -3088,4 +3115,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(454)
+report(459)

@@ -1,0 +1,53 @@
+#!/usr/bin/env hibr
+#
+# split -- a window cut in two side by side at a divider the mouse can drag.
+# The Control Panel's list and pane, the file dialog's list and preview.
+#
+# Like every widget it keeps nothing: the divider's column lives in a
+# variable the app names -- a global it can dt_keep, so where it was left is
+# where it is next time -- and whether a drag is under way is the app's to
+# remember under its window id. A press on the divider's column starts a
+# drag, every drag report moves it, the release ends it:
+#
+#   col := dt_split VAR w [min] [def]    the column, kept min from each edge;
+#                                        def, or a third of w, until dragged
+#   dt_splitbar id col r0 h [on]         the divider, rows r0 to r0+h-1;
+#                                        on while it is being dragged
+#   dt_splitmove VAR c w [min]           put it at column c, clamped
+
+strict
+
+# The divider's column in a window w wide: what the variable named holds,
+# or def until it holds something, kept at least min columns from either
+# edge.
+fn dt_split(var, int w, int min = 8, int? def = "") {
+	local c=${!var}
+
+	[ -n "$c" ] || c=${def:-$((w / 3))}
+	[ "$c" -gt $((w - min)) ] && c=$((w - min))
+	[ "$c" -lt "$min" ] && c=$min
+	ret "$c"
+}
+
+# Draw the divider down column col, from row r0 for h rows; in the accent
+# colour while it is being dragged.
+fn dt_splitbar(int id, int col, int r0, int h, int on = 0) {
+	local r=$r0 g=${GL[vline]}
+
+	if [ "$on" = 1 ]; then
+		console pen "$DT_ACTIVE" "$DT_FACE"
+	else
+		console pen "$DT_IDLE" "$DT_FACE"
+	fi
+	while [ "$r" -lt $((r0 + h)) ]; do
+		console put -p "w$id" "$r" "$col" "$g"
+		r=$((r + 1))
+	done
+}
+
+# Move the divider to column c of a window w wide, as far as min allows.
+fn dt_splitmove(var, int c, int w, int min = 8) {
+	[ "$c" -gt $((w - min)) ] && c=$((w - min))
+	[ "$c" -lt "$min" ] && c=$min
+	printf -v "$var" '%s' "$c"
+}

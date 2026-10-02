@@ -294,6 +294,7 @@ inside a function or a `try` it returns 2 —
 | `need name…` | make an interface or module available, or fail saying which |
 | `app name [text]` | name this script as an app, for whatever is running it |
 | `cat [-benstuvAETfp] [file…]` | **[module]** `cat` in a pipe; gutter and colour on a terminal |
+| `md html\|lines [-c] [-t text \| file]` | **[module]** markdown, CommonMark with GitHub's extensions: HTML, or a style letter per character of each line — see [mods/md](../mods/md/README.md) |
 
 A module adds builtins, and it can add a *protocol*: register a scheme and
 `/dev/<name>/…` works anywhere a filename does. When the effective uid is 0 the

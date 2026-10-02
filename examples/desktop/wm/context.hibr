@@ -60,7 +60,33 @@ dt_ctxbuild() {
 dt_deskcontext() {
 	dt_menu "Desktop"
 	dt_item "Arrange Icons" a dt_iconclean
-	dt_item "Change Wallpaper" w dt_wallnext
+	if dt_has panel_goto; then
+		dt_item "Change Wallpaper${GL[ellipsis]}" w dt_panelpane appearance
+	else
+		dt_dim "Change Wallpaper${GL[ellipsis]}"
+	fi
+	dt_item "Next Wallpaper" n dt_wallnext
+	dt_sep
+	dt_item "Refresh Desktop" r dt_refresh
+}
+
+# Open the Control Panel at one of its panes, or bring it there if it is
+# open already.
+fn dt_panelpane(pane) {
+	local id
+
+	id := dt_launch panel "$pane" || return 0
+	dt_has panel_goto && panel_goto "$id" "$pane"
+	return 0
+}
+
+# Draw the whole screen again from nothing -- for a terminal something else
+# wrote over, or one that never showed what it was sent -- and look again
+# at what is on disk, for the desktop's icons and every window of files.
+dt_refresh() {
+	console reassert
+	dt_changed
+	dt_notep low "Refreshed"
 }
 
 # Right-click on empty menu-bar space: quick launchers, for the two apps

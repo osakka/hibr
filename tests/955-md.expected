@@ -1,0 +1,37 @@
+0
+<h1>Hello <em>world</em></h1>
+<ul>
+<li><input checked="" disabled="" type="checkbox"> done</li>
+<li><input disabled="" type="checkbox"> todo</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>a</th>
+<th align="right">b</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td align="right">2</td>
+</tr>
+</tbody>
+</table>
+<p>~~not struck~~ www.example.com</p>
+<p><del>struck</del> <a href="http://www.example.com">www.example.com</a></p>
+<h1>Setext</h1>
+<blockquote>
+<p>quote</p>
+</blockquote>
+111111
+mmm
+
+> qqqqq
+2: - ppp   - mmbbbmm
+bound: <p><code>code</code></p>
+
+empty: 0
+missing: 1
+hibr: md: no subcommand frob
+status: 2

@@ -91,8 +91,10 @@ declare -gA PW
 declare -gA CP
 
 # How wide the pane list is, and how much is left for the selected pane's
-# own content once the divider is taken out of it too.
-CP_LISTW=17
+# own content once the divider is taken out of it too. The divider can be
+# dragged (widgets/split.hibr), and where it was left is kept.
+CP_LISTW="${CP_LISTW-17}"
+command -v dt_keep > /dev/null && dt_keep CP_LISTW
 
 fn panel_open(int w, arg) {
 	PW[$w]["pane"]=0
@@ -103,6 +105,27 @@ fn panel_open(int w, arg) {
 	PW[$w]["last"]=-1
 	PW[$w]["ltop"]=0
 	PW[$w]["lseen"]=-1
+	[ -n "$arg" ] && panel_goto "$w" "$arg"
+	return 0
+}
+
+# Show the pane named, as a click on it in the list would; one that is not
+# there leaves the selection where it is.
+fn panel_goto(int w, pane) {
+	local i=0 n
+
+	for n in "${CP_PANE_LIST[@]}"; do
+		if [ "$n" = "$pane" ]; then
+			PW[$w]["pane"]=$i
+			PW[$w]["side"]=pane
+			PW[$w]["sel"]=0
+			PW[$w]["top"]=0
+			PW[$w]["last"]=-1
+			return 0
+		fi
+		i=$((i + 1))
+	done
+	return 1
 }
 
 # The selected pane's name, clamped to what is actually registered -- a
@@ -118,11 +141,13 @@ fn panel_pane(int w) {
 }
 
 fn panel_draw(int id, int h, int w, int row, int col) {
-	local i n r t lw=$CP_LISTW side pane bx bw g sel at=0 lt vis
+	local i n r t lw side pane bx bw g sel at=0 lt vis
 	local -a lines
 
 	dt_wclear "$id"
-	[ "$lw" -ge $((w - 8)) ] && lw=$((w / 2))
+	lw := dt_split CP_LISTW "$w" 8
+	PW[$id]["lw"]=$lw
+	PW[$id]["w"]=$w
 	side=${PW[$id]["side"]}
 	pane := panel_pane "$id"
 
@@ -167,6 +192,7 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 			*) t=Desktop ;;
 			esac
 			t := str pad " $t" $((lw - 1))
+			t=${t:0:$lw}
 			console put -p "w$id" "$r" 0 "$t"
 			;;
 		p:*)
@@ -183,6 +209,7 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 			fi
 			t := str pad "  ${CP_PANES[$n]["icon"]} ${CP_PANES[$n]["title"]}" \
 				$((lw - 1))
+			t=${t:0:$lw}
 			console put -p "w$id" "$r" 0 "$t"
 			dt_wreg "$id" "$r" 0 $((lw - 1)) "pane:$i"
 			;;
@@ -194,12 +221,7 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 		esac
 		r=$((r + 1))
 	done
-	console pen "$DT_IDLE" "$DT_FACE"
-	r=1
-	while [ "$r" -lt "$h" ]; do
-		console put -p "w$id" "$r" "$lw" "${GL[vline]}"
-		r=$((r + 1))
-	done
+	dt_splitbar "$id" "$lw" 1 $((h - 1)) "${PW[$id]["split"]:-0}"
 	# The list's own bar, on the divider rather than over the list, so the
 	# titles keep every column.
 	dt_scrollbar "$id" 1 "$lw" "$vis" "${#lines[@]}" "$vis" "$lt"
@@ -462,7 +484,7 @@ fn panel_key(int w, key) {
 fn panel_click(int w, int r, int c, btn = "") {
 	local pane i n top tag k wc
 
-	if [ "$c" -lt "$CP_LISTW" ]; then
+	if [ "$c" -lt "${PW[$w]["lw"]:-$CP_LISTW}" ]; then
 		tag := dt_hit "$w" "$r" "$c"
 		case $tag in pane:*) ;; *) return 0 ;; esac
 		PW[$w]["pane"]=${tag#pane:}
@@ -534,10 +556,22 @@ declare -gA CP_MDRAG
 fn panel_mouse(int id, act, button, int r, int c, mods) {
 	local pane
 
+	if [ "${PW[$id]["split"]}" = 1 ]; then
+		dt_splitmove CP_LISTW "$c" "${PW[$id]["w"]:-40}" 8
+		if [ "$act" = release ]; then
+			PW[$id]["split"]=
+			cp_save
+		fi
+		return 0
+	fi
 	if [ "$act" = press ]; then
 		CP_MDRAG[$id]=
+		if [ "$c" = "${PW[$id]["lw"]}" ] && [ "$r" -ge 1 ]; then
+			PW[$id]["split"]=1
+			return 0
+		fi
 		pane := panel_pane "$id"
-		if [ "$c" -ge "$CP_LISTW" ] && [ -n "$pane" ] &&
+		if [ "$c" -ge "${PW[$id]["lw"]:-$CP_LISTW}" ] && [ -n "$pane" ] &&
 		   dt_has "${pane}_mouse" &&
 		   "${pane}_mouse" "$id" press "$button" "$r" "$c"; then
 			CP_MDRAG[$id]=$pane
@@ -555,7 +589,7 @@ fn panel_wheel(int? w = "", dir = "", int? r = "", int? c = "") {
 	local top max n vis pane
 
 	# Each side scrolls on its own, whichever the pointer is over.
-	if [ -n "$c" ] && [ "$c" -lt "$CP_LISTW" ]; then
+	if [ -n "$c" ] && [ "$c" -lt "${PW[$w]["lw"]:-$CP_LISTW}" ]; then
 		top=${PW[$w]["ltop"]:-0}
 		max=$((${PW[$w]["ln"]:-0} - ${PW[$w]["lvis"]:-1}))
 		case $dir in

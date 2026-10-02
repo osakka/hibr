@@ -147,12 +147,20 @@ fn fp_takesel(int id) {
 	FP[$id]["cur"]=${#FP[$id]["buf"]}
 }
 
+# Where the dialog's divider sits once it has been dragged, kept; until
+# then a little over half the window is the list.
+FP_LISTW="${FP_LISTW-}"
+command -v dt_keep > /dev/null && dt_keep FP_LISTW
+
 fn fpick_draw(int id, int h, int w, int row, int col) {
 	local lw vis=$((h - 6)) n=${FP[$id]["n"]} sel top i r
 	local t d f=${FP[$id]["focus"]} on lab glyph pw
 	local -a labs
 
-	lw=$((w * 11 / 20))
+	lw := dt_split FP_LISTW $((w - 1)) 20 $((w * 11 / 20 + 1))
+	lw=$((lw - 1))
+	FP[$id]["lw"]=$lw
+	FP[$id]["w"]=$w
 	dt_wclear "$id"
 	d=${FP[$id]["dir"]}
 	d=${d/#$HOME/\~}
@@ -199,12 +207,7 @@ fn fpick_draw(int id, int h, int w, int row, int col) {
 		r=$((r + 1))
 	done
 	dt_scrollbar "$id" 2 "$lw" "$vis" "$n" "$vis" "$top"
-	console pen "$DT_IDLE" "$DT_FACE"
-	r=2
-	while [ "$r" -lt $((vis + 2)) ]; do
-		console put -p "w$id" "$r" $((lw + 1)) "${GL[vline]}"
-		r=$((r + 1))
-	done
+	dt_splitbar "$id" $((lw + 1)) 2 "$vis" "${FP[$id]["split"]:-0}"
 	pw=$((w - lw - 3))
 	fp_preview "$id" 2 $((lw + 3)) "$vis" "$pw"
 	on=0
@@ -470,6 +473,25 @@ fn fp_settype(int? id = "", value = "") {
 }
 
 FP_LASTCLICK=
+# A press on the divider drags it; anything else is a click.
+fn fpick_mouse(int id, act, btn, int r, int c, mods = "") {
+	if [ "${FP[$id]["split"]}" = 1 ]; then
+		dt_splitmove FP_LISTW "$c" $((${FP[$id]["w"]:-40} - 1)) 20
+		if [ "$act" = release ]; then
+			FP[$id]["split"]=
+			command -v dt_save > /dev/null && dt_save
+		fi
+		return 0
+	fi
+	[ "$act" = press ] || return 0
+	if [ "$c" = $((${FP[$id]["lw"]:-0} + 1)) ] && [ "$r" -ge 2 ] &&
+	   [ "$r" -lt $((2 + ${FP[$id]["vis"]:-0})) ]; then
+		FP[$id]["split"]=1
+		return 0
+	fi
+	fpick_click "$id" "$r" "$c" "$btn"
+}
+
 fn fpick_click(int id, int r, int c, btn = "") {
 	local tag now i lab
 	local -a labs

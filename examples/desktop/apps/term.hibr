@@ -269,7 +269,7 @@ fn term_draw(int id, int h, int w, int row, int col) {
 	# is the one column DT_TERMBAR bought back, and the only place the
 	# scrollbar draws.
 	[ "$DT_TERMBAR" = 1 ] &&
-		dt_scrollbar "$id" 0 "$w" "$h" $((stored + h)) "$h" \
+		dt_scrollbar "$id" 1 "$w" "$h" $((stored + h)) "$h" \
 			$((stored - view))
 	return 0
 }

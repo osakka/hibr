@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.99.2
+
+**Markdown, complete: the `md` module.** CommonMark with GitHub's
+extensions -- tables, strikethrough, task lists, extended autolinks, the tag
+filter -- parsed in C the way cmark does it. Every example in both specs
+passes, compared byte for byte: 652 of 652 CommonMark 0.31.2, 24 of 24 GFM
+extensions (`tests/md_spec.py`, in `tests/all.py`). `md html` writes HTML as
+cmark-gfm does; `md lines` gives each line a style letter per character, for
+a program that draws markdown itself. Nesting is bounded, every
+pathological input runs in linear time, and it is clean under ASan and
+UBSan after fuzzing.
+
+**Write is built on it.** What was a line-by-line guess is now the real
+document: setext headings, emphasis by the spec's rules, nested lists that
+keep their indent, quotes in quotes, tables with their rules, reference
+links, autolinks, multi-backtick code, entities, inline HTML. The selection
+is drawn exactly over what is selected, and Export to HTML is `md html`.
+
+**A split window's divider drags** -- a new widget, `widgets/split.hibr`.
+The Control Panel's list and the file dialog's list and preview use it, and
+where the divider is left is kept.
+
+**The terminal's scrollbar** runs from its first row to its last; it began
+in the title bar and stopped a row short.
+
+**The desktop's menu:** Change Wallpaper… opens the Control Panel at
+Appearance, Next Wallpaper steps through them as before, and Refresh
+Desktop draws the whole screen again and looks again at what is on disk.
+
+**The prompt** no longer takes an empty `.git` directory for a repository;
+git does not either.
+
 ## 0.99.1
 
 **One Open, Save As and Export dialog for everything.** A folder's

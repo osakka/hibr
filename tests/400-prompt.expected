@@ -51,6 +51,8 @@ two	three]
 [<~/sub >]
 -- outside a repository
 [<>after]
+-- an empty .git is not a repository
+[<>after]
 == newline option
 [
 tail]

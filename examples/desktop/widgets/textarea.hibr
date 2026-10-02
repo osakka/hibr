@@ -22,7 +22,9 @@
 #   tb_cut id / tb_selall id / tb_undo id / tb_redo id
 #   tb_draw id r0 c0 h w ink face [selink active]   draw it, wrapped
 #
-# Every change bumps TB[$id]["ver"], so an app can tell when to save.
+# Every change bumps TB[$id]["ver"], so an app can tell when to save; it
+# starts again at 0 with tb_set. TB[$id]["gen"] never repeats -- a change
+# or a tb_set gives it a number no text has had -- so it can key a cache.
 
 strict
 
@@ -32,6 +34,7 @@ TB_SC=0
 TB_ER=0
 TB_EC=0
 TB_UNDOMAX=100
+TB_GEN=0
 
 # Replace the whole buffer.
 fn tb_set(int id, text = "") {
@@ -55,6 +58,8 @@ fn tb_set(int id, text = "") {
 	TB[$id]["un"]=0
 	TB[$id]["rn"]=0
 	TB[$id]["run"]=
+	TB_GEN=$((TB_GEN + 1))
+	TB[$id]["gen"]=$TB_GEN
 }
 
 fn tb_free(int id) {
@@ -156,6 +161,8 @@ fn tb_redo(int id) {
 # Mark the text changed.
 fn tb_changed(int id) {
 	TB[$id]["ver"]=$((${TB[$id]["ver"]:-0} + 1))
+	TB_GEN=$((TB_GEN + 1))
+	TB[$id]["gen"]=$TB_GEN
 }
 
 fn tb_clampc(int id) {

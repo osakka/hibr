@@ -32,7 +32,8 @@ command -v dt_keepstate > /dev/null && dt_keepstate write WR
 
 WR_S=
 WR_Y=
-WR_OA=()
+WR_O=
+WR_NOMD=
 WR_CLOSEID=
 
 # --- files ------------------------------------------------------------------
@@ -70,6 +71,7 @@ fn wr_load(int id, path) {
 	fi
 	[ -r "$path" ] && t=$(< "$path")
 	tb_set "$id" "$t"
+	WR[$id]["sv"]=
 	WR[$id]["path"]=$path
 	WR[$id]["kind"]=txt
 	wr_ismd "$path" && WR[$id]["kind"]=md
@@ -163,6 +165,7 @@ fn write_resume(int id) {
 	TB[$id]["cc"]=${WR[$id]["cc"]:-0}
 	tb_clampc "$id"
 	WR[$id]["rec"]=
+	WR[$id]["sv"]=
 }
 
 # A file dropped on the window opens in it, when nothing would be lost.
@@ -176,188 +179,124 @@ fn write_drop(int id, int r, int c, op, ...paths) {
 
 # --- rendering a line -------------------------------------------------------
 #
-# A line as it is shown, into WR_S, with a style letter for each of its
-# characters in WR_Y, and in WR_OA the column of the line each came from.
-# With show set -- the cursor's line -- the marks stay, dimmed, and WR_S is
-# the line itself. The letters: p plain, b bold, i italic, B both, s
-# strike, c code, l link, 1 2 3 headings, q quote, u a list's mark, k a
-# task's box, r a rule, m a mark, f fenced code.
+# What each character is comes from the md module, which parses the whole
+# document as CommonMark with GitHub's extensions: md lines gives every
+# line a string with one style letter per character (mods/md/README.md).
+# A line as it is shown goes into WR_S, a letter per shown character into
+# WR_Y, and into WR_O the runs that map it back to the line -- "shown raw
+# length glyph" four to a run, glyph 1 when every shown character of the
+# run stands for the one raw column. With show set -- the cursor's line --
+# every mark stays, dimmed, and WR_S is the line itself.
 
-# Append a run of n characters of text, all in style y, from raw column o.
-fn wr_put(text, y, int o) {
-	local k=0 n=${#text}
+need md 2> /dev/null || WR_NOMD=1
 
-	WR_S="$WR_S$text"
-	while [ "$k" -lt "$n" ]; do
-		WR_Y="$WR_Y$y"
-		WR_OA+=("$((o + k))")
-		k=$((k + 1))
-	done
-}
+# Every line's style string, parsed again only when the text has changed.
+fn wr_parse(int id) {
+	local t i=0 n=${TB[$id]["n"]}
+	local -a st
 
-# Append a glyph standing for raw text that is hidden: one style, all of it
-# mapped to raw column o.
-fn wr_glyph(text, y, int o) {
-	local k=0
-
-	WR_S="$WR_S$text"
-	while [ "$k" -lt "${#text}" ]; do
-		WR_Y="$WR_Y$y"
-		WR_OA+=("$o")
-		k=$((k + 1))
-	done
-}
-
-# The inline marks of text from raw column o: **bold**, *italic* or
-# _italic_, ~~strike~~, `code`, [link](url), and \ escapes.
-fn wr_inline(text, int o, int show, base = p) {
-	local i=0 n=${#text} c two bold=0 ital=0 strike=0 y rest code lab url
-
+	[ "${WR[$id]["sv"]}" = "${TB[$id]["gen"]}" ] && return 0
+	if [ -z "$WR_NOMD" ]; then
+		t := tb_text "$id"
+		st := md lines -t "$t"
+	fi
 	while [ "$i" -lt "$n" ]; do
-		c=${text:$i:1}
-		two=${text:$i:2}
-		if [ "$c" = "\\" ] && [ $((i + 1)) -lt "$n" ]; then
-			[ "$show" = 1 ] && wr_put "\\" m $((o + i))
-			c=${text:$((i + 1)):1}
-			wr_put "$c" "$base" $((o + i + 1))
-			i=$((i + 2))
-			continue
-		fi
-		if [ "$c" = '`' ]; then
-			rest=${text:$((i + 1))}
-			code=${rest%%\`*}
-			if [ "$code" != "$rest" ]; then
-				[ "$show" = 1 ] && wr_put '`' m $((o + i))
-				wr_put "$code" c $((o + i + 1))
-				[ "$show" = 1 ] && wr_put '`' m $((o + i + 1 + ${#code}))
-				i=$((i + ${#code} + 2))
-				continue
-			fi
-		fi
-		if [ "$two" = "**" ] || [ "$two" = "__" ]; then
-			bold=$((1 - bold))
-			[ "$show" = 1 ] && wr_put "$two" m $((o + i))
-			i=$((i + 2))
-			continue
-		fi
-		if [ "$two" = "~~" ]; then
-			strike=$((1 - strike))
-			[ "$show" = 1 ] && wr_put "$two" m $((o + i))
-			i=$((i + 2))
-			continue
-		fi
-		if [ "$c" = "*" ] || { [ "$c" = _ ] && {
-		     [ "$i" = 0 ] || [ "$ital" = 1 ] ||
-		     [ "${text:$((i - 1)):1}" = " " ]; }; }; then
-			if [ "$ital" = 1 ] || [ "${text:$((i + 1)):1}" != " " ]; then
-				ital=$((1 - ital))
-				[ "$show" = 1 ] && wr_put "$c" m $((o + i))
-				i=$((i + 1))
-				continue
-			fi
-		fi
-		if [ "$c" = "[" ]; then
-			rest=${text:$((i + 1))}
-			lab=${rest%%]*}
-			rest=${rest#*]}
-			if [ "$lab" != "${text:$((i + 1))}" ] && [ "${rest:0:1}" = "(" ] &&
-			   [ "${rest#*)}" != "$rest" ]; then
-				url=${rest:1}
-				url=${url%%)*}
-				[ "$show" = 1 ] && wr_put "[" m $((o + i))
-				wr_put "$lab" l $((o + i + 1))
-				[ "$show" = 1 ] &&
-					wr_put "]($url)" m $((o + i + 1 + ${#lab}))
-				i=$((i + ${#lab} + ${#url} + 4))
-				continue
-			fi
-		fi
-		y=$base
-		if [ "$base" = p ] || [ "$base" = q ]; then
-			if [ "$strike" = 1 ]; then y=s
-			elif [ "$bold" = 1 ] && [ "$ital" = 1 ]; then y=B
-			elif [ "$bold" = 1 ]; then y=b
-			elif [ "$ital" = 1 ]; then y=i
-			fi
-		fi
-		wr_put "$c" "$y" $((o + i))
+		WR[$id]["st$i"]=${st[$i]}
 		i=$((i + 1))
 	done
+	WR[$id]["sv"]=${TB[$id]["gen"]}
 }
 
-# One line, as a block: a heading, a list item or task, a quote, a rule,
-# fenced code, or a paragraph. fence is 1 inside ``` fences.
-fn wr_render(line, int show, int fence, int w) {
-	local pre lvl body mark t
+# Append k characters of text in style y, from raw column o; glyph 1 when
+# they all stand for that one column.
+fn wr_put(text, y, int o, int k, int g = 0) {
+	local t
+
+	WR_O="$WR_O ${#WR_S} $o $k $g"
+	WR_S="$WR_S$text"
+	t := str repeat "$y" "$k"
+	WR_Y="$WR_Y$t"
+}
+
+# The letter a style is drawn in on the cursor's line, marks showing.
+fn wr_raw(y) {
+	case $y in
+	m | r | = | "|" | ">" | x | X) ret m ;;
+	- | n) ret u ;;
+	" ") ret p ;;
+	*) ret "$y" ;;
+	esac
+}
+
+# One line as it reads, from its text and its style string.
+fn wr_render(line, sty, int show, int w) {
+	local i=0 n=${#line} y run k t g
 
 	WR_S=
 	WR_Y=
-	WR_OA=()
-	if [ "$fence" = 1 ] || [ "${line:0:3}" = '```' ]; then
-		if [ "${line:0:3}" = '```' ]; then
-			wr_put "$line" m 0
-		else
-			wr_put "$line" f 0
-		fi
-		return 0
+	WR_O=
+	if [ "${#sty}" -lt "$n" ]; then
+		t := str repeat p $((n - ${#sty}))
+		sty="$sty$t"
 	fi
-	if match "$line" '^(#{1,6}) (.*)$'; then
-		pre="${M[1]} "
-		lvl=${#M[1]}
-		[ "$lvl" -gt 3 ] && lvl=3
-		[ "$show" = 1 ] && wr_put "$pre" m 0
-		wr_inline "${M[2]}" "${#pre}" "$show" "$lvl"
-		return 0
-	fi
-	if [ "$show" != 1 ] && match "$line" '^ {0,3}([-*_])( *[-*_]){2,} *$'; then
+	if [ "$show" != 1 ] && [ -n "${sty//[ ]/}" ] && [ -z "${sty//[r ]/}" ]; then
 		t := str repeat "${GL[hline]}" "$w"
-		wr_glyph "$t" r 0
+		wr_put "$t" r 0 "$w" 1
 		return 0
 	fi
-	if match "$line" '^( *)[-*+] \[([ xX])\] (.*)$'; then
-		pre=${M[1]}
-		mark=${M[2]}
-		body=${M[3]}
-		wr_put "$pre" p 0
+	while [ "$i" -lt "$n" ]; do
+		y=${sty:$i:1}
+		run=${sty:$i}
+		run=${run%%[!"$y"]*}
+		k=${#run}
+		t=${line:$i:$k}
 		if [ "$show" = 1 ]; then
-			wr_put "${line:${#pre}:6}" m "${#pre}"
-		elif [ "$mark" = " " ]; then
-			wr_glyph "${GL[task]} " k "${#pre}"
-		else
-			wr_glyph "${GL[taskdone]} " k "${#pre}"
+			g := wr_raw "$y"
+			wr_put "$t" "$g" "$i" "$k"
+			i=$((i + k))
+			continue
 		fi
-		wr_inline "$body" $((${#pre} + 6)) "$show" p
-		return 0
-	fi
-	if match "$line" '^( *)[-*+] (.*)$'; then
-		pre=${M[1]}
-		body=${M[2]}
-		wr_put "$pre" p 0
-		if [ "$show" = 1 ]; then
-			wr_put "${line:${#pre}:2}" m "${#pre}"
-		else
-			wr_glyph "${GL[bullet]} " u "${#pre}"
+		case $y in
+		m) ;;
+		" ") wr_put "$t" p "$i" "$k" ;;
+		-) wr_put "${GL[bullet]}" u "$i" 1 ;;
+		n) wr_put "$t" u "$i" "$k" ;;
+		x) wr_put "${GL[task]}" k "$i" 1 1 ;;
+		X) wr_put "${GL[taskdone]}" k "$i" 1 1 ;;
+		">")
+			g := str repeat "${GL[vline]}" "$k"
+			wr_put "$g" q "$i" "$k"
+			;;
+		"|")
+			g := str repeat "${GL[vline]}" "$k"
+			wr_put "$g" m "$i" "$k"
+			;;
+		= | r)
+			g := str repeat "${GL[hline]}" "$k"
+			wr_put "$g" m "$i" "$k"
+			;;
+		*) wr_put "$t" "$y" "$i" "$k" ;;
+		esac
+		i=$((i + k))
+	done
+}
+
+# A shown column of line i as a column of the line itself, through the
+# runs the last layout of it kept.
+fn wr_rawcol(int id, int i, int k) {
+	local -a o
+	local j=0
+
+	read -ra o <<< "${WR[$id]["co$i"]}"
+	while [ $((j + 3)) -lt "${#o[@]}" ]; do
+		if [ "$k" -lt $((o[j] + o[j + 2])) ]; then
+			[ "${o[j + 3]}" = 1 ] && { ret "${o[j + 1]}"; return 0; }
+			ret $((o[j + 1] + k - o[j]))
+			return 0
 		fi
-		wr_inline "$body" $((${#pre} + 2)) "$show" p
-		return 0
-	fi
-	if match "$line" '^( *)([0-9]+[.)]) (.*)$'; then
-		pre="${M[1]}${M[2]} "
-		wr_put "$pre" u 0
-		wr_inline "${M[3]}" "${#pre}" "$show" p
-		return 0
-	fi
-	if match "$line" '^> ?(.*)$'; then
-		pre=$((${#line} - ${#M[1]}))
-		if [ "$show" = 1 ]; then
-			wr_put "${line:0:$pre}" m 0
-		else
-			wr_glyph "${GL[vline]} " q 0
-		fi
-		wr_inline "${M[1]}" "$pre" "$show" q
-		return 0
-	fi
-	wr_inline "$line" 0 "$show" p
+		j=$((j + 4))
+	done
+	ret "${#TB[$id][$i]}"
 }
 
 # The pen for a style letter.
@@ -370,9 +309,11 @@ fn wr_pen(y) {
 	c) console pen "$DT_INFO" "$DT_WELL" ;;
 	f) console pen "$DT_INK" "$DT_WELL" ;;
 	l) console pen "$DT_INFO" "$DT_FACE" underline ;;
+	g) console pen "$DT_INFO" "$DT_FACE" italic ;;
+	h) console pen "$DT_DIM" "$DT_FACE" italic ;;
 	1) console pen "$DT_ACTIVE" "$DT_FACE" bold underline ;;
 	2) console pen "$DT_ACTIVE" "$DT_FACE" bold ;;
-	3) console pen "$DT_INK" "$DT_FACE" bold ;;
+	3 | 4 | 5 | 6) console pen "$DT_INK" "$DT_FACE" bold ;;
 	q) console pen "$DT_DIM" "$DT_FACE" italic ;;
 	u | k) console pen "$DT_ACTIVE" "$DT_FACE" bold ;;
 	r | m) console pen "$DT_DIM" "$DT_FACE" ;;
@@ -382,63 +323,58 @@ fn wr_pen(y) {
 
 # Draw text with its style letters at row r, column c of the window.
 fn wr_runs(int id, int r, int c, text, sty) {
-	local k=0 n=${#text} a=0 y
+	local a=0 n=${#text} y run k
 
-	while [ "$k" -le "$n" ]; do
-		if [ "$k" = "$n" ] || [ "${sty:$k:1}" != "${sty:$a:1}" ]; then
-			if [ "$k" -gt "$a" ]; then
-				y=${sty:$a:1}
-				wr_pen "$y"
-				console put -p "w$id" "$r" $((c + a)) "${text:$a:$((k - a))}"
-			fi
-			a=$k
-		fi
-		k=$((k + 1))
+	while [ "$a" -lt "$n" ]; do
+		y=${sty:$a:1}
+		run=${sty:$a}
+		run=${run%%[!"$y"]*}
+		k=${#run}
+		[ "$k" -gt 0 ] || k=1
+		wr_pen "$y"
+		console put -p "w$id" "$r" $((c + a)) "${text:$a:$k}"
+		a=$((a + k))
 	done
 }
 
 # --- layout and drawing -------------------------------------------------------
 #
 # Each line's rows at width w, as start columns in its shown text: cached
-# by the line's text, so only a changed line is laid out again.
-fn wr_rows(int id, int i, int show, int fence, int w) {
-	local raw=${TB[$id][$i]} key st
+# by the line's text and its style, so only a changed line is laid out
+# again.
+fn wr_rows(int id, int i, int show, int w) {
+	local raw=${TB[$id][$i]} sty=${WR[$id]["st$i"]} key st
 
-	key="$show$fence$w:$raw"
+	key="$show$w:$sty:$raw"
 	if [ "${WR[$id]["ck$i"]}" = "$key" ]; then
 		WR_S=${WR[$id]["cs$i"]}
 		WR_Y=${WR[$id]["cy$i"]}
 		ret "${WR[$id]["cw$i"]}"
 		return 0
 	fi
-	wr_render "$raw" "$show" "$fence" "$w"
+	wr_render "$raw" "$sty" "$show" "$w"
 	st := tb_wrap "$WR_S" "$w"
 	WR[$id]["ck$i"]=$key
 	WR[$id]["cs$i"]=$WR_S
 	WR[$id]["cy$i"]=$WR_Y
+	WR[$id]["co$i"]=$WR_O
 	WR[$id]["cw$i"]=$st
 	ret "$st"
 }
 
-# Which lines are inside a ``` fence, as a string of 0s and 1s.
-fn wr_fences(int id) {
-	local i=0 n=${TB[$id]["n"]} in=0 out=
+# Whether line i is code: a code block's text, or one of its fences.
+fn wr_code(int id, int i) {
+	local sty=${WR[$id]["st$i"]} l=${TB[$id][$i]}
 
-	while [ "$i" -lt "$n" ]; do
-		if [ "${TB[$id][$i]:0:3}" = '```' ]; then
-			out="${out}0"
-			in=$((1 - in))
-		else
-			out="$out$in"
-		fi
-		i=$((i + 1))
-	done
-	ret "$out"
+	[ "${sty//f/}" != "$sty" ] && return 0
+	l=${l#"${l%%[! ]*}"}
+	case $l in '```'* | '~~~'*) [ -z "${sty//[m ]/}" ] && return 0 ;; esac
+	return 1
 }
 
 fn write_draw(int id, int h, int w, int row, int col) {
-	local bh=$((h - 2)) cr=${TB[$id]["cr"]} cc=${TB[$id]["cc"]} n fz
-	local i st r k top crow ccol show line t fe a b
+	local bh=$((h - 2)) cr=${TB[$id]["cr"]} cc=${TB[$id]["cc"]} n
+	local i st r k top crow ccol show line t a b
 	local -a ss
 
 	dt_wclear "$id"
@@ -452,18 +388,17 @@ fn write_draw(int id, int h, int w, int row, int col) {
 	fi
 	TB[$id]["vis"]=$bh
 	tb_layout "$id" "$w"
-	fz := wr_fences "$id"
-	WR[$id]["fz"]=$fz
+	wr_parse "$id"
 	# Where the cursor is, in rows from the top of the document.
 	i=0
 	crow=0
 	while [ "$i" -lt "$cr" ]; do
-		st := wr_rows "$id" "$i" 0 "${fz:$i:1}" "$w"
+		st := wr_rows "$id" "$i" 0 "$w"
 		read -ra ss <<< "$st"
 		crow=$((crow + ${#ss[@]}))
 		i=$((i + 1))
 	done
-	st := wr_rows "$id" "$cr" 1 "${fz:$cr:1}" "$w"
+	st := wr_rows "$id" "$cr" 1 "$w"
 	read -ra ss <<< "$st"
 	k=0
 	while [ $((k + 1)) -lt "${#ss[@]}" ] && [ "$cc" -ge "${ss[$((k + 1))]}" ]; do
@@ -483,7 +418,7 @@ fn write_draw(int id, int h, int w, int row, int col) {
 	while [ "$i" -lt "$n" ]; do
 		show=0
 		[ "$i" = "$cr" ] && show=1
-		st := wr_rows "$id" "$i" "$show" "${fz:$i:1}" "$w"
+		st := wr_rows "$id" "$i" "$show" "$w"
 		read -ra ss <<< "$st"
 		[ $((r + ${#ss[@]})) -gt "$top" ] && break
 		r=$((r + ${#ss[@]}))
@@ -498,13 +433,12 @@ fn write_draw(int id, int h, int w, int row, int col) {
 		if [ "$i" -lt "$n" ]; then
 			show=0
 			[ "$i" = "$cr" ] && show=1
-			fe=${fz:$i:1}
-			st := wr_rows "$id" "$i" "$show" "$fe" "$w"
+			st := wr_rows "$id" "$i" "$show" "$w"
 			read -ra ss <<< "$st"
 			a=${ss[$k]}
 			b=${#WR_S}
 			[ $((k + 1)) -lt "${#ss[@]}" ] && b=${ss[$((k + 1))]}
-			if [ "$fe" = 1 ]; then
+			if wr_code "$id" "$i"; then
 				console pen "$DT_INK" "$DT_WELL"
 				console put -p "w$id" $((r + 2)) 1 "$t"
 			fi
@@ -532,15 +466,16 @@ fn write_draw(int id, int h, int w, int row, int col) {
 	wr_retitle "$id"
 }
 
-# The selection, over the text: only on the cursor's line is the shown
-# text the line itself, so the selection is drawn on rows of the lines it
-# covers by their shown columns, through each row's raw-column map.
+# The selection, over the text: each row of a line it covers is drawn
+# where the row's shown characters came from columns of the line that are
+# selected, through the runs that map them back.
 fn wr_selection(int id, int w, int bh) {
-	local r=0 i a s e x y line sr sc er ec
-	local -a rw
+	local r=0 i a e line sr sc er ec x0 x1 j s0 r0 k g u v
+	local -a rw o
 
 	tb_order "$id" || return 0
 	sr=$TB_SR sc=$TB_SC er=$TB_ER ec=$TB_EC
+	console pen "$DT_SELINK" "$DT_ACTIVE"
 	while [ "$r" -lt "$bh" ]; do
 		read -ra rw <<< "${WR[$id]["row$r"]}"
 		if [ "${#rw[@]}" = 2 ] && [ "${rw[0]}" -ge "$sr" ] &&
@@ -550,24 +485,28 @@ fn wr_selection(int id, int w, int bh) {
 			line=${WR[$id]["cs$i"]}
 			e=$((a + w))
 			[ "$e" -gt "${#line}" ] && e=${#line}
-			if [ "$i" = "${TB[$id]["cr"]}" ]; then
-				x=$a
-				y=$e
-				[ "$i" = "$sr" ] && [ "$sc" -gt "$x" ] && x=$sc
-				[ "$i" = "$er" ] && [ "$ec" -lt "$y" ] && y=$ec
-			else
-				x=$a
-				y=$e
-				[ "$i" = "$sr" ] || [ "$i" = "$er" ] && {
-					x=$a
-					y=$e
-				}
-			fi
-			if [ "$y" -gt "$x" ]; then
-				s=${line:$x:$((y - x))}
-				console pen "$DT_SELINK" "$DT_ACTIVE"
-				console put -p "w$id" $((r + 2)) $((x - a + 1)) "$s"
-			fi
+			x0=0
+			x1=$((${#TB[$id][$i]} + 1))
+			[ "$i" = "$sr" ] && x0=$sc
+			[ "$i" = "$er" ] && x1=$ec
+			read -ra o <<< "${WR[$id]["co$i"]}"
+			j=0
+			while [ $((j + 3)) -lt "${#o[@]}" ]; do
+				s0=${o[j]} r0=${o[j + 1]} k=${o[j + 2]} g=${o[j + 3]}
+				if [ "$g" = 1 ]; then
+					u=$s0
+					v=$s0
+					[ "$r0" -ge "$x0" ] && [ "$r0" -lt "$x1" ] && v=$((s0 + k))
+				else
+					u=$((s0 + (x0 > r0 ? x0 - r0 : 0)))
+					v=$((s0 + (x1 - r0 < k ? x1 - r0 : k)))
+				fi
+				[ "$u" -lt "$a" ] && u=$a
+				[ "$v" -gt "$e" ] && v=$e
+				[ "$v" -gt "$u" ] &&
+					console put -p "w$id" $((r + 2)) $((u - a + 1)) "${line:$u:$((v - u))}"
+				j=$((j + 4))
+			done
 		fi
 		r=$((r + 1))
 	done
@@ -779,12 +718,7 @@ fn wr_at(int id, int r, int c) {
 		ret "$i $k"
 		return 0
 	fi
-	wr_render "${TB[$id][$i]}" 0 "${WR[$id]["fz"]:$i:1}" "${WR[$id]["w"]:-80}"
-	if [ "$k" -ge "${#WR_OA[@]}" ]; then
-		k=${#TB[$id][$i]}
-	else
-		k=${WR_OA[$k]}
-	fi
+	k := wr_rawcol "$id" "$i" "$k"
 	ret "$i $k"
 }
 
@@ -979,14 +913,15 @@ fn wr_picked_export(int id, path, type = "") {
 	command -v dt_changed > /dev/null && dt_changed
 }
 
-# The text as it reads: every line rendered, the marks gone.
+# The text as it reads: every line rendered, the marks gone, and a line
+# that is only marks -- a fence, a heading's underline -- left out.
 fn wr_plain(int id) {
-	local i=0 n=${TB[$id]["n"]} fz out=
+	local i=0 n=${TB[$id]["n"]} out=
 
-	fz := wr_fences "$id"
+	wr_parse "$id"
 	while [ "$i" -lt "$n" ]; do
-		wr_render "${TB[$id][$i]}" 0 "${fz:$i:1}" 60
-		[ "${TB[$id][$i]:0:3}" = '```' ] || out="$out$WR_S"$'\n'
+		wr_render "${TB[$id][$i]}" "${WR[$id]["st$i"]}" 0 60
+		[ -z "$WR_S" ] && [ -n "${TB[$id][$i]}" ] || out="$out$WR_S"$'\n'
 		i=$((i + 1))
 	done
 	ret "${out%$'\n'}"
@@ -1000,128 +935,20 @@ fn wr_esc(t) {
 	ret "$t"
 }
 
-# One line's inline marks as HTML.
-fn wr_inhtml(text) {
-	local i=0 n=${#text} c two out= b=0 it=0 s=0 rest code lab url e
-
-	while [ "$i" -lt "$n" ]; do
-		c=${text:$i:1}
-		two=${text:$i:2}
-		if [ "$c" = "\\" ] && [ $((i + 1)) -lt "$n" ]; then
-			e := wr_esc "${text:$((i + 1)):1}"
-			out="$out$e"; i=$((i + 2)); continue
-		fi
-		if [ "$c" = '`' ]; then
-			rest=${text:$((i + 1))}
-			code=${rest%%\`*}
-			if [ "$code" != "$rest" ]; then
-				e := wr_esc "$code"
-				out="$out<code>$e</code>"; i=$((i + ${#code} + 2)); continue
-			fi
-		fi
-		if [ "$two" = "**" ] || [ "$two" = "__" ]; then
-			[ "$b" = 0 ] && out="$out<strong>" || out="$out</strong>"
-			b=$((1 - b)); i=$((i + 2)); continue
-		fi
-		if [ "$two" = "~~" ]; then
-			[ "$s" = 0 ] && out="$out<del>" || out="$out</del>"
-			s=$((1 - s)); i=$((i + 2)); continue
-		fi
-		if [ "$c" = "*" ] && { [ "$it" = 1 ] || [ "${text:$((i + 1)):1}" != " " ]; }; then
-			[ "$it" = 0 ] && out="$out<em>" || out="$out</em>"
-			it=$((1 - it)); i=$((i + 1)); continue
-		fi
-		if [ "$c" = "[" ]; then
-			rest=${text:$((i + 1))}
-			lab=${rest%%]*}
-			rest=${rest#*]}
-			if [ "$lab" != "${text:$((i + 1))}" ] && [ "${rest:0:1}" = "(" ] &&
-			   [ "${rest#*)}" != "$rest" ]; then
-				url=${rest:1}
-				url=${url%%)*}
-				e := wr_esc "$lab"
-				url := wr_esc "$url"
-				out="$out<a href=\"$url\">$e</a>"
-				i=$((i + ${#lab} + ${#url} + 4))
-				continue
-			fi
-		fi
-		e := wr_esc "$c"
-		out="$out$e"
-		i=$((i + 1))
-	done
-	[ "$b" = 1 ] && out="$out</strong>"
-	[ "$it" = 1 ] && out="$out</em>"
-	[ "$s" = 1 ] && out="$out</del>"
-	ret "$out"
-}
-
-# The whole document as an HTML page.
+# The whole document as an HTML page, by the md module: CommonMark with
+# GitHub's tables, task lists, strikethrough and autolinks.
 fn wr_html(int id) {
-	local i=0 n=${TB[$id]["n"]} line out list= para= in=0 t lvl title want
-	local nm=${WR[$id]["path"]##*/}
+	local nm=${WR[$id]["path"]##*/} title t body
 
 	title := wr_esc "${nm:-Untitled}"
-	out="<!doctype html>"$'\n'"<meta charset=\"utf-8\">"$'\n'"<title>$title</title>"$'\n'
-	while [ "$i" -lt "$n" ]; do
-		line=${TB[$id][$i]}
-		if [ "${line:0:3}" = '```' ]; then
-			if [ "$in" = 0 ]; then
-				[ -n "$list" ] && out="$out</$list>"$'\n' && list=
-				[ -n "$para" ] && out="$out<p>$para</p>"$'\n' && para=
-				out="$out<pre><code>"; in=1
-			else
-				out="$out</code></pre>"$'\n'; in=0
-			fi
-			i=$((i + 1)); continue
-		fi
-		if [ "$in" = 1 ]; then
-			t := wr_esc "$line"
-			out="$out$t"$'\n'
-			i=$((i + 1)); continue
-		fi
-		if match "$line" '^( *)[-*+] (\[([ xX])\] )?(.*)$' ||
-		   match "$line" '^( *)([0-9]+)[.)] ()(.*)$'; then
-			want=ul
-			[ "${M[2]}" != "${M[2]#[0-9]}" ] && want=ol
-			[ -n "$para" ] && out="$out<p>$para</p>"$'\n' && para=
-			if [ "$list" != "$want" ]; then
-				[ -n "$list" ] && out="$out</$list>"$'\n'
-				out="$out<$want>"$'\n'; list=$want
-			fi
-			t := wr_inhtml "${M[4]}"
-			case ${M[3]} in
-			" ") t="<input type=\"checkbox\" disabled> $t" ;;
-			x | X) t="<input type=\"checkbox\" checked disabled> $t" ;;
-			esac
-			out="$out<li>$t</li>"$'\n'
-			i=$((i + 1)); continue
-		fi
-		[ -n "$list" ] && out="$out</$list>"$'\n' && list=
-		if [ -z "${line// /}" ]; then
-			[ -n "$para" ] && out="$out<p>$para</p>"$'\n' && para=
-		elif match "$line" '^(#{1,6}) (.*)$'; then
-			[ -n "$para" ] && out="$out<p>$para</p>"$'\n' && para=
-			lvl=${#M[1]}
-			t := wr_inhtml "${M[2]}"
-			out="$out<h$lvl>$t</h$lvl>"$'\n'
-		elif match "$line" '^ {0,3}([-*_])( *[-*_]){2,} *$'; then
-			[ -n "$para" ] && out="$out<p>$para</p>"$'\n' && para=
-			out="$out<hr>"$'\n'
-		elif match "$line" '^> ?(.*)$'; then
-			[ -n "$para" ] && out="$out<p>$para</p>"$'\n' && para=
-			t := wr_inhtml "${M[1]}"
-			out="$out<blockquote>$t</blockquote>"$'\n'
-		else
-			t := wr_inhtml "$line"
-			para="${para:+$para }$t"
-		fi
-		i=$((i + 1))
-	done
-	[ -n "$list" ] && out="$out</$list>"$'\n'
-	[ -n "$para" ] && out="$out<p>$para</p>"$'\n'
-	[ "$in" = 1 ] && out="$out</code></pre>"$'\n'
-	ret "${out%$'\n'}"
+	t := tb_text "$id"
+	if [ -n "$WR_NOMD" ]; then
+		body := wr_esc "$t"
+		body="<pre>$body</pre>"
+	else
+		body := md html -t "$t"
+	fi
+	ret "<!doctype html>"$'\n'"<meta charset=\"utf-8\">"$'\n'"<title>$title</title>"$'\n'"${body%$'\n'}"
 }
 
 # --- the Find dialog: one field --------------------------------------------------------

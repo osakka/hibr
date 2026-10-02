@@ -14,6 +14,7 @@ file here, in no particular order, before any app is loaded.
 | `text.hibr` | `dt_textdraw`, `dt_textkey`, `dt_textpaste`: a one-line text field, one key applied to it, and a paste into it |
 | `textarea.hibr` | `tb_*`: a multi-line editor -- lines, cursor, selection, undo and redo, soft wrap -- keeping its buffer in `TB` under the window id, the one widget that keeps state, freed by the app's `_close` with `tb_free`. Stickies uses it whole; the markdown editor uses its editing and draws its own way |
 | `scrollbar.hibr` | `dt_scrollbar`: a vertical track and thumb |
+| `split.hibr` | `dt_split`, `dt_splitbar`, `dt_splitmove`: a window cut in two at a divider the mouse drags, its column kept in a variable the app names so it can be kept as a setting |
 | `button.hibr` | `dt_button`, `dt_buttons`, `dt_dlgbtns`: filled push buttons with a Turbo Vision shadow, one or a row of them, or a dialog's centred along its bottom; `dt_focus` and `dt_focuskey`: moving focus through fields and buttons with tab, shift-tab and the arrows |
 
 ## The contract
