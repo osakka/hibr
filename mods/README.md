@@ -23,6 +23,7 @@ hibr -c 'mod load ./build/mods/hello.so; mod list; mod drop hello'
 | `sys.c` | A minimal example — `drop`, `epoch`, `sleepms`, `state`, `upper` |
 | `http.c` | A **scheme**: registers `/dev/http/host/port/path`, so an HTTP body can be read by anything that reads a file |
 | `ls.c` | An in-process `ls` with columns, `-l -a -A -h -t -S -r -d -1 -F` and colour, whose listing also lands in `$RET` |
+| `math.c` | `math`: floating point where `$(( ))` has only integers -- `+ - * / % ^`, comparisons, `? :`, `round sqrt abs pow ...`, shell variables by name, and `sum avg min max count` over arrays; shown as a spreadsheet shows numbers. One of the two modules a `--plan` may load |
 | `prompt/` | A segmented prompt, and a native reader for git's object store |
 | `lint/` | The rules behind `hibr --explain`: reads a parsed script and names the mistakes in it, without running it. It adds no builtin; it offers `"lint"` (`mods/lint.h`), which `--explain` asks for |
 | `darwin.c` | macOS only: `cpu` and `mem` from the kernel's own counters, with no fork |

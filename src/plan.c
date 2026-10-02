@@ -201,6 +201,17 @@ int pl_in(const char *nm, const char **l)
 	return 0;
 }
 
+/* Whether a module may be loaded during a plan: one that only computes,
+   named by name and never by path, found only where the shell's own
+   modules are -- never in the current directory, since finding a module
+   there means opening it, which runs its code. */
+int pl_pure(const char *nm)
+{
+	static const char *pure[] = { "math", "md", 0 };
+
+	return nm && !strchr(nm, '/') && pl_in(nm, pure);
+}
+
 /* Whether a program and its arguments only read, as far as the plan can tell. */
 int pl_safe(char **av)
 {

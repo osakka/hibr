@@ -654,7 +654,8 @@ What it refuses, and what it lets through:
 | a program known only to read | runs: `cat grep head tail wc ls stat find` (no `-delete`, `-exec`) `sed` (no `-i`) `sort` (no `-o`) `jq diff date` and the like, and `git status log diff show` and other reading subcommands |
 | `mktemp`, and `rm mkdir touch cp mv ln chmod rmdir` | run when every path they are given is inside the plan's own `$TMPDIR` |
 | any other program | refused and recorded, status 1, no output |
-| `exec`, `kill` (but `kill -0`), `listen`, `mod load`, `need` | refused and recorded |
+| `exec`, `kill` (but `kill -0`), `listen` | refused and recorded |
+| `mod load`, `need` | refused and recorded -- except a module that only computes, `math` or `md`, named by name; it is found on the module path and never in the current folder |
 
 A plan gets a scratch `$TMPDIR` of its own, removed when it ends, so a
 script that makes a temporary file and reads it back follows its own logic.

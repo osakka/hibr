@@ -67,3 +67,7 @@ echo "--- the scratch TMPDIR is gone:"
 
 cd /
 rm -rf "$d"
+
+echo "--- a plan loads only modules that compute, by name, never from the current folder"
+m=$(dirname "$h")/mods
+HIBR_MODPATH=$m "$h" --plan -c 'need math && math 6*7; need md && md html -t "**b**"; need db; echo "db $?"; mod load "$1/math.so"; echo "by path $?"' x "$m" 2>&1 | sed "s#$m#MODS#"

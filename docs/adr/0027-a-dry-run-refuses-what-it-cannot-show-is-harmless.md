@@ -40,7 +40,13 @@ effect it cannot show is harmless:
   `timeout`, `xargs`, `nice`, `sudo`, `sh -c`) are refused: whether they
   write cannot be told from their arguments, and allowing one allows all.
 - `exec`, `kill` (except `-0`), `listen`, `mod load` and `need` are refused:
-  a module's builtins can do anything.
+  a module's builtins can do anything. The exception (0.99.7) is a module
+  that only computes -- `math` and `md`, a list in `pl_pure` -- loaded by
+  name, never by path, and found on the module path but never in the
+  current folder: finding a module means opening it, and opening a shared
+  object runs its constructors, so a folder holding a planned script must
+  not be able to supply one. Root's search already skipped the folder for
+  the same reason.
 - The record goes to a copy of standard error taken at the start, on a high
   descriptor closed on exec, so `2>/dev/null` and `exec 2>&-` cannot hide it.
   With `--agent` each record is a line of JSON keyed `plan`.

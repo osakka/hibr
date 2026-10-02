@@ -294,6 +294,7 @@ inside a function or a `try` it returns 2 —
 | `need name…` | make an interface or module available, or fail saying which |
 | `app name [text]` | name this script as an app, for whatever is running it |
 | `cat [-benstuvAETfp] [file…]` | **[module]** `cat` in a pipe; gutter and colour on a terminal |
+| `math [-s decimals] expr` | **[module]** floating point: `+ - * / % ^`, comparisons, `c ? a : b`, functions (`round(x, n)`, `sqrt`, `abs`, `pow`, `ln`, `log`, `sin`...), `pi` and `e`, shell variables by name, and `sum avg min max count` over arrays; prints, or fills the slot under `:=`. Whole numbers whole, others to at most 15 significant digits |
 | `md html\|lines [-c] [-t text \| file]` | **[module]** markdown, CommonMark with GitHub's extensions: HTML, or a style letter per character of each line — see [mods/md](../mods/md/README.md) |
 
 A module adds builtins, and it can add a *protocol*: register a scheme and

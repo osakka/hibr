@@ -62,6 +62,14 @@ void *m_try(str *p, const char *dir, const char *nm, int addso)
 	return h;
 }
 
+/* Whether the current directory is left out of the module search: for
+   root, and during a plan, where opening a module found there would run
+   its code. */
+int m_nodot(sh *s)
+{
+	return geteuid() == 0 || (s->sopt & O_PLAN);
+}
+
 /* Search the module path for a bare name, or open a given path. */
 void *m_open(sh *s, const char *path, str *p)
 {
@@ -79,7 +87,7 @@ void *m_open(sh *s, const char *path, str *p)
 		lg(HIBR_LDBG, "root: searching only %s for %s", HIBR_MODDIR,
 		   path);
 		mp = 0;
-	} else {
+	} else if (!m_nodot(s)) {
 		h = m_try(p, ".", path, 0);
 		if (!h && !so)
 			h = m_try(p, ".", path, 1);
@@ -367,7 +375,7 @@ void m_avail(sh *s)
 	if (geteuid() == 0) {
 		lg(HIBR_LDBG, "root: listing only %s", HIBR_MODDIR);
 		mp = 0;
-	} else {
+	} else if (!m_nodot(s)) {
 		m_scan(s, ".", &seen);
 	}
 	while (mp && *mp) {
@@ -576,7 +584,7 @@ int m_findbi(sh *s, const char *nm)
 	if (m_find(s, nm))
 		return HIBR_OK;
 	mp = geteuid() == 0 ? 0 : hibr_get(s, "HIBR_MODPATH");
-	if (geteuid() != 0 && m_seekbi(s, ".", nm))
+	if (!m_nodot(s) && m_seekbi(s, ".", nm))
 		return HIBR_OK;
 	while (mp && *mp) {
 		const char *e = strchr(mp, ':');
@@ -607,7 +615,7 @@ void *hibr_require(sh *s, const char *nm, unsigned ver)
 		return p;
 	lg(HIBR_LDBG, "no loaded module offers %s; looking for one", nm);
 	mp = geteuid() == 0 ? 0 : hibr_get(s, "HIBR_MODPATH");
-	if (geteuid() != 0 && m_seek(s, ".", nm))
+	if (!m_nodot(s) && m_seek(s, ".", nm))
 		return m_offered(s, nm, ver, &wrong);
 	while (mp && *mp) {
 		const char *e = strchr(mp, ':');
@@ -642,7 +650,7 @@ int m_need(sh *s, const char *nm)
 		if (!strcmp(((struct api *)s->apis.p[i])->nm, nm))
 			return HIBR_OK;
 	mp = geteuid() == 0 ? 0 : hibr_get(s, "HIBR_MODPATH");
-	if (geteuid() != 0 && m_seek(s, ".", nm))
+	if (!m_nodot(s) && m_seek(s, ".", nm))
 		return HIBR_OK;
 	while (mp && *mp) {
 		const char *e = strchr(mp, ':');

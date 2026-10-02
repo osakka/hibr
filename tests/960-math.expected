@@ -1,0 +1,64 @@
+0
+--- arithmetic, as a spreadsheet shows it
+0.333333333333333
+0.3
+3.5
+512
+-4
+8.5
+1
+2.5e-07
+1234567.891
+1e+20
+3.33
+3
+--- functions and constants
+1.4142135623731
+3.14
+3
+0
+1027
+5
+1
+3
+1
+--- comparisons, logic and a choice
+1
+1
+0
+100
+--- shell variables by name, and arrays in sum avg min max count
+10
+7.5
+2.5
+3
+1
+10
+9
+--- into the result slot
+x=7.5
+--- what it refuses
+hibr: math: division by zero
+status 1
+hibr: math: division by zero
+status 1
+hibr: math: nothere has no value
+status 1
+hibr: math: w is not a number
+status 1
+hibr: math: no function nofn
+status 1
+hibr: math: sqrt takes one argument
+status 1
+hibr: math: an expression ends too soon
+status 1
+hibr: math: a ) is missing
+status 1
+hibr: math: unexpected near '2'
+status 1
+hibr: math: avg of nothing
+status 1
+hibr: usage: math [-s decimals] expression
+status 2
+hibr: math: nested too deep
+status 1

@@ -46,3 +46,10 @@ hibr: errexit: command failed with status 1
 status 1
 --- the scratch TMPDIR is gone:
 removed
+--- a plan loads only modules that compute, by name, never from the current folder
+42
+<p><strong>b</strong></p>
+hibr: plan: command line:1: would load the module that provides db
+db 1
+hibr: plan: command line:1: would load module MODS/math.so
+by path 1

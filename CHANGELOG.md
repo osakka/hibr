@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.99.7
+
+**Floating point: the `math` module.** `$(( ))` has only integers, as in
+bash; `math` has the rest -- `+ - * / % ^`, comparisons, `c ? a : b`,
+`round(x, n)`, `sqrt`, `abs`, `pow`, `ln`, `log`, `sin` and the like, `pi`
+and `e`, shell variables by name, and `sum avg min max count` over arrays.
+It prints a number the way a spreadsheet shows one: a whole number whole,
+anything else to at most fifteen significant digits, so `math 0.1+0.2` is
+0.3; `-s n` gives exactly n decimals, rounding half away from zero.
+
+**A plan may load a module that only computes.** `--plan` refused every
+`mod load` and `need`, since a module's builtins can do anything; `math`
+and `md` are now let through by name -- never by path -- and found on the
+module path, never in the current folder. Finding a module means opening
+it, which runs its code, so the folder a planned script sits in must not
+be able to supply one; the same now holds for any plan's search, as it
+always did for root's. The spreadsheet's formulas run this way.
+
 ## 0.99.6
 
 **The db module changes and deletes rows.** `db set h N col val...` changes

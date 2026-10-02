@@ -42,7 +42,7 @@ MODS = $(B)/mods/sys.so $(B)/mods/http.so $(B)/mods/ls.so $(B)/mods/prompt.so \
        $(B)/mods/hvi.so $(B)/mods/mon.so \
        $(B)/mods/sysinfo.so $(B)/mods/pty.so \
        $(B)/mods/term.so $(B)/mods/hold.so $(B)/mods/img.so \
-       $(B)/mods/lint.so $(B)/mods/db.so $(B)/mods/md.so
+       $(B)/mods/lint.so $(B)/mods/db.so $(B)/mods/md.so $(B)/mods/math.so
 
 # darwin.c reaches Mach headers (mach/mach.h and kin) that only exist on
 # Darwin at all, so it is not in MODS above and never built, or even asked
@@ -130,6 +130,9 @@ LINT_SRC = $(wildcard mods/lint/*.c)
 
 $(B)/mods/lint.so: $(LINT_SRC) include/hibr.h mods/lint.h $(B)/.moddir | $(B)/mods
 	$(CC) $(SHCFLAGS) $(SOFLAGS) -o $@ $(LINT_SRC)
+
+$(B)/mods/math.so: mods/math.c include/hibr.h | $(B)/mods
+	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ mods/math.c -lm
 
 MD_SRC = $(wildcard mods/md/*.c)
 

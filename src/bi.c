@@ -1143,7 +1143,8 @@ int b_mod(sh *s, int ac, char **av)
 			      "mod find <builtin>");
 		return HIBR_FAIL;
 	}
-	if ((s->sopt & O_PLAN) && (!strcmp(av[1], "load") || !strcmp(av[1], "drop"))) {
+	if ((s->sopt & O_PLAN) && (!strcmp(av[1], "load") || !strcmp(av[1], "drop")) &&
+	    !(!strcmp(av[1], "load") && ac > 2 && pl_pure(av[2]))) {
 		pl_note(s, "would %s module %s", av[1], ac > 2 ? av[2] : "");
 		return HIBR_FAIL;
 	}
@@ -1208,8 +1209,12 @@ int b_need(sh *s, int ac, char **av)
 		return 2;
 	}
 	if (s->sopt & O_PLAN) {
-		pl_note(s, "would load the module that provides %s", av[1]);
-		return HIBR_FAIL;
+		for (i = 1; i < ac; i++)
+			if (!pl_pure(av[i])) {
+				pl_note(s, "would load the module that provides %s",
+					av[i]);
+				return HIBR_FAIL;
+			}
 	}
 	for (i = 1; i < ac; i++) {
 		if (m_need(s, av[i]) == HIBR_OK) {
