@@ -297,6 +297,7 @@ inside a function or a `try` it returns 2 —
 | `math [-s decimals] expr` | **[module]** floating point: `+ - * / % ^`, comparisons, `c ? a : b`, functions (`round(x, n)`, `sqrt`, `abs`, `pow`, `ln`, `log`, `sin`...), `pi` and `e`, shell variables by name, and `sum avg min max count` over arrays; prints, or fills the slot under `:=`. Whole numbers whole, others to at most 15 significant digits |
 | `dav ls\|stat\|get\|put\|mkdir\|rm\|mv\|cp\|servers\|server ...` | **[module]** a WebDAV client: list, fetch and change files on any WebDAV server, Basic or Digest, over TLS, with servers kept in a private list -- see [mods/dav](../mods/dav/README.md) |
 | `web open\|go\|back\|text\|links\|eval\|click\|type\|render\|draw ...` | **[module]** a web browser: headless Chromium driven over a pipe, pages as cells and as text a script can read -- see [mods/web](../mods/web/README.md) |
+| `media open\|play\|pause\|seek\|volume\|size\|frame\|draw\|info ...` | **[module]** video and sound from a file or address, decoded by FFmpeg's libraries loaded at run time, the picture drawn as half blocks or ASCII -- see [mods/media](../mods/media/README.md) |
 | `md html\|lines [-c] [-t text \| file]` | **[module]** markdown, CommonMark with GitHub's extensions: HTML, or a style letter per character of each line — see [mods/md](../mods/md/README.md) |
 
 A module adds builtins, and it can add a *protocol*: register a scheme and

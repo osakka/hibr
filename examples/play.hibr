@@ -1,0 +1,94 @@
+#!/usr/bin/env hibr
+# Play a video in the terminal: the picture as coloured half blocks (or
+# ASCII), the sound through the machine's own device, from a file or an
+# address -- anything FFmpeg's libraries read. The decoding is the media
+# module's; this is only the window around it.
+#
+#   space pause   left/right 5s   up/down volume   m picture   q quit
+
+mod load ./build/mods/media.so 2>/dev/null || mod load media || {
+  echo "the media module is not built; run make" >&2
+  exit 1
+}
+mod load ./build/mods/console.so 2>/dev/null || mod load console || {
+  echo "the console module is not built; run make" >&2
+  exit 1
+}
+
+opt .  "Play a video in the terminal"
+opt -m --mode  mode  str=half  "How the picture is drawn: half, ascii or mono"
+opt -s --start start int=0     "Where to start, in seconds"
+opt -p --paused paused         "Open paused"
+args "$@"
+
+src=$1
+if [ -z "$src" ]; then
+  echo "usage: play.hibr [-m half|ascii|mono] [-s seconds] [-p] file-or-address" >&2
+  exit 2
+fi
+
+if [ "$paused" = 1 ]; then
+  id := media open "$src" -p || exit 1
+else
+  id := media open "$src" || exit 1
+fi
+[ "$start" -gt 0 ] && media seek "$id" "$start"
+
+redraw=1
+console open || exit 1
+
+# The picture fills every row but the last, which says where it is.
+layout() {
+  sz := console size
+  set -- $sz
+  rows=$1
+  cols=$2
+  media size "$id" "$cols" $((rows - 1)) "$mode"
+  console clear
+  redraw=1
+}
+
+# Seconds as minutes and seconds.
+mmss() {
+  local t=${1%.*}
+  printf -v RET '%d:%02d' $((t / 60)) $((t % 60))
+}
+
+layout
+while true; do
+  console resized && layout
+  if media frame "$id" || [ "$redraw" = 1 ]; then
+    media draw "$id" 0 0
+    redraw=0
+  fi
+  info := media info "$id"
+  mmss "${info["pos"]}"; pos=$RET
+  mmss "${info["dur"]}"; dur=$RET
+  st="playing"
+  [ "${info["paused"]}" = 1 ] && st="paused"
+  [ "${info["ended"]}" = 1 ] && st="ended"
+  line=" $pos / $dur  $st  vol ${info["volume"]}  $mode  ${info["error"]}"
+  console pen white black
+  t := str pad "$line" "$cols"
+  console put $((rows - 1)) 0 "$t"
+  console flush
+  ms := media next "$id"
+  [ "$ms" -lt 0 ] && ms=500
+  k := console key "$ms"
+  case $k in
+  q | escape) break ;;
+  " ") media toggle "$id" ;;
+  left) media seek "$id" -5 ;;
+  right) media seek "$id" +5 ;;
+  up) v := media volume "$id"; media volume "$id" $((v + 10)) > /dev/null ;;
+  down) v := media volume "$id"; media volume "$id" $((v - 10)) > /dev/null ;;
+  m)
+    case $mode in half) mode=ascii ;; ascii) mode=mono ;; *) mode=half ;; esac
+    media mode "$id" "$mode"
+    console clear
+    redraw=1
+    ;;
+  esac
+done
+console close
+media close "$id"

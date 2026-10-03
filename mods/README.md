@@ -40,6 +40,7 @@ hibr -c 'mod load ./build/mods/hello.so; mod list; mod drop hello'
 | `img/` | Decode an image and draw it as cells, libpng opened on first use — [README](img/README.md) |
 | `db/` | A small column store: typed columns, appended rows changed and deleted in place, filters and aggregates, zone maps — [README](db/README.md) |
 | `dav/` | A WebDAV client: its own HTTP/1.1 with kept connections, Basic and Digest logins, TLS through the shell's relay, RFC 4918 listings; servers in a private list -- [README](dav/README.md) |
+| `media/` | Video and sound: FFmpeg's libraries loaded at run time, a decoding thread and a sound thread, ALSA or AudioQueue, the picture as half blocks or ASCII following the sound's clock -- [README](media/README.md) |
 | `web/` | A web browser: headless Chromium driven over its own pipe, each page drawn as cells -- text where it was laid out, over a half-block picture; tabs, links, forms, scripting -- [README](web/README.md) |
 | `md/` | Markdown as CommonMark and GitHub write it: HTML, or a style per character for a program that draws it; every spec example passes — [README](md/README.md) |
 

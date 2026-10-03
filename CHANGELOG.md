@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.99.14
+
+**Video and sound.** The `media` module plays video and sound from a file
+or an address -- MP4, WebM, MKV, MP3, HLS, http -- with FFmpeg's own
+libraries loaded at run time, the way hibr already loads libssl: nothing
+linked, no headers to build, and no ffmpeg or mpv process. A decoding
+thread runs a few seconds ahead, a sound thread feeds the device (ALSA on
+Linux, AudioQueue on macOS) and keeps the clock, and the picture follows
+it, drawn as coloured half blocks, or as ASCII in colour or plain. Seek,
+pause, volume, a frame-rate cap and a colour detail setting for slow
+terminals; `media info` says where it is. FFmpeg 5.1 to 8 are known, the
+few structure fields read located per release from that release's own
+headers (`tools/mvoffsets.sh`); anything else is refused by name.
+
+`examples/play.hibr` is a terminal player built on it. This is the first
+part of the YouTube player (#27); the desktop app comes next.
+
 ## 0.99.13
 
 **Folders on servers, in Files.** Files reaches any WebDAV server as
