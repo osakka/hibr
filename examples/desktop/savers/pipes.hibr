@@ -1,0 +1,74 @@
+#!/usr/bin/env hibr
+#
+# pipes -- pipes growing across the screen a joint at a time, turning
+# now and then, each its own colour, until the screen is full of them and
+# it starts again.
+
+strict
+
+command -v sv_saver > /dev/null && sv_saver pipes "Pipes" 40
+
+PP_COLOURS=("#f56565" "#68d391" "#63b3ed" "#f6e05e" "#b794f4" "#4fd1c5" "#f6ad55")
+PP_R=0
+PP_C=0
+PP_D=0
+PP_PEN=
+PP_LEN=0
+PP_DONE=0
+
+# Begin a new pipe at a random place, going a random way, in a colour.
+fn pp_new(int rows, int cols) {
+	PP_R=$((RANDOM % rows))
+	PP_C=$((RANDOM % cols))
+	PP_D=$((RANDOM % 4))
+	PP_PEN=${PP_COLOURS[$((RANDOM % ${#PP_COLOURS[@]}))]}
+	PP_LEN=0
+}
+
+fn pipes_start(int rows, int cols) {
+	PP_DONE=0
+	pp_new "$rows" "$cols"
+}
+
+# The joint drawn where a pipe going one way turns another: 0 right, 1
+# down, 2 left, 3 up.
+fn pp_joint(int from, int to) {
+	case "$from$to" in
+	01 | 32) ret "${GL[tr]}" ;;
+	03 | 12) ret "${GL[br]}" ;;
+	21 | 30) ret "${GL[tl]}" ;;
+	23 | 10) ret "${GL[bl]}" ;;
+	0* | 2*) ret "${GL[hline]}" ;;
+	*) ret "${GL[vline]}" ;;
+	esac
+}
+
+# One frame: the pipe turns or not, draws its next joint, and steps on;
+# off the screen, or long enough, another starts, and after enough of them
+# the screen is cleared.
+fn pipes_frame(int rows, int cols) {
+	local nd=$PP_D g
+
+	[ $((RANDOM % 6)) = 0 ] && nd=$(( (PP_D + (RANDOM % 2 ? 1 : 3)) % 4 ))
+	g := pp_joint "$PP_D" "$nd"
+	console pen "$PP_PEN" black bold
+	console put "$PP_R" "$PP_C" "$g"
+	PP_D=$nd
+	case $PP_D in
+	0) PP_C=$((PP_C + 1)) ;;
+	1) PP_R=$((PP_R + 1)) ;;
+	2) PP_C=$((PP_C - 1)) ;;
+	*) PP_R=$((PP_R - 1)) ;;
+	esac
+	PP_LEN=$((PP_LEN + 1))
+	if [ "$PP_R" -lt 0 ] || [ "$PP_R" -ge "$rows" ] || [ "$PP_C" -lt 0 ] ||
+	   [ "$PP_C" -ge "$cols" ] || [ "$PP_LEN" -gt $((rows * 4)) ]; then
+		PP_DONE=$((PP_DONE + 1))
+		if [ "$PP_DONE" -ge 12 ]; then
+			console pen white black
+			console clear
+			PP_DONE=0
+		fi
+		pp_new "$rows" "$cols"
+	fi
+}

@@ -183,6 +183,7 @@ dt_menus() {
 	dt_appmenu "" aqdur
 	dt_sep
 	dt_item "Clean Up Icons" u dt_iconclean
+	dt_item "Screen Saver" s dt_saverstart
 	dt_sep
 	dt_item "Restart Desktop" r dt_restart
 	if [ -n "$HIBR_HOLD" ]; then

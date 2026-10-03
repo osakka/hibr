@@ -1,0 +1,106 @@
+#!/usr/bin/env hibr
+#
+# mystify -- two four-cornered shapes bouncing about the screen, each
+# corner on its own course, leaving a short trail of themselves behind,
+# their colours slowly turning.
+
+strict
+
+command -v sv_saver > /dev/null && sv_saver mystify "Mystify" 90
+
+MY_TRAIL=2
+MY_HUES=("#f56565" "#f6ad55" "#f6e05e" "#68d391" "#4fd1c5" "#63b3ed" "#b794f4" "#ed64a6")
+declare -ga MY_PR
+declare -ga MY_PC
+declare -ga MY_VR
+declare -ga MY_VC
+declare -ga MY_HIST
+MY_TICK=0
+
+fn mystify_start(int rows, int cols) {
+	local i=0
+
+	MY_PR=()
+	MY_PC=()
+	MY_VR=()
+	MY_VC=()
+	MY_HIST=()
+	MY_TICK=0
+	while [ "$i" -lt 8 ]; do
+		MY_PR[$i]=$((RANDOM % rows))
+		MY_PC[$i]=$((RANDOM % cols))
+		MY_VR[$i]=$(( (1 + RANDOM % 2) * (RANDOM % 2 ? 1 : -1) ))
+		MY_VC[$i]=$(( (2 + RANDOM % 3) * (RANDOM % 2 ? 1 : -1) ))
+		i=$((i + 1))
+	done
+}
+
+# Draw a line between two cells with text, one cell at a time.
+fn my_line(int r0, int c0, int r1, int c1, t) {
+	local dr=$((r1 - r0)) dc=$((c1 - c0)) sr=1 sc=1 err e2
+
+	[ "$dr" -lt 0 ] && dr=$((-dr)) && sr=-1
+	[ "$dc" -lt 0 ] && dc=$((-dc)) && sc=-1
+	err=$((dc - dr))
+	while :; do
+		console put "$r0" "$c0" "$t"
+		[ "$r0" = "$r1" ] && [ "$c0" = "$c1" ] && break
+		e2=$((err * 2))
+		if [ "$e2" -gt $((-dr)) ]; then
+			err=$((err - dr))
+			c0=$((c0 + sc))
+		fi
+		if [ "$e2" -lt "$dc" ]; then
+			err=$((err + dc))
+			r0=$((r0 + sr))
+		fi
+	done
+}
+
+# Draw one shape -- four corners from a list -- in text.
+fn my_shape(pts, t) {
+	local -a p
+
+	read -ra p <<< "$pts"
+	my_line "${p[0]}" "${p[1]}" "${p[2]}" "${p[3]}" "$t"
+	my_line "${p[2]}" "${p[3]}" "${p[4]}" "${p[5]}" "$t"
+	my_line "${p[4]}" "${p[5]}" "${p[6]}" "${p[7]}" "$t"
+	my_line "${p[6]}" "${p[7]}" "${p[0]}" "${p[1]}" "$t"
+}
+
+# One frame: the oldest copy of each shape is rubbed out, every corner
+# moves, bouncing off the edges, and the shapes are drawn where they are
+# now, in a colour that moves round the wheel.
+fn mystify_frame(int rows, int cols) {
+	local i s pts hue dot=${GL[bullet]}
+
+	MY_TICK=$((MY_TICK + 1))
+	if [ "${#MY_HIST[@]}" -ge $((MY_TRAIL * 2)) ]; then
+		console pen black black
+		my_shape "${MY_HIST[0]}" " "
+		my_shape "${MY_HIST[1]}" " "
+		MY_HIST=("${MY_HIST[@]:2}")
+	fi
+	i=0
+	while [ "$i" -lt 8 ]; do
+		MY_PR[$i]=$((MY_PR[$i] + MY_VR[$i]))
+		MY_PC[$i]=$((MY_PC[$i] + MY_VC[$i]))
+		if [ "${MY_PR[$i]}" -lt 0 ] || [ "${MY_PR[$i]}" -ge "$rows" ]; then
+			MY_VR[$i]=$((-MY_VR[$i]))
+			MY_PR[$i]=$((MY_PR[$i] + 2 * MY_VR[$i]))
+		fi
+		if [ "${MY_PC[$i]}" -lt 0 ] || [ "${MY_PC[$i]}" -ge "$cols" ]; then
+			MY_VC[$i]=$((-MY_VC[$i]))
+			MY_PC[$i]=$((MY_PC[$i] + 2 * MY_VC[$i]))
+		fi
+		i=$((i + 1))
+	done
+	for s in 0 4; do
+		pts="${MY_PR[$s]} ${MY_PC[$s]} ${MY_PR[$((s + 1))]} ${MY_PC[$((s + 1))]}"
+		pts="$pts ${MY_PR[$((s + 2))]} ${MY_PC[$((s + 2))]} ${MY_PR[$((s + 3))]} ${MY_PC[$((s + 3))]}"
+		hue=${MY_HUES[$(( (MY_TICK / 20 + s) % ${#MY_HUES[@]} ))]}
+		console pen "$hue" black bold
+		my_shape "$pts" "$dot"
+		MY_HIST+=("$pts")
+	done
+}

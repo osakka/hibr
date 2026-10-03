@@ -454,6 +454,39 @@ for, and how many frames a second are drawn and how finely, which decide
 how much a terminal is sent; whether the next video plays by itself; and
 Clear History.
 
+## Screen savers
+
+After ten minutes with no key and no click the screen is given to a
+screen saver, until the next key or click -- which ends it and goes
+nowhere else, so the key that wakes the screen never lands in a window.
+Control Panel > Screen Saver picks which (or one at random) and how many
+idle minutes, never included, and shows one now; so does Screen Saver on
+the hibr menu. Waiting costs nothing: the desktop is told to wake when
+the time is up, as it is for anything else it waits for.
+
+There are six: **Matrix** rain, **Flying Toasters**, a **Classic Mac**
+drifting about with its little screen going from the happy face to a
+desktop to a window, **Pipes**, **Mystify** and a big **Clock** that
+moves every minute. Each is a file in `savers/` that names itself with
+`sv_saver` and gives a `_start` and a `_frame`; a new one is one more
+file. A saver of your own goes in `~/.config/hibr/savers/` -- listed in
+Control Panel beside the bundled ones, and one with a bundled saver's
+name replaces it -- and needs nothing else:
+
+```text
+command -v sv_saver > /dev/null && sv_saver mine "Mine" 200
+fn mine_start(int rows, int cols) { :; }
+fn mine_frame(int rows, int cols) { console put 3 3 "hello"; }
+```
+
+They run on their own too, by name or a saver file by its path -- the way
+to try one while writing it:
+
+```text
+hibr examples/desktop/savers/saver.hibr matrix
+hibr examples/desktop/savers/saver.hibr ~/.config/hibr/savers/mine.hibr
+```
+
 ## Application handlers
 
 `dt_handler ext [term] program args...` says what opens a file of that

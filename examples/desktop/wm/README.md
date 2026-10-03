@@ -22,6 +22,7 @@ can be read on its own, and the order is only for reading.
 | `context.hibr` | menus that open at the pointer |
 | `apps.hibr` | `dt_app`, finding apps in their folders, the hibr menu, `dt_launch` |
 | `files.hibr` | drag and drop between windows, move, copy, the trash, the clipboard |
+| `saver.hibr` | the screen saver: the idle timer, and giving the screen to a saver from `savers/` until a key or click |
 | `remote.hibr` | folders on WebDAV servers: `dav://` locations moved, copied and deleted in background jobs, remote files opened from a cache and put back when saved, the server dialog |
 | `handlers.hibr` | `dt_handler`: what opens a file, by its extension |
 | `icons.hibr` | the desktop's own icons: home, disks, trash |

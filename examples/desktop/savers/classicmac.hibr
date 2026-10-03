@@ -1,0 +1,104 @@
+#!/usr/bin/env hibr
+#
+# classicmac -- a compact Macintosh drifting slowly about a dark screen,
+# its little screen going through what one did: the happy face it started
+# with, then the desktop -- a menu bar, a disk, a trash -- then a window
+# opening on it, and round again.
+
+strict
+
+command -v sv_saver > /dev/null && sv_saver classicmac "Classic Mac" 120
+
+CM_R=0
+CM_C=0
+CM_DR=1
+CM_DC=1
+CM_TICK=0
+CM_SCENE=0
+CM_W=24
+CM_H=15
+
+fn classicmac_start(int rows, int cols) {
+	CM_R=$(( (rows - CM_H) / 2 ))
+	CM_C=$(( (cols - CM_W) / 2 ))
+	[ "$CM_R" -lt 0 ] && CM_R=0
+	[ "$CM_C" -lt 0 ] && CM_C=0
+	CM_DR=1
+	CM_DC=1
+	CM_TICK=0
+	CM_SCENE=0
+	cm_draw
+}
+
+# What the little screen shows: five lines, sixteen wide.
+fn cm_screen(int r, int c) {
+	local i
+	local -a s
+
+	case $CM_SCENE in
+	0) s=("                " "   [:]    [:]   " "       |        " "    \______/    " "                ") ;;
+	1) s=(" * File Edit    " "            [HD]" "                " "                " "             [U]") ;;
+	*) s=(" * File Edit    " " .------------. " " |  Untitled  | " " |            | " " '------------' ") ;;
+	esac
+	console pen black "#f2f2ea"
+	i=0
+	while [ "$i" -lt 5 ]; do
+		console put $((r + i)) "$c" "${s[$i]}"
+		i=$((i + 1))
+	done
+	if [ "$CM_SCENE" != 0 ]; then
+		console pen "#f2f2ea" black
+		console put "$r" "$c" "${s[0]}"
+	fi
+}
+
+# The machine itself: case, screen, floppy slot, foot.
+cm_draw() {
+	local r=$CM_R c=$CM_C i
+
+	console pen "#4a4535" "#d8cfb8"
+	console put "$r" "$c" " ______________________ "
+	i=1
+	while [ "$i" -lt 12 ]; do
+		console put $((r + i)) "$c" "|                      |"
+		i=$((i + 1))
+	done
+	console put $((r + 12)) "$c" "|______________________|"
+	console pen "#4a4535" "#c9c0a8"
+	console put $((r + 13)) "$c" "  |__________________|  "
+	console pen "#4a4535" "#d8cfb8"
+	console put $((r + 1)) $((c + 2)) " __________________ "
+	console put $((r + 8)) $((c + 2)) "|__________________|"
+	i=2
+	while [ "$i" -lt 8 ]; do
+		console put $((r + i)) $((c + 2)) "|"
+		console put $((r + i)) $((c + 21)) "|"
+		i=$((i + 1))
+	done
+	console pen "#2a2a2a" "#d8cfb8"
+	console put $((r + 10)) $((c + 3)) "==="
+	console put $((r + 10)) $((c + 15)) "[====]"
+	cm_screen $((r + 2)) $((c + 4))
+	console pen "#2a2a2a" "#f2f2ea"
+	console put $((r + 7)) $((c + 3)) "                  "
+}
+
+# One frame: now and then the Mac moves one step, bouncing off the edges,
+# and its screen goes on to the next scene.
+fn classicmac_frame(int rows, int cols) {
+	CM_TICK=$((CM_TICK + 1))
+	if [ $((CM_TICK % 25)) = 0 ]; then
+		CM_SCENE=$(( (CM_SCENE + 1) % 3 ))
+	fi
+	if [ $((CM_TICK % 3)) = 0 ]; then
+		console pen black black
+		console fill "$CM_R" "$CM_C" "$CM_H" "$CM_W" " "
+		[ $((CM_R + CM_DR)) -lt 0 ] || [ $((CM_R + CM_DR + CM_H)) -gt "$rows" ] &&
+			CM_DR=$(( -CM_DR ))
+		[ $((CM_C + CM_DC)) -lt 0 ] || [ $((CM_C + CM_DC + CM_W)) -gt "$cols" ] &&
+			CM_DC=$(( -CM_DC ))
+		[ "$CM_H" -le "$rows" ] && CM_R=$((CM_R + CM_DR))
+		[ "$CM_W" -le "$cols" ] && CM_C=$((CM_C + CM_DC))
+	fi
+	cm_draw
+}

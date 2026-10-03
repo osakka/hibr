@@ -1,0 +1,85 @@
+#!/usr/bin/env hibr
+#
+# clock -- the time in big digits, moving to a new place every minute so
+# no part of the screen holds the same thing for long, seconds shown when
+# there is room for them.
+
+strict
+
+command -v sv_saver > /dev/null && sv_saver clock "Clock" 1000
+
+# Each digit's five rows, a mark where # is, separated by bars.
+CK_FONT=("###|# #|# #|# #|###" "  #|  #|  #|  #|  #" "###|  #|###|#  |###"
+	"###|  #|###|  #|###" "# #|# #|###|  #|  #" "###|#  |###|  #|###"
+	"###|#  |###|# #|###" "###|  #|  #|  #|  #" "###|# #|###|# #|###"
+	"###|# #|###|  #|###")
+CK_R=0
+CK_C=0
+CK_W=0
+CK_MIN=
+
+fn clock_start(int rows, int cols) {
+	CK_MIN=
+	CK_W=0
+}
+
+# The width the time takes, with seconds or without.
+fn ck_width(int cols) {
+	if [ "$cols" -ge 60 ]; then ret 56; else ret 38; fi
+}
+
+# Draw one digit, each mark two blocks wide, at a place.
+fn ck_digit(int d, int r, int c) {
+	local i line out blk=${GL[block]}
+	local -a f
+
+	IFS='|' read -ra f <<< "${CK_FONT[$d]}"
+	i=0
+	while [ "$i" -lt 5 ]; do
+		line=${f[$i]}
+		out=${line//#/$blk$blk}
+		out=${out// /  }
+		console put $((r + i)) "$c" "$out"
+		i=$((i + 1))
+	done
+}
+
+# Draw the colon between digit pairs.
+fn ck_colon(int r, int c) {
+	local blk=${GL[block]}
+
+	console put $((r + 1)) "$c" "$blk$blk"
+	console put $((r + 3)) "$c" "$blk$blk"
+}
+
+# One frame a second: the time where it is, moved somewhere new each
+# minute.
+fn clock_frame(int rows, int cols) {
+	local t w c i d n
+
+	printf -v t '%(%H%M%S)T' -1
+	w := ck_width "$cols"
+	if [ "${t:0:4}" != "$CK_MIN" ] || [ "$w" != "$CK_W" ]; then
+		console pen black black
+		[ "$CK_W" -gt 0 ] && console fill "$CK_R" "$CK_C" 5 "$CK_W" " "
+		CK_MIN=${t:0:4}
+		CK_W=$w
+		CK_R=$(( rows > 5 ? RANDOM % (rows - 4) : 0 ))
+		CK_C=$(( cols > w ? RANDOM % (cols - w + 1) : 0 ))
+	fi
+	console pen "${DT_ACTIVE:-#4fd1c5}" black bold
+	c=$CK_C
+	n=4
+	[ "$w" -gt 40 ] && n=6
+	i=0
+	while [ "$i" -lt "$n" ]; do
+		d=${t:$i:1}
+		ck_digit "$d" "$CK_R" "$c"
+		c=$((c + 8))
+		if [ $((i % 2)) = 1 ] && [ $((i + 1)) -lt "$n" ]; then
+			ck_colon "$CK_R" "$c"
+			c=$((c + 4))
+		fi
+		i=$((i + 1))
+	done
+}

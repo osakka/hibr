@@ -1,0 +1,98 @@
+#!/usr/bin/env hibr
+#
+# toasters -- flying toasters, in the old After Dark way: toasters
+# flapping their wings and slices of toast drifting down and to the left
+# across a black sky, each at its own pace, coming round again from the
+# top and the right.
+
+strict
+
+command -v sv_saver > /dev/null && sv_saver toasters "Flying Toasters" 90
+
+TS_WING=('\  __  /' '-- __ --' '/  __  \' '-- __ --')
+declare -ga TS_R
+declare -ga TS_C
+declare -ga TS_K
+declare -ga TS_S
+declare -ga TS_F
+TS_TICK=0
+
+# Put a flyer somewhere along the top or the right edge, a toaster most of
+# the time and a slice of toast now and then.
+fn ts_place(int i, int rows, int cols) {
+	if [ $((RANDOM % 2)) = 0 ]; then
+		TS_R[$i]=$(( -3 - RANDOM % 4 ))
+		TS_C[$i]=$(( RANDOM % cols ))
+	else
+		TS_R[$i]=$(( RANDOM % rows ))
+		TS_C[$i]=$(( cols + RANDOM % 10 ))
+	fi
+	TS_K[$i]=toaster
+	[ $((RANDOM % 3)) = 0 ] && TS_K[$i]=toast
+	TS_S[$i]=$(( 1 + RANDOM % 2 ))
+	TS_F[$i]=$(( RANDOM % 4 ))
+}
+
+fn toasters_start(int rows, int cols) {
+	local i=0 n=$(( cols * rows / 220 + 3 ))
+
+	TS_R=()
+	TS_C=()
+	TS_K=()
+	TS_S=()
+	TS_F=()
+	TS_TICK=0
+	while [ "$i" -lt "$n" ]; do
+		ts_place "$i" "$rows" "$cols"
+		TS_R[$i]=$(( RANDOM % rows - 2 ))
+		TS_C[$i]=$(( RANDOM % cols ))
+		i=$((i + 1))
+	done
+}
+
+# Draw one flyer at its place, clipped by the console to the screen.
+fn ts_draw(int i) {
+	local r=${TS_R[$i]} c=${TS_C[$i]}
+
+	if [ "${TS_K[$i]}" = toast ]; then
+		console pen "#7a4a1a" "#d9a05b"
+		console put "$r" "$c" "    "
+		console pen "#5a3410" "#c8873a"
+		console put $((r + 1)) "$c" " ## "
+		return 0
+	fi
+	console pen "#ffffff" black bold
+	console put "$r" "$c" "${TS_WING[${TS_F[$i]}]}"
+	console pen "#3a3a3a" "#c9cdd2"
+	console put $((r + 1)) "$c" " [####] "
+	console pen "#3a3a3a" "#a9adb2"
+	console put $((r + 2)) "$c" " [____] "
+}
+
+# One frame: every flyer due to move is erased where it was, moved down
+# and to the left, its wings flapped, and drawn again; one that has left
+# the screen comes round again.
+fn toasters_frame(int rows, int cols) {
+	local i n=${#TS_R[@]}
+
+	TS_TICK=$((TS_TICK + 1))
+	i=0
+	while [ "$i" -lt "$n" ]; do
+		if [ $((TS_TICK % TS_S[$i])) = 0 ]; then
+			console pen black black
+			console fill "${TS_R[$i]}" "${TS_C[$i]}" 3 8 " "
+			TS_R[$i]=$((TS_R[$i] + 1))
+			TS_C[$i]=$((TS_C[$i] - 2))
+			TS_F[$i]=$(( (TS_F[$i] + 1) % 4 ))
+			if [ "${TS_R[$i]}" -ge "$rows" ] || [ "${TS_C[$i]}" -le -8 ]; then
+				ts_place "$i" "$rows" "$cols"
+			fi
+		fi
+		i=$((i + 1))
+	done
+	i=0
+	while [ "$i" -lt "$n" ]; do
+		ts_draw "$i"
+		i=$((i + 1))
+	done
+}

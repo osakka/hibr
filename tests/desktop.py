@@ -2041,7 +2041,7 @@ PANEL = ('. %s/panel.hibr\nCP_PANEDIRS+=("%s")\ncp_panes'
          % (tree("examples/desktop/apps"), tree("examples/desktop/control-panel")))
 ORDER = ["datetime", "displays", "keyboard", "mouse", "appearance",
          "cliphist", "control_strip", "desktop", "filetypes", "network", "notify",
-         "shortcuts",
+         "screensaver", "shortcuts",
          "windows", "abouthibr", "filesview", "notes", "taskmgr", "terminal", "tube"]
 DOWN_APP = [b"\x1b[B"] * ORDER.index("appearance")
 DOWN_KB = [b"\x1b[B"] * ORDER.index("shortcuts")
@@ -2938,4 +2938,63 @@ check("q on the waiting screen stops waiting, and leaves no trace",
 t1.close()
 unstandby()
 
-report(406)
+# --- the screen saver --------------------------------------------------------
+#
+# After the idle time a saver takes the screen; a key ends it and goes
+# nowhere else -- here q, the suite's quit key, which must not quit. The
+# clock saver is used for its big block digits, easy to tell from a desktop.
+
+def saverrun(feed, env):
+    path = "/tmp/hibr-saver-%d.hibr" % os.getpid()
+    open(path, "w").write("%s. %s\ndt_open\n%s\ndt_run\ndt_close\n"
+                          % (load(MOD), WM, ONE))
+    t = Term(path, env=dict({"DT_SAVER": "clock"}, **env), rows=ROWS, cols=COLS,
+             settle=0.5)
+    shots = []
+    for f in feed:
+        if isinstance(f, float):
+            t.collect(f)
+        else:
+            t.send(f)
+            t.collect(0.8)
+        shots.append(t.screen())
+    t.quit(b"qy", 1.2)
+    os.unlink(path)
+    return shots, t.exited
+
+
+s, _ = saverrun([3.5, b"q"], {"DT_SAVERSECS": "2"})
+check("after the idle time the screen saver takes the whole screen",
+      s[0].find("Hello") is None and "\u2588" in s[0].text(), s[0])
+check("and a key ends it -- q, which goes nowhere else and does not quit",
+      s[1].find("Hello") is not None and "\u2588" not in s[1].text(), s[1])
+s, _ = saverrun([b"\x1b[21~", b"s"], {"DT_SAVERIDLE": "0"})
+check("the hibr menu's Screen Saver starts one at once",
+      s[1].find("Hello") is None and "\u2588" in s[1].text(), s[1])
+s, _ = saverrun([3.0], {"DT_SAVERIDLE": "0"})
+check("with Start After at never, nothing starts however long it waits",
+      s[0].find("Hello") is not None, s[0])
+
+# A saver of one's own is a file in ~/.config/hibr/savers, listed beside
+# the bundled ones; saver.hibr also runs one by its path, to try it out.
+MINE = tempfile.mkdtemp(prefix="hibr-mysaver-")
+os.makedirs(os.path.join(MINE, "hibr", "savers"))
+MYSAVER = os.path.join(MINE, "hibr", "savers", "mine.hibr")
+open(MYSAVER, "w").write(
+    'command -v sv_saver > /dev/null && sv_saver mine "Mine" 200\n'
+    'fn mine_start(int rows, int cols) { :; }\n'
+    'fn mine_frame(int rows, int cols) { console pen white black; '
+    'console put 3 3 "MY OWN SAVER"; }\n')
+s, _ = saverrun([3.5], {"DT_SAVERSECS": "2", "DT_SAVER": "mine",
+                        "XDG_CONFIG_HOME": MINE})
+check("a saver of one's own, in the config folder, runs as any other",
+      s[0].find("MY OWN SAVER") is not None and s[0].find("Hello") is None, s[0])
+t = Term(tree("examples/desktop/savers/saver.hibr"), MYSAVER, rows=ROWS, cols=COLS,
+         settle=0.8, env={"HIBR_MODPATH": tree("build/mods")})
+sc = t.screen()
+t.quit(b"x", 1.0)
+check("and saver.hibr runs one by its path, on its own",
+      sc.find("MY OWN SAVER") is not None, sc)
+shutil.rmtree(MINE, True)
+
+report(412)

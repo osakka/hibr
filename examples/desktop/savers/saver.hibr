@@ -1,0 +1,123 @@
+#!/usr/bin/env hibr
+#
+# saver -- screen savers, and what runs them.
+#
+# A saver is a file beside this one that names itself with sv_saver and
+# gives two functions: <name>_start rows cols, to begin on a clear screen,
+# and <name>_frame rows cols, to draw the next frame. The screen is the
+# saver's own while it runs, so it draws straight onto it -- it is not a
+# window -- and ends on any key or click.
+#
+# Savers are read from this folder and from SV_DIRS's others -- the
+# person's own, ~/.config/hibr/savers, first -- so a saver of one's own is
+# a file there, listed beside the bundled ones; one with a bundled saver's
+# name replaces it.
+#
+# The desktop runs one after its idle time (wm/saver.hibr); the lock and
+# login screens run one behind everything; and this file runs one on its
+# own -- by name, or a saver file by its path, to try one being written:
+#
+#     hibr examples/desktop/savers/saver.hibr [name|random|path]
+
+strict
+
+declare -gA SV
+SV_LIST=()
+SV_DIRS=("${XDG_CONFIG_HOME:-$HOME/.config}/hibr/savers")
+SV_LAST=
+SV_NAME=
+SV_ROWS=0
+SV_COLS=0
+
+# Name a saver: what it is called in lists, and how many milliseconds go
+# between its frames.
+fn sv_saver(name, title, int ms) {
+	[ -n "${SV[$name]["ms"]}" ] || SV_LIST+=("$name")
+	SV_LAST=$name
+	SV[$name]["title"]=$title
+	SV[$name]["ms"]=$ms
+}
+
+# Load every saver beside this file.
+sv_load() {
+	local d=${BASH_SOURCE%/*} f
+
+	[ "$d" = "$BASH_SOURCE" ] && d=.
+	[ -n "${GL["hline"]}" ] || . "$d/../wm/glyphs.hibr"
+	for f in "$d"/*.hibr; do
+		case $f in */saver.hibr) continue ;; esac
+		. "$f"
+	done
+	for d in "${SV_DIRS[@]}"; do
+		for f in "$d"/*.hibr; do
+			[ -r "$f" ] && . "$f"
+		done
+	done
+	return 0
+}
+
+# Begin a saver by name, or one at random, on a clear screen.
+fn sv_begin(name = "random") {
+	local n=${#SV_LIST[@]}
+
+	[ "$n" -gt 0 ] || return 1
+	if [ "$name" = random ] || [ -z "${SV[$name]["ms"]}" ]; then
+		name=${SV_LIST[$((RANDOM % n))]}
+	fi
+	SV_NAME=$name
+	sv_size
+	console pen white black
+	console clear
+	"${name}_start" "$SV_ROWS" "$SV_COLS"
+	return 0
+}
+
+# The screen's size, into SV_ROWS and SV_COLS.
+sv_size() {
+	local sz
+	local -a s
+
+	sz := console size
+	read -ra s <<< "$sz"
+	SV_ROWS=${s[0]:-24}
+	SV_COLS=${s[1]:-80}
+}
+
+# Draw the next frame, starting the saver again on a new size; the time
+# until the one after is the result.
+sv_frame() {
+	if console resized; then
+		sv_begin "$SV_NAME"
+	fi
+	"${SV_NAME}_frame" "$SV_ROWS" "$SV_COLS"
+	console flush
+	ret "${SV[$SV_NAME]["ms"]}"
+}
+
+# Run a saver on its own until a key or a click.
+fn sv_main(name = "random") {
+	local ms k
+
+	need console || { echo "saver: needs the console module" >&2; return 1; }
+	console open || return 1
+	console mouse click
+	sv_load
+	if [[ $name == */* ]] && [ -r "$name" ]; then
+		. "$name"
+		name=$SV_LAST
+	fi
+	if ! sv_begin "$name"; then
+		console close
+		echo "saver: no savers found" >&2
+		return 1
+	fi
+	while :; do
+		ms := sv_frame
+		k := console key "$ms"
+		[ -n "$k" ] && break
+	done
+	console mouse off
+	console close
+}
+
+[ "${BASH_SOURCE}" = "$0" ] && sv_main "$@"

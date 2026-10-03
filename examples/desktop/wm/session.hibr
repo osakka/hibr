@@ -166,6 +166,19 @@ dt_run() {
 
 	dt_runatstart
 	while [ "$DT_QUIT" = 0 ]; do
+		if [ -n "$DT_SAVING" ]; then
+			k := sv_frame
+			frames=$((frames + 1))
+			if [ -n "$DT_TESTIDLE" ]; then
+				now := console consumed
+				printf '\e]7777;idle;%s;%s\a' "$((now + DT_INBASE))" "$frames"
+			fi
+			k := console key "$k"
+			if [ -n "$k" ] && [ "$k" != resize ]; then
+				dt_saverstop
+			fi
+			continue
+		fi
 		if [ "$rsz" = 0 ]; then
 			if [ "$DT_LASTMOVE" = 1 ] && console waiting; then
 				:
@@ -181,6 +194,7 @@ dt_run() {
 		fi
 		dt_updcheck
 		dt_remotepoll
+		dt_saverwait
 		if [ -n "$DT_TESTIDLE" ]; then
 			k := console consumed
 			k=$((k + DT_INBASE))
@@ -209,7 +223,7 @@ dt_run() {
 			fi
 		fi
 		pk=
-		[ -n "$k" ] && dt_event "$k"
+		[ -n "$k" ] && dt_saverseen && dt_event "$k"
 	done
 }
 

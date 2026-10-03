@@ -290,11 +290,11 @@ GROUP = dict(l.split() for l in out if l.strip())
 check("panes register and sort by title within their group, not load order",
       ORDER == ["datetime", "displays", "keyboard", "mouse",
                 "appearance", "cliphist", "control_strip", "desktop",
-                "filetypes", "network", "notify", "shortcuts", "windows",
+                "filetypes", "network", "notify", "screensaver", "shortcuts", "windows",
                 "abouthibr", "filesview", "notes", "taskmgr", "terminal", "tube"], out)
 check("Hardware first, then the desktop's own panes, then one per app",
       [GROUP[n] for n in ORDER] ==
-      ["hardware"] * 4 + ["system"] * 9 + ["app"] * 6, out)
+      ["hardware"] * 4 + ["system"] * 10 + ["app"] * 6, out)
 
 PW = "22 70 2 2"
 PANEL = ("panel", PW)
@@ -315,7 +315,7 @@ TITLE = {"appearance": "Appearance", "control_strip": "Control Strip",
          "cliphist": "Clipboard", "notes": "Stickies",
          "datetime": "Date & Time", "desktop": "Desktop",
          "displays": "Displays", "filetypes": "File Types",
-         "network": "Network Serve",
+         "network": "Network Serve", "screensaver": "Screen Saver",
          "keyboard": "Keyboard", "mouse": "Mouse",
          "shortcuts": "Shortcuts", "notify": "Notifications",
          "windows": "Windows", "abouthibr": "About hibr",
@@ -451,7 +451,7 @@ sc = shortcp([b"\x1b[B"] * (len(ORDER) - 1))
 check("the arrows bring the last pane into view",
       sc.find(TITLE["terminal"]) is not None and
       sc.find("Hardware") is None, sc)
-sc = shortcp([wheel(8, 5, up=False)] * 6)
+sc = shortcp([wheel(8, 5, up=False)] * 8)
 check("the wheel over the list scrolls the list, not the pane beside it",
       sc.find("Hardware") is None and sc.find(TITLE["terminal"]) is not None
       and sc.find(TITLE["datetime"]) is None, sc)
@@ -1104,6 +1104,11 @@ sc = cprun(reach("terminal", "Colours", ("term",)) + [b"\x1b[C"],
            extra=("term",))
 check("and it can be switched to the real terminal's own colours",
       "terminal" in brow(sc, "Colours"), sc)
+sc = cprun([b"\x1b[B"] * downs("screensaver"))
+check("Control Panel > Screen Saver: which saver, how long idle, a preview",
+      "random" in brow(sc, "Screen Saver") and
+      "10" in brow(sc, "Start After (minutes)") and brow(sc, "Preview") != "", sc)
+
 # An on/off row as a switch: Appearance > Checkboxes, or what the theme
 # suggests. A knob sits right when on and left when off, a block likewise
 # between brackets; toggling one moves it.
@@ -3339,4 +3344,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(496)
+report(499)

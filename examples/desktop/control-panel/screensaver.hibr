@@ -1,0 +1,64 @@
+#!/usr/bin/env hibr
+#
+# screensaver -- the Control Panel pane for the screen saver
+# (wm/saver.hibr): which one, or one at random, how many idle minutes
+# before it starts, and a look at it now.
+
+strict
+
+command -v cp_pane > /dev/null && cp_pane screensaver "Screen Saver" "◌"
+
+SS_IDLES=(never 1 2 5 10 15 30 60)
+SS_NAMES=()
+
+# The choices: random, then every saver there is.
+ss_names() {
+	SS_NAMES=(random)
+	dt_has dt_saverload || return 0
+	dt_saverload
+	SS_NAMES+=("${SV_LIST[@]}")
+}
+
+fn cp_set_saver(int? id = "", value = "") { DT_SAVER=$value; cp_save; }
+fn cp_set_saveridle(int? id = "", value = "") {
+	[ "$value" = never ] && value=0
+	DT_SAVERIDLE=$value
+	cp_save
+}
+
+fn screensaver_rows(int w) {
+	local n=0 v=$DT_SAVERIDLE
+
+	dt_has dt_saverstart || { cp_absent "$w" "The screen saver"; ret 1; }
+	[ "$v" = 0 ] && v=never
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Screen Saver"
+	CP[$w][$n]["val"]="$DT_SAVER"; CP[$w][$n]["key"]=saver; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Start After (minutes)"
+	CP[$w][$n]["val"]="$v"; CP[$w][$n]["key"]=idle; n=$((n + 1))
+	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Preview"
+	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=preview; n=$((n + 1))
+	ret "$n"
+}
+
+fn screensaver_do(int? w = "", k = "", int? dir = "") {
+	local v cur=$DT_SAVERIDLE
+
+	case $k in
+	saver) ss_names; v := cp_next "$DT_SAVER" "$dir" "${SS_NAMES[@]}"; DT_SAVER=$v ;;
+	idle)
+		[ "$cur" = 0 ] && cur=never
+		v := cp_next "$cur" "$dir" "${SS_IDLES[@]}"
+		[ "$v" = never ] && v=0
+		DT_SAVERIDLE=$v
+		;;
+	preview) dt_saverstart ;;
+	esac
+	cp_save
+}
+
+fn screensaver_drop(int? w = "", int? r = "", int? c = "", k = "") {
+	case $k in
+	saver) ss_names; dt_droplist "$w" "$r" "$c" cp_set_saver "${SS_NAMES[@]}" ;;
+	idle) dt_droplist "$w" "$r" "$c" cp_set_saveridle "${SS_IDLES[@]}" ;;
+	esac
+}

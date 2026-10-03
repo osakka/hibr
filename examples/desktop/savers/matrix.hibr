@@ -1,0 +1,86 @@
+#!/usr/bin/env hibr
+#
+# matrix -- green rain: a column of glyphs falls down each column of the
+# screen, each at its own speed and length, its head bright, the trail
+# behind it greener and then darker, until it falls off the bottom and
+# starts again somewhere above the top.
+
+strict
+
+command -v sv_saver > /dev/null && sv_saver matrix "Matrix" 60
+
+MX_GLYPHS=(ｱ ｲ ｳ ｴ ｵ ｶ ｷ ｸ ｹ ｺ ｻ ｼ ｽ ｾ ｿ ﾀ ﾁ ﾂ ﾃ ﾄ ﾅ ﾆ ﾇ ﾈ ﾉ ﾊ ﾋ ﾌ ﾍ ﾎ ﾏ ﾐ ﾑ ﾒ ﾓ ﾔ ﾕ ﾖ ﾗ ﾘ ﾙ ﾚ ﾛ ﾜ ﾝ 0 1 2 3 4 5 7 8 9 Z :)
+MX_ASCIIGLYPHS=(a b c d e f g h k m n p q r s t u v w x y z 0 1 2 3 4 5 7 8 9 Z : + = '*' '<' '>')
+MX_SET=()
+declare -ga MX_HEAD
+declare -ga MX_LEN
+declare -ga MX_SPD
+MX_TICK=0
+
+# A head's start: somewhere above the top, so columns do not all begin
+# together, with a trail of its own length and a speed of its own.
+fn mx_reset(int c, int rows) {
+	MX_HEAD[$c]=$(( -(RANDOM % (rows + 1)) ))
+	MX_LEN[$c]=$(( rows / 3 + RANDOM % (rows / 2 + 2) ))
+	MX_SPD[$c]=$(( 1 + RANDOM % 3 ))
+}
+
+fn matrix_start(int rows, int cols) {
+	local c=0
+
+	if [ "$DT_GLYPHSET" = ascii ]; then
+		MX_SET=("${MX_ASCIIGLYPHS[@]}")
+	else
+		MX_SET=("${MX_GLYPHS[@]}")
+	fi
+	MX_HEAD=()
+	MX_LEN=()
+	MX_SPD=()
+	MX_TICK=0
+	while [ "$c" -lt "$cols" ]; do
+		mx_reset "$c" "$rows"
+		c=$((c + 1))
+	done
+}
+
+# One frame: every column due to move steps on; the cell it leaves is
+# greened, a cell further back darkened, the cell its trail leaves erased,
+# and the new head drawn bright -- each pass with one pen.
+fn matrix_frame(int rows, int cols) {
+	local c h n=${#MX_SET[@]}
+	local -a due
+
+	MX_TICK=$((MX_TICK + 1))
+	c=0
+	while [ "$c" -lt "$cols" ]; do
+		if [ $((MX_TICK % MX_SPD[$c])) = 0 ]; then
+			MX_HEAD[$c]=$((MX_HEAD[$c] + 1))
+			due+=("$c")
+		fi
+		c=$((c + 1))
+	done
+	console pen black black
+	for c in "${due[@]}"; do
+		h=$((MX_HEAD[$c] - MX_LEN[$c]))
+		[ "$h" -ge 0 ] && [ "$h" -lt "$rows" ] && console put "$h" "$c" " "
+	done
+	console pen "#0a5c2a" black
+	for c in "${due[@]}"; do
+		h=$((MX_HEAD[$c] - 4))
+		[ "$h" -ge 0 ] && [ "$h" -lt "$rows" ] &&
+			console put "$h" "$c" "${MX_SET[$((RANDOM % n))]}"
+	done
+	console pen "#22c55e" black
+	for c in "${due[@]}"; do
+		h=$((MX_HEAD[$c] - 1))
+		[ "$h" -ge 0 ] && [ "$h" -lt "$rows" ] &&
+			console put "$h" "$c" "${MX_SET[$((RANDOM % n))]}"
+	done
+	console pen "#e6ffe6" black bold
+	for c in "${due[@]}"; do
+		h=${MX_HEAD[$c]}
+		[ "$h" -ge 0 ] && [ "$h" -lt "$rows" ] &&
+			console put "$h" "$c" "${MX_SET[$((RANDOM % n))]}"
+		[ $((h - MX_LEN[$c])) -ge "$rows" ] && mx_reset "$c" "$rows"
+	done
+}

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.99.20
+
+**Screen savers.** After ten idle minutes the screen is given to a screen
+saver until the next key or click, which ends it and goes nowhere else.
+Six to start: Matrix rain, Flying Toasters, a Classic Mac drifting about
+with its little screen going from the happy face to a desktop to a window,
+Pipes, Mystify and a big Clock that moves each minute. Control Panel >
+Screen Saver chooses one or none at random, the idle minutes (or never),
+and previews; the hibr menu's Screen Saver starts one now. Each saver is
+a file in `savers/` -- a `_start` and a `_frame` -- and one of your own goes
+in `~/.config/hibr/savers/`, listed beside them; `savers/saver.hibr` runs
+any of them on its own in a terminal, by name or by path. Waiting costs nothing: the
+desktop sleeps until the idle time is up. This is the first part of the
+login and lock screens, which will run a saver behind them.
+
 ## 0.99.19
 
 **Switches, rounded frames, diamonds and dashes.** An on/off choice can be

@@ -1,0 +1,72 @@
+#!/usr/bin/env hibr
+#
+# saver -- the screen saver: after DT_SAVERIDLE minutes with no key and
+# no click, the screen is given to a saver (examples/desktop/savers/) --
+# DT_SAVER by name, or one at random -- until the next key or click, which
+# ends it and goes nowhere else. Waiting costs nothing: the loop is told
+# to wake when the idle time is up, the same as any other dt_want.
+
+strict
+
+DT_SAVER="${DT_SAVER-random}"
+DT_SAVERIDLE="${DT_SAVERIDLE-10}"
+command -v dt_keep > /dev/null && dt_keep DT_SAVER DT_SAVERIDLE
+
+# The idle time in seconds instead, for a script or a test that cannot
+# wait whole minutes; when set it wins.
+DT_SAVERSECS="${DT_SAVERSECS-}"
+DT_SAVING=
+DT_SAVERREADY=
+DT_IDLEFROM=$EPOCHSECONDS
+
+# The savers, loaded the first time one is wanted rather than with the
+# desktop, so a desktop that never idles that long pays nothing for them.
+dt_saverload() {
+	[ -n "$DT_SAVERREADY" ] && return 0
+	. "$DT_HERE/savers/saver.hibr"
+	sv_load
+	DT_SAVERREADY=1
+}
+
+# Give the screen to a saver now.
+dt_saverstart() {
+	dt_saverload
+	dt_mclose
+	if sv_begin "$DT_SAVER"; then
+		DT_SAVING=1
+	fi
+	return 0
+}
+
+# Take the screen back: the desktop is drawn whole again on the next frame,
+# and the idle time starts from now.
+dt_saverstop() {
+	DT_SAVING=
+	DT_IDLEFROM=$EPOCHSECONDS
+	console pen "$DT_INK" "$DT_WALL"
+	console clear
+	return 0
+}
+
+# Note that someone is here.
+dt_saverseen() {
+	DT_IDLEFROM=$EPOCHSECONDS
+}
+
+# After each frame: start the saver once the idle time is up, or ask to be
+# woken when it will be.
+dt_saverwait() {
+	local left secs=$DT_SAVERSECS
+
+	[ -z "$DT_SAVING" ] || return 0
+	[ -n "$secs" ] || secs=$(( ${DT_SAVERIDLE:-0} * 60 ))
+	[ "$secs" -gt 0 ] 2> /dev/null || return 0
+	left=$(( secs - (EPOCHSECONDS - DT_IDLEFROM) ))
+	if [ "$left" -le 0 ]; then
+		dt_saverstart
+		dt_want 10
+		return 0
+	fi
+	dt_want $(( left * 1000 ))
+	return 0
+}
