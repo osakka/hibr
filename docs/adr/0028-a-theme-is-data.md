@@ -31,7 +31,8 @@ The bundled ones are in `examples/desktop/themes/`, installed beside the
 desktop; `~/.config/hibr/themes/` is searched first, so a file there with a
 bundled theme's name replaces it and a new name adds one. Each file is
 checked whole when the Appearance pane loads -- every colour `#rrggbb`, the
-shadow a whole number from 1 to 100 -- and one that fails is left out of
+shadow a whole number from 1 to 100, `checks` (optional) one of `box`,
+`knob` or `block` -- and one that fails is left out of
 the list rather than half applied. The list is sorted by name.
 
 ## Why not a script

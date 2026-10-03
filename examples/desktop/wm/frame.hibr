@@ -23,12 +23,16 @@ fn dt_btnspec(style, int? fixed) {
 			BTN_C=("$DT_WARN" "$DT_GOOD" "$DT_BAD")
 		fi
 		;;
-	squares)
+	squares | diamonds | dashes)
+		local g=${GL[square]}
+
+		[ "$style" = diamonds ] && g=${GL[diamond]}
+		[ "$style" = dashes ] && g=${GL[minus]}
 		BTN_DL=" "; BTN_DR=" "
 		if [ "$fixed" = 1 ]; then
-			BTN_G=("${GL[square]}" "${GL[square]}"); BTN_C=("$DT_WARN" "$DT_BAD")
+			BTN_G=("$g" "$g"); BTN_C=("$DT_WARN" "$DT_BAD")
 		else
-			BTN_G=("${GL[square]}" "${GL[square]}" "${GL[square]}")
+			BTN_G=("$g" "$g" "$g")
 			BTN_C=("$DT_WARN" "$DT_GOOD" "$DT_BAD")
 		fi
 		;;

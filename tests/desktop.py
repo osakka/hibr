@@ -293,6 +293,11 @@ check("and the grow box still overwrites its own corner, same as single",
 check("and the title and buttons are unaffected by the frame style",
       sc.find("┤ Hello ├") == (6, 12) and sc.g[6][37] == "x", sc)
 
+sc, _ = run(ONE, env={"DT_FRAME": "rounded"})
+check("DT_FRAME=rounded draws arcs at the corners, single lines between",
+      sc.g[6][10] == "╭" and sc.g[6][39] == "╮" and sc.g[13][10] == "╰" and
+      sc.g[9][10] == "│" and sc.g[13][39] == "◢", sc)
+
 sc, raw = run(ONE, env={"DT_FRAME": "none"})
 check("DT_FRAME=none is a blank frame -- no border ring at all",
       sc.find("┌") is None and sc.find("└") is None and
@@ -360,6 +365,14 @@ sc, raw = run(ONE, env={"DT_BTNSTYLE": "squares"})
 check("DT_BTNSTYLE=squares does the same with a different glyph",
       AMBER_FG in raw and GREEN_FG in raw and RED_FG in raw and
       sc.g[6][37] == "■", sc)
+sc, raw = run(ONE, env={"DT_BTNSTYLE": "diamonds"})
+check("DT_BTNSTYLE=diamonds and dashes colour them too, each its own glyph",
+      AMBER_FG in raw and GREEN_FG in raw and RED_FG in raw and
+      sc.g[6][33] == "◆" and sc.g[6][37] == "◆", sc)
+sc, raw = run(ONE, env={"DT_BTNSTYLE": "dashes"})
+check("and dashes are three dashes, in the same three colours",
+      AMBER_FG in raw and GREEN_FG in raw and RED_FG in raw and
+      sc.g[6][33] == "━" and sc.g[6][35] == "━" and sc.g[6][37] == "━", sc)
 sc, _ = run(ONE, [press(6, 37), release(6, 37)], env={"DT_BTNSTYLE": "circles"})
 check("a style change never moves where a button is clicked, only its glyph",
       sc.find("Hello") is None, sc)
@@ -2925,4 +2938,4 @@ check("q on the waiting screen stops waiting, and leaves no trace",
 t1.close()
 unstandby()
 
-report(403)
+report(406)

@@ -1,16 +1,51 @@
-# widgets/check -- a checkbox.
+# widgets/check -- an on/off choice: a box, a knob or a block.
 #
 # Part of the widget library apps draw with -- see widgets/README.md.
 
 strict
 
-# Draw a checkbox: "[x] label" or "[ ] label".  tag is what dt_hit answers
-# for a click on it -- the field the app will toggle, by default the label
-# itself.
-fn dt_check(int id, int r, int c, int on, label, tag) {
-	local tag=${tag:-$label} mark=" "
+# The style on/off choices are drawn in now: the person's, or with
+# DT_CHECKS=theme what the theme suggests, a box when it says nothing.
+dt_checkstyle() {
+	local st=$DT_CHECKS
 
-	[ "$on" = 1 ] && mark=x
-	console put -p "w$id" "$r" "$c" "[$mark] $label"
-	dt_wreg "$id" "$r" "$c" $((${#label} + 4)) "$tag"
+	[ "$st" = theme ] && st=${DT_THEMECHECKS:-box}
+	case $st in knob | block) ret "$st" ;; *) ret box ;; esac
+}
+
+# The mark for an on/off choice in the style chosen: "[x]" or "[ ]", a
+# knob "(  o)" on and "(o  )" off, or a block "[  #]" and "[#  ]".
+fn dt_checkmark(int on) {
+	local st k=${GL[circle]} b=${GL[block]}
+
+	st := dt_checkstyle
+	case $st in
+	knob) [ "$on" = 1 ] && ret "(  $k)"; ret "($k  )" ;;
+	block) [ "$on" = 1 ] && ret "[  $b]"; ret "[$b  ]" ;;
+	*) [ "$on" = 1 ] && ret "[x]"; ret "[ ]" ;;
+	esac
+}
+
+# Draw an on/off choice and its label. A box is drawn in the pen the
+# caller set; a knob or a block in the theme's colours -- on in the accent,
+# off dimmed, on the well -- after the label, which keeps the caller's.
+# tag is what dt_hit answers for a click on it -- the field the app will
+# toggle, by default the label itself.
+fn dt_check(int id, int r, int c, int on, label, tag) {
+	local tag=${tag:-$label} m st
+
+	st := dt_checkstyle
+	m := dt_checkmark "$on"
+	if [ "$st" = box ]; then
+		console put -p "w$id" "$r" "$c" "$m $label"
+	else
+		[ -n "$label" ] && console put -p "w$id" "$r" $((c + ${#m} + 1)) "$label"
+		if [ "$on" = 1 ]; then
+			console pen "$DT_ACTIVE" "$DT_WELL"
+		else
+			console pen "$DT_DIM" "$DT_WELL"
+		fi
+		console put -p "w$id" "$r" "$c" "$m"
+	fi
+	dt_wreg "$id" "$r" "$c" $((${#m} + ${#label} + 1)) "$tag"
 }

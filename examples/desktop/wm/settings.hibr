@@ -171,7 +171,7 @@ DT_DBLMS=400
 DT_DBLID=
 DT_DBLT=0
 
-# A window's own frame: single or double lined, or none at all. None is a
+# A window's own frame: single or double lined, rounded, or none at all. None is a
 # blank frame, not no frame: the border ring -- corners, sides, grow box --
 # goes undrawn, but the title and its buttons are still there, still
 # clickable, exactly as under single or double. A style is a table entry:
@@ -182,12 +182,18 @@ DT_FRAME="${DT_FRAME-single}"
 
 # Which side the min/max/close cluster docks to, where the title sits in
 # whatever room that leaves, and which glyphs the cluster is drawn with:
-# the Windows-style brackets this shipped with, coloured circles, or
-# coloured squares. dt_btnspec is the table for the third of these, the
+# the Windows-style brackets this shipped with, or coloured circles,
+# squares, diamonds or dashes. dt_btnspec is the table for the third of these, the
 # same shape cp_theme's own case statement already is for a theme.
 DT_BTNSIDE="${DT_BTNSIDE-right}"
 DT_TITLEALIGN="${DT_TITLEALIGN-left}"
 DT_BTNSTYLE="${DT_BTNSTYLE-brackets}"
+
+# How an on/off choice is drawn, wherever there is one: theme -- what the
+# theme suggests (DT_THEMECHECKS, set when one is applied), a box when it
+# says nothing -- box "[x]", knob "(  o)", block "[  #]".
+DT_CHECKS="${DT_CHECKS-theme}"
+DT_THEMECHECKS="${DT_THEMECHECKS-}"
 
 # Whether a plain side (not just a corner) resizes too -- one dimension,
 # the opposite edge anchored. On by default; off leaves the four corners
@@ -253,7 +259,7 @@ DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 	DT_ICONS DT_DISKS DT_CURSOR DT_CURSOR_BLINK DT_SHADOW
 	DT_MSHADOW DT_BARSHADOW DT_DBLACTION DT_SHADOW_PCT CS_SIDE CS_Y
 	CS_COLLAPSED CS_LEN CS_SHADOW
-	DT_FRAME DT_BTNSIDE DT_TITLEALIGN DT_BTNSTYLE DT_EDGERESIZE
+	DT_FRAME DT_BTNSIDE DT_TITLEALIGN DT_BTNSTYLE DT_CHECKS DT_THEMECHECKS DT_EDGERESIZE
 	DT_DRAGMOD DT_DRAGKEY DT_DRAWSKIP DT_CYCLE DT_NOTEMS DT_NOTEPOS DT_NOTECOUNT DT_SHOTDIR DT_SHOTFMT DT_SHOTLAST DT_OPENWITH DT_TERMHERE DT_CLIPKEEP DT_CLIPMAX DT_BARTIME
 	DT_BARGAP DT_BELLICON DT_BTNSHADOW DT_DLGBTN DT_TERMKEEP DT_TERMCTRL DT_GLYPHSET DT_PLACE DT_WSN DT_TILEMAIN DT_STANDBYAUTO DT_SETVER)
 

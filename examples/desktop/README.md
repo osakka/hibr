@@ -149,7 +149,10 @@ them all, sorted by name.
 anything highlighted; `idle` an unfocused frame and dimmed text; `face`
 the inside of windows and menus; `ink` the text on it. `shadow` is how much
 of a colour survives under a shadow, 1 to 100: 55 is soft on a dark face,
-and a light one wants much less of a cut -- paper's is 90.
+and a light one wants much less of a cut -- paper's is 90. `checks`,
+optional, suggests how an on/off choice is drawn -- `box`, `knob` or
+`block` (neon suggests `knob`) -- and holds while Appearance > Checkboxes
+is left at `theme`; choosing a style there is yours whatever the theme.
 
 A theme may also set seven colour roles, each optional: `dim` (secondary
 text), `selink` (text drawn on the accent, a selection), `good`, `warn` and
@@ -913,13 +916,13 @@ gives it the one row that does -- rather than show nothing.
 Windows' first four rows -- Frame, Buttons, Title and Button Style --
 are read by `dt_win` and `dt_btn` in `wm/frame.hibr`, not by the pane:
 `DT_FRAME` picks the border glyphs from the `DT_FRAMES` table (`single`,
-`double`, or `none` for no ring at all -- move, resize, zoom, hide and
+`double`, `rounded` with arcs at its corners, or `none` for no ring at all -- move, resize, zoom, hide and
 close stay reachable through the Window menu even then, since that row is
 still there to drag or double-click, just undrawn); `DT_BTNSIDE` docks the
 min/max/close cluster left or right; `DT_TITLEALIGN` places the title in
 whatever room that leaves; `DT_BTNSTYLE` picks its glyphs and colours from
-`dt_btnspec` -- the Windows-style brackets this shipped with, coloured
-circles, or coloured squares. Every style's cluster is 5 (fixed) or 7
+`dt_btnspec` -- the Windows-style brackets this shipped with, or coloured
+circles, squares, diamonds or dashes. Every style's cluster is 5 (fixed) or 7
 (movable) characters wide, so changing it never moves where a button is
 clicked, only what is drawn there -- a fourth style is a branch in
 `dt_btnspec`, a fifth frame is six glyphs in `DT_FRAMES`, and neither

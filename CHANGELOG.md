@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.99.19
+
+**Switches, rounded frames, diamonds and dashes.** An on/off choice can be
+drawn as a switch: Control Panel > Appearance > Checkboxes is `box` (as
+before), `knob` -- a knob that slides right when on, `(  ●)` and `(●  )`
+-- or `block`, a block that does the same between brackets, `[  █]` and
+`[█  ]`, each in the theme's colours: on in the accent, off dimmed. It is
+used everywhere there is one: the Control Panel's rows and every dialog's
+boxes. Left at `theme`, the theme decides -- a theme's file may suggest a
+style with `"checks"`, and neon suggests the knob. Windows > Frame gains
+`rounded`, with arcs at the corners, and the title-bar buttons two styles,
+`diamonds` and `dashes`, coloured like circles and squares. Get Info's
+permission boxes sit six columns apart now, to fit any style.
+
 ## 0.99.18
 
 **A terminal's shell closes its window however it ends.** ctrl-d (or

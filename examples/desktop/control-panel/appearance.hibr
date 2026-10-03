@@ -15,6 +15,11 @@ CP_THEME=midnight
 command -v dt_keep > /dev/null && dt_keep CP_THEME
 CP_GLYPHS=("·" "░" "▒" "⋅" "+")
 
+# How an on/off choice is drawn: what the theme suggests, a box, a knob or
+# a block -- see DT_CHECKS in wm/settings.hibr.
+CP_CHECKS=(theme box knob block)
+fn cp_set_checks(int? id = "", value = "") { DT_CHECKS=$value; cp_save; }
+
 # A theme is a JSON file, one to a theme, named for it: seven colours --
 # wall, dot, bar, active, idle, face, ink -- seven optional roles -- dim,
 # selink, good, warn, bad, info, well, each defaulting to the value the
@@ -57,6 +62,7 @@ fn cp_themeread(n, f) {
 		[ "${j["$k"]}" = "#$v" ] && [ ${#v} -eq 6 ] &&
 			[ -z "${v//[0-9a-fA-F]/}" ] || return 1
 	done
+	case ${j["checks"]-box} in box | knob | block) ;; *) return 1 ;; esac
 	v=${j["shadow"]-55}
 	case $v in '' | *[!0-9]*) return 1 ;; esac
 	[ ${#v} -le 3 ] && [ "$v" -ge 1 ] && [ "$v" -le 100 ] || return 1
@@ -67,6 +73,7 @@ fn cp_themeread(n, f) {
 		CP_TH["$n"]["$k"]=${j["$k"]-${CP_THDEF["$k"]}}
 	done
 	CP_TH["$n"]["shadow"]=$v
+	CP_TH["$n"]["checks"]=${j["checks"]-}
 }
 
 # Every theme in CP_THEMEDIRS, the first of each name winning, sorted.
@@ -105,6 +112,7 @@ fn cp_theme(t) {
 	DT_BAD=${CP_TH["$t"]["bad"]}
 	DT_INFO=${CP_TH["$t"]["info"]}
 	DT_WELL=${CP_TH["$t"]["well"]}
+	DT_THEMECHECKS=${CP_TH["$t"]["checks"]}
 	command -v console > /dev/null && console darkdefault "$DT_INK" "$DT_FACE"
 }
 
@@ -166,6 +174,8 @@ fn appearance_rows(int w) {
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_BTNSHADOW" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=DT_BTNSHADOW; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Checkboxes"
+	CP[$w][$n]["val"]="$DT_CHECKS"; CP[$w][$n]["key"]=checks; n=$((n + 1))
 	ret "$n"
 }
 
@@ -175,6 +185,7 @@ fn appearance_do(int w, k, int dir) {
 	case $k in
 	theme) v := cp_next "$CP_THEME" "$dir" "${CP_THEMES[@]}"
 	       cp_theme "$v" ;;
+	checks) v := cp_next "$DT_CHECKS" "$dir" "${CP_CHECKS[@]}"; DT_CHECKS=$v ;;
 	glyph) v := cp_next "$DT_GLYPH" "$dir" "${CP_GLYPHS[@]}"
 	       DT_GLYPH=$v; DT_WALLIMG= ;;
 	bellicon)
@@ -203,6 +214,7 @@ fn appearance_drop(int w, int r, int c, k) {
 	case $k in
 	theme) dt_droplist "$w" "$r" "$c" cp_set_theme "${CP_THEMES[@]}" ;;
 	glyph) dt_droplist "$w" "$r" "$c" cp_set_glyph "${CP_GLYPHS[@]}" ;;
+	checks) dt_droplist "$w" "$r" "$c" cp_set_checks "${CP_CHECKS[@]}" ;;
 	wallmode) dt_droplist "$w" "$r" "$c" wp_setmode "${WP_MODES[@]}" ;;
 	glyphset) dt_droplist "$w" "$r" "$c" cp_set_glyphset "${DT_GLYPHSETS[@]}" ;;
 	dlgbtn) dt_droplist "$w" "$r" "$c" cp_set_dlgbtn "${DT_DLGBTNS[@]}" ;;

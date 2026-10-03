@@ -11,10 +11,10 @@ strict
 
 command -v cp_pane > /dev/null && cp_pane windows "Windows" "▭"
 
-WS_FRAMES=(single double none)
+WS_FRAMES=(single double rounded none)
 WS_SIDES=(right left)
 WS_ALIGNS=(left center right)
-WS_STYLES=(brackets circles squares)
+WS_STYLES=(brackets circles squares diamonds dashes)
 
 fn cp_set_frame(int? id = "", value = "") { DT_FRAME=$value; cp_save; }
 fn cp_set_side(int? id = "", value = "") { DT_BTNSIDE=$value; cp_save; }

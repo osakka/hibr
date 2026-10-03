@@ -1104,6 +1104,23 @@ sc = cprun(reach("terminal", "Colours", ("term",)) + [b"\x1b[C"],
            extra=("term",))
 check("and it can be switched to the real terminal's own colours",
       "terminal" in brow(sc, "Colours"), sc)
+# An on/off row as a switch: Appearance > Checkboxes, or what the theme
+# suggests. A knob sits right when on and left when off, a block likewise
+# between brackets; toggling one moves it.
+sc = cprun(DOWN_TERM, extra=("term",), post="DT_CHECKS=knob")
+check("with Checkboxes set to knob, on and off are a knob right and left",
+      "(  \u25cf)" in brow(sc, "Scrollbar") and "(\u25cf  )" in brow(sc, "Cursor Blink"), sc)
+sc = cprun(reach("terminal", "Cursor Blink", ("term",)) + [b"\r"],
+           extra=("term",), post="DT_CHECKS=block")
+check("and set to block, a block between brackets that moves when toggled",
+      "[  \u2588]" in brow(sc, "Scrollbar") and "[  \u2588]" in brow(sc, "Cursor Blink"), sc)
+sc = cprun(DOWN_TERM, extra=("term",), post="cp_theme neon")
+check("a theme can suggest the style: neon's is the knob",
+      "(  \u25cf)" in brow(sc, "Scrollbar"), sc)
+sc = cprun(reach("appearance", "Checkboxes") + [b"\x1b[C"])
+check("Appearance's Checkboxes follow the theme until told otherwise",
+      "box" in brow(sc, "Checkboxes"), sc)
+
 sc = cprun(DOWN_TERM, extra=("term",))
 check("the terminal's Cursor and Cursor Blink live here too, block and off",
       "block" in brow(sc, "Cursor") and "[ ]" in brow(sc, "Cursor Blink"), sc)
@@ -1322,6 +1339,10 @@ check("cycling it once reaches double",
       sc.find("Frame") is not None and
       "double" in sc.row(sc.find("Frame")[0]), sc)
 sc = cprun(DOWN_WS + [b"\x1b[C", b"\x1b[C", b"\x1b[C"])
+check("and again reaches rounded",
+      sc.find("Frame") is not None and "rounded" in sc.row(sc.find("Frame")[0]),
+      sc)
+sc = cprun(DOWN_WS + [b"\x1b[C", b"\x1b[C", b"\x1b[C", b"\x1b[C"])
 check("and again reaches none",
       sc.find("Frame") is not None and "none" in sc.row(sc.find("Frame")[0]),
       sc)
@@ -2332,13 +2353,13 @@ check("Info opens a real Get Info window with the entry's own details",
       sc.find("Owner:") is not None and sc.find("Group:") is not None,
       sc)
 check("and the nine permission bits read as checkboxes, matching -rw-r--r--",
-      sc.at(13, 25) == "x" and sc.at(13, 29) == "x" and
-      sc.at(13, 33) == " " and
-      sc.at(14, 25) == "x" and sc.at(14, 29) == " ", sc)
+      sc.at(13, 25) == "x" and sc.at(13, 31) == "x" and
+      sc.at(13, 37) == " " and
+      sc.at(14, 25) == "x" and sc.at(14, 31) == " ", sc)
 
 NP = os.path.join(HD, "note.txt")
 os.chmod(NP, 0o644)
-sc = run("files", FW, [press(5, 10, 2), press(12, 12), press(14, 29)],
+sc = run("files", FW, [press(5, 10, 2), press(12, 12), press(14, 31)],
          pre=HPRE, end=None)
 check("clicking a permission box chmods the real file at once",
       oct(os.stat(NP).st_mode & 0o777) == "0o664", sc)
@@ -3318,4 +3339,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(490)
+report(496)

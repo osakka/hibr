@@ -1285,21 +1285,23 @@ fn gi_draw(int id, int h, int w, int row, int col) {
 
 	console pen "$DT_DIM" "$DT_FACE"
 	console put -p "w$id" 9 9 "R"
-	console put -p "w$id" 9 13 "W"
-	console put -p "w$id" 9 17 "X"
+	console put -p "w$id" 9 15 "W"
+	console put -p "w$id" 9 21 "X"
 	console pen "$DT_INK" "$DT_FACE"
 	console put -p "w$id" 10 2 "Owner"
 	dt_check "$id" 10 8 "${GI[$id]["ur"]}" "" perm:ur
-	dt_check "$id" 10 12 "${GI[$id]["uw"]}" "" perm:uw
-	dt_check "$id" 10 16 "${GI[$id]["ux"]}" "" perm:ux
+	dt_check "$id" 10 14 "${GI[$id]["uw"]}" "" perm:uw
+	dt_check "$id" 10 20 "${GI[$id]["ux"]}" "" perm:ux
+	console pen "$DT_INK" "$DT_FACE"
 	console put -p "w$id" 11 2 "Group"
 	dt_check "$id" 11 8 "${GI[$id]["gr"]}" "" perm:gr
-	dt_check "$id" 11 12 "${GI[$id]["gw"]}" "" perm:gw
-	dt_check "$id" 11 16 "${GI[$id]["gx"]}" "" perm:gx
+	dt_check "$id" 11 14 "${GI[$id]["gw"]}" "" perm:gw
+	dt_check "$id" 11 20 "${GI[$id]["gx"]}" "" perm:gx
+	console pen "$DT_INK" "$DT_FACE"
 	console put -p "w$id" 12 2 "Other"
 	dt_check "$id" 12 8 "${GI[$id]["or"]}" "" perm:or
-	dt_check "$id" 12 12 "${GI[$id]["ow"]}" "" perm:ow
-	dt_check "$id" 12 16 "${GI[$id]["ox"]}" "" perm:ox
+	dt_check "$id" 12 14 "${GI[$id]["ow"]}" "" perm:ow
+	dt_check "$id" 12 20 "${GI[$id]["ox"]}" "" perm:ox
 
 	dt_dlgbtns "$id" "$h" "$w" "${GI[$id]["focus"]}" ok Apply cancel Close
 }

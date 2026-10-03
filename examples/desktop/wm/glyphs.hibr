@@ -35,6 +35,8 @@ fn dt_glyphs(set = "unicode") {
 		GL["tl"]="+"; GL["tr"]="+"; GL["bl"]="+"; GL["br"]="+"
 		GL["dhline"]="="; GL["dvline"]="|"
 		GL["dtl"]="+"; GL["dtr"]="+"; GL["dbl"]="+"; GL["dbr"]="+"
+		GL["rtl"]="."; GL["rtr"]="."; GL["rbl"]="'"; GL["rbr"]="'"
+		GL["diamond"]="*"; GL["minus"]="-"
 		GL["teel"]="["; GL["teer"]="]"
 		GL["dashh"]="-"; GL["dashv"]=":"
 		GL["grow"]="/"
@@ -65,6 +67,12 @@ fn dt_glyphs(set = "unicode") {
 		GL["dhline"]=$'═'    # BOX DRAWINGS DOUBLE HORIZONTAL
 		GL["dvline"]=$'║'    # BOX DRAWINGS DOUBLE VERTICAL
 		GL["dtl"]=$'╔'       # BOX DRAWINGS DOUBLE DOWN AND RIGHT
+		GL["rtl"]=$'╭'       # BOX DRAWINGS LIGHT ARC DOWN AND RIGHT
+		GL["rtr"]=$'╮'       # BOX DRAWINGS LIGHT ARC DOWN AND LEFT
+		GL["rbl"]=$'╰'       # BOX DRAWINGS LIGHT ARC UP AND RIGHT
+		GL["rbr"]=$'╯'       # BOX DRAWINGS LIGHT ARC UP AND LEFT
+		GL["diamond"]=$'◆'   # BLACK DIAMOND
+		GL["minus"]=$'━'     # BOX DRAWINGS HEAVY HORIZONTAL
 		GL["dtr"]=$'╗'       # BOX DRAWINGS DOUBLE DOWN AND LEFT
 		GL["dbl"]=$'╚'       # BOX DRAWINGS DOUBLE UP AND RIGHT
 		GL["dbr"]=$'╝'       # BOX DRAWINGS DOUBLE UP AND LEFT
@@ -131,5 +139,8 @@ fn dt_glyphs(set = "unicode") {
 	DT_FRAMES["double"]["tl"]=${GL["dtl"]}; DT_FRAMES["double"]["tr"]=${GL["dtr"]}
 	DT_FRAMES["double"]["bl"]=${GL["dbl"]}; DT_FRAMES["double"]["br"]=${GL["dbr"]}
 	DT_FRAMES["double"]["h"]=${GL["dhline"]}; DT_FRAMES["double"]["v"]=${GL["dvline"]}
+	DT_FRAMES["rounded"]["tl"]=${GL["rtl"]}; DT_FRAMES["rounded"]["tr"]=${GL["rtr"]}
+	DT_FRAMES["rounded"]["bl"]=${GL["rbl"]}; DT_FRAMES["rounded"]["br"]=${GL["rbr"]}
+	DT_FRAMES["rounded"]["h"]=${GL["hline"]}; DT_FRAMES["rounded"]["v"]=${GL["vline"]}
 }
 dt_glyphs "$DT_GLYPHSET"

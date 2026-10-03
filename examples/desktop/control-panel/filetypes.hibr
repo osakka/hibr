@@ -390,8 +390,7 @@ fn owt_draw(int id, int h, int w, int row, int col) {
 	dt_wclear "$id"
 	while [ "$i" -lt "$n" ]; do
 		t := dt_openertitle "${OWT[$id]["o$i"]}" "$ext"
-		box="[ ]"
-		[ "${OWT[$id]["on$i"]}" = 1 ] && box="[x]"
+		box := dt_checkmark "${OWT[$id]["on$i"]:-0}"
 		[ "${OWT[$id]["o$i"]}" = "${OWT[$id]["def"]}" ] && t="$t  (default)"
 		if [ "$i" = "$sel" ] && [ "$f" = list ]; then
 			console pen "$DT_SELINK" "$DT_ACTIVE"
@@ -400,7 +399,7 @@ fn owt_draw(int id, int h, int w, int row, int col) {
 		fi
 		t := str pad "$box $t" $((w - 4))
 		console put -p "w$id" $((i + 1)) 2 "$t"
-		dt_wreg "$id" $((i + 1)) 2 3 "box$i"
+		dt_wreg "$id" $((i + 1)) 2 "${#box}" "box$i"
 		dt_wreg "$id" $((i + 1)) 6 $((w - 8)) "row$i"
 		i=$((i + 1))
 	done
