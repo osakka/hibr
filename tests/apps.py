@@ -289,12 +289,12 @@ ORDER = [l.split()[0] for l in out if l.strip()]
 GROUP = dict(l.split() for l in out if l.strip())
 check("panes register and sort by title within their group, not load order",
       ORDER == ["datetime", "displays", "keyboard", "mouse",
-                "appearance", "cliphist", "control_strip", "desktop",
+                "aboutme", "appearance", "cliphist", "control_strip", "desktop",
                 "filetypes", "network", "notify", "screensaver", "shortcuts", "windows",
                 "abouthibr", "filesview", "notes", "taskmgr", "terminal", "tube"], out)
 check("Hardware first, then the desktop's own panes, then one per app",
       [GROUP[n] for n in ORDER] ==
-      ["hardware"] * 4 + ["system"] * 10 + ["app"] * 6, out)
+      ["hardware"] * 4 + ["system"] * 11 + ["app"] * 6, out)
 
 PW = "22 70 2 2"
 PANEL = ("panel", PW)
@@ -311,7 +311,7 @@ CPANES = 'CP_PANEDIRS+=("%s")\ncp_panes' % CP
 R0, VALCOL = 3, 59
 LISTCOL = 5
 BODYCOL = 22
-TITLE = {"appearance": "Appearance", "control_strip": "Control Strip",
+TITLE = {"aboutme": "About Me", "appearance": "Appearance", "control_strip": "Control Strip",
          "cliphist": "Clipboard", "notes": "Stickies",
          "datetime": "Date & Time", "desktop": "Desktop",
          "displays": "Displays", "filetypes": "File Types",
@@ -412,7 +412,7 @@ check("the picker lists every pane it has room for, sorted by title",
       sc)
 check("under a Hardware heading, then Desktop, then Apps",
       "Hardware" in sc.row(R0 + 1) and
-      "Desktop" in sc.row(prow("appearance") - 1) and
+      "Desktop" in sc.row(prow("aboutme") - 1) and
       "Apps" in sc.row(prow("abouthibr") - 1), sc)
 check("a list longer than the window scrolls, with a bar to say so",
       sc.find("Hardware") is not None and "█" in "".join(
@@ -1104,6 +1104,36 @@ sc = cprun(reach("terminal", "Colours", ("term",)) + [b"\x1b[C"],
            extra=("term",))
 check("and it can be switched to the real terminal's own colours",
       "terminal" in brow(sc, "Colours"), sc)
+# About Me: what the login screen shows for you, kept in your own
+# me.json. The pane reads the file each time it draws, so what a check
+# saved is what the next frame shows.
+ABME = ('mkdir -p "$XDG_CONFIG_HOME/hibr"; printf \'{"name": "Old Name", '
+        '"line": "Gone fishing"}\' > "$XDG_CONFIG_HOME/hibr/me.json"')
+sc = cprun([b"\x1b[B"] * downs("aboutme"), post=ABME)
+check("Control Panel > About Me: the name, the line, the picture and the "
+      "session the login screen uses, from me.json",
+      "Old Name" in brow(sc, "Name") and "Gone fishing" in
+      brow(sc, "Line Under It") and "desktop" in brow(sc, "Session at Login")
+      and browi(sc, "No Picture") is None, sc)
+sc = cprun(reach("aboutme", "Name") + [b"\r", 0.3], post=ABME, end=None)
+check("Name opens a dialog to change the name and the line",
+      sc.find("┤ About Me ├") is not None and sc.find("Old Name") is not None,
+      sc)
+sc = cprun(reach("aboutme", "Name") + [b"\r", 0.3] + [b"\x7f"] * 8 +
+           [c.encode() for c in "Pat Doe"] + [b"\r", 0.3], post=ABME)
+check("and what is typed there is saved, the line kept",
+      "Pat Doe" in brow(sc, "Name") and "Gone fishing" in
+      brow(sc, "Line Under It") and sc.find("┤ About Me ├") is None, sc)
+sc = cprun([b"\x1b[B"] * downs("aboutme"),
+           post=ABME + '\nab_picked "" /tmp/pics/me.png Pictures')
+check("a picture chosen is kept by its path, and can be taken away again",
+      "me.png" in brow(sc, "Picture\u2026") and browi(sc, "No Picture")
+      is not None, sc)
+sc = cprun([b"\x1b[B"] * downs("aboutme"),
+           post='rm -rf "$XDG_CONFIG_HOME/hibr/me.json"')
+check("with no me.json, Name is the account's own real name",
+      brow(sc, "Name").strip() != "" and "desktop" in
+      brow(sc, "Session at Login"), sc)
 sc = cprun([b"\x1b[B"] * downs("screensaver"))
 check("Control Panel > Screen Saver: which saver, how long idle, a preview",
       "random" in brow(sc, "Screen Saver") and
@@ -1604,7 +1634,7 @@ sc = run_img(os.path.abspath("tests/img-2x2.png"), BUILT_MODS,
 check("a missing img module says so, not \"cannot show\" the file",
       sc.find("Image support isn't installed") is not None, sc)
 
-expect(r"broken\.png: neither a PNG nor a JPEG$")
+expect(r"broken\.png: neither a PNG, a JPEG nor a PPM$")
 BADPNG = tempfile.mkdtemp(prefix="hibr-bad-png-")
 open(os.path.join(BADPNG, "broken.png"), "wb").write(b"not a real png")
 sc = run_img(os.path.join(BADPNG, "broken.png"), BUILT_MODS)
@@ -3344,4 +3374,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(500)
+report(506)

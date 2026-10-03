@@ -21,7 +21,7 @@ purpose. Everything else behaves as bash does unless the entry says otherwise.
 | `true` / `false` | succeed / fail |
 | `exit [n]` | leave the shell with status `n`, or the last status |
 | `eval word…` | join the words and run the result as a command |
-| `exec [cmd]` | replace the shell with `cmd`; with none, apply the redirections permanently |
+| `exec [-cl] [-a name] [cmd]` | replace the shell with `cmd`; with none, apply the redirections permanently. `-a` gives the program `name` as its `$0`, `-l` puts a dash before it (a login shell), `-c` gives it no environment -- as in bash |
 | `source f [args…]` / `. f [args…]` | run `f` in this shell; extra arguments become its positional parameters |
 | `command [-p] name args…` | run `name` ignoring functions and aliases |
 | `command -v name` | print how `name` would resolve; status 1 if it would not |
@@ -295,7 +295,7 @@ inside a function or a `try` it returns 2 —
 | `app name [text]` | name this script as an app, for whatever is running it |
 | `cat [-benstuvAETfp] [file…]` | **[module]** `cat` in a pipe; gutter and colour on a terminal |
 | `math [-s decimals] expr` | **[module]** floating point: `+ - * / % ^`, comparisons, `c ? a : b`, functions (`round(x, n)`, `sqrt`, `abs`, `pow`, `ln`, `log`, `sin`...), `pi` and `e`, shell variables by name, and `sum avg min max count` over arrays; prints, or fills the slot under `:=`. Whole numbers whole, others to at most 15 significant digits |
-| `auth check [-s service] [-c dir] [-q] user password`, `auth service\|ready\|whoami` | **[module]** whether PAM takes a password: 0 yes, 1 no with PAM's reason in `$RET`, 2 when PAM cannot be asked; libpam opened on first use, no privilege needed to check one's own password. The service is `hibr` when `/etc/pam.d/hibr` exists (the Debian package installs it), else `screensaver` on macOS, else `login`; `-c` gives PAM a folder of its own, for tests. `whoami` is the login name, a tab, and the account's real name |
+| `auth check [-s service] [-c dir] [-q] user password`, `auth service\|ready\|whoami` | **[module]** whether PAM takes a password: 0 yes, 1 no with PAM's reason in `$RET`, 2 when PAM cannot be asked; libpam opened on first use, no privilege needed to check one's own password. The service is `hibr` when `/etc/pam.d/hibr` exists (the Debian package installs it), else `screensaver` on macOS, else `login`; `-c` gives PAM a folder of its own, for tests. `whoami` is the login name, a tab, and the account's real name. `auth open` checks the password and opens a PAM session on this terminal (root refused); `auth run cmd...` runs a command in it as that user -- dropped for good when root, with PAM's environment, recorded in utmp -- and waits; `auth close` ends it. That is the login screen's whole use of privilege |
 | `dav ls\|stat\|get\|put\|mkdir\|rm\|mv\|cp\|servers\|server ...` | **[module]** a WebDAV client: list, fetch and change files on any WebDAV server, Basic or Digest, over TLS, with servers kept in a private list -- see [mods/dav](../mods/dav/README.md) |
 | `web open\|go\|back\|text\|links\|eval\|click\|type\|render\|draw ...` | **[module]** a web browser: headless Chromium driven over a pipe, pages as cells and as text a script can read -- see [mods/web](../mods/web/README.md) |
 | `media open\|play\|pause\|seek\|volume\|size\|frame\|draw\|info ...` | **[module]** video and sound from a file or address, decoded by FFmpeg's libraries loaded at run time, the picture drawn as half blocks or ASCII -- see [mods/media](../mods/media/README.md) |

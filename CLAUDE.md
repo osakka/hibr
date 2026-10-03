@@ -131,7 +131,7 @@ linked, and no OpenSSL headers are needed to build.
 | `mods/dav/` | a WebDAV client: own HTTP/1.1 (kept connections, chunked, redirects), Basic and Digest (MD5), TLS through the shell's `tls_relay` forked by the module so it can reap it, RFC 4918 multistatus; servers in `~/.config/hibr/dav` (0600, refused otherwise); `tests/davserve.py` is the suite's own server -- see `mods/dav/README.md` |
 | `mods/media/` | video and sound: libavformat/libavcodec dlopen'd (59-62, FFmpeg 5.1-8), the few struct fields it reads located per release by `tools/mvoffsets.sh`; decode and sound threads, ALSA/AudioQueue/none/wav out, frames as half blocks or ASCII -- see `mods/media/README.md` |
 | `mods/md/` | markdown: CommonMark and GFM, every spec example passing byte for byte (`tests/md_spec.py`); `md html` and `md lines`, the per-character styles Write draws from -- see `mods/md/README.md` |
-| `mods/auth.c` | password checks through PAM, libpam `dlopen`ed: `auth check [-s svc] [-c confdir] user pw`, run as the user with no privilege (PAM's own `unix_chkpwd` is setgid, hibr never is); the desktop's lock (`wm/lock.hibr`) is built on it; the Debian package installs `/etc/pam.d/hibr` |
+| `mods/auth.c` | password checks through PAM, libpam `dlopen`ed: `auth check [-s svc] [-c confdir] user pw`, run as the user with no privilege (PAM's own `unix_chkpwd` is setgid, hibr never is); the desktop's lock (`wm/lock.hibr`) is built on it; `auth open`/`run`/`close` are a PAM session and a command run in it as the user, for the login screen (`examples/desktop/login/`, root under systemd, `hibr-login@.service` shipped off); the Debian package installs `/etc/pam.d/hibr` and `hibr-login` |
 | `mods/lint/` | the rules behind `hibr --explain`: walks the parsed tree and names mistakes, runs nothing; offers `"lint"` (`mods/lint.h`) and adds no builtin |
 
 Each directory carries its own `README.md` with the detail: `src/`, `include/`,
@@ -1759,6 +1759,29 @@ went in the shell.
   `r := f` where `f` built JSON gave back numbers as strings -- found when
   `db query` results did it. A new way of copying a variable or an entry
   must copy `ty` as well as the text and the map.
+
+- **A test PAM stack must look like a real one, or it says something
+  else.** pam_exec reports a failed check as "System error", not
+  "Authentication failure", and a stack whose every `auth` module ignores
+  `pam_setcred` (pam_exec does) fails `auth open` with "Permission denied"
+  on the *right* password. A suite's stack decides with
+  `auth [success=1 default=ignore] pam_exec.so ...`, refuses with
+  `pam_deny`, and ends with `pam_permit` for the credentials. Tests give
+  PAM a folder of their own with `auth check -c` / `auth open -c`
+  (`pam_start_confdir`, which OpenPAM lacks -- these tests are Linux only).
+- **The login screen ends after every session, as root.** pam_systemd
+  moves whatever calls `pam_open_session` into the new session's scope --
+  the screen itself -- and logind refuses a second session to a caller
+  already in one ("Not creating session"), so a screen that looped would
+  run the next person inside the first person's session, with no session
+  or runtime directory of their own. systemd's `Restart=always` starts a
+  clean one; only a trial run (not root) loops.
+- **Root never reads a person's files on the login screen.** About Me and
+  its picture are read by a child that has dropped to the person
+  (`lg_as`), which hands back JSON and a PPM (`img -o ppm`); root parses
+  the one and draws the other through the img module's own reader. Do not
+  "simplify" it to an `img draw` of the person's own path: that hands a
+  file anyone can write to libpng with root's rights.
 
 ## Testing discipline
 

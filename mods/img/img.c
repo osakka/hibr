@@ -136,6 +136,69 @@ static void im_render(str *out, const cell *g, int rows, int cols, int gray)
 	}
 }
 
+/* Read one number from a PPM header, past blanks and # comments. */
+static int im_ppmnum(FILE *f, long *v)
+{
+	int c = fgetc(f), n = 0;
+
+	for (;;) {
+		while (c == ' ' || c == '\t' || c == '\n' || c == '\r')
+			c = fgetc(f);
+		if (c != '#')
+			break;
+		while (c != EOF && c != '\n')
+			c = fgetc(f);
+	}
+	*v = 0;
+	while (c >= '0' && c <= '9' && n < 6) {
+		*v = *v * 10 + (c - '0');
+		c = fgetc(f);
+		n++;
+	}
+	return n > 0 && n < 6 && (c == ' ' || c == '\t' || c == '\n' || c == '\r')
+		? 0 : -1;
+}
+
+/* A binary PPM (P6, 8 bits): read here, by this module's own few lines and
+   no library, which is what lets a program that must not hand a user's
+   file to libpng or libturbojpeg -- the login screen, as root -- have that
+   user's own process decode it to a small PPM and draw only that. Up to
+   4096 pixels a side, every byte counted. */
+static int im_ppmload(const char *path, image *out, str *err)
+{
+	FILE *f = fopen(path, "rb");
+	long w, h, mx;
+	size_t n;
+
+	if (!f) {
+		s_cat(err, "cannot open ");
+		s_cat(err, path);
+		return HIBR_FAIL;
+	}
+	if (fgetc(f) != 'P' || fgetc(f) != '6' || im_ppmnum(f, &w) ||
+	    im_ppmnum(f, &h) || im_ppmnum(f, &mx) || w < 1 || h < 1 ||
+	    w > 4096 || h > 4096 || mx != 255) {
+		fclose(f);
+		s_cat(err, path);
+		s_cat(err, ": not an 8-bit binary PPM this reads");
+		return HIBR_FAIL;
+	}
+	n = (size_t)w * (size_t)h * 3;
+	out->px = xm(n);
+	if (fread(out->px, 1, n, f) != n) {
+		fclose(f);
+		free(out->px);
+		out->px = 0;
+		s_cat(err, path);
+		s_cat(err, ": the PPM is shorter than its header says");
+		return HIBR_FAIL;
+	}
+	fclose(f);
+	out->w = (int)w;
+	out->h = (int)h;
+	return HIBR_OK;
+}
+
 /* Decode an image by what its first bytes say it is, not its name: PNG's
    signature or JPEG's start-of-image marker, so a photo called .JPG, .jpeg
    or nothing at all still opens. */
@@ -156,18 +219,46 @@ static int im_load(const char *path, image *out, str *err)
 		return im_pngload(path, out, err);
 	if (n >= 3 && m[0] == 0xFF && m[1] == 0xD8 && m[2] == 0xFF)
 		return im_jpegload(path, out, err);
+	if (n >= 2 && m[0] == 'P' && m[1] == '6')
+		return im_ppmload(path, out, err);
 	s_cat(err, path);
-	s_cat(err, ": neither a PNG nor a JPEG");
+	s_cat(err, ": neither a PNG, a JPEG nor a PPM");
 	return HIBR_FAIL;
 }
 
-/* img [-g] [-w cols] [-h rows] file -- print an image as ANSI to stdout,
+/* Write a resampled grid as a binary PPM, a cell's two halves as two
+   pixels one above the other: the picture at exactly the size it will be
+   drawn, for `img draw` to read back without a library. */
+static void im_ppm(str *out, const cell *g, int rows, int cols)
+{
+	int r, c, half;
+
+	s_cat(out, "P6\n");
+	s_num(out, cols);
+	s_ch(out, ' ');
+	s_num(out, (long)rows * 2);
+	s_cat(out, "\n255\n");
+	for (r = 0; r < rows; r++) {
+		for (half = 0; half < 2; half++) {
+			for (c = 0; c < cols; c++) {
+				const cell *x = &g[r * cols + c];
+
+				s_ch(out, half ? x->br : x->tr);
+				s_ch(out, half ? x->bg : x->tg);
+				s_ch(out, half ? x->bb : x->tb);
+			}
+		}
+	}
+}
+
+/* img [-g] [-o ppm] [-w cols] [-h rows] file -- print an image as ANSI to
+   stdout, or with -o ppm as a binary PPM of the size it would be drawn,
    sized to the terminal when neither -w nor -h is given and stdout is
    one. */
 static int im_cat(sh *s, int ac, char **av)
 {
 	const char *path = 0;
-	int gray = 0, cols = 0, rows = 0, i;
+	int gray = 0, cols = 0, rows = 0, i, ppm = 0;
 	image im;
 	str err, out;
 	cell *grid;
@@ -176,6 +267,12 @@ static int im_cat(sh *s, int ac, char **av)
 	for (i = 1; i < ac; i++) {
 		if (!strcmp(av[i], "-g")) {
 			gray = 1;
+		} else if (!strcmp(av[i], "-o") && i + 1 < ac) {
+			if (strcmp(av[++i], "ppm")) {
+				lg(HIBR_LERR, "img: -o takes ppm");
+				return 2;
+			}
+			ppm = 1;
 		} else if (!strcmp(av[i], "-w") && i + 1 < ac) {
 			cols = atoi(av[++i]);
 		} else if (!strcmp(av[i], "-h") && i + 1 < ac) {
@@ -185,7 +282,7 @@ static int im_cat(sh *s, int ac, char **av)
 		}
 	}
 	if (!path) {
-		lg(HIBR_LERR, "usage: img [-g] [-w cols] [-h rows] file");
+		lg(HIBR_LERR, "usage: img [-g] [-o ppm] [-w cols] [-h rows] file");
 		return 2;
 	}
 	if (cols < 1 || rows < 1) {
@@ -213,7 +310,10 @@ static int im_cat(sh *s, int ac, char **av)
 	im_resample(&im, grid, rows, cols);
 	im_free(&im);
 	s_init(&out);
-	im_render(&out, grid, rows, cols, gray);
+	if (ppm)
+		im_ppm(&out, grid, rows, cols);
+	else
+		im_render(&out, grid, rows, cols, gray);
 	free(grid);
 	fflush(stdout);
 	if (out.p && write(1, out.p, out.n) < 0)

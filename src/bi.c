@@ -945,24 +945,56 @@ int b_eval(sh *s, int ac, char **av)
 /* Replace the shell with a program. */
 int b_exec(sh *s, int ac, char **av)
 {
-	char *path;
+	char *path, *a0 = 0, *nm, **argv, *none[1] = { 0 };
 	char **env;
+	int i = 1, login = 0, clean = 0, r;
+	size_t n;
 
-	if (ac < 2)
+	while (i < ac && av[i][0] == '-' && av[i][1]) {
+		if (!strcmp(av[i], "--")) {
+			i++;
+			break;
+		}
+		n = strspn(av[i] + 1, "cl");
+		if (av[i][1 + n] == 0 ||
+		    (av[i][1 + n] == 'a' && av[i][2 + n] == 0 && i + 1 < ac)) {
+			login |= memchr(av[i] + 1, 'l', n) != 0;
+			clean |= memchr(av[i] + 1, 'c', n) != 0;
+			if (av[i][1 + n] == 'a')
+				a0 = av[++i];
+		} else {
+			lg(HIBR_LERR, "exec: %s: invalid option", av[i]);
+			lg(HIBR_LERR, "usage: exec [-cl] [-a name] [command [args]]");
+			return 2;
+		}
+		i++;
+	}
+	if (i >= ac)
 		return HIBR_OK;
-	path = findx(s, av[1]);
+	path = findx(s, av[i]);
 	if (!path) {
-		lg(HIBR_LERR, "exec: %s: command not found", av[1]);
+		lg(HIBR_LERR, "exec: %s: command not found", av[i]);
 		return HIBR_NOCMD;
 	}
-	if ((s->sopt & O_PLAN) && !pl_prog(s, av + 1)) {
+	if ((s->sopt & O_PLAN) && !pl_prog(s, av + i)) {
 		free(path);
 		return HIBR_FAIL;
 	}
-	env = v_envp(s, 0);
+	nm = a0 ? a0 : av[i];
+	n = strlen(nm);
+	argv = xm(sizeof *argv * (size_t)(ac - i + 1));
+	memcpy(argv, av + i, sizeof *argv * (size_t)(ac - i + 1));
+	argv[0] = xm(n + 2);
+	argv[0][0] = '-';
+	memcpy(argv[0] + login, nm, n + 1);
+	lg(HIBR_LDBG, "exec %s as %s%s", path, argv[0], clean ? ", no environment" : "");
+	env = clean ? none : v_envp(s, 0);
 	fflush(0);
-	execve(path, av + 1, env);
-	lg(HIBR_LERR, "exec: %s: %s", path, strerror(errno));
+	execve(path, argv, env);
+	r = errno;
+	lg(HIBR_LERR, "exec: %s: %s", path, strerror(r));
+	free(argv[0]);
+	free(argv);
 	free(path);
 	return HIBR_NOEXEC;
 }

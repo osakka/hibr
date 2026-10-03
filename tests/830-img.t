@@ -34,3 +34,17 @@ echo "rc=$?"
 
 img 2>&1
 echo "rc=$?"
+
+# -o ppm writes the picture at the size it would be drawn, as a binary PPM
+# of a cell's two halves; and a PPM reads back, through no library, to the
+# same colours -- what lets the login screen draw a person's picture
+# without root ever decoding their file
+p=/tmp/hibr-img-$$.ppm
+img -o ppm -w 2 -h 1 tests/img-2x2.png > "$p"; echo "ppm: $?"
+head -c 11 "$p" | od -An -c | tr -s ' '
+[ "$(img -w 2 -h 1 tests/img-2x2.png)" = "$(img -w 2 -h 1 "$p")" ] && echo "reads back the same"
+printf 'P6\n2 2\n255\nab' > "$p"; img -w 2 -h 1 "$p" 2>&1 | sed 's|/tmp/[^:]*|FILE|'
+printf 'P6\n99999 2\n255\n' > "$p"; img -w 2 -h 1 "$p" 2>&1 | sed 's|/tmp/[^:]*|FILE|'
+printf 'P6\n2 2\n65535\n' > "$p"; img -w 2 -h 1 "$p" 2>&1 | sed 's|/tmp/[^:]*|FILE|'
+img -o gif tests/img-2x2.png 2>&1; echo "bad -o: $?"
+rm -f "$p"

@@ -65,6 +65,19 @@ needs.
 
 So privilege in hibr only ever goes one way.
 
+## Later: the login screen (0.99.22)
+
+The login screen (`examples/desktop/login/`) is a third shape of the same
+rule. systemd starts it as root on a terminal; it gives root up only by
+forking a child that drops for good -- to read a person's own About Me and
+picture before they log in, and to run their session once they have
+(`auth run`, which checks its own work the way `drop` does). Root itself
+never reads a person's files, decodes their picture with an image library
+or runs their scripts: the child hands back JSON, parsed by hibr's own
+parser, and a small PPM, read by a few dozen lines of the img module's own.
+The screen locker needs no privilege at all, since checking one's own
+password is what PAM's own helper is for.
+
 ---
 
 [← decisions](README.md)

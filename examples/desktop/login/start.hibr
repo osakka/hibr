@@ -1,0 +1,48 @@
+#!/usr/bin/env hibr
+#
+# start -- what a login starts, run as the person who logged in: it keeps
+# their choice of session in their own About Me (~/.config/hibr/me.json),
+# so the login screen offers the same one next time, then becomes it --
+# the desktop, or their own login shell. The desktop is resumed when one
+# is already held -- logging in again is how you come back to the one you
+# detached from.
+#
+#     hibr start.hibr desktop|shell
+
+strict
+
+ST_HERE=${BASH_SOURCE%/*}
+[ "$ST_HERE" = "$BASH_SOURCE" ] && ST_HERE=.
+declare -gA ST_ME
+
+# Note the session chosen in About Me, keeping everything else there.
+fn st_keep(sess) {
+	local d="${XDG_CONFIG_HOME:-$HOME/.config}/hibr" f j
+
+	f=$d/me.json
+	if [ -r "$f" ]; then
+		j=$(head -c 65536 "$f")
+		json parse ST_ME "$j" 2> /dev/null || return 0
+	fi
+	[ "${ST_ME["session"]}" = "$sess" ] && return 0
+	ST_ME["session"]=$sess
+	mkdir -p "$d" 2> /dev/null || return 0
+	json emit ST_ME -p > "$f.new" 2> /dev/null && mv -f "$f.new" "$f"
+	return 0
+}
+
+fn st_main(sess = "desktop") {
+	local sh=${SHELL:-/bin/sh}
+
+	case $sess in
+	desktop|shell) ;;
+	*) sess=desktop ;;
+	esac
+	st_keep "$sess"
+	if [ "$sess" = shell ]; then
+		exec -a "-${sh##*/}" "$sh"
+	fi
+	exec "$HIBR" "$ST_HERE/../session.hibr" --resume
+}
+
+st_main "$@"

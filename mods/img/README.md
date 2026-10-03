@@ -107,3 +107,15 @@ reference decoder to diff against here. `tests/img-2x2.png` is a 2x2 fixture
 (red, green / blue, yellow, one pixel each) decoded at exactly its own size,
 so every cell maps to one source pixel with no averaging to make the
 recorded RGB triples fuzzy.
+
+## PPM, for a picture root must not decode
+
+`img -o ppm -w cols -h rows file` writes the picture at exactly the size it
+would be drawn, as a binary PPM -- each cell's two halves as two pixels
+one above the other -- and `img` and `img draw` read a PPM back through a
+few dozen lines of this module's own (`im_ppmload`: 8 bits, up to 4096
+pixels a side, every byte counted), with no library. That is for the login
+screen, which runs as root and must show a person's own picture: a child
+that has dropped to the person decodes their PNG or JPEG to a PPM, and root
+draws only that, so libpng and libturbojpeg never see a person's file with
+root's rights.

@@ -2039,7 +2039,7 @@ shutil.rmtree(d, True)
 # silent miscount.
 PANEL = ('. %s/panel.hibr\nCP_PANEDIRS+=("%s")\ncp_panes'
          % (tree("examples/desktop/apps"), tree("examples/desktop/control-panel")))
-ORDER = ["datetime", "displays", "keyboard", "mouse", "appearance",
+ORDER = ["datetime", "displays", "keyboard", "mouse", "aboutme", "appearance",
          "cliphist", "control_strip", "desktop", "filetypes", "network", "notify",
          "screensaver", "shortcuts",
          "windows", "abouthibr", "filesview", "notes", "taskmgr", "terminal", "tube"]
@@ -3079,4 +3079,121 @@ os.unlink(path)
 check("the saver over a terminal that keeps writing costs little, not a "
       "core (%.0f%%)" % (used * 100), "\u2588" in sc.text() and used < 0.3, sc)
 
-report(424)
+# --- the login screen --------------------------------------------------------
+#
+# login/login.hibr, run as the suite's own user -- a trial run, which can
+# only log in as itself -- against a PAM folder of its own: "lg" takes only
+# "right horse" (pam_exec decides, pam_deny refuses, as a real stack's
+# "Authentication failure") and opens a session that sets one variable. The session it
+# starts is a stub that writes down what it was asked for, as whom, and
+# that variable; LG_ONCE ends the screen after one.
+LGDIR = tempfile.mkdtemp(prefix="hibr-login-")
+open(os.path.join(LGDIR, "chk.sh"), "w").write(
+    '#!/bin/sh\ntr -d "\\000" | grep -qx "right horse"\n')
+os.chmod(os.path.join(LGDIR, "chk.sh"), 0o755)
+open(os.path.join(LGDIR, "env.conf"), "w").write("LG_SUITE DEFAULT=from-pam\n")
+open(os.path.join(LGDIR, "lg"), "w").write(
+    "auth [success=1 default=ignore] pam_exec.so expose_authtok quiet "
+    "%s/chk.sh\nauth requisite pam_deny.so\nauth required pam_permit.so\n"
+    "account required pam_permit.so\nsession required pam_permit.so\n"
+    "session optional pam_env.so readenv=0 conffile=%s/env.conf\n"
+    % (LGDIR, LGDIR))
+LGSTUB = os.path.join(LGDIR, "stub.sh")
+LGRAN = os.path.join(LGDIR, "ran")
+open(LGSTUB, "w").write('#!/bin/sh\necho "$1 $(id -un) $LG_SUITE" > %s\n'
+                        % LGRAN)
+os.chmod(LGSTUB, 0o755)
+LGCFG = os.path.join(LGDIR, "cfg")
+os.makedirs(os.path.join(LGCFG, "hibr"))
+shutil.copy(tree("tests/img-quad.jpg"), os.path.join(LGCFG, "me.jpg"))
+open(os.path.join(LGCFG, "hibr", "me.json"), "w").write(
+    '{"name": "Test Person", "line": "Out to lunch", "picture": "%s",'
+    ' "session": "shell"}' % os.path.join(LGCFG, "me.jpg"))
+ME = os.environ.get("USER") or subprocess.check_output(["id", "-un"]).decode().strip()
+
+
+def loginrun(feed, env=None):
+    """Drive the login screen; screens after each step, and what ran."""
+    if os.path.exists(LGRAN):
+        os.unlink(LGRAN)
+    e = {"LG_PAMDIR": LGDIR, "LG_SERVICE": "lg", "LG_SAVER": "clock",
+         "LG_ONCE": "1", "LG_SESSIONCMD": LGSTUB, "XDG_CONFIG_HOME": LGCFG,
+         "LG_TITLE": "testbox", "LG_CONFFILE": "/nonexistent"}
+    e.update(env or {})
+    t = Term(tree("examples/desktop/login/login.hibr"), env=e, rows=ROWS,
+             cols=COLS, settle=0.8)
+    shots = []
+    for f in feed:
+        if isinstance(f, float):
+            t.collect(f)
+        else:
+            t.send(f)
+            t.collect(0.8)
+        shots.append(t.screen())
+    t.quit(b"", 1.5)
+    ran = open(LGRAN).read().strip() if os.path.exists(LGRAN) else None
+    return shots, ran
+
+
+s, ran = loginrun([0.3, ME[:1].encode(), ME[1:].encode() + b"\r", b"wrong\r",
+                   2.5, b"right horse", b"\t", b"\r"])
+check("the login screen starts on the saver, with no box",
+      "\u2588" in s[0].text() and s[0].find("testbox") is None, s[0])
+check("a key brings the box, and a letter typed is the user name's first",
+      s[1].find("testbox") is not None and s[1].find("User name") is not None
+      and s[1].find(ME[:1]) is not None, s[1])
+check("the user name brings that person's own About Me: name and line, read "
+      "as them", s[2].find("Test Person") is not None and
+      s[2].find("Out to lunch") is not None and s[2].find("Password")
+      is not None, s[2])
+check("and their picture, from their own file, drawn from the PPM a child "
+      "decoded as them", "\u2580" in s[2].text(), s[2])
+check("a wrong password is refused there, and nothing starts",
+      s[3].find("Not the password") is not None, s[3])
+check("the right one logs in as the person, with PAM's session around it -- "
+      "and About Me's own session first, Shell, then Tab moved it to Desktop",
+      ran == "desktop %s from-pam" % ME, s[-1])
+
+s, ran = loginrun([0.3, b"\x1b[B", ME.encode() + b"\r", b"right horse\r"],
+                  {"XDG_CONFIG_HOME": os.path.join(LGDIR, "none")})
+check("an arrow brings the box without typing anything, and with no About "
+      "Me it is the account's own name, a letter for the picture, the desktop",
+      s[1].find("User name") is not None and s[2].find("Password") is not None
+      and "\u2580" not in s[2].text() and ran == "desktop %s from-pam" % ME, s[2])
+
+s, ran = loginrun([0.3, b"r", b"oot\r", b"anything\r", 2.2, b"\x1b", b"\x1b"])
+check("root is refused at the box", s[3].find("root cannot log in here")
+      is not None and ran is None, s[3])
+check("escape goes back to the user name, and again to the saver",
+      s[5].find("User name") is not None and s[6].find("testbox") is None, s[6])
+
+s, ran = loginrun([0.3, b"n", b"obody-here\r", b"x\r"])
+check("a name with no account gets a password box like any other, and a "
+      "refusal", s[2].find("nobody-here") is not None and
+      s[3].find("Not the password") is not None and ran is None, s[3])
+# Reading About Me as the person gets five seconds: one made a pipe that
+# nobody writes to must not hang the screen for everyone else.
+FIFOCFG = os.path.join(LGDIR, "fifo")
+os.makedirs(os.path.join(FIFOCFG, "hibr"))
+os.mkfifo(os.path.join(FIFOCFG, "hibr", "me.json"))
+s, ran = loginrun([0.3, ME.encode() + b"\r", 6.0], {"XDG_CONFIG_HOME": FIFOCFG})
+check("an About Me that is a pipe nobody writes to does not hang the screen",
+      s[2].find("Password") is not None, s[2])
+
+# start.hibr is what a login runs, as the person: it keeps the session
+# chosen in their About Me -- keeping everything else there -- and then
+# becomes it; a shell starts as a login shell, its name with a dash.
+open(os.path.join(LGCFG, "hibr", "me.json"), "w").write(
+    '{"name": "Test Person", "session": "desktop"}')
+r = subprocess.run([tree("build/hibr"), tree("examples/desktop/login/start.hibr"),
+                    "shell"], input=b'echo "name=$0"\nexit\n', capture_output=True,
+                   env=dict(os.environ, XDG_CONFIG_HOME=LGCFG, SHELL="/bin/sh",
+                            ENV="", HOME=LGDIR), timeout=20)
+me = open(os.path.join(LGCFG, "hibr", "me.json")).read()
+check("start.hibr keeps the session chosen in About Me, and keeps the rest",
+      '"session": "shell"' in me and "Test Person" in me, me)
+check("and Shell is the person's own shell, started as a login shell",
+      b"name=-sh" in r.stdout, r.stdout + r.stderr)
+shutil.rmtree(LGDIR, True)
+
+report(437)

@@ -11,7 +11,15 @@ rc=0
 16 32
 [38;2;251;1;4;48;2;3;1;250m▀[0m
 rc=0
-hibr: tests/830-img.t: neither a PNG nor a JPEG
+hibr: tests/830-img.t: neither a PNG, a JPEG nor a PPM
 rc=1
-hibr: usage: img [-g] [-w cols] [-h rows] file
+hibr: usage: img [-g] [-o ppm] [-w cols] [-h rows] file
 rc=2
+ppm: 0
+ P 6 \n 2 2 \n 2 5 5 \n
+reads back the same
+hibr: FILE: the PPM is shorter than its header says
+hibr: FILE: not an 8-bit binary PPM this reads
+hibr: FILE: not an 8-bit binary PPM this reads
+hibr: img: -o takes ppm
+bad -o: 2

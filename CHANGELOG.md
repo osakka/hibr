@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.99.22
+
+**A login screen.** `login/login.hibr` logs people in on a text terminal,
+in place of getty: a screen saver always behind it, and on a key a box
+asking for a user name, then that person's picture, name and password, and
+whether to start the Desktop or a Shell -- Tab changes it, and the choice
+is remembered. When the session ends the screen comes back. Linux only;
+root cannot log in there. The Debian package ships `hibr-login@.service`
+and `/etc/pam.d/hibr-login` **switched off**: `systemctl enable --now
+hibr-login@tty2` puts it on tty2, and `disable` gives getty back. Its own
+settings (saver, title, a message, the PAM service, glyphs) are root's, in
+`/etc/hibr/login.json`.
+
+It runs as root, and gives that up only by forking children that drop for
+good: one reads the person's About Me and decodes their picture, handing
+back JSON and a small PPM, so root never reads a person's files or hands
+their picture to an image library; another runs their session. The auth
+module gains `auth open` (password, account, credentials, a PAM session on
+the terminal), `auth run` (the command as the user, with PAM's
+environment, recorded in utmp and wtmp) and `auth close`.
+
+**About Me** -- Control Panel > About Me: your name, a line under it, a
+picture and the session the login screen starts, kept in
+`~/.config/hibr/me.json`. It is data, never run.
+
+**`exec -a name`, `-l` and `-c`**, as in bash: the program's `$0`, a login
+shell's leading dash, and no environment. A shell started from the login
+screen is a login shell.
+
+**`img -o ppm`** writes a picture as a binary PPM at the size it would be
+drawn, and `img` reads PPM back with no library.
+
 ## 0.99.21
 
 **Screen lock.** Lock Screen on the hibr menu, or ctrl-alt-l (changed in

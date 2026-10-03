@@ -1,0 +1,210 @@
+#!/usr/bin/env hibr
+#
+# aboutme -- the Control Panel pane for About Me: the name, the line under
+# it and the picture the login screen shows for you
+# (examples/desktop/login/), and which session it starts. They live in
+# ~/.config/hibr/me.json -- data, never run, since the login screen reads
+# it before anyone has logged in (as you, never as root). The picture is a
+# PNG or JPEG anywhere you can read it; the file keeps its path.
+
+strict
+
+command -v cp_pane > /dev/null && cp_pane aboutme "About Me" "☺"
+command -v dt_app > /dev/null && dt_app abm "About Me" 11 60 "" "" fixed hidden
+
+AB_SESSIONS=(desktop shell)
+declare -gA AB_ME
+declare -gA ABM
+
+# Where About Me lives.
+ab_file() { ret "${XDG_CONFIG_HOME:-$HOME/.config}/hibr/me.json"; }
+
+# Read About Me into AB_ME; an absent or broken file reads as empty.
+ab_load() {
+	local f j
+
+	AB_ME=()
+	f := ab_file
+	[ -r "$f" ] || return 0
+	j=$(head -c 65536 "$f")
+	json parse AB_ME "$j" 2> /dev/null || AB_ME=()
+	return 0
+}
+
+# Write AB_ME back, whole, through a new file so a failed write leaves the
+# old one.
+ab_store() {
+	local f
+
+	f := ab_file
+	mkdir -p "${f%/*}" 2> /dev/null
+	if json emit AB_ME -p > "$f.new" 2> /dev/null && mv -f "$f.new" "$f"; then
+		return 0
+	fi
+	dt_notep high "Could not save About Me in $f"
+	return 1
+}
+
+# Set one value and save.
+fn ab_set(k, v) {
+	ab_load
+	AB_ME["$k"]=$v
+	ab_store
+}
+
+fn cp_set_mesession(int? id = "", value = "") { ab_set session "$value"; }
+
+fn aboutme_rows(int w) {
+	local n=0 v
+
+	ab_load
+	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Name"
+	v=${AB_ME["name"]}
+	if [ -z "$v" ]; then
+		need auth 2> /dev/null && v := auth whoami 2> /dev/null && v=${v#*$'\t'}
+	fi
+	CP[$w][$n]["val"]="$v"; CP[$w][$n]["key"]=edit; n=$((n + 1))
+	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Line Under It"
+	CP[$w][$n]["val"]="${AB_ME["line"]}"; CP[$w][$n]["key"]=edit; n=$((n + 1))
+	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Picture${GL[ellipsis]}"
+	v=${AB_ME["picture"]}
+	CP[$w][$n]["val"]="${v##*/}"; CP[$w][$n]["key"]=pic; n=$((n + 1))
+	if [ -n "${AB_ME["picture"]}" ]; then
+		CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="No Picture"
+		CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=nopic; n=$((n + 1))
+	fi
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Session at Login"
+	CP[$w][$n]["val"]="${AB_ME["session"]:-desktop}"; CP[$w][$n]["key"]=session
+	n=$((n + 1))
+	ret "$n"
+}
+
+fn aboutme_do(int? w = "", k = "", int? dir = "") {
+	local v d
+
+	case $k in
+	edit) ab_dialog ;;
+	pic)
+		ab_load
+		v=${AB_ME["picture"]}
+		d=${v%/*}
+		[ -n "$v" ] && [ -d "$d" ] || d=$HOME
+		dt_filepick open "Picture" "Pictures:png jpg jpeg|All files:*" "$d" "" \
+			ab_picked ""
+		;;
+	nopic) ab_load; unset AB_ME["picture"]; ab_store ;;
+	session)
+		ab_load
+		v := cp_next "${AB_ME["session"]:-desktop}" "$dir" "${AB_SESSIONS[@]}"
+		ab_set session "$v"
+		;;
+	esac
+}
+
+fn aboutme_drop(int? w = "", int? r = "", int? c = "", k = "") {
+	case $k in
+	session) dt_droplist "$w" "$r" "$c" cp_set_mesession "${AB_SESSIONS[@]}" ;;
+	esac
+}
+
+# The picture chosen.
+fn ab_picked(id = "", path = "", type = "") {
+	[ -n "$path" ] || return 0
+	ab_set picture "$path"
+}
+
+# --- the dialog for the name and the line ---------------------------------
+
+# Open it, filled with what About Me holds.
+ab_dialog() {
+	local id h=11 w=60 r c v
+
+	r=$((DT_ROWS / 2 - h / 2))
+	c=$(((DT_COLS - w) / 2))
+	ab_load
+	id := dt_new "About Me" "$h" "$w" "$r" "$c" abm
+	v=${AB_ME["name"]}
+	if [ -z "$v" ]; then
+		need auth 2> /dev/null && v := auth whoami 2> /dev/null && v=${v#*$'\t'}
+	fi
+	ABM[$id]["name"]=$v
+	ABM[$id]["line"]=${AB_ME["line"]}
+	ABM[$id]["namecur"]=${#v}
+	ABM[$id]["linecur"]=${#ABM[$id]["line"]}
+	ABM[$id]["focus"]=name
+	return 0
+}
+
+fn abm_draw(int id, int h, int w, int row, int col) {
+	local f=${ABM[$id]["focus"]} r=1 k on fw=$((w - 12))
+	local -A labs=([name]="Name:" [line]="Line:")
+
+	dt_wclear "$id"
+	for k in name line; do
+		console pen "$DT_INK" "$DT_FACE"
+		console put -p "w$id" "$r" 2 "${labs[$k]}"
+		on=0
+		[ "$f" = "$k" ] && on=1
+		dt_textdraw "$id" "$r" 9 "$fw" "${ABM[$id]["$k"]}" \
+			"${ABM[$id]["${k}cur"]}" "$on"
+		dt_wreg "$id" "$r" 9 "$fw" "$k"
+		r=$((r + 2))
+	done
+	console pen "$DT_DIM" "$DT_FACE"
+	console put -p "w$id" "$r" 2 "Shown on the login screen, with your picture."
+	dt_dlgbtns "$id" "$h" "$w" "$f" ok Save cancel Cancel
+}
+
+ABM_ORDER=(name line ok cancel)
+
+fn abm_key(int id, k) {
+	local f=${ABM[$id]["focus"]} d onb=1 res
+
+	case $f in name | line) onb=0 ;; esac
+	if d := dt_focuskey "$k" "$onb"; then
+		ABM[$id]["focus"] := dt_focus "$f" "$d" "${ABM_ORDER[@]}"
+		return 0
+	fi
+	case $k in
+	escape) dt_del "$id"; return 0 ;;
+	enter) abm_do "$id" "$f"; return 0 ;;
+	esac
+	case $f in name | line) ;; *) return 1 ;; esac
+	res := dt_textkey "${ABM[$id]["$f"]}" "${ABM[$id]["${f}cur"]}" "$k" ||
+		return 1
+	ABM[$id]["$f"]=${res% *}
+	ABM[$id]["${f}cur"]=${res##* }
+	return 0
+}
+
+fn abm_click(int? id = "", int? r = "", int? c = "", btn = "") {
+	local tag cur
+
+	tag := dt_hit "$id" "$r" "$c" || return 0
+	case $tag in
+	name | line)
+		ABM[$id]["focus"]=$tag
+		cur=$((c - 9))
+		[ "$cur" -gt "${#ABM[$id]["$tag"]}" ] && cur=${#ABM[$id]["$tag"]}
+		[ "$cur" -lt 0 ] && cur=0
+		ABM[$id]["${tag}cur"]=$cur
+		;;
+	*) ABM[$id]["focus"]=$tag; abm_do "$id" "$tag" ;;
+	esac
+}
+
+# Save, or not; enter in a field saves too.
+fn abm_do(int id, what) {
+	if [ "$what" = cancel ]; then
+		dt_del "$id"
+		return 0
+	fi
+	ab_load
+	AB_ME["name"]=${ABM[$id]["name"]:0:40}
+	AB_ME["line"]=${ABM[$id]["line"]:0:60}
+	[ -n "${AB_ME["line"]}" ] || unset AB_ME["line"]
+	ab_store && dt_del "$id"
+	return 0
+}
+
+fn abm_close(int id) { unset ABM["$id"]; }

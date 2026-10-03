@@ -1,0 +1,466 @@
+#!/usr/bin/env hibr
+#
+# login -- hibr's login screen, for a text terminal: a screen saver always
+# behind it, and a box over the saver asking for a user name, then that
+# person's picture, name and password, and whether to start the desktop or
+# a shell. The password is checked and the session opened through PAM by
+# the auth module (`auth open`), and the session runs as the person
+# (`auth run`), on this terminal, until it ends -- then the screen comes
+# back for the next.
+#
+# It runs as root, started by systemd (hibr-login@.service, shipped off
+# and enabled by hand: `systemctl enable --now hibr-login@tty2`), and is
+# Linux only. Root never reads a person's files: their About Me
+# (~/.config/hibr/me.json -- data, never run) and its picture are read by a
+# child that has dropped to them, which hands back the JSON and the picture
+# already decoded to a small PPM; root parses the one with hibr's own
+# parser and draws the other with the img module's own few lines, so no
+# image library ever sees a person's file as root. Root is refused at the
+# box -- this is for people.
+#
+# Run as root it ends after each session and systemd starts a new one:
+# pam_systemd moves whatever opened a session into that session, so a
+# screen that stayed would carry the first person's session into the next
+# login, and logind would refuse the second a session of its own.
+#
+# Settings are /etc/hibr/login.json, root's to write: "saver" (a name, or
+# random), "title" (above the box; the host name by default), "message"
+# (one line under it), "service" (the PAM service; hibr-login when its
+# file is installed) and "glyphs" (unicode, or ascii -- the default on a
+# Linux console, whose font has no katakana for the Matrix). What it has to say goes to the journal under systemd,
+# else to /var/log/hibr-login.log -- never onto the screen. A run as anyone but root is a trial of the screen
+# itself, and can log in only as its own user.
+
+strict
+
+LG_HERE=${BASH_SOURCE%/*}
+[ "$LG_HERE" = "$BASH_SOURCE" ] && LG_HERE=.
+
+LG_CONFFILE="${LG_CONFFILE-/etc/hibr/login.json}"
+LG_SERVICE="${LG_SERVICE-}"
+LG_PAMDIR="${LG_PAMDIR-}"
+LG_SAVER="${LG_SAVER-random}"
+LG_TITLE="${LG_TITLE-}"
+LG_MESSAGE="${LG_MESSAGE-}"
+LG_ONCE="${LG_ONCE-}"
+LG_SESSIONCMD="${LG_SESSIONCMD-}"
+
+if [ -z "${DT_GLYPHSET+x}" ]; then
+	DT_GLYPHSET=unicode
+	[ "$TERM" = linux ] && DT_GLYPHSET=ascii
+fi
+DT_INK="${DT_INK-#cbd5e0}"
+DT_FACE="${DT_FACE-#101820}"
+DT_ACTIVE="${DT_ACTIVE-#63b3ed}"
+DT_DIM="${DT_DIM-#718096}"
+DT_BAD="${DT_BAD-#f56565}"
+DT_WELL="${DT_WELL-#2d3748}"
+
+LG_STATE=saver
+LG_USER=
+LG_PASS=
+LG_NAME=
+LG_LINE=
+LG_PIC=
+LG_SESS=desktop
+LG_MSG=
+LG_BAD=
+LG_HOLD=0
+LG_SEEN=0
+LG_TMP=
+LG_QUIT=
+declare -gA LG_CONF
+declare -gA LG_ME
+
+# Read the settings file, if there is one -- a bad one is said and left.
+lg_conf() {
+	local j
+
+	[ -r "$LG_CONFFILE" ] || return 0
+	j=$(head -c 65536 "$LG_CONFFILE")
+	if ! json parse LG_CONF "$j" 2> /dev/null; then
+		printf 'login: %s is not JSON; using the defaults\n' "$LG_CONFFILE" >&2
+		return 0
+	fi
+	[ -n "${LG_CONF["saver"]}" ] && LG_SAVER=${LG_CONF["saver"]}
+	[ -n "${LG_CONF["title"]}" ] && LG_TITLE=${LG_CONF["title"]}
+	[ -n "${LG_CONF["message"]}" ] && LG_MESSAGE=${LG_CONF["message"]}
+	[ -n "${LG_CONF["service"]}" ] && LG_SERVICE=${LG_CONF["service"]}
+	case ${LG_CONF["glyphs"]} in unicode|ascii) DT_GLYPHSET=${LG_CONF["glyphs"]} ;; esac
+	return 0
+}
+
+# Run a command as a person, to read what is theirs: as root a child drops
+# to them first; anyone else may only read their own. It gets five seconds:
+# a person who made their About Me a pipe nobody writes to must not hang
+# the screen for everyone else.
+fn lg_as(u, ...rest) {
+	local pid dog st
+
+	if [ "$EUID" = 0 ]; then
+		( drop "$u" > /dev/null 2>&1 && "${rest[@]}" ) &
+	elif [ "$u" = "$(id -un)" ]; then
+		( "${rest[@]}" ) &
+	else
+		return 1
+	fi
+	pid=$!
+	( sleep 5; kill -9 "$pid" ) > /dev/null 2>&1 &
+	dog=$!
+	wait "$pid"
+	st=$?
+	kill "$dog" 2> /dev/null
+	return "$st"
+}
+
+# Read a person's file, as them, only if it is a plain file.
+fn lg_readf(f) { [ -f "$f" ] && head -c 65536 -- "$f"; }
+
+# Decode a person's picture, as them, only if it is a plain file.
+fn lg_ppm(f) { [ -f "$f" ] && img -o ppm -w 16 -h 8 "$f"; }
+
+# Find out who a typed name is: the account's real name, home and shell
+# from the password database, then their own About Me, read as them. What
+# they wrote there is drawn by root, so no control character survives --
+# an escape sequence in a name would otherwise reach the terminal.
+fn lg_who(u) {
+	local ent j pic home cfg
+	local -a f
+
+	LG_NAME=$u
+	LG_LINE=
+	LG_PIC=
+	LG_SESS=desktop
+	LG_ME=()
+	[[ $u =~ ^[a-z_][a-z0-9_.-]*[$]?$ ]] || return 1
+	ent=$(getent passwd "$u" 2> /dev/null)
+	[ -n "$ent" ] || return 1
+	IFS=: read -ra f <<< "$ent"
+	[ "${f[2]}" != 0 ] || return 1
+	[ -n "${f[4]%%,*}" ] && LG_NAME=${f[4]%%,*}
+	home=${f[5]}
+	cfg=$home/.config
+	[ "$EUID" != 0 ] && [ -n "$XDG_CONFIG_HOME" ] && cfg=$XDG_CONFIG_HOME
+	j=$(lg_as "$u" lg_readf "$cfg/hibr/me.json" 2> /dev/null)
+	if [ -n "$j" ] && json parse LG_ME "$j" 2> /dev/null; then
+		[ -n "${LG_ME["name"]}" ] && LG_NAME=${LG_ME["name"]:0:40}
+		LG_LINE=${LG_ME["line"]:0:60}
+		[ "${LG_ME["session"]}" = shell ] && LG_SESS=shell
+		pic=${LG_ME["picture"]}
+		case $pic in
+		"~/"*) pic=$home/${pic#"~/"} ;;
+		/*) ;;
+		?*) pic=$home/$pic ;;
+		esac
+		if [ -n "$pic" ] && need img 2> /dev/null; then
+			lg_as "$u" lg_ppm "$pic" > "$LG_TMP/pic-$u.ppm" 2> /dev/null &&
+				[ -s "$LG_TMP/pic-$u.ppm" ] && LG_PIC=$LG_TMP/pic-$u.ppm
+		fi
+	fi
+	LG_NAME=${LG_NAME//[[:cntrl:]]/}
+	LG_LINE=${LG_LINE//[[:cntrl:]]/}
+	return 0
+}
+
+# The screen's size, into SV_ROWS and SV_COLS.
+lg_size() { sv_size; }
+
+# Draw the box over the saver: the title, then either the user name field
+# or the person's picture, name, password and session.
+lg_box() {
+	local w=56 h=14 r c i fw t dots n pen sx px
+	local rows=$SV_ROWS cols=$SV_COLS
+
+	[ "$w" -gt $((cols - 2)) ] && w=$((cols - 2))
+	[ "$w" -lt 30 ] && w=30
+	r=$(( (rows - h) / 2 ))
+	c=$(( (cols - w) / 2 ))
+	[ "$r" -lt 0 ] && r=0
+	[ "$c" -lt 0 ] && c=0
+	console pen "$DT_INK" "$DT_FACE"
+	console fill "$r" "$c" "$h" "$w" " "
+	console put "$r" "$c" "${GL[tl]}"
+	console put "$r" $((c + w - 1)) "${GL[tr]}"
+	console put $((r + h - 1)) "$c" "${GL[bl]}"
+	console put $((r + h - 1)) $((c + w - 1)) "${GL[br]}"
+	i=1
+	while [ "$i" -lt $((w - 1)) ]; do
+		console put "$r" $((c + i)) "${GL[hline]}"
+		console put $((r + h - 1)) $((c + i)) "${GL[hline]}"
+		i=$((i + 1))
+	done
+	i=1
+	while [ "$i" -lt $((h - 1)) ]; do
+		console put $((r + i)) "$c" "${GL[vline]}"
+		console put $((r + i)) $((c + w - 1)) "${GL[vline]}"
+		i=$((i + 1))
+	done
+	t=${LG_TITLE:-$HOSTNAME}
+	console pen "$DT_ACTIVE" "$DT_FACE" bold
+	console put $((r + 1)) $((c + (w - ${#t}) / 2)) "${t:0:$((w - 4))}"
+	if [ -n "$LG_MESSAGE" ]; then
+		console pen "$DT_DIM" "$DT_FACE"
+		console put $((r + 2)) $((c + 3)) "${LG_MESSAGE:0:$((w - 6))}"
+	fi
+	if [ "$LG_STATE" = name ]; then
+		fw=$((w - 6))
+		console pen "$DT_INK" "$DT_FACE"
+		console put $((r + 5)) $((c + 3)) "User name"
+		console pen "$DT_INK" "$DT_WELL"
+		console fill $((r + 6)) $((c + 3)) 1 "$fw" " "
+		console put $((r + 6)) $((c + 3)) "${LG_USER: -$fw}"
+		n=${#LG_USER}
+		[ "$n" -gt "$fw" ] && n=$fw
+		lg_msg $((r + h - 3)) $((c + 3)) $((w - 6))
+		console cursor $((r + 6)) $((c + 3 + n))
+		return 0
+	fi
+	sx=$((c + 3))
+	px=$((c + 21))
+	if [ -n "$LG_PIC" ] && [ "$w" -ge 50 ]; then
+		img draw "$LG_PIC" $((r + 3)) "$sx" 8 16 2> /dev/null
+	else
+		console pen "$DT_DIM" "$DT_WELL"
+		console fill $((r + 3)) "$sx" 8 16 " "
+		console put $((r + 6)) $((sx + 7)) "${LG_NAME:0:1}"
+	fi
+	[ "$w" -lt 50 ] && px=$((c + 3))
+	fw=$((c + w - 3 - px))
+	console pen "$DT_ACTIVE" "$DT_FACE" bold
+	console put $((r + 3)) "$px" "${LG_NAME:0:$fw}"
+	console pen "$DT_DIM" "$DT_FACE"
+	console put $((r + 4)) "$px" "${LG_LINE:0:$fw}"
+	console pen "$DT_INK" "$DT_FACE"
+	console put $((r + 6)) "$px" "Password"
+	n=${#LG_PASS}
+	[ "$n" -gt "$fw" ] && n=$fw
+	dots=
+	i=0
+	while [ "$i" -lt "$n" ]; do
+		dots+=${GL[bullet]}
+		i=$((i + 1))
+	done
+	console pen "$DT_INK" "$DT_WELL"
+	console fill $((r + 7)) "$px" 1 "$fw" " "
+	console put $((r + 7)) "$px" "$dots"
+	console pen "$DT_INK" "$DT_FACE"
+	pen=$DT_DIM
+	console put $((r + 9)) "$px" "Session"
+	if [ "$LG_SESS" = desktop ]; then
+		console pen "$DT_FACE" "$DT_ACTIVE" bold
+	else
+		console pen "$DT_DIM" "$DT_FACE"
+	fi
+	console put $((r + 9)) $((px + 9)) " Desktop "
+	if [ "$LG_SESS" = shell ]; then
+		console pen "$DT_FACE" "$DT_ACTIVE" bold
+	else
+		console pen "$DT_DIM" "$DT_FACE"
+	fi
+	console put $((r + 9)) $((px + 19)) " Shell "
+	lg_msg $((r + h - 3)) "$px" "$fw"
+	console cursor $((r + 7)) $((px + n))
+}
+
+# The message line: what went wrong in red, a hint otherwise.
+fn lg_msg(int r, int c, int w) {
+	local t=$LG_MSG
+
+	if [ -n "$LG_BAD" ]; then
+		console pen "$DT_BAD" "$DT_FACE"
+	else
+		console pen "$DT_DIM" "$DT_FACE"
+		if [ -z "$t" ]; then
+			if [ "$LG_STATE" = name ]; then
+				t="Enter to go on"
+			else
+				t="Tab: session  Enter: log in  Esc: back"
+			fi
+		fi
+	fi
+	console put "$r" "$c" "${t:0:$w}"
+}
+
+# Back to the saver, everything typed forgotten.
+lg_rest() {
+	LG_STATE=saver
+	LG_USER=
+	LG_PASS=
+	LG_MSG=
+	LG_BAD=
+	LG_PIC=
+	console cursor off
+	sv_begin "$LG_SAVER" || { console pen white black; console clear; }
+}
+
+# Log in: open the session, give the terminal to it until it ends, and
+# come back to the saver.
+lg_login() {
+	local -a opt=(-q) cmd
+	local st why
+
+	[ -n "$LG_SERVICE" ] && opt+=(-s "$LG_SERVICE")
+	[ -n "$LG_PAMDIR" ] && opt+=(-c "$LG_PAMDIR")
+	LG_MSG="Checking${GL[ellipsis]}"
+	LG_BAD=
+	lg_box
+	console flush
+	why := auth open "${opt[@]}" "$LG_USER" "$LG_PASS"
+	st=$?
+	LG_PASS=
+	if [ "$st" != 0 ]; then
+		LG_BAD=1
+		if [ "$st" = 1 ]; then
+			[ "$why" = "Authentication failure" ] && why=
+			LG_MSG=${why:-Not the password}
+		else
+			LG_MSG="Cannot log in${why:+: $why}"
+		fi
+		printf 'login: %s refused: %s\n' "$LG_USER" "${why:-wrong password}" >&2
+		local now
+		now := lg_ms
+		LG_HOLD=$((now + 2000))
+		return 0
+	fi
+	printf 'login: %s logged in (%s)\n' "$LG_USER" "$LG_SESS" >&2
+	if [ -n "$LG_SESSIONCMD" ]; then
+		read -ra cmd <<< "$LG_SESSIONCMD"
+		cmd+=("$LG_SESS")
+	else
+		cmd=("$HIBR" "$LG_HERE/start.hibr" "$LG_SESS")
+	fi
+	console mouse off
+	console close
+	auth run "${cmd[@]}"
+	st=$?
+	auth close
+	printf 'login: %s logged out (status %s)\n' "$LG_USER" "$st" >&2
+	if [ -n "$LG_ONCE" ] || [ "$EUID" = 0 ]; then
+		LG_QUIT=1
+		return 0
+	fi
+	console open
+	console mouse click
+	lg_size
+	lg_rest
+}
+
+# Milliseconds, for the hold after a wrong password.
+lg_ms() {
+	local t=${EPOCHREALTIME/./}
+
+	ret $((t / 1000))
+}
+
+# A key or a click.
+fn lg_key(k) {
+	local now
+
+	now := lg_ms
+	[ "$now" -lt "$LG_HOLD" ] && return 0
+	LG_SEEN=$EPOCHSECONDS
+	if [ "$LG_STATE" = saver ]; then
+		LG_STATE=name
+		[ "${#k}" = 1 ] || return 0
+	fi
+	if [ "$LG_STATE" = name ]; then
+		case $k in
+		escape) lg_rest ;;
+		enter)
+			[ -n "$LG_USER" ] || return 0
+			LG_MSG=
+			LG_BAD=
+			if ! lg_who "$LG_USER"; then
+				LG_NAME=$LG_USER
+			fi
+			LG_STATE=pass
+			;;
+		backspace) LG_USER=${LG_USER%?} ;;
+		ctrl-u) LG_USER= ;;
+		*) [ "${#k}" = 1 ] && [ "${#LG_USER}" -lt 32 ] && LG_USER+=$k ;;
+		esac
+		return 0
+	fi
+	case $k in
+	escape)
+		LG_STATE=name
+		LG_PASS=
+		LG_MSG=
+		LG_BAD=
+		LG_PIC=
+		;;
+	enter) [ -n "$LG_PASS" ] && lg_login ;;
+	tab|left|right)
+		if [ "$LG_SESS" = desktop ]; then LG_SESS=shell; else LG_SESS=desktop; fi
+		;;
+	backspace) LG_PASS=${LG_PASS%?} ;;
+	ctrl-u) LG_PASS= ;;
+	*)
+		if [ "${#k}" = 1 ]; then
+			LG_PASS+=$k
+			LG_BAD=
+			LG_MSG=
+		fi
+		;;
+	esac
+	return 0
+}
+
+# The screen: the saver's frames, the box over them while it asks, keys
+# between; never ends on its own.
+lg_main() {
+	local ms k
+
+	need console || { echo "login: needs the console module" >&2; return 1; }
+	need auth || { echo "login: needs the auth module" >&2; return 1; }
+	if [ "$EUID" = 0 ]; then
+		need sys || { echo "login: needs the sys module, for drop" >&2; return 1; }
+	fi
+	if [ -t 2 ]; then
+		if [ "$EUID" = 0 ]; then
+			exec 2>> /var/log/hibr-login.log
+		else
+			mkdir -p "${XDG_STATE_HOME:-$HOME/.local/state}/hibr" 2> /dev/null
+			exec 2>> "${XDG_STATE_HOME:-$HOME/.local/state}/hibr/login.log"
+		fi
+	fi
+	LG_TMP=$(mktemp -d "${TMPDIR:-/tmp}/hibr-login.XXXXXX") || return 1
+	trap 'rm -rf "$LG_TMP"' EXIT
+	lg_conf
+	[ -z "$LG_SERVICE" ] && [ -r /etc/pam.d/hibr-login ] && LG_SERVICE=hibr-login
+	. "$LG_HERE/../wm/glyphs.hibr"
+	. "$LG_HERE/../savers/saver.hibr"
+	sv_load
+	console open || return 1
+	console mouse click
+	lg_size
+	lg_rest
+	while [ -z "$LG_QUIT" ]; do
+		if [ "$LG_STATE" != saver ] && [ $((EPOCHSECONDS - LG_SEEN)) -ge 60 ]; then
+			lg_rest
+		fi
+		ms=1000
+		if [ -n "$SV_NAME" ]; then
+			ms := sv_frame
+		fi
+		if [ "$LG_STATE" != saver ]; then
+			lg_box
+			[ "$ms" -gt 500 ] && ms=500
+		fi
+		console flush
+		if [ -n "$HIBR_TESTIDLE" ]; then
+			k := console consumed
+			printf '\e]7777;idle;%s;0\a' "$k"
+		fi
+		k := console key "$ms"
+		[ -n "$k" ] && [ "$k" != resize ] && lg_key "$k"
+		if console resized; then
+			lg_size
+		fi
+	done
+	console mouse off
+	console close 2> /dev/null
+	return 0
+}
+
+[ "${BASH_SOURCE}" = "$0" ] && lg_main "$@"

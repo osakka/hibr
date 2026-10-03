@@ -13,3 +13,16 @@ unknown: 2
 ready: 0
 whoami names this user: 0
 service: known
+open, wrong: 1
+hibr: auth: no session is open; auth open first
+run with nothing open: 2
+open: 0
+hibr: auth: a session is already open; auth close first
+open twice: 2
+as self: yes home: yes pam: from-pam
+run: 3
+missing: 127
+close: 0
+close twice: 1
+root: 1 [root cannot log in here]
+nobody: 1 [Authentication failure]

@@ -515,6 +515,58 @@ What it cannot do: it locks this desktop, not the machine. Anyone who can
 reach another terminal, a text console or a login on the same machine can
 still use it there. Detach the desktop and log out for that.
 
+## Logging in
+
+`login/login.hibr` is a login screen for a text terminal, in place of
+getty: a screen saver always behind it, and on a key a box asking for your
+user name, then your picture, your name and your password, and whether to
+start the **Desktop** or a **Shell**. Tab (or the arrows) changes the
+choice, and the one you log in with is remembered for next time. Escape
+goes back a step; a minute with nothing typed brings the saver back. When
+the session ends the screen comes back for the next person. Root cannot log
+in here. It is Linux only.
+
+The Debian package ships it **switched off**. To put it on tty2:
+
+```text
+sudo systemctl enable --now hibr-login@tty2
+```
+
+and `sudo systemctl disable --now hibr-login@tty2` gives tty2 its getty
+back. Leave at least one getty: a login screen that breaks should never be
+the only way in. It checks the password and opens the session through PAM
+(`/etc/pam.d/hibr-login`, the same rules as a console login), records the
+login in utmp so `who` sees it, and runs the session as you, dropped for
+good. What it has to say goes to the journal. Logging in to the Desktop
+again resumes the one you detached from: a held desktop outlives logging
+out (unless logind is set to `KillUserProcesses=yes`). A Linux console
+shows sixteen colours, so a picture there is rough.
+
+Your picture, name and line come from **About Me** -- Control Panel >
+About Me, kept in `~/.config/hibr/me.json`:
+
+```text
+{"name": "Pat Doe", "line": "Out to lunch", "picture": "~/Pictures/me.jpg",
+ "session": "desktop"}
+```
+
+It is data, never run, and the login screen never reads it as root: a
+child that has become you reads it, and decodes the picture down to a small
+image, so a picture or a link pointing somewhere you cannot read shows
+nothing. Settings for the screen itself are root's, in
+`/etc/hibr/login.json`: `"saver"` (a name, or random), `"title"` (the host
+name by default), `"message"` (a line under it), `"service"` (the PAM
+service) and `"glyphs"` (`ascii` on a Linux console by default, whose font
+has no katakana for the Matrix). They are not in Control Panel, which runs
+as you.
+
+To try the screen without root, run it as yourself -- it can then only log
+in as you, and starts your session in the same terminal:
+
+```text
+hibr examples/desktop/login/login.hibr
+```
+
 ## Application handlers
 
 `dt_handler ext [term] program args...` says what opens a file of that

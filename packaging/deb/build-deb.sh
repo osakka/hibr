@@ -47,7 +47,67 @@ cat > "$STAGE/etc/pam.d/hibr" <<'PAM'
 @include common-account
 PAM
 chmod 644 "$STAGE/etc/pam.d/hibr"
-echo /etc/pam.d/hibr > "$STAGE/DEBIAN/conffiles"
+cat > "$STAGE/etc/pam.d/hibr-login" <<'PAM'
+#%PAM-1.0
+# hibr's login screen (/usr/share/hibr/desktop/login/login.hibr, run by
+# hibr-login@.service): the same rules as a console login.
+auth       optional   pam_faildelay.so  delay=3000000
+auth       requisite  pam_nologin.so
+@include common-auth
+@include common-account
+session    required   pam_loginuid.so
+session    optional   pam_keyinit.so force revoke
+session    required   pam_env.so readenv=1
+session    required   pam_env.so readenv=1 envfile=/etc/default/locale
+session    required   pam_limits.so
+@include common-session
+@include common-password
+PAM
+chmod 644 "$STAGE/etc/pam.d/hibr-login"
+printf '/etc/pam.d/hibr\n/etc/pam.d/hibr-login\n' > "$STAGE/DEBIAN/conffiles"
+install -d "$STAGE/usr/lib/systemd/system"
+cat > "$STAGE/usr/lib/systemd/system/hibr-login@.service" <<'UNIT'
+# hibr's login screen on a text terminal, in place of getty. Shipped off:
+#   systemctl enable --now hibr-login@tty2
+# takes tty2 (and stops getty there); `systemctl disable --now
+# hibr-login@tty2` gives it back. Keep one getty, so a broken login can
+# never take every console away. The screen ends after each session and
+# Restart= brings a fresh one; KillMode=process leaves a session's own
+# processes alone where no logind has moved them out of this unit.
+[Unit]
+Description=hibr login on %I
+Documentation=file:///usr/share/hibr/desktop/README.md
+After=systemd-user-sessions.service plymouth-quit-wait.service getty-pre.target
+After=rc-local.service
+Before=getty.target
+IgnoreOnIsolate=yes
+Conflicts=getty@%i.service rescue.service
+Before=rescue.service
+ConditionPathExists=/dev/tty0
+
+[Service]
+ExecStart=/usr/bin/hibr /usr/share/hibr/desktop/login/login.hibr
+Type=idle
+Restart=always
+RestartSec=1
+UtmpIdentifier=%I
+StandardInput=tty
+StandardOutput=tty
+StandardError=journal
+TTYPath=/dev/%I
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+IgnoreSIGPIPE=no
+SendSIGHUP=yes
+KillMode=process
+Environment=TERM=linux
+UnsetEnvironment=LANG LANGUAGE LC_CTYPE LC_NUMERIC LC_TIME LC_COLLATE LC_MONETARY LC_MESSAGES LC_PAPER LC_NAME LC_ADDRESS LC_TELEPHONE LC_MEASUREMENT LC_IDENTIFICATION
+
+[Install]
+WantedBy=getty.target
+UNIT
+chmod 644 "$STAGE/usr/lib/systemd/system/hibr-login@.service"
 
 install -d "$STAGE/usr/share/doc/hibr"
 install -m 644 LICENSE "$STAGE/usr/share/doc/hibr/copyright"

@@ -9,7 +9,8 @@ printf 'xx\n' > "$tmp/one"; printf 'yyy\n' > "$tmp/two"
 for e in examples/*.hibr examples/desktop/*.hibr examples/desktop/apps/*.hibr \
          examples/desktop/apps/*/*.hibr examples/desktop/control-panel/*.hibr \
          examples/desktop/desk-accessories/*.hibr examples/desktop/control-strip/*.hibr \
-         examples/desktop/wm/*.hibr examples/desktop/widgets/*.hibr; do
+         examples/desktop/wm/*.hibr examples/desktop/widgets/*.hibr \
+         examples/desktop/savers/*.hibr examples/desktop/login/*.hibr; do
   case "$e" in *hibrc) continue ;; esac
   ./build/hibr -n "$e" || echo "does not parse: $e"
 done
@@ -148,7 +149,8 @@ for f in examples/desktop/desktop.hibr \
          examples/desktop/apps/*.hibr examples/desktop/apps/*/*.hibr \
          examples/desktop/desk-accessories/*.hibr \
          examples/desktop/control-panel/*.hibr \
-         examples/desktop/control-strip/*.hibr; do
+         examples/desktop/control-strip/*.hibr \
+         examples/desktop/savers/*.hibr examples/desktop/login/*.hibr; do
   grep -qx 'strict' "$f" || echo "not under every strict check: $f"
 done
 echo "the desktop is strict"
