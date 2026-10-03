@@ -1,0 +1,72 @@
+#!/usr/bin/env hibr
+#
+# network -- the Control Panel pane for WebDAV servers (wm/remote.hibr):
+# one row per server, each opening the dialog that changes it; Add
+# Server; whether a remote file's copy is put back when it is saved; how
+# long a server may take; and emptying the copies kept. Servers live in
+# the dav module's own list, readable only by its owner -- this pane
+# never shows a password.
+
+strict
+
+command -v cp_pane > /dev/null && cp_pane network "Network Servers" "⇅"
+
+NW_TIMEOUTS=(5 10 15 30 60 120)
+
+fn cp_set_davtimeout(int? id = "", int? value = "") { DT_DAVTIMEOUT=$value; cp_save; }
+
+fn network_rows(int w) {
+	local n=0 s nm
+
+	if ! dt_has dt_davok || ! dt_davok; then
+		cp_absent "$w" "the dav module"
+		ret 1
+	fi
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Servers"
+	n=$((n + 1))
+	if s := dav servers 2> /dev/null; then
+		for nm in "${!s[@]}"; do
+			CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="$nm"
+			CP[$w][$n]["val"]="${s["$nm"]["url"]#*://}"
+			CP[$w][$n]["key"]="srv:$nm"
+			n=$((n + 1))
+		done
+	fi
+	CP[$w][$n]["kind"]=action
+	CP[$w][$n]["text"]="Add Server${GL[ellipsis]}"
+	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=add
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Files on Servers"
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Upload Edits on Save"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_DAVSAVE" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=DT_DAVSAVE; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Timeout (seconds)"
+	CP[$w][$n]["val"]="$DT_DAVTIMEOUT"; CP[$w][$n]["key"]=timeout
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Clear Cache"
+	CP[$w][$n]["val"]="${#DRW[@]} open"; CP[$w][$n]["key"]=clear
+	n=$((n + 1))
+	ret "$n"
+}
+
+fn network_do(int? w = "", k = "", int? dir = "") {
+	local v
+
+	case $k in
+	srv:*) dt_davserver "${k#srv:}" ;;
+	add) dt_davserver ;;
+	DT_DAVSAVE) cp_toggle "$k" ;;
+	timeout) v := cp_next "$DT_DAVTIMEOUT" "$dir" "${NW_TIMEOUTS[@]}"
+		DT_DAVTIMEOUT=$v ;;
+	clear) dt_davclear ;;
+	esac
+	cp_save
+}
+
+fn network_drop(int? w = "", int? r = "", int? c = "", k = "") {
+	case $k in
+	timeout) dt_droplist "$w" "$r" "$c" cp_set_davtimeout "${NW_TIMEOUTS[@]}" ;;
+	esac
+}

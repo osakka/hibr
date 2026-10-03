@@ -158,11 +158,13 @@ int v_shellvar(const char *k)
 }
 
 /* Whether strict vars refuses creating k here: in a function, from a file
-   that asked, outside a declaration, and not a name the shell manages. */
+   that asked, outside a declaration, and not a name the shell manages --
+   nor a special parameter such as $!, which & sets. */
 int v_strict(sh *s, const char *k)
 {
 	if (!(s->sfl & SF_VAR) || s->decl || s->scope.n <= s->srcdep ||
-	    v_shellvar(k) || asg_local(s, k))
+	    !(isalpha((unsigned char)*k) || *k == '_') || v_shellvar(k) ||
+	    asg_local(s, k))
 		return 0;
 	lg(HIBR_LERR, "%s:%u: %s is not declared -- local %s, or declare -g "
 	   "%s (strict vars)", sh_where(s), s->ln, k, k, k);

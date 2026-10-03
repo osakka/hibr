@@ -1922,6 +1922,16 @@ char *cx_val(struct cx *c, size_t i)
 	return xone(c->s, w);
 }
 
+/* Order two modification times to the nanosecond, as bash does: -1, 0, 1. */
+int cx_mtcmp(struct stat *x, struct stat *y)
+{
+	if (x->st_mtime != y->st_mtime)
+		return x->st_mtime < y->st_mtime ? -1 : 1;
+	if (HIBR_MTNS(*x) != HIBR_MTNS(*y))
+		return HIBR_MTNS(*x) < HIBR_MTNS(*y) ? -1 : 1;
+	return 0;
+}
+
 /* Compare modification times or identity of two paths. */
 int cx_files(const char *a, const char *op, const char *b)
 {
@@ -1929,9 +1939,9 @@ int cx_files(const char *a, const char *op, const char *b)
 	int hx = stat(a, &x) == 0, hy = stat(b, &y) == 0;
 
 	if (!strcmp(op, "-nt"))
-		return hx && (!hy || x.st_mtime > y.st_mtime);
+		return hx && (!hy || cx_mtcmp(&x, &y) > 0);
 	if (!strcmp(op, "-ot"))
-		return hy && (!hx || x.st_mtime < y.st_mtime);
+		return hy && (!hx || cx_mtcmp(&x, &y) < 0);
 	return hx && hy && x.st_dev == y.st_dev && x.st_ino == y.st_ino;
 }
 

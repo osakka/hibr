@@ -310,6 +310,15 @@ int tx_prim(tex *t);
 int tx_and(tex *t);
 int tx_or(tex *t);
 int t_two(const char *a, const char *op, const char *b);
+int cx_files(const char *a, const char *op, const char *b);
+
+#ifndef HIBR_MTNS
+#ifdef __APPLE__
+#define HIBR_MTNS(st) ((st).st_mtimespec.tv_nsec)
+#else
+#define HIBR_MTNS(st) ((st).st_mtim.tv_nsec)
+#endif
+#endif
 int b_match(sh *s, int ac, char **av);
 char *hx_expand(sh *s, const char *line, int *changed, int *bad);
 void pt_init(int ac, char **av);

@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.99.13
+
+**Folders on servers, in Files.** Files reaches any WebDAV server as
+though it were a folder here: **Servers > Connect to Server…** (or Control
+Panel > Network Servers > Add Server…) takes a name, an address, a user, a
+password and whether to check the certificate, and **Test** tries them
+before anything is saved. Each server is then on the Servers menu and
+shows as `NAME:/` in the title. Enter, backspace, rename, New Folder, Get
+Info (size, time, type, ETag), drag, Copy and Paste all work there, to and
+from local folders and between servers, never over something already
+there; transfers run in the background with a note at each end, so a
+large file never stops the desktop. Delete asks first, since a server has
+no trash.
+
+**Opening a file on a server** fetches a copy into `~/.cache/hibr/dav` and
+opens that. With **Upload Edits on Save** on, saving the copy puts it back
+over the version it was fetched as -- and if the server's copy changed in
+the meantime, the edit goes up beside it as `name (conflict DATE).ext`, so
+nobody's work is overwritten. Control Panel > Network Servers lists the
+servers, each opening the dialog that changes it, and keeps the upload
+switch, a timeout and Clear Cache. Passwords are never shown. Files also
+gains **New Folder** for local folders.
+
+Two shell fixes came out of it. `-nt` and `-ot` compare times to the
+nanosecond, as bash does, so two changes in one second are told apart.
+And `&` inside a function under `strict vars` no longer fails: it sets
+`$!`, a special parameter, which the check had taken for a global the
+function created.
+
 ## 0.99.12
 
 **A WebDAV client.** The `dav` module lists, fetches and changes files on

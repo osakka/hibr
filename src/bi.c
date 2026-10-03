@@ -788,16 +788,8 @@ int t_two(const char *a, const char *op, const char *b)
 		return x > y;
 	if (!strcmp(op, "-ge"))
 		return x >= y;
-	if (!strcmp(op, "-ef") || !strcmp(op, "-nt") || !strcmp(op, "-ot")) {
-		struct stat sa, sb;
-		int ha = stat(a, &sa) == 0, hb = stat(b, &sb) == 0;
-		if (!strcmp(op, "-ef"))
-			return ha && hb && sa.st_dev == sb.st_dev &&
-			       sa.st_ino == sb.st_ino;
-		if (!strcmp(op, "-nt"))
-			return ha && (!hb || sa.st_mtime > sb.st_mtime);
-		return hb && (!ha || sa.st_mtime < sb.st_mtime);
-	}
+	if (!strcmp(op, "-ef") || !strcmp(op, "-nt") || !strcmp(op, "-ot"))
+		return cx_files(a, op, b);
 	return -1;
 }
 

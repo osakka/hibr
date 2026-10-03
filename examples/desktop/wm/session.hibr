@@ -180,6 +180,7 @@ dt_run() {
 			fi
 		fi
 		dt_updcheck
+		dt_remotepoll
 		if [ -n "$DT_TESTIDLE" ]; then
 			k := console consumed
 			k=$((k + DT_INBASE))

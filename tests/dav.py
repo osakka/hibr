@@ -10,7 +10,7 @@ import os, shutil, stat, subprocess, sys, tempfile, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
-from screen import check, report, tree
+from screen import Term, check, report, tree, load, press, release
 
 if len(sys.argv) > 1:
     sx.HIBR = os.path.abspath(sys.argv[1])
@@ -142,10 +142,192 @@ try:
                   " dav server set x ftp://h/; echo st $?")
     check("servers are renamed and removed; an address that is not http is refused",
           out == "t\ns\nevil\nst 1\n" and "not an http" in err, out + err)
+
+    # --- the desktop: Files, the server dialog, the Control Panel pane ---
+    shutil.rmtree(ROOT)
+    os.makedirs(os.path.join(ROOT, "sub"))
+    open(os.path.join(ROOT, "a.txt"), "w").write("hello\n")
+    open(os.path.join(ROOT, "sub", "b c.txt"), "w").write("x y\n")
+    if os.path.exists(CONF):
+        os.unlink(CONF)
+    p = serve("--auth", "digest")
+    hb("dav server set t http://127.0.0.1:%d/ -u u -p p" % p)
+    LOCAL = os.path.join(D, "local")
+    os.makedirs(LOCAL)
+    open(os.path.join(LOCAL, "up.txt"), "w").write("from here\n")
+    CACHE = os.path.join(D, "cache")
+    OPENED = os.path.join(D, "opened")
+
+    def drun(body, phases, rows=30, cols=100):
+        """A desktop with Files and the Control Panel, the session's body,
+        then each phase: keys to send (a callable gets the screen and
+        gives them), and what to wait for -- text on the screen or a
+        callable that is true once it has happened."""
+        sess = os.path.join(D, "session.hibr")
+        open(sess, "w").write(
+            "%s. %s\n. %s\n. %s\n"
+            "dt_openfile() { printf '%%s\\n' \"$1\" > %s; }\n"
+            "dt_open\n%s\ndt_run\ndt_close\n"
+            % (load("console", "dav"), tree("examples/desktop/desktop.hibr"),
+               tree("examples/desktop/apps/files.hibr"),
+               tree("examples/desktop/apps/panel.hibr"), OPENED, body))
+        t = Term(sess, env={"HIBR_DAV_CONF": CONF, "XDG_CACHE_HOME": CACHE},
+                 settle=1.0, rows=rows, cols=cols)
+        shots = []
+        for feed, until in phases:
+            if callable(feed):
+                feed = feed(t.screen())
+            if feed:
+                t.keys(list(feed), settle=0.4)
+            for _ in range(40):
+                sc = t.screen()
+                if until is None or (until(sc) if callable(until) else
+                                     sc.find(until) is not None):
+                    break
+                t.collect(0.25)
+            shots.append(t.screen())
+        t.quit(None, 0.5)
+        return shots
+
+    def click(text, dr=0, dc=1):
+        def f(sc):
+            at = sc.find(text)
+            return [press(at[0] + dr, at[1] + dc), release(at[0] + dr, at[1] + dc)] if at else []
+        return f
+
+    sc = drun('dt_new "Files" 20 60 2 2 files "dav://t"', [([], "a.txt")])[0]
+    check("Files opens a server: its listing, its name in the title, no .. at its root",
+          sc.find("sub/") is not None and sc.find("a.txt") is not None and
+          sc.find("Files [t:/]") is not None and sc.find("../") is None, sc)
+    sc = drun('dt_new "Files" 20 60 2 2 files "dav://t"',
+              [([], "a.txt"), ([b"\r"], "b c.txt")])[-1]
+    check("enter goes into a folder on the server, with .. to come back",
+          sc.find("b c.txt") is not None and sc.find("../") is not None and
+          sc.find("Files [t:/sub]") is not None, sc)
+
+    def server(path):
+        f = os.path.join(ROOT, path)
+        return open(f).read() if os.path.exists(f) else None
+
+    def opened():
+        return open(OPENED).read().strip() if os.path.exists(OPENED) else ""
+
+    def edit(text):
+        def f(sc):
+            with open(opened(), "a") as fh:
+                fh.write(text)
+            return []
+        return f
+
+    def server_edit(sc):
+        time.sleep(1.1)
+        open(os.path.join(ROOT, "a.txt"), "w").write("their change\n")
+        return []
+
+    SAW = {}
+    shots = drun('dt_new "Files" 20 60 2 2 files "dav://t"', [
+        ([], "a.txt"),
+        ([b"\x1b[B", b"\r"], lambda sc: opened() != ""),
+        (edit("mine\n"), lambda sc: sc.find("Saved a.txt to t") is not None and
+         SAW.update(a=server("a.txt")) is None),
+        (server_edit, None),
+        (edit("mine again\n"), "changed on the server"),
+    ])
+    cf = [n for n in os.listdir(ROOT) if "conflict" in n]
+    check("opening a remote file fetches a copy and opens that",
+          opened().startswith(os.path.join(CACHE, "hibr", "dav", "t")) and
+          opened().endswith("/a.txt"), opened())
+    check("saving the copy puts it back on the server, and says so",
+          shots[2].find("Saved a.txt to t") is not None and
+          SAW.get("a") == "hello\nmine\n", repr(SAW) + shots[2].dump())
+    check("a copy saved after the server's changed goes beside it, not over it",
+          server("a.txt") == "their change\n" and len(cf) == 1 and
+          cf[0].startswith("a (conflict ") and cf[0].endswith(").txt") and
+          server(cf[0]) == "hello\nmine\nmine again\n" and
+          shots[4].find("changed on the server") is not None, shots[4])
+    for n in cf:
+        os.unlink(os.path.join(ROOT, n))
+
+    shots = drun('dt_new "Files" 12 44 2 2 files "%s"\n'
+                 'dt_new "Files" 12 44 2 50 files "dav://t/sub"' % LOCAL, [
+        ([], "b c.txt"),
+        (click("up.txt"), None),
+        ([b"\x1bc"], None),
+        (click("b c.txt"), None),
+        ([b"\x1bv"], lambda sc: server("sub/up.txt") is not None and
+         sc.find("up.txt", ) is not None),
+    ])
+    check("a local file copied and pasted into a server's folder goes up",
+          server("sub/up.txt") == "from here\n" and
+          os.path.exists(os.path.join(LOCAL, "up.txt")), shots[-1])
+    shots = drun('dt_new "Files" 12 44 2 50 files "dav://t/sub"\n'
+                 'dt_new "Files" 12 44 2 2 files "%s"' % LOCAL, [
+        ([], "b c.txt"),
+        (click("b c.txt"), None),
+        ([b"\x1bc"], None),
+        (click("up.txt"), None),
+        ([b"\x1bv"], lambda sc: os.path.exists(os.path.join(LOCAL, "b c.txt"))),
+    ])
+    check("and a remote one pasted into a local folder comes down",
+          open(os.path.join(LOCAL, "b c.txt")).read() == "x y\n"
+          if os.path.exists(os.path.join(LOCAL, "b c.txt")) else False, shots[-1])
+
+    shots = drun('dt_new "Files" 16 50 2 2 files "dav://t/sub"', [
+        ([], "up.txt"),
+        (click("up.txt"), None),
+        ([b"n", b"\x15"] + [c.encode() for c in "moved.txt"] + [b"\r"],
+         lambda sc: server("sub/moved.txt") is not None),
+        (click("moved.txt"), None),
+        ([b"\x1b[3~"], "cannot be undone"),
+        ([b"y"], lambda sc: server("sub/moved.txt") is None),
+    ])
+    check("rename on a server renames it there", shots[2].find("moved.txt") is not None
+          and server("sub/up.txt") is None, shots[2])
+    check("delete asks first, then removes it from the server",
+          shots[4].find("Delete moved.txt from the server?") is not None and
+          server("sub/moved.txt") is None, shots[4])
+
+    shots = drun("dt_davserver", [
+        ([c.encode() for c in "nc"] + [b"\t"] +
+         [c.encode() for c in "http://127.0.0.1:%d/" % p] + [b"\t", b"u", b"\t", b"p",
+                                                             b"\t", b"\t"], None),
+        ([b"\r"], "Connected"),
+        ([b"\t", b"\r"], lambda sc: "nc\t" in open(CONF).read()),
+    ])
+    check("Connect to Server tests what is typed before it is saved",
+          shots[1].find("Connected") is not None, shots[1])
+    line = [l for l in open(CONF).read().split("\n") if l.startswith("nc\t")]
+    check("and saves it to the private list",
+          line == ["nc\thttp://127.0.0.1:%d/\tu\tp\t" % p] and
+          stat.S_IMODE(os.stat(CONF).st_mode) == 0o600, open(CONF).read())
+    shots = drun("dt_davserver nc", [
+        ([b"\t", b"\t", b"\t", b" ", b"\t", b"\t", b"\r"],
+         lambda sc: "nc\t" in open(CONF).read() and "\tk\n" in open(CONF).read()),
+    ])
+    check("editing a server keeps its password and changes what was changed",
+          [l for l in open(CONF).read().split("\n") if l.startswith("nc\t")] ==
+          ["nc\thttp://127.0.0.1:%d/\tu\tp\tk" % p], open(CONF).read())
+    sc = drun('CP_PANEDIRS+=("%s")\ncp_panes\n'
+              'dt_new "Control Panel" 26 76 1 1 panel network'
+              % tree("examples/desktop/control-panel"),
+              [([], "Upload Edits on Save")])[0]
+    check("Control Panel lists the servers and the settings for files on them",
+          sc.find("Network Serve") is not None and sc.find("nc") is not None and
+          sc.find("Add Server") is not None and sc.find("Timeout (seconds)") is not None
+          and sc.find("Clear Cache") is not None, sc)
+    out, err = hb("mod load %s; . %s; dav server set far http://localhost:%d/ -u u -p p; dt_davok;"
+                  " dt_davbatch copy dav://far/sub dav://t/a.txt; dt_davbatch copy dav://t dav://far/sub"
+                  % (tree("build/mods/console.so"), tree("examples/desktop/desktop.hibr"), p),
+                  env={"XDG_CACHE_HOME": CACHE})
+    check("between two servers a file and a folder go through a copy here, and the "
+          "batch says only how it went",
+          out == "1\n0\na.txt\n\n0\n1\n\nt already has a sub\n" and
+          server("sub/a.txt") == "their change\n", out + err)
+
 finally:
     for s in SERVERS:
         s.kill()
         s.wait()
     shutil.rmtree(D, True)
 
-report(15)
+report(30)

@@ -84,6 +84,10 @@ fn fb_scan(int id) {
 	local f n=0 base d dirs files q=${FB[$id]["q"]}
 
 	d=${FB[$id]["dir"]}
+	if [[ $d == dav://* ]]; then
+		fb_rscan "$id" "$d"
+		return
+	fi
 	if [ "$d" != / ]; then
 		FL[$id][$n]["name"]=".."
 		FL[$id][$n]["dir"]=1
@@ -135,6 +139,93 @@ fn fb_scan(int id) {
 	FB[$id]["anchor"]=0
 	FB[$id]["defer"]=
 	fb_sort "$id"
+}
+
+# A folder on a server: listed by the dav module, with sizes and times
+# from the listing itself, so the details view needs no ls. Only on
+# success does anything change -- a server that cannot be reached leaves
+# the window where it was, with a note saying why. Hidden names, dots
+# first, follow the same switch as local ones.
+FB_RLIST=()
+fn fb_rscan(int id, d) {
+	local r k n=0 nm q=${FB[$id]["q"]} hid=${FB[$id]["hidden"]} pass dir t
+	local -a keys
+	local -A rank
+
+	if ! dt_has dt_davok || ! dt_davok; then
+		dt_notep high "${DT_WHY:-Remote folders need the desktop}"
+		return 1
+	fi
+	if ! r := dav ls "$d" 2> "$DR_ERRF"; then
+		dt_davwhy
+		dt_notep high "${d#dav://}: $DT_WHY"
+		return 1
+	fi
+	FB[$id]["dir"]=$d
+	if [[ ${d#dav://} == */* ]]; then
+		FL[$id][$n]["name"]=".."
+		FL[$id][$n]["dir"]=1
+		FL[$id][$n]["kind"]=up
+		FL[$id][$n]["m"]=
+		FL[$id][$n]["size"]=0
+		FL[$id][$n]["time"]=
+		FL[$id][$n]["perm"]=
+		FL[$id][$n]["trank"]=0
+		n=$((n + 1))
+	fi
+	keys=()
+	for k in "${!r[@]}"; do
+		printf -v t '%012d %s' "${r[$k]["mtime"]:-0}" "$k"
+		keys+=("$t")
+	done
+	arr sort keys
+	k=${#keys[@]}
+	for t in "${keys[@]}"; do
+		rank["${t#* }"]=$k
+		k=$((k - 1))
+	done
+	for pass in 1 0; do
+		for k in "${!r[@]}"; do
+			[ "${r[$k]["dir"]}" = "$pass" ] || continue
+			nm=${r[$k]["name"]}
+			[ -z "$hid" ] && [[ $nm == .* ]] && continue
+			[ -n "$q" ] && [[ ${nm,,} != *"${q,,}"* ]] && continue
+			FL[$id][$n]["name"]=$nm
+			FL[$id][$n]["dir"]=$pass
+			FL[$id][$n]["m"]=
+			if [ "$pass" = 1 ]; then
+				FL[$id][$n]["kind"]=dir
+				FL[$id][$n]["perm"]=d
+			else
+				FL[$id][$n]["kind"]=file
+				FL[$id][$n]["perm"]=-
+			fi
+			FL[$id][$n]["size"]=${r[$k]["size"]}
+			printf -v t '%(%b %e %H:%M)T' "${r[$k]["mtime"]:-0}"
+			FL[$id][$n]["time"]=$t
+			FL[$id][$n]["etag"]=${r[$k]["etag"]}
+			FL[$id][$n]["type"]=${r[$k]["type"]}
+			FL[$id][$n]["user"]=
+			FL[$id][$n]["group"]=
+			FL[$id][$n]["trank"]=${rank["$k"]}
+			n=$((n + 1))
+		done
+	done
+	FB[$id]["n"]=$n
+	FB[$id]["top"]=0
+	FB[$id]["sel"]=0
+	FB[$id]["last"]=-1
+	FB[$id]["meta"]=1
+	FB[$id]["marks"]=0
+	FB[$id]["anchor"]=0
+	FB[$id]["defer"]=
+	fb_sort "$id"
+	return 0
+}
+
+# Whether a window shows a folder on a server.
+fn fb_remote(int id) {
+	[[ ${FB[$id]["dir"]} == dav://* ]]
 }
 
 # --- what is selected ----------------------------------------------------
@@ -211,6 +302,22 @@ FB_CRUMBS=()
 fn fb_crumbs(d) {
 	local rest seg cur=
 
+	if [[ $d == dav://* ]]; then
+		rest=${d#dav://}
+		cur="dav://${rest%%/*}"
+		FB_CRUMBS=("$cur")
+		[[ $rest == */* ]] && rest=${rest#*/} || rest=
+		while [ -n "$rest" ]; do
+			seg=${rest%%/*}
+			cur="$cur/$seg"
+			FB_CRUMBS+=("$cur")
+			case $rest in
+			*/*) rest=${rest#*/} ;;
+			*) rest= ;;
+			esac
+		done
+		return 0
+	fi
 	FB_CRUMBS=(/)
 	rest=${d#/}
 	while [ -n "$rest" ]; do
@@ -453,6 +560,8 @@ fn fb_path(int id, int i) {
 # $HOME collapses to ~ the same way a prompt's \w already would.
 fn fb_retitle(int id, t) {
 	case $t in
+	dav://*/*) t=${t#dav://}; t="${t%%/*}:/${t#*/}" ;;
+	dav://*) t="${t#dav://}:/" ;;
 	"$HOME") t="~" ;;
 	"$HOME"/*) t="~${t#$HOME}" ;;
 	esac
@@ -461,6 +570,25 @@ fn fb_retitle(int id, t) {
 
 # Go somewhere, keeping the path absolute and without a trailing slash.
 fn fb_go(int id, d) {
+	local old=${FB[$id]["dir"]}
+
+	if [[ $d != /* ]] && [[ $d != dav://* ]] && [[ $old == dav://* ]]; then
+		d="$old/$d"
+	fi
+	if [[ $d == dav://* ]]; then
+		while [ "$d" != "${d%/}" ]; do d=${d%/}; done
+		while [ "$d" != "${d%/.}" ]; do d=${d%/.}; done
+		if [[ $d == */.. ]]; then
+			d=${d%/..}
+			[[ ${d#dav://} == */* ]] && d=${d%/*}
+		fi
+		fb_rscan "$id" "$d" || return 1
+		FB[$id]["q"]=
+		FB[$id]["qon"]=
+		FB[$id]["view"] := fb_dirview "$d"
+		fb_retitle "$id" "$d"
+		return 0
+	fi
 	case $d in
 	/*) ;;
 	*) d="${FB[$id]["dir"]}/$d" ;;
@@ -555,8 +683,9 @@ fb_reset_views() {
 }
 
 fn files_open(int id, d) {
-	local d=${d:-${FB_DIR:-$PWD}}
+	local d=${d:-${FB_DIR:-$PWD}} want=
 
+	[[ $d == dav://* ]] && want=$d && d=$HOME
 	[ -d "$d" ] || d=$PWD
 	FB[$id]["dir"]=$d
 	FB[$id]["hidden"]=
@@ -565,11 +694,17 @@ fn files_open(int id, d) {
 	FB[$id]["per"]=1
 	fb_retitle "$id" "$d"
 	fb_scan "$id"
+	[ -n "$want" ] && fb_go "$id" "$want"
+	return 0
 }
 
 # After Restart Desktop the folder is read again, since its listing is not
 # kept; where it was, the view and the selection are.
 fn files_resume(int id) {
+	if fb_remote "$id"; then
+		fb_scan "$id" && return 0
+		FB[$id]["dir"]=$HOME
+	fi
 	[ -d "${FB[$id]["dir"]}" ] || FB[$id]["dir"]=$HOME
 	fb_scan "$id"
 }
@@ -923,6 +1058,10 @@ fn fb_open(int id) {
 		return 0
 	fi
 	p := fb_path "$id" "$sel"
+	if [[ $p == dav://* ]]; then
+		dt_has dt_davopen && dt_davopen "$p"
+		return 0
+	fi
 	command -v dt_openfile > /dev/null && dt_openfile "$p"
 	return 0
 }
@@ -991,6 +1130,15 @@ fn rn_commit(int id) {
 	new="$dir/$name"
 	if [ "$new" = "$old" ]; then
 		dt_del "$id"
+		return 0
+	fi
+	if [[ $old == dav://* ]]; then
+		if fb_rrename "$old" "$new"; then
+			dt_del "$id"
+			dt_changed
+		else
+			dt_notep high "Could not rename it: $DT_WHY"
+		fi
 		return 0
 	fi
 	if [ -e "$new" ] || [ -L "$new" ]; then
@@ -1064,6 +1212,13 @@ fn files_info(int id) {
 	GI[$gid]["origuser"]=${GI[$gid]["userbuf"]}
 	GI[$gid]["origgroup"]=${GI[$gid]["groupbuf"]}
 	GI[$gid]["focus"]=name
+	GI[$gid]["remote"]=
+	if fb_remote "$id"; then
+		GI[$gid]["remote"]=1
+		GI[$gid]["etag"]=${FL[$id][$sel]["etag"]}
+		GI[$gid]["type"]=${FL[$id][$sel]["type"]}
+		return 0
+	fi
 	gi_permload "$gid" "${FL[$id][$sel]["perm"]}"
 }
 
@@ -1107,6 +1262,15 @@ fn gi_draw(int id, int h, int w, int row, int col) {
 	console put -p "w$id" 4 2 "Where:"
 	console put -p "w$id" 4 9 "${GI[$id]["dir"]:0:$((w - 11))}"
 	console put -p "w$id" 5 2 "Modified: ${GI[$id]["time"]}"
+	if [ -n "${GI[$id]["remote"]}" ]; then
+		[ -n "${GI[$id]["type"]}" ] &&
+			console put -p "w$id" 6 2 "Type: ${GI[$id]["type"]:0:$((w - 10))}"
+		console pen "$DT_DIM" "$DT_FACE"
+		console put -p "w$id" 7 2 "ETag: ${GI[$id]["etag"]:0:$((w - 10))}"
+		console put -p "w$id" 9 2 "On a server: no owner or permissions here."
+		dt_dlgbtns "$id" "$h" "$w" "${GI[$id]["focus"]}" ok Apply cancel Close
+		return 0
+	fi
 
 	console put -p "w$id" 7 2 "Owner:"
 	ofoc=0; [ "${GI[$id]["focus"]}" = owner ] && ofoc=1
@@ -1207,6 +1371,23 @@ fn gi_apply(int? id = "") {
 	old=${GI[$id]["path"]}
 	dir=${GI[$id]["dir"]}
 	name=${GI[$id]["namebuf"]}
+	if [ -n "${GI[$id]["remote"]}" ]; then
+		new="$dir/$name"
+		if [ -z "$name" ] || [ "$name" = . ] || [ "$name" = .. ] ||
+		   [ "${name#*/}" != "$name" ]; then
+			dt_notep low "Not a valid name"
+			return 0
+		fi
+		if [ "$new" != "$old" ]; then
+			if ! fb_rrename "$old" "$new"; then
+				dt_notep high "Could not rename it: $DT_WHY"
+				return 0
+			fi
+			dt_changed
+		fi
+		dt_del "$id"
+		return 0
+	fi
 	if [ -n "$name" ] && [ "$name" != "." ] && [ "$name" != ".." ] &&
 	   [ "${name#*/}" = "$name" ]; then
 		new="$dir/$name"
@@ -1243,7 +1424,11 @@ fn gi_key(int id, k) {
 
 	case $field in ok | cancel) onb=1 ;; esac
 	if d := dt_focuskey "$k" "$onb"; then
-		GI[$id]["focus"] := dt_focus "$field" "$d" name owner group ok cancel
+		if [ -n "${GI[$id]["remote"]}" ]; then
+			GI[$id]["focus"] := dt_focus "$field" "$d" name ok cancel
+		else
+			GI[$id]["focus"] := dt_focus "$field" "$d" name owner group ok cancel
+		fi
 		return 0
 	fi
 	case $k in
@@ -1285,6 +1470,10 @@ fn files_openwith(int id, name) {
 	[ "${FB[$id]["n"]}" = 0 ] && return 0
 	[ "${FL[$id][$sel]["dir"]}" = 1 ] && return 0
 	p := fb_path "$id" "$sel"
+	if [[ $p == dav://* ]]; then
+		dt_has dt_davopen && dt_davopen "$p" "$name"
+		return 0
+	fi
 	dt_has dt_openwith && dt_openwith "$name" "$p"
 }
 
@@ -1308,6 +1497,11 @@ fn files_openother(int id) {
 # Open Terminal Here: the selected folder, or the one shown.
 fn files_termhere(int id) {
 	local sel=${FB[$id]["sel"]} d=${FB[$id]["dir"]}
+
+	if fb_remote "$id"; then
+		dt_notep low "A terminal cannot start in a folder on a server"
+		return 0
+	fi
 
 	if [ "${FL[$id][$sel]["dir"]}" = 1 ] &&
 	   [ "${FL[$id][$sel]["kind"]}" != up ]; then
@@ -1355,12 +1549,111 @@ fn files_search(int id) { FB[$id]["qon"]=1; }
 
 # Move what is selected to the trash, where the desktop keeps one.
 fn files_trash(int id) {
-	local sel
+	local sel nm
 
 	sel := fb_selected "$id" || return 0
 	fb_paths "$id" "$sel"
+	if fb_remote "$id"; then
+		FB_DELPATHS=("${FB_PATHS[@]}")
+		nm=${FB_PATHS[0]##*/}
+		[ "${#FB_PATHS[@]}" -gt 1 ] && nm="${#FB_PATHS[@]} items"
+		dt_confirm "Delete $nm from the server? It cannot be undone." \
+			fb_delete
+		return 0
+	fi
 	command -v dt_trash > /dev/null && dt_trash "${FB_PATHS[@]}"
 	return 0
+}
+
+# Delete what files_trash asked about, once the answer is yes.
+FB_DELPATHS=()
+fb_delete() {
+	[ "${#FB_DELPATHS[@]}" -gt 0 ] || return 0
+	dt_davdelete "${FB_DELPATHS[@]}"
+	FB_DELPATHS=()
+}
+
+# A new folder in the one shown, named so it takes nothing's place, then
+# the Rename window on it.
+fn files_newfolder(int id) {
+	local d=${FB[$id]["dir"]} nm="New Folder" i=2 n
+
+	if fb_remote "$id"; then
+		while fb_rhas "$id" "$nm"; do
+			nm="New Folder $i"
+			i=$((i + 1))
+		done
+		if ! dav mkdir "$d/$nm" 2> "$DR_ERRF"; then
+			dt_davwhy
+			dt_notep high "Could not make a folder: $DT_WHY"
+			return 0
+		fi
+	else
+		while [ -e "$d/$nm" ] || [ -L "$d/$nm" ]; do
+			nm="New Folder $i"
+			i=$((i + 1))
+		done
+		if ! command mkdir -- "$d/$nm" 2>> "$DT_LOG"; then
+			dt_notep high "Could not make a folder in ${d##*/}"
+			return 0
+		fi
+	fi
+	fb_scan "$id"
+	n=${FB[$id]["n"]}
+	i=0
+	while [ "$i" -lt "$n" ]; do
+		if [ "${FL[$id][$i]["name"]}" = "$nm" ]; then
+			FB[$id]["sel"]=$i
+			break
+		fi
+		i=$((i + 1))
+	done
+	fb_show "$id"
+	files_rename "$id"
+}
+
+# Whether the folder shown, on a server, already has a name.
+fn fb_rhas(int id, nm) {
+	local i=0 n=${FB[$id]["n"]}
+
+	while [ "$i" -lt "$n" ]; do
+		[ "${FL[$id][$i]["name"]}" = "$nm" ] && return 0
+		i=$((i + 1))
+	done
+	return 1
+}
+
+# Rename on a server: within one folder, never over something there.
+fn fb_rrename(old, new) {
+	if dav stat "$new" > /dev/null 2>&1; then
+		DT_WHY="There is already a ${new##*/}"
+		return 1
+	fi
+	if ! dav mv "$old" "$new" 2> "$DR_ERRF"; then
+		dt_davwhy
+		return 1
+	fi
+	return 0
+}
+
+# The servers set up, for the Servers menu.
+fn files_srvmenu(int id) {
+	local s nm
+
+	dt_menu "Servers"
+	if dt_has dt_davok && dt_davok && s := dav servers 2> /dev/null; then
+		for nm in "${!s[@]}"; do
+			dt_item "$nm" "" fb_go "$id" "dav://$nm"
+		done
+		[ "${#s[@]}" -gt 0 ] && dt_sep
+		dt_item "Connect to Server${GL[ellipsis]}" c dt_davserver
+		if fb_remote "$id"; then
+			nm := dt_davname "${FB[$id]["dir"]}"
+			dt_item "Edit This Server${GL[ellipsis]}" e dt_davserver "$nm"
+		fi
+	else
+		dt_dim "Connect to Server${GL[ellipsis]}"
+	fi
 }
 
 files_menus() {
@@ -1370,8 +1663,13 @@ files_menus() {
 	dt_item "Open" o fb_open "$id"
 	dt_item "Go Up" u fb_go "$id" ..
 	dt_item "Home" h fb_home "$id"
+	dt_item "New Folder" n files_newfolder "$id"
 	dt_sep
-	dt_item "Move to Trash" t files_trash "$id"
+	if fb_remote "$id"; then
+		dt_item "Delete${GL[ellipsis]}" d files_trash "$id"
+	else
+		dt_item "Move to Trash" t files_trash "$id"
+	fi
 	dt_sep
 	dt_item "Close" w dt_close_focused
 	dt_editmenu
@@ -1387,6 +1685,7 @@ files_menus() {
 	dt_mark "Hidden Files" f "$on" files_hidden "$id"
 	dt_item "Search${GL[ellipsis]}" s files_search "$id"
 	dt_item "Refresh" r fb_scan "$id"
+	files_srvmenu "$id"
 }
 
 # Which entry is under a point in the window, if any.
@@ -1564,7 +1863,7 @@ fn files_context(int id) {
 		fi
 	fi
 	if [ "$DT_FBTERMHERE" = 1 ] && dt_has dt_termhere &&
-	   dt_has term_draw; then
+	   dt_has term_draw && ! fb_remote "$id"; then
 		dt_item "Open Terminal Here" h files_termhere "$id"
 	fi
 	dt_sep
@@ -1586,6 +1885,9 @@ fn files_context(int id) {
 	if [ "$none" = 1 ]; then
 		dt_dim "Info"
 		dt_dim "Move to Trash"
+	elif fb_remote "$id"; then
+		dt_item "Info" i files_info "$id"
+		dt_item "Delete${GL[ellipsis]}" x files_trash "$id"
 	else
 		dt_item "Info" i files_info "$id"
 		dt_item "Move to Trash" x files_trash "$id"
@@ -1632,7 +1934,7 @@ fn files_paste(int id, text, op = "") {
 	[ -z "$op" ] && op=copy
 	while IFS= read -r p; do
 		[ -n "$p" ] || continue
-		if [ -e "$p" ] || [ -L "$p" ]; then
+		if [ -e "$p" ] || [ -L "$p" ] || [[ $p == dav://?*/?* ]]; then
 			ps+=("$p")
 		fi
 	done <<< "$text"
@@ -1646,7 +1948,23 @@ fn files_paste(int id, text, op = "") {
 # Save pasted text as a new file in the folder shown, named so it takes
 # nothing's place: "Pasted text.txt", then "Pasted text 2.txt" and on.
 fn fb_pastetext(int id, text) {
-	local dir=${FB[$id]["dir"]} f i=2
+	local dir=${FB[$id]["dir"]} f i=2 tmp
+
+	if fb_remote "$id"; then
+		f="Pasted text.txt"
+		while fb_rhas "$id" "$f"; do
+			f="Pasted text $i.txt"
+			i=$((i + 1))
+		done
+		tmp="$DT_DAVCACHE/.jobs/paste.$DR_N"
+		command mkdir -p -- "$tmp" 2> /dev/null
+		if printf '%s\n' "$text" 2> /dev/null > "$tmp/$f"; then
+			dt_davop copy "$dir" "$tmp/$f"
+		else
+			dt_notep high "Cannot hold the pasted text to send it"
+		fi
+		return 0
+	fi
 
 	f="$dir/Pasted text.txt"
 	while [ -e "$f" ] || [ -L "$f" ]; do

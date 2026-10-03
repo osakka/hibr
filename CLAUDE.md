@@ -1695,6 +1695,27 @@ went in the shell.
   turn: for good with no command word, temporarily (`asg_push`, popped at
   `out`) with one, so `x=1 y=$x cmd` sees `y=1` and `x=1 echo $x` still
   prints nothing, both as in bash. `tests/965-assign-order.t` compares it.
+- **`-nt` and `-ot` compare to the nanosecond.** bash does, and hibr
+  compared whole seconds -- which hid a remote file's copy saved in the
+  same second it was fetched, so the edit was never uploaded. `cx_mtcmp`
+  is the one comparison; `test` reaches it through `cx_files`.
+- **Strict vars never checks a special parameter.** `&` sets `$!` with
+  `hibr_set`, and inside a strict function that was refused as a global
+  being created -- so no strict desktop function could start a background
+  job. `v_strict` passes any name that is not an identifier. A module that
+  sets a status variable (`DAV_CODE`) is still checked: a strict file
+  declares it at file level.
+- **A remote transfer is a job, never a wait in the loop.** `wm/remote.hibr`
+  runs each `dav` transfer in a `( ... ) &` subshell writing its status to
+  a file, and `dt_remotepoll`, after every frame, hands it to its callback
+  and asks for the next frame only while one is running. A job's body
+  prints its summary on standard output, so anything else it runs that
+  prints -- `dav put` gives the new ETag -- must go to `/dev/null`, or the
+  first line read as the count is an ETag.
+- **A test of anything asynchronous waits for the note, not the effect.**
+  The file appearing on the server came a frame before the desktop had
+  polled the job and drawn "Saved", so a screenshot taken on the effect
+  showed the earlier note; wait for the text the user is meant to see.
 - **A copied map keeps its JSON types.** `m_clone` and `v_copy`, which
   `:=` uses to take a map out of `$RET`, dropped every entry's `ty`, so
   `r := f` where `f` built JSON gave back numbers as strings -- found when

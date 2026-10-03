@@ -1,0 +1,851 @@
+#!/usr/bin/env hibr
+#
+# remote -- folders on WebDAV servers, wherever the desktop handles files.
+#
+# A location dav://NAME/path names a folder or file on a server set up in
+# Control Panel > Network Servers (the dav module's own list). Files lists
+# one like a local folder; this file is everything else: moving and copying
+# between local and remote, opening a remote file, and putting it back.
+#
+# Nothing here waits on the network in the desktop's own loop. A transfer
+# is a background job -- a subshell running the dav module -- that writes
+# its status to a file; dt_remotepoll, run after every frame, picks the
+# result up and asks for the next frame only while a job is still running.
+# A child never touches the console: it reads, writes and exits.
+#
+# Opening a remote file downloads it into the cache and opens the copy.
+# While Upload Edits on Save is on, a copy that changes is put back with
+# the ETag it was fetched with; if the server's copy changed meanwhile,
+# the edit is kept as "name (conflict DATE).ext" beside it instead, so
+# nobody's work is overwritten.
+
+strict
+
+declare -gA DR
+declare -gA DRW
+declare -gA DSV
+DR_N=0
+DR_LIVE=0
+DR_WATCHT=0
+DR_STAMPN=0
+DR_READY=
+DR_JOBS=
+DR_ERRF=
+DSV_RMID=
+DSV_FIELDS=(name url user pass verify test ok del cancel)
+HIBR_DAV_TIMEOUT=
+DAV_CODE=0
+
+# Upload a remote file's copy when it is saved; how long a server may take.
+DT_DAVSAVE="${DT_DAVSAVE-1}"
+DT_DAVTIMEOUT="${DT_DAVTIMEOUT-15}"
+command -v dt_keep > /dev/null && dt_keep DT_DAVSAVE DT_DAVTIMEOUT
+
+# Where copies of remote files are kept while they are open.
+DT_DAVCACHE="${DT_DAVCACHE-${XDG_CACHE_HOME:-$HOME/.cache}/hibr/dav}"
+
+command -v dt_app > /dev/null && dt_app dsv "Server" 15 66 "" "" fixed hidden
+
+# Whether a path is on a server.
+fn dt_isremote(p) {
+	[[ $p == dav://* ]]
+}
+
+# The server a location is on: dav://NAME/x gives NAME.
+fn dt_davname(p) {
+	p=${p#dav://}
+	ret "${p%%/*}"
+}
+
+# The module, a timeout and somewhere to keep jobs' results; once a session.
+dt_davok() {
+	HIBR_DAV_TIMEOUT=$DT_DAVTIMEOUT
+	[ -n "$DR_READY" ] && return 0
+	if ! need dav 2> /dev/null; then
+		DT_WHY="Remote folders need the dav module"
+		return 1
+	fi
+	DR_JOBS="$DT_DAVCACHE/.jobs"
+	DR_ERRF="$DR_JOBS/err"
+	command rm -rf -- "$DR_JOBS" 2> /dev/null
+	if ! command mkdir -p -- "$DR_JOBS" "$DT_DAVCACHE/.stamps" 2> /dev/null; then
+		DT_WHY="Cannot make $DT_DAVCACHE"
+		return 1
+	fi
+	DR_READY=1
+}
+
+# The reason the last dav command gave, from its error file, into DT_WHY.
+fn dt_davwhy(f = "") {
+	local l=
+
+	f=${f:-$DR_ERRF}
+	[ -s "$f" ] && read -r l < "$f"
+	l=${l#hibr: }
+	l=${l#dav: }
+	DT_WHY=${l:-the server did not say why}
+}
+
+# Start a job: the command runs in the background with its output and
+# errors in files of their own, and then, back in the desktop, gets the
+# job's number and status. The job's number is the result.
+fn dt_davjob(what, then, ...cmd) {
+	local n
+
+	dt_davok || return 1
+	shift 2
+	DR_N=$((DR_N + 1))
+	n=$DR_N
+	DR[$n]["what"]=$what
+	DR[$n]["then"]=$then
+	(
+		"$@" > "$DR_JOBS/$n.out" 2> "$DR_JOBS/$n.err"
+		printf '%s\n' "$?" > "$DR_JOBS/$n.st"
+	) &
+	DR_LIVE=$((DR_LIVE + 1))
+	dt_want 100
+	ret "$n"
+}
+
+# A finished job's output, the first line or all of it.
+fn dt_davout(int n) {
+	local l=
+
+	[ -s "$DR_JOBS/$n.out" ] && read -r l < "$DR_JOBS/$n.out"
+	ret "$l"
+}
+
+# Run after every frame: hand each finished job to its callback, and look
+# at the copies of open remote files. Costs nothing while neither exists.
+dt_remotepoll() {
+	local n st
+
+	if [ "$DR_LIVE" -gt 0 ]; then
+		for n in "${!DR[@]}"; do
+			[ -s "$DR_JOBS/$n.st" ] || continue
+			read -r st < "$DR_JOBS/$n.st"
+			dt_davwhy "$DR_JOBS/$n.err"
+			DR_LIVE=$((DR_LIVE - 1))
+			"${DR[$n]["then"]}" "$n" "$st"
+			unset DR["$n"]
+		done
+		[ "$DR_LIVE" -gt 0 ] && dt_want 200
+	fi
+	[ "${#DRW[@]}" -gt 0 ] && [ "$DT_DAVSAVE" = 1 ] && dt_davwatch
+	return 0
+}
+
+# --- moving and copying ---------------------------------------------------
+
+# Move or copy one thing into a folder when either end is on a server: 0
+# done, 1 refused with the reason in DT_WHY, 2 nothing to do. Run inside a
+# job. Nothing is put over something already there, as for local files.
+fn dt_davone(op, src, dst) {
+	local base t dir e=$DR_JOBS/one.$BASHPID.err tmp isdir=0 s sn= dn=
+
+	base=${src%/}
+	base=${base##*/}
+	t="$dst/$base"
+	dir=${src%/*}
+	[ "$op" = move ] && [ "$dir" = "$dst" ] && return 2
+	if ! dt_isremote "$src" && ! dt_isremote "$dst"; then
+		dt_fileop1 "$op" "$src" "$dst"
+		return
+	fi
+	if dt_isremote "$src"; then
+		if ! s := dav stat "$src" 2> "$e"; then
+			dt_davwhy "$e"
+			return 1
+		fi
+		isdir=${s["dir"]}
+	elif ! [ -e "$src" ] && ! [ -L "$src" ]; then
+		DT_WHY="$base is not there any more"
+		return 1
+	else
+		[ -d "$src" ] && isdir=1
+	fi
+	if dt_isremote "$dst"; then
+		if dav stat "$t" > /dev/null 2>&1; then
+			DT_WHY="${dst##*/} already has a $base"
+			return 1
+		fi
+	elif [ -e "$t" ] || [ -L "$t" ]; then
+		DT_WHY="${dst##*/} already has a $base"
+		return 1
+	fi
+	if dt_isremote "$src" && dt_isremote "$dst"; then
+		case "$t/" in
+		"$src/"*)
+			DT_WHY="$base cannot go inside itself"
+			return 1
+			;;
+		esac
+		sn := dt_davname "$src"
+		dn := dt_davname "$dst"
+	fi
+	if [ -n "$sn" ] && [ "$sn" = "$dn" ]; then
+		if [ "$op" = move ]; then
+			dav mv "$src" "$t" 2> "$e" || { dt_davwhy "$e"; return 1; }
+		else
+			dav cp "$src" "$t" 2> "$e" || { dt_davwhy "$e"; return 1; }
+		fi
+		return 0
+	fi
+	if dt_isremote "$src" && dt_isremote "$dst"; then
+		tmp="$DT_DAVCACHE/.jobs/x.$BASHPID.$RANDOM"
+		if [ "$isdir" = 1 ]; then
+			dav get -r "$src" "$tmp" 2> "$e" &&
+				dav put -r "$tmp" "$t" 2>> "$e"
+		else
+			dav get "$src" "$tmp" 2> "$e" &&
+				dav put -n "$tmp" "$t" > /dev/null 2>> "$e"
+		fi
+		s=$?
+		command rm -rf -- "$tmp"
+		[ "$s" = 0 ] || { dt_davwhy "$e"; return 1; }
+	elif dt_isremote "$dst"; then
+		if [ "$isdir" = 1 ]; then
+			dav put -r "$src" "$t" 2> "$e" || { dt_davwhy "$e"; return 1; }
+		else
+			dav put -n "$src" "$t" > /dev/null 2> "$e" ||
+				{ dt_davwhy "$e"; return 1; }
+		fi
+	else
+		if [ "$isdir" = 1 ]; then
+			dav get -r "$src" "$t" 2> "$e" || { dt_davwhy "$e"; return 1; }
+		else
+			dav get "$src" "$t" 2> "$e" || { dt_davwhy "$e"; return 1; }
+		fi
+	fi
+	[ "$op" = move ] || return 0
+	if dt_isremote "$src"; then
+		dav rm "$src" 2> "$e" || { dt_davwhy "$e"; DT_WHY="Copied $base, but could not remove it: $DT_WHY"; return 1; }
+	else
+		command rm -rf -- "$src" 2> /dev/null ||
+			{ DT_WHY="Copied $base, but could not remove it"; return 1; }
+	fi
+	return 0
+}
+
+# A job's body: move or copy each path, then say how it went on standard
+# output -- the count done and refused, the last name, the first reason.
+fn dt_davbatch(op, dst, ...rest) {
+	local src n=0 bad=0 why= last=
+
+	shift 2
+	for src in "$@"; do
+		dt_davone "$op" "$src" "$dst"
+		case $? in
+		0) n=$((n + 1)); last=${src%/}; last=${last##*/} ;;
+		1) bad=$((bad + 1)); [ -z "$why" ] && why=$DT_WHY ;;
+		esac
+	done
+	printf '%s\n%s\n%s\n%s\n' "$n" "$bad" "$last" "$why"
+}
+
+# Move or copy paths into a folder when either end is on a server: a job,
+# told about when it ends. dt_fileop sends anything remote here.
+fn dt_davop(op, dst, ...rest) {
+	local n src what=Moving
+
+	shift 2
+	[ "$op" = copy ] && what=Copying
+	if ! n := dt_davjob "$what" dt_davopdone dt_davbatch "$op" "$dst" "$@"; then
+		dt_notep high "$DT_WHY"
+		return 1
+	fi
+	DR[$n]["op"]=$op
+	DR[$n]["dst"]=$dst
+	src=${1%/}
+	if [ "$#" = 1 ]; then
+		dt_notep low "$what ${src##*/}${GL[ellipsis]}"
+	else
+		dt_notep low "$what $# items${GL[ellipsis]}"
+	fi
+	return 0
+}
+
+# A move or copy has finished: say how it went, once, and show it.
+fn dt_davopdone(int n, int st) {
+	local -a l
+	local done=0 bad=1 last= why what=Moved dst
+
+	dst=${DR[$n]["dst"]}
+	[ "${DR[$n]["op"]}" = copy ] && what=Copied
+	why=$DT_WHY
+	if [ -s "$DR_JOBS/$n.out" ]; then
+		mapfile -t l < "$DR_JOBS/$n.out"
+		done=${l[0]:-0}
+		bad=${l[1]:-0}
+		last=${l[2]}
+		[ -n "${l[3]}" ] && why=${l[3]}
+	fi
+	if [ "$done" = 1 ]; then
+		dt_tally 1 "$bad" "$what" "$last to ${dst##*/}" "$why"
+	else
+		dt_tally "$done" "$bad" "$what" "" "$why" "to ${dst##*/}"
+	fi
+	dt_changed
+}
+
+# A job's body: remove each location from its server.
+fn dt_davrmbatch(...rest) {
+	local p n=0 bad=0 why= last= e=$DR_JOBS/rm.$BASHPID.err
+
+	for p in "$@"; do
+		if dav rm "$p" 2> "$e"; then
+			n=$((n + 1))
+			last=${p##*/}
+		else
+			bad=$((bad + 1))
+			[ -z "$why" ] && dt_davwhy "$e" && why=$DT_WHY
+		fi
+	done
+	printf '%s\n%s\n%s\n%s\n' "$n" "$bad" "$last" "$why"
+}
+
+# Remove locations from their server. There is no trash on a server, so
+# Files asks first; this is what it runs once the answer is yes.
+fn dt_davdelete(...rest) {
+	local n
+
+	if ! n := dt_davjob Deleting dt_davdeldone dt_davrmbatch "$@"; then
+		dt_notep high "$DT_WHY"
+		return 1
+	fi
+	dt_notep low "Deleting${GL[ellipsis]}"
+}
+
+# Removing has finished.
+fn dt_davdeldone(int n, int st) {
+	local -a l
+	local why=$DT_WHY
+
+	mapfile -t l < "$DR_JOBS/$n.out"
+	[ -n "${l[3]}" ] && why=${l[3]}
+	dt_tally "${l[0]:-0}" "${l[1]:-1}" "Deleted" "${l[2]}" "$why" \
+		"from the server"
+	dt_changed
+}
+
+# --- opening and saving -------------------------------------------------
+
+# Where the copy of a remote file is kept.
+fn dt_davcache(loc) {
+	ret "$DT_DAVCACHE/${loc#dav://}"
+}
+
+# A job's body: fetch a file into its copy, and print its ETag.
+fn dt_davfetch(loc, f) {
+	local s
+
+	command mkdir -p -- "${f%/*}" || return 1
+	s := dav stat "$loc" || return 1
+	dav get "$loc" "$f" || return 1
+	printf '%s\n' "${s["etag"]}"
+}
+
+# Open a remote file: fetch it into the cache, then open the copy -- with
+# app, an opener's name, when given. A copy with edits not yet uploaded is
+# opened as it is, rather than replaced by the server's.
+fn dt_davopen(loc, app = "") {
+	local f n
+
+	dt_davok || { dt_notep high "$DT_WHY"; return 1; }
+	f := dt_davcache "$loc"
+	if [ -n "${DRW["$f"]["loc"]}" ] && [ "$f" -nt "${DRW["$f"]["stamp"]}" ]; then
+		dt_davshow "$f" "$app"
+		return 0
+	fi
+	if ! n := dt_davjob Fetching dt_davopened dt_davfetch "$loc" "$f"; then
+		dt_notep high "$DT_WHY"
+		return 1
+	fi
+	DR[$n]["loc"]=$loc
+	DR[$n]["file"]=$f
+	DR[$n]["app"]=$app
+	dt_notep low "Fetching ${loc##*/}${GL[ellipsis]}"
+}
+
+# Open a copy, with an opener or as its type says.
+fn dt_davshow(f, app = "") {
+	if [ -n "$app" ] && dt_has dt_openwith; then
+		dt_openwith "$app" "$f"
+	else
+		dt_openfile "$f"
+	fi
+}
+
+# A fetch has finished: watch the copy for edits, and open it.
+fn dt_davopened(int n, int st) {
+	local f=${DR[$n]["file"]} loc=${DR[$n]["loc"]} e
+
+	if [ "$st" != 0 ]; then
+		dt_notep high "Could not open ${loc##*/}: $DT_WHY"
+		return 0
+	fi
+	e := dt_davout "$n"
+	dt_davwatchset "$f" "$loc" "$e"
+	dt_davshow "$f" "${DR[$n]["app"]}"
+}
+
+# Watch a copy: where it came from, the ETag it had, and a stamp file with
+# the copy's own time, so an edit is a copy newer than its stamp.
+fn dt_davwatchset(f, loc, etag) {
+	local st=${DRW["$f"]["stamp"]}
+
+	if [ -z "$st" ]; then
+		DR_STAMPN=$((DR_STAMPN + 1))
+		st="$DT_DAVCACHE/.stamps/$$.$DR_STAMPN"
+	fi
+	command touch -r "$f" -- "$st" 2> /dev/null
+	DRW["$f"]["loc"]=$loc
+	DRW["$f"]["etag"]=$etag
+	DRW["$f"]["stamp"]=$st
+	DRW["$f"]["busy"]=
+}
+
+# Every two seconds, put back any copy that has changed.
+dt_davwatch() {
+	local f
+
+	dt_want 2000
+	[ $((EPOCHSECONDS - DR_WATCHT)) -ge 2 ] || return 0
+	DR_WATCHT=$EPOCHSECONDS
+	for f in "${!DRW[@]}"; do
+		[ -z "${DRW["$f"]["busy"]}" ] || continue
+		[ -e "$f" ] || continue
+		[ "$f" -nt "${DRW["$f"]["stamp"]}" ] || continue
+		dt_davsave "$f"
+	done
+}
+
+# A job's body: upload a copy over the version it was fetched as, and say
+# how it went -- "ok ETAG", or "fail CODE".
+fn dt_davput1(f, loc, etag) {
+	local e
+
+	if e := dav put -m "$etag" "$f" "$loc"; then
+		printf 'ok %s\n' "$e"
+	else
+		printf 'fail %s\n' "$DAV_CODE"
+		return 1
+	fi
+}
+
+# A job's body: upload a copy beside the original under a conflict name,
+# and say where it went.
+fn dt_davputc(f, loc) {
+	local base ext dir when t e
+
+	dir=${loc%/*}
+	base=${loc##*/}
+	ext=
+	if [[ $base == ?*.* ]]; then
+		ext=".${base##*.}"
+		base=${base%.*}
+	fi
+	printf -v when '%(%Y-%m-%d %H%M)T' -1
+	t="$dir/$base (conflict $when)$ext"
+	e := dav put -n "$f" "$t" || return 1
+	printf '%s\n%s\n' "$t" "$e"
+}
+
+# Upload a changed copy.
+fn dt_davsave(f) {
+	local n
+
+	DRW["$f"]["busy"]=1
+	if ! n := dt_davjob Saving dt_davsaved dt_davput1 "$f" \
+		"${DRW["$f"]["loc"]}" "${DRW["$f"]["etag"]}"; then
+		DRW["$f"]["busy"]=
+		return 1
+	fi
+	DR[$n]["file"]=$f
+}
+
+# An upload has finished. A conflict -- the server's copy changed since it
+# was fetched -- puts this edit beside it instead of over it.
+fn dt_davsaved(int n, int st) {
+	local f=${DR[$n]["file"]} r loc m nm
+
+	loc=${DRW["$f"]["loc"]}
+	r := dt_davout "$n"
+	if [ "${r%% *}" = ok ]; then
+		dt_davwatchset "$f" "$loc" "${r#ok }"
+		nm := dt_davname "$loc"
+		dt_notep low "Saved ${loc##*/} to $nm"
+		dt_changed
+		return 0
+	fi
+	if [ "$r" = "fail 412" ]; then
+		if m := dt_davjob Saving dt_davconflicted dt_davputc "$f" "$loc"; then
+			DR[$m]["file"]=$f
+			return 0
+		fi
+	fi
+	command touch -r "$f" -- "${DRW["$f"]["stamp"]}" 2> /dev/null
+	DRW["$f"]["busy"]=
+	dt_notep high "Could not save ${loc##*/}: $DT_WHY -- it will be tried again on the next save"
+}
+
+# The edit has gone up under a conflict name: from now on the copy is
+# that file's.
+fn dt_davconflicted(int n, int st) {
+	local f=${DR[$n]["file"]} loc
+	local -a l
+
+	loc=${DRW["$f"]["loc"]}
+	if [ "$st" != 0 ]; then
+		command touch -r "$f" -- "${DRW["$f"]["stamp"]}" 2> /dev/null
+		DRW["$f"]["busy"]=
+		dt_notep high "${loc##*/} changed on the server, and your edit could not be saved beside it: $DT_WHY"
+		return 0
+	fi
+	mapfile -t l < "$DR_JOBS/$n.out"
+	dt_davwatchset "$f" "${l[0]}" "${l[1]}"
+	dt_notep high "${loc##*/} changed on the server while you edited it; yours is saved as ${l[0]##*/}"
+	dt_changed
+}
+
+# Forget every copy and the cache itself -- Control Panel's Clear Cache.
+# A copy with an edit not yet uploaded is kept, and says so.
+dt_davclear() {
+	local f kept=0
+
+	if [ "$DR_LIVE" -gt 0 ]; then
+		dt_notep high "Wait for the transfers running to finish first"
+		return 0
+	fi
+	for f in "${!DRW[@]}"; do
+		if [ -e "$f" ] && [ "$f" -nt "${DRW["$f"]["stamp"]}" ]; then
+			kept=$((kept + 1))
+			continue
+		fi
+		unset DRW["$f"]
+	done
+	if [ "$kept" -gt 0 ]; then
+		dt_notep high "$kept edited file(s) not yet saved to a server were kept"
+		return 0
+	fi
+	command rm -rf -- "$DT_DAVCACHE" 2> /dev/null
+	DR_READY=
+	dt_notep low "The remote file cache is empty"
+}
+
+# --- a server: the dialog that adds or changes one ------------------------
+
+# Open the dialog, on a server by name or empty for a new one.
+fn dt_davserver(name = "") {
+	local id h=15 w=66 r c s
+
+	dt_davok || { dt_notep high "$DT_WHY"; return 1; }
+	r=$((DT_ROWS / 2 - h / 2))
+	c=$(((DT_COLS - w) / 2))
+	if [ -n "$name" ]; then
+		id := dt_new "Edit Server" "$h" "$w" "$r" "$c" dsv
+	else
+		id := dt_new "Connect to Server" "$h" "$w" "$r" "$c" dsv
+	fi
+	DSV[$id]["orig"]=$name
+	DSV[$id]["name"]=$name
+	DSV[$id]["url"]=
+	DSV[$id]["user"]=
+	DSV[$id]["pass"]=
+	DSV[$id]["verify"]=1
+	DSV[$id]["haspass"]=
+	DSV[$id]["status"]=
+	DSV[$id]["sgood"]=
+	DSV[$id]["focus"]=name
+	[ -n "$name" ] && DSV[$id]["focus"]=url
+	if [ -n "$name" ] && s := dav servers 2> /dev/null; then
+		DSV[$id]["url"]=${s["$name"]["url"]}
+		DSV[$id]["user"]=${s["$name"]["user"]}
+		DSV[$id]["verify"]=${s["$name"]["verify"]}
+		DSV[$id]["haspass"]=${s["$name"]["haspass"]}
+	fi
+	for c in name url user pass; do
+		DSV[$id]["${c}cur"]=${#DSV[$id]["$c"]}
+	done
+	ret "$id"
+}
+
+# The dialog: four fields, the certificate box, a line for what a test
+# said, and Test, Save, Remove and Cancel.
+fn dsv_draw(int id, int h, int w, int row, int col) {
+	local f=${DSV[$id]["focus"]} r=1 k lab on fw=$((w - 15)) t
+	local -A labs=([name]="Name:" [url]="Address:" [user]="User:" [pass]="Password:")
+
+	dt_wclear "$id"
+	for k in name url user pass; do
+		console pen "$DT_INK" "$DT_FACE"
+		console put -p "w$id" "$r" 2 "${labs[$k]}"
+		on=0
+		[ "$f" = "$k" ] && on=1
+		t=${DSV[$id]["$k"]}
+		[ "$k" = pass ] && t := str repeat "*" "${#t}"
+		dt_textdraw "$id" "$r" 13 "$fw" "$t" "${DSV[$id]["${k}cur"]}" "$on"
+		if [ "$k" = pass ] && [ -z "${DSV[$id]["pass"]}" ] &&
+		   [ "${DSV[$id]["haspass"]}" = 1 ] && [ "$on" = 0 ]; then
+			console pen "$DT_DIM" "$DT_FACE"
+			console put -p "w$id" "$r" 13 "(unchanged)"
+		fi
+		dt_wreg "$id" "$r" 13 "$fw" "$k"
+		r=$((r + 2))
+	done
+	console pen "$DT_INK" "$DT_FACE"
+	[ "$f" = verify ] && console pen "$DT_FACE" "$DT_INK"
+	dt_check "$id" "$r" 13 "${DSV[$id]["verify"]}" \
+		"Check the server's certificate" verify
+	r=$((r + 2))
+	console pen "$DT_DIM" "$DT_FACE"
+	console put -p "w$id" "$r" 2 "Nextcloud: https://HOST/remote.php/dav/files/USER"
+	r=$((r + 1))
+	if [ -n "${DSV[$id]["status"]}" ]; then
+		console pen "$DT_BAD" "$DT_FACE"
+		[ "${DSV[$id]["sgood"]}" = 1 ] && console pen "$DT_GOOD" "$DT_FACE"
+		t=${DSV[$id]["status"]}
+		[ "${#t}" -gt $((w - 4)) ] && t="${t:0:$((w - 5))}${GL[ellipsis]}"
+		console put -p "w$id" "$r" 2 "$t"
+	fi
+	if [ -n "${DSV[$id]["orig"]}" ]; then
+		dt_dlgbtns "$id" "$h" "$w" "$f" test Test ok Save del Remove cancel Cancel
+	else
+		dt_dlgbtns "$id" "$h" "$w" "$f" test Test ok Save cancel Cancel
+	fi
+}
+
+# The fields focus moves through.
+fn dsv_order(int id) {
+	if [ -n "${DSV[$id]["orig"]}" ]; then
+		DSV_ORDER=(name url user pass verify test ok del cancel)
+	else
+		DSV_ORDER=(name url user pass verify test ok cancel)
+	fi
+}
+DSV_ORDER=()
+
+fn dsv_key(int id, k) {
+	local f=${DSV[$id]["focus"]} d onb=1 res
+
+	case $f in name | url | user | pass) onb=0 ;; esac
+	dsv_order "$id"
+	if d := dt_focuskey "$k" "$onb"; then
+		DSV[$id]["focus"] := dt_focus "$f" "$d" "${DSV_ORDER[@]}"
+		return 0
+	fi
+	case $k in
+	escape) dt_del "$id"; return 0 ;;
+	enter)
+		dsv_do "$id" "$f"
+		return 0
+		;;
+	" ")
+		if [ "$f" = verify ]; then
+			dsv_do "$id" verify
+			return 0
+		fi
+		;;
+	esac
+	case $f in name | url | user | pass) ;; *) return 1 ;; esac
+	res := dt_textkey "${DSV[$id]["$f"]}" "${DSV[$id]["${f}cur"]}" "$k" ||
+		return 1
+	DSV[$id]["$f"]=${res% *}
+	DSV[$id]["${f}cur"]=${res##* }
+	return 0
+}
+
+fn dsv_click(int? id = "", int? r = "", int? c = "", btn = "") {
+	local tag cur
+
+	tag := dt_hit "$id" "$r" "$c" || return 0
+	case $tag in
+	name | url | user | pass)
+		DSV[$id]["focus"]=$tag
+		cur=$((c - 13))
+		[ "$cur" -gt "${#DSV[$id]["$tag"]}" ] && cur=${#DSV[$id]["$tag"]}
+		[ "$cur" -lt 0 ] && cur=0
+		DSV[$id]["${tag}cur"]=$cur
+		;;
+	*) DSV[$id]["focus"]=$tag; dsv_do "$id" "$tag" ;;
+	esac
+}
+
+# What enter, a click or space does to what has focus.
+fn dsv_do(int id, what) {
+	case $what in
+	verify)
+		if [ "${DSV[$id]["verify"]}" = 1 ]; then
+			DSV[$id]["verify"]=0
+		else
+			DSV[$id]["verify"]=1
+		fi
+		;;
+	test) dsv_test "$id" ;;
+	cancel) dt_del "$id" ;;
+	del)
+		DSV_RMID=$id
+		dt_confirm "Remove the server ${DSV[$id]["orig"]}?" dsv_remove
+		;;
+	*) dsv_save "$id" ;;
+	esac
+}
+
+# Whether the dialog's fields can be saved; the reason in its status.
+fn dsv_valid(int id) {
+	local nm=${DSV[$id]["name"]} u=${DSV[$id]["url"]} s
+
+	DSV[$id]["sgood"]=
+	if [ -z "$nm" ] || [[ $nm == */* ]]; then
+		DSV[$id]["status"]="Give the server a name, without a /"
+		return 1
+	fi
+	if [[ $u != http://* ]] && [[ $u != https://* ]]; then
+		DSV[$id]["status"]="The address starts with https:// or http://"
+		return 1
+	fi
+	if [ "$nm" != "${DSV[$id]["orig"]}" ] && s := dav servers 2> /dev/null &&
+	   [ -n "${s["$nm"]["url"]}" ]; then
+		DSV[$id]["status"]="There is already a server called $nm"
+		return 1
+	fi
+	return 0
+}
+
+# The arguments dav server set takes for what the dialog holds.
+fn dsv_args(int id) {
+	DSV_ARGS=(-u "${DSV[$id]["user"]}")
+	if [ -n "${DSV[$id]["pass"]}" ] || [ "${DSV[$id]["haspass"]}" != 1 ]; then
+		DSV_ARGS+=(-p "${DSV[$id]["pass"]}")
+	fi
+	if [ "${DSV[$id]["verify"]}" = 1 ]; then
+		DSV_ARGS+=(-K)
+	else
+		DSV_ARGS+=(-k)
+	fi
+}
+DSV_ARGS=()
+
+# Save the server and close the dialog.
+fn dsv_save(int id) {
+	local nm=${DSV[$id]["name"]} orig=${DSV[$id]["orig"]}
+
+	dsv_valid "$id" || return 0
+	if [ -n "$orig" ] && [ "$orig" != "$nm" ]; then
+		if ! dav server rename "$orig" "$nm" 2> "$DR_ERRF"; then
+			dt_davwhy
+			DSV[$id]["status"]=$DT_WHY
+			return 0
+		fi
+	fi
+	dsv_args "$id"
+	if ! dav server set "$nm" "${DSV[$id]["url"]}" "${DSV_ARGS[@]}" \
+		2> "$DR_ERRF"; then
+		dt_davwhy
+		DSV[$id]["status"]=$DT_WHY
+		return 0
+	fi
+	dt_notep low "Saved the server $nm"
+	dt_del "$id"
+}
+
+# A job's body: try the dialog's settings, unsaved, through a list of
+# their own made just for the test.
+fn dsv_try(conf, url, ...rest) {
+	local s HIBR_DAV_CONF=$conf
+
+	shift 2
+	dav server set probe "$url" "$@" || return 1
+	dav test probe > /dev/null
+	s=$?
+	command rm -f -- "$conf"
+	return "$s"
+}
+
+# Test the dialog's settings without saving them.
+fn dsv_test(int id) {
+	local n conf
+
+	dsv_args "$id"
+	if [ "${DSV[$id]["haspass"]}" = 1 ] && [ -z "${DSV[$id]["pass"]}" ]; then
+		DSV[$id]["status"]="Testing what is saved${GL[ellipsis]}"
+		n := dt_davjob Testing dsv_tested dav test "${DSV[$id]["orig"]}" ||
+			return 0
+	else
+		conf="$DR_JOBS/probe.$DR_N.conf"
+		DSV[$id]["status"]="Testing${GL[ellipsis]}"
+		n := dt_davjob Testing dsv_tested dsv_try "$conf" \
+			"${DSV[$id]["url"]}" "${DSV_ARGS[@]}" || return 0
+	fi
+	DSV[$id]["sgood"]=1
+	DR[$n]["win"]=$id
+}
+
+# A test has finished: say how it went in the dialog, if it is still open.
+fn dsv_tested(int n, int st) {
+	local id=${DR[$n]["win"]}
+
+	[ -n "${DSV[$id]["focus"]}" ] || return 0
+	if [ "$st" = 0 ]; then
+		DSV[$id]["status"]="Connected"
+		DSV[$id]["sgood"]=1
+	else
+		DSV[$id]["status"]=$DT_WHY
+		DSV[$id]["sgood"]=
+	fi
+}
+
+# Remove the server the dialog is on, once the answer is yes.
+dsv_remove() {
+	local id=$DSV_RMID
+
+	[ -n "$id" ] || return 0
+	if dav server rm "${DSV[$id]["orig"]}" 2> "$DR_ERRF"; then
+		dt_notep low "Removed the server ${DSV[$id]["orig"]}"
+		dt_del "$id"
+	else
+		dt_davwhy
+		DSV[$id]["status"]=$DT_WHY
+	fi
+}
+
+fn dsv_close(int id) {
+	unset "DSV[$id]"
+}
+
+# Which text field has focus, for Copy, Cut and Paste; never the password
+# for Copy or Cut.
+fn dsv_field(int id) {
+	case ${DSV[$id]["focus"]} in
+	name | url | user | pass) ret "${DSV[$id]["focus"]}" ;;
+	*) return 1 ;;
+	esac
+}
+
+fn dsv_copy(int id) {
+	local k
+
+	k := dsv_field "$id" || return 1
+	[ "$k" = pass ] && return 1
+	ret "${DSV[$id]["$k"]}"
+}
+
+fn dsv_cut(int id) {
+	local k t
+
+	k := dsv_field "$id" || return 1
+	[ "$k" = pass ] && return 1
+	t=${DSV[$id]["$k"]}
+	DSV[$id]["$k"]=
+	DSV[$id]["${k}cur"]=0
+	ret "$t"
+}
+
+fn dsv_paste(int id, text, op = "") {
+	local k r
+
+	k := dsv_field "$id" || return 0
+	r := dt_textpaste "${DSV[$id]["$k"]}" "${DSV[$id]["${k}cur"]}" "$text"
+	DSV[$id]["$k"]=${r% *}
+	DSV[$id]["${k}cur"]=${r##* }
+}

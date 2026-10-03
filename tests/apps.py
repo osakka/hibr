@@ -290,11 +290,11 @@ GROUP = dict(l.split() for l in out if l.strip())
 check("panes register and sort by title within their group, not load order",
       ORDER == ["datetime", "displays", "keyboard", "mouse",
                 "appearance", "cliphist", "control_strip", "desktop",
-                "filetypes", "notify", "shortcuts", "windows",
+                "filetypes", "network", "notify", "shortcuts", "windows",
                 "abouthibr", "filesview", "notes", "taskmgr", "terminal"], out)
 check("Hardware first, then the desktop's own panes, then one per app",
       [GROUP[n] for n in ORDER] ==
-      ["hardware"] * 4 + ["system"] * 8 + ["app"] * 5, out)
+      ["hardware"] * 4 + ["system"] * 9 + ["app"] * 5, out)
 
 PW = "22 70 2 2"
 PANEL = ("panel", PW)
@@ -315,6 +315,7 @@ TITLE = {"appearance": "Appearance", "control_strip": "Control Strip",
          "cliphist": "Clipboard", "notes": "Stickies",
          "datetime": "Date & Time", "desktop": "Desktop",
          "displays": "Displays", "filetypes": "File Types",
+         "network": "Network Serve",
          "keyboard": "Keyboard", "mouse": "Mouse",
          "shortcuts": "Shortcuts", "notify": "Notifications",
          "windows": "Windows", "abouthibr": "About hibr",
@@ -3273,4 +3274,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(482)
+report(483)

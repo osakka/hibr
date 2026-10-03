@@ -132,6 +132,14 @@ fn dt_fileop(op, dst, ...rest) {
 	local src n=0 bad=0 why= last= what
 
 	shift 2
+	if dt_has dt_davop; then
+		for src in "$dst" "$@"; do
+			if dt_isremote "$src"; then
+				dt_davop "$op" "$dst" "$@"
+				return
+			fi
+		done
+	fi
 	for src in "$@"; do
 		dt_fileop1 "$op" "$src" "$dst"
 		case $? in

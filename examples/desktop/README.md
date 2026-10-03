@@ -384,6 +384,42 @@ Text is what crosses between a machine and the desktop. Files and pictures
 copy and paste as files inside the desktop, but a picture or a file on a
 machine's own clipboard cannot reach it: a terminal carries text only.
 
+## Folders on servers
+
+Files reaches a WebDAV server -- Nextcloud, ownCloud, a NAS, Apache or
+nginx DAV, rclone, anything that speaks it -- as though it were a folder
+here. **Servers > Connect to Server…** in Files (or **Add Server…** in
+Control Panel > Network Servers) asks for a name, the server's address,
+a user and a password, and whether to check its certificate; **Test**
+tries what is typed before anything is saved. For Nextcloud the address
+is `https://HOST/remote.php/dav/files/USER`, and an app password is the
+one to give it. Every server is then on the Servers menu, and Files
+shows it as `NAME:/` in its title.
+
+In a server's folder Files does what it does anywhere: enter goes in,
+backspace comes back, `n` renames, **New Folder** makes one, Get Info
+shows the size, time, type and ETag. Dragging, Copy and Paste work
+between a server and a local folder in either direction, and between
+two servers; nothing is ever put over something already there. A
+transfer runs in the background with a note when it starts and one when
+it ends, so a large file never stops the desktop. There is no trash on
+a server, so delete asks first, and what it removes is gone.
+
+Opening a file on a server fetches a copy into
+`~/.cache/hibr/dav` and opens that, in whatever opens the type. While
+**Upload Edits on Save** is on (Control Panel > Network Servers), saving
+the copy puts it back -- but only over the version it was fetched as.
+If someone changed the server's copy in the meantime, the edit goes up
+beside it as `name (conflict DATE).ext`, and a note says so; nobody's
+work is overwritten. **Clear Cache** empties the copies, keeping any
+edit not yet saved to its server.
+
+Servers are kept by the dav module in `~/.config/hibr/dav`, readable
+only by its owner; the Control Panel and the dialog never show a
+password, and leaving the field empty when editing a server keeps the
+one it has. How long a server may take is **Timeout** in the same pane.
+See [mods/dav](../../mods/dav/README.md) for the module itself.
+
 ## Application handlers
 
 `dt_handler ext [term] program args...` says what opens a file of that
