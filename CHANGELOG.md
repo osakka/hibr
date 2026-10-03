@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.99.12
+
+**A WebDAV client.** The `dav` module lists, fetches and changes files on
+any WebDAV server -- Nextcloud, ownCloud, a NAS, Apache or nginx DAV,
+rclone -- with no curl and no libraries: its own HTTP/1.1 keeps a
+connection per server and reuses it, redialling one the server dropped
+while idle; replies may be chunked; redirects are followed; a login is
+Basic or Digest, whichever the server asks for; TLS goes through the
+shell's own relay, with a per-server switch for a NAS that signs its own
+certificate. `dav ls`, `stat`, `get` and `put` (each `-r` for a whole
+folder), `mkdir`, `rm`, `mv` and `cp`; `ls` and `stat` give maps with
+`:=`, and `$DAV_CODE` the last status. `put -m ETAG` uploads only over the
+version it was given and `put -n` only where nothing is, checked before
+sending as well as asked of the server, since some servers ignore the
+headers. A name in a listing that could step outside its folder is never
+listed or written. Servers are set up with `dav server set`, kept in
+`~/.config/hibr/dav` with mode 600 -- a list anyone else can read is
+refused -- and `dav servers` never shows a password.
+
+This is the first half of WebDAV in Files; the window comes next.
+
 ## 0.99.11
 
 **A web browser.** The `web` module runs Chromium (or Chrome) headless and
