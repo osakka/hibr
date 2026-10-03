@@ -2,13 +2,15 @@
 #
 # screensaver -- the Control Panel pane for the screen saver
 # (wm/saver.hibr): which one, or one at random, how many idle minutes
-# before it starts, and a look at it now.
+# before it starts, whether it locks the screen (wm/lock.hibr) once it has
+# run a while, and a look at it now.
 
 strict
 
 command -v cp_pane > /dev/null && cp_pane screensaver "Screen Saver" "◌"
 
 SS_IDLES=(never 1 2 5 10 15 30 60)
+SS_LOCKS=(never "at once" 1 2 5 10 15 30 60)
 SS_NAMES=()
 
 # The choices: random, then every saver there is.
@@ -26,6 +28,12 @@ fn cp_set_saveridle(int? id = "", value = "") {
 	cp_save
 }
 
+fn cp_set_saverlock(int? id = "", value = "") {
+	[ "$value" = "at once" ] && value=0
+	DT_LOCKAFTER=$value
+	cp_save
+}
+
 fn screensaver_rows(int w) {
 	local n=0 v=$DT_SAVERIDLE
 
@@ -35,6 +43,10 @@ fn screensaver_rows(int w) {
 	CP[$w][$n]["val"]="$DT_SAVER"; CP[$w][$n]["key"]=saver; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Start After (minutes)"
 	CP[$w][$n]["val"]="$v"; CP[$w][$n]["key"]=idle; n=$((n + 1))
+	v=${DT_LOCKAFTER:-never}
+	[ "$v" = 0 ] && v="at once"
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Lock After (minutes)"
+	CP[$w][$n]["val"]="$v"; CP[$w][$n]["key"]=lock; n=$((n + 1))
 	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Preview"
 	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=preview; n=$((n + 1))
 	ret "$n"
@@ -51,7 +63,14 @@ fn screensaver_do(int? w = "", k = "", int? dir = "") {
 		[ "$v" = never ] && v=0
 		DT_SAVERIDLE=$v
 		;;
-	preview) dt_saverstart ;;
+	lock)
+		cur=${DT_LOCKAFTER:-never}
+		[ "$cur" = 0 ] && cur="at once"
+		v := cp_next "$cur" "$dir" "${SS_LOCKS[@]}"
+		[ "$v" = "at once" ] && v=0
+		DT_LOCKAFTER=$v
+		;;
+	preview) dt_saverstart preview ;;
 	esac
 	cp_save
 }
@@ -60,5 +79,6 @@ fn screensaver_drop(int? w = "", int? r = "", int? c = "", k = "") {
 	case $k in
 	saver) ss_names; dt_droplist "$w" "$r" "$c" cp_set_saver "${SS_NAMES[@]}" ;;
 	idle) dt_droplist "$w" "$r" "$c" cp_set_saveridle "${SS_IDLES[@]}" ;;
+	lock) dt_droplist "$w" "$r" "$c" cp_set_saverlock "${SS_LOCKS[@]}" ;;
 	esac
 }

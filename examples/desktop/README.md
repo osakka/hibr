@@ -487,6 +487,34 @@ hibr examples/desktop/savers/saver.hibr matrix
 hibr examples/desktop/savers/saver.hibr ~/.config/hibr/savers/mine.hibr
 ```
 
+## Locking the screen
+
+Lock Screen on the hibr menu, or its shortcut (ctrl-alt-l, changed in
+Shortcuts like any other), puts the screen saver on and keeps the desktop
+behind it until your password is given. A key or a click shows a box over
+the saver with your name and a password field -- a letter typed at the
+saver is already the password's first -- and enter checks it. Escape puts
+the box away. A wrong password holds the box for two seconds before the
+next try. While locked no key reaches the desktop: not Detach, not Quit,
+not any shortcut. A held desktop someone attaches to while it is locked
+is still locked.
+
+Control Panel > Screen Saver > Lock After locks on its own a number of
+minutes after the saver starts -- "at once", or never, which is the
+default. Preview never locks.
+
+The password is checked through PAM by the `auth` module, as you, with no
+privilege: checking your own password is what PAM's own helper is for,
+and hibr is never setuid. The Debian package installs `/etc/pam.d/hibr`
+for it (the system's usual password rules); without that file the lock
+asks PAM's `login` service, or `screensaver` on macOS. With no PAM at all
+Lock Screen says so and does not lock -- a lock nobody can open is worse
+than none.
+
+What it cannot do: it locks this desktop, not the machine. Anyone who can
+reach another terminal, a text console or a login on the same machine can
+still use it there. Detach the desktop and log out for that.
+
 ## Application handlers
 
 `dt_handler ext [term] program args...` says what opens a file of that

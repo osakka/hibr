@@ -1,0 +1,220 @@
+#!/usr/bin/env hibr
+#
+# lock -- the screen lock: the screen saver goes on and the desktop stays
+# behind it until the person's own password is given. A key or a click
+# shows a box over the saver asking for it; the password is checked
+# through PAM by the auth module (`auth check`) -- as the person, with no
+# privilege of its own, since checking one's own password is what PAM's
+# own helper is for. Locked, no key reaches the desktop: not Detach, not
+# Quit, not a shortcut.
+#
+# Locked from the hibr menu (Lock Screen), from the Lock Screen shortcut,
+# or on its own DT_LOCKAFTER minutes after the screen saver starts.
+#
+# What it cannot do: it locks this desktop, not the machine. Whoever can
+# reach another terminal, a console or a login on the same machine can
+# still use it; a terminal program cannot take that away.
+
+strict
+
+DT_LOCKAFTER="${DT_LOCKAFTER-never}"
+command -v dt_keep > /dev/null && dt_keep DT_LOCKAFTER
+
+# The lock's time in seconds instead, for a script or a test, as
+# DT_SAVERSECS is the saver's; and the PAM service and folder to ask,
+# empty for auth's own choice.
+DT_LOCKSECS="${DT_LOCKSECS-}"
+DT_LOCKSERVICE="${DT_LOCKSERVICE-}"
+DT_LOCKCONF="${DT_LOCKCONF-}"
+
+DT_LOCKED=
+DT_LOCKUSER=
+DT_LOCKNAME=
+DT_LOCKPW=
+DT_LOCKASK=
+DT_LOCKMSG=
+DT_LOCKBAD=
+DT_LOCKHOLD=0
+DT_LOCKSEEN=0
+DT_SAVERFROM=0
+DT_SAVERPREVIEW=
+
+# Lock now. Refused, and said why, when there is no way to check a
+# password -- a lock nobody can open is worse than none.
+dt_lock() {
+	local me
+
+	[ -z "$DT_LOCKED" ] || return 0
+	if ! need auth 2> /dev/null || ! auth ready 2> /dev/null; then
+		dt_note "Cannot lock: no PAM to check a password with"
+		return 1
+	fi
+	me := auth whoami
+	DT_LOCKUSER=${me%%$'\t'*}
+	DT_LOCKNAME=${me#*$'\t'}
+	DT_LOCKED=1
+	DT_LOCKPW=
+	DT_LOCKASK=
+	DT_LOCKMSG=
+	DT_LOCKBAD=
+	DT_SAVERPREVIEW=
+	dt_locklog "locked for $DT_LOCKUSER"
+	[ -n "$DT_SAVING" ] || dt_saverstart
+	return 0
+}
+
+# A line for the desktop's log.
+fn dt_locklog(t) { printf 'desktop: %s\n' "$t" >&2; }
+
+# Unlock: the saver ends and the desktop comes back.
+dt_unlock() {
+	DT_LOCKED=
+	DT_LOCKPW=
+	DT_LOCKASK=
+	DT_LOCKMSG=
+	dt_locklog "unlocked"
+	dt_saverstop
+}
+
+# Whether the saver has run long enough to lock on its own.
+dt_lockdue() {
+	local secs=$DT_LOCKSECS
+
+	[ -z "$DT_LOCKED" ] && [ -z "$DT_SAVERPREVIEW" ] || return 1
+	if [ -z "$secs" ]; then
+		[ "$DT_LOCKAFTER" = never ] && return 1
+		secs=$(( ${DT_LOCKAFTER:-0} * 60 ))
+	fi
+	[ "$secs" -ge 0 ] 2> /dev/null || return 1
+	[ $((EPOCHSECONDS - DT_SAVERFROM)) -ge "$secs" ]
+}
+
+# The box asking for the password, drawn over the saver each frame.
+dt_lockbox() {
+	local rows cols sz w=46 h=9 r c i dots fw n pen
+	local -a s
+
+	sz := console size
+	read -ra s <<< "$sz"
+	rows=${s[0]:-24}
+	cols=${s[1]:-80}
+	[ "$w" -gt $((cols - 2)) ] && w=$((cols - 2))
+	[ "$w" -lt 20 ] && w=20
+	r=$(( (rows - h) / 2 ))
+	c=$(( (cols - w) / 2 ))
+	[ "$r" -lt 0 ] && r=0
+	[ "$c" -lt 0 ] && c=0
+	console pen "$DT_INK" "$DT_FACE"
+	console fill "$r" "$c" "$h" "$w" " "
+	console put "$r" "$c" "${GL[tl]}"
+	console put "$r" $((c + w - 1)) "${GL[tr]}"
+	console put $((r + h - 1)) "$c" "${GL[bl]}"
+	console put $((r + h - 1)) $((c + w - 1)) "${GL[br]}"
+	i=1
+	while [ "$i" -lt $((w - 1)) ]; do
+		console put "$r" $((c + i)) "${GL[hline]}"
+		console put $((r + h - 1)) $((c + i)) "${GL[hline]}"
+		i=$((i + 1))
+	done
+	i=1
+	while [ "$i" -lt $((h - 1)) ]; do
+		console put $((r + i)) "$c" "${GL[vline]}"
+		console put $((r + i)) $((c + w - 1)) "${GL[vline]}"
+		i=$((i + 1))
+	done
+	console pen "$DT_ACTIVE" "$DT_FACE" bold
+	console put $((r + 2)) $((c + 3)) "${DT_LOCKNAME:0:$((w - 6))}"
+	console pen "$DT_DIM" "$DT_FACE"
+	console put $((r + 3)) $((c + 3)) "Locked -- ${DT_LOCKUSER:0:$((w - 16))}"
+	fw=$((w - 6))
+	n=${#DT_LOCKPW}
+	[ "$n" -gt "$fw" ] && n=$fw
+	dots=
+	i=0
+	while [ "$i" -lt "$n" ]; do
+		dots+=${GL[bullet]}
+		i=$((i + 1))
+	done
+	console pen "$DT_INK" "$DT_WELL"
+	console fill $((r + 5)) $((c + 3)) 1 "$fw" " "
+	console put $((r + 5)) $((c + 3)) "$dots"
+	pen=$DT_DIM
+	[ -n "$DT_LOCKBAD" ] && pen=$DT_BAD
+	console pen "$pen" "$DT_FACE"
+	console put $((r + 7)) $((c + 3)) "${DT_LOCKMSG:0:$((w - 6))}"
+	console cursor $((r + 5)) $((c + 3 + n))
+}
+
+# Check what was typed. A wrong password holds the box for two seconds,
+# so guesses come slowly.
+dt_lockcheck() {
+	local why st
+	local -a opt=(-q)
+
+	[ -n "$DT_LOCKPW" ] || return 0
+	DT_LOCKMSG="Checking${GL[ellipsis]}"
+	DT_LOCKBAD=
+	dt_lockbox
+	console flush
+	[ -n "$DT_LOCKSERVICE" ] && opt+=(-s "$DT_LOCKSERVICE")
+	[ -n "$DT_LOCKCONF" ] && opt+=(-c "$DT_LOCKCONF")
+	why := auth check "${opt[@]}" "$DT_LOCKUSER" "$DT_LOCKPW"
+	st=$?
+	DT_LOCKPW=
+	if [ "$st" = 0 ]; then
+		dt_unlock
+		return 0
+	fi
+	DT_LOCKBAD=1
+	if [ "$st" = 1 ]; then
+		[ "$why" = "Authentication failure" ] && why=
+		DT_LOCKMSG="Not the password${why:+ ($why)}"
+	else
+		DT_LOCKMSG="Cannot check it${why:+: $why}"
+	fi
+	dt_locklog "unlock refused: ${why:-no reason given}"
+	local now
+	now := dt_ms
+	DT_LOCKHOLD=$((now + 2000))
+}
+
+# Hide the box and give the screen back to the saver.
+dt_lockhide() {
+	DT_LOCKASK=
+	DT_LOCKPW=
+	DT_LOCKMSG=
+	DT_LOCKBAD=
+	console cursor off
+	[ -n "$SV_NAME" ] && sv_begin "$SV_NAME"
+	return 0
+}
+
+# A key or a click while locked: it shows the box, and the box takes a
+# password -- a letter typed at the saver is its first.
+fn dt_lockkey(k) {
+	local now
+
+	now := dt_ms
+	[ "$now" -lt "$DT_LOCKHOLD" ] && return 0
+	DT_LOCKSEEN=$EPOCHSECONDS
+	if [ -z "$DT_LOCKASK" ]; then
+		DT_LOCKASK=1
+		DT_LOCKMSG="Enter your password"
+		DT_LOCKBAD=
+		[ "${#k}" = 1 ] || return 0
+	fi
+	case $k in
+	escape) dt_lockhide ;;
+	enter) dt_lockcheck ;;
+	backspace) DT_LOCKPW=${DT_LOCKPW%?} ;;
+	ctrl-u) DT_LOCKPW= ;;
+	*)
+		if [ "${#k}" = 1 ]; then
+			DT_LOCKPW+=$k
+			DT_LOCKBAD=
+			DT_LOCKMSG="Enter your password"
+		fi
+		;;
+	esac
+	return 0
+}

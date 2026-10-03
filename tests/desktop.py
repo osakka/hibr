@@ -2997,4 +2997,86 @@ check("and saver.hibr runs one by its path, on its own",
       sc.find("MY OWN SAVER") is not None, sc)
 shutil.rmtree(MINE, True)
 
-report(412)
+# --- the screen lock ---------------------------------------------------------
+#
+# Locked, the saver runs and a key shows a box asking for the password,
+# checked through PAM by the auth module. The suite gives PAM a folder of
+# its own (DT_LOCKCONF, `auth check -c`): one service whose only password
+# is "right horse", checked by a pam_exec script, so nothing here touches
+# the account's real one.
+PAMDIR = tempfile.mkdtemp(prefix="hibr-pam-")
+open(os.path.join(PAMDIR, "chk.sh"), "w").write(
+    '#!/bin/sh\ntr -d "\\000" | grep -qx "right horse"\n')
+os.chmod(os.path.join(PAMDIR, "chk.sh"), 0o755)
+open(os.path.join(PAMDIR, "pw"), "w").write(
+    "auth required pam_exec.so expose_authtok quiet %s/chk.sh\n"
+    "account required pam_permit.so\n" % PAMDIR)
+LOCKENV = {"DT_SAVERIDLE": "0", "DT_LOCKSERVICE": "pw", "DT_LOCKCONF": PAMDIR}
+
+s, ex = saverrun([b"\x1b[21~", b"l", b"q", b"\x15wrong\r", 2.5,
+                  b"right horse\r"], LOCKENV)
+check("Lock Screen on the hibr menu locks: the saver takes the screen",
+      s[1].find("Hello") is None and "\u2588" in s[1].text(), s[1])
+check("a key shows the box, and a letter typed at the saver is the "
+      "password's first",
+      s[2].find("Enter your password") is not None and
+      s[2].find("Locked -- ") is not None and
+      s[2].find("\u2022") is not None and s[2].find("Hello") is None, s[2])
+check("a wrong password is refused, and the desktop stays locked",
+      s[3].find("Not the password") is not None and s[3].find("Hello") is None,
+      s[3])
+check("the right one unlocks, and the desktop is back as it was",
+      s[5].find("Hello") is not None and "\u2588" not in s[5].text() and ex,
+      s[5])
+
+s, ex = saverrun([b"\x1b\x0c", b"\x1c", b"q", b"\x1b", b"\x1b[21~", 1.0,
+                  b"right horse\r"], LOCKENV)
+check("the Lock Screen shortcut locks too",
+      s[0].find("Hello") is None and "\u2588" in s[0].text(), s[0])
+check("locked, neither Detach nor quit reaches the desktop",
+      s[2].find("Hello") is None and s[2].find("Enter your password")
+      is not None, s[2])
+check("escape puts the box away, and the next key brings it back",
+      s[3].find("Enter your password") is None and
+      s[4].find("Enter your password") is not None, s[4])
+check("and the password is still what opens it", s[6].find("Hello")
+      is not None and ex, s[6])
+
+s, ex = saverrun([3.5, b"x", b"\x15right horse\r"],
+                 dict(LOCKENV, DT_SAVERSECS="2", DT_LOCKSECS="1"))
+check("Lock After locks a saver that has run that long: a key asks for the "
+      "password rather than ending it",
+      s[1].find("Enter your password") is not None and s[1].find("Hello")
+      is None, s[1])
+check("and it opens as any lock does", s[2].find("Hello") is not None, s[2])
+s, _ = saverrun([3.5, b"x"], dict(LOCKENV, DT_SAVERSECS="2"))
+check("with Lock After at never, a key just ends the saver",
+      s[1].find("Hello") is not None, s[1])
+shutil.rmtree(PAMDIR, True)
+
+# A terminal's program goes on writing behind the saver, and its pty,
+# watched, ends every wait at once: unread, the saver redrew as fast as it
+# could and took a whole core (0.99.20). CPU time is what is measured, not
+# wakes -- a spin makes no voluntary switches.
+path = "/tmp/hibr-saverpty-%d.hibr" % os.getpid()
+open(path, "w").write(
+    "%s. %s\n. %s\nTW_CMD=(/bin/sh -c 'while :; do echo x; sleep 0.02; done')"
+    "\ndt_open\ndt_new Term 14 44 2 2 term\ndt_run\ndt_close\n"
+    % (load(MOD, tree("build/mods/pty.so"), tree("build/mods/term.so")), WM,
+       tree("examples/desktop/apps/term.hibr")))
+t = Term(path, env={"DT_SAVERSECS": "1", "DT_SAVER": "clock"}, rows=ROWS,
+         cols=COLS, settle=0.6)
+t.collect(3.0)
+def ticks(pid):
+    f = open("/proc/%d/stat" % pid).read().rsplit(")", 1)[1].split()
+    return int(f[11]) + int(f[12])
+c0 = ticks(t.pid)
+t.collect(4.0)
+used = (ticks(t.pid) - c0) / os.sysconf("SC_CLK_TCK") / 4.0
+sc = t.screen()
+t.quit(b"xqy", 1.2)
+os.unlink(path)
+check("the saver over a terminal that keeps writing costs little, not a "
+      "core (%.0f%%)" % (used * 100), "\u2588" in sc.text() and used < 0.3, sc)
+
+report(424)

@@ -1,0 +1,15 @@
+0
+yes: 0
+no: 1 [Authentication failure]
+hibr: auth: USER: Authentication failure
+right: 0
+wrong: 1
+from a variable: 0 [right horse]
+hibr: usage: auth check [-s service] [-c confdir] [-q] user password
+usage: 2
+hibr: usage: auth check [-s service] [-c confdir] [-q] user password
+no password: 2
+unknown: 2
+ready: 0
+whoami names this user: 0
+service: known

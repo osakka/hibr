@@ -28,12 +28,72 @@ dt_saverload() {
 	DT_SAVERREADY=1
 }
 
-# Give the screen to a saver now.
-dt_saverstart() {
+# Give the screen to a saver now -- "preview" for a look that never locks.
+fn dt_saverstart(how = "") {
 	dt_saverload
 	dt_mclose
+	DT_SAVERFROM=$EPOCHSECONDS
+	DT_SAVERPREVIEW=
+	[ "$how" = preview ] && DT_SAVERPREVIEW=1
 	if sv_begin "$DT_SAVER"; then
 		DT_SAVING=1
+	else
+		SV_NAME=
+		console pen white black
+		console clear
+	fi
+	return 0
+}
+
+# Draw the saver's next frame, and the lock's box over it while it asks;
+# the time until the one after is the result.
+dt_saverdraw() {
+	local ms=1000
+
+	dt_lockdue && dt_lock
+	if [ -n "$DT_LOCKASK" ] && [ $((EPOCHSECONDS - DT_LOCKSEEN)) -ge 30 ]; then
+		dt_lockhide
+	fi
+	if [ -n "$SV_NAME" ] && [ -n "$DT_SAVING" ]; then
+		ms := sv_frame
+	fi
+	if [ -n "$DT_LOCKASK" ]; then
+		dt_lockbox
+		[ "$ms" -gt 500 ] && ms=500
+	fi
+	console flush
+	ret "$ms"
+}
+
+# Wait for a key until the next frame is due. A terminal's program goes on
+# writing behind the saver, and its pty, watched, ends every wait at once:
+# so each window's idle callback reads it, as dt_idle does for a hidden
+# window, and the wait goes on for what is left.
+fn dt_saverkey(int ms) {
+	local now due k id
+
+	now := dt_ms
+	due=$((now + ms))
+	while :; do
+		k := console key $((due - now))
+		[ -n "$k" ] && break
+		for id in "${!DT[@]}"; do
+			[ -n "${DT[$id]["idle"]}" ] && ${DT[$id]["idle"]} "$id"
+		done
+		now := dt_ms
+		[ "$now" -lt "$due" ] || break
+	done
+	ret "$k"
+}
+
+# A key or a click while the saver runs: it ends the saver, or, locked,
+# goes to the lock.
+fn dt_saverinput(k) {
+	[ -n "$k" ] && [ "$k" != resize ] || return 0
+	if [ -n "$DT_LOCKED" ]; then
+		dt_lockkey "$k"
+	else
+		dt_saverstop
 	fi
 	return 0
 }
@@ -42,6 +102,8 @@ dt_saverstart() {
 # and the idle time starts from now.
 dt_saverstop() {
 	DT_SAVING=
+	DT_SAVERPREVIEW=
+	console cursor off
 	DT_IDLEFROM=$EPOCHSECONDS
 	console pen "$DT_INK" "$DT_WALL"
 	console clear
@@ -58,7 +120,7 @@ dt_saverseen() {
 dt_saverwait() {
 	local left secs=$DT_SAVERSECS
 
-	[ -z "$DT_SAVING" ] || return 0
+	[ -z "$DT_SAVING" ] && [ -z "$DT_LOCKED" ] || return 0
 	[ -n "$secs" ] || secs=$(( ${DT_SAVERIDLE:-0} * 60 ))
 	[ "$secs" -gt 0 ] 2> /dev/null || return 0
 	left=$(( secs - (EPOCHSECONDS - DT_IDLEFROM) ))

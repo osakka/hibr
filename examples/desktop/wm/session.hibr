@@ -166,17 +166,15 @@ dt_run() {
 
 	dt_runatstart
 	while [ "$DT_QUIT" = 0 ]; do
-		if [ -n "$DT_SAVING" ]; then
-			k := sv_frame
+		if [ -n "$DT_SAVING" ] || [ -n "$DT_LOCKED" ]; then
+			k := dt_saverdraw
 			frames=$((frames + 1))
 			if [ -n "$DT_TESTIDLE" ]; then
 				now := console consumed
 				printf '\e]7777;idle;%s;%s\a' "$((now + DT_INBASE))" "$frames"
 			fi
-			k := console key "$k"
-			if [ -n "$k" ] && [ "$k" != resize ]; then
-				dt_saverstop
-			fi
+			k := dt_saverkey "$k"
+			dt_saverinput "$k"
 			continue
 		fi
 		if [ "$rsz" = 0 ]; then

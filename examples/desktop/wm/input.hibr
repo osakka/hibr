@@ -571,6 +571,8 @@ fn dt_event(k) {
 		:
 	elif dt_keyis shot "$k"; then
 		dt_shot
+	elif dt_keyis lock "$k"; then
+		dt_lock
 	elif dt_keyis tile "$k"; then
 		dt_tiletoggle
 	elif dt_keyis tilemain "$k"; then

@@ -38,6 +38,17 @@ glibc=$(for f in "$STAGE/usr/bin/hibr" "$STAGE"/usr/lib/hibr/*.so; do
 done | grep -o 'GLIBC_[0-9.]*' | sed 's/GLIBC_//' | sort -uV | tail -1)
 size=$(du -sk "$STAGE/usr" | cut -f1)
 
+install -d "$STAGE/etc/pam.d"
+cat > "$STAGE/etc/pam.d/hibr" <<'PAM'
+#%PAM-1.0
+# hibr's screen lock (the auth module): checks the password of whoever is
+# already logged in, with the system's own rules. It opens no session.
+@include common-auth
+@include common-account
+PAM
+chmod 644 "$STAGE/etc/pam.d/hibr"
+echo /etc/pam.d/hibr > "$STAGE/DEBIAN/conffiles"
+
 install -d "$STAGE/usr/share/doc/hibr"
 install -m 644 LICENSE "$STAGE/usr/share/doc/hibr/copyright"
 gzip -9n < CHANGELOG.md > "$STAGE/usr/share/doc/hibr/changelog.gz"

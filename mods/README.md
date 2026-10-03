@@ -26,6 +26,7 @@ hibr -c 'mod load ./build/mods/hello.so; mod list; mod drop hello'
 | `math.c` | `math`: floating point where `$(( ))` has only integers -- `+ - * / % ^`, comparisons, `? :`, `round sqrt abs pow ...`, shell variables by name, and `sum avg min max count` over arrays; shown as a spreadsheet shows numbers. One of the two modules a `--plan` may load |
 | `prompt/` | A segmented prompt, and a native reader for git's object store |
 | `lint/` | The rules behind `hibr --explain`: reads a parsed script and names the mistakes in it, without running it. It adds no builtin; it offers `"lint"` (`mods/lint.h`), which `--explain` asks for |
+| `auth.c` | `auth check`: whether PAM takes a password for a user, with libpam opened on first use and no privilege of its own -- what the desktop's screen lock asks; `auth whoami` for the login and real name |
 | `darwin.c` | macOS only: `cpu` and `mem` from the kernel's own counters, with no fork |
 | `console/` | The text display: alternate screen, a cell grid redrawn by damage, panes, decoded keys; offers `"display"` (`mods/display.h`) — [README](console/README.md) |
 | `cat/` | `cat`, byte-identical in a pipe and coloured on a terminal; offers `"highlight"` (`mods/highlight.h`) — [README](cat/README.md) |

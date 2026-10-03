@@ -44,6 +44,7 @@ done
 [ -n "${DT_KEYS["cycle"]+x}" ] || DT_KEYS["cycle"]="alt-tab"
 [ -n "${DT_KEYS["strip"]+x}" ] || DT_KEYS["strip"]="alt-s"
 [ -n "${DT_KEYS["shot"]+x}" ] || DT_KEYS["shot"]="ctrl-alt-g"
+[ -n "${DT_KEYS["lock"]+x}" ] || DT_KEYS["lock"]="ctrl-alt-l"
 [ -n "${DT_KEYS["undo"]+x}" ] || DT_KEYS["undo"]="alt-z"
 [ -n "${DT_KEYS["save"]+x}" ] || DT_KEYS["save"]="ctrl-s"
 [ -n "${DT_KEYS["redo"]+x}" ] || DT_KEYS["redo"]="alt-y"

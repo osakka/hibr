@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.99.21
+
+**Screen lock.** Lock Screen on the hibr menu, or ctrl-alt-l (changed in
+Shortcuts like any other), puts the screen saver on and keeps the desktop
+behind it until your password is given. A key or a click shows a box
+over the saver with your name and a password field -- a letter typed at
+the saver is already the password's first -- enter checks it, escape puts
+the box away, and a wrong password holds the box for two seconds. Locked,
+no key reaches the desktop: not Detach, not Quit, not a shortcut; a held
+desktop attached to while locked is still locked. Control Panel > Screen
+Saver > Lock After locks on its own some minutes after the saver starts
+("at once", or never, the default); Preview never locks.
+
+The password is checked through PAM by a new module, `auth` (`auth check
+[-s service] [-c dir] user password`), with libpam opened on first use
+and no privilege: checking your own password is what PAM's own helper is
+for, and hibr is never setuid. The Debian package installs
+`/etc/pam.d/hibr` (the system's usual rules); without it the lock asks
+`login`, or `screensaver` on macOS. With no PAM, Lock Screen says so and
+does not lock. It locks this desktop, not the machine: another terminal,
+console or login on the same machine is still open to whoever reaches it.
+
+**The screen saver no longer takes a whole core over a busy terminal.**
+While a saver ran nothing read the terminals' ptys, so a program writing
+in a terminal behind it woke every wait at once and the saver redrew as
+fast as it could: 100% of a core, measured; now 1%. Each window's idle
+callback reads its pty while the saver runs, as it does for a hidden
+window.
+
 ## 0.99.20
 
 **Screen savers.** After ten idle minutes the screen is given to a screen
