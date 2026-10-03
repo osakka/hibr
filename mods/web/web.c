@@ -159,7 +159,8 @@ void wb_usage(void)
 		      "url|title|text|links|loading|dirty|focus T | go T url | "
 		      "wait T [ms] | size T rows cols | draw T row col [h w] "
 		      "[-p pane] | click T row col | wheel T rows | key T name | "
-		      "type T text | eval T js | tabs | fd | poll | quit");
+		      "type T text | eval T js | tap|tapseek T | take T "
+		      "[vfd|- [afd|-]] | tabs | fd | poll | quit");
 }
 
 /* web: a browser, headless Chromium driven over its own pipe. */
@@ -295,6 +296,13 @@ int m_web(sh *s, int ac, char **av)
 		s_free(&o);
 		return r;
 	}
+	if (!strcmp(sub, "tap"))
+		return wb_tap(t);
+	if (!strcmp(sub, "tapseek"))
+		return wb_tapseek(t);
+	if (!strcmp(sub, "take"))
+		return wb_take(s, t, ac > 3 && strcmp(av[3], "-") ? atoi(av[3]) : -1,
+			       ac > 4 && strcmp(av[4], "-") ? atoi(av[4]) : -1);
 	if (!strcmp(sub, "text"))
 		return wb_text(s, t);
 	if (!strcmp(sub, "links"))

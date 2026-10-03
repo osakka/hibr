@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.99.15
+
+**YouTube, in a window.** The YouTube app, in the Internet folder,
+searches YouTube and plays what it finds: type, enter, choose, enter.
+Space pauses, the arrows seek and change the volume, `m` changes the
+picture between half blocks, ASCII and plain, a click on the bar goes
+there. Nothing here is a YouTube client of its own: YouTube's own page
+runs in the web module's headless Chromium, its player asked for the
+lowest quality and muted, and every chunk it plays is copied into a media
+player here and decoded with FFmpeg's libraries -- the page fetches, hibr
+watches. Search reads the results page's own data the same way. Control
+Panel > YouTube keeps the picture, the quality and the frame rate. Ads
+play as YouTube plays them.
+
+Two module pieces make it, each usable on its own: `web tap`, `web take`
+and `web tapseek` copy what any page hands its media source, video and
+audio apart; `media feed` and `media pipe` make a player whose streams
+arrive on pipes. The Browser no longer stops Chromium while a YouTube
+window still uses it. This is #27's second part; playlists, channels,
+history and favourites come next.
+
 ## 0.99.14
 
 **Video and sound.** The `media` module plays video and sound from a file

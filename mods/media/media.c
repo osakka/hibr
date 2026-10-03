@@ -168,7 +168,8 @@ int mv_drawcmd(sh *s, mv_pl *p, int ac, char **av)
 /* The usage line. */
 void mv_usage(void)
 {
-	lg(HIBR_LERR, "usage: media open source [-p] | play|pause|toggle|frame|"
+	lg(HIBR_LERR, "usage: media open source [-p] | feed [-p] | pipe id "
+		      "video|audio | play|pause|toggle|frame|"
 		      "next|info|close id | seek id seconds [-r] | volume id "
 		      "[0-100] | size id cols rows [half|ascii|mono] | mode id "
 		      "half|ascii|mono | detail id 0-3 | fps id n | draw id row "
@@ -191,6 +192,18 @@ int m_media(sh *s, int ac, char **av)
 			return 2;
 		}
 		p = mv_open(s, av[2], ac > 3 && !strcmp(av[3], "-p"));
+		if (!p)
+			return HIBR_FAIL;
+		p->id = ++mv_nextid;
+		v_add(&mv_pls, p);
+		s_init(&b);
+		s_num(&b, p->id);
+		mv_say(s, b.p);
+		s_free(&b);
+		return HIBR_OK;
+	}
+	if (!strcmp(sub, "feed")) {
+		p = mv_feed(ac > 2 && !strcmp(av[2], "-p"));
 		if (!p)
 			return HIBR_FAIL;
 		p->id = ++mv_nextid;
@@ -293,6 +306,20 @@ int m_media(sh *s, int ac, char **av)
 	}
 	if (!strcmp(sub, "fps") && ac > 3) {
 		p->fpsmax = atoi(av[3]);
+		return HIBR_OK;
+	}
+	if (!strcmp(sub, "pipe")) {
+		if (ac < 4 || (strcmp(av[3], "video") && strcmp(av[3], "audio"))) {
+			mv_usage();
+			return 2;
+		}
+		m = mv_pipe(p, av[3][0] == 'v' ? MV_VIDEO : MV_AUDIO);
+		if (m < 0)
+			return HIBR_FAIL;
+		s_init(&b);
+		s_num(&b, m);
+		mv_say(s, b.p);
+		s_free(&b);
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "frame"))

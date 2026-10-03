@@ -45,6 +45,9 @@ web close $t; web quit
 | `web key T name` | a key by the console's name for it: `enter`, `backspace`, `tab`, `up`, `pagedown`, `shift-tab`, `ctrl-a`, a letter |
 | `web type T text` | text into whatever has the focus |
 | `web loading T`, `web dirty T`, `web focus T` | status 0 while loading, when the page has changed since the last frame, when a field has the keyboard |
+| `web tap T` | copy everything the tab's pages hand a media source: installed before each page's own scripts, it notes each buffer as video or audio by its type and keeps every chunk appended to it |
+| `web take T [VFD\|- [AFD\|-]]` | write what the tap has kept since last asked -- video to one descriptor, audio to the other -- and say what happened: `v BYTES a BYTES reset 0\|1 vtype TYPE atype TYPE`; a reset is a new media source (the next video, an ad break), after which both streams start again from their init segments |
+| `web tapseek T` | after a seek: drop what was kept and keep each buffer's init segment again, so what is taken next reads from its start |
 | `web fd` | the browser's pipe, for `console watch`, so a desktop wakes when a page changes |
 | `web poll` | act on whatever the browser has said; status 0 if a tab wants a new frame |
 | `web quit` | stop the browser |
@@ -65,6 +68,15 @@ two columns wide takes two cells. A link's cells carry its address, so a
 terminal that does links (OSC 8) makes them clickable.
 
 A dialog the page opens (`alert`, `confirm`) is accepted at once.
+
+## Taking a page's media
+
+`web tap` is how the YouTube app plays YouTube: the page's own player
+fetches, at whatever quality it is told, and each chunk it appends to its
+media source is copied as it goes in -- ordinary fragmented MP4 or WebM,
+which the media module decodes (`media feed` and `media pipe`). Nothing
+about it is YouTube's: any page that plays through a media source can be
+taken from the same way.
 
 ## Where things are kept
 

@@ -2023,7 +2023,7 @@ PANEL = ('. %s/panel.hibr\nCP_PANEDIRS+=("%s")\ncp_panes'
 ORDER = ["datetime", "displays", "keyboard", "mouse", "appearance",
          "cliphist", "control_strip", "desktop", "filetypes", "network", "notify",
          "shortcuts",
-         "windows", "abouthibr", "filesview", "notes", "taskmgr", "terminal"]
+         "windows", "abouthibr", "filesview", "notes", "taskmgr", "terminal", "tube"]
 DOWN_APP = [b"\x1b[B"] * ORDER.index("appearance")
 DOWN_KB = [b"\x1b[B"] * ORDER.index("shortcuts")
 

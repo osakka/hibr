@@ -375,17 +375,15 @@ void *mv_aud(void *arg)
 }
 
 /* The clock, the mutex held: the sound's, moved on by the time since it
-   was last set, or the wall's when there is no sound or none yet. */
+   was last set; with sound not playing yet -- at the start, after a seek
+   or a pause -- held where it starts, so the sound taking over late never
+   pulls it back; and the wall's when there is no sound at all. */
 double mv_clocklk(mv_pl *p)
 {
-	double c;
-
 	if (p->paused)
 		return p->pausedat;
-	if (p->ai >= 0 && p->haveclock) {
-		c = p->aclock + (mv_now() - p->ats);
-		return c;
-	}
+	if (p->ai >= 0)
+		return p->haveclock ? p->aclock + (mv_now() - p->ats) : p->wbase;
 	return p->wbase + (mv_now() - p->wstart);
 }
 
@@ -430,8 +428,20 @@ void mv_seek(mv_pl *p, double t)
 	if (p->dur > 0 && t > p->dur)
 		t = p->dur;
 	pthread_mutex_lock(&p->mu);
-	p->seekreq = 1;
-	p->seekto = t;
+	if (p->feed) {
+		mv_feedseek(p);
+		mv_drain(p);
+		p->skipto = t;
+		p->wbase = t;
+		p->wstart = mv_now();
+		p->haveclock = 0;
+		p->agen++;
+		p->eof = 0;
+		p->ended = 0;
+	} else {
+		p->seekreq = 1;
+		p->seekto = t;
+	}
 	p->pausedat = t;
 	if (p->ai >= 0)
 		p->aflush = 1;
@@ -485,6 +495,8 @@ int mv_frame(mv_pl *p)
 		}
 	}
 	if (p->eof && !p->vqn && !p->aq && !p->seekreq)
+		p->ended = 1;
+	if (p->feed && p->dur > 0 && c >= p->dur - 0.05 && !p->vqn)
 		p->ended = 1;
 	if (changed)
 		mv_wake(p);
@@ -664,6 +676,8 @@ void mv_close(mv_pl *p)
 	p->quit = 1;
 	mv_wake(p);
 	pthread_mutex_unlock(&p->mu);
+	if (p->feed)
+		mv_feedclose(p);
 	if (p->dstarted)
 		pthread_join(p->dth, 0);
 	if (p->astarted)

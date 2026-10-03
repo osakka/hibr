@@ -39,6 +39,8 @@ media close $p
 | `media draw ID ROW COL [-p PANE]` | draw the shown frame, into a pane when named |
 | `media next ID` | milliseconds until the next frame is due, -1 when nothing will change by itself -- for a caller that sleeps between frames |
 | `media info ID` | `pos`, `dur`, `shown` (the time of the frame shown), `paused`, `ended`, `width`, `height`, `volume`, `video`, `audio` (codecs), `output` (where the sound goes), `mode`, `error`; a map with `:=` |
+| `media feed [-p]` | a player with no source of its own: its picture and sound arrive on pipes |
+| `media pipe ID video\|audio` | a fed player's pipe for one stream, the end to write to as the result; each stream is a container of its own (fragmented MP4, WebM), from its init segment on -- what `web take` writes |
 | `media close ID`, `media close all`, `media list` | |
 
 ## How it plays
@@ -56,6 +58,16 @@ change shows at once and sharpens as new frames arrive.
 pace -- what the tests listen to). Unset, the platform's own device is
 used, and a machine with none plays silently and says so in `info`'s
 `error`.
+
+## Fed players
+
+A fed player's pipes are drained into memory by a thread each, so a
+writer is never held up by a decoder that has run as far ahead as it may;
+a demuxing thread per stream reads that memory through FFmpeg's own I/O
+callbacks. A seek drops everything queued and each stream starts again at
+the next init segment it is given -- anything before one is taken for a
+leftover from before the seek and skipped. The player says it has ended
+when its clock reaches the length the init segments declared.
 
 ## Which FFmpeg
 

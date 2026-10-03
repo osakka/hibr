@@ -126,8 +126,10 @@ fn browser_open(int id, arg = "") {
 	bw_newtab "$id" "$arg"
 }
 
+# The last Browser window stops watching Chromium's pipe, which nothing
+# else drains; Chromium itself stops only when no YouTube window uses it.
 fn browser_close(int id) {
-	local t ids o other=0
+	local t ids o other=0 tube=0
 	local -a il
 
 	bw_tabs "$id"
@@ -136,13 +138,19 @@ fn browser_close(int id) {
 	ids := dt_ids
 	read -ra il <<< "$ids"
 	for o in "${il[@]}"; do
-		[ "$o" != "$id" ] && [ "${DT[$o]["app"]}" = browser ] && other=1
+		[ "$o" = "$id" ] && continue
+		case ${DT[$o]["app"]} in
+		browser) other=1 ;;
+		youtube) tube=1 ;;
+		esac
 	done
-	if [ "$other" = 0 ] && [ -n "$BW_FD" ]; then
+	[ "$other" = 1 ] && return 0
+	if [ -n "$BW_FD" ]; then
 		command -v console > /dev/null && console unwatch "$BW_FD"
 		BW_FD=
-		web quit 2> /dev/null
 	fi
+	[ "$tube" = 0 ] && web quit 2> /dev/null
+	return 0
 }
 
 # A restart starts a new browser: every tab is opened again where it was.

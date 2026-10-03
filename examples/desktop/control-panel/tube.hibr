@@ -1,0 +1,61 @@
+#!/usr/bin/env hibr
+#
+# tube -- the Control Panel pane for the YouTube app: how the picture is
+# drawn, the quality YouTube's player is asked to fetch, and how many
+# frames a second the window draws and how finely, both of which decide
+# how much a terminal is sent. Named tube, not youtube, because the app
+# owns the youtube_ prefix.
+
+strict
+
+command -v cp_pane > /dev/null && cp_pane tube "YouTube" "▶" app
+
+TB_MODES=(half ascii mono)
+TB_QUALITY=(tiny small medium large)
+TB_FPS=(10 15 24 30)
+TB_DETAIL=(0 1 2 3)
+
+fn cp_set_ytmode(int? id = "", value = "") { YT_MODE=$value; cp_save; }
+fn cp_set_ytquality(int? id = "", value = "") { YT_QUALITY=$value; cp_save; }
+fn cp_set_ytfps(int? id = "", int? value = "") { YT_FPS=$value; cp_save; }
+fn cp_set_ytdetail(int? id = "", int? value = "") { YT_DETAIL=$value; cp_save; }
+
+fn tube_rows(int w) {
+	local n=0
+
+	dt_has youtube_draw || { cp_absent "$w" YouTube; ret 1; }
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Picture"
+	CP[$w][$n]["val"]="$YT_MODE"; CP[$w][$n]["key"]=mode
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Quality Fetched"
+	CP[$w][$n]["val"]="$YT_QUALITY"; CP[$w][$n]["key"]=quality
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Frames a Second"
+	CP[$w][$n]["val"]="$YT_FPS"; CP[$w][$n]["key"]=fps
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Colour Detail"
+	CP[$w][$n]["val"]="$YT_DETAIL"; CP[$w][$n]["key"]=detail
+	n=$((n + 1))
+	ret "$n"
+}
+
+fn tube_do(int? w = "", k = "", int? dir = "") {
+	local v
+
+	case $k in
+	mode) v := cp_next "$YT_MODE" "$dir" "${TB_MODES[@]}"; YT_MODE=$v ;;
+	quality) v := cp_next "$YT_QUALITY" "$dir" "${TB_QUALITY[@]}"; YT_QUALITY=$v ;;
+	fps) v := cp_next "$YT_FPS" "$dir" "${TB_FPS[@]}"; YT_FPS=$v ;;
+	detail) v := cp_next "$YT_DETAIL" "$dir" "${TB_DETAIL[@]}"; YT_DETAIL=$v ;;
+	esac
+	cp_save
+}
+
+fn tube_drop(int? w = "", int? r = "", int? c = "", k = "") {
+	case $k in
+	mode) dt_droplist "$w" "$r" "$c" cp_set_ytmode "${TB_MODES[@]}" ;;
+	quality) dt_droplist "$w" "$r" "$c" cp_set_ytquality "${TB_QUALITY[@]}" ;;
+	fps) dt_droplist "$w" "$r" "$c" cp_set_ytfps "${TB_FPS[@]}" ;;
+	detail) dt_droplist "$w" "$r" "$c" cp_set_ytdetail "${TB_DETAIL[@]}" ;;
+	esac
+}

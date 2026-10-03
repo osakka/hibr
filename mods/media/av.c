@@ -177,6 +177,7 @@ int mv_load(void)
 	mv.fr_free = mv_sym(u, "av_frame_free", &bad);
 	mv.fr_unref = mv_sym(u, "av_frame_unref", &bad);
 	mv.av_malloc = mv_sym(u, "av_malloc", &bad);
+	mv.av_free = mv_sym(u, "av_free", &bad);
 	mv.opt_set = mv_sym(u, "av_opt_set", &bad);
 	mv.dict_set = mv_sym(u, "av_dict_set", &bad);
 	mv.dict_free = mv_sym(u, "av_dict_free", &bad);

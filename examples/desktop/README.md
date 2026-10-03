@@ -420,6 +420,25 @@ password, and leaving the field empty when editing a server keeps the
 one it has. How long a server may take is **Timeout** in the same pane.
 See [mods/dav](../../mods/dav/README.md) for the module itself.
 
+## YouTube
+
+**YouTube**, in the Internet folder, searches YouTube and plays what it
+finds in a window: the picture as coloured half blocks (or ASCII), the
+sound through the machine's own device. Type a search and press enter;
+up and down choose, enter plays. While playing: space pauses, left and
+right are five seconds (with shift thirty), up and down the volume, `m`
+the picture, escape back to the list, and a click on the bar goes there.
+
+YouTube's own page does the fetching, in the web module's headless
+Chromium: its player is asked for its lowest quality -- plenty for a
+window of cells -- and muted, and every chunk it plays is copied into a
+media player here, which decodes it with FFmpeg's libraries. So it needs
+Chromium or Chrome and FFmpeg's libraries, and it follows YouTube's own
+player wherever YouTube takes it -- including its ads, which come through
+the same way. Control Panel > YouTube sets the picture, the quality asked
+for, and how many frames a second are drawn and how finely, which decide
+how much a terminal is sent.
+
 ## Application handlers
 
 `dt_handler ext [term] program args...` says what opens a file of that

@@ -101,5 +101,8 @@ int wb_draw(const dp_api *dp, wb_tab *t, int row, int col, int h, int w,
 	    int prow, int pcol, int ph, int pw);
 void wb_gridfree(wb_tab *t);
 int wb_b64(const char *in, size_t n, str *out);
+int wb_tap(wb_tab *t);
+int wb_tapseek(wb_tab *t);
+int wb_take(sh *s, wb_tab *t, int vfd, int afd);
 
 #endif

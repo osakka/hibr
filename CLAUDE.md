@@ -1717,6 +1717,27 @@ went in the shell.
   The file appearing on the server came a frame before the desktop had
   polled the job and drawn "Saved", so a screenshot taken on the effect
   showed the earlier note; wait for the text the user is meant to see.
+- **A player with sound holds its clock until the sound has started.**
+  After a seek or a pause the wall clock used to run on until the first
+  slice reached the device, and the sound's clock then took over behind it
+  -- under load the position jumped back by however late the sound was.
+  `mv_clocklk` returns the start time unchanged until `haveclock`; only a
+  player with no sound at all runs on the wall clock.
+- **YouTube's page data arrives after it says it has loaded.**
+  `ytInitialData` is set by a script a moment after `web wait` returns, so
+  a read on load gets nothing; and a search tab that navigates keeps the
+  last page's data until the new one replaces it. The app clears it before
+  `web go` and polls for it from `_draw` with `dt_want`, never blocking.
+- **Chromium is shared, and the pipe watch is not the same as the
+  browser.** The Browser watches the web module's pipe and drains it in
+  `_idle`; the last Browser window must unwatch it even while a YouTube
+  window lives on (nobody else drains it: a spin), but must not `web quit`
+  until neither app has a window left.
+- **A timing check waits for the thing, and widens under the
+  sanitizers.** `tests/media.py` and `tests/youtube.py` wait on the
+  condition with a deadline rather than a fixed sleep, and scale their
+  windows by `SLOW` (4 under `ASAN_OPTIONS`): the sanitizer build decodes
+  several times slower, and three suites at once slower still.
 - **A copied map keeps its JSON types.** `m_clone` and `v_copy`, which
   `:=` uses to take a map out of `$RET`, dropped every entry's `ty`, so
   `r := f` where `f` built JSON gave back numbers as strings -- found when

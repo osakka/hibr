@@ -1,0 +1,606 @@
+#!/usr/bin/env hibr
+#
+# youtube -- YouTube in a window: search, pick, watch, the picture drawn as
+# cells and the sound through the machine's own device.
+#
+# Nothing here is a YouTube client of its own. YouTube's own page runs in
+# the web module's headless Chromium -- its player fetching the video, at
+# the lowest quality (YT_QUALITY), muted -- and the web module's tap copies
+# every chunk the player hands the browser's media source. Those chunks go
+# down two pipes into a media player, which decodes them with FFmpeg's
+# libraries and plays them here: the page does the fetching, hibr does the
+# watching. A search reads the results page's own data the same way.
+#
+# The list: type to search, enter goes, up and down choose, enter plays.
+# The player: space pauses, left and right are five seconds, shift with
+# them thirty, up and down the volume, m the picture (half blocks, ASCII,
+# plain), escape back to the list. A click on the bar goes there.
+#
+# YouTube's ads are played as YouTube's player plays them, through the same
+# media source: they come down the same pipes.
+
+strict
+
+app youtube "YouTube, in a window"
+
+command -v dt_app > /dev/null && dt_app youtube "YouTube" 24 84 many "▶"
+
+declare -gA YT
+command -v dt_keepstate > /dev/null && dt_keepstate youtube YT
+declare -gA YR
+
+YT_BASE="${YT_BASE-https://www.youtube.com}"
+YT_MODE="${YT_MODE-half}"
+YT_QUALITY="${YT_QUALITY-tiny}"
+YT_FPS="${YT_FPS-24}"
+YT_DETAIL="${YT_DETAIL-2}"
+command -v dt_keep > /dev/null && dt_keep YT_MODE YT_QUALITY YT_FPS YT_DETAIL
+YT_MODES=(half ascii mono)
+
+# The results page's own data, as a list of videos -- empty until the page
+# has made it, which is a moment after it says it has loaded.
+YT_RJS='(function(){var d=window.ytInitialData;if(!d)return "";function t(x){return x?(x.simpleText||(x.runs||[]).map(function(r){return r.text}).join("")):""}var o=[],seen={};function add(v,len){if(!v||!v.videoId||seen[v.videoId])return;seen[v.videoId]=1;o.push({id:v.videoId,title:t(v.title),ch:t(v.ownerText||v.shortBylineText),len:len||t(v.lengthText),views:t(v.shortViewCountText||v.viewCountText),age:t(v.publishedTimeText)})}function w(n,k){if(!n||typeof n!=="object"||k>60)return;if(n.videoRenderer){add(n.videoRenderer);return}if(n.playlistVideoRenderer){add(n.playlistVideoRenderer);return}if(n.gridVideoRenderer){add(n.gridVideoRenderer);return}for(var x in n)w(n[x],k+1)}w(d,0);return JSON.stringify(o)})()'
+
+# Where YouTube's player is: its state, the time, the length, the title.
+YT_PJS='(function(){var p=document.getElementById("movie_player"),v=document.querySelector("video");if(!p||!p.getPlayerState)return "";var d=p.getVideoData?p.getVideoData():{};return JSON.stringify({st:p.getPlayerState(),t:v?v.currentTime:0,d:p.getDuration?p.getDuration():0,title:d.title||"",author:d.author||""})})()'
+
+# Start YouTube's player once it is there: the quality asked for, muted --
+# the sound is ours -- and playing.
+fn yt_startjs(q) {
+	ret "(function(){var p=document.getElementById(\"movie_player\");if(!p||!p.playVideo)return \"\";try{p.setPlaybackQualityRange(\"$q\",\"$q\")}catch(e){}if(p.mute)p.mute();p.playVideo();return \"ok\"})()"
+}
+
+# Whether the modules are here; the reason in the window when not.
+fn yt_need(int id) {
+	if ! need web 2> /dev/null; then
+		YT[$id]["err"]="The web module is not installed"
+		return 1
+	fi
+	if ! need media 2> /dev/null; then
+		YT[$id]["err"]="The media module is not installed"
+		return 1
+	fi
+	return 0
+}
+
+# A tab of the window's own: st for searching, pt for playing. The player's
+# has the tap, so every chunk its page plays can be taken.
+fn yt_tab(int id, which) {
+	local t=${YT[$id]["$which"]}
+
+	if [ -z "$t" ]; then
+		t := web open 2> /dev/null || {
+			YT[$id]["err"]="No Chromium or Chrome to reach YouTube with -- install one, or set HIBR_WEB_BROWSER"
+			return 1
+		}
+		[ "$which" = pt ] && web tap "$t" 2> /dev/null
+		YT[$id]["$which"]=$t
+	fi
+	ret "$t"
+}
+
+# Search: the results page in the search tab, read when it is ready.
+fn yt_search(int id, q) {
+	local t u
+
+	yt_need "$id" || return 0
+	q=${q#"${q%%[! ]*}"}
+	[ -n "$q" ] || return 0
+	t := yt_tab "$id" st || return 0
+	u=${q// /+}
+	web eval "$t" "window.ytInitialData=undefined" > /dev/null 2>&1
+	web go "$t" "$YT_BASE/results?search_query=$u" 2> /dev/null
+	YT[$id]["q"]=$q
+	YT[$id]["searching"]=$EPOCHSECONDS
+	YT[$id]["err"]=
+	YT[$id]["view"]=list
+	YT[$id]["qon"]=
+}
+
+# The results, once the page has them: into YR, a video to a row.
+fn yt_results(int id) {
+	local t=${YT[$id]["st"]} js i k
+	local -A r
+
+	if web loading "$t" 2> /dev/null; then
+		dt_want 300
+		return 0
+	fi
+	js := web eval "$t" "$YT_RJS" 2> /dev/null
+	if [ -z "$js" ]; then
+		if [ $((EPOCHSECONDS - YT[$id]["searching"])) -gt 20 ]; then
+			YT[$id]["searching"]=
+			YT[$id]["err"]="YouTube did not answer the search"
+		fi
+		dt_want 300
+		return 0
+	fi
+	json parse r <<< "$js" 2> /dev/null || r=()
+	i=0
+	while [ -n "${r[$i]["id"]}" ]; do
+		for k in id title ch len views age; do
+			YR[$id][$i]["$k"]=${r[$i]["$k"]}
+		done
+		i=$((i + 1))
+	done
+	YT[$id]["n"]=$i
+	YT[$id]["sel"]=0
+	YT[$id]["top"]=0
+	YT[$id]["searching"]=
+	[ "$i" = 0 ] && YT[$id]["err"]="Nothing found for ${YT[$id]["q"]}"
+	return 0
+}
+
+# Play a result: a fed media player with a pipe for the picture and one for
+# the sound, and YouTube's watch page in the player tab, tapped.
+fn yt_play(int id, int i) {
+	local vid=${YR[$id][$i]["id"]} p t v a
+
+	[ -n "$vid" ] || return 0
+	yt_need "$id" || return 0
+	yt_stop "$id"
+	t := yt_tab "$id" pt || return 0
+	p := media feed 2> /dev/null || { YT[$id]["err"]="The media module cannot play"; return 0; }
+	v := media pipe "$p" video
+	a := media pipe "$p" audio
+	media fps "$p" "$YT_FPS"
+	media detail "$p" "$YT_DETAIL"
+	media volume "$p" "${YT[$id]["vol"]:-100}" > /dev/null
+	YT[$id]["p"]=$p
+	YT[$id]["vfd"]=$v
+	YT[$id]["afd"]=$a
+	YT[$id]["cur"]=$i
+	YT[$id]["vid"]=$vid
+	YT[$id]["title"]=${YR[$id][$i]["title"]}
+	YT[$id]["author"]=${YR[$id][$i]["ch"]}
+	YT[$id]["state"]=loading
+	YT[$id]["since"]=$EPOCHSECONDS
+	YT[$id]["sized"]=
+	YT[$id]["view"]=play
+	YT[$id]["err"]=
+	YT[$id]["dur"]=0
+	web go "$t" "$YT_BASE/watch?v=$vid" 2> /dev/null
+}
+
+# Stop playing: the media player closed, the page left.
+fn yt_stop(int id) {
+	local p=${YT[$id]["p"]} t=${YT[$id]["pt"]}
+
+	[ -n "$p" ] && media close "$p" 2> /dev/null
+	[ -n "$t" ] && web go "$t" about:blank 2> /dev/null
+	YT[$id]["p"]=
+	YT[$id]["state"]=
+}
+
+# Ask YouTube's player where it is, into YTP.
+declare -gA YTP
+fn yt_page(int id) {
+	local js
+
+	YTP=()
+	js := web eval "${YT[$id]["pt"]}" "$YT_PJS" 2> /dev/null || return 1
+	[ -n "$js" ] || return 1
+	json parse YTP <<< "$js" 2> /dev/null || return 1
+	return 0
+}
+
+# One step of playing: start the page's player once it is there, carry
+# what it has fetched down the pipes, and keep up with a new media source
+# -- a reset, at the start and at an ad -- by starting again from where the
+# page is.
+fn yt_tick(int id) {
+	local t=${YT[$id]["pt"]} p=${YT[$id]["p"]} s js ms tm
+	local -a w
+
+	[ -n "$p" ] || return 0
+	if [ "${YT[$id]["state"]}" = loading ]; then
+		if web loading "$t" 2> /dev/null; then
+			dt_want 300
+		else
+			js := yt_startjs "$YT_QUALITY"
+			s := web eval "$t" "$js" 2> /dev/null
+			[ "$s" = ok ] && YT[$id]["state"]=playing
+		fi
+		if [ "${YT[$id]["state"]}" = loading ] &&
+		   [ $((EPOCHSECONDS - YT[$id]["since"])) -gt 25 ]; then
+			YT[$id]["err"]="YouTube's player did not start"
+			yt_stop "$id"
+			return 0
+		fi
+		dt_want 300
+	fi
+	s := web take "$t" "${YT[$id]["vfd"]}" "${YT[$id]["afd"]}" 2> /dev/null
+	read -ra w <<< "$s"
+	if [ "${w[5]}" = 1 ]; then
+		tm=0
+		yt_page "$id" && tm=${YTP["t"]}
+		media seek "$p" "$tm"
+	fi
+	if [ "${YT[$id]["dur"]%.*}" = 0 ] && yt_page "$id"; then
+		YT[$id]["dur"]=${YTP["d"]}
+		[ -n "${YTP["title"]}" ] && YT[$id]["title"]=${YTP["title"]}
+		[ -n "${YTP["author"]}" ] && YT[$id]["author"]=${YTP["author"]}
+	fi
+	ms := media next "$p" 2> /dev/null
+	[ -n "$ms" ] && [ "$ms" -ge 0 ] && dt_want "$ms"
+	dt_want 250
+}
+
+# Pause or play both: ours, and the page's, so it fetches only as we go.
+fn yt_toggle(int id) {
+	local p=${YT[$id]["p"]} t=${YT[$id]["pt"]} i
+
+	[ -n "$p" ] || return 0
+	i := media info "$p"
+	if [ "${i["paused"]}" = 1 ]; then
+		media play "$p"
+		web eval "$t" 'document.getElementById("movie_player").playVideo()' > /dev/null 2>&1
+	else
+		media pause "$p"
+		web eval "$t" 'document.getElementById("movie_player").pauseVideo()' > /dev/null 2>&1
+	fi
+}
+
+# Go to a time: ours dropped and started again, the tap given the start of
+# each stream again, the page's player sent there.
+fn yt_seek(int id, to) {
+	local p=${YT[$id]["p"]} t=${YT[$id]["pt"]} i d
+
+	[ -n "$p" ] || return 0
+	i := media info "$p"
+	case $to in
+	+* | -*) to=$(( ${i["pos"]%.*} + to )) ;;
+	esac
+	d=${YT[$id]["dur"]%.*}
+	[ "$to" -lt 0 ] && to=0
+	[ "$d" -gt 0 ] && [ "$to" -gt "$d" ] && to=$d
+	media seek "$p" "$to"
+	web tapseek "$t" > /dev/null 2>&1
+	web eval "$t" "document.getElementById(\"movie_player\").seekTo($to,true)" > /dev/null 2>&1
+}
+
+fn youtube_open(int id, arg = "") {
+	YT[$id]["view"]=list
+	YT[$id]["q"]=
+	YT[$id]["qbuf"]=
+	YT[$id]["qcur"]=0
+	YT[$id]["qon"]=1
+	YT[$id]["n"]=0
+	YT[$id]["sel"]=0
+	YT[$id]["top"]=0
+	YT[$id]["vol"]=100
+	YT[$id]["st"]=
+	YT[$id]["pt"]=
+	YT[$id]["p"]=
+	YT[$id]["err"]=
+	yt_need "$id" || return 0
+	[ -n "$arg" ] && YT[$id]["qbuf"]=$arg && YT[$id]["qcur"]=${#arg} && yt_search "$id" "$arg"
+	return 0
+}
+
+fn youtube_close(int id) {
+	local t
+
+	yt_stop "$id"
+	for t in "${YT[$id]["st"]}" "${YT[$id]["pt"]}"; do
+		[ -n "$t" ] && web close "$t" 2> /dev/null
+	done
+	unset "YT[$id]"
+	unset "YR[$id]"
+	yt_webquit "$id"
+}
+
+# Stop Chromium when no window that uses it is left -- the Browser's or
+# ours -- so one closing never takes the other's pages with it.
+fn yt_webquit(int id) {
+	local o ids
+	local -a il
+
+	ids := dt_ids
+	read -ra il <<< "$ids"
+	for o in "${il[@]}"; do
+		[ "$o" = "$id" ] && continue
+		case ${DT[$o]["app"]} in browser | youtube) return 0 ;; esac
+	done
+	web quit 2> /dev/null
+	return 0
+}
+
+# After a restart the search is run again; what was playing is not.
+fn youtube_stash(int id, dir) {
+	YT[$id]["st"]=
+	YT[$id]["pt"]=
+	YT[$id]["p"]=
+}
+
+fn youtube_resume(int id) {
+	YT[$id]["view"]=list
+	YT[$id]["st"]=
+	YT[$id]["pt"]=
+	YT[$id]["p"]=
+	YT[$id]["state"]=
+	[ -n "${YT[$id]["q"]}" ] && yt_search "$id" "${YT[$id]["q"]}"
+	return 0
+}
+
+# A window not drawn still carries what the page fetches, or the pipes and
+# the page would fall behind; it is drawn again when it is seen.
+fn youtube_idle(int id) {
+	[ "${YT[$id]["view"]}" = play ] && yt_tick "$id"
+	return 0
+}
+
+fn youtube_draw(int id, int h, int w, int row, int col) {
+	dt_wclear "$id"
+	[ -n "${YT[$id]["searching"]}" ] && yt_results "$id"
+	if [ "${YT[$id]["view"]}" = play ]; then
+		yt_drawplay "$id" "$h" "$w"
+	else
+		yt_drawlist "$id" "$h" "$w"
+	fi
+}
+
+# The list: the search field, then a result to a row -- title, channel,
+# length -- the chosen one lit.
+fn yt_drawlist(int id, int h, int w) {
+	local n=${YT[$id]["n"]} sel=${YT[$id]["sel"]} top=${YT[$id]["top"]}
+	local r=3 i lab tail vis=$((h - 3)) on=0
+
+	command -v dt_retitle > /dev/null && dt_retitle "$id" "YouTube"
+	console pen "$DT_INK" "$DT_FACE"
+	console put -p "w$id" 1 1 " Search:"
+	[ "${YT[$id]["qon"]}" = 1 ] && on=1
+	dt_textdraw "$id" 1 10 $((w - 10)) "${YT[$id]["qbuf"]}" "${YT[$id]["qcur"]}" "$on"
+	dt_wreg "$id" 1 10 $((w - 10)) search
+	if [ -n "${YT[$id]["searching"]}" ]; then
+		console pen "$DT_DIM" "$DT_FACE"
+		console put -p "w$id" 3 2 "Searching for ${YT[$id]["q"]}${GL[ellipsis]}"
+	elif [ -n "${YT[$id]["err"]}" ]; then
+		console pen "$DT_BAD" "$DT_FACE"
+		console put -p "w$id" 3 2 "${YT[$id]["err"]:0:$((w - 3))}"
+	elif [ "$n" = 0 ]; then
+		console pen "$DT_DIM" "$DT_FACE"
+		console put -p "w$id" 3 2 "Type what to look for, and enter."
+	fi
+	[ "$sel" -lt "$top" ] && top=$sel
+	[ "$sel" -ge $((top + vis)) ] && top=$((sel - vis + 1))
+	YT[$id]["top"]=$top
+	YT[$id]["vis"]=$vis
+	i=$top
+	while [ "$i" -lt "$n" ] && [ "$r" -lt "$h" ]; do
+		tail="  ${YR[$id][$i]["ch"]:0:18}  ${YR[$id][$i]["len"]}"
+		lab=" ${YR[$id][$i]["title"]}"
+		[ $((${#lab} + ${#tail})) -gt "$w" ] && lab="${lab:0:$((w - ${#tail} - 1))}${GL[ellipsis]}"
+		lab := str pad "$lab" $((w - ${#tail}))
+		if [ "$i" = "$sel" ] && [ "${YT[$id]["qon"]}" != 1 ]; then
+			console pen "$DT_FACE" "$DT_SELECT" bold
+		elif [ "$i" = "$sel" ]; then
+			console pen "$DT_INK" "$DT_WELL"
+		else
+			console pen "$DT_INK" "$DT_FACE"
+		fi
+		console put -p "w$id" "$r" 1 "$lab$tail"
+		dt_wreg "$id" "$r" 1 "$w" "row:$i"
+		r=$((r + 1))
+		i=$((i + 1))
+	done
+	dt_scrollbar "$id" 3 "$w" "$vis" "$n" "$vis" "$top"
+	console pen "$DT_DIM" "$DT_FACE"
+	lab := str pad " enter play ${GL[dot]} / search ${GL[dot]} esc to the list" "$w"
+	console put -p "w$id" "$h" 1 "${lab:0:$w}"
+}
+
+# Minutes and seconds, with hours in front of an hour or more.
+fn yt_mmss(t) {
+	local s=${t%.*} out
+
+	[ -n "$s" ] || s=0
+	if [ "$s" -ge 3600 ]; then
+		printf -v out '%d:%02d:%02d' $((s / 3600)) $((s / 60 % 60)) $((s % 60))
+	else
+		printf -v out '%d:%02d' $((s / 60)) $((s % 60))
+	fi
+	ret "$out"
+}
+
+# The player: the title, the picture, the bar, the keys.
+fn yt_drawplay(int id, int h, int w) {
+	local p=${YT[$id]["p"]} ph=$((h - 3)) i pos dur lab fill st a b
+
+	command -v dt_retitle > /dev/null && dt_retitle "$id" "YouTube [${YT[$id]["title"]:0:40}]"
+	console pen "$DT_INK" "$DT_FACE" bold
+	lab="${YT[$id]["title"]}"
+	[ -n "${YT[$id]["author"]}" ] && lab="$lab -- ${YT[$id]["author"]}"
+	lab := str pad " ${lab:0:$((w - 2))}" "$w"
+	console put -p "w$id" 1 1 "$lab"
+	if [ -n "${YT[$id]["err"]}" ] || [ -z "$p" ]; then
+		console pen "$DT_BAD" "$DT_FACE"
+		console put -p "w$id" 3 2 "${YT[$id]["err"]:-Stopped.}"
+		return 0
+	fi
+	yt_tick "$id"
+	p=${YT[$id]["p"]}
+	[ -n "$p" ] || return 0
+	if [ "${YT[$id]["sized"]}" != "$w $ph $YT_MODE" ]; then
+		media size "$p" "$w" "$ph" "$YT_MODE"
+		YT[$id]["sized"]="$w $ph $YT_MODE"
+	fi
+	media frame "$p"
+	if ! media draw "$p" 2 1 -p "w$id" 2> /dev/null; then
+		console pen "$DT_DIM" "$DT_FACE"
+		console put -p "w$id" 3 2 "Loading${GL[ellipsis]}"
+	fi
+	i := media info "$p"
+	pos=${i["pos"]}
+	dur=${YT[$id]["dur"]}
+	[ "${dur%.*}" -gt 0 ] 2> /dev/null || dur=${i["dur"]}
+	a := yt_mmss "$pos"
+	b := yt_mmss "$dur"
+	st="playing"
+	[ "${i["paused"]}" = 1 ] && st="paused"
+	[ "${i["ended"]}" = 1 ] && st="ended"
+	[ "${YT[$id]["state"]}" = loading ] && st="starting"
+	lab=" $a / $b  $st  vol ${i["volume"]}  ${YT_MODE}"
+	fill=0
+	[ "${dur%.*}" -gt 0 ] 2> /dev/null && fill=$(( ${pos%.*} * w / ${dur%.*} ))
+	[ "$fill" -gt "$w" ] && fill=$w
+	lab := str pad "$lab" "$w"
+	console pen "$DT_FACE" "$DT_ACTIVE"
+	[ "$fill" -gt 0 ] && console put -p "w$id" $((h - 1)) 1 "${lab:0:$fill}"
+	console pen "$DT_INK" "$DT_WELL"
+	console put -p "w$id" $((h - 1)) $((fill + 1)) "${lab:$fill}"
+	dt_wreg "$id" $((h - 1)) 1 "$w" bar
+	console pen "$DT_DIM" "$DT_FACE"
+	lab := str pad " space pause ${GL[dot]} ${GL[larr]}${GL[rarr]} seek ${GL[dot]} up/down volume ${GL[dot]} m picture ${GL[dot]} esc list" "$w"
+	console put -p "w$id" "$h" 1 "${lab:0:$w}"
+}
+
+fn youtube_key(int id, key) {
+	local r n=${YT[$id]["n"]} sel=${YT[$id]["sel"]} p=${YT[$id]["p"]} v k
+
+	if [ "${YT[$id]["view"]}" = play ]; then
+		case $key in
+		" ") yt_toggle "$id"; return 0 ;;
+		left) yt_seek "$id" -5; return 0 ;;
+		right) yt_seek "$id" +5; return 0 ;;
+		shift-left) yt_seek "$id" -30; return 0 ;;
+		shift-right) yt_seek "$id" +30; return 0 ;;
+		up | down)
+			[ -n "$p" ] || return 0
+			v := media volume "$p"
+			[ "$key" = up ] && v=$((v + 10)) || v=$((v - 10))
+			v := media volume "$p" "$v"
+			YT[$id]["vol"]=$v
+			return 0
+			;;
+		m) yt_mode; return 0 ;;
+		escape | backspace) yt_stop "$id"; YT[$id]["view"]=list; return 0 ;;
+		esac
+		return 1
+	fi
+	if [ "${YT[$id]["qon"]}" = 1 ]; then
+		case $key in
+		enter) yt_search "$id" "${YT[$id]["qbuf"]}"; return 0 ;;
+		escape | down | tab) [ "$n" -gt 0 ] && YT[$id]["qon"]=; return 0 ;;
+		esac
+		for k in "${!DT_KEYS[@]}"; do
+			[ "${DT_KEYS["$k"]}" = "$key" ] && return 1
+		done
+		r := dt_textkey "${YT[$id]["qbuf"]}" "${YT[$id]["qcur"]}" "$key" || return 1
+		YT[$id]["qbuf"]=${r% *}
+		YT[$id]["qcur"]=${r##* }
+		return 0
+	fi
+	case $key in
+	up) [ "$sel" -gt 0 ] && YT[$id]["sel"]=$((sel - 1)) || YT[$id]["qon"]=1 ;;
+	down) [ "$sel" -lt $((n - 1)) ] && YT[$id]["sel"]=$((sel + 1)) ;;
+	pageup) sel=$((sel - ${YT[$id]["vis"]:-10})); [ "$sel" -lt 0 ] && sel=0; YT[$id]["sel"]=$sel ;;
+	pagedown) sel=$((sel + ${YT[$id]["vis"]:-10})); [ "$sel" -ge "$n" ] && sel=$((n - 1)); YT[$id]["sel"]=$sel ;;
+	home) YT[$id]["sel"]=0 ;;
+	end) YT[$id]["sel"]=$((n > 0 ? n - 1 : 0)) ;;
+	enter) [ "$n" -gt 0 ] && yt_play "$id" "$sel" ;;
+	/ | tab) YT[$id]["qon"]=1 ;;
+	*) return 1 ;;
+	esac
+	return 0
+}
+
+# The next way of drawing the picture, for every window.
+yt_mode() {
+	case $YT_MODE in half) YT_MODE=ascii ;; ascii) YT_MODE=mono ;; *) YT_MODE=half ;; esac
+	command -v dt_save > /dev/null && dt_save
+}
+
+fn youtube_click(int id, int r, int c, btn = "") {
+	local tag d
+
+	tag := dt_hit "$id" "$r" "$c"
+	case $tag in
+	search) YT[$id]["qon"]=1 ;;
+	row:*)
+		if [ "${YT[$id]["sel"]}" = "${tag#row:}" ] && [ "${YT[$id]["qon"]}" != 1 ]; then
+			yt_play "$id" "${tag#row:}"
+		else
+			YT[$id]["sel"]=${tag#row:}
+			YT[$id]["qon"]=
+		fi
+		;;
+	bar)
+		d=${YT[$id]["dur"]%.*}
+		[ "$d" -gt 0 ] 2> /dev/null && yt_seek "$id" $(( (c - 1) * d / ${DT[$id]["w"]} ))
+		;;
+	*) [ "${YT[$id]["view"]}" = play ] && yt_toggle "$id" ;;
+	esac
+	return 0
+}
+
+fn youtube_wheel(int id, dir, int r = 0, int c = 0) {
+	local n=${YT[$id]["n"]} sel=${YT[$id]["sel"]}
+
+	if [ "${YT[$id]["view"]}" = play ]; then
+		[ "$dir" = up ] && yt_seek "$id" +5 || yt_seek "$id" -5
+		return 0
+	fi
+	[ "$dir" = up ] && sel=$((sel - 3)) || sel=$((sel + 3))
+	[ "$sel" -lt 0 ] && sel=0
+	[ "$sel" -ge "$n" ] && sel=$((n - 1))
+	[ "$sel" -lt 0 ] && sel=0
+	YT[$id]["sel"]=$sel
+	return 0
+}
+
+fn youtube_copy(int id) {
+	if [ "${YT[$id]["qon"]}" = 1 ]; then
+		ret "${YT[$id]["qbuf"]}"
+		return 0
+	fi
+	if [ "${YT[$id]["view"]}" = play ] && [ -n "${YT[$id]["vid"]}" ]; then
+		ret "$YT_BASE/watch?v=${YT[$id]["vid"]}"
+		return 0
+	fi
+	[ -n "${YR[$id][${YT[$id]["sel"]}]["id"]}" ] || return 1
+	ret "$YT_BASE/watch?v=${YR[$id][${YT[$id]["sel"]}]["id"]}"
+}
+
+fn youtube_paste(int id, text, op = "") {
+	local r
+
+	YT[$id]["qon"]=1
+	r := dt_textpaste "${YT[$id]["qbuf"]}" "${YT[$id]["qcur"]}" "$text"
+	YT[$id]["qbuf"]=${r% *}
+	YT[$id]["qcur"]=${r##* }
+}
+
+youtube_menus() {
+	local id=$DT_FOCUS v on
+
+	dt_menu "File"
+	dt_item "New Window" n dt_launch youtube
+	dt_item "Search${GL[ellipsis]}" s youtube_key "$id" /
+	dt_sep
+	dt_item "Close Window" w dt_close_focused
+	dt_editmenu
+	dt_menu "Play"
+	if [ -n "${YT[$id]["p"]}" ]; then
+		dt_item "Pause or Play" p yt_toggle "$id"
+		dt_item "Back 30 Seconds" b yt_seek "$id" -30
+		dt_item "On 30 Seconds" o yt_seek "$id" +30
+		dt_item "Stop" s youtube_key "$id" escape
+	else
+		dt_dim "Pause or Play"
+		dt_dim "Back 30 Seconds"
+		dt_dim "On 30 Seconds"
+		dt_dim "Stop"
+	fi
+	dt_menu "Picture"
+	for v in "${YT_MODES[@]}"; do
+		on=0
+		[ "$YT_MODE" = "$v" ] && on=1
+		dt_mark "${v^}" "${v:0:1}" "$on" yt_setmode "$v"
+	done
+}
+
+fn yt_setmode(v) {
+	YT_MODE=$v
+	command -v dt_save > /dev/null && dt_save
+}

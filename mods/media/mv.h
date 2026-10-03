@@ -79,6 +79,7 @@ struct mv_lib {
 	void (*fr_free)(void **);
 	void (*fr_unref)(void *);
 	void *(*av_malloc)(size_t);
+	void (*av_free)(void *);
 	int (*opt_set)(void *, const char *, const char *, int);
 	int (*dict_set)(void **, const char *, const char *, int);
 	void (*dict_free)(void **);
@@ -130,6 +131,20 @@ struct mv_af {
 	mv_af *next;
 };
 
+/* One fed input of a player: bytes arriving on a pipe, read by FFmpeg
+   through a callback, demuxed by a thread of its own. gen moves on at a
+   seek, which ends the demuxer reading the old bytes. */
+typedef struct mv_in mv_in;
+struct mv_in {
+	struct mv_pl *p;
+	int kind, rfd, wfd, closed, gen, dgen;
+	str q;
+	size_t qr;
+	pthread_t rth, dth;
+	int rstarted, dstarted;
+	void *fc, *avio;
+};
+
 /* A player: one source, its decoder and sound threads, and the frame
    shown. Everything below the mutex is shared with those threads. */
 typedef struct mv_pl mv_pl;
@@ -163,6 +178,8 @@ struct mv_pl {
 	int curnew;
 	double lastdraw;
 	int fpsmax;
+	int feed;
+	mv_in *in[2];
 };
 
 int mv_load(void);
@@ -178,6 +195,10 @@ int mv_aopen(mv_ao *a, int rate, int ch, char **why);
 
 mv_pl *mv_open(sh *s, const char *src, int paused);
 void mv_close(mv_pl *p);
+mv_pl *mv_feed(int paused);
+int mv_pipe(mv_pl *p, int kind);
+void mv_feedseek(mv_pl *p);
+void mv_feedclose(mv_pl *p);
 void mv_pause(mv_pl *p, int on);
 void mv_seek(mv_pl *p, double t);
 double mv_clock(mv_pl *p);

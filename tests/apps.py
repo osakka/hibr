@@ -291,10 +291,10 @@ check("panes register and sort by title within their group, not load order",
       ORDER == ["datetime", "displays", "keyboard", "mouse",
                 "appearance", "cliphist", "control_strip", "desktop",
                 "filetypes", "network", "notify", "shortcuts", "windows",
-                "abouthibr", "filesview", "notes", "taskmgr", "terminal"], out)
+                "abouthibr", "filesview", "notes", "taskmgr", "terminal", "tube"], out)
 check("Hardware first, then the desktop's own panes, then one per app",
       [GROUP[n] for n in ORDER] ==
-      ["hardware"] * 4 + ["system"] * 9 + ["app"] * 5, out)
+      ["hardware"] * 4 + ["system"] * 9 + ["app"] * 6, out)
 
 PW = "22 70 2 2"
 PANEL = ("panel", PW)
@@ -320,7 +320,7 @@ TITLE = {"appearance": "Appearance", "control_strip": "Control Strip",
          "shortcuts": "Shortcuts", "notify": "Notifications",
          "windows": "Windows", "abouthibr": "About hibr",
          "filesview": "Files", "taskmgr": "Task Manager",
-         "terminal": "Terminal"}
+         "terminal": "Terminal", "tube": "YouTube"}
 
 
 def prow(name):
