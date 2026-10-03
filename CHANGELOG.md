@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.99.17
+
+**JPEG pictures.** The image module decodes JPEG as well as PNG, through
+libturbojpeg, loaded at run time the way libpng already is -- so the Image
+Viewer opens `.jpg` and `.jpeg`, the Wallpaper picker offers them, and a
+JPEG can be the desktop's wallpaper in every mode. A file is decoded by
+what its first bytes say it is, not by its name. A photo's EXIF
+orientation is honoured, so a picture a phone stored on its side shows
+the right way up. `img` also writes its pictures in order with anything
+printed before them now, where in a pipe a line printed first could come
+out after. On macOS this needs Homebrew's `jpeg-turbo`, which the formula
+now depends on; on Debian and Ubuntu it is `libturbojpeg0`.
+
 ## 0.99.16
 
 **YouTube: playlists, channels, history and favourites.** A search lists

@@ -470,15 +470,23 @@ PANE_APPS = {"abouthibr": ("about",), "filesview": ("files",),
              "taskmgr": ("tasks",), "terminal": ("term",)}
 
 
+PANEHOME = tempfile.mkdtemp(prefix="hibr-pane-conf-")
+
+
 def panefull(pane, extra=()):
-    """A pane's rows as (kind, text, key, value), from its own _rows."""
+    """A pane's rows as (kind, text, key, value), from its own _rows --
+    with a config folder of its own, as every session the suite drives
+    has, so a server or a setting of whoever runs it cannot add a row here
+    that the session it is compared with does not have."""
     src = "".join(". %s/%s.hibr\n" % (appdir(a), a) for a in extra)
     out = subprocess.run(
         [sx.HIBR, "-c", CPLOAD + src +
          'n := %s_rows 1; i=0; while [ "$i" -lt "$n" ]; do '
          'echo "${CP[1][$i]["kind"]}|${CP[1][$i]["text"]}|'
          '${CP[1][$i]["key"]}|${CP[1][$i]["val"]}"; i=$((i + 1)); done'
-         % pane], capture_output=True, text=True).stdout
+         % pane], capture_output=True, text=True,
+        env=dict(os.environ, XDG_CONFIG_HOME=PANEHOME,
+                 HIBR_DAV_CONF=os.path.join(PANEHOME, "dav"))).stdout
     return [tuple(l.split("|", 3)) for l in out.splitlines() if l.count("|") >= 3]
 
 
@@ -723,7 +731,7 @@ check("it lists the home directory, through files.hibr's own scan",
       sc.find("wall.png") is not None and sc.find("notes.txt") is not None,
       sc)
 check("nothing is selected yet, so there is no preview",
-      sc.find("Select a .png") is not None, sc)
+      sc.find("Select an image") is not None, sc)
 check("it is a window of its own, with Apply and Close buttons",
       sc.find("┤ Wallpaper ├") is not None and
       re.search(r" Apply .* Close ", sc.text()) is not None, sc)
@@ -733,12 +741,21 @@ check("it is a window of its own, with Apply and Close buttons",
 sc = cprun(DOWN_WP + [b"\r", b"\x1b[B", b"\x1b[B"], env={"HOME": AWHOME},
            extra=("files",))
 check("selecting the non-image leaves the preview cleared",
-      sc.find("Select a .png") is not None, sc)
+      sc.find("Select an image") is not None, sc)
 
 sc = cprun(DOWN_WP + [b"\r", b"\x1b[B", b"\x1b[B", b"\x1b[B"],
            env={"HOME": AWHOME}, extra=("files",))
 check("selecting the .png shows a preview instead",
-      sc.find("Select a .png") is None, sc)
+      sc.find("Select an image") is None, sc)
+
+# A JPEG is offered and previewed the same way: the picker lists it, and
+# choosing it draws it. Named to sort last, so the rows above keep their
+# places.
+shutil.copy(os.path.abspath("tests/img-quad.jpg"), os.path.join(AWHOME, "zz.jpg"))
+sc = cprun(DOWN_WP + [b"\r", b"\x1b[B", b"\x1b[B", b"\x1b[B", b"\x1b[B"],
+           env={"HOME": AWHOME}, extra=("files",), pre=load("img"))
+check("a JPEG is offered too, and choosing it shows a preview",
+      sc.find("zz.jpg") is not None and sc.find("Select an image") is None, sc)
 
 # The preview is ASCII text, drawn through this pane's own buffer like
 # every other window's content (console put -p), not a raw draw straight
@@ -1119,26 +1136,26 @@ check("which can be the bell instead",
 # writes a dt_handler call for each one), and still exactly how it can be
 # set up outside the UI too.
 DOWN_FT = [b"\x1b[B"] * downs("filetypes")
-FTPRE = "dt_handler jpg feh\n"
+FTPRE = "dt_handler xyz feh\n"
 
 sc = cprun(DOWN_FT, pre=FTPRE)
 check("File Types lists a registered handler, and offers to add another",
-      sc.find("jpg") is not None and sc.find("feh") is not None and
+      sc.find("xyz") is not None and sc.find("feh") is not None and
       sc.find("Add File Type") is not None, sc)
 
 sc = cprun(DOWN_FT + [b"\x1b[C", b"\r"], pre=FTPRE)
 check("activating a registered extension opens it, pre-filled, for editing",
       sc.find("┤ File Type ├") is not None and
-      sc.find("Extension: jpg") is not None and
+      sc.find("Extension: xyz") is not None and
       sc.find("Command:   feh") is not None, sc)
 
 sc = cprun(DOWN_FT + [b"\x1b[C", b"\r", b"\x1b"], pre=FTPRE)
 check("escape cancels the dialog, leaving the entry untouched",
-      sc.find("┤ File Type ├") is None and sc.find("jpg") is not None, sc)
+      sc.find("┤ File Type ├") is None and sc.find("xyz") is not None, sc)
 
 sc = cprun(DOWN_FT + [b"\x1b[C", b"\r", b"\x04"], pre=FTPRE)
 check("ctrl-d deletes it",
-      sc.find("┤ File Type ├") is None and sc.find("jpg") is None, sc)
+      sc.find("┤ File Type ├") is None and sc.find("xyz") is None, sc)
 
 # Its buttons: Save, Delete -- only for an entry that exists -- and Cancel,
 # reached with tab after the two fields, or clicked.
@@ -1150,16 +1167,16 @@ sc = cprun(DOWN_FT + [b"\x1b[C", b"\r"] +
            ([press(dl[0], dl[1] + 1)] if dl else []), pre=FTPRE)
 check("clicking Delete deletes it",
       dl is not None and sc.find("┤ File Type ├") is None and
-      sc.find("jpg") is None, sc)
+      sc.find("xyz") is None, sc)
 sc = cprun(DOWN_FT + [b"\x1b[C", b"\r"] + [b"\t"] * 4 + [b"\r"],
            pre=FTPRE)
 check("tab past the fields, Save and Delete reaches Cancel, and enter on it "
       "closes the dialog with the entry kept",
-      sc.find("┤ File Type ├") is None and sc.find("jpg") is not None, sc)
+      sc.find("┤ File Type ├") is None and sc.find("xyz") is not None, sc)
 sc = cprun(DOWN_FT + [b"\x1b[C", b"\r"] + [b"\t"] * 3 + [b"\r"],
            pre=FTPRE)
 check("and enter on Delete, one before it, deletes",
-      sc.find("┤ File Type ├") is None and sc.find("jpg") is None, sc)
+      sc.find("┤ File Type ├") is None and sc.find("xyz") is None, sc)
 
 sc = cprun(DOWN_FT + [b"\x1b[C", b"\x1b[B", b"\r"], pre=FTPRE)
 # cprun's own trailing "qy" (its default end, always sent after this
@@ -1542,6 +1559,10 @@ sc = run_img(os.path.abspath("tests/img-2x2.png"), BUILT_MODS)
 check("a decodable picture is drawn, not an error message",
       sc.find("Cannot show") is None and
       sc.find("isn't installed") is None, sc)
+sc = run_img(os.path.abspath("tests/img-quad.jpg"), BUILT_MODS)
+cols = {sc.style(r, c)["bg"] for r in range(3, 12) for c in range(4, 40, 3)} - {None}
+check("and a JPEG the same, in its own colours",
+      sc.find("Cannot show") is None and len(cols) >= 4, (cols, sc.dump()))
 
 # HIBR_MODPATH alone cannot force "the module is missing": hibr_require
 # falls back to the compiled-in HIBR_MODDIR (the real install) after an
@@ -1557,7 +1578,7 @@ sc = run_img(os.path.abspath("tests/img-2x2.png"), BUILT_MODS,
 check("a missing img module says so, not \"cannot show\" the file",
       sc.find("Image support isn't installed") is not None, sc)
 
-expect(r"broken\.png is not a valid PNG$")
+expect(r"broken\.png: neither a PNG nor a JPEG$")
 BADPNG = tempfile.mkdtemp(prefix="hibr-bad-png-")
 open(os.path.join(BADPNG, "broken.png"), "wb").write(b"not a real png")
 sc = run_img(os.path.join(BADPNG, "broken.png"), BUILT_MODS)
@@ -3274,4 +3295,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(483)
+report(485)

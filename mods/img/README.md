@@ -1,7 +1,8 @@
 # mods/img
 
 Decode an image and draw it into a terminal as coloured cells -- a jp2a-alike,
-issue #39. `img file.png` prints ANSI to standard output; `img draw file row
+issue #39. PNG and JPEG, told apart by their first bytes rather than their
+names. `img file.png` prints ANSI to standard output; `img draw file row
 col h w [-p pane]` blits directly into the open display instead, for a
 window or the desktop's own wallpaper.
 
@@ -9,6 +10,7 @@ window or the desktop's own wallpaper.
 |---|---|
 | `im.h` | the `image`/`cell` types, decode and resample entry points |
 | `png.c` | libpng, dlopen'd on first use |
+| `jpeg.c` | libturbojpeg, dlopen'd on first use; EXIF orientation |
 | `img.c` | resampling, both renderers, the `img` builtin |
 
 ## Decoding is dlopen'd, not linked
@@ -32,14 +34,22 @@ GRAY_TO_RGB`) does all of palette-to-RGB, low-bit-depth expansion, 16-to-8-bit
 and grey-to-RGB in one call, against `png_get_rows`' output -- about a dozen
 symbols in total, roughly half what the row-by-row API would need.
 
-**JPEG is not decoded yet.** Classic libjpeg's `jpeg_decompress_struct` is
-caller-allocated with a compile-time layout, so dlopen-without-headers means
-hand-copying a version-fragile struct rather than calling opaque functions.
-libjpeg-turbo's own TurboJPEG API (`tjInitDecompress`, opaque `tjhandle`
-throughout) is the dlopen-friendly alternative, the same shape as libpng --
-but `libturbojpeg.so` was not installed on the machine this was written and
-tested on, so it is left unimplemented rather than shipped unverified. See
-issue #39.
+**JPEG goes through libturbojpeg**, not classic libjpeg: libjpeg's
+`jpeg_decompress_struct` is caller-allocated with a compile-time layout, so
+dlopen-without-headers would mean hand-copying a version-fragile struct.
+libjpeg-turbo's own TurboJPEG API is five plain functions on an opaque
+handle (`tjInitDecompress`, `tjDecompressHeader3`, `tjDecompress2`,
+`tjDestroy`, `tjGetErrorStr2`), present from TurboJPEG 1.4 through 3.x,
+decoding straight to 8-bit RGB. It is `libturbojpeg0` on Debian and Ubuntu
+and `jpeg-turbo` in Homebrew (looked for under `/opt/homebrew` and
+`/usr/local` by full path, since macOS has no system copy).
+
+A photo's EXIF orientation is honoured: a phone stores most pictures on
+their side with a tag saying which way is up, so `jpeg.c` reads tag 0x0112
+from the first APP1 "Exif" segment -- every offset checked against the
+bytes there are -- and turns or mirrors the decoded picture to match, all
+eight orientations. A JPEG over 64 million pixels, or a file over 256 MB,
+is refused rather than decoded.
 
 ## Two render paths, one decode and resample
 

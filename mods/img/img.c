@@ -136,20 +136,28 @@ static void im_render(str *out, const cell *g, int rows, int cols, int gray)
 	}
 }
 
-/* The language a path implies, or 0 -- only PNG decodes today; JPEG needs
-   either a vendored copy of libjpeg's own jpeg_decompress_struct (its ABI
-   is famously stable but still a few hundred lines to replicate without
-   the real headers) or libturbojpeg, which is not installed on the
-   machine this was written and tested on to verify against. Left for a
-   follow-up rather than shipped unverified. */
+/* Decode an image by what its first bytes say it is, not its name: PNG's
+   signature or JPEG's start-of-image marker, so a photo called .JPG, .jpeg
+   or nothing at all still opens. */
 static int im_load(const char *path, image *out, str *err)
 {
-	size_t n = strlen(path);
+	unsigned char m[8];
+	FILE *f = fopen(path, "rb");
+	size_t n;
 
-	if (n >= 4 && !strcasecmp(path + n - 4, ".png"))
+	if (!f) {
+		s_cat(err, "cannot open ");
+		s_cat(err, path);
+		return HIBR_FAIL;
+	}
+	n = fread(m, 1, sizeof m, f);
+	fclose(f);
+	if (n >= 8 && !memcmp(m, "\x89PNG\r\n\x1a\n", 8))
 		return im_pngload(path, out, err);
+	if (n >= 3 && m[0] == 0xFF && m[1] == 0xD8 && m[2] == 0xFF)
+		return im_jpegload(path, out, err);
 	s_cat(err, path);
-	s_cat(err, ": only .png is decoded so far (see issue #39)");
+	s_cat(err, ": neither a PNG nor a JPEG");
 	return HIBR_FAIL;
 }
 
@@ -207,8 +215,9 @@ static int im_cat(sh *s, int ac, char **av)
 	s_init(&out);
 	im_render(&out, grid, rows, cols, gray);
 	free(grid);
-	if (out.p)
-		write(1, out.p, out.n);
+	fflush(stdout);
+	if (out.p && write(1, out.p, out.n) < 0)
+		lg(HIBR_LDBG, "img: could not write the picture");
 	s_free(&out);
 	return HIBR_OK;
 }

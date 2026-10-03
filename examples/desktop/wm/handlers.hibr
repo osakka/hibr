@@ -167,7 +167,7 @@ fn dt_opener(name, title, types, how, app = "") {
 	DT_OPENERS[$name]["app"]=$app
 }
 
-dt_opener imgview "Image Viewer" "png ans" app imgview
+dt_opener imgview "Image Viewer" "png jpg jpeg ans" app imgview
 dt_opener dbase "dBASE" "db" app dbase
 dt_opener hvi "Text Editor (hvi)" "*" edit
 dt_opener run "Run in Terminal" "x" run

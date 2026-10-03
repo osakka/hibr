@@ -7,7 +7,7 @@ class Hibr < Formula
   license "MIT"
   head "https://github.com/osakka/hibr.git", branch: "main"
 
-  # TLS and PNG support are dlopen'd at first use, never linked at build
+  # TLS, PNG and JPEG support are dlopen'd at first use, never linked at build
   # time -- on Linux that reaches the system's own libssl/libpng, so no
   # dependency is needed there. macOS is different: its own unversioned
   # system libssl/libpng are not third-party-loadable at all past a
@@ -15,6 +15,7 @@ class Hibr < Formula
   # developer forums), so hibr looks for Homebrew's versioned builds by
   # full path there instead, and needs them actually installed to find.
   on_macos do
+    depends_on "jpeg-turbo"
     depends_on "libpng"
     depends_on "openssl@3"
   end

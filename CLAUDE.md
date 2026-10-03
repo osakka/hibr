@@ -125,7 +125,7 @@ linked, and no OpenSSL headers are needed to build.
 | `mods/pty/` | pseudo terminals: run a program on one and drive it — see `mods/pty/README.md` |
 | `mods/term/` | a terminal emulator: a program's screen as cells, drawn into a window — see `mods/term/README.md` |
 | `mods/hold/` | sessions that outlive their terminal: detach, log off, attach again — see `mods/hold/README.md` |
-| `mods/img/` | decode an image and draw it as terminal cells, jp2a-alike, libpng dlopen'd on first use — see `mods/img/README.md` |
+| `mods/img/` | decode an image and draw it as terminal cells, jp2a-alike: PNG through libpng and JPEG through libturbojpeg, both dlopen'd on first use, chosen by the file's first bytes, EXIF orientation honoured — see `mods/img/README.md` |
 | `mods/db/` | a small column store: typed columns in one mmap'd file, appended rows changed with `set`/`update` and deleted by a per-group mark (`compact` renumbers), filters and aggregates, zone maps per 1024-row group -- see `mods/db/README.md` |
 | `mods/web/` | a browser: headless Chromium over `--remote-debugging-pipe` (CDP, no WebSocket), each page as cells -- its text placed where laid out, over a half-block screenshot taken with the text made transparent; the Browser app in `examples/desktop/apps/Internet/` is built on it -- see `mods/web/README.md` |
 | `mods/dav/` | a WebDAV client: own HTTP/1.1 (kept connections, chunked, redirects), Basic and Digest (MD5), TLS through the shell's `tls_relay` forked by the module so it can reap it, RFC 4918 multistatus; servers in `~/.config/hibr/dav` (0600, refused otherwise); `tests/davserve.py` is the suite's own server -- see `mods/dav/README.md` |
@@ -1746,6 +1746,13 @@ went in the shell.
   condition with a deadline rather than a fixed sleep, and scale their
   windows by `SLOW` (4 under `ASAN_OPTIONS`): the sanitizer build decodes
   several times slower, and three suites at once slower still.
+- **A suite's helper that runs hibr outside `Term` reads the owner's own
+  config.** `Term` gives every session its own `XDG_CONFIG_HOME`, but
+  `tests/apps.py`'s `panefull` ran `<pane>_rows` in a plain subprocess --
+  so the day the owner set up a WebDAV server, the Network Servers pane
+  had a row more there than in the isolated session it was compared with,
+  and a dropdown check clicked the wrong row. Anything that runs hibr for
+  a test gives it a config folder of its own.
 - **A copied map keeps its JSON types.** `m_clone` and `v_copy`, which
   `:=` uses to take a map out of `$RET`, dropped every entry's `ty`, so
   `r := f` where `f` built JSON gave back numbers as strings -- found when

@@ -1853,6 +1853,12 @@ sc, raw = run("", env={"DT_WALLIMG": IMGFIX}, pre=IMGMOD)
 check("a real image can be the desktop's own wallpaper",
       b"38;2;255;0;0" in raw and b"48;2;0;0;255" in raw, raw)
 
+sc, raw = run("", env={"DT_WALLIMG": tree("tests/img-quad.jpg")}, pre=IMGMOD)
+check("and so can a JPEG",
+      sc.style(4, 10)["bg"] and sc.style(4, 10)["bg"].startswith("#f") and
+      sc.style(20, 60)["bg"] and sc.style(20, 60)["bg"].startswith("#f"),
+      (sc.style(4, 10), sc.style(20, 60), sc.dump()))
+
 expect(r"^cannot open /does/not/exist\.png$")
 sc, raw = run("", env={"DT_WALLIMG": "/does/not/exist.png"}, pre=IMGMOD)
 check("an unusable wallpaper image falls back to the glyph instead",
@@ -2919,4 +2925,4 @@ check("q on the waiting screen stops waiting, and leaves no trace",
 t1.close()
 unstandby()
 
-report(402)
+report(403)

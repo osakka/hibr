@@ -77,12 +77,12 @@ fn wp_goto(int id, dir) {
 	wp_refresh "$id"
 }
 
-# .png only -- mods/img/README.md is direct about JPEG not being decoded
-# yet, and showing a picker entry that fails the moment it is reached is
-# worse than not offering it.
+# What the img module decodes: PNG and JPEG, by name here since a picker
+# lists names -- img itself goes by a file's first bytes. Offering a file
+# that fails the moment it is reached is worse than not offering it.
 fn wp_isimage(path) {
 	case $path in
-	*.[pP][nN][gG]) return 0 ;;
+	*.[pP][nN][gG] | *.[jJ][pP][gG] | *.[jJ][pP][eE][gG]) return 0 ;;
 	esac
 	return 1
 }
@@ -267,7 +267,7 @@ fn wallpick_draw(int id, int h, int w, int row, int col) {
 			-p "w$id" 2> /dev/null
 	else
 		console pen "$DT_IDLE" "$DT_FACE"
-		t="Select a .png"
+		t="Select an image"
 		[ ${#t} -gt "$prevw" ] && t="${t:0:$prevw}"
 		console put -p "w$id" 1 "$prevx" "$t"
 	fi

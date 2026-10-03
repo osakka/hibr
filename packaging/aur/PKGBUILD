@@ -13,7 +13,8 @@ url="https://github.com/osakka/hibr"
 license=('MIT')
 depends=('glibc')
 optdepends=('openssl: TLS -- /dev/tls and https'
-            'libpng: pictures in the img module and desktop wallpapers')
+            'libpng: PNG pictures in the img module and desktop wallpapers'
+            'libjpeg-turbo: JPEG pictures in the img module and desktop wallpapers')
 install=hibr.install
 source=("$pkgname-$pkgver.tar.gz::https://github.com/osakka/hibr/archive/refs/tags/v$pkgver.tar.gz")
 sha256sums=('29adbb5bacc214d0dc1f78cc0b5fb507bed2b687f7d38e695ba020fdfb508115')
