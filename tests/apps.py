@@ -1686,6 +1686,24 @@ check("and one that ends cleanly closes the window instead of asking",
       sc.find("┤ Term ├") is None and sc.find("exited 0") is None and
       "✎" in sc.row(0), sc)
 
+# Control Panel > Terminal > Close When a Program Ends: always closes a
+# failed program's window too; never keeps even a successful one open.
+sc = run(*TERM, pre="TW_CMD=(/bin/sh -c 'exit 4')\nDT_TERMEND=always", wait=1.6)
+check("set to always, a program that failed closes its window too",
+      sc.find("┤ Term ├") is None and sc.find("exited") is None, sc)
+sc = run(*TERM, pre="TW_CMD=(/bin/sh -c 'exit 0')\nDT_TERMEND=never", wait=1.6,
+         end=None)
+check("set to never, even one that succeeded stays to say so",
+      sc.find("exited 0") is not None, sc)
+
+# A shell's window closes when the shell ends, whatever its last command
+# returned: ctrl-d after a command that failed used to leave "exited 127"
+# on a window closed on purpose, since a shell exits with its last status.
+sc = run(*TERM, feed=[1.2] + [c.encode() for c in "nosuchcommand"] + [b"\r", 0.6, b"\x04", 1.5],
+         pre="TW_CMD=(/bin/sh)", end=None)
+check("ctrl-d closes a shell's window even after a command that failed",
+      sc.find("┤ Term ├") is None and sc.find("exited") is None, sc)
+
 # Scrollback, and the mouse for a program that asks for it.
 LONG = "TW_CMD=(/bin/sh -c 'i=1; while [ $i -le 40 ]; do echo \"row $i\"; i=$((i+1)); done; exec cat')"
 sc = run(*TERM, feed=[wheel(8, 10)], pre=LONG, wait=1.2, end=None)
@@ -2903,6 +2921,11 @@ sc = run("files", "16 50 2 2", [b"\x1b[B", press(5, 6, 2), 0.3, b"h", 2.0,
                                 b"\x04", 1.5], pre=OWPRE, extra=OWX, end=None)
 check("and ctrl-d closes its window, as any terminal's, not left showing 0",
       sc.find("┤ Terminal") is None and sc.find("exited 0") is None, sc)
+sc = run("files", "16 50 2 2", [b"\x1b[B", press(5, 6, 2), 0.3, b"h", 2.0]
+         + [c.encode() for c in "nosuchcommand"] + [b"\r", 0.8, b"\x04", 1.5],
+         pre=OWPRE, extra=OWX, end=None)
+check("even after a command that failed",
+      sc.find("┤ Terminal") is None and sc.find("exited") is None, sc)
 shutil.rmtree(OWD, True)
 sc = cprun(reach("filetypes", ".ans"), extra=("imgview",))
 check("File Types lists each type with its default, and how many others",
@@ -3295,4 +3318,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(485)
+report(490)

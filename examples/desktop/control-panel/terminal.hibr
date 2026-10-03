@@ -2,6 +2,7 @@
 #
 # terminal -- the Control Panel pane for how a terminal window behaves: its
 # scrollbar, whether its title follows what the program inside reports,
+# whether it closes when the program in it ends,
 # whose colours its text and background are, and its cursor.
 
 strict
@@ -15,6 +16,8 @@ fn cp_set_cursor(int? id = "", value = "") { DT_CURSOR=$value; cp_save; }
 # examples/desktop/apps/term.hibr.
 CP_TERMCOLOURS=(theme terminal)
 fn cp_set_termcolours(int? id = "", value = "") { DT_TERMCOLOURS=$value; cp_save; }
+CP_TERMENDS=(success always never)
+fn cp_set_termend(int? id = "", value = "") { DT_TERMEND=$value; cp_save; }
 CP_TERMROWS=(24 30 36 40 50)
 CP_TERMCOLS=(80 100 120 132)
 fn cp_set_termrows(int? id = "", value = "") { DT_TERMROWS=$value; cp_save; }
@@ -36,6 +39,9 @@ fn terminal_rows(int w) {
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_TERMCLIP" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=DT_TERMCLIP; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Close When a Program Ends"
+	CP[$w][$n]["val"]="$DT_TERMEND"; CP[$w][$n]["key"]=termend
+	n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Rows"
 	CP[$w][$n]["val"]="$DT_TERMROWS"; CP[$w][$n]["key"]=termrows
 	n=$((n + 1))
@@ -65,6 +71,8 @@ fn terminal_do(int w, k, int dir) {
 		;;
 	cursor) v := cp_next "$DT_CURSOR" "$dir" "${CP_CURSORS[@]}"
 		DT_CURSOR=$v ;;
+	termend) v := cp_next "$DT_TERMEND" "$dir" "${CP_TERMENDS[@]}"
+		DT_TERMEND=$v ;;
 	termrows) v := cp_next "$DT_TERMROWS" "$dir" "${CP_TERMROWS[@]}"
 		DT_TERMROWS=$v ;;
 	termcols) v := cp_next "$DT_TERMCOLS" "$dir" "${CP_TERMCOLS[@]}"
@@ -78,6 +86,7 @@ fn terminal_drop(int? w = "", int? r = "", int? c = "", k = "") {
 	termcolours) dt_droplist "$w" "$r" "$c" cp_set_termcolours \
 		"${CP_TERMCOLOURS[@]}" ;;
 	cursor) dt_droplist "$w" "$r" "$c" cp_set_cursor "${CP_CURSORS[@]}" ;;
+	termend) dt_droplist "$w" "$r" "$c" cp_set_termend "${CP_TERMENDS[@]}" ;;
 	termrows) dt_droplist "$w" "$r" "$c" cp_set_termrows "${CP_TERMROWS[@]}" ;;
 	termcols) dt_droplist "$w" "$r" "$c" cp_set_termcols "${CP_TERMCOLS[@]}" ;;
 	esac

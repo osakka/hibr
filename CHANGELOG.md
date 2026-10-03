@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.99.18
+
+**A terminal's shell closes its window however it ends.** ctrl-d (or
+`exit`) in a terminal closed the window only when the shell's status was
+0 -- and a shell's status is its last command's, so after a command that
+failed, ctrl-d left "exited 127 -- close this window" on a window closed
+on purpose. A shell's window -- a plain terminal running a shell, or
+Terminal Here -- now closes whatever it ended with. A program run in a
+terminal is unchanged: it closes on success and stays to show why it
+failed. A plain terminal counts as a shell when `TW_CMD` is one on its
+own (hibr, bash, zsh, sh, dash, ksh, fish, tcsh, csh).
+
+Control Panel > Terminal > **Close When a Program Ends** chooses what a
+program's window does: `success` (the default, as before), `always`, or
+`never`, which keeps even a successful program's window open to say so.
+
 ## 0.99.17
 
 **JPEG pictures.** The image module decodes JPEG as well as PNG, through

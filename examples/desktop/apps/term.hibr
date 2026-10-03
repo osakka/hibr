@@ -98,6 +98,14 @@ command -v dt_keep > /dev/null && dt_keep DT_TERMCLIP
 DT_TERMCOLOURS="${DT_TERMCOLOURS-theme}"
 command -v dt_keep > /dev/null && dt_keep DT_TERMCOLOURS
 
+# What a window does when the program in it ends: success closes it when
+# the program succeeded (and keeps one double-clicked open, to show what
+# it printed), always closes it however it ended, never keeps it open to
+# show the status. A shell's window closes whatever this says: ctrl-d and
+# exit mean "done".
+DT_TERMEND="${DT_TERMEND-success}"
+command -v dt_keep > /dev/null && dt_keep DT_TERMEND
+
 # The colours to hand the emulator for the setting above, or "off".
 tw_colours() {
 	if [ "$DT_TERMCOLOURS" = theme ] &&
@@ -194,9 +202,16 @@ fn term_draw(int id, int h, int w, int row, int col) {
 			command -v console > /dev/null && console unwatch "${TW[$id]["fd"]}"
 			TW[$id]["fd"]=
 		fi
+		# A shell -- a plain terminal, or Terminal Here -- closes its window
+		# however it ended: ctrl-d and exit mean "done", and the status a
+		# shell leaves is only its last command's, so one mistyped command
+		# would otherwise leave "exited 127" on a window closed on purpose.
+		# A program does what DT_TERMEND says: by default it closes on
+		# success and stays to show why it failed.
 		st := term status "$t"
-		if [ "$st" = 0 ] && { [ "${TW[$id]["selfrun"]}" != 1 ] ||
-		   [ "${TW[$id]["shell"]}" = 1 ]; }; then
+		if term_isshell "$id" || [ "$DT_TERMEND" = always ] ||
+		   { [ "$DT_TERMEND" != never ] && [ "$st" = 0 ] &&
+		     [ "${TW[$id]["selfrun"]}" != 1 ]; }; then
 			dt_wantclose "$id"
 			return 0
 		fi
@@ -402,6 +417,24 @@ fn term_wheel(int id, dir, int r, int c) {
 	else
 		term scroll "$t" -3
 	fi
+}
+
+# Whether a window runs an interactive shell rather than a program: one
+# opened as a shell (Terminal Here), or a plain terminal -- no file, no
+# command given -- whose TW_CMD is a shell on its own; TW_CMD set to
+# anything else is a program like any other.
+fn term_isshell(int id) {
+	local c
+
+	[ "${TW[$id]["shell"]}" = 1 ] && return 0
+	[ -z "${TW[$id]["file"]}" ] && [ -z "${TW[$id]["argvn"]}" ] &&
+		[ "${TW[$id]["selfrun"]}" != 1 ] || return 1
+	[ "${#TW_CMD[@]}" = 1 ] || return 1
+	c=${TW_CMD[0]##*/}
+	case ${c#-} in
+	hibr | bash | zsh | sh | dash | ksh | mksh | fish | tcsh | csh) return 0 ;;
+	esac
+	return 1
 }
 
 # A window opened on a file edits it, and is called what it shows.  Opened
