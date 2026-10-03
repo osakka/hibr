@@ -1783,6 +1783,20 @@ went in the shell.
   "simplify" it to an `img draw` of the person's own path: that hands a
   file anyone can write to libpng with root's rights.
 
+- **A headless browser that says so is treated as a robot.** The web
+  module's Chromium announced itself as `HeadlessChrome` with
+  `navigator.webdriver` true, and YouTube's player stopped about a minute
+  into its most-guarded videos with "Something went wrong" -- five runs in
+  five, at the same second; with an ordinary user agent and no automation
+  flag, none. The player here kept playing what was already buffered and
+  then froze, which looked like our decoder. Measure the page's own state
+  (`getPlayerState`, its `.ytp-error`) beside ours before blaming the
+  player; and the app now reloads and resumes when the page gives up.
+- **A pen names a theme colour or role.** `$DT_SELECT` existed nowhere and
+  drew the YouTube list's selection dark on black; `tests/540-examples.t`
+  now fails on any `console pen` naming a `DT_` colour settings.hibr does
+  not give a default. Text on the accent is `$DT_SELINK` on `$DT_ACTIVE`.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then

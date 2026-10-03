@@ -88,6 +88,13 @@ browser to run, else the first of `chromium`, `chromium-browser`,
 `google-chrome`, `google-chrome-stable`, `chrome` on `PATH`, else Chrome or
 Chromium in `/Applications` on macOS; `HIBR_WEB_ARGS` adds flags to it.
 
+It is started without Chromium's automation flag, and every tab says it is
+the browser's own Chrome rather than "HeadlessChrome" (`HIBR_WEB_UA` gives
+another, or an empty one leaves the browser's). A page that sees a headless,
+automated browser is free to treat it as a robot, and YouTube's did: its
+player stopped about a minute into a video with "Something went wrong",
+every time, on the videos it guards most.
+
 ## What it does not do
 
 - **No JavaScript of its own on the page beyond what it asks.** Pages run

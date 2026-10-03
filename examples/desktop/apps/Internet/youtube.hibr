@@ -64,8 +64,9 @@ YT_ENDED="${YT_ENDED-20}"
 # made it, a moment after it says it has loaded.
 YT_RJS='(function(){var d=window.ytInitialData;if(!d)return "";function t(x){return x?(x.content||x.simpleText||(x.runs||[]).map(function(r){return r.text}).join("")):""}var o=[],seen={};function push(e){if(!e.id||seen[e.kind+e.id])return;seen[e.kind+e.id]=1;o.push(e)}function vid(v){push({kind:"video",id:v.videoId,title:t(v.title),ch:t(v.ownerText||v.shortBylineText),len:t(v.lengthText),views:t(v.shortViewCountText||v.viewCountText),age:t(v.publishedTimeText)})}function badge(x,k){var r="";(function f(n,j){if(r||!n||typeof n!=="object"||j>20)return;if(n.thumbnailBadgeViewModel&&n.thumbnailBadgeViewModel.text){r=n.thumbnailBadgeViewModel.text;return}for(var y in n)f(n[y],j+1)})(x,0);return r}function lock(l){var m=(l.metadata||{}).lockupMetadataViewModel||{},parts=[];(((m.metadata||{}).contentMetadataViewModel||{}).metadataRows||[]).forEach(function(r){(r.metadataParts||[]).forEach(function(p){if(p.text)parts.push(t(p.text))})});var k=l.contentType==="LOCKUP_CONTENT_TYPE_PLAYLIST"?"playlist":l.contentType==="LOCKUP_CONTENT_TYPE_VIDEO"?"video":"";if(!k)return;push({kind:k,id:l.contentId,title:t(m.title),ch:parts[0]||"",len:badge(l.contentImage),views:k==="video"?(parts.filter(function(p){return /^[0-9.,]+[KMB]?( views)?$/.test(p)})[0]||""):"",age:k==="video"?(parts.filter(function(p){return /ago$/.test(p)})[0]||""):""})}function chan(c){var e=c.navigationEndpoint&&c.navigationEndpoint.browseEndpoint||{};push({kind:"channel",id:e.canonicalBaseUrl||("/channel/"+c.channelId),title:t(c.title),ch:"",len:"",views:t(c.videoCountText||c.subscriberCountText),age:""})}function w(n,k){if(!n||typeof n!=="object"||k>80)return;if(n.videoRenderer){vid(n.videoRenderer);return}if(n.playlistVideoRenderer){vid(n.playlistVideoRenderer);return}if(n.gridVideoRenderer){vid(n.gridVideoRenderer);return}if(n.lockupViewModel){lock(n.lockupViewModel);return}if(n.channelRenderer){chan(n.channelRenderer);return}for(var x in n)w(n[x],k+1)}w(d.contents||d,0);var md=d.metadata||{},h=(md.playlistMetadataRenderer||md.channelMetadataRenderer||{}).title||"";return JSON.stringify({head:h,list:o})})()'
 
-# Where YouTube's player is: its state, the time, the length, the title.
-YT_PJS='(function(){var p=document.getElementById("movie_player"),v=document.querySelector("video");if(!p||!p.getPlayerState)return "";var d=p.getVideoData?p.getVideoData():{};return JSON.stringify({st:p.getPlayerState(),t:v?v.currentTime:0,d:p.getDuration?p.getDuration():0,title:d.title||"",author:d.author||""})})()'
+# Where YouTube's player is: its state, the time, the length, the title,
+# and whether it is showing its own error.
+YT_PJS='(function(){var p=document.getElementById("movie_player"),v=document.querySelector("video");if(!p||!p.getPlayerState)return "";var d=p.getVideoData?p.getVideoData():{};return JSON.stringify({st:p.getPlayerState(),t:v?v.currentTime:0,d:p.getDuration?p.getDuration():0,title:d.title||"",author:d.author||"",e:document.querySelector(".ytp-error")?1:0})})()'
 
 # Start YouTube's player once it is there: the quality asked for, muted --
 # the sound is ours -- and playing.
@@ -429,6 +430,9 @@ fn yt_play(int id, int i) {
 	YT[$id]["view"]=play
 	YT[$id]["err"]=
 	YT[$id]["dur"]=0
+	YT[$id]["tries"]=0
+	YT[$id]["bad"]=0
+	YT[$id]["chk"]=$EPOCHSECONDS
 	YT[$id]["resume"]=
 	if yt_histget "$vid" && [ "${YTH[5]:-0}" -gt "$YT_RESUME" ]; then
 		YT[$id]["resume"]=${YTH[5]}
@@ -491,17 +495,17 @@ fn yt_tick(int id) {
 
 	[ -n "$p" ] || return 0
 	if [ "${YT[$id]["state"]}" = loading ]; then
-		if web loading "$t" 2> /dev/null; then
-			dt_want 300
-		else
-			js := yt_startjs "$YT_QUALITY"
-			s := web eval "$t" "$js" 2> /dev/null
-			[ "$s" = ok ] && YT[$id]["state"]=playing
-		fi
+		js := yt_startjs "$YT_QUALITY"
+		s := web eval "$t" "$js" 2> /dev/null
+		[ "$s" = ok ] && YT[$id]["state"]=playing
 		if [ "${YT[$id]["state"]}" = loading ] &&
 		   [ $((EPOCHSECONDS - YT[$id]["since"])) -gt 25 ]; then
-			YT[$id]["err"]="YouTube's player did not start"
-			yt_stop "$id"
+			if [ "${YT[$id]["tries"]:-0}" -ge 3 ]; then
+				YT[$id]["err"]="YouTube's player did not start"
+				yt_stop "$id"
+			else
+				yt_recover "$id" 0
+			fi
 			return 0
 		fi
 		dt_want 300
@@ -528,6 +532,12 @@ fn yt_tick(int id) {
 		YT[$id]["resume"]=
 		dt_notep low "Taken up at $m, where it was left"
 	fi
+	if [ "${YT[$id]["state"]}" = playing ] &&
+	   [ $((EPOCHSECONDS - ${YT[$id]["chk"]:-0})) -ge 3 ]; then
+		YT[$id]["chk"]=$EPOCHSECONDS
+		yt_watch "$id"
+		[ "${YT[$id]["state"]}" = playing ] || return 0
+	fi
 	if [ "${YT[$id]["state"]}" = playing ]; then
 		i := media info "$p" 2> /dev/null
 		m=${YT[$id]["dur"]%.*}
@@ -545,6 +555,55 @@ fn yt_tick(int id) {
 	ms := media next "$p" 2> /dev/null
 	[ -n "$ms" ] && [ "$ms" -ge 0 ] && dt_want "$ms"
 	dt_want 250
+}
+
+# Every few seconds while playing: whether YouTube's own player is still
+# going. It can stop -- its "Something went wrong", or back to unstarted --
+# and then nothing more is fetched, so ours would play out what it has and
+# freeze. Unstarted twice running, or its error once, and the video is
+# loaded again and taken up where it was.
+fn yt_watch(int id) {
+	local i
+
+	i := media info "${YT[$id]["p"]}" 2> /dev/null
+	[ "${i["paused"]}" = 1 ] && return 0
+	yt_page "$id" || return 0
+	if [ "${YTP["e"]}" = 1 ]; then
+		yt_recover "$id" "${i["pos"]%.*}"
+	elif [ "${YTP["st"]}" = -1 ] && [ "${i["pos"]%.*}" -gt 3 ]; then
+		YT[$id]["bad"]=$(( ${YT[$id]["bad"]:-0} + 1 ))
+		[ "${YT[$id]["bad"]}" -ge 2 ] && yt_recover "$id" "${i["pos"]%.*}"
+	else
+		YT[$id]["bad"]=0
+	fi
+	return 0
+}
+
+# Load the video again and take it up at a time, after YouTube's player
+# stopped or never started; after three tries it says so instead.
+fn yt_recover(int id, int pos) {
+	local m n=${YT[$id]["tries"]:-0} why="stopped"
+
+	YT[$id]["bad"]=0
+	if [ "$n" -ge 3 ]; then
+		YT[$id]["err"]="YouTube's player keeps stopping on this video"
+		yt_stop "$id"
+		return 0
+	fi
+	YT[$id]["tries"]=$((n + 1))
+	m := yt_mmss "$pos"
+	[ "${YT[$id]["state"]}" = loading ] && why="did not start"
+	printf 'youtube: the page %s %s at %s; loading it again\n' "$why" \
+		"${YT[$id]["vid"]}" "$m" >&2
+	if [ "$pos" -gt 0 ]; then
+		dt_notep low "YouTube stopped -- picking up again at $m"
+		YT[$id]["resume"]=$pos
+	else
+		dt_notep low "YouTube did not answer -- trying again"
+	fi
+	YT[$id]["state"]=loading
+	YT[$id]["since"]=$EPOCHSECONDS
+	web go "${YT[$id]["pt"]}" "$YT_BASE/watch?v=${YT[$id]["vid"]}" 2> /dev/null
 }
 
 # Pause or play both: ours, and the page's, so it fetches only as we go.
@@ -724,7 +783,7 @@ fn yt_drawlist(int id, int h, int w) {
 		[ $((${#lab} + ${#tail})) -gt "$w" ] && lab="${lab:0:$((w - ${#tail} - 1))}${GL[ellipsis]}"
 		lab := str pad "$lab" $((w - ${#tail}))
 		if [ "$i" = "$sel" ] && [ "${YT[$id]["qon"]}" != 1 ]; then
-			console pen "$DT_FACE" "$DT_SELECT" bold
+			console pen "$DT_SELINK" "$DT_ACTIVE" bold
 		elif [ "$i" = "$sel" ]; then
 			console pen "$DT_INK" "$DT_WELL"
 		else
@@ -797,7 +856,7 @@ fn yt_drawplay(int id, int h, int w) {
 	[ "${dur%.*}" -gt 0 ] 2> /dev/null && fill=$(( ${pos%.*} * w / ${dur%.*} ))
 	[ "$fill" -gt "$w" ] && fill=$w
 	lab := str pad "$lab" "$w"
-	console pen "$DT_FACE" "$DT_ACTIVE"
+	console pen "$DT_SELINK" "$DT_ACTIVE"
 	[ "$fill" -gt 0 ] && console put -p "w$id" $((h - 1)) 1 "${lab:0:$fill}"
 	console pen "$DT_INK" "$DT_WELL"
 	console put -p "w$id" $((h - 1)) $((fill + 1)) "${lab:$fill}"

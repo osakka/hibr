@@ -123,6 +123,15 @@ wb_tab *wb_tabopen(const char *url)
 	v_add(&wb.tabs, t);
 	r = wb_call("Page.enable", "{}", t->session);
 	jv_free(r);
+	if (wb.ua) {
+		s_init(&p);
+		s_cat(&p, "{\"userAgent\":");
+		jv_quote(&p, wb.ua);
+		s_cat(&p, "}");
+		r = wb_call("Emulation.setUserAgentOverride", p.p, t->session);
+		s_free(&p);
+		jv_free(r);
+	}
 	wb_size(t, 24, 80);
 	if (url && *url)
 		wb_go(t, url);

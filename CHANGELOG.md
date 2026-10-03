@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.99.23
+
+**YouTube no longer freezes a minute in.** On many videos YouTube's own
+player stopped about a minute in with "Something went wrong", and ours
+played out what it already had and froze on the last picture. The cause
+was the browser announcing itself: the web module's Chromium said
+"HeadlessChrome" and set the automation flag, and YouTube treats such a
+browser as a robot. It is now started without the automation flag and its
+tabs give the browser's ordinary Chrome user agent (`HIBR_WEB_UA` to
+choose another). Measured on the video that always froze: five runs in
+five before, none of five after.
+
+**And it recovers when YouTube's player stops anyway.** Every few seconds
+the app checks YouTube's own player; if it has shown its error or fallen
+back to unstarted, the video is loaded again and taken up where it was,
+with a note saying so. A player that does not start within 25 seconds is
+tried again too, where before it gave up at once; after three tries the
+app says what went wrong. And it no longer waits for YouTube's page to
+finish loading before starting its player -- that could take twenty
+seconds, during which the video played under "starting" and then jumped
+back to the beginning.
+
+**The list's highlight is readable.** The chosen row in YouTube's list was
+drawn in a colour no theme defines -- dark text on black. It is the
+theme's selection now, like every other list, and so is the text on the
+progress bar; a test fails if any pen names a colour no theme has.
+
 ## 0.99.22
 
 **A login screen.** `login/login.hibr` logs people in on a text terminal,

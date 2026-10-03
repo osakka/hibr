@@ -64,6 +64,9 @@ PROF = os.path.join(D, "profile")
 DATA = os.path.join(D, "data")
 
 
+SLOW = 4 if os.environ.get("ASAN_OPTIONS") else 1
+
+
 def yrun(phases, arg="pattern", rows=28, cols=90, extra="", autonext=False):
     """A desktop with the YouTube app open on a search; then each phase:
     keys to send (a callable gets the screen and gives them) and what to
@@ -81,12 +84,14 @@ def yrun(phases, arg="pattern", rows=28, cols=90, extra="", autonext=False):
                   "YT_DATA": DATA, "YT_RESUME": "3", "YT_ENDED": "1",
                   "YT_AUTONEXT": "1" if autonext else "0"})
     shots = []
-    for feed, until in phases:
+    for phase in phases:
+        feed, until = phase[0], phase[1]
+        secs = phase[2] if len(phase) > 2 else 15
         if callable(feed):
             feed = feed(t.screen())
         if feed:
             t.keys(list(feed), settle=0.4)
-        for _ in range(50):
+        for _ in range(int(secs * SLOW / 0.3)):
             sc = t.screen()
             if until is None or (until(sc) if callable(until) else
                                  sc.find(until) is not None):
@@ -151,6 +156,29 @@ try:
     s = yrun([([], "A test pattern"), ([b"\x1b[B", b"\x1b[B", b"\r"], playing)])
     check("down and enter play another result",
           s[1].find("Third result -- Pattern Channel") is not None, s[1])
+
+    def selstyle(sc, text):
+        hit = sc.find(text)
+        return sc.style(hit[0], hit[1]) if hit else {}
+
+    s = yrun([([], "Another clip"), ([b"\x1b[B"], None)])
+    st = selstyle(s[1], "Another clip")
+    check("the chosen result is lit in the theme's own selection colours, "
+          "text on the accent -- never dark on dark",
+          st.get("bg") == "#63b3ed" and st.get("fg") == "#1a202c", (st, s[1]))
+
+    # YouTube's own player can give up part way -- "Something went wrong",
+    # back to unstarted -- and then nothing more arrives. The app notices
+    # and loads the video again, taking it up where it was, rather than
+    # freezing on the last picture it had.
+    import json, urllib.request
+    urllib.request.urlopen(BASE + "/control?fail=vid2:4").read()
+    s = yrun([([], "Another clip"), ([b"\x1b[B", b"\r"], playing),
+              ([], lambda sc: at(sc) >= 9, 40)])
+    loads = json.loads(urllib.request.urlopen(BASE + "/loads").read())
+    check("when YouTube's own player stops part way, the video is loaded "
+          "again and plays on past where it stopped",
+          at(s[-1]) >= 9 and loads.get("vid2", 0) >= 2, (loads, s[-1]))
 
     s = yrun([([], "A test pattern"), ([b"/"] + [b"\x15"] + [c.encode() for c in "zebra"] +
                                         [b"\r"], "A test pattern (zebra)")])
@@ -227,4 +255,4 @@ finally:
     srv.wait()
     shutil.rmtree(D, True)
 
-report(22)
+report(24)

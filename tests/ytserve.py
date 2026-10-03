@@ -7,12 +7,18 @@ and then two-second fragments of VP9 and of Opus, and after a seek only
 the fragments from the one holding the time asked for -- so the web module's
 tap, the pipes, the media player and the app are all exercised without
 the network. Prints "port N" once it is listening.
+
+GET /control?fail=VID:SECONDS makes the next load of that video fail the
+way YouTube's player does: it stops fetching at that second and its player
+falls back to unstarted under its own error. The load after plays normally.
 """
 import json, os, sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
 ROOT = sys.argv[1]
+FAILS = {}
+LOADS = {}
 VIDEOS = [("vid1", "A test pattern", "Pattern Channel", "0:12"),
           ("vid2", "Another clip", "Second Channel", "0:12"),
           ("vid3", "Third result", "Pattern Channel", "0:12")]
@@ -20,12 +26,13 @@ VIDEOS = [("vid1", "A test pattern", "Pattern Channel", "0:12"),
 WATCH = """<!doctype html><html><head><title>%(title)s - YouTube</title></head>
 <body><div id="movie_player"></div><video id="v" muted></video><script>
 var V = document.getElementById("v"), P = document.getElementById("movie_player");
-var ms = new MediaSource(), sbs = {}, segs = {}, segdur = 2;
+var ms = new MediaSource(), sbs = {}, segs = {}, segdur = 2, failAt = %(fail)s;
 V.src = URL.createObjectURL(ms);
 function queue(k, from) {
   var sb = sbs[k], list = segs[k], i = from;
   function next() {
     if (i >= list.length || sb.updating) return;
+    if (failAt && i > Math.floor(failAt / segdur)) return;
     var b = list[i++]; sb.appendBuffer(b);
   }
   sb.onupdateend = next; next();
@@ -48,7 +55,14 @@ P.getDuration = function () { return 12; };
 P.getVideoData = function () { return {title: "%(title)s", author: "%(author)s"}; };
 P.setPlaybackQualityRange = function (q) { quality = q; window.__quality = q; };
 P.mute = function () { V.muted = true; };
-P.playVideo = function () { state = 1; V.play().catch(function () {}); };
+P.playVideo = function () {
+  state = 1; V.play().catch(function () {});
+  if (failAt && !window.__failing) window.__failing = setTimeout(function () {
+    state = -1; V.pause();
+    var e = document.createElement("div"); e.className = "ytp-error";
+    e.textContent = "Something went wrong."; document.body.appendChild(e);
+  }, failAt * 1000);
+};
 P.pauseVideo = function () { state = 2; V.pause(); window.__paused = 1; };
 P.seekTo = function (t) {
   window.__seeked = t; V.currentTime = t;
@@ -122,10 +136,18 @@ class H(BaseHTTPRequestHandler):
             data = {"contents": {"y": items},
                     "metadata": {"channelMetadataRenderer": {"title": "Pattern Channel"}}}
             return self.send(200, self.page("Pattern Channel", data))
+        if u.path == "/control":
+            vid, _, at = q.get("fail", [":"])[0].partition(":")
+            FAILS[vid] = int(at or 0)
+            return self.send(200, "ok", "text/plain")
+        if u.path == "/loads":
+            return self.send(200, json.dumps(LOADS), "application/json")
         if u.path == "/watch":
             vid = q.get("v", [""])[0]
+            LOADS[vid] = LOADS.get(vid, 0) + 1
             t = dict((i, (t, c)) for i, t, c, l in VIDEOS).get(vid, ("Unknown", "Nobody"))
-            return self.send(200, WATCH % {"title": t[0], "author": t[1]})
+            return self.send(200, WATCH % {"title": t[0], "author": t[1],
+                                           "fail": FAILS.pop(vid, 0)})
         if u.path == "/media/list":
             fs = sorted(os.listdir(ROOT))
             def seq(p):

@@ -126,6 +126,35 @@ int wb_rmone(const char *p, const struct stat *st, int flag, struct FTW *f)
 	return 0;
 }
 
+/* The user agent every tab is given: HIBR_WEB_UA, else the browser's own
+   with "HeadlessChrome" said as "Chrome". YouTube's player gives up about
+   a minute into a video -- "Something went wrong" -- in a browser that
+   says it is headless and automated, which is why the browser is also
+   started without the automation flag. */
+void wb_useragent(void)
+{
+	const char *e = getenv("HIBR_WEB_UA"), *u, *h;
+	jv *r;
+	str s;
+
+	free(wb.ua);
+	wb.ua = 0;
+	if (e) {
+		wb.ua = *e ? xs(e) : 0;
+		return;
+	}
+	r = wb_call("Browser.getVersion", "{}", 0);
+	u = r ? jv_str(jv_path(r, "result.userAgent")) : 0;
+	if (u && (h = strstr(u, "HeadlessChrome"))) {
+		s_init(&s);
+		s_add(&s, u, (size_t)(h - u));
+		s_cat(&s, h + 8);
+		wb.ua = s.p;
+	}
+	jv_free(r);
+	lg(HIBR_LDBG, "web: tabs say they are %s", wb.ua ? wb.ua : "what the browser says");
+}
+
 /* Start the browser on a profile; whether it came up and answered. */
 int wb_spawn(const char *bin, const char *prof)
 {
@@ -153,6 +182,7 @@ int wb_spawn(const char *bin, const char *prof)
 	v_add(&av, "--hide-scrollbars");
 	v_add(&av, "--mute-audio");
 	v_add(&av, "--disable-background-networking");
+	v_add(&av, "--disable-blink-features=AutomationControlled");
 	v_add(&av, ud.p);
 	if (extra && *extra) {
 		xa = xs(extra);
@@ -204,6 +234,7 @@ int wb_spawn(const char *bin, const char *prof)
 		return HIBR_FAIL;
 	}
 	jv_free(r);
+	wb_useragent();
 	lg(HIBR_LDBG, "web: %s is up, pid %d, profile %s", bin, (int)pid, prof);
 	return HIBR_OK;
 fail:

@@ -449,7 +449,11 @@ window of cells -- and muted, and every chunk it plays is copied into a
 media player here, which decodes it with FFmpeg's libraries. So it needs
 Chromium or Chrome and FFmpeg's libraries, and it follows YouTube's own
 player wherever YouTube takes it -- including its ads, which come through
-the same way. Control Panel > YouTube sets the picture, the quality asked
+the same way. YouTube's player can still give up part way -- its own
+"Something went wrong" -- or not start at all; the app notices within a few
+seconds, loads the video again and takes it up where it was, and says so,
+and only after three tries in a row does it stop and tell you. Control
+Panel > YouTube sets the picture, the quality asked
 for, and how many frames a second are drawn and how finely, which decide
 how much a terminal is sent; whether the next video plays by itself; and
 Clear History.

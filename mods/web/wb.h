@@ -64,6 +64,7 @@ struct wb_br {
 	vec events;
 	char *profile;
 	int tmpprofile;
+	char *ua;
 };
 
 extern wb_br wb;
@@ -79,6 +80,7 @@ void jv_write(str *o, jv *v);
 
 int wb_start(void);
 void wb_stop(void);
+void wb_useragent(void);
 int wb_alive(void);
 jv *wb_call(const char *method, const char *params, const char *session);
 int wb_send(const char *method, const char *params, const char *session);

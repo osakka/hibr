@@ -212,3 +212,18 @@ echo "every declared program answers --help"
   sed "s|$tmp|DIR|"
 
 rm -rf "$tmp"
+
+# A pen names a theme's colour or one of its roles, never a variable no
+# theme sets: the YouTube app's selected row once asked for $DT_SELECT,
+# which nothing defines, and drew dark text on an empty -- black --
+# background. Every $DT_ name a console pen uses must be one settings.hibr
+# gives a default.
+roles=$(grep -oE '^DT_[A-Z_]+="\$\{DT_[A-Z_]+-#' examples/desktop/wm/settings.hibr |
+	sed 's/=.*//' | sort -u)
+grep -rhoE 'console pen( -p [^ ]+)? "\$DT_[A-Z_]+"( "\$DT_[A-Z_]+")?' \
+	--include=*.hibr examples/desktop | grep -oE 'DT_[A-Z_]+' | sort -u |
+	while read -r v; do
+		printf '%s\n' "$roles" | grep -qx "$v" ||
+			echo "a pen uses $v, which no theme defines"
+	done
+echo "every pen names a theme colour"
