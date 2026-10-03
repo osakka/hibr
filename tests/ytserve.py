@@ -58,7 +58,24 @@ P.seekTo = function (t) {
 </script></body></html>"""
 
 
+def lock(vid, title, ch, length):
+    """A lockupViewModel, the way YouTube draws a video on a channel or a
+    playlist page today."""
+    return {"contentId": vid, "contentType": "LOCKUP_CONTENT_TYPE_VIDEO",
+            "contentImage": {"thumbnailViewModel": {"overlays": [{"thumbnailBottomOverlayViewModel": {
+                "badges": [{"thumbnailBadgeViewModel": {"text": length}}]}}]}},
+            "metadata": {"lockupMetadataViewModel": {"title": {"content": title},
+                "metadata": {"contentMetadataViewModel": {"metadataRows": [{"metadataParts": [
+                    {"text": {"content": ch}}, {"text": {"content": "1K views"}},
+                    {"text": {"content": "2 days ago"}}]}]}}}}}
+
+
 class H(BaseHTTPRequestHandler):
+    def page(self, title, data):
+        return ("<html><head><title>%s - YouTube</title></head><body><script>"
+                "setTimeout(function(){window.ytInitialData=%s}, 300)</script>"
+                "</body></html>" % (title, json.dumps(data)))
+
     def log_message(self, *a):
         pass
 
@@ -81,6 +98,12 @@ class H(BaseHTTPRequestHandler):
                 "ownerText": {"runs": [{"text": c}]}, "lengthText": {"simpleText": l},
                 "shortViewCountText": {"simpleText": "1K views"},
                 "publishedTimeText": {"simpleText": "1 day ago"}}} for i, t, c, l in VIDEOS]
+            items.append({"lockupViewModel": dict(lock("PL1", "A playlist of patterns", "Pattern Channel",
+                                                        "3 videos"), contentType="LOCKUP_CONTENT_TYPE_PLAYLIST")})
+            items.append({"channelRenderer": {"channelId": "UC1", "title": {"simpleText": "Pattern Channel"},
+                          "videoCountText": {"runs": [{"text": "3 videos"}]},
+                          "navigationEndpoint": {"browseEndpoint": {"browseId": "UC1",
+                                                                    "canonicalBaseUrl": "/@patterns"}}}})
             data = {"contents": {"twoColumnSearchResultsRenderer": {"primaryContents": {
                 "sectionListRenderer": {"contents": [{"itemSectionRenderer": {
                     "contents": items}}]}}}}}
@@ -88,6 +111,17 @@ class H(BaseHTTPRequestHandler):
                     "setTimeout(function(){window.ytInitialData=%s}, 300)</script>"
                     "</body></html>" % (word, json.dumps(data)))
             return self.send(200, page)
+        if u.path == "/playlist":
+            items = [{"lockupViewModel": lock(i, "Listed %s" % t, c, l)} for i, t, c, l in VIDEOS]
+            data = {"contents": {"x": items},
+                    "metadata": {"playlistMetadataRenderer": {"title": "Test playlist"}}}
+            return self.send(200, self.page("Test playlist", data))
+        if u.path == "/@patterns/videos":
+            items = [{"richItemRenderer": {"content": {"lockupViewModel":
+                     lock(i, "Upload %s" % t, "Pattern Channel", l)}}} for i, t, c, l in VIDEOS]
+            data = {"contents": {"y": items},
+                    "metadata": {"channelMetadataRenderer": {"title": "Pattern Channel"}}}
+            return self.send(200, self.page("Pattern Channel", data))
         if u.path == "/watch":
             vid = q.get("v", [""])[0]
             t = dict((i, (t, c)) for i, t, c, l in VIDEOS).get(vid, ("Unknown", "Nobody"))

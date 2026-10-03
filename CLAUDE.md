@@ -1733,6 +1733,14 @@ went in the shell.
   `_idle`; the last Browser window must unwatch it even while a YouTube
   window lives on (nobody else drains it: a spin), but must not `web quit`
   until neither app has a window left.
+- **A restart must come before the bytes it restarts for, never after.**
+  The YouTube app took the tap's bytes and then, seeing a reset in the
+  same take, restarted its player -- which drops whatever the pipe readers
+  have already pulled in, sometimes including the new stream's init
+  segment, and the player then waited for ever on an init YouTube never
+  sends twice. `web take` stops at a reset and hands it over alone, so
+  the restart happens first. It showed in about one run in four under
+  load, as "Loading..." at 0:00, and never alone.
 - **A timing check waits for the thing, and widens under the
   sanitizers.** `tests/media.py` and `tests/youtube.py` wait on the
   condition with a deadline rather than a fixed sleep, and scale their

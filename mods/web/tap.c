@@ -12,7 +12,10 @@
    chunk appended to one into a queue the shell takes from. A buffer's
    first chunk is kept as its init segment, for after a seek; a new media
    source (a new video, an ad break) queues a reset, and only the newest
-   source's chunks are kept. */
+   source's chunks are kept. A take stops at a reset: what came before it
+   one time, the reset alone the next, what follows after -- so whoever
+   takes can start its player afresh before any of the new stream arrives,
+   rather than throw some of it away by starting afresh after. */
 static const char wb_tapjs[] =
 	"(function(){if(window.__hibrTap)return;"
 	"var T=window.__hibrTap={q:[],gen:0,init:{}};"
@@ -36,11 +39,12 @@ static const char wb_tapjs[] =
 	"if(T.init.a)T.q.push(['a',T.init.a]);return 'ok'};"
 	"window.__hibrTake=function(){var o=[],i,e,b,s,j;"
 	"for(i=0;i<T.q.length;i++){e=T.q[i];"
+	"if(e[0]==='r'){if(!o.length){o.push(e);i++}break}"
 	"if(typeof e[1]==='string'){o.push(e);continue}"
 	"b=e[1];s='';for(j=0;j<b.length;j+=32768)"
 	"s+=String.fromCharCode.apply(null,b.subarray(j,j+32768));"
 	"o.push([e[0],btoa(s)])}"
-	"T.q=[];return JSON.stringify(o)}})()";
+	"T.q=T.q.slice(i);return JSON.stringify(o)}})()";
 
 /* Install the tap in a tab: on every page it loads from now on, before
    that page's own scripts, and in the page there now. */
@@ -98,9 +102,10 @@ int wb_wall(int fd, const char *p, size_t n)
 	return HIBR_OK;
 }
 
-/* Take what the tap has queued: video chunks to vfd, audio to afd, and
-   say what happened -- bytes of each, a reset, the types -- as words:
-   "v N a N reset 0|1 vtype T atype T". */
+/* Take what the tap has queued, up to a reset: video chunks to vfd, audio
+   to afd, and say what happened -- bytes of each, a reset, the types -- as
+   words: "v N a N reset 0|1 vtype T atype T". A reset comes alone, with no
+   bytes; the stream after it comes on the next take. */
 int wb_take(sh *s, wb_tab *t, int vfd, int afd)
 {
 	str o, b, sum, vt, at;

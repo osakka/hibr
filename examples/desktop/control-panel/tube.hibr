@@ -3,7 +3,8 @@
 # tube -- the Control Panel pane for the YouTube app: how the picture is
 # drawn, the quality YouTube's player is asked to fetch, and how many
 # frames a second the window draws and how finely, both of which decide
-# how much a terminal is sent. Named tube, not youtube, because the app
+# how much a terminal is sent; whether the next video plays by itself, and
+# forgetting what was watched. Named tube, not youtube, because the app
 # owns the youtube_ prefix.
 
 strict
@@ -36,6 +37,13 @@ fn tube_rows(int w) {
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Colour Detail"
 	CP[$w][$n]["val"]="$YT_DETAIL"; CP[$w][$n]["key"]=detail
 	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Play Next Automatically"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$YT_AUTONEXT" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=YT_AUTONEXT; n=$((n + 1))
+	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Clear History"
+	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=histclear
+	n=$((n + 1))
 	ret "$n"
 }
 
@@ -47,6 +55,8 @@ fn tube_do(int? w = "", k = "", int? dir = "") {
 	quality) v := cp_next "$YT_QUALITY" "$dir" "${TB_QUALITY[@]}"; YT_QUALITY=$v ;;
 	fps) v := cp_next "$YT_FPS" "$dir" "${TB_FPS[@]}"; YT_FPS=$v ;;
 	detail) v := cp_next "$YT_DETAIL" "$dir" "${TB_DETAIL[@]}"; YT_DETAIL=$v ;;
+	YT_AUTONEXT) cp_toggle "$k" ;;
+	histclear) yt_histclear ;;
 	esac
 	cp_save
 }

@@ -9,7 +9,7 @@ player and the app all run here, and nothing reaches the network.
 Needs Chromium or Chrome, ffmpeg to make the clip, and FFmpeg's libraries;
 without any of them every check is skipped, and the suite says so.
 """
-import os, shutil, subprocess, sys, tempfile
+import os, re, shutil, subprocess, sys, tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
@@ -61,12 +61,15 @@ srv = subprocess.Popen([sys.executable, tree("tests/ytserve.py"), MEDIA],
                        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
 BASE = "http://127.0.0.1:%s" % srv.stdout.readline().split()[1]
 PROF = os.path.join(D, "profile")
+DATA = os.path.join(D, "data")
 
 
-def yrun(phases, arg="pattern", rows=28, cols=90, extra=""):
+def yrun(phases, arg="pattern", rows=28, cols=90, extra="", autonext=False):
     """A desktop with the YouTube app open on a search; then each phase:
     keys to send (a callable gets the screen and gives them) and what to
-    wait for on the screen."""
+    wait for on the screen. The next video does not play by itself unless
+    asked: the clip is twelve seconds, and a slow run would otherwise reach
+    its end in the middle of a check about something else."""
     sess = os.path.join(D, "session.hibr")
     open(sess, "w").write(
         "%s. %s\n. %s\n%s\ndt_open\ndt_new \"YouTube\" 24 80 1 2 youtube \"%s\"\n"
@@ -74,7 +77,9 @@ def yrun(phases, arg="pattern", rows=28, cols=90, extra=""):
         % (load("console", "web", "media"), tree("examples/desktop/desktop.hibr"),
            tree("examples/desktop/apps/Internet/youtube.hibr"), extra, arg))
     t = Term(sess, rows=rows, cols=cols, settle=2.0,
-             env={"YT_BASE": BASE, "HIBR_WEB_PROFILE": PROF, "HIBR_MEDIA_AUDIO": "none"})
+             env={"YT_BASE": BASE, "HIBR_WEB_PROFILE": PROF, "HIBR_MEDIA_AUDIO": "none",
+                  "YT_DATA": DATA, "YT_RESUME": "3", "YT_ENDED": "1",
+                  "YT_AUTONEXT": "1" if autonext else "0"})
     shots = []
     for feed, until in phases:
         if callable(feed):
@@ -153,6 +158,56 @@ try:
           s[1].find("A test pattern (zebra)") is not None and
           s[1].find("(pattern)") is None, s[1])
 
+    s = yrun([([], "A playlist of patterns")])
+    check("a search lists playlists and channels too, each saying what it opens",
+          s[0].find("playlist, 3 videos") is not None and
+          any(re.search(r"Pattern Channel +channel\u2502", s[0].row(r))
+              for r in range(s[0].rows)), s[0])
+
+    s = yrun([([], "A playlist of patterns"), ([b"\x1b[B"] * 3 + [b"\r"], "Listed Third"),
+              ([b"\x1b"], "A playlist of patterns  "), ([b"\x1b[B"] * 4 + [b"\r"], "Upload A test")])
+    check("enter on a playlist shows its videos under its own title",
+          s[1].find("Playlist: A playlist of patterns") is not None and
+          s[1].find("Listed A test pattern") is not None, s[1])
+    check("escape goes back to the results it came from",
+          s[2].find("Results for pattern") is not None and
+          s[2].find("A playlist of patterns") is not None, s[2])
+    check("and a channel shows its videos, the channel's name above them",
+          s[3].find("Channel: Pattern Channel") is not None and
+          s[3].find("Upload Third result") is not None, s[3])
+
+    s = yrun([([], "Listed A test"), ([b"\r"], playing),
+              ([b"n"], " Another clip -- Second Channel"),
+              ([b"p"], " A test pattern -- Pattern Channel"),
+              ([b"\x1b[1;2C"], " Another clip -- Second Channel")],
+             arg="https://www.youtube.com/playlist?list=PL1", autonext=True)
+    check("a playlist's address typed in opens the playlist",
+          s[0].find("Playlist: Test playlist") is not None, s[0])
+    check("n plays the next video in the list and p the one before",
+          s[2].find("Another clip -- Second Channel") is not None and
+          s[3].find("A test pattern -- Pattern Channel") is not None,
+          s[2].dump() + s[3].dump())
+    check("at a video's end the next in the list plays by itself",
+          s[4].find("Another clip -- Second Channel") is not None, s[4])
+
+    s = yrun([([], "A test pattern"), ([b"\r"], playing),
+              ([b"\x1b[C"], lambda sc: at(sc) >= 6), ([b"\x1b"], "Results for"),
+              ([b"h"], "History"), ([b"\r"], playing), ([], lambda sc: at(sc) >= 5)])
+    hist = open(os.path.join(DATA, "history.tsv")).read() if os.path.exists(
+        os.path.join(DATA, "history.tsv")) else ""
+    check("what was watched is in the history, with where it was left",
+          s[4].find("A test pattern") is not None and "\tvid1\tA test pattern" in hist, hist)
+    check("and choosing it again takes it up there",
+          at(s[6]) >= 5 and s[6].find("Taken up at") is not None, s[6])
+
+    s = yrun([([], "Another clip"), ([b"\x1b[B", b"f"], "Kept as a favourite"),
+              ([b"v"], "Favourites"), ([b"f"], "No favourites yet")])
+    check("f keeps a favourite, starred in the list",
+          s[1].find("\u2731Another clip") is not None, s[1])
+    check("v lists the favourites, and f there takes one out",
+          s[2].find("Another clip (pattern)") is not None and
+          s[3].find("No favourites yet") is not None, s[2].dump() + s[3].dump())
+
     sess = os.path.join(D, "s2.hibr")
     open(sess, "w").write(
         "%s. %s\n. %s\n. %s\nCP_PANEDIRS+=(\"%s\")\ncp_panes\ndt_open\n"
@@ -172,4 +227,4 @@ finally:
     srv.wait()
     shutil.rmtree(D, True)
 
-report(11)
+report(22)

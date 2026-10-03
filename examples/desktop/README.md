@@ -429,6 +429,17 @@ up and down choose, enter plays. While playing: space pauses, left and
 right are five seconds (with shift thirty), up and down the volume, `m`
 the picture, escape back to the list, and a click on the bar goes there.
 
+A search lists playlists and channels as well as videos; enter on one
+shows its videos under its own title, and escape goes back to the list
+before. Typing or pasting a playlist's, a channel's or a video's address
+opens it directly. In the player `n` and `p` play the next video in the
+list and the one before, and at the end of one the next plays by itself
+(Play > Play Next Automatically). Everything watched goes in a history
+(`h`, or Go > History) with where it was left, and choosing it again takes
+it up there; `f` keeps a video, a playlist or a channel as a favourite,
+starred in every list, and `v` lists them. Both are files of their own in
+`~/.local/share/hibr/youtube/`.
+
 YouTube's own page does the fetching, in the web module's headless
 Chromium: its player is asked for its lowest quality -- plenty for a
 window of cells -- and muted, and every chunk it plays is copied into a
@@ -437,7 +448,8 @@ Chromium or Chrome and FFmpeg's libraries, and it follows YouTube's own
 player wherever YouTube takes it -- including its ads, which come through
 the same way. Control Panel > YouTube sets the picture, the quality asked
 for, and how many frames a second are drawn and how finely, which decide
-how much a terminal is sent.
+how much a terminal is sent; whether the next video plays by itself; and
+Clear History.
 
 ## Application handlers
 

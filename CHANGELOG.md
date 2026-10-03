@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.99.16
+
+**YouTube: playlists, channels, history and favourites.** A search lists
+playlists and channels as well as videos, read in every form YouTube draws
+them today; enter opens one -- its videos under its own title -- and
+escape goes back to the list before. A playlist's, a channel's or a
+video's address typed or pasted in opens it. `n` and `p` play the next
+video in the list and the one before, and at the end of one the next plays
+by itself (Play > Play Next Automatically, or Control Panel > YouTube).
+What was watched is kept in a history (`h`) with where it was left, and
+choosing it again takes it up there; `f` keeps a video, a playlist or a
+channel as a favourite, starred wherever it is listed, and `v` lists them.
+Both are files of their own under `~/.local/share/hibr/youtube/`; Control
+Panel > YouTube has Clear History. This finishes #27.
+
+**Fixed: a video could start with no picture.** When a page starts a new
+media source -- every video, and every ad -- the app restarted its player
+after taking the new stream's first bytes, and the restart could throw
+away the init segment those began with, leaving the player waiting for
+one that never came. `web take` now stops at a reset, so the player is
+started afresh before any of the new stream arrives. A video's end is also
+found from YouTube's own length, not only the stream's.
+
 ## 0.99.15
 
 **YouTube, in a window.** The YouTube app, in the Internet folder,
