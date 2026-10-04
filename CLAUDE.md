@@ -1876,7 +1876,13 @@ went in the shell.
   restart's own writer, with nothing carried: apps with a `_stash` reopen
   fresh). It is off under the harness unless `DT_SUPERVISE=on`. Its own
   signals are handled, never ignored, because an ignored one would pass to
-  the desktop across `exec`.
+  the desktop across `exec`. A Restart Desktop that carries running
+  programs starts no supervisor (`dt_svcarry`): a terminal's program is
+  the restarting process's child, and only its parent can adopt and reap
+  it -- under a new supervisor it would be the supervisor's. And the
+  desktop runs in the supervisor's foreground: as a background job it is
+  in a process group of its own and is stopped by SIGTTOU the moment it
+  sets the terminal's modes, which looks like a desktop that never draws.
 
 ## Testing discipline
 

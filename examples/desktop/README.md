@@ -736,7 +736,9 @@ Terminals come back with a fresh shell: the program that was running in one
 went with the desktop. A desktop that dies within its first ten seconds, or
 three times in five minutes, is left stopped, since starting it again would
 only repeat whatever is wrong. `DT_SUPERVISE=off` in a session turns this
-off.
+off. Restart Desktop with terminals open keeps their programs running, and
+that desktop runs without the supervisor until it is next started afresh,
+since a running program has to stay with the desktop that started it.
 
 What is put back comes from a snapshot the desktop keeps of its windows,
 written at most every thirty seconds and only while something is happening.

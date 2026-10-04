@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.99.27
+
+**Restart Desktop and the new supervisor get on.** Restarting a desktop
+that has terminals open made the restarted process a supervisor, which left
+the terminals' programs as its children rather than the new desktop's, and
+the desktop that should have come back did not draw. A restart that carries
+running programs now keeps them with the desktop and runs without a
+supervisor until the next fresh start; `tests/desktop.py` restarts into
+that case and checks the program is still the desktop's own child.
+
 ## 0.99.26
 
 **alt-left and alt-right go between workspaces.** They were Snap Left and

@@ -44,7 +44,9 @@ dt_snapfile() {
 
 # Become the supervisor, when this desktop should have one: run the session
 # again as a child, and again after a crash, until it ends of its own
-# accord. Returns only when there is to be no supervisor.
+# accord. Returns only when there is to be no supervisor. The desktop runs
+# in the foreground: in the background it would be stopped the moment it
+# set the terminal's modes.
 dt_supervise() {
 	local st t0 now lived n
 	local -a times keep
@@ -55,6 +57,10 @@ dt_supervise() {
 	auto) [ -n "$DT_TESTIDLE" ] && return 0 ;;
 	esac
 	[ -x "$HIBR" ] && [ -r "$DT_SELF0" ] || return 0
+	if dt_svcarry; then
+		dt_svlog "a restart carrying running programs: no supervisor until the next start"
+		return 0
+	fi
 	export DT_SUPERVISED=1
 	trap 'DT_SVSIG=1' HUP TERM INT
 	while :; do
@@ -89,6 +95,18 @@ dt_supervise() {
 		fi
 		dt_svlog "starting it again"
 	done
+}
+
+# Whether this start is a restart carrying running programs -- terminals
+# whose programs are this process's children. They must stay its children
+# to be adopted and reaped, so such a start runs unsupervised; the next
+# fresh start has a supervisor again.
+dt_svcarry() {
+	local j
+
+	[ -n "$DT_RESTORE" ] && [ -r "$DT_RESTORE" ] || return 1
+	json parse DT_RS < "$DT_RESTORE" 2> /dev/null || return 1
+	[ -n "${DT_RS["carry"]}" ]
 }
 
 # A line in the desktop's log from the supervisor, which never had the

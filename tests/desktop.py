@@ -3254,4 +3254,21 @@ sc = t.screen()
 check("a Quit leaves nothing to reopen", sc.find("┤ Kept ├") is None, sc)
 t.quit(b"qy", 3)
 
-report(444)
+# Restart Desktop carries a terminal's program across the exec as this
+# process's child, so a restart that carries one -- here from a desktop
+# that had no supervisor into one that would -- stays unsupervised: the
+# program is still the desktop's own child, and the window comes back.
+path = os.path.join(RD, "rs.hibr")
+open(path, "w").write("%s. %s\n%s\n[ -n \"$DT_RESTORE\" ] && export DT_SUPERVISE=on\ndt_open\n"
+                      "[ \"$DT_RESTORED\" = 1 ] || dt_launch term\ndt_run\ndt_close\n" % (load(MOD), WM, TERMLOAD))
+t = Term(path, rows=ROWS, cols=COLS, settle=1.5)
+t.collect(2.0)
+t.keys([b"\x1b[21~", 0.3, b"r", 4.0])
+kids = open("/proc/%d/task/%d/children" % (t.pid, t.pid)).read().split()
+log = open(t.log).read() if os.path.exists(t.log) else ""
+check("a restart carrying a terminal's program stays unsupervised, the program its child",
+      "no supervisor until the next start" in log and "restored 1 windows" in log
+      and len(kids) == 1 and "[desktop]" not in open("/proc/%s/cmdline" % kids[0]).read(), log)
+t.quit(b"qy", 3)
+
+report(445)
