@@ -79,6 +79,11 @@ if [ -S "$p" ]; then
 fi
 if [ -z "$fd" ]; then
 	echo "desktop ctl: no desktop is listening at $p" >&2
+	nm=${p##*/}
+	nm=${nm%.ctl}
+	if need hold 2> /dev/null && hl=$(hold list 2> /dev/null) && [[ $'\n'$hl == *$'\n'"$nm"[[:space:]]* ]]; then
+		echo "desktop ctl: session $nm is held and running, but has no control socket -- its reason is in the desktop's log (${XDG_STATE_HOME:-$HOME/.local/state}/hibr/desktop.log, lines starting 'desktop: control socket')" >&2
+	fi
 	exit 2
 fi
 printf '%s\n' "$req" >&"$fd"

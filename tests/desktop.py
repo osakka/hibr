@@ -3005,6 +3005,65 @@ check("and its control socket is gone with it",
       os.listdir(JOIN))
 unjoin()
 
+# Blit's own launch (#98): the primary held as --session blit with a
+# display name, the supervisor on as it is outside the harness, an
+# auxiliary --join with its own name, and desktop ctl reached the way Blit
+# reaches it, through session.hibr ctl. The socket is there once both are
+# attached, lists both displays by name, and moves and resizes a window;
+# the desktop log says where it listens.
+BL = tempfile.mkdtemp(prefix="hibr-blit-")
+BENV = {"HOME": BL, "TMPDIR": BL, "XDG_CONFIG_HOME": os.path.join(BL, "config"),
+        "XDG_STATE_HOME": os.path.join(BL, "state"), "XDG_DATA_HOME": os.path.join(BL, "data"),
+        "HIBR_MODPATH": tree("build/mods"), "DT_SUPERVISE": "on"}
+
+
+def bctl(*a):
+    r = subprocess.run([screen.HIBR, SESSION, "ctl", "--session", "blit"] + list(a),
+                       env=dict(os.environ, **BENV), capture_output=True, text=True, timeout=20)
+    try:
+        return r.returncode, json.loads(r.stdout)
+    except ValueError:
+        return r.returncode, {"raw": r.stdout + r.stderr}
+
+
+b1 = Term(SESSION, "--session", "blit", "--name", "display-1", env=BENV, cols=80, settle=2.5)
+b2 = Term(SESSION, "--session", "blit", "--join", "--name", "display-2", env=BENV, cols=60, settle=2.0)
+bsock = os.path.join(BL, "hibr-ctl-%d" % os.getuid(), "blit.ctl")
+deadline = time.time() + 10
+while not os.path.exists(bsock) and time.time() < deadline:
+    time.sleep(0.2)
+check("a supervised held desktop launched as Blit launches it has its control socket",
+      os.path.exists(bsock), sorted(os.listdir(BL)))
+rc, j = bctl("displays")
+check("and session.hibr ctl displays names both displays",
+      rc == 0 and sorted(d["name"] for d in j.get("displays", [])) == ["display-1", "display-2"], j)
+sc = b1.screen()
+hp = sc.find("Home")
+if hp:
+    b1.send(press(hp[0], hp[1]))
+    b1.send(press(hp[0], hp[1]))
+b1.collect(1.0)
+rc, j = bctl("windows")
+bw = [w for w in j.get("windows", []) if w["title"].startswith("Files")]
+check("a window opened there is listed", rc == 0 and len(bw) == 1, j)
+bid = str(bw[0]["id"]) if bw else "0"
+rc, j = bctl("move", bid, "display-2")
+b2.collect(1.0)
+check("moved to the auxiliary display, which draws it",
+      rc == 0 and j.get("ok") and b2.screen().find("Files") is not None, (j, str(b2.screen())))
+rc, j = bctl("resize", bid, "12", "40")
+check("and resized", rc == 0 and j.get("h") == 12 and j.get("w") == 40, j)
+blog = os.path.join(BL, "state", "hibr", "desktop.log")
+check("the desktop log says where its control socket listens",
+      os.path.exists(blog) and "control socket: listening at" in open(blog).read(),
+      open(blog).read()[-800:] if os.path.exists(blog) else "no log")
+b2.close()
+b1.send(b"\x1b[21~")
+b1.send(b"q", settle=1.0)
+b1.close()
+subprocess.run([screen.HIBR, "-c", HOLDC + "hold kill blit"], env=dict(os.environ, **BENV), capture_output=True)
+shutil.rmtree(BL, True)
+
 # --standby: a terminal that waits to be joined, joins, and when it is let
 # go waits again. Blank keeps a joined display joined but dark.
 SB = tempfile.mkdtemp(prefix="hibr-standby-")
@@ -3417,6 +3476,7 @@ t.quit(b"qy", 3)
 
 # An app's arithmetic slip fails the command, not the desktop: the shell's
 # keepgoing option, which dt_open turns on.
+expect(r"arithmetic: syntax error")
 path = os.path.join(RD, "slip.hibr")
 open(path, "w").write("%s. %s\ndt_open\nslip_key() { [ \"$2\" = x ] || return 1; echo $(( 1 + )); return 0; }\n"
                       "dt_app slip Slip 8 30\ndt_new Slip 8 30 6 10 slip\ndt_run\ndt_close\n" % (load(MOD), WM))
@@ -3429,6 +3489,5 @@ log = open(t.log).read() if os.path.exists(t.log) else ""
 check("an arithmetic error in an app is logged and the desktop carries on",
       sc.find("┤ Slip ├") is not None and "arithmetic" in log and t.exited and t.status == 0,
       (log, t.status))
-expect(r"arithmetic: syntax error")
 
-report(472)
+report(478)

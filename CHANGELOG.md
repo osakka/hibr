@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.99.41
+
+**The control socket says why it is missing, and keeps trying.** A desktop
+that cannot make its socket -- the folder not its own, the path in use,
+a `TMPDIR` that is not there -- used to say nothing, and `desktop ctl`
+could only report that nothing was listening. Every outcome now goes to
+the desktop's log as one `desktop: control socket: ...` line (listening
+and where, off and why, or what failed), a failure is retried every five
+seconds, and a socket file removed from under a running desktop is made
+again within half a minute. `desktop ctl` against a session that is held
+and running but has no socket says so and points at those log lines.
+Tested the way Blit launches it: held as `--session blit` with a display
+name, the supervisor on, a second display joined, `ctl` through
+`session.hibr`.
+
+The pty harness no longer misses a shell error that is the first line of a session's `desktop.log`: it was joined to the terminal's output with no newline between, so the check for errors read past it. The one it had been hiding was the slip test's own, expected but declared too late. What it found next was real: the Wallpaper picker sized its first preview before loading the img module, so that preview filled the box instead of keeping the picture's shape, and the log said `img: command not found`. The theme checks know the bundled Retro Car theme.
+
 ## 0.99.40
 
 **Calendar and Contacts point to Control Panel > PIM.** Their notes and

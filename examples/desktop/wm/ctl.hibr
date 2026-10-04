@@ -58,27 +58,66 @@ dt_ctlwhere() {
 	ret "$d/${n:-desktop}.ctl"
 }
 
-# Open the socket and watch it, when this desktop should have one.
+# Open the socket and watch it, when this desktop should have one; and say
+# in the desktop log what happened either way, since a socket that is not
+# there is otherwise a silence. One that cannot be made now is tried again
+# every few seconds from the frame loop.
+DT_CTLWANT=
+DT_CTLNEXT=0
+DT_CTLWHY=
+DT_CTLCHECK=0
 dt_ctlopen() {
-	local p fd
-
-	[ -n "$HIBR_HOLD" ] || [ "$DT_CTL" = 1 ] || return 0
-	[ "$DT_CTL" = 0 ] && return 0
-	p := dt_ctlwhere
-	if ! [ -d "${p%/*}" ] && ! mkdir -p -m 700 "${p%/*}" 2> /dev/null; then
-		dt_rslog "no control socket: cannot make ${p%/*}"
+	if [ "$DT_CTL" = 0 ]; then
+		dt_rslog "control socket: off (DT_CTL=0)"
 		return 0
+	fi
+	if [ -z "$HIBR_HOLD" ] && [ "$DT_CTL" != 1 ]; then
+		dt_rslog "control socket: none (not a held session, and DT_CTL is not 1)"
+		return 0
+	fi
+	DT_CTLWANT=1
+	dt_ctltry
+	return 0
+}
+
+# Say why there is no socket yet -- once for each new reason.
+fn dt_ctlwhy(why) {
+	[ "$why" = "$DT_CTLWHY" ] && return 0
+	DT_CTLWHY=$why
+	dt_rslog "control socket: $why; trying again every 5s"
+}
+
+# One try at the socket: its folder, made private if it is not there and
+# refused if it is not this user's, then the socket itself.
+dt_ctltry() {
+	local p fd err ef
+
+	p := dt_ctlwhere
+	DT_CTLNEXT=$((EPOCHSECONDS + 5))
+	if ! [ -d "${p%/*}" ]; then
+		if ! err=$(mkdir -p -m 700 "${p%/*}" 2>&1); then
+			dt_ctlwhy "cannot make ${p%/*}: ${err#mkdir: }"
+			return 1
+		fi
 	fi
 	if ! [ -O "${p%/*}" ]; then
-		dt_rslog "no control socket: ${p%/*} is not this user's"
-		return 0
+		dt_ctlwhy "${p%/*} belongs to someone else"
+		return 1
 	fi
-	if ! listen -b "$p" fd 2>> "$DT_LOG"; then
-		dt_rslog "no control socket at $p"
-		return 0
+	ef="${p%/*}/.err$$"
+	if ! listen -b "$p" fd 2> "$ef"; then
+		err=
+		[ -r "$ef" ] && read -r err < "$ef"
+		command rm -f -- "$ef"
+		dt_ctlwhy "cannot listen at $p: ${err#hibr: }"
+		return 1
 	fi
+	command rm -f -- "$ef"
 	DT_CTLFD=$fd
+	DT_CTLWHY=
+	DT_CTLCHECK=$((EPOCHSECONDS + 30))
 	command -v console > /dev/null && console watch "$fd"
+	dt_rslog "control socket: listening at $p"
 	return 0
 }
 
@@ -95,10 +134,29 @@ dt_ctlclose() {
 	return 0
 }
 
-# After every frame: every connection waiting, served one at a time.
+# After every frame: every connection waiting, served one at a time. A
+# socket not open yet is tried again when its time comes, and one open is
+# checked every 30s for its file -- a /tmp cleaner can take it -- and made
+# again if it has gone.
 dt_ctlpoll() {
-	local c
+	local c p
 
+	[ -n "$DT_CTLWANT" ] || return 0
+	if [ -z "$DT_CTLFD" ]; then
+		[ "$EPOCHSECONDS" -ge "$DT_CTLNEXT" ] && dt_ctltry
+		[ -n "$DT_CTLFD" ] || { dt_want 5000; return 0; }
+	fi
+	if [ "$EPOCHSECONDS" -ge "$DT_CTLCHECK" ]; then
+		DT_CTLCHECK=$((EPOCHSECONDS + 30))
+		p := dt_ctlwhere
+		if ! [ -S "$p" ]; then
+			dt_rslog "control socket: $p has gone; making it again"
+			command -v console > /dev/null && console unwatch "$DT_CTLFD"
+			exec {DT_CTLFD}>&-
+			DT_CTLFD=
+			dt_ctltry
+		fi
+	fi
 	[ -n "$DT_CTLFD" ] || return 0
 	while accept -t 0 "$DT_CTLFD" c 2> /dev/null; do
 		dt_ctlserve "$c"

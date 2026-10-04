@@ -119,9 +119,8 @@ fn wp_refresh(int id) {
 		return 0
 	fi
 	path := fb_path "$id" "$sel"
-	if wp_isimage "$path"; then
+	if wp_isimage "$path" && wp_preview "$id" "$path"; then
 		wp_fitcache "$id" "$path" "${WPK[$id]["prevh"]}" "${WPK[$id]["prevw"]}"
-		wp_preview "$id" "$path"
 	else
 		WPK[$id]["previewfor"]=
 	fi

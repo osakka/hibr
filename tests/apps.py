@@ -674,7 +674,7 @@ check("right enters the pane, and a second right cycles its first row",
       "construction" in brow(sc, "Theme") and sc.find("classic") is None, sc)
 sc = cprun(DOWN_APP + [b"\t"] + [b"\x1b[D"])
 check("tab enters it too, and left cycles the other way, round to the last",
-      "meadow" in brow(sc, "Theme"), sc)
+      "retro_car" in brow(sc, "Theme"), sc)
 sc = cprun(DOWN_APP + [b"\t", b"\t", b"\x1b[C"])
 check("a second tab leaves the pane, back to moving the picker",
       sc.find("construction") is None and
@@ -722,7 +722,7 @@ out = subprocess.run(
      'cp_themerenamed "" "%s/hibr/themes/ours"\necho "$CP_THEME ${CP_THEMES[*]}"' % TD],
     env=dict(os.environ, XDG_CONFIG_HOME=TD), capture_output=True, text=True).stdout.strip()
 check("Rename moves the file and keeps it chosen",
-      out == "ours classic construction meadow ours" and
+      out == "ours classic construction meadow ours retro_car" and
       os.path.exists(os.path.join(TD, "hibr", "themes", "ours.json")), out)
 shutil.rmtree(TD, True)
 
@@ -1166,7 +1166,7 @@ out = subprocess.run(
     capture_output=True, text=True).stdout.split("\n")
 check("the bundled themes and the person's own are listed; a colour file, and "
       "a theme with a value its setting cannot take or no colours, are not",
-      out[0] == "classic construction dusk meadow", out)
+      out[0] == "classic construction dusk meadow retro_car", out)
 check("a theme sets its colours and the look with them -- Under Construction "
       "is yellow, double framed, solid barred, with its own picture",
       out[1] == "construction hazard double solid squares block #ffd400 construction.png", out)

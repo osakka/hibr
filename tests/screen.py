@@ -363,7 +363,7 @@ class Term:
             TERMS[0] += 1
             text = self.out
             try:
-                text += open(self.log, "rb").read()
+                text += b"\n" + open(self.log, "rb").read()
             except OSError:
                 pass
             for m in ERROR.finditer(text):

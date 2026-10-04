@@ -64,7 +64,7 @@ gpg --armor --export "$KEY" > hibr.asc
 
 git add -A
 git commit -q -m "Publish $(for deb in "$@"; do basename "$deb" .deb; done | tr '\n' ' ')"
-if ! git push -q origin HEAD 2> push.err; then
+if ! timeout 120 git push -q origin HEAD 2> push.err; then
 	cat push.err >&2
 	rm -f push.err
 	echo "publish: committed in $REPO, not pushed" >&2
