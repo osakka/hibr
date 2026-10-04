@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.99.32
+
+**Calendars and contacts sync on their own.** The servers chosen in
+Control Panel > Calendars & Contacts are synced every so often whether or
+not Contacts or Calendar is open -- before, nothing synced until one of
+them was, so a reminder could be read from an old copy and Mail finished
+addresses from one. What the three apps share about syncing now lives in
+`examples/desktop/lib/pim.hibr` instead of inside Contacts.
+
+**Copy on Select in Terminal.** Control Panel > Terminal > Copy on Select
+copies a mouse selection the moment the button comes up, as xterm does. The
+text stays lit, and the next key only puts the highlight out -- it is not
+sent to the program, so the enter pressed out of habit after a copy does
+not run a half-typed line. Off by default.
+
 ## 0.99.31
 
 **Calendar.** A new app keeps your calendars on this machine from any

@@ -385,6 +385,12 @@ it reaches the desktop and every attached machine; Control Panel >
 Terminal > Programs Set Clipboard switches that off. A program asking to
 *read* the clipboard is never answered.
 
+Control Panel > Terminal > Copy on Select copies a terminal's text the
+moment the mouse lets go of it, as xterm does, without alt-c. What was
+copied stays lit, and the next key only puts the highlight out -- it is not
+sent to the program, so an enter pressed out of habit after copying does not
+run whatever is half typed on the line.
+
 Text is what crosses between a machine and the desktop. Files and pictures
 copy and paste as files inside the desktop, but a picture or a file on a
 machine's own clipboard cannot reach it: a terminal carries text only.
@@ -529,7 +535,9 @@ Calendars & Contacts, which also says how often to sync. A background job
 (`examples/desktop/lib/pimsync.hibr`) finds the address books from the
 server's `.well-known` address, keeps each up to date with its sync token,
 and is the only thing that writes the copy in
-`~/.local/share/hibr/pim/SERVER/`. An edit or a new contact happens in the
+`~/.local/share/hibr/pim/SERVER/`. It runs every so often whether or not
+Contacts or Calendar is open (`examples/desktop/lib/pim.hibr`, which both
+share). An edit or a new contact happens in the
 list at once and goes to the server at the next sync -- only if the
 server's copy is still the one it was read from; if someone changed it
 meanwhile, theirs wins and the next sync brings it.

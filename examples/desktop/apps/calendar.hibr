@@ -24,6 +24,8 @@ app calendar "Your calendars, a month at a time, kept offline from CalDAV"
 command -v dt_app > /dev/null && dt_app calendar "Calendar" 28 98 once "▦"
 command -v dt_app > /dev/null && dt_app cedit "Event" 23 70 many "" "" hidden
 
+[ -n "${PE_LIBDONE-}" ] || . "${BASH_SOURCE%/*}/../lib/pim.hibr"
+
 declare -gA CVW
 declare -gA CVI
 declare -gA CVK
@@ -115,7 +117,7 @@ cv_cals() {
 	unset CVK
 	declare -gA CVK
 	CVK["n"]=0
-	dt_has pe_servers && pe_servers || return 0
+	pe_servers || return 0
 	need db 2> /dev/null || return 0
 	for s in "${PE_SRVS[@]}"; do
 		d := pe_dir "$s"
@@ -187,7 +189,7 @@ fn cv_load(int id) {
 			CVW[$id]["d$k"]=
 		done
 	fi
-	dt_has pe_servers && pe_servers || return 0
+	pe_servers || return 0
 	need db 2> /dev/null || return 0
 	for s in "${PE_SRVS[@]}"; do
 		d := pe_dir "$s"
@@ -267,7 +269,7 @@ fn calendar_open(int id, arg = "") {
 	CVW[$id]["li"]=0
 	CVW[$id]["seen"]=$PE_GEN
 	cv_load "$id"
-	dt_has pe_sync && pe_sync
+	pe_sync
 	return 0
 }
 
@@ -276,8 +278,6 @@ fn calendar_close(int id) {
 	unset CVI["$id"]
 	return 0
 }
-
-fn calendar_idle(int id) { dt_has pe_poll && pe_poll; }
 
 # Read again when a sync has finished since the window last read, or the
 # day has turned.
@@ -295,8 +295,7 @@ fn calendar_draw(int id, int h, int w, int row, int col) {
 		console put -p "w$id" 1 2 "Calendar needs the pim and db modules, which are not installed."
 		return 0
 	fi
-	dt_has pe_tick && pe_tick "$id"
-	if ! dt_has pe_servers || ! pe_servers; then
+	if ! pe_servers; then
 		console pen "$DT_DIM" "$DT_FACE"
 		console put -p "w$id" 1 2 "No server chosen for calendars yet."
 		console put -p "w$id" 2 2 "Control Panel > Calendars & Contacts chooses one"
@@ -488,7 +487,7 @@ fn cv_status(int id, int h, int w) {
 			dt_want 700
 			break
 		fi
-		[ -n "${PCW["status$s"]}" ] && st="$s: ${PCW["status$s"]}"
+		[ -n "${PES["status$s"]}" ] && st="$s: ${PES["status$s"]}"
 	done
 	console pen "$DT_DIM" "$DT_FACE"
 	st := str pad " ${st:-Calendars from ${PE_SRVS[*]}}" "$w"
@@ -592,7 +591,7 @@ fn calendar_key(int id, key) {
 	enter | c) cedit_show "$id" "" ;;
 	e) [ "${#l[@]}" -gt 0 ] && cedit_show "$id" "${l[0]}" ;;
 	R | f5)
-		dt_has pe_sync && pe_sync
+		pe_sync
 		dt_notep low "Syncing calendars${GL[ellipsis]}"
 		;;
 	*) return 1 ;;
@@ -699,14 +698,10 @@ fn cv_obj(srv, href, field) {
 
 # After every frame: the reminders due, said once each. Which are coming
 # is read again every five minutes and after every sync; between, this
-# compares numbers and asks for the frame the next one is due in. The jobs
-# Contacts and Calendar run in the background are handed on here too, so a
-# sync finishes with neither window open.
+# compares numbers and asks for the frame the next one is due in.
 cv_alarms() {
 	local now=$EPOCHSECONDS i next=0 at k hm
 
-	dt_has pe_servers || return 0
-	pe_poll
 	pe_servers || return 0
 	need pim 2> /dev/null || return 0
 	if [ "$now" -ge "$CV_ALAT" ] || [ "$CV_ALGEN" != "$PE_GEN" ]; then
@@ -1215,7 +1210,7 @@ declare -gA CVANS
 fn cv_byuid(uid) {
 	local s d h r
 
-	dt_has pe_servers && pe_servers || return 1
+	pe_servers || return 1
 	need db 2> /dev/null || return 1
 	for s in "${PE_SRVS[@]}"; do
 		d := pe_dir "$s"

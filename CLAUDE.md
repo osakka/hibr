@@ -1861,7 +1861,11 @@ went in the shell.
 - **A helper script a desktop app runs goes in `examples/desktop/lib/`.**
   Everything under `apps/` is sourced as an app at startup, so a script
   put there would run inside the desktop, with no arguments, every time it
-  starts.
+  starts. Code several apps share goes there too, as a library each
+  sources behind a guard (`[ -n "${PE_LIBDONE-}" ] || . .../lib/pim.hibr`),
+  never in one of the apps: Calendar and Mail used to reach into
+  `contacts.hibr` for the sync jobs, and kept Contacts' window table
+  holding their sync state.
 - **An app's pane declares the settings it changes.** The panel tests load
   the pane without the app, and under `strict vars` a setter assigning
   `DT_MAILMAX` there is refused as creating a global -- every dropdown

@@ -21,34 +21,14 @@ app contacts "The people in your address books, kept offline from CardDAV"
 command -v dt_app > /dev/null && dt_app contacts "Contacts" 24 92 once "☺"
 command -v dt_app > /dev/null && dt_app pedit "Contact" 16 64 many "" "" hidden
 
-PE_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/hibr/pim"
-PE_LIB=${BASH_SOURCE%/*}/../lib
-DT_PIMSERVERS="${DT_PIMSERVERS-}"
-DT_PIMEVERY="${DT_PIMEVERY-15}"
-command -v dt_keep > /dev/null && dt_keep DT_PIMSERVERS DT_PIMEVERY
+[ -n "${PE_LIBDONE-}" ] || . "${BASH_SOURCE%/*}/../lib/pim.hibr"
 
 declare -gA PCW
 declare -gA PE
-declare -gA PEJ
 declare -gA PED
 PE_N=0
-PEJ_N=0
-PEJ_LIVE=0
-PE_GEN=0
-PE_SRVS=()
 PE_HITS=()
-
-# The servers chosen for calendars and contacts, into PE_SRVS -- kept
-# tab-separated, since a server's name may have a space in it.
-pe_servers() {
-	PE_SRVS=()
-	[ -n "$DT_PIMSERVERS" ] || return 1
-	IFS=$'\t' read -ra PE_SRVS <<< "$DT_PIMSERVERS"
-	[ "${#PE_SRVS[@]}" -gt 0 ]
-}
-
-# A server's store folder.
-fn pe_dir(srv) { ret "$PE_DIR/${srv//\//_}"; }
+pe_onsync pe_reload
 
 # Every contact of every server chosen, into PE: PE[i][...] the row, with
 # ["srv"] its server; PE_N how many. Sorted by name, as a list is read.
@@ -193,136 +173,15 @@ fn pe_add(name, addr) {
 	dt_notep low "Added ${name:-$addr} to Contacts"
 }
 
-# --- the jobs ---------------------------------------------------------------
+# A sync finished: the list read again, and every window's view of it.
+fn pe_reload(srv) {
+	local id
 
-# Run something in the background for a server, its output kept for poll
-# to hand on, then the callback. The job's number is the result.
-fn pe_job(what, srv, then, ...rest) {
-	local n d
-
-	d := pe_dir "$srv"
-	mkdir -p "$d/jobs" 2> /dev/null
-	PEJ_N=$((PEJ_N + 1))
-	n=$PEJ_N
-	PEJ[$n]["what"]=$what
-	PEJ[$n]["srv"]=$srv
-	PEJ[$n]["then"]=$then
-	PEJ[$n]["dir"]=$d/jobs
-	(
-		"${rest[@]}" > "$d/jobs/$n.out" 2> "$d/jobs/$n.err"
-		printf '%s\n' "$?" > "$d/jobs/$n.st"
-	) &
-	PEJ[$n]["pid"]=$!
-	PEJ_LIVE=$((PEJ_LIVE + 1))
-	dt_want 300
-	ret "$n"
-}
-
-# A job's last line so far.
-fn pe_joblast(int n) {
-	local f=${PEJ[$n]["dir"]}/$n.out l= x
-
-	[ -s "$f" ] || { ret ""; return 0; }
-	while IFS= read -r x; do l=$x; done < "$f"
-	ret "$l"
-}
-
-# Hand each finished job to its callback, marked done first so the callback
-# can start the next.
-pe_poll() {
-	local n st d
-
-	[ "$PEJ_LIVE" -gt 0 ] || return 0
-	for n in "${!PEJ[@]}"; do
-		d=${PEJ[$n]["dir"]}
-		[ -s "$d/$n.st" ] || continue
-		read -r st < "$d/$n.st"
-		PEJ_LIVE=$((PEJ_LIVE - 1))
-		PEJ[$n]["done"]=1
-		"${PEJ[$n]["then"]}" "$n" "$st"
-		command rm -f "$d/$n.out" "$d/$n.err" "$d/$n.st"
-		unset PEJ["$n"]
-	done
-	[ "$PEJ_LIVE" -gt 0 ] && dt_want 500
-	return 0
-}
-
-# Whether a sync is running for a server -- a sync, not any other job.
-fn pe_running(srv) {
-	local n
-
-	for n in "${!PEJ[@]}"; do
-		[ -z "${PEJ[$n]["done"]}" ] && [ "${PEJ[$n]["what"]}" = sync ] && [ "${PEJ[$n]["srv"]}" = "$srv" ] &&
-			{ ret "$n"; return 0; }
-	done
-	return 1
-}
-
-# Sync a server, or every one chosen; one already running is asked again.
-fn pe_sync(srv = "") {
-	local s d n
-	local -a list
-
-	if [ -n "$srv" ]; then
-		list=("$srv")
-	else
-		pe_servers || return 0
-		list=("${PE_SRVS[@]}")
-	fi
-	for s in "${list[@]}"; do
-		if n := pe_running "$s"; then
-			PCW["again$s"]=1
-			continue
-		fi
-		d := pe_dir "$s"
-		mkdir -p "$d"
-		n := pe_job sync "$s" pe_synced "$HIBR" "$PE_LIB/pimsync.hibr" "$s" "$d"
-		PCW["last$s"]=$EPOCHSECONDS
-	done
-	return 0
-}
-
-# A sync finished: the list read again, what it said kept for the bar.
-fn pe_synced(int n, int st) {
-	local s=${PEJ[$n]["srv"]} l id
-
-	l := pe_joblast "$n"
-	case $l in
-	"done 0") PCW["status$s"]="Up to date" ;;
-	done*) PCW["status$s"]="${l#done } new" ;;
-	busy) PCW["status$s"]="Another sync is running" ;;
-	error*) PCW["status$s"]="Could not sync: ${l#error }" ;;
-	*)
-		if [ "$st" != 0 ]; then
-			l=
-			[ -s "${PEJ[$n]["dir"]}/$n.err" ] && read -r l < "${PEJ[$n]["dir"]}/$n.err"
-			PCW["status$s"]="Could not sync${l:+: ${l#hibr: }}"
-		fi
-		;;
-	esac
-	PE_GEN=$((PE_GEN + 1))
 	pe_load
 	for id in "${!PCW[@]}"; do
 		[ -n "${PCW[$id]["sel"]+x}" ] && pe_filter "$id"
 	done
-	if [ "${PCW["again$s"]}" = 1 ]; then
-		PCW["again$s"]=
-		pe_sync "$s"
-	fi
-}
-
-# Every DT_PIMEVERY minutes, and the jobs handed on.
-fn pe_tick(int id) {
-	local s
-
-	pe_poll
-	pe_servers || return 0
-	for s in "${PE_SRVS[@]}"; do
-		if [ $((EPOCHSECONDS - ${PCW["last$s"]:-0})) -ge $((DT_PIMEVERY * 60)) ]; then
-			pe_sync "$s"
-		fi
-	done
-	dt_want 60000
+	return 0
 }
 
 # --- changing a contact -----------------------------------------------------
@@ -420,15 +279,12 @@ fn contacts_close(int id) {
 	return 0
 }
 
-fn contacts_idle(int id) { pe_poll; }
-
 fn contacts_draw(int id, int h, int w, int row, int col) {
 	local nl=${PCW[$id]["nl"]:-0} sel=${PCW[$id]["sel"]:-0} top=${PCW[$id]["top"]:-0}
 	local vis=$((h - 3)) r=2 k i nm em st s lw=32
 
 	[ "$w" -gt 70 ] || lw=$((w / 2))
 
-	pe_tick "$id"
 	dt_wclear "$id"
 	if [ "${PCW[$id]["qon"]}" = 1 ] || [ -n "${PCW[$id]["qbuf"]}" ]; then
 		dt_textdraw "$id" 0 1 $((lw - 2)) "${PCW[$id]["qbuf"]}" "${PCW[$id]["qcur"]}" "$([ "${PCW[$id]["qon"]}" = 1 ] && echo 1 || echo 0)"
@@ -490,7 +346,7 @@ fn contacts_draw(int id, int h, int w, int row, int col) {
 			dt_want 700
 			break
 		fi
-		[ -n "${PCW["status$s"]}" ] && st="$s: ${PCW["status$s"]}"
+		[ -n "${PES["status$s"]}" ] && st="$s: ${PES["status$s"]}"
 	done
 	console pen "$DT_DIM" "$DT_FACE"
 	st := str pad " $PE_N people${st:+ ${GL[dot]} $st}" "$w"

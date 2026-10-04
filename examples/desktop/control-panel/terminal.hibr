@@ -2,7 +2,8 @@
 #
 # terminal -- the Control Panel pane for how a terminal window behaves: its
 # scrollbar, whether its title follows what the program inside reports,
-# whether it closes when the program in it ends,
+# whether a mouse selection is copied as it is made, whether it closes when
+# the program in it ends,
 # whose colours its text and background are, and its cursor.
 
 strict
@@ -39,6 +40,10 @@ fn terminal_rows(int w) {
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_TERMCLIP" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=DT_TERMCLIP; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Copy on Select"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_TERMSELCOPY" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=DT_TERMSELCOPY; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Close When a Program Ends"
 	CP[$w][$n]["val"]="$DT_TERMEND"; CP[$w][$n]["key"]=termend
 	n=$((n + 1))
@@ -64,7 +69,7 @@ fn terminal_do(int w, k, int dir) {
 	local v
 
 	case $k in
-	DT_TERMBAR | DT_TERMTITLE | DT_TERMCLIP | DT_CURSOR_BLINK) cp_toggle "$k" ;;
+	DT_TERMBAR | DT_TERMTITLE | DT_TERMCLIP | DT_TERMSELCOPY | DT_CURSOR_BLINK) cp_toggle "$k" ;;
 	termcolours)
 		v := cp_next "$DT_TERMCOLOURS" "$dir" "${CP_TERMCOLOURS[@]}"
 		DT_TERMCOLOURS=$v

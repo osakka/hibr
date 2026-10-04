@@ -9,7 +9,7 @@ answer. The zone is Europe/London throughout, so the times written are
 known.
 Run it directly:  python3 tests/calapp.py [path-to-hibr]
 """
-import datetime, json, os, subprocess, sys, tempfile, time
+import base64, datetime, json, os, subprocess, sys, tempfile, time, urllib.request
 from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -209,9 +209,31 @@ try:
 finally:
     pass
 
-# Answering an invitation in Mail.
+# Answering an invitation in Mail -- with neither Calendar nor Contacts
+# open, so the sync that brings a new event down is the desktop's own.
+# Uploaded, as another client would, so the server's sync token moves.
+req = urllib.request.Request("http://127.0.0.1:%d/calendars/u/work/late.ics" % PORT, method="PUT",
+                             data=("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VEVENT\r\n"
+                                   "UID:late\r\nDTSTAMP:20261001T000000Z\r\nSUMMARY:Late meeting\r\n"
+                                   "DTSTART;TZID=%s:%s\r\nDTEND;TZID=%s:%s\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+                                   % (TZ, stamp(tomorrow, 18, 0), TZ, stamp(tomorrow, 19, 0))).encode(),
+                             headers={"Content-Type": "text/calendar",
+                                      "Authorization": "Basic " + base64.b64encode(b"u:p").decode()})
+urllib.request.urlopen(req).read()
+OBJDB = os.path.join(D, "data", "hibr", "pim", "home", "obj.db")
+
+
+def stored(text):
+    try:
+        return text.encode() in open(OBJDB, "rb").read()
+    except OSError:
+        return False
+
+
 t = session("mail", "mail", "Mail")
 try:
+    check("the desktop syncs on its own, with no Calendar or Contacts window open",
+          until(lambda: stored("Late meeting"), 15), OBJDB)
     sc = waitfor(t, "Invitation: Planning")
     t.keys([b"o"])
     sc = waitfor(t, "From Ana Smith")
@@ -237,4 +259,4 @@ finally:
     srv.terminate()
     srv.wait()
 
-report(21)
+report(22)

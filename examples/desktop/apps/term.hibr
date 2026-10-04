@@ -88,6 +88,13 @@ term_size() {
 DT_TERMCLIP="${DT_TERMCLIP-1}"
 command -v dt_keep > /dev/null && dt_keep DT_TERMCLIP
 
+# Copy on Select: releasing a mouse selection copies it, as in xterm, and
+# leaves it lit to show what went; the next key only puts the highlight
+# out, and is not sent to the program -- so the enter that follows a copy
+# out of habit does not run a half-typed line. Off by default.
+DT_TERMSELCOPY="${DT_TERMSELCOPY-0}"
+command -v dt_keep > /dev/null && dt_keep DT_TERMSELCOPY
+
 
 # Whose colours a terminal window's default text and background are:
 # "theme" paints them in the desktop's own ink and face, like every other
@@ -313,6 +320,11 @@ fn term_key(int id, key) {
 	   dt_has dt_keyassigned && dt_keyassigned "$key"; then
 		return 1
 	fi
+	if [ "${TW[$id]["held"]}" = 1 ]; then
+		TW[$id]["held"]=
+		term select "$t" none
+		return 0
+	fi
 	term key "$t" "$key"
 }
 
@@ -322,7 +334,8 @@ fn term_key(int id, key) {
 # and column 1, the program's screen at 0.
 #
 # Otherwise the left button selects, as in any terminal: press, drag,
-# release, and alt-c or Edit > Copy takes it.  Holding shift selects even
+# release, and alt-c or Edit > Copy takes it -- or the release itself, with
+# Copy on Select (DT_TERMSELCOPY).  Holding shift selects even
 # when the program has the mouse, which is xterm's way out of the same bind.
 fn term_mouse(int id, act, btn, int r, int c, mods) {
 	local t=${TW[$id]["t"]} mode
@@ -349,10 +362,28 @@ fn term_mouse(int id, act, btn, int r, int c, mods) {
 	fi
 	[ "$btn" = left ] || return 0
 	case $act in
-	press) term select "$t" start $(($r - 1)) $(($c - 1)) ;;
-	drag | release) term select "$t" to $(($r - 1)) $(($c - 1)) ;;
+	press)
+		TW[$id]["held"]=
+		term select "$t" start $(($r - 1)) $(($c - 1))
+		;;
+	drag) term select "$t" to $(($r - 1)) $(($c - 1)) ;;
+	release)
+		term select "$t" to $(($r - 1)) $(($c - 1))
+		[ "$DT_TERMSELCOPY" = 1 ] && term_selcopy "$id"
+		;;
 	esac
 	return 0
+}
+
+# Copy on Select: what was just selected, copied and kept lit until the
+# next key. A click with no drag selects nothing and copies nothing.
+fn term_selcopy(int id) {
+	local x
+
+	x := term copy "${TW[$id]["t"]}" 2> /dev/null || return 0
+	[ -n "$x" ] || return 0
+	dt_edit copy
+	TW[$id]["held"]=1
 }
 
 # The Window menu's tick for one terminal window: pass it every key, the

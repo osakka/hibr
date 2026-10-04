@@ -1892,6 +1892,18 @@ check("a drag in a terminal selects, and alt-c copies it everywhere",
 check("and alt-v pastes it back into the program",
       "row 30" in sc.row(14), sc)
 
+# Copy on Select (Control Panel > Terminal): the release copies, the text
+# stays lit, and the next key only puts it out -- the program never sees
+# it. Off, a release copies nothing.
+sc = run(*TERM, feed=[press(3, 3), drag(3, 8), release(3, 8), 0.3], pre=LONG, wait=1.0, end=None)
+check("with Copy on Select off, a release copies nothing", b"\x1b]52;c;" not in sc.out, sc)
+sc = run(*TERM, feed=[press(3, 3), drag(3, 8), release(3, 8), 0.3, b"Q", 0.3, b"ZW", 0.3],
+         pre=LONG + "\nDT_TERMSELCOPY=1", wait=1.0, end=None)
+check("with it on, releasing a selection copies it, no key needed",
+      b"\x1b]52;c;cm93IDMw\x07" in sc.out, sc)
+check("and the next key only clears the highlight: Q never reaches the program, ZW does",
+      sc.find("ZW") is not None and sc.find("QZW") is None, sc)
+
 CLICK = ("TW_CMD=(/bin/sh -c 'stty raw -echo; "
          "printf \"\\033[?1000h\\033[?1006h\"; head -c 18 | cat -v; sleep 5')")
 sc = run(*TERM, feed=[press(6, 10), release(6, 10)], pre=CLICK, wait=1.2, end=None)
@@ -3403,4 +3415,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(514)
+report(517)
