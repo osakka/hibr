@@ -65,7 +65,11 @@ desktop or the bar -- down to the next, up to the previous, one step a
 notch. A window that uses alt-left and alt-right itself keeps them while it
 has focus -- the Browser's back and forward -- and a terminal gives them up
 to the desktop, as it does every desktop shortcut. Window > Move to Workspace sends the focused window, and a title
-bar's right-click menu has the same for its own. With one workspace the
+bar's right-click menu has the same for its own. Window > On Every
+Workspace (or the title bar's right-click menu) makes a window sticky: it
+stays in view whichever workspace is current, floats over a tiled one, and
+taking it off leaves it on the workspace you see it on -- as does sending
+it to one workspace. With one workspace the
 bar shows no numbers and none of this appears. Cycle (alt-tab, or
 Window > Cycle) goes through this workspace's windows; Control Panel >
 Desktop > Cycle Windows On set to `all` goes through every workspace's,
@@ -1304,7 +1308,7 @@ The bundled accessories live in `examples/desktop/desk-accessories/`:
 | `calc` | a calculator, and `hibr calc.hibr '3 * 4'` on its own |
 | `clock` | the time, large, and the date under it |
 | `imgview` | a picture in a window, decoded and drawn by the `img` module -- drop one on it to open it, there is no file-open dialog -- or an `.ans` screenshot, as the cells it was |
-| `stickies` | notes stuck on the desktop, as many as you like, each one of six colours -- yellow, blue, green, pink, purple, grey -- and saved as you type. Launching Stickies opens every note; the Note menu makes a new one, changes its colour, or deletes it (closing only puts it away). Text wraps at the note's width; undo and redo (alt-z, alt-y), cut, copy, paste and select all are on the Edit menu. Control Panel > Stickies sets the colour new notes get and whether every note opens with the desktop. Note Pad's note became the first sticky |
+| `stickies` | notes stuck on the desktop, as many as you like, each one of six colours -- yellow, blue, green, pink, purple, grey -- and saved as you type. Launching Stickies opens every note; the Note menu makes a new one, changes its colour, or deletes it (closing only puts it away). Text wraps at the note's width; undo and redo (alt-z, alt-y), cut, copy, paste and select all are on the Edit menu. Control Panel > Stickies sets the colour new notes get, whether every note opens with the desktop, and whether notes are on every workspace. Note Pad's note became the first sticky |
 | `clipboard` | the clipboard's history: see Copy and paste |
 | `screenshot` | takes one: see Screenshots |
 | `puzzle` | the sliding tile puzzle, 4 by 4. Arrows or a click move the gap; shuffled by real moves from solved, so it is always solvable |

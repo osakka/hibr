@@ -32,9 +32,10 @@ fn dt_tiled(int n) {
 }
 
 # Whether a window takes part in its workspace's layout: on a tiled one,
-# shown, and not fixed.
+# shown, not fixed and not on every workspace.
 fn dt_intile(int id) {
 	dt_tiled "${DT[$id]["ws"]:-1}" || return 1
+	[ "${DT[$id]["sticky"]}" = 1 ] && return 1
 	dt_hidden "$id" && return 1
 	[ "${DT_APPS[${DT[$id]["app"]}]["fixed"]}" = 1 ] && return 1
 	return 0

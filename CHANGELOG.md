@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.99.35
+
+**Windows on every workspace.** Window > On Every Workspace, and the same
+on a title bar's right-click menu, makes a window sticky: it stays in view
+whichever workspace is current, and floats over a tiled one. Taking it off
+leaves it on the workspace you see it on; sending it to one workspace takes
+it off too. Restart Desktop keeps it. Control Panel > Stickies > Notes on
+Every Workspace does the same for every note, open now or opened later.
+
 ## 0.99.34
 
 **The desktop is the Finder.** With no window focused the menu bar reads

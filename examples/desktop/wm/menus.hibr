@@ -224,6 +224,7 @@ dt_menus() {
 		dt_dim "Zoom"
 		dt_dim "Snap"
 		dt_dim "Hide"
+		dt_dim "On Every Workspace"
 		dt_sep
 		dt_dim "Close"
 	else
@@ -257,6 +258,7 @@ dt_menus() {
 			dt_end
 		fi
 		dt_item "Hide" h dt_hide_focused
+		dt_mark "On Every Workspace" e "${DT[$DT_FOCUS]["sticky"]:-0}" dt_sticky_focused
 		if [ "${DT[$DT_FOCUS]["app"]}" = term ] && [ "$DT_TERMKEEP" = 1 ] &&
 		   dt_has term_passall; then
 			dt_mark "Pass Every Key" p "${TW[$DT_FOCUS]["passall"]:-0}" \

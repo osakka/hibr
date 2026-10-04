@@ -24,9 +24,46 @@ declare -gA DT_WSORD
 DT_WSC=0
 DT_WSW=0
 
-# Whether a window is on a workspace other than the current one.
+# Whether a window is on a workspace other than the current one. A sticky
+# window (DT[id]["sticky"]) is on every workspace, so never away.
 fn dt_away(int id) {
-	[ "${DT[$id]["ws"]:-1}" != "$DT_WS" ]
+	[ "${DT[$id]["sticky"]}" != 1 ] && [ "${DT[$id]["ws"]:-1}" != "$DT_WS" ]
+}
+
+# Put a window on every workspace, or take it off them -- toggled, unless
+# on says which. Made sticky it shows here at once if it was elsewhere;
+# taken off, it stays on the workspace it is seen on now.
+fn dt_sticky(int id, on = "") {
+	[ -n "${DT[$id]["title"]}" ] || return 0
+	if [ -z "$on" ]; then
+		on=1
+		[ "${DT[$id]["sticky"]}" = 1 ] && on=0
+	fi
+	if [ "$on" = 1 ]; then
+		[ "${DT[$id]["sticky"]}" = 1 ] && return 0
+		if [ "${DT[$id]["ws"]:-1}" != "$DT_WS" ] && ! dt_hidden "$id"; then
+			console pane "w$id" "${DT[$id]["row"]}" "${DT[$id]["col"]}" \
+				"${DT[$id]["h"]}" "${DT[$id]["w"]}"
+		fi
+		DT[$id]["sticky"]=1
+	else
+		[ "${DT[$id]["sticky"]}" = 1 ] || return 0
+		DT[$id]["sticky"]=
+		DT[$id]["ws"]=$DT_WS
+	fi
+	dt_tile
+	return 0
+}
+
+# The Window menu's tick: the focused window on every workspace or not.
+dt_sticky_focused() {
+	[ -n "$DT_FOCUS" ] || return 0
+	dt_sticky "$DT_FOCUS"
+	if [ "${DT[$DT_FOCUS]["sticky"]}" = 1 ]; then
+		dt_notep low "${DT[$DT_FOCUS]["title"]} is on every workspace"
+	else
+		dt_notep low "${DT[$DT_FOCUS]["title"]} is on workspace $DT_WS only"
+	fi
 }
 
 # Switch to workspace n.
@@ -101,10 +138,11 @@ fn dt_wsmove(int id, int n) {
 	local l
 
 	[ "$n" -lt 1 ] || [ "$n" -gt "$DT_WSN" ] && return 1
-	[ "${DT[$id]["ws"]:-1}" = "$n" ] && return 0
+	[ "${DT[$id]["ws"]:-1}" = "$n" ] && [ "${DT[$id]["sticky"]}" != 1 ] && return 0
 	if ! dt_away "$id" && ! dt_hidden "$id"; then
 		console pane drop "w$id"
 	fi
+	DT[$id]["sticky"]=
 	DT[$id]["ws"]=$n
 	DT_WSORD["$n"]="${DT_WSORD["$n"]} w$id"
 	if [ "$DT_FOCUS" = "$id" ]; then

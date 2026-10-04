@@ -126,6 +126,7 @@ fn dt_titlecontext(int id) {
 		dt_item "Zoom" z dt_zoom "$id"
 	fi
 	dt_item "Hide" h dt_min "$id"
+	dt_mark "On Every Workspace" e "${DT[$id]["sticky"]:-0}" dt_sticky "$id"
 	if [ "$DT_WSN" -gt 1 ]; then
 		local wsi=1
 		dt_sub "Move to Workspace"

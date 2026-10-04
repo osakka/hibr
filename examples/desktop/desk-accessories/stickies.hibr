@@ -27,7 +27,8 @@ ST_INDEX="$ST_DIR/notes.json"
 ST_OLDNOTE="${XDG_CONFIG_HOME:-$HOME/.config}/hibr/notepad.txt"
 DT_STICKYCOLOR="${DT_STICKYCOLOR-yellow}"
 DT_STICKYSTART="${DT_STICKYSTART-1}"
-command -v dt_keep > /dev/null && dt_keep DT_STICKYCOLOR DT_STICKYSTART
+DT_STICKYALL="${DT_STICKYALL-0}"
+command -v dt_keep > /dev/null && dt_keep DT_STICKYCOLOR DT_STICKYSTART DT_STICKYALL
 
 ST_COLORS=(yellow blue green pink purple grey)
 declare -gA ST_FACE
@@ -100,6 +101,19 @@ fn st_show(int note) {
 	ST_NEW=
 }
 
+# Notes on every workspace, or each on its own: the setting, applied to
+# every note open now as well as to those opened after.
+fn st_allws(int on) {
+	local id
+
+	DT_STICKYALL=$on
+	for id in "${!SW[@]}"; do
+		[ -n "${DT[$id]["title"]}" ] || continue
+		dt_sticky "$id" "$on"
+	done
+	return 0
+}
+
 # Launching Stickies opens every note, or makes the first: Note Pad's text,
 # when there is any, otherwise an empty one.
 fn stickies_launch(arg = "") {
@@ -152,6 +166,7 @@ fn stickies_open(int id, arg = "") {
 	SW[$id]["saved"]=0
 	DT[$id]["bg"]=${ST_FACE[${ST[$note]["color"]:-yellow}]}
 	DT[$id]["fg"]=${ST_INK[${ST[$note]["color"]:-yellow}]}
+	[ "$DT_STICKYALL" = 1 ] && DT[$id]["sticky"]=1
 	st_retitle "$id"
 }
 

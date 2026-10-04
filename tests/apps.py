@@ -1591,6 +1591,18 @@ os.unlink(WINSCRIPT)
 # the note rather than closing the window -- the same reason a terminal
 # test never uses the default end either.
 NPD = stdir()
+# Control Panel > Stickies > Notes on Every Workspace: a note is on every
+# workspace, so it is still there after switching; off, it stays behind.
+CB = stdir()
+open(os.path.join(CB, "1.txt"), "w").write("pinned note")
+open(os.path.join(CB, "notes.json"), "w").write('{"1":{"color":"yellow"}}')
+sc = run("stickies", "8 30 4 10", feed=[b"\x1b2"], env=stenv(CB), pre="DT_STICKYALL=1")
+check("with Notes on Every Workspace a note follows to another workspace",
+      sc.find("pinned note") is not None, sc)
+sc = run("stickies", "8 30 4 10", feed=[b"\x1b2"], env=stenv(CB))
+check("without it the note stays on its own", sc.find("pinned note") is None, sc)
+shutil.rmtree(CB, True)
+
 sc = run("stickies", "12 40 2 2", feed=[b"h", b"i"], env=stenv(NPD), end=None)
 check("typing appears in the note", sc.find("hi") is not None, sc)
 check("and is saved to disk as it is typed", stnote(NPD) == "hi", stnote(NPD))
@@ -3487,4 +3499,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(528)
+report(530)

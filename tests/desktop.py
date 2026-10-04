@@ -1212,6 +1212,23 @@ sc, _ = run(WS2 + "dt_wsmove 2 3\ndt_wsset 2\n", [b"\x1b2"])
 check("fewer workspaces: windows on one that went move to the last left",
       sc.find("┤ Over ├") == (9, 27) and "1 2 3" not in sc.row(0), sc)
 
+# A sticky window is on every workspace; taken off them, it stays on the
+# one it is seen on; sent to another, it is no longer on every one.
+sc, _ = run(WS2 + "dt_sticky 2 1\n", [b"\x1b2"])
+check("a window on every workspace is still there on another",
+      sc.find("┤ Over ├") == (9, 27) and sc.find("Under") is None, sc)
+sc, _ = run(WS2 + "dt_sticky 2 1\n", [b"\x1b2", b"\x1b3", b"\x1b1"])
+check("and back on the first, with the rest", sc.find("┤ Over ├") == (9, 27)
+      and sc.find("┤ Under ├") == (6, 12), sc)
+sc, _ = run(WS2 + "dt_sticky 2 1\ndt_wsgo 2\ndt_sticky 2 0\ndt_wsgo 1\n")
+check("taken off every workspace, it stays on the one it was seen on",
+      sc.find("Over") is None and sc.find("┤ Under ├") == (6, 12), sc)
+sc, _ = run(WS2 + "dt_sticky 2 1\ndt_wsmove 2 3\n", [b"\x1b2"])
+check("and sent to one workspace, it is on that one only", sc.find("Over") is None, sc)
+sc, _ = run(WS2, [b"\x1b[21~", b"\x1b[C", b"\x1b[C", b"e", b"\x1b2"])
+check("the Window menu's On Every Workspace makes it so",
+      sc.find("┤ Over ├") == (9, 27), sc)
+
 sc, _ = run(WS2, [wheel(20, 5, up=False)])
 check("the wheel over the bare desktop goes to the next workspace",
       sc.find("Under") is None and sc.find("Over") is None, sc)
@@ -2679,7 +2696,7 @@ t1.send(press(tb[0], tb[1], 2))
 sc = t1.screen()
 check("the titlebar's own context menu gets a Move to Display submenu",
       sc.find("Move to Display") is not None, sc)
-for _ in range(5):
+for _ in range(6):
     t1.send(b"\x1b[B")
 t1.send(b"\x1b[C")
 sc = t1.screen()
@@ -3326,4 +3343,4 @@ check("an arithmetic error in an app is logged and the desktop carries on",
       (log, t.status))
 expect(r"arithmetic: syntax error")
 
-report(452)
+report(457)
