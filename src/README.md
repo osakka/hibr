@@ -22,6 +22,7 @@ does not know about the parser's node types.
 | `text.c` | The `str` and `arr` builtins |
 | `regex.c` | `match` and `rsub` over POSIX extended regular expressions |
 | `args.c` | `opt` and `args` declared argument parsing, and `title` |
+| `fs.c` | `mkdir` and `rm`, GNU's answers without a fork or coreutils (ADR 0029) |
 | `mod.c` | Module loading and the module search path |
 | `main.c` | Startup, the interactive loop, the prompt hook, teardown |
 

@@ -224,6 +224,12 @@ looked up again.
 | `pwd` | print the working directory |
 | `pushd dir` / `popd` | push a directory and change to it / pop the stack |
 | `dirs` | show the directory stack |
+| `mkdir [-p] [-m octal] [-v] [--] dir...` | make directories, answering as GNU's does; any other option, or a symbolic mode, runs the program itself |
+| `rm [-f] [-r\|-R] [-d] [-v] [--] file...` | remove files and directories, as GNU's does: `.`, `..` and `/` refused, a link never followed; where GNU would ask, and for any other option, the program itself runs |
+
+`mkdir` and `rm` are builtins so that a system with no coreutils -- a
+minimal guest with only busybox -- can still make and clear a folder; see
+[ADR 0029](adr/0029-mkdir-and-rm-are-builtins.md).
 
 The stack is reachable from a word as well: `~0` is the working directory, `~1`
 the next entry, `~-1` the one before last, and `~+` and `~-` are `$PWD` and

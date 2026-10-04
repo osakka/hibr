@@ -54,8 +54,9 @@ releases).
 
 Sanitizers come in two tiers. `tests/asan.py --quick` is the gate a release
 that changes C waits for (minutes): run.sh, self.hibr, the parser fuzzer,
-every non-desktop C module's suite, and the pty suites a changed module
-reaches. The full `tests/asan.py` runs after every release, and
+the quick C module suites (`QUICK` in `tests/asan.py`: cat, console,
+term_diff, md_spec, html_tree, mail, pim, pim_rrule, dav), and the suites a
+module changed since the last tag reaches. The full `tests/asan.py` runs after every release, and
 any report it makes is a ticket at once. By hand, the core alone:
 
     gcc -Iinclude -DHIBR_TLS -g -O1 -fsanitize=address,undefined \
@@ -114,6 +115,7 @@ linked, and no OpenSSL headers are needed to build.
 | `src/text.c` | `str` and `arr` builtins |
 | `src/regex.c` | `match` and `rsub` over POSIX ERE |
 | `src/args.c` | `opt`/`args` declared CLI parsing, `title` |
+| `src/fs.c` | `mkdir` and `rm` as builtins, GNU-compatible, anything else to the program (ADR 0029) |
 | `src/mod.c` | module loading |
 | `mods/*.c` | reference modules: `sys`, `http` (scheme), `ls`, `math` (floating point; one of the two modules `--plan` may load, see `pl_pure`), `darwin` (macOS-only: `cpu`, `mem`, native `host_statistics`, no fork) |
 | `examples/desktop/` | the window manager (`desktop.hibr`, a table of contents sourcing `wm/`, one concern to a file, and `widgets/`, the widget library apps draw with) and everything built on it — `apps/` (file browser, control panel, terminal, task manager, About hibr, three games in `Games/`, dBASE, Write and Sheet in `Office/`), `desk-accessories/` (calculator, clock, image viewer, note pad, sliding puzzle), `control-panel/` panes, `control-strip/` modules — see `examples/desktop/README.md` for how to use it and `examples/desktop/ARCHITECTURE.md` for how it is built |

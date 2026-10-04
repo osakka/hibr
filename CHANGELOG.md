@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.99.43
+
+**The control socket under Blit, for real this time; `mkdir` and `rm` are
+builtins.** 0.99.41 logged why a socket was missing and retried, and it
+was still missing in Blit's guest. The reason: that guest has busybox and
+no applet links, so there is no `mkdir`, and the socket's private folder
+was made with `mkdir -p -m 700`. The log's folder was made the same way,
+so the log that would have said so never opened either. Hold makes its
+folder in C, which is why its socket was there. `mkdir` and `rm` are
+builtins now (ADR 0029), answering as GNU's do and handing any option
+they do not implement to the program on `PATH`. The desktop makes its
+folders with no fork, and with no coreutils at all. Under Blit, whose
+display cannot watch a descriptor, the socket is polled twice a second
+instead, or a request would wait for the next key. `tests/desktop.py`
+launches the Blit way with `PATH` holding only hibr. The desktop still
+forks other programs such a system lacks -- `mv` for its crash snapshot,
+`date`, `sort` -- which is Gitea #99.
+
 ## 0.99.42
 
 **A sanitizer gate in minutes, and the full run after.** The whole

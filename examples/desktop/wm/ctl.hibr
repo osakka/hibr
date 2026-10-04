@@ -66,6 +66,7 @@ DT_CTLWANT=
 DT_CTLNEXT=0
 DT_CTLWHY=
 DT_CTLCHECK=0
+DT_CTLPOLL=
 dt_ctlopen() {
 	if [ "$DT_CTL" = 0 ]; then
 		dt_rslog "control socket: off (DT_CTL=0)"
@@ -116,8 +117,13 @@ dt_ctltry() {
 	DT_CTLFD=$fd
 	DT_CTLWHY=
 	DT_CTLCHECK=$((EPOCHSECONDS + 30))
-	command -v console > /dev/null && console watch "$fd"
-	dt_rslog "control socket: listening at $p"
+	if command -v console > /dev/null && console watch "$fd" 2> /dev/null; then
+		DT_CTLPOLL=
+		dt_rslog "control socket: listening at $p"
+	else
+		DT_CTLPOLL=1
+		dt_rslog "control socket: listening at $p; the display cannot watch it, so it is polled every 0.5s"
+	fi
 	return 0
 }
 
@@ -162,6 +168,7 @@ dt_ctlpoll() {
 		dt_ctlserve "$c"
 		exec {c}>&-
 	done
+	[ -n "$DT_CTLPOLL" ] && dt_want 500
 	return 0
 }
 

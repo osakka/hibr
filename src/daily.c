@@ -826,12 +826,39 @@ int b_shopt(sh *s, int ac, char **av)
 }
 
 /* Run a command, ignoring any function or alias of the same name. */
-int b_command(sh *s, int ac, char **av)
+/* Run av as a program found on PATH, never a builtin or a function, and
+   wait for it: command's own path, and a builtin's way out to the real
+   program for an option it does not implement. */
+int cmd_ext(sh *s, char **av, const char *who)
 {
-	const hibr_bi *b;
 	char *path, **env;
 	pid_t pid;
 	int w;
+
+	path = findx(s, av[0]);
+	if (!path) {
+		lg(HIBR_LERR, "%s: %s: not found", who, av[0]);
+		return HIBR_NOCMD;
+	}
+	if ((s->sopt & O_PLAN) && !pl_prog(s, av)) {
+		free(path);
+		return HIBR_FAIL;
+	}
+	env = v_envp(s, 0);
+	fflush(0);
+	pid = (pid_t)jc_fork(s);
+	if (pid == 0) {
+		execve(path, av, env);
+		_exit(HIBR_NOEXEC);
+	}
+	free(path);
+	jc_waitt(s, pid, pid, &w, 0);
+	return WIFEXITED(w) ? WEXITSTATUS(w) : HIBR_FAIL;
+}
+
+int b_command(sh *s, int ac, char **av)
+{
+	const hibr_bi *b;
 
 	if (ac > 1 && av[1][0] == '-' && av[1][1] && !av[1][2] &&
 	    (av[1][1] == 'v' || av[1][1] == 'V' || av[1][1] == 'p')) {
@@ -865,25 +892,7 @@ int b_command(sh *s, int ac, char **av)
 		s->amask = oam;
 		return st;
 	}
-	path = findx(s, av[1]);
-	if (!path) {
-		lg(HIBR_LERR, "command: %s: not found", av[1]);
-		return HIBR_NOCMD;
-	}
-	if ((s->sopt & O_PLAN) && !pl_prog(s, av + 1)) {
-		free(path);
-		return HIBR_FAIL;
-	}
-	env = v_envp(s, 0);
-	fflush(0);
-	pid = (pid_t)jc_fork(s);
-	if (pid == 0) {
-		execve(path, av + 1, env);
-		_exit(HIBR_NOEXEC);
-	}
-	free(path);
-	jc_waitt(s, pid, pid, &w, 0);
-	return WIFEXITED(w) ? WEXITSTATUS(w) : HIBR_FAIL;
+	return cmd_ext(s, av + 1, "command");
 }
 
 /* True if a word is one of the shell's reserved words. */

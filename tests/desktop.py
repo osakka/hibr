@@ -3010,11 +3010,19 @@ unjoin()
 # auxiliary --join with its own name, and desktop ctl reached the way Blit
 # reaches it, through session.hibr ctl. The socket is there once both are
 # attached, lists both displays by name, and moves and resizes a window;
-# the desktop log says where it listens.
+# the desktop log says where it listens. PATH holds hibr and nothing else,
+# as in Blit's guest, which has busybox and no applet links: the socket's
+# folder was made by /bin/mkdir, so there it never was, and neither was the
+# log's (0.99.43; mkdir and rm are builtins now). The snapshot's mv and
+# About Me's head are still missing there -- Gitea #99.
 BL = tempfile.mkdtemp(prefix="hibr-blit-")
+os.makedirs(os.path.join(BL, "bin"))
+os.symlink(screen.HIBR, os.path.join(BL, "bin", "hibr"))
 BENV = {"HOME": BL, "TMPDIR": BL, "XDG_CONFIG_HOME": os.path.join(BL, "config"),
         "XDG_STATE_HOME": os.path.join(BL, "state"), "XDG_DATA_HOME": os.path.join(BL, "data"),
-        "HIBR_MODPATH": tree("build/mods"), "DT_SUPERVISE": "on"}
+        "HIBR_MODPATH": tree("build/mods"), "DT_SUPERVISE": "on",
+        "PATH": os.path.join(BL, "bin")}
+expect(r"^(mv|head): command not found$")
 
 
 def bctl(*a):
@@ -3054,7 +3062,7 @@ check("moved to the auxiliary display, which draws it",
 rc, j = bctl("resize", bid, "12", "40")
 check("and resized", rc == 0 and j.get("h") == 12 and j.get("w") == 40, j)
 blog = os.path.join(BL, "state", "hibr", "desktop.log")
-check("the desktop log says where its control socket listens",
+check("the desktop log says where its control socket listens, made with no mkdir on PATH",
       os.path.exists(blog) and "control socket: listening at" in open(blog).read(),
       open(blog).read()[-800:] if os.path.exists(blog) else "no log")
 b2.close()
