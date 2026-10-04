@@ -1856,6 +1856,28 @@ went in the shell.
   segfault with an empty log is the shape of runaway recursion in a script
   -- a `gcc -g` build under `gdb -batch` shows the alternating `fn_call`s.
 
+- **Runaway recursion is refused before the stack runs out.** `ex_deep`
+  compares how far the stack has grown (from `ex_stk0`, noted in `main`)
+  with three quarters of `RLIMIT_STACK`, in `fn_call`, `eval` and `source`,
+  and honours bash's `FUNCNEST`; going over ends the script as an
+  arithmetic error does. `FUNCNEST` is cached (`ex_fnok`) and cleared by
+  `v_named`, which every set and unset calls with the name -- reading it on
+  each call cost 2.4% on a loop of function calls, the cache 0.42%. Its
+  state lives in globals, not on `sh`, so the ABI did not move.
+- **A trap that exits ends the shell with its status.** `tr_run` put the
+  earlier status back after every trap, and `ex_cmd` then turned a 0 into 1
+  on finding `quit` set, so `trap 'exit 143' TERM` exited 1 and a bare
+  `exit` in a trap 1 as well. `tr_run` returns at once when a trap quits,
+  and `ex()` stops before the next command (`tests/997-trap-exit.t`,
+  compared with bash).
+- **A held desktop has a supervisor** (`wm/recover.hibr`): the process
+  `dt_open` starts in runs the session again as a child and starts it again
+  when it dies, from the snapshot `dt_snapcheck` keeps (`dt_rswrite`, the
+  restart's own writer, with nothing carried: apps with a `_stash` reopen
+  fresh). It is off under the harness unless `DT_SUPERVISE=on`. Its own
+  signals are handled, never ignored, because an ignored one would pass to
+  the desktop across `exec`.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then

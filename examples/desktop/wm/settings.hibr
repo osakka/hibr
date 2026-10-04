@@ -23,8 +23,8 @@ declare -gA DT_KEYS
 [ -n "${DT_KEYS["selectall"]+x}" ] || DT_KEYS["selectall"]="ctrl-a"
 [ -n "${DT_KEYS["scrollup"]+x}" ] || DT_KEYS["scrollup"]="shift-pageup"
 [ -n "${DT_KEYS["scrolldown"]+x}" ] || DT_KEYS["scrolldown"]="shift-pagedown"
-[ -n "${DT_KEYS["snapleft"]+x}" ] || DT_KEYS["snapleft"]="alt-left"
-[ -n "${DT_KEYS["snapright"]+x}" ] || DT_KEYS["snapright"]="alt-right"
+[ -n "${DT_KEYS["snapleft"]+x}" ] || DT_KEYS["snapleft"]="ctrl-alt-left"
+[ -n "${DT_KEYS["snapright"]+x}" ] || DT_KEYS["snapright"]="ctrl-alt-right"
 [ -n "${DT_KEYS["snaptop"]+x}" ] || DT_KEYS["snaptop"]="alt-up"
 [ -n "${DT_KEYS["snapbottom"]+x}" ] || DT_KEYS["snapbottom"]="alt-down"
 [ -n "${DT_KEYS["snapcenter"]+x}" ] || DT_KEYS["snapcenter"]=
@@ -34,8 +34,8 @@ declare -gA DT_KEYS
 for dt_k in 4 5 6 7 8 9; do
 	[ -n "${DT_KEYS["ws$dt_k"]+x}" ] || DT_KEYS["ws$dt_k"]=
 done
-[ -n "${DT_KEYS["wsnext"]+x}" ] || DT_KEYS["wsnext"]="ctrl-alt-right"
-[ -n "${DT_KEYS["wsprev"]+x}" ] || DT_KEYS["wsprev"]="ctrl-alt-left"
+[ -n "${DT_KEYS["wsnext"]+x}" ] || DT_KEYS["wsnext"]="alt-right"
+[ -n "${DT_KEYS["wsprev"]+x}" ] || DT_KEYS["wsprev"]="alt-left"
 [ -n "${DT_KEYS["tile"]+x}" ] || DT_KEYS["tile"]=
 [ -n "${DT_KEYS["tilemain"]+x}" ] || DT_KEYS["tilemain"]=
 [ -n "${DT_KEYS["close"]+x}" ] || DT_KEYS["close"]="ctrl-w"
@@ -270,6 +270,20 @@ DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 DT_LOG="${DT_LOG-${XDG_STATE_HOME:-$HOME/.local/state}/hibr/desktop.log}"
 DT_ERR=
 
+# Settings version 3 moved the workspaces onto alt and an arrow and Snap
+# onto ctrl-alt. Each of a pair still on its old default takes its new one,
+# which the other has just given up -- or someone moved the other already
+# -- so a key someone chose stays theirs.
+fn dt_keyswap(a, b, olda, oldb) {
+	local ma=0 mb=0
+
+	[ "${DT_KEYS["$a"]}" = "$olda" ] && ma=1
+	[ "${DT_KEYS["$b"]}" = "$oldb" ] && mb=1
+	[ "$ma" = 1 ] && DT_KEYS["$a"]=$oldb
+	[ "$mb" = 1 ] && DT_KEYS["$b"]=$olda
+	return 0
+}
+
 # Keep these variables in the settings file too.
 dt_keep() {
 	local v k
@@ -298,8 +312,12 @@ dt_load() {
 			[ "${DT_KEYS["cycle"]}" = tab ] && DT_KEYS["cycle"]="alt-tab"
 			[ "${DT_KEYS["quit"]}" = q ] && DT_KEYS["quit"]=
 		fi
+		if [ "${DT_SETVER:-0}" -lt 3 ]; then
+			dt_keyswap snapleft wsprev alt-left ctrl-alt-left
+			dt_keyswap snapright wsnext alt-right ctrl-alt-right
+		fi
 	fi
-	DT_SETVER=2
+	DT_SETVER=3
 	dt_keyfix
 	dt_glyphs "$DT_GLYPHSET"
 	return 0

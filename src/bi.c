@@ -930,6 +930,8 @@ int b_eval(sh *s, int ac, char **av)
 	str b;
 	int i;
 
+	if (ex_deep(s, "eval", 0))
+		return 1;
 	s_init(&b);
 	for (i = 1; i < ac; i++) {
 		if (i > 1)
@@ -1066,6 +1068,8 @@ int b_src(sh *s, int ac, char **av)
 		lg(HIBR_LERR, "source: filename required");
 		return HIBR_FAIL;
 	}
+	if (ex_deep(s, "source", 0))
+		return 1;
 	path = strchr(av[1], '/') ? 0 : findr(s, av[1]);
 	f = fopen(path ? path : av[1], "r");
 	if (!f) {

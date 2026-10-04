@@ -55,6 +55,15 @@ void v_grow(sh *s)
 	lg(HIBR_LDBG, "var table now %lu slots", (unsigned long)ns);
 }
 
+/* A variable the shell keeps a copy of has been set or removed: IFS, FUNCNEST. Asked by its first letter, so any other name pays one comparison. */
+void v_named(sh *s, const char *k)
+{
+	if (k[0] == 'I' && !strcmp(k, "IFS"))
+		s->ifsok = 0;
+	else if (k[0] == 'F' && !strcmp(k, "FUNCNEST"))
+		ex_fnok = 0;
+}
+
 /* Read a variable value or NULL. */
 const char *hibr_get(sh *s, const char *k)
 {
@@ -209,8 +218,7 @@ int hibr_set(sh *s, const char *k, const char *v, int ex)
 			setenv(k, e->v, 1);
 		if (!strcmp(k, "PATH"))
 			hsh_clear(s, 0);
-		if (!strcmp(k, "IFS"))
-			s->ifsok = 0;
+		v_named(s, k);
 		s_free(&t);
 		return HIBR_OK;
 	}
@@ -223,8 +231,7 @@ int hibr_set(sh *s, const char *k, const char *v, int ex)
 	e->k = xs(k);
 	e->v = xs(v);
 	e->ex = ex ? 1 : 0;
-	if (!strcmp(k, "IFS"))
-		s->ifsok = 0;
+	v_named(s, k);
 	if (e->ex)
 		setenv(k, e->v, 1);
 	b = vh(k) & (s->tsz - 1);
@@ -247,6 +254,7 @@ void v_del(sh *s, const char *k)
 		if (!strcmp(v->k, k)) {
 			*pp = v->nx;
 			s->ifsok = 0;
+			ex_fnok = 0;
 			if (v->ex)
 				unsetenv(k);
 			v_free_el(v);
@@ -278,8 +286,7 @@ var *v_take(sh *s, const char *k)
 			*pp = v->nx;
 			v->nx = 0;
 			s->tn--;
-			if (!strcmp(k, "IFS"))
-				s->ifsok = 0;
+			v_named(s, k);
 			if (!strcmp(k, "PATH"))
 				hsh_clear(s, 0);
 			return v;
@@ -303,8 +310,7 @@ void v_back(sh *s, var *v)
 	s->tn++;
 	if (v->ex && v->v)
 		setenv(v->k, v->v, 1);
-	if (!strcmp(v->k, "IFS"))
-		s->ifsok = 0;
+	v_named(s, v->k);
 	if (!strcmp(v->k, "PATH"))
 		hsh_clear(s, 0);
 }

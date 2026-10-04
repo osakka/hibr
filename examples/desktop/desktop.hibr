@@ -47,7 +47,7 @@ DT_HERE=${BASH_SOURCE%/*}
 # shares first, then what is built on it.
 for dt_part in glyphs state settings session windows workspaces tile place frame draw \
 	wallpaper input keys menus bar context apps \
-	files remote handlers filepick saver lock icons hold standby notify confirm restart shot clip strip; do
+	files remote handlers filepick saver lock icons hold standby notify confirm restart recover shot clip strip; do
 	. "$DT_HERE/wm/$dt_part.hibr"
 done
 

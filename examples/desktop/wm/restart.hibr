@@ -85,8 +85,7 @@ fn dt_keepstate(app, ...maps) {
 # Write everything down and exec the hibr installed now. Returns only if
 # the exec failed, with the desktop put back as it was.
 dt_restart() {
-	local f="$DT_RSDIR/state.json" id ap m j k l
-	local -a ms
+	local f="$DT_RSDIR/state.json"
 
 	if [ ! -x "$HIBR" ] || [ ! -r "$DT_SELF0" ]; then
 		dt_notep high "Cannot restart: no hibr at ${HIBR:-?}, or no $DT_SELF0"
@@ -96,6 +95,33 @@ dt_restart() {
 		dt_notep high "Cannot restart: $DT_RSDIR cannot be made"
 		return 1
 	}
+	if ! dt_rswrite "$f" 1; then
+		dt_notep high "Cannot restart: the state could not be written"
+		return 1
+	fi
+	dt_rslog "restarting into $HIBR: ${#DT[@]} windows kept in $f"
+	console close
+	if [ -n "$DT_ERR" ]; then
+		exec 2>&"$DT_ERR"
+		exec {DT_ERR}>&-
+	fi
+	export DT_RESTORE=$f
+	exec "$HIBR" "$DT_SELF0" "${DT_SELFARGS[@]}"
+	export -n DT_RESTORE
+	DT_RESTORE=
+	dt_open
+	dt_notep high "Restart failed: $HIBR would not run"
+	return 1
+}
+
+# Write the desktop down as dt_restore reads it. carry 1 is a restart: each
+# app's _stash runs, and a terminal's program crosses the exec. carry 0 is a
+# snapshot for after a crash or a stop, when nothing can cross: no _stash,
+# and the file says so, so those windows reopen fresh.
+fn dt_rswrite(f, int carry, why = "restart") {
+	local id ap m j k l
+	local -a ms
+
 	k := console consumed
 	l := console pane list
 	json parse DT_RS "{\"ver\":$DT_RSVER}"
@@ -117,9 +143,11 @@ dt_restart() {
 	json parse DT_RS["tiled"] "$j"
 	json parse DT_RS["win"] "{}"
 	json parse DT_RS["app"] "{}"
+	json set DT_RS .fresh $((1 - carry))
+	json set DT_RS .why "$why" -s
 	for id in "${!DT[@]}"; do
 		ap=${DT[$id]["app"]}
-		if [ -n "$ap" ] && dt_has "${ap}_stash"; then
+		if [ "$carry" = 1 ] && [ -n "$ap" ] && dt_has "${ap}_stash"; then
 			${ap}_stash "$id" "$DT_RSDIR"
 		fi
 		j := json get DT ".$id"
@@ -132,23 +160,7 @@ dt_restart() {
 		done
 	done
 	json set DT_RS .carry "${DT_RSCARRY[*]}" -s
-	if ! json emit DT_RS > "$f.new" || ! mv -f "$f.new" "$f"; then
-		dt_notep high "Cannot restart: the state could not be written"
-		return 1
-	fi
-	dt_rslog "restarting into $HIBR: ${#DT[@]} windows kept in $f"
-	console close
-	if [ -n "$DT_ERR" ]; then
-		exec 2>&"$DT_ERR"
-		exec {DT_ERR}>&-
-	fi
-	export DT_RESTORE=$f
-	exec "$HIBR" "$DT_SELF0" "${DT_SELFARGS[@]}"
-	export -n DT_RESTORE
-	DT_RESTORE=
-	dt_open
-	dt_notep high "Restart failed: $HIBR would not run"
-	return 1
+	json emit DT_RS > "$f.new" 2> /dev/null && mv -f "$f.new" "$f"
 }
 
 # A line in the desktop's log, the one place a restart can say what it did
@@ -204,15 +216,20 @@ dt_restore() {
 		json parse DT["$id"] "$j"
 		dt_hooks "$id" "$ap"
 		DT[$id]["autoclose"]=
-		read -ra ms <<< "${DT_KEEPSTATE["$ap"]}"
-		for m in "${ms[@]}"; do
-			j := json get DT_RS ".app.$id.$m" 2> /dev/null || continue
-			json parse "$m[$id]" "$j"
-		done
-		if [ -n "$ap" ] && dt_has "${ap}_resume"; then
-			${ap}_resume "$id"
-		elif [ "${#ms[@]}" = 0 ] && [ -n "${DT[$id]["open"]}" ]; then
-			${DT[$id]["open"]} "$id" ""
+		if [ "${DT_RS["fresh"]}" = 1 ] && [ -n "$ap" ] && dt_has "${ap}_stash"; then
+			dt_rslog "window $id ($ap): what it held could not survive, opened fresh"
+			[ -n "${DT[$id]["open"]}" ] && ${DT[$id]["open"]} "$id" ""
+		else
+			read -ra ms <<< "${DT_KEEPSTATE["$ap"]}"
+			for m in "${ms[@]}"; do
+				j := json get DT_RS ".app.$id.$m" 2> /dev/null || continue
+				json parse "$m[$id]" "$j"
+			done
+			if [ -n "$ap" ] && dt_has "${ap}_resume"; then
+				${ap}_resume "$id"
+			elif [ "${#ms[@]}" = 0 ] && [ -n "${DT[$id]["open"]}" ]; then
+				${DT[$id]["open"]} "$id" ""
+			fi
 		fi
 		dt_away "$id" || dt_hidden "$id" ||
 			console pane "w$id" "${DT[$id]["row"]}" "${DT[$id]["col"]}" \
@@ -237,7 +254,11 @@ dt_restore() {
 	rm -f "$f" "$f.err" "$DT_RSDIR"/term-*.save 2> /dev/null
 	DT_RESTORED=1
 	dt_rslog "restored ${#DT[@]} windows from $f"
-	dt_notep low "Restarted: hibr $HIBR_VERSION"
+	case ${DT_RS["why"]} in
+	crash) dt_notep high "The desktop stopped unexpectedly and was started again; its windows are back (see desktop.log)" ;;
+	stop) dt_notep low "Reopened the windows from when the desktop was stopped" ;;
+	*) dt_notep low "Restarted: hibr $HIBR_VERSION" ;;
+	esac
 }
 
 # Whether the hibr this desktop runs has been replaced on disk since it

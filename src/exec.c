@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -739,17 +740,73 @@ void ce_exp(sh *s, const char *kind, const char *t, size_t n)
 #endif
 
 int ex_loops, ex_srcs;
+char *ex_stk0;
+size_t ex_stkmax;
+int ex_fnok;
+long ex_fnnest;
+
+/* Note where the stack begins and how far it may grow before ex_deep refuses to go deeper. */
+void ex_stkinit(void *base)
+{
+	struct rlimit rl;
+	size_t lim = (size_t)8 << 20;
+
+	ex_stk0 = base;
+	if (!getrlimit(RLIMIT_STACK, &rl) && rl.rlim_cur != RLIM_INFINITY && rl.rlim_cur > (64 << 10))
+		lim = (size_t)rl.rlim_cur;
+	ex_stkmax = lim / 4 * 3;
+	lg(HIBR_LDBG, "the stack may grow %zu kB before nesting is refused", ex_stkmax >> 10);
+}
+
+/* Whether going a level deeper is refused: past FUNCNEST, or with most of the stack used. Said, and the script ended as an arithmetic error ends it. */
+int ex_deep(sh *s, const char *what, int fn)
+{
+	char here;
+	size_t used;
+	const char *v;
+
+	if (fn && !ex_fnok) {
+		v = hibr_get(s, "FUNCNEST");
+		ex_fnnest = v ? strtol(v, 0, 10) : 0;
+		ex_fnok = 1;
+	}
+	if (fn && ex_fnnest > 0 && s->dep >= ex_fnnest) {
+		lg(HIBR_LERR, "%s: maximum function nesting level exceeded (%ld)", what, ex_fnnest);
+		goto deep;
+	}
+	if (!ex_stk0)
+		return 0;
+	used = ex_stk0 > &here ? (size_t)(ex_stk0 - &here) : (size_t)(&here - ex_stk0);
+	if (used < ex_stkmax)
+		return 0;
+	if (fn)
+		lg(HIBR_LERR, "%s: nested too deeply, %d calls down: the stack would run out", what, s->dep);
+	else
+		lg(HIBR_LERR, "%s: nested too deeply: the stack would run out", what);
+deep:
+	if (!s->intry) {
+		if (s->it)
+			s->stop = 1;
+		else
+			s->quit = 1;
+	}
+	s->st = 1;
+	return 1;
+}
 
 /* Invoke a shell function with its own positional parameters; loops outside it are not its to break. */
 int fn_call(sh *s, node *f, int ac, char **av)
 {
 	char **oav = s->av;
 	int oac = s->ac, oavo = s->avo, st, bnd, oloops = ex_loops;
-	vec *fr = vb_get(s);
+	vec *fr;
 	const char *osrc = s->src;
 
 	char *orty = s->rty;
 
+	if (ex_deep(s, av[0], 1))
+		return 1;
+	fr = vb_get(s);
 	s->src = fn_src(s, f);
 	if (s->sf.n)
 		sh_sfl(s);
@@ -2263,8 +2320,11 @@ int ex(sh *s, node *n)
 		return s->st;
 	if (s->quit || s->stop || s->ret || s->brk || s->cont)
 		return s->st;
-	if (tr_pending())
+	if (tr_pending()) {
 		tr_run(s);
+		if (s->quit || s->stop)
+			return s->st;
+	}
 	t = s->tst;
 	s->tst = 0;
 	switch (n->k) {

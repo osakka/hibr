@@ -22,9 +22,12 @@ DT_IDLEMS="${DT_IDLEMS-60000}"
 # left by Quit, never by a stray interrupt, and the key goes to the focused
 # window -- which is how a program in a terminal window gets its ctrl-c.
 dt_open() {
+	dt_supervise
 	title "hibr [desktop]"
 	dt_load
 	console open || return 1
+	trap 'dt_onstop HUP' HUP
+	trap 'dt_onstop TERM' TERM
 	# What a cell left at the terminal's own default colour should darken
 	# toward, for a window's shadow: the desktop's own idea of plain
 	# ink-on-face, the same colours everything undecorated already reads
@@ -56,6 +59,7 @@ dt_open() {
 	dt_size
 	dt_deskscan
 	dt_clipload
+	dt_snaptake
 	dt_restore
 }
 
@@ -91,6 +95,7 @@ dt_size() {
 
 # Give the terminal back.
 dt_close() {
+	dt_snapdrop
 	if [ -n "$DT_ERR" ]; then
 		exec 2>&$DT_ERR {DT_ERR}>&-
 		DT_ERR=
@@ -192,6 +197,7 @@ dt_run() {
 		fi
 		dt_updcheck
 		dt_remotepoll
+		dt_snapcheck
 		dt_saverwait
 		if [ -n "$DT_TESTIDLE" ]; then
 			k := console consumed

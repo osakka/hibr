@@ -1,0 +1,16 @@
+0
+hibr: f: nested too deeply, N calls down: the stack would run out
+status 1
+hibr: f: nested too deeply, N calls down: the stack would run out
+try kept the script going
+status 0
+hibr: g: maximum function nesting level exceeded (20)
+status 1
+hibr: h: maximum function nesting level exceeded (3)
+status 1
+within FUNCNEST runs
+status 0
+hibr: source: nested too deeply: the stack would run out
+status 1
+hibr: eval: nested too deeply: the stack would run out
+status 1

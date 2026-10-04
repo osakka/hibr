@@ -1127,14 +1127,16 @@ check("and at the size the Terminal pane sets, which fits",
 
 # --- snapping ----------------------------------------------------------------
 #
-# alt and an arrow put the focused window on that half of the display, below
-# the bar; the same again puts it back. ONE is 8 by 30 at row 6, column 10.
-AL, AR, AU, AD = b"\x1b[1;3D", b"\x1b[1;3C", b"\x1b[1;3A", b"\x1b[1;3B"
+# ctrl-alt-left and -right, and alt-up and -down, put the focused window on
+# that half of the display, below the bar; the same again puts it back. ONE
+# is 8 by 30 at row 6, column 10. Plain alt-left and -right are the
+# workspaces' since 0.99.26.
+AL, AR, AU, AD = b"\x1b[1;7D", b"\x1b[1;7C", b"\x1b[1;3A", b"\x1b[1;3B"
 sc, _ = run(ONE, [AL])
-check("alt-left snaps the window to the left half",
+check("ctrl-alt-left snaps the window to the left half",
       sc.at(1, 0) == "┌" and sc.at(23, 39) == "◢", sc)
 sc, _ = run(ONE, [AR])
-check("alt-right to the right half",
+check("ctrl-alt-right to the right half",
       sc.at(1, 40) == "┌" and sc.at(23, 79) == "◢", sc)
 sc, _ = run(ONE, [AU])
 check("alt-up to the top half",
@@ -1175,6 +1177,12 @@ sc, _ = run(WS2)
 w2 = sc.row(0).find("1 2 3")
 sc, _ = run(WS2, [b"\x1b2", b"\x1b1"])
 check("alt-1 comes back to both, stacked as they were",
+      sc.find("┤ Under ├") == (6, 12) and sc.at(9, 25) == "┌", sc)
+sc, _ = run(WS2, [b"\x1b[1;3C"])
+check("alt-right goes to the next workspace",
+      sc.find("Under") is None and sc.find("Over") is None, sc)
+sc, _ = run(WS2, [b"\x1b[1;3C", b"\x1b[1;3D"])
+check("and alt-left back to the one before",
       sc.find("┤ Under ├") == (6, 12) and sc.at(9, 25) == "┌", sc)
 sc, _ = run(WS2, [press(0, w2 + 2)] if w2 > 0 else [])
 check("clicking a number on the bar switches to it",
@@ -3196,4 +3204,54 @@ check("and Shell is the person's own shell, started as a login shell",
       b"name=-sh" in r.stdout, r.stdout + r.stderr)
 shutil.rmtree(LGDIR, True)
 
-report(437)
+# --- recovering ------------------------------------------------------------
+#
+# A held desktop runs under a supervisor (DT_SUPERVISE, on when held, off
+# under the harness unless asked). Here it is asked, and the desktop is
+# killed with SIGSEGV twelve seconds in -- old enough to be started again
+# -- once only, a file saying it already happened. The new one puts the
+# window back from the snapshot, says why, and quits cleanly.
+RD = tempfile.mkdtemp(prefix="hibr-recover-")
+mark = os.path.join(RD, "crashed")
+path = os.path.join(RD, "crash.hibr")
+open(path, "w").write("%s. %s\ndt_open\n[ \"$DT_RESTORED\" = 1 ] || dt_new \"Hello\" 8 30 6 10\n"
+                      "[ -e %s ] || { : > %s; ( sleep 12; kill -SEGV $$ ) & }\ndt_run\ndt_close\n"
+                      % (load(MOD), WM, mark, mark))
+t = Term(path, env={"DT_SUPERVISE": "on"}, rows=ROWS, cols=COLS, settle=1.5)
+t.collect(2.0)
+before = t.screen().find("┤ Hello ├")
+t.collect(16.0)
+sc = t.screen()
+log = open(t.log).read() if os.path.exists(t.log) else ""
+check("a desktop that dies on a signal is started again, its windows back",
+      before == (6, 12) and sc.find("┤ Hello ├") == (6, 12)
+      and "died on signal 11" in log and "restored 1 windows" in log, log)
+t.quit(b"qy", 3)
+check("and quits as usual afterwards", t.exited and t.status == 0, t.status)
+
+# A SIGTERM is a request to stop: the windows are written down, the desktop
+# exits 143, and the next start reopens them once; after a Quit, nothing.
+ST = os.path.join(RD, "state")
+def recsess(name, extra):
+    p = os.path.join(RD, name)
+    open(p, "w").write("%s. %s\ndt_open\n%s\ndt_run\ndt_close\n" % (load(MOD), WM, extra))
+    return p
+t = Term(recsess("a.hibr", '[ "$DT_RESTORED" = 1 ] || dt_new "Kept" 8 30 6 10\n( sleep 2; kill -TERM $$ ) &'),
+         env={"XDG_STATE_HOME": ST}, rows=ROWS, cols=COLS, settle=1.0)
+t.collect(4.0)
+t.wait(3)
+check("SIGTERM writes the windows down and exits 143",
+      t.exited and t.status == 143 * 256, t.status)
+t = Term(recsess("b.hibr", ""), env={"XDG_STATE_HOME": ST}, rows=ROWS, cols=COLS, settle=1.5)
+t.collect(2.0)
+sc = t.screen()
+check("the next start reopens them, and says so",
+      sc.find("┤ Kept ├") == (6, 12) and sc.find("Reopened") is not None, sc)
+t.quit(b"qy", 3)
+t = Term(recsess("c.hibr", ""), env={"XDG_STATE_HOME": ST}, rows=ROWS, cols=COLS, settle=1.5)
+t.collect(2.0)
+sc = t.screen()
+check("a Quit leaves nothing to reopen", sc.find("┤ Kept ├") is None, sc)
+t.quit(b"qy", 3)
+
+report(444)

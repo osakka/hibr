@@ -59,6 +59,10 @@ void tr_run(sh *s)
 		lg(HIBR_LDBG, "running trap for signal %d", i);
 		hibr_run(s, cmd);
 		s->stop = 0;
+		if (s->quit) {
+			lg(HIBR_LDBG, "the trap for signal %d exits, with status %d", i, s->st);
+			return;
+		}
 	}
 	s->st = ost;
 }

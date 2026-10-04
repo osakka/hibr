@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.99.26
+
+**alt-left and alt-right go between workspaces.** They were Snap Left and
+Snap Right, which move to ctrl-alt-left and ctrl-alt-right -- the keys the
+workspaces had -- so the two swap. A window that uses alt-left and alt-right
+itself keeps them while it has focus: the Browser's back and forward. A
+saved settings file still holding the old defaults is moved over once
+(settings version 3); a key someone chose is kept.
+
+**Runaway recursion is an error, not a crash.** A function calling itself
+for ever, a file sourcing itself, an `eval` evaluating itself: each is now
+stopped before the stack runs out, with a message naming it, and the script
+ends as it does for an arithmetic error. bash's `FUNCNEST` is honoured too.
+This is what took the desktop down in 0.99.24; it would now have been an
+error in the log.
+
+**The desktop starts again by itself when it dies.** A held desktop has a
+small supervisor: if the desktop dies on a signal or an error, it is started
+again and its windows are put back where they were, from a snapshot kept
+while you work, with a note saying so and the reason in `desktop.log`.
+Terminals come back with a fresh shell. One that dies within ten seconds, or
+three times in five minutes, is left stopped. SIGTERM and SIGHUP -- a
+shutdown -- write the windows down and exit cleanly, and the next start
+reopens them once.
+
+**`exit` in a trap keeps its status.** `trap 'exit 143' TERM` exited 1, and
+a bare `exit` in a trap did too: the earlier status was put back after the
+trap. Both now behave as in bash.
+
 ## 0.99.25
 
 **Adding a mail account no longer takes the desktop down.** Choosing Add

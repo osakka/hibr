@@ -1,0 +1,161 @@
+#!/usr/bin/env hibr
+#
+# wm/recover -- the desktop starting again by itself when it dies.
+#
+# A held desktop is two processes: a small supervisor, which does nothing
+# but run the desktop and wait, and the desktop itself, its child. When the
+# desktop ends on a signal, or with an error its own script could not get
+# past, the supervisor writes down why in desktop.log and starts it again;
+# the new one finds the snapshot the old one kept and puts its windows back
+# where they were, the way Restart Desktop does. What cannot be written
+# down -- a terminal's running program -- is gone, and its window opens
+# with a fresh shell. A desktop that dies within its first seconds, or
+# three times in five minutes, is not started again: that is a fault to
+# read about, not one to repeat.
+#
+# The snapshot is the restart's own state file, written at most every
+# DT_SNAPMS while anything is happening -- input, a window opened or closed
+# -- and never while nothing is. A SIGTERM or SIGHUP is a request to stop
+# rather than a crash: the desktop writes the snapshot then and there and
+# exits, and the next start reopens those windows once. Quit removes it, so
+# a desktop someone ended on purpose starts empty.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+strict
+
+# off, on, or auto: on when held, off under a test harness unless asked.
+DT_SUPERVISE=${DT_SUPERVISE-auto}
+DT_SUPERVISED=${DT_SUPERVISED-}
+DT_SNAPMS=30000
+DT_SNAPAT=0
+DT_SNAPIN=-1
+DT_SNAPN=-1
+DT_STOPPING=
+DT_SVSIG=
+
+# The snapshot of this session, one file a session.
+dt_snapfile() {
+	local nm=${HIBR_HOLD##*/}
+
+	ret "$DT_RSDIR/snap-${nm:-desktop}.json"
+}
+
+# Become the supervisor, when this desktop should have one: run the session
+# again as a child, and again after a crash, until it ends of its own
+# accord. Returns only when there is to be no supervisor.
+dt_supervise() {
+	local st t0 now lived n
+	local -a times keep
+
+	[ -n "$DT_SUPERVISED" ] && return 0
+	case $DT_SUPERVISE in
+	off | 0) return 0 ;;
+	auto) [ -n "$DT_TESTIDLE" ] && return 0 ;;
+	esac
+	[ -x "$HIBR" ] && [ -r "$DT_SELF0" ] || return 0
+	export DT_SUPERVISED=1
+	trap 'DT_SVSIG=1' HUP TERM INT
+	while :; do
+		t0=$EPOCHSECONDS
+		"$HIBR" "$DT_SELF0" "${DT_SELFARGS[@]}"
+		st=$?
+		export -n DT_RESTORE
+		DT_RESTORE=
+		now=$EPOCHSECONDS
+		lived=$((now - t0))
+		case $st in
+		0 | 129 | 130 | 143) exit "$st" ;;
+		esac
+		[ -n "$DT_SVSIG" ] && exit "$st"
+		if [ "$st" -gt 128 ]; then
+			dt_svlog "the desktop died on signal $((st - 128)) after ${lived}s"
+		else
+			dt_svlog "the desktop ended with status $st after ${lived}s"
+		fi
+		if [ "$lived" -lt 10 ]; then
+			dt_svlog "it had only just started, so it is not started again"
+			exit "$st"
+		fi
+		keep=()
+		for n in "${times[@]}"; do
+			[ $((now - n)) -lt 300 ] && keep+=("$n")
+		done
+		times=("${keep[@]}" "$now")
+		if [ "${#times[@]}" -ge 3 ]; then
+			dt_svlog "that is three times in five minutes, so it is not started again"
+			exit "$st"
+		fi
+		dt_svlog "starting it again"
+	done
+}
+
+# A line in the desktop's log from the supervisor, which never had the
+# screen and so never sent its stderr there.
+fn dt_svlog(text) {
+	mkdir -p "${DT_LOG%/*}" 2> /dev/null
+	echo "desktop: $text" >> "$DT_LOG"
+	return 0
+}
+
+# Point dt_restore at the snapshot, when there is one and nothing else is
+# being restored. It is moved aside first, so a window whose restore itself
+# brings the desktop down cannot do it again on the next start.
+dt_snaptake() {
+	local f
+
+	[ -z "$DT_RESTORE" ] || return 0
+	f := dt_snapfile
+	[ -r "$f" ] || return 0
+	mv -f "$f" "$f.taken" 2> /dev/null || return 0
+	DT_RESTORE="$f.taken"
+	dt_rslog "found ${f##*/}: its windows are put back"
+}
+
+# After a frame: write the snapshot, when someone will read it and enough
+# has happened since the last.
+dt_snapcheck() {
+	local now k f
+
+	[ -n "$DT_SUPERVISED" ] || return 0
+	now=${EPOCHREALTIME/./}
+	now=$((now / 1000))
+	[ $((now - DT_SNAPAT)) -ge "$DT_SNAPMS" ] || return 0
+	k := console consumed
+	[ "$k" != "$DT_SNAPIN" ] || [ "${#DT[@]}" != "$DT_SNAPN" ] || return 0
+	DT_SNAPAT=$now
+	DT_SNAPIN=$k
+	DT_SNAPN=${#DT[@]}
+	f := dt_snapfile
+	[ -d "$DT_RSDIR" ] || mkdir -p "$DT_RSDIR" 2> /dev/null || return 0
+	dt_rswrite "$f" 0 crash || dt_rslog "the snapshot could not be written to $f"
+	return 0
+}
+
+# A SIGTERM or SIGHUP: write the windows down, give the terminal back, end.
+fn dt_onstop(sig) {
+	local f
+
+	DT_STOPPING=1
+	f := dt_snapfile
+	[ -d "$DT_RSDIR" ] || mkdir -p "$DT_RSDIR" 2> /dev/null
+	if dt_rswrite "$f" 0 stop; then
+		dt_rslog "stopped by SIG$sig: ${#DT[@]} windows written to $f"
+	else
+		dt_rslog "stopped by SIG$sig; the windows could not be written down"
+	fi
+	dt_close
+	case $sig in HUP) exit 129 ;; *) exit 143 ;; esac
+}
+
+# Quit, or anything else that ends the desktop on purpose: nothing to put
+# back next time.
+dt_snapdrop() {
+	local f
+
+	[ -z "$DT_STOPPING" ] || return 0
+	f := dt_snapfile
+	rm -f "$f" "$f.new" "$f.taken" 2> /dev/null
+	return 0
+}

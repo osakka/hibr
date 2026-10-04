@@ -533,6 +533,7 @@ int main(int ac, char **av)
 
 	memset(&s, 0, sizeof s);
 	lg_sh = &s;
+	ex_stkinit(&s);
 	s.ar = ar_new(HIBR_ARCH);
 	s.xa = ar_new(HIBR_ARCH);
 	s.arg0 = xs(av[0]);

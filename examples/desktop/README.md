@@ -48,8 +48,8 @@ one down and across, as the desktop always did; **center** puts it in the
 middle. A window bigger than the display is shrunk to fit. A session's own
 `dt_new` with a position is left where it says.
 
-**Snapping** puts the focused window on a half of the display: alt and an
-arrow -- left, right, top, bottom -- or Window > Snap, which also has
+**Snapping** puts the focused window on a half of the display: ctrl-alt-left
+and ctrl-alt-right, alt-up and alt-down -- or Window > Snap, which also has
 Center. Snapping the same way again puts the window back where it was. A
 fixed window can only be centred. The keys are Shortcuts like any other;
 Center has none until you give it one.
@@ -59,10 +59,12 @@ to 9), for the whole desktop at once, every window on the one that was
 current when it opened. The bar shows the numbers left of the notification
 icon, the current one lit; click one to go there, or drag a window by its
 title onto one to send it there. alt-1, alt-2 and alt-3 switch,
-ctrl-alt-right and ctrl-alt-left step through them (Workspace 4 to 9 have
+alt-right and alt-left step through them (Workspace 4 to 9 have
 no key until given one), and so does the mouse wheel over the bare
 desktop or the bar -- down to the next, up to the previous, one step a
-notch. Window > Move to Workspace sends the focused window, and a title
+notch. A window that uses alt-left and alt-right itself keeps them while it
+has focus -- the Browser's back and forward -- and a terminal gives them up
+to the desktop, as it does every desktop shortcut. Window > Move to Workspace sends the focused window, and a title
 bar's right-click menu has the same for its own. With one workspace the
 bar shows no numbers and none of this appears. Cycle (alt-tab, or
 Window > Cycle) goes through this workspace's windows; Control Panel >
@@ -722,6 +724,26 @@ keeps running the hibr it was started with until the session is ended; and
 between installing and restarting, a module the running desktop has not
 loaded yet would be the new one, which the old shell refuses. Restart soon
 after an upgrade.
+
+## When the desktop stops
+
+A held desktop -- which is every desktop started the usual way -- has a
+small supervisor beside it. If the desktop dies on a signal, or on an error
+its script could not get past, the supervisor writes why into
+`~/.local/state/hibr/desktop.log` and starts it again, and the new one puts
+its windows back where they were, with a note saying it happened.
+Terminals come back with a fresh shell: the program that was running in one
+went with the desktop. A desktop that dies within its first ten seconds, or
+three times in five minutes, is left stopped, since starting it again would
+only repeat whatever is wrong. `DT_SUPERVISE=off` in a session turns this
+off.
+
+What is put back comes from a snapshot the desktop keeps of its windows,
+written at most every thirty seconds and only while something is happening.
+A SIGTERM or SIGHUP -- the machine shutting down -- is a request to stop,
+not a crash: the desktop writes the snapshot then, gives the terminal back
+and exits, and the next start reopens those windows once. Quitting removes
+it, so a desktop ended on purpose starts empty.
 
 ## Detaching, and coming back
 

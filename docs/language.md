@@ -48,6 +48,13 @@ spoken to with the same `send` and `recv` as a socket. `mapfile` / `readarray`,
 `wait -n [-p var]`, `trap … DEBUG` (the command is in `$CMD`), `hash`, `ulimit`,
 `|&` and `printf '%(fmt)T'` are all there too.
 
+**Recursion is bounded.** A function that calls itself for ever, a file
+that sources itself, an `eval` that evals itself: each is stopped before the
+stack runs out, with an error naming it, and the script ends as it does for
+an arithmetic error (`try` keeps it to the command). bash crashes on the
+first unless `FUNCNEST` is set; hibr honours `FUNCNEST` as bash does, and
+stops at three quarters of the stack whether it is set or not.
+
 **Special variables.** `$@ $* $# $? $$ $! $0–$9 $RANDOM $SECONDS $EPOCHSECONDS
 $EPOCHREALTIME $LINENO $PPID $UID $EUID $HOSTNAME $HIBR_VERSION $HIBR_ABI $HIBR`, plus `$RET`, `$ERRMSG`, `$ERR`, `$ERRSTATUS`,
 `$REMOTE` and `$M`, and `$BASH_SOURCE`: the file the running code came from --

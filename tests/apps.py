@@ -1012,17 +1012,46 @@ OLDKEYS = ('DT_KEYS["close"]=alt-f4\nDT_KEYS["cycle"]=tab\n'
            'DT_KEYS["quit"]=q\nDT_TERMBAR=0\nDT_DRAGMOD=0\n')
 out = loadconf("DT_TERMKEEP=0\n" + OLDKEYS)
 check("a settings file from before 0.72 is brought up to 0.73's defaults",
-      out == "2 1 1 1 ctrl-w alt-tab []", out)
+      out == "3 1 1 1 ctrl-w alt-tab []", out)
 out = loadconf("DT_SETVER=1\nDT_TERMKEEP=0\n" + OLDKEYS)
 check("one from 0.72 keeps its Shortcuts Win and gets the rest",
-      out == "2 0 1 1 ctrl-w alt-tab []", out)
+      out == "3 0 1 1 ctrl-w alt-tab []", out)
 out = loadconf('DT_SETVER=1\nDT_KEYS["close"]=alt-x\nDT_KEYS["cycle"]=f6\n'
                'DT_KEYS["quit"]=ctrl-q\n')
 check("a key changed from its old default is not touched",
       out.endswith("alt-x f6 [ctrl-q]"), out)
 out = loadconf("DT_SETVER=2\nDT_TERMBAR=0\nDT_DRAGMOD=0\n")
 check("and a 0.73 file is read as it is, choices and all",
-      out.startswith("2 1 0 0 "), out)
+      out.startswith("3 1 0 0 "), out)
+
+
+# 0.99.26 put the workspaces on alt and an arrow and Snap on ctrl-alt: a
+# file still holding the old defaults swaps them, and a key someone chose
+# is kept, its partner moving onto the key it gave up.
+def loadkeys(conf):
+    d = tempfile.mkdtemp(prefix="hibr-mig-")
+    os.makedirs(os.path.join(d, "hibr"))
+    open(os.path.join(d, "hibr", "desktop.hibr"), "w").write(conf)
+    out = subprocess.run(
+        [sx.HIBR, "-c", ". %s\ndt_load\necho \"${DT_KEYS[snapleft]} ${DT_KEYS[wsprev]} "
+         "${DT_KEYS[snapright]} ${DT_KEYS[wsnext]}\"" % WM],
+        env=dict(os.environ, XDG_CONFIG_HOME=d),
+        capture_output=True, text=True).stdout.strip()
+    shutil.rmtree(d, True)
+    return out
+
+
+OLDWS = ('DT_SETVER=2\nDT_KEYS["snapleft"]=alt-left\nDT_KEYS["snapright"]=alt-right\n'
+         'DT_KEYS["wsprev"]=ctrl-alt-left\nDT_KEYS["wsnext"]=ctrl-alt-right\n')
+out = loadkeys(OLDWS)
+check("a file from before 0.99.26 has its workspace and snap keys swapped",
+      out == "ctrl-alt-left alt-left ctrl-alt-right alt-right", out)
+out = loadkeys(OLDWS + 'DT_KEYS["wsprev"]=f7\n')
+check("a workspace key someone chose stays, and Snap still moves off alt",
+      out == "ctrl-alt-left f7 ctrl-alt-right alt-right", out)
+out = loadkeys('DT_SETVER=3\nDT_KEYS["snapleft"]=alt-left\nDT_KEYS["wsprev"]=ctrl-alt-left\n')
+check("and a file written since is read as it is",
+      out.startswith("alt-left ctrl-alt-left "), out)
 
 # Themes are JSON files, read from the person's own folder first and then
 # the bundled one; a file of the same name replaces a bundled theme, a new
@@ -3374,4 +3403,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(510)
+report(513)
