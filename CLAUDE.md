@@ -133,6 +133,8 @@ linked, and no OpenSSL headers are needed to build.
 | `mods/md/` | markdown: CommonMark and GFM, every spec example passing byte for byte (`tests/md_spec.py`); `md html` and `md lines`, the per-character styles Write draws from -- see `mods/md/README.md` |
 | `mods/auth.c` | password checks through PAM, libpam `dlopen`ed: `auth check [-s svc] [-c confdir] user pw`, run as the user with no privilege (PAM's own `unix_chkpwd` is setgid, hibr never is); the desktop's lock (`wm/lock.hibr`) is built on it; `auth open`/`run`/`close` are a PAM session and a command run in it as the user, for the login screen (`examples/desktop/login/`, root under systemd, `hibr-login@.service` shipped off); the Debian package installs `/etc/pam.d/hibr` and `hibr-login` |
 | `mods/lint/` | the rules behind `hibr --explain`: walks the parsed tree and names mistakes, runs nothing; offers `"lint"` (`mods/lint.h`) and adds no builtin |
+| `mods/html/` | HTML as the WHATWG standard parses it, our own tokenizer and tree builder, all 1792 html5lib tree-construction cases passing (`tests/html_tree.py`); CSS selectors, and `html lines`, the layout Mail reads messages through -- see `mods/html/README.md` |
+| `mods/email/` | IMAP (IDLE, Gmail's labels), POP3, SMTP and MIME; accounts in a 0600 file; `tests/mailserve.py` is the suites' stand-in server; the Mail app (`apps/Internet/mail.hibr`) keeps accounts offline through `examples/desktop/lib/mailsync.hibr` -- see `mods/email/README.md` |
 
 Each directory carries its own `README.md` with the detail: `src/`, `include/`,
 `mods/`, `tests/`, `examples/`. User-facing documentation is under `docs/`, and
@@ -1797,6 +1799,52 @@ went in the shell.
   now fails on any `console pen` naming a `DT_` colour settings.hibr does
   not give a default. Text on the accent is `$DT_SELINK` on `$DT_ACTIVE`.
 
+- **`:=` into a subscripted target copies a map result.** `ML["$acct"] :=
+  db query "$h"` used to keep only the scalar, so the Mail app synced four
+  messages and listed none. `ex_bind` calls `v_copyp`, which sets the entry
+  and then clones `RET`'s map under it, JSON types and all; `v_setp` frees
+  whatever map was there first, so binding a map over a map does not leak
+  (`tests/995-bind-map.t`, leak-checked).
+- **`${M[k]+x}` is empty when `M[k]` holds only a map.** Ask about a field
+  the record always has -- `${MC[$id]["focus"]+x}` -- or a window that
+  should close on a job's callback never does. A core fix (an entry with a
+  map counts as set) is possible and has not been made.
+- **A job's callback runs inside a frame**, from `_draw` or `_idle`, so a
+  window it closes goes through `dt_wantclose`, never `dt_del`: the frame
+  still has the window in its list and draws into a pane that is gone
+  ("console put: w2: no such pane").
+- **A job is done before its callback runs.** Mail's `ml_poll` unset a job
+  only after calling `then`, so a callback that starts the next sync asked
+  `ml_running`, saw itself, set "again" and started nothing; the archive
+  queued meanwhile sat until the timer. Mark it (`MLJ[$n]["done"]=1`) first
+  and have the "is one running" check skip it.
+- **Tab is IFS whitespace, so empty tab-separated fields collapse.**
+  `IFS=$'\t' read -r op fold uid arg` on `sent<TAB><TAB><TAB>file` puts the
+  file in `fold`. Write a queue line with no empty middle field, or split it
+  some other way; a trailing empty field is harmless. The same rule is why
+  `IFS=$'\n' read -d '' -ra` drops blank lines -- `mapfile -t` keeps them,
+  and a message quoted without its blank lines has no paragraphs.
+- **Never end a string inside a buffer you will search again.** POP's
+  `po_list` wrote a NUL after the size it found in the LIST reply, and every
+  later message's search stopped there: all sizes after the first read 0.
+  Copy the piece out (`s_add` with `strcspn`) instead.
+- **A test's stand-in server can be the slow part.** The first 1000-message
+  sync took 44 s, and all of it was `tests/mailserve.py` working out the UID
+  set once per message -- quadratic, 200 ms a fetch. Time the same command
+  against a 10-message box before believing the client is slow.
+- **A Python test named after a stdlib module shadows it.** `tests/email.py`
+  hid the `email` package from everything the suite imported; the Mail
+  suites are `mail.py` and `mailapp.py`.
+- **A helper script a desktop app runs goes in `examples/desktop/lib/`.**
+  Everything under `apps/` is sourced as an app at startup, so a script
+  put there would run inside the desktop, with no arguments, every time it
+  starts.
+- **An app's pane declares the settings it changes.** The panel tests load
+  the pane without the app, and under `strict vars` a setter assigning
+  `DT_MAILMAX` there is refused as creating a global -- every dropdown
+  "chose" and nothing changed. The pane repeats the app's declarations and
+  `dt_keep` (which now skips a name it already has).
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then
@@ -1867,6 +1915,18 @@ went in the shell.
   tests: the command cache's 96 bytes were found by noticing that only one test
   file reported anything, and then that `hash` reported the same number, which
   is what said cache rather than new code.
+- **The shell's maps are lists**, so a lookup or an append walks every
+  entry: 5000 inserts into one map take 155 ms, 20,000 take 2.7 s; one
+  pass over 5000 rows reading three fields of each, 337 ms. That is why
+  Mail keeps 1000 messages by default (0.2 s to load, 0.35 s a view
+  change) and why `html lines` bound into `$RET` on a 30,000-line page took
+  45 s against 0.25 s printed. The fix is an index for large maps, after
+  `fn_hfind`'s pattern: built past a threshold, so a small map pays
+  nothing; a tail pointer for appends. It must be kept right by every path
+  that changes a chain -- `mp_add`, `unset`'s splice, `m_clone`,
+  `v_copyp`, `mp_free`, the release of `RET` -- it changes `struct ent` and
+  so the ABI, and it has to be measured on resident memory as well as
+  instruction counts before it goes in. Not built; the owner decides.
 - hibr uses about 160 kB more than dash (measured on 0.68), and that is the
   binary rather than the heap: 36 kB of a 1852 kB resident set is heap, so there is no allocator work
   left that would move it. Shrinking it means less code. The README says so.

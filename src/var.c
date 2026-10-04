@@ -701,6 +701,26 @@ void v_copy(sh *s, const char *dst, const char *src)
 	lg(HIBR_LTRC, "copied %s to %s", src, dst);
 }
 
+/* Copy one variable, map and all, onto the entry at a subscript path of
+   another, creating the levels it crosses: what a subscripted := does with
+   a result that is a map, so a function's map can be filed under a key. */
+void v_copyp(sh *s, const char *dst, char **ks, int nk, const char *src)
+{
+	var *a = v_find(s, src);
+	ent *e;
+
+	v_setp(s, dst, ks, nk, a && a->v ? a->v : "");
+	if (!a || !a->map || !nk)
+		return;
+	e = v_path(s, dst, ks, nk, 0);
+	if (!e)
+		return;
+	e->map = m_clone(a->map);
+	e->n = a->n;
+	e->ty = a->ty;
+	lg(HIBR_LTRC, "copied %s's map under %s", src, dst);
+}
+
 /* Public map access for modules. */
 const char *hibr_getp(sh *s, const char *nm, char **ks, int nk)
 {

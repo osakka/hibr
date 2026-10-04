@@ -458,6 +458,59 @@ for, and how many frames a second are drawn and how finely, which decide
 how much a terminal is sent; whether the next video plays by itself; and
 Clear History.
 
+## Mail
+
+**Mail**, in the Internet folder, is a mail client laid out the way Gmail
+is: Compose and the views down the left -- Inbox, Starred, Important, Sent,
+Drafts, All Mail, Spam, Trash, then the account's labels or folders, each
+with its unread count -- and the conversations on the right, newest first,
+a message and its replies together, whoever wrote them and how many, the
+subject and the start of the latest. Enter or a click opens one: every
+message in it, oldest first, each with its sender, date and recipients,
+HTML laid out (headings, lists, quotes, tables, links you can click) and
+attached pictures drawn in place; attachments are buttons that save the
+file. Pictures from the web are never fetched -- that is how a sender
+learns a message was opened.
+
+Gmail's keys work: `j` and `k` move, `o` or enter opens, `u` or escape goes
+back, `e` archives, `#` moves to Trash, `!` to Spam, `s` stars, `I` and `U`
+mark read and unread, `l` gives a label, `v` moves, `c` writes a new
+message, `r` replies, `a` replies to everyone, `f` forwards, `/` searches
+(every word, in sender, recipients, subject and text), `R` checks now, and
+`g` then `i`, `s`, `t`, `d` or `a` goes to Inbox, Starred, Sent, Drafts or
+All Mail. The File, Message and Go menus have them all.
+
+It works offline. A job of its own (`examples/desktop/lib/mailsync.hibr`,
+on the `email` and `db` modules) keeps each account in
+`~/.local/share/hibr/mail/<account>/`: a row a message in a `db` file, and
+the newest messages' whole text beside it. What you do -- read, star,
+archive, label -- happens at once on screen and goes into a queue the next
+sync sends; when there is no connection the queue waits, and nothing is
+lost if a connection drops part way. New mail arrives by itself: the app
+keeps an IMAP IDLE open on the inbox, so it is pushed rather than polled,
+and checks everything every few minutes as well.
+
+IMAP is the whole of it, Gmail's labels included -- archive takes the Inbox
+label off, as Gmail does. A POP3 account works too, with what POP3 allows:
+new mail is downloaded and kept here, read, starred, archived and labelled
+are this machine's own, Trash and Spam are folders here, a message put in
+Trash is deleted from the server as well, and what you send is kept in a
+Sent folder here. Sending is SMTP.
+
+Control Panel > Mail adds and changes accounts -- for Gmail or Outlook the
+address and a password are enough; Gmail wants an *app password*, made in
+the Google account's security settings, since there is no Google sign-in
+here -- and sets how many messages are kept offline (1000 unless changed:
+the main folder gets that many, every other folder a fifth of it), how many
+are downloaded whole, how often to check, whether attached pictures are
+shown, and a signature. Accounts are the `email` module's private file,
+readable only by you; the pane never shows a password.
+
+How big a mailbox stays quick is measured, not hoped: with 1000 messages
+kept, opening the app reads them in 0.2 s and changing view takes about
+0.35 s. Many more than that and every action slows, because the shell's
+maps are lists -- which is why the Keep Messages choices stop at 2000.
+
 ## Screen savers
 
 After ten minutes with no key and no click the screen is given to a
@@ -1084,6 +1137,7 @@ In `examples/desktop/apps/`, each one also a file you can read in a sitting:
 | `write` | a word processor for markdown, in Office: what you write is shown as it reads -- headings large, **bold** bold, *italic* italic, lists with their bullets, tasks with boxes you click to tick, quotes with their bar, `code` shaded, links underlined, rules drawn -- and only the line the cursor is on shows its markdown, the marks dimmed, so it is always edited exactly. A toolbar and the Format menu put the marks in -- bold, italic, strikethrough, code, link, three headings, bulleted, numbered and task lists, quote, rule -- on the selection, or on the line. File > Open…, Save (ctrl-s, settable as Save) and Save As…; Find… and Find Next; the Edit menu's undo, redo, cut, copy, paste and select all. A `.txt` is edited as plain text. A window with unsaved changes asks before it closes and keeps them across Restart Desktop. Files opens `.md` and `.txt` in it |
 | `sheet` | a spreadsheet whose formulas are hibr, in Office. A cell holds text, a number, or `=` and hibr: what a formula prints is its value (`=math "A1 * 1.2"`, `=sum "${B1_B9[@]}"`), and one that is an expansion is that (`=$((A1 * 2))`). Every cell a formula names is a variable holding its value, a range `A1_B9` an array; formulas are worked out in the order they need each other, and one that needs itself says `#CYCLE`. They run in a hibr of their own under `--plan`, with two seconds of CPU and ten of the clock: they compute and read, and what would write, connect or start a program says `#REFUSED` with what it would have done -- Sheet > Trust This Sheet lets one sheet's run for real, remembered on this machine, never in the file. A sheet is a `db` file (`.hsheet`), one row per cell, written as it changes; Save As copies it. Typing replaces a cell, enter or f2 edits it, delete clears the selection, a column's header edge drags its width, and the Sheet menu inserts and deletes rows and columns, the formulas following the cells they name. CSV in and out from File. The Format menu works on the selection: bold, italic, a text colour and a fill from the theme's roles, alignment, decimals, thousands, percent and currency (`SS_CURRENCY`, `$` unless set), a bottom or right border, a rule that colours a number by its value (Negatives Bad, Positives Good, or Rule... for `> 100 good`), and frozen top rows and left columns. Sheets live in `SS_DIR`, `~/.local/share/hibr/sheets` unless set |
 | `browser` | the web, in Internet: a headless Chromium driven by the `web` module, each page drawn as cells -- its text where it was laid out, in its colours, over a half-block picture of backgrounds and images. A tab strip (click to switch, the x to close, + for another), back, forward, reload and the address bar: f6 or ctrl-l puts the keyboard there, enter goes -- a bare name gets https://, anything not an address is searched for (`BW_SEARCH`). Clicks follow links and focus fields, typing goes to the page, the wheel scrolls, alt-left and alt-right go back and forward. Bookmarks > Add Bookmark keeps a page in `~/.local/share/hibr/bookmarks.tsv`, a title and an address a line; the rest of that menu goes to one. Needs Chromium or Chrome (`HIBR_WEB_BROWSER`) |
+| `mail` | mail, laid out like Gmail and kept offline: IMAP with push and labels, POP3, SMTP -- see Mail above |
 | `tasks` | every process, name, CPU% and memory, sorted by either (`c`, `m`); `x` ends the selected one, `shift-x` forces it |
 
 ## Desk Accessories

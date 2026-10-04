@@ -1,0 +1,1648 @@
+#!/usr/bin/env hibr
+#
+# mail -- email in a window, laid out as Gmail lays it out: a search bar,
+# the labels down the side with their unread counts, the conversations in
+# a list -- the sender, the subject and a snippet, the date -- and a
+# conversation opened in place, each message's text drawn from its HTML by
+# the html module, its attached pictures by the img module. Gmail's keys
+# work: j and k move, o or enter opens, u goes back, e archives, # deletes,
+# s stars, I and U mark read and unread, l labels, v moves, c composes, r
+# and a reply and reply to all, f forwards, / searches, and g then i, s,
+# t, d or a goes to the inbox, starred, sent, drafts or all mail.
+#
+# Everything is kept offline, per account, under
+# ~/.local/share/hibr/mail/ACCOUNT -- msgs.db and the messages themselves
+# -- by lib/mailsync.hibr, run in the background; a second job waits in
+# IMAP IDLE and starts a sync the moment something arrives. What is done
+# here is done to the copy at once and queued for the server, which the
+# next sync brings it to. Accounts are the email module's
+# (~/.config/hibr/mail, readable only by you), set up in Control Panel >
+# Mail; a Google account uses an app password.
+
+strict
+
+app mail "Email, offline, labels and conversations as Gmail has them"
+
+command -v dt_app > /dev/null && dt_app mail "Mail" 26 100 many "✉"
+command -v dt_app > /dev/null && dt_app mailc "New Message" 22 76 many "" "" "" hidden
+
+ML_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/hibr/mail"
+ML_LIB=${BASH_SOURCE%/*}/../../lib
+DT_MAILMAX="${DT_MAILMAX-1000}"
+DT_MAILBODIES="${DT_MAILBODIES-500}"
+DT_MAILEVERY="${DT_MAILEVERY-5}"
+DT_MAILIMAGES="${DT_MAILIMAGES-attached}"
+DT_MAILSIG="${DT_MAILSIG-}"
+command -v dt_keep > /dev/null && dt_keep DT_MAILMAX DT_MAILBODIES DT_MAILEVERY DT_MAILIMAGES DT_MAILSIG
+
+declare -gA MW
+declare -gA ML
+declare -gA MLN
+declare -gA MLV
+declare -gA MLT
+declare -gA MLR
+declare -gA MLJ
+declare -gA MLA
+declare -gA MLGMAIL
+declare -gA MLME
+MLJ_N=0
+MLJ_LIVE=0
+ML_ACCTS=()
+ML_TOP=()
+
+# --- accounts and their stores --------------------------------------------
+
+# The accounts set up, into ML_ACCTS; whether there is any.
+ml_accounts() {
+	local r k
+
+	ML_ACCTS=()
+	need email 2> /dev/null || return 1
+	r := email accounts 2> /dev/null || return 1
+	for k in "${!r[@]}"; do
+		ML_ACCTS+=("$k")
+		MLA["$k"]=${r[$k]["kind"]}
+		MLME["$k"]=${r[$k]["email"]}
+	done
+	[ "${#ML_ACCTS[@]}" -gt 0 ]
+}
+
+# An account's store folder.
+fn ml_dir(acct) { ret "$ML_DIR/$acct"; }
+
+# Load an account's rows from its store into ML[acct], and how many into
+# MLN[acct]; the store is opened, read and closed, never held, since the
+# sync job is the one that writes it.
+fn ml_load(acct) {
+	local d h n=0
+
+	d := ml_dir "$acct"
+	MLN["$acct"]=0
+	[ -f "$d/msgs.db" ] && need db 2> /dev/null || return 0
+	h := db open "$d/msgs.db" 2> /dev/null || return 0
+	ML["$acct"] := db query "$h"
+	db close "$h"
+	while [ -n "${ML["$acct"][$n]["uid"]+x}" ]; do
+		n=$((n + 1))
+	done
+	MLN["$acct"]=$n
+	MLGMAIL["$acct"]=0
+	[ "$n" -gt 0 ] && [[ ${ML["$acct"][0]["fold"]} == \[Gmail\]* ]] && MLGMAIL["$acct"]=1
+	ml_pending "$acct"
+	ml_folderroles "$acct"
+	return 0
+}
+
+# A change made to one row here, as the server will make it: on Gmail an
+# archive only takes the Inbox label off, and the message stays in every
+# other view; anywhere else a message moved out of the folder is gone.
+fn ml_apply(acct, int i, op, arg = "") {
+	local lab
+
+	case $op in
+	seen) ML["$acct"][$i]["seen"]=1 ;;
+	unseen) ML["$acct"][$i]["seen"]=0 ;;
+	star) ML["$acct"][$i]["star"]=1 ;;
+	unstar) ML["$acct"][$i]["star"]=0 ;;
+	archive)
+		if [ "${MLGMAIL["$acct"]}" = 1 ]; then
+			lab=$'\t'${ML["$acct"][$i]["labels"]}$'\t'
+			lab=${lab//$'\t\\Inbox\t'/$'\t'}
+			lab=${lab#$'\t'}
+			ML["$acct"][$i]["labels"]=${lab%$'\t'}
+		else
+			ML["$acct"][$i]["gone"]=1
+		fi
+		;;
+	trash | spam | move) ML["$acct"][$i]["gone"]=1 ;;
+	label) ML["$acct"][$i]["labels"]+=$'\t'"$arg" ;;
+	esac
+}
+
+# Whether a row of a conversation is left alone by a move: on a server
+# with folders, the copy of a reply in Sent, or a draft, stays where it is
+# unless that folder is what is being looked at -- archiving a thread from
+# the inbox must not take the reply out of Sent.
+fn ml_spare(acct, int i, op, view = "") {
+	local role
+
+	case $op in archive | trash | spam | move) ;; *) return 1 ;; esac
+	[ "${MLGMAIL["$acct"]}" = 1 ] && return 1
+	role=${MW["role$acct:${ML["$acct"][$i]["fold"]}"]}
+	case $role in
+	sent | drafts) [ "$view" != "$role" ] ;;
+	*) return 1 ;;
+	esac
+}
+
+# Changes made here that the server has not had yet, made again on rows
+# just loaded: the queue the next sync takes, and the one it is taking.
+fn ml_pending(acct) {
+	local d op fold uid arg i=0 f
+	local -A at
+
+	d := ml_dir "$acct"
+	[ -s "$d/queue" ] || [ -s "$d/queue.work" ] || return 0
+	while [ "$i" -lt "${MLN["$acct"]}" ]; do
+		at["${ML["$acct"][$i]["fold"]}"$'\t'"${ML["$acct"][$i]["uid"]}"]=$i
+		i=$((i + 1))
+	done
+	for f in "$d/queue.work" "$d/queue"; do
+		[ -s "$f" ] || continue
+		while IFS=$'\t' read -r op fold uid arg; do
+			i=${at["$fold"$'\t'"$uid"]}
+			[ -n "$i" ] || continue
+			ml_apply "$acct" "$i" "$op" "$arg"
+		done < "$f"
+	done
+	return 0
+}
+
+# Every window on an account: its lists made again from the rows.
+fn ml_refresh(acct) {
+	local id
+
+	for id in "${!MW[@]}"; do
+		[ "${MW[$id]["acct"]}" = "$acct" ] || continue
+		ml_views "$id"
+		ml_threads "$id"
+		[ -n "${MW[$id]["open"]}" ] && ml_read "$id"
+	done
+}
+
+# --- the jobs: sync and IDLE ----------------------------------------------
+
+# Start a job in the background; its output and status into files the
+# poll picks up, then the callback. The job's number is the result.
+fn ml_job(what, acct, then, ...rest) {
+	local n d
+
+	d := ml_dir "$acct"
+	mkdir -p "$d/jobs" 2> /dev/null
+	MLJ_N=$((MLJ_N + 1))
+	n=$MLJ_N
+	MLJ[$n]["what"]=$what
+	MLJ[$n]["acct"]=$acct
+	MLJ[$n]["then"]=$then
+	MLJ[$n]["dir"]=$d/jobs
+	(
+		"${rest[@]}" > "$d/jobs/$n.out" 2> "$d/jobs/$n.err"
+		printf '%s\n' "$?" > "$d/jobs/$n.st"
+	) &
+	MLJ[$n]["pid"]=$!
+	MLJ_LIVE=$((MLJ_LIVE + 1))
+	dt_want 300
+	ret "$n"
+}
+
+# A job's last line of output so far.
+fn ml_joblast(int n) {
+	local f=${MLJ[$n]["dir"]}/$n.out l= x
+
+	[ -s "$f" ] || { ret ""; return 0; }
+	while IFS= read -r x; do l=$x; done < "$f"
+	ret "$l"
+}
+
+# After every frame: hand each finished job to its callback.
+ml_poll() {
+	local n st d
+
+	[ "$MLJ_LIVE" -gt 0 ] || return 0
+	for n in "${!MLJ[@]}"; do
+		d=${MLJ[$n]["dir"]}
+		[ -s "$d/$n.st" ] || continue
+		read -r st < "$d/$n.st"
+		MLJ_LIVE=$((MLJ_LIVE - 1))
+		MLJ[$n]["done"]=1
+		"${MLJ[$n]["then"]}" "$n" "$st"
+		command rm -f "$d/$n.out" "$d/$n.err" "$d/$n.st"
+		unset MLJ["$n"]
+	done
+	[ "$MLJ_LIVE" -gt 0 ] && dt_want 500
+	return 0
+}
+
+# Whether a job of a kind is running for an account; its number.
+fn ml_running(what, acct) {
+	local n
+
+	for n in "${!MLJ[@]}"; do
+		[ -z "${MLJ[$n]["done"]}" ] && [ "${MLJ[$n]["what"]}" = "$what" ] && [ "${MLJ[$n]["acct"]}" = "$acct" ] && { ret "$n"; return 0; }
+	done
+	return 1
+}
+
+# Sync an account now -- or, when one is running, once more after it; a
+# quick one only brings the inbox's new mail.
+fn ml_sync(acct, quick = "") {
+	local d n
+
+	if n := ml_running sync "$acct"; then
+		MW["again$acct"]=1
+		return 0
+	fi
+	d := ml_dir "$acct"
+	mkdir -p "$d"
+	n := ml_job sync "$acct" ml_synced "$HIBR" "$ML_LIB/mailsync.hibr" "$acct" "$d" \
+		"$DT_MAILMAX" "$DT_MAILBODIES" "$quick"
+	MW["last$acct"]=$EPOCHSECONDS
+}
+
+# A sync finished: the rows loaded again, what it said kept for the bar.
+fn ml_synced(int n, int st) {
+	local acct=${MLJ[$n]["acct"]} l
+
+	l := ml_joblast "$n"
+	case $l in
+	"done 0") MW["status$acct"]="Up to date" ;;
+	done*) MW["status$acct"]="${l#done } new" ;;
+	busy) MW["status$acct"]="Another sync is running" ;;
+	error*) MW["status$acct"]="Could not sync: ${l#error }" ;;
+	*)
+		if [ "$st" != 0 ]; then
+			l=
+			[ -s "${MLJ[$n]["dir"]}/$n.err" ] && read -r l < "${MLJ[$n]["dir"]}/$n.err"
+			MW["status$acct"]="Could not sync${l:+: ${l#hibr: }}"
+		fi
+		;;
+	esac
+	MW["synced$acct"]=$EPOCHSECONDS
+	ml_load "$acct"
+	ml_refresh "$acct"
+	if [ "${MW["again$acct"]}" = 1 ]; then
+		MW["again$acct"]=
+		ml_sync "$acct"
+	fi
+	ml_watch "$acct"
+}
+
+# Wait for the account's mail to change, in IMAP IDLE, in the background:
+# a change starts a quick sync, a quiet half hour a new wait.
+fn ml_watch(acct) {
+	local f=INBOX n
+
+	[ "${MLA["$acct"]}" = pop ] && return 0
+	ml_running idle "$acct" > /dev/null && return 0
+	[ "${MLGMAIL["$acct"]}" = 1 ] && f="[Gmail]/All Mail"
+	n := ml_job idle "$acct" ml_woke "$HIBR" -c 'need email || exit 2; h := email open "$1" || exit 2; email select "$h" "$2" -r > /dev/null || exit 2; email idle "$h" 1500' idle "$acct" "$f"
+}
+
+# The IDLE wait ended: a change syncs, an error waits a minute first.
+fn ml_woke(int n, int st) {
+	local acct=${MLJ[$n]["acct"]}
+
+	case $st in
+	0) ml_sync "$acct" quick ;;
+	1) ml_watch "$acct" ;;
+	*) MW["idleerr$acct"]=$EPOCHSECONDS ;;
+	esac
+}
+
+# Every few minutes, and after an IDLE error a minute on, sync again; and
+# hand finished jobs on. Asks for the frame that will be due.
+fn ml_tick(int id) {
+	local acct=${MW[$id]["acct"]} every=$((DT_MAILEVERY * 60))
+
+	ml_poll
+	[ -n "$acct" ] || return 0
+	if [ $((EPOCHSECONDS - ${MW["last$acct"]:-0})) -ge "$every" ]; then
+		ml_sync "$acct"
+	fi
+	if [ -n "${MW["idleerr$acct"]}" ] && [ $((EPOCHSECONDS - MW["idleerr$acct"])) -ge 60 ]; then
+		MW["idleerr$acct"]=
+		ml_watch "$acct"
+	fi
+	dt_want $(( (every - (EPOCHSECONDS - ${MW["last$acct"]:-0})) * 1000 + 500 ))
+	return 0
+}
+
+# --- the views: labels and folders ----------------------------------------
+
+# Whether a row is in a view, by the view's key: inbox, starred,
+# important, sent, drafts, all, spam, trash, or a label's or a folder's
+# own name prefixed with "l:".
+fn ml_inview(acct, int i, view) {
+	local fold=${ML["$acct"][$i]["fold"]} lab=${ML["$acct"][$i]["labels"]} g=${MLGMAIL["$acct"]}
+
+	[ -n "${ML["$acct"][$i]["gone"]}" ] && return 1
+	case $view in
+	inbox)
+		if [ "$g" = 1 ]; then [[ $'\t'$lab$'\t' == *$'\t\\Inbox\t'* ]]; else [ "$fold" = INBOX ]; fi ;;
+	starred) [ "${ML["$acct"][$i]["star"]}" = 1 ] ;;
+	important) [[ $'\t'$lab$'\t' == *$'\t\\Important\t'* ]] ;;
+	sent)
+		if [ "$g" = 1 ]; then [[ $'\t'$lab$'\t' == *$'\t\\Sent\t'* ]]; else [ "${MW["role$acct:$fold"]}" = sent ]; fi ;;
+	drafts)
+		if [ "$g" = 1 ]; then [[ $'\t'$lab$'\t' == *$'\t\\Draft\t'* ]]; else [ "${MW["role$acct:$fold"]}" = drafts ]; fi ;;
+	all) [ "$g" = 1 ] && [[ $fold == *"All Mail" ]] || { [ "$g" != 1 ] && [ "${MW["role$acct:$fold"]}" != trash ] && [ "${MW["role$acct:$fold"]}" != spam ]; } ;;
+	spam) [ "${MW["role$acct:$fold"]}" = spam ] || [[ $fold == *"/Spam" ]] ;;
+	trash) [ "${MW["role$acct:$fold"]}" = trash ] || [[ $fold == *"/Trash" ]] ;;
+	l:*)
+		if [ "$g" = 1 ]; then [[ $'\t'$lab$'\t' == *$'\t'"${view#l:}"$'\t'* ]]; else [ "$fold" = "${view#l:}" ]; fi ;;
+	*) return 1 ;;
+	esac
+}
+
+# The sidebar's entries for a window's account, with each one's unread
+# conversations: the standard views, then the labels or folders found.
+fn ml_views(int id) {
+	local acct=${MW[$id]["acct"]}
+	local n=${MLN["$acct"]:-0} i k lab fold
+	local -a std
+	local -A unread labs seen
+
+	std=(inbox Inbox starred Starred important Important sent Sent drafts Drafts all "All Mail" spam Spam trash Trash)
+	[ "${MLGMAIL["$acct"]}" = 1 ] || std=(inbox Inbox starred Starred sent Sent drafts Drafts all "All Mail" spam Spam trash Trash)
+	i=0
+	while [ "$i" -lt "$n" ]; do
+		fold=${ML["$acct"][$i]["fold"]}
+		if [ "${MLGMAIL["$acct"]}" = 1 ]; then
+			IFS=$'\t' read -ra ML_TOP <<< "${ML["$acct"][$i]["labels"]}"
+			for lab in "${ML_TOP[@]}"; do
+				[ -n "$lab" ] && [[ $lab != \\* ]] && labs["$lab"]=1
+			done
+		else
+			case $fold in
+			INBOX) ;;
+			*)
+				case ${MW["role$acct:$fold"]} in
+				"" | archive) labs["$fold"]=1 ;;
+				esac
+				;;
+			esac
+		fi
+		if [ "${ML["$acct"][$i]["seen"]}" = 0 ] && [ -z "${ML["$acct"][$i]["gone"]}" ]; then
+			k=${ML["$acct"][$i]["thr"]:-$fold:${ML["$acct"][$i]["uid"]}}
+			for lab in inbox starred important; do
+				if [ -z "${seen["$lab$k"]}" ] && ml_inview "$acct" "$i" "$lab"; then
+					seen["$lab$k"]=1
+					unread["$lab"]=$(( ${unread["$lab"]:-0} + 1 ))
+				fi
+			done
+		fi
+		i=$((i + 1))
+	done
+	k=0
+	unset MLV["$id"]
+	i=0
+	while [ "$i" -lt "${#std[@]}" ]; do
+		MLV[$id][$k]["key"]=${std[$i]}
+		MLV[$id][$k]["title"]=${std[$((i + 1))]}
+		MLV[$id][$k]["unread"]=${unread["${std[$i]}"]:-0}
+		k=$((k + 1))
+		i=$((i + 2))
+	done
+	for lab in "${!labs[@]}"; do
+		MLV[$id][$k]["key"]="l:$lab"
+		MLV[$id][$k]["title"]=$lab
+		MLV[$id][$k]["unread"]=0
+		k=$((k + 1))
+	done
+	MW[$id]["nviews"]=$k
+}
+
+# --- the conversation list ------------------------------------------------
+
+# Whether a row matches the search: every word in its sender, address,
+# subject or snippet, whatever the case.
+fn ml_match(acct, int i, q) {
+	local hay w
+	local -a ws
+
+	[ -n "$q" ] || return 0
+	hay="${ML["$acct"][$i]["fname"]} ${ML["$acct"][$i]["faddr"]} ${ML["$acct"][$i]["subj"]} ${ML["$acct"][$i]["snip"]} ${ML["$acct"][$i]["to"]}"
+	hay=${hay,,}
+	read -ra ws <<< "${q,,}"
+	for w in "${ws[@]}"; do
+		[[ $hay == *"$w"* ]] || return 1
+	done
+	return 0
+}
+
+# The window's conversations: the rows in its view that match its search,
+# gathered by thread, newest first -- each with its latest date, how many
+# messages and how many unread, its senders, whether starred, the subject
+# and the latest snippet, and its rows' numbers.
+fn ml_threads(int id) {
+	local acct=${MW[$id]["acct"]}
+	local n=${MLN["$acct"]:-0} view=${MW[$id]["view"]:-inbox} q=${MW[$id]["q"]}
+	local i k t d nt=0 j
+	local -A at hit
+	local -a order
+
+	unset MLT["$id"]
+	i=0
+	while [ "$i" -lt "$n" ]; do
+		if ml_inview "$acct" "$i" "$view" && ml_match "$acct" "$i" "$q"; then
+			k=${ML["$acct"][$i]["thr"]:-${ML["$acct"][$i]["fold"]}:${ML["$acct"][$i]["uid"]}}
+			hit["$k"]=1
+		fi
+		i=$((i + 1))
+	done
+	i=0
+	while [ "$i" -lt "$n" ]; do
+		k=${ML["$acct"][$i]["thr"]:-${ML["$acct"][$i]["fold"]}:${ML["$acct"][$i]["uid"]}}
+		if [ -n "${hit["$k"]}" ] && { [ "$view" = spam ] || [ "$view" = trash ] ||
+			{ ! ml_inview "$acct" "$i" spam && ! ml_inview "$acct" "$i" trash; }; } &&
+			{ [ "$view" != all ] || ml_inview "$acct" "$i" all; }; then
+			if [ -z "${at["$k"]+x}" ]; then
+				at["$k"]=$nt
+				MLT[$id][$nt]["key"]=$k
+				MLT[$id][$nt]["date"]=0
+				MLT[$id][$nt]["n"]=0
+				MLT[$id][$nt]["unread"]=0
+				MLT[$id][$nt]["star"]=0
+				MLT[$id][$nt]["who"]=
+				MLT[$id][$nt]["rows"]=
+				MLT[$id][$nt]["att"]=0
+				nt=$((nt + 1))
+			fi
+			t=${at["$k"]}
+			d=${ML["$acct"][$i]["date"]}
+			MLT[$id][$t]["n"]=$(( MLT[$id][$t]["n"] + 1 ))
+			MLT[$id][$t]["rows"]+="$i "
+			[ "${ML["$acct"][$i]["seen"]}" = 0 ] && MLT[$id][$t]["unread"]=$(( MLT[$id][$t]["unread"] + 1 ))
+			[ "${ML["$acct"][$i]["star"]}" = 1 ] && MLT[$id][$t]["star"]=1
+			[ "${ML["$acct"][$i]["att"]}" = 1 ] && MLT[$id][$t]["att"]=1
+			j=${ML["$acct"][$i]["fname"]}
+			[ -n "${MLME["$acct"]}" ] && [ "${ML["$acct"][$i]["faddr"],,}" = "${MLME["$acct"],,}" ] && j=me
+			[[ ", ${MLT[$id][$t]["who"]}, " == *", $j, "* ]] ||
+				MLT[$id][$t]["who"]+="${MLT[$id][$t]["who"]:+, }$j"
+			if [ -z "${MLT[$id][$t]["subj"]+x}" ] || [ "$d" -lt "${MLT[$id][$t]["first"]}" ]; then
+				MLT[$id][$t]["first"]=$d
+				MLT[$id][$t]["subj"]=${ML["$acct"][$i]["subj"]}
+			fi
+			if [ "$d" -ge "${MLT[$id][$t]["date"]}" ]; then
+				MLT[$id][$t]["date"]=$d
+				MLT[$id][$t]["snip"]=${ML["$acct"][$i]["snip"]}
+			fi
+		fi
+		i=$((i + 1))
+	done
+	order=()
+	j=0
+	while [ "$j" -lt "$nt" ]; do
+		order+=("${MLT[$id][$j]["date"]}:$j")
+		j=$((j + 1))
+	done
+	MW[$id]["order"]=
+	if [ "$nt" -gt 0 ]; then
+		IFS=$'\n' read -d '' -ra order <<< "$(printf '%s\n' "${order[@]}" | sort -t: -k1,1nr)"
+		for k in "${order[@]}"; do
+			MW[$id]["order"]+="${k#*:} "
+		done
+	fi
+	MW[$id]["nt"]=$nt
+	[ "${MW[$id]["sel"]:-0}" -ge "$nt" ] && MW[$id]["sel"]=$((nt > 0 ? nt - 1 : 0))
+	return 0
+}
+
+# The conversation at a list position, by its number in MLT.
+fn ml_at(int id, int pos) {
+	local -a o
+
+	read -ra o <<< "${MW[$id]["order"]}"
+	[ "$pos" -ge 0 ] && [ "$pos" -lt "${#o[@]}" ] || return 1
+	ret "${o[$pos]}"
+}
+
+# A date as a list shows it: the time today, the day this year, else the
+# day, month and year.
+fn ml_when(int t) {
+	local d today y ty
+
+	[ "$t" -gt 0 ] || { ret ""; return 0; }
+	printf -v d '%(%Y%m%d)T' "$t"
+	printf -v today '%(%Y%m%d)T' -1
+	if [ "$d" = "$today" ]; then
+		printf -v d '%(%H:%M)T' "$t"
+	else
+		printf -v y '%(%Y)T' "$t"
+		printf -v ty '%(%Y)T' -1
+		if [ "$y" = "$ty" ]; then
+			printf -v d '%(%b %-d)T' "$t"
+		else
+			printf -v d '%(%-d/%-m/%y)T' "$t"
+		fi
+	fi
+	ret "$d"
+}
+
+# --- doing things to messages ---------------------------------------------
+
+# Queue a change for the server and start the sync that takes it there.
+fn ml_queue(acct, op, int i, arg = "") {
+	local d
+
+	d := ml_dir "$acct"
+	mkdir -p "$d"
+	printf '%s\t%s\t%s\t%s\n' "$op" "${ML["$acct"][$i]["fold"]}" "${ML["$acct"][$i]["uid"]}" "$arg" >> "$d/queue"
+}
+
+# Do something to every message of the selected conversation, or the one
+# open: here at once, and queued for the server.
+fn ml_act(int id, op, arg = "") {
+	local acct=${MW[$id]["acct"]} t i
+	local -a rows
+
+	t := ml_at "$id" "${MW[$id]["sel"]:-0}" || return 0
+	read -ra rows <<< "${MLT[$id][$t]["rows"]}"
+	for i in "${rows[@]}"; do
+		ml_spare "$acct" "$i" "$op" "${MW[$id]["view"]}" && continue
+		ml_apply "$acct" "$i" "$op" "$arg"
+		ml_queue "$acct" "$op" "$i" "$arg"
+	done
+	case $op in
+	archive) dt_notep low "Conversation archived" ;;
+	trash) dt_notep low "Conversation moved to Trash" ;;
+	spam) dt_notep low "Conversation marked as spam" ;;
+	move) dt_notep low "Conversation moved to $arg" ;;
+	label) dt_notep low "Labelled $arg" ;;
+	esac
+	case $op in
+	archive | trash | spam | move) MW[$id]["open"]= ;;
+	esac
+	ml_views "$id"
+	ml_threads "$id"
+	ml_sync "$acct"
+}
+
+# Star the selected conversation, or take its star away.
+fn ml_star(int id) {
+	local t
+
+	t := ml_at "$id" "${MW[$id]["sel"]:-0}" || return 0
+	if [ "${MLT[$id][$t]["star"]}" = 1 ]; then ml_act "$id" unstar; else ml_act "$id" star; fi
+}
+
+# The labels or folders a conversation can be given or moved to.
+fn ml_dests(int id) {
+	local i=0 k
+	local -a out
+
+	while [ "$i" -lt "${MW[$id]["nviews"]:-0}" ]; do
+		k=${MLV[$id][$i]["key"]}
+		[[ $k == l:* ]] && out+=("${k#l:}")
+		i=$((i + 1))
+	done
+	ML_TOP=("${out[@]}")
+}
+
+# l: give the conversation a label (Gmail) or copy it to a folder.
+fn ml_labelask(int id) {
+	ml_dests "$id"
+	[ "${#ML_TOP[@]}" -gt 0 ] || { dt_notep low "No labels to choose from"; return 0; }
+	dt_droplist "$id" 3 20 ml_labelto "${ML_TOP[@]}"
+}
+fn ml_labelto(int? id = "", value = "") {
+	[ -n "$value" ] || return 0
+	if [ "${MLGMAIL["${MW[$id]["acct"]}"]}" = 1 ]; then ml_act "$id" label "$value"; else ml_act "$id" move "$value"; fi
+}
+
+# v: move the conversation to a folder or label.
+fn ml_moveask(int id) {
+	ml_dests "$id"
+	[ "${#ML_TOP[@]}" -gt 0 ] || { dt_notep low "No folders to move to"; return 0; }
+	dt_droplist "$id" 3 20 ml_moveto "${ML_TOP[@]}"
+}
+fn ml_moveto(int? id = "", value = "") {
+	[ -n "$value" ] || return 0
+	if [ "${MLGMAIL["${MW[$id]["acct"]}"]}" = 1 ]; then
+		ml_act "$id" label "$value"
+		ml_act "$id" archive
+	else
+		ml_act "$id" move "$value"
+	fi
+}
+
+# Go to a view by its key.
+fn ml_go(int id, view) {
+	MW[$id]["view"]=$view
+	MW[$id]["sel"]=0
+	MW[$id]["top"]=0
+	MW[$id]["open"]=
+	ml_threads "$id"
+}
+
+# Switch the window to another account.
+fn ml_use(int id, acct) {
+	MW[$id]["acct"]=$acct
+	ml_load "$acct"
+	ml_folderroles "$acct"
+	ml_views "$id"
+	ml_go "$id" inbox
+	dt_retitle "$id" "Mail [$acct]"
+	[ -n "$(ml_running sync "$acct")" ] || ml_sync "$acct"
+}
+
+# The roles of an account's folders, for a server that is not Gmail, from
+# the folder names the rows carry: the usual names for sent, drafts,
+# trash, spam and archive.
+fn ml_folderroles(acct) {
+	local i=0 f l
+
+	while [ "$i" -lt "${MLN["$acct"]:-0}" ]; do
+		f=${ML["$acct"][$i]["fold"]}
+		if [ -z "${MW["role$acct:$f"]+x}" ]; then
+			l=${f,,}
+			case ${l##*/} in
+			sent | "sent items" | "sent mail" | "sent messages") MW["role$acct:$f"]=sent ;;
+			drafts | draft) MW["role$acct:$f"]=drafts ;;
+			trash | "deleted items" | "deleted messages" | bin) MW["role$acct:$f"]=trash ;;
+			spam | junk | "junk e-mail" | "junk email") MW["role$acct:$f"]=spam ;;
+			archive | archives) MW["role$acct:$f"]=archive ;;
+			*) MW["role$acct:$f"]= ;;
+			esac
+		fi
+		i=$((i + 1))
+	done
+}
+
+# --- the window ------------------------------------------------------------
+
+fn mail_open(int id, arg = "") {
+	MW[$id]["view"]=inbox
+	MW[$id]["sel"]=0
+	MW[$id]["top"]=0
+	MW[$id]["open"]=
+	MW[$id]["q"]=
+	MW[$id]["qbuf"]=
+	MW[$id]["qcur"]=0
+	MW[$id]["qon"]=
+	MW[$id]["focus"]=list
+	MW[$id]["g"]=
+	MW[$id]["acct"]=
+	if ! ml_accounts; then
+		MW[$id]["err"]="No mail account yet -- set one up in Control Panel > Mail"
+		return 0
+	fi
+	MW[$id]["err"]=
+	ml_use "$id" "${arg:-${ML_ACCTS[0]}}"
+	return 0
+}
+
+fn mail_close(int id) {
+	unset MW["$id"] MLT["$id"] MLV["$id"] MLR["$id"]
+	return 0
+}
+
+fn mail_idle(int id) { ml_tick "$id"; }
+
+fn mail_draw(int id, int h, int w, int row, int col) {
+	local acct=${MW[$id]["acct"]} side=0 lw st
+
+	dt_wclear "$id"
+	ml_tick "$id"
+	console pen "$DT_INK" "$DT_FACE"
+	if [ -n "${MW[$id]["err"]}" ]; then
+		console pen "$DT_DIM" "$DT_FACE"
+		console put -p "w$id" 2 2 "${MW[$id]["err"]}"
+		dt_wreg "$id" 2 2 "${#MW[$id]["err"]}" setup
+		return 0
+	fi
+	[ "$w" -ge 70 ] && side=20
+	MW[$id]["side"]=$side
+	MW[$id]["h"]=$h
+	MW[$id]["w"]=$w
+	ml_drawbar "$id" "$w"
+	[ "$side" -gt 0 ] && ml_drawside "$id" "$h" "$side"
+	lw=$((w - side))
+	if [ -n "${MW[$id]["open"]}" ]; then
+		ml_drawread "$id" "$h" "$lw" "$side"
+	else
+		ml_drawlist "$id" "$h" "$lw" "$side"
+	fi
+	st=${MW["status$acct"]}
+	if ml_running sync "$acct" > /dev/null; then
+		local n
+		n := ml_running sync "$acct"
+		st := ml_joblast "$n"
+		case $st in
+		fetching*) st="Fetching ${st#fetching }" ;;
+		bodies*) st="Downloading messages (${st#bodies })" ;;
+		flags*) st="Checking ${st#flags }" ;;
+		connecting) st="Connecting${GL[ellipsis]}" ;;
+		esac
+		dt_want 700
+	fi
+	console pen "$DT_DIM" "$DT_FACE"
+	st := str pad " ${st:0:$((w - 2))}" "$w"
+	console put -p "w$id" "$((h - 1))" 0 "$st"
+}
+
+# The bar along the top: the search field, the account.
+fn ml_drawbar(int id, int w) {
+	local q=${MW[$id]["qbuf"]} fw=$((w - 4 - ${#MW[$id]["acct"]} - 4)) on=0
+
+	[ "${MW[$id]["qon"]}" = 1 ] && on=1
+	[ "$fw" -lt 10 ] && fw=10
+	if [ "$on" = 0 ] && [ -z "$q" ]; then
+		console pen "$DT_DIM" "$DT_WELL"
+		console fill -p "w$id" 0 1 1 "$fw" " "
+		console put -p "w$id" 0 2 "/ Search mail"
+	else
+		dt_textdraw "$id" 0 1 "$fw" "$q" "${MW[$id]["qcur"]}" "$on"
+	fi
+	dt_wreg "$id" 0 1 "$fw" search
+	console pen "$DT_DIM" "$DT_FACE"
+	console put -p "w$id" 0 $((w - ${#MW[$id]["acct"]} - 2)) "${MW[$id]["acct"]}"
+	dt_wreg "$id" 0 $((w - ${#MW[$id]["acct"]} - 2)) "${#MW[$id]["acct"]}" accts
+}
+
+# The sidebar: Compose, then each view with its unread count, the one
+# shown lit.
+fn ml_drawside(int id, int h, int sw) {
+	local i=0 r=4 t u key
+
+	console pen "$DT_SELINK" "$DT_ACTIVE" bold
+	console put -p "w$id" 2 1 " ${GL[plus]} Compose "
+	dt_wreg "$id" 2 1 11 compose
+	while [ "$i" -lt "${MW[$id]["nviews"]:-0}" ] && [ "$r" -lt $((h - 1)) ]; do
+		key=${MLV[$id][$i]["key"]}
+		t=${MLV[$id][$i]["title"]}
+		u=${MLV[$id][$i]["unread"]}
+		[ "$u" = 0 ] && u=
+		t="${t:0:$((sw - 4 - ${#u}))}"
+		t := str pad " $t" $((sw - 2 - ${#u}))
+		if [ "$key" = "${MW[$id]["view"]}" ]; then
+			console pen "$DT_SELINK" "$DT_ACTIVE" bold
+		elif [ -n "$u" ]; then
+			console pen "$DT_INK" "$DT_FACE" bold
+		else
+			console pen "$DT_INK" "$DT_FACE"
+		fi
+		console put -p "w$id" "$r" 0 "$t$u "
+		dt_wreg "$id" "$r" 0 "$sw" "view:$key"
+		r=$((r + 1))
+		i=$((i + 1))
+	done
+}
+
+# The conversation list: a row each -- the star, the senders (and how
+# many messages), the subject and the snippet, the date -- unread ones
+# bold, the chosen one lit.
+fn ml_drawlist(int id, int h, int w, int x0) {
+	local nt=${MW[$id]["nt"]:-0} sel=${MW[$id]["sel"]:-0} top=${MW[$id]["top"]:-0} vis=$((h - 3))
+	local r=2 pos t who subj snip d ww sw dw rest line star bold
+
+	MW[$id]["vis"]=$vis
+	if [ "$nt" = 0 ]; then
+		console pen "$DT_DIM" "$DT_FACE"
+		if [ "${MLN["${MW[$id]["acct"]}"]:-0}" = 0 ]; then
+			console put -p "w$id" 3 $((x0 + 2)) "Nothing here yet -- the first sync brings your mail"
+		else
+			console put -p "w$id" 3 $((x0 + 2)) "No conversations${MW[$id]["q"]:+ match \"${MW[$id]["q"]}\"}"
+		fi
+		return 0
+	fi
+	[ "$sel" -lt "$top" ] && top=$sel
+	[ "$sel" -ge $((top + vis)) ] && top=$((sel - vis + 1))
+	MW[$id]["top"]=$top
+	ww=$((w > 70 ? 20 : 14))
+	dw=7
+	pos=$top
+	while [ "$pos" -lt "$nt" ] && [ "$r" -lt $((h - 1)) ]; do
+		t := ml_at "$id" "$pos"
+		who=${MLT[$id][$t]["who"]}
+		[ "${MLT[$id][$t]["n"]}" -gt 1 ] && who="$who (${MLT[$id][$t]["n"]})"
+		who := str pad "${who:0:$ww}" "$ww"
+		subj=${MLT[$id][$t]["subj"]:-(no subject)}
+		snip=${MLT[$id][$t]["snip"]}
+		d := ml_when "${MLT[$id][$t]["date"]}"
+		sw=$((w - 3 - ww - 1 - dw - 2))
+		rest="$subj${snip:+ - $snip}"
+		rest := str pad "${rest:0:$sw}" "$sw"
+		d := str pad "$d" "$dw"
+		star=" "
+		[ "${MLT[$id][$t]["star"]}" = 1 ] && star=${GL[star]}
+		bold=
+		[ "${MLT[$id][$t]["unread"]}" -gt 0 ] && bold=bold
+		if [ "$pos" = "$sel" ] && [ "${MW[$id]["qon"]}" != 1 ]; then
+			console pen "$DT_SELINK" "$DT_ACTIVE" $bold
+			console put -p "w$id" "$r" "$x0" " $star $who $rest $d"
+		else
+			console pen "$DT_WARN" "$DT_FACE"
+			console put -p "w$id" "$r" "$x0" " $star "
+			console pen "$DT_INK" "$DT_FACE" $bold
+			console put -p "w$id" "$r" $((x0 + 3)) "$who "
+			line=${subj:0:$sw}
+			console put -p "w$id" "$r" $((x0 + 4 + ww)) "$line"
+			if [ "${#line}" -lt "$sw" ] && [ -n "$snip" ]; then
+				console pen "$DT_DIM" "$DT_FACE"
+				console put -p "w$id" "$r" $((x0 + 4 + ww + ${#line})) "${rest:${#line}}"
+			fi
+			console pen "$DT_INK" "$DT_FACE" $bold
+			console put -p "w$id" "$r" $((x0 + w - dw - 1)) "$d"
+		fi
+		dt_wreg "$id" "$r" "$x0" "$w" "row:$pos"
+		r=$((r + 1))
+		pos=$((pos + 1))
+	done
+}
+
+# --- reading a conversation -------------------------------------------------
+
+# The file a message's whole text is kept in, as mailsync names it.
+fn ml_file(acct, int i) {
+	local f k d
+
+	d := ml_dir "$acct"
+	f=${ML["$acct"][$i]["fold"]}
+	k := email clip 120 "$f"
+	k=${k//\//_}
+	ret "$d/msg/${k}_${ML["$acct"][$i]["uidv"]}_${ML["$acct"][$i]["uid"]}.eml"
+}
+
+# Plain text made into HTML for the layout: quoted lines a quote, blank
+# lines between paragraphs, other line breaks kept, addresses links.
+fn ml_text2html(t) {
+	local out= q=0 line u
+	local -a ls
+
+	t=${t//&/&amp;}
+	t=${t//</&lt;}
+	t=${t//>/&gt;}
+	mapfile -t ls <<< "${t//$'\r'/}"
+	for line in "${ls[@]}"; do
+		if [[ $line == '&gt;'* ]]; then
+			[ "$q" = 1 ] || { out+="<blockquote>"; q=1; }
+			line=${line#&gt;}
+			line=${line# }
+		elif [ "$q" = 1 ]; then
+			out+="</blockquote>"
+			q=0
+		fi
+		while [[ $line =~ (^|[^\"])(https?://[^ <]+) ]]; do
+			u=${BASH_REMATCH[2]}
+			line=${line/"$u"/"<a href=\"${u//&amp;/&}\">${u//:/&#58;}</a>"}
+		done
+		if [ -z "$line" ]; then out+="<p>"; else out+="$line<br>"; fi
+	done
+	[ "$q" = 1 ] && out+="</blockquote>"
+	ret "$out"
+}
+
+# Lay a conversation out as lines into MLR[id]: for each message, oldest
+# first, a header -- the sender, their address, the date, to whom -- then
+# its text, its attachments, a gap; the whole text fetched when it is not
+# here yet; unread ones marked read.
+fn ml_read(int id) {
+	local acct=${MW[$id]["acct"]} t key=${MW[$id]["open"]} w=$(( ${MW[$id]["w"]:-80} - ${MW[$id]["side"]:-0} - 4 ))
+	local i f n=0 r h lines k j d unread=0 html src part cache ext
+	local -a rows order
+
+	unset MLR["$id"]
+	t := ml_at "$id" "${MW[$id]["sel"]:-0}" || return 0
+	[ "${MLT[$id][$t]["key"]}" = "$key" ] || return 0
+	[ "$w" -lt 20 ] && w=20
+	read -ra rows <<< "${MLT[$id][$t]["rows"]}"
+	for i in "${rows[@]}"; do order+=("${ML["$acct"][$i]["date"]}:$i"); done
+	IFS=$'\n' read -d '' -ra order <<< "$(printf '%s\n' "${order[@]}" | sort -t: -k1,1n)"
+	MLR[$id][$n]["t"]=${MLT[$id][$t]["subj"]:-(no subject)}
+	MLR[$id][$n]["k"]=subject
+	n=$((n + 1))
+	MLR[$id][$n]["t"]=
+	n=$((n + 1))
+	for k in "${order[@]}"; do
+		i=${k#*:}
+		[ "${ML["$acct"][$i]["seen"]}" = 0 ] && unread=1
+		d := ml_when "${ML["$acct"][$i]["date"]}"
+		MLR[$id][$n]["t"]=${ML["$acct"][$i]["fname"]}
+		MLR[$id][$n]["addr"]=${ML["$acct"][$i]["faddr"]}
+		MLR[$id][$n]["date"]=$d
+		MLR[$id][$n]["k"]=from
+		MLR[$id][$n]["row"]=$i
+		n=$((n + 1))
+		MLR[$id][$n]["t"]="to ${ML["$acct"][$i]["to"]}"
+		MLR[$id][$n]["k"]=dim
+		n=$((n + 1))
+		f := ml_file "$acct" "$i"
+		if [ ! -s "$f" ]; then
+			MLR[$id][$n]["t"]="This message is not here yet; it is being fetched${GL[ellipsis]}"
+			MLR[$id][$n]["k"]=dim
+			n=$((n + 1))
+			ml_queue "$acct" fetch "$i" "${ML["$acct"][$i]["uidv"]}"
+			ml_sync "$acct"
+		else
+			r := email parse "$f" 2> /dev/null
+			html=${r["html"]}
+			[ -n "$html" ] || html := ml_text2html "${r["text"]}"
+			need html 2> /dev/null
+			h := html parse -t "$html"
+			if [ "$DT_MAILIMAGES" != never ] && [[ $html == *'cid:'* ]]; then
+				lines := html lines "$h" "$w" -i
+			else
+				lines := html lines "$h" "$w"
+			fi
+			html close "$h"
+			j=0
+			while [ -n "${lines[$j]["s"]+x}" ]; do
+				MLR[$id][$n]["t"]=${lines[$j]["t"]}
+				MLR[$id][$n]["s"]=${lines[$j]["s"]}
+				MLR[$id][$n]["a"]=${lines[$j]["a"]}
+				MLR[$id][$n]["k"]=body
+				src=${lines[$j]["img"]}
+				if [ -n "$src" ]; then
+					local -a im
+					IFS=$'\t' read -ra im <<< "$src"
+					MLR[$id][$n]["img"]="${im[0]} ${im[1]}"
+					if [[ ${im[2]} == cid:* ]]; then
+						part=0
+						while [ -n "${r["parts"][$part]["type"]+x}" ]; do
+							if [ "${r["parts"][$part]["cid"]}" = "${im[2]#cid:}" ]; then
+								ext=${r["parts"][$part]["type"]#image/}
+								cache="${f%.eml}.$part.$ext"
+								[ -s "$cache" ] || email part "$f" "$part" "$cache" 2> /dev/null
+								MLR[$id][$n]["imgfile"]=$cache
+								break
+							fi
+							part=$((part + 1))
+						done
+					fi
+				fi
+				n=$((n + 1))
+				j=$((j + 1))
+			done
+			part=0
+			while [ -n "${r["parts"][$part]["type"]+x}" ]; do
+				if [ -n "${r["parts"][$part]["name"]}" ] || [ "${r["parts"][$part]["disp"]}" = attachment ]; then
+					MLR[$id][$n]["t"]="${GL[file]} ${r["parts"][$part]["name"]:-attachment} ($(( (${r["parts"][$part]["size"]} * 3 / 4 + 1023) / 1024 )) KB)"
+					MLR[$id][$n]["k"]=attach
+					MLR[$id][$n]["file"]=$f
+					MLR[$id][$n]["part"]=$part
+					MLR[$id][$n]["name"]=${r["parts"][$part]["name"]:-attachment}
+					n=$((n + 1))
+				fi
+				part=$((part + 1))
+			done
+		fi
+		MLR[$id][$n]["t"]=
+		MLR[$id][$n]["k"]=gap
+		n=$((n + 1))
+	done
+	MW[$id]["nr"]=$n
+	[ "$unread" = 1 ] && ml_act "$id" seen
+	return 0
+}
+
+# Draw the open conversation from its lines, scrolled, each body line in
+# its own styles; links clickable; attached pictures drawn in place.
+fn ml_drawread(int id, int h, int w, int x0) {
+	local n=${MW[$id]["nr"]:-0} top=${MW[$id]["rtop"]:-0} vis=$((h - 3)) r=2 i k t s c ch pen l col len url d
+	local -a a im
+
+	MW[$id]["rvis"]=$vis
+	[ "$top" -gt $((n - vis)) ] && top=$((n - vis))
+	[ "$top" -lt 0 ] && top=0
+	MW[$id]["rtop"]=$top
+	console pen "$DT_DIM" "$DT_FACE"
+	console put -p "w$id" 1 $((x0 + 1)) "${GL[larr]} Back"
+	dt_wreg "$id" 1 $((x0 + 1)) 6 back
+	i=$top
+	while [ "$i" -lt "$n" ] && [ "$r" -lt $((h - 1)) ]; do
+		k=${MLR[$id][$i]["k"]}
+		t=${MLR[$id][$i]["t"]}
+		case $k in
+		subject)
+			console pen "$DT_INK" "$DT_FACE" bold
+			console put -p "w$id" "$r" $((x0 + 2)) "${t:0:$((w - 4))}"
+			;;
+		from)
+			console pen "$DT_INK" "$DT_FACE" bold
+			console put -p "w$id" "$r" $((x0 + 2)) "$t"
+			console pen "$DT_DIM" "$DT_FACE"
+			console put -p "w$id" "$r" $((x0 + 3 + ${#t})) "<${MLR[$id][$i]["addr"]}>"
+			d=${MLR[$id][$i]["date"]}
+			console put -p "w$id" "$r" $((x0 + w - ${#d} - 2)) "$d"
+			;;
+		dim)
+			console pen "$DT_DIM" "$DT_FACE"
+			console put -p "w$id" "$r" $((x0 + 2)) "${t:0:$((w - 4))}"
+			;;
+		attach)
+			console pen "$DT_SELINK" "$DT_WELL"
+			console put -p "w$id" "$r" $((x0 + 2)) " ${t:0:$((w - 6))} "
+			dt_wreg "$id" "$r" $((x0 + 2)) $(( ${#t} + 2 )) "att:$i"
+			;;
+		body)
+			ml_drawline "$id" "$r" $((x0 + 2)) "$t" "${MLR[$id][$i]["s"]}"
+			if [ -n "${MLR[$id][$i]["a"]}" ]; then
+				IFS=$'\n' read -d '' -ra a <<< "${MLR[$id][$i]["a"]}"
+				for l in "${a[@]}"; do
+					IFS=$'\t' read -r col len url <<< "$l"
+					[ -n "$url" ] && dt_wreg "$id" "$r" $((x0 + 2 + col)) "$len" "url:$url"
+				done
+			fi
+			if [ -n "${MLR[$id][$i]["img"]}" ]; then
+				read -ra im <<< "${MLR[$id][$i]["img"]}"
+				if [ -n "${MLR[$id][$i]["imgfile"]}" ] && [ $((r + im[0])) -le $((h - 1)) ] && need img 2> /dev/null; then
+					img draw "${MLR[$id][$i]["imgfile"]}" "$r" $((x0 + 2)) "${im[0]}" "${im[1]}" -p "w$id" 2> /dev/null
+				else
+					console pen "$DT_DIM" "$DT_WELL"
+					console fill -p "w$id" "$r" $((x0 + 2)) 1 "${im[1]}" " "
+					console put -p "w$id" "$r" $((x0 + 3)) "image"
+				fi
+			fi
+			;;
+		esac
+		r=$((r + 1))
+		i=$((i + 1))
+	done
+}
+
+# One body line in its styles: runs of one style letter each put with
+# their pen.
+fn ml_drawline(int id, int r, int c, t, s) {
+	local i=0 n=${#t} j st run
+
+	while [ "$i" -lt "$n" ]; do
+		st=${s:$i:1}
+		j=$i
+		while [ "$j" -lt "$n" ] && [ "${s:$j:1}" = "$st" ]; do j=$((j + 1)); done
+		run=${t:$i:$((j - i))}
+		case $st in
+		b | 1 | 2 | 3 | 4 | 5 | 6) console pen "$DT_INK" "$DT_FACE" bold ;;
+		B) console pen "$DT_INK" "$DT_FACE" bold italic ;;
+		i) console pen "$DT_INK" "$DT_FACE" italic ;;
+		u) console pen "$DT_INK" "$DT_FACE" underline ;;
+		s) console pen "$DT_DIM" "$DT_FACE" ;;
+		l) console pen "$DT_ACTIVE" "$DT_FACE" underline ;;
+		c) console pen "$DT_INFO" "$DT_FACE" ;;
+		q | m | h | g) console pen "$DT_DIM" "$DT_FACE" ;;
+		*) console pen "$DT_INK" "$DT_FACE" ;;
+		esac
+		console put -p "w$id" "$r" $((c + i)) "$run"
+		i=$j
+	done
+}
+
+# Open the selected conversation, or the one at a list position.
+fn ml_openat(int id, int pos) {
+	local t
+
+	t := ml_at "$id" "$pos" || return 0
+	MW[$id]["sel"]=$pos
+	MW[$id]["open"]=${MLT[$id][$t]["key"]}
+	MW[$id]["rtop"]=0
+	ml_read "$id"
+}
+
+# Save an attachment: where, asked with the file picker.
+fn ml_saveatt(int id, int i) {
+	MW[$id]["attfile"]=${MLR[$id][$i]["file"]}
+	MW[$id]["attpart"]=${MLR[$id][$i]["part"]}
+	dt_filepick save "Save Attachment" "All files:*" "$HOME" "${MLR[$id][$i]["name"]}" ml_attsaved "$id"
+}
+fn ml_attsaved(id = "", path = "", type = "") {
+	[ -n "$path" ] || return 0
+	if email part "${MW[$id]["attfile"]}" "${MW[$id]["attpart"]}" "$path" 2> /dev/null; then
+		dt_notep low "Saved ${path##*/}"
+	else
+		dt_notep high "Could not save ${path##*/}"
+	fi
+}
+
+# --- keys, clicks, menus --------------------------------------------------
+
+fn mail_key(int id, key) {
+	local nt=${MW[$id]["nt"]:-0} sel=${MW[$id]["sel"]:-0} r k g=${MW[$id]["g"]}
+
+	[ -n "${MW[$id]["err"]}" ] && return 1
+	if [ "${MW[$id]["qon"]}" = 1 ]; then
+		case $key in
+		enter)
+			MW[$id]["q"]=${MW[$id]["qbuf"]}
+			MW[$id]["qon"]=
+			MW[$id]["open"]=
+			MW[$id]["sel"]=0
+			ml_threads "$id"
+			return 0
+			;;
+		escape)
+			MW[$id]["qon"]=
+			if [ -n "${MW[$id]["q"]}" ]; then
+				MW[$id]["q"]=
+				MW[$id]["qbuf"]=
+				MW[$id]["qcur"]=0
+				ml_threads "$id"
+			fi
+			return 0
+			;;
+		down | tab) MW[$id]["qon"]=; return 0 ;;
+		esac
+		r := dt_textkey "${MW[$id]["qbuf"]}" "${MW[$id]["qcur"]}" "$key" || return 1
+		MW[$id]["qbuf"]=${r% *}
+		MW[$id]["qcur"]=${r##* }
+		return 0
+	fi
+	MW[$id]["g"]=
+	if [ "$g" = 1 ]; then
+		case $key in
+		i) ml_go "$id" inbox ;;
+		s) ml_go "$id" starred ;;
+		t) ml_go "$id" sent ;;
+		d) ml_go "$id" drafts ;;
+		a) ml_go "$id" all ;;
+		*) return 1 ;;
+		esac
+		return 0
+	fi
+	if [ -n "${MW[$id]["open"]}" ]; then
+		case $key in
+		up) MW[$id]["rtop"]=$(( ${MW[$id]["rtop"]:-0} - 1 )); return 0 ;;
+		down) MW[$id]["rtop"]=$(( ${MW[$id]["rtop"]:-0} + 1 )); return 0 ;;
+		pageup) MW[$id]["rtop"]=$(( ${MW[$id]["rtop"]:-0} - ${MW[$id]["rvis"]:-10} )); return 0 ;;
+		pagedown | " ") MW[$id]["rtop"]=$(( ${MW[$id]["rtop"]:-0} + ${MW[$id]["rvis"]:-10} )); return 0 ;;
+		home) MW[$id]["rtop"]=0; return 0 ;;
+		u | escape | backspace | left) MW[$id]["open"]=; return 0 ;;
+		j) [ "$sel" -lt $((nt - 1)) ] && ml_openat "$id" $((sel + 1)); return 0 ;;
+		k) [ "$sel" -gt 0 ] && ml_openat "$id" $((sel - 1)); return 0 ;;
+		esac
+	else
+		case $key in
+		up | k) [ "$sel" -gt 0 ] && MW[$id]["sel"]=$((sel - 1)); return 0 ;;
+		down | j) [ "$sel" -lt $((nt - 1)) ] && MW[$id]["sel"]=$((sel + 1)); return 0 ;;
+		pageup) sel=$((sel - ${MW[$id]["vis"]:-10})); [ "$sel" -lt 0 ] && sel=0; MW[$id]["sel"]=$sel; return 0 ;;
+		pagedown) sel=$((sel + ${MW[$id]["vis"]:-10})); [ "$sel" -ge "$nt" ] && sel=$((nt - 1)); MW[$id]["sel"]=$sel; return 0 ;;
+		home) MW[$id]["sel"]=0; return 0 ;;
+		end) MW[$id]["sel"]=$((nt > 0 ? nt - 1 : 0)); return 0 ;;
+		enter | o | right) [ "$nt" -gt 0 ] && ml_openat "$id" "$sel"; return 0 ;;
+		esac
+	fi
+	case $key in
+	/) MW[$id]["qon"]=1; MW[$id]["qcur"]=${#MW[$id]["qbuf"]} ;;
+	g) MW[$id]["g"]=1 ;;
+	e | y) [ "$nt" -gt 0 ] && ml_act "$id" archive ;;
+	"#" | delete) [ "$nt" -gt 0 ] && ml_act "$id" trash ;;
+	"!") [ "$nt" -gt 0 ] && ml_act "$id" spam ;;
+	s) [ "$nt" -gt 0 ] && ml_star "$id" ;;
+	I) [ "$nt" -gt 0 ] && ml_act "$id" seen ;;
+	U) [ "$nt" -gt 0 ] && { ml_act "$id" unseen; MW[$id]["open"]=; } ;;
+	l) [ "$nt" -gt 0 ] && ml_labelask "$id" ;;
+	v) [ "$nt" -gt 0 ] && ml_moveask "$id" ;;
+	c) mlc_new "$id" new ;;
+	r) [ "$nt" -gt 0 ] && mlc_new "$id" reply ;;
+	a) [ "$nt" -gt 0 ] && mlc_new "$id" all ;;
+	f) [ "$nt" -gt 0 ] && mlc_new "$id" forward ;;
+	R | f5) ml_sync "${MW[$id]["acct"]}"; dt_notep low "Checking for mail${GL[ellipsis]}" ;;
+	*) return 1 ;;
+	esac
+	return 0
+}
+
+fn mail_click(int? id = "", int? r = "", int? c = "", btn = "") {
+	local tag
+
+	tag := dt_hit "$id" "$r" "$c" || return 0
+	case $tag in
+	setup) dt_launch panel mailset ;;
+	search) MW[$id]["qon"]=1 ;;
+	compose) mlc_new "$id" new ;;
+	back) MW[$id]["open"]= ;;
+	accts) ml_acctmenu "$id" "$r" "$c" ;;
+	view:*) MW[$id]["qon"]=; ml_go "$id" "${tag#view:}" ;;
+	row:*) MW[$id]["qon"]=; ml_openat "$id" "${tag#row:}" ;;
+	att:*) ml_saveatt "$id" "${tag#att:}" ;;
+	url:*) dt_launch browser "${tag#url:}" ;;
+	esac
+}
+
+fn mail_wheel(int id, dir, int r = 0, int c = 0) {
+	local d=3
+
+	[ "$dir" = up ] && d=-3
+	if [ -n "${MW[$id]["open"]}" ]; then
+		MW[$id]["rtop"]=$(( ${MW[$id]["rtop"]:-0} + d ))
+	else
+		MW[$id]["top"]=$(( ${MW[$id]["top"]:-0} + d ))
+		[ "${MW[$id]["top"]}" -lt 0 ] && MW[$id]["top"]=0
+		MW[$id]["sel"]=${MW[$id]["top"]}
+	fi
+}
+
+# The accounts, to switch to, from the name in the bar.
+fn ml_acctmenu(int id, int r, int c) {
+	ml_accounts || return 0
+	dt_droplist "$id" "$r" "$c" ml_acctpick "${ML_ACCTS[@]}"
+}
+fn ml_acctpick(int? id = "", value = "") { [ -n "$value" ] && ml_use "$id" "$value"; }
+
+mail_menus() {
+	local id=$DT_FOCUS a on
+
+	dt_menu "File"
+	dt_item "New Message" n mlc_new "$id" new
+	dt_item "New Window" w dt_launch mail
+	dt_item "Check for Mail" k ml_sync "${MW[$id]["acct"]}"
+	dt_sep
+	dt_item "Close Window" c dt_close_focused
+	dt_editmenu
+	dt_menu "Message"
+	dt_item "Reply" r mlc_new "$id" reply
+	dt_item "Reply All" a mlc_new "$id" all
+	dt_item "Forward" f mlc_new "$id" forward
+	dt_sep
+	dt_item "Archive" e ml_act "$id" archive
+	dt_item "Delete" d ml_act "$id" trash
+	dt_item "Report Spam" s ml_act "$id" spam
+	dt_item "Star" t ml_star "$id"
+	dt_item "Mark as Read" m ml_act "$id" seen
+	dt_item "Mark as Unread" u ml_act "$id" unseen
+	dt_item "Label${GL[ellipsis]}" l ml_labelask "$id"
+	dt_item "Move to${GL[ellipsis]}" v ml_moveask "$id"
+	dt_menu "Go"
+	dt_item "Inbox" i ml_go "$id" inbox
+	dt_item "Starred" s ml_go "$id" starred
+	dt_item "Sent" t ml_go "$id" sent
+	dt_item "Drafts" d ml_go "$id" drafts
+	dt_item "All Mail" a ml_go "$id" all
+	dt_item "Search${GL[ellipsis]}" r mail_key "$id" /
+	if ml_accounts && [ "${#ML_ACCTS[@]}" -gt 1 ]; then
+		dt_menu "Accounts"
+		for a in "${ML_ACCTS[@]}"; do
+			on=0
+			[ "$a" = "${MW[$id]["acct"]}" ] && on=1
+			dt_mark "$a" "" "$on" ml_use "$id" "$a"
+		done
+	fi
+}
+
+# --- writing: new, reply, reply to all, forward ---------------------------
+
+declare -gA MC
+MC_ORDER=(to cc bcc subj body attach send discard)
+
+# The latest message of the selected conversation, as a row number.
+fn ml_latest(int id, notme = "") {
+	local acct=${MW[$id]["acct"]} t i best=-1 bd=-1 other=-1 od=-1
+	local -a rows
+
+	t := ml_at "$id" "${MW[$id]["sel"]:-0}" || return 1
+	read -ra rows <<< "${MLT[$id][$t]["rows"]}"
+	for i in "${rows[@]}"; do
+		[ "${ML["$acct"][$i]["date"]}" -ge "$bd" ] && { bd=${ML["$acct"][$i]["date"]}; best=$i; }
+		[ -n "$notme" ] && [ "${ML["$acct"][$i]["faddr"],,}" != "${notme,,}" ] &&
+			[ "${ML["$acct"][$i]["date"]}" -ge "$od" ] && { od=${ML["$acct"][$i]["date"]}; other=$i; }
+	done
+	[ "$other" -ge 0 ] && best=$other
+	[ "$best" -ge 0 ] || return 1
+	ret "$best"
+}
+
+# Open a message window: new, or a reply, a reply to all or a forward of
+# the conversation selected in a Mail window -- its fields filled, the
+# message it answers quoted. A reply answers the newest message someone
+# else sent; when every one is the account's own, it goes to whoever the
+# newest was sent to.
+fn mlc_new(int from, mode) {
+	local acct=${MW[$from]["acct"]} r i f id h=22 w=76 me full body= subj= to= cc= ref= irt= d q line k
+	local -a ls
+
+	[ -n "$acct" ] || { dt_notep high "Set up a mail account first, in Control Panel > Mail"; return 0; }
+	[ "$w" -gt $((DT_COLS - 2)) ] && w=$((DT_COLS - 2))
+	[ "$h" -gt $((DT_ROWS - 2)) ] && h=$((DT_ROWS - 2))
+	r := email accounts 2> /dev/null
+	me=${r["$acct"]["email"]}
+	full=${r["$acct"]["name"]}
+	k=$me
+	[ "$mode" = forward ] && k=
+	if [ "$mode" != new ] && i := ml_latest "$from" "$k"; then
+		f := ml_file "$acct" "$i"
+		if [ -s "$f" ]; then
+			r := email parse "$f"
+			subj=${r["subject"]}
+			irt=${r["msgid"]}
+			ref="${r["refs"]}${r["refs"]:+ }${r["msgid"]}"
+			body=${r["text"]}
+			if [ -z "$body" ] && [ -n "${r["html"]}" ]; then
+				local hh lines j=0
+				hh := html parse -t "${r["html"]}"
+				lines := html lines "$hh" 72
+				html close "$hh"
+				while [ -n "${lines[$j]["s"]+x}" ]; do body+="${lines[$j]["t"]}"$'\n'; j=$((j + 1)); done
+			fi
+			d := ml_when "${r["date"]}"
+			case $mode in
+			reply | all)
+				to=${r["replyto"]:-${r["from"]}}
+				if [ "${r["fromaddr"],,}" = "${me,,}" ]; then
+					to=${r["to"]}
+					[ "$mode" = all ] && cc=$(ml_others "$me" "${r["cc"]}")
+				elif [ "$mode" = all ]; then
+					cc=$(ml_others "$me" "${r["to"]}, ${r["cc"]}")
+				fi
+				[[ ${subj,,} == re:* ]] || subj="Re: $subj"
+				q="On $d, ${r["fromname"]} wrote:"$'\n'
+				mapfile -t ls <<< "${body//$'\r'/}"
+				for line in "${ls[@]}"; do q+=">${line:+ }$line"$'\n'; done
+				body=$'\n\n'"$q"
+				;;
+			forward)
+				[[ ${subj,,} == fwd:* ]] || subj="Fwd: $subj"
+				irt=
+				ref=
+				body=$'\n\n'"---------- Forwarded message ---------"$'\n'"From: ${r["from"]}"$'\n'"Date: $d"$'\n'"Subject: ${r["subject"]}"$'\n'"To: ${r["to"]}"$'\n\n'"$body"
+				;;
+			esac
+		fi
+	fi
+	[ -n "$DT_MAILSIG" ] && body+=$'\n\n'"-- "$'\n'"$DT_MAILSIG"
+	id := dt_new "${subj:-New Message}" "$h" "$w" $(((DT_ROWS - h) / 2)) $(((DT_COLS - w) / 2)) mailc
+	MC[$id]["acct"]=$acct
+	MC[$id]["from"]=$me
+	[ -n "$full" ] && MC[$id]["from"]="$full <$me>"
+	MC[$id]["to"]=$to
+	MC[$id]["cc"]=$cc
+	MC[$id]["bcc"]=
+	MC[$id]["subj"]=$subj
+	for k in to cc bcc subj; do MC[$id]["${k}cur"]=${#MC[$id]["$k"]}; done
+	MC[$id]["irt"]=$irt
+	MC[$id]["refs"]=$ref
+	MC[$id]["att"]=
+	MC[$id]["focus"]=to
+	[ -n "$to" ] && MC[$id]["focus"]=body
+	MC[$id]["err"]=
+	if [ "$mode" = forward ] && [ -n "$f" ] && [ -s "$f" ]; then
+		local p=0 dir
+		dir := ml_dir "$acct"
+		mkdir -p "$dir/out"
+		while [ -n "${r["parts"][$p]["type"]+x}" ]; do
+			if [ -n "${r["parts"][$p]["name"]}" ]; then
+				email part "$f" "$p" "$dir/out/${r["parts"][$p]["name"]//\//_}" 2> /dev/null &&
+					MC[$id]["att"]+="$dir/out/${r["parts"][$p]["name"]//\//_}"$'\t'
+			fi
+			p=$((p + 1))
+		done
+	fi
+	tb_set "$id" "$body"
+	return 0
+}
+
+# Everyone in an address list but me, for reply to all.
+fn ml_others(me, list) {
+	local out= a
+	local -a as
+
+	IFS=, read -ra as <<< "$list"
+	for a in "${as[@]}"; do
+		a=${a# }
+		[ -n "$a" ] || continue
+		[[ ${a,,} == *"${me,,}"* ]] && continue
+		out+="${out:+, }$a"
+	done
+	printf '%s' "$out"
+}
+
+fn mailc_draw(int id, int h, int w, int row, int col) {
+	local f=${MC[$id]["focus"]} r=0 k on fw=$((w - 11)) lab att a n bh
+	local -A labs=([to]="To:" [cc]="Cc:" [bcc]="Bcc:" [subj]="Subject:")
+	local -a as
+
+	dt_wclear "$id"
+	console pen "$DT_DIM" "$DT_FACE"
+	console put -p "w$id" 0 1 "From:"
+	console pen "$DT_INK" "$DT_FACE"
+	console put -p "w$id" 0 10 "${MC[$id]["from"]:0:$fw}"
+	r=1
+	for k in to cc bcc subj; do
+		console pen "$DT_DIM" "$DT_FACE"
+		console put -p "w$id" "$r" 1 "${labs[$k]}"
+		on=0
+		[ "$f" = "$k" ] && on=1
+		dt_textdraw "$id" "$r" 10 "$fw" "${MC[$id]["$k"]}" "${MC[$id]["${k}cur"]}" "$on"
+		dt_wreg "$id" "$r" 10 "$fw" "$k"
+		r=$((r + 1))
+	done
+	console pen "$DT_DIM" "$DT_FACE"
+	console put -p "w$id" "$r" 0 "$(str repeat "${GL[hline]}" "$w")"
+	r=$((r + 1))
+	bh=$((h - r - 3))
+	[ "$bh" -lt 2 ] && bh=2
+	if [ "$f" = body ]; then
+		tb_draw "$id" "$r" 1 "$bh" $((w - 2)) "$DT_INK" "$DT_FACE"
+	else
+		tb_draw "$id" "$r" 1 "$bh" $((w - 2)) "$DT_INK" "$DT_FACE" "$DT_FACE" "$DT_FACE"
+	fi
+	MC[$id]["br0"]=$r
+	MC[$id]["bh"]=$bh
+	dt_wreg "$id" "$r" 1 $((w - 2)) body
+	r=$((r + bh))
+	att=
+	IFS=$'\t' read -ra as <<< "${MC[$id]["att"]}"
+	for a in "${as[@]}"; do [ -n "$a" ] && att+="${GL[file]} ${a##*/}  "; done
+	console pen "$DT_DIM" "$DT_FACE"
+	if [ -n "${MC[$id]["err"]}" ]; then
+		console pen "$DT_BAD" "$DT_FACE"
+		console put -p "w$id" "$r" 1 "${MC[$id]["err"]:0:$((w - 2))}"
+	elif [ -n "$att" ]; then
+		console put -p "w$id" "$r" 1 "${att:0:$((w - 2))}"
+	fi
+	if [ -n "${MC[$id]["sending"]}" ]; then
+		dt_dlgbtns "$id" "$h" "$w" "" wait "Sending${GL[ellipsis]}"
+	else
+		dt_dlgbtns "$id" "$h" "$w" "$f" send Send attach "Attach${GL[ellipsis]}" discard Discard
+	fi
+}
+
+fn mailc_key(int id, key) {
+	local f=${MC[$id]["focus"]} d res onb=1
+
+	[ -n "${MC[$id]["sending"]}" ] && return 0
+	case $f in to | cc | bcc | subj) onb=0 ;; body) onb=2 ;; esac
+	if [ "$f" = body ]; then
+		case $key in
+		tab) MC[$id]["focus"]=attach; return 0 ;;
+		shift-tab) MC[$id]["focus"]=subj; return 0 ;;
+		escape) MC[$id]["focus"]=send; return 0 ;;
+		esac
+		tb_key "$id" "$key" || return 1
+		return 0
+	fi
+	if d := dt_focuskey "$key" "$((onb == 1 ? 1 : 0))"; then
+		MC[$id]["focus"] := dt_focus "$f" "$d" "${MC_ORDER[@]}"
+		return 0
+	fi
+	case $key in
+	escape) mlc_discard "$id"; return 0 ;;
+	enter)
+		case $f in
+		to | cc | bcc) MC[$id]["focus"] := dt_focus "$f" 1 "${MC_ORDER[@]}" ;;
+		subj) MC[$id]["focus"]=body ;;
+		*) mlc_do "$id" "$f" ;;
+		esac
+		return 0
+		;;
+	esac
+	case $f in to | cc | bcc | subj) ;; *) return 1 ;; esac
+	res := dt_textkey "${MC[$id]["$f"]}" "${MC[$id]["${f}cur"]}" "$key" || return 1
+	MC[$id]["$f"]=${res% *}
+	MC[$id]["${f}cur"]=${res##* }
+	[ "$f" = subj ] && dt_retitle "$id" "${MC[$id]["subj"]:-New Message}"
+	return 0
+}
+
+fn mailc_click(int? id = "", int? r = "", int? c = "", btn = "") {
+	local tag cur
+
+	tag := dt_hit "$id" "$r" "$c" || return 0
+	case $tag in
+	to | cc | bcc | subj)
+		MC[$id]["focus"]=$tag
+		cur=$((c - 10))
+		[ "$cur" -gt "${#MC[$id]["$tag"]}" ] && cur=${#MC[$id]["$tag"]}
+		[ "$cur" -lt 0 ] && cur=0
+		MC[$id]["${tag}cur"]=$cur
+		;;
+	body) MC[$id]["focus"]=body ;;
+	*) mlc_do "$id" "$tag" ;;
+	esac
+}
+
+fn mailc_mouse(int id, act, btn, int r, int c, mods = "") {
+	[ "${MC[$id]["focus"]}" = body ] || return 0
+	[ "$r" -ge "${MC[$id]["br0"]:-6}" ] && [ "$r" -lt $(( ${MC[$id]["br0"]:-6} + ${MC[$id]["bh"]:-10} )) ] || return 0
+	tb_mouse "$id" "$act" "$btn" "$r" "$c" "$mods"
+}
+
+fn mailc_wheel(int id, dir, int r = 0, int c = 0) {
+	case $dir in
+	up) tb_scroll "$id" -3 ;;
+	down) tb_scroll "$id" 3 ;;
+	esac
+	return 0
+}
+
+fn mailc_paste(int id, text, op = "") {
+	local f=${MC[$id]["focus"]} res
+
+	case $f in
+	body) tb_insert "$id" "$text" ;;
+	to | cc | bcc | subj)
+		res := dt_textpaste "${MC[$id]["$f"]}" "${MC[$id]["${f}cur"]}" "${text//$'\n'/ }"
+		MC[$id]["$f"]=${res% *}
+		MC[$id]["${f}cur"]=${res##* }
+		;;
+	esac
+}
+
+fn mailc_close(int id) {
+	tb_free "$id"
+	unset MC["$id"]
+	return 0
+}
+
+mailc_menus() {
+	local id=$DT_FOCUS
+
+	dt_menu "File"
+	dt_item "Send" s mlc_do "$id" send
+	dt_item "Attach File${GL[ellipsis]}" a mlc_do "$id" attach
+	dt_sep
+	dt_item "Discard" d mlc_discard "$id"
+	dt_editmenu
+}
+
+# What a button does.
+fn mlc_do(int id, what) {
+	case $what in
+	send) mlc_send "$id" ;;
+	attach) dt_filepick open "Attach a File" "All files:*" "$HOME" "" mlc_attached "$id" ;;
+	discard) mlc_discard "$id" ;;
+	to | cc | bcc | subj | body) MC[$id]["focus"]=$what ;;
+	esac
+}
+
+fn mlc_attached(id = "", path = "", type = "") {
+	[ -n "$path" ] && [ -f "$path" ] || return 0
+	MC[$id]["att"]+="$path"$'\t'
+}
+
+# Close without sending, asked first when anything was written.
+fn mlc_discard(int id) {
+	local t
+
+	t := tb_text "$id"
+	if [ -n "${t//[[:space:]]/}" ] || [ -n "${MC[$id]["subj"]}" ]; then
+		MC_DISCARD=$id
+		dt_confirm "Discard this message?" mlc_discarded
+	else
+		dt_del "$id"
+	fi
+}
+MC_DISCARD=
+mlc_discarded() { [ -n "$MC_DISCARD" ] && dt_del "$MC_DISCARD"; MC_DISCARD=; }
+
+# Send: the message built with the email module and sent through the
+# account's server in the background -- a copy filed in Sent where the
+# server does not keep one itself, as Gmail does -- the window closed when
+# it has gone.
+fn mlc_send(int id) {
+	local acct=${MC[$id]["acct"]} dir body out sent= n
+	local -a args as
+
+	if [ -z "${MC[$id]["to"]}${MC[$id]["cc"]}${MC[$id]["bcc"]}" ]; then
+		MC[$id]["err"]="Who is it to? Put an address in To."
+		MC[$id]["focus"]=to
+		return 0
+	fi
+	dir := ml_dir "$acct"
+	mkdir -p "$dir/out"
+	body="$dir/out/$id.$EPOCHSECONDS.txt"
+	out="$dir/out/$id.$EPOCHSECONDS.eml"
+	tb_text "$id" > /dev/null
+	printf '%s' "$RET" > "$body"
+	args=(-f "${MC[$id]["from"]}" -t "${MC[$id]["to"]}" -s "${MC[$id]["subj"]}" -T "$body")
+	[ -n "${MC[$id]["cc"]}" ] && args+=(-c "${MC[$id]["cc"]}")
+	[ -n "${MC[$id]["bcc"]}" ] && args+=(-b "${MC[$id]["bcc"]}")
+	[ -n "${MC[$id]["irt"]}" ] && args+=(-r "${MC[$id]["irt"]}")
+	[ -n "${MC[$id]["refs"]}" ] && args+=(-R "${MC[$id]["refs"]}")
+	IFS=$'\t' read -ra as <<< "${MC[$id]["att"]}"
+	for n in "${as[@]}"; do [ -n "$n" ] && args+=(-a "$n"); done
+	if ! email build "$out" "${args[@]}" > /dev/null 2> "$dir/out/build.err"; then
+		read -r n < "$dir/out/build.err"
+		MC[$id]["err"]="Could not make the message: ${n#hibr: }"
+		return 0
+	fi
+	command rm -f "$body"
+	[ "${MLGMAIL["$acct"]}" = 1 ] || [ "${MLA["$acct"]}" = pop ] || sent=$(ml_sentfold "$acct")
+	MC[$id]["sending"]=1
+	MC[$id]["err"]=
+	n := ml_job send "$acct" mlc_sent "$HIBR" -c 'need email || exit 2; email send "$1" "$2" || exit 1; [ -n "$3" ] || exit 0; h := email open "$1" && email append "$h" "$3" "$2" "\Seen"; exit 0' send "$acct" "$out" "$sent"
+	MLJ[$n]["win"]=$id
+	MLJ[$n]["file"]=$out
+}
+
+# The folder sent mail is filed in, on a server that is not Gmail.
+fn ml_sentfold(acct) {
+	local k
+
+	for k in "${!MW[@]}"; do
+		[[ $k == "role$acct:"* ]] && [ "${MW["$k"]}" = sent ] && { printf '%s' "${k#role$acct:}"; return 0; }
+	done
+	printf '%s' Sent
+}
+
+# Sending finished: the window closed, or the reason shown in it.
+fn mlc_sent(int n, int st) {
+	local id=${MLJ[$n]["win"]} l=
+
+	if [ "$st" = 0 ]; then
+		if [ "${MLA["${MLJ[$n]["acct"]}"]}" = pop ]; then
+			printf 'sent\tSent\t0\t%s\n' "${MLJ[$n]["file"]}" >> "${MLJ[$n]["dir"]%/jobs}/queue"
+		else
+			command rm -f "${MLJ[$n]["file"]}"
+		fi
+		dt_notep low "Message sent"
+		[ -n "${MC[$id]["focus"]+x}" ] && dt_wantclose "$id"
+		ml_sync "${MLJ[$n]["acct"]}"
+		return 0
+	fi
+	[ -s "${MLJ[$n]["dir"]}/$n.err" ] && read -r l < "${MLJ[$n]["dir"]}/$n.err"
+	if [ -n "${MC[$id]["focus"]+x}" ]; then
+		MC[$id]["sending"]=
+		MC[$id]["err"]="Not sent: ${l#hibr: email: }"
+	else
+		dt_notep high "A message was not sent: ${l#hibr: email: }"
+	fi
+}

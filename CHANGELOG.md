@@ -1,5 +1,57 @@
 # Changelog
 
+## 0.99.24
+
+**Mail.** A mail app for the desktop, in the Internet folder, laid out the
+way Gmail is: the views and labels down the left with their unread counts,
+conversations on the right with a message and its replies together, and a
+conversation opened in place -- HTML laid out with its headings, lists,
+quotes, tables and links, attached pictures drawn, attachments saved with a
+click. Gmail's keys work (`j` `k` `o` `u` `e` `#` `!` `s` `l` `v` `c` `r`
+`a` `f` `/`, and `g` then a view), and the File, Message and Go menus have
+them all. It is offline: a sync job keeps each account in a `db` file, what
+you do happens at once and is queued for the server, and a dropped
+connection loses nothing. New mail is pushed through IMAP IDLE. IMAP with
+Gmail's labels and threads, POP3 (downloaded and kept here, flags this
+machine's own, Trash deleting from the server) and SMTP. Control Panel >
+Mail adds accounts -- for Gmail or Outlook an address and a password are
+enough -- and sets how much is kept, how often to check, pictures and a
+signature.
+
+What it does not do yet: Google sign-in -- Gmail wants an app password,
+made in the Google account's security settings; fetch pictures from the
+web, which would tell a sender the message was opened; save a message being
+written as a draft (closing one with text in it asks first); or keep more
+than about 2000 messages quickly, because the shell's maps are lists. It
+keeps 1000 by default -- the main folder that many, every other folder a
+fifth -- and with 1000 opening takes 0.2 s and changing view 0.35 s.
+
+**An HTML module.** `html` parses HTML as the WHATWG standard says a browser
+must -- our own tokenizer and tree builder, passing all 1792 of html5lib's
+tree-construction tests -- and answers CSS selector queries, text,
+attributes and the tree, and lays a page out as lines of cells with a style
+per character, link columns and boxes for pictures. An 813 KB page parses
+in 159 ms. It is what Mail reads messages with, and the start of a browser
+of our own; JavaScript, through QuickJS, is for a release of its own.
+
+**An email module.** `email` speaks IMAP (IDLE, special-use folders,
+Gmail's labels, threads and ids, MOVE or COPY and expunge), POP3 and SMTP
+(STARTTLS or TLS, PLAIN or LOGIN, Bcc taken out), over the shell's TLS
+relay, with accounts in a file only you can read that never shows its
+passwords, and does the MIME: RFC 2047 and 2231 headers, quoted-printable,
+base64, charsets into UTF-8 (iconv found at run time), parts out to files,
+and messages built. `tests/mailserve.py` is a stand-in IMAP, POP3 and SMTP
+server, and `tests/mail.py` and `tests/mailapp.py` drive the module and the
+app against it.
+
+**`:=` binds a map into a map.** `m["rows"] := db query "$h"` kept only the
+scalar and dropped the rows; the result's map is now copied under the
+target, at any depth, with its JSON types, and binding over a map frees the
+old one.
+
+**Smaller things.** `dt_keep` no longer lists a variable twice when two
+files keep it.
+
 ## 0.99.23
 
 **YouTube no longer freezes a minute in.** On many videos YouTube's own

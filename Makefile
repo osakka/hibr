@@ -42,7 +42,7 @@ MODS = $(B)/mods/sys.so $(B)/mods/http.so $(B)/mods/ls.so $(B)/mods/prompt.so \
        $(B)/mods/hvi.so $(B)/mods/mon.so \
        $(B)/mods/sysinfo.so $(B)/mods/pty.so \
        $(B)/mods/term.so $(B)/mods/hold.so $(B)/mods/img.so \
-       $(B)/mods/lint.so $(B)/mods/db.so $(B)/mods/md.so $(B)/mods/math.so $(B)/mods/web.so \
+       $(B)/mods/lint.so $(B)/mods/db.so $(B)/mods/md.so $(B)/mods/html.so $(B)/mods/email.so $(B)/mods/math.so $(B)/mods/web.so \
        $(B)/mods/dav.so $(B)/mods/media.so $(B)/mods/auth.so
 
 # darwin.c reaches Mach headers (mach/mach.h and kin) that only exist on
@@ -149,6 +149,16 @@ WEB_SRC = $(wildcard mods/web/*.c) mods/img/png.c
 
 $(B)/mods/web.so: $(WEB_SRC) include/hibr.h mods/web/wb.h mods/img/im.h mods/display.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(WEB_SRC) $(DLLIB)
+
+EMAIL_SRC = $(wildcard mods/email/*.c)
+
+$(B)/mods/email.so: $(EMAIL_SRC) include/hibr.h mods/email/ml.h | $(B)/mods
+	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(EMAIL_SRC) $(DLLIB)
+
+HTML_SRC = $(wildcard mods/html/*.c)
+
+$(B)/mods/html.so: $(HTML_SRC) include/hibr.h mods/html/hl.h mods/html/tr.h | $(B)/mods
+	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(HTML_SRC)
 
 MD_SRC = $(wildcard mods/md/*.c)
 

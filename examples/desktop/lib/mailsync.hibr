@@ -1,0 +1,541 @@
+#!/usr/bin/env hibr
+#
+# mailsync -- bring one account's mail offline, and the app's changes to
+# the server: what Mail runs in the background, and the only thing that
+# writes an account's store, so it is run one at a time (a lock folder
+# says so).
+#
+#     hibr mailsync.hibr ACCOUNT DIR [MAXMSGS [MAXBODIES [quick]]]
+#
+# DIR holds msgs.db -- a row a message: its folder, UID and the folder's
+# UIDVALIDITY, date, size, flags, thread, sender, subject, labels, whether
+# it has attachments, a snippet, and whether its whole text is here -- and
+# msg/, the messages themselves, one .eml a message. First the queue the
+# app writes (DIR/queue: "op folder uid [arg]" a line -- seen, unseen,
+# star, unstar, archive, trash, spam, label, unlabel, move, fetch) goes to
+# the server; then each folder is brought up to date: new headers in
+# batches, flags and labels read again, what was expunged dropped; then the
+# newest messages' whole text is fetched, MAXBODIES of them. On Gmail the
+# folders are All Mail, with each message's labels, Spam and Trash;
+# elsewhere every folder, its name the message's label. Progress goes to
+# standard output a line at a time; the last says what happened.
+
+strict
+
+MS_ACCT=$1
+MS_DIR=$2
+MS_MAX=${3:-1000}
+MS_BODIES=${4:-500}
+MS_QUICK=${5:-}
+MS_H=
+MS_DB=
+MS_GMAIL=0
+MS_NEW=0
+MS_ALL=
+MS_SPAM=
+MS_TRASH=
+MS_ARCHIVE=
+declare -gA MS_FOLD
+declare -gA MS_ROLE
+declare -gA MS_ROW
+MS_FOLDS=()
+MS_KIND=imap
+
+# Say how far it has got, a line the app can show.
+fn ms_say(t) { printf '%s\n' "$t"; }
+
+# Give up, saying why, and let go of the lock.
+fn ms_die(why) {
+	ms_say "error $why"
+	ms_done
+	exit 1
+}
+
+# Let go of everything held.
+ms_done() {
+	[ -n "$MS_DB" ] && db close "$MS_DB" 2> /dev/null
+	[ -n "$MS_H" ] && email close "$MS_H" 2> /dev/null
+	MS_DB=
+	MS_H=
+	command rm -rf "$MS_DIR/lock"
+}
+
+# Take the lock: a folder made atomically, with the pid that holds it; one
+# whose holder has gone is taken over.
+ms_lock() {
+	local pid
+
+	mkdir -p "$MS_DIR/msg" || return 1
+	if ! mkdir "$MS_DIR/lock" 2> /dev/null; then
+		read -r pid 2> /dev/null < "$MS_DIR/lock/pid"
+		if [ -n "$pid" ] && kill -0 "$pid" 2> /dev/null; then
+			return 1
+		fi
+		command rm -rf "$MS_DIR/lock"
+		mkdir "$MS_DIR/lock" || return 1
+	fi
+	echo "$$" > "$MS_DIR/lock/pid"
+}
+
+# The store: opened, or made the first time.
+ms_open() {
+	if [ -f "$MS_DIR/msgs.db" ]; then
+		MS_DB := db open "$MS_DIR/msgs.db"
+	else
+		MS_DB := db create "$MS_DIR/msgs.db" fold:str:160 uid:int uidv:int date:int \
+			size:int seen:int star:int ans:int att:int body:int thr:str:64 \
+			fname:str:64 faddr:str:96 subj:str:200 labels:str:320 snip:str:200 \
+			to:str:120
+	fi
+	[ -n "$MS_DB" ]
+}
+
+# The file a message's whole text is kept in.
+fn ms_file(fold, int uidv, int uid) {
+	local k
+
+	k := email clip 120 "$fold"
+	k=${k//\//_}
+	ret "$MS_DIR/msg/${k}_${uidv}_${uid}.eml"
+}
+
+# The folders to bring offline, by role: on Gmail All Mail, Spam and
+# Trash; elsewhere every folder that can be opened.
+ms_folders() {
+	local r i n nm role fl
+
+	r := email folders "$MS_H" || return 1
+	i=0
+	while [ -n "${r[$i]["name"]+x}" ]; do
+		nm=${r[$i]["name"]}
+		role=${r[$i]["role"]}
+		fl=${r[$i]["flags"]}
+		i=$((i + 1))
+		MS_ROLE["$nm"]=$role
+		case $role in
+		spam) MS_SPAM=$nm ;;
+		trash) MS_TRASH=$nm ;;
+		all) MS_ALL=$nm ;;
+		archive) MS_ARCHIVE=$nm ;;
+		esac
+		[[ $fl == *'\Noselect'* ]] && continue
+		if [ "$MS_GMAIL" = 1 ]; then
+			case $role in all|spam|trash) MS_FOLDS+=("$nm") ;; esac
+		else
+			MS_FOLDS+=("$nm")
+		fi
+	done
+	n=${#MS_FOLDS[@]}
+	[ "$n" -gt 0 ]
+}
+
+# Load the store's rows for one folder into MS_ROW: "uid" maps to its
+# record number, flags and labels, for comparing with the server.
+fn ms_rows(fold) {
+	local r i
+
+	MS_ROW=()
+	r := db query "$MS_DB" -n where fold eq "$fold"
+	i=0
+	while [ -n "${r[$i]["#"]+x}" ]; do
+		MS_ROW["${r[$i]["uid"]}"]="${r[$i]["#"]} ${r[$i]["uidv"]} ${r[$i]["seen"]} ${r[$i]["star"]} ${r[$i]["body"]}"
+		MS_FOLD["l${r[$i]["uid"]}"]=${r[$i]["labels"]}
+		i=$((i + 1))
+	done
+}
+
+# A thread's key: Gmail's thread id, else the first message the
+# References name, else the one it replies to, else its own id.
+fn ms_thread(thrid, refs, irt, msgid) {
+	local t
+
+	if [ -n "$thrid" ]; then
+		ret "$thrid"
+		return 0
+	fi
+	t=${refs%%>*}
+	[ -n "$t" ] || t=${irt%%>*}
+	[ -n "$t" ] || t=${msgid%%>*}
+	t=${t##*<}
+	t := email clip 64 "$t"
+	ret "$t"
+}
+
+# Push the queued changes to the server, a line at a time. What the
+# server refuses is said and dropped; when the connection is lost instead,
+# that line and the rest stay in the queue for the next sync.
+MS_KEPT=0
+ms_push() {
+	local q="$MS_DIR/queue.work" op fold uid arg cur= dest k=0 ok
+	local -a ls
+
+	if [ -s "$MS_DIR/queue" ]; then
+		cat "$MS_DIR/queue" >> "$q" && command rm -f "$MS_DIR/queue"
+	fi
+	[ -s "$q" ] || return 0
+	mapfile -t ls < "$q"
+	while [ "$k" -lt "${#ls[@]}" ]; do
+		IFS=$'\t' read -r op fold uid arg <<< "${ls[$k]}"
+		k=$((k + 1))
+		[ -n "$op" ] || continue
+		if [ "$fold" != "$cur" ]; then
+			if ! email select "$MS_H" "$fold" > /dev/null; then
+				ms_alive "$fold" || { ms_keep "$q" $((k - 1)) "${ls[@]}"; return 1; }
+				continue
+			fi
+			cur=$fold
+		fi
+		ok=0
+		case $op in
+		seen) email store "$MS_H" "$uid" '+\Seen' || ok=1 ;;
+		unseen) email store "$MS_H" "$uid" '-\Seen' || ok=1 ;;
+		star) email store "$MS_H" "$uid" '+\Flagged' || ok=1 ;;
+		unstar) email store "$MS_H" "$uid" '-\Flagged' || ok=1 ;;
+		label) email label "$MS_H" "$uid" "+$arg" || ok=1 ;;
+		unlabel) email label "$MS_H" "$uid" "-$arg" || ok=1 ;;
+		archive)
+			if [ "$MS_GMAIL" = 1 ]; then
+				email label "$MS_H" "$uid" '-\Inbox' || ok=1
+			elif [ -n "$MS_ARCHIVE" ]; then
+				email move "$MS_H" "$uid" "$MS_ARCHIVE" || ok=1
+			fi
+			;;
+		trash) [ -z "$MS_TRASH" ] || email move "$MS_H" "$uid" "$MS_TRASH" || ok=1 ;;
+		spam) [ -z "$MS_SPAM" ] || email move "$MS_H" "$uid" "$MS_SPAM" || ok=1 ;;
+		move) email move "$MS_H" "$uid" "$arg" || ok=1 ;;
+		fetch)
+			dest := ms_file "$fold" "${arg:-0}" "$uid"
+			email fetch "$MS_H" "$uid" "$dest" > /dev/null || ok=1
+			;;
+		esac
+		if [ "$ok" = 1 ] && ! ms_alive "$fold"; then
+			ms_keep "$q" $((k - 1)) "${ls[@]}"
+			return 1
+		fi
+	done
+	command rm -f "$q"
+	return 0
+}
+
+# Whether the connection still answers, by selecting a folder again.
+fn ms_alive(fold) {
+	email select "$MS_H" "$fold" > /dev/null 2>&1
+}
+
+# The queue's lines from one on, written back for the next sync.
+fn ms_keep(q, int from, ...ls) {
+	printf '%s\n' "${ls[@]:$from}" > "$q.new" && mv -f "$q.new" "$q"
+	MS_KEPT=$(( ${#ls[@]} - from ))
+}
+
+# A snippet of a message's text: its plain text, else its HTML laid out,
+# whitespace collapsed, about a line and a half.
+fn ms_snip(file) {
+	local r t h n i
+
+	r := email parse "$file" || return 1
+	t=${r["text"]}
+	if [ -z "$t" ] && [ -n "${r["html"]}" ] && need html 2> /dev/null; then
+		h := html parse -t "${r["html"]}"
+		n := html lines "$h" 400
+		t=
+		i=0
+		while [ -n "${n[$i]["t"]+x}" ] && [ "${#t}" -lt 300 ]; do
+			t+="${n[$i]["t"]} "
+			i=$((i + 1))
+		done
+		html close "$h"
+	fi
+	t=${t//$'\r'/ }
+	t=${t//$'\n'/ }
+	t=${t//$'\t'/ }
+	while [[ $t == *'  '* ]]; do t=${t//  / }; done
+	t=${t# }
+	t=${t% }
+	t := email clip 190 "$t"
+	ret "$t"
+}
+
+# Bring one folder up to date: new messages' headers added in batches of
+# 200, flags and labels read again for all, expunged ones removed.
+fn ms_folder(fold) {
+	local r uidv next top uid lo hi e f seen star ans lab thr nm fa sj to labs cap
+	local -a w uids
+
+	r := email select "$MS_H" "$fold" -r || return 1
+	uidv=${r["uidvalidity"]:-0}
+	next=${r["uidnext"]:-0}
+	ms_rows "$fold"
+	top=0
+	for uid in "${!MS_ROW[@]}"; do
+		read -ra w <<< "${MS_ROW["$uid"]}"
+		if [ "${w[1]}" != "$uidv" ]; then
+			db delete "$MS_DB" where fold eq "$fold" > /dev/null
+			MS_ROW=()
+			top=0
+			break
+		fi
+		[ "$uid" -gt "$top" ] && top=$uid
+	done
+	uids := email uids "$MS_H" || return 1
+	lo=$((top + 1))
+	cap=$MS_MAX
+	if [ "$fold" != INBOX ] && [ "$fold" != "$MS_ALL" ]; then
+		cap=$((MS_MAX / 5))
+		[ "$cap" -lt 50 ] && cap=50
+	fi
+	if [ "${#uids[@]}" -gt 0 ]; then
+		e=0
+		for uid in "${uids[@]}"; do
+			[ "$uid" -gt "$top" ] && e=$((e + 1))
+		done
+		if [ "$e" -gt "$cap" ]; then
+			lo=${uids[$(( ${#uids[@]} - cap ))]}
+		fi
+	fi
+	hi=$((next > 0 ? next - 1 : 0))
+	while [ "$lo" -le "$hi" ] && [ "$hi" -gt 0 ]; do
+		e=$((lo + 199))
+		[ "$e" -gt "$hi" ] && e=$hi
+		ms_say "fetching $fold $lo:$e"
+		r := email headers "$MS_H" "$lo:$e" || return 1
+		for uid in "${!r[@]}"; do
+			[ -n "${MS_ROW["$uid"]+x}" ] && continue
+			f=${r[$uid]["flags"]}
+			seen=0; [[ $f == *'\Seen'* ]] && seen=1
+			star=0; [[ $f == *'\Flagged'* ]] && star=1
+			ans=0; [[ $f == *'\Answered'* ]] && ans=1
+			if [ "$MS_GMAIL" = 1 ]; then
+				labs=${r[$uid]["labels"]}
+				[ "$fold" = "$MS_ALL" ] || labs=${MS_ROLE["$fold"]}
+			else
+				labs=$fold
+			fi
+			labs=${labs:0:80}
+			thr := ms_thread "${r[$uid]["thrid"]}" "${r[$uid]["refs"]}" "${r[$uid]["inreplyto"]}" "${r[$uid]["msgid"]}"
+			nm := email clip 60 "${r[$uid]["fromname"]}"
+			fa := email clip 90 "${r[$uid]["fromaddr"]}"
+			sj := email clip 196 "${r[$uid]["subject"]}"
+			to := email clip 116 "${r[$uid]["to"]}"
+			db insert "$MS_DB" "$fold" "$uid" "$uidv" "${r[$uid]["date"]:-0}" "${r[$uid]["size"]:-0}" \
+				"$seen" "$star" "$ans" "${r[$uid]["attach"]:-0}" 0 "$thr" "$nm" "$fa" "$sj" \
+				"$labs" "" "$to" > /dev/null
+			MS_NEW=$((MS_NEW + 1))
+		done
+		lo=$((e + 1))
+	done
+	[ -n "$MS_QUICK" ] && return 0
+	ms_rows "$fold"
+	declare -A live
+	for uid in "${uids[@]}"; do live["$uid"]=1; done
+	for uid in "${!MS_ROW[@]}"; do
+		if [ -z "${live["$uid"]+x}" ]; then
+			read -ra w <<< "${MS_ROW["$uid"]}"
+			db delete "$MS_DB" "${w[0]}" > /dev/null
+			f := ms_file "$fold" "$uidv" "$uid"
+			command rm -f "$f"
+		fi
+	done
+	[ "${#MS_ROW[@]}" -gt 0 ] || return 0
+	ms_say "flags $fold"
+	r := email flags "$MS_H" "1:*" || return 1
+	for uid in "${!r[@]}"; do
+		[ -n "${MS_ROW["$uid"]+x}" ] || continue
+		read -ra w <<< "${MS_ROW["$uid"]}"
+		f=${r[$uid]["flags"]}
+		seen=0; [[ $f == *'\Seen'* ]] && seen=1
+		star=0; [[ $f == *'\Flagged'* ]] && star=1
+		if [ "$seen" != "${w[2]}" ] || [ "$star" != "${w[3]}" ]; then
+			db set "$MS_DB" "${w[0]}" seen "$seen" star "$star" > /dev/null
+		fi
+		if [ "$MS_GMAIL" = 1 ] && [ "$fold" = "$MS_ALL" ]; then
+			lab=${r[$uid]["labels"]:0:80}
+			[ "$lab" != "${MS_FOLD["l$uid"]}" ] && db set "$MS_DB" "${w[0]}" labels "$lab" > /dev/null
+		fi
+	done
+	return 0
+}
+
+# Fetch the whole text of the newest messages that do not have it yet,
+# MAXBODIES of them across the account, and give each a snippet.
+ms_bodies() {
+	local r i n k f cur= want=0 sn
+	local -a order
+
+	r := db query "$MS_DB" -n where body eq 0
+	i=0
+	while [ -n "${r[$i]["#"]+x}" ]; do
+		order+=("${r[$i]["date"]}:$i")
+		i=$((i + 1))
+	done
+	[ "${#order[@]}" -gt 0 ] || return 0
+	IFS=$'\n' read -d '' -ra order <<< "$(printf '%s\n' "${order[@]}" | sort -t: -k1,1nr)"
+	n=0
+	for k in "${order[@]}"; do
+		[ "$n" -lt "$MS_BODIES" ] || break
+		i=${k#*:}
+		[ "${r[$i]["size"]}" -gt 26214400 ] && continue
+		if [ "${r[$i]["fold"]}" != "$cur" ]; then
+			email select "$MS_H" "${r[$i]["fold"]}" -r > /dev/null || continue
+			cur=${r[$i]["fold"]}
+		fi
+		f := ms_file "${r[$i]["fold"]}" "${r[$i]["uidv"]}" "${r[$i]["uid"]}"
+		email fetch "$MS_H" "${r[$i]["uid"]}" "$f" > /dev/null || continue
+		sn := ms_snip "$f"
+		db set "$MS_DB" "${r[$i]["#"]}" body 1 snip "$sn" > /dev/null
+		n=$((n + 1))
+		[ $((n % 25)) = 0 ] && ms_say "bodies $n"
+	done
+	want=$n
+	ms_say "bodies $want"
+}
+
+# A POP mailbox: what the server has that is not here yet, downloaded
+# whole into INBOX and kept here after the server lets it go. POP keeps
+# no flags and no folders, so seen, starred, archived and labelled are
+# this store's own; Trash and Spam are folders of it too, and a message
+# put in Trash is deleted from the server as well. What was sent is filed
+# in a Sent folder here, from the file the app queues.
+ms_pop() {
+	local r q i k id f u top=0 op fold uid arg dest n
+	local -A have byid rec
+	local -a ls order
+
+	touch "$MS_DIR/pop.map"
+	while IFS=$'\t' read -r id u; do
+		[ -n "$u" ] || continue
+		have["$u"]=$id
+		byid["$id"]=$u
+		[ "$id" -gt "$top" ] && top=$id
+	done < "$MS_DIR/pop.map"
+	r := email list "$MS_H" || return 1
+	q := db query "$MS_DB" -n
+	i=0
+	while [ -n "${q[$i]["#"]+x}" ]; do
+		rec["${q[$i]["fold"]}"$'\t'"${q[$i]["uid"]}"]=${q[$i]["#"]}
+		[ "${q[$i]["uid"]}" -gt "$top" ] && top=${q[$i]["uid"]}
+		i=$((i + 1))
+	done
+	if [ -s "$MS_DIR/queue" ]; then
+		cat "$MS_DIR/queue" >> "$MS_DIR/queue.work" && command rm -f "$MS_DIR/queue"
+	fi
+	if [ -s "$MS_DIR/queue.work" ]; then
+		mapfile -t ls < "$MS_DIR/queue.work"
+		for k in "${ls[@]}"; do
+			IFS=$'\t' read -r op fold uid arg <<< "$k"
+			if [ "$op" = sent ]; then
+				[ -s "$arg" ] || continue
+				top=$((top + 1))
+				ms_popadd "$arg" Sent "$top" 1 0 || continue
+				continue
+			fi
+			i=${rec["$fold"$'\t'"$uid"]}
+			[ -n "$i" ] || continue
+			dest=
+			case $op in
+			seen) db set "$MS_DB" "$i" seen 1 > /dev/null ;;
+			unseen) db set "$MS_DB" "$i" seen 0 > /dev/null ;;
+			star) db set "$MS_DB" "$i" star 1 > /dev/null ;;
+			unstar) db set "$MS_DB" "$i" star 0 > /dev/null ;;
+			archive) dest=Archive ;;
+			spam) dest=Spam ;;
+			move | label) dest=$arg ;;
+			trash)
+				dest=Trash
+				u=${byid["$uid"]}
+				if [ -n "$u" ] && [ -n "${r["$u"]["n"]+x}" ]; then
+					email delete "$MS_H" "${r["$u"]["n"]}" || return 1
+				fi
+				;;
+			esac
+			[ -n "$dest" ] && [ "$dest" != "$fold" ] || continue
+			f := ms_file "$fold" 0 "$uid"
+			n := ms_file "$dest" 0 "$uid"
+			[ -f "$f" ] && mv -f "$f" "$n"
+			db set "$MS_DB" "$i" fold "$dest" labels "$dest" > /dev/null
+			rec["$dest"$'\t'"$uid"]=$i
+			unset rec["$fold"$'\t'"$uid"]
+		done
+		command rm -f "$MS_DIR/queue.work"
+	fi
+	for u in "${!r[@]}"; do
+		[ -n "${have["$u"]+x}" ] || order+=("${r["$u"]["n"]}:$u")
+	done
+	[ "${#order[@]}" -gt 0 ] || return 0
+	IFS=$'\n' read -d '' -ra order <<< "$(printf '%s\n' "${order[@]}" | sort -t: -k1,1n)"
+	[ "${#order[@]}" -gt "$MS_MAX" ] && order=("${order[@]: -$MS_MAX}")
+	ms_say "fetching INBOX ${#order[@]}"
+	for k in "${order[@]}"; do
+		u=${k#*:}
+		top=$((top + 1))
+		f="$MS_DIR/msg/.pop"
+		email fetch "$MS_H" "${k%%:*}" "$f" > /dev/null || return 1
+		printf '%s\t%s\n' "$top" "$u" >> "$MS_DIR/pop.map"
+		ms_popadd "$f" INBOX "$top" 0 "${r["$u"]["size"]:-0}" || continue
+		MS_NEW=$((MS_NEW + 1))
+	done
+	return 0
+}
+
+# File one whole message into the store under a folder and a number: the
+# file moved to where the app looks for it, a row made from its headers.
+fn ms_popadd(src, fold, int uid, int seen, int size) {
+	local f q att=0 part=0 thr nm fa sj to sn
+
+	f := ms_file "$fold" 0 "$uid"
+	mv -f "$src" "$f" || return 1
+	[ "$size" -gt 0 ] || size=$(wc -c < "$f")
+	q := email parse "$f" || return 1
+	while [ -n "${q["parts"][$part]["type"]+x}" ]; do
+		[ -n "${q["parts"][$part]["name"]}" ] && att=1
+		part=$((part + 1))
+	done
+	thr := ms_thread "" "${q["refs"]}" "${q["inreplyto"]}" "${q["msgid"]}"
+	nm := email clip 60 "${q["fromname"]}"
+	fa := email clip 90 "${q["fromaddr"]}"
+	sj := email clip 196 "${q["subject"]}"
+	to := email clip 116 "${q["to"]}"
+	sn := ms_snip "$f"
+	db insert "$MS_DB" "$fold" "$uid" 0 "${q["date"]:-0}" "$size" "$seen" 0 0 "$att" 1 \
+		"$thr" "$nm" "$fa" "$sj" "$fold" "$sn" "$to" > /dev/null
+}
+
+fn ms_main(acct = "", dir = "", ...rest) {
+	local f ac
+
+	[ -n "$acct" ] && [ -n "$dir" ] || { echo "usage: mailsync.hibr ACCOUNT DIR [max [bodies [quick]]]" >&2; return 2; }
+	need email || ms_die "no email module"
+	need db || ms_die "no db module"
+	ms_lock || { ms_say "busy"; return 3; }
+	ms_open || ms_die "cannot open the store in $dir"
+	ms_say "connecting"
+	MS_H := email open "$acct" || ms_die "cannot log in"
+	ac := email accounts
+	MS_KIND=${ac["$acct"]["kind"]:-imap}
+	if [ "$MS_KIND" = pop ]; then
+		ms_pop || ms_die "the connection was lost"
+		db flush "$MS_DB" > /dev/null
+		ms_say "done $MS_NEW"
+		ms_done
+		return 0
+	fi
+	MS_GMAIL := email gmail "$MS_H"
+	ms_folders || ms_die "no folders"
+	ms_push || ms_die "the connection was lost; $MS_KEPT changes wait for the next sync"
+	if [ -n "$MS_QUICK" ]; then
+		f=INBOX
+		[ "$MS_GMAIL" = 1 ] && f=$MS_ALL
+		ms_folder "$f" || ms_die "cannot read $f"
+	else
+		for f in "${MS_FOLDS[@]}"; do
+			ms_folder "$f" || ms_say "skipped $f"
+		done
+	fi
+	ms_bodies
+	db flush "$MS_DB" > /dev/null
+	ms_say "done $MS_NEW"
+	ms_done
+	return 0
+}
+
+ms_main "$@"

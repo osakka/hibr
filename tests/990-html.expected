@@ -1,0 +1,66 @@
+0
+handle 1, title [T & t]
+p.y: One (tag p, parent body)
+p.y: Two bold (tag p, parent body)
+#a: x y
+id=a
+class=x y
+match: bold
+match: i2
+no table: status 1
+hibr: html: p[: not a selector this understands
+bad selector: 2
+kids of body: p p ul 
+hibr: html: 1: no such document
+closed: 1
+[Logo]  Order 7
+
+Hello, you
+
+A paragraph long enough
+that it has to wrap at
+twenty-four columns,
+with a link in it.
+
+Item    Qty
+───────────
+Widget  2
+
+│ quoted
+│ text
+
+3. three
+4. four
+
+a       b
+---
+ 0 ppppppppppppppp          
+ 1                          
+ 2 1111111111               
+ 3                          
+ 4 ppppppppppppppppppppppp  
+ 5 pppppppppppppppppppppp   
+ 6 pppppppppppppppppppp     
+ 7 pppppllllllppppppp       5	6	https://e.x/t
+ 8                          
+ 9 bbbbppppbbb              
+10 mmmmmmmmmmm              
+11 ppppppppp                
+12                          
+13 mmqqqqqq                 
+14 mmqqqq                   
+15                          
+16 mmmppppp                 
+17 mmmpppp                  
+18                          
+19 ccccccccc                
+---
+image box: [2	10	cid:l	Logo]
+rule in ascii: [-----------]
+hibr: usage: html lines h width [-i] [-a] [node]
+no width: 2
+| <td>
+|   "a"
+| <td>
+|   "b"
+fragment kids: 2

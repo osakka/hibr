@@ -1,0 +1,7 @@
+0
+alpha 22
+{"rows":[{"name":"alpha","n":1},{"name":"beta","n":22}]}
+deeper: beta, 1 row
+a map bound over a map: 2 rows, alpha first
+scalar under a quoted key: plain
+a map entry bound again to a scalar: [plain] []

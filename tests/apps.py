@@ -291,10 +291,10 @@ check("panes register and sort by title within their group, not load order",
       ORDER == ["datetime", "displays", "keyboard", "mouse",
                 "aboutme", "appearance", "cliphist", "control_strip", "desktop",
                 "filetypes", "network", "notify", "screensaver", "shortcuts", "windows",
-                "abouthibr", "filesview", "notes", "taskmgr", "terminal", "tube"], out)
+                "abouthibr", "filesview", "mailset", "notes", "taskmgr", "terminal", "tube"], out)
 check("Hardware first, then the desktop's own panes, then one per app",
       [GROUP[n] for n in ORDER] ==
-      ["hardware"] * 4 + ["system"] * 11 + ["app"] * 6, out)
+      ["hardware"] * 4 + ["system"] * 11 + ["app"] * 7, out)
 
 PW = "22 70 2 2"
 PANEL = ("panel", PW)
@@ -319,7 +319,7 @@ TITLE = {"aboutme": "About Me", "appearance": "Appearance", "control_strip": "Co
          "keyboard": "Keyboard", "mouse": "Mouse",
          "shortcuts": "Shortcuts", "notify": "Notifications",
          "windows": "Windows", "abouthibr": "About hibr",
-         "filesview": "Files", "taskmgr": "Task Manager",
+         "filesview": "Files", "mailset": "Mail", "taskmgr": "Task Manager",
          "terminal": "Terminal", "tube": "YouTube"}
 
 
@@ -3374,4 +3374,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(506)
+report(510)

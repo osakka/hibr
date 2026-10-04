@@ -1,0 +1,342 @@
+#!/usr/bin/env hibr
+#
+# mailset -- the Control Panel pane for Mail (apps/Internet/mail.hibr):
+# the accounts -- each opening a dialog to change it, and one to add
+# another -- how much is kept offline, how often mail is checked for,
+# whether attached pictures are drawn, and a signature. Accounts are the
+# email module's own list, readable only by you; this pane never shows a
+# password.
+
+strict
+
+command -v cp_pane > /dev/null && cp_pane mailset "Mail" "✉" app
+command -v dt_app > /dev/null && dt_app mlad "Mail Account" 19 66 "" "" fixed hidden
+
+# The app's settings, declared here as well, so the pane can change them
+# when the app has not been loaded.
+DT_MAILMAX="${DT_MAILMAX-1000}"
+DT_MAILBODIES="${DT_MAILBODIES-500}"
+DT_MAILEVERY="${DT_MAILEVERY-5}"
+DT_MAILIMAGES="${DT_MAILIMAGES-attached}"
+DT_MAILSIG="${DT_MAILSIG-}"
+command -v dt_keep > /dev/null && dt_keep DT_MAILMAX DT_MAILBODIES DT_MAILEVERY DT_MAILIMAGES DT_MAILSIG
+
+MS_KEEPS=(250 500 1000 2000)
+MS_BODIESL=(100 500 2000 all)
+MS_EVERYL=(1 2 5 15 30)
+MS_IMAGESL=(never attached)
+declare -gA MLAD
+MLAD_ORDER=(name email full pass kind host port sec shost sport ssec ok del cancel)
+
+fn cp_set_mailmax(int? id = "", value = "") { DT_MAILMAX=$value; cp_save; }
+fn cp_set_mailbodies(int? id = "", value = "") {
+	[ "$value" = all ] && value=1000000
+	DT_MAILBODIES=$value
+	cp_save
+}
+fn cp_set_mailevery(int? id = "", value = "") { DT_MAILEVERY=$value; cp_save; }
+fn cp_set_mailimages(int? id = "", value = "") { DT_MAILIMAGES=$value; cp_save; }
+
+fn mailset_rows(int w) {
+	local n=0 r a v
+
+	if ! need email 2> /dev/null; then
+		cp_absent "$w" "the email module"
+		ret 1
+	fi
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Accounts"; n=$((n + 1))
+	if r := email accounts 2> /dev/null; then
+		for a in "${!r[@]}"; do
+			CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="$a"
+			CP[$w][$n]["val"]="${r[$a]["email"]}"; CP[$w][$n]["key"]="acct:$a"
+			n=$((n + 1))
+		done
+	fi
+	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Add Account${GL[ellipsis]}"
+	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=add; n=$((n + 1))
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Offline"; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Keep Messages"
+	CP[$w][$n]["val"]="${DT_MAILMAX:-1000}"; CP[$w][$n]["key"]=max; n=$((n + 1))
+	v=${DT_MAILBODIES:-500}
+	[ "$v" -ge 1000000 ] 2> /dev/null && v=all
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Download Whole Messages"
+	CP[$w][$n]["val"]="$v"; CP[$w][$n]["key"]=bodies; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Check Every (minutes)"
+	CP[$w][$n]["val"]="${DT_MAILEVERY:-5}"; CP[$w][$n]["key"]=every; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Show Pictures"
+	CP[$w][$n]["val"]="${DT_MAILIMAGES:-attached}"; CP[$w][$n]["key"]=images; n=$((n + 1))
+	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Signature${GL[ellipsis]}"
+	CP[$w][$n]["val"]="${DT_MAILSIG:0:20}"; CP[$w][$n]["key"]=sig; n=$((n + 1))
+	ret "$n"
+}
+
+fn mailset_do(int? w = "", k = "", int? dir = "") {
+	local v cur
+
+	case $k in
+	acct:*) mlad_open "${k#acct:}" ;;
+	add) mlad_open ;;
+	max) v := cp_next "${DT_MAILMAX:-1000}" "$dir" "${MS_KEEPS[@]}"; DT_MAILMAX=$v ;;
+	bodies)
+		cur=${DT_MAILBODIES:-500}
+		[ "$cur" -ge 1000000 ] 2> /dev/null && cur=all
+		v := cp_next "$cur" "$dir" "${MS_BODIESL[@]}"
+		[ "$v" = all ] && v=1000000
+		DT_MAILBODIES=$v
+		;;
+	every) v := cp_next "${DT_MAILEVERY:-5}" "$dir" "${MS_EVERYL[@]}"; DT_MAILEVERY=$v ;;
+	images) v := cp_next "${DT_MAILIMAGES:-attached}" "$dir" "${MS_IMAGESL[@]}"; DT_MAILIMAGES=$v ;;
+	sig) mlad_open "" sig ;;
+	esac
+	cp_save
+}
+
+fn mailset_drop(int? w = "", int? r = "", int? c = "", k = "") {
+	case $k in
+	max) dt_droplist "$w" "$r" "$c" cp_set_mailmax "${MS_KEEPS[@]}" ;;
+	bodies) dt_droplist "$w" "$r" "$c" cp_set_mailbodies "${MS_BODIESL[@]}" ;;
+	every) dt_droplist "$w" "$r" "$c" cp_set_mailevery "${MS_EVERYL[@]}" ;;
+	images) dt_droplist "$w" "$r" "$c" cp_set_mailimages "${MS_IMAGESL[@]}" ;;
+	esac
+}
+
+# --- the account dialog ---------------------------------------------------
+
+# Open the dialog on an account by name, or empty for a new one; or, with
+# "sig", the signature.
+fn mlad_open(name = "", what = "") {
+	local id h=19 w=66 r k
+
+	[ "$w" -gt $((DT_COLS - 2)) ] && w=$((DT_COLS - 2))
+	if [ "$what" = sig ]; then
+		id := dt_new "Signature" 8 "$w" $(((DT_ROWS - 8) / 2)) $(((DT_COLS - w) / 2)) mlad
+		MLAD[$id]["sig"]=1
+		MLAD[$id]["full"]=$DT_MAILSIG
+		MLAD[$id]["fullcur"]=${#DT_MAILSIG}
+		MLAD[$id]["focus"]=full
+		return 0
+	fi
+	if [ -n "$name" ]; then
+		id := dt_new "Mail Account" "$h" "$w" $(((DT_ROWS - h) / 2)) $(((DT_COLS - w) / 2)) mlad
+	else
+		id := dt_new "Add a Mail Account" "$h" "$w" $(((DT_ROWS - h) / 2)) $(((DT_COLS - w) / 2)) mlad
+	fi
+	MLAD[$id]["orig"]=$name
+	for k in name email full pass host port shost sport; do MLAD[$id]["$k"]=; done
+	MLAD[$id]["name"]=$name
+	MLAD[$id]["kind"]=imap
+	MLAD[$id]["sec"]=tls
+	MLAD[$id]["ssec"]=tls
+	MLAD[$id]["haspass"]=
+	if [ -n "$name" ] && r := email accounts 2> /dev/null; then
+		MLAD[$id]["email"]=${r["$name"]["email"]}
+		MLAD[$id]["full"]=${r["$name"]["name"]}
+		MLAD[$id]["host"]=${r["$name"]["host"]}
+		MLAD[$id]["port"]=${r["$name"]["port"]}
+		MLAD[$id]["shost"]=${r["$name"]["smtphost"]}
+		MLAD[$id]["sport"]=${r["$name"]["smtpport"]}
+		MLAD[$id]["kind"]=${r["$name"]["kind"]}
+		MLAD[$id]["sec"]=${r["$name"]["security"]}
+		MLAD[$id]["ssec"]=${r["$name"]["smtpsecurity"]}
+		MLAD[$id]["haspass"]=${r["$name"]["haspass"]}
+	fi
+	for k in name email full pass host port shost sport; do MLAD[$id]["${k}cur"]=${#MLAD[$id]["$k"]}; done
+	MLAD[$id]["focus"]=name
+	[ -n "$name" ] && MLAD[$id]["focus"]=email
+	MLAD[$id]["status"]=
+	return 0
+}
+
+fn mlad_draw(int id, int h, int w, int row, int col) {
+	local f=${MLAD[$id]["focus"]} r=1 k on fw=$((w - 22)) t
+	local -A labs=([name]="Account name:" [email]="Email address:" [full]="Your name:" \
+		[pass]="Password:" [host]="Incoming server:" [port]="Port:" [shost]="Outgoing server:" \
+		[sport]="Port:" [kind]="Kind:" [sec]="Security:" [ssec]="Security:")
+
+	dt_wclear "$id"
+	if [ "${MLAD[$id]["sig"]}" = 1 ]; then
+		console pen "$DT_INK" "$DT_FACE"
+		console put -p "w$id" 1 2 "Signature, put under every message you write:"
+		dt_textdraw "$id" 3 2 $((w - 4)) "${MLAD[$id]["full"]}" "${MLAD[$id]["fullcur"]}" 1
+		dt_dlgbtns "$id" "$h" "$w" "$f" ok Save cancel Cancel
+		return 0
+	fi
+	for k in name email full pass kind host port sec shost sport ssec; do
+		console pen "$DT_INK" "$DT_FACE"
+		console put -p "w$id" "$r" 2 "${labs[$k]}"
+		on=0
+		[ "$f" = "$k" ] && on=1
+		case $k in
+		kind | sec | ssec)
+			t=${MLAD[$id]["$k"]}
+			[ "$k" = kind ] && t=${t^^}
+			if [ "$on" = 1 ]; then console pen "$DT_SELINK" "$DT_ACTIVE"; else console pen "$DT_INK" "$DT_WELL"; fi
+			console put -p "w$id" "$r" 20 " $t ${GL[sdown]} "
+			dt_wreg "$id" "$r" 20 $(( ${#t} + 4 )) "$k"
+			;;
+		*)
+			t=${MLAD[$id]["$k"]}
+			[ "$k" = pass ] && t := str repeat "*" "${#t}"
+			dt_textdraw "$id" "$r" 20 "$fw" "$t" "${MLAD[$id]["${k}cur"]}" "$on"
+			if [ "$k" = pass ] && [ -z "${MLAD[$id]["pass"]}" ] && [ "${MLAD[$id]["haspass"]}" = 1 ] && [ "$on" = 0 ]; then
+				console pen "$DT_DIM" "$DT_FACE"
+				console put -p "w$id" "$r" 20 "(unchanged)"
+			fi
+			if [ -z "${MLAD[$id]["$k"]}" ] && [ "$on" = 0 ] && { [ "$k" = host ] || [ "$k" = shost ] || [ "$k" = port ] || [ "$k" = sport ]; }; then
+				console pen "$DT_DIM" "$DT_FACE"
+				console put -p "w$id" "$r" 20 "(from the address)"
+			fi
+			dt_wreg "$id" "$r" 20 "$fw" "$k"
+			;;
+		esac
+		r=$((r + 1))
+	done
+	r=$((r + 1))
+	console pen "$DT_DIM" "$DT_FACE"
+	console put -p "w$id" "$r" 2 "Google: make an app password at myaccount.google.com/apppasswords"
+	r=$((r + 1))
+	if [ -n "${MLAD[$id]["status"]}" ]; then
+		console pen "$DT_BAD" "$DT_FACE"
+		t=${MLAD[$id]["status"]}
+		console put -p "w$id" "$r" 2 "${t:0:$((w - 4))}"
+	fi
+	if [ -n "${MLAD[$id]["orig"]}" ]; then
+		dt_dlgbtns "$id" "$h" "$w" "$f" ok Save del Remove cancel Cancel
+	else
+		dt_dlgbtns "$id" "$h" "$w" "$f" ok Save cancel Cancel
+	fi
+}
+
+fn mlad_key(int id, key) {
+	local f=${MLAD[$id]["focus"]} d onb=1 res
+	local -a order
+
+	if [ "${MLAD[$id]["sig"]}" = 1 ]; then
+		order=(full ok cancel)
+	elif [ -n "${MLAD[$id]["orig"]}" ]; then
+		order=("${MLAD_ORDER[@]}")
+	else
+		order=(name email full pass kind host port sec shost sport ssec ok cancel)
+	fi
+	case $f in name | email | full | pass | host | port | shost | sport) onb=0 ;; esac
+	if d := dt_focuskey "$key" "$onb"; then
+		MLAD[$id]["focus"] := dt_focus "$f" "$d" "${order[@]}"
+		return 0
+	fi
+	case $key in
+	escape) dt_del "$id"; return 0 ;;
+	enter | " ")
+		case $f in
+		kind | sec | ssec) mlad_do "$id" "$f"; return 0 ;;
+		name | email | full | pass | host | port | shost | sport)
+			[ "$key" = enter ] && { MLAD[$id]["focus"] := dt_focus "$f" 1 "${order[@]}"; return 0; }
+			;;
+		*) mlad_do "$id" "$f"; return 0 ;;
+		esac
+		;;
+	esac
+	case $f in name | email | full | pass | host | port | shost | sport) ;; *) return 1 ;; esac
+	res := dt_textkey "${MLAD[$id]["$f"]}" "${MLAD[$id]["${f}cur"]}" "$key" || return 1
+	MLAD[$id]["$f"]=${res% *}
+	MLAD[$id]["${f}cur"]=${res##* }
+	return 0
+}
+
+fn mlad_click(int? id = "", int? r = "", int? c = "", btn = "") {
+	local tag cur
+
+	tag := dt_hit "$id" "$r" "$c" || return 0
+	case $tag in
+	name | email | full | pass | host | port | shost | sport)
+		MLAD[$id]["focus"]=$tag
+		cur=$((c - 20))
+		[ "$cur" -gt "${#MLAD[$id]["$tag"]}" ] && cur=${#MLAD[$id]["$tag"]}
+		[ "$cur" -lt 0 ] && cur=0
+		MLAD[$id]["${tag}cur"]=$cur
+		;;
+	*) MLAD[$id]["focus"]=$tag; mlad_do "$id" "$tag" ;;
+	esac
+}
+
+fn mlad_close(int id) { unset MLAD["$id"]; return 0; }
+
+# What enter, a click or space does to what has focus.
+fn mlad_do(int id, what) {
+	local -a args
+	local k
+
+	case $what in
+	kind) [ "${MLAD[$id]["kind"]}" = imap ] && MLAD[$id]["kind"]=pop || MLAD[$id]["kind"]=imap ;;
+	sec | ssec)
+		case ${MLAD[$id]["$what"]} in
+		tls) MLAD[$id]["$what"]=starttls ;;
+		starttls) MLAD[$id]["$what"]=plain ;;
+		*) MLAD[$id]["$what"]=tls ;;
+		esac
+		;;
+	cancel) dt_del "$id" ;;
+	del)
+		MLAD_RM=$id
+		dt_confirm "Remove the account ${MLAD[$id]["orig"]}? Its offline mail is kept." mlad_remove
+		;;
+	ok)
+		if [ "${MLAD[$id]["sig"]}" = 1 ]; then
+			DT_MAILSIG=${MLAD[$id]["full"]}
+			cp_save
+			dt_del "$id"
+			return 0
+		fi
+		if [ -z "${MLAD[$id]["name"]}" ] || [[ ${MLAD[$id]["name"]} == */* ]]; then
+			MLAD[$id]["status"]="Give the account a name, without a /"
+			return 0
+		fi
+		if [[ ${MLAD[$id]["email"]} != *@* ]]; then
+			MLAD[$id]["status"]="Put in the account's email address"
+			return 0
+		fi
+		args=(-k "${MLAD[$id]["kind"]}" -e "${MLAD[$id]["email"]}" -n "${MLAD[$id]["full"]}"
+			-S "${MLAD[$id]["sec"]}" -T "${MLAD[$id]["ssec"]}")
+		[ -n "${MLAD[$id]["pass"]}" ] && args+=(-w "${MLAD[$id]["pass"]}")
+		for k in host:-h port:-p shost:-o sport:-q; do
+			[ -n "${MLAD[$id]["${k%%:*}"]}" ] && args+=("${k#*:}" "${MLAD[$id]["${k%%:*}"]}")
+		done
+		if [ -n "${MLAD[$id]["orig"]}" ] && [ "${MLAD[$id]["orig"]}" != "${MLAD[$id]["name"]}" ]; then
+			if ! email account mv "${MLAD[$id]["orig"]}" "${MLAD[$id]["name"]}" 2> "${DT_LOG%/*}/mlad.err"; then
+				local l=
+				read -r l < "${DT_LOG%/*}/mlad.err"
+				MLAD[$id]["status"]=${l#hibr: email: }
+				return 0
+			fi
+			MLAD[$id]["orig"]=${MLAD[$id]["name"]}
+		fi
+		if ! email account set "${MLAD[$id]["name"]}" "${args[@]}" 2> "${DT_LOG%/*}/mlad.err"; then
+			local l=
+			read -r l < "${DT_LOG%/*}/mlad.err"
+			MLAD[$id]["status"]=${l#hibr: email: }
+			return 0
+		fi
+		local nm=${MLAD[$id]["name"]}
+		dt_notep low "Account $nm saved"
+		dt_del "$id"
+		command -v ml_accounts > /dev/null && mlad_refresh "$nm"
+		;;
+	esac
+}
+MLAD_RM=
+mlad_remove() {
+	[ -n "$MLAD_RM" ] && email account rm "${MLAD[$MLAD_RM]["orig"]}" 2> /dev/null && dt_del "$MLAD_RM"
+	MLAD_RM=
+}
+
+# After an account is saved: every Mail window that had none takes it up.
+fn mlad_refresh(acct) {
+	local id
+
+	for id in "${!MW[@]}"; do
+		[[ $id == [0-9]* ]] || continue
+		if [ -n "${MW[$id]["err"]}" ]; then
+			MW[$id]["err"]=
+			ml_accounts && ml_use "$id" "$acct"
+		fi
+	done
+}

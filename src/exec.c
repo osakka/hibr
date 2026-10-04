@@ -1296,7 +1296,6 @@ void ex_trace(char **av, int ac)
 void ex_bind(sh *s, node *n)
 {
 	char *w, *mk = 0, *br;
-	const char *v;
 	vec *ks;
 
 	if (n->s) {
@@ -1314,8 +1313,7 @@ void ex_bind(sh *s, node *n)
 	}
 	ks = vb_get(s);
 	br = bi_keys(s, w, mk, ks);
-	v = hibr_get(s, "RET");
-	hibr_setp(s, w, (char **)ks->p, (int)ks->n, v ? v : "");
+	v_copyp(s, w, (char **)ks->p, (int)ks->n, "RET");
 	if (br)
 		*br = '[';
 	lg(HIBR_LDBG, "bound the result slot to %s", w);

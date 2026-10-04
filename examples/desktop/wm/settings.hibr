@@ -272,7 +272,14 @@ DT_ERR=
 
 # Keep these variables in the settings file too.
 dt_keep() {
-	DT_KEEP+=("$@")
+	local v k
+
+	for v in "$@"; do
+		for k in "${DT_KEEP[@]}"; do
+			[ "$k" = "$v" ] && continue 2
+		done
+		DT_KEEP+=("$v")
+	done
 }
 
 # Read the settings file, if there is one.  It runs after the session file

@@ -44,8 +44,11 @@ SUITE_MODS = {
     "apps": [],
     "uifuzz": [],
     "strictvars": [],
+    "html_tree": ["html"],
+    "mail": ["email"],
+    "mailapp": ["email", "html", "db"],
 }
-DESKTOP = ("desktop", "apps", "uifuzz", "strictvars")
+DESKTOP = ("desktop", "apps", "uifuzz", "strictvars", "mailapp")
 EVERYTHING = ("src/", "include/", "Makefile", "tests/screen.py",
               "tests/all.py", "deploy.sh")
 

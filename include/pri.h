@@ -362,6 +362,7 @@ int ty_fast(int f, const char *v);
 #define TY_OPT 16
 #endif
 void v_copy(sh *s, const char *dst, const char *src);
+void v_copyp(sh *s, const char *dst, char **ks, int nk, const char *src);
 
 const hibr_bi *bi_find(const char *nm);
 const hibr_bi *m_find(sh *s, const char *nm);
