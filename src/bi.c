@@ -140,7 +140,11 @@ int b_echo(sh *s, int ac, char **av)
 	for (; i < ac; i++) {
 		if (esc) {
 			s_init(&o);
-			pf_esc(&o, av[i], 1);
+			if (pf_esc(&o, av[i], PF_STOP)) {
+				fwrite(o.p ? o.p : "", 1, o.n, stdout);
+				s_free(&o);
+				return HIBR_OK;
+			}
 			fwrite(o.p ? o.p : "", 1, o.n, stdout);
 			s_free(&o);
 		} else {

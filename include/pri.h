@@ -82,7 +82,12 @@ void v_setp(sh *s, const char *nm, char **ks, int nk, const char *val);
 size_t v_count(sh *s, const char *nm, char **ks, int nk);
 void v_list(sh *s, const char *nm, char **ks, int nk, vec *out, int keys);
 int v_delp(sh *s, const char *nm, char **ks, int nk);
-void pf_esc(str *o, const char *p, int stop_at_c);
+#ifndef PF_STOP
+#define PF_STOP 1
+#define PF_OCT 2
+#define PF_OCTB 4
+#endif
+int pf_esc(str *o, const char *p, int fl);
 
 int ismeta(int c);
 int isname(const char *t);

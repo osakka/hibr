@@ -752,7 +752,7 @@ void xvar2(sh *s, part *p, str *b, str *m, const char *v)
 	case V_XE: {
 		str t;
 		s_init(&t);
-		pf_esc(&t, v ? v : "", 0);
+		pf_esc(&t, v ? v : "", PF_OCT);
 		XV(s, p, b, m, t.p ? t.p : "", t.n);
 		s_free(&t);
 		return;

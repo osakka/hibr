@@ -135,6 +135,7 @@ linked, and no OpenSSL headers are needed to build.
 | `mods/lint/` | the rules behind `hibr --explain`: walks the parsed tree and names mistakes, runs nothing; offers `"lint"` (`mods/lint.h`) and adds no builtin |
 | `mods/html/` | HTML as the WHATWG standard parses it, our own tokenizer and tree builder, all 1792 html5lib tree-construction cases passing (`tests/html_tree.py`); CSS selectors, and `html lines`, the layout Mail reads messages through -- see `mods/html/README.md` |
 | `mods/pim/` | calendars and contacts: iCalendar and vCard parse and build, RRULE expansion checked rule by rule against python-dateutil on RFC 5545's examples (`tests/pim_rrule.py`, its answers kept in `tests/pim/rrule.txt`), zones through zoneinfo with TZ put back, iTIP replies -- see `mods/pim/README.md`; the dav module carries them (`propfind`, `report`, `sync`) |
+| `mods/csv.c` | CSV as RFC 4180 says: `csv read` (a map, built in one pass -- `hibr_setp` per field was quadratic, 50,000 rows took 3.5 minutes, now 0.24 s), `open`/`row`/`close` streaming, `line`, `split`; Sheet's CSV goes through it |
 | `mods/email/` | IMAP (IDLE, Gmail's labels), POP3, SMTP and MIME; accounts in a 0600 file; `tests/mailserve.py` is the suites' stand-in server; the Mail app (`apps/Internet/mail.hibr`) keeps accounts offline through `examples/desktop/lib/mailsync.hibr` -- see `mods/email/README.md` |
 
 Each directory carries its own `README.md` with the detail: `src/`, `include/`,
@@ -1825,6 +1826,22 @@ went in the shell.
   seconds had passed before it was ever drawn: the reminder went off and
   only the flag in the bar said so. `cv_alarms` calls `dt_want 30` after
   each note.
+
+- **A module that returns many rows builds the map itself.** `hibr_setp`
+  walks from the root for every field it sets, and a map is a list, so
+  filling `RET` row by row is quadratic: `csv read` of 50,000 rows took
+  three and a half minutes that way. It declares `v_find` (as db declares
+  `v_path`) and links each row's entries as it reads them, with a pointer
+  kept at the end: 0.24 s. Anything returning a large map should do the
+  same until maps are indexed (Gitea #73).
+- **`printf` reads escapes the way bash does, and that differs by place.**
+  In a format `\NNN` is up to three octal digits with a leading 0 among
+  them (`\0101` is backspace then 1), `%b` takes `\NNN` and `\0NNN`, `echo
+  -e` only `\0NNN`, all of them `\xHH`, and `\c` ends `%b` and `echo -e`
+  but is literal in a format. hibr had none of `\NNN`, `\xHH` or the
+  format's `\c` until 0.99.37 (`pf_esc`'s `PF_` flags), and two recorded
+  tests had written bytes as `\0170` in a format, which only hibr read as
+  one byte; they write `\170` now, which both shells do.
 
 - **A pen names a theme colour or role.** `$DT_SELECT` existed nowhere and
   drew the YouTube list's selection dark on black; `tests/540-examples.t`

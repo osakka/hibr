@@ -333,10 +333,14 @@ int b_trap(sh *s, int ac, char **av)
 	return HIBR_OK;
 }
 
-/* Expand backslash escapes into a buffer. */
-void pf_esc(str *o, const char *p, int stop_at_c)
+/* Expand backslash escapes into a buffer, as bash does where fl says:
+   PF_STOP, \c ends the output (echo -e, %b); PF_OCT, \NNN is up to three
+   octal digits, a leading 0 among them (a printf format, ${x@E}); PF_OCTB,
+   \NNN and \0NNN both (%b). \0NNN alone is echo -e's; \xHH is everyone's.
+   1 when a \c ended it. */
+int pf_esc(str *o, const char *p, int fl)
 {
-	int v, i;
+	int v, i, h;
 
 	while (*p) {
 		if (*p != '\\') {
@@ -355,13 +359,42 @@ void pf_esc(str *o, const char *p, int stop_at_c)
 		case 'e': s_ch(o, 27); p++; break;
 		case '\\': s_ch(o, '\\'); p++; break;
 		case 'c':
-			if (stop_at_c)
-				return;
+			if (fl & PF_STOP)
+				return 1;
+			s_ch(o, '\\');
 			s_ch(o, 'c');
 			p++;
 			break;
+		case 'x':
+			v = 0;
+			for (i = 0; i < 2 && isxdigit((unsigned char)p[1 + i]); i++) {
+				h = p[1 + i];
+				v = v * 16 + (h <= '9' ? h - '0' : (h | 32) - 'a' + 10);
+			}
+			if (!i) {
+				s_ch(o, '\\');
+				s_ch(o, *p++);
+				break;
+			}
+			s_ch(o, v);
+			p += 1 + i;
+			break;
 		case '0':
+			if (fl & PF_OCT)
+				goto oct;
 			p++;
+			v = 0;
+			for (i = 0; i < 3 && *p >= '0' && *p <= '7'; i++)
+				v = v * 8 + (*p++ - '0');
+			s_ch(o, v);
+			break;
+		case '1': case '2': case '3': case '4': case '5': case '6': case '7':
+			if (!(fl & (PF_OCT | PF_OCTB))) {
+				s_ch(o, '\\');
+				s_ch(o, *p++);
+				break;
+			}
+oct:
 			v = 0;
 			for (i = 0; i < 3 && *p >= '0' && *p <= '7'; i++)
 				v = v * 8 + (*p++ - '0');
@@ -374,6 +407,7 @@ void pf_esc(str *o, const char *p, int stop_at_c)
 			break;
 		}
 	}
+	return 0;
 }
 
 /* Largest width or precision requested by a conversion spec. */
@@ -493,7 +527,7 @@ int b_printf(sh *s, int ac, char **av)
 						char *seg = xm((size_t)(q - p) + 1);
 						memcpy(seg, p, (size_t)(q - p));
 						seg[q - p] = 0;
-						pf_esc(&t, seg, 1);
+						pf_esc(&t, seg, PF_OCT);
 						free(seg);
 					}
 					s_add(&o, t.p ? t.p : "", t.n);
@@ -568,11 +602,16 @@ int b_printf(sh *s, int ac, char **av)
 			}
 			if (*p == 'b') {
 				str t;
+				int stop;
 				s_init(&t);
-				pf_esc(&t, i < ac ? av[i] : "", 1);
+				stop = pf_esc(&t, i < ac ? av[i] : "", PF_STOP | PF_OCTB);
 				s_add(&o, t.p ? t.p : "", t.n);
 				s_free(&t);
 				s_free(&spec);
+				if (stop) {
+					used = 0;
+					break;
+				}
 				if (i < ac)
 					used = 1;
 				i++;

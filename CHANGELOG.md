@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.99.37
+
+**A csv module.** CSV as RFC 4180 says -- quoted fields, doubled quotes,
+line breaks inside quotes, CRLF or LF, a byte-order mark skipped, any
+separator. `csv read FILE` binds every record as `r[i][j]`, or with `-H`
+by the header's names; `csv open`/`row`/`close` stream a record at a time;
+`csv line` writes one with only the quoting a field needs; `csv split`
+takes one record apart. 50,000 rows bind in a quarter of a second. Sheet's
+Import and Export CSV go through it, so a quoted cell with a line break in
+it now imports whole.
+
+**`printf` and `echo -e` read escapes as bash does.** A format's `\NNN`
+and `\xHH`, `%b`'s `\NNN` and `\xHH`, `echo -e`'s `\xHH`, and `\c`
+ending `%b` and `echo -e` -- nothing printed after it, not even the newline
+-- while a format prints it as it is. hibr had none of these.
+
 ## 0.99.36
 
 **YouTube's mini player.** `i`, Play > Mini Player or a double click on

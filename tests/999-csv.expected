@@ -1,0 +1,23 @@
+0
+3 records, 3 fields
+[said "hi"]
+[Cairo
+Egypt]
+2 with a header: Ada of London, plain
+row: 3 fields, first name
+row: 3 fields, first Ada
+row: 3 fields, first Omar
+name	city	note, with comma
+Ada	London	said "hi"
+Omar	Cairo
+Egypt	plain
+a,"b,c","d""e",
+"x;y";z
+"a	b"	c
+4: 2,3 [] 4
+bom skipped: [a] 2
+empty: 0
+no newline: one
+no file: 2
+missing: 1
+bad handle: 2

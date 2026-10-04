@@ -319,6 +319,31 @@ echo "?$qs"
 ?user=omar&limit=10
 ```
 
+### Read a CSV file with quoted fields
+
+`str split` is enough for a file with no commas inside its fields. For a
+real one -- quoted fields, a comma or a line break inside quotes -- the
+`csv` module reads it as RFC 4180 says, the first line naming the columns
+with `-H`:
+
+<!-- setup
+printf '%s\n' 'name,city,note' 'Ada,London,"wrote ""the first"" program"' 'Omar,"Cairo, Egypt",plain' > people2.csv
+-->
+```sh
+need csv
+r := csv read -H people2.csv
+for i in "${!r[@]}"; do
+  echo "${r[$i]["name"]} -- ${r[$i]["city"]} -- ${r[$i]["note"]}"
+done
+csv line "a,b" 'say "hi"' plain
+```
+
+```output
+Ada -- London -- wrote "the first" program
+Omar -- Cairo, Egypt -- plain
+"a,b","say ""hi""",plain
+```
+
 ### Turn a CSV column into a sorted, unique list
 
 <!-- setup

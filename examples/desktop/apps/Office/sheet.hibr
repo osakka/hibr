@@ -65,7 +65,6 @@ SS_CURRENCY="${SS_CURRENCY-\$}"
 SS_FG=
 SS_BG=
 SS_AT=
-SS_FROMCSV=()
 
 # What every run of the formulas begins with: math, the list functions a
 # spreadsheet expects, and how one formula is run -- what it prints, or the
@@ -1428,77 +1427,39 @@ fn sheet_selall(int id) {
 
 # --- CSV ---------------------------------------------------------------------
 
-# One CSV line's fields into SS_FROMCSV: commas between, a field in double
-# quotes may hold commas, and "" inside one is a quote.
-fn ss_csvline(line) {
-	local i=0 n=${#line} ch f= q=0
-
-	SS_FROMCSV=()
-	while [ "$i" -lt "$n" ]; do
-		ch=${line:$i:1}
-		if [ "$q" = 1 ]; then
-			if [ "$ch" = '"' ]; then
-				if [ "${line:$((i + 1)):1}" = '"' ]; then
-					f+='"'
-					i=$((i + 1))
-				else
-					q=0
-				fi
-			else
-				f+=$ch
-			fi
-		elif [ "$ch" = '"' ]; then
-			q=1
-		elif [ "$ch" = , ]; then
-			SS_FROMCSV+=("$f")
-			f=
-		else
-			f+=$ch
-		fi
-		i=$((i + 1))
-	done
-	SS_FROMCSV+=("$f")
-}
-
 # A CSV file's rows into the grid, from the cursor.
 fn ss_importcsv(int id, path) {
-	local r=${SS[$id]["cr"]} c0=${SS[$id]["cc"]} c line f n=0
+	local r=${SS[$id]["cr"]} c0=${SS[$id]["cc"]} c f n=0 h x
 
 	[ -r "$path" ] || { dt_notep high "Cannot read ${path##*/}"; return 1; }
+	need csv 2> /dev/null || { dt_notep high "Importing CSV needs the csv module"; return 1; }
+	h := csv open "$path" || { dt_notep high "Cannot read ${path##*/}"; return 1; }
 	ss_undomark "$id"
-	while IFS= read -r line || [ -n "$line" ]; do
-		line=${line%$'\r'}
-		ss_csvline "$line"
-		[ "${#SS_FROMCSV[@]}" -gt $((SS[$id]["cols"] - c0)) ] &&
-			SS[$id]["cols"]=$((c0 + ${#SS_FROMCSV[@]}))
+	while x := csv row "$h"; do
+		[ "${#x[@]}" -gt $((SS[$id]["cols"] - c0)) ] &&
+			SS[$id]["cols"]=$((c0 + ${#x[@]}))
 		[ "$r" -ge "${SS[$id]["rows"]}" ] && SS[$id]["rows"]=$((r + 1))
 		c=$c0
-		for f in "${SS_FROMCSV[@]}"; do
+		for f in "${x[@]}"; do
 			[ -n "$f" ] && ss_set "$id" "$r" "$c" "$f"
 			c=$((c + 1))
 		done
 		r=$((r + 1))
 		n=$((n + 1))
-	done < "$path"
+	done
+	csv close "$h"
 	ss_setmeta "$id"
 	ss_recalc "$id"
 	dt_notep low "Imported $n rows from ${path##*/}"
-}
-
-# A field for CSV: quoted when it holds a comma, a quote or a line break.
-fn ss_csvq(f) {
-	if [[ $f == *[,\"$'\n']* ]]; then
-		ret "\"${f//\"/\"\"}\""
-	else
-		ret "$f"
-	fi
 }
 
 # Every row up to the last that holds anything, as CSV of what the cells
 # show.
 fn ss_exportcsv(int id, path) {
 	local k r c mr=-1 mc=-1 line out= v
+	local -a fs
 
+	need csv 2> /dev/null || { dt_notep high "Exporting CSV needs the csv module"; return 1; }
 	for k in "${!SC[$id][@]}"; do
 		r=${k%:*} c=${k#*:}
 		[ "$r" -gt "$mr" ] && mr=$r
@@ -1506,15 +1467,14 @@ fn ss_exportcsv(int id, path) {
 	done
 	r=0
 	while [ "$r" -le "$mr" ]; do
-		line=
+		fs=()
 		c=0
 		while [ "$c" -le "$mc" ]; do
-			[ "$c" -gt 0 ] && line+=,
 			v := ss_show "$id" "$r:$c"
-			v := ss_csvq "$v"
-			line+=$v
+			fs+=("$v")
 			c=$((c + 1))
 		done
+		line := csv line "${fs[@]}"
 		out+="$line"$'\n'
 		r=$((r + 1))
 	done
