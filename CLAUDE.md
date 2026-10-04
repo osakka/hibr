@@ -44,6 +44,7 @@ releases).
     python3 tests/affected.py --run      # only the suites a change reaches
     python3 tests/census.py      # desktop functions no suite calls, and the count
     python3 tests/asan.py        # every suite, pty ones too, under ASan and UBSan
+    python3 tests/asan.py --quick    # the release gate: core, C modules, what changed
     python3 tests/strictvars.py  # every global a strict desktop function would create
     python3 tests/screen.py examples/desktop/session.hibr
                                  # the same harness, to look rather than assert
@@ -51,7 +52,11 @@ releases).
     python3 tests/corpus.py --list <file>        # real scripts, run under both shells
     HIBR=./build/hibr REF=dash tests/run.sh      # compare against another shell
 
-Sanitizers — run both before calling anything done:
+Sanitizers come in two tiers. `tests/asan.py --quick` is the gate a release
+that changes C waits for (minutes): run.sh, self.hibr, the parser fuzzer,
+every non-desktop C module's suite, and the pty suites a changed module
+reaches. The full `tests/asan.py` runs after every release, and
+any report it makes is a ticket at once. By hand, the core alone:
 
     gcc -Iinclude -DHIBR_TLS -g -O1 -fsanitize=address,undefined \
         -fno-sanitize-recover=undefined -w -rdynamic -o build/hibr.asan src/*.c -ldl

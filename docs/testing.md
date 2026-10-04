@@ -28,6 +28,7 @@ gcc -Iinclude -DHIBR_TLS -g -O1 -fsanitize=address,undefined -w -rdynamic \
     -o build/hibr.asan src/*.c -ldl
 ASAN_OPTIONS=detect_leaks=0 HIBR=./build/hibr.asan tests/run.sh
 python3 tests/asan.py        # the same for every suite, the pty ones too
+python3 tests/asan.py --quick    # core, C modules and what changed: the release gate
 ```
 
 `tests/fuzz.py` mutates the test scripts — byte flips, deletions, inserted

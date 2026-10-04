@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.99.42
+
+**A sanitizer gate in minutes, and the full run after.** The whole
+sanitizer pass -- every suite under ASan and UBSan -- takes over twenty
+minutes, which made every release that touched C wait for it.
+`tests/asan.py --quick [--since REF]` is the gate now: run.sh, self.hibr
+and 300 rounds of the parser fuzzer, the suites of every C module outside
+the desktop, and the pty suites a module changed since the last tag
+reaches (from `tests/affected.py`). It took 133 seconds here, the
+sanitizer build included; the build now runs in parallel. A change to a
+module the desktop uses widely -- csv, say -- brings the desktop and apps
+suites in, and takes as long as they do. The full `tests/asan.py` runs
+after each release, and any report it makes becomes a ticket.
+
 ## 0.99.41
 
 **The control socket says why it is missing, and keeps trying.** A desktop

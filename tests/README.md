@@ -215,6 +215,17 @@ every suite runs against them, with reports written to `build/asan-logs`
 rather than stderr, so one from a desktop (whose stderr is its log) or a
 forked child is still found. Any report fails the run.
 
+`python3 tests/asan.py --quick [--since REF]` is the gate before a release
+that changes C, a few minutes instead of twenty: run.sh, self.hibr and 300
+rounds of the parser fuzzer, every suite of a C module outside the desktop
+(cat, console, term_diff, md_spec, html_tree, mail, pim, pim_rrule, dav),
+and whichever suites `tests/affected.py` says a module changed since REF --
+the last tag unless given -- reaches. A change to the shell alone adds no
+pty suite: those exercise the desktop's scripts, which reach C only through
+the core run.sh covers. The full run follows every release; a memory
+bug only a pty suite reaches, in C the release did not change, is found
+just after the release rather than before it.
+
 On a kernel with high ASLR entropy the sanitizer build loops printing
 `AddressSanitizer:DEADLYSIGNAL` instead of running. Wrap it in `setarch -R` and
 point `HIBR` at the wrapper.

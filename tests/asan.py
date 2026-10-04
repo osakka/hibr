@@ -2,6 +2,18 @@
 """Every suite again, against the shell and its modules built with sanitizers.
 
     python3 tests/asan.py [suite...]     # default: all of them
+    python3 tests/asan.py --quick [--since REF]
+
+--quick is the gate a release that changes C waits for, a few minutes
+rather than twenty: tests/run.sh and self.hibr, which are the whole core;
+the parser fuzzer; every suite of a C module that is not a desktop; and the
+suites tests/affected.py says a changed module reaches, counting changes
+since REF (the last tag by default) and in the working tree. A change to
+the shell alone pulls in no pty suite, since what those add is the desktop's
+scripts, which reach C only through the core run.sh already covers. The
+full run stays, after every release and nightly, and a report from it is a
+ticket at once: a memory bug only a pty suite reaches, in C a release did not
+touch, surfaces a day late rather than never.
 
 `make asan` builds build/asan/hibr and build/asan/mods with AddressSanitizer
 and UBSan. This runs tests/all.py with HIBR pointing at that shell and
@@ -27,6 +39,7 @@ import os
 import shutil
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -34,6 +47,9 @@ ADIR = os.path.join(ROOT, "build", "asan")
 LOGS = os.path.join(ROOT, "build", "asan-logs")
 BIN = os.path.join(ADIR, "bin")
 WRAP = os.path.join(BIN, "hibr")
+QUICK = ["run.sh", "cat", "console", "term_diff", "md_spec", "html_tree",
+         "mail", "pim", "pim_rrule", "dav"]
+FUZZ = 300
 
 
 def wrapper():
@@ -46,8 +62,54 @@ def wrapper():
     os.chmod(WRAP, 0o755)
 
 
+def quick(since):
+    """The quick gate's suites: QUICK and whatever a changed module reaches."""
+    sys.path.insert(0, HERE)
+    import affected
+    from all import SUITES
+    if not since:
+        since = subprocess.run(["git", "describe", "--tags", "--abbrev=0"],
+                               cwd=ROOT, capture_output=True, text=True,
+                               check=True).stdout.strip()
+    req, prov = affected.graph()
+    where = affected.reach(req, prov)
+    pick = set(QUICK)
+    for p in affected.changed(since):
+        if p.startswith("mods/"):
+            pick |= affected.suites_for(os.path.normpath(p), req, prov, where)[0]
+    print("asan --quick since %s: %s" % (since, " ".join(
+        s for s in SUITES if s in pick)), flush=True)
+    return [s for s in SUITES if s in pick]
+
+
+def extra(env):
+    """self.hibr and the parser fuzzer, under the sanitizer shell."""
+    cmds = [[WRAP, os.path.join(HERE, "self.hibr")],
+            [sys.executable, os.path.join(HERE, "fuzz.py"), WRAP, str(FUZZ)]]
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        res = list(pool.map(lambda c: subprocess.run(
+            c, cwd=ROOT, env=dict(env, SEED="7"), capture_output=True,
+            text=True), cmds))
+    ok = True
+    for name, r in zip(("self.hibr", "fuzz"), res):
+        last = (r.stdout.strip() or r.stderr.strip()).splitlines()
+        print("%-10s %-4s %s" % (name, "ok" if r.returncode == 0 else "FAIL",
+                                 last[-1] if last else "no output"))
+        ok = ok and r.returncode == 0
+    return ok
+
+
 def main():
-    subprocess.run(["make", "-s", "asan"], cwd=ROOT, check=True)
+    args = sys.argv[1:]
+    fast = "--quick" in args
+    since = None
+    if "--since" in args:
+        i = args.index("--since")
+        since = args[i + 1]
+        del args[i:i + 2]
+    args = [a for a in args if a != "--quick"]
+    subprocess.run(["make", "-s", "-j%d" % (os.cpu_count() or 1), "asan"],
+                   cwd=ROOT, check=True)
     wrapper()
     shutil.rmtree(LOGS, ignore_errors=True)
     os.makedirs(LOGS)
@@ -58,8 +120,16 @@ def main():
                HIBR_TESTLOGS=LOGS,
                ASAN_OPTIONS="detect_leaks=0:log_path=" + san,
                UBSAN_OPTIONS="print_stacktrace=1:log_path=" + san)
-    st = subprocess.run([sys.executable, os.path.join(HERE, "all.py")]
-                        + sys.argv[1:], cwd=ROOT, env=env).returncode
+    if fast:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            more = pool.submit(extra, env)
+            st = subprocess.run([sys.executable, os.path.join(HERE, "all.py")]
+                                + (args or quick(since)), cwd=ROOT,
+                                env=env).returncode
+            st = st or (0 if more.result() else 1)
+    else:
+        st = subprocess.run([sys.executable, os.path.join(HERE, "all.py")]
+                            + args, cwd=ROOT, env=env).returncode
     reports = sorted(glob.glob(san + ".*"))
     for r in reports:
         print("\n== %s" % os.path.relpath(r, ROOT))
