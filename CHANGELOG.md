@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.99.36
+
+**YouTube's mini player.** `i`, Play > Mini Player or a double click on
+the picture shrinks the player to the picture alone -- no border, title or
+bar -- in a small window at the bottom right, on every workspace. Drag it
+anywhere; right-click it for pause, seek, next, volume, Full Player and
+Close; a double click or escape goes back to the full player where it was.
+
+**Windows with no chrome.** `DT[$id]["chrome"]=none` gives an app every
+cell of its window; any press moves it, a double click and a right click
+are the app's. **Double clicks reach apps**: `dt_isdbl` says whether a press
+is the second of one -- Calendar's double click on a day, which never
+worked, now makes an event there.
+
 ## 0.99.35
 
 **Windows on every workspace.** Window > On Every Workspace, and the same

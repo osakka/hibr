@@ -500,6 +500,13 @@ up and down choose, enter plays. While playing: space pauses, left and
 right are five seconds (with shift thirty), up and down the volume, `m`
 the picture, escape back to the list, and a click on the bar goes there.
 
+**The mini player**: `i`, Play > Mini Player, or a double click on the
+picture shrinks the player to the picture alone -- no border, title or
+bar -- in a small window at the bottom right, on every workspace. Drag it
+anywhere; a right click has the player's controls (pause, seek, next,
+louder, quieter), Full Player and Close; a double click or escape goes back
+to the full player where it was.
+
 A search lists playlists and channels as well as videos; enter on one
 shows its videos under its own title, and escape goes back to the list
 before. Typing or pasting a playlist's, a channel's or a video's address
@@ -1526,7 +1533,13 @@ command -v dt_app > /dev/null && dt_app calc "Calculator" 16 24 once "±" fixed
 is a window with no frame, title bar or shadow: the window's own colour,
 which the app sets in `DT[$id]["bg"]` and `["fg"]`, a strip across the top
 a shade darker with a close box on it -- drag the strip to move it -- and a
-grow mark in the corner. Stickies are bare. `once`
+grow mark in the corner. Stickies are bare. A window can also lose its
+chrome while it is open: `DT[$id]["chrome"]=none` hands the app every cell,
+its `_draw` given the whole window's size and drawing from row and column
+0; any press on it moves it, a double click reaches its `_click` with
+`double` as the button, and a right click its `_context`. The YouTube mini
+player is one. An app's own `_click` can ask `dt_isdbl "$id"` whether a
+press is the second of a double click. `once`
 means one window at most: launching it again brings that window forward,
 shown if it was hidden. The calculator, Control Panel, the clock and the games
 are `once`; the terminal and the file browser are `many`. The icon is what

@@ -1212,6 +1212,22 @@ sc, _ = run(WS2 + "dt_wsmove 2 3\ndt_wsset 2\n", [b"\x1b2"])
 check("fewer workspaces: windows on one that went move to the last left",
       sc.find("┤ Over ├") == (9, 27) and "1 2 3" not in sc.row(0), sc)
 
+# A window with no chrome: no border or title, moved by dragging its body;
+# a double click and a right click are its app's.
+TINY = ('tinyc_draw() { console put -p "w$1" 0 0 TINY; }\n'
+        'tinyc_click() { [ "$4" = double ] && dt_notep low doubled; return 0; }\n'
+        'tinyc_context() { dt_menu Tiny; dt_item Ping p dt_notep low pinged; }\n'
+        'tid := dt_new Tiny 6 20 6 10 tinyc\nDT[$tid]["chrome"]=none\n')
+sc, _ = run(TINY)
+check("a window with no chrome is only what its app draws", sc.find("Tiny") is None
+      and sc.find("TINY") == (6, 10), sc)
+sc, _ = run(TINY, [press(7, 12), drag(10, 20), release(10, 20)])
+check("and a drag anywhere on it moves it", sc.find("TINY") == (9, 18), sc)
+sc, raw = run(TINY, [press(7, 12), release(7, 12), press(7, 12), release(7, 12)])
+check("a double click is told to its app", b"doubled" in raw, sc)
+sc, _ = run(TINY, [press(7, 12, 2)])
+check("and a right click opens its app's own menu", sc.find("Ping") is not None, sc)
+
 # A sticky window is on every workspace; taken off them, it stays on the
 # one it is seen on; sent to another, it is no longer on every one.
 sc, _ = run(WS2 + "dt_sticky 2 1\n", [b"\x1b2"])
@@ -3343,4 +3359,4 @@ check("an arithmetic error in an app is logged and the desktop carries on",
       (log, t.status))
 expect(r"arithmetic: syntax error")
 
-report(457)
+report(461)

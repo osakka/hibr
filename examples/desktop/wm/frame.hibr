@@ -128,6 +128,17 @@ fn dt_win(int id) {
 		dt_winbare "$id"
 		return 0
 	fi
+	# A window with no chrome at all (DT[id]["chrome"] = none): its app
+	# draws every cell of it, rows and columns from 0, and the window
+	# manager moves it by any press on it -- a mini player.
+	if [ "${DT[$id]["chrome"]}" = none ]; then
+		console pen "$DT_INK" "$DT_FACE"
+		console fill "$wr" "$wc" "$h" "$w" " "
+		DT_NOTEWIN=$id
+		[ -n "$dr" ] && $dr "$id" "$h" "$w" "$wr" "$wc"
+		DT_NOTEWIN=
+		return 0
+	fi
 
 	[ "$DT_SHADOW" = 1 ] &&
 		console darken $((wr + 1)) $((wc + 2)) "$h" "$w" "$DT_SHADOW_PCT"

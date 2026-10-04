@@ -148,6 +148,18 @@ try:
           any(c in s[3].text() for c in "#%@*") and s[3].find("▀") is None and
           "mono" in s[4].text() and "half" in s[5].text(), s[3])
 
+    # The mini player: the picture alone, no border, bottom right, on every
+    # workspace; escape goes back to the full player where it was.
+    def mini(sc):
+        return sc.find("YouTube [") is None and any("\u2580" in sc.row(r)[50:] for r in range(17, 27))
+    s = yrun([([], "A test pattern"), ([b"\r"], playing), ([b"i"], mini), ([1.0], None),
+              ([b"\x1b2"], None), ([b"\x1b"], "YouTube [")])
+    check("i makes it a mini player: the picture alone, no border or title, at the bottom right",
+          mini(s[2]) and s[2].find("space pause") is None, s[2])
+    check("it is on every workspace", mini(s[4]), s[4])
+    check("and escape goes back to the full player, where it was",
+          s[5].find("YouTube [") is not None and s[5].find("YouTube [")[0] == 1, s[5])
+
     s = yrun([([], "A test pattern"), ([b"\r"], playing), ([b"\x1b"], "Third result")])
     check("escape stops it and goes back to the results",
           s[2].find("Third result (pattern)") is not None and
@@ -255,4 +267,4 @@ finally:
     srv.wait()
     shutil.rmtree(D, True)
 
-report(24)
+report(27)

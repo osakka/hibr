@@ -603,6 +603,7 @@ fn calendar_click(int? id = "", int? r = "", int? c = "", btn = "") {
 	local tag t i
 
 	[ "${CVW[$id]["nopim"]}" = 1 ] && return 0
+	dt_has dt_isdbl && dt_isdbl "$id" && btn=double
 	tag := dt_hit "$id" "$r" "$c" || return 0
 	case $tag in
 	prev) calendar_key "$id" p ;;

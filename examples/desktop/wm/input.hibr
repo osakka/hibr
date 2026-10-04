@@ -148,6 +148,26 @@ dt_mouse() {
 				fi
 			fi
 		fi
+		# No chrome: a right press is the app's context menu, a second
+		# press soon after the first is told to the app as a double click,
+		# and any other press moves the window.
+		if [ "${DT[$id]["chrome"]}" = none ]; then
+			if [ "$1" = right ]; then
+				dt_has "${DT[$id]["app"]}_context" &&
+					dt_context_open "${DT[$id]["app"]}" "$id" "$mr" "$mc"
+				return 0
+			fi
+			if dt_isdbl "$id"; then
+				[ -n "$ap" ] && $ap "$id" $((mr - wr)) $((mc - wc)) double
+				return 0
+			fi
+			DT_DRAG=$id
+			DT_DRAGR0=$wr
+			DT_DRAGC0=$wc
+			DT_DR=$((mr - wr))
+			DT_DC=$((mc - wc))
+			return 0
+		fi
 		if [ "$mr" -ne "$wr" ]; then
 			if [ "$DT_DRAGMOD" = 1 ] && [ "$1" != right ]; then
 				case "-$mods-" in
@@ -598,6 +618,24 @@ fn dt_event(k) {
 	else
 		dt_appkeyed "$k"
 	fi
+}
+
+# Whether this press in a window is the second of a double click: another
+# press in the same window within DT_DBLMS. An app's _click asks it for
+# itself; the window manager asks it for a window with no chrome.
+DT_DBLWIN=
+DT_DBLWT=0
+fn dt_isdbl(int id) {
+	local now
+
+	now := dt_ms
+	if [ "$DT_DBLWIN" = "$id" ] && [ $((now - DT_DBLWT)) -lt "$DT_DBLMS" ]; then
+		DT_DBLWIN=
+		return 0
+	fi
+	DT_DBLWIN=$id
+	DT_DBLWT=$now
+	return 1
 }
 
 # Milliseconds, for telling a double click from two.

@@ -710,6 +710,9 @@ fn youtube_stash(int id, dir) {
 fn youtube_resume(int id) {
 	local k=${YT[$id]["kind"]} a=${YT[$id]["arg"]} h=${YT[$id]["head"]}
 
+	[ "${YT[$id]["mini"]}" = 1 ] && yt_mini "$id"
+	[ "${DT[$id]["chrome"]}" = none ] && DT[$id]["chrome"]=
+
 	YT[$id]["view"]=list
 	YT[$id]["st"]=
 	YT[$id]["pt"]=
@@ -731,7 +734,9 @@ fn youtube_idle(int id) {
 fn youtube_draw(int id, int h, int w, int row, int col) {
 	dt_wclear "$id"
 	[ -n "${YT[$id]["searching"]}" ] && yt_results "$id"
-	if [ "${YT[$id]["view"]}" = play ]; then
+	if [ "${YT[$id]["mini"]}" = 1 ]; then
+		yt_drawmini "$id" "$h" "$w"
+	elif [ "${YT[$id]["view"]}" = play ]; then
 		yt_drawplay "$id" "$h" "$w"
 	else
 		yt_drawlist "$id" "$h" "$w"
@@ -872,6 +877,7 @@ fn youtube_key(int id, key) {
 	if [ "${YT[$id]["view"]}" = play ]; then
 		case $key in
 		" ") yt_toggle "$id"; return 0 ;;
+		i) yt_mini "$id"; return 0 ;;
 		left) yt_seek "$id" -5; return 0 ;;
 		right) yt_seek "$id" +5; return 0 ;;
 		shift-left) yt_seek "$id" -30; return 0 ;;
@@ -888,7 +894,15 @@ fn youtube_key(int id, key) {
 		p) yt_next "$id" -1; return 0 ;;
 		f) yt_fav "$id"; return 0 ;;
 		m) yt_mode; return 0 ;;
-		escape | backspace) yt_stop "$id"; YT[$id]["view"]=list; return 0 ;;
+		escape | backspace)
+			if [ "${YT[$id]["mini"]}" = 1 ]; then
+				yt_mini "$id"
+				return 0
+			fi
+			yt_stop "$id"
+			YT[$id]["view"]=list
+			return 0
+			;;
 		esac
 		return 1
 	fi
@@ -932,7 +946,16 @@ yt_mode() {
 fn youtube_click(int id, int r, int c, btn = "") {
 	local tag d
 
+	if [ "${YT[$id]["mini"]}" = 1 ]; then
+		[ "$btn" = double ] && yt_mini "$id"
+		return 0
+	fi
 	tag := dt_hit "$id" "$r" "$c"
+	if [ "${YT[$id]["view"]}" = play ] && [ -z "$tag" ] && dt_has dt_isdbl && dt_isdbl "$id"; then
+		yt_toggle "$id"
+		yt_mini "$id"
+		return 0
+	fi
 	case $tag in
 	search) YT[$id]["qon"]=1 ;;
 	row:*)
@@ -1026,6 +1049,11 @@ youtube_menus() {
 		dt_dim "Stop"
 	fi
 	dt_sep
+	if [ "${YT[$id]["view"]}" = play ]; then
+		dt_mark "Mini Player" i "${YT[$id]["mini"]:-0}" yt_mini "$id"
+	else
+		dt_dim "Mini Player"
+	fi
 	on=0
 	[ "$YT_AUTONEXT" = 1 ] && on=1
 	dt_mark "Play Next Automatically" a "$on" yt_autonext
@@ -1035,6 +1063,83 @@ youtube_menus() {
 		[ "$YT_MODE" = "$v" ] && on=1
 		dt_mark "${v^}" "${v:0:1}" "$on" yt_setmode "$v"
 	done
+}
+
+# The mini player: only the picture, in a small window with no border,
+# title or bar, kept in view on every workspace and moved by dragging it.
+# A double click or escape goes back to the full player, where it was;
+# a right click on the picture has the player's and the window's controls.
+fn yt_mini(int id) {
+	local g r c h w
+	local -a was
+
+	if [ "${YT[$id]["mini"]}" = 1 ]; then
+		read -ra was <<< "${YT[$id]["norm"]}"
+		YT[$id]["mini"]=
+		DT[$id]["chrome"]=
+		[ "${was[4]}" = 1 ] || { command -v dt_sticky > /dev/null && dt_sticky "$id" 0; }
+		if [ "${#was[@]}" -ge 4 ]; then
+			DT[$id]["row"]=${was[0]}
+			DT[$id]["col"]=${was[1]}
+			dt_resize "$id" "${was[2]}" "${was[3]}"
+			dt_move "$id" "${was[0]}" "${was[1]}"
+		fi
+		YT[$id]["sized"]=
+		return 0
+	fi
+	[ "${YT[$id]["view"]}" = play ] || return 0
+	YT[$id]["norm"]="${DT[$id]["row"]} ${DT[$id]["col"]} ${DT[$id]["h"]} ${DT[$id]["w"]} ${DT[$id]["sticky"]:-0}"
+	w=$((DT_COLS / 3))
+	[ "$w" -gt 64 ] && w=64
+	[ "$w" -lt 24 ] && w=24
+	h=$(((w * 9 / 16 + 1) / 2 + 1))
+	r=$((DT_ROWS - h - 1))
+	c=$((DT_COLS - w - 2))
+	YT[$id]["mini"]=1
+	DT[$id]["chrome"]=none
+	command -v dt_sticky > /dev/null && dt_sticky "$id" 1
+	DT[$id]["row"]=$r
+	DT[$id]["col"]=$c
+	dt_resize "$id" "$h" "$w"
+	dt_move "$id" "$r" "$c"
+	YT[$id]["sized"]=
+}
+
+# Draw the mini player: the picture filling the window, or the title
+# while it loads.
+fn yt_drawmini(int id, int h, int w) {
+	local p
+
+	yt_tick "$id"
+	p=${YT[$id]["p"]}
+	if [ -n "$p" ]; then
+		if [ "${YT[$id]["sized"]}" != "$w $h $YT_MODE" ]; then
+			media size "$p" "$w" "$h" "$YT_MODE"
+			YT[$id]["sized"]="$w $h $YT_MODE"
+		fi
+		media frame "$p"
+		media draw "$p" 0 0 -p "w$id" 2> /dev/null && return 0
+	fi
+	console pen "$DT_DIM" "$DT_FACE"
+	console put -p "w$id" $((h / 2)) 1 "${YT[$id]["title"]:0:$((w - 2))}"
+}
+
+# A right click on the mini player.
+fn youtube_context(int? id = "") {
+	dt_menu "Player"
+	if [ -n "${YT[$id]["p"]}" ]; then
+		dt_item "Pause or Play" p yt_toggle "$id"
+		dt_item "Back 10 Seconds" b yt_seek "$id" -10
+		dt_item "On 10 Seconds" o yt_seek "$id" +10
+		dt_item "Next" n yt_next "$id" 1
+		dt_item "Louder" l youtube_key "$id" up
+		dt_item "Quieter" q youtube_key "$id" down
+	else
+		dt_dim "Pause or Play"
+	fi
+	dt_sep
+	dt_item "Full Player" f yt_mini "$id"
+	dt_item "Close" c dt_closereq "$id"
 }
 
 fn yt_setmode(v) {
