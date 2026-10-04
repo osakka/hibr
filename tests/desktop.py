@@ -1936,13 +1936,15 @@ shutil.rmtree(WCONF, True)
 
 LAUNCH = MENU + [b"c"]
 sc, raw = run("", feed=LAUNCH + LAUNCH, pre=APPS)
-# 'c' launches Control Panel, not Clock -- Clock moved to Desk Accessories
-# and is not registered at all under a bare APPS, so it no longer holds
-# 'c' here (Control Panel does, being the sole 'c'-starting app left in
-# examples/desktop/apps); this check was never about which app it launches, only
-# that a `once` one opens no more than a single window.
+check("an app declared hidden is not offered on the menu -- Contacts' editor, Mail's New Message",
+      sc.text().count("┤ Contacts ├") == 1 and "┤ Contact ├" not in sc.text()
+      and "┤ New Message ├" not in sc.text(), sc)
+# 'c' launches Contacts, the first app in examples/desktop/apps whose name
+# starts with it (Control Panel is now 'o'); like Control Panel before it,
+# it is declared `once`. This check was never about which app it launches,
+# only that a `once` one opens no more than a single window.
 check("an app declared once opens one window, however often launched",
-      sc.text().count("┤ Control Panel ├") == 1, sc)
+      sc.text().count("┤ Contacts ├") == 1, sc)
 LAUNCH = MENU + [b"f"]
 sc, raw = run("", feed=LAUNCH + LAUNCH, pre=APPS)
 check("and one that is not opens another window each time",
@@ -3287,4 +3289,4 @@ check("an arithmetic error in an app is logged and the desktop carries on",
       (log, t.status))
 expect(r"arithmetic: syntax error")
 
-report(446)
+report(447)

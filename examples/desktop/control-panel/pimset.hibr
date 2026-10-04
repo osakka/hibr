@@ -1,0 +1,106 @@
+#!/usr/bin/env hibr
+#
+# pimset -- the Control Panel pane for Calendars & Contacts: which of the
+# Network Servers keep your address books (and, as the calendar comes,
+# your calendars), and how often they are synced. A server is any
+# CalDAV/CardDAV one -- Nextcloud, Fastmail, iCloud, Radicale -- set up in
+# Network Servers with its address and an app password; switching it on
+# here starts its first sync.
+
+strict
+
+command -v cp_pane > /dev/null && cp_pane pimset "Calendars & Contacts" "☺" app
+
+DT_PIMSERVERS="${DT_PIMSERVERS-}"
+DT_PIMEVERY="${DT_PIMEVERY-15}"
+command -v dt_keep > /dev/null && dt_keep DT_PIMSERVERS DT_PIMEVERY
+
+PS_EVERYL=(5 15 30 60)
+fn cp_set_pimevery(int? id = "", value = "") { DT_PIMEVERY=$value; cp_save; }
+
+# Whether a server is one of those chosen.
+fn pims_on(name) {
+	local s
+	local -a l
+
+	IFS=$'\t' read -ra l <<< "$DT_PIMSERVERS"
+	for s in "${l[@]}"; do
+		[ "$s" = "$name" ] && return 0
+	done
+	return 1
+}
+
+# Choose a server or let it go.
+fn pims_toggle(name) {
+	local s out=
+	local -a l
+
+	IFS=$'\t' read -ra l <<< "$DT_PIMSERVERS"
+	if pims_on "$name"; then
+		for s in "${l[@]}"; do
+			[ "$s" = "$name" ] || out+="${out:+$'\t'}$s"
+		done
+		DT_PIMSERVERS=$out
+	else
+		DT_PIMSERVERS+="${DT_PIMSERVERS:+$'\t'}$name"
+		dt_has pe_sync && pe_sync "$name"
+	fi
+	cp_save
+}
+
+fn pimset_rows(int w) {
+	local n=0 s k
+	local -a names
+
+	if ! need dav 2> /dev/null; then
+		cp_absent "$w" "the dav module"
+		ret 1
+	fi
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Servers"; n=$((n + 1))
+	if s := dav servers 2> /dev/null; then
+		for k in "${!s[@]}"; do names+=("$k"); done
+	fi
+	if [ "${#names[@]}" = 0 ]; then
+		CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="None yet -- add one in Network Servers"
+		CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=none; n=$((n + 1))
+	fi
+	for k in "${names[@]}"; do
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="$k"
+		CP[$w][$n]["wtype"]=bool
+		CP[$w][$n]["val"]=off
+		pims_on "$k" && CP[$w][$n]["val"]=on
+		CP[$w][$n]["key"]="srv:$k"; n=$((n + 1))
+	done
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Syncing"; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Every (minutes)"
+	CP[$w][$n]["val"]="$DT_PIMEVERY"; CP[$w][$n]["key"]=every; n=$((n + 1))
+	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Sync Now"
+	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=now; n=$((n + 1))
+	ret "$n"
+}
+
+fn pimset_do(int w, k, int dir) {
+	local v
+
+	case $k in
+	srv:*) pims_toggle "${k#srv:}" ;;
+	every)
+		v := cp_next "$DT_PIMEVERY" "$dir" "${PS_EVERYL[@]}"
+		DT_PIMEVERY=$v
+		;;
+	now)
+		if dt_has pe_sync; then
+			pe_sync
+			dt_notep low "Syncing calendars and contacts${GL[ellipsis]}"
+		fi
+		;;
+	none) dt_notep low "Add a server in Control Panel > Network Servers first" ;;
+	esac
+	cp_save
+}
+
+fn pimset_drop(int? w = "", int? r = "", int? c = "", k = "") {
+	case $k in
+	every) dt_droplist "$w" "$r" "$c" cp_set_pimevery "${PS_EVERYL[@]}" ;;
+	esac
+}

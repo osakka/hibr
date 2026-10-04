@@ -1910,6 +1910,30 @@ went in the shell.
   have shipped it. Stage what this work changed, by name, and build the
   deb from a clean worktree at the tag, never from the working tree.
 
+- **A window with `_mouse` never gets `_click`.** The window manager
+  hands a press to `_mouse` when the app has one, for a drag or a
+  selection, and calls `_click` only for apps without it. Mail's compose
+  window had both, and its `_mouse` ignored anything outside the body: a
+  click on To, Cc, Subject or a button did nothing from 0.99.24 on, unseen
+  because the suites tabbed between fields. An app with both passes a
+  press it does not want on to its own `_click`, as `panel_mouse` and
+  `fpick_mouse` do; and a test clicks where a person would.
+- **A list of names a person chose is kept tab-separated.**
+  `DT_PIMSERVERS` holds the Network Servers chosen for calendars and
+  contacts, and a server's name may have a space in it -- the account
+  trap above, again.
+
+- **`dt_app`'s arguments are positional: once, icon, fixed, hidden, bare.**
+  `dt_app mailc "New Message" 22 76 many "" "" "" hidden` passes four
+  after `many`, so `hidden` landed in `bare` and the compose window was on
+  the hibr menu for six releases, where `c` opened it in a test meant to
+  open Control Panel. Count them -- `many "" "" hidden` -- and copy a
+  hidden app's line from one that is known to be hidden.
+- **A window map's name is global across every app.** Contacts named its
+  window table `PW`, which is Control Panel's own: each app overwrote the
+  other's state. Before declaring a new `-gA`, grep the desktop for the
+  name as a whole word.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then

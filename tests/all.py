@@ -22,7 +22,7 @@ LOGS = (os.environ.get("HIBR_TESTLOGS")
         or os.path.join(ROOT, "build", "test-logs"))
 SUITES = ["run.sh", "desktop", "apps", "most", "hvi", "console", "cat",
           "mon", "mtr", "editor", "term_diff", "uifuzz", "strictvars",
-          "md_spec", "html_tree", "mail", "mailapp", "pim", "pim_rrule", "web", "dav", "media", "youtube"]
+          "md_spec", "html_tree", "mail", "mailapp", "contacts", "pim", "pim_rrule", "web", "dav", "media", "youtube"]
 
 
 def one(name):

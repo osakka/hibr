@@ -48,9 +48,10 @@ SUITE_MODS = {
     "mail": ["email"],
     "mailapp": ["email", "html", "db"],
     "pim": ["pim", "dav"],
+    "contacts": ["pim", "dav", "email", "db"],
     "pim_rrule": ["pim"],
 }
-DESKTOP = ("desktop", "apps", "uifuzz", "strictvars", "mailapp")
+DESKTOP = ("desktop", "apps", "uifuzz", "strictvars", "mailapp", "contacts")
 EVERYTHING = ("src/", "include/", "Makefile", "tests/screen.py",
               "tests/all.py", "deploy.sh")
 

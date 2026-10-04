@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.99.30
+
+**Contacts.** A new app keeps the people in your address books on this
+machine, from any CardDAV server -- Nextcloud, Fastmail, iCloud, Radicale:
+a searchable list, each person's emails, phones, organisation and note, and
+new, edit and remove, sent to the server at the next sync and only if its
+copy has not changed meanwhile. Control Panel > Calendars & Contacts
+chooses which Network Servers to use and how often to sync; a background
+job finds the address books itself and keeps them up to date with sync
+tokens.
+
+**Mail finishes addresses.** Typing in To, Cc or Bcc offers the people who
+match, from Contacts and from everyone Mail has had a message from; tab or
+enter takes one. Message > Add Sender to Contacts adds whoever wrote the
+conversation, and a click on an email in Contacts writes to them.
+
+**Mail's New Message is no longer an app on the hibr menu.** It was meant
+to be hidden and was not, from 0.99.24, because of one argument too many.
+
+**Clicking in a new message's fields works.** A click on To, Cc, Subject or
+a button in Mail's compose window did nothing: the window's mouse handler,
+there for selecting text, took every press and dropped the ones outside the
+body. Now it passes them on.
+
 ## 0.99.29
 
 **A calendars-and-contacts module.** `pim` reads and writes iCalendar and

@@ -1,0 +1,775 @@
+#!/usr/bin/env hibr
+#
+# contacts -- the people in your address books, kept on this machine from
+# a CardDAV server (Nextcloud, Fastmail, iCloud, Radicale, anything
+# standard): a list down the left, searchable, and the person chosen on the
+# right -- their emails, any of which writes them a message in Mail, their
+# phones, address, organisation and note. n adds someone, e or enter
+# edits, # or delete removes, / searches, j and k move, R syncs now.
+#
+# Which servers are used is Control Panel > Calendars & Contacts, from the
+# Network Servers list; each is kept under ~/.local/share/hibr/pim/SERVER
+# by lib/pimsync.hibr, run in the background -- the only thing that writes
+# there. A change made here is made to the list at once and queued for the
+# server, conditional on the copy it was read from; the next sync sends it.
+# Mail reads the same copies to finish an address as it is typed.
+
+strict
+
+app contacts "The people in your address books, kept offline from CardDAV"
+
+command -v dt_app > /dev/null && dt_app contacts "Contacts" 24 92 once "☺"
+command -v dt_app > /dev/null && dt_app pedit "Contact" 16 64 many "" "" hidden
+
+PE_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/hibr/pim"
+PE_LIB=${BASH_SOURCE%/*}/../lib
+DT_PIMSERVERS="${DT_PIMSERVERS-}"
+DT_PIMEVERY="${DT_PIMEVERY-15}"
+command -v dt_keep > /dev/null && dt_keep DT_PIMSERVERS DT_PIMEVERY
+
+declare -gA PCW
+declare -gA PE
+declare -gA PEJ
+declare -gA PED
+PE_N=0
+PEJ_N=0
+PEJ_LIVE=0
+PE_SRVS=()
+PE_HITS=()
+
+# The servers chosen for calendars and contacts, into PE_SRVS -- kept
+# tab-separated, since a server's name may have a space in it.
+pe_servers() {
+	PE_SRVS=()
+	[ -n "$DT_PIMSERVERS" ] || return 1
+	IFS=$'\t' read -ra PE_SRVS <<< "$DT_PIMSERVERS"
+	[ "${#PE_SRVS[@]}" -gt 0 ]
+}
+
+# A server's store folder.
+fn pe_dir(srv) { ret "$PE_DIR/${srv//\//_}"; }
+
+# Every contact of every server chosen, into PE: PE[i][...] the row, with
+# ["srv"] its server; PE_N how many. Sorted by name, as a list is read.
+pe_load() {
+	local s d h i n=0 rest srv row
+	local -a order
+
+	unset PE
+	declare -gA PE
+	PE_N=0
+	pe_servers || return 0
+	need db 2> /dev/null || return 0
+	for s in "${PE_SRVS[@]}"; do
+		d := pe_dir "$s"
+		[ -f "$d/contacts.db" ] || continue
+		h := db open "$d/contacts.db" 2> /dev/null || continue
+		PE["r"]["$s"] := db query "$h"
+		db close "$h"
+		i=0
+		while [ -n "${PE["r"]["$s"][$i]["href"]+x}" ]; do
+			order+=("${PE["r"]["$s"][$i]["fn"],,}"$'\t'"$s"$'\t'"$i")
+			i=$((i + 1))
+		done
+	done
+	[ "${#order[@]}" -gt 0 ] || return 0
+	IFS=$'\n' read -d '' -ra order <<< "$(printf '%s\n' "${order[@]}" | sort -f)"
+	for i in "${order[@]}"; do
+		rest=${i#*$'\t'}
+		srv=${rest%%$'\t'*}
+		row=${rest#*$'\t'}
+		PE[$n]["srv"]=$srv
+		PE[$n]["row"]=$row
+		n=$((n + 1))
+	done
+	PE_N=$n
+	return 0
+}
+
+# A field of the contact at a list position.
+fn pe_f(int i, f) {
+	ret "${PE["r"]["${PE[$i]["srv"]}"][${PE[$i]["row"]}]["$f"]}"
+}
+
+# Whether a contact matches a search: every word, in name, emails, phones
+# and organisation.
+fn pe_match(int i, q) {
+	local hay w s r
+	local -a ws
+
+	[ -n "$q" ] || return 0
+	s=${PE[$i]["srv"]}
+	r=${PE[$i]["row"]}
+	hay="${PE["r"]["$s"][$r]["fn"]} ${PE["r"]["$s"][$r]["emails"]} ${PE["r"]["$s"][$r]["tels"]} ${PE["r"]["$s"][$r]["org"]} ${PE["r"]["$s"][$r]["nick"]}"
+	hay=${hay,,}
+	read -ra ws <<< "${q,,}"
+	for w in "${ws[@]}"; do
+		[[ $hay == *"$w"* ]] || return 1
+	done
+	return 0
+}
+
+# The list a window shows: the positions that match its search, in
+# PCW[id]["list"], and how many in ["nl"].
+fn pe_filter(int id) {
+	local i=0 n=0 l=
+
+	while [ "$i" -lt "$PE_N" ]; do
+		if pe_match "$i" "${PCW[$id]["q"]}"; then
+			l+="$i "
+			n=$((n + 1))
+		fi
+		i=$((i + 1))
+	done
+	PCW[$id]["list"]=$l
+	PCW[$id]["nl"]=$n
+	[ "${PCW[$id]["sel"]:-0}" -ge "$n" ] && PCW[$id]["sel"]=$((n > 0 ? n - 1 : 0))
+	return 0
+}
+
+# The contact position a list row holds.
+fn pe_at(int id, int k) {
+	local -a l
+
+	read -ra l <<< "${PCW[$id]["list"]}"
+	[ "$k" -ge 0 ] && [ "$k" -lt "${#l[@]}" ] || return 1
+	ret "${l[$k]}"
+}
+
+# --- finishing an address, for Mail ---------------------------------------
+
+# The people whose name or address begins a word with what is typed: up to
+# six, "Name <address>" each, into PE_HITS -- from the address books, then
+# from whoever Mail has seen, without repeats.
+fn pe_suggest(prefix) {
+	local p=${prefix,,} i s r e nm a k seen= n=0
+	local -a ems
+
+	PE_HITS=()
+	[ "${#p}" -ge 1 ] || return 1
+	[ "$PE_N" -gt 0 ] || pe_load
+	i=0
+	while [ "$i" -lt "$PE_N" ] && [ "$n" -lt 6 ]; do
+		s=${PE[$i]["srv"]}
+		r=${PE[$i]["row"]}
+		nm=${PE["r"]["$s"][$r]["fn"]}
+		IFS=$'\t' read -ra ems <<< "${PE["r"]["$s"][$r]["emails"]}"
+		for e in "${ems[@]}"; do
+			[ -n "$e" ] || continue
+			if [[ " ${nm,,}" == *" $p"* ]] || [[ ${e,,} == "$p"* ]]; then
+				case $seen in *$'\n'"${e,,}"$'\n'*) continue ;; esac
+				seen+=$'\n'"${e,,}"$'\n'
+				if [ -n "$nm" ]; then PE_HITS+=("$nm <$e>"); else PE_HITS+=("$e"); fi
+				n=$((n + 1))
+			fi
+		done
+		i=$((i + 1))
+	done
+	if dt_has ml_people && [ "$n" -lt 6 ]; then
+		ml_people
+		for k in "${ML_TOP[@]}"; do
+			[ "$n" -lt 6 ] || break
+			a=${k##*<}
+			a=${a%>}
+			[[ " ${k,,}" == *" $p"* ]] || [[ " ${k,,}" == *"<$p"* ]] || [[ ${k,,} == "$p"* ]] || continue
+			case $seen in *$'\n'"${a,,}"$'\n'*) continue ;; esac
+			seen+=$'\n'"${a,,}"$'\n'
+			PE_HITS+=("$k")
+			n=$((n + 1))
+		done
+	fi
+	[ "$n" -gt 0 ]
+}
+
+# Add someone to the first address book of the first server chosen: from
+# Mail's Add Sender to Contacts, a name and an address.
+fn pe_add(name, addr) {
+	local s
+
+	pe_servers || { dt_notep high "Choose a server for contacts first, in Control Panel > Calendars & Contacts"; return 1; }
+	s=${PE_SRVS[0]}
+	pe_put "" "$s" "" "" "" "${name:-$addr}" "$addr" "" "" ""
+	dt_notep low "Added ${name:-$addr} to Contacts"
+}
+
+# --- the jobs ---------------------------------------------------------------
+
+# Run something in the background for a server, its output kept for poll
+# to hand on, then the callback. The job's number is the result.
+fn pe_job(what, srv, then, ...rest) {
+	local n d
+
+	d := pe_dir "$srv"
+	mkdir -p "$d/jobs" 2> /dev/null
+	PEJ_N=$((PEJ_N + 1))
+	n=$PEJ_N
+	PEJ[$n]["what"]=$what
+	PEJ[$n]["srv"]=$srv
+	PEJ[$n]["then"]=$then
+	PEJ[$n]["dir"]=$d/jobs
+	(
+		"${rest[@]}" > "$d/jobs/$n.out" 2> "$d/jobs/$n.err"
+		printf '%s\n' "$?" > "$d/jobs/$n.st"
+	) &
+	PEJ[$n]["pid"]=$!
+	PEJ_LIVE=$((PEJ_LIVE + 1))
+	dt_want 300
+	ret "$n"
+}
+
+# A job's last line so far.
+fn pe_joblast(int n) {
+	local f=${PEJ[$n]["dir"]}/$n.out l= x
+
+	[ -s "$f" ] || { ret ""; return 0; }
+	while IFS= read -r x; do l=$x; done < "$f"
+	ret "$l"
+}
+
+# Hand each finished job to its callback, marked done first so the callback
+# can start the next.
+pe_poll() {
+	local n st d
+
+	[ "$PEJ_LIVE" -gt 0 ] || return 0
+	for n in "${!PEJ[@]}"; do
+		d=${PEJ[$n]["dir"]}
+		[ -s "$d/$n.st" ] || continue
+		read -r st < "$d/$n.st"
+		PEJ_LIVE=$((PEJ_LIVE - 1))
+		PEJ[$n]["done"]=1
+		"${PEJ[$n]["then"]}" "$n" "$st"
+		command rm -f "$d/$n.out" "$d/$n.err" "$d/$n.st"
+		unset PEJ["$n"]
+	done
+	[ "$PEJ_LIVE" -gt 0 ] && dt_want 500
+	return 0
+}
+
+# Whether a sync is running for a server.
+fn pe_running(srv) {
+	local n
+
+	for n in "${!PEJ[@]}"; do
+		[ -z "${PEJ[$n]["done"]}" ] && [ "${PEJ[$n]["srv"]}" = "$srv" ] && { ret "$n"; return 0; }
+	done
+	return 1
+}
+
+# Sync a server, or every one chosen; one already running is asked again.
+fn pe_sync(srv = "") {
+	local s d n
+	local -a list
+
+	if [ -n "$srv" ]; then
+		list=("$srv")
+	else
+		pe_servers || return 0
+		list=("${PE_SRVS[@]}")
+	fi
+	for s in "${list[@]}"; do
+		if n := pe_running "$s"; then
+			PCW["again$s"]=1
+			continue
+		fi
+		d := pe_dir "$s"
+		mkdir -p "$d"
+		n := pe_job sync "$s" pe_synced "$HIBR" "$PE_LIB/pimsync.hibr" "$s" "$d"
+		PCW["last$s"]=$EPOCHSECONDS
+	done
+	return 0
+}
+
+# A sync finished: the list read again, what it said kept for the bar.
+fn pe_synced(int n, int st) {
+	local s=${PEJ[$n]["srv"]} l id
+
+	l := pe_joblast "$n"
+	case $l in
+	"done 0") PCW["status$s"]="Up to date" ;;
+	done*) PCW["status$s"]="${l#done } new" ;;
+	busy) PCW["status$s"]="Another sync is running" ;;
+	error*) PCW["status$s"]="Could not sync: ${l#error }" ;;
+	*)
+		if [ "$st" != 0 ]; then
+			l=
+			[ -s "${PEJ[$n]["dir"]}/$n.err" ] && read -r l < "${PEJ[$n]["dir"]}/$n.err"
+			PCW["status$s"]="Could not sync${l:+: ${l#hibr: }}"
+		fi
+		;;
+	esac
+	pe_load
+	for id in "${!PCW[@]}"; do
+		[ -n "${PCW[$id]["sel"]+x}" ] && pe_filter "$id"
+	done
+	if [ "${PCW["again$s"]}" = 1 ]; then
+		PCW["again$s"]=
+		pe_sync "$s"
+	fi
+}
+
+# Every DT_PIMEVERY minutes, and the jobs handed on.
+fn pe_tick(int id) {
+	local s
+
+	pe_poll
+	pe_servers || return 0
+	for s in "${PE_SRVS[@]}"; do
+		if [ $((EPOCHSECONDS - ${PCW["last$s"]:-0})) -ge $((DT_PIMEVERY * 60)) ]; then
+			pe_sync "$s"
+		fi
+	done
+	dt_want 60000
+}
+
+# --- changing a contact -----------------------------------------------------
+
+# Write a contact and queue it for its server: a new one (no href) gets a
+# uid and a name of its own; an old one keeps both, and goes up only if the
+# server's copy is still the one it was read from.
+fn pe_put(href, srv, coll, uid, etag, name, emails, tels, org, note) {
+	local d f q i u base
+	local -a args ems ts
+
+	d := pe_dir "$srv"
+	mkdir -p "$d/out"
+	if [ -z "$coll" ] && need db 2> /dev/null && [ -f "$d/colls.db" ]; then
+		local h r
+		h := db open "$d/colls.db" 2> /dev/null && {
+			r := db query "$h" where kind eq card
+			db close "$h"
+			coll=${r[0]["href"]}
+		}
+	fi
+	if [ -z "$coll" ]; then
+		dt_notep high "$srv has no address book yet -- sync it first"
+		return 1
+	fi
+	u=${uid:-hibr-$EPOCHSECONDS-$RANDOM-$$}
+	base=${href##*/}
+	[ -n "$base" ] || base="$u.vcf"
+	f="$d/out/$base"
+	args=(-u "$u" -f "$name")
+	IFS=',' read -ra ems <<< "$emails"
+	for i in "${ems[@]}"; do
+		i=${i# }
+		i=${i% }
+		[ -n "$i" ] && args+=(-e "$i")
+	done
+	IFS=',' read -ra ts <<< "$tels"
+	for i in "${ts[@]}"; do
+		i=${i# }
+		i=${i% }
+		[ -n "$i" ] && args+=(-t "$i")
+	done
+	[ -n "$org" ] && args+=(-o "$org")
+	[ -n "$note" ] && args+=(-N "$note")
+	pim vcf build "$f" "${args[@]}" 2> "$d/out/build.err" || {
+		read -r q < "$d/out/build.err"
+		dt_notep high "Could not make the contact: ${q#hibr: }"
+		return 1
+	}
+	printf 'put\t%s\t%s\t%s\t%s\n' "$coll" "$base" "$f" "${etag:--}" >> "$d/queue"
+	pe_sync "$srv"
+	return 0
+}
+
+# Remove the contact at a list position, after asking.
+PE_DEL=
+fn pe_delask(int id) {
+	local i n
+
+	i := pe_at "$id" "${PCW[$id]["sel"]:-0}" || return 0
+	n := pe_f "$i" fn
+	PE_DEL=$i
+	dt_confirm "Remove ${n:-this contact} from your address book?" pe_deldo
+}
+pe_deldo() {
+	local i=$PE_DEL s d h e
+
+	PE_DEL=
+	[ -n "$i" ] || return 0
+	s=${PE[$i]["srv"]}
+	h := pe_f "$i" href
+	e := pe_f "$i" etag
+	d := pe_dir "$s"
+	printf 'del\t%s\t%s\t%s\n' "-" "$h" "${e:--}" >> "$d/queue"
+	dt_notep low "Removed; the server is told at the next sync"
+	pe_sync "$s"
+}
+
+# --- the window ---------------------------------------------------------------
+
+fn contacts_open(int id, arg = "") {
+	PCW[$id]["sel"]=0
+	PCW[$id]["top"]=0
+	PCW[$id]["q"]=
+	PCW[$id]["qbuf"]=
+	PCW[$id]["qcur"]=0
+	PCW[$id]["qon"]=
+	pe_load
+	pe_filter "$id"
+	pe_sync
+}
+
+fn contacts_close(int id) {
+	unset PCW["$id"]
+	return 0
+}
+
+fn contacts_idle(int id) { pe_poll; }
+
+fn contacts_draw(int id, int h, int w, int row, int col) {
+	local nl=${PCW[$id]["nl"]:-0} sel=${PCW[$id]["sel"]:-0} top=${PCW[$id]["top"]:-0}
+	local vis=$((h - 3)) r=2 k i nm em st s lw=32
+
+	[ "$w" -gt 70 ] || lw=$((w / 2))
+
+	pe_tick "$id"
+	dt_wclear "$id"
+	if [ "${PCW[$id]["qon"]}" = 1 ] || [ -n "${PCW[$id]["qbuf"]}" ]; then
+		dt_textdraw "$id" 0 1 $((lw - 2)) "${PCW[$id]["qbuf"]}" "${PCW[$id]["qcur"]}" "$([ "${PCW[$id]["qon"]}" = 1 ] && echo 1 || echo 0)"
+	else
+		console pen "$DT_DIM" "$DT_WELL"
+		console fill -p "w$id" 0 1 1 $((lw - 2)) " "
+		console put -p "w$id" 0 2 "/ Search contacts"
+	fi
+	dt_wreg "$id" 0 1 $((lw - 2)) search
+	if ! pe_servers; then
+		console pen "$DT_DIM" "$DT_FACE"
+		console put -p "w$id" 3 2 "No server chosen for contacts yet."
+		console put -p "w$id" 4 2 "Control Panel > Calendars & Contacts chooses one"
+		console put -p "w$id" 5 2 "from the Network Servers list."
+		return 0
+	fi
+	[ "$sel" -lt "$top" ] && top=$sel
+	[ "$sel" -ge $((top + vis)) ] && top=$((sel - vis + 1))
+	PCW[$id]["top"]=$top
+	PCW[$id]["vis"]=$vis
+	if [ "$nl" = 0 ]; then
+		console pen "$DT_DIM" "$DT_FACE"
+		if [ "$PE_N" = 0 ]; then
+			console put -p "w$id" 3 2 "Nothing here yet -- the first sync brings them"
+		else
+			console put -p "w$id" 3 2 "No one matches \"${PCW[$id]["q"]}\""
+		fi
+	fi
+	k=$top
+	while [ "$k" -lt "$nl" ] && [ "$r" -lt $((h - 1)) ]; do
+		i := pe_at "$id" "$k" || break
+		nm := pe_f "$i" fn
+		em := pe_f "$i" emails
+		em=${em%%$'\t'*}
+		nm := str pad " ${nm:0:$((lw - 3))}" $((lw - 1))
+		if [ "$k" = "$sel" ] && [ "${PCW[$id]["qon"]}" != 1 ]; then
+			console pen "$DT_SELINK" "$DT_ACTIVE"
+		else
+			console pen "$DT_INK" "$DT_FACE"
+		fi
+		console put -p "w$id" "$r" 0 "$nm"
+		dt_wreg "$id" "$r" 0 "$lw" "row:$k"
+		r=$((r + 1))
+		k=$((k + 1))
+	done
+	[ "$nl" -gt "$vis" ] && dt_scrollbar "$id" 2 $((lw - 1)) "$vis" "$nl" "$vis" "$top"
+	console pen "$DT_DIM" "$DT_FACE"
+	console fill -p "w$id" 1 "$lw" $((h - 2)) 1 "${GL[vline]}"
+	if i := pe_at "$id" "$sel"; then
+		contacts_detail "$id" "$i" $((lw + 2)) $((w - lw - 3)) "$h"
+	fi
+	st=
+	for s in "${PE_SRVS[@]}"; do
+		if pe_running "$s" > /dev/null; then
+			local n
+			n := pe_running "$s"
+			st := pe_joblast "$n"
+			st="Syncing $s${st:+: $st}"
+			dt_want 700
+			break
+		fi
+		[ -n "${PCW["status$s"]}" ] && st="$s: ${PCW["status$s"]}"
+	done
+	console pen "$DT_DIM" "$DT_FACE"
+	st := str pad " $PE_N people${st:+ ${GL[dot]} $st}" "$w"
+	console put -p "w$id" $((h - 1)) 0 "${st:0:$w}"
+}
+
+# The person chosen, on the right: name large, then each email -- a click
+# writes to it -- phones, organisation and note.
+fn contacts_detail(int id, int i, int c, int w, int h) {
+	local r=1 nm v org note k
+	local -a ems ts
+
+	nm := pe_f "$i" fn
+	org := pe_f "$i" org
+	console pen "$DT_INK" "$DT_FACE" bold
+	console put -p "w$id" "$r" "$c" "${nm:0:$w}"
+	r=$((r + 1))
+	if [ -n "$org" ]; then
+		console pen "$DT_DIM" "$DT_FACE"
+		console put -p "w$id" "$r" "$c" "${org:0:$w}"
+		r=$((r + 1))
+	fi
+	r=$((r + 1))
+	v := pe_f "$i" emails
+	IFS=$'\t' read -ra ems <<< "$v"
+	for k in "${!ems[@]}"; do
+		[ -n "${ems[$k]}" ] || continue
+		console pen "$DT_DIM" "$DT_FACE"
+		console put -p "w$id" "$r" "$c" "email"
+		console pen "$DT_ACTIVE" "$DT_FACE" underline
+		console put -p "w$id" "$r" $((c + 7)) "${ems[$k]:0:$((w - 7))}"
+		dt_wreg "$id" "$r" $((c + 7)) "${#ems[$k]}" "mail:$k"
+		r=$((r + 1))
+	done
+	v := pe_f "$i" tels
+	IFS=$'\t' read -ra ts <<< "$v"
+	for k in "${ts[@]}"; do
+		[ -n "$k" ] || continue
+		console pen "$DT_DIM" "$DT_FACE"
+		console put -p "w$id" "$r" "$c" "phone"
+		console pen "$DT_INK" "$DT_FACE"
+		console put -p "w$id" "$r" $((c + 7)) "${k:0:$((w - 7))}"
+		r=$((r + 1))
+	done
+	note := pe_f "$i" note
+	if [ -n "$note" ] && [ "$r" -lt $((h - 3)) ]; then
+		r=$((r + 1))
+		console pen "$DT_DIM" "$DT_FACE"
+		console put -p "w$id" "$r" "$c" "note"
+		console pen "$DT_INK" "$DT_FACE"
+		while [ -n "$note" ] && [ "$r" -lt $((h - 2)) ]; do
+			console put -p "w$id" "$r" $((c + 7)) "${note:0:$((w - 7))}"
+			note=${note:$((w - 7))}
+			r=$((r + 1))
+		done
+	fi
+}
+
+# Write to a contact's email in Mail.
+fn pe_mail(int i, int k) {
+	local v nm
+	local -a ems
+
+	v := pe_f "$i" emails
+	nm := pe_f "$i" fn
+	IFS=$'\t' read -ra ems <<< "$v"
+	[ -n "${ems[$k]}" ] || return 0
+	if dt_has mlc_to; then
+		mlc_to "${nm:+$nm <}${ems[$k]}${nm:+>}"
+	else
+		dt_notep high "Mail is not here to write with"
+	fi
+}
+
+fn contacts_key(int id, key) {
+	local nl=${PCW[$id]["nl"]:-0} sel=${PCW[$id]["sel"]:-0} r i
+
+	if [ "${PCW[$id]["qon"]}" = 1 ]; then
+		case $key in
+		enter | down | tab) PCW[$id]["qon"]=; return 0 ;;
+		escape)
+			PCW[$id]["qon"]=
+			PCW[$id]["q"]=
+			PCW[$id]["qbuf"]=
+			PCW[$id]["qcur"]=0
+			pe_filter "$id"
+			return 0
+			;;
+		esac
+		r := dt_textkey "${PCW[$id]["qbuf"]}" "${PCW[$id]["qcur"]}" "$key" || return 1
+		PCW[$id]["qbuf"]=${r% *}
+		PCW[$id]["qcur"]=${r##* }
+		PCW[$id]["q"]=${PCW[$id]["qbuf"]}
+		PCW[$id]["sel"]=0
+		pe_filter "$id"
+		return 0
+	fi
+	case $key in
+	up | k) [ "$sel" -gt 0 ] && PCW[$id]["sel"]=$((sel - 1)) ;;
+	down | j) [ "$sel" -lt $((nl - 1)) ] && PCW[$id]["sel"]=$((sel + 1)) ;;
+	pageup) sel=$((sel - ${PCW[$id]["vis"]:-10})); [ "$sel" -lt 0 ] && sel=0; PCW[$id]["sel"]=$sel ;;
+	pagedown) sel=$((sel + ${PCW[$id]["vis"]:-10})); [ "$sel" -ge "$nl" ] && sel=$((nl > 0 ? nl - 1 : 0)); PCW[$id]["sel"]=$sel ;;
+	home) PCW[$id]["sel"]=0 ;;
+	end) PCW[$id]["sel"]=$((nl > 0 ? nl - 1 : 0)) ;;
+	/) PCW[$id]["qon"]=1; PCW[$id]["qcur"]=${#PCW[$id]["qbuf"]} ;;
+	n) pedit_show "" ;;
+	e | enter) i := pe_at "$id" "$sel" && pedit_show "$i" ;;
+	m) i := pe_at "$id" "$sel" && pe_mail "$i" 0 ;;
+	"#" | delete) [ "$nl" -gt 0 ] && pe_delask "$id" ;;
+	R | f5) pe_sync; dt_notep low "Syncing contacts${GL[ellipsis]}" ;;
+	*) return 1 ;;
+	esac
+	return 0
+}
+
+fn contacts_click(int? id = "", int? r = "", int? c = "", btn = "") {
+	local tag i
+
+	tag := dt_hit "$id" "$r" "$c" || return 0
+	case $tag in
+	search) PCW[$id]["qon"]=1; PCW[$id]["qcur"]=${#PCW[$id]["qbuf"]} ;;
+	row:*)
+		PCW[$id]["qon"]=
+		if [ "${PCW[$id]["sel"]}" = "${tag#row:}" ] && [ "$btn" = double ]; then
+			i := pe_at "$id" "${tag#row:}" && pedit_show "$i"
+		fi
+		PCW[$id]["sel"]=${tag#row:}
+		;;
+	mail:*) i := pe_at "$id" "${PCW[$id]["sel"]:-0}" && pe_mail "$i" "${tag#mail:}" ;;
+	esac
+}
+
+fn contacts_wheel(int id, act, int r, int c) {
+	local nl=${PCW[$id]["nl"]:-0} sel=${PCW[$id]["sel"]:-0}
+
+	case $act in
+	wheelup) sel=$((sel - 3)) ;;
+	wheeldown) sel=$((sel + 3)) ;;
+	esac
+	[ "$sel" -ge "$nl" ] && sel=$((nl - 1))
+	[ "$sel" -lt 0 ] && sel=0
+	PCW[$id]["sel"]=$sel
+}
+
+contacts_menus() {
+	dt_menu "File"
+	dt_item "New Contact" n pedit_show ""
+	dt_item "Sync Now" s pe_sync
+	dt_sep
+	dt_item "Close Window" w dt_close_focused
+	dt_editmenu
+	dt_menu "Contact"
+	dt_item "Edit${GL[ellipsis]}" e contacts_key "$DT_FOCUS" e
+	dt_item "Write an Email" m contacts_key "$DT_FOCUS" m
+	dt_item "Remove${GL[ellipsis]}" r contacts_key "$DT_FOCUS" "#"
+	dt_sep
+	dt_item "Search${GL[ellipsis]}" f contacts_key "$DT_FOCUS" /
+}
+
+# --- the editor ---------------------------------------------------------------
+
+PE_FIELDS=(name emails tels org note)
+PE_ORDER=(name emails tels org note ok cancel)
+
+# Open the editor on a contact (its list position), or empty for a new one.
+fn pedit_show(i = "") {
+	local id h=16 w=64 k
+
+	[ "$w" -gt $((DT_COLS - 2)) ] && w=$((DT_COLS - 2))
+	pe_servers || { dt_notep high "Choose a server for contacts first, in Control Panel > Calendars & Contacts"; return 0; }
+	if [ -n "$i" ]; then
+		id := dt_new "Edit Contact" "$h" "$w" $(((DT_ROWS - h) / 2)) $(((DT_COLS - w) / 2)) pedit
+		PED[$id]["srv"]=${PE[$i]["srv"]}
+		for k in href coll uid etag org note; do
+			PED[$id]["$k"] := pe_f "$i" "$k"
+		done
+		PED[$id]["name"] := pe_f "$i" fn
+		k := pe_f "$i" emails
+		PED[$id]["emails"]=${k//$'\t'/, }
+		k := pe_f "$i" tels
+		PED[$id]["tels"]=${k//$'\t'/, }
+	else
+		id := dt_new "New Contact" "$h" "$w" $(((DT_ROWS - h) / 2)) $(((DT_COLS - w) / 2)) pedit
+		PED[$id]["srv"]=${PE_SRVS[0]}
+		for k in href coll uid etag name emails tels org note; do PED[$id]["$k"]=; done
+	fi
+	for k in "${PE_FIELDS[@]}"; do PED[$id]["${k}cur"]=${#PED[$id]["$k"]}; done
+	PED[$id]["focus"]=name
+	return 0
+}
+
+# Every editor starts as an empty new contact, however it was opened;
+# pedit_show fills in the one being edited after.
+fn pedit_open(int id, arg = "") {
+	local k
+
+	pe_servers
+	PED[$id]["srv"]=${PE_SRVS[0]}
+	for k in href coll uid etag name emails tels org note; do PED[$id]["$k"]=; done
+	for k in "${PE_FIELDS[@]}"; do PED[$id]["${k}cur"]=0; done
+	PED[$id]["focus"]=name
+	return 0
+}
+
+fn pedit_draw(int id, int h, int w, int row, int col) {
+	local f=${PED[$id]["focus"]} r=1 k fw=$((w - 16)) on
+	local -A labs=([name]="Name:" [emails]="Emails:" [tels]="Phones:" [org]="Organisation:" [note]="Note:")
+
+	dt_wclear "$id"
+	for k in "${PE_FIELDS[@]}"; do
+		console pen "$DT_INK" "$DT_FACE"
+		console put -p "w$id" "$r" 2 "${labs[$k]}"
+		on=0
+		[ "$f" = "$k" ] && on=1
+		dt_textdraw "$id" "$r" 15 "$fw" "${PED[$id]["$k"]}" "${PED[$id]["${k}cur"]}" "$on"
+		dt_wreg "$id" "$r" 15 "$fw" "$k"
+		r=$((r + 2))
+	done
+	console pen "$DT_DIM" "$DT_FACE"
+	console put -p "w$id" "$r" 2 "Several emails or phones: separate them with commas."
+	console put -p "w$id" $((r + 1)) 2 "Kept in ${PED[$id]["srv"]}'s address book."
+	dt_dlgbtns "$id" "$h" "$w" "$f" ok Save cancel Cancel
+}
+
+fn pedit_key(int id, key) {
+	local f=${PED[$id]["focus"]} d onb=1 res
+
+	case $f in name | emails | tels | org | note) onb=0 ;; esac
+	if d := dt_focuskey "$key" "$onb"; then
+		PED[$id]["focus"] := dt_focus "$f" "$d" "${PE_ORDER[@]}"
+		return 0
+	fi
+	case $key in
+	escape) dt_del "$id"; return 0 ;;
+	enter)
+		case $f in
+		ok | cancel) pedit_do "$id" "$f" ;;
+		*) PED[$id]["focus"] := dt_focus "$f" 1 "${PE_ORDER[@]}" ;;
+		esac
+		return 0
+		;;
+	" ") case $f in ok | cancel) pedit_do "$id" "$f"; return 0 ;; esac ;;
+	esac
+	case $f in name | emails | tels | org | note) ;; *) return 1 ;; esac
+	res := dt_textkey "${PED[$id]["$f"]}" "${PED[$id]["${f}cur"]}" "$key" || return 1
+	PED[$id]["$f"]=${res% *}
+	PED[$id]["${f}cur"]=${res##* }
+	return 0
+}
+
+fn pedit_click(int? id = "", int? r = "", int? c = "", btn = "") {
+	local tag cur
+
+	tag := dt_hit "$id" "$r" "$c" || return 0
+	case $tag in
+	name | emails | tels | org | note)
+		PED[$id]["focus"]=$tag
+		cur=$((c - 15))
+		[ "$cur" -gt "${#PED[$id]["$tag"]}" ] && cur=${#PED[$id]["$tag"]}
+		[ "$cur" -lt 0 ] && cur=0
+		PED[$id]["${tag}cur"]=$cur
+		;;
+	*) PED[$id]["focus"]=$tag; pedit_do "$id" "$tag" ;;
+	esac
+}
+
+fn pedit_close(int id) { unset PED["$id"]; return 0; }
+
+# Save or cancel.
+fn pedit_do(int id, what) {
+	case $what in
+	cancel) dt_del "$id" ;;
+	ok)
+		if [ -z "${PED[$id]["name"]// /}" ] && [ -z "${PED[$id]["emails"]// /}" ]; then
+			dt_notep high "A contact needs a name or an email"
+			return 0
+		fi
+		pe_put "${PED[$id]["href"]}" "${PED[$id]["srv"]}" "${PED[$id]["coll"]}" "${PED[$id]["uid"]}" \
+			"${PED[$id]["etag"]}" "${PED[$id]["name"]:-${PED[$id]["emails"]%%,*}}" \
+			"${PED[$id]["emails"]}" "${PED[$id]["tels"]}" "${PED[$id]["org"]}" "${PED[$id]["note"]}" &&
+			dt_notep low "Saved; the server has it at the next sync"
+		dt_del "$id"
+		;;
+	esac
+}

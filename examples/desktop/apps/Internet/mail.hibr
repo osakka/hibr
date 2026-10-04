@@ -24,7 +24,7 @@ strict
 app mail "Email, offline, labels and conversations as Gmail has them"
 
 command -v dt_app > /dev/null && dt_app mail "Mail" 26 100 many "✉"
-command -v dt_app > /dev/null && dt_app mailc "New Message" 22 76 many "" "" "" hidden
+command -v dt_app > /dev/null && dt_app mailc "New Message" 22 76 many "" "" hidden
 
 ML_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/hibr/mail"
 ML_LIB=${BASH_SOURCE%/*}/../../lib
@@ -1247,6 +1247,7 @@ mail_menus() {
 	dt_item "Delete" d ml_act "$id" trash
 	dt_item "Report Spam" s ml_act "$id" spam
 	dt_item "Star" t ml_star "$id"
+	dt_item "Add Sender to Contacts" o ml_addsender "$id"
 	dt_item "Mark as Read" m ml_act "$id" seen
 	dt_item "Mark as Unread" u ml_act "$id" unseen
 	dt_item "Label${GL[ellipsis]}" l ml_labelask "$id"
@@ -1290,15 +1291,107 @@ fn ml_latest(int id, notme = "") {
 	ret "$best"
 }
 
+# A new message to someone, from Contacts or wherever an address is: in
+# the first Mail window's account, or the first account there is.
+fn mlc_to(addr) { mlc_new "" new "$addr"; }
+
+# Everyone Mail has had a message from, "Name <address>", into ML_TOP --
+# for finishing an address as it is typed, with Contacts' own. The
+# accounts' own addresses are left out.
+ml_people() {
+	local a i k e nm
+	local -A seen me
+
+	ML_TOP=()
+	if [ "${#MLN[@]}" = 0 ] && ml_accounts; then
+		for a in "${ML_ACCTS[@]}"; do ml_load "$a"; done
+	fi
+	for a in "${!MLME[@]}"; do me["${MLME["$a"],,}"]=1; done
+	for a in "${!MLN[@]}"; do
+		i=0
+		while [ "$i" -lt "${MLN["$a"]:-0}" ]; do
+			e=${ML["$a"][$i]["faddr"]}
+			k=${e,,}
+			if [ -n "$e" ] && [ -z "${seen["$k"]}" ] && [ -z "${me["$k"]}" ]; then
+				seen["$k"]=1
+				nm=${ML["$a"][$i]["fname"]}
+				if [ -n "$nm" ] && [ "$nm" != "$e" ]; then ML_TOP+=("$nm <$e>"); else ML_TOP+=("$e"); fi
+			fi
+			i=$((i + 1))
+		done
+	done
+	return 0
+}
+
+# The selected conversation's sender, added to Contacts.
+fn ml_addsender(int id) {
+	local acct=${MW[$id]["acct"]} i
+
+	i := ml_latest "$id" "${MLME["$acct"]}" || return 0
+	if dt_has pe_add; then
+		pe_add "${ML["$acct"][$i]["fname"]}" "${ML["$acct"][$i]["faddr"]}"
+	else
+		dt_notep high "Contacts is not here to add to"
+	fi
+}
+
+# The part of an address field being typed: what follows its last comma.
+fn mlc_token(text) {
+	local t=${text##*,}
+
+	t=${t# }
+	ret "$t"
+}
+
+# Look for people matching what is being typed in an address field, and
+# keep them for mailc_draw to offer.
+fn mlc_suggest(int id) {
+	local f=${MC[$id]["focus"]} t
+
+	MC[$id]["sugg"]=
+	MC[$id]["ssel"]=0
+	case $f in to | cc | bcc) ;; *) return 0 ;; esac
+	t := mlc_token "${MC[$id]["$f"]}"
+	[ "${#t}" -ge 1 ] || return 0
+	dt_has pe_suggest || return 0
+	pe_suggest "$t" || return 0
+	local IFS=$'\n'
+	MC[$id]["sugg"]="${PE_HITS[*]}"
+}
+
+# Take a suggestion: it replaces what was being typed, a comma after it for
+# the next.
+fn mlc_accept(int id, int k) {
+	local f=${MC[$id]["focus"]} pre v
+	local -a ss
+
+	IFS=$'\n' read -d '' -ra ss <<< "${MC[$id]["sugg"]}"
+	[ -n "${ss[$k]}" ] || return 0
+	v=${MC[$id]["$f"]}
+	pre=
+	[[ $v == *,* ]] && pre="${v%,*}, "
+	MC[$id]["$f"]="$pre${ss[$k]}, "
+	MC[$id]["${f}cur"]=${#MC[$id]["$f"]}
+	MC[$id]["sugg"]=
+	MC[$id]["ssel"]=0
+}
+
 # Open a message window: new, or a reply, a reply to all or a forward of
 # the conversation selected in a Mail window -- its fields filled, the
 # message it answers quoted. A reply answers the newest message someone
 # else sent; when every one is the account's own, it goes to whoever the
 # newest was sent to.
-fn mlc_new(int from, mode) {
-	local acct=${MW[$from]["acct"]} r i f id h=22 w=76 me full body= subj= to= cc= ref= irt= d q line k
+fn mlc_new(int? from = "", mode = new, toaddr = "") {
+	local acct= r i f id h=22 w=76 me full body= subj= to= cc= ref= irt= d q line k
 	local -a ls
 
+	[ -n "$from" ] && acct=${MW[$from]["acct"]}
+	if [ -z "$acct" ]; then
+		for k in "${!MW[@]}"; do
+			[ -n "${MW[$k]["acct"]}" ] && { acct=${MW[$k]["acct"]}; break; }
+		done
+	fi
+	[ -n "$acct" ] || { ml_accounts && acct=${ML_ACCTS[0]}; }
 	[ -n "$acct" ] || { dt_notep high "Set up a mail account first, in Control Panel > Mail"; return 0; }
 	[ "$w" -gt $((DT_COLS - 2)) ] && w=$((DT_COLS - 2))
 	[ "$h" -gt $((DT_ROWS - 2)) ] && h=$((DT_ROWS - 2))
@@ -1347,6 +1440,7 @@ fn mlc_new(int from, mode) {
 			esac
 		fi
 	fi
+	[ -n "$toaddr" ] && to=$toaddr
 	[ -n "$DT_MAILSIG" ] && body+=$'\n\n'"-- "$'\n'"$DT_MAILSIG"
 	id := dt_new "${subj:-New Message}" "$h" "$w" $(((DT_ROWS - h) / 2)) $(((DT_COLS - w) / 2)) mailc
 	MC[$id]["acct"]=$acct
@@ -1438,6 +1532,7 @@ fn mailc_draw(int id, int h, int w, int row, int col) {
 	elif [ -n "$att" ]; then
 		console put -p "w$id" "$r" 1 "${att:0:$((w - 2))}"
 	fi
+	mlc_drawsugg "$id" "$fw"
 	if [ -n "${MC[$id]["sending"]}" ]; then
 		dt_dlgbtns "$id" "$h" "$w" "" wait "Sending${GL[ellipsis]}"
 	else
@@ -1445,10 +1540,43 @@ fn mailc_draw(int id, int h, int w, int row, int col) {
 	fi
 }
 
+# The people offered for the address being typed, in a box under its
+# field, the chosen one lit; each can be clicked.
+fn mlc_drawsugg(int id, int fw) {
+	local f=${MC[$id]["focus"]} r k=0 s
+	local -a ss
+
+	[ -n "${MC[$id]["sugg"]}" ] || return 0
+	case $f in to) r=2 ;; cc) r=3 ;; bcc) r=4 ;; *) return 0 ;; esac
+	IFS=$'\n' read -d '' -ra ss <<< "${MC[$id]["sugg"]}"
+	for s in "${ss[@]}"; do
+		if [ "$k" = "${MC[$id]["ssel"]:-0}" ]; then
+			console pen "$DT_SELINK" "$DT_ACTIVE"
+		else
+			console pen "$DT_INK" "$DT_WELL"
+		fi
+		s := str pad " ${s:0:$((fw - 2))}" "$fw"
+		console put -p "w$id" $((r + k)) 10 "$s"
+		dt_wreg "$id" $((r + k)) 10 "$fw" "sugg:$k"
+		k=$((k + 1))
+	done
+}
+
 fn mailc_key(int id, key) {
-	local f=${MC[$id]["focus"]} d res onb=1
+	local f=${MC[$id]["focus"]} d res onb=1 ns
+	local -a ss
 
 	[ -n "${MC[$id]["sending"]}" ] && return 0
+	if [ -n "${MC[$id]["sugg"]}" ]; then
+		IFS=$'\n' read -d '' -ra ss <<< "${MC[$id]["sugg"]}"
+		ns=${#ss[@]}
+		case $key in
+		down) MC[$id]["ssel"]=$(( (${MC[$id]["ssel"]:-0} + 1) % ns )); return 0 ;;
+		up) MC[$id]["ssel"]=$(( (${MC[$id]["ssel"]:-0} + ns - 1) % ns )); return 0 ;;
+		tab | enter) mlc_accept "$id" "${MC[$id]["ssel"]:-0}"; return 0 ;;
+		escape) MC[$id]["sugg"]=; return 0 ;;
+		esac
+	fi
 	case $f in to | cc | bcc | subj) onb=0 ;; body) onb=2 ;; esac
 	if [ "$f" = body ]; then
 		case $key in
@@ -1460,6 +1588,7 @@ fn mailc_key(int id, key) {
 		return 0
 	fi
 	if d := dt_focuskey "$key" "$((onb == 1 ? 1 : 0))"; then
+		MC[$id]["sugg"]=
 		MC[$id]["focus"] := dt_focus "$f" "$d" "${MC_ORDER[@]}"
 		return 0
 	fi
@@ -1479,6 +1608,7 @@ fn mailc_key(int id, key) {
 	MC[$id]["$f"]=${res% *}
 	MC[$id]["${f}cur"]=${res##* }
 	[ "$f" = subj ] && dt_retitle "$id" "${MC[$id]["subj"]:-New Message}"
+	mlc_suggest "$id"
 	return 0
 }
 
@@ -1488,6 +1618,7 @@ fn mailc_click(int? id = "", int? r = "", int? c = "", btn = "") {
 	tag := dt_hit "$id" "$r" "$c" || return 0
 	case $tag in
 	to | cc | bcc | subj)
+		MC[$id]["sugg"]=
 		MC[$id]["focus"]=$tag
 		cur=$((c - 10))
 		[ "$cur" -gt "${#MC[$id]["$tag"]}" ] && cur=${#MC[$id]["$tag"]}
@@ -1495,14 +1626,22 @@ fn mailc_click(int? id = "", int? r = "", int? c = "", btn = "") {
 		MC[$id]["${tag}cur"]=$cur
 		;;
 	body) MC[$id]["focus"]=body ;;
+	sugg:*) mlc_accept "$id" "${tag#sugg:}" ;;
 	*) mlc_do "$id" "$tag" ;;
 	esac
 }
 
 fn mailc_mouse(int id, act, btn, int r, int c, mods = "") {
-	[ "${MC[$id]["focus"]}" = body ] || return 0
-	[ "$r" -ge "${MC[$id]["br0"]:-6}" ] && [ "$r" -lt $(( ${MC[$id]["br0"]:-6} + ${MC[$id]["bh"]:-10} )) ] || return 0
-	tb_mouse "$id" "$act" "$btn" "$r" "$c" "$mods"
+	local b0=${MC[$id]["br0"]:-6} bh=${MC[$id]["bh"]:-10}
+
+	if [ "$r" -ge "$b0" ] && [ "$r" -lt $((b0 + bh)) ]; then
+		MC[$id]["focus"]=body
+		MC[$id]["sugg"]=
+		tb_mouse "$id" "$act" "$btn" "$r" "$c" "$mods"
+		return 0
+	fi
+	[ "$act" = press ] && mailc_click "$id" "$r" "$c" "$btn"
+	return 0
 }
 
 fn mailc_wheel(int id, dir, int r = 0, int c = 0) {
