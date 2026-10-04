@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.99.40
+
+**Calendar and Contacts point to Control Panel > PIM.** Their notes and
+empty-window hints still named the pane by its old name, Calendars &
+Contacts; the rename in 0.99.38 had left them out.
+
 ## 0.99.39
 
 **The desktop has a control socket.** A program can ask a held desktop

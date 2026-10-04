@@ -7,7 +7,7 @@
 # phones, address, organisation and note. n adds someone, e or enter
 # edits, # or delete removes, / searches, j and k move, R syncs now.
 #
-# Which servers are used is Control Panel > Calendars & Contacts, from the
+# Which servers are used is Control Panel > PIM, from the
 # Network Servers list; each is kept under ~/.local/share/hibr/pim/SERVER
 # by lib/pimsync.hibr, run in the background -- the only thing that writes
 # there. A change made here is made to the list at once and queued for the
@@ -167,7 +167,7 @@ fn pe_suggest(prefix) {
 fn pe_add(name, addr) {
 	local s
 
-	pe_servers || { dt_notep high "Choose a server for contacts first, in Control Panel > Calendars & Contacts"; return 1; }
+	pe_servers || { dt_notep high "Choose a server for contacts first, in Control Panel > PIM"; return 1; }
 	s=${PE_SRVS[0]}
 	pe_put "" "$s" "" "" "" "${name:-$addr}" "$addr" "" "" ""
 	dt_notep low "Added ${name:-$addr} to Contacts"
@@ -297,7 +297,7 @@ fn contacts_draw(int id, int h, int w, int row, int col) {
 	if ! pe_servers; then
 		console pen "$DT_DIM" "$DT_FACE"
 		console put -p "w$id" 3 2 "No server chosen for contacts yet."
-		console put -p "w$id" 4 2 "Control Panel > Calendars & Contacts chooses one"
+		console put -p "w$id" 4 2 "Control Panel > PIM chooses one"
 		console put -p "w$id" 5 2 "from the Network Servers list."
 		return 0
 	fi
@@ -516,7 +516,7 @@ fn pedit_show(i = "") {
 	local id h=16 w=64 k
 
 	[ "$w" -gt $((DT_COLS - 2)) ] && w=$((DT_COLS - 2))
-	pe_servers || { dt_notep high "Choose a server for contacts first, in Control Panel > Calendars & Contacts"; return 0; }
+	pe_servers || { dt_notep high "Choose a server for contacts first, in Control Panel > PIM"; return 0; }
 	if [ -n "$i" ]; then
 		id := dt_new "Edit Contact" "$h" "$w" $(((DT_ROWS - h) / 2)) $(((DT_COLS - w) / 2)) pedit
 		PED[$id]["srv"]=${PE[$i]["srv"]}

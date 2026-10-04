@@ -9,7 +9,7 @@
 # day's list, c makes an event on the chosen day, enter makes one there or
 # edits the one chosen in the list, # removes it, R syncs now.
 #
-# The servers are Contacts' -- Control Panel > Calendars & Contacts -- and
+# The servers are Contacts' -- Control Panel > PIM -- and
 # lib/pimsync.hibr keeps their calendars under
 # ~/.local/share/hibr/pim/SERVER: each event's file, and every occurrence
 # from a year back to two years on, which this reads by date. A change
@@ -298,7 +298,7 @@ fn calendar_draw(int id, int h, int w, int row, int col) {
 	if ! pe_servers; then
 		console pen "$DT_DIM" "$DT_FACE"
 		console put -p "w$id" 1 2 "No server chosen for calendars yet."
-		console put -p "w$id" 2 2 "Control Panel > Calendars & Contacts chooses one"
+		console put -p "w$id" 2 2 "Control Panel > PIM chooses one"
 		console put -p "w$id" 3 2 "from the Network Servers list."
 		return 0
 	fi
@@ -791,7 +791,7 @@ fn cedit_show(int from, i = "") {
 	[ "$w" -gt $((DT_COLS - 2)) ] && w=$((DT_COLS - 2))
 	cv_cals
 	if [ "${CVK["n"]:-0}" = 0 ]; then
-		dt_notep high "No calendar yet: choose a server in Control Panel > Calendars & Contacts, then sync"
+		dt_notep high "No calendar yet: choose a server in Control Panel > PIM, then sync"
 		return 0
 	fi
 	if [ -n "$i" ]; then
@@ -1361,7 +1361,7 @@ fn cv_act(acct, ics, act) {
 	title=${r[0]["summary"]:-An event}
 	st=${r[0]["start"]}
 	if ! dest := cv_dest "$uid"; then
-		dt_notep high "No calendar yet: choose a server in Control Panel > Calendars & Contacts, then sync"
+		dt_notep high "No calendar yet: choose a server in Control Panel > PIM, then sync"
 		return 1
 	fi
 	IFS=$'\t' read -ra ds <<< "$dest"
