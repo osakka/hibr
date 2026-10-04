@@ -224,8 +224,16 @@ scrollbar, a slider's knob, a sort arrow, a menu's tick -- is named in
 literal `│`. Appearance > Glyphs picks the set: **unicode**, the default,
 or **ascii**, which draws the same desktop in plain characters (`+-|`, `#`,
 `[ Title ]`) for a terminal or a font without the others -- a Linux
-console, an older ssh client. The icon each app and pane chooses for
-itself stays as its own `dt_app` or `cp_pane` line writes it.
+console, an older ssh client -- or **nerd**, for a terminal whose font is
+a Nerd Font (FiraCode, JetBrains Mono, Hack... Nerd Font Mono): folders,
+files, home, disks, the trash, ticks, stars and flags become the font's own
+icons, and everything it has no icon for stays unicode. No terminal can be
+asked what font it uses, so this one is chosen, never guessed; with an
+ordinary font its icons draw as empty boxes. The icon each app and pane
+chooses for itself stays as its own `dt_app` or `cp_pane` line writes it.
+
+Checkboxes (Appearance > Controls > Checkboxes) are a box `[x]`, a knob,
+a block, or a tick `[✓]`, or what the theme suggests.
 
 ## The wallpaper
 
@@ -598,7 +606,11 @@ asking, `R` syncs now; the File and Contact menus have the same.
 
 A server is one of the Network Servers (Control Panel > Network Servers:
 its address and an app password), switched on for this in Control Panel >
-Calendars & Contacts, which also says how often to sync. A background job
+PIM, which also says how often to sync. One list of servers serves Files as
+well, since a Nextcloud or Fastmail account is one address and one login for
+files, calendars and contacts; PIM asks each server once what it keeps and
+lists a plain file server as files only, so only servers with calendars or
+contacts can be switched on. Add Server… there opens Network Servers. A background job
 (`examples/desktop/lib/pimsync.hibr`) finds the address books from the
 server's `.well-known` address, keeps each up to date with its sync token,
 and is the only thing that writes the copy in
@@ -1289,8 +1301,6 @@ In `examples/desktop/apps/`, each one also a file you can read in a sitting:
 | `sheet` | a spreadsheet whose formulas are hibr, in Office. A cell holds text, a number, or `=` and hibr: what a formula prints is its value (`=math "A1 * 1.2"`, `=sum "${B1_B9[@]}"`), and one that is an expansion is that (`=$((A1 * 2))`). Every cell a formula names is a variable holding its value, a range `A1_B9` an array; formulas are worked out in the order they need each other, and one that needs itself says `#CYCLE`. They run in a hibr of their own under `--plan`, with two seconds of CPU and ten of the clock: they compute and read, and what would write, connect or start a program says `#REFUSED` with what it would have done -- Sheet > Trust This Sheet lets one sheet's run for real, remembered on this machine, never in the file. A sheet is a `db` file (`.hsheet`), one row per cell, written as it changes; Save As copies it. Typing replaces a cell, enter or f2 edits it, delete clears the selection, a column's header edge drags its width, and the Sheet menu inserts and deletes rows and columns, the formulas following the cells they name. CSV in and out from File. The Format menu works on the selection: bold, italic, a text colour and a fill from the theme's roles, alignment, decimals, thousands, percent and currency (`SS_CURRENCY`, `$` unless set), a bottom or right border, a rule that colours a number by its value (Negatives Bad, Positives Good, or Rule... for `> 100 good`), and frozen top rows and left columns. Sheets live in `SS_DIR`, `~/.local/share/hibr/sheets` unless set |
 | `browser` | the web, in Internet: a headless Chromium driven by the `web` module, each page drawn as cells -- its text where it was laid out, in its colours, over a half-block picture of backgrounds and images. A tab strip (click to switch, the x to close, + for another), back, forward, reload and the address bar: f6 or ctrl-l puts the keyboard there, enter goes -- a bare name gets https://, anything not an address is searched for (`BW_SEARCH`). Clicks follow links and focus fields, typing goes to the page, the wheel scrolls, alt-left and alt-right go back and forward. Bookmarks > Add Bookmark keeps a page in `~/.local/share/hibr/bookmarks.tsv`, a title and an address a line; the rest of that menu goes to one. Needs Chromium or Chrome (`HIBR_WEB_BROWSER`) |
 | `mail` | mail, laid out like Gmail and kept offline: IMAP with push and labels, POP3, SMTP -- see Mail above |
-| `contacts` | address books kept offline from CardDAV, searchable, edited here and synced back; Mail finishes addresses from them -- see Contacts above |
-| `calendar` | calendars kept offline from CalDAV, a month or an agenda at a time, with reminders and invitations sent and answered through Mail -- see Calendar above |
 | `tasks` | every process, name, CPU% and memory, sorted by either (`c`, `m`); `x` ends the selected one, `shift-x` forces it |
 
 ## Desk Accessories
@@ -1319,6 +1329,8 @@ The bundled accessories live in `examples/desktop/desk-accessories/`:
 | `clipboard` | the clipboard's history: see Copy and paste |
 | `screenshot` | takes one: see Screenshots |
 | `puzzle` | the sliding tile puzzle, 4 by 4. Arrows or a click move the gap; shuffled by real moves from solved, so it is always solvable |
+| `calendar` | calendars kept offline from CalDAV, a month or an agenda at a time, with reminders and invitations sent and answered through Mail -- see Calendar above |
+| `contacts` | address books kept offline from CardDAV, searchable, edited here and synced back; Mail finishes addresses from them -- see Contacts above |
 
 ## Control Strip
 

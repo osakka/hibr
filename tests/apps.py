@@ -291,7 +291,7 @@ check("panes register and sort by title within their group, not load order",
       ORDER == ["datetime", "displays", "keyboard", "mouse",
                 "aboutme", "appearance", "cliphist", "control_strip", "desktop",
                 "filetypes", "network", "notify", "screensaver", "shortcuts", "windows",
-                "abouthibr", "pimset", "filesview", "mailset", "notes", "taskmgr", "terminal", "tube"], out)
+                "abouthibr", "filesview", "mailset", "pimset", "notes", "taskmgr", "terminal", "tube"], out)
 check("Hardware first, then the desktop's own panes, then one per app",
       [GROUP[n] for n in ORDER] ==
       ["hardware"] * 4 + ["system"] * 11 + ["app"] * 8, out)
@@ -319,7 +319,7 @@ TITLE = {"aboutme": "About Me", "appearance": "Appearance", "control_strip": "Co
          "keyboard": "Keyboard", "mouse": "Mouse",
          "shortcuts": "Shortcuts", "notify": "Notifications",
          "windows": "Windows", "abouthibr": "About hibr",
-         "filesview": "Files", "mailset": "Mail", "pimset": "Calendars", "taskmgr": "Task Manager",
+         "filesview": "Files", "mailset": "Mail", "pimset": "PIM", "taskmgr": "Task Manager",
          "terminal": "Terminal", "tube": "YouTube"}
 
 
@@ -680,22 +680,51 @@ check("a second tab leaves the pane, back to moving the picker",
       sc.find("construction") is None and
       sc.find(TITLE[ORDER[downs("appearance") + 1]]) is not None, sc)
 
-sc = cprun(DOWN_APP + [press(R0, VALCOL)])
+sc = cprun(DOWN_APP + [press(R0 + 1, VALCOL)])
 check("clicking the dropdown's own cell opens a real popup of choices",
       sc.find("construction") is not None and sc.find("meadow") is not None, sc)
-sc = cprun(DOWN_APP + [press(R0, VALCOL), press(R0 + 2, VALCOL + 3)])
+sc = cprun(DOWN_APP + [press(R0 + 1, VALCOL), press(R0 + 3, VALCOL + 3)])
 check("choosing one there applies it, the same as cycling would",
       "construction" in brow(sc, "Theme") and "hazard" in brow(sc, "Colours"), sc)
-sc = cprun(DOWN_APP + [press(R0 + 1, VALCOL)])
+sc = cprun(DOWN_APP + [press(R0 + 2, VALCOL)])
 check("the colour popup offers black, neon, phosphor and amber",
       all(sc.find(t) is not None for t in ("black", "neon", "phosphor",
                                             "amber")), sc)
-sc = cprun(DOWN_APP + [press(R0 + 1, VALCOL), press(R0 + 4, VALCOL + 3)])
+sc = cprun(DOWN_APP + [press(R0 + 2, VALCOL), press(R0 + 5, VALCOL + 3)])
 check("and choosing dracula applies it",
       "dracula" in brow(sc, "Colours") and sc.find("midnight") is None, sc)
-sc = cprun(DOWN_APP + [press(R0 + 1, VALCOL), press(R0 + 12, VALCOL + 3)])
+sc = cprun(DOWN_APP + [press(R0 + 2, VALCOL), press(R0 + 13, VALCOL + 3)])
 check("and phosphor, further down the list",
       "phosphor" in brow(sc, "Colours"), sc)
+
+# The Theme row's own buttons: Save once the look is no longer the theme's,
+# Rename and Delete for a theme of the person's own -- d deletes, asked.
+MINE = ('mkdir -p "$XDG_CONFIG_HOME/hibr/themes"\n'
+        'printf \'{"colours":"paper"}\\n\' > "$XDG_CONFIG_HOME/hibr/themes/mine.json"\n'
+        'cp_themes\ncp_theme mine\n')
+sc = cprun(DOWN_APP)
+check("the Theme row has no Save while the look is the theme's", "Save" not in brow(sc, "Theme"), sc)
+sc = cprun(DOWN_APP, post="DT_FRAME=double")
+check("and Save, after the name, once a setting has moved it away",
+      " Save " in brow(sc, "Theme") and "Rename" not in brow(sc, "Theme"), sc)
+sc = cprun(DOWN_APP, post=MINE)
+check("a theme of the person's own can be renamed and deleted there",
+      " Rename " in brow(sc, "Theme") and " Delete " in brow(sc, "Theme")
+      and "mine" in brow(sc, "Theme"), sc)
+sc = cprun(DOWN_APP + [b"\x1b[C", b"d", b"y"], post=MINE)
+check("d deletes it, after asking", b"Deleted the theme mine" in sc.out
+      and "(your own)" in brow(sc, "Theme"), sc)
+TD = tempfile.mkdtemp(prefix="hibr-looks-")
+os.makedirs(os.path.join(TD, "hibr", "themes"))
+open(os.path.join(TD, "hibr", "themes", "mine.json"), "w").write('{"colours":"paper"}')
+out = subprocess.run(
+    [sx.HIBR, "-c", CPLOAD + 'cp_save() { :; }; dt_notep() { :; }\ncp_theme mine\n'
+     'cp_themerenamed "" "%s/hibr/themes/ours"\necho "$CP_THEME ${CP_THEMES[*]}"' % TD],
+    env=dict(os.environ, XDG_CONFIG_HOME=TD), capture_output=True, text=True).stdout.strip()
+check("Rename moves the file and keeps it chosen",
+      out == "ours classic construction meadow ours" and
+      os.path.exists(os.path.join(TD, "hibr", "themes", "ours.json")), out)
+shutil.rmtree(TD, True)
 
 sc = cprun(DOWN_APP + [b"\x1b[C", b"\x1b[B", b"\x1b[B", b"\x1b[B", b"\x1b[C"])
 check("the wallpaper glyph changes, and the desktop follows",
@@ -714,7 +743,7 @@ open(os.path.join(AWHOME, "notes.txt"), "w").write("hi\n")
 os.mkdir(os.path.join(AWHOME, "sub"))
 shutil.copy(os.path.abspath("tests/img-2x2.png"),
             os.path.join(AWHOME, "sub", "deep.png"))
-DOWN_WP = reach("appearance", "Wallpaper Image")
+DOWN_WP = reach("appearance", "Image")
 # The picker window sits centred, 20 by 64, so on this 24 by 80 screen its
 # border is at row 2, column 8: a list row r is at screen row 2 + r, and
 # the list itself starts one column in.
@@ -722,12 +751,12 @@ WPCOL = 10
 
 sc = cprun(DOWN_WP)
 check("Appearance offers the wallpaper image picker as a row of its own",
-      brow(sc, "Wallpaper Image…") != "", sc)
+      brow(sc, "Image…") != "", sc)
 check("and the way an image fills the screen, stretch by default",
-      "stretch" in brow(sc, "Wallpaper Mode"), sc)
-sc = cprun(reach("appearance", "Wallpaper Mode") + [b"\x1b[C"])
+      "stretch" in brow(sc, "Mode"), sc)
+sc = cprun(reach("appearance", "Mode") + [b"\x1b[C"])
 check("which cycles to scale",
-      "scale" in brow(sc, "Wallpaper Mode"), sc)
+      "scale" in brow(sc, "Mode"), sc)
 
 sc = cprun(DOWN_WP + [b"\r"], env={"HOME": AWHOME}, extra=("files",))
 check("it lists the home directory, through files.hibr's own scan",
@@ -928,23 +957,23 @@ sc = cprun(DOWN_APP)
 check("Appearance lists three shadows under Shadows and the buttons' under "
       "Dialog Buttons, all on",
       sc.find("Shadows") is not None and sc.find("Dialog Buttons") is not None
-      and all("[x]" in brow(sc, t) for t in ("Windows", "Menus", "Menu Bar",
-                                             "Shadow")), sc)
+      and all("[x]" in brow(sc, t) for t in ("Windows", "Menus", "Bar Shadow",
+                                             "Button Shadow")), sc)
 check("dialog buttons start filled",
-      "filled" in brow(sc, "Style") and brow(sc, "Confirm Starts On") == "",
+      "filled" in brow(sc, "Dialog Buttons") and brow(sc, "Confirm Starts On") == "",
       sc)
 sc = cprun(reach("appearance", "Menus") + [b"\r"])
 check("menu shadow is its own setting, separate from window shadow",
       "[ ]" in brow(sc, "Menus") and "[x]" in brow(sc, "Windows"), sc)
-sc = cprun(reach("appearance", "Menu Bar") + [b"\r"])
+sc = cprun(reach("appearance", "Bar Shadow") + [b"\r"])
 check("bar shadow is a third, separate setting again",
-      "[ ]" in brow(sc, "Menu Bar") and "[x]" in brow(sc, "Menus"), sc)
-sc = cprun(reach("appearance", "Shadow") + [b"\r"])
+      "[ ]" in brow(sc, "Bar Shadow") and "[x]" in brow(sc, "Menus"), sc)
+sc = cprun(reach("appearance", "Button Shadow") + [b"\r"])
 check("button shadow is its own setting, on until switched off here",
-      "[ ]" in brow(sc, "Shadow") and "[x]" in brow(sc, "Menu Bar"), sc)
-sc = cprun(reach("appearance", "Style") + [b"\x1b[C"])
+      "[ ]" in brow(sc, "Button Shadow") and "[x]" in brow(sc, "Bar Shadow"), sc)
+sc = cprun(reach("appearance", "Dialog Buttons") + [b"\x1b[C"])
 check("the dialog button style steps to brackets",
-      "brackets" in brow(sc, "Style"), sc)
+      "brackets" in brow(sc, "Dialog Buttons"), sc)
 
 # What a double click on a title bar does belongs with the Mouse.
 sc = cprun(reach("mouse", "Titlebar Click"))
@@ -1268,11 +1297,11 @@ check("and the cursor cycles to underline",
 # Appearance's last row: the gap between the items on the bar's right.
 sc = cprun(DOWN_APP)
 check("Appearance has a Menu Bar Spacing slider, at 2 by default",
-      sc.find("Menu Bar Spacing (2)") is not None and
-      "●" in sc.row(sc.find("Menu Bar Spacing (2)")[0]), sc)
-sc = cprun(reach("appearance", "Menu Bar Spacing") + [b"\x1b[C"])
+      sc.find("Spacing (2)") is not None and
+      "●" in sc.row(sc.find("Spacing (2)")[0]), sc)
+sc = cprun(reach("appearance", "Spacing") + [b"\x1b[C"])
 check("and moving it widens the gap",
-      sc.find("Menu Bar Spacing (3)") is not None and
+      sc.find("Spacing (3)") is not None and
       re.search(r"⚑\S*   \d\d:\d\d   ", sc.row(0)) is not None, sc)
 sc = cprun(DOWN_APP)
 check("and a Notification Icon choice, the flag by default -- no emoji font "
@@ -1514,7 +1543,7 @@ sc = cprun([press(prow(ORDER[0]), LISTCOL), press(prow(ORDER[0]), LISTCOL)])
 check("clicking the same pane twice in the picker is harmless",
       sc.find(TITLE[ORDER[0]]) is not None, sc)
 
-sc = cprun(DOWN_APP + [press(R0, VALCOL - 10), press(R0, VALCOL - 10)])
+sc = cprun(DOWN_APP + [press(R0 + 1, VALCOL - 10), press(R0 + 1, VALCOL - 10)])
 check("a click in the pane's own body selects and a second click acts",
       "construction" in brow(sc, "Theme"), sc)
 
@@ -2002,6 +2031,11 @@ sc = run("clock", "8 24 6 10", pre="DT_GLYPHSET=ascii")
 check("in the ASCII glyph set a window is drawn in plain ASCII",
       sc.at(6, 10) == "+" and sc.at(7, 10) == "|" and sc.find("[ Clock ]") is not None,
       sc)
+out = subprocess.run([sx.HIBR, "-c", ". %s\ndt_glyphs nerd\nprintf \'%%s|%%s|%%s\\n\' \"${GL[home]}\" \"${GL[hline]}\" \"${GL[folder]}\"\n"
+                      "dt_glyphs unicode\nprintf \'%%s\\n\' \"${GL[home]}\"" % WM],
+                     capture_output=True, text=True).stdout.split("\n")
+check("the nerd set takes a Nerd Font's icons for what it has one for, and unicode's for the rest",
+      out[0] == "\uf015|\u2500|\uf07b" and out[1] == "\u2302", out)
 sc = cprun(reach("appearance", "Glyphs") + [b"\x1b[C"])
 check("Appearance chooses the set, and the change shows at once",
       "ascii" in brow(sc, "Glyphs") and sc.find("+") is not None, sc)
@@ -3499,4 +3533,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(530)
+report(536)

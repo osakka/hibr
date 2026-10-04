@@ -1,16 +1,21 @@
 #!/usr/bin/env hibr
 #
-# pimset -- the Control Panel pane for Calendars & Contacts: which of the
-# Network Servers keep your address books (and, as the calendar comes,
-# your calendars), and how often they are synced. A server is any
-# CalDAV/CardDAV one -- Nextcloud, Fastmail, iCloud, Radicale -- set up in
-# Network Servers with its address and an app password; switching it on
-# here starts its first sync.
+# pimset -- the Control Panel pane called PIM: which of the Network Servers
+# keep your calendars and contacts, and how often they are synced. A server
+# is any CalDAV/CardDAV one -- Nextcloud, Fastmail, iCloud, Radicale -- set
+# up in Network Servers with its address and an app password (one list, one
+# login, for its files as well); each is asked once what it keeps, so a
+# plain file server is shown as files only rather than offered. Switching a
+# server on here starts its first sync.
 
 strict
 
-command -v cp_pane > /dev/null && cp_pane pimset "Calendars & Contacts" "☺" app
+command -v cp_pane > /dev/null && cp_pane pimset "PIM" "☺" app
 
+if [ -z "${PE_LIBDONE-}" ] && [ -r "${BASH_SOURCE%/*}/../lib/pim.hibr" ]; then
+	. "${BASH_SOURCE%/*}/../lib/pim.hibr"
+fi
+declare -gA PIMS_ASKED
 DT_PIMSERVERS="${DT_PIMSERVERS-}"
 DT_PIMEVERY="${DT_PIMEVERY-15}"
 command -v dt_keep > /dev/null && dt_keep DT_PIMSERVERS DT_PIMEVERY
@@ -48,8 +53,49 @@ fn pims_toggle(name) {
 	cp_save
 }
 
+# What a server keeps -- "cal", "card", both, "none" -- as its last probe
+# found, or nothing yet; a server not yet asked is asked now, in the
+# background, once a session. Without the PIM library (the pane on its own,
+# Contacts and Calendar not installed) there is nothing to ask with, and
+# every server is offered.
+fn pims_caps(name) {
+	local d c=
+
+	if ! dt_has pe_dir; then
+		ret "cal card"
+		return 0
+	fi
+	d := pe_dir "$name"
+	if [ -r "$d/caps" ]; then
+		read -r c < "$d/caps"
+		ret "$c"
+		return 0
+	fi
+	if [ -z "${PIMS_ASKED["$name"]}" ] && dt_has pe_job; then
+		PIMS_ASKED["$name"]=1
+		mkdir -p "$d" 2> /dev/null
+		pe_job probe "$name" pims_probed "$HIBR" "$PE_LIB/pimsync.hibr" "$name" "$d" probe > /dev/null
+	fi
+	ret ""
+}
+
+# A probe finished: the pane is drawn again with what it found.
+fn pims_probed(int n, int st) {
+	dt_want 50
+	return 0
+}
+
+# What a server keeps, in words, for its row.
+fn pims_words(caps) {
+	local w=
+
+	[[ " $caps " == *" cal "* ]] && w="calendars"
+	[[ " $caps " == *" card "* ]] && w="${w:+$w, }contacts"
+	ret "$w"
+}
+
 fn pimset_rows(int w) {
-	local n=0 s k
+	local n=0 s k c wd
 	local -a names
 
 	if ! need dav 2> /dev/null; then
@@ -65,12 +111,28 @@ fn pimset_rows(int w) {
 		CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=none; n=$((n + 1))
 	fi
 	for k in "${names[@]}"; do
-		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="$k"
+		c := pims_caps "$k"
+		wd := pims_words "$c"
+		if [ -z "$c" ]; then
+			CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="$k"
+			CP[$w][$n]["val"]="checking${GL[ellipsis]}"; CP[$w][$n]["key"]="wait:$k"
+			n=$((n + 1))
+			continue
+		fi
+		if [ -z "$wd" ] && ! pims_on "$k"; then
+			CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="$k"
+			CP[$w][$n]["val"]="files only"; CP[$w][$n]["key"]="files:$k"
+			n=$((n + 1))
+			continue
+		fi
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="$k (${wd:-files only})"
 		CP[$w][$n]["wtype"]=bool
 		CP[$w][$n]["val"]=off
 		pims_on "$k" && CP[$w][$n]["val"]=on
 		CP[$w][$n]["key"]="srv:$k"; n=$((n + 1))
 	done
+	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Add Server${GL[ellipsis]}"
+	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=addsrv; n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Syncing"; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Every (minutes)"
 	CP[$w][$n]["val"]="$DT_PIMEVERY"; CP[$w][$n]["key"]=every; n=$((n + 1))
@@ -89,12 +151,26 @@ fn pimset_do(int w, k, int dir) {
 		DT_PIMEVERY=$v
 		;;
 	now)
+		for v in "${!PIMS_ASKED[@]}"; do
+			local pd
+			pd := pe_dir "$v"
+			command rm -f "$pd/caps"
+			unset PIMS_ASKED["$v"]
+		done
 		if dt_has pe_sync; then
 			pe_sync
 			dt_notep low "Syncing calendars and contacts${GL[ellipsis]}"
 		fi
 		;;
-	none) dt_notep low "Add a server in Control Panel > Network Servers first" ;;
+	none | addsrv)
+		if dt_has panel_goto; then
+			panel_goto "$w" network
+		else
+			dt_notep low "Add a server in Control Panel > Network Servers"
+		fi
+		;;
+	files:*) dt_notep low "${k#files:} keeps files, not calendars or contacts" ;;
+	wait:*) dt_notep low "Asking ${k#wait:} what it keeps${GL[ellipsis]}" ;;
 	esac
 	cp_save
 }

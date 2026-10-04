@@ -206,7 +206,7 @@ WP_MODES=(stretch scale zoom center)
 
 # How an on/off choice is drawn, wherever there is one: theme -- what the
 # theme suggests (DT_THEMECHECKS, set when one is applied), a box when it
-# says nothing -- box "[x]", knob "(  o)", block "[  #]".
+# says nothing -- box "[x]", knob "(  o)", block "[  #]", tick "[✓]".
 DT_CHECKS="${DT_CHECKS-theme}"
 DT_THEMECHECKS="${DT_THEMECHECKS-}"
 

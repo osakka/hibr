@@ -16,9 +16,9 @@ CP_COLOURS="${CP_COLOURS-midnight}"
 command -v dt_keep > /dev/null && dt_keep CP_THEME CP_COLOURS
 CP_GLYPHS=("·" "░" "▒" "⋅" "+" "╱" "▞")
 
-# How an on/off choice is drawn: what the theme suggests, a box, a knob or
-# a block -- see DT_CHECKS in wm/settings.hibr.
-CP_CHECKS=(theme box knob block)
+# How an on/off choice is drawn: what the theme suggests, a box, a knob, a
+# block or a tick -- see DT_CHECKS in wm/settings.hibr.
+CP_CHECKS=(theme box knob block tick)
 fn cp_set_checks(int? id = "", value = "") { DT_CHECKS=$value; cp_save; }
 
 # A colour scheme is a JSON file, one to a scheme, named for it: seven
@@ -65,7 +65,7 @@ fn cp_colourread(n, f) {
 		[ "${j["$k"]}" = "#$v" ] && [ ${#v} -eq 6 ] &&
 			[ -z "${v//[0-9a-fA-F]/}" ] || return 1
 	done
-	case ${j["checks"]-box} in box | knob | block) ;; *) return 1 ;; esac
+	case ${j["checks"]-box} in box | knob | block | tick) ;; *) return 1 ;; esac
 	v=${j["shadow"]-55}
 	case $v in '' | *[!0-9]*) return 1 ;; esac
 	[ ${#v} -le 3 ] && [ "$v" -ge 1 ] && [ "$v" -le 100 ] || return 1
@@ -331,30 +331,118 @@ fn cp_set_theme(int id, value) { cp_theme "$value" && cp_save; }
 fn cp_set_colours(int id, value) { cp_colours "$value" && cp_save; }
 fn cp_set_glyph(int? id = "", value = "") { DT_GLYPH=$value; DT_WALLIMG=; cp_save; }
 
-fn appearance_rows(int w) {
-	local n=0 g
+# Whether the look now is the theme t as it was applied: its colours and
+# every setting it carries.
+fn cp_lookis(t) {
+	[ -n "${CP_TH["$t"]["colours"]+x}" ] || return 1
+	[ "$CP_COLOURS" = "${CP_TH["$t"]["colours"]}" ] &&
+	[ "$DT_GLYPH" = "${CP_TH["$t"]["wallpaper"]}" ] &&
+	[ "$DT_WALLIMG" = "${CP_TH["$t"]["image"]}" ] &&
+	[ "$DT_WALLMODE" = "${CP_TH["$t"]["mode"]}" ] &&
+	[ "$DT_FRAME" = "${CP_TH["$t"]["frame"]}" ] &&
+	[ "$DT_TITLEBAR" = "${CP_TH["$t"]["titlebar"]}" ] &&
+	[ "$DT_BTNSTYLE" = "${CP_TH["$t"]["buttons"]}" ] &&
+	[ "$DT_BTNSIDE" = "${CP_TH["$t"]["side"]}" ] &&
+	[ "$DT_TITLEALIGN" = "${CP_TH["$t"]["align"]}" ] &&
+	[ "$DT_CHECKS" = "${CP_TH["$t"]["checks"]}" ] &&
+	[ "$DT_DLGBTN" = "${CP_TH["$t"]["dialog"]}" ] &&
+	[ "$DT_GLYPHSET" = "${CP_TH["$t"]["glyphs"]}" ] &&
+	[ "$DT_SHADOW" = "${CP_TH["$t"]["windowshadow"]}" ] &&
+	[ "$DT_MSHADOW" = "${CP_TH["$t"]["menushadow"]}" ] &&
+	[ "$DT_BARSHADOW" = "${CP_TH["$t"]["barshadow"]}" ] &&
+	[ "$DT_BTNSHADOW" = "${CP_TH["$t"]["buttonshadow"]}" ]
+}
 
+# Whether a theme is one of the person's own, which can be renamed and
+# deleted; a bundled one cannot.
+fn cp_themeown(t) {
+	[ -n "$t" ] && [ -f "${CP_THEMEDIRS[0]}/$t.json" ]
+}
+
+# The Theme row's buttons: Save when the look is no longer the theme's,
+# Rename and Delete for a theme of the person's own.
+cp_themebtns() {
+	local b=
+
+	cp_lookis "$CP_THEME" || b="themesave:Save"
+	cp_themeown "$CP_THEME" && b+=" themerename:Rename themedel:Delete"
+	ret "${b# }"
+}
+
+# Rename a theme of the person's own: a new name, asked with the file
+# dialog in the same folder.
+cp_themerename() {
+	cp_themeown "$CP_THEME" || return 0
+	dt_filepick save "Rename Theme" "Themes:*.json" "${CP_THEMEDIRS[0]}" "$CP_THEME.json" cp_themerenamed ""
+}
+fn cp_themerenamed(id = "", path = "", type = "") {
+	local n old="${CP_THEMEDIRS[0]}/$CP_THEME.json"
+
+	[ -n "$path" ] || return 0
+	[[ $path == *.json ]] || path+=.json
+	n=${path##*/}
+	n=${n%.json}
+	[ -n "$n" ] && [ -z "${n//[A-Za-z0-9._ -]/}" ] || { dt_notep high "A theme's name is letters, digits, spaces, dots and dashes"; return 1; }
+	[ "$path" = "$old" ] && return 0
+	if [ -e "$path" ]; then
+		dt_notep high "There is a theme called $n already"
+		return 1
+	fi
+	command mv -- "$old" "$path" 2> /dev/null || { dt_notep high "Could not rename $CP_THEME"; return 1; }
+	cp_themes
+	CP_THEME=$n
+	cp_save
+	dt_notep low "Renamed the theme to $n"
+}
+
+# Delete a theme of the person's own, after asking. A bundled theme of the
+# same name, which theirs replaced, is back afterwards.
+cp_themedelask() {
+	cp_themeown "$CP_THEME" || return 0
+	dt_confirm "Delete the theme $CP_THEME? The look stays as it is now." cp_themedel
+}
+cp_themedel() {
+	local n=$CP_THEME
+
+	cp_themeown "$n" || return 0
+	command rm -f -- "${CP_THEMEDIRS[0]}/$n.json"
+	cp_themes
+	[ -n "${CP_TH["$n"]["colours"]+x}" ] || CP_THEME=
+	cp_save
+	dt_notep low "Deleted the theme $n"
+}
+
+fn appearance_rows(int w) {
+	local n=0 g b
+
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Look"; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Theme"
-	CP[$w][$n]["val"]="${CP_THEME:-(your own)}"; CP[$w][$n]["key"]=theme; n=$((n + 1))
+	CP[$w][$n]["val"]="${CP_THEME:-(your own)}"; CP[$w][$n]["key"]=theme
+	b := cp_themebtns
+	CP[$w][$n]["btns"]=$b
+	n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Colours"
 	CP[$w][$n]["val"]="$CP_COLOURS"; CP[$w][$n]["key"]=colours; n=$((n + 1))
-	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Save Current Look as Theme…"
-	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=themesave; n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Wallpaper"
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Glyphs"
+	CP[$w][$n]["val"]="$DT_GLYPHSET"; CP[$w][$n]["key"]=glyphset
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Wallpaper"; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Pattern"
 	if [ -n "$DT_WALLIMG" ]; then
 		CP[$w][$n]["val"]="(image)"
 	else
 		CP[$w][$n]["val"]="$DT_GLYPH"
 	fi
 	CP[$w][$n]["key"]=glyph; n=$((n + 1))
-	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Wallpaper Image…"
+	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Image${GL[ellipsis]}"
 	CP[$w][$n]["val"]="${DT_WALLIMG##*/}"; CP[$w][$n]["key"]=wallimg
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Wallpaper Mode"
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Mode"
 	CP[$w][$n]["val"]="$DT_WALLMODE"; CP[$w][$n]["key"]=wallmode
 	n=$((n + 1))
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Menu Bar"; n=$((n + 1))
 	CP[$w][$n]["kind"]=set
-	CP[$w][$n]["text"]="Menu Bar Spacing (${DT_BARGAP:-2})"
+	CP[$w][$n]["text"]="Spacing (${DT_BARGAP:-2})"
 	CP[$w][$n]["wtype"]=slider
 	CP[$w][$n]["val"]=${DT_BARGAP:-2}; CP[$w][$n]["min"]=1; CP[$w][$n]["max"]=4
 	CP[$w][$n]["key"]=bargap; n=$((n + 1))
@@ -362,9 +450,10 @@ fn appearance_rows(int w) {
 	g := dt_bellglyph "$DT_BELLICON"
 	CP[$w][$n]["val"]="$g $DT_BELLICON"; CP[$w][$n]["key"]=bellicon
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Glyphs"
-	CP[$w][$n]["val"]="$DT_GLYPHSET"; CP[$w][$n]["key"]=glyphset
-	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Bar Shadow"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_BARSHADOW" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=DT_BARSHADOW; n=$((n + 1))
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Shadows"; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Windows"
 	CP[$w][$n]["wtype"]=bool
@@ -374,21 +463,31 @@ fn appearance_rows(int w) {
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_MSHADOW" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=DT_MSHADOW; n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Menu Bar"
-	CP[$w][$n]["wtype"]=bool
-	CP[$w][$n]["val"]=off; [ "$DT_BARSHADOW" = 1 ] && CP[$w][$n]["val"]=on
-	CP[$w][$n]["key"]=DT_BARSHADOW; n=$((n + 1))
-	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Dialog Buttons"
-	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Style"
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Controls"; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Checkboxes"
+	CP[$w][$n]["val"]="$DT_CHECKS"; CP[$w][$n]["key"]=checks; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Dialog Buttons"
 	CP[$w][$n]["val"]="$DT_DLGBTN"; CP[$w][$n]["key"]=dlgbtn; n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Shadow"
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Button Shadow"
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_BTNSHADOW" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=DT_BTNSHADOW; n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Checkboxes"
-	CP[$w][$n]["val"]="$DT_CHECKS"; CP[$w][$n]["key"]=checks; n=$((n + 1))
 	ret "$n"
+}
+
+# Save, Rename and Delete from the keyboard, on the Theme row: s, r, d.
+fn appearance_key(int w, key) {
+	local i=${PW[$w]["sel"]} b
+
+	[ "${CP[$w][$i]["key"]}" = theme ] || return 1
+	b=" ${CP[$w][$i]["btns"]} "
+	case $key in
+	s) [[ $b == *" themesave:"* ]] || return 1; cp_themesave ;;
+	r) [[ $b == *" themerename:"* ]] || return 1; cp_themerename ;;
+	d) [[ $b == *" themedel:"* ]] || return 1; cp_themedelask ;;
+	*) return 1 ;;
+	esac
+	return 0
 }
 
 fn appearance_do(int w, k, int dir) {
@@ -400,6 +499,8 @@ fn appearance_do(int w, k, int dir) {
 	colours) v := cp_next "$CP_COLOURS" "$dir" "${CP_COLOURLIST[@]}"
 	         cp_colours "$v" ;;
 	themesave) cp_themesave; return 0 ;;
+	themerename) cp_themerename; return 0 ;;
+	themedel) cp_themedelask; return 0 ;;
 	checks) v := cp_next "$DT_CHECKS" "$dir" "${CP_CHECKS[@]}"; DT_CHECKS=$v ;;
 	glyph) v := cp_next "$DT_GLYPH" "$dir" "${CP_GLYPHS[@]}"
 	       DT_GLYPH=$v; DT_WALLIMG= ;;

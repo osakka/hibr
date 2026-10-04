@@ -4,7 +4,8 @@
 # by name: GL[vline] rather than a literal │ in the middle of a line of
 # code. One place to read what a glyph is for, one place to change it, and
 # a second set in plain ASCII for a terminal or a font that has none of
-# them -- a Linux console, an old ssh client -- chosen by DT_GLYPHSET
+# them -- a Linux console, an old ssh client -- and a third, nerd, for a
+# terminal whose font is a Nerd Font -- chosen by DT_GLYPHSET
 # (Control Panel > Appearance > Glyphs).
 #
 # Written as $'\uXXXX', the character's code point, with its Unicode name
@@ -25,7 +26,7 @@ strict
 declare -gA GL
 declare -gA DT_FRAMES
 DT_GLYPHSET="${DT_GLYPHSET-unicode}"
-DT_GLYPHSETS=(unicode ascii)
+DT_GLYPHSETS=(unicode ascii nerd)
 
 # Fill GL, and the frame styles drawn from it, with one set: unicode or
 # ascii. Anything else is unicode.
@@ -49,7 +50,7 @@ fn dt_glyphs(set = "unicode") {
 		GL["reload"]="@"; GL["plus"]="+"; GL["larr"]="<"; GL["rarr"]=">"
 		GL["arrowup"]="^"; GL["hook"]=">"
 		GL["file"]="-"; GL["folder"]="+"
-		GL["cross"]="x"; GL["xmark"]="x"; GL["check"]="*"
+		GL["cross"]="x"; GL["xmark"]="x"; GL["check"]="*"; GL["tick"]="v"
 		GL["star"]="*"; GL["flag"]="!"; GL["heart"]="*"; GL["warn"]="!"
 		GL["task"]="[ ]"; GL["taskdone"]="[x]"; GL["pin"]="*"
 		GL["newline"]="~"; GL["ellipsis"]="~"; GL["quote"]='"'; GL["dash"]="-"
@@ -109,6 +110,7 @@ fn dt_glyphs(set = "unicode") {
 		GL["cross"]=$'✕'     # MULTIPLICATION X
 		GL["xmark"]=$'✗'     # BALLOT X
 		GL["check"]=$'✓'     # CHECK MARK
+		GL["tick"]=$'✓'      # CHECK MARK, a checkbox's tick
 		GL["star"]=$'✱'      # HEAVY ASTERISK
 		GL["task"]=$'☐'      # BALLOT BOX
 		GL["taskdone"]=$'☑'  # BALLOT BOX WITH CHECK
@@ -133,6 +135,7 @@ fn dt_glyphs(set = "unicode") {
 		GL["spark7"]=$'▇'    # LOWER SEVEN EIGHTHS BLOCK
 		GL["spark8"]=$'█'    # FULL BLOCK
 	fi
+	[ "$set" = nerd ] && dt_glyphsnerd
 	DT_FRAMES["single"]["tl"]=${GL["tl"]}; DT_FRAMES["single"]["tr"]=${GL["tr"]}
 	DT_FRAMES["single"]["bl"]=${GL["bl"]}; DT_FRAMES["single"]["br"]=${GL["br"]}
 	DT_FRAMES["single"]["h"]=${GL["hline"]}; DT_FRAMES["single"]["v"]=${GL["vline"]}
@@ -142,5 +145,31 @@ fn dt_glyphs(set = "unicode") {
 	DT_FRAMES["rounded"]["tl"]=${GL["rtl"]}; DT_FRAMES["rounded"]["tr"]=${GL["rtr"]}
 	DT_FRAMES["rounded"]["bl"]=${GL["rbl"]}; DT_FRAMES["rounded"]["br"]=${GL["rbr"]}
 	DT_FRAMES["rounded"]["h"]=${GL["hline"]}; DT_FRAMES["rounded"]["v"]=${GL["vline"]}
+}
+# The nerd set: unicode, with the names a Nerd Font has a real icon for --
+# folders and files, home, disks, the trash, marks and flags -- taken from
+# its Private Use Area, Font Awesome's code points that every Nerd Font
+# carries. It draws only when the terminal's font is a Nerd Font, which no
+# terminal can be asked, so it is chosen, never detected; a "Mono" variant
+# keeps every icon one cell wide.
+dt_glyphsnerd() {
+	GL["folder"]=$'\uf07b'    # nf-fa-folder
+	GL["file"]=$'\uf15b'      # nf-fa-file
+	GL["home"]=$'\uf015'      # nf-fa-home
+	GL["disk"]=$'\uf0a0'      # nf-fa-hdd_o
+	GL["trash"]=$'\uf014'     # nf-fa-trash_o
+	GL["trashfull"]=$'\uf1f8' # nf-fa-trash
+	GL["reload"]=$'\uf021'    # nf-fa-refresh
+	GL["check"]=$'\uf00c'     # nf-fa-check
+	GL["tick"]=$'\uf00c'      # nf-fa-check
+	GL["cross"]=$'\uf00d'     # nf-fa-times
+	GL["xmark"]=$'\uf00d'     # nf-fa-times
+	GL["star"]=$'\uf005'      # nf-fa-star
+	GL["flag"]=$'\uf024'      # nf-fa-flag
+	GL["heart"]=$'\uf004'     # nf-fa-heart
+	GL["warn"]=$'\uf071'      # nf-fa-warning
+	GL["pin"]=$'\uf08d'       # nf-fa-thumb_tack
+	GL["task"]=$'\uf096'      # nf-fa-square_o
+	GL["taskdone"]=$'\uf046'  # nf-fa-check_square_o
 }
 dt_glyphs "$DT_GLYPHSET"

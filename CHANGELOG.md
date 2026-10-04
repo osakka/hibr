@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.99.38
+
+**Appearance, regrouped.** Headings for Look (Theme, Colours, Glyphs),
+Wallpaper (Pattern, Image, Mode), Menu Bar, Shadows and Controls. The Theme
+row carries its own buttons: **Save** appears once the look no longer
+matches the theme, and a theme of your own can be **renamed** and
+**deleted** there (or with `s`, `r`, `d` on that row).
+
+**Calendar and Contacts are Desk Accessories**, on the hibr menu with
+Calculator and Clock. **Control Panel > Calendars & Contacts is now PIM**,
+and it asks each Network Server what it keeps: servers with calendars or
+contacts get a switch saying which, a plain file server is shown as files
+only, and Add Server… opens Network Servers.
+
+**A Nerd Font glyph set**, Appearance > Glyphs > nerd, for a terminal
+whose font is a Nerd Font: folders, files, home, disks, the trash and the
+marks drawn as its icons. **Checkboxes can be a tick**, `[✓]`.
+
 ## 0.99.37
 
 **A csv module.** CSV as RFC 4180 says -- quoted fields, doubled quotes,

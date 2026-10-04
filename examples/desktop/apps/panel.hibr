@@ -386,6 +386,8 @@ fn cp_rowsdraw(int id, pane, int h, int w, int bx) {
 			fi
 		fi
 		console put -p "w$id" "$r" "$bx" "$t"
+		[ -n "${CP[$id][$i]["btns"]}" ] && [ "$i" -lt "$n" ] &&
+			cp_rowbtns "$id" "$i" "$r" $((bx + ${#CP[$id][$i]["text"]} + 4)) $((bx + w - 12))
 		if [ "$kind" = key ] && [ -n "$kv" ]; then
 			console pen "$DT_INK" "$DT_IDLE"
 			console put -p "w$id" "$r" $((bx + w - 4)) " ${GL[cross]} "
@@ -414,6 +416,26 @@ fn cp_rowsdraw(int id, pane, int h, int w, int bx) {
 	# row below the edge with nothing to show it was there is one nobody
 	# finds. The wheel and the arrows scroll it.
 	dt_scrollbar "$id" 1 $((bx + w)) "$h" "$n" "$h" "$top"
+}
+
+# A row's own buttons, after its label: CP[w][i]["btns"] is "key:Label"
+# words, each a button whose click runs the pane's _do with that key, as
+# a dropdown's choice does -- Appearance's Save, Rename and Delete on the
+# Theme row. Drawn from column c, as many as fit before column e.
+fn cp_rowbtns(int id, int i, int r, int c, int e) {
+	local b k l
+	local -a bs
+
+	read -ra bs <<< "${CP[$id][$i]["btns"]}"
+	for b in "${bs[@]}"; do
+		k=${b%%:*}
+		l=${b#*:}
+		[ $((c + ${#l} + 2)) -le "$e" ] || break
+		console pen "$DT_INK" "$DT_WELL"
+		console put -p "w$id" "$r" "$c" " $l "
+		dt_wreg "$id" "$r" "$c" $((${#l} + 2)) "rbtn:$k"
+		c=$((c + ${#l} + 3))
+	done
 }
 
 # Move the selection within the pane list, or within the selected pane's
@@ -621,6 +643,11 @@ fn panel_click(int w, int r, int c, btn = "") {
 	clear:*)
 		dt_keyclear "${CP[$w][${tag#clear:}]["key"]}"
 		PW[$w]["sel"]=${tag#clear:}
+		return 0
+		;;
+	rbtn:*)
+		PW[$w]["sel"]=$i
+		dt_has "${pane}_do" && "${pane}_do" "$w" "${tag#rbtn:}" 1
 		return 0
 		;;
 	esac

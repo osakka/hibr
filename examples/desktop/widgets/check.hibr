@@ -1,4 +1,4 @@
-# widgets/check -- an on/off choice: a box, a knob or a block.
+# widgets/check -- an on/off choice: a box, a knob, a block or a tick.
 #
 # Part of the widget library apps draw with -- see widgets/README.md.
 
@@ -10,11 +10,12 @@ dt_checkstyle() {
 	local st=$DT_CHECKS
 
 	[ "$st" = theme ] && st=${DT_THEMECHECKS:-box}
-	case $st in knob | block) ret "$st" ;; *) ret box ;; esac
+	case $st in knob | block | tick) ret "$st" ;; *) ret box ;; esac
 }
 
 # The mark for an on/off choice in the style chosen: "[x]" or "[ ]", a
-# knob "(  o)" on and "(o  )" off, or a block "[  #]" and "[#  ]".
+# knob "(  o)" on and "(o  )" off, a block "[  #]" and "[#  ]", or a tick
+# "[v]" and "[ ]".
 fn dt_checkmark(int on) {
 	local st k=${GL[circle]} b=${GL[block]}
 
@@ -22,12 +23,13 @@ fn dt_checkmark(int on) {
 	case $st in
 	knob) [ "$on" = 1 ] && ret "(  $k)"; ret "($k  )" ;;
 	block) [ "$on" = 1 ] && ret "[  $b]"; ret "[$b  ]" ;;
+	tick) [ "$on" = 1 ] && ret "[${GL[tick]}]"; ret "[ ]" ;;
 	*) [ "$on" = 1 ] && ret "[x]"; ret "[ ]" ;;
 	esac
 }
 
 # Draw an on/off choice and its label. A box is drawn in the pen the
-# caller set; a knob or a block in the theme's colours -- on in the accent,
+# caller set; a knob, a block or a tick in the theme's colours -- on in the accent,
 # off dimmed, on the well -- after the label, which keeps the caller's.
 # tag is what dt_hit answers for a click on it -- the field the app will
 # toggle, by default the label itself.

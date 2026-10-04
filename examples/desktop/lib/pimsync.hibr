@@ -23,7 +23,7 @@
 # keeps two from running at once. It says what it is doing a line at a
 # time, ending with "done N" or "error WHY".
 #
-# Part of the desktop's Contacts (apps/contacts.hibr); it is not an app,
+# Part of the desktop's Contacts (desk-accessories/contacts.hibr); it is not an app,
 # which is why it is here and not under apps/.
 
 strict
@@ -461,10 +461,48 @@ ps_push() {
 	return 0
 }
 
+# What a server offers, without syncing anything: its calendar and address
+# book homes asked for as a sync would, the answer -- "cal", "card", both,
+# or "none" -- kept in DIR/caps for the PIM pane, which lists only servers
+# that keep calendars or contacts. A server that cannot be reached leaves
+# no answer, so it is asked again. Takes no lock: it writes nothing a sync
+# does.
+ps_probe() {
+	local r p l caps= w
+
+	ps_origin || { ps_say "error no server called $PS_SRV"; return 1; }
+	p=
+	for w in "dav://$PS_SRV/.well-known/caldav" "dav://$PS_SRV/.well-known/carddav" "dav://$PS_SRV/"; do
+		r := dav propfind "$w" d:current-user-principal 2> /dev/null || continue
+		p=${r[0]["props"]["current-user-principal"]}
+		[ -n "$p" ] && break
+	done
+	if [ -z "$p" ]; then
+		case ${DAV_CODE:-0} in 0) ps_say "error cannot reach $PS_SRV"; return 1 ;; esac
+		caps=none
+	else
+		l := ps_loc "$p"
+		r := dav propfind "$l" card:addressbook-home-set c:calendar-home-set 2> /dev/null
+		[ -n "${r[0]["props"]["calendar-home-set"]}" ] && caps+=" cal"
+		[ -n "${r[0]["props"]["addressbook-home-set"]}" ] && caps+=" card"
+		caps=${caps# }
+		[ -n "$caps" ] || caps=none
+	fi
+	mkdir -p "$PS_DIR" 2> /dev/null
+	printf '%s\n' "$caps" > "$PS_DIR/caps"
+	ps_say "caps $caps"
+	return 0
+}
+
 fn ps_main(srv = "", dir = "", ...rest) {
 	local r i
 
-	[ -n "$srv" ] && [ -n "$dir" ] || { echo "usage: pimsync.hibr SERVER DIR" >&2; return 2; }
+	[ -n "$srv" ] && [ -n "$dir" ] || { echo "usage: pimsync.hibr SERVER DIR [probe]" >&2; return 2; }
+	if [ "${rest[0]}" = probe ]; then
+		need dav || { ps_say "error no dav module"; return 1; }
+		ps_probe
+		return
+	fi
 	need dav || ps_die "no dav module"
 	need pim || ps_die "no pim module"
 	need db || ps_die "no db module"
