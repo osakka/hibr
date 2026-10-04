@@ -1845,6 +1845,17 @@ went in the shell.
   "chose" and nothing changed. The pane repeats the app's declarations and
   `dt_keep` (which now skips a name it already has).
 
+- **A helper must not be named like its own app's callback.** `dt_new`
+  calls the new window's `<prefix>_open`, so the account dialog's opener,
+  named `mlad_open`, opened a `mlad` window, which called `mlad_open`, which
+  opened another -- until the stack ran out and the whole desktop died with
+  a segfault and nothing in its log, the moment Add Account was chosen. It
+  passed every check: its two parameters matched `_open`'s arity, and no
+  suite had opened the dialog. `tests/540-examples.t` now fails on a
+  window's `_open` that opens its own kind; name an opener `_show`. A
+  segfault with an empty log is the shape of runaway recursion in a script
+  -- a `gcc -g` build under `gdb -batch` shows the alternating `fn_call`s.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then

@@ -264,4 +264,28 @@ sc = waitfor(t, "From home")
 check("and keeps what it sent in a Sent folder of its own", sc.find("From home - Hi."), sc)
 t.quit(b"qy", 1.5)
 
-report(44)
+# --- the account dialog -----------------------------------------------------------
+
+conf4 = os.path.join(D, "dialog.conf")
+sess = os.path.join(D, "dialog.hibr")
+open(sess, "w").write("%s. %s\n. %s\nCP_PANEDIRS+=(\"%s\")\ncp_panes\ndt_open\nmlad_show\ndt_run\ndt_close\n" % (
+    load("console", "email", "db"), tree("examples/desktop/desktop.hibr"),
+    tree("examples/desktop/apps/panel.hibr"), tree("examples/desktop/control-panel")))
+t = Term(sess, rows=30, cols=100, settle=1.5, env={"HIBR_MAIL_CONF": conf4, "XDG_DATA_HOME": D})
+sc = waitfor(t, "Add a Mail Account")
+check("Add Account opens its dialog, and the desktop lives", sc.find("Account name:") and sc.find("Password:"), sc)
+t.keys([b"work", b"\t", b"pat@example.com", b"\t", b"Pat Doe", b"\t", b"secret"] + [b"\t"] * 8 + [b"\r"])
+sc = look(t)
+check("a server it cannot work out from the address is asked for, not guessed",
+      sc.find("no server given") and not os.path.exists(conf4), sc)
+em = sc.find("Email address:")
+if em:
+    t.send(press(em[0], em[1] + 40), 0.1); t.send(release(em[0], em[1] + 40), 0.3)
+t.keys([b"\x1b[F"] + [b"\x7f"] * len("example.com") + [b"gmail.com"])
+click(t, look(t), "Save ", 4)
+check("an address at Gmail saves, Gmail's servers filled in",
+      until(lambda: os.path.exists(conf4) and "imap.gmail.com" in open(conf4).read()),
+      open(conf4).read() if os.path.exists(conf4) else "no file")
+t.quit(b"qy", 1.5)
+
+report(47)

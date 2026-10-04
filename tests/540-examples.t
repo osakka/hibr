@@ -117,6 +117,29 @@ awk '
   }' $desk $desk
 echo "every callback names what it is called with"
 
+# dt_new calls the new window's <prefix>_open, so a function of that name
+# which opens its own kind of window calls itself until the stack runs out:
+# 0.99.24's mail account dialog had an opener named mlad_open, and the
+# desktop died with a segfault the moment Add Account was chosen.
+awk '
+  FNR == 1 { if (!first) first = FILENAME; if (FILENAME == first) pass++ }
+  pass == 1 && !/^[[:space:]]*#/ {
+    if (match($0, /dt_app [a-z_]+/)) win[substr($0, RSTART + 7, RLENGTH - 7)] = 1
+    if ($1 ~ /dt_new$/ || / := dt_new /) { w = $NF; gsub(/"/, "", w); win[w] = 1 }
+    next
+  }
+  pass == 2 && /^(fn )?[a-z_]+_open\(/ {
+    cur = $0; sub(/^fn /, "", cur); sub(/_open\(.*/, "", cur)
+    if (!(cur in win)) cur = ""
+    next
+  }
+  pass == 2 && /^}/ { cur = ""; next }
+  pass == 2 && cur != "" && /dt_new / {
+    w = $NF; gsub(/"/, "", w)
+    if (w == cur) print FILENAME ": " cur "_open opens a " cur " window, which calls " cur "_open again"
+  }' $desk $desk
+echo "no window's _open opens another of itself"
+
 # Every setting kept across restarts -- the desktop's own DT_KEEP, and every
 # app's dt_keep -- is one the Control Panel shows, so nothing an app lets you
 # choose is only reachable by editing the settings file. A pane is a file

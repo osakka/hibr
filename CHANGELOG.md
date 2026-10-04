@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.99.25
+
+**Adding a mail account no longer takes the desktop down.** Choosing Add
+Account (or an account, or Signature) in Control Panel > Mail ended the
+whole desktop at once, with nothing in its log. The dialog's opener was
+named `mlad_open`, which is also the name the window manager calls when a
+`mlad` window opens -- so it opened a window, which called it again, until
+the shell ran out of stack. It is `mlad_show` now, and
+`tests/540-examples.t` fails on any window whose `_open` opens another of
+its own kind. `tests/mailapp.py` opens the dialog, is refused a server it
+cannot work out, and saves a Gmail account.
+
+The dialog is also a row taller, so its Gmail hint and an error from
+saving are shown whole rather than cut off at the edge.
+
 ## 0.99.24
 
 **Mail.** A mail app for the desktop, in the Internet folder, laid out the

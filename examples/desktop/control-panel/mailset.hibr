@@ -10,7 +10,7 @@
 strict
 
 command -v cp_pane > /dev/null && cp_pane mailset "Mail" "✉" app
-command -v dt_app > /dev/null && dt_app mlad "Mail Account" 19 66 "" "" fixed hidden
+command -v dt_app > /dev/null && dt_app mlad "Mail Account" 20 66 "" "" fixed hidden
 
 # The app's settings, declared here as well, so the pane can change them
 # when the app has not been loaded.
@@ -74,8 +74,8 @@ fn mailset_do(int? w = "", k = "", int? dir = "") {
 	local v cur
 
 	case $k in
-	acct:*) mlad_open "${k#acct:}" ;;
-	add) mlad_open ;;
+	acct:*) mlad_show "${k#acct:}" ;;
+	add) mlad_show ;;
 	max) v := cp_next "${DT_MAILMAX:-1000}" "$dir" "${MS_KEEPS[@]}"; DT_MAILMAX=$v ;;
 	bodies)
 		cur=${DT_MAILBODIES:-500}
@@ -86,7 +86,7 @@ fn mailset_do(int? w = "", k = "", int? dir = "") {
 		;;
 	every) v := cp_next "${DT_MAILEVERY:-5}" "$dir" "${MS_EVERYL[@]}"; DT_MAILEVERY=$v ;;
 	images) v := cp_next "${DT_MAILIMAGES:-attached}" "$dir" "${MS_IMAGESL[@]}"; DT_MAILIMAGES=$v ;;
-	sig) mlad_open "" sig ;;
+	sig) mlad_show "" sig ;;
 	esac
 	cp_save
 }
@@ -104,8 +104,8 @@ fn mailset_drop(int? w = "", int? r = "", int? c = "", k = "") {
 
 # Open the dialog on an account by name, or empty for a new one; or, with
 # "sig", the signature.
-fn mlad_open(name = "", what = "") {
-	local id h=19 w=66 r k
+fn mlad_show(name = "", what = "") {
+	local id h=20 w=66 r k
 
 	[ "$w" -gt $((DT_COLS - 2)) ] && w=$((DT_COLS - 2))
 	if [ "$what" = sig ]; then
@@ -193,12 +193,21 @@ fn mlad_draw(int id, int h, int w, int row, int col) {
 	done
 	r=$((r + 1))
 	console pen "$DT_DIM" "$DT_FACE"
-	console put -p "w$id" "$r" 2 "Google: make an app password at myaccount.google.com/apppasswords"
-	r=$((r + 1))
+	console put -p "w$id" "$r" 2 "Gmail wants an app password, made in your Google account"
+	console put -p "w$id" $((r + 1)) 2 "at myaccount.google.com/apppasswords"
+	r=$((r + 2))
 	if [ -n "${MLAD[$id]["status"]}" ]; then
 		console pen "$DT_BAD" "$DT_FACE"
 		t=${MLAD[$id]["status"]}
-		console put -p "w$id" "$r" 2 "${t:0:$((w - 4))}"
+		k=$((w - 4))
+		if [ "${#t}" -gt "$k" ]; then
+			on=${t:0:$k}
+			on=${on% *}
+			console put -p "w$id" "$r" 2 "$on"
+			t=${t:$((${#on} + 1))}
+			r=$((r + 1))
+		fi
+		console put -p "w$id" "$r" 2 "${t:0:$k}"
 	fi
 	if [ -n "${MLAD[$id]["orig"]}" ]; then
 		dt_dlgbtns "$id" "$h" "$w" "$f" ok Save del Remove cancel Cancel
