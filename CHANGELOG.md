@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.99.45
+
+**About an app is found in one pass.** 0.99.44's grep-free search for the
+file that declares an app read every app file through on a miss, 371 ms
+each time and several times that under the sanitizers. The desktop now
+reads each app file once, only as far as its first function (where every
+`dt_app` line is), and keeps the answer: 36 ms, once a session. The
+sanitizer wrapper names `setarch` by its path, so the test that runs the
+desktop with only hibr on `PATH` can start under ASan too.
+
 ## 0.99.44
 
 **`mv` is a builtin, and the desktop starts with no coreutils at all.**

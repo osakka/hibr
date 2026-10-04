@@ -57,8 +57,9 @@ def wrapper():
     os.makedirs(BIN, exist_ok=True)
     if os.path.lexists(WRAP):
         os.unlink(WRAP)
-    open(WRAP, "w").write('#!/bin/sh\nexec setarch "$(uname -m)" -R %s "$@"\n'
-                          % os.path.join(ADIR, "hibr"))
+    open(WRAP, "w").write('#!/bin/sh\nexec %s %s -R %s "$@"\n'
+                          % (shutil.which("setarch"), os.uname().machine,
+                             os.path.join(ADIR, "hibr")))
     os.chmod(WRAP, 0o755)
 
 

@@ -384,22 +384,35 @@ dt_trashempty() {
 # fails for a window with no app file to read.
 declare -gA DT_ABOUT
 
-# The file under DT_APPDIRS that declares an app, read in hibr: no grep.
-fn dt_appfile(ap) {
-	local d f l
+# Which file under DT_APPDIRS declares each app, read once in hibr (no
+# grep): a file's dt_app lines come before its functions, so each is read
+# only that far.
+declare -gA DT_APPFILE
+DT_APPFILES=
+dt_appfiles() {
+	local d f l n
 
+	DT_APPFILES=1
 	for d in "${DT_APPDIRS[@]}"; do
 		for f in "$d"/**/*.hibr; do
 			[ -f "$f" ] || continue
 			while IFS= read -r l; do
-				if [[ $l == *"dt_app $ap "* ]]; then
-					ret "$f"
-					return 0
-				fi
+				[[ $l == "fn "* || $l == [a-z_]*"() {"* ]] && break
+				[[ $l == *"dt_app "* ]] || continue
+				n=${l##*dt_app }
+				n=${n%% *}
+				[[ $n == [a-z]* ]] || continue
+				[ -n "${DT_APPFILE["$n"]+x}" ] || DT_APPFILE["$n"]=$f
 			done < "$f"
 		done
 	done
-	return 1
+}
+
+# The file that declares an app, or failure.
+fn dt_appfile(ap) {
+	[ -n "$DT_APPFILES" ] || dt_appfiles
+	[ -n "${DT_APPFILE["$ap"]+x}" ] || return 1
+	ret "${DT_APPFILE["$ap"]}"
 }
 
 # A file's first line starting "app ", its description, or nothing.
