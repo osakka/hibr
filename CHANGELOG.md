@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.99.44
+
+**`mv` is a builtin, and the desktop starts with no coreutils at all.**
+Under Blit's busybox-only guest the desktop's crash snapshot could not be
+written -- it is written beside and renamed into place with `mv` -- and
+About Me was read with `head` at every start. `mv` joins `mkdir` and `rm`
+(ADR 0029): renames and moves into a directory, `-f`, `-n`, `-v`, `-t`,
+`-T`, answering as GNU's does, checked against it by `tests/987-mv.t`. A
+move across filesystems is a copy, and goes to the program. About Me is
+parsed straight from its file, the About box finds its app without `grep`,
+dBASE's `DATE()` and `TIME()` use
+`printf '%(...)T'`, and Mail makes its empty POP map with `: >>`. The
+Blit-launch test now fails on any command not found. What the desktop
+still forks (`sort` with keys, `cp -R`, `touch -r`, `ps`, `readlink`,
+`uname`) is a system tool's job; a guest that wants those can link
+busybox's applets.
+
 ## 0.99.43
 
 **The control socket under Blit, for real this time; `mkdir` and `rm` are

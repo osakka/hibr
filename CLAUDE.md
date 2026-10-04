@@ -115,7 +115,7 @@ linked, and no OpenSSL headers are needed to build.
 | `src/text.c` | `str` and `arr` builtins |
 | `src/regex.c` | `match` and `rsub` over POSIX ERE |
 | `src/args.c` | `opt`/`args` declared CLI parsing, `title` |
-| `src/fs.c` | `mkdir` and `rm` as builtins, GNU-compatible, anything else to the program (ADR 0029) |
+| `src/fs.c` | `mkdir`, `rm` and `mv` as builtins, GNU-compatible, anything else to the program (ADR 0029) |
 | `src/mod.c` | module loading |
 | `mods/*.c` | reference modules: `sys`, `http` (scheme), `ls`, `math` (floating point; one of the two modules `--plan` may load, see `pl_pure`), `darwin` (macOS-only: `cpu`, `mem`, native `host_statistics`, no fork) |
 | `examples/desktop/` | the window manager (`desktop.hibr`, a table of contents sourcing `wm/`, one concern to a file, and `widgets/`, the widget library apps draw with) and everything built on it — `apps/` (file browser, control panel, terminal, task manager, About hibr, three games in `Games/`, dBASE, Write and Sheet in `Office/`), `desk-accessories/` (calculator, clock, image viewer, note pad, sliding puzzle), `control-panel/` panes, `control-strip/` modules — see `examples/desktop/README.md` for how to use it and `examples/desktop/ARCHITECTURE.md` for how it is built |

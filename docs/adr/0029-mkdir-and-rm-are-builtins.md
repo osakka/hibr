@@ -1,4 +1,4 @@
-# 0029 — mkdir and rm are builtins
+# 0029 — mkdir, rm and mv are builtins
 
 Status: accepted
 
@@ -32,6 +32,10 @@ by `tests/986-mkdir-rm.t` -- and hand everything else to the program on
 - `rm`: `-f`, `-r`/`-R`, `-d`, `-v`, their long forms, `--`. A link is
   removed, never entered; `.`, `..` and `/` are refused as GNU refuses
   them.
+- `mv` (0.99.44, Gitea #99): `-f`, `-n`, `-v`, `-t dir`, `-T`, their long
+  forms, `--`; a rename, or a move into a directory. A move across
+  filesystems is a copy, and goes to the program, one source at a time.
+  `tests/987-mv.t` checks it against GNU's.
 
 A symbolic mode, `-i`, any other option, and any case where GNU's `rm`
 would stop to ask (a file it cannot write, with a terminal on standard
@@ -47,6 +51,8 @@ the programs were.
   missing, and does so without a fork: 87 places in the desktop alone.
 - `type rm` says builtin; `command -v rm` prints `rm`, not a path.
   `command rm` reaches the builtin, `/bin/rm` the program.
-- The core is about 370 lines larger. Other programs the desktop forks --
-  `mv`, `date`, `sort` and more -- are still missing on such a system;
-  Gitea #99 weighs builtins against using what hibr already has.
+- The core is about 560 lines larger. The desktop's snapshot and settings,
+  written beside and renamed into place, work with no coreutils. What it
+  still forks -- `sort` with keys, `cp -R`, `touch -r`, `ps`, `readlink`,
+  `uname` -- is a system tool doing a system tool's job, and a guest that
+  wants all of it can link busybox's applets (`busybox --install -s`).

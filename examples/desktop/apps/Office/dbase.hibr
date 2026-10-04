@@ -408,8 +408,8 @@ fn dbase_eval(int id, e) {
 		dbase_inuse "$id" || return 0
 		v := db size "${DBA[$id]["h"]}"
 		;;
-	"DATE()") v=$(date +%m/%d/%y) ;;
-	"TIME()") v=$(date +%H:%M:%S) ;;
+	"DATE()") printf -v v '%(%m/%d/%y)T' -1 ;;
+	"TIME()") printf -v v '%(%H:%M:%S)T' -1 ;;
 	\'*\' | \"*\") v=${e:1:${#e}-2} ;;
 	*)
 		if [ -z "${e//[0-9+*\/() -]/}" ] && [ -n "$e" ] &&

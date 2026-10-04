@@ -383,15 +383,47 @@ dt_trashempty() {
 # Calendar's event editor is About Calendar. Read once, on first need;
 # fails for a window with no app file to read.
 declare -gA DT_ABOUT
+
+# The file under DT_APPDIRS that declares an app, read in hibr: no grep.
+fn dt_appfile(ap) {
+	local d f l
+
+	for d in "${DT_APPDIRS[@]}"; do
+		for f in "$d"/**/*.hibr; do
+			[ -f "$f" ] || continue
+			while IFS= read -r l; do
+				if [[ $l == *"dt_app $ap "* ]]; then
+					ret "$f"
+					return 0
+				fi
+			done < "$f"
+		done
+	done
+	return 1
+}
+
+# A file's first line starting "app ", its description, or nothing.
+fn dt_appline(f) {
+	local l
+
+	while IFS= read -r l; do
+		if [[ $l == "app "* ]]; then
+			ret "$l"
+			return 0
+		fi
+	done < "$f"
+	return 1
+}
+
 fn dt_aboutinfo(ap) {
 	local f l own desc=
 
 	[ -n "${DT_ABOUT["$ap"]["title"]+x}" ] && { [ -n "${DT_ABOUT["$ap"]["title"]}" ]; return; }
 	DT_ABOUT["$ap"]["title"]=
-	f=$(grep -rl --include='*.hibr' -e "dt_app $ap " "${DT_APPDIRS[@]}" 2> /dev/null | head -n 1)
+	f := dt_appfile "$ap"
 	[ -n "$f" ] || return 1
 	own=$ap
-	if l=$(grep -m 1 '^app ' "$f"); then
+	if l := dt_appline "$f"; [ -n "$l" ]; then
 		l=${l#app }
 		own=${l%% *}
 		desc=${l#"$own"}

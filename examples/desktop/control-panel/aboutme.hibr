@@ -21,13 +21,12 @@ ab_file() { ret "${XDG_CONFIG_HOME:-$HOME/.config}/hibr/me.json"; }
 
 # Read About Me into AB_ME; an absent or broken file reads as empty.
 ab_load() {
-	local f j
+	local f
 
 	AB_ME=()
 	f := ab_file
 	[ -r "$f" ] || return 0
-	j=$(head -c 65536 "$f")
-	json parse AB_ME "$j" 2> /dev/null || AB_ME=()
+	json parse AB_ME < "$f" 2> /dev/null || AB_ME=()
 	return 0
 }
 

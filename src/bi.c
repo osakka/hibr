@@ -1757,6 +1757,7 @@ const hibr_bi bitab[] = {
 	{ "match", b_match, "match a regex and peel out the groups" },
 	{ "mkdir", b_mkdir, "make directories" },
 	{ "mod", b_mod, "load, drop, list or find modules" },
+	{ "mv", b_mv, "move or rename files" },
 	{ "need", b_need, "make an interface or module available, or fail" },
 	{ "opt", b_opt, "declare an option for args" },
 	{ "popd", b_popd, "pop the directory stack" },

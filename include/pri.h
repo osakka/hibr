@@ -294,6 +294,7 @@ int b_command(sh *s, int ac, char **av);
 int cmd_ext(sh *s, char **av, const char *who);
 int b_mkdir(sh *s, int ac, char **av);
 int b_rm(sh *s, int ac, char **av);
+int b_mv(sh *s, int ac, char **av);
 int b_shopt(sh *s, int ac, char **av);
 int b_ulimit(sh *s, int ac, char **av);
 int ul_res(int c);

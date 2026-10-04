@@ -401,7 +401,7 @@ ms_pop() {
 	local -A have byid rec
 	local -a ls order
 
-	touch "$MS_DIR/pop.map"
+	: >> "$MS_DIR/pop.map"
 	while IFS=$'\t' read -r id u; do
 		[ -n "$u" ] || continue
 		have["$u"]=$id
