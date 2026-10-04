@@ -1,0 +1,1424 @@
+#!/usr/bin/env hibr
+#
+# calendar -- your calendars, kept on this machine from a CalDAV server
+# (Nextcloud, Fastmail, iCloud, Radicale, anything standard): a month at a
+# time, each day's events in it, and the chosen day's events listed
+# underneath; or an agenda of what is coming. The arrows choose a day, n
+# and p (or page down and up) change month, t comes back to today, a and m
+# switch to the agenda and back, tab moves between the month and the
+# day's list, c makes an event on the chosen day, enter makes one there or
+# edits the one chosen in the list, # removes it, R syncs now.
+#
+# The servers are Contacts' -- Control Panel > Calendars & Contacts -- and
+# lib/pimsync.hibr keeps their calendars under
+# ~/.local/share/hibr/pim/SERVER: each event's file, and every occurrence
+# from a year back to two years on, which this reads by date. A change
+# made here is queued and sent at the next sync. Reminders go off whether
+# or not a Calendar window is open: a ticker run after every frame looks
+# for the next one and asks for the frame it is due in.
+
+strict
+
+app calendar "Your calendars, a month at a time, kept offline from CalDAV"
+
+command -v dt_app > /dev/null && dt_app calendar "Calendar" 28 98 once "▦"
+command -v dt_app > /dev/null && dt_app cedit "Event" 23 70 many "" "" hidden
+
+declare -gA CVW
+declare -gA CVI
+declare -gA CVK
+declare -gA CED
+declare -gA CVAL
+declare -gA CVFIRED
+PIM_METHOD=
+DAV_CODE=
+CV_ZONE=
+CV_ALAT=0
+CV_ALGEN=-1
+CV_ALN=0
+CV_DEL=
+CV_REPEATS=(none daily weekly monthly yearly)
+CV_REMINDS=(none 5 10 15 30 60 1440)
+CV_MONTHS=(January February March April May June July August September October November December)
+CV_WDAYS=(Mon Tue Wed Thu Fri Sat Sun)
+CE_FIELDS=(title date start end location notes invite)
+CE_ORDER=(title date start end allday repeat remind cal location notes invite ok del cancel)
+
+command -v dt_ticker > /dev/null && dt_ticker cv_alarms
+
+# The zone this machine is in, by name, for events written here: TZ when
+# it names one, else where /etc/localtime points.
+cv_zone() {
+	local l
+
+	if [ -z "$CV_ZONE" ]; then
+		if [[ ${TZ:-} == */* ]] && [ -f "/usr/share/zoneinfo/${TZ#:}" ]; then
+			CV_ZONE=${TZ#:}
+		elif l=$(readlink /etc/localtime 2> /dev/null) && [[ $l == *zoneinfo/* ]]; then
+			CV_ZONE=${l#*zoneinfo/}
+		else
+			CV_ZONE=UTC
+		fi
+	fi
+	ret "$CV_ZONE"
+}
+
+# Local midnight of a date, the day allowed past the month's end.
+fn cv_day(int y, int m, int d) {
+	local t
+
+	t := pim when epoch "$y" "$m" "$d"
+	ret "$t"
+}
+
+# A moment's local date and time: "Y M D h m s wday", Monday 0.
+fn cv_civil(int t) {
+	local c
+
+	c := pim when civil "$t"
+	ret "$c"
+}
+
+# Local midnight of the day a moment falls on.
+fn cv_midnight(int t) {
+	local c y m d
+
+	c := pim when civil "$t"
+	read -r y m d c <<< "$c"
+	t := pim when epoch "$y" "$m" "$d"
+	ret "$t"
+}
+
+# A time of day, HH:MM.
+fn cv_hm(int t) {
+	local c y m d h mi
+
+	c := pim when civil "$t"
+	read -r y m d h mi c <<< "$c"
+	ret "$(printf '%02d:%02d' "$h" "$mi")"
+}
+
+# A date as YYYY-MM-DD.
+fn cv_ymd(int t) {
+	local c y m d
+
+	c := pim when civil "$t"
+	read -r y m d c <<< "$c"
+	ret "$(printf '%04d-%02d-%02d' "$y" "$m" "$d")"
+}
+
+# The calendars of every server chosen, into CVK: CVK[i]["srv"], ["href"],
+# ["name"], ["color"]; CVK["n"] how many.
+cv_cals() {
+	local s d h r i n=0
+
+	unset CVK
+	declare -gA CVK
+	CVK["n"]=0
+	dt_has pe_servers && pe_servers || return 0
+	need db 2> /dev/null || return 0
+	for s in "${PE_SRVS[@]}"; do
+		d := pe_dir "$s"
+		[ -f "$d/colls.db" ] || continue
+		h := db open "$d/colls.db" 2> /dev/null || continue
+		r := db query "$h" where kind eq cal
+		db close "$h"
+		i=0
+		while [ -n "${r[$i]["href"]+x}" ]; do
+			CVK[$n]["srv"]=$s
+			CVK[$n]["href"]=${r[$i]["href"]}
+			CVK[$n]["name"]=${r[$i]["name"]:-${r[$i]["href"]}}
+			CVK[$n]["color"]=${r[$i]["color"]}
+			n=$((n + 1))
+			i=$((i + 1))
+		done
+	done
+	CVK["n"]=$n
+}
+
+# The colour a calendar is drawn in: its own, as the server keeps it (the
+# person's choice, like an app's icon), else the theme's accent.
+fn cv_color(srv, coll) {
+	local i=0 c
+
+	while [ "$i" -lt "${CVK["n"]:-0}" ]; do
+		if [ "${CVK[$i]["srv"]}" = "$srv" ] && [ "${CVK[$i]["href"]}" = "$coll" ]; then
+			c=${CVK[$i]["color"]}
+			[[ $c =~ ^#[0-9a-fA-F]{6} ]] && { ret "${c:0:7}"; return 0; }
+			break
+		fi
+		i=$((i + 1))
+	done
+	ret "$DT_ACTIVE"
+}
+
+# The occurrences a window shows, from every server: CVI[id][k][...],
+# sorted, whole days first on a day. For the month, the 42 days drawn:
+# CVW[id]["t$k"] each one's midnight, ["n$k"] its day of the month and
+# month, ["d$k"] the numbers of the occurrences on it.
+fn cv_load(int id) {
+	local y=${CVW[$id]["y"]} m=${CVW[$id]["m"]} d0 wd from to s d h r i n=0 k t e line rest srv row c
+	local -a order days f
+
+	unset CVI["$id"]
+	cv_cals
+	d0 := cv_day "$y" "$m" 1
+	wd := cv_civil "$d0"
+	wd=${wd##* }
+	from := cv_day "$y" "$m" $((1 - wd))
+	to := cv_day "$y" "$m" $((1 - wd + 42))
+	if [ "${CVW[$id]["view"]}" = agenda ]; then
+		from=${CVW[$id]["sel"]}
+		to=$((from + 60 * 86400))
+	fi
+	CVW[$id]["from"]=$from
+	CVW[$id]["to"]=$to
+	CVW[$id]["n"]=0
+	CVW[$id]["today"] := cv_midnight "$EPOCHSECONDS"
+	if [ "${CVW[$id]["view"]}" != agenda ]; then
+		for ((k = 0; k <= 42; k++)); do
+			days[$k] := cv_day "$y" "$m" $((1 - wd + k))
+		done
+		for ((k = 0; k < 42; k++)); do
+			c := cv_civil "${days[$k]}"
+			read -r s t e c <<< "$c"
+			CVW[$id]["t$k"]=${days[$k]}
+			CVW[$id]["n$k"]="$e $t"
+			CVW[$id]["d$k"]=
+		done
+	fi
+	dt_has pe_servers && pe_servers || return 0
+	need db 2> /dev/null || return 0
+	for s in "${PE_SRVS[@]}"; do
+		d := pe_dir "$s"
+		[ -f "$d/inst.db" ] || continue
+		h := db open "$d/inst.db" 2> /dev/null || continue
+		r := db query "$h" where start lt "$to" and end gt "$from"
+		db close "$h"
+		i=0
+		while [ -n "${r[$i]["start"]+x}" ]; do
+			order+=("${r[$i]["start"]}"$'\t'"$((1 - ${r[$i]["allday"]:-0}))"$'\t'"$s"$'\t'"$i")
+			CVI[$id]["r$s$i"]="${r[$i]["start"]}"$'\t'"${r[$i]["end"]}"$'\t'"${r[$i]["allday"]:-0}"$'\t'"${r[$i]["coll"]}"$'\t'"${r[$i]["href"]}"$'\t'"${r[$i]["uid"]}"$'\t'"${r[$i]["recurid"]:-0}"$'\t'" ${r[$i]["summary"]}"$'\t'" ${r[$i]["location"]}"
+			i=$((i + 1))
+		done
+	done
+	[ "${#order[@]}" -gt 0 ] || return 0
+	IFS=$'\n' read -d '' -ra order <<< "$(printf '%s\n' "${order[@]}" | sort -t $'\t' -k1,1n -k2,2n)"
+	for line in "${order[@]}"; do
+		rest=${line#*$'\t'}
+		rest=${rest#*$'\t'}
+		srv=${rest%%$'\t'*}
+		row=${rest#*$'\t'}
+		IFS=$'\t' read -ra f <<< "${CVI[$id]["r$srv$row"]}"
+		CVI[$id][$n]["start"]=${f[0]}
+		CVI[$id][$n]["end"]=${f[1]}
+		CVI[$id][$n]["allday"]=${f[2]}
+		CVI[$id][$n]["coll"]=${f[3]}
+		CVI[$id][$n]["href"]=${f[4]}
+		CVI[$id][$n]["uid"]=${f[5]}
+		CVI[$id][$n]["recurid"]=${f[6]}
+		CVI[$id][$n]["summary"]=${f[7]# }
+		CVI[$id][$n]["location"]=${f[8]# }
+		CVI[$id][$n]["srv"]=$srv
+		n=$((n + 1))
+	done
+	CVW[$id]["n"]=$n
+	[ "${CVW[$id]["view"]}" = agenda ] && return 0
+	for ((i = 0; i < n; i++)); do
+		t=${CVI[$id][$i]["start"]}
+		e=${CVI[$id][$i]["end"]}
+		[ "$e" -gt "$t" ] || e=$((t + 1))
+		for ((k = 0; k < 42; k++)); do
+			[ "$t" -lt "${days[$((k + 1))]}" ] && [ "$e" -gt "${days[$k]}" ] && CVW[$id]["d$k"]+="$i "
+		done
+	done
+	return 0
+}
+
+# An occurrence's times as the lists show them: "all day", or HH:MM-HH:MM.
+fn cv_when(int id, int i) {
+	local a b
+
+	if [ "${CVI[$id][$i]["allday"]}" = 1 ]; then
+		ret "all day    "
+		return 0
+	fi
+	a := cv_hm "${CVI[$id][$i]["start"]}"
+	b := cv_hm "${CVI[$id][$i]["end"]}"
+	ret "$a-$b"
+}
+
+# --- the window ---------------------------------------------------------------
+
+fn calendar_open(int id, arg = "") {
+	local c y m d
+
+	if ! need pim 2> /dev/null || ! need db 2> /dev/null; then
+		CVW[$id]["nopim"]=1
+		return 0
+	fi
+	c := cv_civil "$EPOCHSECONDS"
+	read -r y m d c <<< "$c"
+	CVW[$id]["y"]=$y
+	CVW[$id]["m"]=$m
+	CVW[$id]["sel"] := cv_day "$y" "$m" "$d"
+	CVW[$id]["view"]=month
+	CVW[$id]["focus"]=grid
+	CVW[$id]["li"]=0
+	CVW[$id]["seen"]=$PE_GEN
+	cv_load "$id"
+	dt_has pe_sync && pe_sync
+	return 0
+}
+
+fn calendar_close(int id) {
+	unset CVW["$id"]
+	unset CVI["$id"]
+	return 0
+}
+
+fn calendar_idle(int id) { dt_has pe_poll && pe_poll; }
+
+# Read again when a sync has finished since the window last read, or the
+# day has turned.
+fn cv_fresh(int id) {
+	if [ "${CVW[$id]["seen"]}" != "$PE_GEN" ] ||
+	   [ "$EPOCHSECONDS" -ge $((CVW[$id]["today"] + 86400)) ] || [ "$EPOCHSECONDS" -lt "${CVW[$id]["today"]}" ]; then
+		CVW[$id]["seen"]=$PE_GEN
+		cv_load "$id"
+	fi
+}
+
+fn calendar_draw(int id, int h, int w, int row, int col) {
+	if [ "${CVW[$id]["nopim"]}" = 1 ]; then
+		console pen "$DT_DIM" "$DT_FACE"
+		console put -p "w$id" 1 2 "Calendar needs the pim and db modules, which are not installed."
+		return 0
+	fi
+	dt_has pe_tick && pe_tick "$id"
+	if ! dt_has pe_servers || ! pe_servers; then
+		console pen "$DT_DIM" "$DT_FACE"
+		console put -p "w$id" 1 2 "No server chosen for calendars yet."
+		console put -p "w$id" 2 2 "Control Panel > Calendars & Contacts chooses one"
+		console put -p "w$id" 3 2 "from the Network Servers list."
+		return 0
+	fi
+	cv_fresh "$id"
+	if [ "${CVW[$id]["view"]}" = agenda ]; then
+		cv_drawagenda "$id" "$h" "$w"
+	else
+		cv_drawmonth "$id" "$h" "$w"
+	fi
+	cv_status "$id" "$h" "$w"
+}
+
+# The bar along the top: the title between arrows, and the three buttons.
+fn cv_drawbar(int id, int w, title) {
+	local x=$((w - 20))
+
+	console pen "$DT_INK" "$DT_FACE" bold
+	console put -p "w$id" 1 1 " ${GL[larr]} "
+	dt_wreg "$id" 1 1 3 prev
+	console put -p "w$id" 1 5 "$title"
+	console put -p "w$id" 1 $((6 + ${#title})) " ${GL[rarr]} "
+	dt_wreg "$id" 1 $((6 + ${#title})) 3 next
+	console pen "$DT_DIM" "$DT_FACE"
+	console put -p "w$id" 1 "$x" "Today  Month  Agenda"
+	dt_wreg "$id" 1 "$x" 5 today
+	dt_wreg "$id" 1 $((x + 7)) 5 month
+	dt_wreg "$id" 1 $((x + 14)) 6 agenda
+}
+
+fn cv_drawmonth(int id, int h, int w) {
+	local cw=$((w / 7)) lh gh ch k r c i t ev n line col sel=${CVW[$id]["sel"]} today=${CVW[$id]["today"]}
+	local d mo ly dot=${GL[bullet]}
+	local -a evs
+
+	cv_drawbar "$id" "$w" "${CV_MONTHS[$((CVW[$id]["m"] - 1))]} ${CVW[$id]["y"]}"
+	lh=$((h / 4))
+	[ "$lh" -lt 4 ] && lh=4
+	gh=$((h - 3 - lh))
+	ch=$((gh / 6))
+	[ "$ch" -lt 2 ] && ch=2
+	console pen "$DT_DIM" "$DT_FACE"
+	for ((k = 0; k < 7; k++)); do
+		console put -p "w$id" 2 $((k * cw + 2)) "${CV_WDAYS[$k]}"
+	done
+	for ((k = 0; k < 42; k++)); do
+		r=$((3 + (k / 7) * ch))
+		c=$((1 + (k % 7) * cw))
+		t=${CVW[$id]["t$k"]}
+		read -r d mo <<< "${CVW[$id]["n$k"]}"
+		if [ "$t" = "$sel" ]; then
+			console pen "$DT_SELINK" "$DT_ACTIVE" bold
+		elif [ "$t" = "$today" ]; then
+			console pen "$DT_ACTIVE" "$DT_FACE" bold
+		elif [ "$mo" != "${CVW[$id]["m"]}" ]; then
+			console pen "$DT_DIM" "$DT_FACE"
+		else
+			console pen "$DT_INK" "$DT_FACE"
+		fi
+		line := str pad " $d" $((cw - 1))
+		console put -p "w$id" "$r" "$c" "$line"
+		dt_wreg "$id" "$r" "$c" "$cw" "day:$t"
+		read -ra evs <<< "${CVW[$id]["d$k"]}"
+		n=0
+		for i in "${evs[@]}"; do
+			[ "$n" -lt $((ch - 1)) ] || break
+			col := cv_color "${CVI[$id][$i]["srv"]}" "${CVI[$id][$i]["coll"]}"
+			console pen "$col" "$DT_FACE"
+			console put -p "w$id" $((r + 1 + n)) "$c" "$dot"
+			console pen "$DT_INK" "$DT_FACE"
+			ev=${CVI[$id][$i]["summary"]}
+			console put -p "w$id" $((r + 1 + n)) $((c + 1)) "${ev:0:$((cw - 2))}"
+			dt_wreg "$id" $((r + 1 + n)) "$c" "$cw" "day:$t"
+			n=$((n + 1))
+		done
+		if [ "${#evs[@]}" -gt $((ch - 1)) ]; then
+			line="+$((${#evs[@]} - ch + 1))"
+			console pen "$DT_DIM" "$DT_FACE"
+			[ "$t" = "$sel" ] && console pen "$DT_SELINK" "$DT_ACTIVE"
+			console put -p "w$id" "$r" $((c + cw - ${#line} - 2)) "$line"
+		fi
+	done
+	ly=$((3 + 6 * ch))
+	line := str repeat "${GL[hline]}" "$w"
+	console pen "$DT_DIM" "$DT_FACE"
+	console put -p "w$id" "$ly" 1 "$line"
+	cv_drawday "$id" $((ly + 1)) $((h - ly - 1)) "$w"
+}
+
+# The chosen day's events, with their times; the one chosen lit when the
+# list has the keyboard.
+fn cv_drawday(int id, int r0, int vis, int w) {
+	local sel=${CVW[$id]["sel"]} i n=${CVW[$id]["n"]:-0} r=$r0 k=0 t e line col wh
+	local -a mine
+
+	for ((i = 0; i < n; i++)); do
+		t=${CVI[$id][$i]["start"]}
+		e=${CVI[$id][$i]["end"]}
+		[ "$e" -gt "$t" ] || e=$((t + 1))
+		[ "$t" -lt $((sel + 86400)) ] && [ "$e" -gt "$sel" ] && mine+=("$i")
+	done
+	CVW[$id]["dayev"]="${mine[*]}"
+	[ "${CVW[$id]["li"]:-0}" -ge "${#mine[@]}" ] && CVW[$id]["li"]=0
+	if [ "${#mine[@]}" = 0 ]; then
+		console pen "$DT_DIM" "$DT_FACE"
+		console put -p "w$id" "$r" 3 "Nothing on this day. Enter makes an event."
+		return 0
+	fi
+	for i in "${mine[@]}"; do
+		[ "$k" -lt "$vis" ] || break
+		wh := cv_when "$id" "$i"
+		line="$wh  ${CVI[$id][$i]["summary"]}"
+		[ -n "${CVI[$id][$i]["location"]}" ] && line+=" -- ${CVI[$id][$i]["location"]}"
+		col := cv_color "${CVI[$id][$i]["srv"]}" "${CVI[$id][$i]["coll"]}"
+		console pen "$col" "$DT_FACE"
+		console put -p "w$id" "$r" 2 "${GL[bullet]}"
+		if [ "${CVW[$id]["focus"]}" = list ] && [ "$k" = "${CVW[$id]["li"]:-0}" ]; then
+			console pen "$DT_SELINK" "$DT_ACTIVE"
+		else
+			console pen "$DT_INK" "$DT_FACE"
+		fi
+		line := str pad " ${line:0:$((w - 4))}" $((w - 2))
+		console put -p "w$id" "$r" 3 "$line"
+		dt_wreg "$id" "$r" 3 $((w - 2)) "ev:$k"
+		r=$((r + 1))
+		k=$((k + 1))
+	done
+}
+
+# What is coming, from the chosen day: a heading for each day with
+# events, and its events under it.
+fn cv_drawagenda(int id, int h, int w) {
+	local n=${CVW[$id]["n"]:-0} r=3 i last= day line col c y m d hh mi s wd wh top title
+	local -a all
+
+	printf -v title 'Agenda from %(%d %B %Y)T' "${CVW[$id]["sel"]}"
+	cv_drawbar "$id" "$w" "$title"
+	for ((i = 0; i < n; i++)); do all+=("$i"); done
+	CVW[$id]["dayev"]="${all[*]}"
+	if [ "$n" = 0 ]; then
+		console pen "$DT_DIM" "$DT_FACE"
+		console put -p "w$id" 3 2 "Nothing in the next sixty days."
+		return 0
+	fi
+	[ "${CVW[$id]["li"]:-0}" -ge "$n" ] && CVW[$id]["li"]=$((n - 1))
+	top=${CVW[$id]["atop"]:-0}
+	[ "${CVW[$id]["li"]}" -lt "$top" ] && top=${CVW[$id]["li"]}
+	[ "${CVW[$id]["li"]}" -gt $((top + (h - 4) / 2)) ] && top=$((CVW[$id]["li"] - (h - 4) / 2))
+	CVW[$id]["atop"]=$top
+	for ((i = top; i < n && r < h; i++)); do
+		c := cv_civil "${CVI[$id][$i]["start"]}"
+		read -r y m d hh mi s wd <<< "$c"
+		day="$y $m $d"
+		if [ "$day" != "$last" ]; then
+			console pen "$DT_INK" "$DT_FACE" bold
+			console put -p "w$id" "$r" 1 "${CV_WDAYS[$wd]} $d ${CV_MONTHS[$((m - 1))]} $y"
+			r=$((r + 1))
+			last=$day
+			[ "$r" -lt "$h" ] || break
+		fi
+		wh := cv_when "$id" "$i"
+		line="$wh  ${CVI[$id][$i]["summary"]}"
+		[ -n "${CVI[$id][$i]["location"]}" ] && line+=" -- ${CVI[$id][$i]["location"]}"
+		col := cv_color "${CVI[$id][$i]["srv"]}" "${CVI[$id][$i]["coll"]}"
+		console pen "$col" "$DT_FACE"
+		console put -p "w$id" "$r" 2 "${GL[bullet]}"
+		if [ "$i" = "${CVW[$id]["li"]:-0}" ]; then
+			console pen "$DT_SELINK" "$DT_ACTIVE"
+		else
+			console pen "$DT_INK" "$DT_FACE"
+		fi
+		line := str pad " ${line:0:$((w - 6))}" $((w - 4))
+		console put -p "w$id" "$r" 3 "$line"
+		dt_wreg "$id" "$r" 3 $((w - 4)) "ev:$i"
+		r=$((r + 1))
+	done
+}
+
+# The bar at the foot: what the syncs say.
+fn cv_status(int id, int h, int w) {
+	local st= s n l
+
+	for s in "${PE_SRVS[@]}"; do
+		if n := pe_running "$s"; then
+			l := pe_joblast "$n"
+			st="Syncing $s${l:+: $l}"
+			dt_want 700
+			break
+		fi
+		[ -n "${PCW["status$s"]}" ] && st="$s: ${PCW["status$s"]}"
+	done
+	console pen "$DT_DIM" "$DT_FACE"
+	st := str pad " ${st:-Calendars from ${PE_SRVS[*]}}" "$w"
+	console put -p "w$id" "$h" 1 "${st:0:$w}"
+}
+
+# Choose a day, and the month it is in.
+fn cv_select(int id, int t) {
+	local c y m
+
+	t := cv_midnight "$t"
+	CVW[$id]["sel"]=$t
+	CVW[$id]["li"]=0
+	c := cv_civil "$t"
+	read -r y m c <<< "$c"
+	if [ "$y" != "${CVW[$id]["y"]}" ] || [ "$m" != "${CVW[$id]["m"]}" ] || [ "${CVW[$id]["view"]}" = agenda ]; then
+		CVW[$id]["y"]=$y
+		CVW[$id]["m"]=$m
+		cv_load "$id"
+	fi
+}
+
+# The same day in the month before or after, or that month's last.
+fn cv_month(int id, int by) {
+	local c y m d t last
+
+	c := cv_civil "${CVW[$id]["sel"]}"
+	read -r y m d c <<< "$c"
+	last := cv_day "$y" $((m + by + 1)) 0
+	t := cv_day "$y" $((m + by)) "$d"
+	[ "$t" -gt "$last" ] && t=$last
+	cv_select "$id" "$t"
+}
+
+# The occurrence chosen in the day's list or the agenda: its number.
+fn cv_chosen(int id) {
+	local -a l
+
+	read -ra l <<< "${CVW[$id]["dayev"]}"
+	[ -n "${l[${CVW[$id]["li"]:-0}]}" ] || return 1
+	ret "${l[${CVW[$id]["li"]:-0}]}"
+}
+
+fn calendar_key(int id, key) {
+	local sel=${CVW[$id]["sel"]} i
+	local -a l
+
+	[ "${CVW[$id]["nopim"]}" = 1 ] && return 1
+	read -ra l <<< "${CVW[$id]["dayev"]}"
+	if [ "${CVW[$id]["focus"]}" = list ] || [ "${CVW[$id]["view"]}" = agenda ]; then
+		case $key in
+		up | k)
+			[ "${CVW[$id]["li"]:-0}" -gt 0 ] && CVW[$id]["li"]=$((CVW[$id]["li"] - 1))
+			return 0
+			;;
+		down | j)
+			[ "${CVW[$id]["li"]:-0}" -lt $((${#l[@]} - 1)) ] && CVW[$id]["li"]=$((CVW[$id]["li"] + 1))
+			return 0
+			;;
+		enter | e)
+			i := cv_chosen "$id" && cedit_show "$id" "$i"
+			return 0
+			;;
+		"#" | delete)
+			i := cv_chosen "$id" && cv_delask "$id" "$i"
+			return 0
+			;;
+		tab | escape)
+			if [ "${CVW[$id]["view"]}" != agenda ]; then
+				CVW[$id]["focus"]=grid
+				return 0
+			fi
+			;;
+		esac
+	fi
+	case $key in
+	left) cv_select "$id" $((sel - 86400 + 7200)) ;;
+	right) cv_select "$id" $((sel + 86400 + 7200)) ;;
+	up) cv_select "$id" $((sel - 7 * 86400 + 7200)) ;;
+	down) cv_select "$id" $((sel + 7 * 86400 + 7200)) ;;
+	pagedown | n) cv_month "$id" 1 ;;
+	pageup | p) cv_month "$id" -1 ;;
+	t) cv_select "$id" "$EPOCHSECONDS" ;;
+	a)
+		CVW[$id]["view"]=agenda
+		CVW[$id]["li"]=0
+		CVW[$id]["atop"]=0
+		cv_load "$id"
+		;;
+	m)
+		CVW[$id]["view"]=month
+		CVW[$id]["focus"]=grid
+		cv_load "$id"
+		;;
+	tab)
+		if [ "${#l[@]}" -gt 0 ]; then
+			CVW[$id]["focus"]=list
+			CVW[$id]["li"]=0
+		fi
+		;;
+	enter | c) cedit_show "$id" "" ;;
+	e) [ "${#l[@]}" -gt 0 ] && cedit_show "$id" "${l[0]}" ;;
+	R | f5)
+		dt_has pe_sync && pe_sync
+		dt_notep low "Syncing calendars${GL[ellipsis]}"
+		;;
+	*) return 1 ;;
+	esac
+	return 0
+}
+
+fn calendar_click(int? id = "", int? r = "", int? c = "", btn = "") {
+	local tag t i
+
+	[ "${CVW[$id]["nopim"]}" = 1 ] && return 0
+	tag := dt_hit "$id" "$r" "$c" || return 0
+	case $tag in
+	prev) calendar_key "$id" p ;;
+	next) calendar_key "$id" n ;;
+	today) calendar_key "$id" t ;;
+	month) calendar_key "$id" m ;;
+	agenda) calendar_key "$id" a ;;
+	day:*)
+		t=${tag#day:}
+		CVW[$id]["focus"]=grid
+		if [ "$t" = "${CVW[$id]["sel"]}" ] && [ "$btn" = double ]; then
+			cedit_show "$id" ""
+		else
+			cv_select "$id" "$t"
+		fi
+		;;
+	ev:*)
+		[ "${CVW[$id]["view"]}" = agenda ] || CVW[$id]["focus"]=list
+		CVW[$id]["li"]=${tag#ev:}
+		[ "$btn" = double ] && i := cv_chosen "$id" && cedit_show "$id" "$i"
+		;;
+	esac
+	return 0
+}
+
+fn calendar_wheel(int id, act, int r, int c) {
+	[ "${CVW[$id]["nopim"]}" = 1 ] && return 0
+	if [ "${CVW[$id]["view"]}" = agenda ]; then
+		case $act in
+		wheelup) calendar_key "$id" up ;;
+		wheeldown) calendar_key "$id" down ;;
+		esac
+		return 0
+	fi
+	case $act in
+	wheelup) cv_month "$id" -1 ;;
+	wheeldown) cv_month "$id" 1 ;;
+	esac
+}
+
+calendar_menus() {
+	dt_menu "File"
+	dt_item "New Event" n calendar_key "$DT_FOCUS" c
+	dt_item "Sync Now" s calendar_key "$DT_FOCUS" R
+	dt_editmenu
+	dt_menu "View"
+	dt_item "Month" m calendar_key "$DT_FOCUS" m
+	dt_item "Agenda" a calendar_key "$DT_FOCUS" a
+	dt_sep
+	dt_item "Today" t calendar_key "$DT_FOCUS" t
+	dt_item "Next Month" n calendar_key "$DT_FOCUS" n
+	dt_item "Previous Month" p calendar_key "$DT_FOCUS" p
+}
+
+# Remove an event, after asking -- every time it repeats, too.
+fn cv_delask(int id, int i) {
+	local what=${CVI[$id][$i]["summary"]:-this event}
+
+	CV_DEL="$id $i"
+	if [ "${CVI[$id][$i]["recurid"]:-0}" != 0 ]; then
+		dt_confirm "Remove $what, every time it repeats?" cv_deldo
+	else
+		dt_confirm "Remove $what?" cv_deldo
+	fi
+}
+cv_deldo() {
+	local id=${CV_DEL% *} i=${CV_DEL#* } s d e
+
+	CV_DEL=
+	[ -n "$id" ] || return 0
+	s=${CVI[$id][$i]["srv"]}
+	d := pe_dir "$s"
+	e := cv_obj "$s" "${CVI[$id][$i]["href"]}" etag
+	printf 'del\t-\t%s\t%s\n' "${CVI[$id][$i]["href"]}" "${e:--}" >> "$d/queue"
+	dt_notep low "Removed; the server is told at the next sync"
+	pe_sync "$s"
+}
+
+# A field of the row an event was read into, in obj.db: its etag or file.
+fn cv_obj(srv, href, field) {
+	local d h r
+
+	d := pe_dir "$srv"
+	[ -f "$d/obj.db" ] || return 1
+	h := db open "$d/obj.db" 2> /dev/null || return 1
+	r := db query "$h" where href eq "$href"
+	db close "$h"
+	[ -n "${r[0]["href"]+x}" ] || return 1
+	ret "${r[0]["$field"]}"
+}
+
+# --- reminders ----------------------------------------------------------------
+
+# After every frame: the reminders due, said once each. Which are coming
+# is read again every five minutes and after every sync; between, this
+# compares numbers and asks for the frame the next one is due in. The jobs
+# Contacts and Calendar run in the background are handed on here too, so a
+# sync finishes with neither window open.
+cv_alarms() {
+	local now=$EPOCHSECONDS i next=0 at k hm
+
+	dt_has pe_servers || return 0
+	pe_poll
+	pe_servers || return 0
+	need pim 2> /dev/null || return 0
+	if [ "$now" -ge "$CV_ALAT" ] || [ "$CV_ALGEN" != "$PE_GEN" ]; then
+		cv_alload
+		CV_ALAT=$((now + 300))
+		CV_ALGEN=$PE_GEN
+	fi
+	for ((i = 0; i < CV_ALN; i++)); do
+		at=${CVAL[$i]["at"]}
+		k=${CVAL[$i]["key"]}
+		[ -n "${CVFIRED["$k"]}" ] && continue
+		if [ "$at" -le "$now" ]; then
+			CVFIRED["$k"]=1
+			if [ "$at" -gt $((now - 600)) ]; then
+				hm := cv_hm "${CVAL[$i]["start"]}"
+				dt_notep high "${CVAL[$i]["summary"]:-An event} at $hm"
+				dt_want 30
+			fi
+		elif [ "$next" = 0 ] || [ "$at" -lt "$next" ]; then
+			next=$at
+		fi
+	done
+	if [ "$next" -gt 0 ]; then
+		k=$(((next - now) * 1000 + 50))
+		[ "$k" -gt 300000 ] && k=300000
+		dt_want "$k"
+	fi
+	return 0
+}
+
+# The reminders of the coming two days, from every server, into CVAL. An
+# occurrence with none keeps 1 for its alarm, which no trigger before the
+# start can be.
+cv_alload() {
+	local s d h r i n=0 now=$EPOCHSECONDS
+
+	unset CVAL
+	declare -gA CVAL
+	CV_ALN=0
+	pe_servers || return 0
+	need db 2> /dev/null || return 0
+	for s in "${PE_SRVS[@]}"; do
+		d := pe_dir "$s"
+		[ -f "$d/inst.db" ] || continue
+		h := db open "$d/inst.db" 2> /dev/null || continue
+		r := db query "$h" where start gt $((now - 3600)) and start lt $((now + 2 * 86400)) and alarm lt 1
+		db close "$h"
+		i=0
+		while [ -n "${r[$i]["start"]+x}" ]; do
+			CVAL[$n]["at"]=$((${r[$i]["start"]} + ${r[$i]["alarm"]}))
+			CVAL[$n]["start"]=${r[$i]["start"]}
+			CVAL[$n]["summary"]=${r[$i]["summary"]}
+			CVAL[$n]["key"]="${r[$i]["href"]}@${r[$i]["start"]}"
+			n=$((n + 1))
+			i=$((i + 1))
+		done
+	done
+	CV_ALN=$n
+}
+
+# --- the editor ---------------------------------------------------------------
+
+# Every editor starts as an empty new event, however it was opened;
+# cedit_show fills it in after.
+fn cedit_open(int id, arg = "") {
+	local k
+
+	for k in "${CE_FIELDS[@]}"; do
+		CED[$id]["$k"]=
+		CED[$id]["${k}cur"]=0
+	done
+	for k in srv coll href uid etag recur org atts exd from; do CED[$id]["$k"]=; done
+	CED[$id]["allday"]=0
+	CED[$id]["repeat"]=none
+	CED[$id]["remind"]=none
+	CED[$id]["cal"]=0
+	CED[$id]["focus"]=title
+	return 0
+}
+
+# Open the editor on an occurrence a Calendar window shows (its number),
+# or on a new event on that window's chosen day.
+fn cedit_show(int from, i = "") {
+	local id h=23 w=70 c st en f k j=0 v r y m d
+
+	[ "$w" -gt $((DT_COLS - 2)) ] && w=$((DT_COLS - 2))
+	cv_cals
+	if [ "${CVK["n"]:-0}" = 0 ]; then
+		dt_notep high "No calendar yet: choose a server in Control Panel > Calendars & Contacts, then sync"
+		return 0
+	fi
+	if [ -n "$i" ]; then
+		if ! f := cv_obj "${CVI[$from][$i]["srv"]}" "${CVI[$from][$i]["href"]}" file; then
+			dt_notep high "That event is not kept here any more; syncing"
+			pe_sync
+			return 0
+		fi
+		r := pim ics events "$f" 2> /dev/null || return 0
+		k=0
+		while [ -n "${r[$k]["start"]+x}" ]; do
+			if [ "${r[$k]["recurid"]:-0}" = 0 ]; then
+				j=$k
+				break
+			fi
+			k=$((k + 1))
+		done
+		id := dt_new "Edit Event" "$h" "$w" $(((DT_ROWS - h) / 2)) $(((DT_COLS - w) / 2)) cedit
+		CED[$id]["srv"]=${CVI[$from][$i]["srv"]}
+		CED[$id]["coll"]=${CVI[$from][$i]["coll"]}
+		CED[$id]["href"]=${CVI[$from][$i]["href"]}
+		CED[$id]["etag"] := cv_obj "${CED[$id]["srv"]}" "${CED[$id]["href"]}" etag
+		st=${r[$j]["start"]}
+		en=${r[$j]["end"]}
+		CED[$id]["uid"]=${r[$j]["uid"]}
+		CED[$id]["title"]=${r[$j]["summary"]}
+		CED[$id]["location"]=${r[$j]["location"]}
+		CED[$id]["notes"]=${r[$j]["description"]}
+		CED[$id]["allday"]=${r[$j]["allday"]:-0}
+		CED[$id]["recur"]=${r[$j]["rrule"]}
+		CED[$id]["exd"]=${r[$j]["exdate"]}
+		case ${r[$j]["rrule"]} in
+		*FREQ=DAILY*) CED[$id]["repeat"]=daily ;;
+		*FREQ=WEEKLY*) CED[$id]["repeat"]=weekly ;;
+		*FREQ=MONTHLY*) CED[$id]["repeat"]=monthly ;;
+		*FREQ=YEARLY*) CED[$id]["repeat"]=yearly ;;
+		esac
+		if [ -n "${r[$j]["alarm"][0]["trigger"]+x}" ]; then
+			v=$((-${r[$j]["alarm"][0]["trigger"]} / 60))
+			CED[$id]["remind"]=$v
+		fi
+		[ -n "${r[$j]["org"]}" ] && CED[$id]["org"]="${r[$j]["org"]};${r[$j]["orgname"]}"
+		k=0
+		while [ -n "${r[$j]["att"][$k]["addr"]+x}" ]; do
+			CED[$id]["atts"]+="${r[$j]["att"][$k]["addr"]};${r[$j]["att"][$k]["name"]};${r[$j]["att"][$k]["partstat"]}"$'\n'
+			CED[$id]["invite"]+="${CED[$id]["invite"]:+, }${r[$j]["att"][$k]["addr"]}"
+			k=$((k + 1))
+		done
+		for ((k = 0; k < CVK["n"]; k++)); do
+			[ "${CVK[$k]["srv"]}" = "${CED[$id]["srv"]}" ] && [ "${CVK[$k]["href"]}" = "${CED[$id]["coll"]}" ] && CED[$id]["cal"]=$k
+		done
+	else
+		id := dt_new "New Event" "$h" "$w" $(((DT_ROWS - h) / 2)) $(((DT_COLS - w) / 2)) cedit
+		c := cv_civil "${CVW[$from]["sel"]:-$EPOCHSECONDS}"
+		read -r y m d c <<< "$c"
+		st := pim when epoch "$y" "$m" "$d" 9 0 0
+		en=$((st + 3600))
+	fi
+	CED[$id]["date"] := cv_ymd "$st"
+	CED[$id]["start"] := cv_hm "$st"
+	CED[$id]["end"] := cv_hm "$en"
+	if [ "${CED[$id]["allday"]}" = 1 ]; then
+		CED[$id]["start"]=09:00
+		CED[$id]["end"]=10:00
+	fi
+	CED[$id]["from"]=$from
+	for k in "${CE_FIELDS[@]}"; do CED[$id]["${k}cur"]=${#CED[$id]["$k"]}; done
+	return 0
+}
+
+fn cedit_draw(int id, int h, int w, int row, int col) {
+	local f=${CED[$id]["focus"]} r=1 k fw=$((w - 16)) on t q
+	local -A labs
+
+	labs=([title]="Title:" [date]="Date:" [start]="Starts:" [end]="Ends:" [allday]="All day:"
+		[repeat]="Repeats:" [remind]="Reminder:" [cal]="Calendar:" [location]="Where:"
+		[notes]="Notes:" [invite]="Invite:")
+	dt_wclear "$id"
+	for k in title date start end allday repeat remind cal location notes invite; do
+		console pen "$DT_INK" "$DT_FACE"
+		console put -p "w$id" "$r" 2 "${labs["$k"]}"
+		on=0
+		[ "$f" = "$k" ] && on=1
+		case $k in
+		allday | repeat | remind | cal)
+			case $k in
+			allday)
+				t=no
+				[ "${CED[$id]["allday"]}" = 1 ] && t=yes
+				;;
+			repeat) t=${CED[$id]["repeat"]} ;;
+			remind)
+				t=${CED[$id]["remind"]}
+				case $t in
+				none) ;;
+				1440) t="a day before" ;;
+				*) t="$t minutes before" ;;
+				esac
+				;;
+			cal)
+				q=${CED[$id]["cal"]}
+				t="${CVK[$q]["name"]} (${CVK[$q]["srv"]})"
+				;;
+			esac
+			if [ "$on" = 1 ]; then console pen "$DT_SELINK" "$DT_ACTIVE"; else console pen "$DT_INK" "$DT_WELL"; fi
+			t=" ${t:0:$((fw - 4))} ${GL[sdown]} "
+			console put -p "w$id" "$r" 14 "$t"
+			dt_wreg "$id" "$r" 14 "${#t}" "$k"
+			;;
+		*)
+			dt_textdraw "$id" "$r" 14 "$fw" "${CED[$id]["$k"]}" "${CED[$id]["${k}cur"]}" "$on"
+			dt_wreg "$id" "$r" 14 "$fw" "$k"
+			;;
+		esac
+		r=$((r + 1))
+		case $k in end | cal) r=$((r + 1)) ;; esac
+	done
+	console pen "$DT_DIM" "$DT_FACE"
+	console put -p "w$id" $((r + 1)) 2 "Dates YYYY-MM-DD, times HH:MM; invite addresses, commas between."
+	[ -n "${CED[$id]["recur"]}" ] && console put -p "w$id" $((r + 2)) 2 "A change here is made to every time it repeats."
+	if [ -n "${CED[$id]["href"]}" ]; then
+		dt_dlgbtns "$id" "$h" "$w" "$f" ok Save del Remove cancel Cancel
+	else
+		dt_dlgbtns "$id" "$h" "$w" "$f" ok Save cancel Cancel
+	fi
+}
+
+fn cedit_key(int id, key) {
+	local f=${CED[$id]["focus"]} d onb=1 res
+
+	case $f in title | date | start | end | location | notes | invite) onb=0 ;; esac
+	if d := dt_focuskey "$key" "$onb"; then
+		CED[$id]["focus"] := dt_focus "$f" "$d" "${CE_ORDER[@]}"
+		if [ -z "${CED[$id]["href"]}" ] && [ "${CED[$id]["focus"]}" = del ]; then
+			CED[$id]["focus"] := dt_focus del "$d" "${CE_ORDER[@]}"
+		fi
+		return 0
+	fi
+	case $key in
+	escape)
+		dt_del "$id"
+		return 0
+		;;
+	enter | " ")
+		case $f in
+		allday | repeat | remind | cal | ok | del | cancel)
+			cedit_do "$id" "$f"
+			return 0
+			;;
+		*)
+			if [ "$key" = enter ]; then
+				CED[$id]["focus"] := dt_focus "$f" 1 "${CE_ORDER[@]}"
+				return 0
+			fi
+			;;
+		esac
+		;;
+	esac
+	case $f in title | date | start | end | location | notes | invite) ;; *) return 1 ;; esac
+	res := dt_textkey "${CED[$id]["$f"]}" "${CED[$id]["${f}cur"]}" "$key" || return 1
+	CED[$id]["$f"]=${res% *}
+	CED[$id]["${f}cur"]=${res##* }
+	return 0
+}
+
+fn cedit_click(int? id = "", int? r = "", int? c = "", btn = "") {
+	local tag cur
+
+	tag := dt_hit "$id" "$r" "$c" || return 0
+	case $tag in
+	title | date | start | end | location | notes | invite)
+		CED[$id]["focus"]=$tag
+		cur=$((c - 14))
+		[ "$cur" -gt "${#CED[$id]["$tag"]}" ] && cur=${#CED[$id]["$tag"]}
+		[ "$cur" -lt 0 ] && cur=0
+		CED[$id]["${tag}cur"]=$cur
+		;;
+	*)
+		CED[$id]["focus"]=$tag
+		cedit_do "$id" "$tag"
+		;;
+	esac
+	return 0
+}
+
+fn cedit_close(int id) {
+	unset CED["$id"]
+	return 0
+}
+
+# The value after another in a list, round to the first.
+fn cv_next(cur, ...vals) {
+	local i
+
+	for ((i = 0; i < ${#vals[@]}; i++)); do
+		if [ "${vals[$i]}" = "$cur" ]; then
+			ret "${vals[$(((i + 1) % ${#vals[@]}))]}"
+			return 0
+		fi
+	done
+	ret "${vals[0]}"
+}
+
+# What enter, space or a click does to what has the focus.
+fn cedit_do(int id, what) {
+	local v from k i=
+
+	case $what in
+	allday) CED[$id]["allday"]=$((1 - ${CED[$id]["allday"]:-0})) ;;
+	repeat)
+		v := cv_next "${CED[$id]["repeat"]}" "${CV_REPEATS[@]}"
+		CED[$id]["repeat"]=$v
+		;;
+	remind)
+		v := cv_next "${CED[$id]["remind"]}" "${CV_REMINDS[@]}"
+		CED[$id]["remind"]=$v
+		;;
+	cal)
+		if [ -n "${CED[$id]["href"]}" ]; then
+			dt_notep low "An event stays in its calendar; make a new one in the other"
+		else
+			CED[$id]["cal"]=$(((${CED[$id]["cal"]} + 1) % CVK["n"]))
+		fi
+		;;
+	cancel) dt_del "$id" ;;
+	del)
+		from=${CED[$id]["from"]}
+		for ((k = 0; k < ${CVW[$from]["n"]:-0}; k++)); do
+			if [ "${CVI[$from][$k]["href"]}" = "${CED[$id]["href"]}" ]; then
+				i=$k
+				break
+			fi
+		done
+		dt_del "$id"
+		[ -n "$i" ] && cv_delask "$from" "$i"
+		;;
+	ok) cv_save "$id" && dt_del "$id" ;;
+	esac
+	return 0
+}
+
+# A date and a time as seconds since the epoch, or a failure.
+fn cv_parse(date, hm = "00:00") {
+	local y m d hh mi t
+
+	[[ $date =~ ^([0-9]{4})-([0-9]{1,2})-([0-9]{1,2})$ ]] || return 1
+	y=$((10#${M[1]}))
+	m=$((10#${M[2]}))
+	d=$((10#${M[3]}))
+	[[ $hm =~ ^([0-9]{1,2}):([0-9]{2})$ ]] || return 1
+	hh=$((10#${M[1]}))
+	mi=$((10#${M[2]}))
+	[ "$m" -ge 1 ] && [ "$m" -le 12 ] && [ "$d" -ge 1 ] && [ "$d" -le 31 ] || return 1
+	[ "$hh" -le 23 ] && [ "$mi" -le 59 ] || return 1
+	t := pim when epoch "$y" "$m" "$d" "$hh" "$mi" 0
+	ret "$t"
+}
+
+# The mail account an organiser's address belongs to; given no address,
+# the first account. Fails when there is none.
+fn cv_acct(addr = "") {
+	local a
+
+	dt_has ml_accounts && ml_accounts || return 1
+	if [ -n "$addr" ]; then
+		for a in "${ML_ACCTS[@]}"; do
+			[ "${MLME["$a"],,}" = "${addr,,}" ] && { ret "$a"; return 0; }
+		done
+		return 1
+	fi
+	ret "${ML_ACCTS[0]}"
+}
+
+# An account's address and name, as an organiser or attendee is written:
+# "address;name".
+fn cv_me(acct) {
+	local r
+
+	r := email accounts 2> /dev/null
+	ret "${MLME["$acct"]};${r["$acct"]["name"]}"
+}
+
+# Write the event and queue it for its calendar; with invitees, and the
+# organiser one of this person's own mail accounts, send them an
+# invitation. Someone else's event keeps its organiser and attendees.
+fn cv_save(int id) {
+	local st en z k srv coll d f base u rule addr line acct= mine=1 err x
+	local -a args ems ex atl
+
+	if [ "${CED[$id]["allday"]}" = 1 ]; then
+		st := cv_parse "${CED[$id]["date"]}" 00:00 || { dt_notep high "The date is YYYY-MM-DD"; return 1; }
+		en := cv_midnight $((st + 86400 + 7200))
+	else
+		if ! st := cv_parse "${CED[$id]["date"]}" "${CED[$id]["start"]}"; then
+			dt_notep high "The date is YYYY-MM-DD, the time HH:MM"
+			return 1
+		fi
+		en := cv_parse "${CED[$id]["date"]}" "${CED[$id]["end"]}" || { dt_notep high "The end is a time, HH:MM"; return 1; }
+		[ "$en" -gt "$st" ] || en=$((en + 86400))
+	fi
+	k=${CED[$id]["cal"]:-0}
+	srv=${CED[$id]["srv"]:-${CVK[$k]["srv"]}}
+	coll=${CED[$id]["coll"]:-${CVK[$k]["href"]}}
+	d := pe_dir "$srv"
+	mkdir -p "$d/out"
+	u=${CED[$id]["uid"]:-hibr-$EPOCHSECONDS-$RANDOM@${HOSTNAME:-hibr}}
+	base=${CED[$id]["href"]##*/}
+	[ -n "$base" ] || base="${u//[^A-Za-z0-9._-]/_}.ics"
+	f="$d/out/$base"
+	z := cv_zone
+	args=(-u "$u" -s "${CED[$id]["title"]:-New event}" -b "$st" -e "$en" -z "$z")
+	[ "${CED[$id]["allday"]}" = 1 ] && args+=(-a)
+	[ -n "${CED[$id]["location"]}" ] && args+=(-l "${CED[$id]["location"]}")
+	[ -n "${CED[$id]["notes"]}" ] && args+=(-d "${CED[$id]["notes"]}")
+	if [ "${CED[$id]["repeat"]}" != none ]; then
+		rule=${CED[$id]["recur"]}
+		[[ $rule == *"FREQ=${CED[$id]["repeat"]^^}"* ]] || rule="FREQ=${CED[$id]["repeat"]^^}"
+		args+=(-r "$rule")
+		read -ra ex <<< "${CED[$id]["exd"]}"
+		for x in "${ex[@]}"; do args+=(-x "$x"); done
+	fi
+	[ "${CED[$id]["remind"]}" = none ] || args+=(-L "${CED[$id]["remind"]}")
+	IFS=',' read -ra ems <<< "${CED[$id]["invite"]}"
+	if [ "${#ems[@]}" -gt 0 ]; then
+		if [ -n "${CED[$id]["org"]}" ]; then
+			args+=(-o "${CED[$id]["org"]}")
+			acct := cv_acct "${CED[$id]["org"]%%;*}" || mine=0
+		else
+			acct := cv_acct || { dt_notep high "Inviting people needs a mail account to send from"; return 1; }
+			x := cv_me "$acct"
+			args+=(-o "$x")
+		fi
+		IFS=$'\n' read -d '' -ra atl <<< "${CED[$id]["atts"]}"
+		for addr in "${ems[@]}"; do
+			addr=${addr# }
+			addr=${addr% }
+			[ -n "$addr" ] || continue
+			x=$addr
+			for line in "${atl[@]}"; do
+				[ "${line%%;*}" = "$addr" ] && { x=$line; break; }
+			done
+			args+=(-A "$x")
+		done
+	fi
+	err="$d/out/build.err"
+	if ! pim ics build "$f.req" "${args[@]}" -m REQUEST 2> "$err" || ! pim ics store "$f.req" "$f" 2>> "$err"; then
+		read -r line < "$err"
+		dt_notep high "Could not make the event: ${line#hibr: }"
+		return 1
+	fi
+	printf 'put\t%s\t%s\t%s\t%s\n' "$coll" "$base" "$f" "${CED[$id]["etag"]:--}" >> "$d/queue"
+	pe_sync "$srv"
+	if [ "${#ems[@]}" -gt 0 ] && [ "$mine" = 1 ] && [ -n "$acct" ]; then
+		cv_invite "$srv" "$acct" "$f.req" "${CED[$id]["invite"]}" "${CED[$id]["title"]:-New event}" "$st" REQUEST
+	else
+		command rm -f "$f.req"
+		dt_notep low "Saved; the server has it at the next sync"
+	fi
+	return 0
+}
+
+# Send a calendar message by Mail -- an invitation (REQUEST) or an answer
+# to one (REPLY): the event as a text/calendar part beside a few lines
+# saying what it is, from the account's own address, in the background.
+fn cv_invite(srv, acct, ics, to, title, int st, method) {
+	local d m b n subj from r
+
+	d := pe_dir "$srv"
+	mkdir -p "$d/out"
+	m="$d/out/mail-$EPOCHSECONDS-$RANDOM.eml"
+	b="$m.txt"
+	case $method in
+	REQUEST)
+		subj="Invitation: $title"
+		printf 'You are invited: %s\n%(%A %d %B %Y, %H:%M)T\n' "$title" "$st" > "$b"
+		;;
+	*)
+		subj=$title
+		printf '%s\n' "$title" > "$b"
+		;;
+	esac
+	from=${MLME["$acct"]}
+	r := email accounts 2> /dev/null && [ -n "${r["$acct"]["name"]}" ] && from="${r["$acct"]["name"]} <$from>"
+	if ! email build "$m" -f "$from" -t "$to" -s "$subj" -T "$b" -C "$ics" -M "$method" > /dev/null 2>&1; then
+		dt_notep high "Could not make the message to $to"
+		return 1
+	fi
+	command rm -f "$b" "$ics"
+	n := pe_job mail "$srv" cv_sent "$HIBR" -c 'need email || exit 2; email send "$1" "$2" || exit 1; rm -f "$2"' send "$acct" "$m"
+	PEJ[$n]["to"]=$to
+	PEJ[$n]["method"]=$method
+	return 0
+}
+
+# A message sent, or not.
+fn cv_sent(int n, int st) {
+	local to=${PEJ[$n]["to"]} l=
+
+	if [ "$st" = 0 ]; then
+		case ${PEJ[$n]["method"]} in
+		REQUEST) dt_notep low "Saved, and the invitation sent to $to" ;;
+		*) dt_notep low "Your answer is sent to $to" ;;
+		esac
+	else
+		[ -s "${PEJ[$n]["dir"]}/$n.err" ] && read -r l < "${PEJ[$n]["dir"]}/$n.err"
+		dt_notep high "Could not send to $to${l:+: ${l#hibr: }}"
+	fi
+}
+
+# --- invitations in Mail ------------------------------------------------------
+
+declare -gA CVCARD
+declare -gA CVANS
+
+# The stored copy of an event, by its uid, from any server chosen:
+# "server<TAB>href<TAB>etag<TAB>file<TAB>collection".
+fn cv_byuid(uid) {
+	local s d h r
+
+	dt_has pe_servers && pe_servers || return 1
+	need db 2> /dev/null || return 1
+	for s in "${PE_SRVS[@]}"; do
+		d := pe_dir "$s"
+		[ -f "$d/obj.db" ] || continue
+		h := db open "$d/obj.db" 2> /dev/null || continue
+		r := db query "$h" where uid eq "$uid"
+		db close "$h"
+		if [ -n "${r[0]["href"]+x}" ]; then
+			ret "$s"$'\t'"${r[0]["href"]}"$'\t'"${r[0]["etag"]}"$'\t'"${r[0]["file"]}"$'\t'"${r[0]["coll"]}"
+			return 0
+		fi
+	done
+	return 1
+}
+
+# An attendee's answer in a parsed event, by address; nothing when they
+# are not invited.
+fn cv_partstat(file, addr) {
+	local r k=0
+
+	r := pim ics events "$file" 2> /dev/null || return 1
+	while [ -n "${r[0]["att"][$k]["addr"]+x}" ]; do
+		if [ "${r[0]["att"][$k]["addr"],,}" = "${addr,,}" ]; then
+			ret "${r[0]["att"][$k]["partstat"]}"
+			return 0
+		fi
+		k=$((k + 1))
+	done
+	return 1
+}
+
+# What a calendar part of a message says, for Mail to show, into CVCARD:
+# ["method"], ["title"], ["when"], ["what"] -- a line of who and what
+# -- ["uid"], and ["acts"], the buttons it wants: answers to an
+# invitation, recording an answer to one of this person's own, removing a
+# cancelled one. Fails for a part with no event in it.
+fn cv_card(acct, ics) {
+	local r me m st en ad a w ps= stored= who wh
+	local -a sf
+
+	r := pim ics events "$ics" 2> /dev/null || return 1
+	[ -n "${r[0]["uid"]}" ] || return 1
+	m=${PIM_METHOD:-PUBLISH}
+	m=${m^^}
+	me=${MLME["$acct"]}
+	unset CVCARD
+	declare -gA CVCARD
+	CVCARD["method"]=$m
+	CVCARD["uid"]=${r[0]["uid"]}
+	CVCARD["title"]=${r[0]["summary"]:-An event}
+	st=${r[0]["start"]}
+	en=${r[0]["end"]}
+	ad=${r[0]["allday"]:-0}
+	if [ "$ad" = 1 ]; then
+		printf -v w '%(%A %d %B %Y)T, all day' "$st"
+	else
+		a := cv_hm "$en"
+		printf -v w '%(%A %d %B %Y, %H:%M)T-%s' "$st" "$a"
+	fi
+	[ -n "${r[0]["location"]}" ] && w+=" -- ${r[0]["location"]}"
+	[ -n "${r[0]["rrule"]}" ] && w+=" (repeats)"
+	CVCARD["when"]=$w
+	stored := cv_byuid "${r[0]["uid"]}" || stored=
+	case $m in
+	REQUEST)
+		who=${r[0]["orgname"]:-${r[0]["org"]}}
+		ps=${CVANS["${r[0]["uid"]}"]}
+		if [ -z "$ps" ] && [ -n "$stored" ]; then
+			IFS=$'\t' read -ra sf <<< "$stored"
+			ps := cv_partstat "${sf[3]}" "$me" || ps=
+		fi
+		case $ps in
+		ACCEPTED) wh="you said yes" ;;
+		TENTATIVE) wh="you said maybe" ;;
+		DECLINED) wh="you said no" ;;
+		*) wh="will you go?" ;;
+		esac
+		CVCARD["what"]="From ${who:-the organiser}; $wh"
+		CVCARD["acts"]="ACCEPTED TENTATIVE DECLINED"
+		CVCARD["ps"]=$ps
+		;;
+	REPLY)
+		a=${r[0]["att"][0]["name"]:-${r[0]["att"][0]["addr"]}}
+		case ${r[0]["att"][0]["partstat"]} in
+		ACCEPTED) wh="said yes" ;;
+		TENTATIVE) wh="said maybe" ;;
+		DECLINED) wh="said no" ;;
+		*) wh="answered" ;;
+		esac
+		CVCARD["what"]="${a:-Someone} $wh"
+		CVCARD["acts"]=
+		[ -n "$stored" ] && CVCARD["acts"]=RECORD
+		;;
+	CANCEL)
+		CVCARD["what"]="This has been cancelled"
+		CVCARD["acts"]=
+		[ -n "$stored" ] && CVCARD["acts"]=REMOVE
+		;;
+	*)
+		CVCARD["what"]="An event"
+		CVCARD["acts"]=ADD
+		[ -n "$stored" ] && CVCARD["acts"]=
+		;;
+	esac
+	return 0
+}
+
+# A button's label.
+fn cv_actlabel(act) {
+	case $act in
+	ACCEPTED) ret "Yes" ;;
+	TENTATIVE) ret "Maybe" ;;
+	DECLINED) ret "No" ;;
+	RECORD) ret "Record in Calendar" ;;
+	REMOVE) ret "Remove from Calendar" ;;
+	ADD) ret "Add to Calendar" ;;
+	*) ret "$act" ;;
+	esac
+}
+
+# Where an event from a message goes: its stored copy's calendar, or the
+# first calendar there is. "server<TAB>collection<TAB>name<TAB>etag".
+fn cv_dest(uid) {
+	local st srv href etag file coll
+
+	if st := cv_byuid "$uid"; then
+		IFS=$'\t' read -r srv href etag file coll <<< "$st"
+		ret "$srv"$'\t'"$coll"$'\t'"${href##*/}"$'\t'"${etag:--}"
+		return 0
+	fi
+	cv_cals
+	[ "${CVK["n"]:-0}" -gt 0 ] || return 1
+	ret "${CVK[0]["srv"]}"$'\t'"${CVK[0]["href"]}"$'\t'"${uid//[^A-Za-z0-9._-]/_}.ics"$'\t'-
+}
+
+# Act on a calendar part of a message, from the account it came to:
+# answer an invitation (and keep it, unless the answer is no and it was
+# never kept), record an attendee's answer in this person's own copy,
+# remove a cancelled event, or add one sent for information.
+fn cv_act(acct, ics, act) {
+	local me uid dest srv coll name etag d f r org title st x
+	local -a ds
+
+	me=${MLME["$acct"]}
+	r := pim ics events "$ics" 2> /dev/null || return 1
+	uid=${r[0]["uid"]}
+	title=${r[0]["summary"]:-An event}
+	st=${r[0]["start"]}
+	if ! dest := cv_dest "$uid"; then
+		dt_notep high "No calendar yet: choose a server in Control Panel > Calendars & Contacts, then sync"
+		return 1
+	fi
+	IFS=$'\t' read -ra ds <<< "$dest"
+	srv=${ds[0]}
+	coll=${ds[1]}
+	name=${ds[2]}
+	etag=${ds[3]}
+	d := pe_dir "$srv"
+	mkdir -p "$d/out"
+	f="$d/out/$name"
+	case $act in
+	ACCEPTED | TENTATIVE | DECLINED)
+		org=${r[0]["org"]}
+		[ -n "$me" ] || { dt_notep high "This account has no address to answer from"; return 1; }
+		if [ -n "$org" ]; then
+			if pim ics reply "$ics" "$f.reply" "$me" "$act" 2> /dev/null; then
+				case $act in
+				ACCEPTED) x="Accepted" ;;
+				TENTATIVE) x="Tentative" ;;
+				*) x="Declined" ;;
+				esac
+				cv_invite "$srv" "$acct" "$f.reply" "$org" "$x: $title" "$st" REPLY
+			else
+				dt_notep high "Could not make the answer"
+				return 1
+			fi
+		fi
+		CVANS["$uid"]=$act
+		if [ "$act" = DECLINED ] && [ "$etag" = - ]; then
+			return 0
+		fi
+		pim ics store "$ics" "$f" "$me" "$act" 2> /dev/null || { dt_notep high "Could not keep the event"; return 1; }
+		;;
+	RECORD)
+		x := cv_byuid "$uid" || return 1
+		IFS=$'\t' read -ra ds <<< "$x"
+		pim ics store "${ds[3]}" "$f" "${r[0]["att"][0]["addr"]}" "${r[0]["att"][0]["partstat"]}" 2> /dev/null ||
+			{ dt_notep high "Could not record the answer"; return 1; }
+		dt_notep low "Recorded in your calendar"
+		;;
+	REMOVE)
+		printf 'del\t-\t%s\t%s\n' "${coll%/}/$name" "$etag" >> "$d/queue"
+		pe_sync "$srv"
+		dt_notep low "Removed from your calendar"
+		return 0
+		;;
+	ADD)
+		pim ics store "$ics" "$f" 2> /dev/null || { dt_notep high "Could not keep the event"; return 1; }
+		dt_notep low "Added to your calendar"
+		;;
+	*) return 1 ;;
+	esac
+	printf 'put\t%s\t%s\t%s\t%s\n' "$coll" "$name" "$f" "$etag" >> "$d/queue"
+	pe_sync "$srv"
+	return 0
+}

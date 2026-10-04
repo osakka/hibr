@@ -1,7 +1,7 @@
 #!/usr/bin/env hibr
 #
-# lib/pimsync -- keep one server's address books (and, as the calendar
-# comes, its calendars) on this machine, for Contacts and Mail.
+# lib/pimsync -- keep one server's address books and calendars on this
+# machine, for Contacts, Calendar and Mail.
 #
 #     hibr pimsync.hibr SERVER DIR
 #
@@ -15,7 +15,10 @@
 # date with its sync token (RFC 6578), or in full when it has none or the
 # token is refused: changed cards fetched in batches with a multiget,
 # removed ones removed here. Cards are files under DIR/card/, and a row
-# each in DIR/contacts.db; collections are rows in DIR/colls.db. Only this
+# each in DIR/contacts.db; calendar objects are files under DIR/cal/, a
+# row each in DIR/obj.db, and their occurrences from a year back to two
+# years on are rows of DIR/inst.db, which the Calendar reads by date;
+# collections are rows in DIR/colls.db. Only this
 # job writes either -- the apps open, query and close -- and a lock folder
 # keeps two from running at once. It says what it is doing a line at a
 # time, ending with "done N" or "error WHY".
@@ -29,6 +32,8 @@ PS_SRV=$1
 PS_DIR=$2
 PS_DB=
 PS_CB=
+PS_OB=
+PS_IB=
 PS_ORIGIN=
 PS_NEW=0
 PS_KEPT=0
@@ -37,6 +42,7 @@ declare -gA PS_TOKEN
 declare -gA PS_SRVS
 DAV_CODE=
 DAV_SYNC=
+PIM_METHOD=
 
 fn ps_say(t) { printf '%s\n' "$t"; }
 
@@ -51,8 +57,12 @@ fn ps_die(why) {
 ps_done() {
 	[ -n "$PS_DB" ] && db close "$PS_DB" 2> /dev/null
 	[ -n "$PS_CB" ] && db close "$PS_CB" 2> /dev/null
+	[ -n "$PS_OB" ] && db close "$PS_OB" 2> /dev/null
+	[ -n "$PS_IB" ] && db close "$PS_IB" 2> /dev/null
 	PS_DB=
 	PS_CB=
+	PS_OB=
+	PS_IB=
 	command rm -rf "$PS_DIR/lock"
 }
 
@@ -88,7 +98,20 @@ ps_open() {
 		PS_CB := db create "$PS_DIR/colls.db" href:str:300 kind:str:8 name:str:100 \
 			color:str:16 comps:str:40 ctag:str:96 token:str:200
 	fi
-	[ -n "$PS_DB" ] && [ -n "$PS_CB" ]
+	if [ -f "$PS_DIR/obj.db" ]; then
+		PS_OB := db open "$PS_DIR/obj.db"
+	else
+		PS_OB := db create "$PS_DIR/obj.db" coll:str:200 href:str:300 etag:str:96 \
+			uid:str:120 summary:str:120 file:str:200
+	fi
+	if [ -f "$PS_DIR/inst.db" ]; then
+		PS_IB := db open "$PS_DIR/inst.db"
+	else
+		PS_IB := db create "$PS_DIR/inst.db" coll:str:200 href:str:300 uid:str:120 \
+			start:int end:int allday:int summary:str:120 location:str:80 recurid:int \
+			over:int alarm:int status:str:16
+	fi
+	[ -n "$PS_DB" ] && [ -n "$PS_CB" ] && [ -n "$PS_OB" ] && [ -n "$PS_IB" ]
 }
 
 # The server's own scheme and host, which hrefs from it are relative to.
@@ -192,19 +215,20 @@ ps_colls() {
 }
 
 # The file a card is kept in, from its collection and href.
-fn ps_file(coll, href) {
+fn ps_file(coll, href, kind = card) {
 	local c=${coll//[^A-Za-z0-9]/_} n=${href##*/}
 
 	n=${n//[^A-Za-z0-9._@-]/_}
-	ret "$PS_DIR/card/${c: -60}/${n: -100}"
+	ret "$PS_DIR/$kind/${c: -60}/${n: -100}"
 }
 
 # This collection's rows, href to record number and ETag, into PS_ROW.
-fn ps_rows(coll) {
-	local r i
+fn ps_rows(coll, kind = card) {
+	local r i h=$PS_DB
 
+	[ "$kind" = cal ] && h=$PS_OB
 	PS_ROW=()
-	r := db query "$PS_DB" -n where coll eq "$coll"
+	r := db query "$h" -n where coll eq "$coll"
 	i=0
 	while [ -n "${r[$i]["#"]+x}" ]; do
 		PS_ROW["${r[$i]["href"]}"]="${r[$i]["#"]} ${r[$i]["etag"]}"
@@ -247,43 +271,93 @@ fn ps_keep(coll, href, etag, data) {
 	fi
 }
 
+# Keep one calendar object: its file written, its row made or changed, and
+# its occurrences from a year back to two years on written to inst.db --
+# what the Calendar asks by date, with each occurrence's first reminder in
+# seconds from its start (1 for none: a reminder after the start is not
+# one anybody sets).
+fn ps_keepcal(coll, href, etag, data) {
+	local f r x i n w now lo hi alarm ov rid
+
+	f := ps_file "$coll" "$href" cal
+	mkdir -p "${f%/*}"
+	printf '%s\n' "$data" > "$f"
+	r := pim ics events "$f" 2> /dev/null || return 1
+	w=${PS_ROW["$href"]}
+	if [ -n "$w" ]; then
+		db set "$PS_OB" "${w%% *}" etag "$etag" uid "${r[0]["uid"]}" summary "${r[0]["summary"]:0:110}" file "$f" > /dev/null
+	else
+		db insert "$PS_OB" "$coll" "$href" "$etag" "${r[0]["uid"]}" "${r[0]["summary"]:0:110}" "$f" > /dev/null
+		PS_NEW=$((PS_NEW + 1))
+	fi
+	db delete "$PS_IB" where href eq "$href" > /dev/null
+	now=$EPOCHSECONDS
+	lo=$((now - 400 * 86400))
+	hi=$((now + 800 * 86400))
+	x := pim ics expand "$f" "$lo" "$hi" 2> /dev/null || return 0
+	n=0
+	while [ -n "${x[$n]["start"]+x}" ]; do
+		i=${x[$n]["item"]}
+		alarm=1
+		[ -n "${r[$i]["alarm"][0]["trigger"]+x}" ] && alarm=${r[$i]["alarm"][0]["trigger"]}
+		rid=0
+		[ "${x[$n]["recurring"]}" = 1 ] && rid=${x[$n]["recurid"]}
+		db insert "$PS_IB" "$coll" "$href" "${x[$n]["uid"]}" "${x[$n]["start"]}" "${x[$n]["end"]}" \
+			"${x[$n]["allday"]}" "${x[$n]["summary"]:0:110}" "${x[$n]["location"]:0:75}" \
+			"$rid" "${x[$n]["override"]}" "$alarm" "${x[$n]["status"]:0:15}" > /dev/null
+		n=$((n + 1))
+	done
+	return 0
+}
+
 # Fetch the cards of a list of hrefs, fifty to a multiget, and keep each.
-fn ps_fetch(coll, ...hrefs) {
-	local l b h r i n=0 total=${#hrefs[@]}
+fn ps_fetch(coll, kind, ...hrefs) {
+	local l b h r i n=0 total=${#hrefs[@]} key
 
 	l := ps_loc "$coll"
 	while [ "$n" -lt "$total" ]; do
-		b='<card:addressbook-multiget xmlns:d="DAV:" xmlns:card="urn:ietf:params:xml:ns:carddav"><d:prop><d:getetag/><card:address-data/></d:prop>'
+		if [ "$kind" = cal ]; then
+			b='<c:calendar-multiget xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:getetag/><c:calendar-data/></d:prop>'
+			key=calendar-data
+		else
+			b='<card:addressbook-multiget xmlns:d="DAV:" xmlns:card="urn:ietf:params:xml:ns:carddav"><d:prop><d:getetag/><card:address-data/></d:prop>'
+			key=address-data
+		fi
 		for h in "${hrefs[@]:$n:50}"; do
 			h=${h//&/&amp;}
 			h=${h//</&lt;}
 			b+="<d:href>$h</d:href>"
 		done
-		b+='</card:addressbook-multiget>'
+		[ "$kind" = cal ] && b+='</c:calendar-multiget>' || b+='</card:addressbook-multiget>'
 		r := dav report "$l" -d 1 -b "$b" || return 1
 		i=0
 		while [ -n "${r[$i]["href"]+x}" ]; do
-			[ "${r[$i]["status"]}" = 200 ] && [ -n "${r[$i]["props"]["address-data"]}" ] &&
-				ps_keep "$coll" "${r[$i]["href"]}" "${r[$i]["props"]["getetag"]}" \
-					"${r[$i]["props"]["address-data"]}"
+			if [ "${r[$i]["status"]}" = 200 ] && [ -n "${r[$i]["props"]["$key"]}" ]; then
+				if [ "$kind" = cal ]; then
+					ps_keepcal "$coll" "${r[$i]["href"]}" "${r[$i]["props"]["getetag"]}" "${r[$i]["props"]["$key"]}"
+				else
+					ps_keep "$coll" "${r[$i]["href"]}" "${r[$i]["props"]["getetag"]}" "${r[$i]["props"]["$key"]}"
+				fi
+			fi
 			i=$((i + 1))
 		done
 		n=$((n + 50))
-		ps_say "cards $((n < total ? n : total))/$total"
+		ps_say "$kind $((n < total ? n : total))/$total"
 	done
 	return 0
 }
 
 # Bring one address book up to date: what changed since its token, or
 # everything when it has none or the server refuses the one it has.
-fn ps_book(coll, int rec) {
-	local l r i tok h w f
+fn ps_book(coll, int rec, kind = card) {
+	local l r i tok h w f hd=$PS_DB
 	local -a want
 	local -A live
 
+	[ "$kind" = cal ] && hd=$PS_OB
 	l := ps_loc "$coll"
 	tok=${PS_TOKEN["$coll"]}
-	ps_rows "$coll"
+	ps_rows "$coll" "$kind"
 	if ! r := dav sync "$l" -t "$tok" d:getetag 2> /dev/null; then
 		if [ -n "$tok" ]; then
 			ps_say "token refused; reading $coll in full"
@@ -308,9 +382,10 @@ fn ps_book(coll, int rec) {
 		if [ "${r[$i]["status"]}" = 404 ]; then
 			w=${PS_ROW["$h"]}
 			if [ -n "$w" ]; then
-				f := ps_file "$coll" "$h"
+				f := ps_file "$coll" "$h" "$kind"
 				command rm -f "$f"
-				db delete "$PS_DB" "${w%% *}" > /dev/null
+				db delete "$hd" "${w%% *}" > /dev/null
+				[ "$kind" = cal ] && db delete "$PS_IB" where href eq "$h" > /dev/null
 			fi
 		else
 			live["$h"]=1
@@ -322,12 +397,13 @@ fn ps_book(coll, int rec) {
 	for h in "${!live[@]}"; do
 		[ "${live["$h"]}" = 0 ] || continue
 		w=${PS_ROW["$h"]}
-		f := ps_file "$coll" "$h"
+		f := ps_file "$coll" "$h" "$kind"
 		command rm -f "$f"
-		db delete "$PS_DB" "${w%% *}" > /dev/null
+		db delete "$hd" "${w%% *}" > /dev/null
+		[ "$kind" = cal ] && db delete "$PS_IB" where href eq "$h" > /dev/null
 	done
 	if [ "${#want[@]}" -gt 0 ]; then
-		ps_fetch "$coll" "${want[@]}" || return 1
+		ps_fetch "$coll" "$kind" "${want[@]}" || return 1
 	fi
 	db set "$PS_CB" "$rec" token "${DAV_SYNC}" > /dev/null
 	return 0
@@ -354,9 +430,9 @@ ps_push() {
 		put)
 			l := ps_loc "${coll%/}/$a"
 			if [ -n "$etag" ] && [ "$etag" != - ]; then
-				e := dav put -m "$etag" -t "text/vcard; charset=utf-8" "$b" "$l" 2> /dev/null
+				e := dav put -m "$etag" "$b" "$l" 2> /dev/null
 			else
-				e := dav put -n -t "text/vcard; charset=utf-8" "$b" "$l" 2> /dev/null
+				e := dav put -n "$b" "$l" 2> /dev/null
 			fi
 			;;
 		del)
@@ -399,15 +475,17 @@ fn ps_main(srv = "", dir = "", ...rest) {
 	ps_push || ps_die "the connection was lost; $PS_KEPT changes wait for the next sync"
 	ps_homes || ps_die "$srv does not say where its address books are"
 	ps_colls
-	r := db query "$PS_CB" -n where kind eq card
+	r := db query "$PS_CB" -n
 	i=0
 	while [ -n "${r[$i]["#"]+x}" ]; do
-		ps_say "book ${r[$i]["name"]:-${r[$i]["href"]}}"
-		ps_book "${r[$i]["href"]}" "${r[$i]["#"]}" || ps_say "skipped ${r[$i]["href"]}"
+		ps_say "${r[$i]["kind"]} ${r[$i]["name"]:-${r[$i]["href"]}}"
+		ps_book "${r[$i]["href"]}" "${r[$i]["#"]}" "${r[$i]["kind"]}" || ps_say "skipped ${r[$i]["href"]}"
 		i=$((i + 1))
 	done
 	db flush "$PS_DB" > /dev/null
 	db flush "$PS_CB" > /dev/null
+	db flush "$PS_OB" > /dev/null
+	db flush "$PS_IB" > /dev/null
 	ps_say "done $PS_NEW"
 	ps_done
 	return 0

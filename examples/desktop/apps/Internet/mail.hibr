@@ -966,6 +966,33 @@ fn ml_read(int id) {
 			done
 			part=0
 			while [ -n "${r["parts"][$part]["type"]+x}" ]; do
+				if [[ ${r["parts"][$part]["type"],,} == text/calendar* ]] && dt_has cv_card; then
+					cache="${f%.eml}.$part.ics"
+					[ -s "$cache" ] || email part "$f" "$part" "$cache" 2> /dev/null
+					if cv_card "$acct" "$cache"; then
+						MLR[$id][$n]["t"]=
+						MLR[$id][$n]["k"]=gap
+						n=$((n + 1))
+						MLR[$id][$n]["t"]=${CVCARD["title"]}
+						MLR[$id][$n]["k"]=invite
+						n=$((n + 1))
+						MLR[$id][$n]["t"]=${CVCARD["when"]}
+						MLR[$id][$n]["k"]=invdim
+						n=$((n + 1))
+						MLR[$id][$n]["t"]=${CVCARD["what"]}
+						MLR[$id][$n]["k"]=invdim
+						n=$((n + 1))
+						if [ -n "${CVCARD["acts"]}" ]; then
+							MLR[$id][$n]["t"]=${CVCARD["acts"]}
+							MLR[$id][$n]["k"]=rsvp
+							MLR[$id][$n]["ics"]=$cache
+							MLR[$id][$n]["ps"]=${CVCARD["ps"]}
+							n=$((n + 1))
+						fi
+						part=$((part + 1))
+						continue
+					fi
+				fi
 				if [ -n "${r["parts"][$part]["name"]}" ] || [ "${r["parts"][$part]["disp"]}" = attachment ]; then
 					MLR[$id][$n]["t"]="${GL[file]} ${r["parts"][$part]["name"]:-attachment} ($(( (${r["parts"][$part]["size"]} * 3 / 4 + 1023) / 1024 )) KB)"
 					MLR[$id][$n]["k"]=attach
@@ -1025,6 +1052,15 @@ fn ml_drawread(int id, int h, int w, int x0) {
 			console put -p "w$id" "$r" $((x0 + 2)) " ${t:0:$((w - 6))} "
 			dt_wreg "$id" "$r" $((x0 + 2)) $(( ${#t} + 2 )) "att:$i"
 			;;
+		invite)
+			console pen "$DT_INFO" "$DT_FACE" bold
+			console put -p "w$id" "$r" $((x0 + 2)) "${GL[diamond]} ${t:0:$((w - 6))}"
+			;;
+		invdim)
+			console pen "$DT_DIM" "$DT_FACE"
+			console put -p "w$id" "$r" $((x0 + 4)) "${t:0:$((w - 6))}"
+			;;
+		rsvp) ml_drawrsvp "$id" "$r" $((x0 + 4)) "$i" ;;
 		body)
 			ml_drawline "$id" "$r" $((x0 + 2)) "$t" "${MLR[$id][$i]["s"]}"
 			if [ -n "${MLR[$id][$i]["a"]}" ]; then
@@ -1049,6 +1085,33 @@ fn ml_drawread(int id, int h, int w, int x0) {
 		r=$((r + 1))
 		i=$((i + 1))
 	done
+}
+
+# An invitation's buttons, the answer already given lit.
+fn ml_drawrsvp(int id, int r, int c, int i) {
+	local a l
+	local -a acts
+
+	read -ra acts <<< "${MLR[$id][$i]["t"]}"
+	for a in "${acts[@]}"; do
+		l := cv_actlabel "$a"
+		if [ "$a" = "${MLR[$id][$i]["ps"]}" ]; then
+			console pen "$DT_SELINK" "$DT_ACTIVE" bold
+		else
+			console pen "$DT_INK" "$DT_WELL"
+		fi
+		console put -p "w$id" "$r" "$c" " $l "
+		dt_wreg "$id" "$r" "$c" $((${#l} + 2)) "rsvp:$i:$a"
+		c=$((c + ${#l} + 3))
+	done
+}
+
+# A button on an invitation pressed: the calendar acts, and the
+# conversation is laid out again to show it.
+fn ml_rsvp(int id, int i, act) {
+	dt_has cv_act || return 0
+	cv_act "${MW[$id]["acct"]}" "${MLR[$id][$i]["ics"]}" "$act" || return 0
+	ml_read "$id"
 }
 
 # One body line in its styles: runs of one style letter each put with
@@ -1204,6 +1267,10 @@ fn mail_click(int? id = "", int? r = "", int? c = "", btn = "") {
 	view:*) MW[$id]["qon"]=; ml_go "$id" "${tag#view:}" ;;
 	row:*) MW[$id]["qon"]=; ml_openat "$id" "${tag#row:}" ;;
 	att:*) ml_saveatt "$id" "${tag#att:}" ;;
+	rsvp:*)
+		tag=${tag#rsvp:}
+		ml_rsvp "$id" "${tag%%:*}" "${tag#*:}"
+		;;
 	url:*) dt_launch browser "${tag#url:}" ;;
 	esac
 }

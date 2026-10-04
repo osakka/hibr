@@ -286,7 +286,14 @@ went in the shell.
   `tests/editor.py` is for; `tests/run.sh` cannot reach it, because the editor
   runs only when stdin is a terminal. Do not name that file `pty.py` or
   `tty.py` -- either shadows a module `pty` itself imports, and the failure
-  reads as a circular import rather than as a name clash.
+  reads as a circular import rather than as a name clash. The same goes for
+  any standard-library name: the Calendar's suite was first
+  `tests/calendar.py`, and `tests/davserve.py`, started from it with
+  `tests/` first on its path, imported `http.server`, which imports
+  `calendar` -- the suite itself, which started another server. About
+  2,900 servers had forked before it was found. It is `tests/calapp.py`;
+  check a new suite's name with `python3 -c 'import NAME'` from outside
+  `tests/` first.
 - **Object reads are bounded.** `grepo.omax` caps how large an object may
   inflate to (`PROMPT[git][max_object]`, 4 MB by default), so a crafted object
   cannot make a prompt allocate hundreds of megabytes. Pack entries are bounded
@@ -1795,6 +1802,21 @@ went in the shell.
   then froze, which looked like our decoder. Measure the page's own state
   (`getPlayerState`, its `.ytp-error`) beside ours before blaming the
   player; and the app now reloads and resumes when the page gives up.
+- **A job is a sync only if it says so.** Contacts' `pe_running` asked
+  whether any unfinished job belonged to a server, and Calendar's mail
+  sends run as jobs for a server too -- so a sync asked for while an
+  invitation was going out was taken as already running, marked "again",
+  and never started: the "again" is only acted on when a *sync* finishes.
+  The queued change sat there until the next timed sync. It checks
+  `PEJ[n]["what"] = sync` now; anything else that asks "is X running" of
+  a shared job table has to ask about the kind as well as the owner.
+- **A ticker that adds a note must ask for a frame.** `dt_tickers` runs
+  after the frame is drawn, so a note queued there waits for whatever
+  frame comes next -- and with nothing else happening, the note's 2.5
+  seconds had passed before it was ever drawn: the reminder went off and
+  only the flag in the bar said so. `cv_alarms` calls `dt_want 30` after
+  each note.
+
 - **A pen names a theme colour or role.** `$DT_SELECT` existed nowhere and
   drew the YouTube list's selection dark on black; `tests/540-examples.t`
   now fails on any `console pen` naming a `DT_` colour settings.hibr does

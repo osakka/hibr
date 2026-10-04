@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.99.31
+
+**Calendar.** A new app keeps your calendars on this machine from any
+CalDAV server, through the same Calendars & Contacts settings as Contacts:
+a month at a time, each day's events in their calendar's colour and the
+chosen day's listed with their times, or an agenda of the next sixty days.
+Events are made, edited and removed here -- title, date and times or all
+day, a repeat, a reminder, the calendar, a place, notes, who is invited --
+written in this machine's own zone and sent at the next sync. Reminders go
+off as notes whether a Calendar window is open or not.
+
+**Invitations, both ways.** Inviting people to an event mails each of them
+an invitation from your Mail account, the event in it as a calendar
+request any mail program understands. An invitation that reaches you is a
+card in Mail -- what, when, where, from whom -- with Yes, Maybe and No: the
+answer goes to the organiser and the event into your calendar. An answer
+to your own invitation can be recorded in your copy, and a cancellation
+removes the event.
+
+**The pieces underneath.** `email build -C file -M METHOD` adds a calendar
+part beside a message's text; `pim ics store` makes the copy a calendar
+keeps of an invitation, with an attendee's answer set; `pim when` turns a
+local date and time in any zone into seconds and back.
+
+**A sync is no longer held up by a mail being sent.** A change made while
+an invitation was going out waited for the next timed sync, because the
+sending job was taken for a sync already running.
+
 ## 0.99.30
 
 **Contacts.** A new app keeps the people in your address books on this

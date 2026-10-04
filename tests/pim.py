@@ -163,6 +163,26 @@ out, err = hb("pim ics reply %s/b.ics %s/rep.ics zoe@example.org ACCEPTED\n"
 check("a reply carries the invitation's identity, times and organiser, and only this attendee's answer",
       out.strip() == "REPLY b1 1 zoe@example.org ACCEPTED 1791190800 pat@example.com", out + err)
 
+out, err = hb("pim ics store %s/b.ics %s/st.ics zoe@example.org TENTATIVE\n"
+              "r := pim ics events %s/st.ics\n"
+              "echo \"[$PIM_METHOD] ${r[0][\"uid\"]} ${#r[0][\"att\"][@]} ${r[0][\"att\"][0][\"partstat\"]} "
+              "${r[0][\"start\"]}\"" % (D, D, D))
+check("store keeps an invitation as a calendar holds it: no METHOD, every attendee, this one's answer set",
+      out.strip().startswith("[] b1 ") and " TENTATIVE 1791190800" in out
+      and int(out.split()[2]) >= 1, out + err)
+
+# Civil time: a date and time in a zone as seconds, and back, across a change
+# of offset -- 01:30 on the day the clocks go back is its first instance.
+out, err = hb("pim when epoch 2026 10 25 1 30 0; pim when epoch 2026 10 5\n"
+              "t := pim when epoch 2026 10 5 9 0 0 -z America/New_York; echo $t\n"
+              "pim when civil $t; pim when civil $t -z America/New_York\n"
+              "pim when epoch 2026 2 30; pim when epoch 2026 13 1 9 0 0 -z Not/AZone; echo st=$?")
+check("when gives local midnight and times in a zone, reads them back with the weekday (Monday 0), "
+      "carries a day past the month's end over, and refuses a zone it does not know",
+      out.split("\n")[:6] == ["1792891800", "1791154800", "1791205200", "2026 10 5 14 0 0 0",
+                              "2026 10 5 9 0 0 0", "1772409600"] and "st=2" in out
+      and "not a zone" in err, out + err)
+
 # vCard: 3.0 with groups and types, 2.1's bare types and quoted-printable,
 # 4.0's tel: URIs; and one built and read back.
 VCF = """BEGIN:VCARD\r
@@ -278,4 +298,4 @@ finally:
     srv.wait()
 
 shutil.rmtree(D, True)
-report(24)
+report(26)

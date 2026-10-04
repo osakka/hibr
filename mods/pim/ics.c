@@ -988,6 +988,86 @@ int pm_reply(sh *s, int ac, char **av)
 	return rc;
 }
 
+/* A component written back whole for a calendar store: METHOD left out,
+   and the attendee at addr given partstat, RSVP no longer asked. */
+void pm_storeout(str *o, pm_comp *c, const char *addr, const char *ps)
+{
+	size_t i, a;
+	str l;
+
+	s_init(&l);
+	s_cat(&l, "BEGIN:");
+	s_cat(&l, c->name);
+	pm_lineb(o, &l);
+	for (i = 0; i < c->props.n; i++) {
+		pm_prop *p = c->props.p[i];
+
+		if (!strcmp(p->name, "METHOD"))
+			continue;
+		if (addr && !strcmp(p->name, "ATTENDEE") && !strcasecmp(pm_addr(p->val), addr)) {
+			l.n = 0;
+			s_cat(&l, "ATTENDEE");
+			for (a = 0; a < p->pars.n; a++) {
+				pm_par *x = p->pars.p[a];
+
+				if (!strcmp(x->name, "PARTSTAT") || !strcmp(x->name, "RSVP"))
+					continue;
+				s_ch(&l, ';');
+				s_cat(&l, x->name);
+				s_ch(&l, '=');
+				pm_parval(&l, x->val);
+			}
+			s_cat(&l, ";PARTSTAT=");
+			s_cat(&l, ps);
+			s_ch(&l, ':');
+			s_cat(&l, p->val);
+			pm_lineb(o, &l);
+			continue;
+		}
+		pm_propout(o, p);
+	}
+	for (i = 0; i < c->kids.n; i++)
+		pm_storeout(o, c->kids.p[i], addr, ps);
+	l.n = 0;
+	s_cat(&l, "END:");
+	s_cat(&l, c->name);
+	pm_lineb(o, &l);
+	s_free(&l);
+}
+
+/* pim ics store IN OUT [ADDRESS PARTSTAT]: an invitation made into what a
+   calendar server keeps -- METHOD left out (RFC 4791 refuses it in a
+   stored object), and, given an address, that attendee's answer set. */
+int pm_store(sh *s, int ac, char **av)
+{
+	str in, o;
+	pm_comp *doc;
+	size_t i;
+	int rc;
+
+	(void)s;
+	if (ac < 5 || ac == 6) {
+		lg(HIBR_LERR, "usage: pim ics store in out [address partstat]");
+		return 2;
+	}
+	s_init(&in);
+	if (pm_slurp(av[3], &in) != HIBR_OK) {
+		s_free(&in);
+		return HIBR_FAIL;
+	}
+	doc = pm_parse(in.p ? in.p : "", in.n);
+	s_init(&o);
+	for (i = 0; i < doc->kids.n; i++)
+		pm_storeout(&o, doc->kids.p[i], ac > 6 ? av[5] : 0, ac > 6 ? av[6] : 0);
+	rc = o.n ? pm_write(av[4], &o) : HIBR_FAIL;
+	if (!o.n)
+		lg(HIBR_LERR, "pim: %s holds no calendar", av[3]);
+	s_free(&o);
+	pm_free(doc);
+	s_free(&in);
+	return rc;
+}
+
 /* pim ics: iCalendar -- events, expand, build, reply, vtimezone. */
 int pm_ics(sh *s, int ac, char **av)
 {
@@ -1001,6 +1081,8 @@ int pm_ics(sh *s, int ac, char **av)
 		return pm_build(s, ac, av);
 	if (!strcmp(sub, "reply"))
 		return pm_reply(s, ac, av);
+	if (!strcmp(sub, "store"))
+		return pm_store(s, ac, av);
 	if (!strcmp(sub, "vtimezone") && ac > 3) {
 		str o;
 		int y0 = ac > 4 ? atoi(av[4]) : 2020, y1 = ac > 5 ? atoi(av[5]) : y0 + 10;
@@ -1015,6 +1097,6 @@ int pm_ics(sh *s, int ac, char **av)
 		s_free(&o);
 		return HIBR_OK;
 	}
-	lg(HIBR_LERR, "usage: pim ics events|expand|build|reply|vtimezone ...");
+	lg(HIBR_LERR, "usage: pim ics events|expand|build|reply|store|vtimezone ...");
 	return 2;
 }

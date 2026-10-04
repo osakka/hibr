@@ -34,6 +34,7 @@ declare -gA PED
 PE_N=0
 PEJ_N=0
 PEJ_LIVE=0
+PE_GEN=0
 PE_SRVS=()
 PE_HITS=()
 
@@ -246,12 +247,13 @@ pe_poll() {
 	return 0
 }
 
-# Whether a sync is running for a server.
+# Whether a sync is running for a server -- a sync, not any other job.
 fn pe_running(srv) {
 	local n
 
 	for n in "${!PEJ[@]}"; do
-		[ -z "${PEJ[$n]["done"]}" ] && [ "${PEJ[$n]["srv"]}" = "$srv" ] && { ret "$n"; return 0; }
+		[ -z "${PEJ[$n]["done"]}" ] && [ "${PEJ[$n]["what"]}" = sync ] && [ "${PEJ[$n]["srv"]}" = "$srv" ] &&
+			{ ret "$n"; return 0; }
 	done
 	return 1
 }
@@ -298,6 +300,7 @@ fn pe_synced(int n, int st) {
 		fi
 		;;
 	esac
+	PE_GEN=$((PE_GEN + 1))
 	pe_load
 	for id in "${!PCW[@]}"; do
 		[ -n "${PCW[$id]["sel"]+x}" ] && pe_filter "$id"

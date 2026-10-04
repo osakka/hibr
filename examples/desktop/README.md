@@ -539,6 +539,31 @@ match -- from Contacts and from everyone Mail has had a message from --
 and tab or enter takes one; Message > Add Sender to Contacts adds whoever
 wrote the conversation chosen.
 
+## Calendar
+
+**Calendar** keeps your calendars on this machine from the same servers,
+by CalDAV, a month at a time: each day's events in its square, in its
+calendar's own colour, and the chosen day's events listed underneath with
+their times. The arrows choose a day, `n` and `p` (or page down and up)
+change month, `t` comes back to today, `a` shows an agenda of the next
+sixty days and `m` the month again. `tab` moves into the day's list, where
+enter or `e` edits the event chosen and `#` removes it after asking; `c`,
+or enter on the month, makes an event on the chosen day.
+
+An event has a title, a date, a start and an end (or all day), a repeat
+(daily, weekly, monthly, yearly), a reminder, its calendar, a place, notes
+and who is invited. It is written in this machine's zone -- `TZ`, or where
+`/etc/localtime` points -- and sent at the next sync, like a contact.
+Reminders go off as notes whether a Calendar window is open or not.
+
+With people in Invite, saving also mails each of them an invitation from
+your first Mail account, the event inside it as a calendar request any
+mail program understands. An invitation that reaches you shows in Mail as
+a card -- what, when, where, from whom -- with Yes, Maybe and No: the
+answer is mailed to the organiser and the event kept in your calendar
+(unless the answer is no). An answer to one of your own invitations
+offers to record it in your copy, and a cancellation to remove it.
+
 ## Screen savers
 
 After ten minutes with no key and no click the screen is given to a
@@ -1189,6 +1214,7 @@ In `examples/desktop/apps/`, each one also a file you can read in a sitting:
 | `browser` | the web, in Internet: a headless Chromium driven by the `web` module, each page drawn as cells -- its text where it was laid out, in its colours, over a half-block picture of backgrounds and images. A tab strip (click to switch, the x to close, + for another), back, forward, reload and the address bar: f6 or ctrl-l puts the keyboard there, enter goes -- a bare name gets https://, anything not an address is searched for (`BW_SEARCH`). Clicks follow links and focus fields, typing goes to the page, the wheel scrolls, alt-left and alt-right go back and forward. Bookmarks > Add Bookmark keeps a page in `~/.local/share/hibr/bookmarks.tsv`, a title and an address a line; the rest of that menu goes to one. Needs Chromium or Chrome (`HIBR_WEB_BROWSER`) |
 | `mail` | mail, laid out like Gmail and kept offline: IMAP with push and labels, POP3, SMTP -- see Mail above |
 | `contacts` | address books kept offline from CardDAV, searchable, edited here and synced back; Mail finishes addresses from them -- see Contacts above |
+| `calendar` | calendars kept offline from CalDAV, a month or an agenda at a time, with reminders and invitations sent and answered through Mail -- see Calendar above |
 | `tasks` | every process, name, CPU% and memory, sorted by either (`c`, `m`); `x` ends the selected one, `shift-x` forces it |
 
 ## Desk Accessories

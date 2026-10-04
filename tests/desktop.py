@@ -1936,15 +1936,15 @@ shutil.rmtree(WCONF, True)
 
 LAUNCH = MENU + [b"c"]
 sc, raw = run("", feed=LAUNCH + LAUNCH, pre=APPS)
-check("an app declared hidden is not offered on the menu -- Contacts' editor, Mail's New Message",
-      sc.text().count("┤ Contacts ├") == 1 and "┤ Contact ├" not in sc.text()
-      and "┤ New Message ├" not in sc.text(), sc)
-# 'c' launches Contacts, the first app in examples/desktop/apps whose name
-# starts with it (Control Panel is now 'o'); like Control Panel before it,
-# it is declared `once`. This check was never about which app it launches,
-# only that a `once` one opens no more than a single window.
+check("an app declared hidden is not offered on the menu -- Calendar's and Contacts' editors, Mail's New Message",
+      sc.text().count("┤ Calendar ├") == 1 and "┤ Contact ├" not in sc.text()
+      and "┤ Event ├" not in sc.text() and "┤ New Message ├" not in sc.text(), sc)
+# 'c' launches Calendar, the first app in examples/desktop/apps whose name
+# starts with it (Control Panel is now 'o', Contacts 'n'); like Control Panel
+# before it, it is declared `once`. This check was never about which app it
+# launches, only that a `once` one opens no more than a single window.
 check("an app declared once opens one window, however often launched",
-      sc.text().count("┤ Contacts ├") == 1, sc)
+      sc.text().count("┤ Calendar ├") == 1, sc)
 LAUNCH = MENU + [b"f"]
 sc, raw = run("", feed=LAUNCH + LAUNCH, pre=APPS)
 check("and one that is not opens another window each time",

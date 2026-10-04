@@ -14,6 +14,9 @@ r := pim ics events cal.ics                   # every event and task, a map each
 r := pim ics expand cal.ics FROM TO           # the occurrences in a window
 pim ics build out.ics -u UID -s Summary -b START -e END [-z Europe/London] ...
 pim ics reply invite.ics reply.ics me@example.org ACCEPTED
+pim ics store invite.ics kept.ics [me@example.org ACCEPTED]
+t := pim when epoch 2026 10 5 9 0 0 [-z Europe/London]
+pim when civil "$t" [-z ZONE]                 # Y M D h m s weekday
 r := pim vcf cards people.vcf                 # every contact, a map each
 pim vcf build out.vcf -u UID -f "Full Name" -e mail@example.org ...
 ```
@@ -103,6 +106,22 @@ UTF-8 character; text is escaped.
 (RFC 5546) to an invitation: its UID, SEQUENCE, times, summary, organiser
 and recurrence, the invitation's VTIMEZONEs, and only this attendee, with
 ACCEPTED, TENTATIVE or DECLINED.
+
+`pim ics store IN OUT [ADDRESS PARTSTAT]` makes the copy a calendar keeps
+of an invitation or an answer: the same object with no METHOD (a stored
+object must not have one, RFC 4791), and, given an address, that
+attendee's PARTSTAT set -- how an accepted invitation is put in your own
+calendar, and how an attendee's answer is recorded in the organiser's.
+
+## Civil time
+
+`pim when epoch Y M D [h m s] [-z ZONE]` is that local date and time as
+seconds since the epoch, in the process's zone or the one named; a day or
+month past its end carries over, so the month after December is month 13
+and the day before the first is day 0. A time that happens twice, on the
+night the clocks go back, is its first instance. `pim when civil T [-z
+ZONE]` is the other way: `Y M D h m s weekday`, Monday 0. A zone the
+system does not know is refused.
 
 ## Contacts
 

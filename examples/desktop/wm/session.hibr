@@ -109,6 +109,25 @@ dt_close() {
 	console close
 }
 
+# What runs after every frame whether or not any window is drawn --
+# Calendar's reminders, which must go off with no Calendar open. An app
+# registers a function with dt_ticker; it runs once a frame, must be cheap
+# when there is nothing to do, and asks for the frame it next needs with
+# dt_want, so an idle desktop still sleeps.
+DT_TICKERS=()
+fn dt_ticker(name) {
+	case " ${DT_TICKERS[*]} " in *" $name "*) return 0 ;; esac
+	DT_TICKERS+=("$name")
+}
+dt_tickers() {
+	local f
+
+	for f in "${DT_TICKERS[@]}"; do
+		"$f"
+	done
+	return 0
+}
+
 # Ask for the next frame within ms, from inside an app's _draw.
 #
 # The request lasts one frame: a game that is paused, hidden or not focused
@@ -202,6 +221,7 @@ dt_run() {
 		dt_updcheck
 		dt_remotepoll
 		dt_snapcheck
+		dt_tickers
 		dt_saverwait
 		if [ -n "$DT_TESTIDLE" ]; then
 			k := console consumed

@@ -1039,9 +1039,9 @@ void ml_boundary(str *o, int k)
 int ml_build(sh *s, int ac, char **av)
 {
 	const char *out = av[2], *from = 0, *to = 0, *cc = 0, *bcc = 0, *subj = "", *tf = 0,
-		   *hf = 0, *irt = 0, *refs = 0;
+		   *hf = 0, *irt = 0, *refs = 0, *cf = 0, *method = "REQUEST";
 	vec att = { 0, 0, 0 };
-	str o, text, html, b1, b2, mid, tmp;
+	str o, text, html, b1, b2, mid, tmp, cal, ct;
 	int i, rc;
 	str date;
 	time_t now = time(0);
@@ -1070,6 +1070,10 @@ int ml_build(sh *s, int ac, char **av)
 			irt = v;
 		else if (!strcmp(k, "-R"))
 			refs = v;
+		else if (!strcmp(k, "-C"))
+			cf = v;
+		else if (!strcmp(k, "-M"))
+			method = v;
 		else {
 			lg(HIBR_LERR, "email: build: %s is not an option", k);
 			v_free(&att);
@@ -1077,7 +1081,7 @@ int ml_build(sh *s, int ac, char **av)
 		}
 	}
 	if (!from) {
-		lg(HIBR_LERR, "usage: email build out -f from [-t to] [-c cc] [-b bcc] [-s subject] "
+		lg(HIBR_LERR, "usage: email build out -f from [-t to] [-c cc] [-b bcc] [-s subject] [-C calendar-file [-M method]] "
 			      "[-T textfile] [-H htmlfile] [-a file]... [-r in-reply-to] [-R refs]");
 		v_free(&att);
 		return 2;
@@ -1089,7 +1093,10 @@ int ml_build(sh *s, int ac, char **av)
 	s_init(&b2);
 	s_init(&mid);
 	s_init(&tmp);
-	if ((tf && ml_slurp(tf, &text) != HIBR_OK) || (hf && ml_slurp(hf, &html) != HIBR_OK)) {
+	s_init(&cal);
+	s_init(&ct);
+	if ((tf && ml_slurp(tf, &text) != HIBR_OK) || (hf && ml_slurp(hf, &html) != HIBR_OK) ||
+	    (cf && ml_slurp(cf, &cal) != HIBR_OK)) {
 		rc = HIBR_FAIL;
 		goto out;
 	}
@@ -1154,7 +1161,7 @@ int ml_build(sh *s, int ac, char **av)
 		s_cat(&o, b1.p);
 		s_cat(&o, "\r\n");
 	}
-	if (html.n) {
+	if (html.n || cal.n) {
 		ml_boundary(&b2, 2);
 		s_cat(&o, "Content-Type: multipart/alternative; boundary=\"");
 		s_cat(&o, b2.p);
@@ -1165,9 +1172,22 @@ int ml_build(sh *s, int ac, char **av)
 		s_cat(&o, "--");
 		s_cat(&o, b2.p);
 		s_cat(&o, "\r\n");
-		ml_textpart(&o, "text/html", html.p, html.n);
-		s_cat(&o, "--");
-		s_cat(&o, b2.p);
+		if (html.n) {
+			ml_textpart(&o, "text/html", html.p, html.n);
+			s_cat(&o, "--");
+			s_cat(&o, b2.p);
+			s_cat(&o, "\r\n");
+		}
+		if (cal.n) {
+			s_cat(&ct, "text/calendar; method=");
+			s_cat(&ct, method);
+			ml_textpart(&o, ct.p, cal.p, cal.n);
+			s_cat(&o, "--");
+			s_cat(&o, b2.p);
+			s_cat(&o, "\r\n");
+			lg(HIBR_LDBG, "email: build: a calendar part, method %s", method);
+		}
+		o.n -= 2;
 		s_cat(&o, "--\r\n");
 	} else {
 		ml_textpart(&o, "text/plain", text.p ? text.p : "", text.n);
@@ -1227,6 +1247,8 @@ out:
 	s_free(&o);
 	s_free(&text);
 	s_free(&html);
+	s_free(&cal);
+	s_free(&ct);
 	s_free(&b1);
 	s_free(&b2);
 	s_free(&mid);

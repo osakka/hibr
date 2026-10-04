@@ -120,7 +120,11 @@ Zoë Ü
 
 `email build` takes `-f from`, `-t to`, `-c cc`, `-b bcc`, `-s subject`,
 `-T text-file`, `-H html-file`, `-a attachment` (as many as wanted),
-`-r in-reply-to` and `-R references`. `email clip bytes text` shortens text
+`-r in-reply-to`, `-R references`, and `-C calendar-file [-M METHOD]`: an
+iCalendar object added beside the text, inside the same
+multipart/alternative, as `text/calendar; method=METHOD` -- how an
+invitation (REQUEST), an answer (REPLY) or a cancellation (CANCEL) is
+mailed so any mail program offers its buttons. `email clip bytes text` shortens text
 to at most that many bytes without cutting a character in half, for a
 fixed-width column.
 

@@ -117,6 +117,17 @@ try:
           box.folders["Sent"][0].flags == {"\\Seen"} and b"Sent copy" in box.folders["Sent"][0].raw,
           out + err)
 
+    open(os.path.join(D, "inv.ics"), "w", newline="").write(
+        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nMETHOD:REQUEST\r\nBEGIN:VEVENT\r\nUID:i1\r\n"
+        "DTSTART:20261005T090000Z\r\nSUMMARY:Planning\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n")
+    out, err = hb("email build c.eml -f 'Pat <pat@example.com>' -t bob@example.net -s Invitation -T body.txt"
+                  " -C inv.ics -M REQUEST > /dev/null; p := email parse c.eml;"
+                  " echo \"${p[\"parts\"][0][\"type\"]} ${p[\"parts\"][1][\"type\"]}\";"
+                  " email part c.eml 1 got.ics; grep -c 'SUMMARY:Planning' got.ics;"
+                  " grep -ci 'content-type: text/calendar.*method=REQUEST' c.eml")
+    check("-C adds the event beside the text as text/calendar with its METHOD, readable back as a part",
+          out.split() == ["text/plain", "text/calendar", "1", "1"], out + err)
+
     def later():
         time.sleep(1.5)
         box.add("INBOX", msg("New <n@example.org>", "Arrived during IDLE"))
@@ -206,4 +217,4 @@ try:
 finally:
     pass
 
-report(23)
+report(24)
