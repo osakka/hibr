@@ -1,0 +1,18 @@
+{
+  "colours": "neon",
+  "wallpaper": "+",
+  "image": "retro_car.png",
+  "mode": "zoom",
+  "frame": "none",
+  "titlebar": "line",
+  "buttons": "dashes",
+  "side": "right",
+  "align": "center",
+  "checks": "knob",
+  "dialog": "filled",
+  "glyphs": "unicode",
+  "windowshadow": true,
+  "menushadow": true,
+  "barshadow": true,
+  "buttonshadow": true
+}
