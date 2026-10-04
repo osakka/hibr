@@ -235,8 +235,8 @@ the next entry, `~-1` the one before last, and `~+` and `~-` are `$PWD` and
 |---|---|
 | `connect [-u\|-s] host port [var]` | **[hibr]** open a client connection; `-u` UDP, `-s` TLS |
 | `listen [-f] [-n count] port handler` | **[hibr]** serve connections with a handler |
-| `listen -b port [var]` | **[hibr]** bind only, and hand back the descriptor |
-| `accept listenfd [var]` | **[hibr]** wait for one connection |
+| `listen -b port [var]` | **[hibr]** bind only, and hand back the descriptor; a port with a `/` is a Unix socket, owner-only |
+| `accept [-t secs] listenfd [var]` | **[hibr]** wait for one connection, at most secs with `-t`; `$REMOTE` is `uid:N` for a Unix socket |
 | `send [-n\|-r] fd text…` | **[hibr]** write to a descriptor; `-r` ends CRLF |
 | `recv [-a\|-n bytes] fd [var]` | **[hibr]** read one line, all of it, or `n` bytes |
 

@@ -30,6 +30,13 @@
 # "desktop", no matter which session this one was actually starting.
 DT_SELFARGS=("$@")
 
+# desktop ctl ... talks to a running desktop's control socket instead of
+# starting one -- see lib/ctl.hibr.
+if [ "$1" = ctl ]; then
+	shift
+	exec "$HIBR" "${0%/*}/lib/ctl.hibr" "$@"
+fi
+
 opt .            "hibr's desktop, held so it can always be detached from"
 opt -r --resume  resume         "Reattach to it if it is already running"
 opt -s --session session str=desktop \

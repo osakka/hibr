@@ -100,6 +100,7 @@ dt_restart() {
 		return 1
 	fi
 	dt_rslog "restarting into $HIBR: ${#DT[@]} windows kept in $f"
+	dt_ctlclose
 	console close
 	if [ -n "$DT_ERR" ]; then
 		exec 2>&"$DT_ERR"

@@ -1,0 +1,12 @@
+0
+bound: socket
+srwx------
+nothing waiting: 1
+client fd is a number: yes
+one waiting: 0
+remote is our own uid
+server read: hello
+client read: back
+taken while live: 1
+stale replaced: 0
+no descriptor: 2

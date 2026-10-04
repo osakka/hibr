@@ -38,9 +38,17 @@ hibr: connect /nosuchsock: No such file or directory
 | `connect [-u\|-s] host port [var]` | connect; `-u` UDP, `-s` TLS. Sets `$var` (default `FD`) and `$RET` |
 | `send [-n\|-r] fd text…` | write; `-n` without a trailing newline, `-r` ending CRLF |
 | `recv [-a\|-n bytes] fd [var]` | read one line; `-a` everything to end of stream, `-n` exactly that many bytes |
-| `accept listenfd [var]` | wait for one connection; sets `$var` (default `FD`) and `$REMOTE` |
+| `accept [-t secs] listenfd [var]` | wait for one connection; sets `$var` (default `FD`) and `$REMOTE`. `-t` waits at most that long and fails if none came; `-t 0` only looks |
 | `listen [-f] [-n count] port handler` | serve; `-f` forks per connection, `-n` stops after that many |
 | `listen -b [-u] port [var]` | bind only, and hand back the descriptor; `-u` binds UDP |
+
+A port that is a path -- anything with a `/` in it -- is a Unix domain
+socket: made so only its owner can open it, one left by a process that has
+gone replaced, one still answering refused as in use. `$REMOTE` for a Unix
+socket's connection is `uid:N`, the connecting process's user, so a server
+can refuse anyone but its own: the desktop's control socket does.
+`exec {fd}<>/dev/unix/path` (or `/dev/tcp/...`) puts the connection's
+descriptor in `fd`, as it does a file's.
 
 Descriptors come back above 9, so a redirection cannot tread on one. A failure
 says what went wrong and returns non-zero, and a descriptor that is not a

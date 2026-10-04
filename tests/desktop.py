@@ -8,7 +8,7 @@ with.  Run it directly:  python3 tests/desktop.py [path-to-hibr]
 The pty and the terminal model live in tests/screen.py, which every
 full-screen suite shares.
 """
-import os, re, shutil, subprocess, sys, tempfile, time
+import json, os, re, shutil, subprocess, sys, tempfile, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen
@@ -1227,6 +1227,38 @@ sc, raw = run(TINY, [press(7, 12), release(7, 12), press(7, 12), release(7, 12)]
 check("a double click is told to its app", b"doubled" in raw, sc)
 sc, _ = run(TINY, [press(7, 12, 2)])
 check("and a right click opens its app's own menu", sc.find("Ping") is not None, sc)
+
+# The control socket of an unheld desktop, asked for with DT_CTL: it
+# answers, it is back after Restart Desktop, and it is gone after Quit.
+CTD = tempfile.mkdtemp(prefix="hibr-ctl-")
+CTS = os.path.join(CTD, "d.ctl")
+cpath = os.path.join(CTD, "s.hibr")
+open(cpath, "w").write("%s. %s\nDT_CTL=1\nDT_CTLPATH=%s\ndt_open\n"
+                       "[ \"$DT_RESTORED\" = 1 ] || dt_new One 8 30 4 10\ndt_run\ndt_close\n"
+                       % (load(MOD), WM, CTS))
+tc = Term(cpath, rows=ROWS, cols=COLS, settle=1.0)
+
+
+def uctl(*a):
+    r = subprocess.run([screen.HIBR, tree("examples/desktop/lib/ctl.hibr"), "--socket", CTS] + list(a),
+                       capture_output=True, text=True, timeout=10)
+    try:
+        return r.returncode, json.loads(r.stdout)
+    except ValueError:
+        return r.returncode, {"raw": r.stdout + r.stderr}
+
+
+rc, j = uctl("windows")
+check("an unheld desktop with DT_CTL answers on its control socket",
+      rc == 0 and [w["title"] for w in j.get("windows", [])] == ["One"], j)
+tc.keys([b"\x1b[21~", b"r"])
+tc.collect(2.5)
+rc, j = uctl("windows")
+check("and answers again after Restart Desktop, its windows kept",
+      rc == 0 and [w["title"] for w in j.get("windows", [])] == ["One"], j)
+tc.quit(b"qy", 1.2)
+check("and its socket is gone after Quit", not os.path.exists(CTS), os.listdir(CTD))
+shutil.rmtree(CTD, True)
 
 # A sticky window is on every workspace; taken off them, it stays on the
 # one it is seen on; sent to another, it is no longer on every one.
@@ -2727,6 +2759,42 @@ check("choosing one moves the window there",
       sc2c.find("┤ Files [~] ├") is not None,
       str(sc1c) + "\n" + str(sc2c))
 
+# The control socket (#91): what Blit, the terminal server that draws a
+# held desktop on its screens, uses instead of keystrokes -- the displays
+# and windows as JSON, and a window moved with the same dt_movewin the
+# menu uses, the joined screen drawing it.
+def ctl(*a):
+    r = subprocess.run([screen.HIBR, tree("examples/desktop/lib/ctl.hibr"), "--session", "desktop"] + list(a),
+                       env=dict(os.environ, **JENV), capture_output=True, text=True, timeout=20)
+    try:
+        return r.returncode, json.loads(r.stdout)
+    except ValueError:
+        return r.returncode, {"raw": r.stdout + r.stderr}
+
+
+rc, j = ctl("displays")
+names = sorted(d["name"] for d in j.get("displays", []))
+check("desktop ctl displays lists both attached displays, one primary",
+      rc == 0 and names == sorted([primary, joined]) and
+      [d["primary"] for d in j["displays"]].count(True) == 1, j)
+rc, j = ctl("windows")
+fw = [w for w in j.get("windows", []) if w["title"].startswith("Files")]
+check("desktop ctl windows lists the Files window with its place and size",
+      rc == 0 and len(fw) == 1 and all(k in fw[0] for k in ("id", "row", "col", "h", "w", "workspace", "focused")), j)
+fid = str(fw[0]["id"]) if fw else "0"
+rc, j = ctl("move", fid, primary)
+t1.collect(1.0)
+check("a move to the primary display puts it there, and its screen draws it",
+      rc == 0 and j.get("ok") and t1.screen().find("┤ Files [~] ├") is not None, (j, str(t1.screen())))
+rc, j = ctl("move", fid, joined)
+t2.collect(1.0)
+check("and to the joined display, which draws it, not the background",
+      rc == 0 and j.get("ok") and t2.screen().find("┤ Files [~] ├") is not None, (j, str(t2.screen())))
+rc, j = ctl("move", "999", joined)
+check("a window that is not there is refused, saying so", rc == 1 and j.get("error") == "no-window", j)
+rc, j = ctl("move", fid, "nosuch")
+check("and so is a display that is not", rc == 1 and j.get("error") == "no-display", j)
+
 # The Control Panel gets a "Displays" pane (Slice D): every attached
 # display drawn to scale from hold clients, dragged to reposition it
 # (hold move on release); a "Primary:" dropdown to choose which one is
@@ -2923,6 +2991,8 @@ r2 = subprocess.run([screen.HIBR, "-c", HOLDC + "hold list"],
                     text=True)
 check("the first one is still there, unaffected",
       "desktop" in r2.stdout, r2.stdout)
+rc, j = ctl("move", fid, joined)
+check("a move to the display that detached says it is detached", rc == 1 and j.get("error") == "detached", j)
 
 t1.send(b"\x1b[21~")
 t1.send(b"q", settle=1.0)
@@ -2930,6 +3000,9 @@ t1.collect(0.5)
 check("quitting from the first ends the whole session",
       b"[desktop ended" in t1.out, t1.out.decode(errors="replace"))
 t1.close()
+check("and its control socket is gone with it",
+      not os.path.exists(os.path.join(JOIN, "hibr-ctl-%d" % os.getuid(), "desktop.ctl")),
+      os.listdir(JOIN))
 unjoin()
 
 # --standby: a terminal that waits to be joined, joins, and when it is let
@@ -3358,4 +3431,4 @@ check("an arithmetic error in an app is logged and the desktop carries on",
       (log, t.status))
 expect(r"arithmetic: syntax error")
 
-report(461)
+report(472)

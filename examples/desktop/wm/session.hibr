@@ -65,6 +65,7 @@ dt_open() {
 	dt_clipload
 	dt_snaptake
 	dt_restore
+	dt_ctlopen
 }
 
 # Re-read the screen size after a resize, and this desktop's own primary
@@ -99,6 +100,7 @@ dt_size() {
 
 # Give the terminal back.
 dt_close() {
+	dt_ctlclose
 	dt_snapdrop
 	if [ -n "$DT_ERR" ]; then
 		exec 2>&$DT_ERR {DT_ERR}>&-

@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include "pri.h"
 #include <arpa/inet.h>
 #include <errno.h>
@@ -5,11 +6,13 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#include <poll.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/un.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -215,6 +218,92 @@ int net_bind(const char *port, int udp)
 	}
 	lg(HIBR_LDBG, "listening on port %s, fd %d", port, fd);
 	return fd_high(fd);
+}
+
+/* Listen on a Unix domain socket at path, readable and writable by its
+   owner only. A socket left by a process that has gone is replaced; one
+   still answering is not taken. */
+int net_bindunix(const char *path)
+{
+	struct sockaddr_un a;
+	int fd, t;
+	mode_t um;
+
+	if (strlen(path) >= sizeof a.sun_path) {
+		lg(HIBR_LERR, "%s: socket path too long", path);
+		return -1;
+	}
+	memset(&a, 0, sizeof a);
+	a.sun_family = AF_UNIX;
+	strcpy(a.sun_path, path);
+	t = socket(AF_UNIX, SOCK_STREAM, 0);
+	if (t >= 0) {
+		if (connect(t, (struct sockaddr *)&a, sizeof a) == 0) {
+			close(t);
+			lg(HIBR_LERR, "listen %s: in use", path);
+			return -1;
+		}
+		close(t);
+	}
+	unlink(path);
+	fd = socket(AF_UNIX, SOCK_STREAM, 0);
+	if (fd < 0) {
+		lg(HIBR_LERR, "listen %s: %s", path, strerror(errno));
+		return -1;
+	}
+	um = umask(077);
+	if (bind(fd, (struct sockaddr *)&a, sizeof a) < 0) {
+		umask(um);
+		lg(HIBR_LERR, "bind %s: %s", path, strerror(errno));
+		close(fd);
+		return -1;
+	}
+	umask(um);
+	if (listen(fd, 16) < 0) {
+		lg(HIBR_LERR, "listen %s: %s", path, strerror(errno));
+		close(fd);
+		unlink(path);
+		return -1;
+	}
+	lg(HIBR_LDBG, "listening on %s, fd %d", path, fd);
+	return fd_high(fd);
+}
+
+char *net_peer(struct sockaddr *sa, socklen_t n);
+
+/* Who is at the other end of an accepted socket: host:port, or for a Unix
+   socket uid:N of the connecting process. */
+char *net_who(int fd, struct sockaddr *sa, socklen_t n)
+{
+	str b;
+
+	if (sa->sa_family == AF_UNIX) {
+#ifdef SO_PEERCRED
+		struct ucred cr;
+		socklen_t cl = sizeof cr;
+
+		s_init(&b);
+		if (getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &cr, &cl) == 0) {
+			s_cat(&b, "uid:");
+			s_num(&b, (long)cr.uid);
+		} else {
+			s_cat(&b, "unknown");
+		}
+#else
+		uid_t u;
+		gid_t g;
+
+		s_init(&b);
+		if (getpeereid(fd, &u, &g) == 0) {
+			s_cat(&b, "uid:");
+			s_num(&b, (long)u);
+		} else {
+			s_cat(&b, "unknown");
+		}
+#endif
+		return b.p;
+	}
+	return net_peer(sa, n);
 }
 
 /* Connect to a Unix domain socket. */
@@ -538,20 +627,35 @@ int b_accept(sh *s, int ac, char **av)
 {
 	struct sockaddr_storage ss;
 	socklen_t sl = sizeof ss;
-	const char *nm = ac > 2 ? av[2] : "FD";
+	const char *nm;
 	char *peer;
-	int fd;
+	int fd, i = 1, ms = -1;
+	struct pollfd pf;
 
-	if (ac < 2) {
-		lg(HIBR_LERR, "usage: accept listenfd [var]");
+	if (ac > 2 && !strcmp(av[1], "-t")) {
+		ms = (int)(strtod(av[2], 0) * 1000);
+		if (ms < 0)
+			ms = 0;
+		i = 3;
+	}
+	if (ac <= i) {
+		lg(HIBR_LERR, "usage: accept [-t secs] listenfd [var]");
 		return 2;
 	}
-	fd = accept(atoi(av[1]), (struct sockaddr *)&ss, &sl);
+	nm = ac > i + 1 ? av[i + 1] : "FD";
+	if (ms >= 0) {
+		pf.fd = atoi(av[i]);
+		pf.events = POLLIN;
+		pf.revents = 0;
+		if (poll(&pf, 1, ms) <= 0)
+			return HIBR_FAIL;
+	}
+	fd = accept(atoi(av[i]), (struct sockaddr *)&ss, &sl);
 	if (fd < 0) {
 		lg(HIBR_LERR, "accept: %s", strerror(errno));
 		return HIBR_FAIL;
 	}
-	peer = net_peer((struct sockaddr *)&ss, sl);
+	peer = net_who(fd, (struct sockaddr *)&ss, sl);
 	hibr_set(s, "REMOTE", peer, 0);
 	free(peer);
 	net_slot(s, nm, fd_high(fd));
@@ -708,7 +812,7 @@ int b_listen(sh *s, int ac, char **av)
 				  : "usage: listen [-f] [-n count] port handler");
 		return 2;
 	}
-	lfd = net_bind(av[i], udp);
+	lfd = strchr(av[i], '/') ? net_bindunix(av[i]) : net_bind(av[i], udp);
 	if (lfd < 0)
 		return HIBR_FAIL;
 	if (bnd) {
@@ -726,7 +830,7 @@ int b_listen(sh *s, int ac, char **av)
 				continue;
 			break;
 		}
-		peer = net_peer((struct sockaddr *)&ss, sl);
+		peer = net_who(cfd, (struct sockaddr *)&ss, sl);
 		hibr_set(s, "REMOTE", peer, 0);
 		s_init(&cmd);
 		s_cat(&cmd, av[i + 1]);

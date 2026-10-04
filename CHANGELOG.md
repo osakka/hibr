@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.99.39
+
+**The desktop has a control socket.** A program can ask a held desktop
+which displays are attached and which windows are open, and move, resize
+and focus them -- through the same operations the menus use, never by
+typing keys at it. It is what Blit, a terminal server that draws hibr
+straight to the screens with no X11 or Wayland, needs to drive a desktop
+across several displays. `desktop ctl displays`, `desktop ctl windows`,
+`desktop ctl move 3 right` print the desktop's JSON answer; errors are
+named (`no-window`, `no-display`, `detached`, `bad-geometry`,
+`unauthorized`...). Only the desktop's own user can use it.
+
+**`listen` serves Unix sockets, and `accept` can wait a while or not at
+all.** `listen -b /path` binds an owner-only Unix socket, `$REMOTE` is the
+connecting process's `uid:N`, and `accept -t secs` gives up after that
+long (`-t 0` only looks).
+
+**`exec {fd}<>/dev/unix/...` and `/dev/tcp/...` work.** The socket went to
+standard input and `fd` stayed empty.
+
 ## 0.99.38
 
 **Appearance, regrouped.** Headings for Look (Theme, Colours, Glyphs),

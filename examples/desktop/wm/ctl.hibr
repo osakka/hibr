@@ -1,0 +1,264 @@
+#!/usr/bin/env hibr
+#
+# wm/ctl -- the desktop's control socket: a program -- Blit, the terminal
+# server that draws hibr straight to the screens, or a test -- asks the
+# running desktop about its displays and windows and moves them, through
+# the same operations the menus use, never by typing keys at it.
+#
+# One Unix socket per held session, ${TMPDIR:-/tmp}/hibr-ctl-<uid>/
+# <session>.ctl, in a folder only its owner can enter, made with only its
+# owner able to open it, and a connection from any other user is refused
+# anyway: accept says who connected. Not the runtime folder: like hold's
+# own sockets, it must outlast a logout, which is what a held session is
+# for; and not hold's folder, where `hold list` would take it for a
+# session. One request
+# per connection, a line of JSON, and one line of JSON back:
+#
+#     {"op":"displays"}
+#     {"op":"windows"}
+#     {"op":"session"}
+#     {"op":"move","id":7,"display":"left"}
+#     {"op":"resize","id":7,"h":20,"w":60}
+#     {"op":"focus","id":7}            ("raise" is the same)
+#
+# An answer is {"ok":true,...} or {"ok":false,"error":"...","detail":"..."},
+# the errors bad-request, unknown-op, no-window, no-display, detached,
+# bad-geometry and unauthorized. Window ids are the desktop's own; a
+# display is named as hold names it -- the --name a joined terminal gave.
+# Requests are served after a frame, between frames, so a slow client can
+# never hold a frame up: one that says nothing within a second is closed.
+# `desktop ctl` (lib/ctl.hibr) is the client.
+#
+# A held desktop always has one. An unheld one has one only with DT_CTL=1
+# (and DT_CTLPATH to put it somewhere), so test runs side by side never
+# fight over one name.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+strict
+
+DT_CTL="${DT_CTL-}"
+DT_CTLPATH="${DT_CTLPATH-}"
+DT_CTLFD=
+declare -gA DT_CTLSEEN
+
+command -v dt_ticker > /dev/null && dt_ticker dt_ctlpoll
+
+# Where this desktop's control socket is: DT_CTLPATH if set, else the
+# session's name in the runtime folder.
+dt_ctlwhere() {
+	local d=${TMPDIR:-/tmp}/hibr-ctl-$UID n
+
+	if [ -n "$DT_CTLPATH" ]; then
+		ret "$DT_CTLPATH"
+		return 0
+	fi
+	n=${HIBR_HOLD##*/}
+	ret "$d/${n:-desktop}.ctl"
+}
+
+# Open the socket and watch it, when this desktop should have one.
+dt_ctlopen() {
+	local p fd
+
+	[ -n "$HIBR_HOLD" ] || [ "$DT_CTL" = 1 ] || return 0
+	[ "$DT_CTL" = 0 ] && return 0
+	p := dt_ctlwhere
+	if ! [ -d "${p%/*}" ] && ! mkdir -p -m 700 "${p%/*}" 2> /dev/null; then
+		dt_rslog "no control socket: cannot make ${p%/*}"
+		return 0
+	fi
+	if ! [ -O "${p%/*}" ]; then
+		dt_rslog "no control socket: ${p%/*} is not this user's"
+		return 0
+	fi
+	if ! listen -b "$p" fd 2>> "$DT_LOG"; then
+		dt_rslog "no control socket at $p"
+		return 0
+	fi
+	DT_CTLFD=$fd
+	command -v console > /dev/null && console watch "$fd"
+	return 0
+}
+
+# Close it, and take the file away: on Quit, and before a restart's exec.
+dt_ctlclose() {
+	local p
+
+	[ -n "$DT_CTLFD" ] || return 0
+	command -v console > /dev/null && console unwatch "$DT_CTLFD"
+	exec {DT_CTLFD}>&-
+	DT_CTLFD=
+	p := dt_ctlwhere
+	command rm -f -- "$p"
+	return 0
+}
+
+# After every frame: every connection waiting, served one at a time.
+dt_ctlpoll() {
+	local c
+
+	[ -n "$DT_CTLFD" ] || return 0
+	while accept -t 0 "$DT_CTLFD" c 2> /dev/null; do
+		dt_ctlserve "$c"
+		exec {c}>&-
+	done
+	return 0
+}
+
+# A text as a JSON string.
+fn dt_jstr(t) {
+	t=${t//\\/\\\\}
+	t=${t//\"/\\\"}
+	t=${t//$'\n'/\\n}
+	t=${t//$'\t'/\\t}
+	ret "\"$t\""
+}
+
+# An error answer.
+fn dt_ctlerr(code, detail = "") {
+	local d
+
+	d := dt_jstr "$detail"
+	ret "{\"ok\":false,\"error\":\"$code\",\"detail\":$d}"
+}
+
+# One connection: who it is, its request, its answer.
+fn dt_ctlserve(int c) {
+	local line= out op
+	local -A q
+
+	if [ "$REMOTE" != "uid:$UID" ]; then
+		out := dt_ctlerr unauthorized "only the desktop's own user may control it"
+		printf '%s\n' "$out" >&"$c" 2> /dev/null
+		return 0
+	fi
+	if ! read -r -t 1 line <&"$c" || [ -z "$line" ]; then
+		[ -n "$line" ] || return 0
+	fi
+	if ! json parse q "$line" 2> /dev/null; then
+		out := dt_ctlerr bad-request "not a line of JSON"
+	else
+		op=${q["op"]}
+		case $op in
+		session) out := dt_ctlsession ;;
+		displays) out := dt_ctldisplays ;;
+		windows) out := dt_ctlwindows ;;
+		move) out := dt_ctlmove "${q["id"]}" "${q["display"]}" ;;
+		resize) out := dt_ctlresize "${q["id"]}" "${q["h"]}" "${q["w"]}" ;;
+		focus | raise) out := dt_ctlfocus "${q["id"]}" ;;
+		"") out := dt_ctlerr bad-request "no op" ;;
+		*) out := dt_ctlerr unknown-op "$op" ;;
+		esac
+	fi
+	printf '%s\n' "$out" >&"$c" 2> /dev/null
+	return 0
+}
+
+# The attached displays, one line each: name row col rows cols primary --
+# hold's list for a held session, the whole screen as "main" otherwise.
+dt_ctldlist() {
+	local lst
+
+	if [ -n "$HIBR_HOLD" ] && need hold 2> /dev/null; then
+		lst := hold clients "${HIBR_HOLD##*/}" 2> /dev/null
+		ret "$lst"
+		return 0
+	fi
+	ret "main 1 0 $((DT_ROWS - 1)) $DT_COLS 1"
+}
+
+dt_ctlsession() {
+	local n=${HIBR_HOLD##*/} held=false nm
+
+	[ -n "$HIBR_HOLD" ] && held=true
+	nm := dt_jstr "${n:-desktop}"
+	ret "{\"ok\":true,\"session\":$nm,\"held\":$held,\"focus\":${DT_FOCUS:-null},\"workspace\":$DT_WS,\"workspaces\":$DT_WSN,\"rows\":$DT_ROWS,\"cols\":$DT_COLS}"
+}
+
+dt_ctldisplays() {
+	local lst out= nm row col rows cols pri j
+
+	lst := dt_ctldlist
+	while IFS=' ' read -r nm row col rows cols pri; do
+		[ -n "$nm" ] || continue
+		DT_CTLSEEN["$nm"]=1
+		j := dt_jstr "$nm"
+		[ "$pri" = 1 ] && pri=true || pri=false
+		out+="${out:+,}{\"name\":$j,\"row\":$row,\"col\":$col,\"rows\":$rows,\"cols\":$cols,\"primary\":$pri}"
+	done <<< "$lst"
+	ret "{\"ok\":true,\"displays\":[$out]}"
+}
+
+dt_ctlwindows() {
+	local id out= t a f st hd
+
+	for id in "${!DT[@]}"; do
+		[ -n "${DT[$id]["title"]}" ] || continue
+		t := dt_jstr "${DT[$id]["title"]}"
+		a := dt_jstr "${DT[$id]["app"]}"
+		f=false
+		[ "$DT_FOCUS" = "$id" ] && f=true
+		st=false
+		[ "${DT[$id]["sticky"]}" = 1 ] && st=true
+		hd=false
+		dt_hidden "$id" && hd=true
+		out+="${out:+,}{\"id\":$id,\"title\":$t,\"app\":$a,\"row\":${DT[$id]["row"]},\"col\":${DT[$id]["col"]},\"h\":${DT[$id]["h"]},\"w\":${DT[$id]["w"]},\"workspace\":${DT[$id]["ws"]:-1},\"sticky\":$st,\"hidden\":$hd,\"focused\":$f}"
+	done
+	ret "{\"ok\":true,\"windows\":[$out]}"
+}
+
+# Whether a window id names an open window.
+fn dt_ctlwin(id = "") {
+	[[ $id =~ ^[0-9]+$ ]] && [ -n "${DT[$id]["title"]}" ]
+}
+
+# Move a window onto a named display, as Move to Display does.
+fn dt_ctlmove(id = "", display = "") {
+	local lst nm row col rows cols pri out j
+
+	dt_ctlwin "$id" || { out := dt_ctlerr no-window "no window $id"; ret "$out"; return 0; }
+	[ -n "$display" ] || { out := dt_ctlerr bad-request "no display named"; ret "$out"; return 0; }
+	lst := dt_ctldlist
+	while IFS=' ' read -r nm row col rows cols pri; do
+		[ "$nm" = "$display" ] || continue
+		DT_CTLSEEN["$nm"]=1
+		dt_movewin "$id" "$row" "$col" "$rows" "$cols"
+		dt_want 10
+		j := dt_jstr "$nm"
+		ret "{\"ok\":true,\"id\":$id,\"display\":$j,\"row\":${DT[$id]["row"]},\"col\":${DT[$id]["col"]},\"h\":${DT[$id]["h"]},\"w\":${DT[$id]["w"]}}"
+		return 0
+	done <<< "$lst"
+	if [ -n "${DT_CTLSEEN["$display"]}" ]; then
+		out := dt_ctlerr detached "display $display is not attached now"
+	else
+		out := dt_ctlerr no-display "no display called $display"
+	fi
+	ret "$out"
+}
+
+# Give a window a size, as a resize does: refused if it cannot have it.
+fn dt_ctlresize(id = "", h = "", w = "") {
+	local out
+
+	dt_ctlwin "$id" || { out := dt_ctlerr no-window "no window $id"; ret "$out"; return 0; }
+	if ! [[ $h =~ ^[0-9]+$ && $w =~ ^[0-9]+$ ]] || [ "$h" -lt "$DT_MINH" ] || [ "$w" -lt "$DT_MINW" ] ||
+	   ! dt_resize "$id" "$h" "$w"; then
+		out := dt_ctlerr bad-geometry "$h by $w does not fit"
+		ret "$out"
+		return 0
+	fi
+	dt_want 10
+	ret "{\"ok\":true,\"id\":$id,\"h\":${DT[$id]["h"]},\"w\":${DT[$id]["w"]}}"
+}
+
+# Bring a window forward and give it the keyboard.
+fn dt_ctlfocus(id = "") {
+	local out
+
+	dt_ctlwin "$id" || { out := dt_ctlerr no-window "no window $id"; ret "$out"; return 0; }
+	dt_raise "$id"
+	dt_want 10
+	ret "{\"ok\":true,\"id\":$id,\"focused\":true}"
+}

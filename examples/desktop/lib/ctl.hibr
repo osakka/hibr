@@ -1,0 +1,93 @@
+#!/usr/bin/env hibr
+#
+# lib/ctl -- desktop ctl: ask a running desktop something, or have it do
+# something, through its control socket (wm/ctl.hibr), and print the JSON
+# it answers. The status is 0 for {"ok":true...}, 1 for an error the
+# desktop gave, 2 when there is no desktop to ask.
+#
+#     desktop ctl displays
+#     desktop ctl windows
+#     desktop ctl session
+#     desktop ctl move ID DISPLAY
+#     desktop ctl resize ID HEIGHT WIDTH
+#     desktop ctl focus ID
+#     desktop ctl -j '{"op":"windows"}'
+#
+# Which desktop: --session NAME, else the held session this shell runs in,
+# else "desktop"; --socket PATH names the socket itself.
+
+strict
+
+opt .             "talk to a running desktop's control socket"
+opt -s --session  session str  "Which held session"
+opt -S --socket   socket str   "The control socket itself"
+opt -j --json     json str     "Send this request as it is"
+args "$@"
+
+fn ctl_num(v) {
+	[[ $v =~ ^[0-9]+$ ]] && { ret "$v"; return 0; }
+	echo "desktop ctl: $v is not a number" >&2
+	exit 2
+}
+
+fn ctl_str(t) {
+	t=${t//\\/\\\\}
+	t=${t//\"/\\\"}
+	ret "\"$t\""
+}
+
+req=$json
+if [ -z "$req" ]; then
+	op=${1-}
+	case $op in
+	displays | windows | session) req="{\"op\":\"$op\"}" ;;
+	move)
+		[ $# -eq 3 ] || { echo "usage: desktop ctl move ID DISPLAY" >&2; exit 2; }
+		i := ctl_num "$2"
+		d := ctl_str "$3"
+		req="{\"op\":\"move\",\"id\":$i,\"display\":$d}"
+		;;
+	resize)
+		[ $# -eq 4 ] || { echo "usage: desktop ctl resize ID HEIGHT WIDTH" >&2; exit 2; }
+		i := ctl_num "$2"
+		h := ctl_num "$3"
+		w := ctl_num "$4"
+		req="{\"op\":\"resize\",\"id\":$i,\"h\":$h,\"w\":$w}"
+		;;
+	focus | raise)
+		[ $# -eq 2 ] || { echo "usage: desktop ctl $op ID" >&2; exit 2; }
+		i := ctl_num "$2"
+		req="{\"op\":\"$op\",\"id\":$i}"
+		;;
+	*)
+		echo "usage: desktop ctl displays|windows|session|move|resize|focus ..." >&2
+		exit 2
+		;;
+	esac
+fi
+p=$socket
+if [ -z "$p" ]; then
+	n=$session
+	[ -n "$n" ] || n=${HIBR_HOLD##*/}
+	p=${TMPDIR:-/tmp}/hibr-ctl-$UID/${n:-desktop}.ctl
+fi
+fd=
+if [ -S "$p" ]; then
+	exec {err}>&2 2> /dev/null
+	exec {fd}<>"/dev/unix/$p" || fd=
+	exec 2>&"$err" {err}>&-
+fi
+if [ -z "$fd" ]; then
+	echo "desktop ctl: no desktop is listening at $p" >&2
+	exit 2
+fi
+printf '%s\n' "$req" >&"$fd"
+answer=
+read -r -t 5 answer <&"$fd"
+exec {fd}>&-
+if [ -z "$answer" ]; then
+	echo "desktop ctl: the desktop did not answer" >&2
+	exit 2
+fi
+printf '%s\n' "$answer"
+[[ $answer == '{"ok":true'* ]]

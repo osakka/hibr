@@ -243,6 +243,21 @@ int rd_do(sh *s, redir *r, vec *sv)
 				st = HIBR_FAIL;
 				break;
 			}
+			if (r->var) {
+				str nb;
+				int hi = fd >= 10 ? fd : fcntl(fd, F_DUPFD, 10);
+
+				if (hi >= 0 && hi != fd) {
+					close(fd);
+					fd = hi;
+				}
+				s_init(&nb);
+				s_num(&nb, (long)fd);
+				hibr_set(s, r->var, nb.p, 0);
+				s_free(&nb);
+				lg(HIBR_LDBG, "socket descriptor %d in %s", fd, r->var);
+				continue;
+			}
 			if (sv)
 				rd_save(sv, r->fd);
 			if (fd != r->fd) {

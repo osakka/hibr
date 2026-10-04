@@ -885,6 +885,42 @@ not a crash: the desktop writes the snapshot then, gives the terminal back
 and exits, and the next start reopens those windows once. Quitting removes
 it, so a desktop ended on purpose starts empty.
 
+## Controlling a running desktop
+
+A program can ask a held desktop about its displays and windows, and move
+them, through its control socket -- what Blit, a terminal server that draws
+hibr straight to the screens over KMS with no X11 or Wayland, uses instead
+of typing keys at it. `desktop ctl` is the client:
+
+<!-- not run: needs a running held desktop -->
+```text
+$ desktop ctl displays
+{"ok":true,"displays":[{"name":"left","row":1,"col":0,"rows":47,"cols":160,"primary":true},{"name":"right","row":1,"col":160,"rows":47,"cols":120,"primary":false}]}
+$ desktop ctl windows
+{"ok":true,"windows":[{"id":3,"title":"Files [~]","app":"files","row":4,"col":10,"h":20,"w":60,"workspace":1,"sticky":false,"hidden":false,"focused":true}]}
+$ desktop ctl move 3 right
+{"ok":true,"id":3,"display":"right","row":1,"col":160,"h":20,"w":60}
+$ desktop ctl move 3 nowhere
+{"ok":false,"error":"no-display","detail":"no display called nowhere"}
+```
+
+The socket is `${TMPDIR:-/tmp}/hibr-ctl-<uid>/<session>.ctl`, beside hold's
+own and outlasting a logout the same way, in a folder only its owner can
+enter; a connection from another user is refused. One request per
+connection, a line of JSON -- `{"op":"displays"}`, `{"op":"windows"}`,
+`{"op":"session"}`, `{"op":"move","id":3,"display":"right"}`,
+`{"op":"resize","id":3,"h":20,"w":60}`, `{"op":"focus","id":3}` -- and one
+line back, `{"ok":true,...}` or `{"ok":false,"error":...,"detail":...}`
+with the errors `bad-request`, `unknown-op`, `no-window`, `no-display`,
+`detached`, `bad-geometry` and `unauthorized`. `desktop ctl -j '{...}'`
+sends one as it is, and the status is 0 for an answer that is ok, 1 for one
+that is not, 2 when no desktop answered. Requests are served between
+frames, through the same operations the menus use: the desktop's own state
+is the only state. A held desktop always has a control socket; an unheld
+one only with `DT_CTL=1` (and `DT_CTLPATH` to put it somewhere). Windows
+are numbered by the desktop; displays are named as `desktop --join --name`
+named them.
+
 ## Detaching, and coming back
 
 The shipped session holds itself, so this is already detachable:

@@ -135,6 +135,7 @@ linked, and no OpenSSL headers are needed to build.
 | `mods/lint/` | the rules behind `hibr --explain`: walks the parsed tree and names mistakes, runs nothing; offers `"lint"` (`mods/lint.h`) and adds no builtin |
 | `mods/html/` | HTML as the WHATWG standard parses it, our own tokenizer and tree builder, all 1792 html5lib tree-construction cases passing (`tests/html_tree.py`); CSS selectors, and `html lines`, the layout Mail reads messages through -- see `mods/html/README.md` |
 | `mods/pim/` | calendars and contacts: iCalendar and vCard parse and build, RRULE expansion checked rule by rule against python-dateutil on RFC 5545's examples (`tests/pim_rrule.py`, its answers kept in `tests/pim/rrule.txt`), zones through zoneinfo with TZ put back, iTIP replies -- see `mods/pim/README.md`; the dav module carries them (`propfind`, `report`, `sync`) |
+| `examples/desktop/wm/ctl.hibr` | the desktop's control socket, for Blit and tests: displays, windows, move/resize/focus as JSON, one request per connection, served between frames; `desktop ctl` (`lib/ctl.hibr`) is the client -- see the desktop README's Controlling a running desktop |
 | `mods/csv.c` | CSV as RFC 4180 says: `csv read` (a map, built in one pass -- `hibr_setp` per field was quadratic, 50,000 rows took 3.5 minutes, now 0.24 s), `open`/`row`/`close` streaming, `line`, `split`; Sheet's CSV goes through it |
 | `mods/email/` | IMAP (IDLE, Gmail's labels), POP3, SMTP and MIME; accounts in a 0600 file; `tests/mailserve.py` is the suites' stand-in server; the Mail app (`apps/Internet/mail.hibr`) keeps accounts offline through `examples/desktop/lib/mailsync.hibr` -- see `mods/email/README.md` |
 
@@ -1842,6 +1843,16 @@ went in the shell.
   format's `\c` until 0.99.37 (`pf_esc`'s `PF_` flags), and two recorded
   tests had written bytes as `\0170` in a format, which only hibr read as
   one byte; they write `\170` now, which both shells do.
+
+- **A socket redirection honours `{var}` like a file's.** The `/dev/unix`,
+  `/dev/tcp` branch of `rd_do` went straight to `dup2` onto the
+  redirection's own descriptor and never looked at `r->var`, so `exec
+  {fd}<>/dev/unix/path` silently put the connection on stdin and left `fd`
+  empty -- found writing `desktop ctl`. Any new kind of redirection target
+  has to handle `{var}` the way the file branch does.
+- **`exec` with only redirections makes them permanent.** `exec 2>
+  /dev/null {fd}<>...` to quiet a failing connect silenced the rest of the
+  script; save stderr first (`exec {e}>&2 2> /dev/null`), then restore it.
 
 - **A pen names a theme colour or role.** `$DT_SELECT` existed nowhere and
   drew the YouTube list's selection dark on black; `tests/540-examples.t`
