@@ -34,8 +34,11 @@ address it begins with.
 | `dav ls LOC` | what a folder holds, a line each: `d` or `f`, size, modified (seconds since the epoch), name; with `:=` a map per entry |
 | `dav stat LOC` | one file or folder, the same fields; with `:=` one map |
 | `dav get [-r] LOC [DEST\|-]` | download, to a file named after it unless told; `-` is standard output; `-r` a folder and everything in it |
-| `dav put [-r] [-m ETAG] [-n] PATH LOC` | upload; a location ending in `/` keeps the file's name; `-m` only if the file still has that ETag, `-n` only if nothing is there; the new ETag is the result |
-| `dav mkdir LOC`, `dav rm LOC` | make a folder, remove a file or folder |
+| `dav put [-r] [-m ETAG] [-n] [-t TYPE] PATH LOC` | upload; a location ending in `/` keeps the file's name; `-m` only if the file still has that ETag, `-n` only if nothing is there; `-t` the content type, else `text/calendar` for `.ics`, `text/vcard` for `.vcf`, octets otherwise; the new ETag is the result |
+| `dav mkdir LOC`, `dav rm [-m ETAG] LOC` | make a folder, remove a file or folder -- with `-m`, only if it still has that ETag |
+| `dav propfind [-d 0\|1] LOC PROP...` | the named properties of a location, and with `-d 1` of what it holds: a line each of href, status, name and value, or with `:=` a map per entry, `r[i]["href"]`, `["status"]`, `["props"][name]` |
+| `dav report [-d N] LOC -b BODY \| -f FILE` | a REPORT with a body of the script's making -- CalDAV's calendar-query and calendar-multiget, CardDAV's addressbook-query and multiget -- answered in the same maps |
+| `dav sync LOC [-t TOKEN] [PROP...]` | what changed in a collection since a sync token (RFC 6578), everything with none; a member that went has status 404; the new token in `$DAV_SYNC` |
 | `dav mv [-f] LOC LOC`, `dav cp [-f] LOC LOC` | on the server, within one server; nothing is put over something already there unless `-f` |
 | `dav test NAME` | whether the server can be reached and logged in to |
 | `dav servers` | every server: name, address, user, whether its certificate is checked; with `:=` a map by name, with `haspass` -- never the password |
@@ -46,6 +49,37 @@ address it begins with.
 `$DAV_CODE` holds the last HTTP status (0 when nothing answered), so a
 script can tell a conflict (412) from a missing file (404) from a refused
 login (401) without reading the message.
+
+## Properties, reports and sync
+
+A property is named by a prefix and its name -- `d:` for WebDAV, `c:` (or
+`cal:`) for CalDAV, `card:` for CardDAV, `cs:` for calendarserver.org's
+`getctag`, `ical:` for Apple's `calendar-color` -- or as `{namespace}name`.
+Its value comes back as text: the hrefs it holds a line each
+(`calendar-home-set`), else the names of its child elements a word each
+(`resourcetype` is `collection calendar`; a component set gives its
+components' names, `VEVENT VTODO`), else its own text. A result with
+nothing in it is an empty array. That is enough to find a person's
+calendars and address books and keep them in step:
+
+```text
+$ dav propfind dav://cal/.well-known/caldav d:current-user-principal
+/principals/u/	200	current-user-principal	/principals/u/
+$ dav propfind dav://cal/principals/u/ c:calendar-home-set card:addressbook-home-set
+/principals/u/	200	calendar-home-set	/calendars/u/
+/principals/u/	200	addressbook-home-set	/addressbooks/u/
+$ r := dav propfind -d 1 dav://cal/calendars/u/ d:displayname ical:calendar-color cs:getctag
+$ r := dav sync dav://cal/calendars/u/work/ -t "$token" d:getetag c:calendar-data
+```
+
+A server that answers its calendars from another host of its own -- iCloud
+sends them to a numbered `pNN-caldav.icloud.com` -- is reached with the
+login set up for it: a full `https://` address whose host is in the same
+domain as a server's (that server's host with its first label taken off,
+`icloud.com`) uses that server's login. Only over TLS, and never across a
+public suffix such as `co.uk`, so the login goes nowhere the person did not
+send it. `tests/davserve.py --pim` is a CalDAV and CardDAV server for the
+suites, and `tests/pim.py` drives these commands against it.
 
 ## In the desktop
 

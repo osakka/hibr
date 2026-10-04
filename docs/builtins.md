@@ -305,6 +305,7 @@ inside a function or a `try` it returns 2 —
 | `media open\|play\|pause\|seek\|volume\|size\|frame\|draw\|info ...` | **[module]** video and sound from a file or address, decoded by FFmpeg's libraries loaded at run time, the picture drawn as half blocks or ASCII -- see [mods/media](../mods/media/README.md) |
 | `md html\|lines [-c] [-t text \| file]` | **[module]** markdown, CommonMark with GitHub's extensions: HTML, or a style letter per character of each line — see [mods/md](../mods/md/README.md) |
 | `html parse\|dump\|query\|text\|attr\|tag\|kids\|parent\|title\|lines\|close ...` | **[module]** HTML parsed as browsers do (WHATWG), queried with CSS selectors, and laid out as lines of cells with styles, links and picture boxes — see [mods/html](../mods/html/README.md) |
+| `pim ics events\|expand\|build\|reply\|vtimezone ...`, `pim vcf cards\|build ...` | **[module]** calendars and contacts: iCalendar and vCard read and written, recurring events expanded into their occurrences, invitations answered — see [mods/pim](../mods/pim/README.md) |
 | `email account set\|mv\|rm ...`, `email accounts\|open\|close\|folders\|select\|headers\|fetch\|store\|label\|move\|idle\|list\|delete\|send\|parse\|part\|build ...` | **[module]** mail: IMAP with IDLE and Gmail's labels, POP3, SMTP, accounts in a private file, and MIME decoding and building — see [mods/email](../mods/email/README.md) |
 
 A module adds builtins, and it can add a *protocol*: register a scheme and

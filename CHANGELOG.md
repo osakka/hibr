@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.99.29
+
+**A calendars-and-contacts module.** `pim` reads and writes iCalendar and
+vCard: every event and task with its times, people and reminders; every
+contact with its addresses, phones and emails, from vCard 2.1 to 4.0. It
+expands a recurring event into its occurrences over any window -- every
+part of RRULE, with RDATE, EXDATE and moved occurrences -- and is checked
+against RFC 5545's own examples, occurrence by occurrence, with
+python-dateutil as the reference: all 46 agree. Times in a named zone go
+through the system's zoneinfo; a zone only the calendar describes is read
+from its own VTIMEZONE. It builds events (with a VTIMEZONE made from
+zoneinfo), contacts, and the reply to an invitation.
+
+This, with 0.99.28's additions to `dav`, is the foundation for calendar
+and contacts on the desktop, which come next: contacts and Mail's address
+completion, then the calendar and invitations.
+
 ## 0.99.28
 
 **A mail account with a space in its name no longer ends the desktop.** An

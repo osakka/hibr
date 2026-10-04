@@ -45,6 +45,7 @@ hibr -c 'mod load ./build/mods/hello.so; mod list; mod drop hello'
 | `web/` | A web browser: headless Chromium driven over its own pipe, each page drawn as cells -- text where it was laid out, over a half-block picture; tabs, links, forms, scripting -- [README](web/README.md) |
 | `md/` | Markdown as CommonMark and GitHub write it: HTML, or a style per character for a program that draws it; every spec example passes — [README](md/README.md) |
 | `html/` | HTML as the WHATWG standard parses it, every html5lib tree-construction case passing; CSS selector queries, and pages laid out as lines with a style per character, links and picture boxes — [README](html/README.md) |
+| `pim/` | Calendars and contacts as their files are written: iCalendar and vCard read and made, recurrence expanded over any window (every RFC 5545 example matches dateutil), zones through zoneinfo, invitations answered — [README](pim/README.md) |
 | `email/` | IMAP (with IDLE and Gmail's labels), POP3 and SMTP, accounts in a private file, TLS through the shell's relay, and MIME: RFC 2047 headers, quoted-printable, base64, charsets, parts, building — [README](email/README.md) |
 
 ## Naming

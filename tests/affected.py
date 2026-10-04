@@ -47,6 +47,8 @@ SUITE_MODS = {
     "html_tree": ["html"],
     "mail": ["email"],
     "mailapp": ["email", "html", "db"],
+    "pim": ["pim", "dav"],
+    "pim_rrule": ["pim"],
 }
 DESKTOP = ("desktop", "apps", "uifuzz", "strictvars", "mailapp")
 EVERYTHING = ("src/", "include/", "Makefile", "tests/screen.py",

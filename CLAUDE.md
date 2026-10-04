@@ -134,6 +134,7 @@ linked, and no OpenSSL headers are needed to build.
 | `mods/auth.c` | password checks through PAM, libpam `dlopen`ed: `auth check [-s svc] [-c confdir] user pw`, run as the user with no privilege (PAM's own `unix_chkpwd` is setgid, hibr never is); the desktop's lock (`wm/lock.hibr`) is built on it; `auth open`/`run`/`close` are a PAM session and a command run in it as the user, for the login screen (`examples/desktop/login/`, root under systemd, `hibr-login@.service` shipped off); the Debian package installs `/etc/pam.d/hibr` and `hibr-login` |
 | `mods/lint/` | the rules behind `hibr --explain`: walks the parsed tree and names mistakes, runs nothing; offers `"lint"` (`mods/lint.h`) and adds no builtin |
 | `mods/html/` | HTML as the WHATWG standard parses it, our own tokenizer and tree builder, all 1792 html5lib tree-construction cases passing (`tests/html_tree.py`); CSS selectors, and `html lines`, the layout Mail reads messages through -- see `mods/html/README.md` |
+| `mods/pim/` | calendars and contacts: iCalendar and vCard parse and build, RRULE expansion checked rule by rule against python-dateutil on RFC 5545's examples (`tests/pim_rrule.py`, its answers kept in `tests/pim/rrule.txt`), zones through zoneinfo with TZ put back, iTIP replies -- see `mods/pim/README.md`; the dav module carries them (`propfind`, `report`, `sync`) |
 | `mods/email/` | IMAP (IDLE, Gmail's labels), POP3, SMTP and MIME; accounts in a 0600 file; `tests/mailserve.py` is the suites' stand-in server; the Mail app (`apps/Internet/mail.hibr`) keeps accounts offline through `examples/desktop/lib/mailsync.hibr` -- see `mods/email/README.md` |
 
 Each directory carries its own `README.md` with the detail: `src/`, `include/`,
@@ -1892,6 +1893,22 @@ went in the shell.
   their accounts with spaces. The desktop now runs under `set -o
   keepgoing`, so such a slip fails one command and is logged rather than
   ending every window; `tests/desktop.py` checks an app's slip is survived.
+
+- **A scalar counts as one element, so an empty result must be an empty
+  array.** `${#r[@]}` of `r := cmd` was 1 when the command set nothing,
+  as in bash for any set scalar -- so a script looping "while there are
+  results" ran once on an empty sync. A module returning a list calls
+  `hibr_retn(s, 0, 0)` when it has nothing (dav's `dv_ms`, pim). db's
+  `query` still answers 1 for no rows.
+- **A suite that runs hibr itself reads `screen.HIBR`, and modules from
+  `HIBR_TESTMODS`.** `tests/pim.py` first took `build/hibr` directly, and
+  under `asan.py` ran the ordinary shell with the sanitizer-built modules,
+  which cannot load into it: every check failed at once, which reads as
+  the code being broken.
+- **Someone else may be editing this tree.** A file changed mid-run by
+  another session was not this work's; `git add -A` and `commit -a` would
+  have shipped it. Stage what this work changed, by name, and build the
+  deb from a clean worktree at the tag, never from the working tree.
 
 ## Testing discipline
 
