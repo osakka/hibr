@@ -180,6 +180,14 @@ DT_DBLT=0
 # dt_glyphs (wm/glyphs.hibr), so a fifth frame is six lines there, not a
 # change to dt_win.
 DT_FRAME="${DT_FRAME-single}"
+WS_FRAMES=(single double rounded none)
+
+# The title bar: a line, the title sitting in the frame's top edge as it
+# always has, or solid -- the whole top row a bar of the frame's colour
+# (the accent when focused, idle otherwise) with the title and buttons
+# drawn on it in DT_SELINK, as on the desktops of around 2001.
+DT_TITLEBAR="${DT_TITLEBAR-line}"
+DT_TITLEBARS=(line solid)
 
 # Which side the min/max/close cluster docks to, where the title sits in
 # whatever room that leaves, and which glyphs the cluster is drawn with:
@@ -189,6 +197,12 @@ DT_FRAME="${DT_FRAME-single}"
 DT_BTNSIDE="${DT_BTNSIDE-right}"
 DT_TITLEALIGN="${DT_TITLEALIGN-left}"
 DT_BTNSTYLE="${DT_BTNSTYLE-brackets}"
+WS_SIDES=(right left)
+WS_ALIGNS=(left center right)
+WS_STYLES=(brackets circles squares diamonds dashes)
+
+# How a wallpaper image is fitted to the screen -- see dt_wallfit.
+WP_MODES=(stretch scale zoom center)
 
 # How an on/off choice is drawn, wherever there is one: theme -- what the
 # theme suggests (DT_THEMECHECKS, set when one is applied), a box when it
@@ -260,7 +274,7 @@ DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 	DT_ICONS DT_DISKS DT_CURSOR DT_CURSOR_BLINK DT_SHADOW
 	DT_MSHADOW DT_BARSHADOW DT_DBLACTION DT_SHADOW_PCT CS_SIDE CS_Y
 	CS_COLLAPSED CS_LEN CS_SHADOW
-	DT_FRAME DT_BTNSIDE DT_TITLEALIGN DT_BTNSTYLE DT_CHECKS DT_THEMECHECKS DT_EDGERESIZE
+	DT_FRAME DT_TITLEBAR DT_BTNSIDE DT_TITLEALIGN DT_BTNSTYLE DT_CHECKS DT_THEMECHECKS DT_EDGERESIZE
 	DT_DRAGMOD DT_DRAGKEY DT_DRAWSKIP DT_CYCLE DT_NOTEMS DT_NOTEPOS DT_NOTECOUNT DT_SHOTDIR DT_SHOTFMT DT_SHOTLAST DT_OPENWITH DT_TERMHERE DT_CLIPKEEP DT_CLIPMAX DT_BARTIME
 	DT_BARGAP DT_BELLICON DT_BTNSHADOW DT_DLGBTN DT_TERMKEEP DT_TERMCTRL DT_GLYPHSET DT_PLACE DT_WSN DT_TILEMAIN DT_STANDBYAUTO DT_SETVER)
 
@@ -316,8 +330,11 @@ dt_load() {
 			dt_keyswap snapleft wsprev alt-left ctrl-alt-left
 			dt_keyswap snapright wsnext alt-right ctrl-alt-right
 		fi
+		if [ "${DT_SETVER:-0}" -lt 4 ] && dt_has cp_setver4; then
+			cp_setver4
+		fi
 	fi
-	DT_SETVER=3
+	DT_SETVER=4
 	dt_keyfix
 	dt_glyphs "$DT_GLYPHSET"
 	return 0

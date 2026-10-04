@@ -1,0 +1,18 @@
+{
+  "wall": "#3a6ea5",
+  "dot": "#5d9d3a",
+  "bar": "#ece9d8",
+  "active": "#0a5fdb",
+  "idle": "#7a96df",
+  "face": "#ece9d8",
+  "ink": "#000000",
+  "dim": "#6d6d6d",
+  "selink": "#ffffff",
+  "good": "#2f8f2f",
+  "warn": "#c47b00",
+  "bad": "#d9432a",
+  "info": "#0a5fdb",
+  "well": "#ffffff",
+  "checks": "box",
+  "shadow": 80
+}

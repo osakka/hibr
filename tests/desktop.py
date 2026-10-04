@@ -2000,7 +2000,7 @@ def stripdrop(col):
 
 sc, saved = stripdrop(17)
 check("the strip's Theme module applies the theme chosen from its list",
-      "CP_THEME=black" in saved, sc)
+      "CP_THEME=construction" in saved, sc)
 sc, saved = stripdrop(25)
 check("its Wallpaper module applies the glyph chosen from its list",
       re.search(r"DT_GLYPH=.?░", saved) is not None, sc)
@@ -2254,11 +2254,11 @@ sc, raw = run('dt_new "Control Panel" 22 58 2 2 panel',
 saved = os.path.join(CONF, "hibr", "desktop.hibr")
 text = open(saved).read() if os.path.exists(saved) else ""
 check("a changed setting is written at once, as a script",
-      "CP_THEME=neon" in text and "DT_WALL=\\#0d0221" in text and
+      "CP_THEME=construction" in text and "DT_WALL=\\#0d0d0d" in text and
       "DT_ICONS=" in text, text or sc)
 sc, raw = run('dt_new "Control Panel" 22 58 2 2 panel', feed=DOWN_APP,
               env={"XDG_CONFIG_HOME": CONF}, pre=PANEL)
-check("and the next desktop starts with it", sc.find("neon") is not None,
+check("and the next desktop starts with it", sc.find("construction") is not None,
       sc)
 shutil.rmtree(CONF, True)
 

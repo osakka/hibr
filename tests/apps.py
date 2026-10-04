@@ -671,30 +671,33 @@ check("down on the picker moves pane by pane, showing each one's rows",
 
 sc = cprun(DOWN_APP + [b"\x1b[C", b"\x1b[C"])
 check("right enters the pane, and a second right cycles its first row",
-      "neon" in brow(sc, "Theme") and sc.find("midnight") is None, sc)
-sc = cprun(DOWN_APP + [b"\t"] + [b"\x1b[D"] * 6)
+      "construction" in brow(sc, "Theme") and sc.find("classic") is None, sc)
+sc = cprun(DOWN_APP + [b"\t"] + [b"\x1b[D"])
 check("tab enters it too, and left cycles the other way, round to the last",
-      "slate" in brow(sc, "Theme"), sc)
+      "meadow" in brow(sc, "Theme"), sc)
 sc = cprun(DOWN_APP + [b"\t", b"\t", b"\x1b[C"])
 check("a second tab leaves the pane, back to moving the picker",
-      sc.find("slate") is None and
+      sc.find("construction") is None and
       sc.find(TITLE[ORDER[downs("appearance") + 1]]) is not None, sc)
 
 sc = cprun(DOWN_APP + [press(R0, VALCOL)])
 check("clicking the dropdown's own cell opens a real popup of choices",
-      sc.find("slate") is not None and sc.find("dracula") is not None, sc)
-sc = cprun(DOWN_APP + [press(R0, VALCOL), press(R0 + 3, VALCOL + 3)])
+      sc.find("construction") is not None and sc.find("meadow") is not None, sc)
+sc = cprun(DOWN_APP + [press(R0, VALCOL), press(R0 + 2, VALCOL + 3)])
 check("choosing one there applies it, the same as cycling would",
-      sc.find("dracula") is not None and sc.find("midnight") is None, sc)
-sc = cprun(DOWN_APP + [press(R0, VALCOL)])
-check("the popup offers black, neon, phosphor and amber too",
+      "construction" in brow(sc, "Theme") and "hazard" in brow(sc, "Colours"), sc)
+sc = cprun(DOWN_APP + [press(R0 + 1, VALCOL)])
+check("the colour popup offers black, neon, phosphor and amber",
       all(sc.find(t) is not None for t in ("black", "neon", "phosphor",
                                             "amber")), sc)
-sc = cprun(DOWN_APP + [press(R0, VALCOL), press(R0 + 9, VALCOL + 3)])
-check("and choosing phosphor applies it",
-      sc.find("phosphor") is not None and sc.find("midnight") is None, sc)
+sc = cprun(DOWN_APP + [press(R0 + 1, VALCOL), press(R0 + 4, VALCOL + 3)])
+check("and choosing dracula applies it",
+      "dracula" in brow(sc, "Colours") and sc.find("midnight") is None, sc)
+sc = cprun(DOWN_APP + [press(R0 + 1, VALCOL), press(R0 + 12, VALCOL + 3)])
+check("and phosphor, further down the list",
+      "phosphor" in brow(sc, "Colours"), sc)
 
-sc = cprun(DOWN_APP + [b"\x1b[C", b"\x1b[B", b"\x1b[C"])
+sc = cprun(DOWN_APP + [b"\x1b[C", b"\x1b[B", b"\x1b[B", b"\x1b[B", b"\x1b[C"])
 check("the wallpaper glyph changes, and the desktop follows",
       sc.at(0, 78) != "·" and sc.at(23, 76) == "░", sc)
 
@@ -1012,17 +1015,17 @@ OLDKEYS = ('DT_KEYS["close"]=alt-f4\nDT_KEYS["cycle"]=tab\n'
            'DT_KEYS["quit"]=q\nDT_TERMBAR=0\nDT_DRAGMOD=0\n')
 out = loadconf("DT_TERMKEEP=0\n" + OLDKEYS)
 check("a settings file from before 0.72 is brought up to 0.73's defaults",
-      out == "3 1 1 1 ctrl-w alt-tab []", out)
+      out == "4 1 1 1 ctrl-w alt-tab []", out)
 out = loadconf("DT_SETVER=1\nDT_TERMKEEP=0\n" + OLDKEYS)
 check("one from 0.72 keeps its Shortcuts Win and gets the rest",
-      out == "3 0 1 1 ctrl-w alt-tab []", out)
+      out == "4 0 1 1 ctrl-w alt-tab []", out)
 out = loadconf('DT_SETVER=1\nDT_KEYS["close"]=alt-x\nDT_KEYS["cycle"]=f6\n'
                'DT_KEYS["quit"]=ctrl-q\n')
 check("a key changed from its old default is not touched",
       out.endswith("alt-x f6 [ctrl-q]"), out)
 out = loadconf("DT_SETVER=2\nDT_TERMBAR=0\nDT_DRAGMOD=0\n")
 check("and a 0.73 file is read as it is, choices and all",
-      out.startswith("3 1 0 0 "), out)
+      out.startswith("4 1 0 0 "), out)
 
 
 # 0.99.26 put the workspaces on alt and an arrow and Snap on ctrl-alt: a
@@ -1053,9 +1056,11 @@ out = loadkeys('DT_SETVER=3\nDT_KEYS["snapleft"]=alt-left\nDT_KEYS["wsprev"]=ctr
 check("and a file written since is read as it is",
       out.startswith("alt-left ctrl-alt-left "), out)
 
-# Themes are JSON files, read from the person's own folder first and then
-# the bundled one; a file of the same name replaces a bundled theme, a new
-# name adds one, and a file that is not a valid theme is left out whole.
+# Colour schemes are JSON files, read from the person's own folders first
+# and then the bundled one; a file of the same name replaces a bundled
+# scheme, a new name adds one, and a file that is not valid is left out
+# whole. The person's themes folder is read for colours too, since that is
+# where every colour file lived before themes and colours came apart.
 TD = tempfile.mkdtemp(prefix="hibr-themes-")
 os.makedirs(os.path.join(TD, "hibr", "themes"))
 TH = os.path.join(TD, "hibr", "themes")
@@ -1069,17 +1074,17 @@ open(os.path.join(TH, "badcolour.json"), "w").write(
 open(os.path.join(TH, "badshadow.json"), "w").write(
     GOOD.replace('"shadow":70', '"shadow":500'))
 out = subprocess.run(
-    [sx.HIBR, "-c", CPLOAD + 'echo "${CP_THEMES[*]}"; cp_theme paper; '
-     'echo "$DT_WALL $DT_SHADOW_PCT"; cp_theme midnight; echo "$DT_WALL"; '
-     'cp_theme broken || echo refused'],
+    [sx.HIBR, "-c", CPLOAD + 'echo "${CP_COLOURLIST[*]}"; cp_colours paper; '
+     'echo "$DT_WALL $DT_SHADOW_PCT"; cp_colours midnight; echo "$DT_WALL"; '
+     'cp_colours broken || echo refused'],
     env=dict(os.environ, XDG_CONFIG_HOME=TD),
     capture_output=True, text=True).stdout.split("\n")
 shutil.rmtree(TD, True)
-check("every bundled theme is listed, sorted, with a new one of the "
+check("every bundled colour scheme is listed, sorted, with a new one of the "
       "person's own among them",
-      out[0] == "amber black dracula ember forest midnight neon paper "
+      out[0] == "amber black dracula ember forest hazard meadow midnight neon paper "
       "phosphor slate zinc", out)
-check("a theme of the person's own replaces the bundled one of that name",
+check("a scheme of the person's own replaces the bundled one of that name",
       out[1] == "#010203 70", out)
 check("the bundled ones still apply as before", out[2] == "#0d1b2a", out)
 check("a broken file, a colour that is not one, and a shadow out of range "
@@ -1095,15 +1100,82 @@ open(os.path.join(TD, "hibr", "themes", "rosy.json"), "w").write(
 open(os.path.join(TD, "hibr", "themes", "badrole.json"), "w").write(
     GOOD.replace('"shadow":70', '"bad":"crimson","shadow":70'))
 out = subprocess.run(
-    [sx.HIBR, "-c", CPLOAD + 'cp_theme rosy; echo "$DT_BAD $DT_GOOD $DT_WARN"; '
-     'cp_theme paper; echo "$DT_BAD $DT_SELINK"; echo "${CP_THEMES[*]}"'],
+    [sx.HIBR, "-c", CPLOAD + 'cp_colours rosy; echo "$DT_BAD $DT_GOOD $DT_WARN"; '
+     'cp_colours paper; echo "$DT_BAD $DT_SELINK"; echo "${CP_COLOURLIST[*]}"'],
     env=dict(os.environ, XDG_CONFIG_HOME=TD),
     capture_output=True, text=True).stdout.split("\n")
 shutil.rmtree(TD, True)
-check("a theme's roles are its own, and one it leaves out is the default",
+check("a scheme's roles are its own, and one it leaves out is the default",
       out[0] == "#aa0000 #00aa00 #f6ad55" and out[1] == "#c53030 #f5f2ea", out)
 check("and a role that is not a colour leaves the file out",
       "badrole" not in out[2], out)
+
+# A theme is the whole look: a colour scheme by name and the rest of the
+# look, each value checked; the person's own folder first, and an old
+# colour file there is not taken for a theme.
+TD = tempfile.mkdtemp(prefix="hibr-looks-")
+TH = os.path.join(TD, "hibr", "themes")
+os.makedirs(TH)
+open(os.path.join(TH, "zinc.json"), "w").write(GOOD)
+open(os.path.join(TH, "dusk.json"), "w").write(
+    '{"colours":"dracula","frame":"double","titlebar":"solid","align":"center",'
+    '"image":"dusk.png","windowshadow":false}')
+open(os.path.join(TH, "badframe.json"), "w").write('{"colours":"paper","frame":"triple"}')
+open(os.path.join(TH, "badshadow.json"), "w").write('{"colours":"paper","menushadow":"maybe"}')
+open(os.path.join(TH, "nocolours.json"), "w").write('{"frame":"double"}')
+out = subprocess.run(
+    [sx.HIBR, "-c", CPLOAD + 'echo "${CP_THEMES[*]}"\n'
+     'cp_theme construction; echo "$CP_THEME $CP_COLOURS $DT_FRAME $DT_TITLEBAR $DT_BTNSTYLE $DT_CHECKS $DT_FACE ${DT_WALLIMG##*/}"\n'
+     'cp_theme dusk; echo "$CP_COLOURS $DT_FRAME $DT_TITLEBAR $DT_TITLEALIGN $DT_SHADOW $DT_WALLIMG"\n'
+     'cp_theme classic; echo "$CP_COLOURS $DT_FRAME $DT_TITLEBAR $DT_TITLEALIGN $DT_SHADOW [$DT_WALLIMG]"\n'
+     'cp_theme badframe || echo refused\n'
+     'cp_save() { :; }; dt_notep() { :; }\n'
+     'cp_theme dusk; DT_FRAME=rounded; cp_colours paper; cp_themewrite "%s/Mine Too.json"\n'
+     'cp_theme classic; cp_theme "Mine Too"; echo "$CP_THEME $CP_COLOURS $DT_FRAME $DT_TITLEBAR $DT_TITLEALIGN"\n'
+     'echo "${CP_THEMES[*]}"' % TH],
+    env=dict(os.environ, XDG_CONFIG_HOME=TD),
+    capture_output=True, text=True).stdout.split("\n")
+check("the bundled themes and the person's own are listed; a colour file, and "
+      "a theme with a value its setting cannot take or no colours, are not",
+      out[0] == "classic construction dusk meadow", out)
+check("a theme sets its colours and the look with them -- Under Construction "
+      "is yellow, double framed, solid barred, with its own picture",
+      out[1] == "construction hazard double solid squares block #ffd400 construction.png", out)
+check("a theme's picture is found beside the theme, and what a theme leaves "
+      "out is the desktop's default, whatever came before",
+      out[2] == "dracula double solid center 0 %s/dusk.png" % TH
+      and out[3] == "midnight single line left 1 []", out)
+check("a theme that fails its checks is refused", out[4] == "refused", out)
+check("Save Current Look as Theme writes the look as it is, and it comes back the same",
+      out[5] == "Mine Too paper rounded solid center" and "Mine Too" in out[6], out)
+shutil.rmtree(TD, True)
+
+# Before 0.99.33 the colour scheme's name was kept as CP_THEME; a file that
+# old has it moved to CP_COLOURS once, and a theme chosen since is kept.
+def loadlook(conf):
+    d = tempfile.mkdtemp(prefix="hibr-mig-")
+    os.makedirs(os.path.join(d, "hibr"))
+    open(os.path.join(d, "hibr", "desktop.hibr"), "w").write(conf)
+    out = subprocess.run(
+        [sx.HIBR, "-c", CPLOAD + 'dt_load\necho "[$CP_THEME] $CP_COLOURS $DT_SETVER"'],
+        env=dict(os.environ, XDG_CONFIG_HOME=d),
+        capture_output=True, text=True).stdout.strip()
+    shutil.rmtree(d, True)
+    return out
+
+
+out = loadlook("DT_SETVER=3\nCP_THEME=slate\n")
+check("an old file's CP_THEME, a colour scheme, becomes its colours", out == "[] slate 4", out)
+out = loadlook("DT_SETVER=4\nCP_THEME=meadow\nCP_COLOURS=paper\n")
+check("and a file written since is read as it is", out == "[meadow] paper 4", out)
+
+# A solid title bar is the frame's colour, the title on it in DT_SELINK,
+# with no tee marks around it.
+sc = run("clock", "8 24 6 10", pre="DT_TITLEBAR=solid")
+pos = sc.find_from("Clock", 1)
+check("a solid title bar fills the top row with the accent, the title on it",
+      pos is not None and sc.style(pos[0], pos[1])["bg"] == "#63b3ed"
+      and sc.style(pos[0], 11)["bg"] == "#63b3ed" and "\u2524 Clock" not in sc.row(pos[0]), sc)
 
 # An app's pane is always listed, and says so when its app is not loaded.
 sc = cprun([b"\x1b[B"] * downs("abouthibr"))
@@ -1178,7 +1250,7 @@ sc = cprun(reach("terminal", "Cursor Blink", ("term",)) + [b"\r"],
            extra=("term",), post="DT_CHECKS=block")
 check("and set to block, a block between brackets that moves when toggled",
       "[  \u2588]" in brow(sc, "Scrollbar") and "[  \u2588]" in brow(sc, "Cursor Blink"), sc)
-sc = cprun(DOWN_TERM, extra=("term",), post="cp_theme neon")
+sc = cprun(DOWN_TERM, extra=("term",), post="cp_colours neon")
 check("a theme can suggest the style: neon's is the knob",
       "(  \u25cf)" in brow(sc, "Scrollbar"), sc)
 sc = cprun(reach("appearance", "Checkboxes") + [b"\x1b[C"])
@@ -1444,7 +1516,7 @@ check("clicking the same pane twice in the picker is harmless",
 
 sc = cprun(DOWN_APP + [press(R0, VALCOL - 10), press(R0, VALCOL - 10)])
 check("a click in the pane's own body selects and a second click acts",
-      "neon" in brow(sc, "Theme"), sc)
+      "construction" in brow(sc, "Theme"), sc)
 
 sc = cprun([press(prow("terminal") + 1, LISTCOL)])
 check("clicking below the last pane in the picker does nothing",
@@ -3415,4 +3487,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(517)
+report(528)

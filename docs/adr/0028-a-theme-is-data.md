@@ -61,3 +61,19 @@ defaulting to the dark themes' value.
 - A theme file added while the desktop runs appears at its next start.
 - The settings file keeps the chosen theme's colours as well as its name,
   so removing a theme file never changes how a running setup looks.
+
+## Since 0.99.33: colours, and themes that are the whole look
+
+What this record calls a theme became a **colour scheme**: the same file,
+the same checks, moved to `examples/desktop/colours/` and
+`~/.config/hibr/colours/` (a colour file left in `~/.config/hibr/themes/`
+is still read as one). A **theme** is now the whole look -- a colour
+scheme by name and the wallpaper, frame, title bar, buttons, checkboxes,
+shadows and glyph set -- and is data for the same reason: it is still the
+thing people pass around, and still nothing in it computes. Each value
+must be one its setting can take, or the file is left out whole; what a
+theme leaves out is the desktop's default. Its picture is the one thing
+it names outside itself, a path read by the image module like any
+wallpaper chosen by hand. The settings file's `CP_THEME` held the colour
+scheme's name until then; settings version 4 moves it to `CP_COLOURS`
+once.

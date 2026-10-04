@@ -3,7 +3,7 @@
 # theme -- a Control Strip module cycling the desktop's own colour theme,
 # by its own name rather than a first letter or a swatch -- a click opens
 # every theme as a dropdown, reusing Appearance's own cp_theme() and
-# CP_THEMES rather than a second copy of the same colour table. If Control
+# CP_THEMES rather than a second copy of the list of themes. If Control
 # Panel is not loaded there is nothing to offer, so a click does nothing,
 # honestly, rather than switching only some of the colours.
 

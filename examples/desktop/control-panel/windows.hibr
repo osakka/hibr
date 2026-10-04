@@ -11,12 +11,8 @@ strict
 
 command -v cp_pane > /dev/null && cp_pane windows "Windows" "▭"
 
-WS_FRAMES=(single double rounded none)
-WS_SIDES=(right left)
-WS_ALIGNS=(left center right)
-WS_STYLES=(brackets circles squares diamonds dashes)
-
 fn cp_set_frame(int? id = "", value = "") { DT_FRAME=$value; cp_save; }
+fn cp_set_titlebar(int? id = "", value = "") { DT_TITLEBAR=$value; cp_save; }
 fn cp_set_side(int? id = "", value = "") { DT_BTNSIDE=$value; cp_save; }
 fn cp_set_align(int? id = "", value = "") { DT_TITLEALIGN=$value; cp_save; }
 fn cp_set_btnstyle(int? id = "", value = "") { DT_BTNSTYLE=$value; cp_save; }
@@ -27,6 +23,8 @@ fn windows_rows(int w) {
 
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Frame"
 	CP[$w][$n]["val"]="$DT_FRAME"; CP[$w][$n]["key"]=frame; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Title Bar"
+	CP[$w][$n]["val"]="$DT_TITLEBAR"; CP[$w][$n]["key"]=titlebar; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Buttons"
 	CP[$w][$n]["val"]="$DT_BTNSIDE"; CP[$w][$n]["key"]=side; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Title"
@@ -52,6 +50,8 @@ fn windows_do(int w, k, int dir) {
 	case $k in
 	frame) v := cp_next "$DT_FRAME" "$dir" "${WS_FRAMES[@]}"
 	       DT_FRAME=$v ;;
+	titlebar) v := cp_next "$DT_TITLEBAR" "$dir" "${DT_TITLEBARS[@]}"
+	          DT_TITLEBAR=$v ;;
 	side) v := cp_next "$DT_BTNSIDE" "$dir" "${WS_SIDES[@]}"
 	      DT_BTNSIDE=$v ;;
 	align) v := cp_next "$DT_TITLEALIGN" "$dir" "${WS_ALIGNS[@]}"
@@ -74,6 +74,7 @@ fn windows_do(int w, k, int dir) {
 fn windows_drop(int w, int r, int c, k) {
 	case $k in
 	frame) dt_droplist "$w" "$r" "$c" cp_set_frame "${WS_FRAMES[@]}" ;;
+	titlebar) dt_droplist "$w" "$r" "$c" cp_set_titlebar "${DT_TITLEBARS[@]}" ;;
 	place) dt_droplist "$w" "$r" "$c" cp_set_place "${DT_PLACES[@]}" ;;
 	side) dt_droplist "$w" "$r" "$c" cp_set_side "${WS_SIDES[@]}" ;;
 	align) dt_droplist "$w" "$r" "$c" cp_set_align "${WS_ALIGNS[@]}" ;;

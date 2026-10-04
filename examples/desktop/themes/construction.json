@@ -1,0 +1,11 @@
+{
+  "colours": "hazard",
+  "wallpaper": "╱",
+  "image": "construction.png",
+  "mode": "zoom",
+  "frame": "double",
+  "titlebar": "solid",
+  "buttons": "squares",
+  "checks": "block",
+  "dialog": "filled"
+}

@@ -364,8 +364,6 @@ fn wallpick_wheel(int id, dir, r = "", c = "") {
 	wp_refresh "$id"
 }
 
-WP_MODES=(stretch scale zoom center)
-
 # Called by dt_droplist's own popup with (id, value) -- id is unused, the
 # same "cb id value" shape every dropdown here uses, since the value alone
 # is enough to set a desktop-wide mode.

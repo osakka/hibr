@@ -1,61 +1,64 @@
 #!/usr/bin/env hibr
 #
 # appearance -- the Control Panel pane for how the desktop looks: the
-# theme, the wallpaper (a glyph, or an image chosen in a picker of its own),
-# the menu bar's spacing and notification icon, the shadows, and how dialog
-# buttons look. The
-# theme sets the variables the window manager already reads every frame, so
-# a change shows on the next one, in every window at once.
+# theme (the whole look at once), the colour scheme, the wallpaper (a
+# glyph, or an image chosen in a picker of its own), the menu bar's spacing
+# and notification icon, the shadows, and how dialog buttons look. A theme
+# or a colour scheme sets the variables the window manager already reads
+# every frame, so a change shows on the next one, in every window at once.
 
 strict
 
 command -v cp_pane > /dev/null && cp_pane appearance "Appearance" "◐"
 
-CP_THEME=midnight
-command -v dt_keep > /dev/null && dt_keep CP_THEME
-CP_GLYPHS=("·" "░" "▒" "⋅" "+")
+CP_THEME="${CP_THEME-classic}"
+CP_COLOURS="${CP_COLOURS-midnight}"
+command -v dt_keep > /dev/null && dt_keep CP_THEME CP_COLOURS
+CP_GLYPHS=("·" "░" "▒" "⋅" "+" "╱" "▞")
 
 # How an on/off choice is drawn: what the theme suggests, a box, a knob or
 # a block -- see DT_CHECKS in wm/settings.hibr.
 CP_CHECKS=(theme box knob block)
 fn cp_set_checks(int? id = "", value = "") { DT_CHECKS=$value; cp_save; }
 
-# A theme is a JSON file, one to a theme, named for it: seven colours --
-# wall, dot, bar, active, idle, face, ink -- seven optional roles -- dim,
-# selink, good, warn, bad, info, well, each defaulting to the value the
-# dark themes share (CP_THDEF) -- and shadow, console darken's
-# own pct, how much of a colour survives once it is darkened. 55 is a soft
+# A colour scheme is a JSON file, one to a scheme, named for it: seven
+# colours -- wall, dot, bar, active, idle, face, ink -- seven optional roles
+# -- dim, selink, good, warn, bad, info, well, each defaulting to the value
+# the dark schemes share (CP_CODEF) -- and shadow, console darken's own
+# pct, how much of a colour survives once it is darkened. 55 is a soft
 # shadow on a dark face; a light face needs much less of a cut, which is
-# why paper's is 90. JSON and not a script, because a theme is only data
-# and is the thing people pass around: a file someone else wrote can set
-# colours and nothing else (docs/adr/0028). The person's own folder is
-# searched first, so a file there replaces the bundled one of that name.
-CP_THEMEDIRS=("${XDG_CONFIG_HOME:-$HOME/.config}/hibr/themes"
-	"${BASH_SOURCE%/*}/../themes")
-CP_THEMES=()
-declare -gA CP_TH
-CP_THKEYS=(wall dot bar active idle face ink)
-CP_THROLES=(dim selink good warn bad info well)
-declare -gA CP_THDEF
-CP_THDEF["dim"]="#718096"; CP_THDEF["selink"]="#1a202c"
-CP_THDEF["good"]="#68d391"; CP_THDEF["warn"]="#f6ad55"
-CP_THDEF["bad"]="#f56565"; CP_THDEF["info"]="#4fd1c5"
-CP_THDEF["well"]="#2d3748"
+# why paper's is 90. JSON and not a script, because it is only data and is
+# the thing people pass around: a file someone else wrote can set colours
+# and nothing else (docs/adr/0028). The person's own folder is searched
+# first, so a file there replaces the bundled one of that name -- and their
+# themes folder after it, where every colour file lived before 0.99.33.
+CP_COLOURDIRS=("${XDG_CONFIG_HOME:-$HOME/.config}/hibr/colours"
+	"${XDG_CONFIG_HOME:-$HOME/.config}/hibr/themes"
+	"${BASH_SOURCE%/*}/../colours")
+CP_COLOURLIST=()
+declare -gA CP_CO
+CP_COKEYS=(wall dot bar active idle face ink)
+CP_COROLES=(dim selink good warn bad info well)
+declare -gA CP_CODEF
+CP_CODEF["dim"]="#718096"; CP_CODEF["selink"]="#1a202c"
+CP_CODEF["good"]="#68d391"; CP_CODEF["warn"]="#f6ad55"
+CP_CODEF["bad"]="#f56565"; CP_CODEF["info"]="#4fd1c5"
+CP_CODEF["well"]="#2d3748"
 
-# Read one theme file into CP_TH[name], or refuse it whole: every colour
+# Read one colour file into CP_CO[name], or refuse it whole: every colour
 # must be #rrggbb and the shadow a number from 1 to 100, so a broken file
 # is left out of the list rather than half applied.
-fn cp_themeread(n, f) {
+fn cp_colourread(n, f) {
 	local j k v
 
 	json parse j < "$f" 2> /dev/null || return 1
-	for k in "${CP_THKEYS[@]}"; do
+	for k in "${CP_COKEYS[@]}"; do
 		v=${j["$k"]}
 		v=${v#\#}
 		[ "${j["$k"]}" = "#$v" ] && [ ${#v} -eq 6 ] &&
 			[ -z "${v//[0-9a-fA-F]/}" ] || return 1
 	done
-	for k in "${CP_THROLES[@]}"; do
+	for k in "${CP_COROLES[@]}"; do
 		[ -n "${j["$k"]+x}" ] || continue
 		v=${j["$k"]}
 		v=${v#\#}
@@ -66,27 +69,157 @@ fn cp_themeread(n, f) {
 	v=${j["shadow"]-55}
 	case $v in '' | *[!0-9]*) return 1 ;; esac
 	[ ${#v} -le 3 ] && [ "$v" -ge 1 ] && [ "$v" -le 100 ] || return 1
-	for k in "${CP_THKEYS[@]}"; do
-		CP_TH["$n"]["$k"]=${j["$k"]}
+	for k in "${CP_COKEYS[@]}"; do
+		CP_CO["$n"]["$k"]=${j["$k"]}
 	done
-	for k in "${CP_THROLES[@]}"; do
-		CP_TH["$n"]["$k"]=${j["$k"]-${CP_THDEF["$k"]}}
+	for k in "${CP_COROLES[@]}"; do
+		CP_CO["$n"]["$k"]=${j["$k"]-${CP_CODEF["$k"]}}
 	done
-	CP_TH["$n"]["shadow"]=$v
-	CP_TH["$n"]["checks"]=${j["checks"]-}
+	CP_CO["$n"]["shadow"]=$v
+	CP_CO["$n"]["checks"]=${j["checks"]-}
 }
 
-# Every theme in CP_THEMEDIRS, the first of each name winning, sorted.
+# Every colour scheme in CP_COLOURDIRS, the first of each name winning,
+# sorted. A file in the old themes folder that is a theme, not colours, is
+# simply not one.
+fn cp_colourlist() {
+	local d f n
+
+	CP_COLOURLIST=()
+	unset CP_CO
+	declare -gA CP_CO
+	for d in "${CP_COLOURDIRS[@]}"; do
+		for f in "$d"/*.json; do
+			[ -r "$f" ] || continue
+			n=${f##*/}
+			n=${n%.json}
+			[ -n "${CP_CO["$n"]["wall"]+x}" ] && continue
+			cp_colourread "$n" "$f" && CP_COLOURLIST+=("$n")
+		done
+	done
+	arr sort CP_COLOURLIST
+}
+cp_colourlist
+
+# Apply a colour scheme: the window manager reads these every frame, so it
+# shows on the next one, everywhere.
+fn cp_colours(t) {
+	[ -n "${CP_CO["$t"]["wall"]+x}" ] || return 1
+	CP_COLOURS=$t
+	DT_WALL=${CP_CO["$t"]["wall"]}
+	DT_DOT=${CP_CO["$t"]["dot"]}
+	DT_BAR=${CP_CO["$t"]["bar"]}
+	DT_ACTIVE=${CP_CO["$t"]["active"]}
+	DT_IDLE=${CP_CO["$t"]["idle"]}
+	DT_FACE=${CP_CO["$t"]["face"]}
+	DT_INK=${CP_CO["$t"]["ink"]}
+	DT_SHADOW_PCT=${CP_CO["$t"]["shadow"]}
+	DT_DIM=${CP_CO["$t"]["dim"]}
+	DT_SELINK=${CP_CO["$t"]["selink"]}
+	DT_GOOD=${CP_CO["$t"]["good"]}
+	DT_WARN=${CP_CO["$t"]["warn"]}
+	DT_BAD=${CP_CO["$t"]["bad"]}
+	DT_INFO=${CP_CO["$t"]["info"]}
+	DT_WELL=${CP_CO["$t"]["well"]}
+	DT_THEMECHECKS=${CP_CO["$t"]["checks"]}
+	command -v console > /dev/null && console darkdefault "$DT_INK" "$DT_FACE"
+}
+
+# A theme is the whole look, also a JSON file, one to a theme: the colour
+# scheme it uses ("colours", by name, the one key it must have), and
+# whatever else it sets -- the wallpaper glyph and an image ("wallpaper",
+# "image", "mode"; an image's path relative to the theme's own folder, so
+# a theme can carry its picture), the window frame, title bar, buttons,
+# their side and the title's alignment ("frame", "titlebar", "buttons",
+# "side", "align"), checkboxes, dialog buttons and the glyph set ("checks",
+# "dialog", "glyphs"), and the four shadows ("windowshadow", "menushadow",
+# "barshadow", "buttonshadow", true or false). What it leaves out takes the
+# desktop's default, so a theme always looks the same, whatever came
+# before it. Each value must be one the setting can take, or the file is
+# left out whole, like a colour file. Applying one sets each of these
+# settings, which can still be changed one by one afterwards. The person's
+# own folder is searched first, and Save Current Look as Theme writes
+# there.
+CP_THEMEDIRS=("${XDG_CONFIG_HOME:-$HOME/.config}/hibr/themes"
+	"${BASH_SOURCE%/*}/../themes")
+CP_THEMES=()
+declare -gA CP_TH
+declare -gA CP_THDEF
+CP_THDEF["wallpaper"]=${CP_GLYPHS[0]}; CP_THDEF["image"]=; CP_THDEF["mode"]=stretch
+CP_THDEF["frame"]=single; CP_THDEF["titlebar"]=line; CP_THDEF["buttons"]=brackets
+CP_THDEF["side"]=right; CP_THDEF["align"]=left; CP_THDEF["checks"]=theme
+CP_THDEF["dialog"]=filled; CP_THDEF["glyphs"]=unicode
+CP_THDEF["windowshadow"]=1; CP_THDEF["menushadow"]=1
+CP_THDEF["barshadow"]=1; CP_THDEF["buttonshadow"]=1
+
+# Whether a value is one of a list.
+fn cp_oneof(v, ...vals) {
+	local x
+
+	for x in "${vals[@]}"; do [ "$x" = "$v" ] && return 0; done
+	return 1
+}
+
+# Read one theme file into CP_TH[name], or refuse it whole.
+fn cp_themeread(n, f) {
+	local j k v
+	local -A got
+
+	json parse j < "$f" 2> /dev/null || return 1
+	v=${j["colours"]-}
+	[ -n "$v" ] && [ -z "${v//[A-Za-z0-9._-]/}" ] || return 1
+	got["colours"]=$v
+	for k in "${!CP_THDEF[@]}"; do
+		v=${j["$k"]-${CP_THDEF["$k"]}}
+		case $k in
+		wallpaper) cp_oneof "$v" "${CP_GLYPHS[@]}" || return 1 ;;
+		mode) cp_oneof "$v" "${WP_MODES[@]}" || return 1 ;;
+		frame) cp_oneof "$v" "${WS_FRAMES[@]}" || return 1 ;;
+		titlebar) cp_oneof "$v" "${DT_TITLEBARS[@]}" || return 1 ;;
+		buttons) cp_oneof "$v" "${WS_STYLES[@]}" || return 1 ;;
+		side) cp_oneof "$v" "${WS_SIDES[@]}" || return 1 ;;
+		align) cp_oneof "$v" "${WS_ALIGNS[@]}" || return 1 ;;
+		checks) cp_oneof "$v" "${CP_CHECKS[@]}" || return 1 ;;
+		dialog) cp_oneof "$v" "${DT_DLGBTNS[@]}" || return 1 ;;
+		glyphs) cp_oneof "$v" "${DT_GLYPHSETS[@]}" || return 1 ;;
+		*shadow)
+			case $v in
+			true | 1) v=1 ;;
+			false | 0) v=0 ;;
+			*) return 1 ;;
+			esac
+			;;
+		image)
+			case $v in
+			"") ;;
+			"~/"*) v=$HOME/${v#"~/"} ;;
+			/*) ;;
+			*) v=${f%/*}/$v ;;
+			esac
+			;;
+		esac
+		got["$k"]=$v
+	done
+	for k in "${!got[@]}"; do
+		CP_TH["$n"]["$k"]=${got["$k"]}
+	done
+}
+
+# Every theme in CP_THEMEDIRS, the first of each name winning, sorted. A
+# colour file in the person's themes folder, left from before themes and
+# colours were apart, is not a theme and is skipped.
 fn cp_themes() {
 	local d f n
 
 	CP_THEMES=()
+	unset CP_TH
+	declare -gA CP_TH
 	for d in "${CP_THEMEDIRS[@]}"; do
 		for f in "$d"/*.json; do
 			[ -r "$f" ] || continue
 			n=${f##*/}
 			n=${n%.json}
-			[ -n "${CP_TH["$n"]["wall"]+x}" ] && continue
+			[ -n "${CP_TH["$n"]["colours"]+x}" ] && continue
 			cp_themeread "$n" "$f" && CP_THEMES+=("$n")
 		done
 	done
@@ -94,26 +227,100 @@ fn cp_themes() {
 }
 cp_themes
 
+# Apply a theme: its colours, then every setting it carries.
 fn cp_theme(t) {
-	[ -n "${CP_TH["$t"]["wall"]+x}" ] || return 1
+	[ -n "${CP_TH["$t"]["colours"]+x}" ] || return 1
+	cp_colours "${CP_TH["$t"]["colours"]}" || return 1
 	CP_THEME=$t
-	DT_WALL=${CP_TH["$t"]["wall"]}
-	DT_DOT=${CP_TH["$t"]["dot"]}
-	DT_BAR=${CP_TH["$t"]["bar"]}
-	DT_ACTIVE=${CP_TH["$t"]["active"]}
-	DT_IDLE=${CP_TH["$t"]["idle"]}
-	DT_FACE=${CP_TH["$t"]["face"]}
-	DT_INK=${CP_TH["$t"]["ink"]}
-	DT_SHADOW_PCT=${CP_TH["$t"]["shadow"]}
-	DT_DIM=${CP_TH["$t"]["dim"]}
-	DT_SELINK=${CP_TH["$t"]["selink"]}
-	DT_GOOD=${CP_TH["$t"]["good"]}
-	DT_WARN=${CP_TH["$t"]["warn"]}
-	DT_BAD=${CP_TH["$t"]["bad"]}
-	DT_INFO=${CP_TH["$t"]["info"]}
-	DT_WELL=${CP_TH["$t"]["well"]}
-	DT_THEMECHECKS=${CP_TH["$t"]["checks"]}
-	command -v console > /dev/null && console darkdefault "$DT_INK" "$DT_FACE"
+	DT_GLYPH=${CP_TH["$t"]["wallpaper"]}
+	DT_WALLIMG=${CP_TH["$t"]["image"]}
+	DT_WALLTRIED=
+	DT_WALLMODE=${CP_TH["$t"]["mode"]}
+	DT_FRAME=${CP_TH["$t"]["frame"]}
+	DT_TITLEBAR=${CP_TH["$t"]["titlebar"]}
+	DT_BTNSTYLE=${CP_TH["$t"]["buttons"]}
+	DT_BTNSIDE=${CP_TH["$t"]["side"]}
+	DT_TITLEALIGN=${CP_TH["$t"]["align"]}
+	DT_CHECKS=${CP_TH["$t"]["checks"]}
+	DT_DLGBTN=${CP_TH["$t"]["dialog"]}
+	DT_SHADOW=${CP_TH["$t"]["windowshadow"]}
+	DT_MSHADOW=${CP_TH["$t"]["menushadow"]}
+	DT_BARSHADOW=${CP_TH["$t"]["barshadow"]}
+	DT_BTNSHADOW=${CP_TH["$t"]["buttonshadow"]}
+	if [ "$DT_GLYPHSET" != "${CP_TH["$t"]["glyphs"]}" ]; then
+		DT_GLYPHSET=${CP_TH["$t"]["glyphs"]}
+		dt_glyphs "$DT_GLYPHSET"
+	fi
+	return 0
+}
+
+# A text as a JSON string.
+fn cp_jstr(t) {
+	t=${t//\\/\\\\}
+	t=${t//\"/\\\"}
+	ret "\"$t\""
+}
+
+# Write the look as it is now as a theme file -- the colour scheme by name,
+# and every other setting a theme carries -- and list it.
+fn cp_themewrite(path) {
+	local n img b vn
+
+	n=${path##*/}
+	n=${n%.json}
+	[ -n "$n" ] && [ -z "${n//[A-Za-z0-9._ -]/}" ] || { dt_notep high "A theme's name is letters, digits, spaces, dots and dashes"; return 1; }
+	mkdir -p "${path%/*}" 2> /dev/null
+	img := cp_jstr "$DT_WALLIMG"
+	{
+		printf '{\n'
+		printf '  "colours": "%s",\n' "${CP_COLOURS:-midnight}"
+		printf '  "wallpaper": "%s",\n' "$DT_GLYPH"
+		printf '  "image": %s,\n' "$img"
+		printf '  "mode": "%s",\n' "$DT_WALLMODE"
+		printf '  "frame": "%s",\n' "$DT_FRAME"
+		printf '  "titlebar": "%s",\n' "$DT_TITLEBAR"
+		printf '  "buttons": "%s",\n' "$DT_BTNSTYLE"
+		printf '  "side": "%s",\n' "$DT_BTNSIDE"
+		printf '  "align": "%s",\n' "$DT_TITLEALIGN"
+		printf '  "checks": "%s",\n' "$DT_CHECKS"
+		printf '  "dialog": "%s",\n' "$DT_DLGBTN"
+		printf '  "glyphs": "%s",\n' "$DT_GLYPHSET"
+		for b in windowshadow:DT_SHADOW menushadow:DT_MSHADOW barshadow:DT_BARSHADOW; do
+			vn=${b#*:}
+			if [ "${!vn}" = 1 ]; then printf '  "%s": true,\n' "${b%%:*}"; else printf '  "%s": false,\n' "${b%%:*}"; fi
+		done
+		if [ "$DT_BTNSHADOW" = 1 ]; then printf '  "buttonshadow": true\n'; else printf '  "buttonshadow": false\n'; fi
+		printf '}\n'
+	} > "$path" || { dt_notep high "Could not write ${path##*/}"; return 1; }
+	cp_themes
+	CP_THEME=$n
+	cp_save
+	dt_notep low "Saved the look as the theme $n"
+}
+
+# Save Current Look as Theme: a name, asked with the file dialog, in the
+# person's own themes folder.
+cp_themesave() {
+	local d=${CP_THEMEDIRS[0]}
+
+	mkdir -p "$d" 2> /dev/null
+	dt_filepick save "Save Current Look as Theme" "Themes:*.json" "$d" "My Theme.json" cp_themesaved ""
+}
+fn cp_themesaved(id = "", path = "", type = "") {
+	[ -n "$path" ] || return 0
+	[[ $path == *.json ]] || path+=.json
+	cp_themewrite "$path"
+}
+
+# Settings saved before 0.99.33 kept the colour scheme's name as CP_THEME,
+# when colour schemes were what a theme was: it becomes CP_COLOURS, and the
+# theme, which nothing chose, is none.
+cp_setver4() {
+	if [ -n "${CP_CO["$CP_THEME"]["wall"]+x}" ] && [ -z "${CP_TH["$CP_THEME"]["colours"]+x}" ]; then
+		CP_COLOURS=$CP_THEME
+		CP_THEME=
+	fi
+	return 0
 }
 
 # Picking a glyph is choosing the plain wallpaper over a real image, the
@@ -121,13 +328,18 @@ fn cp_theme(t) {
 # DT_WALLIMG rather than leaving it set underneath a glyph that would never
 # actually show while an image wins in dt_wall.
 fn cp_set_theme(int id, value) { cp_theme "$value" && cp_save; }
+fn cp_set_colours(int id, value) { cp_colours "$value" && cp_save; }
 fn cp_set_glyph(int? id = "", value = "") { DT_GLYPH=$value; DT_WALLIMG=; cp_save; }
 
 fn appearance_rows(int w) {
 	local n=0 g
 
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Theme"
-	CP[$w][$n]["val"]="$CP_THEME"; CP[$w][$n]["key"]=theme; n=$((n + 1))
+	CP[$w][$n]["val"]="${CP_THEME:-(your own)}"; CP[$w][$n]["key"]=theme; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Colours"
+	CP[$w][$n]["val"]="$CP_COLOURS"; CP[$w][$n]["key"]=colours; n=$((n + 1))
+	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Save Current Look as Theme…"
+	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=themesave; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Wallpaper"
 	if [ -n "$DT_WALLIMG" ]; then
 		CP[$w][$n]["val"]="(image)"
@@ -185,6 +397,9 @@ fn appearance_do(int w, k, int dir) {
 	case $k in
 	theme) v := cp_next "$CP_THEME" "$dir" "${CP_THEMES[@]}"
 	       cp_theme "$v" ;;
+	colours) v := cp_next "$CP_COLOURS" "$dir" "${CP_COLOURLIST[@]}"
+	         cp_colours "$v" ;;
+	themesave) cp_themesave; return 0 ;;
 	checks) v := cp_next "$DT_CHECKS" "$dir" "${CP_CHECKS[@]}"; DT_CHECKS=$v ;;
 	glyph) v := cp_next "$DT_GLYPH" "$dir" "${CP_GLYPHS[@]}"
 	       DT_GLYPH=$v; DT_WALLIMG= ;;
@@ -213,6 +428,7 @@ fn appearance_do(int w, k, int dir) {
 fn appearance_drop(int w, int r, int c, k) {
 	case $k in
 	theme) dt_droplist "$w" "$r" "$c" cp_set_theme "${CP_THEMES[@]}" ;;
+	colours) dt_droplist "$w" "$r" "$c" cp_set_colours "${CP_COLOURLIST[@]}" ;;
 	glyph) dt_droplist "$w" "$r" "$c" cp_set_glyph "${CP_GLYPHS[@]}" ;;
 	checks) dt_droplist "$w" "$r" "$c" cp_set_checks "${CP_CHECKS[@]}" ;;
 	wallmode) dt_droplist "$w" "$r" "$c" wp_setmode "${WP_MODES[@]}" ;;

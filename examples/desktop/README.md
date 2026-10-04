@@ -122,15 +122,58 @@ cut) is a small absolute change and reads as soft against a dark theme, but
 the same cut off paper's near-white face lands on a flat medium grey -- a
 hard block, not a shadow -- so paper alone gets a much gentler one.
 
-## Themes
+## Themes and colours
 
-A theme is a JSON file of seven colours and a shadow strength, one file to
-a theme and named for it. The ten that come with the desktop are in
-`examples/desktop/themes/` (installed under `share/hibr/desktop/themes`);
-your own go in `~/.config/hibr/themes/`, which is read first, so a file
-there named `paper.json` replaces the bundled paper and any other name adds
-a theme. Appearance's Theme row and the Control Strip's theme module list
-them all, sorted by name.
+A **theme** is the whole look at once: a colour scheme, and the wallpaper,
+window frame, title bar, buttons, checkboxes, shadows and glyph set to go
+with it. Appearance > Theme chooses one, and every setting it carries can
+still be changed on its own afterwards. Three come with the desktop --
+classic (midnight, as the desktop has always looked), construction
+(black-and-yellow hazard stripes, yellow windows, double frames, solid
+black title bars) and meadow (a sky over a green hill, beige windows with
+rounded frames and blue title bars, after the desktops of around 2001).
+Appearance > Save Current Look as Theme… writes the look as it stands to
+`~/.config/hibr/themes/` under a name you give it, and it joins the list.
+
+A theme is a JSON file too:
+
+<!-- not run: a data file the Appearance pane reads -->
+```text
+{
+  "colours": "hazard",
+  "wallpaper": "╱",
+  "image": "construction.png",
+  "mode": "zoom",
+  "frame": "double",
+  "titlebar": "solid",
+  "buttons": "squares",
+  "checks": "block",
+  "dialog": "filled"
+}
+```
+
+`colours` names a colour scheme and is the one key a theme must have. The
+rest, each optional: `wallpaper` (a glyph from Appearance's list), `image`
+and `mode` (a picture, its path relative to the theme's own folder so a
+theme can carry it, and how it is fitted), `frame` (`single`, `double`,
+`rounded`, `none`), `titlebar` (`line`, or `solid` -- the top row a bar of
+the frame's colour), `buttons` (`brackets`, `circles`, `squares`,
+`diamonds`, `dashes`), `side` (`right`, `left`), `align` (`left`,
+`center`, `right`), `checks` (`theme`, `box`, `knob`, `block`), `dialog`
+(`filled`, `brackets`), `glyphs` (`unicode`, `ascii`), and `windowshadow`,
+`menushadow`, `barshadow` and `buttonshadow` (`true` or `false`). What a
+theme leaves out is the desktop's default, so it looks the same whatever
+came before it; a value the setting cannot take leaves the file out of the
+list whole.
+
+A colour scheme is a JSON file of seven colours and a shadow strength, one
+file to a scheme and named for it. The twelve that come with the desktop
+are in `examples/desktop/colours/` (installed under
+`share/hibr/desktop/colours`); your own go in `~/.config/hibr/colours/`,
+which is read first, so a file there named `paper.json` replaces the
+bundled paper and any other name adds a scheme. A colour file in
+`~/.config/hibr/themes/`, where they all lived before 0.99.33, is still
+read as one. Appearance's Colours row lists them all, sorted by name.
 
 <!-- not run: a data file the Appearance pane reads -->
 ```text
@@ -156,18 +199,18 @@ optional, suggests how an on/off choice is drawn -- `box`, `knob` or
 `block` (neon suggests `knob`) -- and holds while Appearance > Checkboxes
 is left at `theme`; choosing a style there is yours whatever the theme.
 
-A theme may also set seven colour roles, each optional: `dim` (secondary
+A scheme may also set seven colour roles, each optional: `dim` (secondary
 text), `selink` (text drawn on the accent, a selection), `good`, `warn` and
 `bad` (the traffic-light buttons, an answer, an error, an exit status),
 `info`, and `well` (the darker surface keys and cells sit in). One left out
-is what the dark themes share, so a theme file with only the seven colours
-keeps working; paper, phosphor and amber set their own, so a light theme is
-not drawn with dark-theme greys and the monochrome ones stay one hue. Every colour must
+is what the dark schemes share, so a file with only the seven colours
+keeps working; paper, phosphor and amber set their own, so a light scheme is
+not drawn with dark-scheme greys and the monochrome ones stay one hue. Every colour must
 be `#rrggbb` and the shadow a whole number in range, or the file is left
-out of the list; a theme added while the desktop runs appears at its next
+out of the list; a scheme added while the desktop runs appears at its next
 start. Why JSON and not a script is
-[decision 0028](../../docs/adr/0028-a-theme-is-data.md): a theme you were
-given can only ever be colours.
+[decision 0028](../../docs/adr/0028-a-theme-is-data.md): a file you were
+given can only ever be colours and settings.
 
 ## Glyphs
 
@@ -956,13 +999,14 @@ back by `dt_open` at the next start. It is a script, not a format:
 # read at the next start.  A script like any other.
 DT_WALL=\#1a202c
 DT_ICONS=1
-CP_THEME=slate
+CP_THEME=classic
+CP_COLOURS=slate
 ```
 
 `dt_open` reads it after the session file has set its own defaults, so what
 was chosen last wins. An app that wants a variable of its own kept calls
 `dt_keep NAME` and `dt_save` after changing it; the Control Panel app keeps
-`CP_THEME` that way.
+`CP_THEME` and `CP_COLOURS` that way.
 
 ## Writing a session
 

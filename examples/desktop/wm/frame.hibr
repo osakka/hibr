@@ -152,6 +152,11 @@ fn dt_win(int id) {
 		bar := dt_rep $((w - 2)) "$fh"
 		console put -p "w$id" 0 0 "$tl$bar$tr"
 		console put -p "w$id" $((h - 1)) 0 "$bl$bar$br"
+		if [ "$DT_TITLEBAR" = solid ]; then
+			bar := dt_rep "$w" " "
+			console pen "$DT_SELINK" "$on"
+			console put -p "w$id" 0 0 "$bar"
+		fi
 		console pen "$DT_INK" "$DT_FACE"
 		# A fixed window keeps the plain corner the border just drew
 		# instead of the grow box: no drag can resize it, so nothing
@@ -166,21 +171,35 @@ fn dt_win(int id) {
 		done
 	fi
 
-	local bs bc off i
+	local bs bc off i tbg=$DT_FACE tfg=$on bink=$DT_INK
+	# A solid title bar is the frame's own colour, and everything on it --
+	# the title, a button drawn in ink -- is drawn in DT_SELINK, the text
+	# that reads on the accent.
+	if [ "$DT_TITLEBAR" = solid ]; then
+		tbg=$on
+		tfg=$DT_SELINK
+		bink=$DT_SELINK
+		if [ "$DT_FRAME" = none ]; then
+			local sb
+			sb := dt_rep "$w" " "
+			console pen "$DT_SELINK" "$on"
+			console put -p "w$id" 0 0 "$sb"
+		fi
+	fi
 	dt_btnorder "$DT_BTNSTYLE" "$fixed" "$DT_BTNSIDE"
 	# A blank frame is blank throughout: the tick marks a style wraps its
 	# cluster in are box-drawing glyphs too, and stay undrawn along with
 	# the ring itself, even though the buttons they wrap keep working.
-	[ "$DT_FRAME" = none ] && { BTN_DL=" "; BTN_DR=" "; }
+	{ [ "$DT_FRAME" = none ] || [ "$DT_TITLEBAR" = solid ]; } && { BTN_DL=" "; BTN_DR=" "; }
 	bs := dt_btnstr
 	if [ "$DT_BTNSIDE" = left ]; then bc=1; else bc=$((w - 1 - ${#bs})); fi
-	console pen "$DT_INK" "$DT_FACE"
+	console pen "$bink" "$tbg"
 	console put -p "w$id" 0 "$bc" "$bs"
 	if [ "$fixed" = 1 ]; then off=(1 3); else off=(1 3 5); fi
 	i=0
 	while [ "$i" -lt ${#BTN_G[@]} ]; do
 		if [ "${BTN_C[$i]}" != "$DT_INK" ]; then
-			console pen "${BTN_C[$i]}" "$DT_FACE" bold
+			console pen "${BTN_C[$i]}" "$tbg" bold
 			console put -p "w$id" 0 $((bc + ${off[$i]})) "${BTN_G[$i]}"
 		fi
 		i=$((i + 1))
@@ -217,8 +236,8 @@ fn dt_win(int id) {
 	*)      tc=$tc0 ;;
 	esac
 	local tdl="${GL[teel]}" tdr="${GL[teer]}"
-	[ "$DT_FRAME" = none ] && { tdl=" "; tdr=" "; }
-	console pen "$on" "$DT_FACE" bold
+	{ [ "$DT_FRAME" = none ] || [ "$DT_TITLEBAR" = solid ]; } && { tdl=" "; tdr=" "; }
+	console pen "$tfg" "$tbg" bold
 	console put -p "w$id" 0 "$tc" "$tdl $t $tdr"
 
 	# Held down and still over the one that was pressed: the glyph alone
@@ -232,10 +251,11 @@ fn dt_win(int id) {
 			if [ "${BTN_K[$i]}" = "$DT_BTNKIND" ]; then
 				if [ "${BTN_C[$i]}" = "$DT_INK" ]; then
 					pc=$DT_ACTIVE
+					[ "$DT_TITLEBAR" = solid ] && pc=$DT_FACE
 				else
 					pc := dt_lighten "${BTN_C[$i]}" 45
 				fi
-				console pen "$pc" "$DT_FACE" bold
+				console pen "$pc" "$tbg" bold
 				console put -p "w$id" 0 $((bc + ${off[$i]})) \
 					"${BTN_G[$i]}"
 			fi

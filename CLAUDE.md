@@ -1256,17 +1256,26 @@ went in the shell.
   0.72 leaves it empty and gets the new defaults (`DT_TERMKEEP=1`) once,
   then `dt_save` writes `DT_SETVER=1` and the person's own choice sticks.
   0.73 is version 2: the scrollbar, alt-drag, ctrl-w, alt-tab and no quit
-  key, a key moved only while it still holds its old default. The next
+  key, a key moved only while it still holds its old default. 0.99.26 is
+  3 (workspace and snap keys swapped), 0.99.33 is 4 (`CP_THEME`, a colour
+  scheme's name until then, moved to `CP_COLOURS` by Appearance's own
+  `cp_setver4`, which `dt_load` calls when the pane is loaded). The next
   default that must reach saved files bumps it to 3 and adds a branch --
   never change `dt_load` to re-apply a default unconditionally. A key
   default is set only when a session has not set it already (`${..+x}`),
   which is how `tests/screen.py`'s `load()` gives every suite `q` to quit
   with now that the desktop has none.
-- **A theme is a JSON file, not a script** (`examples/desktop/themes/`,
-  ADR 0028). It is the one thing a person configures that is not hibr,
-  because it is the one thing people hand each other: a theme script would
-  run as whoever applied it. `cp_themeread` refuses a file whole on any
-  bad value, so a broken one is missing from the list, never half applied.
+- **A theme and a colour scheme are JSON files, not scripts**
+  (`examples/desktop/themes/`, `examples/desktop/colours/`, ADR 0028). They
+  are the one thing a person configures that is not hibr, because they are
+  what people hand each other: a script would run as whoever applied it.
+  `cp_colourread` and `cp_themeread` refuse a file whole on any bad value,
+  so a broken one is missing from the list, never half applied -- and the
+  reader builds the entry in a local map and stores it only once every
+  value has passed: the first version stored as it went, so a theme that
+  failed on its frame was still applied, blanking the settings after it.
+  A list that is read again starts from an empty map, or every name read
+  the first time is skipped as already seen and the list comes back empty.
 - **The Control Panel picker is one row per pane plus one per heading, and
   until 0.94 it did not scroll.** Fifteen panes in three groups need 18 rows, and the
   window's default height of 20 left 18 -- the bottom row drew over the

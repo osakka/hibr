@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.99.33
+
+**Themes are the whole look; colours are their own choice.** What used to
+be a theme -- seven colours and a shadow -- is now a colour scheme,
+Appearance > Colours. A theme, Appearance > Theme, is the whole look at
+once: a colour scheme, the wallpaper (a glyph or a picture), the window
+frame, the title bar, the buttons and where they sit, checkboxes, dialog
+buttons, shadows and the glyph set. Every setting it carries can still be
+changed on its own afterwards, and Save Current Look as Theme… keeps the
+look as it stands under a name of your own. Themes and colour schemes are
+both JSON files (`examples/desktop/themes/`, `examples/desktop/colours/`,
+and your own in `~/.config/hibr/`), each checked whole; a colour file you
+kept in `~/.config/hibr/themes/` is still read as colours.
+
+**Two new looks.** Under Construction: black-and-yellow hazard stripes,
+yellow windows, double frames and solid black title bars. Meadow: a sky
+over a green hill, beige windows with rounded frames and blue title bars,
+after the desktops of around 2001. Classic is the desktop as it has
+always looked.
+
+**Solid title bars.** Control Panel > Windows > Title Bar: `line`, the
+title sitting in the frame's top edge as before, or `solid`, the whole top
+row a bar of the frame's colour with the title and buttons on it.
+
 ## 0.99.32
 
 **Calendars and contacts sync on their own.** The servers chosen in
