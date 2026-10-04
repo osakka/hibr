@@ -174,7 +174,12 @@ dt_menus() {
 	MB_N=0
 
 	dt_menu "✎"
-	dt_item "About hibr Desktop" a dt_about
+	if [ -n "$ap" ] && dt_aboutinfo "$ap"; then
+		dt_item "About ${DT_ABOUT["$ap"]["title"]}${GL[ellipsis]}" a dt_aboutapp "$ap"
+		dt_item "About hibr Desktop" h dt_about
+	else
+		dt_item "About hibr Desktop" a dt_about
+	fi
 	dt_sep
 	# about already has its own permanent item above; it registers with
 	# dt_app only so dt_launch about can find it, not to be listed a
@@ -182,7 +187,6 @@ dt_menus() {
 	# hidden, which is what dt_appmenu actually skips.
 	dt_appmenu "" aqdur
 	dt_sep
-	dt_item "Clean Up Icons" u dt_iconclean
 	dt_item "Screen Saver" s dt_saverstart
 	dt_item "Lock Screen" l dt_lock
 	dt_sep
@@ -208,6 +212,7 @@ dt_menus() {
 			m0=$((m0 + 1))
 		done
 	fi
+	[ -z "$who" ] && dt_findermenus
 	[ "$MB_EDITED" = 1 ] || dt_editmenu
 
 	# Always last, and always there: an app that has its own menus must
@@ -271,6 +276,201 @@ dt_menus() {
 	fi
 	dt_item "Cycle" c dt_cycle
 	dt_layout
+}
+
+# The desktop's own menus when nothing is focused -- the Finder's, as on
+# System 7: File, Edit, View and Special, the icons on the desktop being
+# what they act on.
+dt_findermenus() {
+	local sel
+
+	dt_menu "File"
+	dt_item "New Window" n dt_launch files
+	if sel := dt_iconsel; then
+		dt_item "Open" o dt_iconopenall
+	else
+		dt_dim "Open"
+	fi
+	if dt_has files_search; then
+		dt_item "Find${GL[ellipsis]}" f dt_finderfind
+	else
+		dt_dim "Find${GL[ellipsis]}"
+	fi
+	dt_sep
+	dt_dim "Close Window"
+	dt_editmenu
+	dt_menu "View"
+	dt_mark "Desktop Icons" i "${DT_ICONS:-0}" dt_iconsflip
+	dt_item "Refresh" r dt_refresh
+	dt_menu "Special"
+	dt_item "Clean Up Desktop" u dt_iconclean
+	if dt_trashcount && [ "$DT_TRASHN" -gt 0 ]; then
+		dt_item "Empty Trash${GL[ellipsis]}" t dt_trashask
+	else
+		dt_dim "Empty Trash${GL[ellipsis]}"
+	fi
+}
+
+# File > Open: every icon chosen, opened as a double click would.
+dt_iconopenall() {
+	local sel i
+	local -a is
+
+	sel := dt_iconsel || return 0
+	read -ra is <<< "$sel"
+	for i in "${is[@]}"; do
+		dt_iconopen "$i"
+	done
+	return 0
+}
+
+# File > Find: a Files window at Home, searching.
+dt_finderfind() {
+	local id
+
+	id := dt_launch files || return 0
+	dt_has files_search && files_search "$id"
+	return 0
+}
+
+# View > Desktop Icons.
+dt_iconsflip() {
+	if [ "${DT_ICONS:-0}" = 1 ]; then DT_ICONS=0; else DT_ICONS=1; fi
+	dt_save
+}
+
+# How many things are in the trash, into DT_TRASHN.
+DT_TRASHN=0
+dt_trashcount() {
+	local f
+	local -a fs
+
+	DT_TRASHN=0
+	[ -d "$DT_TRASH/files" ] || return 0
+	fs=("$DT_TRASH/files"/* "$DT_TRASH/files"/.[!.]*)
+	for f in "${fs[@]}"; do
+		[ -e "$f" ] || [ -L "$f" ] && DT_TRASHN=$((DT_TRASHN + 1))
+	done
+	return 0
+}
+
+# Special > Empty Trash: asked first, since nothing comes back from it.
+dt_trashask() {
+	dt_trashcount
+	if [ "$DT_TRASHN" = 1 ]; then
+		dt_confirm "Empty the Trash? The one item in it is deleted for good." dt_trashempty
+	else
+		dt_confirm "Empty the Trash? The $DT_TRASHN items in it are deleted for good." dt_trashempty
+	fi
+}
+dt_trashempty() {
+	local n
+
+	[ -n "$DT_TRASH" ] && [ -d "$DT_TRASH/files" ] || return 0
+	dt_trashcount
+	n=$DT_TRASHN
+	command rm -rf -- "$DT_TRASH/files" "$DT_TRASH/info" 2>> "$DT_LOG"
+	mkdir -p "$DT_TRASH/files" "$DT_TRASH/info" 2> /dev/null
+	dt_changed
+	if [ "$n" = 1 ]; then dt_notep low "The Trash is empty: 1 item deleted"; else dt_notep low "The Trash is empty: $n items deleted"; fi
+}
+
+# What an About box says about an app, from the file that declared it:
+# DT_ABOUT[app]["title"], ["desc"], ["file"], ["icon"]. A hidden app -- an
+# editor, a dialog -- answers for the app its file belongs to, so the
+# Calendar's event editor is About Calendar. Read once, on first need;
+# fails for a window with no app file to read.
+declare -gA DT_ABOUT
+fn dt_aboutinfo(ap) {
+	local f l own desc=
+
+	[ -n "${DT_ABOUT["$ap"]["title"]+x}" ] && { [ -n "${DT_ABOUT["$ap"]["title"]}" ]; return; }
+	DT_ABOUT["$ap"]["title"]=
+	f=$(grep -rl --include='*.hibr' -e "dt_app $ap " "${DT_APPDIRS[@]}" 2> /dev/null | head -n 1)
+	[ -n "$f" ] || return 1
+	own=$ap
+	if l=$(grep -m 1 '^app ' "$f"); then
+		l=${l#app }
+		own=${l%% *}
+		desc=${l#"$own"}
+		desc=${desc# }
+		desc=${desc#\"}
+		desc=${desc%\"}
+	fi
+	[ -n "${DT_APPS["$own"]["title"]+x}" ] || own=$ap
+	DT_ABOUT["$ap"]["title"]=${DT_APPS["$own"]["title"]:-$ap}
+	DT_ABOUT["$ap"]["icon"]=${DT_APPS["$own"]["icon"]}
+	DT_ABOUT["$ap"]["desc"]=$desc
+	DT_ABOUT["$ap"]["file"]=$f
+	DT_ABOUT["$ap"]["own"]=$own
+	return 0
+}
+
+# About <App>: the app's own, when it has <app>_about, or the desktop's
+# card made from what the app declares.
+fn dt_aboutapp(ap) {
+	local own id h=10 w=56
+
+	dt_aboutinfo "$ap" || return 0
+	own=${DT_ABOUT["$ap"]["own"]:-$ap}
+	if dt_has "${own}_about"; then
+		"${own}_about"
+		return 0
+	fi
+	id := dt_new "About ${DT_ABOUT["$ap"]["title"]}" "$h" "$w" $(((DT_ROWS - h) / 2)) $(((DT_COLS - w) / 2)) dtabout
+	DTAB[$id]["app"]=$ap
+	return 0
+}
+
+# The desktop's About card: icon and name, what the app says it is, where
+# it came from, and the shell it runs on.
+declare -gA DTAB
+fn dtabout_draw(int id, int h, int w, int row, int col) {
+	local ap=${DTAB[$id]["app"]} t d f line r=4
+	local -a words
+
+	dt_wclear "$id"
+	t=${DT_ABOUT["$ap"]["title"]}
+	d=${DT_ABOUT["$ap"]["desc"]}
+	f=${DT_ABOUT["$ap"]["file"]}
+	console pen "$DT_ACTIVE" "$DT_FACE" bold
+	console put -p "w$id" 1 2 "${DT_ABOUT["$ap"]["icon"]}  $t"
+	console pen "$DT_INK" "$DT_FACE"
+	read -ra words <<< "$d"
+	line=
+	for t in "${words[@]}"; do
+		if [ $((${#line} + ${#t} + 1)) -gt $((w - 4)) ]; then
+			console put -p "w$id" 2 2 "$line"
+			line=$t
+			r=3
+			continue
+		fi
+		line="${line:+$line }$t"
+	done
+	console put -p "w$id" $((r - 1)) 2 "$line"
+	console pen "$DT_DIM" "$DT_FACE"
+	f=${f/#$HOME/\~}
+	console put -p "w$id" "$r" 2 "${f:0:$((w - 4))}"
+	console put -p "w$id" $((r + 1)) 2 "hibr $HIBR_VERSION"
+	dt_dlgbtns "$id" "$h" "$w" ok ok OK
+}
+fn dtabout_key(int id, key) {
+	case $key in
+	enter | escape | " ") dt_del "$id" ;;
+	*) return 1 ;;
+	esac
+	return 0
+}
+fn dtabout_click(int? id = "", int? r = "", int? c = "", btn = "") {
+	local tag
+
+	tag := dt_hit "$id" "$r" "$c" || return 0
+	[ "$tag" = ok ] && dt_del "$id"
+	return 0
+}
+fn dtabout_close(int id) {
+	unset DTAB["$id"]
+	return 0
 }
 
 # Edit is the desktop's, like Window: the same three items everywhere,

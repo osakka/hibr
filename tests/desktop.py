@@ -1022,9 +1022,9 @@ check("a fixed window's edges do not resize it either",
 # --- the window menu, and items that cannot be chosen ---------------------
 
 # Where Window sits on the bar: after the app's two menus and Edit when the
-# app has focus, after Edit alone when nothing does.
-#   "  ✎  Count  More  Edit  Window"      "  ✎  Edit  Window"
-WIN, WIN0 = 23, 11
+# app has focus, after the Finder's four when nothing does.
+#   "  ✎  Count  More  Edit  Window"      "  ✎  File  Edit  View  Special  Window"
+WIN, WIN0 = 23, 32
 
 sc, _ = run(MENUS, [press(0, WIN)])
 check("a window menu is there even for an app with its own menus",
@@ -1032,7 +1032,7 @@ check("a window menu is there even for an app with its own menus",
 
 sc, _ = run(MENUS, [press(6, 37), release(6, 37), press(0, WIN0)])
 check("with nothing focused its items lose their letters",
-      sc.find("Move") is not None and sc.at(1, 16) != "m", sc)
+      sc.find("Move") is not None and sc.at(1, 37) != "m", sc)
 
 sc, _ = run(MENUS, [press(6, 37), release(6, 37), press(0, WIN0), b"m"])
 check("and a dimmed letter does nothing", sc.find("Move") is not None, sc)
@@ -1500,11 +1500,48 @@ shutil.rmtree(d, True)
 
 d, env, pre, home, backup, usb, src = desk()
 sc, raw = run("", feed=[press(3, 70), drag(10, 74), drag(14, 68),
-                        release(14, 68), b"\x1b[21~", b"u"], env=env,
+                        release(14, 68), b"\x1b[21~"] + [b"\x1b[C"] * 4 + [b"u"], env=env,
               pre=pre)
-check("Clean Up Icons on the hibr menu puts them back at their defaults",
+check("Clean Up Desktop on the Special menu puts them back at their defaults",
       sc.find("Home") == (3, 71), sc)
 shutil.rmtree(d, True)
+
+# With nothing focused the desktop is the Finder: File, Edit, View and
+# Special, as on System 7. Special > Empty Trash asks, then deletes for good.
+d, env, pre, home, backup, usb, src = desk()
+os.makedirs(os.path.join(d, "trash", "files"))
+os.makedirs(os.path.join(d, "trash", "info"))
+open(os.path.join(d, "trash", "files", "old.txt"), "w").write("x\n")
+open(os.path.join(d, "trash", "info", "old.txt.trashinfo"), "w").write("[Trash Info]\n")
+sc, raw = run("", env=env, pre=pre)
+check("with nothing focused the menu bar reads File, Edit, View, Special, Window",
+      "\u270e  File  Edit  View  Special  Window" in sc.row(0), sc)
+epath = "/tmp/hibr-desktop-et-%d.hibr" % os.getpid()
+open(epath, "w").write("%s. %s\n%s\ndt_open\ndt_run\ndt_close\n" % (load(MOD), WM, pre))
+t = Term(epath, env=dict({"DT_TICK": "60"}, **env), rows=ROWS, cols=COLS, settle=0.5)
+t.keys([b"\x1b[21~"] + [b"\x1b[C"] * 4 + [b"t"])
+sc = t.screen()
+t.quit(b"\x1bqy", 1.2)
+os.unlink(epath)
+check("Empty Trash asks first, saying how much goes, and no leaves it be",
+      sc.find("Empty the Trash?") is not None and sc.find("one item") is not None
+      and os.listdir(os.path.join(d, "trash", "files")) == ["old.txt"], sc)
+sc, raw = run("", feed=[b"\x1b[21~"] + [b"\x1b[C"] * 4 + [b"t", b"y"], env=env, pre=pre)
+check("and yes empties it", os.listdir(os.path.join(d, "trash", "files")) == []
+      and os.listdir(os.path.join(d, "trash", "info")) == [], os.listdir(os.path.join(d, "trash", "files")))
+shutil.rmtree(d, True)
+
+# The hibr menu's first item follows the front app: About Files..., and
+# About hibr Desktop below it; with no _about of its own an app gets the
+# desktop's card, made from what it declares.
+sc, raw = run('dt_new Files 12 40 3 4 files', feed=[b"\x1b[21~"], pre=APPS)
+check("with an app in front the hibr menu starts About that app, the desktop's own below",
+      sc.find("About Files") is not None and sc.find("About hibr Desktop") is not None
+      and sc.find("About Files")[0] < sc.find("About hibr Desktop")[0], sc)
+sc, raw = run('dt_new Files 12 40 3 4 files', feed=[b"\x1b[21~", b"a"], pre=APPS)
+check("and it opens a card of the app's name, icon, description and the shell's version",
+      sc.find("About Files") is not None and sc.find("A file browser") is not None
+      and sc.find("hibr ") is not None and sc.find("files.hibr") is not None, sc)
 
 # The first arrow press with nothing yet selected only picks Home, where the
 # cursor already conceptually was; it is the second press that actually
@@ -2079,7 +2116,7 @@ check("with nothing unread the bar shows just the icon, left of the clock",
 check("and the bell, the clock and the application menu sit two cells apart, "
       "as the menu titles on the left do",
       re.search(r"⚑  \d\d:\d\d  Desktop ▾", sc.row(0)) is not None and
-      re.search(r"✎  Edit  Window", sc.row(0)) is not None, sc)
+      re.search(r"✎  File  Edit  View  Special  Window", sc.row(0)) is not None, sc)
 t.quit(None, 0.5); shutil.rmtree(d, True)
 
 t, d = dotrun('dt_note "Unread"')
@@ -3289,4 +3326,4 @@ check("an arithmetic error in an app is logged and the desktop carries on",
       (log, t.status))
 expect(r"arithmetic: syntax error")
 
-report(447)
+report(452)

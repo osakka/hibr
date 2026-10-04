@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.99.34
+
+**The desktop is the Finder.** With no window focused the menu bar reads
+File, Edit, View and Special, as System 7's Finder did: File > New Window,
+Open (the icons chosen) and Find…; View > Desktop Icons and Refresh;
+Special > Clean Up Desktop (moved from the hibr menu) and a new Empty
+Trash…, which asks and then deletes for good.
+
+**About follows the front app.** The hibr menu's first item is About
+Files…, About Calendar… and so on for whatever is in front -- a helper
+window answering for the app it belongs to -- with About hibr Desktop
+below it. An app may define `<app>_about`; otherwise the desktop shows a
+card of its icon, name, description, file and the shell's version.
+
 ## 0.99.33
 
 **Themes are the whole look; colours are their own choice.** What used to

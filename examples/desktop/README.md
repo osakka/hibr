@@ -266,9 +266,22 @@ settings file with the rest; drag a selection and it moves together, keeping
 its arrangement. Positions are clamped to the screen every time it is laid
 out, not just when one is dropped, so a spot picked on a wide screen cannot
 put an icon under the bar or off the edge after a resize to a narrower one --
-`dt_size` calls `dt_iconlay` on every resize for exactly this. "Clean Up
-Icons" on the hibr menu forgets every saved position and lays them out
-fresh, for when they have drifted somewhere inconvenient anyway.
+`dt_size` calls `dt_iconlay` on every resize for exactly this. Special >
+Clean Up Desktop forgets every saved position and lays them out fresh, for
+when they have drifted somewhere inconvenient anyway.
+
+**With no window focused the desktop is the Finder**, and its menus are
+System 7's: **File** (New Window, Open what is selected, Find…), Edit,
+**View** (Desktop Icons on or off, Refresh) and **Special** (Clean Up
+Desktop, and Empty Trash…, which asks first and then deletes for good).
+Every app with menus of its own puts File and Edit first in the same way.
+
+**About follows the front app.** The hibr menu's first item is *About
+Files…*, *About Calendar…* -- whatever is in front, a helper window such as
+Calendar's event editor answering for its app -- with About hibr Desktop
+below it. An app that defines `<app>_about` shows its own; any other gets
+the desktop's card: its icon and name, the line its `app` declaration
+describes it with, the file it came from, and the shell's version.
 
 **Home and a disk are never something delete or a drag can lose.** They are
 a kind of their own, `place`, deliberately left out of every path a move or
