@@ -99,7 +99,7 @@ box.add(A, "From: Shop <deals@shop.example>\r\nTo: pat@example.com\r\nSubject: =
 port = ms.serve("imap", box)
 smtp = ms.serve("smtp", box)
 conf = os.path.join(D, "gmail.conf")
-account(conf, "gmail", port, smtp)
+account(conf, "'Home Mail'", port, smtp)
 t = session(conf, "gmail")
 sc = waitfor(t, "Zoë Ünal, me (2)")
 check("the first sync lists the inbox's conversations, newest first",
@@ -274,7 +274,7 @@ open(sess, "w").write("%s. %s\n. %s\nCP_PANEDIRS+=(\"%s\")\ncp_panes\ndt_open\nm
 t = Term(sess, rows=30, cols=100, settle=1.5, env={"HIBR_MAIL_CONF": conf4, "XDG_DATA_HOME": D})
 sc = waitfor(t, "Add a Mail Account")
 check("Add Account opens its dialog, and the desktop lives", sc.find("Account name:") and sc.find("Password:"), sc)
-t.keys([b"work", b"\t", b"pat@example.com", b"\t", b"Pat Doe", b"\t", b"secret"] + [b"\t"] * 8 + [b"\r"])
+t.keys([b"Home Email", b"\t", b"pat@example.com", b"\t", b"Pat Doe", b"\t", b"secret"] + [b"\t"] * 8 + [b"\r"])
 sc = look(t)
 check("a server it cannot work out from the address is asked for, not guessed",
       sc.find("no server given") and not os.path.exists(conf4), sc)
@@ -287,5 +287,14 @@ check("an address at Gmail saves, Gmail's servers filled in",
       until(lambda: os.path.exists(conf4) and "imap.gmail.com" in open(conf4).read()),
       open(conf4).read() if os.path.exists(conf4) else "no file")
 t.quit(b"qy", 1.5)
+out = subprocess.run([sx.HIBR, "-c", "%s. %s\n. %s\nCP_PANEDIRS+=(\"%s\")\ncp_panes\n"
+                      "n := mailset_rows 1; i=0; while [ $i -lt $n ]; do echo \"${CP[1][$i][\"text\"]}|${CP[1][$i][\"val\"]}\"; i=$((i + 1)); done"
+                      % (load("email"), tree("examples/desktop/desktop.hibr"), tree("examples/desktop/apps/panel.hibr"),
+                         tree("examples/desktop/control-panel"))],
+                     capture_output=True, text=True,
+                     env=dict(os.environ, HIBR_MAIL_CONF=conf4, XDG_CONFIG_HOME=os.path.join(D, "cfg"),
+                              HIBR_MODPATH=tree("build/mods")))
+check("the pane lists an account whose name has a space in it",
+      "Home Email|pat@gmail.com" in out.stdout and "arithmetic" not in out.stderr, out.stdout + out.stderr)
 
-report(47)
+report(48)

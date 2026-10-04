@@ -784,7 +784,7 @@ int ex_deep(sh *s, const char *what, int fn)
 	else
 		lg(HIBR_LERR, "%s: nested too deeply: the stack would run out", what);
 deep:
-	if (!s->intry) {
+	if (!s->intry && !(s->sopt & O_KEEPGOING)) {
 		if (s->it)
 			s->stop = 1;
 		else
@@ -1437,7 +1437,7 @@ int ex_cmd(sh *s, node *n)
 		if (f->f != 4)
 			ex_arrasg(s, f);
 	if (s->xerr) {
-		if (s->xerr == 2 && !s->intry) {
+		if (s->xerr == 2 && !s->intry && !(s->sopt & O_KEEPGOING)) {
 			lg(HIBR_LDBG, "an arithmetic error ends %s, as in bash",
 			   s->it ? "the line" : "the script");
 			if (s->it)

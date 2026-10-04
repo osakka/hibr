@@ -3271,4 +3271,20 @@ check("a restart carrying a terminal's program stays unsupervised, the program i
       and len(kids) == 1 and "[desktop]" not in open("/proc/%s/cmdline" % kids[0]).read(), log)
 t.quit(b"qy", 3)
 
-report(445)
+# An app's arithmetic slip fails the command, not the desktop: the shell's
+# keepgoing option, which dt_open turns on.
+path = os.path.join(RD, "slip.hibr")
+open(path, "w").write("%s. %s\ndt_open\nslip_key() { [ \"$2\" = x ] || return 1; echo $(( 1 + )); return 0; }\n"
+                      "dt_app slip Slip 8 30\ndt_new Slip 8 30 6 10 slip\ndt_run\ndt_close\n" % (load(MOD), WM))
+t = Term(path, rows=ROWS, cols=COLS, settle=1.5)
+t.collect(1.5)
+t.keys([b"x", 0.5])
+sc = t.screen()
+t.quit(b"qy", 3)
+log = open(t.log).read() if os.path.exists(t.log) else ""
+check("an arithmetic error in an app is logged and the desktop carries on",
+      sc.find("┤ Slip ├") is not None and "arithmetic" in log and t.exited and t.status == 0,
+      (log, t.status))
+expect(r"arithmetic: syntax error")
+
+report(446)

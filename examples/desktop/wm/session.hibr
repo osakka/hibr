@@ -23,6 +23,10 @@ DT_IDLEMS="${DT_IDLEMS-60000}"
 # window -- which is how a program in a terminal window gets its ctrl-c.
 dt_open() {
 	dt_supervise
+	# One app's arithmetic slip, or one function nesting too deep, fails
+	# that command and is written to the log -- it does not end the
+	# desktop and every window in it, as it would end another script.
+	shopt -s keepgoing
 	title "hibr [desktop]"
 	dt_load
 	console open || return 1

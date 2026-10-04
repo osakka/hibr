@@ -93,6 +93,10 @@ script, `-c` text, standard input or sourced file before running any of it,
 so one that does not parse runs nothing; without it each command runs as it
 is read, as in bash. `eval`, traps and `$(…)` always run as read -- see
 [0026](adr/0026-a-script-runs-as-it-is-read.md).
+**[hibr]** `set -o keepgoing` makes an arithmetic error, or nesting too
+deep, fail only the command it happened in -- as it does inside `try` --
+where by default, as in bash, it ends a non-interactive script. A long-lived
+script that runs other people's code, such as the desktop, turns it on.
 **[hibr]** `set -o agent`, or `hibr --agent`, is agent mode: errors as JSON
 lines, `nounset`, `strict` and `checkfirst` on, no terminal on standard input, and
 `HIBR_TIMEOUT` bounding each foreground process -- see

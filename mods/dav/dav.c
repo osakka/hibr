@@ -602,8 +602,21 @@ int dv_get(sh *s, int ac, char **av)
 
 /* Upload one file, with a condition on what is there: an ETag it must
    still have, or nothing there at all. The new ETag goes in etag. */
+/* The type to upload a file as, from its name, when none is given: a
+   calendar or a contact as what CalDAV and CardDAV expect. */
+const char *dv_typeof(const char *src)
+{
+	size_t n = strlen(src);
+
+	if (n > 4 && !strcasecmp(src + n - 4, ".ics"))
+		return "text/calendar; charset=utf-8";
+	if (n > 4 && !strcasecmp(src + n - 4, ".vcf"))
+		return "text/vcard; charset=utf-8";
+	return "application/octet-stream";
+}
+
 int dv_put1(sh *s, const char *src, const char *url, const dv_srv *sv,
-	    const char *ifmatch, int ifnone, dv_res *rs, str *etag)
+	    const char *ifmatch, int ifnone, dv_res *rs, str *etag, const char *ctype)
 {
 	dv_req rq;
 	struct stat st;
@@ -625,7 +638,7 @@ int dv_put1(sh *s, const char *src, const char *url, const dv_srv *sv,
 	rq.follow = 1;
 	rq.bfd = fd;
 	rq.bflen = st.st_size;
-	dv_hdr(&rq, "Content-Type", "application/octet-stream");
+	dv_hdr(&rq, "Content-Type", ctype && *ctype ? ctype : dv_typeof(src));
 	if (ifmatch && *ifmatch)
 		dv_hdr(&rq, "If-Match", ifmatch);
 	if (ifnone)
@@ -754,7 +767,7 @@ int dv_putr(sh *s, const char *src, const char *url, const dv_srv *sv,
 			s_ch(&cu, '/');
 			rc = dv_putr(s, cs.p, cu.p, sv, depth + 1);
 		} else if (stat(cs.p, &st) == 0 && S_ISREG(st.st_mode)) {
-			rc = dv_put1(s, cs.p, cu.p, sv, 0, 0, &rs, 0);
+			rc = dv_put1(s, cs.p, cu.p, sv, 0, 0, &rs, 0, 0);
 			if (rc != HIBR_OK)
 				dv_err(s, "cannot upload", cs.p, &rs);
 			dv_resfree(&rs);
@@ -775,7 +788,7 @@ int dv_putr(sh *s, const char *src, const char *url, const dv_srv *sv,
 int dv_put(sh *s, int ac, char **av)
 {
 	int i = 2, rec = 0, ifnone = 0, rc;
-	const char *ifmatch = 0, *src, *loc;
+	const char *ifmatch = 0, *ctype = 0, *src, *loc;
 	str url, base, etag;
 	const dv_srv *sv;
 	dv_res rs;
@@ -787,12 +800,14 @@ int dv_put(sh *s, int ac, char **av)
 			ifnone = 1;
 		else if (!strcmp(av[i], "-m") && i + 1 < ac)
 			ifmatch = av[++i];
+		else if (!strcmp(av[i], "-t") && i + 1 < ac)
+			ctype = av[++i];
 		else
 			break;
 		i++;
 	}
 	if (i + 1 >= ac) {
-		lg(HIBR_LERR, "usage: dav put [-r] [-m etag] [-n] path location");
+		lg(HIBR_LERR, "usage: dav put [-r] [-m etag] [-n] [-t type] path location");
 		return 2;
 	}
 	src = av[i];
@@ -818,7 +833,7 @@ int dv_put(sh *s, int ac, char **av)
 		if (rc == HIBR_OK)
 			dv_code(s, 201);
 	} else {
-		rc = dv_put1(s, src, url.p, sv, ifmatch, ifnone, &rs, &etag);
+		rc = dv_put1(s, src, url.p, sv, ifmatch, ifnone, &rs, &etag, ctype);
 		if (rc != HIBR_OK) {
 			if (rs.code == 412 && ifnone)
 				lg(HIBR_LERR, "dav: %s is already there", loc);
@@ -844,7 +859,7 @@ int dv_put(sh *s, int ac, char **av)
 }
 
 /* dav mkdir LOC and dav rm LOC. */
-int dv_simple(sh *s, const char *method, const char *loc)
+int dv_simple(sh *s, const char *method, const char *loc, const char *ifmatch)
 {
 	str url;
 	const dv_srv *sv;
@@ -865,6 +880,8 @@ int dv_simple(sh *s, const char *method, const char *loc)
 		rq.loc = url.p;
 		rq.sv = sv;
 		rq.follow = 1;
+		if (ifmatch && *ifmatch)
+			dv_hdr(&rq, "If-Match", ifmatch);
 		rc = dv_do(s, &rq, &rs);
 		dv_reqfree(&rq);
 	}
@@ -1051,10 +1068,11 @@ int dv_test(sh *s, const char *what)
 /* The usage line. */
 void dv_usage(void)
 {
-	lg(HIBR_LERR, "usage: dav ls|stat|mkdir|rm location | get [-r] location "
-		      "[dest] | put [-r] [-m etag] [-n] path location | "
-		      "mv|cp [-f] location location | test server | servers | "
-		      "server set|rm|rename ... | close");
+	lg(HIBR_LERR, "usage: dav ls|stat|mkdir location | rm [-m etag] location | "
+		      "get [-r] location [dest] | put [-r] [-m etag] [-n] [-t type] path location | "
+		      "mv|cp [-f] location location | propfind [-d 0|1] location prop... | "
+		      "report [-d depth] location -b body|-f file | sync location [-t token] [prop...] | "
+		      "test server | servers | server set|rm|rename ... | close");
 }
 
 /* dav: a WebDAV client. */
@@ -1079,6 +1097,14 @@ int m_dav(sh *s, int ac, char **av)
 		return dv_mvcp(s, ac, av, "MOVE");
 	if (!strcmp(sub, "cp"))
 		return dv_mvcp(s, ac, av, "COPY");
+	if (!strcmp(sub, "propfind"))
+		return dv_cpropfind(s, ac, av);
+	if (!strcmp(sub, "report"))
+		return dv_creport(s, ac, av);
+	if (!strcmp(sub, "sync"))
+		return dv_csync(s, ac, av);
+	if (!strcmp(sub, "rm") && ac == 5 && !strcmp(av[2], "-m"))
+		return dv_simple(s, "DELETE", av[4], av[3]);
 	if (ac != 3) {
 		dv_usage();
 		return 2;
@@ -1088,9 +1114,9 @@ int m_dav(sh *s, int ac, char **av)
 	if (!strcmp(sub, "stat"))
 		return dv_stat(s, av[2]);
 	if (!strcmp(sub, "mkdir"))
-		return dv_simple(s, "MKCOL", av[2]);
+		return dv_simple(s, "MKCOL", av[2], 0);
 	if (!strcmp(sub, "rm"))
-		return dv_simple(s, "DELETE", av[2]);
+		return dv_simple(s, "DELETE", av[2], 0);
 	if (!strcmp(sub, "test"))
 		return dv_test(s, av[2]);
 	dv_usage();

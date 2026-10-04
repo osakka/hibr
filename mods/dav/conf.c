@@ -205,6 +205,58 @@ dv_srv *dv_srvurl(const char *url)
 		best = n;
 		b = v;
 	}
+	return b ? b : dv_srvsib(url);
+}
+
+/* Whether host b is in host a's domain -- a with its first label taken off,
+   which must itself be more than a public suffix such as co.uk -- so that a
+   login set up for caldav.icloud.com reaches p12-caldav.icloud.com, where
+   the server sends its calendars, and nowhere outside icloud.com. */
+int dv_samedom(const char *a, const char *b)
+{
+	const char *d = strchr(a, '.'), *t;
+	size_t dn, bn;
+
+	if (!d || !strchr(d + 1, '.'))
+		return 0;
+	d++;
+	t = strrchr(d, '.');
+	if (strlen(t + 1) == 2 && (size_t)(t - d) <= 3)
+		return 0;
+	dn = strlen(d);
+	bn = strlen(b);
+	return bn > dn && b[bn - dn - 1] == '.' && !strcasecmp(b + bn - dn, d);
+}
+
+/* The server whose login a full address on a sibling host may use: both
+   over TLS, the host in the same domain (dv_samedom). None otherwise. */
+dv_srv *dv_srvsib(const char *url)
+{
+	size_t i;
+	dv_srv *v, *b = 0;
+	dv_url u, w;
+
+	if (strncasecmp(url, "https://", 8))
+		return 0;
+	memset(&u, 0, sizeof u);
+	if (dv_urlsplit(url, &u) != HIBR_OK) {
+		dv_urlfree(&u);
+		return 0;
+	}
+	for (i = 0; i < dv_srvs.n && !b; i++) {
+		v = dv_srvs.p[i];
+		if (strncasecmp(v->url, "https://", 8))
+			continue;
+		memset(&w, 0, sizeof w);
+		if (dv_urlsplit(v->url, &w) == HIBR_OK && w.host.p && u.host.p &&
+		    dv_samedom(w.host.p, u.host.p)) {
+			lg(HIBR_LDBG, "dav: %s is in the domain of %s, so its login goes there too",
+			   u.host.p, v->name);
+			b = v;
+		}
+		dv_urlfree(&w);
+	}
+	dv_urlfree(&u);
 	return b;
 }
 

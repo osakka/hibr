@@ -1884,6 +1884,15 @@ went in the shell.
   in a process group of its own and is stopped by SIGTTOU the moment it
   sets the terminal's modes, which looks like a desktop that never draws.
 
+- **An account name may have a space in it, and an unquoted subscript is
+  arithmetic.** `${r[$a]["email"]}` with an account named "Home Email" is
+  `Home` then a stray `Email`: an arithmetic error, which ended the whole
+  desktop (0.99.27). Every key that came from a person -- an account, a
+  folder, a label -- is quoted, `${r["$a"]["email"]}`, and the suites name
+  their accounts with spaces. The desktop now runs under `set -o
+  keepgoing`, so such a slip fails one command and is logged rather than
+  ending every window; `tests/desktop.py` checks an app's slip is survived.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then

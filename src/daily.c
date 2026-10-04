@@ -662,6 +662,8 @@ unsigned sh_optbit(const char *nm)
 		return O_AGENT;
 	if (!strcmp(nm, "checkfirst"))
 		return O_CHECK;
+	if (!strcmp(nm, "keepgoing"))
+		return O_KEEPGOING;
 	return 0;
 }
 
@@ -707,7 +709,7 @@ const char *sh_optnames[] = { "errexit", "nounset", "xtrace", "noclobber",
 			      "nocaseglob", "dotglob", "failglob",
 			      "nocasematch", "extglob", "globstar",
 			      "expand_aliases", "pipefail", "inherit_errexit",
-			      "agent", "checkfirst", 0 };
+			      "agent", "checkfirst", "keepgoing", 0 };
 
 /* Read one option by name, or -1 when there is no such option. */
 int sh_optget(sh *s, const char *nm)

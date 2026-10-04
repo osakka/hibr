@@ -96,6 +96,7 @@ void dv_xfree(dv_x *x)
 	s_free(&x->text);
 	free(x->ns);
 	free(x->name);
+	free(x->aname);
 	free(x);
 }
 
@@ -161,13 +162,14 @@ const char *dv_xtag(const char *p, const char *e, vec *nsb, int depth,
 		    dv_x **out, int *empty)
 {
 	const char *n0, *n1, *a0, *a1, *v0, *v1, *colon;
-	str nm, pre, val;
+	str nm, pre, val, an;
 	char q;
 	dv_nsb *b;
 
 	s_init(&nm);
 	s_init(&pre);
 	s_init(&val);
+	s_init(&an);
 	*empty = 0;
 	n0 = p;
 	while (p < e && !strchr(" \t\r\n/>", *p))
@@ -220,6 +222,9 @@ const char *dv_xtag(const char *p, const char *e, vec *nsb, int depth,
 			b->uri = xs(val.p ? val.p : "");
 			b->depth = depth;
 			v_add(nsb, b);
+		} else if (a1 - a0 == 4 && !memcmp(a0, "name", 4)) {
+			an.n = 0;
+			dv_xtext(&an, v0, v1);
 		}
 	}
 	colon = memchr(n0, ':', (size_t)(n1 - n0));
@@ -231,6 +236,9 @@ const char *dv_xtag(const char *p, const char *e, vec *nsb, int depth,
 		s_add(&nm, n0, (size_t)(n1 - n0));
 	}
 	*out = dv_xnew(dv_nsfind(nsb, pre.p ? pre.p : ""), nm.p ? nm.p : "");
+	if (an.p)
+		(*out)->aname = xs(an.p);
+	s_free(&an);
 	s_free(&nm);
 	s_free(&pre);
 	s_free(&val);

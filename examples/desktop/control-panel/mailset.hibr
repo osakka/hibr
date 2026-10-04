@@ -48,7 +48,7 @@ fn mailset_rows(int w) {
 	if r := email accounts 2> /dev/null; then
 		for a in "${!r[@]}"; do
 			CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="$a"
-			CP[$w][$n]["val"]="${r[$a]["email"]}"; CP[$w][$n]["key"]="acct:$a"
+			CP[$w][$n]["val"]="${r["$a"]["email"]}"; CP[$w][$n]["key"]="acct:$a"
 			n=$((n + 1))
 		done
 	fi

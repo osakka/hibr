@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.99.28
+
+**A mail account with a space in its name no longer ends the desktop.** An
+account named "Home Email" was read, in two places, as arithmetic -- an
+unquoted subscript -- and the error ended the desktop. Every name a person
+chose is now quoted, and the suite's accounts have spaces in their names.
+
+**One app's error no longer ends the desktop.** The shell has a new option,
+`set -o keepgoing`: an arithmetic error, or nesting too deep, fails the
+command it happened in instead of ending the script, as it already did
+inside `try`. The desktop turns it on, so a slip in any app is written to
+`desktop.log` and everything else carries on. Without it, a script behaves
+as before, and as in bash.
+
+**Also in this release, not yet used by an app:** the `dav` module learns
+`propfind`, `report` and `sync` (WebDAV properties, reports such as CalDAV's
+and CardDAV's, and RFC 6578 sync tokens), `put -t` for a content type (and
+guesses `.ics` and `.vcf`), `rm -m` for If-Match, and lets a server's login
+follow it to another host of the same domain over TLS -- iCloud sends its
+calendars to a numbered host. These are the first part of calendar and
+contacts.
+
 ## 0.99.27
 
 **Restart Desktop and the new supervisor get on.** Restarting a desktop

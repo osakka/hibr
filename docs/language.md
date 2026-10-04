@@ -53,7 +53,8 @@ that sources itself, an `eval` that evals itself: each is stopped before the
 stack runs out, with an error naming it, and the script ends as it does for
 an arithmetic error (`try` keeps it to the command). bash crashes on the
 first unless `FUNCNEST` is set; hibr honours `FUNCNEST` as bash does, and
-stops at three quarters of the stack whether it is set or not.
+stops at three quarters of the stack whether it is set or not. Under `set -o
+keepgoing` it, and an arithmetic error, fail only the command.
 
 **Special variables.** `$@ $* $# $? $$ $! $0–$9 $RANDOM $SECONDS $EPOCHSECONDS
 $EPOCHREALTIME $LINENO $PPID $UID $EUID $HOSTNAME $HIBR_VERSION $HIBR_ABI $HIBR`, plus `$RET`, `$ERRMSG`, `$ERR`, `$ERRSTATUS`,

@@ -91,7 +91,7 @@ struct dv_res {
 /* An XML element: its namespace and local name, its text, its children. */
 typedef struct dv_x dv_x;
 struct dv_x {
-	char *ns, *name;
+	char *ns, *name, *aname;
 	str text;
 	vec kids;
 };
@@ -110,6 +110,8 @@ int dv_md5hex(const char *p, size_t n, str *out);
 int dv_conf(sh *s);
 dv_srv *dv_srvfind(const char *name);
 dv_srv *dv_srvurl(const char *url);
+dv_srv *dv_srvsib(const char *url);
+int dv_samedom(const char *a, const char *b);
 int dv_srvset(sh *s, const char *name, const char *url, const char *user,
 	      const char *pass, int noverify, int keeppass);
 int dv_srvdel(sh *s, const char *name);
@@ -139,6 +141,11 @@ dv_x *dv_xkid(dv_x *x, const char *ns, const char *name);
 long dv_httpdate(const char *p);
 
 int dv_list(sh *s, const char *loc, int depth, vec *out);
+int dv_cpropfind(sh *s, int ac, char **av);
+int dv_creport(sh *s, int ac, char **av);
+int dv_csync(sh *s, int ac, char **av);
+int dv_err(sh *s, const char *what, const char *loc, dv_res *rs);
+void dv_code(sh *s, int code);
 void dv_entfree(vec *v);
 const char *dv_why(int code);
 

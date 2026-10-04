@@ -1,0 +1,12 @@
+0
+hibr: arithmetic: syntax error near ''
+status 1
+hibr: arithmetic: syntax error near ''
+carried on: 1
+status 0
+hibr: f: nested too deeply, N calls down: the stack would run out
+after: 1
+keepgoing       off
+keepgoing       on
+keepgoing       off
+done

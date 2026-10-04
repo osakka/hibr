@@ -5,9 +5,19 @@ command line -- Basic or Digest logins, TLS, chunked replies, a default
 namespace instead of a prefix, absolute hrefs, a base path, redirects for
 a folder named without its slash, idle connections dropped, and a nonce
 that goes stale. Prints "port N" once it is listening.
+
+With --pim it is a CalDAV and CardDAV server too, for tests/pim.py: the
+folder holds principals/u/, calendars/u/NAME/ and addressbooks/u/NAME/,
+each collection's name, colour and components in a .props file of JSON;
+/.well-known/caldav and carddav redirect to the principal; PROPFIND
+answers whatever is asked, what it does not know in a 404 propstat; and
+REPORT does calendar-query, calendar-multiget, addressbook-query,
+addressbook-multiget and sync-collection, the tokens kept by a change log
+that PUT and DELETE write.
 """
-import argparse, hashlib, html, os, secrets, shutil, socket, ssl, sys
+import argparse, hashlib, html, json, os, secrets, shutil, socket, ssl, sys
 import threading, time
+import xml.etree.ElementTree as ET
 from email.utils import formatdate
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import quote, unquote, urlsplit
@@ -16,6 +26,24 @@ A = None
 NONCES = {}
 LOCK = threading.Lock()
 COUNT = [0]
+DAV, CAL, CARD = "DAV:", "urn:ietf:params:xml:ns:caldav", "urn:ietf:params:xml:ns:carddav"
+CS, ICAL = "http://calendarserver.org/ns/", "http://apple.com/ns/ical/"
+PRE = {DAV: "d", CAL: "c", CARD: "card", CS: "cs", ICAL: "ical"}
+CHANGES = []
+SEQ = [0]
+
+
+def changed(coll, href, gone):
+    """Note a change in a collection, for sync-collection and getctag."""
+    with LOCK:
+        SEQ[0] += 1
+        CHANGES.append((SEQ[0], coll, href, gone))
+
+
+def lastchange(coll):
+    with LOCK:
+        n = [c[0] for c in CHANGES if c[1] == coll]
+    return n[-1] if n else 0
 
 
 def etag(st):
@@ -153,8 +181,9 @@ class H(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         if not self.authed():
             return
-        self.send(200, "", {"DAV": "1, 2", "Allow": "OPTIONS, GET, HEAD, PUT, DELETE, "
-                            "MKCOL, MOVE, COPY, PROPFIND"})
+        self.send(200, "", {"DAV": "1, 2" + (", calendar-access, addressbook" if A.pim else ""),
+                            "Allow": "OPTIONS, GET, HEAD, PUT, DELETE, MKCOL, MOVE, COPY, PROPFIND"
+                            + (", REPORT" if A.pim else "")})
 
     def prop(self, full):
         st = os.stat(full)
@@ -176,10 +205,190 @@ class H(BaseHTTPRequestHandler):
         out.append("</%sresponse>" % d)
         return "".join(out)
 
+    # --- CalDAV and CardDAV ------------------------------------------------
+
+    def kind(self, full):
+        """What a path is: principal, calendar-home, addressbook-home,
+        calendar, addressbook, item or plain."""
+        rel = os.path.relpath(full, A.root).split(os.sep)
+        if rel[:2] == ["principals", A.user]:
+            return "principal"
+        if len(rel) == 2 and rel[0] == "calendars":
+            return "calendar-home"
+        if len(rel) == 2 and rel[0] == "addressbooks":
+            return "addressbook-home"
+        if len(rel) == 3 and rel[0] == "calendars" and os.path.isdir(full):
+            return "calendar"
+        if len(rel) == 3 and rel[0] == "addressbooks" and os.path.isdir(full):
+            return "addressbook"
+        if len(rel) == 4 and rel[0] in ("calendars", "addressbooks"):
+            return "item"
+        return "plain"
+
+    def cprops(self, full):
+        try:
+            with open(os.path.join(full, ".props")) as f:
+                return json.load(f)
+        except OSError:
+            return {}
+
+    def pval(self, full, ns, name):
+        """A property's XML content for a path, or None when it has none."""
+        k = self.kind(full)
+        base = A.prefix.rstrip("/")
+        if (ns, name) == (DAV, "current-user-principal"):
+            return "<d:href>%s/principals/%s/</d:href>" % (base, A.user)
+        if (ns, name) == (CAL, "calendar-home-set") and k == "principal":
+            return "<d:href>%s/calendars/%s/</d:href>" % (base, A.user)
+        if (ns, name) == (CARD, "addressbook-home-set") and k == "principal":
+            return "<d:href>%s/addressbooks/%s/</d:href>" % (base, A.user)
+        if (ns, name) == (DAV, "resourcetype"):
+            if k == "calendar":
+                return "<d:collection/><c:calendar/>"
+            if k == "addressbook":
+                return "<d:collection/><card:addressbook/>"
+            if k == "principal":
+                return "<d:collection/><d:principal/>"
+            return "<d:collection/>" if os.path.isdir(full) else ""
+        if (ns, name) == (DAV, "displayname"):
+            if k in ("calendar", "addressbook"):
+                return html.escape(self.cprops(full).get("name", os.path.basename(full)))
+            return None
+        if (ns, name) == (ICAL, "calendar-color") and k == "calendar":
+            c = self.cprops(full).get("color")
+            return html.escape(c) if c else None
+        if (ns, name) == (CAL, "supported-calendar-component-set") and k == "calendar":
+            return "".join('<c:comp name="%s"/>' % c
+                           for c in self.cprops(full).get("components", ["VEVENT", "VTODO"]))
+        if (ns, name) == (CS, "getctag") and k in ("calendar", "addressbook"):
+            return "ctag-%d" % lastchange(self.href(full))
+        if (ns, name) == (DAV, "sync-token") and k in ("calendar", "addressbook"):
+            return "http://stand-in.test/sync/%d" % SEQ[0]
+        if (ns, name) == (DAV, "getetag") and k == "item":
+            return html.escape(etag(os.stat(full)))
+        if (ns, name) == (DAV, "getcontenttype") and k == "item":
+            return "text/calendar; charset=utf-8" if full.endswith(".ics") else "text/vcard; charset=utf-8"
+        if (ns, name) in ((CAL, "calendar-data"), (CARD, "address-data")) and k == "item":
+            with open(full, "rb") as f:
+                return html.escape(f.read().decode("utf-8", "replace"))
+        return None
+
+    def presp(self, full, want, href=None):
+        """One <d:response> with the wanted properties of a path."""
+        ok, missing = [], []
+        for ns, name in want:
+            v = self.pval(full, ns, name)
+            pre = PRE.get(ns)
+            tag = "%s:%s" % (pre, name) if pre else "x:%s" % name
+            xmlns = "" if pre else ' xmlns:x="%s"' % html.escape(ns)
+            if v is None:
+                missing.append("<%s%s/>" % (tag, xmlns))
+            else:
+                ok.append("<%s%s>%s</%s>" % (tag, xmlns, v, tag))
+        out = ["<d:response><d:href>%s</d:href>" % html.escape(href or self.href(full))]
+        if ok:
+            out.append("<d:propstat><d:prop>%s</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat>"
+                       % "".join(ok))
+        if missing:
+            out.append("<d:propstat><d:prop>%s</d:prop><d:status>HTTP/1.1 404 Not Found</d:status>"
+                       "</d:propstat>" % "".join(missing))
+        out.append("</d:response>")
+        return "".join(out)
+
+    def wanted(self, root):
+        prop = root.find("{DAV:}prop")
+        if prop is None:
+            return [(DAV, "resourcetype"), (DAV, "displayname"), (DAV, "getetag")]
+        return [(c.tag[1:].split("}")[0], c.tag.split("}")[1]) for c in prop]
+
+    def multistatus(self, parts, extra=""):
+        decl = " ".join('xmlns:%s="%s"' % (v, k) for k, v in PRE.items())
+        self.send(207, '<?xml version="1.0" encoding="utf-8"?>\n<d:multistatus %s>%s%s</d:multistatus>'
+                  % (decl, "".join(parts), extra), ctype='application/xml; charset="utf-8"')
+
+    def members(self, full):
+        return [os.path.join(full, n) for n in sorted(os.listdir(full))
+                if not n.startswith(".")] if os.path.isdir(full) else []
+
+    def pim_propfind(self, full, data):
+        try:
+            root = ET.fromstring(data) if data.strip() else ET.Element("{DAV:}propfind")
+        except ET.ParseError:
+            return self.send(400, "bad xml")
+        want = self.wanted(root)
+        items = [full]
+        if self.headers.get("Depth", "infinity") == "1":
+            items += self.members(full)
+        self.multistatus([self.presp(i, want) for i in items])
+
+    def do_REPORT(self):
+        if not self.authed():
+            return
+        data = self.body()
+        full = self.local()
+        if not A.pim or full is None or not os.path.exists(full):
+            return self.send(404 if A.pim else 405, "no")
+        try:
+            root = ET.fromstring(data)
+        except ET.ParseError:
+            return self.send(400, "bad xml")
+        want = self.wanted(root)
+        tag = root.tag
+        if tag in ("{%s}calendar-multiget" % CAL, "{%s}addressbook-multiget" % CARD):
+            parts = []
+            for h in root.findall("{DAV:}href"):
+                p = self.local(h.text.strip())
+                if p and os.path.exists(p):
+                    parts.append(self.presp(p, want, h.text.strip()))
+                else:
+                    parts.append("<d:response><d:href>%s</d:href><d:status>HTTP/1.1 404 Not Found"
+                                 "</d:status></d:response>" % html.escape(h.text.strip()))
+            return self.multistatus(parts)
+        if tag in ("{%s}calendar-query" % CAL, "{%s}addressbook-query" % CARD):
+            return self.multistatus([self.presp(i, want) for i in self.members(full)])
+        if tag == "{DAV:}sync-collection":
+            t = root.findtext("{DAV:}sync-token") or ""
+            since = 0
+            if t:
+                try:
+                    since = int(t.rsplit("/", 1)[1])
+                except (IndexError, ValueError):
+                    return self.send(403, '<?xml version="1.0"?><d:error xmlns:d="DAV:">'
+                                     '<d:valid-sync-token/></d:error>', ctype="application/xml")
+            coll = self.href(full)
+            parts = []
+            if not since:
+                parts = [self.presp(i, want) for i in self.members(full)]
+            else:
+                with LOCK:
+                    seen = {}
+                    for seq, c, h, gone in CHANGES:
+                        if c == coll and seq > since:
+                            seen[h] = gone
+                for h, gone in seen.items():
+                    p = self.local(h)
+                    if gone or not p or not os.path.exists(p):
+                        parts.append("<d:response><d:href>%s</d:href><d:status>HTTP/1.1 404 Not Found"
+                                     "</d:status></d:response>" % html.escape(h))
+                    else:
+                        parts.append(self.presp(p, want, h))
+            return self.multistatus(parts, "<d:sync-token>http://stand-in.test/sync/%d</d:sync-token>"
+                                    % SEQ[0])
+        return self.send(403, "unsupported report")
+
     def do_PROPFIND(self):
         if not self.authed():
             return
-        self.body()
+        data = self.body()
+        if A.pim and urlsplit(self.path).path.rstrip("/") in ("/.well-known/caldav", "/.well-known/carddav"):
+            return self.send(301, "", {"Location": "%s/principals/%s/" % (A.prefix.rstrip("/"), A.user)})
+        if A.pim:
+            full = self.local()
+            if full is None or not os.path.exists(full):
+                return self.send(404, "not found")
+            if self.slashfix(full):
+                return
+            return self.pim_propfind(full, data)
         full = self.local()
         if full is None or not os.path.exists(full):
             return self.send(404, "not found")
@@ -210,6 +419,9 @@ class H(BaseHTTPRequestHandler):
     def do_GET(self):
         if not self.authed():
             return
+        wk = urlsplit(self.path).path
+        if A.pim and wk in ("/.well-known/caldav", "/.well-known/carddav"):
+            return self.send(301, "", {"Location": "%s/principals/%s/" % (A.prefix.rstrip("/"), A.user)})
         full = self.local()
         if full is None or not os.path.exists(full):
             return self.send(404, "not found")
@@ -243,6 +455,8 @@ class H(BaseHTTPRequestHandler):
             return self.send(412, "exists")
         with open(full, "wb") as f:
             f.write(data)
+        if A.pim:
+            changed(self.href(os.path.dirname(full)), self.href(full), False)
         self.send(204 if exists else 201, "", {"ETag": etag(os.stat(full))} if not A.noetag else {})
 
     def do_DELETE(self):
@@ -253,10 +467,16 @@ class H(BaseHTTPRequestHandler):
             return self.send(403, "no")
         if not os.path.exists(full):
             return self.send(404, "not found")
+        im = self.headers.get("If-Match")
+        if im and not os.path.isdir(full) and im != etag(os.stat(full)):
+            return self.send(412, "changed")
+        href = self.href(full)
         if os.path.isdir(full):
             shutil.rmtree(full)
         else:
             os.unlink(full)
+        if A.pim:
+            changed(self.href(os.path.dirname(full)), href, True)
         self.send(204)
 
     def do_MKCOL(self):
@@ -323,6 +543,7 @@ def main():
     ap.add_argument("--stale", type=int, default=0)
     ap.add_argument("--evil", action="store_true")
     ap.add_argument("--log")
+    ap.add_argument("--pim", action="store_true")
     A = ap.parse_args()
     A.root = os.path.realpath(A.root)
     if not A.prefix.endswith("/"):

@@ -61,8 +61,8 @@ ml_accounts() {
 	r := email accounts 2> /dev/null || return 1
 	for k in "${!r[@]}"; do
 		ML_ACCTS+=("$k")
-		MLA["$k"]=${r[$k]["kind"]}
-		MLME["$k"]=${r[$k]["email"]}
+		MLA["$k"]=${r["$k"]["kind"]}
+		MLME["$k"]=${r["$k"]["email"]}
 	done
 	[ "${#ML_ACCTS[@]}" -gt 0 ]
 }
