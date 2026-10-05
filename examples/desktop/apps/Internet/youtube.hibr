@@ -356,11 +356,11 @@ fn yt_fav(int id) {
 	if [ -n "${YTF["$vid"]}" ]; then
 		unset YTF["$vid"]
 		yt_fileput "$YT_FAVS" "$vid"
-		dt_notep low "Taken out of the favourites: $title"
+		dt_notep low "Taken out of the favourites: %s" "$title"
 	else
 		YTF["$vid"]=1
 		yt_fileput "$YT_FAVS" "$vid" "$kind"$'\t'"$vid"$'\t'"$title"$'\t'"$ch"$'\t'"$len"
-		dt_notep low "Kept as a favourite: $title"
+		dt_notep low "Kept as a favourite: %s" "$title"
 	fi
 	[ "${YT[$id]["kind"]}" = favourites ] && [ "${YT[$id]["view"]}" = list ] &&
 		yt_load "$id" favourites "" "" 0
@@ -530,7 +530,7 @@ fn yt_tick(int id) {
 		m := yt_mmss "${YT[$id]["resume"]}"
 		yt_seek "$id" "${YT[$id]["resume"]}"
 		YT[$id]["resume"]=
-		dt_notep low "Taken up at $m, where it was left"
+		dt_notep low "Taken up at %s, where it was left" "$m"
 	fi
 	if [ "${YT[$id]["state"]}" = playing ] &&
 	   [ $((EPOCHSECONDS - ${YT[$id]["chk"]:-0})) -ge 3 ]; then
@@ -596,7 +596,7 @@ fn yt_recover(int id, int pos) {
 	printf 'youtube: the page %s %s at %s; loading it again\n' "$why" \
 		"${YT[$id]["vid"]}" "$m" >&2
 	if [ "$pos" -gt 0 ]; then
-		dt_notep low "YouTube stopped -- picking up again at $m"
+		dt_notep low "YouTube stopped -- picking up again at %s" "$m"
 		YT[$id]["resume"]=$pos
 	else
 		dt_notep low "YouTube did not answer -- trying again"
@@ -752,7 +752,7 @@ fn yt_drawlist(int id, int h, int w) {
 
 	command -v dt_retitle > /dev/null && dt_retitle "$id" "YouTube"
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 1 1 " Search:"
+	dt_tput "$id" 1 1 " Search:"
 	[ "${YT[$id]["qon"]}" = 1 ] && on=1
 	dt_textdraw "$id" 1 10 $((w - 10)) "${YT[$id]["qbuf"]}" "${YT[$id]["qcur"]}" "$on"
 	dt_wreg "$id" 1 10 $((w - 10)) search
@@ -768,7 +768,7 @@ fn yt_drawlist(int id, int h, int w) {
 		console put -p "w$id" 3 2 "${YT[$id]["err"]:0:$((w - 3))}"
 	elif [ "$n" = 0 ]; then
 		console pen "$DT_DIM" "$DT_FACE"
-		console put -p "w$id" 3 2 "Type what to look for, or a playlist's or a channel's address, and enter."
+		dt_tput "$id" 3 2 "Type what to look for, or a playlist's or a channel's address, and enter."
 	fi
 	[ "$sel" -lt "$top" ] && top=$sel
 	[ "$sel" -ge $((top + vis)) ] && top=$((sel - vis + 1))

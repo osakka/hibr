@@ -245,7 +245,7 @@ fn dt_shot_take(int r, int c, int h, int w) {
 	*) ext=ans ;;
 	esac
 	if [ ! -d "$DT_SHOTDIR" ] && ! mkdir -p "$DT_SHOTDIR" 2> /dev/null; then
-		dt_notep high "Screenshot: $DT_SHOTDIR cannot be made"
+		dt_notep high "Screenshot: %s cannot be made" "$DT_SHOTDIR"
 		return 1
 	fi
 	printf -v name 'hibr-%(%Y-%m-%d-%H%M%S)T' -1
@@ -254,7 +254,7 @@ fn dt_shot_take(int r, int c, int h, int w) {
 	dt_draw
 	console flush
 	if ! console shot -f "$DT_SHOTFMT" "$f" "$r" "$c" "$h" "$w"; then
-		dt_notep high "Screenshot could not be written to $DT_SHOTDIR"
+		dt_notep high "Screenshot could not be written to %s" "$DT_SHOTDIR"
 		return 1
 	fi
 	DT_SHOTFILE=$f

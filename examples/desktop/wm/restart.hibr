@@ -88,11 +88,11 @@ dt_restart() {
 	local f="$DT_RSDIR/state.json"
 
 	if [ ! -x "$HIBR" ] || [ ! -r "$DT_SELF0" ]; then
-		dt_notep high "Cannot restart: no hibr at ${HIBR:-?}, or no $DT_SELF0"
+		dt_notep high "Cannot restart: no hibr at %s, or no %s" "${HIBR:-?}" "$DT_SELF0"
 		return 1
 	fi
 	[ -d "$DT_RSDIR" ] || mkdir -p "$DT_RSDIR" 2> /dev/null || {
-		dt_notep high "Cannot restart: $DT_RSDIR cannot be made"
+		dt_notep high "Cannot restart: %s cannot be made" "$DT_RSDIR"
 		return 1
 	}
 	if ! dt_rswrite "$f" 1; then
@@ -111,7 +111,7 @@ dt_restart() {
 	export -n DT_RESTORE
 	DT_RESTORE=
 	dt_open
-	dt_notep high "Restart failed: $HIBR would not run"
+	dt_notep high "Restart failed: %s would not run" "$HIBR"
 	return 1
 }
 
@@ -258,7 +258,7 @@ dt_restore() {
 	case ${DT_RS["why"]} in
 	crash) dt_notep high "The desktop stopped unexpectedly and was started again; its windows are back (see desktop.log)" ;;
 	stop) dt_notep low "Reopened the windows from when the desktop was stopped" ;;
-	*) dt_notep low "Restarted: hibr $HIBR_VERSION" ;;
+	*) dt_notep low "Restarted: hibr %s" "$HIBR_VERSION" ;;
 	esac
 }
 

@@ -40,7 +40,7 @@ ab_store() {
 	if json emit AB_ME -p > "$f.new" 2> /dev/null && mv -f "$f.new" "$f"; then
 		return 0
 	fi
-	dt_notep high "Could not save About Me in $f"
+	dt_notep high "Could not save About Me in %s" "$f"
 	return 1
 }
 
@@ -150,7 +150,7 @@ fn abm_draw(int id, int h, int w, int row, int col) {
 		r=$((r + 2))
 	done
 	console pen "$DT_DIM" "$DT_FACE"
-	console put -p "w$id" "$r" 2 "Shown on the login screen, with your picture."
+	dt_tput "$id" "$r" 2 "Shown on the login screen, with your picture."
 	dt_dlgbtns "$id" "$h" "$w" "$f" ok Save cancel Cancel
 }
 

@@ -292,14 +292,14 @@ fn cv_fresh(int id) {
 fn calendar_draw(int id, int h, int w, int row, int col) {
 	if [ "${CVW[$id]["nopim"]}" = 1 ]; then
 		console pen "$DT_DIM" "$DT_FACE"
-		console put -p "w$id" 1 2 "Calendar needs the pim and db modules, which are not installed."
+		dt_tput "$id" 1 2 "Calendar needs the pim and db modules, which are not installed."
 		return 0
 	fi
 	if ! pe_servers; then
 		console pen "$DT_DIM" "$DT_FACE"
-		console put -p "w$id" 1 2 "No server chosen for calendars yet."
-		console put -p "w$id" 2 2 "Control Panel > PIM chooses one"
-		console put -p "w$id" 3 2 "from the Network Servers list."
+		dt_tput "$id" 1 2 "No server chosen for calendars yet."
+		dt_tput "$id" 2 2 "Control Panel > PIM chooses one"
+		dt_tput "$id" 3 2 "from the Network Servers list."
 		return 0
 	fi
 	cv_fresh "$id"
@@ -322,7 +322,7 @@ fn cv_drawbar(int id, int w, title) {
 	console put -p "w$id" 1 $((6 + ${#title})) " ${GL[rarr]} "
 	dt_wreg "$id" 1 $((6 + ${#title})) 3 next
 	console pen "$DT_DIM" "$DT_FACE"
-	console put -p "w$id" 1 "$x" "Today  Month  Agenda"
+	dt_tput "$id" 1 "$x" "Today  Month  Agenda"
 	dt_wreg "$id" 1 "$x" 5 today
 	dt_wreg "$id" 1 $((x + 7)) 5 month
 	dt_wreg "$id" 1 $((x + 14)) 6 agenda
@@ -403,7 +403,7 @@ fn cv_drawday(int id, int r0, int vis, int w) {
 	[ "${CVW[$id]["li"]:-0}" -ge "${#mine[@]}" ] && CVW[$id]["li"]=0
 	if [ "${#mine[@]}" = 0 ]; then
 		console pen "$DT_DIM" "$DT_FACE"
-		console put -p "w$id" "$r" 3 "Nothing on this day. Enter makes an event."
+		dt_tput "$id" "$r" 3 "Nothing on this day. Enter makes an event."
 		return 0
 	fi
 	for i in "${mine[@]}"; do
@@ -439,7 +439,7 @@ fn cv_drawagenda(int id, int h, int w) {
 	CVW[$id]["dayev"]="${all[*]}"
 	if [ "$n" = 0 ]; then
 		console pen "$DT_DIM" "$DT_FACE"
-		console put -p "w$id" 3 2 "Nothing in the next sixty days."
+		dt_tput "$id" 3 2 "Nothing in the next sixty days."
 		return 0
 	fi
 	[ "${CVW[$id]["li"]:-0}" -ge "$n" ] && CVW[$id]["li"]=$((n - 1))
@@ -664,9 +664,11 @@ fn cv_delask(int id, int i) {
 
 	CV_DEL="$id $i"
 	if [ "${CVI[$id][$i]["recurid"]:-0}" != 0 ]; then
-		dt_confirm "Remove $what, every time it repeats?" cv_deldo
+		DT_T := dt_tr "Remove %s, every time it repeats?" "$what"
+		dt_confirm "$DT_T" cv_deldo
 	else
-		dt_confirm "Remove $what?" cv_deldo
+		DT_T := dt_tr "Remove %s?" "$what"
+		dt_confirm "$DT_T" cv_deldo
 	fi
 }
 cv_deldo() {
@@ -718,7 +720,7 @@ cv_alarms() {
 			CVFIRED["$k"]=1
 			if [ "$at" -gt $((now - 600)) ]; then
 				hm := cv_hm "${CVAL[$i]["start"]}"
-				dt_notep high "${CVAL[$i]["summary"]:-An event} at $hm"
+				dt_notep high "%s at %s" "${CVAL[$i]["summary"]:-An event}" "$hm"
 				dt_want 30
 			fi
 		elif [ "$next" = 0 ] || [ "$at" -lt "$next" ]; then
@@ -1139,7 +1141,7 @@ fn cv_save(int id) {
 	err="$d/out/build.err"
 	if ! pim ics build "$f.req" "${args[@]}" -m REQUEST 2> "$err" || ! pim ics store "$f.req" "$f" 2>> "$err"; then
 		read -r line < "$err"
-		dt_notep high "Could not make the event: ${line#hibr: }"
+		dt_notep high "Could not make the event: %s" "${line#hibr: }"
 		return 1
 	fi
 	printf 'put\t%s\t%s\t%s\t%s\n' "$coll" "$base" "$f" "${CED[$id]["etag"]:--}" >> "$d/queue"
@@ -1176,7 +1178,7 @@ fn cv_invite(srv, acct, ics, to, title, int st, method) {
 	from=${MLME["$acct"]}
 	r := email accounts 2> /dev/null && [ -n "${r["$acct"]["name"]}" ] && from="${r["$acct"]["name"]} <$from>"
 	if ! email build "$m" -f "$from" -t "$to" -s "$subj" -T "$b" -C "$ics" -M "$method" > /dev/null 2>&1; then
-		dt_notep high "Could not make the message to $to"
+		dt_notep high "Could not make the message to %s" "$to"
 		return 1
 	fi
 	command rm -f "$b" "$ics"
@@ -1192,12 +1194,12 @@ fn cv_sent(int n, int st) {
 
 	if [ "$st" = 0 ]; then
 		case ${PEJ[$n]["method"]} in
-		REQUEST) dt_notep low "Saved, and the invitation sent to $to" ;;
-		*) dt_notep low "Your answer is sent to $to" ;;
+		REQUEST) dt_notep low "Saved, and the invitation sent to %s" "$to" ;;
+		*) dt_notep low "Your answer is sent to %s" "$to" ;;
 		esac
 	else
 		[ -s "${PEJ[$n]["dir"]}/$n.err" ] && read -r l < "${PEJ[$n]["dir"]}/$n.err"
-		dt_notep high "Could not send to $to${l:+: ${l#hibr: }}"
+		dt_notep high "Could not send to %s%s" "$to" "${l:+: ${l#hibr: }}"
 	fi
 }
 

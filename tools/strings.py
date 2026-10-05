@@ -25,7 +25,7 @@ SINKS = {
     "dt_notep": [2], "dt_confirm": [1], "dt_button": [4],
     "dt_buttons": "pairs:6", "dt_dlgbtns": "pairs:6", "dt_check": [5],
     "dt_new": [1], "dt_retitle": [2], "dt_iconadd": [3],
-    "console": "put", "dt_tr": [1], "dt_trn": [2, 3],
+    "console": "put", "dt_tr": [1], "dt_trn": [2, 3], "dt_tally": [3], "dt_tput": [4],
 }
 SEP = {";", "&&", "||", "|", "{", "}", "(", ")", "then", "do", "else", "elif", "!"}
 
@@ -122,6 +122,8 @@ def words(src):
 
 def texts(cmd):
     """The text arguments of a sink call: (word, literal, line)."""
+    if len(cmd) > 2 and cmd[1][0] == ":=":
+        cmd = cmd[2:]
     name = cmd[0][0]
     spec = SINKS.get(name)
     args = cmd[1:]
@@ -156,6 +158,7 @@ def collect():
                 continue
             for m in ROWTEXT.finditer(line):
                 rows.append((rel, ln, "literal", m.group(1)))
+        src = src.replace("${GL[ellipsis]}", "…")
         for cmd in words(src):
             for w, lit, ln, raw in texts(cmd):
                 if not re.search(r"[A-Za-z]", w):

@@ -178,7 +178,9 @@ dt_menus() {
 
 	dt_menu "✎"
 	if [ -n "$ap" ] && dt_aboutinfo "$ap"; then
-		dt_item "About ${DT_ABOUT["$ap"]["title"]}${GL[ellipsis]}" a dt_aboutapp "$ap"
+		DT_T := dt_tr "${DT_ABOUT["$ap"]["title"]}"
+		DT_T := dt_tr "About %s…" "$DT_T"
+		dt_item "$DT_T" a dt_aboutapp "$ap"
 		dt_item "About hibr Desktop" h dt_about
 	else
 		dt_item "About hibr Desktop" a dt_about
@@ -251,9 +253,11 @@ dt_menus() {
 			dt_sub "Move to Workspace"
 			while [ "$wsi" -le "$DT_WSN" ]; do
 				if [ "$wsi" = "$DT_WS" ]; then
-					dt_dim "Workspace $wsi"
+					DT_T := dt_tr "Workspace %s" "$wsi"
+					dt_dim "$DT_T"
 				else
-					dt_item "Workspace $wsi" "$wsi" \
+					DT_T := dt_tr "Workspace %s" "$wsi"
+					dt_item "$DT_T" "$wsi" \
 						dt_wsmove_focused "$wsi"
 				fi
 				wsi=$((wsi + 1))
@@ -365,7 +369,9 @@ dt_trashask() {
 	if [ "$DT_TRASHN" = 1 ]; then
 		dt_confirm "Empty the Trash? The one item in it is deleted for good." dt_trashempty
 	else
-		dt_confirm "Empty the Trash? The $DT_TRASHN items in it are deleted for good." dt_trashempty
+		DT_T := dt_trn "$DT_TRASHN" "Empty the Trash? The one item in it is deleted for good." \
+			"Empty the Trash? The %d items in it are deleted for good." "$DT_TRASHN"
+		dt_confirm "$DT_T" dt_trashempty
 	fi
 }
 dt_trashempty() {
@@ -377,7 +383,8 @@ dt_trashempty() {
 	command rm -rf -- "$DT_TRASH/files" "$DT_TRASH/info" 2>> "$DT_LOG"
 	mkdir -p "$DT_TRASH/files" "$DT_TRASH/info" 2> /dev/null
 	dt_changed
-	if [ "$n" = 1 ]; then dt_notep low "The Trash is empty: 1 item deleted"; else dt_notep low "The Trash is empty: $n items deleted"; fi
+	DT_T := dt_trn "$n" "The Trash is empty: 1 item deleted" "The Trash is empty: %d items deleted" "$n"
+	dt_notep low "$DT_T"
 }
 
 # What an About box says about an app, from the file that declared it:
@@ -582,11 +589,12 @@ fn dt_editdo(op) {
 	[ -n "$DT_FOCUS" ] || return 0
 	cb=${DT[$DT_FOCUS]["$op"]}
 	if [ -z "$cb" ]; then
-		dt_notep low "${DT[$DT_FOCUS]["title"]} cannot $op"
+		DT_T := dt_tr "${DT[$DT_FOCUS]["title"]}"
+		dt_notep low "%s cannot %s" "$DT_T" "$op"
 		return 0
 	fi
 	DT_NOTEWIN=$DT_FOCUS
-	$cb "$DT_FOCUS" || dt_notep low "Nothing to $op"
+	$cb "$DT_FOCUS" || dt_notep low "Nothing to %s" "$op"
 	return 0
 }
 

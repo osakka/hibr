@@ -24,6 +24,8 @@ DT_LANG="${DT_LANG-}"
 DT_BIDI="${DT_BIDI-on}"
 DT_LANGON=
 DT_LANGRTL=
+# Scratch for a translated label built from a template, before it is handed on.
+DT_T=
 dt_keep DT_LANG DT_BIDI
 
 # The text a person reads, in the chosen language, %s and %N$s filled from the rest.
@@ -42,7 +44,7 @@ fn dt_tr(key, ...rest) {
 		return 0
 	fi
 	if [ "${#rest[@]}" -gt 0 ]; then
-		printf -v t -- "${key//\%[1-9]\$/%}" "${rest[@]}"
+		printf -v t "${key//\%[1-9]\$/%}" "${rest[@]}"
 		ret "$t"
 		return 0
 	fi
@@ -60,8 +62,21 @@ fn dt_trn(int n, one, many, ...rest) {
 	fi
 	t=$many
 	[ "$n" = 1 ] && t=$one
-	printf -v t -- "$t" "${rest[@]}"
+	printf -v t "$t" "${rest[@]}"
 	ret "$t"
+}
+
+# A window title translated: "Files [~/notes]" is the name translated, what is in brackets kept.
+fn dt_trtitle(t) {
+	local b
+
+	if [[ $t == *" ["*"]" ]]; then
+		b := dt_tr "${t%% \[*}"
+		ret "$b [${t#* \[}"
+		return 0
+	fi
+	b := dt_tr "$t"
+	ret "$b"
 }
 
 # Draw text a person reads into window id at r, c: translated, %s filled from the rest.

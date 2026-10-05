@@ -132,9 +132,11 @@ fn dt_titlecontext(int id) {
 		dt_sub "Move to Workspace"
 		while [ "$wsi" -le "$DT_WSN" ]; do
 			if [ "$wsi" = "${DT[$id]["ws"]:-1}" ]; then
-				dt_dim "Workspace $wsi"
+				DT_T := dt_tr "Workspace %s" "$wsi"
+				dt_dim "$DT_T"
 			else
-				dt_item "Workspace $wsi" "$wsi" dt_wsmove "$id" "$wsi"
+				DT_T := dt_tr "Workspace %s" "$wsi"
+				dt_item "$DT_T" "$wsi" dt_wsmove "$id" "$wsi"
 			fi
 			wsi=$((wsi + 1))
 		done

@@ -1,21 +1,67 @@
+ %s Compose 
+ Search:
+"%s" is not here
+%H %M %S %l %p %a %d %b %Y, as strftime
+%s %s items%s
+%s %s items…
+%s %s…
+%s already has a %s
+%s at %s
+%s cannot %s
+%s cannot be made
+%s changed on the server while you edited it; yours is saved as %s
+%s changed on the server, and your edit could not be saved beside it: %s
+%s does not take files
+%s edited file(s) not yet saved to a server were kept
+%s has no address book yet -- sync it first
+%s has no shortcut now
+%s is %s's: give it to %s?
+%s is a database, not a sheet
+%s is a number
+%s is a whole number
+%s is blank
+%s is in use again
+%s is on every workspace
+%s is on workspace %s only
+%s is sandboxed again
+%s is the primary display -- make another primary first
+%s is there already. Replace it?
+%s is trusted
+%s keeps files, not calendars or contacts
+%s keeps its size; it can only be centred
+%s moved to workspace %s
+%s moves around the Control Panel, so it cannot be a shortcut
+%s selected
+%s, and %s more could not go
+(empty)
+(from the address)
 (none yet)
+(unchanged)
+/ Search contacts
+/ Search mail
+< <= > >= = !=, a number, then good, warn, bad,
 A cell holds at most 4096 bytes
 A command is needed
 A contact needs a name or an email
 A folder is needed
+A message was not sent: %s
 A rule is an operator, a number and a colour: < 0 bad
 A terminal cannot start in a folder on a server
 A theme's name is letters, digits, spaces, dots and dashes
+About %s…
 About Me
 About hibr
 About hibr Desktop
+Account %s saved
 Accounts
 Add 10 Rows
 Add 5 Columns
 Add Bookmark
 Add File Type…
 Add Sender to Contacts
+Add a Mail Account
 Add a server in Control Panel > Network Servers
+Added %s to Contacts
 Added to your calendar
 Agenda
 Align
@@ -28,6 +74,10 @@ Apps
 Archive
 Arrange Icons
 As It Is
+Asked %s to join
+Asking %s what it keeps…
+Attach File…
+Attach…
 Average
 Back
 Back 10 Seconds
@@ -36,6 +86,7 @@ Backspace
 Bar Shadow
 Bold
 Bookmark removed
+Bookmarked %s
 Bookmarks
 Border
 Bottom
@@ -47,19 +98,31 @@ Button Shadow
 Button Style
 Buttons
 By Kind
+CPU:    %s%%       Memory: %s
 Calc
 Calculator
 Calendar
+Calendar needs the pim and db modules, which are not installed.
 Cancel
 Cancelled
 Cannot hold the pasted text to send it
 Cannot lock: no PAM to check a password with
+Cannot make %s
+Cannot open %s as a sheet
+Cannot open the folder %s
+Cannot read %s
+Cannot restart: %s cannot be made
+Cannot restart: no hibr at %s, or no %s
 Cannot restart: the state could not be written
+Cannot write %s
+Cannot write in %s
 Center
+Change Wallpaper…
 Check Every (minutes)
 Check for Mail
 Check the server's certificate
 Checkboxes
+Checking for mail…
 Choose a server for contacts first, in Control Panel > PIM
 Clean Up Desktop
 Clear
@@ -82,44 +145,75 @@ Close without saving? The changes are lost.
 Code
 Color
 Colour Detail
+Colour a number when it is:
 Colour by Value
 Colours
 Columns
+Command:
+Connect to Server
+Connect to Server…
 Contact
 Contacts
 Contacts is not here to add to
 Control Panel
+Control Panel > PIM chooses one
 Control Strip
 Control Strip: arrows scroll it, until escape
 Control Strip: released
 Controls
 Conversation archived
 Conversation marked as spam
+Conversation moved to %s
 Conversation moved to Trash
+Copied
+Copied %s characters
 Copied the paths of what is selected
 Copy
 Copy on Select
+Copy something anywhere, or paste here,
 Could not change owner or group
 Could not change permissions
 Could not keep the event
+Could not make a folder in %s
+Could not make a folder: %s
 Could not make the answer
+Could not make the contact: %s
+Could not make the event: %s
+Could not make the message to %s
+Could not open %s: %s
 Could not record the answer
+Could not rename %s
 Could not rename it
+Could not rename it: %s
+Could not save %s
+Could not save %s: %s -- it will be tried again on the next save
+Could not save About Me in %s
+Could not send to %s%s
+Could not write %s
 Count
 Count From
 Cursor
 Cursor Blink
 Cut
+Cut %s characters
 Cycle
 Cycle Windows On
 Databases
 Date & Time
+Date/time
+Date:
 Default View
 Delete
+Delete %s from the server? It cannot be undone.
 Delete Column
 Delete Note…
 Delete Row
+Delete the theme %s? The look stays as it is now.
 Delete this note? It cannot be brought back.
+Deleted
+Deleted the theme %s
+Delete…
+Deleting…
 Desktop
 Detach
 Dialog Buttons
@@ -134,20 +228,32 @@ Download Whole Messages
 Drafts
 Drag Modifier
 Drop onto Home, a disk, or the trash
+ETag: %s
 Edge Resize
 Edit
+Edit Contact
+Edit Event
+Edit Server
+Edit This Server…
 Edit as Markdown
 Edit as Plain Text
+Edit…
+Empty Trash…
+Empty the Trash? The %d items in it are deleted for good.
 Empty the Trash? The one item in it is deleted for good.
 End Task
 End Task (force)
 Evaluate
 Event
 Every (minutes)
+Export CSV…
+Exported %s
 Exporting CSV needs the csv module
 Export…
+Extension:
 Favourite
 Favourites
+Fetching %s…
 File
 File Type
 File Types
@@ -156,35 +262,48 @@ Files on Servers
 Fill
 Find
 Find Next
+Find:
 Find…
+Folder, %s items
+Folder:
 Follow Program Title
 Format
+Format:
 Forward
 Frame
 Frames a Second
 Freeze Above and Left
 Freeze First Column
 Freeze Top Row
+From:
 Full Player
 Game
 Get Info
 Glyphs
+Gmail wants an app password, made in your Google account
 Go
 Go Up
+Group
+Group:
 Heading 1
 Heading 2
 Heading 3
 Help
 Hide
+Highly Intuitive Bash-like Runtime
 History
 History Size
 History cleared
 Home
+Hostname: %s
 Icons
 Identify
 Image
 Image Viewer
+Import CSV…
+Imported %s rows from %s
 Importing CSV needs the csv module
+In:
 Inbox
 Info
 Insert Column Left
@@ -195,7 +314,12 @@ Inviting people needs a mail account to send from
 Italic
 Keep History on Disk
 Keep Messages
+Kept as a favourite: %s
+Kernel: %s
 Keyboard
+Kind:
+Labelled %s
+Label…
 Language
 Left
 Line Under It
@@ -205,6 +329,7 @@ Lock After (minutes)
 Lock Screen
 Look
 Louder
+Made if it is not there; ~ is your home.
 Mail
 Mail Account
 Mail is not here to write with
@@ -212,12 +337,14 @@ Make Main
 Mark as Read
 Mark as Unread
 Menu Bar
+Menu bar
 Menus
 Message
 Message sent
 Mines
 Mini Player
 Mode
+Modified: %s
 Modifier Drag
 Month
 Mouse
@@ -225,7 +352,11 @@ Move
 Move to Display
 Move to Trash
 Move to Workspace
+Move to…
+Moved
 Name
+Name:
+Name:   %s
 Narrower Column
 Needs a command
 Needs an extension
@@ -242,9 +373,11 @@ New Notes Are
 New Tab
 New Terminal
 New Window
+New name:
 Next
 Next Month
 Next Wallpaper
+Nextcloud: https://HOST/remote.php/dav/files/USER
 No Picture
 No Rule
 No calendar yet: choose a server in Control Panel > PIM, then sync
@@ -253,7 +386,11 @@ No file type registered for this -- open in hvi anyway?
 No folders to move to
 No labels to choose from
 No more in this list
+No one matches "%s"
 No picture open to set as wallpaper
+No records.
+No server chosen for calendars yet.
+No server chosen for contacts yet.
 No terminal app to run it in
 No zone matches
 None
@@ -262,9 +399,17 @@ Not a valid name
 Not changed
 Not held -- nothing to detach from
 Not started
+Not text
 Note
 Notes on Every Workspace
+Nothing copied yet
+Nothing here opens %s
+Nothing here yet -- the first sync brings them
+Nothing in the next sixty days.
 Nothing is selected
+Nothing on this day. Enter makes an event.
+Nothing to %s
+Nothing yet
 Notification Icon
 Notifications
 Number
@@ -274,10 +419,14 @@ Offline
 On 10 Seconds
 On 30 Seconds
 On Every Workspace
+On a server: no owner or permissions here.
+On the clipboard: %s characters
 Only files can be dropped on a window
 Open
+Open %s with:
 Open Clipboard
 Open Database…
+Open Location…
 Open Notes at Start
 Open Screenshots
 Open Terminal Here
@@ -286,9 +435,15 @@ Open With in Menu
 Open…
 Order
 Order Right-to-Left Text
+Other
 Other…
+Owner
+Owner:
+Owner:  %s
+PID:    %s
 PIM
 Paste
+Pasted as %s
 Pattern
 Pause
 Pause or Play
@@ -296,10 +451,12 @@ Picture
 Pinned
 Placement
 Plain
+Plain text
 Play
 Play Next Automatically
 Player
 Position
+Press a key for %s…
 Preview
 Previous
 Previous Month
@@ -313,6 +470,8 @@ Quit
 Quit dBASE
 Quit hibr?
 Quote
+Record %s added
+Record No. %s -- enter after the last field adds it, escape stops
 Recorded in your calendar
 Records
 Refresh
@@ -320,10 +479,18 @@ Refresh Desktop
 Refreshed
 Reload
 Remove
+Remove %s from your address book?
+Remove %s, every time it repeats?
+Remove %s?
 Remove Bookmark
+Remove the account %s? Its offline mail is kept.
+Remove the server %s?
 Removed from your calendar
+Removed the server %s
 Removed; the server is told at the next sync
+Remove…
 Rename
+Renamed the theme to %s
 Reopened the windows from when the desktop was stopped
 Reply
 Reply All
@@ -332,27 +499,40 @@ Reset
 Reset All Views
 Resize
 Restart Desktop
+Restart failed: %s would not run
 Restarted, but the saved desktop could not be read -- see desktop.log
 Restarted, but the saved desktop is from another version
+Restarted: hibr %s
 Right
 Rows
 Rule
+Rule…
 Run in a terminal
 Save
 Save As…
+Saved %s
+Saved %s to %s
+Saved as %s
+Saved the look as the theme %s
+Saved the server %s
+Saved, and the invitation sent to %s
 Saved; the server has it at the next sync
 Screen Saver
 Screenshot Folder
 Screenshot Format
 Screenshot Starts On
+Screenshot could not be written to %s
+Screenshot: %s cannot be made
 Screenshot…
 Scroll To Bottom
 Scroll To Top
 Scrollbar
+Search…
 Select All
 Send
 Send End Of File
 Send Interrupt
+Sending…
 Sent
 Server
 Servers
@@ -361,6 +541,7 @@ Set (sudo)
 Set Date & Time
 Set as Wallpaper
 Set up a mail account first, in Control Panel > Mail
+Several emails or phones: separate them with commas.
 Shadow
 Shadows
 Sheet
@@ -370,7 +551,12 @@ Shortcuts
 Shortcuts in Terminals
 Show All Notes
 Show Pictures
+Shown on the login screen, with your picture.
+Shows:
 Side
+Signature
+Signature, put under every message you write:
+Size: %s
 Snake
 Snap
 Sort By
@@ -382,11 +568,17 @@ Star
 Starred
 Start After (minutes)
 Stickies
+Sticky
 Stop
 Strikethrough
 Sum
 Sync Now
 Syncing
+Syncing calendars and contacts…
+Syncing calendars…
+Syncing contacts…
+Taken out of the favourites: %s
+Taken up at %s, where it was left
 Task
 Task List
 Task Manager
@@ -397,6 +589,7 @@ Terminals Keep Ctrl+A-Z
 Test
 Text Colour
 That event is not kept here any more; syncing
+The Trash is empty: %d items deleted
 The Trash is empty: 1 item deleted
 The YouTube history is empty
 The colours are good, warn, bad, info and dim
@@ -408,41 +601,77 @@ The record could not be added
 The remote file cache is empty
 The time is HH:MM or HH:MM:SS
 Theme
+There is a theme called %s already
+There is no file %s
+There is no folder %s
 This account has no address to answer from
 This window: desktop shortcuts work again
 This window: every key goes to the program
 Tick Task
 Tiled: the layout sizes this window
 Time Zone
+Time zone
+Time:
 Timeout
 Timeout (seconds)
 Title
 Title Bar
 Titlebar Click
 Today
+Today  Month  Agenda
 Top
 Trash
+Trust %s? Its formulas will run as you: write files, start programs, use the network.
+Turns off automatic time (NTP) first
+Type what to look for, or a playlist's or a channel's address, and enter.
+Type: %s
 Unfreeze
+Unregistered extension .%s -- open in hvi anyway?
 Upload Edits on Save
+Uptime: %s
 Use
 Use Answer
+Users: %s
 View
 View Details
 View History
 Wait for the transfers running to finish first
 Wallpaper
 Wallpaper set
+Where:
 Wider Column
 Window
 Windows
 Work Out Again
 Worked out again
+Workspace %s
+Workspace %s: tiled
+Workspace %s: windows float
 Write
 Write an Email
+YYYY-MM-DD and HH:MM:SS, local time
 YouTube
 YouTube did not answer -- trying again
+YouTube stopped -- picking up again at %s
+Your answer is sent to %s
 Zoom
+[exited %s — close this window]
+a command; the file goes after it, in a terminal
+a desktop written in the shell it runs on
+and it is kept to come back to.
+case does not matter
 dBASE
 dBASE Help
+email
+escape closes
+file
+folder
+from the Network Servers list.
+hibr %s — a desktop written in the shell it runs on
+hibr desktop v%s
+hibr v%s, module ABI %s
+integers only
 moving — arrows, then enter
+note
+phone
 resizing — arrows, then enter

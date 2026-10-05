@@ -342,18 +342,18 @@ fn ss_load(int id, path) {
 	need math 2> /dev/null
 	if [ -e "$path" ]; then
 		h := db open "$path" 2> /dev/null || {
-			dt_notep high "Cannot open ${path##*/} as a sheet"
+			dt_notep high "Cannot open %s as a sheet" "${path##*/}"
 			return 1
 		}
 		if [ "$(db cols "$h")" != "r:int c:int v:str:4096 f:str:128" ]; then
 			db close "$h"
-			dt_notep high "${path##*/} is a database, not a sheet"
+			dt_notep high "%s is a database, not a sheet" "${path##*/}"
 			return 1
 		fi
 	else
 		mkdir -p "${path%/*}" 2> /dev/null
 		h := db create "$path" "${SS_SCHEMA[@]}" 2> /dev/null || {
-			dt_notep high "Cannot make ${path##*/}"
+			dt_notep high "Cannot make %s" "${path##*/}"
 			return 1
 		}
 	fi
@@ -1431,9 +1431,9 @@ fn sheet_selall(int id) {
 fn ss_importcsv(int id, path) {
 	local r=${SS[$id]["cr"]} c0=${SS[$id]["cc"]} c f n=0 h x
 
-	[ -r "$path" ] || { dt_notep high "Cannot read ${path##*/}"; return 1; }
+	[ -r "$path" ] || { dt_notep high "Cannot read %s" "${path##*/}"; return 1; }
 	need csv 2> /dev/null || { dt_notep high "Importing CSV needs the csv module"; return 1; }
-	h := csv open "$path" || { dt_notep high "Cannot read ${path##*/}"; return 1; }
+	h := csv open "$path" || { dt_notep high "Cannot read %s" "${path##*/}"; return 1; }
 	ss_undomark "$id"
 	while x := csv row "$h"; do
 		[ "${#x[@]}" -gt $((SS[$id]["cols"] - c0)) ] &&
@@ -1450,7 +1450,7 @@ fn ss_importcsv(int id, path) {
 	csv close "$h"
 	ss_setmeta "$id"
 	ss_recalc "$id"
-	dt_notep low "Imported $n rows from ${path##*/}"
+	dt_notep low "Imported %s rows from %s" "$n" "${path##*/}"
 }
 
 # Every row up to the last that holds anything, as CSV of what the cells
@@ -1479,10 +1479,10 @@ fn ss_exportcsv(int id, path) {
 		r=$((r + 1))
 	done
 	if ! printf '%s' "$out" > "$path" 2> /dev/null; then
-		dt_notep high "Cannot write ${path##*/}"
+		dt_notep high "Cannot write %s" "${path##*/}"
 		return 1
 	fi
-	dt_notep low "Exported ${path##*/}"
+	dt_notep low "Exported %s" "${path##*/}"
 	command -v dt_changed > /dev/null && dt_changed
 }
 
@@ -1549,13 +1549,13 @@ fn ss_picked_saveas(int id, path, type = "") {
 	[ "$path" = "$old" ] && return 0
 	db close "$h" 2> /dev/null
 	if ! cp -f "$old" "$path" 2> /dev/null; then
-		dt_notep high "Cannot write ${path##*/}"
+		dt_notep high "Cannot write %s" "${path##*/}"
 		ss_load "$id" "$old"
 		return 1
 	fi
 	[[ ${old##*/} == untitled-*.hsheet ]] && rm -f "$old"
 	ss_load "$id" "$path"
-	dt_notep low "Saved as ${path##*/}"
+	dt_notep low "Saved as %s" "${path##*/}"
 	command -v dt_changed > /dev/null && dt_changed
 }
 
@@ -1572,12 +1572,13 @@ fn ss_trust(int id) {
 		done
 		SS_TRUST=${out%$'\n'}
 		command -v dt_save > /dev/null && dt_save
-		dt_notep low "${p##*/} is sandboxed again"
+		dt_notep low "%s is sandboxed again" "${p##*/}"
 		ss_recalc "$id"
 		return 0
 	fi
 	SS_TRUSTID=$id
-	dt_confirm "Trust ${p##*/}? Its formulas will run as you: write files, start programs, use the network." ss_trustyes
+	DT_T := dt_tr "Trust %s? Its formulas will run as you: write files, start programs, use the network." "${p##*/}"
+	dt_confirm "$DT_T" ss_trustyes
 }
 
 ss_trustyes() {
@@ -1587,7 +1588,7 @@ ss_trustyes() {
 	p=${SS[$id]["path"]}
 	SS_TRUST="${SS_TRUST:+$SS_TRUST$'\n'}$p"
 	command -v dt_save > /dev/null && dt_save
-	dt_notep low "${p##*/} is trusted"
+	dt_notep low "%s is trusted" "${p##*/}"
 	ss_recalc "$id"
 }
 
@@ -1620,11 +1621,11 @@ fn ssask_draw(int id, int h, int w, int row, int col) {
 	dt_wclear "$id"
 	[ "$f" = text ] && on=1
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 1 2 "Colour a number when it is:"
+	dt_tput "$id" 1 2 "Colour a number when it is:"
 	dt_textdraw "$id" 2 2 $((w - 4)) "${SSA[$id]["buf"]}" "${SSA[$id]["cur"]}" "$on"
 	dt_wreg "$id" 2 2 $((w - 4)) text
 	console pen "$DT_DIM" "$DT_FACE"
-	console put -p "w$id" 3 2 "< <= > >= = !=, a number, then good, warn, bad,"
+	dt_tput "$id" 3 2 "< <= > >= = !=, a number, then good, warn, bad,"
 	console put -p "w$id" 4 2 "info or dim -- \"< 0 bad\"; empty clears it"
 	dt_dlgbtns "$id" "$h" "$w" "$f" ok OK cancel Cancel
 }

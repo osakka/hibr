@@ -223,7 +223,7 @@ fn term_draw(int id, int h, int w, int row, int col) {
 			return 0
 		fi
 		console pen "$DT_BAD" "$DT_FACE"
-		console put -p "w$id" 1 2 "[exited $st — close this window]"
+		dt_tput "$id" 1 2 "[exited %s — close this window]" "$st"
 		return 0
 	fi
 	if [ "$DT_TERMTITLE" = 1 ]; then

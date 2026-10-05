@@ -108,7 +108,7 @@ fn dt_clipuse(int id) {
 
 	dt_clipdel "$id"
 	dt_clipset "$t" copy "$k"
-	dt_notep low "On the clipboard: ${#t} characters"
+	dt_notep low "On the clipboard: %s characters" "${#t}"
 }
 
 # Forget every entry that is not pinned.

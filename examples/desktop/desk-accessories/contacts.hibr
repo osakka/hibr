@@ -170,7 +170,7 @@ fn pe_add(name, addr) {
 	pe_servers || { dt_notep high "Choose a server for contacts first, in Control Panel > PIM"; return 1; }
 	s=${PE_SRVS[0]}
 	pe_put "" "$s" "" "" "" "${name:-$addr}" "$addr" "" "" ""
-	dt_notep low "Added ${name:-$addr} to Contacts"
+	dt_notep low "Added %s to Contacts" "${name:-$addr}"
 }
 
 # A sync finished: the list read again, and every window's view of it.
@@ -204,7 +204,7 @@ fn pe_put(href, srv, coll, uid, etag, name, emails, tels, org, note) {
 		}
 	fi
 	if [ -z "$coll" ]; then
-		dt_notep high "$srv has no address book yet -- sync it first"
+		dt_notep high "%s has no address book yet -- sync it first" "$srv"
 		return 1
 	fi
 	u=${uid:-hibr-$EPOCHSECONDS-$RANDOM-$$}
@@ -228,7 +228,7 @@ fn pe_put(href, srv, coll, uid, etag, name, emails, tels, org, note) {
 	[ -n "$note" ] && args+=(-N "$note")
 	pim vcf build "$f" "${args[@]}" 2> "$d/out/build.err" || {
 		read -r q < "$d/out/build.err"
-		dt_notep high "Could not make the contact: ${q#hibr: }"
+		dt_notep high "Could not make the contact: %s" "${q#hibr: }"
 		return 1
 	}
 	printf 'put\t%s\t%s\t%s\t%s\n' "$coll" "$base" "$f" "${etag:--}" >> "$d/queue"
@@ -244,7 +244,8 @@ fn pe_delask(int id) {
 	i := pe_at "$id" "${PCW[$id]["sel"]:-0}" || return 0
 	n := pe_f "$i" fn
 	PE_DEL=$i
-	dt_confirm "Remove ${n:-this contact} from your address book?" pe_deldo
+	DT_T := dt_tr "Remove %s from your address book?" "${n:-this contact}"
+	dt_confirm "$DT_T" pe_deldo
 }
 pe_deldo() {
 	local i=$PE_DEL s d h e
@@ -291,14 +292,14 @@ fn contacts_draw(int id, int h, int w, int row, int col) {
 	else
 		console pen "$DT_DIM" "$DT_WELL"
 		console fill -p "w$id" 0 1 1 $((lw - 2)) " "
-		console put -p "w$id" 0 2 "/ Search contacts"
+		dt_tput "$id" 0 2 "/ Search contacts"
 	fi
 	dt_wreg "$id" 0 1 $((lw - 2)) search
 	if ! pe_servers; then
 		console pen "$DT_DIM" "$DT_FACE"
-		console put -p "w$id" 3 2 "No server chosen for contacts yet."
-		console put -p "w$id" 4 2 "Control Panel > PIM chooses one"
-		console put -p "w$id" 5 2 "from the Network Servers list."
+		dt_tput "$id" 3 2 "No server chosen for contacts yet."
+		dt_tput "$id" 4 2 "Control Panel > PIM chooses one"
+		dt_tput "$id" 5 2 "from the Network Servers list."
 		return 0
 	fi
 	[ "$sel" -lt "$top" ] && top=$sel
@@ -308,9 +309,9 @@ fn contacts_draw(int id, int h, int w, int row, int col) {
 	if [ "$nl" = 0 ]; then
 		console pen "$DT_DIM" "$DT_FACE"
 		if [ "$PE_N" = 0 ]; then
-			console put -p "w$id" 3 2 "Nothing here yet -- the first sync brings them"
+			dt_tput "$id" 3 2 "Nothing here yet -- the first sync brings them"
 		else
-			console put -p "w$id" 3 2 "No one matches \"${PCW[$id]["q"]}\""
+			dt_tput "$id" 3 2 "No one matches \"%s\"" "${PCW[$id]["q"]}"
 		fi
 	fi
 	k=$top
@@ -375,7 +376,7 @@ fn contacts_detail(int id, int i, int c, int w, int h) {
 	for k in "${!ems[@]}"; do
 		[ -n "${ems[$k]}" ] || continue
 		console pen "$DT_DIM" "$DT_FACE"
-		console put -p "w$id" "$r" "$c" "email"
+		dt_tput "$id" "$r" "$c" "email"
 		console pen "$DT_ACTIVE" "$DT_FACE" underline
 		console put -p "w$id" "$r" $((c + 7)) "${ems[$k]:0:$((w - 7))}"
 		dt_wreg "$id" "$r" $((c + 7)) "${#ems[$k]}" "mail:$k"
@@ -386,7 +387,7 @@ fn contacts_detail(int id, int i, int c, int w, int h) {
 	for k in "${ts[@]}"; do
 		[ -n "$k" ] || continue
 		console pen "$DT_DIM" "$DT_FACE"
-		console put -p "w$id" "$r" "$c" "phone"
+		dt_tput "$id" "$r" "$c" "phone"
 		console pen "$DT_INK" "$DT_FACE"
 		console put -p "w$id" "$r" $((c + 7)) "${k:0:$((w - 7))}"
 		r=$((r + 1))
@@ -395,7 +396,7 @@ fn contacts_detail(int id, int i, int c, int w, int h) {
 	if [ -n "$note" ] && [ "$r" -lt $((h - 3)) ]; then
 		r=$((r + 1))
 		console pen "$DT_DIM" "$DT_FACE"
-		console put -p "w$id" "$r" "$c" "note"
+		dt_tput "$id" "$r" "$c" "note"
 		console pen "$DT_INK" "$DT_FACE"
 		while [ -n "$note" ] && [ "$r" -lt $((h - 2)) ]; do
 			console put -p "w$id" "$r" $((c + 7)) "${note:0:$((w - 7))}"
@@ -566,7 +567,7 @@ fn pedit_draw(int id, int h, int w, int row, int col) {
 		r=$((r + 2))
 	done
 	console pen "$DT_DIM" "$DT_FACE"
-	console put -p "w$id" "$r" 2 "Several emails or phones: separate them with commas."
+	dt_tput "$id" "$r" 2 "Several emails or phones: separate them with commas."
 	console put -p "w$id" $((r + 1)) 2 "Kept in ${PED[$id]["srv"]}'s address book."
 	dt_dlgbtns "$id" "$h" "$w" "$f" ok Save cancel Cancel
 }

@@ -54,9 +54,9 @@ fn clipboard_draw(int id, int h, int w, int row, int col) {
 	cb_fit "$id"
 	if [ "$n" = 0 ]; then
 		console pen "$DT_DIM" "$DT_FACE"
-		console put -p "w$id" 1 2 "Nothing copied yet"
-		console put -p "w$id" 3 2 "Copy something anywhere, or paste here,"
-		console put -p "w$id" 4 2 "and it is kept to come back to."
+		dt_tput "$id" 1 2 "Nothing copied yet"
+		dt_tput "$id" 3 2 "Copy something anywhere, or paste here,"
+		dt_tput "$id" 4 2 "and it is kept to come back to."
 		return 0
 	fi
 	i=${CB[$id]["top"]}

@@ -74,7 +74,7 @@ fn notifications_draw(int id, int h, int w, int row, int col) {
 
 	console pen "$DT_INK" "$DT_FACE"
 	if [ "$n" = 0 ]; then
-		console put -p "w$id" 1 1 "Nothing yet"
+		dt_tput "$id" 1 1 "Nothing yet"
 		return 0
 	fi
 	i=0

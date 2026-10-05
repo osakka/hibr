@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.99.56
+
+**The rest of the desktop's text is translatable** (Gitea #68). 677
+distinct strings now go through the catalogue, from 448: notes built from
+values are templates (`dt_note "Saved %s" "$f"`, 104 of them), confirms
+and menu items with a value are filled through `dt_tr` first, counts that
+need a plural use `dt_trn`, text an app draws itself goes through
+`dt_tput` (93 places), and a window title translates its name and keeps
+what is in brackets ("Files [~/notes]"). What is left in English is data
+-- file names, a message's subject -- and a few messages that splice in a
+word from elsewhere ("Moved", "to the trash"); `xx` shows them.
+`printf -v NAME -- FORMAT` takes `--` as the end of its options, as bash
+does; hibr used to print `--`.
+
 ## 0.99.55
 
 **The menu bar follows the terminal's size.** On a resize -- and a

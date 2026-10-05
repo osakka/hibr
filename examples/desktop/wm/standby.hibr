@@ -219,13 +219,13 @@ fn dt_blank(nm) {
 		read -ra bl <<< "$DT_BLANK"
 		for n2 in "${bl[@]}"; do [ "$n2" = "$nm" ] || out="$out $n2"; done
 		DT_BLANK=${out# }
-		dt_notep low "$nm is in use again"
+		dt_notep low "%s is in use again" "$nm"
 	else
 		lst := hold clients
 		while IFS=' ' read -r n2 row col rows cols pri; do
 			[ "$n2" = "$nm" ] || continue
 			if [ "$pri" = 1 ]; then
-				dt_notep low "$nm is the primary display -- make another primary first"
+				dt_notep low "%s is the primary display -- make another primary first" "$nm"
 				return 1
 			fi
 			for id in "${!DT[@]}"; do
@@ -238,7 +238,7 @@ fn dt_blank(nm) {
 			done
 		done <<< "$lst"
 		DT_BLANK="${DT_BLANK:+$DT_BLANK }$nm"
-		dt_notep low "$nm is blank"
+		dt_notep low "%s is blank" "$nm"
 	fi
 	mkdir -p "${DT_BLANKFILE%/*}" 2> /dev/null
 	printf '%s\n' "$DT_BLANK" > "$DT_BLANKFILE" 2> /dev/null

@@ -508,6 +508,10 @@ int b_printf(sh *s, int ac, char **av)
 		av += 2;
 		ac -= 2;
 	}
+	if (ac > 2 && !strcmp(av[1], "--")) {
+		av++;
+		ac--;
+	}
 	if (ac < 2) {
 		lg(HIBR_LERR, "printf: a format is required");
 		return HIBR_FAIL;

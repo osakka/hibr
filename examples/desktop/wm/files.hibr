@@ -54,7 +54,7 @@ fn dt_ondrop(int mr, int mc, mods) {
 			return 0
 		fi
 		if [ -z "$ap" ]; then
-			dt_notep low "${DT[$id]["title"]} does not take files"
+			dt_notep low "%s does not take files" "${DT[$id]["title"]}"
 			return 0
 		fi
 		wr=${DT[$id]["row"]}
@@ -113,14 +113,15 @@ fn dt_fileop1(op, src, dst) {
 # second dt_note right after this used to silently replace the first one's
 # still-single DT_NOTE, which the queue would otherwise show as both.
 fn dt_tally(int done, int bad, what, last, why, detail = "") {
+	case $DT_LANG in ?*) what := dt_tr "$what" ;; esac
 	if [ "$bad" = 0 ]; then
 		[ "$done" = 1 ] && dt_notep low "$what $last"
-		[ "$done" -gt 1 ] && dt_notep low "$what $done items${detail:+ $detail}"
+		[ "$done" -gt 1 ] && dt_notep low "%s %s items%s" "$what" "$done" "${detail:+ $detail}"
 	elif [ "$done" = 0 ]; then
 		if [ "$bad" = 1 ]; then
 			dt_notep high "$why"
 		else
-			dt_notep high "$why, and $((bad - 1)) more could not go"
+			dt_notep high "%s, and %s more could not go" "$why" "$((bad - 1))"
 		fi
 	else
 		dt_notep high "$what $done; $why"
@@ -147,8 +148,8 @@ fn dt_fileop(op, dst, ...rest) {
 		1) bad=$((bad + 1)); [ -z "$why" ] && why=$DT_WHY ;;
 		esac
 	done
-	what="Moved"
-	[ "$op" = copy ] && what="Copied"
+	what := dt_tr "Moved"
+	[ "$op" = copy ] && what := dt_tr "Copied"
 	if [ "$n" = 1 ]; then
 		dt_tally 1 "$bad" "$what" "$last to ${dst##*/}" "$why"
 	else
@@ -297,7 +298,7 @@ fn dt_edit(op) {
 	fi
 	cb=${DT[$DT_FOCUS]["$op"]}
 	if [ -z "$cb" ]; then
-		dt_notep low "${DT[$DT_FOCUS]["title"]} cannot $op"
+		dt_notep low "%s cannot %s" "${DT[$DT_FOCUS]["title"]}" "$op"
 		return 0
 	fi
 	if [ "$op" = paste ]; then
@@ -311,8 +312,8 @@ fn dt_edit(op) {
 	fi
 	dt_clipset "$t" "$op" "$DT_CLIPKIND"
 	if [ "$op" = cut ]; then
-		dt_notep low "Cut ${#t} characters"
+		dt_notep low "Cut %s characters" "${#t}"
 	else
-		dt_notep low "Copied ${#t} characters"
+		dt_notep low "Copied %s characters" "${#t}"
 	fi
 }

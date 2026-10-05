@@ -426,8 +426,8 @@ fn bw_mark(int id) {
 	[ -n "$u" ] && [ "$u" != about:blank ] || return 0
 	mkdir -p "${BW_MARKS%/*}" 2> /dev/null
 	printf '%s\t%s\n' "${tt:-$u}" "$u" >> "$BW_MARKS" ||
-		{ dt_notep high "Cannot write ${BW_MARKS##*/}"; return 1; }
-	dt_notep low "Bookmarked ${tt:-$u}"
+		{ dt_notep high "Cannot write %s" "${BW_MARKS##*/}"; return 1; }
+	dt_notep low "Bookmarked %s" "${tt:-$u}"
 }
 
 # Take the page shown out of the bookmarks.

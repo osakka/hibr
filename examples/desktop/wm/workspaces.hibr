@@ -60,9 +60,9 @@ dt_sticky_focused() {
 	[ -n "$DT_FOCUS" ] || return 0
 	dt_sticky "$DT_FOCUS"
 	if [ "${DT[$DT_FOCUS]["sticky"]}" = 1 ]; then
-		dt_notep low "${DT[$DT_FOCUS]["title"]} is on every workspace"
+		dt_notep low "%s is on every workspace" "${DT[$DT_FOCUS]["title"]}"
 	else
-		dt_notep low "${DT[$DT_FOCUS]["title"]} is on workspace $DT_WS only"
+		dt_notep low "%s is on workspace %s only" "${DT[$DT_FOCUS]["title"]}" "$DT_WS"
 	fi
 }
 
@@ -107,7 +107,7 @@ fn dt_wsgo(int n) {
 
 # Say which workspace is current, briefly.
 fn dt_wsnote(int n) {
-	dt_notep low "Workspace $n"
+	dt_notep low "Workspace %s" "$n"
 }
 
 # Have n workspaces, 1 to 9. Windows on one that goes away move to the last
@@ -152,7 +152,7 @@ fn dt_wsmove(int id, int n) {
 	fi
 	dt_tile
 	dt_tile "$n"
-	dt_notep low "${DT[$id]["title"]} moved to workspace $n"
+	dt_notep low "%s moved to workspace %s" "${DT[$id]["title"]}" "$n"
 }
 
 fn dt_wsmove_focused(int n) {

@@ -66,7 +66,7 @@ fn wr_load(int id, path) {
 	local t=
 
 	if [ -e "$path" ] && [ ! -r "$path" ]; then
-		dt_notep high "Cannot read $path"
+		dt_notep high "Cannot read %s" "$path"
 		return 1
 	fi
 	[ -r "$path" ] && t=$(< "$path")
@@ -92,12 +92,12 @@ fn write_savefile(int id) {
 	if ! printf '%s\n' "$t" > "$p.new" 2> /dev/null ||
 	   ! mv -f "$p.new" "$p" 2> /dev/null; then
 		rm -f "$p.new" 2> /dev/null
-		dt_notep high "Cannot write $p"
+		dt_notep high "Cannot write %s" "$p"
 		return 1
 	fi
 	WR[$id]["saved"]=${TB[$id]["ver"]}
 	wr_retitle "$id"
-	dt_notep low "Saved ${p##*/}"
+	dt_notep low "Saved %s" "${p##*/}"
 	command -v dt_changed > /dev/null && dt_changed
 	return 0
 }
@@ -572,7 +572,7 @@ fn wr_toolbar(int id, int w) {
 	console put -p "w$id" 1 1 "$t"
 	if [ "${WR[$id]["kind"]}" != md ]; then
 		console pen "$DT_DIM" "$DT_WELL"
-		console put -p "w$id" 1 2 "Plain text"
+		dt_tput "$id" 1 2 "Plain text"
 		return 0
 	fi
 	for tl in "${WR_TOOLS[@]}"; do
@@ -894,7 +894,7 @@ fn wr_findnext(int id) {
 		return 0
 	fi
 	wr_find "$id" "${WR[$id]["find"]}" ||
-		dt_notep low "\"${WR[$id]["find"]}\" is not here"
+		dt_notep low "\"%s\" is not here" "${WR[$id]["find"]}"
 }
 
 # --- Open, Save As and Export: the desktop's file dialog ----------------------------
@@ -958,10 +958,10 @@ fn wr_picked_export(int id, path, type = "") {
 	*) out := wr_plain "$id" ;;
 	esac
 	if ! printf '%s\n' "$out" > "$path" 2> /dev/null; then
-		dt_notep high "Cannot write $path"
+		dt_notep high "Cannot write %s" "$path"
 		return 1
 	fi
-	dt_notep low "Exported ${path##*/}"
+	dt_notep low "Exported %s" "${path##*/}"
 	command -v dt_changed > /dev/null && dt_changed
 }
 
@@ -1032,7 +1032,7 @@ fn wrfile_draw(int id, int h, int w, int row, int col) {
 	dt_textdraw "$id" 2 2 $((w - 4)) "${WRF[$id]["buf"]}" "${WRF[$id]["cur"]}" "$on"
 	dt_wreg "$id" 2 2 $((w - 4)) text
 	console pen "$DT_DIM" "$DT_FACE"
-	console put -p "w$id" 3 2 "case does not matter"
+	dt_tput "$id" 3 2 "case does not matter"
 	dt_dlgbtns "$id" "$h" "$w" "$f" ok "$ok" cancel Cancel
 }
 
@@ -1048,7 +1048,7 @@ fn wrfile_go(int id) {
 		dt_del "$id"
 		WR[$t]["find"]=$p
 		dt_raise "$t"
-		wr_find "$t" "$p" || dt_notep low "\"$p\" is not here"
+		wr_find "$t" "$p" || dt_notep low "\"%s\" is not here" "$p"
 		;;
 	esac
 }

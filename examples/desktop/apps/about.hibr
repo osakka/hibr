@@ -264,19 +264,19 @@ fn about_draw(int id, int h, int w, int row, int col) {
 	command -v dt_want > /dev/null && dt_want "$AB_SLOWMS"
 	console pen "$DT_INK" "$DT_FACE" bold
 	if [ -n "$DT_VER" ]; then
-		console put -p "w$id" 2 2 "hibr desktop v$DT_VER"
+		dt_tput "$id" 2 2 "hibr desktop v%s" "$DT_VER"
 	fi
-	console put -p "w$id" 3 2 "hibr v$HIBR_VERSION, module ABI ${HIBR_ABI:-?}"
+	dt_tput "$id" 3 2 "hibr v%s, module ABI %s" "$HIBR_VERSION" "${HIBR_ABI:-?}"
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 4 2 "Highly Intuitive Bash-like Runtime"
-	console put -p "w$id" 5 2 "a desktop written in the shell it runs on"
-	console put -p "w$id" 7 2 "Hostname: $AB_HOST"
-	console put -p "w$id" 8 2 "Kernel: $AB_KERNEL"
+	dt_tput "$id" 4 2 "Highly Intuitive Bash-like Runtime"
+	dt_tput "$id" 5 2 "a desktop written in the shell it runs on"
+	dt_tput "$id" 7 2 "Hostname: %s" "$AB_HOST"
+	dt_tput "$id" 8 2 "Kernel: %s" "$AB_KERNEL"
 	up := about_uptime
-	console put -p "w$id" 9 2 "Uptime: $up"
+	dt_tput "$id" 9 2 "Uptime: %s" "$up"
 	who := about_users
 	[ ${#who} -gt $((w - 11)) ] && who="${who:0:$((w - 12))}${GL[ellipsis]}"
-	console put -p "w$id" 10 2 "Users: $who"
+	dt_tput "$id" 10 2 "Users: %s" "$who"
 
 	cpu := about_cpu "$id"
 	bar := about_bar "$cpu" "$barw"

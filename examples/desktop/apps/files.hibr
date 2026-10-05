@@ -765,7 +765,7 @@ fn files_draw(int id, int h, int w, int row, int col) {
 	sel=${FB[$id]["sel"]}
 	console pen "$DT_DIM" "$DT_FACE"
 	if [ "${FB[$id]["marks"]}" -gt 0 ]; then
-		console put -p "w$id" "$h" 1 "${FB[$id]["marks"]} selected"
+		dt_tput "$id" "$h" 1 "%s selected" "${FB[$id]["marks"]}"
 	else
 		console put -p "w$id" "$h" 1 "$((sel + 1)) of $n"
 	fi
@@ -1094,7 +1094,7 @@ fn rn_draw(int id, int h, int w, int row, int col) {
 	dt_wclear "$id"
 	[ "$f" = text ] && on=1
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 1 2 "New name:"
+	dt_tput "$id" 1 2 "New name:"
 	dt_textdraw "$id" 2 2 $((w - 4)) "${RN[$id]["text"]}" \
 		"${RN[$id]["cur"]}" "$on"
 	dt_dlgbtns "$id" "$h" "$w" "$f" ok Rename cancel Cancel
@@ -1137,12 +1137,12 @@ fn rn_commit(int id) {
 			dt_del "$id"
 			dt_changed
 		else
-			dt_notep high "Could not rename it: $DT_WHY"
+			dt_notep high "Could not rename it: %s" "$DT_WHY"
 		fi
 		return 0
 	fi
 	if [ -e "$new" ] || [ -L "$new" ]; then
-		dt_notep low "${dir##*/} already has a $name"
+		dt_notep low "%s already has a %s" "${dir##*/}" "$name"
 		return 0
 	fi
 	if command mv -- "$old" "$new" 2>> "$DT_LOG"; then
@@ -1244,40 +1244,40 @@ fn gi_draw(int id, int h, int w, int row, int col) {
 
 	dt_wclear "$id"
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 1 2 "Name:"
+	dt_tput "$id" 1 2 "Name:"
 	nfoc=0; [ "${GI[$id]["focus"]}" = name ] && nfoc=1
 	dt_textdraw "$id" 1 8 $((w - 10)) "${GI[$id]["namebuf"]}" \
 		"${GI[$id]["namecur"]}" "$nfoc"
 	dt_wreg "$id" 1 8 $((w - 10)) name
 
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 2 2 "Kind:"
+	dt_tput "$id" 2 2 "Kind:"
 	if [ "${GI[$id]["isdir"]}" = 1 ]; then
-		console put -p "w$id" 2 8 "folder"
+		dt_tput "$id" 2 8 "folder"
 	else
-		console put -p "w$id" 2 8 "file"
+		dt_tput "$id" 2 8 "file"
 		sz := fb_human "${GI[$id]["size"]}"
-		console put -p "w$id" 3 2 "Size: $sz"
+		dt_tput "$id" 3 2 "Size: %s" "$sz"
 	fi
-	console put -p "w$id" 4 2 "Where:"
+	dt_tput "$id" 4 2 "Where:"
 	console put -p "w$id" 4 9 "${GI[$id]["dir"]:0:$((w - 11))}"
-	console put -p "w$id" 5 2 "Modified: ${GI[$id]["time"]}"
+	dt_tput "$id" 5 2 "Modified: %s" "${GI[$id]["time"]}"
 	if [ -n "${GI[$id]["remote"]}" ]; then
 		[ -n "${GI[$id]["type"]}" ] &&
-			console put -p "w$id" 6 2 "Type: ${GI[$id]["type"]:0:$((w - 10))}"
+			dt_tput "$id" 6 2 "Type: %s" "${GI[$id]["type"]:0:$((w - 10))}"
 		console pen "$DT_DIM" "$DT_FACE"
-		console put -p "w$id" 7 2 "ETag: ${GI[$id]["etag"]:0:$((w - 10))}"
-		console put -p "w$id" 9 2 "On a server: no owner or permissions here."
+		dt_tput "$id" 7 2 "ETag: %s" "${GI[$id]["etag"]:0:$((w - 10))}"
+		dt_tput "$id" 9 2 "On a server: no owner or permissions here."
 		dt_dlgbtns "$id" "$h" "$w" "${GI[$id]["focus"]}" ok Apply cancel Close
 		return 0
 	fi
 
-	console put -p "w$id" 7 2 "Owner:"
+	dt_tput "$id" 7 2 "Owner:"
 	ofoc=0; [ "${GI[$id]["focus"]}" = owner ] && ofoc=1
 	dt_textdraw "$id" 7 9 12 "${GI[$id]["userbuf"]}" \
 		"${GI[$id]["usercur"]}" "$ofoc"
 	dt_wreg "$id" 7 9 12 owner
-	console put -p "w$id" 7 24 "Group:"
+	dt_tput "$id" 7 24 "Group:"
 	gfoc=0; [ "${GI[$id]["focus"]}" = group ] && gfoc=1
 	dt_textdraw "$id" 7 31 12 "${GI[$id]["groupbuf"]}" \
 		"${GI[$id]["groupcur"]}" "$gfoc"
@@ -1288,17 +1288,17 @@ fn gi_draw(int id, int h, int w, int row, int col) {
 	console put -p "w$id" 9 15 "W"
 	console put -p "w$id" 9 21 "X"
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 10 2 "Owner"
+	dt_tput "$id" 10 2 "Owner"
 	dt_check "$id" 10 8 "${GI[$id]["ur"]}" "" perm:ur
 	dt_check "$id" 10 14 "${GI[$id]["uw"]}" "" perm:uw
 	dt_check "$id" 10 20 "${GI[$id]["ux"]}" "" perm:ux
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 11 2 "Group"
+	dt_tput "$id" 11 2 "Group"
 	dt_check "$id" 11 8 "${GI[$id]["gr"]}" "" perm:gr
 	dt_check "$id" 11 14 "${GI[$id]["gw"]}" "" perm:gw
 	dt_check "$id" 11 20 "${GI[$id]["gx"]}" "" perm:gx
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 12 2 "Other"
+	dt_tput "$id" 12 2 "Other"
 	dt_check "$id" 12 8 "${GI[$id]["or"]}" "" perm:or
 	dt_check "$id" 12 14 "${GI[$id]["ow"]}" "" perm:ow
 	dt_check "$id" 12 20 "${GI[$id]["ox"]}" "" perm:ox
@@ -1382,7 +1382,7 @@ fn gi_apply(int? id = "") {
 		fi
 		if [ "$new" != "$old" ]; then
 			if ! fb_rrename "$old" "$new"; then
-				dt_notep high "Could not rename it: $DT_WHY"
+				dt_notep high "Could not rename it: %s" "$DT_WHY"
 				return 0
 			fi
 			dt_changed
@@ -1395,7 +1395,7 @@ fn gi_apply(int? id = "") {
 		new="$dir/$name"
 		if [ "$new" != "$old" ]; then
 			if [ -e "$new" ] || [ -L "$new" ]; then
-				dt_notep low "${dir##*/} already has a $name"
+				dt_notep low "%s already has a %s" "${dir##*/}" "$name"
 				ok=0
 			elif command mv -- "$old" "$new" 2>> "$DT_LOG"; then
 				old=$new
@@ -1559,7 +1559,8 @@ fn files_trash(int id) {
 		FB_DELPATHS=("${FB_PATHS[@]}")
 		nm=${FB_PATHS[0]##*/}
 		[ "${#FB_PATHS[@]}" -gt 1 ] && nm="${#FB_PATHS[@]} items"
-		dt_confirm "Delete $nm from the server? It cannot be undone." \
+		DT_T := dt_tr "Delete %s from the server? It cannot be undone." "$nm"
+		dt_confirm "$DT_T" \
 			fb_delete
 		return 0
 	fi
@@ -1587,7 +1588,7 @@ fn files_newfolder(int id) {
 		done
 		if ! dav mkdir "$d/$nm" 2> "$DR_ERRF"; then
 			dt_davwhy
-			dt_notep high "Could not make a folder: $DT_WHY"
+			dt_notep high "Could not make a folder: %s" "$DT_WHY"
 			return 0
 		fi
 	else
@@ -1596,7 +1597,7 @@ fn files_newfolder(int id) {
 			i=$((i + 1))
 		done
 		if ! command mkdir -- "$d/$nm" 2>> "$DT_LOG"; then
-			dt_notep high "Could not make a folder in ${d##*/}"
+			dt_notep high "Could not make a folder in %s" "${d##*/}"
 			return 0
 		fi
 	fi
@@ -1974,10 +1975,10 @@ fn fb_pastetext(int id, text) {
 		i=$((i + 1))
 	done
 	if printf '%s\n' "$text" 2> /dev/null > "$f"; then
-		dt_notep low "Pasted as ${f##*/}"
+		dt_notep low "Pasted as %s" "${f##*/}"
 		files_refresh "$id"
 	else
-		dt_notep high "Cannot write in ${dir##*/}"
+		dt_notep high "Cannot write in %s" "${dir##*/}"
 	fi
 }
 
@@ -2106,12 +2107,12 @@ fn ow_draw(int id, int h, int w, int row, int col) {
 	dt_wclear "$id"
 	[ "$f" = text ] && on=1
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 1 2 "Open ${OW[$id]["path"]##*/} with:"
+	dt_tput "$id" 1 2 "Open %s with:" "${OW[$id]["path"]##*/}"
 	dt_textdraw "$id" 2 2 $((w - 4)) "${OW[$id]["buf"]}" \
 		"${OW[$id]["cur"]}" "$on"
 	dt_wreg "$id" 2 2 $((w - 4)) text
 	console pen "$DT_DIM" "$DT_FACE"
-	console put -p "w$id" 3 2 "a command; the file goes after it, in a terminal"
+	dt_tput "$id" 3 2 "a command; the file goes after it, in a terminal"
 	dt_dlgbtns "$id" "$h" "$w" "$f" ok Open cancel Cancel
 }
 

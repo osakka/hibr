@@ -129,14 +129,15 @@ fn dt_openfile(path) {
 	elif [ -n "${DT_APPS[term]["title"]}" ]; then
 		DT_OPENPENDING=$path
 		if [ -n "$ext" ]; then
-			dt_confirm "Unregistered extension .$ext -- open in hvi anyway?" \
+			DT_T := dt_tr "Unregistered extension .%s -- open in hvi anyway?" "$ext"
+			dt_confirm "$DT_T" \
 				dt_openfile_confirmed
 		else
 			dt_confirm "No file type registered for this -- open in hvi anyway?" \
 				dt_openfile_confirmed
 		fi
 	else
-		dt_notep low "Nothing here opens ${path##*/}"
+		dt_notep low "Nothing here opens %s" "${path##*/}"
 	fi
 }
 

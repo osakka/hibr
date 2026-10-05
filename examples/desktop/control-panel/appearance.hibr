@@ -291,11 +291,11 @@ fn cp_themewrite(path) {
 		done
 		if [ "$DT_BTNSHADOW" = 1 ]; then printf '  "buttonshadow": true\n'; else printf '  "buttonshadow": false\n'; fi
 		printf '}\n'
-	} > "$path" || { dt_notep high "Could not write ${path##*/}"; return 1; }
+	} > "$path" || { dt_notep high "Could not write %s" "${path##*/}"; return 1; }
 	cp_themes
 	CP_THEME=$n
 	cp_save
-	dt_notep low "Saved the look as the theme $n"
+	dt_notep low "Saved the look as the theme %s" "$n"
 }
 
 # Save Current Look as Theme: a name, asked with the file dialog, in the
@@ -385,21 +385,22 @@ fn cp_themerenamed(id = "", path = "", type = "") {
 	[ -n "$n" ] && [ -z "${n//[A-Za-z0-9._ -]/}" ] || { dt_notep high "A theme's name is letters, digits, spaces, dots and dashes"; return 1; }
 	[ "$path" = "$old" ] && return 0
 	if [ -e "$path" ]; then
-		dt_notep high "There is a theme called $n already"
+		dt_notep high "There is a theme called %s already" "$n"
 		return 1
 	fi
-	command mv -- "$old" "$path" 2> /dev/null || { dt_notep high "Could not rename $CP_THEME"; return 1; }
+	command mv -- "$old" "$path" 2> /dev/null || { dt_notep high "Could not rename %s" "$CP_THEME"; return 1; }
 	cp_themes
 	CP_THEME=$n
 	cp_save
-	dt_notep low "Renamed the theme to $n"
+	dt_notep low "Renamed the theme to %s" "$n"
 }
 
 # Delete a theme of the person's own, after asking. A bundled theme of the
 # same name, which theirs replaced, is back afterwards.
 cp_themedelask() {
 	cp_themeown "$CP_THEME" || return 0
-	dt_confirm "Delete the theme $CP_THEME? The look stays as it is now." cp_themedel
+	DT_T := dt_tr "Delete the theme %s? The look stays as it is now." "$CP_THEME"
+	dt_confirm "$DT_T" cp_themedel
 }
 cp_themedel() {
 	local n=$CP_THEME
@@ -409,7 +410,7 @@ cp_themedel() {
 	cp_themes
 	[ -n "${CP_TH["$n"]["colours"]+x}" ] || CP_THEME=
 	cp_save
-	dt_notep low "Deleted the theme $n"
+	dt_notep low "Deleted the theme %s" "$n"
 }
 
 fn appearance_rows(int w) {

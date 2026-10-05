@@ -156,7 +156,7 @@ fn mlad_draw(int id, int h, int w, int row, int col) {
 	dt_wclear "$id"
 	if [ "${MLAD[$id]["sig"]}" = 1 ]; then
 		console pen "$DT_INK" "$DT_FACE"
-		console put -p "w$id" 1 2 "Signature, put under every message you write:"
+		dt_tput "$id" 1 2 "Signature, put under every message you write:"
 		dt_textdraw "$id" 3 2 $((w - 4)) "${MLAD[$id]["full"]}" "${MLAD[$id]["fullcur"]}" 1
 		dt_dlgbtns "$id" "$h" "$w" "$f" ok Save cancel Cancel
 		return 0
@@ -180,11 +180,11 @@ fn mlad_draw(int id, int h, int w, int row, int col) {
 			dt_textdraw "$id" "$r" 20 "$fw" "$t" "${MLAD[$id]["${k}cur"]}" "$on"
 			if [ "$k" = pass ] && [ -z "${MLAD[$id]["pass"]}" ] && [ "${MLAD[$id]["haspass"]}" = 1 ] && [ "$on" = 0 ]; then
 				console pen "$DT_DIM" "$DT_FACE"
-				console put -p "w$id" "$r" 20 "(unchanged)"
+				dt_tput "$id" "$r" 20 "(unchanged)"
 			fi
 			if [ -z "${MLAD[$id]["$k"]}" ] && [ "$on" = 0 ] && { [ "$k" = host ] || [ "$k" = shost ] || [ "$k" = port ] || [ "$k" = sport ]; }; then
 				console pen "$DT_DIM" "$DT_FACE"
-				console put -p "w$id" "$r" 20 "(from the address)"
+				dt_tput "$id" "$r" 20 "(from the address)"
 			fi
 			dt_wreg "$id" "$r" 20 "$fw" "$k"
 			;;
@@ -193,7 +193,7 @@ fn mlad_draw(int id, int h, int w, int row, int col) {
 	done
 	r=$((r + 1))
 	console pen "$DT_DIM" "$DT_FACE"
-	console put -p "w$id" "$r" 2 "Gmail wants an app password, made in your Google account"
+	dt_tput "$id" "$r" 2 "Gmail wants an app password, made in your Google account"
 	console put -p "w$id" $((r + 1)) 2 "at myaccount.google.com/apppasswords"
 	r=$((r + 2))
 	if [ -n "${MLAD[$id]["status"]}" ]; then
@@ -286,7 +286,8 @@ fn mlad_do(int id, what) {
 	cancel) dt_del "$id" ;;
 	del)
 		MLAD_RM=$id
-		dt_confirm "Remove the account ${MLAD[$id]["orig"]}? Its offline mail is kept." mlad_remove
+		DT_T := dt_tr "Remove the account %s? Its offline mail is kept." "${MLAD[$id]["orig"]}"
+		dt_confirm "$DT_T" mlad_remove
 		;;
 	ok)
 		if [ "${MLAD[$id]["sig"]}" = 1 ]; then
@@ -325,7 +326,7 @@ fn mlad_do(int id, what) {
 			return 0
 		fi
 		local nm=${MLAD[$id]["name"]}
-		dt_notep low "Account $nm saved"
+		dt_notep low "Account %s saved" "$nm"
 		dt_del "$id"
 		command -v ml_accounts > /dev/null && mlad_refresh "$nm"
 		;;

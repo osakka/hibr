@@ -115,11 +115,11 @@ fn dt_tileput(int id, int r, int c, int h, int w) {
 dt_tiletoggle() {
 	if dt_tiled "$DT_WS"; then
 		DT_TILED["$DT_WS"]=
-		dt_notep low "Workspace $DT_WS: windows float"
+		dt_notep low "Workspace %s: windows float" "$DT_WS"
 	else
 		DT_TILED["$DT_WS"]=1
 		dt_tile
-		dt_notep low "Workspace $DT_WS: tiled"
+		dt_notep low "Workspace %s: tiled" "$DT_WS"
 	fi
 }
 

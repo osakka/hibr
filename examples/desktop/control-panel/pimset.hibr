@@ -169,8 +169,8 @@ fn pimset_do(int w, k, int dir) {
 			dt_notep low "Add a server in Control Panel > Network Servers"
 		fi
 		;;
-	files:*) dt_notep low "${k#files:} keeps files, not calendars or contacts" ;;
-	wait:*) dt_notep low "Asking ${k#wait:} what it keeps${GL[ellipsis]}" ;;
+	files:*) dt_notep low "%s keeps files, not calendars or contacts" "${k#files:}" ;;
+	wait:*) dt_notep low "Asking %s what it keeps${GL[ellipsis]}" "${k#wait:}" ;;
 	esac
 	cp_save
 }

@@ -128,7 +128,7 @@ fn calc_draw(int id, int h, int w, int row, int col) {
 		i=$((i + 1))
 	done
 	console pen "$DT_DIM" "$DT_FACE"
-	console put -p "w$id" 14 2 "integers only"
+	dt_tput "$id" 14 2 "integers only"
 }
 
 # The menus the bar shows while a calculator window has focus.

@@ -557,8 +557,8 @@ fn ml_act(int id, op, arg = "") {
 	archive) dt_notep low "Conversation archived" ;;
 	trash) dt_notep low "Conversation moved to Trash" ;;
 	spam) dt_notep low "Conversation marked as spam" ;;
-	move) dt_notep low "Conversation moved to $arg" ;;
-	label) dt_notep low "Labelled $arg" ;;
+	move) dt_notep low "Conversation moved to %s" "$arg" ;;
+	label) dt_notep low "Labelled %s" "$arg" ;;
 	esac
 	case $op in
 	archive | trash | spam | move) MW[$id]["open"]= ;;
@@ -740,7 +740,7 @@ fn ml_drawbar(int id, int w) {
 	if [ "$on" = 0 ] && [ -z "$q" ]; then
 		console pen "$DT_DIM" "$DT_WELL"
 		console fill -p "w$id" 0 1 1 "$fw" " "
-		console put -p "w$id" 0 2 "/ Search mail"
+		dt_tput "$id" 0 2 "/ Search mail"
 	else
 		dt_textdraw "$id" 0 1 "$fw" "$q" "${MW[$id]["qcur"]}" "$on"
 	fi
@@ -756,7 +756,7 @@ fn ml_drawside(int id, int h, int sw) {
 	local i=0 r=4 t u key
 
 	console pen "$DT_SELINK" "$DT_ACTIVE" bold
-	console put -p "w$id" 2 1 " ${GL[plus]} Compose "
+	dt_tput "$id" 2 1 " %s Compose " "${GL[plus]}"
 	dt_wreg "$id" 2 1 11 compose
 	while [ "$i" -lt "${MW[$id]["nviews"]:-0}" ] && [ "$r" -lt $((h - 1)) ]; do
 		key=${MLV[$id][$i]["key"]}
@@ -1160,9 +1160,9 @@ fn ml_saveatt(int id, int i) {
 fn ml_attsaved(id = "", path = "", type = "") {
 	[ -n "$path" ] || return 0
 	if email part "${MW[$id]["attfile"]}" "${MW[$id]["attpart"]}" "$path" 2> /dev/null; then
-		dt_notep low "Saved ${path##*/}"
+		dt_notep low "Saved %s" "${path##*/}"
 	else
-		dt_notep high "Could not save ${path##*/}"
+		dt_notep high "Could not save %s" "${path##*/}"
 	fi
 }
 
@@ -1562,7 +1562,7 @@ fn mailc_draw(int id, int h, int w, int row, int col) {
 
 	dt_wclear "$id"
 	console pen "$DT_DIM" "$DT_FACE"
-	console put -p "w$id" 0 1 "From:"
+	dt_tput "$id" 0 1 "From:"
 	console pen "$DT_INK" "$DT_FACE"
 	console put -p "w$id" 0 10 "${MC[$id]["from"]:0:$fw}"
 	r=1
@@ -1849,6 +1849,6 @@ fn mlc_sent(int n, int st) {
 		MC[$id]["sending"]=
 		MC[$id]["err"]="Not sent: ${l#hibr: email: }"
 	else
-		dt_notep high "A message was not sent: ${l#hibr: email: }"
+		dt_notep high "A message was not sent: %s" "${l#hibr: email: }"
 	fi
 }

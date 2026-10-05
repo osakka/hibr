@@ -35,12 +35,12 @@ fn shotdir_draw(int id, int h, int w, int row, int col) {
 	dt_wclear "$id"
 	[ "$f" = text ] && on=1
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 1 2 "Folder:"
+	dt_tput "$id" 1 2 "Folder:"
 	dt_textdraw "$id" 1 11 $((w - 13)) "${SHD[$id]["buf"]}" \
 		"${SHD[$id]["cur"]}" "$on"
 	dt_wreg "$id" 1 11 $((w - 13)) text
 	console pen "$DT_DIM" "$DT_FACE"
-	console put -p "w$id" 3 2 "Made if it is not there; ~ is your home."
+	dt_tput "$id" 3 2 "Made if it is not there; ~ is your home."
 	dt_dlgbtns "$id" "$h" "$w" "$f" ok Save cancel Cancel
 }
 
@@ -54,7 +54,7 @@ fn shotdir_ok(int id) {
 		return 0
 	fi
 	if [ ! -d "$d" ] && ! mkdir -p "$d" 2> /dev/null; then
-		dt_notep high "$d cannot be made"
+		dt_notep high "%s cannot be made" "$d"
 		return 0
 	fi
 	DT_SHOTDIR=$d

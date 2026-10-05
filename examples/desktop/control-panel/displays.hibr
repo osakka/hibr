@@ -324,7 +324,7 @@ fn displays_mouse(int id, act, button, int r, int c) {
 			;;
 		sb:*)
 			dt_sbcall "${tag#sb:}"
-			dt_notep low "Asked ${tag#sb:} to join"
+			dt_notep low "Asked %s to join" "${tag#sb:}"
 			return 0
 			;;
 		esac

@@ -148,14 +148,14 @@ fn ft_draw(int id, int h, int w, int row, int col) {
 
 	dt_wclear "$id"
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 1 2 "Extension:"
+	dt_tput "$id" 1 2 "Extension:"
 	efoc=0; [ "${FT[$id]["focus"]}" = ext ] && efoc=1
 	dt_textdraw "$id" 1 13 10 "${FT[$id]["extbuf"]}" "${FT[$id]["extcur"]}" \
 		"$efoc"
 	dt_wreg "$id" 1 13 10 ext
 
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 3 2 "Command:"
+	dt_tput "$id" 3 2 "Command:"
 	cfoc=0; [ "${FT[$id]["focus"]}" = cmd ] && cfoc=1
 	dt_textdraw "$id" 3 13 $((w - 15)) "${FT[$id]["cmdbuf"]}" \
 		"${FT[$id]["cmdcur"]}" "$cfoc"

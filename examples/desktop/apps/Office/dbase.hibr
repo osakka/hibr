@@ -599,7 +599,7 @@ fn dbase_formsave(int id) {
 		int)
 			[ -z "$v" ] && v=0
 			if ! match "$v" '^-?[0-9]+$'; then
-				dt_notep low "${DBA[$id]["c$i"]} is a whole number"
+				dt_notep low "%s is a whole number" "${DBA[$id]["c$i"]}"
 				DBA[$id]["ff"]=$i
 				return 0
 			fi
@@ -607,7 +607,7 @@ fn dbase_formsave(int id) {
 		float)
 			[ -z "$v" ] && v=0
 			if ! match "$v" '^-?([0-9]+[.]?[0-9]*|[.][0-9]+)$'; then
-				dt_notep low "${DBA[$id]["c$i"]} is a number"
+				dt_notep low "%s is a number" "${DBA[$id]["c$i"]}"
 				DBA[$id]["ff"]=$i
 				return 0
 			fi
@@ -618,7 +618,7 @@ fn dbase_formsave(int id) {
 	done
 	if db insert "${DBA[$id]["h"]}" "${vals[@]}" 2> /dev/null; then
 		n := db size "${DBA[$id]["h"]}"
-		dt_notep low "Record $n added"
+		dt_notep low "Record %s added" "$n"
 		dbase_formreset "$id"
 	else
 		dt_notep high "The record could not be added"
@@ -829,7 +829,7 @@ fn dbase_fdraw(int id, int h, int w) {
 
 	size := db size "${DBA[$id]["h"]}"
 	console pen "$DT_DIM" "$DT_FACE"
-	console put -p "w$id" 1 1 "Record No. $((size + 1)) -- enter after the last field adds it, escape stops"
+	dt_tput "$id" 1 1 "Record No. %s -- enter after the last field adds it, escape stops" "$((size + 1))"
 	while [ "$i" -lt "$n" ] && [ $((i + 3)) -lt "$h" ]; do
 		r=$((i + 3))
 		fw=${DBA[$id]["w$i"]}
@@ -899,7 +899,7 @@ fn dbase_bdraw(int id, int h, int w) {
 		DBA[$id]["bsel"]=$((k - 1))
 	if [ "$k" = 0 ]; then
 		console pen "$DT_DIM" "$DT_FACE"
-		console put -p "w$id" 2 1 "No records."
+		dt_tput "$id" 2 1 "No records."
 	fi
 }
 

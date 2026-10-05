@@ -258,9 +258,9 @@ fn dt_davop(op, dst, ...rest) {
 	DR[$n]["dst"]=$dst
 	src=${1%/}
 	if [ "$#" = 1 ]; then
-		dt_notep low "$what ${src##*/}${GL[ellipsis]}"
+		dt_notep low "%s %s${GL[ellipsis]}" "$what" "${src##*/}"
 	else
-		dt_notep low "$what $# items${GL[ellipsis]}"
+		dt_notep low "%s %s items${GL[ellipsis]}" "$what" "$#"
 	fi
 	return 0
 }
@@ -364,7 +364,7 @@ fn dt_davopen(loc, app = "") {
 	DR[$n]["loc"]=$loc
 	DR[$n]["file"]=$f
 	DR[$n]["app"]=$app
-	dt_notep low "Fetching ${loc##*/}${GL[ellipsis]}"
+	dt_notep low "Fetching %s${GL[ellipsis]}" "${loc##*/}"
 }
 
 # Open a copy, with an opener or as its type says.
@@ -381,7 +381,7 @@ fn dt_davopened(int n, int st) {
 	local f=${DR[$n]["file"]} loc=${DR[$n]["loc"]} e
 
 	if [ "$st" != 0 ]; then
-		dt_notep high "Could not open ${loc##*/}: $DT_WHY"
+		dt_notep high "Could not open %s: %s" "${loc##*/}" "$DT_WHY"
 		return 0
 	fi
 	e := dt_davout "$n"
@@ -474,7 +474,7 @@ fn dt_davsaved(int n, int st) {
 	if [ "${r%% *}" = ok ]; then
 		dt_davwatchset "$f" "$loc" "${r#ok }"
 		nm := dt_davname "$loc"
-		dt_notep low "Saved ${loc##*/} to $nm"
+		dt_notep low "Saved %s to %s" "${loc##*/}" "$nm"
 		dt_changed
 		return 0
 	fi
@@ -486,7 +486,7 @@ fn dt_davsaved(int n, int st) {
 	fi
 	command touch -r "$f" -- "${DRW["$f"]["stamp"]}" 2> /dev/null
 	DRW["$f"]["busy"]=
-	dt_notep high "Could not save ${loc##*/}: $DT_WHY -- it will be tried again on the next save"
+	dt_notep high "Could not save %s: %s -- it will be tried again on the next save" "${loc##*/}" "$DT_WHY"
 }
 
 # The edit has gone up under a conflict name: from now on the copy is
@@ -499,12 +499,12 @@ fn dt_davconflicted(int n, int st) {
 	if [ "$st" != 0 ]; then
 		command touch -r "$f" -- "${DRW["$f"]["stamp"]}" 2> /dev/null
 		DRW["$f"]["busy"]=
-		dt_notep high "${loc##*/} changed on the server, and your edit could not be saved beside it: $DT_WHY"
+		dt_notep high "%s changed on the server, and your edit could not be saved beside it: %s" "${loc##*/}" "$DT_WHY"
 		return 0
 	fi
 	mapfile -t l < "$DR_JOBS/$n.out"
 	dt_davwatchset "$f" "${l[0]}" "${l[1]}"
-	dt_notep high "${loc##*/} changed on the server while you edited it; yours is saved as ${l[0]##*/}"
+	dt_notep high "%s changed on the server while you edited it; yours is saved as %s" "${loc##*/}" "${l[0]##*/}"
 	dt_changed
 }
 
@@ -525,7 +525,7 @@ dt_davclear() {
 		unset DRW["$f"]
 	done
 	if [ "$kept" -gt 0 ]; then
-		dt_notep high "$kept edited file(s) not yet saved to a server were kept"
+		dt_notep high "%s edited file(s) not yet saved to a server were kept" "$kept"
 		return 0
 	fi
 	command rm -rf -- "$DT_DAVCACHE" 2> /dev/null
@@ -588,7 +588,7 @@ fn dsv_draw(int id, int h, int w, int row, int col) {
 		if [ "$k" = pass ] && [ -z "${DSV[$id]["pass"]}" ] &&
 		   [ "${DSV[$id]["haspass"]}" = 1 ] && [ "$on" = 0 ]; then
 			console pen "$DT_DIM" "$DT_FACE"
-			console put -p "w$id" "$r" 13 "(unchanged)"
+			dt_tput "$id" "$r" 13 "(unchanged)"
 		fi
 		dt_wreg "$id" "$r" 13 "$fw" "$k"
 		r=$((r + 2))
@@ -599,7 +599,7 @@ fn dsv_draw(int id, int h, int w, int row, int col) {
 		"Check the server's certificate" verify
 	r=$((r + 2))
 	console pen "$DT_DIM" "$DT_FACE"
-	console put -p "w$id" "$r" 2 "Nextcloud: https://HOST/remote.php/dav/files/USER"
+	dt_tput "$id" "$r" 2 "Nextcloud: https://HOST/remote.php/dav/files/USER"
 	r=$((r + 1))
 	if [ -n "${DSV[$id]["status"]}" ]; then
 		console pen "$DT_BAD" "$DT_FACE"
@@ -685,7 +685,8 @@ fn dsv_do(int id, what) {
 	cancel) dt_del "$id" ;;
 	del)
 		DSV_RMID=$id
-		dt_confirm "Remove the server ${DSV[$id]["orig"]}?" dsv_remove
+		DT_T := dt_tr "Remove the server %s?" "${DSV[$id]["orig"]}"
+		dt_confirm "$DT_T" dsv_remove
 		;;
 	*) dsv_save "$id" ;;
 	esac
@@ -745,7 +746,7 @@ fn dsv_save(int id) {
 		DSV[$id]["status"]=$DT_WHY
 		return 0
 	fi
-	dt_notep low "Saved the server $nm"
+	dt_notep low "Saved the server %s" "$nm"
 	dt_del "$id"
 }
 
@@ -801,7 +802,7 @@ dsv_remove() {
 
 	[ -n "$id" ] || return 0
 	if dav server rm "${DSV[$id]["orig"]}" 2> "$DR_ERRF"; then
-		dt_notep low "Removed the server ${DSV[$id]["orig"]}"
+		dt_notep low "Removed the server %s" "${DSV[$id]["orig"]}"
 		dt_del "$id"
 	else
 		dt_davwhy

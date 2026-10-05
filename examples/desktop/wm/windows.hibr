@@ -286,7 +286,7 @@ fn dt_snap(int id, dir) {
 	else
 		if [ "$dir" != center ] &&
 		   [ "${DT_APPS[${DT[$id]["app"]}]["fixed"]}" = 1 ]; then
-			dt_notep low "${DT[$id]["title"]} keeps its size; it can only be centred"
+			dt_notep low "%s keeps its size; it can only be centred" "${DT[$id]["title"]}"
 			return 0
 		fi
 		if [ -z "${DT[$id]["snap"]}" ]; then

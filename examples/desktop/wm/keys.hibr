@@ -211,7 +211,7 @@ fn dt_keycap(what) {
 
 	DT_KEYCAP=$what
 	l := dt_keylabel "$what"
-	dt_notep low "Press a key for $l…"
+	dt_notep low "Press a key for %s…" "$l"
 }
 
 # The key captured for what: asked about if another action holds it --
@@ -223,7 +223,7 @@ fn dt_keytake(what, key) {
 
 	l := dt_keylabel "$what"
 	if dt_keynav "$key"; then
-		dt_notep low "$key moves around the Control Panel, so it cannot be a shortcut"
+		dt_notep low "%s moves around the Control Panel, so it cannot be a shortcut" "$key"
 		return 0
 	fi
 	if owner := dt_keyowner "$key" "$what"; then
@@ -231,7 +231,8 @@ fn dt_keytake(what, key) {
 		DT_KEYPEND_WHAT=$what
 		DT_KEYPEND_KEY=$key
 		DT_KEYPEND_FROM=$owner
-		dt_confirm "$key is $ol's: give it to $l?" dt_keymove
+		DT_T := dt_tr "%s is %s's: give it to %s?" "$key" "$ol" "$l"
+		dt_confirm "$DT_T" dt_keymove
 		return 0
 	fi
 	dt_keyset "$what" "$key"
@@ -255,5 +256,5 @@ fn dt_keyclear(what) {
 
 	l := dt_keylabel "$what"
 	dt_keyset "$what" ""
-	dt_notep low "$l has no shortcut now"
+	dt_notep low "%s has no shortcut now" "$l"
 }

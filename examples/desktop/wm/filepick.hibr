@@ -96,7 +96,7 @@ fn fp_go(int id, d) {
 
 	while [ "${#d}" -gt 1 ] && [ "${d%/}" != "$d" ]; do d=${d%/}; done
 	if [ ! -d "$d" ] || [ ! -r "$d" ]; then
-		dt_notep high "Cannot open the folder $d"
+		dt_notep high "Cannot open the folder %s" "$d"
 		return 1
 	fi
 	FP[$id]["dir"]=$d
@@ -165,7 +165,7 @@ fn fpick_draw(int id, int h, int w, int row, int col) {
 	d=${FP[$id]["dir"]}
 	d=${d/#$HOME/\~}
 	console pen "$DT_DIM" "$DT_FACE"
-	console put -p "w$id" 1 2 "In:"
+	dt_tput "$id" 1 2 "In:"
 	console pen "$DT_INK" "$DT_FACE" bold
 	t="$d"
 	[ ${#t} -gt $((w - 8)) ] && t="${GL[ellipsis]}${t:$((${#t} - w + 9))}"
@@ -249,7 +249,7 @@ fn fp_preview(int id, int r0, int c0, int h, int w) {
 	if [ "$k" = dir ] || [ "$k" = up ]; then
 		for f in "$p"/*; do [ -e "$f" ] && n=$((n + 1)); done
 		console pen "$DT_DIM" "$DT_FACE"
-		console put -p "w$id" "$r0" "$c0" "Folder, $n items"
+		dt_tput "$id" "$r0" "$c0" "Folder, %s items" "$n"
 		return 0
 	fi
 	if [ "${FP[$id]["pv"]}" != "$p" ]; then
@@ -264,7 +264,7 @@ fn fp_preview(int id, int r0, int c0, int h, int w) {
 	fi
 	if [ "${FP[$id]["pvn"]}" = -1 ]; then
 		console pen "$DT_DIM" "$DT_FACE"
-		console put -p "w$id" "$r0" "$c0" "Not text"
+		dt_tput "$id" "$r0" "$c0" "Not text"
 		return 0
 	fi
 	r=0
@@ -274,7 +274,7 @@ fn fp_preview(int id, int r0, int c0, int h, int w) {
 		console put -p "w$id" $((r0 + r)) "$c0" "${line:0:$w}"
 		r=$((r + 1))
 	done
-	[ "${FP[$id]["pvn"]}" = 0 ] && console put -p "w$id" "$r0" "$c0" "(empty)"
+	[ "${FP[$id]["pvn"]}" = 0 ] && dt_tput "$id" "$r0" "$c0" "(empty)"
 	return 0
 }
 
@@ -310,7 +310,7 @@ fn fp_choose(int id) {
 	fi
 	if [ "${FP[$id]["mode"]}" = open ]; then
 		if [ ! -f "$p" ]; then
-			dt_notep low "There is no file ${p##*/}"
+			dt_notep low "There is no file %s" "${p##*/}"
 			return 0
 		fi
 		fp_done "$id" "$p"
@@ -325,12 +325,13 @@ fn fp_choose(int id) {
 		esac
 	fi
 	if [ ! -d "${p%/*}" ]; then
-		dt_notep low "There is no folder ${p%/*}"
+		dt_notep low "There is no folder %s" "${p%/*}"
 		return 0
 	fi
 	if [ -e "$p" ]; then
 		DT_FPPEND="$id"$'\t'"$p"
-		dt_confirm "${p##*/} is there already. Replace it?" fp_replace
+		DT_T := dt_tr "%s is there already. Replace it?" "${p##*/}"
+		dt_confirm "$DT_T" fp_replace
 		return 0
 	fi
 	fp_done "$id" "$p"

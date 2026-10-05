@@ -302,12 +302,12 @@ fn dtf_draw(int id, int h, int w, int row, int col) {
 	dt_wclear "$id"
 	[ "$f" = text ] && on=1
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 1 2 "Format:"
+	dt_tput "$id" 1 2 "Format:"
 	dt_textdraw "$id" 1 11 $((w - 13)) "${DTF[$id]["buf"]}" \
 		"${DTF[$id]["cur"]}" "$on"
 	dt_wreg "$id" 1 11 $((w - 13)) text
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 3 2 "Shows:"
+	dt_tput "$id" 3 2 "Shows:"
 	if dtp_fmtok "${DTF[$id]["buf"]}"; then
 		t := dt_clocktext "${DTF[$id]["buf"]}" -1
 		console pen "$DT_GOOD" "$DT_FACE" bold
@@ -317,7 +317,7 @@ fn dtf_draw(int id, int h, int w, int row, int col) {
 	fi
 	console put -p "w$id" 3 11 "$t"
 	console pen "$DT_DIM" "$DT_FACE"
-	console put -p "w$id" 5 2 "%H %M %S %l %p %a %d %b %Y, as strftime"
+	dt_tput "$id" 5 2 "%H %M %S %l %p %a %d %b %Y, as strftime"
 	dt_dlgbtns "$id" "$h" "$w" "$f" ok Save cancel Cancel
 }
 
@@ -461,7 +461,7 @@ fn dtz_draw(int id, int h, int w, ...rest) {
 
 	[ "$f" = text ] && on=1
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 1 2 "Find:"
+	dt_tput "$id" 1 2 "Find:"
 	dt_textdraw "$id" 1 8 $((w - 10)) "${DTZ[$id]["buf"]}" \
 		"${DTZ[$id]["cur"]}" "$on"
 	r=0
@@ -580,20 +580,20 @@ fn dts_draw(int? id = "", int? h = "", int? w = "", int? row = "", int? col = ""
 
 	dt_wclear "$id"
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 1 2 "Date:"
+	dt_tput "$id" 1 2 "Date:"
 	f=0; [ "${DTS[$id]["focus"]}" = d ] && f=1
 	dt_textdraw "$id" 1 9 12 "${DTS[$id]["dbuf"]}" "${DTS[$id]["dcur"]}" "$f"
 	dt_wreg "$id" 1 9 12 d
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 3 2 "Time:"
+	dt_tput "$id" 3 2 "Time:"
 	f=0; [ "${DTS[$id]["focus"]}" = t ] && f=1
 	dt_textdraw "$id" 3 9 10 "${DTS[$id]["tbuf"]}" "${DTS[$id]["tcur"]}" "$f"
 	dt_wreg "$id" 3 9 10 t
 	console pen "$DT_DIM" "$DT_FACE"
-	console put -p "w$id" 5 2 "YYYY-MM-DD and HH:MM:SS, local time"
+	dt_tput "$id" 5 2 "YYYY-MM-DD and HH:MM:SS, local time"
 	if [ "${DTS[$id]["ntp"]}" = yes ]; then
 		console pen "$DT_WARN" "$DT_FACE"
-		console put -p "w$id" 6 2 "Turns off automatic time (NTP) first"
+		dt_tput "$id" 6 2 "Turns off automatic time (NTP) first"
 	fi
 	dt_dlgbtns "$id" "$h" "$w" "${DTS[$id]["focus"]}" \
 		ok "Set (sudo)" cancel Cancel
@@ -693,15 +693,15 @@ fn datetime_draw(int id, int h, int w, int bx) {
 	fi
 
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 5 "$bx" "Menu bar"
+	dt_tput "$id" 5 "$bx" "Menu bar"
 	lb := dtp_fmtlabel
 	console pen "$DT_INK" "$DT_FACE"
 	dt_wdrop "$id" 5 $((bx + 11)) 24 "$lb" barfmt
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 6 "$bx" "Time zone"
+	dt_tput "$id" 6 "$bx" "Time zone"
 	dtp_button "$id" 6 $((bx + 11)) "Change…" zone
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 7 "$bx" "Date/time"
+	dt_tput "$id" 7 "$bx" "Date/time"
 	if [ -n "$DTP_HOST" ]; then
 		console pen "$DT_DIM" "$DT_FACE"
 		console put -p "w$id" 7 $((bx + 11)) "set by the host ($DTP_HOST)"
