@@ -27,8 +27,21 @@ never matches box drawing. The display interface's `put` is unchanged, so
 a terminal window, `most` and `hvi` draw exactly what their programs
 decided.
 
-On by default, since that is right for Blit and most terminals;
-`console bidi off` is for a terminal that reorders itself. A setting in
+On by default, since that is right for Blit and for a terminal that does
+nothing of its own; `console bidi off` is for a terminal that reorders
+itself.
+
+**Amended in 0.99.71.** "Most terminals" was wrong, and the first person to
+read an Arabic desktop said so: kitty shapes with HarfBuzz, which orders an
+RTL run along with it, so hibr's own ordering was undone and Arabic read
+left to right, shaped -- which looks like a broken catalogue, not a setting.
+VTE has done bidi since 0.60 and iTerm2 since 3.5. The desktop's `DT_BIDI`
+takes `auto` now, and `auto` is the default: hibr orders unless the terminal
+says it is one of those (`KITTY_WINDOW_ID`, `TERM` holding kitty,
+`VTE_VERSION` at 6000 or more, `TERM_PROGRAM` iTerm.app at 3.5 or more).
+Anything unnamed is still hibr's to order, which is what Blit needs. The
+module's own default does not move: a script that asks for a display gets
+`console bidi on` as before, and only the desktop reads the terminal. A setting in
 Control Panel follows with the Language pane (phase 3).
 
 The core's width table, written by hand, is now generated from the same

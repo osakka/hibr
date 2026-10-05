@@ -244,6 +244,14 @@ class Term:
             # desktop still comes up looking entirely normal, and every
             # hold-dependent check fails confusingly far from this cause.
             os.environ.pop("HIBR_HOLD", None)
+            # Who orders right-to-left text is decided from what the
+            # terminal says it is (DT_BIDI=auto), so a suite run from kitty
+            # would draw Arabic differently from one run anywhere else. The
+            # harness says nothing, and a test that wants a terminal of its
+            # own sets these itself.
+            for v in ("KITTY_WINDOW_ID", "VTE_VERSION", "TERM_PROGRAM",
+                      "TERM_PROGRAM_VERSION"):
+                os.environ.pop(v, None)
             os.environ["TERM"] = "xterm-256color"
             os.environ["HIBR_TESTIDLE"] = "1"
             own = os.path.join(HOME, str(os.getpid()))

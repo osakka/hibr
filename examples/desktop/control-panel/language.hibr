@@ -9,7 +9,7 @@ strict
 
 command -v cp_pane > /dev/null && cp_pane language "Language" "A"
 
-declare -ga CP_LANGCODES CP_LANGNAMES
+declare -ga CP_LANGCODES CP_LANGNAMES CP_BIDIS
 CP_MIRRORS=(auto on off)
 CP_DIGITS=(Western Arabic-Indic)
 
@@ -40,6 +40,35 @@ cp_langname() {
 		i=$((i + 1))
 	done
 	ret "$DT_LANG"
+}
+
+# Ordering right-to-left text: who does it (ADR 0031). Automatic asks the
+# terminal and says in brackets what it settled on, since the wrong one
+# makes Arabic read left to right rather than fail outright.
+CP_BIDIS=("Automatic" "hibr" "The Terminal")
+
+# What the ordering setting shows, with what automatic settled on.
+cp_bidiname() {
+	local on
+
+	case $DT_BIDI in
+	on) ret "hibr" ;;
+	off) ret "The Terminal" ;;
+	esac
+	on := dt_bidion
+	[ "$on" = 1 ] && ret "Automatic (hibr)"
+	ret "Automatic (the terminal)"
+}
+
+# Choose who orders right-to-left text.
+fn cp_set_bidi(int? id = "", value = "") {
+	case $value in
+	hibr) DT_BIDI=on ;;
+	"The Terminal") DT_BIDI=off ;;
+	*) DT_BIDI=auto ;;
+	esac
+	dt_langapply
+	cp_save
 }
 
 # Choose a language by its name, as the dropdown hands it over.
@@ -78,10 +107,9 @@ fn language_rows(int w) {
 	nm := cp_langname
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Language"
 	CP[$w][$n]["val"]="$nm"; CP[$w][$n]["key"]=lang; n=$((n + 1))
+	nm := cp_bidiname
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Order Right-to-Left Text"
-	CP[$w][$n]["wtype"]=bool
-	CP[$w][$n]["val"]=on; [ "$DT_BIDI" = off ] && CP[$w][$n]["val"]=off
-	CP[$w][$n]["key"]=bidi; n=$((n + 1))
+	CP[$w][$n]["val"]="$nm"; CP[$w][$n]["key"]=bidi; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Mirror Layout"
 	CP[$w][$n]["val"]="$DT_MIRROR"; CP[$w][$n]["key"]=mirror; n=$((n + 1))
 	nm=Western
@@ -103,12 +131,11 @@ fn language_do(int? w = "", k = "", int? dir = "") {
 		return 0
 		;;
 	bidi)
-		if [ "$DT_BIDI" = off ]; then
-			DT_BIDI=on
-		else
-			DT_BIDI=off
-		fi
-		dt_langapply
+		nm := cp_bidiname
+		case $nm in Automatic*) nm=Automatic ;; esac
+		v := cp_next "$nm" "$dir" "${CP_BIDIS[@]}"
+		cp_set_bidi "" "$v"
+		return 0
 		;;
 	mirror)
 		v := cp_next "$DT_MIRROR" "$dir" "${CP_MIRRORS[@]}"
@@ -132,6 +159,7 @@ fn language_drop(int? w = "", int? r = "", int? c = "", k = "") {
 		cp_langlist
 		dt_droplist "$w" "$r" "$c" cp_set_lang "${CP_LANGNAMES[@]}"
 		;;
+	bidi) dt_droplist "$w" "$r" "$c" cp_set_bidi "${CP_BIDIS[@]}" ;;
 	mirror) dt_droplist "$w" "$r" "$c" cp_set_mirror "${CP_MIRRORS[@]}" ;;
 	digits) dt_droplist "$w" "$r" "$c" cp_set_digits "${CP_DIGITS[@]}" ;;
 	esac

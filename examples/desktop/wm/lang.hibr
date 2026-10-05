@@ -12,16 +12,21 @@
 # module that cannot be loaded (root under Blit, with no module folder),
 # leaves the desktop in English and says so in the log.
 #
-# DT_BIDI is the switch ADR 0031 promised: on draws right-to-left text in
-# display order, for Blit and most terminals; off is for a terminal that
-# reorders it itself.
+# DT_BIDI is the switch ADR 0031 promised, with a third value since
+# 0.99.71: auto asks the terminal. hibr putting right-to-left text in
+# display order is right for Blit and for a terminal that does nothing of
+# its own, and wrong for one that reorders -- the two reversals cancel and
+# Arabic reads left to right, shaped, which is what a person sees first and
+# cannot guess the cause of. kitty shapes with HarfBuzz (which orders an
+# RTL run with it), VTE has done bidi since 0.60 and iTerm2 since 3.5, so
+# each of those is left to do it; anything unknown is still hibr's to do.
 #
 # Part of the window manager; desktop.hibr sources it.
 
 strict
 
 DT_LANG="${DT_LANG-}"
-DT_BIDI="${DT_BIDI-on}"
+DT_BIDI="${DT_BIDI-auto}"
 # Whether the layout mirrors for a right-to-left language: auto follows the
 # catalogue's direction, on and off say so outright (ADR 0033). DT_MIRRORON
 # is what is in effect; layout code asks `case $DT_MIRRORON in 1)`.
@@ -122,19 +127,54 @@ fn dt_langfile(code) {
 	return 1
 }
 
+# Whether this terminal puts right-to-left text in display order itself, so
+# hibr must not: named terminals only, from what they say they are. A
+# version that cannot be read counts as old, which leaves the ordering here.
+dt_bidiself() {
+	local maj min
+
+	[ -n "${KITTY_WINDOW_ID-}" ] && ret 1
+	case ${TERM-} in *kitty*) ret 1 ;; esac
+	if [ -n "${VTE_VERSION-}" ] && [[ ${VTE_VERSION-} =~ ^[0-9]+$ ]]; then
+		[ "$VTE_VERSION" -ge 6000 ] && ret 1
+	fi
+	if [ "${TERM_PROGRAM-}" = iTerm.app ]; then
+		IFS=. read -r maj min _ <<< "${TERM_PROGRAM_VERSION-0.0}"
+		[[ $maj =~ ^[0-9]+$ ]] || maj=0
+		[[ $min =~ ^[0-9]+$ ]] || min=0
+		[ "$maj" -gt 3 ] && ret 1
+		[ "$maj" = 3 ] && [ "$min" -ge 5 ] && ret 1
+	fi
+	ret 0
+}
+
+# Which way DT_BIDI resolves: on, or off where the terminal does it itself.
+dt_bidion() {
+	local self
+
+	case $DT_BIDI in
+	off) ret 0 ;;
+	on) ret 1 ;;
+	esac
+	self := dt_bidiself
+	[ "$self" = 1 ] && ret 0
+	ret 1
+}
+
 # Put DT_LANG and DT_BIDI into effect: load the catalogue, set the console's order.
 dt_langapply() {
-	local f
+	local f on
 
 	DT_LANGON=
 	DT_LANGRTL=
 	DT_MIRRORON=
 	[ "$DT_MIRROR" = on ] && DT_MIRRORON=1
 	if command -v console > /dev/null; then
-		if [ "$DT_BIDI" = off ]; then
-			console bidi off
-		else
+		on := dt_bidion
+		if [ "$on" = 1 ]; then
 			console bidi on
+		else
+			console bidi off
 		fi
 	fi
 	[ -n "$DT_LANG" ] || { command -v lang > /dev/null && lang off; dt_datenames; return 0; }

@@ -343,8 +343,15 @@ dt_load() {
 				DT_HCAL=none
 			fi
 		fi
+		# 0.99.70 ordered right-to-left text itself unless told not to,
+		# and froze that "on" into every saved file; 0.99.71 asks the
+		# terminal instead (kitty, VTE and iTerm2 order it themselves).
+		# Someone who had turned it off keeps that.
+		if [ "${DT_SETVER:-0}" -lt 6 ] && [ "$DT_BIDI" = on ]; then
+			DT_BIDI=auto
+		fi
 	fi
-	DT_SETVER=5
+	DT_SETVER=6
 	dt_keyfix
 	dt_glyphs "$DT_GLYPHSET"
 	return 0

@@ -3179,6 +3179,22 @@ bar = sc.row(0).rstrip()
 check("the bundled Arabic catalogue translates the desktop and mirrors it",
       re.search(r"[\u0600-\u06ff\ufb50-\ufeff]", bar) is not None and
       "File" not in bar and "Edit" not in bar and bar.endswith("\u270e"), bar)
+# Who puts that text in display order depends on the terminal (ADR 0031):
+# with nothing saying otherwise hibr does it, and the cells hold the shaped
+# forms; where the terminal does its own -- kitty shapes with HarfBuzz,
+# which orders the run with it -- hibr must not, or the two reversals cancel
+# and Arabic reads left to right. The harness says nothing about the
+# terminal, so this is the one place that does.
+check("by default hibr orders it: the cells hold shaped forms",
+      re.search(r"[\ufb50-\ufeff]", bar) is not None, bar)
+sc, raw = run(ONE, env={"DT_LANG": "ar", "KITTY_WINDOW_ID": "1"})
+kbar = sc.row(0).rstrip()
+check("in kitty it leaves the ordering to the terminal: the letters as written",
+      re.search(r"[\u0600-\u06ff]", kbar) is not None and
+      re.search(r"[\ufb50-\ufeff]", kbar) is None, kbar)
+sc, raw = run(ONE, env={"DT_LANG": "ar", "KITTY_WINDOW_ID": "1", "DT_BIDI": "on"})
+check("and saying hibr outright still orders it there",
+      re.search(r"[\ufb50-\ufeff]", sc.row(0)) is not None, sc.row(0))
 
 # The rest of the desktop turns round as well: the icons start from the
 # left edge, the Control Strip docks right, notes stack from the top-left
@@ -3315,8 +3331,15 @@ check("Prayer Times lists the day's six times in order, the next with how long u
 sc, _ = run(ONE, env=dict(LDN, DT_PBAR="on"))
 check("Next Prayer in the Menu Bar puts the next one beside the clock",
       re.search(r"(Fajr|Dhuhr|Asr|Maghrib|Isha) \d\d:\d\d .*\d\d:\d\d", sc.row(0)) is not None, sc.row(0))
-sc, _ = run(ONE + '\nt := dt_ptimes; read -ra ts <<< "$t"; DT_PNOTED=$((ts[0] - 1))',
-            env=dict(LDN, DT_PNOTE="on"))
+# The notes are the ticker's own doing, so the times are given rather than
+# computed: with the real ones this passed between Fajr and Isha and failed
+# through the night, since no prayer of today's has happened yet at 00:18.
+# What the sun does is tests/salat_adhan.py's, to the minute, all year.
+PAST = ('\nfn dt_ptimes(int when = -1) { ret "$((EPOCHSECONDS - 50)) '
+        '$((EPOCHSECONDS - 45)) $((EPOCHSECONDS - 40)) $((EPOCHSECONDS - 30)) '
+        '$((EPOCHSECONDS - 20)) $((EPOCHSECONDS - 10)) $((EPOCHSECONDS - 5))"; }'
+        '\nDT_PNOTED=$((EPOCHSECONDS - 60))')
+sc, _ = run(ONE + PAST, env=dict(LDN, DT_PNOTE="on"))
 check("and A Note at Each Prayer gives one for each moment since the last look",
       re.search("\u2691[1-5] ", sc.row(0)) is not None, sc.row(0))
 
@@ -3746,4 +3769,4 @@ check("an arithmetic error in an app is logged and the desktop carries on",
       sc.find("┤ Slip ├") is not None and "arithmetic" in log and t.exited and t.status == 0,
       (log, t.status))
 
-report(516)
+report(519)

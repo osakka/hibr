@@ -2069,6 +2069,17 @@ went in the shell.
   is wider than a dialog and none of what a person needs: the login box
   showed a truncated URL and no reason at all. `dt_vwwhy` drops a leading
   address, and the test asserts on the server's own words.
+- **A check that can only pass during part of the day is not a check.**
+  `tests/desktop.py`'s prayer note test set the "last looked" marker a
+  second before today's Fajr and expected a note for every prayer since:
+  true in the afternoon, false between midnight and Fajr, when none of
+  today's has happened yet. It passed every evening for three releases and
+  failed at 00:18 on the fourth, which reads as the ticker having broken.
+  The ticker is what it tests, so it gives the times rather than computing
+  them -- six moments just passed -- and what the sun does is
+  `tests/salat_adhan.py`'s, to the minute, through the year. Anything
+  resting on the clock, the calendar or the phase of the moon wants the
+  same treatment: hand the code the moment, do not wait for it.
 - **A click aimed at a column worked out from text that has not arrived
   yet lands on nothing.** `tests/web.py` clicked a tab's close box at a
   fixed column, computed from the title "Test page" -- and under a full

@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.99.71
+
+**Who orders right-to-left text is asked of the terminal** (Gitea #68, ADR
+0031). 0.99.70's Arabic was reported unreadable within the hour, and the
+reason was a setting rather than the catalogue: hibr put the text in display
+order, kitty shaped it with HarfBuzz -- which orders an RTL run along with
+the shaping -- and the two reversals cancelled, so Arabic read left to
+right. **Control Panel > Language > Order Right-to-Left Text** now offers
+Automatic, hibr or The Terminal, and Automatic is the default: hibr orders
+unless the terminal says it is kitty, VTE 0.60 or later, or iTerm2 3.5 or
+later, each of which does its own. Automatic shows what it settled on in
+brackets. A settings file that still held the old frozen "on" is moved to
+Automatic once (`DT_SETVER` 6); someone who had chosen The Terminal keeps
+it.
+
+A prayer-note check in `tests/desktop.py` could only pass between Fajr and
+Isha -- it marked "last looked" a second before today's Fajr and expected a
+note for each prayer since, which is none at all before dawn. It gives the
+ticker six moments just passed instead; what the sun does is
+`tests/salat_adhan.py`'s, all year, to the minute.
+
+The pty harness stops passing the terminal's own identity through to a test
+session, so a suite run from kitty draws Arabic the same way as one run
+anywhere else, and `tests/desktop.py` checks both ways round: shaped forms
+in the cells by default, the letters as written under kitty, and hibr
+ordering again when it is asked for outright.
+
 ## 0.99.70
 
 **Arabic** (Gitea #68, ADR 0032). `examples/desktop/lang/ar.json` is the
