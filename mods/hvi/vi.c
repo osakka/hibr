@@ -3,6 +3,7 @@
 #include "vi.h"
 #include "../display.h"
 #include "../highlight.h"
+#include "../uni.h"
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,6 +13,9 @@ static const dp_api *dp;
 static const hl_api *hl;
 static const char *lang;
 static vi_ed ed;
+static sh *vi_sh;
+
+int u8rtlq(const char *t, size_t n);
 
 /* The column a position sits at on screen, tabs and wide glyphs counted. */
 int vi_col(vi_buf *b, size_t pos)
@@ -227,6 +231,131 @@ void vi_colour(vi_ed *e, size_t ln, str *out, int *state)
 	s_free(&raw);
 }
 
+/* The uni module, when line ln holds right-to-left text and bidi is on; its text in raw. */
+const uni_api *vi_uni(vi_ed *e, size_t ln, str *raw)
+{
+	const char *v;
+	const uni_api *u;
+
+	raw->n = 0;
+	vi_get(&e->b, vi_lstart(&e->b, ln), vi_lend(&e->b, ln) - vi_lstart(&e->b, ln), raw);
+	if (!vi_sh || !raw->n || !u8rtlq(raw->p, raw->n))
+		return 0;
+	v = hibr_get(vi_sh, "HIBR_BIDI");
+	if (v && !strcmp(v, "off"))
+		return 0;
+	u = hibr_require(vi_sh, "uni", UNI_VER);
+	return u && u->rtl(raw->p, raw->n) ? u : 0;
+}
+
+/* The screen column of position pos when its line holds right-to-left text, or -1. */
+int vi_bicol(vi_ed *e, size_t pos)
+{
+	size_t ln = vi_lineof(&e->b, pos), st = vi_lstart(&e->b, ln), i, nc = 0, k = 0;
+	const uni_api *u;
+	str raw, o;
+	int *map, col;
+	unsigned cp;
+
+	s_init(&raw);
+	if (!(u = vi_uni(e, ln, &raw))) {
+		s_free(&raw);
+		return -1;
+	}
+	for (i = 0; i < raw.n; i += (size_t)u8dec(raw.p + i, raw.n - i, &cp)) {
+		if (st + i < pos)
+			k++;
+		nc++;
+	}
+	map = xm(sizeof *map * (nc + 1));
+	s_init(&o);
+	u->vismap(raw.p, raw.n, 0, nc, 2, &o, map);
+	col = map[k];
+	free(map);
+	s_free(&o);
+	s_free(&raw);
+	return col;
+}
+
+/* Draw a right-to-left line: pens worked out in logical order, characters drawn in display order. */
+int vi_drawbi(vi_ed *e, size_t ln, int row, int cols, size_t vs, size_t ve)
+{
+	size_t st = vi_lstart(&e->b, ln), i, nc = 0, ng, j, *bo;
+	const uni_api *u;
+	str raw, o, cl, w;
+	int *map, *gs, *gc, sel, hit, l, k;
+	unsigned cp, *pf, *pb, *pa, hfg = DP_DEFAULT, hbg = DP_DEFAULT, hat = 0;
+	const char *c, *ce;
+
+	s_init(&raw);
+	if (!(u = vi_uni(e, ln, &raw))) {
+		s_free(&raw);
+		return 0;
+	}
+	for (i = 0; i < raw.n; i += (size_t)u8dec(raw.p + i, raw.n - i, &cp))
+		nc++;
+	bo = xm(sizeof *bo * (nc + 1));
+	pf = xm(sizeof *pf * (nc + 1));
+	pb = xm(sizeof *pb * (nc + 1));
+	pa = xm(sizeof *pa * (nc + 1));
+	s_init(&cl);
+	vi_colour(e, ln, &cl, &e->hlstate);
+	c = cl.p;
+	ce = cl.p ? cl.p + cl.n : 0;
+	for (i = 0, j = 0; i < raw.n; j++) {
+		l = u8dec(raw.p + i, raw.n - i, &cp);
+		while (c && c < ce && *c == 27 && c + 1 < ce && c[1] == '[')
+			c = vi_sgr(c, ce, &hfg, &hbg, &hat);
+		bo[j] = st + i;
+		sel = (e->mode == VI_VISUAL || e->mode == VI_VLINE) && st + i >= vs && st + i < ve;
+		hit = 0;
+		if (e->find.n) {
+			s_init(&w);
+			vi_get(&e->b, st + i, e->find.n, &w);
+			hit = w.n == e->find.n && !memcmp(w.p, e->find.p, w.n);
+			s_free(&w);
+		}
+		pf[j] = sel || hit ? DP_PAL | 16u : hfg;
+		pb[j] = sel ? DP_PAL | 252u : hit ? DP_PAL | 227u : hbg;
+		pa[j] = sel || hit ? 0 : hat;
+		if (c && c < ce)
+			c += (size_t)l < (size_t)(ce - c) ? (size_t)l : (size_t)(ce - c);
+		i += (size_t)l;
+	}
+	map = xm(sizeof *map * (nc + 2));
+	gs = xm(sizeof *gs * (nc + 2));
+	gc = xm(sizeof *gc * (nc + 2));
+	s_init(&o);
+	u->line(raw.p, raw.n, 0, nc, 2, &o, map, gs, gc, &ng);
+	for (i = 0, j = 0; j < ng && i < o.n; j++) {
+		char one[8];
+
+		l = u8dec(o.p + i, o.n - i, &cp);
+		k = gs[j];
+		if (gc[j] < cols && k >= 0 && (size_t)k < nc) {
+			memcpy(one, o.p + i, (size_t)l);
+			one[l] = 0;
+			if (cp == '\t')
+				strcpy(one, " ");
+			dp->pen(pf[k], pb[k], pa[k]);
+			dp->put(row, gc[j], one);
+		}
+		i += (size_t)l;
+	}
+	free(bo);
+	free(pf);
+	free(pb);
+	free(pa);
+	free(map);
+	free(gs);
+	free(gc);
+	s_free(&o);
+	s_free(&cl);
+	s_free(&raw);
+	dp->pen(DP_DEFAULT, DP_DEFAULT, 0);
+	return 1;
+}
+
 /* Draw one line of the buffer into a row. */
 void vi_drawline(vi_ed *e, size_t ln, int row, int cols, size_t vs, size_t ve)
 {
@@ -236,6 +365,8 @@ void vi_drawline(vi_ed *e, size_t ln, int row, int cols, size_t vs, size_t ve)
 	const char *cp, *ce;
 	unsigned fg, bg, hfg = DP_DEFAULT, hbg = DP_DEFAULT, hat = 0;
 
+	if (vi_drawbi(e, ln, row, cols, vs, ve))
+		return;
 	s_init(&t);
 	s_init(&cl);
 	vi_colour(e, ln, &cl, &e->hlstate);
@@ -385,7 +516,9 @@ void vi_render(vi_ed *e, int rows, int cols)
 		dp->pen(DP_DEFAULT, DP_DEFAULT, 0);
 		{
 			size_t cl = vi_lineof(&e->b, e->cur);
-			dp->cursor((int)(cl - e->top), vi_col(&e->b, e->cur), 1);
+			int bc = vi_bicol(e, e->cur);
+
+			dp->cursor((int)(cl - e->top), bc >= 0 ? bc : vi_col(&e->b, e->cur), 1);
 		}
 	}
 	s_free(&st);
@@ -861,6 +994,7 @@ int m_hvi(sh *s, int ac, char **av)
 	int rows, cols, vh, r;
 	str key;
 
+	vi_sh = s;
 	dp = (const dp_api *)hibr_require(s, "display", DP_API_VER);
 	if (!dp) {
 		lg(HIBR_LERR, "hvi: no display is available; nothing on the\n"

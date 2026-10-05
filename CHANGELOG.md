@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.99.53
+
+**hvi edits Arabic and Hebrew** (Gitea #68, phase 2 complete). A line
+holding right-to-left text is drawn in display order, Arabic joined, each
+character keeping its own colour, selection or search highlight; motions,
+deletions and the cursor stay logical, the cursor standing on the column
+its position landed in. `uni`'s interface is version 3 for it (`line`, a
+line with each drawn character's source and column). With this, every
+place hibr draws text a person reads or edits -- the desktop, the prompt,
+Write, Stickies and hvi -- puts right-to-left text in display order.
+
 ## 0.99.52
 
 **Write edits Arabic and Hebrew** (Gitea #68, phase 2c). Each row of a

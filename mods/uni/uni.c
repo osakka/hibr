@@ -382,7 +382,7 @@ int un_rtl(const char *t, size_t n)
 	return 0;
 }
 
-const uni_api un_api = { un_vis, un_cw, un_rtl, un_vismap };
+const uni_api un_api = { un_vis, un_cw, un_rtl, un_vismap, un_line };
 
 /* Offer "uni" to the modules that draw text. */
 int un_init(sh *s)

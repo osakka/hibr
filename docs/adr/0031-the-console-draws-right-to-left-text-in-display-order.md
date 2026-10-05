@@ -55,4 +55,7 @@ taken anything above U+2E80 as wide.
   0.99.52, through `widgets/bidi.hibr` and `uni map`: each row of a line in
   display order with each cell keeping its own style, the cursor, clicks and
   the selection mapped between logical and visual columns. `console put -r`
-  draws text already in display order. `hvi` is next.
+  draws text already in display order.
+- `hvi` does the same since 0.99.53, through `uni`'s `line` (interface 3):
+  each character's pen worked out in logical order, then each drawn where
+  `uni` put it; the cursor on its position's column. Phase 2 is complete.

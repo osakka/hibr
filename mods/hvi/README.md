@@ -103,6 +103,17 @@ hibr has its own language in those tables now, rather than being treated as
 `json`, `mod`, `listen`, `coproc` and the rest, for `.hibr`, `.hibrc` and
 `.t`.
 
+## Right-to-left text
+
+A line holding Arabic, Hebrew or another right-to-left script is drawn in
+display order through the `uni` module (interface 3, `line`): each
+character's pen -- colouring, the selection, a search hit -- is worked out in
+logical order, and the characters are then drawn where `uni` put them, Arabic
+joined. The buffer, motions, deletions and the cursor stay logical; the cursor
+stands on the column its position landed in, so `l` steps through the text in
+the order it was typed. A tab in such a line is drawn as one cell.
+`HIBR_BIDI=off` draws every line as typed.
+
 ## Testing
 
 `tests/hvi.py` drives it through a pseudo terminal and mostly checks the file

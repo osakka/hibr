@@ -176,8 +176,30 @@ t = vi(pl2, [Q])
 check("a file of no known kind is left plain",
       "38;5;110" not in t.split("\x1b[2J", 1)[-1])
 
+# A line holding right-to-left text is drawn in display order, Arabic joined,
+# each character with its own pen; the cursor and every edit stay logical
+# (#68).
+def visc(path, keys):
+    t = Term("-c", LOAD + "hvi %s" % path, rows=ROWS, cols=COLS, settle=0.6,
+             env={"HIBR_MODPATH": tree("build/mods")})
+    t.keys(keys, settle=0.25, collect=0.2)
+    sc = t.screen()
+    t.quit(None, 0.35)
+    return sc
+
+
+ar = fresh("ar.txt", "hello world\nسلام عليكم يا صديقي\n")
+sc = visc(ar, [b"j"])
+check("a right-to-left line is drawn in display order, joined",
+      sc.row(1).startswith("ﻲﻘﻳﺪﺻ ﺎﻳ ﻢﻜﻴﻠﻋ ﻡﻼﺳ"), sc.row(1))
+check("the cursor on its first letter stands where that letter is drawn, at the right",
+      (sc.r, sc.c) == (1, 17), (sc.r, sc.c))
+sc = visc(ar, [b"j", b"x"])
+check("x deletes the logical first letter, and lam-alef rejoins",
+      sc.row(1).startswith("ﻲﻘﻳﺪﺻ ﺎﻳ ﻢﻜﻴﻠﻋ ﻡﻻ"), sc.row(1))
+
 print()
 for f in os.listdir(D):
     os.unlink(os.path.join(D, f))
 os.rmdir(D)
-report(32)
+report(35)
