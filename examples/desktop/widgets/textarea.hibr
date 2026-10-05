@@ -605,6 +605,14 @@ fn tb_draw(int id, int r0, int c0, int h, int w, ink, face, selink = "", act = "
 		console pen "$ink" "$face"
 		if [ "$i" -lt "$vn" ]; then
 			read -ra v <<< "${TB[$id]["v$i"]}"
+			if bd_row "${TB[$id][${v[0]}]}" "${v[1]}" "${v[2]}"; then
+				line := str repeat " " "$w"
+				console put -p "w$id" $((r0 + r)) "$c0" "$line"
+				bd_put "$id" $((r0 + r)) "$c0"
+				[ "$sr" = 0 ] && tb_bdsel "$id" $((r0 + r)) "$c0" "${v[0]}" "${v[1]}" "$selink" "$act"
+				r=$((r + 1))
+				continue
+			fi
 			line=${TB[$id][${v[0]}]:${v[1]}:$((v[2] - v[1]))}
 			line := str pad "$line" "$w"
 			console put -p "w$id" $((r0 + r)) "$c0" "$line"
@@ -631,11 +639,34 @@ fn tb_draw(int id, int r0, int c0, int h, int w, ink, face, selink = "", act = "
 	done
 	if [ "$k" -ge "$top" ] && [ "$k" -lt $((top + h)) ] && [ "$col" -lt "$w" ]; then
 		e=${TB[$id][${TB[$id]["cr"]}]:${TB[$id]["cc"]}:1}
+		read -ra v <<< "${TB[$id]["v$k"]}"
+		if bd_row "${TB[$id][${v[0]}]}" "${v[1]}" "${v[2]}"; then
+			col := bd_col $((TB[$id]["cc"] - v[1]))
+			e := bd_glyph "$col"
+		fi
 		console pen "$face" "$ink"
-		console put -p "w$id" $((r0 + k - top)) $((c0 + col)) "${e:- }"
+		console put -r -p "w$id" $((r0 + k - top)) $((c0 + col)) "${e:- }"
 	fi
 	TB[$id]["r0"]=$r0
 	TB[$id]["c0"]=$c0
+}
+
+# The selection over a right-to-left row laid out by bd_row: each drawn character
+# whose source is selected, at its column.
+fn tb_bdsel(int id, int r, int c0, int ln, int a, selink, act) {
+	local j=0 k x0=0 x1
+
+	[ "$ln" -ge "$TB_SR" ] && [ "$ln" -le "$TB_ER" ] || return 0
+	x1=$((${#TB[$id][$ln]} + 1))
+	[ "$ln" = "$TB_SR" ] && x0=$TB_SC
+	[ "$ln" = "$TB_ER" ] && x1=$TB_EC
+	console pen "$selink" "$act"
+	while [ "$j" -lt "${#BD_COL[@]}" ]; do
+		k=$((a + BD_SRC[j]))
+		[ "$k" -ge "$x0" ] && [ "$k" -lt "$x1" ] &&
+			console put -r -p "w$id" "$r" $((c0 + BD_COL[j])) "${BD_VIS:$j:1}"
+		j=$((j + 1))
+	done
 }
 
 # Where a point in the drawn text is, as "line col".
@@ -647,6 +678,11 @@ fn tb_at(int id, int mr, int mc) {
 	[ "$k" -lt 0 ] && k=0
 	[ "$k" -ge "${TB[$id]["vn"]:-1}" ] && k=$((${TB[$id]["vn"]:-1} - 1))
 	read -ra v <<< "${TB[$id]["v$k"]}"
+	if bd_row "${TB[$id][${v[0]}]}" "${v[1]}" "${v[2]}"; then
+		c := bd_at $((mc - ${TB[$id]["c0"]:-1}))
+		ret "${v[0]} $((v[1] + c))"
+		return 0
+	fi
 	c=$((v[1] + mc - ${TB[$id]["c0"]:-1}))
 	[ "$c" -lt "${v[1]}" ] && c=${v[1]}
 	[ "$c" -gt "${v[2]}" ] && c=${v[2]}

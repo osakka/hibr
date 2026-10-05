@@ -50,5 +50,9 @@ taken anything above U+2E80 as wide.
   rules L1 and L2 applied per row -- `uni`'s `vismap`, interface version 2,
   which also says where each character landed so the cursor, still logical,
   stands on the right column. `HIBR_BIDI=off` turns both off, and is the
-  console's default until a script says `console bidi`. `hvi` and Write are
-  phase 2c.
+  console's default until a script says `console bidi`.
+- Write and the textarea widget (Stickies, plain text) do the same since
+  0.99.52, through `widgets/bidi.hibr` and `uni map`: each row of a line in
+  display order with each cell keeping its own style, the cursor, clicks and
+  the selection mapped between logical and visual columns. `console put -r`
+  draws text already in display order. `hvi` is next.

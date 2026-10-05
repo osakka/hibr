@@ -442,7 +442,11 @@ fn write_draw(int id, int h, int w, int row, int col) {
 				console pen "$DT_INK" "$DT_WELL"
 				console put -p "w$id" $((r + 2)) 1 "$t"
 			fi
-			wr_runs "$id" $((r + 2)) 1 "${WR_S:$a:$((b - a))}" "${WR_Y:$a:$((b - a))}"
+			if bd_row "$WR_S" "$a" "$b"; then
+				bd_put "$id" $((r + 2)) 1 "${WR_Y:$a:$((b - a))}" wr_pen
+			else
+				wr_runs "$id" $((r + 2)) 1 "${WR_S:$a:$((b - a))}" "${WR_Y:$a:$((b - a))}"
+			fi
 			WR[$id]["row$r"]="$i $a"
 			k=$((k + 1))
 			if [ "$k" -ge "${#ss[@]}" ]; then
@@ -459,8 +463,20 @@ fn write_draw(int id, int h, int w, int row, int col) {
 	   [ "$ccol" -lt "$w" ]; then
 		line=${TB[$id][$cr]}
 		t=${line:$cc:1}
+		st := wr_rows "$id" "$cr" 1 "$w"
+		read -ra ss <<< "$st"
+		b=${#WR_S}
+		k=0
+		while [ $((k + 1)) -lt "${#ss[@]}" ] && [ "$cc" -ge "${ss[$((k + 1))]}" ]; do
+			k=$((k + 1))
+		done
+		[ $((k + 1)) -lt "${#ss[@]}" ] && b=${ss[$((k + 1))]}
+		if bd_row "$WR_S" "${ss[$k]}" "$b"; then
+			ccol := bd_col $((cc - ss[k]))
+			t := bd_glyph "$ccol"
+		fi
 		console pen "$DT_FACE" "$DT_INK"
-		console put -p "w$id" $((crow - top + 2)) $((ccol + 1)) "${t:- }"
+		console put -r -p "w$id" $((crow - top + 2)) $((ccol + 1)) "${t:- }"
 	fi
 	wr_status "$id" "$h" "$w"
 	wr_retitle "$id"
@@ -489,6 +505,19 @@ fn wr_selection(int id, int w, int bh) {
 			x1=$((${#TB[$id][$i]} + 1))
 			[ "$i" = "$sr" ] && x0=$sc
 			[ "$i" = "$er" ] && x1=$ec
+			if bd_row "$line" "$a" "$e"; then
+				j=0
+				while [ "$j" -lt "${#BD_COL[@]}" ]; do
+					u=$((a + BD_SRC[j]))
+					v=$u
+					[ "$i" != "${TB[$id]["cr"]}" ] && v := wr_rawcol "$id" "$i" "$u"
+					[ "$v" -ge "$x0" ] && [ "$v" -lt "$x1" ] &&
+						console put -r -p "w$id" $((r + 2)) $((BD_COL[j] + 1)) "${BD_VIS:$j:1}"
+					j=$((j + 1))
+				done
+				r=$((r + 1))
+				continue
+			fi
 			read -ra o <<< "${WR[$id]["co$i"]}"
 			j=0
 			while [ $((j + 3)) -lt "${#o[@]}" ]; do
@@ -700,6 +729,24 @@ fn write_key(int id, key) {
 
 # A row of the window as "line column" of the text, through the row map
 # the last frame drew.
+# Where the row of line i that starts at column a of its shown text ends, into WR_E.
+WR_E=0
+fn wr_rowend(int id, int i, int a) {
+	local -a ss
+	local k=0
+
+	read -ra ss <<< "${WR[$id]["cw$i"]}"
+	WR_E=${#WR[$id]["cs$i"]}
+	while [ "$k" -lt "${#ss[@]}" ]; do
+		if [ "${ss[$k]}" = "$a" ]; then
+			[ $((k + 1)) -lt "${#ss[@]}" ] && WR_E=${ss[$((k + 1))]}
+			return 0
+		fi
+		k=$((k + 1))
+	done
+	return 1
+}
+
 fn wr_at(int id, int r, int c) {
 	local -a rw
 	local i a k
@@ -713,6 +760,11 @@ fn wr_at(int id, int r, int c) {
 	i=${rw[0]}
 	a=${rw[1]}
 	k=$((a + c - 1))
+	if [ "${WR[$id]["kind"]}" = md ] && wr_rowend "$id" "$i" "$a" &&
+	   bd_row "${WR[$id]["cs$i"]}" "$a" "$WR_E"; then
+		k := bd_at $((c - 1))
+		k=$((a + k))
+	fi
 	if [ "$i" = "${TB[$id]["cr"]}" ] || [ "${WR[$id]["kind"]}" != md ]; then
 		[ "$k" -gt "${#TB[$id][$i]}" ] && k=${#TB[$id][$i]}
 		ret "$i $k"

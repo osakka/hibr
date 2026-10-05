@@ -3358,6 +3358,27 @@ def wrrun(feed, name="doc.md", text=WRDOC, extra=()):
     return sc
 
 
+# Right-to-left text in Write (#68): each row drawn in display order, the
+# line one paragraph, while typing, clicks and the file stay logical. Plain
+# text goes through the textarea widget, markdown through Write's own rows.
+AR = "hello world\nسلام عليكم يا صديقي\n"
+sc = wrrun([], name="doc.txt", text=AR)
+check("Write draws a right-to-left line in display order, joined",
+      sc.find("ﻲﻘﻳﺪﺻ ﺎﻳ ﻢﻜﻴﻠﻋ ﻡﻼﺳ") is not None, sc)
+shutil.rmtree(sc.dir, True)
+sc = wrrun([b"\x1b[B", b"\x1b[C", b"\x1b[C", "ب".encode(), b"\x13"], text=AR)
+check("typing in it goes in at the logical position, and saves as typed",
+      sc.saved is not None and "سلبام " in sc.saved, sc.saved)
+shutil.rmtree(sc.dir, True)
+sc = wrrun([b"\x1b[<0;4;5M", b"\x1b[<0;4;5m", b"X", b"\x13"], text=AR)
+check("a click on its leftmost letter lands on the line's last character",
+      sc.saved is not None and "صديقXي" in sc.saved, sc.saved)
+shutil.rmtree(sc.dir, True)
+sc = wrrun([], text="top\n**مرحبا** يا *صديق*\n")
+check("styled right-to-left text is ordered with its marks gone",
+      sc.find("ﻖﻳﺪﺻ ﺎﻳ ﺎﺒﺣﺮﻣ") is not None, sc)
+shutil.rmtree(sc.dir, True)
+
 sc = wrrun([])
 check("Write shows markdown as it reads: the marks gone, the styles there",
       sc.find("Things to get today, and maybe tomorrow.") is not None and
@@ -3533,4 +3554,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(536)
+report(540)

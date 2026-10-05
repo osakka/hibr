@@ -392,8 +392,15 @@ int m_console(sh *s, int ac, char **av)
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "put")) {
+		int raw = 0, ob = cn_bidi;
+
 		if (!cn_need())
 			return HIBR_FAIL;
+		if (ac > 2 && !strcmp(av[2], "-r")) {
+			raw = 1;
+			av++;
+			ac--;
+		}
 		if (ac > 3 && !strcmp(av[2], "-p")) {
 			cn_pane *p = cn_pfind(av[3]);
 			if (!p) {
@@ -406,7 +413,10 @@ int m_console(sh *s, int ac, char **av)
 					      "col text");
 				return 2;
 			}
+			if (raw)
+				cn_bidi = 0;
 			cn_pput(s, p, atoi(av[4]), atoi(av[5]), av[6]);
+			cn_bidi = ob;
 			return HIBR_OK;
 		}
 		if (ac < 5) {
@@ -417,9 +427,12 @@ int m_console(sh *s, int ac, char **av)
 			str vis;
 
 			s_init(&vis);
+			if (raw)
+				cn_bidi = 0;
 			cn_put(atoi(av[2]), atoi(av[3]), cn_vis(s, av[4], &vis));
 			s_free(&vis);
 		}
+		cn_bidi = ob;
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "bidi")) {

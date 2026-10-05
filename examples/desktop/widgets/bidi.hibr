@@ -1,0 +1,97 @@
+# widgets/bidi -- one row of a line holding right-to-left text, laid out in
+# display order for a widget that draws text and keeps a cursor (#68).
+#
+# bd_row lays characters [a, b) of a line out as one row of that line's
+# paragraph through the uni module's `uni map`: levels and Arabic shaping
+# over the whole line, the row reordered on its own, as UAX #9 says. It
+# fails at once for a line with nothing right to left, or with bidi off
+# (`console bidi`, HIBR_BIDI), so a caller keeps its plain path for those.
+# What it found stays in BD_* until the next call -- nothing remembered
+# beyond that, as the widget contract asks.
+#
+# Part of the widget library apps draw with -- see widgets/README.md.
+
+strict
+
+BD_OK=
+BD_VIS=
+declare -ga BD_MAP BD_SRC BD_COL
+
+# Lay out characters [a, b) of line as one row; fails when there is nothing to reorder.
+fn bd_row(line, int a, int b) {
+	[ "$BD_OK" = 0 ] && return 1
+	if [ -z "$BD_OK" ]; then
+		if need uni 2> /dev/null; then
+			BD_OK=1
+		else
+			BD_OK=0
+			return 1
+		fi
+	fi
+	console bidi || return 1
+	uni map "$line" "$a" "$b" 2> /dev/null || return 1
+	BD_VIS=${RET[0]}
+	read -ra BD_MAP <<< "${RET[1]}"
+	read -ra BD_SRC <<< "${RET[2]}"
+	read -ra BD_COL <<< "${RET[3]}"
+}
+
+# The column, in the row, of character k of the row (k = b - a is just past its end).
+fn bd_col(int k) {
+	[ "$k" -lt 0 ] && k=0
+	[ "$k" -ge "${#BD_MAP[@]}" ] && k=$((${#BD_MAP[@]} - 1))
+	ret "${BD_MAP[$k]:-0}"
+}
+
+# The character of the row a click at column c lands on; past the text, its end.
+fn bd_at(int c) {
+	local j=0
+
+	while [ "$j" -lt "${#BD_COL[@]}" ]; do
+		if [ "${BD_COL[$j]}" = "$c" ]; then
+			ret "${BD_SRC[$j]}"
+			return 0
+		fi
+		j=$((j + 1))
+	done
+	ret $((${#BD_MAP[@]} - 1))
+}
+
+# The drawn character at column c of the row, or a space.
+fn bd_glyph(int c) {
+	local j=0
+
+	while [ "$j" -lt "${#BD_COL[@]}" ]; do
+		if [ "${BD_COL[$j]}" = "$c" ]; then
+			ret "${BD_VIS:$j:1}"
+			return 0
+		fi
+		j=$((j + 1))
+	done
+	ret " "
+}
+
+# Draw the row laid out last at row r, column c of window id, already in display
+# order; pen, if given, is a function called with the style letter of each run,
+# taken from sty at each drawn character's source.
+fn bd_put(int id, int r, int c, sty = "", pen = "") {
+	local j=0 n=${#BD_COL[@]} y k t col
+
+	if [ -z "$pen" ]; then
+		console put -r -p "w$id" "$r" "$c" "$BD_VIS"
+		return 0
+	fi
+	while [ "$j" -lt "$n" ]; do
+		y=${sty:${BD_SRC[$j]}:1}
+		col=${BD_COL[$j]}
+		t=${BD_VIS:$j:1}
+		k=$((j + 1))
+		while [ "$k" -lt "$n" ] && [ "${sty:${BD_SRC[$k]}:1}" = "$y" ]; do
+			t+=${BD_VIS:$k:1}
+			k=$((k + 1))
+		done
+		"$pen" "$y"
+		console put -r -p "w$id" "$r" $((c + col)) "$t"
+		j=$k
+	done
+}

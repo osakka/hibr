@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.99.52
+
+**Write edits Arabic and Hebrew** (Gitea #68, phase 2c). Each row of a
+line holding right-to-left text is drawn in display order, Arabic joined,
+each cell in its own style -- bold, italic, a link -- while the cursor,
+typing, clicks and the selection stay logical: typed letters go where
+they read, a click lands on the letter under it, and the file saves as
+written. Markdown and plain text both, the plain path through the
+textarea widget, so Stickies has it too. `widgets/bidi.hibr` is the
+shared piece, over a new `uni map` (a row of a line with where each
+character went), and `console put -r` draws text already in display
+order. `hvi` is next.
+
 ## 0.99.51
 
 **The prompt reads Arabic and Hebrew too** (Gitea #68, phase 2b). A line

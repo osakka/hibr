@@ -7,6 +7,8 @@
 int u8dec(const char *p, size_t n, unsigned *cp);
 void u8put(str *o, unsigned c);
 int sx_out(sh *s, const char *nm, const char *v);
+void un_glyph(int *gsrc, int *gcol, size_t *g, size_t src, int col);
+int un_rtl(const char *t, size_t n);
 
 static const char *un_cname[] = { "L", "R", "AL", "EN", "ES", "ET", "AN", "CS",
 	"NSM", "BN", "B", "S", "WS", "ON", "LRE", "LRO", "RLE", "RLO", "PDF", "LRI",
@@ -24,14 +26,16 @@ size_t un_dec(const char *t, size_t n, unsigned **out)
 	return m;
 }
 
-/* Code points [a, b) of t as one line in display order, the whole text one paragraph, map per character. */
-void un_vismap(const char *t, size_t n, size_t a, size_t b, int dir, str *o, int *map)
+/* Code points [a, b) of t as one line in display order, the whole text one paragraph; per character and per drawn one. */
+void un_line(const char *t, size_t n, size_t a, size_t b, int dir, str *o, int *map,
+	     int *gsrc, int *gcol, size_t *ng)
 {
 	unsigned *cp, *lc;
 	unsigned char *cls;
 	signed char *lv, *ll;
 	size_t m, m0, i, j, k, no, nl = 0, *ord, *src, *ls;
 	int pl, col = 0, lastw = 1, last;
+	size_t g = 0;
 
 	m = un_dec(t, n, &cp);
 	m0 = m;
@@ -81,17 +85,21 @@ void un_vismap(const char *t, size_t n, size_t a, size_t b, int dir, str *o, int
 				;
 			if (j < no && ll[ord[j]] == ll[ord[i]]) {
 				u8put(o, lc[ord[j]]);
+				un_glyph(gsrc, gcol, &g, ls[ord[j]], col);
 				for (k = j + 1; k > i; k--)
 					if (map)
 						map[ls[ord[k - 1]]] = col;
-				col += un_cw(lc[ord[j]]);
-				for (k = j; k > i; k--)
+				for (k = j; k > i; k--) {
 					u8put(o, lc[ord[k - 1]]);
+					un_glyph(gsrc, gcol, &g, ls[ord[k - 1]], col);
+				}
+				col += un_cw(lc[ord[j]]);
 				i = j;
 				continue;
 			}
 		}
 		u8put(o, lc[ord[i]]);
+		un_glyph(gsrc, gcol, &g, ls[ord[i]], col);
 		if (map)
 			map[ls[ord[i]]] = col;
 		if (ls[ord[i]] + 1 == b - a)
@@ -104,6 +112,8 @@ void un_vismap(const char *t, size_t n, size_t a, size_t b, int dir, str *o, int
 				map[i] = i ? map[i - 1] : 0;
 		map[b - a] = b == a ? 0 : (last & 1) ? map[b - a - 1] : map[b - a - 1] + lastw;
 	}
+	if (ng)
+		*ng = g;
 	s_grow(o, 1);
 	o->p[o->n] = 0;
 	free(cp);
@@ -114,6 +124,22 @@ void un_vismap(const char *t, size_t n, size_t a, size_t b, int dir, str *o, int
 	free(ll);
 	free(ls);
 	free(ord);
+}
+
+/* Note one drawn character's source and column, when they are wanted. */
+void un_glyph(int *gsrc, int *gcol, size_t *g, size_t src, int col)
+{
+	if (gsrc)
+		gsrc[*g] = (int)src;
+	if (gcol)
+		gcol[*g] = col;
+	(*g)++;
+}
+
+/* Code points [a, b) of t as one line of its paragraph, with each character's column. */
+void un_vismap(const char *t, size_t n, size_t a, size_t b, int dir, str *o, int *map)
+{
+	un_line(t, n, a, b, dir, o, map, 0, 0, 0);
 }
 
 /* A text in display order for a cell grid: shaped, mirrored, a mark kept after its base. */
@@ -221,6 +247,68 @@ int un_lvbi(sh *s, int ac, char **av)
 	return HIBR_OK;
 }
 
+/* uni map [-d dir] TEXT FROM TO: characters [FROM, TO) as one line of TEXT's paragraph,
+   in RET: the display order, each character's column, and each drawn character's source
+   and column; status 1, and nothing set, when TEXT holds no right-to-left. */
+int un_mapbi(sh *s, int ac, char **av)
+{
+	int k, dir, *map, *gs, *gc, i;
+	long a, b;
+	size_t ng, n, nc;
+	str o, m, g, c;
+	char *v[4];
+	unsigned *cp;
+
+	k = un_dir(ac, av, 2, &dir);
+	if (k + 3 != ac || (a = atol(av[k + 1])) < 0 || (b = atol(av[k + 2])) < a) {
+		lg(HIBR_LERR, "usage: uni map [-d ltr|rtl|auto] text from to");
+		return 2;
+	}
+	n = strlen(av[k]);
+	if (!un_rtl(av[k], n))
+		return HIBR_FAIL;
+	nc = un_dec(av[k], n, &cp);
+	free(cp);
+	if ((size_t)b > nc)
+		b = (long)nc;
+	if (a > b)
+		a = b;
+	map = xm(sizeof *map * ((size_t)(b - a) + 2));
+	gs = xm(sizeof *gs * ((size_t)(b - a) + 2));
+	gc = xm(sizeof *gc * ((size_t)(b - a) + 2));
+	s_init(&o);
+	s_init(&m);
+	s_init(&g);
+	s_init(&c);
+	un_line(av[k], n, (size_t)a, (size_t)b, dir, &o, map, gs, gc, &ng);
+	for (i = 0; i <= b - a; i++) {
+		if (i)
+			s_ch(&m, ' ');
+		s_num(&m, map[i]);
+	}
+	for (i = 0; i < (int)ng; i++) {
+		if (i) {
+			s_ch(&g, ' ');
+			s_ch(&c, ' ');
+		}
+		s_num(&g, gs[i]);
+		s_num(&c, gc[i]);
+	}
+	v[0] = o.p ? o.p : "";
+	v[1] = m.p ? m.p : "";
+	v[2] = g.p ? g.p : "";
+	v[3] = c.p ? c.p : "";
+	hibr_retn(s, v, 4);
+	s_free(&o);
+	s_free(&m);
+	s_free(&g);
+	s_free(&c);
+	free(map);
+	free(gs);
+	free(gc);
+	return HIBR_OK;
+}
+
 /* uni vis|shape|width|class|version ... */
 int un_bi(sh *s, int ac, char **av)
 {
@@ -234,6 +322,8 @@ int un_bi(sh *s, int ac, char **av)
 
 	if (!strcmp(sub, "levels"))
 		return un_lvbi(s, ac, av);
+	if (!strcmp(sub, "map"))
+		return un_mapbi(s, ac, av);
 	if (!strcmp(sub, "version"))
 		return sx_out(s, 0, un_ucdver);
 	k = un_dir(ac, av, 2, &dir);
