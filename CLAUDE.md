@@ -100,6 +100,13 @@ text occurs exactly once at its turn; end an old text with an empty line to
 take the line ending with it. `-n` checks without writing. `need` loads
 the installed module; for one not yet released, `HIBR_MODPATH=build/mods`.
 
+An agent's own tooling can rewrite a `\uXXXX` in the text it sends before
+`lines` ever sees it: an anchor holding one then matches nothing ("found 0
+times") although the line is plainly in the file, and a *new* text holding
+one can land as the character or as a doubled backslash. Anchor on a line
+without such an escape, and read the bytes back (`grep -n ... | od -c`)
+whenever a replacement writes one.
+
 ## Coding conventions (non-negotiable)
 
 - **C, built with tcc.** Everything must compile under `tcc` with no warnings
@@ -2062,6 +2069,20 @@ went in the shell.
   is wider than a dialog and none of what a person needs: the login box
   showed a truncated URL and no reason at all. `dt_vwwhy` drops a leading
   address, and the test asserts on the server's own words.
+- **A click aimed at a column worked out from text that has not arrived
+  yet lands on nothing.** `tests/web.py` clicked a tab's close box at a
+  fixed column, computed from the title "Test page" -- and under a full
+  parallel run Chromium had not delivered the title yet, so the tab still
+  read "New Tab", two characters shorter, and the glyph had moved two
+  columns. The click reached the app (instrumenting `browser_click` showed
+  `r=1 c=12 tag=none`), found no region there, and was passed to the page
+  as an ordinary click: nothing happened, and the check read as a lost
+  click or a slow close. It failed three times in full runs and passed
+  every time alone, which is what a load-dependent *coordinate* looks like
+  rather than a timing one. `brun` now waits for the title, says so when it
+  never comes, and clicks the glyph where `screen.find` says it is.
+  Reproduce such a thing with `(while :; do :; done) &` per core rather
+  than by running the whole suite again.
 - **A window map's name is global across every app.** Contacts named its
   window table `PW`, which is Control Panel's own: each app overwrote the
   other's state. Before declaring a new `-gA`, grep the desktop for the

@@ -51,4 +51,8 @@ string from bypassing the lookup.
   app draws itself are converted app by app; `xx` shows which remain.
 - A menu's shortcut letter is chosen from the translated label.
 - The login screen is translated later.
-- Arabic ships once the owner has reviewed the draft catalogue.
+- Arabic ships as `lang/ar.json`, all 806 strings, right to left, with
+  Arabic's own six plural categories for the counted ones; it is opt-in
+  (Control Panel > Language), and `tests/993-lang-ar.t` fails when a string
+  is added to the desktop and not translated, or when one left in Latin is
+  not named there as deliberate.

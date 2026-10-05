@@ -510,8 +510,9 @@ def dropkeys(pane):
     return keys
 
 
-# Language lists only English until a catalogue is bundled (#68): with one
-# choice there is no new value to choose, so it is not among these.
+# Language is not in this loop: choosing another language translates every
+# label the generic check then reads back, including the row's own name.
+# tests/desktop.py drives the bundled Arabic catalogue instead.
 DROPS = []
 for pane in ORDER:
     if pane in ("datetime", "language"):
@@ -3364,7 +3365,7 @@ Things to get **today**, and *maybe* tomorrow.
 """
 
 
-def wrrun(feed, name="doc.md", text=WRDOC, extra=()):
+def wrrun(feed, name="doc.md", text=WRDOC, extra=(), env=None):
     d = tempfile.mkdtemp(prefix="hibr-write-")
     f = os.path.join(d, name)
     open(f, "w").write(text)
@@ -3374,7 +3375,7 @@ def wrrun(feed, name="doc.md", text=WRDOC, extra=()):
                        % (load("console"), WM, appdir("write") + "/write.hibr",
                           "".join(". %s/%s.hibr\n" % (appdir(x), x) for x in extra),
                           f))
-    tt = Term(p, env={}, settle=1.0)
+    tt = Term(p, env=env or {}, settle=1.0)
     tt.keys(list(feed), settle=0.3)
     sc = tt.screen()
     tt.quit(None, 0.5)
@@ -3413,6 +3414,19 @@ check("Write shows markdown as it reads: the marks gone, the styles there",
 check("and the line the cursor is on shows its markdown, to edit exactly",
       sc.find("# Shopping list") is not None, sc)
 check("its toolbar is there", sc.find(" B  I  S ") is not None, sc)
+
+# The toolbar is mirrored with everything else (#68, ADR 0033): the buttons
+# run from the right edge, and each is registered where it is drawn, so a
+# click lands on the button a person sees rather than its unmirrored twin.
+sc = wrrun([], text="plain\n", env={"DT_MIRROR": "on"})
+check("mirrored, Write's toolbar runs from the right edge",
+      sc.find(" S  I  B ") is not None and sc.find(" B  I  S ") is None, sc)
+row = next((r for r in range(22) if " S  I  B " in sc.row(r)), -1)
+col = sc.row(row).index(" B ") + 1
+sc = wrrun([press(row, col), release(row, col), b"\x13"], text="plain\n",
+           env={"DT_MIRROR": "on"})
+check("and a click on a mirrored toolbar button puts its marks in",
+      sc.saved is not None and "****" in sc.saved, (row, col, sc.saved, sc))
 sc = wrrun([], text="top\n\n- one\n  - two *deep*\n    1. three\n\n"
            "> quoted\n> > twice\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n"
            "Under\n===\n")
@@ -3579,4 +3593,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(548)
+report(550)

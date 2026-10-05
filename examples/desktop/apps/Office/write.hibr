@@ -564,31 +564,44 @@ WR_TOOLS=("B:bold" "I:italic" "S:strike" "<>:code" "H1:h1" "H2:h2" "H3:h3"
 	"{bullet}:bullet" "1.:number" "{task}:task" "{quote}:quote" "Link:link"
 	"{dash}:rule")
 
+# The buttons run left to right, or right to left in a mirrored desktop
+# (ADR 0033): a button filling columns c..c+n-1 is drawn at w+2-c-n
+# instead, and registered where it is drawn -- a click is told the
+# coordinates the app drew in, so the hit area has to move with the glyph.
 fn wr_toolbar(int id, int w) {
-	local c=1 tl lab tag t
+	local c=1 tl lab tag t col n
 
 	t := str repeat " " "$w"
 	console pen "$DT_INK" "$DT_WELL"
 	console put -p "w$id" 1 1 "$t"
 	if [ "${WR[$id]["kind"]}" != md ]; then
 		console pen "$DT_DIM" "$DT_WELL"
-		dt_tput "$id" 1 2 "Plain text"
+		t := dt_tr "Plain text"
+		if [ "$DT_MIRRORON" = 1 ]; then
+			t := dt_rpad "$t " $((w - 1))
+			console put -p "w$id" 1 1 "$t"
+		else
+			console put -p "w$id" 1 2 "$t"
+		fi
 		return 0
 	fi
 	for tl in "${WR_TOOLS[@]}"; do
 		lab=${tl%%:*}
 		tag=${tl#*:}
 		case $lab in "{"*"}") lab=${lab#"{"}; lab=${GL[${lab%"}"}]} ;; esac
-		[ $((c + ${#lab} + 2)) -gt "$w" ] && break
+		n=$((${#lab} + 2))
+		[ $((c + n)) -gt "$w" ] && break
 		case $tag in
 		bold) console pen "$DT_INK" "$DT_WELL" bold ;;
 		italic) console pen "$DT_INK" "$DT_WELL" italic ;;
 		strike) console pen "$DT_INK" "$DT_WELL" strike ;;
 		*) console pen "$DT_INK" "$DT_WELL" ;;
 		esac
-		console put -p "w$id" 1 "$c" " $lab "
-		dt_wreg "$id" 1 "$c" $((${#lab} + 2)) "tool:$tag"
-		c=$((c + ${#lab} + 2))
+		col=$c
+		[ "$DT_MIRRORON" = 1 ] && col=$((w + 2 - c - n))
+		console put -p "w$id" 1 "$col" " $lab "
+		dt_wreg "$id" 1 "$col" "$n" "tool:$tag"
+		c=$((c + n))
 	done
 }
 

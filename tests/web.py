@@ -91,7 +91,8 @@ check("drawing needs a display, and says so", "st 1" in out and
       "no display" in err, out + err)
 
 
-def brun(feed, arg=A, env=None, wait=1.5, until=None):
+def brun(feed, arg=A, env=None, wait=1.5, until=None, gone=None, ready=None,
+         click=None):
     s = tempfile.mkdtemp(prefix="hibr-web-s-")
     p = os.path.join(s, "session.hibr")
     open(p, "w").write("%s\n. %s\n. %s\ndt_open\n"
@@ -101,9 +102,34 @@ def brun(feed, arg=A, env=None, wait=1.5, until=None):
     e = {"HIBR_WEB_PROFILE": PROF, "XDG_DATA_HOME": os.path.join(D, "data")}
     e.update(env or {})
     t = Term(p, env=e, settle=3.0, rows=26, cols=80)
+    # Chromium's own start-up is what a fixed settle cannot bound: under a
+    # full parallel run it has taken longer than three seconds, and a click
+    # at a tab's own coordinates then lands on a bar that is not drawn yet.
+    # ready is the text the feed needs on screen before a key is sent; until
+    # and gone are what the feed is waited on for afterwards.
+    if ready is not None:
+        for _ in range(140):
+            if ready in t.screen().text():
+                break
+            t.collect(0.3)
+        if ready not in t.screen().text():
+            print("   (brun: %r never appeared -- Chromium is still loading)" % ready)
+    # A tab's own close box moves with the title's width: "New Tab" until
+    # the page's title arrives, "Test page" after, two columns apart. So a
+    # click is aimed at the glyph where it actually is, never at a column
+    # worked out from the title the test expects to be there by then.
+    if click is not None:
+        txt, off = click
+        pos = t.screen().find(txt)
+        if pos is None:
+            print("   (brun: %r is not on screen to click)" % txt)
+        else:
+            t.keys([press(pos[0], pos[1] + off), release(pos[0], pos[1] + off)],
+                   settle=0.5)
     t.keys(list(feed) + [wait], settle=0.5)
-    for _ in range(27):
-        if until is None or until in t.screen().text():
+    for _ in range(60):
+        seen = t.screen().text()
+        if (until is None or until in seen) and (gone is None or gone not in seen):
             break
         t.collect(0.3)
     sc = t.screen()
@@ -131,9 +157,8 @@ sc = brun([press(lk[0], lk[1] + 2), release(lk[0], lk[1] + 2), 2.5,
            b"\x1b[1;3D", 1.5], until="Hello hibr")
 check("alt-left goes back", sc.find("Hello hibr") is not None and
       sc.find("This is page B.") is None, sc)
-plus = sc.find(" + ")
-sc = brun([press(2, 18), release(2, 18), 1.0] + [c.encode() for c in B] +
-          [b"\r", 2.0], until="This is page B.")
+sc = brun([1.0] + [c.encode() for c in B] + [b"\r", 2.0], ready="Test page",
+          click=(" + ", 1), until="This is page B.")
 check("+ opens a tab with the keyboard in the address; enter goes there",
       sc.find("Test page ✕") is not None and sc.find("Page B ✕") is not None
       and sc.find("This is page B.") is not None, sc)
@@ -146,7 +171,8 @@ sc = brun([b"\x1b[21~", b"\x1b[C", b"\x1b[C", b"\x1b[C", b"\x1b[C", 0.5])
 check("and the Bookmarks menu lists it, and offers to remove it",
       sc.find("Remove Bookmark") is not None and sc.find("Test page") is not None,
       sc)
-sc = brun([press(2, 14), release(2, 14), 1.0])
+sc = brun([1.0], ready="Test page", click=("\u2715", 0),
+          gone="\u2524 Browser")
 check("closing the last tab closes the window",
       sc.find("┤ Browser") is None, sc)
 sc = brun([], env={"HIBR_WEB_BROWSER": "/nonexistent/chromium"})

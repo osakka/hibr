@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.99.70
+
+**Arabic** (Gitea #68, ADR 0032). `examples/desktop/lang/ar.json` is the
+first real translation: all 806 strings the desktop draws, right to left,
+with Arabic's own six plural categories where English has two -- so the
+Trash's own message counts correctly at none, one, two, a few and many.
+Choose it in **Control Panel > Language** and the desktop both translates
+and turns round, since the catalogue says it is right to left; English
+stays the default and costs nothing. Eight strings stay in Latin on purpose
+-- product and protocol names, an example address, the project's own
+tagline -- and `tests/993-lang-ar.t` names them, so any *other* string added
+without a translation fails there.
+
+**Write's toolbar is mirrored** (Gitea #68, ADR 0033), the last part of the
+desktop that was not: its buttons run from the right edge in a
+right-to-left desktop, and each is registered where it is drawn, so a click
+lands on the button a person sees rather than on its unmirrored twin.
+"Plain text" moves to the right for a file that is not markdown.
+
 ## 0.99.69
 
 **The vault on the desktop** (Gitea #71). A **Vault** desk accessory reads

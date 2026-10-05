@@ -3168,6 +3168,18 @@ sc, raw = run(ONE)
 check("and English is not mirrored by default",
       sc.row(0).lstrip().startswith("\u270e"), sc.row(0))
 
+# The one shipped translation (#68, ADR 0032): Arabic is a real catalogue,
+# not a pseudo-language, and it is right to left, so choosing it both
+# translates the desktop and mirrors it with no other setting.
+sc, raw = run(ONE, env={"DT_LANG": "ar"})
+bar = sc.row(0).rstrip()
+# The cells hold the shaped forms the uni module chose (U+FExx), not the
+# letters the catalogue is written in, so the check is "Arabic, and no
+# English left on the bar" rather than one spelling of one word.
+check("the bundled Arabic catalogue translates the desktop and mirrors it",
+      re.search(r"[\u0600-\u06ff\ufb50-\ufeff]", bar) is not None and
+      "File" not in bar and "Edit" not in bar and bar.endswith("\u270e"), bar)
+
 # The rest of the desktop turns round as well: the icons start from the
 # left edge, the Control Strip docks right, notes stack from the top-left
 # corner, a tiled workspace's main window is on the right, and Control
@@ -3734,4 +3746,4 @@ check("an arithmetic error in an app is logged and the desktop carries on",
       sc.find("┤ Slip ├") is not None and "arithmetic" in log and t.exited and t.status == 0,
       (log, t.status))
 
-report(515)
+report(516)
