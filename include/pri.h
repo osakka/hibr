@@ -120,6 +120,9 @@ int pl_redir(sh *s, int k, const char *t);
 int pl_prog(sh *s, char **av);
 int pl_pure(const char *nm);
 int m_nodot(sh *s);
+#ifndef HIBR_JKEEP
+#define HIBR_JKEEP 256
+#endif
 #ifndef HIBR_STREAMN
 #define HIBR_STREAMN 64
 #endif
@@ -418,6 +421,7 @@ void jc_pid(sh *s, job *j, long p);
 int jc_fg(sh *s, job *j);
 void jc_bgnote(sh *s, job *j);
 void jc_poll(sh *s, int report);
+void jc_tidy(sh *s);
 long jc_anyone(sh *s, int *w);
 void jc_fini(sh *s);
 void jc_drop(sh *s, job *j);

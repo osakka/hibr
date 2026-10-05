@@ -1751,8 +1751,11 @@ int ex_bg(sh *s, node *n)
 {
 	pid_t pid;
 	int w;
-	job *jb = jc_new(s, n->tx, 1);
+	job *jb;
 
+	if (s->jobs.n)
+		jc_tidy(s);
+	jb = jc_new(s, n->tx, 1);
 	fflush(0);
 	pid = fork();
 

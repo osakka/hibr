@@ -1958,6 +1958,14 @@ went in the shell.
   `v_named`, which every set and unset calls with the name -- reading it on
   each call cost 2.4% on a loop of function calls, the cache 0.42%. Its
   state lives in globals, not on `sh`, so the ABI did not move.
+- **A script reaps its background jobs before starting the next.** bash
+  reaps on `SIGCHLD`; hibr reaped only at the interactive prompt, `wait`
+  and `jobs`, so a script that never waited -- the desktop, polling its
+  jobs' status files -- kept every finished job as a zombie, a hundred in
+  a day. `ex_bg` calls `jc_tidy` first: `jc_poll` reaps and keeps each
+  status, and a non-interactive shell forgets the oldest finished job
+  past `HIBR_JKEEP` (256). `wait PID` on a job already reaped answers its
+  kept status (`tests/999-bg-reap.t`).
 - **A trap that exits ends the shell with its status.** `tr_run` put the
   earlier status back after every trap, and `ex_cmd` then turned a 0 into 1
   on finding `quit` set, so `trap 'exit 143' TERM` exited 1 and a bare

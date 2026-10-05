@@ -458,6 +458,8 @@ void jc_poll(sh *s, int report)
 
 	for (k = 0; k < s->jobs.n; k++) {
 		j = (job *)s->jobs.p[k];
+		if (j->state == J_DONE)
+			continue;
 		while ((p = waitpid(-(pid_t)j->pgid, &w,
 				    WNOHANG | WUNTRACED)) > 0) {
 		if (WIFSTOPPED(w)) {
@@ -492,6 +494,31 @@ void jc_poll(sh *s, int report)
 			continue;
 		}
 		i++;
+	}
+}
+
+/* Reap finished jobs before another starts, and keep a script's table bounded. */
+void jc_tidy(sh *s)
+{
+	size_t i, nd = 0;
+	job *j, *old;
+
+	jc_poll(s, 0);
+	if (s->it)
+		return;
+	for (i = 0; i < s->jobs.n; i++)
+		if (((job *)s->jobs.p[i])->state == J_DONE)
+			nd++;
+	while (nd > HIBR_JKEEP) {
+		old = 0;
+		for (i = 0; i < s->jobs.n; i++) {
+			j = (job *)s->jobs.p[i];
+			if (j->state == J_DONE && (!old || j->id < old->id))
+				old = j;
+		}
+		lg(HIBR_LDBG, "job [%d] forgotten, %zu finished kept", old->id, nd - 1);
+		jc_drop(s, old);
+		nd--;
 	}
 }
 
@@ -640,6 +667,11 @@ int b_wait(sh *s, int ac, char **av)
 		if (!j) {
 			lg(HIBR_LERR, "wait: %s: no such job", av[1]);
 			return HIBR_FAIL;
+		}
+		if (j->state == J_DONE) {
+			st = j->st;
+			jc_drop(s, j);
+			return s->st = st;
 		}
 		while (j->ndone < j->np && j->state == J_RUN) {
 			p = waitpid(-(pid_t)j->pgid, &w, 0);

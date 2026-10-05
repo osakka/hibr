@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.99.59
+
+**A script reaps its background jobs.** A non-interactive hibr collected
+a finished `( ... ) &` only at `wait` or `jobs`, never on its own, so a
+long-running script that started jobs and read their results from files
+-- the desktop's remote transfers and syncs -- kept every one as a zombie
+for as long as it ran: a day-old desktop had a hundred. Each finished job
+is now reaped before the next one starts, so at most the newest lingers;
+a script keeps the status of the last 256 finished jobs for `wait`, and
+`wait PID` on one already reaped returns its status rather than 0.
+
 ## 0.99.58
 
 **The rest of the desktop's own layout turns round** (Gitea #68, phase
