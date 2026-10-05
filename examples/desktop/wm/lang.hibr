@@ -39,15 +39,18 @@ dt_keep DT_LANG DT_BIDI DT_MIRROR
 # the Gregorian one, in which calendar and moved by how many days for local
 # sighting; Western or Arabic-Indic digits; the day a week starts, auto
 # taking it from the region in the locale.
-DT_HIJRI="${DT_HIJRI-off}"
-DT_HCAL="${DT_HCAL-umalqura}"
+# DT_HIJRI was the on/off switch until 0.99.68; a file saved then still
+# sets it, and dt_load's version-5 step turns it into DT_HCAL and a
+# Hijri code in the bar's format. Kept declared, never saved.
+DT_HIJRI="${DT_HIJRI-}"
+DT_HCAL="${DT_HCAL-none}"
 DT_HADJ="${DT_HADJ-0}"
 DT_DIGITS="${DT_DIGITS-western}"
 DT_WEEKSTART="${DT_WEEKSTART-auto}"
 DT_HCALOK=
 DT_HJCACHE=
-declare -ga DT_MONTHS DT_WDAYS DT_HMONTHS
-dt_keep DT_HIJRI DT_HCAL DT_HADJ DT_DIGITS DT_WEEKSTART
+declare -ga DT_MONTHS DT_MONTHSB DT_WDAYS DT_WDAYSA DT_HMONTHS
+dt_keep DT_HCAL DT_HADJ DT_DIGITS DT_WEEKSTART
 
 # The text a person reads, in the chosen language, %s and %N$s filled from the rest.
 # A trailing ellipsis glyph is looked up as "…" and put back, whatever the glyph set.
@@ -180,6 +183,27 @@ dt_datenames() {
 	t := dt_tr "Fri"; DT_WDAYS+=("$t")
 	t := dt_tr "Sat"; DT_WDAYS+=("$t")
 	t := dt_tr "Sun"; DT_WDAYS+=("$t")
+	DT_MONTHSB=()
+	t := dt_tr "Jan"; DT_MONTHSB+=("$t")
+	t := dt_tr "Feb"; DT_MONTHSB+=("$t")
+	t := dt_tr "Mar"; DT_MONTHSB+=("$t")
+	t := dt_tr "Apr"; DT_MONTHSB+=("$t")
+	t := dt_tr "May"; DT_MONTHSB+=("$t")
+	t := dt_tr "Jun"; DT_MONTHSB+=("$t")
+	t := dt_tr "Jul"; DT_MONTHSB+=("$t")
+	t := dt_tr "Aug"; DT_MONTHSB+=("$t")
+	t := dt_tr "Sep"; DT_MONTHSB+=("$t")
+	t := dt_tr "Oct"; DT_MONTHSB+=("$t")
+	t := dt_tr "Nov"; DT_MONTHSB+=("$t")
+	t := dt_tr "Dec"; DT_MONTHSB+=("$t")
+	DT_WDAYSA=()
+	t := dt_tr "Monday"; DT_WDAYSA+=("$t")
+	t := dt_tr "Tuesday"; DT_WDAYSA+=("$t")
+	t := dt_tr "Wednesday"; DT_WDAYSA+=("$t")
+	t := dt_tr "Thursday"; DT_WDAYSA+=("$t")
+	t := dt_tr "Friday"; DT_WDAYSA+=("$t")
+	t := dt_tr "Saturday"; DT_WDAYSA+=("$t")
+	t := dt_tr "Sunday"; DT_WDAYSA+=("$t")
 	DT_HMONTHS=()
 	t := dt_tr "Muharram"; DT_HMONTHS+=("$t")
 	t := dt_tr "Safar"; DT_HMONTHS+=("$t")
@@ -195,37 +219,13 @@ dt_datenames() {
 	t := dt_tr "Dhu al-Hijjah"; DT_HMONTHS+=("$t")
 }
 
-# A day's Hijri date, "24 Rabi' al-Thani 1448", when Hijri dates are on; fails otherwise.
+# A day's Hijri date, "24 Rabi' al-Thani 1448", when a Hijri calendar is chosen; fails otherwise.
 fn dt_hijri(int when = -1) {
-	local t y m d n nm key
+	local t
 
-	[ "$DT_HIJRI" = on ] || return 1
-	if [ "$when" -lt 0 ]; then
-		printf -v key '%s %s %s %s %(%F)T|' "$DT_HCAL" "$DT_HADJ" "$DT_DIGITS" "$DT_LANG" -1
-		if [ "${DT_HJCACHE%%|*}|" = "$key" ]; then
-			ret "${DT_HJCACHE#*|}"
-			return 0
-		fi
-	fi
-	if [ -z "$DT_HCALOK" ]; then
-		DT_HCALOK=no
-		need hcal 2> /dev/null && DT_HCALOK=yes
-	fi
-	[ "$DT_HCALOK" = yes ] || return 1
-	n=$DT_HCAL
-	hcal info -c "$n" > /dev/null 2>&1 || n=civil
-	if [ "$when" -lt 0 ]; then
-		t := hcal date -c "$n" -a "$DT_HADJ" 2> /dev/null || return 1
-	else
-		t := hcal date -c "$n" -a "$DT_HADJ" "$when" 2> /dev/null || return 1
-	fi
-	nm=$n
-	read -r y m d n <<< "$t"
-	nm := hcal name -c "$nm" "$m" 2> /dev/null
-	case $DT_LANG in ?*) [ -n "$nm" ] && nm := dt_tr "$nm" ;; esac
-	t="$d ${nm:-$m} $y"
-	t := dt_digits "$t"
-	[ "$when" -lt 0 ] && DT_HJCACHE="$key$t"
+	[ "$DT_HCAL" != none ] || return 1
+	t := dt_clocktext "%ie %iB %iY" "$when"
+	[ -n "$t" ] || return 1
 	ret "$t"
 }
 

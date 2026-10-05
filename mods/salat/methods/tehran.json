@@ -1,0 +1,15 @@
+{
+ "name": "tehran",
+ "title": "Institute of Geophysics, University of Tehran",
+ "fajr": 17.7,
+ "isha": 14,
+ "maghrib": 4.5,
+ "adjust": [
+  0,
+  0,
+  0,
+  0,
+  0,
+  0
+ ]
+}

@@ -1,0 +1,14 @@
+{
+ "name": "qatar",
+ "title": "Qatar",
+ "fajr": 18,
+ "isha_minutes": 90,
+ "adjust": [
+  0,
+  0,
+  0,
+  0,
+  0,
+  0
+ ]
+}

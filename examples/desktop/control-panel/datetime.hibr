@@ -213,7 +213,17 @@ dtp_follow() {
 # leading zero, whose padding blank dt_clocktext drops.
 DTP_FMTS=("%H:%M" "%H:%M:%S" "%l:%M %p" "%l:%M:%S %p" "%a %H:%M"
 	"%a %l:%M %p" "%a %d %b %H:%M" "%a %d %b %l:%M %p" "%Y-%m-%d %H:%M")
+# With a Hijri calendar chosen, these are offered too -- each fits the bar.
+DTP_HFMTS=("%ie %ib %H:%M" "%a %ie %ib %H:%M" "%ie %iB %iY")
+declare -ga DTP_FMTL
 DTP_CUSTOM="Custom…"
+
+# The formats the dropdown offers now: the Hijri ones only when there is a calendar.
+dtp_fmtlist() {
+	DTP_FMTL=("${DTP_FMTS[@]}")
+	[ "$DT_HCAL" != none ] && DTP_FMTL+=("${DTP_HFMTS[@]}")
+	return 0
+}
 DTP_REF=0
 
 # Today at 14:05:09 -- an afternoon, so AM/PM shows, and the same moment
@@ -236,7 +246,8 @@ dtp_fmtlabel() {
 	local f t ref
 
 	ref := dtp_ref
-	for f in "${DTP_FMTS[@]}"; do
+	dtp_fmtlist
+	for f in "${DTP_FMTL[@]}"; do
 		if [ "$f" = "$DT_BARTIME" ]; then
 			t := dt_clocktext "$f" "$ref"
 			ret "$t"
@@ -255,7 +266,8 @@ fn dtp_pickfmt(int id, label) {
 		dtf_dialog
 		return 0
 	fi
-	for f in "${DTP_FMTS[@]}"; do
+	dtp_fmtlist
+	for f in "${DTP_FMTL[@]}"; do
 		t := dt_clocktext "$f" "$DTP_REF"
 		if [ "$t" = "$label" ]; then
 			DT_BARTIME=$f
@@ -671,6 +683,84 @@ fn dtp_button(int id, int r, int c, label, tag) {
 	dt_wreg "$id" "$r" "$c" $((${#label} + 4)) "$tag"
 }
 
+declare -ga CP_HCALS CP_HCALNAMES
+CP_HADJS=(-2 -1 0 +1 +2)
+CP_WEEKS=(Auto Saturday Sunday Monday)
+
+# The calendars hcal has, names in CP_HCALS and titles in CP_HCALNAMES.
+cp_hcallist() {
+	local all n t
+
+	CP_HCALS=(none)
+	CP_HCALNAMES=(None)
+	need hcal 2> /dev/null || return 0
+	all := hcal list
+	while IFS=$'\t' read -r n t; do
+		[ -n "$n" ] || continue
+		CP_HCALS+=("$n")
+		CP_HCALNAMES+=("${t:-$n}")
+	done <<< "$all"
+}
+
+# The title of the Hijri calendar in use.
+cp_hcalname() {
+	local i=0
+
+	cp_hcallist
+	while [ "$i" -lt "${#CP_HCALS[@]}" ]; do
+		if [ "${CP_HCALS[$i]}" = "$DT_HCAL" ]; then
+			ret "${CP_HCALNAMES[$i]}"
+			return 0
+		fi
+		i=$((i + 1))
+	done
+	ret "$DT_HCAL"
+}
+
+# Choose the Hijri calendar by its title, as the dropdown hands it over.
+fn cp_set_hcal(int? id = "", value = "") {
+	local i=0
+
+	cp_hcallist
+	while [ "$i" -lt "${#CP_HCALNAMES[@]}" ]; do
+		[ "${CP_HCALNAMES[$i]}" = "$value" ] && DT_HCAL=${CP_HCALS[$i]}
+		i=$((i + 1))
+	done
+	cp_save
+}
+
+# How many days to move the Hijri date, for local sighting.
+fn cp_set_hadj(int? id = "", value = "") {
+	DT_HADJ=${value#+}
+	cp_save
+}
+
+# The day a week starts, or auto from the region.
+fn cp_set_week(int? id = "", value = "") {
+	case $value in
+	Saturday) DT_WEEKSTART=sat ;;
+	Sunday) DT_WEEKSTART=sun ;;
+	Monday) DT_WEEKSTART=mon ;;
+	*) DT_WEEKSTART=auto ;;
+	esac
+	cp_save
+}
+
+# The Hijri adjustment and the week's first day, as their dropdowns name them.
+fn cp_dateval(k) {
+	case $k in
+	hadj) [ "$DT_HADJ" -gt 0 ] && ret "+$DT_HADJ" || ret "$DT_HADJ" ;;
+	week)
+		case $DT_WEEKSTART in
+		sat) ret Saturday ;;
+		sun) ret Sunday ;;
+		mon) ret Monday ;;
+		*) ret Auto ;;
+		esac
+		;;
+	esac
+}
+
 fn datetime_draw(int id, int h, int w, int bx) {
 	local now rw rh r c oc sy sr sc lat lon out lb
 
@@ -712,12 +802,27 @@ fn datetime_draw(int id, int h, int w, int bx) {
 		dtp_button "$id" 7 $((bx + 11)) "Set…" settime
 	fi
 
+	# Which Hijri calendar the %i codes and Calendar's days follow --
+	# None for no Hijri at all -- and the day a week starts (ADR 0034).
+	lb := cp_hcalname
+	console pen "$DT_INK" "$DT_FACE"
+	dt_tput "$id" 8 "$bx" "Hijri"
+	dt_wdrop "$id" 8 $((bx + 11)) 24 "$lb" hcal
+	lb := cp_dateval hadj
+	console pen "$DT_INK" "$DT_FACE"
+	dt_tput "$id" 9 "$bx" "Adjust"
+	dt_wdrop "$id" 9 $((bx + 11)) 24 "$lb" hadj
+	lb := cp_dateval week
+	console pen "$DT_INK" "$DT_FACE"
+	dt_tput "$id" 10 "$bx" "Week"
+	dt_wdrop "$id" 10 $((bx + 11)) 24 "$lb" week
+
 	[ "$DTP_FOUND" != 1 ] && return 0
 
 	# The map fills whatever is left, at most half the reused mask's own
 	# resolution -- big enough to place a mark by, small the way System 7's
 	# own Date & Time map was.
-	rh=$(( h - 9 ))
+	rh=$(( h - 12 ))
 	[ "$rh" -gt $(( DTP_MAPH / 2 )) ] && rh=$(( DTP_MAPH / 2 ))
 	[ "$rh" -lt 1 ] && return 0
 	rw=$(( rh * DTP_MAPW / DTP_MAPH ))
@@ -745,11 +850,11 @@ fn datetime_draw(int id, int h, int w, int bx) {
 			fi
 			oc=$(( oc + 1 ))
 		done
-		console put -p "w$id" $(( r + 9 )) "$bx" "$out"
+		console put -p "w$id" $(( r + 12 )) "$bx" "$out"
 		r=$(( r + 1 ))
 	done
 	console pen "$DT_WARN" "$DT_FACE" bold
-	console put -p "w$id" $(( sr + 9 )) $(( bx + sc )) "${GL[ring]}"
+	console put -p "w$id" $(( sr + 12 )) $(( bx + sc )) "${GL[ring]}"
 }
 
 fn datetime_click(int id, int r, int c) {
@@ -760,7 +865,8 @@ fn datetime_click(int id, int r, int c) {
 	case $tag in
 	barfmt)
 		DTP_REF := dtp_ref
-		for f in "${DTP_FMTS[@]}"; do
+		dtp_fmtlist
+		for f in "${DTP_FMTL[@]}"; do
 			t := dt_clocktext "$f" "$DTP_REF"
 			vals+=("$t")
 		done
@@ -770,6 +876,19 @@ fn datetime_click(int id, int r, int c) {
 		;;
 	zone) dtz_dialog ;;
 	settime) [ -z "$DTP_HOST" ] && dts_dialog ;;
+	hcal)
+		cp_hcallist
+		wc := dt_wcol "$id" "$r" hcal
+		dt_droplist "$id" "$r" "$wc" cp_set_hcal "${CP_HCALNAMES[@]}"
+		;;
+	hadj)
+		wc := dt_wcol "$id" "$r" hadj
+		dt_droplist "$id" "$r" "$wc" cp_set_hadj "${CP_HADJS[@]}"
+		;;
+	week)
+		wc := dt_wcol "$id" "$r" week
+		dt_droplist "$id" "$r" "$wc" cp_set_week "${CP_WEEKS[@]}"
+		;;
 	esac
 }
 

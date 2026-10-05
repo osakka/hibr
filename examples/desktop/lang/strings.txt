@@ -15,6 +15,9 @@
 %s edited file(s) not yet saved to a server were kept
 %s has no address book yet -- sync it first
 %s has no shortcut now
+%s in %s h %s min
+%s in %s min
+%s in %s minutes
 %s is %s's: give it to %s?
 %s is a database, not a sheet
 %s is a number
@@ -40,6 +43,7 @@
 / Search contacts
 / Search mail
 < <= > >= = !=, a number, then good, warn, bad,
+A Note at Each Prayer
 A cell holds at most 4096 bytes
 A command is needed
 A contact needs a name or an email
@@ -63,22 +67,28 @@ Add a Mail Account
 Add a server in Control Panel > Network Servers
 Added %s to Contacts
 Added to your calendar
+Adjust
 Agenda
 Align
 All Mail
 An event stays in its calendar; make a new one in the other
+And Minutes Before
 Appearance
 Append
 Apply
 Apps
+Apr
 April
 Archive
 Arrange Icons
 As It Is
 Asked %s to join
 Asking %s what it keeps…
+Asr
+Athan
 Attach File…
 Attach…
+Aug
 August
 Average
 Back
@@ -204,9 +214,10 @@ Databases
 Date & Time
 Date/time
 Date:
-Dates
+Dec
 December
 Default View
+Degrees, north and east positive. Empty: the time zone's.
 Delete
 Delete %s from the server? It cannot be undone.
 Delete Column
@@ -222,6 +233,7 @@ Desktop
 Detach
 Dhu al-Hijjah
 Dhu al-Qa'dah
+Dhuhr
 Dialog Buttons
 Digits
 Directory
@@ -258,8 +270,10 @@ Exported %s
 Exporting CSV needs the csv module
 Export…
 Extension:
+Fajr
 Favourite
 Favourites
+Feb
 February
 Fetching %s…
 File
@@ -272,10 +286,10 @@ Find
 Find Next
 Find:
 Find…
-First Day of Week
 Folder, %s items
 Folder:
 Follow Program Title
+For Fajr
 Format
 Format:
 Forward
@@ -285,6 +299,7 @@ Freeze Above and Left
 Freeze First Column
 Freeze Top Row
 Fri
+Friday
 From:
 Full Player
 Game
@@ -300,9 +315,9 @@ Heading 2
 Heading 3
 Help
 Hide
+High Latitudes
 Highly Intuitive Bash-like Runtime
-Hijri Adjustment (days)
-Hijri Calendar
+Hijri
 History
 History Size
 History cleared
@@ -315,6 +330,7 @@ Image Viewer
 Import CSV…
 Imported %s rows from %s
 Importing CSV needs the csv module
+In the Control Strip
 In:
 Inbox
 Info
@@ -323,11 +339,15 @@ Insert Column Right
 Insert Row Above
 Insert Row Below
 Inviting people needs a mail account to send from
+Isha
 Italic
+Jan
 January
+Jul
 July
 Jumada al-Akhirah
 Jumada al-Ula
+Jun
 June
 Keep History on Disk
 Keep Messages
@@ -342,15 +362,18 @@ Left
 Line Under It
 Link
 List
+Location
 Lock After (minutes)
 Lock Screen
 Look
 Louder
 Made if it is not there; ~ is your home.
+Maghrib
 Mail
 Mail Account
 Mail is not here to write with
 Make Main
+Mar
 March
 Mark as Read
 Mark as Unread
@@ -360,13 +383,17 @@ Menu bar
 Menus
 Message
 Message sent
+Method
+Midnight
 Mines
 Mini Player
+Minutes Added
 Mirror Layout
 Mode
 Modified: %s
 Modifier Drag
 Mon
+Monday
 Month
 Mouse
 Move
@@ -398,6 +425,7 @@ New Window
 New name:
 Next
 Next Month
+Next Prayer in the Menu Bar
 Next Wallpaper
 Nextcloud: https://HOST/remote.php/dav/files/USER
 No Picture
@@ -417,6 +445,7 @@ No terminal app to run it in
 No zone matches
 None
 None yet -- add one in Network Servers
+Not a place: latitude -90 to 90, longitude -180 to 180
 Not a valid name
 Not changed
 Not held -- nothing to detach from
@@ -434,10 +463,12 @@ Nothing to %s
 Nothing yet
 Notification Icon
 Notifications
+Nov
 November
 Number
 Numbered List
 OK
+Oct
 October
 Offline
 On 10 Seconds
@@ -480,6 +511,10 @@ Play
 Play Next Automatically
 Player
 Position
+Prayer
+Prayer Location
+Prayer Times
+Prayer Times needs the salat module, which is not installed.
 Press a key for %s…
 Preview
 Previous
@@ -538,6 +573,7 @@ Rule…
 Run in a terminal
 Safar
 Sat
+Saturday
 Save
 Save As…
 Saved %s
@@ -564,12 +600,14 @@ Send End Of File
 Send Interrupt
 Sending…
 Sent
+Sep
 September
 Server
 Servers
 Session at Login
 Set (sudo)
 Set Date & Time
+Set Location…
 Set as Wallpaper
 Set up a mail account first, in Control Panel > Mail
 Several emails or phones: separate them with commas.
@@ -583,7 +621,6 @@ Shell
 Shortcuts
 Shortcuts in Terminals
 Show All Notes
-Show Hijri Dates
 Show Pictures
 Shown on the login screen, with your picture.
 Shows:
@@ -596,6 +633,7 @@ Snap
 Sort By
 Sort by CPU
 Sort by Memory
+Sound
 Special
 Standby displays join on their own
 Star
@@ -607,6 +645,8 @@ Stop
 Strikethrough
 Sum
 Sun
+Sunday
+Sunrise
 Sync Now
 Syncing
 Syncing calendars and contacts…
@@ -643,9 +683,11 @@ This account has no address to answer from
 This window: desktop shortcuts work again
 This window: every key goes to the program
 Thu
+Thursday
 Tick Task
 Tiled: the layout sizes this window
 Time Zone
+Time for %s
 Time zone
 Time:
 Timeout
@@ -659,6 +701,7 @@ Top
 Trash
 Trust %s? Its formulas will run as you: write files, start programs, use the network.
 Tue
+Tuesday
 Turns off automatic time (NTP) first
 Type what to look for, or a playlist's or a channel's address, and enter.
 Type: %s
@@ -676,12 +719,16 @@ Wait for the transfers running to finish first
 Wallpaper
 Wallpaper set
 Wed
+Wednesday
+Week
+Where are you? Control Panel > Prayer Times
 Where:
 Wider Column
 Window
 Windows
 Work Out Again
 Worked out again
+Working Them Out
 Workspace %s
 Workspace %s: tiled
 Workspace %s: windows float
@@ -713,3 +760,4 @@ moving — arrows, then enter
 note
 phone
 resizing — arrows, then enter
+sets a place, or the time zone gives one.

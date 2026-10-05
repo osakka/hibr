@@ -1,0 +1,212 @@
+#!/usr/bin/env hibr
+#
+# wm/prayer -- prayer times on the desktop (Gitea #70, ADR 0035): today's
+# times by the method chosen, for where the person is; the next one beside
+# the bar's clock, a note at each and the athan played, each a switch.
+#
+# The times come from the salat module, which is loaded only when one of
+# these is on or the Prayer Times window is open; a desktop that never asks
+# pays nothing. Where the person is comes from DT_PLAT and DT_PLON, set in
+# Control Panel > Prayer Times, or else from the time zone's own place, as
+# Date & Time finds it (DTP_LAT, DTP_LON, hundredths of a degree).
+#
+# Part of the window manager; desktop.hibr sources it.
+
+strict
+
+DT_PMETHOD="${DT_PMETHOD-mwl}"
+DT_PASR="${DT_PASR-shafi}"
+DT_PRULE="${DT_PRULE-middle}"
+DT_PADJ="${DT_PADJ-0,0,0,0,0,0}"
+DT_PLAT="${DT_PLAT-}"
+DT_PLON="${DT_PLON-}"
+DT_PBAR="${DT_PBAR-off}"
+DT_PNOTE="${DT_PNOTE-off}"
+DT_PSTRIP="${DT_PSTRIP-off}"
+DT_PBEFORE="${DT_PBEFORE-0}"
+DT_PATHAN="${DT_PATHAN-}"
+DT_PATHANF="${DT_PATHANF-}"
+dt_keep DT_PMETHOD DT_PASR DT_PRULE DT_PADJ DT_PLAT DT_PLON DT_PBAR DT_PNOTE DT_PSTRIP DT_PBEFORE DT_PATHAN DT_PATHANF
+
+# Today's times, and the key they were worked out for.
+DT_PKEY=
+DT_PTIMES=
+# The latest time a note has been given for, so each is given once.
+DT_PNOTED=0
+# The player the athan is playing on, if it is.
+DT_PPLAY=
+
+# The six names, in the language chosen: written out for tools/strings.py.
+fn dt_pname(int i) {
+	local t
+
+	case $i in
+	0) t := dt_tr "Fajr" ;;
+	1) t := dt_tr "Sunrise" ;;
+	2) t := dt_tr "Dhuhr" ;;
+	3) t := dt_tr "Asr" ;;
+	4) t := dt_tr "Maghrib" ;;
+	5) t := dt_tr "Isha" ;;
+	*) t := dt_tr "Midnight" ;;
+	esac
+	ret "$t"
+}
+
+# Hundredths of a degree as a decimal: -12 as -0.12.
+fn dt_pdec(int v) {
+	local s= a=$v
+
+	[ "$a" -lt 0 ] && s=- && a=$((0 - a))
+	ret "$s$((a / 100)).$((a % 100 / 10))$((a % 10))"
+}
+
+# Where the person is, "lat lon": as set, or the time zone's place; fails when neither is known.
+dt_ploc() {
+	local a b
+
+	if [ -n "$DT_PLAT" ] && [ -n "$DT_PLON" ]; then
+		ret "$DT_PLAT $DT_PLON"
+		return 0
+	fi
+	[ "${DTP_FOUND:-0}" = 1 ] || return 1
+	a := dt_pdec "$DTP_LAT"
+	b := dt_pdec "$DTP_LON"
+	ret "$a $b"
+}
+
+# The salat options the settings make, as words: method, school, rule, adjustments.
+dt_popts() {
+	ret "-m $DT_PMETHOD -a $DT_PASR -r $DT_PRULE -j $DT_PADJ"
+}
+
+# A day's seven times, epoch seconds (salat times), today's kept until the day or a setting changes.
+fn dt_ptimes(int when = -1) {
+	local loc key o t la lo
+	local -a op
+
+	need salat 2> /dev/null || return 1
+	loc := dt_ploc || return 1
+	o := dt_popts
+	read -ra op <<< "$o"
+	read -r la lo <<< "$loc"
+	if [ "$when" -lt 0 ]; then
+		printf -v key '%s %s %(%F)T' "$o" "$loc" -1
+		if [ "$key" = "$DT_PKEY" ]; then
+			ret "$DT_PTIMES"
+			return 0
+		fi
+		t := salat times "${op[@]}" "$la" "$lo" 2> /dev/null || return 1
+		DT_PKEY=$key
+		DT_PTIMES=$t
+		ret "$t"
+		return 0
+	fi
+	t := salat times "${op[@]}" "$la" "$lo" "$when" 2> /dev/null || return 1
+	ret "$t"
+}
+
+# The next prayer from now, "index epoch" -- sunrise passed over -- tomorrow's Fajr after Isha.
+dt_pnext() {
+	local t now=$EPOCHSECONDS i
+	local -a ts
+
+	t := dt_ptimes || return 1
+	read -ra ts <<< "$t"
+	for i in 0 2 3 4 5; do
+		if [ "${ts[$i]}" -gt "$now" ]; then
+			ret "$i ${ts[$i]}"
+			return 0
+		fi
+	done
+	t := dt_ptimes $((now + 86400)) || return 1
+	read -ra ts <<< "$t"
+	[ "${ts[0]}" -gt 0 ] || return 1
+	ret "0 ${ts[0]}"
+}
+
+# A time as the bar and the window write it: the bar clock's hour format, the digits chosen.
+fn dt_ptime(int t) {
+	local s f="%H:%M"
+
+	if [ "$t" -lt 0 ]; then
+		ret "--:--"
+		return 0
+	fi
+	[[ $DT_BARTIME == *%l* || $DT_BARTIME == *%I* ]] && f="%l:%M %p"
+	printf -v s "%($f)T" "$t"
+	s=${s# }
+	s := dt_digits "$s"
+	ret "$s"
+}
+
+# The next prayer for the bar, "Asr 14:48", when the bar is to show it.
+dt_pbar() {
+	local n i t nm
+
+	[ "$DT_PBAR" = on ] || return 1
+	n := dt_pnext || return 1
+	read -r i t <<< "$n"
+	nm := dt_pname "$i"
+	t := dt_ptime "$t"
+	ret "$nm $t"
+}
+
+# Once a frame: a note at each prayer (and minutes before, if asked), the
+# athan with it, and the frame needed next. Each moment fires once: those
+# between the last look and now, never those before the desktop started.
+dt_ptick() {
+	local t now=$EPOCHSECONDS i e nm f p soon=-1 fired=
+	local -a ts
+	local -A inf
+
+	if [ -n "$DT_PPLAY" ]; then
+		inf := media info "$DT_PPLAY" 2> /dev/null
+		if [ "${inf["ended"]}" = 1 ] || [ -z "${inf["pos"]+x}" ]; then
+			media close "$DT_PPLAY" 2> /dev/null
+			DT_PPLAY=
+		else
+			dt_want 1000
+		fi
+	fi
+	[ "$DT_PNOTE" = on ] || [ "$DT_PBAR" = on ] || return 0
+	[ "$DT_PNOTED" = 0 ] && DT_PNOTED=$now
+	if [ "$DT_PNOTE" = on ]; then
+		t := dt_ptimes || return 0
+		read -ra ts <<< "$t"
+		for i in 0 2 3 4 5; do
+			[ "${ts[$i]}" -gt 0 ] || continue
+			if [ "$DT_PBEFORE" -gt 0 ]; then
+				e=$((ts[i] - DT_PBEFORE * 60))
+				if [ "$e" -le "$now" ] && [ "$e" -gt "$DT_PNOTED" ] && [ "${ts[$i]}" -gt "$now" ]; then
+					nm := dt_pname "$i"
+					dt_notep normal "%s in %s minutes" "$nm" "$DT_PBEFORE"
+					fired=1
+				elif [ "$e" -gt "$now" ] && { [ "$soon" -lt 0 ] || [ "$e" -lt "$soon" ]; }; then
+					soon=$e
+				fi
+			fi
+			e=${ts[$i]}
+			if [ "$e" -le "$now" ] && [ "$e" -gt "$DT_PNOTED" ]; then
+				nm := dt_pname "$i"
+				dt_notep normal "Time for %s" "$nm"
+				f=$DT_PATHAN
+				[ "$i" = 0 ] && [ -n "$DT_PATHANF" ] && f=$DT_PATHANF
+				if [ -n "$f" ] && [ -r "$f" ] && need media 2> /dev/null; then
+					[ -n "$DT_PPLAY" ] && media close "$DT_PPLAY" 2> /dev/null
+					p := media open "$f" 2> /dev/null && DT_PPLAY=$p
+				fi
+				fired=1
+			elif [ "$e" -gt "$now" ] && { [ "$soon" -lt 0 ] || [ "$e" -lt "$soon" ]; }; then
+				soon=$e
+			fi
+		done
+		DT_PNOTED=$now
+		[ -n "$fired" ] && dt_want 30
+	fi
+	# Wake for the next moment, and at least each minute for the bar.
+	t=60000
+	[ "$soon" -gt 0 ] && [ $(((soon - now) * 1000)) -lt "$t" ] && t=$(((soon - now) * 1000))
+	[ "$t" -lt 100 ] && t=100
+	dt_want "$t"
+}
+dt_ticker dt_ptick

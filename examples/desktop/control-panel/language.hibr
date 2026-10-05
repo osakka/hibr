@@ -9,93 +9,9 @@ strict
 
 command -v cp_pane > /dev/null && cp_pane language "Language" "A"
 
-declare -ga CP_LANGCODES CP_LANGNAMES CP_HCALS CP_HCALNAMES
+declare -ga CP_LANGCODES CP_LANGNAMES
 CP_MIRRORS=(auto on off)
-CP_HADJS=(-2 -1 0 +1 +2)
 CP_DIGITS=(Western Arabic-Indic)
-CP_WEEKS=(Auto Saturday Sunday Monday)
-
-# The calendars hcal has, names in CP_HCALS and titles in CP_HCALNAMES.
-cp_hcallist() {
-	local all n t
-
-	CP_HCALS=()
-	CP_HCALNAMES=()
-	need hcal 2> /dev/null || return 0
-	all := hcal list
-	while IFS=$'\t' read -r n t; do
-		[ -n "$n" ] || continue
-		CP_HCALS+=("$n")
-		CP_HCALNAMES+=("${t:-$n}")
-	done <<< "$all"
-}
-
-# The title of the Hijri calendar in use.
-cp_hcalname() {
-	local i=0
-
-	cp_hcallist
-	while [ "$i" -lt "${#CP_HCALS[@]}" ]; do
-		if [ "${CP_HCALS[$i]}" = "$DT_HCAL" ]; then
-			ret "${CP_HCALNAMES[$i]}"
-			return 0
-		fi
-		i=$((i + 1))
-	done
-	ret "$DT_HCAL"
-}
-
-# Choose the Hijri calendar by its title, as the dropdown hands it over.
-fn cp_set_hcal(int? id = "", value = "") {
-	local i=0
-
-	cp_hcallist
-	while [ "$i" -lt "${#CP_HCALNAMES[@]}" ]; do
-		[ "${CP_HCALNAMES[$i]}" = "$value" ] && DT_HCAL=${CP_HCALS[$i]}
-		i=$((i + 1))
-	done
-	cp_save
-}
-
-# How many days to move the Hijri date, for local sighting.
-fn cp_set_hadj(int? id = "", value = "") {
-	DT_HADJ=${value#+}
-	cp_save
-}
-
-# Western or Arabic-Indic digits.
-fn cp_set_digits(int? id = "", value = "") {
-	DT_DIGITS=western
-	[ "$value" = Arabic-Indic ] && DT_DIGITS=arabic
-	cp_save
-}
-
-# The day a week starts, or auto from the region.
-fn cp_set_week(int? id = "", value = "") {
-	case $value in
-	Saturday) DT_WEEKSTART=sat ;;
-	Sunday) DT_WEEKSTART=sun ;;
-	Monday) DT_WEEKSTART=mon ;;
-	*) DT_WEEKSTART=auto ;;
-	esac
-	cp_save
-}
-
-# The setting's value as its dropdown names it.
-fn cp_langval(k) {
-	case $k in
-	hadj) [ "$DT_HADJ" -gt 0 ] && ret "+$DT_HADJ" || ret "$DT_HADJ" ;;
-	digits) [ "$DT_DIGITS" = arabic ] && ret Arabic-Indic || ret Western ;;
-	week)
-		case $DT_WEEKSTART in
-		sat) ret Saturday ;;
-		sun) ret Sunday ;;
-		mon) ret Monday ;;
-		*) ret Auto ;;
-		esac
-		;;
-	esac
-}
 
 # Read the catalogues there are into CP_LANGCODES and CP_LANGNAMES, English first.
 cp_langlist() {
@@ -149,6 +65,13 @@ fn cp_set_mirror(int? id = "", value = "") {
 	cp_save
 }
 
+# Western or Arabic-Indic digits.
+fn cp_set_digits(int? id = "", value = "") {
+	DT_DIGITS=western
+	[ "$value" = Arabic-Indic ] && DT_DIGITS=arabic
+	cp_save
+}
+
 fn language_rows(int w) {
 	local n=0 nm
 
@@ -161,23 +84,10 @@ fn language_rows(int w) {
 	CP[$w][$n]["key"]=bidi; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Mirror Layout"
 	CP[$w][$n]["val"]="$DT_MIRROR"; CP[$w][$n]["key"]=mirror; n=$((n + 1))
-	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Dates"; n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Show Hijri Dates"
-	CP[$w][$n]["wtype"]=bool
-	CP[$w][$n]["val"]=off; [ "$DT_HIJRI" = on ] && CP[$w][$n]["val"]=on
-	CP[$w][$n]["key"]=hijri; n=$((n + 1))
-	nm := cp_hcalname
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Hijri Calendar"
-	CP[$w][$n]["val"]="$nm"; CP[$w][$n]["key"]=hcal; n=$((n + 1))
-	nm := cp_langval hadj
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Hijri Adjustment (days)"
-	CP[$w][$n]["val"]="$nm"; CP[$w][$n]["key"]=hadj; n=$((n + 1))
-	nm := cp_langval digits
+	nm=Western
+	[ "$DT_DIGITS" = arabic ] && nm=Arabic-Indic
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Digits"
 	CP[$w][$n]["val"]="$nm"; CP[$w][$n]["key"]=digits; n=$((n + 1))
-	nm := cp_langval week
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="First Day of Week"
-	CP[$w][$n]["val"]="$nm"; CP[$w][$n]["key"]=week; n=$((n + 1))
 	ret "$n"
 }
 
@@ -205,23 +115,11 @@ fn language_do(int? w = "", k = "", int? dir = "") {
 		cp_set_mirror "" "$v"
 		return 0
 		;;
-	hijri)
-		if [ "$DT_HIJRI" = on ]; then DT_HIJRI=off; else DT_HIJRI=on; fi
-		;;
-	hcal)
-		cp_hcallist
-		nm := cp_hcalname
-		v := cp_next "$nm" "$dir" "${CP_HCALNAMES[@]}"
-		cp_set_hcal "" "$v"
-		return 0
-		;;
-	hadj | digits | week)
-		nm := cp_langval "$k"
-		case $k in
-		hadj) v := cp_next "$nm" "$dir" "${CP_HADJS[@]}"; cp_set_hadj "" "$v" ;;
-		digits) v := cp_next "$nm" "$dir" "${CP_DIGITS[@]}"; cp_set_digits "" "$v" ;;
-		week) v := cp_next "$nm" "$dir" "${CP_WEEKS[@]}"; cp_set_week "" "$v" ;;
-		esac
+	digits)
+		nm=Western
+		[ "$DT_DIGITS" = arabic ] && nm=Arabic-Indic
+		v := cp_next "$nm" "$dir" "${CP_DIGITS[@]}"
+		cp_set_digits "" "$v"
 		return 0
 		;;
 	esac
@@ -235,12 +133,6 @@ fn language_drop(int? w = "", int? r = "", int? c = "", k = "") {
 		dt_droplist "$w" "$r" "$c" cp_set_lang "${CP_LANGNAMES[@]}"
 		;;
 	mirror) dt_droplist "$w" "$r" "$c" cp_set_mirror "${CP_MIRRORS[@]}" ;;
-	hcal)
-		cp_hcallist
-		dt_droplist "$w" "$r" "$c" cp_set_hcal "${CP_HCALNAMES[@]}"
-		;;
-	hadj) dt_droplist "$w" "$r" "$c" cp_set_hadj "${CP_HADJS[@]}" ;;
 	digits) dt_droplist "$w" "$r" "$c" cp_set_digits "${CP_DIGITS[@]}" ;;
-	week) dt_droplist "$w" "$r" "$c" cp_set_week "${CP_WEEKS[@]}" ;;
 	esac
 }

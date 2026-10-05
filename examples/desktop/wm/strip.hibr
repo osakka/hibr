@@ -17,6 +17,9 @@ strict
 CS_MODDIRS=("${XDG_CONFIG_HOME:-$HOME/.config}/hibr/control-strip")
 declare -gA CS_MODS
 CS_MOD_LIST=()
+# Every module loaded, in file order; CS_MOD_LIST is the ones shown now --
+# a module with a <name>_shown that says no is left out (cs_relist).
+CS_MOD_ALL=()
 declare -gA CS_SRC
 
 CS_SIDE="${CS_SIDE-left}"
@@ -47,7 +50,21 @@ CS_PRESSC=0
 fn cs_module(name, title, w = "") {
 	CS_MODS[$name]["title"]="$title"
 	CS_MODS[$name]["w"]="${w:-${#2}}"
+	CS_MOD_ALL+=("$name")
 	CS_MOD_LIST+=("$name")
+}
+
+# Which modules show: each, unless its <name>_shown says no. Run after the
+# settings load and whenever one a module asks about changes.
+cs_relist() {
+	local m
+
+	CS_MOD_LIST=()
+	for m in "${CS_MOD_ALL[@]}"; do
+		dt_has "${m}_shown" && ! "${m}_shown" && continue
+		CS_MOD_LIST+=("$m")
+	done
+	return 0
 }
 
 # Load every module in the folders. Flat, not recursive, the same as

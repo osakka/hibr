@@ -18,7 +18,7 @@
 typedef struct hc_cal hc_cal;
 struct hc_cal {
 	char *name, *title, *kind, *outside, *path;
-	char *months[12];
+	char *months[12], *shorts[12];
 	long y0, j0, epoch;
 	long *start;
 	unsigned *mask;
@@ -89,8 +89,10 @@ void hc_drop(hc_cal *c)
 	free(c->kind);
 	free(c->outside);
 	free(c->path);
-	for (i = 0; i < 12; i++)
+	for (i = 0; i < 12; i++) {
 		free(c->months[i]);
+		free(c->shorts[i]);
+	}
 	free(c->start);
 	free(c->mask);
 	memset(c, 0, sizeof *c);
@@ -127,8 +129,8 @@ const char *hc_nums(const char *p, hc_cal *c, int leap)
 	return *p == ']' ? p + 1 : 0;
 }
 
-/* Read an array of month names at p; the text after it, or 0. */
-const char *hc_names(const char *p, hc_cal *c, str *t)
+/* Read an array of month names at p, into the full or the short ones; the text after it, or 0. */
+const char *hc_names(const char *p, hc_cal *c, str *t, int sh)
 {
 	int i = 0;
 
@@ -139,8 +141,9 @@ const char *hc_names(const char *p, hc_cal *c, str *t)
 		if (!(p = hc_str(p, t)))
 			return 0;
 		if (i < 12) {
-			free(c->months[i]);
-			c->months[i++] = hc_dup(t);
+			char **slot = sh ? &c->shorts[i++] : &c->months[i++];
+			free(*slot);
+			*slot = hc_dup(t);
 		}
 		p = hc_ws(p);
 		if (*p == ',')
@@ -183,8 +186,8 @@ int hc_parse(const char *text, hc_cal *c)
 			p = hc_nums(p, c, 0);
 		} else if (!strcmp(k.p, "leap")) {
 			p = hc_nums(p, c, 1);
-		} else if (!strcmp(k.p, "months")) {
-			p = hc_names(p, c, &v);
+		} else if (!strcmp(k.p, "months") || !strcmp(k.p, "short")) {
+			p = hc_names(p, c, &v, k.p[0] == 's');
 		} else if (*p == '"') {
 			if (!(p = hc_str(p, &v)))
 				goto out;
@@ -330,6 +333,21 @@ void hc_builtin(void)
 	hc_add(&c);
 }
 
+/* The calendars in order of their titles, so a list reads the same wherever the files are. */
+void hc_sort(void)
+{
+	size_t i, j;
+	hc_cal t;
+
+	for (i = 1; i < hc_n; i++) {
+		t = hc_tab[i];
+		for (j = i; j > 0 && strcmp(hc_tab[j - 1].title ? hc_tab[j - 1].title : hc_tab[j - 1].name,
+					  t.title ? t.title : t.name) > 0; j--)
+			hc_tab[j] = hc_tab[j - 1];
+		hc_tab[j] = t;
+	}
+}
+
 /* Read the folders once: HIBR_CALENDARS, then the person's own, then the installed ones. */
 void hc_load(void)
 {
@@ -360,6 +378,7 @@ void hc_load(void)
 	}
 	hc_dir(HIBR_SHAREDIR "/calendars");
 	hc_builtin();
+	hc_sort();
 	s_free(&d);
 }
 
@@ -538,8 +557,10 @@ long hc_when(const char *a)
 	long y, m, d;
 	char *e;
 
-	if (sscanf(a, "%ld-%ld-%ld", &y, &m, &d) == 3 && strchr(a, '-') != a)
-		return hc_gjd(y, m, d);
+	int n = 0;
+
+	if (*a != '-' && sscanf(a, "%ld-%ld-%ld%n", &y, &m, &d, &n) == 3 && n > 0 && !a[n])
+		return m >= 1 && m <= 12 && d >= 1 && d <= 31 ? hc_gjd(y, m, d) : -1;
 	y = strtol(a, &e, 10);
 	if (*a && !*e)
 		return hc_today((time_t)y);
@@ -591,10 +612,107 @@ int hc_iso(sh *s, long y, long m, long d)
 	return rc;
 }
 
+/* The n-th of a list of names split on '|', into o; 0 when there is one. */
+int hc_pick(const char *list, int n, str *o)
+{
+	const char *p = list, *e;
+
+	while (n-- > 0) {
+		if (!(p = strchr(p, '|')))
+			return -1;
+		p++;
+	}
+	e = strchr(p, '|');
+	s_add(o, p, e ? (size_t)(e - p) : strlen(p));
+	return 0;
+}
+
+/* A number, padded to two places with c, or not padded when c is 0. */
+void hc_two(str *o, long v, char c)
+{
+	if (c && v < 10)
+		s_ch(o, c);
+	s_num(o, v);
+}
+
+/* A time in a strftime format whose %id %ie %im %iY %iB %ib are the day in calendar c,
+   the names from full and shrt when given; the rest is strftime's, in local time. */
+int hc_format(hc_cal *c, long adj, const char *full, const char *shrt, const char *fmt, time_t t, str *o)
+{
+	long y, m, d;
+	str f, nm;
+	const char *p;
+	struct tm tm;
+	size_t cap, n;
+	char *buf;
+	int k;
+
+	hc_from(c, hc_today(t) + adj, &y, &m, &d);
+	s_init(&f);
+	s_init(&nm);
+	for (p = fmt; *p; p++) {
+		if (*p != '%') {
+			s_ch(&f, *p);
+			continue;
+		}
+		if (p[1] == '%') {
+			s_cat(&f, "%%");
+			p++;
+			continue;
+		}
+		if (p[1] != 'i' || !p[2] || !strchr("demYBb", p[2])) {
+			s_ch(&f, *p);
+			continue;
+		}
+		nm.n = 0;
+		switch (p[2]) {
+		case 'd': hc_two(&nm, d, '0'); break;
+		case 'e': hc_two(&nm, d, ' '); break;
+		case 'm': hc_two(&nm, m, '0'); break;
+		case 'Y': s_num(&nm, y); break;
+		case 'B':
+			if (!full || hc_pick(full, (int)m - 1, &nm) < 0)
+				s_cat(&nm, c->months[m - 1] ? c->months[m - 1] : "");
+			break;
+		default:
+			if (!shrt || hc_pick(shrt, (int)m - 1, &nm) < 0) {
+				if (c->shorts[m - 1])
+					s_cat(&nm, c->shorts[m - 1]);
+				else if (c->months[m - 1])
+					s_add(&nm, c->months[m - 1], strlen(c->months[m - 1]) < 3 ? strlen(c->months[m - 1]) : 3);
+			}
+			break;
+		}
+		for (n = 0; n < nm.n; n++) {
+			if (nm.p[n] == '%')
+				s_ch(&f, '%');
+			s_ch(&f, nm.p[n]);
+		}
+		p += 2;
+	}
+	s_grow(&f, 1);
+	f.p[f.n] = 0;
+	localtime_r(&t, &tm);
+	cap = f.n * 4 + 64;
+	for (k = 0; k < 8; k++, cap *= 2) {
+		buf = xm(cap);
+		n = strftime(buf, cap, f.p, &tm);
+		if (n || !f.n) {
+			s_add(o, buf, n);
+			free(buf);
+			break;
+		}
+		free(buf);
+	}
+	s_free(&f);
+	s_free(&nm);
+	return 0;
+}
+
 /* hcal: list the calendars, or turn a day into one and back. */
 int hc_bi(sh *s, int ac, char **av)
 {
-	const char *cn = "umalqura";
+	const char *cn = "umalqura", *full = 0, *shrt = 0;
 	hc_cal *c;
 	long adj = 0, j, y, m, d;
 	int k = 2;
@@ -603,7 +721,7 @@ int hc_bi(sh *s, int ac, char **av)
 
 	hc_load();
 	if (ac < 2) {
-		lg(HIBR_LERR, "usage: hcal list | date [-c cal] [-a days] [time|yyyy-mm-dd] | greg [-c cal] [-a days] y m d | month [-c cal] y m | name [-c cal] m | info [-c cal]");
+		lg(HIBR_LERR, "usage: hcal list | format [-c cal] [-a days] FORMAT [time] | date [-c cal] [-a days] [time|yyyy-mm-dd] | greg [-c cal] [-a days] y m d | month [-c cal] y m | name [-c cal] m | info [-c cal]");
 		return 2;
 	}
 	if (!strcmp(av[1], "list")) {
@@ -625,6 +743,10 @@ int hc_bi(sh *s, int ac, char **av)
 			cn = av[++k];
 		} else if (!strcmp(av[k], "-a") && k + 1 < ac) {
 			adj = strtol(av[++k], 0, 10);
+		} else if (!strcmp(av[k], "-n") && k + 1 < ac) {
+			full = av[++k];
+		} else if (!strcmp(av[k], "-s") && k + 1 < ac) {
+			shrt = av[++k];
 		} else {
 			lg(HIBR_LERR, "hcal: %s: unknown option", av[k]);
 			return 2;
@@ -634,6 +756,28 @@ int hc_bi(sh *s, int ac, char **av)
 	if (!(c = hc_find(cn))) {
 		lg(HIBR_LERR, "hcal: %s: no such calendar (hcal list says which there are)", cn);
 		return HIBR_FAIL;
+	}
+	if (!strcmp(av[1], "format")) {
+		time_t t = time(0);
+		char *e;
+		if (ac - k < 1 || ac - k > 2) {
+			lg(HIBR_LERR, "usage: hcal format [-c cal] [-a days] [-n 'name|...'] [-s 'short|...'] FORMAT [time]");
+			return 2;
+		}
+		if (ac - k == 2) {
+			t = (time_t)strtol(av[k + 1], &e, 10);
+			if (*e || !*av[k + 1]) {
+				lg(HIBR_LERR, "hcal format: %s: not a time in seconds", av[k + 1]);
+				return 2;
+			}
+		}
+		s_init(&o);
+		hc_format(c, adj, full, shrt, av[k], t, &o);
+		s_grow(&o, 1);
+		o.p[o.n] = 0;
+		k = sx_out(s, 0, o.p);
+		s_free(&o);
+		return k;
 	}
 	if (!strcmp(av[1], "date")) {
 		j = k < ac ? hc_when(av[k]) : hc_today(time(0));

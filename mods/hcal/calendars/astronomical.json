@@ -29,5 +29,19 @@
   "Shawwal",
   "Dhu al-Qa'dah",
   "Dhu al-Hijjah"
+ ],
+ "short": [
+  "Muh",
+  "Saf",
+  "Rab I",
+  "Rab II",
+  "Jum I",
+  "Jum II",
+  "Raj",
+  "Sha",
+  "Ram",
+  "Shaw",
+  "Dhu Q",
+  "Dhu H"
  ]
 }

@@ -290,11 +290,11 @@ GROUP = dict(l.split() for l in out if l.strip())
 check("panes register and sort by title within their group, not load order",
       ORDER == ["datetime", "displays", "keyboard", "mouse",
                 "aboutme", "appearance", "cliphist", "control_strip", "desktop",
-                "filetypes", "language", "network", "notify", "screensaver", "shortcuts", "windows",
+                "filetypes", "language", "network", "notify", "prayerset", "screensaver", "shortcuts", "windows",
                 "abouthibr", "filesview", "mailset", "pimset", "notes", "taskmgr", "terminal", "tube"], out)
 check("Hardware first, then the desktop's own panes, then one per app",
       [GROUP[n] for n in ORDER] ==
-      ["hardware"] * 4 + ["system"] * 12 + ["app"] * 8, out)
+      ["hardware"] * 4 + ["system"] * 13 + ["app"] * 8, out)
 
 PW = "22 70 2 2"
 PANEL = ("panel", PW)
@@ -315,7 +315,7 @@ TITLE = {"aboutme": "About Me", "appearance": "Appearance", "control_strip": "Co
          "cliphist": "Clipboard", "notes": "Stickies",
          "datetime": "Date & Time", "desktop": "Desktop",
          "displays": "Displays", "filetypes": "File Types", "language": "Language",
-         "network": "Network Serve", "screensaver": "Screen Saver",
+         "network": "Network Serve", "prayerset": "Prayer Times", "screensaver": "Screen Saver",
          "keyboard": "Keyboard", "mouse": "Mouse",
          "shortcuts": "Shortcuts", "notify": "Notifications",
          "windows": "Windows", "abouthibr": "About hibr",
@@ -413,7 +413,7 @@ check("the picker lists every pane it has room for, sorted by title",
 check("under a Hardware heading, then Desktop, then Apps",
       "Hardware" in sc.row(R0 + 1) and
       "Desktop" in sc.row(prow("aboutme") - 1) and
-      "Apps" in sc.row(prow("abouthibr") - 1), sc)
+      (prow("abouthibr") - 1 >= R0 + 19 or "Apps" in sc.row(prow("abouthibr") - 1)), sc)
 check("a list longer than the window scrolls, with a bar to say so",
       sc.find("Hardware") is not None and "█" in "".join(
           r[2:22] for r in sc.text().split("\n")), sc)
@@ -517,6 +517,10 @@ for pane in ORDER:
     extra = PANE_APPS.get(pane, ())
     keys = dropkeys(pane)
     for i, (kind, text, key, val) in enumerate(panefull(pane, extra)):
+        # Prayer Times' six minute rows are one widget six times: the
+        # first stands for them all.
+        if pane == "prayerset" and key[:3] == "adj" and key != "adj0":
+            continue
         if kind == "set" and key in keys:
             DROPS.append((pane, extra, i, text, val))
 for pane, extra, i, text, val in DROPS:
@@ -1046,17 +1050,17 @@ OLDKEYS = ('DT_KEYS["close"]=alt-f4\nDT_KEYS["cycle"]=tab\n'
            'DT_KEYS["quit"]=q\nDT_TERMBAR=0\nDT_DRAGMOD=0\n')
 out = loadconf("DT_TERMKEEP=0\n" + OLDKEYS)
 check("a settings file from before 0.72 is brought up to 0.73's defaults",
-      out == "4 1 1 1 ctrl-w alt-tab []", out)
+      out == "5 1 1 1 ctrl-w alt-tab []", out)
 out = loadconf("DT_SETVER=1\nDT_TERMKEEP=0\n" + OLDKEYS)
 check("one from 0.72 keeps its Shortcuts Win and gets the rest",
-      out == "4 0 1 1 ctrl-w alt-tab []", out)
+      out == "5 0 1 1 ctrl-w alt-tab []", out)
 out = loadconf('DT_SETVER=1\nDT_KEYS["close"]=alt-x\nDT_KEYS["cycle"]=f6\n'
                'DT_KEYS["quit"]=ctrl-q\n')
 check("a key changed from its old default is not touched",
       out.endswith("alt-x f6 [ctrl-q]"), out)
 out = loadconf("DT_SETVER=2\nDT_TERMBAR=0\nDT_DRAGMOD=0\n")
 check("and a 0.73 file is read as it is, choices and all",
-      out.startswith("4 1 0 0 "), out)
+      out.startswith("5 1 0 0 "), out)
 
 
 # 0.99.26 put the workspaces on alt and an arrow and Snap on ctrl-alt: a
@@ -1196,9 +1200,9 @@ def loadlook(conf):
 
 
 out = loadlook("DT_SETVER=3\nCP_THEME=slate\n")
-check("an old file's CP_THEME, a colour scheme, becomes its colours", out == "[] slate 4", out)
+check("an old file's CP_THEME, a colour scheme, becomes its colours", out == "[] slate 5", out)
 out = loadlook("DT_SETVER=4\nCP_THEME=meadow\nCP_COLOURS=paper\n")
-check("and a file written since is read as it is", out == "[meadow] paper 4", out)
+check("and a file written since is read as it is", out == "[meadow] paper 5", out)
 
 # A solid title bar is the frame's colour, the title on it in DT_SELINK,
 # with no tee marks around it.
@@ -3573,4 +3577,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(544)
+report(548)

@@ -1,0 +1,14 @@
+{
+ "name": "karachi",
+ "title": "University of Islamic Sciences, Karachi",
+ "fajr": 18,
+ "isha": 18,
+ "adjust": [
+  0,
+  0,
+  1,
+  0,
+  0,
+  0
+ ]
+}

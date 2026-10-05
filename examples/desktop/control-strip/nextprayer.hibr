@@ -1,0 +1,36 @@
+#!/usr/bin/env hibr
+#
+# nextprayer -- a Control Strip module: the next prayer and its time, from
+# the same dt_pnext the bar and Prayer Times use (Gitea #70). A click
+# opens the Prayer Times window. Not named prayer: that is the desk
+# accessory's prefix, and a strip module's draw would answer for it.
+
+strict
+
+command -v cs_module > /dev/null && cs_module nextprayer Prayer 14
+
+# Shown only when asked for, in Control Panel > Prayer Times.
+nextprayer_shown() {
+	[ "$DT_PSTRIP" = on ]
+}
+
+fn nextprayer_draw(int row, int col) {
+	local n i t nm
+
+	console pen "$DT_INK" "$DT_FACE"
+	if n := dt_pnext 2> /dev/null; then
+		read -r i t <<< "$n"
+		nm := dt_pname "$i"
+		t := dt_ptime "$t"
+		t="$nm $t"
+	else
+		t := dt_tr "Prayer"
+	fi
+	t := str pad "${t:0:14}" 14
+	console put "$row" "$col" "$t"
+	dt_want 60000
+}
+
+fn nextprayer_click(int row, int col) {
+	dt_launch prayer
+}

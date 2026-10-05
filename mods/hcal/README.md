@@ -6,6 +6,9 @@ calendars, or one of their own added as a file (Gitea #69, ADR 0034).
 
 ```text
 hcal list                               name TAB title, one a line
+hcal format [-c cal] [-a days] [-n names] [-s shorts] FORMAT [time]
+                                        a strftime format, local time, with
+                                        Hijri codes: %id %ie %im %iY %iB %ib
 hcal date [-c cal] [-a days] [when]      y m d length-of-month; when is a
                                          time in seconds or yyyy-mm-dd,
                                          today (local time) if left out
@@ -14,6 +17,14 @@ hcal month [-c cal] y m                  how many days month m has
 hcal name [-c cal] m                     the month's name, as the file gives it
 hcal info [-c cal]                       name TAB kind TAB title TAB file
 ```
+
+`format` is strftime's, with six codes of its own for the day in the
+calendar chosen: `%id` the day (01-30), `%ie` the day space-padded, `%im`
+the month (01-12), `%iY` the year, `%iB` the month's name and `%ib` its
+short name -- from the file, or from `-n` and `-s` (twelve names joined
+with `|`, for a translation). `%%` stays a percent sign; every other code
+is strftime's. The desktop's clock and every date it draws go through it
+(`dt_clocktext`), so a custom format can mix both calendars.
 
 Every form prints, or fills the slot under `:=`. The calendar is
 `umalqura` unless `-c` says otherwise. `-a` moves the Hijri date by whole
@@ -39,7 +50,8 @@ Two kinds:
   1 Muharram 1 AH; 1948440 civil, 1948439 astronomical) and `leap`, the
   years of the cycle that have 355 days.
 
-Both may give `months`, twelve names, and a `title`.
+Both may give `months`, twelve names, `short`, their short forms (else
+the first three letters), and a `title`.
 
 Bundled: `umalqura` (ICU's Umm al-Qura table, 1300-1600 AH, written by
 `tools/hcalgen.py`), `civil` and `astronomical` (the 2, 5, 7, 10, 13, 16,

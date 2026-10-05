@@ -1,0 +1,14 @@
+{
+ "name": "kuwait",
+ "title": "Kuwait",
+ "fajr": 18,
+ "isha": 17.5,
+ "adjust": [
+  0,
+  0,
+  0,
+  0,
+  0,
+  0
+ ]
+}

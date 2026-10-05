@@ -92,6 +92,7 @@ dt_open() {
 		exec {DT_ERR}>&2 2>> "$DT_LOG"
 	fi
 	dt_langapply
+	dt_has cs_relist && cs_relist
 	dt_size
 	dt_deskscan
 	dt_clipload

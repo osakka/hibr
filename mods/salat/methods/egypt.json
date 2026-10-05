@@ -1,0 +1,14 @@
+{
+ "name": "egypt",
+ "title": "Egyptian General Authority of Survey",
+ "fajr": 19.5,
+ "isha": 17.5,
+ "adjust": [
+  0,
+  0,
+  1,
+  0,
+  0,
+  0
+ ]
+}

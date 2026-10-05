@@ -1,0 +1,203 @@
+#!/usr/bin/env hibr
+#
+# Prayer Times -- a desk accessory (Gitea #70): today's times for where the
+# person is, by the method chosen in Control Panel > Prayer Times, the next
+# one lit with how long until it. The times come from wm/prayer.hibr's
+# dt_ptimes, so the window, the bar and the notes always agree.
+
+strict
+
+command -v dt_app > /dev/null && dt_app prayer "Prayer Times" 15 40 once "☾"
+command -v dt_app > /dev/null && dt_app pyloc "Prayer Location" 9 50 many "" "" hidden
+
+declare -gA PYL
+
+fn prayer_draw(int id, int h, int w, int row, int col) {
+	local t n i r=1 nx=-1 nt=0 now=$EPOCHSECONDS loc d hj line left
+	local -a ts
+
+	dt_wclear "$id"
+	console pen "$DT_INK" "$DT_FACE"
+	if ! need salat 2> /dev/null; then
+		console pen "$DT_DIM" "$DT_FACE"
+		dt_tput "$id" 2 2 "Prayer Times needs the salat module, which is not installed."
+		return 0
+	fi
+	if ! loc := dt_ploc; then
+		console pen "$DT_DIM" "$DT_FACE"
+		dt_tput "$id" 2 2 "Where are you? Control Panel > Prayer Times"
+		dt_tput "$id" 3 2 "sets a place, or the time zone gives one."
+		return 0
+	fi
+	t := dt_ptimes || return 0
+	read -ra ts <<< "$t"
+	if n := dt_pnext; then
+		read -r nx nt <<< "$n"
+	fi
+	printf -v d '%(%A %d %B %Y)T' -1
+	hj := dt_hijri && d="$d  ${GL[dot]}  $hj"
+	d := dt_digits "$d"
+	console pen "$DT_ACTIVE" "$DT_FACE" bold
+	line=${d:0:$((w - 2))}
+	if [ "$DT_MIRRORON" = 1 ]; then
+		line := dt_rpad "$line" $((w - 2))
+	fi
+	console put -p "w$id" "$r" 1 "$line"
+	r=$((r + 2))
+	for i in 0 1 2 3 4 5; do
+		n := dt_pname "$i"
+		t := dt_ptime "${ts[$i]}"
+		if [ "$i" = "$nx" ] && [ "${ts[$i]}" = "$nt" ]; then
+			console pen "$DT_SELINK" "$DT_ACTIVE" bold
+		elif [ "$i" = 1 ]; then
+			console pen "$DT_DIM" "$DT_FACE"
+		else
+			console pen "$DT_INK" "$DT_FACE"
+		fi
+		if [ "$DT_MIRRORON" = 1 ]; then
+			line := dt_rpad "$n " $((w - 12))
+			line=" $t$line"
+			line := dt_rpad "$line" $((w - 2))
+		else
+			line := str pad " $n" $((w - 12))
+			line := str pad "$line$t " $((w - 2))
+		fi
+		console put -p "w$id" "$r" 1 "$line"
+		r=$((r + 1))
+	done
+	r=$((r + 1))
+	if [ "$nx" -ge 0 ]; then
+		left=$(((nt - now + 59) / 60))
+		n := dt_pname "$nx"
+		console pen "$DT_INK" "$DT_FACE"
+		if [ "$left" -ge 60 ]; then
+			line := dt_tr "%s in %s h %s min" "$n" $((left / 60)) $((left % 60))
+		else
+			line := dt_tr "%s in %s min" "$n" "$left"
+		fi
+		line := dt_digits "$line"
+		[ "$DT_MIRRORON" = 1 ] && line := dt_rpad "$line" $((w - 2))
+		console put -p "w$id" "$r" 1 " $line"
+		dt_want $(((60 - now % 60) * 1000 + 50))
+	fi
+	r=$((r + 2))
+	[ "$r" -lt "$h" ] || return 0
+	t := salat info -m "$DT_PMETHOD" 2> /dev/null
+	IFS=$'\t' read -r i n line <<< "$t"
+	console pen "$DT_DIM" "$DT_FACE"
+	line="${n:-$DT_PMETHOD}, $loc"
+	console put -p "w$id" "$r" 1 " ${line:0:$((w - 3))}"
+}
+
+fn prayer_key(int id, key) {
+	case $key in
+	l) pyloc_show ;;
+	*) return 1 ;;
+	esac
+}
+
+prayer_menus() {
+	dt_menu "File"
+	dt_item "Set Location${GL[ellipsis]}" l pyloc_show
+	dt_sep
+	dt_item "Close Window" w dt_close_focused
+	dt_editmenu
+}
+
+# --- where the person is ----------------------------------------------------
+
+# Open the dialog for latitude and longitude, filled with what is set, or the time zone's.
+pyloc_show() {
+	local id h=9 w=50 r c loc a b
+
+	r=$((DT_ROWS / 2 - h / 2))
+	c=$(((DT_COLS - w) / 2))
+	id := dt_new "Prayer Location" "$h" "$w" "$r" "$c" pyloc
+	a=$DT_PLAT
+	b=$DT_PLON
+	if [ -z "$a" ] && loc := dt_ploc; then
+		read -r a b <<< "$loc"
+	fi
+	PYL[$id]["lat"]=$a
+	PYL[$id]["lon"]=$b
+	PYL[$id]["latcur"]=${#a}
+	PYL[$id]["loncur"]=${#b}
+	PYL[$id]["focus"]=lat
+	return 0
+}
+
+fn pyloc_draw(int id, int h, int w, int row, int col) {
+	local f=${PYL[$id]["focus"]} r=1 k on
+	local -A labs=([lat]="Latitude:" [lon]="Longitude:")
+
+	dt_wclear "$id"
+	for k in lat lon; do
+		console pen "$DT_INK" "$DT_FACE"
+		dt_tput "$id" "$r" 2 "${labs[$k]}"
+		on=0
+		[ "$f" = "$k" ] && on=1
+		dt_textdraw "$id" "$r" 14 14 "${PYL[$id]["$k"]}" "${PYL[$id]["${k}cur"]}" "$on"
+		dt_wreg "$id" "$r" 14 14 "$k"
+		r=$((r + 2))
+	done
+	console pen "$DT_DIM" "$DT_FACE"
+	dt_tput "$id" "$r" 2 "Degrees, north and east positive. Empty: the time zone's."
+	dt_dlgbtns "$id" "$h" "$w" "$f" ok Save cancel Cancel
+}
+
+PYL_ORDER=(lat lon ok cancel)
+
+fn pyloc_key(int id, k) {
+	local f=${PYL[$id]["focus"]} d onb=1 res
+
+	case $f in lat | lon) onb=0 ;; esac
+	if d := dt_focuskey "$k" "$onb"; then
+		PYL[$id]["focus"] := dt_focus "$f" "$d" "${PYL_ORDER[@]}"
+		return 0
+	fi
+	case $k in
+	escape) dt_del "$id"; return 0 ;;
+	enter) pyloc_do "$id" "$f"; return 0 ;;
+	esac
+	case $f in lat | lon) ;; *) return 1 ;; esac
+	res := dt_textkey "${PYL[$id]["$f"]}" "${PYL[$id]["${f}cur"]}" "$k" || return 1
+	PYL[$id]["$f"]=${res% *}
+	PYL[$id]["${f}cur"]=${res##* }
+	return 0
+}
+
+fn pyloc_click(int? id = "", int? r = "", int? c = "", btn = "") {
+	local tag
+
+	tag := dt_hit "$id" "$r" "$c" || return 0
+	case $tag in
+	lat | lon) PYL[$id]["focus"]=$tag ;;
+	*) PYL[$id]["focus"]=$tag; pyloc_do "$id" "$tag" ;;
+	esac
+}
+
+# Save the place, if both are numbers in range; empty both for the time zone's.
+fn pyloc_do(int id, what) {
+	local a=${PYL[$id]["lat"]} b=${PYL[$id]["lon"]}
+
+	if [ "$what" = cancel ]; then
+		dt_del "$id"
+		return 0
+	fi
+	if [ -n "$a$b" ]; then
+		if ! [[ $a =~ ^-?[0-9]{1,2}(\.[0-9]+)?$ && $b =~ ^-?[0-9]{1,3}(\.[0-9]+)?$ ]] ||
+		   [ "${a%%.*}" -gt 90 ] || [ "${a%%.*}" -lt -90 ] ||
+		   [ "${b%%.*}" -gt 180 ] || [ "${b%%.*}" -lt -180 ]; then
+			dt_note "Not a place: latitude -90 to 90, longitude -180 to 180"
+			return 0
+		fi
+	fi
+	DT_PLAT=$a
+	DT_PLON=$b
+	DT_PKEY=
+	command -v dt_save > /dev/null && dt_save
+	dt_del "$id"
+	return 0
+}
+
+fn pyloc_close(int id) { unset PYL["$id"]; }

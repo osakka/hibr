@@ -54,6 +54,7 @@ SUITE_MODS = {
     "uni_bidi": ["uni"],
     "uni_shape": ["uni"],
     "hcal_icu": ["hcal"],
+    "salat_adhan": ["salat"],
 }
 DESKTOP = ("desktop", "apps", "uifuzz", "strictvars", "mailapp", "contacts", "calapp")
 EVERYTHING = ("src/", "include/", "Makefile", "tests/screen.py",

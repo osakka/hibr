@@ -22,7 +22,14 @@ table), and the civil and astronomical tabular calendars; anyone can add a
 region's own as a file, with no code. A whole-day adjustment, applied to
 the Hijri date and undone on the way back, covers local sighting.
 
-Gregorian is always shown; Hijri is a switch, shown beside it.
+Gregorian is always shown. Hijri is part of the date format, not a
+switch (0.99.68): `hcal format` reads strftime's codes and six of its own
+(`%id %ie %im %iY %iB %ib`), and the desktop's one date formatter,
+`dt_clocktext`, goes through it -- so the bar's clock, a custom format
+and every date drawn can carry the Hijri date wherever a format puts it.
+The one setting is which calendar the codes follow; "None" leaves them
+empty and Calendar's day cells plain. 0.99.66's on/off switch is migrated
+on load (settings version 5).
 
 ## Consequences
 

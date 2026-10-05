@@ -67,12 +67,7 @@ dt_bar() {
 	done
 
 	now := dt_clocktext "$DT_BARTIME" -1
-	case "$DT_HIJRI$DT_DIGITS" in
-	on* | *arabic)
-		gap := dt_hijri && now="$gap  $now"
-		now := dt_digits "$now"
-		;;
-	esac
+	case $DT_PBAR in on) gap := dt_pbar && now="$gap  ${GL[dot]}  $now" ;; esac
 	# DT_BARGAP cells between each item on the right -- the application
 	# menu's own leading space is one of them.
 	gap=${DT_BARGAP:-2}
@@ -149,10 +144,47 @@ fn dt_bellglyph(style) {
 # for now. Leading blanks go, so %l's space-padded hour does not leave a
 # gap against the bell.
 fn dt_clocktext(fmt, int when) {
-	local out
+	local out f=$fmt t=$when wd mo n s
 
-	printf -v out "%($fmt)T" "$when"
+	[ "$t" -lt 0 ] && t=$EPOCHSECONDS
+	# Names in the language chosen: the catalogue's, put in before
+	# strftime sees the format, %% kept as it is.
+	if [ -n "$DT_LANGON" ] && [[ $f == *%[AaBb]* ]]; then
+		printf -v wd '%(%u %m)T' "$t"
+		read -r wd mo <<< "$wd"
+		mo=${mo#0}
+		f=${f//%%/$'\001'}
+		f=${f//%A/${DT_WDAYSA[$((wd - 1))]}}
+		f=${f//%a/${DT_WDAYS[$((wd - 1))]}}
+		f=${f//%B/${DT_MONTHS[$((mo - 1))]}}
+		f=${f//%b/${DT_MONTHSB[$((mo - 1))]}}
+		f=${f//$'\001'/%%}
+	fi
+	# The Hijri codes (ADR 0034): the hcal module's, in the calendar
+	# chosen; with none chosen they say nothing. Only a format that has
+	# one loads the module.
+	case $f in
+	*%i[demYBb]*)
+		if [ "$DT_HCAL" != none ] && need hcal 2> /dev/null; then
+			n=$DT_HCAL
+			hcal info -c "$n" > /dev/null 2>&1 || n=civil
+			if [ -n "$DT_LANGON" ] && [ "${#DT_HMONTHS[@]}" = 12 ]; then
+				local IFS='|'
+				s="${DT_HMONTHS[*]}"
+				out := hcal format -c "$n" -a "$DT_HADJ" -n "$s" "$f" "$t" 2> /dev/null
+			else
+				out := hcal format -c "$n" -a "$DT_HADJ" "$f" "$t" 2> /dev/null
+			fi
+		else
+			f=${f//%id/}; f=${f//%ie/}; f=${f//%im/}
+			f=${f//%iY/}; f=${f//%iB/}; f=${f//%ib/}
+			printf -v out "%($f)T" "$t"
+		fi
+		;;
+	*) printf -v out "%($f)T" "$t" ;;
+	esac
 	while [ "${out:0:1}" = " " ]; do out=${out:1}; done
+	[ "$DT_DIGITS" = arabic ] && out := dt_digits "$out"
 	ret "$out"
 }
 

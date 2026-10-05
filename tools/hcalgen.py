@@ -55,6 +55,8 @@ def main():
         "months": ["Muharram", "Safar", "Rabi' al-Awwal", "Rabi' al-Thani", "Jumada al-Ula",
                    "Jumada al-Akhirah", "Rajab", "Sha'ban", "Ramadan", "Shawwal",
                    "Dhu al-Qa'dah", "Dhu al-Hijjah"],
+        "short": ["Muh", "Saf", "Rab I", "Rab II", "Jum I", "Jum II", "Raj", "Sha", "Ram", "Shaw",
+                  "Dhu Q", "Dhu H"],
         "source": "ICU %s, islamic-umalqura" % icu.ICU_VERSION,
     }
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

@@ -1,0 +1,14 @@
+{
+ "name": "turkey",
+ "title": "Diyanet, Turkey (approximate)",
+ "fajr": 18,
+ "isha": 17,
+ "adjust": [
+  0,
+  -7,
+  5,
+  4,
+  7,
+  0
+ ]
+}

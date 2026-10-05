@@ -1,0 +1,14 @@
+{
+ "name": "isna",
+ "title": "Islamic Society of North America",
+ "fajr": 15,
+ "isha": 15,
+ "adjust": [
+  0,
+  0,
+  1,
+  0,
+  0,
+  0
+ ]
+}

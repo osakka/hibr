@@ -212,7 +212,7 @@ finally:
 
 # The week starts where the region says, and Hijri day numbers sit in the
 # cells with the Hijri months in the title (#69).
-t = session("calhj", "calendar", "Calendar", {"DT_WEEKSTART": "sat", "DT_HIJRI": "on"})
+t = session("calhj", "calendar", "Calendar", {"DT_WEEKSTART": "sat", "DT_HCAL": "umalqura"})
 try:
     sc = waitfor(t, "Standup")
     wk = sc.row(sc.find("Tue")[0]) if sc.find("Tue") else ""

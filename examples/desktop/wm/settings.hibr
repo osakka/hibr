@@ -333,8 +333,18 @@ dt_load() {
 		if [ "${DT_SETVER:-0}" -lt 4 ] && dt_has cp_setver4; then
 			cp_setver4
 		fi
+		# 0.99.66 had Show Hijri Dates; 0.99.68 has a Hijri code in the
+		# format instead, and "None" for no Hijri at all (ADR 0034).
+		if [ "${DT_SETVER:-0}" -lt 5 ]; then
+			if [ "$DT_HIJRI" = on ]; then
+				[ "$DT_HCAL" = none ] && DT_HCAL=umalqura
+				case $DT_BARTIME in *%i*) ;; *) DT_BARTIME="%ie %ib  $DT_BARTIME" ;; esac
+			else
+				DT_HCAL=none
+			fi
+		fi
 	fi
-	DT_SETVER=4
+	DT_SETVER=5
 	dt_keyfix
 	dt_glyphs "$DT_GLYPHSET"
 	return 0

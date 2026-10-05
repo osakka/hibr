@@ -1,0 +1,214 @@
+#!/usr/bin/env hibr
+#
+# prayerset -- the Control Panel pane for prayer times (Gitea #70, ADR
+# 0035): where they show, how they are worked out, where the person is,
+# and the athan. The settings are wm/prayer.hibr's; the methods are the
+# salat module's, read from its folders.
+
+strict
+
+command -v cp_pane > /dev/null && cp_pane prayerset "Prayer Times" "☾"
+
+declare -ga CP_PMETHODS CP_PMNAMES
+CP_PBEFORES=(0 5 10 15 30)
+CP_PASRS=("Shafi'i" Hanafi)
+CP_PRULES=("Middle of the Night" "Seventh of the Night" "Twilight Angle")
+CP_PADJS=(-10 -5 -3 -2 -1 0 +1 +2 +3 +5 +10)
+
+# The methods salat has, names in CP_PMETHODS and titles in CP_PMNAMES.
+cp_pmlist() {
+	local all n t
+
+	CP_PMETHODS=()
+	CP_PMNAMES=()
+	need salat 2> /dev/null || return 0
+	all := salat list
+	while IFS=$'\t' read -r n t; do
+		[ -n "$n" ] || continue
+		CP_PMETHODS+=("$n")
+		CP_PMNAMES+=("${t:-$n}")
+	done <<< "$all"
+}
+
+# What a setting shows, as its dropdown names it.
+fn cp_pval(k) {
+	local i=0 a
+	local -a ad
+
+	case $k in
+	method)
+		cp_pmlist
+		while [ "$i" -lt "${#CP_PMETHODS[@]}" ]; do
+			if [ "${CP_PMETHODS[$i]}" = "$DT_PMETHOD" ]; then
+				ret "${CP_PMNAMES[$i]}"
+				return 0
+			fi
+			i=$((i + 1))
+		done
+		ret "$DT_PMETHOD"
+		;;
+	asr) [ "$DT_PASR" = hanafi ] && ret Hanafi || ret "Shafi'i" ;;
+	rule)
+		case $DT_PRULE in
+		seventh) ret "Seventh of the Night" ;;
+		angle) ret "Twilight Angle" ;;
+		*) ret "Middle of the Night" ;;
+		esac
+		;;
+	adj*)
+		IFS=, read -ra ad <<< "$DT_PADJ"
+		a=${ad[${k#adj}]:-0}
+		[ "$a" -gt 0 ] && a="+$a"
+		ret "$a"
+		;;
+	esac
+}
+
+# Set one prayer's own minutes, keeping the other five.
+fn cp_padj(int i, v) {
+	local -a ad
+	local k=0 out=
+
+	IFS=, read -ra ad <<< "$DT_PADJ"
+	while [ "$k" -lt 6 ]; do
+		[ "$k" = "$i" ] && ad[$k]=${v#+}
+		out+="${out:+,}${ad[$k]:-0}"
+		k=$((k + 1))
+	done
+	DT_PADJ=$out
+}
+
+fn cp_set_pbefore(int? id = "", value = "") { DT_PBEFORE=$value; cp_save; }
+fn cp_set_pasr(int? id = "", value = "") {
+	DT_PASR=shafi
+	[ "$value" = Hanafi ] && DT_PASR=hanafi
+	cp_save
+}
+fn cp_set_prule(int? id = "", value = "") {
+	case $value in
+	Seventh*) DT_PRULE=seventh ;;
+	Twilight*) DT_PRULE=angle ;;
+	*) DT_PRULE=middle ;;
+	esac
+	cp_save
+}
+fn cp_set_pmethod(int? id = "", value = "") {
+	local i=0
+
+	cp_pmlist
+	while [ "$i" -lt "${#CP_PMNAMES[@]}" ]; do
+		[ "${CP_PMNAMES[$i]}" = "$value" ] && DT_PMETHOD=${CP_PMETHODS[$i]}
+		i=$((i + 1))
+	done
+	cp_save
+}
+fn cp_set_padj0(int? id = "", value = "") { cp_padj 0 "$value"; cp_save; }
+fn cp_set_padj1(int? id = "", value = "") { cp_padj 1 "$value"; cp_save; }
+fn cp_set_padj2(int? id = "", value = "") { cp_padj 2 "$value"; cp_save; }
+fn cp_set_padj3(int? id = "", value = "") { cp_padj 3 "$value"; cp_save; }
+fn cp_set_padj4(int? id = "", value = "") { cp_padj 4 "$value"; cp_save; }
+fn cp_set_padj5(int? id = "", value = "") { cp_padj 5 "$value"; cp_save; }
+
+# The athan chosen in the file dialog: for every prayer, or for Fajr.
+fn cp_pathan(id = "", path = "", type = "") { [ -n "$path" ] && DT_PATHAN=$path && cp_save; }
+fn cp_pathanf(id = "", path = "", type = "") { [ -n "$path" ] && DT_PATHANF=$path && cp_save; }
+
+fn prayerset_rows(int w) {
+	local n=0 v loc i
+	local -a nm=(Fajr Sunrise Dhuhr Asr Maghrib Isha)
+
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Next Prayer in the Menu Bar"
+	CP[$w][$n]["wtype"]=bool; CP[$w][$n]["val"]=$DT_PBAR; CP[$w][$n]["key"]=bar; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="In the Control Strip"
+	CP[$w][$n]["wtype"]=bool; CP[$w][$n]["val"]=$DT_PSTRIP; CP[$w][$n]["key"]=strip; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="A Note at Each Prayer"
+	CP[$w][$n]["wtype"]=bool; CP[$w][$n]["val"]=$DT_PNOTE; CP[$w][$n]["key"]=note; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="And Minutes Before"
+	CP[$w][$n]["val"]=$DT_PBEFORE; CP[$w][$n]["key"]=before; n=$((n + 1))
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Working Them Out"; n=$((n + 1))
+	v := cp_pval method
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Method"
+	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=method; n=$((n + 1))
+	v := cp_pval asr
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Asr"
+	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=asr; n=$((n + 1))
+	v := cp_pval rule
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="High Latitudes"
+	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=rule; n=$((n + 1))
+	loc="the time zone's"
+	[ -n "$DT_PLAT" ] && loc="$DT_PLAT, $DT_PLON"
+	CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Location"
+	CP[$w][$n]["val"]=$loc; CP[$w][$n]["btns"]="loc:Set${GL[ellipsis]}"; n=$((n + 1))
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Minutes Added"; n=$((n + 1))
+	for i in 0 1 2 3 4 5; do
+		v := cp_pval "adj$i"
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]=${nm[$i]}
+		CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]="adj$i"; n=$((n + 1))
+	done
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Athan"; n=$((n + 1))
+	CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Sound"
+	CP[$w][$n]["val"]=${DT_PATHAN##*/}; CP[$w][$n]["btns"]="athan:Choose${GL[ellipsis]} athanoff:None"; n=$((n + 1))
+	CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="For Fajr"
+	CP[$w][$n]["val"]=${DT_PATHANF##*/}; CP[$w][$n]["btns"]="athanf:Choose${GL[ellipsis]} athanfoff:None"; n=$((n + 1))
+	ret "$n"
+}
+
+fn prayerset_do(int? w = "", k = "", int? dir = "") {
+	local v nm
+
+	case $k in
+	bar) [ "$DT_PBAR" = on ] && DT_PBAR=off || DT_PBAR=on ;;
+	note) [ "$DT_PNOTE" = on ] && DT_PNOTE=off || DT_PNOTE=on ;;
+	strip)
+		[ "$DT_PSTRIP" = on ] && DT_PSTRIP=off || DT_PSTRIP=on
+		dt_has cs_relist && cs_relist
+		;;
+	before)
+		v := cp_next "$DT_PBEFORE" "$dir" "${CP_PBEFORES[@]}"
+		DT_PBEFORE=$v
+		;;
+	method)
+		cp_pmlist
+		nm := cp_pval method
+		v := cp_next "$nm" "$dir" "${CP_PMNAMES[@]}"
+		cp_set_pmethod "" "$v"
+		return 0
+		;;
+	asr)
+		nm := cp_pval asr
+		v := cp_next "$nm" "$dir" "${CP_PASRS[@]}"
+		cp_set_pasr "" "$v"
+		return 0
+		;;
+	rule)
+		nm := cp_pval rule
+		v := cp_next "$nm" "$dir" "${CP_PRULES[@]}"
+		cp_set_prule "" "$v"
+		return 0
+		;;
+	adj[0-5])
+		nm := cp_pval "$k"
+		v := cp_next "$nm" "$dir" "${CP_PADJS[@]}"
+		cp_padj "${k#adj}" "$v"
+		;;
+	loc) dt_has pyloc_show && pyloc_show; return 0 ;;
+	athan) dt_filepick open "Athan" "Sound:*.mp3 *.ogg *.wav *.m4a *.opus|All files:*" "$HOME" "" cp_pathan 0; return 0 ;;
+	athanf) dt_filepick open "Athan for Fajr" "Sound:*.mp3 *.ogg *.wav *.m4a *.opus|All files:*" "$HOME" "" cp_pathanf 0; return 0 ;;
+	athanoff) DT_PATHAN= ;;
+	athanfoff) DT_PATHANF= ;;
+	esac
+	cp_save
+}
+
+fn prayerset_drop(int? w = "", int? r = "", int? c = "", k = "") {
+	case $k in
+	before) dt_droplist "$w" "$r" "$c" cp_set_pbefore "${CP_PBEFORES[@]}" ;;
+	method)
+		cp_pmlist
+		dt_droplist "$w" "$r" "$c" cp_set_pmethod "${CP_PMNAMES[@]}"
+		;;
+	asr) dt_droplist "$w" "$r" "$c" cp_set_pasr "${CP_PASRS[@]}" ;;
+	rule) dt_droplist "$w" "$r" "$c" cp_set_prule "${CP_PRULES[@]}" ;;
+	adj[0-5]) dt_droplist "$w" "$r" "$c" "cp_set_padj${k#adj}" "${CP_PADJS[@]}" ;;
+	esac
+}

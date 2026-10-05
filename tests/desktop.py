@@ -2159,7 +2159,7 @@ PANEL = ('. %s/panel.hibr\nCP_PANEDIRS+=("%s")\ncp_panes'
          % (tree("examples/desktop/apps"), tree("examples/desktop/control-panel")))
 ORDER = ["datetime", "displays", "keyboard", "mouse", "aboutme", "appearance",
          "cliphist", "control_strip", "desktop", "filetypes", "language", "network", "notify",
-         "screensaver", "shortcuts",
+         "prayerset", "screensaver", "shortcuts",
          "windows", "abouthibr", "filesview", "notes", "taskmgr", "terminal", "tube"]
 DOWN_APP = [b"\x1b[B"] * ORDER.index("appearance")
 DOWN_KB = [b"\x1b[B"] * ORDER.index("shortcuts")
@@ -3265,9 +3265,21 @@ shutil.rmtree(FBD, True)
 # Dates as a region writes them (#69, ADR 0034): the Hijri date beside the
 # clock when it is on, Arabic-Indic digits when chosen, nothing otherwise.
 HMON = r"(Muharram|Safar|Rabi' al-Awwal|Rabi' al-Thani|Jumada al-Ula|Jumada al-Akhirah|Rajab|Sha'ban|Ramadan|Shawwal|Dhu al-Qa'dah|Dhu al-Hijjah)"
-sc, _ = run(ONE, env={"DT_HIJRI": "on"})
-check("Show Hijri Dates puts the Hijri date beside the bar's clock",
+sc, _ = run(ONE, env={"DT_HCAL": "umalqura", "DT_BARTIME": "%ie %iB %iY %H:%M"})
+check("a Hijri code in the bar's format puts the Hijri date beside the clock",
       re.search(r"\d+ " + HMON + r" 14\d\d +\d\d:\d\d", sc.row(0)) is not None, sc.row(0))
+sc, _ = run(ONE, env={"DT_HCAL": "none", "DT_BARTIME": "%ie %iB %iY %H:%M"})
+check("and with no Hijri calendar the same format leaves it out",
+      re.search(HMON, sc.row(0)) is None and re.search(r"\d\d:\d\d", sc.row(0)), sc.row(0))
+MIG = tempfile.mkdtemp(prefix="hibr-mig-")
+os.makedirs(os.path.join(MIG, "hibr"))
+open(os.path.join(MIG, "hibr", "desktop.hibr"), "w").write(
+    "DT_SETVER=4\nDT_HIJRI=on\nDT_HCAL=umalqura\nDT_BARTIME='%H:%M'\n")
+sc, _ = run(ONE, env={"XDG_CONFIG_HOME": MIG})
+check("settings saved with 0.99.66's Show Hijri Dates on keep the Hijri date in the bar",
+      re.search(r"\d+ (Muh|Saf|Rab I|Rab II|Jum I|Jum II|Raj|Sha|Ram|Shaw|Dhu Q|Dhu H) +\d\d:\d\d",
+                sc.row(0)) is not None, sc.row(0))
+shutil.rmtree(MIG, True)
 sc, _ = run(ONE, env={"DT_DIGITS": "arabic"})
 check("and Arabic-Indic digits write the clock in them",
       re.search("[\u0660-\u0669]{2}:[\u0660-\u0669]{2}", sc.row(0)) is not None and
@@ -3275,6 +3287,26 @@ check("and Arabic-Indic digits write the clock in them",
 sc, _ = run(ONE)
 check("neither is there unless asked for",
       re.search(HMON, sc.row(0)) is None and re.search(r"\d\d:\d\d", sc.row(0)), sc.row(0))
+
+# Prayer times (#70, ADR 0035): the window lists the day's six in order,
+# the next lit with a countdown; the bar shows the next when asked; and a
+# moment passed since the last look gives a note.
+DA = 'DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/desktop/desk-accessories")
+LDN = {"DT_PLAT": "51.5074", "DT_PLON": "-0.1278"}
+sc, _ = run('dt_new "Prayer Times" 15 40 2 4 prayer', env=LDN, pre=DA)
+rows = [sc.row(r) for r in range(ROWS)]
+order = [next((i for i, l in enumerate(rows) if re.search(r"\b%s\b +\d\d:\d\d" % n, l)), -1)
+         for n in ("Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha")]
+check("Prayer Times lists the day's six times in order, the next with how long until it",
+      -1 not in order and order == sorted(order) and
+      re.search(r"(Fajr|Dhuhr|Asr|Maghrib|Isha) in \d", sc.text()) is not None, sc)
+sc, _ = run(ONE, env=dict(LDN, DT_PBAR="on"))
+check("Next Prayer in the Menu Bar puts the next one beside the clock",
+      re.search(r"(Fajr|Dhuhr|Asr|Maghrib|Isha) \d\d:\d\d .*\d\d:\d\d", sc.row(0)) is not None, sc.row(0))
+sc, _ = run(ONE + '\nt := dt_ptimes; read -ra ts <<< "$t"; DT_PNOTED=$((ts[0] - 1))',
+            env=dict(LDN, DT_PNOTE="on"))
+check("and A Note at Each Prayer gives one for each moment since the last look",
+      re.search("\u2691[1-5] ", sc.row(0)) is not None, sc.row(0))
 
 # --standby: a terminal that waits to be joined, joins, and when it is let
 # go waits again. Blank keeps a joined display joined but dark.
@@ -3702,4 +3734,4 @@ check("an arithmetic error in an app is logged and the desktop carries on",
       sc.find("┤ Slip ├") is not None and "arithmetic" in log and t.exited and t.status == 0,
       (log, t.status))
 
-report(510)
+report(515)

@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.99.67
+
+**Prayer times** (Gitea #70). A new module, `salat`, works out the day's
+prayer times for a place: the sun's position computed as Meeus gives it,
+the method -- angles, Isha by angle or minutes after Maghrib, offsets,
+rounding -- read from a JSON file in a folder, like calendars (ADR 0035).
+Twelve methods are bundled (Muslim World League, ISNA, Egypt, Umm
+al-Qura, Karachi, Dubai, Moonsighting Committee, Kuwait, Qatar,
+Singapore, Tehran, Diyanet) and each is checked against adhan-js to the
+minute, at sixteen places from the equator to inside the Arctic circle,
+through the year, with both Asr schools. A method of one's own is a file.
+
+On the desktop, each a switch in **Control Panel > Prayer Times**: a
+**Prayer Times** desk accessory (today's six times, the next lit with how
+long until it); the next prayer beside the bar's clock; a note at each
+prayer, and minutes before if asked; a Control Strip module (shown when switched on); and the
+**athan**, a sound file you choose (another for Fajr if you like), played
+through the media module -- hibr ships no recording. The place comes
+from the time zone, as Date & Time finds it, or from a latitude and
+longitude set by hand; the Asr school, the high-latitude rule and a
+minute's adjustment to each prayer are settings too.
+
+`hcal list` and `salat list` are sorted by title, and both now refuse a
+date with a month or day out of range, or anything after it.
+
+**The Hijri date is part of the date format** (Gitea #69). Rather than a
+switch that put a fixed Hijri date beside the clock, a date format now
+has six Hijri codes beside strftime's own -- `%id %ie %im %iY %iB %ib` --
+so the menu bar's clock, a custom format and every date the desktop
+draws can carry the Hijri date wherever the format puts it:
+`%a %ie %ib %H:%M` reads "Mon 24 Rab II 14:40". `hcal format` does it for
+scripts too. **Date & Time** now holds the date settings: **Hijri** (None,
+Umm al-Qura, or a tabular calendar -- None leaves the codes empty and
+Calendar's days plain), **Adjust** and **Week**; Hijri bar formats are
+offered when a calendar is chosen. **Digits** stays in Language. Month and
+weekday names in any format follow the language. Settings saved with
+0.99.66's Show Hijri Dates on keep a Hijri date in the bar.
+
 ## 0.99.66
 
 **Hijri dates, and dates as a region writes them** (Gitea #69, #68).

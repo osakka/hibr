@@ -1,0 +1,33 @@
+0
+dubai	Dubai
+egypt	Egyptian General Authority of Survey
+isna	Islamic Society of North America
+karachi	University of Islamic Sciences, Karachi
+kuwait	Kuwait
+moonsighting	Moonsighting Committee Worldwide
+mwl	Muslim World League
+qatar	Qatar
+singapore	Singapore, Malaysia and Indonesia
+tehran	Institute of Geophysics, University of Tehran
+turkey	Diyanet, Turkey (approximate)
+umalqura	Umm al-Qura University, Makkah
+mwl          04:16 06:08 11:50 14:48 17:29 19:14 23:49 
+isna         04:36 06:08 11:50 14:48 17:29 19:01 23:49 
+egypt        04:06 06:08 11:50 14:48 17:29 19:17 23:49 
+umalqura     04:13 06:08 11:49 14:48 17:29 18:59 23:49 
+karachi      04:16 06:08 11:50 14:48 17:29 19:20 23:49 
+moonsighting 04:33 06:08 11:54 14:48 17:32 18:49 23:49 
+tehran       04:18 06:08 11:49 14:48 17:53 18:54 23:49 
+turkey       04:16 06:01 11:54 14:52 17:36 19:14 23:49 
+makkah       01:57 03:13 09:09 12:32 15:05 16:35 21:09 
+hanafi       04:16 06:08 11:50 15:35 17:29 19:14 23:49 
+adjusted     04:18 06:08 11:50 14:48 17:29 19:11 23:49 
+polar-night  05:28 --:-- 10:43 11:14 --:-- 15:44 --:-- 
+13
+04:29 06:08 11:51 14:48 17:29 19:07 23:49 
+hibr: salat: nosuch: no such method (salat list says which there are)
+status 1
+hibr: salat: 95: not a latitude
+status 2
+hibr: salat: 2026-13-45x: not a yyyy-mm-dd date or a time in seconds
+status 2
