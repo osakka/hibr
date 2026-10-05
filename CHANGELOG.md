@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.99.55
+
+**The menu bar follows the terminal's size.** On a resize -- and a
+reattach is one, the new terminal's size arriving as a resize -- the
+screen was drawn again at the new size but the menu bar was not laid out
+again, so its right end (the workspaces, the clock, the app's menu) stayed
+where the old width had put it: past the edge of a narrower terminal, or
+short of a wider one. The bar's layout is kept between frames and rebuilt
+only on input or a change of focus; a resize now asks for it too. And a
+menu item in a right-to-left language is drawn whole, its shortcut beside
+it, where the underline split it into three pieces, each ordered on its
+own. A note's text may be a template now, `dt_note "Saved %s" "$f"`,
+translated and filled in one call.
+
 ## 0.99.54
 
 **The desktop can speak another language** (Gitea #68, phase 3). A

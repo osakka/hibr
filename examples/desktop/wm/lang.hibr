@@ -23,14 +23,21 @@ strict
 DT_LANG="${DT_LANG-}"
 DT_BIDI="${DT_BIDI-on}"
 DT_LANGON=
+DT_LANGRTL=
 dt_keep DT_LANG DT_BIDI
 
 # The text a person reads, in the chosen language, %s and %N$s filled from the rest.
+# A trailing ellipsis glyph is looked up as "…" and put back, whatever the glyph set.
 fn dt_tr(key, ...rest) {
-	local t
+	local t e=${GL["ellipsis"]}
 
 	if [ -n "$DT_LANGON" ]; then
-		t := lang get "$key" "${rest[@]}"
+		if [ "$e" != "…" ] && [[ $key == *"$e" ]]; then
+			t := lang get "${key%"$e"}…" "${rest[@]}"
+			[[ $t == *… ]] && t="${t%…}$e"
+		else
+			t := lang get "$key" "${rest[@]}"
+		fi
 		ret "$t"
 		return 0
 	fi
@@ -57,6 +64,12 @@ fn dt_trn(int n, one, many, ...rest) {
 	ret "$t"
 }
 
+# Draw text a person reads into window id at r, c: translated, %s filled from the rest.
+fn dt_tput(int id, int r, int c, text, ...rest) {
+	case "$DT_LANG${#rest[@]}" in 0) ;; *) text := dt_tr "$text" "${rest[@]}" ;; esac
+	console put -p "w$id" "$r" "$c" "$text"
+}
+
 # Where a language's catalogue is: the person's own folder first, then the bundled one.
 fn dt_langfile(code) {
 	local f
@@ -75,6 +88,7 @@ dt_langapply() {
 	local f
 
 	DT_LANGON=
+	DT_LANGRTL=
 	if command -v console > /dev/null; then
 		if [ "$DT_BIDI" = off ]; then
 			console bidi off
@@ -92,6 +106,9 @@ dt_langapply() {
 		return 0
 	fi
 	DT_LANGON=1
+	DT_LANGRTL=
+	f := lang info
+	[[ $f == *$'\t'rtl$'\t'* ]] && DT_LANGRTL=1
 	DT_MENUIN=
 	return 0
 }

@@ -1558,6 +1558,13 @@ t.send(b"", settle=0.6)
 sc = t.screen()
 check("and stays visible once the terminal narrows under it",
       sc.find("Home") is not None and sc.find("Home")[1] < 40, sc)
+check("the menu bar follows the terminal's width: its right end is at the new edge",
+      0 <= sc.row(0).find("▾") < 40, sc.row(0))
+t.resize(ROWS, COLS)
+t.send(b"", settle=0.6)
+sc = t.screen()
+check("and when it widens again, out to the far edge -- a reattach is a resize too",
+      sc.row(0).rfind("▾") >= COLS - 5, sc.row(0))
 t.quit(b"qy", 1.0)
 t.close()
 os.unlink(path)
@@ -3556,4 +3563,4 @@ check("an arithmetic error in an app is logged and the desktop carries on",
       sc.find("┤ Slip ├") is not None and "arithmetic" in log and t.exited and t.status == 0,
       (log, t.status))
 
-report(485)
+report(487)

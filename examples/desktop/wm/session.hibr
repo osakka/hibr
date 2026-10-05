@@ -80,6 +80,7 @@ dt_size() {
 	sz := console size
 	DT_ROWS=${sz% *}
 	DT_COLS=${sz#* }
+	DT_MENUIN=
 	DT_PRIMARY_W=$DT_COLS
 	DT_PRIMARY_COL=0
 	if [ -n "$HIBR_HOLD" ] && need hold; then

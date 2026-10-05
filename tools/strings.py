@@ -25,7 +25,7 @@ SINKS = {
     "dt_notep": [2], "dt_confirm": [1], "dt_button": [4],
     "dt_buttons": "pairs:6", "dt_dlgbtns": "pairs:6", "dt_check": [5],
     "dt_new": [1], "dt_retitle": [2], "dt_iconadd": [3],
-    "console": "put",
+    "console": "put", "dt_tr": [1], "dt_trn": [2, 3],
 }
 SEP = {";", "&&", "||", "|", "{", "}", "(", ")", "then", "do", "else", "elif", "!"}
 

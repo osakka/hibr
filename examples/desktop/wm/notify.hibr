@@ -97,7 +97,6 @@ dt_noteq() {
 	DT_NOTEQ[$id]["prio"]="$1"
 	shift
 	DT_NOTEQ[$id]["text"]="$1"
-	case $DT_LANG in ?*) DT_NOTEQ[$id]["text"] := dt_tr "$1" ;; esac
 	DT_NOTEQ[$id]["from"] := dt_notefrom
 	DT_NOTEFROM=
 	DT_NOTEQ[$id]["created"] := dt_ms
@@ -114,12 +113,15 @@ dt_noteq() {
 # A note, stacked with whatever others are already showing, gone on its
 # own after DT_NOTEMS -- inert, the same as this always worked, every
 # existing call site untouched by anything dt_notify adds.
-fn dt_note(text) {
+fn dt_note(text, ...rest) {
+	case "$DT_LANG${#rest[@]}" in 0) ;; *) text := dt_tr "$text" "${rest[@]}" ;; esac
 	dt_noteq normal "$text"
 }
 
-# A note at a priority of its own: low, normal, high or urgent.
-fn dt_notep(prio, text) {
+# A note at a priority of its own: low, normal, high or urgent. Like
+# dt_note, a template's %s are filled from what follows the text.
+fn dt_notep(prio, text, ...rest) {
+	case "$DT_LANG${#rest[@]}" in 0) ;; *) text := dt_tr "$text" "${rest[@]}" ;; esac
 	dt_noteq "$prio" "$text"
 }
 
@@ -129,13 +131,15 @@ fn dt_notep(prio, text) {
 # back for the shell to re-split: see DT_OPENCMD's own reasoning, the
 # same one word-split "gfeh -g" back to front once building the File
 # Types pane.
-dt_notify() {
-	dt_noteq normal "$@"
+fn dt_notify(text, ...rest) {
+	case $DT_LANG in ?*) text := dt_tr "$text" ;; esac
+	dt_noteq normal "$text" "${rest[@]}"
 }
 
 # The clickable form at a priority: dt_notifyp prio text action...
-fn dt_notifyp(prio, ...rest) {
-	dt_noteq "$prio" "${rest[@]}"
+fn dt_notifyp(prio, text, ...rest) {
+	case $DT_LANG in ?*) text := dt_tr "$text" ;; esac
+	dt_noteq "$prio" "$text" "${rest[@]}"
 }
 
 # Dismiss every note on screen at once -- what a single DT_NOTE= used to do
