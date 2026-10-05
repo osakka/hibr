@@ -51,6 +51,8 @@ SUITE_MODS = {
     "contacts": ["pim", "dav", "email", "db"],
     "calapp": ["pim", "dav", "email", "db"],
     "pim_rrule": ["pim"],
+    "uni_bidi": ["uni"],
+    "uni_shape": ["uni"],
 }
 DESKTOP = ("desktop", "apps", "uifuzz", "strictvars", "mailapp", "contacts", "calapp")
 EVERYTHING = ("src/", "include/", "Makefile", "tests/screen.py",

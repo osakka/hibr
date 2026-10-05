@@ -71,3 +71,13 @@ the formula when it is behind. Run on a timer, not by hand.
 The template for the installed `desktop` command: `make install` fills in
 where the desktop went and writes it to `$(PREFIX)/bin/desktop`.
 
+
+## unigen.py
+
+Writes `mods/uni/tab.c` -- bidi classes, mirrored and bracket pairs, joining
+types, Arabic presentation forms and display widths -- from one version of
+the Unicode Character Database. `tools/unigen.py fetch 15.1.0 build/ucd`
+downloads what it reads; `python3 tools/unigen.py gen build/ucd >
+mods/uni/tab.c` writes the tables, naming the version. Replace the gzipped
+conformance suites in `tests/uni` from the same download: the tables and the
+tests must never be from different versions (ADR 0030).

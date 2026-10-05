@@ -39,6 +39,7 @@ downside is usually a decision nobody had to make.
 | [0027](0027-a-dry-run-refuses-what-it-cannot-show-is-harmless.md) | A dry run refuses what it cannot show is harmless | accepted |
 | [0028](0028-a-theme-is-data.md) | A theme is data, kept as JSON | accepted |
 | [0029](0029-mkdir-and-rm-are-builtins.md) | mkdir, rm and mv are builtins | accepted |
+| [0030](0030-text-direction-and-shaping-come-from-one-unicode-version.md) | Text direction and shaping come from one Unicode version, in a module | accepted |
 
 ---
 
