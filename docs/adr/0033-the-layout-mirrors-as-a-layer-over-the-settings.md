@@ -51,5 +51,9 @@ mirrored layout with it, and `tests/uifuzz.py` runs clean under it.
   body, and every other app's layout -- Mail's panes, Sheet, the
   scrollbars at a window's right edge -- follow. A terminal window's
   content is never mirrored: it is a program's own screen.
+- Mirrored in 0.99.62: Mail -- the sidebar, the bar, the conversation
+  list and an open conversation's headings. A message body keeps the
+  layout `html lines` gives it, left-aligned; aligning a right-to-left
+  message needs a direction in that layout, not in the app.
 - `DT_MIRROR=on` mirrors an English desktop too, for whoever wants it and
   for testing.

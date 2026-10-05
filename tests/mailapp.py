@@ -46,14 +46,14 @@ def account(conf, name, port, smtp, extra=""):
                    env=env, check=True)
 
 
-def session(conf, tag):
+def session(conf, tag, extra=None):
     data = os.path.join(D, tag)
     sess = os.path.join(D, tag + ".hibr")
     open(sess, "w").write("%s. %s\n. %s\ndt_open\ndt_new Mail 26 100 1 2 mail\ndt_run\ndt_close\n" % (
         load("console", "email", "db", "html", "img"), tree("examples/desktop/desktop.hibr"),
         tree("examples/desktop/apps/Internet/mail.hibr")))
     return Term(sess, rows=30, cols=104, settle=1.5,
-                env={"HIBR_MAIL_CONF": conf, "XDG_DATA_HOME": data})
+                env=dict({"HIBR_MAIL_CONF": conf, "XDG_DATA_HOME": data}, **(extra or {})))
 
 
 def look(t, secs=0.6):
@@ -297,4 +297,25 @@ out = subprocess.run([sx.HIBR, "-c", "%s. %s\n. %s\nCP_PANEDIRS+=(\"%s\")\ncp_pa
 check("the pane lists an account whose name has a space in it",
       "Home Email|pat@gmail.com" in out.stdout and "arithmetic" not in out.stderr, out.stdout + out.stderr)
 
-report(48)
+# Mirrored (#68, ADR 0033): with a right-to-left language the sidebar is at
+# the right, a row's date at its left, and an open conversation's sender
+# right-aligned with the date at the left; Back is where it is drawn.
+t = session(conf, "gmail", {"DT_LANG": "xy"})
+sc = waitfor(t, "Lunch on Friday?")
+inbox = sc.find("Inbox")
+row = [sc.row(r) for r in range(30) if "Lunch on Friday?" in sc.row(r)]
+check("mirrored, the sidebar is at the right and a row's date at its left",
+      inbox is not None and inbox[1] > 80 and row and
+      row[0].index("Oct") < row[0].index("Lunch") < row[0].index("Zo"), sc)
+click(t, sc, "Lunch on Friday?")
+sc = waitfor(t, "Back")
+frm = sc.find("<zoe@example.org> Zo")
+check("an open conversation puts its sender at the right, the date at the left",
+      frm is not None and frm[1] > 50 and sc.row(frm[0]).index("Oct") < frm[1], sc)
+click(t, sc, "Back")
+sc = look(t)
+check("and Back is where it is drawn", sc.find("Back") is None and
+      sc.find("Lunch on Friday?") is not None, sc)
+t.quit(b"qy", 1.5)
+
+report(51)

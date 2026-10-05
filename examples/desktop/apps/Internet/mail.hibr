@@ -690,7 +690,7 @@ fn mail_close(int id) {
 fn mail_idle(int id) { ml_tick "$id"; }
 
 fn mail_draw(int id, int h, int w, int row, int col) {
-	local acct=${MW[$id]["acct"]} side=0 lw st
+	local acct=${MW[$id]["acct"]} side=0 lw st lx sx
 
 	dt_wclear "$id"
 	ml_tick "$id"
@@ -706,12 +706,15 @@ fn mail_draw(int id, int h, int w, int row, int col) {
 	MW[$id]["h"]=$h
 	MW[$id]["w"]=$w
 	ml_drawbar "$id" "$w"
-	[ "$side" -gt 0 ] && ml_drawside "$id" "$h" "$side"
 	lw=$((w - side))
+	lx=$side
+	sx=0
+	case $DT_MIRRORON in 1) lx=0; sx=$lw ;; esac
+	[ "$side" -gt 0 ] && ml_drawside "$id" "$h" "$side" "$sx"
 	if [ -n "${MW[$id]["open"]}" ]; then
-		ml_drawread "$id" "$h" "$lw" "$side"
+		ml_drawread "$id" "$h" "$lw" "$lx"
 	else
-		ml_drawlist "$id" "$h" "$lw" "$side"
+		ml_drawlist "$id" "$h" "$lw" "$lx"
 	fi
 	st=${MW["status$acct"]}
 	if ml_running sync "$acct" > /dev/null; then
@@ -727,44 +730,50 @@ fn mail_draw(int id, int h, int w, int row, int col) {
 		dt_want 700
 	fi
 	console pen "$DT_DIM" "$DT_FACE"
-	st := str pad " ${st:0:$((w - 2))}" "$w"
+	case $DT_MIRRORON in
+	1) st := dt_rpad "${st:0:$((w - 2))} " "$w" ;;
+	*) st := str pad " ${st:0:$((w - 2))}" "$w" ;;
+	esac
 	console put -p "w$id" "$((h - 1))" 0 "$st"
 }
 
 # The bar along the top: the search field, the account.
 fn ml_drawbar(int id, int w) {
 	local q=${MW[$id]["qbuf"]} fw=$((w - 4 - ${#MW[$id]["acct"]} - 4)) on=0
+	local fx=1 ax=$((w - ${#MW[$id]["acct"]} - 2)) tx
 
 	[ "${MW[$id]["qon"]}" = 1 ] && on=1
 	[ "$fw" -lt 10 ] && fw=10
+	case $DT_MIRRORON in 1) fx=$((w - fw - 1)); ax=2 ;; esac
 	if [ "$on" = 0 ] && [ -z "$q" ]; then
 		console pen "$DT_DIM" "$DT_WELL"
-		console fill -p "w$id" 0 1 1 "$fw" " "
-		dt_tput "$id" 0 2 "/ Search mail"
+		console fill -p "w$id" 0 "$fx" 1 "$fw" " "
+		tx=$((fx + 1))
+		dt_tput "$id" 0 "$tx" "/ Search mail"
 	else
-		dt_textdraw "$id" 0 1 "$fw" "$q" "${MW[$id]["qcur"]}" "$on"
+		dt_textdraw "$id" 0 "$fx" "$fw" "$q" "${MW[$id]["qcur"]}" "$on"
 	fi
-	dt_wreg "$id" 0 1 "$fw" search
+	dt_wreg "$id" 0 "$fx" "$fw" search
 	console pen "$DT_DIM" "$DT_FACE"
-	console put -p "w$id" 0 $((w - ${#MW[$id]["acct"]} - 2)) "${MW[$id]["acct"]}"
-	dt_wreg "$id" 0 $((w - ${#MW[$id]["acct"]} - 2)) "${#MW[$id]["acct"]}" accts
+	console put -p "w$id" 0 "$ax" "${MW[$id]["acct"]}"
+	dt_wreg "$id" 0 "$ax" "${#MW[$id]["acct"]}" accts
 }
 
 # The sidebar: Compose, then each view with its unread count, the one
 # shown lit.
-fn ml_drawside(int id, int h, int sw) {
-	local i=0 r=4 t u key
+fn ml_drawside(int id, int h, int sw, int sx = 0) {
+	local i=0 r=4 t u key cx=1
 
+	case $DT_MIRRORON in 1) cx=$((sx + sw - 12)) ;; esac
 	console pen "$DT_SELINK" "$DT_ACTIVE" bold
-	dt_tput "$id" 2 1 " %s Compose " "${GL[plus]}"
-	dt_wreg "$id" 2 1 11 compose
+	dt_tput "$id" 2 "$cx" " %s Compose " "${GL[plus]}"
+	dt_wreg "$id" 2 "$cx" 11 compose
 	while [ "$i" -lt "${MW[$id]["nviews"]:-0}" ] && [ "$r" -lt $((h - 1)) ]; do
 		key=${MLV[$id][$i]["key"]}
 		t=${MLV[$id][$i]["title"]}
 		u=${MLV[$id][$i]["unread"]}
 		[ "$u" = 0 ] && u=
 		t="${t:0:$((sw - 4 - ${#u}))}"
-		t := str pad " $t" $((sw - 2 - ${#u}))
 		if [ "$key" = "${MW[$id]["view"]}" ]; then
 			console pen "$DT_SELINK" "$DT_ACTIVE" bold
 		elif [ -n "$u" ]; then
@@ -772,8 +781,17 @@ fn ml_drawside(int id, int h, int sw) {
 		else
 			console pen "$DT_INK" "$DT_FACE"
 		fi
-		console put -p "w$id" "$r" 0 "$t$u "
-		dt_wreg "$id" "$r" 0 "$sw" "view:$key"
+		case $DT_MIRRORON in
+		1)
+			t := dt_rpad "$t" $((sw - 1 - ${#u}))
+			console put -p "w$id" "$r" "$sx" " $u$t"
+			;;
+		*)
+			t := str pad " $t" $((sw - 2 - ${#u}))
+			console put -p "w$id" "$r" 0 "$t$u "
+			;;
+		esac
+		dt_wreg "$id" "$r" "$sx" "$sw" "view:$key"
 		r=$((r + 1))
 		i=$((i + 1))
 	done
@@ -818,7 +836,9 @@ fn ml_drawlist(int id, int h, int w, int x0) {
 		[ "${MLT[$id][$t]["star"]}" = 1 ] && star=${GL[star]}
 		bold=
 		[ "${MLT[$id][$t]["unread"]}" -gt 0 ] && bold=bold
-		if [ "$pos" = "$sel" ] && [ "${MW[$id]["qon"]}" != 1 ]; then
+		if [ "$DT_MIRRORON" = 1 ]; then
+			ml_drawrowm "$id" "$r" "$x0" "$w" "$pos" "$t" "$ww" "$sw" "$dw" "$star" "$bold" "$d"
+		elif [ "$pos" = "$sel" ] && [ "${MW[$id]["qon"]}" != 1 ]; then
 			console pen "$DT_SELINK" "$DT_ACTIVE" $bold
 			console put -p "w$id" "$r" "$x0" " $star $who $rest $d"
 		else
@@ -839,6 +859,41 @@ fn ml_drawlist(int id, int h, int w, int x0) {
 		r=$((r + 1))
 		pos=$((pos + 1))
 	done
+}
+
+# A list row mirrored: the date at the left, then the subject and the
+# snippet, the senders and the star at the right, each right-aligned.
+fn ml_drawrowm(int id, int r, int x0, int w, int pos, t, int ww, int sw, int dw, star, bold, d) {
+	local who subj snip rest line pad
+	local -i rw
+
+	who=${MLT[$id][$t]["who"]}
+	[ "${MLT[$id][$t]["n"]}" -gt 1 ] && who="$who (${MLT[$id][$t]["n"]})"
+	who := dt_rpad "${who:0:$ww}" "$ww"
+	subj=${MLT[$id][$t]["subj"]:-(no subject)}
+	snip=${MLT[$id][$t]["snip"]}
+	rest="$subj${snip:+ - $snip}"
+	rest=${rest:0:$sw}
+	rw := str width "$rest"
+	pad=""
+	[ "$rw" -lt "$sw" ] && pad := str repeat " " $((sw - rw))
+	if [ "$pos" = "${MW[$id]["sel"]:-0}" ] && [ "${MW[$id]["qon"]}" != 1 ]; then
+		console pen "$DT_SELINK" "$DT_ACTIVE" $bold
+		console put -p "w$id" "$r" "$x0" " $d $pad$rest $who $star"
+		return 0
+	fi
+	console pen "$DT_INK" "$DT_FACE" $bold
+	console put -p "w$id" "$r" "$x0" " $d $pad"
+	line=${subj:0:$sw}
+	console put -p "w$id" "$r" $((x0 + 2 + dw + ${#pad})) "$line"
+	if [ "${#line}" -lt "${#rest}" ]; then
+		console pen "$DT_DIM" "$DT_FACE"
+		console put -p "w$id" "$r" $((x0 + 2 + dw + ${#pad} + ${#line})) "${rest:${#line}}"
+	fi
+	console pen "$DT_INK" "$DT_FACE" $bold
+	console put -p "w$id" "$r" $((x0 + 2 + dw + sw)) " $who "
+	console pen "$DT_WARN" "$DT_FACE"
+	console put -p "w$id" "$r" $((x0 + 4 + dw + sw + ww)) "$star"
 }
 
 # --- reading a conversation -------------------------------------------------
@@ -1024,6 +1079,12 @@ fn ml_drawread(int id, int h, int w, int x0) {
 	[ "$top" -lt 0 ] && top=0
 	MW[$id]["rtop"]=$top
 	console pen "$DT_DIM" "$DT_FACE"
+	if [ "$DT_MIRRORON" = 1 ]; then
+		console put -p "w$id" 1 $((x0 + w - 8)) "Back ${GL[rarr]}"
+		dt_wreg "$id" 1 $((x0 + w - 8)) 6 back
+		ml_drawreadm "$id" "$h" "$w" "$x0" "$top" "$n"
+		return 0
+	fi
 	console put -p "w$id" 1 $((x0 + 1)) "${GL[larr]} Back"
 	dt_wreg "$id" 1 $((x0 + 1)) 6 back
 	i=$top
@@ -1079,6 +1140,62 @@ fn ml_drawread(int id, int h, int w, int x0) {
 					console fill -p "w$id" "$r" $((x0 + 2)) 1 "${im[1]}" " "
 					console put -p "w$id" "$r" $((x0 + 3)) "image"
 				fi
+			fi
+			;;
+		esac
+		r=$((r + 1))
+		i=$((i + 1))
+	done
+}
+
+# The open conversation mirrored: headings, senders, notes and attachments
+# right-aligned, the date at the left. A message's own lines keep the
+# layout html lines gave them; the console orders right-to-left text in
+# each, but does not align it.
+fn ml_drawreadm(int id, int h, int w, int x0, int top, int n) {
+	local r=2 i=$top k t d a e l col len url
+	local -a links
+
+	while [ "$i" -lt "$n" ] && [ "$r" -lt $((h - 1)) ]; do
+		k=${MLR[$id][$i]["k"]}
+		t=${MLR[$id][$i]["t"]}
+		e=$((x0 + w - 2))
+		case $k in
+		subject | dim | invite | invdim)
+			case $k in
+			subject) console pen "$DT_INK" "$DT_FACE" bold ;;
+			invite) console pen "$DT_INFO" "$DT_FACE" bold; t="${t:0:$((w - 6))} ${GL[diamond]}" ;;
+			*) console pen "$DT_DIM" "$DT_FACE" ;;
+			esac
+			t=${t:0:$((w - 4))}
+			a := str width "$t"
+			console put -p "w$id" "$r" $((e - a)) "$t"
+			;;
+		from)
+			console pen "$DT_INK" "$DT_FACE" bold
+			a := str width "$t"
+			console put -p "w$id" "$r" $((e - a)) "$t"
+			console pen "$DT_DIM" "$DT_FACE"
+			d="<${MLR[$id][$i]["addr"]}>"
+			console put -p "w$id" "$r" $((e - a - 1 - ${#d})) "$d"
+			console put -p "w$id" "$r" $((x0 + 2)) "${MLR[$id][$i]["date"]}"
+			;;
+		attach)
+			console pen "$DT_SELINK" "$DT_WELL"
+			t=" ${t:0:$((w - 6))} "
+			a := str width "$t"
+			console put -p "w$id" "$r" $((e - a)) "$t"
+			dt_wreg "$id" "$r" $((e - a)) "$a" "att:$i"
+			;;
+		rsvp) ml_drawrsvp "$id" "$r" $((x0 + 4)) "$i" ;;
+		body)
+			ml_drawline "$id" "$r" $((x0 + 2)) "$t" "${MLR[$id][$i]["s"]}"
+			if [ -n "${MLR[$id][$i]["a"]}" ]; then
+				IFS=$'\n' read -d '' -ra links <<< "${MLR[$id][$i]["a"]}"
+				for l in "${links[@]}"; do
+					IFS=$'\t' read -r col len url <<< "$l"
+					[ -n "$url" ] && dt_wreg "$id" "$r" $((x0 + 2 + col)) "$len" "url:$url"
+				done
 			fi
 			;;
 		esac

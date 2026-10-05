@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.99.62
+
+**Mail turns round** (Gitea #68, phase 4c). Mirrored, the sidebar is at
+the right with each view's count at its left, the search field at the
+right and the account at the left, and a conversation's row reads date,
+subject and snippet, senders, star from left to right. An open
+conversation puts its subject, sender, notes and attachments at the right
+and the date at the left, Back at the right. A message's own lines keep
+the layout the HTML module gives them -- the console orders right-to-left
+text within each, but a right-to-left message is not yet right-aligned.
+
 ## 0.99.61
 
 **Restart Desktop works on a Mac.** `json parse NAME < file` read its
