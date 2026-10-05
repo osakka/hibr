@@ -88,8 +88,11 @@ it -- and a program's own cells (a terminal window, `most`, `hvi`) go through
 the display interface untouched, since the program decides their order.
 
     console bidi off    # for a terminal that reorders right-to-left itself
-    console bidi on     # the default
+    console bidi on
     console bidi        # status 0 when on
+
+Until a script says, it follows `HIBR_BIDI`: on unless that is `off`, the
+same setting the line editor reads.
 
 ## The mouse
 

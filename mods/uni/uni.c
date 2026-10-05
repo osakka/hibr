@@ -24,49 +24,102 @@ size_t un_dec(const char *t, size_t n, unsigned **out)
 	return m;
 }
 
-/* A text in display order for a cell grid: shaped, mirrored where right to left,
-   a mark kept after its base; dir 0 LTR, 1 RTL, 2 auto. */
-void un_vis(const char *t, size_t n, int dir, str *o)
+/* Code points [a, b) of t as one line in display order, the whole text one paragraph, map per character. */
+void un_vismap(const char *t, size_t n, size_t a, size_t b, int dir, str *o, int *map)
 {
-	unsigned *cp;
+	unsigned *cp, *lc;
 	unsigned char *cls;
-	signed char *lv;
-	size_t m, i, j, k, no, *ord;
-	int pl;
+	signed char *lv, *ll;
+	size_t m, m0, i, j, k, no, nl = 0, *ord, *src, *ls;
+	int pl, col = 0, lastw = 1, last;
 
 	m = un_dec(t, n, &cp);
+	m0 = m;
+	if (b > m0)
+		b = m0;
+	if (a > b)
+		a = b;
 	cls = xm(m + 1);
 	lv = xm(m + 1);
-	ord = xm(sizeof *ord * (m + 1));
-	for (i = 0; i < m; i++)
+	src = xm(sizeof *src * (m + 1));
+	for (i = 0; i < m; i++) {
 		cls[i] = (unsigned char)un_class(cp[i]);
+		src[i] = i;
+	}
+	if (map)
+		for (i = 0; i <= b - a; i++)
+			map[i] = -1;
 	pl = un_levels(cls, cp, m, dir, lv);
+	for (i = b; i > a; i--) {
+		k = cls[i - 1];
+		if (k == UN_WS || k == UN_LRI || k == UN_RLI || k == UN_FSI || k == UN_PDI)
+			lv[i - 1] = (signed char)pl;
+		else if (lv[i - 1] >= 0)
+			break;
+	}
+	last = b > a ? lv[b - 1] : pl;
 	for (i = 0; i < m; i++)
 		if ((lv[i] & 1) && lv[i] > 0)
 			cp[i] = un_mirrorof(cp[i]);
-	m = un_shape(cp, lv, m);
-	un_order(lv, 0, m, pl, ord, &no);
+	m = un_shape(cp, lv, src, m);
+	lc = xm(sizeof *lc * (m + 1));
+	ll = xm(m + 1);
+	ls = xm(sizeof *ls * (m + 1));
+	ord = xm(sizeof *ord * (m + 1));
+	for (i = 0; i < m; i++)
+		if (src[i] >= a && src[i] < b) {
+			lc[nl] = cp[i];
+			ll[nl] = lv[i];
+			ls[nl] = src[i] - a;
+			nl++;
+		}
+	un_order(ll, 0, nl, pl, ord, &no);
 	o->n = 0;
 	for (i = 0; i < no; i++) {
-		if ((lv[ord[i]] & 1) && un_cw(cp[ord[i]]) == 0) {
-			for (j = i; j < no && un_cw(cp[ord[j]]) == 0 && lv[ord[j]] == lv[ord[i]]; j++)
+		if ((ll[ord[i]] & 1) && un_cw(lc[ord[i]]) == 0) {
+			for (j = i; j < no && un_cw(lc[ord[j]]) == 0 && ll[ord[j]] == ll[ord[i]]; j++)
 				;
-			if (j < no && lv[ord[j]] == lv[ord[i]]) {
-				u8put(o, cp[ord[j]]);
+			if (j < no && ll[ord[j]] == ll[ord[i]]) {
+				u8put(o, lc[ord[j]]);
+				for (k = j + 1; k > i; k--)
+					if (map)
+						map[ls[ord[k - 1]]] = col;
+				col += un_cw(lc[ord[j]]);
 				for (k = j; k > i; k--)
-					u8put(o, cp[ord[k - 1]]);
+					u8put(o, lc[ord[k - 1]]);
 				i = j;
 				continue;
 			}
 		}
-		u8put(o, cp[ord[i]]);
+		u8put(o, lc[ord[i]]);
+		if (map)
+			map[ls[ord[i]]] = col;
+		if (ls[ord[i]] + 1 == b - a)
+			lastw = un_cw(lc[ord[i]]);
+		col += un_cw(lc[ord[i]]);
+	}
+	if (map) {
+		for (i = 0; i < b - a; i++)
+			if (map[i] < 0)
+				map[i] = i ? map[i - 1] : 0;
+		map[b - a] = b == a ? 0 : (last & 1) ? map[b - a - 1] : map[b - a - 1] + lastw;
 	}
 	s_grow(o, 1);
 	o->p[o->n] = 0;
 	free(cp);
 	free(cls);
 	free(lv);
+	free(src);
+	free(lc);
+	free(ll);
+	free(ls);
 	free(ord);
+}
+
+/* A text in display order for a cell grid: shaped, mirrored, a mark kept after its base. */
+void un_vis(const char *t, size_t n, int dir, str *o)
+{
+	un_vismap(t, n, 0, (size_t)-1, dir, o, 0);
 }
 
 /* Read -d ltr|rtl|auto; returns the next argument's index. */
@@ -196,7 +249,7 @@ int un_bi(sh *s, int ac, char **av)
 		n = un_dec(av[k], strlen(av[k]), &cp);
 		if (!strcmp(sub, "shape")) {
 			lv = 0;
-			n = un_shape(cp, lv, n);
+			n = un_shape(cp, lv, 0, n);
 			for (i = 0; i < n; i++)
 				u8put(&o, cp[i]);
 		} else if (!strcmp(sub, "width")) {
@@ -239,7 +292,7 @@ int un_rtl(const char *t, size_t n)
 	return 0;
 }
 
-const uni_api un_api = { un_vis, un_cw, un_rtl };
+const uni_api un_api = { un_vis, un_cw, un_rtl, un_vismap };
 
 /* Offer "uni" to the modules that draw text. */
 int un_init(sh *s)

@@ -45,6 +45,6 @@ int un_levels(const unsigned char *cls, const unsigned *cp, size_t n, int dir,
 	      signed char *lv);
 void un_order(const signed char *lv, const unsigned char *cls, size_t n, int plev,
 	      size_t *ord, size_t *no);
-size_t un_shape(unsigned *cp, signed char *lv, size_t n);
+size_t un_shape(unsigned *cp, signed char *lv, size_t *src, size_t n);
 
 #endif

@@ -71,10 +71,8 @@ size_t un_jnext(const unsigned *cp, const signed char *lv, size_t n, size_t i)
 	return n;
 }
 
-/* Shape Arabic in place, in logical order: each letter its joining form, lam-alef
-   as one ligature. lv, if given, keeps joining within one level. Returns the new
-   length; a ligature's alef is removed, and lv with it. */
-size_t un_shape(unsigned *cp, signed char *lv, size_t n)
+/* Shape Arabic in place, in logical order: joining forms, lam-alef as one cell; returns the new length. */
+size_t un_shape(unsigned *cp, signed char *lv, size_t *src, size_t n)
 {
 	unsigned char *form = xm(n + 1);
 	char *gone = xm(n + 1);
@@ -118,6 +116,8 @@ size_t un_shape(unsigned *cp, signed char *lv, size_t n)
 		cp[m] = cp[i];
 		if (lv)
 			lv[m] = lv[i];
+		if (src)
+			src[m] = src[i];
 		m++;
 	}
 	free(form);

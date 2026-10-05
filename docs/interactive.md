@@ -122,11 +122,20 @@ when the terminal is resized under it.
 |---|---|---|---|
 | `^A` `^E` | start, end of line | `^B` `^F` | back, forward one character |
 | `^P` `^N` | previous, next history | `^K` | kill to end of line |
-| `^U` | kill the whole line | `^W` | kill the word before the cursor |
+| `^U` | kill back to the start of the line | `^W` | kill the word before the cursor |
 | `^L` | redraw | `^R` | search history backwards |
 | `^D` | delete forward, or end the shell on an empty line | `^C` | abandon the line |
 | `Tab` | complete | `^Z` | stop the foreground job |
 | arrows, `Home`, `End`, `Delete` | as expected | | |
+
+A line holding Arabic, Hebrew or another right-to-left script is drawn in
+display order, with Arabic in its joined forms, one screen row at a time,
+with the whole line as one paragraph. The buffer, the keys and the cursor stay
+in logical order: left and right step through the text as it was typed, and
+the cursor stands on the column its position landed in. The `uni` module does
+this, loaded the first time such a line is drawn. For a terminal that reorders
+right-to-left text itself, set `HIBR_BIDI=off`; it is also the desktop's
+default for `console bidi`.
 
 ## History
 

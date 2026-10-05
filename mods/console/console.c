@@ -142,37 +142,18 @@ cn_pane *cn_phit(int row, int col)
 	return 0;
 }
 
-int cn_bidi = 1;
-
-/* Whether a text may hold right-to-left: lead bytes of Hebrew, Arabic and the
-   rest, the direction marks, and the presentation forms; never box drawing. */
-int cn_rtlq(const char *t)
-{
-	const unsigned char *p = (const unsigned char *)t;
-
-	for (; *p; p++) {
-		if (*p < 0xD6)
-			continue;
-		if (*p <= 0xDF || (*p == 0xE0 && p[1] >= 0xA0 && p[1] <= 0xA3))
-			return 1;
-		if (*p == 0xE2 && p[1] == 0x80 && (p[2] == 0x8F || (p[2] >= 0xAA && p[2] <= 0xAE)))
-			return 1;
-		if (*p == 0xE2 && p[1] == 0x81 && p[2] >= 0xA6 && p[2] <= 0xA9)
-			return 1;
-		if (*p == 0xEF && p[1] >= 0xAC && p[1] <= 0xBB)
-			return 1;
-		if (*p == 0xF0 && ((p[1] == 0x90 && p[2] >= 0xA0) || p[1] == 0x9E))
-			return 1;
-	}
-	return 0;
-}
+int cn_bidi = -1;
+int u8rtlq(const char *t, size_t n);
 
 /* The text a script asked for, in display order when it holds right-to-left and bidi is on. */
 const char *cn_vis(sh *s, const char *t, str *o)
 {
 	const uni_api *u;
+	const char *v;
 
-	if (!cn_bidi || !t || !cn_rtlq(t))
+	if (!cn_bidi || !t || !u8rtlq(t, strlen(t)))
+		return t;
+	if (cn_bidi < 0 && (v = hibr_get(s, "HIBR_BIDI")) && !strcmp(v, "off"))
 		return t;
 	u = hibr_require(s, "uni", UNI_VER);
 	if (!u || !u->rtl(t, strlen(t)))
@@ -449,6 +430,11 @@ int m_console(sh *s, int ac, char **av)
 		if (ac > 2) {
 			lg(HIBR_LERR, "usage: console bidi [on|off]");
 			return 2;
+		}
+		if (cn_bidi < 0) {
+			const char *v = hibr_get(s, "HIBR_BIDI");
+
+			return v && !strcmp(v, "off") ? HIBR_FAIL : HIBR_OK;
 		}
 		return cn_bidi ? HIBR_OK : HIBR_FAIL;
 	}

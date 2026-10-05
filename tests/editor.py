@@ -56,6 +56,36 @@ t = session('PS1="> "\nRPS1="[r]"\n', ["abc", "\x7f\x7f", "xy\n", "exit\n"])
 check("editing still works with a right prompt", "\r\nhibr: axy: command not found" in t
       or "axy" in t)
 
+# A line holding right-to-left text is drawn in display order, a row at a
+# time, while the buffer and every edit stay in logical order (#68): the
+# cursor sits on the column its logical position landed in.
+def bidi(keys, env=None):
+    """The last redraw of the line, and everything the session printed."""
+    path = "/tmp/hibr-editor-rc-%d" % os.getpid()
+    open(path, "w").write('PS1="> "\n')
+    t = Term(rows=24, cols=60, env=dict({"HIBR_RC": path, "TERM": "xterm"}, **(env or {})),
+             settle=0.35)
+    t.keys(keys, settle=0.22, collect=0.05)
+    last = t.out.decode("utf-8", "replace").split("\r\033[0K")[-1]
+    t.send(b"\nexit\n")
+    t.close()
+    os.unlink(path)
+    return t, last
+
+
+AR = "\u0633\u0644\u0627\u0645"
+t, last = bidi(["echo " + AR])
+check("a typed right-to-left word is drawn in display order, joined",
+      last.startswith("> echo \ufee1\ufefc\ufeb3"), repr(last))
+t, last = bidi(["echo " + AR, "\x1b[D"])
+check("the cursor stands on the column of its logical position",
+      last.endswith("\r\033[7C"), repr(last))
+t, last = bidi(["echo " + AR, "\x1b[D", "\x1b[D", "X\n"])
+check("editing is in logical order: X lands two characters from the end",
+      "\u0633\u0644X\u0627\u0645" in t.text, t.text[-200:])
+t, last = bidi(["echo " + AR], env={"HIBR_BIDI": "off"})
+check("HIBR_BIDI=off draws the line as typed", last.startswith("> echo " + AR), repr(last))
+
 print()
 # Agent mode is for a script a program runs, with nobody at the terminal, so
 # a terminal on standard input is swapped for /dev/null: a read gets the end
@@ -66,4 +96,4 @@ t.wait(3.0)
 check("in agent mode a read on a terminal ends at once instead of waiting",
       t.exited and "read [] status 1" in t.text, t.text)
 
-report(12)
+report(16)

@@ -44,5 +44,11 @@ taken anything above U+2E80 as wide.
   aligned; aligning and mirroring the layout is phase 4.
 - `uni` is loaded on the first right-to-left text, through
   `hibr_require`; a session that never draws any never loads it.
-- Editing -- the cursor and selection in logical order over a visual line
-  -- is not touched by this; that is the editors' own work (phase 2b, 2c).
+- The line editor does the same since 0.99.51 (phase 2b): the line is cut
+  into screen rows in logical order and each row drawn in display order,
+  levels and shaping worked out over the whole line as one paragraph and
+  rules L1 and L2 applied per row -- `uni`'s `vismap`, interface version 2,
+  which also says where each character landed so the cursor, still logical,
+  stands on the right column. `HIBR_BIDI=off` turns both off, and is the
+  console's default until a script says `console bidi`. `hvi` and Write are
+  phase 2c.

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.99.51
+
+**The prompt reads Arabic and Hebrew too** (Gitea #68, phase 2b). A line
+holding right-to-left text is drawn in display order, Arabic joined, one
+screen row at a time, the whole line one paragraph -- levels and shaping
+over all of it, each row reordered on its own as UAX #9 says, so a word
+cut by the wrap still joins across it. The buffer, the keys and the
+cursor stay logical: left and right step through the text as typed, and
+the cursor stands on the column its position landed in. `uni`'s interface
+is version 2 for it (`vismap`, a line of a paragraph with where each
+character went). `HIBR_BIDI=off` turns it off for a terminal that reorders
+itself, and is the console's default too. `^U` was documented as killing
+the whole line; it kills back to the start, as in bash, and says so now.
+
 ## 0.99.50
 
 **The desktop draws Arabic and Hebrew readably** (Gitea #68, phase 2a).

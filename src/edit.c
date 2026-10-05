@@ -1,4 +1,5 @@
 #include "pri.h"
+#include "../mods/uni.h"
 #include <sys/stat.h>
 #include <ctype.h>
 #include <dirent.h>
@@ -14,6 +15,7 @@
 extern const hibr_bi bitab[];
 extern volatile sig_atomic_t g_int;
 
+sh *ed_sh;
 struct termios ed_saved;
 int ed_raw;
 
@@ -256,13 +258,137 @@ char *ed_prompt(sh *s, const char *nm)
 	return v && *v ? pr_make(s, v) : 0;
 }
 
+/* Whether a text may hold right-to-left, by its lead bytes alone; box drawing never does. */
+int u8rtlq(const char *t, size_t n)
+{
+	const unsigned char *p = (const unsigned char *)t, *e = p + n;
+
+	for (; p < e; p++) {
+		if (*p < 0xD6)
+			continue;
+		if (*p <= 0xDF || (*p == 0xE0 && p + 1 < e && p[1] >= 0xA0 && p[1] <= 0xA3))
+			return 1;
+		if (p + 2 < e && *p == 0xE2 && p[1] == 0x80 &&
+		    (p[2] == 0x8F || (p[2] >= 0xAA && p[2] <= 0xAE)))
+			return 1;
+		if (p + 2 < e && *p == 0xE2 && p[1] == 0x81 && p[2] >= 0xA6 && p[2] <= 0xA9)
+			return 1;
+		if (p + 1 < e && *p == 0xEF && p[1] >= 0xAC && p[1] <= 0xBB)
+			return 1;
+		if (p + 2 < e && *p == 0xF0 && ((p[1] == 0x90 && p[2] >= 0xA0) || p[1] == 0x9E))
+			return 1;
+	}
+	return 0;
+}
+
+/* The uni module when the line holds right-to-left text and HIBR_BIDI is not off. */
+const uni_api *ed_uni(str *b)
+{
+	const char *v;
+	const uni_api *u;
+
+	if (!ed_sh || !b->n || !u8rtlq(b->p, b->n))
+		return 0;
+	v = hibr_get(ed_sh, "HIBR_BIDI");
+	if (v && !strcmp(v, "off"))
+		return 0;
+	u = hibr_require(ed_sh, "uni", UNI_VER);
+	return u && u->rtl(b->p, b->n) ? u : 0;
+}
+
+/* Repaint a right-to-left line: rows cut in logical order, each drawn in display order. */
+void ed_drawbi(est *e, str *b, size_t pos, const uni_api *u)
+{
+	int cols = ed_cols(), rows = 1, crow = 0, ccol = 0, prow, pcol, pe, col, c0, w, l, k, *map;
+	str o, vis, empty;
+	size_t i = 0, start, nc, ci, cpa = 0;
+	unsigned cp;
+
+	s_init(&empty);
+	ed_pos(e->ps, &empty, 0, cols, &rows, &prow, &pcol, &pe);
+	s_init(&o);
+	s_init(&vis);
+	if (e->orows - 1 - e->orow > 0) {
+		s_cat(&o, "\033[");
+		s_num(&o, e->orows - 1 - e->orow);
+		s_ch(&o, 'B');
+	}
+	for (k = 0; k < e->orows - 1; k++)
+		s_cat(&o, "\r\033[0K\033[1A");
+	s_cat(&o, "\r\033[0K");
+	s_cat(&o, e->ps);
+	rows = prow + 1;
+	crow = prow;
+	ccol = pcol;
+	col = pcol;
+	while (i < b->n) {
+		start = i;
+		nc = 0;
+		ci = (size_t)-1;
+		c0 = col;
+		while (i < b->n) {
+			l = u8dec(b->p + i, b->n - i, &cp);
+			w = u8w(cp);
+			if (col + w > cols && i > start)
+				break;
+			if (i == pos)
+				ci = nc;
+			col += w;
+			i += (size_t)l;
+			nc++;
+		}
+		map = xm(sizeof *map * (nc + 1));
+		u->vismap(b->p, b->n, cpa, cpa + nc, 2, &vis, map);
+		cpa += nc;
+		s_add(&o, vis.p ? vis.p : "", vis.n);
+		if (ci != (size_t)-1 || (pos >= b->n && i >= b->n)) {
+			crow = rows - 1;
+			ccol = c0 + map[ci != (size_t)-1 ? ci : nc];
+		}
+		free(map);
+		if (i < b->n) {
+			s_cat(&o, "\r\n\033[0K");
+			rows++;
+			col = 0;
+		}
+	}
+	if (pos >= b->n && ccol >= cols) {
+		s_cat(&o, "\r\n");
+		rows++;
+		crow = rows - 1;
+		ccol = 0;
+	}
+	if (rows - 1 - crow > 0) {
+		s_cat(&o, "\033[");
+		s_num(&o, rows - 1 - crow);
+		s_ch(&o, 'A');
+	}
+	s_ch(&o, '\r');
+	if (ccol) {
+		s_cat(&o, "\033[");
+		s_num(&o, ccol);
+		s_ch(&o, 'C');
+	}
+	ed_put(o.p, o.n);
+	s_free(&o);
+	s_free(&vis);
+	e->orows = rows;
+	e->orow = crow;
+	lg(HIBR_LTRC, "draw bidi %d rows, cursor row %d col %d", rows, crow, ccol);
+}
+
 /* Repaint a line that may wrap over several rows, then place the cursor. */
 void ed_draw(est *e, str *b, size_t pos)
 {
 	int cols = ed_cols();
 	str o;
 	int rows, crow, ccol, ecol, i;
+	const uni_api *u = ed_uni(b);
 
+	if (u) {
+		ed_drawbi(e, b, pos, u);
+		return;
+	}
 	ed_pos(e->ps, b, pos, cols, &rows, &crow, &ccol, &ecol);
 	s_init(&o);
 	if (e->orows - 1 - e->orow > 0) {
@@ -796,6 +922,7 @@ char *ed_line(sh *s, const char *ps)
 	int esc = 0;
 	char *r;
 
+	ed_sh = s;
 	if (!s->it || !isatty(0)) {
 		ed_put(ps, strlen(ps));
 		return rdline(stdin);
