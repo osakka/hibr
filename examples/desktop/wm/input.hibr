@@ -372,6 +372,9 @@ dt_mouse() {
 				else
 					CS_SIDE=right
 				fi
+				case $DT_MIRRORON in
+				1) case $CS_SIDE in left) CS_SIDE=right ;; *) CS_SIDE=left ;; esac ;;
+				esac
 				;;
 			esac
 			CS_DRAG=

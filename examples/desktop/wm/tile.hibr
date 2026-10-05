@@ -69,7 +69,7 @@ fn dt_tilelist(int n) {
 # window its place. A workspace that is not tiled is left alone.
 fn dt_tile(int? n = "") {
 	local top=1 left=${DT_PRIMARY_COL:-0} pw=${DT_PRIMARY_W:-$DT_COLS}
-	local ph=$((DT_ROWS - 1)) mw sh r i k l id
+	local ph=$((DT_ROWS - 1)) mw sh r i k l id oc
 	local -a ids
 
 	[ -n "$n" ] || n=$DT_WS
@@ -83,7 +83,15 @@ fn dt_tile(int? n = "") {
 		return 0
 	fi
 	mw=$((pw * DT_TILEMAIN / 100))
-	dt_tileput "${ids[0]}" "$top" "$left" "$ph" "$mw"
+	# Mirrored, the main window is on the right and the rest on its left.
+	oc=$((left + mw))
+	case $DT_MIRRORON in
+	1)
+		dt_tileput "${ids[0]}" "$top" $((left + pw - mw)) "$ph" "$mw"
+		oc=$left
+		;;
+	*) dt_tileput "${ids[0]}" "$top" "$left" "$ph" "$mw" ;;
+	esac
 	sh=$((ph / (k - 1)))
 	[ "$sh" -lt "$DT_MINH" ] && sh=$DT_MINH
 	r=$top
@@ -93,7 +101,7 @@ fn dt_tile(int? n = "") {
 			sh=$((top + ph - r))
 		fi
 		[ $((r + sh)) -gt $((top + ph)) ] && r=$((top + ph - sh))
-		dt_tileput "${ids[$i]}" "$r" $((left + mw)) "$sh" $((pw - mw))
+		dt_tileput "${ids[$i]}" "$r" "$oc" "$sh" $((pw - mw))
 		r=$((r + sh))
 		i=$((i + 1))
 	done

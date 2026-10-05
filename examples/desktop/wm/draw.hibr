@@ -46,6 +46,9 @@ dt_draw() {
 	local l id ls in
 
 	DT_WANT=
+	CS_SIDEX=$CS_SIDE
+	DT_NOTEPOSX=$DT_NOTEPOS
+	case $DT_MIRRORON in 1) dt_mirrorx ;; esac
 	dt_wall
 	l := console pane list
 	read -ra ls <<< "$l"

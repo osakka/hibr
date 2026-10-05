@@ -121,7 +121,7 @@ fn cs_modcol(int idx) {
 
 	w := cs_width
 	cnt := cs_count
-	if [ "$CS_SIDE" = left ]; then
+	if [ "$CS_SIDEX" = left ]; then
 		c=$((DT_PRIMARY_COL + 1))
 	else
 		c=$((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - w + 2))
@@ -143,7 +143,7 @@ fn cs_at(int mc) {
 
 	w := cs_width
 	cnt := cs_count
-	if [ "$CS_SIDE" = left ]; then
+	if [ "$CS_SIDEX" = left ]; then
 		c=$((DT_PRIMARY_COL + 1))
 	else
 		c=$((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - w + 2))
@@ -173,7 +173,7 @@ fn cs_hit(int mr, int mc) {
 	row := cs_y
 	[ "$mr" != "$row" ] && return 1
 	if [ "$CS_COLLAPSED" = 1 ]; then
-		if [ "$CS_SIDE" = left ]; then
+		if [ "$CS_SIDEX" = left ]; then
 			[ "$mc" = "$DT_PRIMARY_COL" ]
 		else
 			[ "$mc" = $((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - 1)) ]
@@ -181,7 +181,7 @@ fn cs_hit(int mr, int mc) {
 		return $?
 	fi
 	w := cs_width
-	[ "$CS_SIDE" = left ] && col=$DT_PRIMARY_COL ||
+	[ "$CS_SIDEX" = left ] && col=$DT_PRIMARY_COL ||
 		col=$((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - w))
 	[ "$mc" -ge "$col" ] && [ "$mc" -lt $((col + w)) ]
 }
@@ -208,7 +208,7 @@ fn cs_resize(int at) {
 	local budget total i m w used=0 cnt=0
 
 	total=${#CS_MOD_LIST[@]}
-	if [ "$CS_SIDE" = left ]; then
+	if [ "$CS_SIDEX" = left ]; then
 		budget=$(($at - DT_PRIMARY_COL))
 	else
 		budget=$((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - 1 - $at))
@@ -238,7 +238,7 @@ dt_stripdraw() {
 	row := cs_y
 	if [ "$CS_COLLAPSED" = 1 ]; then
 		console pen "$DT_ACTIVE" "$DT_FACE" bold
-		if [ "$CS_SIDE" = left ]; then
+		if [ "$CS_SIDEX" = left ]; then
 			console put "$row" "$DT_PRIMARY_COL" "${GL[sright]}"
 		else
 			console put "$row" $((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - 1)) "${GL[sleft]}"
@@ -247,7 +247,7 @@ dt_stripdraw() {
 	fi
 	cnt := cs_count
 	w := cs_width
-	[ "$CS_SIDE" = left ] && col=$DT_PRIMARY_COL ||
+	[ "$CS_SIDEX" = left ] && col=$DT_PRIMARY_COL ||
 		col=$((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - w))
 	[ "$CS_SHADOW" = 1 ] &&
 		console darken $((row + 1)) $((col + 2)) 1 "$w" "$DT_SHADOW_PCT"
@@ -255,7 +255,7 @@ dt_stripdraw() {
 	console fill "$row" "$col" 1 "$w" " "
 	c=$col
 	console pen "$DT_ACTIVE" "$DT_FACE" bold
-	if [ "$CS_SIDE" = right ]; then
+	if [ "$CS_SIDEX" = right ]; then
 		console put "$row" "$c" "${GL[sleft]}"
 		c=$((c + 1))
 	fi
@@ -270,7 +270,7 @@ dt_stripdraw() {
 		c=$((c + mw + 2))
 		i=$((i + 1))
 	done
-	[ "$CS_SIDE" = left ] && { console pen "$DT_ACTIVE" "$DT_FACE" bold
+	[ "$CS_SIDEX" = left ] && { console pen "$DT_ACTIVE" "$DT_FACE" bold
 		console put "$row" "$c" "${GL[sright]}"; }
 }
 
@@ -293,9 +293,9 @@ fn cs_press(int prow, int pcol) {
 		return 0
 	fi
 	w := cs_width
-	[ "$CS_SIDE" = left ] && col=$DT_PRIMARY_COL ||
+	[ "$CS_SIDEX" = left ] && col=$DT_PRIMARY_COL ||
 		col=$((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - w))
-	[ "$CS_SIDE" = left ] && arrowcol=$((col + w - 1)) || arrowcol=$col
+	[ "$CS_SIDEX" = left ] && arrowcol=$((col + w - 1)) || arrowcol=$col
 	if [ "$pcol" = "$arrowcol" ]; then
 		CS_DRAG=1
 		CS_DRAGKIND=

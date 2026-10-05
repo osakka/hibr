@@ -27,6 +27,9 @@ DT_BIDI="${DT_BIDI-on}"
 # is what is in effect; layout code asks `case $DT_MIRRORON in 1)`.
 DT_MIRROR="${DT_MIRROR-auto}"
 DT_MIRRORON=
+# A person's own sides, as the frame draws them: flipped when mirrored.
+CS_SIDEX=left
+DT_NOTEPOSX=top-right
 DT_LANGON=
 DT_LANGRTL=
 # Scratch for a translated label built from a template, before it is handed on.
@@ -134,6 +137,15 @@ dt_langapply() {
 	[ "$DT_MIRROR" = auto ] && DT_MIRRORON=$DT_LANGRTL
 	DT_MENUIN=
 	return 0
+}
+
+# The Control Strip's side and the notifications' corner, mirrored.
+dt_mirrorx() {
+	case $CS_SIDEX in left) CS_SIDEX=right ;; *) CS_SIDEX=left ;; esac
+	case $DT_NOTEPOSX in
+	*left*) DT_NOTEPOSX=${DT_NOTEPOSX/left/right} ;;
+	*right*) DT_NOTEPOSX=${DT_NOTEPOSX/right/left} ;;
+	esac
 }
 
 # The languages there are, code TAB name, for Control Panel.

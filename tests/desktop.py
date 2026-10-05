@@ -3168,6 +3168,58 @@ sc, raw = run(ONE)
 check("and English is not mirrored by default",
       sc.row(0).lstrip().startswith("\u270e"), sc.row(0))
 
+# The rest of the desktop turns round as well: the icons start from the
+# left edge, the Control Strip docks right, notes stack from the top-left
+# corner, a tiled workspace's main window is on the right, and Control
+# Panel's list of panes is on the right of its divider.
+d, env, pre, home, backup, usb, src = desk()
+sc, raw = run("", env=dict(env, **XY), pre=pre)
+check("mirrored, the desktop's icons start from the left edge",
+      sc.find("Home") is not None and sc.find("Home")[1] < 10 and
+      sc.find("Trash") is not None and sc.find("Trash")[1] < 10, sc)
+shutil.rmtree(d, True)
+d = tempfile.mkdtemp(prefix="hibr-strip-")
+sc, _ = run("", env=dict(XY, XDG_CONFIG_HOME=d), pre=CSSRC)
+strip = [r for r in range(ROWS) if sc.row(r).rstrip().endswith("]")]
+check("the Control Strip docks at the right", len(strip) == 1 and
+      sc.row(strip[0]).find("\u25c2") > 0, sc)
+shutil.rmtree(d, True)
+p = "/tmp/hibr-desktop-%d.hibr" % os.getpid()
+open(p, "w").write("%s. %s\ndt_open\ndt_note \"Corner\"\ndt_run\ndt_close\n"
+                   % (load(MOD), WM))
+t = Term(p, env=dict(XY, DT_TICK="300"), rows=ROWS, cols=COLS, settle=0.5)
+sc = t.screen()
+t.quit(None, 1.0)
+os.unlink(p)
+hit = sc.find("Corner")
+check("notes stack from the top-left corner", hit is not None and
+      hit[0] <= 4 and hit[1] <= 6, sc)
+sc, _ = run(W3, env=XY)
+one, two = sc.find("One"), sc.find("Two")
+check("a tiled workspace's main window is on the right, the stack on the left",
+      one is not None and two is not None and one[0] == 1 and
+      one[1] > COLS // 2 and two[1] < COLS // 2, sc)
+CPAN = (APPS + 'CP_PANEDIRS+=("%s")\ncp_panes\n'
+        % tree("examples/desktop/control-panel"))
+PANEL = 'dt_new Panel 22 70 1 4 panel'
+sc, _ = run(PANEL, env=XY, pre=CPAN)
+srch = sc.find("Search")
+check("Control Panel's list of panes is on the right, its body on the left",
+      srch is not None and srch[1] > 50 and
+      re.search(r"\u2502\d\d:\d\d:\d\d", sc.row(2)) is not None, sc)
+disp = sc.find("Displays")
+sc, _ = run(PANEL, feed=[press(disp[0], disp[1]), release(disp[0], disp[1])],
+            env=XY, pre=CPAN)
+check("and a click on a pane in it opens that pane",
+      sc.find("Displays") is not None and
+      re.search(r"\d\d:\d\d:\d\d", sc.row(2)) is None, sc)
+bar = [c for c in range(COLS) if sc.at(5, c) == "\u2502"][1]
+sc, _ = run(PANEL, feed=[press(5, bar), drag(5, bar - 8), release(5, bar - 8)],
+            env=XY, pre=CPAN)
+check("dragging its divider left widens the list, as it is on the right",
+      sc.find("Search") is not None and sc.find("Search")[1] < srch[1] - 4,
+      sc)
+
 # --standby: a terminal that waits to be joined, joins, and when it is let
 # go waits again. Blank keeps a joined display joined but dark.
 SB = tempfile.mkdtemp(prefix="hibr-standby-")
@@ -3594,4 +3646,4 @@ check("an arithmetic error in an app is logged and the desktop carries on",
       sc.find("┤ Slip ├") is not None and "arithmetic" in log and t.exited and t.status == 0,
       (log, t.status))
 
-report(494)
+report(501)

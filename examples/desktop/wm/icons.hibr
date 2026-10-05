@@ -148,6 +148,7 @@ dt_iconlay() {
 			r=$((2 + (slot % per) * 3))
 			c=$((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - DT_ICONW - 1 -
 				(slot / per) * DT_ICONW))
+			case $DT_MIRRORON in 1) c=$((DT_PRIMARY_COL + 1 + (slot / per) * DT_ICONW)) ;; esac
 			slot=$((slot + 1))
 		fi
 		DI[$i]["r"]=$r

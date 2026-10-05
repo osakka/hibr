@@ -182,12 +182,16 @@ fn panel_shown(int id, int i) {
 }
 
 fn panel_draw(int id, int h, int w, int row, int col) {
-	local i n r t lw side pane bx bw g sel at=0 lt vis on
+	local i n r t lw side pane bx bw g sel at=0 lt vis on lx=0 dv
 	local -a lines m
 
 	dt_wclear "$id"
 	lw := dt_split CP_DIVCOL "$w" 8
 	PW[$id]["lw"]=$lw
+	# Mirrored, the pane is first and the list after the divider, at the right.
+	dv=$lw
+	case $DT_MIRRORON in 1) dv=$((w - lw + 1)); lx=$dv ;; esac
+	PW[$id]["dv"]=$dv
 	PW[$id]["w"]=$w
 	side=${PW[$id]["side"]}
 	pane := panel_pane "$id"
@@ -210,16 +214,16 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 	if [ -z "${PW[$id]["q"]}" ]; then
 		console pen "$DT_DIM" "$DT_FACE"
 		t := str pad "Search${GL[ellipsis]}" $((lw - 3))
-		console put -p "w$id" 1 2 "$t"
+		console put -p "w$id" 1 $((lx + 2)) "$t"
 		if [ "$on" = 1 ]; then
 			console pen "$DT_FACE" "$DT_INK"
-			console put -p "w$id" 1 2 "S"
+			console put -p "w$id" 1 $((lx + 2)) "S"
 		fi
 	else
-		dt_textdraw "$id" 1 2 $((lw - 3)) "${PW[$id]["q"]}" \
+		dt_textdraw "$id" 1 $((lx + 2)) $((lw - 3)) "${PW[$id]["q"]}" \
 			"${#PW[$id]["q"]}" "$on"
 	fi
-	dt_wreg "$id" 1 1 $((lw - 1)) search
+	dt_wreg "$id" 1 $((lx + 1)) $((lw - 1)) search
 	sel=${PW[$id]["pane"]}
 	lt=${PW[$id]["ltop"]:-0}
 	vis=$((h - 1))
@@ -262,7 +266,7 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 			esac
 			t := str pad "$t" $((lw - 3))
 			t=${t:0:$((lw - 3))}
-			console put -p "w$id" "$r" 2 "$t"
+			console put -p "w$id" "$r" $((lx + 2)) "$t"
 			;;
 		p:*)
 			i=${t#p:}
@@ -281,31 +285,32 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 			t := str pad " ${CP_PANES[$n]["icon"]} $t" \
 				$((lw - 3))
 			t=${t:0:$((lw - 3))}
-			console put -p "w$id" "$r" 2 "$t"
-			dt_wreg "$id" "$r" 1 $((lw - 1)) "pane:$i"
+			console put -p "w$id" "$r" $((lx + 2)) "$t"
+			dt_wreg "$id" "$r" $((lx + 1)) $((lw - 1)) "pane:$i"
 			;;
 		*)
 			console pen "$DT_INK" "$DT_FACE"
 			t := str repeat " " "$lw"
-			console put -p "w$id" "$r" 0 "$t"
+			console put -p "w$id" "$r" "$lx" "$t"
 			;;
 		esac
 		r=$((r + 1))
 	done
-	dt_splitbar "$id" "$lw" 1 "$h" "${PW[$id]["split"]:-0}"
+	dt_splitbar "$id" "$dv" 1 "$h" "${PW[$id]["split"]:-0}"
 	# The list's own bar, on the divider rather than over the list, so the
 	# titles keep every column.
-	dt_scrollbar "$id" 2 "$lw" "$vis" "${#lines[@]}" "$vis" "$lt"
+	dt_scrollbar "$id" 2 "$dv" "$vis" "${#lines[@]}" "$vis" "$lt"
 	if [ "${#lines[@]}" = 0 ]; then
 		console pen "$DT_DIM" "$DT_FACE"
 		t="Nothing found"
-		console put -p "w$id" 2 2 "${t:0:$((lw - 3))}"
+		console put -p "w$id" 2 $((lx + 2)) "${t:0:$((lw - 3))}"
 		return 0
 	fi
 
 	[ -z "$pane" ] && return 0
 	bx=$((lw + 1))
 	bw=$((w - lw - 1))
+	case $DT_MIRRORON in 1) bx=1 ;; esac
 	if dt_has "${pane}_draw"; then
 		"${pane}_draw" "$id" $((h - 1)) "$bw" "$bx"
 	else
@@ -614,10 +619,18 @@ fn panel_key(int w, key) {
 # in the selected pane's own body works the way it always did -- select,
 # a second click (or enter) activates, and a click on a dropdown's own
 # cell opens the real popup, through the pane's own <name>_drop.
+# Whether column c of window w is in the pane list, on its side of the divider.
+fn panel_inlist(int w, int c) {
+	case $DT_MIRRORON in
+	1) [ "$c" -gt "${PW[$w]["dv"]:-$CP_DIVCOL}" ] ;;
+	*) [ "$c" -lt "${PW[$w]["lw"]:-$CP_DIVCOL}" ] ;;
+	esac
+}
+
 fn panel_click(int w, int r, int c, btn = "") {
 	local pane i n top tag k wc
 
-	if [ "$c" -lt "${PW[$w]["lw"]:-$CP_DIVCOL}" ]; then
+	if panel_inlist "$w" "$c"; then
 		tag := dt_hit "$w" "$r" "$c"
 		if [ "$tag" = search ]; then
 			PW[$w]["side"]=list
@@ -699,6 +712,7 @@ fn panel_mouse(int id, act, button, int r, int c, mods) {
 	local pane
 
 	if [ "${PW[$id]["split"]}" = 1 ]; then
+		case $DT_MIRRORON in 1) c=$((${PW[$id]["w"]:-40} - c + 1)) ;; esac
 		dt_splitmove CP_DIVCOL "$c" "${PW[$id]["w"]:-40}" 8
 		if [ "$act" = release ]; then
 			PW[$id]["split"]=
@@ -708,12 +722,12 @@ fn panel_mouse(int id, act, button, int r, int c, mods) {
 	fi
 	if [ "$act" = press ]; then
 		CP_MDRAG[$id]=
-		if [ "$c" = "${PW[$id]["lw"]}" ] && [ "$r" -ge 1 ]; then
+		if [ "$c" = "${PW[$id]["dv"]:-${PW[$id]["lw"]}}" ] && [ "$r" -ge 1 ]; then
 			PW[$id]["split"]=1
 			return 0
 		fi
 		pane := panel_pane "$id"
-		if [ "$c" -ge "${PW[$id]["lw"]:-$CP_DIVCOL}" ] && [ -n "$pane" ] &&
+		if ! panel_inlist "$id" "$c" && [ -n "$pane" ] &&
 		   dt_has "${pane}_mouse" &&
 		   "${pane}_mouse" "$id" press "$button" "$r" "$c"; then
 			CP_MDRAG[$id]=$pane
@@ -731,7 +745,7 @@ fn panel_wheel(int? w = "", dir = "", int? r = "", int? c = "") {
 	local top max n vis pane
 
 	# Each side scrolls on its own, whichever the pointer is over.
-	if [ -n "$c" ] && [ "$c" -lt "${PW[$w]["lw"]:-$CP_DIVCOL}" ]; then
+	if [ -n "$c" ] && panel_inlist "$w" "$c"; then
 		top=${PW[$w]["ltop"]:-0}
 		max=$((${PW[$w]["ln"]:-0} - ${PW[$w]["lvis"]:-1}))
 		case $dir in

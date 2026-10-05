@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.99.58
+
+**The rest of the desktop's own layout turns round** (Gitea #68, phase
+4b). Mirrored, the desktop icons start from the left edge, the Control
+Strip docks at the right, notifications stack from the top-left corner, a
+tiled workspace keeps its main window on the right and the stack on the
+left, and Control Panel puts its list of panes on the right of the
+divider, which drags the other way. Your own strip side and notification
+corner are still yours: they are read the other way round, never rewritten
+(ADR 0033). The inside of a Control Panel pane, scrollbars and each app's
+own layout come next.
+
 ## 0.99.57
 
 **The desktop turns round for a right-to-left language** (Gitea #68,

@@ -209,7 +209,7 @@ dt_note_draw() {
 	[ "${#DT_NOTEQ_ORDER[@]}" = 0 ] && return 0
 
 	maxw=$((DT_COLS - 6))
-	case $DT_NOTEPOS in
+	case $DT_NOTEPOSX in
 	*bottom*) top=0 ;;
 	*) top=1 ;;
 	esac
@@ -222,7 +222,7 @@ dt_note_draw() {
 		fw=$((${#f} + 6))
 		[ "$fw" -gt "$w" ] && w=$fw
 		h=3
-		case $DT_NOTEPOS in
+		case $DT_NOTEPOSX in
 		*left*) c=1 ;;
 		*) c=$((DT_COLS - w - 1)) ;;
 		esac
