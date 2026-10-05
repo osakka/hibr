@@ -290,11 +290,11 @@ GROUP = dict(l.split() for l in out if l.strip())
 check("panes register and sort by title within their group, not load order",
       ORDER == ["datetime", "displays", "keyboard", "mouse",
                 "aboutme", "appearance", "cliphist", "control_strip", "desktop",
-                "filetypes", "network", "notify", "screensaver", "shortcuts", "windows",
+                "filetypes", "language", "network", "notify", "screensaver", "shortcuts", "windows",
                 "abouthibr", "filesview", "mailset", "pimset", "notes", "taskmgr", "terminal", "tube"], out)
 check("Hardware first, then the desktop's own panes, then one per app",
       [GROUP[n] for n in ORDER] ==
-      ["hardware"] * 4 + ["system"] * 11 + ["app"] * 8, out)
+      ["hardware"] * 4 + ["system"] * 12 + ["app"] * 8, out)
 
 PW = "22 70 2 2"
 PANEL = ("panel", PW)
@@ -314,7 +314,7 @@ BODYCOL = 22
 TITLE = {"aboutme": "About Me", "appearance": "Appearance", "control_strip": "Control Strip",
          "cliphist": "Clipboard", "notes": "Stickies",
          "datetime": "Date & Time", "desktop": "Desktop",
-         "displays": "Displays", "filetypes": "File Types",
+         "displays": "Displays", "filetypes": "File Types", "language": "Language",
          "network": "Network Serve", "screensaver": "Screen Saver",
          "keyboard": "Keyboard", "mouse": "Mouse",
          "shortcuts": "Shortcuts", "notify": "Notifications",
@@ -451,7 +451,7 @@ sc = shortcp([b"\x1b[B"] * (len(ORDER) - 1))
 check("the arrows bring the last pane into view",
       sc.find(TITLE["terminal"]) is not None and
       sc.find("Hardware") is None, sc)
-sc = shortcp([wheel(8, 5, up=False)] * 8)
+sc = shortcp([wheel(8, 5, up=False)] * 12)
 check("the wheel over the list scrolls the list, not the pane beside it",
       sc.find("Hardware") is None and sc.find(TITLE["terminal"]) is not None
       and sc.find(TITLE["datetime"]) is None, sc)
@@ -508,9 +508,11 @@ def dropkeys(pane):
     return keys
 
 
+# Language lists only English until a catalogue is bundled (#68): with one
+# choice there is no new value to choose, so it is not among these.
 DROPS = []
 for pane in ORDER:
-    if pane == "datetime":
+    if pane in ("datetime", "language"):
         continue
     extra = PANE_APPS.get(pane, ())
     keys = dropkeys(pane)

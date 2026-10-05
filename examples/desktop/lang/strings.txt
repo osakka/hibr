@@ -1,0 +1,448 @@
+(none yet)
+A cell holds at most 4096 bytes
+A command is needed
+A contact needs a name or an email
+A folder is needed
+A rule is an operator, a number and a colour: < 0 bad
+A terminal cannot start in a folder on a server
+A theme's name is letters, digits, spaces, dots and dashes
+About Me
+About hibr
+About hibr Desktop
+Accounts
+Add 10 Rows
+Add 5 Columns
+Add Bookmark
+Add File Type…
+Add Sender to Contacts
+Add a server in Control Panel > Network Servers
+Added to your calendar
+Agenda
+Align
+All Mail
+An event stays in its calendar; make a new one in the other
+Appearance
+Append
+Apply
+Apps
+Archive
+Arrange Icons
+As It Is
+Average
+Back
+Back 10 Seconds
+Back 30 Seconds
+Backspace
+Bar Shadow
+Bold
+Bookmark removed
+Bookmarks
+Border
+Bottom
+Bricks
+Browse
+Browser
+Bulleted List
+Button Shadow
+Button Style
+Buttons
+By Kind
+Calc
+Calculator
+Calendar
+Cancel
+Cancelled
+Cannot hold the pasted text to send it
+Cannot lock: no PAM to check a password with
+Cannot restart: the state could not be written
+Center
+Check Every (minutes)
+Check for Mail
+Check the server's certificate
+Checkboxes
+Choose a server for contacts first, in Control Panel > PIM
+Clean Up Desktop
+Clear
+Clear All
+Clear Cache
+Clear History
+Clear Low
+Clear Selected
+Clip
+Clipboard
+Clipboard history cleared, pins kept
+Clock
+Clock Format
+Close
+Close Database
+Close Tab
+Close When a Program Ends
+Close Window
+Close without saving? The changes are lost.
+Code
+Color
+Colour Detail
+Colour by Value
+Colours
+Columns
+Contact
+Contacts
+Contacts is not here to add to
+Control Panel
+Control Strip
+Control Strip: arrows scroll it, until escape
+Control Strip: released
+Controls
+Conversation archived
+Conversation marked as spam
+Conversation moved to Trash
+Copied the paths of what is selected
+Copy
+Copy on Select
+Could not change owner or group
+Could not change permissions
+Could not keep the event
+Could not make the answer
+Could not record the answer
+Could not rename it
+Count
+Count From
+Cursor
+Cursor Blink
+Cut
+Cycle
+Cycle Windows On
+Databases
+Date & Time
+Default View
+Delete
+Delete Column
+Delete Note…
+Delete Row
+Delete this note? It cannot be brought back.
+Desktop
+Detach
+Dialog Buttons
+Directory
+Discard
+Discard this message?
+Disk Icons
+Display
+Display Structure
+Displays
+Download Whole Messages
+Drafts
+Drag Modifier
+Drop onto Home, a disk, or the trash
+Edge Resize
+Edit
+Edit as Markdown
+Edit as Plain Text
+Empty the Trash? The one item in it is deleted for good.
+End Task
+End Task (force)
+Evaluate
+Event
+Every (minutes)
+Exporting CSV needs the csv module
+Export…
+Favourite
+Favourites
+File
+File Type
+File Types
+Files
+Files on Servers
+Fill
+Find
+Find Next
+Find…
+Follow Program Title
+Format
+Forward
+Frame
+Frames a Second
+Freeze Above and Left
+Freeze First Column
+Freeze Top Row
+Full Player
+Game
+Get Info
+Glyphs
+Go
+Go Up
+Heading 1
+Heading 2
+Heading 3
+Help
+Hide
+History
+History Size
+History cleared
+Home
+Icons
+Identify
+Image
+Image Viewer
+Importing CSV needs the csv module
+Inbox
+Info
+Insert Column Left
+Insert Column Right
+Insert Row Above
+Insert Row Below
+Inviting people needs a mail account to send from
+Italic
+Keep History on Disk
+Keep Messages
+Keyboard
+Language
+Left
+Line Under It
+Link
+List
+Lock After (minutes)
+Lock Screen
+Look
+Louder
+Mail
+Mail Account
+Mail is not here to write with
+Make Main
+Mark as Read
+Mark as Unread
+Menu Bar
+Menus
+Message
+Message sent
+Mines
+Mini Player
+Mode
+Modifier Drag
+Month
+Mouse
+Move
+Move to Display
+Move to Trash
+Move to Workspace
+Name
+Narrower Column
+Needs a command
+Needs an extension
+Network Servers
+New
+New Contact
+New Database…
+New Event
+New Folder
+New Game
+New Message
+New Note
+New Notes Are
+New Tab
+New Terminal
+New Window
+Next
+Next Month
+Next Wallpaper
+No Picture
+No Rule
+No calendar yet: choose a server in Control Panel > PIM, then sync
+No file is selected
+No file type registered for this -- open in hvi anyway?
+No folders to move to
+No labels to choose from
+No more in this list
+No picture open to set as wallpaper
+No terminal app to run it in
+No zone matches
+None
+None yet -- add one in Network Servers
+Not a valid name
+Not changed
+Not held -- nothing to detach from
+Not started
+Note
+Notes on Every Workspace
+Nothing is selected
+Notification Icon
+Notifications
+Number
+Numbered List
+OK
+Offline
+On 10 Seconds
+On 30 Seconds
+On Every Workspace
+Only files can be dropped on a window
+Open
+Open Clipboard
+Open Database…
+Open Notes at Start
+Open Screenshots
+Open Terminal Here
+Open With
+Open With in Menu
+Open…
+Order
+Order Right-to-Left Text
+Other…
+PIM
+Paste
+Pattern
+Pause
+Pause or Play
+Picture
+Pinned
+Placement
+Plain
+Play
+Play Next Automatically
+Player
+Position
+Preview
+Previous
+Previous Month
+Process Details
+Programs Set Clipboard
+Puzzle
+Quality Fetched
+Query
+Quieter
+Quit
+Quit dBASE
+Quit hibr?
+Quote
+Recorded in your calendar
+Records
+Refresh
+Refresh Desktop
+Refreshed
+Reload
+Remove
+Remove Bookmark
+Removed from your calendar
+Removed; the server is told at the next sync
+Rename
+Reopened the windows from when the desktop was stopped
+Reply
+Reply All
+Report Spam
+Reset
+Reset All Views
+Resize
+Restart Desktop
+Restarted, but the saved desktop could not be read -- see desktop.log
+Restarted, but the saved desktop is from another version
+Right
+Rows
+Rule
+Run in a terminal
+Save
+Save As…
+Saved; the server has it at the next sync
+Screen Saver
+Screenshot Folder
+Screenshot Format
+Screenshot Starts On
+Screenshot…
+Scroll To Bottom
+Scroll To Top
+Scrollbar
+Select All
+Send
+Send End Of File
+Send Interrupt
+Sent
+Server
+Servers
+Session at Login
+Set (sudo)
+Set Date & Time
+Set as Wallpaper
+Set up a mail account first, in Control Panel > Mail
+Shadow
+Shadows
+Sheet
+Sheet needs the db module
+Shell
+Shortcuts
+Shortcuts in Terminals
+Show All Notes
+Show Pictures
+Side
+Snake
+Snap
+Sort By
+Sort by CPU
+Sort by Memory
+Special
+Standby displays join on their own
+Star
+Starred
+Start After (minutes)
+Stickies
+Stop
+Strikethrough
+Sum
+Sync Now
+Syncing
+Task
+Task List
+Task Manager
+Terminal
+Terminal Here Runs
+Terminal Here in Menu
+Terminals Keep Ctrl+A-Z
+Test
+Text Colour
+That event is not kept here any more; syncing
+The Trash is empty: 1 item deleted
+The YouTube history is empty
+The colours are good, warn, bad, info and dim
+The date is YYYY-MM-DD
+The date is YYYY-MM-DD, the time HH:MM
+The desktop stopped unexpectedly and was started again; its windows are back (see desktop.log)
+The end is a time, HH:MM
+The record could not be added
+The remote file cache is empty
+The time is HH:MM or HH:MM:SS
+Theme
+This account has no address to answer from
+This window: desktop shortcuts work again
+This window: every key goes to the program
+Tick Task
+Tiled: the layout sizes this window
+Time Zone
+Timeout
+Timeout (seconds)
+Title
+Title Bar
+Titlebar Click
+Today
+Top
+Trash
+Unfreeze
+Upload Edits on Save
+Use
+Use Answer
+View
+View Details
+View History
+Wait for the transfers running to finish first
+Wallpaper
+Wallpaper set
+Wider Column
+Window
+Windows
+Work Out Again
+Worked out again
+Write
+Write an Email
+YouTube
+YouTube did not answer -- trying again
+Zoom
+dBASE
+dBASE Help
+moving — arrows, then enter
+resizing — arrows, then enter

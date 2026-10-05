@@ -53,6 +53,7 @@ fn dt_iconpos(key, pos) {
 fn dt_iconadd(kind, name, label, glyph, key) {
 	local n=$DI_N
 
+	case $DT_LANG in ?*) label := dt_tr "$label" ;; esac
 	DI[$n]["kind"]=$kind
 	DI[$n]["name"]=$name
 	DI[$n]["label"]=$label

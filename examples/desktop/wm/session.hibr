@@ -60,6 +60,7 @@ dt_open() {
 	if [ -d "${DT_LOG%/*}" ] || mkdir -p "${DT_LOG%/*}" 2> /dev/null; then
 		exec {DT_ERR}>&2 2>> "$DT_LOG"
 	fi
+	dt_langapply
 	dt_size
 	dt_deskscan
 	dt_clipload

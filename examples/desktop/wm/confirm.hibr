@@ -11,6 +11,7 @@ strict
 # word, a function of no arguments, since the message can hold a space and
 # a command built from stored, later-unquoted menu text cannot.
 fn dt_confirm(msg, cmd) {
+	case $DT_LANG in ?*) msg := dt_tr "$msg" ;; esac
 	dt_note_clear
 	DT_CONFIRM="$msg"
 	DT_CONFIRM_CMD=$cmd

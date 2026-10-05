@@ -42,7 +42,10 @@ dt_btnshade() {
 # in a field or a list -- whose label is the accent colour, so it is always
 # plain what enter will do. tag is what dt_hit answers for a click on it.
 fn dt_button(id, int r, int c, label, int on, tag) {
-	local t=" $label " n sh bg=$DT_IDLE
+	local t n sh bg=$DT_IDLE
+
+	case $DT_LANG in ?*) label := dt_tr "$label" ;; esac
+	t=" $label "
 
 	n=${#t}
 	if [ "$DT_DLGBTN" = brackets ]; then
@@ -84,6 +87,13 @@ fn dt_btnw(...labels) {
 fn dt_buttons(id, int r, int c, focus, ...pairs) {
 	local i=0 on n=${#pairs[@]} def=1
 
+	if [ -n "$DT_LANG" ]; then
+		while [ $((i + 1)) -lt "$n" ]; do
+			pairs[$((i + 1))] := dt_tr "${pairs[$((i + 1))]}"
+			i=$((i + 2))
+		done
+		i=0
+	fi
 	while [ $((i + 1)) -lt "$n" ]; do
 		[ "${pairs[$i]}" = "$focus" ] && def=0
 		i=$((i + 2))
@@ -108,6 +118,7 @@ fn dt_dlgbtns(int id, int h, int w, focus, ...pairs) {
 	local -a labels
 
 	while [ "$i" -lt "${#pairs[@]}" ]; do
+		case $DT_LANG in ?*) pairs[$i] := dt_tr "${pairs[$i]}" ;; esac
 		labels+=("${pairs[$i]}")
 		i=$((i + 2))
 	done

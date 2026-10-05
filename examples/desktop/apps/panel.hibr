@@ -157,6 +157,7 @@ fn panel_find(int id) {
 			hit=1
 		else
 			t=${CP_PANES[$n]["title"]}
+			case $DT_LANG in ?*) t := dt_tr "$t" ;; esac
 			[[ ${t,,} == *"$q"* ]] && hit=1
 			if [ "$hit" = 0 ] && ! dt_has "${n}_draw" && dt_has "${n}_rows"; then
 				unset "CP[$scratch]"
@@ -275,7 +276,9 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 			else
 				console pen "$DT_INK" "$DT_FACE"
 			fi
-			t := str pad " ${CP_PANES[$n]["icon"]} ${CP_PANES[$n]["title"]}" \
+			t=${CP_PANES[$n]["title"]}
+			case $DT_LANG in ?*) t := dt_tr "$t" ;; esac
+			t := str pad " ${CP_PANES[$n]["icon"]} $t" \
 				$((lw - 3))
 			t=${t:0:$((lw - 3))}
 			console put -p "w$id" "$r" 2 "$t"
@@ -349,6 +352,7 @@ fn cp_rowsdraw(int id, pane, int h, int w, int bx) {
 		wtype=""
 		if [ "$i" -lt "$n" ]; then
 			t=${CP[$id][$i]["text"]}
+			case $DT_LANG in ?*) t := dt_tr "$t" ;; esac
 			v=${CP[$id][$i]["val"]}
 			kind=${CP[$id][$i]["kind"]}
 			wtype=${CP[$id][$i]["wtype"]}
@@ -374,7 +378,7 @@ fn cp_rowsdraw(int id, pane, int h, int w, int bx) {
 			# shortcut's leaves room for the ✕ that clears it.
 			if [ "$kind" = key ]; then
 				kv=$v
-				t="  ${CP[$id][$i]["text"]}"
+				t="  $t"
 				[ "${#t}" -gt $((w - 16)) ] &&
 					t="${t:0:$((w - 17))}${GL[ellipsis]}"
 				t := str pad "$t" $((w - 15))

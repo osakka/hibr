@@ -1,0 +1,120 @@
+#!/usr/bin/env hibr
+#
+# wm/lang -- the language the desktop speaks, and whether it orders
+# right-to-left text itself (#68, ADR 0032).
+#
+# English is the source: every string is its own key, and with DT_LANG empty
+# nothing is looked up at all -- each place that draws text asks
+# `[ -n "$DT_LANG" ]` before calling dt_tr, so the English desktop costs
+# nothing. A language is a JSON catalogue, lang/<code>.json, the person's
+# own folder (~/.config/hibr/lang) first and then the bundled one, read by
+# the lang module into a hash. A catalogue that cannot be read, or a lang
+# module that cannot be loaded (root under Blit, with no module folder),
+# leaves the desktop in English and says so in the log.
+#
+# DT_BIDI is the switch ADR 0031 promised: on draws right-to-left text in
+# display order, for Blit and most terminals; off is for a terminal that
+# reorders it itself.
+#
+# Part of the window manager; desktop.hibr sources it.
+
+strict
+
+DT_LANG="${DT_LANG-}"
+DT_BIDI="${DT_BIDI-on}"
+DT_LANGON=
+dt_keep DT_LANG DT_BIDI
+
+# The text a person reads, in the chosen language, %s and %N$s filled from the rest.
+fn dt_tr(key, ...rest) {
+	local t
+
+	if [ -n "$DT_LANGON" ]; then
+		t := lang get "$key" "${rest[@]}"
+		ret "$t"
+		return 0
+	fi
+	if [ "${#rest[@]}" -gt 0 ]; then
+		printf -v t -- "${key//\%[1-9]\$/%}" "${rest[@]}"
+		ret "$t"
+		return 0
+	fi
+	ret "$key"
+}
+
+# A count's text in the chosen language's plural form, the English singular as the key.
+fn dt_trn(int n, one, many, ...rest) {
+	local t
+
+	if [ -n "$DT_LANGON" ]; then
+		t := lang plural "$n" "$one" "${rest[@]}"
+		ret "$t"
+		return 0
+	fi
+	t=$many
+	[ "$n" = 1 ] && t=$one
+	printf -v t -- "$t" "${rest[@]}"
+	ret "$t"
+}
+
+# Where a language's catalogue is: the person's own folder first, then the bundled one.
+fn dt_langfile(code) {
+	local f
+
+	for f in "${XDG_CONFIG_HOME:-$HOME/.config}/hibr/lang/$code.json" "$DT_HERE/lang/$code.json"; do
+		if [ -r "$f" ]; then
+			ret "$f"
+			return 0
+		fi
+	done
+	return 1
+}
+
+# Put DT_LANG and DT_BIDI into effect: load the catalogue, set the console's order.
+dt_langapply() {
+	local f
+
+	DT_LANGON=
+	if command -v console > /dev/null; then
+		if [ "$DT_BIDI" = off ]; then
+			console bidi off
+		else
+			console bidi on
+		fi
+	fi
+	[ -n "$DT_LANG" ] || { command -v lang > /dev/null && lang off; return 0; }
+	if ! f := dt_langfile "$DT_LANG"; then
+		dt_rslog "language: no catalogue for $DT_LANG; English it is"
+		return 0
+	fi
+	if ! need lang 2> /dev/null || ! lang load "$f" 2>> "$DT_LOG"; then
+		dt_rslog "language: $f could not be loaded; English it is"
+		return 0
+	fi
+	DT_LANGON=1
+	DT_MENUIN=
+	return 0
+}
+
+# The languages there are, code TAB name, for Control Panel.
+dt_langs() {
+	local f c n seen=" " out="" l
+
+	for f in "${XDG_CONFIG_HOME:-$HOME/.config}"/hibr/lang/*.json "$DT_HERE"/lang/*.json; do
+		[ -r "$f" ] || continue
+		c=${f##*/}
+		c=${c%.json}
+		[ "$c" = xx ] && continue
+		[[ $seen == *" $c "* ]] && continue
+		seen+="$c "
+		n=$c
+		while IFS= read -r l; do
+			if [[ $l =~ \"name\":\ *\"([^\"]*)\" ]]; then
+				n=${BASH_REMATCH[1]}
+				break
+			fi
+		done < "$f"
+		out+="$c"$'\t'"$n"$'\n'
+	done
+	ret "$out"
+}

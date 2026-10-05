@@ -97,6 +97,7 @@ fn dt_winbare(int id) {
 	t := str repeat " " "$w"
 	console put -p "w$id" 0 0 "$t"
 	t=${DT[$id]["title"]}
+	case $DT_LANG in ?*) t := dt_tr "$t" ;; esac
 	[ ${#t} -gt $((w - 5)) ] && t="${t:0:$((w - 5))}"
 	console put -p "w$id" 0 1 "${GL[cross]}"
 	console pen "$fg" "$bg" dim
@@ -223,6 +224,8 @@ fn dt_win(int id) {
 	# boundary or it reads as off-centre once anything narrower than the
 	# widest cluster is in play.
 	local t=${DT[$id]["title"]} tc0 room tc tmax
+
+	case $DT_LANG in ?*) t := dt_tr "$t" ;; esac
 	if [ "$DT_BTNSIDE" = left ]; then
 		tc0=$((bc + ${#bs}))
 		room=$((w - 1 - tc0 - 4))

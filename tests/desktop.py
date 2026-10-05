@@ -2151,7 +2151,7 @@ shutil.rmtree(d, True)
 PANEL = ('. %s/panel.hibr\nCP_PANEDIRS+=("%s")\ncp_panes'
          % (tree("examples/desktop/apps"), tree("examples/desktop/control-panel")))
 ORDER = ["datetime", "displays", "keyboard", "mouse", "aboutme", "appearance",
-         "cliphist", "control_strip", "desktop", "filetypes", "network", "notify",
+         "cliphist", "control_strip", "desktop", "filetypes", "language", "network", "notify",
          "screensaver", "shortcuts",
          "windows", "abouthibr", "filesview", "notes", "taskmgr", "terminal", "tube"]
 DOWN_APP = [b"\x1b[B"] * ORDER.index("appearance")
@@ -3118,6 +3118,18 @@ check("on a display below another, as far as its bottom edge and no further",
 check("and in the right of two panes, as far as its right edge",
       len(geo) == 8 and geo[6].get("ok") and geo[7].get("error") == "bad-geometry", geo)
 
+# A language (#68): every string the desktop draws through its widgets is
+# looked up in the catalogue. The pseudo-language xx marks each one, so a
+# menu, an item or an icon still in plain English is one that bypassed the
+# lookup. English itself is every other test in this file.
+sc, raw = run('dt_new Files 12 40 3 4 files', feed=[b"\x1b[21~"], pre=APPS,
+              env={"DT_LANG": "xx"})
+check("in a language the menu bar is translated, item by item",
+      sc.find("⟦File⟧") is not None and sc.find("⟦Window⟧") is not None, sc)
+check("and the menus and the desktop's icons",
+      sc.find("⟦About hibr Desktop⟧") is not None
+      and sc.find("⟦Home⟧") is not None, sc)
+
 # --standby: a terminal that waits to be joined, joins, and when it is let
 # go waits again. Blank keeps a joined display joined but dark.
 SB = tempfile.mkdtemp(prefix="hibr-standby-")
@@ -3544,4 +3556,4 @@ check("an arithmetic error in an app is logged and the desktop carries on",
       sc.find("┤ Slip ├") is not None and "arithmetic" in log and t.exited and t.status == 0,
       (log, t.status))
 
-report(483)
+report(485)

@@ -36,6 +36,7 @@ fn dt_checkmark(int on) {
 fn dt_check(int id, int r, int c, int on, label, tag) {
 	local tag=${tag:-$label} m st
 
+	case $DT_LANG in ?*) label := dt_tr "$label" ;; esac
 	st := dt_checkstyle
 	m := dt_checkmark "$on"
 	if [ "$st" = box ]; then

@@ -1,0 +1,102 @@
+#!/usr/bin/env hibr
+#
+# language -- the Control Panel pane for the language the desktop speaks
+# and whether it orders right-to-left text itself (#68, ADR 0032). The
+# languages listed are the catalogues there are, lang/<code>.json in the
+# person's own folder or bundled; English is the source and always there.
+
+strict
+
+command -v cp_pane > /dev/null && cp_pane language "Language" "A"
+
+declare -ga CP_LANGCODES CP_LANGNAMES
+
+# Read the catalogues there are into CP_LANGCODES and CP_LANGNAMES, English first.
+cp_langlist() {
+	local all c n
+
+	CP_LANGCODES=("")
+	CP_LANGNAMES=("English")
+	all := dt_langs
+	while IFS=$'\t' read -r c n; do
+		[ -n "$c" ] || continue
+		CP_LANGCODES+=("$c")
+		CP_LANGNAMES+=("$n")
+	done <<< "$all"
+}
+
+# The name of the language in use.
+cp_langname() {
+	local i=0
+
+	cp_langlist
+	while [ "$i" -lt "${#CP_LANGCODES[@]}" ]; do
+		if [ "${CP_LANGCODES[$i]}" = "$DT_LANG" ]; then
+			ret "${CP_LANGNAMES[$i]}"
+			return 0
+		fi
+		i=$((i + 1))
+	done
+	ret "$DT_LANG"
+}
+
+# Choose a language by its name, as the dropdown hands it over.
+fn cp_set_lang(int? id = "", value = "") {
+	local i=0
+
+	cp_langlist
+	while [ "$i" -lt "${#CP_LANGNAMES[@]}" ]; do
+		if [ "${CP_LANGNAMES[$i]}" = "$value" ]; then
+			DT_LANG=${CP_LANGCODES[$i]}
+			break
+		fi
+		i=$((i + 1))
+	done
+	dt_langapply
+	cp_save
+}
+
+fn language_rows(int w) {
+	local n=0 nm
+
+	nm := cp_langname
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Language"
+	CP[$w][$n]["val"]="$nm"; CP[$w][$n]["key"]=lang; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Order Right-to-Left Text"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=on; [ "$DT_BIDI" = off ] && CP[$w][$n]["val"]=off
+	CP[$w][$n]["key"]=bidi; n=$((n + 1))
+	ret "$n"
+}
+
+fn language_do(int? w = "", k = "", int? dir = "") {
+	local v nm
+
+	case $k in
+	lang)
+		cp_langlist
+		nm := cp_langname
+		v := cp_next "$nm" "$dir" "${CP_LANGNAMES[@]}"
+		cp_set_lang "" "$v"
+		return 0
+		;;
+	bidi)
+		if [ "$DT_BIDI" = off ]; then
+			DT_BIDI=on
+		else
+			DT_BIDI=off
+		fi
+		dt_langapply
+		;;
+	esac
+	cp_save
+}
+
+fn language_drop(int? w = "", int? r = "", int? c = "", k = "") {
+	case $k in
+	lang)
+		cp_langlist
+		dt_droplist "$w" "$r" "$c" cp_set_lang "${CP_LANGNAMES[@]}"
+		;;
+	esac
+}

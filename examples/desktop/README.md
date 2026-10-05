@@ -216,6 +216,32 @@ start. Why JSON and not a script is
 [decision 0028](../../docs/adr/0028-a-theme-is-data.md): a file you were
 given can only ever be colours and settings.
 
+## Language
+
+Control Panel > Language chooses the language the desktop speaks. English is
+the source, and every other language is a catalogue: `lang/<code>.json`,
+in `~/.config/hibr/lang/` or bundled, mapping each English string to its
+translation (ADR 0032):
+
+```text
+{
+ "language": "ar", "name": "العربية", "dir": "rtl", "plural": "ar",
+ "strings": {
+  "Save": "حفظ",
+  "Moved %s to %s": "نُقل إلى %2$s: %1$s",
+  "%d files": {"zero": "لا ملفات", "one": "ملف واحد", "two": "ملفان",
+               "few": "%d ملفات", "many": "%d ملفًا", "other": "%d ملف"}
+ }
+}
+```
+
+A missing string shows in English, and a broken file is refused whole. The
+strings there are to translate are listed in `lang/strings.txt`, kept by
+`tools/strings.py --write`; `lang/xx.json` is a pseudo-language marking
+every string, for finding one that is not looked up. The same pane holds
+Order Right-to-Left Text: on draws Arabic and Hebrew in display order, off
+is for a terminal that reorders them itself (ADR 0031).
+
 ## Glyphs
 
 Every character the desktop draws that is not plain text -- a border, a

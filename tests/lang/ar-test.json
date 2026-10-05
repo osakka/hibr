@@ -1,0 +1,7 @@
+{"language": "ar", "name": "العربية", "dir": "rtl", "plural": "ar",
+ "strings": {
+  "Save": "حفظ",
+  "Moved %s to %s": "نُقل إلى %2$s: %1$s",
+  "%d files": {"zero": "لا ملفات", "one": "ملف واحد", "two": "ملفان", "few": "%d ملفات", "many": "%d ملفًا", "other": "%d ملف"},
+  "Quote \"x\"\tok ا": "y"
+ }}

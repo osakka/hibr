@@ -51,6 +51,7 @@ MB_CTXID=
 
 # Start a menu.  Called from an app's <app>_menus.
 fn dt_menu(title) {
+	case $DT_LANG in ?*) title := dt_tr "$title" ;; esac
 	MB[$MB_N]["title"]="$title"
 	MB[$MB_N]["n"]=0
 	MB[$MB_N]["w"]=0
@@ -92,6 +93,7 @@ fn dt_dim(label) {
 fn dt_sub(label) {
 	local p=${MB_CUR:-$((MB_N - 1))} n
 
+	case $DT_LANG in ?*) label := dt_tr "$label" ;; esac
 	n=${MB[$p]["n"]}
 	dt_menu "$label"
 	MB[$((MB_N - 1))]["bar"]=0
@@ -130,6 +132,7 @@ fn dt_row(tick, int dim, lb, k, ...rest) {
 	local m n i=0 a
 
 	shift 4
+	case $DT_LANG in ?*) lb := dt_tr "$lb" ;; esac
 	m=${MB_CUR:-$((MB_N - 1))}
 	n=${MB[$m]["n"]}
 	MI[$m][$n]["label"]="$lb"

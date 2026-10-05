@@ -97,6 +97,7 @@ dt_noteq() {
 	DT_NOTEQ[$id]["prio"]="$1"
 	shift
 	DT_NOTEQ[$id]["text"]="$1"
+	case $DT_LANG in ?*) DT_NOTEQ[$id]["text"] := dt_tr "$1" ;; esac
 	DT_NOTEQ[$id]["from"] := dt_notefrom
 	DT_NOTEFROM=
 	DT_NOTEQ[$id]["created"] := dt_ms

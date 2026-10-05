@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.99.54
+
+**The desktop can speak another language** (Gitea #68, phase 3). A
+language is a JSON catalogue, English as the key, in `lang/` or the
+person's own `~/.config/hibr/lang`; Control Panel > Language chooses it,
+beside the switch for terminals that reorder right-to-left text
+themselves. The `lang` module holds the catalogue in a hash, with CLDR
+plural rules (Arabic's six forms among them) and arguments a translation
+can reorder (`%2$s`). The desktop translates at its widgets -- menus,
+items, notes, confirms, buttons, checkboxes, icons, window titles and
+Control Panel -- so the 450 distinct strings that reach one need no edit
+where they are written; templates and text an app draws itself follow
+app by app. `tools/strings.py` finds every string drawn, keeps
+`lang/strings.txt`, and writes a pseudo-language, `xx`, that marks each
+one, so a desktop running in it shows what is not yet translated; a test
+fails when the list and the code differ. English pays one variable read
+a widget, about 1.3% of building a menu and nothing on an idle frame
+(ADR 0032). The Arabic catalogue ships once reviewed.
+
 ## 0.99.53
 
 **hvi edits Arabic and Hebrew** (Gitea #68, phase 2 complete). A line
