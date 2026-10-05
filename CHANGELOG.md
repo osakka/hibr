@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.99.66
+
+**Hijri dates, and dates as a region writes them** (Gitea #69, #68).
+A new module, `hcal`, gives the Hijri date of any day and the day of any
+Hijri date in whichever reckoning a person follows. Calendar systems are
+data -- JSON files in a folder, like themes (ADR 0034) -- so a region's
+own can be added with no code: hibr ships Umm al-Qura (from ICU's table,
+1300-1600 AH) and the civil and astronomical tabular calendars, and each
+is checked against ICU on every day from 1870 to 2200. A whole-day
+adjustment covers local sighting of the moon.
+
+In Control Panel > Language, under Dates: **Show Hijri Dates** puts the
+Hijri date beside the bar's clock and the Gregorian date in Date & Time,
+and each of Calendar's days carries its Hijri day, its title naming the
+Hijri months the month runs across; **Hijri Calendar** and **Hijri
+Adjustment** choose the reckoning; **Digits** writes numbers in
+Arabic-Indic digits; and **First Day of Week** starts Calendar's week on
+Saturday, Sunday or Monday, or, on Auto, where the locale's region does
+(CLDR's table: Saturday in Egypt, Sunday in Saudi Arabia and the United
+States, Monday elsewhere). Month and weekday names now go through the
+catalogue too. Gregorian dates are always shown; Hijri ones only when
+asked for.
+
 ## 0.99.65
 
 **The rest of the lists turn round** (Gitea #68, phase 4c). Mirrored,

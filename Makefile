@@ -43,7 +43,7 @@ MODS = $(B)/mods/sys.so $(B)/mods/http.so $(B)/mods/ls.so $(B)/mods/prompt.so \
        $(B)/mods/sysinfo.so $(B)/mods/pty.so \
        $(B)/mods/term.so $(B)/mods/hold.so $(B)/mods/img.so \
        $(B)/mods/lint.so $(B)/mods/db.so $(B)/mods/md.so $(B)/mods/pim.so $(B)/mods/html.so $(B)/mods/email.so $(B)/mods/math.so $(B)/mods/web.so \
-       $(B)/mods/dav.so $(B)/mods/media.so $(B)/mods/auth.so $(B)/mods/csv.so $(B)/mods/lines.so $(B)/mods/uni.so $(B)/mods/lang.so
+       $(B)/mods/dav.so $(B)/mods/media.so $(B)/mods/auth.so $(B)/mods/csv.so $(B)/mods/lines.so $(B)/mods/uni.so $(B)/mods/lang.so $(B)/mods/hcal.so
 
 # darwin.c reaches Mach headers (mach/mach.h and kin) that only exist on
 # Darwin at all, so it is not in MODS above and never built, or even asked
@@ -131,6 +131,11 @@ LINT_SRC = $(wildcard mods/lint/*.c)
 
 $(B)/mods/lint.so: $(LINT_SRC) include/hibr.h mods/lint.h $(B)/.moddir | $(B)/mods
 	$(CC) $(SHCFLAGS) $(SOFLAGS) -o $@ $(LINT_SRC)
+
+# Calendar systems are data: the module reads them from the installed
+# folder too, so it is told where that is, the way lint is told MODDIR.
+$(B)/mods/hcal.so: mods/hcal/hcal.c include/hibr.h | $(B)/mods
+	$(CC) $(CFLAGS) -DHIBR_SHAREDIR=\"$(SHAREDIR)\" $(SOFLAGS) -o $@ mods/hcal/hcal.c
 
 $(B)/mods/math.so: mods/math.c include/hibr.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ mods/math.c -lm
@@ -226,6 +231,8 @@ install: all
 	install -m 644 include/hibr.h $(DESTDIR)$(PREFIX)/include/hibr/hibr.h
 	install -d $(DESTDIR)$(MANDIR)/man1
 	install -m 644 $(B)/hibr.1 $(DESTDIR)$(MANDIR)/man1/hibr.1
+	install -d $(DESTDIR)$(SHAREDIR)/calendars
+	install -m 644 mods/hcal/calendars/*.json $(DESTDIR)$(SHAREDIR)/calendars
 	rm -rf $(DESTDIR)$(DESKDIR)
 	install -d $(DESTDIR)$(DESKDIR)
 	cp -R examples/desktop/. $(DESTDIR)$(DESKDIR)/

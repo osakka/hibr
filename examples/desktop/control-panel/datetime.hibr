@@ -679,9 +679,12 @@ fn datetime_draw(int id, int h, int w, int bx) {
 	dt_want $((1000 - now % 1000 + 10))
 	console pen "$DT_GOOD" "$DT_FACE" bold
 	printf -v now "%(%H:%M:%S)T" -1
+	now := dt_digits "$now"
 	console put -p "w$id" 1 "$bx" "$now"
 	console pen "$DT_INK" "$DT_FACE"
 	printf -v now "%(%A %d %B %Y)T" -1
+	out := dt_hijri && now+="  ${GL[dot]}  $out"
+	now := dt_digits "$now"
 	console put -p "w$id" 2 "$bx" "$now"
 	console pen "$DT_DIM" "$DT_FACE"
 	if [ "$DTP_FOUND" = 1 ]; then

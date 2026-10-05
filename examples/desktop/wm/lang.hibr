@@ -35,6 +35,19 @@ DT_LANGRTL=
 # Scratch for a translated label built from a template, before it is handed on.
 DT_T=
 dt_keep DT_LANG DT_BIDI DT_MIRROR
+# Dates as a region writes them (ADR 0034): the Hijri date shown beside
+# the Gregorian one, in which calendar and moved by how many days for local
+# sighting; Western or Arabic-Indic digits; the day a week starts, auto
+# taking it from the region in the locale.
+DT_HIJRI="${DT_HIJRI-off}"
+DT_HCAL="${DT_HCAL-umalqura}"
+DT_HADJ="${DT_HADJ-0}"
+DT_DIGITS="${DT_DIGITS-western}"
+DT_WEEKSTART="${DT_WEEKSTART-auto}"
+DT_HCALOK=
+DT_HJCACHE=
+declare -ga DT_MONTHS DT_WDAYS DT_HMONTHS
+dt_keep DT_HIJRI DT_HCAL DT_HADJ DT_DIGITS DT_WEEKSTART
 
 # The text a person reads, in the chosen language, %s and %N$s filled from the rest.
 # A trailing ellipsis glyph is looked up as "…" and put back, whatever the glyph set.
@@ -121,7 +134,7 @@ dt_langapply() {
 			console bidi on
 		fi
 	fi
-	[ -n "$DT_LANG" ] || { command -v lang > /dev/null && lang off; return 0; }
+	[ -n "$DT_LANG" ] || { command -v lang > /dev/null && lang off; dt_datenames; return 0; }
 	if ! f := dt_langfile "$DT_LANG"; then
 		dt_rslog "language: no catalogue for $DT_LANG; English it is"
 		return 0
@@ -136,7 +149,116 @@ dt_langapply() {
 	[[ $f == *$'\t'rtl$'\t'* ]] && DT_LANGRTL=1
 	[ "$DT_MIRROR" = auto ] && DT_MIRRORON=$DT_LANGRTL
 	DT_MENUIN=
+	dt_datenames
 	return 0
+}
+
+# The names dates are written with, in the language chosen: each written out
+# here, so tools/strings.py finds it for the catalogue. Hijri month names
+# from any calendar file are looked up the same way, by their English name.
+dt_datenames() {
+	local t
+
+	DT_MONTHS=()
+	t := dt_tr "January"; DT_MONTHS+=("$t")
+	t := dt_tr "February"; DT_MONTHS+=("$t")
+	t := dt_tr "March"; DT_MONTHS+=("$t")
+	t := dt_tr "April"; DT_MONTHS+=("$t")
+	t := dt_tr "May"; DT_MONTHS+=("$t")
+	t := dt_tr "June"; DT_MONTHS+=("$t")
+	t := dt_tr "July"; DT_MONTHS+=("$t")
+	t := dt_tr "August"; DT_MONTHS+=("$t")
+	t := dt_tr "September"; DT_MONTHS+=("$t")
+	t := dt_tr "October"; DT_MONTHS+=("$t")
+	t := dt_tr "November"; DT_MONTHS+=("$t")
+	t := dt_tr "December"; DT_MONTHS+=("$t")
+	DT_WDAYS=()
+	t := dt_tr "Mon"; DT_WDAYS+=("$t")
+	t := dt_tr "Tue"; DT_WDAYS+=("$t")
+	t := dt_tr "Wed"; DT_WDAYS+=("$t")
+	t := dt_tr "Thu"; DT_WDAYS+=("$t")
+	t := dt_tr "Fri"; DT_WDAYS+=("$t")
+	t := dt_tr "Sat"; DT_WDAYS+=("$t")
+	t := dt_tr "Sun"; DT_WDAYS+=("$t")
+	DT_HMONTHS=()
+	t := dt_tr "Muharram"; DT_HMONTHS+=("$t")
+	t := dt_tr "Safar"; DT_HMONTHS+=("$t")
+	t := dt_tr "Rabi' al-Awwal"; DT_HMONTHS+=("$t")
+	t := dt_tr "Rabi' al-Thani"; DT_HMONTHS+=("$t")
+	t := dt_tr "Jumada al-Ula"; DT_HMONTHS+=("$t")
+	t := dt_tr "Jumada al-Akhirah"; DT_HMONTHS+=("$t")
+	t := dt_tr "Rajab"; DT_HMONTHS+=("$t")
+	t := dt_tr "Sha'ban"; DT_HMONTHS+=("$t")
+	t := dt_tr "Ramadan"; DT_HMONTHS+=("$t")
+	t := dt_tr "Shawwal"; DT_HMONTHS+=("$t")
+	t := dt_tr "Dhu al-Qa'dah"; DT_HMONTHS+=("$t")
+	t := dt_tr "Dhu al-Hijjah"; DT_HMONTHS+=("$t")
+}
+
+# A day's Hijri date, "24 Rabi' al-Thani 1448", when Hijri dates are on; fails otherwise.
+fn dt_hijri(int when = -1) {
+	local t y m d n nm key
+
+	[ "$DT_HIJRI" = on ] || return 1
+	if [ "$when" -lt 0 ]; then
+		printf -v key '%s %s %s %s %(%F)T|' "$DT_HCAL" "$DT_HADJ" "$DT_DIGITS" "$DT_LANG" -1
+		if [ "${DT_HJCACHE%%|*}|" = "$key" ]; then
+			ret "${DT_HJCACHE#*|}"
+			return 0
+		fi
+	fi
+	if [ -z "$DT_HCALOK" ]; then
+		DT_HCALOK=no
+		need hcal 2> /dev/null && DT_HCALOK=yes
+	fi
+	[ "$DT_HCALOK" = yes ] || return 1
+	n=$DT_HCAL
+	hcal info -c "$n" > /dev/null 2>&1 || n=civil
+	if [ "$when" -lt 0 ]; then
+		t := hcal date -c "$n" -a "$DT_HADJ" 2> /dev/null || return 1
+	else
+		t := hcal date -c "$n" -a "$DT_HADJ" "$when" 2> /dev/null || return 1
+	fi
+	nm=$n
+	read -r y m d n <<< "$t"
+	nm := hcal name -c "$nm" "$m" 2> /dev/null
+	case $DT_LANG in ?*) [ -n "$nm" ] && nm := dt_tr "$nm" ;; esac
+	t="$d ${nm:-$m} $y"
+	t := dt_digits "$t"
+	[ "$when" -lt 0 ] && DT_HJCACHE="$key$t"
+	ret "$t"
+}
+
+# Numbers in the digits chosen: 0-9 as they are, or Arabic-Indic.
+fn dt_digits(t) {
+	if [ "$DT_DIGITS" = arabic ]; then
+		t=${t//0/$'\u0660'}; t=${t//1/$'\u0661'}; t=${t//2/$'\u0662'}
+		t=${t//3/$'\u0663'}; t=${t//4/$'\u0664'}; t=${t//5/$'\u0665'}
+		t=${t//6/$'\u0666'}; t=${t//7/$'\u0667'}; t=${t//8/$'\u0668'}
+		t=${t//9/$'\u0669'}
+	fi
+	ret "$t"
+}
+
+# The day a week starts, Monday 0 to Sunday 6: as chosen, or by the region in the locale (CLDR's first day).
+dt_weekstart() {
+	local l=${LC_ALL:-${LC_TIME:-${LANG:-}}} r
+
+	case $DT_WEEKSTART in
+	mon) ret 0; return 0 ;;
+	fri) ret 4; return 0 ;;
+	sat) ret 5; return 0 ;;
+	sun) ret 6; return 0 ;;
+	esac
+	r=${l%%.*}
+	r=${r%%@*}
+	[[ $r == *_* ]] && r=${r##*_} || r=
+	case $r in
+	AE | AF | BH | DJ | DZ | EG | IQ | IR | JO | KW | LY | OM | QA | SD | SY) ret 5 ;;
+	AG | AS | BD | BR | BS | BT | BW | BZ | CA | CN | CO | DM | DO | ET | GT | GU | HK | HN | ID | IL | IN | JM | JP | KE | KH | KR | LA | MH | MM | MO | MT | MX | MZ | NI | NP | PA | PE | PH | PK | PR | PT | PY | SA | SG | SV | TH | TT | TW | UM | US | VE | VI | WS | YE | ZA | ZW) ret 6 ;;
+	MV) ret 4 ;;
+	*) ret 0 ;;
+	esac
 }
 
 # Text right-aligned in n display columns, for a mirrored layout; longer text is left as it is.

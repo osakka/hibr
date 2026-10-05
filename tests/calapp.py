@@ -210,14 +210,25 @@ try:
 finally:
     pass
 
+# The week starts where the region says, and Hijri day numbers sit in the
+# cells with the Hijri months in the title (#69).
+t = session("calhj", "calendar", "Calendar", {"DT_WEEKSTART": "sat", "DT_HIJRI": "on"})
+try:
+    sc = waitfor(t, "Standup")
+    wk = sc.row(sc.find("Tue")[0]) if sc.find("Tue") else ""
+    check("First Day of Week Saturday starts the month's week on Saturday, with Hijri dates in it",
+          0 <= wk.find("Sat ") < wk.find("Sun ") < wk.find("Mon ") and sc.find(" 1448") is not None, sc)
+finally:
+    t.quit(b"qy", 1.5)
+
 # Mirrored (#68): the week runs from the right, the title at the right.
 t = session("calxy", "calendar", "Calendar", {"DT_LANG": "xy"})
 try:
     sc = waitfor(t, "Standup")
-    tue, title = sc.find("Tue"), sc.find(MONTH)
+    tue, title = sc.find("Tue"), sc.find(" %d " % today.year) or sc.find(" %d  " % today.year)
     wk = sc.row(tue[0]) if tue else ""
     check("mirrored, the month's week runs from the right and its title is at the right",
-          tue and title and wk.find("Mon ") > wk.find("Wed ") > 0 and title[1] > 55, sc)
+          tue and title and wk.find("Mon") > wk.find("Wed") > 0 and title[1] > 55, sc)
 finally:
     t.quit(b"qy", 1.5)
 
@@ -271,4 +282,4 @@ finally:
     srv.terminate()
     srv.wait()
 
-report(23)
+report(24)

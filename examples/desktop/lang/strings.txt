@@ -71,6 +71,7 @@ Appearance
 Append
 Apply
 Apps
+April
 Archive
 Arrange Icons
 As It Is
@@ -78,6 +79,7 @@ Asked %s to join
 Asking %s what it keeps…
 Attach File…
 Attach…
+August
 Average
 Back
 Back 10 Seconds
@@ -202,6 +204,8 @@ Databases
 Date & Time
 Date/time
 Date:
+Dates
+December
 Default View
 Delete
 Delete %s from the server? It cannot be undone.
@@ -216,7 +220,10 @@ Delete…
 Deleting…
 Desktop
 Detach
+Dhu al-Hijjah
+Dhu al-Qa'dah
 Dialog Buttons
+Digits
 Directory
 Discard
 Discard this message?
@@ -253,6 +260,7 @@ Export…
 Extension:
 Favourite
 Favourites
+February
 Fetching %s…
 File
 File Type
@@ -264,6 +272,7 @@ Find
 Find Next
 Find:
 Find…
+First Day of Week
 Folder, %s items
 Folder:
 Follow Program Title
@@ -275,6 +284,7 @@ Frames a Second
 Freeze Above and Left
 Freeze First Column
 Freeze Top Row
+Fri
 From:
 Full Player
 Game
@@ -291,6 +301,8 @@ Heading 3
 Help
 Hide
 Highly Intuitive Bash-like Runtime
+Hijri Adjustment (days)
+Hijri Calendar
 History
 History Size
 History cleared
@@ -312,6 +324,11 @@ Insert Row Above
 Insert Row Below
 Inviting people needs a mail account to send from
 Italic
+January
+July
+Jumada al-Akhirah
+Jumada al-Ula
+June
 Keep History on Disk
 Keep Messages
 Kept as a favourite: %s
@@ -334,8 +351,10 @@ Mail
 Mail Account
 Mail is not here to write with
 Make Main
+March
 Mark as Read
 Mark as Unread
+May
 Menu Bar
 Menu bar
 Menus
@@ -347,6 +366,7 @@ Mirror Layout
 Mode
 Modified: %s
 Modifier Drag
+Mon
 Month
 Mouse
 Move
@@ -355,6 +375,7 @@ Move to Trash
 Move to Workspace
 Move to…
 Moved
+Muharram
 Name
 Name:
 Name:   %s
@@ -413,9 +434,11 @@ Nothing to %s
 Nothing yet
 Notification Icon
 Notifications
+November
 Number
 Numbered List
 OK
+October
 Offline
 On 10 Seconds
 On 30 Seconds
@@ -471,6 +494,10 @@ Quit
 Quit dBASE
 Quit hibr?
 Quote
+Rabi' al-Awwal
+Rabi' al-Thani
+Rajab
+Ramadan
 Record %s added
 Record No. %s -- enter after the last field adds it, escape stops
 Recorded in your calendar
@@ -509,6 +536,8 @@ Rows
 Rule
 Rule…
 Run in a terminal
+Safar
+Sat
 Save
 Save As…
 Saved %s
@@ -535,6 +564,7 @@ Send End Of File
 Send Interrupt
 Sending…
 Sent
+September
 Server
 Servers
 Session at Login
@@ -543,14 +573,17 @@ Set Date & Time
 Set as Wallpaper
 Set up a mail account first, in Control Panel > Mail
 Several emails or phones: separate them with commas.
+Sha'ban
 Shadow
 Shadows
+Shawwal
 Sheet
 Sheet needs the db module
 Shell
 Shortcuts
 Shortcuts in Terminals
 Show All Notes
+Show Hijri Dates
 Show Pictures
 Shown on the login screen, with your picture.
 Shows:
@@ -573,6 +606,7 @@ Sticky
 Stop
 Strikethrough
 Sum
+Sun
 Sync Now
 Syncing
 Syncing calendars and contacts…
@@ -608,6 +642,7 @@ There is no folder %s
 This account has no address to answer from
 This window: desktop shortcuts work again
 This window: every key goes to the program
+Thu
 Tick Task
 Tiled: the layout sizes this window
 Time Zone
@@ -623,6 +658,7 @@ Today  Month  Agenda
 Top
 Trash
 Trust %s? Its formulas will run as you: write files, start programs, use the network.
+Tue
 Turns off automatic time (NTP) first
 Type what to look for, or a playlist's or a channel's address, and enter.
 Type: %s
@@ -639,6 +675,7 @@ View History
 Wait for the transfers running to finish first
 Wallpaper
 Wallpaper set
+Wed
 Where:
 Wider Column
 Window

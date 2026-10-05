@@ -180,6 +180,8 @@ class Screen:
 # runs looks in this tree's own build first.
 os.environ["HIBR_MODPATH"] = tree("build/mods") + (
     ":" + os.environ["HIBR_MODPATH"] if os.environ.get("HIBR_MODPATH") else "")
+# The same for calendar systems (ADR 0034): this tree's, not the installed ones.
+os.environ["HIBR_CALENDARS"] = tree("mods/hcal/calendars")
 
 # What the desktop prints, when HIBR_TESTIDLE is set, each time a frame is on
 # screen and it is about to wait for input -- an OSC a terminal ignores,

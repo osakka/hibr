@@ -3262,6 +3262,20 @@ check("the file dialog mirrors: its list and Name at the right, Type at the left
       nm[1] > ty[1] and sub[1] > COLS // 2, sc)
 shutil.rmtree(FBD, True)
 
+# Dates as a region writes them (#69, ADR 0034): the Hijri date beside the
+# clock when it is on, Arabic-Indic digits when chosen, nothing otherwise.
+HMON = r"(Muharram|Safar|Rabi' al-Awwal|Rabi' al-Thani|Jumada al-Ula|Jumada al-Akhirah|Rajab|Sha'ban|Ramadan|Shawwal|Dhu al-Qa'dah|Dhu al-Hijjah)"
+sc, _ = run(ONE, env={"DT_HIJRI": "on"})
+check("Show Hijri Dates puts the Hijri date beside the bar's clock",
+      re.search(r"\d+ " + HMON + r" 14\d\d +\d\d:\d\d", sc.row(0)) is not None, sc.row(0))
+sc, _ = run(ONE, env={"DT_DIGITS": "arabic"})
+check("and Arabic-Indic digits write the clock in them",
+      re.search("[\u0660-\u0669]{2}:[\u0660-\u0669]{2}", sc.row(0)) is not None and
+      re.search(r"[0-9][0-9]:[0-9][0-9]", sc.row(0)) is None, sc.row(0))
+sc, _ = run(ONE)
+check("neither is there unless asked for",
+      re.search(HMON, sc.row(0)) is None and re.search(r"\d\d:\d\d", sc.row(0)), sc.row(0))
+
 # --standby: a terminal that waits to be joined, joins, and when it is let
 # go waits again. Blank keeps a joined display joined but dark.
 SB = tempfile.mkdtemp(prefix="hibr-standby-")
@@ -3688,4 +3702,4 @@ check("an arithmetic error in an app is logged and the desktop carries on",
       sc.find("┤ Slip ├") is not None and "arithmetic" in log and t.exited and t.status == 0,
       (log, t.status))
 
-report(507)
+report(510)

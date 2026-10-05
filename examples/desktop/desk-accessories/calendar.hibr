@@ -160,6 +160,7 @@ fn cv_color(srv, coll) {
 # month, ["d$k"] the numbers of the occurrences on it.
 fn cv_load(int id) {
 	local y=${CVW[$id]["y"]} m=${CVW[$id]["m"]} d0 wd from to s d h r i n=0 k t e line rest srv row c
+	local ws=0 hj=
 	local -a order days f
 
 	unset CVI["$id"]
@@ -167,6 +168,11 @@ fn cv_load(int id) {
 	d0 := cv_day "$y" "$m" 1
 	wd := cv_civil "$d0"
 	wd=${wd##* }
+	dt_has dt_weekstart && ws := dt_weekstart
+	CVW[$id]["ws"]=$ws
+	wd=$(((wd - ws + 7) % 7))
+	dt_has dt_hijri && dt_hijri > /dev/null && hj=1
+	CVW[$id]["hj"]=$hj
 	from := cv_day "$y" "$m" $((1 - wd))
 	to := cv_day "$y" "$m" $((1 - wd + 42))
 	if [ "${CVW[$id]["view"]}" = agenda ]; then
@@ -187,6 +193,9 @@ fn cv_load(int id) {
 			CVW[$id]["t$k"]=${days[$k]}
 			CVW[$id]["n$k"]="$e $t"
 			CVW[$id]["d$k"]=
+			CVW[$id]["h$k"]=
+			[ -n "$hj" ] &&
+				CVW[$id]["h$k"] := hcal date -c "$DT_HCAL" -a "$DT_HADJ" $((days[k] + 43200)) 2> /dev/null
 		done
 	fi
 	pe_servers || return 0
@@ -311,6 +320,31 @@ fn calendar_draw(int id, int h, int w, int row, int col) {
 	cv_status "$id" "$h" "$w"
 }
 
+# The Hijri months the month shown runs across, "Rabi' al-Thani - Jumada al-Ula 1448".
+fn cv_hmonths(int id) {
+	local a= b= k hy hm n1 n2 y2 m2 mo x
+
+	for ((k = 0; k < 42; k++)); do
+		read -r x mo <<< "${CVW[$id]["n$k"]}"
+		[ "$mo" = "${CVW[$id]["m"]}" ] || continue
+		read -r hy hm x <<< "${CVW[$id]["h$k"]}"
+		[ -n "$a" ] || a="$hy $hm"
+		b="$hy $hm"
+	done
+	read -r hy hm <<< "$a"
+	read -r y2 m2 <<< "$b"
+	n1 := hcal name -c "$DT_HCAL" "$hm" 2> /dev/null
+	n2 := hcal name -c "$DT_HCAL" "$m2" 2> /dev/null
+	case $DT_LANG in ?*) n1 := dt_tr "$n1"; n2 := dt_tr "$n2" ;; esac
+	if [ "$a" = "$b" ]; then
+		ret "$n1 $hy"
+	elif [ "$hy" = "$y2" ]; then
+		ret "$n1 - $n2 $hy"
+	else
+		ret "$n1 $hy - $n2 $y2"
+	fi
+}
+
 # The bar along the top: the title between arrows, and the three buttons.
 fn cv_drawbar(int id, int w, title) {
 	local x=$((w - 20)) tw
@@ -342,10 +376,16 @@ fn cv_drawbar(int id, int w, title) {
 
 fn cv_drawmonth(int id, int h, int w) {
 	local cw=$((w / 7)) lh gh ch k r c i t ev n line col sel=${CVW[$id]["sel"]} today=${CVW[$id]["today"]}
-	local d mo ly dot=${GL[bullet]} kc m=0
+	local d mo ly dot=${GL[bullet]} kc m=0 hd
 	local -a evs
 
-	cv_drawbar "$id" "$w" "${CV_MONTHS[$((CVW[$id]["m"] - 1))]} ${CVW[$id]["y"]}"
+	t="${DT_MONTHS[$((CVW[$id]["m"] - 1))]:-${CV_MONTHS[$((CVW[$id]["m"] - 1))]}} ${CVW[$id]["y"]}"
+	if [ -n "${CVW[$id]["hj"]}" ]; then
+		hd := cv_hmonths "$id"
+		t+=" ${GL[dot]} $hd"
+	fi
+	t := dt_digits "$t"
+	cv_drawbar "$id" "$w" "$t"
 	lh=$((h / 4))
 	[ "$lh" -lt 4 ] && lh=4
 	gh=$((h - 3 - lh))
@@ -357,7 +397,7 @@ fn cv_drawmonth(int id, int h, int w) {
 	for ((k = 0; k < 7; k++)); do
 		kc=$k
 		[ "$m" = 1 ] && kc=$((6 - k))
-		console put -p "w$id" 2 $((kc * cw + 2)) "${CV_WDAYS[$k]}"
+		console put -p "w$id" 2 $((kc * cw + 2)) "${DT_WDAYS[$(((k + ${CVW[$id]["ws"]:-0}) % 7))]:-${CV_WDAYS[$(((k + ${CVW[$id]["ws"]:-0}) % 7))]}}"
 	done
 	for ((k = 0; k < 42; k++)); do
 		r=$((3 + (k / 7) * ch))
@@ -375,12 +415,23 @@ fn cv_drawmonth(int id, int h, int w) {
 		else
 			console pen "$DT_INK" "$DT_FACE"
 		fi
+		d := dt_digits "$d"
 		if [ "$m" = 1 ]; then
 			line := dt_rpad "$d " $((cw - 1))
 		else
 			line := str pad " $d" $((cw - 1))
 		fi
 		console put -p "w$id" "$r" "$c" "$line"
+		if [ -n "${CVW[$id]["h$k"]}" ] && [ "$cw" -ge 6 ]; then
+			read -r ev ev hd ev <<< "${CVW[$id]["h$k"]}"
+			hd := dt_digits "$hd"
+			[ "$t" = "$sel" ] || console pen "$DT_DIM" "$DT_FACE"
+			if [ "$m" = 1 ]; then
+				console put -p "w$id" "$r" $((c + 1)) "$hd"
+			else
+				console put -p "w$id" "$r" $((c + cw - 1 - ${#hd} - 1)) "$hd"
+			fi
+		fi
 		dt_wreg "$id" "$r" "$c" "$cw" "day:$t"
 		read -ra evs <<< "${CVW[$id]["d$k"]}"
 		n=0

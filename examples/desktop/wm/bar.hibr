@@ -67,6 +67,12 @@ dt_bar() {
 	done
 
 	now := dt_clocktext "$DT_BARTIME" -1
+	case "$DT_HIJRI$DT_DIGITS" in
+	on* | *arabic)
+		gap := dt_hijri && now="$gap  $now"
+		now := dt_digits "$now"
+		;;
+	esac
 	# DT_BARGAP cells between each item on the right -- the application
 	# menu's own leading space is one of them.
 	gap=${DT_BARGAP:-2}

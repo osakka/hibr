@@ -1,0 +1,33 @@
+{
+ "name": "civil",
+ "title": "Tabular (civil)",
+ "kind": "tabular",
+ "epoch": 1948440,
+ "leap": [
+  2,
+  5,
+  7,
+  10,
+  13,
+  16,
+  18,
+  21,
+  24,
+  26,
+  29
+ ],
+ "months": [
+  "Muharram",
+  "Safar",
+  "Rabi' al-Awwal",
+  "Rabi' al-Thani",
+  "Jumada al-Ula",
+  "Jumada al-Akhirah",
+  "Rajab",
+  "Sha'ban",
+  "Ramadan",
+  "Shawwal",
+  "Dhu al-Qa'dah",
+  "Dhu al-Hijjah"
+ ]
+}

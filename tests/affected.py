@@ -53,6 +53,7 @@ SUITE_MODS = {
     "pim_rrule": ["pim"],
     "uni_bidi": ["uni"],
     "uni_shape": ["uni"],
+    "hcal_icu": ["hcal"],
 }
 DESKTOP = ("desktop", "apps", "uifuzz", "strictvars", "mailapp", "contacts", "calapp")
 EVERYTHING = ("src/", "include/", "Makefile", "tests/screen.py",

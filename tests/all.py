@@ -23,7 +23,7 @@ LOGS = (os.environ.get("HIBR_TESTLOGS")
 SUITES = ["run.sh", "desktop", "apps", "most", "hvi", "console", "cat",
           "mon", "mtr", "editor", "term_diff", "uifuzz", "strictvars",
           "md_spec", "html_tree", "mail", "mailapp", "contacts", "calapp", "pim", "pim_rrule", "web", "dav", "media", "youtube",
-          "uni_bidi", "uni_shape"]
+          "uni_bidi", "uni_shape", "hcal_icu"]
 
 
 def one(name):
