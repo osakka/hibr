@@ -150,6 +150,17 @@ try:
     t.keys([b"\x1b", b"\x1b"])
     t.quit(b"qy", 2)
 
+    # Mirrored (#68): the list at the right, the person chosen at the left,
+    # each field's label at the right of its value.
+    t = Term(sess, rows=30, cols=104, settle=1.5,
+             env={"HIBR_MAIL_CONF": CONF, "XDG_DATA_HOME": os.path.join(D, "data"), "DT_LANG": "xy"})
+    sc = waitfor(t, "Zo\u00eb")
+    zo, em = sc.find("Zo\u00eb"), sc.find("ana@example.net")
+    check("mirrored, the list is at the right and the person chosen at the left",
+          zo and em and zo[1] > 60 and em[1] < 50 and
+          sc.row(em[0]).find("email") > em[1], sc)
+    t.quit(b"qy", 2)
+
     # Control Panel > PIM asks each Network Server what it keeps, and lists
     # a plain file server as files only rather than offering it.
     PLAIN = os.path.join(D, "plain")
@@ -181,4 +192,4 @@ finally:
     srv.terminate()
     srv.wait()
 
-report(20)
+report(21)

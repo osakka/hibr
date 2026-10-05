@@ -313,14 +313,26 @@ fn calendar_draw(int id, int h, int w, int row, int col) {
 
 # The bar along the top: the title between arrows, and the three buttons.
 fn cv_drawbar(int id, int w, title) {
-	local x=$((w - 20))
+	local x=$((w - 20)) tw
 
 	console pen "$DT_INK" "$DT_FACE" bold
-	console put -p "w$id" 1 1 " ${GL[larr]} "
-	dt_wreg "$id" 1 1 3 prev
-	console put -p "w$id" 1 5 "$title"
-	console put -p "w$id" 1 $((6 + ${#title})) " ${GL[rarr]} "
-	dt_wreg "$id" 1 $((6 + ${#title})) 3 next
+	if [ "$DT_MIRRORON" = 1 ]; then
+		# Mirrored, earlier is to the right: the title at the right
+		# between a previous arrow pointing right and a next one left.
+		x=2
+		tw := str width "$title"
+		console put -p "w$id" 1 $((w - 3)) " ${GL[rarr]} "
+		dt_wreg "$id" 1 $((w - 3)) 3 prev
+		console put -p "w$id" 1 $((w - 4 - tw)) "$title"
+		console put -p "w$id" 1 $((w - 8 - tw)) " ${GL[larr]} "
+		dt_wreg "$id" 1 $((w - 8 - tw)) 3 next
+	else
+		console put -p "w$id" 1 1 " ${GL[larr]} "
+		dt_wreg "$id" 1 1 3 prev
+		console put -p "w$id" 1 5 "$title"
+		console put -p "w$id" 1 $((6 + ${#title})) " ${GL[rarr]} "
+		dt_wreg "$id" 1 $((6 + ${#title})) 3 next
+	fi
 	console pen "$DT_DIM" "$DT_FACE"
 	dt_tput "$id" 1 "$x" "Today  Month  Agenda"
 	dt_wreg "$id" 1 "$x" 5 today
@@ -330,7 +342,7 @@ fn cv_drawbar(int id, int w, title) {
 
 fn cv_drawmonth(int id, int h, int w) {
 	local cw=$((w / 7)) lh gh ch k r c i t ev n line col sel=${CVW[$id]["sel"]} today=${CVW[$id]["today"]}
-	local d mo ly dot=${GL[bullet]}
+	local d mo ly dot=${GL[bullet]} kc m=0
 	local -a evs
 
 	cv_drawbar "$id" "$w" "${CV_MONTHS[$((CVW[$id]["m"] - 1))]} ${CVW[$id]["y"]}"
@@ -339,13 +351,19 @@ fn cv_drawmonth(int id, int h, int w) {
 	gh=$((h - 3 - lh))
 	ch=$((gh / 6))
 	[ "$ch" -lt 2 ] && ch=2
+	# Mirrored, the week runs from the right: day k is in column 6 - k % 7.
+	[ "$DT_MIRRORON" = 1 ] && m=1
 	console pen "$DT_DIM" "$DT_FACE"
 	for ((k = 0; k < 7; k++)); do
-		console put -p "w$id" 2 $((k * cw + 2)) "${CV_WDAYS[$k]}"
+		kc=$k
+		[ "$m" = 1 ] && kc=$((6 - k))
+		console put -p "w$id" 2 $((kc * cw + 2)) "${CV_WDAYS[$k]}"
 	done
 	for ((k = 0; k < 42; k++)); do
 		r=$((3 + (k / 7) * ch))
-		c=$((1 + (k % 7) * cw))
+		kc=$((k % 7))
+		[ "$m" = 1 ] && kc=$((6 - kc))
+		c=$((1 + kc * cw))
 		t=${CVW[$id]["t$k"]}
 		read -r d mo <<< "${CVW[$id]["n$k"]}"
 		if [ "$t" = "$sel" ]; then
@@ -357,7 +375,11 @@ fn cv_drawmonth(int id, int h, int w) {
 		else
 			console pen "$DT_INK" "$DT_FACE"
 		fi
-		line := str pad " $d" $((cw - 1))
+		if [ "$m" = 1 ]; then
+			line := dt_rpad "$d " $((cw - 1))
+		else
+			line := str pad " $d" $((cw - 1))
+		fi
 		console put -p "w$id" "$r" "$c" "$line"
 		dt_wreg "$id" "$r" "$c" "$cw" "day:$t"
 		read -ra evs <<< "${CVW[$id]["d$k"]}"
@@ -365,11 +387,19 @@ fn cv_drawmonth(int id, int h, int w) {
 		for i in "${evs[@]}"; do
 			[ "$n" -lt $((ch - 1)) ] || break
 			col := cv_color "${CVI[$id][$i]["srv"]}" "${CVI[$id][$i]["coll"]}"
-			console pen "$col" "$DT_FACE"
-			console put -p "w$id" $((r + 1 + n)) "$c" "$dot"
-			console pen "$DT_INK" "$DT_FACE"
 			ev=${CVI[$id][$i]["summary"]}
-			console put -p "w$id" $((r + 1 + n)) $((c + 1)) "${ev:0:$((cw - 2))}"
+			if [ "$m" = 1 ]; then
+				console pen "$col" "$DT_FACE"
+				console put -p "w$id" $((r + 1 + n)) $((c + cw - 2)) "$dot"
+				console pen "$DT_INK" "$DT_FACE"
+				ev := dt_rpad "${ev:0:$((cw - 2))}" $((cw - 2))
+				console put -p "w$id" $((r + 1 + n)) "$c" "$ev"
+			else
+				console pen "$col" "$DT_FACE"
+				console put -p "w$id" $((r + 1 + n)) "$c" "$dot"
+				console pen "$DT_INK" "$DT_FACE"
+				console put -p "w$id" $((r + 1 + n)) $((c + 1)) "${ev:0:$((cw - 2))}"
+			fi
 			dt_wreg "$id" $((r + 1 + n)) "$c" "$cw" "day:$t"
 			n=$((n + 1))
 		done
@@ -377,7 +407,11 @@ fn cv_drawmonth(int id, int h, int w) {
 			line="+$((${#evs[@]} - ch + 1))"
 			console pen "$DT_DIM" "$DT_FACE"
 			[ "$t" = "$sel" ] && console pen "$DT_SELINK" "$DT_ACTIVE"
-			console put -p "w$id" "$r" $((c + cw - ${#line} - 2)) "$line"
+			if [ "$m" = 1 ]; then
+				console put -p "w$id" "$r" $((c + 1)) "$line"
+			else
+				console put -p "w$id" "$r" $((c + cw - ${#line} - 2)) "$line"
+			fi
 		fi
 	done
 	ly=$((3 + 6 * ch))
@@ -413,15 +447,25 @@ fn cv_drawday(int id, int r0, int vis, int w) {
 		[ -n "${CVI[$id][$i]["location"]}" ] && line+=" -- ${CVI[$id][$i]["location"]}"
 		col := cv_color "${CVI[$id][$i]["srv"]}" "${CVI[$id][$i]["coll"]}"
 		console pen "$col" "$DT_FACE"
-		console put -p "w$id" "$r" 2 "${GL[bullet]}"
+		if [ "$DT_MIRRORON" = 1 ]; then
+			console put -p "w$id" "$r" $((w - 1)) "${GL[bullet]}"
+		else
+			console put -p "w$id" "$r" 2 "${GL[bullet]}"
+		fi
 		if [ "${CVW[$id]["focus"]}" = list ] && [ "$k" = "${CVW[$id]["li"]:-0}" ]; then
 			console pen "$DT_SELINK" "$DT_ACTIVE"
 		else
 			console pen "$DT_INK" "$DT_FACE"
 		fi
-		line := str pad " ${line:0:$((w - 4))}" $((w - 2))
-		console put -p "w$id" "$r" 3 "$line"
-		dt_wreg "$id" "$r" 3 $((w - 2)) "ev:$k"
+		if [ "$DT_MIRRORON" = 1 ]; then
+			line := dt_rpad "${line:0:$((w - 4))} " $((w - 2))
+			console put -p "w$id" "$r" 1 "$line"
+			dt_wreg "$id" "$r" 1 $((w - 2)) "ev:$k"
+		else
+			line := str pad " ${line:0:$((w - 4))}" $((w - 2))
+			console put -p "w$id" "$r" 3 "$line"
+			dt_wreg "$id" "$r" 3 $((w - 2)) "ev:$k"
+		fi
 		r=$((r + 1))
 		k=$((k + 1))
 	done
@@ -563,6 +607,7 @@ fn calendar_key(int id, key) {
 			;;
 		esac
 	fi
+	case "$DT_MIRRORON$key" in 1left) key=right ;; 1right) key=left ;; esac
 	case $key in
 	left) cv_select "$id" $((sel - 86400 + 7200)) ;;
 	right) cv_select "$id" $((sel + 86400 + 7200)) ;;

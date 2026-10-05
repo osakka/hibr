@@ -282,19 +282,24 @@ fn contacts_close(int id) {
 
 fn contacts_draw(int id, int h, int w, int row, int col) {
 	local nl=${PCW[$id]["nl"]:-0} sel=${PCW[$id]["sel"]:-0} top=${PCW[$id]["top"]:-0}
-	local vis=$((h - 3)) r=2 k i nm em st s lw=32
+	local vis=$((h - 3)) r=2 k i nm em st s lw=32 m=0 lx=0 sx=1 dx
 
 	[ "$w" -gt 70 ] || lw=$((w / 2))
+	dx=$((lw + 2))
+	# Mirrored, every column c is drawn at w - 1 - c: the list at the
+	# right, the person chosen at the left.
+	case $DT_MIRRORON in 1) m=1; lx=$((w - lw)); sx=$((w - lw + 1)); dx=1 ;; esac
 
 	dt_wclear "$id"
 	if [ "${PCW[$id]["qon"]}" = 1 ] || [ -n "${PCW[$id]["qbuf"]}" ]; then
-		dt_textdraw "$id" 0 1 $((lw - 2)) "${PCW[$id]["qbuf"]}" "${PCW[$id]["qcur"]}" "$([ "${PCW[$id]["qon"]}" = 1 ] && echo 1 || echo 0)"
+		dt_textdraw "$id" 0 "$sx" $((lw - 2)) "${PCW[$id]["qbuf"]}" "${PCW[$id]["qcur"]}" "$([ "${PCW[$id]["qon"]}" = 1 ] && echo 1 || echo 0)"
 	else
 		console pen "$DT_DIM" "$DT_WELL"
-		console fill -p "w$id" 0 1 1 $((lw - 2)) " "
-		dt_tput "$id" 0 2 "/ Search contacts"
+		console fill -p "w$id" 0 "$sx" 1 $((lw - 2)) " "
+		k=$((sx + 1))
+		dt_tput "$id" 0 "$k" "/ Search contacts"
 	fi
-	dt_wreg "$id" 0 1 $((lw - 2)) search
+	dt_wreg "$id" 0 "$sx" $((lw - 2)) search
 	if ! pe_servers; then
 		console pen "$DT_DIM" "$DT_FACE"
 		dt_tput "$id" 3 2 "No server chosen for contacts yet."
@@ -320,22 +325,32 @@ fn contacts_draw(int id, int h, int w, int row, int col) {
 		nm := pe_f "$i" fn
 		em := pe_f "$i" emails
 		em=${em%%$'\t'*}
-		nm := str pad " ${nm:0:$((lw - 3))}" $((lw - 1))
+		if [ "$m" = 1 ]; then
+			nm := dt_rpad "${nm:0:$((lw - 3))} " $((lw - 1))
+		else
+			nm := str pad " ${nm:0:$((lw - 3))}" $((lw - 1))
+		fi
 		if [ "$k" = "$sel" ] && [ "${PCW[$id]["qon"]}" != 1 ]; then
 			console pen "$DT_SELINK" "$DT_ACTIVE"
 		else
 			console pen "$DT_INK" "$DT_FACE"
 		fi
-		console put -p "w$id" "$r" 0 "$nm"
-		dt_wreg "$id" "$r" 0 "$lw" "row:$k"
+		console put -p "w$id" "$r" $((lx + m)) "$nm"
+		dt_wreg "$id" "$r" "$lx" "$lw" "row:$k"
 		r=$((r + 1))
 		k=$((k + 1))
 	done
-	[ "$nl" -gt "$vis" ] && dt_scrollbar "$id" 2 $((lw - 1)) "$vis" "$nl" "$vis" "$top"
-	console pen "$DT_DIM" "$DT_FACE"
-	console fill -p "w$id" 1 "$lw" $((h - 2)) 1 "${GL[vline]}"
+	if [ "$m" = 1 ]; then
+		[ "$nl" -gt "$vis" ] && dt_scrollbar "$id" 2 "$lx" "$vis" "$nl" "$vis" "$top"
+		console pen "$DT_DIM" "$DT_FACE"
+		console fill -p "w$id" 1 $((lx - 1)) $((h - 2)) 1 "${GL[vline]}"
+	else
+		[ "$nl" -gt "$vis" ] && dt_scrollbar "$id" 2 $((lw - 1)) "$vis" "$nl" "$vis" "$top"
+		console pen "$DT_DIM" "$DT_FACE"
+		console fill -p "w$id" 1 "$lw" $((h - 2)) 1 "${GL[vline]}"
+	fi
 	if i := pe_at "$id" "$sel"; then
-		contacts_detail "$id" "$i" $((lw + 2)) $((w - lw - 3)) "$h"
+		contacts_detail "$id" "$i" "$dx" $((w - lw - 3)) "$h"
 	fi
 	st=
 	for s in "${PE_SRVS[@]}"; do
@@ -350,7 +365,11 @@ fn contacts_draw(int id, int h, int w, int row, int col) {
 		[ -n "${PES["status$s"]}" ] && st="$s: ${PES["status$s"]}"
 	done
 	console pen "$DT_DIM" "$DT_FACE"
-	st := str pad " $PE_N people${st:+ ${GL[dot]} $st}" "$w"
+	if [ "$m" = 1 ]; then
+		st := dt_rpad "$PE_N people${st:+ ${GL[dot]} $st} " "$w"
+	else
+		st := str pad " $PE_N people${st:+ ${GL[dot]} $st}" "$w"
+	fi
 	console put -p "w$id" $((h - 1)) 0 "${st:0:$w}"
 }
 
@@ -360,6 +379,10 @@ fn contacts_detail(int id, int i, int c, int w, int h) {
 	local r=1 nm v org note k
 	local -a ems ts
 
+	if [ "$DT_MIRRORON" = 1 ]; then
+		contacts_detailm "$id" "$i" "$c" "$w" "$h"
+		return 0
+	fi
 	nm := pe_f "$i" fn
 	org := pe_f "$i" org
 	console pen "$DT_INK" "$DT_FACE" bold
@@ -400,6 +423,67 @@ fn contacts_detail(int id, int i, int c, int w, int h) {
 		console pen "$DT_INK" "$DT_FACE"
 		while [ -n "$note" ] && [ "$r" -lt $((h - 2)) ]; do
 			console put -p "w$id" "$r" $((c + 7)) "${note:0:$((w - 7))}"
+			note=${note:$((w - 7))}
+			r=$((r + 1))
+		done
+	fi
+}
+
+# The person chosen, mirrored: every line right-aligned to the detail's
+# right edge, each field's label at the right of its value.
+fn contacts_detailm(int id, int i, int c, int w, int h) {
+	local r=1 nm v org note k e=$((c + w - 1)) t
+	local -i tw
+	local -a ems ts
+
+	nm := pe_f "$i" fn
+	org := pe_f "$i" org
+	console pen "$DT_INK" "$DT_FACE" bold
+	t=${nm:0:$w}
+	tw := str width "$t"
+	console put -p "w$id" "$r" $((e - tw + 1)) "$t"
+	r=$((r + 1))
+	if [ -n "$org" ]; then
+		console pen "$DT_DIM" "$DT_FACE"
+		t=${org:0:$w}
+		tw := str width "$t"
+		console put -p "w$id" "$r" $((e - tw + 1)) "$t"
+		r=$((r + 1))
+	fi
+	r=$((r + 1))
+	v := pe_f "$i" emails
+	IFS=$'\t' read -ra ems <<< "$v"
+	for k in "${!ems[@]}"; do
+		[ -n "${ems[$k]}" ] || continue
+		console pen "$DT_DIM" "$DT_FACE"
+		dt_tput "$id" "$r" $((e - 4)) "email"
+		console pen "$DT_ACTIVE" "$DT_FACE" underline
+		t=${ems[$k]:0:$((w - 7))}
+		console put -p "w$id" "$r" $((e - 6 - ${#t})) "$t"
+		dt_wreg "$id" "$r" $((e - 6 - ${#t})) "${#t}" "mail:$k"
+		r=$((r + 1))
+	done
+	v := pe_f "$i" tels
+	IFS=$'\t' read -ra ts <<< "$v"
+	for k in "${ts[@]}"; do
+		[ -n "$k" ] || continue
+		console pen "$DT_DIM" "$DT_FACE"
+		dt_tput "$id" "$r" $((e - 4)) "phone"
+		console pen "$DT_INK" "$DT_FACE"
+		t=${k:0:$((w - 7))}
+		console put -p "w$id" "$r" $((e - 6 - ${#t})) "$t"
+		r=$((r + 1))
+	done
+	note := pe_f "$i" note
+	if [ -n "$note" ] && [ "$r" -lt $((h - 3)) ]; then
+		r=$((r + 1))
+		console pen "$DT_DIM" "$DT_FACE"
+		dt_tput "$id" "$r" $((e - 3)) "note"
+		console pen "$DT_INK" "$DT_FACE"
+		while [ -n "$note" ] && [ "$r" -lt $((h - 2)) ]; do
+			t=${note:0:$((w - 7))}
+			tw := str width "$t"
+			console put -p "w$id" "$r" $((e - 6 - tw)) "$t"
 			note=${note:$((w - 7))}
 			r=$((r + 1))
 		done

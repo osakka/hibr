@@ -57,5 +57,7 @@ mirrored layout with it, and `tests/uifuzz.py` runs clean under it.
   message needs a direction in that layout, not in the app.
 - Mirrored in 0.99.63: Sheet (column A at the right, the gutter outside
   it, left and right arrows following what is seen) and the file dialog.
+- Mirrored in 0.99.64: Calendar's month and day list (the week from the
+  right; the agenda view not yet) and Contacts.
 - `DT_MIRROR=on` mirrors an English desktop too, for whoever wants it and
   for testing.

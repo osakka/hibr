@@ -126,7 +126,7 @@ def having(text):
     return [n for n in items() if text in item(n)]
 
 
-def session(tag, app, title):
+def session(tag, app, title, extra=None):
     sess = os.path.join(D, tag + ".hibr")
     open(sess, "w").write(
         "%s. %s\n. %s\n. %s\n. %s\nneed dav\ndav server set home http://127.0.0.1:%d -u u -p p\n"
@@ -135,7 +135,8 @@ def session(tag, app, title):
            tree("examples/desktop/desk-accessories/contacts.hibr"), tree("examples/desktop/desk-accessories/calendar.hibr"),
            tree("examples/desktop/apps/Internet/mail.hibr"), PORT, title, app))
     return Term(sess, rows=40, cols=110, settle=1.5,
-                env={"HIBR_MAIL_CONF": CONF, "XDG_DATA_HOME": os.path.join(D, "data"), "TZ": TZ})
+                env=dict({"HIBR_MAIL_CONF": CONF, "XDG_DATA_HOME": os.path.join(D, "data"), "TZ": TZ},
+                         **(extra or {})))
 
 
 MONTH = today.strftime("%B %Y")
@@ -209,6 +210,17 @@ try:
 finally:
     pass
 
+# Mirrored (#68): the week runs from the right, the title at the right.
+t = session("calxy", "calendar", "Calendar", {"DT_LANG": "xy"})
+try:
+    sc = waitfor(t, "Standup")
+    tue, title = sc.find("Tue"), sc.find(MONTH)
+    wk = sc.row(tue[0]) if tue else ""
+    check("mirrored, the month's week runs from the right and its title is at the right",
+          tue and title and wk.find("Mon ") > wk.find("Wed ") > 0 and title[1] > 55, sc)
+finally:
+    t.quit(b"qy", 1.5)
+
 # Answering an invitation in Mail -- with neither Calendar nor Contacts
 # open, so the sync that brings a new event down is the desktop's own.
 # Uploaded, as another client would, so the server's sync token moves.
@@ -259,4 +271,4 @@ finally:
     srv.terminate()
     srv.wait()
 
-report(22)
+report(23)

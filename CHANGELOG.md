@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.99.64
+
+**Calendar and Contacts turn round** (Gitea #68, phase 4c). Mirrored,
+Calendar's month runs its week from the right, each day's number and
+events right-aligned, the month's name at the right of the bar between
+a previous arrow pointing right and a next one pointing left, and the
+left arrow goes to the next day, as it looks; the chosen day's events
+are right-aligned below. Contacts puts its list at the right and the
+person chosen at the left, each field's label at the right of its
+value. The agenda view is not mirrored yet.
+
 ## 0.99.63
 
 **Sheet and the file dialog turn round** (Gitea #68, phase 4c). Mirrored,
