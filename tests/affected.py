@@ -41,12 +41,20 @@ SUITE_MODS = {
     "editor": [],
     "term_diff": ["term"],
     "desktop": [],
-    "apps": [],
+    "apps_panel": [],
+    "apps_reach": [],
+    "apps_core": [],
+    "apps_more": [],
     "uifuzz": [],
     "strictvars": [],
     "html_tree": ["html"],
     "mail": ["email"],
     "mailapp": ["email", "html", "db"],
+    "md_spec": ["md"],
+    "dav": ["dav"],
+    "web": ["web"],
+    "media": ["media"],
+    "youtube": ["web", "media"],
     "pim": ["pim", "dav"],
     "contacts": ["pim", "dav", "email", "db"],
     "calapp": ["pim", "dav", "email", "db"],
@@ -55,8 +63,11 @@ SUITE_MODS = {
     "uni_shape": ["uni"],
     "hcal_icu": ["hcal"],
     "salat_adhan": ["salat"],
+    "vw_crypto": ["vw"],
+    "vw": ["vw", "dav"],
 }
-DESKTOP = ("desktop", "apps", "uifuzz", "strictvars", "mailapp", "contacts", "calapp")
+APPS = ("apps_panel", "apps_reach", "apps_core", "apps_more")
+DESKTOP = ("desktop",) + APPS + ("uifuzz", "strictvars", "mailapp", "contacts", "calapp")
 EVERYTHING = ("src/", "include/", "Makefile", "tests/screen.py",
               "tests/all.py", "deploy.sh")
 
@@ -171,11 +182,15 @@ def suites_for(path, req, prov, where):
         s = n[:-3] if n.endswith(".py") else None
         if s in SUITES:
             return {s}, "the suite itself"
+        if n in ("apps.py", "appslice.py"):
+            return set(APPS), "the apps suite, run as its parts"
         if n.endswith((".t", ".expected", ".hibr")) or n == "run.sh":
             return {"run.sh"}, "the C-side harness"
         if n in ("affected.py", "census.py", "asan.py", "diff.py",
                  "corpus.py", "fuzz.py"):
             return set(), "a tool, not a suite"
+    if path == "examples/vw.hibr":
+        return {"vw", "run.sh"}, "the vw command"
     if path.startswith(("docs/", "examples/")):
         return {"run.sh"}, "documentation or an example (530/540)"
     if path.startswith(("packaging/", "tools/", ".git")) or path in (

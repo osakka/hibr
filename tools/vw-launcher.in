@@ -1,0 +1,7 @@
+#!/usr/bin/env hibr
+#
+# vw -- the hibr Bitwarden / Vaultwarden client, wherever it was installed.
+# @SHAREDIR@ is filled in at install time (see the Makefile's own install
+# target); this file is a template, not run directly.
+
+exec hibr "@SHAREDIR@/vw.hibr" "$@"

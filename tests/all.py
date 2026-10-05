@@ -20,10 +20,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 LOGS = (os.environ.get("HIBR_TESTLOGS")
         or os.path.join(ROOT, "build", "test-logs"))
-SUITES = ["run.sh", "desktop", "apps", "most", "hvi", "console", "cat",
+SUITES = ["run.sh", "desktop", "apps_panel", "apps_reach", "apps_core", "apps_more", "most", "hvi", "console", "cat",
           "mon", "mtr", "editor", "term_diff", "uifuzz", "strictvars",
           "md_spec", "html_tree", "mail", "mailapp", "contacts", "calapp", "pim", "pim_rrule", "web", "dav", "media", "youtube",
-          "uni_bidi", "uni_shape", "hcal_icu", "salat_adhan"]
+          "uni_bidi", "uni_shape", "hcal_icu", "salat_adhan", "vw_crypto", "vw"]
 
 
 def one(name):

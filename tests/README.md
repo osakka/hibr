@@ -50,6 +50,8 @@ python3 tests/mtr.py        the live traceroute
 python3 tests/editor.py     the line editor
 python3 tests/desktop.py    the window manager
 python3 tests/apps.py       the apps, desk accessories and control panel
+python3 tests/apps_core.py  ... and the same checks in four parts, side by side:
+                            apps_panel, apps_reach, apps_core, apps_more
 python3 tests/term_diff.py  the terminal emulator, cell by cell against tmux
 python3 tests/uifuzz.py     random input into each app, seeded
 ```

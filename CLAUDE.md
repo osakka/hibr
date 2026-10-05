@@ -39,6 +39,8 @@ releases).
     ./build/hibr tests/self.hibr                 # suite in hibr, 91 assertions, planned
     python3 tests/{console,cat,most,hvi,mon,mtr,editor,desktop,apps}.py
                                  # the full-screen suites, each through a pty
+    python3 tests/apps_{panel,reach,core,more}.py
+                                 # apps.py's checks in four parts, as all.py runs them
     python3 tests/term_diff.py   # mods/term against tmux, cell by cell
     python3 tests/uifuzz.py      # random input into each app, seeded; SEED=random
     python3 tests/affected.py --run      # only the suites a change reaches
@@ -175,6 +177,7 @@ the installed module; for one not yet released, `HIBR_MODPATH=build/mods`.
 | `mods/salat/` | prayer times: the sun's place computed (Meeus), methods as JSON files in a folder, checked against adhan-js to the minute through the year and into the polar circle (`tests/salat_adhan.py`) -- ADR 0035, Gitea #70 |
 | `mods/lang.c` | translation catalogues with CLDR plurals; the desktop translates at its widgets (`dt_tr`, `wm/lang.hibr`, `lang/`), `tools/strings.py` keeps the list -- ADR 0032 |
 | `mods/email/` | IMAP (IDLE, Gmail's labels), POP3, SMTP and MIME; accounts in a 0600 file; `tests/mailserve.py` is the suites' stand-in server; the Mail app (`apps/Internet/mail.hibr`) keeps accounts offline through `examples/desktop/lib/mailsync.hibr` -- see `mods/email/README.md` |
+| `mods/vw/` | Bitwarden and Vaultwarden: `vwk` holds the vault's keys and does its crypto (libcrypto, libargon2 `dlopen`ed), never printing a key; `vw` (`examples/vw.hibr`, installed as a command) logs in, syncs and reads the vault -- kept encrypted, so offline works -- through `dav request`; `tests/bwserve.py` is the suites' stand-in server -- see `mods/vw/README.md`, ADR 0036 |
 
 Each directory carries its own `README.md` with the detail: `src/`, `include/`,
 `mods/`, `tests/`, `examples/`. User-facing documentation is under `docs/`, and
@@ -2064,6 +2067,16 @@ went in the shell.
   pattern that can match the harness's own command line.
 - Re-record an `.expected` file only after reading the diff and agreeing the
   new behaviour is correct.
+- **`tests/apps.py` runs as four parts, and a check is counted twice.**
+  all.py runs `apps_panel`, `apps_reach`, `apps_core` and `apps_more`,
+  each cut from apps.py at run time by `tests/appslice.py` (its sections,
+  plus the definitions they take from others) -- apps.py is still the
+  only place a check is written, and still runs whole. Adding a check
+  means bumping apps.py's `report(N)` *and* its part's number in
+  `appslice.PLAN`; every part refuses to start when the two disagree. A
+  new section belongs to `more` unless `PARTS` names it. A helper's value
+  that comes from a session (a `run` or a `check`) is never copied to
+  another part, so a section must make what it reads, as before.
 - **The `.expected` file is named after the test, not the test file.**
   `tests/830-img.t`'s own recorded file is `tests/830-img.expected` --
   `tests/830-img.t.expected` does not error, it just never matches

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Which of the desktop's functions no suite ever calls.
 
-    python3 tests/census.py [suite...]     # default: desktop apps uifuzz run.sh
+    python3 tests/census.py [suite...]     # default: desktop, the apps parts, uifuzz, run.sh
     python3 tests/census.py --log FILE     # report on a log already taken
     python3 tests/census.py --expansion [PREFIX...]
                         # and where strict expansion would change behaviour
@@ -215,7 +215,7 @@ def main():
             types(args[args.index("--log") + 1])
             return
         log = os.path.join(ROOT, "build", "census.log")
-        st = take(args or ["desktop", "apps", "uifuzz", "run.sh"], log)
+        st = take(args or ["desktop", "apps_panel", "apps_reach", "apps_core", "apps_more", "uifuzz", "run.sh"], log)
         types(log)
         sys.exit(st)
     exp = None
@@ -228,7 +228,7 @@ def main():
         expansion(log, exp) if exp is not None else report(log)
         return
     log = os.path.join(ROOT, "build", "census.log")
-    st = take(args or ["desktop", "apps", "uifuzz", "run.sh"], log)
+    st = take(args or ["desktop", "apps_panel", "apps_reach", "apps_core", "apps_more", "uifuzz", "run.sh"], log)
     report(log)
     if exp is not None:
         print()

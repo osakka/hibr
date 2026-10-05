@@ -144,6 +144,7 @@ int dv_list(sh *s, const char *loc, int depth, vec *out);
 int dv_cpropfind(sh *s, int ac, char **av);
 int dv_creport(sh *s, int ac, char **av);
 int dv_csync(sh *s, int ac, char **av);
+int dv_request(sh *s, int ac, char **av);
 int dv_err(sh *s, const char *what, const char *loc, dv_res *rs);
 void dv_code(sh *s, int code);
 void dv_entfree(vec *v);

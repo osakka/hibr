@@ -1103,6 +1103,8 @@ int m_dav(sh *s, int ac, char **av)
 		return dv_creport(s, ac, av);
 	if (!strcmp(sub, "sync"))
 		return dv_csync(s, ac, av);
+	if (!strcmp(sub, "request"))
+		return dv_request(s, ac, av);
 	if (!strcmp(sub, "rm") && ac == 5 && !strcmp(av[2], "-m"))
 		return dv_simple(s, "DELETE", av[4], av[3]);
 	if (ac != 3) {
@@ -1121,6 +1123,71 @@ int m_dav(sh *s, int ac, char **av)
 		return dv_test(s, av[2]);
 	dv_usage();
 	return 2;
+}
+
+int sx_out(sh *s, const char *nm, const char *v);
+
+/* dav request [-H 'Name: value']... [-d body] [-k] METHOD URL: any HTTP
+   request to any address, with no server's credentials -- for an API
+   that is not WebDAV. The reply's body is said, or bound under :=, and
+   DAV_CODE is its status, whatever it is: an API's error has a body too. */
+int dv_request(sh *s, int ac, char **av)
+{
+	dv_req rq;
+	dv_res rs;
+	dv_srv sv;
+	str nm;
+	const char *v;
+	int k = 2, rc, out;
+
+	memset(&sv, 0, sizeof sv);
+	dv_reqinit(&rq);
+	s_init(&nm);
+	while (k < ac && av[k][0] == '-' && av[k][1]) {
+		if (!strcmp(av[k], "-H") && k + 1 < ac && (v = strchr(av[k + 1], ':'))) {
+			nm.n = 0;
+			s_add(&nm, av[k + 1], (size_t)(v - av[k + 1]));
+			s_grow(&nm, 1);
+			nm.p[nm.n] = 0;
+			for (v++; *v == ' '; v++)
+				;
+			dv_hdr(&rq, nm.p, v);
+			k += 2;
+		} else if (!strcmp(av[k], "-d") && k + 1 < ac) {
+			rq.body = av[k + 1];
+			rq.blen = strlen(av[k + 1]);
+			k += 2;
+		} else if (!strcmp(av[k], "-k")) {
+			sv.noverify = 1;
+			k++;
+		} else {
+			break;
+		}
+	}
+	s_free(&nm);
+	if (ac - k != 2) {
+		dv_reqfree(&rq);
+		lg(HIBR_LERR, "usage: dav request [-H 'Name: value']... [-d body] [-k] METHOD URL");
+		return 2;
+	}
+	rq.method = av[k];
+	rq.loc = av[k + 1];
+	rq.sv = &sv;
+	rq.follow = 1;
+	rc = dv_do(s, &rq, &rs);
+	dv_reqfree(&rq);
+	dv_code(s, rs.code);
+	if (!rs.code) {
+		dv_resfree(&rs);
+		lg(HIBR_LERR, "dav request: %s: no answer", av[k + 1]);
+		return HIBR_FAIL;
+	}
+	s_grow(&rs.body, 1);
+	rs.body.p[rs.body.n] = 0;
+	k = rs.code;
+	out = sx_out(s, 0, rs.body.p);
+	dv_resfree(&rs);
+	return rc == HIBR_OK && k < 400 ? out : HIBR_FAIL;
 }
 
 /* Nothing to set up until the first request. */

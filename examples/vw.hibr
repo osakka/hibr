@@ -1,0 +1,400 @@
+#!/usr/bin/env hibr
+#
+# vw -- a Bitwarden / Vaultwarden client for the shell (Gitea #71).
+#
+#   vw server URL [-k]          the server: https://vault.example.com (-k: its
+#                               certificate is not checked)
+#   vw login EMAIL              log in, sync, and unlock
+#   vw unlock [--pin]           unlock -- offline, from the vault kept here
+#   vw lock                     forget the key
+#   vw sync                     fetch the vault again
+#   vw list [TEXT]              the items, or those whose name or user has TEXT
+#   vw get password|username|totp|notes|uri|item NAME-OR-ID
+#   vw pin set [--keep]|clear   a PIN to unlock with; --keep survives a restart
+#   vw timeout MINUTES          lock after this long unused (0: never)
+#   vw status
+#
+# The vault is fetched from the server and kept encrypted on this machine,
+# so unlocking needs no network. Nothing decrypted is written anywhere: the
+# key lives in the vw module's memory for one command, and between commands
+# only wrapped by a session key, which `vw unlock` prints to export as
+# VW_SESSION -- the way Bitwarden's own CLI passes BW_SESSION. The crypto
+# is the vw module's (libcrypto, loaded at run time); the requests go
+# through the dav module's HTTP client.
+
+strict
+
+VW_CONF=${XDG_CONFIG_HOME:-$HOME/.config}/hibr/vw
+VW_DATA=${XDG_DATA_HOME:-$HOME/.local/share}/hibr/vw
+VW_RUN=${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/hibr-vw-$UID
+VW_ACCT=$VW_CONF/account.json
+VW_VAULT=$VW_DATA/vault.json
+declare -gA VA
+declare -gA VV
+# Set by the dav module after each request; a strict file declares it.
+DAV_CODE=
+
+# A complaint, and the status to leave with.
+fn vw_die(text, int st = 1) {
+	echo "vw: $text" >&2
+	exit "$st"
+}
+
+# Make the folders, private.
+vw_dirs() {
+	umask 077
+	mkdir -p "$VW_CONF" "$VW_DATA" "$VW_RUN" 2> /dev/null
+	chmod 700 "$VW_CONF" "$VW_DATA" "$VW_RUN" 2> /dev/null
+	return 0
+}
+
+# Read the account, or say there is none.
+vw_acct() {
+	[ -r "$VW_ACCT" ] || vw_die "no account here yet: vw server URL, then vw login EMAIL"
+	json parse VA < "$VW_ACCT" || vw_die "$VW_ACCT does not parse"
+}
+
+# Write the account back.
+vw_acctsave() {
+	vw_dirs
+	json emit VA > "$VW_ACCT.new" && mv -f "$VW_ACCT.new" "$VW_ACCT"
+}
+
+
+# The email as an Auth-Email header wants it: base64url, unpadded.
+fn vw_b64url(v) {
+	local t
+
+	t=$(printf '%s' "$v" | base64 | tr -d '\n=' | tr '+/' '-_')
+	ret "$t"
+}
+
+# The server's two halves: identity and API, as a self-hosted server lays them out.
+fn vw_url(which, path) {
+	local b=${VA["server"]%/}
+
+	case $b in
+	https://vault.bitwarden.com | https://bitwarden.com)
+		[ "$which" = identity ] && ret "https://identity.bitwarden.com$path" || ret "https://api.bitwarden.com$path"
+		;;
+	*) ret "$b/$which$path" ;;
+	esac
+}
+
+# A request, its body said or bound; fails with the server's own message when it says no.
+fn vw_req(method, url, body = "", ...hdr) {
+	local r m
+	local -a o=()
+	local -A e
+
+	[ "${VA["noverify"]}" = 1 ] && o+=(-k)
+	for m in "${hdr[@]}"; do o+=(-H "$m"); done
+	[ -n "$body" ] && o+=(-d "$body")
+	if r := dav request "${o[@]}" "$method" "$url" 2> /dev/null; then
+		ret "$r"
+		return 0
+	fi
+	m="${DAV_CODE:-no answer}"
+	if [ -n "$r" ] && json parse e <<< "$r" 2> /dev/null; then
+		m="$m: ${e["ErrorModel"]["Message"]:-${e["message"]:-${e["error_description"]:-${e["error"]}}}}"
+	fi
+	vw_die "$url: $m"
+}
+
+# A form post to the identity server's token endpoint; its reply parsed into VV.
+fn vw_token(form) {
+	local r
+
+	local u
+
+	u := vw_url identity /connect/token
+	r := vw_req POST "$u" "$form" \
+		"Content-Type: application/x-www-form-urlencoded" "Accept: application/json"
+	json parse VV <<< "$r" || vw_die "the server's token reply does not parse"
+}
+
+# The KDF options vwk takes, from the account.
+vw_kdf() {
+	if [ "${VA["kdf"]}" = 1 ]; then
+		ret "-e ${VA["email"]} -k argon2 -i ${VA["iter"]} -m ${VA["mem"]} -p ${VA["par"]}"
+	else
+		ret "-e ${VA["email"]} -k pbkdf2 -i ${VA["iter"]}"
+	fi
+}
+
+# Hand the open key to the next command: a session key to export, the key wrapped under it here.
+vw_session() {
+	local s k w t=${VA["timeout"]:-15} exp=0
+
+	s := vwk session new
+	IFS=$'\t' read -r k w <<< "$s"
+	[ "$t" -gt 0 ] && exp=$((EPOCHSECONDS + t * 60))
+	vw_dirs
+	printf '%s\t%s\n' "$exp" "$w" > "$VW_RUN/session"
+	chmod 600 "$VW_RUN/session"
+	echo "unlocked; to stay unlocked in this shell:" >&2
+	echo "export VW_SESSION=$k"
+}
+
+# Open the key from VW_SESSION, or say the vault is locked.
+vw_open() {
+	local exp w t=${VA["timeout"]:-15}
+
+	[ -n "${VW_SESSION-}" ] && [ -r "$VW_RUN/session" ] || vw_die "locked: vw unlock" 3
+	IFS=$'\t' read -r exp w < "$VW_RUN/session"
+	if [ "$exp" -gt 0 ] && [ "$EPOCHSECONDS" -gt "$exp" ]; then
+		rm -f "$VW_RUN/session"
+		vw_die "locked after $t minutes unused: vw unlock" 3
+	fi
+	vwk session open "$VW_SESSION" "$w" 2> /dev/null || vw_die "locked: this VW_SESSION is not the one in use; vw unlock" 3
+	if [ "$exp" -gt 0 ]; then
+		printf '%s\t%s\n' $((EPOCHSECONDS + t * 60)) "$w" > "$VW_RUN/session"
+	fi
+}
+
+# Fetch the vault and keep it, encrypted as the server sends it: with the
+# access token given, or a new one from the stored login.
+fn vw_dosync(tok = "") {
+	local rt r u
+
+	if [ -z "$tok" ]; then
+		rt := vwk dec "${VA["refresh"]}" || vw_die "the stored login does not open; vw login again"
+		vw_token "grant_type=refresh_token&client_id=cli&refresh_token=$rt"
+		tok=${VV["access_token"]}
+	fi
+	u := vw_url api /sync
+	r := vw_req GET "$u" "" "Authorization: Bearer $tok" "Accept: application/json"
+	vw_dirs
+	printf '%s' "$r" > "$VW_VAULT.new" && mv -f "$VW_VAULT.new" "$VW_VAULT"
+	chmod 600 "$VW_VAULT"
+}
+
+# The vault kept here, parsed into VV.
+vw_vault() {
+	[ -r "$VW_VAULT" ] || vw_die "no vault here yet: vw sync"
+	json parse VV < "$VW_VAULT" || vw_die "$VW_VAULT does not parse"
+}
+
+# One field of item i, decrypted with the item's own key when it has one.
+fn vw_field(int i, path) {
+	local v k=${VV["ciphers"][$i]["key"]} t
+	local -a ks
+
+	IFS=. read -ra ks <<< "$path"
+	case ${#ks[@]} in
+	1) v=${VV["ciphers"][$i]["${ks[0]}"]} ;;
+	2) v=${VV["ciphers"][$i]["${ks[0]}"]["${ks[1]}"]} ;;
+	*) v=${VV["ciphers"][$i]["${ks[0]}"]["${ks[1]}"][${ks[2]}]["${ks[3]}"]} ;;
+	esac
+	[ -n "$v" ] && [ "$v" != null ] || return 1
+	if [ -n "$k" ] && [ "$k" != null ]; then
+		t := vwk dec -k "$k" "$v" || return 1
+	else
+		t := vwk dec "$v" || return 1
+	fi
+	ret "$t"
+}
+
+# The item a name or an id names: its index, or a complaint when none or several match.
+fn vw_find(q) {
+	local i=0 nm hit=-1 n=0
+
+	while [ -n "${VV["ciphers"][$i]["id"]+x}" ]; do
+		if [ "${VV["ciphers"][$i]["id"]}" = "$q" ]; then
+			ret "$i"
+			return 0
+		fi
+		nm := vw_field "$i" name
+		if [ "${nm,,}" = "${q,,}" ]; then
+			ret "$i"
+			return 0
+		fi
+		if [[ ${nm,,} == *"${q,,}"* ]]; then
+			hit=$i
+			n=$((n + 1))
+		fi
+		i=$((i + 1))
+	done
+	[ "$n" = 1 ] && { ret "$hit"; return 0; }
+	[ "$n" = 0 ] && vw_die "nothing is called $q"
+	vw_die "$n items have $q in their names; give more of one, or its id"
+}
+
+fn vw_cmd(cmd = "", ...rest) {
+	local r h kdf i nm us q f t
+	local -a o
+
+	case $cmd in
+	server)
+		[ "${#rest[@]}" -ge 1 ] || vw_die "usage: vw server URL [-k]" 2
+		[ -r "$VW_ACCT" ] && json parse VA < "$VW_ACCT"
+		VA["server"]=${rest[0]%/}
+		VA["noverify"]=0
+		[ "${rest[1]-}" = -k ] && VA["noverify"]=1
+		vw_acctsave
+		;;
+	login)
+		[ "${#rest[@]}" = 1 ] || vw_die "usage: vw login EMAIL" 2
+		vw_acct
+		VA["email"]=${rest[0],,}
+		f := vw_url identity /accounts/prelogin
+		r := vw_req POST "$f" "{\"email\":\"${VA["email"]}\"}" \
+			"Content-Type: application/json"
+		json parse VV <<< "$r" || vw_die "the server's prelogin reply does not parse"
+		VA["kdf"]=${VV["kdf"]:-${VV["Kdf"]:-0}}
+		VA["iter"]=${VV["kdfIterations"]:-${VV["KdfIterations"]:-600000}}
+		VA["mem"]=${VV["kdfMemory"]:-64}
+		VA["par"]=${VV["kdfParallelism"]:-4}
+		[ "${VA["mem"]}" = null ] && VA["mem"]=64
+		[ "${VA["par"]}" = null ] && VA["par"]=4
+		kdf := vw_kdf
+		read -ra o <<< "$kdf"
+		h := vwk hash "${o[@]}" ${VW_STDIN:+-s} || vw_die "the password could not be read"
+		q := vwk form "${VA["email"]}"
+		h := vwk form "$h"
+		us := vw_b64url "${VA["email"]}"
+		f := vw_url identity /connect/token
+		t := vw_devid
+		r := vw_req POST "$f" \
+			"grant_type=password&username=$q&password=$h&scope=api%20offline_access&client_id=cli&deviceType=8&deviceIdentifier=$t&deviceName=hibr" \
+			"Content-Type: application/x-www-form-urlencoded" "Accept: application/json" "Auth-Email: $us"
+		json parse VV <<< "$r" || vw_die "the server's token reply does not parse"
+		VA["key"]=${VV["Key"]}
+		vwk open "${VA["key"]}" || vw_die "the account's key does not open"
+		VA["refresh"] := vwk enc "${VV["refresh_token"]}"
+		vw_acctsave
+		vw_dosync "${VV["access_token"]}"
+		vw_session
+		;;
+	unlock)
+		vw_acct
+		[ -n "${VA["key"]}" ] || vw_die "not logged in yet: vw login EMAIL"
+		kdf := vw_kdf
+		read -ra o <<< "$kdf"
+		if [ "${rest[0]-}" = --pin ]; then
+			[ -n "${VA["pin"]}" ] || vw_die "no PIN is set: vw pin set"
+			vwk pin open "${o[@]}" ${VW_STDIN:+-s} "${VA["pin"]}" || vw_die "wrong PIN"
+		else
+			vwk hash "${o[@]}" ${VW_STDIN:+-s} > /dev/null || vw_die "the password could not be read"
+			vwk open "${VA["key"]}" || vw_die "wrong master password"
+		fi
+		vw_session
+		;;
+	lock)
+		rm -f "$VW_RUN/session"
+		vwk lock
+		vw_acct
+		[ "${VA["pinkeep"]}" = 1 ] || { VA["pin"]=; vw_acctsave; }
+		echo "locked" >&2
+		;;
+	sync)
+		vw_acct
+		vw_open
+		vw_dosync
+		vw_vault
+		i=0
+		while [ -n "${VV["ciphers"][$i]["id"]+x}" ]; do i=$((i + 1)); done
+		echo "$i items" >&2
+		;;
+	list)
+		vw_acct
+		vw_open
+		vw_vault
+		q=${rest[0]-}
+		i=0
+		while [ -n "${VV["ciphers"][$i]["id"]+x}" ]; do
+			nm := vw_field "$i" name
+			us := vw_field "$i" login.username || us=
+			if [ -z "$q" ] || [[ ${nm,,} == *"${q,,}"* || ${us,,} == *"${q,,}"* ]]; then
+				printf '%s\t%s\t%s\n' "${VV["ciphers"][$i]["id"]}" "$nm" "$us"
+			fi
+			i=$((i + 1))
+		done
+		;;
+	get)
+		[ "${#rest[@]}" = 2 ] || vw_die "usage: vw get password|username|totp|notes|uri|item NAME-OR-ID" 2
+		vw_acct
+		vw_open
+		vw_vault
+		i := vw_find "${rest[1]}"
+		case ${rest[0]} in
+		password) f := vw_field "$i" login.password || vw_die "it has no password" ;;
+		username) f := vw_field "$i" login.username || vw_die "it has no username" ;;
+		notes) f := vw_field "$i" notes || vw_die "it has no notes" ;;
+		uri) f := vw_field "$i" login.uris.0.uri || vw_die "it has no address" ;;
+		totp)
+			t := vw_field "$i" login.totp || vw_die "it has no TOTP"
+			f := vwk totp "$t"
+			;;
+		item)
+			nm := vw_field "$i" name
+			f="name: $nm"
+			us := vw_field "$i" login.username && f+=$'\n'"username: $us"
+			t := vw_field "$i" login.uris.0.uri && f+=$'\n'"uri: $t"
+			t := vw_field "$i" notes && f+=$'\n'"notes: $t"
+			;;
+		*) vw_die "usage: vw get password|username|totp|notes|uri|item NAME-OR-ID" 2 ;;
+		esac
+		printf '%s\n' "$f"
+		;;
+	pin)
+		vw_acct
+		case ${rest[0]-} in
+		set)
+			vw_open
+			kdf := vw_kdf
+			read -ra o <<< "$kdf"
+			VA["pin"] := vwk pin wrap "${o[@]}" ${VW_STDIN:+-s} || vw_die "the PIN could not be set"
+			VA["pinkeep"]=0
+			[ "${rest[1]-}" = --keep ] && VA["pinkeep"]=1
+			vw_acctsave
+			echo "PIN set" >&2
+			;;
+		clear)
+			VA["pin"]=
+			VA["pinkeep"]=0
+			vw_acctsave
+			;;
+		*) vw_die "usage: vw pin set [--keep] | clear" 2 ;;
+		esac
+		;;
+	timeout)
+		[ "${#rest[@]}" = 1 ] && [[ ${rest[0]} =~ ^[0-9]+$ ]] || vw_die "usage: vw timeout MINUTES" 2
+		vw_acct
+		VA["timeout"]=${rest[0]}
+		vw_acctsave
+		;;
+	status)
+		[ -r "$VW_ACCT" ] || { echo "no account"; return 0; }
+		vw_acct
+		t=locked
+		if [ -n "${VW_SESSION-}" ] && [ -r "$VW_RUN/session" ]; then
+			IFS=$'\t' read -r f r < "$VW_RUN/session"
+			[ "$f" = 0 ] || [ "$EPOCHSECONDS" -le "$f" ] && t=unlocked
+		fi
+		printf 'server %s\nemail %s\n%s\n' "${VA["server"]}" "${VA["email"]:-none}" "$t"
+		[ -n "${VA["pin"]}" ] && echo "PIN set"
+		[ -r "$VW_VAULT" ] && printf 'synced %(%F %T)T\n' "$(stat -c %Y "$VW_VAULT" 2> /dev/null || stat -f %m "$VW_VAULT" 2> /dev/null || echo 0)"
+		;;
+	*)
+		sed -n '3,17s/^# \{0,1\}//p' "$0" >&2
+		return 2
+		;;
+	esac
+}
+
+# This machine's device id, made once and kept.
+vw_devid() {
+	local f=$VW_CONF/device
+
+	if [ ! -s "$f" ]; then
+		vw_dirs
+		printf '%s\n' "$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n' | sed 's/\(........\)\(....\)\(....\)\(....\)/\1-\2-\3-\4-/')" > "$f"
+	fi
+	read -r f < "$f"
+	ret "$f"
+}
+
+need vw 2> /dev/null || vw_die "the vw module is not installed"
+need dav 2> /dev/null || vw_die "the dav module is not installed"
+vw_cmd "$@"

@@ -43,7 +43,8 @@ MODS = $(B)/mods/sys.so $(B)/mods/http.so $(B)/mods/ls.so $(B)/mods/prompt.so \
        $(B)/mods/sysinfo.so $(B)/mods/pty.so \
        $(B)/mods/term.so $(B)/mods/hold.so $(B)/mods/img.so \
        $(B)/mods/lint.so $(B)/mods/db.so $(B)/mods/md.so $(B)/mods/pim.so $(B)/mods/html.so $(B)/mods/email.so $(B)/mods/math.so $(B)/mods/web.so \
-       $(B)/mods/dav.so $(B)/mods/media.so $(B)/mods/auth.so $(B)/mods/csv.so $(B)/mods/lines.so $(B)/mods/uni.so $(B)/mods/lang.so $(B)/mods/hcal.so $(B)/mods/salat.so
+       $(B)/mods/dav.so $(B)/mods/media.so $(B)/mods/auth.so $(B)/mods/csv.so $(B)/mods/lines.so $(B)/mods/uni.so $(B)/mods/lang.so $(B)/mods/hcal.so $(B)/mods/salat.so \
+       $(B)/mods/vw.so
 
 # darwin.c reaches Mach headers (mach/mach.h and kin) that only exist on
 # Darwin at all, so it is not in MODS above and never built, or even asked
@@ -139,6 +140,9 @@ $(B)/mods/hcal.so: mods/hcal/hcal.c include/hibr.h | $(B)/mods
 
 $(B)/mods/salat.so: mods/salat/salat.c include/hibr.h | $(B)/mods
 	$(CC) $(CFLAGS) -DHIBR_SHAREDIR=\"$(SHAREDIR)\" $(SOFLAGS) -o $@ mods/salat/salat.c -lm
+
+$(B)/mods/vw.so: mods/vw/vw.c include/hibr.h | $(B)/mods
+	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ mods/vw/vw.c $(DLLIB)
 
 $(B)/mods/math.so: mods/math.c include/hibr.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ mods/math.c -lm
@@ -244,9 +248,14 @@ install: all
 	sed 's|@DESKDIR@|$(DESKDIR)|' tools/desktop-launcher.in \
 		> $(DESTDIR)$(PREFIX)/bin/desktop
 	chmod 755 $(DESTDIR)$(PREFIX)/bin/desktop
+	install -m 644 examples/vw.hibr $(DESTDIR)$(SHAREDIR)/vw.hibr
+	sed 's|@SHAREDIR@|$(SHAREDIR)|' tools/vw-launcher.in \
+		> $(DESTDIR)$(PREFIX)/bin/vw
+	chmod 755 $(DESTDIR)$(PREFIX)/bin/vw
 
 uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/bin/hibr $(DESTDIR)$(PREFIX)/bin/desktop \
+		$(DESTDIR)$(PREFIX)/bin/vw $(DESTDIR)$(SHAREDIR)/vw.hibr \
 		$(DESTDIR)$(MANDIR)/man1/hibr.1
 	rm -rf $(DESTDIR)$(MODDIR) $(DESTDIR)$(PREFIX)/include/hibr \
 		$(DESTDIR)$(DESKDIR)

@@ -45,6 +45,7 @@ address it begins with.
 | `dav server set NAME URL [-u USER] [-p PASS] [-k\|-K]` | add a server or change one; what is not given stays as it was; `-k` stops checking its certificate (a NAS with its own), `-K` starts again |
 | `dav server rm NAME`, `dav server rename OLD NEW` | |
 | `dav close` | close every connection and forget every login learned |
+| `dav request [-H 'Name: value']... [-d BODY] [-k] METHOD URL` | any HTTP request to any address, with no server's login -- for an API that is not WebDAV (the `vw` command's Bitwarden requests); the reply's body is said, or bound under `:=`, and `$DAV_CODE` is its status, whatever it is, since an API's error has a body too; `-k` does not check the certificate |
 
 `$DAV_CODE` holds the last HTTP status (0 when nothing answered), so a
 script can tell a conflict (412) from a missing file (404) from a refused

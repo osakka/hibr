@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.99.68
+
+**Bitwarden and Vaultwarden from the shell** (Gitea #71). A new command,
+`vw`, logs in to a Bitwarden-compatible server -- Vaultwarden,
+self-hosted, first -- syncs the vault and reads it: `vw list`, `vw get
+password|username|totp|notes|uri|item NAME`. The vault is kept here
+encrypted, exactly as the server sends it, so `vw unlock` and everything
+after it work offline; `vw sync` fetches it again with the stored login,
+no password. Unlocking prints `export VW_SESSION=...`, as Bitwarden's own
+CLI does with BW_SESSION, and the vault locks after `vw timeout` minutes
+unused (15 unless set). A **PIN** can unlock it too (`vw pin set`), until
+the next lock, or for good with `--keep`.
+
+The keys never leave a new module, `vw`, whose builtin `vwk` does the
+crypto -- PBKDF2 or Argon2id, Bitwarden's EncStrings (AES-256-CBC with an
+HMAC checked first), the session and PIN wrapping, TOTP -- with libcrypto
+loaded at run time (ADR 0036). Nothing decrypted is ever written to disk,
+and the suite checks that it is not. The crypto is tested against an
+account built independently with Python's cryptography package, and the
+command against a stand-in server. It reads; changing items,
+organisations, two-step login and a desktop app are still to come.
+
+`dav request` is a plain HTTP request to any address, for an API that is
+not WebDAV -- the vw command's requests go through it.
+
+**tests/apps.py runs as four parts** (Gitea #101): `apps_panel`,
+`apps_reach`, `apps_core` and `apps_more`, side by side, each cut from
+apps.py at run time by `tests/appslice.py`, so apps.py is still the one
+place a check is written and still runs whole. The same 548 checks;
+the suite's twelve minutes become the slowest part's eight and a half.
+`tests/affected.py` now also picks the dav, web, media, YouTube and
+markdown suites when their own module changes -- it never did.
+
 ## 0.99.67
 
 **Prayer times** (Gitea #70). A new module, `salat`, works out the day's
