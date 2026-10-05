@@ -16,12 +16,42 @@ strict
 # with nothing on screen changing.
 DT_IDLEMS="${DT_IDLEMS-60000}"
 
+# What each stage of starting cost, in ms, for the one line the log gets.
+DT_TSTART=
+DT_TLAST=
+
+# One stage of starting done: its cost since the one before, kept for dt_tdone.
+fn dt_tstamp(what) {
+	local now=$EPOCHREALTIME
+
+	[ -n "$DT_T0" ] || return 0
+	now=${now/./}
+	[ -n "$DT_TLAST" ] || DT_TLAST=${DT_T0/./}
+	DT_TSTART+="${DT_TSTART:+, }$what $(( (now - DT_TLAST) / 1000 ))"
+	DT_TLAST=$now
+}
+
+# The first frame is up: say in the log how long starting took, and stop timing.
+dt_tdone() {
+	local now=$EPOCHREALTIME
+
+	[ -n "$DT_T0" ] || return 0
+	dt_tstamp "first frame"
+	now=${now/./}
+	dt_rslog "started in $(( (now - ${DT_T0/./}) / 1000 )) ms: $DT_TSTART"
+	export -n DT_T0
+	DT_T0=
+	DT_TSTART=
+	DT_TLAST=
+}
+
 # Open the display, take the mouse, and note how big the screen is.
 #
 # ctrl-c, ctrl-\ and ctrl-z become keys rather than signals: the desktop is
 # left by Quit, never by a stray interrupt, and the key goes to the focused
 # window -- which is how a program in a terminal window gets its ctrl-c.
 dt_open() {
+	dt_tstamp "apps"
 	dt_supervise
 	# One app's arithmetic slip, or one function nesting too deep, fails
 	# that command and is written to the log -- it does not end the
@@ -30,6 +60,7 @@ dt_open() {
 	title "hibr [desktop]"
 	dt_load
 	console open || return 1
+	dt_tstamp "console"
 	trap 'dt_onstop HUP' HUP
 	trap 'dt_onstop TERM' TERM
 	# What a cell left at the terminal's own default colour should darken
@@ -67,6 +98,7 @@ dt_open() {
 	dt_snaptake
 	dt_restore
 	dt_ctlopen
+	dt_tstamp "open"
 }
 
 # Re-read the screen size after a resize, and this desktop's own primary
@@ -220,6 +252,7 @@ dt_run() {
 				dt_autoclose
 				skipn=0
 				frames=$((frames + 1))
+				[ "$frames" = 1 ] && dt_tdone
 			fi
 		fi
 		dt_updcheck

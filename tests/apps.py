@@ -1848,7 +1848,8 @@ sc = run("term", "10 36 2 2", feed=[b"\x17", 0.5], wait=1.6, end=None,
 check("unless Terminals Keep Ctrl+A-Z is off: then ctrl-w closes it too",
       sc.find("┤ Term") is None, sc)
 sc = run("term", "10 36 2 2", wait=1.6, end=None,
-         feed=[b"\x1b[21~", 0.3, b"\x1b[C", b"\x1b[C", b"\x1b[C", 0.3],
+         feed=[b"\x1b[21~", 0.3, b"\x1b[C", b"\x1b[C", b"\x1b[C", b"\x1b[C",
+               0.3],
          pre=SH + "\nDT_TERMKEEP=1")
 check("the Window menu offers Pass Every Key on a terminal",
       sc.find("Pass Every Key") is not None, sc)

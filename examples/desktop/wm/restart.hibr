@@ -107,6 +107,8 @@ dt_restart() {
 		exec {DT_ERR}>&-
 	fi
 	export DT_RESTORE=$f
+	DT_T0=$EPOCHREALTIME
+	export DT_T0
 	exec "$HIBR" "$DT_SELF0" "${DT_SELFARGS[@]}"
 	export -n DT_RESTORE
 	DT_RESTORE=

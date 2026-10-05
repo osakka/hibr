@@ -321,8 +321,10 @@ char *j_slurp(FILE *f)
 	size_t n;
 
 	s_init(&b);
+	clearerr(f);
 	while ((n = fread(buf, 1, HIBR_IOCH, f)) > 0)
 		s_add(&b, buf, n);
+	clearerr(f);
 	free(buf);
 	if (!b.p)
 		s_cat(&b, "");

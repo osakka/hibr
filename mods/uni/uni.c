@@ -229,6 +229,7 @@ int un_lvbi(sh *s, int ac, char **av)
 	(void)s;
 	s_init(&o);
 	s_init(&l);
+	clearerr(stdin);
 	while ((c = getchar()) != EOF) {
 		if (c != '\n') {
 			s_ch(&l, c);

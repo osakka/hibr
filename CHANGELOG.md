@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.99.61
+
+**Restart Desktop works on a Mac.** `json parse NAME < file` read its
+input through the C library's stream, and on macOS a stream that has once
+reached the end of a file stays there: the second `json parse < file` in
+a process read nothing. The desktop reads its clipboard history that way
+just before putting a restart's windows back, so on a Mac every restart
+found its saved state "malformed", set it aside as `state.json.bad`, and
+came back with nothing -- a terminal's shell included -- and Control
+Panel > Appearance listed no themes and no colour schemes, every file
+after the first read as empty and refused. Each read now
+starts and ends with the stream's end-of-file cleared; `uni levels`
+likewise.
+
+**Task Manager logs nothing for a process with no memory figure.** A
+zombie or a kernel thread has no `VmRSS`, and the Linux scan stored that
+empty, so every redraw logged `tasks_human: kb expects int, got ''` for
+each one; it counts as 0 now, as the macOS scan already did.
+
+**The Terminal's menus begin with File and Edit**, then Shell, as every
+other app's do: File has New Window and Close Window.
+
+**The log says how long the desktop took to start**: one line in
+`desktop.log` after the first frame -- `started in 94 ms: window manager
+21, apps 37, console 0, open 2, first frame 32` -- timed from the first
+process, across the hold re-exec and the supervisor, and again after a
+restart. A slow start says where it went.
+
 ## 0.99.60
 
 **Control Panel's panes and Files turn round** (Gitea #68, phase 4c).

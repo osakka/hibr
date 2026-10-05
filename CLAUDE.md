@@ -56,8 +56,11 @@ Sanitizers come in two tiers. `tests/asan.py --quick` is the gate a release
 that changes C waits for (minutes): run.sh, self.hibr, the parser fuzzer,
 the quick C module suites (`QUICK` in `tests/asan.py`: cat, console,
 term_diff, md_spec, html_tree, mail, pim, pim_rrule, dav), and the suites a
-module changed since the last tag reaches. The full `tests/asan.py` runs after every release, and
-any report it makes is a ticket at once. By hand, the core alone:
+module changed since the last tag reaches; a release that changes no C
+skips it. The full `tests/asan.py` is not run per release: once a day, at
+the end of a long session, or after a risky C change -- one at a time, never
+beside a gate, whose time it doubles. Any report it makes is a ticket at
+once. By hand, the core alone:
 
     gcc -Iinclude -DHIBR_TLS -g -O1 -fsanitize=address,undefined \
         -fno-sanitize-recover=undefined -w -rdynamic -o build/hibr.asan src/*.c -ldl
@@ -1958,6 +1961,14 @@ went in the shell.
   `v_named`, which every set and unset calls with the name -- reading it on
   each call cost 2.4% on a loop of function calls, the cache 0.42%. Its
   state lives in globals, not on `sh`, so the ABI did not move.
+- **A C stream's end of file is sticky on macOS.** `json parse X < file`
+  read stdin with `fread`, and BSD libc keeps `feof` set once a stream has
+  reached the end -- so the second such read in a process got nothing,
+  though fd 0 was a new file by then. glibc never showed it. The desktop's
+  clipboard history is read that way just before a restart's state, so
+  every Mac restart lost its windows. `j_slurp` clears the stream's error
+  and end-of-file before and after (`tests/999-json-twice.t`); anything
+  else that reads stdin through stdio more than once needs the same.
 - **A script reaps its background jobs before starting the next.** bash
   reaps on `SIGCHLD`; hibr reaped only at the interactive prompt, `wait`
   and `jobs`, so a script that never waited -- the desktop, polling its

@@ -290,7 +290,7 @@ fn tasks_scan(int id) {
 		TK[$id][$n]["name"]=$name
 		TK[$id][$n]["owner"]=$owner
 		TK[$id][$n]["cpu"]=$pct
-		TK[$id][$n]["mem"]=$rss
+		TK[$id][$n]["mem"]=${rss:-0}
 		n=$((n + 1))
 	done
 	TK_PREV[$id]["t"]=$now
@@ -780,7 +780,7 @@ fn tdetail_draw(int? id = "", int? h = "", int? w = "", int? row = "", int? col 
 	dt_tput "$id" 1 2 "PID:    %s" "${TD[$id]["pid"]}"
 	dt_tput "$id" 2 2 "Name:   %s" "${TD[$id]["name"]}"
 	dt_tput "$id" 3 2 "Owner:  %s" "${TD[$id]["owner"]}"
-	mem := tasks_human "${TD[$id]["mem"]}"
+	mem := tasks_human "${TD[$id]["mem"]:-0}"
 	dt_tput "$id" 4 2 "CPU:    %s%%       Memory: %s" "${TD[$id]["cpu"]}" "$mem"
 	console pen "$DT_DIM" "$DT_FACE"
 	dt_tput "$id" 6 2 "Command:"

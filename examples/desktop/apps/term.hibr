@@ -583,6 +583,11 @@ term_menus() {
 	local t n
 
 	t=${TW[$DT_FOCUS]["t"]}
+	dt_menu "File"
+	dt_item "New Window" n dt_launch term
+	dt_sep
+	dt_item "Close Window" w dt_close_focused
+	dt_editmenu
 	dt_menu "Shell"
 	if [ -n "$t" ]; then
 		n := term title "$t"
@@ -598,8 +603,6 @@ term_menus() {
 	else
 		dt_dim "Not started"
 	fi
-	dt_sep
-	dt_item "Close" w dt_close_focused
 }
 
 if [ -z "$DT_ROWS" ]; then

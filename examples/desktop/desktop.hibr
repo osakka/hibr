@@ -39,6 +39,11 @@ fi
 
 strict
 
+# When starting began, carried across the hold re-exec and the supervisor,
+# so the log can say what each stage of it cost (dt_tstamp).
+DT_T0=${DT_T0:-$EPOCHREALTIME}
+export DT_T0
+
 DT_HERE=${BASH_SOURCE%/*}
 [ "$DT_HERE" = "$BASH_SOURCE" ] && DT_HERE=.
 
@@ -57,3 +62,4 @@ for dt_part in "$DT_HERE"/widgets/*.hibr; do
 	. "$dt_part"
 done
 unset dt_part
+dt_tstamp "window manager"
