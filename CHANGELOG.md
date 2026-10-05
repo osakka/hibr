@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.99.47
+
+**An About card keeps the end of a long path.** The card cut the app's
+file path to its width from the right, so a path longer than the card
+lost the file's own name -- which is how the About check failed in every
+full sanitizer run, made from a worktree deep under the job folder, and
+in none of the ordinary ones. A long path now shows its end, after an
+ellipsis. And the app menu's builder reads into a declared local rather
+than `_`, which strict vars took for a new global; the change had been
+sitting in the working tree, tested by every gate and shipped by none.
+
 ## 0.99.46
 
 **`desktop ctl resize` is measured against the window's own display.**

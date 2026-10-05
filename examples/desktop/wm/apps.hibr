@@ -143,7 +143,7 @@ dt_appnames() {
 # submenu is its own menu with its own letters otherwise: About hibr, Quit
 # and the rest only need keeping clear of at the top.
 fn dt_appmenu(prefix, used = "") {
-	local n d l child k path kind
+	local n d l child k path kind discard
 	local -a all seen
 
 	for n in "${!DT_APPS[@]}"; do
@@ -174,7 +174,7 @@ fn dt_appmenu(prefix, used = "") {
 	[ "${#all[@]}" -eq 0 ] && return 0
 	arr sort all
 	for l in "${all[@]}"; do
-		IFS=$'\t' read -r _ kind path <<< "$l"
+		IFS=$'\t' read -r discard kind path <<< "$l"
 		if [ "$kind" = f ]; then
 			dt_sub "${path##*/}"
 			dt_appmenu "$path"

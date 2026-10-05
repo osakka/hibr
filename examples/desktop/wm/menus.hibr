@@ -497,7 +497,8 @@ fn dtabout_draw(int id, int h, int w, int row, int col) {
 	console put -p "w$id" $((r - 1)) 2 "$line"
 	console pen "$DT_DIM" "$DT_FACE"
 	f=${f/#$HOME/\~}
-	console put -p "w$id" "$r" 2 "${f:0:$((w - 4))}"
+	[ "${#f}" -gt $((w - 4)) ] && f="${GL["ellipsis"]}${f: -$((w - 5))}"
+	console put -p "w$id" "$r" 2 "$f"
 	console put -p "w$id" $((r + 1)) 2 "hibr $HIBR_VERSION"
 	dt_dlgbtns "$id" "$h" "$w" ok ok OK
 }
