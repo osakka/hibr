@@ -73,6 +73,26 @@ wrapper script.
 Dependencies: libc and libdl only. libssl is `dlopen`ed on first TLS use, never
 linked, and no OpenSSL headers are needed to build.
 
+## Editing this tree
+
+Use hibr's own `lines` module rather than sed, grep or a python replace
+(Gitea #67). From any shell:
+
+    hibr -c 'need lines; lines show src/expand.c 1300 1320'
+    hibr -c 'need lines; lines grep -C 3 dt_want src mods examples'
+    hibr -c 'need lines; lines edit tests/apps.py' <<'E'
+    <<<<
+    old text, any number of lines
+    ====
+    new text
+    >>>>
+    E
+
+`edit` applies its blocks in order and writes nothing unless every old
+text occurs exactly once at its turn; end an old text with an empty line to
+take the line ending with it. `-n` checks without writing. `need` loads
+the installed module; for one not yet released, `HIBR_MODPATH=build/mods`.
+
 ## Coding conventions (non-negotiable)
 
 - **C, built with tcc.** Everything must compile under `tcc` with no warnings
@@ -144,6 +164,7 @@ linked, and no OpenSSL headers are needed to build.
 | `mods/pim/` | calendars and contacts: iCalendar and vCard parse and build, RRULE expansion checked rule by rule against python-dateutil on RFC 5545's examples (`tests/pim_rrule.py`, its answers kept in `tests/pim/rrule.txt`), zones through zoneinfo with TZ put back, iTIP replies -- see `mods/pim/README.md`; the dav module carries them (`propfind`, `report`, `sync`) |
 | `examples/desktop/wm/ctl.hibr` | the desktop's control socket, for Blit and tests: displays, windows, move/resize/focus as JSON, one request per connection, served between frames; `desktop ctl` (`lib/ctl.hibr`) is the client -- see the desktop README's Controlling a running desktop |
 | `mods/csv.c` | CSV as RFC 4180 says: `csv read` (a map, built in one pass -- `hibr_setp` per field was quadratic, 50,000 rows took 3.5 minutes, now 0.24 s), `open`/`row`/`close` streaming, `line`, `split`; Sheet's CSV goes through it |
+| `mods/lines.c` | `lines show|grep|count|edit`: slicing, tree search and exact multi-line edits, so work on this tree needs no sed, grep or python -- see Editing this tree |
 | `mods/email/` | IMAP (IDLE, Gmail's labels), POP3, SMTP and MIME; accounts in a 0600 file; `tests/mailserve.py` is the suites' stand-in server; the Mail app (`apps/Internet/mail.hibr`) keeps accounts offline through `examples/desktop/lib/mailsync.hibr` -- see `mods/email/README.md` |
 
 Each directory carries its own `README.md` with the detail: `src/`, `include/`,

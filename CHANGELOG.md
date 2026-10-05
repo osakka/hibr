@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.99.48
+
+**The `lines` module: show, search and edit files by line, exactly**
+(Gitea #67). Work on this tree reached for `sed -n`, `grep -rn` and a
+python replace that refuses an ambiguous anchor; a hibr script doing the
+same was 60 to 270 times slower, so it is C. `lines show` prints a range
+byte for byte; `lines grep` searches a tree with grep's output and
+context, as fast as GNU grep on a plain pattern; `lines count` counts a
+literal; `lines edit` takes `<<<<` old `====` new `>>>>` blocks on
+standard input, applies them in order, and writes nothing unless each
+old text occurs exactly once at its turn -- then through a new file
+renamed over the old, its mode kept. CLAUDE.md now says to use it.
+
 ## 0.99.47
 
 **An About card keeps the end of a long path.** The card cut the app's

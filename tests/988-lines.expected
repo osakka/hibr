@@ -1,0 +1,53 @@
+0
+== show
+two
+three
+4	four
+5	five
+no newline at the end
+hibr: lines show: 3 2: not a range of lines
+backwards: 2
+== grep
+a.txt:2:two
+a.txt:2:two
+sub/c.txt:2:TWO beta
+a.txt-2-two
+a.txt:3:three
+a.txt-4-four
+a.txt-1-one
+a.txt:2:two
+a.txt-3-three
+./a.txt
+./sub/c.txt
+./sub/c.txt:2:TWO beta
+no match: 1
+hibr: lines grep: (: not a regular expression
+bad pattern: 2
+== count
+3
+0
+== edit
+a.txt: 2 changes
+one
+2 and 3
+four
+5
+hibr: lines edit: a.txt: block 2 found 2 times: o
+ambiguous, and the first block not written: 1
+one
+2 and 3
+four
+5
+a.txt: 1 change would apply
+a.txt: 1 change
+one
+2 and 3
+5
+hibr: lines edit: text outside a block: stray
+outside a block: 1
+hibr: lines edit: block 1: no ==== and >>>> to end it
+unended: 1
+a.txt
+b.txt
+bin.dat
+sub
