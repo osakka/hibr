@@ -501,10 +501,17 @@ fn tasks_draw(int id, int h, int w, int row, int col) {
 	owner := str pad "$lo" "$ownerw"
 	cpu := tasks_rjust "$lc" 6
 	mem := tasks_rjust "$lm" 7
-	console put -p "w$id" 1 1 "$pidtxt $t $owner $cpu $mem"
 	# Where each heading starts, for tasks_click: pid, name, owner, cpu,
-	# mem, and where the last one ends.
-	TK[$id]["hx"]="1 $((pidw + 2)) $((pidw + namew + 3)) $((pidw + namew + ownerw + 4)) $((pidw + namew + ownerw + 11)) $((pidw + namew + ownerw + 18))"
+	# mem, and where the last one ends. Mirrored, the columns run the
+	# other way, the name right-aligned: a start and end per column.
+	if [ "$DT_MIRRORON" = 1 ]; then
+		t := dt_rpad "$ln" "$namew"
+		console put -p "w$id" 1 2 "$mem $cpu $owner $t $pidtxt"
+		TK[$id]["hx"]="m $((ownerw + namew + 19)) $((ownerw + namew + 19 + pidw)) $((ownerw + 18)) $((ownerw + namew + 18)) 17 $((17 + ownerw)) 10 16 2 9"
+	else
+		console put -p "w$id" 1 1 "$pidtxt $t $owner $cpu $mem"
+		TK[$id]["hx"]="1 $((pidw + 2)) $((pidw + namew + 3)) $((pidw + namew + ownerw + 4)) $((pidw + namew + ownerw + 11)) $((pidw + namew + ownerw + 18))"
+	fi
 
 	i=$top
 	r=2
@@ -524,6 +531,11 @@ fn tasks_draw(int id, int h, int w, int row, int col) {
 			mem := tasks_human "${TK[$id][$i]["mem"]}"
 			mem := tasks_rjust "$mem" 7
 			line="$pidtxt $t $owner $cpu $mem"
+			if [ "$DT_MIRRORON" = 1 ]; then
+				t=${t%"${t##*[! ]}"}
+				t := dt_rpad "$t" "$namew"
+				line="$mem $cpu $owner $t $pidtxt"
+			fi
 		else
 			line := str pad "" $((pidw + namew + ownerw + 17))
 		fi
@@ -532,11 +544,13 @@ fn tasks_draw(int id, int h, int w, int row, int col) {
 		else
 			console pen "$DT_INK" "$DT_FACE"
 		fi
-		console put -p "w$id" "$r" 1 "$line"
+		console put -p "w$id" "$r" $((1 + ${DT_MIRRORON:-0})) "$line"
 		i=$((i + 1))
 		r=$((r + 1))
 	done
-	[ "$TK_BAR" = 1 ] && dt_scrollbar "$id" 2 $((w - 1)) "$vis" "$n" "$vis" "$top"
+	t=$((w - 1))
+	[ "$DT_MIRRORON" = 1 ] && t=1
+	[ "$TK_BAR" = 1 ] && dt_scrollbar "$id" 2 "$t" "$vis" "$n" "$vis" "$top"
 	if [ "$showgraph" = 1 ]; then
 		leftw=$(((w - 2 - 1) / 2))
 		rightw=$((w - 2 - 1 - leftw))
@@ -602,6 +616,17 @@ fn tasks_click(int id, int r, int? c = "", btn = "") {
 	# the context menu calls this with a row alone.
 	if [ "$r" = 1 ] && [ -n "$c" ]; then
 		read -r -a hx <<< "${TK[$id]["hx"]}"
+		if [ "${hx[0]}" = m ]; then
+			k=0
+			while [ "$k" -lt 5 ]; do
+				if [ "$c" -ge "${hx[$((1 + 2 * k))]}" ] && [ "$c" -lt "${hx[$((2 + 2 * k))]}" ]; then
+					tasks_headsort "$id" "${TK_COLS[$k]}"
+					return 0
+				fi
+				k=$((k + 1))
+			done
+			return 0
+		fi
 		k=0
 		while [ "$k" -lt 5 ]; do
 			if [ "$c" -ge "${hx[$k]:-0}" ] && [ "$c" -lt "${hx[$((k + 1))]:-0}" ]; then
@@ -614,7 +639,10 @@ fn tasks_click(int id, int r, int? c = "", btn = "") {
 	fi
 	# The scrollbar's track: a click jumps there, as far through the list
 	# as it is down the track.
-	if [ "$TK_BAR" = 1 ] && [ -n "$c" ] && [ "$c" = $((${TK[$id]["w"]:-0} - 1)) ] &&
+	local bc=$((${TK[$id]["w"]:-0} - 1))
+
+	[ "$DT_MIRRORON" = 1 ] && bc=1
+	if [ "$TK_BAR" = 1 ] && [ -n "$c" ] && [ "$c" = "$bc" ] &&
 	   [ "$r" -ge 2 ] && [ "$r" -le $((vis + 1)) ] && [ "$n" -gt "$vis" ]; then
 		if [ "$vis" -gt 1 ]; then
 			top=$(((r - 2) * (n - vis) / (vis - 1)))

@@ -59,5 +59,10 @@ mirrored layout with it, and `tests/uifuzz.py` runs clean under it.
   it, left and right arrows following what is seen) and the file dialog.
 - Mirrored in 0.99.64: Calendar's month and day list (the week from the
   right; the agenda view not yet) and Contacts.
+- Mirrored in 0.99.65: the Clipboard, Task Manager, YouTube's results and
+  Calendar's agenda. Left as they are on purpose: dBASE (dBASE III Plus's
+  own command line, as a terminal keeps its program's screen), the games,
+  the calculator's keypad and the clock, whose shapes are not a reading
+  direction. Write's toolbar is still to come.
 - `DT_MIRROR=on` mirrors an English desktop too, for whoever wants it and
   for testing.

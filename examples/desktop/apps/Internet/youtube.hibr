@@ -758,7 +758,12 @@ fn yt_drawlist(int id, int h, int w) {
 	dt_wreg "$id" 1 10 $((w - 10)) search
 	hd := yt_heading "$id"
 	console pen "$DT_ACTIVE" "$DT_FACE" bold
-	console put -p "w$id" 2 2 "${hd:0:$((w - 3))}"
+	if [ "$DT_MIRRORON" = 1 ]; then
+		lab := dt_rpad "${hd:0:$((w - 3))}" $((w - 2))
+		console put -p "w$id" 2 1 "$lab"
+	else
+		console put -p "w$id" 2 2 "${hd:0:$((w - 3))}"
+	fi
 	if [ -n "${YT[$id]["searching"]}" ]; then
 		console pen "$DT_DIM" "$DT_FACE"
 		console put -p "w$id" 3 2 "Looking${GL[ellipsis]}"
@@ -786,7 +791,15 @@ fn yt_drawlist(int id, int h, int w) {
 		[ -n "${YTF["${YR[$id][$i]["id"]}"]}" ] && mk=$star
 		lab="$mk${YR[$id][$i]["title"]}"
 		[ $((${#lab} + ${#tail})) -gt "$w" ] && lab="${lab:0:$((w - ${#tail} - 1))}${GL[ellipsis]}"
-		lab := str pad "$lab" $((w - ${#tail}))
+		if [ "$DT_MIRRORON" = 1 ]; then
+			lab="${lab#"$mk"}$mk"
+			lab := dt_rpad "$lab" $((w - ${#tail}))
+			tail="$len  ${YR[$id][$i]["ch"]:0:18}  "
+			lab="$tail$lab"
+			tail=
+		else
+			lab := str pad "$lab" $((w - ${#tail}))
+		fi
 		if [ "$i" = "$sel" ] && [ "${YT[$id]["qon"]}" != 1 ]; then
 			console pen "$DT_SELINK" "$DT_ACTIVE" bold
 		elif [ "$i" = "$sel" ]; then
@@ -799,7 +812,9 @@ fn yt_drawlist(int id, int h, int w) {
 		r=$((r + 1))
 		i=$((i + 1))
 	done
-	dt_scrollbar "$id" 3 "$w" "$vis" "$n" "$vis" "$top"
+	r=$w
+	[ "$DT_MIRRORON" = 1 ] && r=1
+	dt_scrollbar "$id" 3 "$r" "$vis" "$n" "$vis" "$top"
 	console pen "$DT_DIM" "$DT_FACE"
 	lab := str pad " enter open ${GL[dot]} f favourite ${GL[dot]} h history ${GL[dot]} v favourites ${GL[dot]} / search ${GL[dot]} esc back" "$w"
 	console put -p "w$id" "$h" 1 "${lab:0:$w}"

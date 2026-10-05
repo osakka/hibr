@@ -3173,6 +3173,13 @@ txt = sc.text()
 check("what was copied is in the Clipboard, newest first, the current one "
       "marked", txt.find("second one") < txt.find("first one") and
       re.search(r"\d\d:\d\d  • second one", txt) is not None, sc)
+sc = run("clipboard", CBW, [], pre=CLPRE, end=None, env={"DT_LANG": "xy"})
+check("mirrored, each entry reads from the right: its time, mark, then text",
+      re.search(r"second one  \u2022 \d\d:\d\d", sc.text()) is not None, sc)
+sc = run("tasks", "16 70 2 2", env={"DT_LANG": "xy"})
+head = [sc.row(r) for r in range(24) if "PID" in sc.row(r)]
+check("and Task Manager's columns run the other way, PID last",
+      head and head[0].index("PID") > head[0].index("Mem"), sc)
 sc = run("clipboard", CBW, [b"\x1b[B", b"\r"], pre=CLPRE, end=None)
 check("enter makes an older one the clipboard again, and the newest",
       re.search(r"\d\d:\d\d  • first one", sc.row(3)) is not None, sc)
@@ -3566,4 +3573,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(542)
+report(544)

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.99.65
+
+**The rest of the lists turn round** (Gitea #68, phase 4c). Mirrored,
+the Clipboard reads each entry from the right -- its time, its mark,
+then the text -- with its scrollbar at the left; Task Manager's columns
+run the other way, Mem first and PID last, the names right-aligned and
+each heading still sorting where it is drawn; YouTube's results put the
+title at the right and the channel and length at the left; and
+Calendar's agenda is right-aligned. dBASE keeps dBASE III Plus's own
+command line, as a terminal keeps its program's screen, and games, the
+calculator's keypad and the clock keep their shapes.
+
 ## 0.99.64
 
 **Calendar and Contacts turn round** (Gitea #68, phase 4c). Mirrored,

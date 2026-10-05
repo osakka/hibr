@@ -497,7 +497,11 @@ fn cv_drawagenda(int id, int h, int w) {
 		day="$y $m $d"
 		if [ "$day" != "$last" ]; then
 			console pen "$DT_INK" "$DT_FACE" bold
-			console put -p "w$id" "$r" 1 "${CV_WDAYS[$wd]} $d ${CV_MONTHS[$((m - 1))]} $y"
+			line="${CV_WDAYS[$wd]} $d ${CV_MONTHS[$((m - 1))]} $y"
+			if [ "$DT_MIRRORON" = 1 ]; then
+				line := dt_rpad "$line" $((w - 1))
+			fi
+			console put -p "w$id" "$r" 1 "$line"
 			r=$((r + 1))
 			last=$day
 			[ "$r" -lt "$h" ] || break
@@ -507,15 +511,23 @@ fn cv_drawagenda(int id, int h, int w) {
 		[ -n "${CVI[$id][$i]["location"]}" ] && line+=" -- ${CVI[$id][$i]["location"]}"
 		col := cv_color "${CVI[$id][$i]["srv"]}" "${CVI[$id][$i]["coll"]}"
 		console pen "$col" "$DT_FACE"
-		console put -p "w$id" "$r" 2 "${GL[bullet]}"
+		c=2
+		[ "$DT_MIRRORON" = 1 ] && c=$((w - 1))
+		console put -p "w$id" "$r" "$c" "${GL[bullet]}"
 		if [ "$i" = "${CVW[$id]["li"]:-0}" ]; then
 			console pen "$DT_SELINK" "$DT_ACTIVE"
 		else
 			console pen "$DT_INK" "$DT_FACE"
 		fi
-		line := str pad " ${line:0:$((w - 6))}" $((w - 4))
-		console put -p "w$id" "$r" 3 "$line"
-		dt_wreg "$id" "$r" 3 $((w - 4)) "ev:$i"
+		c=3
+		if [ "$DT_MIRRORON" = 1 ]; then
+			c=2
+			line := dt_rpad "${line:0:$((w - 6))} " $((w - 4))
+		else
+			line := str pad " ${line:0:$((w - 6))}" $((w - 4))
+		fi
+		console put -p "w$id" "$r" "$c" "$line"
+		dt_wreg "$id" "$r" "$c" $((w - 4)) "ev:$i"
 		r=$((r + 1))
 	done
 }

@@ -70,8 +70,13 @@ fn clipboard_draw(int id, int h, int w, int row, int col) {
 		line=${DT_CH[$hid]["text"]}
 		line=${line//$'\n'/ ${GL[newline]} }
 		line=${line//$'\t'/ }
-		line="$t $mark $line"
-		line := str pad "${line:0:$((w - 2))}" $((w - 2))
+		if [ "$DT_MIRRORON" = 1 ]; then
+			line="${line:0:$((w - 10))} $mark $t"
+			line := dt_rpad "$line" $((w - 2))
+		else
+			line="$t $mark $line"
+			line := str pad "${line:0:$((w - 2))}" $((w - 2))
+		fi
 		if [ "$i" = "${CB[$id]["sel"]}" ] && [ "$DT_FOCUS" = "$id" ]; then
 			console pen "$DT_SELINK" "$DT_ACTIVE"
 		elif [ "${DT_CH[$hid]["pin"]}" = 1 ]; then
@@ -79,11 +84,13 @@ fn clipboard_draw(int id, int h, int w, int row, int col) {
 		else
 			console pen "$DT_INK" "$DT_FACE"
 		fi
-		console put -p "w$id" "$r" 1 "$line"
+		console put -p "w$id" "$r" $((1 + ${DT_MIRRORON:-0})) "$line"
 		r=$((r + 1))
 		i=$((i + 1))
 	done
-	dt_scrollbar "$id" 1 "$w" "$vis" "$n" "$vis" "${CB[$id]["top"]}"
+	t=$w
+	[ "$DT_MIRRORON" = 1 ] && t=1
+	dt_scrollbar "$id" 1 "$t" "$vis" "$n" "$vis" "${CB[$id]["top"]}"
 	console pen "$DT_DIM" "$DT_FACE"
 	console put -p "w$id" "$h" 2 \
 		"enter uses it ${GL[dot]} p pins ${GL[dot]} delete removes"
