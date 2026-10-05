@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.99.63
+
+**Sheet and the file dialog turn round** (Gitea #68, phase 4c). Mirrored,
+Sheet puts column A at the right with the row numbers outside it and the
+columns running leftward, the cell's name at the right of the formula
+bar, its scrollbar at the left; a column is widened from its left edge,
+and the left arrow goes to the next column, as it looks. The file dialog
+used for Open, Save As and Export everywhere puts its list and the name
+at the right, the preview and the type at the left, and its divider
+drags the other way.
+
 ## 0.99.62
 
 **Mail turns round** (Gitea #68, phase 4c). Mirrored, the sidebar is at

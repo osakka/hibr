@@ -55,5 +55,7 @@ mirrored layout with it, and `tests/uifuzz.py` runs clean under it.
   list and an open conversation's headings. A message body keeps the
   layout `html lines` gives it, left-aligned; aligning a right-to-left
   message needs a direction in that layout, not in the app.
+- Mirrored in 0.99.63: Sheet (column A at the right, the gutter outside
+  it, left and right arrows following what is seen) and the file dialog.
 - `DT_MIRROR=on` mirrors an English desktop too, for whoever wants it and
   for testing.

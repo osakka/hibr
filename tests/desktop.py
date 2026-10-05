@@ -3254,6 +3254,12 @@ sc, _ = run(FBM + "details", env=XY, pre=APPS,
             feed=[press(z[0], z[1]), release(z[0], z[1])])
 check("and a click on a heading sorts by the column under it",
       re.search(r"Size[\u25b2\u25bc]", sc.text()) is not None, sc)
+sc, _ = run('dt_filepick save "Save As" "All files:*" "%s" new.txt : 0' % FBD,
+            env=XY)
+nm, ty, sub = sc.find("Name:"), sc.find("Type:"), sc.find("sub/")
+check("the file dialog mirrors: its list and Name at the right, Type at the left",
+      nm is not None and ty is not None and sub is not None and
+      nm[1] > ty[1] and sub[1] > COLS // 2, sc)
 shutil.rmtree(FBD, True)
 
 # --standby: a terminal that waits to be joined, joins, and when it is let
@@ -3682,4 +3688,4 @@ check("an arithmetic error in an app is logged and the desktop carries on",
       sc.find("┤ Slip ├") is not None and "arithmetic" in log and t.exited and t.status == 0,
       (log, t.status))
 
-report(506)
+report(507)

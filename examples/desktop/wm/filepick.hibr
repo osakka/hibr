@@ -154,22 +154,35 @@ command -v dt_keep > /dev/null && dt_keep FP_LISTW
 
 fn fpick_draw(int id, int h, int w, int row, int col) {
 	local lw vis=$((h - 6)) n=${FP[$id]["n"]} sel top i r
-	local t d f=${FP[$id]["focus"]} on lab glyph pw
+	local t d f=${FP[$id]["focus"]} on lab glyph pw m=0 lx=1
 	local -a labs
 
 	lw := dt_split FP_LISTW $((w - 1)) 20 $((w * 11 / 20 + 1))
 	lw=$((lw - 1))
 	FP[$id]["lw"]=$lw
 	FP[$id]["w"]=$w
+	# Mirrored, every column c is drawn at w - c: the list at the right,
+	# the preview at the left.
+	case $DT_MIRRORON in 1) m=1; lx=$((w - lw + 1)) ;; esac
 	dt_wclear "$id"
 	d=${FP[$id]["dir"]}
 	d=${d/#$HOME/\~}
 	console pen "$DT_DIM" "$DT_FACE"
-	dt_tput "$id" 1 2 "In:"
+	lab := dt_tr "In:"
+	if [ "$m" = 1 ]; then
+		dt_tput "$id" 1 $((w - 1 - ${#lab})) "In:"
+	else
+		dt_tput "$id" 1 2 "In:"
+	fi
 	console pen "$DT_INK" "$DT_FACE" bold
 	t="$d"
 	[ ${#t} -gt $((w - 8)) ] && t="${GL[ellipsis]}${t:$((${#t} - w + 9))}"
-	console put -p "w$id" 1 6 "$t"
+	if [ "$m" = 1 ]; then
+		on := str width "$t"
+		console put -p "w$id" 1 $((w - 2 - ${#lab} - on)) "$t"
+	else
+		console put -p "w$id" 1 6 "$t"
+	fi
 	FP[$id]["vis"]=$vis
 	sel=${FP[$id]["sel"]}
 	top=${FP[$id]["top"]}
@@ -189,8 +202,13 @@ fn fpick_draw(int id, int h, int w, int row, int col) {
 			esac
 			t="$glyph ${FP[$id]["e$i"]}"
 			[ "${FP[$id]["k$i"]}" = dir ] && t="$t/"
+			[ "$m" = 1 ] && t="${t#"$glyph "} $glyph"
 		fi
-		t := str pad "${t:0:$((lw - 2))}" $((lw - 2))
+		if [ "$m" = 1 ]; then
+			t := dt_rpad "${t:0:$((lw - 2))}" $((lw - 2))
+		else
+			t := str pad "${t:0:$((lw - 2))}" $((lw - 2))
+		fi
 		if [ "$i" = "$sel" ] && [ "$i" -lt "$n" ]; then
 			if [ "$f" = list ]; then
 				console pen "$DT_SELINK" "$DT_ACTIVE"
@@ -202,22 +220,40 @@ fn fpick_draw(int id, int h, int w, int row, int col) {
 		else
 			console pen "$DT_INK" "$DT_FACE"
 		fi
-		console put -p "w$id" $((r + 2)) 1 " $t"
-		dt_wreg "$id" $((r + 2)) 1 $((lw - 1)) "row$i"
+		if [ "$m" = 1 ]; then
+			console put -p "w$id" $((r + 2)) "$lx" "$t "
+		else
+			console put -p "w$id" $((r + 2)) 1 " $t"
+		fi
+		dt_wreg "$id" $((r + 2)) "$lx" $((lw - 1)) "row$i"
 		r=$((r + 1))
 	done
-	dt_scrollbar "$id" 2 "$lw" "$vis" "$n" "$vis" "$top"
-	dt_splitbar "$id" $((lw + 1)) 2 "$vis" "${FP[$id]["split"]:-0}"
 	pw=$((w - lw - 3))
-	fp_preview "$id" 2 $((lw + 3)) "$vis" "$pw"
+	if [ "$m" = 1 ]; then
+		dt_scrollbar "$id" 2 $((w - lw)) "$vis" "$n" "$vis" "$top"
+		dt_splitbar "$id" $((w - lw - 1)) 2 "$vis" "${FP[$id]["split"]:-0}"
+		fp_preview "$id" 2 1 "$vis" "$pw"
+	else
+		dt_scrollbar "$id" 2 "$lw" "$vis" "$n" "$vis" "$top"
+		dt_splitbar "$id" $((lw + 1)) 2 "$vis" "${FP[$id]["split"]:-0}"
+		fp_preview "$id" 2 $((lw + 3)) "$vis" "$pw"
+	fi
 	on=0
 	[ "$f" = name ] && on=1
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" $((h - 3)) 2 "Name:"
-	dt_textdraw "$id" $((h - 3)) 9 $((lw - 9)) "${FP[$id]["buf"]}" "${FP[$id]["cur"]}" "$on"
-	dt_wreg "$id" $((h - 3)) 9 $((lw - 9)) name
-	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" $((h - 3)) $((lw + 3)) "Type:"
+	if [ "$m" = 1 ]; then
+		console put -p "w$id" $((h - 3)) $((w - 6)) "Name:"
+		dt_textdraw "$id" $((h - 3)) "$lx" $((lw - 9)) "${FP[$id]["buf"]}" "${FP[$id]["cur"]}" "$on"
+		dt_wreg "$id" $((h - 3)) "$lx" $((lw - 9)) name
+		console pen "$DT_INK" "$DT_FACE"
+		console put -p "w$id" $((h - 3)) $((w - lw - 7)) "Type:"
+	else
+		console put -p "w$id" $((h - 3)) 2 "Name:"
+		dt_textdraw "$id" $((h - 3)) 9 $((lw - 9)) "${FP[$id]["buf"]}" "${FP[$id]["cur"]}" "$on"
+		dt_wreg "$id" $((h - 3)) 9 $((lw - 9)) name
+		console pen "$DT_INK" "$DT_FACE"
+		console put -p "w$id" $((h - 3)) $((lw + 3)) "Type:"
+	fi
 	lab := fp_labels "$id"
 	IFS='|' read -ra labs <<< "$lab"
 	if [ "$f" = type ]; then
@@ -225,7 +261,9 @@ fn fpick_draw(int id, int h, int w, int row, int col) {
 	else
 		console pen "$DT_INK" "$DT_FACE"
 	fi
-	dt_wdrop "$id" $((h - 3)) $((lw + 9)) $((pw - 7)) "${labs[${FP[$id]["ti"]}]}" type
+	on=$((lw + 9))
+	[ "$m" = 1 ] && on=2
+	dt_wdrop "$id" $((h - 3)) "$on" $((pw - 7)) "${labs[${FP[$id]["ti"]}]}" type
 	lab=Open
 	[ "${FP[$id]["mode"]}" = save ] && lab=Save
 	dt_dlgbtns "$id" "$h" "$w" "$f" ok "$lab" cancel Cancel
@@ -477,6 +515,7 @@ FP_LASTCLICK=
 # A press on the divider drags it; anything else is a click.
 fn fpick_mouse(int id, act, btn, int r, int c, mods = "") {
 	if [ "${FP[$id]["split"]}" = 1 ]; then
+		[ "$DT_MIRRORON" = 1 ] && c=$((${FP[$id]["w"]:-40} - c))
 		dt_splitmove FP_LISTW "$c" $((${FP[$id]["w"]:-40} - 1)) 20
 		if [ "$act" = release ]; then
 			FP[$id]["split"]=
@@ -485,7 +524,10 @@ fn fpick_mouse(int id, act, btn, int r, int c, mods = "") {
 		return 0
 	fi
 	[ "$act" = press ] || return 0
-	if [ "$c" = $((${FP[$id]["lw"]:-0} + 1)) ] && [ "$r" -ge 2 ] &&
+	local dv=$((${FP[$id]["lw"]:-0} + 1))
+
+	[ "$DT_MIRRORON" = 1 ] && dv=$((${FP[$id]["w"]:-0} - ${FP[$id]["lw"]:-0} - 1))
+	if [ "$c" = "$dv" ] && [ "$r" -ge 2 ] &&
 	   [ "$r" -lt $((2 + ${FP[$id]["vis"]:-0})) ]; then
 		FP[$id]["split"]=1
 		return 0

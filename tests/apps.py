@@ -3205,13 +3205,13 @@ shutil.rmtree(CLD, True)
 SHD = tempfile.mkdtemp(prefix="hibr-sheet-")
 
 
-def shrun(feed, pre="", arg="", wait=0.6):
+def shrun(feed, pre="", arg="", wait=0.6, env=None):
     p = os.path.join(S, "session.hibr")
     open(p, "w").write("%s\n. %s\n. %s\nSS_DIR=%s\n%s\ndt_open\n"
                        'dt_new "Sheet" 22 76 1 2 sheet %s\ndt_run\ndt_close\n'
                        % (load("console"), WM, appdir("sheet") + "/sheet.hibr",
                           SHD, pre, arg))
-    tt = Term(p, env={}, settle=1.0)
+    tt = Term(p, env=env or {}, settle=1.0)
     tt.keys(list(feed) + [wait], settle=0.4)
     sc = tt.screen()
     tt.quit(None, 0.5)
@@ -3228,6 +3228,15 @@ def shk(t):
 
 
 SHEET = SHD + "/untitled-1.hsheet"
+sc = shrun(shk("5") + [b"\r"] + shk("hello") + [b"\r", b"\x1b[A", b"\x1b[D"],
+           env={"DT_LANG": "xy"})
+head = [r for r in range(sc.rows) if " G " in sc.row(r) and " A " in sc.row(r)]
+check("mirrored, Sheet's column A is at the right and the columns run left",
+      head and sc.row(head[0]).index(" A ") > sc.row(head[0]).index(" B ") >
+      sc.row(head[0]).index(" G "), sc)
+check("and the left arrow moves to the next column, B",
+      sc.find(" B2 ") is not None, sc)
+os.remove(SHEET)
 sc = shrun(shk("5") + [b"\r"] + shk("7") + [b"\r"] +
            shk('=math "A1+A2*1.5"') + [b"\r"])
 check("Sheet takes numbers and a formula, and math works it out",
@@ -3557,4 +3566,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(540)
+report(542)

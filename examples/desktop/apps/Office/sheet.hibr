@@ -1088,6 +1088,7 @@ fn ss_commit(int id) {
 fn sheet_draw(int id, int h, int w, int row, int col) {
 	local cr=${SS[$id]["cr"]} cc=${SS[$id]["cc"]} top left vr nm t s r c x cw
 	local k v sel r0 c0 r1 c1 y ed=${SS[$id]["ed"]} rows cols e fr fc at
+	local m=0 gx=1 nx=1 bx px cx
 	local -a dc dr ats
 
 	dt_wclear "$id"
@@ -1102,26 +1103,34 @@ fn sheet_draw(int id, int h, int w, int row, int col) {
 	sel := ss_sel "$id"
 	read -r r0 c0 r1 c1 <<< "$sel"
 
+	# Mirrored, the gutter is at the right and column A next to it, the
+	# columns running leftward; x is then each column's right edge.
+	bx=$((SS_GUT + 1))
+	px=$((SS_GUT + 3))
+	case $DT_MIRRORON in
+	1) m=1; gx=$((w - SS_GUT + 1)); nx=$gx; bx=$((w - SS_GUT)); px=2 ;;
+	esac
 	nm := ss_name "$cr" "$cc"
 	console pen "$DT_ACTIVE" "$DT_FACE" bold
 	t := str pad " $nm" "$SS_GUT"
-	console put -p "w$id" 1 1 "$t"
+	console put -p "w$id" 1 "$nx" "$t"
 	console pen "$DT_IDLE" "$DT_FACE"
-	console put -p "w$id" 1 $((SS_GUT + 1)) "${GL[vline]}"
+	console put -p "w$id" 1 "$bx" "${GL[vline]}"
 	if [ "$ed" = 1 ]; then
-		dt_textdraw "$id" 1 $((SS_GUT + 3)) $((w - SS_GUT - 3)) \
+		dt_textdraw "$id" 1 "$px" $((w - SS_GUT - 3)) \
 			"${SS[$id]["buf"]}" "${SS[$id]["cur"]}" 1
 	else
 		s=${SC[$id]["$cr:$cc"]["src"]}
 		console pen "$DT_INK" "$DT_FACE"
 		t := str pad "${s:0:$((w - SS_GUT - 3))}" $((w - SS_GUT - 3))
-		console put -p "w$id" 1 $((SS_GUT + 3)) "$t"
+		console put -p "w$id" 1 "$px" "$t"
 	fi
 
 	console pen "$DT_DIM" "$DT_WELL"
 	t := str pad "" "$SS_GUT"
-	console put -p "w$id" 2 1 "$t"
+	console put -p "w$id" 2 "$gx" "$t"
 	x=$((SS_GUT + 1))
+	[ "$m" = 1 ] && x=$((w - SS_GUT))
 	fr=${SS[$id]["fr"]:-0}
 	fc=${SS[$id]["fc"]:-0}
 	dc=()
@@ -1131,7 +1140,11 @@ fn sheet_draw(int id, int h, int w, int row, int col) {
 	while [ "$c" -lt "$cols" ] && [ "${#dc[@]}" -lt 200 ]; do dc+=("$c"); c=$((c + 1)); done
 	SS[$id]["vcols"]=
 	for c in "${dc[@]}"; do
-		[ "$x" -le "$w" ] || break
+		if [ "$m" = 1 ]; then
+			[ "$x" -ge 2 ] || break
+		else
+			[ "$x" -le "$w" ] || break
+		fi
 		cw := ss_w "$id" "$c"
 		t := ss_colname "$c"
 		s=$(((cw - ${#t}) / 2))
@@ -1142,6 +1155,20 @@ fn sheet_draw(int id, int h, int w, int row, int col) {
 			console pen "$DT_ACTIVE" "$DT_WELL" bold
 		else
 			console pen "$DT_DIM" "$DT_WELL"
+		fi
+		if [ "$m" = 1 ]; then
+			cx=$((x - cw + 1))
+			if [ "$cx" -lt 2 ]; then
+				t=${t:$((2 - cx))}
+				console put -p "w$id" 2 2 "$t"
+			else
+				console put -p "w$id" 2 "$cx" "$t"
+				dt_wreg "$id" 2 "$cx" 1 "edge:$c"
+			fi
+			dt_wreg "$id" 2 $((cx + 1)) $((cw - 1)) "colh:$c"
+			SS[$id]["vcols"]="${SS[$id]["vcols"]} $c:$cx:$cw"
+			x=$((cx - 1))
+			continue
 		fi
 		[ $((x + cw - 1)) -gt "$w" ] && t=${t:0:$((w - x + 1))}
 		console put -p "w$id" 2 "$x" "$t"
@@ -1166,11 +1193,16 @@ fn sheet_draw(int id, int h, int w, int row, int col) {
 		fi
 		t := ss_rpad $((r + 1)) $((SS_GUT - 1))
 		t+=" "
-		console put -p "w$id" "$y" 1 "$t"
-		dt_wreg "$id" "$y" 1 "$SS_GUT" "rowh:$r"
+		console put -p "w$id" "$y" "$gx" "$t"
+		dt_wreg "$id" "$y" "$gx" "$SS_GUT" "rowh:$r"
 		x=$((SS_GUT + 1))
+		[ "$m" = 1 ] && x=$((w - SS_GUT))
 		for c in "${dc[@]}"; do
-			[ "$x" -le "$w" ] || break
+			if [ "$m" = 1 ]; then
+				[ "$x" -ge 2 ] || break
+			else
+				[ "$x" -le "$w" ] || break
+			fi
 			cw := ss_w "$id" "$c"
 			k="$r:$c"
 			t := ss_render "$id" "$k" "$cw"
@@ -1186,6 +1218,16 @@ fn sheet_draw(int id, int h, int w, int row, int col) {
 				console pen "$SS_FG" "$DT_WELL" "${ats[@]}"
 			else
 				console pen "$SS_FG" "$SS_BG" "${ats[@]}"
+			fi
+			if [ "$m" = 1 ]; then
+				cx=$((x - cw + 1))
+				if [ "$cx" -lt 2 ]; then
+					t=${t:$((2 - cx))}
+					cx=2
+				fi
+				console put -p "w$id" "$y" "$cx" "$t"
+				x=$((x - cw))
+				continue
 			fi
 			[ $((x + cw - 1)) -gt "$w" ] && t=${t:0:$((w - x + 1))}
 			console put -p "w$id" "$y" "$x" "$t"
@@ -1207,10 +1249,16 @@ fn sheet_draw(int id, int h, int w, int row, int col) {
 		t="${rows} rows ${GL[dot]} ${cols} columns ${GL[dot]} "
 		if ss_trusted "$id"; then t+="trusted"; else t+="sandboxed"; fi
 	fi
-	t := str pad "${t:0:$w}" "$w"
+	if [ "$m" = 1 ]; then
+		t := dt_rpad "${t:0:$w}" "$w"
+	else
+		t := str pad "${t:0:$w}" "$w"
+	fi
 	console put -p "w$id" "$h" 1 "$t"
+	x=$w
+	[ "$m" = 1 ] && x=1
 	[ "$top" -gt 0 ] || [ "$rows" -gt "$vr" ] &&
-		dt_scrollbar "$id" 3 "$w" "$vr" "$rows" "$vr" "$top"
+		dt_scrollbar "$id" 3 "$x" "$vr" "$rows" "$vr" "$top"
 }
 
 fn sheet_key(int id, key) {
@@ -1233,6 +1281,7 @@ fn sheet_key(int id, key) {
 		return 0
 	fi
 	case $key in shift-*) ext=1; key=${key#shift-} ;; esac
+	case "$DT_MIRRORON$key" in 1left) key=right ;; 1right) key=left ;; esac
 	case $key in
 	up) ss_go "$id" $((cr - 1)) "$cc" "$ext" ;;
 	down) ss_go "$id" $((cr + 1)) "$cc" "$ext" ;;
@@ -1291,6 +1340,7 @@ fn sheet_mouse(int id, act, btn, int r, int c, mods = "") {
 			[ "${e%%:*}" = "${SS[$id]["drag"]}" ] || continue
 			x=${e#*:} x=${x%%:*}
 			cw=$((c - x + 1))
+			[ "$DT_MIRRORON" = 1 ] && cw=$((x + ${e##*:} - c))
 			[ "$cw" -lt 3 ] && cw=3
 			[ "$cw" -gt 60 ] && cw=60
 			SS[$id]["w${SS[$id]["drag"]}"]=$cw
