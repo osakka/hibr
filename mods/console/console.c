@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 
 #include "cn.h"
+#include "../uni.h"
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -141,10 +142,49 @@ cn_pane *cn_phit(int row, int col)
 	return 0;
 }
 
-/* Write inside a pane, clipped to it, in the pane's own coordinates. */
-int cn_pput(const cn_pane *p, int row, int col, const char *t)
+int cn_bidi = 1;
+
+/* Whether a text may hold right-to-left: lead bytes of Hebrew, Arabic and the
+   rest, the direction marks, and the presentation forms; never box drawing. */
+int cn_rtlq(const char *t)
 {
-	str clip;
+	const unsigned char *p = (const unsigned char *)t;
+
+	for (; *p; p++) {
+		if (*p < 0xD6)
+			continue;
+		if (*p <= 0xDF || (*p == 0xE0 && p[1] >= 0xA0 && p[1] <= 0xA3))
+			return 1;
+		if (*p == 0xE2 && p[1] == 0x80 && (p[2] == 0x8F || (p[2] >= 0xAA && p[2] <= 0xAE)))
+			return 1;
+		if (*p == 0xE2 && p[1] == 0x81 && p[2] >= 0xA6 && p[2] <= 0xA9)
+			return 1;
+		if (*p == 0xEF && p[1] >= 0xAC && p[1] <= 0xBB)
+			return 1;
+		if (*p == 0xF0 && ((p[1] == 0x90 && p[2] >= 0xA0) || p[1] == 0x9E))
+			return 1;
+	}
+	return 0;
+}
+
+/* The text a script asked for, in display order when it holds right-to-left and bidi is on. */
+const char *cn_vis(sh *s, const char *t, str *o)
+{
+	const uni_api *u;
+
+	if (!cn_bidi || !t || !cn_rtlq(t))
+		return t;
+	u = hibr_require(s, "uni", UNI_VER);
+	if (!u || !u->rtl(t, strlen(t)))
+		return t;
+	u->vis(t, strlen(t), 2, o);
+	return o->p ? o->p : "";
+}
+
+/* Write inside a pane, clipped to it, in the pane's own coordinates. */
+int cn_pput(sh *s, const cn_pane *p, int row, int col, const char *t)
+{
+	str clip, vis;
 	size_t n, i = 0;
 	int w, l, room, adv;
 	unsigned cp;
@@ -165,7 +205,9 @@ int cn_pput(const cn_pane *p, int row, int col, const char *t)
 		s_add(&clip, t + i, (size_t)l);
 		i += (size_t)l;
 	}
-	adv = cn_put(p->row + row, p->col + col, clip.p ? clip.p : "");
+	s_init(&vis);
+	adv = cn_put(p->row + row, p->col + col, cn_vis(s, clip.p ? clip.p : "", &vis));
+	s_free(&vis);
 	s_free(&clip);
 	return adv;
 }
@@ -383,15 +425,32 @@ int m_console(sh *s, int ac, char **av)
 					      "col text");
 				return 2;
 			}
-			cn_pput(p, atoi(av[4]), atoi(av[5]), av[6]);
+			cn_pput(s, p, atoi(av[4]), atoi(av[5]), av[6]);
 			return HIBR_OK;
 		}
 		if (ac < 5) {
 			lg(HIBR_LERR, "usage: console put row col text");
 			return 2;
 		}
-		cn_put(atoi(av[2]), atoi(av[3]), av[4]);
+		{
+			str vis;
+
+			s_init(&vis);
+			cn_put(atoi(av[2]), atoi(av[3]), cn_vis(s, av[4], &vis));
+			s_free(&vis);
+		}
 		return HIBR_OK;
+	}
+	if (!strcmp(sub, "bidi")) {
+		if (ac > 2 && (!strcmp(av[2], "on") || !strcmp(av[2], "off"))) {
+			cn_bidi = !strcmp(av[2], "on");
+			return HIBR_OK;
+		}
+		if (ac > 2) {
+			lg(HIBR_LERR, "usage: console bidi [on|off]");
+			return 2;
+		}
+		return cn_bidi ? HIBR_OK : HIBR_FAIL;
 	}
 	if (!strcmp(sub, "fill")) {
 		if (!cn_need())

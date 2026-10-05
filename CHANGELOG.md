@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.99.50
+
+**The desktop draws Arabic and Hebrew readably** (Gitea #68, phase 2a).
+Text a script draws with `console put` that holds right-to-left characters
+now goes through the `uni` module first: display order, Arabic in its
+joined forms, marks after their base, brackets mirrored. A pane's text is
+clipped first and ordered after. Plain text never reaches `uni`, and a
+program's own cells -- a terminal window, `most`, `hvi` -- are drawn as the
+program laid them out. `console bidi off` is for a terminal that reorders
+right-to-left text itself (ADR 0031). The core's width table, written by
+hand and incomplete, is generated from Unicode 15.1.0 now, like `uni`'s,
+and is 6% cheaper; the test harness takes widths from Unicode as well.
+
 ## 0.99.49
 
 **The `uni` module: bidirectional text and Arabic shaping for a cell grid**

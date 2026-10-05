@@ -76,6 +76,21 @@ has. A module named `sc_fini` is silently preempted by the shell's under
 `-rdynamic`, so the terminal would never have been put back and nothing would
 have crashed to say so. See the trap in `CLAUDE.md`.
 
+## Right-to-left text
+
+Text a script puts with `console put` that holds Hebrew, Arabic or another
+right-to-left script is drawn in display order: the `uni` module's
+bidirectional algorithm, Arabic in its joined presentation forms, marks after
+their base, brackets mirrored (ADR 0031). A pane's text is clipped first and
+ordered after, so a right-to-left line keeps its start. Plain text never
+reaches `uni` -- a byte scan decides, and box drawing is never mistaken for
+it -- and a program's own cells (a terminal window, `most`, `hvi`) go through
+the display interface untouched, since the program decides their order.
+
+    console bidi off    # for a terminal that reorders right-to-left itself
+    console bidi on     # the default
+    console bidi        # status 0 when on
+
 ## The mouse
 
 Off until something asks for it:

@@ -73,7 +73,7 @@ cn_pane *cn_pfind(const char *nm);
 cn_pane *cn_pset(const char *nm, int row, int col, int h, int w);
 int cn_prect(const char *nm, int *row, int *col, int *h, int *w);
 void cn_pclear(void);
-int cn_pput(const cn_pane *p, int row, int col, const char *t);
+int cn_pput(sh *s, const cn_pane *p, int row, int col, const char *t);
 void cn_praise(cn_pane *p);
 void cn_plower(cn_pane *p);
 int cn_pdrop(const char *nm);

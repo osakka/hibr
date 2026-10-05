@@ -31,7 +31,7 @@ ROWS, COLS = 24, 80
 # the desktop's settings above all.  Without it a test that changes the
 # theme changes the owner's theme, and the next test starts from it.  A
 # test that wants saved settings to carry over passes the same env itself.
-import atexit, shutil, tempfile
+import atexit, shutil, tempfile, unicodedata
 HOME = tempfile.mkdtemp(prefix="hibr-screen-")
 atexit.register(shutil.rmtree, HOME, True)
 FAIL = []
@@ -112,7 +112,7 @@ class Screen:
             if ch in "\r\n":
                 i += 1
                 continue
-            wide = ord(ch) > 0x2E80
+            wide = unicodedata.east_asian_width(ch) in ("W", "F")
             if 0 <= self.r < self.rows and 0 <= self.c < self.cols:
                 self.g[self.r][self.c] = ch
                 self.p[self.r][self.c] = self.pen

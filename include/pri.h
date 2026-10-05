@@ -246,6 +246,12 @@ int bi_argk(const char *nm);
 int w_assign(word *w);
 int w_bind(word *w);
 void ex_bind(sh *s, node *n);
+#ifndef HIBR_RNGW
+#define HIBR_RNGW
+struct rngw { unsigned lo, hi; int w; };
+#endif
+extern const struct rngw u8wtab[];
+extern const size_t u8wtab_n;
 size_t u8n(const char *t, size_t n);
 size_t u8off(const char *t, size_t n, size_t c);
 char *bi_keys(sh *s, char *word, const char *mk, vec *ks);

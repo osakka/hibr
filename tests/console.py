@@ -13,7 +13,7 @@ import os, re, signal, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
-from screen import Term, check, report, tree, expect
+from screen import Term, Screen, check, report, tree, expect
 
 if len(sys.argv) > 1:
     sx.HIBR = os.path.abspath(sys.argv[1])
@@ -236,4 +236,22 @@ o, _ = run('console open\nconsole flush\nconsole key 3000\n'
            after=bigger, wait=3)
 check("a write after a resize reaches the new size", b"FARCELL" in o)
 
-report(len(WANT) + len(MWANT) + 43)
+# Right-to-left text a script puts is drawn in display order, shaped, for a
+# terminal that does no bidi of its own (#68); console bidi off leaves it as
+# written, for one that does. Borders and plain text are never touched.
+o, _ = run('console open\nconsole put 1 0 "abc سلام 123"\n'
+           'console pane win 3 0 4 20\nconsole put -p win 0 0 "مرحبا (ok)"\n'
+           'console bidi off\nconsole put 2 0 "x سلام"\n'
+           'console bidi on\nconsole put 8 0 "┌─┐ été"\n'
+           'console flush\nconsole close\n')
+sc = Screen()
+sc.feed(o.decode("utf-8", "replace"))
+check("right-to-left text is drawn in display order, Arabic in its joined forms",
+      sc.row(1).startswith("abc 123 ﻡﻼﺳ"), sc.row(1))
+check("in a pane too, clipped before it is ordered, brackets mirrored back",
+      sc.row(3).startswith("(ok) ﺎﺒﺣﺮﻣ"), sc.row(3))
+check("console bidi off leaves it as written; borders and accents untouched",
+      sc.row(2).startswith("x سلام") and
+      sc.row(8).startswith("┌─┐ été"), (sc.row(2), sc.row(8)))
+
+report(len(WANT) + len(MWANT) + 46)

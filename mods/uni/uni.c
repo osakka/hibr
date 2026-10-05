@@ -1,4 +1,5 @@
 #include "un.h"
+#include "../uni.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -218,10 +219,44 @@ int un_bi(sh *s, int ac, char **av)
 	return k;
 }
 
+/* Whether a text holds a right-to-left character or an explicit direction mark. */
+int un_rtl(const char *t, size_t n)
+{
+	unsigned cp;
+	size_t i = 0;
+	int c;
+
+	while (i < n) {
+		if ((unsigned char)t[i] < 0xC0) {
+			i++;
+			continue;
+		}
+		i += (size_t)u8dec(t + i, n - i, &cp);
+		c = un_class(cp);
+		if (c == UN_R || c == UN_AL || (c >= UN_LRE && c <= UN_PDI))
+			return 1;
+	}
+	return 0;
+}
+
+const uni_api un_api = { un_vis, un_cw, un_rtl };
+
+/* Offer "uni" to the modules that draw text. */
+int un_init(sh *s)
+{
+	return hibr_provide(s, "uni", UNI_VER, (void *)&un_api);
+}
+
+/* Withdraw it before the module is unloaded. */
+void un_fini(sh *s)
+{
+	hibr_unprovide(s, "uni");
+}
+
 const hibr_bi un_bis[] = {
 	{ "uni", un_bi, "Unicode text for a cell grid: uni vis|shape|width|class|levels|version" },
 	HIBR_BI_END
 };
 
-HIBR_MODULE("uni", "1.0", "bidirectional text, Arabic shaping and widths, from the UCD",
-	    un_bis, 0, 0);
+HIBR_MODULE_P("uni", "1.0", "bidirectional text, Arabic shaping and widths, from the UCD",
+	      un_bis, un_init, un_fini, "uni");
