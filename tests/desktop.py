@@ -3061,6 +3061,11 @@ check("moved to the auxiliary display, which draws it",
       rc == 0 and j.get("ok") and b2.screen().find("Files") is not None, (j, str(b2.screen())))
 rc, j = bctl("resize", bid, "12", "40")
 check("and resized", rc == 0 and j.get("h") == 12 and j.get("w") == 40, j)
+rc, j = bctl("resize", bid, "12", "200")
+rc2, j2 = bctl("windows")
+bw = [w for w in j2.get("windows", []) if str(w["id"]) == bid]
+check("a size the joined display cannot hold is refused, the window as it was",
+      j.get("error") == "bad-geometry" and bw and bw[0]["h"] == 12 and bw[0]["w"] == 40, (j, j2))
 blog = os.path.join(BL, "state", "hibr", "desktop.log")
 check("the desktop log says where its control socket listens, made with no mkdir on PATH",
       os.path.exists(blog) and "control socket: listening at" in open(blog).read(),
@@ -3071,6 +3076,47 @@ b1.send(b"q", settle=1.0)
 b1.close()
 subprocess.run([screen.HIBR, "-c", HOLDC + "hold kill blit"], env=dict(os.environ, **BENV), capture_output=True)
 shutil.rmtree(BL, True)
+
+# A ctl resize is measured against the display the window is on (#100):
+# under Blit the desktop's own screen is only the primary's surface, so a
+# window moved to a joined display at column 128 was clamped to nothing by
+# the 128 columns and every resize there refused. Here the display list is
+# given, so a horizontal pair as Blit has, a vertical one and two panes
+# can each be tried without hold.
+GEO = """declare -gA DT
+DT_MINH=4 DT_MINW=12 DT_FOCUS= DT_WS=1 DT_WSN=1 HIBR_HOLD=
+dt_ticker() { :; }; dt_want() { :; }; dt_rslog() { :; }; dt_hidden() { return 1; }
+console() { :; }
+dt_movewin() { DT[$1]["row"]=$2; DT[$1]["col"]=$3; }
+. %s
+DT[1]["title"]=Files DT[1]["app"]=files DT[1]["row"]=1 DT[1]["col"]=2 DT[1]["h"]=10 DT[1]["w"]=34
+DT_ROWS=48 DT_COLS=128
+dt_ctldlist() { ret "$LAYOUT"; }
+LAYOUT=$'display-47 0 0 48 128 1\\ndisplay-48 0 128 48 128 0'
+x := dt_ctlmove 1 display-48; echo "$x"
+x := dt_ctlresize 1 20 60; echo "$x"
+x := dt_ctlresize 1 20 200; echo "$x"
+x := dt_ctlwindows; echo "$x"
+LAYOUT=$'top 0 0 24 80 1\\nbottom 24 0 24 80 0'
+DT[1]["row"]=30 DT[1]["col"]=5
+x := dt_ctlresize 1 18 70; echo "$x"
+x := dt_ctlresize 1 19 70; echo "$x"
+LAYOUT=$'left 0 0 40 60 1\\nright 0 60 40 60 0'
+DT[1]["row"]=2 DT[1]["col"]=61
+x := dt_ctlresize 1 38 59; echo "$x"
+x := dt_ctlresize 1 38 60; echo "$x"
+""" % tree("examples/desktop/wm/ctl.hibr")
+geo = [json.loads(l) for l in subprocess.run([screen.HIBR, "-c", GEO], capture_output=True,
+                                              text=True, timeout=20).stdout.splitlines()]
+check("a window moved to a display joined beside a 128-column primary resizes there",
+      len(geo) == 8 and geo[0]["col"] == 128 and geo[1].get("ok") and geo[1]["w"] == 60, geo)
+check("a size that does not fit is refused whole, and windows still says the last good one",
+      len(geo) == 8 and geo[2].get("error") == "bad-geometry"
+      and geo[3]["windows"][0]["h"] == 20 and geo[3]["windows"][0]["w"] == 60, geo)
+check("on a display below another, as far as its bottom edge and no further",
+      len(geo) == 8 and geo[4].get("ok") and geo[5].get("error") == "bad-geometry", geo)
+check("and in the right of two panes, as far as its right edge",
+      len(geo) == 8 and geo[6].get("ok") and geo[7].get("error") == "bad-geometry", geo)
 
 # --standby: a terminal that waits to be joined, joins, and when it is let
 # go waits again. Blank keeps a joined display joined but dark.
@@ -3498,4 +3544,4 @@ check("an arithmetic error in an app is logged and the desktop carries on",
       sc.find("┤ Slip ├") is not None and "arithmetic" in log and t.exited and t.status == 0,
       (log, t.status))
 
-report(478)
+report(483)

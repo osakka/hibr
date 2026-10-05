@@ -303,19 +303,46 @@ fn dt_ctlmove(id = "", display = "") {
 	ret "$out"
 }
 
-# Give a window a size, as a resize does: refused if it cannot have it.
+# The display a window's top left corner is on, as "row col rows cols" from
+# the display list -- not the desktop's own screen size, which under Blit
+# is only the primary's surface while a joined display sits beyond it.
+fn dt_ctlrect(int id) {
+	local lst nm row col rows cols pri r=${DT[$id]["row"]} c=${DT[$id]["col"]}
+
+	lst := dt_ctldlist
+	while IFS=' ' read -r nm row col rows cols pri; do
+		[ -n "$nm" ] || continue
+		if [ "$r" -ge "$row" ] && [ "$r" -lt $((row + rows)) ] &&
+		   [ "$c" -ge "$col" ] && [ "$c" -lt $((col + cols)) ]; then
+			ret "$row $col $rows $cols"
+			return 0
+		fi
+	done <<< "$lst"
+	return 1
+}
+
+# Give a window a size, as a resize does: within the display it is on, and
+# refused whole, the window untouched, if it does not fit there.
 fn dt_ctlresize(id = "", h = "", w = "") {
-	local out
+	local out rect drow dcol drows dcols
 
 	dt_ctlwin "$id" || { out := dt_ctlerr no-window "no window $id"; ret "$out"; return 0; }
-	if ! [[ $h =~ ^[0-9]+$ && $w =~ ^[0-9]+$ ]] || [ "$h" -lt "$DT_MINH" ] || [ "$w" -lt "$DT_MINW" ] ||
-	   ! dt_resize "$id" "$h" "$w"; then
+	rect := dt_ctlrect "$id"
+	read -r drow dcol drows dcols <<< "$rect"
+	if ! [[ $h =~ ^[0-9]+$ && $w =~ ^[0-9]+$ ]] || [ -z "$rect" ] ||
+	   [ "$h" -lt "$DT_MINH" ] || [ "$w" -lt "$DT_MINW" ] ||
+	   [ $((DT[$id]["row"] + h)) -gt $((drow + drows)) ] ||
+	   [ $((DT[$id]["col"] + w)) -gt $((dcol + dcols)) ]; then
 		out := dt_ctlerr bad-geometry "$h by $w does not fit"
 		ret "$out"
 		return 0
 	fi
+	DT[$id]["h"]=$h
+	DT[$id]["w"]=$w
+	DT[$id]["oh"]=
+	console pane "w$id" "${DT[$id]["row"]}" "${DT[$id]["col"]}" "$h" "$w"
 	dt_want 10
-	ret "{\"ok\":true,\"id\":$id,\"h\":${DT[$id]["h"]},\"w\":${DT[$id]["w"]}}"
+	ret "{\"ok\":true,\"id\":$id,\"h\":$h,\"w\":$w}"
 }
 
 # Bring a window forward and give it the keyboard.

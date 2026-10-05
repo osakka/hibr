@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.99.46
+
+**`desktop ctl resize` is measured against the window's own display.**
+Under Blit the desktop's screen is the primary's surface alone, 128
+columns, while a joined display sits beside it at column 128; a resize
+went through the same clamp as a drag, against that screen, so a window
+moved to the joined display was clamped to no width and every resize
+there was refused (Gitea #100). A ctl resize now finds the display the
+window is on from the display list and checks the size against that
+rectangle, and a size that does not fit is refused whole, the window
+left as it was, where the clamp used to shrink it quietly. Tested on a
+joined pair, and with given layouts for one display below another and
+two panes side by side.
+
 ## 0.99.45
 
 **About an app is found in one pass.** 0.99.44's grep-free search for the
