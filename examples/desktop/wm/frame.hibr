@@ -198,13 +198,21 @@ fn dt_win(int id) {
 			console put -p "w$id" 0 0 "$sb"
 		fi
 	fi
-	dt_btnorder "$DT_BTNSTYLE" "$fixed" "$DT_BTNSIDE"
+	local side=$DT_BTNSIDE align=$DT_TITLEALIGN
+
+	case $DT_MIRRORON in
+	1)
+		case $side in left) side=right ;; *) side=left ;; esac
+		case $align in right) align=left ;; center) ;; *) align=right ;; esac
+		;;
+	esac
+	dt_btnorder "$DT_BTNSTYLE" "$fixed" "$side"
 	# A blank frame is blank throughout: the tick marks a style wraps its
 	# cluster in are box-drawing glyphs too, and stay undrawn along with
 	# the ring itself, even though the buttons they wrap keep working.
 	{ [ "$DT_FRAME" = none ] || [ "$DT_TITLEBAR" = solid ]; } && { BTN_DL=" "; BTN_DR=" "; }
 	bs := dt_btnstr
-	if [ "$DT_BTNSIDE" = left ]; then bc=1; else bc=$((w - 1 - ${#bs})); fi
+	if [ "$side" = left ]; then bc=1; else bc=$((w - 1 - ${#bs})); fi
 	console pen "$bink" "$tbg"
 	console put -p "w$id" 0 "$bc" "$bs"
 	if [ "$fixed" = 1 ]; then off=(1 3); else off=(1 3 5); fi
@@ -226,7 +234,7 @@ fn dt_win(int id) {
 	local t=${DT[$id]["title"]} tc0 room tc tmax
 
 	case $DT_LANG in ?*) t := dt_trtitle "$t" ;; esac
-	if [ "$DT_BTNSIDE" = left ]; then
+	if [ "$side" = left ]; then
 		tc0=$((bc + ${#bs}))
 		room=$((w - 1 - tc0 - 4))
 	else
@@ -235,7 +243,7 @@ fn dt_win(int id) {
 	fi
 	[ ${#t} -gt "$room" ] && t="${t:0:$room}"
 	tmax=$((tc0 + room - ${#t}))
-	case $DT_TITLEALIGN in
+	case $align in
 	# Centred on the bar's own full width, not on the room left over once
 	# the button cluster is excluded -- centring in that remaining room
 	# pushes the title away from the buttons by about half the cluster's
@@ -297,11 +305,12 @@ fn dt_lighten(c, int p) {
 # button is not drawn there either, so a click at its old column falls
 # through to the window's body instead of hitting a button that is not there.
 fn dt_btn(int w, int c, int? fixed) {
-	local bc bw
+	local bc bw side=$DT_BTNSIDE
 
+	case $DT_MIRRORON in 1) case $side in left) side=right ;; *) side=left ;; esac ;; esac
 	if [ "$fixed" = 1 ]; then bw=5; else bw=7; fi
-	if [ "$DT_BTNSIDE" = left ]; then bc=1; else bc=$((w - 1 - bw)); fi
-	dt_btnorder "$DT_BTNSTYLE" "$fixed" "$DT_BTNSIDE"
+	if [ "$side" = left ]; then bc=1; else bc=$((w - 1 - bw)); fi
+	dt_btnorder "$DT_BTNSTYLE" "$fixed" "$side"
 	if [ "$fixed" = 1 ]; then
 		case $((c - bc)) in
 		1) ret "${BTN_K[0]}" ;;

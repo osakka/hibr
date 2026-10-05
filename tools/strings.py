@@ -185,6 +185,10 @@ if __name__ == "__main__":
               "strings": dict((k, "⟦" + k + "⟧") for k in keys(rows))}
         open(os.path.join(lang, "xx.json"), "w").write(
             json.dumps(xx, ensure_ascii=False, indent=1, sort_keys=True) + "\n")
+        xy = {"language": "xy", "name": "Pseudo right-to-left (xy)", "dir": "rtl", "plural": "en",
+              "strings": dict((k, "\u27ea" + k + "\u27eb") for k in keys(rows))}
+        open(os.path.join(lang, "xy.json"), "w").write(
+            json.dumps(xy, ensure_ascii=False, indent=1, sort_keys=True) + "\n")
         sys.exit(0)
     if "--check" in sys.argv:
         have = open(os.path.join(lang, "strings.txt")).read().split("\n")[:-1]

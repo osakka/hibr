@@ -242,6 +242,12 @@ every string, for finding one that is not looked up. The same pane holds
 Order Right-to-Left Text: on draws Arabic and Hebrew in display order, off
 is for a terminal that reorders them itself (ADR 0031).
 
+Mirror Layout, on the same pane, turns the desktop round for a right-to-left
+language -- the menu bar from the right edge, a window's buttons on its left,
+dialog buttons the other way -- on its own when the language is one (auto),
+or on or off whatever the language (ADR 0033). Your own button side and
+title alignment keep working inside it.
+
 ## Glyphs
 
 Every character the desktop draws that is not plain text -- a border, a

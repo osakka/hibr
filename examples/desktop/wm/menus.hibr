@@ -651,8 +651,9 @@ fn dt_akeypos(lb, k) {
 
 # Work out where each title sits on the bar.
 dt_layout() {
-	local i=0 c=$((DT_PRIMARY_COL + 1)) t
+	local i=0 c=$((DT_PRIMARY_COL + 1)) t tw
 
+	case $DT_MIRRORON in 1) dt_layoutm; return 0 ;; esac
 	while [ "$i" -lt "$MB_N" ]; do
 		if [ "${MB[$i]["bar"]}" != 1 ]; then
 			MB[$i]["x"]=0
@@ -667,6 +668,29 @@ dt_layout() {
 		i=$((i + 1))
 	done
 	MB_AX=$((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - 14))
+}
+
+# The bar mirrored: the first menu at the right edge and each after it to
+# its left, the application menu at the left end (ADR 0033).
+dt_layoutm() {
+	local i=0 c=$((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - 1)) t tw
+
+	while [ "$i" -lt "$MB_N" ]; do
+		if [ "${MB[$i]["bar"]}" != 1 ]; then
+			MB[$i]["x"]=0
+			MB[$i]["tw"]=0
+			i=$((i + 1))
+			continue
+		fi
+		t=${MB[$i]["title"]}
+		tw := str width "$t"
+		tw=$((tw + 2))
+		c=$((c - tw))
+		MB[$i]["x"]=$c
+		MB[$i]["tw"]=$tw
+		i=$((i + 1))
+	done
+	MB_AX=$DT_PRIMARY_COL
 }
 
 # Draw the open menu over everything else.
@@ -701,6 +725,8 @@ fn dt_menu_draw(int m, int? px, int parent) {
 	elif [ -n "$MB_CX" ]; then
 		x=$MB_CX
 		r=${MB_CY:-1}
+	else
+		case $DT_MIRRORON in 1) x=$((x + ${MB[$m]["tw"]:-0} - w)) ;; esac
 	fi
 	[ "$x" -lt 0 ] && x=0
 	[ $((x + w)) -gt "$DT_COLS" ] && x=$((DT_COLS - w))
@@ -745,6 +771,19 @@ fn dt_menu_draw(int m, int? px, int parent) {
 			pos := dt_akeypos "$lb" "$k"
 		fi
 		[ -z "$t" ] && t=" "
+		case $DT_MIRRORON in
+		1)
+			lb := str pad "" "$w"
+			console put "$r" "$x" "$lb"
+			console put "$r" "$x" " $k "
+			console put "$r" $((x + w - 2)) "$t"
+			pos := str width "${MI[$m][$i]["label"]}"
+			console put "$r" $((x + w - 3 - pos)) "${MI[$m][$i]["label"]}"
+			r=$((r + 1))
+			i=$((i + 1))
+			continue
+			;;
+		esac
 		if [ "$pos" -ge 0 ]; then
 			# The accelerator is a real letter of the label -- underline
 			# it in place instead of repeating it after the label, which
@@ -888,12 +927,19 @@ dt_mclose() {
 # index drawn, separators included, so MB_SEL is already the row offset to
 # add, no separate counting needed.
 dt_mdown() {
-	local sub
+	local sub w
 
 	[ "$MB_OPEN" = app ] && return 1
 	sub=${MI[$MB_OPEN][$MB_SEL]["sub"]}
 	[ -z "$sub" ] && return 1
 	MB[$sub]["px"]=$((${MB[$MB_OPEN]["dx"]} + ${MB[$MB_OPEN]["dw"]} - 1))
+	case $DT_MIRRORON in
+	1)
+		w=${MB[$sub]["w"]:-14}
+		[ "$w" -lt 14 ] && w=14
+		MB[$sub]["px"]=$((${MB[$MB_OPEN]["dx"]} - w + 1))
+		;;
+	esac
 	MB[$sub]["py"]=$((${MB[$MB_OPEN]["dy"]:-1} + MB_SEL))
 	MB_PAR=$MB_OPEN
 	MB_OPEN=$sub
@@ -983,7 +1029,10 @@ fn dt_mpick(int r, int c) {
 fn dt_mhit(int c) {
 	local i=0 x w
 
-	[ "$c" -ge "$MB_AX" ] && { ret app; return 0; }
+	case $DT_MIRRORON in
+	1) [ "$c" -lt $((MB_AX + 14)) ] && { ret app; return 0; } ;;
+	*) [ "$c" -ge "$MB_AX" ] && { ret app; return 0; } ;;
+	esac
 	while [ "$i" -lt "$MB_N" ]; do
 		x=${MB[$i]["x"]}
 		w=${MB[$i]["tw"]}

@@ -3137,6 +3137,37 @@ check("and the menus and the desktop's icons",
       sc.find("⟦About hibr Desktop⟧") is not None
       and sc.find("⟦Home⟧") is not None, sc)
 
+# Text an app draws itself goes through dt_tput: in xx it is marked too.
+sc, raw = run('dt_new "About hibr" 16 56 2 2 about', pre=APPS, env={"DT_LANG": "xx"})
+check("text an app draws itself is translated: About's own labels",
+      sc.find("\u27e6Hostname:") is not None, sc)
+
+# Mirrored layout (#68, ADR 0033): with a right-to-left language the bar
+# runs from the right edge, the application menu and the clock at the left;
+# a window's buttons and title swap sides. xy is a right-to-left pseudo-
+# language; English unchanged unless DT_MIRROR=on.
+XY = {"DT_LANG": "xy"}
+sc, raw = run(ONE, env=XY)
+bar = sc.row(0).rstrip()
+check("mirrored, the hibr menu is at the right edge and the app menu at the left",
+      bar.endswith("\u270e") and bar.lstrip().startswith("Hello") is False
+      and "\u25be" in bar[:16], bar)
+check("and a window's buttons are on the left, its title on the right",
+      re.search(r"\u250c.?\u2524x", sc.row(6)) is not None and
+      sc.row(6).find("Hello") > sc.row(6).find("x"), sc.row(6))
+sc, raw = run(ONE, feed=[press(6, 12), release(6, 12)], env=XY)
+check("the close button is where it is drawn: a click on it closes the window",
+      sc.find("Hello") is None, sc)
+sc, raw = run(ONE, feed=[press(0, COLS - 2)], env=XY)
+check("a click on the rightmost title opens the hibr menu under it",
+      sc.find("\u27eaAbout hibr Desktop\u27eb") is not None, sc)
+sc, raw = run(ONE, env={"DT_MIRROR": "on"})
+check("DT_MIRROR=on mirrors English too",
+      sc.row(0).rstrip().endswith("\u270e"), sc.row(0))
+sc, raw = run(ONE)
+check("and English is not mirrored by default",
+      sc.row(0).lstrip().startswith("\u270e"), sc.row(0))
+
 # --standby: a terminal that waits to be joined, joins, and when it is let
 # go waits again. Blank keeps a joined display joined but dark.
 SB = tempfile.mkdtemp(prefix="hibr-standby-")
@@ -3563,4 +3594,4 @@ check("an arithmetic error in an app is logged and the desktop carries on",
       sc.find("┤ Slip ├") is not None and "arithmetic" in log and t.exited and t.status == 0,
       (log, t.status))
 
-report(487)
+report(494)

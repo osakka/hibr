@@ -22,11 +22,16 @@ strict
 
 DT_LANG="${DT_LANG-}"
 DT_BIDI="${DT_BIDI-on}"
+# Whether the layout mirrors for a right-to-left language: auto follows the
+# catalogue's direction, on and off say so outright (ADR 0033). DT_MIRRORON
+# is what is in effect; layout code asks `case $DT_MIRRORON in 1)`.
+DT_MIRROR="${DT_MIRROR-auto}"
+DT_MIRRORON=
 DT_LANGON=
 DT_LANGRTL=
 # Scratch for a translated label built from a template, before it is handed on.
 DT_T=
-dt_keep DT_LANG DT_BIDI
+dt_keep DT_LANG DT_BIDI DT_MIRROR
 
 # The text a person reads, in the chosen language, %s and %N$s filled from the rest.
 # A trailing ellipsis glyph is looked up as "…" and put back, whatever the glyph set.
@@ -104,6 +109,8 @@ dt_langapply() {
 
 	DT_LANGON=
 	DT_LANGRTL=
+	DT_MIRRORON=
+	[ "$DT_MIRROR" = on ] && DT_MIRRORON=1
 	if command -v console > /dev/null; then
 		if [ "$DT_BIDI" = off ]; then
 			console bidi off
@@ -124,6 +131,7 @@ dt_langapply() {
 	DT_LANGRTL=
 	f := lang info
 	[[ $f == *$'\t'rtl$'\t'* ]] && DT_LANGRTL=1
+	[ "$DT_MIRROR" = auto ] && DT_MIRRORON=$DT_LANGRTL
 	DT_MENUIN=
 	return 0
 }
@@ -136,7 +144,7 @@ dt_langs() {
 		[ -r "$f" ] || continue
 		c=${f##*/}
 		c=${c%.json}
-		[ "$c" = xx ] && continue
+		[ "$c" = xx ] || [ "$c" = xy ] && continue
 		[[ $seen == *" $c "* ]] && continue
 		seen+="$c "
 		n=$c

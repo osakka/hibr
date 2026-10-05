@@ -197,16 +197,21 @@ fn dt_wskey(k) {
 
 # Draw the numbers on the bar, ending just before column end, and remember
 # where they are for a click or a drop. One workspace draws nothing.
-fn dt_wsdraw(int end) {
+fn dt_wsdraw(int end, int? start = "") {
 	local i=1
 
 	DT_WSW=0
 	[ "$DT_WSN" -gt 1 ] || return 0
 	DT_WSW=$((DT_WSN * 2 - 1))
 	DT_WSC=$((end - DT_WSW))
+	[ -n "$start" ] && DT_WSC=$start
 	# A long row of an app's menus wins: the numbers give way rather than
-	# draw over a menu's title.
-	if [ "$DT_WSC" -le "${DT_MENUEND:-0}" ]; then
+	# draw over a menu's title -- on its left, or when mirrored its right.
+	if [ -z "$start" ] && [ "$DT_WSC" -le "${DT_MENUEND:-0}" ]; then
+		DT_WSW=0
+		return 0
+	fi
+	if [ -n "$start" ] && [ $((DT_WSC + DT_WSW)) -gt "$DT_MENUSTART" ]; then
 		DT_WSW=0
 		return 0
 	fi

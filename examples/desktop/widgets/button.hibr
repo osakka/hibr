@@ -85,7 +85,7 @@ fn dt_btnw(...labels) {
 # them -- in a field or a list -- the first, which is always the dialog's
 # action, is drawn as the default: it is what enter does from there.
 fn dt_buttons(id, int r, int c, focus, ...pairs) {
-	local i=0 on n=${#pairs[@]} def=1
+	local i=0 on n=${#pairs[@]} def=1 deftag=${pairs[0]}
 
 	if [ -n "$DT_LANG" ]; then
 		while [ $((i + 1)) -lt "$n" ]; do
@@ -98,10 +98,21 @@ fn dt_buttons(id, int r, int c, focus, ...pairs) {
 		[ "${pairs[$i]}" = "$focus" ] && def=0
 		i=$((i + 2))
 	done
+	case $DT_MIRRORON in
+	1)
+		local -a rev
+		i=$((n - 2))
+		while [ "$i" -ge 0 ]; do
+			rev+=("${pairs[$i]}" "${pairs[$((i + 1))]}")
+			i=$((i - 2))
+		done
+		pairs=("${rev[@]}")
+		;;
+	esac
 	i=0
 	while [ $((i + 1)) -lt "$n" ]; do
 		on=0
-		[ "$i" = 0 ] && [ "$def" = 1 ] && on=2
+		[ "${pairs[$i]}" = "$deftag" ] && [ "$def" = 1 ] && on=2
 		[ "${pairs[$i]}" = "$focus" ] && on=1
 		dt_button "$id" "$r" "$c" "${pairs[$((i + 1))]}" "$on" \
 			"${pairs[$i]}"

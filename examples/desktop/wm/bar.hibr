@@ -45,6 +45,7 @@ dt_bar() {
 	console put 0 "$DT_PRIMARY_COL" "$line"
 
 	DT_MENUEND=0
+	DT_MENUSTART=$((DT_PRIMARY_COL + w))
 	while [ "$i" -lt "$MB_N" ]; do
 		if [ "${MB[$i]["bar"]}" != 1 ]; then
 			i=$((i + 1))
@@ -53,6 +54,7 @@ dt_bar() {
 		t=${MB[$i]["title"]}
 		[ $((MB[$i]["x"] + ${#t} + 2)) -gt "$DT_MENUEND" ] &&
 			DT_MENUEND=$((MB[$i]["x"] + ${#t} + 2))
+		[ "${MB[$i]["x"]}" -lt "$DT_MENUSTART" ] && DT_MENUSTART=${MB[$i]["x"]}
 		if [ "$i" = "$MB_OPEN" ] || [ "$i" = "$MB_PAR" ]; then
 			console pen "$DT_BAR" "$DT_ACTIVE" bold
 		elif [ "$i" = 0 ]; then
@@ -72,6 +74,7 @@ dt_bar() {
 	[ "$gap" -gt 4 ] && gap=4
 	DT_CLOCKW := str width "$now"
 	DT_CLOCKC=$((MB_AX - (gap - 1) - DT_CLOCKW))
+	case $DT_MIRRORON in 1) DT_CLOCKC=$((MB_AX + 14 + gap - 1)) ;; esac
 	# The icon, and beside it how many notes have come since the history
 	# was last opened -- nothing beside it when that is none. Its width is
 	# measured like the clock's rather than assumed: the bell is two cells.
@@ -84,10 +87,22 @@ dt_bar() {
 	DT_BELLW := str width "$bell"
 	DT_BELLC=$((DT_CLOCKC - gap - DT_BELLW))
 	# Long app menus win here too: what would draw over a menu's title
-	# gives way, and with no width it cannot be clicked either.
-	[ "$DT_CLOCKC" -le "$DT_MENUEND" ] && DT_CLOCKW=0
-	[ "$DT_BELLC" -le "$DT_MENUEND" ] && DT_BELLW=0
-	dt_wsdraw $((DT_BELLC - gap))
+	# gives way, and with no width it cannot be clicked either. Mirrored,
+	# the clock, the bell and the numbers run rightwards from the
+	# application menu at the left end, and give way to the menus' start.
+	case $DT_MIRRORON in
+	1)
+		DT_BELLC=$((DT_CLOCKC + DT_CLOCKW + gap))
+		[ $((DT_CLOCKC + DT_CLOCKW)) -gt "$DT_MENUSTART" ] && DT_CLOCKW=0
+		[ $((DT_BELLC + DT_BELLW)) -gt "$DT_MENUSTART" ] && DT_BELLW=0
+		dt_wsdraw 0 $((DT_BELLC + DT_BELLW + gap))
+		;;
+	*)
+		[ "$DT_CLOCKC" -le "$DT_MENUEND" ] && DT_CLOCKW=0
+		[ "$DT_BELLC" -le "$DT_MENUEND" ] && DT_BELLW=0
+		dt_wsdraw $((DT_BELLC - gap))
+		;;
+	esac
 	t := dt_ms
 	case $DT_BARTIME in
 	*%S* | *%T* | *%r* | *%s* | *%X* | *%c*)

@@ -10,6 +10,7 @@ strict
 command -v cp_pane > /dev/null && cp_pane language "Language" "A"
 
 declare -ga CP_LANGCODES CP_LANGNAMES
+CP_MIRRORS=(auto on off)
 
 # Read the catalogues there are into CP_LANGCODES and CP_LANGNAMES, English first.
 cp_langlist() {
@@ -56,6 +57,13 @@ fn cp_set_lang(int? id = "", value = "") {
 	cp_save
 }
 
+# Mirror the layout: auto (with the language), on or off.
+fn cp_set_mirror(int? id = "", value = "") {
+	DT_MIRROR=$value
+	dt_langapply
+	cp_save
+}
+
 fn language_rows(int w) {
 	local n=0 nm
 
@@ -66,6 +74,8 @@ fn language_rows(int w) {
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=on; [ "$DT_BIDI" = off ] && CP[$w][$n]["val"]=off
 	CP[$w][$n]["key"]=bidi; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Mirror Layout"
+	CP[$w][$n]["val"]="$DT_MIRROR"; CP[$w][$n]["key"]=mirror; n=$((n + 1))
 	ret "$n"
 }
 
@@ -88,6 +98,11 @@ fn language_do(int? w = "", k = "", int? dir = "") {
 		fi
 		dt_langapply
 		;;
+	mirror)
+		v := cp_next "$DT_MIRROR" "$dir" "${CP_MIRRORS[@]}"
+		cp_set_mirror "" "$v"
+		return 0
+		;;
 	esac
 	cp_save
 }
@@ -98,5 +113,6 @@ fn language_drop(int? w = "", int? r = "", int? c = "", k = "") {
 		cp_langlist
 		dt_droplist "$w" "$r" "$c" cp_set_lang "${CP_LANGNAMES[@]}"
 		;;
+	mirror) dt_droplist "$w" "$r" "$c" cp_set_mirror "${CP_MIRRORS[@]}" ;;
 	esac
 }

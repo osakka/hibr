@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.99.57
+
+**The desktop turns round for a right-to-left language** (Gitea #68,
+phase 4a). With Arabic or Hebrew -- or Control Panel > Language > Mirror
+Layout set to on -- the menu bar runs from the right edge, the
+application menu, the clock, notifications and the workspaces from the
+left; menus open under their title's right edge, submenus to the left,
+each row's shortcut on the left and its label right-aligned; a window's
+buttons sit on its left and its title on its right; a row of dialog
+buttons runs the other way. It is a layer over the settings, never a
+change to them, so your own button side and title alignment still mean
+what they did (ADR 0033). A right-to-left pseudo-language, `xy`, drives
+the suites through it. Control Panel, the desktop icons, the Control
+Strip and tiling follow next, then each app's own layout.
+
 ## 0.99.56
 
 **The rest of the desktop's text is translatable** (Gitea #68). 677

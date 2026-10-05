@@ -343,6 +343,7 @@ Message
 Message sent
 Mines
 Mini Player
+Mirror Layout
 Mode
 Modified: %s
 Modifier Drag

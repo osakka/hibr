@@ -42,6 +42,7 @@ downside is usually a decision nobody had to make.
 | [0030](0030-text-direction-and-shaping-come-from-one-unicode-version.md) | Text direction and shaping come from one Unicode version, in a module | accepted |
 | [0031](0031-the-console-draws-right-to-left-text-in-display-order.md) | The console draws right-to-left text in display order | accepted |
 | [0032](0032-the-desktop-is-translated-at-its-widgets.md) | The desktop is translated at its widgets, English as the key | accepted |
+| [0033](0033-the-layout-mirrors-as-a-layer-over-the-settings.md) | The layout mirrors as a layer over the settings | accepted |
 
 ---
 
