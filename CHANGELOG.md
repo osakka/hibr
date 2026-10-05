@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.99.60
+
+**Control Panel's panes and Files turn round** (Gitea #68, phase 4c).
+Mirrored, every row of a Control Panel pane puts its value, checkbox,
+slider or dropdown at the left and its label at the right, a pane's
+scrollbar on its left edge. Files puts its path at the right and the
+search box at the left, its names at the right of the list, the details
+columns in the other order with the name last, and its icon grid from
+the right; a click on a tile or a column heading reaches what is drawn
+there. Mail, Sheet and the rest of the apps follow.
+
 ## 0.99.59
 
 **A script reaps its background jobs.** A non-interactive hibr collected

@@ -44,8 +44,12 @@ mirrored layout with it, and `tests/uifuzz.py` runs clean under it.
 
 ## Consequences
 
-- Scrollbars, the inside of a Control Panel pane (its labels on the left,
-  values on the right) and each app's own layout (Files' columns, Mail's
-  panes, Sheet) follow in 4c.
+- Mirrored in 0.99.60 (4c, first part): the rows of every Control Panel
+  pane (value or widget left, label right, the scrollbar on the pane's
+  left edge) and Files (path and names at the right, the details columns
+  reversed, the icon grid from the right). A pane that draws its own
+  body, and every other app's layout -- Mail's panes, Sheet, the
+  scrollbars at a window's right edge -- follow. A terminal window's
+  content is never mirrored: it is a program's own screen.
 - `DT_MIRROR=on` mirrors an English desktop too, for whoever wants it and
   for testing.

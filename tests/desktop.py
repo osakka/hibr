@@ -3201,24 +3201,60 @@ check("a tiled workspace's main window is on the right, the stack on the left",
       one[1] > COLS // 2 and two[1] < COLS // 2, sc)
 CPAN = (APPS + 'CP_PANEDIRS+=("%s")\ncp_panes\n'
         % tree("examples/desktop/control-panel"))
-PANEL = 'dt_new Panel 22 70 1 4 panel'
-sc, _ = run(PANEL, env=XY, pre=CPAN)
+XYPANEL = 'dt_new Panel 22 70 1 4 panel'
+sc, _ = run(XYPANEL, env=XY, pre=CPAN)
 srch = sc.find("Search")
+bar = [c for c in range(COLS) if sc.at(5, c) == "\u2502"][1]
 check("Control Panel's list of panes is on the right, its body on the left",
       srch is not None and srch[1] > 50 and
-      re.search(r"\u2502\d\d:\d\d:\d\d", sc.row(2)) is not None, sc)
+      re.search(r"\u2502 \d\d:\d\d:\d\d", sc.row(2)) is not None, sc)
 disp = sc.find("Displays")
-sc, _ = run(PANEL, feed=[press(disp[0], disp[1]), release(disp[0], disp[1])],
+sc, _ = run(XYPANEL, feed=[press(disp[0], disp[1]), release(disp[0], disp[1])],
             env=XY, pre=CPAN)
 check("and a click on a pane in it opens that pane",
       sc.find("Displays") is not None and
       re.search(r"\d\d:\d\d:\d\d", sc.row(2)) is None, sc)
-bar = [c for c in range(COLS) if sc.at(5, c) == "\u2502"][1]
-sc, _ = run(PANEL, feed=[press(5, bar), drag(5, bar - 8), release(5, bar - 8)],
+sc, _ = run(XYPANEL + " language", env=XY, pre=CPAN)
+row = sc.row(2)
+check("a pane's rows put the value at the left and the label at the right",
+      re.match(r"\S*\u2502 xy +\u25be +\S", row) is not None and
+      row.rstrip().find("Language") > row.find("\u25be"), row)
+drop = row.index("\u25be")
+sc, _ = run(XYPANEL + " language", env=XY, pre=CPAN,
+            feed=[press(2, drop), release(2, drop)])
+check("and its dropdown opens from where it is drawn",
+      sc.find("English") is not None, sc)
+sc, _ = run(XYPANEL, feed=[press(5, bar), drag(5, bar - 8), release(5, bar - 8)],
             env=XY, pre=CPAN)
 check("dragging its divider left widens the list, as it is on the right",
       sc.find("Search") is not None and sc.find("Search")[1] < srch[1] - 4,
       sc)
+
+# Files mirrored: names at the right in each view, the icon grid from the
+# right, and a click on a tile or a column heading reaching what is drawn.
+FBD = tempfile.mkdtemp(prefix="hibr-fbm-")
+for nm in ("alpha.txt", "beta.md", "c"):
+    open(os.path.join(FBD, nm), "w").write("x" * (1000 * len(nm)))
+os.mkdir(os.path.join(FBD, "sub"))
+FBM = 'dt_new Files 14 60 2 4 files "%s"\nFB[1][view]=' % FBD
+sc, _ = run(FBM + "list", env=XY, pre=APPS)
+row = [sc.row(r) for r in range(ROWS) if "alpha.txt" in sc.row(r)][0]
+check("mirrored, Files' list puts each name at the right",
+      row.index("alpha.txt") > 40 and row.index("alpha.txt") + 9 + 1 ==
+      row.index("\u2502", 10), row)
+sc, _ = run(FBM + "icons", env=XY, pre=APPS)
+a = sc.find("alpha.txt")
+sc, _ = run(FBM + "icons", env=XY, pre=APPS,
+            feed=[press(a[0] - 1, a[1]), release(a[0] - 1, a[1])])
+check("and a click on an icon selects the one drawn there",
+      sc.find("3 of 5") is not None, sc)
+sc, _ = run(FBM + "details", env=XY, pre=APPS)
+z = sc.find("Size")
+sc, _ = run(FBM + "details", env=XY, pre=APPS,
+            feed=[press(z[0], z[1]), release(z[0], z[1])])
+check("and a click on a heading sorts by the column under it",
+      re.search(r"Size[\u25b2\u25bc]", sc.text()) is not None, sc)
+shutil.rmtree(FBD, True)
 
 # --standby: a terminal that waits to be joined, joins, and when it is let
 # go waits again. Blank keeps a joined display joined but dark.
@@ -3646,4 +3682,4 @@ check("an arithmetic error in an app is logged and the desktop carries on",
       sc.find("┤ Slip ├") is not None and "arithmetic" in log and t.exited and t.status == 0,
       (log, t.status))
 
-report(501)
+report(506)

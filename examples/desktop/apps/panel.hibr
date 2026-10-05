@@ -310,7 +310,7 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 	[ -z "$pane" ] && return 0
 	bx=$((lw + 1))
 	bw=$((w - lw - 1))
-	case $DT_MIRRORON in 1) bx=1 ;; esac
+	case $DT_MIRRORON in 1) bx=2 ;; esac
 	if dt_has "${pane}_draw"; then
 		"${pane}_draw" "$id" $((h - 1)) "$bw" "$bx"
 	else
@@ -334,6 +334,11 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 # like a rendering glitch rather than the stale field it was.
 fn cp_rowsdraw(int id, pane, int h, int w, int bx) {
 	local i r t v n top sel kind wtype on kv
+	local wc=$((bx + w - 11))
+	local xc=$((bx + w - 4))
+	local sb=$((bx + w))
+
+	case $DT_MIRRORON in 1) wc=$bx; xc=$bx; sb=$((bx - 1)) ;; esac
 
 	unset "CP[$id]"
 	n := "${pane}_rows" "$id"
@@ -367,7 +372,18 @@ fn cp_rowsdraw(int id, pane, int h, int w, int bx) {
 			t := str repeat " " "$w"
 		elif [ "$kind" = head ]; then
 			console pen "$DT_DIM" "$DT_FACE" bold
-			t := str pad "$t" "$w"
+			case $DT_MIRRORON in
+			1) t := cp_rowm "$t" head "" "$w" ;;
+			*) t := str pad "$t" "$w" ;;
+			esac
+		elif [ "$DT_MIRRORON" = 1 ]; then
+			if [ "$i" = "$sel" ] && [ "${PW[$id]["side"]}" != list ]; then
+				console pen "$DT_SELINK" "$DT_ACTIVE" bold
+			else
+				console pen "$DT_INK" "$DT_FACE"
+			fi
+			[ "$kind" = key ] && kv=$v
+			t := cp_rowm "$t" "$kind" "$v" "$w"
 		else
 			if [ "$i" = "$sel" ] && [ "${PW[$id]["side"]}" != list ]; then
 				console pen "$DT_SELINK" "$DT_ACTIVE" bold
@@ -395,26 +411,30 @@ fn cp_rowsdraw(int id, pane, int h, int w, int bx) {
 			fi
 		fi
 		console put -p "w$id" "$r" "$bx" "$t"
-		[ -n "${CP[$id][$i]["btns"]}" ] && [ "$i" -lt "$n" ] &&
-			cp_rowbtns "$id" "$i" "$r" $((bx + ${#CP[$id][$i]["text"]} + 4)) $((bx + w - 12))
+		if [ -n "${CP[$id][$i]["btns"]}" ] && [ "$i" -lt "$n" ]; then
+			case $DT_MIRRORON in
+			1) cp_rowbtns "$id" "$i" "$r" $((bx + 12)) $((bx + w - ${#CP[$id][$i]["text"]} - 4)) ;;
+			*) cp_rowbtns "$id" "$i" "$r" $((bx + ${#CP[$id][$i]["text"]} + 4)) $((bx + w - 12)) ;;
+			esac
+		fi
 		if [ "$kind" = key ] && [ -n "$kv" ]; then
 			console pen "$DT_INK" "$DT_IDLE"
-			console put -p "w$id" "$r" $((bx + w - 4)) " ${GL[cross]} "
-			dt_wreg "$id" "$r" $((bx + w - 4)) 3 "clear:$i"
+			console put -p "w$id" "$r" "$xc" " ${GL[cross]} "
+			dt_wreg "$id" "$r" "$xc" 3 "clear:$i"
 		fi
 		if [ "$kind" = set ]; then
 			if [ "$wtype" = bool ]; then
 				on=0
 				[ "$v" = on ] && on=1
-				dt_check "$id" "$r" $((bx + w - 11)) "$on" "" \
+				dt_check "$id" "$r" "$wc" "$on" "" \
 					"${CP[$id][$i]["key"]}"
 			elif [ "$wtype" = slider ]; then
-				dt_slider "$id" "$r" $((bx + w - 11)) 11 "$v" \
+				dt_slider "$id" "$r" "$wc" 11 "$v" \
 					"${CP[$id][$i]["min"]:-0}" \
 					"${CP[$id][$i]["max"]:-10}" \
 					"${CP[$id][$i]["key"]}"
 			else
-				dt_wdrop "$id" "$r" $((bx + w - 11)) 11 "$v" \
+				dt_wdrop "$id" "$r" "$wc" 11 "$v" \
 					"${CP[$id][$i]["key"]}"
 			fi
 		fi
@@ -424,7 +444,26 @@ fn cp_rowsdraw(int id, pane, int h, int w, int bx) {
 	# A pane longer than the window says so: Shortcuts outgrew it, and a
 	# row below the edge with nothing to show it was there is one nobody
 	# finds. The wheel and the arrows scroll it.
-	dt_scrollbar "$id" 1 $((bx + w)) "$h" "$n" "$h" "$top"
+	dt_scrollbar "$id" 1 "$sb" "$h" "$n" "$h" "$top"
+}
+
+# A pane's row mirrored: its value or widget at the left, its label right-aligned.
+fn cp_rowm(t, kind, v, int w) {
+	local n=$((w - 12)) lead="" pad
+	local -i tw
+
+	case $kind in
+	head) n=$w ;;
+	key) n=$((w - 15)); v := str pad "$v" 11; lead="   $v"; t="$t  " ;;
+	set) lead := str repeat " " 12 ;;
+	*) v := str pad "$v" 11; lead="$v " ;;
+	esac
+	[ "$kind" = head ] || t="$t  "
+	[ "${#t}" -gt "$n" ] && t="${GL[ellipsis]}${t:$((${#t} - n + 1))}"
+	tw := str width "$t"
+	pad=""
+	[ "$tw" -lt "$n" ] && pad := str repeat " " $((n - tw))
+	ret "$lead$pad$t"
 }
 
 # A row's own buttons, after its label: CP[w][i]["btns"] is "key:Label"

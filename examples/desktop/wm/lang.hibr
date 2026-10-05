@@ -139,6 +139,19 @@ dt_langapply() {
 	return 0
 }
 
+# Text right-aligned in n display columns, for a mirrored layout; longer text is left as it is.
+fn dt_rpad(t, int n) {
+	local p
+	local -i tw
+
+	tw := str width "$t"
+	if [ "$tw" -lt "$n" ]; then
+		p := str repeat " " $((n - tw))
+		t="$p$t"
+	fi
+	ret "$t"
+}
+
 # The Control Strip's side and the notifications' corner, mirrored.
 dt_mirrorx() {
 	case $CS_SIDEX in left) CS_SIDEX=right ;; *) CS_SIDEX=left ;; esac

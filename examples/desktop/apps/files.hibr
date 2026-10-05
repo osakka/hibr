@@ -731,29 +731,38 @@ fn fb_glyph(kind) {
 }
 
 fn files_draw(int id, int h, int w, int row, int col) {
-	local t n sel pw=$w bw=0 q=${FB[$id]["q"]} on
+	local t n sel pw=$w bw=0 q=${FB[$id]["q"]} on sx px
 
 	dt_wclear "$id"
 	if [ "$w" -ge 36 ]; then
 		bw=16
 		pw=$((w - bw - 2))
 	fi
+	FB[$id]["w"]=$w
+	FB[$id]["x0"]=1
+	sx=$((w - bw + 1))
+	px=1
+	case $DT_MIRRORON in 1) FB[$id]["x0"]=2; sx=1; px=$((w - pw + 1)) ;; esac
+	FB[$id]["px"]=$px
 	console pen "$DT_ACTIVE" "$DT_FACE" bold
 	t="${FB[$id]["dir"]}"
 	[ ${#t} -gt "$pw" ] && t="${GL[ellipsis]}${t: -$((pw - 1))}"
-	t := str pad "$t" "$pw"
-	console put -p "w$id" 1 1 "$t"
+	case $DT_MIRRORON in
+	1) t := dt_rpad "$t" "$pw" ;;
+	*) t := str pad "$t" "$pw" ;;
+	esac
+	console put -p "w$id" 1 "$px" "$t"
 	if [ "$bw" -gt 0 ]; then
 		if [ -n "$q" ] || [ -n "${FB[$id]["qon"]}" ]; then
 			on=0
 			[ -n "${FB[$id]["qon"]}" ] && on=1
-			dt_textdraw "$id" 1 $((w - bw + 1)) "$bw" "$q" "${#q}" "$on"
+			dt_textdraw "$id" 1 "$sx" "$bw" "$q" "${#q}" "$on"
 		else
 			console pen "$DT_DIM" "$DT_WELL"
 			t := str pad " Search  /" "$bw"
-			console put -p "w$id" 1 $((w - bw + 1)) "$t"
+			console put -p "w$id" 1 "$sx" "$t"
 		fi
-		dt_wreg "$id" 1 $((w - bw + 1)) "$bw" search
+		dt_wreg "$id" 1 "$sx" "$bw" search
 	fi
 	case ${FB[$id]["view"]} in
 	details) fb_drawdet "$id" "$h" "$w" ;;
@@ -765,12 +774,22 @@ fn files_draw(int id, int h, int w, int row, int col) {
 	sel=${FB[$id]["sel"]}
 	console pen "$DT_DIM" "$DT_FACE"
 	if [ "${FB[$id]["marks"]}" -gt 0 ]; then
-		dt_tput "$id" "$h" 1 "%s selected" "${FB[$id]["marks"]}"
+		t := dt_tr "%s selected" "${FB[$id]["marks"]}"
 	else
-		console put -p "w$id" "$h" 1 "$((sel + 1)) of $n"
+		t="$((sel + 1)) of $n"
 	fi
-	t=${FB[$id]["view"]}
-	console put -p "w$id" "$h" $((w - ${#t})) "$t"
+	case $DT_MIRRORON in
+	1)
+		n := str width "$t"
+		console put -p "w$id" "$h" $((w - n)) "$t"
+		console put -p "w$id" "$h" 1 "${FB[$id]["view"]}"
+		;;
+	*)
+		console put -p "w$id" "$h" 1 "$t"
+		t=${FB[$id]["view"]}
+		console put -p "w$id" "$h" $((w - ${#t})) "$t"
+		;;
+	esac
 }
 
 # A list of names, one to a row.
@@ -788,9 +807,12 @@ fn fb_drawlist(int id, int h, int w) {
 	while [ "$r" -lt "$h" ] && [ "$i" -lt "$n" ]; do
 		nm=${FL[$id][$i]["name"]}
 		[ "${FL[$id][$i]["dir"]}" = 1 ] && nm="$nm/"
-		t := str pad " $nm" $((w - 1))
+		case $DT_MIRRORON in
+		1) t := dt_rpad "$nm " $((w - 1)) ;;
+		*) t := str pad " $nm" $((w - 1)) ;;
+		esac
 		fb_rowpen "$id" "$i"
-		console put -p "w$id" "$r" 1 "$t"
+		console put -p "w$id" "$r" "${FB[$id]["x0"]}" "$t"
 		r=$((r + 1))
 		i=$((i + 1))
 	done
@@ -822,6 +844,9 @@ fn fb_drawdet(int id, int h, int w) {
 		esac
 	fi
 	console pen "$DT_DIM" "$DT_FACE"
+	if [ "$DT_MIRRORON" = 1 ]; then
+		fb_dethead "$id" "$nw" "$cs" "$ct" "$cp" "$mk" "$ms" "$mt" "$mm"
+	else
 	line := str pad " Name$mk" "$nw"
 	x=$((1 + nw))
 	hx="name 1 $x"
@@ -843,6 +868,7 @@ fn fb_drawdet(int id, int h, int w) {
 	fi
 	FB[$id]["hx"]=$hx
 	console put -p "w$id" 2 1 "$line"
+	fi
 	n=${FB[$id]["n"]}
 	top=${FB[$id]["top"]}
 	sel=${FB[$id]["sel"]}
@@ -852,6 +878,14 @@ fn fb_drawdet(int id, int h, int w) {
 		nm=${FL[$id][$i]["name"]}
 		[ "${FL[$id][$i]["dir"]}" = 1 ] && nm="$nm/"
 		[ "${#nm}" -ge "$nw" ] && nm="${nm:0:$((nw - 2))}${GL[ellipsis]}"
+		if [ "$DT_MIRRORON" = 1 ]; then
+			line := fb_detrow "$id" "$i" "$nm" "$nw" "$cs" "$ct" "$cp"
+			fb_rowpen "$id" "$i"
+			console put -p "w$id" "$r" 2 "$line"
+			r=$((r + 1))
+			i=$((i + 1))
+			continue
+		fi
 		line := str pad " $nm" "$nw"
 		if [ "$cs" = 1 ]; then
 			if [ "${FL[$id][$i]["dir"]}" = 1 ]; then
@@ -875,6 +909,57 @@ fn fb_drawdet(int id, int h, int w) {
 	done
 }
 
+# The details header mirrored: Mode, Modified and Size from the left, the name at the right.
+fn fb_dethead(int id, int nw, int cs, int ct, int cp, mk, ms, mt, mm) {
+	local line="" t hx="" x=2
+
+	if [ "$cp" = 1 ]; then
+		t := str pad "Mode$mm" 11
+		line+=$t
+		hx="$hx mode $x $((x + 11))"
+		x=$((x + 11))
+	fi
+	if [ "$ct" = 1 ]; then
+		t := str pad "Modified$mt" 14
+		line+=$t
+		hx="$hx time $x $((x + 14))"
+		x=$((x + 14))
+	fi
+	if [ "$cs" = 1 ]; then
+		t := dt_rpad "Size$ms" 7
+		line+=$t
+		hx="$hx size $x $((x + 7))"
+		x=$((x + 7))
+	fi
+	t := dt_rpad "Name$mk " "$nw"
+	line+=$t
+	hx="$hx name $x $((x + nw))"
+	FB[$id]["hx"]=${hx# }
+	console put -p "w$id" 2 2 "$line"
+}
+
+# One row of the details mirrored, its columns in the header's order.
+fn fb_detrow(int id, int i, nm, int nw, int cs, int ct, int cp) {
+	local line="" t sz
+
+	[ "$cp" = 1 ] && line="${FL[$id][$i]["perm"]} "
+	if [ "$ct" = 1 ]; then
+		printf -v t "%-12s  " "${FL[$id][$i]["time"]}"
+		line+=$t
+	fi
+	if [ "$cs" = 1 ]; then
+		if [ "${FL[$id][$i]["dir"]}" = 1 ]; then
+			sz="-"
+		else
+			sz := fb_human "${FL[$id][$i]["size"]}"
+		fi
+		printf -v t "%7s" "$sz"
+		line+=$t
+	fi
+	t := dt_rpad "$nm " "$nw"
+	ret "$line$t"
+}
+
 # A grid of tiles: a picture, and the name under it.
 fn fb_drawicons(int id, int h, int w) {
 	local i n top sel per rows r c x y g nm tw=$FILES_TILE
@@ -895,6 +980,7 @@ fn fb_drawicons(int id, int h, int w) {
 		c=$(((i - top) % per))
 		y=$((2 + r * 3))
 		x=$((1 + c * tw))
+		case $DT_MIRRORON in 1) x=$((w + 1 - (c + 1) * tw)) ;; esac
 		g := fb_glyph "${FL[$id][$i]["kind"]}"
 		fb_pen "${FL[$id][$i]["kind"]}"
 		console put -p "w$id" "$y" $((x + (tw - ${#g}) / 2)) "$g"
@@ -921,6 +1007,7 @@ fn fb_bar(int id, int h, int w) {
 	y0=${FB[$id]["y0"]}
 	rows=$(((n + per - 1) / per))
 	shown=$((vis / per))
+	case $DT_MIRRORON in 1) w=1 ;; esac
 	dt_scrollbar "$id" "$y0" "$w" $((h - y0)) "$rows" "$shown" \
 		$((top / per))
 }
@@ -1700,6 +1787,7 @@ fn fb_at(int id, int r, int c) {
 	top=${FB[$id]["top"]}
 	[ "$r" -lt "$y0" ] && return 1
 	if [ "${FB[$id]["view"]}" = icons ]; then
+		case $DT_MIRRORON in 1) c=$((${FB[$id]["w"]:-0} + 1 - c)) ;; esac
 		[ "$c" -lt 1 ] && return 1
 		[ $(((c - 1) / tw)) -ge "$per" ] && return 1
 		i=$((top + ((r - y0) / 3) * per + (c - 1) / tw))
@@ -1727,7 +1815,7 @@ fn files_mouse(int id, act, btn, int r, int c, mods) {
 		fi
 		FB[$id]["qon"]=
 		fb_crumbs "${FB[$id]["dir"]}"
-		dt_droplist "$id" 1 1 fb_go "${FB_CRUMBS[@]}"
+		dt_droplist "$id" 1 "${FB[$id]["px"]:-1}" fb_go "${FB_CRUMBS[@]}"
 		return 0
 	fi
 	if [ "$btn" = right ]; then
