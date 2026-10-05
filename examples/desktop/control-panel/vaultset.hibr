@@ -1,0 +1,182 @@
+#!/usr/bin/env hibr
+#
+# vaultset -- the Control Panel pane for the Bitwarden or Vaultwarden
+# vault (Gitea #71, ADR 0036): the server and account, whether it is
+# unlocked, when it locks itself, the PIN, syncing, and how long a copied
+# password stays on the clipboard. The vault's own settings -- the lock
+# timeout, the PIN -- are vw's, kept with the account; the rest are the
+# desktop's (wm/vault.hibr).
+
+strict
+
+command -v cp_pane > /dev/null && cp_pane vaultset "Passwords" "⚿"
+
+# Each setting's choices, "name=number" -- a number of minutes or seconds.
+declare -gA CP_VWCH
+CP_VWCH["locktime"]="1 Minute=1|5 Minutes=5|15 Minutes=15|30 Minutes=30|1 Hour=60|4 Hours=240|Never=0"
+CP_VWCH["syncevery"]="Never=0|15 Minutes=15|1 Hour=60|4 Hours=240"
+CP_VWCH["clear"]="10 Seconds=10|30 Seconds=30|1 Minute=60|2 Minutes=120|Never=0"
+CP_VWNAMES=()
+
+# A setting's choices' names, in CP_VWNAMES.
+fn cp_vwnames(k) {
+	local p
+	local -a ps
+
+	CP_VWNAMES=()
+	IFS='|' read -ra ps <<< "${CP_VWCH["$k"]}"
+	for p in "${ps[@]}"; do CP_VWNAMES+=("${p%=*}"); done
+}
+
+# The name a setting's number has among its choices.
+fn cp_vwname(k, n) {
+	local p
+	local -a ps
+
+	IFS='|' read -ra ps <<< "${CP_VWCH["$k"]}"
+	for p in "${ps[@]}"; do
+		[ "${p##*=}" = "$n" ] && ret "${p%=*}"
+	done
+	ret "$n"
+}
+
+# The number a choice's name stands for.
+fn cp_vwnum(k, v) {
+	local p
+	local -a ps
+
+	IFS='|' read -ra ps <<< "${CP_VWCH["$k"]}"
+	for p in "${ps[@]}"; do
+		[ "${p%=*}" = "$v" ] && ret "${p##*=}"
+	done
+	ret 0
+}
+
+fn cp_set_vwlock(int? id = "", value = "") {
+	local n
+
+	n := cp_vwnum locktime "$value"
+	dt_vw "" timeout "$n" || dt_note "${DT_VWERR:-The timeout could not be set}"
+}
+fn cp_set_vwsyncevery(int? id = "", value = "") {
+	DT_VWSYNC := cp_vwnum syncevery "$value"
+	cp_save
+}
+fn cp_set_vwclear(int? id = "", value = "") {
+	DT_VWCLEAR := cp_vwnum clear "$value"
+	cp_save
+}
+
+fn vaultset_rows(int w) {
+	local n=0 st v t e
+
+	st := dt_vwstate
+	if [ "$st" = absent ]; then
+		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Vault"
+		CP[$w][$n]["val"]="the vw command is not installed"; n=$((n + 1))
+		ret "$n"
+	fi
+	dt_vwacct
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Account"; n=$((n + 1))
+	CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Server"
+	CP[$w][$n]["val"]=${DT_VWA["server"]:-none}
+	CP[$w][$n]["btns"]="login:Log In${GL[ellipsis]}"; n=$((n + 1))
+	CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Email"
+	CP[$w][$n]["val"]=${DT_VWA["email"]:-not logged in}; n=$((n + 1))
+	CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Vault"
+	case $st in
+	unlocked)
+		e := dt_vwuntil
+		v="Unlocked"
+		if [ "$e" -gt 0 ]; then
+			t := dt_clocktext "%H:%M" "$e"
+			v := dt_tr "Unlocked until %s" "$t"
+		fi
+		CP[$w][$n]["btns"]="lock:Lock"
+		;;
+	locked)
+		v="Locked"
+		CP[$w][$n]["btns"]="unlock:Unlock${GL[ellipsis]}"
+		;;
+	*) v="No account" ;;
+	esac
+	CP[$w][$n]["val"]=$v; n=$((n + 1))
+	[ "$st" = none ] && { ret "$n"; }
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Locking"; n=$((n + 1))
+	v := cp_vwname locktime "${DT_VWA["timeout"]}"
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Lock After Unused"
+	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=locktime; n=$((n + 1))
+	v="None"
+	if [ "${DT_VWA["pin"]}" = 1 ]; then
+		v="Set, until the vault locks"
+		[ "${DT_VWA["pinkeep"]}" = 1 ] && v="Set, kept after locking"
+	fi
+	CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="PIN"; CP[$w][$n]["val"]=$v
+	if [ "${DT_VWA["pin"]}" = 1 ]; then
+		CP[$w][$n]["btns"]="pin:Change${GL[ellipsis]} pinoff:Clear"
+	else
+		CP[$w][$n]["btns"]="pin:Set${GL[ellipsis]}"
+	fi
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Syncing"; n=$((n + 1))
+	v="Not since the desktop started"
+	if [ "$DT_VWJOB" = 1 ]; then
+		v="Syncing${GL[ellipsis]}"
+	elif [ "$DT_VWSYNCED" -gt 0 ]; then
+		v := dt_clocktext "%H:%M" "$DT_VWSYNCED"
+	fi
+	CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Last Synced"; CP[$w][$n]["val"]=$v
+	CP[$w][$n]["btns"]="syncnow:Sync Now"; n=$((n + 1))
+	v := cp_vwname syncevery "$DT_VWSYNC"
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Sync Every"
+	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=syncevery; n=$((n + 1))
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Copying"; n=$((n + 1))
+	v := cp_vwname clear "$DT_VWCLEAR"
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Clear the Clipboard After"
+	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=clear; n=$((n + 1))
+	ret "$n"
+}
+
+fn vaultset_do(int? w = "", k = "", int? dir = "") {
+	local v nm st
+
+	case $k in
+	login) dt_vwdialog login > /dev/null ;;
+	unlock) dt_vwdialog unlock > /dev/null ;;
+	lock) dt_vwlock; dt_notep low "The vault is locked" ;;
+	pin)
+		st := dt_vwstate
+		if [ "$st" != unlocked ]; then
+			dt_note "Unlock the vault first: the PIN wraps its key"
+			return 0
+		fi
+		dt_vwdialog pin > /dev/null
+		;;
+	pinoff) dt_vw "" pin clear && dt_notep low "The PIN is cleared" ;;
+	syncnow)
+		if [ -z "$VW_SESSION" ]; then
+			dt_note "Unlock the vault first"
+			return 0
+		fi
+		dt_vwsyncnow 1
+		;;
+	locktime | syncevery | clear)
+		dt_vwacct
+		case $k in
+		locktime) nm := cp_vwname locktime "${DT_VWA["timeout"]}" ;;
+		syncevery) nm := cp_vwname syncevery "$DT_VWSYNC" ;;
+		*) nm := cp_vwname clear "$DT_VWCLEAR" ;;
+		esac
+		cp_vwnames "$k"
+		v := cp_next "$nm" "$dir" "${CP_VWNAMES[@]}"
+		"cp_set_vw${k%time}" "" "$v"
+		;;
+	esac
+	return 0
+}
+
+fn vaultset_drop(int? w = "", int? r = "", int? c = "", k = "") {
+	case $k in locktime | syncevery | clear) ;; *) return 0 ;; esac
+	cp_vwnames "$k"
+	dt_droplist "$w" "$r" "$c" "cp_set_vw${k%time}" "${CP_VWNAMES[@]}"
+}

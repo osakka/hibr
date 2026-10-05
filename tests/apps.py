@@ -290,11 +290,12 @@ GROUP = dict(l.split() for l in out if l.strip())
 check("panes register and sort by title within their group, not load order",
       ORDER == ["datetime", "displays", "keyboard", "mouse",
                 "aboutme", "appearance", "cliphist", "control_strip", "desktop",
-                "filetypes", "language", "network", "notify", "prayerset", "screensaver", "shortcuts", "windows",
+                "filetypes", "language", "network", "notify", "vaultset", "prayerset", "screensaver", "shortcuts",
+                "windows",
                 "abouthibr", "filesview", "mailset", "pimset", "notes", "taskmgr", "terminal", "tube"], out)
 check("Hardware first, then the desktop's own panes, then one per app",
       [GROUP[n] for n in ORDER] ==
-      ["hardware"] * 4 + ["system"] * 13 + ["app"] * 8, out)
+      ["hardware"] * 4 + ["system"] * 14 + ["app"] * 8, out)
 
 PW = "22 70 2 2"
 PANEL = ("panel", PW)
@@ -315,7 +316,8 @@ TITLE = {"aboutme": "About Me", "appearance": "Appearance", "control_strip": "Co
          "cliphist": "Clipboard", "notes": "Stickies",
          "datetime": "Date & Time", "desktop": "Desktop",
          "displays": "Displays", "filetypes": "File Types", "language": "Language",
-         "network": "Network Serve", "prayerset": "Prayer Times", "screensaver": "Screen Saver",
+         "network": "Network Serve", "prayerset": "Prayer Times", "vaultset": "Passwords",
+         "screensaver": "Screen Saver",
          "keyboard": "Keyboard", "mouse": "Mouse",
          "shortcuts": "Shortcuts", "notify": "Notifications",
          "windows": "Windows", "abouthibr": "About hibr",

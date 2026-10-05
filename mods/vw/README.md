@@ -80,11 +80,20 @@ unloaded.
 TOTP against RFC 6238's vectors. `tests/vw.py` drives the `vw` command
 against `tests/bwserve.py`, a stand-in server.
 
+## On the desktop
+
+The **Vault** desk accessory and **Control Panel > Passwords** are built on
+this command, not on the module: `examples/desktop/wm/vault.hibr` runs `vw`
+as a child, so the keys stay where they are. The desktop is unlocked once
+for all of it -- the session key is exported, so a Terminal window opened
+afterwards can use `vw` too -- and what is copied from the vault leaves the
+clipboard after a while and never reaches the clipboard history. See the
+desktop's own README under Passwords.
+
 ## What it does not do yet
 
 - Change anything in the vault: it reads.
 - Organisations and their collections, Sends, attachments, two-step login
   (a server that asks for a second factor fails the login with its own
   message), Steam's TOTP, or SSO.
-- A desktop app or a Control Panel pane: the lock timeout and the PIN are
-  the command's settings until then.
+

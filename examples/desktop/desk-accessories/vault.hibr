@@ -1,0 +1,251 @@
+#!/usr/bin/env hibr
+#
+# Vault -- a desk accessory (Gitea #71): the Bitwarden or Vaultwarden
+# vault's items, found by typing, and a password, a username or a TOTP
+# code copied for a while. Unlocking, locking and syncing are the
+# desktop's own (wm/vault.hibr), so the window, Control Panel > Passwords
+# and every Terminal opened after an unlock agree on whether it is open.
+
+strict
+
+command -v dt_app > /dev/null && dt_app vault "Vault" 20 64 once "⚿"
+
+declare -gA VLT
+# The items the find text matches, as indices into DT_VWITEMS.
+VLT_M=()
+
+fn vault_open(int id, ...rest) {
+	VLT[$id]["find"]=
+	VLT[$id]["findcur"]=0
+	VLT[$id]["sel"]=0
+	VLT[$id]["top"]=0
+	VLT[$id]["focus"]=find
+}
+
+# Fill VLT_M with the items whose name or user has the find text.
+fn vault_match(int id) {
+	local q=${VLT[$id]["find"],,} i=0 it nm us x
+
+	VLT_M=()
+	for it in "${DT_VWITEMS[@]}"; do
+		IFS=$'\t' read -r nm x us <<< "$it"
+		if [ -z "$q" ] || [[ ${nm,,} == *"$q"* || ${us,,} == *"$q"* ]]; then
+			VLT_M+=("$i")
+		fi
+		i=$((i + 1))
+	done
+}
+
+# The id of the selected item, if anything is selected.
+fn vault_sel(int id) {
+	local s=${VLT[$id]["sel"]} nm x us
+
+	vault_match "$id"
+	[ "${#VLT_M[@]}" -gt 0 ] || return 1
+	[ "$s" -lt "${#VLT_M[@]}" ] || s=$((${#VLT_M[@]} - 1))
+	IFS=$'\t' read -r nm x us <<< "${DT_VWITEMS[${VLT_M[$s]}]}"
+	ret "$x"
+}
+
+fn vault_draw(int id, int h, int w, int row, int col) {
+	local st f=${VLT[$id]["focus"]} r n s top vis uw nw i it nm x us line e
+
+	dt_wclear "$id"
+	st := dt_vwstate
+	console pen "$DT_INK" "$DT_FACE"
+	case $st in
+	absent)
+		console pen "$DT_DIM" "$DT_FACE"
+		dt_tput "$id" 2 2 "The vw command is not installed."
+		return 0
+		;;
+	none)
+		dt_tput "$id" 2 2 "No vault yet. Log in to a Bitwarden or Vaultwarden"
+		dt_tput "$id" 3 2 "server to keep its vault here, readable offline."
+		VLT[$id]["focus"]=login
+		dt_dlgbtns "$id" "$h" "$w" login login "Log In${GL[ellipsis]}"
+		return 0
+		;;
+	locked)
+		dt_vwacct
+		dt_tput "$id" 2 2 "The vault is locked."
+		console pen "$DT_DIM" "$DT_FACE"
+		dt_tput "$id" 3 2 "${DT_VWA["email"]}"
+		VLT[$id]["focus"]=unlock
+		dt_dlgbtns "$id" "$h" "$w" unlock unlock "Unlock${GL[ellipsis]}"
+		return 0
+		;;
+	esac
+	case $f in login | unlock) f=find; VLT[$id]["focus"]=find ;; esac
+	dt_tput "$id" 1 2 "Find:"
+	n=0
+	[ "$f" = find ] && n=1
+	dt_textdraw "$id" 1 9 $((w - 11)) "${VLT[$id]["find"]}" "${VLT[$id]["findcur"]}" "$n"
+	dt_wreg "$id" 1 9 $((w - 11)) find
+	vault_match "$id"
+	n=${#VLT_M[@]}
+	s=${VLT[$id]["sel"]}
+	[ "$s" -ge "$n" ] && s=$((n - 1))
+	[ "$s" -lt 0 ] && s=0
+	VLT[$id]["sel"]=$s
+	vis=$((h - 5))
+	[ "$vis" -lt 1 ] && vis=1
+	top=${VLT[$id]["top"]}
+	[ "$s" -lt "$top" ] && top=$s
+	[ "$s" -ge $((top + vis)) ] && top=$((s - vis + 1))
+	[ "$top" -gt 0 ] && [ $((top + vis)) -gt "$n" ] && top=$((n - vis))
+	[ "$top" -lt 0 ] && top=0
+	VLT[$id]["top"]=$top
+	uw=$((w / 3))
+	nw=$((w - uw - 4))
+	r=3
+	if [ "$n" = 0 ]; then
+		console pen "$DT_DIM" "$DT_FACE"
+		if [ "${#DT_VWITEMS[@]}" = 0 ]; then
+			dt_tput "$id" "$r" 2 "The vault is empty."
+		else
+			dt_tput "$id" "$r" 2 "Nothing matches."
+		fi
+	fi
+	i=$top
+	while [ "$i" -lt "$n" ] && [ "$r" -lt $((3 + vis)) ]; do
+		it=${DT_VWITEMS[${VLT_M[$i]}]}
+		IFS=$'\t' read -r nm x us <<< "$it"
+		line := str pad " ${nm:0:$((nw - 1))}" "$nw"
+		e := str pad "${us:0:$((uw - 1))}" "$uw"
+		if [ "$i" = "$s" ]; then
+			console pen "$DT_SELINK" "$DT_ACTIVE"
+			[ "$f" = list ] || [ "$f" = find ] || console pen "$DT_INK" "$DT_WELL"
+		else
+			console pen "$DT_INK" "$DT_FACE"
+		fi
+		console put -p "w$id" "$r" 1 "$line "
+		[ "$i" = "$s" ] || console pen "$DT_DIM" "$DT_FACE"
+		console put -p "w$id" "$r" $((nw + 2)) "$e "
+		dt_wreg "$id" "$r" 1 $((w - 2)) "row$i"
+		r=$((r + 1))
+		i=$((i + 1))
+	done
+	e := dt_vwuntil
+	console pen "$DT_DIM" "$DT_FACE"
+	if [ "$DT_VWJOB" = 1 ]; then
+		line="Syncing${GL[ellipsis]}"
+	elif [ "$e" -gt 0 ]; then
+		line := dt_clocktext "%H:%M" "$e"
+		line := dt_tr "%s items, unlocked until %s" "${#DT_VWITEMS[@]}" "$line"
+	else
+		line := dt_tr "%s items" "${#DT_VWITEMS[@]}"
+	fi
+	dt_tput "$id" $((h - 2)) 2 "${line:0:$((w - 4))}"
+	dt_dlgbtns "$id" "$h" "$w" "$f" pass Password user Username code Code lock Lock
+}
+
+VLT_ORDER=(find pass user code lock)
+
+fn vault_key(int id, k) {
+	local f=${VLT[$id]["focus"]} d onb=1 res st n x
+
+	st := dt_vwstate
+	case $st in
+	none) [ "$k" = enter ] && dt_vwdialog login > /dev/null; return 0 ;;
+	locked) [ "$k" = enter ] && dt_vwdialog unlock > /dev/null; return 0 ;;
+	unlocked) ;;
+	*) return 1 ;;
+	esac
+	[ "$f" = find ] && onb=0
+	if d := dt_focuskey "$k" "$onb"; then
+		VLT[$id]["focus"] := dt_focus "$f" "$d" "${VLT_ORDER[@]}"
+		return 0
+	fi
+	vault_match "$id"
+	n=${#VLT_M[@]}
+	case $k in
+	up)
+		[ "${VLT[$id]["sel"]}" -gt 0 ] && VLT[$id]["sel"]=$((VLT[$id]["sel"] - 1))
+		return 0
+		;;
+	down)
+		[ "${VLT[$id]["sel"]}" -lt $((n - 1)) ] && VLT[$id]["sel"]=$((VLT[$id]["sel"] + 1))
+		return 0
+		;;
+	pgup) VLT[$id]["sel"]=0; return 0 ;;
+	pgdn) VLT[$id]["sel"]=$((n > 0 ? n - 1 : 0)); return 0 ;;
+	enter)
+		case $f in find) vault_do "$id" pass ;; *) vault_do "$id" "$f" ;; esac
+		return 0
+		;;
+	escape)
+		if [ -n "${VLT[$id]["find"]}" ]; then
+			VLT[$id]["find"]=
+			VLT[$id]["findcur"]=0
+			return 0
+		fi
+		return 1
+		;;
+	esac
+	[ "$f" = find ] || return 1
+	res := dt_textkey "${VLT[$id]["find"]}" "${VLT[$id]["findcur"]}" "$k" || return 1
+	VLT[$id]["find"]=${res% *}
+	VLT[$id]["findcur"]=${res##* }
+	VLT[$id]["sel"]=0
+	return 0
+}
+
+fn vault_click(int? id = "", int? r = "", int? c = "", btn = "") {
+	local tag
+
+	tag := dt_hit "$id" "$r" "$c" || return 0
+	case $tag in
+	find) VLT[$id]["focus"]=find ;;
+	row*) VLT[$id]["sel"]=${tag#row} ;;
+	*) vault_do "$id" "$tag" ;;
+	esac
+}
+
+# Copy what a button names from the selected item, or act on the vault.
+fn vault_do(int id, what) {
+	local x
+
+	case $what in
+	login) dt_vwdialog login > /dev/null; return 0 ;;
+	unlock) dt_vwdialog unlock > /dev/null; return 0 ;;
+	lock) dt_vwlock; dt_notep low "The vault is locked"; return 0 ;;
+	esac
+	if ! x := vault_sel "$id"; then
+		dt_notep low "Nothing is selected"
+		return 0
+	fi
+	case $what in
+	pass) dt_vwcopy password "$x" ;;
+	user) dt_vwcopy username "$x" ;;
+	code) dt_vwcopy totp "$x" ;;
+	esac
+	return 0
+}
+
+vault_menus() {
+	dt_menu "File"
+	dt_item "Sync Now" s dt_vwsyncnow 1
+	dt_item "Lock" l vault_lockmenu
+	dt_sep
+	dt_item "Close Window" w dt_close_focused
+	dt_editmenu
+	dt_menu "Item"
+	dt_item "Copy Password" p vault_menu pass
+	dt_item "Copy Username" u vault_menu user
+	dt_item "Copy Code" c vault_menu code
+}
+
+# Lock from the menu.
+vault_lockmenu() {
+	dt_vwlock
+	dt_notep low "The vault is locked"
+}
+
+# A copy from the Item menu, for the focused Vault window.
+fn vault_menu(what) {
+	[ -n "$DT_FOCUS" ] && [ -n "${VLT[$DT_FOCUS]["focus"]+x}" ] || return 0
+	vault_do "$DT_FOCUS" "$what"
+}
+
+fn vault_close(int id) { unset VLT["$id"]; }

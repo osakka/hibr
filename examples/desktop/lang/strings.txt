@@ -30,6 +30,8 @@
 %s is the primary display -- make another primary first
 %s is there already. Replace it?
 %s is trusted
+%s items
+%s items, unlocked until %s
 %s keeps files, not calendars or contacts
 %s keeps its size; it can only be centred
 %s moved to workspace %s
@@ -56,6 +58,7 @@ About %s…
 About Me
 About hibr
 About hibr Desktop
+Account
 Account %s saved
 Accounts
 Add 10 Rows
@@ -143,6 +146,7 @@ Clear Cache
 Clear History
 Clear Low
 Clear Selected
+Clear the Clipboard After
 Clip
 Clipboard
 Clipboard history cleared, pins kept
@@ -180,9 +184,14 @@ Conversation moved to Trash
 Copied
 Copied %s characters
 Copied the paths of what is selected
+Copied; the clipboard clears in %s seconds
 Copy
+Copy Code
+Copy Password
+Copy Username
 Copy on Select
 Copy something anywhere, or paste here,
+Copying
 Could not change owner or group
 Could not change permissions
 Could not keep the event
@@ -257,6 +266,7 @@ Edit This Server…
 Edit as Markdown
 Edit as Plain Text
 Edit…
+Email
 Empty Trash…
 Empty the Trash? The %d items in it are deleted for good.
 Empty the Trash? The one item in it is deleted for good.
@@ -341,6 +351,7 @@ Insert Row Below
 Inviting people needs a mail account to send from
 Isha
 Italic
+Item
 Jan
 January
 Jul
@@ -351,6 +362,7 @@ Jun
 June
 Keep History on Disk
 Keep Messages
+Keep it after the vault locks
 Kept as a favourite: %s
 Kernel: %s
 Keyboard
@@ -358,13 +370,19 @@ Kind:
 Labelled %s
 Label…
 Language
+Last Synced
 Left
 Line Under It
 Link
 List
 Location
+Lock
 Lock After (minutes)
+Lock After Unused
 Lock Screen
+Locking
+Log In
+Log In…
 Look
 Louder
 Made if it is not there; ~ is your home.
@@ -442,6 +460,7 @@ No records.
 No server chosen for calendars yet.
 No server chosen for contacts yet.
 No terminal app to run it in
+No vault yet. Log in to a Bitwarden or Vaultwarden
 No zone matches
 None
 None yet -- add one in Network Servers
@@ -458,6 +477,7 @@ Nothing here opens %s
 Nothing here yet -- the first sync brings them
 Nothing in the next sixty days.
 Nothing is selected
+Nothing matches.
 Nothing on this day. Enter makes an event.
 Nothing to %s
 Nothing yet
@@ -497,6 +517,9 @@ Owner:
 Owner:  %s
 PID:    %s
 PIM
+PIN
+Password
+Passwords
 Paste
 Pasted as %s
 Pattern
@@ -608,6 +631,7 @@ Session at Login
 Set (sudo)
 Set Date & Time
 Set Location…
+Set PIN
 Set as Wallpaper
 Set up a mail account first, in Control Panel > Mail
 Several emails or phones: separate them with commas.
@@ -647,6 +671,7 @@ Sum
 Sun
 Sunday
 Sunrise
+Sync Every
 Sync Now
 Syncing
 Syncing calendars and contacts…
@@ -664,6 +689,8 @@ Terminals Keep Ctrl+A-Z
 Test
 Text Colour
 That event is not kept here any more; syncing
+The PIN is cleared
+The PIN is set
 The Trash is empty: %d items deleted
 The Trash is empty: 1 item deleted
 The YouTube history is empty
@@ -675,6 +702,13 @@ The end is a time, HH:MM
 The record could not be added
 The remote file cache is empty
 The time is HH:MM or HH:MM:SS
+The vault has locked
+The vault is empty.
+The vault is locked
+The vault is locked.
+The vault is synced
+The vault is unlocked
+The vw command is not installed.
 Theme
 There is a theme called %s already
 There is no file %s
@@ -706,12 +740,20 @@ Turns off automatic time (NTP) first
 Type what to look for, or a playlist's or a channel's address, and enter.
 Type: %s
 Unfreeze
+Unlock
+Unlock the vault first
+Unlock the vault first: the PIN wraps its key
+Unlock with the PIN
+Unlocked until %s
+Unlock…
 Unregistered extension .%s -- open in hvi anyway?
 Upload Edits on Save
 Uptime: %s
 Use
 Use Answer
+Username
 Users: %s
+Vault
 View
 View Details
 View History
@@ -760,4 +802,5 @@ moving — arrows, then enter
 note
 phone
 resizing — arrows, then enter
+server to keep its vault here, readable offline.
 sets a place, or the time zone gives one.

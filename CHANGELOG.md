@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.99.69
+
+**The vault on the desktop** (Gitea #71). A **Vault** desk accessory reads
+the Bitwarden or Vaultwarden vault 0.99.68 brought to the shell: type to
+find an item, then Password, Username or Code puts it on the clipboard.
+A copied password is never written to the clipboard history, and the
+clipboard clears itself afterwards -- 30 seconds by default, a setting.
+**Control Panel > Passwords** holds the rest: the server and account, Log
+In, Lock, how long it stays unlocked, the PIN, how often it syncs while it
+is, and that clipboard timeout.
+
+The desktop is unlocked once for all of it, by master password or PIN, and
+exports the session key, so a Terminal window opened afterwards can use
+`vw` too; Lock, or the timeout, ends it everywhere. Nothing decrypted is
+kept in the desktop: every read runs the `vw` command as a child and the
+keys stay in its own module. Syncs run as jobs, so the desktop never waits
+on the network, and the vault is kept here encrypted, so everything but a
+sync works with none.
+
+`tests/vault.py` drives all of it through a pty against the stand-in
+server, including that no password reaches the clipboard history or any
+file. A desk accessory missing from the desktop README's own table since
+0.99.67 (Prayer Times) is listed now, next to the new one.
+
 ## 0.99.68
 
 **Bitwarden and Vaultwarden from the shell** (Gitea #71). A new command,

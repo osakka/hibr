@@ -65,9 +65,10 @@ SUITE_MODS = {
     "salat_adhan": ["salat"],
     "vw_crypto": ["vw"],
     "vw": ["vw", "dav"],
+    "vault": ["vw", "dav"],
 }
 APPS = ("apps_panel", "apps_reach", "apps_core", "apps_more")
-DESKTOP = ("desktop",) + APPS + ("uifuzz", "strictvars", "mailapp", "contacts", "calapp")
+DESKTOP = ("desktop", "vault") + APPS + ("uifuzz", "strictvars", "mailapp", "contacts", "calapp")
 EVERYTHING = ("src/", "include/", "Makefile", "tests/screen.py",
               "tests/all.py", "deploy.sh")
 
@@ -190,7 +191,7 @@ def suites_for(path, req, prov, where):
                  "corpus.py", "fuzz.py"):
             return set(), "a tool, not a suite"
     if path == "examples/vw.hibr":
-        return {"vw", "run.sh"}, "the vw command"
+        return {"vw", "vault", "run.sh"}, "the vw command"
     if path.startswith(("docs/", "examples/")):
         return {"run.sh"}, "documentation or an example (530/540)"
     if path.startswith(("packaging/", "tools/", ".git")) or path in (

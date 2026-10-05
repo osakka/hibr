@@ -1,0 +1,519 @@
+#!/usr/bin/env hibr
+#
+# wm/vault -- the Bitwarden or Vaultwarden vault on the desktop (Gitea
+# #71, ADR 0036): unlocked once for the whole desktop, synced while it is,
+# and what is copied from it gone from the clipboard after a while.
+#
+# Everything is done by the vw command (examples/vw.hibr, installed beside
+# the desktop's folder), run as a child: the keys stay in its vw module and
+# never in the desktop. Unlocking hands back a session key, which the
+# desktop exports as VW_SESSION, so a Terminal opened after it can use vw
+# too; locking, or the vault's own timeout, takes it away again. Unlock and
+# login are run while waiting -- the session key they print must not go
+# through a file -- and sync, which prints nothing secret, as a job.
+#
+# Part of the window manager; desktop.hibr sources it.
+
+strict
+
+# Seconds a copied password stays on the clipboard (0: until replaced), and
+# minutes between syncs while unlocked (0: only when asked).
+DT_VWCLEAR="${DT_VWCLEAR-30}"
+DT_VWSYNC="${DT_VWSYNC-60}"
+dt_keep DT_VWCLEAR DT_VWSYNC
+
+DT_VWCMD="$DT_HERE/../vw.hibr"
+DT_VWRUN=${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/hibr-vw-$UID
+DT_VWCONF=${XDG_CONFIG_HOME:-$HOME/.config}/hibr/vw
+# The session key, inherited from whoever started the desktop or set here.
+VW_SESSION="${VW_SESSION-}"
+# Set as a prefix on every vw this file runs, so it reads a password from
+# its standard input rather than opening the terminal the desktop is
+# drawing on. Declared here because a strict function may not create a
+# global, and an assignment prefix is one.
+VW_STDIN=
+# The wrapped key this desktop's session opens: another unlock elsewhere
+# replaces it, and the desktop then counts as locked.
+DT_VWW=
+# The items, "name TAB id TAB user" sorted by name, while unlocked.
+DT_VWITEMS=()
+# What the last vw command printed, and what it said went wrong.
+DT_VWOUT=
+DT_VWERR=
+# When the desktop last synced, whether a sync is running, and whether it
+# was asked for by hand (and so says how it went).
+DT_VWSYNCED=0
+DT_VWJOB=0
+DT_VWHAND=0
+# When a copied password leaves the clipboard.
+DT_CLIPSECRET=0
+
+# Make the runtime folder vw keeps its session in, private.
+dt_vwdirs() {
+	[ -d "$DT_VWRUN" ] && return 0
+	(umask 077; mkdir -p "$DT_VWRUN")
+	return 0
+}
+
+# What vw said went wrong, without the address it was talking to: its own
+# messages name the endpoint first ("https://host/identity/...: 400: the
+# server's own words"), which is most of a dialog's width and none of the
+# reason a person needs.
+fn dt_vwwhy(line) {
+	local t=${line#vw: }
+
+	case $t in http*': '*) t=${t##http*': '} ;; esac
+	ret "$t"
+}
+
+# Run vw with text on its standard input (a password, a PIN, or nothing):
+# its output in DT_VWOUT, the reason it gave in DT_VWERR, its status back.
+fn dt_vw(input, ...args) {
+	local st l=
+
+	dt_vwdirs
+	DT_VWERR=
+	if [ -n "$input" ]; then
+		DT_VWOUT=$(printf '%s\n' "$input" | VW_STDIN=1 "$HIBR" "$DT_VWCMD" "${args[@]}" 2> "$DT_VWRUN/desk.err")
+	else
+		DT_VWOUT=$(VW_STDIN=1 "$HIBR" "$DT_VWCMD" "${args[@]}" 2> "$DT_VWRUN/desk.err" < /dev/null)
+	fi
+	st=$?
+	if [ "$st" != 0 ] && [ -s "$DT_VWRUN/desk.err" ]; then
+		while IFS= read -r l; do
+			[ -n "$l" ] && DT_VWERR := dt_vwwhy "$l"
+		done < "$DT_VWRUN/desk.err"
+	fi
+	rm -f "$DT_VWRUN/desk.err"
+	return "$st"
+}
+
+# Whether there is a vault to speak of: absent (no vw), none (no account
+# yet), locked or unlocked.
+dt_vwstate() {
+	local e w
+
+	[ -r "$DT_VWCMD" ] || ret absent
+	[ -r "$DT_VWCONF/account.json" ] || ret none
+	[ -n "$VW_SESSION" ] && [ -r "$DT_VWRUN/session" ] || ret locked
+	IFS=$'\t' read -r e w 2> /dev/null < "$DT_VWRUN/session"
+	[ -n "$w" ] && [ "$w" = "$DT_VWW" ] || ret locked
+	[ "$e" != 0 ] && [ "$EPOCHSECONDS" -gt "$e" ] && ret locked
+	ret unlocked
+}
+
+# When the vault locks itself, as seconds since the epoch; 0 for never.
+dt_vwuntil() {
+	local e w
+
+	IFS=$'\t' read -r e w 2> /dev/null < "$DT_VWRUN/session" || ret 0
+	ret "${e:-0}"
+}
+
+declare -gA DT_VWA
+# The account as vw keeps it: server, email, timeout, pin, pinkeep.
+dt_vwacct() {
+	local -A a
+
+	DT_VWA=()
+	[ -r "$DT_VWCONF/account.json" ] || return 1
+	json parse a < "$DT_VWCONF/account.json" 2> /dev/null || return 1
+	DT_VWA["server"]=${a["server"]}
+	DT_VWA["email"]=${a["email"]}
+	DT_VWA["timeout"]=${a["timeout"]:-15}
+	DT_VWA["pin"]=0
+	[ -n "${a["pin"]}" ] && DT_VWA["pin"]=1
+	DT_VWA["pinkeep"]=${a["pinkeep"]:-0}
+	return 0
+}
+
+# Take the session key vw printed, and what it opens, for the whole desktop.
+dt_vwtake() {
+	local k e w
+
+	k=${DT_VWOUT##*VW_SESSION=}
+	[ -n "$k" ] && [ "$k" != "$DT_VWOUT" ] || return 1
+	VW_SESSION=$k
+	export VW_SESSION
+	IFS=$'\t' read -r e w 2> /dev/null < "$DT_VWRUN/session"
+	DT_VWW=$w
+	DT_VWOUT=
+	dt_vwlist
+	DT_VWSYNCED=$EPOCHSECONDS
+	return 0
+}
+
+# Unlock with the master password, or with the PIN.
+fn dt_vwunlock(pw, int pin = 0) {
+	if [ "$pin" = 1 ]; then
+		dt_vw "$pw" unlock --pin || return 1
+	else
+		dt_vw "$pw" unlock || return 1
+	fi
+	dt_vwtake || return 1
+	[ "$DT_VWSYNC" -gt 0 ] && DT_VWSYNCED=0
+	return 0
+}
+
+# Log in to a server for the first time, or again: set it, log in, unlock.
+fn dt_vwlogin(server, email, pw, int insecure = 0) {
+	if [ "$insecure" = 1 ]; then
+		dt_vw "" server "$server" -k || return 1
+	else
+		dt_vw "" server "$server" || return 1
+	fi
+	dt_vw "$pw" login "$email" || return 1
+	dt_vwtake
+}
+
+# Lock: the session ends for every shell, and the desktop forgets the list.
+dt_vwlock() {
+	dt_vw "" lock
+	dt_vwforget
+}
+
+# Forget the session and everything read with it. VW_SESSION stays
+# exported, empty, which every vw reads as locked.
+dt_vwforget() {
+	VW_SESSION=
+	DT_VWW=
+	DT_VWITEMS=()
+}
+
+# Read the items' names, sorted, into DT_VWITEMS.
+dt_vwlist() {
+	local id nm us
+	local -a l=()
+
+	DT_VWITEMS=()
+	dt_vw "" list || return 1
+	while IFS=$'\t' read -r id nm us; do
+		[ -n "$id" ] || continue
+		l+=("${nm,,}"$'\x1f'"$nm"$'\t'"$id"$'\t'"$us")
+	done <<< "$DT_VWOUT"
+	DT_VWOUT=
+	[ "${#l[@]}" -gt 0 ] || return 0
+	arr sort l
+	for id in "${l[@]}"; do DT_VWITEMS+=("${id#*$'\x1f'}"); done
+	return 0
+}
+
+# Copy one field of an item -- password, username, totp -- for a while.
+fn dt_vwcopy(field, id) {
+	local v
+
+	if ! dt_vw "" get "$field" "$id"; then
+		dt_note "${DT_VWERR:-Could not read it}"
+		return 1
+	fi
+	v=$DT_VWOUT
+	DT_VWOUT=
+	dt_clipset "$v" copy secret
+	v=
+	if [ "$DT_VWCLEAR" -gt 0 ]; then
+		DT_CLIPSECRET=$((EPOCHSECONDS + DT_VWCLEAR))
+		dt_notep low "Copied; the clipboard clears in %s seconds" "$DT_VWCLEAR"
+	else
+		DT_CLIPSECRET=0
+		dt_notep low "Copied"
+	fi
+	return 0
+}
+
+# Start a sync, unless one is running; by hand, it says how it went.
+fn dt_vwsyncnow(int hand = 0) {
+	[ "$DT_VWJOB" = 1 ] && return 0
+	dt_vwdirs
+	rm -f "$DT_VWRUN/desk.sync" "$DT_VWRUN/desk.syncerr"
+	DT_VWJOB=1
+	DT_VWHAND=$hand
+	DT_VWSYNCED=$EPOCHSECONDS
+	(
+		VW_STDIN=1 "$HIBR" "$DT_VWCMD" sync > /dev/null 2> "$DT_VWRUN/desk.syncerr" < /dev/null
+		printf '%s\n' "$?" > "$DT_VWRUN/desk.sync"
+	) &
+	dt_want 200
+}
+
+# A finished sync: read the list again, or say why not when asked.
+dt_vwsyncdone() {
+	local st l=
+
+	read -r st < "$DT_VWRUN/desk.sync"
+	DT_VWJOB=0
+	if [ "$st" = 0 ]; then
+		dt_vwlist
+		[ "$DT_VWHAND" = 1 ] && dt_notep low "The vault is synced"
+	else
+		while IFS= read -r l; do
+			[ -n "$l" ] && DT_VWERR := dt_vwwhy "$l"
+		done 2> /dev/null < "$DT_VWRUN/desk.syncerr"
+		[ "$DT_VWHAND" = 1 ] && dt_note "Sync failed: ${DT_VWERR:-no reason given}"
+	fi
+	rm -f "$DT_VWRUN/desk.sync" "$DT_VWRUN/desk.syncerr"
+}
+
+# Once a frame: the clipboard cleared when a copied password's time is up,
+# a finished sync taken in, the next one started when due, and the
+# session dropped once the vault has locked itself. Costs a comparison
+# while nothing is copied and nothing is unlocked.
+dt_vwtick() {
+	local now=$EPOCHSECONDS s e
+
+	if [ "$DT_CLIPSECRET" -gt 0 ]; then
+		if [ "$DT_CLIPKIND" != secret ]; then
+			DT_CLIPSECRET=0
+		elif [ "$now" -ge "$DT_CLIPSECRET" ]; then
+			DT_CLIP=
+			DT_CLIPKIND=text
+			DT_CLIPSECRET=0
+			console clip ""
+		else
+			dt_want $(((DT_CLIPSECRET - now) * 1000 + 50))
+		fi
+	fi
+	if [ "$DT_VWJOB" = 1 ]; then
+		if [ -s "$DT_VWRUN/desk.sync" ]; then
+			dt_vwsyncdone
+		else
+			dt_want 200
+		fi
+	fi
+	[ -n "$VW_SESSION" ] || return 0
+	if [ -z "$DT_VWW" ]; then
+		IFS=$'\t' read -r e DT_VWW 2> /dev/null < "$DT_VWRUN/session"
+		if [ -z "$DT_VWW" ] || ! dt_vwlist; then
+			dt_vwforget
+			return 0
+		fi
+	fi
+	s := dt_vwstate
+	if [ "$s" != unlocked ]; then
+		[ -n "$DT_VWW" ] && dt_notep low "The vault has locked"
+		dt_vwforget
+		return 0
+	fi
+	if [ "$DT_VWSYNC" -gt 0 ] && [ "$DT_VWJOB" = 0 ]; then
+		e=$((DT_VWSYNCED + DT_VWSYNC * 60))
+		if [ "$now" -ge "$e" ]; then
+			dt_vwsyncnow
+		else
+			dt_want $(((e - now) * 1000))
+		fi
+	fi
+	e := dt_vwuntil
+	[ "$e" -gt 0 ] && [ "$e" -gt "$now" ] && dt_want $(((e - now) * 1000 + 50))
+	return 0
+}
+dt_ticker dt_vwtick
+
+# --- the dialog that logs in, unlocks and sets a PIN ------------------------
+
+command -v dt_app > /dev/null && dt_app vwd "Vault" 13 58 "" "" fixed hidden
+
+declare -gA VWD
+VWD_ORDER=()
+
+# Open the dialog: login (a server, an email and the master password),
+# unlock (the password, or the PIN when one is set) or pin (a new PIN).
+fn dt_vwdialog(mode) {
+	local id h=11 w=58 r c t
+
+	[ "$mode" = login ] && h=15
+	[ "$mode" = unlock ] && h=12
+	r=$((DT_ROWS / 2 - h / 2))
+	c=$(((DT_COLS - w) / 2))
+	case $mode in
+	login) t="Log In to a Vault" ;;
+	unlock) t="Unlock the Vault" ;;
+	*) t="Set a PIN" ;;
+	esac
+	id := dt_new "$t" "$h" "$w" "$r" "$c" vwd
+	dt_vwacct
+	VWD[$id]["mode"]=$mode
+	VWD[$id]["server"]=${DT_VWA["server"]}
+	VWD[$id]["email"]=${DT_VWA["email"]}
+	VWD[$id]["pass"]=
+	VWD[$id]["verify"]=1
+	VWD[$id]["usepin"]=0
+	VWD[$id]["haspin"]=${DT_VWA["pin"]:-0}
+	VWD[$id]["keep"]=0
+	VWD[$id]["status"]=
+	for c in server email pass; do
+		VWD[$id]["${c}cur"]=${#VWD[$id]["$c"]}
+	done
+	VWD[$id]["focus"]=pass
+	[ "$mode" = login ] && [ -z "${VWD[$id]["server"]}" ] && VWD[$id]["focus"]=server
+	[ "$mode" = login ] && [ -n "${VWD[$id]["server"]}" ] && [ -z "${VWD[$id]["email"]}" ] &&
+		VWD[$id]["focus"]=email
+	ret "$id"
+}
+
+# The fields focus moves through.
+fn vwd_order(int id) {
+	case ${VWD[$id]["mode"]} in
+	login) VWD_ORDER=(server email pass verify ok cancel) ;;
+	unlock)
+		VWD_ORDER=(pass ok cancel)
+		[ "${VWD[$id]["haspin"]}" = 1 ] && VWD_ORDER=(pass usepin ok cancel)
+		;;
+	*) VWD_ORDER=(pass keep ok cancel) ;;
+	esac
+}
+
+fn vwd_draw(int id, int h, int w, int row, int col) {
+	local f=${VWD[$id]["focus"]} m=${VWD[$id]["mode"]} r=1 k on fw=$((w - 15)) t
+	local -A labs=([server]="Server:" [email]="Email:" [pass]="Password:")
+	local -a ks=(pass)
+
+	dt_wclear "$id"
+	[ "$m" = login ] && ks=(server email pass)
+	[ "$m" = pin ] && labs["pass"]="PIN:"
+	[ "$m" = unlock ] && [ "${VWD[$id]["usepin"]}" = 1 ] && labs["pass"]="PIN:"
+	if [ "$m" = unlock ]; then
+		console pen "$DT_DIM" "$DT_FACE"
+		dt_tput "$id" "$r" 2 "${VWD[$id]["email"]}"
+		r=$((r + 2))
+	fi
+	for k in "${ks[@]}"; do
+		console pen "$DT_INK" "$DT_FACE"
+		dt_tput "$id" "$r" 2 "${labs[$k]}"
+		on=0
+		[ "$f" = "$k" ] && on=1
+		t=${VWD[$id]["$k"]}
+		[ "$k" = pass ] && t := str repeat "*" "${#t}"
+		dt_textdraw "$id" "$r" 13 "$fw" "$t" "${VWD[$id]["${k}cur"]}" "$on"
+		dt_wreg "$id" "$r" 13 "$fw" "$k"
+		r=$((r + 2))
+	done
+	console pen "$DT_INK" "$DT_FACE"
+	case $m in
+	login)
+		[ "$f" = verify ] && console pen "$DT_FACE" "$DT_INK"
+		dt_check "$id" "$r" 13 "${VWD[$id]["verify"]}" "Check the server's certificate" verify
+		r=$((r + 2))
+		;;
+	unlock)
+		if [ "${VWD[$id]["haspin"]}" = 1 ]; then
+			[ "$f" = usepin ] && console pen "$DT_FACE" "$DT_INK"
+			dt_check "$id" "$r" 13 "${VWD[$id]["usepin"]}" "Unlock with the PIN" usepin
+			r=$((r + 2))
+		fi
+		;;
+	pin)
+		[ "$f" = keep ] && console pen "$DT_FACE" "$DT_INK"
+		dt_check "$id" "$r" 13 "${VWD[$id]["keep"]}" "Keep it after the vault locks" keep
+		r=$((r + 2))
+		;;
+	esac
+	if [ -n "${VWD[$id]["status"]}" ]; then
+		console pen "$DT_BAD" "$DT_FACE"
+		t=${VWD[$id]["status"]}
+		[ "${#t}" -gt $((w - 4)) ] && t="${t:0:$((w - 5))}${GL[ellipsis]}"
+		console put -p "w$id" "$r" 2 "$t"
+	fi
+	case $m in
+	login) dt_dlgbtns "$id" "$h" "$w" "$f" ok "Log In" cancel Cancel ;;
+	unlock) dt_dlgbtns "$id" "$h" "$w" "$f" ok Unlock cancel Cancel ;;
+	*) dt_dlgbtns "$id" "$h" "$w" "$f" ok "Set PIN" cancel Cancel ;;
+	esac
+}
+
+fn vwd_key(int id, k) {
+	local f=${VWD[$id]["focus"]} d onb=1 res
+
+	case $f in server | email | pass) onb=0 ;; esac
+	vwd_order "$id"
+	if d := dt_focuskey "$k" "$onb"; then
+		VWD[$id]["focus"] := dt_focus "$f" "$d" "${VWD_ORDER[@]}"
+		return 0
+	fi
+	case $k in
+	escape) dt_del "$id"; return 0 ;;
+	enter)
+		case $f in verify | usepin | keep | cancel) vwd_do "$id" "$f" ;; *) vwd_do "$id" ok ;; esac
+		return 0
+		;;
+	" ")
+		case $f in
+		verify | usepin | keep) vwd_do "$id" "$f"; return 0 ;;
+		esac
+		;;
+	esac
+	case $f in server | email | pass) ;; *) return 1 ;; esac
+	res := dt_textkey "${VWD[$id]["$f"]}" "${VWD[$id]["${f}cur"]}" "$k" || return 1
+	VWD[$id]["$f"]=${res% *}
+	VWD[$id]["${f}cur"]=${res##* }
+	return 0
+}
+
+fn vwd_click(int? id = "", int? r = "", int? c = "", btn = "") {
+	local tag cur
+
+	tag := dt_hit "$id" "$r" "$c" || return 0
+	case $tag in
+	server | email | pass)
+		VWD[$id]["focus"]=$tag
+		cur=$((c - 13))
+		[ "$cur" -gt "${#VWD[$id]["$tag"]}" ] && cur=${#VWD[$id]["$tag"]}
+		[ "$cur" -lt 0 ] && cur=0
+		VWD[$id]["${tag}cur"]=$cur
+		;;
+	*) VWD[$id]["focus"]=$tag; vwd_do "$id" "$tag" ;;
+	esac
+}
+
+# What enter, a click or space does to what has focus.
+fn vwd_do(int id, what) {
+	local m=${VWD[$id]["mode"]} p=${VWD[$id]["pass"]} ok=1 v
+
+	case $what in
+	verify | usepin | keep)
+		v=1
+		[ "${VWD[$id]["$what"]}" = 1 ] && v=0
+		VWD[$id]["$what"]=$v
+		return 0
+		;;
+	cancel) dt_del "$id"; return 0 ;;
+	esac
+	if [ -z "$p" ]; then
+		VWD[$id]["status"]="Type the password first"
+		[ "$m" = pin ] || [ "${VWD[$id]["usepin"]}" = 1 ] && VWD[$id]["status"]="Type the PIN first"
+		return 0
+	fi
+	case $m in
+	login)
+		if [ -z "${VWD[$id]["server"]}" ] || [ -z "${VWD[$id]["email"]}" ]; then
+			VWD[$id]["status"]="The server and the email are both needed"
+			return 0
+		fi
+		v=0
+		[ "${VWD[$id]["verify"]}" = 1 ] || v=1
+		dt_vwlogin "${VWD[$id]["server"]}" "${VWD[$id]["email"]}" "$p" "$v" || ok=0
+		;;
+	unlock) dt_vwunlock "$p" "${VWD[$id]["usepin"]}" || ok=0 ;;
+	*)
+		if [ "${VWD[$id]["keep"]}" = 1 ]; then
+			dt_vw "$p" pin set --keep || ok=0
+		else
+			dt_vw "$p" pin set || ok=0
+		fi
+		;;
+	esac
+	p=
+	VWD[$id]["pass"]=
+	VWD[$id]["passcur"]=0
+	if [ "$ok" = 0 ]; then
+		VWD[$id]["status"]=${DT_VWERR:-It did not work, and vw did not say why}
+		VWD[$id]["focus"]=pass
+		return 0
+	fi
+	case $m in
+	pin) dt_notep low "The PIN is set" ;;
+	*) dt_notep low "The vault is unlocked" ;;
+	esac
+	dt_del "$id"
+	return 0
+}
+
+fn vwd_close(int id) { unset VWD["$id"]; }

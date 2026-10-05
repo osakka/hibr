@@ -1398,7 +1398,26 @@ The bundled accessories live in `examples/desktop/desk-accessories/`:
 | `screenshot` | takes one: see Screenshots |
 | `puzzle` | the sliding tile puzzle, 4 by 4. Arrows or a click move the gap; shuffled by real moves from solved, so it is always solvable |
 | `calendar` | calendars kept offline from CalDAV, a month or an agenda at a time, with reminders and invitations sent and answered through Mail -- see Calendar above |
-| `contacts` | address books kept offline from CardDAV, searchable, edited here and synced back; Mail finishes addresses from them -- see Contacts above |
+| `contacts` | address books kept offline from CardDAV, searchable, edited here and synced back; Mail finishes addresses with them |
+| `prayer` | today's six prayer times for where you are, the next lit with how long until it; the method, the place and the athan are Control Panel > Prayer Times |
+| `vault` | the passwords in a Bitwarden or Vaultwarden vault -- see Passwords |
+
+## Passwords
+
+With the `vw` command installed (see [mods/vw](../../mods/vw/README.md)),
+the **Vault** accessory reads a Bitwarden or Vaultwarden vault: type to find
+an item, then Password, Username or Code puts it on the clipboard, which
+clears itself after a while -- a copied password is never written to the
+clipboard history. Nothing decrypted is kept: every read runs `vw` as a
+child, and the keys stay in its own module.
+
+The vault is unlocked once for the whole desktop, with the master password
+or a PIN, and **Control Panel > Passwords** holds the rest: the server and
+account, Log In, Lock, how long it stays unlocked, the PIN, how often it
+syncs, and how long a copied password stays on the clipboard. Unlocking
+exports `VW_SESSION`, so a Terminal window opened afterwards can use `vw`
+too; Lock, or the timeout, ends it everywhere. The vault is kept here
+encrypted, so everything but a sync works with no network. from them -- see Contacts above |
 
 ## Control Strip
 

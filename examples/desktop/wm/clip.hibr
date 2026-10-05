@@ -23,12 +23,14 @@ DT_CHORDER=()
 DT_CHNEXT=0
 
 # Make text the clipboard, the desktop's and, unless it came from there,
-# the real terminal's, and keep it in the history.
+# the real terminal's, and keep it in the history -- unless it is a
+# secret (a password from the vault), which is never written down.
 fn dt_clipset(text, op = copy, kind = text, send = 1) {
 	DT_CLIP=$text
 	DT_CLIPOP=$op
 	DT_CLIPKIND=$kind
 	[ "$send" = 1 ] && console clip "$text"
+	[ "$kind" = secret ] && return 0
 	dt_clipkeep "$text" "$kind"
 }
 

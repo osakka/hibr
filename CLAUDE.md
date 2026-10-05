@@ -177,7 +177,7 @@ the installed module; for one not yet released, `HIBR_MODPATH=build/mods`.
 | `mods/salat/` | prayer times: the sun's place computed (Meeus), methods as JSON files in a folder, checked against adhan-js to the minute through the year and into the polar circle (`tests/salat_adhan.py`) -- ADR 0035, Gitea #70 |
 | `mods/lang.c` | translation catalogues with CLDR plurals; the desktop translates at its widgets (`dt_tr`, `wm/lang.hibr`, `lang/`), `tools/strings.py` keeps the list -- ADR 0032 |
 | `mods/email/` | IMAP (IDLE, Gmail's labels), POP3, SMTP and MIME; accounts in a 0600 file; `tests/mailserve.py` is the suites' stand-in server; the Mail app (`apps/Internet/mail.hibr`) keeps accounts offline through `examples/desktop/lib/mailsync.hibr` -- see `mods/email/README.md` |
-| `mods/vw/` | Bitwarden and Vaultwarden: `vwk` holds the vault's keys and does its crypto (libcrypto, libargon2 `dlopen`ed), never printing a key; `vw` (`examples/vw.hibr`, installed as a command) logs in, syncs and reads the vault -- kept encrypted, so offline works -- through `dav request`; `tests/bwserve.py` is the suites' stand-in server -- see `mods/vw/README.md`, ADR 0036 |
+| `mods/vw/` | Bitwarden and Vaultwarden: `vwk` holds the vault's keys and does its crypto (libcrypto, libargon2 `dlopen`ed), never printing a key; `vw` (`examples/vw.hibr`, installed as a command) logs in, syncs and reads the vault -- kept encrypted, so offline works -- through `dav request`; the desktop's Vault accessory and Passwords pane run that command as a child (`wm/vault.hibr`); `tests/bwserve.py` is the suites' stand-in server -- see `mods/vw/README.md`, ADR 0036 |
 
 Each directory carries its own `README.md` with the detail: `src/`, `include/`,
 `mods/`, `tests/`, `examples/`. User-facing documentation is under `docs/`, and
@@ -2048,6 +2048,20 @@ went in the shell.
   the hibr menu for six releases, where `c` opened it in a test meant to
   open Control Panel. Count them -- `many "" "" hidden` -- and copy a
   hidden app's line from one that is known to be hidden.
+- **A copied secret is not clipboard history.** `dt_clipset` keeps every
+  copy in `DT_CH`, which is written to the state folder -- so the vault's
+  passwords would have been saved in the clear by the act of copying one.
+  The kind `secret` is set for them: the clipboard itself is set and sent
+  to the terminal, and nothing is kept. `wm/vault.hibr`'s ticker clears it
+  again after `DT_VWCLEAR` seconds, and only while the clipboard is still
+  the secret it put there -- a later ordinary copy cancels the clear
+  rather than being wiped by it.
+- **A desktop that shells out to a command must say what went wrong, not
+  where.** `vw`'s own messages name the endpoint first
+  ("https://host/identity/connect/token: 400: ... incorrect ..."), which
+  is wider than a dialog and none of what a person needs: the login box
+  showed a truncated URL and no reason at all. `dt_vwwhy` drops a leading
+  address, and the test asserts on the server's own words.
 - **A window map's name is global across every app.** Contacts named its
   window table `PW`, which is Control Panel's own: each app overwrote the
   other's state. Before declaring a new `-gA`, grep the desktop for the
