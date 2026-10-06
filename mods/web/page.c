@@ -158,6 +158,7 @@ void wb_tabclose(wb_tab *t)
 		if (wb.tabs.p[i] == t)
 			wb.tabs.p[i] = 0;
 	wb_gridfree(t);
+	free(t->shot);
 	free(t->target);
 	free(t->session);
 	s_free(&t->url);
@@ -309,9 +310,12 @@ void wb_pixels(wb_tab *t)
 	wb_cell *c;
 	unsigned char *top, *bot;
 
+	/* A page drawn as pixels wants the screenshot at its own size; one
+	   drawn as cells wants one pixel a column and two a row, which is
+	   exactly what a half block shows. */
 	snprintf(b, sizeof b, "{\"format\":\"png\",\"clip\":{\"x\":%ld,\"y\":%ld,"
 		 "\"width\":%d,\"height\":%d,\"scale\":%.6f}}", t->sx, t->sy,
-		 t->cols * WB_CW, t->rows * WB_CH, 1.0 / WB_CW);
+		 t->cols * WB_CW, t->rows * WB_CH, t->pixels ? 1.0 : 1.0 / WB_CW);
 	wb_hidetext(t, 1);
 	r = wb_call("Page.captureScreenshot", b, t->session);
 	wb_hidetext(t, 0);
@@ -323,6 +327,19 @@ void wb_pixels(wb_tab *t)
 	if (wb_b64(jv_str(jv_path(r, "result.data")),
 		   strlen(jv_str(jv_path(r, "result.data"))), &png) == HIBR_OK &&
 	    im_pngmem((const unsigned char *)png.p, png.n, &im, &err) == HIBR_OK) {
+		if (t->pixels) {
+			/* Keep the picture itself; there is no text layer to
+			   build, and the cells it covers belong to it. */
+			free(t->shot);
+			t->shot = im.px;
+			t->shotw = im.w;
+			t->shoth = im.h;
+			im.px = 0;
+			s_free(&png);
+			s_free(&err);
+			jv_free(r);
+			return;
+		}
 		for (row = 0; row < t->rows; row++)
 			for (col = 0; col < t->cols; col++) {
 				c = t->grid + (size_t)row * t->cols + col;

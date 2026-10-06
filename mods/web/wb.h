@@ -52,6 +52,15 @@ struct wb_tab {
 	int grows, gcols;
 	vec links;
 	long sx, sy;
+	/* The page as pixels, for a terminal that can paint them: a
+	   screenshot at the viewport's own size, kept from one render to the
+	   next. A page drawn this way is the page -- real fonts, pictures,
+	   layout -- and has no text layer at all, because a text cell paints
+	   its own background and would box out the bitmap behind every glyph
+	   (ADR 0037). pixels is set by `web mode ID pixels`. */
+	int pixels;
+	unsigned char *shot;
+	int shotw, shoth;
 };
 
 /* The browser: one Chromium for the whole shell, driven over a pipe. */
@@ -99,7 +108,7 @@ int wb_wheel(wb_tab *t, int dy);
 int wb_key(wb_tab *t, const char *key);
 int wb_type(wb_tab *t, const char *text);
 int wb_hist(wb_tab *t, int d);
-int wb_draw(const dp_api *dp, wb_tab *t, int row, int col, int h, int w,
+int wb_draw(sh *s, const dp_api *dp, wb_tab *t, int row, int col, int h, int w,
 	    int prow, int pcol, int ph, int pw);
 void wb_gridfree(wb_tab *t);
 int wb_b64(const char *in, size_t n, str *out);

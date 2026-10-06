@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.99.73
+
+**The browser draws the page as a picture** where the terminal can paint
+pixels (ADR 0037): the screenshot is taken at the viewport's own size and
+drawn as pixels, so a page looks like the page -- its own fonts, its
+pictures, its layout -- rather than text over coloured blocks. There is no
+text layer in that mode, on purpose: a text cell paints its own background,
+so anything drawn over the bitmap boxes itself out of it. Clicks and typing
+still reach the page, which go by coordinate; what is lost is reading the
+page as cells, so no copying text out of it and no link cells. The window's
+own chrome -- tabs, address, the status line -- stays text either way, and
+**Control Panel > Pictures** chooses, as it does for every other picture.
+`web mode T cells|pixels` is the same thing for a script.
+
 ## 0.99.72
 
 **Pictures as pixels** (sixel). Where the terminal can paint them -- kitty,

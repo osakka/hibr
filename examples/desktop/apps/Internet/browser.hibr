@@ -222,7 +222,7 @@ fn bw_goaddr(int id) {
 }
 
 fn browser_draw(int id, int h, int w, int row, int col) {
-	local t=${BW[$id]["cur"]} x=1 n tt lab ph=$((h - 3)) u st on
+	local t=${BW[$id]["cur"]} x=1 n tt lab ph=$((h - 3)) u st on bwm
 	local g=${GL[vline]}
 
 	dt_wclear "$id"
@@ -282,6 +282,22 @@ fn browser_draw(int id, int h, int w, int row, int col) {
 	if [ "${BW[$id]["sized"]}" != "$ph $w" ]; then
 		web size "$t" "$ph" "$w" 2> /dev/null
 		BW[$id]["sized"]="$ph $w"
+	fi
+	# Pixels where the pictures setting asks for them and the terminal can
+	# paint them: the page is then the page, with no text layer of its own
+	# (ADR 0037), so nothing is drawn over it. Set once per tab, and again
+	# when the setting changes.
+	bwm=cells
+	case $DT_IMGMODE in
+	sixel) bwm=pixels ;;
+	auto | "")
+		g := dt_imggfx
+		case $g in sixel*) bwm=pixels ;; esac
+		;;
+	esac
+	if [ "${BW[$id]["pixels"]}" != "$bwm" ]; then
+		web mode "$t" "$bwm" 2> /dev/null
+		BW[$id]["pixels"]=$bwm
 	fi
 	web poll > /dev/null 2>&1
 	st=

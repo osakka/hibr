@@ -149,7 +149,7 @@ int wb_drawcmd(sh *s, wb_tab *t, int ac, char **av)
 	} else {
 		wb_dp->size(&ph, &pw);
 	}
-	return wb_draw(wb_dp, t, v[0], v[1], v[2], v[3], prow, pcol, ph, pw);
+	return wb_draw(s, wb_dp, t, v[0], v[1], v[2], v[3], prow, pcol, ph, pw);
 }
 
 /* The usage line. */
@@ -157,7 +157,8 @@ void wb_usage(void)
 {
 	lg(HIBR_LERR, "usage: web open [url] | close|back|forward|reload|render|"
 		      "url|title|text|links|loading|dirty|focus T | go T url | "
-		      "wait T [ms] | size T rows cols | draw T row col [h w] "
+		      "wait T [ms] | size T rows cols | mode T cells|pixels | "
+		      "draw T row col [h w] "
 		      "[-p pane] | click T row col | wheel T rows | key T name | "
 		      "type T text | eval T js | tap|tapseek T | take T "
 		      "[vfd|- [afd|-]] | tabs | fd | poll | quit");
@@ -254,6 +255,26 @@ int m_web(sh *s, int ac, char **av)
 			return 2;
 		}
 		return wb_size(t, atoi(av[3]), atoi(av[4]));
+	}
+	/* How a page is drawn: cells (text over the colours behind it) or
+	   pixels (the page itself, no text layer). Changing it means the next
+	   render takes a screenshot of the other size, so the page is marked
+	   for one. */
+	if (!strcmp(sub, "mode") && ac > 3) {
+		int px = !strcmp(av[3], "pixels") || !strcmp(av[3], "sixel");
+
+		if (!px && strcmp(av[3], "cells") && strcmp(av[3], "text")) {
+			lg(HIBR_LERR, "web mode: cells or pixels, not %s", av[3]);
+			return 2;
+		}
+		if (t->pixels != px) {
+			t->pixels = px;
+			free(t->shot);
+			t->shot = 0;
+			t->shotw = t->shoth = 0;
+			t->dirty = 1;
+		}
+		return HIBR_OK;
 	}
 	if (!strcmp(sub, "render")) {
 		wb_events();

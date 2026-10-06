@@ -92,7 +92,7 @@ check("drawing needs a display, and says so", "st 1" in out and
 
 
 def brun(feed, arg=A, env=None, wait=1.5, until=None, gone=None, ready=None,
-         click=None):
+         click=None, cell=(0, 0)):
     s = tempfile.mkdtemp(prefix="hibr-web-s-")
     p = os.path.join(s, "session.hibr")
     open(p, "w").write("%s\n. %s\n. %s\ndt_open\n"
@@ -101,7 +101,7 @@ def brun(feed, arg=A, env=None, wait=1.5, until=None, gone=None, ready=None,
                           tree("examples/desktop/apps/Internet/browser.hibr"), arg))
     e = {"HIBR_WEB_PROFILE": PROF, "XDG_DATA_HOME": os.path.join(D, "data")}
     e.update(env or {})
-    t = Term(p, env=e, settle=3.0, rows=26, cols=80)
+    t = Term(p, env=e, settle=3.0, rows=26, cols=80, cellw=cell[0], cellh=cell[1])
     # Chromium's own start-up is what a fixed settle cannot bound: under a
     # full parallel run it has taken longer than three seconds, and a click
     # at a tab's own coordinates then lands on a bar that is not drawn yet.
@@ -175,9 +175,23 @@ sc = brun([1.0], ready="Test page", click=("\u2715", 0),
           gone="\u2524 Browser")
 check("closing the last tab closes the window",
       sc.find("┤ Browser") is None, sc)
+# A terminal that can paint pixels gets the page as a picture and no text
+# layer at all: a text cell paints its own background, so anything drawn over
+# the bitmap would box itself out of it (ADR 0037). The window's own chrome
+# -- the tabs, the address -- is text as it always was, above the picture.
+sc = brun([2.0], ready="Test page", cell=(8, 16),
+          env={"HIBR_GFX": "sixel", "DT_IMGMODE": "sixel"})
+check("where the terminal can paint pixels the page is a picture, the chrome text",
+      len(sc.images) == 1 and sc.images[0][0] >= 3 and
+      sc.find("Test page") is not None and sc.find("Hello hibr") is None,
+      (sc.images, sc))
+sc = brun([2.0], ready="Hello hibr", cell=(8, 16), env={"DT_IMGMODE": "half"})
+check("and asked for blocks it is text over colours, with no picture sent",
+      not sc.images and sc.find("Hello hibr") is not None, (sc.images, sc))
+
 sc = brun([], env={"HIBR_WEB_BROWSER": "/nonexistent/chromium"})
 check("without a browser to drive, the window says what is missing",
       sc.find("No Chromium or Chrome") is not None, sc)
 
 shutil.rmtree(D, True)
-report(16)
+report(18)

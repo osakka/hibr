@@ -40,6 +40,7 @@ web close $t; web quit
 | `web size T rows cols` | lay the page out for that many cells |
 | `web render T` | take a frame: the text, the fields and the picture |
 | `web draw T row col [h w] [-p pane]` | draw the last frame on the display, into a pane if named |
+| `web mode T cells\|pixels` | how a page is drawn: text over the colours behind it, or the page itself as pixels where the terminal can paint them |
 | `web click T row col` | press and release at a cell |
 | `web wheel T rows` | scroll, down with a positive number |
 | `web key T name` | a key by the console's name for it: `enter`, `backspace`, `tab`, `up`, `pagedown`, `shift-tab`, `ctrl-a`, a letter |
@@ -53,6 +54,17 @@ web close $t; web quit
 | `web quit` | stop the browser |
 
 ## How a frame is made
+
+`pixels` is for a terminal that paints them (sixel, ADR 0037): the
+screenshot is taken at the viewport's own size rather than at one pixel a
+column, and drawn through the display's own `image` entry -- so the page
+looks like the page, with its own fonts, pictures and layout. It has **no
+text layer at all** in that mode, on purpose: a text cell paints its own
+background, so anything drawn over the bitmap would box itself out of it.
+Clicks and keys still reach the page, since those go by coordinate rather
+than through the cells; what is lost is reading the page as cells, so no
+copying text out of it and no link cells. The Browser app chooses from
+Control Panel > Pictures, and the window's own chrome stays text either way.
 
 The page is laid out at 8 by 16 CSS pixels a cell. `render` asks the page
 for every visible character's place, colour, weight and link (a range per
