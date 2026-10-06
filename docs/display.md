@@ -74,6 +74,7 @@ and the flush cost shown live. Run it and press things.
 | `console open` | take the terminal: alternate screen, raw mode, no cursor |
 | `console close` | give it back exactly as it was found |
 | `console size` | rows and columns, as two words |
+| `console gfx` | what this terminal does with a picture, and the pixel size of a cell: `sixel 8 16`, or `none 0 0`. `HIBR_GFX=sixel` or `off` says outright |
 | `console resized` | true once after the terminal changed size |
 | `console clear` | blank the back buffer with the current pen |
 | `console pen [fg [bg [attr…]]]` | the colours and attributes later writes use |

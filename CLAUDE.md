@@ -184,6 +184,7 @@ whenever a replacement writes one.
 | `mods/salat/` | prayer times: the sun's place computed (Meeus), methods as JSON files in a folder, checked against adhan-js to the minute through the year and into the polar circle (`tests/salat_adhan.py`) -- ADR 0035, Gitea #70 |
 | `mods/lang.c` | translation catalogues with CLDR plurals; the desktop translates at its widgets (`dt_tr`, `wm/lang.hibr`, `lang/`), `tools/strings.py` keeps the list -- ADR 0032 |
 | `mods/email/` | IMAP (IDLE, Gmail's labels), POP3, SMTP and MIME; accounts in a 0600 file; `tests/mailserve.py` is the suites' stand-in server; the Mail app (`apps/Internet/mail.hibr`) keeps accounts offline through `examples/desktop/lib/mailsync.hibr` -- see `mods/email/README.md` |
+| `mods/console/sixel.c`, `mods/console/image.c` | pictures as pixels: the sixel encoder (fixed 6x6x6 palette, or median cut per picture) and the regions the console owns -- placed through `dp_api`'s `image`, kept until their cells are drawn through, emitted once (ADR 0037); `console gfx` says what the terminal can do |
 | `mods/vw/` | Bitwarden and Vaultwarden: `vwk` holds the vault's keys and does its crypto (libcrypto, libargon2 `dlopen`ed), never printing a key; `vw` (`examples/vw.hibr`, installed as a command) logs in, syncs and reads the vault -- kept encrypted, so offline works -- through `dav request`; the desktop's Vault accessory and Passwords pane run that command as a child (`wm/vault.hibr`); `tests/bwserve.py` is the suites' stand-in server -- see `mods/vw/README.md`, ADR 0036 |
 
 Each directory carries its own `README.md` with the detail: `src/`, `include/`,
@@ -1332,7 +1333,11 @@ went in the shell.
   edge. Since 0.94 the list scrolls on its own (`PW[..]["ltop"]`), with
   its own scrollbar, brought to the selection only when the selection moves
   (`lseen`) -- so a sixteenth pane is fine, and a wheel-scrolled list does
-  not snap back on the next frame.
+  not snap back on the next frame. A test that clicks a pane by a row worked
+  out from the pane order is therefore only right while that pane is on
+  screen: adding one to the middle of the list pushed Shortcuts off the
+  bottom and the click landed on nothing, which reads as the picker being
+  broken. Click a pane that is still visible, or scroll first.
 
 - **A setting an app keeps is a setting the Control Panel shows.** Every
   `dt_keep`, and the desktop's own `DT_KEEP`, has to appear in a file that
@@ -2069,6 +2074,28 @@ went in the shell.
   is wider than a dialog and none of what a person needs: the login box
   showed a truncated URL and no reason at all. `dt_vwwhy` drops a leading
   address, and the test asserts on the server's own words.
+- **A bitmap is not cells, so the console owns it.** A picture placed with
+  `dp->image` becomes a region: the console encodes it once, skips the cells
+  it covers in the diff, keeps it until the cells underneath stop matching
+  the hash taken when it was placed, and only then paints them again (ADR
+  0037). Two things fall out of that and both are deliberate -- a still
+  picture costs nothing after the first flush, and nothing has to *tell* the
+  console a window has closed. A caller that means to draw text over a
+  picture says `DP_IMG_UNDER`, because a text cell paints its own
+  background and would otherwise box out the bitmap behind every glyph;
+  such a region owns no cells, goes out before the text and is forgotten
+  once sent. Do not add a path that writes a bitmap straight at the screen:
+  that is the Control Panel preview trap again, and this is the API it said
+  was missing.
+- **Sixel needs the pixel size of a cell, and a wrong one spills.** It
+  paints 1:1, so the bitmap is scaled to `w * cellw` by `h * cellh` -- by
+  the *backend*, which is the only thing that knows the cell, rather than by
+  each of the four modules that draw pictures. A terminal that does not fill
+  `ws_xpixel` is treated as having no pictures at all, which is also what
+  makes every pty test deterministic: `Term(cellw=, cellh=)` is how a suite
+  says otherwise, and `tests/screen.py` keeps DCS payloads out of its screen
+  model and records them instead (`Screen.images`), or a sixel's own bytes
+  would be fed to the grid as text.
 - **A check that can only pass during part of the day is not a check.**
   `tests/desktop.py`'s prayer note test set the "last looked" marker a
   second before today's Fajr and expected a note for every prayer since:

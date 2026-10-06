@@ -397,7 +397,7 @@ static int im_draw(sh *s, int ac, char **av)
 {
 	const dp_api *dp;
 	const char *path, *pane = 0;
-	int row, col, rows, cols, gray = 0;
+	int row, col, rows, cols, gray = 0, mode = IM_AUTO;
 	int prow = 0, pcol = 0, ph = 0, pw = 0;
 	image im;
 	str err;
@@ -405,7 +405,7 @@ static int im_draw(sh *s, int ac, char **av)
 	int r, c, i;
 
 	if (ac < 7) {
-		lg(HIBR_LERR, "usage: img draw file row col h w [-g] [-p pane]");
+		lg(HIBR_LERR, "usage: img draw file row col h w [-g] [-m mode] [-p pane]");
 		return 2;
 	}
 	path = av[2];
@@ -416,9 +416,13 @@ static int im_draw(sh *s, int ac, char **av)
 	for (i = 7; i < ac; i++) {
 		if (!strcmp(av[i], "-g"))
 			gray = 1;
+		else if (!strcmp(av[i], "-m") && i + 1 < ac)
+			mode = im_mode(av[++i]);
 		else if (!strcmp(av[i], "-p") && i + 1 < ac)
 			pane = av[++i];
 	}
+	if (gray)
+		mode = IM_ASCII;
 	if (rows < 1 || cols < 1) {
 		lg(HIBR_LERR, "img draw: h and w must be at least 1");
 		return 2;
@@ -437,6 +441,51 @@ static int im_draw(sh *s, int ac, char **av)
 			return HIBR_FAIL;
 		}
 	}
+	/* Pixels first where they are wanted and can be placed: the display
+	   keeps the picture as a region of its own, so a window redrawing the
+	   same one each frame costs nothing after the first. A still picture
+	   gets a palette chosen from itself; a frame of a film comes through
+	   dp->image straight from the media module with the fixed one. */
+	if (mode == IM_SIXEL || mode == IM_AUTO) {
+		int cw = 0, chh = 0;
+
+		if (dp->image && dp->cellpx) {
+			dp->cellpx(&cw, &chh);
+			if (cw > 1 && chh > 1) {
+				unsigned char *px;
+				int iw = cols * cw, ih = rows * chh;
+				int done;
+
+				s_init(&err);
+				if (im_load(path, &im, &err) != HIBR_OK) {
+					if (mode == IM_SIXEL) {
+						lg(HIBR_LERR, "%s", err.p ? err.p : "decode failed");
+						s_free(&err);
+						return HIBR_FAIL;
+					}
+					s_free(&err);
+					goto cells;
+				}
+				s_free(&err);
+				px = xm((size_t)iw * ih * 3);
+				im_scale(&im, px, iw, ih);
+				im_free(&im);
+				done = dp->image(s, pane, row, col, rows, cols, px, iw, ih, DP_IMG_CHOSEN);
+				free(px);
+				if (done)
+					return HIBR_OK;
+			}
+		}
+		if (mode == IM_SIXEL) {
+			lg(HIBR_LDBG, "img draw: no pixels here, cells instead");
+			mode = IM_HALF;
+		}
+	}
+cells:
+	if (mode == IM_AUTO)
+		mode = IM_HALF;
+	if (mode == IM_ASCII)
+		gray = 1;
 	if (!im_cached(path, rows, cols, &grid)) {
 		s_init(&err);
 		if (im_load(path, &im, &err) != HIBR_OK) {
@@ -475,6 +524,18 @@ static int im_draw(sh *s, int ac, char **av)
 				ch[1] = 0;
 				dp->put(pane ? prow + ar : ar,
 					pane ? pcol + acol : acol, ch);
+				continue;
+			}
+			if (mode == IM_MONO) {
+				unsigned tl = (unsigned)((cp->tr * 30 + cp->tg * 59 +
+							  cp->tb * 11) / 100);
+				unsigned bl = (unsigned)((cp->br * 30 + cp->bg * 59 +
+							  cp->bb * 11) / 100);
+
+				dp->pen(DP_RGB | tl << 16 | tl << 8 | tl,
+					DP_RGB | bl << 16 | bl << 8 | bl, 0);
+				dp->put(pane ? prow + ar : ar,
+					pane ? pcol + acol : acol, "\xe2\x96\x80");
 				continue;
 			}
 			dp->pen(DP_RGB | ((unsigned)cp->tr << 16) |

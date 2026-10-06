@@ -82,7 +82,7 @@ void mv_cellof(mv_pl *p, mv_vf *f, int x, int y, mv_cell *c)
    screen, clipped to the rectangle prow, pcol, ph, pw: the picture in the
    middle, black around it. Cells of one pen go out as one run. Fails when
    there is no frame yet. */
-int mv_draw(const dp_api *dp, mv_pl *p, int row, int col, int prow, int pcol,
+int mv_draw(sh *s, const dp_api *dp, mv_pl *p, int row, int col, int prow, int pcol,
 	    int ph, int pw)
 {
 	mv_vf *f = &p->cur;
@@ -99,6 +99,20 @@ int mv_draw(const dp_api *dp, mv_pl *p, int row, int col, int prow, int pcol,
 	fh = p->mode == 0 ? (mv_th + 1) / 2 : mv_th;
 	ox = (cols - mv_tw) / 2;
 	oy = (rows - fh) / 2;
+	/* Pixels where the display can place them: the frame as it was decoded,
+	   which the backend scales to the rectangle itself. The fixed palette,
+	   not one chosen per frame -- it is the same every frame, so a terminal
+	   keeps its colour registers and a film does not flicker through 256 new
+	   ones twenty-four times a second. */
+	if (p->mode == 3 && dp->image) {
+		int ir = row + (oy > 0 ? oy : 0), ic = col + (ox > 0 ? ox : 0);
+		int ih = fh < rows ? fh : rows, iwc = mv_tw < cols ? mv_tw : cols;
+
+		if (ih > 0 && iwc > 0 && ir >= prow && ic >= pcol &&
+		    ir + ih <= prow + ph && ic + iwc <= pcol + pw &&
+		    dp->image(s, 0, ir, ic, ih, iwc, f->rgb, f->w, f->h, 0))
+			return HIBR_OK;
+	}
 	s_init(&run);
 	for (r = 0; r < rows; r++) {
 		sr = row + r;

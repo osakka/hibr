@@ -81,6 +81,9 @@ void cn_inval(void)
 {
 	int i, n = cn_front.rows * cn_front.cols;
 
+	/* Everything is painted again, which paints over any picture: the
+	   regions go, and whatever still wants one places it afresh. */
+	cn_imgclear();
 	for (i = 0; i < n; i++)
 		cn_front.c[i].cp = 0xFFFFFFFFu;
 	cn_lset = 0;
@@ -463,12 +466,28 @@ long cn_flush(void)
 		return 0;
 	if (cn_fit() != HIBR_OK)
 		return 0;
+	/* A picture whose cells have been drawn through since it was placed is
+	   gone: dropping it here, before the diff, is what makes those cells
+	   paint again. */
+	cn_imgcheck();
 	s_init(&b);
+	/* A picture text is drawn over goes out first, so the text lands on
+	   top of it; the pen and the cursor are then unknown. */
+	if (cn_imgn() && cn_imgsend(&b, 1)) {
+		cn_lset = 0;
+		cr = -9;
+		cc = -9;
+	}
 	for (r = 0; r < cn_back.rows; r++) {
 		for (c = 0; c < cn_back.cols; c++) {
 			bk = &cn_back.c[r * cn_back.cols + c];
 			ft = &cn_front.c[r * cn_front.cols + c];
 			if (bk->cont)
+				continue;
+			/* Inside a picture: the cells belong to it, and the
+			   front grid is left not knowing them, so the text
+			   underneath paints the moment the picture goes. */
+			if (cn_imgn() && cn_imgat(r, c))
 				continue;
 			if (cn_same(bk, ft) &&
 			    !(cr == r && cc == c && cn_near(r, c)))
@@ -517,6 +536,14 @@ long cn_flush(void)
 	if (cn_llink) {
 		s_cat(&b, "\033]8;;\a");
 		cn_llink = 0;
+	}
+	/* The pictures last, so nothing the diff writes lands on top of one;
+	   each moves the cursor itself, so the pen and position are forgotten
+	   and the cursor below is placed outright. */
+	if (cn_imgn() && cn_imgsend(&b, 0)) {
+		cr = -9;
+		cc = -9;
+		cn_lset = 0;
 	}
 	if (cn_cvis) {
 		cn_goto(&b, cn_crow, cn_ccol, cr, cc);

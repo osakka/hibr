@@ -218,6 +218,80 @@ void cn_size(int *rows, int *cols)
 	*cols = ed_cols();
 }
 
+/* The pixel size of a cell, from whichever end of the terminal answers:
+   kitty, foot and others fill ws_xpixel and ws_ypixel, and a plain pty
+   leaves them zero, which is the signal that nothing here can place pixels
+   at all. Asked on every call rather than cached, since a resize that keeps
+   the cell count can still change the cell's own size (a font change does
+   exactly that), and the call is one ioctl. */
+void cn_cellpx(int *w, int *h)
+{
+	struct winsize ws;
+	int i;
+
+	*w = 0;
+	*h = 0;
+	for (i = 0; i < 2; i++) {
+		int fd = i == 0 ? cn_fd : 2;
+
+		if (fd < 0 || ioctl(fd, TIOCGWINSZ, &ws) != 0)
+			continue;
+		if (ws.ws_row < 1 || ws.ws_col < 1)
+			continue;
+		if (ws.ws_xpixel < ws.ws_col || ws.ws_ypixel < ws.ws_row)
+			continue;
+		*w = ws.ws_xpixel / ws.ws_col;
+		*h = ws.ws_ypixel / ws.ws_row;
+		return;
+	}
+}
+
+static int cn_gfxk = -1;
+
+/* Whether this terminal takes a picture as pixels, and how.
+   
+   Two things have to be true: it must say what a cell measures in pixels
+   (ws_xpixel), since sixel paints 1:1 and a wrong cell size spills the
+   bitmap into its neighbours; and it must understand sixel. The second is
+   taken from what the terminal calls itself -- kitty, foot, WezTerm, mlterm
+   and iTerm2 all do -- rather than from a Primary Device Attributes probe,
+   which would mean reading the terminal's reply out of the same stream the
+   key decoder owns, with a keypress possibly racing it: that stream already
+   has a trap record of its own (the Alt/Escape window), and a name plus a
+   setting costs nobody a lost keystroke. HIBR_GFX says outright: sixel, or
+   off. */
+int cn_gfx(sh *s)
+{
+	const char *v, *t;
+	int w = 0, h = 0;
+
+	if (cn_gfxk >= 0)
+		return cn_gfxk;
+	cn_gfxk = CN_GFX_NONE;
+	v = hibr_get(s, "HIBR_GFX");
+	if (v && (!strcmp(v, "off") || !strcmp(v, "none")))
+		return cn_gfxk;
+	cn_cellpx(&w, &h);
+	if (w < 2 || h < 2) {
+		lg(HIBR_LDBG, "gfx: the terminal does not say what a cell measures");
+		return cn_gfxk;
+	}
+	if (v && !strcmp(v, "sixel")) {
+		cn_gfxk = CN_GFX_SIXEL;
+		lg(HIBR_LDBG, "gfx: sixel, as HIBR_GFX asks; cell %dx%d", w, h);
+		return cn_gfxk;
+	}
+	t = hibr_get(s, "TERM");
+	if (t && (strstr(t, "kitty") || strstr(t, "foot") || strstr(t, "mlterm") ||
+		  strstr(t, "wezterm") || strstr(t, "contour") || strstr(t, "yaft")))
+		cn_gfxk = CN_GFX_SIXEL;
+	t = hibr_get(s, "TERM_PROGRAM");
+	if (t && (!strcmp(t, "WezTerm") || !strcmp(t, "iTerm.app") || !strcmp(t, "mintty")))
+		cn_gfxk = CN_GFX_SIXEL;
+	lg(HIBR_LDBG, "gfx: %s; cell %dx%d", cn_gfxk ? "sixel" : "none", w, h);
+	return cn_gfxk;
+}
+
 /* Install the handlers that keep the terminal recoverable. */
 void cn_hook(void)
 {
@@ -319,6 +393,7 @@ void cn_close(sh *s)
 	(void)s;
 	if (!cn_on)
 		return;
+	cn_imgclear();
 	cn_wr(cn_fd, cn_moff, sizeof cn_moff - 1);
 	cn_wr(cn_fd, cn_leave, sizeof cn_leave - 1);
 	tcsetattr(cn_fd, TCSADRAIN, &cn_sv);

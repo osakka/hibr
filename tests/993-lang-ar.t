@@ -7,8 +7,10 @@
 
 mod load build/mods/lang.so 2> /dev/null || mod load lang
 lang load examples/desktop/lang/ar.json || echo "ar.json does not load"
+# The count moves whenever a string is added, and that is 992-strings's own
+# business, so it is not recorded here.
 i := lang info
-echo "$i"
+rsub -g "$i" "[0-9]+$" "n"
 python3 - <<'PY'
 import json
 # Kept in Latin on purpose: product and protocol names, the project's own

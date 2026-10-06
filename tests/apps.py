@@ -290,12 +290,12 @@ GROUP = dict(l.split() for l in out if l.strip())
 check("panes register and sort by title within their group, not load order",
       ORDER == ["datetime", "displays", "keyboard", "mouse",
                 "aboutme", "appearance", "cliphist", "control_strip", "desktop",
-                "filetypes", "language", "network", "notify", "vaultset", "prayerset", "screensaver", "shortcuts",
-                "windows",
+                "filetypes", "language", "network", "notify", "vaultset", "pictures", "prayerset",
+                "screensaver", "shortcuts", "windows",
                 "abouthibr", "filesview", "mailset", "pimset", "notes", "taskmgr", "terminal", "tube"], out)
 check("Hardware first, then the desktop's own panes, then one per app",
       [GROUP[n] for n in ORDER] ==
-      ["hardware"] * 4 + ["system"] * 14 + ["app"] * 8, out)
+      ["hardware"] * 4 + ["system"] * 15 + ["app"] * 8, out)
 
 PW = "22 70 2 2"
 PANEL = ("panel", PW)
@@ -317,6 +317,7 @@ TITLE = {"aboutme": "About Me", "appearance": "Appearance", "control_strip": "Co
          "datetime": "Date & Time", "desktop": "Desktop",
          "displays": "Displays", "filetypes": "File Types", "language": "Language",
          "network": "Network Serve", "prayerset": "Prayer Times", "vaultset": "Passwords",
+         "pictures": "Pictures",
          "screensaver": "Screen Saver",
          "keyboard": "Keyboard", "mouse": "Mouse",
          "shortcuts": "Shortcuts", "notify": "Notifications",
@@ -1559,9 +1560,13 @@ check("a click in the pane's own body selects and a second click acts",
 sc = cprun([press(prow("terminal") + 1, LISTCOL)])
 check("clicking below the last pane in the picker does nothing",
       sc.find(TITLE[ORDER[0]]) is not None, sc)
-sc = cprun([press(prow("shortcuts"), LISTCOL)])
+# A pane far enough down the list to have headings above it, but still on
+# screen: the picker scrolls (0.94), so a row worked out from ORDER is only
+# where it says while the pane is visible, and a pane added to the middle of
+# the list pushes the ones below it off the bottom.
+sc = cprun([press(prow("language"), LISTCOL)])
 check("clicking a pane in the picker shows it, the headings counted",
-      brow(sc, "Menu Bar") != "", sc)
+      brow(sc, "Digits") != "", sc)
 sc = cprun([press(R0, LISTCOL)])
 check("and clicking a heading shows nothing new",
       sc.find("Change…") is not None, sc)
@@ -3593,4 +3598,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(550)
+report(551)

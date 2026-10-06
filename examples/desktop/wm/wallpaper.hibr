@@ -13,6 +13,37 @@ DT_WALLC=0
 DT_WALLH=0
 DT_WALLW=0
 
+# How a picture is drawn, everywhere the desktop draws one: auto takes
+# pixels where the terminal can paint them (sixel) and half blocks where it
+# cannot, and the rest say outright. dt_imgm is what every caller passes to
+# `img draw -m`, so one setting reaches the viewer, the wallpaper, Mail's
+# pictures, the film player and the browser.
+DT_IMGMODE="${DT_IMGMODE-auto}"
+dt_keep DT_IMGMODE
+DT_IMGARG=()
+
+# The -m argument for the mode chosen, as an array since it is two words or
+# none, and a strict file cannot split a string into them.
+dt_imgm() {
+	DT_IMGARG=()
+	case $DT_IMGMODE in
+	auto | "") ;;
+	*) DT_IMGARG=(-m "$DT_IMGMODE") ;;
+	esac
+	return 0
+}
+
+# What the terminal can do with a picture: "sixel 8 16" or "none 0 0".
+dt_imggfx() {
+	local g
+
+	if ! command -v console > /dev/null; then
+		ret "none 0 0"
+	fi
+	g := console gfx 2> /dev/null || g="none 0 0"
+	ret "$g"
+}
+
 # The row/col/h/w to hand img draw for DT_WALLMODE, in DT_WALLR/C/H/W --
 # the same "cols must be 2*sw/sh, not sw/sh" cell-aspect correction
 # wallpaper.hibr's own preview already uses, since img draw's own cell is
@@ -103,8 +134,9 @@ dt_wall() {
 				console fill 0 0 "$DT_ROWS" "$DT_COLS" "$DT_GLYPH"
 				;;
 			esac
+			dt_imgm
 			img draw "$DT_WALLIMG" "$DT_WALLR" "$DT_WALLC" \
-				"$DT_WALLH" "$DT_WALLW" && drawn=1
+				"$DT_WALLH" "$DT_WALLW" "${DT_IMGARG[@]}" && drawn=1
 		fi
 	fi
 	if [ -z "$drawn" ]; then

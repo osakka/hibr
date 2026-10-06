@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.99.72
+
+**Pictures as pixels** (sixel). Where the terminal can paint them -- kitty,
+foot, WezTerm, mlterm, iTerm2, mintty, contour -- a picture is drawn as
+pixels instead of coloured half blocks: the Image Viewer, the wallpaper,
+Mail's pictures and the film player. **Control Panel > Pictures** chooses:
+Automatic, Half Blocks, Grey Blocks, Characters or Pixels, and says what
+this terminal can do beside it. `img draw -m MODE` and `media mode ID sixel`
+are the same thing for a script, and `console gfx` answers "sixel 8 16" or
+"none 0 0" so nothing has to guess from `$TERM`.
+
+A bitmap is not cells, so the console owns it (ADR 0037, `dp_api` version
+5): a picture is placed as a *region*, encoded once, and the ordinary cell
+diff keeps it honest -- the cells it covers are left alone, so a window
+clearing its own face each frame does not paint over it, and the region is
+dropped the moment those cells stop matching what they were, so a window
+that moves or closes paints its text again with nothing having to say so. A
+still picture therefore costs nothing on every flush after the first. The
+palette is chosen per picture for a still one (median cut, 256 colours) and
+fixed 6x6x6 for a film, where the same palette every frame is what lets a
+terminal keep its colour registers.
+
+Whether a terminal can paint pixels is decided from two facts rather than a
+probe: it must report the pixel size of a cell, since sixel paints 1:1 and a
+wrong cell size spills the bitmap into its neighbours, and it must be one
+known to understand the format. `HIBR_GFX=sixel` or `off` overrides. A
+Primary Device Attributes probe was rejected on purpose: its reply arrives
+in the stream the key decoder owns, racing a keystroke.
+
+`tests/sixel.py` drives all of it through a pty -- the picture lands where
+it was put, the text around it survives, the same picture again sends
+nothing, text drawn through it brings the text back, a pane clips it, and a
+terminal that says nothing about cells gets blocks. The harness now keeps
+DCS payloads out of its screen model and records where each landed, and a
+test pty can say what a cell measures.
+
+The browser is not converted: it draws text over its screenshot, and a text
+cell paints its own background, so "page as a picture" and "text over
+colours" are two different renderings -- a decision, not a detail.
+
 ## 0.99.71
 
 **Who orders right-to-left text is asked of the terminal** (Gitea #68, ADR

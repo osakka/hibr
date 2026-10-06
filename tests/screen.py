@@ -75,6 +75,8 @@ class Screen:
         self.p = [[""] * self.cols for _ in range(self.rows)]
         self.r = self.c = 0
         self.pen = ""
+        # Pictures sent as DCS (sixel): where each landed and how long it was.
+        self.images = []
 
     def feed(self, t):
         i, n = 0, len(t)
@@ -99,6 +101,19 @@ class Screen:
                 elif fin == "m":
                     self.pen = seq
                 i = j + 1
+                continue
+            # A DCS payload -- a sixel image is one (ESC P ... ESC \\) -- is
+            # not text: fed to the grid as characters it would scribble the
+            # bitmap's own bytes across the screen and break every check on
+            # a window that happens to show a picture. The images are kept
+            # instead, so a test can ask what was drawn rather than grep raw
+            # output: each is (row, col, bytes) at the cursor it arrived on.
+            if ch == "\x1b" and i + 1 < n and t[i + 1] == "P":
+                j = i + 2
+                while j < n and t[j:j + 2] != "\x1b\\" and t[j] != "\x9c":
+                    j += 1
+                self.images.append((self.r, self.c, j - (i + 2)))
+                i = j + (2 if t[j:j + 2] == "\x1b\\" else 1)
                 continue
             if ch == "\x1b" and i + 1 < n and t[i + 1] == "]":
                 j = i + 2
@@ -219,7 +234,7 @@ class Term:
     timer. Anything that never says it is idle keeps the fixed timings."""
 
     def __init__(self, *argv, rows=ROWS, cols=COLS, env=None, settle=0.4,
-                 size=True):
+                 size=True, cellw=0, cellh=0):
         self.rows, self.cols = rows, cols
         self.out = b""
         self.status = None
@@ -262,17 +277,21 @@ class Term:
                 os.environ[k] = v
             os.execv(HIBR, ["hibr"] + [str(a) for a in argv])
         if size:
-            self.resize(rows, cols)
+            self.resize(rows, cols, cellw, cellh)
         if settle:
             if self.until_idle(settle + 0.4):
                 self.idle = True
             else:
                 self.collect(0.05)
 
-    def resize(self, rows, cols):
+    def resize(self, rows, cols, cellw=0, cellh=0):
+        """Set the pty's size, and with cellw/cellh the pixel size a cell
+        has -- what a terminal fills in ws_xpixel/ws_ypixel and what the
+        console needs before it will draw a picture as pixels rather than as
+        half blocks. Zero says nothing, as an ordinary pty does."""
         self.rows, self.cols = rows, cols
         fcntl.ioctl(self.fd, termios.TIOCSWINSZ,
-                    struct.pack("HHHH", rows, cols, 0, 0))
+                    struct.pack("HHHH", rows, cols, cols * cellw, rows * cellh))
 
     def collect(self, t=0.3):
         end = time.time() + t

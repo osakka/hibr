@@ -102,7 +102,8 @@ fn imgview_draw(int id, int h, int w, int row, int col) {
 		console put -p "w$id" $((h / 2)) 2 "Image support isn't installed"
 		return 0
 	fi
-	img draw "$path" 1 1 "$h" "$w" -p "w$id" && return 0
+	dt_imgm
+	img draw "$path" 1 1 "$h" "$w" "${DT_IMGARG[@]}" -p "w$id" && return 0
 	console pen "$DT_BAD" "$DT_FACE"
 	console put -p "w$id" $((h / 2)) 2 "Cannot show ${path##*/}"
 }

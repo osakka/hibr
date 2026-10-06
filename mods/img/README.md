@@ -3,15 +3,25 @@
 Decode an image and draw it into a terminal as coloured cells -- a jp2a-alike,
 issue #39. PNG and JPEG, told apart by their first bytes rather than their
 names. `img file.png` prints ANSI to standard output; `img draw file row
-col h w [-p pane]` blits directly into the open display instead, for a
-window or the desktop's own wallpaper.
+col h w [-m mode] [-p pane]` blits directly into the open display instead,
+for a window or the desktop's own wallpaper.
+
+`-m` picks how: `half` (coloured half blocks, two pixels a cell), `mono`
+(the same in grey), `ascii` (the character ramp, what `-g` has always
+meant), `sixel` (real pixels, where the terminal can paint them) and `auto`,
+the default, which takes pixels where they are to be had and half blocks
+everywhere else. Pixels go through the display's own `image` entry (ADR
+0037): the console keeps the picture as a region of its own, scales it to
+the rectangle, and sends the bytes once -- so a still picture in a window
+costs nothing on the frames after the first. A terminal that cannot paint
+pixels is not asked twice; `console gfx` is what says which it is.
 
 | file | role |
 |---|---|
 | `im.h` | the `image`/`cell` types, decode and resample entry points |
 | `png.c` | libpng, dlopen'd on first use |
 | `jpeg.c` | libturbojpeg, dlopen'd on first use; EXIF orientation |
-| `img.c` | resampling, both renderers, the `img` builtin |
+| `img.c` | resampling, every renderer, the `img` builtin |
 
 ## Decoding is dlopen'd, not linked
 

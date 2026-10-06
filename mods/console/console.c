@@ -435,6 +435,27 @@ int m_console(sh *s, int ac, char **av)
 		cn_bidi = ob;
 		return HIBR_OK;
 	}
+	/* What this terminal can do with a picture, and the pixel size of a
+	   cell while we are asking: "sixel 8 16", or "none 0 0". A script
+	   chooses how to draw with this -- the desktop's Images setting does
+	   -- rather than each app guessing from $TERM for itself. */
+	if (!strcmp(sub, "gfx")) {
+		int w = 0, h = 0, k;
+		str o;
+
+		k = cn_gfx(s);
+		cn_cellpx(&w, &h);
+		s_init(&o);
+		s_cat(&o, k == CN_GFX_SIXEL ? "sixel " : "none ");
+		s_num(&o, w);
+		s_ch(&o, ' ');
+		s_num(&o, h);
+		hibr_ret(s, o.p ? o.p : "none 0 0");
+		if (!s->bind)
+			printf("%s\n", o.p ? o.p : "none 0 0");
+		s_free(&o);
+		return HIBR_OK;
+	}
 	if (!strcmp(sub, "bidi")) {
 		if (ac > 2 && (!strcmp(av[2], "on") || !strcmp(av[2], "off"))) {
 			cn_bidi = !strcmp(av[2], "on");
@@ -683,7 +704,7 @@ int m_console(sh *s, int ac, char **av)
 static const dp_api console_api = {
 	cn_open, cn_close, cn_isopen, cn_size, cn_resized, cn_pen,
 	cn_clear, cn_put, cn_fill, cn_cursor, cn_flush, cn_key,
-	cn_colour, cn_attr, cn_mouseon, cn_prect, cn_link
+	cn_colour, cn_attr, cn_mouseon, cn_prect, cn_link, cn_image, cn_cellpx
 };
 
 /* Offer the drawing table to whatever else wants to draw. */

@@ -60,6 +60,8 @@ int mv_modeof(const char *m)
 		return 2;
 	if (!strcmp(m, "half"))
 		return 0;
+	if (!strcmp(m, "sixel") || !strcmp(m, "pixels"))
+		return 3;
 	return -1;
 }
 
@@ -121,7 +123,8 @@ int mv_info(sh *s, mv_pl *p)
 	mv_field(s, "video", p->vi >= 0 ? p->vcodec : "");
 	mv_field(s, "audio", p->ai >= 0 ? p->acodec : "");
 	mv_field(s, "output", p->ai >= 0 ? p->ao.name : "");
-	mv_field(s, "mode", p->mode == 1 ? "ascii" : p->mode == 2 ? "mono" : "half");
+	mv_field(s, "mode", p->mode == 1 ? "ascii" : p->mode == 2 ? "mono" :
+		 p->mode == 3 ? "sixel" : "half");
 	mv_field(s, "error", p->err ? p->err : "");
 	pthread_mutex_unlock(&p->mu);
 	s_free(&b);
@@ -162,7 +165,7 @@ int mv_drawcmd(sh *s, mv_pl *p, int ac, char **av)
 	} else {
 		mv_dp->size(&ph, &pw);
 	}
-	return mv_draw(mv_dp, p, v[0], v[1], prow, pcol, ph, pw);
+	return mv_draw(s, mv_dp, p, v[0], v[1], prow, pcol, ph, pw);
 }
 
 /* The usage line. */
@@ -171,8 +174,8 @@ void mv_usage(void)
 	lg(HIBR_LERR, "usage: media open source [-p] | feed [-p] | pipe id "
 		      "video|audio | play|pause|toggle|frame|"
 		      "next|info|close id | seek id seconds [-r] | volume id "
-		      "[0-100] | size id cols rows [half|ascii|mono] | mode id "
-		      "half|ascii|mono | detail id 0-3 | fps id n | draw id row "
+		      "[0-100] | size id cols rows [half|ascii|mono|sixel] | mode id "
+		      "half|ascii|mono|sixel | detail id 0-3 | fps id n | draw id row "
 		      "col [-p pane] | list");
 }
 

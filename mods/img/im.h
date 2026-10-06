@@ -34,4 +34,20 @@ struct cell {
    photo rather than aliased noise. rows/cols must both be at least 1. */
 void im_resample(const image *im, cell *out, int rows, int cols);
 
+/* Resample im into exactly w by h pixels of RGB, the same box filter, for a
+   backend that places pixels rather than cells (sixel). out holds w*h*3. */
+void im_scale(const image *im, unsigned char *out, int w, int h);
+
+/* How a picture is drawn. half and mono are cells (colour, and the same in
+   grey); ascii is the character ramp; sixel is pixels, where the display can
+   place them, and falls back to half when it cannot. */
+#ifndef IM_HALF
+#define IM_HALF 0
+#define IM_MONO 1
+#define IM_ASCII 2
+#define IM_SIXEL 3
+#define IM_AUTO 4
+#endif
+int im_mode(const char *t);
+
 #endif

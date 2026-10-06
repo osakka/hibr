@@ -66,6 +66,7 @@ SUITE_MODS = {
     "vw_crypto": ["vw"],
     "vw": ["vw", "dav"],
     "vault": ["vw", "dav"],
+    "sixel": ["console", "img", "media"],
 }
 APPS = ("apps_panel", "apps_reach", "apps_core", "apps_more")
 DESKTOP = ("desktop", "vault") + APPS + ("uifuzz", "strictvars", "mailapp", "contacts", "calapp")

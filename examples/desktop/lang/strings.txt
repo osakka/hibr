@@ -93,6 +93,7 @@ Attach File…
 Attach…
 Aug
 August
+Automatic Means
 Average
 Back
 Back 10 Seconds
@@ -255,6 +256,7 @@ Displays
 Download Whole Messages
 Drafts
 Drag Modifier
+Draw Pictures As
 Drop onto Home, a disk, or the trash
 ETag: %s
 Edge Resize
@@ -526,6 +528,7 @@ Pattern
 Pause
 Pause or Play
 Picture
+Pictures
 Pinned
 Placement
 Plain
@@ -713,6 +716,7 @@ Theme
 There is a theme called %s already
 There is no file %s
 There is no folder %s
+This Terminal
 This account has no address to answer from
 This window: desktop shortcuts work again
 This window: every key goes to the program
@@ -786,6 +790,8 @@ Zoom
 a command; the file goes after it, in a terminal
 a desktop written in the shell it runs on
 and it is kept to come back to.
+blocks only: it does not draw pixels
+blocks only: it does not say what a cell measures
 case does not matter
 dBASE
 dBASE Help
@@ -801,6 +807,7 @@ integers only
 moving — arrows, then enter
 note
 phone
+pixels, a cell is %s by %s
 resizing — arrows, then enter
 server to keep its vault here, readable offline.
 sets a place, or the time zone gives one.

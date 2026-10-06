@@ -2159,7 +2159,7 @@ PANEL = ('. %s/panel.hibr\nCP_PANEDIRS+=("%s")\ncp_panes'
          % (tree("examples/desktop/apps"), tree("examples/desktop/control-panel")))
 ORDER = ["datetime", "displays", "keyboard", "mouse", "aboutme", "appearance",
          "cliphist", "control_strip", "desktop", "filetypes", "language", "network", "notify",
-         "vaultset", "prayerset", "screensaver", "shortcuts",
+         "vaultset", "pictures", "prayerset", "screensaver", "shortcuts",
          "windows", "abouthibr", "filesview", "notes", "taskmgr", "terminal", "tube"]
 DOWN_APP = [b"\x1b[B"] * ORDER.index("appearance")
 DOWN_KB = [b"\x1b[B"] * ORDER.index("shortcuts")

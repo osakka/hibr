@@ -7,6 +7,11 @@
 
 
 
+#ifndef CN_GFX_NONE
+#define CN_GFX_NONE 0
+#define CN_GFX_SIXEL 1
+#endif
+
 typedef struct cn_cell cn_cell;
 typedef struct cn_grid cn_grid;
 typedef struct cn_pane cn_pane;
@@ -49,6 +54,29 @@ void cn_bell(void);
 void cn_notify(const char *t);
 void cn_link(const char *uri);
 int cn_fitq(void);
+/* The pixel size of a cell, from the terminal's own ws_xpixel/ws_ypixel: 0
+   when it says nothing, which is what a plain pty does and what a backend
+   that cannot place pixels must take as "no pictures here". */
+void cn_cellpx(int *w, int *h);
+int cn_prect(const char *nm, int *row, int *col, int *h, int *w);
+extern cn_grid cn_back, cn_front;
+/* sixel.c: a picture as the bytes a terminal paints, in the fixed 6x6x6
+   palette or one chosen from the picture itself. */
+void six_encode(const unsigned char *rgb, int w, int h, int chosen, str *o);
+/* image.c: a picture the console keeps as a region of the grid. */
+int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
+	     const unsigned char *rgb, int iw, int ih, unsigned flags);
+void cn_imgscale(const unsigned char *in, int iw, int ih,
+		 unsigned char *out, int w, int h);
+void cn_imgcheck(void);
+size_t cn_imgsend(str *b, int over);
+void cn_imgclear(void);
+int cn_imgat(int row, int col);
+size_t cn_imgn(void);
+/* Whether pictures can be drawn as pixels, and how: CN_GFX_NONE or
+   CN_GFX_SIXEL. Decided once, from HIBR_GFX, then the terminal's name, then
+   its own answer to a Primary Device Attributes request. */
+int cn_gfx(sh *s);
 extern volatile sig_atomic_t cn_wgen;
 unsigned cn_dim1(unsigned v, int pct, unsigned deflt);
 void cn_darken(int row, int col, int h, int w, int pct);

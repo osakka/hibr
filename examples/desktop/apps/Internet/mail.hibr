@@ -1134,7 +1134,8 @@ fn ml_drawread(int id, int h, int w, int x0) {
 			if [ -n "${MLR[$id][$i]["img"]}" ]; then
 				read -ra im <<< "${MLR[$id][$i]["img"]}"
 				if [ -n "${MLR[$id][$i]["imgfile"]}" ] && [ $((r + im[0])) -le $((h - 1)) ] && need img 2> /dev/null; then
-					img draw "${MLR[$id][$i]["imgfile"]}" "$r" $((x0 + 2)) "${im[0]}" "${im[1]}" -p "w$id" 2> /dev/null
+					dt_imgm
+					img draw "${MLR[$id][$i]["imgfile"]}" "$r" $((x0 + 2)) "${im[0]}" "${im[1]}" "${DT_IMGARG[@]}" -p "w$id" 2> /dev/null
 				else
 					console pen "$DT_DIM" "$DT_WELL"
 					console fill -p "w$id" "$r" $((x0 + 2)) 1 "${im[1]}" " "

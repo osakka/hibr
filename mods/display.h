@@ -10,7 +10,7 @@
    anything reordered or removed breaks every tool already using it. */
 
 #ifndef DP_API_VER
-#define DP_API_VER 4u
+#define DP_API_VER 5u
 #endif
 
 #ifndef DP_ATTRS
@@ -61,6 +61,35 @@ struct dp_api {
 	   make text a link (OSC 8 on a terminal) does; one that cannot
 	   draws the text as it would anyway. */
 	void (*link)(const char *uri);
+	/* Version 5. A picture as pixels, where the backend can place them:
+	   h by w cells at row, col -- a pane's own coordinates when pane names
+	   one, the screen's otherwise -- from iw by ih pixels of RGB triples,
+	   any size, which the backend scales to the rectangle itself (it is
+	   the only one that knows what a cell measures).
+
+	   1 once the backend has it, and 0 when it cannot place pixels at all,
+	   which is the caller's cue to draw its own cells instead: every user
+	   of this keeps that fallback, since most terminals have no such thing.
+
+	   DP_IMG_CHOSEN asks for a palette taken from the picture rather than
+	   fixed levels: a still photograph wants it, a film does not (the fixed
+	   one is the same from frame to frame, so a terminal keeps its colour
+	   registers). DP_IMG_UNDER says text is going to be drawn over this
+	   picture, so place it and expect nothing else: without that flag the
+	   backend owns the cells the picture covers, draws nothing through
+	   them, and keeps the picture until something does -- which is what
+	   makes a still picture free on every flush after the first. */
+#ifndef DP_IMG_CHOSEN
+#define DP_IMG_CHOSEN 1u
+#define DP_IMG_UNDER 2u
+#endif
+	int (*image)(sh *s, const char *pane, int row, int col, int h, int w,
+		     const unsigned char *rgb, int iw, int ih, unsigned flags);
+	/* Whether pictures can be placed at all, and the pixel size of a cell:
+	   0 in w and h when the terminal does not say, which is the same thing
+	   as "no pictures". A caller needs this to decide how many pixels to
+	   render for a rectangle of cells. */
+	void (*cellpx)(int *w, int *h);
 };
 
 #endif

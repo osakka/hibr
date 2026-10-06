@@ -1,0 +1,83 @@
+#!/usr/bin/env hibr
+#
+# pictures -- the Control Panel pane for how a picture is drawn: half
+# blocks, the same in grey, the character ramp, or real pixels where the
+# terminal can paint them (sixel). One setting reaches every picture the
+# desktop draws -- the Image Viewer, the wallpaper, Mail's pictures, the
+# film player and the browser -- since each passes DT_IMGMODE to the module
+# that draws it.
+#
+# What the terminal can do is shown beside it, because the honest answer is
+# "it depends on your terminal": sixel needs the terminal to say what a cell
+# measures and to understand the format (ADR 0037).
+
+strict
+
+command -v cp_pane > /dev/null && cp_pane pictures "Pictures" "▦"
+
+CP_IMGMODES=("Automatic" "Half Blocks" "Grey Blocks" "Characters" "Pixels")
+
+# The name a mode has in the list, and the mode a name stands for.
+fn cp_imgname(m) {
+	case $m in
+	half) ret "Half Blocks" ;;
+	mono) ret "Grey Blocks" ;;
+	ascii) ret "Characters" ;;
+	sixel) ret "Pixels" ;;
+	*) ret "Automatic" ;;
+	esac
+}
+
+fn cp_set_imgmode(int? id = "", value = "") {
+	case $value in
+	"Half Blocks") DT_IMGMODE=half ;;
+	"Grey Blocks") DT_IMGMODE=mono ;;
+	Characters) DT_IMGMODE=ascii ;;
+	Pixels) DT_IMGMODE=sixel ;;
+	*) DT_IMGMODE=auto ;;
+	esac
+	cp_save
+}
+
+fn pictures_rows(int w) {
+	local n=0 v g kind cw ch
+
+	v := cp_imgname "$DT_IMGMODE"
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Draw Pictures As"
+	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=mode; n=$((n + 1))
+	g := dt_imggfx
+	read -r kind cw ch <<< "$g"
+	if [ "$kind" = sixel ]; then
+		v := dt_tr "pixels, a cell is %s by %s" "$cw" "$ch"
+	elif [ "$cw" = 0 ]; then
+		v := dt_tr "blocks only: it does not say what a cell measures"
+	else
+		v := dt_tr "blocks only: it does not draw pixels"
+	fi
+	CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="This Terminal"
+	CP[$w][$n]["val"]=$v; n=$((n + 1))
+	CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Automatic Means"
+	v := cp_imgname half
+	[ "$kind" = sixel ] && v := cp_imgname sixel
+	CP[$w][$n]["val"]=$v; n=$((n + 1))
+	ret "$n"
+}
+
+fn pictures_do(int? w = "", k = "", int? dir = "") {
+	local v nm
+
+	case $k in
+	mode)
+		nm := cp_imgname "$DT_IMGMODE"
+		v := cp_next "$nm" "$dir" "${CP_IMGMODES[@]}"
+		cp_set_imgmode "" "$v"
+		;;
+	esac
+	return 0
+}
+
+fn pictures_drop(int? w = "", int? r = "", int? c = "", k = "") {
+	case $k in
+	mode) dt_droplist "$w" "$r" "$c" cp_set_imgmode "${CP_IMGMODES[@]}" ;;
+	esac
+}

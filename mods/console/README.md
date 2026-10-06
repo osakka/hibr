@@ -10,6 +10,8 @@ system monitor, and anything else full-screen. Building it once is the point.
 | file | role |
 |---|---|
 | `cn.h` | the cell, the grid, the pane, and every `cn_` entry point |
+| `sixel.c` | a picture as the bytes a terminal paints: the fixed 6x6x6 palette, or one chosen from the picture by median cut |
+| `image.c` | pictures as regions of the grid the console owns -- placed, kept, dropped when their cells are drawn through (ADR 0037) |
 | `term.c` | taking and giving back the terminal, and the signals that guarantee it |
 | `grid.c` | the front and back buffers, placement, and the diffing flush |
 | `key.c` | bytes to key names: CSI, SS3, modifiers, mouse, bracketed paste |
