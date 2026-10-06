@@ -218,5 +218,26 @@ check("and the frame that stops placing it is what takes it away",
       len(places(sc)) == 1 and any("a=d" in a and "d=I" in a
                                    for a in sc.apc), sc.apc)
 
+# The scaled pixels are kept (Gitea #108). The cell path has had a cache for
+# releases and the pixel path had none at all, so a wallpaper -- which must
+# place its picture again every frame, since a region under the text is kept
+# only while its caller keeps placing it -- decoded and resampled the whole
+# picture every time: 330 ms a call for a 3840x2160 photograph, and a desktop
+# in Pixels cost 93% of a core to draw 2.7 frames a second. A picture big
+# enough for the decode to show, drawn twice: the second must be a fraction
+# of the first. The margin measured is about twentyfold, so a third is a
+# threshold that survives a full parallel run and the sanitizers.
+BIG = png("big.png", 900, 900, lambda x, y: ((x * 7) % 256, (y * 3) % 256, 40))
+TIMES = os.path.join(D, "times")
+sc = run("a=${EPOCHREALTIME/./}\n"
+         "img draw %s 0 0 20 40 -m pixels -u\n"
+         "b=${EPOCHREALTIME/./}\n"
+         "img draw %s 0 0 20 40 -m pixels -u\n"
+         "c=${EPOCHREALTIME/./}\n"
+         "echo \"$((b - a)) $((c - b))\" > %s\n" % (BIG, BIG, TIMES))
+first, again = (int(x) for x in open(TIMES).read().split())
+check("the scaled pixels are kept, so placing the same picture again is cheap",
+      again * 3 < first, "%d us then %d us" % (first, again))
+
 shutil.rmtree(D, True)
-report(27)
+report(28)

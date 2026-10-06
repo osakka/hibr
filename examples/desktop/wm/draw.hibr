@@ -60,7 +60,7 @@ dt_drain() {
 }
 
 dt_draw() {
-	local l id ls in
+	local l id ls
 
 	DT_WANT=
 	CS_SIDEX=$CS_SIDE
@@ -72,12 +72,22 @@ dt_draw() {
 	for id in "${ls[@]}"; do dt_win "${id#w}"; done
 	dt_idle
 	[ -n "$DT_DND" ] && dt_dnddraw
-	in := console consumed
-	if [ "$in" != "$DT_MENUIN" ] || [ "$DT_FOCUS" != "$DT_MENUFOC" ] ||
-	   [ "$MB_OPEN" != -1 ] || [ -n "$MB_CTXWHO" ] || [ -z "$in" ]; then
+	# What a *shut* menu bar shows is its menus' titles and the focused
+	# app's name, and both follow focus. Everything else dt_menus works
+	# out is an item, which cannot be seen while the bar is shut -- and
+	# the frame that opens a menu rebuilds first, because MB_OPEN is set
+	# during input and this gate runs before anything draws. So a rebuild
+	# is not needed merely because something was typed, which is what it
+	# used to key on (`console consumed`): that cost 4.8 ms of an 11 ms
+	# keystroke frame, rebuilding every menu in the bar to draw the same
+	# titles (Gitea #109). DT_MENUIN is now only "the menus have been
+	# built": anything that changes what a shut bar shows clears it, as
+	# wm/lang.hibr and wm/session.hibr already did.
+	if [ -z "$DT_MENUIN" ] || [ "$DT_FOCUS" != "$DT_MENUFOC" ] ||
+	   [ "$MB_OPEN" != -1 ] || [ -n "$MB_CTXWHO" ]; then
 		dt_menus
 		dt_ctxbuild
-		DT_MENUIN=$in
+		DT_MENUIN=1
 		DT_MENUFOC=$DT_FOCUS
 	fi
 	dt_bar

@@ -1,5 +1,117 @@
 # Changelog
 
+## 0.99.80
+
+**A desktop with busy terminals in it was spending a core on frames nobody
+asked for, and the cap it got in 0.99.79 was set too high.** The owner's own
+session sat at 33-48% of a core doing nothing: three terminals, two of them
+running an AI assistant whose title carries a spinner. Sampling its run state
+3000 times found it *running* in 52% of them and otherwise asleep in
+`poll_schedule_timeout` -- a timed wait, so it was not blocked on anything;
+it was drawing.
+
+Rebuilt exactly -- their screen (71x232), their wallpaper, their calendar,
+three terminals each writing every 10 ms -- and measured:
+
+| | frames/s | CPU |
+|---|---|---|
+| 0.99.78 | 105 | 76.5% |
+| 0.99.79, `DT_TERMMS=33` | 29.9 | 28.7% |
+| 0.99.80, `DT_TERMMS=70` | 14.1 | 21.1% |
+| `DT_TERMMS=200` | 4.9 | 13.4% |
+
+0.99.78 redrew the whole desktop once per burst of a program's output, with
+nothing holding it back: **105 frames a second**. 0.99.79 held an
+output-driven frame to 33 ms from the last, which is thirty a second -- more
+than any text program needs, and twice the cost of fifteen. The default is
+70 ms now (`DT_SETVER` 8 moves a file that still holds 33; a value somebody
+chose stays), and Control Panel > Desktop > Frames For Output still goes to
+200 for whoever wants it lower.
+
+**Pictures as real pixels cost twenty times what they should** (Gitea #108),
+reported as "I switched to pixel and look at the load". The cell path in
+`img draw` has had a cache for releases; the pixel path had **none**, so it
+decoded and resampled the whole picture on every call -- and the wallpaper
+calls it every frame, because a region drawn under the text is kept only
+while its caller keeps placing it (ADR 0037). Five consecutive draws of a
+3840x2160 photograph onto a 232x71 screen:
+
+| | before | after |
+|---|---|---|
+| first draw | 415 ms | 454 ms |
+| and again | 328-362 ms each | **10-22 ms** |
+
+The console's own side was always right: it transmits the picture once and
+sends nothing again (the flush measured 0 ms after the first). All of the
+cost was `img draw` redoing work for a picture that had not changed. The
+whole desktop, typing eight keys a second:
+
+| | frames/s | CPU |
+|---|---|---|
+| Pixels, before | 2.7 | **93.3%** |
+| Pixels, after | 7.5 | 9.5% |
+| Half blocks | 7.5 | 8.7% |
+
+So real pixels now cost what blocks do. It is kept as one entry rather than
+`IM_CACHEN` of them because the sizes are not comparable: that screen's
+pixels are 1856x1136x3, **6.3 MB**, where its cell grid is 130 kB -- four
+slots would cost more resident memory than the whole shell. That 6.3 MB is
+the price, and it is paid only while something is drawn as pixels.
+
+**The hibr menu's app list is worked out once** (Gitea #109). `dt_draw`
+rebuilds every menu whenever anything is typed, and `dt_appmenu` walked the
+registry, lowercased every title, sorted them and worked out an accelerator
+letter for each of twenty-six apps -- 2.9 ms of every keystroke, to produce
+the identical list again, since the registry does not change while a desktop
+runs. `dt_appplan` computes it once into `DT_APPPLAN` and `dt_appmenu`
+replays it; `dt_app` clears it. 2.9 ms becomes 1.4, and a keystroke's frame
+11.2 ms becomes 10.0.
+
+Where the rest of a keystroke goes, measured by stubbing one phase of
+`dt_draw` at a time -- a function defined again replaces the first, so a
+session file can do this without touching the tree:
+
+| phase | ms of a keystroke frame |
+|---|---|
+| `dt_menus` (`dt_ctxbuild` is free) | 4.8 |
+| every window's `_draw` | 3.1 |
+| `dt_wall` | 1.6 |
+| `dt_bar` | 0.6 |
+| `dt_idle` | 0.6 |
+| `dt_stripdraw` | 0.3 |
+
+and the frame is about 7 ms of *fixed* work whatever the screen measures --
+an 80x24 desktop with a window costs the same 7.0 ms as a bare 232x71 one --
+so this is per-frame script work, not per-cell drawing. The prize still on
+the table is not rebuilding the menus for input that cannot have changed
+one, worth about 3.5 ms of every keystroke; it needs the contract already
+written down (anything changing a shut menu bar clears `DT_MENUIN`) to be
+tightened and every app's `_menus` audited against it, which is #109 and a
+job of its own rather than a line.
+
+Two things that fall out of the measurement and are worth writing down.
+**The frame is the whole cost**: with the same three programs writing and
+every window minimised -- so the output is still drained but nothing is
+drawn -- the desktop costs **0.1%** of a core. Draining is free; drawing is
+not. And **a frame gets dearer as the cap gets longer** (11 ms at thirty a
+second, 27 ms at five), because damage accumulates between frames, which is
+why the table flattens rather than falling to nothing. Past 100 ms there is
+little left to win; what is left is making a frame cheaper, and the bar is
+still 2.9 ms of it.
+
+What this was *not*, each ruled out by measuring rather than by reading --
+recorded because every one of them looked plausible:
+
+| candidate | what the measurement said |
+|---|---|
+| its terminals' output volume | the children wrote 0.003-0.05 MB/s against the 2.4 MB/s it read |
+| `hold` writing to its stdin | the hold server wrote 0.005 MB/s |
+| the 2.28 MB wallpaper decoded per frame | `img draw` warm is 0 kB and 1.2 ms, on 0.99.78 as well |
+| the Hijri calendar, asked per frame | `hcal info` plus `hcal format` is 47 B and 0.1 reads a call |
+| `/proc` polling | the desktop has no per-frame `/proc` read at all |
+| the control socket | listening cost 9.0% against 9.5% with none |
+| an error loop under `keepgoing` | `desktop.log` was 2 kB and not growing |
+
 ## 0.99.79
 
 **The wallpaper is a picture** (Gitea #104). It never had been, on any

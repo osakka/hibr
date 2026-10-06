@@ -2246,6 +2246,77 @@ went in the shell.
   never comes, and clicks the glyph where `screen.find` says it is.
   Reproduce such a thing with `(while :; do :; done) &` per core rather
   than by running the whole suite again.
+- **A desktop's CPU is frames a second times the cost of a frame, and
+  terminal output drives the first.** A live session sat at 33-48% of a
+  core with nothing happening, and the cause was neither a leak nor a
+  spin: a burst of a program's output redrew the whole desktop, and
+  before 0.99.79 nothing held that back -- three programs each writing
+  every 10 ms produced **105 frames a second**, 76.5% of a core at
+  71x232. `DT_TERMMS` is the cap (70 ms since 0.99.80, about fifteen a
+  second, 21.1%); keys and mouse reports are never held. Two things the
+  measurement settled: with every window minimised, so the same output
+  is still drained but nothing is drawn, the desktop costs **0.1%** --
+  draining is free and drawing is all of it; and a frame gets *dearer*
+  as the cap lengthens (11 ms at thirty a second, 27 at five) because
+  damage accumulates between them, so the saving flattens and what is
+  left is making a frame cheaper. Diagnose this by sampling
+  `/proc/<pid>/stat`'s run state and `/proc/<pid>/wchan`: *running* in
+  half the samples with the rest in `poll_schedule_timeout` is a timed
+  redraw loop, not blocked I/O. Everything that looked like the cause
+  and was not, each refuted by a measurement rather than by reading:
+  the children's output volume (they wrote 0.003 MB/s against 2.4 MB/s
+  read), hold writing to its stdin (0.005 MB/s), a 2.28 MB wallpaper
+  decoded per frame (`img draw` warm is 0 kB and 1.2 ms, on the old
+  version too), the Hijri calendar asked per frame (47 B a call),
+  `/proc` polling (there is none per frame), the control socket
+  (listening cost 9.0% against 9.5% without) and an error loop
+  (`desktop.log` was not growing). `/proc/<pid>/syscall` and `strace`
+  are both refused for another session's process under
+  `yama/ptrace_scope=1`, so the attribution has to come from a desktop
+  of one's own.
+- **Two caches, not one: a picture scaled to cells and the same picture
+  scaled to pixels.** `img draw`'s cell path has had an LRU cache for
+  releases and its pixel path had none at all, so `-m pixels` decoded and
+  resampled the whole picture on **every call** -- 330 ms for a 3840x2160
+  photograph onto a 232x71 screen -- and the wallpaper calls it every frame,
+  because a region under the text is kept only while its caller keeps
+  placing it (ADR 0037). A desktop in Pixels therefore cost 93% of a core to
+  draw 2.7 frames a second, against 8.7% in half blocks; with
+  `im_pixget`/`im_pixput` it is 9.5% (Gitea #108). The console's side was
+  never the problem -- it transmits a picture once and sends nothing again,
+  which the flush measuring 0 ms after the first proves. The pixel cache is
+  **one** entry where the cell cache has `IM_CACHEN`, because the sizes are
+  not comparable: that screen's pixels are 1856x1136x3, 6.3 MB, where its
+  cell grid is 130 kB. Anything else that learns to draw pixels must come
+  through the same cache, not add a third.
+- **A desktop's frame is mostly fixed work, so measure it by taking phases
+  away rather than by reading.** A keystroke frame at 232x71 is 11 ms, and an
+  80x24 desktop with a window costs the same 7.0 ms as a bare 232x71 one: it
+  is per-frame *script* work, not per-cell drawing. Attribute it by stubbing
+  one phase in a session file -- a function defined again replaces the first,
+  so `dt_menus() { return 0; }` after the window manager is sourced costs
+  nothing in the tree and names its own price. Doing that found `dt_menus` at
+  4.8 ms of the 11 (`dt_ctxbuild` is free), windows' own `_draw`s at 3.1,
+  `dt_wall` at 1.6 and `dt_bar` at 0.6 -- the bar being cheap now only
+  because 0.99.79 stopped recomputing the clock. `dt_draw` rebuilds every
+  menu whenever *anything is typed* (the gate is `console consumed`), which
+  is why typing cost what it did; the app list part of that is worked out
+  once since 0.99.80 (`dt_appplan`, cleared by `dt_app`), and the rest waits
+  on Gitea #109, because an app's own `_key` may change what its menus say
+  and today the input gate covers that by accident.
+- **A session file that does not load the apps gives a window with no app
+  behind it, and says so only as "apps 0" in the log.** `desktop.hibr`
+  loads the window manager and the widgets; `DT_APPDIRS`/`dt_apps`,
+  `DA_DIRS`/`da_apps` and `CS_MODDIRS`/`cs_modules` are the *session*'s,
+  which is why `examples/desktop/session.hibr` has them. A test session
+  without them opens a window titled "Terminal" that is an empty box: no
+  program, no output, no frames, and nothing anywhere saying why. Three
+  separate attempts to reproduce a CPU problem measured an idle desktop
+  this way. And a terminal's program is started at its first *draw*
+  (`tw_fit`), not by `dt_new`, so `TW_CMD` must hold the wanted command
+  by the time `dt_run` draws: setting it twice before two `dt_new`s gives
+  both windows the second value. `DT_OPENCMD` is consumed by `term_open`
+  and is the path a handler uses; `TW_CMD` is what the suites set.
 - **A window map's name is global across every app.** Contacts named its
   window table `PW`, which is Control Panel's own: each app overwrote the
   other's state. Before declaring a new `-gA`, grep the desktop for the

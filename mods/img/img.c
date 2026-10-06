@@ -406,6 +406,51 @@ static void im_cache_store(const char *path, int rows, int cols, cell *grid)
 	im_cache[i].used = ++im_cacheu;
 }
 
+/* The picture scaled to real pixels, for the caller that places it again on
+   every frame -- the wallpaper does, because a region drawn under the text
+   is kept only while its caller keeps placing it (ADR 0037). Without this
+   the pixel path had no cache at all where the cell path has had one for
+   releases: `img draw -m pixels` of a 3840x2160 photograph onto a 232x71
+   screen decoded and resampled it every single call, 330 ms, so a desktop
+   in Pixels spent 93% of a core to draw 2.7 frames a second (Gitea #108).
+   One entry, not IM_CACHEN of them, because the sizes are not comparable:
+   that screen's pixels are 1856x1136x3, 6.3 MB, where its cell grid is
+   130 kB -- four slots would cost more resident memory than the shell. */
+static struct {
+	char *path;
+	int w, h;
+	time_t mtime;
+	unsigned char *px;
+} im_pix;
+
+/* The scaled pixels for this picture at this size, or nothing. */
+static unsigned char *im_pixget(const char *path, int w, int h)
+{
+	struct stat st;
+
+	if (!im_pix.px || !im_pix.path || strcmp(im_pix.path, path) ||
+	    im_pix.w != w || im_pix.h != h)
+		return 0;
+	if (stat(path, &st) != 0 || im_pix.mtime != st.st_mtime)
+		return 0;
+	return im_pix.px;
+}
+
+/* Keep these scaled pixels, freeing whatever was kept before; the buffer
+   belongs to the cache from here on, so no caller frees it. */
+static void im_pixput(const char *path, int w, int h, unsigned char *px)
+{
+	struct stat st;
+
+	free(im_pix.path);
+	free(im_pix.px);
+	im_pix.path = strdup(path);
+	im_pix.w = w;
+	im_pix.h = h;
+	im_pix.px = px;
+	im_pix.mtime = stat(path, &st) == 0 ? st.st_mtime : 0;
+}
+
 /* img draw file row col h w [-g] [-p pane] -- blit directly into the open
    display, for a window or the desktop's own wallpaper, rather than
    printing text a shell would have to route somewhere. Requires "display"
@@ -481,25 +526,30 @@ static int im_draw(sh *s, int ac, char **av)
 				int iw = cols * cw, ih = rows * chh;
 				int done;
 
-				s_init(&err);
-				if (im_load(path, &im, &err) != HIBR_OK) {
-					if (mode == IM_SIXEL) {
-						lg(HIBR_LERR, "%s", err.p ? err.p : "decode failed");
+				px = im_pixget(path, iw, ih);
+				if (!px) {
+					s_init(&err);
+					if (im_load(path, &im, &err) != HIBR_OK) {
+						if (mode == IM_SIXEL) {
+							lg(HIBR_LERR, "%s", err.p ? err.p : "decode failed");
+							s_free(&err);
+							return HIBR_FAIL;
+						}
 						s_free(&err);
-						return HIBR_FAIL;
+						goto cells;
 					}
 					s_free(&err);
-					goto cells;
+					px = xm((size_t)iw * ih * 3);
+					im_scale(&im, px, iw, ih);
+					im_free(&im);
+					im_pixput(path, iw, ih, px);
+					lg(HIBR_LDBG, "img draw: scaled %s to %dx%d pixels",
+					   path, iw, ih);
 				}
-				s_free(&err);
-				px = xm((size_t)iw * ih * 3);
-				im_scale(&im, px, iw, ih);
-				im_free(&im);
 				done = dp->image(s, pane, row, col, rows, cols,
 						 px, iw, ih,
 						 DP_IMG_CHOSEN |
 						 (under ? DP_IMG_UNDER : 0));
-				free(px);
 				if (done)
 					return HIBR_OK;
 			}

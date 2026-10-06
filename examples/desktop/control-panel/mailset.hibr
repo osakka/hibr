@@ -319,6 +319,10 @@ fn mlad_do(int id, what) {
 			fi
 			MLAD[$id]["orig"]=${MLAD[$id]["name"]}
 		fi
+		# Mail's own menu bar grows an Accounts menu at the second
+		# account, so the shut bar's titles change here: the one place
+		# in the desktop where that is true of anything but focus.
+		DT_MENUIN=
 		if ! email account set "${MLAD[$id]["name"]}" "${args[@]}" 2> "${DT_LOG%/*}/mlad.err"; then
 			local l=
 			read -r l < "${DT_LOG%/*}/mlad.err"
@@ -334,7 +338,12 @@ fn mlad_do(int id, what) {
 }
 MLAD_RM=
 mlad_remove() {
-	[ -n "$MLAD_RM" ] && email account rm "${MLAD[$MLAD_RM]["orig"]}" 2> /dev/null && dt_del "$MLAD_RM"
+	# Mail's bar grows an Accounts menu at the second account, so losing
+	# one can change what a shut menu bar shows -- the one thing in the
+	# desktop other than focus that does (wm/draw.hibr's own gate).
+	DT_MENUIN=
+	[ -n "$MLAD_RM" ] &&
+		email account rm "${MLAD[$MLAD_RM]["orig"]}" 2> /dev/null && dt_del "$MLAD_RM"
 	MLAD_RM=
 }
 

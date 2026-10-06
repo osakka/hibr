@@ -1054,17 +1054,39 @@ OLDKEYS = ('DT_KEYS["close"]=alt-f4\nDT_KEYS["cycle"]=tab\n'
            'DT_KEYS["quit"]=q\nDT_TERMBAR=0\nDT_DRAGMOD=0\n')
 out = loadconf("DT_TERMKEEP=0\n" + OLDKEYS)
 check("a settings file from before 0.72 is brought up to 0.73's defaults",
-      out == "7 1 1 1 ctrl-w alt-tab []", out)
+      out == "8 1 1 1 ctrl-w alt-tab []", out)
 out = loadconf("DT_SETVER=1\nDT_TERMKEEP=0\n" + OLDKEYS)
 check("one from 0.72 keeps its Shortcuts Win and gets the rest",
-      out == "7 0 1 1 ctrl-w alt-tab []", out)
+      out == "8 0 1 1 ctrl-w alt-tab []", out)
 out = loadconf('DT_SETVER=1\nDT_KEYS["close"]=alt-x\nDT_KEYS["cycle"]=f6\n'
                'DT_KEYS["quit"]=ctrl-q\n')
 check("a key changed from its old default is not touched",
       out.endswith("alt-x f6 [ctrl-q]"), out)
 out = loadconf("DT_SETVER=2\nDT_TERMBAR=0\nDT_DRAGMOD=0\n")
 check("and a 0.73 file is read as it is, choices and all",
-      out.startswith("7 1 0 0 "), out)
+      out.startswith("8 1 0 0 "), out)
+
+
+# 0.99.80 holds an output-driven frame 70 ms from the last rather than 33
+# (thirty a second, which no text program needs, and twice the CPU of
+# fifteen). A file still holding the old default moves; a chosen value stays.
+def loadms(conf):
+    d = tempfile.mkdtemp(prefix="hibr-mig-")
+    os.makedirs(os.path.join(d, "hibr"))
+    open(os.path.join(d, "hibr", "desktop.hibr"), "w").write(conf)
+    out = subprocess.run(
+        [sx.HIBR, "-c", ". %s\ndt_load\necho \"$DT_TERMMS\"" % WM],
+        env=dict(os.environ, XDG_CONFIG_HOME=d),
+        capture_output=True, text=True).stdout.strip()
+    shutil.rmtree(d, True)
+    return out
+
+
+out = loadms("DT_SETVER=7\nDT_TERMMS=33\n")
+check("a file holding 0.99.79's 33ms between output frames moves to 70",
+      out == "70", out)
+out = loadms("DT_SETVER=7\nDT_TERMMS=45\n")
+check("and a frame interval somebody chose is left alone", out == "45", out)
 
 
 # 0.99.26 put the workspaces on alt and an arrow and Snap on ctrl-alt: a
@@ -1204,9 +1226,9 @@ def loadlook(conf):
 
 
 out = loadlook("DT_SETVER=3\nCP_THEME=slate\n")
-check("an old file's CP_THEME, a colour scheme, becomes its colours", out == "[] slate 7", out)
+check("an old file's CP_THEME, a colour scheme, becomes its colours", out == "[] slate 8", out)
 out = loadlook("DT_SETVER=4\nCP_THEME=meadow\nCP_COLOURS=paper\n")
-check("and a file written since is read as it is", out == "[meadow] paper 7", out)
+check("and a file written since is read as it is", out == "[meadow] paper 8", out)
 
 
 # 0.99.77 has the YouTube player follow Control Panel > Pictures, so the one
@@ -1227,9 +1249,9 @@ def loadtube(conf):
 
 out = loadtube("DT_SETVER=6\nYT_MODE=half\n")
 check("an old file's YouTube picture follows the Pictures setting now",
-      out == "follow 7", out)
+      out == "follow 8", out)
 out = loadtube("DT_SETVER=6\nYT_MODE=ascii\n")
-check("and one it was given of its own is kept", out == "ascii 7", out)
+check("and one it was given of its own is kept", out == "ascii 8", out)
 
 # A solid title bar is the frame's colour, the title on it in DT_SELINK,
 # with no tee marks around it.
@@ -3621,4 +3643,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(553)
+report(555)

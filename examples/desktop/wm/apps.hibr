@@ -30,6 +30,12 @@ dt_runatstart() {
 
 # Register an app the hibr menu can open: name, title, height, width.
 fn dt_app(name, title, int h, int w, once = "", icon = "", fixed = "", hidden = "", bare = "") {
+	# The plan and the built menus both describe the app list, so both go
+	# when the registry changes. Apps register before the first frame, so
+	# this costs nothing at run time; it is here so that one registering
+	# later cannot be missing from a shut bar.
+	DT_APPPLANK=
+	DT_MENUIN=
 	DT_APPS[$name]["title"]="$title"
 	DT_APPS[$name]["h"]="$h"
 	DT_APPS[$name]["w"]="$w"
@@ -142,8 +148,22 @@ dt_appnames() {
 # top. reserved is letters the *caller's* menu has already used, since a
 # submenu is its own menu with its own letters otherwise: About hibr, Quit
 # and the rest only need keeping clear of at the top.
-fn dt_appmenu(prefix, used = "") {
-	local n d l child k path kind discard
+# The flattened hibr-menu app list, and what it was built for: the plan is
+# a list of tab-separated operations -- "sub NAME", "end", "item PATH TITLE
+# KEY" -- replayed onto the menu being built.
+DT_APPPLAN=()
+DT_APPPLANK=
+
+# Work out that plan: walk the registry, lowercase each name to sort by,
+# sort, and give each app the first free accelerator letter. All of which
+# depends on nothing that changes while a desktop runs -- which is the point
+# of keeping it, since dt_menus rebuilds every menu whenever anything at all
+# is typed, and for twenty-six apps this was 2.9 ms of every keystroke, a
+# quarter of the whole frame, to produce the same list again (Gitea #109).
+# An empty accelerator is last in each row: a tab is IFS whitespace, so an
+# empty field anywhere before the end would collapse and shift the rest.
+fn dt_appplan(prefix, used = "") {
+	local n d l child path kind discard k
 	local -a all seen
 
 	for n in "${!DT_APPS[@]}"; do
@@ -176,16 +196,36 @@ fn dt_appmenu(prefix, used = "") {
 	for l in "${all[@]}"; do
 		IFS=$'\t' read -r discard kind path <<< "$l"
 		if [ "$kind" = f ]; then
-			dt_sub "${path##*/}"
-			dt_appmenu "$path"
-			dt_end
+			DT_APPPLAN+=("sub	${path##*/}")
+			dt_appplan "$path"
+			DT_APPPLAN+=("end")
 		else
 			k := dt_akey "${DT_APPS[$path]["title"]}" "$used"
 			used="$used$k"
-			dt_item "${DT_APPS[$path]["title"]}" "$k" \
-				dt_launch "$path"
+			DT_APPPLAN+=("item	$path	${DT_APPS[$path]["title"]}	$k")
 		fi
 	done
+	return 0
+}
+
+fn dt_appmenu(prefix, used = "") {
+	local op
+	local -a f
+
+	if [ "$DT_APPPLANK" != "$prefix|$used" ]; then
+		DT_APPPLAN=()
+		dt_appplan "$prefix" "$used"
+		DT_APPPLANK="$prefix|$used"
+	fi
+	for op in "${DT_APPPLAN[@]}"; do
+		IFS=$'\t' read -ra f <<< "$op"
+		case ${f[0]} in
+		sub) dt_sub "${f[1]}" ;;
+		end) dt_end ;;
+		item) dt_item "${f[2]}" "${f[3]-}" dt_launch "${f[1]}" ;;
+		esac
+	done
+	return 0
 }
 
 # The window already showing an app, if there is one.

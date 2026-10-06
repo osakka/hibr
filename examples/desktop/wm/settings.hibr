@@ -269,7 +269,7 @@ DT_DRAWSKIP="${DT_DRAWSKIP-0}"
 # frames a second, which is smooth to watch; 0 turns the limit off and
 # draws on every burst as before. A key or a mouse report is never held
 # back by this, so nothing a person does feels slower.
-DT_TERMMS="${DT_TERMMS-33}"
+DT_TERMMS="${DT_TERMMS-70}"
 # What Cycle (alt-tab) goes through: the windows of this workspace, or of
 # every workspace, going to whichever one the next window is on.
 DT_CYCLE="${DT_CYCLE-workspace}"
@@ -368,8 +368,17 @@ dt_load() {
 		if [ "${DT_SETVER:-0}" -lt 7 ] && dt_has cp_setver7; then
 			cp_setver7
 		fi
+		# 0.99.79 held an output-driven frame to 33 ms apart, thirty a
+		# second, which no text program needs: 0.99.80 asks for 70,
+		# about fifteen. Measured on three programs each writing every
+		# 10 ms at 71x232: 18.2% of a core against 28.7%, with the
+		# frames themselves 15.1 a second against 29.9. A file still
+		# holding the old default moves; a value somebody chose stays.
+		if [ "${DT_SETVER:-0}" -lt 8 ] && [ "$DT_TERMMS" = 33 ]; then
+			DT_TERMMS=70
+		fi
 	fi
-	DT_SETVER=7
+	DT_SETVER=8
 	dt_keyfix
 	dt_glyphs "$DT_GLYPHSET"
 	return 0
