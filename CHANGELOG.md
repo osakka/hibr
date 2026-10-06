@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.99.75
+
+**A tarball read as a folder** (Gitea #102). A new module, `archive`, opens a
+`.tar` or `.tar.gz`, takes its index once, and makes every member a filename:
+`/dev/archive/NAME/path/inside` works anywhere a filename goes -- `read`, a
+redirection, any builtin that takes a path -- through the scheme mechanism
+`http` and `dav` already use, with no kernel mount and no FUSE. Beside that,
+`archive ls|stat|cat`, shaped the way `dav ls` is, and `archive list` for
+what is open.
+
+Folders the archive never declared are implied from the member names, which
+is what most archives need: anything Python's `tarfile` writes, and plenty of
+real ones, hold only the files. ustar and GNU headers, the prefix field,
+GNU's long name and long link blocks, pax headers read for their `path=`, and
+octal or GNU base-256 numbers. An archive of 1024 zero bytes is an empty
+archive and opens; a file that is neither a tar nor that is refused rather
+than opening with no members, which is what the first version did with a
+40-byte text file.
+
+It is called `archive` and not `tar` on purpose: a module's builtins become
+commands, and a builtin called `tar` would make `/usr/bin/tar` unreachable
+the moment the module loaded. The cat module shadows `cat` because it is
+byte-identical in a pipe and nothing can tell; this is no replacement for
+tar, so it does not take the name.
+
+A gzip archive is expanded once, at open, into a file nothing else can see,
+so every later read is a seek; `ARCHIVE_MAX` bounds how far one may expand
+(512 MB by default). The inflate is the prompt module's own, which read git's
+objects and packs: it moved to `mods/inflate.c` and is shared rather than
+written twice, with a gzip wrapper added beside the zlib one, and still no
+zlib linked. Reading only -- a tar is append-only in practice, and rewriting
+one to change a member is what archivemount does badly.
+
+`tests/archive.py` builds its own fixtures with Python's tarfile -- plain,
+gzip, pax, GNU long names, no folder entries, five hundred members -- and
+checks all of it, including that a closed archive's paths stop being files.
+
 ## 0.99.74
 
 **Maps are indexed** (Gitea #73). A map is a list, so a lookup walked it and

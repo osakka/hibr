@@ -159,10 +159,9 @@ const seg *pr_find(const char *nm);
 char *pr_seg(pctx *c, const char *nm);
 char *pr_render(pctx *c);
 
-int inf_raw(const unsigned char *in, size_t n, size_t max, str *out,
-	    size_t *used);
-int inf_zlib(const unsigned char *in, size_t n, size_t max, str *out,
-	     size_t *used);
+/* Deflate and its wrappers live in mods/inflate.c now, shared with the tar
+   module: one implementation, two users. */
+#include "../inflate.h"
 
 struct grepo {
 	char *dir, *common, *top, *branch, *sha, *state, *cfgtxt;

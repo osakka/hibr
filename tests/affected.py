@@ -67,6 +67,10 @@ SUITE_MODS = {
     "vw": ["vw", "dav"],
     "vault": ["vw", "dav"],
     "sixel": ["console", "img", "media"],
+    # inflate.c is not a module of its own: it is shared source, the prompt
+    # module's own, which the archive module compiles in as well. Naming it
+    # here is what makes a change to it reach this suite.
+    "archive": ["archive", "inflate"],
 }
 APPS = ("apps_panel", "apps_reach", "apps_core", "apps_more")
 DESKTOP = ("desktop", "vault") + APPS + ("uifuzz", "strictvars", "mailapp", "contacts", "calapp")

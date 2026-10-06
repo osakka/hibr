@@ -44,7 +44,7 @@ MODS = $(B)/mods/sys.so $(B)/mods/http.so $(B)/mods/ls.so $(B)/mods/prompt.so \
        $(B)/mods/term.so $(B)/mods/hold.so $(B)/mods/img.so \
        $(B)/mods/lint.so $(B)/mods/db.so $(B)/mods/md.so $(B)/mods/pim.so $(B)/mods/html.so $(B)/mods/email.so $(B)/mods/math.so $(B)/mods/web.so \
        $(B)/mods/dav.so $(B)/mods/media.so $(B)/mods/auth.so $(B)/mods/csv.so $(B)/mods/lines.so $(B)/mods/uni.so $(B)/mods/lang.so $(B)/mods/hcal.so $(B)/mods/salat.so \
-       $(B)/mods/vw.so
+       $(B)/mods/vw.so $(B)/mods/archive.so
 
 # darwin.c reaches Mach headers (mach/mach.h and kin) that only exist on
 # Darwin at all, so it is not in MODS above and never built, or even asked
@@ -53,7 +53,7 @@ MODS = $(B)/mods/sys.so $(B)/mods/http.so $(B)/mods/ls.so $(B)/mods/prompt.so \
 ifeq ($(UNAME),Darwin)
 MODS += $(B)/mods/darwin.so
 endif
-PROMPT_SRC = $(wildcard mods/prompt/*.c)
+PROMPT_SRC = $(wildcard mods/prompt/*.c) mods/inflate.c
 CONSOLE_SRC = $(wildcard mods/console/*.c)
 PTY_SRC = $(wildcard mods/pty/*.c)
 TERM_SRC = $(wildcard mods/term/*.c)
@@ -87,7 +87,7 @@ FORCE:
 $(BIN): $(SRC) include/hibr.h include/pri.h mods/lint.h $(B)/.moddir | $(B)/mods
 	$(CC) $(SHCFLAGS) $(LDFLAGS) -o $@ $(SRC)
 
-$(B)/mods/prompt.so: $(PROMPT_SRC) include/hibr.h mods/prompt/pr.h | $(B)/mods
+$(B)/mods/prompt.so: $(PROMPT_SRC) include/hibr.h mods/prompt/pr.h mods/inflate.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(PROMPT_SRC)
 
 $(B)/mods/pty.so: $(PTY_SRC) include/hibr.h mods/pty/tt.h | $(B)/mods
@@ -143,6 +143,11 @@ $(B)/mods/salat.so: mods/salat/salat.c include/hibr.h | $(B)/mods
 
 $(B)/mods/vw.so: mods/vw/vw.c include/hibr.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ mods/vw/vw.c $(DLLIB)
+
+# The inflate is mods/inflate.c, the prompt module's own, shared rather than
+# written twice (Gitea #102).
+$(B)/mods/archive.so: mods/archive/archive.c mods/inflate.c mods/inflate.h include/hibr.h | $(B)/mods
+	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ mods/archive/archive.c mods/inflate.c
 
 $(B)/mods/math.so: mods/math.c include/hibr.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ mods/math.c -lm

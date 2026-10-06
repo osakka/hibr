@@ -1,4 +1,4 @@
-#include "pr.h"
+#include "inflate.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -348,5 +348,55 @@ int inf_zlib(const unsigned char *in, size_t n, size_t max, str *out,
 		return 0;
 	if (used)
 		*used = u + 2 + 4;
+	return 1;
+}
+
+/* Expand a gzip wrapped deflate stream (RFC 1952): the fixed ten byte
+   header, then whichever of the extra field, the original name, the comment
+   and the header checksum its flags say are there, then the deflate data. */
+int inf_gzip(const unsigned char *in, size_t n, size_t max, str *out,
+	     size_t *used)
+{
+	size_t i = 10, u = 0;
+	int flg;
+
+	if (n < 18 || in[0] != 0x1f || in[1] != 0x8b) {
+		lg(HIBR_LDBG, "inflate: not a gzip stream");
+		return 0;
+	}
+	if (in[2] != 8) {
+		lg(HIBR_LDBG, "inflate: gzip method %d is not deflate", in[2]);
+		return 0;
+	}
+	flg = in[3];
+	if (flg & 0xe0) {
+		lg(HIBR_LDBG, "inflate: gzip reserved flags set");
+		return 0;
+	}
+	if (flg & 4) {			/* an extra field, with its own length */
+		if (i + 2 > n)
+			return 0;
+		i += 2 + ((size_t)in[i] | (size_t)in[i + 1] << 8);
+	}
+	if (flg & 8) {			/* the original file name */
+		while (i < n && in[i])
+			i++;
+		i++;
+	}
+	if (flg & 16) {			/* a comment */
+		while (i < n && in[i])
+			i++;
+		i++;
+	}
+	if (flg & 2)			/* a checksum of the header */
+		i += 2;
+	if (i >= n) {
+		lg(HIBR_LDBG, "inflate: gzip header runs past the end");
+		return 0;
+	}
+	if (!inf_raw(in + i, n - i, max, out, &u))
+		return 0;
+	if (used)
+		*used = i + u + 8;	/* the trailer is a CRC and a length */
 	return 1;
 }
