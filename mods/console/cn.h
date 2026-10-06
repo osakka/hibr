@@ -7,6 +7,13 @@
 
 
 
+/* Where the console's own copy of the terminal's descriptor starts: clear of
+   0-9, of a {var} redirection's own 10 upward, and of a process
+   substitution's 60. */
+#ifndef CN_FDBASE
+#define CN_FDBASE 120
+#endif
+
 #ifndef CN_GFX_NONE
 #define CN_GFX_NONE 0
 #define CN_GFX_SIXEL 1

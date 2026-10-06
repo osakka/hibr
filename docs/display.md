@@ -71,7 +71,7 @@ and the flush cost shown live. Run it and press things.
 
 | | |
 |---|---|
-| `console open` | take the terminal: alternate screen, raw mode, no cursor |
+| `console open` | take the terminal: alternate screen, raw mode, no cursor, and a descriptor of its own for it -- so a redirection on a later `console` command cannot reach the display |
 | `console close` | give it back exactly as it was found |
 | `console size` | rows and columns, as two words |
 | `console gfx` | what this terminal does with a picture, and the pixel size of a cell: `kitty 10 20`, `sixel 8 16`, or `none 0 0`. `HIBR_GFX=kitty`, `sixel` or `off` says outright |

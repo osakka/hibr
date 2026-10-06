@@ -44,6 +44,28 @@ void hd_size(int *sz)
 	}
 }
 
+/* The same, with the terminal's own pixel size after it -- 0 when it does
+   not say, which is what a program on the far side has to read as "no
+   pictures here" (ADR 0037, Gitea #103). Sent as its own HD_SIZE rather
+   than added to the attach, and beside the two-int form rather than
+   instead of it: a client from this version may well be attaching to a
+   session still running the previous one, which wants exactly two ints for
+   a resize and would read a longer attach payload's tail as a display
+   name. Both messages cost a few bytes; a resize that silently stopped
+   working across an upgrade would cost an afternoon. */
+void hd_sizepx(int *sz)
+{
+	struct winsize w;
+
+	hd_size(sz);
+	sz[2] = 0;
+	sz[3] = 0;
+	if (ioctl(0, TIOCGWINSZ, &w) == 0 && w.ws_row && w.ws_col) {
+		sz[2] = w.ws_xpixel;
+		sz[3] = w.ws_ypixel;
+	}
+}
+
 /* Put this terminal on a session until it detaches or the program ends.
 
    The terminal is raw, signals included, so ctrl-c reaches the program as
@@ -59,7 +81,7 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 	struct sigaction a, oa;
 	struct pollfd q[2];
 	const char *why = "detached";
-	int s, sz[4], t, st = 0, ended = 0, lost = 0;
+	int s, sz[4], px[4], t, st = 0, ended = 0, lost = 0;
 	ssize_t k;
 	char *p;
 	str rb, in, pay;
@@ -102,6 +124,8 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 		return 1;
 	}
 	s_free(&pay);
+	hd_sizepx(px);
+	hd_send(s, HD_SIZE, (const char *)px, 4 * sizeof(int));
 	hd_selftitle("attached", path);
 	fflush(0);
 	raw = sv;
@@ -119,6 +143,9 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 			hd_winch = 0;
 			hd_size(sz);
 			hd_send(s, HD_SIZE, (const char *)sz, 2 * sizeof(int));
+			hd_sizepx(px);
+			hd_send(s, HD_SIZE, (const char *)px,
+				4 * sizeof(int));
 		}
 		q[0].fd = 0;
 		q[0].events = POLLIN;

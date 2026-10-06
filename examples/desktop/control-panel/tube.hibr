@@ -11,23 +11,39 @@ strict
 
 command -v cp_pane > /dev/null && cp_pane tube "YouTube" "▶" app
 
-TB_MODES=(half ascii mono)
+# follow is Control Panel > Pictures, which is the one setting meant to
+# reach every picture the desktop draws; the rest say outright.
+TB_MODES=(follow half ascii mono pixels)
 TB_QUALITY=(tiny small medium large)
 TB_FPS=(10 15 24 30)
 TB_DETAIL=(0 1 2 3)
 
 fn cp_set_ytmode(int? id = "", value = "") { YT_MODE=$value; cp_save; }
+
+# Settings version 7 moved this default from half to follow, so the one
+# Pictures setting reaches the player as it already reaches the viewer, the
+# wallpaper and the browser. Only a file still holding the old default is
+# moved: someone who chose half keeps it.
+fn cp_setver7() {
+	[ "$YT_MODE" = half ] && YT_MODE=follow
+	return 0
+}
 fn cp_set_ytquality(int? id = "", value = "") { YT_QUALITY=$value; cp_save; }
 fn cp_set_ytfps(int? id = "", int? value = "") { YT_FPS=$value; cp_save; }
 fn cp_set_ytdetail(int? id = "", int? value = "") { YT_DETAIL=$value; cp_save; }
 
 fn tube_rows(int w) {
-	local n=0
+	local n=0 md
 
 	dt_has youtube_draw || { cp_absent "$w" YouTube; ret 1; }
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Picture"
 	CP[$w][$n]["val"]="$YT_MODE"; CP[$w][$n]["key"]=mode
 	n=$((n + 1))
+	if [ "$YT_MODE" = follow ]; then
+		md := yt_drawmode
+		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Drawn Now"
+		CP[$w][$n]["val"]=$md; n=$((n + 1))
+	fi
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Quality Fetched"
 	CP[$w][$n]["val"]="$YT_QUALITY"; CP[$w][$n]["key"]=quality
 	n=$((n + 1))

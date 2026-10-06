@@ -350,8 +350,15 @@ dt_load() {
 		if [ "${DT_SETVER:-0}" -lt 6 ] && [ "$DT_BIDI" = on ]; then
 			DT_BIDI=auto
 		fi
+		# 0.99.77 has the YouTube player follow Control Panel >
+		# Pictures rather than keeping a picture of its own, so the
+		# one setting reaches every picture the desktop draws. Its
+		# pane moves a file still holding the old default.
+		if [ "${DT_SETVER:-0}" -lt 7 ] && dt_has cp_setver7; then
+			cp_setver7
+		fi
 	fi
-	DT_SETVER=6
+	DT_SETVER=7
 	dt_keyfix
 	dt_glyphs "$DT_GLYPHSET"
 	return 0

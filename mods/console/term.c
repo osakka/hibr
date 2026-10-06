@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 int cn_fd = -1;
+int cn_own;
 int cn_on;
 struct termios cn_sv;
 volatile sig_atomic_t cn_winch;
@@ -292,8 +293,16 @@ int cn_gfx(sh *s)
 		return cn_gfxk;
 	cn_cellpx(&w, &h);
 	if (w < 2 || h < 2) {
+		/* Not remembered, deliberately: a program `hold` started has
+		   no cell size at all until a client attaches and says what
+		   its own terminal measures (Gitea #103), and a decision
+		   cached in that moment would last the whole session -- every
+		   picture blocks for ever, on a terminal that can draw them.
+		   The cost of asking again is the ioctl cn_cellpx already
+		   does, once per picture placed. */
+		cn_gfxk = -1;
 		lg(HIBR_LDBG, "gfx: the terminal does not say what a cell measures");
-		return cn_gfxk;
+		return CN_GFX_NONE;
 	}
 	if (v && (!strcmp(v, "sixel") || !strcmp(v, "kitty"))) {
 		cn_gfxk = !strcmp(v, "kitty") ? CN_GFX_KITTY : CN_GFX_SIXEL;
@@ -349,21 +358,51 @@ void cn_unhook(void)
 }
 
 /* Take the terminal: raw mode, alternate screen, no cursor. */
+/* A descriptor of the console's own, so a redirection on a `console` command
+   cannot reach the display. The display used to draw on, and select on, the
+   number stdout happens to have -- and a redirection changes what that
+   number points at for as long as the command runs, so `console flush >
+   /dev/null` sent a whole frame to the void and `console key 1000 >
+   /dev/null` returned at once (a regular file is always ready to read).
+   Both looked like the console being broken and were a shell redirection
+   doing exactly what it says. Dup'ed high, out of reach of 0-9 and of a
+   {var} descriptor, and close-on-exec so a restart does not inherit it. */
+int cn_dupfd(int fd)
+{
+	int n = fcntl(fd, F_DUPFD_CLOEXEC, CN_FDBASE);
+
+	if (n < 0) {
+		n = fcntl(fd, F_DUPFD, CN_FDBASE);
+		if (n >= 0)
+			fcntl(n, F_SETFD, FD_CLOEXEC);
+	}
+	return n;
+}
+
 int cn_open(sh *s)
 {
 	struct termios r;
-	int rows, cols;
+	int rows, cols, fd, mine = 0;
 
 	(void)s;
 	if (cn_on)
 		return HIBR_OK;
-	cn_fd = isatty(1) ? 1 : (isatty(0) ? 0 : -1);
-	if (cn_fd < 0) {
-		cn_fd = open("/dev/tty", O_RDWR);
-		if (cn_fd < 0) {
+	fd = isatty(1) ? 1 : (isatty(0) ? 0 : -1);
+	if (fd < 0) {
+		fd = open("/dev/tty", O_RDWR);
+		if (fd < 0) {
 			lg(HIBR_LERR, "console: no terminal to draw on");
 			return HIBR_FAIL;
 		}
+		mine = 1;
+	}
+	cn_fd = cn_dupfd(fd);
+	if (cn_fd < 0) {
+		cn_fd = fd;
+	} else {
+		cn_own = 1;
+		if (mine)
+			close(fd);
 	}
 	if (tcgetattr(cn_fd, &cn_sv) != 0) {
 		lg(HIBR_LERR, "console: %s", strerror(errno));
@@ -431,6 +470,10 @@ void cn_close(sh *s)
 	cn_wr(cn_fd, cn_leave, sizeof cn_leave - 1);
 	tcsetattr(cn_fd, TCSADRAIN, &cn_sv);
 	cn_unhook();
+	if (cn_own)
+		close(cn_fd);
+	cn_own = 0;
+	cn_fd = -1;
 	cn_on = 0;
 	lg(HIBR_LDBG, "screen closed");
 }

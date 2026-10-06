@@ -164,8 +164,8 @@ whenever a replacement writes one.
 | `mods/mon/` | a system monitor over `/proc` — see `mods/mon/README.md` |
 | `mods/sysinfo/` | what the machine is, with a picture — see `mods/sysinfo/README.md` |
 | `mods/pty/` | pseudo terminals: run a program on one and drive it — see `mods/pty/README.md` |
-| `mods/term/` | a terminal emulator: a program's screen as cells, drawn into a window — see `mods/term/README.md` |
-| `mods/hold/` | sessions that outlive their terminal: detach, log off, attach again — see `mods/hold/README.md` |
+| `mods/term/` | a terminal emulator: a program's screen as cells, drawn into a window; `img.c` keeps the pictures a program sent (a sixel's own raster size in cells, a kitty transmission with its id) rather than dropping them, for `hold` to pass on — see `mods/term/README.md` |
+| `mods/hold/` | sessions that outlive their terminal: detach, log off, attach again; it carries what the emulator draws nothing for -- the clipboard, the bell, a notification, a title, a link, and since 0.99.77 the pictures (Gitea #103) -- and tells the program what a cell measures on the client's own terminal, without which nothing in a held desktop can be pixels. See `mods/hold/README.md` |
 | `mods/img/` | decode an image and draw it as terminal cells, jp2a-alike: PNG through libpng and JPEG through libturbojpeg, both dlopen'd on first use, chosen by the file's first bytes, EXIF orientation honoured — see `mods/img/README.md` |
 | `mods/db/` | a small column store: typed columns in one mmap'd file, appended rows changed with `set`/`update` and deleted by a per-group mark (`compact` renumbers), filters and aggregates, zone maps per 1024-row group -- see `mods/db/README.md` |
 | `mods/web/` | a browser: headless Chromium over `--remote-debugging-pipe` (CDP, no WebSocket), each page as cells -- its text placed where laid out, over a half-block screenshot taken with the text made transparent; the Browser app in `examples/desktop/apps/Internet/` is built on it -- see `mods/web/README.md` |
@@ -2112,14 +2112,49 @@ went in the shell.
   replaces what was there. Everything carries `q=2`, or the terminal's `OK`
   arrives in the stream the key decoder owns and its ESC lands in the
   Alt/Escape window.
-- **Pictures do not survive hold, and every desktop is held.** `console
-  gfx` answers `none 0 0` inside a program `hold` started, because hold's
-  pty reports no cell size -- so ADR 0037 reaches `img draw` in a terminal
-  and not the desktop (`dt_autohold` holds all of them). Measured, not
-  assumed, by driving a held program through a pty. Fixing it is hold's
-  work on both sides: carry the client's cell size to the program's pty,
-  and give hold's emulator the same picture-region model so a bitmap
-  reaches the clients -- the OSC 52 trap again. Gitea #103.
+- **Pictures reach a held desktop only because hold carries them, and
+  every desktop is held.** `console gfx` answered `none 0 0` inside
+  anything `hold` started -- hold's pty reported no cell size -- and
+  `dt_autohold` holds every desktop, so from 0.99.72 to 0.99.76 no picture
+  in a desktop was ever pixels, on any terminal. Measured by driving a held
+  program through a pty, never assumed. 0.99.77 (Gitea #103) fixes both
+  halves: a client's own `ws_xpixel`/`ws_ypixel` reach the program's pty
+  (`pty resizepx`, `PY_API_VER` 3, a second `HD_SIZE` of four ints sent
+  beside the old two so a client from this version can still resize a
+  session running the last one), and the emulator *keeps* pictures instead
+  of dropping them (`mods/term/img.c`, `TM_API_VER` 4), which hold's
+  renderer re-emits per client after the cells. Three things that look
+  like details and are not: a resize to the size it already is happens on
+  every attach, so clearing the pictures there takes them from the client
+  about to be sent them; a picture is skipped rather than cut in half when
+  it does not fit a client's own rectangle, because a bitmap cannot be
+  clipped; and an APC is no longer dropped by the parser, so anything new
+  that arrives as one has to decide for itself whether to be kept.
+- **A redirection on a `console` command used to reach the display.** The
+  console drew on, and selected on, whatever number stdout had -- so
+  `console flush > /dev/null` sent a whole frame to the void, and
+  `console key 1000 > /dev/null` returned *at once*, because a regular
+  file is always ready to read. Both read as the console being broken and
+  were a shell redirection doing exactly what it says. Since 0.99.77 the
+  console dups the terminal to a descriptor of its own at `console open`
+  (`CN_FDBASE`, 120, close-on-exec, clear of 0-9, of a `{var}`
+  redirection's 10 upward and of a process substitution's 60) and closes
+  it at `console close`. Measurement scripts written before that are worth
+  re-reading: one of them timed a film at 0.05 ms a frame because every
+  flush went to /dev/null.
+- **`console key` returns on a resize as well as on a key**, so a program
+  that waits in one long call ends the moment anything resizes it -- which
+  is what a second display joining a held session does. Wait in a loop.
+  A test whose held program exited "with status 0" the instant a second
+  client attached was this, not hold dropping the session.
+- **Waiting a fixed time for a client to attach is a load-dependent
+  assumption.** `tests/holdpix.py`'s held program first waited 1.5 seconds
+  and then asked `console gfx`, which passed every time alone and failed
+  three checks inside `tests/all.py`: under a full parallel run an attach
+  that takes a quarter of a second takes several. It polls `console gfx`
+  until the answer stops being `none` now, bounded rather than spent --
+  which works only because `cn_gfx` deliberately does not cache a `none`
+  that came from having no cell size yet.
 - **Sixel needs the pixel size of a cell, and a wrong one spills.** It
   paints 1:1, so the bitmap is scaled to `w * cellw` by `h * cellh` -- by
   the *backend*, which is the only thing that knows the cell, rather than by
@@ -2185,6 +2220,15 @@ went in the shell.
   new section belongs to `more` unless `PARTS` names it. A helper's value
   that comes from a session (a `run` or a `check`) is never copied to
   another part, so a section must make what it reads, as before.
+- **A suite's scratch file is named after this process, not after the
+  suite.** `tests/all.py` and `tests/asan.py` run side by side in the
+  release gate, so two copies of the same suite are live at once: a fixed
+  `/tmp/hibr-desktop-dblclick.hibr` meant one unlinked the file the other
+  was about to be started on, and the second died with "no such file" in a
+  check about double clicking. `run()` in the same file had used
+  `os.getpid()` since the beginning; the newer helper beside it had not.
+  It failed only in a gate, never alone, which is what a shared path looks
+  like.
 - **The `.expected` file is named after the test, not the test file.**
   `tests/830-img.t`'s own recorded file is `tests/830-img.expected` --
   `tests/830-img.t.expected` does not error, it just never matches

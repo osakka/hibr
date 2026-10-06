@@ -24,6 +24,7 @@ same underlying grid, not the interface itself.
 | `tm.h` | the terminal record, cells, and every function the files share |
 | `grid.c` | the screen model: cursor, scroll region, deferred wrap, insert and delete of lines and characters, wide characters kept whole, combining sequences, tab stops, resizing |
 | `sb.c` | the scrollback: a ring of the lines that went off the top, and the view that scrolls back through it |
+| `img.c` | the pictures a program put on this terminal: a sixel and the kitty graphics protocol kept as regions (where, how many cells, the escapes as they came) instead of being consumed, so `hold` can re-emit them onto a real terminal -- ADR 0037, Gitea #103. A region goes when a cell inside it is written, or when the screen is cleared, scrolled, resized or reset |
 | `vt.c` | the escape parser -- Paul Williams' DEC state machine -- and everything it dispatches: cursor movement, erasing, modes, SGR, character sets, save and restore, OSC and DCS strings, and replies to queries |
 | `draw.c` | blitting the grid into a rectangle through the display interface |
 | `key.c` | turning a decoded key name (`up`, `ctrl-c`, `f5`) back into the bytes a program expects, and a mouse event into the report it asked for |
@@ -219,12 +220,21 @@ ASan and UBSan with leak detection on that test.
 
 ## What it does not do
 
+A sixel and the kitty graphics protocol are kept as regions rather than
+drawn (`img.c`): nothing in a terminal *window* can render a bitmap -- the
+window is cells inside somebody else's grid -- but `hold` re-serialises this
+emulator's grid onto a real terminal, and a picture it dropped would be a
+picture nobody ever saw (ADR 0037, Gitea #103). A terminal window therefore
+shows a space where a program drew a picture, as it always did, and loses
+nothing on the way through hold.
+
 Motion with no button held is not reported, even under 1003, because the
 desktop turns on only click and drag reporting: all motion is a report per
 cell crossed. Modifiers on a mouse event are not passed on. Nothing reflows
-on a resize. Left and right margins (DECLRMM), the kitty keyboard protocol,
-sixel and the kitty graphics protocol are not implemented -- the parser
-consumes their sequences so nothing leaks onto the screen, and a program
-asking about them hears nothing back and falls back, as it would on xterm.
+on a resize. Left and right margins (DECLRMM) and the kitty keyboard
+protocol are not implemented -- the parser consumes their sequences so
+nothing leaks onto the screen, and a program asking about them hears nothing
+back and falls back, as it would on xterm. Neither bitmap protocol is
+*rendered* either, for the reason above; both are kept.
 Underline styles and colours are parsed and drawn as a plain underline,
 since the display has only the one.

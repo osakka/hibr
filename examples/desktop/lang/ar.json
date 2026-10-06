@@ -42,6 +42,7 @@
   "%s keeps its size; it can only be centred": "%s يحتفظ بحجمه؛ يمكن توسيطه فقط",
   "%s moved to workspace %s": "نُقل %s إلى مساحة العمل %s",
   "%s moves around the Control Panel, so it cannot be a shortcut": "%s يُستخدم للتنقل في لوحة التحكم، فلا يصلح اختصارًا",
+  "%s pixels, a cell is %s by %s": "بكسلات %s، وحجم الخلية %s في %s",
   "%s selected": "%s محدد",
   "%s, and %s more could not go": "%s، وتعذّر نقل %s غيره",
   "(empty)": "(فارغ)",
@@ -263,6 +264,7 @@
   "Drafts": "المسودات",
   "Drag Modifier": "مفتاح السحب",
   "Draw Pictures As": "رسم الصور بـ",
+  "Drawn Now": "المرسوم الآن",
   "Drop onto Home, a disk, or the trash": "أفلِت على المنزل أو قرص أو المهملات",
   "ETag: %s": "ETag: %s",
   "Edge Resize": "تغيير الحجم من الحافة",
@@ -827,7 +829,6 @@
   "moving — arrows, then enter": "نقل — الأسهم ثم Enter",
   "note": "ملاحظة",
   "phone": "الهاتف",
-  "%s pixels, a cell is %s by %s": "بكسلات %s، وحجم الخلية %s في %s",
   "resizing — arrows, then enter": "تغيير الحجم — الأسهم ثم Enter",
   "server to keep its vault here, readable offline.": "Vaultwarden لحفظ خزنته هنا، ولقراءته دون اتصال.",
   "sets a place, or the time zone gives one.": "تحدّد مكانًا، أو تأتي به المنطقة الزمنية."

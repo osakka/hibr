@@ -163,10 +163,58 @@ const char *tm_api_linkuri(int id, unsigned link)
 	return t->lk[link - 1];
 }
 
+/* What a cell measures on the real terminal this grid will be drawn on:
+   the one thing the emulator cannot work out, and what decides whether a
+   sixel can be placed at all (img.c). */
+void tm_api_cellpx(int id, int w, int h)
+{
+	tm_t *t = tm_find(id);
+
+	if (!t)
+		return;
+	t->cellw = w;
+	t->cellh = h;
+}
+
+/* A number that changes whenever the set of pictures does, so a caller can
+   tell "nothing new" from "send them again" without comparing anything. */
+unsigned tm_api_imgen(int id)
+{
+	tm_t *t = tm_find(id);
+
+	return t ? t->imgen : 0;
+}
+
+/* How many pictures this terminal is holding. */
+int tm_api_images(int id)
+{
+	tm_t *t = tm_find(id);
+
+	return t ? t->imgn : 0;
+}
+
+/* Picture i: where it starts, the cells it covers, and its own escapes
+   appended to out. 0 for no such picture. */
+int tm_api_image(int id, int i, int *r, int *c, int *rows, int *cols,
+		 str *out)
+{
+	tm_t *t = tm_find(id);
+
+	if (!t || i < 0 || i >= t->imgn)
+		return 0;
+	*r = t->img[i].r;
+	*c = t->img[i].c;
+	*rows = t->img[i].rows;
+	*cols = t->img[i].cols;
+	s_add(out, t->img[i].data.p, t->img[i].data.n);
+	return 1;
+}
+
 static const tm_api term_api = {
 	tm_api_new, tm_api_free, tm_api_resize, tm_api_rows, tm_api_cols,
 	tm_api_feed, tm_api_at, tm_api_mouse, tm_api_cursor, tm_api_modes,
-	tm_api_clip, tm_api_pass, tm_api_title, tm_api_linkat, tm_api_linkuri
+	tm_api_clip, tm_api_pass, tm_api_title, tm_api_linkat, tm_api_linkuri,
+	tm_api_cellpx, tm_api_imgen, tm_api_images, tm_api_image
 };
 
 const tm_api *tm_apiget(void)

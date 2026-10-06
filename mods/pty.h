@@ -10,7 +10,7 @@
    breaks every module already using it. */
 
 #ifndef PY_API_VER
-#define PY_API_VER 2u
+#define PY_API_VER 3u
 #endif
 
 typedef struct py_api py_api;
@@ -30,6 +30,11 @@ struct py_api {
 	/* The master's descriptor, for a caller that waits on it alongside
 	   others; -1 for no such terminal. Added in version 2. */
 	int (*fd)(int id);
+	/* Version 3. The size in pixels as well as in cells, which is the
+	   only way a program on this terminal can learn what a cell measures
+	   -- and so whether it can put pixels on screen at all (ADR 0037).
+	   `resize` keeps whatever was last set here. 0 for no such id. */
+	int (*resizepx)(int id, int rows, int cols, int xpix, int ypix);
 };
 
 #endif

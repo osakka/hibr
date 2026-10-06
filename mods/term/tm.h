@@ -37,12 +37,27 @@ struct tm_save {
 };
 
 /* Paul Williams' DEC parser states: ground, escape and its intermediates,
-   the four CSI states, the five DCS states, OSC, and SOS/PM/APC, whose
-   strings are consumed rather than shown. */
+   the four CSI states, the five DCS states, OSC, SOS/PM, whose strings are
+   consumed rather than shown, and APC, which is kept because the kitty
+   graphics protocol is one. */
 enum {
 	T_GND, T_ESC, T_ESCI, T_CSIE, T_CSIP, T_CSII, T_CSIX,
-	T_DCSE, T_DCSP, T_DCSI, T_DCSS, T_DCSX, T_OSC, T_SOS
+	T_DCSE, T_DCSP, T_DCSI, T_DCSS, T_DCSX, T_OSC, T_SOS, T_APC
 };
+
+/* One picture a program put on this terminal: where it starts, the cells it
+   covers, the kitty protocol's own id (0 for a sixel, which has none), and
+   the escapes exactly as they came. See img.c. */
+typedef struct tm_img tm_img;
+struct tm_img {
+	int r, c, rows, cols;
+	unsigned id;
+	str data;
+};
+
+#ifndef TM_IMGMAX
+#define TM_IMGMAX (4u << 20)
+#endif
 
 /* Conceal (SGR 8) has no display attribute of its own: the cell is drawn
    as a blank instead, so it lives above DP_ATTRS and never reaches pen(). */
@@ -93,6 +108,17 @@ struct tm_t {
 	long tot, sa, sz;
 	int sel, sca, scz;
 	int cshape;
+	/* The pictures this terminal is holding (img.c), a generation that
+	   changes whenever the set does, the cell size whoever owns the real
+	   terminal has told us about -- without which a sixel cannot be
+	   placed at all -- and the one being gathered chunk by chunk. */
+	tm_img *img;
+	int imgn, imgcap;
+	unsigned imgen;
+	int cellw, cellh;
+	str imgb;
+	int imgr, imgc, imgrows, imgcols, imgon;
+	unsigned imgid;
 };
 
 tm_t *tm_find(int id);
@@ -148,6 +174,17 @@ const char *tm_mname(tm_t *t);
    to hibr_provide without that instance needing to be extern. */
 void tm_pass(tm_t *t, const char *raw, size_t n);
 void tm_bell(tm_t *t);
+void tm_imgdrop(tm_t *t, int i);
+void tm_imgclear(tm_t *t);
+void tm_imghit(tm_t *t, int r, int c);
+void tm_imgkeep(tm_t *t, int r, int c, int rows, int cols, unsigned id,
+		const char *p, size_t n);
+long tm_imgkey(const char *s, int k);
+int tm_imgkeyc(const char *s, int k);
+void tm_apcraw(tm_t *t, str *o);
+void tm_apcend(tm_t *t);
+void tm_imgparams(tm_t *t, str *o);
+void tm_sixelend(tm_t *t);
 void tm_note(tm_t *t, const char *title, size_t tn, const char *body);
 unsigned tm_linkid(tm_t *t, const char *uri);
 void tm_unb64(const char *p, str *out);

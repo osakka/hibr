@@ -142,11 +142,16 @@ try:
           at(s[3]) >= 6 and at(s[4]) >= at(s[3]) and s[4].find("▀") is not None,
           (at(s[2]), at(s[3]), at(s[4])))
 
-    s = yrun([([], "A test pattern"), ([b"\r"], playing), ([b"m"], "ascii"),
-              ([1.0], None), ([b"m"], "mono"), ([b"m"], "half")])
-    check("m draws the picture as ASCII, then plain, then half blocks again",
-          any(c in s[3].text() for c in "#%@*") and s[3].find("▀") is None and
-          "mono" in s[4].text() and "half" in s[5].text(), s[3])
+    # The picture setting starts at `follow` -- Control Panel > Pictures --
+    # and m walks the whole list the Picture menu offers, which on a terminal
+    # that cannot place pixels resolves to half blocks either way: the bar
+    # says which it is following, or which it was told.
+    s = yrun([([], "A test pattern"), ([b"\r"], playing), ([b"m"], "  half"),
+              ([b"m"], "ascii"), ([1.0], None), ([b"m"], "mono"),
+              ([b"m"], "pixels"), ([b"m"], "follow:")])
+    check("m walks the picture list: half, ASCII, plain, pixels, and back",
+          any(c in s[4].text() for c in "#%@*") and s[4].find("▀") is None and
+          "mono" in s[5].text() and "pixels" in s[6].text(), s[4])
 
     # The mini player: the picture alone, no border, bottom right, on every
     # workspace; escape goes back to the full player where it was.

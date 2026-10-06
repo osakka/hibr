@@ -111,6 +111,9 @@ void tm_free(tm_t *t)
 		free(t->xp[k]);
 	free(t->xp);
 	tm_sbclear(t);
+	tm_imgclear(t);
+	free(t->img);
+	s_free(&t->imgb);
 	s_free(&t->in);
 	s_free(&t->os);
 	s_free(&t->title);
@@ -168,6 +171,12 @@ int tm_size(tm_t *t, int rows, int cols)
 		return 0;
 	if (rows == t->rows && cols == t->cols)
 		return 1;
+	/* Only a real change: a resize to the size it already is happens on
+	   every attach (hold sizes the union each time), and clearing the
+	   pictures there would take them away from the client that is about
+	   to be sent them. */
+	if (t->imgn)
+		tm_imgclear(t);
 	mg = t->inalt ? t->alt : t->g;
 	if (!t->inalt) {
 		if (rows < t->rows && t->cr >= rows)
@@ -258,6 +267,11 @@ void tm_erase(tm_t *t, int r0, int c0, int r1, int c1)
 {
 	int r, c, a, b;
 
+	/* Anything a picture covered has been cleared out from under it, and
+	   working out which of them were touched is not worth the walk:
+	   whoever placed one places it again (img.c). */
+	if (t->imgn)
+		tm_imgclear(t);
 	tm_unwide(t, r0, c0);
 	tm_unwide(t, r1, c1);
 	for (r = r0; r <= r1; r++) {
@@ -277,6 +291,8 @@ void tm_scroll(tm_t *t, int n)
 	int r, h = t->bot - t->top + 1;
 	size_t w = (size_t)t->cols * sizeof *t->g;
 
+	if (t->imgn)
+		tm_imgclear(t);
 	if (!n || h < 1)
 		return;
 	if (n > h || -n > h)
@@ -485,6 +501,10 @@ void tm_glyph(tm_t *t, unsigned cp)
 	c = tm_at(t, t->cr, t->cc);
 	if (!c)
 		return;
+	/* A character drawn inside a picture is the end of that picture: the
+	   cell is the text's again (img.c). */
+	if (t->imgn)
+		tm_imghit(t, t->cr, t->cc);
 	c->cp = cp;
 	c->fg = t->fg;
 	c->bg = t->bg;

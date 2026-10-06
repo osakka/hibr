@@ -1,5 +1,76 @@
 # Changelog
 
+## 0.99.77
+
+**Pictures reach a held desktop, which is every desktop** (Gitea #103). The
+kitty protocol shipped in 0.99.76 and still nothing in the desktop drew a
+pixel, because `dt_autohold` holds every desktop and nothing about hold
+carried a picture. Measured by driving a held program through a pty, not
+reasoned about, and both halves were hold's:
+
+- `hold` starts the program on a pty of its own and nobody had told that
+  pty what a cell measures, so `console gfx` answered `none 0 0` inside
+  every held program and every picture fell back to half blocks. A client
+  now reports its own `ws_xpixel`/`ws_ypixel` alongside its size, hold
+  takes the primary client's (a bitmap is 1:1; there is no second size to
+  draw it at) and sets it on the program's pty -- `pty resize id rows cols
+  xpixel ypixel`, `PY_API_VER` 3. The message goes beside the old two-int
+  one rather than replacing it, so a client from this version can still
+  resize a session still running the last one.
+- hold draws each client cells from its own emulator, and the emulator
+  consumed every sixel and every kitty escape and drew nothing for either:
+  the OSC 52 trap, a third time. `mods/term/img.c` keeps them as regions --
+  a sixel's own raster size turned into cells, a kitty transmission with
+  its id, chunk by chunk -- and `"terminal"` version 4 hands them over for
+  hold to re-emit at their own corners after each frame's cells. Once per
+  change, so a still picture costs a settled frame nothing; skipped rather
+  than cut in half for a client whose own rectangle does not hold the whole
+  picture, because a bitmap cannot be clipped; and dropped when something
+  writes a cell inside it, which is how a window that closed takes its
+  picture with it. A terminal *window* still shows a space where a program
+  drew a picture -- a window is cells inside somebody else's grid -- and now
+  loses nothing on the way through hold.
+
+**A redirection on a `console` command no longer reaches the display.** The
+console drew on, and waited on, whatever descriptor number stdout happened
+to have, so `console flush > /dev/null` sent a whole frame to the void and
+`console key 1000 > /dev/null` returned at once -- a regular file is always
+ready to read. Both looked like the console being broken and were a shell
+redirection doing exactly what it says; one film measurement in this tree
+read 0.05 ms a frame for that reason. The console now dups the terminal to
+a descriptor of its own at `console open` (`CN_FDBASE`, 120, close-on-exec,
+clear of 0-9, of a `{var}` redirection's 10 upward and of a process
+substitution's 60) and closes it at `console close`.
+
+**The YouTube player follows Control Panel > Pictures.** It kept a picture
+setting of its own, so the one setting meant to reach every picture the
+desktop draws reached the Image Viewer, the wallpaper, Mail and the browser
+and not the player. `YT_MODE=follow` is the default now and what its Picture
+menu and its pane offer first, with `half`, `ascii`, `mono` and `pixels`
+still there for a window somebody wants different; settings version 7 moves
+a file that still holds the old default and leaves a choice alone. Its
+cycling key walks the list the menu offers rather than a second one written
+out beside it, which is how `pixels` was missing from that key for a
+release.
+
+`tests/holdpix.py` is eleven checks of the whole path -- the cell size
+reaching a held program, both protocols arriving at the client, a display
+that joins afterwards getting what it never saw, text through a picture
+taking it away, and a client that says nothing about pixels getting blocks
+and no bitmap at all. The unheld sixel and kitty suites are its control.
+
+What works and what does not, measured in a real desktop rather than
+assumed: a picture in a **window** is pixels -- the Image Viewer places
+270 kB of kitty picture at its own corner, and Mail, the browser and the
+film player draw the same way -- and the **wallpaper** is not, on any
+terminal and never has been (Gitea #104). A picture with text drawn over it
+in the same frame is dropped before the first flush ever sends it, which is
+exactly what the wallpaper is: placed, then the bar, the windows and the
+icons go over it. `DP_IMG_UNDER` is the flag for that case and nothing
+passes it yet; doing it needs an invalidation rule of its own, `z=-1` so
+the picture is placed once rather than re-sent every frame, and cells over
+it left at the default background.
+
 ## 0.99.76
 
 **The kitty graphics protocol, because kitty draws no sixel** (Gitea #94).

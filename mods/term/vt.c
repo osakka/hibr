@@ -415,6 +415,8 @@ void tm_altswap(tm_t *t, int on)
 	t->g = t->alt;
 	t->alt = tmp;
 	t->inalt = !!on;
+	if (t->imgn)
+		tm_imgclear(t);
 	t->sel = 0;
 	lg(HIBR_LDBG, "terminal %d %s the alternate screen", t->id,
 	   on ? "entered" : "left");
@@ -642,15 +644,18 @@ void tm_decrqss(tm_t *t)
 	s_free(&r);
 }
 
-/* A DCS string is complete. Only the queries are answered; everything
-   else -- sixel, tmux passthrough, the rest -- is consumed and dropped,
-   which is the point: none of it is ever printed. */
+/* A DCS string is complete. The queries are answered and a sixel is kept as
+   a picture (img.c, for whoever re-serialises this grid onto a real
+   terminal); everything else -- tmux passthrough, the rest -- is consumed
+   and dropped, which is the point: none of it is ever printed. */
 void tm_dcsend(tm_t *t)
 {
 	const char *in = t->in.p ? t->in.p : "";
 	str r;
 
-	if (t->ofin == 'q' && !strcmp(in, "$")) {
+	if (t->ofin == 'q' && !*in) {
+		tm_sixelend(t);
+	} else if (t->ofin == 'q' && !strcmp(in, "$")) {
 		tm_decrqss(t);
 	} else if (t->ofin == 'q' && !strcmp(in, "+")) {
 		s_init(&r);
@@ -1135,6 +1140,8 @@ void tm_step(tm_t *t, unsigned c)
 			tm_oscend(t);
 		else if (t->st == T_DCSS)
 			tm_dcsend(t);
+		else if (t->st == T_APC)
+			tm_apcend(t);
 		tm_pclear(t);
 		t->st = T_ESC;
 		return;
@@ -1179,8 +1186,16 @@ void tm_step(tm_t *t, unsigned c)
 				return;
 			case 'X':
 			case '^':
-			case '_':
 				t->st = T_SOS;
+				return;
+			/* An APC is kept, not dropped: the kitty graphics
+			   protocol is one, and a picture a program sent has
+			   to reach whoever is re-serialising this grid. */
+			case '_':
+				t->os.n = 0;
+				if (t->os.p)
+					t->os.p[0] = 0;
+				t->st = T_APC;
 				return;
 			}
 		}
@@ -1284,6 +1299,10 @@ void tm_step(tm_t *t, unsigned c)
 			t->st = T_GND;
 			return;
 		}
+		if (c >= 0x20)
+			tm_sput(t, c);
+		return;
+	case T_APC:
 		if (c >= 0x20)
 			tm_sput(t, c);
 		return;

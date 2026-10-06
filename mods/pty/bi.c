@@ -121,12 +121,17 @@ int m_pty(sh *s, int ac, char **av)
 	}
 	if (!strcmp(sub, "resize")) {
 		if (ac < 5) {
-			lg(HIBR_LERR, "usage: pty resize id rows cols");
+			lg(HIBR_LERR, "usage: pty resize id rows cols "
+				      "[xpixel ypixel]");
 			return 2;
 		}
 		p = tt_arg(sub, av[2]);
 		if (!p)
 			return HIBR_FAIL;
+		if (ac > 6)
+			return tt_resizepx(p, atoi(av[3]), atoi(av[4]),
+					   atoi(av[5]), atoi(av[6]))
+				? HIBR_OK : HIBR_FAIL;
 		return tt_resize(p, atoi(av[3]), atoi(av[4])) ? HIBR_OK
 							      : HIBR_FAIL;
 	}
@@ -272,6 +277,13 @@ int tt_api_resize(int id, int rows, int cols)
 	return p ? tt_resize(p, rows, cols) : 0;
 }
 
+int tt_api_resizepx(int id, int rows, int cols, int xpix, int ypix)
+{
+	tt_p *p = tt_find(id);
+
+	return p ? tt_resizepx(p, rows, cols, xpix, ypix) : 0;
+}
+
 int tt_api_alive(int id)
 {
 	tt_p *p = tt_find(id);
@@ -310,7 +322,8 @@ int tt_api_fd(int id)
 
 static const py_api pty_api = {
 	tt_api_spawn, tt_api_read, tt_api_write, tt_api_resize,
-	tt_api_alive, tt_api_status, tt_api_pid, tt_api_drop, tt_api_fd
+	tt_api_alive, tt_api_status, tt_api_pid, tt_api_drop, tt_api_fd,
+	tt_api_resizepx
 };
 
 /* Offer the table to whatever else needs a terminal. */

@@ -139,13 +139,42 @@ window). A name and a setting cost nobody a lost keypress.
   and would box out the bitmap behind every glyph. "Page as a picture" and
   "text over colours" are two different renderings, and that is a product
   decision rather than a detail.
-- **A held desktop has no pixels yet.** `hold` gives the program it starts
-  a pty of its own, and that pty reports no cell size, so `console gfx`
-  answers `none 0 0` inside one and every picture falls back to blocks --
-  and `dt_autohold` holds every desktop. So this whole mechanism reaches
-  `img draw` in a terminal and not the desktop the owner actually runs.
-  Two things are missing and both belong to hold: the cell size an
-  attaching client reports has to reach the program's pty, and a bitmap
-  has to pass through hold's own emulator to the clients, which is the OSC
-  52 trap again -- an emulator that redraws loses what it does not draw.
-  Gitea #103.
+- **A held desktop had no pixels at all until 0.99.77** (Gitea #103), and
+  `dt_autohold` holds every desktop, so for five releases this whole
+  mechanism reached `img draw` in a terminal and not the desktop anyone
+  actually runs. Both halves were hold's, and both were measured rather
+  than reasoned about -- by driving a held program through a pty and
+  reading what came out the other side:
+  - `hold` gives the program a pty of its own and nobody had told it what
+    a cell measures, so `console gfx` answered `none 0 0` inside every
+    held program. A client now reports its own `ws_xpixel`/`ws_ypixel`
+    with its size, hold picks the primary client's and sets it on the pty
+    (`pty resizepx`, `PY_API_VER` 3).
+  - hold draws each client cells from its own emulator, which consumed
+    every sixel and every kitty escape and drew nothing for either: the
+    OSC 52 trap, again. The emulator keeps them as regions now
+    (`mods/term/img.c`, `TM_API_VER` 4) and hold re-emits them per client
+    after the cells, once per change, skipping any that does not fit that
+    client's own rectangle -- a bitmap cannot be clipped.
+  `tests/holdpix.py` is the measurement kept: eleven checks, with the
+  unheld sixel and kitty suites as the control.
+- **A picture with text drawn over it in the same frame is never sent at
+  all**, which is why the wallpaper has never been pixels on any terminal
+  (Gitea #104). The region is placed, the frame then draws the bar, the
+  windows and the icons over it, and the cell hash no longer matches before
+  the first flush -- so it is dropped having never gone out. Everything
+  that draws into a pane nothing else writes to works: the Image Viewer in
+  a real desktop window places 270 kB of kitty picture at its own corner.
+  `DP_IMG_UNDER` is the flag for this case and nothing passes it; making
+  the wallpaper use it needs an invalidation rule of its own (the cell hash
+  cannot be it), `z=-1` for kitty so the picture is placed once rather than
+  re-sent every frame, and cells over it left at the default background,
+  since a background colour paints over an image. For sixel there is no
+  equivalent at all.
+- **A redirection on a `console` command used to reach the display**, which
+  is how the film numbers above were first measured as 0.05 ms a frame:
+  the console drew on, and selected on, whatever descriptor number stdout
+  had, so `console flush > /dev/null` sent the frame to the void and
+  `console key 1000 > /dev/null` returned at once. Since 0.99.77 the
+  console keeps a descriptor of its own (`CN_FDBASE`), dup'ed at
+  `console open` and closed at `console close`.

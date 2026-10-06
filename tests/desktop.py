@@ -255,7 +255,12 @@ check("and zooming again puts it back where it was",
 # own default settle/collect between keys (0.25s + 0.2s) is longer than
 # DT_DBLMS, so this needs its own tight timing rather than run()'s.
 def dblclick_run(session, r, c, env=None):
-    path = "/tmp/hibr-desktop-dblclick.hibr"
+    # This process's own name, the same as run()'s: a fixed path under /tmp
+    # is shared with every other run of this suite, and tests/all.py and
+    # tests/asan.py run side by side -- one unlinked the file the other was
+    # about to be started on, which fails as "no such file" in whichever got
+    # there second and reads as nothing to do with double clicking.
+    path = "/tmp/hibr-desktop-dblclick-%d.hibr" % os.getpid()
     open(path, "w").write("%s. %s\ndt_open\n%s\ndt_run\ndt_close\n"
                           % (load(MOD), WM, session))
     t = Term(path, env=dict({"DT_TICK": "60"}, **(env or {})), rows=ROWS,

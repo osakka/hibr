@@ -118,19 +118,56 @@ void hd_ubox(vec *cls, int *rows, int *cols)
 	}
 }
 
+/* What a cell measures on the clients' own terminals, which is what decides
+   whether the program can put pixels on screen at all (ADR 0037): the
+   primary client's, or the first one that knows. A bitmap is drawn 1:1, so
+   there is no second size to draw it at -- clients that disagree all get
+   the primary's, and one whose cells are a different size sees a picture
+   the wrong size rather than nothing, which is the honest trade. */
+void hd_cellpx(vec *cls, int *w, int *h)
+{
+	size_t i;
+	struct hd_cli *cn;
+
+	*w = 0;
+	*h = 0;
+	for (i = 0; i < cls->n; i++) {
+		cn = cls->p[i];
+		if (cn->xpix < cn->cols || cn->ypix < cn->rows)
+			continue;
+		if (*w && !cn->primary)
+			continue;
+		*w = cn->xpix / cn->cols;
+		*h = cn->ypix / cn->rows;
+		if (cn->primary)
+			return;
+	}
+}
+
 /* The pty's own size, and the emulator's: sized to the union, so the
    program always sees one screen big enough for everyone at their own
-   place, not just the largest single client. Left alone with nobody
-   attached -- there is nothing to size it from. */
+   place, not just the largest single client. The pixel size goes with it,
+   or a program on this pty cannot learn what a cell measures and draws
+   every picture as blocks -- which is what every held desktop did until
+   0.99.77 (Gitea #103). Left alone with nobody attached -- there is
+   nothing to size it from. */
 void hd_union(vec *cls, int id, int tid)
 {
-	int rows, cols;
+	int rows, cols, cw = 0, ch = 0;
 
 	if (!cls->n)
 		return;
 	hd_ubox(cls, &rows, &cols);
-	hd_pty->resize(id, rows, cols);
+	hd_cellpx(cls, &cw, &ch);
+	if (hd_pty->resizepx)
+		hd_pty->resizepx(id, rows, cols, cw * cols, ch * rows);
+	else
+		hd_pty->resize(id, rows, cols);
 	hd_tm->resize(tid, rows, cols);
+	if (hd_tm->cellpx)
+		hd_tm->cellpx(tid, cw, ch);
+	lg(HIBR_LDBG, "hold: union %dx%d cells, a cell %dx%d pixels", rows,
+	   cols, cw, ch);
 }
 
 /* Detach every attached client, telling each one why, and empty the list. */
@@ -440,16 +477,40 @@ void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 					hd_mtrans(cn, in.p, in.n, &mo);
 					hd_wall(m, mo.p, mo.n);
 				}
-			} else if (t == HD_SIZE && in.n == 2 * sizeof(int)) {
+			} else if (t == HD_SIZE &&
+				   (in.n == 2 * sizeof(int) ||
+				    in.n == 4 * sizeof(int))) {
 				struct hd_cli *cn = hd_cfind(&cls, fd);
-				int sz[2];
+				int sz[4];
 
-				memcpy(sz, in.p, sizeof sz);
+				/* Two ints is a client from before 0.99.77,
+				   which did not say what a cell measures. */
+				memset(sz, 0, sizeof sz);
+				memcpy(sz, in.p, in.n);
 				if (cn) {
+					/* Only a real change throws the
+					   client's own front away: this
+					   arrives once at attach as well,
+					   carrying the pixels, and a
+					   needless full repaint there swallows
+					   whatever small diff came next. */
+					int same = cn->rows == sz[0] &&
+						   cn->cols == sz[1];
+
 					cn->rows = sz[0];
 					cn->cols = sz[1];
-					free(cn->front);
-					cn->front = 0;
+					if (in.n == 4 * sizeof(int)) {
+						if (cn->xpix != sz[2] ||
+						    cn->ypix != sz[3])
+							cn->imgen = 0;
+						cn->xpix = sz[2];
+						cn->ypix = sz[3];
+					}
+					if (!same) {
+						free(cn->front);
+						cn->front = 0;
+						cn->imgen = 0;
+					}
 					hd_union(&cls, id, tid);
 				}
 			} else if (t == HD_DETACH) {

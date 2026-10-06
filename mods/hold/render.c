@@ -231,6 +231,36 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 	}
 	if (llk)
 		s_cat(out, "\033]8;;\a");
+	/* The pictures the program put on the session's grid. A bitmap is not
+	   cells: it cannot be diffed and it cannot be clipped, so each goes
+	   out whole at its own corner, after the text, and only when the set
+	   has changed or this client is being painted from scratch -- a
+	   still picture costs a settled frame nothing, as it does in the
+	   console itself. One that does not fit inside this client's own
+	   rectangle is skipped rather than cut in half. */
+	if (hd_tm->images && (clear || cn->imgen != hd_tm->imgen(tid))) {
+		int ir, ic, irows, icols, k, sent = 0;
+		str pic;
+
+		s_init(&pic);
+		for (k = 0; k < hd_tm->images(tid); k++) {
+			pic.n = 0;
+			if (!hd_tm->image(tid, k, &ir, &ic, &irows, &icols,
+					  &pic))
+				continue;
+			if (ir < cn->row || ic < cn->col ||
+			    ir + irows > cn->row + cn->rows ||
+			    ic + icols > cn->col + cn->cols)
+				continue;
+			hd_goto(out, ir - cn->row, ic - cn->col);
+			s_add(out, pic.p, pic.n);
+			sent++;
+		}
+		s_free(&pic);
+		cn->imgen = hd_tm->imgen(tid);
+		if (sent)
+			lg(HIBR_LDBG, "hold: %d picture(s) passed on", sent);
+	}
 	if (hd_tm->cursor(tid, &cr, &cc, &cvis) && cvis &&
 	    cr >= cn->row && cr < cn->row + cn->rows && cc >= cn->col &&
 	    cc < cn->col + cn->cols) {

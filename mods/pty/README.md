@@ -34,7 +34,7 @@ driven through a terminal of its own.
 | `pty read <id> [ms]` | what is there now, waiting up to `ms` for the first byte |
 | `pty drain <id> [ms]` | keep reading until it stops, or `ms` passes with nothing |
 | `pty write <id> text…` | send bytes, as if typed |
-| `pty resize <id> rows cols` | change the size; the program gets `SIGWINCH` |
+| `pty resize <id> rows cols [xpixel ypixel]` | change the size; the program gets `SIGWINCH`. The pixels are the whole terminal's, as `ws_xpixel`/`ws_ypixel`, and are the only way a program on this terminal can learn what a cell measures -- and so whether it can put pixels on screen at all (ADR 0037). Left alone when not given, kept across a later resize that does not mention them |
 | `pty size <id>` | the size it has |
 | `pty alive <id>` | status: is it still running |
 | `pty wait <id> [ms]` | wait for it; the exit status lands in `$RET` |

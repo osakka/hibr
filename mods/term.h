@@ -12,7 +12,7 @@
    anything reordered or removed breaks every module already using it. */
 
 #ifndef TM_API_VER
-#define TM_API_VER 3u
+#define TM_API_VER 4u
 #endif
 
 /* DECSCUSR's six shapes collapse to three: blinking is never drawn as
@@ -71,6 +71,23 @@ struct tm_api {
 	   terminal gives each address it has seen, and its address. */
 	unsigned (*linkat)(int id, int r, int c);
 	const char *(*linkuri)(int id, unsigned link);
+	/* Version 4. The pictures a program put on this terminal, kept
+	   rather than dropped, for a caller that re-serialises this grid
+	   onto a real terminal: a bitmap is not cells, and an emulator that
+	   redraws loses what it does not draw (ADR 0037, Gitea #103).
+
+	   cellpx says what a cell measures where this grid will be drawn,
+	   which is the only way a sixel's own pixel size can be turned into
+	   cells -- without it a sixel is not kept at all. imgen changes
+	   whenever the set changes, so a caller can tell "nothing new" from
+	   "send them again" without comparing. image hands over one
+	   picture's corner, the cells it covers, and its own escapes exactly
+	   as the program sent them, to be re-emitted at that corner. */
+	void (*cellpx)(int id, int w, int h);
+	unsigned (*imgen)(int id);
+	int (*images)(int id);
+	int (*image)(int id, int i, int *r, int *c, int *rows, int *cols,
+		     str *out);
 };
 
 #endif

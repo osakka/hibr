@@ -54,6 +54,14 @@ struct hd_cell { unsigned cp, fg, bg, attr, link; };
    which owns mbuf/mst. */
 struct hd_cli {
 	int fd, row, col, rows, cols;
+	/* This client's own terminal in pixels, as its ws_xpixel/ws_ypixel
+	   say: 0 when it does not know, and what hd_cellpx turns into the
+	   cell size the program is told about (ADR 0037, Gitea #103). imgen
+	   is the generation of the emulator's own picture set this client has
+	   been sent, so a settled frame sends no picture twice and a repaint
+	   sends them all. */
+	int xpix, ypix;
+	unsigned imgen;
 	int primed, alt, mmode, msgr, bpaste, cshape;
 	struct hd_cell *front;
 	str mbuf;
@@ -75,6 +83,7 @@ struct hd_cli *hd_cfindname(vec *cls, const char *name);
 int hd_chas(vec *cls, int fd);
 int hd_anyprimary(vec *cls);
 void hd_ubox(vec *cls, int *rows, int *cols);
+void hd_cellpx(vec *cls, int *w, int *h);
 void hd_union(vec *cls, int id, int tid);
 void hd_cclear(vec *cls, const char *why, size_t n);
 void hd_rensend1(vec *cls, struct hd_cli *cn, int tid);
@@ -92,6 +101,8 @@ int hd_recv(int fd, int *type, str *out);
 int hd_dial(const char *path);
 int hd_ask(const char *path, int type, str *reply);
 int hd_askp(const char *path, int type, const char *p, size_t n, str *reply);
+void hd_size(int *sz);
+void hd_sizepx(int *sz);
 void hd_selftitle(const char *what, const char *path);
 void hd_cloexec(int fd);
 

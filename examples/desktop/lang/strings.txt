@@ -258,6 +258,7 @@ Download Whole Messages
 Drafts
 Drag Modifier
 Draw Pictures As
+Drawn Now
 Drop onto Home, a disk, or the trash
 ETag: %s
 Edge Resize

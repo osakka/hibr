@@ -84,6 +84,27 @@ the end of every frame. Before 0.75 all of them were dropped, and before
 tab's title or print a clickable link. A request to read the clipboard is
 not passed on.
 
+A **picture** is the same lesson with a size: a sixel or a kitty
+transmission is a bitmap over a rectangle of cells, and an emulator that
+draws cells drops it. Since 0.99.77 the emulator keeps each one as a region
+(`"terminal"` version 4) and hold re-emits them, each at its own corner,
+after the cells of every frame -- only when the set has changed or a client
+is being painted from scratch, so a still picture costs a settled frame
+nothing, and only to a client whose own rectangle holds the whole picture,
+because a bitmap cannot be clipped. A region goes when something writes a
+cell inside it, which is how a window that closed or moved takes its
+picture with it.
+
+The other half is that a program can only draw pixels at all if it knows
+what a cell measures, and it learns that from `ws_xpixel`/`ws_ypixel` on its
+own terminal -- which, for a held program, is a pty hold made and nobody
+had ever told. A client reports its own with its size, hold picks the
+primary client's (a bitmap is 1:1; there is no second size to draw it at)
+and sets it on the pty. Before 0.99.77 `console gfx` answered `none 0 0`
+inside every held program, so every picture in a desktop -- and
+`dt_autohold` holds them all -- was half blocks whatever the terminal could
+do. Gitea #103, ADR 0037.
+
 ## How it works
 
 `hold new` forks a server that leaves the shell's session with `setsid`,

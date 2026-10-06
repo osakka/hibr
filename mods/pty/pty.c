@@ -30,21 +30,35 @@ tt_p *tt_find(int id)
 	return 0;
 }
 
-/* Tell the kernel how big the terminal is, so the child's SIGWINCH and its
-   own ioctl agree with what the caller is going to draw. */
-int tt_resize(tt_p *p, int rows, int cols)
+/* Tell the kernel how big the terminal is, in cells and in pixels, so the
+   child's SIGWINCH and its own ioctl agree with what the caller is going to
+   draw -- and so a program that wants to put pixels on screen can learn
+   what a cell measures, which is the only way it can (ADR 0037). The pixels
+   are 0 until somebody says, and kept across an ordinary resize. */
+int tt_resizepx(tt_p *p, int rows, int cols, int xpix, int ypix)
 {
 	struct winsize w;
 
 	memset(&w, 0, sizeof w);
 	w.ws_row = (unsigned short)rows;
 	w.ws_col = (unsigned short)cols;
+	w.ws_xpixel = (unsigned short)(xpix > 0 ? xpix : 0);
+	w.ws_ypixel = (unsigned short)(ypix > 0 ? ypix : 0);
 	if (ioctl(p->fd, TIOCSWINSZ, &w) < 0)
 		return 0;
 	p->rows = rows;
 	p->cols = cols;
-	lg(HIBR_LDBG, "pty %d resized to %dx%d", p->id, rows, cols);
+	p->xpix = w.ws_xpixel;
+	p->ypix = w.ws_ypixel;
+	lg(HIBR_LDBG, "pty %d resized to %dx%d cells, %dx%d pixels", p->id,
+	   rows, cols, p->xpix, p->ypix);
 	return 1;
+}
+
+/* The same, keeping whatever pixel size this terminal already had. */
+int tt_resize(tt_p *p, int rows, int cols)
+{
+	return tt_resizepx(p, rows, cols, p->xpix, p->ypix);
 }
 
 /* Open a pseudo terminal and start a program on the far side of it.

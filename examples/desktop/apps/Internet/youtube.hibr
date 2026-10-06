@@ -40,13 +40,18 @@ command -v dt_keepstate > /dev/null && dt_keepstate youtube YT
 declare -gA YR
 
 YT_BASE="${YT_BASE-https://www.youtube.com}"
-YT_MODE="${YT_MODE-half}"
+# How the picture is drawn. `follow` is Control Panel > Pictures, which is
+# the one setting meant to reach every picture the desktop draws (ADR 0037);
+# the rest say outright, for someone who wants this window different from
+# the Image Viewer. A settings file from before 0.99.77 holds `half`, the
+# old default, and cp_setver7 brings that one -- and only that one -- here.
+YT_MODE="${YT_MODE-follow}"
 YT_QUALITY="${YT_QUALITY-tiny}"
 YT_FPS="${YT_FPS-24}"
 YT_DETAIL="${YT_DETAIL-2}"
 YT_AUTONEXT="${YT_AUTONEXT-1}"
 command -v dt_keep > /dev/null && dt_keep YT_MODE YT_QUALITY YT_FPS YT_DETAIL YT_AUTONEXT
-YT_MODES=(half ascii mono pixels)
+YT_MODES=(follow half ascii mono pixels)
 YT_DATA="${YT_DATA-${XDG_DATA_HOME:-$HOME/.local/share}/hibr/youtube}"
 YT_HIST="$YT_DATA/history.tsv"
 YT_FAVS="$YT_DATA/favourites.tsv"
@@ -835,7 +840,7 @@ fn yt_mmss(t) {
 
 # The player: the title, the picture, the bar, the keys.
 fn yt_drawplay(int id, int h, int w) {
-	local p=${YT[$id]["p"]} ph=$((h - 3)) i pos dur lab fill st a b mk=""
+	local p=${YT[$id]["p"]} ph=$((h - 3)) i pos dur lab fill st a b mk="" md pm
 
 	command -v dt_retitle > /dev/null && dt_retitle "$id" "YouTube [${YT[$id]["title"]:0:40}]"
 	console pen "$DT_INK" "$DT_FACE" bold
@@ -852,9 +857,10 @@ fn yt_drawplay(int id, int h, int w) {
 	yt_tick "$id"
 	p=${YT[$id]["p"]}
 	[ -n "$p" ] || return 0
-	if [ "${YT[$id]["sized"]}" != "$w $ph $YT_MODE" ]; then
-		media size "$p" "$w" "$ph" "$YT_MODE"
-		YT[$id]["sized"]="$w $ph $YT_MODE"
+	md := yt_drawmode
+	if [ "${YT[$id]["sized"]}" != "$w $ph $md" ]; then
+		media size "$p" "$w" "$ph" "$md"
+		YT[$id]["sized"]="$w $ph $md"
 	fi
 	media frame "$p"
 	if ! media draw "$p" 2 1 -p "w$id" 2> /dev/null; then
@@ -871,7 +877,12 @@ fn yt_drawplay(int id, int h, int w) {
 	[ "${i["paused"]}" = 1 ] && st="paused"
 	[ "${i["ended"]}" = 1 ] || [ "${YT[$id]["state"]}" = ended ] && st="ended"
 	[ "${YT[$id]["state"]}" = loading ] && st="starting"
-	lab=" $a / $b  $st  vol ${i["volume"]}  ${YT_MODE}"
+	# What is drawn, and -- when it is following Control Panel > Pictures
+	# -- that it is following rather than set: a bar that said only "half"
+	# would not change when the key moved the setting from follow to half.
+	pm=$md
+	[ "$YT_MODE" = follow ] && pm="follow:$md"
+	lab=" $a / $b  $st  vol ${i["volume"]}  ${pm}"
 	fill=0
 	[ "${dur%.*}" -gt 0 ] 2> /dev/null && fill=$(( ${pos%.*} * w / ${dur%.*} ))
 	[ "$fill" -gt "$w" ] && fill=$w
@@ -952,10 +963,39 @@ fn youtube_key(int id, key) {
 	return 0
 }
 
-# The next way of drawing the picture, for every window.
+# The next way of drawing the picture, for every window: through the list
+# the menu offers rather than a second one written out here, which is how
+# `pixels` was missing from this key for a release.
 yt_mode() {
-	case $YT_MODE in half) YT_MODE=ascii ;; ascii) YT_MODE=mono ;; *) YT_MODE=half ;; esac
+	local i=0 n=${#YT_MODES[@]}
+
+	while [ "$i" -lt "$n" ]; do
+		if [ "${YT_MODES[$i]}" = "$YT_MODE" ]; then
+			YT_MODE=${YT_MODES[$(( (i + 1) % n ))]}
+			break
+		fi
+		i=$((i + 1))
+	done
+	[ "$i" -lt "$n" ] || YT_MODE=${YT_MODES[0]}
 	command -v dt_save > /dev/null && dt_save
+}
+
+# What media is actually given. YT_MODE says outright unless it is `follow`,
+# and then it is Control Panel > Pictures -- the one setting meant to reach
+# every picture the desktop draws (ADR 0037). `auto` there means pixels
+# where the terminal can place them and blocks where it cannot, which is
+# dt_imgpix's question; media has no `auto` of its own, so it is answered
+# here rather than passed on.
+fn yt_drawmode() {
+	local m=$YT_MODE
+
+	[ "$m" = follow ] && m=${DT_IMGMODE:-auto}
+	case $m in
+	pixels | sixel) ret pixels ;;
+	half | mono | ascii) ret "$m" ;;
+	esac
+	command -v dt_imgpix > /dev/null && dt_imgpix && ret pixels
+	ret half
 }
 
 fn youtube_click(int id, int r, int c, btn = "") {
@@ -1123,14 +1163,15 @@ fn yt_mini(int id) {
 # Draw the mini player: the picture filling the window, or the title
 # while it loads.
 fn yt_drawmini(int id, int h, int w) {
-	local p
+	local p md
 
 	yt_tick "$id"
 	p=${YT[$id]["p"]}
 	if [ -n "$p" ]; then
-		if [ "${YT[$id]["sized"]}" != "$w $h $YT_MODE" ]; then
-			media size "$p" "$w" "$h" "$YT_MODE"
-			YT[$id]["sized"]="$w $h $YT_MODE"
+		md := yt_drawmode
+		if [ "${YT[$id]["sized"]}" != "$w $h $md" ]; then
+			media size "$p" "$w" "$h" "$md"
+			YT[$id]["sized"]="$w $h $md"
 		fi
 		media frame "$p"
 		media draw "$p" 0 0 -p "w$id" 2> /dev/null && return 0
