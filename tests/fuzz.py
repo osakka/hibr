@@ -22,7 +22,7 @@ def mutate(b):
 found = 0; hangs = 0
 for n in range(rounds):
     data = mutate(random.choice(seeds))
-    path = '/tmp/nsh-fuzz-%d.t' % n
+    path = '/tmp/nsh-fuzz-%d-%d.t' % (os.getpid(), n)
     open(path,'wb').write(data)
     try:
         r = subprocess.run([nsh,'-n',path], capture_output=True, timeout=3)

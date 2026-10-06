@@ -72,6 +72,12 @@ display sends only the cells that changed, so grepping the byte stream finds
 copies of that and five of the model, differing in timings, so fixing one
 fixed one. Do not write a seventh; add what is missing to `screen.py`.
 
+It also names scratch files: `screen.scratch("desktop-rsz.hibr")` puts this
+process's own pid in the name. `all.py` and `asan.py` run side by side in
+the release gate, so two copies of a suite are live at once, and a fixed
+name means one unlinks the file the other was about to be started on --
+which fails only in a gate and reads as a check about something else.
+
 **It waits for the program, not for the clock.** A desktop run with
 `HIBR_TESTIDLE` set -- every `Term` sets it -- prints an escape a terminal
 ignores each time a frame is on screen and it is about to wait, carrying how

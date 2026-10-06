@@ -14,6 +14,13 @@ struct image {
 };
 
 void im_free(image *im);
+/* How big a picture is, from its header rather than by decoding it: 1 with w
+   and h filled in (a JPEG's turned by its own EXIF orientation, as the
+   decoder turns the pixels), 0 for a file whose header we do not know, which
+   the caller then decodes. */
+int im_hdrsize(const char *path, int *w, int *h);
+/* jpeg.c: the EXIF orientation a JPEG declares, 1 to 8. */
+int jp_orient(const unsigned char *b, size_t n);
 int im_pngload(const char *path, image *out, str *err);
 int im_pngmem(const unsigned char *b, size_t n, image *out, str *err);
 int im_jpegload(const char *path, image *out, str *err);

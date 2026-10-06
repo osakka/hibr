@@ -197,7 +197,13 @@ check("text drawn through it leaves no picture behind",
 # client sees one placement or two is hold's own timing; what must hold
 # either way is that it is never left holding the one that has gone.
 sc, log = run(PIC + "console key 1200\n"
-              "img draw %s 12 20 6 12 -m pixels\nconsole flush\n" % GRAD
+              # A window moving is the picture placed somewhere else *and*
+              # the cells it used to cover drawn through, which is what makes
+              # the console drop the old region. Drawing a second picture
+              # without disturbing the first is two pictures, and both
+              # rightly stay.
+              "img draw %s 12 20 6 12 -m pixels\n" % GRAD
+              + "console put 3 3 'GONE'\n"
               + "console put 1 0 'MOVED'\nconsole flush\n", until="MOVED")
 check("a picture that moves leaves nothing where it was",
       "MOVED" in sc.row(1) and

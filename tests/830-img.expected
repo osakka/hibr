@@ -23,3 +23,9 @@ hibr: FILE: not an 8-bit binary PPM this reads
 hibr: FILE: not an 8-bit binary PPM this reads
 hibr: img: -o takes ppm
 bad -o: 2
+--- size from the header
+40 4
+2 2
+32 32
+16 32
+neither a PNG, a JPEG nor a PPM

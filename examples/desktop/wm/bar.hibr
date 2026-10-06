@@ -143,10 +143,23 @@ fn dt_bellglyph(style) {
 # A time in a strftime format, as the bar draws it: epoch seconds, or -1
 # for now. Leading blanks go, so %l's space-padded hour does not leave a
 # gap against the bell.
+# The last answer and what it was for, because the bar asks for this on
+# every frame and it can change at most once a second -- while the Hijri
+# codes (ADR 0034) cost three module calls, 2.4 ms together, to say what
+# changes once a day.
+DT_CLOCKKEY=
+DT_CLOCKWAS=
+
 fn dt_clocktext(fmt, int when) {
-	local out f=$fmt t=$when wd mo n s
+	local out f=$fmt t=$when wd mo n s key
 
 	[ "$t" -lt 0 ] && t=$EPOCHSECONDS
+	# Everything the answer depends on, so a language, calendar or
+	# adjustment change is not answered from a stale one.
+	key="$t|$fmt|$DT_HCAL|$DT_HADJ|$DT_LANGON|$DT_DIGITS"
+	if [ "$key" = "$DT_CLOCKKEY" ]; then
+		ret "$DT_CLOCKWAS"
+	fi
 	# Names in the language chosen: the catalogue's, put in before
 	# strftime sees the format, %% kept as it is.
 	if [ -n "$DT_LANGON" ] && [[ $f == *%[AaBb]* ]]; then
@@ -185,6 +198,8 @@ fn dt_clocktext(fmt, int when) {
 	esac
 	while [ "${out:0:1}" = " " ]; do out=${out:1}; done
 	[ "$DT_DIGITS" = arabic ] && out := dt_digits "$out"
+	DT_CLOCKKEY=$key
+	DT_CLOCKWAS=$out
 	ret "$out"
 }
 

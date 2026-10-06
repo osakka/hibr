@@ -259,6 +259,17 @@ DT_SETVER="${DT_SETVER-}"
 # press or a release always redraws regardless -- only a drag report can
 # be skipped, and only while another one immediately follows it.
 DT_DRAWSKIP="${DT_DRAWSKIP-0}"
+# The shortest gap, in milliseconds, between two frames that nothing a
+# person did asked for -- a program writing in a terminal window, or a
+# timer. A frame redraws every window, the bar and the wallpaper, which at
+# a large size is several milliseconds; a program that writes in small
+# bursts (a spinner in a title, a session streaming its output) asks for
+# one per burst, and three such programs had a real desktop drawing about
+# seventy frames a second and spending half a core on it. 33 is thirty
+# frames a second, which is smooth to watch; 0 turns the limit off and
+# draws on every burst as before. A key or a mouse report is never held
+# back by this, so nothing a person does feels slower.
+DT_TERMMS="${DT_TERMMS-33}"
 # What Cycle (alt-tab) goes through: the windows of this workspace, or of
 # every workspace, going to whichever one the next window is on.
 DT_CYCLE="${DT_CYCLE-workspace}"
@@ -275,7 +286,7 @@ DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 	DT_MSHADOW DT_BARSHADOW DT_DBLACTION DT_SHADOW_PCT CS_SIDE CS_Y
 	CS_COLLAPSED CS_LEN CS_SHADOW
 	DT_FRAME DT_TITLEBAR DT_BTNSIDE DT_TITLEALIGN DT_BTNSTYLE DT_CHECKS DT_THEMECHECKS DT_EDGERESIZE
-	DT_DRAGMOD DT_DRAGKEY DT_DRAWSKIP DT_CYCLE DT_NOTEMS DT_NOTEPOS DT_NOTECOUNT DT_SHOTDIR DT_SHOTFMT DT_SHOTLAST DT_OPENWITH DT_TERMHERE DT_CLIPKEEP DT_CLIPMAX DT_BARTIME
+	DT_DRAGMOD DT_DRAGKEY DT_DRAWSKIP DT_TERMMS DT_CYCLE DT_NOTEMS DT_NOTEPOS DT_NOTECOUNT DT_SHOTDIR DT_SHOTFMT DT_SHOTLAST DT_OPENWITH DT_TERMHERE DT_CLIPKEEP DT_CLIPMAX DT_BARTIME
 	DT_BARGAP DT_BELLICON DT_BTNSHADOW DT_DLGBTN DT_TERMKEEP DT_TERMCTRL DT_GLYPHSET DT_PLACE DT_WSN DT_TILEMAIN DT_STANDBYAUTO DT_SETVER)
 
 # Where the desktop's stderr goes while it holds the screen, so an app's

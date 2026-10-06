@@ -48,3 +48,15 @@ printf 'P6\n99999 2\n255\n' > "$p"; img -w 2 -h 1 "$p" 2>&1 | sed 's|/tmp/[^:]*|
 printf 'P6\n2 2\n65535\n' > "$p"; img -w 2 -h 1 "$p" 2>&1 | sed 's|/tmp/[^:]*|FILE|'
 img -o gif tests/img-2x2.png 2>&1; echo "bad -o: $?"
 rm -f "$p"
+
+# img size reads the header rather than decoding: the desktop's wallpaper
+# asks on every change of screen size, and a full decode of a 3840x2160
+# photograph to answer with two integers took 206 ms (Gitea #105). A JPEG's
+# own EXIF orientation is applied, so this and `img draw` agree about a
+# rotated one.
+echo "--- size from the header"
+img size tests/img-wide.png
+img size tests/img-2x2.png
+img size tests/img-quad.jpg
+img size tests/img-rot6.jpg
+img size /dev/null 2>&1 | sed 's/.*: //'

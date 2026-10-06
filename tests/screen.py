@@ -54,6 +54,18 @@ def tree(p):
     return p if os.path.isabs(p) else os.path.join(ROOT, p)
 
 
+def scratch(nm):
+    """A scratch path under /tmp that no other process shares.
+
+    tests/all.py and tests/asan.py run side by side in the release gate, so
+    two copies of the same suite are live at once: a fixed name meant one
+    unlinked the file the other was about to be started on, and the second
+    died with "no such file" in a check about something else entirely.
+    """
+    r, e = os.path.splitext(nm)
+    return "/tmp/hibr-%s-%d%s" % (r, os.getpid(), e)
+
+
 class Screen:
     """Enough of a terminal to answer "what is at row r, column c".
 
@@ -282,6 +294,19 @@ class Term:
             # desktop still comes up looking entirely normal, and every
             # hold-dependent check fails confusingly far from this cause.
             os.environ.pop("HIBR_HOLD", None)
+            # And the same for what a *desktop* exports. A suite is often
+            # run from a terminal window inside a running desktop -- that is
+            # how this was found, three supervisor checks failing on code
+            # whose own gate had passed them hours earlier, because the
+            # shell they ran from had DT_SUPERVISED=1 from the desktop it
+            # was a window of. Every desktop the harness then started
+            # believed it was already supervised, never started a
+            # supervisor, and the check that kills one and waits for it to
+            # come back waited for ever. DT_RESTORE is the same shape: a
+            # restart's own snapshot path, which would make a fresh session
+            # restore somebody else's windows.
+            for v in ("DT_SUPERVISED", "DT_RESTORE", "DT_T0"):
+                os.environ.pop(v, None)
             # Who orders right-to-left text is decided from what the
             # terminal says it is (DT_BIDI=auto), so a suite run from kitty
             # would draw Arabic differently from one run anywhere else. The

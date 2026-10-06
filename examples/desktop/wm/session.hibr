@@ -227,7 +227,7 @@ DT_RSTILL=150
 DT_TESTIDLE=${HIBR_TESTIDLE-}
 
 dt_run() {
-	local k rsz=0 last now pk= skipn=0 frames=0
+	local k rsz=0 last now pk= skipn=0 frames=0 lastdraw=0
 
 	dt_runatstart
 	while [ "$DT_QUIT" = 0 ]; do
@@ -249,11 +249,29 @@ dt_run() {
 			   [ "$skipn" -lt "$DT_DRAWSKIP" ]; then
 				skipn=$((skipn + 1))
 			else
-				dt_draw
-				dt_autoclose
-				skipn=0
-				frames=$((frames + 1))
-				[ "$frames" = 1 ] && dt_tdone
+				now := dt_ms
+				# A wake with no key behind it is a program
+				# writing in a window, or a timer: those are
+				# held to DT_TERMMS apart, because a frame
+				# redraws the whole screen and a program
+				# writing in small bursts -- a spinner, a
+				# streaming session -- otherwise asks for one
+				# per burst. A key or a mouse report always
+				# draws at once, so nothing a person does
+				# waits for this.
+				if [ -z "$k" ] && [ "$frames" -gt 0 ] &&
+				   [ "$DT_TERMMS" -gt 0 ] &&
+				   [ $((now - lastdraw)) -lt "$DT_TERMMS" ]; then
+					dt_drain
+					dt_want $((DT_TERMMS - now + lastdraw))
+				else
+					dt_draw
+					dt_autoclose
+					skipn=0
+					frames=$((frames + 1))
+					[ "$frames" = 1 ] && dt_tdone
+					lastdraw=$now
+				fi
 			fi
 		fi
 		dt_updcheck

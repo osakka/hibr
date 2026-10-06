@@ -1,5 +1,144 @@
 # Changelog
 
+## 0.99.79
+
+**The wallpaper is a picture** (Gitea #104). It never had been, on any
+terminal: a region that owns its cells is dropped the moment they change,
+and the wallpaper is placed first and then drawn over by the bar, every
+window and the icons -- so it was dropped before the first flush ever sent
+it, and every desktop fell back to half blocks however much the terminal
+could do. `img draw -u` is the path 0.99.78 prepared: the picture owns no
+cells, goes out before the text of each frame, and is kept for as long as
+the desktop keeps placing it.
+
+`dt_wall` also blanks the cells it is about to cover, with no colours of
+their own. Both halves of that matter: a bitmap writes no cells, so last
+frame's text would stay on top of it, and a cell with a background colour
+paints over a picture the terminal is compositing below the glyphs -- the
+wallpaper-glyph fill that used to stand in for a picture would have hidden
+the picture itself.
+
+What it costs is the protocol's rather than a choice, measured on a 70x24
+screen with 8x16 cells while dragging a window across the wallpaper:
+
+| | sent | on a drag |
+|---|---|---|
+| kitty | one placement, 860 kB | nothing |
+| sixel | one bitmap, 24 kB | 24 kB again |
+
+kitty composites the picture below the text, so it is transmitted once and
+nothing above it disturbs it. A sixel is paint: a cell written over it has
+destroyed that much, so the bitmap goes again whenever anything above it
+moves. Both work; only one is free.
+
+Checked at three levels: `tests/kitgfx.py` and `tests/sixel.py` for what the
+flag does to a region (sent once against painted again, and the frame that
+stops placing it taking it away), and `tests/desktop.py` for the thing
+itself -- one picture at the top left of a real desktop, the bar and a
+window still text over it, and nothing sent as a bitmap when the setting
+asks for blocks.
+
+**`read` and `mapfile` read a block at a time** (Gitea #105). A shell `read`
+must not consume a byte the next command wants, so it read **one byte a
+syscall**: `while read -r l; do :; done` over a 950 kB file made 948,892
+read calls and spent 0.30 s of its 0.50 s in the kernel. A descriptor that
+can be seeked can be put back, which is how `src/main.c` has always read a
+script -- a block, the newline, `lseek` back -- and `bi_rddelim` is now that,
+shared by both builtins:
+
+| | before | after |
+|---|---|---|
+| `while read` over 950 kB | 948,892 reads, 0.502 s | 20,002 reads, 0.066 s |
+| `mapfile -t` over the same | 948,892 reads | 234 reads, 0.021 s |
+| an idle desktop | 515 reads a second | 22 |
+
+A pipe, a socket and a terminal are still read a byte at a time, because
+nothing can be put back on them, and `read -n` still stops exactly where it
+should on either. The desktop's own mount scan for disk icons read
+`/proc/mounts` that way on every scan, which on a machine with a long mount
+table was thousands of syscalls each time.
+
+**`img size` reads the header instead of decoding the picture** (Gitea
+#105). It called the full decoder to answer with two integers: 206 ms for
+the 3840x2160 photograph on this machine's own desktop, which `dt_wallfit`
+asks for on every change of screen size. It is 0.01 ms now -- a PNG says
+its size in the IHDR after the signature, a JPEG in whichever SOF marker
+opens its frame -- and a JPEG's own EXIF orientation is applied to the
+answer, so `img size` and `img draw` agree about a photograph from a phone
+rather than disagreeing by a quarter turn. A header this does not
+understand still decodes.
+
+And the resampled grids are evicted least recently **used** rather than
+round-robin: four other pictures drawn in a frame could between them throw
+out a wallpaper redrawn on every one of them, which then paid the whole
+decode again. A use stamp costs an integer a slot.
+
+**A frame costs a third less, and the clock is not recomputed on every one
+of them.** Measured at 220x62 with three terminal windows, a warm frame was
+8.76 ms and is 6.21 ms. Nearly all of the difference is `dt_clocktext`:
+the bar asks it for the time on every frame, and a format with the Hijri
+codes in it (ADR 0034) answered through three module calls -- `need hcal`,
+`hcal info`, `hcal format` -- for 2.38 ms, to say what changes once a day.
+It keeps its last answer and what that answer depended on (the second, the
+format, the calendar, the adjustment, the language, the digits), so the
+most it can be worked out is once a second: 0.02 ms, and `dt_bar` went
+from 5.30 ms to 2.79.
+
+What is left of a frame, for whoever looks next: `dt_bar` 2.9 ms, the
+wallpaper 1.4, every window 0.7, the flush 0.2. The bar is one row and it
+is the most expensive thing in the frame because it is composed and drawn
+again every time; the Control Strip, which draws into a pane of its own and
+is only rebuilt when it changes, costs 0.01 ms. A bar in a pane is the next
+real saving.
+
+**A frame nothing a person did asked for is held to `DT_TERMMS`** (33 ms,
+thirty a second; 0 turns it off, Control Panel > Desktop > Frames For
+Output). A frame redraws every window, the bar and the wallpaper, and a
+program writing in small bursts -- a spinner in a title, a session
+streaming its output -- asks for one per burst: a real desktop with three
+such programs was drawing tens of frames a second and spending half a core
+on it. A key or a mouse report is never held back, so nothing a person does
+feels slower, and a held frame still *drains* every window's own program
+(`dt_drain`), because a watched descriptor nobody reads stays ready and
+skipping the read would turn a held frame into a spin. Honestly: the gain
+is bounded by construction and the desktop here could not be made to draw
+faster than 12 frames a second to show it off, so this is a limit rather
+than a measured saving.
+
+**hold sends a client only the pictures that changed.** It re-placed every
+picture it was holding whenever any one of them changed, so a viewer's own
+picture moving re-sent an 860 kB wallpaper with it -- which is what made
+pixels unusable over a slow link, reported from a remote kitty. Each client
+now carries the id and a hash of the bytes last sent for each picture: one
+whose bytes have not changed is not sent again, and an id the session no
+longer has gets a delete of its own rather than everything being deleted
+and placed again. Measured on a wallpaper plus a small picture changed
+twice: 3 placements where it used to be 6, and no delete at all, since a
+picture replaced in the same rectangle keeps its id and a transmission with
+that id replaces it.
+
+**The harness leaked the desktop it was run from, and shared its scratch
+files** (Gitea #106). `tests/screen.py` strips `HIBR_HOLD` so a suite run
+inside a held desktop does not attach to it, and it strips `DT_SUPERVISED`,
+`DT_RESTORE` and `DT_T0` now for the same reason: a suite run from a
+terminal window *inside* a running desktop started every test desktop with
+`DT_SUPERVISED` already set, so each believed it was already supervised,
+none started a supervisor, and the checks that kill a desktop and wait for
+it to come back failed -- on the released tag too, hours after that tag's
+own gate had passed them, which is what an environment leak looks like:
+same code, same box, different shell. Four checks across `desktop`, `vault`
+and `calapp` were that one variable.
+
+And every scratch file a suite writes is named after its own process, by
+`screen.scratch`. all.py and asan.py run side by side in the gate, so two
+copies of a suite are live at once, and `tests/desktop.py` still had
+thirteen fixed `/tmp` names and a marker file: this release's own gate
+caught one, where a run unlinked `/tmp/hibr-desktop-mshadow.hibr` as the
+other was about to start a desktop on it, and the suite died at a check
+about a menu's shadow with the other copy's clean-up in the traceback.
+`run()` in the same file had used the pid since the beginning; the helpers
+written beside it had not.
+
 ## 0.99.78
 
 **A picture that goes is taken off the screen, in a held desktop too.**

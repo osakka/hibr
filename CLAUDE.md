@@ -2076,6 +2076,61 @@ went in the shell.
   is wider than a dialog and none of what a person needs: the login box
   showed a truncated URL and no reason at all. `dt_vwwhy` drops a leading
   address, and the test asserts on the server's own words.
+- **A suite run from inside a desktop inherits its exported variables.**
+  `tests/screen.py` strips `HIBR_HOLD` for exactly this reason and did not
+  strip `DT_SUPERVISED`, which `dt_supervise` exports -- so a suite run
+  from a terminal window *inside* a running desktop started every test
+  desktop with it already set, each one believed it was already
+  supervised, none started a supervisor, and the three checks that kill a
+  desktop and wait for it to come back failed. They failed on the released
+  tag too, hours after that same tag's own gate had passed them, which is
+  what an environment leak looks like: same code, same box, different
+  shell. `DT_RESTORE` and `DT_T0` are stripped with it. Four checks across
+  three suites (desktop, vault, calapp) were this one variable.
+- **The bar is recomposed on every frame, and the clock in it was computed
+  there too.** A warm frame at 220x62 was 8.76 ms, of which `dt_bar` was
+  5.30 and `dt_clocktext` 2.38 -- the Hijri codes in a bar format (ADR
+  0034) answer through `need hcal`, `hcal info` and `hcal format`, three
+  module calls, for something that changes once a day. `dt_clocktext` keeps
+  its last answer against everything it depends on, so it runs at most once
+  a second (0.02 ms), and the frame is 6.21 ms. What remains is the bar
+  itself: 2.9 ms to compose and draw one row, against the Control Strip's
+  0.01 ms, because the strip draws into a pane the console tracks damage
+  for and is rebuilt only when it changes. A bar in a pane is the next
+  saving, and the reason it has not been done is that the bar's own click
+  columns and the drop-down menus drawn over it are absolute, so it is a
+  real change rather than a move.
+- **A shell `read` must not consume a byte the next command wants, which
+  is why it read one byte a syscall -- and a seekable descriptor can be put
+  back.** `while read -r l; do :; done < file` over a 950 kB file made
+  **948,892** read calls, 0.30 s of it in the kernel; `mapfile` the same.
+  `src/main.c`'s own `in_line` had always done it properly for scripts --
+  read a block, find the newline, `lseek` back to just past it -- and
+  `bi_rddelim` is that, shared by `read` and `mapfile`: 20,002 calls and
+  0.066 s for the same loop, 234 calls for the same `mapfile`. A pipe, a
+  socket and a terminal still go a byte at a time, because nothing can be
+  put back on them. The desktop felt this on every frame: its own mount
+  scan read `/proc/mounts` a byte at a time, which on a machine with a long
+  mount table was thousands of syscalls a scan -- an idle desktop went from
+  515 reads a second to 22. Anything else in this tree that reads a byte at
+  a time from a descriptor that might be a file is worth the same look
+  (`src/net.c`'s line reader is a socket, so it cannot be).
+- **The wallpaper is a picture under the text, and a background colour
+  would hide it.** A region that owns its cells is dropped the moment they
+  change, and the wallpaper is placed first and then drawn over by the bar,
+  every window and the icons -- so until 0.99.79 it was dropped before the
+  first flush ever sent it, and no desktop had ever shown a wallpaper as
+  pixels, on sixel either (Gitea #104). `img draw -u` (`DP_IMG_UNDER`) is
+  the path: such a picture owns no cells, goes out before the text, and is
+  kept while its caller keeps placing it -- the first frame that does not
+  takes it away. Two things that look optional and are not: the cells it
+  covers are blanked with *no colours of their own* first, because a bitmap
+  writes no cells (last frame's text would stay on top) and because a cell
+  with a background colour paints over a picture the terminal composites
+  below the glyphs -- the wallpaper-glyph fill that used to stand in for a
+  picture would have hidden it; and the cost is the protocol's, not a
+  choice (kitty: one placement, 860 kB, nothing again when a window is
+  dragged over it; sixel: 24 kB, and 24 kB again on every drag frame).
 - **A bitmap is not cells, so the console owns it.** A picture placed with
   `dp->image` becomes a region: the console encodes it once, skips the cells
   it covers in the diff, keeps it until the cells underneath stop matching
@@ -2221,14 +2276,18 @@ went in the shell.
   that comes from a session (a `run` or a `check`) is never copied to
   another part, so a section must make what it reads, as before.
 - **A suite's scratch file is named after this process, not after the
-  suite.** `tests/all.py` and `tests/asan.py` run side by side in the
-  release gate, so two copies of the same suite are live at once: a fixed
-  `/tmp/hibr-desktop-dblclick.hibr` meant one unlinked the file the other
-  was about to be started on, and the second died with "no such file" in a
-  check about double clicking. `run()` in the same file had used
-  `os.getpid()` since the beginning; the newer helper beside it had not.
-  It failed only in a gate, never alone, which is what a shared path looks
-  like.
+  suite**, by `screen.scratch`. `tests/all.py` and `tests/asan.py` run side
+  by side in the release gate, so two copies of the same suite are live at
+  once: a fixed `/tmp/hibr-desktop-dblclick.hibr` meant one unlinked the
+  file the other was about to be started on, and the second died with "no
+  such file" in a check about double clicking. `run()` in the same file had
+  used `os.getpid()` since the beginning; the newer helper beside it had
+  not -- and thirteen more fixed names were still there in 0.99.79, one of
+  which (the menu shadow's) failed a gate the same way, which is why the
+  pid now comes from one helper rather than from each caller remembering.
+  A marker file a test's own script writes needs it too: one copy unlinked
+  `/tmp/hibr-dt-closed` and the other then checked for it. It failed only
+  in a gate, never alone, which is what a shared path looks like.
 - **The `.expected` file is named after the test, not the test file.**
   `tests/830-img.t`'s own recorded file is `tests/830-img.expected` --
   `tests/830-img.t.expected` does not error, it just never matches

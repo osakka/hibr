@@ -42,6 +42,23 @@ dt_idle() {
 	DT_NOTEWIN=
 }
 
+# Read what every window's own program has written and draw nothing: the
+# same calls dt_idle makes, for every window rather than only the ones no
+# frame draws. A frame held back to keep the rate down must still do this,
+# because a watched descriptor nobody reads stays ready -- so skipping the
+# read as well as the drawing would turn a held frame into a spin, which is
+# the opposite of the point.
+dt_drain() {
+	local id
+
+	for id in "${!DT[@]}"; do
+		[ -n "${DT[$id]["idle"]}" ] || continue
+		DT_NOTEWIN=$id
+		${DT[$id]["idle"]} "$id"
+	done
+	DT_NOTEWIN=
+}
+
 dt_draw() {
 	local l id ls in
 

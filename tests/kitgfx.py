@@ -189,14 +189,34 @@ sc = run("g := console gfx\nconsole put 0 0 \"[$g]\"\nconsole flush\n"
 check("and says sixel where that is what is in force",
       "[sixel 8 16]" in sc.row(0), sc.row(0))
 
-# The one caller of DP_IMG_UNDER is a page drawn with its text on top, which
-# the browser no longer asks for (ADR 0037) -- the flag is still the display's
-# contract, so the console still has to place such a picture below the glyphs
-# rather than above them. The web module is what would use it; here the check
-# is on the escape, through a page the browser draws as cells.
 sc = run(TEXT + PIC % "-m pixels" + "console flush\nconsole key 400\n")
 check("a picture that owns its cells is not asked to go under the text",
       len(places(sc)) == 1 and key(places(sc)[0], "z") is None, places(sc))
 
+# A picture under the text (img draw -u, which the wallpaper uses): text in
+# the *same* frame would otherwise drop it before it was ever sent, since a
+# region that owns its cells is gone the moment they change. Under the text
+# it owns none, goes out first, and asks to be drawn below the glyphs -- and
+# because the terminal composites it there, nothing re-sends it when the text
+# above it moves. That is the whole difference from sixel, which has to paint
+# again (tests/sixel.py has that side).
+UPIC = "img draw %s 2 2 6 12 -m pixels -u\n" % GRAD
+sc = run(TEXT + UPIC + "console put 3 3 'OVER'\nconsole flush\n"
+         "console key 400\n")
+p = places(sc)
+check("a picture under the text survives text drawn over it in one frame",
+      len(p) == 1 and key(p[0], "z") == "-1", (p, sc.row(3)))
+check("and the text is there, on top of it", "OVER" in sc.row(3), sc.row(3))
+sc = run(TEXT + UPIC + "console flush\n"
+         + UPIC + "console put 3 3 'OVER'\nconsole flush\n"
+         + UPIC + "console put 1 0 'AGAIN'\nconsole flush\nconsole key 400\n")
+check("placed again each frame it is sent once, whatever moves above it",
+      len(places(sc)) == 1 and "AGAIN" in sc.row(1), (places(sc), sc.row(1)))
+sc = run(TEXT + UPIC + "console flush\n"
+         "console put 1 0 'GONE'\nconsole flush\nconsole key 400\n")
+check("and the frame that stops placing it is what takes it away",
+      len(places(sc)) == 1 and any("a=d" in a and "d=I" in a
+                                   for a in sc.apc), sc.apc)
+
 shutil.rmtree(D, True)
-report(23)
+report(27)

@@ -58,6 +58,18 @@ def waitfor(t, text, secs=8.0):
             return sc
 
 
+def clipn(t, n, secs=8.0):
+    """Wait until the clipboard has been set more than n times, and give back
+    the whole list. Waiting for the *note* instead ("Copied") is what made
+    two of these checks fail under the sanitizers in a parallel run: the note
+    from the copy before is still on screen, so the wait returns at once and
+    the check reads the clipboard before the copy it is about has happened."""
+    end = time.time() + secs * SLOW
+    while len(clips(t)) <= n and time.time() < end:
+        look(t, 0.3)
+    return clips(t)
+
+
 def clips(t):
     """What the desktop has put on the terminal's clipboard, in order."""
     return [base64.b64decode(m.group(1)).decode("utf8", "replace")
@@ -98,14 +110,17 @@ try:
         sc = waitfor(t, "Copied")
         check("enter copies the password to the terminal's clipboard",
               "s3crét-mail" in clips(t), clips(t))
-        t.keys([b"\t", b"\t", b"\r"])
-        waitfor(t, "Copied")
-        check("the Username button copies the username", clips(t)[-1:] == ["pat"], clips(t))
         n = len(clips(t))
-        time.sleep(3)
-        look(t, 0.8)
+        t.keys([b"\t", b"\t", b"\r"])
+        c = clipn(t, n)
+        check("the Username button copies the username", c[-1:] == ["pat"], c)
+        # DT_VWCLEAR=2, and the ticker that clears it runs after a frame --
+        # so this waits for the clipboard to be set again, with nothing in
+        # it, rather than for two seconds to have passed.
+        n = len(c)
+        c = clipn(t, n, 12.0)
         check("a copied secret leaves the clipboard when its time is up",
-              len(clips(t)) > n and clips(t)[-1] == "", clips(t))
+              len(c) > n and c[-1] == "", c)
         hist = open(CLIPFILE).read() if os.path.exists(CLIPFILE) else ""
         check("and never reaches the clipboard history", "s3cr" not in hist and "pat" not in hist, hist)
         # F10 opens the menu bar on the hibr menu; one right arrow is File.

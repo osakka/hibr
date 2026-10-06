@@ -332,9 +332,15 @@ static int im_cat(sh *s, int ac, char **av)
    wallpaper and a window's own preview both call it, with different
    files, in the same frame -- a single slot thrashed between the two,
    paying for a full decode and resample of each on every single frame
-   instead of caching either. IM_CACHEN slots, evicted round-robin (oldest
-   first, no recency bookkeeping needed for a handful of concurrent
-   callers). Each slot's own previous grid is freed before it is reused,
+   instead of caching either. IM_CACHEN slots, and the one evicted is the one
+   least recently *used* rather than the one longest in the cache:
+   round-robin threw out whatever was next in line, so four other pictures
+   drawn in the same frame could between them evict a wallpaper that is
+   redrawn on every frame, and it then paid a full decode again -- 268 ms
+   for a 3840x2160 photograph, which is a fifth of a core at one miss a
+   second (Gitea #105). A use stamp costs one integer a slot and makes the
+   picture drawn every frame the last thing any of them would throw away.
+   Each slot's own previous grid is freed before it is reused,
    never accumulated, the same shape the single-entry version already
    was. ASan's leak detector cannot see a dlopen'd, tcc-built .so's own
    static data as a root to scan from, so the slots still live at process
@@ -346,9 +352,10 @@ static struct {
 	char *path;
 	int rows, cols;
 	time_t mtime;
+	unsigned used;
 	cell *grid;
 } im_cache[IM_CACHEN];
-static int im_cachei;
+static unsigned im_cacheu;
 
 static int im_cached(const char *path, int rows, int cols, cell **out)
 {
@@ -363,16 +370,31 @@ static int im_cached(const char *path, int rows, int cols, cell **out)
 			continue;
 		if (im_cache[i].mtime != st.st_mtime)
 			continue;
+		im_cache[i].used = ++im_cacheu;
 		*out = im_cache[i].grid;
 		return 1;
 	}
 	return 0;
 }
 
+/* The slot to reuse: an empty one, or the one used longest ago. */
+static int im_cacheold(void)
+{
+	int i, old = 0;
+
+	for (i = 0; i < IM_CACHEN; i++) {
+		if (!im_cache[i].path)
+			return i;
+		if (im_cache[i].used < im_cache[old].used)
+			old = i;
+	}
+	return old;
+}
+
 static void im_cache_store(const char *path, int rows, int cols, cell *grid)
 {
 	struct stat st;
-	int i = im_cachei;
+	int i = im_cacheold();
 
 	free(im_cache[i].path);
 	free(im_cache[i].grid);
@@ -381,7 +403,7 @@ static void im_cache_store(const char *path, int rows, int cols, cell *grid)
 	im_cache[i].cols = cols;
 	im_cache[i].grid = grid;
 	im_cache[i].mtime = stat(path, &st) == 0 ? st.st_mtime : 0;
-	im_cachei = (im_cachei + 1) % IM_CACHEN;
+	im_cache[i].used = ++im_cacheu;
 }
 
 /* img draw file row col h w [-g] [-p pane] -- blit directly into the open
@@ -397,7 +419,7 @@ static int im_draw(sh *s, int ac, char **av)
 {
 	const dp_api *dp;
 	const char *path, *pane = 0;
-	int row, col, rows, cols, gray = 0, mode = IM_AUTO;
+	int row, col, rows, cols, gray = 0, mode = IM_AUTO, under = 0;
 	int prow = 0, pcol = 0, ph = 0, pw = 0;
 	image im;
 	str err;
@@ -405,7 +427,8 @@ static int im_draw(sh *s, int ac, char **av)
 	int r, c, i;
 
 	if (ac < 7) {
-		lg(HIBR_LERR, "usage: img draw file row col h w [-g] [-m mode] [-p pane]");
+		lg(HIBR_LERR, "usage: img draw file row col h w [-g] [-m mode] "
+			      "[-p pane] [-u]");
 		return 2;
 	}
 	path = av[2];
@@ -420,6 +443,8 @@ static int im_draw(sh *s, int ac, char **av)
 			mode = im_mode(av[++i]);
 		else if (!strcmp(av[i], "-p") && i + 1 < ac)
 			pane = av[++i];
+		else if (!strcmp(av[i], "-u"))
+			under = 1;
 	}
 	if (gray)
 		mode = IM_ASCII;
@@ -470,7 +495,10 @@ static int im_draw(sh *s, int ac, char **av)
 				px = xm((size_t)iw * ih * 3);
 				im_scale(&im, px, iw, ih);
 				im_free(&im);
-				done = dp->image(s, pane, row, col, rows, cols, px, iw, ih, DP_IMG_CHOSEN);
+				done = dp->image(s, pane, row, col, rows, cols,
+						 px, iw, ih,
+						 DP_IMG_CHOSEN |
+						 (under ? DP_IMG_UNDER : 0));
 				free(px);
 				if (done)
 					return HIBR_OK;
@@ -487,6 +515,15 @@ cells:
 	if (mode == IM_ASCII)
 		gray = 1;
 	if (!im_cached(path, rows, cols, &grid)) {
+		/* Said outright, because a picture redrawn every frame that
+		   misses is the difference between a tenth of a millisecond
+		   and a full decode -- 268 ms for a 3840x2160 photograph --
+		   and nothing on screen says which happened. `hibr -d 3` on a
+		   desktop whose wallpaper keeps being re-read will name the
+		   size it asked for, which is what says whether the screen
+		   size is moving under it (Gitea #105). */
+		lg(HIBR_LDBG, "img draw: %s at %dx%d is not cached, decoding",
+		   path, rows, cols);
 		s_init(&err);
 		if (im_load(path, &im, &err) != HIBR_OK) {
 			lg(HIBR_LERR, "%s", err.p ? err.p : "decode failed");
@@ -554,31 +591,105 @@ cells:
    can work out an aspect-correct fit before calling img draw with it; img
    draw's own resample always stretches to exactly the rows/cols it is
    given, with no notion of the source's own shape. */
+/* How big a picture is, from its own header: a PNG says so in the IHDR its
+   signature is followed by, a JPEG in whichever SOF marker it opens a frame
+   with. Reading 64 bytes rather than decoding, because the whole point of
+   asking is usually to work out what size to draw at -- the desktop's
+   wallpaper asks on every change of screen size -- and a full decode of a
+   3840x2160 photograph to answer with two integers took 206 ms, once a
+   second in a real session, which is 20% of a core spent on arithmetic
+   nobody needed (Gitea #105). 0 when the header is not one we know, and
+   then the caller decodes. */
+int im_hdrsize(const char *path, int *w, int *h)
+{
+	unsigned char *b;
+	size_t n, i, cap = 1 << 16;
+	FILE *f = fopen(path, "rb");
+	int ok = 0;
+
+	if (!f)
+		return 0;
+	b = xm(cap);
+	n = fread(b, 1, cap, f);
+	fclose(f);
+	if (n >= 24 && !memcmp(b, "\211PNG\r\n\032\n", 8) &&
+	    !memcmp(b + 12, "IHDR", 4)) {
+		*w = (int)((unsigned)b[16] << 24 | (unsigned)b[17] << 16 |
+			   (unsigned)b[18] << 8 | b[19]);
+		*h = (int)((unsigned)b[20] << 24 | (unsigned)b[21] << 16 |
+			   (unsigned)b[22] << 8 | b[23]);
+		ok = *w > 0 && *h > 0;
+	} else if (n >= 4 && b[0] == 0xFF && b[1] == 0xD8) {
+		i = 2;
+		while (i + 9 <= n && b[i] == 0xFF) {
+			size_t len = (size_t)b[i + 2] << 8 | b[i + 3];
+
+			if (b[i + 1] >= 0xC0 && b[i + 1] <= 0xCF &&
+			    b[i + 1] != 0xC4 && b[i + 1] != 0xC8 &&
+			    b[i + 1] != 0xCC) {
+				*h = (int)((unsigned)b[i + 5] << 8 | b[i + 6]);
+				*w = (int)((unsigned)b[i + 7] << 8 | b[i + 8]);
+				ok = *w > 0 && *h > 0;
+				break;
+			}
+			if (b[i + 1] == 0xD8 ||
+			    (b[i + 1] >= 0xD0 && b[i + 1] <= 0xD9)) {
+				i += 2;
+				continue;
+			}
+			if (len < 2)
+				break;
+			i += 2 + len;
+		}
+		/* A photograph from a phone says which way up it is and the
+		   decoder turns it, so the size is turned with it -- or this
+		   and `img draw` disagree about a rotated one, which is the
+		   one way a header read can be wrong where a decode is not. */
+		if (ok) {
+			int o = jp_orient(b, n);
+
+			if (o >= 5 && o <= 8) {
+				int t = *w;
+
+				*w = *h;
+				*h = t;
+			}
+		}
+	}
+	free(b);
+	return ok;
+}
+
 static int im_size(sh *s, int ac, char **av)
 {
 	image im;
 	str err, t;
+	int w = 0, h = 0;
 
 	if (ac < 3) {
 		lg(HIBR_LERR, "usage: img size file");
 		return 2;
 	}
-	s_init(&err);
-	if (im_load(av[2], &im, &err) != HIBR_OK) {
-		lg(HIBR_LERR, "%s", err.p ? err.p : "decode failed");
+	if (!im_hdrsize(av[2], &w, &h)) {
+		s_init(&err);
+		if (im_load(av[2], &im, &err) != HIBR_OK) {
+			lg(HIBR_LERR, "%s", err.p ? err.p : "decode failed");
+			s_free(&err);
+			return HIBR_FAIL;
+		}
 		s_free(&err);
-		return HIBR_FAIL;
+		w = im.w;
+		h = im.h;
+		im_free(&im);
 	}
-	s_free(&err);
 	s_init(&t);
-	s_num(&t, im.w);
+	s_num(&t, w);
 	s_ch(&t, ' ');
-	s_num(&t, im.h);
+	s_num(&t, h);
 	hibr_ret(s, t.p);
 	if (!s->bind)
 		printf("%s\n", t.p);
 	s_free(&t);
-	im_free(&im);
 	return HIBR_OK;
 }
 

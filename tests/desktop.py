@@ -12,7 +12,8 @@ import json, os, re, shutil, subprocess, sys, tempfile, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen
-from screen import Term, check, report, press, release, drag, wheel, load, tree, expect
+from screen import (Term, check, report, press, release, drag, wheel, load,
+                    tree, expect, scratch)
 
 if len(sys.argv) > 1:
     screen.HIBR = os.path.abspath(sys.argv[1])
@@ -71,7 +72,7 @@ SHADOW_RGB = b"38;2;12;28;41;48;2;7;15;23"
 
 
 def shadow_run(env=None, settle=0.6):
-    path = "/tmp/hibr-desktop-shadow.hibr"
+    path = scratch("desktop-shadow.hibr")
     open(path, "w").write("%s. %s\ndt_open\n%s\ndt_run\ndt_close\n"
                           % (load(MOD), WM, ONE))
     t = Term(path, env=dict({"DT_TICK": "60"}, **(env or {})), rows=ROWS,
@@ -96,7 +97,7 @@ check("more frames before quitting does not darken it further -- damage "
 
 
 def mshadow_run(env=None):
-    path = "/tmp/hibr-desktop-mshadow.hibr"
+    path = scratch("desktop-mshadow.hibr")
     open(path, "w").write("%s. %s\ndt_open\n\ndt_run\ndt_close\n"
                           % (load(MOD), WM))
     t = Term(path, env=dict({"DT_TICK": "60"}, **(env or {})), rows=ROWS,
@@ -115,7 +116,7 @@ check("DT_MSHADOW=0 casts none, independently of DT_SHADOW",
 
 
 def barshadow_run(env=None):
-    path = "/tmp/hibr-desktop-barshadow.hibr"
+    path = scratch("desktop-barshadow.hibr")
     open(path, "w").write("%s. %s\ndt_open\ndt_run\ndt_close\n" % (load(MOD), WM))
     t = Term(path, env=dict({"DT_TICK": "60"}, **(env or {})), rows=ROWS,
              cols=COLS, settle=0.6)
@@ -133,7 +134,7 @@ check("DT_BARSHADOW=0 casts none, independently of the other two",
 
 # A key sent right after a resize must not be lost while the debounce is
 # waiting to see whether more of them are coming (DT_RSTILL is 150ms).
-path = "/tmp/hibr-desktop-rsz.hibr"
+path = scratch("desktop-rsz.hibr")
 open(path, "w").write("%s. %s\ndt_open\n%s\ndt_run\ndt_close\n"
                       % (load(MOD), WM, ONE))
 t = Term(path, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.6)
@@ -148,7 +149,7 @@ os.unlink(path)
 # A burst of drag reports is drawn once it has caught up, not once per
 # report: a frame slower than the reports arrive left the window crawling
 # after the mouse had stopped. One write, a hundred moves.
-path = "/tmp/hibr-desktop-burst.hibr"
+path = scratch("desktop-burst.hibr")
 open(path, "w").write("%s. %s\ndt_open\n%s\ndt_run\ndt_close\n"
                       % (load(MOD), WM, ONE))
 t = Term(path, rows=ROWS, cols=COLS, settle=0.6)
@@ -463,7 +464,7 @@ check("and it aligns to the dropdown itself, not wherever inside it "
 
 # A note lasts only until the next key, and run()'s own qy teardown is a
 # key -- checked before it, the same way the about-note test is.
-path = "/tmp/hibr-desktop-widgets.hibr"
+path = scratch("desktop-widgets.hibr")
 open(path, "w").write("%s. %s\n%s\ndt_open\n%s\ndt_run\ndt_close\n"
                       % (load(MOD), WM, "", WIDGETS))
 t = Term(path, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.6)
@@ -768,11 +769,12 @@ sc, _ = run(TWO, [press(6, 12), press(6, 37), release(6, 37)])
 check("closing the raised window leaves the other",
       sc.find("Under") is None and sc.find("┤ Over ├") == (9, 22), sc)
 
+CLOSED = scratch("dt-closed.mark")
 APP = ('counter_open()  { CN=0; }\n'
        'counter_draw()  { console put -p "w$1" 2 3 "count $CN"; }\n'
        'counter_key()   { [ "$2" = + ] && CN=$((CN+1)) && return 0; return 1; }\n'
        'counter_click() { CN=$(($2 * 100 + $3)); }\n'
-       'counter_close() { echo "CLOSED" > /tmp/hibr-dt-closed; }\n'
+       'counter_close() { echo "CLOSED" > ' + CLOSED + '; }\n'
        'dt_new "App" 8 30 6 10 counter\n')
 
 sc, _ = run(APP)
@@ -786,12 +788,12 @@ check("a click reaches the app in the coordinates it draws in",
       sc.find("count 306") == (8, 13), sc)
 
 try:
-    os.unlink("/tmp/hibr-dt-closed")
+    os.unlink(CLOSED)
 except OSError:
     pass
 sc, _ = run(APP, [press(6, 37), release(6, 37)])
 check("closing an app's window closes the app",
-      sc.find("count") is None and os.path.exists("/tmp/hibr-dt-closed"), sc)
+      sc.find("count") is None and os.path.exists(CLOSED), sc)
 
 sc, _ = run(APP, [b"+", b"+"])
 check("a key the app wants reaches it", sc.find("count 2") == (8, 13), sc)
@@ -933,7 +935,7 @@ check("and quit from the hibr menu ends the session",
 
 # A note lasts only until the next key, and the quit sequence's own q is a
 # key -- checked before it, rather than through run()'s own qy teardown.
-path = "/tmp/hibr-desktop-about.hibr"
+path = scratch("desktop-about.hibr")
 open(path, "w").write("%s. %s\n%s\ndt_open\n%s\ndt_run\ndt_close\n"
                       % (load(MOD), WM, "", MENUS))
 t = Term(path, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.6)
@@ -1549,7 +1551,7 @@ shutil.rmtree(d, True)
 # directly, since drag() encodes a fixed offset from press() rather than an
 # absolute position, and this is not a click near the icon's own start.
 d, env, pre, home, backup, usb, src = desk()
-path = "/tmp/hibr-resize-icon.hibr"
+path = scratch("resize-icon.hibr")
 open(path, "w").write("%s. %s\n%sdt_open\ndt_run\ndt_close\n"
                       % (load(MOD), WM, pre))
 t = Term(path, env=dict({"DT_TICK": "60"}, **env), rows=ROWS, cols=COLS,
@@ -1662,7 +1664,7 @@ check("and Detach is on the hibr menu, dimmed when nothing holds it",
 
 # Quit asks first: q used to end it on the spot, and one key too many
 # landed there more than once.
-path = "/tmp/hibr-desktop-quit.hibr"
+path = scratch("desktop-quit.hibr")
 open(path, "w").write("%s. %s\ndt_open\n%s\ndt_run\ndt_close\n"
                       % (load(MOD), WM, ONE))
 t = Term(path, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.6)
@@ -1680,7 +1682,7 @@ check("and q then y still quits", t.exited, t.raw)
 os.unlink(path)
 
 # Yes and No on the confirm box are buttons: clickable, not just typeable.
-path = "/tmp/hibr-desktop-confirmclick.hibr"
+path = scratch("desktop-confirmclick.hibr")
 open(path, "w").write("%s. %s\ndt_open\n%s\ndt_run\ndt_close\n"
                       % (load(MOD), WM, ONE))
 t = Term(path, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.5)
@@ -1705,7 +1707,7 @@ os.unlink(path)
 
 # The keyboard moves between them: focus starts on Yes, so enter still
 # means yes; tab or an arrow moves it to No, where enter cancels.
-path = "/tmp/hibr-desktop-confirmkeys.hibr"
+path = scratch("desktop-confirmkeys.hibr")
 open(path, "w").write("%s. %s\ndt_open\n%s\ndt_run\ndt_close\n"
                       % (load(MOD), WM, ONE))
 t = Term(path, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.5)
@@ -1723,7 +1725,7 @@ check("right then left comes back to Yes, and enter quits", t.exited, t.raw)
 os.unlink(path)
 
 # The shadow is a setting of its own, on by default.
-path = "/tmp/hibr-desktop-confirmflat.hibr"
+path = scratch("desktop-confirmflat.hibr")
 open(path, "w").write("%s. %s\nDT_BTNSHADOW=0\ndt_open\n%s\ndt_run\n"
                       "dt_close\n" % (load(MOD), WM, ONE))
 t = Term(path, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.5)
@@ -1738,7 +1740,7 @@ os.unlink(path)
 
 # Brackets draw each button as [label] on the face, the focused one in the
 # accent, no fill; the width is the same, so nothing else moves.
-path = "/tmp/hibr-desktop-confirmbrackets.hibr"
+path = scratch("desktop-confirmbrackets.hibr")
 open(path, "w").write("%s. %s\nDT_DLGBTN=brackets\nDT_BTNSHADOW=0\n"
                       "dt_open\n%s\ndt_run\ndt_close\n" % (load(MOD), WM, ONE))
 t = Term(path, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.5)
@@ -3774,4 +3776,67 @@ check("an arithmetic error in an app is logged and the desktop carries on",
       sc.find("┤ Slip ├") is not None and "arithmetic" in log and t.exited and t.status == 0,
       (log, t.status))
 
-report(519)
+# --- the wallpaper as pixels -------------------------------------------------
+#
+# The wallpaper is the one picture with text drawn over it in the same frame --
+# the bar, every window, the icons -- so it is placed under the text
+# (`img draw -u`) and the cells it covers are blanked with no colours of their
+# own first: a bitmap writes no cells, and a cell with a background colour
+# paints over a picture the terminal is compositing below the glyphs. It was
+# never pixels at all before 0.99.79 (Gitea #104), on sixel either.
+import struct as _struct, zlib as _zlib
+
+WPD = tempfile.mkdtemp(prefix="hibr-wall-")
+
+
+def wallpng(name, w, h):
+    raw = b"".join(b"\x00" + bytes(v for x in range(w)
+                                   for v in (x % 256, y * 2 % 256, 160))
+                   for y in range(h))
+
+    def chunk(tag, data):
+        body = tag + data
+        return (_struct.pack(">I", len(data)) + body
+                + _struct.pack(">I", _zlib.crc32(body)))
+
+    path = os.path.join(WPD, name)
+    open(path, "wb").write(
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", _struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
+        + chunk(b"IDAT", _zlib.compress(raw)) + chunk(b"IEND", b""))
+    return path
+
+
+WALL = wallpng("wall.png", 160, 100)
+
+
+def wallrun(mode, gfx="kitty", feed=()):
+    """A desktop with a wallpaper, on a pty that says what a cell measures."""
+    path = os.path.join(WPD, "s.hibr")
+    open(path, "w").write(
+        "%s. %s\nDT_IMGMODE=%s\nDT_WALLIMG=%s\nDT_WALLMODE=stretch\n"
+        "dt_open\ndt_new \"Hello\" 8 30 6 10\ndt_run\ndt_close\n"
+        % (load(MOD, "build/mods/img.so"), WM, mode, WALL))
+    t = Term(path, env={"DT_TICK": "60", "HIBR_GFX": gfx}, rows=ROWS,
+             cols=COLS, settle=1.0, cellw=8, cellh=16)
+    t.collect(1.0)
+    t.keys(feed)
+    sc = t.screen()
+    t.quit(b"qy", 1.0)
+    return sc
+
+
+sc = wallrun("pixels")
+check("the wallpaper is one picture at the top left corner",
+      len(sc.images) == 1 and sc.images[0][:2] == (0, 0), sc.images)
+check("and the bar and a window are still text over it",
+      sc.find("Window") is not None and sc.find("┤ Hello ├") is not None, sc)
+check("placed under the text, so a terminal that keeps it is sent it once",
+      len([a for a in sc.apc if "a=T" in a]) == 1 and
+      any("z=-1" in a for a in sc.apc), [a[:40] for a in sc.apc][:2])
+sc = wallrun("half")
+check("asked for blocks it is cells, with nothing sent as a bitmap",
+      not sc.images and sc.find("┤ Hello ├") is not None, (sc.images, sc))
+shutil.rmtree(WPD, True)
+
+report(523)

@@ -60,6 +60,18 @@ dt_imgpix() {
 	return 1
 }
 
+# Whether a picture drawn now will be real pixels rather than cells: the
+# setting says so outright, or it says auto and the terminal can. What a
+# caller needs when the two cases want different cells around the picture --
+# the wallpaper blanks what it is about to put a bitmap over.
+dt_imgwill() {
+	case $DT_IMGMODE in
+	pixels | sixel) return 0 ;;
+	auto | "") dt_imgpix && return 0 ;;
+	esac
+	return 1
+}
+
 # The row/col/h/w to hand img draw for DT_WALLMODE, in DT_WALLR/C/H/W --
 # the same "cols must be 2*sw/sh, not sw/sh" cell-aspect correction
 # wallpaper.hibr's own preview already uses, since img draw's own cell is
@@ -150,9 +162,27 @@ dt_wall() {
 				console fill 0 0 "$DT_ROWS" "$DT_COLS" "$DT_GLYPH"
 				;;
 			esac
+			# Where a picture of real pixels is going, the cells it
+			# covers are blanked with no colours of their own
+			# first: a bitmap writes no cells, so last frame's
+			# text would otherwise stay on top of it -- and a cell
+			# with a background colour paints over a picture the
+			# terminal is compositing below the text, which is how
+			# a kitty wallpaper would be invisible under the very
+			# fill that used to stand in for it.
+			if dt_imgwill; then
+				console pen default default
+				console fill "$DT_WALLR" "$DT_WALLC" \
+					"$DT_WALLH" "$DT_WALLW" " "
+			fi
 			dt_imgm
+			# -u: text is drawn over the wallpaper in this same
+			# frame -- the bar, every window, the icons -- and a
+			# picture that owns its cells would be dropped before
+			# it was ever sent (ADR 0037, Gitea #104).
 			img draw "$DT_WALLIMG" "$DT_WALLR" "$DT_WALLC" \
-				"$DT_WALLH" "$DT_WALLW" "${DT_IMGARG[@]}" && drawn=1
+				"$DT_WALLH" "$DT_WALLW" "${DT_IMGARG[@]}" -u \
+				&& drawn=1
 		fi
 	fi
 	if [ -z "$drawn" ]; then

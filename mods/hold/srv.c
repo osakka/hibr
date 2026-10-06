@@ -44,6 +44,8 @@ void hd_cdrop(vec *cls, int fd)
 		if (cn->fd == fd) {
 			close(fd);
 			free(cn->front);
+			free(cn->pid);
+			free(cn->phash);
 			s_free(&cn->mbuf);
 			s_free(&cn->name);
 			s_free(&cn->title);
@@ -181,6 +183,8 @@ void hd_cclear(vec *cls, const char *why, size_t n)
 		hd_send(cn->fd, HD_DETACH, why, n);
 		close(cn->fd);
 		free(cn->front);
+		free(cn->pid);
+		free(cn->phash);
 		s_free(&cn->mbuf);
 		s_free(&cn->name);
 		s_free(&cn->title);
@@ -545,6 +549,8 @@ void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 		hd_send(cn->fd, HD_EXIT, (const char *)&st, sizeof st);
 		close(cn->fd);
 		free(cn->front);
+		free(cn->pid);
+		free(cn->phash);
 		s_free(&cn->mbuf);
 		s_free(&cn->name);
 		s_free(&cn->title);

@@ -158,19 +158,33 @@ window). A name and a setting cost nobody a lost keypress.
     client's own rectangle -- a bitmap cannot be clipped.
   `tests/holdpix.py` is the measurement kept: eleven checks, with the
   unheld sixel and kitty suites as the control.
-- **A picture with text drawn over it in the same frame is never sent at
-  all**, which is why the wallpaper has never been pixels on any terminal
-  (Gitea #104). The region is placed, the frame then draws the bar, the
-  windows and the icons over it, and the cell hash no longer matches before
-  the first flush -- so it is dropped having never gone out. Everything
-  that draws into a pane nothing else writes to works: the Image Viewer in
-  a real desktop window places 270 kB of kitty picture at its own corner.
-  `DP_IMG_UNDER` is the flag for this case and nothing passes it; making
-  the wallpaper use it needs an invalidation rule of its own (the cell hash
-  cannot be it), `z=-1` for kitty so the picture is placed once rather than
-  re-sent every frame, and cells over it left at the default background,
-  since a background colour paints over an image. For sixel there is no
-  equivalent at all.
+- **A picture with text drawn over it in the same frame needs
+  `DP_IMG_UNDER`**, and until 0.99.79 nothing passed it -- which is why the
+  wallpaper had never been pixels on any terminal (Gitea #104). A region
+  that owns its cells is dropped the moment they change, and the wallpaper
+  is placed first and then drawn over by the bar, every window and the
+  icons: it was dropped before the first flush ever sent it. Under the text
+  a picture owns no cells, goes out before them, and is kept for as long as
+  the caller places it again -- the first frame that does not is what takes
+  it away, which is the invalidation rule, since the cell hash cannot be
+  one here. `dt_wall` also blanks the cells it is about to cover with no
+  colours of their own: a bitmap writes no cells, so last frame's text
+  would stay on top of it, and a cell with a background colour paints over
+  a picture the terminal is compositing below the glyphs -- the very fill
+  that used to stand in for a wallpaper would have hidden it.
+
+  What that costs is the protocol's rather than a choice, measured on a
+  70x24 screen with 8x16 cells, dragging a window across the wallpaper:
+
+  | | sent | on a drag |
+  |---|---|---|
+  | kitty | one placement, 860 kB | nothing |
+  | sixel | one bitmap, 24 kB | 24 kB again |
+
+  kitty composites the picture below the text, so it is transmitted once
+  and nothing above it can disturb it. A sixel is paint: a cell written
+  over it has destroyed that much of it, so the bitmap goes again whenever
+  anything above it moves. Both work; only one of them is free.
 - **A redirection on a `console` command used to reach the display**, which
   is how the film numbers above were first measured as 0.05 ms a frame:
   the console drew on, and selected on, whatever descriptor number stdout

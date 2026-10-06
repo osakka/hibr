@@ -493,12 +493,67 @@ char *bi_oval(int ac, char **av, int *i, size_t len)
 	return 0;
 }
 
+/* One delimited run from a descriptor, for `read` and `mapfile`.
+
+   A descriptor that can be seeked is read a block at a time and put back --
+   lseek to just past the delimiter -- which is how `in_line` has always read
+   a script. A pipe, a socket or a terminal cannot be put back, so there it
+   stays one byte a syscall, which is the reason this ever was one: `read`
+   must not consume a byte the next command would want.
+
+   It matters more than it looks. `while read -r l; do :; done < file` over a
+   950 kB file made 948,892 read calls, one a byte, 0.30 s of it in the
+   kernel -- and the desktop's own mount scan read /proc/mounts the same way
+   on a machine where that file is 6 kB, several times a second. Blocks make
+   it 2 calls a line.
+
+   want (read -n) caps how much is taken, and then the delimiter is not
+   looked for at all, as before. Returns the last read's own result, so the
+   caller can still tell end of file from a delimiter. */
+long bi_rddelim(int fd, int delim, int want, str *b)
+{
+	long n = 0;
+	char c, *buf, *d;
+	size_t cap;
+
+	if (lseek(fd, 0, SEEK_CUR) == (off_t)-1) {
+		while ((n = read(fd, &c, 1)) == 1) {
+			if (!want && (unsigned char)c == (unsigned char)delim)
+				break;
+			s_ch(b, c);
+			if (want && (int)b->n >= want)
+				break;
+		}
+		return n;
+	}
+	buf = xm(HIBR_IOCH);
+	for (;;) {
+		cap = HIBR_IOCH;
+		if (want && (size_t)(want - (int)b->n) < cap)
+			cap = (size_t)(want - (int)b->n);
+		n = read(fd, buf, cap);
+		if (n <= 0)
+			break;
+		d = want ? 0 : memchr(buf, delim, (size_t)n);
+		if (d) {
+			s_add(b, buf, (size_t)(d - buf));
+			lseek(fd, (off_t)((d - buf) + 1 - n), SEEK_CUR);
+			n = 1;
+			break;
+		}
+		s_add(b, buf, (size_t)n);
+		if (want && (int)b->n >= want)
+			break;
+	}
+	free(buf);
+	return n;
+}
+
 /* Read a line from standard input into variables. */
 int b_read(sh *s, int ac, char **av)
 {
 	str b;
-	char c;
-	ssize_t n;
+	long n;
 	int i = 1, want = 0, silent = 0, fd = 0, delim = '\n', eof = 0;
 	const char *arr = 0, *prompt = 0;
 	char *ov;
@@ -582,13 +637,7 @@ int b_read(sh *s, int ac, char **av)
 		silent = 0;
 	}
 	s_init(&b);
-	while ((n = read(fd, &c, 1)) == 1) {
-		if (!want && (unsigned char)c == (unsigned char)delim)
-			break;
-		s_ch(&b, c);
-		if (want && (int)b.n >= want)
-			break;
-	}
+	n = bi_rddelim(fd, delim, want, &b);
 	if (silent) {
 		tcsetattr(fd, TCSADRAIN, &sv);
 		fputc('\n', stderr);
@@ -1531,12 +1580,12 @@ int b_mapfile(sh *s, int ac, char **av)
 {
 	str b;
 	vec *el;
-	char c;
-	ssize_t got;
+	char c, *buf;
+	long got;
 	const char *nm = "MAPFILE";
 	char *ov;
 	long want = 0, skip = 0, origin = 0, seen = 0, k;
-	int i = 1, fd = 0, strip = 0, delim = '\n', keep = 0;
+	int i = 1, fd = 0, strip = 0, delim = '\n', keep = 0, seek;
 	size_t st;
 
 	for (; i < ac && av[i][0] == '-' && av[i][1]; i++) {
@@ -1577,23 +1626,47 @@ int b_mapfile(sh *s, int ac, char **av)
 		nm = av[i];
 	el = vb_get(s);
 	s_init(&b);
-	while ((got = read(fd, &c, 1)) == 1) {
-		if ((unsigned char)c != (unsigned char)delim) {
-			s_ch(&b, c);
-			continue;
-		}
-		seen++;
-		if (seen <= skip) {
+	/* A whole file a block at a time, the same reason `read` does it (see
+	   bi_rddelim): one syscall a byte over a 950 kB file is 948,892 of
+	   them. A pipe is still read a byte at a time, because -n may stop
+	   part way through and nothing can be put back on a pipe; a seekable
+	   descriptor that stops early is seeked to just past the line it
+	   stopped on, so whatever reads next sees the rest. */
+	seek = lseek(fd, 0, SEEK_CUR) != (off_t)-1;
+	buf = xm(HIBR_IOCH);
+	for (;;) {
+		long k;
+
+		got = read(fd, buf, seek ? (size_t)HIBR_IOCH : 1);
+		if (got <= 0)
+			break;
+		for (k = 0; k < got; k++) {
+			c = buf[k];
+			if ((unsigned char)c != (unsigned char)delim) {
+				s_ch(&b, c);
+				continue;
+			}
+			seen++;
+			if (seen <= skip) {
+				b.n = 0;
+				continue;
+			}
+			if (!strip)
+				s_ch(&b, c);
+			v_add(el, ar_dup(s->xa, b.p ? b.p : "", b.n));
 			b.n = 0;
-			continue;
+			if (want && (long)el->n >= want) {
+				if (seek)
+					lseek(fd, (off_t)(k + 1 - got),
+					      SEEK_CUR);
+				got = 0;
+				break;
+			}
 		}
-		if (!strip)
-			s_ch(&b, c);
-		v_add(el, ar_dup(s->xa, b.p ? b.p : "", b.n));
-		b.n = 0;
-		if (want && (long)el->n >= want)
+		if (!got)
 			break;
 	}
+	free(buf);
 	if (b.n && (!want || (long)el->n < want)) {
 		seen++;
 		if (seen > skip)

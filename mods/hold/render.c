@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 
 #include "hd.h"
+#include <stdlib.h>
 #include <string.h>
 
 /* Append the escape sequence for one colour -- the same default/256/24-bit
@@ -49,6 +50,38 @@ void hd_sgr(str *b, unsigned fg, unsigned bg, unsigned at)
 	hd_sgrcol(b, fg, 0);
 	hd_sgrcol(b, bg, 1);
 	s_ch(b, 'm');
+}
+
+/* FNV-1a, to tell one picture's bytes from another's without keeping them. */
+unsigned hd_hash(const char *p, size_t n)
+{
+	unsigned h = 2166136261u;
+
+	while (n--) {
+		h ^= (unsigned char)*p++;
+		h *= 16777619u;
+	}
+	return h;
+}
+
+/* The kitty image id inside a picture's own escape, 0 for a sixel (which has
+   none) or for anything without one: the bytes begin ESC _ G <control>, and
+   the control data carries i=<id>. Read here rather than asked of the
+   emulator, because it is in the escape hold is already holding. */
+unsigned hd_imgid(const char *p, size_t n)
+{
+	size_t i;
+
+	if (n < 4 || p[0] != '\033' || p[1] != '_')
+		return 0;
+	for (i = 2; i + 1 < n && p[i] != ';'; i++) {
+		if (p[i] != 'i' || p[i + 1] != '=')
+			continue;
+		if (i > 2 && p[i - 1] != ',')
+			continue;
+		return (unsigned)strtoul(p + i + 2, 0, 10);
+	}
+	return 0;
 }
 
 /* Append an absolute cursor move. */
@@ -233,29 +266,32 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 		s_cat(out, "\033]8;;\a");
 	/* The pictures the program put on the session's grid. A bitmap is not
 	   cells: it cannot be diffed and it cannot be clipped, so each goes
-	   out whole at its own corner, after the text, and only when the set
-	   has changed or this client is being painted from scratch -- a
-	   still picture costs a settled frame nothing, as it does in the
-	   console itself. One that does not fit inside this client's own
-	   rectangle is skipped rather than cut in half. */
+	   out whole at its own corner, after the text. One that does not fit
+	   inside this client's own rectangle is skipped rather than cut in
+	   half.
+
+	   Only what changed, though. A kitty picture is an object the
+	   terminal keeps, so this client's own list of (id, hash of the bytes
+	   sent) says which it already has: one whose bytes are unchanged is
+	   not sent again, and an id the session no longer has is deleted,
+	   since nothing else would take it off the screen. Re-placing every
+	   picture whenever any one of them changed meant a viewer's own
+	   picture moving re-sent an 860 kB wallpaper with it, which is what
+	   made pixels unusable over a slow link. A sixel carries no id and is
+	   paint: it is simply sent again. */
 	if (hd_tm->images && (clear || cn->imgen != hd_tm->imgen(tid))) {
-		int ir, ic, irows, icols, k, sent = 0;
+		int ir, ic, irows, icols, k, n = hd_tm->images(tid), sent = 0;
+		unsigned *nid, *nhash;
+		size_t nn = 0, j;
 		str pic;
 
-		/* A kitty picture is an object the terminal keeps, so one that
-		   has gone from the session has to be taken off this client's
-		   screen as well -- the program's own delete was consumed by
-		   the emulator and never came this way. Everything held is
-		   deleted and what remains is placed again: one escape and no
-		   per-id bookkeeping, and a transmission with an id already
-		   taken would have replaced it anyway. A sixel needs none of
-		   this; the text drawn over it is what removes it. */
-		if (cn->kimg) {
-			s_cat(out, "\033_Ga=d,d=A,q=2\033\\");
-			cn->kimg = 0;
-		}
+		nid = n > 0 ? xm((size_t)n * sizeof *nid) : 0;
+		nhash = n > 0 ? xm((size_t)n * sizeof *nhash) : 0;
 		s_init(&pic);
-		for (k = 0; k < hd_tm->images(tid); k++) {
+		for (k = 0; k < n; k++) {
+			unsigned id, h;
+			int had = 0;
+
 			pic.n = 0;
 			if (!hd_tm->image(tid, k, &ir, &ic, &irows, &icols,
 					  &pic))
@@ -264,16 +300,55 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 			    ir + irows > cn->row + cn->rows ||
 			    ic + icols > cn->col + cn->cols)
 				continue;
+			id = hd_imgid(pic.p, pic.n);
+			h = hd_hash(pic.p, pic.n);
+			if (id && !clear)
+				for (j = 0; j < cn->pn; j++)
+					if (cn->pid[j] == id &&
+					    cn->phash[j] == h) {
+						had = 1;
+						break;
+					}
+			if (id) {
+				nid[nn] = id;
+				nhash[nn] = h;
+				nn++;
+			}
+			if (had)
+				continue;
 			hd_goto(out, ir - cn->row, ic - cn->col);
 			s_add(out, pic.p, pic.n);
-			if (pic.n > 1 && pic.p[1] == '_')
-				cn->kimg = 1;
 			sent++;
 		}
 		s_free(&pic);
+		/* Whatever this client was holding that the session no longer
+		   has: a kitty picture stays on a terminal until it is told to
+		   go, and the program's own delete was consumed by the
+		   emulator. */
+		for (j = 0; j < cn->pn; j++) {
+			size_t m;
+			int live = 0;
+
+			for (m = 0; m < nn; m++)
+				if (nid[m] == cn->pid[j]) {
+					live = 1;
+					break;
+				}
+			if (live)
+				continue;
+			s_cat(out, "\033_Ga=d,d=I,q=2,i=");
+			s_num(out, (long)cn->pid[j]);
+			s_cat(out, "\033\\");
+		}
+		free(cn->pid);
+		free(cn->phash);
+		cn->pid = nid;
+		cn->phash = nhash;
+		cn->pn = nn;
 		cn->imgen = hd_tm->imgen(tid);
 		if (sent)
-			lg(HIBR_LDBG, "hold: %d picture(s) passed on", sent);
+			lg(HIBR_LDBG, "hold: %d picture(s) passed on, %zu held",
+			   sent, nn);
 	}
 	if (hd_tm->cursor(tid, &cr, &cc, &cvis) && cvis &&
 	    cr >= cn->row && cr < cn->row + cn->rows && cc >= cn->col &&

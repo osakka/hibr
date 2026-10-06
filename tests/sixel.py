@@ -155,5 +155,28 @@ sc = run("p := media open %s -o none 2> /dev/null || p=\n"
 check("a file with no picture draws none, and says nothing to the terminal",
       not sc.images, sc.images)
 
+# A picture under the text (img draw -u, which the wallpaper uses): text in
+# the same frame would otherwise drop it before it was ever sent. Sixel is
+# paint, so a cell written over it has destroyed that much of it and the
+# bitmap goes again -- which is what "repaint when anything moves" costs, and
+# the honest difference from the kitty protocol, where the terminal
+# composites the picture below the text and nothing is re-sent
+# (tests/kitgfx.py has that side).
+UPIC = "img draw %s 2 2 6 12 -m pixels -u\n" % GRAD
+sc = run(TEXT + UPIC + "console put 3 3 'OVER'\nconsole flush\n"
+         "console key 400\n")
+check("a picture under the text survives text drawn over it in one frame",
+      len(sc.images) == 1 and sc.images[0][:2] == (2, 2) and
+      "OVER" in sc.row(3), (sc.images, sc.row(3)))
+sc = run(TEXT + UPIC + "console flush\n" + UPIC + "console flush\n"
+         + UPIC + "console flush\nconsole key 400\n")
+check("nothing above it moving means nothing is painted again",
+      len(sc.images) == 1, sc.images)
+sc = run(TEXT + UPIC + "console flush\n"
+         + UPIC + "console put 3 3 'OVER'\nconsole flush\n"
+         "console key 400\n")
+check("a cell written over it means the bitmap goes again",
+      len(sc.images) == 2 and "OVER" in sc.row(3), (sc.images, sc.row(3)))
+
 shutil.rmtree(D, True)
-report(16)
+report(19)

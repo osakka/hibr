@@ -62,10 +62,16 @@ struct hd_cli {
 	   sends them all. */
 	int xpix, ypix;
 	unsigned imgen;
-	/* Whether this client's terminal is holding a kitty picture for us,
-	   so one that has gone from the session can be taken off its screen
-	   (a sixel needs no such thing). */
-	int kimg;
+	/* The kitty pictures this client's terminal is holding for us: each
+	   one's id and a hash of the bytes last sent for it, so a frame that
+	   changes one picture sends that one and not every other -- a
+	   wallpaper is 860 kB, and re-placing it because a viewer's own
+	   picture moved is what made pixels unusable over a slow link. An id
+	   that is no longer in the session is deleted from the terminal,
+	   since a kitty picture stays until it is told to go. A sixel is
+	   paint and is simply painted again. */
+	unsigned *pid, *phash;
+	size_t pn;
 	int primed, alt, mmode, msgr, bpaste, cshape;
 	struct hd_cell *front;
 	str mbuf;
@@ -81,6 +87,8 @@ struct hd_cli {
 	str title;
 };
 
+unsigned hd_hash(const char *p, size_t n);
+unsigned hd_imgid(const char *p, size_t n);
 void hd_cdrop(vec *cls, int fd);
 struct hd_cli *hd_cfind(vec *cls, int fd);
 struct hd_cli *hd_cfindname(vec *cls, const char *name);

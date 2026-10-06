@@ -19,6 +19,17 @@ in a window costs nothing on the frames after the first. A terminal that
 cannot place pixels is not asked twice; `console gfx` is what says which it
 is.
 
+`-u` says text is going to be drawn over this picture in the same frame,
+which the desktop's wallpaper needs: a picture that owns its cells is
+dropped the moment they change, so without it the wallpaper was never sent
+at all (Gitea #104). Such a picture owns no cells, goes out before the text
+of each frame, and is kept for as long as it is placed again -- the first
+frame that does not place it takes it away. What it then costs belongs to
+the protocol: a terminal that keeps pictures composites it below the glyphs
+and is sent it once, while sixel is paint and goes again whenever a cell
+over it has been written. Whoever uses it leaves those cells without a
+background colour of their own, or the colour paints over the picture.
+
 | file | role |
 |---|---|
 | `im.h` | the `image`/`cell` types, decode and resample entry points |

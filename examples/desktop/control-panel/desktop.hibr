@@ -35,6 +35,11 @@ fn desktop_rows(int w) {
 	CP[$w][$n]["wtype"]=slider
 	CP[$w][$n]["val"]=$DT_DRAWSKIP; CP[$w][$n]["min"]=0; CP[$w][$n]["max"]=9
 	CP[$w][$n]["key"]=drawskip; n=$((n + 1))
+	CP[$w][$n]["kind"]=set
+	CP[$w][$n]["text"]="Frames For Output (${DT_TERMMS}ms)"
+	CP[$w][$n]["wtype"]=slider
+	CP[$w][$n]["val"]=$DT_TERMMS; CP[$w][$n]["min"]=0; CP[$w][$n]["max"]=200
+	CP[$w][$n]["key"]=termms; n=$((n + 1))
 	[ "${d#"$HOME"/}" != "$d" ] && d="~/${d#"$HOME"/}"
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Screenshot Format"
 	CP[$w][$n]["val"]="$DT_SHOTFMT"; CP[$w][$n]["key"]=shotfmt
@@ -76,6 +81,12 @@ fn desktop_do(int w, k, int dir) {
 		[ "$v" -lt 0 ] && v=0
 		[ "$v" -gt 9 ] && v=9
 		DT_DRAWSKIP=$v
+		;;
+	termms)
+		v=$((DT_TERMMS + dir * 10))
+		[ "$v" -lt 0 ] && v=0
+		[ "$v" -gt 200 ] && v=200
+		DT_TERMMS=$v
 		;;
 	esac
 	cp_save
