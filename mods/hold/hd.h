@@ -62,6 +62,10 @@ struct hd_cli {
 	   sends them all. */
 	int xpix, ypix;
 	unsigned imgen;
+	/* Whether this client's terminal is holding a kitty picture for us,
+	   so one that has gone from the session can be taken off its screen
+	   (a sixel needs no such thing). */
+	int kimg;
 	int primed, alt, mmode, msgr, bpaste, cshape;
 	struct hd_cell *front;
 	str mbuf;

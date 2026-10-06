@@ -242,6 +242,18 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 		int ir, ic, irows, icols, k, sent = 0;
 		str pic;
 
+		/* A kitty picture is an object the terminal keeps, so one that
+		   has gone from the session has to be taken off this client's
+		   screen as well -- the program's own delete was consumed by
+		   the emulator and never came this way. Everything held is
+		   deleted and what remains is placed again: one escape and no
+		   per-id bookkeeping, and a transmission with an id already
+		   taken would have replaced it anyway. A sixel needs none of
+		   this; the text drawn over it is what removes it. */
+		if (cn->kimg) {
+			s_cat(out, "\033_Ga=d,d=A,q=2\033\\");
+			cn->kimg = 0;
+		}
 		s_init(&pic);
 		for (k = 0; k < hd_tm->images(tid); k++) {
 			pic.n = 0;
@@ -254,6 +266,8 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 				continue;
 			hd_goto(out, ir - cn->row, ic - cn->col);
 			s_add(out, pic.p, pic.n);
+			if (pic.n > 1 && pic.p[1] == '_')
+				cn->kimg = 1;
 			sent++;
 		}
 		s_free(&pic);

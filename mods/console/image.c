@@ -41,6 +41,8 @@ typedef struct cn_img {
 	unsigned under;		/* of the cells it covers, as they were when it was placed */
 	int sent;		/* 0 until its bytes have gone out */
 	int over;		/* text is drawn over this one, so it owns no cells */
+	int live;		/* placed again this frame (an `over` one only) */
+	unsigned above;		/* of the cells over it, as they were when sent */
 	unsigned id;		/* the kitty image's own id; 0 for a sixel */
 	str data;		/* the encoded picture */
 } cn_img;
@@ -209,11 +211,17 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 		im = &cn_imgs[i];
 		if (im->row != row || im->col != col || im->h != h || im->w != w)
 			continue;
-		if (im->sum == sum && !im->over) {
-			/* the same picture in the same place: it is already on
-			   screen, and the cells under it are whatever this
-			   frame has drawn, so take those as its own again */
-			im->under = cn_imgunder(im);
+		if (im->sum == sum) {
+			/* The same picture in the same place: it is already on
+			   screen. One that owns its cells takes whatever this
+			   frame has drawn as its own again; one drawn under
+			   text is simply still wanted, which is what keeps it
+			   (a caller that stops placing it is what makes it
+			   go). */
+			if (im->over)
+				im->live = 1;
+			else
+				im->under = cn_imgunder(im);
 			return 1;
 		}
 		/* A different picture in the same rectangle keeps the id: a
@@ -244,6 +252,7 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	im->w = w;
 	im->sum = sum;
 	im->over = (flags & DP_IMG_UNDER) ? 1 : 0;
+	im->live = im->over;
 	im->id = k == CN_GFX_KITTY ? (reuse ? reuse : kt_id()) : 0;
 	s_init(&im->data);
 	/* The rectangle in pixels is what a sixel will paint 1:1, so the bitmap
@@ -288,17 +297,29 @@ void cn_imgcheck(void)
 	size_t i = 0;
 
 	while (i < cn_nimg) {
-		/* One drawn under text claims no cells, so there is nothing to
-		   compare: it is forgotten once its bytes have gone out, and
-		   whatever wants it again places it again. */
+		/* One drawn under text claims no cells, so the hash below says
+		   nothing about it. What keeps it is the caller placing it
+		   again: a frame that did not is a caller that has stopped
+		   wanting it (the wallpaper turned off, a window closed), and
+		   then it goes -- with a delete, for a protocol that keeps
+		   pictures. A sixel is paint, so any cell written over it has
+		   destroyed that much of it and the bytes go again; a kitty
+		   picture is below the text (z=-1) and the terminal composites
+		   it, so nothing has to be re-sent at all. That difference is
+		   the whole cost of a wallpaper: one escape when it changes,
+		   against the bitmap again whenever anything above it moves. */
 		if (cn_imgs[i].over) {
-			if (cn_imgs[i].sent) {
+			if (!cn_imgs[i].live) {
 				cn_imgowe(cn_imgs[i].id);
 				s_free(&cn_imgs[i].data);
 				cn_imgs[i] = cn_imgs[cn_nimg - 1];
 				cn_nimg--;
 				continue;
 			}
+			if (!cn_imgs[i].id && cn_imgs[i].sent &&
+			    cn_imgunder(&cn_imgs[i]) != cn_imgs[i].above)
+				cn_imgs[i].sent = 0;
+			cn_imgs[i].live = 0;
 			i++;
 			continue;
 		}
@@ -348,6 +369,8 @@ size_t cn_imgsend(str *b, int over)
 		s_ch(b, 'H');
 		s_add(b, cn_imgs[i].data.p, cn_imgs[i].data.n);
 		cn_imgs[i].sent = 1;
+		if (cn_imgs[i].over)
+			cn_imgs[i].above = cn_imgunder(&cn_imgs[i]);
 		n += cn_imgs[i].data.n;
 	}
 	return n;

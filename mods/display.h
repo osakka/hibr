@@ -74,11 +74,21 @@ struct dp_api {
 	   DP_IMG_CHOSEN asks for a palette taken from the picture rather than
 	   fixed levels: a still photograph wants it, a film does not (the fixed
 	   one is the same from frame to frame, so a terminal keeps its colour
-	   registers). DP_IMG_UNDER says text is going to be drawn over this
-	   picture, so place it and expect nothing else: without that flag the
-	   backend owns the cells the picture covers, draws nothing through
-	   them, and keeps the picture until something does -- which is what
-	   makes a still picture free on every flush after the first. */
+	   registers).
+
+	   DP_IMG_UNDER says text is going to be drawn over this picture.
+	   Without the flag the backend owns the cells the picture covers,
+	   draws nothing through them, and keeps the picture until something
+	   does -- which is what makes a still picture free on every flush
+	   after the first. With it the picture owns no cells at all, goes out
+	   before the text of each frame, and is kept for as long as the
+	   caller places it again: the first frame that does not place it is
+	   what takes it away (version 6; until then it was forgotten the
+	   moment it had been sent, which cost a wallpaper its whole bitmap
+	   every frame). What it costs in between belongs to the protocol
+	   rather than to a choice: a picture the terminal keeps below the
+	   text is sent once, and paint goes again whenever a cell over it has
+	   been written. */
 #ifndef DP_IMG_CHOSEN
 #define DP_IMG_CHOSEN 1u
 #define DP_IMG_UNDER 2u

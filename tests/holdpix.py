@@ -40,6 +40,12 @@ if len(sys.argv) > 1:
 D = tempfile.mkdtemp(prefix="hibr-holdpix-")
 LOG = os.path.join(D, "inner.log")
 CELL = (8, 16)
+# Everything here is several times slower under the sanitizers -- two
+# sanitizer-built hibrs and a sanitizer-built emulator between them -- so the
+# held program has to stay alive several times longer, or it closes its own
+# console while the checks are still watching and the screen model is reset
+# by the repaint that follows.
+SLOW = 4 if os.environ.get("ASAN_OPTIONS") else 1
 
 
 def png(name, w, h, f):
@@ -112,7 +118,7 @@ def inner(body, settle=12000, nm="p"):
         # the session -- a single wait would end here and the program would
         # exit the moment anyone else attached, which reads as hold dropping
         # the session.
-        + "i=0\nwhile [ $i -lt 12 ]; do console key 1000 > /dev/null; "
+        + "i=0\nwhile [ $i -lt %d ]; do console key 1000 > /dev/null; " % (12 * SLOW)
         + "i=$((i + 1)); done\n"
         + "console close\n")
     return p
@@ -167,10 +173,36 @@ check("a sixel goes through the same way",
       len(sc.images) == 1 and sc.images[0][:2] == (2, 2) and not sc.apc,
       (sc.images, sc.apc, log))
 
-sc, log = run(PIC + "console key 700\n"
-              "console put 3 3 'THROUGH'\nconsole flush\n", until="THROUGH")
-check("text drawn through it takes it away again",
-      "THROUGH" in sc.row(3) and len(sc.images) == 1, (sc.row(3), sc.images))
+# A picture the text is then drawn through must never be left behind on a
+# client's screen. Which of the two a client sees depends on timing that is
+# not ours: hold renders snapshots of its emulator rather than the program's
+# byte stream, so two flushes a fraction of a second apart can arrive in one
+# read -- under the sanitizers they regularly do -- and the picture is then
+# dropped before any client ever saw it. So the invariant is the one that
+# matters and holds either way: the text is there, and nothing is holding a
+# picture that has gone. kitgfx.py checks the targeted delete itself, unheld,
+# where the sequence is ours to control.
+sc, log = run(PIC + "console put 3 3 'THROUGH'\nconsole flush\n",
+              until="THROUGH")
+check("text drawn through it leaves no picture behind",
+      "THROUGH" in sc.row(3) and
+      (not sc.images or any("a=d" in a for a in sc.apc)),
+      (sc.row(3), sc.images, [a[:40] for a in sc.apc]))
+
+# A window that moves takes its picture with it: the console drops the region
+# at the old corner and places one at the new. A kitty picture stays on a
+# terminal until something deletes it, and hold's clients never saw the
+# console's own delete -- which left a real desktop covered in the pictures
+# of windows that had moved, reported on kitty against 0.99.77. Whether a
+# client sees one placement or two is hold's own timing; what must hold
+# either way is that it is never left holding the one that has gone.
+sc, log = run(PIC + "console key 1200\n"
+              "img draw %s 12 20 6 12 -m pixels\nconsole flush\n" % GRAD
+              + "console put 1 0 'MOVED'\nconsole flush\n", until="MOVED")
+check("a picture that moves leaves nothing where it was",
+      "MOVED" in sc.row(1) and
+      (len(sc.images) < 2 or any("a=d" in a for a in sc.apc)),
+      (sc.row(1), sc.images, [a[:40] for a in sc.apc]))
 
 sc, log = run(PIC + "console key 700\nconsole flush\n"
               "console key 700\nconsole flush\n"
@@ -220,4 +252,4 @@ check("a client that says nothing about pixels gets blocks, not a bitmap",
 check("and the blocks are really drawn", "▀" in sc.row(3), repr(sc.row(3)))
 
 shutil.rmtree(D, True)
-report(11)
+report(12)

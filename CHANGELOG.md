@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.99.78
+
+**A picture that goes is taken off the screen, in a held desktop too.**
+Reported live on kitty against 0.99.77: moving a window left its picture
+behind, so a desktop ended up with pictures of windows that were no longer
+there, stacked where each had been. A kitty picture is an object the
+terminal keeps until it is deleted, and the console does delete it -- but
+hold's clients never saw that escape, because hold draws them cells from
+its own emulator and the emulator consumed it. hold now deletes what it is
+holding and places what remains whenever the set of pictures changes: one
+escape, no per-id bookkeeping, and a transmission with an id already taken
+would have replaced it anyway. A sixel needs none of this -- the text drawn
+over it is what removes it.
+
+**A picture drawn under text is kept while its caller keeps placing it.**
+`DP_IMG_UNDER` used to mean "forgotten once sent", which made a wallpaper
+cost its whole bitmap on every frame. Such a region now lives as long as
+the caller places it again each frame and goes, with a delete, on the first
+frame that does not -- and what it costs between those depends on the
+protocol, not on a choice: a kitty picture sits below the text (`z=-1`) and
+the terminal composites it, so nothing is re-sent, while a sixel is paint
+and goes again whenever a cell above it has been written. `DP_API_VER` is 6
+for the changed contract. Nothing passes the flag yet; the wallpaper
+(Gitea #104) is what will.
+
+`tests/holdpix.py` has a check for the reported bug -- a picture that moves
+leaves nothing where it was -- and its "text through a picture" check now
+asserts the invariant that holds whichever way hold's own timing falls:
+the text is there and no picture is left behind. Which of the two a client
+sees is not ours to decide, since hold renders snapshots of its emulator
+rather than the program's byte stream, and under the sanitizers two flushes
+a fraction of a second apart arrive in one read.
+
 ## 0.99.77
 
 **Pictures reach a held desktop, which is every desktop** (Gitea #103). The
