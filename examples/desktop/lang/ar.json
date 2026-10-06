@@ -827,7 +827,7 @@
   "moving — arrows, then enter": "نقل — الأسهم ثم Enter",
   "note": "ملاحظة",
   "phone": "الهاتف",
-  "pixels, a cell is %s by %s": "بكسلات، وحجم الخلية %s في %s",
+  "%s pixels, a cell is %s by %s": "بكسلات %s، وحجم الخلية %s في %s",
   "resizing — arrows, then enter": "تغيير الحجم — الأسهم ثم Enter",
   "server to keep its vault here, readable offline.": "Vaultwarden لحفظ خزنته هنا، ولقراءته دون اتصال.",
   "sets a place, or the time zone gives one.": "تحدّد مكانًا، أو تأتي به المنطقة الزمنية."

@@ -10,8 +10,9 @@ system monitor, and anything else full-screen. Building it once is the point.
 | file | role |
 |---|---|
 | `cn.h` | the cell, the grid, the pane, and every `cn_` entry point |
-| `sixel.c` | a picture as the bytes a terminal paints: the fixed 6x6x6 palette (a film: the same palette every frame, so the terminal keeps its registers) or one chosen by median cut (a still picture). A band is collected in one pass over its own pixels rather than one pass per palette colour, which is 2.5 times faster -- 23.7 ms a frame at 800 by 544, against 0.8 ms for half blocks |
-| `image.c` | pictures as regions of the grid the console owns -- placed, kept, dropped when their cells are drawn through (ADR 0037) |
+| `sixel.c` | a picture as the bytes a terminal paints: the fixed 6x6x6 palette (a film: the same palette every frame, so the terminal keeps its registers) or one chosen by median cut (a still picture). A band is collected in one pass over its own pixels rather than one pass per palette colour, which is 2.5 times faster -- 23 ms a frame at 800 by 544, against 0.5 ms for half blocks |
+| `kitty.c` | the same picture as the kitty graphics protocol's own escape, which kitty, ghostty, WezTerm and konsole speak and kitty alone accepts (it has never drawn a sixel). A picture is an object with an id rather than paint: cheaper to encode, an order of magnitude more bytes, and every one placed is deleted later |
+| `image.c` | pictures as regions of the grid the console owns -- placed, kept, dropped when their cells are drawn through, and for the kitty protocol deleted from the terminal when they are (ADR 0037) |
 | `term.c` | taking and giving back the terminal, and the signals that guarantee it |
 | `grid.c` | the front and back buffers, placement, and the diffing flush |
 | `key.c` | bytes to key names: CSI, SS3, modifiers, mouse, bracketed paste |

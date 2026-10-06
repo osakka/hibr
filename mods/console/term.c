@@ -248,18 +248,37 @@ void cn_cellpx(int *w, int *h)
 
 static int cn_gfxk = -1;
 
+/* What a kind of pixel drawing is called, for a log line and `console gfx`. */
+const char *cn_gfxname(int k)
+{
+	if (k == CN_GFX_SIXEL)
+		return "sixel";
+	if (k == CN_GFX_KITTY)
+		return "kitty";
+	return "none";
+}
+
 /* Whether this terminal takes a picture as pixels, and how.
-   
+
    Two things have to be true: it must say what a cell measures in pixels
    (ws_xpixel), since sixel paints 1:1 and a wrong cell size spills the
-   bitmap into its neighbours; and it must understand sixel. The second is
-   taken from what the terminal calls itself -- kitty, foot, WezTerm, mlterm
-   and iTerm2 all do -- rather than from a Primary Device Attributes probe,
-   which would mean reading the terminal's reply out of the same stream the
-   key decoder owns, with a keypress possibly racing it: that stream already
-   has a trap record of its own (the Alt/Escape window), and a name plus a
-   setting costs nobody a lost keystroke. HIBR_GFX says outright: sixel, or
-   off. */
+   bitmap into its neighbours -- the kitty protocol scales to a rectangle of
+   cells itself and does not need it, but every caller sizes its bitmap from
+   it, so it is asked for either way; and it must understand one of the two
+   protocols. The second is taken from what the terminal calls itself rather
+   than from a probe, which would mean reading the terminal's reply out of
+   the same stream the key decoder owns, with a keypress possibly racing it:
+   that stream already has a trap record of its own (the Alt/Escape window),
+   and a name plus a setting costs nobody a lost keystroke.
+
+   Which protocol is not a matter of taste. kitty has never drawn a sixel and
+   says so; its own protocol is the only way to put pixels in it, and this
+   file said sixel for it from 0.99.72 to 0.99.75, so every picture on it was
+   a blank rectangle. WezTerm and konsole do both, and the kitty protocol is
+   the better of the two there: true colour rather than a palette, and a
+   picture the terminal keeps rather than one repainted. foot, mlterm, yaft,
+   contour, iTerm2 and mintty do sixel only. HIBR_GFX says outright:
+   kitty, sixel, or off. */
 int cn_gfx(sh *s)
 {
 	const char *v, *t;
@@ -276,19 +295,26 @@ int cn_gfx(sh *s)
 		lg(HIBR_LDBG, "gfx: the terminal does not say what a cell measures");
 		return cn_gfxk;
 	}
-	if (v && !strcmp(v, "sixel")) {
-		cn_gfxk = CN_GFX_SIXEL;
-		lg(HIBR_LDBG, "gfx: sixel, as HIBR_GFX asks; cell %dx%d", w, h);
+	if (v && (!strcmp(v, "sixel") || !strcmp(v, "kitty"))) {
+		cn_gfxk = !strcmp(v, "kitty") ? CN_GFX_KITTY : CN_GFX_SIXEL;
+		lg(HIBR_LDBG, "gfx: %s, as HIBR_GFX asks; cell %dx%d",
+		   cn_gfxname(cn_gfxk), w, h);
 		return cn_gfxk;
 	}
 	t = hibr_get(s, "TERM");
-	if (t && (strstr(t, "kitty") || strstr(t, "foot") || strstr(t, "mlterm") ||
-		  strstr(t, "wezterm") || strstr(t, "contour") || strstr(t, "yaft")))
+	if (t && (strstr(t, "foot") || strstr(t, "mlterm") ||
+		  strstr(t, "contour") || strstr(t, "yaft")))
 		cn_gfxk = CN_GFX_SIXEL;
+	if (t && (strstr(t, "kitty") || strstr(t, "ghostty") || strstr(t, "wezterm")))
+		cn_gfxk = CN_GFX_KITTY;
 	t = hibr_get(s, "TERM_PROGRAM");
-	if (t && (!strcmp(t, "WezTerm") || !strcmp(t, "iTerm.app") || !strcmp(t, "mintty")))
+	if (t && (!strcmp(t, "iTerm.app") || !strcmp(t, "mintty")))
 		cn_gfxk = CN_GFX_SIXEL;
-	lg(HIBR_LDBG, "gfx: %s; cell %dx%d", cn_gfxk ? "sixel" : "none", w, h);
+	if (t && (!strcmp(t, "WezTerm") || !strcmp(t, "ghostty")))
+		cn_gfxk = CN_GFX_KITTY;
+	if (cn_gfxk == CN_GFX_NONE && hibr_get(s, "KITTY_WINDOW_ID"))
+		cn_gfxk = CN_GFX_KITTY;
+	lg(HIBR_LDBG, "gfx: %s; cell %dx%d", cn_gfxname(cn_gfxk), w, h);
 	return cn_gfxk;
 }
 
@@ -390,10 +416,17 @@ int cn_open(sh *s)
 /* Give the terminal back exactly as it was found. */
 void cn_close(sh *s)
 {
-	(void)s;
 	if (!cn_on)
 		return;
 	cn_imgclear();
+	if (cn_gfx(s) == CN_GFX_KITTY) {
+		str o;
+
+		s_init(&o);
+		kt_delall(&o);
+		cn_wr(cn_fd, o.p, o.n);
+		s_free(&o);
+	}
 	cn_wr(cn_fd, cn_moff, sizeof cn_moff - 1);
 	cn_wr(cn_fd, cn_leave, sizeof cn_leave - 1);
 	tcsetattr(cn_fd, TCSADRAIN, &cn_sv);

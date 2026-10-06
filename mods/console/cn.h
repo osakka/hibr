@@ -10,6 +10,7 @@
 #ifndef CN_GFX_NONE
 #define CN_GFX_NONE 0
 #define CN_GFX_SIXEL 1
+#define CN_GFX_KITTY 2
 #endif
 
 typedef struct cn_cell cn_cell;
@@ -63,6 +64,13 @@ extern cn_grid cn_back, cn_front;
 /* sixel.c: a picture as the bytes a terminal paints, in the fixed 6x6x6
    palette or one chosen from the picture itself. */
 void six_encode(const unsigned char *rgb, int w, int h, int chosen, str *o);
+/* kitty.c: a picture as the kitty graphics protocol's own escape, which is an
+   object with an id rather than paint, so every one placed is deleted later. */
+unsigned kt_id(void);
+void kt_encode(const unsigned char *rgb, int iw, int ih, int cols, int rows,
+	       unsigned id, int under, str *o);
+void kt_del(str *o, unsigned id);
+void kt_delall(str *o);
 /* image.c: a picture the console keeps as a region of the grid. */
 int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	     const unsigned char *rgb, int iw, int ih, unsigned flags);
@@ -70,13 +78,17 @@ void cn_imgscale(const unsigned char *in, int iw, int ih,
 		 unsigned char *out, int w, int h);
 void cn_imgcheck(void);
 size_t cn_imgsend(str *b, int over);
+/* The deletes owed to the terminal for pictures that have gone, emitted
+   before the diff so the text underneath is painted in the same frame. */
+size_t cn_imgdels(str *b);
 void cn_imgclear(void);
 int cn_imgat(int row, int col);
 size_t cn_imgn(void);
-/* Whether pictures can be drawn as pixels, and how: CN_GFX_NONE or
-   CN_GFX_SIXEL. Decided once, from HIBR_GFX, then the terminal's name, then
-   its own answer to a Primary Device Attributes request. */
+/* Whether pictures can be drawn as pixels, and how: CN_GFX_NONE, CN_GFX_SIXEL
+   or CN_GFX_KITTY. Decided once, from HIBR_GFX and then the terminal's name.
+   The name of the one in force, for `console gfx`. */
 int cn_gfx(sh *s);
+const char *cn_gfxname(int k);
 extern volatile sig_atomic_t cn_wgen;
 unsigned cn_dim1(unsigned v, int pct, unsigned deflt);
 void cn_darken(int row, int col, int h, int w, int pct);

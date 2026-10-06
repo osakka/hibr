@@ -471,6 +471,10 @@ long cn_flush(void)
 	   paint again. */
 	cn_imgcheck();
 	s_init(&b);
+	/* Then the deletes those drops owe the terminal, for a protocol that
+	   keeps a picture rather than painting it: they go before the diff, so
+	   the text that was underneath is painted in the same frame. */
+	cn_imgdels(&b);
 	/* A picture text is drawn over goes out first, so the text lands on
 	   top of it; the pen and the cursor are then unknown. */
 	if (cn_imgn() && cn_imgsend(&b, 1)) {

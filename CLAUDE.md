@@ -184,7 +184,7 @@ whenever a replacement writes one.
 | `mods/salat/` | prayer times: the sun's place computed (Meeus), methods as JSON files in a folder, checked against adhan-js to the minute through the year and into the polar circle (`tests/salat_adhan.py`) -- ADR 0035, Gitea #70 |
 | `mods/lang.c` | translation catalogues with CLDR plurals; the desktop translates at its widgets (`dt_tr`, `wm/lang.hibr`, `lang/`), `tools/strings.py` keeps the list -- ADR 0032 |
 | `mods/email/` | IMAP (IDLE, Gmail's labels), POP3, SMTP and MIME; accounts in a 0600 file; `tests/mailserve.py` is the suites' stand-in server; the Mail app (`apps/Internet/mail.hibr`) keeps accounts offline through `examples/desktop/lib/mailsync.hibr` -- see `mods/email/README.md` |
-| `mods/console/sixel.c`, `mods/console/image.c` | pictures as pixels: the sixel encoder (fixed 6x6x6 palette, or median cut per picture) and the regions the console owns -- placed through `dp_api`'s `image`, kept until their cells are drawn through, emitted once (ADR 0037); `console gfx` says what the terminal can do |
+| `mods/console/sixel.c`, `mods/console/kitty.c`, `mods/console/image.c` | pictures as pixels, in either of the two protocols a terminal might speak -- sixel (fixed 6x6x6 palette, or median cut per picture) and the kitty graphics protocol, which kitty alone accepts since it has never drawn a sixel -- and the regions the console owns: placed through `dp_api`'s `image`, kept until their cells are drawn through, emitted once, and for kitty deleted from the terminal when they go (ADR 0037); `console gfx` names the one in force |
 | `mods/archive/` | a tarball as a folder (Gitea #102): `.tar` and `.tar.gz` indexed at open, `archive ls|stat|cat`, and a `/dev/archive/NAME/path` scheme so a member is a filename anywhere one goes; folders the archive never declared are implied from the names; reading only. Not called `tar`, which would shadow the program -- see `mods/archive/README.md` |
 | `mods/inflate.c` | deflate and its wrappers (zlib, gzip), written here rather than linked against libz, and shared: the prompt module reads git's objects and packs with it, the archive module a `.tar.gz` |
 | `mods/vw/` | Bitwarden and Vaultwarden: `vwk` holds the vault's keys and does its crypto (libcrypto, libargon2 `dlopen`ed), never printing a key; `vw` (`examples/vw.hibr`, installed as a command) logs in, syncs and reads the vault -- kept encrypted, so offline works -- through `dav request`; the desktop's Vault accessory and Passwords pane run that command as a child (`wm/vault.hibr`); `tests/bwserve.py` is the suites' stand-in server -- see `mods/vw/README.md`, ADR 0036 |
@@ -2089,15 +2089,48 @@ went in the shell.
   once sent. Do not add a path that writes a bitmap straight at the screen:
   that is the Control Panel preview trap again, and this is the API it said
   was missing.
+- **A terminal speaks one of two picture protocols, and kitty does not
+  speak sixel.** It never has, and says so in its own documentation; its
+  own graphics protocol is the only way to put pixels in it. `cn_gfx`
+  nonetheless mapped a `$TERM` containing `kitty` to sixel from 0.99.72 to
+  0.99.75, so every picture on the terminal the owner actually uses was a
+  blank rectangle: the console claimed the cells, skipped them in the diff,
+  and the terminal dropped the bytes. Nothing errored, and no suite could
+  have caught it -- the harness is told what a cell measures and its
+  terminal model happily recorded a DCS nobody would ever have rendered.
+  Before writing a terminal's name in a capability list, check what that
+  terminal says it does, not what the family it belongs to does.
+- **A kitty picture is an object, so every one placed is deleted later.**
+  Sixel is paint: writing over the cells removes it, which is the whole
+  reason `cn_imgcheck`'s hash works. A kitty placement stays above the text
+  until it is told to go, so `cn_img` carries an id, every path that drops
+  or forgets a region queues `a=d,d=I` for it (`cn_kdel`, emitted by
+  `cn_imgdels` *before* the diff so the text underneath paints in the same
+  frame), and `cn_close` sends `a=d,d=A` -- leaving the alternate screen is
+  not promised to take images with it. A replacement in the same rectangle
+  keeps the id instead, since a transmission with an id already taken
+  replaces what was there. Everything carries `q=2`, or the terminal's `OK`
+  arrives in the stream the key decoder owns and its ESC lands in the
+  Alt/Escape window.
+- **Pictures do not survive hold, and every desktop is held.** `console
+  gfx` answers `none 0 0` inside a program `hold` started, because hold's
+  pty reports no cell size -- so ADR 0037 reaches `img draw` in a terminal
+  and not the desktop (`dt_autohold` holds all of them). Measured, not
+  assumed, by driving a held program through a pty. Fixing it is hold's
+  work on both sides: carry the client's cell size to the program's pty,
+  and give hold's emulator the same picture-region model so a bitmap
+  reaches the clients -- the OSC 52 trap again. Gitea #103.
 - **Sixel needs the pixel size of a cell, and a wrong one spills.** It
   paints 1:1, so the bitmap is scaled to `w * cellw` by `h * cellh` -- by
   the *backend*, which is the only thing that knows the cell, rather than by
   each of the four modules that draw pictures. A terminal that does not fill
   `ws_xpixel` is treated as having no pictures at all, which is also what
   makes every pty test deterministic: `Term(cellw=, cellh=)` is how a suite
-  says otherwise, and `tests/screen.py` keeps DCS payloads out of its screen
-  model and records them instead (`Screen.images`), or a sixel's own bytes
-  would be fed to the grid as text.
+  says otherwise, and `tests/screen.py` keeps DCS *and* APC payloads out of
+  its screen model and records them instead (`Screen.images`, and every
+  kitty control string in `Screen.apc`), or a picture's own bytes would be
+  fed to the grid as text. A chunked kitty picture is several escapes and
+  one placement, which is what `Screen.images` counts.
 - **A check that can only pass during part of the day is not a check.**
   `tests/desktop.py`'s prayer note test set the "last looked" marker a
   second before today's Fajr and expected a note for every prayer since:

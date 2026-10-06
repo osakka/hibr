@@ -436,9 +436,10 @@ int m_console(sh *s, int ac, char **av)
 		return HIBR_OK;
 	}
 	/* What this terminal can do with a picture, and the pixel size of a
-	   cell while we are asking: "sixel 8 16", or "none 0 0". A script
-	   chooses how to draw with this -- the desktop's Images setting does
-	   -- rather than each app guessing from $TERM for itself. */
+	   cell while we are asking: "kitty 10 20", "sixel 8 16", or
+	   "none 0 0". A script chooses how to draw with this -- the desktop's
+	   Images setting does -- rather than each app guessing from $TERM for
+	   itself. */
 	if (!strcmp(sub, "gfx")) {
 		int w = 0, h = 0, k;
 		str o;
@@ -446,7 +447,8 @@ int m_console(sh *s, int ac, char **av)
 		k = cn_gfx(s);
 		cn_cellpx(&w, &h);
 		s_init(&o);
-		s_cat(&o, k == CN_GFX_SIXEL ? "sixel " : "none ");
+		s_cat(&o, cn_gfxname(k));
+		s_ch(&o, ' ');
 		s_num(&o, w);
 		s_ch(&o, ' ');
 		s_num(&o, h);

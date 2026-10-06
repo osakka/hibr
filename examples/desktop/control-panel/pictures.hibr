@@ -2,14 +2,17 @@
 #
 # pictures -- the Control Panel pane for how a picture is drawn: half
 # blocks, the same in grey, the character ramp, or real pixels where the
-# terminal can paint them (sixel). One setting reaches every picture the
-# desktop draws -- the Image Viewer, the wallpaper, Mail's pictures, the
-# film player and the browser -- since each passes DT_IMGMODE to the module
-# that draws it.
+# terminal can place them. One setting reaches every picture the desktop
+# draws -- the Image Viewer, the wallpaper, Mail's pictures, the film player
+# and the browser -- since each passes DT_IMGMODE to the module that draws
+# it.
 #
 # What the terminal can do is shown beside it, because the honest answer is
-# "it depends on your terminal": sixel needs the terminal to say what a cell
-# measures and to understand the format (ADR 0037).
+# "it depends on your terminal", and it names the protocol in force: the
+# kitty graphics protocol or sixel, each needing the terminal to say what a
+# cell measures (ADR 0037). Which of the two is not a choice -- no terminal
+# does both well, and kitty does not do sixel at all -- so the setting says
+# Pixels and the console picks.
 
 strict
 
@@ -23,7 +26,7 @@ fn cp_imgname(m) {
 	half) ret "Half Blocks" ;;
 	mono) ret "Grey Blocks" ;;
 	ascii) ret "Characters" ;;
-	sixel) ret "Pixels" ;;
+	pixels | sixel) ret "Pixels" ;;
 	*) ret "Automatic" ;;
 	esac
 }
@@ -33,7 +36,7 @@ fn cp_set_imgmode(int? id = "", value = "") {
 	"Half Blocks") DT_IMGMODE=half ;;
 	"Grey Blocks") DT_IMGMODE=mono ;;
 	Characters) DT_IMGMODE=ascii ;;
-	Pixels) DT_IMGMODE=sixel ;;
+	Pixels) DT_IMGMODE=pixels ;;
 	*) DT_IMGMODE=auto ;;
 	esac
 	cp_save
@@ -47,8 +50,8 @@ fn pictures_rows(int w) {
 	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=mode; n=$((n + 1))
 	g := dt_imggfx
 	read -r kind cw ch <<< "$g"
-	if [ "$kind" = sixel ]; then
-		v := dt_tr "pixels, a cell is %s by %s" "$cw" "$ch"
+	if [ "$kind" = sixel ] || [ "$kind" = kitty ]; then
+		v := dt_tr "%s pixels, a cell is %s by %s" "$kind" "$cw" "$ch"
 	elif [ "$cw" = 0 ]; then
 		v := dt_tr "blocks only: it does not say what a cell measures"
 	else
@@ -58,7 +61,7 @@ fn pictures_rows(int w) {
 	CP[$w][$n]["val"]=$v; n=$((n + 1))
 	CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Automatic Means"
 	v := cp_imgname half
-	[ "$kind" = sixel ] && v := cp_imgname sixel
+	dt_imgpix && v := cp_imgname pixels
 	CP[$w][$n]["val"]=$v; n=$((n + 1))
 	ret "$n"
 }

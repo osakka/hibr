@@ -48,7 +48,7 @@ LOGS = os.path.join(ROOT, "build", "asan-logs")
 BIN = os.path.join(ADIR, "bin")
 WRAP = os.path.join(BIN, "hibr")
 QUICK = ["run.sh", "cat", "console", "term_diff", "md_spec", "html_tree",
-         "mail", "pim", "pim_rrule", "dav", "uni_bidi", "uni_shape", "hcal_icu", "salat_adhan", "vw_crypto", "vw", "sixel", "archive"]
+         "mail", "pim", "pim_rrule", "dav", "uni_bidi", "uni_shape", "hcal_icu", "salat_adhan", "vw_crypto", "vw", "sixel", "kitgfx", "archive"]
 FUZZ = 300
 
 

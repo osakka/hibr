@@ -55,7 +55,8 @@ web close $t; web quit
 
 ## How a frame is made
 
-`pixels` is for a terminal that paints them (sixel, ADR 0037): the
+`pixels` is for a terminal that can place them (the kitty graphics protocol
+or sixel, whichever it speaks -- ADR 0037): the
 screenshot is taken at the viewport's own size rather than at one pixel a
 column, and drawn through the display's own `image` entry -- so the page
 looks like the page, with its own fonts, pictures and layout. It has **no

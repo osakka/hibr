@@ -75,8 +75,12 @@ class Screen:
         self.p = [[""] * self.cols for _ in range(self.rows)]
         self.r = self.c = 0
         self.pen = ""
-        # Pictures sent as DCS (sixel): where each landed and how long it was.
+        # Pictures sent as DCS (sixel) or APC (the kitty graphics protocol):
+        # where each landed and how many payload bytes it was.
         self.images = []
+        # Every APC control string, in order, whole: "a=T,f=24,...,m=0" or
+        # "a=d,d=I,q=2,i=1234". What a test asks about a kitty picture.
+        self.apc = []
 
     def feed(self, t):
         i, n = 0, len(t)
@@ -113,6 +117,25 @@ class Screen:
                 while j < n and t[j:j + 2] != "\x1b\\" and t[j] != "\x9c":
                     j += 1
                 self.images.append((self.r, self.c, j - (i + 2)))
+                i = j + (2 if t[j:j + 2] == "\x1b\\" else 1)
+                continue
+            # An APC string is not text either: the kitty graphics protocol
+            # sends ESC _ G <control> ; <base64> ESC \, in chunks of 4096 for
+            # a large picture, and a delete with no payload at all. The
+            # control part of each is kept whole, and a picture counts once
+            # however many chunks carried it -- a test asking "how many
+            # pictures" means placements, not escapes.
+            if ch == "\x1b" and i + 1 < n and t[i + 1] == "_":
+                j = i + 2
+                while j < n and t[j:j + 2] != "\x1b\\" and t[j] != "\x9c":
+                    j += 1
+                ctrl, _, data = t[i + 2:j].partition(";")
+                self.apc.append(ctrl)
+                if "a=T" in ctrl or "a=p" in ctrl:
+                    self.images.append((self.r, self.c, len(data)))
+                elif data and self.images:
+                    r, c, had = self.images[-1]
+                    self.images[-1] = (r, c, had + len(data))
                 i = j + (2 if t[j:j + 2] == "\x1b\\" else 1)
                 continue
             if ch == "\x1b" and i + 1 < n and t[i + 1] == "]":

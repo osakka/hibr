@@ -31,8 +31,8 @@ media close $p
 | `media play ID`, `media pause ID`, `media toggle ID` | |
 | `media seek ID SECONDS [-r]` | go to a time; `-r`, or a leading `+` or `-`, from where it is |
 | `media volume ID [0-100]` | set the volume; says what it is |
-| `media size ID COLS ROWS [half\|ascii\|mono]` | the cells the picture fills, and how it is drawn |
-| `media mode ID half\|ascii\|mono` | half blocks (two pixels a cell), ASCII by brightness in colour, or ASCII plain |
+| `media size ID COLS ROWS [half\|ascii\|mono\|pixels]` | the cells the picture fills, and how it is drawn |
+| `media mode ID half\|ascii\|mono\|pixels` | half blocks (two pixels a cell), ASCII by brightness in colour, ASCII plain, or real pixels where the terminal can place them (ADR 0037, which has what a frame costs each way) |
 | `media detail ID 0-3` | how finely colours are kept: lower changes fewer cells from frame to frame, which is less to send to the terminal (default 2) |
 | `media fps ID N` | the most frames drawn a second (default 24; 0 for every one) |
 | `media frame ID` | bring the shown frame up to the clock: status 0 when it changed |

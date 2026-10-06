@@ -46,7 +46,7 @@ YT_FPS="${YT_FPS-24}"
 YT_DETAIL="${YT_DETAIL-2}"
 YT_AUTONEXT="${YT_AUTONEXT-1}"
 command -v dt_keep > /dev/null && dt_keep YT_MODE YT_QUALITY YT_FPS YT_DETAIL YT_AUTONEXT
-YT_MODES=(half ascii mono)
+YT_MODES=(half ascii mono pixels)
 YT_DATA="${YT_DATA-${XDG_DATA_HOME:-$HOME/.local/share}/hibr/youtube}"
 YT_HIST="$YT_DATA/history.tsv"
 YT_FAVS="$YT_DATA/favourites.tsv"

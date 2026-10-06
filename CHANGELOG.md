@@ -1,5 +1,57 @@
 # Changelog
 
+## 0.99.76
+
+**The kitty graphics protocol, because kitty draws no sixel** (Gitea #94).
+It never has, and says so in its own documentation -- its own protocol is
+the only way to put pixels in it. From 0.99.72 to 0.99.75 the console
+nonetheless sent it a sixel on the strength of its name: the region claimed
+its cells, the diff refused to paint them, and the terminal dropped the
+bytes, so every picture on the terminal most likely to be in front of a
+person was a blank rectangle. `mods/console/kitty.c` sends the real thing,
+and the list of which terminal speaks which protocol is corrected: kitty,
+ghostty, WezTerm and konsole take the kitty protocol, and foot, mlterm,
+contour, yaft, iTerm2 and mintty sixel. `HIBR_GFX=kitty|sixel|off` says
+outright, and `console gfx` names the one in force.
+
+A kitty picture is an object with an id, not paint: it stays above the text
+until deleted, so every region carries one, every path that drops or forgets
+a region owes the terminal a delete -- sent before the next diff, so the
+text underneath is painted in the same frame -- a replacement in the same
+rectangle keeps the id, and closing the display deletes everything it was
+holding. Nothing is asked to reply (`q=2`), since the answer would arrive
+in the stream the key decoder owns.
+
+Measured per frame of a 640x360 film, two runs agreeing: the kitty protocol
+encodes three times faster than sixel (2.7 ms against 9.1 at 60x20) and
+sends an order of magnitude more, because the payload is base64 of the raw
+pixels (128 kB against 21 kB). So a picture that is not a still -- a film,
+which asks for no palette of its own -- is sent at half the pixels in each
+direction and the terminal scales it back up: four times fewer bytes, and
+at full resolution a 100x34 frame was 1.4 MB and the pty could not keep up.
+ADR 0037 has the whole table.
+
+`img -m pixels` is the mode's name now, `sixel` still accepted, since which
+protocol carries them is the display's business; the Control Panel's
+Pictures setting says Pixels and keeps `pixels`, reading an older file's
+`sixel` as the same thing. The YouTube player's Picture menu gained Pixels,
+which it never had. The desktop asks `dt_imgpix` whether there are pixels to
+be had rather than matching a protocol's name.
+
+Honestly, and it is the reason this is not the end of the story: **a held
+desktop still has no pixels.** `console gfx` answers `none 0 0` inside a
+program `hold` started, because hold's own pty reports no cell size, and
+`dt_autohold` holds every desktop -- so all of this reaches `img draw` in a
+terminal and not the desktop the owner runs. That is Gitea #103, and it is
+hold's work on both sides: carry the attaching client's cell size to the
+program's pty, and give hold's emulator the picture regions so a bitmap
+reaches the clients at all.
+
+`tests/kitgfx.py` is 23 checks of its own -- the placement, the id, the
+chunking, the deletes, the replacement, a pane's corner -- and
+`tests/screen.py` now keeps APC payloads out of its screen model the way it
+already did DCS, recording every control string in `Screen.apc`.
+
 ## 0.99.75
 
 **A tarball read as a folder** (Gitea #102). A new module, `archive`, opens a

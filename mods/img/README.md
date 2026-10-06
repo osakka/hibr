@@ -8,13 +8,16 @@ for a window or the desktop's own wallpaper.
 
 `-m` picks how: `half` (coloured half blocks, two pixels a cell), `mono`
 (the same in grey), `ascii` (the character ramp, what `-g` has always
-meant), `sixel` (real pixels, where the terminal can paint them) and `auto`,
-the default, which takes pixels where they are to be had and half blocks
-everywhere else. Pixels go through the display's own `image` entry (ADR
-0037): the console keeps the picture as a region of its own, scales it to
-the rectangle, and sends the bytes once -- so a still picture in a window
-costs nothing on the frames after the first. A terminal that cannot paint
-pixels is not asked twice; `console gfx` is what says which it is.
+meant), `pixels` (real pixels, where the terminal can place them; `sixel`
+is the same thing by its old name) and `auto`, the default, which takes
+pixels where they are to be had and half blocks everywhere else. Which
+protocol carries them -- the kitty graphics protocol or sixel -- is the
+display's business and not named here. Pixels go through its own `image`
+entry (ADR 0037): the console keeps the picture as a region of its own,
+scales it to the rectangle, and sends the bytes once -- so a still picture
+in a window costs nothing on the frames after the first. A terminal that
+cannot place pixels is not asked twice; `console gfx` is what says which it
+is.
 
 | file | role |
 |---|---|

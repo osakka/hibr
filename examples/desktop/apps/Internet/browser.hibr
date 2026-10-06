@@ -289,10 +289,9 @@ fn browser_draw(int id, int h, int w, int row, int col) {
 	# when the setting changes.
 	bwm=cells
 	case $DT_IMGMODE in
-	sixel) bwm=pixels ;;
+	pixels | sixel) bwm=pixels ;;
 	auto | "")
-		g := dt_imggfx
-		case $g in sixel*) bwm=pixels ;; esac
+		dt_imgpix && bwm=pixels
 		;;
 	esac
 	if [ "${BW[$id]["pixels"]}" != "$bwm" ]; then

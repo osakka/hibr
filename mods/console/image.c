@@ -1,9 +1,9 @@
 /* image -- a picture on the cell grid, as pixels the terminal paints.
  *
- * A sixel is not cells: it is a bitmap laid over a rectangle, and the grid
- * knows nothing about it. Drawing one straight at the screen is what this
- * module's own README forbids -- it corrupts whatever the diff writes next --
- * so a picture is a *region* the console owns, and the ordinary diff is what
+ * A bitmap is not cells: it is laid over a rectangle, and the grid knows
+ * nothing about it. Drawing one straight at the screen is what this module's
+ * own README forbids -- it corrupts whatever the diff writes next -- so a
+ * picture is a *region* the console owns, and the ordinary diff is what
  * keeps it honest:
  *
  *   - A region is placed by cn_image: the pixels are encoded once and the
@@ -19,9 +19,17 @@
  *     cells are invalidated, so the next flush paints the text that belongs
  *     there. Nothing has to tell the console a picture has gone.
  *
- * The encoder is sixel.c's. A backend that could place pixels itself (a
- * framebuffer, Blit) would implement the same dp_api entry and never come
- * here.
+ * There are two encoders, and the difference between them is the one thing
+ * a reader has to hold on to. A sixel (sixel.c) is paint: once it has gone
+ * out the terminal has forgotten where it came from, and writing over those
+ * cells is what removes it. A kitty picture (kitty.c) is an object with an
+ * id: it stays above the text until it is deleted, so every region carries
+ * its id and every path that drops or forgets one owes the terminal a
+ * delete, which is what cn_kdel collects and cn_imgdels sends -- before the
+ * diff, so the text underneath is painted in the same frame.
+ *
+ * A backend that could place pixels itself (a framebuffer, Blit) would
+ * implement the same dp_api entry and never come here.
  */
 #include "cn.h"
 #include <stdlib.h>
@@ -33,11 +41,21 @@ typedef struct cn_img {
 	unsigned under;		/* of the cells it covers, as they were when it was placed */
 	int sent;		/* 0 until its bytes have gone out */
 	int over;		/* text is drawn over this one, so it owns no cells */
+	unsigned id;		/* the kitty image's own id; 0 for a sixel */
 	str data;		/* the encoded picture */
 } cn_img;
 
 static cn_img *cn_imgs;
 static size_t cn_nimg, cn_imgcap;
+static str cn_kdel;
+
+/* A kitty picture that has gone owes the terminal a delete. */
+void cn_imgowe(unsigned id)
+{
+	if (!id)
+		return;
+	kt_del(&cn_kdel, id);
+}
 
 /* FNV-1a over bytes, for "is this the same picture" and "are the cells under
    it still the ones it was placed over". */
@@ -86,6 +104,7 @@ void cn_imgdrop(size_t i)
 	if (i >= cn_nimg)
 		return;
 	cn_imgforget(&cn_imgs[i]);
+	cn_imgowe(cn_imgs[i].id);
 	s_free(&cn_imgs[i].data);
 	cn_imgs[i] = cn_imgs[cn_nimg - 1];
 	cn_nimg--;
@@ -160,15 +179,16 @@ void cn_imgscale(const unsigned char *in, int iw, int ih,
 int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	     const unsigned char *rgb, int iw, int ih, unsigned flags)
 {
-	int prow = 0, pcol = 0, ph = 0, pw = 0, cw = 0, chh = 0, tw, th;
+	int prow = 0, pcol = 0, ph = 0, pw = 0, cw = 0, chh = 0, tw, th, k;
 	unsigned char *px = 0;
-	unsigned sum;
+	unsigned sum, reuse = 0;
 	size_t i;
 	cn_img *im;
 
 	if (!cn_isopen() || !rgb || h < 1 || w < 1 || iw < 1 || ih < 1)
 		return 0;
-	if (cn_gfx(s) != CN_GFX_SIXEL)
+	k = cn_gfx(s);
+	if (k != CN_GFX_SIXEL && k != CN_GFX_KITTY)
 		return 0;
 	cn_cellpx(&cw, &chh);
 	if (cw < 2 || chh < 2)
@@ -196,6 +216,12 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 			im->under = cn_imgunder(im);
 			return 1;
 		}
+		/* A different picture in the same rectangle keeps the id: a
+		   kitty transmission with an id that is already taken replaces
+		   what was there, which is one escape rather than a delete and
+		   a place -- and it is what a film does every frame. */
+		reuse = im->id;
+		im->id = 0;
 		cn_imgdrop(i);
 		break;
 	}
@@ -218,24 +244,38 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	im->w = w;
 	im->sum = sum;
 	im->over = (flags & DP_IMG_UNDER) ? 1 : 0;
+	im->id = k == CN_GFX_KITTY ? (reuse ? reuse : kt_id()) : 0;
 	s_init(&im->data);
-	/* The rectangle in pixels is what the terminal will paint 1:1, so the
-	   bitmap is scaled to exactly that: a cell short either way and the
-	   picture spills into its neighbours or leaves a gap. */
+	/* The rectangle in pixels is what a sixel will paint 1:1, so the bitmap
+	   is scaled to exactly that: a cell short either way and the picture
+	   spills into its neighbours or leaves a gap. The kitty protocol is
+	   given the rectangle in cells and scales for itself, which is what
+	   makes a film affordable there: its cost is bytes, not encoding -- a
+	   frame of 100 by 34 cells is half a megabyte of base64 at full
+	   resolution -- so a picture that is not a still (no palette chosen
+	   from it, which is what a film asks for) is sent at half the pixels
+	   in each direction and the terminal scales it back up. */
 	tw = w * cw;
 	th = h * chh;
+	if (im->id && !(flags & DP_IMG_CHOSEN) && tw > 2 && th > 2) {
+		tw /= 2;
+		th /= 2;
+	}
 	if (tw != iw || th != ih) {
 		px = xm((size_t)tw * th * 3);
 		cn_imgscale(rgb, iw, ih, px, tw, th);
-		six_encode(px, tw, th, (flags & DP_IMG_CHOSEN) ? 1 : 0, &im->data);
-		free(px);
-	} else {
-		six_encode(rgb, iw, ih, (flags & DP_IMG_CHOSEN) ? 1 : 0, &im->data);
 	}
+	if (im->id)
+		kt_encode(px ? px : rgb, tw, th, w, h, im->id, im->over,
+			  &im->data);
+	else
+		six_encode(px ? px : rgb, tw, th,
+			   (flags & DP_IMG_CHOSEN) ? 1 : 0, &im->data);
+	free(px);
 	im->under = cn_imgunder(im);
 	im->sent = 0;
-	lg(HIBR_LDBG, "image: %dx%d cells at %d,%d from %dx%d pixels, %zu bytes%s%s",
-	   w, h, row, col, iw, ih, im->data.n,
+	lg(HIBR_LDBG, "image: %s, %dx%d cells at %d,%d from %dx%d pixels, "
+	   "%zu bytes%s%s", cn_gfxname(k), w, h, row, col, iw, ih, im->data.n,
 	   (flags & DP_IMG_CHOSEN) ? ", chosen palette" : "",
 	   im->over ? ", under text" : "");
 	return 1;
@@ -253,6 +293,7 @@ void cn_imgcheck(void)
 		   whatever wants it again places it again. */
 		if (cn_imgs[i].over) {
 			if (cn_imgs[i].sent) {
+				cn_imgowe(cn_imgs[i].id);
 				s_free(&cn_imgs[i].data);
 				cn_imgs[i] = cn_imgs[cn_nimg - 1];
 				cn_nimg--;
@@ -268,6 +309,22 @@ void cn_imgcheck(void)
 		}
 		i++;
 	}
+}
+
+/* The deletes owed for pictures that have gone: a kitty placement stays until
+   it is told to go, so this is what makes a window that closed, moved or was
+   covered stop showing its picture. Sent before the diff, which then paints
+   the text that was underneath. Nothing is owed on a terminal drawing sixel,
+   where writing over the cells is what removes the paint. */
+size_t cn_imgdels(str *b)
+{
+	size_t n = cn_kdel.n;
+
+	if (!n)
+		return 0;
+	s_add(b, cn_kdel.p, n);
+	cn_kdel.n = 0;
+	return n;
 }
 
 /* The bytes of every region that has not had them yet, each at its own

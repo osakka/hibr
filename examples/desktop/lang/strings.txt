@@ -36,6 +36,7 @@
 %s keeps its size; it can only be centred
 %s moved to workspace %s
 %s moves around the Control Panel, so it cannot be a shortcut
+%s pixels, a cell is %s by %s
 %s selected
 %s, and %s more could not go
 (empty)
@@ -807,7 +808,6 @@ integers only
 moving — arrows, then enter
 note
 phone
-pixels, a cell is %s by %s
 resizing — arrows, then enter
 server to keep its vault here, readable offline.
 sets a place, or the time zone gives one.
