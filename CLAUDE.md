@@ -2289,6 +2289,27 @@ went in the shell.
   not comparable: that screen's pixels are 1856x1136x3, 6.3 MB, where its
   cell grid is 130 kB. Anything else that learns to draw pixels must come
   through the same cache, not add a third.
+- **Time `dt_draw` itself, in a loop; sampling a desktop's CPU cannot see a
+  millisecond.** A whole-session measurement has about a millisecond of
+  run-to-run noise, which is the size of the savings worth having: the
+  `cn_fill` and shadow changes of 0.99.81 both measured as *nothing* that
+  way (5.9% against 6.0%) and as a 17% cut when the frame was timed
+  directly -- a session that opens the windows, draws two frames to pay for
+  anything one-off, then reads the clock either side of fifty `dt_draw`
+  calls. Two runs of that agreed within 150 us. Attribute inside it by
+  stubbing one phase in the same session file, since a function defined
+  again replaces the first.
+- **A fill decodes its glyph once, and a shadow darkens only what shows.**
+  Both were per-cell work nobody needed: `cn_fill` went through `cn_put` for
+  every one of a wallpaper's 16,472 cells, paying a `strlen`, a `u8dec` and
+  a `u8w` each time to learn what the cell before it had already said (626
+  us a full-screen fill, now 199); and a window's shadow darkened its whole
+  `h` by `w` rectangle, 4,648 cells for one terminal, when the window's own
+  face is drawn over all but an L of it a few lines later (193 cells, and
+  the shadow now measures as nothing). Anything else that walks a rectangle
+  a cell at a time is worth the same look -- and the cheap check is the
+  call, not the frame: `console fill` timed 100 times in a loop said this in
+  one run where the frame could not.
 - **A desktop's frame is mostly fixed work, so measure it by taking phases
   away rather than by reading.** A keystroke frame at 232x71 is 11 ms, and an
   80x24 desktop with a window costs the same 7.0 ms as a bare 232x71 one: it
@@ -2371,8 +2392,17 @@ went in the shell.
 - Ask before implementing when requirements are ambiguous, and offer choices.
 - Show complete code, not fragments.
 - Be honest about limitations and bugs; state costs of design choices plainly.
-- Prioritise, in order: resident memory, startup time, loop throughput,
-  fork/exec overhead.
+- For **the shell**, prioritise in order: resident memory, startup time, loop
+  throughput, fork/exec overhead.
+- For **the desktop**, the order is the other way about: speed first, then
+  CPU, then resident memory -- and the bar for CPU is about **1% of a core
+  with terminals and programs actually running**, not three to five. A frame
+  budget follows from it: 1% at fourteen frames a second is 0.7 ms a frame,
+  which is what decides whether a design is good enough before it is built.
+  Spending a few hundred kB of pane buffers to take milliseconds off a frame
+  is the right trade here; the cost still gets named in the same sentence as
+  the saving. These two lists are different products and neither replaces
+  the other.
 
 ## Open items
 

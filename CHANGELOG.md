@@ -1,5 +1,61 @@
 # Changelog
 
+## 0.99.81
+
+**A frame is 17% cheaper, and the measurement that found it is the news.**
+Timing a whole desktop under load has about a millisecond of run-to-run
+noise, which is the same size as the savings worth having -- so both of
+these changes measured as *nothing* until the frame itself was timed
+directly: `dt_draw` called fifty times in a loop with the clock read either
+side, on their own session's shape (232x71, three terminals, two stickies,
+a 3840x2160 wallpaper). 7.0 ms a frame before, 5.8 after, with the two runs
+of each within 150 us. Anything measuring a desktop by sampling CPU wants
+that instrument first.
+
+**`cn_fill` decodes its glyph once rather than once a cell.** Every cell of
+a fill went through `cn_put`, paying a `strlen`, a `u8dec` and a `u8w` to
+learn again what the cell before it had already said. A wallpaper is 16,472
+cells and every window's own face is another fill:
+
+| | before | after |
+|---|---|---|
+| fill 71x232 with a space | 626 us | 199 us |
+| fill 71x232 with a wallpaper glyph | 742 us | 204 us |
+
+The fast path takes only a single codepoint one column wide and writes
+exactly the cell `cn_put` would have, `cn_split` and the freed combining
+characters included; a wide glyph or a string still goes the old way.
+
+**A window's shadow darkens the strip that shows, not the whole window.**
+The shadow is the window's own rectangle moved a row down and two columns
+right, and the window's own face is drawn over it a few lines later -- so
+`h` by `w` cells were darkened to leave an L visible: 4,648 of them for one
+terminal against 193. It is now two calls, the row under the window and the
+two columns beside it, which is the same cells and measured the shadow down
+to nothing at all (6.047 ms a frame against 6.017 with shadows off).
+
+Where the 6.0 ms that remains goes, from stubbing one phase at a time:
+
+| | ms |
+|---|---|
+| the five windows' own `_draw`s | 1.89 (3 terminals 0.96, 2 stickies 0.93) |
+| the window chrome around them | 1.50 |
+| the wallpaper | 1.45 |
+| the Control Strip | 0.49 |
+| the menu gate and the bar | 0.58 |
+| shadows | about nothing |
+
+Two things that says, for whoever goes further. A terminal's content costs
+0.32 ms because `term draw` blits its cells in one call, where a sticky note
+costs 0.47 for a tenth of the area, because `tb_draw` walks it row by row in
+shell -- the text widgets, not the terminals, are what is expensive now. And
+the rest needs the desktop to stop redrawing what has not changed, which is
+possible without touching the console (`cn_flush` leaves the back grid
+intact, so a cell nobody rewrites costs nothing) but is a real piece of work:
+a window kept from last frame means the wallpaper must not be painted over
+it, and painting the wallpaper around the windows means the console has to
+know which cells a pane owns.
+
 ## 0.99.80
 
 **A desktop with busy terminals in it was spending a core on frames nobody

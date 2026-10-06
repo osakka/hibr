@@ -327,13 +327,50 @@ int cn_put(int row, int col, const char *t)
 	return col - start;
 }
 
-/* Repeat one character over a rectangle. */
+/* Repeat one character over a rectangle.
+
+   The glyph is decoded once rather than once a cell. Through cn_put every
+   cell paid a strlen, a u8dec and a u8w to learn again what the one before
+   it had already said, and a wallpaper is 16,472 cells: that fill was 1.6 ms
+   of a 6.7 ms frame, and every window's own face is another fill. The fast
+   path takes only a single codepoint one column wide -- a space, or one of
+   the wallpaper glyphs -- and writes exactly the cell cn_put would have,
+   cn_split and the freed combining characters included. Anything else, a
+   wide glyph or a string, still goes through cn_put. */
 void cn_fill(int row, int col, int h, int w, const char *t)
 {
-	int r, c, adv;
+	int r, c, adv, l, gw;
+	unsigned cp;
+	cn_cell *p;
 
 	if (!t || !*t)
 		t = " ";
+	if (cn_fitq() != HIBR_OK)
+		return;
+	l = u8dec(t, strlen(t), &cp);
+	gw = u8w(cp);
+	if (gw == 1 && t[l] == 0) {
+		for (r = row; r < row + h; r++) {
+			if (r < 0 || r >= cn_back.rows)
+				continue;
+			for (c = col; c < col + w; c++) {
+				if (c < 0 || c >= cn_back.cols)
+					continue;
+				cn_split(r, c);
+				p = &cn_back.c[r * cn_back.cols + c];
+				free(p->ext);
+				p->ext = 0;
+				p->cp = cp;
+				p->w = 1;
+				p->cont = 0;
+				p->fg = cn_fg;
+				p->bg = cn_bg;
+				p->attr = cn_penat;
+				p->link = cn_plink;
+			}
+		}
+		return;
+	}
 	for (r = row; r < row + h; r++)
 		for (c = col; c < col + w;) {
 			adv = cn_put(r, c, t);

@@ -141,8 +141,19 @@ fn dt_win(int id) {
 		return 0
 	fi
 
-	[ "$DT_SHADOW" = 1 ] &&
-		console darken $((wr + 1)) $((wc + 2)) "$h" "$w" "$DT_SHADOW_PCT"
+	# Only the strip that stays visible. The shadow is the window's own
+	# rectangle moved a row down and two columns right, so all of it but
+	# an L is painted over by the window's own face a few lines below --
+	# and darkening what is about to be overwritten cost h by w cells a
+	# window a frame, 4,648 of them for one terminal, against 193 for the
+	# L. The result is the same cells: the row under the window, and the
+	# two columns beside it.
+	if [ "$DT_SHADOW" = 1 ]; then
+		console darken $((wr + h)) $((wc + 2)) 1 "$w" "$DT_SHADOW_PCT"
+		[ "$h" -gt 1 ] &&
+			console darken $((wr + 1)) $((wc + w)) $((h - 1)) 2 \
+				"$DT_SHADOW_PCT"
+	fi
 	[ "$DT_FOCUS" = "$id" ] && on=$DT_ACTIVE
 	console pen "$DT_INK" "$DT_FACE"
 	console fill "$wr" "$wc" "$h" "$w" " "
