@@ -417,9 +417,124 @@ void v_pos(sh *s, int ac, char **av)
 	s->avo = 1;
 }
 
+/* A map is a list, so a lookup walked it and an append walked it twice --
+   5000 inserts took 155 ms and 20,000 took 2.7 s (Gitea #73). Past
+   HIBR_MPHASH entries a chain keeps an index, and every chain keeps its own
+   tail, both in its first entry: mp_find and mp_add are the only two
+   callers that have to know, and nothing above them changed.
+
+   The rules every path that changes a chain must keep: the head holds tl and
+   ix; removing an entry takes it out of the index (a tombstone) and moves tl
+   and ix to the new head when the head itself goes; and anything that frees
+   or rebuilds a chain frees the index. mp_free, v_delp, m_clone and v_copyp
+   are those paths. */
+
+/* An index sized to hold n entries at three quarters load: a slot is eight
+   bytes, so half load would cost 26 bytes an entry on top of the 16 the
+   record grew, and memory is this project's first priority. At 0.75 the
+   average probe is still under two. */
+mix *mp_ixnew(size_t n)
+{
+	size_t cap = 32;
+	mix *x;
+
+	while (cap < n + n / 2)
+		cap *= 2;
+	x = xm(sizeof *x + cap * sizeof(ent *));
+	memset(x, 0, sizeof *x + cap * sizeof(ent *));
+	x->cap = cap;
+	return x;
+}
+
+/* Put an entry in an index that has room for it. */
+void mp_ixput(mix *x, ent *e)
+{
+	size_t i = vh(e->k) & (x->cap - 1);
+
+	while (x->t[i] && x->t[i] != MP_GONE) {
+		if (!strcmp(x->t[i]->k, e->k)) {
+			x->t[i] = e;
+			return;
+		}
+		i = (i + 1) & (x->cap - 1);
+	}
+	if (x->t[i] == MP_GONE)
+		x->dead--;
+	x->t[i] = e;
+	x->n++;
+}
+
+/* Build or rebuild a chain's index from the chain itself. */
+void mp_ixbuild(ent *h, size_t n)
+{
+	ent *e;
+
+	if (!h)
+		return;
+	free(h->ix);
+	h->ix = mp_ixnew(n);
+	for (e = h; e; e = e->nx)
+		mp_ixput(h->ix, e);
+}
+
+/* The entry a key names, through an index. */
+ent *mp_ixfind(mix *x, const char *k)
+{
+	size_t i = vh(k) & (x->cap - 1), j;
+
+	for (j = 0; j < x->cap; j++) {
+		if (!x->t[i])
+			return 0;
+		if (x->t[i] != MP_GONE && !strcmp(x->t[i]->k, k))
+			return x->t[i];
+		i = (i + 1) & (x->cap - 1);
+	}
+	return 0;
+}
+
+/* Take an entry out of its chain's index, leaving a tombstone: the probe
+   that found it has to go on finding what is past it. */
+void mp_ixdel(ent *h, ent *e)
+{
+	size_t i, j;
+
+	if (!h || !h->ix)
+		return;
+	i = vh(e->k) & (h->ix->cap - 1);
+	for (j = 0; j < h->ix->cap; j++) {
+		if (h->ix->t[i] == e) {
+			h->ix->t[i] = MP_GONE;
+			h->ix->n--;
+			h->ix->dead++;
+			return;
+		}
+		if (!h->ix->t[i])
+			return;
+		i = (i + 1) & (h->ix->cap - 1);
+	}
+}
+
+/* The chain's last entry, written down in its head so an append is O(1). A
+   chain a module linked itself has no tail yet, so it is found once. */
+ent *mp_tail(ent *h)
+{
+	ent *t;
+
+	if (!h)
+		return 0;
+	if (h->tl)
+		return h->tl;
+	for (t = h; t->nx; t = t->nx)
+		;
+	h->tl = t;
+	return t;
+}
+
 /* Find an entry by key. */
 ent *mp_find(ent *m, const char *k)
 {
+	if (m && m->ix)
+		return mp_ixfind(m->ix, k);
 	for (; m; m = m->nx)
 		if (!strcmp(m->k, k))
 			return m;
@@ -429,18 +544,72 @@ ent *mp_find(ent *m, const char *k)
 /* Find an entry by key, appending it when absent. */
 ent *mp_add(ent **m, size_t *n, const char *k)
 {
-	ent *e = mp_find(*m, k), **t = m;
+	ent *e = mp_find(*m, k), *h = *m;
 
 	if (e)
 		return e;
 	e = xm(sizeof *e);
 	memset(e, 0, sizeof *e);
 	e->k = xs(k);
-	while (*t)
-		t = &(*t)->nx;
-	*t = e;
+	if (!h) {
+		*m = e;
+		e->tl = e;
+	} else {
+		mp_tail(h)->nx = e;
+		h->tl = e;
+	}
 	(*n)++;
+	h = *m;
+	if (h->ix) {
+		if ((h->ix->n + h->ix->dead) * 4 >= h->ix->cap * 3)
+			mp_ixbuild(h, *n);
+		else
+			mp_ixput(h->ix, e);
+	} else if (*n >= HIBR_MPHASH) {
+		mp_ixbuild(h, *n);
+	}
 	return e;
+}
+
+/* Remove the entry a key names, keeping the tail, the index and the head's
+   ownership of both right. 0 when there is no such key. */
+int mp_del(ent **head, size_t *n, const char *k)
+{
+	ent *h = *head, *e, *prev = 0;
+
+	if (!h)
+		return 0;
+	e = mp_find(h, k);
+	if (!e)
+		return 0;
+	if (e != h)
+		for (prev = h; prev->nx != e; prev = prev->nx)
+			;
+	mp_ixdel(h, e);
+	if (prev)
+		prev->nx = e->nx;
+	else
+		*head = e->nx;
+	if (e == h) {
+		/* the head itself: the new one takes the tail and the index */
+		ent *nh = *head;
+
+		if (nh) {
+			nh->tl = e->tl == e ? nh : e->tl;
+			nh->ix = e->ix;
+		} else {
+			free(e->ix);
+		}
+		e->ix = 0;
+	} else if (h->tl == e) {
+		h->tl = prev;
+	}
+	mp_free(e->map);
+	free(e->k);
+	free(e->s);
+	free(e);
+	(*n)--;
+	return 1;
 }
 
 /* Release a map and everything below it. */
@@ -451,6 +620,7 @@ void mp_free(ent *m)
 	while (m) {
 		n = m->nx;
 		mp_free(m->map);
+		free(m->ix);
 		free(m->k);
 		free(m->s);
 		free(m);
@@ -674,7 +844,8 @@ size_t v_alen(sh *s, const char *k)
 /* Clone a map recursively. */
 ent *m_clone(ent *m)
 {
-	ent *h = 0, **t = &h, *e;
+	ent *h = 0, **t = &h, *e, *last = 0;
+	size_t n = 0;
 
 	for (; m; m = m->nx) {
 		e = xm(sizeof *e);
@@ -686,6 +857,15 @@ ent *m_clone(ent *m)
 		e->ty = m->ty;
 		*t = e;
 		t = &e->nx;
+		last = e;
+		n++;
+	}
+	/* The copy is its own chain: its own tail, and its own index once it is
+	   long enough -- the original's belongs to the original. */
+	if (h) {
+		h->tl = last;
+		if (n >= HIBR_MPHASH)
+			mp_ixbuild(h, n);
 	}
 	return h;
 }
@@ -779,7 +959,7 @@ void hibr_fail(sh *s, const char *msg)
 int v_delp(sh *s, const char *nm, char **ks, int nk)
 {
 	var *v = v_find(s, nm);
-	ent **mp, *e, **pp;
+	ent **mp, *e;
 	size_t *np;
 	int i;
 
@@ -794,17 +974,5 @@ int v_delp(sh *s, const char *nm, char **ks, int nk)
 		mp = &e->map;
 		np = &e->n;
 	}
-	for (pp = mp; *pp; pp = &(*pp)->nx) {
-		if (strcmp((*pp)->k, ks[nk - 1]))
-			continue;
-		e = *pp;
-		*pp = e->nx;
-		mp_free(e->map);
-		free(e->k);
-		free(e->s);
-		free(e);
-		(*np)--;
-		return HIBR_OK;
-	}
-	return HIBR_FAIL;
+	return mp_del(mp, np, ks[nk - 1]) ? HIBR_OK : HIBR_FAIL;
 }

@@ -42,17 +42,17 @@ per module plus its builtins:
 ```text
 $ mod load sys; mod avail
 NAME         VERSION  ABI      STATE      PATH
-cat          0.21     abi 15   available  /usr/local/lib/hibr/cat.so
+cat          0.21     abi 16   available  /usr/local/lib/hibr/cat.so
              cat   offers highlight
-console      0.21     abi 15   available  /usr/local/lib/hibr/console.so
+console      0.21     abi 16   available  /usr/local/lib/hibr/console.so
              console   offers display
 ...
-lint         1.0      abi 15   available  /usr/local/lib/hibr/lint.so
+lint         1.0      abi 16   available  /usr/local/lib/hibr/lint.so
              offers lint
-ls           0.68     abi 15   available  /usr/local/lib/hibr/ls.so
+ls           0.68     abi 16   available  /usr/local/lib/hibr/ls.so
              ls
 ...
-sys          0.68     abi 15   loaded     /usr/local/lib/hibr/sys.so
+sys          0.68     abi 16   loaded     /usr/local/lib/hibr/sys.so
              drop, epoch, sleepms, state, upper
 ```
 

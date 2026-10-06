@@ -1,0 +1,12 @@
+0
+small: 8 0 7 []
+grown: 40 0 39 []
+insertion order kept: yes
+deleted: 39 [] 19 21
+put back: 40 again
+head gone: 40 [] 1 last
+zz is last: zz
+every key answers: 0 wrong
+copied: 41 1 last 1
+nested: 30 0 x29 []
+nested delete: 29 [] 6

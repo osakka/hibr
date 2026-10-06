@@ -216,7 +216,8 @@ void six_run(str *o, int ch, int n)
 void six_encode(const unsigned char *rgb, int w, int h, int chosen, str *o)
 {
 	unsigned pal[256];
-	unsigned char *ix;
+	unsigned char *ix, *bits, *inseen;
+	int *seen;
 	int n, x, y, band, c, i;
 
 	if (w < 1 || h < 1)
@@ -230,8 +231,17 @@ void six_encode(const unsigned char *rgb, int w, int h, int chosen, str *o)
 		/* Every register is declared whether this picture uses it or
 		   not: the palette is then the same from frame to frame, which
 		   is the whole reason a moving picture takes the fixed one. */
-		for (i = 0; i < w * h; i++)
-			ix[i] = (unsigned char)six_fixed(rgb + (size_t)i * 3);
+		/* The level of each channel comes from a table rather than two
+		   divisions a pixel: the same answer, a quarter of the work. */
+		unsigned char lv[256];
+
+		for (i = 0; i < 256; i++)
+			lv[i] = (unsigned char)six_lvl((unsigned)i);
+		for (i = 0; i < w * h; i++) {
+			const unsigned char *q = rgb + (size_t)i * 3;
+
+			ix[i] = (unsigned char)(lv[q[0]] * 36 + lv[q[1]] * 6 + lv[q[2]]);
+		}
 		n = 216;
 		for (i = 0; i < 216; i++) {
 			int r, g, b;
@@ -260,45 +270,65 @@ void six_encode(const unsigned char *rgb, int w, int h, int chosen, str *o)
 		s_ch(o, ';');
 		six_num(o, b);
 	}
+	/* One pass over a band's own pixels fills, for each colour it uses, the
+	   six-bit column pattern of every column; then each of those colours is
+	   emitted from that. The first version worked the other way round --
+	   for every colour, scan the band -- which rescanned a band 216 times
+	   and cost 61 ms a frame at 800 by 544. Measured: that is 25 to 75
+	   times what half blocks cost, and most of it was this loop. */
+	bits = xm((size_t)n * w);
+	seen = xm((size_t)n * sizeof *seen);
+	inseen = xm((size_t)n);
+	memset(bits, 0, (size_t)n * w);
+	memset(inseen, 0, (size_t)n);
 	for (band = 0; band < h; band += 6) {
-		char *used = xm((size_t)n);
-		int first = 1;
+		int nseen = 0, j, first = 1;
 
-		memset(used, 0, (size_t)n);
-		for (y = band; y < band + 6 && y < h; y++)
-			for (x = 0; x < w; x++)
-				used[ix[(size_t)y * w + x]] = 1;
-		for (c = 0; c < n; c++) {
+		for (y = band; y < band + 6 && y < h; y++) {
+			const unsigned char *row = ix + (size_t)y * w;
+			int bit = 1 << (y - band);
+
+			for (x = 0; x < w; x++) {
+				c = row[x];
+				bits[(size_t)c * w + x] |= (unsigned char)bit;
+				if (!inseen[c]) {
+					inseen[c] = 1;
+					seen[nseen++] = c;
+				}
+			}
+		}
+		for (j = 0; j < nseen; j++) {
+			unsigned char *bp;
 			int run = -1, runn = 0;
 
-			if (!used[c])
-				continue;
+			c = seen[j];
+			bp = bits + (size_t)c * w;
 			if (!first)
 				s_ch(o, '$');
 			first = 0;
 			s_ch(o, '#');
 			six_num(o, c);
 			for (x = 0; x < w; x++) {
-				int bits = 0;
+				int v = bp[x] + 63;
 
-				for (y = band; y < band + 6 && y < h; y++)
-					if (ix[(size_t)y * w + x] == c)
-						bits |= 1 << (y - band);
-				bits += 63;
-				if (bits == run) {
+				if (v == run) {
 					runn++;
 					continue;
 				}
 				six_run(o, run, runn);
-				run = bits;
+				run = v;
 				runn = 1;
 			}
 			six_run(o, run, runn);
+			memset(bp, 0, (size_t)w);
+			inseen[c] = 0;
 		}
-		free(used);
 		if (band + 6 < h)
 			s_ch(o, '-');
 	}
+	free(bits);
+	free(seen);
+	free(inseen);
 	s_cat(o, "\033\\");
 	free(ix);
 }

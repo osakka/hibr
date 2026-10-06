@@ -77,6 +77,15 @@ int b_str(sh *s, int ac, char **av);
 int b_arr(sh *s, int ac, char **av);
 ent *mp_add(ent **m, size_t *n, const char *k);
 void mp_free(ent *m);
+/* A map's own index and tail (Gitea #73): kept in the chain's first entry,
+   so only these touch them. mp_del is the one way to remove an entry. */
+int mp_del(ent **head, size_t *n, const char *k);
+ent *mp_tail(ent *h);
+mix *mp_ixnew(size_t n);
+void mp_ixput(mix *x, ent *e);
+void mp_ixbuild(ent *h, size_t n);
+ent *mp_ixfind(mix *x, const char *k);
+void mp_ixdel(ent *h, ent *e);
 const char *v_getp(sh *s, const char *nm, char **ks, int nk);
 void v_setp(sh *s, const char *nm, char **ks, int nk, const char *val);
 size_t v_count(sh *s, const char *nm, char **ks, int nk);

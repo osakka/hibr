@@ -10,7 +10,7 @@ system monitor, and anything else full-screen. Building it once is the point.
 | file | role |
 |---|---|
 | `cn.h` | the cell, the grid, the pane, and every `cn_` entry point |
-| `sixel.c` | a picture as the bytes a terminal paints: the fixed 6x6x6 palette, or one chosen from the picture by median cut |
+| `sixel.c` | a picture as the bytes a terminal paints: the fixed 6x6x6 palette (a film: the same palette every frame, so the terminal keeps its registers) or one chosen by median cut (a still picture). A band is collected in one pass over its own pixels rather than one pass per palette colour, which is 2.5 times faster -- 23.7 ms a frame at 800 by 544, against 0.8 ms for half blocks |
 | `image.c` | pictures as regions of the grid the console owns -- placed, kept, dropped when their cells are drawn through (ADR 0037) |
 | `term.c` | taking and giving back the terminal, and the signals that guarantee it |
 | `grid.c` | the front and back buffers, placement, and the diffing flush |

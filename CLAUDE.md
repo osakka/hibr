@@ -2206,18 +2206,35 @@ went in the shell.
   tests: the command cache's 96 bytes were found by noticing that only one test
   file reported anything, and then that `hash` reported the same number, which
   is what said cache rather than new code.
-- **The shell's maps are lists**, so a lookup or an append walks every
-  entry: 5000 inserts into one map take 155 ms, 20,000 take 2.7 s; one
-  pass over 5000 rows reading three fields of each, 337 ms. That is why
-  Mail keeps 1000 messages by default (0.2 s to load, 0.35 s a view
-  change) and why `html lines` bound into `$RET` on a 30,000-line page took
-  45 s against 0.25 s printed. The fix is an index for large maps, after
-  `fn_hfind`'s pattern: built past a threshold, so a small map pays
-  nothing; a tail pointer for appends. It must be kept right by every path
-  that changes a chain -- `mp_add`, `unset`'s splice, `m_clone`,
-  `v_copyp`, `mp_free`, the release of `RET` -- it changes `struct ent` and
-  so the ABI, and it has to be measured on resident memory as well as
-  instruction counts before it goes in. Not built; the owner decides.
+- **The shell's maps are indexed since 0.99.74** (Gitea #73). They are still
+  lists -- the order entries come back in is the order they went in, which
+  the desktop depends on -- but past `HIBR_MPHASH` (16) entries a chain
+  keeps an open-addressed index, and every chain keeps its tail, both in its
+  own first entry, so `mp_find` and `mp_add` are the only callers that know.
+  Measured on this box, before and after:
+
+  | | before | after |
+  |---|---|---|
+  | 20,000 appends into one map | 2746 ms | 74 ms |
+  | 20,000 rows of three fields | 12,616 ms | 136 ms |
+  | one field read from each of 20,000 | 4016 ms | 109 ms |
+  | 5000 appends | 157 ms | 18 ms |
+  | 1000 appends | 8 ms | 6 ms |
+
+  and a 50,000-row `csv read` is 97 ms with 2000 lookups into it costing
+  9 ms, where each lookup used to walk 25,000 entries. Resident memory for a
+  20,000-entry map went 2500 kB to 3092 kB (+24%): 16 bytes an entry for the
+  two fields, and the index itself at three quarters load -- half load cost
+  272 kB more for 12 ms, and memory is the owner's first priority.
+
+  **The invariants, which every path that changes a chain must keep:** the
+  head entry owns `tl` and `ix`; removing an entry takes it out of the index
+  as a tombstone (`MP_GONE`) and, when the head itself goes, hands both to
+  the new head; `mp_free` frees the index; `m_clone` gives the copy its own.
+  `mp_del` is the only way to remove an entry -- `v_delp` goes through it --
+  so do not splice a chain by hand again. A module that links entries itself
+  (csv, db) may leave `tl` and `ix` zero: `mp_tail` finds the tail once, and
+  csv asks for an index when it has finished a large result.
 - hibr uses about 160 kB more than dash (measured on 0.68), and that is the
   binary rather than the heap: 36 kB of a 1852 kB resident set is heap, so there is no allocator work
   left that would move it. Shrinking it means less code. The README says so.

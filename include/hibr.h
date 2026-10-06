@@ -4,10 +4,10 @@
 #include <stddef.h>
 
 #ifndef HIBR_ABI
-#define HIBR_ABI 15u
+#define HIBR_ABI 16u
 #endif
 #ifndef HIBR_VER
-#define HIBR_VER "0.99.73"
+#define HIBR_VER "0.99.74"
 #endif
 #ifndef HIBR_OK
 #define HIBR_OK 0
@@ -42,6 +42,11 @@
 #endif
 #ifndef HIBR_FNHASH
 #define HIBR_FNHASH 16
+#endif
+/* How many entries a map has before it is worth indexing: below this a walk
+   is cheaper than a hash, and the index is never allocated at all. */
+#ifndef HIBR_MPHASH
+#define HIBR_MPHASH 16
 #endif
 #ifndef HIBR_TAB0
 #define HIBR_TAB0 64
@@ -209,7 +214,20 @@ struct part { part *nx; word *arg, *idx; char *t; size_t n; short k, op; unsigne
 struct word { word *nx; part *p; };
 struct redir { redir *nx; word *w; char *var; int fd; short k, fl; };
 struct node { node *l, *r, *x; word *w, *aw, *bw; redir *rd; char *s, *tx, *rt; short k, f; unsigned ln; };
-struct ent { ent *nx; char *k, *s; ent *map; size_t n; short ty; };
+/* An index of one map's chain: entry pointers in an open table, kept by the
+   chain's own first entry, so mp_find can use it with no caller knowing.
+   A slot holding MP_GONE held an entry that has since been removed. */
+typedef struct mix mix;
+struct mix { size_t cap, n, dead; ent *t[]; };
+#ifndef MP_GONE
+#define MP_GONE ((ent *)-1)
+#endif
+/* nx, k, s, map, n and ty are the entry itself; tl and ix belong to the
+   whole chain and only its first entry keeps them -- the tail, so an append
+   is not a walk, and the index, built once a chain reaches HIBR_MPHASH
+   entries. A module that links entries itself (csv, db) may leave both 0:
+   mp_add finds the tail once and writes it down. */
+struct ent { ent *nx; char *k, *s; ent *map; size_t n; short ty; ent *tl; mix *ix; };
 struct var { var *nx; char *k, *v; ent *map; size_t n; short ty; unsigned ex, ro, am, at; };
 
 struct sh {

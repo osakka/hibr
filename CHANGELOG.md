@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.99.74
+
+**Maps are indexed** (Gitea #73). A map is a list, so a lookup walked it and
+an append walked it twice: 20,000 appends took 2.7 seconds and building
+20,000 rows of three fields took 12.6. Past sixteen entries a chain now
+keeps an open-addressed index and its own tail, both in its first entry, so
+nothing above `mp_find` and `mp_add` had to change and the order entries come
+back in is still the order they went in.
+
+| | before | after |
+|---|---|---|
+| 20,000 appends | 2746 ms | 74 ms |
+| 20,000 rows of three fields | 12,616 ms | 136 ms |
+| one field from each of 20,000 | 4016 ms | 109 ms |
+| 5000 appends | 157 ms | 18 ms |
+
+A 50,000-row `csv read` is 97 ms, and 2000 lookups into that map cost 9 ms
+where each used to walk 25,000 entries -- the csv module asks for an index
+once it has linked a large result, since a chain built by hand has none.
+Resident memory for a 20,000-entry map goes from 2500 kB to 3092 kB: 16
+bytes an entry, and the index at three quarters load rather than half, which
+costs 12 ms on those 20,000 appends and saves 272 kB. The ABI is 16, since
+`struct ent` grew.
+
+**The sixel encoder is 2.5 times faster**, which is what measuring it was
+for. A film frame at 100 by 34 cells (800 by 544 pixels) cost 61 ms to
+encode and now costs 23.7 ms; at 60 by 20 it was 21 ms and is now 8.9 ms.
+Half blocks cost 0.3 and 0.8 ms, so pixels are still about thirty times the
+price, and a film at 100 by 34 is bound to roughly 40 frames a second by the
+encoding alone -- measured on a 640 by 360 clip through the player, median of
+twenty frames, and written down in ADR 0037 rather than left as a feeling.
+
+The cause was in the first version: it scanned a band once for every palette
+colour, 216 times over, where one pass over the band's own pixels can fill
+every colour's column pattern at once. The fixed palette's level maths is a
+table now as well. What is left is the emission itself, since photographic
+content uses most of the palette in every band; a smaller palette for film,
+emitting only the bands that changed, and the kitty graphics protocol are
+the three ways further, none of them built.
+
 ## 0.99.73
 
 **The browser draws the page as a picture** where the terminal can paint

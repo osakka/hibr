@@ -16,6 +16,7 @@ struct csv_rd {
 vec csv_open;
 
 var *v_find(sh *s, const char *k);
+void mp_ixbuild(ent *h, size_t n);
 
 /* The next byte of a reader, or EOF. */
 int csv_get(csv_rd *r)
@@ -279,6 +280,14 @@ int csv_read(sh *s, int ac, char **av)
 		v->n++;
 		row++;
 	}
+	/* The rows were linked here rather than through hibr_setp, which is
+	   what makes 50,000 of them 0.24 s instead of three and a half minutes
+	   -- but a chain built by hand has no index, so every later lookup in
+	   the script would walk it. One pass now gives the whole map one
+	   (Gitea #73); the shell is linked -rdynamic, so this is declared
+	   above rather than reached through an interface. */
+	if (v && v->map && row >= 16)
+		mp_ixbuild(v->map, row);
 	csv_clear(&fs);
 	csv_clear(&hd);
 	v_free(&fs);

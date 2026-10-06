@@ -65,10 +65,26 @@ window). A name and a setting cost nobody a lost keypress.
 - The test harness keeps DCS payloads out of its screen model and records
   them instead, so a check can ask where a picture landed and how big it
   was; a pty can be told what a cell measures (`Term(cellw=, cellh=)`).
-- A film in pixels is bounded by what the encoder costs per frame, which is
-  why the fixed palette exists; this has not yet been measured against a
-  real film at a real size, and the player's own frame rate setting is the
-  current answer.
+- A film in pixels is bounded by what the encoder costs per frame. Measured
+  on a 640 by 360 clip, drawn through the player into a pty, median of 20
+  frames (0.99.74):
+
+  | drawn as | 60x20 cells | 100x34 cells |
+  |---|---|---|
+  | half blocks | 0.3 ms | 0.8 ms |
+  | pixels | 8.9 ms | 23.7 ms |
+
+  So pixels cost 30 times what blocks do, and a film at 100 by 34 is bound
+  to about 40 frames a second by the encoding alone, before the terminal
+  paints any of it. The first version was 21 ms and 61 ms: it scanned each
+  band once per palette colour, 216 times over, where one pass per band
+  fills every colour's column pattern at once. What is left is the emission
+  itself -- a band uses most of the fixed palette on photographic content,
+  and each used colour is a pass over the band's width.
+  Three things would cut it further and none is built: a smaller fixed
+  palette for film, emitting only the bands that changed between frames,
+  and the kitty graphics protocol where it is there (true colour, no
+  palette at all). The player's frame rate setting bounds it meanwhile.
 - The browser is not converted. It draws text over its screenshot, and a
   text cell paints its own background, which would box out the bitmap
   behind every glyph: "page as a picture" and "text over colours" are two
