@@ -431,9 +431,16 @@ static struct {
    rectangle, the display is asked to keep what it has instead, which is a
    handful of comparisons. Keyed on everything that decides what was sent,
    and only for a draw with no pane: the one caller that places a picture
-   under the text is the wallpaper, which has none. The pixel cache's own
-   mtime check is what makes a changed file a miss here too, since a hit is
-   what this is only ever consulted after. */
+   under the text is the wallpaper, which has none. im_same stats the file
+   for itself: it is asked *before* the pixel cache is looked at, so that an
+   evicted cache slot cannot make a frame that meant to paint nothing decode
+   a photograph -- which means the cache's own mtime check is no longer
+   behind it and must not be mistaken for covering this. Take the stat out
+   and a wallpaper replaced on disk is kept on screen until something else
+   changes the signature. Its granularity is a second, as the cache's always
+   was, so a file replaced in place within one second at the same path and
+   the same fitted size is a false hit; the Wallpaper pane picks a path
+   rather than rewriting one, so nothing in the desktop reaches it. */
 static struct {
 	char *path;
 	int iw, ih, row, col, rows, cols;
