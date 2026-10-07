@@ -1,5 +1,70 @@
 # Changelog
 
+## 0.99.94
+
+**About says what the terminal can do, not only what the machine is**
+(Gitea #121). Asked for as "can we put in the about box the terminal
+capabilities?". About showed the machine — hostname, kernel, uptime, who is
+logged in, CPU and memory — and nothing at all about what it was *drawing
+on*, which is the other half of what decides what this desktop can do. One
+line of the Control Panel's Pictures pane was the only place any of it was
+visible. There is a **This Terminal** section below the machine's now:
+
+| line | where it comes from |
+|---|---|
+| `This Terminal: xterm-256color (kitty)` | `$TERM`, and `$TERM_PROGRAM` where a terminal sets one |
+| `Size: 71 x 232 cells, 1856 x 1136 pixels` | the desktop's own `DT_ROWS`/`DT_COLS`, times the cell `console gfx` reports |
+| `Pictures: kitty, a cell is 8 by 16` | `console gfx` |
+| `Colour: 24-bit sent; COLORTERM=truecolor` | what the console emits, and what the terminal claims |
+| `Mouse: clicks and drags` | `console mouse`, new below |
+| `Held: yes, 1 display attached` | `$HIBR_HOLD` and `hold clients` |
+
+**Every line is something the desktop can ask rather than guess, and where
+there is no answer it says so.** A terminal that has not said what a cell
+measures gets `Size: 24 x 80 cells` and `Pictures: blocks only, no cell size
+given` — never `0 x 0 pixels`. **Nothing on the Colour line says
+"supports":** `cn_sgrcol` emits an RGB pen as `38;2;r;g;b` without ever
+asking whether the terminal renders it, and there is no query for that, so
+"sent" is the honest word and `COLORTERM` sits beside it as the terminal's
+own claim — the two disagreeing being exactly what a person would want to
+see. **Synchronized output and the kitty keyboard protocol are not listed at
+all**, because both need a query and a reply (Gitea #92 and #93) and a
+capabilities list with one invented row in it is worse than a short one.
+
+**`console mouse` with no mode now answers instead of printing a usage
+error**: `off`, `click`, `drag` or `motion`. The console already kept
+`cn_mousemode`; what it reports is the mode it was *asked* for, which is all
+anything can know, since a terminal never says whether it obeyed. Nothing in
+the tree called the verb with no argument, and a bad mode still fails with
+status 2.
+
+Read when the window draws, not once: `console gfx` deliberately does not
+cache a `none` that came from not yet knowing the cell size, so in a held
+session — which every desktop is — the answer changes the moment a client
+attaches, and the screen saver and standby turn mouse reporting off while
+they run. The one exception is `Held`, which is a request to the session
+over its own socket and so is taken at most every `AB_SLOWMS`, like the
+other readings that cost something.
+
+The window is **22 by 48** rather than 16 by 46 for the seven rows that
+needs. At 80 by 24 — the smallest screen the suites run — it lands clear of
+both the menu bar and the bottom edge, which was measured rather than
+assumed; any taller and `dt_setsize` clamps it. Copy takes the new lines too.
+
+Two helpers were nearly named `about_size` and `about_mouse`, which the
+window manager calls by prefix: `dt_launch` asks an app for `<app>_size` to
+decide how big a new window should be, so About would have been created with
+`"22 x 48 cells, 1856 x 1136"` rows by `"pixels"` columns, and a window with
+a `_mouse` never gets `_click`. They are `about_screen` and `about_pointer`,
+with the near miss written down beside them. Caught by checking the new names
+against the suffixes the window manager calls, before running anything.
+
+Three checks: the section on an ordinary terminal, that no pixels are
+invented when the cell size is unknown, and — inside a **real held
+desktop**, which is the one fact no ordinary session can answer — that the
+Held line counts the attached display. Nineteen new strings, Arabic
+hand-translated.
+
 ## 0.99.93
 
 **File and Edit are the first two menus in every window** (Gitea #120).

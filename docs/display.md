@@ -89,6 +89,7 @@ and the flush cost shown live. Run it and press things.
 | `console resizing` | true while a resize is pending, without consuming it |
 | `console reassert` | send the terminal's modes again and repaint everything on the next flush |
 | `console mouse click\|drag\|motion\|off` | which mouse reports to ask for |
+| `console mouse` | with no mode, which of them is in force -- what the console was asked for, since a terminal never says whether it obeyed |
 | `console signals on\|off` | whether ctrl-c, ctrl-backslash and ctrl-z raise signals or arrive as keys |
 | `console darken row col h w [pct]` | shade what is already in the back buffer, a shadow |
 | `console darkdefault fg bg` | the colours `darken` takes a cell drawn in the terminal's own default colours to be, so a shadow over it still darkens |
@@ -230,6 +231,7 @@ console mouse click     # presses and releases
 console mouse drag      # and dragging
 console mouse motion    # and every movement
 console mouse off
+console mouse           # which of those is in force now
 ```
 
 Reports arrive through `console key` like any other key:

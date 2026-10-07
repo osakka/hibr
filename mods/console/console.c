@@ -328,7 +328,17 @@ int m_console(sh *s, int ac, char **av)
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "mouse")) {
+		static const char *mm[] = { "off", "click", "drag", "motion" };
 		const char *m = ac > 2 ? av[2] : "";
+
+		if (!*m) {
+			const char *now = mm[cn_mousemode & 3];
+
+			hibr_ret(s, now);
+			if (!s->bind)
+				printf("%s\n", now);
+			return HIBR_OK;
+		}
 		if (!strcmp(m, "off"))
 			cn_mouseon(0);
 		else if (!strcmp(m, "click"))

@@ -2322,6 +2322,19 @@ check("and it has no maximise button, being a fixed size",
 dpos = sc.find("hibr desktop v")
 check("and shows the desktop's own version above hibr's, not just hibr's",
       dpos is not None and "hibr v" in sc.row(dpos[0] + 1), sc)
+# And a section for what it is drawing on, which is the other half of what
+# decides what the desktop can do (Gitea #121). Each line is something the
+# desktop can ask rather than guess -- the harness's terminal says nothing
+# about a cell, so there are no pixels to report and it says so.
+check("and a This Terminal section: size, pictures, colour, mouse and hold",
+      sc.find("This Terminal: ") is not None and
+      sc.find("Size: 24 x 80 cells") is not None and
+      sc.find("Pictures: blocks only") is not None and
+      sc.find("Colour: 24-bit sent") is not None and
+      sc.find("Mouse: clicks and drags") is not None and
+      sc.find("Held: no") is not None, sc)
+check("and invents no pixels when the terminal has not said what a cell is",
+      "0 x 0" not in sc.text() and "0 by 0" not in sc.text(), sc)
 
 # Clock is a desk accessory now, not in examples/desktop/apps -- the bar's own
 # click handler only asks dt_has clock_draw, so it works regardless of
@@ -2714,10 +2727,16 @@ shutil.rmtree(TERMKEY, True)
 
 HOLD = tempfile.mkdtemp(prefix="hibr-hold-")
 held = os.path.join(HOLD, "session.hibr")
-open(held, "w").write("%s. %s\ndt_open\ndt_new \"Held\" 8 30 6 10\n"
+# The apps are loaded here so About can be opened in a held desktop: its
+# Held line is the one fact about the terminal that only a real hold
+# session can answer, and nothing in apps/ opens a window at startup, so
+# the screen these checks read is unchanged by loading them.
+open(held, "w").write("%s. %s\nDT_APPDIRS+=(\"%s\")\ndt_apps\n"
+                      "dt_open\ndt_new \"Held\" 8 30 6 10\n"
                       "dt_run\ndt_close\n"
                       % (load(MOD, "build/mods/pty.so", "build/mods/term.so",
-                              "build/mods/hold.so"), WM))
+                              "build/mods/hold.so"), WM,
+                         tree("examples/desktop/apps")))
 HENV = {"TMPDIR": HOLD, "DT_TICK": "60"}
 HOLDC = load("build/mods/pty.so", "build/mods/term.so", "build/mods/hold.so")
 
@@ -2752,6 +2771,18 @@ t.send(b"\x1b[21~", settle=0.4)
 t.send(b"d", settle=0.8)
 check("Detach on the hibr menu detaches too",
       b"[desk: detached -- hold attach desk]" in t.out, t.out.decode(errors="replace"))
+t.close()
+
+# About's own Held line, which only a real held session can answer: one
+# client is attached, this one (Gitea #121).
+t = Term("-c", HOLDC + "hold attach desk", env=HENV, settle=1.5)
+t.send(b"\x1b[21~", settle=0.4)
+t.send(b"a", settle=0.8)
+sc = t.screen()
+check("About in a held desktop says it is held, and by how many displays",
+      sc.find("Held: yes, 1 display attached") is not None, sc)
+t.send(b"\x1b[21~", settle=0.4)
+t.send(b"d", settle=0.8)
 t.close()
 
 t = Term("-c", HOLDC + "hold attach desk; echo \"back $?\"", env=HENV,
@@ -4133,4 +4164,4 @@ check("and a frame that paints nothing leaves the window alone rather than "
       "painting those cells over it", sc.find("┤ Hello ├") is not None, sc)
 shutil.rmtree(WPD, True)
 
-report(542)
+report(545)

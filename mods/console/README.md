@@ -115,6 +115,11 @@ Off until something asks for it:
     console mouse drag      # and dragging
     console mouse motion    # and every movement, which is a lot
     console mouse off
+    console mouse           # which of those is in force now
+
+With no mode it answers rather than sets: `off`, `click`, `drag` or
+`motion`. That is the mode the console was *asked* for, which is all
+anything can know -- a terminal never says whether it obeyed.
 
 **Off is the default on purpose.** Turning reporting on takes click-and-drag
 text selection away from whoever is watching, and that is too rude to do to

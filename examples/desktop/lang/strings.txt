@@ -38,6 +38,9 @@
 %s moves around the Control Panel, so it cannot be a shortcut
 %s pixels, a cell is %s by %s
 %s selected
+%s x %s cells
+%s x %s cells, %s x %s pixels
+%s, a cell is %s by %s
 %s, and %s more could not go
 (empty)
 (from the address)
@@ -45,6 +48,8 @@
 (unchanged)
 / Search contacts
 / Search mail
+24-bit sent; COLORTERM unset
+24-bit sent; COLORTERM=%s
 < <= > >= = !=, a number, then good, warn, bad,
 A Note at Each Prayer
 A cell holds at most 4096 bytes
@@ -165,6 +170,7 @@ Color
 Colour Detail
 Colour a number when it is:
 Colour by Value
+Colour: %s
 Colours
 Columns
 Command:
@@ -327,6 +333,7 @@ Group:
 Heading 1
 Heading 2
 Heading 3
+Held: %s
 Help
 Hide
 High Latitudes
@@ -418,6 +425,7 @@ Mon
 Monday
 Month
 Mouse
+Mouse: %s
 Move
 Move to Display
 Move to Trash
@@ -531,6 +539,7 @@ Pause
 Pause or Play
 Picture
 Pictures
+Pictures: %s
 Pinned
 Placement
 Plain
@@ -720,6 +729,7 @@ There is a theme called %s already
 There is no file %s
 There is no folder %s
 This Terminal
+This Terminal: %s
 This account has no address to answer from
 This window: desktop shortcuts work again
 This window: every key goes to the program
@@ -793,13 +803,18 @@ Zoom
 a command; the file goes after it, in a terminal
 a desktop written in the shell it runs on
 and it is kept to come back to.
+blocks only, no cell size given
+blocks only, no pixels
 blocks only: it does not draw pixels
 blocks only: it does not say what a cell measures
 case does not matter
+clicks
+clicks and drags
 dBASE
 dBASE Help
 email
 escape closes
+every movement
 file
 folder
 from the Network Servers list.
@@ -808,8 +823,12 @@ hibr desktop v%s
 hibr v%s, module ABI %s
 integers only
 moving — arrows, then enter
+no
+not reported
 note
 phone
 resizing — arrows, then enter
 server to keep its vault here, readable offline.
 sets a place, or the time zone gives one.
+yes, %s displays attached
+yes, 1 display attached
