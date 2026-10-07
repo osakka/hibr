@@ -354,7 +354,12 @@ variable's name and bind a copy. The old `name() { … }` form still works,
 unchecked.
 
 **Results without a subshell.** `ret` puts a value in the result slot; `:=` runs
-a command and binds that slot to a variable. Nothing forks.
+a command and binds that slot to a variable. For a builtin, a module's command
+or a function, nothing forks. A **program** has no slot to fill, so `:=` takes
+its standard output instead, with trailing newlines removed, the way `$( )`
+does -- one fork, the same fork `$( )` costs
+([0038](adr/0038-the-slot-takes-a-programs-output-too.md)). A function that
+prints rather than calling `ret` still binds nothing.
 
 <!-- setup
 fn add(int a, int b) -> int { ret $((a + b)); }
@@ -714,14 +719,14 @@ choice, and what it leaves out, is [0025](adr/0025-agent-mode.md).
 common mistake it finds, with the line and what to write instead:
 
 ```sh
-printf 'cd build\nrm $out\nres := uname\n' > go.sh
+printf 'cd build\nrm $out\nres := uname | cat\n' > go.sh
 "$HIBR" --explain go.sh 2>&1; echo "status $?"
 ```
 
 ```output
 hibr: go.sh:1: cd-unchecked: cd can fail, and then everything after it runs in the wrong directory; write cd ... || exit
 hibr: go.sh:2: unquoted-path: rm is handed $out unquoted: a blank or a * in its value makes more paths than meant; write "$out"
-hibr: go.sh:3: bind-program: := binds what a builtin or a function returns, and uname is a program: it prints and the variable stays empty; write x=$(uname ...)
+hibr: go.sh:3: bind-in-a-stage: := in a pipeline stage binds in a child of its own, so the variable is still unset afterwards; bind it on a line of its own, or read the value inside a { ... } stage
 status 1
 ```
 
@@ -735,7 +740,7 @@ with `--agent` each finding is a line of JSON keyed `warning`. The rules:
 | `cd-unchecked` | a `cd` outside a condition, in a script that never says `set -e` (`cd /` is let through) |
 | `for-ls` | `for f in $(ls)` |
 | `test-unquoted` | `[ $x = y ]`, where an empty `$x` leaves the test a word short; not `$#`, `$?`, `${#x}`, nor a variable the script only ever gives a number |
-| `bind-program` | `x := program` for a program on the PATH, which prints and binds nothing |
+| `bind-in-a-stage` | `x := cmd \| other`, where the binding happens in the stage's own child and nothing can read it |
 | `unset-quoted-key` | `unset 'm[$k]'`, which here removes a key literally named `$k` |
 | `local-self-ref` | `local a=$1 b=${m[$a]}`, where `b` reads `a` before it is assigned |
 | `local-masks-status` | `$?` read right after `local x=$(cmd)`, which is `local`'s status |

@@ -154,7 +154,8 @@ Every operation of each, with examples, is in
 | `try cmd args…` | **[hibr]** run `cmd`, catching failure instead of propagating it |
 | `fail msg…` | **[hibr]** report a failure with a message |
 
-**[hibr]** `ret` does not print. It fills the result slot, which `:=` binds:
+**[hibr]** `ret` does not print. It fills the result slot, which `:=` binds --
+and for a program, which has no slot, `:=` takes its standard output instead:
 
 ```sh
 fn add(int a, int b) -> int { ret $((a + b)); }

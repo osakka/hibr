@@ -1,5 +1,82 @@
 # Changelog
 
+## 0.99.89
+
+**`:= ` takes a command's result whatever kind of command it is** (Gitea #122,
+ADR 0038). Reported from use: `curl` behaved the same under `/bin/sh`,
+`/bin/bash` and hibr -- byte-identical bodies, same status -- and hibr's own
+`/dev/http/host/port/path` scheme agreed with all three. The whole of the
+difference was `:=`:
+
+    v := str upper hello      v=[HELLO]  status=0     a builtin: works
+    v := /bin/echo hello      v=[]       status=0     and "hello" went to the terminal
+    v := /bin/false           v=[]       status=1     the status did come back
+    v=$(/bin/echo hello)      v=[hello]  status=0     what bash would have you write
+
+For a program there is no result slot in a child to fill, so the bind quietly
+found nothing **and reported success** -- which is the worst of the three
+possible answers, because nothing downstream can tell it from a command that
+produced nothing on purpose. It had already cost this project twice: it is what
+"the About window is writing outside its own box" turned out to be, and the
+same bug made `[ "$AB_OS" = Linux ]` never match on Linux, so two apps ran
+their macOS branch there for releases. It was written down as a trap, and the
+owner hit it again from a cold start. **When a trap is rediscovered by someone
+who has read the file, the behaviour is what wants changing, not the
+paragraph.**
+
+So `x := prog` now captures the program's standard output, trailing newlines
+removed, exactly as `$( )` does. One rule for all three kinds of command.
+
+What is deliberately unchanged, and is in the test as a guard rather than a
+hope -- both written *before* the change and confirmed passing on the old code:
+
+- A **pipeline stage** and a **background job** already run in a child whose
+  binding dies with it, so the parent's variable is untouched. `nofork` is how
+  the code tells, and `v := cmd | other` still leaves `v` as it was.
+- A redirection the command carries of its own still wins: the capture's
+  `dup2` happens before `rd_do`, so `x := cmd > file` writes the file and binds
+  nothing, as `v=$(cmd > file)` does.
+- A **function** still fills the slot only with `ret`. Capturing its output
+  would mean forking for an in-process call, which is the cost the slot exists
+  to avoid.
+- The status still propagates, and a program that writes *and* fails binds what
+  it wrote: `v := sh -c 'echo out; exit 3'` gives `out` and status 3.
+
+It costs the loop nothing, because no loop reaches it -- the new code is inside
+the program branch, behind `n->f == 2 && !nofork`. Measured anyway, since loop
+throughput sits above this feature in the shell's own priorities: a
+40,000-iteration `while` loop is 530.2M instructions against 533.1M before,
+a difference inside what code layout alone produces. 151 KB of output captured
+without deadlocking, because the pipe is read to the end before the wait.
+
+**The lint rule that warned about this is now the wrong advice, so it is
+replaced rather than removed.** `bind-program` said `:=` does nothing for a
+program; that stopped being true. In its place `bind-in-a-stage` names the case
+that is still wrong and can never be right -- a `:=` that is *directly* a
+pipeline stage, where a stage is one command and nothing can read the binding.
+Said of a stage only: `{ v := f; echo "$v"; } | cat` reads its own binding and
+is correct, and the rule stays quiet. `tests/850-lint.t` carries the firing
+case and both non-firing ones, and `docs/language.md` and `docs/llm.md` now
+demonstrate the rule that exists.
+
+Also: **the settled oracle in `tests/desktop.py` compared the clock**, and
+failed this release's own gate on it -- its two snapshots are two or three
+seconds apart, so a minute can turn between them and `15:36` meets `15:37`:
+one glyph, no pen. It reproduces on demand by starting the run two seconds
+before a minute boundary, which is how it was confirmed rather than guessed at,
+and the control with the clock pinned is clean at the same boundary. `dragsteps`
+was pinned in 0.99.87 for exactly this and the settled one was missed; both are
+pinned now. **A one-session comparison is not immune to the clock** -- only to
+the two sessions settling differently.
+
+A census while deciding this: all 295 distinct `:=` command words in
+`examples/desktop/`, classified against the builtin table with every module
+loaded and against the desktop's own 1,715 functions, found **no** `:=` on a
+program anywhere -- in the desktop or the rest of the tree. The two mentions
+are comments warning about the old behaviour, left at the call sites where it
+bit. So nothing in hibr's own code changes behaviour; what changes is that the
+convention no longer has to be followed by hand.
+
 ## 0.99.88
 
 **The oracle that CLAUDE.md said was needed before any of the frame-skipping

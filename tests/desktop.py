@@ -185,7 +185,13 @@ def orsettled(t, quiet=0.35, limit=4.0):
 orpath = scratch("desktop-oracle.hibr")
 open(orpath, "w").write("%s. %s\ndt_open\n%s\ndt_run\ndt_close\n"
                         % (load(MOD), WM, ORACLE))
-ort = Term(orpath, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.6)
+# The clock is pinned here for the same reason it is in dragsteps: these two
+# snapshots are two or three seconds apart, so a minute can turn between them
+# and `15:36` meets `15:37` -- one glyph, no pen. That failed a release gate,
+# and it reproduces on demand by starting the run two seconds before a minute
+# boundary. A format with no field in it is the same text for ever.
+ort = Term(orpath, env={"DT_TICK": "60", "DT_BARTIME": "hibr"}, rows=ROWS,
+           cols=COLS, settle=0.6)
 ort.keys([b"x", b"x", press(10, 30), 0.2, drag(12, 34), 0.2,
           drag(14, 38), 0.2, release(14, 38), 0.4, b"x", 0.5])
 before = orsettled(ort)

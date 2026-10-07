@@ -22,6 +22,8 @@ cd /
 [ $# -eq 0 ] && [ ${#f} -gt 2 ]
 n=0
 [ $n -lt 3 ]
+up := uname | cat
+{ up := uname; echo "$up"; } | cat
 up := uname
 up := str upper x
 unset 'm[$k]'

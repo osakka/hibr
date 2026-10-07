@@ -349,14 +349,28 @@ int li_mod(li *c, const char *nm)
 }
 
 /* bind-program: x := program, where a program prints instead and x stays empty. */
-void li_bind(li *c, node *n, const char *cmd)
+/* A := that is a stage of a pipeline binds in a child that is about to go,
+   so nothing can ever read it: a stage is one command, and the parent's
+   variable is untouched. Said of a stage only, never of a := inside a group
+   or a subshell -- `{ v := f; echo "$v"; } | cat` reads its own binding and
+   is right. The rule this replaced warned that := did nothing for a program
+   on the PATH, which stopped being true in 0.99.89 (ADR 0038): a program's
+   standard output is bound now, so the warning would be the wrong advice. */
+void li_bindchild(li *c, node *n)
 {
-	if (n->f != 2 || bi_find(cmd) || li_has(&c->fns, cmd) ||
-	    li_mod(c, cmd) || !li_onpath(cmd))
-		return;
-	li_say(c, n, "bind-program", ":= binds what a builtin or a function "
-	       "returns, and %s is a program: it prints and the variable stays "
-	       "empty; write x=$(%s ...)", cmd, cmd);
+	node *side[2];
+	int i;
+
+	side[0] = n->l;
+	side[1] = n->r;
+	for (i = 0; i < 2; i++) {
+		if (!side[i] || side[i]->k != N_CMD || side[i]->f != 2)
+			continue;
+		li_say(c, side[i], "bind-in-a-stage", ":= in a pipeline stage "
+		       "binds in a child of its own, so the variable is still "
+		       "unset afterwards; bind it on a line of its own, or "
+		       "read the value inside a { ... } stage");
+	}
 }
 
 /* unset-quoted-key: unset 'm[$k]', bash's idiom, removes a key literally named $k here. */
@@ -512,7 +526,6 @@ void li_walk(li *c, node *n, int cond)
 		if (cmd) {
 			li_path(c, n, cmd);
 			li_test(c, n, cmd);
-			li_bind(c, n, cmd);
 			li_unset(c, n, cmd);
 			li_self(c, n, cmd);
 			if (!strcmp(cmd, "cd") && !cond && !c->seterr &&
@@ -545,6 +558,11 @@ void li_walk(li *c, node *n, int cond)
 		li_walk(c, n->r, cond);
 		return;
 	}
+	case N_PIPE:
+		li_bindchild(c, n);
+		li_walk(c, n->l, cond);
+		li_walk(c, n->r, cond);
+		return;
 	case N_AND:
 	case N_OR:
 		li_walk(c, n->l, 1);

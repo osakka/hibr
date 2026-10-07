@@ -1,0 +1,14 @@
+0
+builtin: [HELLO] status=0
+function: [from a function] status=0
+program: [a program] status=0
+trailing newlines stripped: [one
+two]
+a program that failed: [] status=1
+failed with output: [out] status=3
+its own redirection wins: [] status=0
+piped
+a pipeline stage binds in its own child: [unset]
+backgrounded
+so does a background job: [unset]
+more than a pipe buffer: 151551 bytes

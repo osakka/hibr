@@ -1406,6 +1406,7 @@ int ex_cmd(sh *s, node *n)
 	const hibr_bi *b = 0;
 	word *w;
 	int ac = 0, st = 0, w2, nofork = s->nofork, abad = 0;
+	int cf[2], cap = 0;
 	unsigned ncap0 = s->ncap;
 	pid_t pid;
 
@@ -1571,17 +1572,41 @@ int ex_cmd(sh *s, node *n)
 		lg(HIBR_LERR, "%s: %s", path, strerror(errno));
 		_exit(errno == ENOENT ? HIBR_NOCMD : HIBR_NOEXEC);
 	}
-	if (s->it)
+	/* x := prog takes what the program writes, the way $( ) does: there is
+	   no result slot in a child to fill, so the slot is filled here from a
+	   pipe. Only for a plain foreground command -- a pipeline stage and a
+	   background job are already running in a child whose binding dies
+	   with it, which `nofork` is how this tells. A captured command is not
+	   made a job either: a job hands the terminal to its child, and a
+	   child whose standard output is a pipe has no use for it. */
+	cap = n->f == 2 && !nofork;
+	if (cap && pipe(cf) < 0) {
+		lg(HIBR_LERR, "pipe: %s", strerror(errno));
+		cap = 0;
+	}
+	if (s->it && !cap)
 		jb = jc_new(s, n->tx, 0);
 	pid = (pid_t)jc_fork(s);
 	if (pid < 0) {
 		lg(HIBR_LERR, "fork: %s", strerror(errno));
+		if (cap) {
+			close(cf[0]);
+			close(cf[1]);
+		}
 		free(path);
 		envfree(env);
 		st = HIBR_FAIL;
 		goto out;
 	}
 	if (pid == 0) {
+		/* Before rd_do, so a redirection the command carries of its own
+		   wins over the capture, as it does for $( ). */
+		if (cap) {
+			close(cf[0]);
+			dup2(cf[1], 1);
+			close(cf[1]);
+			s->it = 0;
+		}
 		if (jb) {
 			setpgid(0, 0);
 			tcsetpgrp(s->tty, getpid());
@@ -1599,6 +1624,32 @@ int ex_cmd(sh *s, node *n)
 	}
 	free(path);
 	envfree(env);
+	/* Read to the end before waiting: a program with more to say than a
+	   pipe will hold would block on the write while this blocked on the
+	   wait. Trailing newlines go, every one of them, which is what $( )
+	   does -- the two forms have to agree on that or nothing will think to
+	   check it. */
+	if (cap) {
+		str o;
+		char *buf;
+		ssize_t got;
+
+		close(cf[1]);
+		s_init(&o);
+		buf = xm(HIBR_IOCH);
+		while ((got = read(cf[0], buf, HIBR_IOCH)) > 0)
+			s_add(&o, buf, (size_t)got);
+		free(buf);
+		close(cf[0]);
+		while (o.n && o.p[o.n - 1] == '\n')
+			o.n--;
+		if (o.p)
+			o.p[o.n] = 0;
+		hibr_set(s, "RET", o.p ? o.p : "", 0);
+		lg(HIBR_LDBG, "the result slot took %zu bytes from %s", o.n,
+		   av[0]);
+		s_free(&o);
+	}
 	if (jb) {
 		setpgid(pid, pid);
 		jc_pid(s, jb, (long)pid);

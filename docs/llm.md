@@ -395,7 +395,7 @@ own work: a builtin, a function or a loop is not a process to end.
 ## Checking a script before running it
 
 ```sh
-printf 'cd build\nrm $out\nres := uname\n' > go.sh
+printf 'cd build\nrm $out\nres := uname | cat\n' > go.sh
 "$HIBR" --explain go.sh 2>&1
 echo "status $?"
 "$HIBR" --agent --explain go.sh 2>&1 | head -1
@@ -404,7 +404,7 @@ echo "status $?"
 ```output
 hibr: go.sh:1: cd-unchecked: cd can fail, and then everything after it runs in the wrong directory; write cd ... || exit
 hibr: go.sh:2: unquoted-path: rm is handed $out unquoted: a blank or a * in its value makes more paths than meant; write "$out"
-hibr: go.sh:3: bind-program: := binds what a builtin or a function returns, and uname is a program: it prints and the variable stays empty; write x=$(uname ...)
+hibr: go.sh:3: bind-in-a-stage: := in a pipeline stage binds in a child of its own, so the variable is still unset afterwards; bind it on a line of its own, or read the value inside a { ... } stage
 status 1
 {"warning":"cd-unchecked: cd can fail, and then everything after it runs in the wrong directory; write cd ... || exit","file":"go.sh","line":1,"source":"cd build"}
 ```

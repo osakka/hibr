@@ -47,6 +47,7 @@ downside is usually a decision nobody had to make.
 | [0035](0035-prayer-methods-are-data.md) | Prayer methods are data, in a folder | accepted |
 | [0036](0036-vault-keys-stay-in-the-module.md) | A vault's keys stay in the module; the client is a script | accepted |
 | [0037](0037-a-picture-is-a-region-the-display-owns.md) | A picture is a region the display owns | accepted |
+| [0038](0038-the-slot-takes-a-programs-output-too.md) | `:=` takes a command's result, whatever kind of command it is | accepted |
 
 ---
 

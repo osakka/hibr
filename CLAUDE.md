@@ -908,24 +908,34 @@ went in the shell.
   redraw there also closes a menu that a different, one-key quit (Quit on
   the hibr menu, still `dt_quit` directly, deliberately not this box) had
   left open for exactly that same one-iteration-behind reason.
-- **`:=` does nothing for a program on the PATH.** It binds a *builtin's*
-  own result, silently -- `uname`, `hostname`, `top`, `sysctl`, `ps`,
-  `grep`, none of those are builtins, and `x := uname` leaves `x` empty
-  while `uname` prints straight to the real terminal, underneath the
-  console module's own cell-based drawing, wherever the cursor happens to
-  be. That is what "the About window is writing outside its own box"
-  turned out to be. Worse, the captured variable being silently always
-  empty meant a platform check (`[ "$AB_OS" = Linux ]`) never actually
-  matched on a real Linux machine either, so About and Task Manager ran
-  their macOS branch there throughout -- which is why the meters never
-  updated, since `top`/`vm_stat` do not exist to fork. `$(...)` is the real
-  capture for a program; `:=` is for the builtin calls already elsewhere in
-  the same functions (`dt_ms`, `str`, `console`), which is where it stays.
-  Fixed input standing in for a real command's output is not the same as
-  running the real thing -- this was checked carefully against fixture
-  strings and still shipped broken, and was only caught once it actually
-  ran inside the desktop through a pty and got watched draw, not just read
-  from a saved dump.
+- **`:=` took nothing from a program on the PATH until 0.99.89, and said it
+  had succeeded.** It bound a *builtin's* own result, silently -- `uname`,
+  `hostname`, `top`, `sysctl`, `ps`, `grep` are none of them builtins, so
+  `x := uname` left `x` empty, with status 0, while `uname` printed straight
+  to the real terminal, underneath the console module's own cell-based
+  drawing, wherever the cursor happened to be. That is what "the About window
+  is writing outside its own box" turned out to be. Worse, the captured
+  variable being silently always empty meant a platform check
+  (`[ "$AB_OS" = Linux ]`) never actually matched on a real Linux machine
+  either, so About and Task Manager ran their macOS branch there throughout --
+  which is why the meters never updated, since `top`/`vm_stat` do not exist to
+  fork. Fixed input standing in for a real command's output is not the same as
+  running the real thing: that was checked carefully against fixture strings
+  and still shipped broken, and was only caught once it ran inside the desktop
+  through a pty and got watched draw, rather than read from a saved dump.
+  Since 0.99.89 (ADR 0038, Gitea #122) `:=` **captures a program's standard
+  output**, trailing newlines removed, the way `$( )` does -- one rule for all
+  three kinds of command. What is unchanged, and is the remaining thing to know:
+  a **function** still fills the slot only by calling `ret`, because capturing
+  its output would mean forking for an in-process call, which is the cost the
+  slot exists to avoid; and a `:=` in a **pipeline stage** or on a **background
+  job** still binds in a child that is about to go, so the parent's variable is
+  untouched. Both are recorded in `tests/996-bind-program.t`, which was written
+  *before* the change so the two of them were a guard rather than a hope. The
+  documentation said all this for releases and the owner hit it anyway from a
+  cold start, which is the argument this file should carry: **when a trap is
+  rediscovered by someone who has read the file, the behaviour is what wants
+  changing, not the paragraph.**
 - **A `local` statement's own later words cannot see its own earlier ones.**
   `local id=$1 b=${PZ[$id]["blank"]}` does not work -- `$id` in `b`'s value
   is expanded before `local` assigns anything, the same as real bash and
