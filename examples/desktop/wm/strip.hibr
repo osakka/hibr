@@ -291,8 +291,8 @@ dt_stripdraw() {
 	w := cs_width
 	[ "$CS_SIDEX" = left ] && col=$DT_PRIMARY_COL ||
 		col=$((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - w))
-	[ "$CS_SHADOW" = 1 ] && [ -n "$DT_WALLDREW" ] &&
-		console darken $((row + 1)) $((col + 2)) 1 "$w" "$DT_SHADOW_PCT"
+	[ "$CS_SHADOW" = 1 ] &&
+		console darken -s $((row + 1)) $((col + 2)) 1 "$w" "$DT_SHADOW_PCT"
 	console pen "$DT_INK" "$DT_FACE"
 	console fill "$row" "$col" 1 "$w" " "
 	c=$col

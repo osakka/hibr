@@ -238,6 +238,17 @@ unsigned cn_dim1(unsigned v, int pct, unsigned deflt)
    frames, so there is nothing to restore when the window moves. */
 void cn_darken(int row, int col, int h, int w, int pct)
 {
+	cn_darken1(row, col, h, w, pct, 0);
+}
+
+/* The same, and `once` makes it a shadow: a cell it has already darkened is
+   left alone, and one it darkens is marked. Casting the same shadow on every
+   frame then costs the first one and changes nothing after it, so nothing has
+   to work out which frame is allowed to cast it -- and any ordinary write to
+   the cell clears the mark, so the wallpaper painting underneath, or a window
+   moving away, gets its shadow cast afresh. */
+void cn_darken1(int row, int col, int h, int w, int pct, int once)
+{
 	int r, c;
 	cn_cell *k;
 
@@ -254,9 +265,13 @@ void cn_darken(int row, int col, int h, int w, int pct)
 			if (c < 0 || c >= cn_back.cols)
 				continue;
 			k = &cn_back.c[r * cn_back.cols + c];
+			if (once && (k->attr & CN_SHADOWED))
+				continue;
 			k->fg = cn_dim1(k->fg, pct, cn_deffg);
 			k->bg = cn_dim1(k->bg, pct, cn_defbg);
 			k->attr |= DP_DIM;
+			if (once)
+				k->attr |= CN_SHADOWED;
 		}
 	}
 }

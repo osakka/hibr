@@ -2289,6 +2289,23 @@ went in the shell.
   not comparable: that screen's pixels are 1856x1136x3, 6.3 MB, where its
   cell grid is 130 kB. Anything else that learns to draw pixels must come
   through the same cache, not add a third.
+- **Instrument `dt_run`'s own passes before optimising any of them; dividing
+  a frame's cost by a guessed number of passes is not a measurement.** Each
+  section of the loop timed into an accumulator and written out *as it goes*
+  -- a harness kills a session rather than quitting it, since `q` reaches
+  the focused terminal's own program, so a report written after the loop
+  never appears -- said this, against three programs each writing every
+  10 ms: `dt_draw` 2090 ms over 251 frames (**8296 us each**), `dt_drain`
+  34 ms over 249 held passes (138 us), and the five periodic calls, the idle
+  marker, the resize check and `dt_event` about 250 us a pass between them.
+  The loop is **6%** and the frame is 96%. Two pieces of planned work died
+  on that number -- a `term pollall` to collapse the drain's module calls,
+  and a hunt through the loop body -- both of which had been reasoned into
+  existence by subtracting `dt_draw`'s tight-loop cost from a whole-session
+  figure. The same probe counts what is skipped (**1005 windows drawn
+  against 250 left alone**), which is the other half of the answer: programs
+  writing constantly make every terminal genuinely dirty, so there is
+  nothing to skip and the cost is a near-full redraw by rights.
 - **Time `dt_draw` itself, in a loop; sampling a desktop's CPU cannot see a
   millisecond.** A whole-session measurement has about a millisecond of
   run-to-run noise, which is the size of the savings worth having: the
@@ -2397,28 +2414,34 @@ went in the shell.
   that window on purpose, so this class of bug is found by reading the
   lifetime of every cached size against what can change it mid-frame -- and
   anything else that caches a grid's dimensions wants the same look.
-- **`console darken` is cumulative, so a shadow may only be cast onto cells
-  painted this frame.** Darken the same cells twice and they come out twice
-  as dark -- which is invisible for as long as the wallpaper repaints
-  everything every frame, and is the first thing to break when it stops.
-  `dt_wall` says whether it painted (`DT_WALLDREW`) and **every** shadow
-  obeys it -- a window's, the bar's, an open menu's and the Control Strip's.
-  0.99.82 paired only the windows' and shipped; the other three went on
-  being cast every frame, grew a shade darker each time, and were reset by
-  the once-a-second wallpaper repaint, which a live session saw as shadows
-  pulsing once a second. Anything that darkens needs the same pairing, and
-  the wallpaper is not gated at all while a menu is open, since a drop-down
-  casts a shadow on whatever is under it on every frame it stays open.
-  Something drawn on the screen rather than through a pane -- the Control
-  Strip -- must also *draw* on any frame that painted the wallpaper, or the
-  wallpaper paints over it and its own gate leaves it missing until it next
-  chooses to draw: "it disappears every second or so" was that.
-  `dt_win` casts only then; a window left alone still re-casts its shadow, because the strip the
-  shadow falls on is *outside* its own pane and the wallpaper did paint
-  there. And where two windows overlap, one's shadow falls on the other, so
-  the only arrangement in which every shadow is sure of fresh cells beneath
-  it is the one where the wallpaper paints as well: `dt_alone` says whether
-  anything overlaps, and if anything does the wallpaper is not gated at all.
+- **`console darken` is multiplicative, so a shadow is made *idempotent*
+  rather than scheduled.** Darken the same cells twice and they come out
+  twice as dark. The wrong answer -- tried for three releases -- is to work
+  out which frame is *allowed* to cast a shadow, because that rule has to
+  stay in step with every rule about what gets repainted, and it was wrong
+  three times: 0.99.82 paired only the windows' shadows and shipped, so the
+  bar's and an open menu's pulsed once a second; 0.99.84 paired those and a
+  live session still saw a sticky note's shadow flicker while a window
+  moved, because a window redrawing near another wipes a shadow that is then
+  not cast again until the wallpaper next paints. `console darken -s` marks
+  each cell it shadows (`CN_SHADOWED`, a console-private bit above every
+  `DP_` flag -- never emitted, since the SGR builder tests each flag it
+  knows by name) and leaves an already-shadowed cell alone; any ordinary
+  write clears the mark, because `cn_put` and `cn_fill` assign the pen's
+  attributes. So every shadow is cast on every frame and nothing is kept in
+  step. **A test of this in palette colours passes against the broken
+  code**: darkening a palette colour lands on another palette entry and is
+  already idempotent, so it only bites in RGB, which is what every theme
+  uses -- which is why the whole family survived so long untested.
+  `tests/console.py` asserts cast-three-times equals cast-once, that
+  *without* `-s` it does not, and that a rewritten cell gets its shadow
+  back. Something drawn on the screen rather than through a pane -- the
+  Control Strip -- must still *draw* on any frame that painted the wallpaper
+  (`DT_WALLDREW`, which is all that variable is for now), or the wallpaper
+  paints over it and its own gate leaves it missing until it next chooses to
+  draw: "it disappears every second or so" was that. And where two windows
+  overlap, one's shadow falls on the other: `dt_alone` says whether anything
+  overlaps, and if anything does the wallpaper is not gated at all.
   Overlapping windows cost that saving. Say so rather than hide it.
 - **A dirty flag is opt-in, or a missed case is merely unlikely instead of
   impossible.** `<app>_dirty` is asked only of an app that offers one; every

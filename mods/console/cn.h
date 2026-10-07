@@ -99,6 +99,7 @@ const char *cn_gfxname(int k);
 extern volatile sig_atomic_t cn_wgen;
 unsigned cn_dim1(unsigned v, int pct, unsigned deflt);
 void cn_darken(int row, int col, int h, int w, int pct);
+void cn_darken1(int row, int col, int h, int w, int pct, int once);
 void cn_setdim(unsigned fg, unsigned bg);
 void cn_cursor(int row, int col, int vis);
 long cn_flush(void);
@@ -115,6 +116,18 @@ int cn_gsize(cn_grid *g, int rows, int cols);
 void cn_cellset(cn_cell *c, unsigned cp, const char *ext, size_t en);
 
 int cn_shot(const char *path, const char *fmt, int r0, int c0, int h, int w);
+
+/* Marks a cell a shadow has already darkened, so casting the same shadow
+   again does nothing. Darkening is multiplicative: without this, a shadow
+   cast on two frames running comes out twice as dark, and every scheme for
+   casting it exactly once per repaint has to be kept in step with every
+   scheme for deciding what to repaint -- which went wrong three times
+   running. A private bit above every DP_ attribute, never emitted: the SGR
+   builder tests each flag it knows by name. Any ordinary write to the cell
+   clears it, because cn_put and cn_fill assign the pen's own attributes. */
+#ifndef CN_SHADOWED
+#define CN_SHADOWED (1u << 16)
+#endif
 
 extern vec cn_panes;
 extern int cn_quiet;

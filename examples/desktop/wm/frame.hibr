@@ -140,20 +140,24 @@ fn dt_clean(int id) {
 
 # A window's shadow: the row under it and the two columns beside it, which is
 # all of its own rectangle-shifted-down-and-right that the window does not
-# then cover. Cast only onto wallpaper this frame painted, because darkening
-# is cumulative -- the same cells darkened twice come out twice as dark, and
-# that is what the pen comparison in tests/desktop.py exists to catch. When
-# the wallpaper is left alone the shadow is left alone with it: its cells are
-# still dark from whichever frame painted them.
+# then cover. Cast on every frame, with `-s`: darkening is multiplicative, so
+# a shadow cast twice on the same cells comes out twice as dark, and `-s`
+# makes the console leave a cell it has already shadowed alone. Any ordinary
+# write clears that mark, so the wallpaper painting underneath -- or this
+# window moving away -- gets its shadow cast afresh.
+#
+# Deciding instead *which frame may cast it* was tried for three releases and
+# got the answer wrong three times: shadows under the bar and the menus
+# pulsing once a second, the Control Strip blinking, and a sticky note's
+# shadow flickering while a window moved. Nothing has to be kept in step now.
 fn dt_shadow(int id) {
 	local h=${DT[$id]["h"]} w=${DT[$id]["w"]}
 	local wr=${DT[$id]["row"]} wc=${DT[$id]["col"]}
 
 	[ "$DT_SHADOW" = 1 ] || return 0
-	[ -n "$DT_WALLDREW" ] || return 0
-	console darken $((wr + h)) $((wc + 2)) 1 "$w" "$DT_SHADOW_PCT"
+	console darken -s $((wr + h)) $((wc + 2)) 1 "$w" "$DT_SHADOW_PCT"
 	[ "$h" -gt 1 ] &&
-		console darken $((wr + 1)) $((wc + w)) $((h - 1)) 2 \
+		console darken -s $((wr + 1)) $((wc + w)) $((h - 1)) 2 \
 			"$DT_SHADOW_PCT"
 	return 0
 }

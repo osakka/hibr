@@ -1,5 +1,56 @@
 # Changelog
 
+## 0.99.85
+
+**A shadow is idempotent, so nothing has to decide which frame may cast
+one.** `console darken` is multiplicative: the same cells darkened twice come
+out twice as dark. Since 0.99.82 the answer to that was to work out which
+frame was *allowed* to cast a shadow -- a rule that has to stay in step with
+every rule about what gets repainted -- and it was wrong three times running:
+the shadows under the bar and an open menu pulsing once a second, the Control
+Strip blinking, and then, reported from a live session on 0.99.84, a sticky
+note's shadow flickering while a window moved, because a window redrawing
+near another wipes a shadow that is then not cast again until the wallpaper
+next paints.
+
+`console darken -s` marks each cell it shadows with an attribute bit of the
+console's own (`CN_SHADOWED`, above every `DP_` flag and never emitted -- the
+SGR builder tests each flag it knows by name) and leaves an already-shadowed
+cell alone. Any ordinary write clears the mark, because `cn_put` and
+`cn_fill` assign the pen's attributes, so the wallpaper painting underneath
+or a window moving away gets its shadow cast afresh with nothing tracking it.
+All four shadows -- a window's, the bar's, an open menu's, the Control
+Strip's -- are now cast on every frame, and the conditions that tried to
+schedule them are gone, along with the "do not gate the wallpaper while a
+menu is open" workaround that existed only to serve them.
+
+Three checks in `tests/console.py` pin it: cast three times is cast once,
+**without** `-s` it is not, and a cell written again gets its shadow back.
+The second of those is why the whole family of bugs survived so long in
+testing: darkening a *palette* colour lands on another palette entry and is
+already idempotent, so the same check written in white-on-blue passes against
+the broken code. It only bites in RGB, which is what every theme uses.
+
+**And the loop was measured rather than inferred.** `dt_run`'s own passes
+were instrumented -- each section timed into an accumulator, written out as
+it went, since a harness kills a session rather than quitting it -- against
+three programs each writing every 10 ms:
+
+| | |
+|---|---|
+| `dt_draw` | 2090 ms over 251 frames, **8296 us each** |
+| `dt_drain` | 34 ms over 249 held passes, 138 us each |
+| the five periodic calls, the idle marker, the resize check, `dt_event` | about 250 us a pass between them |
+
+So the loop is 6% of the cost and the frame is 96%, which retires two pieces
+of planned work -- a `term pollall` to collapse the drain's module calls, and
+a hunt through the loop body -- that would between them have optimised the
+6%. The frame costing 8.3 ms here against 1.57 ms when called in a tight loop
+is the real remaining question, and the same probe says why nothing is being
+skipped to pay for it: **1005 windows drawn against 250 left alone**, because
+three programs writing constantly make every terminal genuinely dirty on
+every frame.
+
 ## 0.99.84
 
 **A resize killed a desktop with a signal 11, and three shadows pulsed.**

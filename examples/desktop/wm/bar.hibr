@@ -38,12 +38,11 @@ DT_COLS=80
 dt_bar() {
 	local i=0 t line now gap bell w=${DT_PRIMARY_W:-$DT_COLS}
 
-	# Only onto wallpaper this frame painted: darkening is cumulative, so
-	# casting this every frame onto cells the wallpaper did not repaint
-	# made the strip under the bar a shade darker each frame, and the
-	# once-a-second repaint put it back -- a shadow visibly pulsing.
-	[ "$DT_BARSHADOW" = 1 ] && [ -n "$DT_WALLDREW" ] &&
-		console darken 1 "$DT_PRIMARY_COL" 1 "$w" "$DT_SHADOW_PCT"
+	# -s: cast on every frame and idempotent, so it cannot come out darker
+	# each time. Pairing it to "a frame that painted the wallpaper" instead
+	# made this very strip pulse once a second.
+	[ "$DT_BARSHADOW" = 1 ] &&
+		console darken -s 1 "$DT_PRIMARY_COL" 1 "$w" "$DT_SHADOW_PCT"
 	console pen "$DT_INK" "$DT_BAR"
 	line := dt_rep "$w" " "
 	console put 0 "$DT_PRIMARY_COL" "$line"

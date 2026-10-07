@@ -501,14 +501,26 @@ int m_console(sh *s, int ac, char **av)
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "darken")) {
+		int once = 0;
+
 		if (!cn_need())
 			return HIBR_FAIL;
+		/* -s: a shadow. Idempotent -- a cell already darkened by one
+		   is left alone -- so it can be cast on every frame without
+		   coming out darker each time, and nothing has to decide
+		   which frame may cast it. */
+		if (ac > 2 && !strcmp(av[2], "-s")) {
+			once = 1;
+			av++;
+			ac--;
+		}
 		if (ac < 6) {
-			lg(HIBR_LERR, "usage: console darken row col h w [pct]");
+			lg(HIBR_LERR, "usage: console darken [-s] row col h w"
+				      " [pct]");
 			return 2;
 		}
-		cn_darken(atoi(av[2]), atoi(av[3]), atoi(av[4]), atoi(av[5]),
-			  ac > 6 ? atoi(av[6]) : 55);
+		cn_darken1(atoi(av[2]), atoi(av[3]), atoi(av[4]), atoi(av[5]),
+			   ac > 6 ? atoi(av[6]) : 55, once);
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "behind")) {

@@ -254,4 +254,35 @@ check("console bidi off leaves it as written; borders and accents untouched",
       sc.row(2).startswith("x سلام") and
       sc.row(8).startswith("┌─┐ été"), (sc.row(2), sc.row(8)))
 
-report(len(WANT) + len(MWANT) + 46)
+# A shadow is cast on every frame, so it has to be idempotent: darkening is
+# multiplicative, and `console darken -s` leaves a cell it has already
+# shadowed alone. Three releases tried instead to work out which frame was
+# allowed to cast one, and got it wrong three times -- shadows pulsing under
+# the bar and the menus, the Control Strip blinking, a note's shadow
+# flickering while a window moved. Cast once against cast three times must
+# be the same bytes; plain darken, three times, must not be.
+# In RGB, which is what a theme's colours are: darkening a palette colour
+# lands on another palette entry and is idempotent by accident, so a test in
+# white-on-blue would have shown nothing wrong with the old behaviour at all.
+def shade(cmd):
+    o, _ = run('console open\nconsole pen "#c0c0c8" "#203048"\n'
+               'console fill 0 0 3 8 " "\n' + cmd +
+               'console flush\nconsole close\n')
+    sc = Screen()
+    sc.feed(o.decode("utf-8", "replace"))
+    return sc.p[1][2]
+
+
+one = shade('console darken -s 1 1 1 4 55\n')
+three = shade('console darken -s 1 1 1 4 55\n' * 3)
+plain = shade('console darken 1 1 1 4 55\n' * 3)
+check("a shadow cast three times is the shadow cast once", one == three,
+      (one, three))
+check("and without -s it is not, which is what makes that worth saying",
+      one != plain and plain != "", (one, plain))
+check("a cell written again loses the mark, so its shadow is cast afresh",
+      shade('console darken -s 1 1 1 4 55\nconsole pen "#c0c0c8" "#203048"\n'
+            'console fill 0 0 3 8 " "\nconsole darken -s 1 1 1 4 55\n')
+      == one, one)
+
+report(len(WANT) + len(MWANT) + 49)
