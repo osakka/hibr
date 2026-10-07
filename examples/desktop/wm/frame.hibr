@@ -120,10 +120,59 @@ fn dt_btnat(int id, int c) {
 	dt_btn "${DT[$id]["w"]}" "$c" "${DT_APPS[${DT[$id]["app"]}]["fixed"]}"
 }
 
+# Whether this window can be left exactly as it is this frame: its app has
+# to offer a _dirty and say nothing has changed, it has to be clear of every
+# other window (dt_alone), and DT_FORCEDRAW has to be off -- which is how
+# tests/desktop.py takes the same session both ways and compares the screen
+# cell for cell. An app with no _dirty is always redrawn, so this can only
+# ever be wrong for an app that went out of its way to say otherwise.
+fn dt_clean(int id) {
+	local ap=${DT[$id]["app"]}
+
+	[ "$DT_FORCEDRAW" = 1 ] && return 1
+	[ -n "$DT_FORCEONCE" ] && return 1
+	[ -n "$ap" ] || return 1
+	case " $DT_ALONE " in *" $id "*) ;; *) return 1 ;; esac
+	dt_has "${ap}_dirty" || return 1
+	"${ap}_dirty" "$id" && return 1
+	return 0
+}
+
+# A window's shadow: the row under it and the two columns beside it, which is
+# all of its own rectangle-shifted-down-and-right that the window does not
+# then cover. Cast only onto wallpaper this frame painted, because darkening
+# is cumulative -- the same cells darkened twice come out twice as dark, and
+# that is what the pen comparison in tests/desktop.py exists to catch. When
+# the wallpaper is left alone the shadow is left alone with it: its cells are
+# still dark from whichever frame painted them.
+fn dt_shadow(int id) {
+	local h=${DT[$id]["h"]} w=${DT[$id]["w"]}
+	local wr=${DT[$id]["row"]} wc=${DT[$id]["col"]}
+
+	[ "$DT_SHADOW" = 1 ] || return 0
+	[ -n "$DT_WALLDREW" ] || return 0
+	console darken $((wr + h)) $((wc + 2)) 1 "$w" "$DT_SHADOW_PCT"
+	[ "$h" -gt 1 ] &&
+		console darken $((wr + 1)) $((wc + w)) $((h - 1)) 2 \
+			"$DT_SHADOW_PCT"
+	return 0
+}
+
 fn dt_win(int id) {
 	local h=${DT[$id]["h"]} w=${DT[$id]["w"]} on=$DT_IDLE
 	local wr=${DT[$id]["row"]} wc=${DT[$id]["col"]} dr=${DT[$id]["draw"]}
 	local fixed=${DT_APPS[${DT[$id]["app"]}]["fixed"]} pc
+
+	# Nothing about it has changed and nothing else touches it: its cells
+	# are still on the screen from last frame, and the wallpaper painted
+	# around them rather than over them. Its shadow is not inside its own
+	# rectangle though, so a frame that painted the wallpaper wiped the
+	# strip the shadow falls on and it has to be cast again -- without
+	# redrawing a single cell of the window itself.
+	if dt_clean "$id"; then
+		dt_shadow "$id"
+		return 0
+	fi
 
 	if [ "${DT_APPS[${DT[$id]["app"]}]["bare"]}" = 1 ]; then
 		dt_winbare "$id"
@@ -148,12 +197,7 @@ fn dt_win(int id) {
 	# window a frame, 4,648 of them for one terminal, against 193 for the
 	# L. The result is the same cells: the row under the window, and the
 	# two columns beside it.
-	if [ "$DT_SHADOW" = 1 ]; then
-		console darken $((wr + h)) $((wc + 2)) 1 "$w" "$DT_SHADOW_PCT"
-		[ "$h" -gt 1 ] &&
-			console darken $((wr + 1)) $((wc + w)) $((h - 1)) 2 \
-				"$DT_SHADOW_PCT"
-	fi
+	dt_shadow "$id"
 	[ "$DT_FOCUS" = "$id" ] && on=$DT_ACTIVE
 	console pen "$DT_INK" "$DT_FACE"
 	console fill "$wr" "$wc" "$h" "$w" " "

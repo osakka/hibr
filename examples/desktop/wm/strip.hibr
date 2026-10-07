@@ -248,10 +248,29 @@ fn cs_resize(int at) {
 	fi
 }
 
+# What the strip was last drawn for, and when.
+CS_DREWFOR=
+CS_DREWMS=0
+
 dt_stripdraw() {
-	local row w col i cnt m mw c
+	local row w col i cnt m mw c sig ms
 
 	[ "${#CS_MOD_LIST[@]}" = 0 ] && return 0
+	# Its cells stay on the screen when it does not draw, and what it
+	# shows -- a clock, a battery, a volume -- is worked out elsewhere and
+	# does not move fourteen times a second. So: when its own shape
+	# changed, when anything was typed or clicked since it last drew, and
+	# otherwise at most once a second, which is also the longest a module's
+	# own value can be out of date for.
+	ms := dt_ms
+	sig="$CS_COLLAPSED|$CS_SIDEX|$CS_SCROLL|${#CS_MOD_LIST[@]}|$DT_INCNT"
+	sig="$sig|$DT_PRIMARY_COL|${DT_PRIMARY_W:-$DT_COLS}|$DT_ROWS|$DT_FACE|$DT_ACTIVE"
+	if [ "$sig" = "$CS_DREWFOR" ] && [ "$DT_FORCEDRAW" != 1 ] &&
+	   [ -z "$DT_FORCEONCE" ] && [ $((ms - CS_DREWMS)) -lt 1000 ]; then
+		return 0
+	fi
+	CS_DREWFOR=$sig
+	CS_DREWMS=$ms
 	row := cs_y
 	if [ "$CS_COLLAPSED" = 1 ]; then
 		console pen "$DT_ACTIVE" "$DT_FACE" bold

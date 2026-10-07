@@ -10,6 +10,18 @@ extern int cn_on;
 void cn_wr(int fd, const char *p, size_t n);
 
 cn_grid cn_back, cn_front;
+/* Which cells a pane covers, one byte each, and whether absolute writes are
+   currently skipping them. The wallpaper is painted "behind" the windows:
+   it would otherwise paint over them, which is the whole reason a window
+   nobody redrew could not simply be left alone (ADR 0038). The map is built
+   when something asks and a pane has moved since -- about 20 us for a
+   screen -- rather than per cell, which would be ten rectangle tests for
+   every one of 16,472 cells. Only writes at absolute coordinates skip: a
+   menu dropping over a window, or any drawing through a pane, must still
+   land. */
+static unsigned char *cn_own;
+static int cn_ownn, cn_ownok, cn_behindon;
+static int cn_skip(int row, int col);
 unsigned cn_fg, cn_bg, cn_penat;
 int cn_crow, cn_ccol, cn_cvis;
 unsigned cn_lfg, cn_lbg, cn_lat;
@@ -296,7 +308,7 @@ int cn_put(int row, int col, const char *t)
 			continue;
 		}
 		if (row < 0 || row >= cn_back.rows || col < 0 ||
-		    col + w > cn_back.cols) {
+		    col + w > cn_back.cols || cn_skip(row, col)) {
 			col += w;
 			i += (size_t)l;
 			continue;
@@ -354,7 +366,8 @@ void cn_fill(int row, int col, int h, int w, const char *t)
 			if (r < 0 || r >= cn_back.rows)
 				continue;
 			for (c = col; c < col + w; c++) {
-				if (c < 0 || c >= cn_back.cols)
+				if (c < 0 || c >= cn_back.cols ||
+				    cn_skip(r, c))
 					continue;
 				cn_split(r, c);
 				p = &cn_back.c[r * cn_back.cols + c];
@@ -489,6 +502,66 @@ int cn_near(int r, int c)
 			      &cn_front.c[r * cn_front.cols + k]))
 			return 1;
 	return 0;
+}
+
+/* A pane moved, was made or dropped: the map is stale. */
+void cn_owninval(void)
+{
+	cn_ownok = 0;
+}
+
+/* Make the map describe the panes as they are now. */
+static void cn_ownsync(void)
+{
+	size_t i;
+	int r, c, n = cn_back.rows * cn_back.cols;
+	cn_pane *p;
+
+	if (cn_ownok && cn_ownn == n)
+		return;
+	free(cn_own);
+	cn_own = xm((size_t)n);
+	memset(cn_own, 0, (size_t)n);
+	cn_ownn = n;
+	for (i = 0; i < cn_panes.n; i++) {
+		p = (cn_pane *)cn_panes.p[i];
+		for (r = p->row; r < p->row + p->h; r++) {
+			if (r < 0 || r >= cn_back.rows)
+				continue;
+			for (c = p->col; c < p->col + p->w; c++) {
+				if (c < 0 || c >= cn_back.cols)
+					continue;
+				cn_own[r * cn_back.cols + c] = 1;
+			}
+		}
+	}
+	cn_ownok = 1;
+}
+
+/* Whether this cell belongs to a pane and is being skipped. */
+static int cn_skip(int row, int col)
+{
+	if (!cn_behindon || !cn_own)
+		return 0;
+	if (row < 0 || row >= cn_back.rows || col < 0 || col >= cn_back.cols)
+		return 0;
+	return cn_own[row * cn_back.cols + col];
+}
+
+/* Paint behind the panes, or stop doing so, answering how it was before --
+   so a caller that must not skip, like a write through a pane, can put it
+   back exactly as it found it. */
+int cn_behind(int on)
+{
+	int was = cn_behindon;
+
+	if (on) {
+		if (cn_fitq() != HIBR_OK)
+			return was;
+		cn_ownsync();
+	}
+	cn_behindon = on;
+	return was;
 }
 
 /* Send only the cells that changed, and return how many bytes that took. */

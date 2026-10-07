@@ -26,6 +26,89 @@ fn dt_rep(int n, s) {
 DT_MENUIN=
 DT_MENUFOC=
 
+# Which windows may be left as they are when their app says nothing has
+# changed, and what geometry that answer was worked out for.
+DT_ALONE=
+DT_ALONEFOR=
+DT_FORCEONCE=
+# Whether every window is clear of every other, which is what lets the
+# wallpaper be left alone: a shadow falling on another window has to be cast
+# onto cells that window painted this very frame, and only a wallpaper that
+# painted guarantees that for every shadow at once.
+DT_NOOVERLAP=
+# How many bytes of input the console has read, as of this frame: anything
+# that may redraw only now and then compares it, so a key or a click is
+# never waited out.
+DT_INCNT=
+
+# A window can be left alone only if its own rectangle, and the strip its
+# shadow falls on, touch no other window's. Two that overlap are always both
+# redrawn: windows are drawn bottom to top, so a lower one repainting would
+# paint over the higher one's cells, and a higher one's shadow darkens what
+# is under it -- which, on a lower window nobody repainted, would darken
+# cells that are already dark, again on every frame. The wallpaper is no
+# longer a problem for either of them (it paints behind the panes now), so
+# this is the only rule left. Worked out once per arrangement, not per
+# frame: five windows is ten comparisons and the answer only changes when
+# something moves.
+fn dt_alone(...rest) {
+	local sig= id a b ar ac ah aw br bc bh bw ok out=
+	local -a w alone
+
+	# The look goes in the same signature as the geometry, so a theme or a
+	# frame style or a glyph set changing is one full frame for everybody
+	# -- otherwise a window nobody redrew would keep yesterday's colours.
+	# Derived from the values themselves rather than hooked into whatever
+	# changes them, so there is no list to keep up to date.
+	sig="$DT_FACE|$DT_INK|$DT_ACTIVE|$DT_IDLE|$DT_FRAME|$DT_TITLEBAR"
+	sig="$sig|$DT_SHADOW|$DT_SHADOW_PCT|$DT_GLYPHSET|$DT_LANG|$DT_TITLEALIGN"
+	sig="$sig|$DT_BTNSIDE|$DT_DIM|$DT_SELINK|$DT_ROWS|$DT_COLS "
+	for id in "${rest[@]}"; do
+		id=${id#w}
+		w+=("$id")
+		sig="$sig$id,${DT[$id]["row"]},${DT[$id]["col"]},${DT[$id]["h"]},${DT[$id]["w"]} "
+	done
+	if [ "$sig" = "$DT_ALONEFOR" ]; then
+		return 0
+	fi
+	# Something moved or the look changed: draw everything once.
+	DT_FORCEONCE=1
+	for a in "${w[@]}"; do
+		ar=$((DT[$a]["row"]))
+		ac=$((DT[$a]["col"]))
+		ah=$((DT[$a]["h"] + 1))
+		aw=$((DT[$a]["w"] + 2))
+		ok=1
+		for b in "${w[@]}"; do
+			[ "$a" = "$b" ] && continue
+			br=$((DT[$b]["row"]))
+			bc=$((DT[$b]["col"]))
+			bh=$((DT[$b]["h"] + 1))
+			bw=$((DT[$b]["w"] + 2))
+			if [ $((ar < br + bh)) = 1 ] && [ $((br < ar + ah)) = 1 ] &&
+			   [ $((ac < bc + bw)) = 1 ] && [ $((bc < ac + aw)) = 1 ]; then
+				ok=
+				break
+			fi
+		done
+		[ -n "$ok" ] && out="$out$a "
+	done
+	DT_ALONE=$out
+	DT_ALONEFOR=$sig
+	# A shadow is cast on whatever is under it, and darkening the same
+	# cells twice makes them twice as dark -- so a shadow may only be cast
+	# onto cells painted this frame. Where nothing overlaps, every shadow
+	# falls on wallpaper and casting them follows the wallpaper. Where two
+	# windows do overlap, one's shadow falls on the other, and the only
+	# arrangement in which every shadow is certain of fresh cells beneath
+	# it is the one where the wallpaper paints too. So overlapping windows
+	# cost the wallpaper's own saving, and keep the picture right.
+	DT_NOOVERLAP=
+	read -ra alone <<< "$out"
+	[ "${#w[@]}" = "${#alone[@]}" ] && DT_NOOVERLAP=1
+	return 0
+}
+
 # A window that is not drawn -- minimised, or on another workspace -- still
 # has its app's _idle called each frame, for what must go on unseen: a
 # terminal reads its program's output there, or the pty stays readable, the
@@ -66,10 +149,18 @@ dt_draw() {
 	CS_SIDEX=$CS_SIDE
 	DT_NOTEPOSX=$DT_NOTEPOS
 	case $DT_MIRRORON in 1) dt_mirrorx ;; esac
-	dt_wall
+	# Which windows are where, before the wallpaper rather than after it:
+	# dt_wall's own decision about whether it need paint at all reads the
+	# arrangement, so a window that has just moved has to be in it already
+	# or its old cells would stay for a frame.
+	DT_INCNT := console consumed
 	l := console pane list
 	read -ra ls <<< "$l"
+	dt_alone "${ls[@]}"
+	DT_WALLDREW=
+	dt_wall
 	for id in "${ls[@]}"; do dt_win "${id#w}"; done
+	DT_FORCEONCE=
 	dt_idle
 	[ -n "$DT_DND" ] && dt_dnddraw
 	# What a *shut* menu bar shows is its menus' titles and the focused

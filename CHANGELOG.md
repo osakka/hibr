@@ -1,5 +1,97 @@
 # Changelog
 
+## 0.99.82
+
+**The desktop draws only what has changed.** A frame on the owner's own
+shape -- 232x71, three terminals, two sticky notes, a 3840x2160 wallpaper --
+timed by calling `dt_draw` fifty times in a loop:
+
+| | ms a frame |
+|---|---|
+| 0.99.80 | 7.0 |
+| 0.99.81 | 5.8 |
+| **0.99.82** | **1.05** |
+
+and what that is worth where it shows: typing eight keys a second costs 3.0%
+of a core against 8.5%, the same typing with pictures as real pixels 3.6%
+against 93.3%, and an idle desktop 0.2% either way.
+
+**What made it possible, and it is not what it looks like.** A pane is a
+name and a rectangle -- it has no cells of its own -- and `cn_flush` copies
+each changed cell into the front grid and leaves the back grid alone. So a
+cell nobody rewrites keeps last frame's value and flushes as nothing: the
+screen already remembers. The one thing stopping a window being left alone
+was `dt_wall` painting over it every frame.
+
+So the console learned to **paint behind the panes**. It keeps one byte a
+cell saying whether a pane covers it, and `console behind on` makes writes
+at absolute coordinates skip those cells. `dt_wall` paints around the
+windows now, and because the img module draws through the same `dp->put`, a
+picture wallpaper skips them too with no change to img at all. Three things
+fall out of that, each of which the alternatives needed machinery for: a note
+or a menu that has gone had its cells outside the windows, so the wallpaper
+paints them back without anything tracking it; a window that moved leaves
+cells that are outside every pane, likewise; and nothing has to be told a
+window closed -- though the map does have to be thrown away when a pane is
+dropped, which the first version forgot, leaving closed windows on screen.
+
+**A window is left alone when its app says nothing changed.** `<app>_dirty`
+is opt-in: an app without one is drawn every frame exactly as before, so a
+missed case is impossible rather than unlikely. `term_dirty` reads a count
+the emulator keeps of what its program has been fed (`term gen`), with the
+size, the focus, the scroll position and whether the program is still there;
+`stickies_dirty` a count its own keys and mouse bump. And `dt_alone` decides
+which windows may be left alone at all: one whose rectangle *and the strip
+its shadow falls on* touch no other window's. Two that overlap are always
+both redrawn.
+
+**Shadows, which is where this would have gone quietly wrong.** `console
+darken` is cumulative: the same cells darkened twice come out twice as dark.
+So a shadow may only be cast onto cells painted this frame -- `dt_wall` says
+whether it painted and `dt_win` obeys -- and where two windows overlap, one's
+shadow falls on the other and the only arrangement in which every shadow is
+sure of fresh cells beneath it is the one where the wallpaper paints as well.
+Overlapping windows therefore cost the wallpaper's own saving. That is a real
+cost, stated rather than hidden; a layout with nothing overlapping keeps it.
+
+**The wallpaper and the Control Strip draw when something changed, and at
+least once a second.** The wallpaper's signature holds everything it paints
+and everything that is drawn over it and can go away again -- the menus, a
+drag, the notes, the identify box, standby, a confirm, a screenshot, the
+saver, the lock, the workspace, the displays. The ceiling is the honest part:
+anything the signature does not know about cannot be seen for longer than a
+second.
+
+**Three controls that would have gone on claiming to work.** Each of these
+has its own `dt_want` or its own timer *inside* the drawing that is now
+sometimes skipped, and each would have failed silently:
+
+- Cursor Blink asks for its next frame from inside `term_draw`, so a focused
+  terminal stays dirty while the setting is on. With it off -- the default --
+  a terminal nobody has typed into is not drawn at all. Its own comment used
+  to say blinking was free because a focused terminal redrew every 30 ms,
+  which stopped being true when that was fixed and is now plainly false.
+- The desktop icons' rescan sat inside `dt_wall`; gating the wallpaper would
+  have stopped a mounted disk ever being noticed again. It is outside now.
+- The bar's clock asks for its next tick from inside `dt_bar`. Gating the bar
+  would leave it telling the right time once and then lying, so the bar still
+  draws every frame and keeps its 0.19 ms. That is the trade, said plainly.
+
+**And the oracle that guards all of it** (`DT_FORCEDRAW`, deliberately not a
+setting anybody keeps). Inside one session, with the screen settled, turning
+the skipping off must not change a single cell -- the pens as well as the
+glyphs, since a shadow cast twice differs only in colour. Two overlapping
+windows, and a drag that moves one of them first, because a move is what
+leaves cells where a pane used to be. It found the double-darkened shadow
+above. The first version of it compared two separate sessions and failed one
+run in three with nothing wrong: two correct desktops settle at their own
+pace, so the last frame before a quitting key is not the same frame. One
+session, two frames, is the only honest form.
+
+Also: `cn_fill` and the shadow strip of 0.99.81 are in this too, and
+`tests/desktop.py`'s own scratch files are named after the process that
+writes them, which the gate caught the hard way.
+
 ## 0.99.81
 
 **A frame is 17% cheaper, and the measurement that found it is the news.**

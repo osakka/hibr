@@ -144,11 +144,72 @@ dt_wallfit() {
 	DT_WALLFITCOLS=$DT_COLS
 }
 
+# Everything that decides what the wallpaper's own cells should hold: what
+# it paints, and everything that gets drawn on top of it and can go away
+# again -- when one does, those cells are the wallpaper's once more and have
+# to be painted back. The windows are in it through dt_alone's own
+# signature, which carries every window's rectangle and the look.
+fn dt_wallsig() {
+	local s
+
+	s="$DT_WALLIMG|$DT_WALLMODE|$DT_IMGMODE|$DT_GLYPH|$DT_WALL|$DT_DOT"
+	# The displays too: the wallpaper, the bar and the icons are confined
+	# to the primary one, so a display joining or leaving, or the primary
+	# moving between them, changes every cell of it.
+	s="$s|$DT_ICONS|$DI_SCANT|$DT_ROWS|$DT_COLS|$DT_WS|$DT_MIRRORON"
+	s="$s|$DT_PRIMARY_COL|$DT_PRIMARY_W"
+	s="$s|$MB_OPEN|$MB_CTXWHO|$DT_DND|$DT_DNDR|$DT_DNDN|$DT_DNDG"
+	s="$s|${#DT_NOTEQ_ORDER[@]}|$DT_IDNAME|$DT_BLANK|${#DT_BLANKR[@]}"
+	s="$s|$DT_CONFIRM|$DT_SHOT|$DT_SAVING|$DT_LOCKED"
+	s="$s|$CS_COLLAPSED|$CS_SIDEX|$CS_SCROLL|${#CS_MOD_LIST[@]}"
+	s="$s|$DT_ALONEFOR"
+	ret "$s"
+}
+
 # Paint the wallpaper.  The bar is drawn afterwards, over the windows, so a
 # drop-down menu covers them.
 dt_wall() {
-	local drawn=
+	local drawn= sig ms
 
+	# The icons' own rescan, and the frame it asks for, happen whether or
+	# not anything is painted: inside the gate below they would stop the
+	# first time the wallpaper was left alone, and a mounted disk would
+	# never appear again while Control Panel still said Icons were on.
+	if [ "$DT_ICONS" = 1 ]; then
+		[ $((EPOCHSECONDS - DI_SCANT)) -ge 5 ] && dt_deskscan
+		dt_want 5000
+	fi
+	# Nothing it paints has changed, and nothing drawn over it has gone:
+	# its cells are still on the screen, because every window paints
+	# inside its own rectangle and this paints behind them. Painted at
+	# least once a second regardless, so anything the signature does not
+	# know about cannot be seen for longer than that.
+	sig := dt_wallsig
+	ms := dt_ms
+	if [ "$sig" = "$DT_WALLFOR" ] && [ "$DT_FORCEDRAW" != 1 ] &&
+	   [ -n "$DT_NOOVERLAP" ] &&
+	   [ -z "$DT_FORCEONCE" ] && [ $((ms - DT_WALLMS)) -lt 1000 ]; then
+		return 0
+	fi
+	DT_WALLFOR=$sig
+	DT_WALLMS=$ms
+	# What the shadows need to know: they darken whatever is under them,
+	# and darkening is cumulative, so a window may only cast one onto
+	# wallpaper this frame painted. Left to itself a window redrawing over
+	# an unrepainted shadow strip would darken it again, and again, a
+	# little blacker every frame -- which is what the oracle in
+	# tests/desktop.py compares pens for.
+	DT_WALLDREW=1
+
+	# Paint around the windows, not over them. Nothing visible changes --
+	# every window is drawn after this and covers its own cells anyway --
+	# but it is what lets a window nobody redrew be left alone, and it
+	# reaches the picture too, since the img module draws through the same
+	# put. The cells a window used to cover are outside every pane the
+	# moment it moves, so they are repainted here with no damage to track;
+	# and a note or a menu that has gone had its cells outside the windows
+	# as well.
+	console behind on
 	if [ -n "$DT_WALLIMG" ]; then
 		if ! dt_has img && [ -z "$DT_WALLTRIED" ]; then
 			DT_WALLTRIED=1
@@ -189,15 +250,21 @@ dt_wall() {
 		console pen "$DT_DOT" "$DT_WALL"
 		console fill 0 0 "$DT_ROWS" "$DT_COLS" "$DT_GLYPH"
 	fi
-	if [ "$DT_ICONS" = 1 ]; then
-		[ $((EPOCHSECONDS - DI_SCANT)) -ge 5 ] && dt_deskscan
-		dt_want 5000
-		dt_icondraw
-	fi
+	# The icons are the desktop's too, and a window covers them whether
+	# they were painted under it or skipped, so this stays inside the
+	# behind-the-panes mode. Its rescan is above, outside the gate.
+	[ "$DT_ICONS" = 1 ] && dt_icondraw
+	console behind off
 }
 
 # Right-click on the bare desktop.
 DT_WALLGLYPHS=("·" "░" "▒" "⋅" "+")
+
+# What the wallpaper was last painted for, when, and whether this frame
+# painted it -- which is what says a shadow may be cast onto it.
+DT_WALLFOR=
+DT_WALLMS=0
+DT_WALLDREW=
 
 dt_wallnext() {
 	local i=0 g

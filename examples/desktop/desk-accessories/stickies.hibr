@@ -232,19 +232,45 @@ fn stickies_draw(int id, int h, int w, int row, int col) {
 	DT[$id]["fg"]=$ink
 	tb_draw "$id" 1 1 "$h" "$w" "$ink" "$face" "$face" "$ink"
 	st_where "$id"
+	SW[$id]["drew"]=${SW[$id]["gen"]:-0}
+	SW[$id]["wasfoc"]=0
+	[ "$DT_FOCUS" = "$id" ] && SW[$id]["wasfoc"]=1
+	return 0
+}
+
+# Whether this note has any reason to be drawn again. Only a key, the mouse
+# or the wheel can change what it shows, and only the focused one gets any
+# of those -- so an unfocused note is drawn once when it loses focus, to
+# take its cursor away, and then left alone. st_bump is called wherever its
+# text or its selection moves; a note's colour is part of the desktop's own
+# look signature, which forces a frame for everybody when it changes.
+fn stickies_dirty(int id) {
+	[ "$DT_FOCUS" = "$id" ] && return 0
+	[ "${SW[$id]["wasfoc"]}" = 1 ] && return 0
+	[ "${SW[$id]["gen"]:-0}" = "${SW[$id]["drew"]:-0}" ] || return 0
+	return 1
+}
+
+# Something about this note has changed.
+fn st_bump(int id) {
+	SW[$id]["gen"]=$(( ${SW[$id]["gen"]:-0} + 1 ))
+	return 0
 }
 
 fn stickies_key(int id, key) {
 	tb_key "$id" "$key" || return 1
+	st_bump "$id"
 	st_write "$id"
 	return 0
 }
 
 fn stickies_mouse(int id, act, btn, int r, int c, mods = "") {
+	st_bump "$id"
 	tb_mouse "$id" "$act" "$btn" "$r" "$c" "$mods"
 }
 
 fn stickies_wheel(int id, dir, int r = 0, int c = 0) {
+	st_bump "$id"
 	case $dir in
 	up) tb_scroll "$id" -3 ;;
 	down) tb_scroll "$id" 3 ;;

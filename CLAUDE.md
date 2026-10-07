@@ -2338,6 +2338,76 @@ went in the shell.
   by the time `dt_run` draws: setting it twice before two `dt_new`s gives
   both windows the second value. `DT_OPENCMD` is consumed by `term_open`
   and is the path a handler uses; `TW_CMD` is what the suites set.
+- **The screen already remembers, so the desktop need not redraw it.** A
+  pane is a name and a rectangle with no cells of its own, and `cn_flush`
+  copies each changed cell into the front grid and *leaves the back grid
+  alone* -- so a cell nobody rewrites keeps last frame's value and flushes
+  as nothing. The only thing that stopped a window being left alone was
+  `dt_wall` painting over it, which is why the console now keeps one byte a
+  cell saying whether a pane covers it and `console behind on` makes writes
+  at absolute coordinates skip those cells. The img module draws through the
+  same `dp->put`, so a picture wallpaper skips the windows too with no
+  change to img. What falls out for free: a note or menu that has gone had
+  its cells outside the windows, so the wallpaper paints them back with
+  nothing tracking it, and a window that moved leaves cells outside every
+  pane, likewise -- no damage list to keep. What does not: **the map must be
+  thrown away when a pane is dropped** (`cn_pdrop`), or a closed window
+  stays on the screen because the wallpaper goes on skipping a rectangle
+  nobody owns. That was the first version's bug and it looked exactly like
+  the close button not working.
+- **`console darken` is cumulative, so a shadow may only be cast onto cells
+  painted this frame.** Darken the same cells twice and they come out twice
+  as dark -- which is invisible for as long as the wallpaper repaints
+  everything every frame, and is the first thing to break when it stops.
+  `dt_wall` says whether it painted (`DT_WALLDREW`) and `dt_win` casts only
+  then; a window left alone still re-casts its shadow, because the strip the
+  shadow falls on is *outside* its own pane and the wallpaper did paint
+  there. And where two windows overlap, one's shadow falls on the other, so
+  the only arrangement in which every shadow is sure of fresh cells beneath
+  it is the one where the wallpaper paints as well: `dt_alone` says whether
+  anything overlaps, and if anything does the wallpaper is not gated at all.
+  Overlapping windows cost that saving. Say so rather than hide it.
+- **A dirty flag is opt-in, or a missed case is merely unlikely instead of
+  impossible.** `<app>_dirty` is asked only of an app that offers one; every
+  other app is drawn every frame exactly as before. `term_dirty` reads what
+  the emulator has been fed (`term gen`), the size, the focus, the scroll
+  position and whether the program is still alive; `stickies_dirty` a count
+  its own keys and mouse bump. An app that answers "clean" wrongly shows a
+  stale window, which is worse than a slow one -- hence the opt-in, and
+  hence the oracle below.
+- **An oracle compares two frames of one session, never two sessions.**
+  `DT_FORCEDRAW` turns the skipping off, and with the screen settled it must
+  not change a single cell -- the **pens** as well as the glyphs, because a
+  shadow cast twice differs only in colour, which no glyph comparison can
+  see. Drive two *overlapping* windows and move one by a drag first: a move
+  is what leaves cells where a pane used to be, and a shadow on a window is
+  what gets darkened twice. The first version of this compared the last
+  screen of two separate runs and failed one in three with nothing wrong --
+  two correct desktops settle at their own pace, so the frame before a
+  quitting key is not the same frame. It also caught a bug in itself: the
+  key used to force a frame must be one the test app draws nothing new for,
+  or the content legitimately differs.
+- **A setting whose own `dt_want` lives inside the drawing is a setting that
+  stops working the moment that drawing is skipped.** Three of them, each
+  found by asking rather than by a test: Cursor Blink asks for its next
+  frame from inside `term_draw`, the desktop icons' rescan sat inside
+  `dt_wall`, and the bar's clock asks for its next tick from inside
+  `dt_bar`. The first keeps a focused terminal dirty while it is on; the
+  second moved outside the gate; the third is why the bar still draws every
+  frame and keeps its 0.19 ms, a trade worth more than a clock that tells
+  the truth once. Before gating any drawing, look for what asks for the next
+  frame from inside it.
+- **Pane buffers and a compositor were tried first, and the ABI is not ready
+  for them.** Giving each pane its own cells and compositing them bottom to
+  top at flush is the better architecture and it worked -- until the image
+  viewer and the screen saver failed, because **`img draw` writes cells at
+  absolute coordinates** and has no pane form (the gap this file already
+  records). A window holding both paned chrome and an absolute picture
+  cannot be composed in either order: compose after the app and the picture
+  is covered, compose before and every ordinary app's content is a frame
+  late. Doing it properly means `dp_api` gaining a paned put and img, media,
+  web and most all changing. The ownership map above reaches the same place
+  without any of that, which is why it is what shipped.
 - **A window map's name is global across every app.** Contacts named its
   window table `PW`, which is Control Panel's own: each app overwrote the
   other's state. Before declaring a new `-gA`, grep the desktop for the

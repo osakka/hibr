@@ -58,6 +58,7 @@ cn_pane *cn_pset(const char *nm, int row, int col, int h, int w)
 	p->col = col;
 	p->h = h;
 	p->w = w;
+	cn_owninval();
 	lg(HIBR_LDBG, "pane %s at %d,%d size %dx%d", nm, row, col, h, w);
 	return p;
 }
@@ -73,6 +74,7 @@ void cn_pclear(void)
 		free(p);
 	}
 	v_free(&cn_panes);
+	cn_owninval();
 }
 
 /* Move a pane to the top of the stack, so it is drawn last and hit first. */
@@ -119,6 +121,11 @@ int cn_pdrop(const char *nm)
 		memmove(cn_panes.p + i, cn_panes.p + i + 1,
 			(cn_panes.n - i - 1) * sizeof *cn_panes.p);
 		cn_panes.n--;
+		/* Its cells belong to nobody now, so the wallpaper must paint
+		   them again: without this a closed window stayed on the
+		   screen, since painting behind the panes skipped a rectangle
+		   no pane owned any more. */
+		cn_owninval();
 		lg(HIBR_LDBG, "pane %s dropped", nm);
 		free(p->nm);
 		free(p);
@@ -187,7 +194,15 @@ int cn_pput(sh *s, const cn_pane *p, int row, int col, const char *t)
 		i += (size_t)l;
 	}
 	s_init(&vis);
-	adv = cn_put(p->row + row, p->col + col, cn_vis(s, clip.p ? clip.p : "", &vis));
+	{
+		/* Drawing through a pane is the pane's own: it must land even
+		   while the wallpaper is painting behind the windows. */
+		int was = cn_behind(0);
+
+		adv = cn_put(p->row + row, p->col + col,
+			     cn_vis(s, clip.p ? clip.p : "", &vis));
+		cn_behind(was);
+	}
 	s_free(&vis);
 	s_free(&clip);
 	return adv;
@@ -494,6 +509,19 @@ int m_console(sh *s, int ac, char **av)
 		}
 		cn_darken(atoi(av[2]), atoi(av[3]), atoi(av[4]), atoi(av[5]),
 			  ac > 6 ? atoi(av[6]) : 55);
+		return HIBR_OK;
+	}
+	if (!strcmp(sub, "behind")) {
+		/* While this is on, a write at absolute coordinates skips any
+		   cell a pane covers -- so the wallpaper paints around the
+		   windows instead of over them, and that goes for the picture
+		   too, since the img module draws through the same put. A
+		   menu dropping over a window, or anything drawn through a
+		   pane, is unaffected. */
+		if (!cn_need())
+			return HIBR_FAIL;
+		cn_behind(ac > 2 && (!strcmp(av[2], "on") ||
+				     !strcmp(av[2], "1")));
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "waiting"))

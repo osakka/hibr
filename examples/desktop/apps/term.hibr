@@ -280,7 +280,14 @@ fn term_draw(int id, int h, int w, int row, int col) {
 		dt_want $((500 - ms % 500 + 5))
 	fi
 	term draw "$t" 1 1 "$h" "$tw" "$cur" -p "w$id"
+	# What this frame drew, for term_dirty to compare next time.
+	TW[$id]["gen"] := term gen "$t"
+	TW[$id]["drawnfoc"]=0
+	[ "$DT_FOCUS" = "$id" ] && TW[$id]["drawnfoc"]=1
+	TW[$id]["drawnh"]=${DT[$id]["h"]}
+	TW[$id]["drawnw"]=${DT[$id]["w"]}
 	sb := term scroll "$t"
+	TW[$id]["drawnview"]=$sb
 	view=${sb% *}
 	stored=${sb#* }
 	if [ "$view" != 0 ]; then
@@ -523,10 +530,48 @@ fn term_close(int id) {
 # still read, so the screen is current when the window comes back and the
 # pty does not keep waking the desktop. A program that has ended stops
 # being watched here too; the window says so when it is next drawn.
+# Whether this terminal has any reason to be drawn again. The emulator
+# counts what it has been fed (term gen), so the same answer twice running
+# means nothing on its screen can have moved. A focused one is always drawn,
+# because its cursor blinks in it; one that has just lost focus is drawn
+# once more to take the cursor away. A terminal with no program yet has to
+# be drawn, since tw_fit is what starts it.
+fn term_dirty(int id) {
+	local t=${TW[$id]["t"]} g v foc=0
+
+	# No program yet: tw_fit is in _draw and is what starts one.
+	[ -n "$t" ] || return 0
+	# One that has ended has its exit line to put up.
+	term alive "$t" || return 0
+	[ "$DT_FOCUS" = "$id" ] && foc=1
+	# A blinking cursor's own dt_want is in _draw, so saying clean here
+	# would stop it blinking while Control Panel > Terminal went on
+	# saying Cursor Blink was on. With it off -- the default -- a focused
+	# terminal differs from any other only in where its cursor is, which
+	# the count below already notices.
+	[ "$foc" = 1 ] && [ "$DT_CURSOR_BLINK" = 1 ] && return 0
+	# The cursor goes when focus does, and comes back with it.
+	[ "$foc" = "${TW[$id]["drawnfoc"]:-0}" ] || return 0
+	[ "${TW[$id]["drawnh"]}" = "${DT[$id]["h"]}" ] || return 0
+	[ "${TW[$id]["drawnw"]}" = "${DT[$id]["w"]}" ] || return 0
+	g := term gen "$t"
+	[ "$g" = "${TW[$id]["gen"]}" ] || return 0
+	# Scrolled back: the wheel does that without focus and without the
+	# program writing a byte.
+	v := term scroll "$t"
+	[ "$v" = "${TW[$id]["drawnview"]}" ] || return 0
+	return 1
+}
+
 fn term_idle(int id) {
 	local t=${TW[$id]["t"]}
 
 	[ -n "$t" ] || return 0
+	# Both calls, deliberately: term poll fails only when its own read
+	# failed, and a program that has exited leaving output buffered polls
+	# perfectly well -- so only term alive notices it has gone, and a pty
+	# whose program is gone stays ready for ever and spins the desktop.
+	# Measured: dropping the second call saved nothing anyway.
 	term poll "$t" 0
 	term alive "$t" && return 0
 	if [ -n "${TW[$id]["fd"]}" ]; then

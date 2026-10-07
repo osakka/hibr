@@ -132,6 +132,57 @@ raw_nobarshadow = barshadow_run(env={"DT_BARSHADOW": "0"})
 check("DT_BARSHADOW=0 casts none, independently of the other two",
       SHADOW_RGB not in raw_nobarshadow, raw_nobarshadow)
 
+# Drawing only what changed, and the proof that it changes nothing: inside
+# one session, with the screen settled, turning DT_FORCEDRAW on redraws every
+# window and repaints the wallpaper -- and not one cell may come out
+# different, the pens as well as the glyphs, because a shadow darkened twice
+# differs only in colour. Two windows that overlap, and a drag that moves one
+# of them first, because a move is what leaves cells where a pane used to be
+# and a shadow cast on a window is what gets darkened twice.
+#
+# One session, not two compared with each other: two pty sessions settle at
+# their own pace, so the same correct desktop can end them on different
+# frames, and an oracle that fails one run in three tells you nothing. Here
+# both screens come from the same desktop, moments apart, and the only thing
+# that changed between them is whether the skipping was allowed.
+ORACLE = (
+    'declare -gA OC OD\n'
+    'orc_open() { OC[$1]=0; return 0; }\n'
+    'orc_draw() { console put -p "w$1" 2 3 "n ${OC[$1]}"; return 0; }\n'
+    # F turns the skipping off from inside the session, through the one
+    # callback the window manager already hands keys to, so the comparison is
+    # between two frames of one desktop rather than between two desktops.
+    # F turns the skipping off; z is a key it draws nothing new for, so a
+    # frame can be asked for without changing what is on the screen. Any key
+    # at all costs a frame, which is the point of sending them.
+    'orc_key()  { case $2 in F) DT_FORCEDRAW=1; return 0 ;; z) return 0 ;; esac\n'
+    '             OC[$1]=$(( ${OC[$1]} + 1 )); OD[$1]=1; return 0; }\n'
+    'orc_dirty() { [ -n "${OD[$1]}" ] && { OD[$1]=; return 0; }; return 1; }\n'
+    'dt_new "Under" 9 34 6 10 orc\n'
+    'dt_new "Over" 9 34 10 22 orc\n')
+orpath = scratch("desktop-oracle.hibr")
+open(orpath, "w").write("%s. %s\ndt_open\n%s\ndt_run\ndt_close\n"
+                        % (load(MOD), WM, ORACLE))
+ort = Term(orpath, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.6)
+ort.keys([b"x", b"x", press(10, 30), 0.2, drag(12, 34), 0.2,
+          drag(14, 38), 0.2, release(14, 38), 0.4, b"x", 0.5])
+before = ort.screen()
+beforeg = [r[:] for r in before.g]
+beforep = [r[:] for r in before.p]
+moved = before.find("┤ Over ├")
+# Everything redrawn, twice over, so a single forced frame cannot be what
+# makes them agree.
+ort.keys([b"F", 0.4, b"z", 0.4, b"z", 0.5])
+after = ort.screen()
+check("the drag moved the window, so there are cells where a pane used to be",
+      moved is not None and moved != (10, 24), moved)
+check("redrawing everything changes no glyph that drawing only what changed left",
+      beforeg == after.g, after)
+check("and no colour, which a shadow cast twice on the same cells would",
+      beforep == after.p, after)
+ort.quit(b"qy", 1.2)
+os.unlink(orpath)
+
 # A key sent right after a resize must not be lost while the debounce is
 # waiting to see whether more of them are coming (DT_RSTILL is 150ms).
 path = scratch("desktop-rsz.hibr")
@@ -3839,4 +3890,4 @@ check("asked for blocks it is cells, with nothing sent as a bitmap",
       not sc.images and sc.find("┤ Hello ├") is not None, (sc.images, sc))
 shutil.rmtree(WPD, True)
 
-report(523)
+report(526)

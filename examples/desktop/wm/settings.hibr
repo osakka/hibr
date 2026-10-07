@@ -123,8 +123,10 @@ DT_CURSOR="${DT_CURSOR-block}"
 
 # Whether the cursor blinks. Off by default: a steady cursor is what the
 # terminal module has always drawn, and blinking is a look, not a fix, so it
-# stays opt-in. It costs nothing extra either way -- the focused terminal
-# already redraws every 30ms to catch its own echo promptly, blink or not.
+# stays opt-in. It is no longer free, and the comment here used to say it
+# was: a focused terminal is redrawn twice a second to blink, where with it
+# off a terminal nobody has typed into and whose program has written nothing
+# is not redrawn at all (term_dirty).
 DT_CURSOR_BLINK="${DT_CURSOR_BLINK-0}"
 
 # A window's shadow, cast on whatever is under it. On by default, since it
@@ -270,6 +272,12 @@ DT_DRAWSKIP="${DT_DRAWSKIP-0}"
 # draws on every burst as before. A key or a mouse report is never held
 # back by this, so nothing a person does feels slower.
 DT_TERMMS="${DT_TERMMS-70}"
+
+# Draw every window every frame, ignoring what an app's own _dirty says.
+# Not a setting anybody chooses and deliberately not in DT_KEEP: it is the
+# oracle for drawing only what changed, so a test can take the same session
+# both ways and compare the screen cell for cell (tests/desktop.py).
+DT_FORCEDRAW="${DT_FORCEDRAW-0}"
 # What Cycle (alt-tab) goes through: the windows of this workspace, or of
 # every workspace, going to whichever one the next window is on.
 DT_CYCLE="${DT_CYCLE-workspace}"

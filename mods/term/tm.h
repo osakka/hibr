@@ -73,6 +73,10 @@ struct tm_t {
 	unsigned fg, bg, attr;
 	unsigned dfg, dbg, dattr;
 	int vis, wrapnext, autowrap, inalt, done;
+	/* Up by one every time the program has been fed anything, so a
+	   window manager can ask whether there is any reason to draw this
+	   terminal again rather than drawing it on the chance there is. */
+	unsigned gen;
 	int st;
 	long *pv;
 	unsigned char *ps;

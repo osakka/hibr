@@ -46,8 +46,10 @@ int tm_pump(tm_t *m, int ms)
 		return -1;
 	s_init(&b);
 	r = tm_pty->read(m->pty, ms, &b);
-	if (b.n)
+	if (b.n) {
 		tm_feed(m, b.p, b.n);
+		m->gen++;
+	}
 	s_free(&b);
 	if (r < 0)
 		m->done = 1;
@@ -408,6 +410,16 @@ int m_term(sh *s, int ac, char **av)
 	if (!strcmp(sub, "poll")) {
 		r = tm_pump(m, ac > 3 ? atoi(av[3]) : 0);
 		return r < 0 ? HIBR_FAIL : HIBR_OK;
+	}
+	/* How many times this terminal has been given something to read: the
+	   same answer twice running means nothing it draws can have changed,
+	   so there is no reason to draw it again. */
+	if (!strcmp(sub, "gen")) {
+		s_init(&o);
+		s_num(&o, (long)m->gen);
+		tm_ret(s, o.p);
+		s_free(&o);
+		return HIBR_OK;
 	}
 	if (!strcmp(sub, "draw")) {
 		const char *pane = 0;
