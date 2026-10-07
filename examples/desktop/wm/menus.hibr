@@ -735,7 +735,11 @@ fn dt_menu_draw(int m, int? px, int parent) {
 	MB[$m]["dy"]=$r
 	MB[$m]["dx"]=$x
 	MB[$m]["dw"]=$w
-	[ "$DT_MSHADOW" = 1 ] &&
+	# Only onto wallpaper this frame painted: an open menu is drawn on
+	# every frame it stays open, and darkening is cumulative, so casting
+	# this each time made the shadow darker and darker until the
+	# once-a-second wallpaper repaint reset it.
+	[ "$DT_MSHADOW" = 1 ] && [ -n "$DT_WALLDREW" ] &&
 		console darken $((r + 1)) $((x + 2)) $((n + 1)) "$w" "$DT_SHADOW_PCT"
 	while [ "$i" -lt "$n" ]; do
 		if [ "${MI[$m][$i]["sep"]}" = 1 ]; then
@@ -841,7 +845,8 @@ dt_drop_apps() {
 	[ $((x + w)) -gt "$DT_COLS" ] && x=$((DT_COLS - w))
 	n=${#il[@]}
 	[ "$n" = 0 ] && n=1
-	[ "$DT_MSHADOW" = 1 ] &&
+	# The same: cast once, on a frame that painted what is under it.
+	[ "$DT_MSHADOW" = 1 ] && [ -n "$DT_WALLDREW" ] &&
 		console darken $((r + 1)) $((x + 2)) $((n + 1)) "$w" "$DT_SHADOW_PCT"
 	for id in "${il[@]}"; do
 		if [ "$i" = "$MB_SEL" ]; then

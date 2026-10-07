@@ -265,8 +265,14 @@ dt_stripdraw() {
 	ms := dt_ms
 	sig="$CS_COLLAPSED|$CS_SIDEX|$CS_SCROLL|${#CS_MOD_LIST[@]}|$DT_INCNT"
 	sig="$sig|$DT_PRIMARY_COL|${DT_PRIMARY_W:-$DT_COLS}|$DT_ROWS|$DT_FACE|$DT_ACTIVE"
+	# And always on a frame that painted the wallpaper: the strip is drawn
+	# on the screen itself, not through a pane, so the wallpaper paints
+	# over it -- skipping that frame left the strip missing until the next
+	# one it chose to draw, which is what "it disappears every second or
+	# so" was.
 	if [ "$sig" = "$CS_DREWFOR" ] && [ "$DT_FORCEDRAW" != 1 ] &&
-	   [ -z "$DT_FORCEONCE" ] && [ $((ms - CS_DREWMS)) -lt 1000 ]; then
+	   [ -z "$DT_FORCEONCE" ] && [ -z "$DT_WALLDREW" ] &&
+	   [ $((ms - CS_DREWMS)) -lt 1000 ]; then
 		return 0
 	fi
 	CS_DREWFOR=$sig
@@ -285,7 +291,7 @@ dt_stripdraw() {
 	w := cs_width
 	[ "$CS_SIDEX" = left ] && col=$DT_PRIMARY_COL ||
 		col=$((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - w))
-	[ "$CS_SHADOW" = 1 ] &&
+	[ "$CS_SHADOW" = 1 ] && [ -n "$DT_WALLDREW" ] &&
 		console darken $((row + 1)) $((col + 2)) 1 "$w" "$DT_SHADOW_PCT"
 	console pen "$DT_INK" "$DT_FACE"
 	console fill "$row" "$col" 1 "$w" " "

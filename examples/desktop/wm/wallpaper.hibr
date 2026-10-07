@@ -186,8 +186,15 @@ dt_wall() {
 	# know about cannot be seen for longer than that.
 	sig := dt_wallsig
 	ms := dt_ms
+	# Never while a menu is open. A drop-down is drawn on every frame it
+	# stays open and casts a shadow on whatever is under it -- wallpaper or
+	# a window -- and a shadow may only be cast onto cells painted this
+	# frame. Painting the wallpaper every frame for as long as a menu is up
+	# is 1.4 ms during an interactive moment, against a shadow that fades
+	# the instant the window under it redraws.
 	if [ "$sig" = "$DT_WALLFOR" ] && [ "$DT_FORCEDRAW" != 1 ] &&
-	   [ -n "$DT_NOOVERLAP" ] &&
+	   [ -n "$DT_NOOVERLAP" ] && [ "$MB_OPEN" = -1 ] &&
+	   [ -z "$MB_CTXWHO" ] &&
 	   [ -z "$DT_FORCEONCE" ] && [ $((ms - DT_WALLMS)) -lt 1000 ]; then
 		return 0
 	fi

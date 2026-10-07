@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.99.84
+
+**A resize killed a desktop with a signal 11, and three shadows pulsed.**
+All four are 0.99.82's, reported from a live session within a day of it.
+
+**The crash.** The map that says which cells a pane covers -- what lets the
+wallpaper paint around the windows -- is allocated for the grid as it was
+when it was built, and `cn_skip` bounds-checked the *current* grid before
+indexing it. `cn_fitq` acts on a SIGWINCH in the middle of a frame, so a
+terminal resized larger left the map smaller than the grid and the index ran
+past the end of its own allocation: an out-of-bounds read, and the desktop
+died. The supervisor restarted it and put the windows back from the
+snapshot, but a terminal's program is a child of the process that died and
+nothing could adopt it -- so what the owner saw was every window in place
+and every shell gone. The map carries its own rows and columns now and
+checks against those; a cell it does not cover is one the screen has only
+just grown into, which no pane owns, so it is painted rather than skipped.
+Found by reading rather than by a test: the window is a signal arriving
+between two statements, which no suite can be made to hit on purpose.
+
+**The shadows.** `console darken` is cumulative, and 0.99.82 paired only the
+*windows'* shadows to "cast only onto wallpaper this frame painted". The
+bar's, an open menu's and the Control Strip's were still cast on every
+frame, so each grew a shade darker until the once-a-second wallpaper repaint
+put it back: a shadow visibly pulsing, once a second. All four are paired
+now.
+
+**The Control Strip.** It is drawn on the screen itself rather than through
+a pane, so the wallpaper paints over it -- and its own gate let it skip
+exactly that frame, leaving it missing until the next frame it chose to
+draw. "It disappears every second or so" was that. It now always draws on a
+frame that painted the wallpaper.
+
+And the wallpaper is not gated at all while a menu is open: a drop-down is
+drawn on every frame it stays open and casts a shadow on whatever is under
+it, window or wallpaper, so the cells beneath it have to be painted that
+frame. Painting the wallpaper for as long as a menu is up costs 1.4 ms a
+frame during an interactive moment, against a shadow that fades the instant
+the window under it redraws.
+
 ## 0.99.83
 
 **A program writing does not wake the desktop for a frame it has already

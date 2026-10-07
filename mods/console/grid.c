@@ -20,7 +20,12 @@ cn_grid cn_back, cn_front;
    menu dropping over a window, or any drawing through a pane, must still
    land. */
 static unsigned char *cn_own;
-static int cn_ownn, cn_ownok, cn_behindon;
+/* The map's own size, not the grid's: a SIGWINCH is acted on by cn_fitq in
+   the middle of a frame, so the grid can grow after the map was built, and a
+   bounds check against the grid then indexes the map past the end of its own
+   allocation. That read killed a live desktop with a signal 11 the first time
+   its terminal was resized. */
+static int cn_ownr, cn_ownc, cn_ownok, cn_behindon;
 static int cn_skip(int row, int col);
 unsigned cn_fg, cn_bg, cn_penat;
 int cn_crow, cn_ccol, cn_cvis;
@@ -517,12 +522,13 @@ static void cn_ownsync(void)
 	int r, c, n = cn_back.rows * cn_back.cols;
 	cn_pane *p;
 
-	if (cn_ownok && cn_ownn == n)
+	if (cn_ownok && cn_ownr == cn_back.rows && cn_ownc == cn_back.cols)
 		return;
 	free(cn_own);
 	cn_own = xm((size_t)n);
 	memset(cn_own, 0, (size_t)n);
-	cn_ownn = n;
+	cn_ownr = cn_back.rows;
+	cn_ownc = cn_back.cols;
 	for (i = 0; i < cn_panes.n; i++) {
 		p = (cn_pane *)cn_panes.p[i];
 		for (r = p->row; r < p->row + p->h; r++) {
@@ -543,9 +549,12 @@ static int cn_skip(int row, int col)
 {
 	if (!cn_behindon || !cn_own)
 		return 0;
-	if (row < 0 || row >= cn_back.rows || col < 0 || col >= cn_back.cols)
+	/* Against the map's own size. A cell the map does not cover is one
+	   the screen has only just grown into, which no pane owns yet, so it
+	   is painted rather than skipped. */
+	if (row < 0 || row >= cn_ownr || col < 0 || col >= cn_ownc)
 		return 0;
-	return cn_own[row * cn_back.cols + col];
+	return cn_own[row * cn_ownc + col];
 }
 
 /* Paint behind the panes, or stop doing so, answering how it was before --

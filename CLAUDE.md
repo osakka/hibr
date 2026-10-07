@@ -2382,12 +2382,38 @@ went in the shell.
   stays on the screen because the wallpaper goes on skipping a rectangle
   nobody owns. That was the first version's bug and it looked exactly like
   the close button not working.
+- **A map indexed by one grid's width must carry its own, because a SIGWINCH
+  lands between two statements.** `cn_ownsync` allocates the pane-ownership
+  map for the grid as it stands, and `cn_skip` bounds-checked the *current*
+  grid before indexing it -- but `cn_fitq`, called from inside `cn_put`,
+  acts on a resize in the middle of a frame. A terminal resized larger
+  therefore left the map smaller than the grid and the index ran past the
+  end of its own allocation: **a live desktop died on signal 11 the first
+  time its terminal was resized**, the supervisor restarted it, and because
+  a terminal's program is a child of the process that died, every window
+  came back with its shell gone. The map keeps `cn_ownr`/`cn_ownc` and
+  checks against those; a cell outside it is one the screen has just grown
+  into, which no pane owns, so it is painted. No suite can be made to hit
+  that window on purpose, so this class of bug is found by reading the
+  lifetime of every cached size against what can change it mid-frame -- and
+  anything else that caches a grid's dimensions wants the same look.
 - **`console darken` is cumulative, so a shadow may only be cast onto cells
   painted this frame.** Darken the same cells twice and they come out twice
   as dark -- which is invisible for as long as the wallpaper repaints
   everything every frame, and is the first thing to break when it stops.
-  `dt_wall` says whether it painted (`DT_WALLDREW`) and `dt_win` casts only
-  then; a window left alone still re-casts its shadow, because the strip the
+  `dt_wall` says whether it painted (`DT_WALLDREW`) and **every** shadow
+  obeys it -- a window's, the bar's, an open menu's and the Control Strip's.
+  0.99.82 paired only the windows' and shipped; the other three went on
+  being cast every frame, grew a shade darker each time, and were reset by
+  the once-a-second wallpaper repaint, which a live session saw as shadows
+  pulsing once a second. Anything that darkens needs the same pairing, and
+  the wallpaper is not gated at all while a menu is open, since a drop-down
+  casts a shadow on whatever is under it on every frame it stays open.
+  Something drawn on the screen rather than through a pane -- the Control
+  Strip -- must also *draw* on any frame that painted the wallpaper, or the
+  wallpaper paints over it and its own gate leaves it missing until it next
+  chooses to draw: "it disappears every second or so" was that.
+  `dt_win` casts only then; a window left alone still re-casts its shadow, because the strip the
   shadow falls on is *outside* its own pane and the wallpaper did paint
   there. And where two windows overlap, one's shadow falls on the other, so
   the only arrangement in which every shadow is sure of fresh cells beneath
