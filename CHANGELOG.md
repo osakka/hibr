@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.99.91
+
+**A background job is reaped when its child exits, not when the next job is
+started** (Gitea #123). Noticed by the owner in `ps`: seven zombies, every one
+a child of their desktop, about one an hour over seven hours. Reproduced in two
+lines -- `( : ) &` and a `sleep`, state `Z` -- and in three for the burst, which
+is what said there was no second bug to go looking for:
+
+    ( : ) & ( : ) & ( : ) &      before: Z Z Z        after: gone gone gone
+
+The only thing that reaped was `ex_bg` on its way in, which collects what
+finished *before* the next job starts -- so a burst leaves its own children
+behind, and a desktop forks for a sync, a transfer or a vault command and
+nothing else, hours apart.
+
+The trigger has to be the child exiting. Nothing else is cheap enough: the
+desktop runs hundreds of commands a frame, so a `waitpid` per command is the
+1920-system-calls-a-frame mistake again, and a clock or a counter is arbitrary
+and still per command. So `on_trap` sets a flag when the signal is `SIGCHLD` --
+a handler may only set a flag -- `tr_init` installs that handler for **every**
+shell rather than only an interactive one, and `ex_cmd`'s tail reaps when the
+flag is set *and* this script has jobs.
+
+A loop with neither pays one load. Measured per function rather than by the
+total, because this tree has been caught by that before: `ex_cmd` goes
+25,760,967 instructions to 26,080,979 over 40,000 commands -- **+8 each** --
+and every other function in the build is byte-identical. The 0.72% the totals
+differed by was `__strcmp_avx2` taking a different path for the same calls,
+because string literals moved.
+
+Three things that look like details and are not. The flag is cleared **before**
+the wait, or a child exiting during it is not noticed until the one after.
+`SA_RESTART`, so an ordinary `read` or `waitpid` resumes -- `select` and
+`pselect` never restart whatever is asked, which costs a module's wait one
+early return per child exit, and `cn_wait` already answers EINTR with "no key,
+no resize", so a desktop simply goes round again. And **`CHLD` keeps its
+handler whatever a script asks of the trap**: `trap - CHLD` setting `SIG_DFL`
+would quietly bring the zombies back, and `SIG_IGN` on `SIGCHLD` would stop
+`wait` working at all. A script's own `CHLD` trap still runs -- the flag is set
+beside the trap's own, never instead of it -- and `tests/997-reap-bg.t` checks
+that, along with `wait` still answering 7 for a job reaped before it was asked
+about, and 4 for one still running.
+
 ## 0.99.90
 
 **One rule for the keyboard: alt and ctrl-alt belong to the desktop, ctrl and a

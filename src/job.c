@@ -498,6 +498,10 @@ void jc_poll(sh *s, int report)
 }
 
 /* Reap finished jobs before another starts, and keep a script's table bounded. */
+/* Set by the SIGCHLD handler: a child has gone, so there may be something to
+   reap. Read and cleared at the end of a command, where reaping is safe. */
+volatile sig_atomic_t jc_chld;
+
 void jc_tidy(sh *s)
 {
 	size_t i, nd = 0;

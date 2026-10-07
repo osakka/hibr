@@ -1,0 +1,7 @@
+0
+one job: gone
+a burst of three: gone gone gone
+wait on a reaped job: status 7
+wait on a running job: status 4
+the trap ran
+reaped after the trap was cleared: gone

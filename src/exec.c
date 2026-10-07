@@ -11,6 +11,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+extern volatile sig_atomic_t jc_chld;
+
 char *xnum(sh *s, long v);
 char *xone(sh *s, word *w);
 
@@ -1659,6 +1661,19 @@ int ex_cmd(sh *s, node *n)
 		st = wstat(w2);
 	}
 out:
+	/* A child has gone and this script has background jobs: reap them
+	   here, where it is safe to, rather than waiting for the next one to
+	   be started -- which until 0.99.91 was the only thing that did it, so
+	   a burst of three jobs left three zombies until the next burst and a
+	   desktop collected one an hour (Gitea #123). The flag is cleared
+	   before the wait, not after, or a child that exits during it is not
+	   noticed until the one after. Nothing is asked of the kernel unless a
+	   child really has exited and this script really has jobs, so a loop
+	   that has neither pays one load of a flag. */
+	if (jc_chld && s->jobs.n) {
+		jc_chld = 0;
+		jc_poll(s, 0);
+	}
 	if (n->f == 2) {
 		ex_bind(s, n);
 		s->bind = 0;

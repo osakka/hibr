@@ -10,18 +10,26 @@
 volatile sig_atomic_t *tr_pend;
 volatile sig_atomic_t tr_any;
 int tr_n;
+extern volatile sig_atomic_t jc_chld;
 
-/* Record that a trapped signal arrived. */
+/* Record that a trapped signal arrived -- and, for a child that has gone,
+   that there is something to reap. Reaping cannot happen here: a handler may
+   only set a flag, and waitpid in one would race whatever the shell was in
+   the middle of. jc_chld is read at the end of every command, which costs a
+   load and fires exactly when a child has actually exited. */
 void on_trap(int sig)
 {
 	if (tr_pend && sig > 0 && sig < tr_n)
 		tr_pend[sig] = 1;
+	if (sig == SIGCHLD)
+		jc_chld = 1;
 	tr_any = 1;
 }
 
 /* Allocate the trap and pending tables. */
 void tr_init(sh *s)
 {
+	struct sigaction sa;
 	int i;
 
 	tr_n = NSIG;
@@ -32,6 +40,18 @@ void tr_init(sh *s)
 		s->trap[i] = 0;
 	}
 	s->trap[tr_n] = 0;
+	/* Every shell, not only an interactive one: a long-running script is
+	   exactly what accumulates children nobody has waited for, and until
+	   0.99.91 the only thing that reaped them was starting another
+	   background job -- so a burst of three left three zombies until the
+	   next one, and a desktop collected one an hour (Gitea #123).
+	   SA_RESTART so an ordinary read or wait resumes; select and pselect
+	   do not restart whatever is asked, which costs a module's wait one
+	   early return per child exit and nothing else. */
+	memset(&sa, 0, sizeof sa);
+	sa.sa_handler = on_trap;
+	sa.sa_flags = SA_RESTART;
+	sigaction(SIGCHLD, &sa, 0);
 }
 
 /* True when a trapped signal is waiting to be handled. */
@@ -70,6 +90,10 @@ void tr_run(sh *s)
 /* Forget an inherited exit trap in a freshly forked child. */
 void tr_fork(sh *s)
 {
+	/* The parent's children are not this one's, so a flag inherited set
+	   would send it to waitpid for pids it cannot wait for. Harmless --
+	   ECHILD marks nothing -- but there is no reason to go. */
+	jc_chld = 0;
 	if (!s->trap || !s->trap[0])
 		return;
 	lg(HIBR_LDBG, "subshell forgets the inherited exit trap");
@@ -323,6 +347,17 @@ int b_trap(sh *s, int ac, char **av)
 			sa.sa_handler = SIG_IGN;
 		else
 			sa.sa_handler = on_trap;
+		/* CHLD keeps its handler whatever is asked of the trap, because
+		   the handler is also what tells the shell a child is there to
+		   reap -- cleared to SIG_DFL, a script that asked for no trap
+		   would silently start leaving zombies again. The trap itself
+		   is cleared above, so nothing of the script's runs; and
+		   SIG_IGN on SIGCHLD would stop `wait` working at all, which
+		   is why bash keeps its own handler here too. */
+		if (sig == SIGCHLD) {
+			sa.sa_handler = on_trap;
+			sa.sa_flags = SA_RESTART;
+		}
 		if (sigaction(sig, &sa, 0) < 0) {
 			lg(HIBR_LERR, "trap: %s: %s", av[i], strerror(errno));
 			return HIBR_FAIL;

@@ -2001,14 +2001,45 @@ went in the shell.
   every Mac restart lost its windows. `j_slurp` clears the stream's error
   and end-of-file before and after (`tests/999-json-twice.t`); anything
   else that reads stdin through stdio more than once needs the same.
-- **A script reaps its background jobs before starting the next.** bash
-  reaps on `SIGCHLD`; hibr reaped only at the interactive prompt, `wait`
-  and `jobs`, so a script that never waited -- the desktop, polling its
-  jobs' status files -- kept every finished job as a zombie, a hundred in
-  a day. `ex_bg` calls `jc_tidy` first: `jc_poll` reaps and keeps each
-  status, and a non-interactive shell forgets the oldest finished job
-  past `HIBR_JKEEP` (256). `wait PID` on a job already reaped answers its
-  kept status (`tests/999-bg-reap.t`).
+- **A background job is reaped when its child exits, not when the next job is
+  started.** This took two goes. hibr first reaped only at the interactive
+  prompt, `wait` and `jobs`, so a script that never waited -- the desktop,
+  polling its jobs' status files -- kept every finished job as a zombie, a
+  hundred in a day; `ex_bg` was then made to call `jc_tidy` on its way in,
+  which is where the second version stopped. That reaps only what finished
+  *before* the next job starts, so **a burst of three jobs leaves three
+  zombies** until the next burst -- and a desktop forks for a sync, a
+  transfer or a vault command and nothing else, so it collected about one an
+  hour, found in `ps` by its owner (Gitea #123). Reproduced in two lines
+  (`( : ) &` then `sleep`, state `Z`) and in three for the burst, which is
+  what said there was no second bug to hunt.
+  The trigger has to be the child exiting, and nothing else is cheap enough:
+  the desktop runs hundreds of commands a frame, so a `waitpid` per command
+  is the 1920-system-calls-a-frame trap again, and a clock or a counter is
+  both arbitrary and still per command. So `on_trap` sets `jc_chld` when the
+  signal is `SIGCHLD` -- a handler may only set a flag -- `tr_init` installs
+  that handler for **every** shell rather than only an interactive one, and
+  `ex_cmd`'s tail reaps when the flag is set *and* this script has jobs. A
+  loop with neither pays one load: measured per function, `ex_cmd` goes
+  25,760,967 instructions to 26,080,979 over 40,000 commands, **+8 each**,
+  and every other function in the build is identical -- the 0.72% the totals
+  differed by was `__strcmp_avx2` taking a different path for the same calls,
+  which is the address-sensitivity trap above, found again.
+  Three things that look like details and are not: the flag is cleared
+  **before** the wait, or a child exiting during it waits for the next one;
+  `SA_RESTART` so an ordinary `read` or `waitpid` resumes, while `select` and
+  `pselect` never restart whatever is asked, which costs a module's wait one
+  early return per child exit (`cn_wait` already answers EINTR with "no key,
+  no resize", so the desktop simply goes round again); and **`CHLD` keeps its
+  handler whatever a script asks of the trap**, because `trap - CHLD` setting
+  `SIG_DFL` would quietly bring the zombies back, and `SIG_IGN` on `SIGCHLD`
+  would stop `wait` working at all -- bash keeps its own handler there for
+  the same reason. A script's own `CHLD` trap still runs: the flag is set
+  beside `tr_pend`, never instead of it.
+  `jc_poll` keeps each job's status, a non-interactive shell forgets the
+  oldest finished job past `HIBR_JKEEP` (256), and `wait PID` on a job
+  already reaped answers its kept status (`tests/999-bg-reap.t`,
+  `tests/997-reap-bg.t`).
 - **A trap that exits ends the shell with its status.** `tr_run` put the
   earlier status back after every trap, and `ex_cmd` then turned a 0 into 1
   on finding `quit` set, so `trap 'exit 143' TERM` exited 1 and a bare
