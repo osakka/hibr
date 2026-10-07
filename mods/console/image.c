@@ -36,7 +36,8 @@
 #include <string.h>
 
 typedef struct cn_img {
-	int row, col, h, w;	/* where it is, in screen cells */
+	int row, col, h, w;	/* where it is, in screen cells, cropped to them */
+	int wrow, wcol, wh, ww;	/* what the caller asked for, which may hang off the screen */
 	unsigned sum;		/* of the pixels, so an unchanged frame is not re-encoded */
 	unsigned under;		/* of the cells it covers, as they were when it was placed */
 	int sent;		/* 0 until its bytes have gone out */
@@ -133,31 +134,38 @@ int cn_imgat(int row, int col)
 	return 0;
 }
 
-/* Box-filter a bitmap of any size into w by h pixels. The backend scales,
-   not the caller: only the backend knows what a cell measures, and four
-   modules had otherwise each grown a scaler of their own. */
-void cn_imgscale(const unsigned char *in, int iw, int ih,
-		 unsigned char *out, int w, int h)
+/* Box-filter a rectangle of a bitmap into w by h pixels. iw is the whole
+   bitmap's width, which is its stride, and rx,ry,rw,rh is the part to take:
+   the source rectangle is what lets a picture be *cropped* to the screen
+   rather than squashed into it, which is what a zoom or a center wallpaper
+   means (Gitea #117). The backend scales, not the caller: only the backend
+   knows what a cell measures, and four modules had otherwise each grown a
+   scaler of their own. */
+void cn_imgscalesrc(const unsigned char *in, int iw, int ih,
+		    int rx, int ry, int rw, int rh,
+		    unsigned char *out, int w, int h)
 {
 	int x, y, c;
 
+	(void)ih;
 	for (y = 0; y < h; y++) {
-		int y0 = (int)((long long)y * ih / h), y1 = (int)((long long)(y + 1) * ih / h);
+		int y0 = ry + (int)((long long)y * rh / h);
+		int y1 = ry + (int)((long long)(y + 1) * rh / h);
 
 		if (y1 <= y0)
 			y1 = y0 + 1;
-		if (y1 > ih)
-			y1 = ih;
+		if (y1 > ry + rh)
+			y1 = ry + rh;
 		for (x = 0; x < w; x++) {
-			int x0 = (int)((long long)x * iw / w);
-			int x1 = (int)((long long)(x + 1) * iw / w);
+			int x0 = rx + (int)((long long)x * rw / w);
+			int x1 = rx + (int)((long long)(x + 1) * rw / w);
 			unsigned long sum[3] = { 0, 0, 0 }, n = 0;
 			int sx, sy;
 
 			if (x1 <= x0)
 				x1 = x0 + 1;
-			if (x1 > iw)
-				x1 = iw;
+			if (x1 > rx + rw)
+				x1 = rx + rw;
 			for (sy = y0; sy < y1; sy++)
 				for (sx = x0; sx < x1; sx++) {
 					const unsigned char *p = in + ((size_t)sy * iw + sx) * 3;
@@ -173,6 +181,13 @@ void cn_imgscale(const unsigned char *in, int iw, int ih,
 	}
 }
 
+/* The whole bitmap into w by h pixels. */
+void cn_imgscale(const unsigned char *in, int iw, int ih,
+		 unsigned char *out, int w, int h)
+{
+	cn_imgscalesrc(in, iw, ih, 0, 0, iw, ih, out, w, h);
+}
+
 /* Place a picture: w by h cells at row, col, from iw by ih pixels of RGB.
    With a pane, row and col are the pane's own, and anything past its edge is
    refused rather than drawn outside it -- the same discipline cn_pput gives
@@ -182,6 +197,7 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	     const unsigned char *rgb, int iw, int ih, unsigned flags)
 {
 	int prow = 0, pcol = 0, ph = 0, pw = 0, cw = 0, chh = 0, tw, th, k;
+	int wrow, wcol, wh, ww, vr0, vc0, vr1, vc1, sx, sy, sw, sh;
 	unsigned char *px = 0;
 	unsigned sum, reuse = 0;
 	size_t i;
@@ -203,13 +219,62 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 		row += prow;
 		col += pcol;
 	}
-	if (row < 0 || col < 0 || row + h > cn_back.rows || col + w > cn_back.cols)
+	/* What the caller asked for, before the screen's edges are allowed to
+	   crop it: that rectangle is what names this region from one frame to
+	   the next, so the identity checks below and cn_imgkeep compare it
+	   rather than where the picture actually ended up. Comparing the
+	   cropped one instead would make a zoom wallpaper a new region every
+	   frame -- a fresh kitty id, a delete owed for the old one, and all
+	   6.3 MB of it hashed and encoded again. */
+	wrow = row;
+	wcol = col;
+	wh = h;
+	ww = w;
+	/* The screen's own edges crop rather than refuse. A zoom or a center
+	   wallpaper is *meant* to hang off the screen -- dt_wallfit gives a
+	   negative row or column for it on purpose -- and until 0.99.95 this
+	   returned 0, so img fell back to half-block cells and neither mode
+	   had ever been pixels on any terminal (Gitea #117). Cropping is what
+	   those two modes mean; squashing the picture into the visible
+	   rectangle is the other thing that could be done here and is not
+	   what they promise. A *pane's* edge still refuses, which is a
+	   different contract: a window's picture must not spill, and a caller
+	   computing a rectangle larger than its own pane has a bug worth
+	   seeing as a fallback to cells. */
+	vr0 = row < 0 ? 0 : row;
+	vc0 = col < 0 ? 0 : col;
+	vr1 = row + h > cn_back.rows ? cn_back.rows : row + h;
+	vc1 = col + w > cn_back.cols ? cn_back.cols : col + w;
+	if (vr1 <= vr0 || vc1 <= vc0)
 		return 0;
+	/* Which part of the bitmap that leaves, as the difference of two
+	   rounded offsets rather than a product of the visible width: the
+	   difference cannot land past the end of the buffer where iw is not a
+	   whole multiple of w, and a product can. */
+	sx = (int)((long long)(vc0 - col) * iw / w);
+	sy = (int)((long long)(vr0 - row) * ih / h);
+	sw = (int)((long long)(vc1 - col) * iw / w) - sx;
+	sh = (int)((long long)(vr1 - row) * ih / h) - sy;
+	if (sw < 1)
+		sw = 1;
+	if (sh < 1)
+		sh = 1;
+	if (sx + sw > iw)
+		sw = iw - sx;
+	if (sy + sh > ih)
+		sh = ih - sy;
+	if (sw < 1 || sh < 1)
+		return 0;
+	row = vr0;
+	col = vc0;
+	h = vr1 - vr0;
+	w = vc1 - vc0;
 	sum = cn_hash(rgb, (size_t)iw * ih * 3, 2166136261u);
 	sum = cn_hash(&flags, sizeof flags, sum);
 	for (i = 0; i < cn_nimg; i++) {
 		im = &cn_imgs[i];
-		if (im->row != row || im->col != col || im->h != h || im->w != w)
+		if (im->wrow != wrow || im->wcol != wcol || im->wh != wh ||
+		    im->ww != ww)
 			continue;
 		if (im->sum == sum) {
 			/* The same picture in the same place: it is already on
@@ -250,6 +315,10 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	im->col = col;
 	im->h = h;
 	im->w = w;
+	im->wrow = wrow;
+	im->wcol = wcol;
+	im->wh = wh;
+	im->ww = ww;
 	im->sum = sum;
 	im->over = (flags & DP_IMG_UNDER) ? 1 : 0;
 	im->live = im->over;
@@ -270,9 +339,27 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 		tw /= 2;
 		th /= 2;
 	}
-	if (tw != iw || th != ih) {
+	if (sx || sy || sw != iw || sh != ih || tw != sw || th != sh) {
 		px = xm((size_t)tw * th * 3);
-		cn_imgscale(rgb, iw, ih, px, tw, th);
+		if (tw == sw && th == sh) {
+			/* A crop that lands on a cell boundary -- which is
+			   every picture img hands over, having already scaled
+			   it to exactly w*cw by h*chh -- is a sub-rectangle at
+			   the resolution it is wanted at, so it is a copy per
+			   row and not a box filter over every output pixel.
+			   The first version of this went through the filter
+			   regardless and paid 81 ms for a screenful at 232x71
+			   to resample a picture into itself. */
+			int y;
+
+			for (y = 0; y < th; y++)
+				memcpy(px + (size_t)y * tw * 3,
+				       rgb + ((size_t)(sy + y) * iw + sx) * 3,
+				       (size_t)tw * 3);
+		} else {
+			cn_imgscalesrc(rgb, iw, ih, sx, sy, sw, sh,
+				       px, tw, th);
+		}
 	}
 	if (im->id)
 		kt_encode(px ? px : rgb, tw, th, w, h, im->id, im->over,
@@ -283,10 +370,12 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	free(px);
 	im->under = cn_imgunder(im);
 	im->sent = 0;
-	lg(HIBR_LDBG, "image: %s, %dx%d cells at %d,%d from %dx%d pixels, "
-	   "%zu bytes%s%s", cn_gfxname(k), w, h, row, col, iw, ih, im->data.n,
+	lg(HIBR_LDBG, "image: %s, %dx%d cells at %d,%d from %dx%d of %dx%d "
+	   "pixels, %zu bytes%s%s%s", cn_gfxname(k), w, h, row, col, sw, sh,
+	   iw, ih, im->data.n,
 	   (flags & DP_IMG_CHOSEN) ? ", chosen palette" : "",
-	   im->over ? ", under text" : "");
+	   im->over ? ", under text" : "",
+	   (wh != h || ww != w) ? ", cropped to the screen" : "");
 	return 1;
 }
 
@@ -303,9 +392,9 @@ int cn_imgkeep(sh *s, int row, int col, int h, int w)
 
 	(void)s;
 	for (i = 0; i < cn_nimg; i++) {
-		if (!cn_imgs[i].over || cn_imgs[i].row != row ||
-		    cn_imgs[i].col != col || cn_imgs[i].h != h ||
-		    cn_imgs[i].w != w)
+		if (!cn_imgs[i].over || cn_imgs[i].wrow != row ||
+		    cn_imgs[i].wcol != col || cn_imgs[i].wh != h ||
+		    cn_imgs[i].ww != w)
 			continue;
 		cn_imgs[i].live = 1;
 		return 1;

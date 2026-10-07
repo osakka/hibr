@@ -4093,13 +4093,18 @@ def wallpng(name, w, h):
 WALL = wallpng("wall.png", 160, 100)
 
 
-def wallrun(mode, gfx="kitty", feed=(), wmode="stretch"):
+# Wider than the screen in pixels at 80 cells of 8, which is what makes
+# center's own column negative.
+WIDE = wallpng("wide.png", 1600, 200)
+
+
+def wallrun(mode, gfx="kitty", feed=(), wmode="stretch", wall=None):
     """A desktop with a wallpaper, on a pty that says what a cell measures."""
     path = os.path.join(WPD, "s.hibr")
     open(path, "w").write(
         "%s. %s\nDT_IMGMODE=%s\nDT_WALLIMG=%s\nDT_WALLMODE=%s\n"
         "dt_open\ndt_new \"Hello\" 8 30 6 10\ndt_run\ndt_close\n"
-        % (load(MOD, "build/mods/img.so"), WM, mode, WALL, wmode))
+        % (load(MOD, "build/mods/img.so"), WM, mode, wall or WALL, wmode))
     t = Term(path, env={"DT_TICK": "60", "HIBR_GFX": gfx}, rows=ROWS,
              cols=COLS, settle=1.0, cellw=8, cellh=16)
     t.collect(1.0)
@@ -4151,17 +4156,28 @@ put, gone = wallsent(wallrun("pixels", feed=[2.4]))
 check("nor by two seconds of being left alone, which once took it away",
       len(put) == 1 and not gone,
       "%d placed, %d deleted" % (len(put), len(gone)))
-# A mode whose rectangle does not fit the screen is never pixels at all: the
-# display refuses it and img falls back to half blocks (Gitea #117). The frame
-# that paints nothing must not reach that fallback -- those are cells written
-# at absolute coordinates, outside `console behind on`, so they would land on
-# top of every window and stay. `img keep` is what cannot do it.
+# zoom and center mean the picture overflows and is cropped, so dt_wallfit
+# hands over a rectangle taller or wider than the screen, with a negative row
+# or column. Until 0.99.95 the display refused exactly that and img fell back
+# to half blocks, so neither mode had ever been pixels on any terminal, and
+# DT_IMGMODE had no effect for anyone using either (Gitea #117). Measured
+# against 0.99.94's own image.c: zero placements for both, one for stretch.
 sc = wallrun("pixels", feed=[2.4], wmode="zoom")
 put, gone = wallsent(sc)
-check("a wallpaper whose rectangle does not fit is cells, placing no picture",
-      not put and not gone, "%d placed, %d deleted" % (len(put), len(gone)))
-check("and a frame that paints nothing leaves the window alone rather than "
-      "painting those cells over it", sc.find("┤ Hello ├") is not None, sc)
+check("a zoom wallpaper is pixels, cropped to the screen rather than refused",
+      len(put) == 1 and not gone and sc.images[0][:2] == (0, 0),
+      "%d placed, %d deleted, %s" % (len(put), len(gone), sc.images))
+check("and it is the whole screen's worth of cells, not the fitted rectangle",
+      len(put) == 1 and "c=%d" % COLS in put[0] and "r=%d" % ROWS in put[0],
+      put)
+check("the window is still drawn as text over it", sc.find("┤ Hello ├") is not None, sc)
+# center uses the source's own pixel width as a column count, so a picture
+# wider than the screen in pixels gives a negative column -- the other half
+# of the same bug.
+sc = wallrun("pixels", feed=[2.4], wmode="center", wall=WIDE)
+put, gone = wallsent(sc)
+check("so is a center wallpaper wider than the screen",
+      len(put) == 1 and not gone, "%d placed, %d deleted" % (len(put), len(gone)))
 shutil.rmtree(WPD, True)
 
-report(545)
+report(547)

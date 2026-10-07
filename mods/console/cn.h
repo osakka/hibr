@@ -81,6 +81,9 @@ void kt_delall(str *o);
 /* image.c: a picture the console keeps as a region of the grid. */
 int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	     const unsigned char *rgb, int iw, int ih, unsigned flags);
+void cn_imgscalesrc(const unsigned char *in, int iw, int ih,
+		    int rx, int ry, int rw, int rh,
+		    unsigned char *out, int w, int h);
 void cn_imgscale(const unsigned char *in, int iw, int ih,
 		 unsigned char *out, int w, int h);
 void cn_imgcheck(void);

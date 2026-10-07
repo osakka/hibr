@@ -1,5 +1,60 @@
 # Changelog
 
+## 0.99.95
+
+**A zoom or a center wallpaper is pixels now: it never was, on any terminal**
+(Gitea #117). `cn_image` refused a rectangle that was not wholly on the
+screen, and `dt_wallfit` produces exactly such a rectangle for two of the
+four wallpaper modes **on purpose** — the picture is meant to overflow and be
+cropped. So `img draw` fell back to half-block cells for both, and
+`DT_IMGMODE` had no effect at all for anyone using either, which is most of
+the point of the setting. Measured through a pty with `cellw=8 cellh=16` and
+`HIBR_GFX=kitty`, against 0.99.94's own `image.c`:
+
+| `DT_WALLMODE` | 0.99.94 | now |
+|---|---|---|
+| `stretch` | 1 placement | 1 placement |
+| `zoom` | **0 placements**, the screen full of `▀` | 1, cropped to the screen |
+| `center` (wider than the screen) | **0 placements** | 1, cropped to the screen |
+
+**The screen's edges crop rather than refuse, and crop rather than squash.**
+`cn_imgscalesrc` takes a source rectangle, so only the part of the picture
+that shows is scaled into the visible cells — which is what zoom and center
+mean. Squashing the whole picture into the visible rectangle was the other
+thing that could have been done here and is not what those modes promise.
+
+**A region is named by the rectangle its caller asked for, not by where the
+picture ended up.** The cropped rectangle is what the cells are hashed
+against; the asked-for one is what the identity check, the kitty-id reuse and
+`cn_imgkeep` compare. Getting that wrong would have made a zoom wallpaper a
+new region every frame — a fresh kitty id, a delete owed for the old one, and
+all 6.3 MB of it hashed and encoded again, which is the cost 0.99.87 had just
+removed. The test for it is that a cropped picture placed twice is one
+placement and no delete.
+
+**Cropping costs nothing.** A crop lands on a cell boundary for every picture
+`img` hands over, because img has already scaled it to exactly `w*cw` by
+`h*chh`, so the visible part is a sub-rectangle at the resolution it is
+wanted at: a copy per row, not a box filter over every output pixel. The
+first version of this went through the filter regardless and paid **81 ms**
+for a screenful at 232x71 to resample a picture into itself; a cropped
+placement now measures 169 ms against an unclipped one's 172, which is noise.
+
+**A pane's own edge still refuses**, deliberately: that is a different
+contract — a window's picture must not spill, and a caller computing a
+rectangle larger than its own pane has a bug worth seeing as a fallback to
+cells. Only the screen crops.
+
+`dt_wallfit`'s own comment claimed `img draw` already clipped, which is the
+belief the bug lived behind; it says what actually happens now. The note the
+ticket asked for in the Wallpaper pane — "pixels work on stretch and scale
+only" — is not needed and has not been added, because it is no longer true.
+
+Eight checks: four in `tests/kitgfx.py` for the geometry of a picture hanging
+off the left edge and off the bottom, and that a cropped one placed again is
+the same region; four in `tests/desktop.py` for zoom and center as real
+wallpapers, the cells they cover, and the window still being text over them.
+
 ## 0.99.94
 
 **About says what the terminal can do, not only what the machine is**

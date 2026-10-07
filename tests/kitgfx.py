@@ -239,5 +239,39 @@ first, again = (int(x) for x in open(TIMES).read().split())
 check("the scaled pixels are kept, so placing the same picture again is cheap",
       again * 3 < first, "%d us then %d us" % (first, again))
 
+# A rectangle that hangs off the screen is cropped to it, not refused: a zoom
+# or a center wallpaper is meant to overflow, and until 0.99.95 the display
+# returned 0 for one, so img fell back to half-block cells and neither mode
+# had ever been pixels (Gitea #117). Cropped, not squashed -- the placement
+# must be the visible rectangle at the visible corner, and the pixels it
+# carries must be that rectangle's, so the part off the left edge is gone
+# rather than scaled into view.
+sc = run("img draw %s 0 -4 6 12 -m pixels\nconsole flush\nconsole key 400\n"
+         % GRAD)
+p = places(sc)
+check("a picture hanging off the left edge is cropped to the screen, not refused",
+      len(p) == 1 and len(sc.images) == 1 and sc.images[0][:2] == (0, 0), (p, sc.images))
+check("and carries only the cells and pixels that are on screen",
+      len(p) == 1 and key(p[0], "c") == "8" and key(p[0], "r") == "6" and
+      key(p[0], "s") == "64" and key(p[0], "v") == "96", p)
+# Off the bottom as well, which is the shape dt_wallfit's zoom produces: the
+# fitted height is raised past DT_ROWS on purpose.
+sc = run("img draw %s 20 0 8 12 -m pixels\nconsole flush\nconsole key 400\n"
+         % GRAD)
+p = places(sc)
+check("one hanging off the bottom is cropped the same way",
+      len(p) == 1 and key(p[0], "r") == "4" and key(p[0], "v") == "64" and
+      sc.images[0][:2] == (20, 0), (p, sc.images))
+# And it is still one region from one frame to the next: the rectangle the
+# caller asked for is what names it, so a cropped picture placed again is the
+# one already there rather than a new id with a delete owed for the old.
+sc = run("img draw %s 0 -4 6 12 -m pixels\nconsole flush\n"
+         "img draw %s 0 -4 6 12 -m pixels\nconsole flush\nconsole key 400\n"
+         % (GRAD, GRAD))
+check("a cropped picture placed again is the same region, not a new one",
+      len(places(sc)) == 1 and
+      len([a for a in deletes(sc) if "d=I" in a]) == 0,
+      (places(sc), deletes(sc)))
+
 shutil.rmtree(D, True)
-report(28)
+report(32)

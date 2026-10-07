@@ -75,10 +75,15 @@ dt_imgwill() {
 # The row/col/h/w to hand img draw for DT_WALLMODE, in DT_WALLR/C/H/W --
 # the same "cols must be 2*sw/sh, not sw/sh" cell-aspect correction
 # wallpaper.hibr's own preview already uses, since img draw's own cell is
-# one column wide but two source pixel rows tall. img draw silently clips
-# whatever falls outside the screen, the same discipline console put
-# already has, so zoom and center can freely come out larger than the
-# screen or with a negative row/col -- nothing here needs to clamp for it.
+# one column wide but two source pixel rows tall. The *display* crops
+# whatever falls outside the screen to it, scaling only the part that shows
+# -- cropped, not squashed, which is what these two modes mean -- so zoom
+# and center can freely come out larger than the screen or with a negative
+# row/col and nothing here needs to clamp for it. That was not true until
+# 0.99.95: cn_image refused such a rectangle outright and img fell back to
+# half-block cells, so neither mode had ever been pixels on any terminal
+# (Gitea #117). A pane's own edge still refuses, which is why nothing here
+# draws the wallpaper through one.
 #
 # Cached on the image, the mode and the screen size together, since this
 # runs every frame: a frame where none of the three changed reads the last
