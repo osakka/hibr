@@ -264,6 +264,17 @@ dt_run() {
 				   [ $((now - lastdraw)) -lt "$DT_TERMMS" ]; then
 					dt_drain
 					dt_want $((DT_TERMMS - now + lastdraw))
+					# Drained, so wait out the rest of the
+					# window without listening to them: a
+					# program writing a hundred times a
+					# second would otherwise wake the
+					# desktop a hundred times for a frame
+					# it has already decided to hold. Its
+					# bytes keep in the pty's own buffer
+					# and the next drain takes the lot. A
+					# key, a click or a resize still ends
+					# the wait at once.
+					DT_QWAIT=1
 				else
 					dt_draw
 					dt_autoclose
@@ -286,9 +297,12 @@ dt_run() {
 		fi
 		if [ "$rsz" = 1 ]; then
 			k := console key 80
+		elif [ -n "$DT_QWAIT" ]; then
+			k := console key -q "${DT_WANT:-$DT_IDLEMS}"
 		else
 			k := console key "${DT_WANT:-$DT_IDLEMS}"
 		fi
+		DT_QWAIT=
 		[ -n "$k" ] && pk=$k
 		if console resizing; then
 			rsz=1

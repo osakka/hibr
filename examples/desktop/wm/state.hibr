@@ -85,6 +85,10 @@ DT_PRIMARY_COL=0
 # rather than passed back some other way since dt_run already calls
 # dt_event for its only side effect and reads no return value from it.
 DT_LASTDRAG=0
+# Whether the next wait should ignore the descriptors the desktop watches:
+# set when the output cap has just held a frame back, so a program writing
+# cannot wake it for a frame it is already waiting to draw.
+DT_QWAIT=
 # And whether it was a drag or a wheel, either of which dt_run will not draw
 # while the next report is already waiting.
 DT_LASTMOVE=0

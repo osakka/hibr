@@ -1,5 +1,49 @@
 # Changelog
 
+## 0.99.83
+
+**A program writing does not wake the desktop for a frame it has already
+decided to hold.** `DT_TERMMS` holds an output-driven frame a while, and
+until now every byte a program wrote still woke the desktop to be told so:
+three programs writing a hundred times a second woke it three hundred times
+a second, and each wake drained a pty and went back to sleep. The pty's own
+buffer is where those bytes belong until there is a frame to put them in.
+
+`cn_wait` leaves the watched descriptors out of its `pselect` when asked
+(`console key -q`), so a wait that is only running down the clock ends on the
+clock -- or at once on a key, a click or a resize, because the terminal's own
+descriptor stays in. `dt_run` uses it for the remainder of a held frame,
+having drained first. The desktop's own share of three programs each writing
+every 10 ms: **16.6% of a core, now 9.9%**.
+
+**What that did not buy, said plainly.** The point of holding frames was to
+be able to *raise* the rate once wakes were cheap -- to pair the desktop to a
+display's own refresh rather than to a cost. It is not there yet:
+
+| `DT_TERMMS` | frames a second | CPU |
+|---|---|---|
+| 16 | 60.5 | 39.5% |
+| 33 | 29.8 | 23.9% |
+| 70 | 14.2 | 13.2% |
+| 140 | 7.1 | 8.1% |
+
+About 6 ms a frame whatever the rate -- of which `dt_draw` is **1.57 ms**.
+The rest is `dt_run`'s own loop, twice a frame at about 2.2 ms a pass, and
+stubbing every periodic thing it calls (`dt_updcheck`, `dt_remotepoll`,
+`dt_snapcheck`, `dt_tickers`, `dt_saverwait`) accounts for only 0.6 ms of
+that. So the loop, not the drawing, is the ceiling now, and finding the rest
+means timing its sections rather than guessing at them. 60 Hz is affordable
+when a pass costs what a frame costs.
+
+Two measurement traps met on the way, both worth more than the numbers.
+Emptying `DT_TESTIDLE` to measure a desktop without the harness's idle
+marker also stops `dt_supervise` returning early, so a supervisor starts and
+the pid the harness forked is no longer the one drawing -- it measured 0.0%
+of a core, which is what measuring the wrong process looks like. And once the
+whole tree was measured instead, the marker turned out to cost nothing at
+all (14.0% against 13.9%): the suspicion was wrong and the measurement said
+so.
+
 ## 0.99.82
 
 **The desktop draws only what has changed.** A frame on the owner's own

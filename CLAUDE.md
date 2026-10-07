@@ -2338,6 +2338,33 @@ went in the shell.
   by the time `dt_run` draws: setting it twice before two `dt_new`s gives
   both windows the second value. `DT_OPENCMD` is consumed by `term_open`
   and is the path a handler uses; `TW_CMD` is what the suites set.
+- **A watched descriptor wakes the desktop whether or not it means to draw,
+  so a wait that is only running down the clock should not listen to one.**
+  `cn_wait` puts every `console watch`ed descriptor in its `pselect`, so a
+  program writing a hundred times a second woke the desktop a hundred times
+  -- each wake draining a pty and going back to sleep -- for frames
+  `DT_TERMMS` had already decided to hold. `console key -q` leaves them out
+  (`cn_quiet`, set for one call so no mode can be left on), and `dt_run` uses
+  it for the remainder of a held frame, having drained first: the bytes keep
+  in the pty's own buffer, which is what a buffer is for, and the terminal's
+  own descriptor stays in the set so a key, a click or a resize still ends
+  the wait at once. Three programs writing every 10 ms cost the desktop 16.6%
+  of a core before and 9.9% after. What it does **not** buy is a higher frame
+  rate: about 6 ms a frame whatever the rate, of which `dt_draw` is 1.57 --
+  the rest is `dt_run`'s own loop at about 2.2 ms a pass, twice a frame, and
+  every periodic thing it calls accounts for only 0.6 of that. The loop is
+  the ceiling now, not the drawing.
+- **Do not empty `DT_TESTIDLE` to measure a desktop without the harness's
+  marker: it starts a supervisor.** `dt_supervise`'s `auto` branch returns
+  early only while that variable is set, so clearing it makes the pid the
+  harness forked the *supervisor* and the desktop its child -- and a
+  measurement of that pid reads **0.0% of a core**, which is what measuring
+  the wrong process looks like rather than a triumph. Sum the tree
+  (`/proc/<pid>/task/<pid>/children`, recursively) and the marker turns out
+  to cost nothing anyway: 14.0% against 13.9%. A tree figure also counts the
+  programs themselves, so say which of the two a number is -- a synthetic
+  load that forks a `sleep` a hundred times a second is most of the
+  difference, and no real terminal program does that.
 - **The screen already remembers, so the desktop need not redraw it.** A
   pane is a name and a rectangle with no cells of its own, and `cn_flush`
   copies each changed cell into the front grid and *leaves the back grid

@@ -111,6 +111,14 @@ int cn_waiting(void)
    should act on directly; 2 means only a watched one is -- wake up and let
    whoever owns it (term.hibr's own poll) notice, but there is nothing here
    to read from cn_fd. */
+/* Wait without listening to the watched descriptors. A frame the output cap
+   is holding back should end on a person -- a key, a click, a resize -- or on
+   the clock, and never on a program writing: one writing a hundred times a
+   second otherwise wakes the desktop a hundred times for a frame it has
+   already decided to hold. Its bytes keep in the pty's own buffer, which is
+   what a buffer is for, and one drain at the end of the wait takes the lot. */
+int cn_quiet;
+
 int cn_wait(int ms)
 {
 	fd_set r;
@@ -130,7 +138,7 @@ int cn_wait(int ms)
 	FD_ZERO(&r);
 	FD_SET(cn_fd, &r);
 	mx = cn_fd;
-	for (i = 0; i < (int)cn_wn; i++) {
+	for (i = 0; !cn_quiet && i < (int)cn_wn; i++) {
 		FD_SET(cn_wfd[i], &r);
 		if (cn_wfd[i] > mx)
 			mx = cn_wfd[i];

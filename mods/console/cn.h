@@ -117,6 +117,7 @@ void cn_cellset(cn_cell *c, unsigned cp, const char *ext, size_t en);
 int cn_shot(const char *path, const char *fmt, int r0, int c0, int h, int w);
 
 extern vec cn_panes;
+extern int cn_quiet;
 int cn_behind(int on);
 void cn_owninval(void);
 cn_pane *cn_pfind(const char *nm);

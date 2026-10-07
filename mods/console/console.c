@@ -619,11 +619,22 @@ int m_console(sh *s, int ac, char **av)
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "key")) {
-		int r;
+		int r, q = 0;
 		if (!cn_need())
 			return HIBR_FAIL;
+		/* -q: a quiet wait, which ends on input, a resize or the time
+		   running out, and not on a watched descriptor having
+		   something to say -- for a caller that is deliberately not
+		   reading it yet. */
+		if (ac > 2 && !strcmp(av[2], "-q")) {
+			q = 1;
+			av++;
+			ac--;
+		}
 		s_init(&k);
+		cn_quiet = q;
 		r = cn_key(ac > 2 ? atoi(av[2]) : -1, &k);
+		cn_quiet = 0;
 		if (r == 1) {
 			hibr_ret(s, k.p);
 			if (!s->bind)
