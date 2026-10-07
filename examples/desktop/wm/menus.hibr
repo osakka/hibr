@@ -273,6 +273,12 @@ dt_menus() {
 		fi
 		dt_sep
 		dt_item "Close" w dt_close_focused
+		# Not q: a menu letter is looked at before any global
+		# shortcut while a menu is open, so Quit Application on q
+		# would take the key from anyone who binds Quit to it -- which
+		# the test harness does, since the desktop ships without one.
+		# u is what dt_akey would reach for with q taken.
+		dt_item "Quit Application" u dt_quitapp
 	fi
 	dt_sep
 	local tv=0

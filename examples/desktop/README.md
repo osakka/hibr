@@ -33,7 +33,7 @@ it -- the `◢` at the bottom-right is the one this always had; the other
 three work the same way, whichever one is dragged staying opposite a
 corner that does not move. `_` minimises, `□` fills the screen, `x`
 closes, and holding alt while dragging anywhere in a window moves it
-(Control Panel > Mouse). `alt-tab` cycles windows, `ctrl-w` closes the
+(Control Panel > Mouse). `alt-tab` cycles windows, `alt-w` closes the
 focused one, `escape` or `F10` opens the menu bar, and Quit on its hibr
 menu ends the desktop and gives the terminal back -- it has no key of its
 own by default, so no stray keystroke ends everything. Each of these keys
@@ -48,8 +48,8 @@ one down and across, as the desktop always did; **center** puts it in the
 middle. A window bigger than the display is shrunk to fit. A session's own
 `dt_new` with a position is left where it says.
 
-**Snapping** puts the focused window on a half of the display: ctrl-alt-left
-and ctrl-alt-right, alt-up and alt-down -- or Window > Snap, which also has
+**Snapping** puts the focused window on a half of the display: alt-left,
+alt-right, alt-up and alt-down -- or Window > Snap, which also has
 Center. Snapping the same way again puts the window back where it was. A
 fixed window can only be centred. The keys are Shortcuts like any other;
 Center has none until you give it one.
@@ -59,12 +59,12 @@ to 9), for the whole desktop at once, every window on the one that was
 current when it opened. The bar shows the numbers left of the notification
 icon, the current one lit; click one to go there, or drag a window by its
 title onto one to send it there. alt-1, alt-2 and alt-3 switch,
-alt-right and alt-left step through them (Workspace 4 to 9 have
+ctrl-alt-right and ctrl-alt-left step through them (Workspace 4 to 9 have
 no key until given one), and so does the mouse wheel over the bare
 desktop or the bar -- down to the next, up to the previous, one step a
-notch. A window that uses alt-left and alt-right itself keeps them while it
-has focus -- the Browser's back and forward -- and a terminal gives them up
-to the desktop, as it does every desktop shortcut. Window > Move to Workspace sends the focused window, and a title
+notch. A terminal gives the desktop every shortcut it holds, because they
+are all on alt or ctrl-alt and what a terminal keeps for its program is ctrl
+with a letter. Window > Move to Workspace sends the focused window, and a title
 bar's right-click menu has the same for its own. Window > On Every
 Workspace (or the title bar's right-click menu) makes a window sticky: it
 stays in view whichever workspace is current, floats over a tiled one, and
@@ -831,7 +831,10 @@ terminal has focus, so alt-tab cycles windows from inside one -- if it is a
 chord (ctrl or alt with a key) or a function key. A plain key -- `q`, `tab`,
 escape -- always reaches the program, and so does ctrl with a single letter
 whatever is bound to it: those are the control characters programs read, so
-`ctrl-w` closes any window but a terminal, where it deletes a word.
+`alt-w` closes any window, a terminal included: every shortcut the desktop
+itself acts on is on alt or ctrl-alt, because a terminal never yields ctrl
+with a letter. `alt-q` quits the focused application -- every window it has,
+not only the one in front.
 One window can still be given everything: the Window menu's Pass Every Key,
 ticked, is for a program that needs the chord, or a desktop running inside
 that terminal.

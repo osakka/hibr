@@ -19,7 +19,8 @@ DT_KEYPEND_FROM=
 # desktop does is on a key that is not in one of the two.
 DT_KEYORDER=(menu menu2 save undo redo copy cut paste selectall scrollup scrolldown
 	snapleft snapright snaptop snapbottom snapcenter ws1 ws2 ws3 ws4 ws5 ws6
-	ws7 ws8 ws9 wsnext wsprev tile tilemain close cycle strip shot lock detach quit)
+	ws7 ws8 ws9 wsnext wsprev tile tilemain close quitapp cycle strip shot lock
+	detach quit)
 declare -gA DT_KEYNAME
 DT_KEYNAME["menu"]="Menu Bar"
 DT_KEYNAME["menu2"]="Menu Bar, Also"
@@ -44,6 +45,33 @@ DT_KEYNAME["wsprev"]="Previous Workspace"
 DT_KEYNAME["tile"]="Tile Workspace"
 DT_KEYNAME["tilemain"]="Make Main"
 DT_KEYNAME["close"]="Close Window"
+DT_KEYNAME["quitapp"]="Quit Application"
+
+# Two actions on one chord is silent: dt_keyed asks about each in a fixed
+# order, so the first of them fires and the other simply never does. A saved
+# settings file and a migration that moved only part of what it meant to is
+# how that happens, so it is said in the log at load rather than fixed here
+# -- which of the two should move is the person's, and the Shortcuts pane is
+# where they move it.
+fn dt_keydups() {
+	local an v
+	local -A dt_seen=()
+
+	for an in "${DT_KEYORDER[@]}"; do
+		[ -n "${DT_KEYS["$an"]+x}" ] || continue
+		[ -n "${DT_KEYS["$an"]}" ] || continue
+		v := dt_keynorm "${DT_KEYS["$an"]}"
+		if [ -n "${dt_seen["$v"]+x}" ]; then
+			printf 'desktop: %s and %s are both on %s; %s wins\n' \
+				"${DT_KEYNAME["${dt_seen["$v"]}"]}" \
+				"${DT_KEYNAME["$an"]}" "${DT_KEYS["$an"]}" \
+				"${DT_KEYNAME["${dt_seen["$v"]}"]}" >&2
+		else
+			dt_seen["$v"]=$an
+		fi
+	done
+	return 0
+}
 DT_KEYNAME["detach"]="Detach"
 DT_KEYNAME["quit"]="Quit"
 DT_KEYNAME["cycle"]="Cycle Windows"

@@ -320,7 +320,7 @@ fn bw_status(int id, int h, int w, st = "") {
 	if [ "$st" = loading ]; then
 		t="Loading${GL[ellipsis]}"
 	else
-		t="f6 address ${GL[dot]} alt-left back ${GL[dot]} alt-right forward"
+		t="f6 address ${GL[dot]} alt-b back ${GL[dot]} alt-f forward"
 	fi
 	t := str pad "${t:0:$w}" "$w"
 	console pen "$DT_DIM" "$DT_FACE"
@@ -340,10 +340,19 @@ fn browser_key(int id, key) {
 		BW[$id]["acur"]=${r##* }
 		return 0
 	fi
+	# Back and Forward are alt-b and alt-f: a window's own key is looked at
+	# before the desktop's, so taking alt-left and alt-right meant the
+	# arrows did something different here from everywhere else -- the
+	# workspaces until 0.99.90, tiling after it. alt-b and alt-f are
+	# readline's own word-back and word-forward, which is where the letters
+	# come from, and they are the Browser's only while it has focus, so a
+	# terminal keeps its own. Not alt-[ and alt-]: those cannot be bound at
+	# all, since ESC [ and ESC ] are the CSI and OSC introducers and the
+	# decoder consumes them -- measured, both time out rather than arrive.
 	case $key in
 	f6 | ctrl-l) bw_editaddr "$id"; return 0 ;;
-	alt-left) [ -n "$t" ] && web back "$t" 2> /dev/null; return 0 ;;
-	alt-right) [ -n "$t" ] && web forward "$t" 2> /dev/null; return 0 ;;
+	alt-b) [ -n "$t" ] && web back "$t" 2> /dev/null; return 0 ;;
+	alt-f) [ -n "$t" ] && web forward "$t" 2> /dev/null; return 0 ;;
 	f5) [ -n "$t" ] && web reload "$t" 2> /dev/null; return 0 ;;
 	esac
 	for k in "${!DT_KEYS[@]}"; do

@@ -354,6 +354,28 @@ fn dt_retitle(int id, title) {
 
 dt_close_focused() { [ -n "$DT_FOCUS" ] && dt_closereq "$DT_FOCUS"; }
 
+# Quit the focused window's app: every window it has, not only the one in
+# front, which is what Quit means on a desktop where one app may have
+# several. Each goes through dt_closereq, so an app that asks before closing
+# -- an editor with unsaved text, a terminal with a program still running --
+# asks once per window rather than being overruled. The ids are taken before
+# any of them closes, since dt_del removes them as it goes.
+fn dt_quitapp() {
+	local ap id
+	local -a ids=()
+
+	[ -n "$DT_FOCUS" ] || return 0
+	ap=${DT[$DT_FOCUS]["app"]}
+	[ -n "$ap" ] || return 0
+	for id in "${!DT[@]}"; do
+		[ "${DT[$id]["app"]}" = "$ap" ] && ids+=("$id")
+	done
+	for id in "${ids[@]}"; do
+		dt_closereq "$id"
+	done
+	return 0
+}
+
 # Close a window someone asked to close -- the close button, Close on a
 # menu, the Close Window key -- unless its app's _canclose says not yet: an
 # editor with unsaved changes asks first, and closes it itself if told to.

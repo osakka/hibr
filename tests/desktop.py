@@ -42,8 +42,25 @@ TWO_DEF = ('dt_new "Under" 8 30 6 10\n'
            'dt_new "Over" 8 30 9 20\n')
 ONE = 'dt_new "Hello" 8 30 6 10'
 
-sc, _ = run(ONE, [b"\x17"])
-check("ctrl-w closes the focused window", sc.find("Hello") is None, sc)
+# alt-w, not ctrl-w: a terminal never yields ctrl with a letter, so the old
+# default silently did nothing whenever one had focus (0.99.90).
+sc, _ = run(ONE, [b"\x1bw"])
+check("alt-w closes the focused window", sc.find("Hello") is None, sc)
+
+# alt-q is Quit Application: every window of the focused app, not only the one
+# in front, which is what Quit means where one app may have several. Each goes
+# through dt_closereq, so an app that asks before closing still asks -- once
+# per window.
+QA = ('qa_open() { return 0; }\nqa_draw() { console put -p "w$1" 2 2 "qa"; return 0; }\n'
+      'qb_open() { return 0; }\nqb_draw() { console put -p "w$1" 2 2 "qb"; return 0; }\n'
+      'dt_app qa "Qa" 7 24 "" "" "" "" ""\ndt_app qb "Qb" 7 24 "" "" "" "" ""\n'
+      'dt_new "Qa One" 7 24 2 4 qa\ndt_new "Qb Only" 7 24 2 40 qb\n'
+      'dt_new "Qa Two" 7 24 12 4 qa\n')
+sc, _ = run(QA, [press(12, 8), release(12, 8), 0.3, b"\x1bq"])
+check("alt-q closes every window of the focused app",
+      sc.find("┤ Qa One ├") is None and sc.find("┤ Qa Two ├") is None, sc)
+check("and leaves another app's window alone",
+      sc.find("┤ Qb Only ├") is not None, sc)
 
 sc, raw = run(ONE)
 check("a window has a top-left corner where it was put",
@@ -1325,16 +1342,17 @@ check("and at the size the Terminal pane sets, which fits",
 
 # --- snapping ----------------------------------------------------------------
 #
-# ctrl-alt-left and -right, and alt-up and -down, put the focused window on
-# that half of the display, below the bar; the same again puts it back. ONE
-# is 8 by 30 at row 6, column 10. Plain alt-left and -right are the
-# workspaces' since 0.99.26.
-AL, AR, AU, AD = b"\x1b[1;7D", b"\x1b[1;7C", b"\x1b[1;3A", b"\x1b[1;3B"
+# alt and an arrow puts the focused window on that half of the display, below
+# the bar; the same again puts it back. ONE is 8 by 30 at row 6, column 10.
+# All four directions are on alt since 0.99.90, where left and right were on
+# ctrl-alt from 0.99.26 -- which left the four split across two modifiers, with
+# no rule to explain which was which. ctrl-alt and an arrow is the workspaces'.
+AL, AR, AU, AD = b"\x1b[1;3D", b"\x1b[1;3C", b"\x1b[1;3A", b"\x1b[1;3B"
 sc, _ = run(ONE, [AL])
-check("ctrl-alt-left snaps the window to the left half",
+check("alt-left snaps the window to the left half",
       sc.at(1, 0) == "┌" and sc.at(23, 39) == "◢", sc)
 sc, _ = run(ONE, [AR])
-check("ctrl-alt-right to the right half",
+check("alt-right to the right half",
       sc.at(1, 40) == "┌" and sc.at(23, 79) == "◢", sc)
 sc, _ = run(ONE, [AU])
 check("alt-up to the top half",
@@ -1376,11 +1394,11 @@ w2 = sc.row(0).find("1 2 3")
 sc, _ = run(WS2, [b"\x1b2", b"\x1b1"])
 check("alt-1 comes back to both, stacked as they were",
       sc.find("┤ Under ├") == (6, 12) and sc.at(9, 25) == "┌", sc)
-sc, _ = run(WS2, [b"\x1b[1;3C"])
-check("alt-right goes to the next workspace",
+sc, _ = run(WS2, [b"\x1b[1;7C"])
+check("ctrl-alt-right goes to the next workspace",
       sc.find("Under") is None and sc.find("Over") is None, sc)
-sc, _ = run(WS2, [b"\x1b[1;3C", b"\x1b[1;3D"])
-check("and alt-left back to the one before",
+sc, _ = run(WS2, [b"\x1b[1;7C", b"\x1b[1;7D"])
+check("and ctrl-alt-left back to the one before",
       sc.find("┤ Under ├") == (6, 12) and sc.at(9, 25) == "┌", sc)
 sc, _ = run(WS2, [press(0, w2 + 2)] if w2 > 0 else [])
 check("clicking a number on the bar switches to it",
@@ -2581,7 +2599,7 @@ sc, raw = run('dt_new "Control Panel" 22 58 2 2 panel',
               + [b"\r", b"x"],
               env={"XDG_CONFIG_HOME": CONF2}, pre=PANEL)
 check("a shortcut row can be rebound to a new key",
-      sc.find("ctrl-w") is None, sc)
+      sc.find("alt-w") is None, sc)
 saved2 = os.path.join(CONF2, "hibr", "desktop.hibr")
 text2 = open(saved2).read() if os.path.exists(saved2) else ""
 check("and the new binding is saved", 'DT_KEYS["close"]=x' in text2, text2)
@@ -4072,4 +4090,4 @@ check("and a frame that paints nothing leaves the window alone rather than "
       "painting those cells over it", sc.find("┤ Hello ├") is not None, sc)
 shutil.rmtree(WPD, True)
 
-report(536)
+report(538)

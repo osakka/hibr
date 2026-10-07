@@ -417,7 +417,7 @@ dt_mouse() {
 # one, which is what every other desktop does and what anyone expects when
 # they scroll a list they have not clicked on yet.
 fn dt_event(k) {
-	local an knorm qn cn cln dn sn ev
+	local an knorm qn cn cln qan dn sn ev
 
 	DT_NOTEWIN=
 	case $k in
@@ -580,6 +580,7 @@ fn dt_event(k) {
 	qn := dt_keynorm "${DT_KEYS[quit]}"
 	cn := dt_keynorm "${DT_KEYS[cycle]}"
 	cln := dt_keynorm "${DT_KEYS[close]}"
+	qan := dt_keynorm "${DT_KEYS[quitapp]}"
 	dn := dt_keynorm "${DT_KEYS[detach]}"
 	sn := dt_keynorm "${DT_KEYS[strip]}"
 	if [ "$knorm" = "$qn" ]; then
@@ -588,6 +589,8 @@ fn dt_event(k) {
 		dt_cycle
 	elif [ "$knorm" = "$cln" ]; then
 		dt_close_focused
+	elif [ -n "$qan" ] && [ "$knorm" = "$qan" ]; then
+		dt_quitapp
 	elif [ "$knorm" = "$dn" ]; then
 		dt_detach
 	elif dt_wskey "$k"; then

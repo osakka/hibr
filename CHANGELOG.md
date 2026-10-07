@@ -1,5 +1,79 @@
 # Changelog
 
+## 0.99.90
+
+**One rule for the keyboard: alt and ctrl-alt belong to the desktop, ctrl and a
+letter belongs to whatever has focus** (Gitea #124). Asked for as "this is a
+clear pattern right, I want this 100% consistent across all desktop apps", and
+the defaults were not a pattern:
+
+    snapleft  = ctrl-alt-left     snaptop    = alt-up
+    snapright = ctrl-alt-right    snapbottom = alt-down
+    wsnext    = alt-right         wsprev     = alt-left
+
+Four tiling directions across two modifiers, the horizontal pair sharing its
+modifier with the workspaces. What settles which modifier the desktop may own
+is not taste but `dt_keyassigned`, which refuses to yield `ctrl` plus a letter
+while `DT_TERMCTRL` is on -- the default: so **`ctrl-w` never closed a window
+while a terminal had focus**, and `ctrl-s` never saved, and `ctrl-a` never
+selected. Any scheme on ctrl is consistent everywhere except a terminal, which
+is where this desktop is used.
+
+| action | key | was |
+|---|---|---|
+| Quit Application | **alt-q** | nothing: there was no such action |
+| Close Window | **alt-w** | `ctrl-w`, which a terminal kept |
+| Snap left / right | **alt-left / alt-right** | `ctrl-alt-left / -right` |
+| Snap top / bottom | alt-up / alt-down | unchanged |
+| Next / Previous Workspace | **ctrl-alt-right / ctrl-alt-left** | `alt-right / alt-left` |
+| Copy / Cut / Paste, Undo / Redo | alt-c / alt-x / alt-v, alt-z / alt-y | unchanged |
+
+So `ctrl-c` still interrupts a program, which is what made the all-ctrl scheme
+rejected before: a desktop that eats ctrl-c is a desktop nothing can run in.
+`ctrl-s` and `ctrl-a` stay where they are, as the focused program's in a
+terminal and the GUI convention elsewhere -- named here so it reads as a
+decision rather than an oversight.
+
+**This puts the arrows back where they were before 0.99.26**, which had swapped
+them the other way. Its reason was that the arrows are the frequent action; its
+cost, recorded in its own changelog, was the Browser keeping alt-left and
+alt-right for Back and Forward. That cost is what was reported now, and the
+fix is not to move the collision from the workspaces to tiling: **the Browser's
+Back and Forward are alt-b and alt-f**. Not `alt-[` and `alt-]`, which this was
+first going to use and which **cannot be bound at all** -- measured through a
+pty, one key at a time: `ESC [` and `ESC ]` are the CSI and OSC introducers, so
+the decoder consumes them and the key never arrives. `alt-b` and `alt-f` are
+readline's own word-back and word-forward, which is where the letters come
+from, and an app's key is its own only while it has focus, so a terminal keeps
+them.
+
+**Quit Application means quit the application**: every window of the focused
+app, not only the one in front, each through `dt_closereq` -- so an app that
+asks before closing still asks, once per window. Window > Quit Application sits
+beside Close.
+
+**Settings version 9 moves a saved file**, and only while each key still holds
+the default it is leaving. Checked against five shapes: a 0.99.89 file, a
+pre-0.99.26 file -- which goes through both swaps and lands where it began,
+which is the point rather than a coincidence -- a chosen workspace key, a
+chosen close key, and one that ends with two actions on the same chord.
+
+**And `dt_keydups` says when two actions share a chord**, which was silent
+before: `dt_keyed` asks about each in a fixed order, so the first fires and the
+second simply never does. It goes to `desktop.log` -- "Close Window and Cycle
+Windows are both on alt-w; Close Window wins" -- rather than choosing for
+anyone, because which of the two should move is not the desktop's call.
+
+Two things deliberately not done, both on the ticket. **Workspace up and down
+stay unbound**: workspaces here are a list, not a grid, so stepping is covered,
+and the useful thing those keys could do -- send this window to the next
+workspace -- is a Window-menu item nobody asked for a key for. And **no test
+fails an app for matching a chord the desktop holds**, because it cannot be
+made honest: `apps/files.hibr`'s `ctrl-a` is correct, since `dt_event` runs the
+focused app's own key before `selectall`, and a deliberate override looks
+exactly like an accidental shadow in the source. A report belongs in
+`tests/census.py`; a gate would cry wolf.
+
 ## 0.99.89
 
 **`:= ` takes a command's result whatever kind of command it is** (Gitea #122,

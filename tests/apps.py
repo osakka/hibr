@@ -597,7 +597,7 @@ check("clicking it clears the shortcut",
       "✕" not in brow(sc, "Quit"), sc)
 sc = cprun(reach("shortcuts", "Close Window") + [b"\x1b[3~"])
 check("delete on a selected row clears it",
-      brow(sc, "Close Window") != "" and "ctrl-w" not in brow(sc, "Close Window"),
+      brow(sc, "Close Window") != "" and "alt-w" not in brow(sc, "Close Window"),
       sc)
 sc = cprun(reach("shortcuts", "Cycle Windows") + [b"\x7f"])
 check("and so does backspace",
@@ -634,7 +634,7 @@ out = subprocess.run(
 shutil.rmtree(SAVED, True)
 check("a saved shortcut on an arrow or enter goes back to its default, and "
       "one for an action that no longer exists is dropped",
-      out == "f10 ctrl-w [] []", out)
+      out == "f10 alt-w [] []", out)
 
 # A key another action holds is asked about, and yes moves it: a key never
 # has two owners. Detach's ctrl-\\ is the one taken here, not Quit's q,
@@ -1054,17 +1054,17 @@ OLDKEYS = ('DT_KEYS["close"]=alt-f4\nDT_KEYS["cycle"]=tab\n'
            'DT_KEYS["quit"]=q\nDT_TERMBAR=0\nDT_DRAGMOD=0\n')
 out = loadconf("DT_TERMKEEP=0\n" + OLDKEYS)
 check("a settings file from before 0.72 is brought up to 0.73's defaults",
-      out == "8 1 1 1 ctrl-w alt-tab []", out)
+      out == "9 1 1 1 alt-w alt-tab []", out)
 out = loadconf("DT_SETVER=1\nDT_TERMKEEP=0\n" + OLDKEYS)
 check("one from 0.72 keeps its Shortcuts Win and gets the rest",
-      out == "8 0 1 1 ctrl-w alt-tab []", out)
+      out == "9 0 1 1 alt-w alt-tab []", out)
 out = loadconf('DT_SETVER=1\nDT_KEYS["close"]=alt-x\nDT_KEYS["cycle"]=f6\n'
                'DT_KEYS["quit"]=ctrl-q\n')
 check("a key changed from its old default is not touched",
       out.endswith("alt-x f6 [ctrl-q]"), out)
 out = loadconf("DT_SETVER=2\nDT_TERMBAR=0\nDT_DRAGMOD=0\n")
 check("and a 0.73 file is read as it is, choices and all",
-      out.startswith("8 1 0 0 "), out)
+      out.startswith("9 1 0 0 "), out)
 
 
 # 0.99.80 holds an output-driven frame 70 ms from the last rather than 33
@@ -1092,6 +1092,20 @@ check("and a frame interval somebody chose is left alone", out == "45", out)
 # 0.99.26 put the workspaces on alt and an arrow and Snap on ctrl-alt: a
 # file still holding the old defaults swaps them, and a key someone chose
 # is kept, its partner moving onto the key it gave up.
+def loadclose(conf):
+    """The same, for the Close Window key, which 9 moves on its own rather
+    than by a swap."""
+    d = tempfile.mkdtemp(prefix="hibr-mig-")
+    os.makedirs(os.path.join(d, "hibr"))
+    open(os.path.join(d, "hibr", "desktop.hibr"), "w").write(conf)
+    out = subprocess.run(
+        [sx.HIBR, "-c", '. %s\ndt_load\necho "${DT_KEYS[close]}"' % WM],
+        env=dict(os.environ, XDG_CONFIG_HOME=d),
+        capture_output=True, text=True).stdout.strip()
+    shutil.rmtree(d, True)
+    return out
+
+
 def loadkeys(conf):
     d = tempfile.mkdtemp(prefix="hibr-mig-")
     os.makedirs(os.path.join(d, "hibr"))
@@ -1107,15 +1121,29 @@ def loadkeys(conf):
 
 OLDWS = ('DT_SETVER=2\nDT_KEYS["snapleft"]=alt-left\nDT_KEYS["snapright"]=alt-right\n'
          'DT_KEYS["wsprev"]=ctrl-alt-left\nDT_KEYS["wsnext"]=ctrl-alt-right\n')
+# 0.99.26 swapped Snap and the workspaces; 0.99.90 (settings version 9) swapped
+# them back, because the 0.99.26 arrangement left the four tiling directions
+# split across two modifiers. So a file from before 0.99.26 goes through both
+# and lands where it began -- which is the point rather than a coincidence, and
+# is why this reads as "unchanged" now.
 out = loadkeys(OLDWS)
-check("a file from before 0.99.26 has its workspace and snap keys swapped",
-      out == "ctrl-alt-left alt-left ctrl-alt-right alt-right", out)
+check("a file from before 0.99.26 goes through both swaps and ends where it was",
+      out == "alt-left ctrl-alt-left alt-right ctrl-alt-right", out)
 out = loadkeys(OLDWS + 'DT_KEYS["wsprev"]=f7\n')
-check("a workspace key someone chose stays, and Snap still moves off alt",
-      out == "ctrl-alt-left f7 ctrl-alt-right alt-right", out)
+check("a workspace key someone chose stays, and Snap still lands on alt",
+      out == "alt-left f7 alt-right ctrl-alt-right", out)
 out = loadkeys('DT_SETVER=3\nDT_KEYS["snapleft"]=alt-left\nDT_KEYS["wsprev"]=ctrl-alt-left\n')
-check("and a file written since is read as it is",
-      out.startswith("alt-left ctrl-alt-left "), out)
+check("a file written between the two is already where 9 wants it",
+      out == "alt-left ctrl-alt-left alt-right ctrl-alt-right", out)
+NEWWS = ('DT_SETVER=8\nDT_KEYS["snapleft"]=ctrl-alt-left\nDT_KEYS["snapright"]=ctrl-alt-right\n'
+         'DT_KEYS["wsprev"]=alt-left\nDT_KEYS["wsnext"]=alt-right\nDT_KEYS["close"]=ctrl-w\n')
+out = loadkeys(NEWWS)
+check("a file holding 0.99.89's own defaults moves to alt and ctrl-alt",
+      out == "alt-left ctrl-alt-left alt-right ctrl-alt-right", out)
+out = loadkeys(NEWWS + 'DT_KEYS["close"]=ctrl-q\n')
+check("and a close key someone chose is not moved to alt-w",
+      loadclose(NEWWS) == "alt-w" and loadclose(NEWWS + 'DT_KEYS["close"]=ctrl-q\n')
+      == "ctrl-q", loadclose(NEWWS + 'DT_KEYS["close"]=ctrl-q\n'))
 
 # Colour schemes are JSON files, read from the person's own folders first
 # and then the bundled one; a file of the same name replaces a bundled
@@ -1226,9 +1254,9 @@ def loadlook(conf):
 
 
 out = loadlook("DT_SETVER=3\nCP_THEME=slate\n")
-check("an old file's CP_THEME, a colour scheme, becomes its colours", out == "[] slate 8", out)
+check("an old file's CP_THEME, a colour scheme, becomes its colours", out == "[] slate 9", out)
 out = loadlook("DT_SETVER=4\nCP_THEME=meadow\nCP_COLOURS=paper\n")
-check("and a file written since is read as it is", out == "[meadow] paper 8", out)
+check("and a file written since is read as it is", out == "[meadow] paper 9", out)
 
 
 # 0.99.77 has the YouTube player follow Control Panel > Pictures, so the one
@@ -1249,9 +1277,9 @@ def loadtube(conf):
 
 out = loadtube("DT_SETVER=6\nYT_MODE=half\n")
 check("an old file's YouTube picture follows the Pictures setting now",
-      out == "follow 8", out)
+      out == "follow 9", out)
 out = loadtube("DT_SETVER=6\nYT_MODE=ascii\n")
-check("and one it was given of its own is kept", out == "ascii 8", out)
+check("and one it was given of its own is kept", out == "ascii 9", out)
 
 # A solid title bar is the frame's colour, the title on it in DT_SELINK,
 # with no tee marks around it.
@@ -1896,13 +1924,26 @@ sc = run("term", "10 36 2 2", feed=[b"\x1b\t", 0.5], wait=1.6, end=None,
          also=CLOCKW)
 check("and a window told to pass every key passes it too",
       "033" in sc.text(), sc)
-sc = run("term", "10 36 2 2", feed=[b"\x17\x17", 0.5], wait=1.6, end=None,
+# Close Window is on alt-w since 0.99.90, so this binds it to a ctrl+letter of
+# its own to go on testing the thing that matters -- whether a terminal yields a
+# chord the desktop holds. ctrl-p rather than ctrl-w for two reasons: settings
+# version 9 moves a Close still on ctrl-w, and `od -c` prints 0x10 as 020 where
+# it prints 0x0b as an escape.
+CP = '\nDT_KEYS["close"]=ctrl-p'
+sc = run("term", "10 36 2 2", feed=[b"\x10\x10", 0.5], wait=1.6, end=None,
+         pre=OD + "\nDT_TERMKEEP=1" + CP)
+check("a ctrl+letter that closes a window reaches a terminal's program instead",
+      "020" in sc.text() and sc.find("┤ Term") is not None, sc)
+sc = run("term", "10 36 2 2", feed=[b"\x10", 0.5], wait=1.6, end=None,
+         pre=OD + "\nDT_TERMKEEP=1\nDT_TERMCTRL=0" + CP)
+check("unless Terminals Keep Ctrl+A-Z is off: then it closes the window too",
+      sc.find("┤ Term") is None, sc)
+# And the default, which is the point of putting it on alt: a terminal yields
+# every alt chord whatever DT_TERMCTRL says, so alt-w closes a terminal window
+# where ctrl-w never could.
+sc = run("term", "10 36 2 2", feed=[b"\x1bw", 0.5], wait=1.6, end=None,
          pre=OD + "\nDT_TERMKEEP=1")
-check("ctrl-w, which closes a window, reaches a terminal's program instead",
-      "027" in sc.text() and sc.find("┤ Term") is not None, sc)
-sc = run("term", "10 36 2 2", feed=[b"\x17", 0.5], wait=1.6, end=None,
-         pre=OD + "\nDT_TERMKEEP=1\nDT_TERMCTRL=0")
-check("unless Terminals Keep Ctrl+A-Z is off: then ctrl-w closes it too",
+check("and alt-w closes a terminal window, which ctrl-w could not",
       sc.find("┤ Term") is None, sc)
 sc = run("term", "10 36 2 2", wait=1.6, end=None,
          feed=[b"\x1b[21~", 0.3, b"\x1b[C", b"\x1b[C", b"\x1b[C", b"\x1b[C",
@@ -3506,10 +3547,10 @@ check("a list goes on every line of the selection",
 sc = wrrun([press(8, 3), 0.3, b"\x13", 0.4])
 check("a click on a task's box ticks it", sc.saved is not None and
       "- [x] bread" in sc.saved, sc.saved)
-sc = wrrun([b"x", b"\x17", 0.4])
+sc = wrrun([b"x", b"\x1bw", 0.4])
 check("closing with unsaved changes asks first",
       sc.find("Close without saving?") is not None, sc)
-sc = wrrun([b"x", b"\x17", 0.4, b"n", 0.3])
+sc = wrrun([b"x", b"\x1bw", 0.4, b"n", 0.3])
 check("and no keeps the window, and the changes",
       sc.find("┤ Write [doc.md •] ├") is not None, sc)
 sc = wrrun([], name="plain.txt", text="**not bold** here\n- not a list\n")
@@ -3643,4 +3684,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(555)
+report(558)

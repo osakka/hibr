@@ -153,9 +153,13 @@ sc = brun([press(lk[0], lk[1] + 2), release(lk[0], lk[1] + 2), 1.5],
           until="This is page B.") if lk else sc
 check("a click on a link in the window follows it",
       lk is not None and sc.find("This is page B.") is not None, sc)
+# alt-b, not alt-left: a window's own key is looked at before the desktop's,
+# so the Browser taking the arrows made them mean something different here
+# from everywhere else. alt-[ and alt-] cannot be bound at all -- ESC [ and
+# ESC ] are the CSI and OSC introducers, and the decoder consumes them.
 sc = brun([press(lk[0], lk[1] + 2), release(lk[0], lk[1] + 2), 2.5,
-           b"\x1b[1;3D", 1.5], until="Hello hibr")
-check("alt-left goes back", sc.find("Hello hibr") is not None and
+           b"\x1bb", 1.5], until="Hello hibr")
+check("alt-b goes back", sc.find("Hello hibr") is not None and
       sc.find("This is page B.") is None, sc)
 sc = brun([1.0] + [c.encode() for c in B] + [b"\r", 2.0], ready="Test page",
           click=(" + ", 1), until="This is page B.")

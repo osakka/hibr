@@ -23,8 +23,8 @@ declare -gA DT_KEYS
 [ -n "${DT_KEYS["selectall"]+x}" ] || DT_KEYS["selectall"]="ctrl-a"
 [ -n "${DT_KEYS["scrollup"]+x}" ] || DT_KEYS["scrollup"]="shift-pageup"
 [ -n "${DT_KEYS["scrolldown"]+x}" ] || DT_KEYS["scrolldown"]="shift-pagedown"
-[ -n "${DT_KEYS["snapleft"]+x}" ] || DT_KEYS["snapleft"]="ctrl-alt-left"
-[ -n "${DT_KEYS["snapright"]+x}" ] || DT_KEYS["snapright"]="ctrl-alt-right"
+[ -n "${DT_KEYS["snapleft"]+x}" ] || DT_KEYS["snapleft"]="alt-left"
+[ -n "${DT_KEYS["snapright"]+x}" ] || DT_KEYS["snapright"]="alt-right"
 [ -n "${DT_KEYS["snaptop"]+x}" ] || DT_KEYS["snaptop"]="alt-up"
 [ -n "${DT_KEYS["snapbottom"]+x}" ] || DT_KEYS["snapbottom"]="alt-down"
 [ -n "${DT_KEYS["snapcenter"]+x}" ] || DT_KEYS["snapcenter"]=
@@ -34,11 +34,12 @@ declare -gA DT_KEYS
 for dt_k in 4 5 6 7 8 9; do
 	[ -n "${DT_KEYS["ws$dt_k"]+x}" ] || DT_KEYS["ws$dt_k"]=
 done
-[ -n "${DT_KEYS["wsnext"]+x}" ] || DT_KEYS["wsnext"]="alt-right"
-[ -n "${DT_KEYS["wsprev"]+x}" ] || DT_KEYS["wsprev"]="alt-left"
+[ -n "${DT_KEYS["wsnext"]+x}" ] || DT_KEYS["wsnext"]="ctrl-alt-right"
+[ -n "${DT_KEYS["wsprev"]+x}" ] || DT_KEYS["wsprev"]="ctrl-alt-left"
 [ -n "${DT_KEYS["tile"]+x}" ] || DT_KEYS["tile"]=
 [ -n "${DT_KEYS["tilemain"]+x}" ] || DT_KEYS["tilemain"]=
-[ -n "${DT_KEYS["close"]+x}" ] || DT_KEYS["close"]="ctrl-w"
+[ -n "${DT_KEYS["close"]+x}" ] || DT_KEYS["close"]="alt-w"
+[ -n "${DT_KEYS["quitapp"]+x}" ] || DT_KEYS["quitapp"]="alt-q"
 [ -n "${DT_KEYS["detach"]+x}" ] || DT_KEYS["detach"]="ctrl-\\"
 [ -n "${DT_KEYS["quit"]+x}" ] || DT_KEYS["quit"]=
 [ -n "${DT_KEYS["cycle"]+x}" ] || DT_KEYS["cycle"]="alt-tab"
@@ -385,9 +386,28 @@ dt_load() {
 		if [ "${DT_SETVER:-0}" -lt 8 ] && [ "$DT_TERMMS" = 33 ]; then
 			DT_TERMMS=70
 		fi
+		# 0.99.90 puts every shortcut the desktop itself acts on under
+		# alt or ctrl-alt, because a terminal never yields ctrl with a
+		# letter (dt_keyassigned's own carve-out for DT_TERMCTRL) -- so
+		# ctrl-w silently did nothing whenever a terminal had focus.
+		# Tiling takes all four arrows on alt and the workspaces move
+		# to ctrl-alt, which is where they were before 0.99.26: that
+		# swap gave the arrows to the workspaces and left the four
+		# tiling directions split across two modifiers, which no rule
+		# can explain to anyone. A key somebody chose is kept, as
+		# always -- dt_keyswap moves one only while it still holds the
+		# default it is being moved off.
+		if [ "${DT_SETVER:-0}" -lt 9 ]; then
+			dt_keyswap snapleft wsprev ctrl-alt-left alt-left
+			dt_keyswap snapright wsnext ctrl-alt-right alt-right
+			if [ "${DT_KEYS["close"]}" = ctrl-w ]; then
+				DT_KEYS["close"]="alt-w"
+			fi
+		fi
 	fi
-	DT_SETVER=8
+	DT_SETVER=9
 	dt_keyfix
+	dt_keydups
 	dt_glyphs "$DT_GLYPHSET"
 	return 0
 }
