@@ -608,7 +608,10 @@ check("clicking where it would be does not zoom",
 sc, _ = run(FIXED, [press(9, 27), drag(15, 40), release(15, 40)])
 check("dragging its corner does not resize it",
       sc.g[9][27] == "┘" and sc.find("┤ Fixed ├") == (4, 10), sc)
-sc, _ = run(FIXED, [b"\x1b[21~", b"\x1b[C", b"\x1b[C"])
+# Three rights, not two: every bar reads File, Edit, the app's own menus,
+# Window since 0.99.93, and this app declares none, so Window is third
+# (Gitea #120).
+sc, _ = run(FIXED, [b"\x1b[21~", b"\x1b[C", b"\x1b[C", b"\x1b[C"])
 check("Zoom is dimmed on the Window menu for it",
       sc.find("Zoom") is not None and sc.at(3, 22) != "z", sc)
 check("and so is Resize",
@@ -625,6 +628,16 @@ NOMENU = 'dt_app nm "NoMenu" 6 20\nnm_draw() { :; }\nDT_PLACE=cascade\ndt_launch
 sc, _ = run(NOMENU)
 check("an app with no menus of its own still names itself in the bar",
       sc.find("NoMenu ▾") is not None, sc)
+# And the bar it gets is the same shape as every other app's. An app that
+# declares no menus had no File at all until 0.99.93 -- Clock, Control
+# Panel, About, Screenshot and every dialog -- so the two menus a person
+# reaches for most moved about from one window to the next (Gitea #120).
+# The window manager declares File > Close for them in one place, rather
+# than each of twenty-four files remembering to.
+bar = sc.text().splitlines()[0]
+bf, be = bar.find("File"), bar.find("Edit")
+check("and the File, Edit bar every other app has",
+      bf >= 0 and bf < be, sc)
 
 # --- widgets -----------------------------------------------------------
 #
@@ -1489,7 +1502,7 @@ check("taken off every workspace, it stays on the one it was seen on",
       sc.find("Over") is None and sc.find("┤ Under ├") == (6, 12), sc)
 sc, _ = run(WS2 + "dt_sticky 2 1\ndt_wsmove 2 3\n", [b"\x1b2"])
 check("and sent to one workspace, it is on that one only", sc.find("Over") is None, sc)
-sc, _ = run(WS2, [b"\x1b[21~", b"\x1b[C", b"\x1b[C", b"e", b"\x1b2"])
+sc, _ = run(WS2, [b"\x1b[21~", b"\x1b[C", b"\x1b[C", b"\x1b[C", b"e", b"\x1b2"])
 check("the Window menu's On Every Workspace makes it so",
       sc.find("┤ Over ├") == (9, 27), sc)
 
@@ -1626,7 +1639,7 @@ check("turned off, the windows stay where the layout put them",
 sc, _ = run(W3 + 'dt_wsgo 2\ndt_new "Free" 8 30 6 10\n')
 check("tiling is a workspace's own: another one's windows float",
       sc.find("┤ Free ├") == (6, 12), sc)
-sc, _ = run(W3, [b"\x1b[21~", b"\x1b[C", b"\x1b[C"])
+sc, _ = run(W3, [b"\x1b[21~", b"\x1b[C", b"\x1b[C", b"\x1b[C"])
 check("the Window menu shows Tile Workspace ticked, and Make Main",
       sc.find("Tile Workspace") is not None and
       sc.find("Make Main") is not None, sc)
@@ -1840,6 +1853,15 @@ sc, raw = run('dt_new "About This Computer" 14 44 8 20 about',
 check("and the About window names itself once, not twice",
       sc.find("About About") is None
       and sc.find("About This Computer…") is not None, sc)
+
+# tests/540-examples.t holds the File, Edit rule for all twenty-three apps
+# that declare menus, by reading their source; this is the one check that
+# the window manager really draws them in that order (Gitea #120).
+sc, raw = run('dt_new "Task Manager" 14 60 4 8 tasks', pre=APPS)
+bar = sc.text().splitlines()[0]
+bf, be, bt = bar.find("File"), bar.find("Edit"), bar.find("Task")
+check("an app's own menus come after File and Edit, not before",
+      bf >= 0 and bf < be < bt, sc)
 sc, raw = run('dt_new Files 12 40 3 4 files', feed=[b"\x1b[21~", b"a"], pre=APPS)
 check("and it opens a card of the app's name, icon, description and the shell's version",
       sc.find("About Files") is not None and sc.find("A file browser") is not None
@@ -2261,11 +2283,13 @@ sc, raw = run("dt_launch imgview", pre=IMGMOD + DASRC)
 check("opened with no picture, it says so instead of showing nothing",
       sc.find("Drop a picture here") is not None, sc)
 
+# By the keyboard rather than by a column worked out from the bar: the order
+# is File, Edit, the app's own, Window in every app and tests/540-examples.t
+# holds it, so three rights is the app's own menu wherever its title falls
+# (Gitea #120).
 WCONF = tempfile.mkdtemp(prefix="hibr-imgview-")
-menurow = sc.find("Image")[0]
 sc, raw = run('dt_launch imgview "%s"' % IMGFIX,
-              feed=[press(menurow, 4), release(menurow, 4),
-                    press(menurow + 1, 4), release(menurow + 1, 4)],
+              feed=[b"\x1b[21~", b"\x1b[C", b"\x1b[C", b"\x1b[C", b"w"],
               env={"XDG_CONFIG_HOME": WCONF}, pre=IMGMOD + DASRC)
 saved = os.path.join(WCONF, "hibr", "desktop.hibr")
 text = open(saved).read() if os.path.exists(saved) else ""
@@ -2482,7 +2506,8 @@ check("one the desktop makes on its own is from the Desktop",
 t.quit(None, 0.5); shutil.rmtree(d, True)
 t, d = dotrun('dt_notep high "Disk full"\ndt_notep low "Workspace 2"\n'
               'dt_notep low "Copied"\ndt_note "Build done"',
-              keys=[press(0, COLS - 24), b"\x1b[21~", b"\x1b[C", b"l"])
+              keys=[press(0, COLS - 24), b"\x1b[21~", b"\x1b[C", b"\x1b[C",
+                    b"\x1b[C", b"l"])
 sc = t.screen()
 hist = "\n".join(sc.row(r)[:54] for r in range(2, 8))
 check("History > Clear Low clears every low note and nothing else",
@@ -4108,4 +4133,4 @@ check("and a frame that paints nothing leaves the window alone rather than "
       "painting those cells over it", sc.find("┤ Hello ├") is not None, sc)
 shutil.rmtree(WPD, True)
 
-report(540)
+report(542)

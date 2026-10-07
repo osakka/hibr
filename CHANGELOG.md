@@ -1,5 +1,57 @@
 # Changelog
 
+## 0.99.93
+
+**File and Edit are the first two menus in every window** (Gitea #120).
+Asked for as "File/Edit as standard in every app… this is a clear pattern
+right, I want this 100% consistent across all desktop apps". It was not: of
+the twenty-three apps that declare menus, **ten** opened with a menu of
+their own and had Edit shuffled to the end, and twenty-four more windows
+declared no menus at all and so had **no File menu anywhere**. Every bar now
+reads the same -- the hibr menu, **File**, **Edit**, the app's own menus,
+**Window**, which is System 7's order.
+
+One rule decided what moved: **File holds the document's lifecycle -- New,
+Open, Save, Close -- and nothing else; everything particular to the app
+stays in the app's own menu, which keeps its name.**
+
+| app | File | its own menu, now after Edit |
+|---|---|---|
+| Bricks, Snake | New Game, Close | Game / Snake: Pause |
+| Minesweeper, Puzzle | New Game, Close | *none left* -- their bar is File, Edit, Window |
+| Stickies | New Note, Close | Note: Color ▸, Delete Note… |
+| Calculator | Close | Calc: Evaluate, Clear, Backspace, Use Answer |
+| Clipboard | Close | Clip: Use, Pinned, Delete, Clear History |
+| Image Viewer | Close | Image: Set as Wallpaper |
+| Task Manager | Close | Task: sorting, End Task, View Details |
+| Notifications | Close | History: Clear Selected, Clear Low, Clear All |
+
+Two costs, named rather than hidden: five apps have a File menu holding only
+Close, which is what a System 7 desk accessory had; and Minesweeper and
+Puzzle have no menu of their own left at all, because New Game and Close
+were the whole of it, and an empty menu is worse than no menu.
+
+**An app that declares no menus is given File > Close by the window manager**,
+in one branch of `dt_menus` rather than a File added to each of twenty-four
+files -- so an app written next year cannot forget. That covers four real
+windows that had never had one (Clock, Control Panel, About This Computer,
+Screenshot) and, deliberately, every dialog: Get Info, Rename, Open With,
+Set Date & Time, Time Zone, the Mail account sheet and the rest. Close is a
+true action on each of them, and a bar that changes shape between one window
+and the next is one nobody can learn.
+
+**The rule is enforced by reading the source, not by a session per app.**
+`tests/540-examples.t` now fails any registered app whose first `dt_menu` is
+not `"File"`, or which declares a second menu before calling `dt_editmenu`
+-- checked against all twenty-three, and checked to *fail*: reverting one
+app's file reports `calc_menus opens with Calc, not File`. Two pty checks go
+with it, for what the window manager actually draws: that a menuless app
+gets the File, Edit bar, and that an app's own menus come after both.
+
+The desktop README, `ARCHITECTURE.md` and `CLAUDE.md` each said Edit came
+last "unless the app calls `dt_editmenu`"; that is now simply what every app
+does, and they say so.
+
 ## 0.99.92
 
 **One About, and it belongs to whatever is in front** (Gitea #119). Reported

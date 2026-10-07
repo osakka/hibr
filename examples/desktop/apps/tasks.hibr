@@ -738,6 +738,9 @@ fn tasks_fulltoggle(int? id = "") { TK[$id]["full"]=$((1 - ${TK[$id]["full"]:-0}
 tasks_menus() {
 	local full=${TK[$DT_FOCUS]["full"]:-0}
 
+	dt_menu "File"
+	dt_item "Close" w dt_close_focused
+	dt_editmenu
 	dt_menu "Task"
 	dt_item "Sort by CPU" c tasks_sortby "$DT_FOCUS" cpu
 	dt_item "Sort by Memory" m tasks_sortby "$DT_FOCUS" mem

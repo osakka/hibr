@@ -350,8 +350,12 @@ st_delete_yes() {
 stickies_menus() {
 	local id=$DT_FOCUS c on
 
-	dt_menu "Note"
+	dt_menu "File"
 	dt_item "New Note" n st_new
+	dt_sep
+	dt_item "Close" w dt_close_focused
+	dt_editmenu
+	dt_menu "Note"
 	dt_sub "Color"
 	for c in "${ST_COLORS[@]}"; do
 		on=0
@@ -361,8 +365,6 @@ stickies_menus() {
 	dt_end
 	dt_sep
 	dt_item "Delete Note…" d st_delete "$id"
-	dt_sep
-	dt_item "Close" w dt_close_focused
 }
 
 # Opened with the desktop, when Control Panel > Stickies says so -- unless

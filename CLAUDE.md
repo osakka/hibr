@@ -756,10 +756,18 @@ went in the shell.
   follow focus, which is System 7's model and the reason it maps onto a
   window manager at all. An app declares them with `<app>_menus` calling
   `dt_menu`/`dt_item`/`dt_sep`, the same prefix contract as `_draw`, so an
-  app without menus shows the desktop's. Edit is the desktop's and follows
-  the app's menus, unless the app calls `dt_editmenu` after its File menu
-  for System 7's File, Edit order (0.88) -- once per bar, so never call it
-  twice.
+  app without menus shows the desktop's. **Every bar reads File, Edit, the
+  app's own menus, Window** (0.99.93, Gitea #120): an app opens its menus
+  with `dt_menu "File"` and calls `dt_editmenu` before its second menu --
+  once per bar, so never twice -- and `tests/540-examples.t` fails an app
+  that does not, because this is a rule nobody notices breaking one app at
+  a time. Ten of the twenty-three apps opened with their own menu and had
+  Edit shuffled to the end for five releases. An app that declares no
+  `_menus` at all gets `File > Close` and Edit from `dt_menus` itself, in
+  one branch rather than a File in each of twenty-four files -- which also
+  gives every dialog one, deliberately: Close is a real action on each of
+  them, and a bar that changes shape between one window and the next is
+  one nobody can learn.
 - **Nothing is reserved while the menu bar is shut, and no key is fixed.**
   F10 or escape opens it -- the Menu Bar and Menu Bar Also actions, set in
   `DT_KEYS` like Copy (alt-c), Cut, Paste and every other, since 0.77 --

@@ -2159,7 +2159,8 @@ seen = open(os.path.join(CNT, "n")).read().split() \
 check("a frame the clock asked for does not rebuild the menus",
       "bbb" in "".join(seen), "".join(seen))
 shutil.rmtree(CNT, True)
-sc = run("clock", "9 24 3 20", feed=[1.5, b"\x1b[21~", 0.5, b"\x1b[C", 0.5])
+sc = run("clock", "9 24 3 20",
+         feed=[1.5, b"\x1b[21~", 0.5, b"\x1b[C", b"\x1b[C", 0.5])
 check("while input still rebuilds them, so the menus open and move as before",
       sc.find("Edit") is not None and sc.find("Copy") is not None, sc)
 
@@ -3027,7 +3028,8 @@ check("View Details on a row's menu opens a Process Details window",
       sc.find("PID:") is not None, sc)
 sc = run(*TASKS, feed=[press(6, 10, 2), b"i", b"\x1b"])
 check("and escape closes it", sc.find("┤ Process Details ├") is None, sc)
-sc = run(*TASKS, feed=[b"\x1b[21~", b"\x1b[C", b"i"], end=None)
+sc = run(*TASKS, feed=[b"\x1b[21~", b"\x1b[C", b"\x1b[C", b"\x1b[C", b"i"],
+         end=None)
 check("the Task menu's View Details opens it for the selected row",
       sc.find("┤ Process Details ├") is not None, sc)
 

@@ -126,6 +126,9 @@ fn imgview_drop(int id, int r, int c, op, ...paths) {
 }
 
 imgview_menus() {
+	dt_menu "File"
+	dt_item "Close" w dt_close_focused
+	dt_editmenu
 	dt_menu "Image"
 	dt_item "Set as Wallpaper" w imgview_setwall "$DT_FOCUS"
 }

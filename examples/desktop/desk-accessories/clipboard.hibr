@@ -168,6 +168,9 @@ fn clipboard_paste(int id, text, op = "") {
 clipboard_menus() {
 	local id=$DT_FOCUS hid on=0
 
+	dt_menu "File"
+	dt_item "Close" w dt_close_focused
+	dt_editmenu
 	dt_menu "Clip"
 	if hid := cb_at "${CB[$id]["sel"]:-0}"; then
 		[ "${DT_CH[$hid]["pin"]}" = 1 ] && on=1

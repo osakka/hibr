@@ -254,11 +254,13 @@ fn snake_key(int id, key) {
 }
 
 snake_menus() {
-	dt_menu "Snake"
+	dt_menu "File"
 	dt_item "New Game" n sn_new "$DT_FOCUS"
-	dt_item "Pause" p snake_key "$DT_FOCUS" p
 	dt_sep
 	dt_item "Close" w dt_close_focused
+	dt_editmenu
+	dt_menu "Snake"
+	dt_item "Pause" p snake_key "$DT_FOCUS" p
 }
 
 if [ -z "$DT_ROWS" ]; then

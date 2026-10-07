@@ -153,10 +153,16 @@ is what a terminal emulator or a file browser's own drag-and-drop needs.
 
 ## Menus, two kinds
 
-The bar across the top is rebuilt every frame from whatever has focus: the
-hibr menu, Edit and Window (which belong to the desktop, not any app), and
-the focused app's own menus if it defines `<app>_menus`, built with
-`dt_menu`, `dt_item`, `dt_sub`, and `dt_sep`.
+The bar across the top is rebuilt every frame from whatever has focus, and
+it reads the same in every window: the hibr menu, **File**, **Edit**, then
+the focused app's own menus, then Window. Edit and Window belong to the
+desktop rather than to any app. An app defines `<app>_menus` and builds its
+menus with `dt_menu`, `dt_item`, `dt_sub` and `dt_sep`; it opens with File
+and calls `dt_editmenu` before its second menu, which
+`tests/540-examples.t` enforces. An app that defines no `_menus` at all --
+Clock, Control Panel, About This Computer, Screenshot, and every dialog --
+is given `File > Close` and Edit by the window manager, so the two menus a
+person reaches for most never move.
 
 ![The hibr menu open, showing About hibr, Clean Up Icons, Detach and Quit](img/desktop-menu.png)
 

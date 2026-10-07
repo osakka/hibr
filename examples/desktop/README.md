@@ -1399,7 +1399,7 @@ The bundled accessories live in `examples/desktop/desk-accessories/`:
 | `calc` | a calculator, and `hibr calc.hibr '3 * 4'` on its own |
 | `clock` | the time, large, and the date under it |
 | `imgview` | a picture in a window, decoded and drawn by the `img` module -- drop one on it to open it, there is no file-open dialog -- or an `.ans` screenshot, as the cells it was |
-| `stickies` | notes stuck on the desktop, as many as you like, each one of six colours -- yellow, blue, green, pink, purple, grey -- and saved as you type. Launching Stickies opens every note; the Note menu makes a new one, changes its colour, or deletes it (closing only puts it away). Text wraps at the note's width; undo and redo (alt-z, alt-y), cut, copy, paste and select all are on the Edit menu. Control Panel > Stickies sets the colour new notes get, whether every note opens with the desktop, and whether notes are on every workspace. Note Pad's note became the first sticky |
+| `stickies` | notes stuck on the desktop, as many as you like, each one of six colours -- yellow, blue, green, pink, purple, grey -- and saved as you type. Launching Stickies opens every note; File makes a new one and the Note menu changes its colour or deletes it (closing only puts it away). Text wraps at the note's width; undo and redo (alt-z, alt-y), cut, copy, paste and select all are on the Edit menu. Control Panel > Stickies sets the colour new notes get, whether every note opens with the desktop, and whether notes are on every workspace. Note Pad's note became the first sticky |
 | `clipboard` | the clipboard's history: see Copy and paste |
 | `screenshot` | takes one: see Screenshots |
 | `puzzle` | the sliding tile puzzle, 4 by 4. Arrows or a click move the gap; shuffled by real moves from solved, so it is always solvable |
@@ -1595,10 +1595,14 @@ clock_menus() {
 `dt_item <label> <key> <command> [args…]` — the key is the letter that picks
 it while the menu is open, and the command is run when it is chosen.
 
-Edit is the desktop's, and comes after an app's own menus -- unless the app
-calls `dt_editmenu` itself, which is how an app with a File menu puts Edit
-second, System 7's order: File, Edit, then its own, then Window. Files and
-dBASE do.
+Every app's bar reads the same: the hibr menu, File, Edit, the app's own
+menus, Window -- System 7's order. An app opens its menus with `dt_menu
+"File"` and calls `dt_editmenu` before its second menu, which puts Edit
+second rather than last; `tests/540-examples.t` fails an app that does not.
+An app that defines no `_menus` at all -- Clock, Control Panel, About This
+Computer, Screenshot, and every dialog -- is given `File > Close` and Edit
+by the window manager, so there is no window whose bar is a different
+shape.
 
 <!-- not run: an app's callback; the desktop calls it -->
 ```sh

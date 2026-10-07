@@ -157,10 +157,11 @@ fn puzzle_click(int? id = "", int? mr = "", int? mc = "", btn = "") {
 }
 
 puzzle_menus() {
-	dt_menu "Game"
+	dt_menu "File"
 	dt_item "New Game" n pz_new "$DT_FOCUS"
 	dt_sep
 	dt_item "Close" w dt_close_focused
+	dt_editmenu
 }
 
 if [ -z "$DT_ROWS" ]; then

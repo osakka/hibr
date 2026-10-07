@@ -140,6 +140,36 @@ awk '
   }' $desk $desk
 echo "no window's _open opens another of itself"
 
+# Every app's bar reads File, Edit, then whatever that app adds, so the two
+# menus a person reaches for most are in the same place in every window
+# (Gitea #120). An app with menus of its own therefore opens with File and
+# calls dt_editmenu before its second menu; an app with none gets both from
+# the window manager. Ten apps opened with their own menu and had Edit last
+# before this rule, which is the kind of thing nobody notices one app at a
+# time. dt_menus itself is the window manager's bar and is not an app.
+awk '
+  FNR == 1 { if (!first) first = FILENAME; if (FILENAME == first) pass++ }
+  pass == 1 && !/^[[:space:]]*#/ {
+    if (match($0, /dt_app [a-z_]+/)) win[substr($0, RSTART + 7, RLENGTH - 7)] = 1
+    next
+  }
+  pass == 2 && /^(fn )?[a-z_]+_menus\(/ {
+    pre = $0; sub(/^fn /, "", pre); sub(/_menus\(.*/, "", pre)
+    if (!(pre in win)) pre = ""
+    nm = 0; edited = 0; next
+  }
+  pass == 2 && pre != "" && /^}/ { pre = ""; next }
+  pass == 2 && pre != "" && /^[[:space:]]*dt_editmenu$/ { edited = 1; next }
+  pass == 2 && pre != "" && /^[[:space:]]*dt_menu / {
+    nm++
+    t = $0; sub(/^[^"]*"/, "", t); sub(/".*/, "", t)
+    if (nm == 1 && t != "File")
+      print FILENAME ": " pre "_menus opens with " t ", not File"
+    if (nm == 2 && !edited)
+      print FILENAME ": " pre "_menus declares " t " before it calls dt_editmenu"
+  }' $desk $desk
+echo "every app's bar begins File, then Edit"
+
 # Every setting kept across restarts -- the desktop's own DT_KEEP, and every
 # app's dt_keep -- is one the Control Panel shows, so nothing an app lets you
 # choose is only reachable by editing the settings file. A pane is a file

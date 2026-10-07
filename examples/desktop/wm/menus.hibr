@@ -225,6 +225,19 @@ dt_menus() {
 			MB[$m0]["own"]=$DT_FOCUS
 			m0=$((m0 + 1))
 		done
+	elif [ -n "$who" ]; then
+		# Every bar begins File, Edit, then whatever the app adds, so
+		# an app that declares no menus still gets the File a person
+		# looks for -- holding the one item true of every window
+		# (Gitea #120). Clock, Control Panel, About and Screenshot had
+		# no File at all, and neither had any dialog; Close is a real
+		# action on each of them, and a bar that changes shape between
+		# one window and the next is one nobody can learn. One branch
+		# here rather than a File in each of twenty-four files, so an
+		# app added later cannot forget.
+		dt_menu "File"
+		dt_item "Close" w dt_close_focused
+		MB[$((MB_N - 1))]["own"]=$DT_FOCUS
 	fi
 	[ -z "$who" ] && dt_findermenus
 	[ "$MB_EDITED" = 1 ] || dt_editmenu

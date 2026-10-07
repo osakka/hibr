@@ -163,6 +163,9 @@ fn nh_clearsel(int id) {
 notifications_menus() {
 	local id=$DT_FOCUS
 
+	dt_menu "File"
+	dt_item "Close" w dt_close_focused
+	dt_editmenu
 	dt_menu "History"
 	if [ "${#DT_NOTEHIST_ORDER[@]}" -gt 0 ]; then
 		dt_item "Clear Selected" s nh_clearsel "$id"

@@ -133,14 +133,15 @@ fn calc_draw(int id, int h, int w, int row, int col) {
 
 # The menus the bar shows while a calculator window has focus.
 calc_menus() {
+	dt_menu "File"
+	dt_item "Close" w dt_close_focused
+	dt_editmenu
 	dt_menu "Calc"
 	dt_item "Evaluate" e calc_eval "$DT_FOCUS"
 	dt_item "Clear" c calc_push "$DT_FOCUS" c
 	dt_item "Backspace" b calc_push "$DT_FOCUS" backspace
 	dt_sep
 	dt_item "Use Answer" u calc_recall "$DT_FOCUS"
-	dt_sep
-	dt_item "Close" w dt_close_focused
 }
 
 # Right-click anywhere on the keypad: the same shortcuts as the Calc menu,
