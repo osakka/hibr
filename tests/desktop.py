@@ -160,24 +160,85 @@ ORACLE = (
     'orc_dirty() { [ -n "${OD[$1]}" ] && { OD[$1]=; return 0; }; return 1; }\n'
     'dt_new "Under" 9 34 6 10 orc\n'
     'dt_new "Over" 9 34 10 22 orc\n')
+# Settled means the desktop has stopped drawing, not that a moment has
+# passed: t.keys waits for the idle marker of the bytes it sent, but a frame
+# a *timer* asked for -- the wallpaper's once-a-second ceiling, the icons'
+# five-second rescan -- can land after that marker and before the screenshot.
+# Both snapshots have to be taken with nothing in flight, or the comparison
+# is between two different moments in the desktop's life. That is what made
+# this check fail about one run in three inside the suite and never once in
+# eight runs on its own: under load the timer frame falls in a different
+# place.
+def orsettled(t, quiet=0.35, limit=4.0):
+    was, spent = t.frames(), 0.0
+    while spent < limit:
+        t.collect(quiet)
+        spent += quiet
+        now = t.frames()
+        if now == was:
+            return t.screen()
+        was = now
+    return t.screen()
+
+
 orpath = scratch("desktop-oracle.hibr")
 open(orpath, "w").write("%s. %s\ndt_open\n%s\ndt_run\ndt_close\n"
                         % (load(MOD), WM, ORACLE))
 ort = Term(orpath, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.6)
 ort.keys([b"x", b"x", press(10, 30), 0.2, drag(12, 34), 0.2,
           drag(14, 38), 0.2, release(14, 38), 0.4, b"x", 0.5])
-before = ort.screen()
+before = orsettled(ort)
 beforeg = [r[:] for r in before.g]
 beforep = [r[:] for r in before.p]
 moved = before.find("┤ Over ├")
 # Everything redrawn, twice over, so a single forced frame cannot be what
 # makes them agree.
 ort.keys([b"F", 0.4, b"z", 0.4, b"z", 0.5])
-after = ort.screen()
+after = orsettled(ort)
 check("the drag moved the window, so there are cells where a pane used to be",
       moved is not None and moved != (10, 24), moved)
+
+
+# And the same through every frame of a drag, not only once it has settled: a
+# shadow that flickers while a window moves is invisible to a comparison of
+# the end state, which is how one shipped. Each step is compared at the point
+# the desktop says it has consumed that much input -- the idle marker -- so
+# the two runs are at the same logical frame rather than the same instant,
+# which is what made comparing whole sessions flaky.
+def dragsteps(force):
+    p = scratch("desktop-drag.hibr")
+    open(p, "w").write("%s. %s\ndt_open\n%s\ndt_run\ndt_close\n"
+                       % (load(MOD), WM, ORACLE))
+    t = Term(p, env={"DT_TICK": "60", "DT_FORCEDRAW": force}, rows=ROWS,
+             cols=COLS, settle=0.6)
+    out = []
+    t.keys([press(10, 30)])
+    for i in range(1, 7):
+        t.keys([drag(10 + i, 30 + i * 2)])
+        sc = orsettled(t)
+        out.append(([r[:] for r in sc.g], [r[:] for r in sc.p]))
+    t.keys([release(16, 42)])
+    sc = orsettled(t)
+    out.append(([r[:] for r in sc.g], [r[:] for r in sc.p]))
+    t.quit(b"qy", 1.0)
+    os.unlink(p)
+    return out
+
+
+d0 = dragsteps("0")
+d1 = dragsteps("1")
+bad = [i for i, (a, b) in enumerate(zip(d0, d1)) if a != b]
+check("every frame of a drag is what a full redraw would have drawn",
+      len(d0) == len(d1) and not bad,
+      "steps differing: %s of %d" % (bad, len(d0)))
+check("including the shadows, which is what flickered while a window moved",
+      all(a[1] == b[1] for a, b in zip(d0, d1)),
+      [i for i, (a, b) in enumerate(zip(d0, d1)) if a[1] != b[1]])
+difg = [(r, c, beforeg[r][c], after.g[r][c])
+        for r in range(len(beforeg)) for c in range(len(beforeg[r]))
+        if beforeg[r][c] != after.g[r][c]]
 check("redrawing everything changes no glyph that drawing only what changed left",
-      beforeg == after.g, after)
+      not difg, "cells (row, col, left alone, redrawn): %s" % difg[:12])
 check("and no colour, which a shadow cast twice on the same cells would",
       beforep == after.p, after)
 ort.quit(b"qy", 1.2)
@@ -3890,4 +3951,4 @@ check("asked for blocks it is cells, with nothing sent as a bitmap",
       not sc.images and sc.find("┤ Hello ├") is not None, (sc.images, sc))
 shutil.rmtree(WPD, True)
 
-report(526)
+report(528)

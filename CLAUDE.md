@@ -2451,6 +2451,40 @@ went in the shell.
   its own keys and mouse bump. An app that answers "clean" wrongly shows a
   stale window, which is worse than a slow one -- hence the opt-in, and
   hence the oracle below.
+- **A desktop running an old image has to say so for as long as it is: a
+  notification is an announcement, and what is needed is a state.**
+  `dt_updcheck` noticed a new hibr on disk, sent one `dt_notify` -- which
+  times out in a couple of seconds -- and set `DT_UPNOTED` to silence itself
+  for good. The owner's own desktop ran **eight hours on 0.99.83** that way:
+  through the release that fixed a segfault it had already died of, and the
+  one that fixed what it was drawing. Every bug reported in those hours was
+  against code replaced on disk, and every diagnosis was of code that was
+  not running -- including two of mine, which cost a release built to
+  explain a symptom whose cause was already fixed. `DT_UPNEW` is set while
+  `/proc/$$/exe -ef "$HIBR"` is false and `dt_bar` draws `GL[reload]` beside
+  the bell until a restart clears it, which a restart does by construction.
+  **Check which binary is live before diagnosing anything a live session
+  reports**: `ls -l /proc/<pid>/exe` says `(deleted)` and
+  `/var/log/dpkg.log` says when each version landed. It is one command, and
+  not running it cost most of a day.
+- **An oracle's snapshot is taken when the desktop has stopped drawing, not
+  after a pause.** `Term.keys` waits for the idle marker of the bytes it
+  sent, but a frame a *timer* asked for -- the wallpaper's once-a-second
+  ceiling, the icons' five-second rescan -- lands after that marker, so two
+  screenshots a second apart are of two different moments in the desktop's
+  life. That made the settled oracle fail about one run in three inside the
+  suite and **not once in eight runs on its own**, which is what a
+  load-dependent *comparison* looks like rather than a load-dependent bug:
+  under load the timer frame falls somewhere else. Wait for `Term.frames()`
+  to stop advancing (`orsettled`), and do not scope the timers out of the
+  session to dodge the question -- that reduces what the oracle covers.
+- **An oracle that compares the end state cannot see a flicker.** The first
+  one drove a drag and compared once it had settled, so a shadow blinking
+  *while* the window moved was invisible to it by construction, and one
+  shipped and was reported from a live session. The second drives the same
+  drag twice, with the skipping on and off, and compares **step by step**,
+  glyphs and pens. Anything whose fault shows only during motion needs the
+  per-step form; a settled comparison is necessary and is not sufficient.
 - **An oracle compares two frames of one session, never two sessions.**
   `DT_FORCEDRAW` turns the skipping off, and with the screen settled it must
   not change a single cell -- the **pens** as well as the glyphs, because a

@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.99.86
+
+**A desktop running an old image says so, for as long as it is.** This is the
+fix for the worst thing that happened today, which was not a drawing bug.
+`dt_updcheck` noticed a new hibr on disk and sent one notification -- which
+times out in a couple of seconds -- then set a flag that silenced it for
+good. The owner's own desktop therefore ran for eight hours on 0.99.83:
+through 0.99.84, which fixed a segfault it had already died of, and 0.99.85,
+which fixed what it was drawing. Every bug reported in those hours was
+reported against code that had been replaced on disk, and diagnosed against
+code that was not running. A notification is an announcement; what was needed
+was a *state*. `DT_UPNEW` is set while `/proc/$$/exe` is not `$HIBR` and
+`dt_bar` shows `GL[reload]` beside the bell until a restart clears it -- which
+a restart does by construction, being a new process. The notification stays,
+and the recheck is cheap once the answer is known.
+
+**And the oracle now looks at every frame of a drag, and knows what settled
+means.** Two faults in the test rather than the code, both of which let a
+real regression through:
+
+A comparison of the *end* state cannot see a flicker. The oracle drove a drag
+and compared once it had finished, so a shadow that blinked while the window
+moved was invisible to it by construction -- and one shipped. There is a
+second oracle now: the same drag driven twice, with the skipping on and off,
+compared **step by step**, glyphs and pens.
+
+And a snapshot has to be taken when the desktop has stopped drawing, not
+after a pause. `Term.keys` waits for the idle marker of the bytes it sent,
+but a frame a *timer* asked for -- the wallpaper's once-a-second ceiling, the
+icons' five-second rescan -- lands after that marker, so the two screenshots
+were of two different moments in the desktop's life. That check failed about
+one run in three inside the suite and **not once in eight runs on its own**,
+which is what a load-dependent comparison looks like rather than a
+load-dependent bug. Both oracles now wait for the frame count to stop
+advancing before they look.
+
 ## 0.99.85
 
 **A shadow is idempotent, so nothing has to decide which frame may cast

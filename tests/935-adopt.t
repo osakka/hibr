@@ -11,8 +11,15 @@ if [ -z "$ADOPT_STAGE" ]; then
 	term poll $t 300
 	term write $t 'X=42; for i in 1 2 3 4 5 6 7 8; do echo line$i; done
 '
+	# Generous rather than tight: this waits for a shell to start and
+	# print eight lines, and two seconds of budget is enough alone and
+	# enough under four busy cores but not inside tests/all.py, where a
+	# score of suites are competing for ptys as well as for the processor.
+	# It failed there and passed every time on its own, which is what a
+	# fixed budget looks like rather than a bug. Ten seconds, still
+	# bounded, and it leaves as soon as the line is there.
 	n=0
-	while [ $n -lt 40 ]; do
+	while [ $n -lt 200 ]; do
 		term poll $t 50
 		r := term row $t 4
 		[ "$r" = line8 ] && break

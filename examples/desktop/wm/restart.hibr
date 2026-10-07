@@ -44,6 +44,9 @@ DT_RSDIR="${DT_LOG%/*}/restart"
 DT_RSVER=1
 DT_UPDT=0
 DT_UPNOTED=
+# Set while the hibr on disk is not the one running, cleared only by a
+# restart -- which is a new process, so it starts empty by construction.
+DT_UPNEW=
 declare -gA DT_KEEPSTATE
 declare -gA DT_RS
 # Each program a restart carries across the exec on a pty, as fd:pid -- what
@@ -265,18 +268,37 @@ dt_restore() {
 }
 
 # Whether the hibr this desktop runs has been replaced on disk since it
-# started, checked at most every DT_UPMS, and said once.
+# started: a notification once, and a mark in the menu bar for as long as it
+# stays true.
+#
+# It used to be the notification alone, and that is a control which lies by
+# omission: a note times out in a couple of seconds, DT_UPNOTED then silences
+# it for good, and a desktop goes on running an old image with nothing
+# anywhere saying so. The owner's own desktop ran for eight hours on 0.99.83
+# that way -- through a release that fixed a segfault it was dying of, and
+# two that fixed what it was drawing -- and every bug reported in those hours
+# was reported against code that had already been replaced on disk. The state
+# is what matters, not the announcement, so DT_UPNEW is set while it is true
+# and dt_bar shows it until a restart clears it.
 DT_UPMS=60000
 dt_updcheck() {
 	local v
 
-	[ -z "$DT_UPNOTED" ] || return 0
 	[ -e /proc/$$/exe ] && [ -n "$HIBR" ] || return 0
+	# Once it is known, it is not news, so the check can be cheap and
+	# often: one -ef test, and nothing else runs again.
+	if [ -n "$DT_UPNEW" ]; then
+		dt_want "$DT_UPMS"
+		return 0
+	fi
 	dt_want "$DT_UPMS"
 	[ $((EPOCHSECONDS - DT_UPDT)) -ge $((DT_UPMS / 1000)) ] || return 0
 	DT_UPDT=$EPOCHSECONDS
 	[ /proc/$$/exe -ef "$HIBR" ] && return 0
 	[ -x "$HIBR" ] || return 0
+	DT_UPNEW=1
+	DT_MENUIN=
+	[ -n "$DT_UPNOTED" ] && return 0
 	DT_UPNOTED=1
 	v=$("$HIBR" -c 'echo "$HIBR_VERSION"' 2> /dev/null)
 	dt_notify "hibr ${v:-update} is installed -- click to restart the desktop" \
