@@ -1,5 +1,52 @@
 # Changelog
 
+## 0.99.96
+
+**The display recognises a picture four times faster, and hashing the cells
+under one got cheaper too** (Gitea #113). `cn_image` hashes the whole picture
+it is handed to decide whether it is the one already placed at that
+rectangle, and `cn_hash` read a byte at a time. A screenful of pixels at
+232x71 with an 8x16 cell is 6.03 MB. Measured end to end — a second
+placement of the same picture at that size, which is a pixel-cache hit and
+the hash and nothing else, since `cn_image` returns as soon as the sum
+matches:
+
+| | 0.99.95 | now |
+|---|---|---|
+| a repeat placement at 232x71 | **17.5 ms** | **4.7 ms** |
+| the hash alone, 6.03 MB | 14.9 ms | 3.45 ms |
+
+Over `CN_HASHWORD` (64) bytes it is the 64-bit form read eight bytes at a
+time, from an aligned pointer so nothing is read at an offset UBSan would
+object to. Under it, byte for byte the code that was there — **because a
+word at a time everywhere would have been a regression on the path that
+matters.** A four-byte call costs 13.1 ns that way against 10.2, and
+`cn_imgunder` makes one per field per cell, every frame, for every region
+that owns its cells: 49,416 of them for a full-screen sixel wallpaper. That
+is 0.15 ms a frame, a fifth of the desktop's whole frame budget, to save
+11 ms on a placement the keep has already made rare. The measurement that
+found it was of the small calls, not the big one.
+
+**And that per-frame path is now 23% cheaper rather than merely unharmed.** A
+`cn_cell` has a pointer between `cp` and `fg`, so the three fields are not a
+contiguous run to hash in place and were three calls of four bytes; they are
+one call of twelve now. For a full screen: **0.500 ms a frame to 0.383.**
+
+**What was not done, and why.** The ticket's second option — `dp->image`
+taking an identity the caller already has, so the console compares that
+instead of hashing — was measured rather than assumed. After this change a
+film's frame at 232x71, which the kitty encoder halves, is 1.58 MB and so
+about **0.9 ms of hash against a decode of tens of milliseconds**. That buys
+too little for a `dp_api` version bump touching img, media and web, each
+needing a key of its own whose failure mode is a *stale picture on screen* —
+the same shape as an app's `_dirty` answering "clean" wrongly. The ticket
+said "(2) is the better answer"; the number says otherwise, and it is
+recorded there.
+
+One check: two 96x96 pictures into 6 by 12 cells of 8x16, scaled one to one,
+differing in exactly three bytes of 27,648 — a single changed pixel must
+still be a different picture.
+
 ## 0.99.95
 
 **A zoom or a center wallpaper is pixels now: it never was, on any terminal**

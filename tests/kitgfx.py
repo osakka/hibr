@@ -273,5 +273,19 @@ check("a cropped picture placed again is the same region, not a new one",
       len([a for a in deletes(sc) if "d=I" in a]) == 0,
       (places(sc), deletes(sc)))
 
+# Whether two pictures are the same is decided by hashing them, and since
+# 0.99.96 that reads eight bytes at a time for anything over 64 (Gitea #113).
+# A single changed pixel must still make it a different picture: these two are
+# 96x96 into 6 by 12 cells of 8x16, so img scales them one to one and exactly
+# three bytes of 27,648 differ.
+FLATA = png("flata.png", 96, 96, lambda x, y: (10, 200, 10))
+FLATB = png("flatb.png", 96, 96,
+            lambda x, y: (11, 201, 11) if (x, y) == (50, 50) else (10, 200, 10))
+sc = run("img draw %s 0 0 6 12 -m pixels\nconsole flush\n"
+         "img draw %s 0 0 6 12 -m pixels\nconsole flush\nconsole key 400\n"
+         % (FLATA, FLATB))
+check("a picture differing by a single pixel is a different picture",
+      len(places(sc)) == 2, places(sc))
+
 shutil.rmtree(D, True)
-report(32)
+report(33)

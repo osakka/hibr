@@ -2616,7 +2616,27 @@ went in the shell.
   and a keep that finds nothing falls through to a real placement, so losing
   the picture any other way still heals itself. A frame is 2.2 ms now. A film
   and the browser still pay the hash, where every frame is a different
-  picture -- Gitea #113.
+  picture -- Gitea #113, which made the hash itself cheap in 0.99.96: over
+  `CN_HASHWORD` (64) bytes it is the 64-bit form read eight bytes at a time
+  from an aligned pointer, and 6.03 MB went 14.9 ms to 3.45 (a repeat
+  placement at 232x71, end to end, 17.5 ms to 4.7). **Under that threshold it
+  is byte for byte the code that was there, because a word at a time
+  everywhere was a regression on the path that matters**: a four-byte call
+  costs 13.1 ns that way against 10.2, and `cn_imgunder` makes one per field
+  per cell, every frame, for every region that owns its cells -- 49,416 of
+  them for a full-screen sixel wallpaper, so 0.15 ms a frame, a fifth of the
+  whole frame budget, to save 11 ms on a placement the keep has made rare.
+  Measure the small calls as well as the big one before touching it again.
+  The same pass made that per-frame path 23% cheaper rather than merely
+  unharmed, by hashing a cell's three fields in one call of twelve bytes
+  instead of three of four (0.500 ms a frame to 0.383): a `cn_cell` has a
+  pointer between `cp` and `fg`, so they are not a contiguous run to hash in
+  place and have to be packed into a local first. The ticket's other option
+  -- `dp->image` taking an identity the caller already has -- was measured
+  and **not** taken: after this a film's halved frame is 1.58 MB, about
+  0.9 ms against a decode of tens of milliseconds, which is too little for a
+  `dp_api` bump touching three modules, each needing a key whose failure mode
+  is a stale picture on screen.
 - **A desktop running an old image has to say so for as long as it is: a
   notification is an announcement, and what is needed is a state.**
   `dt_updcheck` noticed a new hibr on disk, sent one `dt_notify` -- which

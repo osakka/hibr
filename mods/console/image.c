@@ -32,6 +32,7 @@
  * implement the same dp_api entry and never come here.
  */
 #include "cn.h"
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -60,17 +61,52 @@ void cn_imgowe(unsigned id)
 	kt_del(&cn_kdel, id);
 }
 
-/* FNV-1a over bytes, for "is this the same picture" and "are the cells under
-   it still the ones it was placed over". */
+/* FNV-1a, for "is this the same picture" and "are the cells under it still
+   the ones it was placed over". Nothing keeps one of these across processes,
+   so what it mixes is free to change -- which is why the big case reads eight
+   bytes at a time and the small one does not.
+ *
+ * A screenful of pixels at 232x71 with an 8x16 cell is 6.03 MB, and a byte at
+ * a time under tcc is 14.9 ms of it; the 64-bit form over whole words is
+ * 3.45 ms (Gitea #113). But the same change made a four-byte call 10.2 ns
+ * instead of 13.1, and cn_imgunder makes one per field per cell -- 49,416 of
+ * them a frame for a full-screen sixel wallpaper -- so a word at a time
+ * everywhere would have bought 11 ms on a placement, which the keep has made
+ * rare, and paid 0.15 ms on every frame, which is a fifth of the desktop's
+ * whole frame budget. Hence CN_HASHWORD: under it, byte for byte the code
+ * that was there. Measure the small calls as well as the big one before
+ * touching this again. */
+#define CN_HASHWORD 64
+
 unsigned cn_hash(const void *p, size_t n, unsigned h)
 {
 	const unsigned char *b = p;
+	unsigned long long g;
 
-	while (n--) {
-		h ^= *b++;
-		h *= 16777619u;
+	if (n < CN_HASHWORD) {
+		while (n--) {
+			h ^= *b++;
+			h *= 16777619u;
+		}
+		return h;
 	}
-	return h;
+	g = h;
+	while ((uintptr_t)b & 7) {
+		g ^= *b++;
+		g *= 1099511628211ull;
+		n--;
+	}
+	while (n >= 8) {
+		g ^= *(const unsigned long long *)b;
+		g *= 1099511628211ull;
+		b += 8;
+		n -= 8;
+	}
+	while (n--) {
+		g ^= *b++;
+		g *= 1099511628211ull;
+	}
+	return (unsigned)(g ^ (g >> 32));
 }
 
 /* What the cells a region covers come to now. */
@@ -82,10 +118,18 @@ unsigned cn_imgunder(const cn_img *im)
 	for (r = im->row; r < im->row + im->h && r < cn_back.rows; r++)
 		for (c = im->col; c < im->col + im->w && c < cn_back.cols; c++) {
 			cn_cell *k = &cn_back.c[r * cn_back.cols + c];
+			unsigned v[3];
 
-			h = cn_hash(&k->cp, sizeof k->cp, h);
-			h = cn_hash(&k->fg, sizeof k->fg, h);
-			h = cn_hash(&k->bg, sizeof k->bg, h);
+			/* The three in one call rather than one call each:
+			   a cn_cell has a pointer between cp and fg, so they
+			   are not a contiguous run to hash in place, and three
+			   calls of four bytes cost 30.6 ns against this one
+			   of twelve at 22. Per cell, every frame, for every
+			   region that owns its cells. */
+			v[0] = k->cp;
+			v[1] = k->fg;
+			v[2] = k->bg;
+			h = cn_hash(v, sizeof v, h);
 		}
 	return h;
 }
