@@ -762,8 +762,10 @@ went in the shell.
   once per bar, so never twice -- and `tests/540-examples.t` fails an app
   that does not, because this is a rule nobody notices breaking one app at
   a time. Ten of the twenty-three apps opened with their own menu and had
-  Edit shuffled to the end for five releases. An app that declares no
-  `_menus` at all gets `File > Close` and Edit from `dt_menus` itself, in
+  Edit shuffled to the end for five releases. A window whose app declares no
+  `_menus`, **or which has no app at all** -- a bare `dt_new`, which most of
+  `tests/desktop.py`'s own fixtures are, and is why Window is the third menu
+  there -- gets `File > Close` and Edit from `dt_menus` itself, in
   one branch rather than a File in each of twenty-four files -- which also
   gives every dialog one, deliberately: Close is a real action on each of
   them, and a bar that changes shape between one window and the next is

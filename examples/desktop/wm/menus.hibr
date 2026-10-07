@@ -227,8 +227,10 @@ dt_menus() {
 		done
 	elif [ -n "$who" ]; then
 		# Every bar begins File, Edit, then whatever the app adds, so
-		# an app that declares no menus still gets the File a person
-		# looks for -- holding the one item true of every window
+		# a window whose app declares no menus -- or which has no app
+		# at all, which most of the suites' own fixtures are, and is
+		# why Window is the third menu there -- still gets the File a
+		# person looks for, holding the one item true of every window
 		# (Gitea #120). Clock, Control Panel, About and Screenshot had
 		# no File at all, and neither had any dialog; Close is a real
 		# action on each of them, and a bar that changes shape between
