@@ -43,6 +43,7 @@ releases).
                                  # apps.py's checks in four parts, as all.py runs them
     python3 tests/term_diff.py   # mods/term against tmux, cell by cell
     python3 tests/uifuzz.py      # random input into each app, seeded; SEED=random
+    python3 tests/uifuzz.py oracle   # every frame against a full redraw (ON=100)
     python3 tests/affected.py --run      # only the suites a change reaches
     python3 tests/census.py      # desktop functions no suite calls, and the count
     python3 tests/asan.py        # every suite, pty ones too, under ASan and UBSan
@@ -2467,6 +2468,36 @@ went in the shell.
   shadow, consistently, and nobody reported that at all -- which is the shape
   of this class: **an optimisation does not have to be wrong to be blamed; it
   only has to make an existing wrongness intermittent.** Gitea #116.
+- **An oracle can be built four different ways that cannot fail, and each one
+  looks like a passing test.** Every one of these was hit while building the
+  `uifuzz.py` oracle (Gitea #115), and each reported a clean run:
+  (1) **An overlay whose life ends between the two snapshots** is up in one and
+  gone from the other -- a note with a 700 ms life against a 1.9 s compare
+  cycle, and a workspace switch raises a note of its own, so it is not enough
+  to special-case the event that asks for one. `DT_NOTEMS` is short enough in
+  that session (200 ms) that a note's whole life falls inside `osettled`'s own
+  quiet window.
+  (2) **The force is a key, and a key only reaches the app that has focus.**
+  Sent while the sticky note had it, `F` and `z` were *typed into the note as
+  text*. The oracle window is clicked first, and both snapshots are taken with
+  it focused so focus itself stays out of the comparison.
+  (3) **That click raises the window, and a raise reorders the pane list**, so
+  `dt_alone` sees a changed signature and sets `DT_FORCEONCE` -- which makes
+  the frame right after any click a full one already. Comparing *that* against
+  a forced frame compares a frame with itself. One more ordinary frame (`z`,
+  which the oracle app draws nothing for) has to pass first.
+  (4) **The control condition never held.** `git stash push <path>` stashes
+  *uncommitted* changes, so once the fix under test was committed, three
+  separate "with the fix reverted" runs were quietly running *with* it and
+  reporting clean. `git checkout <previous tag> -- <path>` is the revert; and
+  whatever the method, check the file afterwards rather than trusting the
+  command.
+  The defences that survived all four are in the test: a mark written by the
+  force key, so an event whose comparison was vacuous fails loudly, and a mark
+  written whenever a window is left alone, so a run in which nothing was ever
+  skipped fails too. **An oracle needs a test of its own, and the test is that
+  it fails against the bug it was built for** -- run it against the previous
+  tag's copy of the file and watch it fail before trusting a pass.
 - **An oracle must be driven with the kinds of window a fault needs, not only
   the arrangement.** Three oracles reported zero differing cells while that
   shadow bug was live and being reported, because every one of them used
@@ -2769,10 +2800,13 @@ went in the shell.
   is copied back instead of redrawn -- was weighed and not built: it would
   save perhaps another 0.15-0.3% of a core, and needs a console change plus
   a "what made this window dirty" rule every app must keep, where a missed
-  case is a stale window. If it is ever wanted, it needs an oracle first:
-  a forced-full-redraw mode compared cell for cell after each random event
-  in `uifuzz.py`. Measure with `/proc/<pid>/schedstat` over a fixed
-  scenario, not frame counts.
+  case is a stale window. Measure with `/proc/<pid>/schedstat` over a fixed
+  scenario, not frame counts. **The oracle that paragraph asked for exists
+  since 0.99.88** (`uifuzz.py oracle`, Gitea #115): one composed desktop, one
+  seed, and after every random event a snapshot compared against the same
+  frame with `DT_FORCEDRAW` on, glyphs and pens. It was owed from 0.99.83,
+  when the skipping shipped without it, and in between every fault in that
+  work was found by the owner looking at their own screen.
 - The core binary is 398 KB stripped, 17,566 lines across `src/*.c`
   (measured on 0.68) -- the README and this file's opening line had drifted
   stale twice (313 KB, then 358 KB) before being re-measured and corrected.

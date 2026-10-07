@@ -1,5 +1,62 @@
 # Changelog
 
+## 0.99.88
+
+**The oracle that CLAUDE.md said was needed before any of the frame-skipping
+shipped now exists** (Gitea #115). `python3 tests/uifuzz.py oracle`: one
+composed desktop, one seed, and after every random event the screen compared
+against the same frame with `DT_FORCEDRAW` on -- glyphs **and** pens, because a
+shadow is a colour and no glyph comparison can see one. It was owed from
+0.99.83, and in the meantime every fault in that work was found by a person
+looking at their own screen: a closed window left behind, shadows pulsing,
+shadows flickering during a drag, a note's box surviving its own expiry
+(#114), the wallpaper deleted by a quiet frame (#112), and a sticky note's
+shadow present only on the frames it was skipped (#116).
+
+The arrangement is the whole of it. A window that overlaps another is never
+left alone, so an oracle whose windows all overlap exercises the old code path
+and reports nothing -- which is exactly why three earlier oracles were silent
+through #116. This one holds a bare sticky note and an ordinary window that
+overlap nothing and can be skipped, another overlapping a terminal so it never
+can, a picture wallpaper as real pixels, and the terminal quiet and unable to
+echo so the screen settles and no stray key can reach a shell. Its event mix
+deliberately breaks `uifuzz.py`'s own rule about staying inside a window:
+menus, context menus, notes and workspace switches are overlays, and an
+overlay that stops being drawn is one of the ways the invariant breaks.
+
+**Four ways it could not fail, each of which reported a clean run**, and all
+four are now in CLAUDE.md because the shape generalises:
+
+- A note's own life ended *between* the two snapshots, so it was up in one and
+  gone from the other -- and a workspace switch raises a note of its own, so
+  special-casing the event that asks for one is not enough. `DT_NOTEMS` is
+  short enough here that a note's whole life falls inside the settle.
+- The force is a key, and a key only reaches the app that has focus: sent while
+  the sticky note had it, `F` was typed into the note as text.
+- Clicking the oracle window to give it focus *raised* it, a raise reorders the
+  pane list, `dt_alone` sees a changed signature and sets `DT_FORCEONCE` -- so
+  the frame right after any click is a full one already, and comparing that
+  against a forced frame compares a frame with itself.
+- **The control condition never held.** `git stash push <path>` stashes
+  *uncommitted* changes, so once the fix under test was committed, three
+  separate "with the fix reverted" runs were quietly running with it. Reverting
+  is `git checkout <previous tag> -- <path>`, and the file wants reading
+  afterwards rather than the command being trusted.
+
+So the test carries two guards of its own: a mark written by the force key, so
+an event whose comparison was vacuous fails loudly, and a mark written whenever
+a window is left alone, so a run that skipped nothing fails too. Against
+0.99.86's `frame.hibr` it fails on the **first** event, naming 34 cells and
+showing the pen pair -- dim where the frame was left alone, plain where it was
+redrawn -- and with the fix it is clean. 30 events is what the gate pays for,
+about a minute at 1.9 s an event; `ON=100` pushes it harder and a failure
+prints the line that replays it.
+
+Nothing else changed: no C, no desktop code. The release is a test, three
+documentation entries, and the open item in CLAUDE.md rewritten from "if it is
+ever wanted, it needs an oracle first" to what the oracle is and what it
+covers.
+
 ## 0.99.87
 
 **A bare window never cast its shadow on a frame that drew it, so a sticky

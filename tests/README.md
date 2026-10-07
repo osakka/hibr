@@ -53,7 +53,8 @@ python3 tests/apps.py       the apps, desk accessories and control panel
 python3 tests/apps_core.py  ... and the same checks in four parts, side by side:
                             apps_panel, apps_reach, apps_core, apps_more
 python3 tests/term_diff.py  the terminal emulator, cell by cell against tmux
-python3 tests/uifuzz.py     random input into each app, seeded
+python3 tests/uifuzz.py     random input into each app, seeded, and the
+                            forced-redraw oracle: uifuzz.py oracle
 ```
 
 `term_diff.py` is the odd one out: it drives no pty of its own. It feeds the
@@ -134,6 +135,18 @@ Four more tools sit around it:
   failure prints the line that replays it. Task Manager, Files, Terminal
   and the Date & Time pane are not targets: they signal processes, move
   files, run a shell and run sudo on the machine running the tests.
+- **`tests/uifuzz.py oracle`** -- the same idea turned on the drawing rather
+  than the surviving: one composed desktop (a bare sticky note and an
+  ordinary window that overlap nothing, so both can be left alone; another
+  overlapping a terminal, so it never is; a picture wallpaper as real
+  pixels) and, after every random event, the screen compared against the
+  same frame with the skipping turned off -- glyphs **and** pens, since a
+  shadow is a colour. `ON=100 python3 tests/uifuzz.py oracle` pushes it
+  harder; 30 events is what the gate pays for, about a minute. It carries
+  two guards of its own, because an oracle that cannot fail reads exactly
+  like one that passes: a mark written by the key that forces the redraw, so
+  an event whose comparison was vacuous fails, and one written whenever a
+  window is left alone, so a run that skipped nothing fails too.
 
 The screen model keeps the pen each cell was drawn with, as well as its
 character: `sc.style(r, c)` gives its foreground and background as
