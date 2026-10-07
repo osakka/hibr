@@ -12,9 +12,9 @@
 
 strict
 
-app about "About hibr Desktop, and the machine it runs on"
+app about "About this computer: the machine, and the desktop running on it"
 
-command -v dt_app > /dev/null && dt_app about "About hibr Desktop" 16 46 once "ⓘ" \
+command -v dt_app > /dev/null && dt_app about "About This Computer" 16 46 once "ⓘ" \
 	fixed hidden
 
 declare -gA AB

@@ -320,10 +320,13 @@ System 7's: **File** (New Window, Open what is selected, Find…), Edit,
 Desktop, and Empty Trash…, which asks first and then deletes for good).
 Every app with menus of its own puts File and Edit first in the same way.
 
-**About follows the front app.** The hibr menu's first item is *About
-Files…*, *About Calendar…* -- whatever is in front, a helper window such as
-Calendar's event editor answering for its app -- with About hibr Desktop
-below it. An app that defines `<app>_about` shows its own; any other gets
+**About follows the front app, and there is only one of it.** The hibr menu's
+first item is *About Files…*, *About Calendar…* -- whatever is in front, a
+helper window such as Calendar's event editor answering for its app -- and
+*About This Computer…* when the desktop itself is, which is the window with
+the machine's own numbers in it. One item that changes, rather than two at
+once: with an app in front, About This Computer is reached by clicking the
+desktop first. An app that defines `<app>_about` shows its own; any other gets
 the desktop's card: its icon and name, the line its `app` declaration
 describes it with, the file it came from, and the shell's version.
 
@@ -1307,7 +1310,7 @@ drawing a second one from scratch.
 
 The bundled panes -- Date & Time, Displays, Keyboard and Mouse under
 Hardware; Appearance, Control Strip, Desktop, File Types, Notifications,
-Shortcuts and Windows under Desktop; and About hibr, Files, Task Manager and
+Shortcuts and Windows under Desktop; and About This Computer, Files, Task Manager and
 Terminal under Apps -- are ordinary files under
 `examples/desktop/control-panel` themselves, not special-cased in
 `panel.hibr`: a file of your own with the same pane name replaces one, the
@@ -1659,7 +1662,7 @@ it -- no maximise button, no grow box drawn at any corner, a drag on one does
 an ordinary body click instead of resizing, and Resize and Zoom are both
 dimmed on its Window menu, whether reached from the menu bar or a right-click
 on its own title bar -- for a board or a grid with one sensible size; the
-games and About hibr use it. There is no half-fixed window: resizability
+games and About This Computer use it. There is no half-fixed window: resizability
 follows `fixed` everywhere at once, so a window is never left with a working
 drag-resize but a dimmed menu item, or the reverse.
 

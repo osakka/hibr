@@ -350,7 +350,7 @@ t.resize(ROWS, COLS + 1)
 t.send(b"\x1b[21~", settle=0.5)
 sc = t.screen()
 check("a key right after a resize is not dropped by the debounce",
-      sc.find("About hibr") is not None, sc)
+      sc.find("Screen Saver") is not None, sc)
 t.quit(b"qy", 1.0)
 os.unlink(path)
 
@@ -1093,9 +1093,9 @@ check("escape shuts the menu and does nothing else",
 
 sc, _ = run(MENUS, [b"\x1b[21~"])
 check("f10 opens the bar at the hibr menu",
-      sc.find("About hibr") is not None, sc)
+      sc.find("Screen Saver") is not None, sc)
 sc, _ = run(MENUS, [b"\x1b"])
-check("and so does escape", sc.find("About hibr") is not None, sc)
+check("and so does escape", sc.find("Screen Saver") is not None, sc)
 
 sc, _ = run(MENUS, [b"\x1b[21~"])
 check("an ordinary registered app is listed", sc.find("Noted") is not None, sc)
@@ -1121,12 +1121,12 @@ check("but the apps that belong there still do",
 
 sc, _ = run(MENUS, [b"\x1b[21~", b"\x1b[C"])
 check("right walks to the next menu along",
-      sc.find("Bump") is not None and sc.find("About hibr") is None, sc)
+      sc.find("Bump") is not None and sc.find("Screen Saver") is None, sc)
 sc, _ = run(MENUS, [b"\x1b[21~", b"\x1b[C", b"\x1b[C"])
 check("and on to the one after that", sc.find("Bump Twice") is not None, sc)
 sc, _ = run(MENUS, [b"\x1b[21~", b"\x1b[D"])
 check("left from the first wraps round to the application menu",
-      sc.find("Noted") is not None and sc.find("About hibr") is None, sc)
+      sc.find("Noted") is not None and sc.find("Screen Saver") is None, sc)
 
 sc, _ = run(MENUS, [b"\x1b[21~", b"\x1b[C", b"\x1b[C", b"t"])
 check("an item in the second menu runs too",
@@ -1819,13 +1819,27 @@ check("and yes empties it", os.listdir(os.path.join(d, "trash", "files")) == []
       and os.listdir(os.path.join(d, "trash", "info")) == [], os.listdir(os.path.join(d, "trash", "files")))
 shutil.rmtree(d, True)
 
-# The hibr menu's first item follows the front app: About Files..., and
-# About hibr Desktop below it; with no _about of its own an app gets the
-# desktop's card, made from what it declares.
+# The hibr menu carries one About and it belongs to whatever is in front: the
+# app's own with an app focused, the computer's with nothing. Both at once is
+# what it used to show, and no other menu works that way -- on a Mac the first
+# item becomes the application's (Gitea #119). With no _about of its own an app
+# gets the desktop's card, made from what it declares.
 sc, raw = run('dt_new Files 12 40 3 4 files', feed=[b"\x1b[21~"], pre=APPS)
-check("with an app in front the hibr menu starts About that app, the desktop's own below",
-      sc.find("About Files") is not None and sc.find("About hibr Desktop") is not None
-      and sc.find("About Files")[0] < sc.find("About hibr Desktop")[0], sc)
+check("with an app in front the hibr menu's About is that app's, and only that",
+      sc.find("About Files") is not None
+      and sc.find("About This Computer") is None, sc)
+sc, raw = run("", feed=[b"\x1b[21~"], pre=APPS)
+check("and with nothing in front it is the computer's",
+      sc.find("About This Computer") is not None
+      and sc.find("About Files") is None, sc)
+# The About window is itself an app, and the one whose About *is* the
+# computer's: a template applied to its own title read "About About This
+# Computer…" until it was routed to the second branch.
+sc, raw = run('dt_new "About This Computer" 14 44 8 20 about',
+              feed=[b"\x1b[21~"], pre=APPS)
+check("and the About window names itself once, not twice",
+      sc.find("About About") is None
+      and sc.find("About This Computer…") is not None, sc)
 sc, raw = run('dt_new Files 12 40 3 4 files', feed=[b"\x1b[21~", b"a"], pre=APPS)
 check("and it opens a card of the app's name, icon, description and the shell's version",
       sc.find("About Files") is not None and sc.find("A file browser") is not None
@@ -1867,7 +1881,7 @@ shutil.rmtree(d, True)
 
 sc, raw = run(ONE, feed=[b"\x03", b"\x1c", b"\x1a", b"\x1b[21~"])
 check("ctrl-c, ctrl-\\ and ctrl-z are keys, not the end of the desktop",
-      sc.find("About hibr") is not None and sc.status == 0, sc)
+      sc.find("Screen Saver") is not None and sc.status == 0, sc)
 check("and Detach is on the hibr menu, dimmed when nothing holds it",
       sc.find("Detach") is not None, sc)
 
@@ -2275,8 +2289,8 @@ check("and one that is not opens another window each time",
       sc.text().count("┤ Files [") == 2, sc)
 
 sc, _ = run("", feed=[press(0, 2), b"a"], pre=APPS)
-check("About hibr opens a window with the machine's own numbers",
-      sc.find("┤ About hibr Desktop ├") is not None and
+check("About This Computer opens a window with the machine's own numbers",
+      sc.find("┤ About This Computer ├") is not None and
       sc.find("CPU") is not None and sc.find("MEM") is not None and
       sc.find("%") is not None, sc)
 check("and it has no maximise button, being a fixed size",
@@ -2809,7 +2823,7 @@ t.send(b"\x1b[21~", settle=0.6)
 t.send(b"\x1b", settle=1.0)
 sc = t.screen()
 check("a lone escape reaches a held desktop on its own, not with the next "
-      "key", sc.find("About hibr") is None, sc)
+      "key", sc.find("Screen Saver") is None, sc)
 # hold keeps its own emulator of the session's screen, which drew nothing
 # for OSC 52 and so dropped every copy made in a held desktop: Copy reached
 # no machine's clipboard. It is passed on to every attached terminal now.
@@ -3349,12 +3363,16 @@ sc, raw = run('dt_new Files 12 40 3 4 files', feed=[b"\x1b[21~"], pre=APPS,
               env={"DT_LANG": "xx"})
 check("in a language the menu bar is translated, item by item",
       sc.find("⟦File⟧") is not None and sc.find("⟦Window⟧") is not None, sc)
+# Screen Saver rather than the About item: that one follows the front app
+# now, and this run has one focused, so its text comes from a template
+# rather than being a literal catalogue key (Gitea #119).
 check("and the menus and the desktop's icons",
-      sc.find("⟦About hibr Desktop⟧") is not None
+      sc.find("⟦Screen Saver⟧") is not None
       and sc.find("⟦Home⟧") is not None, sc)
 
 # Text an app draws itself goes through dt_tput: in xx it is marked too.
-sc, raw = run('dt_new "About hibr" 16 56 2 2 about', pre=APPS, env={"DT_LANG": "xx"})
+sc, raw = run('dt_new "About This Computer" 16 56 2 2 about', pre=APPS,
+              env={"DT_LANG": "xx"})
 check("text an app draws itself is translated: About's own labels",
       sc.find("\u27e6Hostname:") is not None, sc)
 
@@ -3376,7 +3394,7 @@ check("the close button is where it is drawn: a click on it closes the window",
       sc.find("Hello") is None, sc)
 sc, raw = run(ONE, feed=[press(0, COLS - 2)], env=XY)
 check("a click on the rightmost title opens the hibr menu under it",
-      sc.find("\u27eaAbout hibr Desktop\u27eb") is not None, sc)
+      sc.find("\u27eaAbout This Computer") is not None, sc)
 sc, raw = run(ONE, env={"DT_MIRROR": "on"})
 check("DT_MIRROR=on mirrors English too",
       sc.row(0).rstrip().endswith("\u270e"), sc.row(0))
@@ -4090,4 +4108,4 @@ check("and a frame that paints nothing leaves the window alone rather than "
       "painting those cells over it", sc.find("┤ Hello ├") is not None, sc)
 shutil.rmtree(WPD, True)
 
-report(538)
+report(540)

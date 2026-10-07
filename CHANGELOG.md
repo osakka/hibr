@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.99.92
+
+**One About, and it belongs to whatever is in front** (Gitea #119). Reported
+as "there are no two About hibr -- only one should be, and that's the about of
+the foreground program". With an app focused the hibr menu showed *About
+Files…* **and** *About hibr Desktop* beneath it; no menu anywhere works that
+way. On a Mac the first item *becomes* the application's, and that is what it
+does now:
+
+| what is in front | the one item |
+|---|---|
+| an app | **About \<App\>…** -- its own, or the card the desktop makes from what it declares |
+| nothing | **About This Computer…** |
+
+**And the desktop's own is renamed to About This Computer**, which is what the
+window has always been: it shows the machine's CPU, memory, uptime, hostname
+and who is logged in. The window's title, the Control Panel pane that sets how
+often those figures are read, and the message that pane shows when the app is
+not installed all follow the same name. The Arabic catalogue has it as
+"حول هذا الكمبيوتر", the wording macOS uses.
+
+With an app in front, About This Computer is reached by clicking the desktop
+first -- exactly as it was on the machine this borrows from. Said in
+`examples/desktop/README.md` rather than left to be discovered.
+
+**The About window is itself an app, and the one whose About *is* the
+computer's.** Focused, it took the first branch like any other and the item
+read *About **About This Computer**…* -- a template applied to a title that
+already begins with the word. Found by opening the window and the menu bar in
+a pty and reading the screen, not by reading the code; it takes the second
+branch now, so the item names the machine once.
+
+Ten checks across `tests/desktop.py` and `tests/apps.py` used *About hibr* as
+a proxy for "the menu bar is open" -- or shut -- which it can no longer be,
+since that item follows the front app; an eleventh read it in a pseudo-locale
+to show the bar is translated item by item. All of them ask for *Screen Saver*
+instead, which is in that menu whatever has focus. The app's old name is gone
+from the code comments and the desktop README too; the one place it remains is
+the alt text of `ARCHITECTURE.md`'s menu screenshot, which still shows it,
+because the picture has not been retaken.
+
 ## 0.99.91
 
 **A background job is reaped when its child exits, not when the next job is

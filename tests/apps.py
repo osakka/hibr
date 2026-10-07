@@ -321,7 +321,7 @@ TITLE = {"aboutme": "About Me", "appearance": "Appearance", "control_strip": "Co
          "screensaver": "Screen Saver",
          "keyboard": "Keyboard", "mouse": "Mouse",
          "shortcuts": "Shortcuts", "notify": "Notifications",
-         "windows": "Windows", "abouthibr": "About hibr",
+         "windows": "Windows", "abouthibr": "About This Computer",
          "filesview": "Files", "mailset": "Mail", "pimset": "PIM", "taskmgr": "Task Manager",
          "terminal": "Terminal", "tube": "YouTube"}
 
@@ -1025,11 +1025,11 @@ check("the Edit menu shows the key Copy has now",
 sc = run("clock", "9 24 3 20", pre='DT_KEYS["menu"]="f9"',
          feed=[b"\x1b[20~"], end=None)
 check("the Menu Bar key can move too: f9 opens the menu bar",
-      sc.find("About hibr") is not None, sc)
+      sc.find("Screen Saver") is not None, sc)
 sc = run("clock", "9 24 3 20", pre='DT_KEYS["menu"]="f9"\nDT_KEYS["menu2"]=',
          feed=[b"\x1b[21~", b"\x1b"], end=None)
 check("and f10 and escape then do nothing of the menu bar's",
-      sc.find("About hibr") is None, sc)
+      sc.find("Screen Saver") is None, sc)
 
 # A settings file keeps every default as it was when written, so new
 # defaults reach it through DT_SETVER, once: a file with no version gets
@@ -1291,14 +1291,14 @@ check("a solid title bar fills the top row with the accent, the title on it",
 
 # An app's pane is always listed, and says so when its app is not loaded.
 sc = cprun([b"\x1b[B"] * downs("abouthibr"))
-check("About hibr's pane says so when About hibr is not loaded",
-      sc.find("About hibr Desktop is not loaded") is not None, sc)
+check("the About pane says so when About This Computer is not loaded",
+      sc.find("About This Computer is not loaded") is not None, sc)
 sc = cprun([b"\x1b[B"] * downs("abouthibr"), extra=("about",))
 check("and once it is, holds its Refresh",
       brow(sc, "Refresh") != "" and "3000 ms" in brow(sc, "Refresh"), sc)
 
 # The Terminal pane: its own rows only appear once term.hibr is loaded, the
-# same as About hibr's Refresh above.
+# same as the About pane's Refresh above.
 DOWN_TERM = [b"\x1b[B"] * downs("terminal")
 sc = cprun(DOWN_TERM, extra=("term",))
 check("Scrollbar and Follow Program Title only appear once term itself is "
@@ -1974,7 +1974,7 @@ sc = run(*TERM, feed=[b"\x1b[21~"],
          pre=SH,
          wait=1.2)
 check("f10 still reaches the menu bar, not the program",
-      sc.find("About hibr") is not None, sc)
+      sc.find("Screen Saver") is not None, sc)
 
 sc = run(*TERM, pre="TW_CMD=(/bin/sh -c 'exit 4')", wait=1.6)
 check("a program that ends says so in the window",
@@ -3042,7 +3042,7 @@ check("Clear History runs and says so",
       sc.find("History cleared") is not None, sc)
 sc = cprun(reach("abouthibr", "Refresh", ("about",)) + [b"\x1b[C"],
            extra=("about",))
-check("right on About hibr's Refresh steps it",
+check("right on the About pane's Refresh steps it",
       "3000 ms" not in brow(sc, "Refresh"), sc)
 
 # Date & Time's dialogs, all the way to their OK, with nothing on this
@@ -3251,7 +3251,7 @@ sc = cprun(reach("filetypes", ".ans") + [b"\r", 0.4, b"\x1b[B", b"d", b"\r",
 check("its dialog makes another app the default, and the row says so",
       sc.find(".ans  Text Editor (hvi) (+1)") is not None, sc)
 sc = run("about", "16 50 2 2", [])
-check("About hibr Desktop shows the module ABI, the uptime and who is in",
+check("About This Computer shows the module ABI, the uptime and who is in",
       re.search(r"module ABI \d+", sc.text()) and
       sc.find("Uptime: ") is not None and sc.find("Users: ") is not None,
       sc)

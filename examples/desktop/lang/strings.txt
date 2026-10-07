@@ -57,8 +57,8 @@ A terminal cannot start in a folder on a server
 A theme's name is letters, digits, spaces, dots and dashes
 About %s…
 About Me
-About hibr
-About hibr Desktop
+About This Computer
+About This Computer…
 Account
 Account %s saved
 Accounts

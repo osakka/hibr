@@ -177,13 +177,22 @@ dt_menus() {
 	MB_N=0
 
 	dt_menu "✎"
-	if [ -n "$ap" ] && dt_aboutinfo "$ap"; then
+	# One About, and it belongs to whatever is in front: the focused app's
+	# own, or the computer's when the desktop itself is. Both at once is
+	# what this used to show, and it is not how the menu works anywhere
+	# else -- on a Mac the first item *becomes* the application's. With an
+	# app in front, About This Computer is reached by clicking the desktop
+	# first, exactly as it was there (Gitea #119). The About window itself
+	# is the one app whose About *is* the computer's, so it takes the
+	# second branch rather than naming itself twice -- a template applied
+	# to a title that already begins with the word reads "About About
+	# This Computer…", which is what the first version of this did.
+	if [ -n "$ap" ] && [ "$ap" != about ] && dt_aboutinfo "$ap"; then
 		DT_T := dt_tr "${DT_ABOUT["$ap"]["title"]}"
 		DT_T := dt_tr "About %s…" "$DT_T"
 		dt_item "$DT_T" a dt_aboutapp "$ap"
-		dt_item "About hibr Desktop" h dt_about
 	else
-		dt_item "About hibr Desktop" a dt_about
+		dt_item "About This Computer…" a dt_about
 	fi
 	dt_sep
 	# about already has its own permanent item above; it registers with
@@ -1059,7 +1068,7 @@ fn dt_mhit(int c) {
 # themselves live in, so "the next index" is not "the next bar menu": with
 # Desk Accessories sitting between the hibr menu and Edit, MB_OPEN + 1 on
 # the hibr menu landed on it by plain index arithmetic, so right arrow on
-# an item with no submenu of its own (About hibr, say) opened Desk
+# an item with no submenu of its own (About This Computer, say) opened Desk
 # Accessories instead of moving to Edit. Returns -1 or MB_N when there is
 # no further bar menu that way, for the caller to fall back to "app".
 fn dt_mbar(int i, int dir) {

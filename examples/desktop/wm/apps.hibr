@@ -44,7 +44,8 @@ fn dt_app(name, title, int h, int w, once = "", icon = "", fixed = "", hidden = 
 	DT_APPS[$name]["icon"]="${icon:-◆}"
 	DT_APPS[$name]["fixed"]=
 	[ "$fixed" = fixed ] && DT_APPS[$name]["fixed"]=1
-	# hidden is for an app dt_launch has to find by name -- About hibr,
+	# hidden is for an app dt_launch has to find by name -- About This
+	# Computer,
 	# or a window like Rename/Get Info that only ever opens on a specific
 	# file, never generically -- but that must never appear as a choice
 	# of its own on the hibr menu or in App Shortcuts' list of apps to
@@ -146,7 +147,8 @@ dt_appnames() {
 # it as items, each immediate child folder as a submenu built the same way,
 # recursing to any depth -- prefix is that folder's own path, "" for the
 # top. reserved is letters the *caller's* menu has already used, since a
-# submenu is its own menu with its own letters otherwise: About hibr, Quit
+# submenu is its own menu with its own letters otherwise: About This
+# Computer, Quit
 # and the rest only need keeping clear of at the top.
 # The flattened hibr-menu app list, and what it was built for: the plan is
 # a list of tab-separated operations -- "sub NAME", "end", "item PATH TITLE
@@ -275,7 +277,7 @@ fn dt_launch(n, arg = "") {
 
 # The about app shows the machine's own numbers, live; without it (a session
 # that never called dt_apps, or one that dropped the file) a note still says
-# what this is, since About hibr must never be a dead menu item.
+# what this is, since About This Computer must never be a dead menu item.
 dt_about() {
 	dt_has about_draw && { dt_launch about; return 0; }
 	dt_notep low "hibr %s — a desktop written in the shell it runs on" "$HIBR_VERSION"
