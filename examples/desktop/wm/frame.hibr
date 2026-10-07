@@ -178,6 +178,19 @@ fn dt_win(int id) {
 		return 0
 	fi
 
+	# Before any of the shapes below, because two of them return without
+	# reaching the one further down -- and the clean path above casts it,
+	# so a bare window had a shadow on the frames it was left alone and
+	# none on the frames it was drawn. A sticky note is the only bare
+	# window with a dirty flag of its own, so it was the only thing that
+	# blinked: move any window, every sticky is drawn, every sticky loses
+	# its shadow; let the screen settle, they are skipped and it comes
+	# back. Reported as "the stickies' shadow blink when I move any
+	# window, only them", and as shadows differing from one workspace to
+	# the next, which is the same thing seen in a snapshot. Cast on every
+	# frame and idempotent (`-s`), so casting it here for every shape
+	# cannot darken anything twice.
+	dt_shadow "$id"
 	if [ "${DT_APPS[${DT[$id]["app"]}]["bare"]}" = 1 ]; then
 		dt_winbare "$id"
 		return 0
@@ -200,8 +213,8 @@ fn dt_win(int id) {
 	# and darkening what is about to be overwritten cost h by w cells a
 	# window a frame, 4,648 of them for one terminal, against 193 for the
 	# L. The result is the same cells: the row under the window, and the
-	# two columns beside it.
-	dt_shadow "$id"
+	# two columns beside it. Cast above, before the shapes that return
+	# early.
 	[ "$DT_FOCUS" = "$id" ] && on=$DT_ACTIVE
 	console pen "$DT_INK" "$DT_FACE"
 	console fill "$wr" "$wc" "$h" "$w" " "

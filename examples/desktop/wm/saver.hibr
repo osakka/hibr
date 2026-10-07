@@ -41,6 +41,10 @@ fn dt_saverstart(how = "") {
 		SV_NAME=
 		console pen white black
 		console clear
+		# No saver to run, and every cell on the screen has just gone:
+		# DT_SAVING stays empty, so the next frame is an ordinary one,
+		# which would put back only whatever happened to be dirty.
+		DT_FORCEONCE=1
 	fi
 	return 0
 }
@@ -107,6 +111,10 @@ dt_saverstop() {
 	DT_IDLEFROM=$EPOCHSECONDS
 	console pen "$DT_INK" "$DT_WALL"
 	console clear
+	# Every cell on the screen has just gone, and a frame that leaves a
+	# window alone or the wallpaper unpainted would put only part of it
+	# back -- the saver would be followed by a half-drawn desktop.
+	DT_FORCEONCE=1
 	return 0
 }
 

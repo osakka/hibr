@@ -145,7 +145,7 @@ check("DT_BARSHADOW=0 casts none, independently of the other two",
 # frames, and an oracle that fails one run in three tells you nothing. Here
 # both screens come from the same desktop, moments apart, and the only thing
 # that changed between them is whether the skipping was allowed.
-ORACLE = (
+ORCFN = (
     'declare -gA OC OD\n'
     'orc_open() { OC[$1]=0; return 0; }\n'
     'orc_draw() { console put -p "w$1" 2 3 "n ${OC[$1]}"; return 0; }\n'
@@ -155,11 +155,12 @@ ORACLE = (
     # F turns the skipping off; z is a key it draws nothing new for, so a
     # frame can be asked for without changing what is on the screen. Any key
     # at all costs a frame, which is the point of sending them.
-    'orc_key()  { case $2 in F) DT_FORCEDRAW=1; return 0 ;; z) return 0 ;; esac\n'
+    'orc_key()  { case $2 in F) DT_FORCEDRAW=1; return 0 ;; z) return 0 ;;\n'
+    '                       N) dt_note "a note over the screen"; return 0 ;; esac\n'
     '             OC[$1]=$(( ${OC[$1]} + 1 )); OD[$1]=1; return 0; }\n'
-    'orc_dirty() { [ -n "${OD[$1]}" ] && { OD[$1]=; return 0; }; return 1; }\n'
-    'dt_new "Under" 9 34 6 10 orc\n'
-    'dt_new "Over" 9 34 10 22 orc\n')
+    'orc_dirty() { [ -n "${OD[$1]}" ] && { OD[$1]=; return 0; }; return 1; }\n')
+ORACLE = ORCFN + ('dt_new "Under" 9 34 6 10 orc\n'
+                  'dt_new "Over" 9 34 10 22 orc\n')
 # Settled means the desktop has stopped drawing, not that a moment has
 # passed: t.keys waits for the idle marker of the bytes it sent, but a frame
 # a *timer* asked for -- the wallpaper's once-a-second ceiling, the icons'
@@ -209,8 +210,15 @@ def dragsteps(force):
     p = scratch("desktop-drag.hibr")
     open(p, "w").write("%s. %s\ndt_open\n%s\ndt_run\ndt_close\n"
                        % (load(MOD), WM, ORACLE))
-    t = Term(p, env={"DT_TICK": "60", "DT_FORCEDRAW": force}, rows=ROWS,
-             cols=COLS, settle=0.6)
+    # The one thing two sessions legitimately disagree about is the clock in
+    # the bar: these two runs are about eight seconds apart, so one of them
+    # crosses a minute and `12:38` meets `12:39` -- one glyph, no pen, in
+    # every step at once, which is what this failed a release gate with. A
+    # format with no field in it is the same text for ever. The clock is the
+    # settled oracle's business (it asks for its own frames); here it is only
+    # noise, and masking row 0 would hide the bar's shadow with it.
+    t = Term(p, env={"DT_TICK": "60", "DT_FORCEDRAW": force,
+                     "DT_BARTIME": "hibr"}, rows=ROWS, cols=COLS, settle=0.6)
     out = []
     t.keys([press(10, 30)])
     for i in range(1, 7):
@@ -243,6 +251,71 @@ check("and no colour, which a shadow cast twice on the same cells would",
       beforep == after.p, after)
 ort.quit(b"qy", 1.2)
 os.unlink(orpath)
+
+# Everything drawn over the finished frame -- a note, an open menu, a dialog,
+# a drag's ghost, the standby dim -- writes at absolute coordinates on top of
+# the lot, and nothing repaints what it covered once it has gone: the
+# wallpaper may be left alone and a window nothing changed draws nothing. A
+# note that expired left its whole box on the screen until the next key
+# (0.99.86), reported as "if something overwrites them like the notification
+# panel, they are not redrawn unless I click on them". The frame after one has
+# drawn is a full one now, and the console counts the writes (`console drawn`)
+# rather than each overlay declaring itself, so one added later cannot forget.
+#
+# Two windows that overlap nothing, on purpose: where any two overlap the
+# wallpaper is not gated at all, it repaints the note's cells for free, and
+# the check would pass with the bug still there.
+overpath = scratch("desktop-over.hibr")
+open(overpath, "w").write(
+    "%s. %s\ndt_open\n%s\ndt_run\ndt_close\n"
+    % (load(MOD), WM, ORCFN + 'dt_new "Alone" 8 24 3 50 orc\n'
+                              'dt_new "Apart" 8 24 13 4 orc\n'))
+ovt = Term(overpath, env={"DT_TICK": "60", "DT_NOTEMS": "700"}, rows=ROWS,
+           cols=COLS, settle=0.6)
+ovt.keys([b"x", b"x", 0.5, b"N", 1.6])
+gone = orsettled(ovt)
+goneg = [r[:] for r in gone.g]
+gonep = [r[:] for r in gone.p]
+ovt.keys([b"F", 0.4, b"z", 0.4, b"z", 0.5])
+full = orsettled(ovt)
+ovt.quit(b"qy", 1.0)
+os.unlink(overpath)
+difn = [(r, c, goneg[r][c], full.g[r][c]) for r in range(len(goneg))
+        for c in range(len(goneg[r])) if goneg[r][c] != full.g[r][c]]
+check("a note drawn over the screen leaves nothing of itself when it goes",
+      not difn, "cells (row, col, left, redrawn): %s" % difn[:12])
+check("and no colour of its own either", gonep == full.p, full)
+
+# A bare window -- a sticky note -- draws every cell of itself, and dt_win
+# returned for it before the line that cast the shadow, while the path for a
+# window it leaves alone cast one: so it had a shadow on the frames it was
+# skipped and none on the frames it was drawn. A sticky is the only bare
+# window with a dirty flag of its own, which is why it was the only thing that
+# did it -- "the stickies' shadow blink when I move any window, only them",
+# and shadows differing from one workspace to the next, which is the same
+# thing seen in a snapshot. The two frames are this file's usual pair: settled
+# with the skipping on, then the same frame with it off.
+barepath = scratch("desktop-bare.hibr")
+open(barepath, "w").write(
+    "%s. %s\ndt_open\n%s\ndt_run\ndt_close\n"
+    % (load(MOD), WM, ORCFN.replace("orc_", "orb_")
+       + 'dt_app orb "Bare" 8 24 "" "" "" "" bare\n'
+         'dt_new "Bare" 8 24 3 50 orb\ndt_new "Away" 8 24 14 4 orb\n'))
+bt = Term(barepath, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.6)
+bt.keys([b"x", b"x", 0.6])
+left = orsettled(bt)
+leftp = [r[:] for r in left.p]
+bt.keys([b"F", 0.4, b"z", 0.4, b"z", 0.5])
+drew = orsettled(bt)
+bt.quit(b"qy", 1.0)
+os.unlink(barepath)
+check("a bare window's shadow is the same on a frame that drew it as on one "
+      "that left it alone", leftp == drew.p,
+      [(r, c) for r in range(len(leftp)) for c in range(len(leftp[r]))
+       if leftp[r][c] != drew.p[r][c]][:10])
+check("and it is cast at all: the column beside it is dimmed",
+      drew.p[4][74].startswith("0;2;") and leftp[4][74].startswith("0;2;"),
+      (leftp[4][74], drew.p[4][74]))
 
 # A key sent right after a resize must not be lost while the debounce is
 # waiting to see whether more of them are coming (DT_RSTILL is 150ms).
@@ -3922,13 +3995,13 @@ def wallpng(name, w, h):
 WALL = wallpng("wall.png", 160, 100)
 
 
-def wallrun(mode, gfx="kitty", feed=()):
+def wallrun(mode, gfx="kitty", feed=(), wmode="stretch"):
     """A desktop with a wallpaper, on a pty that says what a cell measures."""
     path = os.path.join(WPD, "s.hibr")
     open(path, "w").write(
-        "%s. %s\nDT_IMGMODE=%s\nDT_WALLIMG=%s\nDT_WALLMODE=stretch\n"
+        "%s. %s\nDT_IMGMODE=%s\nDT_WALLIMG=%s\nDT_WALLMODE=%s\n"
         "dt_open\ndt_new \"Hello\" 8 30 6 10\ndt_run\ndt_close\n"
-        % (load(MOD, "build/mods/img.so"), WM, mode, WALL))
+        % (load(MOD, "build/mods/img.so"), WM, mode, WALL, wmode))
     t = Term(path, env={"DT_TICK": "60", "HIBR_GFX": gfx}, rows=ROWS,
              cols=COLS, settle=1.0, cellw=8, cellh=16)
     t.collect(1.0)
@@ -3949,6 +4022,48 @@ check("placed under the text, so a terminal that keeps it is sent it once",
 sc = wallrun("half")
 check("asked for blocks it is cells, with nothing sent as a bitmap",
       not sc.images and sc.find("┤ Hello ├") is not None, (sc.images, sc))
+
+
+# A picture under the text is kept only while its caller places it again, so
+# the frame that stops placing it is the frame it goes. dt_wall is allowed to
+# paint nothing when nothing it paints has changed, and from 0.99.83 that
+# frame took the whole wallpaper off the screen until the next key -- reported
+# as shadows blinking and tearing while a window moved, since what a shadow
+# falls on is cells blanked for the picture one moment and painted the next.
+# A gated frame places it too now, which costs nothing: img keeps a record of
+# what it last placed and asks the display to keep what it has, where handing
+# the pixels over again makes the display hash all 6.3 MB of them -- 19.6 ms
+# for a screenful, on every frame that painted the wallpaper, which is what
+# made a desktop in Pixels cost what it did (a frame went 23.8 ms to 2.2).
+def wallsent(sc):
+    """What the terminal was told about pictures: placements and deletes. A
+    live *set* is the wrong assertion -- the old bug dropped the picture and
+    placed a new one with a fresh id, so the set is size 1 again whenever the
+    last frame happened to be one that painted, which is pure timing. One
+    placement and no delete at all is the thing that must hold."""
+    return ([a for a in sc.apc if "a=T" in a], [a for a in sc.apc if "a=d" in a])
+
+
+put, gone = wallsent(wallrun("pixels", feed=[press(6, 12), 0.3, drag(9, 30),
+                                             0.3, release(9, 30), 1.4]))
+check("a wallpaper of real pixels is placed once and never deleted, though a "
+      "window moved over it", len(put) == 1 and not gone,
+      "%d placed, %d deleted" % (len(put), len(gone)))
+put, gone = wallsent(wallrun("pixels", feed=[2.4]))
+check("nor by two seconds of being left alone, which once took it away",
+      len(put) == 1 and not gone,
+      "%d placed, %d deleted" % (len(put), len(gone)))
+# A mode whose rectangle does not fit the screen is never pixels at all: the
+# display refuses it and img falls back to half blocks (Gitea #117). The frame
+# that paints nothing must not reach that fallback -- those are cells written
+# at absolute coordinates, outside `console behind on`, so they would land on
+# top of every window and stay. `img keep` is what cannot do it.
+sc = wallrun("pixels", feed=[2.4], wmode="zoom")
+put, gone = wallsent(sc)
+check("a wallpaper whose rectangle does not fit is cells, placing no picture",
+      not put and not gone, "%d placed, %d deleted" % (len(put), len(gone)))
+check("and a frame that paints nothing leaves the window alone rather than "
+      "painting those cells over it", sc.find("┤ Hello ├") is not None, sc)
 shutil.rmtree(WPD, True)
 
-report(528)
+report(536)

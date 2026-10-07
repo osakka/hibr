@@ -58,6 +58,16 @@ the dim attribute alone. It reads back what `cn_put` already wrote, which
 since the console was loaded -- what the desktop's idle marker reports, under
 `HIBR_TESTIDLE`, so a test harness knows its keys have been read.
 
+`console drawn` answers how many times something has been written at absolute
+coordinates rather than through a pane. Its own value means nothing and it is
+never reset: what it is for is being compared with itself a moment later. The
+console cannot tell a caller that owns its cells from one drawing over the
+whole finished screen, so this is how a script learns that *something* did --
+the desktop reads it either side of the part of a frame where only notes,
+menus, dialogs and a drag's ghost draw, and makes the frame after one of those
+a full one, since nothing else would repaint what it covered. Counting it here
+is what stops that being a list of overlays somebody has to remember to add to.
+
 `console waiting` succeeds when more input is already there -- read and not
 yet handed out, or readable on the terminal right now -- and never waits.
 The desktop asks it before drawing a drag or a wheel: while the next report

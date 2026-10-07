@@ -290,6 +290,29 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	return 1;
 }
 
+/* An under-text picture already placed at exactly this rectangle is still
+   wanted, without being handed its pixels again: 1 when there was one. What
+   keeps such a picture is its caller placing it, and a placement hashes every
+   pixel to learn whether it is the one already there -- 6.3 MB and 19.6 ms for
+   a screenful -- which a caller that knows the answer should not pay. A frame
+   that paints nothing can therefore keep a wallpaper on screen, and a frame
+   that paints can place the same one for nothing. */
+int cn_imgkeep(sh *s, int row, int col, int h, int w)
+{
+	size_t i;
+
+	(void)s;
+	for (i = 0; i < cn_nimg; i++) {
+		if (!cn_imgs[i].over || cn_imgs[i].row != row ||
+		    cn_imgs[i].col != col || cn_imgs[i].h != h ||
+		    cn_imgs[i].w != w)
+			continue;
+		cn_imgs[i].live = 1;
+		return 1;
+	}
+	return 0;
+}
+
 /* Before the diff: a region whose cells are no longer the ones it was placed
    over has been drawn through, so it goes and they are painted again. */
 void cn_imgcheck(void)

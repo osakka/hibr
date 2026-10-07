@@ -10,7 +10,7 @@
    anything reordered or removed breaks every tool already using it. */
 
 #ifndef DP_API_VER
-#define DP_API_VER 5u
+#define DP_API_VER 6u
 #endif
 
 #ifndef DP_ATTRS
@@ -100,6 +100,18 @@ struct dp_api {
 	   as "no pictures". A caller needs this to decide how many pixels to
 	   render for a rectangle of cells. */
 	void (*cellpx)(int *w, int *h);
+	/* "The picture you already have at this rectangle, drawn under the
+	   text, is still wanted": 1 when there was one, 0 when the caller must
+	   place it for real. Placing it again answers the same question, and
+	   costs a hash of every pixel to do it -- 19.6 ms for a screenful at
+	   232x71 -- so a caller that knows it would hand over the same picture
+	   says it this way instead. Only an under-text picture can be kept:
+	   one that owns its cells is dropped the moment they are drawn
+	   through, which is its own answer (version 6). The rectangle is all
+	   this matches on, so the caller must *know* the picture there is its
+	   own and unchanged -- it is a way of answering a question the caller
+	   has already settled, not a way of asking one. */
+	int (*imgkeep)(sh *s, int row, int col, int h, int w);
 };
 
 #endif

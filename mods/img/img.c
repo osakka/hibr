@@ -423,6 +423,52 @@ static struct {
 	unsigned char *px;
 } im_pix;
 
+/* What was last placed under the text, and where. The display keeps such a
+   picture only while its caller places it again, and a placement hands over
+   every pixel so the display can hash them and learn whether it is the one it
+   already has -- 6.3 MB and 19.6 ms for a screenful, on every frame that
+   draws the wallpaper. When this says the same picture is going to the same
+   rectangle, the display is asked to keep what it has instead, which is a
+   handful of comparisons. Keyed on everything that decides what was sent,
+   and only for a draw with no pane: the one caller that places a picture
+   under the text is the wallpaper, which has none. The pixel cache's own
+   mtime check is what makes a changed file a miss here too, since a hit is
+   what this is only ever consulted after. */
+static struct {
+	char *path;
+	int iw, ih, row, col, rows, cols;
+	time_t mtime;
+} im_lastu;
+
+static int im_same(const char *path, int iw, int ih, int row, int col,
+		   int rows, int cols)
+{
+	struct stat st;
+
+	if (!im_lastu.path || strcmp(im_lastu.path, path) ||
+	    im_lastu.iw != iw || im_lastu.ih != ih || im_lastu.row != row ||
+	    im_lastu.col != col || im_lastu.rows != rows ||
+	    im_lastu.cols != cols)
+		return 0;
+	return stat(path, &st) == 0 && im_lastu.mtime == st.st_mtime;
+}
+
+static void im_placed(const char *path, int iw, int ih, int row, int col,
+		      int rows, int cols)
+{
+	struct stat st;
+
+	free(im_lastu.path);
+	im_lastu.path = strdup(path);
+	im_lastu.mtime = stat(path, &st) == 0 ? st.st_mtime : 0;
+	im_lastu.iw = iw;
+	im_lastu.ih = ih;
+	im_lastu.row = row;
+	im_lastu.col = col;
+	im_lastu.rows = rows;
+	im_lastu.cols = cols;
+}
+
 /* The scaled pixels for this picture at this size, or nothing. */
 static unsigned char *im_pixget(const char *path, int w, int h)
 {
@@ -526,6 +572,21 @@ static int im_draw(sh *s, int ac, char **av)
 				int iw = cols * cw, ih = rows * chh;
 				int done;
 
+				/* The same picture to the same place, under the
+				   text, and the display still has it: keeping
+				   it is the whole of what placing it again
+				   would have said, without the hash of every
+				   pixel -- and without the scaled copy, which
+				   another picture may have taken the one cache
+				   slot for. */
+				if (under && !pane && dp->imgkeep &&
+				    im_same(path, iw, ih, row, col, rows, cols) &&
+				    dp->imgkeep(s, row, col, rows, cols)) {
+					lg(HIBR_LDBG, "img draw: kept the "
+					   "picture already placed at %d,%d",
+					   row, col);
+					return HIBR_OK;
+				}
 				px = im_pixget(path, iw, ih);
 				if (!px) {
 					s_init(&err);
@@ -550,8 +611,12 @@ static int im_draw(sh *s, int ac, char **av)
 						 px, iw, ih,
 						 DP_IMG_CHOSEN |
 						 (under ? DP_IMG_UNDER : 0));
-				if (done)
+				if (done) {
+					if (under && !pane)
+						im_placed(path, iw, ih, row,
+							  col, rows, cols);
 					return HIBR_OK;
+				}
 			}
 		}
 		if (mode == IM_SIXEL) {
@@ -743,10 +808,57 @@ static int im_size(sh *s, int ac, char **av)
 	return HIBR_OK;
 }
 
+/* img keep file row col h w [-m mode]: the picture this module last placed
+   under the text at exactly this rectangle, unchanged on disk, is still
+   wanted -- the display keeps what it has and no pixel is handed over.
+   Status 0 when it was kept, 1 when it was not, and *nothing is drawn*
+   either way. That last part is why this is not a flag on `img draw`:
+   draw falls back to half blocks whenever pixels cannot be placed, writing
+   a cell per cell at absolute coordinates, which on a frame that meant to
+   paint nothing would land on top of every window. A caller that cannot
+   tell the two apart would have no safe way to ask. */
+static int im_keep(sh *s, int ac, char **av)
+{
+	const dp_api *dp;
+	const char *path;
+	int row, col, rows, cols, cw = 0, chh = 0, mode = IM_AUTO, i;
+
+	if (ac < 7) {
+		lg(HIBR_LERR, "usage: img keep file row col h w [-m mode]");
+		return 2;
+	}
+	path = av[2];
+	row = atoi(av[3]);
+	col = atoi(av[4]);
+	rows = atoi(av[5]);
+	cols = atoi(av[6]);
+	for (i = 7; i < ac; i++)
+		if (!strcmp(av[i], "-m") && i + 1 < ac)
+			mode = im_mode(av[++i]);
+	if (rows < 1 || cols < 1)
+		return HIBR_FAIL;
+	if (mode != IM_SIXEL && mode != IM_AUTO)
+		return HIBR_FAIL;
+	dp = (const dp_api *)hibr_require(s, "display", DP_API_VER);
+	if (!dp || !dp->isopen() || !dp->imgkeep || !dp->cellpx)
+		return HIBR_FAIL;
+	dp->cellpx(&cw, &chh);
+	if (cw < 2 || chh < 2)
+		return HIBR_FAIL;
+	if (!im_same(path, cols * cw, rows * chh, row, col, rows, cols))
+		return HIBR_FAIL;
+	if (!dp->imgkeep(s, row, col, rows, cols))
+		return HIBR_FAIL;
+	lg(HIBR_LDBG, "img keep: %s kept at %d,%d", path, row, col);
+	return HIBR_OK;
+}
+
 static int m_img(sh *s, int ac, char **av)
 {
 	if (ac > 1 && !strcmp(av[1], "draw"))
 		return im_draw(s, ac, av);
+	if (ac > 1 && !strcmp(av[1], "keep"))
+		return im_keep(s, ac, av);
 	if (ac > 1 && !strcmp(av[1], "size"))
 		return im_size(s, ac, av);
 	return im_cat(s, ac, av);

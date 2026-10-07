@@ -40,6 +40,28 @@ DT_NOOVERLAP=
 # that may redraw only now and then compares it, so a key or a click is
 # never waited out.
 DT_INCNT=
+# Whether the last frame drew something over everything else: a note, an open
+# menu, a dialog, a drag's ghost, the standby dim. Each of those writes at
+# absolute coordinates on top of the finished frame, and nothing repaints what
+# it covered once it has gone -- the wallpaper may be left alone and a window
+# that nothing changed draws nothing. So the frame after one has drawn is a
+# full one. The console counts the writes rather than each overlay declaring
+# itself (`console drawn`, either side of the only part of a frame where such
+# things draw), so an overlay added there later cannot forget to say so.
+#
+# Two costs of counting instead of declaring, both named rather than hidden.
+# A count cannot tell "still there" from "moved", so **every** frame is a full
+# one while an overlay is up, not only the one after it goes: a 2.5-second
+# note, an open menu, a drag. For a *lasting* one that matters -- a blanked
+# display keeps DT_BLANKR filled for as long as it is blanked, so a desktop
+# with one gets no cheap frame at all, which is the cost of every frame before
+# 0.99.83. Narrowing it needs each overlay to declare its own rectangle, and
+# that is the list nobody can be relied on to keep. And the count is of
+# `console put|fill|darken|clear` at absolute coordinates, not of every write
+# that reaches the display: something drawn here through a module instead --
+# `img draw`, a film, a terminal's cells -- moves it not at all, so an overlay
+# built out of one of those has to set DT_OVERDREW itself. None does today.
+DT_OVERDREW=
 
 # A window can be left alone only if its own rectangle, and the strip its
 # shadow falls on, touch no other window's. Two that overlap are always both
@@ -143,12 +165,16 @@ dt_drain() {
 }
 
 dt_draw() {
-	local l id ls
+	local l id ls n0 n1
 
 	DT_WANT=
 	CS_SIDEX=$CS_SIDE
 	DT_NOTEPOSX=$DT_NOTEPOS
 	case $DT_MIRRORON in 1) dt_mirrorx ;; esac
+	# Something drawn over everything last frame has gone or moved by now,
+	# and only a full frame puts back what it covered. Set here, never
+	# cleared: dt_alone sets it too, for an arrangement that changed.
+	[ -n "$DT_OVERDREW" ] && DT_FORCEONCE=1
 	# Which windows are where, before the wallpaper rather than after it:
 	# dt_wall's own decision about whether it need paint at all reads the
 	# arrangement, so a window that has just moved has to be in it already
@@ -162,7 +188,6 @@ dt_draw() {
 	for id in "${ls[@]}"; do dt_win "${id#w}"; done
 	DT_FORCEONCE=
 	dt_idle
-	[ -n "$DT_DND" ] && dt_dnddraw
 	# What a *shut* menu bar shows is its menus' titles and the focused
 	# app's name, and both follow focus. Everything else dt_menus works
 	# out is an item, which cannot be seen while the bar is shut -- and
@@ -183,6 +208,11 @@ dt_draw() {
 	fi
 	dt_bar
 	dt_stripdraw
+	# Everything from here on is drawn over the finished frame and may stop
+	# being drawn at any moment, which is what DT_OVERDREW is counted for.
+	# Anything new that draws on top belongs between these two counts.
+	n0 := console drawn
+	[ -n "$DT_DND" ] && dt_dnddraw
 	dt_drop
 	dt_note_draw
 	dt_identify_draw
@@ -190,5 +220,8 @@ dt_draw() {
 	dt_sbtick
 	dt_confirm_draw
 	dt_shot_draw
+	n1 := console drawn
+	DT_OVERDREW=
+	[ "$n0" = "$n1" ] || DT_OVERDREW=1
 	console flush
 }

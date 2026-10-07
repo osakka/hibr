@@ -84,6 +84,7 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 void cn_imgscale(const unsigned char *in, int iw, int ih,
 		 unsigned char *out, int w, int h);
 void cn_imgcheck(void);
+int cn_imgkeep(sh *s, int row, int col, int h, int w);
 size_t cn_imgsend(str *b, int over);
 /* The deletes owed to the terminal for pictures that have gone, emitted
    before the diff so the text underneath is painted in the same frame. */

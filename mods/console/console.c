@@ -15,6 +15,20 @@ int cn_waiting(void);
 
 vec cn_panes;
 
+/* How many `console put`, `fill`, `darken` and `clear` calls have been made at
+   absolute coordinates, rather than through a pane. Only ever compared with
+   itself, so it is never reset and its own value means nothing. A caller that
+   draws over the screen on top of everything else -- a note, a menu, a dialog
+   -- cannot be told apart from one that owns its cells by anything the console
+   sees, so this is how a script learns that *something* did it: read the count
+   either side of the part of a frame where only such things draw, and a frame
+   that leaves nothing of its own behind can be told from one that does.
+   Cheaper and harder to forget than each of them saying so -- but it counts
+   this builtin's own calls, not every write that reaches the grid: a module
+   drawing through `dp->put` (img, media, term) moves it not at all, so an
+   overlay built out of one of those has to say so for itself. */
+static size_t cn_drawn;
+
 /* Find a named pane, or null. */
 cn_pane *cn_pfind(const char *nm)
 {
@@ -376,6 +390,7 @@ int m_console(sh *s, int ac, char **av)
 		if (!cn_need())
 			return HIBR_FAIL;
 		cn_clear();
+		cn_drawn++;
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "pen")) {
@@ -446,6 +461,7 @@ int m_console(sh *s, int ac, char **av)
 				cn_bidi = 0;
 			cn_put(atoi(av[2]), atoi(av[3]), cn_vis(s, av[4], &vis));
 			s_free(&vis);
+			cn_drawn++;
 		}
 		cn_bidi = ob;
 		return HIBR_OK;
@@ -498,6 +514,7 @@ int m_console(sh *s, int ac, char **av)
 		}
 		cn_fill(atoi(av[2]), atoi(av[3]), atoi(av[4]), atoi(av[5]),
 			ac > 6 ? av[6] : " ");
+		cn_drawn++;
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "darken")) {
@@ -521,6 +538,7 @@ int m_console(sh *s, int ac, char **av)
 		}
 		cn_darken1(atoi(av[2]), atoi(av[3]), atoi(av[4]), atoi(av[5]),
 			   ac > 6 ? atoi(av[6]) : 55, once);
+		cn_drawn++;
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "behind")) {
@@ -538,6 +556,19 @@ int m_console(sh *s, int ac, char **av)
 	}
 	if (!strcmp(sub, "waiting"))
 		return cn_waiting() ? HIBR_OK : HIBR_FAIL;
+	/* See cn_drawn: writes made at absolute coordinates, not through a
+	   pane. The desktop reads it either side of the overlays it draws over
+	   everything else, so the frame after one has drawn is a full one --
+	   nothing else would repaint what a note or a menu covered. */
+	if (!strcmp(sub, "drawn")) {
+		s_init(&k);
+		s_num(&k, (long)cn_drawn);
+		hibr_ret(s, k.p);
+		if (!s->bind)
+			printf("%s\n", k.p);
+		s_free(&k);
+		return HIBR_OK;
+	}
 	if (!strcmp(sub, "consumed")) {
 		s_init(&k);
 		s_num(&k, (long)cn_eaten);
@@ -757,7 +788,8 @@ int m_console(sh *s, int ac, char **av)
 static const dp_api console_api = {
 	cn_open, cn_close, cn_isopen, cn_size, cn_resized, cn_pen,
 	cn_clear, cn_put, cn_fill, cn_cursor, cn_flush, cn_key,
-	cn_colour, cn_attr, cn_mouseon, cn_prect, cn_link, cn_image, cn_cellpx
+	cn_colour, cn_attr, cn_mouseon, cn_prect, cn_link, cn_image, cn_cellpx,
+	cn_imgkeep
 };
 
 /* Offer the drawing table to whatever else wants to draw. */

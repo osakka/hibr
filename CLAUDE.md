@@ -2451,6 +2451,90 @@ went in the shell.
   its own keys and mouse bump. An app that answers "clean" wrongly shows a
   stale window, which is worse than a slow one -- hence the opt-in, and
   hence the oracle below.
+- **A function with a `return` per shape must do the common work before the
+  first of them.** `dt_win` casts a window's shadow, and it did so in two of
+  its four shapes: the path for a window it leaves alone, and the path for an
+  ordinary window. The two that `return` in between -- a **bare** window,
+  which is a sticky note, and a `chrome = none` one, which is a mini player --
+  never reached the line. So a bare window had a shadow on every frame it was
+  *skipped* and none on every frame it was *drawn*, and a sticky note was the
+  only thing anybody saw do it, being the only bare window with a `_dirty` of
+  its own: move any window and every sticky is dirty and loses its shadow, let
+  the screen settle and they are skipped again and it comes back. Reported as
+  "the stickies shadow blink when I move any window, only them", and as
+  shadows differing from one workspace to the next, which is the same thing in
+  a snapshot. Before the skipping of 0.99.83 a bare window simply never had a
+  shadow, consistently, and nobody reported that at all -- which is the shape
+  of this class: **an optimisation does not have to be wrong to be blamed; it
+  only has to make an existing wrongness intermittent.** Gitea #116.
+- **An oracle must be driven with the kinds of window a fault needs, not only
+  the arrangement.** Three oracles reported zero differing cells while that
+  shadow bug was live and being reported, because every one of them used
+  *ordinary* windows, which reach `dt_shadow` whichever path they take. What
+  found it was a desktop run with **the owner's own settings file, their own
+  wallpaper, their window geometry and their screen size**, comparing every
+  step of a drag against the same drag with the skipping off: 101 differing
+  *pens* and no glyphs, pens because a shadow is a colour. Then an
+  instrumented `dt_shadow` -- redefined in the session file to log its
+  arguments, which replaces the real one -- showed it called nineteen times in
+  one run and ten in the other, never once for either sticky in the second.
+  Copying a live configuration into a scratch `XDG_CONFIG_HOME` costs nothing
+  and is the difference between testing the product and testing the defaults:
+  the owner's `DT_WALLMODE=zoom` also turned out to mean their wallpaper had
+  never been pixels (Gitea #117), so two measurements taken on `stretch` did
+  not describe their desktop at all.
+- **A cell may be left undrawn only if the thing that owns it is the only
+  thing that ever writes it, and three things broke that.** This is the
+  invariant behind every saving in 0.99.83 onward, and each way of breaking
+  it was reported by a person rather than caught by a suite. (1) Anything
+  drawn over the *finished* frame at absolute coordinates -- a note, an open
+  menu, a dialog, a drag's ghost, the standby dim, the screenshot chooser --
+  stops being drawn and nothing repaints what it covered: a note's whole box
+  survived its own expiry until the next key, 74 glyphs and 78 pens (Gitea
+  #114). (2) A picture placed under the text is kept by the console only
+  while its caller places it again, so the frame that paints nothing is the
+  frame the wallpaper is deleted from the terminal -- it came back on the
+  next ungated frame, which is what "shadows blinking while I move a window"
+  and "tearing" actually were (Gitea #112). (3) `console clear` from outside
+  the frame loop, which `dt_saverstop` does, blanks every cell where the next
+  frame would put back only what happened to be dirty. The fixes are, in
+  order: the console counts writes made at absolute coordinates (`console
+  drawn`) and `dt_draw` reads it either side of the one part of a frame where
+  only such things draw, so the frame after any of them is a full one and a
+  ninth overlay added later cannot forget to say so; `dt_wallkeep` places the
+  picture on a gated frame too; and `dt_saverstop` sets `DT_FORCEONCE`
+  itself. Prefer a count the console takes to a flag each caller sets:
+  the list of overlays is the thing nobody can be relied on to maintain.
+- **An oracle that never makes the gate fire is testing the old code path.**
+  Every oracle written for the skipping -- the settled one, the per-step drag
+  one, and two written while chasing this very bug -- ran with **overlapping
+  windows and a glyph wallpaper**, which are exactly the two conditions under
+  which nothing is ever gated: `dt_alone` finds an overlap, so `DT_NOOVERLAP`
+  is empty and the wallpaper paints every frame, and with no picture there is
+  nothing for the console to drop. Both of those oracles reported zero
+  differing cells while the bug was live and reported by a person. An oracle
+  for a saving has to be driven in the arrangement where the saving actually
+  happens: windows that overlap nothing, a picture wallpaper in pixels
+  (`Term(cellw=8, cellh=16)` and `HIBR_GFX=kitty`), real apps with a
+  `_dirty`, and pauses long enough for the gate's own one-second ceiling to
+  fall between two steps. Mask the bar's clock or pin `DT_BARTIME` while
+  comparing, or the one cell that legitimately differs is the minute.
+- **The display hashes every pixel of a picture to recognise it, so a caller
+  that knows the answer must say so.** `cn_image` ends with `cn_hash` over
+  `iw * ih * 3` -- 6.33 MB for a screenful at 232x71 with an 8x16 cell, which
+  byte at a time under tcc is **19.6 ms**, scaling with the area (4.7 ms at a
+  quarter, 1.7 at a sixteenth). The wallpaper places its picture on every
+  frame that paints, so that was being paid per frame: a whole frame with two
+  overlapping windows and a 3840x2160 photograph in pixels measured 23.8 ms,
+  of which `dt_wall` was 24.6 -- eleven times the frame time, for hashing a
+  photograph that had not changed. `dp_api` version 6's `imgkeep` is the
+  answer for that caller: img keeps a record of what it last placed under the
+  text (path, pixel size, rectangle -- the pixel cache's own mtime check is
+  what makes a changed file a miss) and asks the display to keep what it has,
+  and a keep that finds nothing falls through to a real placement, so losing
+  the picture any other way still heals itself. A frame is 2.2 ms now. A film
+  and the browser still pay the hash, where every frame is a different
+  picture -- Gitea #113.
 - **A desktop running an old image has to say so for as long as it is: a
   notification is an announcement, and what is needed is a state.**
   `dt_updcheck` noticed a new hibr on disk, sent one `dt_notify` -- which

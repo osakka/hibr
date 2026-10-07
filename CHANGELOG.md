@@ -1,5 +1,95 @@
 # Changelog
 
+## 0.99.87
+
+**A bare window never cast its shadow on a frame that drew it, so a sticky
+note's blinked** (Gitea #116). This is the one that was reported, twice:
+"stickies shadow on both in workspace one, on one of them in workspace 2 on
+the other in workspace 3", then "the stickies shadow blink when I move any
+window, only them?". `dt_win` has four shapes and the shadow was cast in the
+wrong ones: the path for a window it leaves alone cast it, the path for an
+ordinary window cast it, and the two that `return` in between -- a **bare**
+window, which is a sticky note, and a `chrome = none` one, which is a mini
+player -- did not. So a sticky had a shadow on every frame it was skipped and
+none on every frame it was drawn, and it was the only thing anybody saw do it
+because it is the only bare window with a `_dirty` of its own: move any window
+and every sticky is dirty, so every sticky loses its shadow; let the screen
+settle and they are skipped again, so it comes back. Before 0.99.83 nothing
+was ever skipped and a bare window simply never had a shadow -- consistently,
+which nobody reported. `dt_shadow` moves above the shape branches; it is
+idempotent since 0.99.85, so casting it for every shape on every frame cannot
+darken anything twice.
+
+It was found by running a desktop with **the owner's own settings file, their
+own wallpaper, their window geometry and their screen size**, and comparing
+every step of a drag against the same drag with the skipping off: the sticky's
+shadow strip came back as 101 differing *pens* and no glyphs, and an
+instrumented `dt_shadow` then showed it called nineteen times in one run and
+ten in the other, never once for either sticky in the second. Three oracles
+written before that reported zero differences, because every one of them used
+ordinary windows, which reach `dt_shadow` whichever path they take. An oracle
+has to be driven with the **kinds** of window a fault needs, not only the
+arrangement -- `tests/desktop.py` opens a bare window of its own now, compares
+the frame that drew it against the frame that left it alone, and asserts the
+shadow is really there rather than merely agreed about. With this fix reverted
+it reports 38 differing pens.
+
+**An overlay that goes left its cells on the screen** (Gitea #114). Reported as
+"if something overwrites them like the notification panel, they are not redrawn
+instantly unless I click on them". A note, an open menu, a dialog, a drag's
+ghost, the standby dim and the screenshot chooser are all drawn at absolute
+coordinates on top of the finished frame, none of them owns a pane, and nothing
+repaints what they covered once they stop being drawn -- which did not matter
+until a window nothing changed began to be left alone and the wallpaper to
+paint nothing. A note's whole box survived its own expiry, 74 glyphs and 78
+pens, until the next key. The frame after any frame that drew over the screen
+is a full one now: rather than have each of the eight declare itself, the
+console counts writes made at absolute coordinates (`console drawn`, the
+sibling of `console consumed`) and `dt_draw` reads it either side of the one
+part of a frame where only such things draw, so an overlay added there later
+cannot forget. Two costs of counting rather than declaring, both named in the
+code: every frame is full while an overlay is *up*, not only the one after it
+goes -- which for a blanked display, whose state lasts, means no cheap frame at
+all -- and the count is of this builtin's own calls, so an overlay built out of
+a module's drawing would have to say so itself. `dt_saverstop` and
+`dt_saverstart` set the same flag directly, since they clear every cell from
+outside a frame.
+
+**And a wallpaper of real pixels was taken off the screen by the first frame
+that painted nothing** (Gitea #112). A picture drawn under the text owns no
+cells, so what keeps it is its caller placing it again: the frame that stops
+placing it is the frame the console deletes it from the terminal, and the
+gate's own one-second ceiling made it blink rather than simply vanish. A gated
+frame says the picture is still wanted now, through `dp_api` version 6's
+`imgkeep` and a new `img keep` -- never `img draw`, because draw falls back to
+half-block **cells** whenever pixels cannot be placed, and those are cells
+written at absolute coordinates outside `console behind on`, which on a frame
+that meant to paint nothing would land on top of every window and stay there.
+`img keep` draws nothing whatever happens and fails when there was nothing to
+keep. The img module recognises its own last placement by path, pixel size,
+rectangle and mtime, so it needs neither the scaled copy nor the display's
+hash of every pixel -- 6.33 MB and 19.6 ms for a screenful, which was being
+paid on every frame that painted a picture wallpaper: a frame at 232x71 with
+two overlapping windows and a 3840x2160 photograph went **23.8 ms to 2.2**.
+
+Found while measuring that: **a zoom or center wallpaper has never been pixels
+at all** (Gitea #117). Both fit a rectangle that is deliberately larger than
+the screen, the display refuses one that is not wholly on it, and `img draw`
+quietly draws half blocks instead -- so `DT_IMGMODE` has never done anything
+for either mode, and `dt_wallfit`'s own comment says the opposite. Not fixed
+here; it needs the console to scale a bitmap to the visible part of a
+rectangle, which is what those modes mean.
+
+Also from a reading of the diff rather than a test: Gitea #118, two more
+instances of the same invariant -- a second `console flush` in one frame drops
+the under-text picture, and `dt_saverstart` repeats its clear for as long as
+the desktop is idle with no saver installed.
+
+The per-step drag oracle compared two sessions and the clock in the bar, so it
+failed a release gate on `12:38` meeting `12:39`: one glyph, no pen, in every
+step at once. Those sessions run eight seconds apart, so one of them crosses a
+minute. Its bar format is pinned to a constant now.
+
 ## 0.99.86
 
 **A desktop running an old image says so, for as long as it is.** This is the

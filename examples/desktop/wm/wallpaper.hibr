@@ -166,6 +166,29 @@ fn dt_wallsig() {
 	ret "$s"
 }
 
+# A picture drawn under the text is kept only while its caller places it again,
+# so the frame that stops placing it is the frame it goes -- and a wallpaper
+# that is only being left alone would vanish and come back a second later,
+# taking every shadow cast on the cells it covers with it (Gitea #112). So a
+# frame that paints nothing still says the picture is wanted.
+#
+# `img keep`, never `img draw`: draw falls back to half blocks whenever pixels
+# cannot be placed -- which is every `center` and `zoom` wallpaper, since the
+# rectangle those fit lies partly off the screen and the display refuses it
+# (Gitea #117) -- and those blocks are cells written at absolute coordinates,
+# which on this path, outside `console behind on`, would land on top of every
+# window and stay there until something else made them dirty. keep draws
+# nothing whatever happens, and fails when there was nothing to keep.
+fn dt_wallkeep() {
+	[ -n "$DT_WALLIMG" ] || return 0
+	dt_has img || return 0
+	dt_imgwill || return 0
+	dt_imgm
+	img keep "$DT_WALLIMG" "$DT_WALLR" "$DT_WALLC" "$DT_WALLH" \
+		"$DT_WALLW" "${DT_IMGARG[@]}" || return 0
+	return 0
+}
+
 # Paint the wallpaper.  The bar is drawn afterwards, over the windows, so a
 # drop-down menu covers them.
 dt_wall() {
@@ -189,6 +212,7 @@ dt_wall() {
 	if [ "$sig" = "$DT_WALLFOR" ] && [ "$DT_FORCEDRAW" != 1 ] &&
 	   [ -n "$DT_NOOVERLAP" ] &&
 	   [ -z "$DT_FORCEONCE" ] && [ $((ms - DT_WALLMS)) -lt 1000 ]; then
+		dt_wallkeep
 		return 0
 	fi
 	DT_WALLFOR=$sig
