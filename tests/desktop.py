@@ -1132,6 +1132,42 @@ check("but the apps that belong there still do",
       sc.find("Files") is not None and sc.find("Task Manager") is not None,
       sc)
 
+# A dropdown is a rectangle, which is a thing only the pens can say: a dimmed
+# row changes the foreground and keeps the background, so the glyphs of a row
+# that was padded a column short look exactly like one that was not. Measured
+# on each row's run of menu-background cells -- every row must end at the same
+# column. dt_dim passes an empty key and the no-underline branch interpolated
+# it into a three-column field as " $k ", which is two columns when the key is
+# empty, so every dimmed item in every menu was a column short (Gitea #128).
+MBG = re.compile(r"48;2;\d+;\d+;\d+")
+
+
+def menuedges(sc, anchor):
+    """The rightmost menu-background cell of each row of the open menu."""
+    def bg(p):
+        m = MBG.search(p or "")
+        return m.group(0) if m else ""
+    a = None
+    for r in range(1, ROWS):
+        if anchor in sc.row(r):
+            a = r
+            break
+    if a is None:
+        return []
+    face = bg(sc.p[a][sc.row(a).index(anchor)])
+    out = []
+    for r in range(1, ROWS):
+        cells = [c for c in range(COLS) if bg(sc.p[r][c]) == face]
+        if len(cells) >= 6:
+            out.append((r, max(cells)))
+    return out
+
+
+sc, _ = run('dt_new "Win" 8 30 6 10', feed=[b"\x1b[21~"] + [b"\x1b[C"] * 3)
+EDGES = menuedges(sc, "Resize")
+check("an open menu is a rectangle: every row ends at the same column",
+      len(EDGES) > 6 and len({e for _, e in EDGES}) == 1, EDGES)
+
 sc, _ = run(MENUS, [b"\x1b[21~", b"\x1b[C"])
 check("right walks to the next menu along",
       sc.find("Bump") is not None and sc.find("Screen Saver") is None, sc)
@@ -4273,4 +4309,4 @@ check("so is a center wallpaper wider than the screen",
       len(put) == 1 and not gone, "%d placed, %d deleted" % (len(put), len(gone)))
 shutil.rmtree(WPD, True)
 
-report(553)
+report(554)

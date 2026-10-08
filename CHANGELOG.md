@@ -1,5 +1,52 @@
 # Changelog
 
+## 0.99.99
+
+**A dropdown is a rectangle again: every dimmed row was a column short**
+(Gitea #128). Reported from a live session as "drop downs that are not
+rectangles, they have rows shorter than others? like window/edit for
+terminal and many many more". Measured on the Window menu with a window
+focused, each row's run of menu-background cells:
+
+| row | before | now |
+|---|---|---|
+| `Tile Workspace` | cols 10..41 | 10..41 |
+| `Make Main` (the one dimmed item) | cols 10..**40** | 10..**41** |
+| `Cycle` | cols 16..41 | 16..41 |
+
+`dt_menu_draw`'s no-underline branch painted the label to `w - 3` and then
+the key field as the literal `" $k "` — **three columns only when `$k` is
+exactly one character.** `dt_dim` is `dt_row "" 1 "$label" "" :`, so its key
+is **empty** and the field was two columns; a `dt_mark` with no key (the
+Stickies Color submenu) is the same; and a key of *two* characters — a
+workspace number past 9 on Move to Workspace — went a column the other way,
+over the edge. The field is padded into its three columns now rather than
+interpolated, so an empty, a one- and a two-character key all come out the
+same width. `str pad` counts display columns, which is what the field is
+measured in.
+
+**"Many many more" is one function.** Everything shaped like a dropdown goes
+through `dt_menu_draw` — every bar menu, every submenu, every context menu
+(`dt_ctxbuild` appends `MB[]` entries it draws), and every Control Panel and
+Control Strip dropdown, since `dt_droplist` reaches it through
+`dt_context_open widget`. The app menu (`dt_drop_apps`) pads every row to the
+full width and was already right; so was the mirrored right-to-left branch.
+
+**A second fault found beside it.** `dt_mpick` clamped the hit rectangle's
+width to a minimum of **12** where the drawing clamps to **14**, and
+recomputed it from `MB[..]["w"]` instead of reading the `dw` the draw
+recorded — so a menu narrower than 14 was drawn two columns wider than it
+answered a click in. It reads `dw` now, with the drawing's own minimum.
+
+Both are paint and hit-testing only: `dt_mpick` sizes from the box rather
+than from what a row painted, so a click in the last column of a dimmed row
+always did reach the item.
+
+The check measures the **pens**, not the glyphs, because a dimmed row changes
+only the foreground — the glyphs of a row padded a column short look exactly
+like one that was not. It asserts every row of an open menu ends at the same
+column, and it fails against 0.99.98.
+
 ## 0.99.98
 
 **A held desktop reattached on a smaller screen is now tested, which it never

@@ -849,9 +849,21 @@ fn dt_menu_draw(int m, int? px, int parent) {
 			# the word ("x" for "End Task"), or dt_akey's own digit
 			# fallback when a menu ran out of free letters. Shown after
 			# the label, as every item's always been.
+			# The key field is the last three columns, always --
+			# padded, not interpolated. " $k " is three columns
+			# only when $k is exactly one character: dt_dim passes
+			# an empty key and so does a dt_mark with none (the
+			# Stickies Color submenu), and those rows came out a
+			# column short, so the menu was not a rectangle
+			# (Gitea #128). A two-character key -- a workspace
+			# number past 9 on Move to Workspace -- went a column
+			# the other way, over the edge. str pad counts display
+			# columns, which is what the field is measured in.
 			lb := str pad "$t $lb" $((w - 3))
 			console put "$r" "$x" "$lb"
-			console put "$r" $((x + w - 3)) " $k "
+			local kf
+			kf := str pad " $k" 3
+			console put "$r" $((x + w - 3)) "$kf"
 		fi
 		r=$((r + 1))
 		i=$((i + 1))
@@ -1037,8 +1049,12 @@ fn dt_mpick(int r, int c) {
 		dy=1
 	else
 		x=${MB[$MB_OPEN]["dx"]:-${MB[$MB_OPEN]["x"]}}
-		w=${MB[$MB_OPEN]["w"]}
-		[ "$w" -lt 12 ] && w=12
+		# The width it was *drawn* at, and the same minimum as the
+		# drawing when it has not been: this clamped to 12 where
+		# dt_menu_draw clamps to 14, so the last two columns of a
+		# narrow menu were drawn and did not answer a click.
+		w=${MB[$MB_OPEN]["dw"]:-${MB[$MB_OPEN]["w"]}}
+		[ "$w" -lt 14 ] && w=14
 		dy=${MB[$MB_OPEN]["dy"]:-1}
 	fi
 	rel=$((r - dy + 1))
