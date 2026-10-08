@@ -2181,8 +2181,17 @@ went in the shell.
   with a background colour paints over a picture the terminal composites
   below the glyphs -- the wallpaper-glyph fill that used to stand in for a
   picture would have hidden it; and the cost is the protocol's, not a
-  choice (kitty: one placement, 860 kB, nothing again when a window is
-  dragged over it; sixel: 24 kB, and 24 kB again on every drag frame).
+  choice (kitty: one placement, nothing again when a window is dragged over
+  it; sixel: 24 kB, and 24 kB again on every drag frame). **That placement
+  is bigger than this used to say.** It was written as "860 kB", which is
+  about a 58x29-cell screen: the encoder sends `a=T,f=24` -- three bytes a
+  pixel, uncompressed -- so it is `cols*cellw * rows*cellh * 3 * 4/3` bytes,
+  and at 232x71 with an 8x16 cell that is **8.3 MB** (measured: 8,477,585).
+  Free on a local terminal and 13.6 s at 5 Mbit/s, which is what "a
+  `desktop -r` takes 10 to 15 seconds and then the desktop appears" turned
+  out to be, since hold re-emits every picture to each new client
+  (Gitea #129). Anything reasoning about what a picture costs should use the
+  area, not that number.
 - **A bitmap is not cells, so the console owns it.** A picture placed with
   `dp->image` becomes a region: the console encodes it once, skips the cells
   it covers in the diff, keeps it until the cells underneath stop matching
