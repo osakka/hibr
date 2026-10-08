@@ -17,6 +17,17 @@ back.
 `$HIBR_RC` names a different file, which is how the test harness starts a shell
 with a prompt of its own.
 
+A **login shell** — `hibr -l`, `hibr --login`, or one whose `argv[0]` begins
+with a dash, which is how `login`, `getty` and `sshd` invoke it — reads
+`/etc/profile` first, then the first that exists of `~/.hibr_profile`,
+`~/.hibr_login` and `~/.profile`, and `~/.hibr_logout` on the way out. It reads
+those whether or not it is interactive, so `--login` works in a script; and an
+interactive login shell reads `~/.hibrc` **as well**, after the profile, so an
+alias written there works at a console and over ssh without `~/.profile` having
+to source it by hand ([0039](adr/0039-an-interactive-login-shell-reads-both.md)).
+`$HIBR_PROFILE` names a different system profile, the way `$HIBR_RC` names a
+different rc file.
+
 <!-- not run: a ~/.hibrc, read when an interactive shell starts -->
 ```sh
 mod load sys

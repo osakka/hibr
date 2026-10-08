@@ -528,7 +528,7 @@ int main(int ac, char **av)
 	sh s;
 	char *src = 0, *text;
 	FILE *f;
-	int i = 1, rc, explain = 0, plan = 0;
+	int i = 1, rc, explain = 0, plan = 0, login = 0;
 	char *p;
 
 	memset(&s, 0, sizeof s);
@@ -570,6 +570,11 @@ int main(int ac, char **av)
 	p = getenv("HIBR_DEBUG");
 	if (p)
 		hibr_lv = atoi(p);
+	/* A leading dash in argv[0] is how login, getty and sshd say "this
+	   is a login shell" -- the only signal they give -- so it counts the
+	   same as the flag. */
+	if (av[0] && av[0][0] == '-')
+		login = 1;
 	for (; i < ac; i++) {
 		if (!strcmp(av[i], "-c") && i + 1 < ac) {
 			src = xs(av[++i]);
@@ -589,6 +594,10 @@ int main(int ac, char **av)
 			s.noexec = 1;
 			continue;
 		}
+		if (!strcmp(av[i], "-l") || !strcmp(av[i], "--login")) {
+			login = 1;
+			continue;
+		}
 		if (!strcmp(av[i], "--agent")) {
 			sh_optset(&s, "agent", 1);
 			continue;
@@ -606,8 +615,8 @@ int main(int ac, char **av)
 			continue;
 		}
 		if (!strcmp(av[i], "-h") || !strcmp(av[i], "--help")) {
-			printf("usage: hibr [-d level] [-n] [--agent] [--checkfirst] [--explain]\n"
-			       "            [--plan] [script [args...]]\n"
+			printf("usage: hibr [-d level] [-l] [-n] [--agent] [--checkfirst]\n"
+			       "            [--explain] [--plan] [script [args...]]\n"
 			       "       hibr -c 'commands' [args...]\n"
 			       "       hibr -v | -h\n\n"
 			       "  -c   run the given commands\n"
@@ -625,6 +634,10 @@ int main(int ac, char **av)
 			       "       read, and list each one; --explain reads the text,\n"
 			       "       --plan follows what it would do (given both,\n"
 			       "       --explain wins)\n"
+			       "  -l   a login shell: read /etc/profile, then the first\n"
+			       "       of ~/.hibr_profile, ~/.hibr_login, ~/.profile,\n"
+			       "       and ~/.hibr_logout on the way out (also when\n"
+			       "       argv[0] begins with a dash, as login invokes it)\n"
 			       "  -d   log level 0-4 (error, warn, info, debug, trace)\n"
 			       "  -v   print version and module ABI\n\n"
 			       "Interactive when stdin is a terminal: reads ~/.hibrc,\n"
@@ -637,6 +650,12 @@ int main(int ac, char **av)
 	}
 	if (plan && !explain)
 		pl_init(&s);
+	/* The profile files come before anything this shell was asked to do,
+	   and before the title it may be asked to wear: they are the
+	   machine's own setup, which a script or a command may rely on.
+	   Skipped for -n and --explain, which run nothing by contract. */
+	if (login && !s.noexec && !explain)
+		rc_login(&s);
 	if (src) {
 		if (i < ac) {
 			free(s.arg0);
@@ -649,6 +668,8 @@ int main(int ac, char **av)
 		rc = explain ? sh_explain(&s, src) :
 		     (s.sopt & O_CHECK) && sh_check(&s, src) ? 2 : hibr_run(&s, src);
 		free(src);
+		if (login)
+			rc_logout(&s);
 		sh_fini(&s);
 		return rc;
 	}
@@ -670,6 +691,8 @@ int main(int ac, char **av)
 		rc = explain ? sh_explain(&s, text) :
 		     (s.sopt & O_CHECK) && sh_check(&s, text) ? 2 : hibr_run(&s, text);
 		free(text);
+		if (login)
+			rc_logout(&s);
 		sh_fini(&s);
 		return rc;
 	}
@@ -697,6 +720,8 @@ int main(int ac, char **av)
 	} else {
 		rc = stream(&s, 0);
 	}
+	if (login)
+		rc_logout(&s);
 	sh_fini(&s);
 	return rc;
 }

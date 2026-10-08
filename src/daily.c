@@ -473,13 +473,86 @@ char *pr_hook(sh *s)
 	return r;
 }
 
-/* Read the startup file when the shell is interactive. */
+/* Source one startup file if there is one to read, saying either way.
+   Debug-only, which is exactly why "does hibr even load .hibrc" turned into
+   several rounds of the wrong theory (a Homebrew post_install writing it, a
+   login-shell quirk) rather than one look under -d 2: this is the one place
+   that knows the real path checked and whether it found anything there at
+   all. Still below HIBR_LWRN's own default level, so a user who has simply
+   never wanted a startup file is not nagged about it every login. */
+int rc_one(sh *s, const char *path)
+{
+	char *args[2];
+
+	if (access(path, R_OK) != 0) {
+		lg(HIBR_LINF, "no startup file at %s", path);
+		return 0;
+	}
+	args[0] = "source";
+	args[1] = (char *)path;
+	lg(HIBR_LINF, "reading %s", path);
+	b_src(s, 2, args);
+	return 1;
+}
+
+/* What a login shell reads: the system profile every shell on the machine
+   gets, and then the first personal one of hibr's own two names and the
+   POSIX ~/.profile. A login shell reads these whether or not it is
+   interactive, as bash does with --login, which is what makes the flag
+   usable from a script. hibr's own names come first so that login setup
+   meant for this shell has a file of its own, rather than a block guarded
+   inside a ~/.profile that bash and dash also read. */
+void rc_login(sh *s)
+{
+	static const char *nm[3] = { "/.hibr_profile", "/.hibr_login",
+				     "/.profile" };
+	const char *home = hibr_get(s, "HOME");
+	const char *sys = hibr_get(s, "HIBR_PROFILE");
+	str b;
+	int i;
+
+	rc_one(s, sys && *sys ? sys : "/etc/profile");
+	if (!home || !*home)
+		return;
+	s_init(&b);
+	for (i = 0; i < 3; i++) {
+		b.n = 0;
+		s_cat(&b, home);
+		s_cat(&b, nm[i]);
+		if (rc_one(s, b.p))
+			break;
+	}
+	s_free(&b);
+}
+
+/* And what it reads on the way out. Called from main rather than from
+   sh_fini, which frees the shell: running script code out of a finaliser is
+   how a use-after-free gets written. */
+void rc_logout(sh *s)
+{
+	const char *home = hibr_get(s, "HOME");
+	str b;
+
+	if (!home || !*home)
+		return;
+	s_init(&b);
+	s_cat(&b, home);
+	s_cat(&b, "/.hibr_logout");
+	rc_one(s, b.p);
+	s_free(&b);
+}
+
+/* Read the startup file when the shell is interactive. An interactive login
+   shell reads this *as well as* the profile above, which is where hibr
+   parts company with bash: bash reads only the profile for a login shell,
+   so a distribution's ~/.bash_profile has to remember to source ~/.bashrc
+   and an alias that works in one terminal silently does not in another.
+   zsh reads both too (ADR 0039). */
 void rc_load(sh *s)
 {
 	const char *p = hibr_get(s, "HIBR_RC");
 	const char *home;
 	str b;
-	char *args[2];
 
 	s_init(&b);
 	if (p && *p) {
@@ -491,23 +564,7 @@ void rc_load(sh *s)
 		s_cat(&b, home);
 		s_cat(&b, "/.hibrc");
 	}
-	if (access(b.p, R_OK) != 0) {
-		/* Debug-only until now, which is exactly why "does hibr even
-		   load .hibrc" turned into several rounds of the wrong
-		   theory (a Homebrew post_install writing it, a login-shell
-		   quirk) rather than one look at this line under -d 2: this
-		   is the one place that knows the real path checked and
-		   whether it found anything there at all. Still below
-		   HIBR_LWRN's own default level, so a user who has simply
-		   never wanted a .hibrc is not nagged about it every login. */
-		lg(HIBR_LINF, "no startup file at %s", b.p);
-		s_free(&b);
-		return;
-	}
-	args[0] = "source";
-	args[1] = b.p;
-	lg(HIBR_LINF, "reading %s", b.p);
-	b_src(s, 2, args);
+	rc_one(s, b.p);
 	s_free(&b);
 }
 

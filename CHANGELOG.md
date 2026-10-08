@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.99.111
+
+**A login shell: `-l`, `/etc/profile`, and the profile files round it**
+(Gitea #141). hibr read **nothing** at login until now -- `~/.hibrc` when
+stdin was a terminal, and that was all -- so a hibr set as someone's login
+shell, which `deploy.sh` offers to arrange and `/etc/shells` makes
+possible, missed the `PATH` a distribution puts in `/etc/profile`, its
+`umask`, everything in `/etc/profile.d/*.sh`, and every setting an
+administrator has made for every shell on the machine.
+
+`hibr -l` or `hibr --login`, **or** a shell whose `argv[0]` begins with a
+dash -- which is the only signal `login`, `getty` and `sshd` give -- now
+reads `/etc/profile`, then the first that exists of `~/.hibr_profile`,
+`~/.hibr_login` and `~/.profile`, and `~/.hibr_logout` on the way out.
+Those are read whether or not the shell is interactive, as bash does with
+`--login`, which is what makes the flag usable from a script. hibr's own
+two names come first so that login setup meant for this shell has a file
+of its own rather than a block guarded inside a `~/.profile` that bash and
+dash also read.
+
+**Where this parts company with bash, on purpose** (ADR 0039): an
+interactive login shell reads `~/.hibrc` **as well**, after the profile.
+bash reads only the profile, which is why an alias written in `~/.bashrc`
+works in a terminal window and silently does not after `ssh host` until
+somebody learns that `~/.bash_profile` has to source it by hand. zsh reads
+both; so does hibr. The reason is the owner's own: *"I prefer this rather
+than forcing people to learn stuff that's useless."*
+
+The desktop's own login screen already execs the person's shell as
+`-hibr`, so this is the release that makes that mean something.
+`HIBR_PROFILE` names a different system profile, the way `HIBR_RC` already
+names a different rc file -- for tests, which would otherwise read whatever
+`/etc/profile` the machine running them has, and for a packager or a
+container that keeps one elsewhere. `-n` and `--explain` read none of it,
+having promised to run nothing.
+
 ## 0.99.110
 
 **Every process a desktop runs can be told apart in `ps`** (Gitea #111).

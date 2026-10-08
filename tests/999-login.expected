@@ -1,0 +1,29 @@
+0
+--- nothing at all without the flag
+the command
+--- -l with only ~/.profile
+system profile
+.profile
+the command
+--- ~/.hibr_login wins over ~/.profile
+system profile
+.hibr_login
+the command
+--- and ~/.hibr_profile wins over both
+system profile
+.hibr_profile
+the command
+--- the logout file runs last
+system profile
+.hibr_profile
+the command
+logout
+--- a script, not just -c
+system profile
+.hibr_profile
+the script
+logout
+--- what the profile sets reaches the command
+system profile
+PROF=[set]
+--- and -n reads none of it, having promised to run nothing

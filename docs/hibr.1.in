@@ -5,6 +5,7 @@ hibr \- a small, fast shell that runs the bash you already write
 .B hibr
 .RB [ \-d
 .IR level ]
+.RB [ \-l ]
 .RB [ \-n ]
 .RB [ \-\-agent ]
 .RB [ \-\-checkfirst ]
@@ -66,6 +67,30 @@ Run
 and exit. The first argument after them, if any, becomes
 .BR $0 ,
 and the rest the positional parameters, as in bash.
+.TP
+.BR \-l ", " \-\-login
+A login shell: read
+.I /etc/profile
+first, then the first that exists of
+.IR ~/.hibr_profile ,
+.I ~/.hibr_login
+and
+.IR ~/.profile ,
+and
+.I ~/.hibr_logout
+on the way out. Those are read whether or not the shell is interactive, so
+.B \-\-login
+works in a script; an interactive login shell reads
+.I ~/.hibrc
+as well, after the profile, which is where hibr parts company with bash
+(decision record 0039). A shell whose
+.B argv[0]
+begins with a dash is a login shell too, which is how
+.BR login (1),
+.BR getty (8)
+and
+.BR sshd (8)
+invoke one.
 .TP
 .B \-n
 Parse only: report the first syntax error, run nothing.
@@ -137,6 +162,17 @@ only from the installed directory.
 The startup file an interactive shell reads, in place of
 .IR ~/.hibrc .
 .TP
+.B HIBR_PROFILE
+The system profile a login shell reads, in place of
+.IR /etc/profile .
+.TP
+.B HIBR_PROCTITLE
+A name to wear in
+.BR ps ,
+worn at startup and removed from the environment as it is used, so it does
+not reach anything this shell goes on to run. The desktop names each
+terminal window's own shell this way.
+.TP
 .B HIBR_HISTFILE
 Where an interactive shell keeps its history, in place of
 .IR ~/.hibr_history .
@@ -172,7 +208,17 @@ Set by the shell to its version.
 .SH FILES
 .TP
 .I ~/.hibrc
-Read by an interactive shell when it starts.
+Read by an interactive shell when it starts, including an interactive login
+shell, after its profile.
+.TP
+.I /etc/profile
+Read by a login shell before anything personal.
+.TP
+.IR ~/.hibr_profile ", " ~/.hibr_login ", " ~/.profile
+A login shell reads the first of these that exists.
+.TP
+.I ~/.hibr_logout
+Read by a login shell on its way out.
 .TP
 .I ~/.hibr_history
 The interactive history.
