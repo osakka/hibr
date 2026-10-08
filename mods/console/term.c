@@ -45,6 +45,12 @@ static const char cn_mmotion[] = "\033[?1003h\033[?1006h";
    report a column past 223. */
 int cn_mousemode;
 
+/* Whether a picture under the text -- the wallpaper -- is sent at half the
+   pixels in each direction for the terminal to scale back up. On by default:
+   it is four times fewer bytes to every client that attaches, and nobody
+   looks at a background. `console imgdetail full` turns it off. */
+int cn_imghalf = 1;
+
 void cn_wr(int fd, const char *p, size_t n);
 
 /* Ask the terminal for mouse reports, or stop asking. */

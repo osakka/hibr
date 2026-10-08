@@ -1,5 +1,59 @@
 # Changelog
 
+## 0.99.101
+
+**The wallpaper is sent at half the pixels, which takes a reattach over ssh
+from thirteen seconds to three** (Gitea #129, the first half). Reported as "I
+just did a `desktop -r`, it takes a long time to re-attach, so nothing ...
+10/15 seconds-ish, then the desktop appears" — over ssh.
+
+A picture under the text is the wallpaper, `hold` re-emits every picture to
+each client that attaches, and the kitty encoder sends `a=T,f=24` — three
+bytes a pixel, uncompressed. At 232x71 with an 8x16 cell that is 1856x1136x3
+raw, **8.04 MB of base64 on every attach**. Measured on the owner's own
+wallpaper:
+
+| | on the wire | at 5 Mbit/s |
+|---|---|---|
+| before | 8,477,585 bytes | **13.6 s** |
+| now | 2,132,263 bytes | **3.4 s** |
+
+**What was not the cause**, each measured rather than reasoned about:
+`hold list`, which `desktop -r` calls first, is 9 ms over five sessions; the
+client never loads the apps at all, because `dt_autohold` exits before that;
+the wallpaper's cold decode is 262 ms as half blocks and 429 ms as pixels;
+and a real `desktop --resume` locally, with the owner's own settings, draws
+the bar in **0.12 s**. The desktop's work was never the problem — the payload
+was.
+
+`cn_image` already halved a picture that is *not* a still, because a film's
+cost is bytes rather than encoding. A still was exempt, and the flag that
+says so, `DP_IMG_CHOSEN`, means "a palette was chosen from this picture" —
+which matters to **sixel** and nothing at all to kitty. So for kitty it was
+being read as "send every pixel". A picture **under the text** is now halved
+too: it is a background that the terminal scales back up, not something being
+looked at. Only for kitty — a sixel paints 1:1, so its rectangle has to be
+exactly the cells it covers.
+
+Nothing else changes: the Image Viewer, a film and the browser all draw
+pictures that own their cells.
+
+**`console imgdetail full|half`**, and **Control Panel > Pictures >
+Wallpaper Detail** (`DT_WALLDETAIL`, half by default) for anyone who would
+rather have the pixels. With no argument the verb answers which is in force.
+
+Two checks in `tests/kitgfx.py`, on the payload's own length rather than on
+anything about how it looks, since that is the whole point: half is
+`48*48*3` base64 where full is `96*96*3`, four times the bytes.
+
+**The other half of #129 is still open.** `o=z` (zlib of the raw pixels) and
+`f=100` (PNG) are what the protocol offers beyond this, and measured on the
+same wallpaper at 1856x1136 they are 1.88 MB and **1.36 MB** against today's
+8.04 — so compression is worth more than the earlier note in that ticket
+guessed (it said 1.5-2x for `o=z`; it is 4.3x). Both need a deflate
+**encoder**: `mods/inflate.c` only expands. Halving and PNG together would be
+about 0.35 MB, a twenty-third of what it was, and 0.6 s on that link.
+
 ## 0.99.100
 
 **A resize that arrives while the screen saver or the lock is up is acted on**

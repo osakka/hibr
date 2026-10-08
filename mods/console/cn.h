@@ -136,6 +136,7 @@ int cn_shot(const char *path, const char *fmt, int r0, int c0, int h, int w);
 extern vec cn_panes;
 extern int cn_quiet;
 extern int cn_mousemode;
+extern int cn_imghalf;
 int cn_behind(int on);
 void cn_owninval(void);
 cn_pane *cn_pfind(const char *nm);

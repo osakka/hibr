@@ -551,6 +551,27 @@ int m_console(sh *s, int ac, char **av)
 		cn_drawn++;
 		return HIBR_OK;
 	}
+	if (!strcmp(sub, "imgdetail")) {
+		const char *m = ac > 2 ? av[2] : "";
+
+		if (!*m) {
+			const char *now = cn_imghalf ? "half" : "full";
+
+			hibr_ret(s, now);
+			if (!s->bind)
+				printf("%s\n", now);
+			return HIBR_OK;
+		}
+		if (!strcmp(m, "half"))
+			cn_imghalf = 1;
+		else if (!strcmp(m, "full"))
+			cn_imghalf = 0;
+		else {
+			lg(HIBR_LERR, "usage: console imgdetail full|half");
+			return 2;
+		}
+		return HIBR_OK;
+	}
 	if (!strcmp(sub, "behind")) {
 		/* While this is on, a write at absolute coordinates skips any
 		   cell a pane covers -- so the wallpaper paints around the

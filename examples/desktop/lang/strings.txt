@@ -776,6 +776,7 @@ View Details
 View History
 Wait for the transfers running to finish first
 Wallpaper
+Wallpaper Detail
 Wallpaper set
 Wed
 Wednesday

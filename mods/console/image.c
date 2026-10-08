@@ -376,10 +376,22 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	   frame of 100 by 34 cells is half a megabyte of base64 at full
 	   resolution -- so a picture that is not a still (no palette chosen
 	   from it, which is what a film asks for) is sent at half the pixels
-	   in each direction and the terminal scales it back up. */
+	   in each direction and the terminal scales it back up.
+
+	   A picture under the text is halved for the same reason and a
+	   stronger one: it is the wallpaper, every byte of it goes to every
+	   client that attaches, and at 232x71 with an 8x16 cell full
+	   resolution is 1856x1136x3 raw -- 8.04 MB of base64, which is free on
+	   a local terminal and thirteen seconds of an ssh session at 5 Mbit/s
+	   (Gitea #129). Halved it is 2.01 MB, and what the terminal scales
+	   back up sits behind text as a background rather than being looked
+	   at. `console imgdetail full` turns that off for anyone who would
+	   rather have the pixels. Only ever for kitty: a sixel paints 1:1, so
+	   its rectangle has to be exactly the cells it covers. */
 	tw = w * cw;
 	th = h * chh;
-	if (im->id && !(flags & DP_IMG_CHOSEN) && tw > 2 && th > 2) {
+	if (im->id && tw > 2 && th > 2 &&
+	    (!(flags & DP_IMG_CHOSEN) || (im->over && cn_imghalf))) {
 		tw /= 2;
 		th /= 2;
 	}

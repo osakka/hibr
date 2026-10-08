@@ -287,5 +287,22 @@ sc = run("img draw %s 0 0 6 12 -m pixels\nconsole flush\n"
 check("a picture differing by a single pixel is a different picture",
       len(places(sc)) == 2, places(sc))
 
+# A picture under the text is the wallpaper, and every byte of it goes to
+# every client that attaches: at 232x71 with an 8x16 cell, full resolution is
+# 8.04 MB of base64, which is free locally and thirteen seconds of an ssh
+# session at 5 Mbit/s (Gitea #129). Half the pixels each way is a quarter of
+# that, scaled back up by the terminal, which is what a background wants.
+# Asserted on the payload's own length, since that is the whole point.
+sc = run("console imgdetail half\n" + PIC % "-m pixels -u"
+         + "console flush\nconsole key 400\n")
+half = sc.images[0][2] if sc.images else 0
+sc = run("console imgdetail full\n" + PIC % "-m pixels -u"
+         + "console flush\nconsole key 400\n")
+full = sc.images[0][2] if sc.images else 0
+check("a picture under the text is sent at half the pixels each way",
+      half == (48 * 48 * 3 + 2) // 3 * 4, half)
+check("and at every pixel when asked for full detail, four times the bytes",
+      full == (96 * 96 * 3 + 2) // 3 * 4 and full == half * 4, (full, half))
+
 shutil.rmtree(D, True)
-report(33)
+report(35)
