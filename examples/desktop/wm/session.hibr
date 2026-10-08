@@ -232,6 +232,25 @@ dt_run() {
 	dt_runatstart
 	while [ "$DT_QUIT" = 0 ]; do
 		if [ -n "$DT_SAVING" ] || [ -n "$DT_LOCKED" ]; then
+			# A resize while the saver or the lock is up is still a
+			# resize. This branch continued before the check at the
+			# foot of the loop ever ran, and dt_saverinput throws a
+			# `resize` key away on purpose so neither is dismissed
+			# by one -- so nothing recorded that the screen had
+			# changed size, and when the lock cleared the desktop
+			# carried on drawing for the old one: the bar composed
+			# too wide with the clock off the end, the wallpaper
+			# sized for the old screen, the Control Strip off the
+			# bottom. Which is the ordinary way of it rather than a
+			# corner: you detach from one machine, it locks while
+			# you are away, and you attach from another with a
+			# different screen (Gitea #126). No debounce here --
+			# the saver redraws from scratch every pass anyway, and
+			# dt_size is idempotent.
+			if console resizing; then
+				console reassert
+				dt_size
+			fi
 			k := dt_saverdraw
 			frames=$((frames + 1))
 			if [ -n "$DT_TESTIDLE" ]; then

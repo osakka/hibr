@@ -2861,10 +2861,12 @@ t.close()
 # off the screen could not be answered from the suites either way.
 RZ = tempfile.mkdtemp(prefix="hibr-rz-")
 rzs = os.path.join(RZ, "session.hibr")
-open(rzs, "w").write("%s. %s\n%s\nDT_WALLMODE=stretch\n"
+open(rzs, "w").write("%s. %s\n%s%s\nDT_WALLMODE=stretch\n"
                      "dt_open\ndt_new \"Rz\" 6 20 2 2\ndt_run\ndt_close\n"
                      % (load(MOD, "build/mods/pty.so", "build/mods/term.so",
-                             "build/mods/hold.so"), WM, CSSRC))
+                             "build/mods/hold.so"), WM, CSSRC,
+                        'DT_SAVERDIRS+=("%s")\ndt_savers\n'
+                        % tree("examples/desktop/savers")))
 RZENV = {"TMPDIR": RZ, "DT_TICK": "60", "XDG_CONFIG_HOME": RZ}
 RZC = load("build/mods/pty.so", "build/mods/term.so", "build/mods/hold.so")
 atexit.register(lambda: shutil.rmtree(RZ, True))
@@ -2899,6 +2901,36 @@ check("and the Control Strip is pulled back onto it",
       rzstrip(sc, 18) is not None, sc)
 check("and the wallpaper is repainted out to the new bottom corner",
       sc.at(17, 59) not in ("", " "), repr(sc.at(17, 59)))
+t.quit(b"qy", 1.0)
+
+# And the same with the screen saver up while it happens, which is the
+# ordinary way of it: you detach from one machine, it locks or savers while
+# you are away, and you attach from another with a different screen. dt_run's
+# own saver branch continued before the resize check at the foot of the loop
+# ever ran, and dt_saverinput throws a `resize` key away on purpose so the
+# saver is not dismissed by one -- so nothing recorded that the screen had
+# changed size, and the desktop came back still drawing for the old one
+# (Gitea #126). Reported twice from a live session before it was reproduced,
+# because every probe for it had no saver and no lock.
+t = Term("-c", RZC + "hold new rz %s %s" % (screen.HIBR, rzs), env=RZENV,
+         rows=30, cols=100, settle=2.0)
+t.collect(1.0)
+t.send(b"\x1b[21~", settle=0.4)
+t.send(b"s", settle=1.0)
+sc = t.screen(rows=30, cols=100)
+check("the hibr menu's Screen Saver covers the desktop",
+      sc.find("┤ Rz ├") is None, sc)
+t.send(b"\x1c", settle=0.8)
+t.close()
+t = Term("-c", RZC + "hold attach rz", env=RZENV, rows=18, cols=60,
+         settle=2.0)
+t.collect(1.5)
+t.send(b" ", settle=1.2)
+t.collect(1.2)
+sc = t.screen(rows=18, cols=60)
+check("a resize that arrived while the saver was up is acted on when it ends",
+      len(sc.row(0).rstrip()) <= 60 and rzstrip(sc, 18) is not None,
+      (len(sc.row(0).rstrip()), rzstrip(sc, 18)))
 t.quit(b"qy", 1.0)
 shutil.rmtree(RZ, True)
 
@@ -4309,4 +4341,4 @@ check("so is a center wallpaper wider than the screen",
       len(put) == 1 and not gone, "%d placed, %d deleted" % (len(put), len(gone)))
 shutil.rmtree(WPD, True)
 
-report(554)
+report(556)

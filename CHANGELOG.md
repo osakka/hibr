@@ -1,5 +1,54 @@
 # Changelog
 
+## 0.99.100
+
+**A resize that arrives while the screen saver or the lock is up is acted on**
+(Gitea #126). Reported twice from a live session — "the menubar did not
+resize, the wallpaper did not adjust, and the control strip is off the
+screen" after moving machines, and then again, with the sequence spelled
+out: *detached from a device, re-attached on another of a different size, on
+connection we don't resize.* The second telling is what found it, because the
+missing ingredient was never the detach or the attach.
+
+`dt_run`'s loop opens with
+
+    if [ -n "$DT_SAVING" ] || [ -n "$DT_LOCKED" ]; then
+            ...
+            continue
+
+and that `continue` is **before** the `console resizing` check at the foot of
+the loop. `dt_saverinput` also throws a `resize` key away on purpose, so
+neither the saver nor the lock is dismissed by one. Between them, nothing
+recorded that the screen had changed size, and `rsz` stayed 0 — so there was
+no pending resize to settle when the lock cleared either. The desktop carried
+on drawing for the old screen indefinitely: the bar composed too wide with
+the clock off the end, the wallpaper sized for the screen that had gone, the
+Control Strip off the bottom.
+
+**Which is the ordinary way of it, not a corner.** You detach from one
+machine, it locks while you are away, and you attach from another with a
+different screen. Measured, 40x120 then 18x60 with the saver up across the
+move:
+
+| | before | now |
+|---|---|---|
+| menu bar composed for | 120 columns (23 drawn of 60) | **56 of 60** |
+| Control Strip | **off the screen** | row 17 of 18 |
+
+The branch checks `console resizing` and re-reads the size itself now. No
+debounce there: the saver redraws from scratch on every pass anyway, and
+`dt_size` is idempotent.
+
+**Why four probes missed it.** A clean detach and reattach, a client killed
+outright, a plain `hold attach` over a live client, and `desktop --resume` at
+the owner's own sizes with a copy of their own settings all resized
+correctly — on this version and on 0.99.93, the one the live session was
+running. 0.99.98 added four checks for exactly that and they passed. **None
+of them had a saver or a lock up**, which is the one state in which the loop
+takes a different path, and no suite had ever driven a resize in it. The new
+check starts the saver from the hibr menu, detaches, reattaches at a smaller
+size, and dismisses it; it fails against 0.99.99.
+
 ## 0.99.99
 
 **A dropdown is a rectangle again: every dimmed row was a column short**
