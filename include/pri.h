@@ -355,6 +355,7 @@ char *hx_expand(sh *s, const char *line, int *changed, int *bad);
 void pt_init(int ac, char **av);
 void pt_claim(void);
 void pt_rename(const char *name);
+void sh_proctitle(sh *s);
 int b_title(sh *s, int ac, char **av);
 int b_opt(sh *s, int ac, char **av);
 int b_args(sh *s, int ac, char **av);

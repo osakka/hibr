@@ -1904,6 +1904,39 @@ sc = run(*TERM, feed=[b"e", b"c", b"h", b"o", b" ", b"h", b"i", b"\r"],
 check("what is typed reaches it and what it says comes back",
       sc.find("echo hi") is not None and "│hi " in sc.row(4), sc)
 
+# A terminal window's own shell says which window it is, in ps: four shells
+# in four windows all read a bare `hibr` before 0.99.110, so there was no
+# way to tell which process was which window, or to end one by hand without
+# guessing (Gitea #111). The desktop gives the child HIBR_PROCTITLE and hibr
+# wears it at startup and removes it, so only a hibr child is renamed and a
+# window running something else is left alone. TW_CMD names *this* build,
+# since the title is read by the shell being started and the installed one
+# may be older.
+pspath = os.path.join(S, "session.hibr")
+open(pspath, "w").write(
+    "%s. %s\n. %s\nTW_CMD=(%s)\ndt_open\n"
+    "dt_new \"Terminal\" 12 40 2 2 term\ndt_new \"Terminal\" 12 40 2 44 term\n"
+    "dt_run\ndt_close\n"
+    % (load("console", "pty", "term"), WM, appdir("term") + "/term.hibr",
+       sx.HIBR))
+pst = Term(pspath, env={"DT_TICK": "60"}, settle=0.8)
+pst.collect(1.0)
+psout = subprocess.run(["ps", "-eo", "ppid=,pid=,args="], capture_output=True,
+                       text=True).stdout
+# The comprehension's own variable is named for this check, not `l`: the
+# slicer reads a statement's free names to decide which earlier statements
+# a part needs, and a one-letter name that some other section also assigns
+# drags that section's statement -- and whatever *it* depends on -- into
+# this part, where it fails on a name that was never defined there.
+psmine = sorted(psrow.split(None, 2)[2] for psrow in psout.splitlines()
+                if len(psrow.split(None, 2)) > 2 and
+                psrow.split(None, 2)[0] == str(pst.pid))
+pst.quit(b"q", 1.0)
+os.unlink(pspath)
+check("each terminal window's own shell is named for its window in ps, "
+      "where every one of them used to read a bare hibr",
+      psmine == ["desktop [Terminal 1]", "desktop [Terminal 2]"], psmine)
+
 # Two terminals are two sessions: each its own pty and its own shell, and a
 # key typed into one never reaches the other.
 TWO = "TW_CMD=(/bin/sh -c 'tty; PS1=\"sh> \"; export PS1; exec /bin/sh')"
@@ -3838,4 +3871,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(569)
+report(570)

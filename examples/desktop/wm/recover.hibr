@@ -48,7 +48,7 @@ dt_snapfile() {
 # in the foreground: in the background it would be stopped the moment it
 # set the terminal's modes.
 dt_supervise() {
-	local st t0 now lived n
+	local st t0 now lived n sess
 	local -a times keep
 
 	[ -n "$DT_SUPERVISED" ] && return 0
@@ -63,6 +63,15 @@ dt_supervise() {
 	fi
 	export DT_SUPERVISED=1
 	trap 'DT_SVSIG=1' HUP TERM INT
+	# This process's whole job is to start the desktop again when it
+	# dies, and in ps it showed its own command line -- which reads as a
+	# second desktop rather than as the thing watching one.
+	sess := dt_holdsess
+	if [ -n "$sess" ]; then
+		title "desktop [$sess: supervisor]"
+	else
+		title "desktop [supervisor]"
+	fi
 	while :; do
 		t0=$EPOCHSECONDS
 		"$HIBR" "$DT_SELF0" "${DT_SELFARGS[@]}"

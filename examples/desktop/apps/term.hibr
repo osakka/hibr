@@ -38,6 +38,14 @@ command -v dt_keepstate > /dev/null && dt_keepstate term TW
 # What a window opened on a file runs: hibr's own editor, handed the path.
 [ -n "${TW_EDIT[*]}" ] || TW_EDIT=(hibr -c 'mod load hvi && hvi "$1"' hvi)
 
+# Named here only so `strict vars` and tests/strictvars.py can see it: every
+# use below is an assignment *prefix* on the one command that forks, which
+# is temporary and never becomes a global at all -- but a prefix and a plain
+# assignment look the same to a reader of the source, and the checker is
+# right to refuse what it cannot tell apart. Empty here, and hibr ignores an
+# empty one.
+HIBR_PROCTITLE=
+
 # Whether a scrollbar is drawn down the right edge, showing how far back
 # the view has scrolled through what term keeps -- and a real column of
 # the pty spent on it, the same as an xterm's own gutter takes one. On by
@@ -127,10 +135,19 @@ tw_colours() {
 # Start the program the first time there is a window to put it in, and keep
 # its size in step with the window afterwards.
 fn tw_fit(int id, int h, int w) {
-	local n i fd
+	local n i fd pt
 	local -a cmd
 
 	[ "$h" -lt 1 ] || [ "$w" -lt 1 ] && return 1
+	# What this window's own program is called in ps, for anyone looking
+	# for it from outside: the window's title and its id, which is the
+	# handle `desktop ctl windows` lists it under. Only a hibr child
+	# wears it -- hibr reads HIBR_PROCTITLE at startup and removes it, so
+	# a window running vim shows vim, which is what a person wants
+	# anyway (Gitea #111). Four shells in four windows all read `hibr`
+	# before this.
+	pt := dt_title "$id"
+	pt="desktop [$pt $id]"
 	if [ -z "${TW[$id]["t"]}" ]; then
 		if [ -n "${TW[$id]["argvn"]}" ]; then
 			n=${TW[$id]["argvn"]}
@@ -140,18 +157,20 @@ fn tw_fit(int id, int h, int w) {
 				i=$((i + 1))
 			done
 			if [ "${TW[$id]["selfrun"]}" = 1 ]; then
-				TW[$id]["t"] := term open -r "$h" -c "$w" \
-					"${cmd[@]}" || return 1
+				TW[$id]["t"] := HIBR_PROCTITLE="$pt" term open \
+					-r "$h" -c "$w" "${cmd[@]}" || return 1
 			else
-				TW[$id]["t"] := term open -r "$h" -c "$w" "${cmd[@]}" \
+				TW[$id]["t"] := HIBR_PROCTITLE="$pt" term open \
+					-r "$h" -c "$w" "${cmd[@]}" \
 					"${TW[$id]["file"]}" || return 1
 			fi
 		elif [ -n "${TW[$id]["file"]}" ]; then
-			TW[$id]["t"] := term open -r "$h" -c "$w" "${TW_EDIT[@]}" \
+			TW[$id]["t"] := HIBR_PROCTITLE="$pt" term open -r "$h" \
+				-c "$w" "${TW_EDIT[@]}" \
 				"${TW[$id]["file"]}" || return 1
 		else
-			TW[$id]["t"] := term open -r "$h" -c "$w" "${TW_CMD[@]}" ||
-				return 1
+			TW[$id]["t"] := HIBR_PROCTITLE="$pt" term open -r "$h" \
+				-c "$w" "${TW_CMD[@]}" || return 1
 		fi
 		[ -n "$DT_CURSOR" ] && term cursor "${TW[$id]["t"]}" "$DT_CURSOR"
 		TW[$id]["h"]=$h

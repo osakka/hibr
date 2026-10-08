@@ -871,6 +871,24 @@ went in the shell.
   alone. `run(..., until=...)` waits for text, or for a function given the
   screen, before quitting. Anything that reads what a program printed wants
   it.
+- **A rename overwrites the region argv lives in, so it comes after
+  everything that reads argv.** `pt_rename` memsets from `av[0]` to the end
+  of the environment block, which is where the script's name and every
+  positional parameter still are -- so `sh_proctitle`, which wears
+  `HIBR_PROCTITLE` for a shell a parent has named (Gitea #111), is called
+  after `v_pos` and `s.arg0 = xs(av[i])` have copied them out, once per
+  branch in `main`, and never beside `v_env` where it would read earlier
+  and look tidier. It copies the value out first for the same reason, and
+  deletes the variable as it uses it: left set, every program that shell
+  starts would inherit the same name and four processes would again be
+  called one thing.
+- **A one-letter name in `tests/apps.py` can drag another section into a
+  part.** `appslice` reads each statement's free names to decide which
+  earlier statements a part needs, and a comprehension's own variable looks
+  like a free name: a `for l in ...` in the terminal section pulled in the
+  Shortcuts section's `l = ...` and with it a `len(ORDER)` that part never
+  defines -- `NameError: name 'ORDER' is not defined`, in a check about
+  process titles. Name a comprehension variable after its check.
 - **A printable key arrives as itself.** `console key` reports space as
   `" "`, not `space`, and a letter as the letter; only keys with no glyph
   have names. Both games shipped matching `space` and did nothing on it.

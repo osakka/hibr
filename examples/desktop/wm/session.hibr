@@ -51,13 +51,25 @@ dt_tdone() {
 # left by Quit, never by a stray interrupt, and the key goes to the focused
 # window -- which is how a program in a terminal window gets its ctrl-c.
 dt_open() {
+	local sess
+
 	dt_tstamp "apps"
 	dt_supervise
 	# One app's arithmetic slip, or one function nesting too deep, fails
 	# that command and is written to the log -- it does not end the
 	# desktop and every window in it, as it would end another script.
 	shopt -s keepgoing
-	title "hibr [desktop]"
+	# Which desktop this is, in ps: three processes with three jobs --
+	# hold's server, this, and the supervisor -- all read some variation
+	# of `hibr [desktop]` before 0.99.110, and a terminal window's own
+	# shell read a bare `hibr` (Gitea #111). The name is the session's,
+	# which is what `hold list` and `desktop --resume` call it.
+	sess := dt_holdsess
+	if [ -n "$sess" ]; then
+		title "desktop [$sess]"
+	else
+		title "desktop"
+	fi
 	dt_load
 	console open || return 1
 	dt_tstamp "console"

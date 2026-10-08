@@ -31,7 +31,7 @@ purpose. Everything else behaves as bash does unless the entry says otherwise.
 | `help` | list every builtin with a one-line description |
 | `time cmd` | run `cmd` and report how long it took |
 | `let expr…` | evaluate arithmetic; the status is 0 when the last value is non-zero |
-| `title name…` | **[hibr]** rename the running process as `ps` shows it |
+| `title name…` | **[hibr]** rename the running process as `ps` shows it. A shell also wears `HIBR_PROCTITLE` from its environment at startup, and removes the variable as it does, so a parent can name the shell it starts without that name reaching anything the shell itself goes on to run -- which is how the desktop names each terminal window's own shell |
 
 `source` restores the caller's positional parameters afterwards. With no extra
 arguments the sourced file inherits them, and a `shift` inside leaks, as in bash.

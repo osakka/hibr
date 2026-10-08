@@ -645,6 +645,7 @@ int main(int ac, char **av)
 		}
 		if (i < ac)
 			v_pos(&s, ac - i, av + i);
+		sh_proctitle(&s);
 		rc = explain ? sh_explain(&s, src) :
 		     (s.sopt & O_CHECK) && sh_check(&s, src) ? 2 : hibr_run(&s, src);
 		free(src);
@@ -663,6 +664,7 @@ int main(int ac, char **av)
 		s.src = sr_name(&s, av[i]);
 		if (i + 1 < ac)
 			v_pos(&s, ac - i - 1, av + i + 1);
+		sh_proctitle(&s);
 		text = slurp(f);
 		fclose(f);
 		rc = explain ? sh_explain(&s, text) :
@@ -671,6 +673,7 @@ int main(int ac, char **av)
 		sh_fini(&s);
 		return rc;
 	}
+	sh_proctitle(&s);
 	if (explain) {
 		text = slurp(stdin);
 		rc = sh_explain(&s, text);

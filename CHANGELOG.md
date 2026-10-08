@@ -1,5 +1,49 @@
 # Changelog
 
+## 0.99.110
+
+**Every process a desktop runs can be told apart in `ps`** (Gitea #111).
+Asked directly: everything read `hibr [desktop]` or a bare
+`hibr`, so there was no way to tell which process was which terminal
+window, and no way to end one by hand without guessing. A live session
+looked like this, four of its windows indistinguishable:
+
+```
+2296370 3299222  hibr
+2815600 3299222  hibr
+3299222 3299220  hibr [desktop]
+3299220       1  /usr/bin/hibr /usr/share/hibr/desktop/session.hibr
+```
+
+Now:
+
+```
+1846877  desktop
+  1846881  desktop [Terminal 1]
+  1846882  desktop [Terminal 2]
+```
+
+A shell wears `HIBR_PROCTITLE` from its environment at startup and
+**removes the variable as it does**, so a parent can name the shell it
+starts without that name reaching anything the shell itself goes on to
+run. The desktop gives each terminal window's child
+`desktop [<title> <id>]`, the number being the window id
+`desktop ctl windows` lists it under, so the process and the window on
+screen can be matched up. Only a hibr child is renamed: a window running
+`vim` shows `vim`, which is what a person wants anyway, and nothing
+renames a third-party program by rewriting its `argv[0]` -- that is what a
+login shell, a busybox-style binary and `$0` all read, so it stays alone.
+
+The desktop itself is `desktop [<session>]` and its supervisor
+`desktop [<session>: supervisor]`, where before the supervisor showed its
+whole command line and read as a second desktop.
+
+One thing worth knowing for anything added here: `pt_rename` overwrites the
+whole region `argv` lives in, so the title is worn *after* the script name
+and the positional parameters have been copied out of it -- which is why
+`sh_proctitle` is called once per branch in `main` rather than next to
+`v_env`, where it would read earlier and be wrong.
+
 ## 0.99.109
 
 **About This Computer is a box again, with both of its scrollbars doing

@@ -110,6 +110,30 @@ void hibr_title(const char *name)
 	pt_rename(name);
 }
 
+/* Wear the title a parent asked for, if it asked. The desktop gives each
+   terminal window's shell one, so four shells in four windows can be told
+   apart in ps rather than all reading `hibr` (Gitea #111).
+
+   Two things it must do and one it must not. The value is copied out first,
+   because a rename overwrites the whole argv and environment region the
+   string itself lives in; and the variable is removed as it is used, or
+   every program that shell goes on to start would inherit the same name.
+   What it must not do is run before the script name and the positional
+   parameters have been copied out of that same region, which is why its
+   callers are where they are and not beside v_env. */
+void sh_proctitle(sh *s)
+{
+	const char *v = hibr_get(s, "HIBR_PROCTITLE");
+	char *t;
+
+	if (!v || !*v)
+		return;
+	t = xs(v);
+	v_del(s, "HIBR_PROCTITLE");
+	pt_rename(t);
+	free(t);
+}
+
 /* Release one option specification. */
 void op_free(struct ospec *o)
 {
