@@ -33,8 +33,15 @@ dt_mouse() {
 	mods=${mods%-}
 	shift
 	case $act in
-	wheelup | wheeldown) mr=$1; mc=$2 ;;
+	wheelup | wheeldown | wheelleft | wheelright) mr=$1; mc=$2 ;;
 	*) mr=$2; mc=$3 ;;
+	esac
+	# A wheel with shift held scrolls sideways, which is the convention
+	# everywhere else and the only way to reach a horizontal bar on a
+	# mouse with no sideways wheel of its own.
+	case $mods-$act in
+	*shift*-wheelup) act=wheelleft ;;
+	*shift*-wheeldown) act=wheelright ;;
 	esac
 
 	case $act in
@@ -386,13 +393,12 @@ dt_mouse() {
 		DT_SIZE=
 		DT_SIZECORNER=
 		;;
-	wheelup | wheeldown)
+	wheelup | wheeldown | wheelleft | wheelright)
 		if cs_hit "$mr" "$mc"; then
-			if [ "$act" = wheelup ]; then
-				cs_scroll -1
-			else
-				cs_scroll 1
-			fi
+			case $act in
+			wheelup) cs_scroll -1 ;;
+			wheeldown) cs_scroll 1 ;;
+			esac
 			return 0
 		fi
 		id := console hit "$mr" "$mc"

@@ -320,7 +320,25 @@ int cn_mouse(const char *p, size_t n, str *o, size_t *used)
 	if (b & 4)
 		s_cat(o, "shift-");
 	if (b & 64) {
-		s_cat(o, b & 1 ? "wheeldown" : "wheelup");
+		/* 64 up, 65 down, 66 left, 67 right: a terminal reports a
+		   sideways wheel or a trackpad's horizontal swipe with the
+		   last two, and testing only bit 0 made 66 read as wheelup
+		   and 67 as wheeldown -- so a sideways scroll moved a list
+		   up and down instead, which reads as a wild mouse. */
+		switch (b & 3) {
+		case 0:
+			s_cat(o, "wheelup");
+			break;
+		case 1:
+			s_cat(o, "wheeldown");
+			break;
+		case 2:
+			s_cat(o, "wheelleft");
+			break;
+		default:
+			s_cat(o, "wheelright");
+			break;
+		}
 	} else {
 		s_cat(o, rel ? "release" : (b & 32 ? "drag" : "press"));
 		s_ch(o, ' ');

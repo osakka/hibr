@@ -165,13 +165,18 @@ for i, w in enumerate(WANT):
 
 MOUSE = [b"\x1b[<0;13;4M", b"\x1b[<0;13;4m", b"\x1b[<2;40;10M",
          b"\x1b[<32;41;10M", b"\x1b[<64;5;5M", b"\x1b[<65;5;5M",
+         b"\x1b[<66;5;5M", b"\x1b[<67;5;5M",
          b"\x1b[<16;7;7M", b"\x1b[<4;9;9M", b"\x1b\x1b[<0;20;6M"]
 # The last is GNU screen's: with mouse reporting on it holds a lone escape
 # until the next input, then sends both at once -- an escape, then a click,
 # not alt-escape and stray text.
+# 66 and 67 are a sideways wheel, or a trackpad's horizontal swipe. Testing
+# only bit 0 of the button made them read as wheelup and wheeldown, so a
+# sideways scroll moved a list up and down instead.
 MWANT = ["mouse press left 3 12", "mouse release left 3 12",
          "mouse press right 9 39", "mouse drag left 9 40",
          "mouse wheelup 4 4", "mouse wheeldown 4 4",
+         "mouse wheelleft 4 4", "mouse wheelright 4 4",
          "mouse ctrl-press left 6 6", "mouse shift-press left 8 8",
          "escape", "mouse press left 5 19"]
 o, _ = run('console open\nconsole mouse drag\ni=0\nwhile [ $i -lt %d ]; do\n'

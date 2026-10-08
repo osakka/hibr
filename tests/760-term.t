@@ -151,11 +151,14 @@ term key $t space; term key $t 4; term key $t 2; term key $t enter
 # which looks like the editor putting things in the wrong order. It had
 # never failed before 0.99.112's own gate and passed every run alone,
 # which is what a load-dependent *capture* looks like.
+# Row 3 holding the next prompt is the settled state -- row 2 holding the
+# answer is one frame before it, and waiting for that read "in> echo 42 /
+# 42 / <blank>", which is the same off-by-one-frame in the other direction.
 i=0
 while [ $i -lt 60 ]; do
   term poll $t 100
-  r := term row $t 2
-  case $r in *42*) break ;; esac
+  r := term row $t 3
+  case $r in *in*) break ;; esac
   i=$((i + 1))
 done
 # from row 1: row 0 still holds the prompt this machine happens to have,

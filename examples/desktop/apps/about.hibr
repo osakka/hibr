@@ -512,12 +512,16 @@ about_size() {
 	ret "$rows $cols"
 }
 
-# The rows the scrolled region occupies: rows 1 to 3 are the versions and
-# the tagline with a blank under them, the last two are the meters with a blank above, and
-# what is left in between is this. Returned rather than computed twice, since the draw, the wheel and
-# the keys all need the same number.
+# The rows the scrolled region occupies. It starts at the top now: what this
+# machine *is* is the thing to read first, and the versions -- which are
+# what this *desktop* is, and change once a release rather than once a
+# machine -- moved under the box, asked for as "can we move the hibr desktop
+# version till the end, under the scrollable box". So: the list, its own
+# horizontal bar, two rows of versions, and the two meters. Returned rather
+# than computed four times, since the draw, both bars, the wheel and the
+# keys all need the same number.
 fn about_vis(int h) {
-	local v=$((h - 8))
+	local v=$((h - 6))
 
 	[ "$v" -lt 1 ] && v=1
 	ret "$v"
@@ -530,18 +534,6 @@ fn about_draw(int id, int h, int w, int row, int col) {
 	command -v dt_want > /dev/null && dt_want "$AB_SLOWMS"
 	about_lines "$id" "$w"
 	n=${#AB_LINES[@]}
-	# What is pinned at the top is what this is: the desktop's own version
-	# above hibr's, which is the one thing sysinfo cannot know and the
-	# thing asked to stay put while the rest scrolls.
-	console pen "$DT_INK" "$DT_FACE" bold
-	if [ -n "$DT_VER" ]; then
-		dt_tput "$id" 1 2 "hibr desktop v%s" "$DT_VER"
-	fi
-	dt_tput "$id" 2 2 "hibr v%s, module ABI %s" "$HIBR_VERSION" \
-		"${HIBR_ABI:-?}"
-	console pen "$DT_INK" "$DT_FACE"
-	dt_tput "$id" 3 2 "Highly Intuitive Bash-like Runtime"
-
 	vis := about_vis "$h"
 	top=${AB[$id]["top"]:-0}
 	top := dt_scrollfit "$top" "$n" "$vis"
@@ -566,8 +558,8 @@ fn about_draw(int id, int h, int w, int row, int col) {
 	AB[$id]["wide"]=$wide
 	AB[$id]["room"]=$room
 	i=$top
-	r=5
-	while [ "$i" -lt "$n" ] && [ "$r" -lt $((5 + vis)) ]; do
+	r=1
+	while [ "$i" -lt "$n" ] && [ "$r" -lt $((1 + vis)) ]; do
 		t=${AB_LINES[$i]}
 		# The pen is set per line, not once before the loop: headings
 		# and facts alternate, so one pen outside it would make every
@@ -584,8 +576,31 @@ fn about_draw(int id, int h, int w, int row, int col) {
 		i=$((i + 1))
 		r=$((r + 1))
 	done
-	dt_scrollbar "$id" 5 "$w" "$vis" "$n" "$vis" "$top"
-	dt_hscrollbar "$id" $((5 + vis)) 2 "$room" "$wide" "$room" "$off"
+	dt_scrollbar "$id" 1 "$w" "$vis" "$n" "$vis" "$top"
+	dt_hscrollbar "$id" "$((1 + vis))" 2 "$room" "$wide" "$room" "$off"
+
+	# What this desktop is, under the box rather than over it: the
+	# desktop's own version above hibr's, which is the one thing sysinfo
+	# cannot know. On three rows rather than one, because one line of all
+	# of it is 48 characters and a 50-column About window has 47 to draw
+	# in -- the pane clips it, and "module ABI 16" is what goes missing.
+	#
+	# The row is a local, never `$((h - 3))` written into the call: a
+	# dt_tput argument is counted by word, so an arithmetic expansion
+	# with spaces in it shifts the text along and tools/strings.py stops
+	# seeing the string at all -- which silently dropped three of them
+	# from the catalogue.
+	console pen "$DT_DIM" "$DT_FACE"
+	r=$((h - 4))
+	dt_tput "$id" "$r" 2 "Highly Intuitive Bash-like Runtime"
+	console pen "$DT_INK" "$DT_FACE" bold
+	if [ -n "$DT_VER" ]; then
+		r=$((h - 3))
+		dt_tput "$id" "$r" 2 "hibr desktop v%s" "$DT_VER"
+	fi
+	r=$((h - 2))
+	dt_tput "$id" "$r" 2 "hibr v%s, module ABI %s" "$HIBR_VERSION" \
+		"${HIBR_ABI:-?}"
 
 	# The meters last and anchored to the bottom, because they are the
 	# part being watched rather than read: they stay put while everything
@@ -619,8 +634,24 @@ fn about_draw(int id, int h, int w, int row, int col) {
 # the body never runs at all.
 fn about_wheel(int id, dir, int? r = "", int? c = "") {
 	local top=${AB[$id]["top"]:-0}
+	local off=${AB[$id]["off"]:-0} room=${AB[$id]["room"]:-8}
 
+	# Sideways as well as up and down: a wheel that tilts, a trackpad's
+	# horizontal swipe, or shift with an ordinary one -- the window
+	# manager hands all three over as left and right. Asked for as "the
+	# scrollable box is not scrollable using the mouse": the wheel did
+	# scroll it, but only the way the keys' up and down already did, and
+	# there was no way at all to reach the horizontal bar with a mouse.
 	case $dir in
+	left | right)
+		case $dir in
+		left) off=$((off - 4)) ;;
+		right) off=$((off + 4)) ;;
+		esac
+		off := dt_scrollfit "$off" "${AB[$id]["wide"]:-0}" "$room"
+		AB[$id]["off"]=$off
+		dt_want 1
+		return 0 ;;
 	up) top=$((top - 2)) ;;
 	down) top=$((top + 2)) ;;
 	esac

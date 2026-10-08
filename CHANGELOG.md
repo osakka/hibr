@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.99.113
+
+**About's versions move under the box, and the mouse scrolls it sideways**
+(Gitea #139, the rest of it). Asked for as *"can we move the hibr desktop
+version till the end, under the scrollable box?"* and *"the scrollable box
+is not scrollable using the mouse, only keys?"*.
+
+The box starts at the top of the window now, so what the machine *is*
+reads first and twelve of its lines show at once rather than eight; what
+this *desktop* is -- the desktop version, hibr's own and the module ABI,
+on one line, with the tagline above it -- is the footer, between the
+horizontal bar and the meters.
+
+**A sideways wheel was being read as a vertical one**, which is a console
+bug and not only an About one: a terminal reports a tilting wheel or a
+trackpad's horizontal swipe as SGR buttons 66 and 67, and `cn_dec` tested
+only bit 0 of the button -- so 66 decoded as `wheelup` and 67 as
+`wheeldown`, and a sideways scroll moved a list up and down. They decode
+as `wheelleft` and `wheelright` now, the window manager hands both to a
+window's own `_wheel` as `left` and `right`, and **shift with an ordinary
+wheel** does the same, which is the only way in on a mouse that does not
+tilt. About scrolls its box sideways with all three. Nothing else is
+changed by it: the Control Strip and the workspace wheel act on up and
+down and ignore the rest, which they did not before -- a sideways wheel on
+the desktop background used to step a workspace forward.
+
+The vertical wheel always worked, and still does -- measured through a pty
+either way before changing anything.
+
 ## 0.99.112
 
 **A setting for module autoload: `off`, `after` the programs on `PATH`, or

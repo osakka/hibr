@@ -521,8 +521,16 @@ def drag(row, col, button=0):
     return b"\x1b[<%d;%d;%dM" % (32 + button, col + 1, row + 1)
 
 
-def wheel(row, col, up=True):
-    return b"\x1b[<%d;%d;%dM" % (64 if up else 65, col + 1, row + 1)
+def wheel(row, col, up=True, side="", shift=False):
+    """A wheel report. 64 is up and 65 down; 66 and 67 are a wheel that
+    tilts or a trackpad's horizontal swipe, and bit 2 is shift held, which
+    the desktop reads as sideways as well."""
+    b = 64 if up else 65
+    if side:
+        b = 66 if side == "left" else 67
+    if shift:
+        b |= 4
+    return b"\x1b[<%d;%d;%dM" % (b, col + 1, row + 1)
 
 
 RAN = [0]

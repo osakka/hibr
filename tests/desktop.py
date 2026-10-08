@@ -2398,9 +2398,21 @@ check("About This Computer opens a window with the machine's own numbers",
       sc.find("%") is not None, sc)
 check("and it has no maximise button, being a fixed size",
       sc.find("┤_ x├") is not None, sc)
+# The versions are under the box since 0.99.113, asked for as "can we move
+# the hibr desktop version till the end, under the scrollable box": what
+# the machine is reads first, and what this desktop is -- which changes
+# once a release rather than once a machine -- is the footer, on one line
+# with hibr's own version and the module ABI.
+# Three rows, not one: one line of all of it is 48 characters and a
+# 50-column About window has 47 to draw in, so "module ABI 16" was the part
+# the pane clipped.
 dpos = sc.find("hibr desktop v")
 check("and shows the desktop's own version above hibr's, not just hibr's",
-      dpos is not None and "hibr v" in sc.row(dpos[0] + 1), sc)
+      dpos is not None and "hibr v" in sc.row(dpos[0] + 1) and
+      "module ABI" in sc.row(dpos[0] + 1), sc)
+check("and says so under the box rather than over it, where what the "
+      "machine is now reads first",
+      dpos is not None and dpos[0] > sc.find("This Computer")[0], sc)
 # The versions are pinned at the top and the rest scrolls, so what the
 # window shows when it opens is the identity and the labelled facts
 # (Gitea #130). The end key goes to the foot of it, which is where the
@@ -2413,14 +2425,13 @@ check("what it opens on is the machine's own labelled facts, under a heading",
 # mods/sysinfo's own block, logo and all -- the OS, the architecture, the
 # processor, the memory, the disk and the load, none of which this app knows
 # how to find and all of which belong in an About box.
-# A box this size shows eight of its own lines at a time, which is why it
+# A box this size shows twelve of its own lines at a time, which is why it
 # has bars: the sysinfo block is read a page at a time rather than all at
 # once in a window as tall as its content (0.99.109).
 mid, _ = run("", feed=[press(0, 2), b"a", b"\x1b[6~"], pre=APPS)
-mid2, _ = run("", feed=[press(0, 2), b"a", b"\x1b[6~", b"\x1b[6~"], pre=APPS)
 check("and sysinfo's own block is in it, logo and all",
       sc.find("OS: ") is not None and sc.find("======\\X/======") is not None
-      and mid.find("Arch: ") is not None and mid.find("CPU: ") is not None,
+      and sc.find("Arch: ") is not None and mid.find("CPU: ") is not None,
       (sc, mid))
 # And a section for what it is drawing on, which is the other half of what
 # decides what the desktop can do (Gitea #121). Each line is something the
@@ -2437,8 +2448,7 @@ check("and a This Terminal section: size, pictures, colour, mouse and hold",
 check("and invents no pixels when the terminal has not said what a cell is",
       "0 x 0" not in sc.text() and "0 by 0" not in sc.text(), sc)
 check("and a page further on, what the disk and the load are doing",
-      mid.find("Disk: ") is not None and mid2.find("Load: ") is not None,
-      (mid, mid2))
+      mid.find("Disk: ") is not None and mid.find("Load: ") is not None, mid)
 sc, _ = run('dt_new "About This Computer" 12 48 6 10 about', pre=APPS)
 check("a short About window scrolls, with a bar to say so",
       sc.find("Hostname:") is not None and sc.find("Held:") is None
@@ -2463,9 +2473,26 @@ check("About is a box rather than a wall, with a bar along the foot of its "
       len(hbar) == 1 and "█" in sc.row(hbar[0]) and
       ("█│" in sc.text() or "││" in sc.text()), (hbar, sc))
 wide, _ = run("", feed=[press(0, 2), b"a"] + [b"\x1b[C"] * 5, pre=APPS)
-check("and the arrows scroll it sideways, the pinned versions staying put",
-      sc.find("Uptime: ") is not None and wide.find("Uptime: ") is None and
-      wide.find("hibr v") is not None, wide)
+# Hostname, not Uptime: there are two Uptime lines -- this app's own and
+# sysinfo's -- and with twelve rows showing, scrolling right brings
+# sysinfo's into full view rather than taking one away.
+check("and the arrows scroll it sideways, the versions staying put",
+      sc.find("Hostname: ") is not None and wide.find("Hostname: ") is None
+      and wide.find("hibr v") is not None, wide)
+# And the mouse, which is what was asked for: a wheel that tilts (buttons
+# 66 and 67), a trackpad's horizontal swipe, or shift with an ordinary
+# wheel -- reported as "the scrollable box is not scrollable using the
+# mouse, only keys". The wheel did scroll it up and down; sideways there
+# was no way in at all, and the console read 66 and 67 as up and down.
+hpos = sc.find("Hostname: ")
+mw, _ = run("", feed=[press(0, 2), b"a"] +
+            [wheel(hpos[0], hpos[1] + 2, side="right")] * 3, pre=APPS)
+sw, _ = run("", feed=[press(0, 2), b"a"] +
+            [wheel(hpos[0], hpos[1] + 2, up=False, shift=True)] * 3, pre=APPS)
+check("and so does the mouse: a sideways wheel, and shift with an "
+      "ordinary one, both reach the horizontal bar",
+      mw.find("Hostname: ") is None and sw.find("Hostname: ") is None and
+      mw.find("hibr v") is not None, (mw, sw))
 
 # Clock is a desk accessory now, not in examples/desktop/apps -- the bar's own
 # click handler only asks dt_has clock_draw, so it works regardless of
@@ -4396,4 +4423,4 @@ check("so is a center wallpaper wider than the screen",
       len(put) == 1 and not gone, "%d placed, %d deleted" % (len(put), len(gone)))
 shutil.rmtree(WPD, True)
 
-report(563)
+report(565)
