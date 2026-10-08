@@ -359,6 +359,15 @@ void pt_init(int ac, char **av);
 void pt_claim(void);
 void pt_rename(const char *name);
 void sh_proctitle(sh *s);
+#ifndef MD_OFF
+#define MD_OFF 0
+#define MD_AFTER 1
+#define MD_BEFORE 2
+#endif
+extern int m_ldmode;
+int m_ldwhen(sh *s);
+const char *m_bixfind(sh *s, const char *nm);
+int m_ldauto(sh *s, const char *nm);
 int b_title(sh *s, int ac, char **av);
 int b_opt(sh *s, int ac, char **av);
 int b_args(sh *s, int ac, char **av);

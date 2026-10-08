@@ -62,6 +62,8 @@ void v_named(sh *s, const char *k)
 		s->ifsok = 0;
 	else if (k[0] == 'F' && !strcmp(k, "FUNCNEST"))
 		ex_fnok = 0;
+	else if (k[0] == 'H' && !strcmp(k, "HIBR_MODULES"))
+		m_ldmode = -1;
 }
 
 /* Read a variable value or NULL. */
@@ -255,6 +257,7 @@ void v_del(sh *s, const char *k)
 			*pp = v->nx;
 			s->ifsok = 0;
 			ex_fnok = 0;
+			m_ldmode = -1;
 			if (v->ex)
 				unsetenv(k);
 			v_free_el(v);

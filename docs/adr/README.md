@@ -49,6 +49,7 @@ downside is usually a decision nobody had to make.
 | [0037](0037-a-picture-is-a-region-the-display-owns.md) | A picture is a region the display owns | accepted |
 | [0038](0038-the-slot-takes-a-programs-output-too.md) | `:=` takes a command's result, whatever kind of command it is | accepted |
 | [0039](0039-an-interactive-login-shell-reads-both.md) | An interactive login shell reads the profile *and* the rc file | accepted |
+| [0040](0040-a-module-may-answer-a-command.md) | A module may answer a command, and a setting says from which end | accepted |
 
 ---
 

@@ -260,18 +260,14 @@ PROMPT[duration][min]=500
 alias ll='ls -lh'
 export EDITOR=vim
 
-# Autoload a module for a command it registers, once normal lookup has
-# already failed -- so `console key`, `img draw`, `darwin cpu` and the
-# rest of what a module offers work without an explicit `mod load` or
-# `need` first. Interactive only (.hibrc isn't read by scripts), and only
-# after PATH and every builtin/function has already had first refusal, so
-# it never shadows a real program the way loading modules ahead of PATH
-# would. Remove this function, or return 127 unconditionally at its top,
-# to go back to requiring an explicit `need`/`mod load`.
-command_not_found() {
-	mod find "$1" > /dev/null 2>&1 && "$@" ||
-		{ echo "hibr: $1: command not found" >&2; return 127; }
-}
+# Autoloading a module for a command it registers used to be a
+# command_not_found function written here, which meant it reached only
+# whoever ran this script -- not a brew or apt install. The shell does it
+# itself since 0.99.112: HIBR_MODULES is off, after (the default) or
+# before the programs on PATH. Set it here to change that for every shell:
+#
+#   HIBR_MODULES=before   # hibr's own ls, cat and most in front of PATH
+#   HIBR_MODULES=off      # nothing autoloads; need or mod load by hand
 RC
 	say "   wrote $rc"
 }

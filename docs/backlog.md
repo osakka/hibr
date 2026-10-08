@@ -32,6 +32,13 @@ can never shadow a real program the way checking modules before PATH would.
 See [`mod find`](builtins.md#modules) and
 [the interactive guide](interactive.md#starting-up).
 
+**Superseded in 0.99.112**: the shell does this itself now, for every shell
+and every install, and the function is not written any more. `HIBR_MODULES`
+is `off`, `after` (the default, and what the function did) or `before` the
+programs on `PATH` — [0040](adr/0040-a-module-may-answer-a-command.md). The
+function reached only whoever ran `deploy.sh`, which is what made it a
+caveat rather than a mechanism: a brew or apt install never got one.
+
 ### Move json (and other language-adjacent core) to a module?
 
 Raised once the autoloader above existed: if a command autoloads its module
@@ -55,15 +62,18 @@ whether `json.c` is ever linked. Moving the file would only relocate the
 parse/serialize *command*; "nested maps carry JSON type fidelity" is core
 infrastructure independent of it, and has to stay core.
 
-If this is worth doing anyway, it needs a fallback that is not
-interactive-only — something the core shell itself tries on any
+The fallback this asked for — "something the core shell itself tries on any
 command-not-found, script or interactive, before giving up, not a
-`.hibrc`-defined function. That is a materially bigger, separate design
-(effectively "checks modules" is `command_not_found`'s *own* fallback
-built into the shell rather than opt-in) and has not been scoped. Same
-question applies to `net.c`, `text.c`, `args.c` — see CLAUDE.md's own
-"Open items" — this ticket is about `json.c` specifically because it is the
-one raised so far.
+`.hibrc`-defined function" — **exists since 0.99.112** (`HIBR_MODULES`,
+[0040](adr/0040-a-module-may-answer-a-command.md)), so that part of the
+objection is gone: a script would find a `json` module as readily as a
+person typing. The other two reasons stand and are the ones that decide it:
+nine files call `json` with no `need` guard and would be relying on an
+autoload rather than on the shell, and `json.c` does not own `ent->ty`,
+which is core whether or not the parse command lives here. Same question
+applies to `net.c`, `text.c`, `args.c` — see CLAUDE.md's own "Open items" —
+this ticket is about `json.c` specifically because it is the one raised so
+far.
 
 ### Loading by path — already works
 

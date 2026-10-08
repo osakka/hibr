@@ -28,6 +28,13 @@ to source it by hand ([0039](adr/0039-an-interactive-login-shell-reads-both.md))
 `$HIBR_PROFILE` names a different system profile, the way `$HIBR_RC` names a
 different rc file.
 
+A command a module provides needs no `mod load` first: `$HIBR_MODULES` is
+`after` unless set, which means a module is looked for only once no alias,
+function, builtin or program on `PATH` has answered — so `sysinfo` works with
+no startup file at all and nothing a module offers can shadow a real program.
+`before` puts hibr's own `ls`, `cat` and `most` in front of `PATH`, `off` asks
+nothing ([0040](adr/0040-a-module-may-answer-a-command.md)).
+
 <!-- not run: a ~/.hibrc, read when an interactive shell starts -->
 ```sh
 mod load sys

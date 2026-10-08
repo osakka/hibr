@@ -144,7 +144,20 @@ term write $t 'PS1="in> "
 i=0; while [ $i -lt 6 ]; do term poll $t 100; i=$((i+1)); done
 term key $t e; term key $t c; term key $t h; term key $t o
 term key $t space; term key $t 4; term key $t 2; term key $t enter
-i=0; while [ $i -lt 14 ]; do term poll $t 100; i=$((i + 1)); done
+# Poll until the inner shell has caught up rather than a fixed number of
+# times: under a full gate's load its prompt redraw lands later than
+# fourteen hundred milliseconds of polling, and the rows then read
+# "echo 42 / in> echo 42 / 42" -- the same sequence one frame earlier,
+# which looks like the editor putting things in the wrong order. It had
+# never failed before 0.99.112's own gate and passed every run alone,
+# which is what a load-dependent *capture* looks like.
+i=0
+while [ $i -lt 60 ]; do
+  term poll $t 100
+  r := term row $t 2
+  case $r in *42*) break ;; esac
+  i=$((i + 1))
+done
 # from row 1: row 0 still holds the prompt this machine happens to have,
 # and a recorded test must not depend on whose machine it ran on.
 i=1

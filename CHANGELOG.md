@@ -1,5 +1,75 @@
 # Changelog
 
+## 0.99.112
+
+**A setting for module autoload: `off`, `after` the programs on `PATH`, or
+`before` them** (Gitea #142). Until now autoloading was a
+`command_not_found` function that `deploy.sh` wrote into a new install's
+`~/.hibrc` -- so whether `sysinfo` worked out of the box depended on which
+installer you used, and a plain `brew install hibr` or the apt package
+never ran `deploy.sh` and never got one. That was reported as *"`sysinfo`
+did not autoload"*, and it is not a mechanism if its presence depends on
+the installer.
+
+`HIBR_MODULES` is one of three words, and the shell does the loading
+(ADR 0040):
+
+| value | the command search |
+|---|---|
+| `off` | alias, function, builtin, PATH. A module needs `need` or `mod load`. |
+| `after` (**the default**) | ...then a module that declares that builtin, if nothing else answered. |
+| `before` | alias, function, builtin, **module**, PATH -- hibr's own `ls`, `cat` and `most` in front of the system ones. |
+
+`--modules=off|after|before` sets it for one invocation, and an assignment
+prefix works where you would want one: `HIBR_MODULES=before ls` is the
+module's `ls` for that one command. A module already loaded is already a
+builtin and shadows `PATH` whatever this says -- that is what `mod load`
+means, and this setting governs *autoloading*.
+
+`after` is the default because it cannot change what any existing script
+does: it fires only where the command does not exist, which was an error
+before. `sysinfo`, `most`, `hvi`, `trace` and `img` now work from a fresh
+install of any kind with no startup file at all.
+
+**The one real cost, and how it is paid.** Finding which module declares a
+builtin means walking the module path and opening each candidate to read
+its descriptor -- 4.3 ms for this machine's 35 modules. For `after` that is
+paid only by a command that would otherwise be "not found". For `before` it
+would be paid on *every* command that is not a builtin or a function --
+every `ls`, `git`, `grep` -- so the first command that reaches it builds a
+sorted name-to-object index and every later lookup is a `bsearch`. Measured
+against 0.99.111 on a 60,000-iteration builtin loop (137-145 ms before,
+124-145 ms after) and on 400 forks: `off` and `after` cost nothing, the
+added work being one cached integer and one call per command that is
+neither a builtin nor a function.
+
+A `--plan` run never autoloads -- a module's init may do anything and a dry
+run has promised not to -- root indexes `HIBR_MODDIR` alone, as every other
+module load does (ADR 0016), and a module *installed* after this shell
+started is not in its index until a new shell; `need` and `mod load` still
+find one by name. `deploy.sh` no longer writes the function, and an
+existing `~/.hibrc` that still has one is harmless: under `after` the
+module has already answered before anything reaches it.
+
+**Caught by this release's own gate, and worth more than the feature.** The
+cached mode started life as `int m_md` in `src/mod.c`, and `m_md` is the
+**md module's own builtin handler**: the shell is linked `-rdynamic`, so the
+shell's variable preempted the module's function and calling it jumped to a
+data address. **678 sanitizer reports**, every one a SEGV "in m_md", with
+`955-md`, `885-plan` and four of Write's own checks failing beside them --
+which reads as the md module being broken. This file has recorded that trap
+twice in the other direction (a module naming a function the shell exports);
+this is the first time the *shell* grew a name a module already had, and a
+module's handler is `m_<builtin>` by convention, so any new short `m_<word>`
+in `src/` is a candidate. `tests/999-symbols.t` is now the check rather than
+the habit, both ways round, and it fails against exactly that collision.
+
+Also fixed: `tests/760-term.t` polled a fixed fourteen times for an inner
+shell's prompt, and under a full gate's load the rows came back one frame
+early -- `echo 42 / in> echo 42 / 42` -- which reads as the line editor
+putting things in the wrong order. It waits for the state now, as the rest
+of the pty tests do.
+
 ## 0.99.111
 
 **A login shell: `-l`, `/etc/profile`, and the profile files round it**

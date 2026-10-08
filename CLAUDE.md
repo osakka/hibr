@@ -525,12 +525,25 @@ went in the shell.
   `SIGWINCH`; treating that as an error, or swallowing the flag to report it,
   leaves the application unable to learn that the terminal changed size. The
   wait ends early and `screen resized` still answers.
-- **A module must not name a function the shell already exports.** The shell is
-  linked `-rdynamic`, so a module's own global symbol is preempted by the
-  shell's of the same name: `sys.c` defining `m_drop` silently bound to
-  `mod.c`'s `m_drop(sh *, const char *)` and crashed on the first call with a
-  signature mismatch. The `m_` prefix is `mod.c`'s, so modules use their own —
-  `sy_`, `pr_`. To check one:
+- **A module must not name a function the shell already exports — and the
+  shell must not grow a name a module already has.** The shell is linked
+  `-rdynamic`, so a module's own global symbol is preempted by the shell's of
+  the same name: `sys.c` defining `m_drop` silently bound to `mod.c`'s
+  `m_drop(sh *, const char *)` and crashed on the first call with a signature
+  mismatch. The `m_` prefix is `mod.c`'s, so modules use their own — `sy_`,
+  `pr_`. **It bites the other way round just as hard, and that is the way it
+  is easy to walk into:** a module's builtin handler is `m_<builtin>` by
+  convention, so `mod.c` gaining `int m_ldmode` was fine and gaining
+  `int m_md` -- for the autoload mode, 0.99.112 -- was not: `m_md` is the md
+  module's own handler, the shell's *variable* preempted it, and calling it
+  jumped to a data address. **678 sanitizer reports, every one a SEGV "in
+  m_md"**, with `955-md`, `885-plan` and four of Write's own checks failing
+  beside them -- which reads as the md module being broken. So a new
+  non-static name in `src/` must not look like `m_<short word>`, `cn_<short
+  word>` or any other module's own handler shape; `m_ldmode`, `m_ldwhen` and
+  `m_ldauto` are what those three became. `tests/999-symbols.t` is the check
+  rather than the habit now, in both directions, and it fails against exactly
+  that collision:
   `nm -D build/mods/x.so | awk '$2=="T"{print $3}' | sort -u |
   comm -12 - <(nm -D build/hibr | awk '$2=="T"{print $3}' | sort -u)`
 - **`declare` speaks the shell's own type names.** `declare -i` is bash's, and

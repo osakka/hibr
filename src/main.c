@@ -598,6 +598,13 @@ int main(int ac, char **av)
 			login = 1;
 			continue;
 		}
+		if (!strncmp(av[i], "--modules=", 10)) {
+			/* Not exported: a flag is for this shell, where the
+			   variable is for whatever a profile or an rc file
+			   wants every shell to do. */
+			hibr_set(&s, "HIBR_MODULES", av[i] + 10, 0);
+			continue;
+		}
 		if (!strcmp(av[i], "--agent")) {
 			sh_optset(&s, "agent", 1);
 			continue;
@@ -616,7 +623,8 @@ int main(int ac, char **av)
 		}
 		if (!strcmp(av[i], "-h") || !strcmp(av[i], "--help")) {
 			printf("usage: hibr [-d level] [-l] [-n] [--agent] [--checkfirst]\n"
-			       "            [--explain] [--plan] [script [args...]]\n"
+			       "            [--explain] [--modules=off|after|before] [--plan]\n"
+			       "            [script [args...]]\n"
 			       "       hibr -c 'commands' [args...]\n"
 			       "       hibr -v | -h\n\n"
 			       "  -c   run the given commands\n"
@@ -634,6 +642,9 @@ int main(int ac, char **av)
 			       "       read, and list each one; --explain reads the text,\n"
 			       "       --plan follows what it would do (given both,\n"
 			       "       --explain wins)\n"
+			       "  --modules  whether a module may answer a command nothing\n"
+			       "       else did: off, after (the default) or before the\n"
+			       "       programs on PATH; HIBR_MODULES is the same setting\n"
 			       "  -l   a login shell: read /etc/profile, then the first\n"
 			       "       of ~/.hibr_profile, ~/.hibr_login, ~/.profile,\n"
 			       "       and ~/.hibr_logout on the way out (also when\n"

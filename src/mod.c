@@ -587,6 +587,178 @@ int m_declaresbi(const char *path, const char *nm)
 	return yes;
 }
 
+/* Which end of the command search a module may answer from: HIBR_MODULES,
+   one of off, after or before, and after when it says nothing (ADR 0040).
+   Cached the way FUNCNEST's own limit is, because this is asked on every
+   command that is neither a builtin nor a function; v_named clears it. */
+int m_ldmode = -1;
+
+int m_ldwhen(sh *s)
+{
+	const char *v;
+
+	if (m_ldmode >= 0)
+		return m_ldmode;
+	v = hibr_get(s, "HIBR_MODULES");
+	if (!v || !*v)
+		m_ldmode = MD_AFTER;
+	else if (!strcmp(v, "off") || !strcmp(v, "no") || !strcmp(v, "0"))
+		m_ldmode = MD_OFF;
+	else if (!strcmp(v, "before"))
+		m_ldmode = MD_BEFORE;
+	else if (!strcmp(v, "after"))
+		m_ldmode = MD_AFTER;
+	else {
+		lg(HIBR_LWRN, "HIBR_MODULES: %s is not off, after or before",
+		   v);
+		m_ldmode = MD_AFTER;
+	}
+	lg(HIBR_LDBG, "module autoload is %s",
+	   m_ldmode == MD_OFF ? "off" : m_ldmode == MD_BEFORE ? "before" : "after");
+	return m_ldmode;
+}
+
+/* The builtins every module on the path declares, each with the object that
+   declares it, sorted so a lookup is a bsearch.
+
+   `before` asks this of every command that is not a builtin or a function
+   -- every ls, git, grep -- and the scan behind it dlopens each candidate
+   to read its descriptor, which is 4.3 ms for this machine's 35 modules:
+   fine once, ruinous per command. So it is built once, lazily, and kept.
+   A module installed after this shell started is therefore not seen by it;
+   `need` and `mod load` still find one by name, and a new shell indexes it.
+   Not thrown away when a module loads or drops, because what is on the path
+   has not changed -- only what is in memory, which m_find already answers. */
+struct bix {
+	char *nm;
+	char *path;
+};
+
+struct bix *m_bix;
+size_t m_bixn;
+int m_bixok;
+
+int m_bixcmp(const void *a, const void *b)
+{
+	return strcmp(((const struct bix *)a)->nm, ((const struct bix *)b)->nm);
+}
+
+/* Index every builtin one candidate object declares. */
+void m_bixadd(const char *path)
+{
+	void *h = dlopen(path, RTLD_NOW | RTLD_LOCAL);
+	const hibr_mod *d;
+	const hibr_bi *b;
+
+	if (!h)
+		return;
+	d = (const hibr_mod *)dlsym(h, "hibr_module");
+	if (d && d->abi == HIBR_ABI)
+		for (b = d->bi; b && b->nm; b++) {
+			struct bix *g = realloc(m_bix,
+						(m_bixn + 1) * sizeof *g);
+			if (!g)
+				break;
+			m_bix = g;
+			m_bix[m_bixn].nm = xs(b->nm);
+			m_bix[m_bixn].path = xs(path);
+			m_bixn++;
+		}
+	dlclose(h);
+}
+
+/* Index one directory, in name order so two modules declaring the same
+   builtin resolve the same way twice running. */
+void m_bixdir(sh *s, const char *dir)
+{
+	DIR *dp = opendir(dir);
+	struct dirent *de;
+	vec names;
+	size_t i;
+
+	(void)s;
+	if (!dp)
+		return;
+	names.p = 0;
+	names.n = 0;
+	names.cap = 0;
+	while ((de = readdir(dp)))
+		if (m_hasso(de->d_name))
+			v_add(&names, xs(de->d_name));
+	closedir(dp);
+	if (names.n > 1)
+		qsort(names.p, names.n, sizeof *names.p, m_cmp);
+	for (i = 0; i < names.n; i++) {
+		str full;
+
+		s_init(&full);
+		s_cat(&full, dir);
+		if (full.n && full.p[full.n - 1] != '/')
+			s_ch(&full, '/');
+		s_cat(&full, (char *)names.p[i]);
+		m_bixadd(full.p);
+		s_free(&full);
+	}
+	for (i = 0; i < names.n; i++)
+		free(names.p[i]);
+	v_free(&names);
+}
+
+/* Build the index: the same places, in the same order, that m_findbi
+   searches -- including root's own rule, which is HIBR_MODDIR and nothing
+   else (ADR 0016). */
+void m_bixbuild(sh *s)
+{
+	const char *mp = geteuid() == 0 ? 0 : hibr_get(s, "HIBR_MODPATH");
+
+	m_bixok = 1;
+	if (geteuid() != 0 && !m_nodot(s))
+		m_bixdir(s, ".");
+	while (mp && *mp) {
+		const char *e = strchr(mp, ':');
+		size_t n = e ? (size_t)(e - mp) : strlen(mp);
+		if (n) {
+			char *d = ar_dup(s->xa, mp, n);
+			m_bixdir(s, d);
+		}
+		mp = e ? e + 1 : mp + n;
+	}
+	m_bixdir(s, HIBR_MODDIR);
+	if (m_bixn > 1)
+		qsort(m_bix, m_bixn, sizeof *m_bix, m_bixcmp);
+	lg(HIBR_LDBG, "indexed %zu builtins on the module path", m_bixn);
+}
+
+/* The object declaring this builtin, or NULL. */
+const char *m_bixfind(sh *s, const char *nm)
+{
+	struct bix k, *g;
+
+	if (!m_bixok)
+		m_bixbuild(s);
+	if (!m_bixn)
+		return 0;
+	k.nm = (char *)nm;
+	k.path = 0;
+	g = bsearch(&k, m_bix, m_bixn, sizeof *m_bix, m_bixcmp);
+	return g ? g->path : 0;
+}
+
+/* Load whichever module declares this builtin, from the index: `before`'s
+   own path, which must not walk the module directory per command. */
+int m_ldauto(sh *s, const char *nm)
+{
+	const char *p;
+
+	if (s->sopt & O_PLAN)
+		return HIBR_FAIL;
+	p = m_bixfind(s, nm);
+	if (!p)
+		return HIBR_FAIL;
+	lg(HIBR_LINF, "loading %s, which declares %s", p, nm);
+	return m_load(s, p);
+}
+
 /* Walk one directory for a module that offers the interface, and load it. */
 int m_seek(sh *s, const char *dir, const char *iface)
 {

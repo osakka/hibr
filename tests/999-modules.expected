@@ -1,0 +1,33 @@
+0
+--- after, the default: the program on PATH wins
+the program
+--- before: the module wins over the program
+HELLO
+--- off: no autoload, and the program is still found
+the program
+--- after, with nothing on PATH to find
+HELLO
+--- off, with nothing on PATH either
+hibr: upper: command not found
+--- a word that is none of the three says so, and behaves as after
+hibr: HIBR_MODULES: sideways is not off, after or before
+hibr: HIBR_MODULES: sideways is not off, after or before
+HELLO
+--- the setting can change inside the shell
+the program
+B
+--- a module already loaded stays a builtin whatever the setting says
+A
+B
+--- a plan never autoloads: a module init may do anything
+hibr: upper: command not found
+--- a builtin is still the builtin, whatever the setting says
+echo is the builtin
+--- and a function still wins over both
+the function
+--- the flag says the same thing for one invocation
+HELLO
+the program
+hibr: upper: command not found
+--- and the flag is not exported to what the shell runs
+the program

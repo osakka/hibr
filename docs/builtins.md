@@ -325,13 +325,24 @@ A module adds builtins, and it can add a *protocol*: register a scheme and
 search skips `.` and `HIBR_MODPATH` and consults only the module directory. See
 [Modules](modules.md).
 
-`mod find` is what a `command_not_found` function (interactive shells only —
-see [Interactive](interactive.md)) autoloads with: the default `~/.hibrc`
-`deploy.sh` writes for a new install defines one, so a command a module
-registers works without an explicit `mod load`/`need` first, the same as if
-it had always been a builtin. It only ever runs after PATH and every
-builtin/function have already failed to find the command, so it never
-shadows a real program the way checking modules *before* PATH would.
+**`HIBR_MODULES` says whether a module may answer a command nothing else
+did, and from which end of the search** — `off`, `after` (the default) or
+`before`, also settable for one invocation with `--modules=`
+([0040](adr/0040-a-module-may-answer-a-command.md)):
+
+| value | the command search |
+|---|---|
+| `off` | alias, function, builtin, PATH. A module needs `need` or `mod load`. |
+| `after` | …then a module that declares that builtin, if nothing else answered. So `sysinfo` works out of a fresh install with no startup file at all, and a module can never shadow a real program. |
+| `before` | alias, function, builtin, **module**, PATH — hibr's own `ls`, `cat` and `most` in front of the system ones. |
+
+A module already loaded is already a builtin and shadows PATH whatever this
+says: that is what `mod load` means, and the setting governs *autoloading*.
+`before` keeps an index of every builtin the module path declares, built once
+on first use, because finding one otherwise means opening every candidate
+module (4.3 ms for 35 of them) and `before` is asked on every command that is
+not a builtin or a function. A `--plan` run never autoloads; `mod find` is
+still there to do it by hand.
 
 ## Interactive
 

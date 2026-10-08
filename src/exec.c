@@ -1402,7 +1402,7 @@ int ex_cmd(sh *s, node *n)
 	vec *asg = &none, *asgm = &none;
 	vec sv = { 0, 0, 0 }, old = { 0, 0, 0 };
 	char **av, **env, **am = 0;
-	char *path;
+	char *path = 0;
 	job *jb = 0;
 	node *f;
 	const hibr_bi *b = 0;
@@ -1505,6 +1505,26 @@ int ex_cmd(sh *s, node *n)
 		if (!b)
 			b = bi_find(av[0]);
 	}
+	/* A module may answer where no builtin and no function did, and
+	   HIBR_MODULES says from which end: `before` lets a module's own ls
+	   or cat stand in front of the ones on PATH, `after` only where PATH
+	   has none -- which is every command that does not exist, and is the
+	   default (ADR 0040). `off` asks nothing. A plan run never autoloads:
+	   a module's init may do anything, and a dry run has promised not to.
+	   The findx here is the one the search below would have made, kept so
+	   the common case pays no second lookup. */
+	if (!f && !b) {
+		int md = m_ldwhen(s);
+
+		if (md == MD_BEFORE) {
+			if (m_ldauto(s, av[0]) == HIBR_OK)
+				b = m_find(s, av[0]);
+		} else if (md == MD_AFTER) {
+			path = findx(s, av[0]);
+			if (!path && m_ldauto(s, av[0]) == HIBR_OK)
+				b = m_find(s, av[0]);
+		}
+	}
 	if (b && ac == 1 && !strcmp(av[0], "exec")) {
 		st = rd_do(s, n->rd, 0);
 		lg(HIBR_LDBG, "exec: redirections made permanent");
@@ -1532,7 +1552,8 @@ int ex_cmd(sh *s, node *n)
 		rd_undo(&sv);
 		goto out;
 	}
-	path = findx(s, av[0]);
+	if (!path)
+		path = findx(s, av[0]);
 	if (!path) {
 		node *cnf = fn_find(s, "command_not_found");
 		if (cnf) {

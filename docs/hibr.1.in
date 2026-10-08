@@ -92,6 +92,15 @@ and
 .BR sshd (8)
 invoke one.
 .TP
+.BI \-\-modules= value
+Autoload modules
+.BR off ", " after " (the default) or " before
+the programs on
+.BR PATH ;
+the same as setting
+.B HIBR_MODULES
+for this invocation.
+.TP
 .B \-n
 Parse only: report the first syntax error, run nothing.
 .TP
@@ -161,6 +170,25 @@ only from the installed directory.
 .B HIBR_RC
 The startup file an interactive shell reads, in place of
 .IR ~/.hibrc .
+.TP
+.B HIBR_MODULES
+Whether a module may answer a command nothing else did, and from which end
+of the search:
+.BR off ,
+.B after
+(the default) or
+.BR before .
+With
+.B after
+a module is looked for only when no alias, function, builtin or program on
+.B PATH
+answered, so it can never shadow a real program; with
+.B before
+a module's own builtin stands in front of
+.BR PATH .
+.BI \-\-modules= value
+sets it for one invocation. A module already loaded is already a builtin
+whatever this says.
 .TP
 .B HIBR_PROFILE
 The system profile a login shell reads, in place of
