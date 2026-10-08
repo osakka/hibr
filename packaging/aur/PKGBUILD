@@ -5,7 +5,7 @@
 # opened on first use, never linked, so they are optional.
 
 pkgname=hibr
-pkgver=0.99.97
+pkgver=0.99.98
 pkgrel=1
 pkgdesc="Small, fast bash-flavoured shell with nested maps, JSON, and native networking"
 arch=('x86_64' 'aarch64')
@@ -17,7 +17,7 @@ optdepends=('openssl: TLS -- /dev/tls and https'
             'libjpeg-turbo: JPEG pictures in the img module and desktop wallpapers')
 install=hibr.install
 source=("$pkgname-$pkgver.tar.gz::https://github.com/osakka/hibr/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('c0a08e6ea85a17d74a918d671c1f910e69674e31d7b92331551f8b435131492b')
+sha256sums=('7d43d10839e3d0fd1b02382e981966e16300a84705551856f7c817e53c04d58c')
 
 build() {
 	cd "$pkgname-$pkgver"
