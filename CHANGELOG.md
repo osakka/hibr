@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.99.109
+
+**About This Computer is a box again, with both of its scrollbars doing
+something** (Gitea #139, part of it). 0.99.105 made the window as tall as
+its own content so that nothing would be below the fold -- which is also
+how to guarantee a scrollbar is never seen, since a window the size of
+what it holds has nothing to scroll. Reported as *"make the about box
+smaller, I want to see the scroll bars both vertical and horizontal"*, and
+quite right.
+
+It asks for 18 rows by 52 columns now, whatever it holds. What it holds is
+both longer and wider than that -- 27 lines, and sysinfo's logo rows run
+to about 60 columns -- so there is a bar down the side and a new one along
+the foot of the list. Lines are kept whole rather than cut with an
+ellipsis, and the draw takes the slice the window can show, so the end of
+a long line is scrolled to: left and right move four columns at a time,
+and the pinned versions and the meters stay where they are. `dt_hscrollbar`
+is the widget, beside `dt_scrollbar` in `widgets/scrollbar.hibr`: the same
+arithmetic turned on its side, so the two stay in step by being the same
+code.
+
+Still open on #139: the facts moving above the versions, the machine's own
+OS logo rather than hibr's, and colour.
+
 ## 0.99.108
 
 **A Modules window: everything the module path can offer, loaded or not,

@@ -478,36 +478,36 @@ fn about_lines(int id, int w) {
 	t := about_held
 	v := dt_tr "Held: %s" "$t"
 	AB_LINES+=("t:$v")
-	# One line each, whatever they hold: a long hostname, a wide logo or a
-	# terminal with a long name is cut rather than allowed to change how
-	# many rows this window needs.
+	# One line each, whatever they hold, and kept whole: a long hostname,
+	# a wide logo or a terminal with a long name is scrolled to rather
+	# than cut, which is what the horizontal bar is for. The only cut left
+	# is a guard against something pathological -- a line longer than any
+	# screen is a line nobody can scroll to the end of anyway.
 	i=0
 	while [ "$i" -lt "${#AB_LINES[@]}" ]; do
 		t=${AB_LINES[$i]}
-		if [ "${#t}" -gt $((room + 2)) ]; then
-			AB_LINES[$i]="${t:0:$((room + 1))}${GL[ellipsis]}"
+		if [ "${#t}" -gt 240 ]; then
+			AB_LINES[$i]="${t:0:239}${GL[ellipsis]}"
 		fi
 		i=$((i + 1))
 	done
 }
 
-# How big a window this wants: tall enough to show everything at once where
-# the screen allows, and clamped to what it does not. dt_launch asks an app
-# for this; a caller that says a size with dt_new gets the size it said, and
-# then the middle scrolls.
+# How big a window this wants: a box, not a wall. 0.99.105 made this as
+# tall as its own content so nothing would be below the fold, which is also
+# how to make sure a scrollbar is never seen -- a window the size of what
+# it holds has nothing to scroll. Reported as "make the about box smaller,
+# I want to see the scroll bars both vertical and horizontal", and quite
+# right: what this window shows is longer and wider than any sensible box,
+# so the box stays a box and both bars do their job. dt_launch asks an app
+# for this; a caller that says a size with dt_new gets the size it said.
 about_size() {
-	local rows cols
+	local rows=18 cols=52
 
-	# Built here rather than guessed: dt_launch asks for a size before the
-	# first draw, so AB_LINES is empty at that point and a guess was one
-	# row short -- the Held line stayed below the fold on a screen with
-	# room for it. about_lines needs no window of its own and the sysinfo
-	# block it reads is cached, so asking is cheap.
-	about_lines 0 64
-	rows=$((${#AB_LINES[@]} + 9))
-	[ "$rows" -gt $((DT_ROWS - 2)) ] && rows=$((DT_ROWS - 2))
+	# The screen has the last word: a minimum applied after the clamp
+	# asks for a window taller than the screen on a very short one.
 	[ "$rows" -lt 12 ] && rows=12
-	cols=66
+	[ "$rows" -gt $((DT_ROWS - 2)) ] && rows=$((DT_ROWS - 2))
 	[ "$cols" -gt $((DT_COLS - 2)) ] && cols=$((DT_COLS - 2))
 	ret "$rows $cols"
 }
@@ -517,7 +517,7 @@ about_size() {
 # what is left in between is this. Returned rather than computed twice, since the draw, the wheel and
 # the keys all need the same number.
 fn about_vis(int h) {
-	local v=$((h - 7))
+	local v=$((h - 8))
 
 	[ "$v" -lt 1 ] && v=1
 	ret "$v"
@@ -525,6 +525,7 @@ fn about_vis(int h) {
 
 fn about_draw(int id, int h, int w, int row, int col) {
 	local cpu mem bar barw=$((w - 12)) pct vis top n i r t
+	local off room wide=0 len
 
 	command -v dt_want > /dev/null && dt_want "$AB_SLOWMS"
 	about_lines "$id" "$w"
@@ -547,6 +548,23 @@ fn about_draw(int id, int h, int w, int row, int col) {
 	AB[$id]["top"]=$top
 	AB[$id]["n"]=$n
 	AB[$id]["vis"]=$vis
+	# How far the widest line reaches, which is what there is to scroll
+	# sideways through: the sysinfo block's logo rows are wider than
+	# anything else here, and they are what the horizontal bar is for.
+	room=$((w - 3))
+	[ "$room" -lt 8 ] && room=8
+	i=0
+	while [ "$i" -lt "$n" ]; do
+		len=${#AB_LINES[$i]}
+		len=$((len - 2))
+		[ "$len" -gt "$wide" ] && wide=$len
+		i=$((i + 1))
+	done
+	off=${AB[$id]["off"]:-0}
+	off := dt_scrollfit "$off" "$wide" "$room"
+	AB[$id]["off"]=$off
+	AB[$id]["wide"]=$wide
+	AB[$id]["room"]=$room
 	i=$top
 	r=5
 	while [ "$i" -lt "$n" ] && [ "$r" -lt $((5 + vis)) ]; do
@@ -561,11 +579,13 @@ fn about_draw(int id, int h, int w, int row, int col) {
 		# Already translated by about_lines, so put it rather than
 		# dt_tput it -- a bare "%s" handed to dt_tput would land in
 		# the catalogue as a key of its own.
-		console put -p "w$id" "$r" 2 "${t#??}"
+		t=${t#??}
+		console put -p "w$id" "$r" 2 "${t:$off:$room}"
 		i=$((i + 1))
 		r=$((r + 1))
 	done
 	dt_scrollbar "$id" 5 "$w" "$vis" "$n" "$vis" "$top"
+	dt_hscrollbar "$id" $((5 + vis)) 2 "$room" "$wide" "$room" "$off"
 
 	# The meters last and anchored to the bottom, because they are the
 	# part being watched rather than read: they stay put while everything
@@ -613,6 +633,7 @@ fn about_wheel(int id, dir, int? r = "", int? c = "") {
 # And the keys, for a window reached without a mouse.
 fn about_key(int id, k) {
 	local top=${AB[$id]["top"]:-0} vis=${AB[$id]["vis"]:-1}
+	local off=${AB[$id]["off"]:-0} room=${AB[$id]["room"]:-8}
 
 	case $k in
 	up) top=$((top - 1)) ;;
@@ -621,6 +642,16 @@ fn about_key(int id, k) {
 	pagedown) top=$((top + vis)) ;;
 	home) top=0 ;;
 	end) top=${AB[$id]["n"]:-0} ;;
+	left | right)
+		# Sideways, for the lines that are wider than the box.
+		case $k in
+		left) off=$((off - 4)) ;;
+		right) off=$((off + 4)) ;;
+		esac
+		off := dt_scrollfit "$off" "${AB[$id]["wide"]:-0}" "$room"
+		AB[$id]["off"]=$off
+		dt_want 1
+		return 0 ;;
 	*) return 1 ;;
 	esac
 	top := dt_scrollfit "$top" "${AB[$id]["n"]:-0}" "$vis"

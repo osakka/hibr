@@ -53,3 +53,27 @@ fn dt_scrollbar(int id, int row0, int col, int h, int total, int shown, int pos)
 		r=$((r + 1))
 	done
 }
+
+# The same along a row: a track of GL[hline] over w columns from col0, the
+# thumb where the view already is. Lines wider than the window are the case
+# it is for -- the About window's own sysinfo block, whose logo is wider
+# than anything else it shows -- and the arithmetic is the vertical one
+# turned on its side, so the two stay in step by being the same.
+fn dt_hscrollbar(int id, int row, int col0, int w, int total, int shown, int pos) {
+	local thumb c tg=${GL[block]} kg=${GL[hline]}
+
+	[ "$total" -gt "$shown" ] || return 0
+	thumb=$((col0 + pos * (w - 1) / (total - shown)))
+	[ "$thumb" -ge $((col0 + w)) ] && thumb=$((col0 + w - 1))
+	c=$col0
+	while [ "$c" -lt $((col0 + w)) ]; do
+		if [ "$c" = "$thumb" ]; then
+			console pen "$DT_ACTIVE" "$DT_FACE"
+			console put -p "w$id" "$row" "$c" "$tg"
+		else
+			console pen "$DT_IDLE" "$DT_FACE"
+			console put -p "w$id" "$row" "$c" "$kg"
+		fi
+		c=$((c + 1))
+	done
+}

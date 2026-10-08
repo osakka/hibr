@@ -2413,9 +2413,15 @@ check("what it opens on is the machine's own labelled facts, under a heading",
 # mods/sysinfo's own block, logo and all -- the OS, the architecture, the
 # processor, the memory, the disk and the load, none of which this app knows
 # how to find and all of which belong in an About box.
+# A box this size shows eight of its own lines at a time, which is why it
+# has bars: the sysinfo block is read a page at a time rather than all at
+# once in a window as tall as its content (0.99.109).
+mid, _ = run("", feed=[press(0, 2), b"a", b"\x1b[6~"], pre=APPS)
+mid2, _ = run("", feed=[press(0, 2), b"a", b"\x1b[6~", b"\x1b[6~"], pre=APPS)
 check("and sysinfo's own block is in it, logo and all",
-      sc.find("OS: ") is not None and sc.find("Arch: ") is not None
-      and sc.find("======\\X/======") is not None, sc)
+      sc.find("OS: ") is not None and sc.find("======\\X/======") is not None
+      and mid.find("Arch: ") is not None and mid.find("CPU: ") is not None,
+      (sc, mid))
 # And a section for what it is drawing on, which is the other half of what
 # decides what the desktop can do (Gitea #121). Each line is something the
 # desktop can ask rather than guess -- the harness's terminal says nothing
@@ -2430,8 +2436,9 @@ check("and a This Terminal section: size, pictures, colour, mouse and hold",
       sc.find("Held: no") is not None, sc)
 check("and invents no pixels when the terminal has not said what a cell is",
       "0 x 0" not in sc.text() and "0 by 0" not in sc.text(), sc)
-check("the end key reaches the foot of it, Disk and Load included",
-      sc.find("Disk: ") is not None and sc.find("Load: ") is not None, sc)
+check("and a page further on, what the disk and the load are doing",
+      mid.find("Disk: ") is not None and mid2.find("Load: ") is not None,
+      (mid, mid2))
 sc, _ = run('dt_new "About This Computer" 12 48 6 10 about', pre=APPS)
 check("a short About window scrolls, with a bar to say so",
       sc.find("Hostname:") is not None and sc.find("Held:") is None
@@ -2440,6 +2447,25 @@ sc, _ = run('dt_new "About This Computer" 12 48 6 10 about',
             feed=[wheel(10, 20, up=False)] * 3, pre=APPS)
 check("and the wheel moves the facts, the meters staying where they are",
       sc.find("Hostname:") is None and sc.find("CPU") is not None, sc)
+
+# 0.99.105 sized this window to its own content so that nothing would be
+# below the fold, which is also how to guarantee a scrollbar is never seen:
+# a window the size of what it holds has nothing to scroll. It is a box
+# again, and what it shows is both longer and wider than the box -- so
+# there is a bar down the side and another along the foot of the list, and
+# the arrows use them. Reported as "make the about box smaller, I want to
+# see the scroll bars both vertical and horizontal".
+sc, _ = run("", feed=[press(0, 2), b"a"], pre=APPS)
+hbar = [r for r in range(sc.rows) if "──" in sc.row(r)
+        and not any(g in sc.row(r) for g in "┌┐└┘┤├")]
+check("About is a box rather than a wall, with a bar along the foot of its "
+      "list as well as down its side",
+      len(hbar) == 1 and "█" in sc.row(hbar[0]) and
+      ("█│" in sc.text() or "││" in sc.text()), (hbar, sc))
+wide, _ = run("", feed=[press(0, 2), b"a"] + [b"\x1b[C"] * 5, pre=APPS)
+check("and the arrows scroll it sideways, the pinned versions staying put",
+      sc.find("Uptime: ") is not None and wide.find("Uptime: ") is None and
+      wide.find("hibr v") is not None, wide)
 
 # Clock is a desk accessory now, not in examples/desktop/apps -- the bar's own
 # click handler only asks dt_has clock_draw, so it works regardless of
@@ -4370,4 +4396,4 @@ check("so is a center wallpaper wider than the screen",
       len(put) == 1 and not gone, "%d placed, %d deleted" % (len(put), len(gone)))
 shutil.rmtree(WPD, True)
 
-report(561)
+report(563)
