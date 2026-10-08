@@ -1838,6 +1838,29 @@ went in the shell.
   sends twice. `web take` stops at a reset and hands it over alone, so
   the restart happens first. It showed in about one run in four under
   load, as "Loading..." at 0:00, and never alone.
+- **And a seek must come after them: `web tapseek` can only queue back an
+  init segment it has already seen.** The other half of the same rule,
+  found 90 releases later (Gitea #135). The app takes a video up where it
+  was left -- from the history, or after the page's player gave up and was
+  loaded again -- by seeking, which drops our player and asks the tap to
+  queue each stream's init again; its gate was "the page's player answers
+  and knows the duration", both true the instant a page exists, well
+  before it has appended anything. Asked then, `__hibrSeek` empties the
+  queue and pushes back an empty `T.init`, the page's own `seekTo` is sent
+  into buffers nobody has filled, and the take that follows carries one
+  stream with no init segment and the other not at all (`v 53960 a 0`
+  against a healthy `v 107330 a 83075`) -- so nothing decodes again, ever:
+  the picture stays on the last frame it had and the clock stops dead at
+  the second it gave up. The gate is now "the tap has handed us bytes of
+  this stream" (`YT[id]["fed"]`, put back to empty by a reset), which is
+  exactly when there is an init to queue back. **Half** the runs of the
+  suite's own check for the page giving up, in complete isolation -- which
+  is what two releases' worth of "a load flake" turned out to be: a check
+  called flaky twice and released past. Before believing a full-screen
+  check is a flake, run the one scenario in a loop and count; and when a
+  check only fails half the time, add a knob that makes the window
+  certain (`ytserve.py`'s `/control?slow=VID:MS` and its `/early` count)
+  rather than leaving the guard to luck.
 - **A timing check waits for the thing, and widens under the
   sanitizers.** `tests/media.py` and `tests/youtube.py` wait on the
   condition with a deadline rather than a fixed sleep, and scale their

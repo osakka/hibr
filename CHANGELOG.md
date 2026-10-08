@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.99.106
+
+**A video YouTube's own player gave up on froze where it stopped, half the
+time** (Gitea #135). The app notices the page's error and loads the video
+again -- that part always worked -- and then took it up where it was left
+as soon as the page's player answered at all, which is before any of the
+new stream has arrived. A seek drops our player and asks the tap to queue
+each stream's init segment again, and the tap can only queue back an init
+it has already seen: asked that early it empties the queue instead, the
+page's own player is sent to a time in buffers nobody has filled, and what
+comes back is one stream with no init segment and the other not at all. So
+nothing ever decodes again -- the picture stays on the last frame it had
+and the clock never moves. Taking a video up where it was left now waits
+for the first of its own bytes to have been taken, which is the moment the
+tap has an init to queue back; a new media source puts that back to
+waiting, since its stream has not arrived either. The same race was there
+for a video resumed from the history.
+
+Measured rather than guessed: the suite's own check for this failed **5
+runs in 10** in complete isolation, always with the page loaded twice and
+the clock stopped dead at the second it gave up, and 10 in 10 pass now.
+`tests/ytserve.py` can hold a page's first fragments back
+(`/control?slow=VID:MS`) and reports a player asked to seek before it has
+been fed anything (`/early`), so the new check fails 3 times in 3 against
+the code before this and does not depend on winning a race to do it.
+
 ## 0.99.105
 
 **About asks for a window one row taller, which is the row the Held line was

@@ -197,6 +197,30 @@ try:
           "again and plays on past where it stopped",
           at(s[-1]) >= 9 and loads.get("vid2", 0) >= 2, (loads, s[-1]))
 
+    # The same, with the new page held back from appending anything for a
+    # moment: its media source and buffers are made at once, so the tap's
+    # reset reaches the app before any of the new stream does. That is the
+    # window in which the resume used to be sent into buffers nobody had
+    # filled -- the tap had no init segment of its own to queue back, the
+    # page's player was sent to a time in an empty buffer, and what came
+    # of it was one stream with no init and the other not at all: nothing
+    # decoded ever again and the picture stayed on the last frame it had.
+    # Half the runs of the check above were that, Gitea #135.
+    def counts():
+        return (json.loads(urllib.request.urlopen(BASE + "/loads").read()).get("vid2", 0),
+                json.loads(urllib.request.urlopen(BASE + "/early").read()).get("vid2", 0))
+
+    urllib.request.urlopen(BASE + "/control?fail=vid2:4&slow=vid2:1200").read()
+    wasl, wase = counts()
+    s = yrun([([], "Another clip"), ([b"\x1b[B", b"\r"], playing),
+              ([], lambda sc: at(sc) >= 9, 40)])
+    nowl, nowe = counts()
+    urllib.request.urlopen(BASE + "/control?slow=vid2:0").read()
+    check("and it waits for the new stream's own first bytes before taking "
+          "it up, rather than seeking into buffers nobody has filled",
+          at(s[-1]) >= 9 and nowl - wasl >= 2 and nowe == wase,
+          (nowl - wasl, nowe - wase, s[-1]))
+
     s = yrun([([], "A test pattern"), ([b"/"] + [b"\x15"] + [c.encode() for c in "zebra"] +
                                         [b"\r"], "A test pattern (zebra)")])
     check("/ goes back to the search field, and a new search lists afresh",
@@ -272,4 +296,4 @@ finally:
     srv.wait()
     shutil.rmtree(D, True)
 
-report(27)
+report(28)

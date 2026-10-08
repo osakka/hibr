@@ -11,6 +11,14 @@ the network. Prints "port N" once it is listening.
 GET /control?fail=VID:SECONDS makes the next load of that video fail the
 way YouTube's player does: it stops fetching at that second and its player
 falls back to unstarted under its own error. The load after plays normally.
+
+GET /control?slow=VID:MS holds every load of that video's first fragments
+back by that long -- the media source and its buffers are made at once, as
+they are here and on YouTube, and nothing is appended to them until then.
+That is the window in which a player taken up where it was left can be
+sent to a time in buffers nobody has filled yet, and a page asked to seek
+in it says so: GET /early answers how many times that has happened, per
+video.
 """
 import json, os, sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -18,7 +26,9 @@ from urllib.parse import parse_qs, urlsplit
 
 ROOT = sys.argv[1]
 FAILS = {}
+SLOWS = {}
 LOADS = {}
+EARLY = {}
 VIDEOS = [("vid1", "A test pattern", "Pattern Channel", "0:12"),
           ("vid2", "Another clip", "Second Channel", "0:12"),
           ("vid3", "Third result", "Pattern Channel", "0:12")]
@@ -27,13 +37,14 @@ WATCH = """<!doctype html><html><head><title>%(title)s - YouTube</title></head>
 <body><div id="movie_player"></div><video id="v" muted></video><script>
 var V = document.getElementById("v"), P = document.getElementById("movie_player");
 var ms = new MediaSource(), sbs = {}, segs = {}, segdur = 2, failAt = %(fail)s;
+var slowInit = %(slow)s, fed = 0;
 V.src = URL.createObjectURL(ms);
 function queue(k, from) {
   var sb = sbs[k], list = segs[k], i = from;
   function next() {
     if (i >= list.length || sb.updating) return;
     if (failAt && i > Math.floor(failAt / segdur)) return;
-    var b = list[i++]; sb.appendBuffer(b);
+    var b = list[i++]; fed = 1; sb.appendBuffer(b);
   }
   sb.onupdateend = next; next();
 }
@@ -47,7 +58,10 @@ ms.addEventListener("sourceopen", function () {
         return fetch("/media/" + f).then(function (r) { return r.arrayBuffer(); });
       })).then(function (bs) { segs[k] = bs.map(function (b) { return new Uint8Array(b); }); });
     }));
-  }).then(function () { queue("v", 0); queue("a", 0); });
+  }).then(function () {
+    function go() { queue("v", 0); queue("a", 0); }
+    if (slowInit) setTimeout(go, slowInit); else go();
+  });
 });
 var state = -1, quality = "auto";
 P.getPlayerState = function () { return state; };
@@ -66,6 +80,7 @@ P.playVideo = function () {
 P.pauseVideo = function () { state = 2; V.pause(); window.__paused = 1; };
 P.seekTo = function (t) {
   window.__seeked = t; V.currentTime = t;
+  if (!fed) fetch("/mark?early=%(vid)s");
   var k = 1 + Math.floor(t / segdur);
   ["v", "a"].forEach(function (s) { sbs[s].abort(); queue(s, Math.min(k, segs[s].length - 1)); });
 };
@@ -139,15 +154,25 @@ class H(BaseHTTPRequestHandler):
         if u.path == "/control":
             vid, _, at = q.get("fail", [":"])[0].partition(":")
             FAILS[vid] = int(at or 0)
+            vid, _, ms = q.get("slow", [":"])[0].partition(":")
+            SLOWS[vid] = int(ms or 0)
             return self.send(200, "ok", "text/plain")
         if u.path == "/loads":
             return self.send(200, json.dumps(LOADS), "application/json")
+        if u.path == "/early":
+            return self.send(200, json.dumps(EARLY), "application/json")
+        if u.path == "/mark":
+            vid = q.get("early", [""])[0]
+            EARLY[vid] = EARLY.get(vid, 0) + 1
+            return self.send(200, "ok", "text/plain")
         if u.path == "/watch":
             vid = q.get("v", [""])[0]
             LOADS[vid] = LOADS.get(vid, 0) + 1
             t = dict((i, (t, c)) for i, t, c, l in VIDEOS).get(vid, ("Unknown", "Nobody"))
             return self.send(200, WATCH % {"title": t[0], "author": t[1],
-                                           "fail": FAILS.pop(vid, 0)})
+                                           "vid": vid,
+                                           "fail": FAILS.pop(vid, 0),
+                                           "slow": SLOWS.get(vid, 0)})
         if u.path == "/media/list":
             fs = sorted(os.listdir(ROOT))
             def seq(p):

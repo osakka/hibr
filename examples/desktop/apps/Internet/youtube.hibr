@@ -439,6 +439,7 @@ fn yt_play(int id, int i) {
 	YT[$id]["bad"]=0
 	YT[$id]["chk"]=$EPOCHSECONDS
 	YT[$id]["resume"]=
+	YT[$id]["fed"]=
 	if yt_histget "$vid" && [ "${YTH[5]:-0}" -gt "$YT_RESUME" ]; then
 		YT[$id]["resume"]=${YTH[5]}
 	fi
@@ -518,9 +519,16 @@ fn yt_tick(int id) {
 	s := web take "$t" "${YT[$id]["vfd"]}" "${YT[$id]["afd"]}" 2> /dev/null
 	read -ra w <<< "$s"
 	if [ "${w[5]}" = 1 ]; then
+		# The tap stops at a new media source, so ours starts again
+		# here, before any of the new stream has arrived. None of
+		# that stream's own init segments has been taken yet, which
+		# is what a seek needs, so "fed" goes back to empty with it.
+		YT[$id]["fed"]=
 		tm=0
 		yt_page "$id" && tm=${YTP["t"]}
 		media seek "$p" "$tm"
+	elif [ "${w[1]:-0}" -gt 0 ] || [ "${w[3]:-0}" -gt 0 ]; then
+		YT[$id]["fed"]=1
 	fi
 	if [ "${YT[$id]["dur"]%.*}" = 0 ] && yt_page "$id"; then
 		YT[$id]["dur"]=${YTP["d"]}
@@ -530,8 +538,20 @@ fn yt_tick(int id) {
 			YT[$id]["len"] := yt_mmss "${YT[$id]["dur"]}"
 		fi
 	fi
+	# Taking a video up where it was left waits for the first of its own
+	# bytes to have been taken, not merely for the page's player to be
+	# there: a seek drops ours and asks the tap to queue each stream's
+	# init segment again, and the tap can only queue back an init it has
+	# already seen. Asked before the new page has appended anything, it
+	# empties the queue instead, the page's own player is sent to a time
+	# in buffers it has not filled, and what comes back is one stream
+	# with no init and the other not at all -- so nothing ever decodes:
+	# the picture stays on the last frame it had and the clock never
+	# moves again. Measured at half the runs of the suite's own check for
+	# the page giving up part way, and the same race was there for a
+	# video taken up from the history (Gitea #135).
 	if [ -n "${YT[$id]["resume"]}" ] && [ "${YT[$id]["state"]}" = playing ] &&
-	   [ "${YT[$id]["dur"]%.*}" -gt 0 ]; then
+	   [ -n "${YT[$id]["fed"]}" ] && [ "${YT[$id]["dur"]%.*}" -gt 0 ]; then
 		m := yt_mmss "${YT[$id]["resume"]}"
 		yt_seek "$id" "${YT[$id]["resume"]}"
 		YT[$id]["resume"]=
@@ -608,6 +628,7 @@ fn yt_recover(int id, int pos) {
 	fi
 	YT[$id]["state"]=loading
 	YT[$id]["since"]=$EPOCHSECONDS
+	YT[$id]["fed"]=
 	web go "${YT[$id]["pt"]}" "$YT_BASE/watch?v=${YT[$id]["vid"]}" 2> /dev/null
 }
 
