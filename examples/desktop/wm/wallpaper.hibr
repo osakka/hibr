@@ -222,13 +222,6 @@ dt_wall() {
 	fi
 	DT_WALLFOR=$sig
 	DT_WALLMS=$ms
-	# What the shadows need to know: they darken whatever is under them,
-	# and darkening is cumulative, so a window may only cast one onto
-	# wallpaper this frame painted. Left to itself a window redrawing over
-	# an unrepainted shadow strip would darken it again, and again, a
-	# little blacker every frame -- which is what the oracle in
-	# tests/desktop.py compares pens for.
-	DT_WALLDREW=1
 
 	# Paint around the windows, not over them. Nothing visible changes --
 	# every window is drawn after this and covers its own cells anyway --
@@ -289,11 +282,12 @@ dt_wall() {
 # Right-click on the bare desktop.
 DT_WALLGLYPHS=("·" "░" "▒" "⋅" "+")
 
-# What the wallpaper was last painted for, when, and whether this frame
-# painted it -- which is what says a shadow may be cast onto it.
+# What the wallpaper was last painted for, and when. It used to say whether
+# this frame painted it as well (DT_WALLDREW), which the Control Strip read
+# to know its own cells had been painted over; the strip draws on every
+# frame since 0.99.97 and nothing else ever read it, so it is gone.
 DT_WALLFOR=
 DT_WALLMS=0
-DT_WALLDREW=
 
 dt_wallnext() {
 	local i=0 g

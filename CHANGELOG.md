@@ -1,5 +1,62 @@
 # Changelog
 
+## 0.99.97
+
+**The Control Strip draws on every frame, because its cells were never its
+own to keep** (Gitea #125). Reported from a live session as "the control
+strip when it's open, it blinks, and does not refresh properly". It was not
+blinking out — it was **covered nearly all the time and flashing back about
+once a second**. The strip writes at absolute coordinates, *after* every
+window, so it is drawn over them; and a window whose app offers no `_dirty`
+is redrawn every frame, which wipes the strip's cells. Its gate — its own
+shape, the input count, the wallpaper having painted, otherwise at most once
+a second — knew nothing about a window having repainted.
+
+Measured at 80x24 with the strip at its default row 19 and one 10x60 window
+over it, the window asking for the next frame the way a focused terminal
+with a blinking cursor does, sampling the strip's row every 40 ms for 2.8 s:
+
+| the strip's row | before | now |
+|---|---|---|
+| fully drawn | **5** of 70 samples | **70** of 70 |
+| covered by the window | 65 of 70 | none |
+
+`cs_y` is 80% down the screen by default, so a window over the strip is the
+normal case rather than an edge one. Its shadow went with it: `console darken
+-s` marks each cell it shades and any ordinary write clears that mark.
+
+**Why no suite caught it, and what the new ones do differently.** An idle
+desktop barely draws at all, and the few frames it does are the wallpaper's
+own once-a-second ones — which the old gate already redrew on. The first
+probe written for this, with the window in place but nothing asking for
+frames, showed one state across every sample and looked perfectly healthy.
+What it needs is *frames happening continuously*, so the two new checks in
+`tests/desktop.py` drive a window that asks for the next frame, sample the
+row thirty times at 40 ms, and assert the strip's text is in every one of
+them and its shadow's pen never changes. Both were run against 0.99.96's
+`strip.hibr` first and both fail there.
+
+**What it costs, and the cheaper thing that was refused.** Drawing it every
+frame is **186 us against 23 us skipped** — +163 us on a 963 us frame at
+232x71, about 17%. Attribution by stubbing: not `nextprayer_draw` (11 us)
+and not the shadow; it is the body's own two dozen `console` calls. A flag
+for "a window covering this row was drawn", set in `dt_win` the way
+`DT_WALLDREW` was, would be one comparison a window a frame — but in the
+case that matters it fires on *every* frame anyway, so it saves nothing, and
+it is one more rule that has to stay in step with everything that repaints.
+`dt_shadow`'s own comment records that going wrong three times, the Control
+Strip blinking among them. Making this cheaper means fewer `console` calls,
+or cells of its own to composite — a measured next saving, not this fix.
+
+**`DT_WALLDREW` is retired.** The strip's gate was its only reader, and the
+gate is gone; the variable, the line that set it and the line that cleared
+it each frame have all gone with it.
+
+`tests/uifuzz.py oracle` at `ON=100` is clean, which is the check that a
+thing drawn at absolute coordinates over the finished frame has not
+desynchronised the forced-redraw comparison — and that a shadow cast over a
+window's own face every frame is not darkening twice.
+
 ## 0.99.96
 
 **The display recognises a picture four times faster, and hashing the cells

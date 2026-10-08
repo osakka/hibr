@@ -2219,6 +2219,49 @@ check("escape releases it, so the same arrow goes back to being unhandled",
       sc.row(row)[0:9] == "[Cursor]▸", sc)
 shutil.rmtree(sc.conf, True)
 
+# The strip draws at absolute coordinates, after every window, so it is drawn
+# over them -- and a window whose app offers no _dirty is redrawn every frame,
+# which wipes the strip's cells. Gated, it put them back at most once a second:
+# with one window under it the strip was there in 5 samples of 70, flashing
+# back about every 620 ms, reported as "it blinks, and does not refresh
+# properly" (Gitea #125). It draws every frame now.
+#
+# What this needs that a settled screenshot cannot give: frames happening
+# continuously. An idle desktop barely draws, and the few frames it does are
+# the wallpaper's own, which the old gate redrew on -- so the first probe for
+# this, with the window there but nothing asking for frames, showed one state
+# across every sample and looked perfectly healthy. The app asks for the next
+# frame the way a focused terminal with a blinking cursor does.
+CSWIN = ('spin_open() { return 0; }\n'
+         'spin_draw() { console put -p "w$1" 1 1 "SPIN"; dt_want 30; return 0; }\n'
+         'dt_app spin "Spin" 10 60 "" "" "" "" ""\n')
+d = tempfile.mkdtemp(prefix="hibr-stripover-")
+p = scratch("strip-over")
+open(p, "w").write("%s. %s\n%s%s\ndt_open\ndt_new \"Spin\" 10 60 %d 2 spin\n"
+                   "dt_run\ndt_close\n"
+                   % (load(MOD), WM, CSSRC, CSWIN, STRIPROW - 5))
+t = Term(p, env={"DT_TICK": "60", "XDG_CONFIG_HOME": d}, rows=ROWS, cols=COLS,
+         settle=1.0)
+rows, pens = [], []
+for _ in range(30):
+    t.collect(0.04)
+    s = t.screen()
+    rows.append(s.row(STRIPROW)[0:len(LABELS)])
+    pens.append(s.p[STRIPROW + 1][2])
+t.quit(b"qy", 1.0)
+os.unlink(p)
+shutil.rmtree(d, True)
+bad = [i for i, r in enumerate(rows) if r != LABELS]
+check("a window over the strip does not take it off the screen between frames",
+      not bad, "%d of %d samples missing it: %r" % (len(bad), len(rows),
+                                                   rows[bad[0]] if bad else ""))
+# Its shadow goes with it: console darken -s marks each cell it shades and any
+# ordinary write clears that mark, so a strip that skipped a frame lost the
+# shadow too. Drawn every frame, it is re-cast every frame -- and -s is what
+# stops a shadow cast over a window's own face from darkening twice.
+check("and its shadow is cast on every one of them, never twice over",
+      len(set(pens)) == 1, set(pens))
+
 # --- the wallpaper and the image viewer -----------------------------------
 #
 # img (mods/img) decodes a PNG and draws it as coloured half-blocks -- the
@@ -4180,4 +4223,4 @@ check("so is a center wallpaper wider than the screen",
       len(put) == 1 and not gone, "%d placed, %d deleted" % (len(put), len(gone)))
 shutil.rmtree(WPD, True)
 
-report(547)
+report(549)

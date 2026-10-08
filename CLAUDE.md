@@ -2488,10 +2488,24 @@ went in the shell.
   `tests/console.py` asserts cast-three-times equals cast-once, that
   *without* `-s` it does not, and that a rewritten cell gets its shadow
   back. Something drawn on the screen rather than through a pane -- the
-  Control Strip -- must still *draw* on any frame that painted the wallpaper
-  (`DT_WALLDREW`, which is all that variable is for now), or the wallpaper
-  paints over it and its own gate leaves it missing until it next chooses to
-  draw: "it disappears every second or so" was that. And where two windows
+  Control Strip -- **draws on every frame, like the bar, because its cells
+  are not its own to keep.** It was gated on the wallpaper having painted
+  (`DT_WALLDREW`) and otherwise once a second, which covered the wallpaper
+  and left two cases out: "it disappears every second or so" was the first,
+  and the second is that the strip writes at absolute coordinates *after*
+  every window, so a window with no `_dirty` -- which is redrawn every
+  frame -- wipes its cells, and with one window over it the strip was on
+  screen in **5 samples out of 70**, flashing back every 620 ms (Gitea
+  #125, 0.99.97; `cs_y` is 80% down the screen by default, so a window over
+  it is the normal case). An idle desktop barely draws, and the frames it
+  does draw were the wallpaper's own, which is why no suite caught it and
+  why the check for it has to drive a window that asks for frames. The flag
+  that would have done it precisely -- "a window covering this row was
+  drawn" -- fires on every frame anyway in the case that matters, so it
+  saves nothing and is a fourth rule to keep in step; drawing every frame
+  costs 186 us against 23, 17% of a frame at 232x71, all of it this body's
+  own two dozen console calls. `DT_WALLDREW` had no other reader and is
+  gone. And where two windows
   overlap, one's shadow falls on the other: `dt_alone` says whether anything
   overlaps, and if anything does the wallpaper is not gated at all.
   Overlapping windows cost that saving. Say so rather than hide it.

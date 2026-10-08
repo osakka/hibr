@@ -183,7 +183,6 @@ dt_draw() {
 	l := console pane list
 	read -ra ls <<< "$l"
 	dt_alone "${ls[@]}"
-	DT_WALLDREW=
 	dt_wall
 	for id in "${ls[@]}"; do dt_win "${id#w}"; done
 	DT_FORCEONCE=

@@ -248,35 +248,37 @@ fn cs_resize(int at) {
 	fi
 }
 
-# What the strip was last drawn for, and when.
-CS_DREWFOR=
-CS_DREWMS=0
-
 dt_stripdraw() {
-	local row w col i cnt m mw c sig ms
+	local row w col i cnt m mw c
 
 	[ "${#CS_MOD_LIST[@]}" = 0 ] && return 0
-	# Its cells stay on the screen when it does not draw, and what it
-	# shows -- a clock, a battery, a volume -- is worked out elsewhere and
-	# does not move fourteen times a second. So: when its own shape
-	# changed, when anything was typed or clicked since it last drew, and
-	# otherwise at most once a second, which is also the longest a module's
-	# own value can be out of date for.
-	ms := dt_ms
-	sig="$CS_COLLAPSED|$CS_SIDEX|$CS_SCROLL|${#CS_MOD_LIST[@]}|$DT_INCNT"
-	sig="$sig|$DT_PRIMARY_COL|${DT_PRIMARY_W:-$DT_COLS}|$DT_ROWS|$DT_FACE|$DT_ACTIVE"
-	# And always on a frame that painted the wallpaper: the strip is drawn
-	# on the screen itself, not through a pane, so the wallpaper paints
-	# over it -- skipping that frame left the strip missing until the next
-	# one it chose to draw, which is what "it disappears every second or
-	# so" was.
-	if [ "$sig" = "$CS_DREWFOR" ] && [ "$DT_FORCEDRAW" != 1 ] &&
-	   [ -z "$DT_FORCEONCE" ] && [ -z "$DT_WALLDREW" ] &&
-	   [ $((ms - CS_DREWMS)) -lt 1000 ]; then
-		return 0
-	fi
-	CS_DREWFOR=$sig
-	CS_DREWMS=$ms
+	# Drawn on every frame, like the bar, and for the same reason: it
+	# writes at absolute coordinates, after every window, so it is drawn
+	# *over* them -- and a window whose app offers no `_dirty` is redrawn
+	# every frame, which wipes the strip's cells. Its own cells are not
+	# its own to keep.
+	#
+	# This was gated until 0.99.97 -- on its own shape, on the input
+	# count, on the wallpaper having painted, and otherwise at most once a
+	# second -- and with one window under it that left the strip covered
+	# in 65 samples out of 70, flashing back about every 620 ms: reported
+	# as "it blinks, and does not refresh properly" (Gitea #125). cs_y is
+	# 80% down the screen by default, so a window over it is the normal
+	# case rather than an edge one. The gate looked right because an idle
+	# desktop barely draws at all, and the few frames it does are the
+	# wallpaper's own, which the gate already redrew on.
+	#
+	# A flag for "a window covering this row was drawn" was weighed and
+	# refused. In the case that matters it fires on every frame anyway, so
+	# it saves nothing, and it is one more rule that has to stay in step
+	# with everything that repaints -- which dt_shadow's own comment
+	# records getting wrong three times, the Control Strip blinking among
+	# them. What drawing every frame costs is 186 us against 23 us
+	# skipped, 17% of a 963 us frame at 232x71, and all of it is this
+	# body's own two dozen console calls rather than any module working
+	# something out: stubbing nextprayer_draw saves 11 us and turning the
+	# shadow off saves nothing. Making it cheaper means fewer of those
+	# calls, or cells of its own to composite.
 	row := cs_y
 	if [ "$CS_COLLAPSED" = 1 ]; then
 		console pen "$DT_ACTIVE" "$DT_FACE" bold
