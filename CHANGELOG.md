@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.99.105
+
+**About asks for a window one row taller, which is the row the Held line was
+hiding in** (Gitea #130). `about_size` is consulted by `dt_launch` *before*
+the first draw, so the line list it sizes from was empty and it guessed --
+and the guess was one short, leaving `Held:` below the fold on a screen with
+room for it. It builds the list and counts it now; `about_lines` needs no
+window of its own and the sysinfo block it reads is cached, so asking costs
+nothing. On a 40-row screen About opens with every line shown and no
+scrollbar at all.
+
 ## 0.99.104
 
 **About This Computer again, with sysinfo's logo and everything it knows**

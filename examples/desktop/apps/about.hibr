@@ -498,8 +498,13 @@ fn about_lines(int id, int w) {
 about_size() {
 	local rows cols
 
+	# Built here rather than guessed: dt_launch asks for a size before the
+	# first draw, so AB_LINES is empty at that point and a guess was one
+	# row short -- the Held line stayed below the fold on a screen with
+	# room for it. about_lines needs no window of its own and the sysinfo
+	# block it reads is cached, so asking is cheap.
+	about_lines 0 64
 	rows=$((${#AB_LINES[@]} + 9))
-	[ "${#AB_LINES[@]}" = 0 ] && rows=33
 	[ "$rows" -gt $((DT_ROWS - 2)) ] && rows=$((DT_ROWS - 2))
 	[ "$rows" -lt 12 ] && rows=12
 	cols=66
