@@ -1,5 +1,61 @@
 # Changelog
 
+## 0.99.102
+
+**About This Computer has headings, a scrolling middle and the meters pinned
+to the bottom** (Gitea #130). Asked for as "I do not like the about box ...
+can we make it prettier, and maybe have a box that's scrollable in it ... It's
+got great elements (the cpu/mem thing), but we can do better, right?" — and
+the meters were the part to keep, so they stayed and everything round them
+changed.
+
+The window is three headed sections now — **This Computer**, **This
+Desktop**, **This Terminal** — with the tagline fixed on the first row, the
+facts between scrolling, and the CPU and memory bars anchored to the last two
+rows so they stay put while the facts move. At its own 22 rows every line
+fits and no scrollbar is drawn; a shorter window scrolls, by the wheel or by
+up, down, page up, page down, home and end.
+
+**`dt_scrollfit` is a widget now, beside `dt_scrollbar`.** The Control Panel's
+picker has scrolled since 0.94, but as three comparisons written out twice in
+its own file — clamp the top, and bring a line into view. About wanted the
+same, so they moved into `widgets/scrollbar.hibr` where the bar's own comment
+already says a fix or a restyle should be one place and not two. The panel was
+lifted onto it in this same change, and its own fifteen scrolling checks are
+what say the lift changed no behaviour. The function is pure: the offset stays
+under the window id in each app's own map, so two callers cannot fight over
+it.
+
+**What is deliberately not in it.** A module list was built and taken out
+again: crammed onto one truncated line it was exactly the "really nasty"
+the owner then reported, and it belongs in a module manager of its own
+(Gitea #132). And a picture — `sysinfo`'s, or any — is still out, because
+`mods/sysinfo` writes with `printf` straight to stdout and `img draw` has no
+paned form: drawing either inside a window means drawing a window's own
+content at absolute screen coordinates, which is the Control Panel preview
+trap. That waits on `dp_api` growing a paned put, the same gap the pane
+compositor waited on, and #130 stays open for it.
+
+**Two faults found while building it, both caught by driving it rather than
+reading it.**
+
+`mod list` **prints; it does not fill the result slot.** `m := mod list` left
+`m` empty and sent the listing to the real terminal underneath the console's
+own drawing — the `:=` trap this tree records for a program on the `PATH`,
+in a builtin. Visible in the probe as `abi 1` leaking outside the window's
+border.
+
+The wheel callback is **`(id, dir, row, col)`**, which `tasks_wheel` already
+declares. Written as `(id, r, c, dir)` the word `down` is bound to an `int`
+parameter, a declared function refuses that, and **the body never runs** —
+the 0.44 census trap, and it looks exactly like a wheel report never
+arriving.
+
+And one that would have shipped silently: each line is translated **as it is
+built**, because the draw prints a whole line with `%s` and `dt_tput`
+translates its *format*, so every label would have come out in English in
+every language. `tests/993-lang-ar` is what says it did not.
+
 ## 0.99.101
 
 **The wallpaper is sent at half the pixels, which takes a reattach over ssh

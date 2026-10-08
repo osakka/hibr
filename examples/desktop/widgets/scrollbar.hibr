@@ -12,6 +12,29 @@ strict
 # the same as a checkbox or a dropdown draws nothing it was not asked for.
 # The shape the file browser's own list view and a terminal's scrollback
 # both need, so a fix or a restyle is one place, not two.
+# Where a scrolled list should start, given where it starts now. top is
+# clamped so the last line cannot be scrolled past and the first cannot be
+# scrolled before, and -- when at names a line -- that line is brought into
+# view first, which is what moving a selection with the keys needs. A pure
+# function on purpose: the offset itself belongs under the window id in the
+# app's own map, like everything else an app remembers, so this holds no
+# state and two callers cannot fight over it.
+#
+# The Control Panel's picker had these three comparisons written out in two
+# places, and the About window wanted them as well; the scrollbar below
+# already says a fix or a restyle should be one place and not two.
+fn dt_scrollfit(int top, int total, int vis, int? at = "") {
+	local max=$((total - vis))
+
+	if [ -n "$at" ]; then
+		[ "$at" -lt "$top" ] && top=$at
+		[ "$at" -ge $((top + vis)) ] && top=$((at - vis + 1))
+	fi
+	[ "$top" -gt "$max" ] && top=$max
+	[ "$top" -lt 0 ] && top=0
+	ret "$top"
+}
+
 fn dt_scrollbar(int id, int row0, int col, int h, int total, int shown, int pos) {
 	local thumb r tg=${GL[block]} kg=${GL[vline]}
 

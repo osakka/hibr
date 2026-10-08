@@ -2406,7 +2406,7 @@ check("and shows the desktop's own version above hibr's, not just hibr's",
 # desktop can ask rather than guess -- the harness's terminal says nothing
 # about a cell, so there are no pixels to report and it says so.
 check("and a This Terminal section: size, pictures, colour, mouse and hold",
-      sc.find("This Terminal: ") is not None and
+      sc.find("This Terminal") is not None and
       sc.find("Size: 24 x 80 cells") is not None and
       sc.find("Pictures: blocks only") is not None and
       sc.find("Colour: 24-bit sent") is not None and
@@ -2414,6 +2414,22 @@ check("and a This Terminal section: size, pictures, colour, mouse and hold",
       sc.find("Held: no") is not None, sc)
 check("and invents no pixels when the terminal has not said what a cell is",
       "0 x 0" not in sc.text() and "0 by 0" not in sc.text(), sc)
+# Under headings, with the meters pinned to the bottom and the facts between
+# them scrolling when there are more than there are rows (Gitea #130). At its
+# own 22 rows every line fits and no bar is drawn; a short window is where the
+# scrolling shows, and before 0.99.102 a short one simply clipped.
+check("the facts sit under headings: This Computer, This Desktop, This Terminal",
+      sc.find("This Computer") is not None
+      and sc.find("This Desktop") is not None
+      and sc.find("This Terminal") is not None, sc)
+sc, _ = run('dt_new "About This Computer" 12 48 6 10 about', pre=APPS)
+check("a short About window scrolls, with a bar to say so",
+      sc.find("Hostname:") is not None and sc.find("Held:") is None
+      and "█" in sc.text(), sc)
+sc, _ = run('dt_new "About This Computer" 12 48 6 10 about',
+            feed=[wheel(10, 20, up=False)] * 3, pre=APPS)
+check("and the wheel moves the facts, the meters staying where they are",
+      sc.find("Hostname:") is None and sc.find("CPU") is not None, sc)
 
 # Clock is a desk accessory now, not in examples/desktop/apps -- the bar's own
 # click handler only asks dt_has clock_draw, so it works regardless of
@@ -4341,4 +4357,4 @@ check("so is a center wallpaper wider than the screen",
       len(put) == 1 and not gone, "%d placed, %d deleted" % (len(put), len(gone)))
 shutil.rmtree(WPD, True)
 
-report(556)
+report(559)

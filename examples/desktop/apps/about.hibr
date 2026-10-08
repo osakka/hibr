@@ -392,67 +392,188 @@ about_open() {
 	about_facts
 }
 
+
+# Everything About has to say, in order, each line as "h:" for a heading or
+# "t:" for a fact. Built fresh every frame, because most of it changes --
+# the uptime, who is in, what the terminal can do -- and cheap, because
+# every line is a reading the app already takes. A list passed back through
+# a global because a strict file cannot return an array (declared at file
+# level just above, as that rule requires).
+AB_LINES=()
+fn about_lines(int id, int w) {
+	local up who tn v t i room
+
+	room=$((w - 4))
+	AB_LINES=()
+	# Each line is translated as it is built, not when it is drawn: the
+	# draw prints a whole line with "%s", so dt_tput's own translation of
+	# its format would have nothing left to look up and every label would
+	# come out in English in every language.
+	v := dt_tr "This Computer"
+	AB_LINES+=("h:$v")
+	v := dt_tr "Hostname: %s" "$AB_HOST"
+	AB_LINES+=("t:$v")
+	v := dt_tr "Kernel: %s" "$AB_KERNEL"
+	AB_LINES+=("t:$v")
+	up := about_uptime
+	v := dt_tr "Uptime: %s" "$up"
+	AB_LINES+=("t:$v")
+	who := about_users
+	v := dt_tr "Users: %s" "$who"
+	AB_LINES+=("t:$v")
+	v := dt_tr "This Desktop"
+	AB_LINES+=("h:$v")
+	# These two stay in this order and next to each other: the desktop's
+	# own version directly above hibr's, which is what says the two are
+	# separate things rather than one number printed twice.
+	if [ -n "$DT_VER" ]; then
+		v := dt_tr "hibr desktop v%s" "$DT_VER"
+		AB_LINES+=("t:$v")
+	fi
+	v := dt_tr "hibr v%s, module ABI %s" "$HIBR_VERSION" "${HIBR_ABI:-?}"
+	AB_LINES+=("t:$v")
+	v := dt_tr "a desktop written in the shell it runs on"
+	AB_LINES+=("t:$v")
+	v := dt_tr "This Terminal"
+	AB_LINES+=("h:$v")
+	tn := about_termname
+	AB_LINES+=("t:$tn")
+	t := about_screen
+	v := dt_tr "Size: %s" "$t"
+	AB_LINES+=("t:$v")
+	t := about_pictures
+	v := dt_tr "Pictures: %s" "$t"
+	AB_LINES+=("t:$v")
+	t := about_colour
+	v := dt_tr "Colour: %s" "$t"
+	AB_LINES+=("t:$v")
+	t := about_pointer
+	v := dt_tr "Mouse: %s" "$t"
+	AB_LINES+=("t:$v")
+	t := about_held
+	v := dt_tr "Held: %s" "$t"
+	AB_LINES+=("t:$v")
+	# One line each, whatever they hold: a long hostname, a dozen modules
+	# or a terminal with a long name is truncated rather than allowed to
+	# change how many rows this window needs.
+	i=0
+	while [ "$i" -lt "${#AB_LINES[@]}" ]; do
+		t=${AB_LINES[$i]}
+		if [ "${#t}" -gt $((room + 2)) ]; then
+			AB_LINES[$i]="${t:0:$((room + 1))}${GL[ellipsis]}"
+		fi
+		i=$((i + 1))
+	done
+}
+
+# The rows the scrolled region occupies: row 1 is the tagline, the last two
+# are the meters with a blank above them, and what is left in between is
+# this. Returned rather than computed twice, since the draw, the wheel and
+# the keys all need the same number.
+fn about_vis(int h) {
+	local v=$((h - 4))
+
+	[ "$v" -lt 1 ] && v=1
+	ret "$v"
+}
+
 fn about_draw(int id, int h, int w, int row, int col) {
-	local cpu mem bar barw=$((w - 12)) pct up who tn v
+	local cpu mem bar barw=$((w - 12)) pct vis top n i r t
 
 	command -v dt_want > /dev/null && dt_want "$AB_SLOWMS"
+	# The tagline, which is the one thing here that is neither a fact nor
+	# a meter, so it sits above the scrolling rather than in it.
 	console pen "$DT_INK" "$DT_FACE" bold
-	if [ -n "$DT_VER" ]; then
-		dt_tput "$id" 2 2 "hibr desktop v%s" "$DT_VER"
-	fi
-	dt_tput "$id" 3 2 "hibr v%s, module ABI %s" "$HIBR_VERSION" "${HIBR_ABI:-?}"
-	console pen "$DT_INK" "$DT_FACE"
-	dt_tput "$id" 4 2 "Highly Intuitive Bash-like Runtime"
-	dt_tput "$id" 5 2 "a desktop written in the shell it runs on"
-	dt_tput "$id" 7 2 "Hostname: %s" "$AB_HOST"
-	dt_tput "$id" 8 2 "Kernel: %s" "$AB_KERNEL"
-	up := about_uptime
-	dt_tput "$id" 9 2 "Uptime: %s" "$up"
-	who := about_users
-	[ ${#who} -gt $((w - 11)) ] && who="${who:0:$((w - 12))}${GL[ellipsis]}"
-	dt_tput "$id" 10 2 "Users: %s" "$who"
+	dt_tput "$id" 1 2 "Highly Intuitive Bash-like Runtime"
 
+	about_lines "$id" "$w"
+	n=${#AB_LINES[@]}
+	vis := about_vis "$h"
+	top=${AB[$id]["top"]:-0}
+	top := dt_scrollfit "$top" "$n" "$vis"
+	AB[$id]["top"]=$top
+	AB[$id]["n"]=$n
+	AB[$id]["vis"]=$vis
+	i=$top
+	r=2
+	while [ "$i" -lt "$n" ] && [ "$r" -lt $((2 + vis)) ]; do
+		t=${AB_LINES[$i]}
+		# The pen is set per line, not once before the loop: headings
+		# and facts alternate, so one pen outside it would make every
+		# line after the first heading bold.
+		case $t in
+		h:*) console pen "$DT_INK" "$DT_FACE" bold ;;
+		*) console pen "$DT_INK" "$DT_FACE" ;;
+		esac
+		# Already translated by about_lines, so put it rather than
+		# dt_tput it -- a bare "%s" handed to dt_tput would land in
+		# the catalogue as a key of its own.
+		console put -p "w$id" "$r" 2 "${t#??}"
+		i=$((i + 1))
+		r=$((r + 1))
+	done
+	dt_scrollbar "$id" 2 "$w" "$vis" "$n" "$vis" "$top"
+
+	# The meters last and anchored to the bottom, because they are the
+	# part being watched rather than read: they stay put while the facts
+	# above them scroll.
 	cpu := about_cpu "$id"
 	bar := about_bar "$cpu" "$barw"
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 12 2 "CPU"
+	console put -p "w$id" $((h - 1)) 2 "CPU"
 	console pen "$DT_ACTIVE" "$DT_FACE"
-	console put -p "w$id" 12 6 "$bar"
+	console put -p "w$id" $((h - 1)) 6 "$bar"
 	console pen "$DT_INK" "$DT_FACE"
 	printf -v pct '%3d%%' "$cpu"
-	console put -p "w$id" 12 $((w - 6)) "$pct"
+	console put -p "w$id" $((h - 1)) $((w - 6)) "$pct"
 
 	mem := about_mem "$id"
 	bar := about_bar "$mem" "$barw"
 	console pen "$DT_INK" "$DT_FACE"
-	console put -p "w$id" 13 2 "MEM"
+	console put -p "w$id" "$h" 2 "MEM"
 	console pen "$DT_ACTIVE" "$DT_FACE"
-	console put -p "w$id" 13 6 "$bar"
+	console put -p "w$id" "$h" 6 "$bar"
 	console pen "$DT_INK" "$DT_FACE"
 	printf -v pct '%3d%%' "$mem"
-	console put -p "w$id" 13 $((w - 6)) "$pct"
+	console put -p "w$id" "$h" $((w - 6)) "$pct"
+}
 
-	# The terminal, below the machine and under a heading of its own: the
-	# other half of what decides what this desktop can do, and until
-	# 0.99.94 visible nowhere but one line of the Pictures pane (Gitea
-	# #121). Row 14 is left blank to part the two sections. Nothing here
-	# is cached but the held reading: every other answer can change
-	# between one frame and the next.
-	console pen "$DT_INK" "$DT_FACE" bold
-	tn := about_termname
-	[ ${#tn} -gt $((w - 17)) ] && tn="${tn:0:$((w - 18))}${GL[ellipsis]}"
-	dt_tput "$id" 15 2 "This Terminal: %s" "$tn"
-	console pen "$DT_INK" "$DT_FACE"
-	v := about_screen
-	dt_tput "$id" 16 2 "Size: %s" "$v"
-	v := about_pictures
-	dt_tput "$id" 17 2 "Pictures: %s" "$v"
-	v := about_colour
-	dt_tput "$id" 18 2 "Colour: %s" "$v"
-	v := about_pointer
-	dt_tput "$id" 19 2 "Mouse: %s" "$v"
-	v := about_held
-	dt_tput "$id" 20 2 "Held: %s" "$v"
+# The wheel over the window scrolls the facts, two lines at a time, the same
+# step the Control Panel's own picker takes. The arguments are id, dir, row,
+# column -- in that order, which is what the window manager hands over and
+# what tasks_wheel already declares: written as (id, r, c, dir) the word
+# "down" is bound to an int parameter, a declared function refuses that, and
+# the body never runs at all.
+fn about_wheel(int id, dir, int? r = "", int? c = "") {
+	local top=${AB[$id]["top"]:-0}
+
+	case $dir in
+	up) top=$((top - 2)) ;;
+	down) top=$((top + 2)) ;;
+	esac
+	top := dt_scrollfit "$top" "${AB[$id]["n"]:-0}" "${AB[$id]["vis"]:-1}"
+	AB[$id]["top"]=$top
+	dt_want 1
+	return 0
+}
+
+# And the keys, for a window reached without a mouse.
+fn about_key(int id, k) {
+	local top=${AB[$id]["top"]:-0} vis=${AB[$id]["vis"]:-1}
+
+	case $k in
+	up) top=$((top - 1)) ;;
+	down) top=$((top + 1)) ;;
+	pageup) top=$((top - vis)) ;;
+	pagedown) top=$((top + vis)) ;;
+	home) top=0 ;;
+	end) top=${AB[$id]["n"]:-0} ;;
+	*) return 1 ;;
+	esac
+	top := dt_scrollfit "$top" "${AB[$id]["n"]:-0}" "$vis"
+	AB[$id]["top"]=$top
+	dt_want 1
+	return 0
 }
 
 if [ -z "$DT_ROWS" ]; then

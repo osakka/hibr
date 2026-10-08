@@ -244,12 +244,13 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 	done
 	if [ "$sel" != "${PW[$id]["lseen"]}" ]; then
 		PW[$id]["lseen"]=$sel
-		[ "$at" -lt "$lt" ] && lt=$at
-		[ "$at" -ge $((lt + vis)) ] && lt=$((at - vis + 1))
+		lt := dt_scrollfit "$lt" "${#lines[@]}" "$vis" "$at"
+		# The first pane sits under a heading, so bringing its own
+		# line into view would leave that heading above the top.
 		[ "$sel" = 0 ] && lt=0
+	else
+		lt := dt_scrollfit "$lt" "${#lines[@]}" "$vis"
 	fi
-	[ "$lt" -gt $((${#lines[@]} - vis)) ] && lt=$((${#lines[@]} - vis))
-	[ "$lt" -lt 0 ] && lt=0
 	PW[$id]["ltop"]=$lt
 	PW[$id]["lvis"]=$vis
 	PW[$id]["ln"]=${#lines[@]}
@@ -786,13 +787,12 @@ fn panel_wheel(int? w = "", dir = "", int? r = "", int? c = "") {
 	# Each side scrolls on its own, whichever the pointer is over.
 	if [ -n "$c" ] && panel_inlist "$w" "$c"; then
 		top=${PW[$w]["ltop"]:-0}
-		max=$((${PW[$w]["ln"]:-0} - ${PW[$w]["lvis"]:-1}))
 		case $dir in
 		up) top=$((top - 2)) ;;
 		down) top=$((top + 2)) ;;
 		esac
-		[ "$top" -gt "$max" ] && top=$max
-		[ "$top" -lt 0 ] && top=0
+		top := dt_scrollfit "$top" "${PW[$w]["ln"]:-0}" \
+			"${PW[$w]["lvis"]:-1}"
 		PW[$w]["ltop"]=$top
 		return 0
 	fi
