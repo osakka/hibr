@@ -27,7 +27,10 @@ declare -gA TK
 declare -gA TD
 declare -gA TK_PREV
 declare -gA TK_UIDNAME
+declare -gA TK_KIN
+declare -gA TK_PPID
 TK_OS=
+TK_ME=
 
 # uid -> name, from /etc/passwd directly -- no fork, matching how the
 # rest of a Linux scan already avoids one. Reloaded every scan: reading
@@ -177,10 +180,25 @@ TK_SORTBY="${TK_SORTBY-cpu}"
 TK_SORTDIR="${TK_SORTDIR-desc}"
 TK_BAR="${TK_BAR-1}"
 TK_COLS=(pid name owner cpu mem)
+
+# Whose processes the list shows: everyone's, only this user's own, or only
+# this desktop's -- the desktop process and everything descended from it,
+# which is its terminal windows' shells and whatever they are running. The
+# apps are not processes of their own and cannot be filtered for as such:
+# Files, the Calculator and the rest are functions inside the one desktop,
+# which is what makes them cost nothing to have open.
+#
+# The figures under the graphs stay whole-machine whichever is chosen --
+# they say what the machine is doing, not what this list adds up to -- and
+# the window's own title says which filter is in force, so a list that is
+# short is never mysteriously short.
+TK_FILTER="${TK_FILTER-everyone}"
+TK_FILTERS=(everyone mine desktop)
 if command -v dt_keep > /dev/null; then
 	dt_keep TK_SORTBY
 	dt_keep TK_SORTDIR
 	dt_keep TK_BAR
+	dt_keep TK_FILTER
 fi
 
 # Name and CPU times, both from the one read of /proc/[pid]/stat -- status
@@ -237,12 +255,136 @@ fn tasks_uidrss(int pid) {
 # user (ps resolves it itself here, unlike the Linux path's own uid), and
 # comm last so a path with a space in it -- an app bundle's, typically --
 # still reads whole, in read's own last-variable-takes-the-rest rule.
+# This desktop's own pid and everything descended from it, for the "this
+# desktop" filter: its terminal windows' shells and whatever they are
+# running. Linux lists a process's children itself, so only the tree is
+# read -- a handful of files, not one per process on the machine. Where
+# that file is not there (a kernel built without CONFIG_PROC_CHILDREN, or
+# no /proc at all) one ps gives every process's parent instead and each
+# chain is walked up from its own end, bounded in case a parent ever
+# points back into its own chain.
+fn tasks_kin() {
+	local p c kids line pid ppid d
+	local i=0 n=1
+	local -a q ks
+
+	TK_KIN=()
+	TK_KIN["$$"]=1
+	q[0]=$$
+	if [ -r "/proc/$$/task/$$/children" ]; then
+		while [ "$i" -lt "$n" ]; do
+			p=${q[$i]}
+			i=$((i + 1))
+			# children has no trailing newline, and read fails at
+			# end of input even having assigned -- taking its
+			# status for "nothing there" found every process's
+			# children to be none at all.
+			kids=
+			read -r kids 2> /dev/null < "/proc/$p/task/$p/children"
+			[ -n "$kids" ] || continue
+			read -ra ks <<< "$kids"
+			for c in "${ks[@]}"; do
+				[ -n "$c" ] || continue
+				[ -n "${TK_KIN["$c"]+x}" ] && continue
+				TK_KIN["$c"]=1
+				q[$n]=$c
+				n=$((n + 1))
+			done
+		done
+		return 0
+	fi
+	TK_PPID=()
+	while IFS= read -r line; do
+		read -r pid ppid _ <<< "$line"
+		case $pid in '' | *[!0-9]*) continue ;; esac
+		TK_PPID["$pid"]=$ppid
+	done < <(command ps -axo pid=,ppid= 2> /dev/null)
+	for pid in "${!TK_PPID[@]}"; do
+		p=$pid
+		d=0
+		while [ -n "$p" ] && [ "$p" != 0 ] && [ "$d" -lt 64 ]; do
+			if [ -n "${TK_KIN["$p"]+x}" ]; then
+				TK_KIN["$pid"]=1
+				break
+			fi
+			p=${TK_PPID["$p"]}
+			d=$((d + 1))
+		done
+	done
+	return 0
+}
+
+# What a filter is called where a person reads it.
+fn tasks_filterlabel(f) {
+	case $f in
+	mine) ret "Mine" ;;
+	desktop) ret "This Desktop" ;;
+	*) ret "Everyone" ;;
+	esac
+}
+
+# The window says which filter is in force, so a short list is never
+# mysteriously short; showing everyone's is the plain title.
+fn tasks_retitle(int id) {
+	local lb
+
+	command -v dt_retitle > /dev/null || return 0
+	if [ "$TK_FILTER" = everyone ]; then
+		dt_retitle "$id" "Task Manager"
+		return 0
+	fi
+	lb := tasks_filterlabel "$TK_FILTER"
+	case $DT_LANG in ?*) lb := dt_tr "$lb" ;; esac
+	dt_retitle "$id" "Task Manager [$lb]"
+}
+
+# Choose whose processes to show. Every window's scan time is cleared, so
+# the frame this returns into reads the process table afresh rather than
+# showing the old list until the next scan's turn, and its selection goes
+# back to the top of what is now a different list.
+fn tasks_filterset(f) {
+	local id
+
+	TK_FILTER=$f
+	for id in "${!TK[@]}"; do
+		case $id in *[!0-9]*) continue ;; esac
+		TK[$id]["scant"]=
+		TK[$id]["top"]=0
+		TK[$id]["sel"]=0
+		tasks_retitle "$id"
+	done
+	command -v dt_save > /dev/null && dt_save
+	return 0
+}
+
+# The next filter along, for the keyboard: the same list the menu and the
+# Control Panel offer, in the same order.
+fn tasks_filtercycle(int? id = "") {
+	local i=0 n=${#TK_FILTERS[@]} f=${TK_FILTERS[0]}
+
+	while [ "$i" -lt "$n" ]; do
+		if [ "${TK_FILTERS[$i]}" = "$TK_FILTER" ]; then
+			f=${TK_FILTERS[$(((i + 1) % n))]}
+			break
+		fi
+		i=$((i + 1))
+	done
+	tasks_filterset "$f"
+	return 0
+}
+
 fn tasks_scan_ps(int? id = "") {
 	local pid rss pcpu user comm line n=0
 
+	[ "$TK_FILTER" = desktop ] && tasks_kin
+	[ "$TK_FILTER" = mine ] && [ -z "$TK_ME" ] && TK_ME=$(command id -un)
 	while IFS= read -r line; do
 		read -r pid rss pcpu user comm <<< "$line"
 		case $pid in '' | *[!0-9]*) continue ;; esac
+		case $TK_FILTER in
+		mine) [ "$user" = "$TK_ME" ] || continue ;;
+		desktop) [ -n "${TK_KIN["$pid"]+x}" ] || continue ;;
+		esac
 		TK[$id][$n]["pid"]=$pid
 		TK[$id][$n]["name"]=${comm##*/}
 		TK[$id][$n]["owner"]=$user
@@ -267,6 +409,7 @@ fn tasks_scan(int id) {
 		return 0
 	fi
 	tasks_loadusers
+	[ "$TK_FILTER" = desktop ] && tasks_kin
 	now := dt_ms
 	for pid in /proc/[0-9]*; do
 		pid=${pid#/proc/}
@@ -285,6 +428,13 @@ fn tasks_scan(int id) {
 		fi
 		TK_PREV[$id]["$pid.u"]=$u
 		TK_PREV[$id]["$pid.s"]=$s
+		# The times are kept for every process whether or not this
+		# filter shows it, so a filter changed between two scans does
+		# not read 0% for a second on the rows it brings back.
+		case $TK_FILTER in
+		mine) [ "$uid" = "$EUID" ] || continue ;;
+		desktop) [ -n "${TK_KIN["$pid"]+x}" ] || continue ;;
+		esac
 		owner := tasks_ownername "$uid"
 		TK[$id][$n]["pid"]=$pid
 		TK[$id][$n]["name"]=$name
@@ -403,6 +553,7 @@ fn tasks_open(int id, arg = "") {
 	TK[$id]["by"]=${TK_SORTBY:-cpu}
 	TK[$id]["dir"]=${TK_SORTDIR:-desc}
 	TK[$id]["full"]=0
+	tasks_retitle "$id"
 }
 
 # A process's whole command line, arguments and all, joined with plain
@@ -594,6 +745,7 @@ fn tasks_key(int id, key) {
 	c) tasks_sortby "$id" cpu; return 0 ;;
 	m) tasks_sortby "$id" mem; return 0 ;;
 	n) TK[$id]["full"]=$((1 - ${TK[$id]["full"]:-0})); return 0 ;;
+	w) tasks_filtercycle "$id"; return 0 ;;
 	*) return 1 ;;
 	esac
 	[ "$sel" -lt 0 ] && sel=0
@@ -737,13 +889,24 @@ fn tasks_fulltoggle(int? id = "") { TK[$id]["full"]=$((1 - ${TK[$id]["full"]:-0}
 
 tasks_menus() {
 	local full=${TK[$DT_FOCUS]["full"]:-0}
+	local fe=0 fm=0 fd=0
 
+	case $TK_FILTER in
+	mine) fm=1 ;;
+	desktop) fd=1 ;;
+	*) fe=1 ;;
+	esac
 	dt_menu "File"
 	dt_item "Close" w dt_close_focused
 	dt_editmenu
 	dt_menu "Task"
 	dt_item "Sort by CPU" c tasks_sortby "$DT_FOCUS" cpu
 	dt_item "Sort by Memory" m tasks_sortby "$DT_FOCUS" mem
+	dt_sub "Show"
+	dt_mark "Everyone" e "$fe" tasks_filterset everyone
+	dt_mark "Mine" m "$fm" tasks_filterset mine
+	dt_mark "This Desktop" d "$fd" tasks_filterset desktop
+	dt_end
 	dt_mark "Full Command Line" n "$full" tasks_fulltoggle "$DT_FOCUS"
 	dt_sep
 	dt_item "End Task" x tasks_end "$DT_FOCUS" TERM

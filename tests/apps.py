@@ -1492,12 +1492,14 @@ check("it stops at the reasonable maximum rather than climbing forever",
 # starts in -- rows that appear only once Task Manager itself is loaded.
 DOWN_TM = [b"\x1b[B"] * downs("taskmgr")
 sc = cprun(DOWN_TM, extra=("tasks",))
-check("Task Manager has a pane of its own: Refresh, Scrollbar, Sort By and "
-      "Order", sc.find("Refresh") is not None and
+check("Task Manager has a pane of its own: Refresh, Scrollbar, Sort By, "
+      "Order and Show", sc.find("Refresh") is not None and
       sc.find("1000 ms") is not None and sc.find("Scrollbar") is not None and
       sc.find("Sort By") is not None and sc.find("Order") is not None and
+      sc.find("Show") is not None and
       "cpu" in sc.row(sc.find("Sort By")[0]) and
-      "desc" in sc.row(sc.find("Order")[0]), sc)
+      "desc" in sc.row(sc.find("Order")[0]) and
+      "Everyone" in sc.row(sc.find("Show")[0]), sc)
 sc = cprun(DOWN_TM + [b"\x1b[C", b"\x1b[C"], extra=("tasks",))
 check("and Refresh cycles through the other intervals",
       "2000 ms" in sc.row(sc.find("Refresh")[0]), sc)
@@ -2781,6 +2783,72 @@ sc = run(*TASKS, feed=[b"n"])
 check("n toggles full command lines, without error",
       sc.find("CPU%") is not None and sc.find("PID") is not None, sc)
 
+# Whose processes the list shows (#131). The scan is the thing to check
+# rather than a screen: with everyone's it holds the machine's whole
+# process table, with only mine every row is this user's own, and with
+# only this desktop's it is this process and whatever it has started --
+# which for a shell running one command is nothing at all, so the answer
+# is one row and that row is itself. The owner is compared through
+# tasks_ownername, not against `id -un`: a user who is not in
+# /etc/passwd (an LDAP one) shows as their uid, in the app and here
+# alike.
+TFILT = (
+    '. %s\n'
+    'tasks_loadusers\n'
+    'me := tasks_ownername "$EUID"\n'
+    'for f in everyone mine desktop; do\n'
+    '  TK_FILTER=$f; tasks_scan 1\n'
+    '  n=${TK[1]["n"]}; i=0; ours=0\n'
+    '  while [ "$i" -lt "$n" ]; do\n'
+    '    [ "${TK[1][$i]["owner"]}" = "$me" ] && ours=$((ours + 1))\n'
+    '    i=$((i + 1))\n'
+    '  done\n'
+    '  echo "$f n=$n ours=$ours"\n'
+    'done\n'
+    'echo "one=${TK[1][0]["pid"]} self=$$"\n'
+    # And with a child of its own, the walk finds it: that is what makes
+    # the filter a terminal window's shell and whatever it is running,
+    # rather than only the desktop process itself.
+    'sleep 30 &\n'
+    'kid=$!\n'
+    'tasks_scan 1\n'
+    'n=${TK[1]["n"]}; i=0; got=\n'
+    'while [ "$i" -lt "$n" ]; do\n'
+    '  got="$got ${TK[1][$i]["pid"]}"\n'
+    '  i=$((i + 1))\n'
+    'done\n'
+    'echo "withkid n=$n kid=$kid pids=$got"\n'
+    'kill "$kid" 2> /dev/null\n'
+    % (appdir("tasks") + "/tasks.hibr")
+)
+out = subprocess.run([sx.HIBR, "-c", TFILT], capture_output=True, text=True,
+                     env=dict(os.environ, DT_ROWS="1")).stdout
+TF = {}
+for line in out.splitlines():
+    w = line.split()
+    if len(w) == 3 and w[1].startswith("n=") and w[2].startswith("ours="):
+        TF[w[0]] = (int(w[1][2:]), int(w[2][5:]))
+one = dict(w.split("=") for w in
+           next((l for l in out.splitlines() if l.startswith("one=")),
+                "one=0 self=1").split())
+check("only mine leaves every row this user's own, where everyone's holds "
+      "rows that are not",
+      len(TF) == 3 and TF["mine"][0] == TF["mine"][1] and
+      TF["everyone"][0] > TF["mine"][0] and
+      TF["everyone"][1] < TF["everyone"][0], out)
+kid = next((l for l in out.splitlines() if l.startswith("withkid ")), "")
+kidw = dict(w.split("=", 1) for w in kid.split(" ", 3)[1:]) if kid else {}
+check("and only this desktop's is this process and what it has started: "
+      "itself alone, then itself and a child it forked",
+      TF.get("desktop", (0, 0))[0] == 1 and one["one"] == one["self"] and
+      kidw.get("n") == "2" and kidw.get("kid") in kidw.get("pids", "").split(),
+      out)
+
+sc = run(*TASKS, feed=[b"w"])
+check("w shows only this user's processes, and says so in the window's "
+      "title rather than leaving a short list unexplained",
+      sc.find("Task Manager [Mine]") is not None, sc)
+
 # tasks_sort carrying "owner" along with pid/name/cpu/mem is the actual
 # correctness question -- found while adding the Owner column: sorting
 # moved every other field but left owner behind at its old row index,
@@ -3686,4 +3754,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(559)
+report(563)

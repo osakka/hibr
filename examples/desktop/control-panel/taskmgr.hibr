@@ -12,6 +12,35 @@ command -v cp_pane > /dev/null && cp_pane taskmgr "Task Manager" "⚙" app
 CP_TKTICKS=(500 1000 2000 3000 5000 10000)
 CP_TKDIRS=(desc asc)
 
+# The filter is kept as a plain word and shown as a phrase, so the pane
+# reads the way the Task menu's own Show submenu does.
+fn cp_tkfiltername(f) {
+	case $f in
+	mine) ret "Mine" ;;
+	desktop) ret "This Desktop" ;;
+	*) ret "Everyone" ;;
+	esac
+}
+
+# Chosen here it goes through the app, so an open Task Manager reads the
+# process table again and says in its title what it is showing; with the
+# pane loaded on its own there is nothing to tell, and the setting is all
+# there is to set.
+fn cp_set_tkfilter(int? id = "", value = "") {
+	local f=everyone
+
+	case $value in
+	Mine | mine) f=mine ;;
+	"This Desktop" | desktop) f=desktop ;;
+	esac
+	if command -v tasks_filterset > /dev/null; then
+		tasks_filterset "$f"
+		return 0
+	fi
+	TK_FILTER=$f
+	cp_save
+}
+
 fn cp_set_tasks(int? id = "", int? value = "") { TK_SCANMS=$value; cp_save; }
 fn cp_set_tksort(int? id = "", value = "") { TK_SORTBY=$value; cp_save; }
 fn cp_set_tkdir(int? id = "", value = "") { TK_SORTDIR=$value; cp_save; }
@@ -34,6 +63,10 @@ fn taskmgr_rows(int w) {
 		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Order"
 		CP[$w][$n]["val"]="$TK_SORTDIR"; CP[$w][$n]["key"]=tkdir
 		n=$((n + 1))
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Show"
+		CP[$w][$n]["val"] := cp_tkfiltername "$TK_FILTER"
+		CP[$w][$n]["key"]=tkfilter
+		n=$((n + 1))
 	fi
 	ret "$n"
 }
@@ -51,6 +84,9 @@ fn taskmgr_do(int w, k, int dir) {
 		TK_SORTBY=$v ;;
 	tkdir) v := cp_next "$TK_SORTDIR" "$dir" "${CP_TKDIRS[@]}"
 		TK_SORTDIR=$v ;;
+	tkfilter) v := cp_next "$TK_FILTER" "$dir" "${TK_FILTERS[@]}"
+		cp_set_tkfilter "" "$v"
+		return 0 ;;
 	esac
 	cp_save
 }
@@ -60,5 +96,7 @@ fn taskmgr_drop(int? w = "", int? r = "", int? c = "", k = "") {
 	tasksrefresh) dt_droplist "$w" "$r" "$c" cp_set_tasks "${CP_TKTICKS[@]}" ;;
 	tksort) dt_droplist "$w" "$r" "$c" cp_set_tksort "${TK_COLS[@]}" ;;
 	tkdir) dt_droplist "$w" "$r" "$c" cp_set_tkdir "${CP_TKDIRS[@]}" ;;
+	tkfilter) dt_droplist "$w" "$r" "$c" cp_set_tkfilter "Everyone" "Mine" \
+		"This Desktop" ;;
 	esac
 }

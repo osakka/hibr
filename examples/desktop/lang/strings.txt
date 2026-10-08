@@ -658,6 +658,7 @@ Sheet needs the db module
 Shell
 Shortcuts
 Shortcuts in Terminals
+Show
 Show All Notes
 Show Pictures
 Shown on the login screen, with your picture.

@@ -605,6 +605,12 @@ went in the shell.
   becomes empty *and* the status is 1, including for a last line with no
   newline. Return 0 there and `while read` never terminates; skip the
   assignment and a loop that clears a variable by reading into it spins.
+  The corollary bit the Task Manager: a file with **no trailing newline** fails
+  the same way with the content already in hand, so `read -r x < f || continue`
+  is wrong for one -- `/proc/<pid>/task/<pid>/children` ends without one, and
+  reading it that way found every process's children to be none at all, so
+  "this desktop" showed the desktop alone and nothing else. Test the variable,
+  not the status.
 - **`test` special-cases one to four arguments before the grammar**, because
   that is what makes `[ x = -a ]` a comparison and `[ -n -a ]` a unary test
   rather than parse errors. Do not "simplify" it into the general grammar. And

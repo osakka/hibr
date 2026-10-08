@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.99.107
+
+**Task Manager shows everyone's processes, only yours, or only this
+desktop's** (Gitea #131). Task > Show has the three, with a tick on the one
+in force, and `w` cycles them. The uid is already read by the scan, so
+"only mine" is one comparison per process and costs nothing; "this
+desktop" is the desktop process and everything descended from it -- its
+terminal windows' shells and whatever they are running -- found from the
+kernel's own list of a process's children, so only the tree is read rather
+than one file per process on the machine. Where that list is not there (a
+kernel without `CONFIG_PROC_CHILDREN`, or macOS, which has no `/proc`) one
+`ps` gives every process's parent and each chain is walked up instead. The
+default, everyone's, pays a single string comparison per scan.
+
+The window's title says which is in force -- `Task Manager [Mine]` -- so a
+list that is short is never mysteriously short, and Control Panel > Task
+Manager has the same choice as a Show row. The figures under the graphs
+stay whole-machine whichever is chosen: they say what the machine is
+doing, not what the list adds up to.
+
+What this is **not**, and the ticket says why: a filter for "hibr desktop
+applications". The desktop is one process and its apps are functions
+inside it, which is the point of the design; "this desktop" is the honest
+version of that question until #111 names each window's own process.
+
+One trap found writing it, and it is this file's own: `read` fails at end
+of input **having already assigned**, and `/proc/<pid>/task/<pid>/children`
+has no trailing newline -- so `read ... || continue` found every process's
+children to be none at all, and the filter showed the desktop alone.
+
 ## 0.99.106
 
 **A video YouTube's own player gave up on froze where it stopped, half the
