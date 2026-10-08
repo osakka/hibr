@@ -106,6 +106,33 @@ about_users() {
 	ret "$AB_USERS"
 }
 
+# What this machine is, as mods/sysinfo says it -- the logo and the facts
+# beside it, twelve lines and sixty-two columns wide. Captured with $( )
+# because sysinfo *prints*; like mod list it does not fill the result slot,
+# so `s := sysinfo` leaves s empty and the block goes to the real terminal
+# underneath the console's own drawing. It costs 2 ms, and nothing in it
+# changes quickly, so it is taken at most every AB_SLOWMS like the other
+# forked readings here.
+#
+# -p is the plain form, with no escape sequences in it: the colours sysinfo
+# would otherwise write are terminal escapes, and a window draws cells
+# through its pane, not bytes at the screen.
+AB_SI=
+AB_SIT=0
+about_sysinfo() {
+	local now
+
+	now := dt_ms
+	if [ -z "$AB_SI" ] || [ $((now - AB_SIT)) -ge "$AB_SLOWMS" ]; then
+		AB_SIT=$now
+		if need sysinfo 2> /dev/null; then
+			AB_SI=$(sysinfo -p -l hibr 2> /dev/null)
+		fi
+		[ -n "$AB_SI" ] || AB_SI="(sysinfo is not loaded)"
+	fi
+	ret "$AB_SI"
+}
+
 # What the terminal is: $TERM is what the program was told it is, and
 # $TERM_PROGRAM, where a terminal sets one, is what it calls itself. Both
 # are claims rather than measurements, which is why the line names them
@@ -123,13 +150,15 @@ about_termname() {
 # check, so this costs no ioctl of its own; "0 x 0 pixels" is never printed,
 # because a terminal that has not said is not the same as one measuring
 # nothing.
-# Not about_size: dt_launch asks an app for "<app>_size" to decide how big
-# a new window should be, as term_size does, and a helper of that name
-# would have been called for it -- the window would have been created with
-# "22 x 48 cells, 1856 x 1136" rows by "pixels" columns. about_mouse was
-# the same near miss against the _mouse callback, which also means a
-# window with one never gets _click. Check a new helper's suffix against
-# the ones the window manager calls by prefix before naming it.
+# Called about_screen rather than about_size because `<app>_size` is a
+# callback the window manager asks for -- dt_launch uses it to decide how
+# big a new window should be, which this app does now answer, further down.
+# A helper of that name would have been called for it instead, and the
+# window would have been created with "22 x 48 cells, 1856 x 1136" rows by
+# "pixels" columns. about_mouse was the same near miss against the _mouse
+# callback, which also means a window with one never gets _click. Check a
+# new helper's suffix against the ones the window manager calls by prefix
+# before naming it.
 about_screen() {
 	local g kind cw ch t
 
@@ -401,19 +430,17 @@ about_open() {
 # level just above, as that rule requires).
 AB_LINES=()
 fn about_lines(int id, int w) {
-	local up who tn v t i room
+	local up who tn v t i room si
+	local -a sil
 
 	room=$((w - 4))
 	AB_LINES=()
-	# Each line is translated as it is built, not when it is drawn: the
-	# draw prints a whole line with "%s", so dt_tput's own translation of
-	# its format would have nothing left to look up and every label would
-	# come out in English in every language.
+	# The labelled facts first, because a window pinned small by a caller
+	# shows only the top of this and these are the ones worth seeing
+	# there -- and the ones the suites look for.
 	v := dt_tr "This Computer"
 	AB_LINES+=("h:$v")
 	v := dt_tr "Hostname: %s" "$AB_HOST"
-	AB_LINES+=("t:$v")
-	v := dt_tr "Kernel: %s" "$AB_KERNEL"
 	AB_LINES+=("t:$v")
 	up := about_uptime
 	v := dt_tr "Uptime: %s" "$up"
@@ -421,19 +448,17 @@ fn about_lines(int id, int w) {
 	who := about_users
 	v := dt_tr "Users: %s" "$who"
 	AB_LINES+=("t:$v")
-	v := dt_tr "This Desktop"
-	AB_LINES+=("h:$v")
-	# These two stay in this order and next to each other: the desktop's
-	# own version directly above hibr's, which is what says the two are
-	# separate things rather than one number printed twice.
-	if [ -n "$DT_VER" ]; then
-		v := dt_tr "hibr desktop v%s" "$DT_VER"
-		AB_LINES+=("t:$v")
-	fi
-	v := dt_tr "hibr v%s, module ABI %s" "$HIBR_VERSION" "${HIBR_ABI:-?}"
-	AB_LINES+=("t:$v")
-	v := dt_tr "a desktop written in the shell it runs on"
-	AB_LINES+=("t:$v")
+	AB_LINES+=("t:")
+	# Then sysinfo's own block, logo and all: the OS, the architecture,
+	# the processor, the memory, the disk and the load, none of which this
+	# app knows how to find and all of which belong in an About box. Not
+	# translated -- it is another tool's output, verbatim.
+	si := about_sysinfo
+	mapfile -t sil <<< "$si"
+	for t in "${sil[@]}"; do
+		AB_LINES+=("t:$t")
+	done
+	AB_LINES+=("t:")
 	v := dt_tr "This Terminal"
 	AB_LINES+=("h:$v")
 	tn := about_termname
@@ -453,9 +478,9 @@ fn about_lines(int id, int w) {
 	t := about_held
 	v := dt_tr "Held: %s" "$t"
 	AB_LINES+=("t:$v")
-	# One line each, whatever they hold: a long hostname, a dozen modules
-	# or a terminal with a long name is truncated rather than allowed to
-	# change how many rows this window needs.
+	# One line each, whatever they hold: a long hostname, a wide logo or a
+	# terminal with a long name is cut rather than allowed to change how
+	# many rows this window needs.
 	i=0
 	while [ "$i" -lt "${#AB_LINES[@]}" ]; do
 		t=${AB_LINES[$i]}
@@ -466,12 +491,28 @@ fn about_lines(int id, int w) {
 	done
 }
 
-# The rows the scrolled region occupies: row 1 is the tagline, the last two
-# are the meters with a blank above them, and what is left in between is
-# this. Returned rather than computed twice, since the draw, the wheel and
+# How big a window this wants: tall enough to show everything at once where
+# the screen allows, and clamped to what it does not. dt_launch asks an app
+# for this; a caller that says a size with dt_new gets the size it said, and
+# then the middle scrolls.
+about_size() {
+	local rows cols
+
+	rows=$((${#AB_LINES[@]} + 9))
+	[ "${#AB_LINES[@]}" = 0 ] && rows=33
+	[ "$rows" -gt $((DT_ROWS - 2)) ] && rows=$((DT_ROWS - 2))
+	[ "$rows" -lt 12 ] && rows=12
+	cols=66
+	[ "$cols" -gt $((DT_COLS - 2)) ] && cols=$((DT_COLS - 2))
+	ret "$rows $cols"
+}
+
+# The rows the scrolled region occupies: rows 1 to 3 are the versions and
+# the tagline with a blank under them, the last two are the meters with a blank above, and
+# what is left in between is this. Returned rather than computed twice, since the draw, the wheel and
 # the keys all need the same number.
 fn about_vis(int h) {
-	local v=$((h - 4))
+	local v=$((h - 7))
 
 	[ "$v" -lt 1 ] && v=1
 	ret "$v"
@@ -481,13 +522,20 @@ fn about_draw(int id, int h, int w, int row, int col) {
 	local cpu mem bar barw=$((w - 12)) pct vis top n i r t
 
 	command -v dt_want > /dev/null && dt_want "$AB_SLOWMS"
-	# The tagline, which is the one thing here that is neither a fact nor
-	# a meter, so it sits above the scrolling rather than in it.
-	console pen "$DT_INK" "$DT_FACE" bold
-	dt_tput "$id" 1 2 "Highly Intuitive Bash-like Runtime"
-
 	about_lines "$id" "$w"
 	n=${#AB_LINES[@]}
+	# What is pinned at the top is what this is: the desktop's own version
+	# above hibr's, which is the one thing sysinfo cannot know and the
+	# thing asked to stay put while the rest scrolls.
+	console pen "$DT_INK" "$DT_FACE" bold
+	if [ -n "$DT_VER" ]; then
+		dt_tput "$id" 1 2 "hibr desktop v%s" "$DT_VER"
+	fi
+	dt_tput "$id" 2 2 "hibr v%s, module ABI %s" "$HIBR_VERSION" \
+		"${HIBR_ABI:-?}"
+	console pen "$DT_INK" "$DT_FACE"
+	dt_tput "$id" 3 2 "Highly Intuitive Bash-like Runtime"
+
 	vis := about_vis "$h"
 	top=${AB[$id]["top"]:-0}
 	top := dt_scrollfit "$top" "$n" "$vis"
@@ -495,8 +543,8 @@ fn about_draw(int id, int h, int w, int row, int col) {
 	AB[$id]["n"]=$n
 	AB[$id]["vis"]=$vis
 	i=$top
-	r=2
-	while [ "$i" -lt "$n" ] && [ "$r" -lt $((2 + vis)) ]; do
+	r=5
+	while [ "$i" -lt "$n" ] && [ "$r" -lt $((5 + vis)) ]; do
 		t=${AB_LINES[$i]}
 		# The pen is set per line, not once before the loop: headings
 		# and facts alternate, so one pen outside it would make every
@@ -512,11 +560,11 @@ fn about_draw(int id, int h, int w, int row, int col) {
 		i=$((i + 1))
 		r=$((r + 1))
 	done
-	dt_scrollbar "$id" 2 "$w" "$vis" "$n" "$vis" "$top"
+	dt_scrollbar "$id" 5 "$w" "$vis" "$n" "$vis" "$top"
 
 	# The meters last and anchored to the bottom, because they are the
-	# part being watched rather than read: they stay put while the facts
-	# above them scroll.
+	# part being watched rather than read: they stay put while everything
+	# above them scrolls.
 	cpu := about_cpu "$id"
 	bar := about_bar "$cpu" "$barw"
 	console pen "$DT_INK" "$DT_FACE"

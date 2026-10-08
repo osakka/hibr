@@ -2401,10 +2401,26 @@ check("and it has no maximise button, being a fixed size",
 dpos = sc.find("hibr desktop v")
 check("and shows the desktop's own version above hibr's, not just hibr's",
       dpos is not None and "hibr v" in sc.row(dpos[0] + 1), sc)
+# The versions are pinned at the top and the rest scrolls, so what the
+# window shows when it opens is the identity and the labelled facts
+# (Gitea #130). The end key goes to the foot of it, which is where the
+# sysinfo block and the terminal's own section are at this size.
+check("what it opens on is the machine's own labelled facts, under a heading",
+      sc.find("This Computer") is not None
+      and sc.find("Hostname: ") is not None
+      and sc.find("Uptime: ") is not None
+      and sc.find("Users: ") is not None, sc)
+# mods/sysinfo's own block, logo and all -- the OS, the architecture, the
+# processor, the memory, the disk and the load, none of which this app knows
+# how to find and all of which belong in an About box.
+check("and sysinfo's own block is in it, logo and all",
+      sc.find("OS: ") is not None and sc.find("Arch: ") is not None
+      and sc.find("======\\X/======") is not None, sc)
 # And a section for what it is drawing on, which is the other half of what
 # decides what the desktop can do (Gitea #121). Each line is something the
 # desktop can ask rather than guess -- the harness's terminal says nothing
 # about a cell, so there are no pixels to report and it says so.
+sc, _ = run("", feed=[press(0, 2), b"a", b"\x1b[F"], pre=APPS)
 check("and a This Terminal section: size, pictures, colour, mouse and hold",
       sc.find("This Terminal") is not None and
       sc.find("Size: 24 x 80 cells") is not None and
@@ -2414,14 +2430,8 @@ check("and a This Terminal section: size, pictures, colour, mouse and hold",
       sc.find("Held: no") is not None, sc)
 check("and invents no pixels when the terminal has not said what a cell is",
       "0 x 0" not in sc.text() and "0 by 0" not in sc.text(), sc)
-# Under headings, with the meters pinned to the bottom and the facts between
-# them scrolling when there are more than there are rows (Gitea #130). At its
-# own 22 rows every line fits and no bar is drawn; a short window is where the
-# scrolling shows, and before 0.99.102 a short one simply clipped.
-check("the facts sit under headings: This Computer, This Desktop, This Terminal",
-      sc.find("This Computer") is not None
-      and sc.find("This Desktop") is not None
-      and sc.find("This Terminal") is not None, sc)
+check("the end key reaches the foot of it, Disk and Load included",
+      sc.find("Disk: ") is not None and sc.find("Load: ") is not None, sc)
 sc, _ = run('dt_new "About This Computer" 12 48 6 10 about', pre=APPS)
 check("a short About window scrolls, with a bar to say so",
       sc.find("Hostname:") is not None and sc.find("Held:") is None
@@ -2955,6 +2965,9 @@ shutil.rmtree(RZ, True)
 t = Term("-c", HOLDC + "hold attach desk", env=HENV, settle=1.5)
 t.send(b"\x1b[21~", settle=0.4)
 t.send(b"a", settle=0.8)
+# The Held line is at the foot of the scrolled region at this size; end
+# goes there.
+t.send(b"\x1b[F", settle=0.5)
 sc = t.screen()
 check("About in a held desktop says it is held, and by how many displays",
       sc.find("Held: yes, 1 display attached") is not None, sc)
@@ -4357,4 +4370,4 @@ check("so is a center wallpaper wider than the screen",
       len(put) == 1 and not gone, "%d placed, %d deleted" % (len(put), len(gone)))
 shutil.rmtree(WPD, True)
 
-report(559)
+report(561)

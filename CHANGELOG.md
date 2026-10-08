@@ -1,5 +1,47 @@
 # Changelog
 
+## 0.99.104
+
+**About This Computer again, with sysinfo's logo and everything it knows**
+(Gitea #130). 0.99.102's version of this was judged worse than what it
+replaced — "why have you trashed our about Machine? ... We want the top to be
+static ish the Desktop Version, and so on, and integrate sysinfo stuff like
+the logo and more information" — and it was a fair call: it pinned the
+*tagline* and let the versions scroll, which is backwards, and it added
+nothing to look at.
+
+What is pinned at the top is now the identity: **hibr desktop v…**, **hibr
+v…, module ABI …**, and the tagline. Everything else scrolls under it, and
+the CPU and memory meters stay anchored to the bottom.
+
+**`mods/sysinfo`'s own block is in it, logo and all.** `sysinfo -p -l hibr`
+is twelve lines and sixty-two columns of escape-free text — the hibr logo on
+the left, and on the right the OS, the architecture, the processor, the
+memory, the **disk** and the **load**, none of which this app knew how to
+find. It is captured with `$( )` and refreshed at most every `AB_SLOWMS`; it
+costs 2 ms.
+
+**The logo is text, not a picture, which is why this was possible at all.**
+#130 said a picture needed `dp_api` to grow a paned put first, and that is
+still true of a bitmap — but `si_arts[]` is a table of string arrays with
+colour marks, so the logo draws through a window's pane like any other text.
+Lumping the two together was wrong, and the ticket said so for a release.
+
+The window asks for its own size now (`about_size`, which is what
+`dt_launch` consults): tall enough to show the lot where the screen allows,
+clamped to what it does not, 66 columns for sysinfo's 62. On a tall screen
+nothing scrolls; at 80 by 24 the foot of it is a wheel or an **end** away.
+
+About's own `Kernel:` line went, because sysinfo says it better, and the
+second tagline with it. `Hostname:`, `Uptime:` and `Users:` stay as labelled
+lines above the block, because they are what a window pinned small by a
+caller should still show.
+
+Five checks: what it opens on, that sysinfo's block and logo are in it, the
+terminal section and the foot of the list reached with **end**, and the held
+desktop's own Held line, which also needed the end key now that it is at the
+bottom.
+
 ## 0.99.103
 
 **`mod list` fits the terminal it is printed on, and is still plain in a

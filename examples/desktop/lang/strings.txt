@@ -375,7 +375,6 @@ Keep History on Disk
 Keep Messages
 Keep it after the vault locks
 Kept as a favourite: %s
-Kernel: %s
 Keyboard
 Kind:
 Labelled %s
@@ -729,7 +728,6 @@ There is a theme called %s already
 There is no file %s
 There is no folder %s
 This Computer
-This Desktop
 This Terminal
 This account has no address to answer from
 This window: desktop shortcuts work again
@@ -803,7 +801,6 @@ Your answer is sent to %s
 Zoom
 [exited %s — close this window]
 a command; the file goes after it, in a terminal
-a desktop written in the shell it runs on
 and it is kept to come back to.
 blocks only, no cell size given
 blocks only, no pixels
