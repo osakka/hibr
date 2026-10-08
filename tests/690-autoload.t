@@ -10,7 +10,7 @@ most /etc/hostname 2>/dev/null; echo "most without a terminal rc=$?"
 echo "console pulled in: $(mod list | grep -c '^console ')"
 
 # mod avail says which module offers what
-mod avail | grep -c 'offers display'
+mod avail | awk -F'\t' '$6 == "display" { n++ } END { print n + 0 }'
 
 # an interface nothing offers is still refused, and says so
 mod drop most > /dev/null

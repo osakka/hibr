@@ -301,7 +301,7 @@ inside a function or a `try` it returns 2 —
 | `mod load path\|name` | load a module |
 | `mod drop name` | unload one |
 | `mod list` | list what is loaded, with its ABI and builtins |
-| `mod avail`, `mod list -a` | list every module that could be loaded, and its state |
+| `mod avail`, `mod list -a` | list every module that could be loaded, and its state: columns on a terminal, and in a pipe one line of eight tab-separated fields per module -- name, version, ABI, state, path, the interface it offers, its builtins, its description -- with no header, so a script reads it with no line to skip |
 | `mod find builtin` | load whichever module on the module path registers this builtin |
 | `need name…` | make an interface or module available, or fail saying which |
 | `app name [text]` | name this script as an app, for whatever is running it |

@@ -3,9 +3,12 @@
 # modules cannot change the result.
 export HIBR_MODPATH=./build/mods
 
-mod avail | head -1
+# In a pipe it is fields, not a table: name, version, ABI, state, path, the
+# interface it offers, its builtins, its description. No header, the same as
+# mod list, so a script reads it with no line to skip.
+mod avail | awk -F'\t' 'NR == 1 { print "fields " NF }'
 
-one() { mod avail | grep "^$1 " | { read -r n v a1 a2 st rest; echo "$n $a1 N $st"; }; }
+one() { mod avail | awk -F'\t' -v m="$1" '$1 == m { print $1 " abi N " $4 }'; }
 
 echo "--- before loading"
 one sys
@@ -29,4 +32,4 @@ mod drop sys > /dev/null
 echo "--- errors"
 mod load ./nosuchfile.so 2>/dev/null; echo "missing file rc=$?"
 mod drop nosuchmodule 2>/dev/null; echo "missing name rc=$?"
-echo "absent count $(mod avail | grep -c '^nosuchmodule ' || true)"
+echo "absent count $(mod avail | awk -F'\t' '$1 == "nosuchmodule" { n++ } END { print n + 0 }')"

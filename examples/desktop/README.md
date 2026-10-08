@@ -466,6 +466,7 @@ What each app copies and takes:
 | Sheet | the selected cells, tab-separated, each as it was typed (a formula as its formula) | of tab-separated lines fills the grid from the cursor |
 | every dialog's text field -- Rename, Get Info, File Type, Clock Format, Set Date & Time, Time Zone, Screenshot Folder | the whole field (cut empties it) | goes in at the cursor, on one line |
 | Task Manager | the selected process, its pid and name | -- |
+| Modules | the selected module, its version and its path | -- |
 | Process Details, About | what they show | -- |
 | Notifications | the selected note (cut also clears it) | -- |
 | Clock | the time and date | -- |
@@ -1376,6 +1377,7 @@ In `examples/desktop/apps/`, each one also a file you can read in a sitting:
 | `browser` | the web, in Internet: a headless Chromium driven by the `web` module, each page drawn as cells -- its text where it was laid out, in its colours, over a half-block picture of backgrounds and images. A tab strip (click to switch, the x to close, + for another), back, forward, reload and the address bar: f6 or ctrl-l puts the keyboard there, enter goes -- a bare name gets https://, anything not an address is searched for (`BW_SEARCH`). Clicks follow links and focus fields, typing goes to the page, the wheel scrolls, alt-left and alt-right go back and forward. Bookmarks > Add Bookmark keeps a page in `~/.local/share/hibr/bookmarks.tsv`, a title and an address a line; the rest of that menu goes to one. Needs Chromium or Chrome (`HIBR_WEB_BROWSER`) |
 | `mail` | mail, laid out like Gmail and kept offline: IMAP with push and labels, POP3, SMTP -- see Mail above |
 | `tasks` | every process, name, CPU% and memory, sorted by either (`c`, `m`); Task > Show, or `w`, lists everyone's, only yours or only this desktop's -- the desktop and what it has started, which is its terminals' shells and their programs; `x` ends the selected one, `shift-x` forces it |
+| `modman` | **Modules**: every module the module path can offer, loaded or not -- its version, whether it is loaded, the interface it offers and the builtins it adds, with the selected one's description and path below, which is what a list has no room for. Enter loads or unloads, `l` and `u` do one each, `r` scans again. Two things it refuses, and says why on that same line before anything is pressed: the console, pty, term and hold, because the desktop is drawn and held through them; and any loaded module that offers an interface, because another module may be holding its table and `mod drop` would leave it pointing into an unloaded object. It reads `mod avail`'s own answer, which names and describes a module without ever running its init |
 
 ## Desk Accessories
 

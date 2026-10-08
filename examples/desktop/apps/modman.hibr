@@ -1,0 +1,328 @@
+#!/usr/bin/env hibr
+#
+# modman -- Modules: what this shell can load, what it has loaded, and a
+# way to change either (#133).
+#
+# Everything here is `mod avail`'s own answer: it walks the module path and
+# reads each object's descriptor *without calling its init*, so a module can
+# be named, versioned and described before it is ever loaded. In a pipe that
+# answer is one line of eight tab-separated fields per module, which is what
+# this reads -- never the column form, which is for a person.
+#
+# A scan is 4.3 ms for the 35 modules on this machine, because every one of
+# them is dlopened and closed again, so it happens when the window opens,
+# when something is loaded or dropped, and when Rescan is chosen -- never per
+# frame, where it would be six times the whole frame budget.
+#
+# What it refuses, and why, is the part worth reading: the desktop is drawn
+# through the console and holds its session through pty, term and hold, so
+# dropping one of those takes the screen away from the program doing it; and
+# a module that offers an interface may have handed its table to another
+# module, which would be left holding a pointer into an unloaded object. The
+# registry knows who *offers* an interface and not who has taken it, so the
+# refusal is of every loaded provider rather than only the ones in use. That
+# is the conservative answer and the honest one until the registry can say.
+
+strict
+
+declare -gA MM
+MM_FLOOR="console pty term hold"
+
+command -v dt_app > /dev/null && dt_app modman "Modules" 20 74 once "⬢"
+
+# Read the module path's own answer into this window's rows.
+fn modman_scan(int id) {
+	local out line nm ver abi st path prov bi dsc
+	local i=0
+	local -a lines
+
+	out=$(mod avail 2> /dev/null)
+	mapfile -t lines <<< "$out"
+	for line in "${lines[@]}"; do
+		[ -n "$line" ] || continue
+		IFS=$'\t' read -r nm ver abi st path prov bi dsc <<< "$line"
+		[ -n "$nm" ] || continue
+		MM[$id][$i]["nm"]=$nm
+		MM[$id][$i]["ver"]=$ver
+		MM[$id][$i]["abi"]=$abi
+		MM[$id][$i]["state"]=$st
+		MM[$id][$i]["path"]=$path
+		MM[$id][$i]["prov"]=$prov
+		MM[$id][$i]["bi"]=$bi
+		MM[$id][$i]["dsc"]=$dsc
+		i=$((i + 1))
+	done
+	MM[$id]["n"]=$i
+	return 0
+}
+
+# A field as something to read: the module path writes `-` where there is
+# nothing, because an empty field would be lost to tab being IFS whitespace.
+fn modman_field(v) {
+	case $v in - | "") ret "" ;; *) ret "$v" ;; esac
+}
+
+# Whether this is part of what the desktop is drawn and held by.
+fn modman_isfloor(nm) {
+	case " $MM_FLOOR " in *" $nm "*) return 0 ;; esac
+	return 1
+}
+
+# Why this module cannot be unloaded, as a word rather than a sentence: the
+# sentences are written out at each place they are shown, so the catalogue
+# can see them (a string reaching dt_tr in a variable is translated only if
+# something else put it in the list).
+fn modman_why(int id, int i) {
+	local nm=${MM[$id][$i]["nm"]} prov
+
+	prov := modman_field "${MM[$id][$i]["prov"]}"
+	if modman_isfloor "$nm"; then
+		ret floor
+		return 0
+	fi
+	if [ -n "$prov" ] && [ "${MM[$id][$i]["state"]}" = loaded ]; then
+		ret provider
+		return 0
+	fi
+	ret ""
+	return 0
+}
+
+fn modman_open(int id, arg = "") {
+	MM[$id]["sel"]=0
+	MM[$id]["top"]=0
+	modman_scan "$id"
+}
+
+fn modman_draw(int id, int h, int w, int row, int col) {
+	local n sel top vis i r nm ver st mark line t dsc path prov bi room why
+	local namew=14 verw=9 statew=10
+
+	n=${MM[$id]["n"]:-0}
+	vis=$((h - 4))
+	[ "$vis" -lt 1 ] && vis=1
+	sel=${MM[$id]["sel"]:-0}
+	[ "$sel" -ge "$n" ] && sel=$((n - 1))
+	[ "$sel" -lt 0 ] && sel=0
+	top=${MM[$id]["top"]:-0}
+	top := dt_scrollfit "$top" "$n" "$vis" "$sel"
+	MM[$id]["sel"]=$sel
+	MM[$id]["top"]=$top
+	MM[$id]["vis"]=$vis
+
+	# The headings are translated as they are built and the row is put
+	# rather than dt_tput, or a bare "%s" handed to dt_tput would land in
+	# the catalogue as a key of its own.
+	console pen "$DT_INK" "$DT_FACE" bold
+	t := dt_tr "MODULE"
+	t := str pad "$t" "$namew"
+	line=$t
+	t := dt_tr "VERSION"
+	t := str pad "$t" "$verw"
+	line="$line$t"
+	t := dt_tr "STATE"
+	t := str pad "$t" "$statew"
+	line="$line$t"
+	t := dt_tr "OFFERS, BUILTINS"
+	line="$line$t"
+	console put -p "w$id" 1 2 "$line"
+
+	i=$top
+	r=2
+	room=$((w - 4 - namew - verw - statew))
+	[ "$room" -lt 8 ] && room=8
+	while [ "$r" -lt $((2 + vis)) ]; do
+		if [ "$i" -lt "$n" ]; then
+			nm=${MM[$id][$i]["nm"]}
+			ver := modman_field "${MM[$id][$i]["ver"]}"
+			st=${MM[$id][$i]["state"]}
+			prov := modman_field "${MM[$id][$i]["prov"]}"
+			bi := modman_field "${MM[$id][$i]["bi"]}"
+			mark=" "
+			[ "$st" = loaded ] && mark=${GL[check]}
+			t := str pad "$mark $nm" "$namew"
+			line=$t
+			t := str pad "$ver" "$verw"
+			line="$line$t"
+			t := str pad "$st" "$statew"
+			line="$line$t"
+			t=$bi
+			[ -n "$prov" ] && t="$prov: $bi"
+			[ "${#t}" -gt "$room" ] && t="${t:0:$((room - 1))}${GL[ellipsis]}"
+			line="$line$t"
+			line := str pad "$line" $((w - 3))
+		else
+			line := str pad "" $((w - 3))
+		fi
+		if [ "$i" = "$sel" ] && [ "$i" -lt "$n" ]; then
+			console pen "$DT_SELINK" "$DT_ACTIVE" bold
+		else
+			console pen "$DT_INK" "$DT_FACE"
+		fi
+		console put -p "w$id" "$r" 2 "$line"
+		i=$((i + 1))
+		r=$((r + 1))
+	done
+	[ "$n" -gt "$vis" ] && dt_scrollbar "$id" 2 $((w - 1)) "$vis" "$n" "$vis" "$top"
+
+	# The selected module's own two lines: what it is for, and where it
+	# is -- the description is the thing a list has no room for, which is
+	# the whole reason this window is not just `mod avail`.
+	console pen "$DT_INK" "$DT_FACE"
+	dsc := modman_field "${MM[$id][$sel]["dsc"]}"
+	path := modman_field "${MM[$id][$sel]["path"]}"
+	why := modman_why "$id" "$sel"
+	case $why in
+	floor) dsc := dt_tr "The desktop is drawn through %s" \
+		"${MM[$id][$sel]["nm"]}" ;;
+	provider) dsc := dt_tr "Something may be using what %s offers" \
+		"${MM[$id][$sel]["nm"]}" ;;
+	esac
+	t := str pad "$dsc" $((w - 3))
+	console put -p "w$id" $((h - 1)) 2 "$t"
+	console pen "$DT_DIM" "$DT_FACE"
+	t := str pad "$path" $((w - 3))
+	console put -p "w$id" "$h" 2 "$t"
+	return 0
+}
+
+# Load or unload the selected module, saying why when it will not.
+fn modman_do(int id, what) {
+	local sel nm st why
+
+	sel=${MM[$id]["sel"]:-0}
+	nm=${MM[$id][$sel]["nm"]}
+	st=${MM[$id][$sel]["state"]}
+	[ -n "$nm" ] || return 0
+	case $what in
+	load)
+		if [ "$st" = loaded ]; then
+			dt_notep low "%s is loaded already" "$nm"
+			return 0
+		fi
+		if mod load "$nm" 2> /dev/null; then
+			dt_notep low "Loaded %s" "$nm"
+		else
+			dt_notep low "%s would not load" "$nm"
+		fi
+		;;
+	drop)
+		if [ "$st" != loaded ]; then
+			dt_notep low "%s is not loaded" "$nm"
+			return 0
+		fi
+		why := modman_why "$id" "$sel"
+		case $why in
+		floor)
+			dt_notep low "The desktop is drawn through %s" "$nm"
+			return 0 ;;
+		provider)
+			dt_notep low "Something may be using what %s offers" \
+				"$nm"
+			return 0 ;;
+		esac
+		if mod drop "$nm" 2> /dev/null; then
+			dt_notep low "Unloaded %s" "$nm"
+		else
+			dt_notep low "%s would not unload" "$nm"
+		fi
+		;;
+	esac
+	modman_scan "$id"
+	return 0
+}
+
+fn modman_toggle(int id) {
+	local sel st
+
+	sel=${MM[$id]["sel"]:-0}
+	st=${MM[$id][$sel]["state"]}
+	case $st in
+	loaded) modman_do "$id" drop ;;
+	*) modman_do "$id" load ;;
+	esac
+	return 0
+}
+
+fn modman_rescan(int id) {
+	modman_scan "$id"
+	dt_notep low "%s modules on the path" "${MM[$id]["n"]}"
+	return 0
+}
+
+fn modman_key(int id, key) {
+	local n vis sel top
+
+	n=${MM[$id]["n"]:-0}
+	vis=${MM[$id]["vis"]:-1}
+	sel=${MM[$id]["sel"]:-0}
+	top=${MM[$id]["top"]:-0}
+	case $key in
+	up) sel=$((sel - 1)) ;;
+	down) sel=$((sel + 1)) ;;
+	pageup) sel=$((sel - vis)) ;;
+	pagedown) sel=$((sel + vis)) ;;
+	home) sel=0 ;;
+	end) sel=$((n - 1)) ;;
+	enter) modman_toggle "$id"; return 0 ;;
+	l) modman_do "$id" load; return 0 ;;
+	u) modman_do "$id" drop; return 0 ;;
+	r) modman_rescan "$id"; return 0 ;;
+	*) return 1 ;;
+	esac
+	[ "$sel" -lt 0 ] && sel=0
+	[ "$sel" -ge "$n" ] && sel=$((n - 1))
+	[ "$sel" -lt 0 ] && sel=0
+	MM[$id]["sel"]=$sel
+	top := dt_scrollfit "$top" "$n" "$vis" "$sel"
+	MM[$id]["top"]=$top
+	return 0
+}
+
+fn modman_click(int id, int r, int? c = "", btn = "") {
+	local top i
+
+	top=${MM[$id]["top"]:-0}
+	[ "$r" -lt 2 ] && return 0
+	i=$((top + r - 2))
+	[ "$i" -ge "${MM[$id]["n"]:-0}" ] && return 0
+	MM[$id]["sel"]=$i
+	return 0
+}
+
+fn modman_wheel(int id, dir, int? r = "", int? c = "") {
+	local top n vis
+
+	top=${MM[$id]["top"]:-0}
+	n=${MM[$id]["n"]:-0}
+	vis=${MM[$id]["vis"]:-1}
+	case $dir in
+	up) top=$((top - 1)) ;;
+	down) top=$((top + 1)) ;;
+	esac
+	top := dt_scrollfit "$top" "$n" "$vis"
+	MM[$id]["top"]=$top
+	return 0
+}
+
+modman_menus() {
+	dt_menu "File"
+	dt_item "Close" w dt_close_focused
+	dt_editmenu
+	dt_menu "Module"
+	dt_item "Load" l modman_do "$DT_FOCUS" load
+	dt_item "Unload" u modman_do "$DT_FOCUS" drop
+	dt_sep
+	dt_item "Rescan" r modman_rescan "$DT_FOCUS"
+}
+
+fn modman_copy(int id) {
+	local sel
+
+	sel=${MM[$id]["sel"]:-0}
+	ret "${MM[$id][$sel]["nm"]} ${MM[$id][$sel]["ver"]} ${MM[$id][$sel]["path"]}"
+}
+
+if [ -z "$DT_ROWS" ]; then
+	echo "modman: this is a desktop app; open it from the hibr menu"
+fi

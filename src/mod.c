@@ -316,7 +316,14 @@ int m_isload(sh *s, const char *nm, const char *path)
 	return byname;
 }
 
-/* Describe one candidate object, without ever making it a loaded module. */
+/* Describe one candidate object, without ever making it a loaded module.
+   On a terminal that is a line of columns and a second line of what it
+   adds; in a pipe it is one line of eight tab-separated fields -- name,
+   version, ABI, state, path, the interface it offers, its builtins and
+   its description -- because a program reading this wants fields, not a
+   table, the same rule mod list already follows. Every branch writes all
+   eight, `-` or empty where there is nothing, or a reader's own fields
+   would silently shift on the first object that will not open. */
 void m_probe(sh *s, const char *path, const char *file)
 {
 	void *h;
@@ -324,7 +331,7 @@ void m_probe(sh *s, const char *path, const char *file)
 	const hibr_bi *b;
 	const char *state;
 	str ab, bl;
-	int i;
+	int i, tty = isatty(1);
 
 	s_init(&ab);
 	s_init(&bl);
@@ -332,8 +339,12 @@ void m_probe(sh *s, const char *path, const char *file)
 	if (!h) {
 		lg(HIBR_LDBG, "mod avail: %s: %s", path, dlerror());
 		s_cat(&ab, "-");
-		printf("%-12s %-8s %-8s %-10s %s\n", file, "-", ab.p,
-		       "unreadable", path);
+		if (tty)
+			printf("%-12s %-8s %-8s %-10s %s\n", file, "-", ab.p,
+			       "unreadable", path);
+		else
+			printf("%s\t-\t-\tunreadable\t%s\t-\t-\t-\n", file,
+			       path);
 		s_free(&ab);
 		s_free(&bl);
 		return;
@@ -341,8 +352,12 @@ void m_probe(sh *s, const char *path, const char *file)
 	d = (const hibr_mod *)dlsym(h, "hibr_module");
 	if (!d) {
 		s_cat(&ab, "-");
-		printf("%-12s %-8s %-8s %-10s %s\n", file, "-", ab.p,
-		       "no descr", path);
+		if (tty)
+			printf("%-12s %-8s %-8s %-10s %s\n", file, "-", ab.p,
+			       "no descr", path);
+		else
+			printf("%s\t-\t-\tno descr\t%s\t-\t-\t-\n", file,
+			       path);
 		dlclose(h);
 		s_free(&ab);
 		s_free(&bl);
@@ -363,6 +378,19 @@ void m_probe(sh *s, const char *path, const char *file)
 		if (bl.n)
 			s_cat(&bl, ", ");
 		s_cat(&bl, b->nm);
+	}
+	if (!tty) {
+		/* `-` where there is nothing, never an empty field: tab is
+		   IFS whitespace, so a reader splitting on it loses an empty
+		   one and every field after shifts along. */
+		printf("%s\t%s\t%u\t%s\t%s\t%s\t%s\t%s\n", d->nm,
+		       d->ver ? d->ver : "-", d->abi, state, path,
+		       d->prov ? d->prov : "-", bl.n ? bl.p : "-",
+		       d->dsc ? d->dsc : "-");
+		dlclose(h);
+		s_free(&ab);
+		s_free(&bl);
+		return;
 	}
 	if (d->prov) {
 		if (bl.n)
@@ -440,8 +468,9 @@ void m_avail(sh *s)
 	seen.p = 0;
 	seen.n = 0;
 	seen.cap = 0;
-	printf("%-12s %-8s %-8s %-10s %s\n", "NAME", "VERSION", "ABI",
-	       "STATE", "PATH");
+	if (isatty(1))
+		printf("%-12s %-8s %-8s %-10s %s\n", "NAME", "VERSION", "ABI",
+		       "STATE", "PATH");
 	if (geteuid() == 0) {
 		lg(HIBR_LDBG, "root: listing only %s", HIBR_MODDIR);
 		mp = 0;

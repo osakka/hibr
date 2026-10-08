@@ -12,7 +12,7 @@ most /etc/hostname 2>/dev/null; echo "most without a terminal rc=$?"
 echo "a display was found and loaded: $(mod list | grep -c '^console ')"
 
 # the offer is visible
-mod avail | grep -c 'offers display'
+mod avail | awk -F'\t' '$6 == "display" { n++ } END { print n + 0 }'
 
 # dropping the provider withdraws the offer, and it is found again next time
 mod drop console > /dev/null && echo "provider dropped"

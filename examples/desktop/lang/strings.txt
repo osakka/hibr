@@ -24,6 +24,8 @@
 %s is a whole number
 %s is blank
 %s is in use again
+%s is loaded already
+%s is not loaded
 %s is on every workspace
 %s is on workspace %s only
 %s is sandboxed again
@@ -34,10 +36,13 @@
 %s items, unlocked until %s
 %s keeps files, not calendars or contacts
 %s keeps its size; it can only be centred
+%s modules on the path
 %s moved to workspace %s
 %s moves around the Control Panel, so it cannot be a shortcut
 %s pixels, a cell is %s by %s
 %s selected
+%s would not load
+%s would not unload
 %s x %s cells
 %s x %s cells, %s x %s pixels
 %s, a cell is %s by %s
@@ -385,6 +390,8 @@ Left
 Line Under It
 Link
 List
+Load
+Loaded %s
 Location
 Lock
 Lock After (minutes)
@@ -395,6 +402,7 @@ Log In
 Log In…
 Look
 Louder
+MODULE
 Made if it is not there; ~ is your home.
 Maghrib
 Mail
@@ -420,6 +428,8 @@ Mirror Layout
 Mode
 Modified: %s
 Modifier Drag
+Module
+Modules
 Mon
 Monday
 Month
@@ -498,6 +508,7 @@ Nov
 November
 Number
 Numbered List
+OFFERS, BUILTINS
 OK
 Oct
 October
@@ -595,6 +606,7 @@ Reopened the windows from when the desktop was stopped
 Reply
 Reply All
 Report Spam
+Rescan
 Reset
 Reset All Views
 Resize
@@ -608,6 +620,7 @@ Rows
 Rule
 Rule…
 Run in a terminal
+STATE
 Safar
 Sat
 Saturday
@@ -669,6 +682,7 @@ Signature, put under every message you write:
 Size: %s
 Snake
 Snap
+Something may be using what %s offers
 Sort By
 Sort by CPU
 Sort by Memory
@@ -712,6 +726,7 @@ The YouTube history is empty
 The colours are good, warn, bad, info and dim
 The date is YYYY-MM-DD
 The date is YYYY-MM-DD, the time HH:MM
+The desktop is drawn through %s
 The desktop stopped unexpectedly and was started again; its windows are back (see desktop.log)
 The end is a time, HH:MM
 The record could not be added
@@ -757,6 +772,8 @@ Turns off automatic time (NTP) first
 Type what to look for, or a playlist's or a channel's address, and enter.
 Type: %s
 Unfreeze
+Unload
+Unloaded %s
 Unlock
 Unlock the vault first
 Unlock the vault first: the PIN wraps its key
@@ -770,6 +787,7 @@ Use
 Use Answer
 Username
 Users: %s
+VERSION
 Vault
 View
 View Details

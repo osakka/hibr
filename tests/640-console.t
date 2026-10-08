@@ -1,7 +1,7 @@
 # The console display without a terminal. Drawing itself is tests/console.py,
 # which needs a pty; this is the part run.sh can reach.
 mod load ./build/mods/console.so && echo "loaded"
-mod avail 2>/dev/null | grep -c '^console ' > /dev/null; echo "listed"
+mod avail 2>/dev/null | awk -F'\t' '$1 == "console"' > /dev/null; echo "listed"
 
 # it refuses to open when there is nothing to draw on, rather than hanging
 console open 2>/dev/null; echo "open with no terminal rc=$?"

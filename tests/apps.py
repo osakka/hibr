@@ -49,7 +49,7 @@ def appdir(a):
 
 
 def run(app, win, feed=(), pre="", wait=1.0, also=(), end=b"qy", extra=(),
-        env=None):
+        env=None, until=None):
     """Open one app in a window at a known place and drive it.
 
     `also` adds further windows after it, as (title, geometry, app) triples,
@@ -62,6 +62,15 @@ def run(app, win, feed=(), pre="", wait=1.0, also=(), end=b"qy", extra=(),
     the script -- unlike a `pre` line, which cannot reach a path an app
     computes once at its own source time, before `pre` ever runs. Note Pad's
     own NP_FILE is exactly that, the same as the desktop's own DT_CONF.
+
+    `until` is what to wait for before the quitting keys are sent -- text,
+    or a function given the screen. The desktop answers a key before the
+    idle marker, but a *program* in a terminal window answers on its own
+    time, so without this the `qy` teardown can be typed into a shell whose
+    output has not arrived yet: the row then reads `qyhi` where the test
+    wanted `hi`, which reads as the terminal losing what it was told rather
+    than as the test being early. It failed a release gate that way and
+    passed every run alone.
     """
     p = os.path.join(S, "session.hibr")
     src = "".join(". %s/%s.hibr\n" % (appdir(a), a)
@@ -95,6 +104,12 @@ def run(app, win, feed=(), pre="", wait=1.0, also=(), end=b"qy", extra=(),
     if "term" in mods:
         t.collect(0.8)
     t.keys(feed)
+    if until is not None:
+        for _ in range(40):
+            sc = t.screen()
+            if (until(sc) if callable(until) else sc.find(until) is not None):
+                break
+            t.collect(0.1)
     t.quit(end, wait)
     sc = t.screen()
     sc.out = t.out
@@ -1885,7 +1900,7 @@ check("a shell starts in the window", sc.find("sh>") is not None, sc)
 
 sc = run(*TERM, feed=[b"e", b"c", b"h", b"o", b" ", b"h", b"i", b"\r"],
          pre=SH,
-         wait=1.6)
+         wait=1.6, until=lambda sc: "│hi " in sc.row(4))
 check("what is typed reaches it and what it says comes back",
       sc.find("echo hi") is not None and "│hi " in sc.row(4), sc)
 
@@ -1894,7 +1909,8 @@ check("what is typed reaches it and what it says comes back",
 TWO = "TW_CMD=(/bin/sh -c 'tty; PS1=\"sh> \"; export PS1; exec /bin/sh')"
 sc = run("term", "10 36 2 2", feed=[b"e", b"c", b"h", b"o", b" ", b"o",
          b"n", b"e", b"\r"], pre=TWO, wait=1.6,
-         also=[("Term", "10 36 2 40", "term")])
+         also=[("Term", "10 36 2 40", "term")],
+         until=lambda sc: sc.row(5).count("one") == 1)
 ttys = [r for r in range(24) if "/dev/pts/" in sc.row(r)]
 check("two terminals are two sessions, each on its own pty",
       len(ttys) == 1 and sc.row(ttys[0]).count("/dev/pts/") == 2 and
@@ -2753,6 +2769,74 @@ shutil.rmtree(EX, True)
 # x or shift-x: killing whatever a live sort put on top would be killing a
 # process this suite does not own. Before D and S are cleaned up below, since
 # run() still needs S/session.hibr to exist.
+
+# --- Modules: what can be loaded, what is, and changing either (#133) -----
+#
+# The rows are whatever is on the module path, which under the harness is
+# this build's own build/mods -- so the list is read here from the same
+# `mod avail` the app reads, and a module is reached by how many rows down
+# it is rather than by a hard-coded row. A module added to the tree later
+# therefore moves nothing in these checks.
+MODMAN = ("modman", "20 74 2 3")
+
+
+def modnames():
+    """Every module on this build's path, in the order mod avail lists it,
+    which is the order the app shows. Read through a pipe, so it is the
+    field form: name first."""
+    out = subprocess.run([sx.HIBR, "-c", "mod avail"], capture_output=True,
+                         text=True, env=dict(os.environ,
+                                             HIBR_MODPATH=tree("build/mods"))).stdout
+    return [l.split("\t")[0] for l in out.splitlines() if "\t" in l]
+
+
+MODNAMES = modnames()
+
+
+def moddown(nm):
+    """The keys that move the selection from the top row to that module."""
+    return [b"\x1b[B"] * MODNAMES.index(nm)
+
+
+def modrow(sc, nm):
+    """The row that module is drawn on, with its state and what it offers."""
+    hit = sc.find(" %s " % nm)
+    return sc.row(hit[0]) if hit else ""
+
+
+sc = run(*MODMAN)
+check("Modules lists what the module path offers: each one's version, "
+      "whether it is loaded, and what it adds",
+      sc.find("MODULE") is not None and sc.find("VERSION") is not None and
+      sc.find("STATE") is not None and "available" in modrow(sc, "csv") and
+      "loaded" in modrow(sc, "console") and
+      "display: console" in modrow(sc, "console"), sc)
+check("and the selected module's description and path below it, which is "
+      "what a list has no room for",
+      sc.find("tar and tar.gz read as folders") is not None and
+      sc.find("/archive.so") is not None, sc)
+
+sc = run(*MODMAN, feed=moddown("csv") + [b"\r", 0.6])
+check("enter loads the selected module, and the row says so",
+      "loaded" in modrow(sc, "csv"), (modrow(sc, "csv"), sc))
+sc = run(*MODMAN, feed=moddown("csv") + [b"\r", 0.6, b"u", 0.6])
+check("and u unloads it again", "available" in modrow(sc, "csv"),
+      (modrow(sc, "csv"), sc))
+
+# The two refusals. Both are explained on the window's own bottom line for
+# the selected module, before anything is pressed -- which is the durable
+# half of this: a note would be gone by the time run()'s own quit keys have
+# been read.
+sc = run(*MODMAN, feed=moddown("console") + [b"u", 0.6])
+check("the console cannot be unloaded, because the desktop is drawn "
+      "through it, and the window says so rather than offering it",
+      sc.find("The desktop is drawn through console") is not None and
+      "loaded" in modrow(sc, "console"), sc)
+sc = run(*MODMAN, feed=moddown("cat") + [b"\r", 0.6, b"u", 0.6])
+check("nor a loaded module something may be holding the table of: the "
+      "registry knows who offers an interface, not who took it",
+      sc.find("Something may be using what cat offers") is not None and
+      "loaded" in modrow(sc, "cat"), sc)
 
 TASKS = ("tasks", "16 50 4 4")
 
@@ -3754,4 +3838,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(563)
+report(569)

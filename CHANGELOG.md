@@ -1,5 +1,50 @@
 # Changelog
 
+## 0.99.108
+
+**A Modules window: everything the module path can offer, loaded or not,
+and a way to change either** (Gitea #133). Each row is a module's name,
+version, whether it is loaded, the interface it offers and the builtins it
+adds; the selected one's description and path are on the two lines below,
+which is the part a list has no room for. Enter loads or unloads, `l` and
+`u` do one each, `r` scans again, and the Module menu has the three.
+
+It is built on `mod avail`, which walks the module path and reads each
+object's descriptor **without calling its init** -- so a module can be
+named, versioned and described before it has ever been loaded. That answer
+is now **fields in a pipe**: one line per module of eight tab-separated
+values (name, version, ABI, state, path, the interface it offers, its
+builtins, its description), no header, the same rule `mod list` follows --
+a program reading a tool's output wants fields, not a table. On a terminal
+it is unchanged. `-` stands for anything absent, because tab is IFS
+whitespace and an empty field would be lost, shifting every field after it.
+
+**What it refuses, and why that is the interesting part.** The console,
+pty, term and hold are what the desktop is drawn and held through, so
+dropping one takes the screen away from the program doing it -- with the
+refusal stubbed out for a moment, unloading the console from inside the
+desktop printed a shell error, which is the gentler half of what it does.
+And a loaded module that offers an interface may have handed its table to
+another module, which `mod drop` would leave holding a pointer into an
+unloaded object. The registry knows who *offers* an interface and not who
+has taken it, so the refusal covers every loaded provider rather than only
+the ones in use: the conservative answer, and the honest one until the
+registry can say. Both are explained on the window's own bottom line for
+the selected module, before anything is pressed.
+
+A scan is 4.3 ms for this machine's 35 modules, because every one of them
+is opened and closed again, so it happens when the window opens, after a
+load or unload, and on Rescan -- never per frame, where it would be six
+times the whole frame budget.
+
+Also, found by this release's own gate and fixed rather than called a
+flake: `tests/apps.py`'s `run()` sent its quitting keys without waiting
+for a *program* in a terminal window to have answered, so under a full
+gate's load the `qy` was typed into the shell first and the row read
+`qyhi` where the check wanted `hi`. It takes an `until` now -- text, or a
+function given the screen -- and the two checks that read what a program
+printed use it.
+
 ## 0.99.107
 
 **Task Manager shows everyone's processes, only yours, or only this

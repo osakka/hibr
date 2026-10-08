@@ -153,7 +153,7 @@ whenever a replacement writes one.
 | `src/fs.c` | `mkdir`, `rm` and `mv` as builtins, GNU-compatible, anything else to the program (ADR 0029) |
 | `src/mod.c` | module loading |
 | `mods/*.c` | reference modules: `sys`, `http` (scheme), `ls`, `math` (floating point; one of the two modules `--plan` may load, see `pl_pure`), `darwin` (macOS-only: `cpu`, `mem`, native `host_statistics`, no fork) |
-| `examples/desktop/` | the window manager (`desktop.hibr`, a table of contents sourcing `wm/`, one concern to a file, and `widgets/`, the widget library apps draw with) and everything built on it — `apps/` (file browser, control panel, terminal, task manager, About hibr, three games in `Games/`, dBASE, Write and Sheet in `Office/`), `desk-accessories/` (calculator, clock, image viewer, note pad, sliding puzzle), `control-panel/` panes, `control-strip/` modules — see `examples/desktop/README.md` for how to use it and `examples/desktop/ARCHITECTURE.md` for how it is built |
+| `examples/desktop/` | the window manager (`desktop.hibr`, a table of contents sourcing `wm/`, one concern to a file, and `widgets/`, the widget library apps draw with) and everything built on it — `apps/` (file browser, control panel, terminal, task manager, the module manager, About hibr, three games in `Games/`, dBASE, Write and Sheet in `Office/`), `desk-accessories/` (calculator, clock, image viewer, note pad, sliding puzzle), `control-panel/` panes, `control-strip/` modules — see `examples/desktop/README.md` for how to use it and `examples/desktop/ARCHITECTURE.md` for how it is built |
 | `tests/screen.py` | **the** pty harness and terminal model, shared by every full-screen suite |
 | `mods/prompt/` | the prompt module, including a native reader for git's object store — see `mods/README.md` for the file-by-file breakdown |
 | `mods/console/` | the text display: alternate screen, cell grid with damage-based redraw, panes, decoded keys — see `mods/console/README.md` |
@@ -861,6 +861,16 @@ went in the shell.
   finishes by sending `q`, which a focused terminal passes to its program
   -- and any key snaps a scrolled-back view to the live screen, so a
   scrollback test saw nothing scrolled. Pass `end=None`.
+- **And it must not end before the program has answered.** The desktop
+  answers a key before its idle marker, so `t.keys` is enough for anything
+  the desktop itself draws -- but a *program* in a terminal window answers
+  on its own time, and the teardown keys go to it. Under a full gate's load
+  the `qy` arrived first and the row read `qyhi` where the test wanted
+  `hi`, which reads as the terminal losing what it was typed rather than as
+  the test being early: it failed a release gate and passed every run
+  alone. `run(..., until=...)` waits for text, or for a function given the
+  screen, before quitting. Anything that reads what a program printed wants
+  it.
 - **A printable key arrives as itself.** `console key` reports space as
   `" "`, not `space`, and a letter as the letter; only keys with no glyph
   have names. Both games shipped matching `space` and did nothing on it.
