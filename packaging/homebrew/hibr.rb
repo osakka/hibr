@@ -3,7 +3,7 @@ class Hibr < Formula
   homepage "https://github.com/osakka/hibr"
   url "https://github.com/osakka/hibr/archive/refs/tags/v0.99.109.tar.gz"
   version "0.99.109"
-  sha256 "d5558cd419c8d46bdc958064cb97f963d1ea793866414c025906ec15033512ed"
+  sha256 "6a83e1e573e0c90505d17127cd5ab348f87f335ea029e47bf3874bbb2c7e0f61"
   license "MIT"
   head "https://github.com/osakka/hibr.git", branch: "main"
 
