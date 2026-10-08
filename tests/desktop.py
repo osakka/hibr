@@ -2816,6 +2816,56 @@ check("Detach on the hibr menu detaches too",
       b"[desk: detached -- hold attach desk]" in t.out, t.out.decode(errors="replace"))
 t.close()
 
+# A session comes up on another machine with a smaller screen: the whole
+# point of hold is that the desktop outlives the terminal it was started on,
+# so the one that attaches next is routinely a different size. Nothing
+# covered that until 0.99.98 -- every `hold attach` in these suites used the
+# same size as the `hold new` before it -- which is why a live report of the
+# bar not resizing, the wallpaper not adjusting and the Control Strip being
+# off the screen could not be answered from the suites either way.
+RZ = tempfile.mkdtemp(prefix="hibr-rz-")
+rzs = os.path.join(RZ, "session.hibr")
+open(rzs, "w").write("%s. %s\n%s\nDT_WALLMODE=stretch\n"
+                     "dt_open\ndt_new \"Rz\" 6 20 2 2\ndt_run\ndt_close\n"
+                     % (load(MOD, "build/mods/pty.so", "build/mods/term.so",
+                             "build/mods/hold.so"), WM, CSSRC))
+RZENV = {"TMPDIR": RZ, "DT_TICK": "60", "XDG_CONFIG_HOME": RZ}
+RZC = load("build/mods/pty.so", "build/mods/term.so", "build/mods/hold.so")
+atexit.register(lambda: shutil.rmtree(RZ, True))
+atexit.register(lambda: subprocess.run(
+    [screen.HIBR, "-c", RZC + "hold kill rz"],
+    env=dict(os.environ, **RZENV), capture_output=True))
+
+
+def rzstrip(sc, rows):
+    """Which row the strip is on, or None when it is nowhere to be seen."""
+    for r in range(rows - 1, 0, -1):
+        if "[Cursor]" in sc.row(r) or sc.row(r).lstrip().startswith("▸"):
+            return r
+    return None
+
+
+t = Term("-c", RZC + "hold new rz %s %s" % (screen.HIBR, rzs), env=RZENV,
+         rows=30, cols=100, settle=2.0)
+t.collect(1.0)
+sc = t.screen(rows=30, cols=100)
+check("a held desktop draws to the size of the terminal it was started on",
+      len(sc.row(0).rstrip()) > 90 and rzstrip(sc, 30) is not None, sc)
+t.send(b"\x1c", settle=0.8)
+t.close()
+t = Term("-c", RZC + "hold attach rz", env=RZENV, rows=18, cols=60,
+         settle=2.0)
+t.collect(2.0)
+sc = t.screen(rows=18, cols=60)
+check("reattached on a smaller screen, the menu bar is composed for that one",
+      len(sc.row(0).rstrip()) <= 60, repr(sc.row(0)))
+check("and the Control Strip is pulled back onto it",
+      rzstrip(sc, 18) is not None, sc)
+check("and the wallpaper is repainted out to the new bottom corner",
+      sc.at(17, 59) not in ("", " "), repr(sc.at(17, 59)))
+t.quit(b"qy", 1.0)
+shutil.rmtree(RZ, True)
+
 # About's own Held line, which only a real held session can answer: one
 # client is attached, this one (Gitea #121).
 t = Term("-c", HOLDC + "hold attach desk", env=HENV, settle=1.5)
@@ -4223,4 +4273,4 @@ check("so is a center wallpaper wider than the screen",
       len(put) == 1 and not gone, "%d placed, %d deleted" % (len(put), len(gone)))
 shutil.rmtree(WPD, True)
 
-report(549)
+report(553)

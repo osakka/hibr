@@ -1,5 +1,51 @@
 # Changelog
 
+## 0.99.98
+
+**A held desktop reattached on a smaller screen is now tested, which it never
+was** (Gitea #126). Reported from a live session after moving machines: the
+menu bar had not resized so the clock was off the end, the wallpaper had not
+adjusted, and the Control Strip was off the screen. **That could not be
+answered from the suites either way**, because every `hold attach` in them
+used the same size as the `hold new` before it — and the whole point of hold
+is that the desktop outlives the terminal it was started on, so the next
+terminal to attach is routinely a different size.
+
+Four checks now start a held desktop at 30x100, detach, reattach at 18x60 and
+assert the menu bar is composed for the new screen, the Control Strip is
+pulled back onto it, and the wallpaper is repainted out to the new bottom
+corner.
+
+**What the investigation found, since the answer matters more than the fix
+would have.** Reproduced five ways on 0.99.98 and, where it could be, on
+0.99.93 — the version the live session was actually running — all correct:
+
+| what was done | bar | strip row | clock |
+|---|---|---|---|
+| detach, reattach at 24x80 | 116 -> 76 cols | 32 -> 23 | visible |
+| the client **killed** outright, then reattach | 116 -> 76 | 32 -> 23 | visible |
+| a plain `hold attach` while the first client was still live | 116 -> 76 | 32 -> 23 | visible |
+| `desktop --resume` at 49x175 with the owner's own settings | 228 -> 171 | 65 -> 48 | visible |
+
+So a reattach at a new size has not been broken, and `--resume` takes the
+session over rather than joining it. The one arrangement that *does* produce
+all three symptoms is a second display **joined** while the first is still
+attached (`hold attach -m`, which `desktop --join` runs): the session keeps
+the first client's size and the new terminal gets a cropped view, with the
+bar and the strip drawn at `DT_PRIMARY_COL`/`DT_PRIMARY_W` — the primary
+display's, not the new one's. That is the multi-display path working as
+designed.
+
+The ticket stays open: something was seen that none of this explains, and
+now there is a test that would catch it.
+
+**One thing the same investigation did settle.** The terminal on the new
+machine reports no cell size at all — its pty's `ws_xpixel`/`ws_ypixel` are
+zero — so pictures are off entirely there and a wallpaper cannot be pixels on
+it, whatever `DT_IMGMODE` says. That is a true thing about that terminal
+rather than a fault, and since 0.99.94 About says so in as many words:
+*Pictures: blocks only, no cell size given*.
+
 ## 0.99.97
 
 **The Control Strip draws on every frame, because its cells were never its
