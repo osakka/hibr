@@ -1,5 +1,55 @@
 # Changelog
 
+## 0.99.103
+
+**`mod list` fits the terminal it is printed on, and is still plain in a
+pipe** (Gitea #132). Reported as "we need to fix the mod listing and stuff,
+it's really nasty over two lines". Measured, with the modules a desktop
+loads, on an eighty-column terminal:
+
+     85 |hold         0.22     abi 16  sessions that outlive the terminal they were started on
+     83 |pty          0.21     abi 16  pseudo terminals: spawn a program on one and drive it
+     78 |term         0.24     abi 16  a terminal emulator: a program's screen as cells
+     75 |img          0.21     abi 16  decode an image and draw it as terminal cells
+     75 |console      0.21     abi 16  a text display: cells, panes and decoded keys
+     74 |lines        1.0      abi 16  show, search and edit files by line, exactly
+
+Six over eighty, so two wrapped and every other row was a continuation. The
+columns were fixed widths wide enough for nothing in particular, and the
+description was printed whole however narrow the terminal was.
+
+Two forms now, decided on `isatty(1)` — the discipline the cat module
+already keeps:
+
+- **In a pipe**, byte for byte what it always printed. `tests/090-module.t`
+  records it and anything parsing it reads that, so it could not move.
+- **On a terminal**, fitted: sorted by name, since the load order is not
+  interesting; the name and version columns only as wide as the widest
+  actually present; the ABI said once at the foot rather than repeated in
+  every row, because a module whose ABI does not match is refused at load so
+  every loaded one has the same; and the description cut to what is left,
+  backing off a UTF-8 continuation byte rather than cutting a character in
+  half.
+
+      MODULE   VERSION  DESCRIPTION
+      console  0.21     a text display: cells, panes and decoded keys
+      hold     0.22     sessions that outlive the terminal they were started on
+      img      0.21     decode an image and draw it as terminal cells
+      pty      0.21     pseudo terminals: spawn a program on one and drive it
+      term     0.24     a terminal emulator: a program's screen as cells
+      5 loaded, module ABI 16
+
+Widest line: **73** of 80, **49** of 50, **35** of 36. One column is left
+unwritten on purpose -- a row exactly as wide as the terminal is one some
+terminals wrap on the last cell, which is the wrapping this is here to stop,
+and the first version of the arithmetic counted three separator columns
+where it prints four and so came out one over at every width.
+
+Checked in `tests/090-module.t` itself, through the pty module at 80, 50 and
+36 columns, as a **property** -- "the widest line is under the width" --
+rather than recorded row by row, so a module's description changing does not
+re-record the file.
+
 ## 0.99.102
 
 **About This Computer has headings, a scrolling middle and the meters pinned

@@ -214,18 +214,88 @@ int m_dropall(sh *s)
 	return n;
 }
 
-/* Print the loaded module table. */
+/* Compare two loaded modules by name, for the terminal listing. */
+int m_cmpnm(const void *a, const void *b)
+{
+	const mod *x = *(const mod **)a, *y = *(const mod **)b;
+
+	return strcmp(x->m->nm, y->m->nm);
+}
+
+/* Print the loaded module table.
+
+   Two forms, decided on isatty(1), the same discipline the cat module keeps:
+   in a pipe it is byte for byte what it has always printed, because
+   tests/090-module.expected records it and anything parsing it reads that;
+   on a terminal it is fitted to the width.
+
+   Unfitted, six of the modules a desktop loads ran past eighty columns --
+   hold at 85, pty at 83 -- so they wrapped and every other row was a
+   continuation (Gitea #132). Fitted: sorted by name, since the load order
+   is not interesting; the columns only as wide as the widest name and
+   version actually present; the abi said once in the heading, because a
+   module whose abi does not match the shell's is refused at load, so every
+   loaded one has the same; and the description cut to what is left. */
 void m_list(sh *s)
 {
 	size_t i;
 	mod *m;
+	mod **srt;
+	int nw = 6, vw = 7, cols, dw;
 
-	for (i = 0; i < s->mods.n; i++) {
-		m = (mod *)s->mods.p[i];
-		printf("%-12s %-8s abi %u  %s\n", m->m->nm,
-		       m->m->ver ? m->m->ver : "-", m->m->abi,
-		       m->m->dsc ? m->m->dsc : "");
+	if (!s->mods.n)
+		return;
+	if (!isatty(1)) {
+		for (i = 0; i < s->mods.n; i++) {
+			m = (mod *)s->mods.p[i];
+			printf("%-12s %-8s abi %u  %s\n", m->m->nm,
+			       m->m->ver ? m->m->ver : "-", m->m->abi,
+			       m->m->dsc ? m->m->dsc : "");
+		}
+		return;
 	}
+	srt = xm(s->mods.n * sizeof *srt);
+	for (i = 0; i < s->mods.n; i++) {
+		srt[i] = (mod *)s->mods.p[i];
+		if ((int)strlen(srt[i]->m->nm) > nw)
+			nw = (int)strlen(srt[i]->m->nm);
+		if (srt[i]->m->ver && (int)strlen(srt[i]->m->ver) > vw)
+			vw = (int)strlen(srt[i]->m->ver);
+	}
+	qsort(srt, s->mods.n, sizeof *srt, m_cmpnm);
+	cols = ed_cols();
+	/* Two separators of two columns each, and one column left unwritten:
+	   a row exactly as wide as the terminal is one some terminals wrap
+	   on the last cell, which is the wrapping this is here to stop. */
+	dw = cols - nw - vw - 5;
+	if (dw < 8)
+		dw = 8;
+	printf("%-*s  %-*s  %s\n", nw, "MODULE", vw, "VERSION", "DESCRIPTION");
+	for (i = 0; i < s->mods.n; i++) {
+		const char *d;
+		int dn;
+
+		m = srt[i];
+		d = m->m->dsc ? m->m->dsc : "";
+		dn = (int)strlen(d);
+		printf("%-*s  %-*s  ", nw, m->m->nm, vw,
+		       m->m->ver ? m->m->ver : "-");
+		if (dn <= dw) {
+			printf("%s\n", d);
+		} else {
+			/* Back off a UTF-8 continuation byte rather than cut a
+			   character in half; every description here is ASCII,
+			   and one added later may not be. */
+			int k = dw - 1;
+
+			while (k > 0 && ((unsigned char)d[k] & 0xC0) == 0x80)
+				k--;
+			printf("%.*s\xe2\x80\xa6\n", k, d);
+		}
+	}
+	printf("%zu loaded, module ABI %u\n", s->mods.n,
+	       ((mod *)s->mods.p[0])->m->abi);
+	free(srt);
 }
 
 /* Whether this candidate is loaded: 2 from this very file, 1 by name only. */
