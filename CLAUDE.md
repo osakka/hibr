@@ -3175,3 +3175,39 @@ went in the shell.
   what makes the answer obvious. A screenful of wrong output from one
   inverted guard, and the three characters anybody would have looked at
   first were a different bug.
+
+- **An ignored signal is a trap, and storing it as "no trap" loses it.**
+  `b_trap` kept `trap '' SIG` as a NULL pointer, exactly like no trap at
+  all, so the listing could not see it: `trap` printed nothing for an
+  ignored signal and `eval "$(trap -p)"` -- the one thing that output is
+  *for* -- put every ignore back as a default, which is a signal that
+  starts killing the shell. An ignore is `xs("")` now; `tr_run` already
+  skipped an empty command, so nothing else had to learn the difference.
+  And `trap` took neither `-p` nor `--` until 0.99.119, so the round trip
+  could not have worked anyway: every line it prints begins `trap -- '…'`.
+  Gitea #151, `tests/197-trap-ignore.t`.
+- **A signal the parent left ignored may not be trapped or reset, and the
+  shell has to remember which those were.** POSIX, and bash keeps to it:
+  asked to trap one, bash says nothing, lists it as ignored still, and the
+  signal goes on doing nothing. `tr_wasign` answers it, asked **lazily and
+  cached** -- sixty-four `sigaction` queries at startup is 32 us against a
+  1.16 ms startup, and startup is the second thing this shell is measured
+  on, so a shell that never mentions a signal pays nothing. The price of
+  lazy is that **anything in this shell which changes a disposition must
+  ask first**, or it reads its own work as the parent's: `jc_init` ignores
+  four signals for job control and `tr_init` installs the `SIGCHLD`
+  handler, and those are the only two in the parent -- every other
+  `signal()` call in the tree is after a fork. Add one in the parent and
+  this breaks silently, in the direction of refusing to trap a signal the
+  script is entitled to.
+- **A test compared against bash can depend on how the harness was
+  invoked.** `tests/170-trap.t` prints `trap`'s listing, and bash's
+  included three lines hibr's did not whenever the *parent* ignored
+  `SIGTSTP`, `SIGTTIN` or `SIGTTOU` -- which a shell doing job control
+  does. It failed two release gates for 0.99.117 and passed every run by
+  hand, which reads as load and never was: thirty runs under six spinners
+  failed thirty times and the one-liner
+  `bash -c "trap '' TSTP; <shell> -c trap"` shows it in a second. The test
+  was right and the shell was wrong both times. Before believing a
+  compared-against-bash test is flaky, run the comparison by hand from a
+  shell set up the way the harness's was.

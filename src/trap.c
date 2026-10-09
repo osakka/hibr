@@ -26,6 +26,38 @@ void on_trap(int sig)
 	tr_any = 1;
 }
 
+/* Whether a signal was already ignored before this shell touched it: 0 not
+   asked yet, 1 it was, 2 it was not. A shell may not un-ignore a signal its
+   parent ignored -- POSIX says so and bash keeps to it -- so `trap` has to
+   know, and it is the only thing that can tell `trap -- '' SIGTSTP` (the
+   parent's doing) from nothing at all.
+
+   Asked lazily, and cached, because a shell that never mentions a signal
+   should not pay for sixty-four sigaction calls at startup: that is 32 us
+   against a 1.16 ms startup, which is the second thing this shell is
+   measured on. The price of lazy is that anything in *this* shell which
+   changes a disposition must ask first, or it would read its own work as
+   the parent's -- jc_init, which ignores four for job control, and
+   tr_init's own SIGCHLD. Those two are the only ones in the parent; every
+   other signal() call in the tree is after a fork. */
+static signed char tr_was[NSIG];
+
+/* Whether this signal arrived ignored, asked once. */
+int tr_wasign(int sig)
+{
+	struct sigaction old;
+
+	if (sig <= 0 || sig >= NSIG)
+		return 0;
+	if (!tr_was[sig]) {
+		if (sigaction(sig, 0, &old) < 0)
+			tr_was[sig] = 2;
+		else
+			tr_was[sig] = old.sa_handler == SIG_IGN ? 1 : 2;
+	}
+	return tr_was[sig] == 1;
+}
+
 /* Allocate the trap and pending tables. */
 void tr_init(sh *s)
 {
@@ -48,6 +80,7 @@ void tr_init(sh *s)
 	   SA_RESTART so an ordinary read or wait resumes; select and pselect
 	   do not restart whatever is asked, which costs a module's wait one
 	   early return per child exit and nothing else. */
+	tr_wasign(SIGCHLD);
 	memset(&sa, 0, sizeof sa);
 	sa.sa_handler = on_trap;
 	sa.sa_flags = SA_RESTART;
@@ -110,6 +143,10 @@ void tr_exit(sh *s)
 		return;
 	cmd = s->trap[0];
 	s->trap[0] = 0;
+	if (!*cmd) {
+		free(cmd);
+		return;
+	}
 	s->quit = 0;
 	s->stop = 0;
 	lg(HIBR_LDBG, "running exit trap");
@@ -288,6 +325,48 @@ int b_trap(sh *s, int ac, char **av)
 
 	if (!s->trap)
 		tr_init(s);
+	/* `trap -p` lists, and `--` ends the options -- both needed for the
+	   one thing the listing is *for*: `eval "$(trap -p)"` putting back
+	   what was found. Without them the output could not be read back at
+	   all, since every line of it begins `trap -- '...'`, so the ignores
+	   #151 is about were only half the reason the round trip did not
+	   work. `-p` with signal names after it lists only those, as bash
+	   does. */
+	if (ac > 1 && !strcmp(av[1], "-p")) {
+		if (ac == 2) {
+			ac = 1;
+		} else {
+			int k;
+			for (k = 2; k < ac; k++) {
+				int g = tr_sig(av[k]);
+				const struct signm *sm;
+				const char *nm = "EXIT", *cm;
+				if (g < 0 || g >= tr_n) {
+					lg(HIBR_LERR, "trap: %s: unknown "
+					   "signal", av[k]);
+					return HIBR_FAIL;
+				}
+				cm = s->trap[g];
+				if (!cm && g && tr_wasign(g))
+					cm = "";
+				if (!cm)
+					continue;
+				for (sm = jc_sigs; g && sm->nm; sm++)
+					if (sm->sig == g)
+						nm = sm->nm;
+				printf("trap -- '%s' %s%s\n", cm,
+				       g ? "SIG" : "", nm);
+			}
+			return HIBR_OK;
+		}
+	} else if (ac > 1 && !strcmp(av[1], "--")) {
+		int k;
+		for (k = 1; k + 1 < ac; k++)
+			av[k] = av[k + 1];
+		ac--;
+		if (ac == 1)
+			return HIBR_OK;
+	}
 	if (ac == 1) {
 		if (s->etrap)
 			printf("trap -- '%s' ERR\n", s->etrap);
@@ -295,16 +374,23 @@ int b_trap(sh *s, int ac, char **av)
 			printf("trap -- '%s' DEBUG\n", s->dtrap);
 		if (s->rtrap)
 			printf("trap -- '%s' RETURN\n", s->rtrap);
-		for (i = 0; i < tr_n; i++)
-			if (s->trap[i]) {
-				const struct signm *sm;
-				const char *nm = "EXIT";
-				for (sm = jc_sigs; i && sm->nm; sm++)
-					if (sm->sig == i)
-						nm = sm->nm;
-				printf("trap -- '%s' %s%s\n", s->trap[i],
-				       i ? "SIG" : "", nm);
-			}
+		/* A signal with no trap of its own is still listed when it
+		   arrived ignored, which is what makes `eval "$(trap -p)"`
+		   put back what it found: an ignore restored as a default is
+		   a signal that starts killing the shell. */
+		for (i = 0; i < tr_n; i++) {
+			const struct signm *sm;
+			const char *nm = "EXIT";
+			const char *cm = s->trap[i];
+			if (!cm && i && tr_wasign(i))
+				cm = "";
+			if (!cm)
+				continue;
+			for (sm = jc_sigs; i && sm->nm; sm++)
+				if (sm->sig == i)
+					nm = sm->nm;
+			printf("trap -- '%s' %s%s\n", cm, i ? "SIG" : "", nm);
+		}
 		return HIBR_OK;
 	}
 	cmd = av[1];
@@ -336,8 +422,19 @@ int b_trap(sh *s, int ac, char **av)
 			lg(HIBR_LERR, "trap: %s: unknown signal", av[i]);
 			return HIBR_FAIL;
 		}
+		/* A signal the parent left ignored can be neither trapped nor
+		   reset, silently -- POSIX, and what bash does: asked to trap
+		   one, it says nothing, lists it as ignored still, and the
+		   signal goes on doing nothing when it arrives. A script that
+		   could un-ignore one would undo a decision made for it by
+		   whatever started it, which is the whole point of the rule. */
+		if (sig && tr_wasign(sig)) {
+			lg(HIBR_LDBG, "signal %d arrived ignored; leaving it",
+			   sig);
+			continue;
+		}
 		free(s->trap[sig]);
-		s->trap[sig] = reset || !*cmd ? 0 : xs(cmd);
+		s->trap[sig] = reset ? 0 : xs(cmd);
 		if (!sig)
 			continue;
 		memset(&sa, 0, sizeof sa);

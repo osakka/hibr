@@ -120,6 +120,14 @@ void jc_init(sh *s)
 	fcntl(s->tty, F_SETFD, FD_CLOEXEC);
 	while (tcgetpgrp(s->tty) != (s->pgid = getpgrp()))
 		kill(-s->pgid, SIGTTIN);
+	/* Asked before they are changed, or `trap` would read this shell's
+	   own job control as the parent's doing and refuse to trap them --
+	   tr_wasign caches the first answer, so this is where the truth
+	   about these four is fixed. */
+	tr_wasign(SIGTSTP);
+	tr_wasign(SIGTTIN);
+	tr_wasign(SIGTTOU);
+	tr_wasign(SIGQUIT);
 	signal(SIGTSTP, SIG_IGN);
 	signal(SIGTTIN, SIG_IGN);
 	signal(SIGTTOU, SIG_IGN);

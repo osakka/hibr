@@ -279,6 +279,7 @@ struct signm { const char *nm; int sig; };
 extern const struct signm jc_sigs[];
 
 void tr_init(sh *s);
+int tr_wasign(int sig);
 void tr_run(sh *s);
 void tr_exit(sh *s);
 void tr_debug(sh *s, const char *what);

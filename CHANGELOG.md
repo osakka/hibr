@@ -1,5 +1,47 @@
 # Changelog
 
+## 0.99.119
+
+**An ignored signal is a trap, and `trap` now says so** (Gitea #151).
+`trap '' TERM` was kept as a NULL pointer -- exactly like no trap at all --
+so the listing could not see it, and `eval "$(trap -p)"`, the one thing
+that output exists for, put every ignore back as a *default*: a signal
+that starts killing the shell. An ignore is the empty string now, which
+`tr_run` already skipped, so nothing else had to learn the difference.
+
+`trap` also took neither **`-p`** nor **`--`**, so the round trip could not
+have worked anyway -- every line it prints begins `trap -- '…'`, and
+`eval`ing that gave `trap: echo bye: unknown signal`. Both are accepted
+now, with `trap -p sig…` listing only those, as in bash.
+
+**A signal the parent left ignored may not be trapped or reset.** POSIX
+says a shell cannot undo that decision and bash keeps to it: asked to trap
+one it says nothing, lists it as ignored still, and the signal goes on
+doing nothing. hibr does the same, and lists it -- so a `trap` listing can
+now show signals the script never mentioned, which is the point.
+
+`tr_wasign` answers "did this arrive ignored", asked **lazily and cached**:
+sixty-four `sigaction` queries at startup would be 32 us against a 1.16 ms
+startup, and a shell that never mentions a signal should pay nothing for
+this. The price is that anything in this shell which changes a disposition
+has to ask first, or it reads its own work as the parent's -- `jc_init`'s
+four job-control ignores and `tr_init`'s own `SIGCHLD` handler, which are
+the only two places in the parent; every other `signal()` call in the tree
+is after a fork.
+
+This is what failed two release gates for 0.99.117 and passed every run by
+hand. `tests/170-trap.t` prints the listing, and bash's had three lines
+hibr's did not whenever the parent ignored `SIGTSTP`, `SIGTTIN` or
+`SIGTTOU` -- which a shell doing job control does. It read as load and
+never was: thirty runs under six spinners failed thirty times, and
+`bash -c "trap '' TSTP; hibr -c trap"` shows it in a second. The test was
+right and the shell was wrong, twice. It now passes from a shell that
+ignores all three.
+
+`tests/197-trap-ignore.t` compares the listing, the reset, `-p`, `--`, the
+round trip, the inherited rule in all three of its parts and an empty
+`EXIT` trap against bash, and fails against 0.99.118.
+
 ## 0.99.118
 
 **A map key named `*` or `@` could not be read back** (Gitea #148).

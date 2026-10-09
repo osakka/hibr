@@ -182,7 +182,7 @@ echo "$sum"
 | `kill [-sig\|-s sig\|-n num] %job\|pid` | signal a job or process; `kill -l` lists the signals (the real-time ones bash also lists are left out), `kill -l 9` and `kill -l TERM` translate, and an exit status above 128 names its signal |
 | `disown [%job]` | forget a job without signalling it |
 | `coproc [name] cmd args…` | **[hibr]** run a command as a coprocess |
-| `trap [cmd] sig…` | run `cmd` on a signal, on `EXIT`, `ERR`, `DEBUG` or `RETURN` |
+| `trap [cmd] sig…` | run `cmd` on a signal, on `EXIT`, `ERR`, `DEBUG` or `RETURN`; `trap` or `trap -p [sig…]` lists what is set, `trap - sig…` clears it, `trap '' sig…` ignores it |
 | `ulimit [-HSa] [-cdfilnstuv] [limit]` | read or set a resource limit |
 | `umask [mask]` | show or set the file creation mask |
 | `hash [-r] [-d name] [name…]` | show or forget where commands were found |
@@ -213,6 +213,25 @@ As many as you like, at once. See
 `trap … RETURN` runs when the function that set it returns, and is forgotten
 afterwards, so it does not leak into the next call — set it inside the function
 you mean, as in bash.
+
+An **ignored** signal is a trap like any other: `trap '' TERM` ignores it and
+`trap` lists it as `trap -- '' SIGTERM`, so the listing can be read back —
+
+<!-- not run: the output depends on which signals the parent left ignored -->
+```sh
+trap '' PIPE
+trap 'echo bye' TERM
+saved=$(trap -p)        # trap -- '' SIGPIPE / trap -- 'echo bye' SIGTERM
+trap - PIPE TERM        # cleared
+eval "$saved"           # and put back, ignores included
+```
+
+A signal the shell's **parent** left ignored is listed the same way and can be
+neither trapped nor reset: POSIX says a shell may not undo that decision, and
+bash keeps to it. So `trap 'x' TSTP` in a script started from something that
+ignored `SIGTSTP` says nothing, changes nothing, and the signal goes on doing
+nothing — which is why a `trap` listing may show signals the script never
+mentioned.
 `hash` is a real cache: `findx` consults it before walking `PATH`, it is
 forgotten when `PATH` changes, and a remembered path that stops working is
 looked up again.
