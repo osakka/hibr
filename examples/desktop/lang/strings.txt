@@ -743,7 +743,6 @@ Theme
 There is a theme called %s already
 There is no file %s
 There is no folder %s
-This Computer
 This Terminal
 This account has no address to answer from
 This window: desktop shortcuts work again

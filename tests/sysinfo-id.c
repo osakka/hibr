@@ -32,3 +32,5 @@ int main(void) {
 int u8dec(const char *p, size_t n, unsigned *cp) { (void)n; *cp = (unsigned char)*p; return 1; }
 int u8w(unsigned c) { (void)c; return 1; }
 const char *hibr_get(sh *s, const char *k) { (void)s; (void)k; return 0; }
+void hibr_setp(sh *s, const char *nm, char **ks, int nk, const char *v)
+{ (void)s; (void)nm; (void)ks; (void)nk; (void)v; }

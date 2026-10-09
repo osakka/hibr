@@ -498,28 +498,121 @@ size_t si_width(const char *p)
 	return w;
 }
 
-/* Write a logo line, turning the tone marks into colour or into nothing. */
-void si_art(str *o, const char *p, int tty)
+/* How many characters a string holds, which is what a shell slice counts. */
+size_t si_chars(const char *p)
+{
+	size_t n = p ? strlen(p) : 0, i = 0, c = 0;
+	unsigned cp;
+	int l;
+
+	while (i < n) {
+		l = u8dec(p + i, n - i, &cp);
+		if (l < 1)
+			l = 1;
+		i += (size_t)l;
+		c++;
+	}
+	return c;
+}
+
+/* Say that the next n characters are drawn in style y. */
+void si_sty(str *y, int c, size_t n)
+{
+	while (n--)
+		s_ch(y, c);
+}
+
+/* Write a logo line as plain text, and the style of each of its characters:
+   'a' is the picture's first tone and 'b' its second. A tone mark is not a
+   character of the picture, so it draws nothing and counts for nothing. */
+void si_artp(str *o, str *y, const char *p)
 {
 	size_t n = strlen(p), i = 0;
+	unsigned cp;
+	int l, t = 'a';
 
-	if (tty && n && p[0] != 1 && p[0] != 2)
-		s_cat(o, "\033[38;5;110m");
-	for (i = 0; i < n; i++) {
-		if (p[i] == 1) {
-			if (tty)
-				s_cat(o, "\033[38;5;110m");
+	while (i < n) {
+		if (p[i] == 1 || p[i] == 2) {
+			t = p[i] == 1 ? 'a' : 'b';
+			i++;
 			continue;
 		}
-		if (p[i] == 2) {
-			if (tty)
-				s_cat(o, "\033[38;5;215m");
-			continue;
-		}
-		s_ch(o, p[i]);
+		l = u8dec(p + i, n - i, &cp);
+		if (l < 1)
+			l = 1;
+		s_add(o, p + i, (size_t)l);
+		s_ch(y, t);
+		i += (size_t)l;
 	}
-	if (tty)
-		s_cat(o, "\033[0m");
+}
+
+/* A per-character style string as runs: "a:23 .:10 k:2 .:2 .:17", a style
+   and the number of characters it covers. The whole line is covered, so a
+   reader can walk it beside the text without looking at either again --
+   which is the point: a window redraws this every frame and must not walk
+   sixty characters a line to do it. Counted in characters, like a shell
+   slice; every glyph in every picture here is one column wide, so they are
+   also columns. */
+void si_runs(str *o, const char *y, size_t n)
+{
+	size_t i = 0, k;
+
+	while (i < n) {
+		for (k = i; k < n && y[k] == y[i]; k++)
+			;
+		if (o->n)
+			s_ch(o, ' ');
+		s_ch(o, y[i]);
+		s_ch(o, ':');
+		s_num(o, (long)(k - i));
+		i = k;
+	}
+}
+
+/* The escape a style is drawn in on a terminal. The two tones are palette
+   entries chosen for the picture rather than theme colours -- a logo is the
+   thing itself, like a game's own art -- and a window draws them as its own
+   theme's roles instead, which is why nothing but this function knows them. */
+const char *si_sgr(int y)
+{
+	switch (y) {
+	case 'a':
+		return "\033[38;5;110m";
+	case 'b':
+		return "\033[38;5;215m";
+	case 'h':
+		return "\033[1;38;5;110m";
+	case 'k':
+		return "\033[1;38;5;173m";
+	}
+	return "\033[0m";
+}
+
+/* One line to a terminal: the text, with an escape wherever its style
+   changes. Walks the same per-character styles the runs are packed from, so
+   a colour cannot land in a different place than a window would put it. */
+void si_paint(const char *t, const char *y, size_t n)
+{
+	size_t i = 0, b = 0, k;
+	unsigned cp;
+	int l;
+
+	while (i < n) {
+		for (k = i; k < n && y[k] == y[i]; k++)
+			;
+		fputs(si_sgr(y[i]), stdout);
+		while (i < k) {
+			l = u8dec(t + b, strlen(t + b), &cp);
+			if (l < 1)
+				l = 1;
+			fwrite(t + b, 1, (size_t)l, stdout);
+			b += (size_t)l;
+			i++;
+		}
+	}
+	if (n && y[n - 1] != '.')
+		fputs("\033[0m", stdout);
+	fputs(t + b, stdout);
 }
 
 /* Add one labelled line to the list. */
@@ -543,7 +636,7 @@ int m_sysinfo(sh *s, int ac, char **av)
 	const char *want = 0;
 	struct utsname un;
 	char *rel, *cpu, *mem;
-	str id, like, pretty, t, u;
+	str id, like, pretty, t, u, y;
 	vec rows;
 	const char **logo;
 	size_t k, n, wide;
@@ -569,6 +662,7 @@ int m_sysinfo(sh *s, int ac, char **av)
 	s_init(&pretty);
 	s_init(&t);
 	s_init(&u);
+	s_init(&y);
 	rel = si_slurp("/etc/os-release");
 	if (rel) {
 		si_rel(rel, "ID", &id);
@@ -719,45 +813,83 @@ int m_sysinfo(sh *s, int ac, char **av)
 	for (k = 0; k < n; k++)
 		if (si_width(logo[k]) > wide)
 			wide = si_width(logo[k]);
+	/* One pass builds the line and the style of every character in it,
+	   and the three ways out are the same text: printed plain, printed
+	   with an escape per run, or handed back as text and runs for a
+	   window to draw with its own pen. Two passes would drift the moment
+	   a picture carried a glyph of a different width. */
 	for (k = 0; k < n || k < rows.n; k++) {
-		size_t pad = wide;
+		size_t pad = wide, tr = 0;
 		u.n = 0;
+		y.n = 0;
 		if (u.p)
 			u.p[0] = 0;
+		if (y.p)
+			y.p[0] = 0;
 		if (k < n) {
-			si_art(&u, logo[k], tty);
+			si_artp(&u, &y, logo[k]);
 			pad = wide - si_width(logo[k]);
 		}
+		si_sty(&y, '.', pad);
 		while (pad--)
 			s_ch(&u, ' ');
 		s_cat(&u, "  ");
+		si_sty(&y, '.', 2);
 		if (k < rows.n) {
 			str *r = (str *)rows.p[k];
 			char *tab = strchr(r->p ? r->p : "", '\t');
 			if (tab) {
 				*tab = 0;
-				if (tty)
-					s_cat(&u, "\033[1;38;5;173m");
 				s_cat(&u, r->p);
-				if (tty)
-					s_cat(&u, "\033[0m");
+				si_sty(&y, 'k', si_chars(r->p));
 				s_cat(&u, ": ");
+				si_sty(&y, '.', 2);
 				s_cat(&u, tab + 1);
+				si_sty(&y, '.', si_chars(tab + 1));
 			} else {
-				if (tty)
-					s_cat(&u, "\033[1;38;5;110m");
 				s_cat(&u, r->p ? r->p : "");
-				if (tty)
-					s_cat(&u, "\033[0m");
+				si_sty(&y, 'h', si_chars(r->p));
 			}
 		}
-		while (u.n && u.p[u.n - 1] == ' ')
+		/* A trailing blank is not worth drawing, and a space is one
+		   byte and one character, so the styles lose exactly as many
+		   as the text does. */
+		while (u.n && u.p[u.n - 1] == ' ') {
 			u.n--;
+			tr++;
+		}
 		if (u.p)
 			u.p[u.n] = 0;
-		printf("%s\n", u.p ? u.p : "");
+		if (y.n >= tr)
+			y.n -= tr;
+		if (y.p)
+			y.p[y.n] = 0;
+		if (s->bind) {
+			str ix, rn;
+			char *ks[2];
+
+			s_init(&ix);
+			s_init(&rn);
+			s_num(&ix, (long)k);
+			si_runs(&rn, y.p ? y.p : "", y.n);
+			ks[0] = "text";
+			ks[1] = ix.p;
+			hibr_setp(s, "RET", ks, 2, u.p ? u.p : "");
+			ks[0] = "runs";
+			hibr_setp(s, "RET", ks, 2, rn.p ? rn.p : "");
+			s_free(&ix);
+			s_free(&rn);
+		} else if (tty) {
+			si_paint(u.p ? u.p : "", y.p ? y.p : "", y.n);
+			printf("\n");
+		} else {
+			printf("%s\n", u.p ? u.p : "");
+		}
 	}
-	if (tty) {
+	/* The palette swatch is for a person looking at a terminal; a window
+	   that asked for text and runs is not one, and printing it there
+	   would land on the real screen under the console's own drawing. */
+	if (tty && !s->bind) {
 		size_t w = wide;
 		printf("\n");
 		while (w--)
@@ -785,6 +917,7 @@ int m_sysinfo(sh *s, int ac, char **av)
 	s_free(&pretty);
 	s_free(&t);
 	s_free(&u);
+	s_free(&y);
 	return HIBR_OK;
 }
 

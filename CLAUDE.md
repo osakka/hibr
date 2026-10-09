@@ -3076,3 +3076,51 @@ went in the shell.
   The rule this file already carries -- run the one scenario in a loop and
   count, then add a knob that makes the window certain -- applies to a
   check *this* work wrote, not only to one inherited.
+
+- **A module gets colour into a window by handing over the styles, never an
+  escape sequence.** sysinfo's two tones became `\033[38;5;110m` only when
+  `isatty(1)`, and About captured the block with `$( )` -- a pipe, so the
+  tones were dropped and the block was grey. Forcing the escapes into the
+  pipe would have been no better: a window draws cells through its pane,
+  not bytes at the screen, so it would have needed an SGR parser of its own.
+  The answer is the shape `md lines` already had: fill the **result slot**
+  with the text *and* the style of every character, as runs
+  (`a:23 .:10 k:2 .:19` -- a letter and how many characters it covers, the
+  whole line covered), and let the caller draw each run with a pen of its
+  own theme's colour. Three things follow. The runs must be built in the
+  **same pass** as the text, or they drift the moment a line holds a glyph
+  of a different width. They must be **runs and not one letter per
+  character** (which is what `md lines` gives, because Write edits text and
+  tracks its own generations): a window redraws every frame and must not
+  walk sixty characters a line to do it. And the module stays free of the
+  theme -- it names tones, the app picks colours -- which is also what lets
+  the terminal form keep the palette entries the pictures were drawn with.
+- **A role is not a colour: check what a theme actually gives it.** The
+  ticket for the above asked for `DT_INFO` and `DT_WELL` for the two tones,
+  and `DT_WELL` is the *surface* colour a key or a cell sits in (`#2d3748`
+  on midnight) -- a logo drawn in it would have been very nearly invisible
+  on the window's own face. `DT_WARN` (`#f6ad55`) is the warm role. Read
+  `wm/settings.hibr` before pairing a role with a use, rather than reading
+  the name.
+- **Gating a window's drawing takes the `dt_want` with it.** `about_dirty`
+  let About be left undrawn on a frame inside its own `AB_SLOWMS` period --
+  4.0 ms a frame to 0.6 -- and the `dt_want` that asks for the next reading
+  is inside `about_draw`, which is exactly what was being skipped: a frame
+  some other window asked for would consume the last request, nothing would
+  re-arm, and the window's readings would then wait for whatever else
+  happened to wake the desktop, which in a real session is the bar's clock
+  a minute later. So the dirty check asks for the frame itself when it
+  answers clean. This is the Cursor Blink and icon-rescan trap again, and
+  the third time it has been found: **before gating any drawing, look for
+  what asks for the next frame from inside it.**
+- **A frame count cannot test a `dt_want`, because other things wake the
+  desktop.** The first guard for the above sent one key and counted frames
+  over three idle seconds: the version with **no re-arm at all** drew 1 and
+  2 frames, against 1 for the version with it -- the icons' mount rescan
+  and friends are enough to hide the difference entirely. The test asserts
+  on `DT_WANT` directly instead (`none` against `2980`), which is the
+  contract rather than a symptom of it. And when a probe is compared
+  against a deliberately broken copy, **check the file after restoring it**:
+  a `cp` back that silently did not take made two runs of that comparison
+  identical and both of them meaningless, which is the same lesson as
+  `git stash push` not stashing a committed change.

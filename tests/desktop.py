@@ -15,6 +15,14 @@ import screen
 from screen import (Term, check, report, press, release, drag, wheel, load,
                     tree, expect, scratch)
 
+
+# midnight's own ink, which settings.hibr gives DT_INK when no theme has
+# changed it: what a cell drawn in a colour of its own is compared against.
+INK = "#cbd5e0"
+# DT_INFO and DT_WARN, the roles the picture's two tones are drawn in.
+INFO = "#4fd1c5"
+WARN = "#f6ad55"
+
 if len(sys.argv) > 1:
     screen.HIBR = os.path.abspath(sys.argv[1])
 MOD = tree("build/mods/console.so")
@@ -2412,16 +2420,20 @@ check("and shows the desktop's own version above hibr's, not just hibr's",
       "module ABI" in sc.row(dpos[0] + 1), sc)
 check("and says so under the box rather than over it, where what the "
       "machine is now reads first",
-      dpos is not None and dpos[0] > sc.find("This Computer")[0], sc)
-# The versions are pinned at the top and the rest scrolls, so what the
-# window shows when it opens is the identity and the labelled facts
-# (Gitea #130). The end key goes to the foot of it, which is where the
-# sysinfo block and the terminal's own section are at this size.
-check("what it opens on is the machine's own labelled facts, under a heading",
-      sc.find("This Computer") is not None
-      and sc.find("Hostname: ") is not None
-      and sc.find("Uptime: ") is not None
-      and sc.find("Users: ") is not None, sc)
+      dpos is not None and dpos[0] > sc.find("OS: ")[0], sc)
+# Since 0.99.115 (Gitea #139) the three facts this machine answers for
+# itself are *pinned* above the box, in the order they were asked for --
+# "can we move it so hostname, uptime, users ... then the scroll box
+# sysinfo" -- rather than being its first rows, which is where scrolling
+# used to take them. Three consecutive rows, and the box below them: do
+# not look for "This Computer" here, which is the window's own title and
+# made this check pass whatever the list held.
+hp = sc.find("Hostname: ")
+check("what it opens on is the machine's own three facts, pinned in order "
+      "above the box",
+      hp is not None and sc.find("Uptime: ") == (hp[0] + 1, hp[1])
+      and sc.find("Users: ") == (hp[0] + 2, hp[1])
+      and sc.find("OS: ")[0] > hp[0] + 2, sc)
 # mods/sysinfo's own block, logo and all -- the OS, the architecture, the
 # processor, the memory, the disk and the load, none of which this app knows
 # how to find and all of which belong in an About box.
@@ -2429,10 +2441,20 @@ check("what it opens on is the machine's own labelled facts, under a heading",
 # has bars: the sysinfo block is read a page at a time rather than all at
 # once in a window as tall as its content (0.99.109).
 mid, _ = run("", feed=[press(0, 2), b"a", b"\x1b[6~"], pre=APPS)
-check("and sysinfo's own block is in it, logo and all",
-      sc.find("OS: ") is not None and sc.find("======\\X/======") is not None
-      and sc.find("Arch: ") is not None and mid.find("CPU: ") is not None,
-      (sc, mid))
+check("and sysinfo's own block is in it, picture and all",
+      sc.find("OS: ") is not None and sc.find("Arch: ") is not None
+      and sc.find("CPU: ") is not None, sc)
+# The picture is the *machine's* since 0.99.115 (Gitea #139) -- Debian's
+# here, something else on a Mac -- so there is no glyph to look for. What
+# can be asserted anywhere is that something is drawn to the left of the
+# facts and that it is in a colour of its own: sysinfo says the style of
+# every character and about_putrun draws each run with a pen, which is the
+# whole of what "in colour" means here.
+r, c = sc.find("OS: ")
+art = [sc.style(r, x)["fg"] for x in range(2, c)
+       if sc.at(r, x) not in (" ", "\u00b7")]
+check("and the machine's own picture beside them, in a colour of its own",
+      art and any(f not in (None, INK) for f in art), (art, sc))
 # And a section for what it is drawing on, which is the other half of what
 # decides what the desktop can do (Gitea #121). Each line is something the
 # desktop can ask rather than guess -- the harness's terminal says nothing
@@ -2453,10 +2475,19 @@ sc, _ = run('dt_new "About This Computer" 12 48 6 10 about', pre=APPS)
 check("a short About window scrolls, with a bar to say so",
       sc.find("Hostname:") is not None and sc.find("Held:") is None
       and "█" in sc.text(), sc)
-sc, _ = run('dt_new "About This Computer" 12 48 6 10 about',
+flat, _ = run('dt_new "About This Computer" 16 48 4 10 about', pre=APPS)
+sc, _ = run('dt_new "About This Computer" 16 48 4 10 about',
             feed=[wheel(10, 20, up=False)] * 3, pre=APPS)
-check("and the wheel moves the facts, the meters staying where they are",
-      sc.find("Hostname:") is None and sc.find("CPU") is not None, sc)
+# Since 0.99.115 the hostname, the uptime and who is in are pinned above
+# the box rather than being its first rows -- "can we move it so hostname,
+# uptime, users ... then the scroll box sysinfo" -- so the wheel moves
+# sysinfo's block under them and they stay where they are, as do the
+# meters. What says the box actually moved is a line that was in it going.
+check("and the wheel moves the box, the pinned facts and the meters "
+      "staying where they are",
+      sc.find("Hostname:") is not None and sc.find("CPU") is not None
+      and flat.find("OS: ") is not None and sc.find("OS: ") is None,
+      (flat, sc))
 
 # 0.99.105 sized this window to its own content so that nothing would be
 # below the fold, which is also how to guarantee a scrollbar is never seen:
@@ -2466,6 +2497,10 @@ check("and the wheel moves the facts, the meters staying where they are",
 # the arrows use them. Reported as "make the about box smaller, I want to
 # see the scroll bars both vertical and horizontal".
 sc, _ = run("", feed=[press(0, 2), b"a"], pre=APPS)
+# Kept under a name of its own as well: the mouse checks further down take
+# a coordinate from this window, and reading it out of whichever `sc` is
+# current couples them to every run added in between.
+aboutbase = sc
 hbar = [r for r in range(sc.rows) if "──" in sc.row(r)
         and not any(g in sc.row(r) for g in "┌┐└┘┤├")]
 check("About is a box rather than a wall, with a bar along the foot of its "
@@ -2473,25 +2508,98 @@ check("About is a box rather than a wall, with a bar along the foot of its "
       len(hbar) == 1 and "█" in sc.row(hbar[0]) and
       ("█│" in sc.text() or "││" in sc.text()), (hbar, sc))
 wide, _ = run("", feed=[press(0, 2), b"a"] + [b"\x1b[C"] * 5, pre=APPS)
-# Hostname, not Uptime: there are two Uptime lines -- this app's own and
-# sysinfo's -- and with twelve rows showing, scrolling right brings
-# sysinfo's into full view rather than taking one away.
-check("and the arrows scroll it sideways, the versions staying put",
-      sc.find("Hostname: ") is not None and wide.find("Hostname: ") is None
-      and wide.find("hibr v") is not None, wide)
+# The pinned facts do not scroll sideways -- none of them is wider than the
+# window and the offset belongs to the picture -- so what has to move is a
+# row of the box, and the column the facts are in must not.
+r0, c0 = aboutbase.find("OS: ")
+check("and the arrows scroll the box sideways, the pinned facts and the "
+      "versions staying put",
+      wide.find("OS: ") is not None and wide.find("OS: ")[1] < c0
+      and wide.find("Hostname: ") == aboutbase.find("Hostname: ")
+      and wide.find("hibr v") is not None, (sc, wide))
+
+# The picture's second tone, which nothing on this machine draws: only the
+# cix art carries a \002 mark, so a Debian or a Mac About box has one tone
+# in it and the warm one would ship untested. about_putrun is handed a run
+# list of its own instead -- which is also the whole contract between the
+# module and the app, written out: a letter and how many characters it
+# covers, the line covered exactly.
+tone, _ = run('fn runs_draw(id, h, w, row, col) {\n'
+              '  about_putrun "$id" 1 "coolwarmplain" "a:4 b:4 .:5" 0 20\n'
+              '}\n'
+              'dt_new "Runs" 6 30 2 4 runs', pre=APPS)
+r, c = tone.find("coolwarmplain")
+check("about_putrun draws each run in a pen of its own: the cool tone, the "
+      "warm one, and ordinary ink",
+      tone.style(r, c)["fg"] == INFO and tone.style(r, c + 4)["fg"] == WARN
+      and tone.style(r, c + 8)["fg"] == INK, tone)
+
+# A window that offers a _dirty can be left undrawn, and the oracle for one
+# is the same as for every other saving in this desktop: the same session,
+# the same moment, drawn both ways, compared cell for cell -- pens as well
+# as glyphs, since this window's whole point is that it has more than one
+# pen in it. About's own staleness is bounded by AB_SLOWMS, so the two
+# frames are of the same reading.
+plain, _ = run('dt_new "About This Computer" 20 52 2 4 about', pre=APPS)
+forced, _ = run('dt_new "About This Computer" 20 52 2 4 about', pre=APPS,
+                env={"DT_FORCEDRAW": "1"})
+diff = [(r, c) for r in range(plain.rows) for c in range(plain.cols)
+        if plain.at(r, c) != forced.at(r, c)
+        or plain.style(r, c) != forced.style(r, c)]
+# The clock in the bar and the two meters are readings, not drawings: a
+# second between the runs legitimately moves them.
+diff = [(r, c) for (r, c) in diff if r not in (0, plain.rows - 2,
+                                               plain.rows - 3)]
+check("and About with its own _dirty draws what a forced redraw would",
+      not diff, (diff[:12], plain, forced))
+# And the other half of offering a _dirty: about_draw is where
+# dt_want "$AB_SLOWMS" lives, so a frame About is skipped on has to ask for
+# the next one from the dirty check instead -- otherwise nothing re-arms,
+# and About's own readings wait for whatever else happens to wake the
+# desktop, which in a real session is the bar's clock a minute later. The
+# trap CLAUDE.md names in as many words: before gating any drawing, look
+# for what asks for the next frame from inside it.
+#
+# Checked on DT_WANT rather than by counting frames. The harness's own
+# desktop has other things that wake it -- the icons' mount rescan every
+# five seconds, among them -- so a frame count cannot tell About's request
+# from theirs: measured, the version with no re-arm at all drew 1 and 2
+# frames in three idle seconds, against 1 for the version with it. A test
+# that cannot tell the two apart is not a test.
+out = scratch("about-want.txt")
+# A name of its own: the mouse checks below take a coordinate from `sc`,
+# and this session's window is at a place of its own -- clobbering it sent
+# the wheel outside the window the next run opened, which failed the gate
+# and passed every run alone.
+want, _ = run('id := dt_new "About This Computer" 20 52 2 4 about\n'
+              "dt_draw\n"
+              "DT_WANT=\n"
+              'about_dirty "$id"; clean=$?\n'
+              'printf "%s %s\\n" "$clean" "${DT_WANT:-none}" > ' + out + "\n",
+              pre=APPS)
+got = open(out).read().strip() if os.path.exists(out) else "(nothing written)"
+if os.path.exists(out):
+    os.unlink(out)
+bits = got.split()
+check("a frame About is skipped on still asks for its own next one, which "
+      "_draw would have done",
+      len(bits) == 2 and bits[0] == "1" and bits[1].isdigit()
+      and 0 < int(bits[1]) <= 3000, got)
 # And the mouse, which is what was asked for: a wheel that tilts (buttons
 # 66 and 67), a trackpad's horizontal swipe, or shift with an ordinary
 # wheel -- reported as "the scrollable box is not scrollable using the
 # mouse, only keys". The wheel did scroll it up and down; sideways there
 # was no way in at all, and the console read 66 and 67 as up and down.
-hpos = sc.find("Hostname: ")
+hpos = aboutbase.find("OS: ")
 mw, _ = run("", feed=[press(0, 2), b"a"] +
             [wheel(hpos[0], hpos[1] + 2, side="right")] * 3, pre=APPS)
 sw, _ = run("", feed=[press(0, 2), b"a"] +
             [wheel(hpos[0], hpos[1] + 2, up=False, shift=True)] * 3, pre=APPS)
 check("and so does the mouse: a sideways wheel, and shift with an "
       "ordinary one, both reach the horizontal bar",
-      mw.find("Hostname: ") is None and sw.find("Hostname: ") is None and
+      mw.find("OS: ") is not None and mw.find("OS: ")[1] < hpos[1] and
+      sw.find("OS: ") is not None and sw.find("OS: ")[1] < hpos[1] and
+      mw.find("Hostname: ") == aboutbase.find("Hostname: ") and
       mw.find("hibr v") is not None, (mw, sw))
 
 # Clock is a desk accessory now, not in examples/desktop/apps -- the bar's own
@@ -4423,4 +4531,4 @@ check("so is a center wallpaper wider than the screen",
       len(put) == 1 and not gone, "%d placed, %d deleted" % (len(put), len(gone)))
 shutil.rmtree(WPD, True)
 
-report(565)
+report(569)

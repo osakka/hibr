@@ -1,5 +1,66 @@
 # Changelog
 
+## 0.99.116
+
+**About This Computer shows the machine's own picture, in colour, with its
+three facts pinned above the box** (Gitea #139). Asked for as *"show the
+actual operating system sysinfo? what do you think, and in color and so
+on?"*, and *"can we move it so hostname, uptime, users ... then the scroll
+box sysinfo"*.
+
+`about_sysinfo` ran `sysinfo -p -l hibr`, which forces **hibr's own**
+picture: every machine showed it beside its own name, which is the one way
+the module's README says not to run it. No `-l` at all now, so a Debian box
+shows Debian's and a Mac shows the Apple -- and `si_logo` already falls
+back to hibr's for a system that says nothing either way, so nothing had to
+be added to keep a way back to it.
+
+The colour needed a decision rather than a flag. sysinfo's art carries tone
+marks and `si_art` turned them into escapes **only when `isatty(1)`**, and
+About captured the block with `$( )`, which is a pipe -- so the block was
+grey, and an escape sequence would have been no use to a window anyway,
+which draws cells through its pane rather than bytes at the screen. So
+sysinfo now fills the **result slot** when one is bound, the way `md lines`
+does: `d["text"][i]` is the line and `d["runs"][i]` is the style of every
+character in it, as `a:23 .:10 k:2 .:19` -- a letter and how many
+characters it covers, the whole line covered. `about_putrun` sets a pen per
+run and clips each to the horizontal offset. Nothing parses an escape, and
+`:=` on a builtin does not fork, so the block costs one call rather than a
+`$( )` child.
+
+Three decisions taken here rather than asked about, each because the
+alternative was worse:
+
+- **The three facts are pinned; the versions stay under the box.** The
+  request lists hostname, uptime, users, then the versions, then the box --
+  but an earlier one, explicitly, was *"can we move the hibr desktop
+  version till the end, under the scrollable box"*, which 0.99.113 did. Read
+  top to bottom the window is now hostname, uptime, users, the box, the
+  versions: the asked-for order, with the box where the earlier message put
+  it. Say so, because it is the one place the two requests disagree.
+- **The warm tone is `DT_WARN`, not the ticket's `DT_WELL`.** `DT_WELL` is
+  a *surface* colour (`#2d3748` on midnight) and would have been all but
+  invisible on a window's face. The cool tone is `DT_INFO` as the ticket
+  said.
+- **The warm tone is tested through `about_putrun` directly**, because only
+  the CIX art carries a second tone mark: a Debian or a Mac About box has
+  one tone in it, so a test driven through the window alone would have
+  shipped that pen untried.
+
+About also gained an **`about_dirty`**, because the window is expensive and
+did not know it: everything it shows is on the `AB_SLOWMS` clock, so a
+frame inside that period redraws what is already on screen, cell for cell.
+At 80 by 24 it was **4.0 ms a frame** with the runs and 3.4 without them,
+and it is **0.6 ms** on a frame it is left alone -- and before this, every
+frame any *other* window asked for paid it again. Nothing can be stale for
+longer than `AB_SLOWMS`, because the reading falling due is itself what
+makes it dirty. The dirty check also **re-arms the frame request**, since
+the `dt_want` that asks for the next reading lives in `_draw`, which it has
+just said to skip: the trap this tree already carries about looking for
+what asks for the next frame from inside anything being gated. Guarded on
+`DT_WANT` rather than by counting frames -- the harness's own desktop has
+other things that wake it, and a frame count cannot tell them apart.
+
 ## 0.99.115
 
 **A command substitution came back empty, with status 141, when a signal

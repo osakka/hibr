@@ -14,14 +14,20 @@ strict
 
 app about "About this computer: the machine, and the desktop running on it"
 
-# 22 by 48 rather than 16 by 46 since 0.99.94: the terminal's own section
-# needs seven rows below the machine's, and at 80 by 24 -- the smallest
-# screen the suites run -- a 22-row window still lands clear of both the
-# menu bar and the bottom edge. Any taller and dt_setsize clamps it.
-command -v dt_app > /dev/null && dt_app about "About This Computer" 22 48 once "ⓘ" \
+# 20 by 52, the same as about_size, which is what dt_launch actually asks
+# for -- these two numbers are only reached by a caller that opens the app
+# some other way, and a file that gives two different sizes for one window
+# is a file that will be read wrong. At 80 by 24, the smallest screen the
+# suites run, a 20-row window lands clear of both the menu bar and the
+# bottom edge; any taller and dt_setsize clamps it.
+command -v dt_app > /dev/null && dt_app about "About This Computer" 20 52 once "ⓘ" \
 	fixed hidden
 
 declare -gA AB
+
+# How many rows are pinned above the scrolling box: the hostname, the
+# uptime and who is in. about_vis counts them along with the six below.
+AB_PINS=3
 
 # How often a forked reading is allowed to be taken again, on anything that
 # is not Linux; a Linux reading costs nothing and is never throttled.
@@ -106,31 +112,49 @@ about_users() {
 	ret "$AB_USERS"
 }
 
-# What this machine is, as mods/sysinfo says it -- the logo and the facts
-# beside it, twelve lines and sixty-two columns wide. Captured with $( )
-# because sysinfo *prints*; like mod list it does not fill the result slot,
-# so `s := sysinfo` leaves s empty and the block goes to the real terminal
-# underneath the console's own drawing. It costs 2 ms, and nothing in it
-# changes quickly, so it is taken at most every AB_SLOWMS like the other
-# forked readings here.
+# What this machine is, as mods/sysinfo says it -- this machine's own
+# picture and the facts beside it. The picture is the operating system's
+# now, not hibr's: `-l hibr` forced ours for every release until 0.99.115,
+# and the window already says "hibr desktop" twice in text. An unknown
+# system still falls back to hibr's own, which si_logo has always done, so
+# nothing had to be added to keep a way back to it.
 #
-# -p is the plain form, with no escape sequences in it: the colours sysinfo
-# would otherwise write are terminal escapes, and a window draws cells
-# through its pane, not bytes at the screen.
-AB_SI=
+# Taken with `:=` rather than $( ), which is the whole of why this can be
+# in colour. sysinfo fills the result slot when one is bound: a map whose
+# ["text"][i] is the line and whose ["runs"][i] says the style of every
+# character in it, as "a:23 .:10 k:2 .:19" -- a letter and how many
+# characters it covers. So no escape sequence is ever parsed here, nothing
+# forks, and about_putrun draws each run with a pen of its own. Still taken
+# at most every AB_SLOWMS: nothing in it changes quickly.
+declare -ga AB_SITXT=()
+declare -ga AB_SIRUN=()
 AB_SIT=0
 about_sysinfo() {
-	local now
+	local now i n
+	local -A si
 
 	now := dt_ms
-	if [ -z "$AB_SI" ] || [ $((now - AB_SIT)) -ge "$AB_SLOWMS" ]; then
-		AB_SIT=$now
-		if need sysinfo 2> /dev/null; then
-			AB_SI=$(sysinfo -p -l hibr 2> /dev/null)
-		fi
-		[ -n "$AB_SI" ] || AB_SI="(sysinfo is not loaded)"
+	[ "${#AB_SITXT[@]}" -gt 0 ] && [ $((now - AB_SIT)) -lt "$AB_SLOWMS" ] &&
+		return 0
+	AB_SIT=$now
+	AB_SITXT=()
+	AB_SIRUN=()
+	if need sysinfo 2> /dev/null; then
+		si := sysinfo
+		n=${#si["text"][@]}
+		i=0
+		while [ "$i" -lt "$n" ]; do
+			AB_SITXT+=("${si["text"][$i]}")
+			AB_SIRUN+=("${si["runs"][$i]}")
+			i=$((i + 1))
+		done
 	fi
-	ret "$AB_SI"
+	# A line with no runs beside it is drawn in the window's own ink,
+	# which is also the fallback for every line this app writes itself.
+	if [ "${#AB_SITXT[@]}" = 0 ]; then
+		AB_SITXT=("(sysinfo is not loaded)")
+		AB_SIRUN=("")
+	fi
 }
 
 # What the terminal is: $TERM is what the program was told it is, and
@@ -422,62 +446,64 @@ about_open() {
 }
 
 
-# Everything About has to say, in order, each line as "h:" for a heading or
-# "t:" for a fact. Built fresh every frame, because most of it changes --
-# the uptime, who is in, what the terminal can do -- and cheap, because
-# every line is a reading the app already takes. A list passed back through
-# a global because a strict file cannot return an array (declared at file
-# level just above, as that rule requires).
+# Everything in the scrolling box, in order, each line as "h:" for a
+# heading or "t:" for a fact, and beside it in AB_STY the style of every
+# character -- empty for a line this app wrote, since those are drawn in
+# the window's own ink. Built fresh every frame, because most of it changes
+# -- what the terminal can do, the load -- and cheap, because every line is
+# a reading the app already takes. Two lists passed back through globals
+# because a strict file cannot return an array (declared at file level just
+# above, as that rule requires).
 AB_LINES=()
+AB_STY=()
 fn about_lines(int id, int w) {
-	local up who tn v t i room si
-	local -a sil
-
-	room=$((w - 4))
+	local tn v t i
 	AB_LINES=()
-	# The labelled facts first, because a window pinned small by a caller
-	# shows only the top of this and these are the ones worth seeing
-	# there -- and the ones the suites look for.
-	v := dt_tr "This Computer"
-	AB_LINES+=("h:$v")
-	v := dt_tr "Hostname: %s" "$AB_HOST"
-	AB_LINES+=("t:$v")
-	up := about_uptime
-	v := dt_tr "Uptime: %s" "$up"
-	AB_LINES+=("t:$v")
-	who := about_users
-	v := dt_tr "Users: %s" "$who"
-	AB_LINES+=("t:$v")
-	AB_LINES+=("t:")
-	# Then sysinfo's own block, logo and all: the OS, the architecture,
-	# the processor, the memory, the disk and the load, none of which this
-	# app knows how to find and all of which belong in an About box. Not
-	# translated -- it is another tool's output, verbatim.
-	si := about_sysinfo
-	mapfile -t sil <<< "$si"
-	for t in "${sil[@]}"; do
-		AB_LINES+=("t:$t")
+	AB_STY=()
+	# sysinfo's own block first, picture and all: the OS, the
+	# architecture, the processor, the memory, the disk and the load, none
+	# of which this app knows how to find and all of which belong in an
+	# About box. Not translated -- it is another tool's output, verbatim.
+	# The three facts this app knows itself -- the hostname, the uptime
+	# and who is in -- are pinned above the box rather than being its
+	# first rows, asked for as "can we move it so hostname, uptime,
+	# users ... then the scroll box sysinfo": they are what a person came
+	# to read, and in the box they left the moment anything was scrolled.
+	about_sysinfo
+	i=0
+	while [ "$i" -lt "${#AB_SITXT[@]}" ]; do
+		AB_LINES+=("t:${AB_SITXT[$i]}")
+		AB_STY+=("${AB_SIRUN[$i]}")
+		i=$((i + 1))
 	done
 	AB_LINES+=("t:")
+	AB_STY+=("")
 	v := dt_tr "This Terminal"
 	AB_LINES+=("h:$v")
+	AB_STY+=("")
 	tn := about_termname
 	AB_LINES+=("t:$tn")
+	AB_STY+=("")
 	t := about_screen
 	v := dt_tr "Size: %s" "$t"
 	AB_LINES+=("t:$v")
+	AB_STY+=("")
 	t := about_pictures
 	v := dt_tr "Pictures: %s" "$t"
 	AB_LINES+=("t:$v")
+	AB_STY+=("")
 	t := about_colour
 	v := dt_tr "Colour: %s" "$t"
 	AB_LINES+=("t:$v")
+	AB_STY+=("")
 	t := about_pointer
 	v := dt_tr "Mouse: %s" "$t"
 	AB_LINES+=("t:$v")
+	AB_STY+=("")
 	t := about_held
 	v := dt_tr "Held: %s" "$t"
 	AB_LINES+=("t:$v")
+	AB_STY+=("")
 	# One line each, whatever they hold, and kept whole: a long hostname,
 	# a wide logo or a terminal with a long name is scrolled to rather
 	# than cut, which is what the horizontal bar is for. The only cut left
@@ -488,8 +514,53 @@ fn about_lines(int id, int w) {
 		t=${AB_LINES[$i]}
 		if [ "${#t}" -gt 240 ]; then
 			AB_LINES[$i]="${t:0:239}${GL[ellipsis]}"
+			# The runs counted the whole line, so they no longer
+			# describe this one: drawn in plain ink instead.
+			AB_STY[$i]=
 		fi
 		i=$((i + 1))
+	done
+}
+
+# One line of sysinfo's block, drawn run by run. The module says the style
+# of every character as "a:23 .:10 k:2 .:19" -- a letter and how many
+# characters it covers, the whole line covered -- so a frame sets a pen per
+# run and never looks at a character. 'a' and 'b' are the picture's two
+# tones, 'k' a row's key, 'h' the line naming the machine, anything else
+# ordinary text.
+#
+# The colours are the theme's roles, not the palette entries sysinfo writes
+# to a terminal: what a window draws is its theme's. The warm tone is
+# DT_WARN rather than DT_WELL, which the ticket suggested and which is a
+# surface colour (#2d3748 on midnight) that would have been all but
+# invisible on a window's own face.
+#
+# Each run is clipped to the horizontal window [off, off + room) and drawn
+# where it lands, so scrolling sideways costs no more than drawing: a run
+# wholly outside it is one comparison.
+fn about_putrun(int id, int row, text, sty, int off, int room) {
+	local c=0 y k s e piece
+	local -a rs
+
+	read -ra rs <<< "$sty"
+	for piece in "${rs[@]}"; do
+		y=${piece%%:*}
+		k=${piece#*:}
+		s=$c
+		e=$((c + k))
+		c=$e
+		[ "$s" -lt "$off" ] && s=$off
+		[ "$e" -gt $((off + room)) ] && e=$((off + room))
+		[ "$e" -gt "$s" ] || continue
+		case $y in
+		a) console pen "$DT_INFO" "$DT_FACE" ;;
+		b) console pen "$DT_WARN" "$DT_FACE" ;;
+		h) console pen "$DT_INFO" "$DT_FACE" bold ;;
+		k) console pen "$DT_INK" "$DT_FACE" bold ;;
+		*) console pen "$DT_INK" "$DT_FACE" ;;
+		esac
+		console put -p "w$id" "$row" $((2 + s - off)) \
+			"${text:$s:$((e - s))}"
 	done
 }
 
@@ -502,7 +573,7 @@ fn about_lines(int id, int w) {
 # so the box stays a box and both bars do their job. dt_launch asks an app
 # for this; a caller that says a size with dt_new gets the size it said.
 about_size() {
-	local rows=18 cols=52
+	local rows=20 cols=52
 
 	# The screen has the last word: a minimum applied after the clamp
 	# asks for a window taller than the screen on a very short one.
@@ -512,16 +583,15 @@ about_size() {
 	ret "$rows $cols"
 }
 
-# The rows the scrolled region occupies. It starts at the top now: what this
-# machine *is* is the thing to read first, and the versions -- which are
-# what this *desktop* is, and change once a release rather than once a
-# machine -- moved under the box, asked for as "can we move the hibr desktop
-# version till the end, under the scrollable box". So: the list, its own
-# horizontal bar, two rows of versions, and the two meters. Returned rather
-# than computed four times, since the draw, both bars, the wheel and the
-# keys all need the same number.
+# The rows the scrolled region occupies. Above it are the three facts this
+# machine answers for itself, pinned so that scrolling cannot take them
+# away; below it its own horizontal bar, the tagline, two rows of versions
+# -- "can we move the hibr desktop version till the end, under the
+# scrollable box" -- and the two meters. Nine rows of window that are not
+# the box, and returned rather than computed four times, since the draw,
+# both bars, the wheel and the keys all need the same number.
 fn about_vis(int h) {
-	local v=$((h - 6))
+	local v=$((h - 9))
 
 	[ "$v" -lt 1 ] && v=1
 	ret "$v"
@@ -557,9 +627,20 @@ fn about_draw(int id, int h, int w, int row, int col) {
 	AB[$id]["off"]=$off
 	AB[$id]["wide"]=$wide
 	AB[$id]["room"]=$room
+	# The three facts this machine answers for itself, pinned above the
+	# box: scrolling moves sysinfo's block, never these. They do not
+	# scroll sideways either -- none of them is wider than the window,
+	# and the horizontal offset belongs to the picture beside it.
+	console pen "$DT_INK" "$DT_FACE"
+	dt_tput "$id" 1 2 "Hostname: %s" "$AB_HOST"
+	t := about_uptime
+	dt_tput "$id" 2 2 "Uptime: %s" "$t"
+	t := about_users
+	dt_tput "$id" 3 2 "Users: %s" "$t"
+
 	i=$top
-	r=1
-	while [ "$i" -lt "$n" ] && [ "$r" -lt $((1 + vis)) ]; do
+	r=$((1 + AB_PINS))
+	while [ "$i" -lt "$n" ] && [ "$r" -lt $((1 + AB_PINS + vis)) ]; do
 		t=${AB_LINES[$i]}
 		# The pen is set per line, not once before the loop: headings
 		# and facts alternate, so one pen outside it would make every
@@ -572,12 +653,18 @@ fn about_draw(int id, int h, int w, int row, int col) {
 		# dt_tput it -- a bare "%s" handed to dt_tput would land in
 		# the catalogue as a key of its own.
 		t=${t#??}
-		console put -p "w$id" "$r" 2 "${t:$off:$room}"
+		if [ -n "${AB_STY[$i]}" ]; then
+			about_putrun "$id" "$r" "$t" "${AB_STY[$i]}" "$off" \
+				"$room"
+		else
+			console put -p "w$id" "$r" 2 "${t:$off:$room}"
+		fi
 		i=$((i + 1))
 		r=$((r + 1))
 	done
-	dt_scrollbar "$id" 1 "$w" "$vis" "$n" "$vis" "$top"
-	dt_hscrollbar "$id" "$((1 + vis))" 2 "$room" "$wide" "$room" "$off"
+	dt_scrollbar "$id" $((1 + AB_PINS)) "$w" "$vis" "$n" "$vis" "$top"
+	dt_hscrollbar "$id" "$((1 + AB_PINS + vis))" 2 "$room" "$wide" "$room" \
+		"$off"
 
 	# What this desktop is, under the box rather than over it: the
 	# desktop's own version above hibr's, which is the one thing sysinfo
@@ -624,6 +711,12 @@ fn about_draw(int id, int h, int w, int row, int col) {
 	console pen "$DT_INK" "$DT_FACE"
 	printf -v pct '%3d%%' "$mem"
 	console put -p "w$id" "$h" $((w - 6)) "$pct"
+
+	# What this frame drew, for about_dirty to compare next time.
+	AB[$id]["drawntop"]=$top
+	AB[$id]["drawnoff"]=$off
+	AB[$id]["drawnh"]=${DT[$id]["h"]}
+	AB[$id]["drawnw"]=${DT[$id]["w"]}
 }
 
 # The wheel over the window scrolls the facts, two lines at a time, the same
@@ -632,6 +725,44 @@ fn about_draw(int id, int h, int w, int row, int col) {
 # what tasks_wheel already declares: written as (id, r, c, dir) the word
 # "down" is bound to an int parameter, a declared function refuses that, and
 # the body never runs at all.
+# Whether this window has any reason to be drawn again. Everything it shows
+# is on the AB_SLOWMS clock -- sysinfo's block, the two meters, what the
+# terminal can do, whether this is held, who is in -- so a frame inside
+# that window would draw what is already on screen, cell for cell. The two
+# things not on that clock are where the box is scrolled to and how big the
+# window is, and both are compared against what was last drawn.
+#
+# Nothing can be stale for longer than AB_SLOWMS, because the reading
+# falling due is itself what makes this dirty: the staleness is the one the
+# window already had before it offered a _dirty at all.
+#
+# Worth having because this window is expensive and does not know it: a
+# frame with About open and nothing else happening is 4.0 ms at 80 by 24,
+# of which its own block is 0.9 -- and before this, every frame any other
+# window asked for paid it again. It is 0.3 ms on a frame it is left alone.
+fn about_dirty(int id) {
+	local now left
+
+	now := dt_ms
+	[ "${#AB_SITXT[@]}" -gt 0 ] || return 0
+	[ $((now - AB_SIT)) -lt "$AB_SLOWMS" ] || return 0
+	[ "${AB[$id]["drawntop"]}" = "${AB[$id]["top"]:-0}" ] || return 0
+	[ "${AB[$id]["drawnoff"]}" = "${AB[$id]["off"]:-0}" ] || return 0
+	[ "${AB[$id]["drawnh"]}" = "${DT[$id]["h"]}" ] || return 0
+	[ "${AB[$id]["drawnw"]}" = "${DT[$id]["w"]}" ] || return 0
+	# The dt_want that asks for the next reading is in _draw, which this
+	# has just said to skip -- so it is asked for here instead, for
+	# whatever is left of the period. Without it a frame some other
+	# window wanted consumes the last request, nothing re-arms, and the
+	# meters and the uptime stop until a key arrives: the trap this
+	# tree already carries, that before gating any drawing you look for
+	# what asks for the next frame from inside it.
+	left=$((AB_SLOWMS - (now - AB_SIT)))
+	[ "$left" -lt 1 ] && left=1
+	dt_want "$left"
+	return 1
+}
+
 fn about_wheel(int id, dir, int? r = "", int? c = "") {
 	local top=${AB[$id]["top"]:-0}
 	local off=${AB[$id]["off"]:-0} room=${AB[$id]["room"]:-8}
