@@ -50,6 +50,7 @@ downside is usually a decision nobody had to make.
 | [0038](0038-the-slot-takes-a-programs-output-too.md) | `:=` takes a command's result, whatever kind of command it is | accepted |
 | [0039](0039-an-interactive-login-shell-reads-both.md) | An interactive login shell reads the profile *and* the rc file | accepted |
 | [0040](0040-a-module-may-answer-a-command.md) | A module may answer a command, and a setting says from which end | accepted |
+| [0041](0041-an-app-is-a-folder-of-files-a-bundle-is-how-it-travels.md) | An app is a folder of files; a bundle is how it travels | accepted |
 
 ---
 
