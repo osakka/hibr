@@ -373,6 +373,25 @@ class Term:
             pass
         return int(m.group(2)) if m and m.group(2) else 0
 
+    def until(self, cond, tries=40, step=0.1):
+        """Collect until the screen satisfies cond, and answer that screen.
+
+        `keys` waits for the idle marker of the bytes it sent, so a key is
+        never early -- but what a key *causes* can be: a dialog opening, a
+        folder listed, a preview drawn and a window retitled all happen
+        after that marker. Padding with a fixed pause instead is what made
+        four of Write's file-dialog checks fail under a release gate that
+        ran eighty pty sessions at once and pass every time alone (Gitea
+        #163). Wait for the thing: text, or a function given the screen.
+        """
+        sc = self.screen()
+        for _ in range(tries):
+            if (cond(sc) if callable(cond) else sc.find(cond) is not None):
+                return sc
+            self.collect(step)
+            sc = self.screen()
+        return sc
+
     def until_idle(self, timeout=5.0):
         """Collect until idled(), the process exits, or timeout; whether it
         became idle."""

@@ -1,5 +1,57 @@
 # Changelog
 
+## 0.99.124
+
+**A check waits for the thing, not for a pause** (Gitea #163). 0.99.123's
+gate failed **twice**, on four different checks in Write's file-dialog
+section, and every one of them passed when the suite was run alone —
+`apps_reach` 127/0 twice, `935-adopt` 5 of 5 under the sanitizer build. The
+cause was not the release.
+
+`tests/asan.py --quick` asks `affected.py` what a changed module reaches,
+and a change to console, term, pty or hold pulls in **every suite the
+desktop draws through** — which is right, and for 0.99.123 made the quick
+set thirty-eight suites, most of them driving a pty, running beside
+`all.py`'s own thirty-eight. The gate went from about forty pty sessions to
+eighty. What broke under that were the checks that pad with a fixed pause:
+
+```python
+OPEN = [b"\x1b[21~", b"\x1b[C", b"o", 0.5]
+```
+
+`Term.keys` waits for the idle marker of the bytes it sent, so a key is
+never early — but a dialog opening, a folder listed, a preview drawn and a
+window retitled all happen *after* that marker, and half a second is not
+enough when eighty ptys are competing. The rule this tree already states
+twice — *wait for the note, not the effect* — was applied everywhere except
+here.
+
+- **`Term.until(cond, tries=40, step=0.1)`** in `tests/screen.py`, beside
+  `until_idle`: collect until the screen satisfies a condition, text or a
+  function. `tests/apps.py`'s `run()` had that loop written out inside it,
+  so this **removes** a copy rather than adding one, and `wrrun` and
+  `shrun` gain an `until` of their own.
+- **Seven checks converted**, each to the thing it was actually waiting
+  for: the `┤ Open ├` border, `readme.txt` in the listing, the retitled
+  `┤ Write [fresh.md] ├`, the replace prompt, `page.html` existing, and
+  `data.db` in dBASE's dialog. About 3.5 seconds of fixed pauses went with
+  them, so the part is faster as well as steadier.
+- **`asan.py` says when its quick set has stopped being quick**: past
+  `QUICKMANY` (12) suites it prints *"N suites, most of them driving a pty
+  -- run this alone, not beside all.py"*. The operator is the only one who
+  knows whether `all.py` is running, so the tool says what it knows rather
+  than deciding.
+
+**Verified under the load that broke it**, which is the point: six spinners
+on a four-core box, `apps_reach` **127 passed, 0 failed**. Under the same
+load before the conversion it failed, and the first run of it exposed the
+next member of the same family — 0.99.120's own *"Help > Open the Tour"*,
+which forks a sandboxed hibr per formula and so arrives well after its
+window's title. That one waits for a **worked-out value**, not the title:
+a condition already true waits for nothing, which is the trap any sweep of
+these pauses has to avoid, and the reason the remaining fixed pauses are
+left alone until one of them actually fails.
+
 ## 0.99.123
 
 **A flush with nothing drawn since the last one is the same frame, not a

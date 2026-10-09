@@ -3316,3 +3316,33 @@ went in the shell.
   measurement rather than a count is what makes that testable: the frame
   count alone was 37 against a threshold of 40, which is a check that
   passes the bug on a slow box, so the check asserts frames **and** CPU.
+- **A quick gate is only quick while the affected set is small, and the set
+  is large exactly when the change is riskiest.** `asan.py --quick` asks
+  `affected.py` what a changed module reaches, and a change to console,
+  term, pty or hold pulls in every suite the desktop draws through -- so
+  0.99.123, whose only C change was in `mods/console/`, got a quick set of
+  **thirty-eight** suites, most of them driving a pty, running beside
+  `all.py`'s own thirty-eight. About eighty ptys at once, and the gate
+  failed **twice**, on four different checks in Write's file-dialog
+  section, each of which passed every time alone (`apps_reach` 127/0 twice,
+  `935-adopt` 5 of 5 under the sanitizer build). Run **sequentially** both
+  halves were green. So the rule this file already carries for the *full*
+  sanitizer run -- never beside a gate -- applies to the quick one too once
+  its set is large; `asan.py` prints a line saying so past `QUICKMANY`
+  suites, because the operator is the only one who knows whether `all.py`
+  is running. Before believing a release broke a check, ask how many ptys
+  the gate was running.
+- **`Term.keys` makes a key early-proof, and nothing makes what the key
+  *causes* early-proof.** The marker a key waits for says the desktop drew
+  a frame, not that a dialog finished opening, a folder finished listing, a
+  preview finished drawing or a window finished being retitled -- those
+  happen after it. So a check that pads with a fixed pause
+  (`[..., b"o", 0.5]`) is a check that holds only while the box is quiet,
+  which is why the file-dialog family failed under a doubled gate and
+  nowhere else. `Term.until(cond)` waits for the thing: text, or a function
+  given the screen. **And the trap in converting one: a condition that is
+  already true waits for nothing.** 0.99.120's own Tour check cannot wait
+  for `Sheet [Tour]`, which is there as soon as the window is -- it waits
+  for a *worked-out value*, since every formula in the tour forks a
+  sandboxed hibr of its own. Convert a pause only with evidence it fails,
+  and pick a condition that can only be true afterwards.

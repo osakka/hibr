@@ -105,11 +105,7 @@ def run(app, win, feed=(), pre="", wait=1.0, also=(), end=b"qy", extra=(),
         t.collect(0.8)
     t.keys(feed)
     if until is not None:
-        for _ in range(40):
-            sc = t.screen()
-            if (until(sc) if callable(until) else sc.find(until) is not None):
-                break
-            t.collect(0.1)
+        t.until(until)
     t.quit(end, wait)
     sc = t.screen()
     sc.out = t.out
@@ -3497,7 +3493,7 @@ shutil.rmtree(CLD, True)
 SHD = tempfile.mkdtemp(prefix="hibr-sheet-")
 
 
-def shrun(feed, pre="", arg="", wait=0.6, env=None):
+def shrun(feed, pre="", arg="", wait=0.6, env=None, until=None):
     p = os.path.join(S, "session.hibr")
     open(p, "w").write("%s\n. %s\n. %s\nSS_DIR=%s\n%s\ndt_open\n"
                        'dt_new "Sheet" 22 76 1 2 sheet %s\ndt_run\ndt_close\n'
@@ -3505,7 +3501,7 @@ def shrun(feed, pre="", arg="", wait=0.6, env=None):
                           SHD, pre, arg))
     tt = Term(p, env=env or {}, settle=1.0)
     tt.keys(list(feed) + [wait], settle=0.4)
-    sc = tt.screen()
+    sc = tt.until(until) if until is not None else tt.screen()
     tt.quit(None, 0.5)
     return sc
 
@@ -3683,9 +3679,15 @@ os.remove(SHEET)
 # The tour: a sheet of worked examples, in a window of its own, with the
 # formulas actually worked out -- and one the sandbox refuses, which is the
 # only way Trust This Sheet means anything.
+# The condition is a *worked-out* cell, not the window's title: the title is
+# there as soon as the window is, and every formula in the tour forks a
+# sandboxed hibr of its own, so under load the values arrive well after it.
+# Waiting for the title would be a condition already true -- which waits for
+# nothing, and is the trap a sweep of these pauses has to avoid (Gitea #163).
 sc = shrun([b"\x1b[21~"] + [b"\x1b[C"] * 5 + [b"t", 0.4] +
-           [b"\x1b[B", b"\r", 1.5],
-           pre='DT_HERE=%s' % tree("examples/desktop"))
+           [b"\x1b[B", b"\r"],
+           pre='DT_HERE=%s' % tree("examples/desktop"),
+           until=lambda s: "Sheet [Tour]" in s.text() and "2026" in s.text())
 check("Help > Open the Tour opens a sheet of worked examples, worked out",
       "Sheet [Tour]" in sc.text() and "42" in sc.text() and
       "2026" in sc.text(), sc)
@@ -3710,7 +3712,13 @@ Things to get **today**, and *maybe* tomorrow.
 """
 
 
-def wrrun(feed, name="doc.md", text=WRDOC, extra=(), env=None):
+def wrrun(feed, name="doc.md", text=WRDOC, extra=(), env=None, until=None):
+    """A Write session, fed keys. `until` is what to wait for before the
+    screen is taken -- text, or a function given the screen. The file
+    dialog needs it: a key is never early, but a dialog opening, a folder
+    listed and a window retitled all happen after the idle marker the key
+    waited for, and a fixed pause instead is what failed under a gate
+    running eighty pty sessions (Gitea #163)."""
     d = tempfile.mkdtemp(prefix="hibr-write-")
     f = os.path.join(d, name)
     open(f, "w").write(text)
@@ -3722,7 +3730,7 @@ def wrrun(feed, name="doc.md", text=WRDOC, extra=(), env=None):
                           f))
     tt = Term(p, env=env or {}, settle=1.0)
     tt.keys(list(feed), settle=0.3)
-    sc = tt.screen()
+    sc = tt.until(until) if until is not None else tt.screen()
     tt.quit(None, 0.5)
     sc.saved = open(f).read() if os.path.exists(f) else None
     sc.dir = d
@@ -3829,41 +3837,51 @@ def pkdir():
     return d
 
 
-OPEN = [b"\x1b[21~", b"\x1b[C", b"o", 0.5]
-sc = wrrun(OPEN + [b"\x1b[B", b"\x1b[B", 0.3])
+# Each of these waits for the thing rather than padding with a pause: the
+# dialog's own border, the listing holding a name, the window retitled
+# after a save. Four of them failed under a release gate running eighty pty
+# sessions at once and passed every time alone, which is what a fixed pause
+# after an idle marker looks like (Gitea #163).
+OPEN = [b"\x1b[21~", b"\x1b[C", b"o"]
+sc = wrrun(OPEN + [b"\x1b[B", b"\x1b[B"], until="# Shopping list")
 check("Open shows the folder, its folders first, only the type's files",
       sc.find("┤ Open ├") is not None and sc.find("notes/") is None and
       sc.find("doc.md") is not None, sc)
 check("and a preview of the file selected",
       sc.find("# Shopping list") is not None, sc)
 d = pkdir()
-sc = wrrun([b"\x1b[21~", b"\x1b[C", b"o", 0.5] +
-           [c.encode() for c in d + "/readme.txt"] + [b"\r", 0.5])
+sc = wrrun([b"\x1b[21~", b"\x1b[C", b"o"] +
+           [c.encode() for c in d + "/readme.txt"] + [b"\r"],
+           until="┤ Write [readme.txt] ├")
 check("a path typed in the name opens that file, from anywhere",
       sc.find("┤ Write [readme.txt] ├") is not None, sc)
-sc = wrrun([b"\x1b[21~", b"\x1b[C", b"o", 0.5, b"\t", b"\t", b"\x1b[B", 0.3,
-            b"\t", b"\t", b"\t"] + [c.encode() for c in d] + [b"\r", 0.4])
+sc = wrrun([b"\x1b[21~", b"\x1b[C", b"o", b"\t", b"\t", b"\x1b[B",
+            b"\t", b"\t", b"\t"] + [c.encode() for c in d] + [b"\r"],
+           until="readme.txt")
 check("the type chooses what is listed: Text shows the .txt",
       sc.find("readme.txt") is not None and sc.find("data.db") is None, sc)
-sc = wrrun([b"x", b"\x1b[21~", b"\x1b[C", b"a", 0.5, b"\x15"]
-           + [c.encode() for c in d + "/fresh"] + [b"\r", 0.5])
+sc = wrrun([b"x", b"\x1b[21~", b"\x1b[C", b"a", b"\x15"]
+           + [c.encode() for c in d + "/fresh"] + [b"\r"],
+           until="┤ Write [fresh.md] ├")
 check("Save As writes where it is told, the type's extension added",
       os.path.exists(os.path.join(d, "fresh.md")) and
       sc.find("┤ Write [fresh.md] ├") is not None, sc)
-sc = wrrun([b"\x1b[21~", b"\x1b[C", b"a", 0.5, b"\x15"]
-           + [c.encode() for c in d + "/fresh.md"] + [b"\r", 0.5])
+sc = wrrun([b"\x1b[21~", b"\x1b[C", b"a", b"\x15"]
+           + [c.encode() for c in d + "/fresh.md"] + [b"\r"],
+           until="Replace it?")
 check("and asks before replacing a file that is there",
       sc.find("fresh.md is there already. Replace it?") is not None, sc)
-sc = wrrun([b"\x1b[21~", b"\x1b[C", b"e", 0.5, b"\x15"]
-           + [c.encode() for c in d + "/page"] + [b"\r", 0.5])
+sc = wrrun([b"\x1b[21~", b"\x1b[C", b"e", b"\x15"]
+           + [c.encode() for c in d + "/page"] + [b"\r"],
+           until=lambda s: os.path.exists(os.path.join(d, "page.html")))
 html = open(os.path.join(d, "page.html")).read() \
     if os.path.exists(os.path.join(d, "page.html")) else ""
 check("Export writes the document as an HTML page, through the same dialog",
       "<h1>Shopping list</h1>" in html and "<strong>today</strong>" in html
       and '<input checked="" disabled="" type="checkbox"> eggs' in html, html[:300])
-sc = run("dbase", "20 72 1 2", [b"\x1b[21~", b"\x1b[C", b"o", 0.5,
+sc = run("dbase", "20 72 1 2", [b"\x1b[21~", b"\x1b[C", b"o",
                                 b"\x15"] + [c.encode() for c in d]
-         + [b"\r", 0.5], pre=DBPRE, end=None)
+         + [b"\r"], pre=DBPRE, end=None, until="data.db")
 check("dBASE opens databases with the same dialog, filtered to .db",
       sc.find("┤ Open Database ├") is not None and
       sc.find("data.db") is not None and sc.find("readme.txt") is None, sc)

@@ -50,6 +50,8 @@ WRAP = os.path.join(BIN, "hibr")
 QUICK = ["run.sh", "cat", "console", "term_diff", "md_spec", "html_tree",
          "mail", "pim", "pim_rrule", "dav", "uni_bidi", "uni_shape", "hcal_icu", "salat_adhan", "vw_crypto", "vw", "sixel", "kitgfx", "holdpix", "archive", "mermaid"]
 FUZZ = 300
+# Past this many suites a quick run is a full one in all but name; see quick().
+QUICKMANY = 12
 
 
 def wrapper():
@@ -90,7 +92,18 @@ def quick(since):
             pick |= got
     print("asan --quick since %s: %s" % (since, " ".join(
         s for s in SUITES if s in pick)), flush=True)
-    return [s for s in SUITES if s in pick]
+    got = [s for s in SUITES if s in pick]
+    # A quick set is only quick while it is small, and it is large exactly
+    # when the change is riskiest: a console, term, pty or hold change pulls
+    # in every suite the desktop draws through. Run beside all.py that is
+    # about eighty pty sessions at once, which is what made four of Write's
+    # file-dialog checks fail two gates in a row while each passed alone
+    # (Gitea #163). The operator is the only one who knows whether all.py
+    # is running, so say it rather than decide it.
+    if len(got) > QUICKMANY:
+        print("asan: %d suites, most of them driving a pty -- run this "
+              "alone, not beside all.py" % len(got), flush=True)
+    return got
 
 
 def extra(env):
