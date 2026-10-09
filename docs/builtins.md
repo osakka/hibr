@@ -53,7 +53,7 @@ the path it was found at.
 | `export [-p] [-n] [name[=v]…]` | mark variables for export; `-p` lists them; `-n` takes them out of the environment and keeps their values |
 | `unset [-f] name…` | remove variables, array elements or functions |
 | | `unset a[1]`, `a[-1]` and `h["a-b"]` all reach what they name |
-| `set [-/+flags] [--] [args…]` | set options, or replace the positional parameters |
+| `set [-/+flags] [--] [args…]` | set options, or replace the positional parameters; letters bundle (`set -ex`) and `hibr` takes the same ones on its command line |
 | `shopt [-s\|-u\|-q] [name…]` | read or set shell options |
 | `strict [off] [functions\|vars\|expansion…]` / `strict -p` | **[hibr]** refuse, in the file that runs it, what is usually a mistake: a function defined twice in it, a function creating a global without `local`, an expansion that splits -- see [0023](adr/0023-strict-is-per-file.md) |
 | `shift [n]` | drop the first `n` positional parameters |
@@ -85,7 +85,16 @@ guards typed function parameters. Inside a function `declare` is local unless
 
 **[hibr]** `shopt` and `set -o` are **one namespace**: `set -o nullglob` and
 `shopt -s errexit` both work, where bash rejects each. `shopt` alone lists
-everything. Options that cannot move — `extglob`, `globstar`,
+everything. Since 0.99.122 the **command line** is in that namespace too:
+every short option `set` takes, `hibr` takes at startup, bundled or not and
+in the `+` form -- `hibr -x script`, `hibr -ex script`, `hibr -o errexit -c
+'…'` -- read by the same code, so the two spellings cannot drift apart. With
+them, `-i` makes a shell interactive whether or not standard input is a
+terminal, and `-s` reads commands from standard input with whatever follows
+as the positional parameters, so a name there is `$1` and never a file to
+open. `$-` is the letters of the options now on, then `i`, then `c` or `s`
+for how the shell was started: `case $- in *i*) …` is the question
+`/etc/skel/.bashrc` asks, and it is answered here now. Options that cannot move — `extglob`, `globstar`,
 `expand_aliases` always on, `pipefail` always off — say so rather than
 appearing to succeed. See [0017](adr/0017-one-namespace-for-options.md).
 **[hibr]** `set -o checkfirst`, or `hibr --checkfirst`, parses a whole

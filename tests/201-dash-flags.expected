@@ -1,0 +1,16 @@
+0
+a script of its own:  []
+with errexit:         [e]
+and nounset:          [eu]
+errexit off again:    [u]
+noclobber, histexpand:[uCH]
+back to none:         []
+asked e C u:          [euC]
+asked u C e:          [euC]
+a -c shell:           [c]
+-c with errexit:      [ec]
+commands on stdin:    [s]
+-s with arguments:    [s] one
+--agent brings its own:[uSc]
+a named script:      []
+a named script:      [x]

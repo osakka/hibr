@@ -99,7 +99,7 @@ const char *xval(sh *s, const char *k)
 		case '@':
 			return xjoin(s, " ");
 		case '-':
-			return "";
+			return sh_dash(s);
 		}
 		if (isdigit((unsigned char)k[0])) {
 			int i = k[0] - '0';

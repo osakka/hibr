@@ -111,6 +111,13 @@ int jc_klist(int ac, char **av)
 /* Claim the terminal and take control of our own process group. */
 void jc_init(sh *s)
 {
+	/* No terminal, no job control: tcgetpgrp answers -1 for ever, so the
+	   wait below would never end. Reachable since -i made an interactive
+	   shell possible on a pipe. */
+	if (!isatty(0)) {
+		lg(HIBR_LWRN, "job control off: standard input is not a terminal");
+		return;
+	}
 	s->tty = dup(0);
 	if (s->tty < 0) {
 		lg(HIBR_LWRN, "job control off: cannot duplicate the terminal");

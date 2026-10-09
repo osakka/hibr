@@ -823,6 +823,61 @@ int sh_optset(sh *s, const char *nm, int on)
 	return HIBR_OK;
 }
 
+/* The option one short flag letter names, or null when it is not one. */
+const char *sh_optltr(int c)
+{
+	switch (c) {
+	case 'e':
+		return "errexit";
+	case 'u':
+		return "nounset";
+	case 'x':
+		return "xtrace";
+	case 'C':
+		return "noclobber";
+	case 'H':
+		return "histexpand";
+	case 'S':
+		return "strict";
+	case 'n':
+		return "noexec";
+	}
+	return 0;
+}
+
+/* Set one option by its short letter, the one reader `set` and the command line share. */
+int sh_optch(sh *s, int c, int on)
+{
+	const char *nm = sh_optltr(c);
+
+	if (!nm)
+		return HIBR_FAIL;
+	return sh_optset(s, nm, on);
+}
+
+/* The letters $- shows: every short option that is on, then how this shell was started. */
+char *sh_dash(sh *s)
+{
+	const char *ord = "euxCHSn";
+	str b;
+	char *r;
+	int i;
+
+	s_init(&b);
+	for (i = 0; ord[i]; i++)
+		if (sh_optget(s, sh_optltr(ord[i])) == 1)
+			s_ch(&b, ord[i]);
+	if (s->it)
+		s_ch(&b, 'i');
+	if (s->sopt & O_DASHC)
+		s_ch(&b, 'c');
+	if (s->sopt & O_DASHS)
+		s_ch(&b, 's');
+	r = ar_dup(s->xa, b.p ? b.p : "", b.n);
+	s_free(&b);
+	return r;
+}
+
 /* Print every option and whether it is on. */
 void sh_optlist(sh *s, int setstyle)
 {

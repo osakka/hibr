@@ -1,5 +1,64 @@
 # Changelog
 
+## 0.99.122
+
+**Every option `set` takes, hibr takes on the command line** (Gitea #153),
+and `$-` says which are on.
+
+`hibr -x script` -- the first thing anybody reaches for to debug a script --
+answered `-x: No such file or directory` and exited 127. So did `-e`, `-u`,
+`-o errexit`, `-i`, `-s` and `-f`, and a `#!/usr/bin/hibr -e` shebang:
+`main`'s own loop understood ten long options and `-c -d -l -n -v -h`, then
+**broke on anything else and treated it as the name of a script to open**.
+
+- **One reader, shared.** `sh_optch` maps a letter to an option *name* and
+  goes through `sh_optset`, so the command line and `set` reach the same
+  code and cannot drift apart -- which is ADR 0017's argument about `set -o`
+  and `shopt`, one level up. `set` gains what it was missing on the way:
+  **bundling** (`set -ex` is bash's and was `unknown option` here) and `-n`,
+  whose long spelling `set -o noexec` already worked.
+- **Bundled at startup too**, because `hibr -lc 'cmd'` is how `su` and
+  `login` start a shell; a letter that takes a value (`-c`, `-d`) takes the
+  rest of its word or the next one. An unknown letter is `invalid option`
+  with **status 2**, which is bash's, rather than 127 and a message about a
+  missing file.
+- **`-i`** makes a shell interactive whether or not standard input is a
+  terminal: it reads `~/.hibrc`, prompts and keeps history, and `hibr -i -c
+  '…'` runs the command as a shell somebody is talking to, as bash does.
+- **`-s`** reads commands from standard input with whatever follows as the
+  positional parameters, so a filename there is `$1` and never a file to
+  open.
+- **`$-`** is the letters of the options now on, then `i` when interactive,
+  then `c` or `s` for how the shell was started. It was the empty string
+  before, which is a *wrong* answer to the interactive test
+  `/etc/skel/.bashrc` on this machine uses and seven scripts in `/usr/bin`
+  name: `case $- in *i*) … ;; *) return ;; esac`.
+
+What `-i` cost: `jc_init` begins `while (tcgetpgrp(s->tty) != getpgrp())
+kill(-pgid, SIGTTIN)`, and without a terminal `tcgetpgrp` answers -1 for
+ever -- **an infinite loop signalling its own process group**, unreachable
+until this release made an interactive shell possible on a pipe. It returns
+early with "job control off: standard input is not a terminal" now, which is
+the pair of lines bash prints in the same situation.
+
+hibr's `$-` letters are its own options, so there is no `h` or `B` among
+them: bash reports those because it has options to turn them off and hibr
+has not. That is why the letters are pinned by a **recorded** test
+(`tests/201-dash-flags.t`) while everything that agrees with bash --
+`-e -ex -o errexit +e -u -x -n -s -i -l --`, an unknown option's status, a
+`-c` with nothing to run, and `case $- in *e*)` -- is **compared** against
+it in `tests/199-startup-opts.t`, which fails against 0.99.121.
+
+Three things deliberately left: `set -` (bash ends option parsing *and*
+clears `-x`/`-v`) still errors; `-f` is still refused, because hibr has no
+noglob option to turn on and saying `invalid option` is the honest answer;
+and `set -n` inside a single `-c` line does not stop the rest of that line,
+since a line is hibr's input unit -- #154, with the cost of fixing it
+measured there rather than guessed. The 199 test asserts how many bytes an
+unbound variable under `-u` printed rather than the status, because the three
+shells disagree with each other there: bash answers 127 for `-c` and 1 for a
+script, dash 2, hibr 1.
+
 ## 0.99.121
 
 **`${#@}` and `${#*}` are how many parameters there are** (Gitea #152).

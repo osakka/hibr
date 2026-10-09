@@ -56,7 +56,7 @@ first unless `FUNCNEST` is set; hibr honours `FUNCNEST` as bash does, and
 stops at three quarters of the stack whether it is set or not. Under `set -o
 keepgoing` it, and an arithmetic error, fail only the command.
 
-**Special variables.** `$@ $* $# $? $$ $! $0–$9 $RANDOM $SECONDS $EPOCHSECONDS
+**Special variables.** `$@ $* $# $? $$ $! $- $0–$9 $RANDOM $SECONDS $EPOCHSECONDS
 $EPOCHREALTIME $LINENO $PPID $UID $EUID $HOSTNAME $HIBR_VERSION $HIBR_ABI $HIBR`, plus `$RET`, `$ERRMSG`, `$ERR`, `$ERRSTATUS`,
 `$REMOTE` and `$M`, and `$BASH_SOURCE`: the file the running code came from --
 the script, a file being sourced, or, inside a function, the file the
@@ -66,7 +66,23 @@ restarts the count from 5, and an assignment to `$EPOCHSECONDS` or
 `$EPOCHREALTIME` is ignored; `${RANDOM[0]}` and the like read the value, as
 `[0]` of any scalar does. Only `${BASH_SOURCE[0]}` is kept, not the stack of
 callers' files beneath it. `$$` is fixed at startup, so it is the same inside every
-subshell. `$HIBR_VERSION` holds the version and nothing else does, so it is
+subshell. `$-` is the letters of the short options this shell has on, then
+`i` when it is interactive and `c` or `s` for how it was started -- which is
+what makes the usual test work:
+
+```sh
+case $- in
+	*i*) echo "someone is typing at me" ;;
+	*) echo "running a script" ;;
+esac
+```
+
+```output
+running a script
+```
+
+hibr's letters are its own options, so there is no `h` or `B` in them: bash
+reports those because it has options to turn them off and hibr has not. `$HIBR_VERSION` holds the version and nothing else does, so it is
 the way to ask which shell is running. It is set at startup over anything
 inherited, so a planted `HIBR_VERSION` in the environment cannot claim a shell
 is hibr when it is not, and it is not exported, so a child shell does not

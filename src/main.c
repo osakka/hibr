@@ -529,7 +529,9 @@ int main(int ac, char **av)
 	char *src = 0, *text;
 	FILE *f;
 	int i = 1, rc, explain = 0, plan = 0, login = 0;
+	int iact = 0, dashs = 0, cmd = 0, on;
 	char *p;
+	const char *q;
 
 	memset(&s, 0, sizeof s);
 	lg_sh = &s;
@@ -576,25 +578,12 @@ int main(int ac, char **av)
 	if (av[0] && av[0][0] == '-')
 		login = 1;
 	for (; i < ac; i++) {
-		if (!strcmp(av[i], "-c") && i + 1 < ac) {
-			src = xs(av[++i]);
-			i++;
-			break;
-		}
-		if (!strcmp(av[i], "-d") && i + 1 < ac) {
-			hibr_lv = atoi(av[++i]);
-			continue;
-		}
 		if (!strcmp(av[i], "-v") || !strcmp(av[i], "--version")) {
 			printf("hibr %s abi %u\n", HIBR_VER, HIBR_ABI);
 			sh_fini(&s);
 			return 0;
 		}
-		if (!strcmp(av[i], "-n")) {
-			s.noexec = 1;
-			continue;
-		}
-		if (!strcmp(av[i], "-l") || !strcmp(av[i], "--login")) {
+		if (!strcmp(av[i], "--login")) {
 			login = 1;
 			continue;
 		}
@@ -622,13 +611,21 @@ int main(int ac, char **av)
 			continue;
 		}
 		if (!strcmp(av[i], "-h") || !strcmp(av[i], "--help")) {
-			printf("usage: hibr [-d level] [-l] [-n] [--agent] [--checkfirst]\n"
-			       "            [--explain] [--modules=off|after|before] [--plan]\n"
-			       "            [script [args...]]\n"
-			       "       hibr -c 'commands' [args...]\n"
+			printf("usage: hibr [-eiluxCHS] [-d level] [-o option] [--agent]\n"
+			       "            [--checkfirst] [--explain] [--plan]\n"
+			       "            [--modules=off|after|before] [script [args...]]\n"
+			       "       hibr -c 'commands' [name [args...]]\n"
+			       "       hibr -s [args...]        # commands on standard input\n"
 			       "       hibr -v | -h\n\n"
 			       "  -c   run the given commands\n"
+			       "  -s   read commands from standard input, the rest being\n"
+			       "       the positional parameters\n"
+			       "  -i   interactive: read ~/.hibrc and prompt, whether or\n"
+			       "       not standard input is a terminal\n"
 			       "  -n   parse only, report syntax errors, run nothing\n"
+			       "  -e -u -x -C -H -S -o name  every option `set` takes,\n"
+			       "       bundled as one word if you like (-ex), and +x to\n"
+			       "       turn one off; `set -o` lists them all\n"
 			       "  --agent  for a script a program runs: errors as JSON\n"
 			       "       lines, set -u, strict expansion, no terminal input,\n"
 			       "       HIBR_TIMEOUT seconds per foreground process\n"
@@ -657,8 +654,79 @@ int main(int ac, char **av)
 			sh_fini(&s);
 			return 0;
 		}
-		break;
+		if (!strcmp(av[i], "--") || !strcmp(av[i], "-")) {
+			i++;
+			break;
+		}
+		if ((av[i][0] != '-' && av[i][0] != '+') || !av[i][1])
+			break;
+		if (av[i][1] == 'o' && !av[i][2]) {
+			on = av[i][0] == '-';
+			if (i + 1 >= ac) {
+				sh_optlist(&s, 1);
+				continue;
+			}
+			if (sh_optset(&s, av[++i], on) != HIBR_OK) {
+				sh_fini(&s);
+				return 2;
+			}
+			continue;
+		}
+		/* Short options, bundled as in bash -- `hibr -lc cmd` is how
+		   su and login start one -- and read by sh_optch, which `set`
+		   shares, so the two spellings cannot drift apart. A letter
+		   that takes a value takes the rest of its word or the next
+		   one, and ends the bundle. */
+		on = av[i][0] == '-';
+		for (q = av[i] + 1; *q; q++) {
+			if (*q == 'c' && on) {
+				cmd = 1;
+				continue;
+			}
+			if (*q == 'i') {
+				iact = on;
+				continue;
+			}
+			if (*q == 's') {
+				dashs = on;
+				continue;
+			}
+			if (*q == 'l') {
+				login = on;
+				continue;
+			}
+			if (*q == 'd' && on) {
+				p = q[1] ? (char *)q + 1 :
+				    i + 1 < ac ? av[++i] : 0;
+				if (!p) {
+					lg(HIBR_LERR, "-d: needs a level");
+					sh_fini(&s);
+					return 2;
+				}
+				hibr_lv = atoi(p);
+				break;
+			}
+			if (sh_optch(&s, *q, on) != HIBR_OK) {
+				lg(HIBR_LERR, "%c%c: invalid option", av[i][0],
+				   *q);
+				fprintf(stderr, "usage: hibr [options] [script [args...]], hibr -h for the list\n");
+				sh_fini(&s);
+				return 2;
+			}
+		}
+		if (cmd) {
+			if (i + 1 >= ac) {
+				lg(HIBR_LERR, "-c: needs a command");
+				sh_fini(&s);
+				return 2;
+			}
+			src = xs(av[++i]);
+			i++;
+			break;
+		}
 	}
+	if (iact)
+		s.it = 1;
 	if (plan && !explain)
 		pl_init(&s);
 	/* The profile files come before anything this shell was asked to do,
@@ -668,6 +736,7 @@ int main(int ac, char **av)
 	if (login && !s.noexec && !explain)
 		rc_login(&s);
 	if (src) {
+		s.sopt |= O_DASHC;
 		if (i < ac) {
 			free(s.arg0);
 			s.arg0 = xs(av[i]);
@@ -676,6 +745,10 @@ int main(int ac, char **av)
 		if (i < ac)
 			v_pos(&s, ac - i, av + i);
 		sh_proctitle(&s);
+		/* -i -c reads the rc file, as bash does: the flag says this
+		   is a shell somebody is talking to, whatever it was given. */
+		if (iact && !explain && !s.noexec)
+			rc_load(&s);
 		rc = explain ? sh_explain(&s, src) :
 		     (s.sopt & O_CHECK) && sh_check(&s, src) ? 2 : hibr_run(&s, src);
 		free(src);
@@ -684,7 +757,7 @@ int main(int ac, char **av)
 		sh_fini(&s);
 		return rc;
 	}
-	if (i < ac) {
+	if (i < ac && !dashs) {
 		f = fopen(av[i], "r");
 		if (!f) {
 			lg(HIBR_LERR, "%s: %s", av[i], strerror(errno));
@@ -707,6 +780,13 @@ int main(int ac, char **av)
 		sh_fini(&s);
 		return rc;
 	}
+	/* Commands come from standard input now, whether -s asked for it or
+	   nothing named a script -- which is what $-'s own `s` says. With -s
+	   whatever is left is the positional parameters, so a name there is
+	   $1 and never a file to open. */
+	s.sopt |= O_DASHS;
+	if (dashs && i < ac)
+		v_pos(&s, ac - i, av + i);
 	sh_proctitle(&s);
 	if (explain) {
 		text = slurp(stdin);
@@ -715,7 +795,7 @@ int main(int ac, char **av)
 		sh_fini(&s);
 		return rc;
 	}
-	if (isatty(0)) {
+	if (iact || isatty(0)) {
 		s.it = 1;
 		s.hx = 1;
 		sig_init();

@@ -426,7 +426,8 @@ int b_shift(sh *s, int ac, char **av)
 /* Set shell options and positional parameters. */
 int b_set(sh *s, int ac, char **av)
 {
-	int i = 1;
+	int i = 1, on;
+	const char *p;
 
 	for (; i < ac; i++) {
 		if (!strcmp(av[i], "--")) {
@@ -435,48 +436,32 @@ int b_set(sh *s, int ac, char **av)
 		}
 		if (av[i][0] != '-' && av[i][0] != '+')
 			break;
-		if (!strcmp(av[i], "-x")) {
-			s->xtr = 1;
-		} else if (!strcmp(av[i], "+x")) {
-			s->xtr = 0;
-		} else if (!strcmp(av[i], "-H")) {
-			s->hx = 1;
-		} else if (!strcmp(av[i], "+H")) {
-			s->hx = 0;
-		} else if (!strcmp(av[i], "-S")) {
-			s->strictg = 1;
-			sh_sfl(s);
-			lg(HIBR_LDBG, "strict expansion on");
-		} else if (!strcmp(av[i], "+S")) {
-			s->strictg = 0;
-			sh_sfl(s);
-		} else if (!strcmp(av[i], "-C")) {
-			s->noclob = 1;
-		} else if (!strcmp(av[i], "+C")) {
-			s->noclob = 0;
-		} else if (!strcmp(av[i], "-u")) {
-			s->uset = 1;
-		} else if (!strcmp(av[i], "+u")) {
-			s->uset = 0;
-		} else if (!strcmp(av[i], "-e")) {
-			s->errx = 1;
-		} else if (!strcmp(av[i], "+e")) {
-			s->errx = 0;
-		} else if (!strcmp(av[i], "-d") && i + 1 < ac) {
+		if (!av[i][1]) {
+			lg(HIBR_LERR, "set: %s: unknown option", av[i]);
+			return HIBR_FAIL;
+		}
+		if (!strcmp(av[i], "-d") && i + 1 < ac) {
 			hibr_lv = atoi(av[++i]);
 			lg(HIBR_LINF, "log level %d", hibr_lv);
-		} else if (!strcmp(av[i], "-o") || !strcmp(av[i], "+o")) {
-			int on = av[i][0] == '-';
+			continue;
+		}
+		if (av[i][1] == 'o' && !av[i][2]) {
+			on = av[i][0] == '-';
 			if (i + 1 >= ac) {
 				sh_optlist(s, 1);
 				continue;
 			}
 			if (sh_optset(s, av[++i], on) != HIBR_OK)
 				return HIBR_FAIL;
-		} else {
-			lg(HIBR_LERR, "set: %s: unknown option", av[i]);
-			return HIBR_FAIL;
+			continue;
 		}
+		on = av[i][0] == '-';
+		for (p = av[i] + 1; *p; p++)
+			if (sh_optch(s, *p, on) != HIBR_OK) {
+				lg(HIBR_LERR, "set: %c%c: unknown option",
+				   av[i][0], *p);
+				return HIBR_FAIL;
+			}
 	}
 	if (i < ac || (ac > 1 && !strcmp(av[ac - 1], "--")))
 		v_pos(s, ac - i, av + i);

@@ -3,10 +3,11 @@
 hibr \- a small, fast shell that runs the bash you already write
 .SH SYNOPSIS
 .B hibr
+.RB [ \-eiluxCHS ]
 .RB [ \-d
 .IR level ]
-.RB [ \-l ]
-.RB [ \-n ]
+.RB [ \-o
+.IR option ]
 .RB [ \-\-agent ]
 .RB [ \-\-checkfirst ]
 .RB [ \-\-explain ]
@@ -20,6 +21,11 @@ hibr \- a small, fast shell that runs the bash you already write
 .I commands
 .RI [ name
 .RI [ arg ...]]
+.br
+.B hibr
+.RI [ options ]
+.B \-s
+.RI [ arg ...]
 .br
 .B hibr
 .BR \-v " | " \-h
@@ -100,6 +106,44 @@ the programs on
 the same as setting
 .B HIBR_MODULES
 for this invocation.
+.TP
+.B \-s
+Read commands from standard input, with whatever follows as the positional
+parameters, so a filename there is
+.B $1
+and never a file to open. This is also what happens with no
+.B \-c
+and no script named.
+.TP
+.B \-i
+Interactive: read
+.IR ~/.hibrc ,
+prompt and keep history whether or not standard input is a terminal, and set
+.BR $- 's
+.BR i .
+Job control needs a real terminal, so a
+.B \-i
+shell on a pipe says it has none and carries on.
+.TP
+.BR \-e ", " \-u ", " \-x ", " \-C ", " \-H ", " \-S ", " \-n ", " \-o " " \fIoption\fR
+Every short option
+.B set
+takes, read by the same code, so the two spellings cannot drift apart:
+errexit, nounset, xtrace, noclobber, histexpand, strict expansion and
+noexec, or any option by name. They bundle as one word
+.RB ( \-ex ),
+.B +x
+turns one off, and
+.B \-o
+with no name lists them all.
+.B $-
+is the letters of the ones now on, then
+.B i
+when interactive, then
+.B c
+or
+.B s
+for how the shell was started.
 .TP
 .B \-n
 Parse only: report the first syntax error, run nothing.

@@ -3248,3 +3248,46 @@ went in the shell.
   where a hand-set cell does not exist. On a real sheet the same click
   works. This is the "fixed input standing in for a real command's output"
   trap in its other form -- not a wrong value, a wrong *store*.
+
+- **Sweep the whole family, not the one form reported: it is thirty seconds
+  and it found two more bugs.** `${#@}` answered `strlen` of the joined
+  parameters (Gitea #152, 0.99.121) because `V_LEN` on a part named `@` or
+  `*` fell through to "length of this parameter's value" -- `$@`'s value
+  being the join. The fix is four lines; what was worth more was running
+  `${#X}` for **every** special parameter side by side against bash, in one
+  loop. `@` and `*` were the reported pair, and `${#-}` came back 2 in bash
+  and 0 here -- because `$-` is `case '-': return "";` in `xval`, which is
+  also a wrong answer to `case $- in *i*)`, the interactive test
+  `/etc/skel/.bashrc` on this box uses and seven scripts in `/usr/bin`
+  name. Asking the next question -- can a shell even be *made*
+  interactive -- found that `main.c`'s own option loop `break`s on the
+  first thing it does not know and treats it as the script name, so
+  **`hibr -x script`, `-e`, `-u`, `-o errexit`, `-i`, `-s` and `-f` are
+  each refused as `No such file or directory`**, and a `#!/usr/bin/hibr
+  -e` shebang exits 127 (Gitea #153, fixed in 0.99.122). `hibr -x` is the first thing
+  anybody types to debug a script, and it had never worked. A one-line
+  `for f in ...; do` comparison against bash is the cheapest tool in this
+  tree; run it over the whole family whenever a single member is reported.
+
+- **A branch that was unreachable was only unreachable because of its one
+  caller, and a new flag is how it stops being.** `jc_init` opens with
+  `while (tcgetpgrp(s->tty) != (s->pgid = getpgrp())) kill(-s->pgid,
+  SIGTTIN)`, and `tcgetpgrp` on anything that is not a terminal answers -1
+  for ever: **an infinite loop signalling its own process group**. It had
+  been there for the life of the file and could not fire, because the one
+  call site was inside `if (isatty(0))`. 0.99.122's `-i` -- an interactive
+  shell on a pipe, which is what bash's `-i` is -- made it reachable in the
+  same commit that added the flag, and nothing would have failed loudly:
+  `hibr -i < /dev/null` would simply never have come back. The guard belongs
+  **inside** `jc_init`, whose precondition it is, not at the new call site.
+  When a flag widens how something may be entered, read the preconditions of
+  everything it now reaches, not only the code being added.
+- **Two spellings of one setting want one reader, which is ADR 0017's
+  argument a level up.** `set` mapped `-e -u -x -C -H -S` to shell fields by
+  hand and `main` understood none of them, so the command line and `set`
+  were two lists that could disagree -- and did: `set -o noexec` worked
+  where `set -n` was an unknown option, and `hibr -x script` read `-x` as a
+  filename. `sh_optch` turns a letter into an option *name* and goes through
+  `sh_optset`, so both reach the one namespace and a letter added later
+  reaches both; `$-` is built from the same table (`sh_dash`), which is what
+  keeps it from becoming a third list.

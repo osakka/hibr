@@ -17,6 +17,20 @@ back.
 `$HIBR_RC` names a different file, which is how the test harness starts a shell
 with a prompt of its own.
 
+A shell is interactive when standard input is a terminal, or when `-i` says
+so: `hibr -i` prompts and reads `~/.hibrc` even on a pipe, and `hibr -i -c
+'…'` runs the command as a shell somebody is talking to. Job control needs a
+real terminal, so a `-i` shell on a pipe says it has none and carries on.
+`$-` carries an `i` either way, which is how a script asks:
+
+```sh
+case $- in *i*) echo interactive ;; *) echo a script ;; esac
+```
+
+```output
+a script
+```
+
 A **login shell** — `hibr -l`, `hibr --login`, or one whose `argv[0]` begins
 with a dash, which is how `login`, `getty` and `sshd` invoke it — reads
 `/etc/profile` first, then the first that exists of `~/.hibr_profile`,
