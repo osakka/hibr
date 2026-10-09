@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.99.121
+
+**`${#@}` and `${#*}` are how many parameters there are** (Gitea #152).
+They answered the length of the joined parameters:
+
+```text
+$ set -- a bb ccc
+bash:  ${#@} 3   ${#*} 3   $# 3
+hibr:  ${#@} 8   ${#*} 8   $# 3
+```
+
+8 is `strlen("a bb ccc")`. `V_LEN` on a part whose name is `@` or `*` fell
+through to the ordinary "length of this parameter's value" path, and `$@`'s
+value *is* the join -- so the hole was the two special parameters rather
+than the operator: `${#a[@]}` has always counted. bash makes all three the
+same number, and `${#@}` is the form you reach for inside a function where
+you want to be explicit that the count is the function's own.
+
+`tests/198-len-params.t` is compared against bash and fails against
+0.99.120. It covers the count at top level and inside a function, with no
+parameters, with a parameter that has a blank in it (the old answer was 5
+for two parameters), under `IFS=:` and an empty `IFS`, and beside `${#1}`
+and `${#a[@]}` so the lengths this did *not* touch are in the same output.
+
+One thing the ticket records as **not** a bug: slicing an associative
+array's `[@]` differs from bash, and bash is the odd one -- it iterates its
+own hash order, and its offsets disagree with what it does for an indexed
+array (`:0:1` and `:1:1` both answer the same element). hibr's maps are
+ordered on purpose, so the slice follows from that.
+
 ## 0.99.120
 
 **Sheet says what it can do** (Gitea #150). Reported as *"I have no idea

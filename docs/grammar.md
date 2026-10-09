@@ -245,7 +245,7 @@ expansion produced; text written in the word still splits and globs
 |---|---|
 | `${x}` | the value |
 | `${x:-d}` `${x:=d}` `${x:?m}` `${x:+a}` | default, assign, error, alternative |
-| `${#x}` | length; `${#a[@]}` the number of elements |
+| `${#x}` | length; `${#a[@]}` the number of elements, and `${#@}` `${#*}` how many positional parameters, which is what `$#` says |
 | `${x#p}` `${x##p}` `${x%p}` `${x%%p}` | strip shortest or longest prefix, suffix |
 | `${x/p/r}` `${x//p/r}` | replace first, replace all |
 | `${x/#p/r}` `${x/%p/r}` | replace only at the start, at the end |

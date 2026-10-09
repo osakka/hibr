@@ -636,6 +636,12 @@ void xvar(sh *s, part *p, str *b, str *m)
 		v = xbyname(s, r);
 		xvar2(s, p, b, m, v);
 		return;
+	} else if (p->op == V_LEN && (p->t[0] == '@' || p->t[0] == '*') &&
+		   !p->t[1]) {
+		a = xnum(s, (long)s->ac);
+		lg(HIBR_LTRC, "${#%c} is how many parameters there are", p->t[0]);
+		xput(b, m, a, strlen(a), 1);
+		return;
 	} else if (p->t[0] == '*' && !p->t[1]) {
 		v = xjoin(s, xsep(s, p->q || s->strict));
 	} else {
