@@ -415,6 +415,6 @@ const hibr_bi hold_bi[] = {
 	HIBR_BI_END
 };
 
-HIBR_MODULE_P("hold", "0.22",
+HIBR_MODULE_P("hold", "1.0",
 	      "sessions that outlive the terminal they were started on",
 	      hold_bi, hd_ini, hd_fini, "hold");

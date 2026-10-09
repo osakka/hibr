@@ -3316,6 +3316,22 @@ went in the shell.
   measurement rather than a count is what makes that testable: the frame
   count alone was 37 against a threshold of 40, which is a check that
   passes the bug on a slow box, so the check asserts frames **and** CPU.
+- **A number that is always the same as another number is a column of
+  noise.** Nineteen of thirty-six modules declared a version that was not
+  their own: eight carried `HIBR_VER`, so `mod list` printed `sys 0.99.124`
+  -- telling you only which shell you were running -- and eleven carried
+  the release they were first written in (`0.21`, `0.22`, `0.24`), which is
+  the same mistake running slower. Nothing *compares* a module's version
+  (the `abi` decides whether it loads; an interface's own number decides
+  whether a provider and a user agree), so the field was free to mean its
+  own history all along, and `mods/README.md` now says what it means: 1.0
+  once a module does what its README says, 0.x while it does not. The tell
+  was in the release ritual rather than in the code -- **a recorded test
+  that must be hand-edited on every release is recording the wrong
+  thing**: `tests/090-module.expected` held `sys <the shell's version>` and
+  was edited beside `HIBR_VER` every time, for twenty-odd releases
+  (Gitea #162). And the same stale number was sitting in
+  `docs/modules.md`'s own `mod avail` transcript as `0.68`.
 - **A quick gate is only quick while the affected set is small, and the set
   is large exactly when the change is riskiest.** `asan.py --quick` asks
   `affected.py` what a changed module reaches, and a change to console,

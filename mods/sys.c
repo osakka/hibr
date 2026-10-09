@@ -232,6 +232,6 @@ void sys_fin(sh *s)
 	(void)s;
 }
 
-HIBR_MODULE("sys", HIBR_VER, "drop, epoch, sleepms, state, upper", sys_bi,
+HIBR_MODULE("sys", "1.0", "drop, epoch, sleepms, state, upper", sys_bi,
 	   sys_ini,
 	   sys_fin);

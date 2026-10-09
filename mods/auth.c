@@ -651,5 +651,5 @@ const hibr_bi auth_bi[] = {
 	HIBR_BI_END
 };
 
-HIBR_MODULE("auth", HIBR_VER, "password checks through PAM", auth_bi, au_ini,
+HIBR_MODULE("auth", "1.0", "password checks through PAM", auth_bi, au_ini,
 	    au_fini);

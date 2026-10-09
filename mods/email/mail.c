@@ -1409,5 +1409,5 @@ const hibr_bi mail_bi[] = {
 	HIBR_BI_END
 };
 
-HIBR_MODULE("email", HIBR_VER, "email: IMAP, POP3, SMTP and MIME, for reading offline",
+HIBR_MODULE("email", "1.0", "email: IMAP, POP3, SMTP and MIME, for reading offline",
 	    mail_bi, 0, ml_fini);

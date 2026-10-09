@@ -1,5 +1,74 @@
 # Changelog
 
+## 0.99.125
+
+**A module's version is its own** (Gitea #162), and **a note check waits
+for the note to be gone** (#136). Reported from reading
+`mod list`: *"modules all have their own version. I see modules that carry
+the hibr version, this cannot be true, right?"*
+
+Right, and it was nineteen of thirty-six, in two forms:
+
+- **Eight declared `HIBR_VER`** — `auth`, `darwin`, `email`, `html`,
+  `http`, `ls`, `prompt`, `sys` — so their version changed on every release
+  whether they had changed or not. `mod list` printed `sys 0.99.124`, a
+  column saying only which shell you were running, which the shell already
+  tells you.
+- **Eleven carried the release they were first written in** — `0.21` for
+  nine of them, `0.22` for `hold`, `0.24` for `term` — which is the same
+  mistake in a slower form. Those numbers have meant nothing since the ABI
+  moved sixteen times underneath them.
+
+All nineteen are **`1.0`** now, and the rule is written down in
+`mods/README.md`: **1.0 once a module does what its own README says, 0.x
+while it does not**, moving when the module's behaviour changes in a way a
+caller could notice and never on a release that did not touch it. So the
+five that are genuinely unfinished keep their numbers — `dav 0.1`,
+`db 0.2`, `media 0.1`, `mermaid 0.1`, `web 0.1` — each with its own list of
+what it cannot do yet, and the field now distinguishes them from the
+thirty-one that are done.
+
+Nothing compares it, which is what makes it free to mean that: a module
+whose **`abi`** does not match the shell's is refused at load, and an
+**interface's** own number (`DP_API_VER`, `PY_API_VER`, `TM_API_VER`) is
+what `hibr_require` matches exactly. The version is read only to be
+printed.
+
+**And the release ritual loses a hand-edit.** `tests/090-module.expected`
+records `mod list`'s own line for `sys`, so **every single release** had to
+edit that file beside `HIBR_VER` — a recorded test that must change on
+every release is recording the wrong thing. It reads `sys 1.0 abi N` now
+and stops moving.
+
+**`desktop.py`'s note check waits for the note to be gone** (Gitea #136),
+which this release's own gate made unavoidable rather than optional: it
+failed on exactly that check, an hour after the ticket had been annotated
+as the next member of the family 0.99.124 found. It waited **1.6 seconds
+for a 700 ms note** — a little over twice its life, ample on a quiet box
+and not ample under a gate — and that is the same shape as the file-dialog
+checks, so it gets the same treatment:
+
+```python
+ovt.keys([b"x", b"x", 0.5, b"N"])
+ovt.until(lambda s: s.find("a note over the screen") is not None)
+ovt.until(lambda s: s.find("a note over the screen") is None)
+gone = orsettled(ovt)
+```
+
+Two waits rather than one, because the condition that matters — the note
+being **gone** — is a condition that must not already be true when the wait
+starts, and waiting for it to appear first is what guarantees that.
+`orsettled` still follows: the check is about the frame *after* it went,
+not the moment it went. Verified the way #163 was, under six spinners on a
+four-core box: `desktop` **570 passed, 0 failed**.
+
+0.99.124's own new warning fired on this release's gate, which is the first
+time it has had a chance to:
+
+```text
+asan: 39 suites, most of them driving a pty -- run this alone, not beside all.py
+```
+
 ## 0.99.124
 
 **A check waits for the thing, not for a pause** (Gitea #163). 0.99.123's

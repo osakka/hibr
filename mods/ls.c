@@ -391,5 +391,5 @@ const hibr_bi ls_bi[] = {
 	HIBR_BI_END
 };
 
-HIBR_MODULE("ls", HIBR_VER, "in-process ls with columns, -l, sorting and colour",
+HIBR_MODULE("ls", "1.0", "in-process ls with columns, -l, sorting and colour",
 	   ls_bi, 0, 0);

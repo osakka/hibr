@@ -876,5 +876,5 @@ const hibr_bi img_bi[] = {
 	HIBR_BI_END
 };
 
-HIBR_MODULE("img", "0.21", "decode an image and draw it as terminal cells",
+HIBR_MODULE("img", "1.0", "decode an image and draw it as terminal cells",
 	    img_bi, 0, 0);

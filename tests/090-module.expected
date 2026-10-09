@@ -1,5 +1,5 @@
 127
-sys          0.99.124 abi N  drop, epoch, sleepms, state, upper
+sys          1.0      abi N  drop, epoch, sleepms, state, upper
 MODULE BUILTINS WORK
 SYS_MOD=1
 upper is a module builtin

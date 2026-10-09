@@ -344,6 +344,6 @@ const hibr_bi pty_bi[] = {
 	HIBR_BI_END
 };
 
-HIBR_MODULE_P("pty", "0.21",
+HIBR_MODULE_P("pty", "1.0",
 	      "pseudo terminals: spawn a program on one and drive it",
 	      pty_bi, tt_ini, tt_fini, "pty");

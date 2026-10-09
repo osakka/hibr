@@ -256,5 +256,5 @@ const hibr_bi pr_bi[] = {
 	HIBR_BI_END
 };
 
-HIBR_MODULE("prompt", HIBR_VER, "segment based prompt", pr_bi, m_prini,
+HIBR_MODULE("prompt", "1.0", "segment based prompt", pr_bi, m_prini,
 	   m_prfin);

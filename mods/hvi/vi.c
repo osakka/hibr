@@ -1078,5 +1078,5 @@ const hibr_bi hvi_bi[] = {
 	HIBR_BI_END
 };
 
-HIBR_MODULE("hvi", "0.21", "hibr's vi: a modal editor on the display interface",
+HIBR_MODULE("hvi", "1.0", "hibr's vi: a modal editor on the display interface",
 	    hvi_bi, 0, 0);

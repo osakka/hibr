@@ -824,6 +824,6 @@ const hibr_bi term_bi[] = {
 	HIBR_BI_END
 };
 
-HIBR_MODULE_P("term", "0.24",
+HIBR_MODULE_P("term", "1.0",
 	      "a terminal emulator: a program's screen as cells",
 	      term_bi, tm_ini, tm_fini, "terminal");

@@ -115,5 +115,5 @@ void http_fin(sh *s)
 	hibr_unscheme(s, "http");
 }
 
-HIBR_MODULE("http", HIBR_VER, "/dev/http/ scheme, msum, oops", http_bi,
+HIBR_MODULE("http", "1.0", "/dev/http/ scheme, msum, oops", http_bi,
 	   http_ini, http_fin);

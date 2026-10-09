@@ -440,5 +440,5 @@ const hibr_bi mon_bi[] = {
 	HIBR_BI_END
 };
 
-HIBR_MODULE("mon", "0.21", "a system monitor on the display interface", mon_bi,
+HIBR_MODULE("mon", "1.0", "a system monitor on the display interface", mon_bi,
 	    0, 0);

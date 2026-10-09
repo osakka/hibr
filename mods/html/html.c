@@ -380,5 +380,5 @@ const hibr_bi html_bi[] = {
 	HIBR_BI_END
 };
 
-HIBR_MODULE("html", HIBR_VER, "HTML5: the standard's parser, a DOM, queries and rendering",
+HIBR_MODULE("html", "1.0", "HTML5: the standard's parser, a DOM, queries and rendering",
 	    html_bi, 0, ht_fini);

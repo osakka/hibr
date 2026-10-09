@@ -230,4 +230,4 @@ const hibr_bi trace_bi[] = {
 	HIBR_BI_END
 };
 
-HIBR_MODULE("trace", "0.21", "unprivileged traceroute over UDP", trace_bi, 0, 0);
+HIBR_MODULE("trace", "1.0", "unprivileged traceroute over UDP", trace_bi, 0, 0);

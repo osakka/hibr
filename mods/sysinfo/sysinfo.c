@@ -926,5 +926,5 @@ const hibr_bi sysinfo_bi[] = {
 	HIBR_BI_END
 };
 
-HIBR_MODULE("sysinfo", "0.21", "what this machine is, with a picture",
+HIBR_MODULE("sysinfo", "1.0", "what this machine is, with a picture",
 	    sysinfo_bi, 0, 0);

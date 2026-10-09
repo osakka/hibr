@@ -673,4 +673,4 @@ const hibr_bi most_bi[] = {
 	HIBR_BI_END
 };
 
-HIBR_MODULE("most", "0.21", "a pager on the display interface", most_bi, 0, 0);
+HIBR_MODULE("most", "1.0", "a pager on the display interface", most_bi, 0, 0);

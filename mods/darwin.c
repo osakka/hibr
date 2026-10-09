@@ -118,4 +118,4 @@ const hibr_bi darwin_bi[] = {
 	HIBR_BI_END
 };
 
-HIBR_MODULE("darwin", HIBR_VER, "cpu, mem", darwin_bi, 0, 0);
+HIBR_MODULE("darwin", "1.0", "cpu, mem", darwin_bi, 0, 0);

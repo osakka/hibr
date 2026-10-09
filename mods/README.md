@@ -57,6 +57,29 @@ hibr -c 'mod load ./build/mods/hello.so; mod list; mod drop hello'
 | `pim/` | Calendars and contacts as their files are written: iCalendar and vCard read and made, recurrence expanded over any window (every RFC 5545 example matches dateutil), zones through zoneinfo, invitations answered — [README](pim/README.md) |
 | `email/` | IMAP (with IDLE and Gmail's labels), POP3 and SMTP, accounts in a private file, TLS through the shell's relay, and MIME: RFC 2047 headers, quoted-printable, base64, charsets, parts, building — [README](email/README.md) |
 
+## A module's own version
+
+`HIBR_MODULE`'s second field is the module's **own** version, and it has
+nothing to do with the shell's. Until 0.99.125 eight modules declared
+`HIBR_VER` there -- so their version changed on every release whether they
+had changed or not, and `mod list` printed a column saying only which shell
+you were running -- and eleven more carried the release they were first
+written in (`0.21`, `0.22`, `0.24`), which is the same mistake in a slower
+form (Gitea #162).
+
+The rule: **`1.0` once a module does what its own README says, `0.x` while
+it does not**, and it moves when the module's behaviour changes in a way a
+caller could notice -- never on a release that did not touch it. So `dav`,
+`db`, `media`, `mermaid` and `web` are below 1.0 today, each with a list of
+what it cannot do yet in its README, and everything else is at 1.0.
+
+Nothing compares it, which is what makes it free to mean that. A module
+whose **`abi`** does not match the shell's is refused at load, and an
+**interface's** own number -- `DP_API_VER`, `PY_API_VER`, `TM_API_VER` --
+is what `hibr_require` matches exactly, so a provider and a user cannot
+disagree. The version is read only to be printed: `mod list`, the log line
+at load, and the Modules app.
+
 ## Naming
 
 The shell is linked `-rdynamic`, so a module function whose name the shell also

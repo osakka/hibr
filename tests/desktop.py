@@ -303,7 +303,16 @@ open(overpath, "w").write(
                               'dt_new "Apart" 8 24 13 4 orc\n'))
 ovt = Term(overpath, env={"DT_TICK": "60", "DT_NOTEMS": "700"}, rows=ROWS,
            cols=COLS, settle=0.6)
-ovt.keys([b"x", b"x", 0.5, b"N", 1.6])
+# The note's own life is DT_NOTEMS, so this used to wait 1.6s for a 700ms
+# note -- twice its life, ample on a quiet box and not ample under a gate,
+# which is what failed 0.99.106's and 0.99.125's (Gitea #136, the family
+# #163 names). It waits for the note to be *gone* instead, which is a
+# condition that cannot already be true: it is on screen when the wait
+# starts. orsettled still follows, because the check is about the frame
+# after it went rather than the moment it went.
+ovt.keys([b"x", b"x", 0.5, b"N"])
+ovt.until(lambda s: s.find("a note over the screen") is not None)
+ovt.until(lambda s: s.find("a note over the screen") is None)
 gone = orsettled(ovt)
 goneg = [r[:] for r in gone.g]
 gonep = [r[:] for r in gone.p]
