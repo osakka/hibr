@@ -257,5 +257,41 @@ check("a client that says nothing about pixels gets blocks, not a bitmap",
       not sc.images and "gfx none 0 0" in log, (sc.images, log))
 check("and the blocks are really drawn", "▀" in sc.row(3), repr(sc.row(3)))
 
+# Mouse reporting is another thing the emulator draws nothing for, and so
+# another thing hold has to carry: the program writes CSI ? 1002 h into
+# hold's own pty, the emulator takes it as a mode change, and unless
+# hd_modes sends it on, the client's real terminal never enables reporting
+# and every click is discarded -- "the mouse moves but nothing is
+# clickable", which reads as the client's bug and is not one. The whole
+# chain is four components long and nothing pinned it until Gitea #164
+# reported the symptom from a display of its own; measured, hibr's own side
+# carries it end to end, so this is the guard for that.
+inner2 = os.path.join(D, "mouse.hibr")
+open(inner2, "w").write(
+    load("console")
+    + "console open\nconsole mouse drag\n"
+    + "console put 1 1 'HELD MOUSE'\nconsole flush\n"
+    + "i=0\nwhile [ $i -lt %d ]; do console key 1000 > /dev/null; "
+      "i=$((i + 1)); done\n" % (12 * SLOW)
+    + "console close\n")
+NM2 = name()
+outer2 = os.path.join(D, "mouseout.hibr")
+open(outer2, "w").write(
+    load("hold")
+    + 'hold new -d %s "$HIBR" %s\n' % (NM2, inner2)
+    + "sleep 0.8\n"
+    + "hold attach %s\n" % NM2)
+tm = Term(outer2, rows=24, cols=70, settle=1.0, env={"TMPDIR": D})
+for _ in range(30 * SLOW):
+    tm.collect(0.25)
+    if b"\x1b[?1002h" in tm.out and "HELD MOUSE" in tm.text:
+        break
+rawm = tm.out
+tm.quit(None, 0.6)
+kill(NM2)
+check("a held program asking for the mouse makes its client enable reporting",
+      b"\x1b[?1002h" in rawm and b"\x1b[?1006h" in rawm and "HELD MOUSE" in tm.text,
+      (rawm[-200:], tm.text[-120:]))
+
 shutil.rmtree(D, True)
-report(12)
+report(13)
