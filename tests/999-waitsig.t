@@ -7,10 +7,16 @@
 # child again. One zombie per signal that lands inside a wait, for the life
 # of the shell, and a random exit status to go with it (Gitea #143).
 #
-# The status half is the one a person would notice, and it is not reliably
-# reproducible: the caller reads whatever was on the stack, which is
-# usually a stale 0 and so reads as success. The zombie is the part that
-# can be counted, and it is the same bug.
+# The zombie is the part this counts, and it is the part that was reported.
+# The status half of the same wait is not reliably reproducible: the caller
+# reads whatever was on the stack, which is usually a stale 0 and so reads
+# as success.
+#
+# This test shipped counting a substitution's status as well, and that
+# failed about one run in ten -- which turned out not to be this bug at
+# all but a second one, an interrupted *read* in the substitution's own
+# parent (Gitea #144, tests/999-readsig.t). Only the two statuses that are
+# the shell's own answer are counted here.
 trap ':' WINCH
 
 zombies() {
@@ -38,8 +44,9 @@ while [ "$i" -lt 12 ]; do
 	/bin/true || bad=$((bad + 1))
 	/bin/false
 	[ "$?" = 1 ] || bad=$((bad + 1))
+	# Forked for its own sake: another child for the drain to lose. Its
+	# own value and status are 999-readsig's business.
 	v=$(/bin/echo x)
-	[ "$v" = x ] || bad=$((bad + 1))
 	i=$((i + 1))
 done
 echo "wrong statuses during a signal storm: $bad"

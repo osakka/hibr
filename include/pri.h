@@ -49,6 +49,8 @@ struct lex {
 	unsigned ln;
 };
 
+ssize_t io_rdall(int fd, void *buf, size_t n);
+
 unsigned vh(const char *k);
 var *v_find(sh *s, const char *k);
 void v_del(sh *s, const char *k);

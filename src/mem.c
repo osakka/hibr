@@ -4,6 +4,8 @@
 #include <limits.h>
 #include <string.h>
 #include <stdarg.h>
+#include <unistd.h>
+#include <errno.h>
 
 int hibr_lv = HIBR_LWRN;
 sh *lg_sh;
@@ -437,4 +439,23 @@ void s_num(str *s, long v)
 		s->p[--i] = (char)('0' + (t % 10));
 		t /= 10;
 	} while (t);
+}
+
+/* read, retried when a signal interrupts it. An interrupted read is not an
+   end of input, and every loop that stops at one loses whatever was still
+   coming: in a command substitution the parent closed the pipe and the
+   child died of SIGPIPE, so `$(cmd)` came back **empty, with status 141**,
+   whenever a signal landed in the read. A script's own trap is installed
+   without SA_RESTART on purpose -- bash interrupts a blocking `read`
+   builtin so the trap can run -- so a read that must not lose data cannot
+   rely on the flag and retries here instead. Gitea #144. */
+ssize_t io_rdall(int fd, void *buf, size_t n)
+{
+	ssize_t r;
+
+	for (;;) {
+		r = read(fd, buf, n);
+		if (r >= 0 || errno != EINTR)
+			return r;
+	}
 }

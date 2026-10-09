@@ -1,5 +1,51 @@
 # Changelog
 
+## 0.99.115
+
+**A command substitution came back empty, with status 141, when a signal
+interrupted the parent's read of its pipe** (Gitea #144). 141 is 128 plus
+SIGPIPE: `xcap` read the child's output with
+
+```c
+	while ((n = read(pf[0], buf, HIBR_IOCH)) > 0)
+```
+
+and `read` answering -1 with EINTR ends that loop exactly like an end of
+file -- so the parent closed the pipe and the child, still writing, was
+killed by it. An interrupted read is not an end of input.
+
+The signal is not exotic. A script's own `trap ... WINCH` is installed with
+**no `SA_RESTART`**, deliberately, because bash interrupts a blocking
+`read` builtin so the trap can run and hibr matches it; so any shell with
+a trap on a signal that actually arrives -- the console's SIGWINCH on every
+terminal resize, every attach or detach of a held session -- could lose a
+substitution. Measured: 60 substitutions against a signal every 15 ms lost
+**2, 1, 3, 3 and 2** of them on 0.99.114, five runs out of five, and none
+in fifteen runs after.
+
+`io_rdall` retries EINTR. Two reads go through it because the symptom is
+theirs -- `xcap`'s pipe, measured above, and the `:=` capture of a
+program's output (ADR 0038): both read from a child of this shell that is
+still writing, which is what makes an early close fatal rather than merely
+short. Two more go through it for consistency and not for a symptom:
+`xcapfile` for `$(< file)`, and `in_line`'s seekable branch for a script's
+own text. Both of those read a regular file, which a local filesystem does
+not interrupt -- and `in_line`'s *other* branch, the one a piped script
+takes, has always retried EINTR by hand, which is where the habit should
+have come from in the first place. Two kinds of read stay interruptible on
+purpose, because a trap has to be able to break a wait that may never end:
+the `read` builtin, where bash is interrupted too, and `recv` on a socket,
+whose peer is not ours. A truncated socket read is the same class of bug
+and is named in the ticket rather than changed here.
+
+**Found by the test shipped with #143 failing about one run in ten**, on
+the release it was written for -- whose gate passed by luck. `#143`'s own
+note called that status "not reliably reproducible" rather than running it
+in a loop and counting; it was reproducible, and it was a different bug.
+`tests/999-readsig.t` is the guard and is certain rather than lucky: it
+fails 3 runs out of 3 against 0.99.114. `tests/999-waitsig.t` no longer
+counts a substitution's status, and says why.
+
 ## 0.99.114
 
 **An interrupted wait abandoned its child, so a desktop collected zombies

@@ -912,7 +912,7 @@ char *xcapfile(sh *s, const char *src)
 	}
 	s_init(&o);
 	buf = xm(HIBR_IOCH);
-	while ((n = read(fd, buf, HIBR_IOCH)) > 0)
+	while ((n = io_rdall(fd, buf, HIBR_IOCH)) > 0)
 		s_add(&o, buf, (size_t)n);
 	free(buf);
 	close(fd);
@@ -970,7 +970,7 @@ char *xcap(sh *s, const char *src)
 	close(pf[1]);
 	s_init(&o);
 	buf = xm(HIBR_IOCH);
-	while ((n = read(pf[0], buf, HIBR_IOCH)) > 0)
+	while ((n = io_rdall(pf[0], buf, HIBR_IOCH)) > 0)
 		s_add(&o, buf, (size_t)n);
 	free(buf);
 	close(pf[0]);
@@ -1660,7 +1660,7 @@ int ex_cmd(sh *s, node *n)
 		close(cf[1]);
 		s_init(&o);
 		buf = xm(HIBR_IOCH);
-		while ((got = read(cf[0], buf, HIBR_IOCH)) > 0)
+		while ((got = io_rdall(cf[0], buf, HIBR_IOCH)) > 0)
 			s_add(&o, buf, (size_t)got);
 		free(buf);
 		close(cf[0]);

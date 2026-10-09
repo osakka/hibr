@@ -190,7 +190,7 @@ char *in_line(int fd, int seek)
 	s_init(&b);
 	if (seek) {
 		buf = xm(HIBR_IOCH);
-		while ((n = read(fd, buf, HIBR_IOCH)) > 0) {
+		while ((n = io_rdall(fd, buf, HIBR_IOCH)) > 0) {
 			nl = memchr(buf, '\n', (size_t)n);
 			if (nl) {
 				s_add(&b, buf, (size_t)(nl - buf) + 1);

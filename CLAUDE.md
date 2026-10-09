@@ -3048,3 +3048,31 @@ went in the shell.
   to use hibr over dash; moving any of them to a module is a product
   decision about what "just works out of the binary" means, not a cleanup,
   and has not been made.
+
+- **An interrupted read is not an end of input, and the loop that stops at
+  one loses whatever was still coming.** `xcap` collected a command
+  substitution's output with `while ((n = read(pf[0], ...)) > 0)`, and
+  `read` answering -1 with EINTR ends that exactly like an end of file --
+  so the parent closed the pipe and the child, still writing, was killed by
+  SIGPIPE: `v=$(cmd)` came back **empty, with status 141**, with nothing
+  anywhere saying why (Gitea #144). A script's own trap is installed with
+  **no `SA_RESTART`** on purpose -- bash interrupts a blocking `read`
+  builtin so the trap can run -- so a read that must not lose data cannot
+  rely on the flag and goes through `io_rdall`, which retries. The line is
+  whose child the other end is: a substitution, a `:=` from a program,
+  `$(< file)` and the script's own text all read from something this shell
+  started or opened, which ends on its own, so they retry; the `read`
+  builtin and `recv` on a socket stay interruptible, because a trap has to
+  be able to break a wait that may never end. Anything new that reads a
+  descriptor has to pick one of the two on purpose.
+- **A check that fails one run in ten is a bug report, not a flake, and the
+  gate it passed was luck.** `tests/999-waitsig.t` shipped with #143
+  counting a substitution's status beside the zombies, failed about one run
+  in ten on the very release it was written for, and its own comment
+  explained that away as "not reliably reproducible" -- the same words that
+  cost two releases on the YouTube check. It was reproducible, it was a
+  *second* bug (#144, above), and sixty substitutions against a signal
+  every 15 ms fails **3 runs out of 3** on the build it was shipped with.
+  The rule this file already carries -- run the one scenario in a loop and
+  count, then add a knob that makes the window certain -- applies to a
+  check *this* work wrote, not only to one inherited.
