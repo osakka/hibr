@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.99.118
+
+**A map key named `*` or `@` could not be read back** (Gitea #148).
+`${m["*"]}` answered the whole map joined rather than that one entry, and
+`${#m["*"]}` answered how many entries there were rather than how long
+that one was -- so an entry under either name was unreachable, while the
+*assignment* and `unset` worked perfectly, which is what made it look like
+anything other than a read.
+
+`xkeys` dropped a trailing subscript as the all-form when its **expanded
+text** came out as `@` or `*`. It asks the word instead now, `xallw`: one
+unquoted run of text that is exactly `@` or `*`. So `m[*]` and `m[@]` are
+every entry as before, `m["*"]` is the entry named `*` -- quoting meaning
+what it means everywhere else, which is this project's own rule since ADR
+0006 -- and **`m[$i]` with `i=*` is that entry too**, because it was not
+written as the all-form. That last one is the half quoting alone would not
+have fixed, and it is what bash does.
+
+The rule lived in **one of the two splitters**: `bi_keys`, which `unset`,
+`read` and `[[ -v ]]` go through, honoured the quote mask already. A rule
+that has to be kept in two places is a rule that is kept in one of them.
+
+Found by using the shell rather than reading it: 0.99.117's
+`widgets/putruns.hibr` wanted a pen for "any letter not named", called it
+`*`, and the desktop said `console pen: #cbd5e0 #4fd1c5 #f6ad55 ...: not a
+colour` -- which reads as the widget building a bad spec. The widget's
+default pen is still called `else`, because `else` says what it means.
+
+`tests/196-star-key.t` compares every form of it against bash and fails
+against 0.99.117. It prints no multi-key map's `[@]` or `[*]`, on purpose:
+hibr's maps are ordered and bash's iterate its own hash order, so a test
+that printed one would be comparing map order rather than this. Two
+divergences met in the same comparison and *not* changed here -- `${#@}`
+and `${#*}` giving the length of the joined parameters rather than how many
+there are (Gitea #152), and bash's own inconsistent offsets when slicing an
+associative array's `[@]`, where hibr's ordered maps make it consistent and
+bash is the odd one.
+
 ## 0.99.117
 
 **A Mermaid diagram editor, and a diagram in a document** (Gitea #140).

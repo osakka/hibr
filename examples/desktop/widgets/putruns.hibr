@@ -17,13 +17,14 @@
 # characters in [off, off + room) and drawn where that lands, so scrolling
 # sideways costs no more than drawing does. The pens are a word a letter,
 # `letter=colour` with an optional `:bold`, and `else` is what an unnamed
-# letter gets -- `else` and not `*`, because a map key named `*` cannot
-# be read back in this shell (`${M["*"]}` answers the join of every value
-# rather than that one key, Gitea #148, a divergence from bash). It arrived
-# here as `console pen: #cbd5e0 #4fd1c5 ...: not a colour`, which reads as
-# this widget building a bad spec rather than as the shell being unable to
-# read one key. The spec is parsed once and kept against itself, so a frame
-# that draws forty rows with the same pens parses them on the first.
+# letter gets -- `else` and not `*`, which is what it was first called: a
+# map key named `*` could not be read back at all until 0.99.118 (Gitea
+# #148), and it arrived here as `console pen: #cbd5e0 #4fd1c5 ...: not a
+# colour`, which reads as this widget building a bad spec rather than as
+# the shell being unable to read one key. The shell is fixed; the name
+# stays `else`, because `else` says what it means. The spec is parsed once
+# and kept against itself, so a frame that draws forty rows with the same
+# pens parses them on the first.
 #
 # A glyph two columns wide takes one character, so a row holding one has
 # more columns than characters and a run's column is not its character

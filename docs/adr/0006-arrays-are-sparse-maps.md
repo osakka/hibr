@@ -108,6 +108,33 @@ or `xoutq` so the field vector and the mask vector cannot drift apart. A
 desync would make `unset` delete the wrong key, so `xargv` compares the two
 lengths and drops the mask rather than trust it.
 
+## Amendment — only a subscript *written* as a bare `@` or `*` is the all-form
+
+The rule above has a corner it did not say anything about, and for eighteen
+releases the shell got it wrong: `m[*]` and `m[@]` mean every entry, so an
+entry whose **key** is `*` or `@` could not be read back. `${m["*"]}`
+answered the whole map joined and `${#m["*"]}` answered how many entries
+there were rather than how long that one was. bash reads both as the key,
+which is the rule this very document states; the assignment and `unset`
+were right all along, because those go through `bi_keys`, where the quote
+mask was already honoured.
+
+`xkeys` was deciding on the subscript's **expanded text** — if it came out
+as `@` or `*`, that was the all-form. It asks the word instead now
+(`xallw`): one unquoted run of text that is exactly `@` or `*`. So
+
+- `m[*]` and `m[@]` are the all-form, as before;
+- `m["*"]` is the entry named `*`, quoting meaning what it means everywhere
+  else;
+- **`m[$i]` with `i=*` is also that entry**, because it was not written as
+  the all-form — which is what bash does, and the half of this that quoting
+  alone would not have fixed.
+
+Deciding on a value where the question is about what was written is the
+shape of the bug, and it was in one of the two splitters rather than both:
+`bi_keys` had the rule and `xkeys` did not. `tests/196-star-key.t` compares
+every form of it against bash. Gitea #148, fixed in 0.99.118.
+
 Masks are built only when the command asks for them. `xargv` expands the first
 word, and unless that word names a builtin listed by `bi_mask` it never
 allocates a mask at all — so an ordinary command pays for the feature only a

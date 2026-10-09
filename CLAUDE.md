@@ -3126,18 +3126,23 @@ went in the shell.
   identical and both of them meaningless, which is the same lesson as
   `git stash push` not stashing a committed change.
 
-- **A map key named `*` cannot be read back.** `${M["*"]}` answers the join
-  of every value in the map, not that one key -- `xstar` in `src/expand.c`
-  decides on the subscript's *text* and never looks at its quoting, so it
-  cannot tell `[*]` from `["*"]`. bash reads the quoted one as a literal
-  key, and so does this project's own rule, which makes it a divergence
-  rather than a quirk: Gitea #148. It arrived as `console pen: #cbd5e0
-  #4fd1c5 #f6ad55 ...: not a colour` from `widgets/putruns.hibr`, whose
-  obvious name for "any letter not named" was `*` -- which reads as the
-  widget building a bad spec rather than as the shell being unable to read
-  one key. The widget's default pen is called `else`. Anything else that
-  decides on a subscript's text alone -- `[@]`, `unset`, `[[ -v ]]` -- has
-  the same hole and has not been checked.
+- **Only a subscript *written* as a bare `@` or `*` is the all-form; one
+  that merely expands to one is a key.** `xkeys` decided on the
+  subscript's expanded text until 0.99.118, so an entry named `*` or `@`
+  could not be read back at all: `${M["*"]}` answered the whole map joined
+  and `${#M["*"]}` answered how many entries there were rather than how
+  long that one was. It asks the word now (`xallw` -- one unquoted run of
+  text that is exactly `@` or `*`), which also makes `${M[$i]}` with `i=*`
+  read that entry, as bash does. Gitea #148, `tests/196-star-key.t`.
+  Two things worth keeping from how it was found. It arrived as `console
+  pen: #cbd5e0 #4fd1c5 ...: not a colour` from `widgets/putruns.hibr`,
+  whose obvious name for "any letter not named" was `*` -- which reads as
+  the widget building a bad spec rather than as the shell being unable to
+  read one key, and the widget's default pen is still called `else`
+  because that says what it means. And the rule was in **one of the two
+  splitters**: `bi_keys` honoured the quote mask, which is why the
+  assignment and `unset` were right all along while every read was wrong.
+  A rule that lives in two places is a rule that is kept in one of them.
 - **`TB[id]["ver"]` starts again at 0 with `tb_set`, so a cache keyed on it
   misses a whole new document.** `widgets/textarea.hibr` says this in as
   many words and offers `gen`, which never repeats, for exactly this; the

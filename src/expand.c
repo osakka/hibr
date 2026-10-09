@@ -408,6 +408,21 @@ int xall(const char *i)
 	return i && (!strcmp(i, "@") || !strcmp(i, "*"));
 }
 
+/* Whether a subscript was *written* as a bare @ or *, which is the only
+   thing that makes it the all-form. Written in quotes it is the key of
+   that name, and merely *expanding* to one is not it either: `m[$i]` with
+   i=* reads the entry named `*` in bash, where hibr answered the whole map
+   joined until 0.99.118. So this asks the word rather than its value --
+   one unquoted run of text that is exactly `@` or `*`. Gitea #148. */
+int xallw(word *w)
+{
+	part *p;
+
+	if (!w || !(p = w->p) || p->nx || p->k != P_TXT || p->q)
+		return 0;
+	return p->n == 1 && (p->t[0] == '@' || p->t[0] == '*');
+}
+
 /* Whether a variable was declared with declare -A, whose subscripts are
    always literal keys, as in bash. */
 int xassoc(sh *s, const char *nm)
@@ -465,10 +480,22 @@ char *xneg(sh *s, const char *nm, char **ks, int lvl)
 	return k < 0 ? ks[lvl] : xnum(s, k);
 }
 
-/* Expand a part's subscript chain, dropping a trailing @ or *. */
+/* Expand a part's subscript chain, dropping a trailing subscript that was
+   *written* as a bare @ or *. Anything else is a key: `m["*"]` is the
+   entry named `*` and so is `m[$i]` with i=*, where `m[*]` is every entry
+   joined -- the same rule that makes `h["content-type"]` a literal key
+   rather than arithmetic, and what bash does.
+
+   Deciding on the subscript's expanded text instead, which this did until
+   0.99.118, made an entry named `*` or `@` impossible to read back: the
+   read answered the whole map joined and `${#m["*"]}` answered the count
+   rather than the length. Only the assignment and `unset` were right,
+   because those go through bi_keys, where the quote mask was already
+   honoured -- which is the shape of this class of bug, one of two
+   splitters taught a rule. Gitea #148. */
 int xkeys(sh *s, part *p, char ***out, int *all)
 {
-	word *w;
+	word *w, *last = 0;
 	int n = 0, i = 0;
 	char **ks;
 
@@ -484,9 +511,10 @@ int xkeys(sh *s, part *p, char ***out, int *all)
 			    !xassoc(s, p->t))
 				ks[i] = xneg(s, p->t, ks, i);
 		}
+		last = w;
 		i++;
 	}
-	if (n && xall(ks[n - 1])) {
+	if (n && xallw(last)) {
 		*all = 1;
 		n--;
 	}

@@ -198,6 +198,7 @@ int gmatch(const char *p, const char *t);
 int gclass(const char *nm, size_t n, int c);
 const char *xsep(sh *s, int q);
 int xstar(char **ks, int nk);
+int xallw(word *w);
 int j_parsep(sh *s, char *nm, ent *root);
 void b_unexp(sh *s, const char *nm);
 int gcmp(const void *a, const void *b);
