@@ -1,6 +1,18 @@
 #!/usr/bin/env hibr
 #
-# sheet -- a spreadsheet whose formulas are hibr. A cell holds text, a
+# sheet -- a spreadsheet whose formulas are hibr.
+#
+# What this comment says is now a page as well -- docs/sheet.md -- because
+# for twenty releases it was the *only* place any of it was written down,
+# and nobody using the app was ever going to read a source file. Reported
+# as "I have no idea how to use it this way ... there are no examples
+# either" (Gitea #150). The app itself says it too: the formula bar shows
+# what a formula looks like on an empty cell, Help > How Formulas Work is a
+# page of it, and Help > Open the Tour is a sheet of worked examples with
+# one cell the sandbox refuses, which is the only way to see what it does.
+# Keep the three in step: this comment, that page, and the Help window.
+#
+# A cell holds text, a
 # number, or a formula: = and then hibr. What a formula prints is its value
 # -- =math "A1 * 1.2", =sum "${B1_B9[@]}", =date +%F -- and one that begins
 # with an expansion is that expansion: =$((A1 * 2)), ="${A1} each". Every
@@ -43,6 +55,7 @@ command -v dt_app > /dev/null && dt_app sheet "Sheet" 24 84 many "⊞"
 command -v dt_opener > /dev/null && dt_opener sheet "Sheet" "hsheet csv" app sheet
 
 command -v dt_app > /dev/null && dt_app ssask "Sheet" 9 56 "" "" fixed hidden
+command -v dt_app > /dev/null && dt_app sshelp "Sheet" 22 66 once "" fixed hidden
 
 declare -gA SS
 declare -gA SC
@@ -56,6 +69,23 @@ SS_ROWS=100
 SS_COLS=26
 SS_COLW=10
 SS_GUT=5
+
+# The rows this window is made of: a toolbar, the formula bar, the column
+# headers, and the grid from there down. Named, because until 0.99.120 they
+# were the literals 1, 2 and 3 in eight places and adding the toolbar moved
+# every one of them -- including the two in ss_at, where a missed site is a
+# click that lands on a different cell than the one under the pointer.
+SS_TBAR=1
+SS_FBAR=2
+SS_HROW=3
+SS_ROW0=4
+
+# The toolbar: the Format menu's own actions, as buttons, because "there is
+# no toolbar even" was the first thing reported about this app. Each is a
+# label and the tag ss_tool turns back into the same call the menu makes, so
+# there is one implementation of each and not two.
+SS_TOOLS=(B:b I:i "L:al:l" "C:al:c" "R:al:r" "0:nf:0" "0.00:nf:2"
+          "%:pct" "1,000:th" "fx:help")
 SS_CPU=2
 SS_SCHEMA=(r:int c:int v:str:4096 f:str:128)
 SS_REFS=()
@@ -1085,6 +1115,67 @@ fn ss_commit(int id) {
 	ss_recalc "$id"
 }
 
+# What a formula looks like, as much of it as fits. Three examples rather
+# than a sentence, because the thing nobody can guess is the *shape*: an
+# `=` and then hibr, and a cell's own name is a variable. Shown only on an
+# empty cell, so it is never in the way of something to read.
+# The toolbar. Drawn like Write's -- a label and a tag, a region per
+# button -- and every tag is turned back into the call the Format menu
+# already makes, so a button and a menu item cannot drift apart.
+fn ss_toolbar(int id, int w) {
+	local c=1 tl lab tag t col n
+
+	t := str repeat " " "$w"
+	console pen "$DT_INK" "$DT_WELL"
+	console put -p "w$id" "$SS_TBAR" 1 "$t"
+	for tl in "${SS_TOOLS[@]}"; do
+		lab=${tl%%:*}
+		tag=${tl#*:}
+		case $lab in fx) lab=${GL[fx]} ;; esac
+		n=$((${#lab} + 2))
+		[ $((c + n)) -gt "$w" ] && break
+		case $tag in
+		b) console pen "$DT_INK" "$DT_WELL" bold ;;
+		i) console pen "$DT_INK" "$DT_WELL" italic ;;
+		help) console pen "$DT_INFO" "$DT_WELL" ;;
+		*) console pen "$DT_INK" "$DT_WELL" ;;
+		esac
+		col=$c
+		[ "$DT_MIRRORON" = 1 ] && col=$((w + 2 - c - n))
+		console put -p "w$id" "$SS_TBAR" "$col" " $lab "
+		dt_wreg "$id" "$SS_TBAR" "$col" "$n" "tool:$tag"
+		c=$((c + n))
+	done
+	return 0
+}
+
+# What a toolbar button does: the Format menu's own calls, by tag.
+fn ss_tool(int id, tag) {
+	case $tag in
+	b | i | pct | th) ss_toggle "$id" "$tag" ;;
+	al:*) ss_format "$id" al "${tag#al:}" ;;
+	nf:*) ss_format "$id" nf "${tag#nf:}" ;;
+	help) ss_helpshow "$id" ;;
+	*) return 1 ;;
+	esac
+	return 0
+}
+
+fn ss_hint(int room) {
+	local lead t
+
+	# The lead-in is prose and the formulas are code, so only the first is
+	# translated -- the same split the help window makes. Three examples
+	# rather than a sentence, because the thing nobody can guess is the
+	# *shape*: an `=` and then hibr, and a cell's own name is a variable.
+	lead := dt_tr "= then hibr:"
+	t="$lead  "'=math "A1 * 1.2"   =sum "${B1_B9[@]}"   =$((A1 * 2))'
+	[ "${#t}" -gt "$room" ] && t="$lead  "'=math "A1 * 1.2"'
+	[ "${#t}" -gt "$room" ] && t=$lead
+	t := str pad "${t:0:$room}" "$room"
+	ret "$t"
+}
+
 fn sheet_draw(int id, int h, int w, int row, int col) {
 	local cr=${SS[$id]["cr"]} cc=${SS[$id]["cc"]} top left vr nm t s r c x cw
 	local k v sel r0 c0 r1 c1 y ed=${SS[$id]["ed"]} rows cols e fr fc at
@@ -1092,7 +1183,8 @@ fn sheet_draw(int id, int h, int w, int row, int col) {
 	local -a dc dr ats
 
 	dt_wclear "$id"
-	vr=$((h - 3))
+	ss_toolbar "$id" "$w"
+	vr=$((h - SS_ROW0))
 	SS[$id]["vr"]=$vr
 	SS[$id]["ww"]=$((w - SS_GUT))
 	ss_view "$id"
@@ -1110,25 +1202,40 @@ fn sheet_draw(int id, int h, int w, int row, int col) {
 	case $DT_MIRRORON in
 	1) m=1; gx=$((w - SS_GUT + 1)); nx=$gx; bx=$((w - SS_GUT)); px=2 ;;
 	esac
+	# The formula bar: which cell, and what is actually in it -- its
+	# source, so a formula shows as the formula and not as its answer.
+	# It has always been editable; what it never did was say that it is a
+	# formula bar, or what may be typed in one. Reported as "there is no
+	# toolbar even, so I'm not sure how to use hibr inside of it": the
+	# answer to that is not a row of Bold buttons, it is the language
+	# written where it is needed. So an fx mark, and on an empty cell a
+	# dim line of what a formula looks like -- which costs nothing when
+	# there is something in the cell to read instead (Gitea #150).
 	nm := ss_name "$cr" "$cc"
 	console pen "$DT_ACTIVE" "$DT_FACE" bold
-	t := str pad " $nm" "$SS_GUT"
-	console put -p "w$id" 1 "$nx" "$t"
+	t := str pad "${GL[fx]} $nm" "$SS_GUT"
+	console put -p "w$id" "$SS_FBAR" "$nx" "$t"
 	console pen "$DT_IDLE" "$DT_FACE"
-	console put -p "w$id" 1 "$bx" "${GL[vline]}"
+	console put -p "w$id" "$SS_FBAR" "$bx" "${GL[vline]}"
 	if [ "$ed" = 1 ]; then
-		dt_textdraw "$id" 1 "$px" $((w - SS_GUT - 3)) \
+		dt_textdraw "$id" "$SS_FBAR" "$px" $((w - SS_GUT - 3)) \
 			"${SS[$id]["buf"]}" "${SS[$id]["cur"]}" 1
 	else
 		s=${SC[$id]["$cr:$cc"]["src"]}
-		console pen "$DT_INK" "$DT_FACE"
-		t := str pad "${s:0:$((w - SS_GUT - 3))}" $((w - SS_GUT - 3))
-		console put -p "w$id" 1 "$px" "$t"
+		if [ -z "$s" ]; then
+			console pen "$DT_DIM" "$DT_FACE"
+			t := ss_hint $((w - SS_GUT - 3))
+		else
+			console pen "$DT_INK" "$DT_FACE"
+			t := str pad "${s:0:$((w - SS_GUT - 3))}" \
+				$((w - SS_GUT - 3))
+		fi
+		console put -p "w$id" "$SS_FBAR" "$px" "$t"
 	fi
 
 	console pen "$DT_DIM" "$DT_WELL"
 	t := str pad "" "$SS_GUT"
-	console put -p "w$id" 2 "$gx" "$t"
+	console put -p "w$id" "$SS_HROW" "$gx" "$t"
 	x=$((SS_GUT + 1))
 	[ "$m" = 1 ] && x=$((w - SS_GUT))
 	fr=${SS[$id]["fr"]:-0}
@@ -1162,18 +1269,18 @@ fn sheet_draw(int id, int h, int w, int row, int col) {
 				t=${t:$((2 - cx))}
 				console put -p "w$id" 2 2 "$t"
 			else
-				console put -p "w$id" 2 "$cx" "$t"
-				dt_wreg "$id" 2 "$cx" 1 "edge:$c"
+				console put -p "w$id" "$SS_HROW" "$cx" "$t"
+				dt_wreg "$id" "$SS_HROW" "$cx" 1 "edge:$c"
 			fi
-			dt_wreg "$id" 2 $((cx + 1)) $((cw - 1)) "colh:$c"
+			dt_wreg "$id" "$SS_HROW" $((cx + 1)) $((cw - 1)) "colh:$c"
 			SS[$id]["vcols"]="${SS[$id]["vcols"]} $c:$cx:$cw"
 			x=$((cx - 1))
 			continue
 		fi
 		[ $((x + cw - 1)) -gt "$w" ] && t=${t:0:$((w - x + 1))}
-		console put -p "w$id" 2 "$x" "$t"
-		dt_wreg "$id" 2 "$x" $((cw - 1)) "colh:$c"
-		dt_wreg "$id" 2 $((x + cw - 1)) 1 "edge:$c"
+		console put -p "w$id" "$SS_HROW" "$x" "$t"
+		dt_wreg "$id" "$SS_HROW" "$x" $((cw - 1)) "colh:$c"
+		dt_wreg "$id" "$SS_HROW" $((x + cw - 1)) 1 "edge:$c"
 		SS[$id]["vcols"]="${SS[$id]["vcols"]} $c:$x:$cw"
 		x=$((x + cw))
 	done
@@ -1184,7 +1291,7 @@ fn sheet_draw(int id, int h, int w, int row, int col) {
 	r=$top
 	while [ "$r" -lt "$rows" ] && [ "${#dr[@]}" -lt "$vr" ]; do dr+=("$r"); r=$((r + 1)); done
 	SS[$id]["vrows"]="${dr[*]}"
-	y=3
+	y=$SS_ROW0
 	for r in "${dr[@]}"; do
 		if [ "$r" -ge "$r0" ] && [ "$r" -le "$r1" ]; then
 			console pen "$DT_ACTIVE" "$DT_WELL" bold
@@ -1258,7 +1365,7 @@ fn sheet_draw(int id, int h, int w, int row, int col) {
 	x=$w
 	[ "$m" = 1 ] && x=1
 	[ "$top" -gt 0 ] || [ "$rows" -gt "$vr" ] &&
-		dt_scrollbar "$id" 3 "$x" "$vr" "$rows" "$vr" "$top"
+		dt_scrollbar "$id" "$SS_ROW0" "$x" "$vr" "$rows" "$vr" "$top"
 }
 
 fn sheet_key(int id, key) {
@@ -1315,14 +1422,14 @@ fn ss_at(int id, int r, int c) {
 	local -a vc vw
 	local e cn x cw
 
-	[ "$r" -ge 3 ] || return 1
+	[ "$r" -ge "$SS_ROW0" ] || return 1
 	read -ra vw <<< "${SS[$id]["vrows"]}"
-	[ $((r - 3)) -lt "${#vw[@]}" ] || return 1
+	[ $((r - SS_ROW0)) -lt "${#vw[@]}" ] || return 1
 	read -ra vc <<< "${SS[$id]["vcols"]}"
 	for e in "${vc[@]}"; do
 		cn=${e%%:*} x=${e#*:} x=${x%%:*} cw=${e##*:}
 		if [ "$c" -ge "$x" ] && [ "$c" -lt $((x + cw)) ]; then
-			ret "${vw[$((r - 3))]} $cn"
+			ret "${vw[$((r - SS_ROW0))]} $cn"
 			return 0
 		fi
 	done
@@ -1356,6 +1463,10 @@ fn sheet_mouse(int id, act, btn, int r, int c, mods = "") {
 		[ "${SS[$id]["ed"]}" = 1 ] && ss_commit "$id"
 		tag := dt_hit "$id" "$r" "$c"
 		case $tag in
+		tool:*)
+			ss_tool "$id" "${tag#tool:}"
+			return 0
+			;;
 		edge:*)
 			SS[$id]["drag"]=${tag#edge:}
 			return 0
@@ -1826,9 +1937,128 @@ sheet_menus() {
 	ss_trusted "$id" && on=1
 	dt_mark "Trust This Sheet${GL[ellipsis]}" t "$on" ss_trust "$id"
 	ss_formatmenu "$id"
+	dt_menu "Help"
+	dt_item "How Formulas Work" f ss_helpshow "$id"
+	dt_item "Open the Tour" t ss_tour "$id"
 }
 
 # A mark for whether the cursor's cell has a format item at a value.
+# What formulas are, in a window of its own -- the one thing about this app
+# nobody can guess, and until 0.99.120 it was written down only in this
+# file's own header comment, where no user will ever look (Gitea #150).
+#
+# A window rather than a note: a note times out, and this is a page to
+# read. The same shape ssask uses, which is this app's dialog already.
+fn ss_helpshow(int id) {
+	local h=22 w=66 r c
+
+	# Eighteen lines and a button need all of twenty-two rows, so on a
+	# short screen the window is clamped rather than drawn off the end --
+	# at 80 by 24, the smallest the suites run, it fits exactly.
+	[ "$h" -gt $((DT_ROWS - 2)) ] && h=$((DT_ROWS - 2))
+	[ "$w" -gt $((DT_COLS - 2)) ] && w=$((DT_COLS - 2))
+	r=$((DT_ROWS / 2 - h / 2))
+	c=$(((DT_COLS - w) / 2))
+	[ "$r" -lt 1 ] && r=1
+	[ "$c" -lt 1 ] && c=1
+	dt_new "Sheet" "$h" "$w" "$r" "$c" sshelp
+}
+
+fn sshelp_draw(int id, int h, int w, int row, int col) {
+	local i=1
+
+	dt_wclear "$id"
+	console pen "$DT_INK" "$DT_FACE" bold
+	dt_tput "$id" "$i" 2 "A formula is = and then hibr."
+	i=$((i + 2))
+	console pen "$DT_INK" "$DT_FACE"
+	dt_tput "$id" "$i" 2 "What it prints is the cell's value:"
+	i=$((i + 1))
+	ss_helpcode "$id" "$i" '=math "A1 * 1.2"'
+	dt_tput "$id" "$i" 28 "a number, worked out"
+	i=$((i + 1))
+	ss_helpcode "$id" "$i" '=sum "${B1_B9[@]}"'
+	dt_tput "$id" "$i" 28 "over a range, row by row"
+	i=$((i + 1))
+	ss_helpcode "$id" "$i" "=date +%F"
+	dt_tput "$id" "$i" 28 "any command you can run"
+	i=$((i + 2))
+	console pen "$DT_INK" "$DT_FACE"
+	dt_tput "$id" "$i" 2 "One that begins with an expansion is that expansion:"
+	i=$((i + 1))
+	ss_helpcode "$id" "$i" '=$((A1 * 2))'
+	dt_tput "$id" "$i" 28 "arithmetic"
+	i=$((i + 1))
+	ss_helpcode "$id" "$i" '="${A1} each"'
+	dt_tput "$id" "$i" 28 "text"
+	i=$((i + 2))
+	console pen "$DT_INK" "$DT_FACE"
+	dt_tput "$id" "$i" 2 "A cell a formula names is a variable of that name, and a"
+	i=$((i + 1))
+	dt_tput "$id" "$i" 2 "range A1_B9 an array of its values, worked out in the"
+	i=$((i + 1))
+	dt_tput "$id" "$i" 2 "order they need each other; one needing itself says #CYCLE."
+	i=$((i + 2))
+	console pen "$DT_WARN" "$DT_FACE"
+	dt_tput "$id" "$i" 2 "Formulas run as a dry run: one that would write or connect"
+	i=$((i + 1))
+	dt_tput "$id" "$i" 2 "says #REFUSED, one that loops says #TIME. Trust This Sheet"
+	i=$((i + 1))
+	dt_tput "$id" "$i" 2 "lifts that for one sheet, here only."
+	dt_dlgbtns "$id" "$h" "$w" ok ok Close
+	return 0
+}
+
+# A formula as it is written. Never translated -- it is code -- and never
+# through dt_tput, which would put it in the catalogue. What it is *for* is
+# drawn by the caller with dt_tput, so tools/strings.py sees that literal
+# where it would not see one passed in as an argument.
+fn ss_helpcode(int id, int r, code) {
+	console pen "$DT_INFO" "$DT_FACE"
+	console put -p "w$id" "$r" 4 "$code"
+	console pen "$DT_DIM" "$DT_FACE"
+	return 0
+}
+
+fn sshelp_click(int id, int r, int c, btn = "") {
+	local p
+
+	p := dt_hit "$id" "$r" "$c" || return 0
+	case $p in ok) dt_del "$id" ;; esac
+	return 0
+}
+
+fn sshelp_key(int id, key) {
+	case $key in
+	escape | enter | " " | q) dt_del "$id" ;;
+	*) return 1 ;;
+	esac
+	return 0
+}
+
+# A sheet whose cells are the documentation: every formula in it is one you
+# can look at, change and watch work out again, including one the sandbox
+# refuses -- which is the only way Trust This Sheet means anything. Shipped
+# as CSV rather than as a .hsheet, because a sheet is a db file and nobody
+# should have to take a binary on trust; imported into a *new* window, so
+# it cannot land on top of what someone was working on.
+fn ss_tour(int id) {
+	local p nid t
+
+	# DT_HERE is the desktop's own directory, which is where the examples
+	# are installed beside it -- not this file's, which is two levels
+	# down in apps/Office/.
+	p=${DT_HERE:-${BASH_SOURCE%/*}/../..}/examples/tour.csv
+	[ -r "$p" ] ||
+		{ dt_notep high "The tour is not installed"; return 1; }
+	nid := dt_launch sheet
+	[ -n "$nid" ] || return 1
+	ss_importcsv "$nid" "$p"
+	t := dt_tr "Tour"
+	command -v dt_retitle > /dev/null && dt_retitle "$nid" "Sheet [$t]"
+	return 0
+}
+
 fn ss_fmark(int id, label, key, k, v, ...cmd) {
 	local on=0
 

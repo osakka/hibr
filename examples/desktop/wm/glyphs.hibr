@@ -54,6 +54,7 @@ fn dt_glyphs(set = "unicode") {
 		GL["star"]="*"; GL["flag"]="!"; GL["heart"]="*"; GL["warn"]="!"
 		GL["task"]="[ ]"; GL["taskdone"]="[x]"; GL["pin"]="*"
 		GL["newline"]="~"; GL["ellipsis"]="~"; GL["quote"]='"'; GL["dash"]="-"
+		GL["fx"]="fx"
 		GL["home"]="H"; GL["trash"]="u"; GL["trashfull"]="U"; GL["disk"]="D"
 		GL["spark1"]="_"; GL["spark2"]="."; GL["spark3"]="-"
 		GL["spark4"]=":"; GL["spark5"]="="; GL["spark6"]="+"
@@ -118,6 +119,7 @@ fn dt_glyphs(set = "unicode") {
 		GL["newline"]=$'⏎'   # RETURN SYMBOL
 		GL["ellipsis"]=$'…'  # HORIZONTAL ELLIPSIS
 		GL["quote"]=$'❝'     # HEAVY DOUBLE TURNED COMMA QUOTATION MARK ORNAMENT
+		GL["fx"]=$'ƒx'    # LATIN SMALL LETTER F WITH HOOK, then x
 		GL["dash"]=$'—'      # EM DASH
 		GL["flag"]=$'⚑'      # BLACK FLAG
 		GL["heart"]=$'♥'     # BLACK HEART SUIT
@@ -171,5 +173,6 @@ dt_glyphsnerd() {
 	GL["pin"]=$'\uf08d'       # nf-fa-thumb_tack
 	GL["task"]=$'\uf096'      # nf-fa-square_o
 	GL["taskdone"]=$'\uf046'  # nf-fa-check_square_o
+	GL["fx"]=$'\uf1ec'       # nf-fa-calculator
 }
 dt_glyphs "$DT_GLYPHSET"

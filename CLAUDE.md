@@ -3211,3 +3211,40 @@ went in the shell.
   was right and the shell was wrong both times. Before believing a
   compared-against-bash test is flaky, run the comparison by hand from a
   shell set up the way the harness's was.
+
+- **A thing built and then not handed over is worse than one not built, and
+  Sheet was the proof.** Its formula language -- `=` and then hibr, every
+  named cell a variable, every range an array, the whole thing sandboxed
+  under `--plan` -- was documented in thirty-six lines at the top of
+  `apps/Office/sheet.hibr` and nowhere else: no toolbar, no Help, no
+  example, no page under `docs/`. Reported as *"I have no idea how to use
+  it this way ... there are no examples either"*, which is not a missing
+  feature, it is work already paid for and never delivered. Four things
+  fixed it and the cheapest was the best: **the formula bar says what a
+  formula looks like when the cell is empty**, so the language is taught at
+  the one moment it is needed, for no layout change at all. Before building
+  a feature to answer "I don't know how to use this", look for whether the
+  app can simply say so where the question is asked.
+- **Before building what a report asks for, check it is not already
+  there.** "There is no toolbar even" was read as "add a formula bar", and
+  Sheet has had one since it was written -- row one is the cell's name and
+  its source, editable. What it had never done was *look* like one. The
+  release that followed is an `fx` mark, a hint, a Help window, an example
+  and a page; the formula bar itself needed one character.
+- **An app's row numbers belong in named constants the moment a second one
+  is added.** Sheet drew its formula bar at 1, its headers at 2 and its
+  grid from 3, as literals in eight places including both of `ss_at`'s --
+  where a missed one is a click that lands on a different cell than the
+  pointer. Adding a toolbar row moved every one. They are `SS_TBAR`,
+  `SS_FBAR`, `SS_HROW` and `SS_ROW0` now, and `tests/apps.py`'s own
+  `shcells` takes a **sheet** row rather than a screen row for the same
+  reason: fourteen checks each held a screen row of their own and all
+  fourteen broke at once.
+- **A test fixture that bypasses the thing being tested proves nothing.**
+  Checking the new toolbar, a cell was set by writing `SC[$id][...]`
+  straight into the app's own table -- and clicking Bold made the value
+  *vanish*, which looked like a real bug for several minutes. It was the
+  fixture: `ss_toggle` writes the format and re-renders from the db file,
+  where a hand-set cell does not exist. On a real sheet the same click
+  works. This is the "fixed input standing in for a real command's output"
+  trap in its other form -- not a wrong value, a wrong *store*.

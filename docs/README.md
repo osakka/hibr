@@ -32,6 +32,7 @@ exists. These pages are the detail.
 | [Builtins](builtins.md) | All 73, what each takes and what it gives back |
 | `man hibr` | Every flag (`--agent`, `--explain`, `--plan`, `--checkfirst`), environment variable, file and exit status |
 | [Modules](modules.md) | The module ABI, and writing one |
+| [Sheet](sheet.md) | The spreadsheet whose formula language is hibr: formulas, cells as variables, ranges as arrays, and the sandbox they run in |
 
 ## Build on it
 

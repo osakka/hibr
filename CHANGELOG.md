@@ -1,5 +1,57 @@
 # Changelog
 
+## 0.99.120
+
+**Sheet says what it can do** (Gitea #150). Reported as *"I have no idea
+how to use it this way, and there is no toolbar even, so I'm not sure how
+to use hibr inside of it? There are no examples either ... I would love to
+get some real documenation in place as well."*
+
+The uncomfortable part: **Sheet could already do all of it**. Its formula
+language -- `=` and then hibr, every named cell a variable, every range
+`A1_B9` an array, the whole thing sandboxed under `--plan` with `#REFUSED`,
+`#TIME` and `#CYCLE` -- was written down in thirty-six lines at the top of
+`apps/Office/sheet.hibr` and nowhere else. That is not a missing feature.
+It is work already paid for and never handed over.
+
+And one correction to the report, which changed the shape of the release:
+**Sheet has always had a formula bar.** Row one is the current cell's name
+and its *source*, editable in place. What it had never done was look like
+one. So:
+
+- **The formula bar says so**: an `ƒx` mark, and on an **empty cell** a dim
+  line of what a formula looks like -- `= then hibr: =math "A1 * 1.2"
+  =sum "${B1_B9[@]}" =$((A1 * 2))`. The language is taught at the one
+  moment it is needed, and it costs no layout change. This is the smallest
+  change in the release and the one that answers the question.
+- **A toolbar**, which is what was actually missing: the Format menu's own
+  actions as buttons -- bold, italic, three alignments, decimals, percent,
+  thousands -- and an `ƒx` button that opens the help. Each button runs the
+  same call the menu makes, so the two cannot drift apart.
+- **Help > How Formulas Work**, a page of it in a window, with the
+  formulas written as code and only the prose translated -- a catalogue
+  entry holding both would ask a translator to keep a shell expansion
+  intact inside a sentence.
+- **Help > Open the Tour**: a sheet whose cells *are* the documentation,
+  shipped as `examples/tour.csv` (a CSV field beginning `=` arrives as a
+  formula, so an example need not be a binary), imported into a **new**
+  window so it cannot land on what you were working on. Two of its cells
+  are a formula that would write a file and one that loops, so `#REFUSED`
+  and `#TIME` can be *seen* -- which is the only way Trust This Sheet means
+  anything.
+- **`docs/sheet.md`**, with the screenshots taken from the running app.
+  The source header now points at it rather than being the only copy.
+
+Adding the toolbar moved every row in the window, and those rows were the
+literals 1, 2 and 3 in eight places -- including both of `ss_at`'s, where
+a missed one is a click landing on a different cell than the pointer. They
+are `SS_TBAR`, `SS_FBAR`, `SS_HROW` and `SS_ROW0` now, and `tests/apps.py`
+takes a **sheet** row rather than a screen row for the same reason:
+fourteen checks each held one of their own and all fourteen broke at once.
+
+Nine checks added; `GL[fx]` is in all three glyph sets, and the
+twenty-seven new strings are in the Arabic catalogue by hand.
+
 ## 0.99.119
 
 **An ignored signal is a trap, and `trap` now says so** (Gitea #151).

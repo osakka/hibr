@@ -57,11 +57,14 @@
 24-bit sent; COLORTERM unset
 24-bit sent; COLORTERM=%s
 < <= > >= = !=, a number, then good, warn, bad,
+= then hibr:
 A Note at Each Prayer
+A cell a formula names is a variable of that name, and a
 A cell holds at most 4096 bytes
 A command is needed
 A contact needs a name or an email
 A folder is needed
+A formula is = and then hibr.
 A message was not sent: %s
 A rule is an operator, a number and a colour: < 0 bad
 A terminal cannot start in a folder on a server
@@ -320,6 +323,7 @@ Follow Program Title
 For Fajr
 Format
 Format:
+Formulas run as a dry run: one that would write or connect
 Forward
 Frame
 Frames a Second
@@ -352,6 +356,7 @@ History Size
 History cleared
 Home
 Hostname: %s
+How Formulas Work
 Icons
 Identify
 Image
@@ -521,6 +526,7 @@ On 30 Seconds
 On Every Workspace
 On a server: no owner or permissions here.
 On the clipboard: %s characters
+One that begins with an expansion is that expansion:
 Only files can be dropped on a window
 Open
 Open %s with:
@@ -532,6 +538,7 @@ Open Screenshots
 Open Terminal Here
 Open With
 Open With in Menu
+Open the Tour
 Open…
 Order
 Order Right-to-Left Text
@@ -739,6 +746,7 @@ The mermaid module is not loaded
 The record could not be added
 The remote file cache is empty
 The time is HH:MM or HH:MM:SS
+The tour is not installed
 The vault has locked
 The vault is empty.
 The vault is locked
@@ -770,6 +778,7 @@ Titlebar Click
 Today
 Today  Month  Agenda
 Top
+Tour
 Trash
 Trust %s? Its formulas will run as you: write files, start programs, use the network.
 Tue
@@ -805,6 +814,7 @@ Wallpaper set
 Wed
 Wednesday
 Week
+What it prints is the cell's value:
 Where are you? Control Panel > Prayer Times
 Where:
 Wider Column
@@ -826,7 +836,10 @@ Your answer is sent to %s
 Zoom
 [exited %s — close this window]
 a command; the file goes after it, in a terminal
+a number, worked out
 and it is kept to come back to.
+any command you can run
+arithmetic
 blocks only, no cell size given
 blocks only, no pixels
 blocks only: it does not draw pixels
@@ -846,13 +859,19 @@ hibr %s — a desktop written in the shell it runs on
 hibr desktop v%s
 hibr v%s, module ABI %s
 integers only
+lifts that for one sheet, here only.
 moving — arrows, then enter
 no
 not reported
 note
+order they need each other; one needing itself says #CYCLE.
+over a range, row by row
 phone
+range A1_B9 an array of its values, worked out in the
 resizing — arrows, then enter
+says #REFUSED, one that loops says #TIME. Trust This Sheet
 server to keep its vault here, readable offline.
 sets a place, or the time zone gives one.
+text
 yes, %s displays attached
 yes, 1 display attached

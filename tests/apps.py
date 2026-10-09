@@ -3510,9 +3510,28 @@ def shrun(feed, pre="", arg="", wait=0.6, env=None):
     return sc
 
 
-def shcells(sc, row):
-    """A sheet's row of cells, by screen row: the text after the gutter."""
-    return sc.row(row)[8:76]
+# Where the window puts things, counted once: the toolbar, the formula bar,
+# the column headers, and the screen row sheet row 1 is drawn on. 0.99.120
+# added the toolbar and every one of these moved down by one -- which broke
+# fourteen checks that each held a screen row of their own, so they hold a
+# *sheet* row now and this is the only place that knows the difference.
+SH_TBAR = 2
+SH_FBAR = 3
+SH_HROW = 4
+SH_ROW0 = 5
+
+
+def shcells(sc, n):
+    """A sheet's row of cells by its own number, 1-based: after the gutter."""
+    return sc.row(SH_ROW0 + n - 1)[8:76]
+
+
+def shname(sc):
+    """What the formula bar says the current cell is. Found from the fx mark
+    rather than by column, because mirrored the gutter is at the right."""
+    r = sc.row(SH_FBAR)
+    i = r.index("\u0192x ")
+    return r[i + 3:].split("\u2502")[0].strip()
 
 
 def shk(t):
@@ -3522,36 +3541,35 @@ def shk(t):
 SHEET = SHD + "/untitled-1.hsheet"
 sc = shrun(shk("5") + [b"\r"] + shk("hello") + [b"\r", b"\x1b[A", b"\x1b[D"],
            env={"DT_LANG": "xy"})
-head = [r for r in range(sc.rows) if " G " in sc.row(r) and " A " in sc.row(r)]
+head = sc.row(SH_HROW)
 check("mirrored, Sheet's column A is at the right and the columns run left",
-      head and sc.row(head[0]).index(" A ") > sc.row(head[0]).index(" B ") >
-      sc.row(head[0]).index(" G "), sc)
+      head.index(" A ") > head.index(" B ") > head.index(" C "), head)
 check("and the left arrow moves to the next column, B",
-      sc.find(" B2 ") is not None, sc)
+      shname(sc) == "B2", sc)
 os.remove(SHEET)
 sc = shrun(shk("5") + [b"\r"] + shk("7") + [b"\r"] +
            shk('=math "A1+A2*1.5"') + [b"\r"])
 check("Sheet takes numbers and a formula, and math works it out",
-      "15.5" in shcells(sc, 6) and "5" in shcells(sc, 4), sc)
-check("its formula bar names the cell", sc.find(" A4 ") is not None, sc)
+      "15.5" in shcells(sc, 3) and "5" in shcells(sc, 1), sc)
+check("its formula bar names the cell", shname(sc) == "A4", sc)
 sc = shrun([], arg=SHEET)
 check("what was typed is in the file, there when it is opened again",
-      "15.5" in shcells(sc, 6) and "Sheet [Untitled]" in sc.text(), sc)
+      "15.5" in shcells(sc, 3) and "Sheet [Untitled]" in sc.text(), sc)
 os.remove(SHEET)
 sc = shrun(shk("1") + [b"\r"] + shk("2") + [b"\r"] + shk("3") + [b"\r"] +
            shk('=sum "${A1_A3[@]}"') + [b"\r"] + shk("=$((A4 * 10))") +
            [b"\r"])
 check("a range is an array of its cells, and a formula can be an expansion",
-      "6" in shcells(sc, 7) and "60" in shcells(sc, 8), sc)
+      "6" in shcells(sc, 4) and "60" in shcells(sc, 5), sc)
 os.remove(SHEET)
 sc = shrun(shk("=touch %s/made" % SHD) + [b"\r", b"\x1b[A"])
 check("a formula that would write is refused, and says what it would do",
-      "#REFUSED" in shcells(sc, 4) and "would run touch" in sc.text() and
+      "#REFUSED" in shcells(sc, 1) and "would run touch" in sc.text() and
       not os.path.exists(SHD + "/made"), sc)
 os.remove(SHEET)
 sc = shrun(shk("=echo $A2") + [b"\r"] + shk("=echo $A1") + [b"\r"])
 check("two formulas that need each other say #CYCLE",
-      "#CYCLE" in shcells(sc, 4) and "#CYCLE" in shcells(sc, 5), sc)
+      "#CYCLE" in shcells(sc, 1) and "#CYCLE" in shcells(sc, 2), sc)
 os.remove(SHEET)
 sc = shrun(shk("=touch %s/made" % SHD) + [b"\r"],
            pre="SS_TRUST=%s" % SHEET)
@@ -3569,8 +3587,8 @@ sc = shrun(shk("2") + [b"\r"] + shk("=$((A1 * 3))") + [b"\r", b"\x1b[A",
                                                         b"\x1b[C", b"a", 0.4,
                                                         b"\x1b[B", b"\x1b[B"])
 check("a row inserted above moves the cells down, and the formula follows",
-      shcells(sc, 4).strip() == "" and "2" in shcells(sc, 5) and
-      "6" in shcells(sc, 6) and "=$((A2 * 3))" in sc.row(2), sc)
+      shcells(sc, 1).strip() == "" and "2" in shcells(sc, 2) and
+      "6" in shcells(sc, 3) and "=$((A2 * 3))" in sc.row(SH_FBAR), sc)
 os.remove(SHEET)
 sc = shrun(shk("a") + [b"\r"] + shk("1,5") + [b"\r", b"\x1b[21~", b"\x1b[C",
                                               b"e", 0.5, b"\x15"] +
@@ -3579,16 +3597,17 @@ out = open(SHD + "/out.csv").read() if os.path.exists(SHD + "/out.csv") else ""
 check("File > Export CSV writes what the cells show, quoting a comma",
       out == 'a\n"1,5"\n', repr(out))
 os.remove(SHEET)
-sc = shrun([press(3, 17), drag(3, 19), drag(3, 21), release(3, 21), 0.3])
+sc = shrun([press(SH_HROW, 17), drag(SH_HROW, 19), drag(SH_HROW, 21),
+            release(SH_HROW, 21), 0.3])
 check("a column's edge in the header drags it wider",
-      sc.at(3, 26) == "B" and sc.at(3, 22) != "B", sc)
+      sc.at(SH_HROW, 26) == "B" and sc.at(SH_HROW, 22) != "B", sc)
 os.remove(SHEET)
 sc = shrun(shk("1234.5") + [b"\r"] + shk("-7") + [b"\r", b"\x1b[A", b"\x1b[A",
                                                    b"\x1b[1;2B", b"\x1b[21~"] +
            [b"\x1b[C"] * 4 + [b"\x1b[B"] * 5 + [b"\x1b[C"] + [b"\x1b[B"] * 3 +
            [b"\r"])
 check("Format > Number > 2 Decimals formats the whole selection",
-      "1234.50" in shcells(sc, 4) and "-7.00" in shcells(sc, 5), sc)
+      "1234.50" in shcells(sc, 1) and "-7.00" in shcells(sc, 2), sc)
 os.remove(SHEET)
 FMT = SHD + "/formats.hsheet"
 subprocess.run([sx.HIBR, "-c", 'need db; h := db create "$1" r:int c:int '
@@ -3604,14 +3623,14 @@ subprocess.run([sx.HIBR, "-c", 'need db; h := db create "$1" r:int c:int '
                capture_output=True)
 sc = shrun([], arg=FMT)
 check("thousands, decimals, percent and currency show as asked",
-      "1,234,567.89" in shcells(sc, 4) and "25.6%" in shcells(sc, 5) and
-      "-$5" in shcells(sc, 6), sc)
+      "1,234,567.89" in shcells(sc, 1) and "25.6%" in shcells(sc, 2) and
+      "-$5" in shcells(sc, 3), sc)
 check("a rule colours a negative number, and leaves a positive one alone",
-      sc.style(7, 22)["fg"] != sc.style(8, 22)["fg"], (sc.style(7, 22),
-                                                         sc.style(8, 22)))
+      sc.style(SH_ROW0 + 3, 22)["fg"] != sc.style(SH_ROW0 + 4, 22)["fg"], (sc.style(SH_ROW0 + 3, 22),
+                                                         sc.style(SH_ROW0 + 4, 22)))
 check("bold, and alignment to the right, for text",
-      sc.style(9, 22)["bold"] and shcells(sc, 9).rstrip().endswith("hi") and
-      shcells(sc, 9).index("hi") > 10, sc)
+      sc.style(SH_ROW0 + 5, 22)["bold"] and shcells(sc, 6).rstrip().endswith("hi") and
+      shcells(sc, 6).index("hi") > 10, sc)
 if os.path.exists(SHEET):
     os.remove(SHEET)
 sc = shrun(shk("150") + [b"\r"] + shk("50") + [b"\r", b"\x1b[A", b"\x1b[A",
@@ -3620,12 +3639,60 @@ sc = shrun(shk("150") + [b"\r"] + shk("50") + [b"\r", b"\x1b[A", b"\x1b[A",
            [b"\r", 0.5] + shk("> 100 good") + [b"\r", 0.5, b"\x1b[B",
                                                  b"\x1b[B"])
 check("Colour by Value > Rule takes \"> 100 good\" and colours only what meets it",
-      sc.style(4, 12)["fg"] != sc.style(5, 12)["fg"], (sc.style(4, 12),
-                                                         sc.style(5, 12)))
+      sc.style(SH_ROW0 + 0, 12)["fg"] != sc.style(SH_ROW0 + 1, 12)["fg"], (sc.style(SH_ROW0 + 0, 12),
+                                                         sc.style(SH_ROW0 + 1, 12)))
 sc = shrun([b"\x1b[6~", b"\x1b[6~", b"\x1b[6~"], arg=FMT)
 check("a frozen top row stays while the rest scrolls",
-      "1,234,567.89" in shcells(sc, 4) and "   1 " in sc.row(4) and
+      "1,234,567.89" in shcells(sc, 1) and "   1 " in sc.row(SH_ROW0) and
       "25.6%" not in sc.text(), sc)
+# What 0.99.120 added, because the app could do all of this and said so
+# only in its own source comment: "I have no idea how to use it this way,
+# and there is no toolbar even, so I'm not sure how to use hibr inside of
+# it?" (Gitea #150).
+if os.path.exists(SHEET):
+    os.remove(SHEET)
+sc = shrun([])
+check("an empty cell's formula bar says what a formula looks like",
+      "= then hibr" in sc.row(SH_FBAR) and
+      '=math "A1 * 1.2"' in sc.row(SH_FBAR), sc)
+check("and the bar is marked as one, with the cell it is on",
+      "\u0192x" in sc.row(SH_FBAR) and shname(sc) == "A1", sc)
+sc = shrun(shk("12") + [b"\r", b"\x1b[A"])
+check("a cell with something in it shows that instead of the hint",
+      "12" in sc.row(SH_FBAR) and "= then hibr" not in sc.row(SH_FBAR), sc)
+check("the toolbar is there, with the Format menu's own actions on it",
+      all(b in sc.row(SH_TBAR) for b in ("B", "I", "L", "C", "R", "%")), sc)
+# A button and the menu item run the same code, so clicking one is enough.
+bcol = sc.row(SH_TBAR).index(" B ") + 1
+sc = shrun(shk("12") + [b"\r", b"\x1b[A",
+                        press(SH_TBAR, bcol), release(SH_TBAR, bcol), 0.4])
+vcol = sc.row(SH_ROW0).index("12")
+check("clicking a toolbar button formats the cell",
+      sc.style(SH_ROW0, vcol)["bold"] and "12" in shcells(sc, 1), sc)
+os.remove(SHEET)
+# The fx button and Help > How Formulas Work are the same window.
+fcol = sc.row(SH_TBAR).index("\u0192x")
+sc = shrun([press(SH_TBAR, fcol), release(SH_TBAR, fcol), 0.5])
+check("the fx button opens a window saying what a formula is",
+      sc.find("A formula is = and then hibr.") is not None and
+      sc.find("#REFUSED") is not None, sc)
+check("and it fits, with its button clear of the text",
+      sc.find("Close") is not None and
+      sc.find("Close")[0] > sc.find("#REFUSED")[0], sc)
+os.remove(SHEET)
+# The tour: a sheet of worked examples, in a window of its own, with the
+# formulas actually worked out -- and one the sandbox refuses, which is the
+# only way Trust This Sheet means anything.
+sc = shrun([b"\x1b[21~"] + [b"\x1b[C"] * 5 + [b"t", 0.4] +
+           [b"\x1b[B", b"\r", 1.5],
+           pre='DT_HERE=%s' % tree("examples/desktop"))
+check("Help > Open the Tour opens a sheet of worked examples, worked out",
+      "Sheet [Tour]" in sc.text() and "42" in sc.text() and
+      "2026" in sc.text(), sc)
+tourcsv = open(tree("examples/desktop/examples") + "/tour.csv").read()
+check("and the example it ships has a cell the sandbox refuses, so the "
+      "refusal can be seen rather than only described",
+      "=touch " in tourcsv and "#REFUSED" in tourcsv, tourcsv[:80])
 shutil.rmtree(SHD, True)
 
 # Write: markdown shown as it reads, the cursor's line raw; the toolbar
@@ -3871,4 +3938,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(570)
+report(579)
