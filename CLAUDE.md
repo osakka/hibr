@@ -2081,6 +2081,46 @@ went in the shell.
   every Mac restart lost its windows. `j_slurp` clears the stream's error
   and end-of-file before and after (`tests/999-json-twice.t`); anything
   else that reads stdin through stdio more than once needs the same.
+- **A helper the shell forks for itself must be owned by somebody, and a
+  double fork is how.** The reap in `ex_cmd`'s tail is `jc_chld && s->jobs.n`
+  -- the shell's **own jobs**, each waited for on its own process group --
+  and that narrowness is deliberate (see the next trap: `waitpid(-1)` once
+  made every program the pty module ran report exit 0). So a child that is
+  not a job is nobody's unless whatever forked it waits for it. `net_tls`
+  forked the TLS relay, logged its pid and threw it away: **one TLS
+  connection, one zombie, for the life of the shell** -- measured as `S S Z`
+  after three connections were opened and closed (Gitea #143). There is no
+  one place that could have waited for it, either: the descriptor it serves
+  can be dup'd, inherited, passed to a child or closed anywhere. The answer
+  is the one `hold`'s own server already used -- fork, and in the child fork
+  again and `_exit(0)` the middle, which the parent waits for at once -- so
+  the helper belongs to init and its lifetime is its peer closing rather
+  than the shell's bookkeeping. `listen -f`'s per-connection child had the
+  other half of the problem: `waitpid(-1, 0, WNOHANG)`, one child and any
+  child, which left the last connection's child a zombie until the next
+  arrived *and* could collect a child a module started. Both are double
+  forks now, and `tests/999-symbols.t`'s sibling `tests/999-relay.t` guards
+  the relay. **A `fork()` added anywhere in `src/` or `mods/` wants the
+  question asked out loud: who waits for this?**
+- **And the second question: does that wait survive a signal?** `jc_waitt`'s
+  own no-timeout path was `return waitpid(wp, w, fl)` -- one call, no retry
+  -- so a signal with a handler made it answer **EINTR**, which the caller
+  took for the command having finished: it read a status that was never
+  written (an uninitialised `int`, usually a stale 0, so the command read as
+  having succeeded) and **nothing ever waited for the child again**. One
+  zombie per signal that lands inside a wait, for the life of the shell.
+  `jc_poll`'s own drain loop had the same shape -- `while (waitpid(...) > 0)`
+  stops on EINTR, leaving the rest of a burst unreaped. The signals that do
+  this are not exotic: the console installs **SIGWINCH**, so every terminal
+  resize and every attach, detach or resize of a **held** session is one, and
+  a desktop is held. That is what twelve zombies under a 40-hour desktop
+  were, at one per one to three hours of use (Gitea #143) -- measured as 2
+  out of 12 forks under a SIGWINCH storm, and 0 after. `tests/999-waitsig.t`
+  is the guard and fails against the release before it. The lesson
+  generalises past `waitpid`: **a blocking call in this shell is written in a
+  loop, because every one of them can be interrupted** -- `cn_wait` already
+  answers EINTR deliberately, `jc_anyone` polls, and anything new that waits
+  for anything wants the same treatment.
 - **A background job is reaped when its child exits, not when the next job is
   started.** This took two goes. hibr first reaped only at the interactive
   prompt, `wait` and `jobs`, so a script that never waited -- the desktop,

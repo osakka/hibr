@@ -1,5 +1,74 @@
 # Changelog
 
+## 0.99.114
+
+**An interrupted wait abandoned its child, so a desktop collected zombies
+all day** (Gitea #143). Reported as *"I see many processes that are hibr's
+but have zero memory or zero cpu?"* -- which is what a zombie is: a child
+that has already exited, whose status nobody collected, so the kernel keeps
+the record and nothing else. It costs a pid slot and a line in `ps`.
+
+`jc_waitt`'s no-timeout path was `return waitpid(wp, w, fl)`: one call, no
+retry. A signal with a handler makes `waitpid` answer **EINTR**, and that
+went straight back to the caller, which took it for the command having
+finished -- it read a status that was never written (an uninitialised
+`int`, usually a stale 0, so the command read as having succeeded) and
+**nothing ever waited for the child again**. `jc_poll`'s drain loop had the
+same shape: `while (waitpid(...) > 0)` stops on EINTR and leaves the rest
+of a burst. Both retry now.
+
+The signals that do this are not exotic. The console installs
+**SIGWINCH**, so every terminal resize -- and every attach, detach or
+resize of a **held** session, which is every desktop -- is one. Measured
+under a SIGWINCH storm: **2 zombies out of 12 forks before, 0 after**, and
+the twelve under the reporter's own 40-hour desktop are this: eight in a
+process group of their own (`ex_bg` children whose drain loop stopped) and
+four in the desktop's (synchronous forks whose wait was interrupted).
+`tests/999-waitsig.t` is the guard and fails against 0.99.113.
+
+**A TLS connection also left one, for the life of the shell** (same
+ticket).
+Reported as *"I see many processes that are hibr's but have zero memory or
+zero cpu?"* -- which is what a zombie is: a child that has already exited,
+whose status nobody collected, so the kernel keeps the record and nothing
+else. It costs a pid slot and a line in `ps`.
+
+`net_tls` forked the TLS relay, logged its pid and threw it away. Nothing
+waited for it, and nothing was in a position to: the descriptor it serves
+can be dup'd, inherited, passed to a child or closed anywhere, so no one
+place knows the relay has ended. Measured as three `/dev/tls` connections
+leaving three relay children, each becoming a permanent zombie as it
+exited.
+
+`listen -f`'s per-connection child had the other half: it was reaped with
+`waitpid(-1, 0, WNOHANG)` -- one child, any child, once per connection --
+which left the last connection's child a zombie until the next arrived, a
+burst leaving the rest, and which could collect a child a **module**
+started, whose module then could not read its own status. That is the trap
+this shell's narrow reaping (`jc_chld && s->jobs.n`, each job on its own
+process group) exists to avoid, reintroduced in one line.
+
+Both are a second fork now, the way `hold`'s own server already did it:
+the helper belongs to init, and its lifetime is its peer closing rather
+than the shell's bookkeeping. `tests/999-relay.t` guards it, and
+`CLAUDE.md` now asks the question out loud for any `fork()` added anywhere:
+who waits for this?
+
+Found by the new test's own output: a failed handshake printed
+`failed: (null)` whenever OpenSSL had no reason string for the code, which
+is the least useful thing a diagnostic can say. It says `handshake error`.
+
+**What this does not explain, and the ticket says so.** The twelve zombies
+under the reporter's own desktop are not these: nothing in the desktop uses
+`/dev/tls` -- `dav` and `email` fork their own relays and wait for them.
+Every fork in `src/` and in every module was read against its wait, and
+every ordinary shape was measured in a real desktop (jobs, subshells,
+pipelines, command and process substitutions, a terminal whose program
+exits): all clean. What is known about the twelve is that none of them ever
+`exec`'d, eight were in a process group of their own and four in the
+desktop's, and they arrive about one per one to three hours of use. The
+next step is the shell's own `-d 2` log, which records every fork it makes.
+
 ## 0.99.113
 
 **About's versions move under the box, and the mouse scrolls it sideways**

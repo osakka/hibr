@@ -352,9 +352,16 @@ void tls_relay(int plain, int sock, const char *host)
 		tls.set1_host(ssl, host);
 	}
 	if (tls.connect(ssl) != 1) {
+		/* OpenSSL answers a code it does not recognise, and an empty
+		   error queue, with a null string -- which printed as
+		   "failed: (null)", the least useful thing a diagnostic can
+		   say. Found by a test whose handshake fails on purpose. */
+		const char *why = 0;
+
+		if (tls.err_str && tls.err_get)
+			why = tls.err_str(tls.err_get());
 		lg(HIBR_LERR, "tls handshake with %s failed: %s", host,
-		   tls.err_str && tls.err_get ?
-			   tls.err_str(tls.err_get()) : "handshake error");
+		   why && *why ? why : "handshake error");
 		_exit(1);
 	}
 	if (!getenv("HIBR_TLS_INSECURE") &&
@@ -415,14 +422,27 @@ int net_tls(const char *host, const char *port)
 		return -1;
 	}
 	if (pid == 0) {
+		/* A second fork, so the relay belongs to init rather than to
+		   this shell. Nothing here is in a position to wait for it:
+		   the descriptor it serves can be dup'd, inherited, passed
+		   to a child or closed anywhere, so there is no one place
+		   that knows the relay has ended -- and a child nobody waits
+		   for is a zombie for the life of the shell. One TLS
+		   connection, one zombie, measured. The relay's real
+		   lifetime is its peer closing, not the shell's bookkeeping;
+		   hold's own server is reparented the same way. */
 		close(sp[0]);
+		if (fork())
+			_exit(0);
 		signal(SIGINT, SIG_DFL);
 		tls_relay(sp[1], sock, host);
 		_exit(0);
 	}
 	close(sp[1]);
 	close(sock);
-	lg(HIBR_LDBG, "tls relay for %s on pid %ld", host, (long)pid);
+	while (waitpid(pid, 0, 0) < 0 && errno == EINTR)
+		;
+	lg(HIBR_LDBG, "tls relay for %s started", host);
 	return fd_high(sp[0]);
 }
 #endif
@@ -841,6 +861,8 @@ int b_listen(sh *s, int ac, char **av)
 			fflush(0);
 			pid = fork();
 			if (pid == 0) {
+				if (fork())
+					_exit(0);
 				close(lfd);
 				dup2(cfd, 0);
 				dup2(cfd, 1);
@@ -852,7 +874,15 @@ int b_listen(sh *s, int ac, char **av)
 				_exit(s->st);
 			}
 			close(cfd);
-			waitpid(-1, 0, WNOHANG);
+			/* The connection's own child belongs to init too, for
+			   the same reason and one more: this used to reap with
+			   waitpid(-1), which collects whatever has died --
+			   including a child a module started, whose status its
+			   own module then could not read. One WNOHANG per
+			   connection also left the last child a zombie until
+			   the next one arrived, and a burst left the rest. */
+			while (waitpid(pid, 0, 0) < 0 && errno == EINTR)
+				;
 		} else {
 			fflush(0);
 			o0 = dup(0);

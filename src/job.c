@@ -356,8 +356,26 @@ long jc_waitt(sh *s, long wp, long kp, int *w, int fl)
 	pid_t p;
 	int stage = 0;
 
-	if (!t)
-		return (long)waitpid((pid_t)wp, w, fl);
+	if (!t) {
+		/* Retried, because an interrupted wait is not an answer. A
+		   signal with a handler -- the console's own SIGWINCH, a
+		   script's trap -- makes waitpid return EINTR, and this used
+		   to hand that straight back: the caller took it as the
+		   command having finished, did `wstat(w)` on a status that
+		   was never written (an uninitialised int, so a random exit
+		   code), and nothing ever waited for the child again. One
+		   zombie per signal that lands inside a wait, for the life
+		   of the shell -- which on a held desktop is every attach,
+		   detach and resize, and measured as 2 out of 12 forks under
+		   a SIGWINCH storm (Gitea #143). A pending trap still runs:
+		   it runs at the next command boundary, as it did before,
+		   which is also what bash does for a foreground command. */
+		for (;;) {
+			p = waitpid((pid_t)wp, w, fl);
+			if (p >= 0 || errno != EINTR)
+				return (long)p;
+		}
+	}
 	memset(&a, 0, sizeof a);
 	a.sa_handler = jc_onalrm;
 	sigemptyset(&a.sa_mask);
@@ -460,8 +478,15 @@ void jc_poll(sh *s, int report)
 		j = (job *)s->jobs.p[k];
 		if (j->state == J_DONE)
 			continue;
+		/* An interrupted poll is not "no more children" either: the
+		   loop is here to drain this job's group, so EINTR goes
+		   round again rather than leaving the rest of a burst
+		   unreaped. */
 		while ((p = waitpid(-(pid_t)j->pgid, &w,
-				    WNOHANG | WUNTRACED)) > 0) {
+				    WNOHANG | WUNTRACED)) > 0 ||
+		       (p < 0 && errno == EINTR)) {
+			if (p < 0)
+				continue;
 		if (WIFSTOPPED(w)) {
 			if (j->state != J_STOP)
 				j->note = 0;
