@@ -283,7 +283,7 @@ try:
         "dt_new \"Control Panel\" 24 76 1 1 panel tube\ndt_run\ndt_close\n"
         % (load("console"), tree("examples/desktop/desktop.hibr"),
            tree("examples/desktop/apps/Internet/youtube.hibr"),
-           tree("examples/desktop/apps/panel.hibr"), tree("examples/desktop/control-panel")))
+           tree("examples/desktop/system/panel.hibr"), tree("examples/desktop/control-panel")))
     t = Term(sess, rows=28, cols=90, settle=1.5)
     sc = t.screen()
     t.quit(b"q", 1.0)

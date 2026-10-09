@@ -132,7 +132,7 @@ def session(tag, app, title, extra=None):
         "%s. %s\n. %s\n. %s\n. %s\nneed dav\ndav server set home http://127.0.0.1:%d -u u -p p\n"
         "DT_PIMSERVERS=home\ndt_open\ndt_new %s 36 100 1 2 %s\ndt_run\ndt_close\n"
         % (load("console", "email", "db", "html", "pim", "dav"), tree("examples/desktop/desktop.hibr"),
-           tree("examples/desktop/desk-accessories/contacts.hibr"), tree("examples/desktop/desk-accessories/calendar.hibr"),
+           tree("examples/desktop/apps/contacts.hibr"), tree("examples/desktop/apps/calendar.hibr"),
            tree("examples/desktop/apps/Internet/mail.hibr"), PORT, title, app))
     return Term(sess, rows=40, cols=110, settle=1.5,
                 env=dict({"HIBR_MAIL_CONF": CONF, "XDG_DATA_HOME": os.path.join(D, "data"), "TZ": TZ},

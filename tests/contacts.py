@@ -77,7 +77,7 @@ open(sess, "w").write(
     "%s. %s\n. %s\n. %s\nneed dav\ndav server set home http://127.0.0.1:%d -u u -p p\n"
     "DT_PIMSERVERS=home\ndt_open\ndt_new Contacts 24 92 1 2 contacts\ndt_run\ndt_close\n"
     % (load("console", "email", "db", "html", "pim", "dav"), tree("examples/desktop/desktop.hibr"),
-       tree("examples/desktop/desk-accessories/contacts.hibr"), tree("examples/desktop/apps/Internet/mail.hibr"), PORT))
+       tree("examples/desktop/apps/contacts.hibr"), tree("examples/desktop/apps/Internet/mail.hibr"), PORT))
 t = Term(sess, rows=30, cols=104, settle=1.5,
          env={"HIBR_MAIL_CONF": CONF, "XDG_DATA_HOME": os.path.join(D, "data")})
 try:
@@ -161,8 +161,9 @@ try:
           sc.row(em[0]).find("email") > em[1], sc)
     t.quit(b"qy", 2)
 
-    # Control Panel > PIM asks each Network Server what it keeps, and lists
-    # a plain file server as files only rather than offering it.
+    # Control Panel > Calendar & Contacts (the pane PIM was called until
+    # 0.99.126) asks each Network Server what it keeps, and lists a plain
+    # file server as files only rather than offering it.
     PLAIN = os.path.join(D, "plain")
     os.makedirs(PLAIN)
     srv2 = subprocess.Popen([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -175,12 +176,12 @@ try:
         "dav server set home http://127.0.0.1:%d -u u -p p\ndav server set files http://127.0.0.1:%d -u u -p p\n"
         "dt_open\ndt_new \"Control Panel\" 24 80 1 1 panel pimset\ndt_run\ndt_close\n"
         % (load("console", "db", "pim", "dav"), tree("examples/desktop/desktop.hibr"),
-           tree("examples/desktop/desk-accessories/contacts.hibr"), tree("examples/desktop/apps"),
+           tree("examples/desktop/apps/contacts.hibr"), tree("examples/desktop/system"),
            tree("examples/desktop/control-panel"), PORT, P2))
     t = Term(sess2, rows=30, cols=104, settle=1.5, env={"XDG_DATA_HOME": os.path.join(D, "data2")})
     sc = waitfor(t, "files only")
     sc = waitfor(t, "(calendars, contacts)")
-    check("PIM lists a server that keeps calendars and contacts with a switch, saying so",
+    check("the pane lists a server that keeps calendars and contacts with a switch, saying so",
           sc.find("home (calendars, contacts)") is not None, sc)
     check("and a plain file server as files only, with no switch",
           sc.find("files only") is not None and sc.find("files (") is None, sc)

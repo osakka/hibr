@@ -23,7 +23,7 @@
 # keeps two from running at once. It says what it is doing a line at a
 # time, ending with "done N" or "error WHY".
 #
-# Part of the desktop's Contacts (desk-accessories/contacts.hibr); it is not an app,
+# Part of the desktop's Contacts (apps/contacts.hibr); it is not an app,
 # which is why it is here and not under apps/.
 
 strict

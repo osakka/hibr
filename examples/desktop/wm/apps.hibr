@@ -76,8 +76,14 @@ declare -gA DT_SRC
 # is always on, which is what makes ** reach into them. A file whose name
 # was already loaded from an earlier folder is skipped. An app in a
 # subfolder gets a submenu of its own on the hibr menu, named after it --
-# DT_APPDIR_CUR is the path dt_app reads to know which, relative to
-# whichever root found it, empty at the top of one.
+# DT_APPDIR_CUR is the folder dt_app reads to know where an app is listed,
+# and it is **data rather than a path**: dt_appplan turns a folder into a
+# submenu and recurses on `prefix/child`, so what an app says here is the
+# whole of where it appears. Everything under DT_APPDIRS is an application
+# and lives under one submenu of that name -- a file at the top of the root
+# says `Applications`, one in `Office/` says `Applications/Office` -- which
+# is why the menu needed no new mechanism for the split, only a different
+# answer to this one question.
 dt_apps() {
 	local d f b rel
 
@@ -90,8 +96,8 @@ dt_apps() {
 			DT_SRC["$b"]=$f
 			rel=${f#"$d"/}
 			case $rel in
-			*/*) DT_APPDIR_CUR=${rel%/*} ;;
-			*) DT_APPDIR_CUR= ;;
+			*/*) DT_APPDIR_CUR="Applications/${rel%/*}" ;;
+			*) DT_APPDIR_CUR="Applications" ;;
 			esac
 			. "$f"
 		done
@@ -99,31 +105,42 @@ dt_apps() {
 	DT_APPDIR_CUR=
 }
 
-# Desk accessories are ordinary apps -- dt_app, nothing else, the same
-# registration every other app uses. They get a directory list of their
-# own, the same customizable-with-a-default shape DT_APPDIRS and
-# CP_PANEDIRS already have, only so the hibr menu can group them under one
-# name regardless of where DA_DIRS points -- the nostalgic Desk Accessories
-# folder, not a mechanism an accessory has to do anything for. A flat scan,
-# not dt_apps' recursive one: an accessory does not earn a folder-submenu
-# concept of its own the way a whole app folder does.
-DA_DIRS=("${XDG_CONFIG_HOME:-$HOME/.config}/hibr/desk-accessories")
+# A system app is one that manages or reports on the desktop, the machine
+# or the session -- it would make no sense without this desktop. Those are
+# ordinary apps, registered with dt_app exactly like any other, and the
+# only thing that makes them the desktop's own is that they say **no
+# folder** at all: an app with an empty DT_APPDIR_CUR is listed on the hibr
+# menu itself, beside About This Computer, rather than inside Applications.
+# That is the whole of the demarcation, and it is one line per app rather
+# than a mechanism each has to know about.
+#
+# A flat scan, not dt_apps' recursive one: the desktop's own menu is one
+# list, and a folder of system apps would be a category inside a category.
+DT_SYSDIRS=("${XDG_CONFIG_HOME:-$HOME/.config}/hibr/system")
 
-da_apps() {
+dt_sysapps() {
 	local d f b
 
-	for d in "${DA_DIRS[@]}"; do
+	for d in "${DT_SYSDIRS[@]}"; do
 		for f in "$d"/*.hibr; do
 			[ -r "$f" ] || continue
 			b=${f##*/}
 			b=${b%.hibr}
 			[ -n "${DT_SRC["$b"]}" ] && continue
 			DT_SRC["$b"]=$f
-			DT_APPDIR_CUR="Desk Accessories"
+			DT_APPDIR_CUR=
 			. "$f"
 		done
 	done
 	DT_APPDIR_CUR=
+	# Someone's own accessories used to be scanned from a folder that no
+	# longer is, and a file quietly missing from a menu is worse than a
+	# line in the log saying where it went.
+	d="${XDG_CONFIG_HOME:-$HOME/.config}/hibr/desk-accessories"
+	if [ -d "$d" ]; then
+		printf '%s\n' "desktop: $d is no longer scanned -- move its files to ${XDG_CONFIG_HOME:-$HOME/.config}/hibr/apps/Accessories" >&2
+	fi
+	return 0
 }
 
 # Every registered app, sorted by title without regard to case, as names --
@@ -198,7 +215,9 @@ fn dt_appplan(prefix, used = "") {
 	for l in "${all[@]}"; do
 		IFS=$'\t' read -r discard kind path <<< "$l"
 		if [ "$kind" = f ]; then
-			DT_APPPLAN+=("sub	${path##*/}")
+			k := dt_akey "${path##*/}" "$used"
+			used="$used$k"
+			DT_APPPLAN+=("sub	${path##*/}	$k")
 			dt_appplan "$path"
 			DT_APPPLAN+=("end")
 		else
@@ -222,7 +241,7 @@ fn dt_appmenu(prefix, used = "") {
 	for op in "${DT_APPPLAN[@]}"; do
 		IFS=$'\t' read -ra f <<< "$op"
 		case ${f[0]} in
-		sub) dt_sub "${f[1]}" ;;
+		sub) dt_sub "${f[1]}" "${f[2]-}" ;;
 		end) dt_end ;;
 		item) dt_item "${f[2]}" "${f[3]-}" dt_launch "${f[1]}" ;;
 		esac

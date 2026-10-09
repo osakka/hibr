@@ -8,7 +8,7 @@ printf 'xx\n' > "$tmp/one"; printf 'yyy\n' > "$tmp/two"
 
 for e in examples/*.hibr examples/desktop/*.hibr examples/desktop/apps/*.hibr \
          examples/desktop/apps/*/*.hibr examples/desktop/control-panel/*.hibr \
-         examples/desktop/desk-accessories/*.hibr examples/desktop/control-strip/*.hibr \
+         examples/desktop/system/*.hibr examples/desktop/control-strip/*.hibr \
          examples/desktop/wm/*.hibr examples/desktop/widgets/*.hibr \
          examples/desktop/savers/*.hibr examples/desktop/login/*.hibr \
          examples/desktop/lib/*.hibr; do
@@ -24,7 +24,7 @@ echo "every example parses"
 defs='s/^\([A-Za-z_][A-Za-z0-9_]*\)() *{.*/\1/p; s/^fn \([A-Za-z_][A-Za-z0-9_]*\)(.*/\1/p'
 for e in examples/*.hibr examples/desktop/*.hibr examples/desktop/apps/*.hibr \
          examples/desktop/apps/*/*.hibr examples/desktop/control-panel/*.hibr \
-         examples/desktop/desk-accessories/*.hibr examples/desktop/control-strip/*.hibr; do
+         examples/desktop/system/*.hibr examples/desktop/control-strip/*.hibr; do
   sed -n "$defs" "$e" | sort | uniq -d |
     while read -r f; do echo "defined twice in $e: $f"; done
 done
@@ -50,7 +50,7 @@ echo "no function is defined twice"
 # own trap entry for the pattern in full.
 for e in examples/*.hibr examples/desktop/*.hibr examples/desktop/apps/*.hibr \
          examples/desktop/apps/*/*.hibr examples/desktop/control-panel/*.hibr \
-         examples/desktop/desk-accessories/*.hibr examples/desktop/control-strip/*.hibr \
+         examples/desktop/system/*.hibr examples/desktop/control-strip/*.hibr \
          examples/desktop/wm/*.hibr examples/desktop/widgets/*.hibr; do
   awk '
   /^[[:space:]]*local[[:space:]]/ {
@@ -207,7 +207,7 @@ echo "every kept preference is in the Control Panel"
 for f in examples/desktop/desktop.hibr \
          examples/desktop/wm/*.hibr examples/desktop/widgets/*.hibr \
          examples/desktop/apps/*.hibr examples/desktop/apps/*/*.hibr \
-         examples/desktop/desk-accessories/*.hibr \
+         examples/desktop/system/*.hibr \
          examples/desktop/control-panel/*.hibr \
          examples/desktop/control-strip/*.hibr \
          examples/desktop/savers/*.hibr examples/desktop/login/*.hibr \
@@ -225,11 +225,17 @@ echo "the desktop is strict"
 # control-strip/*.hibr and desktop.hibr itself: the control strip, the
 # wallpaper, the menu bar, dt_note and dt_confirm are the desktop's own root
 # overlay, not a window's content, and have no pane of their own to target.
-for e in examples/desktop/apps/*.hibr examples/desktop/control-panel/*.hibr \
-         examples/desktop/desk-accessories/*.hibr; do
+for e in examples/desktop/apps/*.hibr examples/desktop/apps/*/*.hibr \
+         examples/desktop/control-panel/*.hibr \
+         examples/desktop/system/*.hibr; do
   sed -e :a -e '/\\$/N; s/\\\n[[:space:]]*/ /; ta' "$e" | awk -v f="$e" '
     /^[[:space:]]*#/ { next }
-    /console put[[:space:]]/ && !/console put[[:space:]]+-p[[:space:]]/ {
+    # -p may come after other flags: `console put -r -p "w$id"` is paned,
+    # and reading only the word after `put` called it absolute. The hole
+    # was invisible until this check began covering apps/*/ at all --
+    # Office, Internet and Games were never scanned for this before
+    # 0.99.126, which is the kind of gap a glob list hides.
+    /console put[[:space:]]/ && !/console put([[:space:]]+-[A-Za-z]+)*[[:space:]]+-p[[:space:]]/ {
       print f ": console put without -p: " $0
     }
     /(^|[^A-Za-z_])(img|term) draw[[:space:]]/ && !/[[:space:]]-p[[:space:]]/ {

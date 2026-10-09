@@ -1380,22 +1380,38 @@ In `examples/desktop/apps/`, each one also a file you can read in a sitting:
 | `tasks` | every process, name, CPU% and memory, sorted by either (`c`, `m`); Task > Show, or `w`, lists everyone's, only yours or only this desktop's -- the desktop and what it has started, which is its terminals' shells and their programs; `x` ends the selected one, `shift-x` forces it |
 | `modman` | **Modules**: every module the module path can offer, loaded or not -- its version, whether it is loaded, the interface it offers and the builtins it adds, with the selected one's description and path below, which is what a list has no room for. Enter loads or unloads, `l` and `u` do one each, `r` scans again. Two things it refuses, and says why on that same line before anything is pressed: the console, pty, term and hold, because the desktop is drawn and held through them; and any loaded module that offers an interface, because another module may be holding its table and `mod drop` would leave it pointing into an unloaded object. It reads `mod avail`'s own answer, which names and describes a module without ever running its init |
 
-## Desk Accessories
+## System apps and Applications
 
-System 6 and earlier could only run one real application at a time; a Desk
-Accessory was the OS's own exception, a tiny program let onto the Apple menu
-regardless of what else was running. That constraint does not exist here --
-`dt_app`/`dt_launch` already let any number of ordinary apps run at once,
-reached from the hibr menu, exactly what the Apple menu did for DAs. So a
-desk accessory *is* an ordinary app, `dt_app` and nothing else; the only
-thing new is `DA_DIRS`, a directory list of its own (default
-`~/.config/hibr/desk-accessories`, customizable and appendable the same way
-`DT_APPDIRS` and `CP_PANEDIRS` are) and `da_apps`, which loads it and groups
-whatever it finds under one "Desk Accessories" submenu on the hibr menu,
-regardless of where `DA_DIRS` actually points -- unlike an ordinary
-subfolder of `DT_APPDIRS`, which is named after itself.
+One rule decides where everything is listed, and it is worth stating before
+the lists: **a thing belongs to the desktop if it manages or reports on the
+desktop, the machine or the session -- it would make no sense without this
+desktop. Everything else is an application, however small: it opens, shows
+or edits something of yours, and would make sense on any desktop.**
 
-The bundled accessories live in `examples/desktop/desk-accessories/`:
+So the hibr menu reads: About This Computer, then the desktop's own apps --
+Clipboard, Control Panel, Modules, Screenshot, Task Manager -- then
+**Applications**, then Screen Saver, Lock, Restart, Detach, Quit.
+
+Both kinds are the same kind of file: `dt_app` and nothing else. What
+decides where one is listed is the folder it says it is in, and that is
+*data* rather than a path -- `dt_appplan` turns a folder into a submenu and
+recurses, so an app in `apps/Office/` says `Applications/Office` and is two
+submenus deep with no mechanism of its own.
+
+| root | default of its own | listed |
+|---|---|---|
+| `DT_APPDIRS` / `dt_apps` | `~/.config/hibr/apps` | under **Applications**, a subfolder becoming a submenu inside it |
+| `DT_SYSDIRS` / `dt_sysapps` | `~/.config/hibr/system` | on the hibr menu itself, one flat list, because the desktop's own menu is not a category |
+
+The System 7 note this replaces: System 6 and earlier could only run one
+real application at a time, and a Desk Accessory was the OS's own exception
+-- a tiny program let onto the Apple menu regardless of what else was
+running. That constraint never existed here, since `dt_app`/`dt_launch`
+already let any number of apps run at once, so "accessory" was only ever a
+*name* for the small ones. It still is: **Applications > Accessories** is a
+folder like Office, Internet and Games, not a kind of thing.
+
+The bundled accessories live in `examples/desktop/apps/Accessories/`:
 
 | app | what it is |
 |---|---|
@@ -1480,7 +1496,7 @@ its brackets, however the strip is currently docked, sized or scrolled;
 neither takes a window id, since there is never more than one instance of
 a strip module. `CS_MODDIRS` (default `~/.config/hibr/control-strip`) and
 `cs_modules` find and load them, the same shape `DT_APPDIRS`/`dt_apps`,
-`CP_PANEDIRS`/`cp_panes` and `DA_DIRS`/`da_apps` already are.
+`CP_PANEDIRS`/`cp_panes` and `DT_SYSDIRS`/`dt_sysapps` already are.
 
 Earlier versions drew a single letter or glyph per module -- clever, but
 nothing anyone could read without already knowing what it meant. Every

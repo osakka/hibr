@@ -270,7 +270,7 @@ conf4 = os.path.join(D, "dialog.conf")
 sess = os.path.join(D, "dialog.hibr")
 open(sess, "w").write("%s. %s\n. %s\nCP_PANEDIRS+=(\"%s\")\ncp_panes\ndt_open\nmlad_show\ndt_run\ndt_close\n" % (
     load("console", "email", "db"), tree("examples/desktop/desktop.hibr"),
-    tree("examples/desktop/apps/panel.hibr"), tree("examples/desktop/control-panel")))
+    tree("examples/desktop/system/panel.hibr"), tree("examples/desktop/control-panel")))
 t = Term(sess, rows=30, cols=100, settle=1.5, env={"HIBR_MAIL_CONF": conf4, "XDG_DATA_HOME": D})
 sc = waitfor(t, "Add a Mail Account")
 check("Add Account opens its dialog, and the desktop lives", sc.find("Account name:") and sc.find("Password:"), sc)
@@ -289,7 +289,7 @@ check("an address at Gmail saves, Gmail's servers filled in",
 t.quit(b"qy", 1.5)
 out = subprocess.run([sx.HIBR, "-c", "%s. %s\n. %s\nCP_PANEDIRS+=(\"%s\")\ncp_panes\n"
                       "n := mailset_rows 1; i=0; while [ $i -lt $n ]; do echo \"${CP[1][$i][\"text\"]}|${CP[1][$i][\"val\"]}\"; i=$((i + 1)); done"
-                      % (load("email"), tree("examples/desktop/desktop.hibr"), tree("examples/desktop/apps/panel.hibr"),
+                      % (load("email"), tree("examples/desktop/desktop.hibr"), tree("examples/desktop/system/panel.hibr"),
                          tree("examples/desktop/control-panel"))],
                      capture_output=True, text=True,
                      env=dict(os.environ, HIBR_MAIL_CONF=conf4, XDG_CONFIG_HOME=os.path.join(D, "cfg"),

@@ -7,7 +7,7 @@
 
 strict
 
-command -v cp_pane > /dev/null && cp_pane prayerset "Prayer Times" "☾"
+command -v cp_pane > /dev/null && cp_pane prayerset "Prayer Times" "☾" app
 
 declare -ga CP_PMETHODS CP_PMNAMES
 CP_PBEFORES=(0 5 10 15 30)

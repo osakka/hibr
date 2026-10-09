@@ -133,6 +133,7 @@ CPU:    %s%%       Memory: %s
 Calc
 Calculator
 Calendar
+Calendar & Contacts
 Calendar needs the pim and db modules, which are not installed.
 Cancel
 Cancelled
@@ -549,10 +550,8 @@ Owner
 Owner:
 Owner:  %s
 PID:    %s
-PIM
 PIN
 Password
-Passwords
 Paste
 Pasted as %s
 Pattern

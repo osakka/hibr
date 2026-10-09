@@ -170,7 +170,7 @@ try:
             "dt_open\n%s\ndt_run\ndt_close\n"
             % (load("console", "dav"), tree("examples/desktop/desktop.hibr"),
                tree("examples/desktop/apps/files.hibr"),
-               tree("examples/desktop/apps/panel.hibr"), OPENED, body))
+               tree("examples/desktop/system/panel.hibr"), OPENED, body))
         t = Term(sess, env={"HIBR_DAV_CONF": CONF, "XDG_CACHE_HOME": CACHE},
                  settle=1.0, rows=rows, cols=cols)
         shots = []

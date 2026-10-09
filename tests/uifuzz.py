@@ -51,17 +51,17 @@ GEOM = (18, 60, 2, 2)
 PANEL_GEOM = (20, 58, 2, 2)
 
 TARGETS = {
-    "calc": "desk-accessories/calc.hibr",
-    "clock": "desk-accessories/clock.hibr",
-    "imgview": "desk-accessories/imgview.hibr",
-    "stickies": "desk-accessories/stickies.hibr",
-    "puzzle": "desk-accessories/puzzle.hibr",
-    "about": "apps/about.hibr",
-    "notifications": "apps/notifications.hibr",
+    "calc": "apps/Accessories/calc.hibr",
+    "clock": "apps/Accessories/clock.hibr",
+    "imgview": "apps/Accessories/imgview.hibr",
+    "stickies": "apps/Accessories/stickies.hibr",
+    "puzzle": "apps/Accessories/puzzle.hibr",
+    "about": "system/about.hibr",
+    "notifications": "system/notifications.hibr",
     "bricks": "apps/Games/bricks.hibr",
     "mines": "apps/Games/mines.hibr",
     "snake": "apps/Games/snake.hibr",
-    "panel": "apps/panel.hibr",
+    "panel": "system/panel.hibr",
 }
 
 KEYS = ([bytes([c]) for c in range(0x20, 0x7f) if chr(c) not in "qQ"]
@@ -285,7 +285,7 @@ def osession(where, wall):
     p = os.path.join(where, "oracle.hibr")
     open(p, "w").write(
         "%s. %s\n"
-        ". %s/desk-accessories/stickies.hibr\n"
+        ". %s/apps/Accessories/stickies.hibr\n"
         ". %s/apps/term.hibr\n"
         "%s"
         'dt_app orc "Oracle" %d %d "" "" "" "" ""\n'

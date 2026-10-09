@@ -9,7 +9,7 @@
 
 strict
 
-command -v cp_pane > /dev/null && cp_pane vaultset "Passwords" "⚿"
+command -v cp_pane > /dev/null && cp_pane vaultset "Vault" "⚿" app
 
 # Each setting's choices, "name=number" -- a number of minutes or seconds.
 declare -gA CP_VWCH

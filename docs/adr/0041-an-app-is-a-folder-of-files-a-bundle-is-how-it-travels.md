@@ -1,11 +1,15 @@
 # 0041 — An app is a folder of files; a bundle is how it travels
 
-Status: accepted
+Status: accepted (the scan list below was `DA_DIRS`/`desk-accessories` when
+this was written; 0.99.126 replaced it with `DT_SYSDIRS`/`system` and put
+every application under one Applications submenu. The decisions here are
+unaffected -- what travels, what it becomes on disk, and the trust model --
+and the manager installs into the same five roots, one of them renamed.)
 
 ## Context
 
 A desktop app here is a hibr script. `apps/write.hibr` is 2,000 lines of
-shell, `desk-accessories/calc.hibr` is 300, and both are read by the same
+shell, `apps/Accessories/calc.hibr` is 300, and both are read by the same
 `dt_app` registration. Nothing about that needed designing — it fell out of
 "tools are modules, applications are scripts" — and it means the hard part
 of a package manager is already done: **installing an app is placing a file
@@ -17,7 +21,7 @@ person's own:
 | list | default |
 |---|---|
 | `DT_APPDIRS` (`wm/apps.hibr`) | `$XDG_CONFIG_HOME/hibr/apps`, scanned recursively, a subfolder becoming a submenu |
-| `DA_DIRS` | `$XDG_CONFIG_HOME/hibr/desk-accessories`, flat |
+| `DT_SYSDIRS` | `$XDG_CONFIG_HOME/hibr/system`, flat (`DA_DIRS`/`desk-accessories` when this was written) |
 | `CP_PANEDIRS` (`apps/panel.hibr`) | `$XDG_CONFIG_HOME/hibr/control-panel` |
 | `CS_MODDIRS` (`wm/strip.hibr`) | `$XDG_CONFIG_HOME/hibr/control-strip` |
 | `SV_DIRS` (`savers/saver.hibr`) | `$XDG_CONFIG_HOME/hibr/savers` |

@@ -816,7 +816,8 @@ shutil.rmtree(CORNER, True)
 # even ones already gone -- the "center" a notification center needs.
 BELL = tempfile.mkdtemp(prefix="hibr-notebell-")
 p = os.path.join(BELL, "session.hibr")
-bellapps = 'DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/desktop/apps")
+bellapps = ('DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/desktop/apps")
+            + 'DT_SYSDIRS+=("%s")\ndt_sysapps\n' % tree("examples/desktop/system"))
 open(p, "w").write(
     "%s. %s\n%sdt_open\ndt_note \"Remembered\"\ndt_run\ndt_close\n"
     % (load(MOD), WM, bellapps)
@@ -841,7 +842,8 @@ shutil.rmtree(BELL, True)
 def idle_wakes(env, session, act=None):
     d = tempfile.mkdtemp(prefix="hibr-idle-")
     p = os.path.join(d, "session.hibr")
-    apps = 'DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/desktop/apps")
+    apps = ('DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/desktop/apps")
+            + 'DT_SYSDIRS+=("%s")\ndt_sysapps\n' % tree("examples/desktop/system"))
     open(p, "w").write("%s. %s\n%sdt_open\n%s\ndt_run\ndt_close\n"
                        % (load(MOD), WM, apps, session))
     t = Term(p, env=env, rows=ROWS, cols=COLS, settle=1.5)
@@ -1141,13 +1143,21 @@ check("one registered hidden is not, though it is still a real app",
 # dt_appmenu only ever excluded "about" by a hardcoded name and nothing
 # excluded them. Loading the real apps proves the hidden flag actually
 # reaches them, not just a synthetic one built for the check above.
-REALAPPS = 'DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/desktop/apps")
+# The bundled apps, both roots: applications under Applications, and the
+# desktop's own on the hibr menu itself. Most fixtures want both, which is
+# what "the apps that come with hibr" means; the three checks about the
+# split itself name one root on purpose.
+SYSAPPSRC = 'DT_SYSDIRS+=("%s")\ndt_sysapps\n' % tree("examples/desktop/system")
+REALAPPS = ('DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/desktop/apps")
+            + SYSAPPSRC)
 sc, _ = run(REALAPPS, [b"\x1b[21~"])
 check("Rename and Get Info do not leak onto the real hibr menu",
       sc.find("Rename") is None and sc.find("Get Info") is None, sc)
+# Task Manager is a system app and so on the hibr menu itself; Applications
+# is the one row that stands for every application.
 check("but the apps that belong there still do",
-      sc.find("Files") is not None and sc.find("Task Manager") is not None,
-      sc)
+      sc.find("Applications") is not None and
+      sc.find("Task Manager") is not None, sc)
 
 # A dropdown is a rectangle, which is a thing only the pens can say: a dimmed
 # row changes the foreground and keeps the background, so the glyphs of a row
@@ -1377,9 +1387,9 @@ check("and so does a click anywhere",
 # A launched window goes to the first spot on the display that overlaps
 # nothing -- scanning from the top left, below the bar, room left for each
 # window's shadow -- and where there is none, to the spot of least overlap.
-DA = tree("examples/desktop/desk-accessories")
+ACC = tree("examples/desktop/apps/Accessories")
 PLACEAPPS = (". %s/calc.hibr\n. %s/clock.hibr\n. %s/imgview.hibr\n"
-             ". %s/puzzle.hibr\nDT_ICONS=0" % (DA, DA, DA, DA))
+             ". %s/puzzle.hibr\nDT_ICONS=0" % (ACC, ACC, ACC, ACC))
 sc, _ = run("dt_launch calc\ndt_launch clock\ndt_launch imgview", pre=PLACEAPPS)
 check("three launched windows land side by side, overlapping nothing",
       sc.find("┤ Calculator ├") == (1, 2) and sc.find("┤ Clock ├") == (1, 28)
@@ -1704,7 +1714,8 @@ check("the Window menu shows Tile Workspace ticked, and Make Main",
 # the trash.  One column at column 67: Home at row 2, the first disk at 5,
 # the second at 8, the trash at 11 -- or at 5, with disks off.
 
-APPS = 'DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/desktop/apps")
+APPS = ('DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/desktop/apps")
+        + SYSAPPSRC)
 
 import base64
 
@@ -2060,26 +2071,33 @@ open(os.path.join(UCONF, "hibr", "apps", "hello.hibr"), "w").write(
     'hello_draw() { console put -p "w$1" 1 1 "hi there"; }\n')
 open(os.path.join(UCONF, "hibr", "apps", "calc.hibr"), "w").write(
     'dt_app calc "My Sums" 6 20 once "±"\n')
-APPS = 'DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/desktop/apps")
-# Calculator is a desk accessory now, found by da_apps rather than dt_apps
-# -- but DT_SRC is one shared registry either way, so a user's own file,
-# loaded first by dt_apps from the default DT_APPDIRS entry, still blocks
-# the bundled one da_apps would otherwise find, the same as it always did.
-DAAPPS = 'DA_DIRS+=("%s")\nda_apps\n' % tree("examples/desktop/desk-accessories")
+APPS = ('DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/desktop/apps")
+        + SYSAPPSRC)
+# Calculator is in Applications > Accessories, which dt_apps finds by its
+# own recursive scan -- and DT_SRC is one shared registry, so a user's own
+# file, loaded first from the default DT_APPDIRS entry, still blocks the
+# bundled one, the same as it always did.
+SYSAPPS = SYSAPPSRC
+# Applications is a submenu now, so a file of yours is listed inside it:
+# F10 opens the hibr menu with Applications highlighted, and right opens
+# it. The three fixed points are all inside that one menu -- Files, the
+# file of yours, and Terminal -- because a system app like Task Manager is
+# on the hibr menu itself and would be comparing two different lists.
 MENU = [b"\x1b[21~", b"\x1b[B"]
-sc, raw = run("", feed=MENU, env={"XDG_CONFIG_HOME": UCONF},
-              pre=APPS + DAAPPS)
-# The menu is on the left; the icons on the right carry the same names.
-# Task Manager, not one of the games, as the third fixed point: the games
-# moved into their own Games subfolder (a submenu, not a flat entry) once
-# there were three of them worth grouping, so a bundled app that is still
-# flat is what a sort-order check needs to stay meaningful.
-menu = [sc.row(r)[:20] for r in range(2, 16)]
+# F10 highlights About This Computer, the hibr menu's first row; down moves
+# to Applications (past the separator) and right opens it. A separate
+# constant from MENU, which other checks use to press a letter on the hibr
+# menu itself -- changing that one sent `c` into Applications and picked
+# Calendar.
+APPMENU = [b"\x1b[21~", b"\x1b[B", b"\x1b[C"]
+sc, raw = run("", feed=APPMENU, env={"XDG_CONFIG_HOME": UCONF},
+              pre=APPS + SYSAPPS)
+menu = [sc.row(r)[:46] for r in range(2, 18)]
 rows = [m for m in menu
-        if "Hello" in m or "Files" in m or "Task Manager" in m]
+        if "Hello" in m or "Files" in m or "Terminal" in m]
 check("an app in your own folder is on the menu, in its sorted place",
       len(rows) == 3 and "Files" in rows[0] and "Hello" in rows[1] and
-      "Task Manager" in rows[2], sc)
+      "Terminal" in rows[2], sc)
 check("and a file of yours replaces the bundled app of that name",
       sc.find("My Sums") is not None and sc.find("Calculator") is None, sc)
 shutil.rmtree(UCONF, True)
@@ -2088,11 +2106,13 @@ NCONF = tempfile.mkdtemp(prefix="hibr-apps-nested-")
 os.makedirs(os.path.join(NCONF, "hibr", "apps", "sub"))
 open(os.path.join(NCONF, "hibr", "apps", "sub", "greet.hibr"), "w").write(
     'dt_app greet "Greetings" 6 20 once "☺"\n')
-sc, _ = run("", feed=[b"\x1b[21~"], env={"XDG_CONFIG_HOME": NCONF},
-            pre="dt_apps\n")
+sc, _ = run("", feed=[b"\x1b[21~", b"\x1b[B", b"\x1b[C"],
+            env={"XDG_CONFIG_HOME": NCONF}, pre="dt_apps\n")
 check("an app in a subfolder becomes a submenu named after the folder",
       sc.find("sub") is not None and sc.find("Greetings") is None, sc)
-sc, _ = run("", feed=[b"\x1b[21~", b"\x1b[B", b"\x1b[C"],
+# Applications, then sub, then the app: two levels of submenu, which is
+# what the split made ordinary rather than exotic.
+sc, _ = run("", feed=[b"\x1b[21~", b"\x1b[B", b"\x1b[C", b"\x1b[C"],
             env={"XDG_CONFIG_HOME": NCONF}, pre="dt_apps\n")
 check("and descending into it finds the app",
       sc.find("Greetings") is not None, sc)
@@ -2106,29 +2126,39 @@ GCONF = tempfile.mkdtemp(prefix="hibr-apps-games-")
 os.makedirs(os.path.join(GCONF, "hibr", "apps", "games"))
 open(os.path.join(GCONF, "hibr", "apps", "games", "pong.hibr"), "w").write(
     'dt_app pong "Pong" 6 20\n')
-sc, _ = run("", feed=[b"\x1b[21~"], env={"XDG_CONFIG_HOME": GCONF}, pre=APPS)
-menu = [sc.row(r)[:20] for r in range(2, 17)]
+sc, _ = run("", feed=[b"\x1b[21~", b"\x1b[B", b"\x1b[C"],
+            env={"XDG_CONFIG_HOME": GCONF}, pre=APPS)
+menu = [sc.row(r)[:46] for r in range(2, 18)]
 rows = [m for m in menu
-        if "Files" in m or "games" in m or "Task Manager" in m]
+        if "Files" in m or "games" in m or "Terminal" in m]
 check("a folder is interleaved by name, not appended after every app",
       len(rows) == 3 and "Files" in rows[0] and "games" in rows[1] and
-      "Task Manager" in rows[2], sc)
+      "Terminal" in rows[2], sc)
 shutil.rmtree(GCONF, True)
 
-# Desk accessories are ordinary apps, grouped under one submenu name
-# regardless of where DA_DIRS points -- unlike the folder-submenu above,
-# an accessory need not live inside DT_APPDIRS at all.
+# A system app is the desktop's own and says so by naming no folder at
+# all: it is listed on the hibr menu itself, beside About This Computer,
+# where everything else is inside Applications. That is the whole of the
+# demarcation, so it is worth checking from both sides -- what is on the
+# hibr menu, and what is not.
 DACONF = tempfile.mkdtemp(prefix="hibr-apps-da-")
-DASRC = APPS + 'DA_DIRS+=("%s")\nda_apps\n' % tree("examples/desktop/desk-accessories")
+DASRC = APPS + SYSAPPS
 sc, _ = run("", feed=[b"\x1b[21~"], env={"XDG_CONFIG_HOME": DACONF}, pre=DASRC)
-pos = sc.find("Desk Accessories")
-check("desk accessories are grouped under their own submenu",
-      pos is not None, sc)
-sc2, _ = run("", feed=[b"\x1b[21~", press(pos[0], pos[1] + 2)],
+check("a system app is on the hibr menu itself, an application is not",
+      sc.find("Control Panel") is not None and
+      sc.find("Task Manager") is not None and
+      sc.find("Applications") is not None and
+      sc.find("Terminal") is None and sc.find("Calculator") is None, sc)
+sc2, _ = run("", feed=[b"\x1b[21~", b"\x1b[B", b"\x1b[C"],
              env={"XDG_CONFIG_HOME": DACONF}, pre=DASRC)
-check("which lists Stickies and Puzzle rather than folding them in flat",
-      sc2.find("Stickies") is not None and sc2.find("Puzzle") is not None,
-      sc2)
+check("and Applications holds the rest, its folders among them by name",
+      sc2.find("Accessories") is not None and sc2.find("Terminal") is not None
+      and sc2.find("Office") is not None, sc2)
+sc3, _ = run("", feed=[b"\x1b[21~", b"\x1b[B", b"\x1b[C", b"\x1b[C"],
+             env={"XDG_CONFIG_HOME": DACONF}, pre=DASRC)
+check("and Accessories lists Stickies and Puzzle two levels down",
+      sc3.find("Stickies") is not None and sc3.find("Puzzle") is not None,
+      sc3)
 shutil.rmtree(DACONF, True)
 
 # --- the control strip ---------------------------------------------------
@@ -2325,7 +2355,8 @@ check("and its shadow is cast on every one of them, never twice over",
 
 IMGMOD = 'mod load %s\n' % tree("build/mods/img.so")
 IMGFIX = tree("tests/img-2x2.png")
-DASRC = 'DA_DIRS+=("%s")\nda_apps\n' % tree("examples/desktop/desk-accessories")
+DASRC = ('DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/desktop/apps")
+         + 'DT_SYSDIRS+=("%s")\ndt_sysapps\n' % tree("examples/desktop/system"))
 
 sc, raw = run("", env={"DT_WALLIMG": IMGFIX}, pre=IMGMOD)
 check("a real image can be the desktop's own wallpaper",
@@ -2393,17 +2424,18 @@ check("Set as Wallpaper on its own Image menu sets and saves DT_WALLIMG",
       ("DT_WALLIMG=%s" % IMGFIX) in text, text)
 shutil.rmtree(WCONF, True)
 
-LAUNCH = MENU + [b"c"]
+# Control Panel is a system app, so it is on the hibr menu itself and `o`
+# launches it from there -- c went to Clipboard and t to Task Manager once
+# the desktop's own apps were listed together. Files is an application, a
+# key deeper inside Applications. Neither check was ever about which app it
+# launches, only about `once` and `many`.
+LAUNCH = MENU + [b"o"]
 sc, raw = run("", feed=LAUNCH + LAUNCH, pre=APPS)
 check("an app declared hidden is not offered on the menu -- Mail's New Message",
       sc.text().count("┤ Control Panel ├") == 1 and "┤ New Message ├" not in sc.text(), sc)
-# 'c' launches Control Panel, the first app in examples/desktop/apps whose
-# name starts with it now that Calendar and Contacts are desk accessories;
-# it is declared `once`. This check was never about which app it launches,
-# only that a `once` one opens no more than a single window.
 check("an app declared once opens one window, however often launched",
       sc.text().count("┤ Control Panel ├") == 1, sc)
-LAUNCH = MENU + [b"f"]
+LAUNCH = APPMENU + [b"f"]
 sc, raw = run("", feed=LAUNCH + LAUNCH, pre=APPS)
 check("and one that is not opens another window each time",
       sc.text().count("┤ Files [") == 2, sc)
@@ -2617,7 +2649,7 @@ check("and so does the mouse: a sideways wheel, and shift with an "
 # click handler only asks dt_has clock_draw, so it works regardless of
 # which loader found it, but the test has to load it from where it is.
 sc, _ = run("", feed=[press(0, 63)],
-            pre=APPS + 'DA_DIRS+=("%s")\nda_apps\n' % tree("examples/desktop/desk-accessories"))
+            pre=APPS + SYSAPPS)
 check("clicking the clock in the bar opens the Clock app",
       sc.find("┤ Clock ├") is not None, sc)
 
@@ -2700,11 +2732,18 @@ shutil.rmtree(d, True)
 # just names it, so a real change to it breaks an assertion instead of a
 # silent miscount.
 PANEL = ('. %s/panel.hibr\nCP_PANEDIRS+=("%s")\ncp_panes'
-         % (tree("examples/desktop/apps"), tree("examples/desktop/control-panel")))
-ORDER = ["datetime", "displays", "keyboard", "mouse", "aboutme", "appearance",
-         "cliphist", "control_strip", "desktop", "filetypes", "language", "network", "notify",
-         "vaultset", "pictures", "prayerset", "screensaver", "shortcuts",
-         "windows", "abouthibr", "filesview", "notes", "taskmgr", "terminal", "tube"]
+         % (tree("examples/desktop/system"), tree("examples/desktop/control-panel")))
+# Hardware, then the desktop's own, then the apps', each group sorted by its
+# own title -- read out of cp_panes itself rather than hand-sorted, which is
+# what 0.99.126's regrouping made necessary: About This Computer and Task
+# Manager became the desktop's, Vault and Prayer Times the apps', and PIM
+# became Calendar & Contacts, so it sorts first among them now.
+ORDER = ["datetime", "displays", "keyboard", "mouse",
+         "aboutme", "abouthibr", "appearance", "cliphist", "control_strip",
+         "desktop", "filetypes", "language", "network", "notify", "pictures",
+         "screensaver", "shortcuts", "taskmgr", "windows",
+         "pimset", "filesview", "mailset", "prayerset", "notes", "terminal",
+         "vaultset", "tube"]
 DOWN_APP = [b"\x1b[B"] * ORDER.index("appearance")
 DOWN_KB = [b"\x1b[B"] * ORDER.index("shortcuts")
 
@@ -2713,7 +2752,8 @@ DOWN_KB = [b"\x1b[B"] * ORDER.index("shortcuts")
 def dotrun(session, env=None, pre="", keys=(), cols=COLS):
     d = tempfile.mkdtemp(prefix="hibr-dot-")
     p = os.path.join(d, "session.hibr")
-    apps = 'DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/desktop/apps")
+    apps = ('DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/desktop/apps")
+            + 'DT_SYSDIRS+=("%s")\ndt_sysapps\n' % tree("examples/desktop/system"))
     cp = 'CP_PANEDIRS+=("%s")\ncp_panes\n' % tree("examples/desktop/control-panel")
     open(p, "w").write("%s. %s\n%s%s%sdt_open\n%s\ndt_run\ndt_close\n"
                        % (load(MOD), WM, apps, cp, pre, session))
@@ -2940,7 +2980,7 @@ shutil.rmtree(CONF2, True)
 # names, read from wm/keys.hibr rather than counted here -- Calculator is the
 # first app, since it sorts before Control Panel.
 
-CALCSRC = '. %s/calc.hibr' % tree("examples/desktop/desk-accessories")
+CALCSRC = '. %s/calc.hibr' % tree("examples/desktop/apps/Accessories")
 CONF3 = tempfile.mkdtemp(prefix="hibr-conf3-")
 sc, _ = run('dt_new "Control Panel" 22 58 2 2 panel',
             feed=DOWN_KB + [b"\r"] + [b"\x1b[B"] * NKEYS,
@@ -3004,16 +3044,16 @@ shutil.rmtree(TERMKEY, True)
 
 HOLD = tempfile.mkdtemp(prefix="hibr-hold-")
 held = os.path.join(HOLD, "session.hibr")
-# The apps are loaded here so About can be opened in a held desktop: its
-# Held line is the one fact about the terminal that only a real hold
-# session can answer, and nothing in apps/ opens a window at startup, so
-# the screen these checks read is unchanged by loading them.
-open(held, "w").write("%s. %s\nDT_APPDIRS+=(\"%s\")\ndt_apps\n"
+# The desktop's own apps are loaded here so About can be opened in a held
+# desktop: its Held line is the one fact about the terminal that only a
+# real hold session can answer, and nothing in system/ opens a window at
+# startup, so the screen these checks read is unchanged by loading them.
+open(held, "w").write("%s. %s\nDT_SYSDIRS+=(\"%s\")\ndt_sysapps\n"
                       "dt_open\ndt_new \"Held\" 8 30 6 10\n"
                       "dt_run\ndt_close\n"
                       % (load(MOD, "build/mods/pty.so", "build/mods/term.so",
                               "build/mods/hold.so"), WM,
-                         tree("examples/desktop/apps")))
+                         tree("examples/desktop/system")))
 HENV = {"TMPDIR": HOLD, "DT_TICK": "60"}
 HOLDC = load("build/mods/pty.so", "build/mods/term.so", "build/mods/hold.so")
 
@@ -3218,9 +3258,12 @@ sc = t.screen()
 check("run plainly, the shipped session is already detachable",
       sc.find("Home") is not None and sc.find("Trash") is not None, sc)
 # A window open when it detaches is what proves --resume brings back more
-# than a bare desktop: F10 then the app's own letter opens it, the same way
-# a person would from the hibr menu.
+# than a bare desktop: F10, then Applications' own letter, then the app's,
+# the same way a person would from the hibr menu. A letter on a submenu row
+# opens it -- dt_mkey's letter branch goes through dt_mdo, which descends
+# when the row has a submenu.
 t.send(b"\x1b[21~", settle=0.3)
+t.send(b"p", settle=0.4)
 t.send(b"f", settle=0.6)
 t.send(b"\x1c", settle=0.6)
 check("and ctrl-\\ detaches it", b"[desktop: detached" in t.out,
@@ -3283,6 +3326,7 @@ atexit.register(unsession)
 
 t = Term(SESSION, "--session", "work", env=S2ENV, settle=2.0)
 t.send(b"\x1b[21~", settle=0.3)
+t.send(b"p", settle=0.4)
 t.send(b"f", settle=0.6)
 t.send(b"\x1c", settle=0.5)
 t.close()
@@ -3971,7 +4015,7 @@ check("neither is there unless asked for",
 # Prayer times (#70, ADR 0035): the window lists the day's six in order,
 # the next lit with a countdown; the bar shows the next when asked; and a
 # moment passed since the last look gives a note.
-DA = 'DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/desktop/desk-accessories")
+DA = 'DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/desktop/apps/Accessories")
 LDN = {"DT_PLAT": "51.5074", "DT_PLON": "-0.1278"}
 sc, _ = run('dt_new "Prayer Times" 15 40 2 4 prayer', env=LDN, pre=DA)
 rows = [sc.row(r) for r in range(ROWS)]
@@ -4575,4 +4619,4 @@ check("so is a center wallpaper wider than the screen",
       len(put) == 1 and not gone, "%d placed, %d deleted" % (len(put), len(gone)))
 shutil.rmtree(WPD, True)
 
-report(570)
+report(571)

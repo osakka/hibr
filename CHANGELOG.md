@@ -1,5 +1,83 @@
 # Changelog
 
+## 0.99.126
+
+**One rule says where everything is listed** (Gitea #158, and the rule the
+owner asked for). Reported as *"let's put a clear demarcation without
+ambiguity, what's a system app, and plays an integral role in the desktop
+itself, is under desktop, what's an app is an app. So About this Computer,
+is Desktop, right?"*
+
+The rule, now in `examples/desktop/README.md` as one paragraph:
+
+> **A thing belongs to the desktop if it manages or reports on the desktop,
+> the machine or the session — it would make no sense without this desktop.
+> Everything else is an application, however small: it opens, shows or
+> edits something of yours, and would make sense on any desktop.**
+
+So the hibr menu is the desktop's own things with one door to the rest:
+
+```text
+About This Computer…          Applications ▸  Accessories ▸
+─────                                         Calendar
+Applications            ▸                     Contacts
+Clipboard                                     Files
+Control Panel                                 Games       ▸
+Modules                                       Internet    ▸
+Screenshot…                                   Office      ▸
+Task Manager                                  Terminal
+─────  Screen Saver / Lock                    Vault
+```
+
+**And it needed no new mechanism, because the folder an app is listed in
+was already data rather than a path.** `da_apps` set
+`DT_APPDIR_CUR="Desk Accessories"` — a folder name no folder had — and
+`dt_appplan` already turned a folder into a submenu and recursed on
+`prefix/child`. So the whole split is a different answer to that one
+question: `dt_apps` says `Applications` for a file at the top of its root
+and `Applications/Office` for one in a subfolder, and `dt_sysapps` (which
+replaces `DA_DIRS`/`da_apps`, scanning `system/`) says **nothing at all**,
+which is what puts an app on the hibr menu itself.
+
+Eighteen files moved. `system/`: About This Computer, Control Panel, Task
+Manager, Modules, Notifications, Clipboard, Screenshot. `apps/`: Files,
+Terminal, Vault, Calendar, Contacts at the top; `Accessories/` for the
+calculator, clock, image viewer, puzzle, prayer times and Stickies; Office,
+Internet and Games as they were. `desk-accessories/` is gone — and a
+person with one of their own is **told**, once, at startup, rather than
+finding a file quietly missing from a menu.
+
+**Stickies was the one genuinely ambiguous case**, and the tie-breaker was
+*does it have a document?* It saves notes, so it is an application; the
+Clipboard keeps history the desktop owns and Notifications are the
+desktop's own, so those two are the desktop's. Recorded here so nobody
+re-argues it from the other direction — its bare windows do live on the
+desktop surface, which is what makes it arguable at all.
+
+**The Control Panel's own groups already had the right three headings** —
+Desktop, Apps, Hardware — and were assigned by habit. Five moved: the
+`Passwords` pane is **Vault** and in Apps, `PIM` is **Calendar &
+Contacts**, Prayer Times joins Apps, and About This Computer and Task
+Manager become Desktop, which is the half the owner asked about by name.
+
+**A submenu inside a submenu lost its grandparent, and that had to be
+fixed first**, because `Applications ▸ Office ▸ Write` is two deep where
+nothing before was. `dt_drop` drew `MB_OPEN` and `MB_PAR` — one level —
+and `MB_PAR` is a single global holding the menu `dt_mdown` came *from*, so
+at depth two the hibr menu simply stopped being drawn and the chain jumped
+left. Each submenu records its own parent now (`MB[i]["par"]`, set by
+`dt_sub`, which already knew it) and `dt_drop` walks the chain outermost
+first. Measured through a pty before and after; navigation was never
+broken, only the drawing.
+
+**And widening a glob found a hole in a check.** `540-examples.t`'s
+"no window content draws at absolute screen coordinates" never scanned
+`apps/*/` at all — Office, Internet and Games had never been checked — and
+once they were, its pattern turned out to read only the word after `put`,
+so `console put -r -p "w$id"` read as absolute. The pattern allows flags
+before `-p` now, and there was no real absolute drawing hiding in those
+three folders.
+
 ## 0.99.125
 
 **A module's version is its own** (Gitea #162), and **a note check waits

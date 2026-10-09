@@ -40,7 +40,7 @@ def session(tag, pre=""):
     sess = os.path.join(D, tag + ".hibr")
     open(sess, "w").write("%s%s\n. %s\n. %s\n. %s\ndt_open\ndt_new Vault 20 64 1 2 vault\ndt_run\ndt_close\n" % (
         load("console", "vw", "dav"), pre, tree("examples/desktop/desktop.hibr"),
-        tree("examples/desktop/desk-accessories/vault.hibr"),
+        tree("examples/desktop/apps/vault.hibr"),
         tree("examples/desktop/control-panel/vaultset.hibr")))
     return Term(sess, rows=30, cols=100, settle=1.5, env=ENV)
 

@@ -19,7 +19,7 @@ if len(sys.argv) > 1:
     sx.HIBR = os.path.abspath(sys.argv[1])
 WM = tree("examples/desktop/desktop.hibr")
 APPS = tree("examples/desktop/apps")
-DA = tree("examples/desktop/desk-accessories")
+SYS = tree("examples/desktop/system")
 D = tempfile.mkdtemp(prefix="hibr-apps-")
 S = tempfile.mkdtemp(prefix="hibr-apps-session-")
 
@@ -37,11 +37,11 @@ ENTRIES = 15
 
 def appdir(a):
     """Which directory has a.hibr -- APPS searched recursively, the same
-    as dt_apps' own **/*.hibr glob (an app can live in a subfolder of its
-    own, which is what makes it a submenu); DA flat, the same as da_apps'
-    own deliberately non-recursive scan."""
-    if os.path.exists(os.path.join(DA, a + ".hibr")):
-        return DA
+    as dt_apps' own **/*.hibr glob (an app in a subfolder is a submenu
+    inside Applications); SYS flat, the same as dt_sysapps' own
+    deliberately non-recursive scan of the desktop's own apps."""
+    if os.path.exists(os.path.join(SYS, a + ".hibr")):
+        return SYS
     for root, _dirs, files in os.walk(APPS):
         if a + ".hibr" in files:
             return root
@@ -292,7 +292,7 @@ check("with no panes loaded, it says so rather than pretending",
 
 CP = tree("examples/desktop/control-panel")
 CPLOAD = ('. %s\n. %s/panel.hibr\nCP_PANEDIRS+=("%s")\ncp_panes\n'
-          % (WM, APPS, CP))
+          % (WM, SYS, CP))
 out = subprocess.run([sx.HIBR, "-c", CPLOAD + 'for p in "${CP_PANE_LIST[@]}"; '
                       'do echo "$p ${CP_PANES[$p]["group"]}"; done'],
                      capture_output=True, text=True).stdout.split("\n")
@@ -300,10 +300,12 @@ ORDER = [l.split()[0] for l in out if l.strip()]
 GROUP = dict(l.split() for l in out if l.strip())
 check("panes register and sort by title within their group, not load order",
       ORDER == ["datetime", "displays", "keyboard", "mouse",
-                "aboutme", "appearance", "cliphist", "control_strip", "desktop",
-                "filetypes", "language", "network", "notify", "vaultset", "pictures", "prayerset",
-                "screensaver", "shortcuts", "windows",
-                "abouthibr", "filesview", "mailset", "pimset", "notes", "taskmgr", "terminal", "tube"], out)
+                "aboutme", "abouthibr", "appearance", "cliphist",
+                "control_strip", "desktop", "filetypes", "language",
+                "network", "notify", "pictures", "screensaver", "shortcuts",
+                "taskmgr", "windows",
+                "pimset", "filesview", "mailset", "prayerset", "notes",
+                "terminal", "vaultset", "tube"], out)
 check("Hardware first, then the desktop's own panes, then one per app",
       [GROUP[n] for n in ORDER] ==
       ["hardware"] * 4 + ["system"] * 15 + ["app"] * 8, out)
@@ -327,13 +329,13 @@ TITLE = {"aboutme": "About Me", "appearance": "Appearance", "control_strip": "Co
          "cliphist": "Clipboard", "notes": "Stickies",
          "datetime": "Date & Time", "desktop": "Desktop",
          "displays": "Displays", "filetypes": "File Types", "language": "Language",
-         "network": "Network Serve", "prayerset": "Prayer Times", "vaultset": "Passwords",
+         "network": "Network Serve", "prayerset": "Prayer Times", "vaultset": "Vault",
          "pictures": "Pictures",
          "screensaver": "Screen Saver",
          "keyboard": "Keyboard", "mouse": "Mouse",
          "shortcuts": "Shortcuts", "notify": "Notifications",
-         "windows": "Windows", "abouthibr": "About This Computer",
-         "filesview": "Files", "mailset": "Mail", "pimset": "PIM", "taskmgr": "Task Manager",
+         "windows": "Windows", "abouthibr": "About This",
+         "filesview": "Files", "mailset": "Mail", "pimset": "Calendar &", "taskmgr": "Task Manager",
          "terminal": "Terminal", "tube": "YouTube"}
 
 
@@ -427,7 +429,8 @@ check("the picker lists every pane it has room for, sorted by title",
 check("under a Hardware heading, then Desktop, then Apps",
       "Hardware" in sc.row(R0 + 1) and
       "Desktop" in sc.row(prow("aboutme") - 1) and
-      (prow("abouthibr") - 1 >= R0 + 19 or "Apps" in sc.row(prow("abouthibr") - 1)), sc)
+      (prow("pimset") - 1 >= R0 + 19 or
+       "Apps" in sc.row(prow("pimset") - 1)), sc)
 check("a list longer than the window scrolls, with a bar to say so",
       sc.find("Hardware") is not None and "█" in "".join(
           r[2:22] for r in sc.text().split("\n")), sc)
@@ -1666,7 +1669,7 @@ check("alt-ctrl-p opens the task manager",
 
 # --- the desk accessories --------------------------------------------------
 #
-# Ordinary apps, kept in examples/desktop/desk-accessories rather than examples/desktop/apps
+# Ordinary apps, kept in examples/desktop/apps/Accessories rather than at the top of apps
 # only so the hibr menu groups them (see tests/desktop.py for that part);
 # nothing about running one is different, which is the point of #32.
 
@@ -1708,7 +1711,7 @@ PZ[$id]["moves"]=0
 PZ[$id]["state"]=run
 pz_slide "$id" right
 echo "${PZ[$id]["state"]}"
-''' % (WM, os.path.join(DA, "puzzle.hibr")))
+''' % (WM, os.path.join(APPS, "Accessories", "puzzle.hibr")))
 out = subprocess.run([sx.HIBR, WINSCRIPT], capture_output=True,
                      text=True).stdout.strip()
 check("sliding the last tile into place is recognised as solved",

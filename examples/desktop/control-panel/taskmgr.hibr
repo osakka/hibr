@@ -7,7 +7,7 @@
 
 strict
 
-command -v cp_pane > /dev/null && cp_pane taskmgr "Task Manager" "⚙" app
+command -v cp_pane > /dev/null && cp_pane taskmgr "Task Manager" "⚙"
 
 CP_TKTICKS=(500 1000 2000 3000 5000 10000)
 CP_TKDIRS=(desc asc)

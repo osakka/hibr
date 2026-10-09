@@ -17,7 +17,7 @@ NOWVAL=1000
 DT_ROWS=1
 dt_want() { :; }
 dt_ms() { ret "$NOWVAL"; }
-. examples/desktop/apps/about.hibr
+. examples/desktop/system/about.hibr
 AB_OS=Linux
 
 echo "--- about_cpu"

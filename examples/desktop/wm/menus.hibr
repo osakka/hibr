@@ -90,7 +90,7 @@ fn dt_dim(label) {
 # created, which after one dt_end is the submenu that just closed. Getting
 # that wrong hangs the second submenu off the first, and it looks almost
 # right until you notice a menu item has gone missing.
-fn dt_sub(label) {
+fn dt_sub(label, key = "") {
 	local p=${MB_CUR:-$((MB_N - 1))} n
 
 	case $DT_LANG in ?*) label := dt_tr "$label" ;; esac
@@ -98,13 +98,22 @@ fn dt_sub(label) {
 	dt_menu "$label"
 	MB[$((MB_N - 1))]["bar"]=0
 	MI[$p][$n]["label"]="$label"
-	MI[$p][$n]["key"]=""
+	# A submenu takes a letter like any other row when its caller has one
+	# to give. It mattered the moment Applications became the one way to
+	# every application: a row with no letter can only be reached by the
+	# arrows, which is fine for a folder among many and not for a door.
+	MI[$p][$n]["key"]="$key"
 	MI[$p][$n]["cmd"]=""
 	MI[$p][$n]["argc"]=0
 	MI[$p][$n]["sep"]=0
 	MI[$p][$n]["dim"]=0
 	MI[$p][$n]["tick"]=""
 	MI[$p][$n]["sub"]=$((MB_N - 1))
+	# Which menu owns this one, kept per menu rather than only in MB_PAR:
+	# MB_PAR is the one level dt_mdown came from, so a submenu inside a
+	# submenu had no way to say who its grandparent was and dt_drop drew
+	# only the last two, losing the top of the chain.
+	MB[$((MB_N - 1))]["par"]=$p
 	MB[$p]["n"]=$((n + 1))
 	dt_wide "$p" $((${#1} + 8))
 	MB_STACK="$p $MB_STACK"
@@ -199,7 +208,13 @@ dt_menus() {
 	# dt_app only so dt_launch about can find it, not to be listed a
 	# second time as an ordinary app -- its own dt_app call marks it
 	# hidden, which is what dt_appmenu actually skips.
-	dt_appmenu "" aqdur
+	# The letters the fixed items below already use, so dt_akey never
+	# hands one out twice: a About, q Quit, d Detach, u (unused, kept),
+	# r Restart, l Lock, s Screen Saver. Screenshot… and Screen Saver
+	# both wanted s the moment Screenshot moved from a submenu onto this
+	# menu, and an item that cannot be reached is worse than one with no
+	# letter at all.
+	dt_appmenu "" aqdurls
 	dt_sep
 	dt_item "Screen Saver" s dt_saverstart
 	dt_item "Lock Screen" l dt_lock
@@ -725,19 +740,26 @@ dt_layoutm() {
 
 # Draw the open menu over everything else.
 dt_drop() {
-	local m=$MB_OPEN
+	local m=$MB_OPEN p
+	local -a up=()
 
 	[ "$m" = -1 ] && return 0
 	if [ "$m" = app ]; then
 		dt_drop_apps
 		return 0
 	fi
-	if [ -n "$MB_PAR" ]; then
-		dt_menu_draw "$MB_PAR" "" 1
-		dt_menu_draw "$m" "${MB[$m]["px"]}" 0
-	else
-		dt_menu_draw "$m" "" 0
-	fi
+	# Every menu above this one, outermost first, so a submenu of a
+	# submenu shows the whole path. A bar menu has no px of its own and
+	# draws where its title is; a submenu was given one by dt_mdown.
+	p=${MB[$m]["par"]}
+	while [ -n "$p" ]; do
+		up=("$p" "${up[@]}")
+		p=${MB[$p]["par"]}
+	done
+	for p in "${up[@]}"; do
+		dt_menu_draw "$p" "${MB[$p]["px"]}" 1
+	done
+	dt_menu_draw "$m" "${MB[$m]["px"]}" 0
 }
 
 # Draw one menu at its own place.  A submenu is given the column its parent
@@ -1093,14 +1115,14 @@ fn dt_mhit(int c) {
 }
 
 # The next (dir 1) or previous (dir -1) top-level bar menu from i, skipping
-# any submenu index in between. dt_appmenu's own dt_sub calls (a folder of
-# apps -- Desk Accessories is the common one) and an app's own _menus both
-# interleave submenu entries into the same MB[] array the bar menus
-# themselves live in, so "the next index" is not "the next bar menu": with
-# Desk Accessories sitting between the hibr menu and Edit, MB_OPEN + 1 on
-# the hibr menu landed on it by plain index arithmetic, so right arrow on
-# an item with no submenu of its own (About This Computer, say) opened Desk
-# Accessories instead of moving to Edit. Returns -1 or MB_N when there is
+# any submenu index in between. dt_appmenu's own dt_sub calls (Applications,
+# and a folder inside it) and an app's own _menus both interleave submenu
+# entries into the same MB[] array the bar menus themselves live in, so
+# "the next index" is not "the next bar menu": with a submenu sitting
+# between the hibr menu and Edit, MB_OPEN + 1 on the hibr menu landed on it
+# by plain index arithmetic, so right arrow on an item with no submenu of
+# its own (About This Computer, say) opened that submenu instead of moving
+# to Edit. Returns -1 or MB_N when there is
 # no further bar menu that way, for the caller to fall back to "app".
 fn dt_mbar(int i, int dir) {
 	i=$((i + dir))

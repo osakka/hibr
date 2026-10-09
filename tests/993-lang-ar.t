@@ -16,7 +16,7 @@ import json
 # Kept in Latin on purpose: product and protocol names, the project's own
 # tagline, an address shown as an example, and a label that is all
 # placeholders. Anything else identical to its English is untranslated.
-LATIN = {"YouTube", "dBASE", "PIM", "ETag: %s", "PID:    %s", "%s %s…",
+LATIN = {"YouTube", "dBASE", "ETag: %s", "PID:    %s", "%s %s…",
          "Highly Intuitive Bash-like Runtime",
          "Nextcloud: https://HOST/remote.php/dav/files/USER"}
 d = json.load(open("examples/desktop/lang/ar.json"))

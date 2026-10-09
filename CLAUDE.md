@@ -153,7 +153,7 @@ whenever a replacement writes one.
 | `src/fs.c` | `mkdir`, `rm` and `mv` as builtins, GNU-compatible, anything else to the program (ADR 0029) |
 | `src/mod.c` | module loading |
 | `mods/*.c` | reference modules: `sys`, `http` (scheme), `ls`, `math` (floating point; one of the two modules `--plan` may load, see `pl_pure`), `darwin` (macOS-only: `cpu`, `mem`, native `host_statistics`, no fork) |
-| `examples/desktop/` | the window manager (`desktop.hibr`, a table of contents sourcing `wm/`, one concern to a file, and `widgets/`, the widget library apps draw with) and everything built on it — `apps/` (file browser, control panel, terminal, task manager, the module manager, About hibr, three games in `Games/`, dBASE, Write and Sheet in `Office/`), `desk-accessories/` (calculator, clock, image viewer, note pad, sliding puzzle), `control-panel/` panes, `control-strip/` modules — see `examples/desktop/README.md` for how to use it and `examples/desktop/ARCHITECTURE.md` for how it is built |
+| `examples/desktop/` | the window manager (`desktop.hibr`, a table of contents sourcing `wm/`, one concern to a file, and `widgets/`, the widget library apps draw with) and everything built on it — `apps/`, every **application**, listed under one Applications submenu with a folder inside it becoming a submenu of its own (file browser, terminal, Vault, Calendar, Contacts; `Accessories/` for the calculator, clock, image viewer, note pad, sliding puzzle, and `Office/`, `Internet/` and `Games/`), `system/`, the desktop's **own** apps, listed on the hibr menu itself because they manage or report on the desktop rather than opening anything of yours (About This Computer, Control Panel, Task Manager, Modules, Notifications, Clipboard, Screenshot), `control-panel/` panes, `control-strip/` modules — see `examples/desktop/README.md` for how to use it and `examples/desktop/ARCHITECTURE.md` for how it is built |
 | `tests/screen.py` | **the** pty harness and terminal model, shared by every full-screen suite |
 | `mods/prompt/` | the prompt module, including a native reader for git's object store — see `mods/README.md` for the file-by-file breakdown |
 | `mods/console/` | the text display: alternate screen, cell grid with damage-based redraw, panes, decoded keys — see `mods/console/README.md` |
@@ -1138,9 +1138,9 @@ went in the shell.
   bar menu": `dt_appmenu`'s own `dt_sub` (a folder of apps -- Desk
   Accessories is the common one) allocates a new `MB[]` entry the moment
   it runs, interleaved between whichever bar menus were declared before
-  and after it. With Desk Accessories sitting between the hibr menu and
+  and after it. With a submenu sitting between the hibr menu and
   Edit, right arrow on an item with no submenu of its own (About hibr,
-  say) used `MB_OPEN + 1` and landed on Desk Accessories by plain index
+  say) used `MB_OPEN + 1` and landed on that submenu by plain index
   arithmetic, opening it regardless of what was actually highlighted.
   `dt_mbar` searches by each menu's own `bar` flag instead of assuming
   position.
@@ -2517,7 +2517,8 @@ went in the shell.
 - **A session file that does not load the apps gives a window with no app
   behind it, and says so only as "apps 0" in the log.** `desktop.hibr`
   loads the window manager and the widgets; `DT_APPDIRS`/`dt_apps`,
-  `DA_DIRS`/`da_apps` and `CS_MODDIRS`/`cs_modules` are the *session*'s,
+  `DT_SYSDIRS`/`dt_sysapps` and `CS_MODDIRS`/`cs_modules` are the
+  *session*'s,
   which is why `examples/desktop/session.hibr` has them. A test session
   without them opens a window titled "Terminal" that is an empty box: no
   program, no output, no frames, and nothing anywhere saying why. Three
@@ -3316,6 +3317,36 @@ went in the shell.
   measurement rather than a count is what makes that testable: the frame
   count alone was 37 against a threshold of 40, which is a check that
   passes the bug on a slow box, so the check asserts frames **and** CPU.
+- **Where an app is listed is data, not a path, which is why the taxonomy
+  needed no new mechanism.** `DT_APPS[n]["dir"]` is whatever
+  `DT_APPDIR_CUR` said when the app was sourced, and `dt_appplan` turns a
+  folder into a submenu and recurses on `prefix/child` -- so `da_apps`
+  setting `DT_APPDIR_CUR="Desk Accessories"`, a folder no folder had, was
+  already the whole trick. 0.99.126's split is a different answer to that
+  one question: `dt_apps` says `Applications` or `Applications/<sub>`, and
+  `dt_sysapps` says **nothing**, which is what lists an app on the hibr
+  menu itself. Before designing a menu change here, look at what the plan
+  is built from -- it was two lines, not a mechanism.
+- **A submenu inside a submenu lost its grandparent.** `dt_drop` drew
+  `MB_OPEN` and `MB_PAR`, and `MB_PAR` is a *single global* holding the one
+  menu `dt_mdown` came from -- fine while nothing nested twice, and at
+  depth two the top of the chain simply stopped being drawn and the parent
+  jumped to the bar menu's own column. Each submenu records its parent now
+  (`MB[i]["par"]`, set by `dt_sub`, which already had it) and `dt_drop`
+  walks the chain outermost first. Navigation was never broken -- `right`
+  calls `dt_mdown` first and only falls through to the next bar menu when
+  the highlighted row has no submenu -- which is worth knowing before
+  believing a nesting probe: **a probe that sends one key too many tests
+  the wrong row**, and the first one here moved the highlight off
+  Applications and onto Quit, then read "right does not open a submenu".
+- **A glob list is where coverage goes to hide.** `540-examples.t`'s
+  "no window content draws at absolute screen coordinates" listed
+  `apps/*.hibr` and not `apps/*/*.hibr`, so **Office, Internet and Games
+  were never checked** -- and the moment they were, the check's own
+  pattern turned out to read only the word after `put`, calling
+  `console put -r -p "w$id"` absolute. Two bugs, one in coverage and one in
+  the rule, and the coverage one hid the rule one. When a check takes a
+  list of files, read the list.
 - **A number that is always the same as another number is a column of
   noise.** Nineteen of thirty-six modules declared a version that was not
   their own: eight carried `HIBR_VER`, so `mod list` printed `sys 0.99.124`

@@ -62,14 +62,26 @@ d=${0%/*}
 # "always" leaves out.
 dt_autohold "$session" "$resume" "$join" "$name" "${standby:-0}"
 
-# Apps are ordinary hibr files, found in folders: your own
+# Applications are ordinary hibr files, found in folders: your own
 # ~/.config/hibr/apps first, then the ones that come with hibr.  Each file
 # declares itself with dt_app -- its title, its window's size, and whether a
 # second launch opens another window -- so a script dropped in a folder is
 # on the hibr menu at the next start, sorted by title.  A file of yours
 # with the same name as a bundled one replaces it.
+#
+# They are listed under one Applications submenu, and a folder inside this
+# one is a submenu inside that -- Office, Internet, Games, Accessories.
 DT_APPDIRS+=("$d/apps")
 dt_apps
+
+# System apps are the desktop's own: they manage or report on the desktop,
+# the machine or the session, and would make no sense without this desktop.
+# Same registration, same kind of file -- what makes them the desktop's is
+# that they are listed on the hibr menu itself rather than inside
+# Applications.  About This Computer, Control Panel, Task Manager, Modules,
+# Notifications, the Clipboard, Screenshot.
+DT_SYSDIRS+=("$d/system")
+dt_sysapps
 
 # Control Panel panes are the same idea, one level down: each is a plain
 # hibr file too, found the same way, loaded once Control Panel itself
@@ -77,10 +89,6 @@ dt_apps
 CP_PANEDIRS+=("$d/control-panel")
 command -v cp_panes > /dev/null && cp_panes
 
-# Desk accessories are ordinary apps -- Stickies, Puzzle -- kept in their
-# own folder only so the hibr menu groups them under that name.
-DA_DIRS+=("$d/desk-accessories")
-da_apps
 
 # The Control Strip's own quick-toggle modules -- cs_module is desktop.hibr's
 # own, so this needs nothing else on the hibr menu to have loaded first.

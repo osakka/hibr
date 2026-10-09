@@ -10,7 +10,7 @@
 
 strict
 
-command -v cp_pane > /dev/null && cp_pane pimset "PIM" "☺" app
+command -v cp_pane > /dev/null && cp_pane pimset "Calendar & Contacts" "☺" app
 
 if [ -z "${PE_LIBDONE-}" ] && [ -r "${BASH_SOURCE%/*}/../lib/pim.hibr" ]; then
 	. "${BASH_SOURCE%/*}/../lib/pim.hibr"
