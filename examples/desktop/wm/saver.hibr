@@ -45,6 +45,12 @@ fn dt_saverstart(how = "") {
 		# DT_SAVING stays empty, so the next frame is an ordinary one,
 		# which would put back only whatever happened to be dirty.
 		DT_FORCEONCE=1
+		# And the idle clock starts again here, or dt_saverwait finds
+		# the time up on the very next frame and clears the screen
+		# again -- every frame, for as long as the desktop runs. Only
+		# this path needs it: a saver that did start leaves through
+		# dt_saverstop, which resets it (Gitea #118).
+		DT_IDLEFROM=$EPOCHSECONDS
 	fi
 	return 0
 }

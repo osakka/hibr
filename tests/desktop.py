@@ -4212,6 +4212,39 @@ os.unlink(path)
 check("the saver over a terminal that keeps writing costs little, not a "
       "core (%.0f%%)" % (used * 100), "\u2588" in sc.text() and used < 0.3, sc)
 
+# With nothing to run, dt_saverstart clears the screen and leaves DT_SAVING
+# empty -- so the next frame is an ordinary one, and dt_saverwait looks at the
+# idle clock again. It reset DT_SAVERFROM and not DT_IDLEFROM, so the time was
+# still up: it cleared the screen and forced a full redraw on every frame, for
+# as long as the desktop ran (Gitea #118). Six savers ship, so the branch is
+# reached only by a session that loads none, which is what this fixture makes:
+# dt_saverload still sources the real library, so every declaration and the
+# real sv_begin are there, and then empties SV_LIST -- the state a machine
+# with no savers installed is in, where sv_begin returns 1 on its own. The
+# runaway shows as the frame count rather than as the screen, since every one
+# of those frames draws the desktop correctly.
+path = scratch("desktop-nosaver.hibr")
+open(path, "w").write(
+    "%s. %s\ndt_saverload() {\n\t[ -n \"$DT_SAVERREADY\" ] && return 0\n"
+    "\t. \"$DT_HERE/savers/saver.hibr\"\n\tsv_load\n\tSV_LIST=()\n"
+    "\tDT_SAVERREADY=1\n}\n"
+    "%s\ndt_open\ndt_run\ndt_close\n" % (load(MOD), WM, ONE))
+t = Term(path, env={"DT_SAVERSECS": "1"}, rows=ROWS, cols=COLS, settle=0.6)
+t.collect(1.5)
+f0, c0 = t.frames(), ticks(t.pid)
+t.collect(4.0)
+drew = t.frames() - f0
+hot = (ticks(t.pid) - c0) / os.sysconf("SC_CLK_TCK") / 4.0
+t.quit(b"qy", 1.2)
+os.unlink(path)
+# Both, because either alone is thin: with the line removed this measures 57
+# frames and 5.2% of a core, against 8 and 0.5% with it, twice in a row -- and
+# a frame count on its own was 37 against a threshold of 40, which is a check
+# that passes the bug on a slow box.
+check("no saver to run clears the screen once a period, not every frame "
+      "(%d frames, %.1f%% of a core in 4s)" % (drew, hot * 100),
+      drew < 25 and hot < 0.02, (drew, hot))
+
 # --- the login screen --------------------------------------------------------
 #
 # login/login.hibr, run as the suite's own user -- a trial run, which can
@@ -4533,4 +4566,4 @@ check("so is a center wallpaper wider than the screen",
       len(put) == 1 and not gone, "%d placed, %d deleted" % (len(put), len(gone)))
 shutil.rmtree(WPD, True)
 
-report(569)
+report(570)

@@ -78,6 +78,10 @@ void kt_encode(const unsigned char *rgb, int iw, int ih, int cols, int rows,
 	       unsigned id, int under, str *o);
 void kt_del(str *o, unsigned id);
 void kt_delall(str *o);
+/* How many times anything has written to the grid or placed a picture. A
+   flush compares it with its own last reading to tell a new frame from the
+   same one flushed twice (Gitea #118). */
+extern size_t cn_wrote;
 /* image.c: a picture the console keeps as a region of the grid. */
 int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	     const unsigned char *rgb, int iw, int ih, unsigned flags);
@@ -86,7 +90,7 @@ void cn_imgscalesrc(const unsigned char *in, int iw, int ih,
 		    unsigned char *out, int w, int h);
 void cn_imgscale(const unsigned char *in, int iw, int ih,
 		 unsigned char *out, int w, int h);
-void cn_imgcheck(void);
+void cn_imgcheck(int again);
 int cn_imgkeep(sh *s, int row, int col, int h, int w);
 size_t cn_imgsend(str *b, int over);
 /* The deletes owed to the terminal for pictures that have gone, emitted

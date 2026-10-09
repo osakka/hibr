@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.99.123
+
+**A flush with nothing drawn since the last one is the same frame, not a
+frame that stopped wanting the picture** (Gitea #118), and **the idle clock
+restarts when no saver could start**. Two instances of one invariant -- a
+cell may be left undrawn only if the thing that owns it is the only thing
+that ever writes it -- both named in 0.99.87 as found while reading the diff
+for #112 and #114, and neither fixed then.
+
+**1. Every screenshot was taken with the wallpaper deleted from the
+terminal.** `wm/shot.hibr` ends with `dt_draw; console flush`, and `dt_draw`
+has already flushed. What keeps a picture drawn under the text is the caller
+placing it again (ADR 0037), so `cn_imgcheck` running a second time with
+nothing in between read "nobody wants it" from a frame that never happened:
+the region went, with a kitty delete, and the screenshot caught the screen
+without it. The console counts writes now (`cn_wrote`, bumped by `cn_put`,
+`cn_fill`, `cn_clear`, `cn_darken1`, `cn_image` and `cn_imgkeep`) and
+compares the count with its own last reading, so a flush that follows no
+drawing retires nothing at all -- a region that owns its cells cannot have
+been drawn through either, since nothing wrote. The rule is worth stating
+plainly: **`console flush` is not idempotent for a picture under the text.**
+
+**2. A desktop with no saver installed cleared the screen on every frame.**
+`dt_saverstart` reset `DT_SAVERFROM` and not `DT_IDLEFROM`, and when
+`sv_begin` fails -- no savers at all -- `DT_SAVING` stays empty, so the next
+frame is an ordinary one and `dt_saverwait` finds the idle time up again.
+Clear, force a full redraw, repeat, for as long as the desktop runs:
+measured at **57 frames and 5.2% of a core in four seconds** against 8 and
+0.5% with the line put back. Only that path needs it; a saver that did start
+leaves through `dt_saverstop`, which already resets the clock.
+
+Both guards fail against 0.99.122, checked before being trusted.
+`tests/kitgfx.py` places a picture under the text, flushes twice and asserts
+no `d=I` delete -- not merely no delete, since `console close` always sends
+`d=A`. `tests/desktop.py` drives a session whose `dt_saverload` sources the
+real saver library and then empties `SV_LIST`, which is the state a machine
+with no savers is in, so the real `sv_begin` fails on its own rather than
+being stubbed into failing; it asserts the frame count **and** the CPU,
+because a frame count alone measured 37 against a threshold of 40 -- a check
+that passes the bug on a slow box.
+
 ## 0.99.122
 
 **Every option `set` takes, hibr takes on the command line** (Gitea #153),

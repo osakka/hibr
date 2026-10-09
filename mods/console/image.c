@@ -247,6 +247,8 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	size_t i;
 	cn_img *im;
 
+	cn_wrote++;
+
 	if (!cn_isopen() || !rgb || h < 1 || w < 1 || iw < 1 || ih < 1)
 		return 0;
 	k = cn_gfx(s);
@@ -447,6 +449,7 @@ int cn_imgkeep(sh *s, int row, int col, int h, int w)
 	size_t i;
 
 	(void)s;
+	cn_wrote++;
 	for (i = 0; i < cn_nimg; i++) {
 		if (!cn_imgs[i].over || cn_imgs[i].wrow != row ||
 		    cn_imgs[i].wcol != col || cn_imgs[i].wh != h ||
@@ -459,11 +462,22 @@ int cn_imgkeep(sh *s, int row, int col, int h, int w)
 }
 
 /* Before the diff: a region whose cells are no longer the ones it was placed
-   over has been drawn through, so it goes and they are painted again. */
-void cn_imgcheck(void)
+   over has been drawn through, so it goes and they are painted again.
+
+   `again` says this flush had nothing drawn since the last one -- the same
+   frame flushed twice -- and then it retires nothing. What keeps a picture
+   under the text is the caller placing it again, so a second flush with no
+   drawing in between would read "nobody wants it" from a frame that never
+   happened: `wm/shot.hibr`'s own `dt_draw; console flush` took every
+   screenshot with the wallpaper deleted from the terminal (Gitea #118). A
+   region that owns its cells cannot have been drawn through either, since
+   nothing wrote, so there is nothing for this pass to find. */
+void cn_imgcheck(int again)
 {
 	size_t i = 0;
 
+	if (again)
+		return;
 	while (i < cn_nimg) {
 		/* One drawn under text claims no cells, so the hash below says
 		   nothing about it. What keeps it is the caller placing it

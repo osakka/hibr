@@ -217,6 +217,15 @@ sc = run(TEXT + UPIC + "console flush\n"
 check("and the frame that stops placing it is what takes it away",
       len(places(sc)) == 1 and any("a=d" in a and "d=I" in a
                                    for a in sc.apc), sc.apc)
+# But a flush with nothing drawn since the last one is the same frame flushed
+# twice, not a frame that stopped wanting the picture -- and `wm/shot.hibr`
+# ends with `dt_draw; console flush`, where dt_draw has already flushed. Every
+# screenshot was therefore taken with the wallpaper deleted from the terminal
+# (Gitea #118). A flush that retires nothing must also keep the picture it
+# already sent: no second placement either.
+sc = run(TEXT + UPIC + "console flush\nconsole flush\nconsole key 400\n")
+check("a second flush with nothing drawn between it keeps the picture",
+      len(places(sc)) == 1 and not any("d=I" in a for a in sc.apc), sc.apc)
 
 # The scaled pixels are kept (Gitea #108). The cell path has had a cache for
 # releases and the pixel path had none at all, so a wallpaper -- which must
@@ -305,4 +314,4 @@ check("and at every pixel when asked for full detail, four times the bytes",
       full == (96 * 96 * 3 + 2) // 3 * 4 and full == half * 4, (full, half))
 
 shutil.rmtree(D, True)
-report(35)
+report(36)

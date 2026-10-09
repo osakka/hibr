@@ -3290,4 +3290,29 @@ went in the shell.
   filename. `sh_optch` turns a letter into an option *name* and goes through
   `sh_optset`, so both reach the one namespace and a letter added later
   reaches both; `$-` is built from the same table (`sh_dash`), which is what
-  keeps it from becoming a third list.
+  keeps it from becoming a third list. How the shell was started is two
+  spare bits of `sopt` (`O_DASHC`, `O_DASHS`) rather than a field on `sh`,
+  so the ABI did not move; they are set once in `main`, are not in
+  `sh_optnames` so `set -o` cannot reach them, and travel with every fork --
+  a subshell and a `$( )` under `-c` both still answer `c`, which is what
+  bash does (`hBc` in all three places there, `c` in all three here).
+- **`console flush` is not idempotent for a picture drawn under the text,
+  and a second flush in one frame is how that bites.** What keeps such a
+  picture is the caller placing it again (ADR 0037), so `cn_imgcheck` asks
+  "was it placed since the last flush" -- and a flush that follows no
+  drawing at all answers that question about a frame that never happened.
+  `wm/shot.hibr` ends with `dt_draw; console flush` and `dt_draw` has
+  already flushed, so **every screenshot was taken with the wallpaper
+  deleted from the terminal** (Gitea #118, 0.99.123). The console counts
+  writes (`cn_wrote`) and a flush that follows none retires nothing. The
+  general shape: a function whose job is to ask "is this still wanted" must
+  know whether anything could have answered since it last asked.
+- **A timer that is not reset fires again on the next frame, for ever.**
+  `dt_saverstart` reset `DT_SAVERFROM` and not `DT_IDLEFROM`, and the path
+  where `sv_begin` *fails* -- no savers installed -- leaves `DT_SAVING`
+  empty, so the next frame is an ordinary one and `dt_saverwait` finds the
+  idle time up again: clear the screen, force a full redraw, repeat. 57
+  frames and 5.2% of a core in four seconds, against 8 and 0.5%. A
+  measurement rather than a count is what makes that testable: the frame
+  count alone was 37 against a threshold of 40, which is a check that
+  passes the bug on a slow box, so the check asserts frames **and** CPU.

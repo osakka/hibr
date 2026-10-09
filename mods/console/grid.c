@@ -26,6 +26,8 @@ static unsigned char *cn_own;
    allocation. That read killed a live desktop with a signal 11 the first time
    its terminal was resized. */
 static int cn_ownr, cn_ownc, cn_ownok, cn_behindon;
+size_t cn_wrote;
+static size_t cn_wflush;
 static int cn_skip(int row, int col);
 unsigned cn_fg, cn_bg, cn_penat;
 int cn_crow, cn_ccol, cn_cvis;
@@ -189,6 +191,7 @@ void cn_clear(void)
 
 	if (cn_fitq() != HIBR_OK)
 		return;
+	cn_wrote++;
 	n = cn_back.rows * cn_back.cols;
 	for (i = 0; i < n; i++) {
 		cn_cellset(&cn_back.c[i], ' ', 0, 0);
@@ -254,6 +257,7 @@ void cn_darken1(int row, int col, int h, int w, int pct, int once)
 
 	if (cn_fitq() != HIBR_OK)
 		return;
+	cn_wrote++;
 	if (pct < 0)
 		pct = 0;
 	if (pct > 100)
@@ -305,6 +309,7 @@ int cn_put(int row, int col, const char *t)
 
 	if (cn_fitq() != HIBR_OK || !t)
 		return 0;
+	cn_wrote++;
 	n = strlen(t);
 	while (i < n) {
 		l = u8dec(t + i, n - i, &cp);
@@ -379,6 +384,7 @@ void cn_fill(int row, int col, int h, int w, const char *t)
 		t = " ";
 	if (cn_fitq() != HIBR_OK)
 		return;
+	cn_wrote++;
 	l = u8dec(t, strlen(t), &cp);
 	gw = u8w(cp);
 	if (gw == 1 && t[l] == 0) {
@@ -603,7 +609,12 @@ long cn_flush(void)
 	/* A picture whose cells have been drawn through since it was placed is
 	   gone: dropping it here, before the diff, is what makes those cells
 	   paint again. */
-	cn_imgcheck();
+	/* The same frame flushed twice asks nothing about what is still
+	   wanted, so it must retire nothing: shot.hibr's own `dt_draw;
+	   console flush` was dropping the under-text wallpaper and taking the
+	   screenshot without it (Gitea #118). */
+	cn_imgcheck(cn_wrote == cn_wflush);
+	cn_wflush = cn_wrote;
 	s_init(&b);
 	/* Then the deletes those drops owe the terminal, for a protocol that
 	   keeps a picture rather than painting it: they go before the diff, so
