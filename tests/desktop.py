@@ -2448,7 +2448,7 @@ check("and sysinfo's own block is in it, picture and all",
 # here, something else on a Mac -- so there is no glyph to look for. What
 # can be asserted anywhere is that something is drawn to the left of the
 # facts and that it is in a colour of its own: sysinfo says the style of
-# every character and about_putrun draws each run with a pen, which is the
+# every character and dt_putruns draws each run with a pen, which is the
 # whole of what "in colour" means here.
 r, c = sc.find("OS: ")
 art = [sc.style(r, x)["fg"] for x in range(2, c)
@@ -2520,16 +2520,18 @@ check("and the arrows scroll the box sideways, the pinned facts and the "
 
 # The picture's second tone, which nothing on this machine draws: only the
 # cix art carries a \002 mark, so a Debian or a Mac About box has one tone
-# in it and the warm one would ship untested. about_putrun is handed a run
-# list of its own instead -- which is also the whole contract between the
-# module and the app, written out: a letter and how many characters it
+# in it and the warm one would ship untested. dt_putruns is handed a run
+# list of its own instead -- which is also the whole contract between a
+# module and an app, written out: a letter and how many characters it
 # covers, the line covered exactly.
 tone, _ = run('fn runs_draw(id, h, w, row, col) {\n'
-              '  about_putrun "$id" 1 "coolwarmplain" "a:4 b:4 .:5" 0 20\n'
+              '  p := about_pens\n'
+              '  dt_putruns "$id" 1 2 "coolwarmplain" "a:4 b:4 .:5" 0 20 '
+              '"$DT_FACE" "$p"\n'
               '}\n'
               'dt_new "Runs" 6 30 2 4 runs', pre=APPS)
 r, c = tone.find("coolwarmplain")
-check("about_putrun draws each run in a pen of its own: the cool tone, the "
+check("dt_putruns draws each run in a pen of its own: the cool tone, the "
       "warm one, and ordinary ink",
       tone.style(r, c)["fg"] == INFO and tone.style(r, c + 4)["fg"] == WARN
       and tone.style(r, c + 8)["fg"] == INK, tone)

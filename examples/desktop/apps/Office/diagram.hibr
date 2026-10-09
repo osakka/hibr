@@ -1,0 +1,508 @@
+#!/usr/bin/env hibr
+#
+# diagram -- a Mermaid diagram editor: the text on one side, the drawing on
+# the other, each following the other as it changes.
+#
+# The editor half is widgets/textarea.hibr as it comes -- a buffer, a
+# cursor, a selection, undo and the clipboard -- and the drawing half is
+# mods/mermaid, which answers with the text of every row and the style of
+# every character in it as runs. widgets/putruns.hibr draws those with a
+# pen a letter, so the diagram is in the window's own theme colours and
+# nothing here parses an escape sequence. See mods/mermaid/README.md for
+# the three kinds of diagram this understands and what it says plainly that
+# it does not.
+#
+# The divider is dt_split, so where it is left is where it is next time.
+# The drawing scrolls both ways when it is bigger than its half, with its
+# own bars, and says so rather than cutting the diagram off quietly.
+#
+# Re-rendered only when the text's own version moves, never per frame: the
+# render is C and fast, but it is a `:=` with a map copied out of the result
+# slot, and a window redraws far more often than it is typed into.
+
+strict
+
+app diagram "A Mermaid diagram editor: the text, and the diagram"
+
+command -v dt_app > /dev/null && dt_app diagram "Diagram" 24 86 many "◈"
+
+declare -gA DIA
+
+# Where the divider sits, kept so it comes back where it was left.
+DIA_SPLIT=38
+command -v dt_keep > /dev/null && dt_keep DIA_SPLIT
+
+DIA_TYPES="Mermaid:mmd mermaid|Text:txt"
+
+# The pens the diagram is drawn in are shared with Write, which draws one
+# inside a document: lib/diagram.hibr, so the two cannot drift apart.
+[ -n "${DG_LIBDONE-}" ] || . "${BASH_SOURCE%/*}/../../lib/diagram.hibr"
+
+# What a new diagram starts as. A blank window with a cursor in it says
+# nothing about what may be typed, and this app's whole difficulty is that
+# nobody can guess the language -- so the first thing it shows is a
+# diagram, which is also the shortest documentation there is.
+DIA_NEW='flowchart TD
+    A[Write Mermaid here] --> B{Does it draw?}
+    B -->|Yes| C[Keep going]
+    B -->|No| D[It says why]
+'
+
+fn diagram_open(int id, arg = "") {
+	DIA[$id]["path"]=
+	DIA[$id]["top"]=0
+	DIA[$id]["off"]=0
+	DIA[$id]["gen"]=
+	DIA[$id]["focus"]=text
+	tb_set "$id" "$DIA_NEW"
+	[ -n "$arg" ] && dia_load "$id" "$arg"
+	dia_retitle "$id"
+	return 0
+}
+
+fn diagram_close(int id) {
+	tb_free "$id"
+	unset DIA["$id"]
+	return 0
+}
+
+# The window's title says which file, the way Files and Write do.
+fn dia_retitle(int id) {
+	local p=${DIA[$id]["path"]} t
+
+	t := dt_tr "Diagram"
+	[ -n "$p" ] && t="$t [${p##*/}]"
+	dt_retitle "$id" "$t"
+}
+
+fn dia_load(int id, path) {
+	local t
+
+	if ! t=$(cat "$path" 2> /dev/null); then
+		dt_notep high "Cannot read %s" "$path"
+		return 1
+	fi
+	tb_set "$id" "$t"
+	DIA[$id]["path"]=$path
+	DIA[$id]["gen"]=
+	dia_retitle "$id"
+	return 0
+}
+
+fn dia_save(int id) {
+	local p=${DIA[$id]["path"]} t
+
+	[ -n "$p" ] || { dia_saveas "$id"; return 0; }
+	t := tb_text "$id"
+	if ! printf '%s\n' "$t" > "$p" 2> /dev/null; then
+		dt_notep high "Cannot write %s" "$p"
+		return 1
+	fi
+	TB[$id]["saved"]=${TB[$id]["ver"]}
+	dt_notep low "Saved %s" "${p##*/}"
+	command -v dt_changed > /dev/null && dt_changed
+	return 0
+}
+
+fn dia_dir(int id) {
+	local p=${DIA[$id]["path"]}
+
+	[ -n "$p" ] && ret "${p%/*}" || ret ""
+}
+
+fn dia_openfile(int id) {
+	local d
+
+	d := dia_dir "$id"
+	dt_filepick open "Open" "$DIA_TYPES" "$d" "" dia_picked_open "$id"
+}
+
+fn dia_saveas(int id) {
+	local d n=${DIA[$id]["path"]##*/}
+
+	d := dia_dir "$id"
+	[ -n "$n" ] || n=untitled.mmd
+	dt_filepick save "Save As" "$DIA_TYPES" "$d" "$n" dia_picked_save "$id"
+}
+
+# The drawing as text, which is the one export that needs nothing new: the
+# cells are already the diagram.
+fn dia_export(int id) {
+	local d n=${DIA[$id]["path"]##*/}
+
+	d := dia_dir "$id"
+	n=${n%.*}
+	dt_filepick save "Export" "Text:txt" "$d" "${n:-untitled}" \
+		dia_picked_export "$id"
+}
+
+fn dia_picked_open(int id, path, type = "") {
+	[ -n "${DT[$id]["title"]}" ] || { dt_launch diagram "$path"; return 0; }
+	if [ -n "${DIA[$id]["path"]}" ]; then
+		dt_launch diagram "$path"
+	else
+		dia_load "$id" "$path"
+	fi
+}
+
+fn dia_picked_save(int id, path, type = "") {
+	[ -n "${DT[$id]["title"]}" ] || return 0
+	DIA[$id]["path"]=$path
+	dia_retitle "$id"
+	dia_save "$id"
+}
+
+fn dia_picked_export(int id, path, type = "") {
+	local i n out=
+
+	n=${DIA[$id]["rows"]:-0}
+	i=0
+	while [ "$i" -lt "$n" ]; do
+		out="$out${DIA[$id]["text$i"]}
+"
+		i=$((i + 1))
+	done
+	if ! printf '%s' "$out" > "$path" 2> /dev/null; then
+		dt_notep high "Cannot write %s" "$path"
+		return 1
+	fi
+	dt_notep low "Exported %s" "${path##*/}"
+	command -v dt_changed > /dev/null && dt_changed
+}
+
+# Draw the diagram again, if the text has changed since the last time. The
+# module is asked in the glyph set the desktop is drawing in, so an ascii
+# desktop gets an ascii diagram.
+fn dia_render(int id) {
+	local t a= i n
+	local -A r
+
+	# Keyed on the buffer's gen and not its ver: ver starts again at 0
+	# with tb_set, so a whole new document can have the same ver as the
+	# one before it and the diagram would never be drawn again. gen never
+	# repeats, which is what the textarea says it is for.
+	[ "${DIA[$id]["gen"]}" = "${TB[$id]["gen"]}" ] && return 0
+	DIA[$id]["gen"]=${TB[$id]["gen"]}
+	DIA[$id]["rows"]=0
+	DIA[$id]["why"]=
+	if ! need mermaid 2> /dev/null; then
+		DIA[$id]["why"]=$(dt_tr "The mermaid module is not loaded")
+		return 0
+	fi
+	t := tb_text "$id"
+	[ "$DT_GLYPHSET" = ascii ] && a=-a
+	r := mermaid render $a -w 40 -t "$t"
+	if [ -z "${r["kind"]}" ]; then
+		DIA[$id]["why"]=${r["why"]}
+		return 0
+	fi
+	DIA[$id]["kind"]=${r["kind"]}
+	DIA[$id]["dw"]=${r["w"]}
+	DIA[$id]["note"]=${r["note"]}
+	n=${#r["text"][@]}
+	i=0
+	while [ "$i" -lt "$n" ]; do
+		DIA[$id]["text$i"]=${r["text"][$i]}
+		DIA[$id]["runs$i"]=${r["runs"][$i]}
+		i=$((i + 1))
+	done
+	DIA[$id]["rows"]=$n
+	return 0
+}
+
+# Whether anything about this window has changed. Nothing here asks for a
+# frame of its own -- there is no timer, no animation and nothing being
+# read from outside -- so there is no dt_want to re-arm from here, which is
+# the other half of offering a _dirty.
+fn diagram_dirty(int id) {
+	[ "${DIA[$id]["drawnver"]}" = "${TB[$id]["ver"]}" ] || return 0
+	[ "${DIA[$id]["drawngen"]}" = "${TB[$id]["gen"]}" ] || return 0
+	[ "${DIA[$id]["drawnsplit"]}" = "$DIA_SPLIT" ] || return 0
+	[ "${DIA[$id]["drawntop"]}" = "${DIA[$id]["top"]:-0}" ] || return 0
+	[ "${DIA[$id]["drawnoff"]}" = "${DIA[$id]["off"]:-0}" ] || return 0
+	[ "${DIA[$id]["drawnfocus"]}" = "${DIA[$id]["focus"]}" ] || return 0
+	[ "${DIA[$id]["drawnh"]}" = "${DT[$id]["h"]}" ] || return 0
+	[ "${DIA[$id]["drawnw"]}" = "${DT[$id]["w"]}" ] || return 0
+	return 1
+}
+
+# Why there is no diagram, wrapped to the half it is shown in. Here rather
+# than in widgets/ because nothing else wants a wrapped paragraph yet; the
+# moment something does, this is what moves.
+fn dia_why(int id, int room, int vis, int sp) {
+	local t=${DIA[$id]["why"]} r=1 cut at
+
+	while [ -n "$t" ] && [ "$r" -le "$vis" ]; do
+		if [ "${#t}" -le "$room" ]; then
+			console put -p "w$id" "$r" $((sp + 2)) "$t"
+			return 0
+		fi
+		cut=${t:0:$room}
+		at=${cut% *}
+		[ "$at" = "$cut" ] && at=$cut
+		console put -p "w$id" "$r" $((sp + 2)) "$at"
+		t=${t:$((${#at} + 1))}
+		r=$((r + 1))
+	done
+	return 0
+}
+
+fn diagram_draw(int id, int h, int w, int row, int col) {
+	local sp n i r top off room vis t pens wide=0 len dr
+
+	dt_wclear "$id"
+	sp := dt_split DIA_SPLIT "$w" 16
+	dia_render "$id"
+	# The text, in the widget that already knows how to edit it.
+	TB[$id]["vis"]=$h
+	tb_draw "$id" 1 1 "$h" "$sp" "$DT_INK" "$DT_FACE" "$DT_SELINK" \
+		"$DT_ACTIVE"
+	dt_splitbar "$id" "$sp" 1 "$h"
+	# The diagram, or why there is not one.
+	room=$((w - sp - 3))
+	[ "$room" -lt 4 ] && room=4
+	vis=$((h - 1))
+	[ "$vis" -lt 1 ] && vis=1
+	if [ -n "${DIA[$id]["why"]}" ]; then
+		console pen "$DT_BAD" "$DT_FACE"
+		dia_why "$id" "$room" "$vis" "$sp"
+		dia_foot "$id" "$h" "$w" "$sp"
+		dia_drawn "$id"
+		return 0
+	fi
+	n=${DIA[$id]["rows"]:-0}
+	wide=${DIA[$id]["dw"]:-0}
+	top=${DIA[$id]["top"]:-0}
+	top := dt_scrollfit "$top" "$n" "$vis"
+	DIA[$id]["top"]=$top
+	off=${DIA[$id]["off"]:-0}
+	off := dt_scrollfit "$off" "$wide" "$room"
+	DIA[$id]["off"]=$off
+	DIA[$id]["vis"]=$vis
+	DIA[$id]["room"]=$room
+	pens := dia_pens
+	i=$top
+	r=1
+	while [ "$i" -lt "$n" ] && [ "$r" -lt $((1 + vis)) ]; do
+		t=${DIA[$id]["text$i"]}
+		dr=${DIA[$id]["runs$i"]}
+		if [ -n "$dr" ]; then
+			dt_putruns "$id" "$r" $((sp + 2)) "$t" "$dr" "$off" \
+				"$room" "$DT_FACE" "$pens"
+		else
+			console pen "$DT_INK" "$DT_FACE"
+			console put -p "w$id" "$r" $((sp + 2)) \
+				"${t:$off:$room}"
+		fi
+		i=$((i + 1))
+		r=$((r + 1))
+	done
+	[ "$n" -gt "$vis" ] && dt_scrollbar "$id" 1 "$w" "$vis" "$n" "$vis" \
+		"$top"
+	dia_foot "$id" "$h" "$w" "$sp"
+	dia_drawn "$id"
+	return 0
+}
+
+# The foot of the diagram half: its horizontal bar when there is more of it
+# than fits, and a word about what is not being shown -- a diagram cut off
+# without saying so is the thing the ticket asked not to do.
+fn dia_foot(int id, int h, int w, int sp) {
+	local room=${DIA[$id]["room"]:-4} wide=${DIA[$id]["dw"]:-0}
+	local off=${DIA[$id]["off"]:-0} n=${DIA[$id]["rows"]:-0}
+	local vis=${DIA[$id]["vis"]:-1} c
+
+	console pen "$DT_DIM" "$DT_FACE"
+	if [ -n "${DIA[$id]["note"]}" ]; then
+		console put -p "w$id" "$h" $((sp + 2)) \
+			"${DIA[$id]["note"]:0:$room}"
+		return 0
+	fi
+	if [ "$wide" -gt "$room" ]; then
+		dt_hscrollbar "$id" "$h" $((sp + 2)) "$room" "$wide" "$room" \
+			"$off"
+	elif [ "$n" -gt "$vis" ]; then
+		# The column is a local, never `$((sp + 2))` written into the
+		# call: tools/strings.py counts a dt_tput argument by word, so
+		# an arithmetic expansion with spaces in it shifts the text
+		# along and the string leaves the catalogue without a word.
+		c=$((sp + 2))
+		dt_tput "$id" "$h" "$c" "%s of %s rows" "$vis" "$n"
+	fi
+	return 0
+}
+
+# What this frame drew, for diagram_dirty to compare next time.
+fn dia_drawn(int id) {
+	DIA[$id]["drawnver"]=${TB[$id]["ver"]}
+	DIA[$id]["drawngen"]=${TB[$id]["gen"]}
+	DIA[$id]["drawnsplit"]=$DIA_SPLIT
+	DIA[$id]["drawntop"]=${DIA[$id]["top"]:-0}
+	DIA[$id]["drawnoff"]=${DIA[$id]["off"]:-0}
+	DIA[$id]["drawnfocus"]=${DIA[$id]["focus"]}
+	DIA[$id]["drawnh"]=${DT[$id]["h"]}
+	DIA[$id]["drawnw"]=${DT[$id]["w"]}
+}
+
+# Keys go to the text unless the diagram side has the focus, which tab
+# moves between: the editor wants every arrow and every letter, so there is
+# nowhere else for the diagram's own scrolling to live.
+fn diagram_key(int id, k) {
+	local top=${DIA[$id]["top"]:-0} vis=${DIA[$id]["vis"]:-1}
+	local off=${DIA[$id]["off"]:-0} room=${DIA[$id]["room"]:-4}
+	local n=${DIA[$id]["rows"]:-0} wide=${DIA[$id]["dw"]:-0}
+
+	# f6 moves between the two halves. An app's own key, in its own case,
+	# because the editor wants every arrow, every letter and tab: there is
+	# nowhere else for the diagram's own scrolling to live. Not a desktop
+	# shortcut -- one of those means DT_KEYS, DT_KEYNAME, DT_KEYORDER and a
+	# settings migration, which is not one app's to add.
+	if [ "$k" = f6 ]; then
+		dia_side "$id"
+		return 0
+	fi
+	if [ "${DIA[$id]["focus"]}" = diagram ]; then
+		case $k in
+		up) top=$((top - 1)) ;;
+		down) top=$((top + 1)) ;;
+		pageup) top=$((top - vis)) ;;
+		pagedown) top=$((top + vis)) ;;
+		home) top=0 ;;
+		end) top=$n ;;
+		left) off=$((off - 4)) ;;
+		right) off=$((off + 4)) ;;
+		*) return 1 ;;
+		esac
+		top := dt_scrollfit "$top" "$n" "$vis"
+		off := dt_scrollfit "$off" "$wide" "$room"
+		DIA[$id]["top"]=$top
+		DIA[$id]["off"]=$off
+		return 0
+	fi
+	tb_key "$id" "$k" && return 0
+	return 1
+}
+
+# A press on the divider drags it; one on either half gives that half the
+# focus, and one in the text puts the cursor where it was clicked.
+fn diagram_mouse(int id, act, btn, int r, int c, mods = "") {
+	local sp=${DIA[$id]["drawnsplit"]:-$DIA_SPLIT}
+
+	case ${act##*-} in
+	press)
+		if [ "$c" = "$sp" ]; then
+			DIA[$id]["drag"]=1
+			return 0
+		fi
+		if [ "$c" -gt "$sp" ]; then
+			DIA[$id]["focus"]=diagram
+			return 0
+		fi
+		DIA[$id]["focus"]=text
+		;;
+	drag)
+		if [ -n "${DIA[$id]["drag"]}" ]; then
+			dt_splitmove DIA_SPLIT "$c" "${DT[$id]["w"]}" 16
+			return 0
+		fi
+		;;
+	release)
+		if [ -n "${DIA[$id]["drag"]}" ]; then
+			DIA[$id]["drag"]=
+			return 0
+		fi
+		;;
+	esac
+	tb_mouse "$id" "$act" "$btn" "$r" "$c" "$mods"
+	return 0
+}
+
+# The wheel scrolls whichever half it is over, which is what a person
+# means by it: over the diagram it moves the diagram.
+fn diagram_wheel(int id, dir, int? r = "", int? c = "") {
+	local sp=${DIA[$id]["drawnsplit"]:-$DIA_SPLIT}
+	local top=${DIA[$id]["top"]:-0} vis=${DIA[$id]["vis"]:-1}
+	local off=${DIA[$id]["off"]:-0} room=${DIA[$id]["room"]:-4}
+	local n=${DIA[$id]["rows"]:-0} wide=${DIA[$id]["dw"]:-0}
+
+	if [ -n "$c" ] && [ "$c" -le "$sp" ]; then
+		case $dir in
+		wheelup) tb_scroll "$id" -2 ;;
+		wheeldown) tb_scroll "$id" 2 ;;
+		*) return 1 ;;
+		esac
+		return 0
+	fi
+	case $dir in
+	wheelup) top=$((top - 2)) ;;
+	wheeldown) top=$((top + 2)) ;;
+	wheelleft) off=$((off - 4)) ;;
+	wheelright) off=$((off + 4)) ;;
+	*) return 1 ;;
+	esac
+	top := dt_scrollfit "$top" "$n" "$vis"
+	off := dt_scrollfit "$off" "$wide" "$room"
+	DIA[$id]["top"]=$top
+	DIA[$id]["off"]=$off
+	return 0
+}
+
+# One of each kind, so the language can be found by trying it rather than
+# by reading about it somewhere else.
+fn dia_sample(int id, kind) {
+	case $kind in
+	flowchart) tb_set "$id" "$DIA_NEW" ;;
+	sequence)
+		tb_set "$id" 'sequenceDiagram
+    participant A as Alice
+    participant B as Bob
+    A->>B: Hello Bob
+    B-->>A: Hi Alice
+    Note over A,B: and so on
+'
+		;;
+	pie)
+		tb_set "$id" 'pie title Where the time goes
+    "Meetings" : 42
+    "Code" : 30
+    "Email" : 28
+'
+		;;
+	esac
+	DIA[$id]["gen"]=
+	return 0
+}
+
+diagram_menus() {
+	local id=$DT_FOCUS
+
+	dt_menu "File"
+	dt_item "New" n dt_launch diagram
+	dt_item "Open…" o dia_openfile "$id"
+	dt_item "Save" s dia_save "$id"
+	dt_item "Save As…" a dia_saveas "$id"
+	dt_item "Export…" e dia_export "$id"
+	dt_sep
+	dt_item "Close" w dt_close_focused
+	dt_editmenu
+	dt_menu "Diagram"
+	dt_item "Flowchart" f dia_sample "$id" flowchart
+	dt_item "Sequence" q dia_sample "$id" sequence
+	dt_item "Pie" p dia_sample "$id" pie
+	dt_sep
+	dt_item "Other Side" t dia_side "$id"
+	dt_end
+}
+
+# The same thing the key does, for the menu.
+fn dia_side(int id) {
+	case ${DIA[$id]["focus"]} in
+	text) DIA[$id]["focus"]=diagram ;;
+	*) DIA[$id]["focus"]=text ;;
+	esac
+	return 0
+}
+
+if [ -z "$DT_ROWS" ]; then
+	echo "diagram: this is a desktop app; open it from the hibr menu"
+fi

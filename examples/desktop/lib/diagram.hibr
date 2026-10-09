@@ -1,0 +1,29 @@
+#!/usr/bin/env hibr
+#
+# lib/diagram -- what the Diagram editor and Write share about drawing a
+# Mermaid diagram: the pens the module's own style letters are drawn in.
+# Sourced by both, once however many source it; it is not an app.
+#
+# Here rather than in one of them because an app must not reach into
+# another: Calendar and Mail did that for their sync jobs and ended up
+# keeping Contacts' window table. Two apps drawing the same thing in
+# different colours would be worse than the dependency -- a diagram has to
+# read the same in a document as it does in the editor.
+
+strict
+
+DG_LIBDONE=1
+
+# The pens mods/mermaid's style letters are drawn in: `b` a box's border,
+# `t` a node's label, `e` a line or an arrowhead, `l` a label on an edge or
+# a message, `k` a title or a lifeline, anything else the window's ink.
+# Roles rather than colours, so a diagram follows the theme like everything
+# else the desktop draws -- and `else` rather than `*` for the default,
+# because a map key named `*` cannot be read back in this shell (Gitea
+# #148); widgets/putruns.hibr says why.
+DG_PENS=
+fn dia_pens() {
+	DG_PENS="else=$DT_INK b=$DT_DIM t=$DT_INK:bold e=$DT_INFO"
+	DG_PENS="$DG_PENS l=$DT_DIM k=$DT_INK:bold"
+	ret "$DG_PENS"
+}

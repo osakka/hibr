@@ -190,6 +190,11 @@ fn write_drop(int id, int r, int c, op, ...paths) {
 
 need md 2> /dev/null || WR_NOMD=1
 
+# A ```mermaid block in a document is drawn as the diagram, in the same
+# pens the Diagram editor uses: lib/diagram.hibr, shared so that a diagram
+# reads the same in a document as it does in the editor.
+[ -n "${DG_LIBDONE-}" ] || . "${BASH_SOURCE%/*}/../../lib/diagram.hibr"
+
 # Every line's style string, parsed again only when the text has changed.
 fn wr_parse(int id) {
 	local t i=0 n=${TB[$id]["n"]}
@@ -204,7 +209,109 @@ fn wr_parse(int id) {
 		WR[$id]["st$i"]=${st[$i]}
 		i=$((i + 1))
 	done
+	wr_mmscan "$id"
 	WR[$id]["sv"]=${TB[$id]["gen"]}
+}
+
+# Which lines belong to a ```mermaid block, found once per change rather
+# than per line per frame. `md lines` letters a fence `m` and its body `f`
+# and says nothing about the info string, so the fence line itself is read
+# here for the word after the backticks -- which is the one thing that
+# tells a diagram from any other code block.
+#
+# Each line in such a block records the block's opening line in mmo, so
+# everything that draws can ask "am I in one, and which" in a lookup.
+fn wr_mmscan(int id) {
+	local i=0 n=${TB[$id]["n"]} l o=-1 fence=
+
+	while [ "$i" -lt "$n" ]; do
+		WR[$id]["mmo$i"]=
+		i=$((i + 1))
+	done
+	i=0
+	while [ "$i" -lt "$n" ]; do
+		l=${TB[$id][$i]}
+		l=${l#"${l%%[! ]*}"}
+		if [ "$o" -lt 0 ]; then
+			case $l in
+			'```mermaid' | '~~~mermaid' | '```mermaid '* | 			'~~~mermaid '*)
+				o=$i
+				fence=${l:0:3}
+				WR[$id]["mmo$i"]=$i
+				;;
+			esac
+		else
+			WR[$id]["mmo$i"]=$o
+			case $l in
+			"$fence"*)
+				[ -z "${l#"$fence"}" ] && o=-1
+				;;
+			esac
+		fi
+		i=$((i + 1))
+	done
+}
+
+# Whether the cursor is inside this line's own mermaid block, which is when
+# every line of that block is shown as its source rather than drawn as the
+# diagram -- there is no editing a diagram you cannot see the text of.
+#
+# False for a line in no block at all. Answering *true* there, which the
+# first version did, turns the marks on for every line in the document:
+# the caller reads this as "show the source", and a heading drew its own #
+# and a code fence drew its style letters as glyphs. The symptom was three
+# characters in one place and the cause was every line.
+fn wr_mmsrc(int id, int i, int cr) {
+	local o=${WR[$id]["mmo$i"]}
+
+	[ -n "$o" ] || return 1
+	[ "${WR[$id]["mmo$cr"]}" = "$o" ] || return 1
+	return 0
+}
+
+# A mermaid block's drawing, rendered once per change of the document and
+# kept against it. The rows are the diagram's; a block whose text the module
+# does not understand draws the one line it says about it, so a diagram is
+# never silently missing.
+fn wr_mmdraw(int id, int o) {
+	local i=$((o + 1))
+	local n=${TB[$id]["n"]}
+	local t= a= k
+	local -A r
+
+	[ "${WR[$id]["mmv$o"]}" = "${TB[$id]["gen"]}" ] && return 0
+	WR[$id]["mmv$o"]=${TB[$id]["gen"]}
+	WR[$id]["mmn$o"]=0
+	while [ "$i" -lt "$n" ] && [ "${WR[$id]["mmo$i"]}" = "$o" ]; do
+		case ${TB[$id][$i]} in
+		'```'* | '~~~'*) ;;
+		*) t="$t${TB[$id][$i]}
+" ;;
+		esac
+		i=$((i + 1))
+	done
+	if ! need mermaid 2> /dev/null; then
+		WR[$id]["mmt${o}_0"]=$(dt_tr "The mermaid module is not loaded")
+		WR[$id]["mmr${o}_0"]=
+		WR[$id]["mmn$o"]=1
+		return 0
+	fi
+	[ "$DT_GLYPHSET" = ascii ] && a=-a
+	r := mermaid render $a -w 40 -t "$t"
+	if [ -z "${r["kind"]}" ]; then
+		WR[$id]["mmt${o}_0"]=${r["why"]}
+		WR[$id]["mmr${o}_0"]=
+		WR[$id]["mmn$o"]=1
+		return 0
+	fi
+	k=0
+	while [ "$k" -lt "${#r["text"][@]}" ]; do
+		WR[$id]["mmt${o}_$k"]=${r["text"][$k]}
+		WR[$id]["mmr${o}_$k"]=${r["runs"][$k]}
+		k=$((k + 1))
+	done
+	WR[$id]["mmn$o"]=${#r["text"][@]}
+	return 0
 }
 
 # Append k characters of text in style y, from raw column o; glyph 1 when
@@ -344,7 +451,28 @@ fn wr_runs(int id, int r, int c, text, sty) {
 # again.
 fn wr_rows(int id, int i, int show, int w) {
 	local raw=${TB[$id][$i]} sty=${WR[$id]["st$i"]} key st
+	local o=${WR[$id]["mmo$i"]} k n
 
+	# A mermaid block that is being drawn rather than shown: the opening
+	# fence takes as many rows as the diagram has, and every other line
+	# of the block takes none. Everything that counts rows -- where the
+	# cursor is, which line a screen row holds, which line was clicked --
+	# counts them through here, so there is one rule and not four.
+	if [ -n "$o" ] && [ "$show" = 0 ]; then
+		[ "$o" = "$i" ] || { WR_S=; WR_Y=; ret ""; return 0; }
+		wr_mmdraw "$id" "$o"
+		n=${WR[$id]["mmn$o"]:-1}
+		st=
+		k=0
+		while [ "$k" -lt "$n" ]; do
+			st="$st 0"
+			k=$((k + 1))
+		done
+		WR_S=
+		WR_Y=
+		ret "${st# }"
+		return 0
+	fi
 	key="$show$w:$sty:$raw"
 	if [ "${WR[$id]["ck$i"]}" = "$key" ]; then
 		WR_S=${WR[$id]["cs$i"]}
@@ -372,6 +500,25 @@ fn wr_code(int id, int i) {
 	return 1
 }
 
+# One row of a mermaid block's drawing, in the pens the diagram editor uses
+# -- the same widget, the same letters, so a diagram reads the same wherever
+# it is drawn.
+fn wr_mmrow(int id, int r, int i, int k, int w) {
+	local o=${WR[$id]["mmo$i"]} t dr pens
+
+	t=${WR[$id]["mmt${o}_$k"]}
+	dr=${WR[$id]["mmr${o}_$k"]}
+	[ -n "$t" ] || return 0
+	if [ -z "$dr" ]; then
+		console pen "$DT_BAD" "$DT_FACE"
+		console put -p "w$id" "$r" 1 "${t:0:$w}"
+		return 0
+	fi
+	pens := dia_pens
+	dt_putruns "$id" "$r" 1 "$t" "$dr" 0 "$w" "$DT_FACE" "$pens"
+	return 0
+}
+
 fn write_draw(int id, int h, int w, int row, int col) {
 	local bh=$((h - 2)) cr=${TB[$id]["cr"]} cc=${TB[$id]["cc"]} n
 	local i st r k top crow ccol show line t a b
@@ -389,11 +536,17 @@ fn write_draw(int id, int h, int w, int row, int col) {
 	TB[$id]["vis"]=$bh
 	tb_layout "$id" "$w"
 	wr_parse "$id"
-	# Where the cursor is, in rows from the top of the document.
+	# Where the cursor is, in rows from the top of the document. The same
+	# `show` rule as the two loops below, or a line whose row count
+	# depends on it is counted one way here and drawn another: a mermaid
+	# block above the cursor counted the diagram's rows rather than its
+	# source's and the cursor was drawn two rows below where it was.
 	i=0
 	crow=0
 	while [ "$i" -lt "$cr" ]; do
-		st := wr_rows "$id" "$i" 0 "$w"
+		show=0
+		{ [ "$i" = "$cr" ] || wr_mmsrc "$id" "$i" "$cr"; } && show=1
+		st := wr_rows "$id" "$i" "$show" "$w"
 		read -ra ss <<< "$st"
 		crow=$((crow + ${#ss[@]}))
 		i=$((i + 1))
@@ -417,7 +570,7 @@ fn write_draw(int id, int h, int w, int row, int col) {
 	r=0
 	while [ "$i" -lt "$n" ]; do
 		show=0
-		[ "$i" = "$cr" ] && show=1
+		{ [ "$i" = "$cr" ] || wr_mmsrc "$id" "$i" "$cr"; } && show=1
 		st := wr_rows "$id" "$i" "$show" "$w"
 		read -ra ss <<< "$st"
 		[ $((r + ${#ss[@]})) -gt "$top" ] && break
@@ -430,24 +583,38 @@ fn write_draw(int id, int h, int w, int row, int col) {
 		t := str repeat " " "$w"
 		console pen "$DT_INK" "$DT_FACE"
 		console put -p "w$id" $((r + 2)) 1 "$t"
-		if [ "$i" -lt "$n" ]; then
+		# A line that takes no rows at all -- the body of a mermaid
+		# block being drawn rather than shown -- is stepped over
+		# without a screen row being spent on it.
+		while [ "$i" -lt "$n" ]; do
 			show=0
-			[ "$i" = "$cr" ] && show=1
+			{ [ "$i" = "$cr" ] ||
+			  wr_mmsrc "$id" "$i" "$cr"; } && show=1
 			st := wr_rows "$id" "$i" "$show" "$w"
+			[ -n "$st" ] && break
+			i=$((i + 1))
+			k=0
+		done
+		if [ "$i" -lt "$n" ]; then
 			read -ra ss <<< "$st"
-			a=${ss[$k]}
-			b=${#WR_S}
-			[ $((k + 1)) -lt "${#ss[@]}" ] && b=${ss[$((k + 1))]}
-			if wr_code "$id" "$i"; then
-				console pen "$DT_INK" "$DT_WELL"
-				console put -p "w$id" $((r + 2)) 1 "$t"
-			fi
-			if bd_row "$WR_S" "$a" "$b"; then
-				bd_put "$id" $((r + 2)) 1 "${WR_Y:$a:$((b - a))}" wr_pen
+			if [ "$show" = 0 ] && [ -n "${WR[$id]["mmo$i"]}" ]; then
+				wr_mmrow "$id" $((r + 2)) "$i" "$k" "$w"
 			else
-				wr_runs "$id" $((r + 2)) 1 "${WR_S:$a:$((b - a))}" "${WR_Y:$a:$((b - a))}"
+				a=${ss[$k]}
+				b=${#WR_S}
+				[ $((k + 1)) -lt "${#ss[@]}" ] &&
+					b=${ss[$((k + 1))]}
+				if wr_code "$id" "$i"; then
+					console pen "$DT_INK" "$DT_WELL"
+					console put -p "w$id" $((r + 2)) 1 "$t"
+				fi
+				if bd_row "$WR_S" "$a" "$b"; then
+					bd_put "$id" $((r + 2)) 1 "${WR_Y:$a:$((b - a))}" wr_pen
+				else
+					wr_runs "$id" $((r + 2)) 1 "${WR_S:$a:$((b - a))}" "${WR_Y:$a:$((b - a))}"
+				fi
 			fi
-			WR[$id]["row$r"]="$i $a"
+			WR[$id]["row$r"]="$i ${ss[$k]:-0}"
 			k=$((k + 1))
 			if [ "$k" -ge "${#ss[@]}" ]; then
 				k=0

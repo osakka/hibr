@@ -1,0 +1,92 @@
+#!/usr/bin/env hibr
+#
+# putruns -- a row of text drawn run by run, each run in a pen of its own.
+#
+# Two modules now hand the desktop their text *and* the style of every
+# character in it, as runs: `a:23 .:10 k:2 .:19`, a letter and how many
+# characters it covers, the whole row covered exactly. mods/sysinfo does it
+# for the picture and facts About shows, and mods/mermaid for a diagram.
+# That is how colour gets from a module into a window at all: a window
+# draws cells through its pane rather than bytes at the screen, so an
+# escape sequence would be no use to it, and the module names tones while
+# the app picks its own theme's colours for them.
+#
+#   dt_putruns id row col text runs off room face "else=$DT_INK a=$DT_INFO"
+#
+# `off` and `room` are the horizontal scroll: each run is clipped to the
+# characters in [off, off + room) and drawn where that lands, so scrolling
+# sideways costs no more than drawing does. The pens are a word a letter,
+# `letter=colour` with an optional `:bold`, and `else` is what an unnamed
+# letter gets -- `else` and not `*`, because a map key named `*` cannot
+# be read back in this shell (`${M["*"]}` answers the join of every value
+# rather than that one key, Gitea #148, a divergence from bash). It arrived
+# here as `console pen: #cbd5e0 #4fd1c5 ...: not a colour`, which reads as
+# this widget building a bad spec rather than as the shell being unable to
+# read one key. The spec is parsed once and kept against itself, so a frame
+# that draws forty rows with the same pens parses them on the first.
+#
+# A glyph two columns wide takes one character, so a row holding one has
+# more columns than characters and a run's column is not its character
+# offset. That costs one `str width` a row to notice and is only paid by a
+# row that actually holds one -- which no picture in sysinfo does and only
+# a CJK label in a diagram does.
+
+strict
+
+declare -gA DT_RUNPEN
+DT_RUNSPEC=
+
+# Read a pen spec into DT_RUNPEN, unless it is the one already there.
+fn dt_runpens(pens) {
+	local piece
+	local -a ps
+
+	[ "$pens" = "$DT_RUNSPEC" ] && return 0
+	DT_RUNPEN=()
+	read -ra ps <<< "$pens"
+	for piece in "${ps[@]}"; do
+		DT_RUNPEN["${piece%%=*}"]=${piece#*=}
+	done
+	DT_RUNSPEC=$pens
+}
+
+# One row, run by run, clipped to the horizontal window it is scrolled to.
+fn dt_putruns(int id, int row, int col, text, runs, int off, int room, face,
+	       pens) {
+	local c=0 y k s e piece pen bold cut at wide=0 cols
+	local -a rs
+
+	[ -n "$runs" ] || return 1
+	dt_runpens "$pens"
+	cols := str width "$text"
+	[ "$cols" = "${#text}" ] || wide=1
+	read -ra rs <<< "$runs"
+	for piece in "${rs[@]}"; do
+		y=${piece%%:*}
+		k=${piece#*:}
+		s=$c
+		e=$((c + k))
+		c=$e
+		[ "$s" -lt "$off" ] && s=$off
+		[ "$e" -gt $((off + room)) ] && e=$((off + room))
+		[ "$e" -gt "$s" ] || continue
+		pen=${DT_RUNPEN["$y"]:-${DT_RUNPEN["else"]:-$DT_INK}}
+		bold=
+		case $pen in
+		*:bold) bold=bold; pen=${pen%:bold} ;;
+		esac
+		# Where the run lands. In characters for every ordinary row,
+		# and measured in columns for one that holds a glyph wider
+		# than a cell, since then the two are not the same number.
+		if [ "$wide" = 1 ]; then
+			cut=${text:$off:$((s - off))}
+			at := str width "$cut"
+		else
+			at=$((s - off))
+		fi
+		console pen "$pen" "$face" $bold
+		console put -p "w$id" "$row" $((col + at)) \
+			"${text:$s:$((e - s))}"
+	done
+	return 0
+}

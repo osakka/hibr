@@ -187,6 +187,7 @@ whenever a replacement writes one.
 | `mods/email/` | IMAP (IDLE, Gmail's labels), POP3, SMTP and MIME; accounts in a 0600 file; `tests/mailserve.py` is the suites' stand-in server; the Mail app (`apps/Internet/mail.hibr`) keeps accounts offline through `examples/desktop/lib/mailsync.hibr` -- see `mods/email/README.md` |
 | `mods/console/sixel.c`, `mods/console/kitty.c`, `mods/console/image.c` | pictures as pixels, in either of the two protocols a terminal might speak -- sixel (fixed 6x6x6 palette, or median cut per picture) and the kitty graphics protocol, which kitty alone accepts since it has never drawn a sixel -- and the regions the console owns: placed through `dp_api`'s `image`, kept until their cells are drawn through, emitted once, and for kitty deleted from the terminal when they go (ADR 0037); `console gfx` names the one in force |
 | `mods/archive/` | a tarball as a folder (Gitea #102): `.tar` and `.tar.gz` indexed at open, `archive ls|stat|cat`, and a `/dev/archive/NAME/path` scheme so a member is a filename anywhere one goes; folders the archive never declared are implied from the names; reading only. Not called `tar`, which would shadow the program -- see `mods/archive/README.md` |
+| `mods/mermaid/` | Mermaid diagrams as cells (Gitea #140): flowcharts laid out the way dagre does it -- cycles broken, ranks by longest path, bend points on long edges, the median heuristic for ordering, and a track per edge in each gutter so two never merge into one line -- plus sequence diagrams (columns and rows, no layout) and pies as proportional bars; `mermaid render` answers rows **and the style of every character** as runs, the shape `md lines` and `sysinfo` use, which is the only way a module's colours reach a window, since a window draws cells through its pane and not bytes at the screen; everything it does not understand is named rather than half-drawn -- see `mods/mermaid/README.md` |
 | `mods/inflate.c` | deflate and its wrappers (zlib, gzip), written here rather than linked against libz, and shared: the prompt module reads git's objects and packs with it, the archive module a `.tar.gz` |
 | `mods/vw/` | Bitwarden and Vaultwarden: `vwk` holds the vault's keys and does its crypto (libcrypto, libargon2 `dlopen`ed), never printing a key; `vw` (`examples/vw.hibr`, installed as a command) logs in, syncs and reads the vault -- kept encrypted, so offline works -- through `dav request`; the desktop's Vault accessory and Passwords pane run that command as a child (`wm/vault.hibr`); `tests/bwserve.py` is the suites' stand-in server -- see `mods/vw/README.md`, ADR 0036 |
 
@@ -3124,3 +3125,48 @@ went in the shell.
   a `cp` back that silently did not take made two runs of that comparison
   identical and both of them meaningless, which is the same lesson as
   `git stash push` not stashing a committed change.
+
+- **A map key named `*` cannot be read back.** `${M["*"]}` answers the join
+  of every value in the map, not that one key -- `xstar` in `src/expand.c`
+  decides on the subscript's *text* and never looks at its quoting, so it
+  cannot tell `[*]` from `["*"]`. bash reads the quoted one as a literal
+  key, and so does this project's own rule, which makes it a divergence
+  rather than a quirk: Gitea #148. It arrived as `console pen: #cbd5e0
+  #4fd1c5 #f6ad55 ...: not a colour` from `widgets/putruns.hibr`, whose
+  obvious name for "any letter not named" was `*` -- which reads as the
+  widget building a bad spec rather than as the shell being unable to read
+  one key. The widget's default pen is called `else`. Anything else that
+  decides on a subscript's text alone -- `[@]`, `unset`, `[[ -v ]]` -- has
+  the same hole and has not been checked.
+- **`TB[id]["ver"]` starts again at 0 with `tb_set`, so a cache keyed on it
+  misses a whole new document.** `widgets/textarea.hibr` says this in as
+  many words and offers `gen`, which never repeats, for exactly this; the
+  diagram editor keyed its render on `ver` anyway and a document replaced
+  wholesale was never drawn again -- the window kept the previous diagram,
+  which looks like the module failing to parse the new text. `ver` is for
+  "has this been edited since it was saved"; `gen` is for "is what I
+  computed from this text still the right answer".
+- **A `show`-style flag that one loop computes and three others read has to
+  be computed the same way in all four.** Write draws a ```` ```mermaid ````
+  block as a diagram, which means the opening fence takes the diagram's
+  rows, the body takes none, and the whole block shows as its source when
+  the cursor is inside it. Four loops in `write_draw` count rows -- where
+  the cursor is, which line the top of the screen holds, what each screen
+  row draws, and which line was clicked -- and the first of them was left
+  computing `show` the old way, as `[ "$i" = "$cr" ]`. It therefore counted
+  the *diagram's* three rows for a fence line the others counted as one,
+  and **the cursor was drawn two rows below where it was**, over a line it
+  was not on. The symptom was three characters in the wrong place
+  (`f``` where ``` ``` ``` belonged) and reading them told you nothing: the
+  glyph was the cursor's own, from the right line, at the wrong row. Before
+  changing what a row count depends on, grep for every reader of it.
+- **And a helper answering a three-way question with two values will be
+  read wrong.** `wr_mmsrc` was "should this line show its source", and it
+  returned *true* for a line in no mermaid block at all -- which the caller
+  reads as "show the marks", so every heading drew its own `#` and every
+  fence drew its style letters as glyphs, across the whole document. The
+  question it is actually asked is "is the cursor inside *this line's own
+  block*", which is false when there is no block; naming it that way is
+  what makes the answer obvious. A screenful of wrong output from one
+  inverted guard, and the three characters anybody would have looked at
+  first were a different bug.

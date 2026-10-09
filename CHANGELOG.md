@@ -1,5 +1,88 @@
 # Changelog
 
+## 0.99.117
+
+**A Mermaid diagram editor, and a diagram in a document** (Gitea #140).
+Asked for as *"we want a mermaid diuagram editor and creator and add it to
+the office tools right?"*, and shipped as the three pieces the ticket said
+it was made of, with the scope chosen by the owner: flowcharts, sequence
+diagrams and pies; the module and the app in one release; and Write with
+it.
+
+**`mods/mermaid`** parses the three kinds and draws them into cells.
+Flowcharts are the only one with layout to do and it is Sugiyama's, the
+three steps dagre takes: a depth-first walk reverses the edges that close a
+cycle, each node is ranked one below the lowest thing that points at it,
+an edge spanning more than one rank is split into a chain through a bend
+point on each rank between, the median heuristic orders each rank four
+passes down and up, and then each node is packed and nudged so a parent
+sits over the middle of its children. Then **every gutter gets as many
+tracks as its edges need**, coloured greedily widest first, because two
+edges sharing one track merge into a single line -- a diagram that looks
+right and is wrong. `LR` is the same layout read sideways and `BT`/`RL` are
+those two with the level measured from the far side, so there is one engine
+and not four: everything is in two abstract axes and exactly one function
+says which is which.
+
+Everything it does not understand is **named rather than half-drawn**,
+because Mermaid errors whole and half a diagram is wronger than none:
+`subgraph`, the shapes `[[ ]]` `[( )]` `[/ /]` `[\ \]`, sequence blocks
+(`loop`, `alt`, `opt`, `par`) and every other kind of diagram each get a
+line number and a sentence.
+
+It answers in the shape **`sysinfo` grew in 0.99.116**: with a result slot
+bound, `d["text"][i]` is a row and `d["runs"][i]` the style of every
+character in it (`b:3 t:9 b:3` -- a letter and how many characters it
+covers). That is the only way a module's colours reach a window, since a
+window draws cells through its pane rather than bytes at the screen, and it
+means nothing in the desktop parses an escape sequence. `-a` draws the
+module's own lines, boxes, arrows and bars out of ASCII for
+`DT_GLYPHSET=ascii`; a *label* stays the text the user wrote.
+
+**`widgets/putruns.hibr`** is that drawing, lifted out of About rather than
+written a third time -- About, the diagram editor and Write all draw runs
+now, and About was converted in the same release. It takes its pens as
+`letter=colour` words parsed once a frame, and measures a row in columns
+rather than characters only when the row holds a glyph wider than a cell,
+which costs one `str width` a row to notice.
+
+**The app** (`apps/Office/diagram.hibr`) is a split window: the text in
+`widgets/textarea.hibr` as it comes, the diagram beside it, re-rendered
+only when the buffer's own `gen` moves. The divider drags and is
+remembered, the diagram scrolls both ways with its own bars when it is
+bigger than its half and says so rather than cutting it off, f6 moves
+between the halves, and the Diagram menu holds one sample of each kind --
+which is how a language nobody can guess gets found by trying it. It offers
+a `_dirty`, and says in the file that it has no `dt_want` to re-arm because
+nothing in it asks for a frame.
+
+**Write** draws a ```` ```mermaid ```` block as the diagram where it sits,
+and shows its source again the moment the cursor is anywhere inside it.
+`md lines` letters a fence `m` and says nothing about the info string, so
+the fence line is read for the word after the backticks; the block's lines
+are scanned once per change rather than per line per frame, and the drawing
+is cached against the document's own `gen`. The rule -- the opening fence
+takes the diagram's rows, the rest of the block takes none, and the whole
+block shows as source when the cursor is in it -- **has to be applied by
+every loop that counts rows**, and the one that computes where the cursor
+is was missed: the cursor drew two rows below where it was. Both halves are
+checked now.
+
+Three things found on the way, each recorded in `CLAUDE.md`: a map key
+named `*` cannot be read back in this shell, which is a divergence from
+bash and is now Gitea #148 (the widget uses `else`); `TB[id]["ver"]` starts
+again at 0 on `tb_set`, so a cache keyed on it never notices a new
+document and `gen` is the one that never repeats; and a `dt_tput` whose
+column is written inline as `$((sp + 2))` loses its string from the
+catalogue, which this release hit for the fourth time.
+
+`tests/mermaid.py` holds the properties a drawing must have whatever it
+looks like -- no two boxes overlap, every edge ends on a box it names,
+every run list covers its row exactly, every style letter is one the
+contract names -- plus the app and Write through a pty, 99 checks;
+`tests/999-mermaid.t` records what the corpus draws, and says in the file
+to re-record it on a deliberate layout change after reading the diff.
+
 ## 0.99.116
 
 **About This Computer shows the machine's own picture, in colour, with its

@@ -1,0 +1,164 @@
+0
+loaded
+== flow
+          ┌───────┐
+          │ Start │
+          └───────┘
+            │   ▲
+          ┌─┘   └──┐
+          │        │
+          ▼        │
+   ┌─────────────┐ │
+   <  Is it ok?  > └─┐
+   └─────────────┘   │
+     ┌─┘ Yes └───┐ No│
+     │           │   │
+     ▼           ▼   ▼
+┌─────────┐   ┌────────┐
+│ Ship it │   │ Fix it │
+└─────────┘   └────────┘
+== wide
+        ┌───┐
+        │ A │
+        └───┘
+  ┌──────┘│└──────┐
+  │       │       │
+  ▼       ▼       ▼
+┌───┐   ┌───┐   ┌───┐
+│ B │   │ C │   │ D │
+└───┘   └───┘   └───┘
+  └──────┐│┌──────┘
+         │││
+         ▼▼▼
+        ┌───┐
+        │ E │
+        └───┘
+== lr
+           ┌─────┐
+┌─────┐ ┌─▶│ Two │─┐  ┌───────┐
+│ One │┐┘  └─────┘───▶│ Three │
+└─────┘│    │         └───────┘
+       └────┘
+== shapes
+     ┌───────────┐
+     │ rectangle │
+     └───────────┘
+       ┌┘     └┐
+       │       ╎
+       ▼       ╎
+  ╭─────────╮  │
+  │ rounded │  ╎
+  ╰─────────╯  ╎
+    ┌┘   └┐    ╎
+    │     ┃    ╎
+    ▼     ▼    ╎
+┌────────────┐ │
+<  decision  >╌┘
+└────────────┘
+       └┐    ╎
+        │    ╎
+        ▼    ▼
+     ╭──────────╮
+     (  circle  )
+     ╰──────────╯
+== amp
+┌───┐   ┌───┐
+│ A │   │ B │
+└───┘   └───┘
+  └──┐ ┌──┘
+     │ │
+     ▼ ▼
+    ┌───┐
+    │ C │
+    └───┘
+  ┌──┘ └──┐
+  │       │
+  ▼       ▼
+┌───┐   ┌───┐
+│ D │   │ E │
+└───┘   └───┘
+== seq
+┌───────┐              ┌─────┐
+│ Alice │              │ Bob │
+└───────┘              └─────┘
+    ╎     Hello Bob       ╎
+    ╎─────────────────────▶
+    ╎      Hi Alice       ╎
+    ◀╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╎
+    ╎    How are you?     ╎
+    ╎─────────────────────▶
+    ╎                     ╎
+    ╎they talk            ╎
+    ╎                     ╎
+    ╎                     ╎ thinking
+== pie
+Where the time goes
+
+Meetings ███████████                 42%
+Code     ████████                    30%
+Email    ████████                    28%
+== the same flowchart in the ascii set
+          +-------+
+          | Start |
+          +-------+
+            |   ^
+          +-+   +--+
+          |        |
+          v        |
+   +-------------+ |
+   <  Is it ok?  > +-+
+   +-------------+   |
+     +-+ Yes +---+ No|
+     |           |   |
+     v           v   v
++---------+   +--------+
+| Ship it |   | Fix it |
++---------+   +--------+
+== the graph itself, rather than its drawing
+kind	flowchart
+dir	TD
+node	A	rect	10	0	9	3	Start
+node	B	diamond	3	7	15	3	Is it ok?
+node	C	rect	0	13	11	3	Ship it
+node	D	rect	14	13	10	3	Fix it
+edge	A	B	solid	plain	
+edge	B	C	solid	plain	Yes
+edge	B	D	solid	plain	No
+== what it says it cannot do
+hibr: mermaid: line 1: this kind of diagram is not understood yet: classDiagram
+rc=1
+hibr: mermaid: line 2: subgraph is not understood yet
+rc=1
+hibr: mermaid: line 2: this node shape is not understood yet: [[
+rc=1
+hibr: mermaid: line 2: sequence blocks (loop, alt, opt, par) are not understood yet
+rc=1
+hibr: mermaid: line 2: this is not a link: ~~> B
+rc=1
+hibr: mermaid: there is nothing here to draw
+rc=1
+hibr: mermaid: line 2: a slice is a label and a number
+rc=1
+== a self-loop is drawn without the loop, and says so
+┌───┐
+│ A │
+└───┘
+  │
+  ▼
+┌───┐
+│ B │
+└───┘
+hibr: mermaid: an edge from a node to itself is not drawn yet: B
+== with := it fills the slot instead of printing
+kind=flowchart w=17 h=3 rows=3
+┌────┐  ┌───────┐
+     b:6 .:2 b:9
+│ hi │─▶│ there │
+     b:1 t:4 b:1 e:2 b:1 t:7 b:1
+└────┘  └───────┘
+     b:6 .:2 b:9
+kind='' why=line 1: this kind of diagram is not understood yet: nonsense
+== parse does not fill a slot, and says which one does
+hibr: mermaid: parse prints; render is the one that fills a result slot
+rc=1
+dropped

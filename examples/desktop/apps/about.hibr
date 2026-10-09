@@ -522,46 +522,22 @@ fn about_lines(int id, int w) {
 	done
 }
 
-# One line of sysinfo's block, drawn run by run. The module says the style
-# of every character as "a:23 .:10 k:2 .:19" -- a letter and how many
-# characters it covers, the whole line covered -- so a frame sets a pen per
-# run and never looks at a character. 'a' and 'b' are the picture's two
-# tones, 'k' a row's key, 'h' the line naming the machine, anything else
-# ordinary text.
+# The pens sysinfo's own style letters are drawn in: `a` and `b` are the
+# picture's two tones, `k` a row's key, `h` the line naming the machine,
+# anything else the window's ink. The drawing itself is widgets/putruns.hibr
+# -- the diagram editor and Write want the same clipping and the same
+# pen-per-run, and three copies of it is how #130's complaint starts.
 #
-# The colours are the theme's roles, not the palette entries sysinfo writes
-# to a terminal: what a window draws is its theme's. The warm tone is
-# DT_WARN rather than DT_WELL, which the ticket suggested and which is a
-# surface colour (#2d3748 on midnight) that would have been all but
-# invisible on a window's own face.
-#
-# Each run is clipped to the horizontal window [off, off + room) and drawn
-# where it lands, so scrolling sideways costs no more than drawing: a run
-# wholly outside it is one comparison.
-fn about_putrun(int id, int row, text, sty, int off, int room) {
-	local c=0 y k s e piece
-	local -a rs
-
-	read -ra rs <<< "$sty"
-	for piece in "${rs[@]}"; do
-		y=${piece%%:*}
-		k=${piece#*:}
-		s=$c
-		e=$((c + k))
-		c=$e
-		[ "$s" -lt "$off" ] && s=$off
-		[ "$e" -gt $((off + room)) ] && e=$((off + room))
-		[ "$e" -gt "$s" ] || continue
-		case $y in
-		a) console pen "$DT_INFO" "$DT_FACE" ;;
-		b) console pen "$DT_WARN" "$DT_FACE" ;;
-		h) console pen "$DT_INFO" "$DT_FACE" bold ;;
-		k) console pen "$DT_INK" "$DT_FACE" bold ;;
-		*) console pen "$DT_INK" "$DT_FACE" ;;
-		esac
-		console put -p "w$id" "$row" $((2 + s - off)) \
-			"${text:$s:$((e - s))}"
-	done
+# The tones are the theme's roles rather than the palette entries sysinfo
+# would write to a terminal: a window's colours are its theme's. The warm
+# tone is DT_WARN rather than the ticket's DT_WELL, which is a surface
+# colour (#2d3748 on midnight) and would have been all but invisible on a
+# window's own face.
+AB_PENS=
+fn about_pens() {
+	AB_PENS="else=$DT_INK a=$DT_INFO b=$DT_WARN h=$DT_INFO:bold"
+	AB_PENS="$AB_PENS k=$DT_INK:bold"
+	ret "$AB_PENS"
 }
 
 # How big a window this wants: a box, not a wall. 0.99.105 made this as
@@ -599,9 +575,10 @@ fn about_vis(int h) {
 
 fn about_draw(int id, int h, int w, int row, int col) {
 	local cpu mem bar barw=$((w - 12)) pct vis top n i r t
-	local off room wide=0 len
+	local off room wide=0 len pens
 
 	command -v dt_want > /dev/null && dt_want "$AB_SLOWMS"
+	pens := about_pens
 	about_lines "$id" "$w"
 	n=${#AB_LINES[@]}
 	vis := about_vis "$h"
@@ -654,8 +631,8 @@ fn about_draw(int id, int h, int w, int row, int col) {
 		# the catalogue as a key of its own.
 		t=${t#??}
 		if [ -n "${AB_STY[$i]}" ]; then
-			about_putrun "$id" "$r" "$t" "${AB_STY[$i]}" "$off" \
-				"$room"
+			dt_putruns "$id" "$r" 2 "$t" "${AB_STY[$i]}" "$off" \
+				"$room" "$DT_FACE" "$pens"
 		else
 			console put -p "w$id" "$r" 2 "${t:$off:$room}"
 		fi
