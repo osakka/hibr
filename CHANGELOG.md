@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.99.139
+
+**Task Manager showed a uid where a name belongs, for anyone whose account
+is not in `/etc/passwd`** (Gitea #138).
+
+The Linux scan resolved a uid by reading `/etc/passwd` directly, which was a
+deliberate choice and is still the right one for most of the answer: it costs
+no fork, matching how the rest of that scan already avoids one. It is simply
+not the whole answer. A user who lives in LDAP — or any other NSS source —
+has no line in that file at all, so every process they own was labelled with
+a bare number.
+
+That is not a corner case on the machine it was reported from: the owner's
+own account is one, so **every process they ran** showed as a uid, and
+0.99.133 had just made the Owner column size itself neatly around it.
+
+`/etc/passwd` is still asked first, because it is free and answers for most
+machines. A uid it does not have goes to `getent` **once** and is remembered
+for the life of the desktop — a uid's name does not change, so it is a cache
+that never needs invalidating. A uid nothing answers for is cached as
+itself, so an unresolvable one costs one fork rather than one a scan.
+
+macOS was never affected: that scan runs `ps -axo user=`, which resolves
+through NSS already.
+
+### The checks
+
+Three, against a stub `getent` placed earlier on `PATH` rather than against
+this machine's own directory, so they say the same thing everywhere: a uid
+`/etc/passwd` does not have resolves to its name, a uid nothing answers for
+is itself rather than empty, and **the same uid is asked for exactly once**
+however many times it is looked up — because "one fork per uid, ever" is the
+design constraint, not merely the happy path, and a check that only tested
+the name would pass against a version that forked per process per scan.
+
+The count is per uid rather than in total, since something else on the
+machine may ask `getent` for its own reasons; that was not hypothetical, it
+showed up while the checks were being verified against the old code.
+
+Verified failing first, as the rule here demands: the same scenario run
+against the previous `tasks_ownername` answers `4242` where the check wants
+`ldapuser`.
+
 ## 0.99.138
 
 **The application manager had no documentation at all** (Gitea #178), asked

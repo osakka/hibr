@@ -32,6 +32,18 @@ declare -gA TK
 declare -gA TD
 declare -gA TK_PREV
 declare -gA TK_UIDNAME
+
+# Uids that /etc/passwd does not know, each resolved once and kept for the
+# life of the desktop. A uid's name does not change, so this is a cache that
+# never needs invalidating, and it is the only place the Linux scan forks.
+#
+# /etc/passwd alone was the whole answer until 0.99.139, which is right for
+# a machine whose users are all local and wrong for every other kind: a user
+# who lives in LDAP, or any other NSS source, has no line there at all and
+# showed in the Owner column as a bare number. On the machine this was
+# reported from that included the owner's own account, so every process they
+# ran was labelled with a uid (Gitea #138).
+declare -gA TK_UIDNSS
 declare -gA TK_KIN
 declare -gA TK_PPID
 TK_OS=
@@ -50,10 +62,32 @@ tasks_loadusers() {
 	done < /etc/passwd
 }
 
-# A uid as the name it resolves to, or itself when nothing does -- a
-# user removed after their process started, most often.
+# The name behind a uid: /etc/passwd first, because that is free and
+# answers for most machines, then NSS once per uid it does not have.
 fn tasks_ownername(int uid) {
-	ret "${TK_UIDNAME["$uid"]:-$uid}"
+	local n
+
+	n=${TK_UIDNAME["$uid"]}
+	[ -n "$n" ] && { ret "$n"; return 0; }
+	n=${TK_UIDNSS["$uid"]}
+	[ -n "$n" ] && { ret "$n"; return 0; }
+	n := tasks_nssname "$uid"
+	TK_UIDNSS["$uid"]=$n
+	ret "$n"
+}
+
+# One `getent` for a uid /etc/passwd does not have, which is where a
+# directory user is. The uid itself when nothing answers -- a user removed
+# after their process started, most often -- and that answer is cached like
+# any other, so an unresolvable uid costs one fork rather than one a scan.
+fn tasks_nssname(int uid) {
+	local line
+
+	command -v getent > /dev/null 2>&1 || { ret "$uid"; return 0; }
+	line := getent passwd "$uid" 2> /dev/null || { ret "$uid"; return 0; }
+	line=${line%%:*}
+	[ -n "$line" ] && { ret "$line"; return 0; }
+	ret "$uid"
 }
 
 # The two sparklines at the bottom -- one label row, one glyph row, each

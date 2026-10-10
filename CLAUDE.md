@@ -941,6 +941,23 @@ went in the shell.
   clock" -- it is that anything changing on its own has to be pinned out of a
   *glyph* comparison, and the cheap way to tell whether a check is exposed is
   to ask which of the two it reads.
+- **`/etc/passwd` is not the list of users, and a uid that is missing from it
+  is the common case rather than the odd one** (Gitea #138, 0.99.139). Task
+  Manager read that file directly to turn a uid into a name -- deliberate,
+  and right for most of the answer, since it costs no fork where the rest of
+  the Linux scan avoids one -- and so showed a bare number for anyone living
+  in LDAP or any other NSS source. On the machine it was reported from that
+  was **the owner's own account**, so every process they ran was labelled
+  with a uid, and the release before had just sized the column neatly around
+  it. The shape that survives: ask the cheap local source first, then the
+  expensive one **once per distinct key**, and cache the failure too so an
+  unresolvable key costs one fork rather than one per scan. macOS never had
+  it, because `ps -axo user=` resolves through NSS already.
+  And the check for it has to count the forks, not just the name: a version
+  that forked per process per scan passes a name-only check perfectly. Count
+  **per key** rather than in total -- something else on the machine asks
+  `getent` for its own reasons, which turned up while verifying the checks
+  against the old code, and a total would have flaked.
 - **A column that cannot show its content may be a column with cut content,
   not a narrow column.** Task Manager's Name column had always sized itself
   to whatever the window left over, and every long name still read cut --

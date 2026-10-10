@@ -2964,6 +2964,49 @@ check("and only this desktop's is this process and what it has started: "
       kidw.get("n") == "2" and kidw.get("kid") in kidw.get("pids", "").split(),
       out)
 
+# A uid /etc/passwd does not have (Gitea #138). Reading that file alone is
+# right for a machine whose users are all local and wrong for every other
+# kind: an LDAP user has no line there and showed as a bare number -- on the
+# machine this was reported from, that was the owner's own account, so every
+# process they ran was labelled with a uid.
+#
+# A stub `getent` earlier on PATH rather than this machine's own directory,
+# so the check is the same everywhere and says what it means; it counts its
+# own calls, because "one fork per uid, ever" is the design constraint and
+# not merely the happy path.
+NSSD = tempfile.mkdtemp(prefix="hibr-nss-")
+NSSCALLS = os.path.join(NSSD, "calls")
+open(os.path.join(NSSD, "getent"), "w").write(
+    "#!/bin/sh\n"
+    "echo \"$2\" >> %s\n"
+    "[ \"$2\" = 4242 ] || exit 2\n"
+    "echo 'ldapuser:x:4242:4242::/home/ldapuser:/bin/sh'\n" % NSSCALLS)
+os.chmod(os.path.join(NSSD, "getent"), 0o755)
+NSS = (
+    '. %s\n'
+    'tasks_loadusers\n'
+    'a := tasks_ownername 4242\n'
+    'b := tasks_ownername 4242\n'
+    'c := tasks_ownername 4243\n'
+    'r := tasks_ownername 0\n'
+    'echo "a=$a b=$b c=$c r=$r"\n'
+    % (appdir("tasks") + "/tasks.hibr"))
+out = subprocess.run([sx.HIBR, "-c", NSS], capture_output=True, text=True,
+                     env=dict(os.environ, DT_ROWS="1",
+                              PATH=NSSD + os.pathsep + os.environ["PATH"])).stdout
+# Counted per uid rather than in total: something else on the machine
+# may ask getent for its own reasons, and what is being asserted is
+# that this uid is asked for once however often it is looked up.
+asked = open(NSSCALLS).read().split() if os.path.exists(NSSCALLS) else []
+calls = asked.count("4242")
+check("a uid /etc/passwd does not have is resolved through NSS",
+      "a=ldapuser" in out, out)
+check("and a uid nothing answers for is itself, rather than empty",
+      "c=4243" in out and "r=root" in out, out)
+check("each is asked for once and remembered, so a scan does not fork per "
+      "process", calls == 1, (calls, asked, out))
+shutil.rmtree(NSSD, ignore_errors=True)
+
 sc = run(*TASKS, feed=[b"w"])
 check("w shows only this user's processes, and says so in the window's "
       "title rather than leaving a short list unexplained",
@@ -4017,4 +4060,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(582)
+report(585)
