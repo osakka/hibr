@@ -389,6 +389,8 @@ int b_opt(sh *s, int ac, char **av);
 int b_args(sh *s, int ac, char **av);
 void op_clear(sh *s);
 int net_is(sh *s, const char *p);
+int net_sch(sh *s, const char *p);
+const char *net_schnm(sh *s, const char *p);
 int net_open(sh *s, const char *p);
 int net_dial(const char *host, const char *port, int udp);
 void sc_fini(sh *s);

@@ -447,7 +447,7 @@ int net_tls(const char *host, const char *port)
 }
 #endif
 
-struct scheme { char *nm; hibr_open_fn fn; };
+struct scheme { char *nm; hibr_open_fn fn; unsigned f; };
 
 /* Find a registered scheme by the /dev/<name>/ prefix of a path. */
 struct scheme *sc_find(sh *s, const char *p, const char **rest)
@@ -469,8 +469,8 @@ struct scheme *sc_find(sh *s, const char *p, const char **rest)
 	return 0;
 }
 
-/* Register a /dev/<name>/ handler, replacing one of the same name. */
-int hibr_scheme(sh *s, const char *nm, hibr_open_fn fn)
+/* Register a /dev/<name>/ handler with its flags, replacing one of the same name. */
+int hibr_schemef(sh *s, const char *nm, hibr_open_fn fn, unsigned f)
 {
 	struct scheme *c;
 	size_t i;
@@ -481,6 +481,7 @@ int hibr_scheme(sh *s, const char *nm, hibr_open_fn fn)
 		c = (struct scheme *)s->schemes.p[i];
 		if (!strcmp(c->nm, nm)) {
 			c->fn = fn;
+			c->f = f;
 			lg(HIBR_LDBG, "scheme %s replaced", nm);
 			return HIBR_OK;
 		}
@@ -488,9 +489,16 @@ int hibr_scheme(sh *s, const char *nm, hibr_open_fn fn)
 	c = xm(sizeof *c);
 	c->nm = xs(nm);
 	c->fn = fn;
+	c->f = f;
 	v_add(&s->schemes, c);
-	lg(HIBR_LDBG, "scheme /dev/%s/ registered", nm);
+	lg(HIBR_LDBG, "scheme /dev/%s/ registered, flags %u", nm, f);
 	return HIBR_OK;
+}
+
+/* Register a /dev/<name>/ handler that claims nothing about itself. */
+int hibr_scheme(sh *s, const char *nm, hibr_open_fn fn)
+{
+	return hibr_schemef(s, nm, fn, 0);
 }
 
 /* Remove a registered scheme. */
@@ -529,6 +537,28 @@ void sc_fini(sh *s)
 int hibr_dial(const char *host, const char *port, int udp)
 {
 	return net_dial(host, port, udp);
+}
+
+/* True if this path's scheme says it reads something already on this machine.
+   This is a security boundary rather than tidiness: `source` runs what it
+   reads, so it honours a scheme only where the module has said opening one
+   connects to nothing -- the default is no, and the http module, which
+   fetches by being opened, leaves it no (ADR 0043). A later tidy-up will
+   want to "generalise" this to every scheme, or to net_is; that is the thing
+   not to do. */
+int net_sch(sh *s, const char *p)
+{
+	struct scheme *c = sc_find(s, p, 0);
+
+	return c && (c->f & HIBR_SCH_LOCAL);
+}
+
+/* The name of the scheme serving a path, or 0 if no module registered one. */
+const char *net_schnm(sh *s, const char *p)
+{
+	struct scheme *c = sc_find(s, p, 0);
+
+	return c ? c->nm : 0;
 }
 
 /* True if a redirection target names a socket rather than a file. */

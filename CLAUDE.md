@@ -3176,6 +3176,43 @@ went in the shell.
   which is not a path, and let a climbing member through. The kind letter is
   also the only way to see a symbolic link (`l`), which a bundle has no
   business carrying.
+- **A scheme is honoured by `rd_do`, so anything that opens a path itself is
+  blind to one.** `/dev/<name>/…` works "anywhere a filename goes" only
+  because almost everything goes through a redirection; `source` opens its
+  own file with `fopen`, so `. /dev/archive/b/app.hibr` was
+  `No such file or directory` while `read -r l < /dev/archive/b/pic.txt`
+  read the archive happily -- which is what made ADR 0041 decide an app is
+  a folder of plain files rather than a mounted bundle. `b_src` asks
+  `net_sch` since 0.99.140 (ADR 0043), and `BASH_SOURCE` is then the scheme
+  path, which names the archive rather than a temporary file.
+  **And "a module registered it" is not the boundary, which took a command
+  to learn rather than a reading.** The first version of that release gated
+  on `sc_find` alone, reasoning that the danger was `/dev/tcp` and its
+  siblings, which `net_is` also answers for -- and the **http module
+  registers a scheme**, so `. /dev/http/host/port/f.hibr` fetched and ran
+  remote code in one word, which is the exact thing excluding `/dev/tcp`
+  was written to prevent. The risk was misattributed too: `/dev/tcp/host/80`
+  is a bare connection and fetches nothing until a request is written to it,
+  where `/dev/http/…` fetches by being opened. So the question is **what a
+  scheme's open does**, which only the module knows:
+  `hibr_schemef(s, nm, fn, HIBR_SCH_LOCAL)` says it reads something already
+  here, `hibr_scheme` claims nothing and therefore means no, and `net_sch`
+  asks that flag. A scheme without it is refused **by name** rather than
+  falling through to `fopen`, which would report a thing that plainly exists
+  as missing. Documenting the hole instead was considered and refused:
+  `eval "$(< /dev/http/…)"` was always one line, but `. "$lib"` with an
+  injected path going from `No such file or directory` to *running their
+  code* is a widening, not a restatement. `HIBR_ABI` did not move --
+  `struct scheme` is private to `src/net.c` and the new function is
+  additive -- so the only cross-version effect is the new `archive.so`
+  needing a shell that exports it, and the package ships both.
+  The dry-run refusal lives in `b_src` rather than in `pl_redir`, which
+  calls every scheme a *connection* -- true of a socket and wrong about a
+  tarball -- and is unreachable today because `mod` and `need` both refuse
+  under a plan, so no scheme is ever registered there. **Anything else in
+  this tree that opens a path with `fopen` or `open` instead of through a
+  redirection has the same blindness**, and whether it should is a decision
+  each time rather than a tidy-up.
 - **`json emit` prints and binds nothing, where `json get` does both**
   (Gitea #167). `json get` honours `s->bind` -- it fills the slot, stays
   quiet when one is bound, and sets `RET` -- and `emit`, `keys`, `len` and

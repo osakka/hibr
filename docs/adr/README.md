@@ -52,6 +52,7 @@ downside is usually a decision nobody had to make.
 | [0040](0040-a-module-may-answer-a-command.md) | A module may answer a command, and a setting says from which end | accepted |
 | [0041](0041-an-app-is-a-folder-of-files-a-bundle-is-how-it-travels.md) | An app is a folder of files; a bundle is how it travels | accepted |
 | [0042](0042-the-smaller-picture-encoding-is-not-the-default.md) | The smaller picture encoding is not the default | accepted |
+| [0043](0043-source-honours-a-local-scheme.md) | `source` honours a scheme that says it is local | accepted |
 
 ---
 

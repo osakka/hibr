@@ -751,7 +751,7 @@ int arc_bi(sh *s, int ac, char **av)
 int arc_init(sh *s)
 {
 	memset(&arc_list, 0, sizeof arc_list);
-	return hibr_scheme(s, "archive", arc_scheme);
+	return hibr_schemef(s, "archive", arc_scheme, HIBR_SCH_LOCAL);
 }
 
 /* Close every archive and withdraw the scheme. */

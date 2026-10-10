@@ -1,0 +1,14 @@
+0
+--- a resource through the scheme, which has always worked:
+a resource
+--- and now the code, which is what this adds:
+inside: BASH_SOURCE=/dev/archive/b/app.hibr
+status 0
+sourced out of a bundle
+--- a scheme that has not said it is local is refused by name:
+hibr: source: /dev/http/127.0.0.1/9/x.hibr: the http scheme may connect, and source runs what it reads
+status 1
+--- and a socket is not something source may open at all:
+status 1
+--- and a dry run does not open one and run what is inside:
+hibr: source: /dev/archive/b/app.hibr: No such file or directory

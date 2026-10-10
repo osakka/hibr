@@ -85,7 +85,7 @@ A module can reach everything the language can:
 | `hibr_fail` | `$ERRMSG`, as `fail` sets it |
 | `hibr_run` | run shell source |
 | `hibr_dial` | open a TCP or UDP connection |
-| `hibr_scheme`, `hibr_unscheme` | register a `/dev/<name>/` protocol |
+| `hibr_scheme`, `hibr_schemef`, `hibr_unscheme` | register a `/dev/<name>/` protocol |
 | `lg`, arenas, `str`, `vec` | the shell's own utilities |
 
 **Schemes** let a module add a protocol rather than a command: once registered,
@@ -93,6 +93,16 @@ A module can reach everything the language can:
 pipelines. The built-in `/dev/tcp/` and `/dev/tls/` use the same mechanism.
 Module builtins take precedence over the built-in ones; lookup order is alias,
 function, module, builtin, `PATH`.
+
+**`source` asks one thing more of a scheme, and the default answer is no.**
+Since 0.99.140 `. /dev/<name>/…` runs a scheme's bytes in the current shell,
+which makes a tarball a library — and `source` runs what it reads, so it does
+that only where the module has said opening its scheme connects to nothing:
+`hibr_schemef(s, nm, fn, HIBR_SCH_LOCAL)`. `hibr_scheme` claims nothing and
+means no, so the archive module says it and the http module, which fetches by
+being opened, does not. Pick by what your open does, not by what you would
+like `source` to allow — see
+[0043](adr/0043-source-honours-a-local-scheme.md).
 
 **A module names the interface it offers** in `HIBR_MODULE_P`, and the shell
 uses that to find it: `hibr_require(s, "display", 1)` with nothing loaded walks

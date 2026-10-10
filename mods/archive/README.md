@@ -58,6 +58,15 @@ A tar is append-only in practice, and rewriting one to change a member is
 the thing archivemount does badly. Writing waits until it can be honest
 about rewriting the whole file.
 
+## A member can be sourced
+
+Since 0.99.140 `source` honours a scheme whose module says it reads
+something already on this machine, which this one does
+(`hibr_schemef(..., HIBR_SCH_LOCAL)`), so a member holding shell code runs
+in the current shell with `$BASH_SOURCE` naming the archive it came from --
+which is what makes a tarball a library rather than only a folder of data.
+See [0043](../../docs/adr/0043-source-honours-a-local-scheme.md).
+
 ## Folders that are not there
 
 Plenty of archives hold no entry for a folder at all -- anything Python's

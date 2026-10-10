@@ -7,7 +7,7 @@
 #define HIBR_ABI 16u
 #endif
 #ifndef HIBR_VER
-#define HIBR_VER "0.99.139"
+#define HIBR_VER "0.99.140"
 #endif
 #ifndef HIBR_OK
 #define HIBR_OK 0
@@ -356,6 +356,14 @@ int hibr_dial(const char *host, const char *port, int udp);
 
 typedef int (*hibr_open_fn)(sh *s, const char *rest);
 int hibr_scheme(sh *s, const char *nm, hibr_open_fn fn);
+/* A scheme whose open reads something already on this machine says so, and
+   that is what lets `source` read it: source runs what it reads, so a scheme
+   that connects is not one it may run (ADR 0043). hibr_scheme claims
+   nothing, so the default is refusal. */
+#ifndef HIBR_SCH_LOCAL
+#define HIBR_SCH_LOCAL 1u
+#endif
+int hibr_schemef(sh *s, const char *nm, hibr_open_fn fn, unsigned f);
 
 /* Rename the running process, the way the `title` builtin renames a
    script's: what ps prints and /proc/pid/comm. For a module process that

@@ -1109,7 +1109,53 @@ int b_src(sh *s, int ac, char **av)
 	if (ex_deep(s, "source", 0))
 		return 1;
 	path = strchr(av[1], '/') ? 0 : findr(s, av[1]);
-	f = fopen(path ? path : av[1], "r");
+	/* A scheme whose module says it reads something already here is opened
+	   the way every other reader opens one, so a library can come out of a
+	   mounted archive -- the thing ADR 0041 deferred and ADR 0043 takes.
+	   net_sch asks that flag and nothing else: `source` runs what it
+	   reads, and the http module registers a scheme too, so every scheme
+	   would have made this a one-word way to execute bytes off the
+	   network. Refused under a dry run, because a scheme's own open
+	   function is arbitrary C -- checked here rather than in pl_redir,
+	   which calls every scheme a connection, true of a socket and wrong
+	   about a tarball. That branch cannot be reached today, since `mod`
+	   and `need` both refuse under a plan so nothing ever registers a
+	   scheme there; it costs one test of a flag and is kept for the day
+	   that changes. */
+	if (net_sch(s, av[1])) {
+		int sfd;
+
+		if (s->sopt & O_PLAN) {
+			pl_note(s, "would source %s through a scheme", av[1]);
+			free(path);
+			return HIBR_FAIL;
+		}
+		sfd = net_open(s, av[1]);
+		if (sfd < 0) {
+			lg(HIBR_LERR, "source: %s: the scheme did not open it",
+			   av[1]);
+			free(path);
+			return HIBR_FAIL;
+		}
+		/* fclose below takes the descriptor with it; only a failed
+		   fdopen leaves it ours to close. */
+		f = fdopen(sfd, "r");
+		if (!f)
+			close(sfd);
+	} else {
+		/* A scheme that has not said it is local is refused by name:
+		   falling through to fopen would report a thing that plainly
+		   exists as missing. */
+		const char *sn = net_schnm(s, av[1]);
+
+		if (sn) {
+			lg(HIBR_LERR, "source: %s: the %s scheme may connect, "
+			   "and source runs what it reads", av[1], sn);
+			free(path);
+			return HIBR_FAIL;
+		}
+		f = fopen(path ? path : av[1], "r");
+	}
 	if (!f) {
 		lg(HIBR_LERR, "source: %s: %s", av[1], strerror(errno));
 		free(path);

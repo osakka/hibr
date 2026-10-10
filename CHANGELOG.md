@@ -1,5 +1,93 @@
 # Changelog
 
+## 0.99.140
+
+**`source` reads a scheme that says it is local, so shell code can come out
+of a mounted archive** (ADR 0043).
+
+**What this release is not:** it is not "an app is a mounted archive", and it
+changes nothing in `apps`, the application manager. An installed app is still
+a folder of plain files, for the reason [ADR
+0041](docs/adr/0041-an-app-is-a-folder-of-files-a-bundle-is-how-it-travels.md)
+gives and which has nothing to do with `source`: a person's own files win,
+because the config folder is scanned before the data one and `dt_apps` skips
+a name it has already seen, and a mounted bundle has no folder for that rule
+to act on. This is one measurement out of that ADR being turned around.
+
+The archive module makes a tarball a folder -- `/dev/archive/NAME/path` is a
+filename anywhere a filename goes -- and that worked for everything except
+the one thing a folder of shell code is for:
+
+```
+read -r l < /dev/archive/b/pic.txt      a picture
+. /dev/archive/b/app.hibr               source: No such file or directory
+```
+
+A scheme is honoured by `rd_do`, the one place a redirection opens anything,
+and `source` opens its own file with `fopen`, so it never reached the scheme
+layer. The alternative -- `eval "$(archive cat …)"` -- runs the code and
+loses `BASH_SOURCE`, which is how a desktop app finds its own header.
+
+So `b_src` goes through the same `net_open` every other reader uses, and
+`BASH_SOURCE` is then the scheme path, which names the archive the code came
+from rather than a temporary file.
+
+### A module says whether its scheme is local, and the default is no
+
+The first version of this gated on `sc_find` -- any scheme a module had
+registered -- reasoning that the danger was `/dev/tcp` and its siblings. One
+command refuted that:
+
+```
+$ hibr -c 'need http; . /dev/http/127.0.0.1/28883/f.hibr'
+RAN from /dev/http/127.0.0.1/28883/f.hibr
+```
+
+The **http module registers a scheme**, so `source` had become a one-word way
+to fetch and run code off the network -- exactly what excluding `/dev/tcp`
+was meant to prevent, through the door left open beside it. And the risk was
+misattributed: `/dev/tcp/host/80` is a bare connection and fetches nothing
+until something writes a request to it, where `/dev/http/…` fetches by being
+opened.
+
+The boundary is therefore **what a scheme does when it is opened**, which
+only the module knows. `hibr_schemef(s, nm, fn, HIBR_SCH_LOCAL)` is how it
+says so; `hibr_scheme` keeps its signature and means the flag is off, so a
+scheme written before this release -- or by somebody who has not thought
+about it -- is refused. The archive module says it. The http module does not,
+and that is the point:
+
+```
+$ hibr -c 'need http; . /dev/http/127.0.0.1/9/x.hibr'
+hibr: source: /dev/http/127.0.0.1/9/x.hibr: the http scheme may connect, and source runs what it reads
+```
+
+It is said rather than fallen through to `fopen`, which would report a thing
+that plainly exists as missing.
+
+`HIBR_ABI` does not move: `struct scheme` is private to `src/net.c` and
+`hibr_schemef` is an addition, so an ABI 16 module that never calls it still
+loads. The one cross-version effect is the other way about -- the new
+`archive.so` needs a shell that exports `hibr_schemef` -- and the package,
+the tap and the AUR build ship the shell with its modules.
+
+A dry run refuses every scheme here, because a scheme's own open function is
+arbitrary C and a plan that quietly read an archive member and ran it is the
+hole ADR 0027 is written against. That check is in `b_src` rather than in
+`pl_redir`, which calls every scheme a *connection* -- true of a socket and
+wrong about a tarball. It cannot be reached today, since `mod` and `need`
+both refuse under a plan so nothing ever registers a scheme there; it costs
+one test of a flag and is kept for the day that changes.
+
+### The checks
+
+`tests/202-source-scheme.t`, recorded, and verified failing against 0.99.139
+before it passed: a resource read through the scheme, which has always
+worked; the same archive's code sourced, with `BASH_SOURCE` reporting the
+scheme path; `/dev/http` refused by name, which fails against the wider gate
+this release started with; `/dev/tcp` refused; and a dry run opening nothing
+and running nothing inside.
+
 ## 0.99.139
 
 **Task Manager showed a uid where a name belongs, for anyone whose account

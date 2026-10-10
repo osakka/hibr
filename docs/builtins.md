@@ -41,6 +41,58 @@ with `sourcepath` on (always, here). So a folder of files that only define
 functions, put on `PATH`, is a library: `. mylib`. `$BASH_SOURCE` inside it is
 the path it was found at.
 
+**[hibr]** It also reads a **scheme whose module says it reads something
+already on this machine**, so a library can live inside a tarball rather
+than beside it -- see
+[0043](adr/0043-source-honours-a-local-scheme.md):
+
+<!-- setup
+mkdir -p lib && printf 'greet() { echo "hello, from $BASH_SOURCE"; }\n' > lib/greet.hibr
+tar cf lib.tar lib
+-->
+```sh
+need archive
+archive open b lib.tar
+. /dev/archive/b/lib/greet.hibr
+greet
+archive close b
+```
+
+```output
+hello, from /dev/archive/b/lib/greet.hibr
+```
+
+`$BASH_SOURCE` is the scheme path, which names the archive the code came
+from.
+
+Every other scheme is refused, and that is the whole of the rule: `source`
+runs what it reads, so a scheme that fetches by being opened -- the `http`
+module's -- would make it a one-word way to run code off the network. A
+module declares itself with `hibr_schemef(s, nm, fn, HIBR_SCH_LOCAL)`;
+`hibr_scheme` claims nothing, so the default is refusal, and the refusal
+says why rather than reporting a thing that exists as missing:
+
+```sh
+need http
+. /dev/http/127.0.0.1/9/x.hibr
+```
+
+```output
+hibr: source: /dev/http/127.0.0.1/9/x.hibr: the http scheme may connect, and source runs what it reads
+```
+
+`/dev/tcp`, `/dev/udp`, `/dev/tls` and `/dev/unix` are not schemes a module
+registered at all, so they are left to `fopen`, which says what it always
+said.
+
+```sh
+. /dev/tcp/example.com/80
+```
+
+```output
+hibr: source: /dev/tcp/example.com/80: No such file or directory
+```
+
 ## Variables
 
 | builtin | synopsis |
