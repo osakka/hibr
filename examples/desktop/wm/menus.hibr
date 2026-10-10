@@ -57,6 +57,19 @@ fn dt_menu(title) {
 	MB[$MB_N]["w"]=0
 	MB[$MB_N]["bar"]=1
 	MB[$MB_N]["own"]=
+	# Cleared because this index has very likely been used before: dt_menus
+	# starts again from 0 every frame, so a menu that was a submenu last
+	# frame leaves its par behind, and dt_drop walks that chain to draw a
+	# submenu's whole path -- so a stale one draws last frame's menus
+	# beside this one (Gitea #169). dt_sub sets it again right after
+	# calling here, so a real submenu is unaffected.
+	#
+	# px and py are stale by the same mechanism and are deliberately *not*
+	# cleared here: dt_mdown sets them while input is read and the rebuild
+	# runs afterwards, so clearing them would make every open submenu snap
+	# back to its bar title's column on the next frame. dt_ctxbuild clears
+	# them for the one entry that must always draw at the pointer.
+	MB[$MB_N]["par"]=
 	MB_CUR=$MB_N
 	MB_N=$((MB_N + 1))
 }

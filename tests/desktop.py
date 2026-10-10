@@ -977,6 +977,57 @@ check("a right-click on empty menu-bar space offers the quick launchers",
 check("but not Control Panel, reachable from the hibr menu instead",
       sc.find("Control Panel") is None, sc)
 
+# And nothing else is drawn beside it. Every check above asks whether the
+# context menu's own items are at the pointer, and none of them could see a
+# second menu drawn next to it -- which is what a stale MB[i]["par"] did
+# (Gitea #169): dt_menu starts an entry without clearing par, dt_sub is the
+# only thing that sets it, and dt_menus reuses every index from 0 each
+# frame. So an index that held a submenu keeps its par, and dt_drop -- which
+# walks that chain to show a submenu's whole path -- draws last frame's
+# menus too.
+#
+# The trigger is the table *shrinking*: focus moves from an app with more
+# menus to one with fewer, so the context menu dt_ctxbuild appends at MB_N
+# lands where a submenu was. Hence two apps here, the first with submenus
+# and the second with none -- no existing fixture has a submenu in the bar
+# at all, since its apps declare none and a test session loads no apps, so
+# the hibr menu has no Applications either. That is why this survived.
+SHRINK = (
+    'big_draw() { console put -p "w$1" 1 2 "big"; }\n'
+    'big_menus() { dt_menu "File"; dt_item One o :; dt_editmenu;\n'
+    '  dt_menu "Alpha"; dt_sub "FolderA"; dt_item Ai i :; dt_end;'
+    ' dt_item Ao u :;\n'
+    '  dt_menu "Beta"; dt_sub "FolderB"; dt_item Bi i :; dt_end;'
+    ' dt_item Bo u :;\n'
+    '  dt_menu "Gamma"; dt_item Go g :; }\n'
+    'small_draw() { console put -p "w$1" 1 2 "small"; }\n'
+    'dt_new "Big" 6 24 4 4 big\n'
+    'dt_new "Small" 6 24 14 4 small\n')
+
+sc, _ = run(SHRINK, [press(4, 10), press(14, 10), press(20, 60, 2)])
+check("a right-click after the menu table shrinks opens the desktop's menu",
+      sc.find("Arrange Icons") is not None, sc)
+check("and draws nothing else beside it",
+      sc.find("Resize") is None and sc.find("Move to Workspace") is None and
+      sc.find("On Every Workspace") is None, sc)
+
+# px and py go stale the same way, and are the other half of #169: dt_mdown
+# gives a submenu the column to sit beside its parent in, dt_mclose does not
+# take it away, and dt_menu_draw prefers it over MB_CX -- so a context menu
+# inheriting one draws where that submenu was instead of at the pointer.
+# dt_menu cannot clear them (an open submenu needs them to survive the
+# rebuild), so dt_ctxbuild clears them for its own root. Opening FolderB is
+# what gives that index a px; without the clear this right-click at (20, 60)
+# draws its menu at row 1, beside where FolderB's submenu had been.
+sc, _ = run(SHRINK, [press(4, 10)])
+bc = sc.row(0).find("Beta")
+fb = run(SHRINK, [press(4, 10), press(0, bc)])[0].find("FolderB")
+sc, _ = run(SHRINK, [press(4, 10), press(0, bc), press(fb[0], fb[1]),
+                     press(22, 5), press(14, 10), press(20, 60, 2)])
+ai = sc.find("Arrange Icons")
+check("and opens at the pointer, not where a submenu held that index",
+      ai is not None and ai[0] > 14 and ai[1] > 50, sc)
+
 TWO = TWO_DEF
 
 sc, _ = run(TWO)
@@ -4799,4 +4850,4 @@ check("every short name fits what the kernel keeps, so none is cut mid-word",
       all(len(c) <= 15 for c in [own] + list(byargv.values())),
       [own] + list(byargv.values()))
 
-report(582)
+report(585)

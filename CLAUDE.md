@@ -2962,6 +2962,33 @@ went in the shell.
   window table `PW`, which is Control Panel's own: each app overwrote the
   other's state. Before declaring a new `-gA`, grep the desktop for the
   name as a whole word.
+- **`dt_menu` starts an `MB` entry by setting five of its fields, and the
+  index has very likely been used before** -- which is the `xm`-does-not-zero
+  trap in script clothes, and it cost two bugs at once (Gitea #169).
+  `dt_menus` begins again from `MB_N=0` every frame, so an index that held a
+  submenu keeps that submenu's **`par`**, and `dt_drop` walks that chain to
+  draw a submenu's whole path: a right-click drew the entire Window menu
+  beside the desktop's own, reported as *"I always get the context menu and a
+  windows menu together"*. The trigger is the table **shrinking** -- focus
+  moving from an app with more menus to one with fewer, so the context menu
+  `dt_ctxbuild` appends at `MB_N` lands where a submenu was -- and it reaches
+  the **bar** as well, since app B's third menu can land on app A's submenu
+  index and then walk a chain when its title is clicked. So `par` is cleared
+  in `dt_menu`, where both forms are fixed; `dt_sub` sets it again
+  immediately after, so a real submenu is unaffected.
+  **`px` and `py` are stale by the same mechanism and are deliberately not
+  cleared there**, which is the half a later tidy-up will want to "finish":
+  `dt_mdown` sets them while input is read and the rebuild runs afterwards,
+  so clearing them in `dt_menu` makes every open submenu snap back to its bar
+  title's column. `dt_ctxbuild` clears them for its own root, the one entry
+  that must always draw at the pointer -- without which a right-click at row
+  20, column 60 drew its menu at row 1, column 39, beside where a submenu had
+  been. Neither was caught by a suite, for one reason worth remembering past
+  this bug: **every context check asked whether the menu's own items were at
+  the pointer, and none could see a second menu drawn next to it** -- and no
+  fixture had a submenu in the bar at all, since its apps declare none and a
+  test session loads no apps, so the hibr menu has no Applications either. A
+  check on "the right thing is here" is not a check on "and nothing else is".
 
 - **`archive ls` is a folder view of a tarball, not a flat listing, and it
   invents folders.** A line is `kind TAB size TAB mtime TAB name`, it lists

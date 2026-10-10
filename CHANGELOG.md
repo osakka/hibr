@@ -1,5 +1,75 @@
 # Changelog
 
+## 0.99.132
+
+**A right-click drew its menu and last frame's menus beside it** (Gitea
+#169), reported from a live session: *"when I context click, I always get
+the context menu and a windows menu together?"*
+
+`dt_menu` starts an `MB` entry by setting five fields — `title`, `n`, `w`,
+`bar`, `own` — and **not `par`**. `dt_sub` is the only thing that ever sets
+`par`, and `dt_menus` begins again from `MB_N=0` on every frame, so every
+index is reused. An index that held a submenu keeps that submenu's `par`
+into the next frame, and `dt_drop` — which walks that chain so a submenu
+shows its whole path — walks into last frame's chain and draws those menus
+too.
+
+The trigger is the table **shrinking**. Focus moves from an app with more
+menus to one with fewer, so the context menu `dt_ctxbuild` appends at `MB_N`
+lands where a submenu was. Driven through a pty, a right-click on the bare
+desktop drew the whole Window chain over the desktop's own menu:
+
+```text
+  Move                        the Window menu, from a stale par
+  Resize
+  Zoom
+  Snap                     ▸
+  Move to Workspace        ▸
+  Hide
+  On Every Workspace
+ ──────────────────────────
+  Close                    w
+   Arrange Icons               the menu actually asked for
+   Change Wallpaper…
+   Next Wallpaper
+  ────────────────────────
+   Refresh Desktop
+```
+
+The chain was `context → Move to Workspace → Window`, which is why Window
+is what appeared rather than any other menu.
+
+**This is not only the context form.** The same shrink reaches the bar: app
+A with two menus and a submenu, then focus app B with three plain menus, and
+B's third menu lands on A's submenu index — so clicking that bar title walks
+a chain of its own. One line in `dt_menu` fixes both, where clearing it in
+`dt_ctxbuild` would have fixed one.
+
+**`px` and `py` go stale the same way, and are the other half of it.**
+`dt_mdown` gives a submenu the column to sit beside its parent in,
+`dt_mclose` does not take it away, and `dt_menu_draw` prefers it over
+`MB_CX` — so a context menu inheriting one draws where that submenu was
+rather than at the pointer. Measured: with a submenu opened first, a
+right-click at row 20, column 60 drew its menu at **row 1, column 39**.
+
+These cannot be cleared in `dt_menu`: `dt_mdown` sets them while input is
+read and the rebuild runs afterwards, so clearing them there would make
+every open submenu snap back to its bar title's column on the next frame.
+`dt_ctxbuild` clears them for its own root instead, which is the one entry
+that must always draw at the pointer — beside the `bar=0` it already sets
+for exactly this reason.
+
+### Why no suite caught either
+
+Every existing context check asks whether the menu's own items are at the
+pointer (`sc.find("Arrange Icons") == (15, 42)`), and not one of them could
+see a second menu drawn next to it. And no fixture has a submenu in the bar
+at all: their apps declare none, and a test session loads no apps, so the
+hibr menu has no Applications submenu either — so no index ever carried a
+`par` to go stale. Three checks in `tests/desktop.py` now drive two apps,
+the first with submenus and the second with none, and assert that the
+context menu is alone and at the pointer. Both failed before the fix.
+
 ## 0.99.131
 
 **A process has two names now, because the two places a person reads them

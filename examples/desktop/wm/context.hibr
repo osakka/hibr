@@ -54,6 +54,12 @@ dt_ctxbuild() {
 	# dt_menu always marks what it starts as a bar title, since every other
 	# caller is building the bar itself; a context menu is never on it.
 	MB[$before]["bar"]=0
+	# And it draws at the pointer, never at a column some submenu that held
+	# this index last frame was given. dt_menu cannot clear these -- an open
+	# submenu needs them to survive the rebuild -- so the one entry that
+	# must ignore them says so here (Gitea #169).
+	MB[$before]["px"]=
+	MB[$before]["py"]=
 	# Only the first frame opens it here -- every one after runs while the
 	# menu is already up, possibly down inside a submenu of its own, and
 	# resetting MB_OPEN on every rebuild snapped that shut the moment it
