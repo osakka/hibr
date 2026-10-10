@@ -285,6 +285,58 @@ dt_restore() {
 # was reported against code that had already been replaced on disk. The state
 # is what matters, not the announcement, so DT_UPNEW is set while it is true
 # and dt_bar shows it until a restart clears it.
+# And the other half of the same honesty, which the first half got wrong by
+# implication (Gitea #174). `hold` renders every client from its own
+# emulator, and that emulator lives in the **server** process -- which keeps
+# whatever modules it was started with for as long as the session lives. A
+# Restart Desktop re-execs the desktop *inside* that server, so a fix in
+# mods/hold, mods/term or mods/pty does not reach a running session at all,
+# and the mark above actively says it will: the person restarts, the mark
+# clears, and the old emulator is still there. That cost an afternoon
+# diagnosing a wallpaper against a session painted by code from before the
+# fix.
+DT_UPSESSION=
+
+# The pid of the hold server this desktop is running inside, by walking up
+# the parents until one names itself one. Nothing else knows it: the session
+# name is in HIBR_HOLD, but the server is a process, and `hold list` answers
+# a client's pid rather than the server's.
+#
+# /proc/<pid>/stat's own trap: the command is in brackets and may itself
+# contain brackets, so it is read from the *last* `)`, and the state letter
+# before the ppid is why a loop that skips fields by reading numbers gets
+# nothing.
+dt_holdsrv() {
+	local p=$$ line comm rest st ppid n=0
+
+	while [ "$n" -lt 8 ]; do
+		read -r line 2> /dev/null < "/proc/$p/stat" || return 1
+		comm=${line#*\(}
+		comm=${comm%)*}
+		rest=${line##*)}
+		read -r st ppid _ <<< "$rest"
+		case $comm in hold:*) ret "$p"; return 0 ;; esac
+		case $ppid in '' | 0 | 1) return 1 ;; esac
+		p=$ppid
+		n=$((n + 1))
+	done
+	return 1
+}
+
+# Whether this session's own server is older than the hibr on disk. Compared
+# the same way dt_updcheck compares the desktop's own image -- an -ef against
+# $HIBR, since apt replaces the binary and the running one is then a deleted
+# inode -- but asked of the server, which a restart cannot change.
+dt_sessionold() {
+	local srv
+
+	[ -n "$HIBR_HOLD" ] && [ -n "$HIBR" ] || return 1
+	srv := dt_holdsrv || return 1
+	[ -e "/proc/$srv/exe" ] || return 1
+	[ /proc/$srv/exe -ef "$HIBR" ] && return 1
+	return 0
+}
+
 DT_UPMS=60000
 dt_updcheck() {
 	local v
@@ -299,6 +351,15 @@ dt_updcheck() {
 	dt_want "$DT_UPMS"
 	[ $((EPOCHSECONDS - DT_UPDT)) -ge $((DT_UPMS / 1000)) ] || return 0
 	DT_UPDT=$EPOCHSECONDS
+	# Asked whatever the desktop's own image is, because the two are
+	# independent: a restart makes the desktop current and leaves the
+	# session exactly as old as it was, which is the case that misled.
+	if [ -z "$DT_UPSESSION" ] && dt_sessionold; then
+		DT_UPSESSION=1
+		DT_MENUIN=
+		dt_notify "this session is older than the hibr on disk -- only a new session takes it, not Restart Desktop"
+		dt_want 10
+	fi
 	[ /proc/$$/exe -ef "$HIBR" ] && return 0
 	[ -x "$HIBR" ] || return 0
 	DT_UPNEW=1

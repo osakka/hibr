@@ -4861,4 +4861,52 @@ check("every short name fits what the kernel keeps, so none is cut mid-word",
       all(len(c) <= 15 for c in [own] + list(byargv.values())),
       [own] + list(byargv.values()))
 
-report(585)
+# --- a session older than the desktop inside it (Gitea #174) ----------------
+#
+# hold renders every client from the emulator in its *server* process, and
+# that server keeps the modules it was started with for the life of the
+# session. So a fix in mods/hold, mods/term or mods/pty does not reach a
+# running session at all, and Restart Desktop -- which re-execs the desktop
+# *inside* that server -- cannot change it. The existing mark says "a newer
+# hibr is on disk, restart", which for those three modules is wrong in the
+# direction that wastes someone's day: they restart, the mark clears, and the
+# old emulator is still there. It cost exactly that, diagnosing a wallpaper
+# against a session painted by code from before the fix.
+#
+# Both directions are made here rather than waited for. A parent that names
+# itself the way a hold server does (title -s, 0.99.131) and runs the same
+# binary is a current session; one running a copy at another path is what an
+# apt upgrade leaves behind, since the running image is then a deleted inode
+# and $HIBR is the new one.
+SESSD = tempfile.mkdtemp(prefix="hibr-sessold-")
+SESSOLD = os.path.join(SESSD, "oldhibr")
+shutil.copy(screen.HIBR, SESSOLD)
+os.chmod(SESSOLD, 0o755)
+open(os.path.join(SESSD, "inner.hibr"), "w").write(
+    ". %s\ndt_sessionold && echo STALE || echo FRESH\n"
+    % tree("examples/desktop/wm/restart.hibr"))
+open(os.path.join(SESSD, "outer.hibr"), "w").write(
+    'title -s "hold:t" "hold t"\n"%s" %s\n'
+    % (screen.HIBR, os.path.join(SESSD, "inner.hibr")))
+
+
+def sessold(parent, held=True):
+    """dt_sessionold, run under a parent that looks like a hold server."""
+    env = dict(os.environ, DT_ROWS="1")
+    env["HIBR_HOLD"] = "t" if held else ""
+    return subprocess.run([parent, os.path.join(SESSD, "outer.hibr")],
+                          capture_output=True, text=True, env=env).stdout.strip()
+
+
+r = sessold(screen.HIBR)
+check("a session whose server runs the same binary is not called old",
+      r == "FRESH", r)
+r = sessold(SESSOLD)
+check("but one whose server runs an image the desktop's own is not, is",
+      r == "STALE", r)
+r = sessold(SESSOLD, held=False)
+check("and a desktop that is not held has no session to be old",
+      r == "FRESH", r)
+shutil.rmtree(SESSD, ignore_errors=True)
+
+report(588)

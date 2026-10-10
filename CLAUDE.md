@@ -3041,6 +3041,25 @@ went in the shell.
   client at all and every desktop is held. `CN_ZUNDER` is the constant; a
   picture that **owns** its cells still carries no z, since it is drawn over
   the text by rights and a z would put it under the very cells it owns.
+- **A session outlives the desktop inside it, and keeps the modules it
+  started with.** `hold` renders every client from the emulator in its
+  **server** process, so a fix in `mods/hold`, `mods/term` or `mods/pty`
+  reaches a session only when that *session* is new -- not when the desktop
+  restarts, and not when a client re-attaches. `dt_restart` re-execs the
+  desktop **inside** that server, which is why the obvious remedy is not one.
+  Until 0.99.137 the bar said the opposite by implication: `DT_UPNEW` means
+  "a newer hibr is on disk" and a restart clears it, so a person restarts,
+  the mark goes, and the old emulator is still there -- worse than silence.
+  `DT_UPSESSION` is the separate state, asked independently because the two
+  are (a restart makes the desktop current and leaves the session as old as
+  it was), and it wears `GL[warn]` rather than `GL[reload]` because it asks
+  for a different thing. **The measurement that settles it on any machine**
+  is `readlink /proc/<pid>/exe` -- `(deleted)` means the image was
+  replaced -- plus the module inodes in `/proc/<pid>/maps` against the
+  installed ones, for the process whose `comm` begins `hold:`. Finding that
+  process at all is only possible because 0.99.131 gave it a real name:
+  `HIBR_HOLD` carries the session's *name* and `hold list` answers a
+  **client's** pid, so neither finds the server.
 - **Diagnose a live session by attaching a second display to it, not by
   building a reproduction -- and `hold attach` without `-m` takes the
   owner's display away.** #175 cost six refuted mechanisms before anything

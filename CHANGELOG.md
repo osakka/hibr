@@ -1,5 +1,55 @@
 # Changelog
 
+## 0.99.137
+
+**A session can be older than the desktop running inside it, and the bar
+said a restart would fix that** (Gitea #174).
+
+`hold` renders every client from the emulator in its **server** process, and
+that server keeps the modules it was started with for the life of the
+session. So a fix in `mods/hold`, `mods/term` or `mods/pty` does not reach a
+running session at all — and **Restart Desktop re-execs the desktop *inside*
+that server**, so it cannot change it either.
+
+The existing mark (`DT_UPNEW`, 0.99.85) is right about the desktop's own
+image and wrong by implication about everything else: it says "a newer hibr
+is on disk", a restart clears it, and the old emulator is still there. That
+is worse than saying nothing, and it cost a full afternoon — a wallpaper
+diagnosed six different ways against a session being painted by code from
+before the fix, on a server that had been running for hours:
+
+```text
+pid     role             exe                        modules
+desktop          /usr/bin/hibr              current
+hold server      /usr/bin/hibr (deleted)    old
+```
+
+`DT_UPSESSION` is the second state. It is asked independently of the first,
+because the two really are independent: a restart makes the desktop current
+and leaves the session exactly as old as it was, which is the case that
+misled. The bar carries `GL[warn]` for it rather than `GL[reload]`, because
+it is asking for a different thing — a new session, which a restart is not —
+and the notification says so in those words.
+
+`dt_holdsrv` finds the server by walking up the parents until one names
+itself as one, which is possible only because 0.99.131 gave those processes
+real names (`hold:chicken`). Nothing else knows it: `HIBR_HOLD` carries the
+session's *name*, and `hold list` answers a **client's** pid rather than the
+server's. Two traps this file already records are in that walk —
+`/proc/<pid>/stat`'s command is in brackets and may itself contain brackets,
+so the fields are read from the **last** `)`, and the state letter before
+the ppid is why a loop that skips fields by reading numbers finds nothing.
+
+### The checks
+
+Three, and both directions are **made** rather than waited for, which is
+possible because `title -s` lets a process name itself the way a server
+does: a parent running the same binary is a current session, one running a
+copy at another path is what an apt upgrade leaves behind (the running image
+becomes a deleted inode while `$HIBR` is the new one), and a desktop that is
+not held has no session to be old. `dt_updcheck` had no coverage at all
+before this.
+
 ## 0.99.136
 
 **A picture wallpaper composited away every window's background** (Gitea

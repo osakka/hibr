@@ -197,7 +197,7 @@ fn dt_barput(int col, t) {
 dt_barkey() {
 	local k
 
-	k="$MB_OPEN|$MB_PAR|$MB_APP|$MB_N|$MB_AX|$DT_NOTEUNSEEN|$DT_UPNEW"
+	k="$MB_OPEN|$MB_PAR|$MB_APP|$MB_N|$MB_AX|$DT_NOTEUNSEEN|$DT_UPNEW|$DT_UPSESSION"
 	k="$k|$DT_CLOCKWAS|$DT_WS|$DT_WSN|$DT_MIRRORON|$DT_PRIMARY_W"
 	k="$k|$DT_PRIMARY_COL|$DT_BARGAP|$DT_BELLICON|$DT_PBAR"
 	k="$k|$DT_BARTIME|$DT_BARSHADOW|$DT_INK|$DT_BAR|$DT_ACTIVE|$DT_IDLE"
@@ -330,6 +330,10 @@ dt_bar() {
 	# to say so for as long as it is, or the bugs it is reported for are
 	# reported against code that no longer exists (dt_updcheck).
 	[ -n "$DT_UPNEW" ] && bell="${GL[reload]} $bell"
+	# A different mark, because it asks for a different thing: the reload
+	# above is cleared by a restart and this one is not -- only a new
+	# session reloads what hold renders from (Gitea #174).
+	[ -n "$DT_UPSESSION" ] && bell="${GL[warn]} $bell"
 	DT_BELLW := str width "$bell"
 	DT_BELLC=$((DT_CLOCKC - gap - DT_BELLW))
 	# Long app menus win here too: what would draw over a menu's title
