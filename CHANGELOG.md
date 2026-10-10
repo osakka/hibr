@@ -1,5 +1,60 @@
 # Changelog
 
+## 0.99.138
+
+**The application manager had no documentation at all** (Gitea #178), asked
+for directly: *"point me to the doc for the app management bit?"* — and
+there was none to point at.
+
+What existed was `docs/adr/0041`, a decision record rather than a guide, and
+a 45-line comment at the top of `examples/apps.hibr` that was the only place
+the subcommands were written down. `apps` had no `help` either: a wrong verb
+got two lines on standard error and exit 2, with no way to ask.
+
+This file already carries the lesson, from Sheet: **a thing built and then
+not handed over is worse than one not built.** The manager shipped in
+0.99.130 with a decision record, a suite of 29 checks and nothing a person
+could read.
+
+`docs/apps.md` is the page — what an index is, the commands, where a file
+lands and why your own copy of a name always wins, the three separate things
+it trusts, what it refuses and why, and how to publish an app. `apps help`
+is the same list where somebody will actually look for it.
+
+**It says plainly that the default index is not published yet.** It answers
+404, so `apps list` finds nothing on a fresh install (#159's second half).
+A page describing a catalogue that does not answer, without saying so, would
+be worse than no page.
+
+### The trust section is three rows, not one
+
+Because they protect different things and claiming more would be a lie:
+**TLS** establishes the identity of the *server* the index came from;
+**sha256** the integrity of the *payload*; and **nothing** establishes the
+identity of the *author* — there are no signatures, and `apps info` says so
+in as many words rather than implying otherwise.
+
+### And the hole underneath it
+
+`tests/531-doc-examples.t` opens by saying every page is held to its
+examples, and then named its pages **one by one**. `docs/sheet.md` arrived
+in 0.99.120 and was never added, so it had never been checked once. That is
+"a glob list is where coverage goes to hide", in the very list that exists
+to stop documentation rotting.
+
+It globs `docs/*.md` now, so `sheet.md` is checked for the first time and a
+page added later cannot slip past. Verified rather than assumed: a bare
+fence put into the new page failed at `docs/apps.md:155`, and the restore
+was checked afterwards.
+
+### Left open deliberately
+
+`vw` and `desktop` are the other two things installed as commands and still
+have no page; three written at once would be three written badly. The rule
+that *would* have caught this — every installed command has a page — should
+land with those pages rather than before them, since a rule ships only once
+the tree is clean under it.
+
 ## 0.99.137
 
 **A session can be older than the desktop running inside it, and the bar

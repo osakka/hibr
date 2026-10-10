@@ -23,6 +23,7 @@ exists. These pages are the detail.
 | [Full-screen programs](display.md) | The console display: cells, panes, colour, decoded keys |
 | [Windows on a console](../examples/desktop/README.md) | Draggable windows, and apps written as hibr functions |
 | [The desktop's architecture](../examples/desktop/ARCHITECTURE.md) | The three layers, the event loop, damage-based redraw, and the app contract, with real screenshots |
+| [Installing desktop applications](apps.md) | `apps`: an index over HTTPS, what it trusts, what it refuses, and how to publish one |
 
 ## Look it up
 

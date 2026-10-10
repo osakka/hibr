@@ -632,9 +632,39 @@ fn ap_setindex(url = "") {
 	return 0
 }
 
+# What it does, in the one place somebody asks. Until 0.99.138 this lived
+# only in a comment at the top of this file and in ADR 0041: a wrong verb
+# got two lines on standard error and there was no way to ask at all, which
+# is the Sheet lesson in another costume -- work already paid for and never
+# handed over.
+ap_help() {
+	printf '%s\n' \
+	"apps -- install, remove and update desktop applications" \
+	"" \
+	"  apps list [TEXT]       what the index offers, or what matches TEXT" \
+	"  apps installed         what is installed here, and from where" \
+	"  apps info NAME         everything the index says about one" \
+	"  apps install NAME...   fetch, verify and place" \
+	"  apps remove [-f] NAME  take one away; -f even if a window is open" \
+	"  apps update [NAME...]  everything with a newer version, or these" \
+	"  apps index [URL]       the index this fetches from, or set it" \
+	"  apps refresh           fetch the index again now" \
+	"  apps help              this" \
+	"" \
+	"An app is a folder of plain files and a bundle is only how it travels;" \
+	"installing is placing a file where the desktop already looks. Your own" \
+	"file of the same name shadows a fetched one, and an update cannot" \
+	"overwrite it." \
+	"" \
+	"TLS says which server the index came from and the sha256 says the" \
+	"bundle was not changed on the way. Nothing here says who wrote an app:" \
+	"there are no signatures. See docs/apps.md and docs/adr/0041."
+}
+
 ap_usage() {
 	echo "usage: apps list [TEXT] | installed | info NAME | install NAME... |" >&2
-	echo "       remove [-f] NAME... | update [NAME...] | index [URL] | refresh" >&2
+	echo "       remove [-f] NAME... | update [NAME...] | index [URL] |" >&2
+	echo "       refresh | help" >&2
 	exit 2
 }
 
@@ -647,5 +677,6 @@ remove | uninstall) shift; ap_remove "$@" ;;
 update | upgrade) shift; ap_update "$@" ;;
 index) ap_setindex "${2-}" ;;
 refresh) ap_load 1; ap_say "the index is up to date" ;;
+help | --help | -h) ap_help ;;
 *) ap_usage ;;
 esac

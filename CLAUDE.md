@@ -3662,6 +3662,17 @@ went in the shell.
   believing a nesting probe: **a probe that sends one key too many tests
   the wrong row**, and the first one here moved the highlight off
   Applications and onto Quit, then read "right does not open a submenu".
+- **A glob list is where coverage goes to hide, and the documentation check
+  was itself one.** `531-doc-examples.t` opens by saying every page is held
+  to its examples and then **named its pages one by one**; `docs/sheet.md`
+  arrived in 0.99.120, was never added, and had never been checked once when
+  this was found in 0.99.138. It globs `docs/*.md` now. The same release
+  found that `apps`, `vw` and `desktop` -- the three things installed as
+  **commands** -- had no reference page between them, because
+  `530-docs.t` requires one for every *builtin* and an installed command is
+  not a builtin, so no rule ever asked. Before trusting a check that takes a
+  list of files, read the list; and when adding a kind of thing the project
+  ships, ask which existing rule would notice it missing.
 - **A glob list is where coverage goes to hide.** `540-examples.t`'s
   "no window content draws at absolute screen coordinates" listed
   `apps/*.hibr` and not `apps/*/*.hibr`, so **Office, Internet and Games

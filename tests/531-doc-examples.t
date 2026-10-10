@@ -93,13 +93,18 @@ check docs/llm.md 10
 check docs/cookbook.md 12
 check docs/data.md 10
 check docs/tutorial.md 9
-for page in docs/README.md docs/language.md docs/builtins.md docs/grammar.md \
-            docs/interactive.md docs/networking.md docs/display.md \
-            docs/modules.md docs/prompt.md docs/deployment.md docs/testing.md \
-            docs/backlog.md docs/adr/*.md README.md examples/README.md \
+# Globbed, not named. This list spelled out every page by hand until
+# 0.99.138, which is where coverage goes to hide: docs/sheet.md arrived in
+# 0.99.120 and was never added, so it was never checked once, although the
+# first line of this file says every page is. The four above keep their own
+# minimum and are skipped here rather than checked twice.
+for page in docs/*.md docs/adr/*.md README.md examples/README.md \
             examples/desktop/README.md examples/desktop/ARCHITECTURE.md \
             mods/README.md mods/*/README.md tests/README.md tools/README.md \
             include/README.md src/README.md; do
+  case $page in
+  docs/llm.md | docs/cookbook.md | docs/data.md | docs/tutorial.md) continue ;;
+  esac
   check "$page" 0
 done
 [ "$fails" = 0 ] && echo "every example in the documentation does what it says"
