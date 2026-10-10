@@ -241,7 +241,7 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	     const unsigned char *rgb, int iw, int ih, unsigned flags)
 {
 	int prow = 0, pcol = 0, ph = 0, pw = 0, cw = 0, chh = 0, tw, th, k;
-	int wrow, wcol, wh, ww, vr0, vc0, vr1, vc1, sx, sy, sw, sh;
+	int wrow, wcol, wh, ww, vr0, vc0, vr1, vc1, sx, sy, sw, sh, comp;
 	unsigned char *px = 0;
 	unsigned sum, reuse = 0;
 	size_t i;
@@ -419,8 +419,31 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 				       px, tw, th);
 		}
 	}
+	/* Compressed only for a picture *under the text*, which is the
+	   wallpaper and nothing else. Gitea #129.
+	   
+	   The first version of this also compressed a still -- one a palette
+	   was chosen from, which is what that flag means -- reasoning that a
+	   still is placed rarely. That is false for two of the three callers
+	   that set it: the browser hands over its page on every frame it
+	   draws (mods/web/draw.c) and the image viewer re-places on every
+	   zoom and pan, so "a still" there means "a different picture most
+	   frames" exactly as a film does. The release gate found it as one
+	   web check failing under the sanitizers, where everything is four
+	   times slower, and the arithmetic says why: a page at 800x544 is
+	   1.3 MB and deflating it is about 100 ms, against a 0.7 ms frame
+	   budget.
+	   
+	   The wallpaper is the one picture that is both placed rarely -- the
+	   keep of 0.99.96 makes a repeat placement free -- and re-sent to
+	   every client that attaches, which is what the ticket is about. A
+	   still photograph in the Image Viewer therefore goes out
+	   uncompressed, and that is a real thing given up: it would help a
+	   remote session, and it cannot be had until something distinguishes
+	   "a picture that will not change" from "a picture with a palette". */
+	comp = im->over ? cn_imgcomp : CN_COMP_NONE;
 	if (im->id)
-		kt_encode(px ? px : rgb, tw, th, w, h, im->id, im->over,
+		kt_encode(px ? px : rgb, tw, th, w, h, im->id, im->over, comp,
 			  &im->data);
 	else
 		six_encode(px ? px : rgb, tw, th,

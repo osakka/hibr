@@ -572,6 +572,31 @@ int m_console(sh *s, int ac, char **av)
 		}
 		return HIBR_OK;
 	}
+	if (!strcmp(sub, "imgcomp")) {
+		const char *m = ac > 2 ? av[2] : "";
+
+		if (!*m) {
+			const char *now = cn_imgcomp == CN_COMP_PNG ? "png" :
+					  cn_imgcomp == CN_COMP_ZLIB ? "zlib" :
+					  "off";
+
+			hibr_ret(s, now);
+			if (!s->bind)
+				printf("%s\n", now);
+			return HIBR_OK;
+		}
+		if (!strcmp(m, "zlib"))
+			cn_imgcomp = CN_COMP_ZLIB;
+		else if (!strcmp(m, "png"))
+			cn_imgcomp = CN_COMP_PNG;
+		else if (!strcmp(m, "off") || !strcmp(m, "none"))
+			cn_imgcomp = CN_COMP_NONE;
+		else {
+			lg(HIBR_LERR, "usage: console imgcomp zlib|png|off");
+			return 2;
+		}
+		return HIBR_OK;
+	}
 	if (!strcmp(sub, "behind")) {
 		/* While this is on, a write at absolute coordinates skips any
 		   cell a pane covers -- so the wallpaper paints around the

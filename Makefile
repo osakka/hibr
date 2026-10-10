@@ -53,8 +53,13 @@ MODS = $(B)/mods/sys.so $(B)/mods/http.so $(B)/mods/ls.so $(B)/mods/prompt.so \
 ifeq ($(UNAME),Darwin)
 MODS += $(B)/mods/darwin.so
 endif
-PROMPT_SRC = $(wildcard mods/prompt/*.c) mods/inflate.c
-CONSOLE_SRC = $(wildcard mods/console/*.c)
+PROMPT_SRC = $(wildcard mods/prompt/*.c) mods/inflate.c mods/inftab.c
+# The console compresses a still picture before sending it (Gitea #129), so
+# it carries the deflate encoder -- and inftab.c, the tables both directions
+# read, rather than the whole of inflate.c: it never expands anything, and
+# the decoder is six kilobytes of code it would not call.
+CONSOLE_SRC = $(wildcard mods/console/*.c) mods/deflate.c mods/inftab.c \
+	      mods/png.c
 PTY_SRC = $(wildcard mods/pty/*.c)
 TERM_SRC = $(wildcard mods/term/*.c)
 HOLD_SRC = $(wildcard mods/hold/*.c)
@@ -99,7 +104,7 @@ $(B)/mods/term.so: $(TERM_SRC) include/hibr.h mods/term/tm.h mods/pty.h mods/dis
 $(B)/mods/hold.so: $(HOLD_SRC) include/hibr.h mods/hold/hd.h mods/pty.h mods/term.h mods/display.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(HOLD_SRC)
 
-$(B)/mods/console.so: $(CONSOLE_SRC) include/hibr.h mods/console/cn.h mods/display.h | $(B)/mods
+$(B)/mods/console.so: $(CONSOLE_SRC) include/hibr.h mods/console/cn.h mods/display.h mods/inflate.h mods/png.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(CONSOLE_SRC)
 
 $(B)/mods/cat.so: $(CAT_SRC) include/hibr.h mods/cat/ct.h | $(B)/mods
@@ -145,9 +150,10 @@ $(B)/mods/vw.so: mods/vw/vw.c include/hibr.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ mods/vw/vw.c $(DLLIB)
 
 # The inflate is mods/inflate.c, the prompt module's own, shared rather than
-# written twice (Gitea #102).
-$(B)/mods/archive.so: mods/archive/archive.c mods/inflate.c mods/inflate.h include/hibr.h | $(B)/mods
-	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ mods/archive/archive.c mods/inflate.c
+# written twice (Gitea #102), with mods/inftab.c beside it for the tables
+# the encoder reads as well.
+$(B)/mods/archive.so: mods/archive/archive.c mods/inflate.c mods/inftab.c mods/inflate.h include/hibr.h | $(B)/mods
+	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ mods/archive/archive.c mods/inflate.c mods/inftab.c
 
 MERMAID_SRC = $(wildcard mods/mermaid/*.c)
 

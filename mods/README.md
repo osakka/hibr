@@ -37,7 +37,7 @@ hibr -c 'mod load ./build/mods/hello.so; mod list; mod drop hello'
 | `lint/` | The rules behind `hibr --explain`: reads a parsed script and names the mistakes in it, without running it. It adds no builtin; it offers `"lint"` (`mods/lint.h`), which `--explain` asks for |
 | `auth.c` | `auth check`: whether PAM takes a password for a user, with libpam opened on first use and no privilege of its own -- what the desktop's screen lock asks; `auth whoami` for the login and real name; `auth open`/`run`/`close`, a PAM session and a command run in it as the user, for the login screen |
 | `darwin.c` | macOS only: `cpu` and `mem` from the kernel's own counters, with no fork |
-| `console/` | The text display: alternate screen, a cell grid redrawn by damage, panes, decoded keys; offers `"display"` (`mods/display.h`) — [README](console/README.md) |
+| `console/` | The text display: alternate screen, a cell grid redrawn by damage, panes, decoded keys; offers `"display"` (`mods/display.h`); carries `mods/deflate.c` and `mods/png.c` to compress a still picture's payload before it is sent (`console imgcomp`, Gitea #129) — [README](console/README.md) |
 | `cat/` | `cat`, byte-identical in a pipe and coloured on a terminal; offers `"highlight"` (`mods/highlight.h`) — [README](cat/README.md) |
 | `most/` | A pager on the display interface — [README](most/README.md) |
 | `hvi/` | hibr's vi: gap buffer, lazy line index, linear undo — [README](hvi/README.md) |
@@ -132,7 +132,7 @@ directory, because it contains a working subset of git.
 | `fmt.c` | The `$var` / `[text](style)` / `(conditional)` format language, and styles to ANSI |
 | `seg.c` | The segment table and every segment that is not git |
 | `git.c` | Repository discovery, HEAD, refs, repository state, configuration |
-| `inflate.c` | DEFLATE — RFC 1951, and the RFC 1950 zlib wrapper |
+| `inflate.c` | DEFLATE — RFC 1951, and the RFC 1950 zlib wrapper. Expanding only; `../deflate.c` is the other direction and `../inftab.c` the tables both read |
 | `obj.c` | Loose objects, pack indexes v1 and v2, `OFS_DELTA` and `REF_DELTA` chains, alternates |
 | `sha1.c` | SHA-1, and git's blob hashing rules including symlinks |
 | `idx.c` | `.git/index` versions 2, 3 and 4, and the cached-tree extension |

@@ -23,4 +23,24 @@ int inf_zlib(const unsigned char *in, size_t n, size_t max, str *out,
 int inf_gzip(const unsigned char *in, size_t n, size_t max, str *out,
 	     size_t *used);
 
+/* And the other direction, in mods/deflate.c: appended to out, which the
+   caller owns, so a wrapper can be written around it. Written for the kitty
+   graphics protocol's own `o=z` and for the PNG it sends as `f=100`
+   (Gitea #129) -- so it is sized for compressing a still picture once and
+   well enough, not for a stream: hash-chain LZ77, greedy, with dynamic
+   Huffman codes per block and a stored block whenever a compressed one
+   would be no smaller. It lands near zlib's level 3 on ratio. 1 always,
+   there being nothing a caller could do about a failure to compress.
+
+   The tables each direction needs are the same tables, so they are shared
+   rather than written twice. */
+extern const short inf_ord[19];
+extern const short inf_lbase[29];
+extern const short inf_lext[29];
+extern const short inf_dbase[30];
+extern const short inf_dext[30];
+
+int def_raw(const unsigned char *in, size_t n, str *out);
+int def_zlib(const unsigned char *in, size_t n, str *out);
+
 #endif

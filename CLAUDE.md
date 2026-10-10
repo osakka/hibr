@@ -188,7 +188,7 @@ whenever a replacement writes one.
 | `mods/console/sixel.c`, `mods/console/kitty.c`, `mods/console/image.c` | pictures as pixels, in either of the two protocols a terminal might speak -- sixel (fixed 6x6x6 palette, or median cut per picture) and the kitty graphics protocol, which kitty alone accepts since it has never drawn a sixel -- and the regions the console owns: placed through `dp_api`'s `image`, kept until their cells are drawn through, emitted once, and for kitty deleted from the terminal when they go (ADR 0037); `console gfx` names the one in force |
 | `mods/archive/` | a tarball as a folder (Gitea #102): `.tar` and `.tar.gz` indexed at open, `archive ls|stat|cat`, and a `/dev/archive/NAME/path` scheme so a member is a filename anywhere one goes; folders the archive never declared are implied from the names; reading only. Not called `tar`, which would shadow the program -- see `mods/archive/README.md` |
 | `mods/mermaid/` | Mermaid diagrams as cells (Gitea #140): flowcharts laid out the way dagre does it -- cycles broken, ranks by longest path, bend points on long edges, the median heuristic for ordering, and a track per edge in each gutter so two never merge into one line -- plus sequence diagrams (columns and rows, no layout) and pies as proportional bars; `mermaid render` answers rows **and the style of every character** as runs, the shape `md lines` and `sysinfo` use, which is the only way a module's colours reach a window, since a window draws cells through its pane and not bytes at the screen; everything it does not understand is named rather than half-drawn -- see `mods/mermaid/README.md` |
-| `mods/inflate.c` | deflate and its wrappers (zlib, gzip), written here rather than linked against libz, and shared: the prompt module reads git's objects and packs with it, the archive module a `.tar.gz` |
+| `mods/inflate.c`, `mods/deflate.c`, `mods/inftab.c`, `mods/png.c` | deflate and its wrappers (zlib, gzip), both directions, written here rather than linked against libz, and shared: the prompt module reads git's objects and packs with it, the archive module a `.tar.gz`, and the console *writes* one to compress a still picture's payload before sending it -- `o=z` or a PNG, `console imgcomp` (Gitea #129). `inftab.c` is the tables both directions read, its own file so a module that only compresses does not carry the decoder; `png.c` is chunks, CRC-32 and per-scanline filter selection around `def_zlib` |
 | `mods/vw/` | Bitwarden and Vaultwarden: `vwk` holds the vault's keys and does its crypto (libcrypto, libargon2 `dlopen`ed), never printing a key; `vw` (`examples/vw.hibr`, installed as a command) logs in, syncs and reads the vault -- kept encrypted, so offline works -- through `dav request`; the desktop's Vault accessory and Passwords pane run that command as a child (`wm/vault.hibr`); `tests/bwserve.py` is the suites' stand-in server -- see `mods/vw/README.md`, ADR 0036 |
 
 Each directory carries its own `README.md` with the detail: `src/`, `include/`,
@@ -2335,6 +2335,46 @@ went in the shell.
   once sent. Do not add a path that writes a bitmap straight at the screen:
   that is the Control Panel preview trap again, and this is the API it said
   was missing.
+- **A payload the terminal cannot read is a payload it says nothing about,
+  so the smaller encoding is not the default.** The kitty protocol takes a
+  picture three ways: `f=24` raw pixels, `f=24,o=z` a zlib stream of them,
+  and `f=100` a PNG. On the owner's own wallpaper at 232x71 those are
+  2.11 MB, 0.65 MB and 0.47 MB of base64 -- and the smallest is **not** what
+  ships, because everything here carries `q=2` (answer nothing, or the reply
+  lands in the stream the key decoder owns), so a terminal that takes `f=24`
+  and not `f=100` draws a blank rectangle and nothing anywhere errors. That
+  is the 0.99.72 shape exactly, and konsole -- one of the four terminals
+  `cn_gfx` sends kitty escapes to -- implements only part of the protocol.
+  `console imgcomp zlib|png|off` chooses, `zlib` by default, Control Panel >
+  Pictures > Compress Pictures (Gitea #129). The other half of the rule:
+  **only the wallpaper is compressed** -- `cn_image` gates it on `im->over`
+  alone. It was first gated on "a palette was chosen from this picture, or
+  it is under the text", reasoning that a still is placed rarely, and the
+  release gate refuted that: **the browser hands its page over on every
+  frame it draws** (`mods/web/draw.c`) and the Image Viewer re-places on
+  every zoom, so for two of the three callers that set that flag "a still"
+  means "a different picture most frames". It surfaced as one `tests/web.py`
+  check failing under the sanitizers and nowhere else, and the arithmetic
+  says why: a page at 800x544 is 1.3 MB and deflating it is about 100 ms
+  against a 0.7 ms frame budget. **`DP_IMG_CHOSEN` means "a palette was
+  taken from this picture", which is not the same question as "will this
+  picture change", and nothing in the ABI answers the second one.** The
+  wallpaper is the only picture that is both placed rarely (the keep of
+  0.99.96) and re-sent to every attaching client. `tests/media.py` checks a
+  film's frame is still raw and `tests/kitgfx.py` that a picture owning its
+  cells is too.
+- **And a picture under the text reaches a held client not at all, which is
+  Gitea #165 and was found gating that release.** Zero APCs and zero images,
+  for a held desktop with a picture wallpaper and for a bare held program
+  alike, and identically with the compression off -- so it is pre-existing.
+  The likely cause is in the contract itself: an under-text region owns no
+  cells and is **forgotten once sent** (ADR 0037), because its caller is
+  meant to place it again every frame, and `hold` re-emits the pictures its
+  *emulator kept* rather than the program's bytes -- a picture nothing keeps
+  is a picture there is nothing to re-emit. Not yet root-caused. Until it
+  is, a payload measured through a console with a cell size is not the same
+  number as what a held desktop's client is sent, and any claim about a
+  reattach has to say which of the two it is.
 - **A terminal speaks one of two picture protocols, and kitty does not
   speak sixel.** It never has, and says so in its own documentation; its
   own graphics protocol is the only way to put pixels in it. `cn_gfx`

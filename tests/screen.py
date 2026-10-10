@@ -78,6 +78,9 @@ class Screen:
     because nothing hibr emits needs more than that.
     """
 
+    # How many payload bytes of pictures to keep, in total, per screen.
+    IMGKEEP = 4 << 20
+
     def __init__(self, rows=ROWS, cols=COLS):
         self.rows, self.cols = rows, cols
         self.clear()
@@ -90,6 +93,20 @@ class Screen:
         # Pictures sent as DCS (sixel) or APC (the kitty graphics protocol):
         # where each landed and how many payload bytes it was.
         self.images = []
+        # And the payload itself, one entry per picture, base64 as it
+        # arrived -- so a check can decode it and say what the terminal
+        # would actually have drawn, rather than only how long it was. That
+        # is the only honest way to test a compressed payload (Gitea #129):
+        # the length of a zlib stream is not a number a test can predict,
+        # and q=2 means a terminal that could not read it says nothing.
+        # Capped, because a desktop suite with a picture wallpaper would
+        # otherwise keep every frame's megabyte: past IMGKEEP in total the
+        # payloads stop being kept and the lengths go on being counted. So a
+        # check that decodes one uses a small picture -- past the cap it
+        # gets an empty string, and whatever it decodes with then raises,
+        # which reads as the encoder being broken rather than as the cap.
+        self.imgdata = []
+        self.imgkept = 0
         # Every APC control string, in order, whole: "a=T,f=24,...,m=0" or
         # "a=d,d=I,q=2,i=1234". What a test asks about a kitty picture.
         self.apc = []
@@ -145,9 +162,15 @@ class Screen:
                 self.apc.append(ctrl)
                 if "a=T" in ctrl or "a=p" in ctrl:
                     self.images.append((self.r, self.c, len(data)))
+                    self.imgdata.append(data if self.imgkept < self.IMGKEEP
+                                        else "")
+                    self.imgkept += len(data)
                 elif data and self.images:
                     r, c, had = self.images[-1]
                     self.images[-1] = (r, c, had + len(data))
+                    if self.imgdata and self.imgkept < self.IMGKEEP:
+                        self.imgdata[-1] += data
+                    self.imgkept += len(data)
                 i = j + (2 if t[j:j + 2] == "\x1b\\" else 1)
                 continue
             if ch == "\x1b" and i + 1 < n and t[i + 1] == "]":

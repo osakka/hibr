@@ -1,5 +1,117 @@
 # Changelog
 
+## 0.99.128
+
+**A still picture's payload is compressed before it is sent, so a reattach
+over a link costs a second rather than thirteen** (Gitea #129, the other
+half of it). Reported from a live session: *"i just did a desktop -r, it
+takes a long time to re-attach ... 10/15 seconds-ish, then the desktop
+appears."*
+
+The owner's own wallpaper, measured through the real path at their own
+232x71 with an 8x16 cell, as base64 on the wire:
+
+| | payload | at 5 Mbit/s |
+|---|---|---|
+| full detail, uncompressed — what 0.99.100 sent | 8.43 MB | 13.5 s |
+| half detail (0.99.101) | 2.11 MB | 3.4 s |
+| **half detail, `o=z` — what ships now** | **0.65 MB** | **1.0 s** |
+| half detail, PNG | 0.47 MB | 0.7 s |
+| full detail, PNG | 1.24 MB | 2.0 s |
+
+So the reported 10-15 seconds is one second, and a thirteenth of the bytes
+it started at. hold re-emits every picture to every client that attaches,
+which is why this is what a reattach costs rather than a one-off.
+
+**A deflate encoder, written here** (`mods/deflate.c`), the same reasoning
+as the decoder beside it: a few hundred lines against a dependency. Hash-chain
+LZ77, greedy, with **dynamic Huffman codes per block** — which is where the
+ratio actually is, because what a PNG hands over is filtered residuals
+clustered hard around zero and a code built from the data beats a fixed one
+by about a fifth on exactly that. A **stored block** whenever a compressed
+one would be no smaller, so incompressible input grows by 41 bytes in 100 kB
+rather than by a quarter. Lazy matching is the next thing a real encoder does
+and is deliberately not here: a tenth of the remaining ratio for a third more
+code, all of it the fiddly kind.
+
+Measured against zlib, which is the only honest way to report it:
+
+| | ours | zlib -1 | zlib -3 | zlib -6 |
+|---|---|---|---|---|
+| CLAUDE.md, 241 kB | 99,802 | 111,009 | 103,152 | 95,920 |
+| the wallpaper's pixels, 1.58 MB | 466,820 | 520,482 | 497,154 | 459,220 |
+
+So it lands between zlib's level 3 and its level 6, which is more than was
+expected of it. It costs 123 ms to deflate that wallpaper and 244 ms to turn
+it into a PNG.
+
+**And a PNG writer** (`mods/png.c`): chunks, CRC-32, and one filter chosen
+per scanline from the five the format offers, by the smallest sum of absolute
+residuals — which is the heuristic libpng itself uses. Nothing is linked for
+either; `mods/inftab.c` is the tables both directions read, in its own file
+now so that a module which only compresses does not carry six kilobytes of
+decoder to reach half a kilobyte of data.
+
+**`zlib` is the default and the PNG is not, deliberately.** Everything in
+this protocol carries `q=2` — answer nothing, because a reply would land in
+the stream the key decoder owns — so a terminal that takes `f=24` and not
+`f=100` draws a blank rectangle and *nothing anywhere errors*. That is the
+0.99.72 shape exactly, when every picture on the owner's own terminal was a
+blank rectangle for four releases; and konsole, one of the four terminals the
+console sends kitty escapes to, implements only part of the protocol. 0.18 MB
+is not worth that failure mode. **`console imgcomp zlib|png|off`**, and
+**Control Panel > Pictures > Compress Pictures** (`DT_IMGCOMP`), for anyone
+who knows their terminal.
+
+**Only the wallpaper is compressed**, and the first version of this got that
+wrong in a way the release gate caught. The gate was "a palette was chosen
+from this picture, or it is under the text", reasoning that a still is placed
+rarely — and that is false for two of the three callers that set the flag:
+**the browser hands its page over on every frame it draws**
+(`mods/web/draw.c`) and the Image Viewer re-places on every zoom and pan. So
+"a still" there means "a different picture most frames", exactly as a film
+does. It surfaced as one `tests/web.py` check failing under the sanitizers,
+where everything is four times slower, and the arithmetic says why: a page at
+800x544 is 1.3 MB and deflating it is about 100 ms against a 0.7 ms frame
+budget.
+
+The wallpaper is the one picture that is both placed rarely — the keep of
+0.99.96 makes a repeat placement free — and re-sent to every client that
+attaches, which is what the ticket is about. A still photograph in the Image
+Viewer now goes out uncompressed, and that is a real thing given up: it would
+help a remote session, and it cannot be had until something distinguishes "a
+picture that will not change" from "a picture with a palette". `tests/media.py`
+checks a film's frame still goes out as `f=24` with no `o=z`, and
+`tests/kitgfx.py` that a picture owning its cells does too.
+
+**One thing this does not yet reach, found while gating it and filed as
+Gitea #165.** A picture drawn *under* the text — which is what a wallpaper
+is — reaches a held client **not at all**: zero APCs and zero images,
+measured for a held desktop and for a bare held program alike, and
+identically with `console imgcomp off`, so it is pre-existing and nothing to
+do with this release. Every desktop is held, so until that is understood the
+payload measured above is what a console with a cell size sends rather than
+what the owner's own reattach carries. The numbers are real; where they land
+is now a ticket.
+
+**How it is tested, which is the part worth reading.** `q=2` guarantees a
+terminal never complains, so "it looked fine" is not evidence of anything.
+`tests/kitgfx.py` sends one picture three ways and asserts all three describe
+**the same pixels**: the uncompressed payload, the `o=z` stream inflated by
+Python's zlib, and the PNG decoded by the suite itself — its chunks, its
+CRCs and its filters undone by hand rather than by a library, since our own
+writer is on the other side and a library would only be checking that libpng
+and we agree. The harness keeps picture payloads now (`Screen.imgdata`,
+capped) so a check can decode one instead of only measuring its length, which
+is the only honest test of a compressed payload: the length of a zlib stream
+is not a number a test can predict.
+
+**A pre-existing bug found while adding the row next to it.** Control Panel >
+Pictures worked out what the terminal can do into a variable and then
+overwrote it two lines later with the Wallpaper Detail value, so the **This
+Terminal** row read "Half" or "Full" — what the terminal can actually do had
+never once been shown there. It says `kitty pixels, a cell is 8 by 16` now.
+
 ## 0.99.127
 
 **One wheel notch is the same distance everywhere, and About has three

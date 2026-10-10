@@ -13,7 +13,18 @@
  *
  *   a=T   transmit and display in one go, at the cursor
  *   f=24  three bytes a pixel, no alpha, which is what every caller has
- *   s=,v= the payload's own width and height in pixels
+ *   o=z   the payload is a zlib stream of those bytes rather than the bytes
+ *         (Gitea #129): the owner's own wallpaper is 2.11 MB of base64 raw
+ *         and 0.62 MB this way, which matters because hold re-emits every
+ *         picture to every client that attaches, so a reattach over a link
+ *         was pushing all of it before the screen appeared
+ *   f=100 or the payload is a PNG, which is 0.45 MB of the same picture --
+ *         better again, and not the default, because a terminal that takes
+ *         f=24 and not f=100 draws nothing and q=2 means it cannot say so.
+ *         That is the 0.99.72 shape exactly: every picture a blank
+ *         rectangle, nothing erroring. `console imgcomp png` asks for it
+ *   s=,v= the payload's own width and height in pixels; a PNG carries its
+ *         own, so they are left out for f=100 rather than said twice
  *   c=,r= the rectangle in cells, so the terminal pins the picture to it
  *         however its own cell size rounds -- sixel has to be scaled to the
  *         pixel exactly, this does not
@@ -31,6 +42,9 @@
  * band is taken from the process id, with the counter in the low bits.
  */
 #include "cn.h"
+#include "../inflate.h"
+#include "../png.h"
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -50,15 +64,32 @@ unsigned kt_id(void)
 }
 
 /* A picture: iw by ih pixels of RGB, to be shown in cols by rows cells at
-   wherever the cursor is when this arrives. under puts it below the text. */
+   wherever the cursor is when this arrives. under puts it below the text.
+   comp is CN_COMP_NONE, CN_COMP_ZLIB or CN_COMP_PNG -- what image.c decided
+   from what kind of picture this is, since compressing a film's frame costs
+   more than its bytes save. */
 void kt_encode(const unsigned char *rgb, int iw, int ih, int cols, int rows,
-	       unsigned id, int under, str *o)
+	       unsigned id, int under, int comp, str *o)
 {
-	str b;
+	str b, c;
 	size_t i, n, k;
+	const unsigned char *pay = rgb;
+	size_t payn = (size_t)iw * ih * 3;
 
+	s_init(&c);
+	if (comp == CN_COMP_PNG)
+		pw_write(rgb, iw, ih, &c);
+	else if (comp == CN_COMP_ZLIB)
+		def_zlib(rgb, payn, &c);
+	if (c.n) {
+		pay = (const unsigned char *)c.p;
+		payn = c.n;
+	} else {
+		comp = CN_COMP_NONE;
+	}
 	s_init(&b);
-	cn_b64(&b, rgb, (size_t)iw * ih * 3);
+	cn_b64(&b, pay, payn);
+	s_free(&c);
 	n = b.n;
 	if (!n) {
 		s_free(&b);
@@ -68,12 +99,17 @@ void kt_encode(const unsigned char *rgb, int iw, int ih, int cols, int rows,
 		k = n - i > KT_CHUNK ? (size_t)KT_CHUNK : n - i;
 		s_cat(o, "\033_G");
 		if (!i) {
-			s_cat(o, "a=T,f=24,q=2,C=1,i=");
+			s_cat(o, comp == CN_COMP_PNG ? "a=T,f=100,q=2,C=1,i="
+						     : "a=T,f=24,q=2,C=1,i=");
 			s_num(o, id);
-			s_cat(o, ",s=");
-			s_num(o, iw);
-			s_cat(o, ",v=");
-			s_num(o, ih);
+			if (comp == CN_COMP_ZLIB)
+				s_cat(o, ",o=z");
+			if (comp != CN_COMP_PNG) {
+				s_cat(o, ",s=");
+				s_num(o, iw);
+				s_cat(o, ",v=");
+				s_num(o, ih);
+			}
 			s_cat(o, ",c=");
 			s_num(o, cols);
 			s_cat(o, ",r=");

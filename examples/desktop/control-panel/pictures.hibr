@@ -20,11 +20,14 @@ command -v cp_pane > /dev/null && cp_pane pictures "Pictures" "▦"
 
 CP_IMGMODES=("Automatic" "Half Blocks" "Grey Blocks" "Characters" "Pixels")
 CP_WALLDETAILS=("Half" "Full")
+CP_IMGCOMPS=("Zlib" "PNG" "Off")
 
 # Repeated here because a pane is loaded without its own app under the panel
 # tests, and a strict file may not create a global it has not declared.
 DT_WALLDETAIL="${DT_WALLDETAIL-half}"
 command -v dt_keep > /dev/null && dt_keep DT_WALLDETAIL
+DT_IMGCOMP="${DT_IMGCOMP-zlib}"
+command -v dt_keep > /dev/null && dt_keep DT_IMGCOMP
 
 fn cp_set_walldetail(int? id = "", value = "") {
 	case $value in
@@ -33,6 +36,29 @@ fn cp_set_walldetail(int? id = "", value = "") {
 	esac
 	command -v console > /dev/null && console imgdetail "$DT_WALLDETAIL"
 	cp_save
+}
+
+# How a still picture's payload is compressed before it is sent (Gitea
+# #129). Zlib is the default and PNG is smaller again -- see the note in
+# mods/console/cn.h for why the smaller one is not the default: a terminal
+# that takes f=24 and not f=100 draws nothing and cannot say so.
+fn cp_set_imgcomp(int? id = "", value = "") {
+	case $value in
+	PNG) DT_IMGCOMP=png ;;
+	Off) DT_IMGCOMP=off ;;
+	*) DT_IMGCOMP=zlib ;;
+	esac
+	command -v console > /dev/null && console imgcomp "$DT_IMGCOMP"
+	cp_save
+}
+
+# The name that setting has in the list.
+fn cp_compname(m) {
+	case $m in
+	png) ret "PNG" ;;
+	off) ret "Off" ;;
+	*) ret "Zlib" ;;
+	esac
 }
 
 # The name a mode has in the list, and the mode a name stands for.
@@ -58,26 +84,33 @@ fn cp_set_imgmode(int? id = "", value = "") {
 }
 
 fn pictures_rows(int w) {
-	local n=0 v g kind cw ch
+	local n=0 v term g kind cw ch
 
 	v := cp_imgname "$DT_IMGMODE"
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Draw Pictures As"
 	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=mode; n=$((n + 1))
 	g := dt_imggfx
 	read -r kind cw ch <<< "$g"
+	# In its own variable, not in v: it used to be worked out into v and
+	# then overwritten by the Wallpaper Detail value two lines later, so
+	# the This Terminal row read "Half" or "Full" -- what the terminal can
+	# actually do had never once been shown there.
 	if [ "$kind" = sixel ] || [ "$kind" = kitty ]; then
-		v := dt_tr "%s pixels, a cell is %s by %s" "$kind" "$cw" "$ch"
+		term := dt_tr "%s pixels, a cell is %s by %s" "$kind" "$cw" "$ch"
 	elif [ "$cw" = 0 ]; then
-		v := dt_tr "blocks only: it does not say what a cell measures"
+		term := dt_tr "blocks only: it does not say what a cell measures"
 	else
-		v := dt_tr "blocks only: it does not draw pixels"
+		term := dt_tr "blocks only: it does not draw pixels"
 	fi
 	v=Half
 	[ "$DT_WALLDETAIL" = full ] && v=Full
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Wallpaper Detail"
 	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=walldetail; n=$((n + 1))
+	v := cp_compname "$DT_IMGCOMP"
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Compress Pictures"
+	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=imgcomp; n=$((n + 1))
 	CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="This Terminal"
-	CP[$w][$n]["val"]=$v; n=$((n + 1))
+	CP[$w][$n]["val"]=$term; n=$((n + 1))
 	CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Automatic Means"
 	v := cp_imgname half
 	dt_imgpix && v := cp_imgname pixels
@@ -100,6 +133,11 @@ fn pictures_do(int? w = "", k = "", int? dir = "") {
 		v := cp_next "$nm" "$dir" "${CP_WALLDETAILS[@]}"
 		cp_set_walldetail "" "$v"
 		;;
+	imgcomp)
+		nm := cp_compname "$DT_IMGCOMP"
+		v := cp_next "$nm" "$dir" "${CP_IMGCOMPS[@]}"
+		cp_set_imgcomp "" "$v"
+		;;
 	esac
 	return 0
 }
@@ -109,5 +147,7 @@ fn pictures_drop(int? w = "", int? r = "", int? c = "", k = "") {
 	mode) dt_droplist "$w" "$r" "$c" cp_set_imgmode "${CP_IMGMODES[@]}" ;;
 	walldetail) dt_droplist "$w" "$r" "$c" cp_set_walldetail \
 		"${CP_WALLDETAILS[@]}" ;;
+	imgcomp) dt_droplist "$w" "$r" "$c" cp_set_imgcomp \
+		"${CP_IMGCOMPS[@]}" ;;
 	esac
 }

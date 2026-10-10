@@ -75,7 +75,7 @@ void six_encode(const unsigned char *rgb, int w, int h, int chosen, str *o);
    object with an id rather than paint, so every one placed is deleted later. */
 unsigned kt_id(void);
 void kt_encode(const unsigned char *rgb, int iw, int ih, int cols, int rows,
-	       unsigned id, int under, str *o);
+	       unsigned id, int under, int comp, str *o);
 void kt_del(str *o, unsigned id);
 void kt_delall(str *o);
 /* How many times anything has written to the grid or placed a picture. A
@@ -137,10 +137,22 @@ int cn_shot(const char *path, const char *fmt, int r0, int c0, int h, int w);
 #define CN_SHADOWED (1u << 16)
 #endif
 
+/* What a still picture's payload is compressed as before it goes out
+   (Gitea #129). Zlib by default: it is the protocol's own o=z, which a
+   terminal that draws kitty pictures at all understands, where f=100 is a
+   PNG that one taking f=24 may simply draw nothing for -- and q=2 means it
+   cannot say so. `console imgcomp` chooses. */
+#ifndef CN_COMP_NONE
+#define CN_COMP_NONE 0
+#define CN_COMP_ZLIB 1
+#define CN_COMP_PNG 2
+#endif
+
 extern vec cn_panes;
 extern int cn_quiet;
 extern int cn_mousemode;
 extern int cn_imghalf;
+extern int cn_imgcomp;
 int cn_behind(int on);
 void cn_owninval(void);
 cn_pane *cn_pfind(const char *nm);

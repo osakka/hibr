@@ -168,6 +168,15 @@ check("whole, every chunk of it",
 check("with the text around it still text",
       sc.row(0).startswith("HELD PICTURE HERE"), sc.row(0))
 
+# A picture drawn *under* the text -- which is what a wallpaper is, and the
+# only user of DP_IMG_UNDER -- reaches a client not at all: measured at
+# zero APCs and zero images, for a held desktop and for a bare held program
+# alike, and identically with `console imgcomp off`, so it is nothing to do
+# with the compression of 0.99.128. Gitea #165 has the measurements. The
+# check for it was written here and taken out again rather than shipped
+# failing, since what it asserts has apparently never worked; it belongs
+# here the day that ticket is understood.
+
 sc, log = run(PIC, gfx="sixel")
 check("a sixel goes through the same way",
       len(sc.images) == 1 and sc.images[0][:2] == (2, 2) and not sc.apc,

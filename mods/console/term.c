@@ -51,6 +51,15 @@ int cn_mousemode;
    looks at a background. `console imgdetail full` turns it off. */
 int cn_imghalf = 1;
 
+/* And whether its payload is compressed before it goes out, which is worth
+   more than the halving and composes with it: the owner's own wallpaper,
+   already halved, is 2.11 MB of base64 raw, 0.62 MB as a zlib stream and
+   0.45 MB as a PNG. Zlib by default -- see cn.h for why the PNG is not, and
+   `console imgcomp` to ask for it anyway. Only a still is compressed, which
+   image.c decides: a film's frame is a different picture every frame, so
+   there its cost would be encoding rather than bytes. */
+int cn_imgcomp = CN_COMP_ZLIB;
+
 void cn_wr(int fd, const char *p, size_t n);
 
 /* Ask the terminal for mouse reports, or stop asking. */

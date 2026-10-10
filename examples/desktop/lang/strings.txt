@@ -185,6 +185,7 @@ Colour: %s
 Colours
 Columns
 Command:
+Compress Pictures
 Connect to Server
 Connect to Server…
 Contact

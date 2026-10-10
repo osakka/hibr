@@ -51,6 +51,7 @@ downside is usually a decision nobody had to make.
 | [0039](0039-an-interactive-login-shell-reads-both.md) | An interactive login shell reads the profile *and* the rc file | accepted |
 | [0040](0040-a-module-may-answer-a-command.md) | A module may answer a command, and a setting says from which end | accepted |
 | [0041](0041-an-app-is-a-folder-of-files-a-bundle-is-how-it-travels.md) | An app is a folder of files; a bundle is how it travels | accepted |
+| [0042](0042-the-smaller-picture-encoding-is-not-the-default.md) | The smaller picture encoding is not the default | accepted |
 
 ---
 

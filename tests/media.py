@@ -133,9 +133,11 @@ check("drawing needs a display, and close all closes every player",
       out == "1\n1 2\n\n" and "no display" in err, out + err)
 
 
-def view(args, feed=(), rows=14, cols=48):
+def view(args, feed=(), rows=14, cols=48, cell=None, env=None):
     t = Term(tree("examples/play.hibr"), *args, rows=rows, cols=cols, settle=1.2,
-             env={"HIBR_MEDIA_AUDIO": "none", "HIBR_MODPATH": tree("build/mods")})
+             cellw=cell[0] if cell else 0, cellh=cell[1] if cell else 0,
+             env=dict({"HIBR_MEDIA_AUDIO": "none",
+                       "HIBR_MODPATH": tree("build/mods")}, **(env or {})))
     shots = []
     for k in feed:
         if k:
@@ -163,10 +165,23 @@ s = view(["t.mp4"], [None, b" ", b"\x1b[C"])
 check("space pauses, and right seeks five seconds on -- to the end, still paused",
       "paused" in s[1].row(13) and "paused" in s[2].row(13) and
       s[2].row(13).startswith(" 0:03 / 0:03"), s[2])
+# A film's frame is a different picture every frame, so the console sends it
+# raw where it compresses a still (Gitea #129): compressing one would cost
+# more than its bytes save, and this is the only suite that can reach that
+# branch -- `img draw` always says a palette was chosen from its picture,
+# and the branch is "no palette chosen and not under the text", which is a
+# film and nothing else. Mode `sixel` is the picture path whichever protocol
+# is in force; the cell size is what makes pictures possible at all.
+s = view(["-m", "sixel", "-p", "t.mp4"], [None], cell=(8, 16),
+         env={"HIBR_GFX": "kitty"})
+p = [a for a in s[0].apc if "a=T" in a]
+check("a film's frame goes out as a picture, uncompressed, where a still "
+      "would be deflated", p and "f=24" in p[0] and "o=z" not in p[0], p)
+
 out, err = subprocess.run([sx.HIBR, tree("examples/play.hibr"), "--help"],
                           capture_output=True, text=True).stdout, ""
 check("play.hibr's --help comes from its declarations",
       "--mode" in out and "--start" in out and "--paused" in out, out)
 
 shutil.rmtree(D, True)
-report(17)
+report(18)

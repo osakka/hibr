@@ -28,6 +28,7 @@ The harness keeps APC payloads out of its screen model (Screen.apc,
 Screen.images), so a check asks what was asked for rather than grepping the
 raw stream.
 """
+import base64
 import os
 import shutil
 import struct
@@ -99,6 +100,55 @@ def deletes(sc):
     return [a for a in sc.apc if "a=d" in a]
 
 
+def payload(sc, i=0):
+    """The bytes of one picture's payload, base64 undone."""
+    return base64.b64decode(sc.imgdata[i]) if len(sc.imgdata) > i else b""
+
+
+def unpng(d):
+    """The pixels of a PNG, decoded here rather than by a library: the
+    chunks, one zlib stream across every IDAT, then each scanline's filter
+    undone. Our own writer is on the other side of this, so a library would
+    only be checking that libpng and we agree -- this checks the format."""
+    assert d[:8] == b"\x89PNG\r\n\x1a\n", "not a PNG"
+    i, idat, w, h = 8, b"", 0, 0
+    while i < len(d):
+        n = struct.unpack(">I", d[i:i + 4])[0]
+        tag, body = d[i + 4:i + 8], d[i + 8:i + 8 + n]
+        got = struct.unpack(">I", d[i + 8 + n:i + 12 + n])[0]
+        assert got == zlib.crc32(tag + body), "chunk %s has a bad CRC" % tag
+        if tag == b"IHDR":
+            w, h, depth, kind = struct.unpack(">IIBB", body[:10])
+            assert (depth, kind) == (8, 2), (depth, kind)
+        elif tag == b"IDAT":
+            idat += body
+        i += 12 + n
+    raw, out, prev, bw = zlib.decompress(idat), bytearray(), bytes(w * 3), w * 3
+    assert len(raw) == (bw + 1) * h, (len(raw), bw, h)
+    for y in range(h):
+        f, line = raw[y * (bw + 1)], bytearray(raw[y * (bw + 1) + 1:(y + 1) * (bw + 1)])
+        for x in range(bw):
+            a = line[x - 3] if x >= 3 else 0
+            b = prev[x]
+            c = prev[x - 3] if x >= 3 else 0
+            if f == 1:
+                line[x] = (line[x] + a) & 0xff
+            elif f == 2:
+                line[x] = (line[x] + b) & 0xff
+            elif f == 3:
+                line[x] = (line[x] + ((a + b) >> 1)) & 0xff
+            elif f == 4:
+                p = a + b - c
+                pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
+                line[x] = (line[x] + (a if pa <= pb and pa <= pc
+                                      else b if pb <= pc else c)) & 0xff
+            elif f:
+                raise AssertionError("filter %d" % f)
+        out += line
+        prev = bytes(line)
+    return w, h, bytes(out)
+
+
 TEXT = ("console pen '#ffffff' '#000000'\n"
         "console put 0 0 'over the picture'\n"
         "console put 11 0 'under the picture'\n")
@@ -120,8 +170,15 @@ check("a large picture is chunked, and only the last chunk says m=0",
       len([a for a in sc.apc if "m=1" in a]) > 1 and
       len([a for a in sc.apc if "m=0" in a]) == 1 and sc.apc[-2].endswith("m=0"),
       sc.apc[:3] + sc.apc[-2:])
-check("the payload is every byte of the rectangle, base64",
-      sc.images[0][2] == (96 * 96 * 3 + 2) // 3 * 4, sc.images)
+# A picture that owns its cells is sent as its pixels, whatever `imgcomp`
+# says: the browser hands its page over on every frame it draws and the
+# viewer re-places on every zoom, so compressing one would cost more than
+# its bytes save. Only the wallpaper is compressed, and the checks at the
+# foot of this file are its.
+check("the payload is every byte of the rectangle, base64, and no o=z",
+      sc.images[0][2] == (96 * 96 * 3 + 2) // 3 * 4 and
+      "o=z" not in places(sc)[0] and "f=24" in places(sc)[0],
+      (sc.images, places(sc)))
 check("and the text around it is drawn as text",
       sc.row(0).startswith("over the picture") and
       sc.row(11).startswith("under the picture"), (sc.row(0), sc.row(11)))
@@ -302,10 +359,12 @@ check("a picture differing by a single pixel is a different picture",
 # session at 5 Mbit/s (Gitea #129). Half the pixels each way is a quarter of
 # that, scaled back up by the terminal, which is what a background wants.
 # Asserted on the payload's own length, since that is the whole point.
-sc = run("console imgdetail half\n" + PIC % "-m pixels -u"
+# Both runs with compression off: these count payload bytes, and a zlib
+# stream's length is not a number a test can predict.
+sc = run("console imgcomp off\nconsole imgdetail half\n" + PIC % "-m pixels -u"
          + "console flush\nconsole key 400\n")
 half = sc.images[0][2] if sc.images else 0
-sc = run("console imgdetail full\n" + PIC % "-m pixels -u"
+sc = run("console imgcomp off\nconsole imgdetail full\n" + PIC % "-m pixels -u"
          + "console flush\nconsole key 400\n")
 full = sc.images[0][2] if sc.images else 0
 check("a picture under the text is sent at half the pixels each way",
@@ -313,5 +372,45 @@ check("a picture under the text is sent at half the pixels each way",
 check("and at every pixel when asked for full detail, four times the bytes",
       full == (96 * 96 * 3 + 2) // 3 * 4 and full == half * 4, (full, half))
 
+# And compressed, which is what a reattach over a link costs (Gitea #129).
+# Three encodings of one picture, each asserted to describe the same pixels:
+# that is the only check worth making here, since q=2 means a terminal that
+# could not read a payload says nothing at all, and the lengths of two of
+# the three are not numbers a test can predict.
+#
+# Under the text (`-u`), because that is the only picture compressed: the
+# wallpaper. A still that owns its cells is not -- the browser hands its
+# page over on every frame and the viewer re-places on every zoom, so
+# "a still" is not the same question as "a picture that will not change",
+# and the check below asserts that too. At half detail, hence 48 by 48.
+PLAIN = ("console imgcomp off\nconsole imgdetail half\n" + PIC % "-m pixels -u"
+         + "console flush\nconsole key 400\n")
+ZL = ("console imgcomp zlib\nconsole imgdetail half\n" + PIC % "-m pixels -u"
+      + "console flush\nconsole key 400\n")
+PN = ("console imgcomp png\nconsole imgdetail half\n" + PIC % "-m pixels -u"
+      + "console flush\nconsole key 400\n")
+praw, pz, pp = run(PLAIN), run(ZL), run(PN)
+pixels = payload(praw)
+check("a still is deflated by default, as the protocol's own o=z",
+      "o=z" in places(pz)[0] and "f=24" in places(pz)[0], places(pz))
+check("and inflates back to exactly the pixels sent uncompressed",
+      zlib.decompress(payload(pz)) == pixels and len(pixels) == 48 * 48 * 3,
+      (len(payload(pz)), len(pixels)))
+check("and is smaller than them, which is the whole point",
+      0 < len(payload(pz)) < len(pixels), (len(payload(pz)), len(pixels)))
+check("asked for a PNG it says f=100, and leaves out the size a PNG carries",
+      "f=100" in places(pp)[0] and ",s=" not in places(pp)[0] and
+      ",v=" not in places(pp)[0] and "o=z" not in places(pp)[0], places(pp))
+w, h, px = unpng(payload(pp))
+check("and the PNG is a real one -- its chunks, its CRCs, its filters -- "
+      "holding those same pixels",
+      (w, h) == (48, 48) and px == pixels, (w, h, len(px), len(pixels)))
+check("and is smaller again than the deflated form",
+      0 < len(payload(pp)) < len(payload(pz)),
+      (len(payload(pp)), len(payload(pz))))
+check("console imgcomp with no argument says which is in force",
+      run("console imgcomp png\nz := console imgcomp\nconsole put 0 0 \"[$z]\"\n"
+          "console flush\nconsole key 300\n").row(0).startswith("[png]"), None)
+
 shutil.rmtree(D, True)
-report(36)
+report(43)
