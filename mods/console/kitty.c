@@ -33,7 +33,19 @@
  *         same stream the key decoder owns, and its ESC would land in the
  *         Alt/Escape window
  *   i=    the image's id, so it can be deleted or replaced later
- *   z=-1  below the text, for a picture text is drawn over
+ *   z=    below the text, for a picture text is drawn over. The protocol
+ *         has two layers below the text, not one: a negative z is drawn
+ *         under the glyphs but *over* each cell's own background colour,
+ *         and only a z below INT32_MIN/2 is "drawn under cells with
+ *         non-default background colors" (the protocol's own words). A
+ *         wallpaper wants the second: the desktop paints a window's face
+ *         in a real colour and blanks only the cells the picture should
+ *         show through, which is the whole of `dt_wall`'s design -- so at
+ *         z=-1 every window, the menu bar and every dialog had its fill
+ *         composited away and only the glyphs survived, which is what a
+ *         live desktop showed (Gitea #175). CN_ZUNDER is one below the
+ *         threshold, not INT32_MIN, so there is still room to put
+ *         something under it later.
  *   m=1   more chunks to come; the payload is split at 4096 base64 bytes,
  *         which is what the protocol allows in one escape
  *
@@ -114,8 +126,10 @@ void kt_encode(const unsigned char *rgb, int iw, int ih, int cols, int rows,
 			s_num(o, cols);
 			s_cat(o, ",r=");
 			s_num(o, rows);
-			if (under)
-				s_cat(o, ",z=-1");
+			if (under) {
+				s_cat(o, ",z=");
+				s_num(o, (long)CN_ZUNDER);
+			}
 		} else {
 			s_cat(o, "q=2");
 		}

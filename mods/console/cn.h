@@ -14,6 +14,20 @@
 #define CN_FDBASE 120
 #endif
 
+/* The kitty z-index a picture drawn under the text is placed at. The
+   protocol has two layers below the glyphs: a negative z is under the text
+   but *over* each cell's own background colour, and only a z below
+   INT32_MIN/2 (-1073741824) is "drawn under cells with non-default
+   background colors". A wallpaper wants the second -- the desktop paints a
+   window's face in a real colour and blanks only the cells the picture is
+   meant to show through -- so z=-1 composited every window's fill away and
+   left the glyphs floating on the picture (Gitea #175). One below the
+   threshold rather than INT32_MIN, so anything that ever wants to go under
+   this still can. */
+#ifndef CN_ZUNDER
+#define CN_ZUNDER (-1073741825)
+#endif
+
 #ifndef CN_GFX_NONE
 #define CN_GFX_NONE 0
 #define CN_GFX_SIXEL 1

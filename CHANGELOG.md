@@ -1,5 +1,73 @@
 # Changelog
 
+## 0.99.136
+
+**A picture wallpaper composited away every window's background** (Gitea
+#175). Reported from a live desktop as *"the wallpaper works :) It's just
+everything has no background, only foreground colours?"* — the picture
+perfect, and every window, the menu bar, a sticky note and the desktop icons
+reduced to floating glyphs over it.
+
+The kitty graphics protocol has **two** layers below the text, and hibr was
+using the wrong one. Its own words:
+
+```text
+Negative z-index values mean that the images will be drawn under the text.
+Negative z-index values below INT32_MIN/2 (-1,073,741,824) will be drawn
+under cells with non-default background colors.
+```
+
+`kt_encode` placed an under-text picture at **`z=-1`** — under the glyphs,
+*over* each cell's own background. So the desktop painted a window's face in
+a real colour and the terminal then composited the wallpaper on top of it,
+leaving the ink. `CN_ZUNDER` is one below the threshold now, and the
+wallpaper sits where `wm/wallpaper.hibr` has always assumed it does: a cell
+with a real background is opaque, a cell blanked to the default shows the
+picture through.
+
+That assumption was written down and never true. `dt_wall` blanks exactly
+the cells the picture is meant to show through and leaves every pane alone,
+with the comment *"a cell with a background colour paints over a picture the
+terminal is compositing below the glyphs"* — correct for the layer below the
+backgrounds, wrong for the one above it. Nobody could have noticed before
+0.99.134: until then no picture wallpaper reached a held client at all, and
+every desktop is held.
+
+### How it was finally established
+
+Not by reasoning. Six mechanisms were proposed and refuted in turn — this z,
+`hold` dropping backgrounds, the terminal lacking truecolour backgrounds,
+stale modules in a long-lived session, the screen size, and a resize
+invalidating the pane-ownership map. Each was measured and each measurement
+said no, including a "reproduction" of the resize case that turned out to be
+the probe sampling a screen model that had simply not repainted yet.
+
+What settled it was reading the **live session**: attaching a second display
+to it and asking what the owner's own client is actually sent, with the
+Control Panel open.
+
+```text
+cells inside the Control Panel, as received by an attached client:
+   col 39 bg=#120428  fg=#3d2a6b  glyph='-'
+   col 40 bg=#120428  fg=#3d2a6b  glyph='-'
+```
+
+`#120428` is that desktop's own `DT_FACE`. The background was in the bytes,
+all the way to the client — so nothing was losing it and nothing was
+failing to send it. The only thing left that could remove it was the
+terminal compositing something over it, and the only thing over it was the
+wallpaper, at a z that the protocol documents as being above exactly that.
+
+### The checks
+
+Two new in `tests/kitgfx.py`, and one existing one corrected. They assert
+against the protocol's **threshold**, not against a literal, because the
+number is a boundary rather than a value: an under-text picture carries a z
+below `INT32_MIN/2`, and a picture that owns its cells carries no z at all —
+it is drawn over the text by rights, and a z would put it under the very
+cells it owns. The existing check pinned `z == "-1"` and failed, which is
+what a check pinning the wrong constant is for.
+
 ## 0.99.135
 
 **Wallpaper picker previews piled up on each other** (Gitea #172), reported

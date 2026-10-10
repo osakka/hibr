@@ -3025,6 +3025,42 @@ went in the shell.
   window table `PW`, which is Control Panel's own: each app overwrote the
   other's state. Before declaring a new `-gA`, grep the desktop for the
   name as a whole word.
+- **The kitty protocol has two layers below the text, and a wallpaper wants
+  the lower one** (Gitea #175, 0.99.136). A negative z is "drawn under the
+  text"; only a z below **INT32_MIN/2 (-1073741824)** is "drawn under cells
+  with non-default background colors" -- the protocol's own words. hibr
+  placed an under-text picture at `z=-1`, so the desktop painted a window's
+  face in a real colour and the terminal composited the wallpaper **on top
+  of it**: every window, the menu bar, every dialog and the icons reduced to
+  floating glyphs over the picture. `wm/wallpaper.hibr` had always assumed
+  the lower layer -- it blanks exactly the cells the picture should show
+  through and leaves every pane alone, saying "a cell with a background
+  colour paints over a picture the terminal is compositing below the glyphs"
+  -- and that assumption was simply never true. It could not have been seen
+  before 0.99.134, because until then no picture wallpaper reached a held
+  client at all and every desktop is held. `CN_ZUNDER` is the constant; a
+  picture that **owns** its cells still carries no z, since it is drawn over
+  the text by rights and a z would put it under the very cells it owns.
+- **Diagnose a live session by attaching a second display to it, not by
+  building a reproduction -- and `hold attach` without `-m` takes the
+  owner's display away.** #175 cost six refuted mechanisms before anything
+  was measured on the machine that had the fault: the z, `hold` dropping
+  backgrounds, the terminal lacking truecolour backgrounds, stale modules in
+  a long-lived session, the screen size, and a resize invalidating the
+  pane-ownership map. Every one was reasoned to, reproduced in a harness,
+  and refuted -- including a resize "reproduction" that was the probe
+  sampling a screen model which had not repainted yet, which looks exactly
+  like the bug. What settled it in one reading was `hold attach -m -n probe
+  <session>` from a pty and a histogram of the backgrounds actually
+  received, with the window open: `#120428` across the Control Panel's
+  cells, the owner's own `DT_FACE`, proving the bytes were right and the
+  compositing was not. Two things make that cheap and safe: **`-m`**, which
+  joins as an extra display where a bare `hold attach` **replaces** the
+  one that is there (doing that detached the owner mid-session), and
+  attaching at the session's own size from `hold list` so nothing reflows.
+  And `hd_dir` keys the socket directory off **`$TMPDIR`**, so a harness
+  that gives each run its own will report "no such session" for a session
+  that is plainly running.
 - **A hash of cell contents cannot tell "unchanged" from "changed to the
   same value", and that is the fourth bug it has cost** (Gitea #172, fixed in
   0.99.135). `cn_imgcheck` drops a region that owns its cells when

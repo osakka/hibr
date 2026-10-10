@@ -261,8 +261,13 @@ UPIC = "img draw %s 2 2 6 12 -m pixels -u\n" % GRAD
 sc = run(TEXT + UPIC + "console put 3 3 'OVER'\nconsole flush\n"
          "console key 400\n")
 p = places(sc)
+# The z is asserted against the protocol's own threshold rather than a
+# literal: below INT32_MIN/2 is "drawn under cells with non-default
+# background colors", which is the layer a wallpaper wants and the one
+# z=-1 was not (Gitea #175).
 check("a picture under the text survives text drawn over it in one frame",
-      len(p) == 1 and key(p[0], "z") == "-1", (p, sc.row(3)))
+      len(p) == 1 and key(p[0], "z") is not None
+      and int(key(p[0], "z")) < -1073741824, (p, sc.row(3)))
 check("and the text is there, on top of it", "OVER" in sc.row(3), sc.row(3))
 sc = run(TEXT + UPIC + "console flush\n"
          + UPIC + "console put 3 3 'OVER'\nconsole flush\n"
@@ -412,6 +417,29 @@ check("console imgcomp with no argument says which is in force",
       run("console imgcomp png\nz := console imgcomp\nconsole put 0 0 \"[$z]\"\n"
           "console flush\nconsole key 300\n").row(0).startswith("[png]"), None)
 
+# A picture under the text goes below the cell backgrounds, not merely
+# below the glyphs. The protocol has two layers down there and says so: a
+# negative z is "drawn under the text", and only one below INT32_MIN/2
+# (-1073741824) is "drawn under cells with non-default background colors".
+# The desktop's whole wallpaper design is the second -- a window's face is
+# painted in a real colour and only the cells the picture should show
+# through are blanked -- so at z=-1 every window, the menu bar and every
+# dialog had its fill composited away and the glyphs were left floating on
+# the picture, which is what a live desktop showed (Gitea #175). The exact
+# number matters, so it is asserted rather than merely "negative".
+sc = run(PIC % "-m pixels -u" + "console flush\n")
+ctrl = places(sc)[0] if places(sc) else ""
+z = key(ctrl, "z")
+check("a picture under the text is placed below the cell backgrounds, "
+      "not just below the glyphs",
+      z is not None and int(z) < -1073741824, (z, ctrl))
+
+# And one that owns its cells carries no z at all: it is drawn over the
+# text by rights, and a z would put it under the very cells it owns.
+sc = run(PIC % "-m pixels" + "console flush\n")
+check("while a picture that owns its cells carries no z",
+      places(sc) and key(places(sc)[0], "z") is None, places(sc))
+
 # Two bitmaps cannot be composited, and a picture placed over another is the
 # one case the "have my cells been drawn through" hash cannot see (Gitea
 # #172). The wallpaper picker clears its preview box to spaces every frame
@@ -470,4 +498,4 @@ check("but a picture over the wallpaper leaves the wallpaper alone",
       not [a for a in deletes(sc) if "d=I" in a], (places(sc), deletes(sc)))
 
 shutil.rmtree(D, True)
-report(46)
+report(48)
