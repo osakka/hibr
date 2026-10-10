@@ -1,5 +1,97 @@
 # Changelog
 
+## 0.99.135
+
+**Wallpaper picker previews piled up on each other** (Gitea #172), reported
+from a live session: *"the previews work (even though they overlap images as
+I go through images selection)"*.
+
+Measured before it was explained, stepping the selection over four PNGs that
+alternate 64x16 and 16x64 and counting placements against deletes:
+
+```text
+                 before              after
+after step 1     1 place, 0 del      1 place, 0 del
+after step 2     2 places, 0 del     2 places, 1 del
+after step 3     2 places, 0 del     3 places, 2 del
+settled          2 live              1 live
+```
+
+Zero deletes, ever, and it did not settle. The count stopping at 2 is itself
+the explanation of what the owner saw: among four pictures there are only
+two distinct rectangles, so each new one replaced by id the last of *its own
+shape* — leaving one wide and one tall placement live at once.
+
+### Why the hash could not see it, which is the fourth time
+
+`cn_imgcheck` drops a region that owns its cells when `cn_imgunder(im) !=
+im->under` — *"have the cells I was placed over been drawn through"*. That
+catches every case where the covering thing is **cells**. It cannot catch a
+covering **bitmap**, which writes no cells at all. And it cannot catch cells
+rewritten to the value they already held: `wp_draw` blanks its whole preview
+box to spaces every frame and centres the picture inside it, so a region
+hashed over blank cells finds them blank again next frame and looks
+untouched for ever.
+
+So the first hypothesis — that nothing rewrites those cells — was wrong, and
+the ticket records the correction: the picker *does* rewrite them. **A hash
+of cell contents cannot distinguish "unchanged" from "changed to the same
+value."** That is the same blindness as #112 (an under-text picture dropped
+on a frame that painted nothing), #118 (a flush with nothing drawn answering
+a question about a frame that never happened) and #165 (the emulator
+discarding the `z` that said text belongs on top). What makes the rule below
+correct is not the hash at all — it is that the console's model holds **one
+bitmap per cell**, so two overlapping pictures is a state it cannot
+represent.
+
+### The rule
+
+`cn_image` drops any region its new one overlaps, **between two that own
+their cells only**, using the *placed* rectangle rather than the requested
+one, since a request can be clipped to the screen and what overlaps is what
+is on it. `cn_imgdrop` queues the `a=d` as it does for every other drop, so
+the delete goes out before the diff and the text underneath is painted in
+the same frame.
+
+Three alternatives were measured and rejected, each on its own evidence
+rather than on taste:
+
+- **Let img centre the picture in a box**, so the requested rectangle is
+  stable and the existing same-rectangle replacement handles it. `img draw`
+  cannot: *"img draw's own resample always stretches to exactly the rows/cols
+  it is given, with no notion of the source's own shape"* — which is why
+  `img size` exists and why the picker computes its own fit.
+- **Pass the box and the placement separately.** `dp->image` carries one
+  rectangle, so this is a `dp_api` version bump touching every caller —
+  which ADR 0037's own history already refused for a larger win.
+- **A verb for a caller to retire its own region.** That is a flag each
+  caller sets, and this file's standing rule is that the list of things
+  nobody can be relied on to maintain is exactly the list not to make.
+
+### What the checks pin, and the regression that was measured first
+
+Three in `tests/kitgfx.py`, which counts placements and deletes unheld.
+Before the rule: the overlapping pair **failed** and the other two **passed**
+— which is the shape that matters, because those two are what must not
+break.
+
+- **Two pictures that do not overlap are both live**, which is Mail: it
+  draws an inline image per row of a laid-out message into one pane. Whether
+  two of them can share a cell was *measured*, not assumed — `html lines`
+  on a document with two images puts a 5-row image at row 2, leaves rows 3
+  to 7 as its box and starts the next at row 10, so they never touch. Had
+  they touched, this rule would have shown one picture where a message has
+  two.
+- **A picture over the wallpaper leaves the wallpaper alone.** The guard on
+  0.99.134: an under-text picture is below these by construction, so the
+  first window to show a picture would otherwise have undone it two hours
+  after it shipped. The wallpaper is re-placed on the second frame in that
+  check, because that is what keeps an under-text region at all — without it
+  the check would have passed for the wrong reason.
+- And a region's own delete is `d=I`; the `d=A` every one of these ends with
+  is `cn_close` taking them all. Counting `a=d` made one check pass for the
+  wrong reason and two fail for a wrong one before that was noticed.
+
 ## 0.99.134
 
 **A picture wallpaper never reached a held desktop, so every one of them was

@@ -344,6 +344,43 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 		cn_imgdrop(i);
 		break;
 	}
+	/* A picture placed over another has superseded it, and that has to be
+	 * said here rather than left to the cell hash (Gitea #172).
+	 *
+	 * The hash answers "have the cells I was placed over been drawn
+	 * through", which catches every case where the covering thing is
+	 * *cells* -- and cannot catch a covering *bitmap*, since a bitmap
+	 * writes no cells at all. Worse, it cannot even catch cells rewritten
+	 * to the value they already had: the wallpaper picker clears its
+	 * preview box to spaces every frame and centres a picture in it, so a
+	 * region hashed over blank cells finds them blank again next frame and
+	 * looks untouched for ever. Two live placements were the result -- one
+	 * wide preview and one tall, both on screen.
+	 *
+	 * Only between two that own their cells. A picture drawn under the
+	 * text is *below* these by construction (z=-1), so a window's picture
+	 * placed over part of the wallpaper must leave the wallpaper alone, or
+	 * the first window to show a picture would undo Gitea #165.
+	 *
+	 * The placed rectangle, not the requested one: the request can be
+	 * clipped to the screen, and what overlaps is what is on it.
+	 */
+	if (!(flags & DP_IMG_UNDER)) {
+		size_t j = 0;
+
+		while (j < cn_nimg) {
+			cn_img *o = &cn_imgs[j];
+
+			if (!o->over && o->row < row + h && row < o->row + o->h &&
+			    o->col < col + w && col < o->col + o->w) {
+				lg(HIBR_LDBG, "image: dropped, a picture was "
+					      "placed over it");
+				cn_imgdrop(j);
+				continue;
+			}
+			j++;
+		}
+	}
 	if (cn_nimg == cn_imgcap) {
 		size_t nc = cn_imgcap ? cn_imgcap * 2 : 4;
 		cn_img *na = xm(nc * sizeof *na);

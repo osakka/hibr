@@ -412,5 +412,62 @@ check("console imgcomp with no argument says which is in force",
       run("console imgcomp png\nz := console imgcomp\nconsole put 0 0 \"[$z]\"\n"
           "console flush\nconsole key 300\n").row(0).startswith("[png]"), None)
 
+# Two bitmaps cannot be composited, and a picture placed over another is the
+# one case the "have my cells been drawn through" hash cannot see (Gitea
+# #172). The wallpaper picker clears its preview box to spaces every frame
+# and then centres a picture in it, so a region placed over already-blank
+# cells is hashed over blank cells and finds them blank again next frame --
+# unchanged is indistinguishable from changed-to-the-same-value. Two live
+# kitty placements were the result, measured at the picker as
+# placements=2 deletes=0, which is one wide and one tall preview on screen
+# at once.
+#
+# First the case that must keep working: two pictures that do **not**
+# overlap are both live. That is Mail, which draws an inline image per row
+# of a laid-out message into one pane -- and the layout reserves an image
+# box's rows, measured through `html lines`: a 5-row image at row 2 leaves
+# rows 3-7 blank and the next image starts at row 10, so two of them never
+# share a cell.
+APART = ("img draw %s 2 2 6 12 -m pixels\n"
+         "img draw %s 12 2 6 12 -m pixels\n"
+         "console flush\n" % (GRAD, GRAD))
+sc = run(APART)
+# A region's own delete is d=I; the d=A every one of these ends with is
+# cn_close's "take them all with you", which is why it is filtered out here
+# exactly as the earlier checks in this file do it.
+check("two pictures that do not overlap are both placed, and neither goes",
+      len(places(sc)) == 2 and
+      not [a for a in deletes(sc) if "d=I" in a], (places(sc), deletes(sc)))
+
+# And the picker's own case: a differently-shaped picture over the first.
+# Two flushes, so the first is really sent before the second is placed --
+# placed in one frame it would never have reached the terminal and there
+# would be nothing to delete.
+OVER = ("img draw %s 2 2 6 12 -m pixels\n"
+        "console flush\n"
+        "img draw %s 3 3 12 6 -m pixels\n"
+        "console flush\n" % (GRAD, GRAD))
+sc = run(OVER)
+check("a picture placed over another takes it away, with a delete for it",
+      len(places(sc)) == 2 and
+      len([a for a in deletes(sc) if "d=I" in a]) == 1,
+      (places(sc), deletes(sc)))
+
+# And the guard that keeps 0.99.134 fixed: a picture under the text is
+# *below* every one of these, so a window's picture placed over part of the
+# wallpaper must not take the wallpaper with it. It is re-placed on the
+# second frame because that is what keeps an under-text region at all --
+# without it the retire pass would delete it for having been abandoned, and
+# this check would pass for the wrong reason.
+UNDERKEEP = ("img draw %s 2 2 20 40 -m pixels -u\n"
+             "console flush\n"
+             "img draw %s 2 2 20 40 -m pixels -u\n"
+             "img draw %s 4 4 6 12 -m pixels\n"
+             "console flush\n" % (GRAD, GRAD, GRAD))
+sc = run(UNDERKEEP)
+check("but a picture over the wallpaper leaves the wallpaper alone",
+      len(places(sc)) == 2 and
+      not [a for a in deletes(sc) if "d=I" in a], (places(sc), deletes(sc)))
+
 shutil.rmtree(D, True)
-report(43)
+report(46)

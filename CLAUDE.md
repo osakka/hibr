@@ -3025,6 +3025,45 @@ went in the shell.
   window table `PW`, which is Control Panel's own: each app overwrote the
   other's state. Before declaring a new `-gA`, grep the desktop for the
   name as a whole word.
+- **A hash of cell contents cannot tell "unchanged" from "changed to the
+  same value", and that is the fourth bug it has cost** (Gitea #172, fixed in
+  0.99.135). `cn_imgcheck` drops a region that owns its cells when
+  `cn_imgunder(im) != im->under` -- "have the cells I was placed over been
+  drawn through" -- which catches every covering thing that is **cells** and
+  cannot catch a covering **bitmap**, since a bitmap writes no cells at all.
+  The wallpaper picker clears its whole preview box to spaces every frame and
+  centres a differently-shaped picture in it, so a region hashed over blank
+  cells finds them blank again next frame and looks untouched for ever: two
+  live kitty placements, one wide preview and one tall, measured as
+  `placements=2 deletes=0` and not settling. The first hypothesis -- that
+  nothing rewrote those cells -- was wrong and had to be retracted on the
+  ticket; the picker does rewrite them, with the same value. Same blindness
+  as #112 (an under-text picture dropped on a frame that painted nothing),
+  #118 (a flush with nothing drawn answering about a frame that never
+  happened) and #165 (the emulator discarding the `z`). **What makes the fix
+  correct is not the hash but the model: the console holds one bitmap per
+  cell, so two overlapping pictures is a state it cannot represent.** So
+  `cn_image` drops any region its new one overlaps -- between two that own
+  their cells **only**, because an under-text picture is below these by
+  construction and the first window to show a picture would otherwise undo
+  #165 -- using the **placed** rectangle, since a request can be clipped and
+  what overlaps is what is on screen.
+  Three alternatives died on evidence rather than taste, which is worth
+  knowing before anyone reopens it: `img draw` cannot centre in a box ("its
+  own resample always stretches to exactly the rows/cols it is given", which
+  is why `img size` exists); `dp->image` carries **one** rectangle, so
+  passing a box beside the placement is a `dp_api` bump touching every
+  caller, which ADR 0037 already refused for a larger win; and a verb for a
+  caller to retire its own region is a flag each caller sets, which this file
+  already says is the list not to make.
+  Two things about testing it. **The regression to measure first is Mail**,
+  which draws an inline image per row of a laid-out message into one pane --
+  whether two can share a cell was measured through `html lines` (a 5-row
+  image at row 2, rows 3-7 its box, the next at row 10: they never touch),
+  and had they touched this rule would have shown one picture where a message
+  has two. And **a region's own delete is `d=I`**: the `d=A` that every
+  console session ends with is `cn_close` taking them all, so counting `a=d`
+  made one check pass for the wrong reason and two fail for a wrong one.
 - **`dt_menu` starts an `MB` entry by setting five of its fields, and the
   index has very likely been used before** -- which is the `xm`-does-not-zero
   trap in script clothes, and it cost two bugs at once (Gitea #169).
