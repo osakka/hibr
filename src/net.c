@@ -15,6 +15,7 @@
 #include <sys/stat.h>
 #include <sys/un.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
 
 #ifdef HIBR_TLS
@@ -151,6 +152,93 @@ int net_split(const char *p, str *host, str *port)
 }
 
 /* Open a client connection to a host and service. */
+/* How long a connect may take, in milliseconds, or 0 for as long as it takes.
+   Read from the environment the way HIBR_TLS_INSECURE is, so it reaches a
+   module and a child as well; opt-in, because a script that waits for a
+   connect today must go on waiting. */
+int net_timeo(void)
+{
+	const char *p = getenv("HIBR_CONNTIMEO");
+	long v;
+
+	if (!p || !*p)
+		return 0;
+	v = strtol(p, 0, 10);
+	return v > 0 && v <= 3600000 ? (int)v : 0;
+}
+
+/* Connect, giving up after HIBR_CONNTIMEO when it is set.
+   Reaches every connect this shell makes through net_dial and net_unix:
+   /dev/tcp, /dev/udp, /dev/unix, /dev/tls, the `connect` builtin and the
+   TLS relay's own socket. `listen`'s in-use probe does its own connect and
+   deliberately keeps the blocking answer.
+   A socket that is listening with a full accept queue and nobody accepting
+   is the case this exists for -- connect blocks there, where a stale socket
+   file fails at once with ECONNREFUSED. The deadline is wall-clock, not a
+   count of rounds, because every blocking call here can be interrupted and
+   restarting the wait per signal would make the bound meaningless; and
+   SO_ERROR is asked after poll says writable, because a refused connect
+   becomes writable too and taking that for success hands back a dead
+   descriptor whose first write fails from nowhere. */
+int net_conn(int fd, const struct sockaddr *sa, socklen_t n)
+{
+	int ms = net_timeo(), fl, e = 0, r;
+	socklen_t el = sizeof e;
+	struct timespec t0, now;
+	struct pollfd pf;
+	long left;
+
+	if (ms <= 0)
+		return connect(fd, sa, n);
+	fl = fcntl(fd, F_GETFL, 0);
+	if (fl < 0 || fcntl(fd, F_SETFL, fl | O_NONBLOCK) < 0)
+		return connect(fd, sa, n);
+	r = connect(fd, sa, n);
+	if (r < 0 && errno != EINPROGRESS) {
+		e = errno;
+		fcntl(fd, F_SETFL, fl);
+		errno = e;
+		return -1;
+	}
+	if (r == 0) {
+		fcntl(fd, F_SETFL, fl);
+		return 0;
+	}
+	clock_gettime(CLOCK_MONOTONIC, &t0);
+	pf.fd = fd;
+	pf.events = POLLOUT;
+	for (;;) {
+		clock_gettime(CLOCK_MONOTONIC, &now);
+		left = ms - ((now.tv_sec - t0.tv_sec) * 1000 +
+			     (now.tv_nsec - t0.tv_nsec) / 1000000);
+		if (left <= 0) {
+			fcntl(fd, F_SETFL, fl);
+			lg(HIBR_LDBG, "connect gave up after %d ms", ms);
+			errno = ETIMEDOUT;
+			return -1;
+		}
+		r = poll(&pf, 1, (int)left);
+		if (r > 0)
+			break;
+		if (r == 0)
+			continue;
+		if (errno == EINTR)
+			continue;
+		e = errno;
+		fcntl(fd, F_SETFL, fl);
+		errno = e;
+		return -1;
+	}
+	if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &e, &el) < 0)
+		e = errno;
+	fcntl(fd, F_SETFL, fl);
+	if (e) {
+		errno = e;
+		return -1;
+	}
+	return 0;
+}
+
 int net_dial(const char *host, const char *port, int udp)
 {
 	struct addrinfo hint, *res, *a;
@@ -168,7 +256,7 @@ int net_dial(const char *host, const char *port, int udp)
 		fd = socket(a->ai_family, a->ai_socktype, a->ai_protocol);
 		if (fd < 0)
 			continue;
-		if (connect(fd, a->ai_addr, a->ai_addrlen) == 0)
+		if (net_conn(fd, a->ai_addr, a->ai_addrlen) == 0)
 			break;
 		close(fd);
 		fd = -1;
@@ -322,7 +410,7 @@ int net_unix(const char *path)
 	fd = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (fd < 0)
 		return -1;
-	if (connect(fd, (struct sockaddr *)&a, sizeof a) < 0) {
+	if (net_conn(fd, (struct sockaddr *)&a, sizeof a) < 0) {
 		lg(HIBR_LERR, "connect %s: %s", path, strerror(errno));
 		close(fd);
 		return -1;

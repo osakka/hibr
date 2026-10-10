@@ -1,0 +1,9 @@
+0
+--- a connect nobody will accept gives up, rather than waiting
+status 1
+and it came back without waiting
+--- a refused connect still says refused, not timed out
+hibr: connect 127.0.0.1:9: Connection refused
+status 1
+--- and with nothing set, the same connect is the blocking one it was
+status 124 (124 is timeout killing it, which is what unbounded means)

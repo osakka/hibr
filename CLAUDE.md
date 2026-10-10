@@ -2144,6 +2144,36 @@ went in the shell.
   tests had written bytes as `\0170` in a format, which only hibr read as
   one byte; they write `\170` now, which both shells do.
 
+- **A connect has three outcomes, not two, and the third one waits for
+  ever.** `desktop ctl` has bounded its *answer* with `read -t 5` since it
+  was written and left the `connect` above it plain, which is fine for both
+  of the cases anybody thinks of: a socket nothing is listening on fails at
+  once with ECONNREFUSED, and a healthy server accepts at once. The third is
+  a socket **listening with a full accept queue and nobody accepting** -- a
+  server wedged mid-request -- where connect neither fails nor completes.
+  That is what a desktop that has stopped drawing looks like, and it hung
+  `apps remove` for two minutes per call (Gitea #180, 0.99.143). `ss -xl`
+  names it in one line (`Recv-Q 17` against `Send-Q 16`, the backlog
+  `net_listen` hard-codes) and `strace` confirms it (`connect(...) =
+  ERESTARTSYS`); every call that hangs adds another to the queue, so the
+  machine gets worse the more anything retries. `HIBR_CONNTIMEO`
+  milliseconds bounds it, opt-in so no script that waits on purpose
+  changes, and `net_conn` is the one place: `/dev/tcp`, `/dev/udp`,
+  `/dev/unix`, `/dev/tls`, `connect` and the TLS relay. Three things in it
+  are each a trap from elsewhere in this file: **`SO_ERROR` after `poll`
+  says writable**, because a refused connect is writable too and taking
+  that for success hands back a dead descriptor whose first write fails
+  from nowhere; a **wall-clock deadline** rather than a count of rounds,
+  because every blocking call here can be interrupted and restarting the
+  wait per signal makes the bound meaningless; and the descriptor **put
+  back to blocking on every exit**, failures included.
+  And the stand-in is where the work was: **three versions of the test
+  passed against the bug**, because the listener had exited between filling
+  its queue and the timed connect, so the connect was refused in a
+  millisecond. A listener that fills its own queue from inside itself and
+  then sleeps in a loop no signal can end is what reproduces it -- and
+  `time.sleep(60)` alone does *not*, since something on this box interrupts
+  it and Python then exits 0, which reads as the listener having crashed.
 - **A socket redirection honours `{var}` like a file's.** The `/dev/unix`,
   `/dev/tcp` branch of `rd_do` went straight to `dup2` onto the
   redirection's own descriptor and never looked at `r->var`, so `exec

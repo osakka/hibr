@@ -72,13 +72,33 @@ if [ -z "$p" ]; then
 	p=${TMPDIR:-/tmp}/hibr-ctl-$UID/${n:-desktop}.ctl
 fi
 fd=
+# A desktop that is listening but no longer accepting -- wedged, or stopped
+# mid-frame -- leaves a connect waiting for as long as anybody will wait, and
+# `apps remove` asks this question before it removes an app, so it hung for
+# two minutes on a desktop nothing was wrong with except that one (Gitea
+# #180). The answer below is already bounded (`read -t 5`); this bounds the
+# connect. It is exported rather than set as a prefix, because `exec` with
+# only redirections takes an assignment prefix permanently anyway -- and the
+# whole life of this client is one connect, so there is nothing else here for
+# it to reach.
+export HIBR_CONNTIMEO=${HIBR_CONNTIMEO:-2000}
 if [ -S "$p" ]; then
 	exec {err}>&2 2> /dev/null
 	exec {fd}<>"/dev/unix/$p" || fd=
 	exec 2>&"$err" {err}>&-
 fi
 if [ -z "$fd" ]; then
-	echo "desktop ctl: no desktop is listening at $p" >&2
+	# Two different things, and the socket file tells them apart as far as
+	# anything here can: no file at all is "there is no desktop", while a
+	# file nothing accepted on is either a desktop that has stopped
+	# answering or a socket left behind by one that has gone. Saying which
+	# would mean reading the connect's own errno, and the connection has to
+	# land in *this* shell, so it cannot be captured from a subshell.
+	if [ -S "$p" ]; then
+		echo "desktop ctl: nothing accepted a connection at $p within ${HIBR_CONNTIMEO}ms -- the desktop there has stopped answering, or the socket is left over from one that has gone" >&2
+	else
+		echo "desktop ctl: no desktop is listening at $p" >&2
+	fi
 	nm=${p##*/}
 	nm=${nm%.ctl}
 	if need hold 2> /dev/null && hl=$(hold list 2> /dev/null) && [[ $'\n'$hl == *$'\n'"$nm"[[:space:]]* ]]; then

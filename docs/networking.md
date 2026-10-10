@@ -50,6 +50,25 @@ can refuse anyone but its own: the desktop's control socket does.
 `exec {fd}<>/dev/unix/path` (or `/dev/tcp/...`) puts the connection's
 descriptor in `fd`, as it does a file's.
 
+**`HIBR_CONNTIMEO` bounds a connect**, in milliseconds, and reaches every
+connect this shell makes -- `/dev/tcp`, `/dev/udp`, `/dev/unix`, `/dev/tls`
+and the `connect` builtin. Unset, a connect waits as long as the kernel
+makes it, which is what it has always done and what a script that waits on
+purpose needs; set, it gives up and says so. The case it is for is a socket
+that is **listening with a full accept queue and nobody accepting** -- a
+server wedged mid-request, where the connection is neither refused nor
+completed -- which `desktop ctl` hit and now sets this for itself. A refused
+connect still says refused:
+
+```sh
+HIBR_CONNTIMEO=200 exec {fd}<>/dev/tcp/127.0.0.1/9; echo "status $?"
+```
+
+```output
+hibr: connect 127.0.0.1:9: Connection refused
+status 1
+```
+
 Descriptors come back above 9, so a redirection cannot tread on one. A failure
 says what went wrong and returns non-zero, and a descriptor that is not a
 number is refused rather than taken as 0:

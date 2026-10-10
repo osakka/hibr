@@ -1,5 +1,92 @@
 # Changelog
 
+## 0.99.143
+
+**`desktop ctl` bounded the answer and not the connect, so a desktop that had
+stopped accepting hung its client for as long as anybody waited** (Gitea
+#180).
+
+Found by this machine rather than by reading: 0.99.142's gate failed with a
+120-second timeout in a check about **removing an app**, which reads as the
+application manager being broken. It was not. `apps remove` asks a running
+desktop whether any of its windows belong to the app, and that question goes
+through `desktop ctl windows`, whose client has had `read -r -t 5` on the
+answer since it was written and a plain blocking `connect` above it.
+
+The condition is narrower than "a bad socket", and the narrowness is the
+whole bug. A **stale** socket file is harmless: `connect` fails at once with
+ECONNREFUSED and the client says there is no desktop. A socket that is
+**listening with a full accept queue and nobody accepting** is the one that
+hangs -- measured with `strace` on the live case, `connect` blocked until a
+signal killed it -- and `ss -xl` named it exactly:
+
+```
+u_str LISTEN 0      16   /tmp/hibr-ctl-2000/desktop.ctl
+u_str LISTEN 17     16   /tmp/hibr-ctl-2000/desktop.ctl
+```
+
+Seventeen queued against a backlog of sixteen, on a session that had stopped
+drawing. Every `apps remove`, every suite run and every probe added one.
+
+### HIBR_CONNTIMEO, and why it is opt-in
+
+`net_conn` gives up after `HIBR_CONNTIMEO` milliseconds when it is set, and
+is a plain blocking `connect` when it is not -- so **no script that works
+today changes behaviour**, which matters because waiting on a connect is
+sometimes exactly what a script means to do. It reaches every connect this
+shell makes: `/dev/tcp`, `/dev/udp`, `/dev/unix`, `/dev/tls`, the `connect`
+builtin and the TLS relay's own socket. `listen`'s in-use probe keeps its own
+blocking `connect` on purpose: it wants the real answer.
+
+Three things in it are not decoration, and each is a trap this tree already
+records in another place:
+
+- **`SO_ERROR` is asked after `poll` says writable.** A *refused* connect
+  becomes writable too, so taking writable for success hands back a dead
+  descriptor whose first write fails from nowhere. The test asserts a refused
+  TCP connect still says `Connection refused` rather than timing out.
+- **The deadline is wall-clock, not a count of rounds.** Every blocking call
+  in this shell can be interrupted -- the console installs SIGWINCH -- and
+  restarting a 200 ms wait per signal would make the bound meaningless.
+- **The descriptor is put back to blocking** on every exit from the function,
+  including each failure, or the caller gets a non-blocking socket it never
+  asked for.
+
+`desktop ctl` sets it to 2000 ms for itself, and now says which of the two
+things went wrong: a socket file that is not there is "no desktop is
+listening", and one nothing accepted on is "the desktop there has stopped
+answering, or the socket is left over from one that has gone". It cannot tell
+those two apart more precisely without the connect's own errno, and the
+connection has to land in the client's own shell, so it cannot be captured
+from a subshell.
+
+Against the wedged session on this machine: **3 ms** and that message, where
+before it waited for as long as it was given.
+
+### What this does not do
+
+`apps remove` no longer **hangs** on a wedged desktop. It does not learn
+whether windows are open -- `ap_windows` treats a desktop that cannot be
+reached as no windows, which it already did for a desktop that is not running
+at all, and which is the right answer for a removal that would otherwise be
+impossible on a machine with one wedged session.
+
+### The checks
+
+`tests/205-conntimeo.t`, recorded, and the stand-in is the whole difficulty:
+**three earlier versions of it passed against the bug** because the listener
+had exited between the fill and the connect, so the connect was refused in a
+millisecond and the check proved nothing. The listener now fills its own
+accept queue from inside itself -- `settimeout` on its own connects, so it
+stops at exactly full -- prints `ready`, and stays alive in a loop that a
+signal cannot end. Watched failing first: with the knob set and no fix, the
+connect was killed by `timeout` at 5001 ms.
+
+The control case is in the file too: with nothing set, the same connect is
+still the blocking one it was, killed by `timeout` with status 124. A check
+that only proved the timeout works would not have proved the default is
+unchanged.
+
 ## 0.99.142
 
 **`set -n` took effect from the next line rather than the next command, so
