@@ -7,7 +7,7 @@
 #define HIBR_ABI 16u
 #endif
 #ifndef HIBR_VER
-#define HIBR_VER "0.99.130"
+#define HIBR_VER "0.99.131"
 #endif
 #ifndef HIBR_OK
 #define HIBR_OK 0
@@ -361,6 +361,9 @@ int hibr_scheme(sh *s, const char *nm, hibr_open_fn fn);
    script's: what ps prints and /proc/pid/comm. For a module process that
    is not running a script, such as a forked server or a relay. */
 void hibr_title(const char *name);
+/* The same, saying both names: the sentence `ps` shows, and the 15-byte
+   name the kernel keeps, which `top` and `pgrep` read (Gitea #168). */
+void hibr_title2(const char *shortnm, const char *name);
 
 /* One module offers a table of functions under a name and a version; another
    asks for it. This is the only way for modules to reach each other: they are

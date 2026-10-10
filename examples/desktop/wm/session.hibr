@@ -64,11 +64,23 @@ dt_open() {
 	# of `hibr [desktop]` before 0.99.110, and a terminal window's own
 	# shell read a bare `hibr` (Gitea #111). The name is the session's,
 	# which is what `hold list` and `desktop --resume` call it.
+	# Two names, because the two places a person looks hold different
+	# numbers of bytes (Gitea #168): the sentence for `ps`, and a short
+	# one for `top`, `htop` and `pgrep`, which read the kernel's own name
+	# and get 15 bytes. Role first, no brackets -- `ps` wraps a defunct
+	# process's name in brackets of its own, so a name with brackets in
+	# it reads as `[desktop [x]] <defunct>`.
+	#
+	# And the instance is left off when it *is* the role: the session is
+	# called `desktop` by default, so `desktop [desktop]` is what the
+	# owner saw every day, a word twice for no reason.
 	sess := dt_holdsess
-	if [ -n "$sess" ]; then
-		title "desktop [$sess]"
+	local pn
+	if [ -n "$sess" ] && [ "$sess" != desktop ]; then
+		pn := dt_shortname desktop "$sess"
+		title -s "$pn" "desktop [$sess]"
 	else
-		title "desktop"
+		title -s desktop "desktop"
 	fi
 	dt_load
 	console open || return 1

@@ -35,6 +35,18 @@ DT_IMGARG=()
 DT_WALLDETAIL="${DT_WALLDETAIL-half}"
 dt_keep DT_WALLDETAIL
 
+# And how a still picture's payload is compressed before it is sent, which
+# dt_open hands to `console imgcomp` (Gitea #129). Declared **here** as well
+# as in the Pictures pane, which is where the setter lives, for the reason
+# DT_WALLDETAIL is: the pane is loaded from CP_PANEDIRS and the window
+# manager is not, so a desktop whose control-panel folder is missing -- a
+# half-finished install -- would leave this empty, and `console imgcomp ""`
+# does not do nothing: with an empty argument the verb *answers*, printing
+# the mode straight at the terminal underneath the console's own cell
+# drawing. A default the window manager owns cannot be absent.
+DT_IMGCOMP="${DT_IMGCOMP-zlib}"
+dt_keep DT_IMGCOMP
+
 # The -m argument for the mode chosen, as an array since it is two words or
 # none, and a strict file cannot split a string into them.
 dt_imgm() {

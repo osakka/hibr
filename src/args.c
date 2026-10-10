@@ -54,14 +54,35 @@ void pt_claim(void)
 	lg(HIBR_LDBG, "environment strings copied off the argv region");
 }
 
-/* Rename the running process everywhere it shows: the argv region ps reads,
-   and the kernel's short name /proc/pid/comm and top's default column read.
-   Shared by the `title` builtin and by hibr_title, so a module can say who
-   it is the same way a script does -- hold uses it for the server it forks
-   and the terminal that attaches to one, neither of which is a script. */
-void pt_rename(const char *name)
+/* Rename the running process, in the two places it shows, which take two
+   different strings.
+ *
+ * **The argv region** is what `ps` and `ps -f` read, and it is as long as
+ * the command line and environment it overwrites -- so the readable
+ * sentence goes there: `desktop [Files 3]`.
+ *
+ * **The kernel's own name** -- /proc/pid/comm, which is what `top`, htop's
+ * default column, `pgrep` and `killall` read -- is `TASK_COMM_LEN`, 16
+ * bytes, 15 usable. Passing it the long name is what made every one of
+ * these unreadable where a person actually looks (Gitea #168):
+ *
+ *     hibr [hold: bli      <- hibr [hold: blit-direct-test-2]
+ *     desktop [deskto      <- desktop [desktop]
+ *     desktop [Termin      <- desktop [Terminal 104]
+ *
+ * So the caller gives both: a short name it has composed to fit, role
+ * first, and the long one. The caller knows its role and which part of the
+ * instance identifies it; this knows the byte limit. A short name with
+ * **no brackets**, because `ps` wraps a defunct process's own name in
+ * brackets and `[hibr [desktop]] <defunct>` is what that produced.
+ *
+ * short may be null, which takes the long name truncated -- what every
+ * caller got before, kept so that `title` with one argument still works.
+ */
+void pt_rename(const char *shortnm, const char *name)
 {
 	size_t room, n;
+	str c;
 
 	if (!pt_start || pt_end <= pt_start)
 		return;
@@ -70,23 +91,47 @@ void pt_rename(const char *name)
 	room = (size_t)(pt_end - pt_start);
 	memset(pt_start, 0, room);
 	memcpy(pt_start, name, n < room - 1 ? n : room - 1);
+	if (!shortnm || !*shortnm)
+		shortnm = name;
+	n = strlen(shortnm);
+	if (n > HIBR_COMM - 1)
+		n = HIBR_COMM - 1;
+	s_init(&c);
+	s_add(&c, shortnm, n);
+	s_grow(&c, 1);
+	c.p[c.n] = 0;
 #ifdef __linux__
-	prctl(PR_SET_NAME, (unsigned long)name, 0, 0, 0);
+	prctl(PR_SET_NAME, (unsigned long)c.p, 0, 0, 0);
 #elif defined(__APPLE__)
-	pthread_setname_np(name);
+	pthread_setname_np(c.p);
 #endif
-	lg(HIBR_LDBG, "process title now %s", name);
+	lg(HIBR_LDBG, "process title now %s, short name %s", name, c.p);
+	s_free(&c);
 }
 
-/* Rename the running process as seen by ps and top. */
+/* Rename the running process as seen by ps and top.
+ *
+ *     title [-s SHORT] NAME...
+ *
+ * NAME... is the sentence `ps` shows. -s is the name the *kernel* keeps,
+ * which is 15 usable bytes and what `top` and `pgrep` read -- role first,
+ * no brackets, composed by the caller to fit. Without -s the long name is
+ * truncated to fit there, which is what every caller got before 0.99.131
+ * and is why a desktop's parts were unreadable in top (Gitea #168). */
 int b_title(sh *s, int ac, char **av)
 {
 	str t;
 	size_t i;
+	const char *shortnm = 0;
+	int k = 1;
 
 	(void)s;
-	if (ac < 2) {
-		lg(HIBR_LERR, "usage: title name...");
+	if (ac > 2 && !strcmp(av[1], "-s")) {
+		shortnm = av[2];
+		k = 3;
+	}
+	if (ac <= k) {
+		lg(HIBR_LERR, "usage: title [-s short] name...");
 		return 2;
 	}
 	if (!pt_start || pt_end <= pt_start) {
@@ -94,20 +139,27 @@ int b_title(sh *s, int ac, char **av)
 		return HIBR_FAIL;
 	}
 	s_init(&t);
-	for (i = 1; i < (size_t)ac; i++) {
+	for (i = (size_t)k; i < (size_t)ac; i++) {
 		if (t.n)
 			s_ch(&t, ' ');
 		s_cat(&t, av[i]);
 	}
-	pt_rename(t.p);
+	pt_rename(shortnm, t.p);
 	s_free(&t);
 	return HIBR_OK;
 }
 
-/* The same rename, for a module rather than a script. */
+/* The same rename, for a module rather than a script. hibr_title keeps its
+   one-argument shape so nothing already built against it has to change;
+   hibr_title2 is the one that says both names. */
 void hibr_title(const char *name)
 {
-	pt_rename(name);
+	pt_rename(0, name);
+}
+
+void hibr_title2(const char *shortnm, const char *name)
+{
+	pt_rename(shortnm, name);
 }
 
 /* Wear the title a parent asked for, if it asked. The desktop gives each
@@ -124,14 +176,21 @@ void hibr_title(const char *name)
 void sh_proctitle(sh *s)
 {
 	const char *v = hibr_get(s, "HIBR_PROCTITLE");
-	char *t;
+	const char *n = hibr_get(s, "HIBR_PROCNAME");
+	char *t, *sn = 0;
 
 	if (!v || !*v)
 		return;
+	/* Both copied out before either is used, for the reason above: the
+	   rename overwrites the region these strings live in. */
 	t = xs(v);
+	if (n && *n)
+		sn = xs(n);
 	v_del(s, "HIBR_PROCTITLE");
-	pt_rename(t);
+	v_del(s, "HIBR_PROCNAME");
+	pt_rename(sn, t);
 	free(t);
+	free(sn);
 }
 
 /* Release one option specification. */

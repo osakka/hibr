@@ -45,6 +45,10 @@ command -v dt_keepstate > /dev/null && dt_keepstate term TW
 # right to refuse what it cannot tell apart. Empty here, and hibr ignores an
 # empty one.
 HIBR_PROCTITLE=
+# And the short name beside it, for the same reason: `ps` reads the one
+# above and `top`, `pgrep` and `killall` read this, which the kernel keeps
+# 15 usable bytes of (Gitea #168).
+HIBR_PROCNAME=
 
 # Whether a scrollbar is drawn down the right edge, showing how far back
 # the view has scrolled through what term keeps -- and a real column of
@@ -135,7 +139,7 @@ tw_colours() {
 # Start the program the first time there is a window to put it in, and keep
 # its size in step with the window afterwards.
 fn tw_fit(int id, int h, int w) {
-	local n i fd pt
+	local n i fd pt pn
 	local -a cmd
 
 	[ "$h" -lt 1 ] || [ "$w" -lt 1 ] && return 1
@@ -147,6 +151,16 @@ fn tw_fit(int id, int h, int w) {
 	# anyway (Gitea #111). Four shells in four windows all read `hibr`
 	# before this.
 	pt := dt_title "$id"
+	# Two names, because `ps` and `top` read different things and the
+	# second one gets 15 bytes (Gitea #168). The long one is the sentence;
+	# the short one is role first -- `term:Files:3` -- so a person
+	# scanning `top` sees which window each shell belongs to instead of
+	# `desktop [Termin` cut mid-word, and `pgrep term:` finds them all.
+	#
+	# The id goes last and is never dropped: it is the handle
+	# `desktop ctl windows` lists the window under, so it is the part that
+	# identifies it even when the title has to be cut to fit.
+	pn := dt_shortname term "$pt" "$id"
 	pt="desktop [$pt $id]"
 	if [ -z "${TW[$id]["t"]}" ]; then
 		if [ -n "${TW[$id]["argvn"]}" ]; then
@@ -157,19 +171,19 @@ fn tw_fit(int id, int h, int w) {
 				i=$((i + 1))
 			done
 			if [ "${TW[$id]["selfrun"]}" = 1 ]; then
-				TW[$id]["t"] := HIBR_PROCTITLE="$pt" term open \
+				TW[$id]["t"] := HIBR_PROCTITLE="$pt" HIBR_PROCNAME="$pn" term open \
 					-r "$h" -c "$w" "${cmd[@]}" || return 1
 			else
-				TW[$id]["t"] := HIBR_PROCTITLE="$pt" term open \
+				TW[$id]["t"] := HIBR_PROCTITLE="$pt" HIBR_PROCNAME="$pn" term open \
 					-r "$h" -c "$w" "${cmd[@]}" \
 					"${TW[$id]["file"]}" || return 1
 			fi
 		elif [ -n "${TW[$id]["file"]}" ]; then
-			TW[$id]["t"] := HIBR_PROCTITLE="$pt" term open -r "$h" \
+			TW[$id]["t"] := HIBR_PROCTITLE="$pt" HIBR_PROCNAME="$pn" term open -r "$h" \
 				-c "$w" "${TW_EDIT[@]}" \
 				"${TW[$id]["file"]}" || return 1
 		else
-			TW[$id]["t"] := HIBR_PROCTITLE="$pt" term open -r "$h" \
+			TW[$id]["t"] := HIBR_PROCTITLE="$pt" HIBR_PROCNAME="$pn" term open -r "$h" \
 				-c "$w" "${TW_CMD[@]}" || return 1
 		fi
 		[ -n "$DT_CURSOR" ] && term cursor "${TW[$id]["t"]}" "$DT_CURSOR"

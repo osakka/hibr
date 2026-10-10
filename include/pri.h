@@ -364,7 +364,16 @@ int b_match(sh *s, int ac, char **av);
 char *hx_expand(sh *s, const char *line, int *changed, int *bad);
 void pt_init(int ac, char **av);
 void pt_claim(void);
-void pt_rename(const char *name);
+/* What the kernel's own process name holds: TASK_COMM_LEN, 16 bytes with
+   the terminator, which is what `top`, htop's default column, `pgrep` and
+   `killall` read. Named here because pt_rename is the only thing that may
+   know it, and because passing a longer name silently cuts it mid-word --
+   which is what made every part of a desktop unreadable there (Gitea #168). */
+#ifndef HIBR_COMM
+#define HIBR_COMM 16
+#endif
+
+void pt_rename(const char *shortnm, const char *name);
 void sh_proctitle(sh *s);
 #ifndef MD_OFF
 #define MD_OFF 0

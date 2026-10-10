@@ -15,6 +15,38 @@ fn dt_rep(int n, s) {
 	ret "$o"
 }
 
+# A short process name: the kernel keeps 15 usable bytes of it, which is
+# what `top`, htop's default column, `pgrep` and `killall` read, and what
+# every part of a desktop was unreadable in before 0.99.131 (Gitea #168).
+#
+# Role first, then as much of the instance as fits, then the handle -- and
+# the handle is never dropped, because it is the part that still identifies
+# the thing when the rest has to go:
+#
+#     term:Files:3            a window called Files, id 3
+#     term:A-very-lon:12      the title cut, the id kept
+#     term:12                 no room for any of the title
+#
+# No brackets, deliberately: `ps` wraps a defunct process's own name in
+# brackets, so a name holding them reads as `[desktop [x]] <defunct>` --
+# which is what four zombies under a live desktop looked like.
+#
+# Bytes rather than columns, because this is a kernel field and not a
+# drawing: a wide glyph counts for what it takes up in UTF-8 here.
+fn dt_shortname(role, inst = "", handle = "") {
+	local max=15 room out=$role
+
+	[ -n "$handle" ] && out="$out:$handle"
+	if [ -n "$inst" ]; then
+		room=$((max - ${#out} - 1))
+		if [ "$room" -gt 0 ]; then
+			inst=${inst:0:$room}
+			out="$role:$inst${handle:+:$handle}"
+		fi
+	fi
+	ret "${out:0:$max}"
+}
+
 # The longest beginning of t that fits in n display columns.
 #
 # Columns, not characters, and that is the whole point: `${t:0:n}` counts

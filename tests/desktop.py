@@ -4734,4 +4734,69 @@ check("a menu title holding a wide glyph is laid out in columns, so the "
       len(w) == 6 and w[1] == "4" and w[3] == "6" and
       int(w[4]) == int(w[2]) + 6, w)
 
-report(578)
+# Process names, which a person reads in two different places that hold
+# two different numbers of bytes (Gitea #168). `ps` reads the argv region
+# and gets the sentence; `top`, htop's default column, `pgrep` and
+# `killall` read the kernel's own name, which is 15 usable bytes -- and
+# passing the sentence to both is what left `desktop [Termin` and
+# `hibr [hold: bli` cut mid-word where a person actually looks.
+#
+# The short name is role first with no brackets, because `ps` wraps a
+# defunct process's own name in brackets and a name holding them reads as
+# `[desktop [x]] <defunct>`. The window's id goes last and is never
+# dropped: it is the handle `desktop ctl windows` lists it under, so it is
+# what still identifies the window when the title has to be cut.
+#
+# Read from /proc rather than from `ps`, and the pty children are waited
+# for rather than slept on: a terminal's program starts at its first draw,
+# not at dt_new, so a fixed pause here is the load-dependent assumption
+# this suite has been bitten by before.
+def ptree(pid, depth=0, out=None):
+    out = out if out is not None else []
+    try:
+        ch = open("/proc/%d/task/%d/children" % (pid, pid)).read().split()
+    except Exception:
+        return out
+    for c in ch:
+        c = int(c)
+        try:
+            comm = open("/proc/%d/comm" % c).read().strip()
+            argv = open("/proc/%d/cmdline" % c).read().replace("\0", " ").strip()
+            fd0 = os.readlink("/proc/%d/fd/0" % c)
+        except Exception:
+            continue
+        out.append((c, comm, argv, fd0))
+        ptree(c, depth + 1, out)
+    return out
+
+
+npath = scratch("desktop-names.hibr")
+open(npath, "w").write(
+    "%s. %s\n%s\ndt_open\nTW_CMD=(\"$HIBR\")\n"
+    'dt_new Files 8 30 3 4 term\n'
+    'dt_new "A-very-long-window-title" 8 30 12 4 term\n'
+    "dt_run\ndt_close\n" % (load(MOD), WM, APPS))
+nt = Term(npath, rows=ROWS, cols=COLS, settle=1.0)
+kids = []
+for _ in range(40):
+    nt.collect(0.3)
+    kids = [k for k in ptree(nt.pid) if "pts" in k[3]]
+    if len(kids) >= 2:
+        break
+own = open("/proc/%d/comm" % nt.pid).read().strip()
+byargv = {k[2]: k[1] for k in kids}
+nt.quit(b"qy", 1.0)
+os.unlink(npath)
+check("the desktop's own short name is its role, with no brackets to nest "
+      "when it dies", own == "desktop", own)
+check("a terminal window's shell says which window it is, in both places",
+      byargv.get("desktop [Files 1]") == "term:Files:1", (byargv, kids))
+check("and a title too long for the kernel's 15 bytes keeps the window id, "
+      "which is the handle, rather than being cut after the role",
+      any(c.startswith("term:A-very") and c.endswith(":2") and len(c) <= 15
+          for c in byargv.values()), byargv)
+check("every short name fits what the kernel keeps, so none is cut mid-word",
+      all(len(c) <= 15 for c in [own] + list(byargv.values())),
+      [own] + list(byargv.values()))
+
+report(582)

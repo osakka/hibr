@@ -924,6 +924,27 @@ went in the shell.
   alone. `run(..., until=...)` waits for text, or for a function given the
   screen, before quitting. Anything that reads what a program printed wants
   it.
+- **A process has two names, and they are different lengths on purpose.**
+  `pt_rename(short, long)`: the **argv region** is what `ps` reads and is as
+  long as the command line it overwrites, so the readable sentence goes
+  there; the **kernel's own name** (`/proc/pid/comm`, `prctl(PR_SET_NAME)`)
+  is `HIBR_COMM` -- `TASK_COMM_LEN`, 16 bytes, 15 usable -- and it is what
+  `top`, htop's default column, `pgrep` and `killall` read. Passing the same
+  string to both is what made every part of a desktop unreadable where a
+  person actually looks: `hibr [hold: bli`, `desktop [deskto`,
+  `desktop [Termin`, each cut mid-word (Gitea #168, asked for twice).
+  Three rules for the short one, each with a reason rather than a taste:
+  **role first**, because what a person scanning `top` wants is which of
+  these is the desktop and which is watching it; **no brackets**, because
+  `ps` wraps a defunct process's own name in brackets and a name holding
+  them reads `[hibr [desktop]] <defunct>`; and **the handle last and never
+  dropped** -- a window's id is what `desktop ctl windows` lists it under,
+  so it is what still identifies the thing once the title has been cut.
+  `dt_shortname role [inst] [handle]` is the only place that counts bytes,
+  `title -s` and `hibr_title2` pass both, and `HIBR_PROCNAME` carries the
+  short one to a child beside `HIBR_PROCTITLE`. An instance that *is* the
+  role is left off: the session is called `desktop` by default, so
+  `desktop [$sess]` showed the owner `desktop [desktop]` every day.
 - **A rename overwrites the region argv lives in, so it comes after
   everything that reads argv.** `pt_rename` memsets from `av[0]` to the end
   of the environment block, which is where the script's name and every

@@ -31,7 +31,7 @@ purpose. Everything else behaves as bash does unless the entry says otherwise.
 | `help` | list every builtin with a one-line description |
 | `time cmd` | run `cmd` and report how long it took |
 | `let expr…` | evaluate arithmetic; the status is 0 when the last value is non-zero |
-| `title name…` | **[hibr]** rename the running process as `ps` shows it. A shell also wears `HIBR_PROCTITLE` from its environment at startup, and removes the variable as it does, so a parent can name the shell it starts without that name reaching anything the shell itself goes on to run -- which is how the desktop names each terminal window's own shell |
+| `title [-s short] name…` | **[hibr]** rename the running process. `name…` is the sentence `ps` shows; `-s` is the name the *kernel* keeps (`/proc/pid/comm`), which is 15 usable bytes and what `top`, htop's default column, `pgrep` and `killall` read -- so it is role-first, short, and holds no brackets, since `ps` wraps a defunct process's own name in brackets. Without `-s` the long name is truncated to fit there, which is what every caller got before 0.99.131. A shell also wears `HIBR_PROCTITLE` and `HIBR_PROCNAME` from its environment at startup, and removes both as it does, so a parent can name the shell it starts without those names reaching anything the shell itself goes on to run -- which is how the desktop names each terminal window's own shell |
 
 `source` restores the caller's positional parameters afterwards. With no extra
 arguments the sourced file inherits them, and a `shift` inside leaks, as in bash.

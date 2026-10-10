@@ -1,5 +1,79 @@
 # Changelog
 
+## 0.99.131
+
+**A process has two names now, because the two places a person reads them
+hold different numbers of bytes** (Gitea #168). Asked for twice: *"have we
+fixed the process names in a way that makes them ultra legible for the hibr
+desktop?"*, and then *"I'm still not happy with the process names, it's so
+so clunky."*
+
+Right both times, and the cause was one line: `pt_rename` passed **the same
+string** to the argv region and to `prctl(PR_SET_NAME)`. The argv region is
+as long as the command line it overwrites; the kernel's own name is
+`TASK_COMM_LEN` — 16 bytes, 15 usable — and it is what `top`, htop's default
+column, `pgrep` and `killall` read. So every name was designed for `ps` and
+cut mid-word everywhere else:
+
+```text
+before                          after
+comm              argv          comm              argv
+hibr [hold: bli   hibr [hold: blit-direct-test-2]
+                                hold:blit-dire    hibr [hold: blit-direct-test-2]
+desktop [deskto   desktop [desktop]
+                                desktop           desktop
+desktop [Termin   desktop [Terminal 104]
+                                term:Terminal:104 desktop [Terminal 104]
+hibr [attached:   hibr [attached: desktop]
+                                attached:deskt    hibr [attached: desktop]
+```
+
+**Role first, no brackets, and the handle is never dropped.** The role is
+what a person scanning `top` wants (which of these is the desktop, which is
+watching it, which window is which), so it comes first. No brackets because
+`ps` wraps a defunct process's own name in brackets of its own — which is
+how four zombies under a live desktop read `[hibr [desktop]] <defunct>`. And
+the window id goes last and survives truncation, because it is the handle
+`desktop ctl windows` lists the window under:
+
+```text
+term:Files:3            a window called Files, id 3
+term:A-very-l:12        the title cut, the id kept
+```
+
+`dt_shortname role [instance] [handle]` is the one place that knows the
+rule, so no caller counts bytes. `title [-s SHORT] NAME...` and
+`hibr_title2(short, long)` for a module; `hibr_title` keeps its
+one-argument shape, so nothing built against it changes. `HIBR_PROCNAME`
+carries the short name to a child beside `HIBR_PROCTITLE`, both copied out
+and deleted together for the reason the old comment already gave — a rename
+overwrites the region those strings live in.
+
+**And `desktop [desktop]` is gone**, which was the one the owner saw every
+day: `wm/session.hibr` wrote `desktop [$sess]` and the session is called
+`desktop` by default, so a word appeared twice for no reason. The instance
+is left off when it *is* the role.
+
+### What was measured rather than fixed
+
+Three processes under the live desktop had no name at all, two of them
+terminal windows' shells — which is exactly what Gitea #111 existed to fix.
+Before writing anything: **that desktop is running a deleted binary.**
+`ls -l /proc/<pid>/exe` says `/usr/bin/hibr (deleted)` and it started three
+days ago. A probe that waits for the pty children rather than sleeping shows
+current code naming them correctly, so the bare `hibr` was a stale-binary
+artefact and not a bug. Nothing was changed for it. This project's own rule
+is to check which binary is live before diagnosing a live session, and it
+would have cost a wrong fix here.
+
+The six zombies in the same output are the reaping family (#123, #143) on
+that same old binary, and are not this.
+
+`tests/desktop.py` has four checks reading `/proc/<pid>/comm` and
+`/cmdline` for the desktop and for two terminal windows, one of them with a
+title deliberately too long, asserting that every short name fits the 15
+bytes and that the id survives.
+
 ## 0.99.130
 
 **`apps` — the desktop's application manager, as a command** (Gitea #159,

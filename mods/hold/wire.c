@@ -77,15 +77,28 @@ void hd_cloexec(int fd)
 void hd_selftitle(const char *what, const char *path)
 {
 	const char *nm = strrchr(path, '/');
-	str t;
+	str t, c;
+	size_t room;
 
+	nm = nm ? nm + 1 : path;
 	s_init(&t);
 	s_cat(&t, "hibr [");
 	s_cat(&t, what);
 	s_cat(&t, ": ");
-	s_cat(&t, nm ? nm + 1 : path);
+	s_cat(&t, nm);
 	s_ch(&t, ']');
-	hibr_title(t.p);
+	/* And the short name the kernel keeps, which is 15 usable bytes and
+	   what `top`, `pgrep` and `killall` read: role first, no brackets, as
+	   much of the session's name as fits after it. Passing the sentence
+	   to both is what left `hibr [hold: bli` on screen for a session
+	   called blit-direct-test-2 (Gitea #168). */
+	s_init(&c);
+	s_cat(&c, what);
+	s_ch(&c, ':');
+	room = c.n < 15 ? 15 - c.n : 0;
+	s_add(&c, nm, strlen(nm) < room ? strlen(nm) : room);
+	hibr_title2(c.p, t.p);
+	s_free(&c);
 	s_free(&t);
 }
 

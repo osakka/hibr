@@ -66,11 +66,16 @@ dt_supervise() {
 	# This process's whole job is to start the desktop again when it
 	# dies, and in ps it showed its own command line -- which reads as a
 	# second desktop rather than as the thing watching one.
+	# Role first in the short name, and the role here is `supervisor`:
+	# what a person scanning `top` wants to know is which of these is
+	# watching and which is the desktop (Gitea #168).
 	sess := dt_holdsess
-	if [ -n "$sess" ]; then
-		title "desktop [$sess: supervisor]"
+	local pn
+	if [ -n "$sess" ] && [ "$sess" != desktop ]; then
+		pn := dt_shortname supervisor "$sess"
+		title -s "$pn" "desktop [$sess: supervisor]"
 	else
-		title "desktop [supervisor]"
+		title -s supervisor "desktop [supervisor]"
 	fi
 	while :; do
 		t0=$EPOCHSECONDS
