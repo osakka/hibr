@@ -1498,6 +1498,31 @@ a strip module. `CS_MODDIRS` (default `~/.config/hibr/control-strip`) and
 `cs_modules` find and load them, the same shape `DT_APPDIRS`/`dt_apps`,
 `CP_PANEDIRS`/`cp_panes` and `DT_SYSDIRS`/`dt_sysapps` already are.
 
+### A strip module or a bar item?
+
+The menu bar takes items too, since 0.99.129: `dt_baritem name text
+[cmd...]`, drawn left of the notification icon, and clicked it runs the
+words it was given. The two look similar and are for different things.
+
+A **strip module** is a glyph and a click, and **the person decides where it
+sits** -- they dock the strip, size it, scroll it, drag it about. It is a
+place to put a control.
+
+A **bar item is a state that changes**, laid out by the bar beside the clock,
+where the eye already goes for "what is going on": messages waiting, a sync
+in flight, a vault left unlocked. The desktop's own notification count and
+its "a newer hibr is on disk" mark have always lived there, and this is the
+same shelf opened to apps.
+
+So: a button is a strip module. A number or a light is a bar item.
+
+Its text is a value the app **sets when it changes**, never a callback the
+bar asks for per frame -- that is what keeps a bar of ten items free on a
+frame where none of them moved, and it is why there is no `name_draw` here
+to match the strip's. An empty text takes the item off, which is one call
+rather than two. `wm/vault.hibr` is the first user: a key on the bar for as
+long as the vault is unlocked, and nothing while it is shut.
+
 Earlier versions drew a single letter or glyph per module -- clever, but
 nothing anyone could read without already knowing what it meant. Every
 bundled module now draws its own name instead: `[Cursor][Shadow][Theme]

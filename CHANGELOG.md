@@ -1,5 +1,120 @@
 # Changelog
 
+## 0.99.129
+
+**The menu bar is in a pane, and an app can put an item on it** (Gitea #161
+and then #160, in that order, which is what the first of them asked for).
+
+**The bar's cells are the bar's now.** A pane is a name and a rectangle the
+console tracks damage against, so the wallpaper paints *behind* the bar
+rather than over it, and a frame on which nothing the bar shows has changed
+does not draw it at all. `dt_bar` composes a key out of everything it reads
+and compares it with the last one — the shape `dt_alone` already uses for
+the windows' geometry and `dt_clocktext` for the clock, one level up.
+
+Measured, with medians because the run-to-run spread is 300 us: a settled
+two-window frame goes **1027 us to 645**, so the bar's own composition is
+about **380 us** — more than half the 0.7 ms a 1%-of-a-core desktop has to
+spend. The ticket guessed 0.19 ms from an older measurement; it is twice
+that.
+
+`dt_barput` is the only thing that knows the bar is paned. Every column
+anything stores — `MB[i]["x"]`, `MB_AX`, `DT_CLOCKC`, `DT_BELLC`, `DT_WSC` —
+stays **absolute**, because that is what a mouse report carries and what
+every hit test already compares against; the pane's origin is subtracted at
+the write and nowhere else. So `dt_mhit`, `dt_wshit` and the click handling
+are untouched by the move.
+
+**What that exposed, which is the real content of this release.** Seven
+places read `console pane list`, and every one of them meant *the windows*:
+the frame's own draw loop, a workspace switch, the restart's saved stacking
+order, and four separate "the topmost pane becomes the focus" idioms. That
+was indistinguishable while every pane *was* a window. With the bar having
+one:
+
+- `dt_wsgo` would have **dropped it on the first workspace switch** and
+  never put it back, leaving its cells owned by nothing for the wallpaper to
+  paint over — the `cn_pdrop` trap, in the one place that could still reach
+  it;
+- `dt_draw` would have called `dt_win bar`, whose `id` is typed `int`, so a
+  declared function refuses it and the body never runs;
+- and the restart's own focus fallback **did** set `DT_FOCUS=bar`, which
+  `dt_intile` then refused as not an int, once per frame, in the log, with
+  the tiling and the menus' dimming wrong behind it. That is what
+  `tests/desktop.py`'s "no session printed a shell error" caught.
+
+`dt_wpanes` is the one reader now. A second non-window pane needs no eighth
+change.
+
+**Two things sit outside the gate on purpose**, and both are traps this
+project already had in other clothes:
+
+- the **shadow**, because it falls on the row *below* the bar, outside its
+  pane, so those cells are not the bar's to keep. Any ordinary write clears
+  what `console darken -s` marked, so a gated frame stopped re-casting it
+  and the bar's shadow vanished during a drag. **The drag oracle caught
+  that**, step by step, glyphs and pens — which is the third time this
+  shadow family has bitten and the first time a test found it instead of
+  the owner;
+- the clock's **`dt_want`**, now `dt_barwant`, called every frame. Gating a
+  drawing takes with it whatever asks for the next frame from inside it:
+  Cursor Blink, the icons' rescan, About's own readings, and now this. The
+  fourth time.
+
+And the gate's first version read `[ -z "$DT_FORCEDRAW" ]`. That variable's
+default is the **string `0`**, so the test was false for every desktop and
+the gate never fired at all — measured as the bar drawing on four of four
+identical frames, 11 writes then 22 then 33. Every other reader compares it
+against 1.
+
+### An app can put an item on the bar
+
+`dt_baritem name text [cmd...]`, drawn left of the notification icon, and
+clicked it runs the words it was given — words, not a string, since a value
+with a space in it reached its callback as two arguments the last time this
+desktop joined them. An empty text takes the item off, which is one call
+rather than two.
+
+The ticket said its own first question had to be answered before anything
+was built — *what is a bar item for that a Control Strip module is not?* —
+so: **a strip module is a glyph and a click, and the person decides where it
+sits**; a **bar item is a state that changes**, laid out by the bar beside
+the clock, where the eye already goes for "what is going on". A button is a
+strip module. A number or a light is a bar item. The text is a value the app
+**sets when it changes**, never a callback the bar asks per frame — which is
+what keeps a bar of ten items free on a frame where none of them moved, and
+is the `dt_want` trap in a new hat if done the other way.
+
+**The first user is the vault**: a key on the bar for as long as it is
+unlocked, and nothing while it is shut. A state rather than an
+announcement — a notification that the vault was unlocked would time out in
+two seconds and the vault would then be open for half an hour with nothing
+saying so, which is the same argument the "a newer hibr is on disk" mark is
+on the bar for. It is also the one piece of this desktop's state where *not*
+knowing has a cost: an unlocked vault is a vault anything running as you can
+read. Clicking it opens the Vault, where locking it again is — not locking
+it outright, since a click that silently throws away a session every other
+shell is sharing is not a click anybody can take back.
+
+### Three width bugs, one rule
+
+Found while reading the bar, all of them ADR 0021's rule being broken:
+
+- **`dt_layout` measured titles in characters.** The *mirrored* layout
+  (`dt_layoutm`) has always used `str width`; the default one counted
+  `${#t}`, so a title holding a glyph wider than a cell laid every title
+  after it out one column short — and `dt_mhit` reads those very numbers to
+  answer a click, so clicks landed on the wrong menu. The wrong one of the
+  two was the one almost everyone runs.
+- **`dt_bar` measured the same thing a third time** to work out
+  `DT_MENUEND`, in characters again. It reads `MB[i]["tw"]`, which already
+  holds exactly that number.
+- **The application name was `${t:0:11}` into a fourteen-column slot**, so a
+  wide glyph drew over the clock. `dt_cut` (`wm/draw.hibr`) measures: the
+  longest beginning of the text that fits in n columns, with the cheap check
+  first — for text with no wide glyph the two numbers are equal and the
+  slice is already the answer.
+
 ## 0.99.128
 
 **A still picture's payload is compressed before it is sent, so a reattach

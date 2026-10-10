@@ -27,7 +27,7 @@ strict
 
 dt_mouse() {
 	local act=${1##*-} mr mc mods
-	local id b wr wc wh ww ap mo now dr dc wsn
+	local id b bi wr wc wh ww ap mo now dr dc wsn
 
 	mods=${1%"$act"}
 	mods=${mods%-}
@@ -62,6 +62,14 @@ dt_mouse() {
 			   [ "$mc" -lt $((DT_CLOCKC + DT_CLOCKW)) ]; then
 				dt_mclose
 				dt_has clock_draw && dt_launch clock
+				return 0
+			fi
+			# An item an app put on the bar (Gitea #160). After
+			# the icon and the clock, which are the desktop's own
+			# and keep their places.
+			if bi := dt_barihit "$mc"; then
+				dt_mclose
+				dt_barido "$bi"
 				return 0
 			fi
 			if [ "$1" = right ]; then

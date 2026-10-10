@@ -74,7 +74,14 @@ fn dt_wsgo(int n) {
 	[ "$n" -lt 1 ] && n=1
 	[ "$n" -gt "$DT_WSN" ] && n=$DT_WSN
 	[ "$n" = "$DT_WS" ] && return 0
-	l := console pane list
+	# Window panes only. This used to take every pane there was and drop
+	# the lot, then recreate the windows -- indistinguishable while every
+	# pane *was* a window. Since 0.99.129 the bar has one of its own, and
+	# dropping it here would have left its cells owned by nothing, so the
+	# wallpaper would paint over them and the bar would go on the first
+	# workspace switch: the cn_pdrop trap, in the one place that could
+	# still reach it.
+	l := dt_wpanes
 	DT_WSORD["$DT_WS"]=$l
 	read -ra ps <<< "$l"
 	for p in "${ps[@]}"; do
@@ -98,7 +105,7 @@ fn dt_wsgo(int n) {
 		console pane "w$id" "${DT[$id]["row"]}" "${DT[$id]["col"]}" \
 			"${DT[$id]["h"]}" "${DT[$id]["w"]}"
 	done
-	l := console pane list
+	l := dt_wpanes
 	l=${l##* }
 	DT_FOCUS=${l#w}
 	dt_tile
@@ -146,7 +153,7 @@ fn dt_wsmove(int id, int n) {
 	DT[$id]["ws"]=$n
 	DT_WSORD["$n"]="${DT_WSORD["$n"]} w$id"
 	if [ "$DT_FOCUS" = "$id" ]; then
-		l := console pane list
+		l := dt_wpanes
 		l=${l##* }
 		DT_FOCUS=${l#w}
 	fi
@@ -222,7 +229,9 @@ fn dt_wsdraw(int end, int? start = "") {
 		else
 			console pen "$DT_IDLE" "$DT_BAR"
 		fi
-		console put 0 $((DT_WSC + (i - 1) * 2)) "$i"
+		# Through the bar's own pane: this draws on the bar's row, and
+		# since 0.99.129 those cells belong to it (Gitea #161).
+		dt_barput $((DT_WSC + (i - 1) * 2)) "$i"
 		i=$((i + 1))
 	done
 }

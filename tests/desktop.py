@@ -4643,4 +4643,95 @@ check("so is a center wallpaper wider than the screen",
       len(put) == 1 and not gone, "%d placed, %d deleted" % (len(put), len(gone)))
 shutil.rmtree(WPD, True)
 
-report(573)
+# The bar has a pane of its own since 0.99.129 (Gitea #161), so its cells
+# are the bar's and a frame that changes nothing on it need not draw it.
+#
+# Counted on dt_barput, the one function that writes through that pane, by
+# redefining it in the session -- a function defined again replaces the
+# first, which is how every other saving in this desktop has been
+# attributed. Not on frames: the harness's own desktop has other things
+# that wake it, so a frame count cannot tell the bar's work from theirs,
+# which is the lesson about_dirty's own check records.
+#
+# The first version of this gate tested `[ -z "$DT_FORCEDRAW" ]`, and that
+# variable's default is the *string* "0" -- so the gate never fired at all
+# and the bar drew on four of four identical frames. Measured, not read:
+# 11 writes, then 22, then 33. Every other reader compares it against 1.
+gate = scratch("bar-gate.txt")
+run('dt_new One 6 20 3 4\n'
+    'BP=0\n'
+    'dt_barput() { BP=$((BP + 1)); '
+    'console put -p bar 0 $(($1 - DT_PRIMARY_COL)) "$2"; }\n'
+    'dt_draw\na=$BP\n'
+    'dt_draw\nb=$BP\n'
+    'DT_NOTEUNSEEN=3\ndt_draw\nc=$BP\n'
+    'dt_draw\nd=$BP\n'
+    'printf "%s %s %s %s\\n" "$a" "$b" "$c" "$d" > ' + gate + '\n')
+got = open(gate).read().split() if os.path.exists(gate) else []
+if os.path.exists(gate):
+    os.unlink(gate)
+check("a frame that changes nothing on the bar does not draw it, and one "
+      "that changes something does",
+      len(got) == 4 and int(got[0]) > 0 and got[1] == got[0]
+      and int(got[2]) > int(got[1]) and got[3] == got[2], got)
+
+# An app can put an item on the bar (Gitea #160): a state that changes,
+# beside the clock, which is what a Control Strip module is not -- the strip
+# is a glyph and a click the person positions themselves.
+sc, _ = run('dt_new One 6 20 3 4\n'
+            'dt_baritem sync "SYNC"\n')
+bell, item = sc.find("\u2691"), sc.find("SYNC")
+check("an item an app puts on the bar is drawn left of the notification icon",
+      item is not None and bell is not None and item[0] == 0
+      and item[1] < bell[1], (item, bell, sc.row(0)))
+# Clicked, it runs the words it was registered with -- words, not a string:
+# a value with a space in it reached its callback as two arguments the last
+# time this desktop joined them.
+#
+# The screen is taken before quitting, not through run()'s own teardown: a
+# note lasts until the next key and `qy` is a key, so what the note proves
+# would be gone by the time run() captured it.
+ITEM = ('dt_new One 6 20 3 4\n'
+        'dt_baritem sync "SYNC" dt_note "the bar item ran"\n')
+ipath = scratch("desktop-baritem.hibr")
+open(ipath, "w").write("%s. %s\ndt_open\n%s\ndt_run\ndt_close\n"
+                       % (load(MOD), WM, ITEM))
+it = Term(ipath, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.6)
+ipos = it.screen().find("SYNC")
+if ipos:
+    it.keys([press(0, ipos[1]), release(0, ipos[1])])
+isc = it.screen()
+check("and a click on it runs the words it was registered with",
+      ipos is not None and isc.find("the bar item ran") is not None,
+      (ipos, isc))
+it.quit(b"qy", 1.2)
+os.unlink(ipath)
+# Setting it to nothing takes it off, which is one call rather than two.
+sc, _ = run('dt_new One 6 20 3 4\n'
+            'dt_baritem sync "SYNC"\ndt_baritem sync ""\n')
+check("and setting it to nothing takes it off the bar",
+      sc.find("SYNC") is None and sc.find("\u2691") is not None, sc.row(0))
+
+# The bar lays its titles out in display columns, not characters. dt_layoutm
+# -- the mirrored one -- always did; dt_layout, the default, counted
+# characters, so a title holding a glyph wider than a cell laid every title
+# after it out one column short, and dt_mhit reads these very numbers to
+# answer a click. Asserted on the table rather than on the screen: that is
+# where the wrongness was (ADR 0021).
+wide = scratch("bar-wide.txt")
+run('MB_N=0\ndt_menu "AB"\ndt_end\ndt_menu "\u6f22\u5b57"\ndt_end\n'
+    'dt_menu "CD"\ndt_end\ndt_layout\n'
+    'printf "%s %s %s %s %s %s\\n" "${MB[0]["x"]}" "${MB[0]["tw"]}" '
+    '"${MB[1]["x"]}" "${MB[1]["tw"]}" "${MB[2]["x"]}" "${MB[2]["tw"]}" > '
+    + wide + '\n')
+w = open(wide).read().split() if os.path.exists(wide) else []
+if os.path.exists(wide):
+    os.unlink(wide)
+# "AB" is 4 columns with its spaces and the two wide glyphs are 6, so the
+# third title starts at 1 + 4 + 6. Counting characters would say 1 + 4 + 4.
+check("a menu title holding a wide glyph is laid out in columns, so the "
+      "title after it starts where it is drawn",
+      len(w) == 6 and w[1] == "4" and w[3] == "6" and
+      int(w[4]) == int(w[2]) + 6, w)
+
+report(578)

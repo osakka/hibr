@@ -140,6 +140,7 @@ dt_vwtake() {
 	DT_VWOUT=
 	dt_vwlist
 	DT_VWSYNCED=$EPOCHSECONDS
+	dt_vwbar
 	return 0
 }
 
@@ -178,6 +179,28 @@ dt_vwforget() {
 	VW_SESSION=
 	DT_VWW=
 	DT_VWITEMS=()
+	dt_vwbar
+}
+
+# Say so on the bar for as long as the vault is open, and nothing while it
+# is shut (Gitea #160, the first thing to use dt_baritem).
+#
+# A state rather than an announcement, which is what a bar item is for: a
+# notification that the vault was unlocked would time out in two seconds
+# and the vault would then be open for half an hour with nothing anywhere
+# saying so -- the same argument DT_UPNEW is on the bar for. It is also the
+# one piece of this desktop's state where *not* knowing has a cost: an
+# unlocked vault is a vault anything running as you can read.
+#
+# Clicking it opens the Vault, which is where locking it again is -- not
+# locking it outright, since a click that silently throws away a session
+# every other shell is sharing is not a click anybody can take back.
+dt_vwbar() {
+	local t=
+
+	command -v dt_baritem > /dev/null || return 0
+	[ -n "$DT_VWW" ] && t=${GL[unlocked]}
+	dt_baritem vault "$t" dt_launch vault
 }
 
 # Read the items' names, sorted, into DT_VWITEMS.

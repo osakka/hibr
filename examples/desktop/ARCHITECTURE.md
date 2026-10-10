@@ -153,8 +153,29 @@ is what a terminal emulator or a file browser's own drag-and-drop needs.
 
 ## Menus, two kinds
 
-The bar across the top is rebuilt every frame from whatever has focus, and
-it reads the same in every window: the hibr menu, **File**, **Edit**, then
+The bar across the top is drawn into **a pane of its own**, so its cells
+belong to it: the wallpaper paints behind it rather than over it, and a
+frame on which nothing the bar shows has changed does not draw it at all.
+That is worth about 380 us of a settled two-window frame -- 1027 us against
+645, medians of four runs each -- which is more than half the 0.7 ms budget
+a 1%-of-a-core desktop has. `dt_bar` composes a key out of everything it
+reads and compares it with the last one; `dt_barput` is the only thing that
+knows about the pane, since every column everything stores stays absolute,
+which is what a mouse report carries. Two things deliberately sit *outside*
+that gate: the shadow, because it falls on the row below and those cells are
+not the bar's to keep, and the clock's own `dt_want`, because a gated
+drawing would otherwise take with it the thing that asks for the next frame.
+
+An app can put **an item** on the bar with `dt_baritem name text [cmd...]`,
+drawn left of the notification icon, and clicked it runs the words it was
+given. A bar item is for *a state that changes* -- messages waiting, a sync
+in flight, a vault left unlocked -- which is what a Control Strip module is
+not: the strip is a glyph and a click the person positions themselves. The
+text is a value the app sets when it changes, never a callback the bar asks
+per frame; setting it is what clears the bar's gate. An empty text takes the
+item off.
+
+The rest of the bar reads the same in every window: the hibr menu, **File**, **Edit**, then
 the focused app's own menus, then Window. Edit and Window belong to the
 desktop rather than to any app. An app defines `<app>_menus` and builds its
 menus with `dt_menu`, `dt_item`, `dt_sub` and `dt_sep`; it opens with File

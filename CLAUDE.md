@@ -772,6 +772,33 @@ went in the shell.
   reshuffles the list every time something is raised, and raising things is
   what a window list is for — so the row you meant to click moves out from
   under you. `"${!DT[@]}"` gives creation order because the maps are ordered.
+- **The bar has a pane of its own since 0.99.129, and seven places read
+  `console pane list` meaning "the windows".** Giving the bar a pane is
+  what makes its cells its own -- the wallpaper paints behind it, and a
+  frame on which nothing it shows has changed need not draw it, worth about
+  380 us of a settled two-window frame (1027 us against 645, medians of
+  four runs; the run-to-run spread is 300 us, so take medians). What that
+  exposed was an assumption spread across the window manager: `dt_draw`'s
+  own draw loop, a workspace switch, the restart's saved stacking order and
+  four "the topmost pane becomes the focus" idioms all read that list and
+  every one of them meant windows. One of them set `DT_FOCUS=bar`, which
+  `dt_intile` then refused as not an int, once per frame, in the log, with
+  the tiling and the menus' dimming wrong behind it. `dt_wpanes` is the one
+  reader now; a second non-window pane needs no eighth change. **Before
+  adding a pane that is not a window, grep for who reads the list.**
+  Two things stay outside the bar's own gate, and both are traps this file
+  already records in other clothes: the **shadow**, because it falls on the
+  row *below* the bar and those cells are not the bar's to keep -- any
+  ordinary write clears what `darken -s` marked, so a gated frame stopped
+  re-casting it and the shadow vanished during a drag, which the drag
+  oracle caught rather than a person; and the clock's **`dt_want`**, moved
+  to `dt_barwant` called every frame, because gating a drawing takes with
+  it whatever asks for the next frame from inside it -- Cursor Blink, the
+  icon rescan, `about_dirty`, and now this, the fourth time.
+  And the gate's own first version read `[ -z "$DT_FORCEDRAW" ]`: that
+  variable's **default is the string `0`**, so the test was false for every
+  desktop and the gate never fired at all -- measured as the bar drawing on
+  four of four identical frames. Every other reader compares it against 1.
 - **The menu bar belongs to the window manager, not to a window.** Menus
   follow focus, which is System 7's model and the reason it maps onto a
   window manager at all. An app declares them with `<app>_menus` calling
@@ -825,6 +852,17 @@ went in the shell.
   nothing succeeds and a successful `key` means "handled" — so `q` stopped
   quitting whenever a clock had focus. A prefix makes that impossible rather
   than merely documented.
+- **The bar measured its own titles two different ways, and the default one
+  was wrong.** `dt_layoutm` -- the *mirrored* layout -- has always used
+  `str width`; `dt_layout`, which is what almost everyone runs, counted
+  `${#t}`. So a menu title holding a glyph wider than a cell laid every
+  title after it out one column short, and `dt_mhit` reads those very
+  numbers to answer a click. `dt_bar` then measured the same thing a third
+  time, in characters again, to work out `DT_MENUEND`; it reads
+  `MB[i]["tw"]` now, which already holds it. And the application name was
+  `${t:0:11}` into a fourteen-**column** slot, so a wide glyph drew over
+  the clock -- `dt_cut` measures. A rule that lives in three places is a
+  rule kept in one of them.
 - **Lengths and slices count characters.** `${#s}`, `${s:i:n}`, `str len`,
   `str slice` and `str index` all count characters; `str pad` and `str width`
   count *display columns*, because padding exists to line columns up and `漢`

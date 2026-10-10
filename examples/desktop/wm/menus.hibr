@@ -707,9 +707,18 @@ dt_layout() {
 			continue
 		fi
 		t=${MB[$i]["title"]}
+		# Display columns, not characters -- the same `str width` the
+		# mirrored layout below has always used. This one counted
+		# `${#t}`, so a title holding a glyph wider than a cell laid
+		# every title after it out one column short and `dt_mhit`,
+		# which reads these very numbers, then answered the wrong
+		# menu for a click. The default layout was the wrong one of
+		# the two (ADR 0021).
+		tw := str width "$t"
+		tw=$((tw + 2))
 		MB[$i]["x"]=$c
-		MB[$i]["tw"]=$((${#t} + 2))
-		c=$((c + ${#t} + 2))
+		MB[$i]["tw"]=$tw
+		c=$((c + tw))
 		i=$((i + 1))
 	done
 	MB_AX=$((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - 14))

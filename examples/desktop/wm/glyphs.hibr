@@ -52,6 +52,7 @@ fn dt_glyphs(set = "unicode") {
 		GL["file"]="-"; GL["folder"]="+"
 		GL["cross"]="x"; GL["xmark"]="x"; GL["check"]="*"; GL["tick"]="v"
 		GL["star"]="*"; GL["flag"]="!"; GL["heart"]="*"; GL["warn"]="!"
+		GL["unlocked"]="!"
 		GL["task"]="[ ]"; GL["taskdone"]="[x]"; GL["pin"]="*"
 		GL["newline"]="~"; GL["ellipsis"]="~"; GL["quote"]='"'; GL["dash"]="-"
 		GL["fx"]="fx"
@@ -122,6 +123,7 @@ fn dt_glyphs(set = "unicode") {
 		GL["fx"]=$'ƒx'    # LATIN SMALL LETTER F WITH HOOK, then x
 		GL["dash"]=$'—'      # EM DASH
 		GL["flag"]=$'⚑'      # BLACK FLAG
+		GL["unlocked"]=$'\u26bf'  # SQUARED KEY
 		GL["heart"]=$'♥'     # BLACK HEART SUIT
 		GL["warn"]=$'⚠'      # WARNING SIGN
 		GL["home"]=$'⌂'      # HOUSE
@@ -168,6 +170,7 @@ dt_glyphsnerd() {
 	GL["xmark"]=$'\uf00d'     # nf-fa-times
 	GL["star"]=$'\uf005'      # nf-fa-star
 	GL["flag"]=$'\uf024'      # nf-fa-flag
+	GL["unlocked"]=$'\uf09c'  # nf-fa-unlock
 	GL["heart"]=$'\uf004'     # nf-fa-heart
 	GL["warn"]=$'\uf071'      # nf-fa-warning
 	GL["pin"]=$'\uf08d'       # nf-fa-thumb_tack

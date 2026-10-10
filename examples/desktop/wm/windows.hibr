@@ -70,7 +70,7 @@ fn dt_del(int id) {
 	unset "DT[$id]"
 	if [ "$DT_FOCUS" = "$id" ]; then
 		local l
-		l := console pane list
+		l := dt_wpanes
 		l=${l##* }
 		DT_FOCUS=${l#w}
 	fi
@@ -115,7 +115,7 @@ fn dt_min(int id) {
 		DT[$id]["min"]=1
 		console pane drop "w$id"
 		if [ "$DT_FOCUS" = "$id" ]; then
-			l := console pane list
+			l := dt_wpanes
 			l=${l##* }
 			DT_FOCUS=${l#w}
 		fi
@@ -128,6 +128,26 @@ fn dt_min(int id) {
 # business. The few that manage *other* windows -- a control panel, a task
 # switcher -- go through these rather than reading DT, which is the window
 # manager's own table and not an interface.
+
+# The panes that are windows, bottom of the stack upwards, as one word each.
+#
+# `console pane list` is every pane there is, and since 0.99.129 that is not
+# the same thing: the menu bar has a pane of its own (Gitea #161). Three
+# places read that list and every one of them meant windows -- the frame's
+# own draw loop, a workspace switch, and the restart's saved stacking order
+# -- so they ask this instead. A desktop that grows a second non-window
+# pane therefore needs no fourth change.
+dt_wpanes() {
+	local p out=
+	local -a ps
+
+	p := console pane list
+	read -ra ps <<< "$p"
+	for p in "${ps[@]}"; do
+		case $p in w[0-9]*) out="$out $p" ;; esac
+	done
+	ret "${out# }"
+}
 
 # Every window, hidden ones included, in the order they were opened.
 #
@@ -399,7 +419,7 @@ dt_cycle() {
 	local -a ids
 
 	if [ "$DT_CYCLE" != all ] || [ "$DT_WSN" -le 1 ]; then
-		l := console pane list
+		l := dt_wpanes
 		l=${l%% *}
 		[ -n "$l" ] && dt_raise "${l#w}"
 		return 0

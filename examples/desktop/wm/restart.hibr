@@ -129,7 +129,7 @@ fn dt_rswrite(f, int carry, why = "restart") {
 	local -a ms
 
 	k := console consumed
-	l := console pane list
+	l := dt_wpanes
 	json parse DT_RS "{\"ver\":$DT_RSVER}"
 	json set DT_RS .ws "$DT_WS"
 	json set DT_RS .wsn "$DT_WSN"
@@ -251,7 +251,12 @@ dt_restore() {
 	if [ -n "$id" ] && [ -n "${DT[$id]["title"]}" ]; then
 		DT_FOCUS=$id
 	else
-		p := console pane list
+		# The topmost *window* pane. Not simply the last of every
+		# pane: since 0.99.129 the bar has one of its own, and taking
+		# it here made DT_FOCUS the string "bar", which dt_intile then
+		# refused as not an int -- once per frame, in the log, with
+		# the tiling and the menus' own dimming wrong behind it.
+		p := dt_wpanes
 		p=${p##* }
 		DT_FOCUS=${p#w}
 	fi
