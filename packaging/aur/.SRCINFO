@@ -1,6 +1,6 @@
 pkgbase = hibr
 	pkgdesc = Small, fast bash-flavoured shell with nested maps, JSON, and native networking
-	pkgver = 0.99.132
+	pkgver = 0.99.133
 	pkgrel = 1
 	url = https://github.com/osakka/hibr
 	install = hibr.install
@@ -11,7 +11,7 @@ pkgbase = hibr
 	optdepends = openssl: TLS -- /dev/tls and https
 	optdepends = libpng: PNG pictures in the img module and desktop wallpapers
 	optdepends = libjpeg-turbo: JPEG pictures in the img module and desktop wallpapers
-	source = hibr-0.99.132.tar.gz::https://github.com/osakka/hibr/archive/refs/tags/v0.99.132.tar.gz
-	sha256sums = 6390bdec59ffe3341014bd8892466ef5e948f34ba7052f2c3fb5d3c8e0307f9c
+	source = hibr-0.99.133.tar.gz::https://github.com/osakka/hibr/archive/refs/tags/v0.99.133.tar.gz
+	sha256sums = 03721f71306e3c4aa061035a8398665a9c376dd9554a6189c0228e6ad4c56b5a
 
 pkgname = hibr
