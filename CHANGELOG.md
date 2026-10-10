@@ -1,5 +1,82 @@
 # Changelog
 
+## 0.99.141
+
+**`json emit`, `keys`, `len` and `type` printed what they answered and filled
+nothing, where `json get` has always done both** (Gitea #167).
+
+```
+$ hibr -c 'declare -gA M; M["a"]["b"]=1; j := json emit M; echo "bound=[$j]"'
+{"a":{"b":"1"}}
+bound=[]
+```
+
+The `{...}` is `json emit` printing; `$j` is empty, and the status is 0. So a
+script that asked for the document in a variable -- to write a file, to send
+down a socket, to hand on -- got nothing, and the document went to standard
+output instead. In a full-screen program that is the middle of the screen,
+underneath the console's own cell drawing.
+
+`json get` had the shape right from the start: honour `s->bind`, so a bound
+slot means say nothing, and set `RET` either way. Its four siblings each
+`printf`ed unconditionally. All four match it now.
+
+Nothing that worked stops working: `s->bind` is set only by `:=`, so a plain
+`json emit M` on a terminal or in a pipe prints exactly as before. Two
+details worth stating because they are what a caller will assume:
+
+- **The bound value is the form that was asked for.** `p := json emit M -p`
+  binds the indented text, since a script binding it is usually about to
+  write a file.
+- **`json keys`'s optional out-variable still works, and now sets both.**
+  `x := json keys M .a named` fills `named` and the slot, which is what
+  `get` does with its own.
+
+`examples/apps.hibr` wrote its state file with `j=$(json emit AP_ST)` and a
+comment naming this ticket; it is `j := json emit AP_ST` now, one fork
+cheaper per install or removal, and the comment is gone.
+
+### The checks
+
+`tests/203-json-bind.t`, recorded, written and watched failing against
+0.99.140 before anything was changed -- all four verbs, each asked
+separately, because one binding correctly says nothing about the other three.
+Each check reads the slot **and** what was printed, with standard output
+redirected to a file: the bug was both halves at once, and a check that only
+read the variable would pass a version that still printed. The unbound forms
+are in it too, so the thing that must not change is recorded beside the thing
+that did.
+
+### And one check this release's gate caught, which was not this release
+
+`tests/760-term.t` failed the sanitizer gate on `0|l 25` against `0|l 18`,
+with **0 sanitizer reports** and nothing in this release able to reach it --
+the only code change was `src/json.c`, and that file does not mention `json`
+once (Gitea #179).
+
+Its scrollback section prints 30 lines into a 3-row terminal with a 4-line
+store and pumped a **fixed count** of polls. `term poll` returns as soon as
+the pty has something, so a fixed count is a bet on *how few reads the output
+arrives in*: idle, thirty `echo`s coalesce into a handful and all thirty are
+consumed, leaving lines 25-28 in the store; under a gate running twenty-one
+sanitizer suites each `echo` tends to land in its own read, so 22 polls
+consumed about 22 lines and the store held 18-21. One line per poll is
+exactly the arithmetic that gives 18.
+
+`pump()` waits for `term gen` -- how many times the terminal has been fed --
+to stop moving, two quiet windows rather than one, bounded. `show()` and the
+three sites that read settled state from a bare count use it. The alternate
+screen section keeps its counts **on purpose**, with a comment saying why: it
+sleeps a second in the middle, so the two readings are of before and after
+the `ESC [3J`, and waiting for quiet would run them together.
+
+Honest about what is proven: the recording is unchanged, which says the
+conversion reaches the same settled state the counts reached. The original
+failure **did not reproduce on demand** -- 0 of 10 with the sanitizer build
+alone, 0 of 6 under one spinner per core, and 0 of 8 concurrent copies under
+either build -- so what this removes is the assumption that explains the
+number, not a fault anybody can summon.
+
 ## 0.99.140
 
 **`source` reads a scheme that says it is local, so shell code can come out

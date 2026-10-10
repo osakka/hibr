@@ -1,0 +1,12 @@
+0
+emit: bound=[{"a":{"b":"1","c":"2"}}] printed=[]
+keys: bound=[a] printed=[]
+keys with a name: bound=[b c] named=[b c] printed=[]
+len: bound=[2] printed=[]
+type: bound=[object] printed=[]
+emit -p bound a first line of: [{]
+--- and with no slot bound, each prints exactly as it always did:
+{"a":{"b":"1","c":"2"}}
+a
+2
+object

@@ -428,7 +428,9 @@ int b_json(sh *s, int ac, char **av)
 		}
 		s_init(&o);
 		j_out(&o, v->map, v->n, v->v, v->ty, pretty, 0);
-		printf("%s\n", o.p ? o.p : "null");
+		if (!s->bind)
+			printf("%s\n", o.p ? o.p : "null");
+		hibr_set(s, "RET", o.p ? o.p : "null", 0);
 		s_free(&o);
 		return HIBR_OK;
 	}
@@ -486,17 +488,28 @@ int b_json(sh *s, int ac, char **av)
 		}
 		if (ac > 4)
 			hibr_set(s, av[4], o.p ? o.p : "", 0);
-		else
+		else if (!s->bind)
 			printf("%s\n", o.p ? o.p : "");
+		hibr_set(s, "RET", o.p ? o.p : "", 0);
 		s_free(&o);
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "len")) {
-		printf("%lu\n", (unsigned long)(e ? e->n : v->n));
+		s_init(&o);
+		s_num(&o, (long)(e ? e->n : v->n));
+		if (!s->bind)
+			printf("%s\n", o.p ? o.p : "0");
+		hibr_set(s, "RET", o.p ? o.p : "0", 0);
+		s_free(&o);
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "type")) {
-		printf("%s\n", e ? j_tname(e->ty, e->map) : j_tname(v->ty, v->map));
+		const char *tn = e ? j_tname(e->ty, e->map)
+				   : j_tname(v->ty, v->map);
+
+		if (!s->bind)
+			printf("%s\n", tn);
+		hibr_set(s, "RET", tn, 0);
 		return HIBR_OK;
 	}
 	lg(HIBR_LERR, "json: %s: unknown subcommand", sub);

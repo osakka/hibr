@@ -3213,13 +3213,26 @@ went in the shell.
   this tree that opens a path with `fopen` or `open` instead of through a
   redirection has the same blindness**, and whether it should is a decision
   each time rather than a tidy-up.
-- **`json emit` prints and binds nothing, where `json get` does both**
-  (Gitea #167). `json get` honours `s->bind` -- it fills the slot, stays
-  quiet when one is bound, and sets `RET` -- and `emit`, `keys`, `len` and
-  `type` all `printf` unconditionally. So `j := json emit M` leaves `j`
-  empty and writes the JSON to standard output, which in a full-screen
-  program is the middle of the screen. That is the `:=`-binds-nothing trap
-  of 0.99.89 in a different hat. Until it is fixed, `$(json emit …)`.
+- **A builtin that answers something fills the result slot and goes quiet
+  while one is bound; a bare `printf` is the bug, and it hides by working
+  perfectly on a terminal** (Gitea #167, fixed in 0.99.141). `json get` had
+  honoured `s->bind` from the start -- fill `RET`, say nothing when a slot
+  is bound -- and its four siblings `emit`, `keys`, `len` and `type` printed
+  unconditionally, so `j := json emit M` left `j` **empty, with status 0**,
+  and wrote the document to standard output: in a full-screen program, into
+  the middle of the screen, underneath the console's own cell drawing. That
+  is the `:=`-took-nothing-from-a-program trap of 0.99.89 in a different
+  hat, and it is the same two-part failure -- a silently empty variable and
+  output somewhere nobody asked for -- which is why the guard
+  (`tests/203-json-bind.t`) reads **both** halves for each verb separately:
+  one verb binding correctly says nothing about the other three, and a check
+  that only read the variable would pass a version that still printed.
+  Two things to copy when adding a verb. The value bound is the form that
+  was *asked for* -- `p := json emit M -p` binds the indented text, since a
+  script binding it is usually about to write a file. And a verb with an
+  optional out-variable keeps it **and** fills the slot
+  (`x := json keys M .a named` sets both), because that is what `get` does
+  and a second rule would be one to remember.
 
 ## Testing discipline
 
@@ -3258,6 +3271,25 @@ went in the shell.
   A marker file a test's own script writes needs it too: one copy unlinked
   `/tmp/hibr-dt-closed` and the other then checked for it. It failed only
   in a gate, never alone, which is what a shared path looks like.
+- **A fixed count of polls in a recorded test is a bet on how few reads the
+  output arrives in.** `tests/760-term.t` pumped a terminal eight times and
+  then read its scrollback store, which is right while a program's thirty
+  `echo`s coalesce into a handful of reads and wrong under a gate running
+  twenty-one sanitizer suites, where each one tends to land in its own: 22
+  polls consumed about 22 lines and the store's top read `l 18` where the
+  recording wanted `l 25` -- one line per poll, which is the arithmetic that
+  names the cause (Gitea #179). `pump()` waits for `term gen` to stop moving
+  instead, two quiet windows and bounded. This is the `Term.until` rule above
+  in a `.t` file rather than a Python suite, and the tell is the same: **a
+  count is waiting for the clock, and what a check wants is the thing.** Two
+  things worth keeping. A count that is *deliberate* has to say so -- the
+  alternate-screen section's two counts straddle a `sleep 1`, so waiting for
+  quiet would run its before-and-after readings together -- and **the
+  recording being unchanged is what proves such a conversion**, since it says
+  the wait reaches the same settled state the counts reached. What it does
+  not prove is the fix: that failure did not reproduce on demand (0 of 10
+  alone, 0 of 6 under spinners, 0 of 8 concurrent copies), so only the
+  assumption is gone.
 - **The `.expected` file is named after the test, not the test file.**
   `tests/830-img.t`'s own recorded file is `tests/830-img.expected` --
   `tests/830-img.t.expected` does not error, it just never matches

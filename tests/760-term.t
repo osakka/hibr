@@ -14,10 +14,40 @@ mod load ./build/mods/term.so
 H=$PWD/build/hibr
 export HIBR_RC=/dev/null
 
+# Pump until the terminal stops being given anything to read.
+#
+# A fixed count of polls is a bet on how few reads the program's output
+# arrives in, because `term poll` returns as soon as the pty has something:
+# thirty `echo`s coalesce into a handful of reads on an idle machine and into
+# about thirty under a gate running twenty sanitizer suites side by side, so
+# the scrollback check below read `l 18` where it wanted `l 25` and failed a
+# release gate (Gitea #179). `term gen` is the question to ask instead -- how
+# many times this terminal has been fed -- and two quiet windows rather than
+# one, since a child descheduled under load can take longer than a single
+# 100 ms wait to say anything. Bounded, so a program that never stops talking
+# ends the loop rather than the suite.
+pump() {
+  local t=$1 g= p= quiet=0 i=0
+
+  while [ $i -lt 80 ]; do
+    term poll "$t" 100
+    g := term gen "$t"
+    if [ "$g" = "$p" ]; then
+      quiet=$((quiet + 1))
+      [ $quiet -ge 2 ] && return 0
+    else
+      quiet=0
+    fi
+    p=$g
+    i=$((i + 1))
+  done
+  return 0
+}
+
 # Run a program, pump until it stops, and show the screen.
 show() {
-  local t=$1 n=${2:-6} i=0
-  while [ $i -lt 14 ]; do term poll "$t" 100; i=$((i + 1)); done
+  local t=$1 n=${2:-6}
+  pump "$t"
   i=0
   while [ $i -lt "$n" ]; do
     r := term row "$t" $i
@@ -173,7 +203,7 @@ term close $t
 
 echo "--- lines that scroll off the top are kept"
 t := term open -r 6 -c 20 /bin/sh -c 'i=1; while [ $i -le 20 ]; do echo "line $i"; i=$((i+1)); done'
-i=0; while [ $i -lt 8 ]; do term poll $t 100; i=$((i+1)); done
+pump $t
 sb := term scroll $t
 echo "view and stored: $sb"
 term scroll $t 3
@@ -189,7 +219,7 @@ term close $t
 
 echo "--- a key goes back to the live screen"
 t := term open -r 4 -c 20 /bin/sh -c 'i=1; while [ $i -le 9 ]; do echo "n $i"; i=$((i+1)); done; cat > /dev/null'
-i=0; while [ $i -lt 8 ]; do term poll $t 100; i=$((i+1)); done
+pump $t
 term scroll $t 2
 sb := term scroll $t
 echo "scrolled: $sb"
@@ -200,7 +230,7 @@ term close $t
 
 echo "--- the store keeps as many lines as it is told"
 t := term open -r 3 -c 20 -s 4 /bin/sh -c 'i=1; while [ $i -le 30 ]; do echo "l $i"; i=$((i+1)); done'
-i=0; while [ $i -lt 8 ]; do term poll $t 100; i=$((i+1)); done
+pump $t
 sb := term scroll $t
 echo "stored: $sb"
 term scroll $t top
@@ -209,6 +239,10 @@ term close $t
 
 echo "--- the alternate screen and ESC [3J stay out of it"
 t := term open -r 4 -c 20 /bin/sh -c 'printf "a\nb\nc\nd\ne\n"; printf "\033[?1049h"; i=0; while [ $i -lt 9 ]; do echo alt; i=$((i+1)); done; printf "\033[?1049l"; sleep 1; printf "\033[3J"'
+# These two counts are deliberate rather than a bet: the program sleeps a
+# second in the middle, so the first reading is of the state before the
+# ESC [3J and the second of the state after it. `pump` would run the two
+# together.
 i=0; while [ $i -lt 4 ]; do term poll $t 100; i=$((i+1)); done
 sb := term scroll $t
 echo "after the alternate screen: $sb"

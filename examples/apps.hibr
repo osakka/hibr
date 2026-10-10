@@ -139,17 +139,11 @@ ap_state() {
 	return 0
 }
 
-# $( ) rather than `:=`, and the reason is a gap rather than a preference:
-# `json get` fills the result slot and stays quiet when one is bound, and
-# `json emit` does neither -- it prints, always. So `j := json emit AP_ST`
-# binds nothing and writes the state to standard output instead of the file,
-# which is what it did here. Gitea #167; one fork per install or removal is
-# nothing, and this comment goes when that is fixed.
 ap_statesave() {
 	local j
 
 	mkdir -p "$AP_DATA" || ap_die "cannot make $AP_DATA"
-	j=$(json emit AP_ST) || ap_die "cannot emit the state"
+	j := json emit AP_ST || ap_die "cannot emit the state"
 	printf '%s\n' "$j" > "$AP_STATE" || ap_die "cannot write $AP_STATE"
 	return 0
 }

@@ -207,6 +207,14 @@ reaches into it and no query language is needed to read a field.
 A path is jq-flavoured: `.` the root, `.meta.stars` a field, `.tags[1]` an
 element.
 
+**Every one of them fills the result slot and goes quiet while one is
+bound**, which `json get` has always done and the other four have since
+0.99.141: `c := json len cfg .tags` puts the count in `c` and prints
+nothing. Before that they printed whatever they answered whether or not a
+slot was bound, so `x := json emit doc` bound nothing and wrote the document
+to standard output -- in a full-screen program, into the middle of the
+screen. `json keys`'s optional `out` still works and now sets both.
+
 ```sh
 json parse cfg '{"name":"hibr","tags":["shell","c"],"meta":{"stars":42,"ok":true}}'
 echo "${cfg[name]}"
@@ -220,6 +228,7 @@ json keys cfg .meta mk;      echo "$mk"
 json len  cfg .tags
 json type cfg .meta.ok
 json type cfg .tags
+c := json len cfg .tags;     echo "and in a variable: $c"
 json set cfg .meta.stars 43
 json set cfg .meta.note 007 -s
 json emit cfg
@@ -237,6 +246,7 @@ stars ok
 2
 boolean
 array
+and in a variable: 2
 {"name":"hibr","tags":["shell","c"],"meta":{"stars":43,"ok":true,"note":"007"}}
 ```
 
