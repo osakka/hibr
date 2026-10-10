@@ -12,6 +12,8 @@ features together rather than demonstrating a single builtin.
 | [`ls-report.hibr`](ls-report.hibr) | Loads a module, uses it through the result slot, and summarises a source tree with declared arguments, maps, regex and JSON |
 | [`traceroute.hibr`](traceroute.hibr) | Traces a route with the trace module, places each hop from its name and the zone table, and draws the route on a world map; `--demo` draws a made-up one |
 | [`console-demo.hibr`](console-demo.hibr) | A small full-console program: panes, colour, decoded keys, and a redraw that costs only what changed |
+| [`vw.hibr`](vw.hibr) | A Bitwarden and Vaultwarden client, installed as the `vw` command: logs in, syncs and reads a vault that stays encrypted on this machine, so unlocking needs no network (ADR 0036) |
+| [`apps.hibr`](apps.hibr) | The desktop's application manager, installed as the `apps` command: fetches an index over HTTPS, verifies a bundle's `sha256`, and unpacks it into the folder a scan already looks in (ADR 0041) |
 | [`desktop/`](desktop/README.md) | The desktop: a window manager written in hibr, and the apps, desk accessories and control panel built on it |
 | [`hibrc`](hibrc) | A starter `~/.hibrc`, which is what `deploy.sh` writes if you do not already have one |
 
@@ -69,3 +71,46 @@ keys. A subscript containing an operator is evaluated arithmetically, so
 
 For the pieces in isolation see [the language documentation](../docs/language.md);
 for scripts that exercise edge cases rather than read well, see [`tests/`](../tests/).
+
+## apps
+
+```text
+apps list [TEXT]            what the index offers, or what matches TEXT
+apps installed              what is installed here
+apps info NAME              everything the index says about one
+apps install NAME...        fetch, verify and place
+apps remove [-f] NAME...    take one away
+apps update [NAME...]       everything with a newer version, or these
+apps index [URL]            the index this fetches from, or set it
+```
+
+The desktop's application manager, and a worked example of why *an app is a
+folder of plain files* (ADR 0041): installing one is placing a file where a
+scan already looks. Each of the desktop's five scan lists begins with a
+folder of your own and has a data folder after it, so
+
+```text
+~/.config/hibr/apps/calc.hibr      yours, and it wins
+~/.local/share/hibr/apps/calc.hibr what `apps install` placed
+```
+
+means patching an installed app is copying it to your own folder and editing
+it there, and an update cannot overwrite your copy.
+
+Three things about trust, named separately because they protect different
+things: **TLS** gives the identity of the server the index came from,
+the index's **`sha256`** gives the integrity of the bundle, and **nothing**
+gives the identity of the author — there are no signatures, and `apps info`
+says so rather than implying otherwise.
+
+A bundle carrying a `.so` is refused with that word: native code has no
+sandbox, and root loads modules only from the folder compiled into the
+binary (ADR 0016). A member whose path climbs out of its own folder is
+refused naming the path. An app with a window open is not removed — the
+manager asks the running desktop over its own control socket and says which
+windows are open, because removing it would leave the desktop calling
+functions with nothing behind them.
+
+No module: `dav get` fetches (binary-safe to a file, where `dav request`
+NUL-terminates its answer), `json` reads the index, `archive` looks inside a
+bundle before anything is unpacked, and `mkdir`, `rm` and `mv` place it.

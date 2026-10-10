@@ -73,6 +73,7 @@ SUITE_MODS = {
     # module's own, which the archive module compiles in as well. Naming it
     # here is what makes a change to it reach this suite.
     "archive": ["archive", "inflate"],
+    "appmgr": ["dav", "archive", "inflate"],
 }
 APPS = ("apps_panel", "apps_reach", "apps_core", "apps_more")
 DESKTOP = ("desktop", "vault") + APPS + ("uifuzz", "strictvars", "mailapp", "contacts", "calapp")
@@ -199,6 +200,8 @@ def suites_for(path, req, prov, where):
             return set(), "a tool, not a suite"
     if path == "examples/vw.hibr":
         return {"vw", "vault", "run.sh"}, "the vw command"
+    if path == "examples/apps.hibr":
+        return {"appmgr", "run.sh"}, "the application manager"
     if path.startswith(("docs/", "examples/")):
         return {"run.sh"}, "documentation or an example (530/540)"
     if path.startswith(("packaging/", "tools/", ".git")) or path in (

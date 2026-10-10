@@ -23,7 +23,8 @@ strict
 
 declare -gA SV
 SV_LIST=()
-SV_DIRS=("${XDG_CONFIG_HOME:-$HOME/.config}/hibr/savers")
+SV_DIRS=("${XDG_CONFIG_HOME:-$HOME/.config}/hibr/savers"
+	 "${XDG_DATA_HOME:-$HOME/.local/share}/hibr/savers")
 SV_LAST=
 SV_NAME=
 SV_ROWS=0

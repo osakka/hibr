@@ -1,5 +1,95 @@
 # Changelog
 
+## 0.99.130
+
+**`apps` — the desktop's application manager, as a command** (Gitea #159,
+the first half). ADR 0041 is its specification, and the whole of that record
+rests on one sentence: *an app is a folder of plain files, and a bundle is
+only how it travels*. So installing one is placing a file where a scan
+already looks.
+
+```text
+apps list [TEXT]   installed   info NAME   install NAME...
+apps remove [-f] NAME...   update [NAME...]   index [URL]   refresh
+```
+
+**The five scan lists gained a data folder**, after the config one, and the
+order is the whole point: `~/.config/hibr/apps/calc.hibr` shadows a fetched
+`calc`, because the first list to claim a name wins. Patching an installed
+app is copying it to your own folder and editing it there, and an update
+cannot overwrite your copy.
+
+**Trust is disclosed, not claimed**, in three separate sentences because the
+three protect different things: **TLS** gives the identity of the server the
+index came from, the index's **`sha256`** the integrity of the bundle, and
+**nothing** gives the identity of the author. There are no signatures, and
+`apps info` says that in as many words rather than implying otherwise.
+
+**What it refuses, each with a bundle in the suite built to do it:** a
+`sha256` that does not match (both hashes named); a member that climbs out of
+its own folder with `..`; a bundle carrying a `.so`, refused with that word,
+because native code has no sandbox and root loads modules only from the
+folder compiled in (ADR 0016); a symbolic link, which can point anywhere; and
+an index entry naming a kind the desktop does not scan.
+
+**An app with a window open is not removed.** The command asks the *running*
+desktop over its own control socket — which already answers an app name per
+window — and names the windows that are open, because someone running `apps
+remove` from a terminal inside the desktop is exactly who that protects.
+`-f` closes them first.
+
+### Three things measured rather than assumed
+
+- **`dav get` takes a bare HTTPS URL and is binary-safe.** Checked against a
+  32,777-byte PNG fetched to a file and compared by `sha256` with the
+  original: identical. `dav request` is not usable for a bundle — it
+  NUL-terminates its answer, and gzip data has a NUL almost immediately — so
+  the fetch had to be `get`, and no C change was needed to find that out.
+- **`archive ls` is a folder view, not a flat listing**, and it *implies* a
+  folder the tarball never declared from its members' names. Which is also
+  how a member called `../escaped.hibr` arrives: as a folder named `..` at
+  the top level with the file inside it. So the path a safety check sees has
+  to be the one a recursive walk builds, not a line of `ls` output — the
+  first version checked the line, which is `kind TAB size TAB mtime TAB
+  name`, and let the climb through.
+- **An absolute member is neutralised by the archive module, not by this.**
+  `/etc/hibr-escaped.hibr` is presented with the leading slash already gone.
+  The suite asserts what actually happens and that `/etc` is untouched,
+  rather than asserting a refusal that never fires.
+
+### Where a multi-file bundle unpacks, decided by measurement
+
+The app's own file goes to `<kind>/NAME.hibr` and everything else under
+`<kind>/NAME/` — not the whole bundle into a folder. `dt_apps` makes a
+subfolder a submenu, and running it over a scratch tree with one folder-app
+in it gives `dir=[Applications/Demo]`: a one-item submenu of its own, which
+is not what anyone wants. This way the app is on the Applications menu where
+it belongs, `DT_SRC` is the app's real file so `dt_aboutinfo` reads its own
+header comment, and its resources are at `"${DT_SRC%.hibr}/"`.
+
+### Found on the way, and filed rather than worked around quietly
+
+**`json emit` prints and binds nothing** (Gitea #167). `json get` honours
+`:=` — it fills the slot, stays quiet when one is bound, and sets `RET` —
+and `emit`, `keys`, `len` and `type` do none of that. So `j := json emit M`
+wrote the manager's state to *standard output* and left `j` empty, which is
+the trap this project already records about `:=` before 0.99.89 wearing a
+different hat. `examples/apps.hibr` uses `$(json emit …)` with a comment
+naming the ticket; one fork per install is nothing.
+
+### What is the second half
+
+The desktop window, the Applications desktop icon, and the `hibr-apps`
+repository itself. The repository is the owner's to create — it is a public
+thing with their name on it — and the index URL already points where it will
+be, with "the index could not be fetched" as one line naming the address
+rather than a stack of whatever the HTTP client thought.
+
+`tests/appmgr.py` is 29 checks against `tests/davserve.py --auth none`
+serving a folder: a fifth stand-in server was not needed, and every bundle
+the index describes is built in the suite with Python's own `tarfile` and
+`hashlib`, so our own writer is never on both sides of a check.
+
 ## 0.99.129
 
 **The menu bar is in a pane, and an app can put an item on it** (Gitea #161

@@ -268,10 +268,15 @@ install: all
 	sed 's|@SHAREDIR@|$(SHAREDIR)|' tools/vw-launcher.in \
 		> $(DESTDIR)$(PREFIX)/bin/vw
 	chmod 755 $(DESTDIR)$(PREFIX)/bin/vw
+	install -m 644 examples/apps.hibr $(DESTDIR)$(SHAREDIR)/apps.hibr
+	sed 's|@SHAREDIR@|$(SHAREDIR)|' tools/apps-launcher.in \
+		> $(DESTDIR)$(PREFIX)/bin/apps
+	chmod 755 $(DESTDIR)$(PREFIX)/bin/apps
 
 uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/bin/hibr $(DESTDIR)$(PREFIX)/bin/desktop \
 		$(DESTDIR)$(PREFIX)/bin/vw $(DESTDIR)$(SHAREDIR)/vw.hibr \
+		$(DESTDIR)$(PREFIX)/bin/apps $(DESTDIR)$(SHAREDIR)/apps.hibr \
 		$(DESTDIR)$(MANDIR)/man1/hibr.1
 	rm -rf $(DESTDIR)$(MODDIR) $(DESTDIR)$(PREFIX)/include/hibr \
 		$(DESTDIR)$(DESKDIR)

@@ -67,7 +67,14 @@ fn dt_app(name, title, int h, int w, once = "", icon = "", fixed = "", hidden = 
 # Where apps are found: every .hibr in each of these, at any depth, in this
 # order.  The user's own folder comes first, so a file there replaces a
 # bundled app of the same name; a session adds its own folders after.
-DT_APPDIRS=("${XDG_CONFIG_HOME:-$HOME/.config}/hibr/apps")
+# Config first, then data, and the order is the whole point (ADR 0041): the
+# first list entry to claim a name wins, by the DT_SRC check below. Config is
+# what a person wrote and would back up; data is what `apps install` placed
+# and can fetch again. So ~/.config/hibr/apps/calc.hibr shadows a fetched
+# calc, which is how patching an installed app works -- copy it to your own
+# folder and edit it there -- and why an update cannot overwrite your copy.
+DT_APPDIRS=("${XDG_CONFIG_HOME:-$HOME/.config}/hibr/apps"
+	    "${XDG_DATA_HOME:-$HOME/.local/share}/hibr/apps")
 declare -gA DT_SRC
 
 # Load every app in the folders.  Each file declares itself with dt_app, so
@@ -116,7 +123,8 @@ dt_apps() {
 #
 # A flat scan, not dt_apps' recursive one: the desktop's own menu is one
 # list, and a folder of system apps would be a category inside a category.
-DT_SYSDIRS=("${XDG_CONFIG_HOME:-$HOME/.config}/hibr/system")
+DT_SYSDIRS=("${XDG_CONFIG_HOME:-$HOME/.config}/hibr/system"
+	    "${XDG_DATA_HOME:-$HOME/.local/share}/hibr/system")
 
 dt_sysapps() {
 	local d f b

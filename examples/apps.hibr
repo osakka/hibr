@@ -1,0 +1,651 @@
+#!/usr/bin/env hibr
+#
+# apps -- install, remove and update desktop applications (Gitea #159).
+#
+#   apps list [TEXT]            what the index offers, or what matches TEXT
+#   apps installed              what is installed here, and from where
+#   apps info NAME              everything the index says about one
+#   apps install NAME...        fetch, verify and place
+#   apps remove NAME...         take one away
+#   apps update [NAME...]       everything with a newer version, or these
+#   apps index [URL]            the index this fetches from, or set it
+#   apps refresh                fetch the index again now
+#
+# The shape is ADR 0041's, and that record is this program's specification:
+# **an app is a folder of plain files, and a bundle is only how it travels.**
+# Installing is placing a file where a scan already looks -- every one of the
+# desktop's five scan lists begins with a folder of the person's own and now
+# has a data folder after it, so a file you wrote shadows a fetched app of
+# the same name and an update cannot overwrite your copy.
+#
+# Three things about trust, named separately because they protect different
+# things and because claiming more than this would be a lie:
+#
+#   TLS      the identity of the *server* the index came from. Certificates
+#            are verified by default (ADR 0009); nothing here turns that off.
+#   sha256   the integrity of the *payload*. A bundle changed in transit or
+#            on a mirror is refused. This forks `sha256sum`, which the shell
+#            has no equivalent of; `--plan` already knows it only reads.
+#   nothing  the identity of the *author*. There are no signatures, and
+#            `apps info` says so in as many words rather than implying it.
+#
+# What it will not do, each refused rather than half-done: a bundle holding
+# a `.so` is refused with that word (native code has no sandbox, and root
+# loads modules only from the folder compiled in -- ADR 0016); a member whose
+# path is absolute or climbs out of its own folder is refused naming the
+# path; and an app with a window open is not removed, which it learns by
+# asking the running desktop over its own control socket.
+#
+# No C, so no module: `dav get` fetches (binary-safe to a file, unlike `dav
+# request`, which NUL-terminates its answer), `json` reads the index with its
+# types, `archive` looks inside a bundle before anything is unpacked, and
+# `mkdir`, `rm` and `mv` place it. The desktop app is a window that runs this
+# as a child, the way the Vault accessory runs `vw`, so the manager works for
+# someone who never starts the desktop.
+
+strict
+
+AP_CONF=${XDG_CONFIG_HOME:-$HOME/.config}/hibr/apps.json
+AP_DATA=${XDG_DATA_HOME:-$HOME/.local/share}/hibr
+AP_CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/hibr
+AP_INDEX=$AP_CACHE/index.json
+AP_STATE=$AP_DATA/apps.json
+# Where the index is fetched from. A raw static URL on purpose: it is a git
+# repository with a JSON index, so it can be browsed, mirrored by anyone and
+# served by any static host. Overridden by `apps index URL` or HIBR_APPS_URL.
+AP_URL_DEFAULT=https://raw.githubusercontent.com/osakka/hibr-apps/main/index.json
+AP_URL=
+# The kinds a bundle may install into, which are the desktop's own five scan
+# lists. Anything else in an app.json is refused rather than guessed at.
+AP_KINDS=(apps system control-panel control-strip savers)
+declare -gA AP_IX
+declare -gA AP_ST
+declare -gA AP_ENT
+# Set by the dav module after each request; a strict file declares it.
+DAV_CODE=
+
+# A complaint, and the status to leave with.
+fn ap_die(text, int st = 1) {
+	echo "apps: $text" >&2
+	exit "$st"
+}
+
+fn ap_say(text) {
+	echo "$text"
+}
+
+# The index's address: what was set, else the environment, else the default.
+ap_url() {
+	local -A c
+
+	[ -n "$AP_URL" ] && { ret "$AP_URL"; return 0; }
+	if [ -n "$HIBR_APPS_URL" ]; then
+		AP_URL=$HIBR_APPS_URL
+	elif [ -r "$AP_CONF" ] && json parse c < "$AP_CONF" 2> /dev/null &&
+	     [ -n "${c["url"]}" ]; then
+		AP_URL=${c["url"]}
+	else
+		AP_URL=$AP_URL_DEFAULT
+	fi
+	ret "$AP_URL"
+}
+
+# Fetch the index. Kept in the cache folder, so `list` and `info` cost
+# nothing after the first; `refresh` and every `install` fetch it again,
+# because installing against a stale index is how a sha256 mismatch gets
+# blamed on the mirror.
+fn ap_fetch(int force = 0) {
+	local u tmp
+
+	u := ap_url
+	if [ "$force" = 0 ] && [ -r "$AP_INDEX" ]; then
+		return 0
+	fi
+	need dav 2> /dev/null || ap_die "the dav module is needed to fetch the index"
+	mkdir -p "$AP_CACHE" || ap_die "cannot make $AP_CACHE"
+	tmp=$AP_INDEX.new
+	rm -f "$tmp" 2> /dev/null
+	if ! dav get "$u" "$tmp" 2> /dev/null; then
+		rm -f "$tmp" 2> /dev/null
+		ap_die "$u: the index could not be fetched${DAV_CODE:+ ($DAV_CODE)}"
+	fi
+	mv -f "$tmp" "$AP_INDEX" || ap_die "cannot put the index in place"
+	return 0
+}
+
+# The index, parsed. Its shape is one object per app under "apps", keyed by
+# name, which is what makes a lookup a lookup rather than a walk.
+fn ap_load(int force = 0) {
+	ap_fetch "$force"
+	[ "${#AP_IX[@]}" -gt 0 ] && [ "$force" = 0 ] && return 0
+	AP_IX=()
+	json parse AP_IX < "$AP_INDEX" 2> /dev/null ||
+		ap_die "$AP_INDEX does not parse as JSON"
+	# Counted, not asked with ${..+x}: an entry that holds only a map is
+	# not "set" by that test, which is a trap CLAUDE.md records in as many
+	# words -- and every entry here holds only a map.
+	[ "${#AP_IX["apps"][@]}" -gt 0 ] ||
+		ap_die "the index has no apps in it"
+	return 0
+}
+
+# What is installed here, as name -> version/kind/where, kept beside the
+# files rather than derived from them: a folder on disk cannot say which
+# version it is or which index it came from.
+ap_state() {
+	AP_ST=()
+	[ -r "$AP_STATE" ] || return 0
+	json parse AP_ST < "$AP_STATE" 2> /dev/null || AP_ST=()
+	return 0
+}
+
+# $( ) rather than `:=`, and the reason is a gap rather than a preference:
+# `json get` fills the result slot and stays quiet when one is bound, and
+# `json emit` does neither -- it prints, always. So `j := json emit AP_ST`
+# binds nothing and writes the state to standard output instead of the file,
+# which is what it did here. Gitea #167; one fork per install or removal is
+# nothing, and this comment goes when that is fixed.
+ap_statesave() {
+	local j
+
+	mkdir -p "$AP_DATA" || ap_die "cannot make $AP_DATA"
+	j=$(json emit AP_ST) || ap_die "cannot emit the state"
+	printf '%s\n' "$j" > "$AP_STATE" || ap_die "cannot write $AP_STATE"
+	return 0
+}
+
+# One app's entry from the index, into AP_ENT; fails when there is no such
+# app, which every verb reports in its own words.
+fn ap_entry(name) {
+	AP_ENT=()
+	[ "${#AP_IX["apps"]["$name"][@]}" -gt 0 ] || return 1
+	AP_ENT["name"]=$name
+	local k
+	for k in title version about author licence hibr abi bundle sha256 kind modules; do
+		AP_ENT["$k"]=${AP_IX["apps"]["$name"]["$k"]}
+	done
+	[ -n "${AP_ENT["kind"]}" ] || AP_ENT["kind"]=apps
+	return 0
+}
+
+# Is this one of the five kinds a bundle may install into?
+fn ap_kindok(kind) {
+	local k
+
+	for k in "${AP_KINDS[@]}"; do
+		[ "$k" = "$kind" ] && return 0
+	done
+	return 1
+}
+
+# Where an app's own file goes, and where its folder of resources does.
+fn ap_dest(kind, name) {
+	ret "$AP_DATA/$kind/$name.hibr"
+}
+
+fn ap_destdir(kind, name) {
+	ret "$AP_DATA/$kind/$name"
+}
+
+# Every member of an open archive, depth first, as "kind<TAB>path" lines in
+# AP_MEM. `archive ls` lists one folder at a time -- it is a folder view of a
+# tarball, not a flat listing -- and it *implies* a folder the tarball never
+# declared from its members' names. Which is also how a member called
+# `../escaped.hibr` arrives: as a folder named `..` at the top level, with
+# the file inside it. So the path a check sees has to be the one this walk
+# builds, not a line of `archive ls` output, which is
+# `kind TAB size TAB mtime TAB name`.
+AP_MEM=()
+fn ap_walk(nm, prefix = "", int depth = 0) {
+	local l kind size mt name path
+
+	[ "$depth" -lt 16 ] ||
+		ap_die "the bundle nests folders deeper than 16, which nothing needs"
+	if [ -n "$prefix" ]; then
+		l=$(archive ls "$nm" "$prefix" 2> /dev/null) || return 0
+	else
+		l=$(archive ls "$nm" 2> /dev/null) || return 0
+	fi
+	while IFS=$'\t' read -r kind size mt name; do
+		[ -n "$name" ] || continue
+		path=${prefix:+$prefix/}$name
+		AP_MEM+=("$kind	$path")
+		[ "$kind" = d ] && ap_walk "$nm" "$path" $((depth + 1))
+	done <<< "$l"
+	return 0
+}
+
+# A member path from a bundle somebody else made, checked before anything is
+# written. This is the one security boundary in this program: a bundle that
+# can write outside its own folder can write anywhere this runs. Absolute
+# paths, any `..` component and an empty name are refused, each naming the
+# path -- and a `.so` anywhere in the tree is refused with that word, since
+# native code has no sandbox of any kind and is a different class of risk
+# from a script a person can read (ADR 0041, ADR 0016).
+fn ap_pathok(p) {
+	local part
+	local -a parts
+
+	case $p in
+	"" | /*) return 1 ;;
+	*.so | *.so.*) return 1 ;;
+	esac
+	IFS=/ read -ra parts <<< "$p"
+	for part in "${parts[@]}"; do
+		case $part in
+		.. ) return 1 ;;
+		esac
+	done
+	return 0
+}
+
+# The sha256 of a file. Forks sha256sum: the shell has no hash of its own,
+# and this is the seam signing would later use.
+fn ap_sha(path) {
+	local line h
+
+	line=$(command sha256sum "$path" 2> /dev/null) ||
+		ap_die "sha256sum is needed to verify a bundle"
+	h=${line%% *}
+	[ -n "$h" ] || ap_die "$path: sha256sum said nothing"
+	ret "$h"
+}
+
+# Which windows a running desktop has open for this app, as a count and
+# their titles. Nothing open, or no desktop at all, is zero -- asked over
+# the desktop's own control socket rather than guessed, because somebody
+# running `apps remove` from a terminal inside the desktop is exactly who
+# this protects (ADR 0041, item 9).
+fn ap_windows(name) {
+	local out t n=0
+	local -A w
+	local i
+
+	command -v desktop > /dev/null || { ret 0; return 0; }
+	out=$(command desktop ctl windows 2> /dev/null) || { ret 0; return 0; }
+	json parse w <<< "$out" 2> /dev/null || { ret 0; return 0; }
+	i=0
+	while [ "$i" -lt "${#w["windows"][@]}" ]; do
+		if [ "${w["windows"][$i]["app"]}" = "$name" ]; then
+			n=$((n + 1))
+			t="$t${t:+, }${w["windows"][$i]["title"]}"
+		fi
+		i=$((i + 1))
+	done
+	AP_WINS=$t
+	ret "$n"
+}
+AP_WINS=
+
+# --- the verbs ------------------------------------------------------------
+
+fn ap_list(want = "") {
+	local name n=0 v
+
+	ap_load
+	ap_state
+	for name in "${!AP_IX["apps"][@]}"; do
+		ap_entry "$name" || continue
+		if [ -n "$want" ]; then
+			case ${AP_ENT["name"]}${AP_ENT["title"]}${AP_ENT["about"]} in
+			*"$want"*) ;;
+			*) continue ;;
+			esac
+		fi
+		v=${AP_ST["installed"]["$name"]["version"]}
+		if [ -n "$v" ]; then
+			if [ "$v" = "${AP_ENT["version"]}" ]; then
+				v="installed"
+			else
+				v="installed $v, ${AP_ENT["version"]} available"
+			fi
+		else
+			v=${AP_ENT["version"]}
+		fi
+		printf '%-16s %-26s %s\n' "$name" "${AP_ENT["title"]}" "$v"
+		n=$((n + 1))
+	done
+	[ "$n" = 0 ] && ap_say "nothing in the index${want:+ matches $want}"
+	return 0
+}
+
+ap_installed() {
+	local name n=0
+
+	ap_state
+	for name in "${!AP_ST["installed"][@]}"; do
+		printf '%-16s %-10s %s\n' "$name" \
+			"${AP_ST["installed"]["$name"]["version"]}" \
+			"${AP_ST["installed"]["$name"]["kind"]}"
+		n=$((n + 1))
+	done
+	[ "$n" = 0 ] && ap_say "nothing installed"
+	return 0
+}
+
+fn ap_info(name) {
+	local u
+
+	ap_load
+	ap_state
+	ap_entry "$name" || ap_die "$name: no such app in the index"
+	u := ap_url
+	printf '%s\n' "${AP_ENT["name"]} -- ${AP_ENT["title"]}"
+	[ -n "${AP_ENT["about"]}" ] && printf '\n%s\n' "${AP_ENT["about"]}"
+	printf '\nversion   %s\n' "${AP_ENT["version"]}"
+	printf 'author    %s\n' "${AP_ENT["author"]:-not said}"
+	printf 'licence   %s\n' "${AP_ENT["licence"]:-not said}"
+	printf 'needs     hibr %s, module ABI %s%s\n' \
+		"${AP_ENT["hibr"]:-any}" "${AP_ENT["abi"]:-any}" \
+		"${AP_ENT["modules"]:+, modules: ${AP_ENT["modules"]}}"
+	printf 'kind      %s\n' "${AP_ENT["kind"]}"
+	printf 'bundle    %s\n' "${AP_ENT["bundle"]}"
+	printf 'sha256    %s\n' "${AP_ENT["sha256"]:-none given}"
+	printf 'index     %s\n' "$u"
+	[ -n "${AP_ST["installed"]["$name"]["version"]}" ] &&
+		printf 'installed %s\n' "${AP_ST["installed"]["$name"]["version"]}"
+	printf '\n%s\n' "Nothing here says who wrote this app: there are no"
+	printf '%s\n' "signatures. TLS says which server the index came from and"
+	printf '%s\n' "the sha256 says the bundle was not changed on the way."
+	return 0
+}
+
+# The bundle's address, resolved against the index's own: a relative path in
+# the index means "beside the index", which is what makes a mirror a copy of
+# one folder rather than a rewrite of every entry.
+fn ap_bundleurl(bundle) {
+	local u
+
+	case $bundle in
+	http://* | https://*) ret "$bundle"; return 0 ;;
+	esac
+	u := ap_url
+	ret "${u%/*}/$bundle"
+}
+
+# Fetch a bundle and check it against what the index said. The temporary
+# file is in the cache folder rather than /tmp: it can be large, and a
+# fetch interrupted leaves it where the next one will overwrite it.
+fn ap_getbundle(name, bundle, want) {
+	local u tmp got
+
+	u := ap_bundleurl "$bundle"
+	mkdir -p "$AP_CACHE" || ap_die "cannot make $AP_CACHE"
+	tmp="$AP_CACHE/$name.part"
+	rm -f "$tmp" 2> /dev/null
+	need dav 2> /dev/null || ap_die "the dav module is needed to fetch a bundle"
+	dav get "$u" "$tmp" 2> /dev/null ||
+		ap_die "$u: could not be fetched${DAV_CODE:+ ($DAV_CODE)}"
+	if [ -z "$want" ]; then
+		rm -f "$tmp" 2> /dev/null
+		ap_die "$name: the index gives no sha256, so the bundle cannot be verified"
+	fi
+	got := ap_sha "$tmp"
+	if [ "$got" != "$want" ]; then
+		rm -f "$tmp" 2> /dev/null
+		ap_die "$name: the bundle is not what the index describes
+  the index says $want
+  what arrived is $got
+Refused. A bundle that does not match was changed in transit or on a mirror."
+	fi
+	ret "$tmp"
+}
+
+# Place a single-file bundle: the app itself, which is most apps.
+fn ap_putone(kind, name, src) {
+	local dest
+
+	dest := ap_dest "$kind" "$name"
+	mkdir -p "$AP_DATA/$kind" || ap_die "cannot make $AP_DATA/$kind"
+	mv -f "$src" "$dest" || ap_die "cannot put $dest in place"
+	ap_say "installed $name as $dest"
+	return 0
+}
+
+# Place a tarball: every member read out of it and written as a plain file,
+# because `source` cannot read a scheme -- an app's own code has to be a
+# file on disk, which is the measurement ADR 0041 turns on.
+#
+# The app's own file goes to <kind>/NAME.hibr and everything else under
+# <kind>/NAME/, rather than the whole bundle into a folder. Measured, not
+# chosen by taste: dt_apps makes a subfolder a submenu, so a one-file app in
+# apps/NAME/ would hang under an "Applications > NAME" submenu of its own
+# with one item in it. This way the app is on the Applications menu where it
+# belongs, DT_SRC is the app's real file so dt_aboutinfo reads its own
+# header comment, and its resources are at "${DT_SRC%.hibr}/".
+fn ap_puttar(kind, name, src) {
+	local l k path app= dest dir n=0 j
+	local -A m
+
+	need archive 2> /dev/null || ap_die "the archive module is needed to unpack a bundle"
+	archive open ap "$src" 2> /dev/null ||
+		ap_die "$name: the bundle does not open as a tarball"
+	AP_MEM=()
+	ap_walk ap
+	archive close ap
+	[ "${#AP_MEM[@]}" -gt 0 ] || {
+		rm -f "$src" 2> /dev/null
+		ap_die "$name: the bundle is empty"
+	}
+	# Every member checked before anything is written, and the whole
+	# bundle refused rather than the bad member skipped: a bundle with one
+	# hostile path in it is not a bundle to install the rest of.
+	for l in "${AP_MEM[@]}"; do
+		k=${l%%	*}
+		path=${l#*	}
+		if [ "$k" = l ]; then
+			rm -f "$src" 2> /dev/null
+			ap_die "$name: the bundle holds a symbolic link, $path
+Refused. A link in a bundle can point anywhere on this machine."
+		fi
+		ap_pathok "$path" && continue
+		rm -f "$src" 2> /dev/null
+		case $path in
+		*.so | *.so.*)
+			ap_die "$name: the bundle holds a module, $path
+Refused. A .so is native code with no sandbox of any kind, and root loads
+modules only from the folder compiled into the binary (ADR 0016)." ;;
+		esac
+		ap_die "$name: the bundle holds $path, which is outside its own folder
+Refused. A member path may not be absolute and may not climb with '..'."
+	done
+	archive open ap "$src" 2> /dev/null ||
+		ap_die "$name: the bundle does not open as a tarball"
+	# Which file is the app: what app.json says, else NAME.hibr, else the
+	# only .hibr there is. The index has no business knowing a bundle's
+	# own layout, which is why this is read from inside it.
+	if j=$(archive cat ap app.json 2> /dev/null) &&
+	   json parse m <<< "$j" 2> /dev/null; then
+		app=${m["app"]}
+		[ -n "${m["kind"]}" ] && kind=${m["kind"]}
+	fi
+	if [ -z "$app" ]; then
+		for l in "${AP_MEM[@]}"; do
+			[ "${l#*	}" = "$name.hibr" ] && app=$name.hibr
+		done
+	fi
+	if [ -z "$app" ]; then
+		for l in "${AP_MEM[@]}"; do
+			path=${l#*	}
+			case $path in
+			*.hibr) if [ -z "$app" ]; then app=$path; else app=; break; fi ;;
+			esac
+		done
+	fi
+	if ! ap_kindok "$kind"; then
+		archive close ap
+		rm -f "$src" 2> /dev/null
+		ap_die "$name: $kind is not a kind an app installs into"
+	fi
+	if [ -z "$app" ]; then
+		archive close ap
+		rm -f "$src" 2> /dev/null
+		ap_die "$name: the bundle does not say which file is the app, and holds no $name.hibr"
+	fi
+	dest := ap_dest "$kind" "$name"
+	dir := ap_destdir "$kind" "$name"
+	mkdir -p "$AP_DATA/$kind" || ap_die "cannot make $AP_DATA/$kind"
+	rm -rf "$dir" 2> /dev/null
+	for l in "${AP_MEM[@]}"; do
+		k=${l%%	*}
+		path=${l#*	}
+		[ "$path" = "app.json" ] && continue
+		if [ "$k" = d ]; then
+			mkdir -p "$dir/$path" || ap_die "cannot make $dir/$path"
+			continue
+		fi
+		if [ "$path" = "$app" ]; then
+			archive cat ap "$path" > "$dest" ||
+				ap_die "cannot write $dest"
+			continue
+		fi
+		case $path in
+		*/*) mkdir -p "$dir/${path%/*}" ||
+			ap_die "cannot make $dir/${path%/*}" ;;
+		*) mkdir -p "$dir" || ap_die "cannot make $dir" ;;
+		esac
+		archive cat ap "$path" > "$dir/$path" ||
+			ap_die "cannot write $dir/$path"
+		n=$((n + 1))
+	done
+	archive close ap
+	rm -f "$src" 2> /dev/null
+	# A bundle of only the app leaves no folder behind to confuse anyone.
+	[ "$n" = 0 ] && rm -rf "$dir" 2> /dev/null
+	if [ "$n" = 0 ]; then
+		ap_say "installed $name as $dest"
+	else
+		ap_say "installed $name as $dest, with $n file(s) in $dir"
+	fi
+	return 0
+}
+
+fn ap_install(...names) {
+	local name tmp kind
+
+	[ "${#names[@]}" -gt 0 ] || ap_die "usage: apps install NAME..."
+	# The index again, always: installing against a stale one is how a
+	# sha256 mismatch gets blamed on the mirror.
+	ap_load 1
+	ap_state
+	for name in "${names[@]}"; do
+		ap_entry "$name" || ap_die "$name: no such app in the index"
+		kind=${AP_ENT["kind"]}
+		ap_kindok "$kind" ||
+			ap_die "$name: the index says kind $kind, which is not one an app installs into"
+		tmp := ap_getbundle "$name" "${AP_ENT["bundle"]}" "${AP_ENT["sha256"]}"
+		case ${AP_ENT["bundle"]} in
+		*.hibr) ap_putone "$kind" "$name" "$tmp" ;;
+		*) ap_puttar "$kind" "$name" "$tmp" ;;
+		esac
+		AP_ST["installed"]["$name"]["version"]=${AP_ENT["version"]}
+		AP_ST["installed"]["$name"]["kind"]=$kind
+		AP_ST["installed"]["$name"]["sha256"]=${AP_ENT["sha256"]}
+		ap_statesave
+	done
+	return 0
+}
+
+fn ap_remove(...names) {
+	local name kind dest dir n force=0
+	local -a want
+
+	for name in "${names[@]}"; do
+		case $name in
+		-f | --force) force=1 ;;
+		*) want+=("$name") ;;
+		esac
+	done
+	[ "${#want[@]}" -gt 0 ] || ap_die "usage: apps remove [-f] NAME..."
+	ap_state
+	for name in "${want[@]}"; do
+		kind=${AP_ST["installed"]["$name"]["kind"]}
+		[ -n "$kind" ] || ap_die "$name: not installed here"
+		n := ap_windows "$name"
+		if [ "$n" -gt 0 ] && [ "$force" = 0 ]; then
+			ap_die "$name: $n window(s) of it are open ($AP_WINS)
+Close them first, or `apps remove -f $name`. Removing it frees the folder
+its code is read from, and the desktop would be left calling functions with
+nothing behind them."
+		fi
+		dest := ap_dest "$kind" "$name"
+		dir := ap_destdir "$kind" "$name"
+		rm -f "$dest" 2> /dev/null
+		rm -rf "$dir" 2> /dev/null
+		unset AP_ST["installed"]["$name"]
+		ap_statesave
+		ap_say "removed $name"
+	done
+	return 0
+}
+
+fn ap_update(...names) {
+	local name n=0
+	local -a want
+
+	ap_load 1
+	ap_state
+	if [ "${#names[@]}" -gt 0 ]; then
+		want=("${names[@]}")
+	else
+		for name in "${!AP_ST["installed"][@]}"; do want+=("$name"); done
+	fi
+	for name in "${want[@]}"; do
+		[ -n "${AP_ST["installed"]["$name"]["kind"]}" ] ||
+			ap_die "$name: not installed here"
+		ap_entry "$name" || ap_die "$name: no such app in the index"
+		if [ "${AP_ENT["version"]}" = "${AP_ST["installed"]["$name"]["version"]}" ]; then
+			continue
+		fi
+		ap_say "$name: ${AP_ST["installed"]["$name"]["version"]} -> ${AP_ENT["version"]}"
+		ap_install "$name"
+		n=$((n + 1))
+	done
+	[ "$n" = 0 ] && ap_say "everything is up to date"
+	return 0
+}
+
+fn ap_setindex(url = "") {
+	local u
+	local -A c
+
+	if [ -z "$url" ]; then
+		u := ap_url
+		ap_say "$u"
+		return 0
+	fi
+	case $url in
+	https://*) ;;
+	http://*)
+		echo "apps: $url is not https, so nothing says which server answered" >&2
+		;;
+	*) ap_die "$url: an index is an http:// or https:// address" ;;
+	esac
+	mkdir -p "${AP_CONF%/*}" || ap_die "cannot make ${AP_CONF%/*}"
+	c["url"]=$url
+	local j
+	j=$(json emit c) || ap_die "cannot emit the setting"
+	printf '%s\n' "$j" > "$AP_CONF" || ap_die "cannot write $AP_CONF"
+	AP_URL=$url
+	rm -f "$AP_INDEX" 2> /dev/null
+	ap_say "the index is $url"
+	return 0
+}
+
+ap_usage() {
+	echo "usage: apps list [TEXT] | installed | info NAME | install NAME... |" >&2
+	echo "       remove [-f] NAME... | update [NAME...] | index [URL] | refresh" >&2
+	exit 2
+}
+
+case ${1-} in
+list) shift; ap_list "${1-}" ;;
+installed) ap_installed ;;
+info) [ -n "${2-}" ] || ap_usage; ap_info "$2" ;;
+install) shift; ap_install "$@" ;;
+remove | uninstall) shift; ap_remove "$@" ;;
+update | upgrade) shift; ap_update "$@" ;;
+index) ap_setindex "${2-}" ;;
+refresh) ap_load 1; ap_say "the index is up to date" ;;
+*) ap_usage ;;
+esac

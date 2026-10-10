@@ -14,7 +14,8 @@ strict
 # the real Control Strip sat at the bottom and only ever slid left and
 # right along it; this one docks to either side and slides up and down
 # instead, a deliberate choice over period accuracy.
-CS_MODDIRS=("${XDG_CONFIG_HOME:-$HOME/.config}/hibr/control-strip")
+CS_MODDIRS=("${XDG_CONFIG_HOME:-$HOME/.config}/hibr/control-strip"
+	    "${XDG_DATA_HOME:-$HOME/.local/share}/hibr/control-strip")
 declare -gA CS_MODS
 CS_MOD_LIST=()
 # Every module loaded, in file order; CS_MOD_LIST is the ones shown now --
