@@ -924,6 +924,48 @@ went in the shell.
   alone. `run(..., until=...)` waits for text, or for a function given the
   screen, before quitting. Anything that reads what a program printed wants
   it.
+- **A check that compares glyphs across two snapshots seconds apart must pin
+  the clock; one that compares pens is immune, and that asymmetry is the
+  tell.** `orpath` and `dragsteps` pin the bar's clock with `DT_BARTIME` and
+  say why; the note-overlay check in the same file never did, and it failed a
+  release gate at **584 of 585** with the other forty suites green and nothing
+  in that release able to reach it -- the session loads no apps at all. What
+  named it was the pair: the glyph comparison failed and the pen comparison
+  beside it passed, because a minute turning is `13:58` against `13:59`, one
+  glyph and no colour. Run **before** calling it a flake, which this file's own
+  rule demands: starting the run so the boundary falls between the two
+  snapshots differed on **4 of 4**, every time in row 0 at columns 61-64, and
+  was clean on **3 of 3** with the clock pinned. The bare-window shadow check
+  two screens down compares `leftp == drew.p` and needs nothing, which is why
+  only one of the two was ever exposed. So the rule is not "an oracle pins the
+  clock" -- it is that anything changing on its own has to be pinned out of a
+  *glyph* comparison, and the cheap way to tell whether a check is exposed is
+  to ask which of the two it reads.
+- **A column that cannot show its content may be a column with cut content,
+  not a narrow column.** Task Manager's Name column had always sized itself
+  to whatever the window left over, and every long name still read cut --
+  because on Linux the scan reads `/proc/<pid>/stat`, whose `comm` the kernel
+  keeps in `TASK_COMM_LEN`, so `systemd-journald` is *stored* as
+  `systemd-journal` (Gitea #171). Reported as "the name field does not
+  expand", which is the shape worth remembering: **when a width complaint
+  survives widening the window, measure the data before touching the
+  layout.** `argv[0]` has the rest, asked for in the **scan** and not in the
+  drawing, or sorting by a column disagrees with what the column shows --
+  and asked for only when `argv[0]`'s basename *extends* what comm gave,
+  because a process may rename its own argv (this shell does, for every part
+  of the desktop): a window's comm is `term:Terminal:1` against an argv of
+  `desktop [Terminal 104]`, and without that guard the row reads
+  `desktop [Terminal 104]`, a name from one string under a heading built from
+  another. macOS never had it, since `ps -axo comm=` answers a full path.
+  Two things fell out of fixing it. **Sizing a second column to its content
+  takes the room from the first**: Owner growing to fit `systemd-network`
+  took seven of Name's fifteen columns and made the default window worse than
+  before the fix, so the column that has something to say needs a floor
+  (`TK_NAMEMIN`, comm's own 15 -- never show less than the kernel would have)
+  and the other gives its content width back below it. And **the default
+  window was the one place the fix could not be seen**: at `16 50`, `namew`
+  worked out to exactly 15, the width comm had already cut the names to. A
+  release whose point is longer names has to open a window that can show one.
 - **A process has two names, and they are different lengths on purpose.**
   `pt_rename(short, long)`: the **argv region** is what `ps` reads and is as
   long as the command line it overwrites, so the readable sentence goes

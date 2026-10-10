@@ -1,5 +1,101 @@
 # Changelog
 
+## 0.99.133
+
+**Task Manager showed every long process name cut to fifteen characters**
+(Gitea #171), reported as *"the name field does not expand when we expand
+the window, and all the names are cut short, shouldn't that be the only
+field that expands?"*
+
+Half of that reads as one bug and is another. **The Name column does
+expand** — `namew` is worked out from the window's width on every frame, and
+Name already took all the slack, since PID sizes to the widest pid and
+Owner, CPU and Mem were fixed at 8, 6 and 7. **What did not expand is the
+names.** On Linux the scan reads `/proc/<pid>/stat`, whose `comm` the kernel
+keeps in `TASK_COMM_LEN` — 16 bytes, 15 usable — so the data was cut before
+Task Manager ever saw it:
+
+```text
+pid 50  comm=systemd-journal  cmdline=/lib/systemd/systemd-journald
+pid 110 comm=systemd-network  cmdline=/lib/systemd/systemd-networkd
+pid 142 comm=blit-update-hel  cmdline=/usr/lib/blit/bin/blit-update-helper
+```
+
+14 of 59 processes on this machine sit on that limit. It is the same
+constant 0.99.131 was about, read the other way round: that release was
+about writing a name that fits fifteen bytes, this one about reading one
+that did not. macOS was never affected — `ps -axo comm=` answers the
+executable's full path, which that scan already takes a basename of.
+
+`tasks_fullname` asks `argv[0]` for the rest, in the **scan** rather than in
+the drawing, so that sorting by Name agrees with what Name shows. One extra
+read for the processes at the limit alone, not one per process.
+
+**It answers only when `argv[0]` extends what comm gave**, and that is not
+caution for its own sake: a process may rename its own argv — this shell
+does, for every part of the desktop — so `argv[0]` can name something else
+entirely. A terminal window's comm is `term:Terminal:1`, cut from
+`term:Terminal:104`, against an argv of `desktop [Terminal 104]`; taking
+that would put a name from one string under a heading built from another.
+Measured with the guard removed: `comm=term:Terminal:1
+full=desktop [Terminal 104]`. The same test leaves a genuinely
+fifteen-character name alone, which is the other thing this cannot tell
+apart from a cut one.
+
+### Owner sizes to its content, with a ceiling
+
+It was fixed at 8, so `systemd-network` read as `systemd-` at every window
+width with nothing to say it had been cut. It now grows to the widest owner
+in the list — the rule PID already used — measured over the whole list
+rather than the rows on screen, so the column does not change width under
+you as you scroll, and `TK_OWNERMAX` caps it.
+
+**16 is not a round number.** It is the widest account on a standard systemd
+machine (`systemd-timesync`; next is `systemd-network` at 15, and nothing
+else in `/etc/passwd` here reaches 11), so every real owner fits and the
+ellipsis is for the genuinely unusual rather than for every service.
+
+And **Name has a floor**, because sizing Owner to its content took seven
+columns off a Name column that only had fifteen — making the default window
+worse than before, which is how a layout change pays for itself with the
+thing it was meant to fix. `TK_NAMEMIN` is 15: comm's own usable length, so
+Name is never squeezed below what the kernel would have handed us anyway.
+Below that, Owner gives its content width back, down to the 8 it used to be
+fixed at and no further.
+
+### The default window was the one place the fix could not be seen
+
+`dt_app tasks "Task Manager" 16 50` gave `_draw` a width of 48, so `namew`
+was `48 - 6 - 8 - 19` = **15** — exactly what comm had already cut the names
+to. The one place the names are read had no room for them. It opens at 64
+now, which leaves Name 21 columns beside a sized Owner and still fits an
+80-column terminal.
+
+### A gate failure that was the clock, and the rule it sharpens
+
+Gating this release failed one check of 585 — *"a note drawn over the
+screen leaves nothing of itself when it goes"* — with the other forty
+suites green and nothing in this release able to reach it: that session
+loads no apps, so `tasks.hibr` is never sourced.
+
+The tell was in the pair. Glyphs differed and the pen check beside it
+passed, which is the signature this file already records for `orpath` and
+`dragsteps`: the two snapshots are a second or three apart, a minute turns
+between them, and `13:58` meets `13:59`. Those two Terms pin the clock with
+`DT_BARTIME`; this one never did.
+
+Reproduced on demand rather than called a flake, by starting the run so the
+boundary falls between the two snapshots: **4 runs out of 4 differed**,
+every one in row 0 at columns 61-64, and **3 of 3 were clean** with the
+clock pinned.
+
+The neighbouring bare-window check needs no pin, and that is the whole
+tell: it compares **pens alone**, and a clock digit is a glyph with no
+colour of its own. So the rule is not "oracles pin the clock" but
+**a check comparing glyphs across two snapshots taken seconds apart has to
+pin anything that changes on its own** — and one comparing pens is immune,
+which is why only one of the two ever failed.
+
 ## 0.99.132
 
 **A right-click drew its menu and last frame's menus beside it** (Gitea

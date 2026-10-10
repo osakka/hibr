@@ -301,7 +301,18 @@ open(overpath, "w").write(
     "%s. %s\ndt_open\n%s\ndt_run\ndt_close\n"
     % (load(MOD), WM, ORCFN + 'dt_new "Alone" 8 24 3 50 orc\n'
                               'dt_new "Apart" 8 24 13 4 orc\n'))
-ovt = Term(overpath, env={"DT_TICK": "60", "DT_NOTEMS": "700"}, rows=ROWS,
+# DT_BARTIME pins the bar's clock, for the reason orpath and dragsteps
+# already pin theirs and this one did not: the two snapshots are a second or
+# three apart, so a minute can turn between them and 13:58 meets 13:59 --
+# **one glyph, no pen**. It failed a release gate at 584/585 with everything
+# else green, and it reproduces on demand by starting the run so the
+# boundary falls between the two: 4 runs out of 4 differed, every one of
+# them in row 0 at columns 61-64, and 3 of 3 were clean with the clock
+# pinned. The bare-window check below needs no pin because it compares pens
+# alone, which is the whole tell -- a check that compares glyphs across two
+# snapshots taken seconds apart has to pin anything that changes on its own.
+ovt = Term(overpath, env={"DT_TICK": "60", "DT_NOTEMS": "700",
+                          "DT_BARTIME": "hibr"}, rows=ROWS,
            cols=COLS, settle=0.6)
 # The note's own life is DT_NOTEMS, so this used to wait 1.6s for a 700ms
 # note -- twice its life, ample on a quiet box and not ample under a gate,

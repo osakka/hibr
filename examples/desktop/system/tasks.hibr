@@ -14,7 +14,12 @@ strict
 
 app tasks "What is running, and a way to end one"
 
-command -v dt_app > /dev/null && dt_app tasks "Task Manager" 16 50 once "▤"
+# 64 columns rather than the 50 it opened at until 0.99.133: the names are
+# whole now (see tasks_fullname) and 50 could not show one -- Name got 15
+# there, which is exactly what comm had already cut them to, so the default
+# window was the one place the fix could not be seen. 64 leaves Name 21
+# columns beside a sized Owner, and still fits an 80-column terminal.
+command -v dt_app > /dev/null && dt_app tasks "Task Manager" 16 64 once "▤"
 
 # A small read-only window for one process's own details -- opened
 # directly on the row a right-click landed on, the same way Get Info
@@ -180,6 +185,26 @@ TK_SORTBY="${TK_SORTBY-cpu}"
 TK_SORTDIR="${TK_SORTDIR-desc}"
 TK_BAR="${TK_BAR-1}"
 TK_COLS=(pid name owner cpu mem)
+
+# How wide the Owner column may grow. It sizes to the widest owner in the
+# list, the way PID sizes to the widest pid, so a service account is not
+# shown as `systemd-` -- but a column that sizes to its content with no
+# ceiling hands one pathological name the room Name needs, and Name is the
+# column with something to say. 16 is not a round number: it is the widest
+# account on a standard systemd machine (`systemd-timesync`; the next is
+# `systemd-network` at 15, and nothing else in /etc/passwd here reaches
+# 11), so every real owner fits and the ellipsis is for the genuinely
+# unusual rather than for every service.
+TK_OWNERMAX=16
+
+# How narrow Name may be squeezed before Owner has to give its content
+# width back. 15 is comm's own usable length: a Name column narrower than
+# that shows less of a name than the kernel would have handed us anyway,
+# so letting Owner take it would undo the very thing this column exists
+# for. At the default window width that keeps Owner at the 8 it was fixed
+# at and Name at the 15 it had, so nothing is worse than before; every
+# column past that goes to Name first.
+TK_NAMEMIN=15
 
 # Whose processes the list shows: everyone's, only this user's own, or only
 # this desktop's -- the desktop process and everything descended from it,
@@ -373,6 +398,32 @@ fn tasks_filtercycle(int? id = "") {
 	return 0
 }
 
+# The program's own name for a process whose comm the kernel has cut.
+#
+# /proc/<pid>/stat carries comm, which lives in TASK_COMM_LEN -- 16 bytes,
+# 15 usable -- so `systemd-journald` is *stored* as `systemd-journal` and no
+# column width can bring the rest back. argv[0] has the whole thing and its
+# basename is the program. macOS needs none of this: `ps -axo comm=` answers
+# the executable's full path, which the scan there already takes a basename
+# of.
+#
+# Answered only when it **extends** what we have. A process may rewrite its
+# own argv -- this shell does, for every part of the desktop -- so argv[0]
+# can name something else entirely: a window's comm is `term:Terminal:1`,
+# cut from `term:Terminal:104`, against an argv of `desktop [Terminal 104]`,
+# and taking that would put a name from one string under a heading built
+# from another. The same test leaves a genuinely 15-character name alone,
+# which is the other thing this cannot tell apart from a cut one.
+fn tasks_fullname(int pid, nm) {
+	local a
+
+	read -r -d '' a 2> /dev/null < "/proc/$pid/cmdline"
+	a=${a##*/}
+	[ -z "$a" ] && { ret "$nm"; return 0; }
+	case $a in "$nm"?*) ret "$a"; return 0 ;; esac
+	ret "$nm"
+}
+
 fn tasks_scan_ps(int? id = "") {
 	local pid rss pcpu user comm line n=0
 
@@ -416,6 +467,12 @@ fn tasks_scan(int id) {
 		times := tasks_times "$pid" || continue
 		read -r u s name <<< "$times"
 		[ -z "$name" ] && continue
+		# A name sitting exactly on comm's limit has almost certainly
+		# been cut, so ask argv[0] for the rest. One extra read for
+		# those alone -- 14 of 59 processes here -- not one per
+		# process, and it is done in the scan rather than in the draw
+		# so that sorting by Name agrees with what Name shows.
+		[ ${#name} -ge 15 ] && name := tasks_fullname "$pid" "$name"
 		uidrss := tasks_uidrss "$pid"
 		read -r uid rss <<< "$uidrss"
 		pct=0
@@ -586,7 +643,7 @@ fn tasks_cmdline(int pid) {
 fn tasks_draw(int id, int h, int w, int row, int col) {
 	local i r t n vis top sel by dir now full mk
 	local lp ln lo lc lm
-	local pidw=6 ownerw=8 owner pidtxt namew cpu mem line pl
+	local pidw=6 ownerw=8 owner pidtxt namew cpu mem line pl ow
 	local showgraph=1 graphh=2 leftw rightw lbl spark
 
 	now := dt_ms
@@ -614,13 +671,31 @@ fn tasks_draw(int id, int h, int w, int row, int col) {
 	# case costs nothing extra (this is a length check per already-
 	# scanned entry, not another scan) and only a genuinely wide pid
 	# grows the column at all.
+	# Owner is measured in the same pass and on the same rule, because a
+	# fixed 8 showed `systemd-network` as `systemd-` whatever the window's
+	# width -- and it is measured over the whole list rather than the rows
+	# on screen, as pidw is, so the column does not change width under you
+	# as you scroll. TK_OWNERMAX is the ceiling, so one long account cannot
+	# take the room Name needs.
 	i=0
 	while [ "$i" -lt "$n" ]; do
 		pl=${#TK[$id][$i]["pid"]}
 		[ "$pl" -gt "$pidw" ] && pidw=$pl
+		pl=${#TK[$id][$i]["owner"]}
+		[ "$pl" -gt "$ownerw" ] && ownerw=$pl
 		i=$((i + 1))
 	done
+	[ "$ownerw" -gt "$TK_OWNERMAX" ] && ownerw=$TK_OWNERMAX
 	namew=$((w - 2 - pidw - 1 - ownerw - 1 - 6 - 1 - 7 - 1))
+	# Name is the column with something to say, so a window too narrow for
+	# both takes it out of Owner rather than out of Name -- back towards
+	# the 8 Owner used to be fixed at, and no further.
+	if [ "$namew" -lt "$TK_NAMEMIN" ] && [ "$ownerw" -gt 8 ]; then
+		ow=$((TK_NAMEMIN - namew))
+		[ $((ownerw - ow)) -lt 8 ] && ow=$((ownerw - 8))
+		ownerw=$((ownerw - ow))
+		namew=$((namew + ow))
+	fi
 	vis=$((h - 1 - graphh))
 	[ "$vis" -lt 1 ] && { vis=$((h - 1)); showgraph=0; }
 	TK[$id]["vis"]=$vis
@@ -675,7 +750,11 @@ fn tasks_draw(int id, int h, int w, int row, int col) {
 			[ ${#t} -gt "$namew" ] && t="${t:0:$namew}"
 			t := str pad "$t" "$namew"
 			owner=${TK[$id][$i]["owner"]}
-			[ ${#owner} -gt "$ownerw" ] && owner="${owner:0:$ownerw}"
+			ow := str width "$owner"
+			if [ "$ow" -gt "$ownerw" ]; then
+				owner := dt_cut "$owner" $((ownerw - 1))
+				owner="$owner${GL[ellipsis]}"
+			fi
 			owner := str pad "$owner" "$ownerw"
 			cpu="${TK[$id][$i]["cpu"]}%"
 			cpu := tasks_rjust "$cpu" 6

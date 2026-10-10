@@ -2969,6 +2969,55 @@ check("w shows only this user's processes, and says so in the window's "
       "title rather than leaving a short list unexplained",
       sc.find("Task Manager [Mine]") is not None, sc)
 
+# A name the kernel cut, recovered from argv[0] (#171). comm lives in
+# TASK_COMM_LEN -- 15 usable bytes -- so no column width brings the rest
+# back, and this is the scan's job rather than the drawing's so that
+# sorting by Name agrees with what Name shows. Both cases are made here
+# rather than looked for on the machine: a program with a name too long
+# for comm, and a process that has renamed its own argv, which is what
+# stops this taking a name from one string to sit under another. The
+# second is hibr wearing the very names 0.99.131 gave the desktop.
+TFULL = (
+    '. %s\n'
+    '[ "$(command uname)" = Linux ] || { echo "skip"; exit 0; }\n'
+    'd=$(command mktemp -d)\n'
+    'command cp "$(command -v sleep)" "$d/averylongprogramname"\n'
+    '"$d/averylongprogramname" 30 &\n'
+    'cut=$!\n'
+    '"$HIBR" -c \'title -s "term:Terminal:104" "desktop [Terminal 104]"\n'
+    'sleep 30\' &\n'
+    'ren=$!\n'
+    # Both children rename themselves as they start, so wait for the
+    # kernel to have the new comm rather than guessing at a delay.
+    'i=0\n'
+    'while [ "$i" -lt 100 ]; do\n'
+    '  read -r ca 2> /dev/null < "/proc/$cut/comm"\n'
+    '  read -r cr 2> /dev/null < "/proc/$ren/comm"\n'
+    '  case $ca$cr in averylong*term:*) break ;; esac\n'
+    '  sleep 0.05\n'
+    '  i=$((i + 1))\n'
+    'done\n'
+    'na := tasks_fullname "$cut" "$ca"\n'
+    'nr := tasks_fullname "$ren" "$cr"\n'
+    'echo "cut comm=$ca full=$na"\n'
+    'echo "renamed comm=$cr full=$nr"\n'
+    'kill "$cut" "$ren" 2> /dev/null\n'
+    'command rm -rf "$d"\n'
+    % (appdir("tasks") + "/tasks.hibr")
+)
+out = subprocess.run([sx.HIBR, "-c", TFULL], capture_output=True, text=True,
+                     env=dict(os.environ, HIBR=sx.HIBR,
+                              DT_ROWS="1")).stdout
+TU = dict((tfl.split()[0], dict(tfw.split("=", 1) for tfw in tfl.split()[1:]))
+          for tfl in out.splitlines() if tfl and not tfl.startswith("skip"))
+check("a name comm cut short is recovered whole from argv[0]",
+      not TU or (len(TU["cut"]["comm"]) == 15 and
+                 TU["cut"]["full"] == "averylongprogramname"), out)
+check("but a process that renamed its own argv keeps the name it reports, "
+      "rather than borrowing an unrelated one",
+      not TU or (TU["renamed"]["comm"] == "term:Terminal:1" and
+                 TU["renamed"]["full"] == "term:Terminal:1"), out)
+
 # tasks_sort carrying "owner" along with pid/name/cpu/mem is the actual
 # correctness question -- found while adding the Owner column: sorting
 # moved every other field but left owner behind at its old row index,
@@ -3968,4 +4017,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(580)
+report(582)
