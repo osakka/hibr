@@ -52,6 +52,11 @@ typedef struct tm_img tm_img;
 struct tm_img {
 	int r, c, rows, cols;
 	unsigned id;
+	/* Text is drawn over this one on purpose -- the kitty protocol's
+	   z=-1 -- so a cell written inside it is not evidence it has gone.
+	   A sixel carries no z and is paint, where writing over the cells
+	   really does remove it, so this is 0 for one. */
+	int under;
 	str data;
 };
 
@@ -121,7 +126,7 @@ struct tm_t {
 	unsigned imgen;
 	int cellw, cellh;
 	str imgb;
-	int imgr, imgc, imgrows, imgcols, imgon;
+	int imgr, imgc, imgrows, imgcols, imgon, imgunder;
 	unsigned imgid;
 };
 
@@ -181,7 +186,7 @@ void tm_bell(tm_t *t);
 void tm_imgdrop(tm_t *t, int i);
 void tm_imgclear(tm_t *t);
 void tm_imghit(tm_t *t, int r, int c);
-void tm_imgkeep(tm_t *t, int r, int c, int rows, int cols, unsigned id,
+void tm_imgkeep(tm_t *t, int r, int c, int rows, int cols, unsigned id, int under,
 		const char *p, size_t n);
 long tm_imgkey(const char *s, int k);
 int tm_imgkeyc(const char *s, int k);

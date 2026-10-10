@@ -182,6 +182,59 @@ check("a sixel goes through the same way",
       len(sc.images) == 1 and sc.images[0][:2] == (2, 2) and not sc.apc,
       (sc.images, sc.apc, log))
 
+# A picture drawn *under* the text is the wallpaper's own path, and it is the
+# one that never arrived at all (Gitea #165). The console sends it once, with
+# the kitty protocol's `z=-1` -- "below the text, for a picture text is drawn
+# over" -- and then keeps it: `cn_image` finds the same picture in the same
+# rectangle and only marks it still wanted, so there is no second
+# transmission to recover from. The emulator stored `r, c, rows, cols, id`
+# and the bytes, discarded the `z`, and `tm_imghit` then dropped the region
+# on the first cell written inside it -- which for an under-text picture is
+# every frame, since text on top of it is the entire point. So `hold` had
+# nothing kept to re-emit: zero images at the client, permanently, which is
+# what a wallpaper that is a black rectangle actually is.
+#
+# The cell written inside it is what makes this fail pre-fix: without the
+# `console put`, `tm_imghit` never runs and the picture arrives even on the
+# broken code.
+UNDER = ("console put 0 0 'HELD PICTURE HERE'\n"
+         "img draw %s 2 2 6 12 -m pixels -u\n"
+         "console put 3 3 'OVER'\n"
+         "console flush\n" % GRAD)
+
+sc, log = run(UNDER, until="OVER")
+check("a picture under the text reaches the client with text drawn over it",
+      len(sc.images) == 1 and sc.images[0][:2] == (2, 2), (sc.images, log))
+check("and that text is still text",
+      "OVER" in sc.row(3), (sc.row(3), log))
+
+# And the frame after, which is the state a desktop is actually in. A
+# settled wallpaper is not re-drawn: `dt_wallkeep` calls `img keep`, which
+# reaches `cn_imgkeep` -- it matches an under-text region by its rectangle,
+# marks it still wanted and sends nothing. So the picture the client holds
+# has to survive another frame of text being written over it with no
+# transmission to repair it, which is the case a fix that only worked on the
+# placing frame would still get wrong.
+KEEP = (UNDER + "img keep %s 2 2 6 12 -m pixels\n"
+                "console put 4 4 'SETTLED'\n"
+                "console flush\n" % GRAD)
+
+sc, log = run(KEEP, until="SETTLED")
+check("and survives a settled frame that only keeps it, text and all",
+      len(sc.images) == 1 and sc.images[0][:2] == (2, 2) and
+      "SETTLED" in sc.row(4), (sc.images, sc.row(4), log))
+
+# Sixel is paint, not an object: writing over the cells is what removes it,
+# and the console re-paints such a region itself when the cells above it
+# change (`image.c`'s retire loop, for an id-less region only). So the flag
+# above must not reach it -- a kept sixel would be re-emitted *over* the
+# text by hold's renderer, and the text would stop reading. That is the
+# failure a later tidy-up would introduce by "finishing" the flag for both
+# protocols, and this is the check that refuses it.
+sc, log = run(UNDER, gfx="sixel", until="OVER")
+check("a sixel under the text is paint, so the text over it still reads",
+      "OVER" in sc.row(3), (sc.row(3), [a[:40] for a in sc.apc], log))
+
 # A picture the text is then drawn through must never be left behind on a
 # client's screen. Which of the two a client sees depends on timing that is
 # not ours: hold renders snapshots of its emulator rather than the program's
@@ -303,4 +356,4 @@ check("a held program asking for the mouse makes its client enable reporting",
       (rawm[-200:], tm.text[-120:]))
 
 shutil.rmtree(D, True)
-report(13)
+report(17)

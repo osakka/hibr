@@ -1,5 +1,79 @@
 # Changelog
 
+## 0.99.134
+
+**A picture wallpaper never reached a held desktop, so every one of them was
+a black rectangle** (Gitea #165). Reported from a live session — *"I have a
+png wallpaper set, and I'm all kitty-d up, and I get a black screen as my
+background. This is both on my linux and mac boxes"* — and `dt_autohold`
+holds every desktop, so this was every desktop with a picture, on every
+terminal, since the wallpaper first became pixels.
+
+The report carried the measurement that found it: **the wallpaper picker's
+previews render.** A preview is `img draw … -p "w$id"`, a picture that
+*owns its cells*; the wallpaper is `-u`, drawn *under* the text. Same
+terminal, same kitty, same held session — so the difference was the
+under-text path alone, and nothing about the encoding, the protocol or the
+platform.
+
+The chain, each link read rather than guessed:
+
+1. `mods/console/kitty.c` emits the wallpaper with the protocol's **`z=-1`**
+   — its own comment, *"below the text, for a picture text is drawn over"*.
+2. `mods/console/image.c` sends that **once** and keeps the region: finding
+   the same picture in the same rectangle it only marks it still wanted,
+   *"one drawn under text is simply still wanted, which is what keeps it"*.
+   So there is no second transmission to recover from.
+3. `mods/term/img.c`'s `tm_imgkeep` stored `r, c, rows, cols, id` and the
+   bytes, and **discarded the `z`** — the one thing that says text belongs
+   on top of this picture.
+4. `tm_imghit` — *"Drop whatever covers this cell, because something has
+   just been drawn through it"* — then dropped the region on the first cell
+   written inside it. A wallpaper covers the whole screen, so the menu bar
+   alone was enough, in the very frame the picture arrived.
+5. `hold` re-emits the pictures its emulator **kept**. There were none:
+   zero APCs at the client, permanently.
+
+`tm_img` carries an `under` flag now and `tm_imghit` leaves such a region
+alone, because for a picture drawn under the text a cell written inside it
+is not evidence it has gone. Its lifetime is the one the console already
+intends and already arranges: the explicit `a=d` that `cn_imgowe` queues the
+first frame the caller stops placing it, and a clear, scroll, resize or
+reset, all of which still drop it.
+
+**Why sixel wallpapers were never affected**, which is also why this was
+never seen in the one place it could have been: `image.c`'s retire loop
+carries, for an under-text region with no id, `if (… cn_imgunder(…) !=
+above) sent = 0` — a sixel is *paint*, has no id, and is re-painted whenever
+the cells above it change. A kitty placement is an object that stays below
+the text, which is right for a real terminal and fatal through an emulator
+that throws it away. Sixel keeps exactly today's behaviour: it carries no
+`z`, reads 0, and is still dropped when drawn through.
+
+**`z` is read with `tm_imgkeyc`, never `tm_imgkey`**, and that is not a
+preference: `tm_imgkey` answers `-1` both for a key that is absent and for
+`z=-1`, which are precisely the two cases this has to tell apart. The helper
+for a letter-valued key answers the value's first character, and any
+negative `z` is below the text.
+
+No ABI move, and no `TM_API_VER` move: `hold` reaches the pictures only
+through `tm_api_image`, which copies the fields out by name and never sees
+the struct.
+
+### What the checks do
+
+Four in `tests/holdpix.py`, the one suite that drives a held program and
+counts what reaches a real client. The failing one **fails against
+0.99.133**, and the cell written inside the picture is what makes it do so:
+without that `console put`, `tm_imghit` never runs and the picture arrives
+even on the broken code. The settled frame is checked separately, because
+that is the state a desktop is actually in — `dt_wallkeep` calls `img keep`,
+which marks the region wanted and sends nothing, so the client's copy has to
+survive another frame of text with no transmission to repair it. And a sixel
+under the text is checked to still be paint: a kept one would be re-emitted
+*over* the text and the text would stop reading, which is the failure a
+later tidy-up would introduce by "finishing" the flag for both protocols.
+
 ## 0.99.133
 
 **Task Manager showed every long process name cut to fifteen characters**

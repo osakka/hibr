@@ -2465,18 +2465,39 @@ went in the shell.
   0.99.96) and re-sent to every attaching client. `tests/media.py` checks a
   film's frame is still raw and `tests/kitgfx.py` that a picture owning its
   cells is too.
-- **And a picture under the text reaches a held client not at all, which is
-  Gitea #165 and was found gating that release.** Zero APCs and zero images,
-  for a held desktop with a picture wallpaper and for a bare held program
-  alike, and identically with the compression off -- so it is pre-existing.
-  The likely cause is in the contract itself: an under-text region owns no
-  cells and is **forgotten once sent** (ADR 0037), because its caller is
-  meant to place it again every frame, and `hold` re-emits the pictures its
-  *emulator kept* rather than the program's bytes -- a picture nothing keeps
-  is a picture there is nothing to re-emit. Not yet root-caused. Until it
-  is, a payload measured through a console with a cell size is not the same
-  number as what a held desktop's client is sent, and any claim about a
-  reattach has to say which of the two it is.
+- **A picture under the text reached a held client not at all, and the
+  emulator in the middle was throwing away the one thing that said so**
+  (Gitea #165, fixed in 0.99.134). Zero APCs and zero images, for a held
+  desktop with a picture wallpaper and for a bare held program alike, and
+  identically with the compression off -- and `dt_autohold` holds every
+  desktop, so this was every wallpaper on every terminal for the whole life
+  of pixels in the desktop. What found it was a **report with a control case
+  in it**: *"the previews work ... but when I apply, it's a black screen"* --
+  a preview is `img draw -p` and owns its cells, a wallpaper is `-u` and is
+  drawn under the text, same terminal and same held session, so the
+  difference was that one flag and nothing about the encoding or the
+  platform. The chain: `kitty.c` emits `z=-1`; `image.c` sends it **once**
+  and then only marks it live (`if (im->over) im->live = 1`), so there is no
+  second transmission to recover from; `tm_imgkeep` stored `r, c, rows,
+  cols, id` and the bytes and **discarded the `z`**; and `tm_imghit` --
+  "drop whatever covers this cell" -- then dropped the region on the first
+  cell written inside it, which for a full-screen wallpaper is the menu bar,
+  in the frame the picture arrived. `tm_img` carries `under` now and
+  `tm_imghit` leaves one alone: **for a picture drawn under the text, a cell
+  written inside it is not evidence it has gone.** Its lifetime is the
+  console's own -- the `a=d` that `cn_imgowe` queues the first frame nobody
+  places it, plus clear, scroll, resize and reset.
+  Three things worth keeping. **Sixel never had it, and that is the tell**:
+  `image.c`'s retire loop marks an id-less under-text region unsent when the
+  cells above it change, because a sixel is *paint* and is re-painted -- so
+  the flag must never reach it, and a kept sixel would be re-emitted over
+  the text and the text would stop reading. **`z` is read with
+  `tm_imgkeyc`, never `tm_imgkey`**, which answers `-1` both for an absent
+  key and for `z=-1` -- the two cases this has to tell apart, a landmine
+  sitting exactly where the fix goes. And the check has to **write a cell
+  inside the picture**, or `tm_imghit` never runs and it passes against the
+  broken code; the settled frame wants its own check too, since that is the
+  state a desktop is in and `img keep` sends nothing to repair it with.
 - **A terminal speaks one of two picture protocols, and kitty does not
   speak sixel.** It never has, and says so in its own documentation; its
   own graphics protocol is the only way to put pixels in it. `cn_gfx`

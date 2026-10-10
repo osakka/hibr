@@ -45,7 +45,18 @@ void tm_imgclear(tm_t *t)
 }
 
 /* Drop whatever covers this cell, because something has just been drawn
-   through it. */
+   through it -- unless the picture asked for the text to be over it.
+ *
+ * A region placed with the kitty protocol's z=-1 is a wallpaper: text on top
+ * of it is the whole point, so a cell written inside it says nothing about
+ * whether it is still wanted (Gitea #165). Dropping one here is what made a
+ * held desktop's picture wallpaper a black rectangle -- the console sends
+ * such a picture *once* and then only marks it still wanted, so there was no
+ * second transmission to recover from, and `hold` had nothing kept to
+ * re-emit. Its lifetime is the console's own: the explicit a=d that
+ * `cn_imgowe` queues when the caller stops placing it, and a clear, scroll,
+ * resize or reset, all of which still drop it below.
+ */
 void tm_imghit(tm_t *t, int r, int c)
 {
 	int i = 0;
@@ -53,7 +64,8 @@ void tm_imghit(tm_t *t, int r, int c)
 	while (i < t->imgn) {
 		tm_img *m = &t->img[i];
 
-		if (r >= m->r && r < m->r + m->rows &&
+		if (!m->under &&
+		    r >= m->r && r < m->r + m->rows &&
 		    c >= m->c && c < m->c + m->cols) {
 			lg(HIBR_LDBG, "terminal %d: picture at %d,%d drawn "
 				      "through", t->id, m->r, m->c);
@@ -67,7 +79,7 @@ void tm_imghit(tm_t *t, int r, int c)
 /* Keep a picture: rows by cols cells at r,c, the bytes as they came. id is
    the kitty protocol's own image id, or 0 for a sixel, which has none. One
    with the same id, or in the same place, replaces what was there. */
-void tm_imgkeep(tm_t *t, int r, int c, int rows, int cols, unsigned id,
+void tm_imgkeep(tm_t *t, int r, int c, int rows, int cols, unsigned id, int under,
 		const char *p, size_t n)
 {
 	tm_img *m;
@@ -99,6 +111,7 @@ void tm_imgkeep(tm_t *t, int r, int c, int rows, int cols, unsigned id,
 	m->rows = rows;
 	m->cols = cols;
 	m->id = id;
+	m->under = under;
 	s_init(&m->data);
 	s_add(&m->data, p, n);
 	t->imgen++;
@@ -191,6 +204,11 @@ void tm_apcend(tm_t *t)
 		t->imgrows = (int)rows;
 		t->imgcols = (int)cols;
 		t->imgid = (unsigned)tm_imgkey(s, 'i');
+		/* tm_imgkeyc, never tm_imgkey: that answers -1 both for a
+		   key that is absent and for z=-1, which are the two cases
+		   this has to tell apart. The first character of the value
+		   is enough -- any negative z is below the text. */
+		t->imgunder = tm_imgkeyc(s, 'z') == '-';
 		t->imgb.n = 0;
 		if (t->imgb.p)
 			t->imgb.p[0] = 0;
@@ -205,7 +223,7 @@ void tm_apcend(tm_t *t)
 	if (tm_imgkey(s, 'm') == 1 && t->imgb.n < TM_IMGMAX)
 		return;
 	tm_imgkeep(t, t->imgr, t->imgc, t->imgrows, t->imgcols, t->imgid,
-		   t->imgb.p, t->imgb.n);
+		   t->imgunder, t->imgb.p, t->imgb.n);
 	t->imgb.n = 0;
 	t->imgon = 0;
 }
@@ -261,6 +279,8 @@ void tm_sixelend(tm_t *t)
 	s_ch(&o, 'q');
 	s_add(&o, t->os.p, t->os.n);
 	s_cat(&o, "\033\\");
-	tm_imgkeep(t, t->cr, t->cc, rows, cols, 0, o.p, o.n);
+	/* A sixel is paint and carries no z: 0, so writing over its cells
+	   removes it here exactly as it does on a real terminal. */
+	tm_imgkeep(t, t->cr, t->cc, rows, cols, 0, 0, o.p, o.n);
 	s_free(&o);
 }
