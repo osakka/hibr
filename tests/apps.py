@@ -844,7 +844,11 @@ shutil.rmtree(WIDEHOME, True)
 # at all, reported live. Fixture, not a live scroll through the pty: the
 # picker only needs enough files to scroll with a directory this suite
 # would have to fabricate dozens of just to reach past one screen's worth.
+# The widget comes first because the picker's own scrolling is the shared
+# dt_scrollmove now, not arithmetic of its own: a pane sourced on its own
+# still needs what it draws and scrolls with.
 WPWHEEL = (
+    '. %s\n'
     '. %s/wallpaper.hibr\n'
     'wp_refresh() { :; }\n'
     'FB[1]["n"]=20; FB[1]["top"]=0; FB[1]["sel"]=0\n'
@@ -855,14 +859,14 @@ WPWHEEL = (
     'wallpick_wheel 1 down; echo "d6=${FB[1]["top"]}"\n'
     'i=0; while [ "$i" -lt 9 ]; do wallpick_wheel 1 up; i=$((i + 1)); done\n'
     'echo "u9=${FB[1]["top"]}"\n'
-    % CP
+    % (tree("examples/desktop/widgets/scrollbar.hibr"), CP)
 )
 out = subprocess.run([sx.HIBR, "-c", WPWHEEL], capture_output=True, text=True,
                      env=dict(os.environ, DT_ROWS="1")).stdout
-check("the wheel scrolls the wallpaper picker, two rows at a time",
-      "d1=2" in out, out)
+check("the wheel scrolls the wallpaper picker, one notch at a time",
+      "d1=3" in out, out)
 check("and keeps scrolling without overrunning the list",
-      "d6=12" in out, out)
+      "d6=15" in out, out)
 check("but not above the first entry",
       "u9=0" in out, out)
 
@@ -3064,6 +3068,10 @@ check("a rescan while the same menu stays open does not change it",
 # wheel moves the view without moving the selection. Fixture data, the
 # same as the sort and click checks above.
 THEAD = (
+    # The widget first: Task Manager's own scrolling is the shared
+    # dt_scrollmove and dt_scrollsel since 0.99.127, so an app sourced on
+    # its own still needs what it scrolls with.
+    '. %s\n'
     '. %s\n'
     'TK_SORTBY=name; TK_SORTDIR=asc\n'
     'tasks_open 1; echo "open=${TK[1]["by"]}/${TK[1]["dir"]}"\n'
@@ -3078,7 +3086,8 @@ THEAD = (
     'i=0; while [ $i -lt 20 ]; do tasks_wheel 1 down; i=$((i + 1)); done\n'
     'echo "end=${TK[1]["top"]}"\n'
     'tasks_wheel 1 up 5 10; echo "wm=$? ${TK[1]["top"]}"\n'
-    % (appdir("tasks") + "/tasks.hibr")
+    % (tree("examples/desktop/widgets/scrollbar.hibr"),
+       appdir("tasks") + "/tasks.hibr")
 )
 out = subprocess.run([sx.HIBR, "-c", THEAD], capture_output=True, text=True,
                      env=dict(os.environ, DT_ROWS="1")).stdout

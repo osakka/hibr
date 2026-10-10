@@ -1,5 +1,71 @@
 # Changelog
 
+## 0.99.127
+
+**One wheel notch is the same distance everywhere, and About has three
+headed sections** (Gitea #130). The ticket asked for two things and this is
+both of them: *"A scrollable content area ... That is a pattern, not a
+widget -- About, Task Manager and anything else that outgrows its window
+each have to reimplement it"*, and *"Grouping and headings. It is one
+undifferentiated column now."*
+
+**The scrolling behaviour is shared now, not copied.** A list that scrolls
+has three questions, and four files had each written out their own answers:
+keep the top in range, bring it to the selection when the selection moves,
+and turn a key or a wheel direction into a new top. `widgets/scrollbar.hibr`
+already held `dt_scrollfit` for the first; it now holds `dt_scrollsel` and
+`dt_scrollmove` for the other two, and About, the Control Panel's pane list
+and picker, Task Manager and the notification history all go through them.
+Each stays a pure function -- the offset itself belongs under the window id
+in the app's own map, so two windows of one app cannot fight over it.
+
+**What that changed in use: one wheel notch now moves the same distance in
+every window.** It was 2 rows in About and in a Control Panel pane, 2 in
+the wallpaper picker, and 3 in Task Manager and the notification history --
+not a choice anybody made, just four days' work laid down one file at a
+time. `DT_SCROLLWHEEL` is that number, 3, and it has a name so that it can
+only be one number. Task Manager's own selection also gained the top clamp
+it never had, which came free with sharing the function.
+
+**About reads as three sections.** `This Computer` for the machine --
+mods/sysinfo's own block, picture and all; `This Desktop` for what only
+this desktop knows; `This Terminal`, which was there already and was the
+only heading in the box. Before this, nothing but the order said whether a
+line was about the machine or about the desktop drawing it: `Uptime` means
+the machine's and `Workspace` means this desktop's.
+
+`This Desktop` is three new facts, all of them free to ask -- no fork, no
+`/proc`, nothing that is not already a variable the window manager keeps
+current:
+
+```text
+This Desktop
+Windows: 3 open, 1 hidden
+Workspace: 1 of 3
+Apps: 26 available
+```
+
+The window counts itself, because a count that left itself out would answer
+differently than the same question asked from anywhere else; the app count
+is what the menus actually list, so the hidden registrations -- About
+itself, Mail's compose window, every dialog that is an app -- are left out.
+
+**What did not move, and was asked for directly:** the hostname, the uptime
+and who is in stay pinned *above* the box (*"can we move it so hostname,
+uptime, users ... then the scroll box sysinfo"*), and the tagline and the
+two versions stay pinned *below* it (*"can we move the hibr desktop version
+till the end, under the scrollable box"*). Both read better inside a
+section and neither went there.
+
+The heading costs the box one row, which is what its scrollbars are for:
+the processor is now a page in rather than on the first screen.
+
+**Still open on #130, and said plainly rather than closed over:** a
+`dt_scrollbox` widget that *draws* a list -- rows, selection, its own bar
+-- does not exist. What is shared is the behaviour, which was the ticket's
+actual complaint; the drawing is still each app's own. A picture in the
+window still waits on `dp_api` growing a paned put, as the ticket says.
+
 ## 0.99.126
 
 **One rule says where everything is listed** (Gitea #158, and the rule the

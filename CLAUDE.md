@@ -1410,6 +1410,25 @@ went in the shell.
   bottom and the click landed on nothing, which reads as the picker being
   broken. Click a pane that is still visible, or scroll first.
 
+- **A list that scrolls asks three questions, and all three answers live in
+  `widgets/scrollbar.hibr`.** `dt_scrollfit` keeps a top in range and
+  brings it to a selection, `dt_scrollsel` clamps a selection to its list
+  (0 to n-1, where a top clamps to n-vis -- two different bounds, which is
+  why it is its own call), and `dt_scrollmove` turns a key or a wheel
+  direction into a new top, with status 1 for a key it does not own so the
+  caller can go on to its own. All three are pure: the offset itself
+  belongs under the window id in the app's own map, so two windows of one
+  app cannot fight over it. Four files had each written their own answers
+  out, which is how **one wheel notch came to mean a different distance in
+  each of them** -- 2 rows in About and a Control Panel pane, 2 in the
+  wallpaper picker, 3 in Task Manager and the notification history, not a
+  choice anybody made. `DT_SCROLLWHEEL` is that number now (3), and the
+  reason it has a name is so it can only be one number. A new scrolling
+  list calls these rather than writing the comparisons again, and a pane
+  or an app sourced **on its own** in a fixture has to source the widget
+  too -- the Control Panel picker's own wheel fixture did not, and read as
+  the wheel doing nothing.
+
 - **A setting an app keeps is a setting the Control Panel shows.** Every
   `dt_keep`, and the desktop's own `DT_KEEP`, has to appear in a file that
   registers a pane, or `tests/540-examples.t` fails; the few kept values

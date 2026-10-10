@@ -748,10 +748,8 @@ fn tasks_key(int id, key) {
 	w) tasks_filtercycle "$id"; return 0 ;;
 	*) return 1 ;;
 	esac
-	[ "$sel" -lt 0 ] && sel=0
-	[ "$sel" -ge "$n" ] && sel=$((n - 1))
-	[ "$sel" -lt "$top" ] && top=$sel
-	[ "$sel" -ge $((top + vis)) ] && top=$((sel - vis + 1))
+	sel := dt_scrollsel "$sel" "$n"
+	top := dt_scrollfit "$top" "$n" "$vis" "$sel"
 	TK[$id]["sel"]=$sel
 	TK[$id]["top"]=$top
 	return 0
@@ -875,13 +873,8 @@ fn tasks_wheel(int id, dir, int? r = "", int? c = "") {
 	local top=${TK[$id]["top"]:-0} n=${TK[$id]["n"]:-0}
 	local vis=${TK[$id]["vis"]:-1}
 
-	case $dir in
-	up) top=$((top - 3)) ;;
-	down) top=$((top + 3)) ;;
-	*) return 1 ;;
-	esac
-	[ "$top" -gt $((n - vis)) ] && top=$((n - vis))
-	[ "$top" -lt 0 ] && top=0
+	top := dt_scrollmove "$dir" "$top" "$n" "$vis" "$DT_SCROLLWHEEL" ||
+		return 1
 	TK[$id]["top"]=$top
 	return 0
 }

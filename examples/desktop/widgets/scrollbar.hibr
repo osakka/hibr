@@ -35,6 +35,55 @@ fn dt_scrollfit(int top, int total, int vis, int? at = "") {
 	ret "$top"
 }
 
+# One wheel notch is this many rows, everywhere. It was 2 in About and in a
+# Control Panel pane's body, and 3 in Task Manager and the notification
+# history -- not a choice anybody made, just four days' work. A number with
+# a name is what makes it one.
+DT_SCROLLWHEEL="${DT_SCROLLWHEEL-3}"
+
+# A selection clamped to the list it is in: 0 to n-1, where a viewport's own
+# top clamps to n-vis. Two different bounds, which is why this is its own
+# call rather than a flag on dt_scrollfit -- and the pair of them is what a
+# list does on every move:
+#
+#     sel := dt_scrollsel "$sel" "$n"
+#     top := dt_scrollfit "$top" "$n" "$vis" "$sel"
+#
+# written out in Task Manager and the notification history, and already
+# half-shared in the Control Panel's picker, which gates the second line on
+# the selection having actually moved so a wheel-scrolled list does not snap
+# back to it.
+fn dt_scrollsel(int sel, int n) {
+	[ "$sel" -ge "$n" ] && sel=$((n - 1))
+	[ "$sel" -lt 0 ] && sel=0
+	ret "$sel"
+}
+
+# Which way a key or a wheel direction scrolls a viewport, and how far: the
+# new top, clamped, with status 1 for a key this does not own so the caller
+# can go on to its own. `step` is how far an arrow moves (a wheel notch
+# passes DT_SCROLLWHEEL); a page is a windowful.
+#
+# Here because four apps had written it out, each slightly differently --
+# which is how the wheel came to move a different distance in each of them.
+# The offset itself stays in the caller's own map under its window id: this
+# is a pure function, so two windows of one app cannot fight over it.
+fn dt_scrollmove(k, int top, int total, int vis, int? step = "") {
+	local s=${step:-1}
+
+	case $k in
+	up) top=$((top - s)) ;;
+	down) top=$((top + s)) ;;
+	pageup) top=$((top - vis)) ;;
+	pagedown) top=$((top + vis)) ;;
+	home) top=0 ;;
+	end) top=$total ;;
+	*) return 1 ;;
+	esac
+	top := dt_scrollfit "$top" "$total" "$vis"
+	ret "$top"
+}
+
 fn dt_scrollbar(int id, int row0, int col, int h, int total, int shown, int pos) {
 	local thumb r tg=${GL[block]} kg=${GL[vline]}
 

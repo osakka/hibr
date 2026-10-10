@@ -95,6 +95,7 @@ Appearance
 Append
 Apply
 Apps
+Apps: %s available
 Apr
 April
 Archive
@@ -757,6 +758,8 @@ Theme
 There is a theme called %s already
 There is no file %s
 There is no folder %s
+This Computer
+This Desktop
 This Terminal
 This account has no address to answer from
 This window: desktop shortcuts work again
@@ -819,12 +822,15 @@ Where:
 Wider Column
 Window
 Windows
+Windows: %s open
+Windows: %s open, %s hidden
 Work Out Again
 Worked out again
 Working Them Out
 Workspace %s
 Workspace %s: tiled
 Workspace %s: windows float
+Workspace: %s of %s
 Write
 Write an Email
 YYYY-MM-DD and HH:MM:SS, local time

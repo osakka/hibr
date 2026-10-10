@@ -347,18 +347,11 @@ fn wallpick_key(int id, key) {
 # the arrow keys' own up/down already leave it when they scroll without
 # crossing it.
 fn wallpick_wheel(int id, dir, r = "", c = "") {
-	local top n vis max
+	local top
 
-	n=${FB[$id]["n"]}
-	vis=${WPK[$id]["vis"]}
 	top=${FB[$id]["top"]}
-	max=$((n - vis))
-	case $dir in
-	up) top=$((top - 2)) ;;
-	down) top=$((top + 2)) ;;
-	esac
-	[ "$top" -gt "$max" ] && top=$max
-	[ "$top" -lt 0 ] && top=0
+	top := dt_scrollmove "$dir" "$top" "${FB[$id]["n"]}" \
+		"${WPK[$id]["vis"]}" "$DT_SCROLLWHEEL" || return 0
 	FB[$id]["top"]=$top
 	wp_refresh "$id"
 }

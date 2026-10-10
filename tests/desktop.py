@@ -2475,6 +2475,18 @@ check("what it opens on is the machine's own three facts, pinned in order "
       hp is not None and sc.find("Uptime: ") == (hp[0] + 1, hp[1])
       and sc.find("Users: ") == (hp[0] + 2, hp[1])
       and sc.find("OS: ")[0] > hp[0] + 2, sc)
+# Three headed sections (Gitea #130): the box was one undifferentiated
+# column with This Terminal the only heading in it, so nothing but the
+# order said whether a line was about the machine or about the desktop
+# running on it. "This Computer" is the *first row of the box* here --
+# the window's own title holds those words too, which is what made the
+# pinned-facts check above pass whatever the list held, so this one is
+# anchored on the row below the pinned three rather than on the text
+# being anywhere on the screen.
+check("the box opens on a This Computer heading, the machine's own facts "
+      "under it",
+      "This Computer" in sc.row(hp[0] + 3)
+      and sc.find("OS: ")[0] > hp[0] + 3, sc)
 # mods/sysinfo's own block, logo and all -- the OS, the architecture, the
 # processor, the memory, the disk and the load, none of which this app knows
 # how to find and all of which belong in an About box.
@@ -2482,9 +2494,11 @@ check("what it opens on is the machine's own three facts, pinned in order "
 # has bars: the sysinfo block is read a page at a time rather than all at
 # once in a window as tall as its content (0.99.109).
 mid, _ = run("", feed=[press(0, 2), b"a", b"\x1b[6~"], pre=APPS)
+# OS and Arch are on the first screen; the processor is not, since 0.99.127
+# gave the box its This Computer heading and that cost it a row -- which is
+# what the bars are for, and what the page-further-on check below reads.
 check("and sysinfo's own block is in it, picture and all",
-      sc.find("OS: ") is not None and sc.find("Arch: ") is not None
-      and sc.find("CPU: ") is not None, sc)
+      sc.find("OS: ") is not None and sc.find("Arch: ") is not None, sc)
 # The picture is the *machine's* since 0.99.115 (Gitea #139) -- Debian's
 # here, something else on a Mac -- so there is no glyph to look for. What
 # can be asserted anywhere is that something is drawn to the left of the
@@ -2508,10 +2522,20 @@ check("and a This Terminal section: size, pictures, colour, mouse and hold",
       sc.find("Colour: 24-bit sent") is not None and
       sc.find("Mouse: clicks and drags") is not None and
       sc.find("Held: no") is not None, sc)
+# And This Desktop between the two, holding what only the desktop knows:
+# how many windows are open, which workspace this is, how many apps it
+# offers. A page in, which is where it falls in a 20-row window.
+check("and a This Desktop section a page in: its windows, its workspace "
+      "and its apps",
+      mid.find("This Desktop") is not None and
+      mid.find("Windows: 1 open") is not None and
+      mid.find("Workspace: 1 of 3") is not None and
+      re.search(r"Apps: \d+ available", mid.text()) is not None, mid)
 check("and invents no pixels when the terminal has not said what a cell is",
       "0 x 0" not in sc.text() and "0 by 0" not in sc.text(), sc)
-check("and a page further on, what the disk and the load are doing",
-      mid.find("Disk: ") is not None and mid.find("Load: ") is not None, mid)
+check("and a page further on, the processor, the disk and the load",
+      mid.find("CPU: ") is not None and mid.find("Disk: ") is not None
+      and mid.find("Load: ") is not None, mid)
 sc, _ = run('dt_new "About This Computer" 12 48 6 10 about', pre=APPS)
 check("a short About window scrolls, with a bar to say so",
       sc.find("Hostname:") is not None and sc.find("Held:") is None
@@ -4619,4 +4643,4 @@ check("so is a center wallpaper wider than the screen",
       len(put) == 1 and not gone, "%d placed, %d deleted" % (len(put), len(gone)))
 shutil.rmtree(WPD, True)
 
-report(571)
+report(573)

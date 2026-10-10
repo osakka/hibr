@@ -157,6 +157,58 @@ about_sysinfo() {
 	fi
 }
 
+# How many windows this desktop has open, and how many of them are put
+# away. About is itself one of them and is counted: a window that left
+# itself out would answer a different number than the same question asked
+# from anywhere else, which is worse than counting honestly.
+#
+# dt_ids is the window manager's own interface -- never DT, which is its
+# table -- and a strict file does not split, so its list is read into an
+# array rather than looped over as a bare word.
+about_windows() {
+	local l id open=0 hid=0 t
+	local -a ids
+
+	l := dt_ids
+	read -ra ids <<< "$l"
+	for id in "${ids[@]}"; do
+		[ -n "$id" ] || continue
+		open=$((open + 1))
+		dt_hidden "$id" && hid=$((hid + 1))
+	done
+	if [ "$hid" -gt 0 ]; then
+		t := dt_tr "Windows: %s open, %s hidden" "$open" "$hid"
+	else
+		t := dt_tr "Windows: %s open" "$open"
+	fi
+	ret "$t"
+}
+
+# Which workspace this is, of how many. Both are the desktop's own
+# variables, kept current by dt_wsgo and the Workspaces pane, so this costs
+# nothing to ask.
+about_workspace() {
+	local t
+
+	t := dt_tr "Workspace: %s of %s" "$DT_WS" "$DT_WSN"
+	ret "$t"
+}
+
+# How many apps this desktop offers. The registry holds hidden ones too --
+# About itself, Mail's compose window, every dialog that is an app -- and
+# those are not apps a person opens, so what is counted is what the menus
+# actually list.
+about_apps() {
+	local a n=0 t
+
+	for a in "${!DT_APPS[@]}"; do
+		[ -n "${DT_APPS["$a"]["hidden"]}" ] && continue
+		n=$((n + 1))
+	done
+	t := dt_tr "Apps: %s available" "$n"
+	ret "$t"
+}
+
 # What the terminal is: $TERM is what the program was told it is, and
 # $TERM_PROGRAM, where a terminal sets one, is what it calls itself. Both
 # are claims rather than measurements, which is why the line names them
@@ -454,6 +506,20 @@ about_open() {
 # a reading the app already takes. Two lists passed back through globals
 # because a strict file cannot return an array (declared at file level just
 # above, as that rule requires).
+#
+# Three headed sections, which is what Gitea #130 asked for: This Computer,
+# This Desktop, This Terminal. It was one undifferentiated column with a
+# single heading (This Terminal, added later and on its own), and a heading
+# is what says which of the three a line is about -- "Uptime" above means
+# the machine's and "Workspace" means this desktop's, and nothing but the
+# order said so.
+#
+# What is deliberately *not* in a section: the hostname, the uptime and who
+# is in, pinned above the box so scrolling cannot take them away, and the
+# tagline and the two versions, pinned below it -- "can we move the hibr
+# desktop version till the end, under the scrollable box". Both were asked
+# for directly, so neither moved into This Computer or This Desktop however
+# well it would have read there.
 AB_LINES=()
 AB_STY=()
 fn about_lines(int id, int w) {
@@ -469,6 +535,9 @@ fn about_lines(int id, int w) {
 	# first rows, asked for as "can we move it so hostname, uptime,
 	# users ... then the scroll box sysinfo": they are what a person came
 	# to read, and in the box they left the moment anything was scrolled.
+	v := dt_tr "This Computer"
+	AB_LINES+=("h:$v")
+	AB_STY+=("")
 	about_sysinfo
 	i=0
 	while [ "$i" -lt "${#AB_SITXT[@]}" ]; do
@@ -476,6 +545,20 @@ fn about_lines(int id, int w) {
 		AB_STY+=("${AB_SIRUN[$i]}")
 		i=$((i + 1))
 	done
+	AB_LINES+=("t:")
+	AB_STY+=("")
+	v := dt_tr "This Desktop"
+	AB_LINES+=("h:$v")
+	AB_STY+=("")
+	t := about_windows
+	AB_LINES+=("t:$t")
+	AB_STY+=("")
+	t := about_workspace
+	AB_LINES+=("t:$t")
+	AB_STY+=("")
+	t := about_apps
+	AB_LINES+=("t:$t")
+	AB_STY+=("")
 	AB_LINES+=("t:")
 	AB_STY+=("")
 	v := dt_tr "This Terminal"
@@ -696,8 +779,9 @@ fn about_draw(int id, int h, int w, int row, int col) {
 	AB[$id]["drawnw"]=${DT[$id]["w"]}
 }
 
-# The wheel over the window scrolls the facts, two lines at a time, the same
-# step the Control Panel's own picker takes. The arguments are id, dir, row,
+# The wheel over the window scrolls the facts, DT_SCROLLWHEEL rows a notch
+# -- the same distance everywhere, which is what widgets/scrollbar.hibr
+# holds that number for. The arguments are id, dir, row,
 # column -- in that order, which is what the window manager hands over and
 # what tasks_wheel already declares: written as (id, r, c, dir) the word
 # "down" is bound to an int parameter, a declared function refuses that, and
@@ -760,10 +844,9 @@ fn about_wheel(int id, dir, int? r = "", int? c = "") {
 		AB[$id]["off"]=$off
 		dt_want 1
 		return 0 ;;
-	up) top=$((top - 2)) ;;
-	down) top=$((top + 2)) ;;
 	esac
-	top := dt_scrollfit "$top" "${AB[$id]["n"]:-0}" "${AB[$id]["vis"]:-1}"
+	top := dt_scrollmove "$dir" "$top" "${AB[$id]["n"]:-0}" \
+		"${AB[$id]["vis"]:-1}" "$DT_SCROLLWHEEL" || return 0
 	AB[$id]["top"]=$top
 	dt_want 1
 	return 0
@@ -775,12 +858,6 @@ fn about_key(int id, k) {
 	local off=${AB[$id]["off"]:-0} room=${AB[$id]["room"]:-8}
 
 	case $k in
-	up) top=$((top - 1)) ;;
-	down) top=$((top + 1)) ;;
-	pageup) top=$((top - vis)) ;;
-	pagedown) top=$((top + vis)) ;;
-	home) top=0 ;;
-	end) top=${AB[$id]["n"]:-0} ;;
 	left | right)
 		# Sideways, for the lines that are wider than the box.
 		case $k in
@@ -791,9 +868,8 @@ fn about_key(int id, k) {
 		AB[$id]["off"]=$off
 		dt_want 1
 		return 0 ;;
-	*) return 1 ;;
 	esac
-	top := dt_scrollfit "$top" "${AB[$id]["n"]:-0}" "$vis"
+	top := dt_scrollmove "$k" "$top" "${AB[$id]["n"]:-0}" "$vis" || return 1
 	AB[$id]["top"]=$top
 	dt_want 1
 	return 0

@@ -782,17 +782,13 @@ fn panel_mouse(int id, act, button, int r, int c, mods) {
 }
 
 fn panel_wheel(int? w = "", dir = "", int? r = "", int? c = "") {
-	local top max n vis pane
+	local top pane
 
 	# Each side scrolls on its own, whichever the pointer is over.
 	if [ -n "$c" ] && panel_inlist "$w" "$c"; then
 		top=${PW[$w]["ltop"]:-0}
-		case $dir in
-		up) top=$((top - 2)) ;;
-		down) top=$((top + 2)) ;;
-		esac
-		top := dt_scrollfit "$top" "${PW[$w]["ln"]:-0}" \
-			"${PW[$w]["lvis"]:-1}"
+		top := dt_scrollmove "$dir" "$top" "${PW[$w]["ln"]:-0}" \
+			"${PW[$w]["lvis"]:-1}" "$DT_SCROLLWHEEL" || return 0
 		PW[$w]["ltop"]=$top
 		return 0
 	fi
@@ -802,15 +798,8 @@ fn panel_wheel(int? w = "", dir = "", int? r = "", int? c = "") {
 		return 0
 	fi
 	top=${PW[$w]["top"]}
-	n=${PW[$w]["n"]}
-	vis=${PW[$w]["vis"]}
-	max=$((n - vis))
-	case $dir in
-	up) top=$((top - 2)) ;;
-	down) top=$((top + 2)) ;;
-	esac
-	[ "$top" -gt "$max" ] && top=$max
-	[ "$top" -lt 0 ] && top=0
+	top := dt_scrollmove "$dir" "$top" "${PW[$w]["n"]}" "${PW[$w]["vis"]}" \
+		"$DT_SCROLLWHEEL" || return 0
 	PW[$w]["top"]=$top
 }
 

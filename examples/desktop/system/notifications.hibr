@@ -41,12 +41,8 @@ fn nh_fit(int id) {
 	local n=${#DT_NOTEHIST_ORDER[@]} vis=${NHW[$id]["vis"]:-1}
 	local sel=${NHW[$id]["sel"]:-0} top=${NHW[$id]["top"]:-0}
 
-	[ "$sel" -ge "$n" ] && sel=$((n - 1))
-	[ "$sel" -lt 0 ] && sel=0
-	[ "$sel" -lt "$top" ] && top=$sel
-	[ "$sel" -ge $((top + vis)) ] && top=$((sel - vis + 1))
-	[ "$top" -gt $((n - vis)) ] && top=$((n - vis))
-	[ "$top" -lt 0 ] && top=0
+	sel := dt_scrollsel "$sel" "$n"
+	top := dt_scrollfit "$top" "$n" "$vis" "$sel"
 	NHW[$id]["sel"]=$sel
 	NHW[$id]["top"]=$top
 }
@@ -139,13 +135,14 @@ fn notifications_click(int id, int r, int c, btn) {
 	nh_fit "$id"
 }
 
-# The wheel scrolls three rows at a time, like Files' own list does.
+# The wheel moves the selection by one notch, DT_SCROLLWHEEL rows, the same
+# distance it moves anything else.
 fn notifications_wheel(int? id = "", dir = "", int? r = "", int? c = "") {
 	local sel=${NHW[$id]["sel"]:-0}
 
 	case $dir in
-	up) NHW[$id]["sel"]=$((sel - 3)) ;;
-	down) NHW[$id]["sel"]=$((sel + 3)) ;;
+	up) NHW[$id]["sel"]=$((sel - DT_SCROLLWHEEL)) ;;
+	down) NHW[$id]["sel"]=$((sel + DT_SCROLLWHEEL)) ;;
 	esac
 	nh_fit "$id"
 	return 0
