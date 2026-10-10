@@ -2052,6 +2052,22 @@ went in the shell.
   condition with a deadline rather than a fixed sleep, and scale their
   windows by `SLOW` (4 under `ASAN_OPTIONS`): the sanitizer build decodes
   several times slower, and three suites at once slower still.
+- **A suite's helper that runs hibr outside `Term` can also *wait on*
+  whatever desktop the machine is running.** `tests/appmgr.py` runs `apps` as
+  a plain subprocess, so it inherited `HIBR_HOLD` from the shell it was
+  started from -- and `apps remove` asks a running desktop whether any of its
+  windows belong to the app (`ap_windows` -> `desktop ctl windows`), which
+  looks for its socket at `$TMPDIR/hibr-ctl-$UID/<session>.ctl`. With a held
+  session whose control socket was still **listening but no longer
+  accepting**, the connect blocked -- `desktop ctl` bounds the answer with
+  `read -t 5` and leaves the connect unbounded (Gitea #180) -- and the suite
+  died on its own 120-second limit, in a check about removing an app, which
+  reads as the manager being broken. A *stale* socket file is harmless, since
+  `connect` then fails at once with ECONNREFUSED; listening-and-not-accepting
+  is the case that hangs. The suite has its own `TMPDIR` now as well as
+  `HIBR_HOLD` stripped, and both are needed: the session name **defaults to
+  `desktop`**, so stripping the variable alone reaches a differently wrong
+  desktop rather than none.
 - **A suite's helper that runs hibr outside `Term` reads the owner's own
   config.** `Term` gives every session its own `XDG_CONFIG_HOME`, but
   `tests/apps.py`'s `panefull` ran `<pane>_rows` in a plain subprocess --
@@ -3692,6 +3708,30 @@ went in the shell.
   **inside** `jc_init`, whose precondition it is, not at the new call site.
   When a flag widens how something may be entered, read the preconditions of
   everything it now reaches, not only the code being added.
+- **A mode that means "run nothing more" borrows the flag the hot path
+  already loads, rather than adding a check to it** (Gitea #154, 0.99.142).
+  `set -n` took effect from the next *line*, not the next command, because a
+  script runs as it is read one command line at a time (ADR 0026) and
+  `noexec` was checked at exactly that granularity -- so `set -n; echo X`
+  printed `X` where bash and dash both print nothing. The obvious fix is a
+  check in `ex()`'s prologue or `ex_cmd`, which this file already prices at
+  **42 instructions per loop iteration**; instead, `noexec` turning on sets
+  `s->stop`, which that prologue already loads beside `quit`, `ret`, `brk`
+  and `cont`. Measured over 20,000 `while` iterations: 265,715,368
+  instructions against 266,395,171, **+0.26% of which every byte is
+  `__strcmp_avx2`** taking a different path for the same calls -- every hibr
+  function identical, which is the address-sensitivity trap above and the
+  reason a total is never the answer on its own.
+  Three things that are not details. The read loop **clears** that stop
+  before the next line, or the parse would stop there and a syntax error
+  further down would go unreported, which is what `noexec` is *for*. Only
+  the **outermost** text clears it (`sh_runx` counts its own depth): a
+  nested one is an `eval`, a `source` or a trap body, and
+  `eval "set -n; echo A"; echo B` has to stop the caller's list too, as
+  bash does -- the first version cleared it everywhere and printed `B`. And
+  an **interactive** shell never arms it, because bash's documentation says
+  interactive shells ignore `noexec`, which also means `pr_hook`'s own save
+  and restore of `stop` can never undo this.
 - **Two spellings of one setting want one reader, which is ADR 0017's
   argument a level up.** `set` mapped `-e -u -x -C -H -S` to shell fields by
   hand and `main` understood none of them, so the command line and `set`

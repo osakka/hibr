@@ -100,6 +100,8 @@ int sh_explain(sh *s, const char *src)
 	return found ? 1 : 0;
 }
 
+static int run_dep;
+
 /* Run each complete command line of a text, or only the first with one set; with rest set, what is left is handed back: 1 unfinished, 2 a syntax error. */
 int sh_runx(sh *s, const char *src, const char **rest, int one)
 {
@@ -108,6 +110,8 @@ int sh_runx(sh *s, const char *src, const char **rest, int one)
 	int okeep = s->keep, kept = 0, part = 0;
 	node *n;
 	const char *at;
+
+	run_dep++;
 
 	if (rest)
 		*rest = 0;
@@ -138,6 +142,14 @@ int sh_runx(sh *s, const char *src, const char **rest, int one)
 		}
 		if (n && !s->noexec)
 			ex(s, n);
+		/* `set -n` in the line just run stopped the rest of it with
+		   s->stop; reading has to go on from here so a syntax error
+		   further down is still reported, which is what noexec is
+		   for. Only the outermost text clears it: a nested one is an
+		   eval, a source or a trap, and `eval "set -n; echo A"; echo
+		   B` must stop the caller's list too, as bash does. */
+		if (s->noexec && run_dep == 1)
+			s->stop = 0;
 		if (s->keep)
 			kept = 1;
 		else {
@@ -154,6 +166,7 @@ int sh_runx(sh *s, const char *src, const char **rest, int one)
 	}
 	v_free(&l.hq);
 	s->keep = kept || okeep;
+	run_dep--;
 	return l.err ? 2 : part;
 }
 

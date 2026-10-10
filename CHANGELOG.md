@@ -1,5 +1,101 @@
 # Changelog
 
+## 0.99.142
+
+**`set -n` took effect from the next line rather than the next command, so
+everything already on the line ran** (Gitea #154).
+
+```
+$ bash -c 'set -n; echo X'      # prints nothing
+$ dash -c 'set -n; echo X'      # prints nothing
+$ hibr -c 'set -n; echo X'
+X
+```
+
+bash and dash agreed with each other, so hibr was alone. A script runs as it
+is read, one complete command line at a time (ADR 0026), and `noexec` was
+checked at exactly that granularity -- per input unit, not per command inside
+one -- so `set -n; echo X` parsed the whole list, ran `set`, and the `echo`
+was already in the list being executed.
+
+### Nothing was added to the hot path, which is why this was fixable
+
+The obvious fix -- ask the flag where each command is about to run -- is in
+`ex()`'s prologue or `ex_cmd`, and this file already records a check there
+costing **42 instructions per loop iteration**. Loop throughput is the
+shell's third priority, so paying that for a flag nobody sets mid-line would
+have been the wrong trade, and the ticket said so rather than guessing.
+
+`noexec` turning on **borrows `s->stop`**, which `ex()`'s prologue already
+loads along with `quit`, `ret`, `brk` and `cont`. A mode change that means
+"run nothing more" is what that flag already does for errexit, so the rest
+of the list is abandoned by machinery that was there. Measured, 20,000
+iterations of a `while` loop, callgrind:
+
+| | instructions |
+|---|---|
+| 0.99.141 | 265,715,368 |
+| this | 266,395,171 |
+
+**+0.26%, and every hibr function's count is identical** -- the whole
+difference is `__strcmp_avx2` taking a different path for the same calls,
+which is the address-sensitivity trap this tree already records. Nothing in
+`ex()` changed.
+
+### The clear belongs to the outermost text only
+
+The read loop puts `stop` back before the next line, or the parse would end
+there and a syntax error further down would go unreported -- which is the
+whole point of `noexec` and the reason this could not be done by stopping
+the shell. But **only the outermost text does that**: a nested one is an
+`eval`, a `source` or a trap body, and
+
+```
+$ bash -c 'eval "set -n; echo A"; echo B'   # prints nothing
+```
+
+has to stop the caller's list too. `sh_runx` counts its own depth and clears
+at depth 1. A subshell is a shell of its own and keeps `noexec` to itself, as
+in bash -- `( set -n; echo A ); echo B` prints `B`.
+
+An **interactive** shell never arms it, because bash's own documentation says
+interactive shells ignore `noexec`.
+
+### The checks
+
+`tests/204-set-n.t` is **compared against bash**, which dash agrees with, so
+both reference shells say the same thing and the test is the strongest kind
+this tree has. Fourteen lines, each a shape the fix had to get right: the
+same line, a `set +n` after it (which never runs, so it is a one-way door for
+the rest of the input rather than a window), what came before, from inside a
+function, a compound after it, a subshell, a definition after it, its own
+line as before, through an `eval`, an `eval` after it, through a `source`, a
+later syntax error still being reported, the piped-stdin read loop, and
+`hibr -n -c`, which has always worked. Seven of them failed against 0.99.141.
+
+### And a suite that was waiting on this machine's own desktop
+
+`tests/appmgr.py` failed this release's gate with a 120-second timeout in a
+check about **removing an app**, which reads as the application manager being
+broken and was not: `apps remove` asks a running desktop whether any of its
+windows belong to the app (`ap_windows` -> `desktop ctl windows`), the suite
+inherited `HIBR_HOLD` from the shell it was run from, and that named a held
+session whose control socket was still listening but no longer accepting. The
+installed 0.99.141 blocks on the same connect identically, so nothing here
+caused it.
+
+The suite gets a `TMPDIR` of its own now and `HIBR_HOLD` stripped -- the
+isolation `tests/screen.py` already does, for the same reason: **a suite must
+not depend on, or wait for, whatever desktop the machine happens to be
+running.** The control socket is found at `$TMPDIR/hibr-ctl-$UID/<session>.ctl`
+and the session defaults to `desktop`, so stripping `HIBR_HOLD` alone would
+have reached a *differently* wrong desktop rather than none.
+
+The other half is a product bug and its own ticket (Gitea #180): `desktop ctl`
+bounds the answer with `read -t 5` and leaves the **connect** unbounded, so
+`apps remove` on a machine with a wedged desktop hangs for as long as anybody
+waits, saying nothing.
+
 ## 0.99.141
 
 **`json emit`, `keys`, `len` and `type` printed what they answered and filled

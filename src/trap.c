@@ -111,7 +111,12 @@ void tr_run(sh *s)
 			continue;
 		lg(HIBR_LDBG, "running trap for signal %d", i);
 		hibr_run(s, cmd);
-		s->stop = 0;
+		/* A trap's own failure does not stop the script, which is
+		   what this clear is for -- but a `set -n` inside one means
+		   the script has asked to stop running, so that stop is
+		   kept. */
+		if (!s->noexec)
+			s->stop = 0;
 		if (s->quit) {
 			lg(HIBR_LDBG, "the trap for signal %d exits, with status %d", i, s->st);
 			return;
@@ -167,7 +172,8 @@ void tr_err(sh *s, int st)
 	s->st = st;
 	lg(HIBR_LDBG, "running error trap for status %d", st);
 	hibr_run(s, cmd);
-	s->stop = 0;
+	if (!s->noexec)
+		s->stop = 0;
 	s->st = ost;
 	s->etrap = cmd;
 }

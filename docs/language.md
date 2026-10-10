@@ -42,6 +42,33 @@ patterns `?(…) *(…) +(…) @(…) !(…)` work in `case`, `[[ ]]` and globbi
 nothing to switch on, which is what bash's parse-time `extglob` cannot manage —
 see [0017](adr/0017-one-namespace-for-options.md).
 
+`set -n` (`set -o noexec`) stops execution **from the next command**, not the
+next line, so nothing after it on the same line runs — and the `set +n` that
+would turn it off does not run either, because it is after it:
+
+```sh
+set -n; echo 'not printed'; set +n; echo 'also not printed'
+```
+
+```output
+```
+
+Reading goes on, which is the point of the option: a syntax error further
+down is still reported, and that is what `hibr -n script` is for. Given a
+file whose first line is `set -n` and whose last is a bare `if`:
+
+```text
+$ hibr s.hibr
+hibr: unexpected end of input
+$ echo $?
+2
+```
+
+An eval, a source and a trap are nested texts rather than new shells, so a
+`set -n` inside one stops the caller as well; a subshell is a shell of its
+own and keeps it to itself. An interactive shell ignores `noexec`, as bash
+does.
+
 **Coprocesses and limits.** `coproc [name] cmd` starts a coprocess whose ends
 are `${name[in]}` and `${name[out]}` — and `${name[0]}`/`${name[1]}` for bash —
 spoken to with the same `send` and `recv` as a socket. `mapfile` / `readarray`,

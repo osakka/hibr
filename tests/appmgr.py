@@ -127,13 +127,29 @@ URL = "http://127.0.0.1:%d/index.json" % PORT
 CONF = os.path.join(HOME, "config")
 DATA = os.path.join(HOME, "data")
 CACHE = os.path.join(HOME, "cache")
+TMP = os.path.join(HOME, "tmp")
 
 
 def apps(*args, env=None):
     """Run the manager with a config, data and cache folder of its own."""
+    # And a TMPDIR of its own, which is not tidiness: `apps remove` asks a
+    # running desktop whether any of its windows belong to the app
+    # (ap_windows -> `desktop ctl windows`), and that client finds its
+    # socket at $TMPDIR/hibr-ctl-$UID/<session>.ctl -- defaulting to the
+    # session named in HIBR_HOLD, or to one called `desktop`. So a suite run
+    # from a shell inside a held desktop, which is how this machine is used,
+    # reached *that* desktop; and when its control socket was listening but
+    # no longer accepting, the connect blocked with nothing to time it out
+    # and the suite died on its own 120-second limit, in a check about
+    # removing an app. Same shape as screen.py stripping HIBR_HOLD, for the
+    # same reason: a suite must not depend on, or wait for, whatever desktop
+    # the machine happens to be running. Gitea #180 is the other half -- a
+    # control client that can block for ever.
+    os.makedirs(TMP, exist_ok=True)
     e = dict(os.environ, XDG_CONFIG_HOME=CONF, XDG_DATA_HOME=DATA,
              XDG_CACHE_HOME=CACHE, HIBR_APPS_URL=URL,
-             HIBR_MODPATH=tree("build/mods"))
+             HIBR_MODPATH=tree("build/mods"), TMPDIR=TMP)
+    e.pop("HIBR_HOLD", None)
     e.update(env or {})
     r = subprocess.run([sx.HIBR, APPS] + list(args), capture_output=True,
                        text=True, env=e, timeout=120)

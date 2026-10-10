@@ -804,6 +804,18 @@ int sh_optset(sh *s, const char *nm, int on)
 		return HIBR_FAIL;
 	}
 	if (f) {
+		/* noexec turning on stops the rest of the list it was turned
+		   on in, which is what makes `set -n; echo X` print nothing as
+		   in bash: the flag it borrows is one ex() already loads in
+		   its prologue, so the loop pays no instruction for this. The
+		   read loops clear it again before the next line, or a later
+		   syntax error would go unreported -- which is the whole point
+		   of noexec. An interactive shell ignores noexec, as bash's
+		   own documentation says it does, so it is never armed there.
+		   On the 0->1 edge only: hibr -n sets this from main, before
+		   anything has run. */
+		if (f == &s->noexec && on && !*f && !s->it)
+			s->stop = 1;
 		*f = on;
 		if (f == &s->strictg)
 			sh_sfl(s);
