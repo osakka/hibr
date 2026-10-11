@@ -283,7 +283,10 @@ check("Add Account opens its dialog, and the desktop lives", sc.find("Account na
 lg = sc.find("Login:")
 check("the dialog asks for a login, and says an empty one follows the address",
       lg is not None and "(from the address)" in sc.row(lg[0]), sc)
-t.keys([b"Home Email", b"\t", b"pat@example.com", b"\t", b"pat.doe", b"\t",
+# name, address, *other addresses*, login, your name, password -- the tab
+# order is the dialog's own and shifts whenever a row is added, which is
+# what this walk has to follow.
+t.keys([b"Home Email", b"\t", b"pat@example.com", b"\t", b"", b"\t", b"pat.doe", b"\t",
         b"Pat Doe", b"\t", b"secret"] + [b"\t"] * 8 + [b"\r"])
 sc = look(t)
 check("a server it cannot work out from the address is asked for, not guessed",
@@ -367,4 +370,39 @@ check("and Back is where it is drawn", sc.find("Back") is None and
       sc.find("Lunch on Friday?") is not None, sc)
 t.quit(b"qy", 1.5)
 
-report(55)
+# --- several addresses on one account (Gitea #157) --------------------------
+#
+# Mail that arrived at, or was sent from, an alias is still mine: the thread
+# reads "me" rather than naming me as a correspondent. Without it the same
+# fixture reads "Zoë Ünal, Pat (2)", which is what this check is for.
+box3 = ms.Box()
+box3.add("INBOX", msg("Zoë Ünal <zoe@example.org>", "Tuesday?",
+                      "Are you about on Tuesday?\r\n", "Mon, 5 Oct 2026 09:00:00 +0000"),
+         thrid=21)
+box3.add("INBOX", msg("Pat <pat@alias.org>", "Re: Tuesday?", "I am.\r\n",
+                      "Mon, 5 Oct 2026 10:00:00 +0000"), flags=["\\Seen"], thrid=21)
+p3 = ms.serve("imap", box3)
+s3 = ms.serve("smtp", box3)
+conf6 = os.path.join(D, "alias.conf")
+account(conf6, "Aliased", p3, s3, extra="-a 'pat@alias.org, p.doe@example.com'")
+t = session(conf6, "alias")
+sc = waitfor(t, "Re: Tuesday?")
+row = [sc.row(r) for r in range(30) if "Re: Tuesday?" in sc.row(r)]
+check("a message from one of my other addresses still reads as me",
+      row and " me " in row[0] and "Pat" not in row[0], (row, sc))
+t.quit(b"qy", 1.5)
+
+out = subprocess.run([sx.HIBR, "-c",
+                      "%s. %s\n. %s\nml_accounts\n"
+                      "echo \"many=[${MLADDR[Aliased]}]\"\n"
+                      "echo \"mine=${#MLMINE[@]}\"\n"
+                      % (load("email", "db"), tree("examples/desktop/desktop.hibr"),
+                         tree("examples/desktop/apps/Internet/mail.hibr"))],
+                     capture_output=True, text=True,
+                     env=dict(os.environ, HIBR_MAIL_CONF=conf6,
+                              HIBR_MODPATH=tree("build/mods")))
+check("the app knows every address of the account, and keeps the set to match on",
+      "pat@example.com" in out.stdout and "pat@alias.org" in out.stdout
+      and "mine=3" in out.stdout, out.stdout + out.stderr)
+
+report(57)

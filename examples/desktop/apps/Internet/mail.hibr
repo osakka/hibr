@@ -45,6 +45,16 @@ declare -gA MLJ
 declare -gA MLA
 declare -gA MLGMAIL
 declare -gA MLME
+# Every address an account answers to, tab-joined and with the one it sends
+# from first, and the same addresses as a set keyed by the lowercased
+# address. MLME stays what it was -- the one address a message is sent from
+# -- so the two questions stay apart: "who am I writing as" and "is this
+# message mine" (Gitea #157).
+declare -gA MLADDR
+declare -gA MLMINE
+# Which compose window the From dropdown belongs to: the widget calls back
+# with the value alone, so the window has to be remembered beside it.
+MLC_FROMID=
 MLJ_N=0
 MLJ_LIVE=0
 ML_ACCTS=()
@@ -54,15 +64,27 @@ ML_TOP=()
 
 # The accounts set up, into ML_ACCTS; whether there is any.
 ml_accounts() {
-	local r k
+	local r k i a
 
 	ML_ACCTS=()
+	MLMINE=()
 	need email 2> /dev/null || return 1
 	r := email accounts 2> /dev/null || return 1
 	for k in "${!r[@]}"; do
 		ML_ACCTS+=("$k")
 		MLA["$k"]=${r["$k"]["kind"]}
 		MLME["$k"]=${r["$k"]["email"]}
+		MLADDR["$k"]=
+		i=0
+		while [ -n "${r["$k"]["addresses"][$i]+x}" ]; do
+			a=${r["$k"]["addresses"][$i]}
+			[ -n "$a" ] && {
+				MLADDR["$k"]+="${MLADDR["$k"]:+	}$a"
+				MLMINE["${a,,}"]=1
+			}
+			i=$((i + 1))
+		done
+		[ -n "${MLADDR["$k"]}" ] || MLADDR["$k"]=${r["$k"]["email"]}
 	done
 	[ "${#ML_ACCTS[@]}" -gt 0 ]
 }
@@ -466,7 +488,10 @@ fn ml_threads(int id) {
 			[ "${ML["$acct"][$i]["star"]}" = 1 ] && MLT[$id][$t]["star"]=1
 			[ "${ML["$acct"][$i]["att"]}" = 1 ] && MLT[$id][$t]["att"]=1
 			j=${ML["$acct"][$i]["fname"]}
-			[ -n "${MLME["$acct"]}" ] && [ "${ML["$acct"][$i]["faddr"],,}" = "${MLME["$acct"],,}" ] && j=me
+			# Any address of mine, not only the one I send from: mail
+			# that arrived at an alias is still mine, and reads as a
+			# correspondent otherwise.
+			[ -n "${MLMINE["${ML["$acct"][$i]["faddr"],,}"]}" ] && j=me
 			[[ ", ${MLT[$id][$t]["who"]}, " == *", $j, "* ]] ||
 				MLT[$id][$t]["who"]+="${MLT[$id][$t]["who"]:+, }$j"
 			if [ -z "${MLT[$id][$t]["subj"]+x}" ] || [ "$d" -lt "${MLT[$id][$t]["first"]}" ]; then
@@ -1491,7 +1516,7 @@ ml_people() {
 	if [ "${#MLN[@]}" = 0 ] && ml_accounts; then
 		for a in "${ML_ACCTS[@]}"; do ml_load "$a"; done
 	fi
-	for a in "${!MLME[@]}"; do me["${MLME["$a"],,}"]=1; done
+	for a in "${!MLMINE[@]}"; do me["$a"]=1; done
 	for a in "${!MLN[@]}"; do
 		i=0
 		while [ "$i" -lt "${MLN["$a"]:-0}" ]; do
@@ -1546,6 +1571,38 @@ fn mlc_suggest(int id) {
 
 # Take a suggestion: it replaces what was being typed, a comma after it for
 # the next.
+# The addresses this message could be written from, offered where the From
+# row is drawn. An account with one address never gets here: the row is not
+# registered as something to click.
+fn mlc_frompick(int id) {
+	local acct=${MC[$id]["acct"]} r c
+	local -a addr
+
+	command -v cs_dropopen > /dev/null || return 0
+	IFS=$'\t' read -ra addr <<< "${MLADDR["$acct"]}"
+	[ "${#addr[@]}" -gt 1 ] || return 0
+	MLC_FROMID=$id
+	r=$(( ${DT[$id]["row"]} + 1 ))
+	c=$(( ${DT[$id]["col"]} + 11 ))
+	cs_dropopen "$r" "$c" mlc_fromset "${addr[@]}"
+}
+
+# One of them chosen: the name stays, the address changes.
+fn mlc_fromset(addr = "") {
+	local id=$MLC_FROMID full
+
+	[ -n "$addr" ] || return 0
+	[ -n "$id" ] || return 0
+	full=${MC[$id]["from"]}
+	case $full in
+	*' <'*'>') full=${full%% <*} ;;
+	*) full= ;;
+	esac
+	MC[$id]["from"]=$addr
+	[ -n "$full" ] && MC[$id]["from"]="$full <$addr>"
+	return 0
+}
+
 fn mlc_accept(int id, int k) {
 	local f=${MC[$id]["focus"]} pre v
 	local -a ss
@@ -1683,6 +1740,15 @@ fn mailc_draw(int id, int h, int w, int row, int col) {
 	dt_tput "$id" 0 1 "From:"
 	console pen "$DT_INK" "$DT_FACE"
 	console put -p "w$id" 0 10 "${MC[$id]["from"]:0:$fw}"
+	# An account with more than one address of its own can be written from
+	# any of them, and the row says so rather than hiding it: a click or
+	# enter on From opens the list. An account with one address draws
+	# exactly what it drew before.
+	if [[ ${MLADDR["${MC[$id]["acct"]}"]} == *$'\t'* ]]; then
+		console pen "$DT_ACTIVE" "$DT_FACE"
+		console put -p "w$id" 0 $((10 + ${#MC[$id]["from"]} + 1)) "${GL[sdown]}"
+		dt_wreg "$id" 0 10 "$fw" from
+	fi
 	r=1
 	for k in to cc bcc subj; do
 		console pen "$DT_DIM" "$DT_FACE"
@@ -1802,6 +1868,7 @@ fn mailc_click(int? id = "", int? r = "", int? c = "", btn = "") {
 
 	tag := dt_hit "$id" "$r" "$c" || return 0
 	case $tag in
+	from) mlc_frompick "$id"; return 0 ;;
 	to | cc | bcc | subj)
 		MC[$id]["sugg"]=
 		MC[$id]["focus"]=$tag

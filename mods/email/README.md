@@ -47,6 +47,42 @@ never mention it -- the desktop's own account dialog shows the field empty
 with "(from the address)" under it for exactly that reason, and sends
 whatever it holds, so clearing it goes back to following the address.
 
+`-a` is the **other addresses** this account answers to, comma-separated and
+kept as given: aliases, a work address and a personal one on the same
+mailbox, an old address that still arrives. `-e` stays the one a message is
+sent from by default and the one the account is listed under; these are what
+also count as *you* when mail arrives at one of them. `email accounts` hands
+the lot back as `addresses`, an array with `-e`'s address first, so nothing
+downstream splits a string of its own:
+
+<!-- setup
+printf 'x\n' > /dev/null
+-->
+```sh
+need email
+export HIBR_MAIL_CONF=$PWD/accounts
+email account set work -h mail.example.com -e pat@example.com -w x \
+	-a 'p.doe@example.com, pat@alias.org'
+r := email accounts
+i=0
+while [ -n "${r[work][addresses][$i]+x}" ]; do
+	echo "$i: ${r[work][addresses][$i]}"
+	i=$((i + 1))
+done
+```
+
+```output
+0: pat@example.com
+1: p.doe@example.com
+2: pat@alias.org
+```
+
+The account file carries them as a **fourteenth** tab-separated field,
+appended rather than inserted, so both directions work: a line written
+before this release reads with no other addresses, and a build from before
+it reads the thirteen fields it knows and never looks at the fourteenth.
+Both were checked against a real older build, not reasoned about.
+
 `email account mv OLD NEW` renames one, keeping everything else, and
 `email account rm NAME` forgets it.
 

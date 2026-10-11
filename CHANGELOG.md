@@ -1,5 +1,78 @@
 # Changelog
 
+## 0.99.147
+
+**An account could hold only one address, so mail arriving at an alias read
+as somebody else's** (Gitea #157, the second of its three parts; the first
+was the login field in 0.99.145).
+
+Reported in the same breath as that one: *"let's add other email addresses?
+(I have multiple tied into that one)."*
+
+`email account set -a` takes them, comma-separated and kept as given. `-e`
+stays the address a message is sent from by default and the one the account
+is listed under; `-a` is what **also counts as you**. `email accounts` hands
+the lot back as `addresses`, an array with `-e`'s first, so the comma stays
+the file's business and nothing downstream splits a string of its own.
+
+### The file grows a field, and both directions were checked rather than
+### reasoned about
+
+The fourteenth tab-separated field is **appended, not inserted**, so the
+thirteen an older build knows are where they were. `ml_confparse` reads
+positionally and counts nothing, which makes the compatibility real in both
+directions -- and both were run:
+
+- this build reading a thirteen-field line: the account reads, with no other
+  addresses;
+- **the installed 0.99.146** reading a fourteen-field line: its thirteen
+  fields come back right and the fourteenth is never looked at.
+
+The second of those is the one worth doing by hand. A claim that an old
+build tolerates a new file is the kind that is true until it is not.
+
+### "Me" is now any of my addresses
+
+The Mail app kept one address per account in `MLME` and compared the
+sender's against it. That is still there and still means **the one I write
+as** -- what changed is that the question "is this message mine" is now
+asked of `MLMINE`, a set of every address of every account, keyed by the
+lowercased address. The two questions were one variable and are now two,
+which is the whole fix: a thread with a reply sent from an alias reads
+`Zoë Ünal, me` rather than naming you as a correspondent, and your own
+alias stops turning up in the senders Compose suggests from.
+
+### Writing from one of them
+
+Compose's From row is a dropdown when an account has more than one address,
+and exactly what it always was when it has one -- the row is not even
+registered as something to click in that case. Nothing in the module had to
+change for it: `email build -f` has always taken the address, and the SMTP
+envelope already follows the message's own From header, so a message written
+from an alias leaves with that alias in both places.
+
+The account dialog grows an **Other addresses:** row, comma-separated, under
+the address it belongs to.
+
+### The checks
+
+Three in `tests/mail.py` -- the list comes back with the sending address
+first, a line written before this release still reads, and clearing them
+leaves the sending address alone -- and two in `tests/mailapp.py`: a message
+from one of my other addresses reads as **me** on the screen, and the app
+knows the whole set. The app pair was watched failing against 0.99.146.
+
+And a third dialog row shifted the tab order a suite types through, exactly
+as the Login row did in 0.99.145 -- two checks in `tests/mailapp.py` broke
+again, in the same place, for the same reason. The walk follows the dialog's
+own order, so adding a row means reading every check that tabs through it.
+
+### What is left of #157
+
+The third part: *"let's add mail"* read as adding **your** account, which
+the login field unblocked in 0.99.145. Nothing further is owed there, so
+#157 closes with this.
+
 ## 0.99.146
 
 **An account with two-factor turned on could not log in to the vault at

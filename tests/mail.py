@@ -50,6 +50,33 @@ try:
     check("account set writes a file only its owner can read; accounts never shows the password",
           mode == 0o600 and "work\timap\t127.0.0.1:%d\tpat\tpat@example.com" % p in out and
           "right horse" not in out and "right horse" in open(CONF).read(), out + err)
+    # Several addresses on one account (Gitea #157): -a keeps them as given,
+    # `email accounts` hands back the lot as an array with the one it sends
+    # from first, and the file grows a fourteenth field rather than changing
+    # any of the thirteen -- checked in both directions below.
+    out, err = hb("email account set many -h h.example.com -e pat@example.com -w x"
+                  " -a 'p.doe@example.com, pat@alias.org';"
+                  " r := email accounts;"
+                  " echo \"first=${r[many][addresses][0]}\";"
+                  " echo \"second=${r[many][addresses][1]}\";"
+                  " echo \"third=${r[many][addresses][2]}\";"
+                  " echo \"fourth=[${r[many][addresses][3]-}]\"")
+    check("every address of an account comes back as a list, the sending one first",
+          "first=pat@example.com" in out and "second=p.doe@example.com" in out
+          and "third=pat@alias.org" in out and "fourth=[]" in out, out + err)
+    # The fourteenth field is appended, so the thirteen an older build knows
+    # are where they were: this reads back a line written without it, and
+    # tests/mailapp.py's own account file is one such.
+    old = ("old\timap\th\t993\ttls\tu\tp\told@example.com\tOld\t\t465\ttls\t0\n")
+    open(CONF, "a").write(old)
+    out, err = hb("r := email accounts; echo \"old=${r[old][email]}\";"
+                  " echo \"none=[${r[old][addresses][1]-}]\"")
+    check("a line written before there were aliases still reads, with none of them",
+          "old=old@example.com" in out and "none=[]" in out, out + err)
+    out, err = hb("email account set many -a ''; r := email accounts;"
+                  " echo \"left=[${r[many][addresses][1]-}]\";"
+                  " email account rm many; email account rm old")
+    check("and clearing them leaves the sending address alone", "left=[]" in out, out + err)
     out, err = hb("email account set g -e someone@gmail.com -w x; r := email accounts;"
                   " echo \"${r[g][host]}:${r[g][port]} ${r[g][smtphost]}:${r[g][smtpport]}\";"
                   " email account rm g; email accounts | cut -f1")
@@ -217,4 +244,4 @@ try:
 finally:
     pass
 
-report(24)
+report(27)

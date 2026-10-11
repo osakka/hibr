@@ -21,6 +21,11 @@ typedef struct ml_acct ml_acct;
 struct ml_acct {
 	char *name, *host, *port, *user, *pass, *email, *full;
 	char *shost, *sport;
+	/* Other addresses that are also this account's, comma-separated and
+	   kept as written. `email` stays the one a message is sent from by
+	   default and the one `-e` means; these are what also count as "me"
+	   when mail arrives at an alias (Gitea #157). */
+	char *aliases;
 	int kind, sec, ssec, noverify;
 };
 

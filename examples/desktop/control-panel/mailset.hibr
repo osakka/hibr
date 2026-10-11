@@ -32,7 +32,7 @@ declare -gA MLAD
 # nothing a person has already typed changes meaning. Without the field a
 # server whose login is a bare username could not be used from the desktop
 # at all, though `email account set -u` has always taken one (Gitea #157).
-MLAD_ORDER=(name email user full pass kind host port sec shost sport ssec ok del cancel)
+MLAD_ORDER=(name email alias user full pass kind host port sec shost sport ssec ok del cancel)
 
 fn cp_set_mailmax(int? id = "", value = "") { DT_MAILMAX=$value; cp_save; }
 fn cp_set_mailbodies(int? id = "", value = "") {
@@ -111,7 +111,7 @@ fn mailset_drop(int? w = "", int? r = "", int? c = "", k = "") {
 # Open the dialog on an account by name, or empty for a new one; or, with
 # "sig", the signature.
 fn mlad_show(name = "", what = "") {
-	local id h=21 w=66 r k
+	local id h=22 w=66 r k i
 
 	[ "$w" -gt $((DT_COLS - 2)) ] && w=$((DT_COLS - 2))
 	if [ "$what" = sig ]; then
@@ -128,7 +128,7 @@ fn mlad_show(name = "", what = "") {
 		id := dt_new "Add a Mail Account" "$h" "$w" $(((DT_ROWS - h) / 2)) $(((DT_COLS - w) / 2)) mlad
 	fi
 	MLAD[$id]["orig"]=$name
-	for k in name email user full pass host port shost sport; do MLAD[$id]["$k"]=; done
+	for k in name email alias user full pass host port shost sport; do MLAD[$id]["$k"]=; done
 	MLAD[$id]["name"]=$name
 	MLAD[$id]["kind"]=imap
 	MLAD[$id]["sec"]=tls
@@ -143,6 +143,13 @@ fn mlad_show(name = "", what = "") {
 		# the address rather than that somebody typed it.
 		MLAD[$id]["user"]=${r["$name"]["user"]}
 		[ "${MLAD[$id]["user"]}" = "${MLAD[$id]["email"]}" ] && MLAD[$id]["user"]=
+		# The addresses past the first: the first is the Email address
+		# row above, and the module keeps the rest as it was given them.
+		i=1
+		while [ -n "${r["$name"]["addresses"][$i]+x}" ]; do
+			MLAD[$id]["alias"]+="${MLAD[$id]["alias"]:+, }${r["$name"]["addresses"][$i]}"
+			i=$((i + 1))
+		done
 		MLAD[$id]["full"]=${r["$name"]["name"]}
 		MLAD[$id]["host"]=${r["$name"]["host"]}
 		MLAD[$id]["port"]=${r["$name"]["port"]}
@@ -153,7 +160,7 @@ fn mlad_show(name = "", what = "") {
 		MLAD[$id]["ssec"]=${r["$name"]["smtpsecurity"]}
 		MLAD[$id]["haspass"]=${r["$name"]["haspass"]}
 	fi
-	for k in name email user full pass host port shost sport; do MLAD[$id]["${k}cur"]=${#MLAD[$id]["$k"]}; done
+	for k in name email alias user full pass host port shost sport; do MLAD[$id]["${k}cur"]=${#MLAD[$id]["$k"]}; done
 	MLAD[$id]["focus"]=name
 	[ -n "$name" ] && MLAD[$id]["focus"]=email
 	MLAD[$id]["status"]=
@@ -162,8 +169,8 @@ fn mlad_show(name = "", what = "") {
 
 fn mlad_draw(int id, int h, int w, int row, int col) {
 	local f=${MLAD[$id]["focus"]} r=1 k on fw=$((w - 22)) t
-	local -A labs=([name]="Account name:" [email]="Email address:" [user]="Login:" \
-		[full]="Your name:" \
+	local -A labs=([name]="Account name:" [email]="Email address:" [alias]="Other addresses:" \
+		[user]="Login:" [full]="Your name:" \
 		[pass]="Password:" [host]="Incoming server:" [port]="Port:" [shost]="Outgoing server:" \
 		[sport]="Port:" [kind]="Kind:" [sec]="Security:" [ssec]="Security:")
 
@@ -175,7 +182,7 @@ fn mlad_draw(int id, int h, int w, int row, int col) {
 		dt_dlgbtns "$id" "$h" "$w" "$f" ok Save cancel Cancel
 		return 0
 	fi
-	for k in name email user full pass kind host port sec shost sport ssec; do
+	for k in name email alias user full pass kind host port sec shost sport ssec; do
 		console pen "$DT_INK" "$DT_FACE"
 		console put -p "w$id" "$r" 2 "${labs[$k]}"
 		on=0
@@ -239,9 +246,9 @@ fn mlad_key(int id, key) {
 	elif [ -n "${MLAD[$id]["orig"]}" ]; then
 		order=("${MLAD_ORDER[@]}")
 	else
-		order=(name email user full pass kind host port sec shost sport ssec ok cancel)
+		order=(name email alias user full pass kind host port sec shost sport ssec ok cancel)
 	fi
-	case $f in name | email | user | full | pass | host | port | shost | sport) onb=0 ;; esac
+	case $f in name | email | alias | user | full | pass | host | port | shost | sport) onb=0 ;; esac
 	if d := dt_focuskey "$key" "$onb"; then
 		MLAD[$id]["focus"] := dt_focus "$f" "$d" "${order[@]}"
 		return 0
@@ -251,14 +258,14 @@ fn mlad_key(int id, key) {
 	enter | " ")
 		case $f in
 		kind | sec | ssec) mlad_do "$id" "$f"; return 0 ;;
-		name | email | user | full | pass | host | port | shost | sport)
+		name | email | alias | user | full | pass | host | port | shost | sport)
 			[ "$key" = enter ] && { MLAD[$id]["focus"] := dt_focus "$f" 1 "${order[@]}"; return 0; }
 			;;
 		*) mlad_do "$id" "$f"; return 0 ;;
 		esac
 		;;
 	esac
-	case $f in name | email | user | full | pass | host | port | shost | sport) ;; *) return 1 ;; esac
+	case $f in name | email | alias | user | full | pass | host | port | shost | sport) ;; *) return 1 ;; esac
 	res := dt_textkey "${MLAD[$id]["$f"]}" "${MLAD[$id]["${f}cur"]}" "$key" || return 1
 	MLAD[$id]["$f"]=${res% *}
 	MLAD[$id]["${f}cur"]=${res##* }
@@ -323,7 +330,7 @@ fn mlad_do(int id, what) {
 		# so clearing the field has to clear the login rather than
 		# leave yesterday's behind.
 		args=(-k "${MLAD[$id]["kind"]}" -e "${MLAD[$id]["email"]}" -n "${MLAD[$id]["full"]}"
-			-u "${MLAD[$id]["user"]}"
+			-u "${MLAD[$id]["user"]}" -a "${MLAD[$id]["alias"]}"
 			-S "${MLAD[$id]["sec"]}" -T "${MLAD[$id]["ssec"]}")
 		[ -n "${MLAD[$id]["pass"]}" ] && args+=(-w "${MLAD[$id]["pass"]}")
 		for k in host:-h port:-p shost:-o sport:-q; do

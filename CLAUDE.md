@@ -2259,6 +2259,23 @@ went in the shell.
   "chose" and nothing changed. The pane repeats the app's declarations and
   `dt_keep` (which now skips a name it already has).
 
+- **Two questions that happen to have one answer today want two variables.**
+  The Mail app kept `MLME["$acct"]`, one address per account, and used it
+  for both "who am I writing as" and "is this message mine" -- which is the
+  same string right up until an account has a second address, and then the
+  second question is wrong and the first is right (Gitea #157, 0.99.147).
+  Mail arriving at an alias read as somebody else's, and your own alias
+  turned up in the senders Compose suggests from. `MLME` still means the
+  one you write as; `MLMINE`, a set keyed by the lowercased address, answers
+  the other. **A variable serving two questions is a bug waiting for the
+  day they differ**, and the tell is a name that reads as a fact ("my
+  address") rather than as an answer to one of them.
+  The file format half is worth copying: the account file grew a
+  **fourteenth** tab-separated field, *appended* rather than inserted, and
+  `ml_confparse` counts nothing -- so a new build reads an old line and an
+  old build reads a new one. Both directions were **run**, the second
+  against the installed previous release rather than reasoned about, which
+  is the only way that claim is worth anything.
 - **Adding a field to a dialog moves the tab order a suite types through.**
   The Mail account dialog grew a Login row between the address and the name
   (Gitea #157), and the four new checks for it were not the only ones that

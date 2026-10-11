@@ -45,6 +45,7 @@ void ml_acctfree(ml_acct *a)
 	free(a->full);
 	free(a->shost);
 	free(a->sport);
+	free(a->aliases);
 	free(a);
 }
 
@@ -148,6 +149,12 @@ int ml_conf(sh *s)
 		x = ml_field(&p);
 		a->noverify = !strcmp(x, "1");
 		free(x);
+		/* A fourteenth field, appended rather than inserted, so the two
+		   directions both work: ml_field answers "" past the end of a
+		   line an older build wrote, and an older build reads the
+		   thirteen it knows and never looks at this one -- nothing here
+		   counts the fields. */
+		a->aliases = ml_field(&p);
 		v_add(&ml_accts_v, a);
 	}
 	free(line);
@@ -176,10 +183,10 @@ int ml_confwrite(sh *s)
 		free(d);
 	}
 	s_cat(&o, "# hibr mail accounts: name kind host port security user password email name "
-		  "smtp-host smtp-port smtp-security noverify\n");
+		  "smtp-host smtp-port smtp-security noverify aliases\n");
 	for (i = 0; i < ml_accts_v.n; i++) {
 		ml_acct *a = ml_accts_v.p[i];
-		const char *f[13];
+		const char *f[14];
 		int k;
 
 		f[0] = a->name;
@@ -195,7 +202,8 @@ int ml_confwrite(sh *s)
 		f[10] = a->sport;
 		f[11] = ml_secname(a->ssec);
 		f[12] = a->noverify ? "1" : "0";
-		for (k = 0; k < 13; k++) {
+		f[13] = a->aliases ? a->aliases : "";
+		for (k = 0; k < 14; k++) {
 			if (k)
 				s_ch(&o, '\t');
 			s_cat(&o, f[k] ? f[k] : "");
@@ -288,6 +296,7 @@ int ml_acctset(sh *s, int ac, char **av)
 		a->full = xs("");
 		a->shost = xs("");
 		a->sport = xs("");
+		a->aliases = xs("");
 		v_add(&ml_accts_v, a);
 		isnew = 1;
 	}
@@ -312,6 +321,7 @@ int ml_acctset(sh *s, int ac, char **av)
 		case 'h': ml_setf(&a->host, v); break;
 		case 'p': ml_setf(&a->port, v); break;
 		case 'S': a->sec = ml_secof(v); break;
+		case 'a': ml_setf(&a->aliases, v); break;
 		case 'u': ml_setf(&a->user, v); break;
 		case 'w': ml_setf(&a->pass, v); break;
 		case 'e': ml_setf(&a->email, v); break;
@@ -430,6 +440,7 @@ int ml_accts(sh *s)
 				     "smtphost", "smtpport", "smtpsecurity", "haspass", "verify", 0 };
 		const char *v[12];
 		int k;
+		char ix[24];
 
 		v[0] = a->kind == ML_POP ? "pop" : "imap";
 		v[1] = a->host;
@@ -452,6 +463,40 @@ int ml_accts(sh *s)
 		for (k = 0; nm[k]; k++) {
 			ks[1] = (char *)nm[k];
 			hibr_setp(s, "RET", ks, 2, v[k] ? v[k] : "");
+		}
+		/* Every address this account answers to, as an array and with
+		   the main one first, so a caller asks the list rather than
+		   splitting a string of its own -- the comma is the file's
+		   business and nobody else's. */
+		{
+			const char *p = a->aliases ? a->aliases : "";
+			char *ks3[3];
+			int n = 0;
+
+			ks3[0] = a->name;
+			ks3[1] = (char *)"addresses";
+			ks3[2] = ix;
+			snprintf(ix, sizeof ix, "%d", n++);
+			hibr_setp(s, "RET", ks3, 3, a->email);
+			while (*p) {
+				const char *e = strchr(p, ',');
+				size_t len = e ? (size_t)(e - p) : strlen(p);
+				str one;
+
+				while (len && (*p == ' ' || *p == '\t')) { p++; len--; }
+				while (len && (p[len - 1] == ' ' || p[len - 1] == '\t'))
+					len--;
+				if (len) {
+					s_init(&one);
+					s_add(&one, p, len);
+					snprintf(ix, sizeof ix, "%d", n++);
+					hibr_setp(s, "RET", ks3, 3, one.p ? one.p : "");
+					s_free(&one);
+				}
+				if (!e)
+					break;
+				p = e + 1;
+			}
 		}
 	}
 	return HIBR_OK;
