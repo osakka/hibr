@@ -274,7 +274,17 @@ open(sess, "w").write("%s. %s\n. %s\nCP_PANEDIRS+=(\"%s\")\ncp_panes\ndt_open\nm
 t = Term(sess, rows=30, cols=100, settle=1.5, env={"HIBR_MAIL_CONF": conf4, "XDG_DATA_HOME": D})
 sc = waitfor(t, "Add a Mail Account")
 check("Add Account opens its dialog, and the desktop lives", sc.find("Account name:") and sc.find("Password:"), sc)
-t.keys([b"Home Email", b"\t", b"pat@example.com", b"\t", b"Pat Doe", b"\t", b"secret"] + [b"\t"] * 8 + [b"\r"])
+# The login is its own field (Gitea #157): `email account set -u` has always
+# taken one, and the dialog never offered it, so every account the desktop
+# made logged in as its address and a server wanting a bare username could
+# not be used at all. Empty means "the same as the address", which is what
+# the module does with one it is not given -- so the row says so rather than
+# sitting blank.
+lg = sc.find("Login:")
+check("the dialog asks for a login, and says an empty one follows the address",
+      lg is not None and "(from the address)" in sc.row(lg[0]), sc)
+t.keys([b"Home Email", b"\t", b"pat@example.com", b"\t", b"pat.doe", b"\t",
+        b"Pat Doe", b"\t", b"secret"] + [b"\t"] * 8 + [b"\r"])
 sc = look(t)
 check("a server it cannot work out from the address is asked for, not guessed",
       sc.find("no server given") and not os.path.exists(conf4), sc)
@@ -286,6 +296,45 @@ click(t, look(t), "Save ", 4)
 check("an address at Gmail saves, Gmail's servers filled in",
       until(lambda: os.path.exists(conf4) and "imap.gmail.com" in open(conf4).read()),
       open(conf4).read() if os.path.exists(conf4) else "no file")
+saved = open(conf4).read() if os.path.exists(conf4) else ""
+check("and the login it was given is what was stored, not the address",
+      "pat.doe" in saved and "pat@gmail.com" in saved, saved)
+t.quit(b"qy", 1.5)
+
+# Opening that account again shows the login back, where an account that
+# never had one shows the hint instead -- the module resolves an empty login
+# to the address when it writes the account, so reading it back without that
+# rule would put the address in the field and make it look typed.
+sess5 = os.path.join(D, "dialog2.hibr")
+open(sess5, "w").write("%s. %s\n. %s\nCP_PANEDIRS+=(\"%s\")\ncp_panes\ndt_open\n"
+                       "mlad_show 'Home Email'\ndt_run\ndt_close\n" % (
+    load("console", "email", "db"), tree("examples/desktop/desktop.hibr"),
+    tree("examples/desktop/system/panel.hibr"), tree("examples/desktop/control-panel")))
+t = Term(sess5, rows=30, cols=100, settle=1.5,
+         env={"HIBR_MAIL_CONF": conf4, "XDG_DATA_HOME": D})
+sc = waitfor(t, "Mail Account")
+lg = sc.find("Login:")
+check("re-opening the account shows the login it was saved with",
+      lg is not None and "pat.doe" in sc.row(lg[0]), sc)
+t.quit(b"qy", 1.5)
+
+conf5 = os.path.join(D, "nologin.conf")
+subprocess.run([sx.HIBR, "-c", "need email; email account set plain -h h.example.com "
+                "-e sam@example.com -w x"], capture_output=True, text=True,
+               env=dict(os.environ, HIBR_MAIL_CONF=conf5,
+                        HIBR_MODPATH=tree("build/mods")))
+sess6 = os.path.join(D, "dialog3.hibr")
+open(sess6, "w").write("%s. %s\n. %s\nCP_PANEDIRS+=(\"%s\")\ncp_panes\ndt_open\n"
+                       "mlad_show plain\ndt_run\ndt_close\n" % (
+    load("console", "email", "db"), tree("examples/desktop/desktop.hibr"),
+    tree("examples/desktop/system/panel.hibr"), tree("examples/desktop/control-panel")))
+t = Term(sess6, rows=30, cols=100, settle=1.5,
+         env={"HIBR_MAIL_CONF": conf5, "XDG_DATA_HOME": D})
+sc = waitfor(t, "Mail Account")
+lg = sc.find("Login:")
+check("an account that never had one still reads as following the address",
+      lg is not None and "(from the address)" in sc.row(lg[0])
+      and "sam@example.com" not in sc.row(lg[0]), sc)
 t.quit(b"qy", 1.5)
 out = subprocess.run([sx.HIBR, "-c", "%s. %s\n. %s\nCP_PANEDIRS+=(\"%s\")\ncp_panes\n"
                       "n := mailset_rows 1; i=0; while [ $i -lt $n ]; do echo \"${CP[1][$i][\"text\"]}|${CP[1][$i][\"val\"]}\"; i=$((i + 1)); done"
@@ -318,4 +367,4 @@ check("and Back is where it is drawn", sc.find("Back") is None and
       sc.find("Lunch on Friday?") is not None, sc)
 t.quit(b"qy", 1.5)
 
-report(51)
+report(55)

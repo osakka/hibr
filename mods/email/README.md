@@ -41,6 +41,12 @@ given, so a Gmail account is its address and an app password:
 email account set g -e someone@gmail.com -w 'abcd efgh ijkl mnop'
 ```
 
+`-u` is the login, and it is not always the address: plenty of servers want
+a bare username. Left out, the address is used, which is why most accounts
+never mention it -- the desktop's own account dialog shows the field empty
+with "(from the address)" under it for exactly that reason, and sends
+whatever it holds, so clearing it goes back to following the address.
+
 `email account mv OLD NEW` renames one, keeping everything else, and
 `email account rm NAME` forgets it.
 

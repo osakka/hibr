@@ -2259,6 +2259,23 @@ went in the shell.
   "chose" and nothing changed. The pane repeats the app's declarations and
   `dt_keep` (which now skips a name it already has).
 
+- **Adding a field to a dialog moves the tab order a suite types through.**
+  The Mail account dialog grew a Login row between the address and the name
+  (Gitea #157), and the four new checks for it were not the only ones that
+  failed against the release before: **seven** did, because the existing
+  checks walk the dialog with `\t` and everything after the new row shifted
+  by one -- `Pat Doe` went into the login field and the account saved with
+  the wrong everything. That is the Control Panel picker's row-arithmetic
+  trap in a different shape, and the cheap guard is the same: a check that
+  types its way through a form is only right for the form it was written
+  against, so adding a row means reading every suite that tabs through it
+  rather than only the one whose name matches the feature.
+  The feature itself is worth remembering for its shape: `email account set
+  -u` had taken a login since the module was written and `conf.c` defaulted
+  it to the address, so **nothing underneath was broken and the fix was one
+  row in `MLAD_ORDER`** -- the desktop simply could not say a thing the
+  module had always understood. Before building a mechanism for a report
+  like that, check whether the layer below already has it.
 - **A helper must not be named like its own app's callback.** `dt_new`
   calls the new window's `<prefix>_open`, so the account dialog's opener,
   named `mlad_open`, opened a `mlad` window, which called `mlad_open`, which

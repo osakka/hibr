@@ -1,5 +1,60 @@
 # Changelog
 
+## 0.99.145
+
+**The Mail account dialog had no login field, so an account whose login is
+not its address could not be made from the desktop at all** (Gitea #157).
+
+Reported directly: *"my username on mail is not an email address, it can be,
+but not necessarily, so I cannot login using our integrated email client."*
+
+**Nothing was broken underneath.** `email account set -u` has taken a login
+for as long as the module has existed, and `conf.c` has always defaulted it
+to the address when it is not given. The desktop simply never offered it:
+`MLAD_ORDER` listed eleven fields and `user` was not among them, so every
+account the dialog made logged in as its address, and a server wanting a
+bare username refused it.
+
+One row, labelled **Login:**, between the address and your name. Three things
+about it are decisions rather than details:
+
+- **Empty means the address**, which is what the module already does with an
+  account it is not given a login for -- so no existing account changes and
+  nobody who logs in with their address sees a difference. The row says so
+  in place, `(from the address)`, the way the server and port rows already
+  do.
+- **It is sent whatever it holds, empty included.** Passing `-u` only when
+  the field has something would mean a login could be set and never cleared:
+  empty is how the module is told to go back to the address.
+- **An account read back shows it empty when the stored login *is* the
+  address.** The module resolves an empty login when it writes the account,
+  so one that never had a login reads back with `user == email`; putting
+  that in the field would say somebody typed it.
+
+### What this is not
+
+It is not the other half of that report -- several addresses on one account,
+so mail to an alias reads as yours and Compose can choose which to send
+from. That touches the module, the account file, the identity logic and the
+dialog, and is its own release; #157 stays open for it.
+
+### The checks
+
+Four in `tests/mailapp.py`, driving the real dialog through a pty: the row
+exists and says an empty login follows the address; a login typed in is what
+lands in the account file, rather than the address; re-opening that account
+shows it back; and an account made without one still reads as following the
+address rather than showing the address as though it had been typed.
+
+They were watched failing against 0.99.144 first -- **seven** checks fail
+there, not four, because inserting a field shifts the tab order the older
+checks walk, which is the thing to know before adding a row to a dialog a
+suite types through.
+
+The module side needed nothing and got nothing: `-u pat` against an account
+whose address is `pat@example.com` is already what `tests/mail.py` and
+`tests/mailapp.py` log in with everywhere.
+
 ## 0.99.144
 
 **`read -n N` took N characters regardless of the delimiter, and `read -N`
