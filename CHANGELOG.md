@@ -1,5 +1,117 @@
 # Changelog
 
+## 0.99.149
+
+**A render cleared the flag that said the page it had just read was already
+out of date, so a Browser window could keep a blank new document for ever**
+(Gitea #182).
+
+Found by 0.99.148's own release gate, as one failure in `tests/web.py` with
+the other 41 suites green and nothing in that release able to reach it.
+
+### The check's name was wrong about what failed
+
+```
+ 1|··┌─┤ Browser [Page B] ├──────────────────────────────────────┤_ □ x├┐··
+ 2|··│ Page B ✕ │ +                                                     │··
+ 3|··│ ← → ↻  file:///tmp/hibr-webrep-f5gw27br/b.html                   │··
+ 4|··│                                                                  │··
+   ... every page row blank, status line the idle one, not "Loading…" ...
+```
+
+The click *did* follow the link -- the title, the tab and the address all say
+Page B. The drawing of page B is what never happened, and never happened
+again. 0 of 6 unloaded, **3 of 16** under three spinners on four cores, with
+the link at the same cell in every run including the failures, so it was
+never the "a click aimed at a column worked out from text that has not
+arrived yet" trap that the tab close box had.
+
+### What the frames said
+
+`browser_draw` instrumented to log what each of its own questions answered,
+in a patched copy of the app so the tree stayed clean. All three failures,
+identically:
+
+```
+DBG st=idle    dirty=dirty render=ok   draw=ok page=a.html
+DBG st=loading dirty=dirty render=ok   draw=ok page=b.html
+DBG st=idle    dirty=clean render=skip draw=ok page=b.html   <- and six more
+```
+
+The frame that learns the load has finished finds `dirty` **already clean**
+and skips the render, so the empty document rendered on the frame before is
+redrawn for ever.
+
+### The cause, which is a rule this file already carries
+
+`wb_call` waits for its own reply by calling `wb_pump`, and `wb_pump` hands
+every message that is *not* a reply straight to `wb_event`. So an event that
+arrives while a render's `Runtime.evaluate` is in flight is dispatched
+**inside that render** -- `Page.loadEventFired` among them, which sets
+`loading = 0` and `dirty = 1`. And `wb_render` ended with:
+
+```c
+	jv_free(v);
+	t->dirty = 0;
+	return HIBR_OK;
+```
+
+wiping the flag that had just been set. The next frame then had `loading`
+false and `dirty` clean: nothing to re-render, and nothing to ask for
+another frame with.
+
+`t->dirty = 0` happens **before** the extraction now, never after, so
+anything arriving during it survives -- the same rule as the `SIGCHLD` flag,
+which is cleared before the wait or a child exiting during it waits for the
+next one. The two failure paths put it back, since nothing else would.
+
+### And the other half, in the app
+
+With the module fixed the common case heals itself: the frame that rendered
+an empty document was a `loading` frame, so it asked for another, and that
+one finds `dirty` set and renders again. What it does not cover is an event
+landing inside the **last** render, where `loading` is already false: the
+flag is then set correctly and nobody asks for the frame that would act on
+it, because a settled page sends nothing more to wake the desktop with.
+
+So `browser_draw` asks for one when the tab is still dirty after it has
+drawn. That is a condition, not a timer, and it cannot spin: the frame it
+asks for renders, and asks again only if another event lands inside that
+one.
+
+### The checks
+
+`tests/web.py` gained one, and **the window it needs is made certain rather
+than left to luck**: the fixture page's last element is a 600 ms busy script,
+so an eval issued while it spins cannot run until the script ends, which is
+when `load` fires -- the event is guaranteed to land inside the render. It
+reads `clean` 4 times of 4 against the old module and `dirty` 4 of 4 against
+the new one.
+
+It asserts `idle` beside `dirty`, which is the check's own test: without it
+a run where the load event had *not* been consumed inside the render would
+pass for no reason at all.
+
+And it waits for the **navigation to commit** rather than pausing for a fixed
+time before rendering -- which is this release's own lesson applied to its own
+guard. The page spins in its `head`, so "the navigation committed" and "the
+page is busy" are the same instant and no pause is needed between them; the
+wait measures 30-40 ms in practice and the check prints how long it took, so
+a run where the commit never arrived says so instead of reading as the bug.
+
+### One check this release's gate caught, which was not this release
+
+`tests/desktop.py`'s *and on to the one after that* failed with the menu bar
+**shut** -- the screen kept, for the first time, because `all.py` defaults
+`V=1` as of 0.99.148. The scenario is F10 then right twice, and the check
+asks for the second menu's first item, so what went missing is the bar
+opening at all. Unloaded it does not fail: 0 of 20 in the suite's own key
+shape, and 0 of 10 with the screen read between each key, those reading
+`Screen Saver -> Bump -> Bump Twice` every time -- the walk is not what
+breaks. Filed as Gitea #183, with the already-recorded ~4% key-delivery
+flake in that same suite named as a likely sibling, and left open rather
+than papered over.
+
 ## 0.99.148
 
 **`tools/screenshot.py` fed escape payloads to the grid as text, and could

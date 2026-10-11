@@ -305,7 +305,17 @@ fn browser_draw(int id, int h, int w, int row, int col) {
 		web render "$t" 2> /dev/null && BW[$id]["drawn"]=$t
 	fi
 	web draw "$t" 3 1 -p "w$id" 2> /dev/null
-	[ "$st" = loading ] && dt_want 400
+	# A frame while it loads, and one more when the page turns out to be
+	# newer than the render this frame just drew: web render's own round
+	# trip pumps the pipe, so an event can arrive inside it, and a settled
+	# page then sends nothing further to wake the desktop with (Gitea
+	# #182). It cannot spin -- the frame it asks for renders, and asks
+	# again only if another event lands inside that one.
+	if [ "$st" = loading ]; then
+		dt_want 400
+	elif web dirty "$t" 2> /dev/null; then
+		dt_want 30
+	fi
 	bw_status "$id" "$h" "$w" "$st"
 	command -v dt_retitle > /dev/null && {
 		tt := web title "$t" 2> /dev/null

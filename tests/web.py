@@ -28,8 +28,20 @@ open(os.path.join(D, "a.html"), "w").write(
 open(os.path.join(D, "b.html"), "w").write(
     "<html><head><title>Page B</title></head><body><p>This is page B.</p>"
     "<a href='a.html'>back to a</a></body></html>")
+# A page that spins in its own head: the parser reaches the script at the
+# moment the navigation commits, so an eval issued then cannot run until the
+# script ends -- and `load` fires just after it, while that eval is still
+# waiting. That is what makes the window an event has to land in certain
+# rather than lucky (Gitea #182). In the head rather than at the end of the
+# body so that "the navigation committed" and "the page is busy" are the same
+# instant, and the check needs no pause of its own between them.
+open(os.path.join(D, "s.html"), "w").write(
+    "<html><head><title>Page S</title>"
+    "<script>const e = Date.now() + 800; while (Date.now() < e);</script>"
+    "</head><body><p>The slow page.</p></body></html>")
 A = "file://" + os.path.join(D, "a.html")
 B = "file://" + os.path.join(D, "b.html")
+S = "file://" + os.path.join(D, "s.html")
 ENV = dict(os.environ, HIBR_WEB_PROFILE=PROF,
            HIBR_MODPATH=tree("build/mods"))
 
@@ -73,6 +85,28 @@ out, err = hb("t := web open %s; web wait $t 10000; web size $t 20 70;"
               " web title $t" % A)
 check("a click on a link follows it; back and forward go through history",
       out.split("\n")[:3] == ["Page B", "Test page", "Page B"], out + err)
+# A render waits for its own reply by pumping the pipe, and the pump hands
+# every event queued behind it to wb_event -- Page.loadEventFired among them,
+# which sets dirty. Clearing dirty at the *end* of a render therefore wiped
+# the one signal saying the page it had just read was already out of date,
+# with nothing to set it again: a Browser window kept a blank new document
+# for ever (Gitea #182). `idle` is asserted beside `dirty` on purpose -- it
+# says the load event really was consumed inside that render, without which
+# the check would pass for no reason.
+out, err = hb("t := web open %s; web wait $t 10000; web size $t 20 70;"
+              " web render $t > /dev/null; web go $t %s;"
+              " n=0;"
+              " while [ $n -lt 300 ]; do"
+              "   web poll > /dev/null; u := web url $t;"
+              "   case $u in *s.html) break ;; esac;"
+              "   n=$((n + 1)); sleep 0.01;"
+              " done;"
+              " web render $t > /dev/null;"
+              " if web dirty $t; then echo dirty; else echo clean; fi;"
+              " if web loading $t; then echo loading; else echo idle; fi;"
+              " echo \"waited $n\"" % (A, S))
+check("an event that lands inside a render leaves the tab dirty",
+      out.split("\n")[:2] == ["dirty", "idle"], out + err)
 out, err = hb("t := web open %s; web wait $t 10000; web size $t 20 70;"
               " web render $t; web click $t 6 3; web type $t 'hello there';"
               " web key $t backspace; web eval $t 'document.getElementById(\"q\").value';"
@@ -198,4 +232,4 @@ check("without a browser to drive, the window says what is missing",
       sc.find("No Chromium or Chrome") is not None, sc)
 
 shutil.rmtree(D, True)
-report(18)
+report(19)

@@ -80,6 +80,18 @@ two, in its own colour unless that would be unreadable there. A character
 two columns wide takes two cells. A link's cells carry its address, so a
 terminal that does links (OSC 8) makes them clickable.
 
+`dirty` is cleared **before** a render's extraction rather than after it, and
+that is not a detail: the extraction is a CDP round trip, the wait for its
+reply pumps the pipe, and every event queued behind that reply is dispatched
+on the way -- `Page.loadEventFired` among them, which sets `dirty` again.
+Clearing it afterwards wiped the one thing saying the page just read was
+already out of date, and a Browser window kept a blank new document for ever
+(Gitea #182). A failed render puts the flag back.
+
+So a caller that draws a page per frame should ask `dirty` again **after**
+drawing: set then, it means an event arrived while the frame was being made,
+and a settled page sends nothing further to wake anything with.
+
 A dialog the page opens (`alert`, `confirm`) is accepted at once.
 
 ## Taking a page's media

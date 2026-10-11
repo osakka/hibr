@@ -451,6 +451,14 @@ int wb_render(wb_tab *t)
 
 	if (t->rows < 1 || t->cols < 1)
 		return HIBR_FAIL;
+	/* Cleared before the extraction, never after it: wb_eval waits for
+	   its own reply by pumping the pipe, and wb_pump hands every event
+	   queued behind it to wb_event -- Page.loadEventFired among them,
+	   which sets dirty again. Clearing at the end wiped the one signal
+	   saying the page this render read is already out of date, and a
+	   Browser window then kept a blank new document for ever (Gitea
+	   #182). A failed render puts it back; nothing else would. */
+	t->dirty = 0;
 	js = xm(sizeof wb_extract + 32);
 	snprintf(js, sizeof wb_extract + 32, wb_extract, WB_CW, WB_CH);
 	s_init(&out);
@@ -458,12 +466,15 @@ int wb_render(wb_tab *t)
 	free(js);
 	if (k != HIBR_OK) {
 		s_free(&out);
+		t->dirty = 1;
 		return HIBR_FAIL;
 	}
 	v = jv_parse(out.p ? out.p : "", out.n);
 	s_free(&out);
-	if (!v)
+	if (!v) {
+		t->dirty = 1;
 		return HIBR_FAIL;
+	}
 	t->sx = (long)jv_num(jv_get(v, "sx"));
 	t->sy = (long)jv_num(jv_get(v, "sy"));
 	t->url.n = 0;
@@ -552,7 +563,6 @@ int wb_render(wb_tab *t)
 		}
 	}
 	jv_free(v);
-	t->dirty = 0;
 	return HIBR_OK;
 }
 

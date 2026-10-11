@@ -3421,6 +3421,38 @@ went in the shell.
   `$here/$name.expected` in `run.sh`, so the test silently falls through to
   being compared against bash instead and fails there in a way that looks
   like a behaviour bug rather than a typo'd filename.
+- **A flag cleared after the work it describes loses whatever that work
+  learned.** `wb_render` ended with `t->dirty = 0`, and a render's own
+  `Runtime.evaluate` waits for its reply by pumping the CDP pipe --
+  `wb_pump` hands every message that is not that reply straight to
+  `wb_event`, so `Page.loadEventFired` (`loading = 0`, `dirty = 1`) is
+  dispatched **inside** the render that then wiped it. The frame after had
+  `loading` false and `dirty` clean: nothing to re-render, and nothing to
+  ask for another frame with, so a **Browser window kept a blank new
+  document for ever** -- and its title, its tab and its address all said the
+  new page, which is why the check that caught it ("a click on a link in the
+  window follows it") was wrong about what had failed: the click worked, the
+  drawing never happened (Gitea #182, 0.99.149). 3 of 16 under three
+  spinners, 0 of 6 without. Clear such a flag **before** the work, which is
+  the rule `jc_chld` already follows -- cleared before the wait, or a child
+  exiting during it waits for the next one -- and put it back on the failure
+  paths, which were relying on it surviving. The shape to look for is any
+  `x->flag = 0` at the end of a function that blocks or makes a round trip
+  in the middle of itself.
+  Two things beside it. **The module fix leaves one case to the app**: an
+  event landing inside the *last* render sets the flag correctly and nobody
+  asks for the frame that would act on it, since a settled page sends
+  nothing more to wake the desktop with -- `browser_draw` asks for one when
+  the tab is still dirty after it has drawn, which is a condition rather
+  than a timer and cannot spin, because the frame it asks for renders. And
+  **the check for it makes its own window certain**: the fixture page's last
+  element is a 600 ms busy script, so an eval issued while it spins cannot
+  run until the script ends, which is when `load` fires -- the event is
+  guaranteed to land inside the render, 4 of 4 either way, where the desktop
+  reproduction needed sixteen runs under load for three hits. It asserts the
+  tab is `idle` beside being dirty, which is the check's own test: without
+  that, a run where the event had not landed inside the render would pass
+  for no reason.
 - **A gate runs unattended, so its failures have to keep their evidence.**
   `screen.check` prints the screen a check failed on only when `V` is set,
   and `tests/all.py` did not set it -- so 0.99.148's gate left
