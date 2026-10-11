@@ -190,8 +190,38 @@ fn dt_notehist_add(int id) {
 # DT_NOTERECT in the same pass that draws it, so dt_note_hit's own
 # point-in-rect test can never drift from what is actually on screen --
 # the same discipline dt_confirm_hit/dt_confirm_geom already follow.
+# The rows a note's text takes at width w: the textarea widget's own
+# wrapper, which breaks after the last space that fits and at w for a word
+# longer than a row. A note used to be *cut* at the screen's width, which
+# is fine for "Saved" and loses the point of anything that has one -- the
+# session-is-older note says what to do and what it costs, and on an
+# 80-column desktop the advice was the half that fell off (Gitea #190).
+DT_NOTELINES=()
+fn dt_notewrap(t, int w) {
+	local starts i s e
+	local -a ss
+
+	DT_NOTELINES=()
+	[ "$w" -lt 8 ] && w=8
+	starts := tb_wrap "$t" "$w"
+	read -ra ss <<< "$starts"
+	i=0
+	while [ "$i" -lt "${#ss[@]}" ]; do
+		s=${ss[$i]}
+		if [ $((i + 1)) -lt "${#ss[@]}" ]; then
+			e=$((${ss[$((i + 1))]} - s))
+			DT_NOTELINES+=("${t:$s:$e}")
+		else
+			DT_NOTELINES+=("${t:$s}")
+		fi
+		i=$((i + 1))
+	done
+	[ "${#DT_NOTELINES[@]}" = 0 ] && DT_NOTELINES=("$t")
+	return 0
+}
+
 dt_note_draw() {
-	local id now age w h r c t maxw n=0 top bar f fw
+	local id now age w h r c t maxw n=0 top bar f fw used=0 i lw
 	local -a keep
 
 	now := dt_ms
@@ -215,22 +245,30 @@ dt_note_draw() {
 	esac
 	for id in "${DT_NOTEQ_ORDER[@]}"; do
 		t=${DT_NOTEQ[$id]["text"]}
-		[ ${#t} -gt "$maxw" ] && t="${t:0:$maxw}"
 		f=${DT_NOTEQ[$id]["from"]}
 		[ ${#f} -gt $((maxw - 2)) ] && f="${f:0:$((maxw - 2))}"
-		w=$((${#t} + 4))
+		dt_notewrap "$t" $((maxw - 4))
+		w=0
+		for i in "${DT_NOTELINES[@]}"; do
+			lw := str width "$i"
+			[ "$lw" -gt "$w" ] && w=$lw
+		done
+		w=$((w + 4))
 		fw=$((${#f} + 6))
 		[ "$fw" -gt "$w" ] && w=$fw
-		h=3
+		h=$((2 + ${#DT_NOTELINES[@]}))
 		case $DT_NOTEPOSX in
 		*left*) c=1 ;;
 		*) c=$((DT_COLS - w - 1)) ;;
 		esac
+		# Each note is as tall as its own text now, so the next one
+		# starts below this one rather than a fixed three rows down.
 		if [ "$top" = 1 ]; then
-			r=$((1 + n * (h + 1)))
+			r=$((1 + used))
 		else
-			r=$((DT_ROWS - (n + 1) * (h + 1)))
+			r=$((DT_ROWS - used - h))
 		fi
+		used=$((used + h + 1))
 		DT_NOTERECT[$id]["r"]=$r
 		DT_NOTERECT[$id]["c"]=$c
 		DT_NOTERECT[$id]["w"]=$w
@@ -243,12 +281,16 @@ dt_note_draw() {
 		esac
 		bar := dt_rep $((w - 2)) "${GL[hline]}"
 		console put "$r" "$c" "${GL[tl]}$bar${GL[tr]}"
-		console put $((r + 2)) "$c" "${GL[bl]}$bar${GL[br]}"
+		console put $((r + h - 1)) "$c" "${GL[bl]}$bar${GL[br]}"
 		console pen "$DT_INK" "$DT_FACE" bold
 		[ -n "$f" ] && console put "$r" $((c + 2)) " $f "
-		t := str pad "$t" $((w - 4))
 		console pen "$DT_INK" "$DT_FACE" bold
-		console put $((r + 1)) "$c" "${GL[vline]} $t ${GL[vline]}"
+		i=0
+		for t in "${DT_NOTELINES[@]}"; do
+			t := str pad "$t" $((w - 4))
+			console put $((r + 1 + i)) "$c" "${GL[vline]} $t ${GL[vline]}"
+			i=$((i + 1))
+		done
 		n=$((n + 1))
 	done
 }

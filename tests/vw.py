@@ -188,6 +188,30 @@ finally:
     srv2.kill()
 
 # A provider this client cannot do is named rather than half-tried.
+# Provider 1 is the emailed code, and it is the only one that makes a
+# request of its own before the code is typed: the server mails it when
+# asked, and that ask carries the master password hash. Nothing drove this
+# provider until Gitea #185, which is why the client could send a
+# form-encoded hash in a JSON body for releases -- the stand-in replied 200
+# to anything, and no check ever reached the endpoint at all.
+srv4, p4 = server("--2fa", "1")
+try:
+    D4 = tempfile.mkdtemp(prefix="hibr-vw4-")
+    E4 = {"XDG_CONFIG_HOME": os.path.join(D4, "c"), "XDG_DATA_HOME": os.path.join(D4, "d"),
+          "XDG_RUNTIME_DIR": os.path.join(D4, "r")}
+    vw("server", "http://127.0.0.1:%d" % p4, env=E4)
+
+    before = stats(p4)["mailed"]
+    out, rc, err = vw("login", "pat@example.com", stdin=PW + "\n", env=E4)
+    check("an emailed code is asked for by name, and the server is told to send it",
+          rc != 0 and "email" in err.lower() and stats(p4)["mailed"] == before + 1,
+          (err, before, stats(p4)["mailed"]))
+
+    out, rc, err = vw("login", "pat@example.com", stdin=PW + "\n123456\n", env=E4)
+    check("and the emailed code logs in", rc == 0 and "unlocked" in err, (out, err))
+finally:
+    srv4.kill()
+
 srv3, p3 = server("--2fa", "7")
 try:
     D3 = tempfile.mkdtemp(prefix="hibr-vw3-")
@@ -201,4 +225,4 @@ finally:
     srv3.kill()
 
 shutil.rmtree(D, True)
-report(30)
+report(32)

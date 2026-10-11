@@ -6,6 +6,7 @@ every callback names what it is called with
 no window's _open opens another of itself
 every app's bar begins File, then Edit
 every kept preference is in the Control Panel
+every dropdown row has its popup
 the desktop is strict
 no window content draws at absolute screen coordinates
 every glyph drawn is named

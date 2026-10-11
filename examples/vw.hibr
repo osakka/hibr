@@ -298,7 +298,7 @@ fn vw_find(q) {
 }
 
 fn vw_cmd(cmd = "", ...rest) {
-	local r h kdf i nm us q f t
+	local r h hf kdf i nm us q f t
 	local recovery grant tfa prov code cf why em
 	local -a o provs
 	local -A tf
@@ -332,11 +332,19 @@ fn vw_cmd(cmd = "", ...rest) {
 		read -ra o <<< "$kdf"
 		h := vwk hash "${o[@]}" ${VW_STDIN:+-s} || vw_die "the password could not be read"
 		q := vwk form "${VA["email"]}"
-		h := vwk form "$h"
+		# The hash goes two ways and they are not interchangeable: form
+		# encoded into the token grant, which is urlencoded, and raw
+		# into any JSON body. A base64 hash holds +, / and =, which
+		# form encoding turns into %2B, %2F and %3D -- so reusing the
+		# encoded one in the send-email-login body handed the server a
+		# different string, and it answered "Username or password is
+		# incorrect" from an endpoint the password had already
+		# satisfied (Gitea #185). One variable, two encodings.
+		hf := vwk form "$h"
 		us := vw_b64url "${VA["email"]}"
 		f := vw_url identity /connect/token
 		t := vw_devid
-		grant="grant_type=password&username=$q&password=$h&scope=api%20offline_access&client_id=cli&deviceType=8&deviceIdentifier=$t&deviceName=hibr"
+		grant="grant_type=password&username=$q&password=$hf&scope=api%20offline_access&client_id=cli&deviceType=8&deviceIdentifier=$t&deviceName=hibr"
 		# A device this server has already been told to remember answers
 		# the two-factor question on the first post, so an account with it
 		# on logs in with nothing typed. Provider 5 is Remember.

@@ -157,7 +157,21 @@ class H(BaseHTTPRequestHandler):
         if self.path == "/api/two-factor/send-email-login":
             # Vaultwarden mails the code only when it is asked to; the 400
             # does not send it. Unauthenticated, and it wants the master
-            # password hash the client already has.
+            # password hash the client already has -- and it *checks* it,
+            # answering the same "Username or password is incorrect" as a
+            # bad login. Replying 200 to anything is what let a client send
+            # a mangled hash here for releases without a check noticing
+            # (Gitea #185): the comment above knew what this endpoint wants
+            # and the code did not ask for it.
+            try:
+                d = json.loads(b)
+            except ValueError:
+                d = {}
+            if (d.get("email", "").lower() != EMAIL
+                    or d.get("masterPasswordHash") != HASH):
+                return self.reply(400, {
+                    "message": "Username or password is incorrect. Try again.",
+                    "object": "error"})
             STATS["mailed"] += 1
             return self.reply(200, {})
         if self.path == "/identity/connect/token":

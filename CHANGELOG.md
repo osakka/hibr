@@ -1,5 +1,124 @@
 # Changelog
 
+## 0.99.151
+
+**Email two-factor could never log in: the master password hash was sent
+form-encoded inside a JSON body** (Gitea #185).
+
+Reported from a live, self-hosted Vaultwarden: *"I am no longer sure how to
+login, it's not giving me the 2fa error anymore"*. The message named the
+endpoint, and that was the whole finding:
+
+```
+vw: https://vault.home.arpa/api/two-factor/send-email-login: 400:
+    Username or password is incorrect. Try again.
+```
+
+`send-email-login` is the call that asks the server to **mail** a code.
+Reaching it means the token request had already succeeded and the server had
+answered "two-step required, provider 1" -- Vaultwarden offers the provider
+list *only once the password is correct*. So the password was right, and the
+failure was in the follow-up request. "It stopped asking for 2FA" was the
+symptom of never getting there.
+
+### One variable, two encodings
+
+```sh
+h := vwk hash "${o[@]}" ${VW_STDIN:+-s}
+q := vwk form "${VA["email"]}"
+h := vwk form "$h"        # h is now the FORM-ENCODED hash
+...
+grant="...&password=$h&..."                        # right: the grant is urlencoded
+"{... \"masterPasswordHash\":\"$h\"}"              # wrong: this body is JSON
+```
+
+A base64 hash holds `+`, `/` and `=`, and form encoding turns them into
+`%2B`, `%2F` and `%3D` -- measured, `abc+def/ghi=` becomes
+`abc%2Bdef%2Fghi%3D`. The server checked a different string, failed its own
+`check_valid_password`, and answered the same words it gives a bad login.
+**Every** email-two-factor login has failed this way since the two-factor
+work landed in 0.99.146.
+
+`hf` carries the encoded hash into the grant; `h` stays raw for JSON bodies.
+That is the `MLME` trap of #157 a third time: a value answering two
+questions, right up until the day they differ.
+
+### Why nothing caught it -- two holes, either enough on its own
+
+**The provider was never driven.** `tests/vw.py` ran `--2fa 0`
+(authenticator) and `--2fa 7` (WebAuthn). Provider **1** is the only one
+that makes a request of its own *before* a code is typed, and no check had
+ever reached that endpoint.
+
+**The stand-in agreed with whatever it was sent.** `tests/bwserve.py`
+answered `200` to `/api/two-factor/send-email-login` without reading the
+body -- while its own comment said the endpoint "wants the master password
+hash the client already has". The comment knew; the code never asked. A
+stand-in that accepts anything cannot fail, and a check written against it
+is a check of nothing.
+
+### The checks
+
+`bwserve.py` now verifies the email and the hash on that endpoint and
+answers Vaultwarden's own 400 when they do not match. `tests/vw.py` drives
+`--2fa 1`: that asking for an emailed code moves the server's own `mailed`
+count, and that the code then logs in. Both were watched failing against the
+old client -- 30 passed, 2 failed -- before the one-line fix made it 32.
+
+### And the last release's own new row never opened (Gitea #186)
+
+> the drop down for the shade level does not drop down, it's only on return
+> it changes
+
+**Wallpaper Shows Through** drew, held its value and applied it, and opened
+no popup. `panel.hibr` gives a `set` row its popup only through the pane's
+own `<pane>_drop`, and 0.99.150 added the row and its `terminal_do` case and
+**not** its `_drop` case -- so the key fell through that `case` with no
+branch, nothing opened, and the row quietly degraded to cycling on enter.
+One line.
+
+The guard is the point, since a row that silently does less is what nothing
+notices: `tests/540-examples.t` walks every pane that offers a `_drop`,
+takes each `set` row that is not a checkbox or a slider -- the two
+`panel.hibr` itself excludes -- and fails when that row's key has no case.
+It was wrong twice before it was right, each time found by running it: a key
+belongs to **its own row**, so the rows are walked in order rather than the
+keys grepped out (the first version called every `action` row a missing
+dropdown), and a case label may be one of several, `locktime | syncevery |
+clear)`, so it is followed by a `)` **or** a `|` (matching only the first
+shape called two handled rows unhandled). With both right it finds exactly
+one fault across every pane: this one.
+
+### And a mark that named only what would not work (Gitea #190)
+
+> what's going on, I can no longer restart successfully, this is quite
+> recent?
+
+The restarts were succeeding -- three in a row in the desktop's own log,
+each keeping and restoring every window -- and the mark was telling the
+truth:
+
+```
+hold server's image : /usr/bin/hibr (deleted)   <- the inode apt replaced
+the desktop's image : /usr/bin/hibr             <- current, so it worked
+```
+
+`DT_UPSESSION` is right and was useless. *"only a new session takes it, not
+Restart Desktop"* names the thing that will not work and never the thing
+that will, so whoever has just restarted reads it as a failure. It says what
+to do now, and what that costs -- a restart keeps the programs in terminal
+windows, because they are children of the restarting process, and a new
+session does not. That trade is the whole reason to put it off, so it
+belongs in the sentence.
+
+Which it could not be, because **a note was cut at the screen's width**, one
+line, never wrapped: on an 80-column desktop the advice was exactly the half
+that fell off. A note is now as tall as its own text (`dt_notewrap`, over
+the textarea widget's own wrapper, which breaks after the last space that
+fits), and the stack below it starts under the one above rather than a fixed
+three rows down. A short note is three rows as before, so nothing that fits
+has moved.
+
 ## 0.99.150
 
 **Over a picture wallpaper a shadow was an opaque black band and a terminal

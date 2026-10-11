@@ -3490,6 +3490,28 @@ went in the shell.
   tab is `idle` beside being dirty, which is the check's own test: without
   that, a run where the event had not landed inside the render would pass
   for no reason.
+- **A stand-in that answers 200 to anything cannot fail, and a check written
+  against it is a check of nothing** (Gitea #185, 0.99.151). `tests/bwserve.py`
+  opens by saying a stand-in "written from the same memory as the client would
+  agree with the client and prove nothing", and reads Vaultwarden's own source
+  for every status and string -- and then replied `200` to
+  `/api/two-factor/send-email-login` without looking at the body, while the
+  comment directly above it said the endpoint "wants the master password hash
+  the client already has". The comment knew; the code never asked. So `vw`
+  sent a **form-encoded** hash in that JSON body for five releases -- one
+  variable holding two encodings, `abc+def/ghi=` going out as
+  `abc%2Bdef%2Fghi%3D` -- and every email-two-factor login failed with
+  "Username or password is incorrect" from an endpoint the password had
+  already satisfied. The owner reported it as *"it's not giving me the 2fa
+  error anymore"*, which is what never reaching 2FA looks like from outside.
+  **The principle being in the file is not the same as it being applied to
+  each endpoint**: a stand-in's job is to refuse what the real server
+  refuses, so anything it accepts unconditionally is a hole exactly the size
+  of that request. And the second hole was coverage, either half of which
+  would have hidden the bug alone: `tests/vw.py` drove providers 0 and 7, and
+  **1 is the only one that makes a request of its own before a code is
+  typed**, so no check had ever been near it. When a protocol has a list of
+  providers, kinds or modes, the ones nobody drives are where this lives.
 - **A gate runs unattended, so its failures have to keep their evidence.**
   `screen.check` prints the screen a check failed on only when `V` is set,
   and `tests/all.py` did not set it -- so 0.99.148's gate left

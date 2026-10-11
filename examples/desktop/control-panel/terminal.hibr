@@ -115,5 +115,9 @@ fn terminal_drop(int? w = "", int? r = "", int? c = "", k = "") {
 	termend) dt_droplist "$w" "$r" "$c" cp_set_termend "${CP_TERMENDS[@]}" ;;
 	termrows) dt_droplist "$w" "$r" "$c" cp_set_termrows "${CP_TERMROWS[@]}" ;;
 	termcols) dt_droplist "$w" "$r" "$c" cp_set_termcols "${CP_TERMCOLS[@]}" ;;
+	# Every set row that is not a checkbox or a slider needs its case
+	# here, or it draws and works and simply never opens (Gitea #186).
+	termtrans) dt_droplist "$w" "$r" "$c" cp_set_termtrans \
+		"${CP_TERMTRANS[@]}" ;;
 	esac
 }

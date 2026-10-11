@@ -357,7 +357,16 @@ dt_updcheck() {
 	if [ -z "$DT_UPSESSION" ] && dt_sessionold; then
 		DT_UPSESSION=1
 		DT_MENUIN=
-		dt_notify "this session is older than the hibr on disk -- only a new session takes it, not Restart Desktop"
+		# Say what to do, and what it costs. Naming only what will not
+		# work reads as a failure to whoever has just done it: "I can
+		# no longer restart successfully" was the report, against
+		# three restarts that had each succeeded and kept every window
+		# (Gitea #190). A restart re-execs the desktop *inside* this
+		# server, so it can never replace the server's own image --
+		# and it keeps the programs in terminal windows, which a new
+		# session does not. That trade is the whole reason to put it
+		# off, so it belongs in the sentence.
+		dt_notify "this session still runs the older hibr: quit and start the desktop again to take the new one. Restart Desktop cannot, and it keeps your terminals' programs where a new session will not"
 		dt_want 10
 	fi
 	[ /proc/$$/exe -ef "$HIBR" ] && return 0

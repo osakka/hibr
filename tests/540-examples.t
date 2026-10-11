@@ -198,6 +198,38 @@ for v in $kept; do
 done
 echo "every kept preference is in the Control Panel"
 
+# A pane that offers a dropdown offers it for every row that is one. A `set`
+# row opens its popup only when the pane's own <pane>_drop has a case for
+# that row's key (panel.hibr asks dt_has "${pane}_drop" and then hands it
+# the key); a key with no case falls through the case statement, no popup
+# opens, and the row quietly degrades to cycling on enter and the arrows --
+# which is what 0.99.150's own new row did, reported as "the drop down does
+# not drop down, it's only on return it changes" (Gitea #186). Nothing said
+# so: the row drew, the setting worked, and only the popup was missing.
+for f in $panes; do
+  n=$(basename "$f" .hibr)
+  grep -q "fn ${n}_drop" "$f" || continue
+  drop=$(sed -n "/fn ${n}_drop/,/^}/p" "$f")
+  # Only a `set` row becomes a dropdown: an `action` is a button and a
+  # `head` is a heading, and panel.hibr excludes a bool (a checkbox) and a
+  # slider before it asks for a popup. The kind belongs to the row the key
+  # is on, so the rows are walked in order rather than the keys grepped out.
+  for k in $(awk '
+      /\["kind"\]=/ { k = $0; sub(/.*\["kind"\]=/, "", k); sub(/[;" \t].*/, "", k); kind = k; wt = "" }
+      /\["wtype"\]=/ { w = $0; sub(/.*\["wtype"\]=/, "", w); sub(/[;" \t].*/, "", w); wt = w }
+      /\["key"\]=/ {
+        key = $0; sub(/.*\["key"\]=/, "", key); sub(/[;" \t].*/, "", key)
+        if (kind == "set" && wt != "bool" && wt != "slider" && key ~ /^[a-z]/) print key
+      }' "$f" | sort -u); do
+    # A case label may be the last of several -- `locktime | syncevery |
+    # clear)` -- so it is followed by a `)` or by a `|`, and matching only
+    # the first shape called two handled rows unhandled.
+    grep -qE "(^|[|( 	])$k[ 	]*[|)]" <<< "$drop" ||
+      echo "a dropdown row with no case in ${n}_drop: $k"
+  done
+done
+echo "every dropdown row has its popup"
+
 # The window manager, its widgets and every app, pane, desk accessory and
 # strip module run under every strict check -- all but session.hibr, which
 # is the user's own script to write as they like, so a function defined twice, a
