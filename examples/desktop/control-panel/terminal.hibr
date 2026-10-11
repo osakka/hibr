@@ -17,6 +17,16 @@ fn cp_set_cursor(int? id = "", value = "") { DT_CURSOR=$value; cp_save; }
 # examples/desktop/apps/term.hibr.
 CP_TERMCOLOURS=(theme terminal)
 fn cp_set_termcolours(int? id = "", value = "") { DT_TERMCOLOURS=$value; cp_save; }
+# How much of a picture wallpaper shows through a terminal window -- see
+# DT_TERMTRANS in examples/desktop/apps/term.hibr. Off is an opaque window;
+# the numbers are how much of the picture's own brightness is kept, so the
+# smaller ones are darker and easier to read over a busy photograph.
+CP_TERMTRANS=(off 85 75 65 50)
+fn cp_set_termtrans(int? id = "", value = "") {
+	DT_TERMTRANS=0
+	[ "$value" != off ] && DT_TERMTRANS=$value
+	cp_save
+}
 CP_TERMENDS=(success always never)
 fn cp_set_termend(int? id = "", value = "") { DT_TERMEND=$value; cp_save; }
 CP_TERMROWS=(24 30 36 40 50)
@@ -56,6 +66,10 @@ fn terminal_rows(int w) {
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Colours"
 	CP[$w][$n]["val"]="$DT_TERMCOLOURS"
 	CP[$w][$n]["key"]=termcolours; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Wallpaper Shows Through"
+	CP[$w][$n]["val"]=off
+	[ "${DT_TERMTRANS:-0}" != 0 ] && CP[$w][$n]["val"]="$DT_TERMTRANS"
+	CP[$w][$n]["key"]=termtrans; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Cursor"
 	CP[$w][$n]["val"]="$DT_CURSOR"; CP[$w][$n]["key"]=cursor; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Cursor Blink"
@@ -78,6 +92,13 @@ fn terminal_do(int w, k, int dir) {
 		DT_CURSOR=$v ;;
 	termend) v := cp_next "$DT_TERMEND" "$dir" "${CP_TERMENDS[@]}"
 		DT_TERMEND=$v ;;
+	termtrans)
+		v=off
+		[ "${DT_TERMTRANS:-0}" != 0 ] && v=$DT_TERMTRANS
+		v := cp_next "$v" "$dir" "${CP_TERMTRANS[@]}"
+		DT_TERMTRANS=0
+		[ "$v" != off ] && DT_TERMTRANS=$v
+		;;
 	termrows) v := cp_next "$DT_TERMROWS" "$dir" "${CP_TERMROWS[@]}"
 		DT_TERMROWS=$v ;;
 	termcols) v := cp_next "$DT_TERMCOLS" "$dir" "${CP_TERMCOLS[@]}"

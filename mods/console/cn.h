@@ -112,6 +112,9 @@ size_t cn_imgsend(str *b, int over);
 size_t cn_imgdels(str *b);
 void cn_imgclear(void);
 int cn_imgat(int row, int col);
+int cn_imgcellat(int row, int col, unsigned *out);
+unsigned cn_bgtrans(int row, int col);
+int cn_translucent(int pct, unsigned fb);
 size_t cn_imgn(void);
 /* Whether pictures can be drawn as pixels, and how: CN_GFX_NONE, CN_GFX_SIXEL
    or CN_GFX_KITTY. Decided once, from HIBR_GFX and then the terminal's name.

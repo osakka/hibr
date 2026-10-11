@@ -4880,7 +4880,24 @@ check("every short name fits what the kernel keeps, so none is cut mid-word",
 # and $HIBR is the new one.
 SESSD = tempfile.mkdtemp(prefix="hibr-sessold-")
 SESSOLD = os.path.join(SESSD, "oldhibr")
-shutil.copy(screen.HIBR, SESSOLD)
+# The copy has to be of the *image*, not of whatever was invoked: under the
+# sanitizers $HIBR is a setarch wrapper script (tests/asan.py's own, for the
+# ASLR workaround), and a copy of a wrapper execs the very same binary -- so
+# both sides of this comparison were one image and the session read FRESH
+# where the check wanted STALE. Measured: either wrapper answers
+# /home/.../build/asan/hibr for $HIBR. The real image is what the shell
+# reports as $HIBR, which is /proc/self/exe; where the harness runs through
+# a wrapper, the copy gets a wrapper of its own so it is still started the
+# way the sanitizer build has to be.
+SESSREAL = subprocess.run([screen.HIBR, "-c", "echo $HIBR"], capture_output=True,
+                          text=True).stdout.strip() or screen.HIBR
+SESSBIN = os.path.join(SESSD, "oldimage")
+shutil.copy(SESSREAL, SESSBIN)
+os.chmod(SESSBIN, 0o755)
+if open(screen.HIBR, "rb").read(2) == b"#!":
+    open(SESSOLD, "w").write(open(screen.HIBR).read().replace(SESSREAL, SESSBIN))
+else:
+    shutil.copy(SESSBIN, SESSOLD)
 os.chmod(SESSOLD, 0o755)
 open(os.path.join(SESSD, "inner.hibr"), "w").write(
     ". %s\ndt_sessionold && echo STALE || echo FRESH\n"

@@ -744,7 +744,8 @@ void tm_oscend(tm_t *t)
 		}
 		return;
 	}
-	if ((which == 10 || which == 11) && !strcmp(p, "?") && t->hasrgb) {
+	if ((which == 10 || which == 11) && !strcmp(p, "?") && t->hasrgb &&
+	    !(which == 11 && t->nobg)) {
 		c = which == 10 ? t->rgbfg : t->rgbbg;
 		s_init(&r);
 		s_cat(&r, "\033]");

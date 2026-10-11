@@ -55,6 +55,31 @@ terminal's own default colour has no table to scale by, so those cells get
 the dim attribute alone. It reads back what `cn_put` already wrote, which
 `cn_fill` and `cn_put` themselves never do.
 
+A cell left at the terminal's own default colour is the one case where "scale
+what is there" has no answer, and it means two different things. `console
+darkdefault fg bg` names the colours such a cell should be taken to be -- the
+desktop's own plain ink on face -- so a shadow over a terminal's uncoloured
+output darkens like everything around it. But over a **picture drawn under
+the text** a default cell means the opposite: the wallpaper writes exactly
+such cells so the terminal composites the picture through them, and darkening
+toward the theme's face painted an opaque near-black band over the photograph
+and took the picture with it (Gitea #184). So a cell with no background of its
+own that sits over an under-text picture is darkened from **the picture's own
+colour there**, which is what a shadow on a photograph looks like; everywhere
+else `darkdefault` still decides.
+
+`console translucent pct [colour]` is the same substitution for a *write*
+rather than a darken: while it is set, a cell written with no background of
+its own takes the picture's colour at that cell scaled to `pct`, or `colour`
+where no picture is under it. That is how a window the wallpaper shows
+through is drawn -- a cell has no alpha, so the colour has to be computed,
+and it is a different colour in every cell, which no single background could
+say. `off` ends it, and so does the next `console flush`: it lasts for a
+drawing, not for ever, so no caller can leak it into whatever is drawn next.
+The averaged colour per cell is kept with the picture's own region, worked
+out in the pass that already walks those pixels to hash them, and it costs
+about 49 kB for a full screen.
+
 `console consumed` answers how many bytes of input have been turned into keys
 since the console was loaded -- what the desktop's idle marker reports, under
 `HIBR_TESTIDLE`, so a test harness knows its keys have been read.

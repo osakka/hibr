@@ -95,6 +95,7 @@ and the flush cost shown live. Run it and press things.
 | `console signals on\|off` | whether ctrl-c, ctrl-backslash and ctrl-z raise signals or arrive as keys |
 | `console darken row col h w [pct]` | shade what is already in the back buffer, a shadow |
 | `console darkdefault fg bg` | the colours `darken` takes a cell drawn in the terminal's own default colours to be, so a shadow over it still darkens |
+| `console translucent pct [colour]` | how much of a picture drawn under the text shows through the writes that follow: a cell written with no background of its own takes the picture's own colour there, scaled to `pct`, or `colour` where there is no picture. `off` ends it, and so does the next flush |
 | `console shade colour [pct]` | the colour `darken` would make of a `#rrggbb` |
 | `console clip text` | put text on the terminal's clipboard (OSC 52) |
 | `console link url\|-` | make later writes a link (OSC 8), or stop |

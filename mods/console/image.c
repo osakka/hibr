@@ -47,6 +47,7 @@ typedef struct cn_img {
 	unsigned above;		/* of the cells over it, as they were when sent */
 	unsigned id;		/* the kitty image's own id; 0 for a sixel */
 	str data;		/* the encoded picture */
+	unsigned *cell;		/* one averaged colour per cell, under-text only */
 } cn_img;
 
 static cn_img *cn_imgs;
@@ -152,6 +153,7 @@ void cn_imgdrop(size_t i)
 		return;
 	cn_imgforget(&cn_imgs[i]);
 	cn_imgowe(cn_imgs[i].id);
+	free(cn_imgs[i].cell);
 	s_free(&cn_imgs[i].data);
 	cn_imgs[i] = cn_imgs[cn_nimg - 1];
 	cn_nimg--;
@@ -162,6 +164,82 @@ void cn_imgclear(void)
 {
 	while (cn_nimg)
 		cn_imgdrop(cn_nimg - 1);
+}
+
+/* One averaged colour per cell of a picture drawn under the text, kept with
+   the region (Gitea #184). A cell has no alpha, so "the shadow darkens the
+   wallpaper" and "this window is translucent over it" are both a colour that
+   has to be *computed*: the picture's own colour under that cell, scaled.
+   Only for an under-text picture -- one that owns its cells has nothing
+   drawn over it to darken -- and it rides along with the pass that already
+   walks these pixels to hash them. About 49 kB for a full screen, and it
+   dies with the region, so a keep (ADR 0037) costs nothing. */
+static void cn_imgcells(cn_img *im, const unsigned char *rgb, int iw,
+			int sx, int sy, int sw, int sh)
+{
+	int r, c;
+	size_t n = (size_t)im->h * im->w;
+
+	if (n < 1 || !rgb)
+		return;
+	im->cell = xm(n * sizeof *im->cell);
+	for (r = 0; r < im->h; r++) {
+		int y0 = sy + (int)((long long)r * sh / im->h);
+		int y1 = sy + (int)((long long)(r + 1) * sh / im->h);
+
+		if (y1 <= y0)
+			y1 = y0 + 1;
+		if (y1 > sy + sh)
+			y1 = sy + sh;
+		for (c = 0; c < im->w; c++) {
+			int x0 = sx + (int)((long long)c * sw / im->w);
+			int x1 = sx + (int)((long long)(c + 1) * sw / im->w);
+			unsigned long tr = 0, tg = 0, tb = 0, cnt = 0;
+			int x, y;
+
+			if (x1 <= x0)
+				x1 = x0 + 1;
+			if (x1 > sx + sw)
+				x1 = sx + sw;
+			for (y = y0; y < y1; y++)
+				for (x = x0; x < x1; x++) {
+					const unsigned char *p =
+						rgb + ((size_t)y * iw + x) * 3;
+
+					tr += p[0];
+					tg += p[1];
+					tb += p[2];
+					cnt++;
+				}
+			im->cell[(size_t)r * im->w + c] = cnt ?
+				(DP_RGB | ((unsigned)(tr / cnt) << 16) |
+				 ((unsigned)(tg / cnt) << 8) |
+				 (unsigned)(tb / cnt)) : DP_DEFAULT;
+		}
+	}
+}
+
+/* The picture's own colour at a cell, for anything that has to paint over
+   an under-text picture in a colour that looks like the picture. 0 when no
+   such picture covers it, which is every cell on a desktop whose wallpaper
+   is glyphs rather than pixels. */
+int cn_imgcellat(int row, int col, unsigned *out)
+{
+	size_t i;
+
+	for (i = 0; i < cn_nimg; i++) {
+		cn_img *im = &cn_imgs[i];
+
+		if (!im->over || !im->cell)
+			continue;
+		if (row < im->row || row >= im->row + im->h ||
+		    col < im->col || col >= im->col + im->w)
+			continue;
+		*out = im->cell[(size_t)(row - im->row) * im->w +
+				(col - im->col)];
+		return *out != DP_DEFAULT;
+	}
+	return 0;
 }
 
 /* Whether a cell is inside a region that owns it, so the diff leaves it
@@ -405,6 +483,8 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	im->sum = sum;
 	im->over = (flags & DP_IMG_UNDER) ? 1 : 0;
 	im->live = im->over;
+	if (im->over)
+		cn_imgcells(im, rgb, iw, sx, sy, sw, sh);
 	im->id = k == CN_GFX_KITTY ? (reuse ? reuse : kt_id()) : 0;
 	s_init(&im->data);
 	/* The rectangle in pixels is what a sixel will paint 1:1, so the bitmap

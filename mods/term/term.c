@@ -767,12 +767,24 @@ int m_term(sh *s, int ac, char **av)
 	if (!strcmp(sub, "colors")) {
 		if (ac == 4 && !strcmp(av[3], "off")) {
 			m->hasrgb = 0;
+			m->nobg = 0;
 			return HIBR_OK;
 		}
-		if (ac < 5 || !tm_hex(av[3], &m->rgbfg) ||
-		    !tm_hex(av[4], &m->rgbbg)) {
-			lg(HIBR_LERR, "usage: term colors id #rrggbb #rrggbb | off");
+		if (ac < 5 || !tm_hex(av[3], &m->rgbfg)) {
+			lg(HIBR_LERR, "usage: term colors id #rrggbb #rrggbb|- | off");
 			return 2;
+		}
+		/* A background of `-` is "leave it the terminal's own": the
+		   text is painted in the colour given and every cell nothing
+		   coloured stays default, which is what a translucent window
+		   needs so the display can put the wallpaper there. */
+		if (!strcmp(av[4], "-")) {
+			m->nobg = 1;
+		} else if (!tm_hex(av[4], &m->rgbbg)) {
+			lg(HIBR_LERR, "usage: term colors id #rrggbb #rrggbb|- | off");
+			return 2;
+		} else {
+			m->nobg = 0;
 		}
 		m->hasrgb = 1;
 		return HIBR_OK;

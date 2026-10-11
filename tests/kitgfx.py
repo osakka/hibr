@@ -30,6 +30,7 @@ raw stream.
 """
 import base64
 import os
+import re
 import shutil
 import struct
 import sys
@@ -88,6 +89,14 @@ def key(ctrl, k):
         if f.startswith(k + "="):
             return f[len(k) + 1:]
     return None
+
+
+def bg(sc, r, c):
+    """A cell's background as (r, g, b), or None when it has none of its own
+    -- which is the whole contract a wallpaper rests on: a cell with no
+    background colour is one the terminal composites the picture through."""
+    m = re.search(r"48;2;(\d+);(\d+);(\d+)", sc.p[r][c] or "")
+    return tuple(int(x) for x in m.groups()) if m else None
 
 
 def places(sc):
@@ -497,5 +506,78 @@ check("but a picture over the wallpaper leaves the wallpaper alone",
       len(places(sc)) == 2 and
       not [a for a in deletes(sc) if "d=I" in a], (places(sc), deletes(sc)))
 
+# A shadow over a picture wallpaper darkens the *picture*, not the theme's
+# own face (Gitea #184). The desktop tells the console what a cell left at
+# the terminal's own default colour should darken toward -- `darkdefault`,
+# added so a shadow over a terminal's plain uncoloured output darkens at
+# all -- and a cell the wallpaper deliberately left default so the picture
+# shows through is exactly such a cell. The two met: the shadow painted
+# DT_FACE x pct, an opaque near-black, over the photograph. FLAT is one
+# colour throughout, so the answer is arithmetic rather than a guess.
+SHADOW = ("console darkdefault \"#cbd5e0\" \"#101820\"\n"
+          "img draw %s 2 2 10 20 -m pixels -u\n"
+          "console pen default default\n"
+          "console fill 2 2 10 20 \" \"\n"
+          "console darken -s 5 5 1 4 50\n"
+          "console flush\n" % FLAT)
+sc = run(SHADOW)
+check("a shadow over a picture wallpaper darkens the picture's own colour",
+      bg(sc, 5, 5) == (5, 100, 5), bg(sc, 5, 5))
+# And the cell beside it is untouched, which is the other half: the shadow
+# must take its own cells and no more, or the whole wallpaper goes opaque
+# and the picture is never composited anywhere.
+check("and a wallpaper cell outside it still has no background of its own",
+      bg(sc, 5, 12) is None, bg(sc, 5, 12))
+
+# A window the wallpaper shows through. A cell has no alpha, so this is the
+# picture's own colour scaled -- (10,200,10) at 75% is (8,150,8), which is
+# arithmetic rather than a guess -- and it happens on the write, so a cell
+# nothing wrote keeps showing the picture itself.
+TRANS = ("img draw %s 2 2 10 20 -m pixels -u\n"
+         "console translucent 75\n"
+         "console pen default default\n"
+         "console put 5 5 \"hi\"\n"
+         "console translucent off\n"
+         "console flush\n" % FLAT)
+sc = run(TRANS)
+check("a translucent write takes the picture's colour, scaled",
+      bg(sc, 5, 5) == (8, 150, 8), bg(sc, 5, 5))
+# The same drawing with no picture under it has to come out exactly as it
+# did before: that is what lets an app ask for translucency unconditionally
+# and still be right on a glyph wallpaper, in half blocks, and on a terminal
+# that cannot place a pixel at all.
+NOPIC = ("console translucent 75\n"
+         "console pen default default\n"
+         "console put 5 5 \"hi\"\n"
+         "console flush\n")
+sc = run(NOPIC)
+check("and with no picture under it the cell is left at its default",
+      bg(sc, 5, 5) is None, bg(sc, 5, 5))
+# And the two compose: a shadow falling on a translucent window finds a real
+# colour already there and scales that. This is the case that silently looks
+# wrong if the substitution is ever moved to flush time, after the darken.
+BOTH = ("img draw %s 2 2 10 20 -m pixels -u\n"
+        "console translucent 75\n"
+        "console pen default default\n"
+        "console put 5 5 \"hi\"\n"
+        "console translucent off\n"
+        "console darken -s 5 5 1 2 50\n"
+        "console flush\n" % FLAT)
+sc = run(BOTH)
+check("a shadow on a translucent cell darkens what is already there",
+      bg(sc, 5, 5) == (4, 75, 4), bg(sc, 5, 5))
+
+# And where there is no picture, a fallback colour is what the cell takes --
+# which is what lets an app ask for translucency unconditionally and still
+# have the desktop's own face on a glyph wallpaper, rather than falling
+# through to whatever the real terminal's background happens to be.
+FB = ("console translucent 75 \"#101820\"\n"
+      "console pen default default\n"
+      "console put 5 5 \"hi\"\n"
+      "console flush\n")
+sc = run(FB)
+check("with no picture a translucent write takes the fallback colour",
+      bg(sc, 5, 5) == (16, 24, 32), bg(sc, 5, 5))
+
 shutil.rmtree(D, True)
-report(48)
+report(54)

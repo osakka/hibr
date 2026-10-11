@@ -30,6 +30,22 @@ size_t cn_wrote;
 static size_t cn_wflush;
 static int cn_skip(int row, int col);
 unsigned cn_fg, cn_bg, cn_penat;
+/* While this is non-zero, a cell written with no background colour of its
+   own, over a picture drawn under the text, takes that picture's colour
+   scaled to this percentage instead -- a window the wallpaper shows
+   through, which a cell cannot do with alpha because it has none (Gitea
+   #184). It is the same question `darkdefault` answers for a *darkened*
+   default cell, asked for a *written* one. A caller sets it around its own
+   drawing, and cn_flush puts it back to 0 at the end of every frame, so an
+   app that forgets cannot leak it into whatever is drawn next -- a guard in
+   one place rather than a line each caller has to remember. */
+static int cn_transpct;
+/* What a translucent write lands on where there is no picture to be
+   translucent over -- a glyph wallpaper, a terminal that cannot place a
+   pixel, half blocks. Without it a caller would have to ask whether a
+   picture is really there before deciding what to send, and be wrong
+   whenever the answer changed between the asking and the drawing. */
+static unsigned cn_transfb;
 int cn_crow, cn_ccol, cn_cvis;
 unsigned cn_lfg, cn_lbg, cn_lat;
 int cn_lset, cn_lvis = -1;
@@ -233,6 +249,35 @@ unsigned cn_dim1(unsigned v, int pct, unsigned deflt)
 	return DP_RGB | (r << 16) | (g << 8) | b;
 }
 
+/* The background a translucent write lands on: the picture's own colour at
+   that cell, scaled. With no picture under it there is nothing to be
+   translucent over, and the cell keeps the default it was written with --
+   so the same app draws correctly over a glyph wallpaper, on a terminal
+   that cannot place pixels, and in half blocks, with no branch of its own. */
+unsigned cn_bgtrans(int row, int col)
+{
+	unsigned pic;
+
+	if (!cn_imgcellat(row, col, &pic))
+		return cn_transfb;
+	return cn_dim1(pic, cn_transpct, 0);
+}
+
+/* How translucent the next writes are, and what it was before: a caller
+   saves and restores around its own drawing, the way cn_behind is used. A
+   negative percentage reads the current one without changing it, so asking
+   never has a window where it is something else. */
+int cn_translucent(int pct, unsigned fb)
+{
+	int was = cn_transpct;
+
+	if (pct >= 0) {
+		cn_transpct = pct > 100 ? 100 : pct;
+		cn_transfb = fb;
+	}
+	return was;
+}
+
 /* Darken a rectangle of the back buffer in place, in front of whatever is
    drawn under it -- a window's shadow, cast on the desktop and on windows
    below it, is this over their already-drawn cells before the window
@@ -253,6 +298,7 @@ void cn_darken(int row, int col, int h, int w, int pct)
 void cn_darken1(int row, int col, int h, int w, int pct, int once)
 {
 	int r, c;
+	unsigned pic;
 	cn_cell *k;
 
 	if (cn_fitq() != HIBR_OK)
@@ -272,7 +318,21 @@ void cn_darken1(int row, int col, int h, int w, int pct, int once)
 			if (once && (k->attr & CN_SHADOWED))
 				continue;
 			k->fg = cn_dim1(k->fg, pct, cn_deffg);
-			k->bg = cn_dim1(k->bg, pct, cn_defbg);
+			/* A cell left at the default colour means two
+			   different things, and only one of them is
+			   cn_defbg's. Over a picture drawn under the text it
+			   means "let the wallpaper through here" -- the
+			   wallpaper writes exactly such cells on purpose --
+			   so darkening toward the theme's own face painted an
+			   opaque near-black band over the photograph and took
+			   the picture with it (Gitea #184). The picture's own
+			   colour is what a shadow on it looks like. Anywhere
+			   else, including a glyph wallpaper and a terminal's
+			   plain uncoloured output, cn_defbg is still right. */
+			if (k->bg == DP_DEFAULT && cn_imgcellat(r, c, &pic))
+				k->bg = cn_dim1(pic, pct, 0);
+			else
+				k->bg = cn_dim1(k->bg, pct, cn_defbg);
 			k->attr |= DP_DIM;
 			if (once)
 				k->attr |= CN_SHADOWED;
@@ -346,7 +406,8 @@ int cn_put(int row, int col, const char *t)
 		c->w = (unsigned char)w;
 		c->cont = 0;
 		c->fg = cn_fg;
-		c->bg = cn_bg;
+		c->bg = cn_transpct && cn_bg == DP_DEFAULT ?
+			cn_bgtrans(row, col) : cn_bg;
 		c->attr = cn_penat;
 		c->link = cn_plink;
 		if (w == 2) {
@@ -354,7 +415,7 @@ int cn_put(int row, int col, const char *t)
 			(c + 1)->w = 0;
 			(c + 1)->cont = 1;
 			(c + 1)->fg = cn_fg;
-			(c + 1)->bg = cn_bg;
+			(c + 1)->bg = c->bg;
 			(c + 1)->attr = cn_penat;
 			(c + 1)->link = cn_plink;
 		}
@@ -403,7 +464,8 @@ void cn_fill(int row, int col, int h, int w, const char *t)
 				p->w = 1;
 				p->cont = 0;
 				p->fg = cn_fg;
-				p->bg = cn_bg;
+				p->bg = cn_transpct && cn_bg == DP_DEFAULT ?
+					cn_bgtrans(r, c) : cn_bg;
 				p->attr = cn_penat;
 				p->link = cn_plink;
 			}
@@ -606,6 +668,13 @@ long cn_flush(void)
 		return 0;
 	if (cn_fit() != HIBR_OK)
 		return 0;
+	/* Translucency lasts for the drawing, not for ever: a frame ends
+	   here, so an app that sets it and never says otherwise cannot leak
+	   it into whatever is drawn next. Each caller still turns it off
+	   after its own drawing -- this is the guard that makes forgetting
+	   impossible rather than merely unlikely, which is the difference
+	   between a rule and a list nobody maintains. */
+	cn_translucent(0, DP_DEFAULT);
 	/* A picture whose cells have been drawn through since it was placed is
 	   gone: dropping it here, before the diff, is what makes those cells
 	   paint again. */

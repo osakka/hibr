@@ -56,6 +56,7 @@ int tm_fields(tm_t *t, tm_fld *f)
 	f[n++] = (tm_fld){ "cshape", &t->cshape, 0 };
 	f[n++] = (tm_fld){ "link", &t->link, 1 };
 	f[n++] = (tm_fld){ "hasrgb", &t->hasrgb, 0 };
+	f[n++] = (tm_fld){ "nobg", &t->nobg, 0 };
 	f[n++] = (tm_fld){ "rgbfg", &t->rgbfg, 1 };
 	f[n++] = (tm_fld){ "rgbbg", &t->rgbbg, 1 };
 	f[n++] = (tm_fld){ "sbmax", &t->sbmax, 0 };

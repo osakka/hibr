@@ -125,12 +125,36 @@ command -v dt_keep > /dev/null && dt_keep DT_TERMCOLOURS
 DT_TERMEND="${DT_TERMEND-success}"
 command -v dt_keep > /dev/null && dt_keep DT_TERMEND
 
+# How much of a picture wallpaper shows through a terminal window: 0 is off
+# and the window is opaque as it always was; 75 is one you can still read
+# with the wallpaper behind it. A cell has no alpha, so what this asks for
+# is the picture's own colour at every cell, scaled -- which only the
+# display can work out, since one colour for the whole emulator cannot say
+# what a hundred different cells should be (Gitea #184). With a glyph
+# wallpaper, or on a terminal that cannot place a pixel, there is nothing to
+# show through and a window is its usual self.
+#
+# Its own setting, deliberately: DT_TERMCOLOURS says *whose* colours the
+# text and background are, and this says how much of the wallpaper shows.
+# They are separate questions and an answer to one is not an answer to the
+# other.
+DT_TERMTRANS="${DT_TERMTRANS-0}"
+command -v dt_keep > /dev/null && dt_keep DT_TERMTRANS
+
 # The colours to hand the emulator for the setting above, or "off".
 tw_colours() {
 	if [ "$DT_TERMCOLOURS" = theme ] &&
 	   match "$DT_INK" '^#[0-9a-fA-F]{6}$' &&
 	   match "$DT_FACE" '^#[0-9a-fA-F]{6}$'; then
-		ret "$DT_INK $DT_FACE"
+		# Translucent: the text keeps the theme's ink and OSC 10 still
+		# answers with it, while the background is left to the display
+		# -- a `-` rather than a colour, because the colour differs
+		# cell by cell and the emulator holds one.
+		if [ "${DT_TERMTRANS:-0}" != 0 ]; then
+			ret "$DT_INK -"
+		else
+			ret "$DT_INK $DT_FACE"
+		fi
 	else
 		ret off
 	fi
@@ -312,13 +336,28 @@ fn term_draw(int id, int h, int w, int row, int col) {
 		[ $(((ms / 500) % 2)) = 1 ] && cur=0
 		dt_want $((500 - ms % 500 + 5))
 	fi
+	# Translucency is the display's to compute: it has the picture, and
+	# the colour is a different one in every cell. The fallback is this
+	# window's own face, and only where the theme's colours are in force
+	# -- with "terminal" colours a cell nothing coloured is meant to be
+	# the real terminal's own, and that is still true where there is no
+	# wallpaper to show through.
+	if [ "${DT_TERMTRANS:-0}" != 0 ]; then
+		if [ "$DT_TERMCOLOURS" = theme ]; then
+			console translucent "$DT_TERMTRANS" "$DT_FACE"
+		else
+			console translucent "$DT_TERMTRANS"
+		fi
+	fi
 	term draw "$t" 1 1 "$h" "$tw" "$cur" -p "w$id"
+	console translucent off
 	# What this frame drew, for term_dirty to compare next time.
 	TW[$id]["gen"] := term gen "$t"
 	TW[$id]["drawnfoc"]=0
 	[ "$DT_FOCUS" = "$id" ] && TW[$id]["drawnfoc"]=1
 	TW[$id]["drawnh"]=${DT[$id]["h"]}
 	TW[$id]["drawnw"]=${DT[$id]["w"]}
+	TW[$id]["drawntrans"]="${DT_TERMTRANS:-0} $DT_FACE"
 	sb := term scroll "$t"
 	TW[$id]["drawnview"]=$sb
 	view=${sb% *}
@@ -593,6 +632,11 @@ fn term_dirty(int id) {
 	# program writing a byte.
 	v := term scroll "$t"
 	[ "$v" = "${TW[$id]["drawnview"]}" ] || return 0
+	# A translucent window's background is computed from the wallpaper, so
+	# what it should look like can change without a byte arriving from the
+	# program: the setting moving, or the theme's face under it. The
+	# wallpaper's own picture changing forces a full frame of its own.
+	[ "${TW[$id]["drawntrans"]}" = "${DT_TERMTRANS:-0} $DT_FACE" ] || return 0
 	return 1
 }
 

@@ -109,6 +109,10 @@ struct tm_t {
 	tm_cell *frz;
 	int fcr, fcc;
 	int hasrgb;
+	/* The background is the caller's own only when it gave one: a
+	   translucent window leaves it default on purpose, so the display
+	   can put the wallpaper's own colour there (Gitea #184). */
+	int nobg;
 	unsigned rgbfg, rgbbg;
 	tm_line **sb;
 	int sbcap, sbn, sbh, sbmax, view;

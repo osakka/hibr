@@ -3421,6 +3421,43 @@ went in the shell.
   `$here/$name.expected` in `run.sh`, so the test silently falls through to
   being compared against bash instead and fails there in a way that looks
   like a behaviour bug rather than a typo'd filename.
+- **A cell's "default background" answers two different questions, and
+  nothing in the model tells them apart** (Gitea #184, 0.99.150). It means
+  *"the real terminal's own colour, which we cannot see"* -- which is why
+  `console darkdefault` exists, so a shadow over a terminal's plain
+  uncoloured output darkens like the decoration around it. And over a
+  picture drawn under the text it means *"let the wallpaper through here"*:
+  `wm/wallpaper.hibr` writes `console pen default default` on purpose,
+  because the kitty protocol composites an under-text picture below cells
+  with a **non-default** background. The two met, and `darkdefault` won: a
+  window's shadow over a photograph was `DT_FACE x pct`, an opaque
+  near-black band that also took the picture with it. The half-block path
+  had been right the whole time -- it darkens the wallpaper's own cell
+  colours, measured at `(138,116,50)` for a wallpaper yellow of
+  `(250,210,90)` at 55% -- which is what said the pixel path was wrong
+  rather than merely different. **When one value answers two questions, the
+  day they differ is a bug, and the tell is a name that describes a state
+  ("default") rather than an answer to one of them.** The same shape as
+  `MLME` in #157.
+  What falls out of fixing it is worth knowing before anyone designs
+  anything else here. **A cell has no alpha**: the picture is composited
+  below cells that have a background colour, so "translucent" is an opaque
+  colour that has to be *computed* -- the picture's own colour at that cell,
+  scaled -- and it is a different colour in every cell, which is why it
+  cannot live in `term colors` (one background for the whole emulator) and
+  has to live in the console, which is the only thing holding the picture.
+  That is also what makes it free everywhere else: what comes out is
+  ordinary RGB cells, so hold, the emulator and `tools/screenshot.py` need
+  no change at all. The per-cell colour rides along with the pass that
+  already hashes those pixels (about 49 kB a screen, kept with the region so
+  an `imgkeep` keeps it), and the substitution happens **at write time**,
+  never in a flush-time scan over the grid -- the cells are ones already
+  being written, so a drag costs nothing extra, and a shadow falling on a
+  translucent window finds a real colour there and scales it again, which is
+  the case that silently looks right until the substitution is moved later.
+  `console translucent` ends at the next flush as well as on `off`, so a
+  caller cannot leak it into whatever is drawn next: a guard that makes
+  forgetting impossible rather than a list somebody maintains.
 - **A flag cleared after the work it describes loses whatever that work
   learned.** `wb_render` ended with `t->dirty = 0`, and a render's own
   `Runtime.evaluate` waits for its reply by pumping the CDP pipe --

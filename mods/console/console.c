@@ -678,6 +678,35 @@ int m_console(sh *s, int ac, char **av)
 			q[k] = atoi(av[i + 1 + k]);
 		return cn_shot(av[i], fm, q[0], q[1], q[2], q[3]);
 	}
+	/* How translucent the writes that follow are, over a picture drawn
+	   under the text: a cell written with no background colour of its own
+	   takes the picture's colour scaled to this percentage, which is what
+	   lets a window show the wallpaper through it (Gitea #184). A cell
+	   has no alpha, so the colour is computed; with no picture under it
+	   nothing changes, so a caller needs no branch of its own for a glyph
+	   wallpaper or a terminal that cannot place pixels. */
+	if (!strcmp(sub, "translucent")) {
+		const char *m = ac > 2 ? av[2] : "";
+
+		if (!*m) {
+			char now[16];
+
+			snprintf(now, sizeof now, "%d",
+				 cn_translucent(-1, DP_DEFAULT));
+			hibr_ret(s, now);
+			if (!s->bind)
+				printf("%s\n", now);
+			return HIBR_OK;
+		}
+		fg = DP_DEFAULT;
+		if (ac > 3 && cn_colour(av[3], &fg) != HIBR_OK) {
+			lg(HIBR_LERR, "console translucent: %s: not a colour",
+			   av[3]);
+			return HIBR_FAIL;
+		}
+		cn_translucent(!strcmp(m, "off") ? 0 : atoi(m), fg);
+		return HIBR_OK;
+	}
 	if (!strcmp(sub, "darkdefault")) {
 		if (ac < 4) {
 			lg(HIBR_LERR, "usage: console darkdefault fg bg");

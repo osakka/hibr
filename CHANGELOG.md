@@ -1,5 +1,127 @@
 # Changelog
 
+## 0.99.150
+
+**Over a picture wallpaper a shadow was an opaque black band and a terminal
+was see-through: both now take the picture's own colour, scaled** (Gitea
+#184).
+
+Reported from a live desktop:
+
+> (1) the terminal has a transparent background ... (2) the shadow is black
+> and not semi transparent (percentage)?
+
+Both true, and both the same thing wearing different clothes.
+
+### What was measured, before anything was changed
+
+A loud two-colour wallpaper in pixels, a 9x18 cell, a Terminal window, and
+the pens the console actually emitted:
+
+| cell | `DT_TERMCOLOURS=theme` | `DT_TERMCOLOURS=terminal` |
+|---|---|---|
+| the text the shell wrote | `48;2;16;24;32` | `0;39;49` |
+| plain wallpaper, outside the window | `0;39;49` | `0;39;49` |
+
+`0;39;49` is default fg and bg -- **the same pen the wallpaper itself
+writes** -- and the picture sits at `CN_ZUNDER`, which the protocol defines
+as *under cells with non-default background colours*. So in `terminal` mode
+every cell of the window's interior showed the picture.
+
+And the shadow, in the same session:
+
+| | pixel mode | half-block mode |
+|---|---|---|
+| shadow cell below the window | `48;2;9;13;18` | `48;2;138;116;50` |
+
+`(9,13,18)` is `DT_FACE x 0.55`. `(138,116,50)` is the **wallpaper's own
+yellow** `(250,210,90) x 0.55`. Half blocks had been right all along.
+
+### One root
+
+`wm/session.hibr` calls `console darkdefault "$DT_INK" "$DT_FACE"`, added so
+a shadow over a terminal's plain uncoloured output darkens at all. In pixel
+mode `wm/wallpaper.hibr` *deliberately* writes `console pen default default`
+so the picture shows through. The two met.
+
+**"Default background" answers two different questions** -- *"the real
+terminal's colour, which we cannot see"* and *"let the wallpaper through
+here"*. `darkdefault` answers the first and broke the second; the
+`terminal` colour setting chooses the first and got the second. The same
+shape as `MLME` in #157, in colours.
+
+### The answer, which is one operation for both
+
+**Paint the cell as the picture's own colour under it, scaled.** A cell has
+no alpha -- the picture is composited below cells that have a background
+colour -- so translucency here is a *computed* colour, not transparency, and
+it has to be computed per cell because it is a different colour in every
+one. That is also what makes it cost nothing elsewhere: what comes out is
+ordinary RGB cells, so `hold`, the emulator and `tools/screenshot.py` needed
+no change at all.
+
+The console keeps **one averaged colour per cell** with an under-text
+picture, worked out in the pass that already walks those pixels to hash
+them -- about 49 kB for a full screen, hung off the picture's own region so
+it survives an `imgkeep` and dies with it.
+
+- `cn_darken1` darkens from that colour where a default cell sits over a
+  picture; `darkdefault` still decides everywhere else, which is still right
+  over a glyph wallpaper and for a terminal's own plain output.
+- `console translucent pct [colour]` does the same for a *write*: while it
+  is set, a cell written with no background of its own takes the picture's
+  colour there scaled to `pct`, or `colour` where there is no picture -- so
+  an app asks unconditionally and is still right on a glyph wallpaper, in
+  half blocks, and on a terminal that cannot place a pixel. It ends at the
+  next flush as well as on `off`, so no caller can leak it into whatever is
+  drawn next.
+- `term colors t #fg -` is new: a colour for the text and the background
+  left default, because one colour for the whole emulator cannot say what a
+  hundred cells should each be. `nobg` is a new field in the saved state,
+  **appended**, and both directions were *run* rather than reasoned about
+  (#157's rule): this build wrote a save carrying `nobg`, the **installed
+  0.99.149** read it -- `term: ...: skipped nobg, not known here`, and the
+  terminal came up -- and this build read a save written by that one.
+
+### The setting
+
+`DT_TERMTRANS` -- Control Panel > Terminal > **Wallpaper Shows Through** --
+is off, 85, 75, 65 or 50: how much of the picture's own brightness is kept,
+so the smaller numbers are darker and easier to read over a busy photograph.
+
+It is **its own setting**, deliberately. `DT_TERMCOLOURS` says *whose*
+colours the text and background are; this says how much of the wallpaper
+shows. They are separate questions, and the day they were one value is what
+this release is about.
+
+Two percentages, not one: a shadow reuses `DT_SHADOW_PCT`, which is already
+per theme, because a shadow wants to be harder than a window interior.
+
+### The checks
+
+Six in `tests/kitgfx.py`, all watched failing first, and the arithmetic is
+exact because the fixture picture is one colour: a shadow over it is
+`(5,100,5)` and not the theme's face darkened; the cell beside it still has
+no background of its own, so the picture is still composited there; a
+translucent write is `(8,150,8)`; the same write with no picture under it is
+left at its default; with a fallback given it is the fallback; and a shadow
+falling on a translucent cell is `(4,75,4)` -- the two compose, which is the
+case that silently looks wrong if the substitution is ever moved to flush
+time.
+
+Half-block mode was the oracle throughout: it already produced
+`(138,116,50)` for the shadow, and pixel mode now produces the same.
+
+### Honest about what it is
+
+A translucent window is opaque cells in a computed colour. Where the picture
+changes under a window that is not redrawn -- a wallpaper swapped while a
+terminal sits idle -- the window keeps the colours it last computed until
+something redraws it; `term_dirty` notices the setting and the theme moving,
+and a new wallpaper forces a frame of its own. And the ink is the theme's:
+light grey on a bright photograph at 85% is hard to read, which is what the
+lower numbers in the setting are for.
+
 ## 0.99.149
 
 **A render cleared the flag that said the page it had just read was already
