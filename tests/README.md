@@ -105,7 +105,10 @@ N, so one that stopped being reached cannot read as a pass.
 **`tests/all.py` runs everything at once** -- `tests/run.sh` and every pty
 suite, one per core -- with one line each and full logs under
 `build/test-logs/`; `make check-all` is the same. They are independent: each
-pty run has its own terminal, XDG directories and hold sockets.
+pty run has its own terminal, XDG directories and hold sockets. It runs them
+with `V=1` unless the environment says otherwise, so a failing check leaves
+the screen it failed on in its own log; a pass prints no dump, so this costs
+nothing.
 
 Four more tools sit around it:
 

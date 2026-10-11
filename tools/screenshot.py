@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Render a real hibr session's screen to a PNG, pixel for pixel true to what
-the terminal actually drew.
+the terminal actually drew -- the characters, and the pictures.
 
 This is not a mockup or a hand-drawn picture: it runs hibr on a real pty,
 the same way tests/screen.py does, and reconstructs the exact character grid
@@ -9,6 +9,19 @@ the console module sent. Every screenshot this produces is provably a real
 render of real output, which is the whole point: a picture in the docs
 cannot silently drift from what hibr actually draws once it was made this
 way, and cannot show something hibr does not actually do.
+
+A **bitmap** is drawn the same way and from the same evidence. A kitty
+transmission is kept whole, base64-decoded, inflated when the control says
+`o=z`, scaled to the cells the placement names, and pasted under the text;
+a cell with no background colour of its own lets it through, which is the
+contract the wallpaper itself depends on (ADR 0037). Until 0.99.148 this
+could not show a picture at all, and worse: its escape skip advanced two
+bytes whatever the escape was, so an APC payload -- tens of thousands of
+base64 characters -- was fed to the grid as text, and the harness's own
+idle marker (an OSC) was drawn across whatever window the cursor was in
+(Gitea #181). Pass --cell to say what a cell measures, which is what makes
+pixels possible at all; without it the terminal reports no cell size and
+hibr draws half blocks, exactly as on a terminal that cannot place pixels.
 
 Usage:
     tools/screenshot.py out.png 'dt_new "Hello" 8 30 6 10'
@@ -38,8 +51,11 @@ literal text instead. --rows/--cols set the terminal size (default 24x80).
 0.6s).
 """
 import argparse
+import base64
+import io
 import os
 import sys
+import zlib
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                  "..", "tests"))
@@ -90,10 +106,12 @@ class Cell:
 
 
 class ColourScreen:
-    """Like tests/screen.py's Screen, but keeps colour and weight too."""
+    """Like tests/screen.py's Screen, but keeps colour and weight too -- and
+    the pictures, which are not text and must never reach the grid."""
 
     def __init__(self, rows, cols):
         self.rows, self.cols = rows, cols
+        self.imgs = []
         self.clear()
 
     def clear(self):
@@ -163,6 +181,40 @@ class ColourScreen:
                     self.clear()
                 i = j + 1
                 continue
+            # Everything below is an escape that is *not* text, and each
+            # runs to its own terminator. Skipping two bytes instead -- what
+            # this did until 0.99.148 -- leaves the rest of the string in
+            # the grid: an APC's base64 scribbled across the screen, and the
+            # harness's own `7777;idle;N;M` written over a window.
+            if ch == "\x1b" and i + 1 < n and t[i + 1] == "_":
+                j = i + 2
+                while j < n and t[j:j + 2] != "\x1b\\":
+                    j += 1
+                ctrl, _, data = t[i + 2:j].partition(";")
+                if ctrl.startswith("Ga=T") or ctrl.startswith("Ga=p"):
+                    self.imgs.append([self.r, self.c, ctrl, data])
+                elif data and self.imgs:
+                    # A picture larger than 4096 bytes arrives in chunks,
+                    # and only the first carries the control.
+                    self.imgs[-1][3] += data
+                i = j + 2
+                continue
+            if ch == "\x1b" and i + 1 < n and t[i + 1] == "]":
+                j = i + 2
+                while j < n and t[j] != "\x07" and t[j:j + 2] != "\x1b\\":
+                    j += 1
+                i = j + (1 if j < n and t[j] == "\x07" else 2)
+                continue
+            if ch == "\x1b" and i + 1 < n and t[i + 1] == "P":
+                # A sixel. Its own bytes are not kept: sixel is paint, with
+                # no placement to read a rectangle from, so there is nothing
+                # faithful to draw. A screenshot of one shows the cells it
+                # was painted over, and says so here rather than silently.
+                j = i + 2
+                while j < n and t[j:j + 2] != "\x1b\\":
+                    j += 1
+                i = j + 2
+                continue
             if ch == "\x1b":
                 i += 2
                 continue
@@ -178,18 +230,59 @@ class ColourScreen:
             i += 1
         return self
 
+    def pictures(self):
+        """Each kept transmission as (row, col, image, z, cells): decoded,
+        inflated if it was compressed, and with the cell rectangle its own
+        placement named -- the payload is not one pixel per screen pixel,
+        since the wallpaper is sent at DT_WALLDETAIL and the terminal scales
+        it, so a faithful render has to scale it the same way."""
+        out = []
+        for r, c, ctrl, data in self.imgs:
+            k = dict(p.split("=", 1) for p in ctrl[1:].split(",") if "=" in p)
+            try:
+                raw = base64.b64decode(data)
+            except Exception:
+                continue
+            if k.get("o") == "z":
+                try:
+                    raw = zlib.decompress(raw)
+                except Exception:
+                    continue
+            cells = (int(k["c"]), int(k["r"])) if "c" in k and "r" in k else None
+            z = int(k.get("z", 0))
+            if k.get("f") == "100":
+                try:
+                    out.append((r, c, Image.open(io.BytesIO(raw)).convert("RGB"), z, cells))
+                except Exception:
+                    pass
+                continue
+            w, h = int(k.get("s", 0)), int(k.get("v", 0))
+            if not w or not h or len(raw) < w * h * 3:
+                continue
+            out.append((r, c, Image.frombytes("RGB", (w, h), raw[:w * h * 3]), z, cells))
+        return out
+
 
 def render(cs, path):
     font = ImageFont.truetype(FONT_PATH, 15)
     bold_font = ImageFont.truetype(FONT_BOLD_PATH, 15)
     img = Image.new("RGB", (cs.cols * CELL_W, cs.rows * CELL_H), DEFAULT_BG)
+    # Pictures first, in z order, and the text over them: a cell with no
+    # background colour of its own is left alone below, so the picture shows
+    # through exactly where the desktop meant it to.
+    for r, c, pic, z, cells in sorted(cs.pictures(), key=lambda p: p[3]):
+        if cells:
+            want = (cells[0] * CELL_W, cells[1] * CELL_H)
+            if pic.size != want:
+                pic = pic.resize(want, Image.LANCZOS)
+        img.paste(pic, (c * CELL_W, r * CELL_H))
     draw = ImageDraw.Draw(img)
     for r in range(cs.rows):
         for c in range(cs.cols):
             cell = cs.g[r][c]
             bg = cell.bg or DEFAULT_BG
             x0, y0 = c * CELL_W, r * CELL_H
-            if bg != DEFAULT_BG:
+            if cell.bg is not None:
                 draw.rectangle([x0, y0, x0 + CELL_W, y0 + CELL_H], fill=bg)
             if cell.ch != " ":
                 fg = cell.fg or DEFAULT_FG
@@ -241,6 +334,11 @@ def main():
     ap.add_argument("--session-file", help="run this session file directly")
     ap.add_argument("--rows", type=int, default=24)
     ap.add_argument("--cols", type=int, default=80)
+    ap.add_argument("--cell", default="",
+                     help="what a cell measures in pixels, WxH -- a terminal "
+                          "that says nothing here gets half blocks instead of "
+                          "pixels, so a wallpaper needs this (try 9x18, which "
+                          "is what this renderer draws)")
     ap.add_argument("--wait", type=float, default=0.6)
     ap.add_argument("--tick", default="60")
     ap.add_argument("--keys", action="append", default=[],
@@ -272,8 +370,14 @@ def main():
         open(path, "w").write(content)
         cleanup = True
 
-    t = Term(path, env={"DT_TICK": args.tick}, rows=args.rows, cols=args.cols,
-              settle=args.wait)
+    cw, ch = 0, 0
+    if args.cell:
+        cw, ch = (int(v) for v in args.cell.lower().split("x", 1))
+    env = {"DT_TICK": args.tick}
+    if cw and ch:
+        env["HIBR_GFX"] = "kitty"
+    t = Term(path, env=env, rows=args.rows, cols=args.cols,
+              settle=args.wait, cellw=cw, cellh=ch)
     for k in args.keys:
         t.send(encode_key(k), settle=0.3)
     cs = ColourScreen(args.rows, args.cols)

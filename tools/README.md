@@ -6,10 +6,32 @@ Renders a real hibr session to a PNG — not a mockup, a pixel-for-pixel
 reconstruction of what the terminal actually drew. It runs hibr on a real
 pty, the same way `tests/screen.py` does for the test suite, and replays the
 exact escape sequences the console module sent: text, position, foreground,
-background, bold, dim. Every screenshot this produces is provably a real
-render of real output, which is the point — a picture in the docs cannot
-drift from what hibr actually does once it is made this way, and cannot show
-something hibr does not actually do.
+background, bold, dim, **and the pictures**. Every screenshot this produces
+is provably a real render of real output, which is the point — a picture in
+the docs cannot drift from what hibr actually does once it is made this way,
+and cannot show something hibr does not actually do.
+
+A bitmap is drawn from the same evidence as the text: the kitty
+transmission is kept whole, base64-decoded, inflated when the control says
+`o=z`, scaled to the cells its own placement names, and pasted under the
+text, where a cell with no background colour of its own lets it through.
+`--cell 9x18` is what makes pixels possible at all — it tells the pty what a
+cell measures, which is what a terminal that can place pixels reports — and
+without it hibr draws half blocks, exactly as on a terminal that cannot.
+
+```text
+tools/screenshot.py docs/img/wall.png 'DT_WALLIMG=/path/to.png; DT_IMGMODE=pixels' --cell 9x18
+```
+
+Until 0.99.148 it could not show a picture, and did something worse than
+nothing: its escape skip advanced two bytes whatever the escape was, so an
+APC's base64 was fed to the grid as text and the harness's own idle marker
+(`ESC ] 7777;idle;N;M BEL`) was written across whatever window the cursor
+was in — shifting every cell written after it in that run. `tests/shots.py`
+is the guard, and the images under `examples/desktop/img/` were made before
+it: `desktop-strip.png` is missing the word **File** from its menu bar for
+exactly this reason, which is what a corrupted screenshot looks like when
+nobody is checking.
 
 ```text
 tools/screenshot.py docs/img/hello.png 'dt_new "Hello" 8 30 6 10'

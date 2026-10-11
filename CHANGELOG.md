@@ -1,5 +1,129 @@
 # Changelog
 
+## 0.99.148
+
+**`tools/screenshot.py` fed escape payloads to the grid as text, and could
+not show a picture at all** (Gitea #181).
+
+The tool makes every picture in the documentation, and its claim is a strong
+one -- *"not a mockup ... provably a real render of real output"*. Its escape
+handling ended with:
+
+```python
+if ch == "\x1b":
+    i += 2
+    continue
+```
+
+Two bytes, whatever the escape was. So an **APC** -- the kitty graphics
+protocol, `ESC _ G <control> ; <base64> ESC \` -- had its control and its
+tens of thousands of base64 characters written into the grid one at a time,
+and an **OSC** likewise: the harness's own idle marker, `ESC ] 7777;idle;N;M
+BEL`, became thirteen characters of text at the cursor. Measured, before the
+fix:
+
+```
+old grid row 0: 'hello7777;idle;0;4\x07'
+```
+
+Which is worse than the text appearing, because the cursor advances with it:
+**every cell written after the marker in that run lands thirteen columns
+off**. The shipped `examples/desktop/img/desktop-strip.png` is missing the
+word **File** from its menu bar for exactly that reason.
+
+### And the larger half: a bitmap is not cells
+
+Once the payloads are skipped correctly, a screenshot of a desktop with a
+**pixel** wallpaper showed the windows over an empty ground -- because the
+renderer drew cells, and the cells a picture covers are deliberately blank
+(ADR 0037). A tool whose point is that the documentation cannot show
+something hibr does not do was unable to show the thing hibr does.
+
+A kitty transmission is now kept whole, base64-decoded, inflated when the
+control says `o=z`, **scaled to the cells its own placement names** -- the
+wallpaper is sent at half size by default and the terminal scales it, so a
+faithful render has to scale it the same way -- and pasted under the text in
+`z` order. A cell with no background colour of its own is left alone, which
+is the contract the wallpaper itself depends on.
+
+`--cell 9x18` is what makes pixels possible: it tells the pty what a cell
+measures, which is what a terminal that can place pixels reports. Without
+it, hibr draws half blocks exactly as on a terminal that cannot -- so the
+flag is also how a screenshot of the fallback is taken on purpose.
+
+A **sixel** is skipped rather than drawn, and that is deliberate: it is
+paint, with no placement to read a rectangle from, so there is nothing
+faithful to put on the page. The comment says so where the next reader will
+look.
+
+### The checks
+
+`tests/shots.py`, ten of them, now in `all.py`. Six drive the renderer with
+crafted streams -- the idle marker, an OSC ending in ST rather than BEL, a
+kitty picture that must stay out of the grid and come back as a picture, a
+**chunked** picture that must be one picture and not several, a zlib payload
+that must be inflated rather than taken for pixels, and a sixel whose bytes
+must not reach the grid. Three drive a real desktop with a picture
+wallpaper, through the tool, and read the bitmap back out of the PNG it
+wrote. All of them were watched failing against the old renderer.
+
+### Not in this release
+
+The eight images under `examples/desktop/img/` were made with the broken
+renderer and are stale as well as corrupted -- `desktop-strip.png` predates
+two Control Strip modules. **How each was made was never recorded**, so
+regenerating them means inventing eight sessions and looking at each one,
+and it wants a manifest beside them so the next person does not have to
+invent them again. That is its own release, and it is worth more once the
+tool it runs is the fixed one.
+
+### And one check this release's gate caught, which was not this release
+
+`tests/web.py`'s *a click on a link in the window follows it* failed the
+gate, with the other 41 suites green and nothing in this release able to
+reach it -- the changes are a tool, a suite, three documents and the version.
+Eleven earlier gate logs read `web ok 18 passed` (Gitea #182).
+
+**The check's name is wrong about what failed, which is the whole of the
+finding.** The screen when its eighteen-second wait ran out:
+
+```
+ 1|··┌─┤ Browser [Page B] ├──────────────────────────────────────────────┤_ □ x├┐··
+ 2|··│ Page B ✕ │ +                                                             │··
+ 3|··│ ← → ↻  file:///tmp/hibr-webrep-f5gw27br/b.html                           │··
+ 4|··│                                                                          │··
+   ... every page row blank, and the status line the idle one ...
+```
+
+The click **did** follow the link: the title, the tab and the address all say
+Page B, and the status line is not `Loading…`. What never happened is the
+drawing of page B, and it never happens again either. Reproduced by running
+that one scenario alone: 0 of 6 unloaded, **2 of 24** under three spinners on
+four cores, with the link at the same cell (8, 27) in every run, failures
+included -- so it is not the "a click aimed at a column worked out from text
+that has not arrived yet" trap that the tab close box had.
+
+What the code says about that screen, which is as far as this release took
+it: `wb_render` fills a fresh blank grid before placing the text it
+extracted and clears `dirty` only on success, so a blank page area is a
+*successful* render that found no text -- a failed one would have left page
+A's cells. That leaves the tab clean and `loading` false, and
+`browser_draw`'s only re-arm is `[ "$st" = loading ] && dt_want 400`. No
+frame is asked for, and a frame caused by something else would find nothing
+to re-render. `wb_event` sets `loading = 0` and `dirty = 1` in the same
+event, so the last render of a navigation is always the frame that learns
+the load ended. Not root-caused; the ticket carries the two candidate fixes
+and why the module-side one is preferred.
+
+### A gate failure now keeps its screen
+
+`screen.check` prints the screen a check failed on only when `V` is set, so
+`build/test-logs/web.log` held one line -- the check's name -- and the screen
+above had to be re-found by reproducing it. A release gate runs unattended,
+which is exactly where a one-off needs to leave its evidence behind, so
+`tests/all.py` defaults `V=1` for the suites it runs. It costs nothing on a
+pass: the dump is printed only beside a `FAIL`.
+
 ## 0.99.147
 
 **An account could hold only one address, so mail arriving at an alias read

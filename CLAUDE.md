@@ -3421,6 +3421,18 @@ went in the shell.
   `$here/$name.expected` in `run.sh`, so the test silently falls through to
   being compared against bash instead and fails there in a way that looks
   like a behaviour bug rather than a typo'd filename.
+- **A gate runs unattended, so its failures have to keep their evidence.**
+  `screen.check` prints the screen a check failed on only when `V` is set,
+  and `tests/all.py` did not set it -- so 0.99.148's gate left
+  `FAIL a click on a link in the window follows it` and nothing else, and the
+  screen that named the cause (the navigation *had* happened; the page was
+  simply never drawn, Gitea #182) had to be re-found by reproducing the
+  scenario two dozen times. `all.py` defaults `V=1` now; it costs nothing on
+  a pass, since the dump only prints beside a `FAIL`. **And read the screen
+  before naming the mechanism**: the obvious reading of that failure was the
+  trap already in this file about a click aimed at a column the text has not
+  reached yet, and the measurement refuted it -- the link was at the same
+  cell in every run, failures included.
 
 ## Owner's preferences for the work
 
@@ -3897,6 +3909,31 @@ went in the shell.
   believing a nesting probe: **a probe that sends one key too many tests
   the wrong row**, and the first one here moved the highlight off
   Applications and onto Quit, then read "right does not open a submenu".
+- **A renderer that skips an escape by advancing two bytes writes the rest
+  of it on the screen.** `tools/screenshot.py` makes every picture in the
+  documentation and claimed each was "provably a real render of real
+  output"; its feed loop ended in `if ch == "\x1b": i += 2; continue`, so an
+  **APC**'s base64 (a kitty picture, tens of thousands of characters) and an
+  **OSC**'s payload were fed to the grid as text -- the harness's own
+  `ESC ] 7777;idle;N;M BEL` among them, measured as a grid row reading
+  `hello7777;idle;0;4` where the terminal showed `hello` (Gitea #181,
+  0.99.148). The text is not the worst of it: **the cursor advances with
+  it**, so every cell written after it in that run lands thirteen columns
+  off, and the shipped `desktop-strip.png` is missing the word *File* from
+  its menu bar because of it. `tests/screen.py` had kept DCS and APC out of
+  its own model since it was written, with a comment saying why; the tool
+  was a second model that never learned it -- **two parsers of the same
+  stream is one too many, and the newer one will be the one that is
+  wrong.**
+  The other half is the shape to remember: once the payloads were skipped
+  properly the tool still could not show a **picture**, because a bitmap is
+  not cells and the cells one covers are deliberately blank (ADR 0037). A
+  faithful render decodes the transmission, inflates it when the control
+  says `o=z`, and **scales it to the cells the placement names** -- the
+  wallpaper is sent at half size and the terminal scales it up, so a
+  renderer that pastes at the payload's own size draws a quarter of a
+  screen. A sixel is skipped rather than drawn, deliberately: it is paint
+  with no placement, so there is no rectangle to be faithful to.
 - **A glob list is where coverage goes to hide, and the documentation check
   was itself one.** `531-doc-examples.t` opens by saying every page is held
   to its examples and then **named its pages one by one**; `docs/sheet.md`

@@ -6,9 +6,10 @@
 tests/run.sh and every pty suite are independent -- each pty run has its own
 terminal, its own XDG directories and its own hold sockets -- and each spends
 nearly all its time waiting on the program it drives, so they run side by
-side. A suite's full output goes to build/test-logs/<suite>.log; what is
-printed here is one line each, and the failures. Exits non-zero if any
-suite failed.
+side. A suite's full output goes to build/test-logs/<suite>.log -- with V=1
+unless the environment says otherwise, so a check that fails leaves the
+screen it failed on in its log rather than only its name. What is printed
+here is one line each, and the failures. Exits non-zero if any suite failed.
 """
 import os
 import subprocess
@@ -20,11 +21,19 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 LOGS = (os.environ.get("HIBR_TESTLOGS")
         or os.path.join(ROOT, "build", "test-logs"))
+# A failing check prints the screen it failed on only when V is set, and a
+# gate runs unattended -- so a one-off failure in 0.99.148's own gate left
+# nothing but its name in the log, and the screen that named the cause had
+# to be re-found by reproducing it (Gitea #182). The dump is printed only
+# beside a FAIL, so this costs nothing on a pass; V= in the environment
+# still turns it off.
+ENV = dict(os.environ)
+ENV.setdefault("V", "1")
 SUITES = ["run.sh", "desktop", "apps_panel", "apps_reach", "apps_core", "apps_more", "most", "hvi", "console", "cat",
           "mon", "mtr", "editor", "term_diff", "uifuzz", "strictvars",
           "md_spec", "html_tree", "mail", "mailapp", "contacts", "calapp", "pim", "pim_rrule", "web", "dav", "media", "youtube",
           "uni_bidi", "uni_shape", "hcal_icu", "salat_adhan", "vw_crypto", "vw", "vault", "sixel", "kitgfx", "holdpix", "archive", "mermaid",
-          "appmgr"]
+          "appmgr", "shots"]
 
 
 def one(name):
@@ -32,7 +41,7 @@ def one(name):
     cmd = ([os.path.join(HERE, "run.sh")] if name == "run.sh"
            else [sys.executable, "-u", os.path.join(HERE, name + ".py")])
     t = time.time()
-    p = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True)
+    p = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, env=ENV)
     out = p.stdout + p.stderr
     open(os.path.join(LOGS, name + ".log"), "w").write(out)
     lines = out.splitlines()
