@@ -1,5 +1,72 @@
 # Changelog
 
+## 0.99.144
+
+**`read -n N` took N characters regardless of the delimiter, and `read -N`
+did not exist at all** (Gitea #107).
+
+```
+$ printf 'ab\ncd\nef\n' > r
+$ bash -c 'read -n 10 x < r; echo "[$x]"'
+[ab]
+$ hibr -c 'read -n 10 x < r; echo "[$x]"'
+[ab
+cd
+ef]
+```
+
+bash's `-n` stops at N characters **or the delimiter, whichever comes
+first**, which is what makes `read -n 10` on a line of two characters give
+two and leave the rest of the file for the next command. hibr read ten and
+kept the newlines, so a sequence of `read -n` calls got everything on the
+first and nothing after it.
+
+The ticket said the two spellings were "the same command with different
+spellings". They were not quite: **`-N` was refused as an unknown option**,
+so the form that is *meant* to ignore the delimiter was missing. Both are
+here now, and they differ in three ways rather than one:
+
+| | `-n k` | `-N k` |
+|---|---|---|
+| stops at the delimiter | yes | no |
+| keeps a delimiter in the value | n/a | yes |
+| splits into fields | yes | **no** |
+
+That third row is bash's and is easy to miss: `read -N 5 a b <<< "x y z"`
+puts `x y z` in `a` and leaves `b` empty, blanks and all, and an array gets
+one element. `-n` splits as `read` always has.
+
+### What else the sweep found
+
+Running the whole family against bash rather than only the reported form --
+this tree's own rule, and thirty seconds -- turned up two more:
+
+- **A count of `0` is not the same as no count.** `read -n 0 x` reads
+  nothing, takes **not a byte** from the descriptor and succeeds, so the
+  next command sees all of it; hibr read a whole line, because `want = 0`
+  was how "no count" was spelled inside.
+- **A count that is not a number was silently 0.** `read -n k x` is bash's
+  `read: k: invalid number` and status 1; `atoi` made it 0, which after the
+  fix above would have meant "read nothing" and succeeded.
+
+### Where it is
+
+`bi_rddelim` takes an `exact` flag beside its count, and both of its
+branches -- the block read for a seekable descriptor and the byte-at-a-time
+one for a pipe -- ask it rather than the count. The block branch's `lseek`
+back to just past the delimiter was already there for the no-count case and
+is what makes two `read -n` calls on one file work; the ticket's warning
+about it was the right thing to check and needed no change.
+
+### The checks
+
+`tests/206-read-count.t`, **compared against bash**: nineteen lines, of which
+eleven failed against 0.99.143. Both counts on a file and through a pipe,
+twice on one descriptor, a pipe that ends before the count, `-d` with a
+count, `0` taking nothing, more than the file holds, a count that is not a
+number, and the five splitting shapes of `-N` -- two names, leading blanks,
+a different `IFS`, an array, and no name at all.
+
 ## 0.99.143
 
 **`desktop ctl` bounded the answer and not the connect, so a desktop that had

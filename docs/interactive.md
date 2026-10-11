@@ -301,9 +301,29 @@ after-return
 ## Reading input
 
 `read` takes `-r` (no backslash escapes), `-p` (prompt), `-s` (no echo), `-n`
-(that many characters), `-d` (a different delimiter), `-t` (seconds), `-u` (a
-descriptor) and `-a` (into an array). Attached values work too, so `-n3` is
-`-n 3`.
+(that many characters *or* the delimiter, whichever comes first), `-N` (exactly
+that many, delimiter and all, splitting nothing), `-d` (a different delimiter),
+`-t` (seconds), `-u` (a descriptor) and `-a` (into an array). Attached values
+work too, so `-n3` is `-n 3`.
+
+The difference between the two counts is the whole of why there are two. On
+`ab\ncd\n`:
+
+<!-- setup
+printf 'ab\ncd\n' > two
+-->
+```sh
+read -n 10 x < two; printf 'n: [%s]\n' "$x"
+read -N 10 y < two; printf 'N: [%s]\n' "${y//$'\n'/|}"
+```
+
+```output
+n: [ab]
+N: [ab|cd|]
+```
+
+A count of `0` reads nothing, takes not a byte from the descriptor and
+succeeds, so the next command sees all of it.
 
 ```sh
 printf abc | { read -r -n2 x; echo "$x"; }

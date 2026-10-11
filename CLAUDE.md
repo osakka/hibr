@@ -616,6 +616,26 @@ went in the shell.
 - **`getopts` keeps a position inside the argument**, in `sh.optpos`, reset when
   `OPTIND` is assigned from outside -- the only signal a script gives that it is
   restarting. Without it `-abc` is one option and `-c5` takes the next word.
+- **`read -n` and `read -N` differ in three ways, not one, and the third is
+  the one nobody expects.** `-n k` stops at k characters **or the
+  delimiter, whichever comes first**; `-N k` takes exactly k, keeps a
+  delimiter among them, **and splits nothing** -- `read -N 5 a b <<< "x y
+  z"` puts the whole of `x y z` in `a`, blanks and all, leaves `b` empty,
+  and gives an array one element. hibr read k bytes regardless and had no
+  `-N` at all until 0.99.144 (Gitea #107), so `read -n 10` on a two-character
+  line took the rest of the file with it and the next `read` got nothing.
+  `bi_rddelim` carries an `exact` flag beside the count and **both** of its
+  branches ask that rather than the count -- the block read for a seekable
+  descriptor and the byte-at-a-time one for a pipe, which cannot be seeked
+  back and so must not over-read in the first place.
+  The sweep against bash found two more in the same family, which is the
+  argument for doing it every time: **a count of `0` is not the same as no
+  count** (it reads nothing, takes not a byte, and succeeds, where `want =
+  0` was how "no count" was spelled inside), and **a count that is not a
+  number was silently 0** rather than bash's `invalid number` and status 1.
+  After the first fix the second would have read nothing and succeeded,
+  which is the shape to watch for: a fix that turns a wrong answer into a
+  plausible one.
 - **`read` assigns at end of file and still fails.** Both halves: the variable
   becomes empty *and* the status is 1, including for a last line with no
   newline. Return 0 there and `while read` never terminates; skip the

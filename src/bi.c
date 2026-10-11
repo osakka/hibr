@@ -492,10 +492,15 @@ char *bi_oval(int ac, char **av, int *i, size_t len)
    on a machine where that file is 6 kB, several times a second. Blocks make
    it 2 calls a line.
 
-   want (read -n) caps how much is taken, and then the delimiter is not
-   looked for at all, as before. Returns the last read's own result, so the
-   caller can still tell end of file from a delimiter. */
-long bi_rddelim(int fd, int delim, int want, str *b)
+   want caps how much is taken. exact says whether the delimiter still ends
+   the read before that cap is reached: it does for `read -n`, which takes N
+   characters *or* the delimiter, whichever comes first, and it does not for
+   `read -N`, which is the form that takes exactly N and keeps a delimiter
+   among them (Gitea #107). Both spellings read N bytes regardless until
+   0.99.144, which made them one command written two ways.
+   Returns the last read's own result, so the caller can still tell end of
+   file from a delimiter. */
+long bi_rddelim(int fd, int delim, int want, int exact, str *b)
 {
 	long n = 0;
 	char c, *buf, *d;
@@ -503,7 +508,7 @@ long bi_rddelim(int fd, int delim, int want, str *b)
 
 	if (lseek(fd, 0, SEEK_CUR) == (off_t)-1) {
 		while ((n = read(fd, &c, 1)) == 1) {
-			if (!want && (unsigned char)c == (unsigned char)delim)
+			if (!exact && (unsigned char)c == (unsigned char)delim)
 				break;
 			s_ch(b, c);
 			if (want && (int)b->n >= want)
@@ -519,7 +524,7 @@ long bi_rddelim(int fd, int delim, int want, str *b)
 		n = read(fd, buf, cap);
 		if (n <= 0)
 			break;
-		d = want ? 0 : memchr(buf, delim, (size_t)n);
+		d = exact ? 0 : memchr(buf, delim, (size_t)n);
 		if (d) {
 			s_add(b, buf, (size_t)(d - buf));
 			lseek(fd, (off_t)((d - buf) + 1 - n), SEEK_CUR);
@@ -539,7 +544,8 @@ int b_read(sh *s, int ac, char **av)
 {
 	str b;
 	long n;
-	int i = 1, want = 0, silent = 0, fd = 0, delim = '\n', eof = 0;
+	int i = 1, want = 0, cnt = 0, exact = 0, silent = 0, fd = 0;
+	int delim = '\n', eof = 0;
 	const char *arr = 0, *prompt = 0;
 	char *ov;
 	long tmo = 0;
@@ -556,7 +562,7 @@ int b_read(sh *s, int ac, char **av)
 		int taken = 0;
 		while (*f && !taken) {
 			char o = *f++;
-			if (strchr("pntuad", o)) {
+			if (strchr("pnNtuad", o)) {
 				if (*f) {
 					ov = (char *)f;
 				} else if (i + 1 < ac) {
@@ -580,7 +586,26 @@ int b_read(sh *s, int ac, char **av)
 				prompt = ov;
 				break;
 			case 'n':
-				want = atoi(ov);
+			case 'N':
+				/* A count given as 0 is not the same as no
+				   count: bash takes nothing and succeeds,
+				   where no count at all reads a whole line.
+				   And a count that is not a number is bash's
+				   error rather than a silent 0. */
+				{
+					char *e2;
+					long v = strtol(ov, &e2, 10);
+
+					if (!*ov || *e2 || v < 0) {
+						lg(HIBR_LERR,
+						   "read: %s: invalid number",
+						   ov);
+						return 1;
+					}
+					want = (int)v;
+					cnt = 1;
+					exact = o == 'N';
+				}
 				break;
 			case 't':
 				tmo = atol(ov);
@@ -622,12 +647,35 @@ int b_read(sh *s, int ac, char **av)
 		silent = 0;
 	}
 	s_init(&b);
-	n = bi_rddelim(fd, delim, want, &b);
+	/* A count of 0 reads nothing and succeeds, taking not even a byte
+	   from the descriptor, so the next command sees all of it. */
+	n = cnt && !want ? 1 : bi_rddelim(fd, delim, want, exact, &b);
 	if (silent) {
 		tcsetattr(fd, TCSADRAIN, &sv);
 		fputc('\n', stderr);
 	}
 	eof = n <= 0;
+	/* `read -N` splits nothing: the whole of what was taken goes to the
+	   first name, leading and trailing blanks and all, and any further
+	   name is left empty -- which is what the form is for, and is bash's
+	   own behaviour (an array gets one element, and with no name at all
+	   REPLY gets the lot, which the paths below already do). */
+	if (exact && arr) {
+		vec *el = vb_get(s);
+
+		v_add(el, ar_dup(s->xa, b.p ? b.p : "", b.n));
+		v_arr(s, arr, el);
+		vb_put(s, el);
+		s_free(&b);
+		return eof ? HIBR_FAIL : HIBR_OK;
+	}
+	if (exact && i < ac) {
+		hibr_set(s, av[i], b.p ? b.p : "", 0);
+		for (i++; i < ac; i++)
+			hibr_set(s, av[i], "", 0);
+		s_free(&b);
+		return eof ? HIBR_FAIL : HIBR_OK;
+	}
 	if (arr) {
 		vec *el = vb_get(s);
 		while (p < b.n) {
