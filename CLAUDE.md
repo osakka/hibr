@@ -2446,6 +2446,31 @@ went in the shell.
   the hibr menu for six releases, where `c` opened it in a test meant to
   open Control Panel. Count them -- `many "" "" hidden` -- and copy a
   hidden app's line from one that is known to be hidden.
+- **A key that arrives in the reply you are trying to get cannot encrypt the
+  thing that gets it.** The vault's two-factor work (Gitea #156, 0.99.146)
+  keeps a *remembered device* token so a later login asks nothing -- and the
+  obvious place for it, `vwk enc` beside the refresh token, is the one place
+  it cannot go: that uses the vault's key, which comes back in the very
+  token reply the remembered device is being sent to obtain. In the clear
+  was the other option, and it hands the second factor to anyone who can
+  read the account file. `vwk menc`/`mdec` use the key the **master
+  password** makes, which `vwk hash` leaves in memory and `vwk open`
+  *spends* -- so the store has to happen **before** the open, which is a
+  line order, not a comment. When something has to be read earlier than the
+  key that would protect it, look for a key that exists earlier rather than
+  dropping the protection.
+  Two refusals look alike and must not be treated alike: a server that has
+  forgotten a remembered device answers with **the provider list again**,
+  where a wrong code is a **401** and a wrong password is a 400 with **no
+  provider list**. Telling them apart by the status alone throws a good
+  token away on a mistyped password, and in a desktop that reads as
+  two-factor being broken.
+  Two bugs on the way, both already in this file in other clothes.
+  `${m["TwoFactorProviders"]+x}` is **empty when the entry holds only a
+  map**, and a JSON array *is* a map -- so "two factor required" read as
+  "wrong password" until the first element was asked about. And
+  `cmd || { ok=0; st=$?; }` reads **the assignment's** status: an assignment
+  is a command, and `$?` is already 0 by the time it is read. `st=$?` first.
 - **A copied secret is not clipboard history.** `dt_clipset` keeps every
   copy in `DT_CH`, which is written to the state folder -- so the vault's
   passwords would have been saved in the clear by the act of copying one.

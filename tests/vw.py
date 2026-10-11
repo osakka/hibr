@@ -39,8 +39,9 @@ def vw(*args, stdin="", env=None):
     return r.stdout.strip(), r.returncode, r.stderr.strip()
 
 
-def server():
-    p = subprocess.Popen([sys.executable, os.path.join(HERE, "bwserve.py")], stdout=subprocess.PIPE, text=True)
+def server(*extra):
+    p = subprocess.Popen([sys.executable, os.path.join(HERE, "bwserve.py")] + list(extra),
+                         stdout=subprocess.PIPE, text=True)
     return p, int(p.stdout.readline().split()[1])
 
 
@@ -132,5 +133,72 @@ leak = [p for root, _, fs in os.walk(D) for p in [os.path.join(root, x) for x in
         if any(s in open(p, "rb").read() for s in (b"s3cr", b"b4nk-p4ss", b"h0me-w1fi", b"refresh-pat"))]
 check("nothing decrypted, and not the login's refresh token, is anywhere on disk", not leak, leak)
 
+# --- two-factor (Gitea #156) ------------------------------------------------
+#
+# The protocol here is read from Vaultwarden's source rather than remembered,
+# and the stand-in answers with its exact strings and status codes: a 400
+# carrying TwoFactorProviders means "ask", a 401 means "that code was wrong",
+# and a 400 *without* that key is a wrong password. A client that tells those
+# apart by the status alone locks somebody out the first time their password
+# is mistyped.
+srv2, p2 = server("--2fa", "0")
+try:
+    D2 = tempfile.mkdtemp(prefix="hibr-vw2-")
+    E2 = {"XDG_CONFIG_HOME": os.path.join(D2, "c"), "XDG_DATA_HOME": os.path.join(D2, "d"),
+          "XDG_RUNTIME_DIR": os.path.join(D2, "r")}
+    vw("server", "http://127.0.0.1:%d" % p2, env=E2)
+
+    out, rc, err = vw("login", "pat@example.com", stdin=PW + "\n", env=E2)
+    check("a login with two-factor on, and no code, says which provider it wants",
+          rc != 0 and "authenticator" in err.lower(), (out, err))
+
+    out, rc, err = vw("login", "pat@example.com", stdin=PW + "\n000000\n", env=E2)
+    check("a wrong code fails with the server's own words",
+          rc != 0 and "Two-step token is invalid" in err, (out, err))
+
+    out, rc, err = vw("login", "pat@example.com", stdin=PW + "\n123456\n", env=E2)
+    check("the code on the second line logs in", rc == 0 and "unlocked" in err, (out, err))
+
+    acct = json.load(open(os.path.join(D2, "c", "hibr", "vw", "account.json")))
+    check("the server's remember token is kept, and not in the clear",
+          acct.get("remember", "").startswith("2.") and "remember-pat" not in open(
+              os.path.join(D2, "c", "hibr", "vw", "account.json")).read(), acct.get("remember", "none"))
+
+    before = stats(p2)["twofa"]
+    out, rc, err = vw("login", "pat@example.com", stdin=PW + "\n", env=E2)
+    check("the next login is not asked again, because the device is remembered",
+          rc == 0 and stats(p2)["twofa"] == before, (out, err, before, stats(p2)["twofa"]))
+
+    out, rc, err = vw("login", "pat@example.com", stdin="wrong password\n", env=E2)
+    kept = json.load(open(os.path.join(D2, "c", "hibr", "vw", "account.json"))).get("remember", "")
+    check("a wrong password is not mistaken for a dead token, and keeps it",
+          rc != 0 and "incorrect" in err and kept, (err, kept))
+
+    # A remember token the server stops honouring: it answers with the
+    # providers again rather than 401, and the client has to ask rather than
+    # die -- Vaultwarden drops them on a password change, so this is the
+    # path that otherwise locks somebody out a week later.
+    a = json.load(open(os.path.join(D2, "c", "hibr", "vw", "account.json")))
+    a["remember"] = a["refresh"]
+    json.dump(a, open(os.path.join(D2, "c", "hibr", "vw", "account.json"), "w"))
+    out, rc, err = vw("login", "pat@example.com", stdin=PW + "\n123456\n", env=E2)
+    check("a remember token the server has forgotten falls back to asking",
+          rc == 0 and "unlocked" in err, (out, err))
+finally:
+    srv2.kill()
+
+# A provider this client cannot do is named rather than half-tried.
+srv3, p3 = server("--2fa", "7")
+try:
+    D3 = tempfile.mkdtemp(prefix="hibr-vw3-")
+    E3 = {"XDG_CONFIG_HOME": os.path.join(D3, "c"), "XDG_DATA_HOME": os.path.join(D3, "d"),
+          "XDG_RUNTIME_DIR": os.path.join(D3, "r")}
+    vw("server", "http://127.0.0.1:%d" % p3, env=E3)
+    out, rc, err = vw("login", "pat@example.com", stdin=PW + "\n123456\n", env=E3)
+    check("a WebAuthn-only account is refused by name, not half-tried",
+          rc != 0 and "WebAuthn" in err, (out, err))
+finally:
+    srv3.kill()
+
 shutil.rmtree(D, True)
-report(22)
+report(30)

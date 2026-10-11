@@ -163,5 +163,46 @@ finally:
 leak = [os.path.join(r, f) for r, _, fs in os.walk(D) for f in fs
         if any(s in open(os.path.join(r, f), "rb").read() for s in (b"s3cr", b"b4nk-p4ss", b"h0me-w1fi", PW.encode()))]
 check("nothing decrypted, nor the password, was written anywhere", not leak, leak)
-shutil.rmtree(D, True)
-report(17)
+
+# --- two-factor, from the desktop's own box (Gitea #156) ---------------------
+#
+# The box cannot know the account has two-factor on until it tries, so the
+# Code field is not there to begin with: vw leaves with status 4, and that
+# number -- not its English -- is what grows the field. The password is kept
+# for the second round, since the same grant is posted again with the code
+# beside it.
+srv2 = subprocess.Popen([sys.executable, os.path.join(HERE, "bwserve.py"), "--2fa", "0"],
+                        stdout=subprocess.PIPE, text=True)
+port2 = int(srv2.stdout.readline().split()[1])
+D2 = tempfile.mkdtemp(prefix="hibr-vault2-")
+ENV = {"XDG_CONFIG_HOME": os.path.join(D2, "c"), "XDG_DATA_HOME": os.path.join(D2, "d"),
+       "XDG_RUNTIME_DIR": os.path.join(D2, "r"), "XDG_STATE_HOME": os.path.join(D2, "s")}
+D = D2
+try:
+    t = session("tfa")
+    try:
+        t.keys([b"\r"])
+        sc = waitfor(t, "Log In to a Vault")
+        check("the login box has no Code field until a server asks for one",
+              sc.find("Password:") and not sc.find("Code:"), sc)
+        t.keys([("http://127.0.0.1:%d" % port2).encode(), b"\t", b"pat@example.com",
+                b"\t", PW.encode(), b"\r"])
+        sc = waitfor(t, "Code:")
+        check("a server that wants two-factor grows the field, and says which code",
+              sc.find("Code:") and sc.find("authenticator"), sc)
+        t.keys([b"000000", b"\r"])
+        sc = waitfor(t, "invalid")
+        check("a wrong code is refused in the box, in the server's own words",
+              sc.find("invalid"), sc)
+        t.keys([b"123456", b"\r"])
+        sc = waitfor(t, "unlocked until")
+        check("the right code logs in, with the password never asked for twice",
+              sc.find("Bank") and sc.find("Wifi"), sc)
+        check("and neither the password nor the code reached the screen",
+              PW not in t.text and "123456" not in t.text.replace("12345678", ""), "")
+    finally:
+        t.quit()
+finally:
+    srv2.kill()
+shutil.rmtree(D2, True)
+report(22)

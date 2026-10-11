@@ -1,5 +1,117 @@
 # Changelog
 
+## 0.99.146
+
+**An account with two-factor turned on could not log in to the vault at
+all** (Gitea #156). Reported as: *the vault needs two-factor support.*
+
+`vw login` posted the password grant and nothing else, so the 400 naming the
+server's providers reached `vw_die` and the desktop's login box showed "Two
+factor required." with nowhere to type a code. A password manager that
+cannot log in to an account with two-factor on is one that encourages
+turning it off.
+
+### The protocol, read rather than remembered
+
+The ticket's own table of provider numbers was **wrong**, and that is worth
+recording because it is what a second reader would have built against.
+Vaultwarden's `src/db/models/two_factor.rs` says:
+
+| | |
+|---|---|
+| 0 | Authenticator |
+| 1 | Email |
+| **2** | **Duo** (the ticket said 3) |
+| **3** | **YubiKey** (the ticket said 4) |
+| 4 | U2f |
+| 5 | Remember |
+| 6 | OrganizationDuo |
+| 7 | Webauthn |
+| 8 | RecoveryCode |
+
+Read from source along with it, and all of it is in `tests/bwserve.py` as
+the server's own strings rather than plausible ones -- a stand-in written
+from the same memory as the client would agree with the client and prove
+nothing:
+
+- **wanted**: 400, `{"error":"invalid_grant","error_description":"Two factor
+  required.","TwoFactorProviders":["0"],"TwoFactorProviders2":{...}}`
+- **a wrong code**: **401**, "Two-step token is invalid. Try again." -- not a
+  400, which is what lets a client tell "ask" from "that was wrong"
+- **remembered**: `TwoFactorToken`, capitalised, in the *successful* reply
+- **the fields**: `two_factor_token` and friends, each with an `uncased`
+  alias without the underscores, so the official clients' `twoFactorToken`
+  spelling works too
+- **an emailed code is not sent by the refusal**: the client has to ask, with
+  `POST /api/two-factor/send-email-login`
+
+### What it does
+
+`vw login` reads the providers and asks for a code: the authenticator, an
+emailed code or a YubiKey OTP, and `--recovery` for a recovery code, which
+no server ever lists and every server takes. Duo, U2f and WebAuthn each need
+a browser and are **named and refused** rather than half-tried. The code
+comes from the second line of standard input when the password came that way
+(`VW_STDIN=1`), and from the terminal otherwise -- with echo **on**, because
+a code is not a secret worth hiding and a YubiKey types forty-four
+characters a person needs to see go in.
+
+A device the server was told to remember is sent as provider 5 on the next
+login's first post, so an account with two-factor on logs in with nothing
+typed.
+
+### Where the remembered device is kept, and why that needed C
+
+It cannot be kept the way the refresh token is. `vwk enc` uses the vault's
+key, and **the vault's key arrives in the very reply this token exists to
+obtain** -- so a token encrypted that way could never be read in time. In
+the clear it would hand the second factor to anyone who can read the account
+file, which is the one thing a remembered device must not do.
+
+So `vwk` gains **`menc` / `mdec`**, which use the key the master password
+makes -- held only between `vwk hash` and `vwk open`, which is exactly the
+window the login needs it in. The order matters and is now explicit:
+`vwk open` *spends* the master key, so the token is stored before it.
+
+Two ways of locking somebody out, both avoided and both tested:
+
+- a remembered token the server has stopped honouring (it drops them on a
+  password change) comes back as **the providers again**, not as a wrong
+  code -- so the client asks, and forgets what it had;
+- a **wrong password** carries no provider list, which is how it is told
+  from a dead token. Reading the status alone would throw away a good
+  remembered device on a mistyped password.
+
+### The desktop's own box
+
+The login dialog grows a **Code** field -- only once a server has asked for
+one, with the provider named, since an authenticator reads differently from
+an emailed code. What it grows on is `vw`'s **status 4**, not its English: a
+number the box can act on without matching a sentence.
+
+And a code that does not work clears **the code and nothing else**. The
+password was accepted to get that far; clearing both would make a mistyped
+digit cost the password as well, which is how people end up turning
+two-factor off.
+
+### The checks
+
+Eight in `tests/vw.py` and four in `tests/vault.py`, every one watched
+failing first. No code and the provider named; a wrong code in the server's
+own words; the code on the second line logging in; the remembered token kept
+and not in the clear; the next login not asked at all; a wrong password
+keeping the token; a forgotten token falling back to asking; a WebAuthn-only
+account refused by name. Then the desktop's: no Code field until a server
+asks, the field and the provider when one does, a wrong code refused in the
+box, and the right one logging in without asking for the password twice.
+
+Two bugs found by those checks rather than by reading, both this tree's own
+traps: `${tf["TwoFactorProviders"]+x}` is **empty when the entry holds only
+a map**, and a JSON array is a map -- so "two factor required" read as
+"wrong password" until the first element was asked about instead. And
+`|| { ok=0; st=$?; }` reads **the assignment's** status, not the command's,
+so the dialog never saw status 4 until the two were swapped.
+
 ## 0.99.145
 
 **The Mail account dialog had no login field, so an account whose login is

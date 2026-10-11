@@ -601,6 +601,32 @@ int vw_bi(sh *s, int ac, char **av)
 		vw_used = time(0);
 		return HIBR_OK;
 	}
+	/* Encrypt or decrypt under the key the master password makes, which is
+	   held between `vwk hash` and `vwk open` and nowhere else. That window
+	   is the point: a remembered two-factor device has to be read *before*
+	   the account's own key has arrived from the server, so it cannot be
+	   kept under the vault key the way the refresh token is -- and keeping
+	   it in the clear would hand the second factor to anyone who can read
+	   the account file, which is the one thing a remembered device must not
+	   do (Gitea #156). */
+	if (!strcmp(cmd, "menc") || !strcmp(cmd, "mdec")) {
+		unsigned char st[VW_KEYLEN];
+
+		if (ac != 3 || !vw_hasmk) {
+			lg(HIBR_LERR, "usage: vwk menc|mdec text -- between vwk hash and vwk open");
+			return 2;
+		}
+		vw_stretch(vw_mk, st);
+		if (!strcmp(cmd, "mdec") ? vw_decs(av[2], st, &o) < 0 :
+					   vw_encs((unsigned char *)av[2], strlen(av[2]), st, &o) < 0) {
+			vw_wipe(st, sizeof st);
+			s_free(&o);
+			lg(HIBR_LERR, "vwk %s: does not open with this master password", cmd);
+			return HIBR_FAIL;
+		}
+		vw_wipe(st, sizeof st);
+		return vw_say(s, &o);
+	}
 	if (!strcmp(cmd, "dec") || !strcmp(cmd, "enc")) {
 		const char *ik = 0;
 		if (!vw_open()) {

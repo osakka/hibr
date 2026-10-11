@@ -157,13 +157,26 @@ fn dt_vwunlock(pw, int pin = 0) {
 }
 
 # Log in to a server for the first time, or again: set it, log in, unlock.
-fn dt_vwlogin(server, email, pw, int insecure = 0) {
+#
+# A two-factor code, when the server asked for one, goes on the second line
+# of vw's standard input -- it has no terminal to be asked on here, which is
+# why vw takes it that way at all. vw leaves with status 4 when it wants a
+# code and was given none, and that status is what the dialog grows its
+# second field on: a number rather than a sentence, so the box does not have
+# to match vw's English (Gitea #156).
+fn dt_vwlogin(server, email, pw, int insecure = 0, code = "") {
+	local st
 	if [ "$insecure" = 1 ]; then
 		dt_vw "" server "$server" -k || return 1
 	else
 		dt_vw "" server "$server" || return 1
 	fi
-	dt_vw "$pw" login "$email" || return 1
+	if [ -n "$code" ]; then
+		dt_vw "$pw
+$code" login "$email" || return $?
+	else
+		dt_vw "$pw" login "$email" || return $?
+	fi
 	dt_vwtake
 }
 
@@ -375,7 +388,13 @@ fn dt_vwdialog(mode) {
 # The fields focus moves through.
 fn vwd_order(int id) {
 	case ${VWD[$id]["mode"]} in
-	login) VWD_ORDER=(server email pass verify ok cancel) ;;
+	login)
+		VWD_ORDER=(server email pass verify ok cancel)
+		# The code field exists only once the server has asked for one,
+		# so a login without two-factor is the box it always was.
+		[ "${VWD[$id]["needcode"]}" = 1 ] &&
+			VWD_ORDER=(server email pass code verify ok cancel)
+		;;
 	unlock)
 		VWD_ORDER=(pass ok cancel)
 		[ "${VWD[$id]["haspin"]}" = 1 ] && VWD_ORDER=(pass usepin ok cancel)
@@ -386,11 +405,12 @@ fn vwd_order(int id) {
 
 fn vwd_draw(int id, int h, int w, int row, int col) {
 	local f=${VWD[$id]["focus"]} m=${VWD[$id]["mode"]} r=1 k on fw=$((w - 15)) t
-	local -A labs=([server]="Server:" [email]="Email:" [pass]="Password:")
+	local -A labs=([server]="Server:" [email]="Email:" [pass]="Password:" [code]="Code:")
 	local -a ks=(pass)
 
 	dt_wclear "$id"
 	[ "$m" = login ] && ks=(server email pass)
+	[ "$m" = login ] && [ "${VWD[$id]["needcode"]}" = 1 ] && ks=(server email pass code)
 	[ "$m" = pin ] && labs["pass"]="PIN:"
 	[ "$m" = unlock ] && [ "${VWD[$id]["usepin"]}" = 1 ] && labs["pass"]="PIN:"
 	if [ "$m" = unlock ]; then
@@ -404,6 +424,9 @@ fn vwd_draw(int id, int h, int w, int row, int col) {
 		on=0
 		[ "$f" = "$k" ] && on=1
 		t=${VWD[$id]["$k"]}
+		# The password is starred and the code is not: a code is not a
+		# secret worth hiding, and a YubiKey types forty-four characters
+		# that a person needs to see go in.
 		[ "$k" = pass ] && t := str repeat "*" "${#t}"
 		dt_textdraw "$id" "$r" 13 "$fw" "$t" "${VWD[$id]["${k}cur"]}" "$on"
 		dt_wreg "$id" "$r" 13 "$fw" "$k"
@@ -445,7 +468,7 @@ fn vwd_draw(int id, int h, int w, int row, int col) {
 fn vwd_key(int id, k) {
 	local f=${VWD[$id]["focus"]} d onb=1 res
 
-	case $f in server | email | pass) onb=0 ;; esac
+	case $f in server | email | pass | code) onb=0 ;; esac
 	vwd_order "$id"
 	if d := dt_focuskey "$k" "$onb"; then
 		VWD[$id]["focus"] := dt_focus "$f" "$d" "${VWD_ORDER[@]}"
@@ -463,7 +486,7 @@ fn vwd_key(int id, k) {
 		esac
 		;;
 	esac
-	case $f in server | email | pass) ;; *) return 1 ;; esac
+	case $f in server | email | pass | code) ;; *) return 1 ;; esac
 	res := dt_textkey "${VWD[$id]["$f"]}" "${VWD[$id]["${f}cur"]}" "$k" || return 1
 	VWD[$id]["$f"]=${res% *}
 	VWD[$id]["${f}cur"]=${res##* }
@@ -475,7 +498,7 @@ fn vwd_click(int? id = "", int? r = "", int? c = "", btn = "") {
 
 	tag := dt_hit "$id" "$r" "$c" || return 0
 	case $tag in
-	server | email | pass)
+	server | email | pass | code)
 		VWD[$id]["focus"]=$tag
 		cur=$((c - 13))
 		[ "$cur" -gt "${#VWD[$id]["$tag"]}" ] && cur=${#VWD[$id]["$tag"]}
@@ -488,7 +511,7 @@ fn vwd_click(int? id = "", int? r = "", int? c = "", btn = "") {
 
 # What enter, a click or space does to what has focus.
 fn vwd_do(int id, what) {
-	local m=${VWD[$id]["mode"]} p=${VWD[$id]["pass"]} ok=1 v
+	local m=${VWD[$id]["mode"]} p=${VWD[$id]["pass"]} ok=1 v st=0
 
 	case $what in
 	verify | usepin | keep)
@@ -512,7 +535,10 @@ fn vwd_do(int id, what) {
 		fi
 		v=0
 		[ "${VWD[$id]["verify"]}" = 1 ] || v=1
-		dt_vwlogin "${VWD[$id]["server"]}" "${VWD[$id]["email"]}" "$p" "$v" || ok=0
+		# st before ok: an assignment is a command, and it would put $?
+		# back to 0 before the status could be read.
+		dt_vwlogin "${VWD[$id]["server"]}" "${VWD[$id]["email"]}" "$p" "$v" \
+			"${VWD[$id]["code"]}" || { st=$?; ok=0; }
 		;;
 	unlock) dt_vwunlock "$p" "${VWD[$id]["usepin"]}" || ok=0 ;;
 	*)
@@ -523,9 +549,38 @@ fn vwd_do(int id, what) {
 		fi
 		;;
 	esac
+	# Status 4 is vw saying the server wants a two-factor code and none
+	# came. The box grows a Code field and *keeps the password*, because
+	# the second round posts the same grant with the code beside it and
+	# there is nothing to ask the person again for -- it is held for the
+	# one extra attempt, in the same map it was held in while being typed,
+	# and cleared on any other outcome.
+	if [ "$ok" = 0 ] && [ "$st" = 4 ]; then
+		VWD[$id]["needcode"]=1
+		VWD[$id]["code"]=
+		VWD[$id]["codecur"]=0
+		VWD[$id]["focus"]=code
+		VWD[$id]["status"]=${DT_VWERR:-The server wants a two-factor code}
+		dt_resize "$id" $((${DT[$id]["h"]} + 2)) "${DT[$id]["w"]}"
+		return 0
+	fi
+	# A code that did not work is not a password that did not work: the
+	# password was accepted to get this far, so only the code is cleared
+	# and the box stays where it is. Clearing both would make a mistyped
+	# digit cost the password as well, which is how a person ends up
+	# turning two-factor off.
+	if [ "$ok" = 0 ] && [ "${VWD[$id]["needcode"]}" = 1 ]; then
+		VWD[$id]["code"]=
+		VWD[$id]["codecur"]=0
+		VWD[$id]["status"]=${DT_VWERR:-That code did not work}
+		VWD[$id]["focus"]=code
+		return 0
+	fi
 	p=
 	VWD[$id]["pass"]=
 	VWD[$id]["passcur"]=0
+	VWD[$id]["code"]=
+	VWD[$id]["codecur"]=0
 	if [ "$ok" = 0 ]; then
 		VWD[$id]["status"]=${DT_VWERR:-It did not work, and vw did not say why}
 		VWD[$id]["focus"]=pass

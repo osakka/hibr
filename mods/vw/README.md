@@ -60,6 +60,7 @@ with it, the PIN alone unlocks until it is cleared.
 | `vwk hash -e EMAIL -k pbkdf2\|argon2 -i N [-m MiB -p P] [-s]` | read the master password (from the terminal, or one line of standard input with `-s`), derive the master key and keep it; the result is the master password hash the server is sent |
 | `vwk open ENCKEY` | open the account's key with the master key just derived, and forget the master key |
 | `vwk dec [-k ITEMKEY] TEXT`, `vwk enc [-k ITEMKEY] TEXT` | decrypt or encrypt one EncString, with the vault's key or an item's own |
+| `vwk mdec TEXT`, `vwk menc TEXT` | the same under the key the **master password** makes, which exists only between `vwk hash` and `vwk open` -- for the one thing that has to be read before the vault's own key has arrived from the server: a remembered two-factor device |
 | `vwk session new`, `vwk session open KEY WRAPPED` | wrap the open key under a new random key (`KEY TAB WRAPPED`), or open it again |
 | `vwk pin wrap\|open ... [WRAPPED]` | the same, under a key derived from a PIN |
 | `vwk totp SECRET [TIME]` | the code now, or at TIME: a base32 secret or an `otpauth://` address with its `digits` (6 to 8) and `period`; SHA-1 only, which is what authenticator apps use -- SHA-256 and SHA-512 are refused, saying so |
@@ -90,10 +91,50 @@ afterwards can use `vw` too -- and what is copied from the vault leaves the
 clipboard after a while and never reaches the clipboard history. See the
 desktop's own README under Passwords.
 
+## Two-step login
+
+An account with two-factor on answers the password grant with a **400**
+naming its providers, and `vw login` reads that rather than dying on it: it
+picks one it can answer with a typed code -- the authenticator (0), an
+emailed code (1), or a YubiKey OTP (3) -- asks for the code, and posts the
+same grant again with `twoFactorToken`, `twoFactorProvider` and
+`twoFactorRemember` beside it. `--recovery` sends a recovery code (8),
+which no server ever lists but every server takes. **Duo (2 and 6), U2f (4)
+and WebAuthn (7) each need a browser, and are named and refused rather than
+half-tried.**
+
+The code comes from the second line of standard input when the caller said
+the password would come that way (`VW_STDIN=1`), and from the terminal
+otherwise -- the desktop runs `vw` as a child with no terminal to ask on,
+which is why there is a second line at all. Echo is left on: a code is not a
+secret worth hiding, and a YubiKey types forty-four characters a person
+needs to see go in.
+
+A server told to remember the device hands back a `TwoFactorToken`, kept
+with `vwk menc` beside the refresh token in the account file, so the next
+login sends it as provider 5 and asks nothing. Three things follow, each one
+a way of locking somebody out that this avoids:
+
+- it is kept under the **master password's** key rather than the vault's,
+  because the vault's key arrives in the very reply the token is trying to
+  obtain -- and in the clear it would hand the second factor to anyone who
+  can read the file;
+- a token the server has stopped honouring (it drops them on a password
+  change) comes back as the providers again, not as a wrong code, so the
+  client asks and forgets what it had;
+- a **wrong password** carries no provider list, which is how it is told
+  from a dead token -- otherwise a mistyped password throws away a good
+  remembered device.
+
+`vw login` leaves with status **4** when a code is wanted and none was
+given, which is what the desktop's own login box grows a Code field on: a
+number rather than a sentence to match.
+
 ## What it does not do yet
 
 - Change anything in the vault: it reads.
-- Organisations and their collections, Sends, attachments, two-step login
-  (a server that asks for a second factor fails the login with its own
-  message), Steam's TOTP, or SSO.
+- Organisations and their collections, Sends, attachments, Steam's TOTP,
+  or SSO.
+- Two-step login through Duo, U2f or WebAuthn, each of which needs a
+  browser; the three typed kinds and a recovery code are done.
 

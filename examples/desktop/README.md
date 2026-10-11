@@ -1442,7 +1442,15 @@ account, Log In, Lock, how long it stays unlocked, the PIN, how often it
 syncs, and how long a copied password stays on the clipboard. Unlocking
 exports `VW_SESSION`, so a Terminal window opened afterwards can use `vw`
 too; Lock, or the timeout, ends it everywhere. The vault is kept here
-encrypted, so everything but a sync works with no network. from them -- see Contacts above |
+encrypted, so everything but a sync works with no network.
+
+An account with **two-step login** asks for its code in the same box: the
+Code field is not there until the server asks for one, and then it says
+which code it wants -- an authenticator app, an emailed code or a YubiKey
+read differently. A code that does not work clears the code and nothing
+else, so a mistyped digit does not cost the password too, and the device is
+remembered afterwards, so the next login asks nothing. Duo and WebAuthn
+need a browser and are refused by name rather than half-tried. from them -- see Contacts above |
 
 ## Control Strip
 

@@ -4,7 +4,10 @@
 #
 #   vw server URL [-k]          the server: https://vault.example.com (-k: its
 #                               certificate is not checked)
-#   vw login EMAIL              log in, sync, and unlock
+#   vw login EMAIL [--recovery] log in, sync, and unlock; with two-factor on,
+#                               the code goes on the second line of standard
+#                               input (or is asked for at the terminal), and
+#                               --recovery says it is a recovery code
 #   vw unlock [--pin]           unlock -- offline, from the vault kept here
 #   vw lock                     forget the key
 #   vw sync                     fetch the vault again
@@ -33,6 +36,17 @@ declare -gA VA
 declare -gA VV
 # Set by the dav module after each request; a strict file declares it.
 DAV_CODE=
+# What the last vw_reqx got back, and the status with it: the two-factor
+# path has to *read* a refusal rather than die on it, which is the one
+# place in this client that is true (Gitea #156).
+VW_BODY=
+VW_CODE=
+# The two-factor providers, by the protocol's own numbers
+# (vaultwarden src/db/models/two_factor.rs). A typed code answers 0, 1, 3
+# and 8; the rest want a browser, and are named rather than half-tried.
+declare -gA VW_TFA=([0]="your authenticator app" [1]="the code emailed to you"
+	[2]="Duo" [3]="your YubiKey" [4]="U2f" [5]="this remembered device"
+	[6]="Duo" [7]="WebAuthn" [8]="a recovery code")
 
 # A complaint, and the status to leave with.
 fn vw_die(text, int st = 1) {
@@ -81,23 +95,50 @@ fn vw_url(which, path) {
 	esac
 }
 
-# A request, its body said or bound; fails with the server's own message when it says no.
-fn vw_req(method, url, body = "", ...hdr) {
-	local r m
+# A request whose answer is handed back whatever the server said: the body
+# in VW_BODY, the status in VW_CODE, status 0 only when it worked. Everything
+# but the login's two-factor path wants vw_req below, which dies instead --
+# including vw_dosync's refresh, where a token the server will not take has
+# to end the command rather than be read.
+fn vw_reqx(method, url, body = "", ...hdr) {
+	local m
 	local -a o=()
-	local -A e
 
 	[ "${VA["noverify"]}" = 1 ] && o+=(-k)
 	for m in "${hdr[@]}"; do o+=(-H "$m"); done
 	[ -n "$body" ] && o+=(-d "$body")
-	if r := dav request "${o[@]}" "$method" "$url" 2> /dev/null; then
-		ret "$r"
+	VW_BODY=
+	VW_CODE=
+	if VW_BODY := dav request "${o[@]}" "$method" "$url" 2> /dev/null; then
+		VW_CODE=${DAV_CODE:-200}
 		return 0
 	fi
-	m="${DAV_CODE:-no answer}"
-	if [ -n "$r" ] && json parse e <<< "$r" 2> /dev/null; then
-		m="$m: ${e["ErrorModel"]["Message"]:-${e["message"]:-${e["error_description"]:-${e["error"]}}}}"
+	VW_CODE=${DAV_CODE:-}
+	return 1
+}
+
+# What a server said went wrong, in its own words.
+fn vw_why(body) {
+	local -A e
+
+	if [ -n "$body" ] && json parse e <<< "$body" 2> /dev/null; then
+		ret "${e["ErrorModel"]["Message"]:-${e["message"]:-${e["error_description"]:-${e["error"]}}}}"
+		return 0
 	fi
+	ret ""
+}
+
+# A request, its body said or bound; fails with the server's own message when it says no.
+fn vw_req(method, url, body = "", ...hdr) {
+	local m w
+
+	if vw_reqx "$method" "$url" "$body" "${hdr[@]}"; then
+		ret "$VW_BODY"
+		return 0
+	fi
+	m="${VW_CODE:-no answer}"
+	w := vw_why "$VW_BODY"
+	[ -n "$w" ] && m="$m: $w"
 	vw_die "$url: $m"
 }
 
@@ -111,6 +152,42 @@ fn vw_token(form) {
 	r := vw_req POST "$u" "$form" \
 		"Content-Type: application/x-www-form-urlencoded" "Accept: application/json"
 	json parse VV <<< "$r" || vw_die "the server's token reply does not parse"
+}
+
+# One line of a code: from the second line of standard input where the
+# caller said the password would come that way (the desktop runs this as a
+# child and has no terminal for it to ask on), from the terminal otherwise.
+# Echo is left on: a code is not a secret worth hiding, and a YubiKey types
+# forty-four characters that a person needs to see go in.
+fn vw_codeline(what) {
+	local c=
+
+	if [ -n "${VW_STDIN-}" ]; then
+		read -r c || c=
+	else
+		printf 'The code from %s: ' "$what" >&2
+		read -r c < /dev/tty || c=
+	fi
+	ret "$c"
+}
+
+# Which of the providers a server offered this client can actually answer,
+# preferring the authenticator, then email, then a YubiKey. Fails when none
+# of them can be, leaving the names in VW_TFAWANT for the message.
+VW_TFAWANT=
+fn vw_tfapick(...provs) {
+	local p n
+
+	VW_TFAWANT=
+	for p in 0 1 3; do
+		for n in "${provs[@]}"; do
+			[ "$n" = "$p" ] && { ret "$p"; return 0; }
+		done
+	done
+	for n in "${provs[@]}"; do
+		VW_TFAWANT="${VW_TFAWANT}${VW_TFAWANT:+, }${VW_TFA[$n]:-provider $n}"
+	done
+	return 1
 }
 
 # The KDF options vwk takes, from the account.
@@ -222,7 +299,9 @@ fn vw_find(q) {
 
 fn vw_cmd(cmd = "", ...rest) {
 	local r h kdf i nm us q f t
-	local -a o
+	local recovery grant tfa prov code cf why em
+	local -a o provs
+	local -A tf
 
 	case $cmd in
 	server)
@@ -234,7 +313,9 @@ fn vw_cmd(cmd = "", ...rest) {
 		vw_acctsave
 		;;
 	login)
-		[ "${#rest[@]}" = 1 ] || vw_die "usage: vw login EMAIL" 2
+		recovery=0
+		[ "${rest[1]-}" = --recovery ] && { recovery=1; unset rest[1]; }
+		[ "${#rest[@]}" = 1 ] || vw_die "usage: vw login EMAIL [--recovery]" 2
 		vw_acct
 		VA["email"]=${rest[0],,}
 		f := vw_url identity /accounts/prelogin
@@ -255,11 +336,81 @@ fn vw_cmd(cmd = "", ...rest) {
 		us := vw_b64url "${VA["email"]}"
 		f := vw_url identity /connect/token
 		t := vw_devid
-		r := vw_req POST "$f" \
-			"grant_type=password&username=$q&password=$h&scope=api%20offline_access&client_id=cli&deviceType=8&deviceIdentifier=$t&deviceName=hibr" \
-			"Content-Type: application/x-www-form-urlencoded" "Accept: application/json" "Auth-Email: $us"
+		grant="grant_type=password&username=$q&password=$h&scope=api%20offline_access&client_id=cli&deviceType=8&deviceIdentifier=$t&deviceName=hibr"
+		# A device this server has already been told to remember answers
+		# the two-factor question on the first post, so an account with it
+		# on logs in with nothing typed. Provider 5 is Remember.
+		# Under the master password's own key, not the vault's: the vault
+		# key arrives in the very reply this is trying to get, so a token
+		# kept the way the refresh token is could never be read in time.
+		tfa=
+		if [ -n "${VA["remember"]}" ]; then
+			tfa := vwk mdec "${VA["remember"]}" 2> /dev/null || tfa=
+			[ -n "$tfa" ] && grant="$grant&twoFactorProvider=5&twoFactorToken=$tfa&twoFactorRemember=1"
+		fi
+		if ! vw_reqx POST "$f" "$grant" \
+			"Content-Type: application/x-www-form-urlencoded" "Accept: application/json" "Auth-Email: $us"; then
+			# Three refusals arrive as a 400 and only one means "ask": the
+			# body carrying TwoFactorProviders. A wrong password has no
+			# such key, and reading it as a dead remembered device is what
+			# would throw a good token away on a mistyped password.
+			tf=()
+			json parse tf <<< "$VW_BODY" 2> /dev/null || tf=()
+			# Asked about the first element rather than the list: an
+			# entry holding only a map answers nothing to +x, which is
+			# this tree's own trap, and a JSON array is a map.
+			if [ -z "${tf["TwoFactorProviders"][0]+x}" ]; then
+				why := vw_why "$VW_BODY"
+				vw_die "$f: ${VW_CODE:-no answer}${why:+: $why}"
+			fi
+			# This server no longer honours what we remembered -- it drops
+			# them on a password change -- so forget it and ask.
+			if [ -n "$tfa" ]; then
+				VA["remember"]=
+				vw_acctsave
+				grant=${grant%%&twoFactorProvider=5*}
+			fi
+			provs=()
+			i=0
+			while [ -n "${tf["TwoFactorProviders"][$i]+x}" ]; do
+				provs+=("${tf["TwoFactorProviders"][$i]}")
+				i=$((i + 1))
+			done
+			if [ "$recovery" = 1 ]; then
+				prov=8
+			elif ! prov := vw_tfapick "${provs[@]}"; then
+				vw_die "this account wants $VW_TFAWANT, which needs a browser that vw does not have. An authenticator code, an emailed code or a YubiKey can be typed, and --recovery takes a recovery code"
+			fi
+			# An emailed code is only sent when it is asked for: the
+			# refusal above does not send it.
+			if [ "$prov" = 1 ]; then
+				em := vw_url api /two-factor/send-email-login
+				vw_req POST "$em" \
+					"{\"deviceIdentifier\":\"$t\",\"email\":\"${VA["email"]}\",\"masterPasswordHash\":\"$h\"}" \
+					"Content-Type: application/json" > /dev/null
+			fi
+			code := vw_codeline "${VW_TFA[$prov]:-provider $prov}"
+			# Status 4 is "a code is wanted and none came", which is how
+			# the desktop knows to grow a second field rather than having
+			# to read this sentence. 1 is anything else going wrong, 2 a
+			# usage mistake, 3 a locked vault.
+			[ -n "$code" ] || vw_die "this account wants the code from ${VW_TFA[$prov]:-provider $prov}, and none was given" 4
+			cf := vwk form "$code"
+			if ! vw_reqx POST "$f" "$grant&twoFactorProvider=$prov&twoFactorToken=$cf&twoFactorRemember=1" \
+				"Content-Type: application/x-www-form-urlencoded" "Accept: application/json" "Auth-Email: $us"; then
+				why := vw_why "$VW_BODY"
+				vw_die "$f: ${VW_CODE:-no answer}${why:+: $why}"
+			fi
+		fi
+		r=$VW_BODY
 		json parse VV <<< "$r" || vw_die "the server's token reply does not parse"
 		VA["key"]=${VV["Key"]}
+		# Before `vwk open`, which spends the master key: a remembered
+		# device is kept under that key and nothing else, since it has to
+		# be readable before the vault's own key exists. It lives in the
+		# account file, which is per server and per address, so a machine
+		# with two accounts cannot hand one server the other's device.
+		[ -n "${VV["TwoFactorToken"]}" ] && VA["remember"] := vwk menc "${VV["TwoFactorToken"]}"
 		vwk open "${VA["key"]}" || vw_die "the account's key does not open"
 		VA["refresh"] := vwk enc "${VV["refresh_token"]}"
 		vw_acctsave

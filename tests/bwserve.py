@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """A stand-in Bitwarden / Vaultwarden server for tests/vw.py.
 
-    python3 tests/bwserve.py [--kdf pbkdf2|argon2]
+    python3 tests/bwserve.py [--kdf pbkdf2|argon2] [--2fa 0|1|3]
 
 Prints "port N" and serves, on 127.0.0.1, the few endpoints a client
 needs to log in and sync -- /identity/accounts/prelogin,
@@ -12,6 +12,28 @@ clients encrypt one, with Python's cryptography package, not with hibr:
 two logins (one with a TOTP secret, one behind a key of its own), a
 secure note and a folder. GET /stats says how many token and sync
 requests it has had, so a test can tell a sync from a cached read.
+
+With --2fa it demands two-factor for that provider number, and every
+string and status below is Vaultwarden's own rather than a plausible
+one -- a stand-in written from the same memory as the client would
+agree with the client and prove nothing. Read from src/api/identity.rs
+and src/db/models/two_factor.rs:
+
+  * wanted:       400, {"error":"invalid_grant",
+                        "error_description":"Two factor required.",
+                        "TwoFactorProviders":["0"],
+                        "TwoFactorProviders2":{"0":null}}
+  * a wrong code: 401, "Two-step token is invalid. Try again."
+  * remembered:   the successful reply carries "TwoFactorToken",
+                  capitalised, when two_factor_remember was 1
+  * providers:    0 authenticator, 1 email, 2 Duo, 3 YubiKey, 4 U2f,
+                  5 remember, 6 organisation Duo, 7 WebAuthn,
+                  8 recovery code
+  * the fields:   two_factor_token / two_factor_provider /
+                  two_factor_remember, each with an uncased alias
+                  without the underscores -- so the official clients'
+                  twoFactorToken spelling is accepted too, and this
+                  takes either rather than only the one hibr sends.
 """
 import base64, hashlib, hmac, json, os, sys, urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -22,7 +44,20 @@ from cryptography.hazmat.primitives import padding
 EMAIL, PW = "pat@example.com", "correct horse battery staple"
 IT = 5000
 KDF = "argon2" if "--kdf" in sys.argv and sys.argv[sys.argv.index("--kdf") + 1] == "argon2" else "pbkdf2"
-STATS = {"token": 0, "refresh": 0, "sync": 0}
+STATS = {"token": 0, "refresh": 0, "sync": 0, "twofa": 0, "mailed": 0}
+TFA = (int(sys.argv[sys.argv.index("--2fa") + 1]) if "--2fa" in sys.argv else None)
+CODE = "123456"            # what provider 0, 1 and 3 accept
+RECOVERY = "0123456789abcdef0123456789abcdef"
+REMEMBER = "remember-pat"  # what a client that asked to be remembered gets
+
+
+def formget(f, *names):
+    """A form field under any of the names the server accepts for it."""
+    for n in names:
+        for k in f:
+            if k.lower() == n:
+                return f[k][0]
+    return ""
 
 
 def stretch(k):
@@ -119,6 +154,12 @@ class H(BaseHTTPRequestHandler):
             if KDF == "argon2":
                 return self.reply(200, {"kdf": 1, "kdfIterations": 3, "kdfMemory": 64, "kdfParallelism": 4})
             return self.reply(200, {"kdf": 0, "kdfIterations": IT, "kdfMemory": None, "kdfParallelism": None})
+        if self.path == "/api/two-factor/send-email-login":
+            # Vaultwarden mails the code only when it is asked to; the 400
+            # does not send it. Unauthenticated, and it wants the master
+            # password hash the client already has.
+            STATS["mailed"] += 1
+            return self.reply(200, {})
         if self.path == "/identity/connect/token":
             f = urllib.parse.parse_qs(b)
             g = f.get("grant_type", [""])[0]
@@ -127,13 +168,51 @@ class H(BaseHTTPRequestHandler):
             elif g == "refresh_token" and f.get("refresh_token", [""])[0] == "refresh-pat":
                 STATS["refresh"] += 1
             else:
+                # A wrong password: no TwoFactorProviders, which is how a
+                # client tells this from "two factor wanted" -- the status
+                # is 400 either way.
                 return self.reply(400, {"error": "invalid_grant",
                                         "ErrorModel": {"Message": "Username or password is incorrect. Try again"}})
+            if TFA is not None and g == "password":
+                prov = formget(f, "two_factor_provider", "twofactorprovider")
+                tok = formget(f, "two_factor_token", "twofactortoken")
+                rem = formget(f, "two_factor_remember", "twofactorremember")
+                ok = False
+                if prov == "5":
+                    ok = tok == REMEMBER
+                elif prov == "8":
+                    ok = tok == RECOVERY
+                elif tok and prov == str(TFA):
+                    ok = tok == CODE
+                if not ok:
+                    if not tok:
+                        STATS["twofa"] += 1
+                        return self.reply(400, {
+                            "error": "invalid_grant",
+                            "error_description": "Two factor required.",
+                            "TwoFactorProviders": [str(TFA)],
+                            "TwoFactorProviders2": {str(TFA): None}})
+                    if prov == "5":
+                        # A remember token the server no longer honours is
+                        # not a wrong code: it asks again, which is what
+                        # makes a client fall back rather than lock out.
+                        STATS["twofa"] += 1
+                        return self.reply(400, {
+                            "error": "invalid_grant",
+                            "error_description": "Two factor required.",
+                            "TwoFactorProviders": [str(TFA)],
+                            "TwoFactorProviders2": {str(TFA): None}})
+                    return self.reply(401, {
+                        "error": "invalid_grant",
+                        "error_description": "Two-step token is invalid. Try again.",
+                        "ErrorModel": {"Message": "Two-step token is invalid. Try again."}})
             t = "access-%d" % (STATS["token"] + STATS["refresh"])
             TOKENS[t] = 1
             r = {"access_token": t, "expires_in": 3600, "token_type": "Bearer", "refresh_token": "refresh-pat"}
             if g == "password":
                 r.update({"Key": PROTECTED, "Kdf": 1 if KDF == "argon2" else 0, "KdfIterations": 3 if KDF == "argon2" else IT})
+                if TFA is not None and formget(f, "two_factor_remember", "twofactorremember") == "1":
+                    r["TwoFactorToken"] = REMEMBER
             return self.reply(200, r)
         self.reply(404, {"message": "not found"})
 
