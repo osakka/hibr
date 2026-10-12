@@ -24,7 +24,11 @@ enum {
 	/* Detach a named client, server-side, by name rather than by fd. */
 	HD_DROP = 'o',
 	/* Make a named client the primary; every other client stops being it. */
-	HD_PRIMARY = 'p'
+	HD_PRIMARY = 'p',
+	/* Re-exec the server on the hibr that is on disk now, taking the
+	   session with it: the one thing a Restart Desktop cannot do, since
+	   that re-execs the desktop *inside* this process (Gitea #198). */
+	HD_UPGRADE = 'u'
 };
 
 extern const py_api *hd_pty;
@@ -120,6 +124,13 @@ void hd_cloexec(int fd);
 
 void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 	      int ready);
+void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
+	     vec *clsp);
+void hd_keepexec(int fd);
+int hd_selfmod(const char *name, str *out);
+int hd_resume(sh *s);
+void hd_upgrade(sh *s, const char *path, vec *cls, int id, int tid, int m,
+		int l);
 int hd_attach(const char *name, const char *path, int multi, int row,
 	      int col, const char *dname);
 

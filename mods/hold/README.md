@@ -143,6 +143,44 @@ reason, a system with `KillUserProcesses=yes` in `logind.conf` kills
 everything a user started when they log out, this included. Allow lingering
 with `loginctl enable-linger` there.
 
+## Upgrading a session without ending it
+
+A `Restart Desktop` re-execs the desktop **inside** this server, so it can
+never replace this process's own image -- and the emulator every client is
+rendered from lives here. A fix in `hold`, `term` or `pty` therefore stayed
+out of a session however many times the desktop restarted, and the only
+remedy was to quit the session and lose the programs in its terminals,
+which is the one thing a restart exists to avoid (Gitea #198).
+
+    hold upgrade NAME
+
+re-execs the server itself on the hibr that is on disk now and takes the
+session back. The program on the pty keeps running -- its pid does not
+change, and neither does the server's, since an exec keeps it -- every
+attached display stays attached, and what was on screen is still on screen.
+
+What is carried is small and all of it already existed: the listening
+socket, the pty master and each client's connection are descriptors, and a
+process that execs keeps the ones it has not marked to close; the program's
+pid and the emulator's size go in a file beside the socket; and the
+emulator itself is written out with `term`'s own save, whose fields are
+appended to rather than rearranged, so the new build reads what the old one
+wrote. `pty`'s own `release` lets the terminal go without ending the
+program or closing the master, which is what stops the exec taking the
+desktop with it.
+
+Three details that are not details. The modules are re-loaded **by the
+paths they were loaded from**, read out of `/proc/self/maps`, rather than
+by name through the module path: a session started with `mod load
+./build/mods/hold.so` has no module path at all, and a resumed server that
+could not find `pty` would lose the session at the exec -- which is exactly
+what happened the first time this was run. Nothing is closed and the
+program is not released until the moment before `execl`, so a failure
+anywhere earlier leaves the session as it was and costs a line in the log.
+And no client's `front` is carried: each is sent the whole screen again,
+which is what an attach already does, where a stale front is the one thing
+that would leave it wrong.
+
 ## Files
 
 | file | role |

@@ -2,8 +2,10 @@
 
 #include "hd.h"
 #include <errno.h>
+#include <fcntl.h>
 #include <poll.h>
 #include <signal.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
@@ -202,7 +204,7 @@ void hd_cclear(vec *cls, const char *why, size_t n)
    Accepting both means an old client and a new server, or the reverse, still
    attach -- just without a viewport, until whichever side is stale gets
    reinstalled. */
-void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit)
+void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit, int *upg)
 {
 	struct pollfd q;
 	str in, o;
@@ -264,6 +266,14 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit)
 	case HD_KILL:
 		*quit = 1;
 		hd_send(c, HD_KILL, 0, 0);
+		break;
+	/* Answered before the exec rather than after it, because after it
+	   there is nobody here to answer: the reply is "this is going to
+	   happen", and a client that wants to know whether it worked asks
+	   the session again afterwards. */
+	case HD_UPGRADE:
+		*upg = 1;
+		hd_send(c, HD_UPGRADE, 0, 0);
 		break;
 	case HD_INFO: {
 		int urows, ucols;
@@ -392,14 +402,8 @@ void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 {
 	struct sockaddr_un a;
 	struct sigaction sa;
-	struct pollfd *q = 0, pm;
-	vec cls;
-	int l, m, id, tid, quit = 0, st, fed;
-	size_t i, j, nc;
-	ssize_t k;
-	str rb, in, mo;
+	int l, m, id, tid;
 
-	memset(&cls, 0, sizeof cls);
 	signal(SIGHUP, SIG_IGN);
 	signal(SIGPIPE, SIG_IGN);
 	signal(SIGINT, SIG_IGN);
@@ -433,6 +437,28 @@ void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 	}
 	m = hd_pty->fd(id);
 	tid = hd_tm->new(rows, cols);
+	{
+		vec cls;
+
+		memset(&cls, 0, sizeof cls);
+		hd_loop(s, path, l, m, id, tid, &cls);
+	}
+}
+
+/* The serving loop itself, entered either by hd_serve with a session it has
+   just made or by hd_resume with one taken back after an exec (Gitea #198).
+   It owns the client list, and never returns: the session ends here. */
+void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
+	     vec *clsp)
+{
+	struct pollfd *q = 0, pm;
+	vec cls;
+	int quit = 0, st, fed, upg = 0;
+	size_t i, j, nc;
+	ssize_t k;
+	str rb, in, mo;
+
+	cls = *clsp;
 	s_init(&rb);
 	s_init(&in);
 	s_init(&mo);
@@ -525,7 +551,14 @@ void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 			int c = accept(l, 0, 0);
 			if (c >= 0) {
 				hd_cloexec(c);
-				hd_conn(c, &cls, id, tid, m, &quit);
+				hd_conn(c, &cls, id, tid, m, &quit, &upg);
+			}
+			if (upg) {
+				hd_upgrade(s, path, &cls, id, tid, m, l);
+				/* Only reached when the exec did not
+				   happen: nothing was closed and the
+				   session is still here, so carry on. */
+				upg = 0;
 			}
 		}
 		if (fed) {
@@ -563,4 +596,232 @@ void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 	s_free(&in);
 	s_free(&mo);
 	_exit(0);
+}
+
+/* Let a descriptor through an exec, which is the inverse of hd_cloexec and
+   the whole trick behind taking a session back: a pty master, a listening
+   socket and a client's connection are all just descriptors, and a process
+   that execs keeps the ones it has not marked to close. */
+void hd_keepexec(int fd)
+{
+	int f;
+
+	if (fd < 0)
+		return;
+	f = fcntl(fd, F_GETFD);
+	if (f >= 0)
+		fcntl(fd, F_SETFD, f & ~FD_CLOEXEC);
+}
+
+/* Where this module's own file is, from our own mappings: the exec has to
+   load it again by name, and `need hold` only works when the module path
+   happens to name it -- a session started by `mod load ./build/mods/hold.so`
+   has no module path at all, and the resumed server would then find no hold
+   module and the session would be lost. The same path is deliberate rather
+   than merely convenient: after an upgrade it is the new file, which is the
+   whole point. The " (deleted)" the kernel appends to a replaced inode is
+   dropped, since what is wanted is the name, not the inode. */
+int hd_selfmod(const char *name, str *out)
+{
+	FILE *f = fopen("/proc/self/maps", "r");
+	char line[1024];
+	int got = 0;
+
+	if (!f)
+		return 0;
+	while (!got && fgets(line, sizeof line, f)) {
+		char *p = strstr(line, " /");
+		char *d;
+
+		if (!p || !strstr(line, name))
+			continue;
+		p++;
+		d = strstr(p, " (deleted)");
+		if (d)
+			*d = 0;
+		for (d = p; *d && *d != '\n'; d++)
+			;
+		*d = 0;
+		s_cat(out, p);
+		got = 1;
+	}
+	fclose(f);
+	return got;
+}
+
+/* Re-exec this server on the hibr that is on disk now, taking the session
+   with it (Gitea #198): a restart re-execs the *desktop* inside this
+   process, so it can never replace this process's own modules, and the
+   emulator every client is rendered from lives here. What is carried is
+   small -- the descriptors, the program's pid, and the emulator written out
+   by term's own save, whose format is appended to rather than rearranged so
+   a new build reads an old file.
+   Returns only when the exec did not happen, and then the session is
+   untouched and still serving: nothing here closes anything or ends the
+   program, so a failure costs a log line. */
+void hd_upgrade(sh *s, const char *path, vec *cls, int id, int tid, int m,
+		int l)
+{
+	const char *hibr = hibr_get(s, "HIBR");
+	str st, rp, cmd, mp;
+	FILE *f;
+	size_t i;
+
+	if (!hibr || !*hibr) {
+		lg(HIBR_LERR, "hold upgrade: $HIBR names no shell to exec");
+		return;
+	}
+	s_init(&mp);
+	s_init(&st);
+	s_cat(&st, path);
+	s_cat(&st, ".state");
+	s_init(&rp);
+	s_cat(&rp, path);
+	s_cat(&rp, ".resume");
+	if (!hd_tm->save(tid, st.p)) {
+		lg(HIBR_LERR, "hold upgrade: cannot write %s", st.p);
+		goto out;
+	}
+	f = fopen(rp.p, "w");
+	if (!f) {
+		lg(HIBR_LERR, "hold upgrade: cannot write %s", rp.p);
+		goto out;
+	}
+	fprintf(f, "listen %d\n", l);
+	fprintf(f, "pty %d %ld %d %d\n", m, hd_pty->pid(id),
+		hd_tm->rows(tid), hd_tm->cols(tid));
+	fprintf(f, "state %s\n", st.p);
+	for (i = 0; i < cls->n; i++) {
+		struct hd_cli *cn = cls->p[i];
+
+		/* front is not carried: a client that comes back is sent the
+		   whole screen, which is what an attach already does, and a
+		   stale front is the one thing that would leave it wrong. */
+		fprintf(f, "client %d %d %d %d %d %d %d %d %s\n", cn->fd,
+			cn->row, cn->col, cn->rows, cn->cols, cn->primary,
+			cn->xpix, cn->ypix, cn->name.p ? cn->name.p : "");
+		hd_keepexec(cn->fd);
+	}
+	fclose(f);
+	hd_keepexec(l);
+	hd_keepexec(m);
+	/* Let the pty go without ending the program or closing the master:
+	   the exec must not take the desktop with it. */
+	hd_pty->release(id);
+	setenv("HIBR_HOLD_RESUME", rp.p, 1);
+	/* All three, by the paths they were loaded from: hold asks for pty
+	   and term through hibr_require, which falls back to walking the
+	   module path -- and a session started with `mod load ./build/mods/
+	   hold.so` has no module path at all, so hold's own init would fail
+	   and the session would be lost at the exec. */
+	s_init(&cmd);
+	for (i = 0; i < 3; i++) {
+		static const char *mods[] = { "pty.so", "term.so", "hold.so" };
+
+		mp.n = 0;
+		if (mp.p)
+			mp.p[0] = 0;
+		if (!hd_selfmod(mods[i], &mp))
+			continue;
+		s_cat(&cmd, "mod load ");
+		s_cat(&cmd, mp.p);
+		s_cat(&cmd, " || exit 1; ");
+	}
+	if (!cmd.n)
+		s_cat(&cmd, "need hold || exit 1; ");
+	s_cat(&cmd, "hold resume");
+	execl(hibr, "hibr", "-c", cmd.p, (char *)0);
+	lg(HIBR_LERR, "hold upgrade: cannot exec %s: carrying on", hibr);
+	unsetenv("HIBR_HOLD_RESUME");
+out:
+	s_free(&st);
+	s_free(&rp);
+	s_free(&mp);
+}
+
+/* The other side of it: a server that has just been exec'd takes the
+   session back. Everything it needs is in the file HIBR_HOLD_RESUME names
+   and in the descriptors the exec kept open. */
+int hd_resume(sh *s)
+{
+	const char *rp = hibr_get(s, "HIBR_HOLD_RESUME");
+	char line[512], name[128], stpath[256];
+	int l = -1, m = -1, rows = 0, cols = 0, id = 0, tid = 0;
+	long pid = 0;
+	struct sigaction sa;
+	vec cls;
+	FILE *f;
+
+	if (!rp || !*rp)
+		return HIBR_FAIL;
+	f = fopen(rp, "r");
+	if (!f) {
+		lg(HIBR_LERR, "hold resume: cannot read %s", rp);
+		return HIBR_FAIL;
+	}
+	memset(&cls, 0, sizeof cls);
+	stpath[0] = 0;
+	signal(SIGHUP, SIG_IGN);
+	signal(SIGPIPE, SIG_IGN);
+	signal(SIGINT, SIG_IGN);
+	signal(SIGQUIT, SIG_IGN);
+	signal(SIGTSTP, SIG_IGN);
+	signal(SIGCHLD, SIG_DFL);
+	memset(&sa, 0, sizeof sa);
+	sa.sa_handler = hd_onterm;
+	sigaction(SIGTERM, &sa, 0);
+	while (fgets(line, sizeof line, f)) {
+		int fd, row, col, crows, ccols, prim, xp, yp;
+
+		if (sscanf(line, "listen %d", &l) == 1)
+			continue;
+		if (sscanf(line, "pty %d %ld %d %d", &m, &pid, &rows,
+			   &cols) == 4)
+			continue;
+		if (sscanf(line, "state %255s", stpath) == 1)
+			continue;
+		if (sscanf(line, "client %d %d %d %d %d %d %d %d %127s", &fd,
+			   &row, &col, &crows, &ccols, &prim, &xp, &yp,
+			   name) >= 8) {
+			struct hd_cli *cn = xm(sizeof *cn);
+
+			memset(cn, 0, sizeof *cn);
+			s_init(&cn->title);
+			s_init(&cn->name);
+			s_init(&cn->mbuf);
+			cn->fd = fd;
+			cn->row = row;
+			cn->col = col;
+			cn->rows = crows;
+			cn->cols = ccols;
+			cn->primary = prim;
+			cn->xpix = xp;
+			cn->ypix = yp;
+			s_cat(&cn->name, name);
+			v_add(&cls, cn);
+		}
+	}
+	fclose(f);
+	unlink(rp);
+	unsetenv("HIBR_HOLD_RESUME");
+	if (l < 0 || m < 0 || rows <= 0 || cols <= 0) {
+		lg(HIBR_LERR, "hold resume: %s does not describe a session",
+		   rp);
+		return HIBR_FAIL;
+	}
+	hd_selftitle("hold", hibr_get(s, "HIBR_HOLD"));
+	id = hd_pty->adopt(m, pid, rows, cols);
+	if (!id) {
+		lg(HIBR_LERR, "hold resume: cannot take the terminal back");
+		return HIBR_FAIL;
+	}
+	tid = hd_tm->new(rows, cols);
+	if (stpath[0] && !hd_tm->load(tid, stpath))
+		lg(HIBR_LINF, "hold resume: starting from a blank screen");
+	unlink(stpath);
+	/* Every client is sent the whole screen again rather than a
+	   difference from a front this process never had. */
+	hd_rensend(&cls, tid);
+	hd_loop(s, hibr_get(s, "HIBR_HOLD"), l, m, id, tid, &cls);
+	return HIBR_OK;
 }

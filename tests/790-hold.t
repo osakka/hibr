@@ -326,6 +326,40 @@ sleep 0.3
 case $(cat "$TMPDIR/where") in */hibr-hold-*/t4) echo "HIBR_HOLD names t4" ;; esac
 ( unset HIBR_HOLD; hold detach 2>/dev/null; echo "detach outside a session: $?" )
 
+# A session's own server is the one process a Restart Desktop cannot
+# replace: the restart re-execs the desktop *inside* it, so the emulator
+# every client is rendered from keeps the modules it started with, however
+# many times the desktop restarts (Gitea #198). `hold upgrade` re-execs the
+# server itself and takes the session back -- the program on the pty keeps
+# running, its pid does not change, the server's pid does not change (an
+# exec keeps it), and what was on screen is still there.
+#
+# That the server's *modules* are the new ones is not checked here: it
+# would mean replacing build/mods while the rest of the gate is loading
+# from it. It is measured by hand instead, and the changelog records it.
+echo "--- upgrade takes the session onto the hibr on disk now"
+hold new -d t6 /bin/sh -c 'echo UPGRADE-MARKER; sleep 120'
+sleep 0.5
+prog=$(hold list | awk '$1 == "t6" { print $3 }')
+srv=$(awk '/^PPid:/ { print $2 }' "/proc/$prog/status" 2> /dev/null)
+hold upgrade t6; echo "upgrade: $?"
+sleep 1.2
+echo "still listed: $(hold list | grep -c '^t6 ')"
+now=$(hold list | awk '$1 == "t6" { print $3 }')
+[ "$now" = "$prog" ] && echo "the program is the same one"
+[ "$(awk '/^PPid:/ { print $2 }' "/proc/$now/status" 2> /dev/null)" = "$srv" ] &&
+	echo "and so is the server, which exec'd rather than restarted"
+# What was on screen before the exec is still on screen after it: the
+# emulator was written out and read back, which is the whole of what a
+# client is rendered from.
+c := pty spawn $H -c "$L; hold attach -m -n probe t6"
+sleep 0.8
+out := pty read $c 400
+case $out in *UPGRADE-MARKER*) echo "the screen came through the exec" ;;
+	*) echo "the screen did not come through" ;; esac
+pty close $c
+hold kill t6 2> /dev/null
+
 echo "--- kill ends it"
 for n in t1 t3 t4 t5; do hold kill $n; echo "kill $n: $?"; done
 sleep 0.3

@@ -384,9 +384,33 @@ int m_hold(sh *s, int ac, char **av)
 		s_free(&path);
 		return r ? HIBR_OK : HIBR_FAIL;
 	}
+	/* Take the session onto the hibr that is on disk now, without ending
+	   it: the program on the pty and every attached display stay exactly
+	   where they are, and what changes is the code rendering them
+	   (Gitea #198). Restart Desktop cannot do this, because it re-execs
+	   the desktop *inside* the server this replaces. */
+	if (!strcmp(sub, "upgrade")) {
+		if (!hd_which(ac > 2 ? av[2] : 0, &path)) {
+			s_free(&path);
+			return 2;
+		}
+		r = hd_ask(path.p, HD_UPGRADE, 0);
+		if (!r)
+			lg(HIBR_LERR, "hold: %s: no such session",
+			   ac > 2 ? av[2] : path.p);
+		s_free(&path);
+		return r ? HIBR_OK : HIBR_FAIL;
+	}
+	/* The other side of upgrade, run by the exec and by nothing else: a
+	   session is taken back from the descriptors the exec kept open and
+	   the file HIBR_HOLD_RESUME names. It never returns. */
+	if (!strcmp(sub, "resume")) {
+		s_free(&path);
+		return hd_resume(s);
+	}
 	s_free(&path);
 	lg(HIBR_LERR,
-	   "usage: hold new|attach|detach|list|kill|clients|move|drop|primary ...");
+	   "usage: hold new|attach|detach|list|kill|clients|move|drop|primary|upgrade ...");
 	return 2;
 }
 

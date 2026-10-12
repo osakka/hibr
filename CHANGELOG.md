@@ -1,5 +1,86 @@
 # Changelog
 
+## 0.99.159
+
+**A session can be taken onto the new hibr without ending it**
+(Gitea #198). Reported as an objection, and the right one:
+
+> restart session is designed to allow me to upgrade my hibr session
+> without losing my open apps and stuff
+
+It is, and it very nearly did. `dt_restart` re-execs the desktop, so the
+shell and every module the *desktop* loads come from disk fresh and the
+programs in terminal windows survive, because they are children of the
+process being re-exec'd. The one process it cannot replace is the `hold`
+**server**: it is the parent, the restart happens inside it, and the
+emulator every client is rendered from lives there. So a fix in `hold`,
+`term` or `pty` -- and only those -- stayed out of a session for ever, and
+the only remedy was to quit it and lose the terminals' programs.
+
+Measured first, because the objection came with a claim: **nothing
+regressed.** `dt_restart` has never touched the server, in any release;
+what changed is that 0.99.137 started *saying* the session was old, two
+days before the complaint. The behaviour is as it always was.
+
+### `hold upgrade NAME`
+
+The server re-execs itself on the hibr that is on disk now and takes the
+session back:
+
+```
+server pid before: 22155    program 22156
+stale modules in the server: hold.so, pty.so, term.so
+  hold upgrade up
+server pid after:  22155    program 22156
+stale modules in the server: none
+```
+
+The program keeps running and keeps its pid; the server keeps its pid,
+since an exec keeps it; every attached display stays attached; and what was
+on screen is still on screen.
+
+Everything it needs already existed. The listening socket, the pty master
+and each client's connection are descriptors, and a process that execs
+keeps the ones it has not marked to close -- `hd_keepexec` is the inverse
+of the `hd_cloexec` this module already had. `py_api` gains `adopt` and
+`release` (version 4) and `tm_api` gains `save` and `load` (version 5),
+each of which is what the `pty adopt`, `pty release`, `term save` and
+`term adopt` builtins have done since 0.99.60, for a module that has no
+shell to ask. The emulator's own file format is appended to rather than
+rearranged, which is what makes carrying a session **across** an upgrade
+safe at all, and was already true before this needed it.
+
+Three things that are not details, and the first cost the first run:
+
+- **The modules are re-loaded by the paths they were loaded from**, read
+  out of `/proc/self/maps`, not by name through the module path. A session
+  started with `mod load ./build/mods/hold.so` has no module path, hold
+  asks `hibr_require` for `pty` and `term`, the resumed server found
+  neither, and the session was lost at the exec. All three paths are
+  carried now.
+- **Nothing is closed and the program is not released until the moment
+  before `execl`**, so a failure anywhere earlier leaves the session
+  exactly as it was and costs a line in the log.
+- **No client's `front` is carried.** Each is sent the whole screen again,
+  which is what an attach already does; a stale front is the one thing that
+  would leave a display wrong.
+
+### What this release deliberately does not do
+
+**Restart Desktop is untouched**, and so is the notification that asks for
+a new session. The verb is explicit and opt-in, so nothing on a live
+desktop's own path changes until it has been tried on a session that does
+not matter. Wiring it into the restart -- upgrade the server, then re-exec
+the desktop, one action -- is the obvious next step and is a decision about
+somebody's live session rather than a tidy-up.
+
+`tests/790-hold.t` grows the check: the session is still listed, the
+program is the same one, the server is the same process, and the screen
+came through the exec. That the server's *modules* are the new ones is
+measured by hand above rather than in the suite, because checking it means
+replacing `build/mods` while the rest of the gate is loading from it.
+
+
 ## 0.99.158
 
 **The mouse mode is the window manager's, and it puts its own back**

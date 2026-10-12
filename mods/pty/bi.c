@@ -320,10 +320,30 @@ int tt_api_fd(int id)
 	return p ? p->fd : -1;
 }
 
+/* Take over a terminal already open: the master's descriptor and the pid of
+   the program on it, which is what survives an exec. */
+int tt_api_adopt(int fd, long pid, int rows, int cols)
+{
+	tt_p *p = tt_adopt(fd, pid, rows, cols);
+
+	return p ? p->id : 0;
+}
+
+/* Forget one without ending its program or closing its descriptor. */
+int tt_api_release(int id)
+{
+	tt_p *p = tt_find(id);
+
+	if (!p)
+		return 0;
+	tt_release(p);
+	return 1;
+}
+
 static const py_api pty_api = {
 	tt_api_spawn, tt_api_read, tt_api_write, tt_api_resize,
 	tt_api_alive, tt_api_status, tt_api_pid, tt_api_drop, tt_api_fd,
-	tt_api_resizepx
+	tt_api_resizepx, tt_api_adopt, tt_api_release
 };
 
 /* Offer the table to whatever else needs a terminal. */

@@ -75,6 +75,12 @@ primary nosuch: 1
 --- a program in a session knows which, and can detach itself
 HIBR_HOLD names t4
 detach outside a session: 2
+--- upgrade takes the session onto the hibr on disk now
+upgrade: 0
+still listed: 1
+the program is the same one
+and so is the server, which exec'd rather than restarted
+the screen came through the exec
 --- kill ends it
 kill t1: 0
 kill t3: 0

@@ -10,7 +10,7 @@
    breaks every module already using it. */
 
 #ifndef PY_API_VER
-#define PY_API_VER 3u
+#define PY_API_VER 4u
 #endif
 
 typedef struct py_api py_api;
@@ -35,6 +35,16 @@ struct py_api {
 	   -- and so whether it can put pixels on screen at all (ADR 0037).
 	   `resize` keeps whatever was last set here. 0 for no such id. */
 	int (*resizepx)(int id, int rows, int cols, int xpix, int ypix);
+	/* Version 4, for a server that re-execs and takes its own session
+	   back (Gitea #198). `adopt` takes over a terminal that is already
+	   open -- a master descriptor and the pid of the program on it --
+	   and `release` forgets one without ending the program or closing
+	   the descriptor, which is what the process about to exec must do
+	   so the exec does not take the program with it. Both are what the
+	   `pty adopt` and `pty release` builtins already do; this is the
+	   same thing for a module that has no shell to ask. */
+	int (*adopt)(int fd, long pid, int rows, int cols);
+	int (*release)(int id);
 };
 
 #endif

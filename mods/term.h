@@ -12,7 +12,7 @@
    anything reordered or removed breaks every module already using it. */
 
 #ifndef TM_API_VER
-#define TM_API_VER 4u
+#define TM_API_VER 5u
 #endif
 
 /* DECSCUSR's six shapes collapse to three: blinking is never drawn as
@@ -88,6 +88,16 @@ struct tm_api {
 	int (*images)(int id);
 	int (*image)(int id, int i, int *r, int *c, int *rows, int *cols,
 		     str *out);
+	/* Version 5. The whole emulator, written out and read back: grid,
+	   scrollback, modes, title, links and pictures. For a server that
+	   re-execs and takes its own session back (Gitea #198), which is
+	   what `term save` and `term adopt` already do for a script. The
+	   file's fields are appended rather than inserted, so a new build
+	   reads an old file and an old build reads a new one, each skipping
+	   what it does not know -- which is what makes it safe to carry a
+	   session across an upgrade at all. 1 on success. */
+	int (*save)(int id, const char *path);
+	int (*load)(int id, const char *path);
 };
 
 #endif
