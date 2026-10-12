@@ -33,7 +33,10 @@ DT_MAILBODIES="${DT_MAILBODIES-500}"
 DT_MAILEVERY="${DT_MAILEVERY-5}"
 DT_MAILIMAGES="${DT_MAILIMAGES-attached}"
 DT_MAILSIG="${DT_MAILSIG-}"
-command -v dt_keep > /dev/null && dt_keep DT_MAILMAX DT_MAILBODIES DT_MAILEVERY DT_MAILIMAGES DT_MAILSIG
+# Seconds a message being written may go unsaved, or 0 for never: a window
+# that closes with something in it has always lost it (Gitea #74).
+DT_MAILDRAFT="${DT_MAILDRAFT-30}"
+command -v dt_keep > /dev/null && dt_keep DT_MAILMAX DT_MAILBODIES DT_MAILEVERY DT_MAILIMAGES DT_MAILSIG DT_MAILDRAFT
 
 declare -gA MW
 declare -gA ML
@@ -1285,12 +1288,20 @@ fn ml_drawline(int id, int r, int c, t, s) {
 
 # Open the selected conversation, or the one at a list position.
 fn ml_openat(int id, int pos) {
-	local t
+	local t i
 
 	t := ml_at "$id" "$pos" || return 0
 	MW[$id]["sel"]=$pos
 	MW[$id]["open"]=${MLT[$id][$t]["key"]}
 	MW[$id]["rtop"]=0
+	# A draft is opened to be finished rather than read: the window that
+	# writes a message is the one that should take it up again (Gitea
+	# #74). Decided on the message, not on which view is showing, so a
+	# draft found by a search opens the same way.
+	if i := ml_latest "$id" && ml_inview "${MW[$id]["acct"]}" "$i" drafts; then
+		mlc_new "$id" draft
+		return 0
+	fi
 	ml_read "$id"
 }
 
@@ -1625,6 +1636,7 @@ fn mlc_accept(int id, int k) {
 # newest was sent to.
 fn mlc_new(int? from = "", mode = new, toaddr = "") {
 	local acct= r i f id h=22 w=76 me full body= subj= to= cc= ref= irt= d q line k
+	local duid=
 	local -a ls
 
 	[ -n "$from" ] && acct=${MW[$from]["acct"]}
@@ -1641,7 +1653,9 @@ fn mlc_new(int? from = "", mode = new, toaddr = "") {
 	me=${r["$acct"]["email"]}
 	full=${r["$acct"]["name"]}
 	k=$me
-	[ "$mode" = forward ] && k=
+	# forward quotes somebody else's message and draft reopens one of
+	# mine, so neither wants ml_latest's "not from me" preference.
+	case $mode in forward | draft) k= ;; esac
 	if [ "$mode" != new ] && i := ml_latest "$from" "$k"; then
 		f := ml_file "$acct" "$i"
 		if [ -s "$f" ]; then
@@ -1679,11 +1693,22 @@ fn mlc_new(int? from = "", mode = new, toaddr = "") {
 				ref=
 				body=$'\n\n'"---------- Forwarded message ---------"$'\n'"From: ${r["from"]}"$'\n'"Date: $d"$'\n'"Subject: ${r["subject"]}"$'\n'"To: ${r["to"]}"$'\n\n'"$body"
 				;;
+			# A draft is reopened as it was written: its own addresses,
+			# its own subject, its own words, nothing quoted and nothing
+			# prefixed. Its uid travels with it so saving again replaces
+			# it rather than leaving a trail of half-written copies.
+			draft)
+				to=${r["to"]}
+				cc=${r["cc"]}
+				duid=${ML["$acct"][$i]["uid"]}
+				;;
 			esac
 		fi
 	fi
 	[ -n "$toaddr" ] && to=$toaddr
-	[ -n "$DT_MAILSIG" ] && body+=$'\n\n'"-- "$'\n'"$DT_MAILSIG"
+	# A signature belongs to a message being started, never to one being
+	# taken up again -- a draft already has whatever it was given.
+	[ -n "$DT_MAILSIG" ] && [ "$mode" != draft ] && body+=$'\n\n'"-- "$'\n'"$DT_MAILSIG"
 	id := dt_new "${subj:-New Message}" "$h" "$w" $(((DT_ROWS - h) / 2)) $(((DT_COLS - w) / 2)) mailc
 	MC[$id]["acct"]=$acct
 	MC[$id]["from"]=$me
@@ -1696,6 +1721,7 @@ fn mlc_new(int? from = "", mode = new, toaddr = "") {
 	MC[$id]["irt"]=$irt
 	MC[$id]["refs"]=$ref
 	MC[$id]["att"]=
+	MC[$id]["draftuid"]=$duid
 	MC[$id]["focus"]=to
 	[ -n "$to" ] && MC[$id]["focus"]=body
 	MC[$id]["err"]=
@@ -1735,6 +1761,7 @@ fn mailc_draw(int id, int h, int w, int row, int col) {
 	local -A labs=([to]="To:" [cc]="Cc:" [bcc]="Bcc:" [subj]="Subject:")
 	local -a as
 
+	mlc_autosave "$id"
 	dt_wclear "$id"
 	console pen "$DT_DIM" "$DT_FACE"
 	dt_tput "$id" 0 1 "From:"
@@ -1836,6 +1863,7 @@ fn mailc_key(int id, key) {
 		escape) MC[$id]["focus"]=send; return 0 ;;
 		esac
 		tb_key "$id" "$key" || return 1
+		MC[$id]["dirty"]=1
 		return 0
 	fi
 	if d := dt_focuskey "$key" "$((onb == 1 ? 1 : 0))"; then
@@ -1858,6 +1886,7 @@ fn mailc_key(int id, key) {
 	res := dt_textkey "${MC[$id]["$f"]}" "${MC[$id]["${f}cur"]}" "$key" || return 1
 	MC[$id]["$f"]=${res% *}
 	MC[$id]["${f}cur"]=${res##* }
+	MC[$id]["dirty"]=1
 	[ "$f" = subj ] && dt_retitle "$id" "${MC[$id]["subj"]:-New Message}"
 	mlc_suggest "$id"
 	return 0
@@ -1918,6 +1947,14 @@ fn mailc_paste(int id, text, op = "") {
 }
 
 fn mailc_close(int id) {
+	# Anything still unsaved goes to Drafts on the way out, which is the
+	# whole point: a window that closes with something in it used to lose
+	# it. Discard says otherwise, and takes the saved one with it.
+	if [ "${MC[$id]["discard"]}" = 1 ]; then
+		mlc_dropdraft "$id"
+	elif [ "${MC[$id]["dirty"]}" = 1 ] && [ "${MC[$id]["sending"]}" != 1 ]; then
+		mlc_savedraft "$id" quiet
+	fi
 	tb_free "$id"
 	unset MC["$id"]
 	return 0
@@ -1928,16 +1965,43 @@ mailc_menus() {
 
 	dt_menu "File"
 	dt_item "Send" s mlc_do "$id" send
+	dt_item "Save as Draft" v mlc_do "$id" draft
 	dt_item "Attach File${GL[ellipsis]}" a mlc_do "$id" attach
 	dt_sep
 	dt_item "Discard" d mlc_discard "$id"
 	dt_editmenu
 }
 
+# Save by itself once the writing has been still for DT_MAILDRAFT seconds,
+# and ask for the frame that will do it: a window nobody is typing in draws
+# only when something else happens, so without the dt_want an autosave
+# would wait for whatever woke the desktop next -- the trap this file's own
+# Cursor Blink and the bar's clock are already recorded for.
+fn mlc_autosave(int id) {
+	local every=${DT_MAILDRAFT:-30} now left
+
+	[ "${MC[$id]["dirty"]}" = 1 ] || return 0
+	[ "$every" -gt 0 ] 2> /dev/null || return 0
+	[ "${MC[$id]["sending"]}" = 1 ] && return 0
+	now := dt_ms
+	# The clock runs from the last save, or from the first frame after an
+	# edit when nothing has been saved yet: a window opened and typed in
+	# once should not file a draft the same instant.
+	[ -n "${MC[$id]["saved"]}" ] || MC[$id]["saved"]=$now
+	left=$((${MC[$id]["saved"]} + every * 1000 - now))
+	if [ "$left" -le 0 ]; then
+		mlc_savedraft "$id" quiet
+		return 0
+	fi
+	dt_want "$left"
+	return 0
+}
+
 # What a button does.
 fn mlc_do(int id, what) {
 	case $what in
 	send) mlc_send "$id" ;;
+	draft) mlc_savedraft "$id" ;;
 	attach) dt_filepick open "Attach a File" "All files:*" "$HOME" "" mlc_attached "$id" ;;
 	discard) mlc_discard "$id" ;;
 	to | cc | bcc | subj | body) MC[$id]["focus"]=$what ;;
@@ -1958,11 +2022,19 @@ fn mlc_discard(int id) {
 		MC_DISCARD=$id
 		dt_confirm "Discard this message?" mlc_discarded
 	else
+		MC[$id]["discard"]=1
 		dt_del "$id"
 	fi
 }
 MC_DISCARD=
-mlc_discarded() { [ -n "$MC_DISCARD" ] && dt_del "$MC_DISCARD"; MC_DISCARD=; }
+# Marked before the window goes, so mailc_close knows not to save what is
+# in it -- and takes away a draft an autosave had already filed.
+mlc_discarded() {
+	[ -n "$MC_DISCARD" ] || return 0
+	MC["$MC_DISCARD"]["discard"]=1
+	dt_del "$MC_DISCARD"
+	MC_DISCARD=
+}
 
 # Send: the message built with the email module and sent through the
 # account's server in the background -- a copy filed in Sent where the
@@ -2003,6 +2075,101 @@ fn mlc_send(int id) {
 	MLJ[$n]["win"]=$id
 	MLJ[$n]["file"]=$out
 }
+
+# The folder drafts are filed in: the one whose role the server itself
+# declared, and the usual name where it declared none -- the same shape as
+# ml_sentfold below, and for the same reason.
+fn ml_draftfold(acct) {
+	local k
+
+	for k in "${!MW[@]}"; do
+		[[ $k == "role$acct:"* ]] && [ "${MW["$k"]}" = drafts ] && { printf '%s' "${k#role$acct:}"; return 0; }
+	done
+	printf '%s' Drafts
+}
+
+# Save what is being written to the account's Drafts folder, and take the
+# one saved before it away: a draft is the message as it stands, not every
+# moment it has passed through. `quiet` is the autosave, which happens
+# without being asked and so says nothing unless it fails.
+fn mlc_savedraft(int id, quiet = "") {
+	local acct=${MC[$id]["acct"]} dir body out fold n
+	local -a args as
+
+	[ -n "$acct" ] || return 0
+	[ "${MC[$id]["sending"]}" = 1 ] && return 0
+	[ "${MC[$id]["saving"]}" = 1 ] && return 0
+	dir := ml_dir "$acct"
+	mkdir -p "$dir/out"
+	body="$dir/out/d$id.txt"
+	out="$dir/out/d$id.eml"
+	tb_text "$id" > /dev/null
+	printf '%s' "$RET" > "$body"
+	# No recipient is required, which is the difference from sending: half
+	# a thought with nobody named yet is exactly what a draft is for.
+	args=(-f "${MC[$id]["from"]}" -s "${MC[$id]["subj"]}" -T "$body")
+	[ -n "${MC[$id]["to"]}" ] && args+=(-t "${MC[$id]["to"]}")
+	[ -n "${MC[$id]["cc"]}" ] && args+=(-c "${MC[$id]["cc"]}")
+	[ -n "${MC[$id]["bcc"]}" ] && args+=(-b "${MC[$id]["bcc"]}")
+	[ -n "${MC[$id]["irt"]}" ] && args+=(-r "${MC[$id]["irt"]}")
+	[ -n "${MC[$id]["refs"]}" ] && args+=(-R "${MC[$id]["refs"]}")
+	IFS=$'\t' read -ra as <<< "${MC[$id]["att"]}"
+	for n in "${as[@]}"; do [ -n "$n" ] && args+=(-a "$n"); done
+	if ! email build "$out" "${args[@]}" > /dev/null 2> "$dir/out/draft.err"; then
+		read -r n < "$dir/out/draft.err"
+		[ -n "$quiet" ] || MC[$id]["err"]="Could not save the draft: ${n#hibr: }"
+		return 0
+	fi
+	command rm -f "$body"
+	fold := ml_draftfold "$acct"
+	MC[$id]["saving"]=1
+	MC[$id]["dirty"]=
+	MC[$id]["saved"] := dt_ms
+	# One line, as mlc_send's own job is: an assignment at the start of a
+	# line inside this quoted script reads to tests/strictvars.py as this
+	# function creating a global, which it is not -- the words are a
+	# child's, not ours.
+	n := ml_job draft "$acct" mlc_drafted "$HIBR" -c 'need email || exit 2; h := email open "$1" || exit 1; email select "$h" "$2" > /dev/null 2>&1 || exit 1; u := email append "$h" "$2" "$3" "\Draft" "\Seen" || exit 1; [ -n "$4" ] && { email store "$h" "$4" "+\Deleted" > /dev/null 2>&1; email expunge "$h" > /dev/null 2>&1; }; printf "%s\n" "$u"; exit 0' draft "$acct" "$fold" "$out" "${MC[$id]["draftuid"]}"
+	MLJ[$n]["win"]=$id
+	MLJ[$n]["file"]=$out
+	MLJ[$n]["quiet"]=$quiet
+	return 0
+}
+
+# A draft reached the server. The uid it was given is kept so the next save
+# can take this one away -- a server without UIDPLUS says nothing there,
+# and then every save leaves one behind, which is the server's own limit
+# rather than something to paper over.
+fn mlc_drafted(int n, int st) {
+	local id=${MLJ[$n]["win"]} u
+
+	command rm -f "${MLJ[$n]["file"]}"
+	[ -n "${MC[$id]["acct"]+x}" ] || return 0
+	MC[$id]["saving"]=
+	if [ "$st" != 0 ]; then
+		MC[$id]["dirty"]=1
+		[ -n "${MLJ[$n]["quiet"]}" ] || MC[$id]["err"]="The draft could not be saved."
+		return 0
+	fi
+	u := ml_joblast "$n"
+	[ -n "$u" ] && MC[$id]["draftuid"]=$u
+	[ -n "${MLJ[$n]["quiet"]}" ] || dt_note "Draft saved"
+	return 0
+}
+
+# Throw a saved draft away, for a window whose writer discarded it: the
+# window is going, so there is nobody to tell and nothing to come back to.
+fn mlc_dropdraft(int id) {
+	local acct=${MC[$id]["acct"]} uid=${MC[$id]["draftuid"]} fold
+
+	[ -n "$acct" ] && [ -n "$uid" ] || return 0
+	fold := ml_draftfold "$acct"
+	ml_job draft "$acct" ml_jobdone "$HIBR" -c 'need email || exit 2; h := email open "$1" || exit 1; email select "$h" "$2" > /dev/null 2>&1 || exit 1; email store "$h" "$3" "+\Deleted" > /dev/null 2>&1; email expunge "$h" > /dev/null 2>&1; exit 0' draft "$acct" "$fold" "$uid" > /dev/null
+	return 0
+}
+
+# A job nobody has anything to do about.
+fn ml_jobdone(int n, int st) { return 0; }
 
 # The folder sent mail is filed in, on a server that is not Gmail.
 fn ml_sentfold(acct) {

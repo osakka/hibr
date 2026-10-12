@@ -275,6 +275,7 @@ Display
 Display Structure
 Displays
 Download Whole Messages
+Draft saved
 Drafts
 Drag Modifier
 Draw Pictures As
@@ -641,6 +642,8 @@ Sat
 Saturday
 Save
 Save As…
+Save Drafts Every (seconds)
+Save as Draft
 Saved %s
 Saved %s to %s
 Saved as %s

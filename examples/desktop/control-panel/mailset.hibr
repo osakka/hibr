@@ -19,9 +19,13 @@ DT_MAILBODIES="${DT_MAILBODIES-500}"
 DT_MAILEVERY="${DT_MAILEVERY-5}"
 DT_MAILIMAGES="${DT_MAILIMAGES-attached}"
 DT_MAILSIG="${DT_MAILSIG-}"
-command -v dt_keep > /dev/null && dt_keep DT_MAILMAX DT_MAILBODIES DT_MAILEVERY DT_MAILIMAGES DT_MAILSIG
+DT_MAILDRAFT="${DT_MAILDRAFT-30}"
+command -v dt_keep > /dev/null && dt_keep DT_MAILMAX DT_MAILBODIES DT_MAILEVERY DT_MAILIMAGES DT_MAILSIG DT_MAILDRAFT
 
 MS_KEEPS=(250 500 1000 2000)
+# Seconds a message being written may go unsaved. 0 is the one value that
+# is a word rather than a number, because "every 0 seconds" says nothing.
+MS_DRAFTL=(0 15 30 60 120)
 MS_BODIESL=(100 500 2000 all)
 MS_EVERYL=(1 2 5 15 30)
 MS_IMAGESL=(never attached)
@@ -162,6 +166,7 @@ fn cp_set_mailbodies(int? id = "", value = "") {
 	cp_save
 }
 fn cp_set_mailevery(int? id = "", value = "") { DT_MAILEVERY=$value; cp_save; }
+fn cp_set_maildraft(int? id = "", value = "") { DT_MAILDRAFT=$value; cp_save; }
 fn cp_set_mailimages(int? id = "", value = "") { DT_MAILIMAGES=$value; cp_save; }
 
 fn mailset_rows(int w) {
@@ -191,6 +196,9 @@ fn mailset_rows(int w) {
 	CP[$w][$n]["val"]="$v"; CP[$w][$n]["key"]=bodies; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Check Every (minutes)"
 	CP[$w][$n]["val"]="${DT_MAILEVERY:-5}"; CP[$w][$n]["key"]=every; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Save Drafts Every (seconds)"
+	CP[$w][$n]["val"]="${DT_MAILDRAFT:-30}"; CP[$w][$n]["key"]=draft
+	n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Show Pictures"
 	CP[$w][$n]["val"]="${DT_MAILIMAGES:-attached}"; CP[$w][$n]["key"]=images; n=$((n + 1))
 	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Signature${GL[ellipsis]}"
@@ -285,6 +293,7 @@ fn mailset_do(int? w = "", k = "", int? dir = "") {
 		DT_MAILBODIES=$v
 		;;
 	every) v := cp_next "${DT_MAILEVERY:-5}" "$dir" "${MS_EVERYL[@]}"; DT_MAILEVERY=$v ;;
+	draft) v := cp_next "${DT_MAILDRAFT:-30}" "$dir" "${MS_DRAFTL[@]}"; DT_MAILDRAFT=$v ;;
 	images) v := cp_next "${DT_MAILIMAGES:-attached}" "$dir" "${MS_IMAGESL[@]}"; DT_MAILIMAGES=$v ;;
 	sig) mlad_show "" sig ;;
 	esac
@@ -296,6 +305,7 @@ fn mailset_drop(int? w = "", int? r = "", int? c = "", k = "") {
 	max) dt_droplist "$w" "$r" "$c" cp_set_mailmax "${MS_KEEPS[@]}" ;;
 	bodies) dt_droplist "$w" "$r" "$c" cp_set_mailbodies "${MS_BODIESL[@]}" ;;
 	every) dt_droplist "$w" "$r" "$c" cp_set_mailevery "${MS_EVERYL[@]}" ;;
+	draft) dt_droplist "$w" "$r" "$c" cp_set_maildraft "${MS_DRAFTL[@]}" ;;
 	images) dt_droplist "$w" "$r" "$c" cp_set_mailimages "${MS_IMAGESL[@]}" ;;
 	esac
 }

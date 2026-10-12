@@ -599,6 +599,18 @@ message, `r` replies, `a` replies to everyone, `f` forwards, `/` searches
 `g` then `i`, `s`, `t`, `d` or `a` goes to Inbox, Starred, Sent, Drafts or
 All Mail. The File, Message and Go menus have them all.
 
+A message being written is **saved to the account's Drafts folder**: by
+hand from File > Save as Draft, by itself once it has been left alone for
+Control Panel > Mail > Save Drafts Every seconds (0 turns that off), and on
+the way out when its window is closed with something still unsaved. Each
+save takes the one before it away, where the server names what it appended
+(IMAP's UIDPLUS, which nearly every server has); a server that does not
+leaves the older copies behind, which is its own limit rather than
+something to paper over. Opening a draft from Drafts takes it up to be
+finished -- the same window Compose uses, filled with its own addresses,
+subject and words -- rather than opening it to read. Discard throws away
+both the window and anything already filed for it.
+
 It works offline. A job of its own (`examples/desktop/lib/mailsync.hibr`,
 on the `email` and `db` modules) keeps each account in
 `~/.local/share/hibr/mail/<account>/`: a row a message in a `db` file, and

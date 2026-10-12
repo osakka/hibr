@@ -95,6 +95,13 @@ and nothing else in the module does either.
 There is no OAuth. Google accepts an app password for IMAP and SMTP when
 the account has two-step verification; that is what the Mail app asks for.
 
+`email append h folder file [flags]` puts a message in a folder, and
+answers the **uid the server gave it** when the server has UIDPLUS, which
+is what lets a caller find that message again: the desktop's Mail saves a
+draft that way and takes the previous one away by the uid it was told. A
+server without UIDPLUS answers nothing there, which is how a caller tells
+"no uid" from "uid 0".
+
 ## Does it work
 
 `email check NAME` logs in to the incoming server and `email check NAME -o`

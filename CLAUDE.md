@@ -3502,6 +3502,19 @@ went in the shell.
   verification **off** while reporting that an untrusted certificate was
   good. A check may be wrong in several directions; that is not one of them.
   Empty means off, and nothing else does.
+- **An IMAP flag written unquoted loses its backslash, and the server takes
+  it** (Gitea #74, 0.99.157). `email store "$h" "$uid" +\Deleted` inside a
+  job's script marked **nothing**: a backslash is an escape in an unquoted
+  word, so what reached the server was `+Deleted` -- a perfectly good
+  keyword that no `\Deleted` search will ever match, stored without
+  complaint. A draft was appended and the one before it stayed, and nothing
+  anywhere failed. `"+\Deleted"` is the fix, because inside double quotes a
+  backslash before `D` is not an escape -- which is also why the `"\Draft"`
+  on the line above it had been right all along. The shape to watch for is a
+  protocol whose own words begin with a backslash (`\Seen`, `\Draft`,
+  `\Deleted`, IMAP's special-use names) reaching a command as a bare word;
+  and the reason it survived a passing test is that the *append* half was
+  quoted and visibly worked, so the flags that mattered looked fine.
 - **A stand-in that answers 200 to anything cannot fail, and a check written
   against it is a check of nothing** (Gitea #185, 0.99.151). `tests/bwserve.py`
   opens by saying a stand-in "written from the same memory as the client would

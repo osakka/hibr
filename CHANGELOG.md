@@ -1,5 +1,66 @@
 # Changelog
 
+## 0.99.157
+
+**Mail saves drafts** (Gitea #74), which has been open since the Mail
+release in 0.99.24: a message being written was lost the moment its window
+closed.
+
+It is saved to the account's own **Drafts folder** -- the one whose role the
+server declared, and `Drafts` where it declared none -- three ways:
+
+- by hand, **File > Save as Draft**;
+- by itself, once the writing has been left alone for **Save Drafts Every**
+  seconds (Control Panel > Mail, 30 by default, 0 to turn it off);
+- **on the way out**, when a window is closed with something still unsaved,
+  which is the case the ticket was written for.
+
+Opening one from Drafts **takes it up to be finished** rather than opening
+it to read: the same window Compose uses, filled with its own addresses,
+subject and words, no signature appended and nothing quoted. Decided on the
+message rather than on which view is showing, so a draft found by a search
+opens the same way. Discard throws away the window *and* anything already
+filed for it.
+
+### Each save takes the one before it away, and that needed the module
+
+A draft saved five times is one message, not five. Nothing could say which
+message had just been appended, though: `email append` answered a status and
+nothing else. It fills the result slot with the **uid the server gave it**
+now, read from `[APPENDUID <uidvalidity> <uid>]` in the tagged OK -- IMAP's
+UIDPLUS, which nearly every server has. A server that does not answers
+nothing there, so a caller tells "no uid" from "uid 0", and the older copies
+stay, which is that server's limit rather than something to paper over.
+
+**And the stand-in had the hole this release is about.** `tests/mailserve.py`
+advertised UIDPLUS in its CAPABILITY and replied `OK appended` with no
+`APPENDUID` -- a stand-in claiming an extension and not behaving like it,
+which is exactly the shape of Gitea #185 in another protocol. It names what
+it made now, and it has a Drafts folder with the `\Drafts` special-use flag,
+as a real server does.
+
+### A trap worth the paragraph
+
+`email store "$h" "$uid" +\Deleted` inside a job's script **silently marked
+nothing**: the backslash is an escape in an unquoted word, so the flag
+reached the server as `+Deleted`, which is a perfectly good keyword that no
+`\Deleted` search will ever match. The draft was appended and the old one
+stayed, and nothing anywhere failed. `"+\Deleted"` is the fix -- inside
+double quotes a backslash before `D` is not an escape, which is also why the
+`"\Draft"` beside it had been working all along. Found by running the job's
+own script by hand and counting what was in the folder, which is the only
+thing that could have found it.
+
+### The checks
+
+`tests/mailapp.py` is 57 to 64: that Save as Draft files it with its words
+and the `\Draft` flag, that saving again replaces rather than piles up, that
+closing the window files what was unsaved, that opening one from Drafts
+gives a window to write in with the text still there, and that a message
+left alone saves itself. `tests/mail.py`'s stand-in changes are under every
+mail suite already.
+
+
 ## 0.99.156
 
 **A notification's full text and its action are reachable again**

@@ -24,8 +24,10 @@ class Box:
 
     def __init__(self, user="pat", password="right horse", gmail=False):
         self.user, self.password, self.gmail = user, password, gmail
-        self.folders = {"INBOX": [], "Sent": [], "Trash": [], "Archive": []}
-        self.special = {"Sent": "\\Sent", "Trash": "\\Trash", "Archive": "\\Archive"}
+        self.folders = {"INBOX": [], "Sent": [], "Drafts": [], "Trash": [],
+                        "Archive": []}
+        self.special = {"Sent": "\\Sent", "Drafts": "\\Drafts",
+                        "Trash": "\\Trash", "Archive": "\\Archive"}
         if gmail:
             self.folders = {"INBOX": [], "[Gmail]/All Mail": [], "[Gmail]/Sent Mail": [],
                             "[Gmail]/Trash": [], "Work/Projets dété": []}
@@ -307,8 +309,13 @@ def imap(conn, box, starttls_ok):
             conn.send("+ go ahead\r\n")
             data = conn.exact(int(m.group(3)))
             conn.line()
+            # UIDPLUS is advertised, so APPEND names what it made: a
+            # stand-in that claims an extension and does not behave like it
+            # is a hole exactly the size of the request nobody checks
+            # (the lesson of Gitea #185, in another protocol).
             box.add(dest, data, flags=m.group(2).split())
-            conn.send("%s OK appended\r\n" % tag)
+            conn.send("%s OK [APPENDUID 7 %d] appended\r\n"
+                      % (tag, box.folders[dest][-1].uid))
         elif cmd == "IDLE":
             conn.send("+ idling\r\n")
             with box.cv:

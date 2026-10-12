@@ -405,4 +405,77 @@ check("the app knows every address of the account, and keeps the set to match on
       "pat@example.com" in out.stdout and "pat@alias.org" in out.stdout
       and "mine=3" in out.stdout, out.stdout + out.stderr)
 
-report(57)
+
+
+# --- drafts (Gitea #74) -------------------------------------------------------
+#
+# A message being written was lost when its window closed. It is saved to the
+# account's own Drafts folder now -- by hand from the File menu, by itself
+# after DT_MAILDRAFT seconds, and on the way out -- and reopened from there
+# to be finished rather than read.
+
+box7 = ms.Box()
+box7.add("INBOX", msg("Ana <ana@example.net>", "Minutes", "The minutes are attached.",
+                      "Thu, 1 Oct 2026 09:30:00 +0000", mid="minutes7"))
+conf7 = os.path.join(D, "drafts.conf")
+account(conf7, "work", ms.serve("imap", box7), ms.serve("smtp", box7))
+t = session(conf7, "drafts", {"DT_MAILDRAFT": "0"})
+waitfor(t, "Minutes")
+t.keys([b"c"], settle=1.0)
+sc = look(t, 0.8)
+check("c opens a window to write in", sc.find("┤ New Message ├") is not None, sc)
+t.keys([b"ana@example.net", b"\t", b"\t", b"\t", b"A subject", b"\t",
+        b"Half a thought"], settle=0.6)
+# F10 opens the bar on the hibr menu, which is the first one; File is the
+# next along, and v is Save as Draft's own letter.
+t.keys([b"\x1b[21~", b"\x1b[C", b"v"], settle=1.5)
+check("Save as Draft files it in the account's Drafts folder",
+      until(lambda: len(box7.folders["Drafts"]) == 1),
+      {f: len(v) for f, v in box7.folders.items()})
+saved = box7.folders["Drafts"][0] if box7.folders["Drafts"] else None
+check("with the words that were in it, and marked as a draft",
+      saved is not None and b"Half a thought" in saved.raw
+      and "\\Draft" in saved.flags, saved.flags if saved else None)
+# Saved again, the first one goes: a draft is the message as it stands, not
+# every moment it has passed through. The uid comes back from APPENDUID,
+# which is the only thing that can name what was just made.
+t.keys([b" and another"], settle=0.6)
+t.keys([b"\x1b[21~", b"\x1b[C", b"v"], settle=1.5)
+check("saving again replaces the one before rather than piling another up",
+      until(lambda: len(box7.folders["Drafts"]) == 1
+            and b"and another" in box7.folders["Drafts"][0].raw),
+      [len(box7.folders["Drafts"])] + [m.raw[-60:] for m in box7.folders["Drafts"]])
+# Closing the window saves what is still unsaved -- which is the whole
+# point, since a window that closed used to take the message with it.
+t.keys([b" and a third part"], settle=0.6)
+t.keys([b"\x1bw"], settle=2.0)
+check("and closing the window files what was still unsaved",
+      until(lambda: len(box7.folders["Drafts"]) == 1
+            and b"a third part" in box7.folders["Drafts"][0].raw),
+      [m.raw[-70:] for m in box7.folders["Drafts"]])
+# Opened from Drafts it is taken up where it was left, in a window to write
+# in rather than one to read from.
+sc = look(t, 1.0)
+t.keys([b"R"], settle=2.0)
+sc = waitfor(t, "Drafts")
+click(t, sc, "Drafts")
+sc = look(t, 1.5)
+t.keys([b"\r"], settle=1.5)
+sc = look(t, 1.0)
+check("opening one from Drafts takes it up to be written, not read",
+      sc.find("┤ A subject ├") is not None and sc.find("a third part") is not None, sc)
+t.quit(b"qy", 1.5)
+
+# Autosave: nobody asked, and the words are filed anyway.
+t = session(conf7, "drafts2", {"DT_MAILDRAFT": "1"})
+waitfor(t, "Minutes")
+t.keys([b"c"], settle=1.0)
+t.keys([b"bo@example.net", b"\t", b"\t", b"\t", b"Later", b"\t",
+        b"written and left alone"], settle=0.6)
+check("a message left alone saves itself after DT_MAILDRAFT seconds",
+      until(lambda: any(b"written and left alone" in m.raw
+                        for m in box7.folders["Drafts"]), 8.0),
+      [m.raw[-60:] for m in box7.folders["Drafts"]])
+t.quit(b"qy", 1.5)
+
+report(64)

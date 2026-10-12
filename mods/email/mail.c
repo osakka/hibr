@@ -679,7 +679,7 @@ int ml_move(ml_imap *m, const char *set, const char *folder, int move)
 
 /* mail append h folder file [flag...]: put a message in a folder -- a
    sent copy, a draft. */
-int ml_append(ml_imap *m, int ac, char **av)
+int ml_append(sh *s, ml_imap *m, int ac, char **av)
 {
 	str cmd, body;
 	int i, rc;
@@ -702,6 +702,26 @@ int ml_append(ml_imap *m, int ac, char **av)
 	rc = im_cmd(m, cmd.p, &body);
 	if (rc != HIBR_OK)
 		lg(HIBR_LERR, "email: APPEND: %s", m->status.p ? m->status.p : "");
+	/* A server with UIDPLUS names what it just made, in the tagged OK:
+	   OK [APPENDUID <uidvalidity> <uid>]. Answered because the caller
+	   usually wants to find it again -- a draft saved a second time has
+	   to take the first one away, and nothing else identifies it. Empty
+	   where the server is silent, which is what a server without
+	   UIDPLUS is, so a caller tells "no uid" from "uid 0" (Gitea #74). */
+	if (rc == HIBR_OK) {
+		const char *c = m->status.p ?
+			strcasestr(m->status.p, "[APPENDUID ") : 0;
+		str uid;
+
+		s_init(&uid);
+		if (c) {
+			c = strchr(c + 11, ' ');
+			while (c && *++c && *c >= '0' && *c <= '9')
+				s_ch(&uid, *c);
+		}
+		ml_say(s, uid.p ? uid.p : "");
+		s_free(&uid);
+	}
 	s_free(&cmd);
 	s_free(&body);
 	return rc;
@@ -1421,7 +1441,7 @@ int m_mail(sh *s, int ac, char **av)
 		if (!strcmp(sub, "expunge"))
 			return im_cmd(m, "EXPUNGE", 0);
 		if (!strcmp(sub, "append") && ac >= 5)
-			return ml_append(m, ac, av);
+			return ml_append(s, m, ac, av);
 		if (!strcmp(sub, "idle"))
 			return ml_idle(s, m, ac > 3 ? atoi(av[3]) : 0);
 		if (!strcmp(sub, "gmail")) {
