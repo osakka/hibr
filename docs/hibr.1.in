@@ -257,6 +257,12 @@ run out, KILL two seconds later, and status 124.
 Set to 1 to accept a TLS certificate that does not verify. Certificates are
 verified by default.
 .TP
+.B HIBR_TLS_CAFILE
+A file of certificates to trust besides the ones the system already trusts,
+for a server signed by your own authority. Unlike OpenSSL's own
+.BR SSL_CERT_FILE ,
+which replaces the default CA file, this adds to it. Empty counts as unset.
+.TP
 .B HIBR_DEBUG
 The log level, as
 .B \-d

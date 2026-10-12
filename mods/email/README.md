@@ -104,6 +104,20 @@ fetched and no mailbox changes. Each is the **real** login -- the same
 authenticated -- because a check that proves something near what sending
 does is worth nothing when the two drift apart.
 
+`email check NAME [-o] -u LOGIN` asks the same question with a different
+login, for a diagnostic rather than for a change: a server with virtual
+mailboxes takes the whole address and refuses the name in front of the `@`,
+which arrives as "Authentication failed" and reads as a wrong password. The
+account is left exactly as it was -- which login a server wants is a thing
+to report, and the account's own to change. `lib/mailtest.hibr` uses it for
+one extra attempt per refused login, never a sweep.
+
+A certificate signed by your own authority is trusted by naming it in
+`HIBR_TLS_CAFILE`, which the shell's TLS layer reads for every connection
+(see [networking](../../docs/networking.md)); the alternative is to give
+the authority to the machine itself. Neither is `HIBR_TLS_INSECURE`, which
+trusts nothing at all.
+
 A port and a security setting that cannot work together are refused where
 they are written rather than at the first connection: 993, 995 and 465 are
 TLS from the first byte and 143, 110, 587 and 25 begin in plain, so

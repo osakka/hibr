@@ -1,0 +1,5 @@
+0
+signed by the named CA: hello
+signed by the other, not named: refused
+one named each way: hello hello
+named empty: refused

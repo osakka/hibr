@@ -30,6 +30,7 @@ struct tlsapi {
 	void *(*meth)(void);
 	void *(*ctx_new)(void *);
 	int (*ctx_paths)(void *);
+	int (*ctx_loadv)(void *, const char *, const char *);
 	void *(*new)(void *);
 	int (*set_fd)(void *, int);
 	long (*ctrl)(void *, int, long, void *);
@@ -114,6 +115,11 @@ int tls_load(void)
 	tls.read = tls_sym(tls_lib, "SSL_read", &bad);
 	tls.write = tls_sym(tls_lib, "SSL_write", &bad);
 	tls.shutdown = tls_sym(tls_lib, "SSL_shutdown", &bad);
+	/* Optional, like the error strings. It has been in libssl since long
+	   before any version this can load; a library without it cannot
+	   honour HIBR_TLS_CAFILE, which tls_relay then says rather than
+	   quietly ignoring the variable. */
+	tls.ctx_loadv = dlsym(tls_lib, "SSL_CTX_load_verify_locations");
 	tls.err_get = dlsym(tls_lib, "ERR_get_error");
 	tls.err_str = dlsym(tls_lib, "ERR_reason_error_string");
 	if (bad)
@@ -419,9 +425,24 @@ int net_unix(const char *path)
 }
 
 #ifdef HIBR_TLS
+/* A certificate authority file to trust besides the ones the system
+   already trusts, or 0 for none. Read from the environment the way
+   HIBR_CONNTIMEO is, so it reaches a module and a child alike -- the relay
+   below is a forked child, and the dav and vault modules speak through it.
+   Empty counts as unset on purpose: HIBR_TLS_INSECURE is read with getenv
+   alone, so anything set at all turns verification off there, and a second
+   variable repeating that would be a trap rather than a convention. */
+const char *net_cafile(void)
+{
+	const char *p = getenv("HIBR_TLS_CAFILE");
+
+	return p && *p ? p : 0;
+}
+
 /* Pump plaintext between a socket pair and a TLS connection. */
 void tls_relay(int plain, int sock, const char *host)
 {
+	const char *ca = net_cafile();
 	void *ctx, *ssl;
 	fd_set rd;
 	char *buf;
@@ -432,6 +453,19 @@ void tls_relay(int plain, int sock, const char *host)
 	if (!ctx)
 		_exit(1);
 	tls.ctx_paths(ctx);
+	/* After the system's own paths, never instead of them: this adds a
+	   location to the same store, so a private CA costs nothing of the
+	   public ones. SSL_CERT_FILE, which OpenSSL reads inside the call
+	   above, *replaces* the default CA file instead -- which on a box
+	   whose public roots live only in that file stops every public
+	   certificate verifying. That difference is the whole reason this
+	   variable exists rather than a line of documentation. */
+	if (ca) {
+		if (!tls.ctx_loadv)
+			lg(HIBR_LERR, "libssl has no SSL_CTX_load_verify_locations, so HIBR_TLS_CAFILE is not honoured");
+		else if (tls.ctx_loadv(ctx, ca, 0) != 1)
+			lg(HIBR_LERR, "HIBR_TLS_CAFILE: %s: cannot be read as certificates", ca);
+	}
 	ssl = tls.new(ctx);
 	tls.set_fd(ssl, sock);
 	tls.ctrl(ssl, TLS_CTRL_HOST, TLS_NAME_HOST, (void *)host);

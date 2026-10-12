@@ -1,5 +1,118 @@
 # Changelog
 
+## 0.99.153
+
+**Mail now connects** (Gitea #191, #192). 0.99.152 made the client able to
+say what was wrong; this is the two things it then said, on the owner's own
+server:
+
+```
+in tls  fail  its issuer is not trusted by this machine
+out auth fail smtp.home.arpa refused the login for osakka: 535 5.7.8 ...
+```
+
+Two faults, neither of them a wrong password, and neither fixable from
+inside hibr before this release.
+
+### A certificate authority of your own (#191)
+
+Their IMAP server presents a leaf signed by `gibnet Intermediate CA` --
+itdlabs' own. The chain is on the machine, at
+`/etc/ssl/certs/gibnet-im-root.crt`, with no hash symlink in that directory
+and not in `ca-certificates.crt`, so nothing in OpenSSL's default verify
+paths finds it:
+
+```
+$ openssl s_client -connect imap.home.arpa:993
+verify error:num=20:unable to get local issuer certificate
+$ openssl s_client -connect imap.home.arpa:993 -CAfile /etc/ssl/certs/gibnet-im-root.crt
+Verify return code: 0 (ok)
+```
+
+So a person with their own CA had two ways to reach their own server and no
+third: change the machine's trust store, which is root's decision and every
+program's business, or `HIBR_TLS_INSECURE`, which verifies nothing at all.
+In a desktop neither is reachable -- the Mail app, the Vault, the Calendar
+and the Browser all connect through one layer with no environment of their
+own.
+
+`HIBR_TLS_CAFILE` names a file of certificates to trust **besides** the
+system's own. It is applied after `SSL_CTX_set_default_verify_paths` with
+`SSL_CTX_load_verify_locations`, in the one place a context is made, so it
+reaches `/dev/tls`, `connect`, and the mail, WebDAV and vault modules alike
+-- all of which speak through the same forked relay. Empty counts as unset,
+which `HIBR_TLS_INSECURE` deliberately does not.
+
+It is **not** documentation around OpenSSL's `SSL_CERT_FILE`, which that
+call already reads: that variable *replaces* the default CA file, so on a
+machine whose public roots live only in that file naming a private
+authority silently stops every public certificate verifying. Added and
+substituted are different things, and `tests/998-tls-cafile.t` is built
+around telling them apart -- two authorities, a server signed by each, and
+one named through each mechanism:
+
+```
+signed by the named CA: hello
+signed by the other, not named: refused
+one named each way: hello hello
+named empty: refused
+```
+
+Run under 0.99.152's own shell it reads `refused`, `refused`,
+`hello refused`, `refused` -- watched failing before it was trusted.
+
+### The login a server wants (#192)
+
+With the certificate trusted, the same account still failed:
+
+```
+hibr: email: imap.home.arpa refused the login for osakka:
+      NO [AUTHENTICATIONFAILED] Authentication failed.
+```
+
+The login was `osakka` and the server wants `osakka@home.arpa`. Same
+password, same host, same port:
+
+```
+$ email check T          # -u osakka@home.arpa
+status=0
+$ email check T -o       # smtp.home.arpa:25, AUTH PLAIN -> 235
+status=0
+```
+
+Both directions had been working the whole time behind one field. That is
+the common shape wherever mailboxes are virtual, and the field exists
+precisely because a login and an address are two different things
+(Gitea #157) -- but nothing told anybody which of the two their server
+wanted, and "Authentication failed" reads as a wrong password.
+
+`email check NAME [-o] -u LOGIN` asks with a different login and changes
+nothing: the record is swapped for the one call and put back. The ladder
+uses it for **one** extra attempt, only where the account's login has no
+`@` and its address does, and reports rather than rewrites -- a server that
+locks an account out after a handful of failures is the normal case, and
+which login to use is the account's own to change:
+
+```
+out auth  fail  smtp.home.arpa refused the login for osakka: 535 5.7.8 ...
+out login ok    the same password is accepted with osakka@home.arpa as the
+                login: this server wants the whole address, so set the
+                account's login to it
+```
+
+The TLS rung and detect's `cert` answer now name `HIBR_TLS_CAFILE` as the
+fix. Neither ever suggests `-K`: a diagnostic that teaches people to turn
+verification off is worse than one that says nothing.
+
+### The checks
+
+`tests/998-tls-cafile.t` is new, and `tests/mail.py` is 43 to 46: that
+`check -u` logs in where the account's own login is refused, that the
+account file is unchanged afterwards, and that the ladder grows the rung --
+driven against a stand-in whose own user *is* the address, since the one
+the other checks use accepts `pat`, which is the wrong way round.
+
+
 ## 0.99.152
 
 **Mail could not say what was wrong with it** (Gitea #187, #188, #189).

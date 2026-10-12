@@ -57,7 +57,7 @@ fn mt_greeting(kind, line) {
 # skipped rather than going quiet, so a ladder that stops early still
 # explains itself.
 MT_LINE=
-fn mt_one(dir, acct, kind, host, port, sec, noverify = "") {
+fn mt_one(dir, acct, kind, host, port, sec, noverify = "", login = "", addr = "") {
 	local fd err plain= line= why=
 	local -a o
 
@@ -115,7 +115,7 @@ fn mt_one(dir, acct, kind, host, port, sec, noverify = "") {
 			read -r -t "$3" line <&"$fd" || exit 1
 			printf "%s" "$line"' mailtest "$host" "$port" "$MT_TMO" 2>&1)
 		if [[ $why == *"certificate verify failed"* ]]; then
-			mt_say "$dir" tls fail "the certificate does not verify here -- its issuer is not trusted by this machine"
+			mt_say "$dir" tls fail "its issuer is not trusted by this machine -- name the authority's own certificate in HIBR_TLS_CAFILE, or give it to the system's trust store"
 			mt_say "$dir" greet skip "the TLS connection did not open"
 			mt_say "$dir" auth skip "the TLS connection did not open"
 			return 0
@@ -170,6 +170,20 @@ fn mt_one(dir, acct, kind, host, port, sec, noverify = "") {
 		why=${why#hibr: }
 		why=${why#email: }
 		mt_say "$dir" auth fail "$why"
+		# A server with virtual mailboxes takes the whole address as
+		# the login and refuses the name in front of the @ -- which
+		# reads as a wrong password, and cost an afternoon before
+		# anything said otherwise (Gitea #192). One more attempt,
+		# only where the two actually differ: a server that locks an
+		# account out after a few failures is the normal case, so
+		# this is never a sweep. And it is reported, never written:
+		# which login a server wants is the account's own to change.
+		if [ -n "$addr" ] && [ "$login" != "$addr" ] &&
+		   [[ $login != *@* ]] && [[ $addr == *@* ]]; then
+			o+=(-u "$addr")
+			email "${o[@]}" 2> /dev/null &&
+				mt_say "$dir" login ok "the same password is accepted with $addr as the login: this server wants the whole address, so set the account's login to it"
+		fi
 	fi
 	return 0
 }
@@ -242,7 +256,7 @@ fn mt_try(dir, kind, host, port, sec) {
 			read -r -t "$3" line <&"$fd" || exit 1
 			printf "%s" "$line"' mailtest "$host" "$port" "$MT_TMO" 2>&1)
 		if [[ $why == *"certificate verify failed"* ]]; then
-			mt_say "$dir" "$port/$sec" cert "TLS is here, but its certificate is not trusted by this machine"
+			mt_say "$dir" "$port/$sec" cert "TLS is here, but its issuer is not trusted by this machine -- HIBR_TLS_CAFILE names one"
 			return 2
 		fi
 		case $why in *"hibr: "*) why= ;; esac
@@ -378,7 +392,9 @@ MT_A := email accounts 2> /dev/null || {
 MT_SKIP=
 [ "${MT_A["$MT_ACCT"]["verify"]}" = 0 ] && MT_SKIP=1
 mt_one in "$MT_ACCT" "${MT_A["$MT_ACCT"]["kind"]}" "${MT_A["$MT_ACCT"]["host"]}" \
-	"${MT_A["$MT_ACCT"]["port"]}" "${MT_A["$MT_ACCT"]["security"]}" "$MT_SKIP"
+	"${MT_A["$MT_ACCT"]["port"]}" "${MT_A["$MT_ACCT"]["security"]}" "$MT_SKIP" \
+	"${MT_A["$MT_ACCT"]["user"]}" "${MT_A["$MT_ACCT"]["email"]}"
 mt_one out "$MT_ACCT" smtp "${MT_A["$MT_ACCT"]["smtphost"]}" \
-	"${MT_A["$MT_ACCT"]["smtpport"]}" "${MT_A["$MT_ACCT"]["smtpsecurity"]}" "$MT_SKIP"
+	"${MT_A["$MT_ACCT"]["smtpport"]}" "${MT_A["$MT_ACCT"]["smtpsecurity"]}" "$MT_SKIP" \
+	"${MT_A["$MT_ACCT"]["user"]}" "${MT_A["$MT_ACCT"]["email"]}"
 exit 0

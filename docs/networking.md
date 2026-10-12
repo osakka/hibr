@@ -183,6 +183,28 @@ libssl is loaded with `dlopen` on the first TLS connection, so a shell that
 never uses TLS pays nothing for it — linking it would have cost 1.6 MB of
 memory in every shell. No OpenSSL headers are needed to build.
 
+**Your own certificate authority.** `HIBR_TLS_CAFILE` names a file of
+certificates to trust **besides** the ones the system already trusts, which is
+what a self-hosted server signed by a private CA needs:
+
+<!-- not run: it needs a server with a certificate signed by that authority -->
+```sh
+HIBR_TLS_CAFILE=/etc/ssl/certs/my-ca.crt desktop
+```
+
+It is read from the environment, so it reaches a module and a child alike —
+the relay is a forked child, and the mail, WebDAV and vault modules all speak
+through it. An empty value counts as unset.
+
+It is not the same thing as OpenSSL's own `SSL_CERT_FILE`, which **replaces**
+the default CA file: on a machine whose public roots live only in that file,
+naming a private authority that way stops every public certificate verifying.
+`HIBR_TLS_CAFILE` adds a location to the same store, so a private authority
+costs nothing of the public ones. The alternative is to give the authority to
+the machine itself (`update-ca-certificates` and its equivalents), which is
+root's decision and every program's business; this is neither, and it is not
+`HIBR_TLS_INSECURE`, which trusts nothing at all.
+
 ## What this replaces
 
 A shell that can open a socket, speak TLS, parse the reply as JSON and serve a

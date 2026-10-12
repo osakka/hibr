@@ -348,6 +348,32 @@ st, raw = ladder("ladbad")
 check("a wrong password stops at the login, with everything under it passed",
       st.get("in port") == "ok" and st.get("in greet") == "ok"
       and st.get("in auth") == "fail", raw)
+
+# A server with virtual mailboxes wants the whole address as the login and
+# refuses the name in front of the @ -- which arrives as "Authentication
+# failed" and reads as a wrong password (Gitea #192). A stand-in whose own
+# user *is* the address is the only way to drive it: the one above accepts
+# `pat`, which is the wrong way round.
+abox = ms.Box(user="pat@example.com")
+abox.add("INBOX", msg("Bob <bob@example.net>", "Hi"), flags=[])
+ap = ms.serve("imap", abox)
+out, err = hb("email account set addr -h 127.0.0.1 -p %d -S plain -u pat"
+              " -w 'right horse' -e pat@example.com;"
+              " email check addr; echo bare $?;"
+              " email check addr -u pat@example.com; echo given $?" % ap)
+check("check -u tries the login it is given where the account's own is refused",
+      "bare 1" in out and "given 0" in out, out + err)
+# Reported, never written: which login a server wants is the account's own
+# to change, so the file still says what it said.
+out, err = hb("r := email accounts; echo \"login=${r[addr][user]}\"")
+check("and the account it was given is left alone",
+      "login=pat" in out and "login=pat@example.com" not in out, out + err)
+hb("email account set ladaddr -h 127.0.0.1 -p %d -S plain -u pat -w 'right horse'"
+   " -e pat@example.com -o 127.0.0.1 -q %d -T plain" % (ap, smp))
+st, raw = ladder("ladaddr")
+check("the ladder names the address when that is the login the server wants",
+      st.get("in auth") == "fail" and st.get("in login") == "ok"
+      and "pat@example.com as the login" in raw, raw)
 # Nothing listening: the rungs above must say why they were skipped rather
 # than reporting failures of their own, which is the cascade #187 is about
 # wearing a different hat.
@@ -403,4 +429,4 @@ pk, raw = detect("127.0.0.1", "imap", "127.0.0.1",
 check("a plain pick warns that nothing on it is encrypted",
       pk.get("in") == "%d plain" % p and "can be read on the way" in raw, raw)
 
-report(43)
+report(46)

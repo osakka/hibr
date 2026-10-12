@@ -1292,28 +1292,51 @@ int m_mail(sh *s, int ac, char **av)
 	   changed. */
 	if (!strcmp(sub, "check") && ac >= 3) {
 		ml_acct *a = ml_acctget(s, av[2]);
-		int out = ac > 3 && !strcmp(av[3], "-o");
+		char *was = 0, *as = 0;
+		int out = 0, i, rc;
 
 		if (!a)
 			return HIBR_FAIL;
+		for (i = 3; i < ac; i++) {
+			if (!strcmp(av[i], "-o"))
+				out = 1;
+			else if (!strcmp(av[i], "-u") && i + 1 < ac)
+				as = av[++i];
+			else {
+				lg(HIBR_LERR, "usage: email check ACCOUNT [-o] [-u login]");
+				return 2;
+			}
+		}
+		/* A login to try in place of the account's own, so something
+		   diagnosing a refused password can ask whether the server
+		   wants the address rather than the name (Gitea #192). The
+		   record is swapped for the one call and put back: nothing is
+		   written, because which login a server wants is a thing to
+		   report and the account's own to change. */
+		if (as) {
+			was = a->user;
+			a->user = xs(as);
+		}
 		if (out)
-			return sm_send(s, a, "", 0, 0, 0, 1);
-		if (a->kind == ML_POP) {
+			rc = sm_send(s, a, "", 0, 0, 0, 1);
+		else if (a->kind == ML_POP) {
 			ml_conn *c = po_open(s, a);
 
-			if (!c)
-				return HIBR_FAIL;
-			po_close(c);
-			return HIBR_OK;
-		}
-		{
+			rc = c ? HIBR_OK : HIBR_FAIL;
+			if (c)
+				po_close(c);
+		} else {
 			ml_imap *m = im_open(s, a);
 
-			if (!m)
-				return HIBR_FAIL;
-			im_close(m);
-			return HIBR_OK;
+			rc = m ? HIBR_OK : HIBR_FAIL;
+			if (m)
+				im_close(m);
 		}
+		if (as) {
+			free(a->user);
+			a->user = was;
+		}
+		return rc;
 	}
 	if (!strcmp(sub, "send") && ac >= 4) {
 		ml_acct *a = ml_acctget(s, av[2]);
@@ -1412,7 +1435,7 @@ int m_mail(sh *s, int ac, char **av)
 		      "folders h | select h folder [-r] | headers|flags h uids | uids h | "
 		      "fetch h uid file | store|label h uids +x -y | move|copy h uids folder | "
 		      "expunge h | append h folder file [flags] | idle h [secs] | list h | "
-		      "check ACCOUNT [-o] | "
+		      "check ACCOUNT [-o] [-u login] | "
 		      "delete h n | send ACCOUNT file [rcpt...] | parse file | part file i out | "
 		      "build out -f from ... | hdec text | clip bytes text");
 	return 2;
