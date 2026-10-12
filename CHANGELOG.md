@@ -1,5 +1,116 @@
 # Changelog
 
+## 0.99.152
+
+**Mail could not say what was wrong with it** (Gitea #187, #188, #189).
+
+From an afternoon of not being able to connect, where **two** things were
+wrong at once and the client said neither:
+
+> I am not sure how to troubleshoot email connectivity issue ... it keeps
+> failing
+
+### A port and a security setting that cannot work together (#187)
+
+```
+host imap.home.arpa    port 993    security starttls
+```
+
+993 is TLS from the first byte; STARTTLS is the port-143 method. Measured
+against the real server:
+
+```
+plain connect to 143 -> * OK [CAPABILITY ... STARTTLS ...] Dovecot ready.
+plain connect to 993 -> (nothing: it waits for a handshake)
+```
+
+`email account set` took that without a word. It refuses it now, naming the
+fix -- 993, 995 and 465 against anything but `tls`, and 143, 110, 587 and 25
+against `tls`. Only the known ports are judged: an unusual one is nobody's
+business.
+
+**And four errors became one cause.** A failed connection printed the
+handshake failure, then "closed the connection or timed out", then "did not
+greet as an IMAP server: (nothing)", then "the connection broke while
+writing" -- one cause and three consequences, each reading as another
+problem. A connection carries a `dead` flag now and says so once; the rest
+go to the debug log. Four lines to two, and the two that remain are the TLS
+layer naming the real cause and the module saying the connection broke.
+**Not one**, deliberately: going further would mean inferring "the relay
+died at the handshake", which cannot be told apart from a server that
+accepts TLS and then stays silent, where going quiet would be worse.
+
+### A Test that says which rung it stopped on (#188)
+
+Asked for directly:
+
+> Should we have on the mail control panel (test) that will test both
+> incoming and outgoing for authentication and accessibility?
+
+Accessibility and authentication are different questions, and that is the
+point: one "it does not work" hides two faults, which is what had happened.
+Control Panel > Mail > **Test Connection** runs
+`examples/desktop/lib/mailtest.hibr` as a job and draws a rung per step for
+each direction, filling in as the answers arrive:
+
+```
+  ✓ incoming name     imap.home.arpa
+  ✓ incoming port     993 open
+  ✕ incoming tls      the certificate does not verify here -- its issuer is not trusted by this machine
+  · incoming greet    the TLS connection did not open
+  ✓ outgoing greet    220 mail-2.uk.home.arpa ESMTP
+  ✕ outgoing auth     smtp.home.arpa refused the login for osakka: 535 5.7.8 ...
+```
+
+The login step is the **real** one: `email check NAME [-o]`, which is
+`im_open` and the same SMTP conversation `email send` has, stopped once
+authenticated. Nothing is sent. A check that proves something near what
+sending does is worth nothing the day the two differ.
+
+Two things the ladder knows that a yes/no cannot. A TLS step **reads a
+byte** before believing the handshake, because a connection that is about
+to fail verification still opens -- reporting at the open is how a broken
+certificate reads as working. And `auth ok` over an unencrypted port says
+*"accepted -- but this port is not encrypted, so the password went in the
+clear"*, because "ok" is exactly where somebody stops reading.
+
+### Detect, so the pairing is found rather than typed (#189)
+
+`--detect` probes the candidates and takes what answers, **ranked by what
+the pairing protects** rather than by which replied first -- "the first to
+answer" settles on the plain port whenever a server offers both. Three
+things it had to learn, each because it was wrong first:
+
+- a TLS port whose **certificate** is untrusted is not "nothing here": calling
+  it that made detect choose the plain port, whose STARTTLS upgrade meets
+  the very same certificate a moment later. `cert` is its own answer and
+  beats a plain port that merely works;
+- **a greeting is not an offer**: a port that greets is checked with a real
+  `CAPABILITY` or `EHLO` before being written down as `starttls`, or detect
+  would produce exactly the pairing #187 refuses;
+- a `plain` pick says what it costs, and a `starttls` pick made where a TLS
+  port was refused for its certificate says that the same certificate is
+  waiting at the upgrade.
+
+The candidates can be named (`-i`, `-o`), which is what a server on an
+unusual port needs and what lets a test point this at ports it may bind.
+
+### The checks
+
+`tests/mail.py` is 27 checks to 43. The pairing refusals and that a refused
+pairing leaves no half-made account; that a broken connection says so once,
+watched failing against the old code; `email check` both directions, right
+and wrong, and that the outgoing one delivered nothing; the ladder's five
+rungs; and detect's ranking, its STARTTLS proof and its warnings.
+`tests/apps.py` checks the pane offers the row.
+
+### Honest about what is still not known
+
+A `starttls` candidate is proved to *offer* the upgrade, not to present a
+certificate this machine trusts -- that needs the upgrade itself, which
+only the module does. Detect says so where it matters, and Test is the
+thing that answers it.
+
 ## 0.99.151
 
 **Email two-factor could never log in: the master password hash was sent

@@ -347,7 +347,12 @@ ml_imap *im_open(sh *s, ml_acct *a)
 	if (im_resp(m, &raw) != HIBR_OK || strncasecmp(raw.p, "* OK", 4)) {
 		if (raw.p && !strncasecmp(raw.p, "* PREAUTH", 9))
 			goto authed;
-		lg(HIBR_LERR, "email: %s did not greet as an IMAP server: %.80s", a->host,
+		/* Only when the connection itself is still sound: on a broken
+		   one there is nothing to greet with, and saying so is the
+		   third line about a failure the first line already named
+		   (Gitea #187). */
+		lg(m->c->dead ? HIBR_LDBG : HIBR_LERR,
+		   "email: %s did not greet as an IMAP server: %.80s", a->host,
 		   raw.p ? raw.p : "(nothing)");
 		s_free(&raw);
 		im_close(m);

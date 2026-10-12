@@ -32,7 +32,128 @@ declare -gA MLAD
 # nothing a person has already typed changes meaning. Without the field a
 # server whose login is a bare username could not be used from the desktop
 # at all, though `email account set -u` has always taken one (Gitea #157).
-MLAD_ORDER=(name email alias user full pass kind host port sec shost sport ssec ok del cancel)
+# `detect` sits with the buttons rather than beside the server fields it
+# fills, and the reason is a trap this dialog has sprung twice: every suite
+# that types its way through here walks this list, so a row inserted in the
+# middle silently shifts what each tab lands on and checks that have
+# nothing to do with the new field start failing (Gitea #157 cost seven of
+# them). Last costs nothing to anything already written.
+MLAD_ORDER=(name email alias user full pass kind host port sec shost sport ssec ok del cancel detect)
+
+# Where lib/mailtest.hibr lives, and what one run of it is doing: the
+# account it was asked about, the file it is writing, and whether it is
+# still going. A test talks to two servers over a network that may be
+# wedged, so it is a job and never a wait inside a frame -- what it has
+# said so far is read as the pane draws, which is also what makes the
+# ladder appear a rung at a time rather than all at once at the end
+# (Gitea #188).
+MS_LIB=${BASH_SOURCE%/*}/../lib
+declare -gA MS_TEST
+MS_TEST["acct"]=
+MS_TEST["file"]=
+MS_TEST["live"]=
+
+# Start one, replacing whatever was shown before.
+fn ms_test(acct) {
+	local d=${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/hibr-mailtest-$UID
+
+	mkdir -p "$d" 2> /dev/null
+	chmod 700 "$d" 2> /dev/null
+	MS_TEST["acct"]=$acct
+	MS_TEST["file"]=$d/out
+	MS_TEST["live"]=1
+	: > "${MS_TEST["file"]}"
+	rm -f "${MS_TEST["file"]}.st"
+	(
+		"$HIBR" "$MS_LIB/mailtest.hibr" "$acct" > "${MS_TEST["file"]}" 2>&1
+		printf '%s\n' "$?" > "${MS_TEST["file"]}.st"
+	) &
+	dt_want 200
+	return 0
+}
+
+# Probe this dialog's host for the ports that mean something, and take the
+# pairing that answers (Gitea #189). Typed settings rather than saved ones,
+# because this is where they are being typed -- and the host alone is
+# enough to ask, so it works before anything has been saved at all. A job,
+# like the Test: probing several ports on a server that may be wedged is
+# exactly the wait a frame must not take.
+declare -gA MS_DET
+MS_DET["win"]=
+MS_DET["file"]=
+fn ms_detect(int id) {
+	local host=${MLAD[$id]["host"]} d=${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/hibr-mailtest-$UID
+	local shost=${MLAD[$id]["shost"]}
+
+	# No host typed: the address's own domain is the only other thing
+	# that could be meant, and it is what a provider's settings are
+	# looked up by anyway.
+	[ -n "$host" ] || host=${MLAD[$id]["email"]#*@}
+	[ -n "$shost" ] || shost=$host
+	if [ -z "$host" ]; then
+		MLAD[$id]["dnote"]="type a server or an address first"
+		return 0
+	fi
+	mkdir -p "$d" 2> /dev/null
+	chmod 700 "$d" 2> /dev/null
+	MS_DET["win"]=$id
+	MS_DET["file"]=$d/detect
+	MLAD[$id]["dnote"]="asking $host${GL[ellipsis]}"
+	: > "${MS_DET["file"]}"
+	rm -f "${MS_DET["file"]}.st"
+	(
+		"$HIBR" "$MS_LIB/mailtest.hibr" --detect "$host" "${MLAD[$id]["kind"]}" "$shost" \
+			> "${MS_DET["file"]}" 2>&1
+		printf '%s\n' "$?" > "${MS_DET["file"]}.st"
+	) &
+	dt_want 200
+	return 0
+}
+
+# Read what the probe has said and put it in the fields. Called as the
+# dialog draws, so the answer lands whenever it arrives without the dialog
+# waiting for it.
+fn ms_detread(int id) {
+	local f=${MS_DET["file"]} line warn=
+	local -a part
+
+	[ "${MS_DET["win"]}" = "$id" ] || return 0
+	[ -n "$f" ] && [ -s "$f.st" ] || { [ -n "$f" ] && dt_want 300; return 0; }
+	MS_DET["win"]=
+	while IFS= read -r line; do
+		read -ra part <<< "$line"
+		[ "${#part[@]}" -ge 3 ] || continue
+		case "${part[0]} ${part[1]}" in
+		"in pick")
+			[ "${part[2]}" = none ] && continue
+			MLAD[$id]["port"]=${part[2]}
+			MLAD[$id]["sec"]=${part[3]}
+			;;
+		"out pick")
+			[ "${part[2]}" = none ] && continue
+			MLAD[$id]["sport"]=${part[2]}
+			MLAD[$id]["ssec"]=${part[3]}
+			;;
+		*" note") warn="${warn:+$warn; }${line#* note warn }" ;;
+		esac
+	done < "$f"
+	if [ -n "${MLAD[$id]["port"]}" ]; then
+		MLAD[$id]["dnote"]="found ${MLAD[$id]["port"]}/${MLAD[$id]["sec"]} and ${MLAD[$id]["sport"]:-?}/${MLAD[$id]["ssec"]}${warn:+ -- $warn}"
+	else
+		MLAD[$id]["dnote"]="nothing answered on the usual ports${warn:+ -- $warn}"
+	fi
+	dt_want 50
+	return 0
+}
+
+# The mark for a step, in the theme's own roles rather than a colour.
+fn ms_mark(how) {
+	case $how in
+	ok) ret "${GL[tick]:-+}" ;;
+	fail) ret "${GL[cross]:-x}" ;;
+	*) ret "${GL[dot]:-.}" ;;
+	esac
+}
 
 fn cp_set_mailmax(int? id = "", value = "") { DT_MAILMAX=$value; cp_save; }
 fn cp_set_mailbodies(int? id = "", value = "") {
@@ -60,6 +181,7 @@ fn mailset_rows(int w) {
 	fi
 	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Add Account${GL[ellipsis]}"
 	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=add; n=$((n + 1))
+	n := ms_testrows "$w" "$n"
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Offline"; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Keep Messages"
 	CP[$w][$n]["val"]="${DT_MAILMAX:-1000}"; CP[$w][$n]["key"]=max; n=$((n + 1))
@@ -76,10 +198,82 @@ fn mailset_rows(int w) {
 	ret "$n"
 }
 
+# The Test's own rows: the button, and a rung per line the job has written
+# so far. Read from the file every time the pane draws, which costs a read
+# of a few hundred bytes and means the ladder fills in as it answers --
+# accessibility and authentication are different questions, and watching
+# which rung stops is the whole point of asking them separately.
+fn ms_testrows(int w, int n) {
+	local f=${MS_TEST["file"]} line d st how what seen=
+	local -a part
+
+	if [ -z "${MS_TEST["acct"]}" ]; then
+		CP[$w][$n]["kind"]=action
+		CP[$w][$n]["text"]="Test Connection${GL[ellipsis]}"
+		CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=test
+		ret $((n + 1))
+		return 0
+	fi
+	CP[$w][$n]["kind"]=head
+	CP[$w][$n]["text"]="Test: ${MS_TEST["acct"]}"
+	n=$((n + 1))
+	if [ -n "$f" ] && [ -r "$f" ]; then
+		while IFS= read -r line; do
+			read -ra part <<< "$line"
+			[ "${#part[@]}" -ge 3 ] || continue
+			d=${part[0]}
+			st=${part[1]}
+			how := ms_mark "${part[2]}"
+			what=${line#"$d $st ${part[2]} "}
+			case $d in
+			in) d=incoming ;;
+			out) d=outgoing ;;
+			esac
+			CP[$w][$n]["kind"]=info
+			CP[$w][$n]["text"]="  $how $d $st"
+			CP[$w][$n]["val"]=$what
+			n=$((n + 1))
+			seen=1
+		done < "$f"
+	fi
+	if [ "${MS_TEST["live"]}" = 1 ]; then
+		if [ -s "$f.st" ]; then
+			MS_TEST["live"]=
+		else
+			[ -n "$seen" ] || {
+				CP[$w][$n]["kind"]=info
+				CP[$w][$n]["text"]="  asking${GL[ellipsis]}"
+				CP[$w][$n]["val"]=""
+				n=$((n + 1))
+			}
+			# Only while one is running: a finished ladder asks for
+			# no more frames, which is what dt_want's one-frame
+			# contract wants of anything that calls it.
+			dt_want 300
+		fi
+	fi
+	CP[$w][$n]["kind"]=action
+	CP[$w][$n]["text"]="Test Again${GL[ellipsis]}"
+	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=test
+	n=$((n + 1))
+	ret "$n"
+}
+
 fn mailset_do(int? w = "", k = "", int? dir = "") {
-	local v cur
+	local v cur r a
 
 	case $k in
+	test)
+		a=${MS_TEST["acct"]}
+		if [ -z "$a" ] && r := email accounts 2> /dev/null; then
+			for a in "${!r[@]}"; do break; done
+		fi
+		if [ -n "$a" ]; then
+			ms_test "$a"
+		else
+			dt_note "there is no account to test yet"
+		fi
+		;;
 	acct:*) mlad_show "${k#acct:}" ;;
 	add) mlad_show ;;
 	max) v := cp_next "${DT_MAILMAX:-1000}" "$dir" "${MS_KEEPS[@]}"; DT_MAILMAX=$v ;;
@@ -230,10 +424,17 @@ fn mlad_draw(int id, int h, int w, int row, int col) {
 		fi
 		console put -p "w$id" "$r" 2 "${t:0:$k}"
 	fi
+	ms_detread "$id"
 	if [ -n "${MLAD[$id]["orig"]}" ]; then
-		dt_dlgbtns "$id" "$h" "$w" "$f" ok Save del Remove cancel Cancel
+		dt_dlgbtns "$id" "$h" "$w" "$f" ok Save del Remove cancel Cancel detect Detect
 	else
-		dt_dlgbtns "$id" "$h" "$w" "$f" ok Save cancel Cancel
+		dt_dlgbtns "$id" "$h" "$w" "$f" ok Save cancel Cancel detect Detect
+	fi
+	# What the last detect said, under the buttons: what it picked, and
+	# the warnings, which are the part a person needs before trusting it.
+	if [ -n "${MLAD[$id]["dnote"]}" ]; then
+		console pen "$DT_WARN" "$DT_FACE"
+		dt_tput "$id" $((h - 1)) 1 "${MLAD[$id]["dnote"]:0:$((w - 2))}"
 	fi
 }
 
@@ -246,7 +447,7 @@ fn mlad_key(int id, key) {
 	elif [ -n "${MLAD[$id]["orig"]}" ]; then
 		order=("${MLAD_ORDER[@]}")
 	else
-		order=(name email alias user full pass kind host port sec shost sport ssec ok cancel)
+		order=(name email alias user full pass kind host port sec shost sport ssec ok cancel detect)
 	fi
 	case $f in name | email | alias | user | full | pass | host | port | shost | sport) onb=0 ;; esac
 	if d := dt_focuskey "$key" "$onb"; then
@@ -304,6 +505,7 @@ fn mlad_do(int id, what) {
 		*) MLAD[$id]["$what"]=tls ;;
 		esac
 		;;
+	detect) ms_detect "$id" ;;
 	cancel) dt_del "$id" ;;
 	del)
 		MLAD_RM=$id

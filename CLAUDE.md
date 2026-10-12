@@ -3490,6 +3490,18 @@ went in the shell.
   tab is `idle` beside being dirty, which is the check's own test: without
   that, a run where the event had not landed inside the render would pass
   for no reason.
+- **An `opt` flag is the string `0` when it was not given, and `0` is not
+  empty** (Gitea #189, 0.99.152). `lib/mailtest.hibr` gated its detect mode
+  on `[ -n "${detect-}" ]`, which is true for `0` as much as for `1`, so
+  **every** run took the detect path and the ladder could not be reached at
+  all. Compare a flag against 1. This is the `DT_FORCEDRAW` trap above in
+  another costume -- that variable's default is also the string `0`, and the
+  gate written as `[ -z "$DT_FORCEDRAW" ]` never fired for any desktop --
+  and the same mistake has a third form worth knowing: `${flag:+something}`
+  expands for `0` too, which is how the same script's TLS probe ran with
+  verification **off** while reporting that an untrusted certificate was
+  good. A check may be wrong in several directions; that is not one of them.
+  Empty means off, and nothing else does.
 - **A stand-in that answers 200 to anything cannot fail, and a check written
   against it is a check of nothing** (Gitea #185, 0.99.151). `tests/bwserve.py`
   opens by saying a stand-in "written from the same memory as the client would

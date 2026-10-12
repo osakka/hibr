@@ -244,4 +244,163 @@ try:
 finally:
     pass
 
-report(27)
+# A port and a security setting that cannot work together, refused where
+# they are written rather than four errors later when nothing connects
+# (Gitea #187). 993, 995 and 465 are TLS from the first byte; 143, 110,
+# 587 and 25 begin in plain and are upgraded. The account this came from
+# said `-p 993 -S starttls`, which is the one pairing where each end waits
+# for the other for ever.
+out, err = hb("email account set bad -h h.example.com -e p@example.com -w x"
+              " -p 993 -S starttls; echo st $?")
+check("TLS-from-the-first-byte port with starttls is refused, and says what to use",
+      "st 1" in out and "993 is TLS from the first byte" in err and "-S tls" in err,
+      out + err)
+out, err = hb("email account set bad2 -h h.example.com -e p@example.com -w x"
+              " -p 143 -S tls; echo st $?")
+check("and a plain port with tls, the same way round",
+      "st 1" in out and "143 begins in plain" in err and "-S starttls" in err, out + err)
+out, err = hb("email account set smtpbad -h h.example.com -e p@example.com -w x"
+              " -o s.example.com -q 465 -T starttls; echo st $?")
+check("the outgoing server is judged too, and named as such",
+      "st 1" in out and "SMTP port 465" in err, out + err)
+# A port nobody standardised is nobody's business: a server doing something
+# unusual there is not a mistake this can know about.
+out, err = hb("email account set odd -h h.example.com -e p@example.com -w x"
+              " -p 9930 -S starttls; echo st $?; email accounts")
+check("an unusual port is left alone", "st 0" in out and "9930" in out, out + err)
+# And a refused pairing must not leave half an account behind.
+out, err = hb("email accounts")
+check("an account refused for its pairing was not created",
+      "bad" not in out and "smtpbad" not in out, out)
+
+# One failed connection, one message. Everything after the first failure on
+# a broken connection fails too -- the read, the greeting that has nothing
+# to read, the write that follows -- and each used to say so, burying the
+# one line that named the cause under three that were its consequences
+# (Gitea #187). A listener that accepts and closes is a broken connection
+# with no TLS and no server needed to arrange it.
+import socket as _sk
+_rude = _sk.socket()
+_rude.setsockopt(_sk.SOL_SOCKET, _sk.SO_REUSEADDR, 1)
+_rude.bind(("127.0.0.1", 0))
+_rude.listen(4)
+
+
+def _rudeloop():
+    while True:
+        try:
+            c, _ = _rude.accept()
+        except OSError:
+            return
+        c.close()
+
+
+threading.Thread(target=_rudeloop, daemon=True).start()
+out, err = hb("email account set rude -h 127.0.0.1 -p %d -S plain -e p@example.com"
+              " -w x; email open rude; echo st $?" % _rude.getsockname()[1])
+check("a connection that breaks says so once, not once per consequence",
+      "st 1" in out and len([l for l in err.splitlines() if "email:" in l]) == 1,
+      [l for l in err.splitlines() if "email:" in l])
+
+# "Can it be reached, and will it take this password" -- for each direction,
+# which is what a person wants to know when mail does not work (Gitea #188).
+# The real login both times: nothing is sent and no mailbox changes, which
+# is why the count of what the stand-in received is taken first.
+SENTN = len(box.sent)
+out, err = hb("email account set chk -h 127.0.0.1 -p %d -S plain -u pat -w 'right horse'"
+              " -e pat@example.com -o 127.0.0.1 -q %d -T plain;"
+              " email check chk; echo in $?; email check chk -o; echo out $?" % (p, smp))
+check("check logs in to both servers and sends nothing",
+      "in 0" in out and "out 0" in out, out + err)
+out, err = hb("email account set chkbad -h 127.0.0.1 -p %d -S plain -u pat -w WRONG"
+              " -e pat@example.com -o 127.0.0.1 -q %d -T plain;"
+              " email check chkbad; echo in $?; email check chkbad -o; echo out $?" % (p, smp))
+check("and a wrong password fails each in the server's own words",
+      "in 1" in out and "out 1" in out and "AUTHENTICATIONFAILED" in err
+      and "535" in err, out + err)
+# The outgoing check stops at being logged in: a mailbox that gained a
+# message would mean it had gone further than it says.
+check("the outgoing check delivered nothing", len(box.sent) == SENTN, len(box.sent))
+
+# lib/mailtest.hibr, the ladder the Mail Control Panel's Test draws: a line
+# per step for each direction, so "it does not work" becomes which rung it
+# stopped on (Gitea #188). Run here rather than in a desktop suite because
+# it needs a server and no desktop at all -- it is a script somebody can
+# run in a terminal too.
+def ladder(acct):
+    r = subprocess.run([sx.HIBR, tree("examples/desktop/lib/mailtest.hibr"), acct],
+                       env=dict(os.environ, HIBR_MAIL_CONF=CONF, HIBR_MODPATH=MODS,
+                                HIBR_MAIL_TIMEOUT="5"),
+                       capture_output=True, text=True, timeout=90, cwd=D)
+    return dict((" ".join(l.split()[:2]), l.split()[2]) for l in r.stdout.splitlines()
+                if len(l.split()) >= 3), r.stdout
+
+
+hb("email account set lad -h 127.0.0.1 -p %d -S plain -u pat -w 'right horse'"
+   " -e pat@example.com -o 127.0.0.1 -q %d -T plain" % (p, smp))
+st, raw = ladder("lad")
+check("the ladder walks name, port, tls, greeting and login, each direction",
+      [st.get("in " + k) for k in ("name", "port", "tls", "greet", "auth")] ==
+      ["ok", "ok", "skip", "ok", "ok"] and st.get("out auth") == "ok", raw)
+hb("email account set ladbad -h 127.0.0.1 -p %d -S plain -u pat -w WRONG"
+   " -e pat@example.com -o 127.0.0.1 -q %d -T plain" % (p, smp))
+st, raw = ladder("ladbad")
+check("a wrong password stops at the login, with everything under it passed",
+      st.get("in port") == "ok" and st.get("in greet") == "ok"
+      and st.get("in auth") == "fail", raw)
+# Nothing listening: the rungs above must say why they were skipped rather
+# than reporting failures of their own, which is the cascade #187 is about
+# wearing a different hat.
+hb("email account set laddead -h 127.0.0.1 -p 9 -S plain -u pat -w x -e pat@example.com")
+st, raw = ladder("laddead")
+check("and a port with nothing on it fails once, the rest saying they were skipped",
+      st.get("in name") == "ok" and st.get("in port") == "fail"
+      and st.get("in tls") == "skip" and st.get("in auth") == "skip", raw)
+
+# Detect: probe the candidates and take the pairing that answers, the
+# encrypted one first (Gitea #189). The usual ports are privileged, so the
+# candidates are named here -- which is the same option a server on an
+# unusual port needs.
+def detect(host, *args):
+    r = subprocess.run([sx.HIBR, tree("examples/desktop/lib/mailtest.hibr"),
+                        "--detect", host] + list(args),
+                       env=dict(os.environ, HIBR_MAIL_CONF=CONF, HIBR_MODPATH=MODS,
+                                HIBR_MAIL_TIMEOUT="5"),
+                       capture_output=True, text=True, timeout=120, cwd=D)
+    # "none" carries its reason on the same line, so a pick is its first
+    # word when that word is none and the port/security pair otherwise --
+    # reading two words either way turned "none" into "none nothing".
+    picks = {}
+    for l in r.stdout.splitlines():
+        f = l.split()
+        if f[1:2] == ["pick"]:
+            picks[f[0]] = f[2] if f[2:3] == ["none"] else " ".join(f[2:4])
+    return picks, r.stdout
+
+
+pk, raw = detect("127.0.0.1", "imap", "127.0.0.1",
+                 "-i", "%d/starttls" % sp, "-i", "%d/plain" % p,
+                 "-o", "%d/plain" % smp)
+check("detect takes the port that answers, and says so for each candidate",
+      pk.get("in") == "%d starttls" % sp and pk.get("out") == "%d plain" % smp, raw)
+# The order is the policy: an encrypted candidate that answers wins over a
+# plain one that also answers, rather than whichever replied first.
+pk, raw = detect("127.0.0.1", "imap", "127.0.0.1",
+                 "-i", "%d/plain" % p, "-i", "%d/starttls" % sp,
+                 "-o", "%d/plain" % smp)
+check("and prefers the encrypted one when both answer, whatever the order asked",
+      pk.get("in") == "%d starttls" % sp, raw)
+# A greeting is not an offer: a port that greets and never advertises
+# STARTTLS must not be written down as starttls, which is the very pairing
+# #187 refuses.
+pk, raw = detect("127.0.0.1", "imap", "127.0.0.1",
+                 "-i", "%d/starttls" % p, "-o", "%d/plain" % smp)
+check("a port that greets but never offers STARTTLS is not picked as starttls",
+      pk.get("in") == "none", raw)
+# And a plain pick says what it costs, where the password is concerned.
+pk, raw = detect("127.0.0.1", "imap", "127.0.0.1",
+                 "-i", "%d/plain" % p, "-o", "%d/plain" % smp)
+check("a plain pick warns that nothing on it is encrypted",
+      pk.get("in") == "%d plain" % p and "can be read on the way" in raw, raw)
+
+report(43)

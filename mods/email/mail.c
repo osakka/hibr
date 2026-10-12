@@ -18,7 +18,8 @@ int po_list(sh *s, ml_conn *c);
 int po_retr(ml_conn *c, const char *num, str *o);
 int po_dele(ml_conn *c, const char *num);
 void po_close(ml_conn *c);
-int sm_send(sh *s, ml_acct *a, const char *raw, size_t n, int ac, char **rcpt);
+int sm_send(sh *s, ml_acct *a, const char *raw, size_t n, int ac, char **rcpt,
+	    int check);
 void sm_addrs(const char *h, vec *out);
 
 /* An open session: IMAP or POP3, and the account it is for. */
@@ -1281,6 +1282,39 @@ int m_mail(sh *s, int ac, char **av)
 		return ml_partcmd(av[2], av[3], av[4]);
 	if (!strcmp(sub, "build") && ac >= 3)
 		return ml_build(s, ac, av);
+	/* Is this account's server reachable and will it take this password:
+	   the two questions a person actually has when mail does not work,
+	   asked of the incoming server or, with -o, the outgoing one. It is
+	   the real login both times -- im_open and the same SMTP
+	   conversation sending uses, stopped once authenticated -- because
+	   a check that proves something other than what sending does is
+	   worth nothing (Gitea #188). Nothing is sent and no mailbox is
+	   changed. */
+	if (!strcmp(sub, "check") && ac >= 3) {
+		ml_acct *a = ml_acctget(s, av[2]);
+		int out = ac > 3 && !strcmp(av[3], "-o");
+
+		if (!a)
+			return HIBR_FAIL;
+		if (out)
+			return sm_send(s, a, "", 0, 0, 0, 1);
+		if (a->kind == ML_POP) {
+			ml_conn *c = po_open(s, a);
+
+			if (!c)
+				return HIBR_FAIL;
+			po_close(c);
+			return HIBR_OK;
+		}
+		{
+			ml_imap *m = im_open(s, a);
+
+			if (!m)
+				return HIBR_FAIL;
+			im_close(m);
+			return HIBR_OK;
+		}
+	}
 	if (!strcmp(sub, "send") && ac >= 4) {
 		ml_acct *a = ml_acctget(s, av[2]);
 		str raw;
@@ -1293,7 +1327,7 @@ int m_mail(sh *s, int ac, char **av)
 			s_free(&raw);
 			return HIBR_FAIL;
 		}
-		rc = sm_send(s, a, raw.p, raw.n, ac - 4, av + 4);
+		rc = sm_send(s, a, raw.p, raw.n, ac - 4, av + 4, 0);
 		s_free(&raw);
 		return rc;
 	}
@@ -1378,6 +1412,7 @@ int m_mail(sh *s, int ac, char **av)
 		      "folders h | select h folder [-r] | headers|flags h uids | uids h | "
 		      "fetch h uid file | store|label h uids +x -y | move|copy h uids folder | "
 		      "expunge h | append h folder file [flags] | idle h [secs] | list h | "
+		      "check ACCOUNT [-o] | "
 		      "delete h n | send ACCOUNT file [rcpt...] | parse file | part file i out | "
 		      "build out -f from ... | hdec text | clip bytes text");
 	return 2;

@@ -251,7 +251,7 @@ int ml_wall(ml_conn *c, const char *p, size_t n)
 		if (w < 0 && errno == EINTR)
 			continue;
 		if (w <= 0) {
-			lg(HIBR_LERR, "email: %s: the connection broke while writing", c->host);
+			ml_broke(c, "the connection broke while writing");
 			return HIBR_FAIL;
 		}
 		p += w;
@@ -306,14 +306,30 @@ int ml_line(ml_conn *c, str *o)
 		s_add(o, c->rb.p + c->rp, c->rb.n - c->rp);
 		c->rp = c->rb.n;
 		if (o->n > 1024 * 1024) {
-			lg(HIBR_LERR, "email: %s sent a line too long to be a reply", c->host);
+			ml_broke(c, "sent a line too long to be a reply");
 			return HIBR_FAIL;
 		}
 		if (ml_fill(c) <= 0) {
-			lg(HIBR_LERR, "email: %s closed the connection or timed out", c->host);
+			ml_broke(c, "closed the connection or timed out");
 			return HIBR_FAIL;
 		}
 	}
+}
+
+/* A connection's first failure, and only its first. Once it is broken
+   every later read and write fails too, and saying so each time buried
+   the one message that named the cause under three that were its
+   consequences (Gitea #187). The rest go to the debug log, where
+   somebody chasing an odd case can still see the order they happened in. */
+void ml_broke(ml_conn *c, const char *what)
+{
+	if (c->dead) {
+		lg(HIBR_LDBG, "email: %s: %s, on a connection already broken",
+		   c->host, what);
+		return;
+	}
+	c->dead = 1;
+	lg(HIBR_LERR, "email: %s %s", c->host, what);
 }
 
 /* Exactly n bytes, appended. */
@@ -323,7 +339,7 @@ int ml_bytes(ml_conn *c, size_t n, str *o)
 
 	while (n) {
 		if (c->rp == c->rb.n && ml_fill(c) <= 0) {
-			lg(HIBR_LERR, "email: %s closed the connection mid-message", c->host);
+			ml_broke(c, "closed the connection mid-message");
 			return HIBR_FAIL;
 		}
 		k = c->rb.n - c->rp;

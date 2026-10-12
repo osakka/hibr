@@ -525,6 +525,17 @@ def dropkeys(pane):
     return keys
 
 
+# The Mail pane offers its Test, which is the row a person reaches for when
+# mail does not work: it runs lib/mailtest.hibr as a job and draws a rung
+# per step for the incoming server and the outgoing one, so "it does not
+# work" becomes which of name, port, TLS, greeting or login stopped it
+# (Gitea #188). Only its presence is asserted here -- what the ladder
+# actually says is tests/mail.py's, where there are servers to say it
+# about.
+check("the Mail pane offers a connection test",
+      any(k == "test" and kind == "action"
+          for kind, text, k, val in panefull("mailset")), panefull("mailset"))
+
 # Language is not in this loop: choosing another language translates every
 # label the generic check then reads back, including the row's own name.
 # tests/desktop.py drives the bundled Arabic catalogue instead.
@@ -4060,4 +4071,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(586)
+report(587)

@@ -95,6 +95,31 @@ and nothing else in the module does either.
 There is no OAuth. Google accepts an app password for IMAP and SMTP when
 the account has two-step verification; that is what the Mail app asks for.
 
+## Does it work
+
+`email check NAME` logs in to the incoming server and `email check NAME -o`
+to the outgoing one, and that is all they do: nothing is sent, nothing is
+fetched and no mailbox changes. Each is the **real** login -- the same
+`im_open`, and the same SMTP conversation `email send` has, stopped once
+authenticated -- because a check that proves something near what sending
+does is worth nothing when the two drift apart.
+
+A port and a security setting that cannot work together are refused where
+they are written rather than at the first connection: 993, 995 and 465 are
+TLS from the first byte and 143, 110, 587 and 25 begin in plain, so
+`-p 993 -S starttls` is the one pairing where each end waits for the other
+for ever. A port nobody standardised is nobody's business and is left
+alone.
+
+And a connection that breaks says so **once**. Everything after the first
+failure fails too -- the read, the greeting with nothing to read, the write
+after it -- and each saying so buried the one line that named the cause
+under three that were its consequences. The rest go to the debug log.
+
+`examples/desktop/lib/mailtest.hibr` is the ladder built on these: a line
+per step (name, port, TLS, greeting, login) for each direction, and with
+`--detect` a probe of the candidate ports that says which pairing answers.
+
 ## IMAP
 
 LOGIN or SASL-IR PLAIN, after STARTTLS when asked; `LIST` with RFC 6154's

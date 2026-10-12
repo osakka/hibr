@@ -33,6 +33,11 @@ struct ml_acct {
    with what has been read and not yet used. */
 typedef struct ml_conn ml_conn;
 struct ml_conn {
+	/* Set by the first read or write that fails. Everything after it on
+	   a broken connection fails too, and each failure used to have its
+	   own message: four lines for one cause, only the first of which
+	   named it (Gitea #187). */
+	int dead;
 	int fd, tls, noverify, tmo;
 	pid_t relay, owner;
 	char *host;
@@ -90,11 +95,13 @@ int ml_wall(ml_conn *c, const char *p, size_t n);
 int ml_line(ml_conn *c, str *o);
 int ml_bytes(ml_conn *c, size_t n, str *o);
 int ml_ready(ml_conn *c, int ms);
+void ml_broke(ml_conn *c, const char *what);
 
 int ml_conf(sh *s);
 ml_acct *ml_acctget(sh *s, const char *name);
 int ml_acctset(sh *s, int ac, char **av);
 int ml_acctrm(sh *s, const char *name);
+int ml_pairbad(const char *name, const char *which, const char *port, int sec);
 int ml_acctmv(sh *s, const char *old, const char *nw);
 int ml_accts(sh *s);
 void ml_conffree(void);

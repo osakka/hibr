@@ -260,6 +260,7 @@ Delete…
 Deleting…
 Desktop
 Detach
+Detect
 Dhu al-Hijjah
 Dhu al-Qa'dah
 Dhuhr
@@ -880,5 +881,6 @@ says #REFUSED, one that loops says #TIME. Trust This Sheet
 server to keep its vault here, readable offline.
 sets a place, or the time zone gives one.
 text
+there is no account to test yet
 yes, %s displays attached
 yes, 1 display attached

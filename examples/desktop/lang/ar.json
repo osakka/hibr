@@ -266,6 +266,7 @@
   "Deleting…": "يجري الحذف…",
   "Desktop": "سطح المكتب",
   "Detach": "فصل",
+  "Detect": "اكتشاف",
   "Dhu al-Hijjah": "ذو الحجة",
   "Dhu al-Qa'dah": "ذو القعدة",
   "Dhuhr": "الظهر",
@@ -298,7 +299,14 @@
   "Email": "البريد الإلكتروني",
   "Empty Trash…": "إفراغ المهملات…",
   "Empty the Trash? The %d items in it are deleted for good.": "إفراغ المهملات؟ ستُحذف عناصرها الـ %d نهائيًا.",
-  "Empty the Trash? The one item in it is deleted for good.": {"few": "إفراغ المهملات؟ ستُحذف العناصر الـ %d فيها نهائيًا.", "many": "إفراغ المهملات؟ سيُحذف الـ %d عنصرًا فيها نهائيًا.", "one": "إفراغ المهملات؟ سيُحذف العنصر الوحيد فيها نهائيًا.", "other": "إفراغ المهملات؟ سيُحذف الـ %d عنصر فيها نهائيًا.", "two": "إفراغ المهملات؟ سيُحذف العنصران فيها نهائيًا.", "zero": "المهملات فارغة."},
+  "Empty the Trash? The one item in it is deleted for good.": {
+   "few": "إفراغ المهملات؟ ستُحذف العناصر الـ %d فيها نهائيًا.",
+   "many": "إفراغ المهملات؟ سيُحذف الـ %d عنصرًا فيها نهائيًا.",
+   "one": "إفراغ المهملات؟ سيُحذف العنصر الوحيد فيها نهائيًا.",
+   "other": "إفراغ المهملات؟ سيُحذف الـ %d عنصر فيها نهائيًا.",
+   "two": "إفراغ المهملات؟ سيُحذف العنصران فيها نهائيًا.",
+   "zero": "المهملات فارغة."
+  },
   "End Task": "إنهاء المهمة",
   "End Task (force)": "إنهاء المهمة (قسرًا)",
   "Evaluate": "تقييم",
@@ -741,7 +749,14 @@
   "The PIN is cleared": "تم حذف الرمز السري",
   "The PIN is set": "تم تعيين الرمز السري",
   "The Trash is empty: %d items deleted": "المهملات فارغة: حُذف %d عنصرًا",
-  "The Trash is empty: 1 item deleted": {"few": "المهملات فارغة: حُذفت %d عناصر", "many": "المهملات فارغة: حُذف %d عنصرًا", "one": "المهملات فارغة: حُذف عنصر واحد", "other": "المهملات فارغة: حُذف %d عنصر", "two": "المهملات فارغة: حُذف عنصران", "zero": "المهملات فارغة: لم يُحذف شيء"},
+  "The Trash is empty: 1 item deleted": {
+   "few": "المهملات فارغة: حُذفت %d عناصر",
+   "many": "المهملات فارغة: حُذف %d عنصرًا",
+   "one": "المهملات فارغة: حُذف عنصر واحد",
+   "other": "المهملات فارغة: حُذف %d عنصر",
+   "two": "المهملات فارغة: حُذف عنصران",
+   "zero": "المهملات فارغة: لم يُحذف شيء"
+  },
   "The YouTube history is empty": "سجل YouTube فارغ",
   "The colours are good, warn, bad, info and dim": "الألوان هي good وwarn وbad وinfo وdim",
   "The date is YYYY-MM-DD": "التاريخ بصيغة YYYY-MM-DD",
@@ -886,6 +901,7 @@
   "server to keep its vault here, readable offline.": "Vaultwarden لحفظ خزنته هنا، ولقراءته دون اتصال.",
   "sets a place, or the time zone gives one.": "تحدّد مكانًا، أو تأتي به المنطقة الزمنية.",
   "text": "نص",
+  "there is no account to test yet": "لا يوجد حساب لاختباره بعد",
   "yes, %s displays attached": "نعم، %s شاشات متصلة",
   "yes, 1 display attached": "نعم، شاشة واحدة متصلة"
  }

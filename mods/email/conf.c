@@ -367,7 +367,53 @@ int ml_acctset(sh *s, int ac, char **av)
 		}
 		return HIBR_FAIL;
 	}
+	if (ml_pairbad(name, "", a->port, a->sec) != HIBR_OK ||
+	    ml_pairbad(name, "SMTP ", a->sport, a->ssec) != HIBR_OK) {
+		if (isnew) {
+			ml_accts_v.n--;
+			ml_acctfree(a);
+		}
+		return HIBR_FAIL;
+	}
 	return ml_confwrite(s);
+}
+
+/* Whether a port and a security setting can work together at all. The
+   standard ports are not a convention here, they are what the port *is*:
+   993, 995 and 465 are TLS from the first byte, and 143, 110, 587 and 25
+   are plain until STARTTLS upgrades them. So `-p 993 -S starttls` is the
+   one pairing that can never connect -- the client waits for a greeting
+   the server will not send until it has had a handshake, and the server
+   waits for a handshake the client will not start. Caught here because
+   this is the moment it is written down: by the time anything connects,
+   the symptom is a timeout and four errors, and the cause is two fields
+   nobody looks at (Gitea #187). An unusual port is nobody's business but
+   the person's, so only the known ones are judged. */
+int ml_pairbad(const char *name, const char *which, const char *port, int sec)
+{
+	static const char *imp[] = { "993", "995", "465", 0 };
+	static const char *upg[] = { "143", "110", "587", "25", 0 };
+	int i;
+
+	for (i = 0; imp[i]; i++)
+		if (!strcmp(port, imp[i]) && sec != ML_TLS) {
+			lg(HIBR_LERR, "email: account %s: %sport %s is TLS from "
+				      "the first byte, so -S %s cannot connect "
+				      "there -- use -S tls, or a port that "
+				      "upgrades (143, 110, 587, 25)",
+			   name, which, port, ml_secname(sec));
+			return HIBR_FAIL;
+		}
+	for (i = 0; upg[i]; i++)
+		if (!strcmp(port, upg[i]) && sec == ML_TLS) {
+			lg(HIBR_LERR, "email: account %s: %sport %s begins in "
+				      "plain, so -S tls cannot connect there -- "
+				      "use -S starttls, or a port that is TLS "
+				      "throughout (993, 995, 465)",
+			   name, which, port);
+			return HIBR_FAIL;
+		}
+	return HIBR_OK;
 }
 
 /* mail account rm NAME: forget an account. */

@@ -1,0 +1,384 @@
+#!/usr/bin/env hibr
+#
+# mailtest -- what is wrong with a mail account, step by step (Gitea #188).
+#
+#     hibr lib/mailtest.hibr "Home Email"
+#
+# A line per step, for the incoming server and then the outgoing one:
+#
+#     in name ok 993
+#     in port ok open
+#     in tls fail certificate verify failed
+#     in greet skip the TLS connection did not open
+#     in auth skip the TLS connection did not open
+#
+# The fields are direction, step, ok|fail|skip, and what to say about it.
+# Written for the Mail Control Panel's Test, which runs this as a child and
+# draws a row per line as they arrive, and useful on its own when somebody
+# would rather read it in a terminal.
+#
+# Why a ladder rather than one yes or no: accessibility and authentication
+# are different questions, and the afternoon this came from had *two*
+# faults at once -- a port and a security setting that could not work
+# together, and a certificate nothing here trusted. One answer of "it does
+# not work" would have hidden both.
+
+strict
+
+opt .            "say step by step what a mail account's servers do"
+opt -t --timeout secs str "how long to wait for each step (default 6)"
+opt -d --detect  detect       "probe a host's standard ports instead, and say which pairing answers"
+opt -i --inport  inports str+ "a candidate PORT/SECURITY for the incoming server, instead of the usual ones (repeatable)"
+opt -o --outport outports str+ "the same for the outgoing server"
+args "$@"
+
+MT_TMO=${secs:-6}
+# A step's own line. Everything this prints is four fields, so a caller
+# reading it needs no parser.
+fn mt_say(dir, step, how, what = "") {
+	printf '%s %s %s %s\n' "$dir" "$step" "$how" "$what"
+}
+
+# Whether a greeting is the protocol's own. IMAP opens with an untagged OK
+# or PREAUTH, POP3 with +OK, SMTP with 220 -- and a server that says
+# nothing at all is the shape of a port that wanted a TLS handshake first,
+# which is worth saying in those words rather than as a timeout.
+fn mt_greeting(kind, line) {
+	case $kind in
+	imap) [[ $line == "* OK"* ]] || [[ $line == "* PREAUTH"* ]] ;;
+	pop) [[ $line == "+OK"* ]] ;;
+	smtp) [[ $line == "220"* ]] ;;
+	*) return 1 ;;
+	esac
+}
+
+# One direction: the TCP connection, the TLS handshake where the port is
+# TLS throughout, the greeting, and the login. Each step says why it was
+# skipped rather than going quiet, so a ladder that stops early still
+# explains itself.
+MT_LINE=
+fn mt_one(dir, acct, kind, host, port, sec, noverify = "") {
+	local fd err plain= line= why=
+	local -a o
+
+	if [ -z "$host" ]; then
+		mt_say "$dir" name fail "no server is set for this account"
+		return 0
+	fi
+	# A plain connection first, whatever the security: it answers the two
+	# questions underneath everything else -- does the name resolve and is
+	# anything listening -- and on a port that is TLS throughout it still
+	# connects, it simply will not greet.
+	err=$(exec {fd}<>"/dev/tcp/$host/$port" 2>&1 >&-) && plain=1
+	if [ -z "$plain" ]; then
+		case $err in
+		*"Name or service not known"* | *"Temporary failure in name resolution"*)
+			mt_say "$dir" name fail "$host does not resolve"
+			mt_say "$dir" port skip "there is no address to connect to"
+			;;
+		*)
+			mt_say "$dir" name ok "$host"
+			mt_say "$dir" port fail "${err#hibr: }"
+			;;
+		esac
+		mt_say "$dir" tls skip "nothing answered"
+		mt_say "$dir" greet skip "nothing answered"
+		mt_say "$dir" auth skip "nothing answered"
+		return 0
+	fi
+	mt_say "$dir" name ok "$host"
+	mt_say "$dir" port ok "$port open"
+	# What the port says in plain, which is how a security setting that
+	# does not match it is named rather than merely failing: a port that
+	# greets in plain wants STARTTLS, and one that says nothing is TLS
+	# from the first byte.
+	exec {fd}<>"/dev/tcp/$host/$port" 2> /dev/null && {
+		read -r -t "$MT_TMO" plain <&"$fd" 2> /dev/null || plain=
+		exec {fd}>&-
+	}
+	if [ "$sec" = tls ]; then
+		# In a child, with the variable as a prefix rather than an
+		# export: HIBR_TLS_INSECURE is read with getenv and anything
+		# *set* turns verification off, empty included, so a shell
+		# that declared it at file level -- which a strict file would
+		# have to, to assign it in a function -- would quietly stop
+		# verifying everything it does afterwards. A prefix on a
+		# child cannot leak that way, and a handshake that hangs
+		# hangs over there.
+		#
+		# The read matters as much: the handshake finishes on the
+		# first read, not on the open, so a connection that is about
+		# to fail verification still opens and reporting it then is
+		# how a broken certificate reads as working.
+		why=$(env ${noverify:+HIBR_TLS_INSECURE=1} "$HIBR" -c '
+			exec {fd}<>"/dev/tls/$1/$2" || exit 1
+			read -r -t "$3" line <&"$fd" || exit 1
+			printf "%s" "$line"' mailtest "$host" "$port" "$MT_TMO" 2>&1)
+		if [[ $why == *"certificate verify failed"* ]]; then
+			mt_say "$dir" tls fail "the certificate does not verify here -- its issuer is not trusted by this machine"
+			mt_say "$dir" greet skip "the TLS connection did not open"
+			mt_say "$dir" auth skip "the TLS connection did not open"
+			return 0
+		fi
+		if [[ $why == *"hibr: "* ]] || [ -z "$why" ]; then
+			if [ -n "$plain" ]; then
+				mt_say "$dir" tls fail "no TLS here, but the port greets in plain -- it wants starttls, not tls"
+			else
+				mt_say "$dir" tls fail "${why#hibr: }"
+			fi
+			mt_say "$dir" greet skip "the TLS connection did not open"
+			mt_say "$dir" auth skip "the TLS connection did not open"
+			return 0
+		fi
+		mt_say "$dir" tls ok "the handshake and the certificate are good"
+		line=$why
+	else
+		mt_say "$dir" tls skip "this port is $sec, so TLS is not expected here"
+		line=$plain
+	fi
+	if [ -z "$line" ]; then
+		mt_say "$dir" greet fail "nothing was said -- a port that stays silent in plain is TLS from the first byte, so this wants tls"
+		mt_say "$dir" auth skip "the server did not greet"
+		return 0
+	fi
+	if mt_greeting "$kind" "$line"; then
+		mt_say "$dir" greet ok "${line:0:60}"
+	else
+		mt_say "$dir" greet fail "it answered, but not as $kind: ${line:0:40}"
+		mt_say "$dir" auth skip "the server did not greet as $kind"
+		return 0
+	fi
+	# The real login, the module's own, so what this proves is what
+	# fetching or sending will do rather than something near it.
+	o=(check "$acct")
+	[ "$dir" = out ] && o+=(-o)
+	if why=$(email "${o[@]}" 2>&1); then
+		# A password that crossed an unencrypted connection was
+		# readable on the way, and the step saying "ok" is exactly
+		# where somebody would stop reading -- so it says both.
+		if [ "$sec" = plain ]; then
+			mt_say "$dir" auth ok "accepted -- but this port is not encrypted, so the password went in the clear"
+		else
+			mt_say "$dir" auth ok "the password was accepted"
+		fi
+	else
+		# Keep the server's own words, which is the whole value here.
+		# Taking the text after the last colon left "(reason
+		# unavailable)" out of "535 5.7.8 Error: authentication
+		# failed: (reason unavailable)" -- the least informative part
+		# of a message whose point is to be informative.
+		why=${why#hibr: }
+		why=${why#email: }
+		mt_say "$dir" auth fail "$why"
+	fi
+	return 0
+}
+
+# --- detect ---------------------------------------------------------------
+#
+# What a host actually answers on the ports that mean something, so a
+# pairing nobody can get wrong is found rather than typed. The order is
+# deliberate and is the whole policy: the encrypted port is tried first and
+# wins when both answer, because "the first to reply" would quietly settle
+# on 143 for a server that offers both (Gitea #189).
+
+# One candidate: does this host speak this protocol on this port under this
+# security. Prints a line either way, so what was rejected is as visible as
+# what was chosen -- a server doing something unusual should be seen, not
+# silently overridden.
+# Whether a server that has greeted will actually upgrade, which is the
+# half of "starttls" a greeting does not answer. IMAP says so in its
+# CAPABILITY, which it usually volunteers in the greeting and always gives
+# when asked; SMTP says so only in an EHLO reply. Without this, detect
+# would happily write starttls against a port that has never offered it --
+# which is the pairing #187 exists to refuse, arrived at from the other
+# direction.
+fn mt_upgrades(kind, host, port, line) {
+	local fd got=
+	local -a o
+
+	case $kind in
+	imap)
+		[[ ${line^^} == *STARTTLS* ]] && return 0
+		exec {fd}<>"/dev/tcp/$host/$port" 2> /dev/null || return 1
+		read -r -t "$MT_TMO" got <&"$fd" 2> /dev/null
+		printf 'a CAPABILITY\r\n' >&"$fd" 2> /dev/null
+		got=
+		while read -r -t "$MT_TMO" o <&"$fd" 2> /dev/null; do
+			got+=$o
+			[[ $o == a\ * ]] && break
+		done
+		exec {fd}>&-
+		[[ ${got^^} == *STARTTLS* ]]
+		;;
+	smtp)
+		exec {fd}<>"/dev/tcp/$host/$port" 2> /dev/null || return 1
+		read -r -t "$MT_TMO" got <&"$fd" 2> /dev/null
+		printf 'EHLO hibr\r\n' >&"$fd" 2> /dev/null
+		got=
+		while read -r -t "$MT_TMO" o <&"$fd" 2> /dev/null; do
+			got+=$o
+			[[ $o == 250\ * ]] && break
+		done
+		printf 'QUIT\r\n' >&"$fd" 2> /dev/null
+		exec {fd}>&-
+		[[ ${got^^} == *STARTTLS* ]]
+		;;
+	*) return 1 ;;
+	esac
+}
+
+# yes, cert or no, and the line says which. `cert` is its own answer
+# because it is not "nothing here": the port speaks TLS and this machine
+# does not trust what it presented, and calling that "no" made detect
+# choose the plain port -- whose STARTTLS upgrade meets the very same
+# certificate a moment later. A pick has to be something that can work.
+fn mt_try(dir, kind, host, port, sec) {
+	local fd line= why=
+
+	if [ "$sec" = tls ]; then
+		why=$("$HIBR" -c '
+			exec {fd}<>"/dev/tls/$1/$2" || exit 1
+			read -r -t "$3" line <&"$fd" || exit 1
+			printf "%s" "$line"' mailtest "$host" "$port" "$MT_TMO" 2>&1)
+		if [[ $why == *"certificate verify failed"* ]]; then
+			mt_say "$dir" "$port/$sec" cert "TLS is here, but its certificate is not trusted by this machine"
+			return 2
+		fi
+		case $why in *"hibr: "*) why= ;; esac
+		line=$why
+	else
+		exec {fd}<>"/dev/tcp/$host/$port" 2> /dev/null || {
+			mt_say "$dir" "$port/$sec" no "nothing is listening"
+			return 1
+		}
+		read -r -t "$MT_TMO" line <&"$fd" 2> /dev/null || line=
+		exec {fd}>&-
+	fi
+	if [ -z "$line" ]; then
+		mt_say "$dir" "$port/$sec" no "it opened and said nothing"
+		return 1
+	fi
+	if ! mt_greeting "$kind" "$line"; then
+		mt_say "$dir" "$port/$sec" no "it answered, but not as $kind"
+		return 1
+	fi
+	if [ "$sec" = starttls ] && ! mt_upgrades "$kind" "$host" "$port" "$line"; then
+		mt_say "$dir" "$port/$sec" no "it greets, but never offers STARTTLS"
+		return 1
+	fi
+	mt_say "$dir" "$port/$sec" yes "${line:0:50}"
+	return 0
+}
+
+# Every candidate for a direction, encrypted first; the first that answers
+# is the pick, and the rest are still reported.
+MT_PICK=
+fn mt_detect(dir, kind, host, ...cands) {
+	local c port sec
+	local -a f
+
+	MT_PICK=
+	[ -n "$host" ] || { mt_say "$dir" host fail "no host to probe"; return 1; }
+	local keep= rank=0 best=0
+	for c in "${cands[@]}"; do
+		read -ra f <<< "${c//\// }"
+		port=${f[0]}
+		sec=${f[1]}
+		# Ranked by what the pairing protects, not by where it came in
+		# the list: "the first that answers" quietly settles on the
+		# plain port whenever a server offers both, and the order the
+		# candidates arrive in is the caller's convenience rather than
+		# a preference (Gitea #189).
+		case $sec in
+		tls) rank=3 ;;
+		starttls) rank=2 ;;
+		*) rank=1 ;;
+		esac
+		mt_try "$dir" "$kind" "$host" "$port" "$sec"
+		case $? in
+		0) [ "$rank" -gt "$best" ] && { MT_PICK="$port $sec"; best=$rank; } ;;
+		2) [ -n "$keep" ] || keep="$port $sec" ;;
+		esac
+	done
+	# Something that works beats something that would work once its
+	# certificate is trusted, which in turn beats nothing: an untrusted
+	# certificate is a thing to fix, not a reason to settle for a port
+	# that will meet it too.
+	[ -z "$MT_PICK" ] && MT_PICK=$keep
+	if [ -n "$MT_PICK" ]; then
+		mt_say "$dir" pick "$MT_PICK"
+		# Two things a pick cannot prove on its own, and both change
+		# what a person should do next.
+		#
+		# A STARTTLS port is checked here only for *offering* the
+		# upgrade: whether the certificate it then presents verifies
+		# is not knowable without doing the upgrade, which only the
+		# module can do -- so where a TLS port on the same host was
+		# refused for its certificate, the same one is waiting here.
+		case $MT_PICK in
+		*starttls) [ -n "$keep" ] && mt_say "$dir" note warn \
+			"this upgrades to TLS with the same certificate that was refused above, so Test it before trusting it" ;;
+		*plain) mt_say "$dir" note warn \
+			"nothing here is encrypted: a password sent this way can be read on the way" ;;
+		esac
+		return 0
+	fi
+	mt_say "$dir" pick none "nothing answered on the usual ports"
+	return 1
+}
+
+need email || { mt_say x module fail "the email module is missing"; exit 1; }
+# Compared against 1, never tested for emptiness: an `opt` flag is the
+# string 0 when it was not given, and 0 is as non-empty as 1 is -- so
+# `[ -n "$detect" ]` was true for every run and the ladder could not be
+# reached at all.
+if [ "${detect:-0}" = 1 ]; then
+	[ "$#" -ge 1 ] || { echo "usage: mailtest.hibr --detect HOST [imap|pop] [SMTPHOST]" >&2; exit 2; }
+	MT_H=$1
+	MT_K=${2:-imap}
+	MT_SH=${3:-$MT_H}
+	# The usual ports unless some were named: a server on a port nobody
+	# standardised can still be found, and a test can point this at one
+	# it is allowed to bind.
+	if [ "${#inports[@]}" -gt 0 ]; then
+		mt_detect in "$MT_K" "$MT_H" "${inports[@]}"
+	else
+		case $MT_K in
+		pop) mt_detect in pop "$MT_H" 995/tls 110/starttls ;;
+		*) mt_detect in imap "$MT_H" 993/tls 143/starttls ;;
+		esac
+	fi
+	# 25/plain last and on purpose: it is what a server with no
+	# submission port leaves, and finding it is better than finding
+	# nothing -- said plainly, with what it costs, rather than chosen
+	# quietly.
+	if [ "${#outports[@]}" -gt 0 ]; then
+		mt_detect out smtp "$MT_SH" "${outports[@]}"
+	else
+		mt_detect out smtp "$MT_SH" 465/tls 587/starttls 25/starttls 25/plain
+	fi
+	exit 0
+fi
+[ "$#" -ge 1 ] || { echo "usage: mailtest.hibr ACCOUNT" >&2; exit 2; }
+MT_ACCT=$1
+declare -gA MT_A
+MT_A := email accounts 2> /dev/null || {
+	mt_say x account fail "no accounts are set up"
+	exit 1
+}
+[ -n "${MT_A["$MT_ACCT"]["host"]+x}" ] || {
+	mt_say x account fail "there is no account called $MT_ACCT"
+	exit 1
+}
+# Empty means "verify", because the probe passes this straight to
+# ${noverify:+HIBR_TLS_INSECURE=1} and the string 0 is as set as the string
+# 1 is -- which had the probe calling an untrusted certificate good, the
+# one direction a check must never be wrong in.
+MT_SKIP=
+[ "${MT_A["$MT_ACCT"]["verify"]}" = 0 ] && MT_SKIP=1
+mt_one in "$MT_ACCT" "${MT_A["$MT_ACCT"]["kind"]}" "${MT_A["$MT_ACCT"]["host"]}" \
+	"${MT_A["$MT_ACCT"]["port"]}" "${MT_A["$MT_ACCT"]["security"]}" "$MT_SKIP"
+mt_one out "$MT_ACCT" smtp "${MT_A["$MT_ACCT"]["smtphost"]}" \
+	"${MT_A["$MT_ACCT"]["smtpport"]}" "${MT_A["$MT_ACCT"]["smtpsecurity"]}" "$MT_SKIP"
+exit 0

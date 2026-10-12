@@ -101,7 +101,13 @@ void sm_addrs(const char *h, vec *out)
    or else to everyone in its To, Cc and Bcc; the Bcc header itself never
    sent. TLS from the start or by STARTTLS, logged in with AUTH PLAIN, or
    AUTH LOGIN where that is all the server offers. */
-int sm_send(sh *s, ml_acct *a, const char *raw, size_t n, int ac, char **rcpt)
+/* Send a message, or -- with check -- go as far as being logged in and
+   stop there. The two are the same conversation up to AUTH, so a check is
+   this function minus its last three commands rather than a second copy
+   of the protocol: a reimplementation in the pane would be the thing that
+   silently stops matching what sending really does (Gitea #188). */
+int sm_send(sh *s, ml_acct *a, const char *raw, size_t n, int ac, char **rcpt,
+	    int check)
 {
 	ml_conn *c = 0;
 	str text, cmd, b, from, body;
@@ -120,7 +126,9 @@ int sm_send(sh *s, ml_acct *a, const char *raw, size_t n, int ac, char **rcpt)
 	s_init(&b);
 	s_init(&from);
 	s_init(&body);
-	if (ac) {
+	if (check) {
+		;
+	} else if (ac) {
 		for (i = 0; i < ac; i++)
 			v_add(&to, xs(rcpt[i]));
 	} else {
@@ -141,7 +149,7 @@ int sm_send(sh *s, ml_acct *a, const char *raw, size_t n, int ac, char **rcpt)
 			free(f.p[k]);
 		v_free(&f);
 	}
-	if (!to.n) {
+	if (!check && !to.n) {
 		lg(HIBR_LERR, "email: the message has nobody to go to");
 		goto out;
 	}
@@ -209,6 +217,11 @@ int sm_send(sh *s, ml_acct *a, const char *raw, size_t n, int ac, char **rcpt)
 			   text.p);
 			goto close;
 		}
+	}
+	if (check) {
+		sm_cmd(c, "QUIT", &text);
+		rc = HIBR_OK;
+		goto close;
 	}
 	ml_clr(&cmd);
 	s_cat(&cmd, "MAIL FROM:<");
