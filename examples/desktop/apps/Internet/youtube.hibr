@@ -903,6 +903,16 @@ fn yt_drawplay(int id, int h, int w) {
 	# would not change when the key moved the setting from follow to half.
 	pm=$md
 	[ "$YT_MODE" = follow ] && pm="follow:$md"
+	# And when pixels were wanted and are not what is being drawn, why.
+	# `pixels` and `follow` both resolve through dt_imgpix -- can this
+	# display place a bitmap at all -- and when it cannot the player just
+	# drew blocks and said nothing, which reads as the player ignoring
+	# the setting rather than the terminal not offering one (Gitea #199).
+	[ "$md" != pixels ] && [ "$YT_MODE" = pixels -o "$YT_MODE" = follow ] &&
+		case $DT_IMGMODE in
+		half | ascii | mono) ;;
+		*) pm="$pm, no pixels here" ;;
+		esac
 	lab=" $a / $b  $st  vol ${i["volume"]}  ${pm}"
 	fill=0
 	[ "${dur%.*}" -gt 0 ] 2> /dev/null && fill=$(( ${pos%.*} * w / ${dur%.*} ))

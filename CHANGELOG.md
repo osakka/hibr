@@ -1,5 +1,59 @@
 # Changelog
 
+## 0.99.161
+
+**The player drew blocks and never said why** (Gitea #199).
+
+`YT_MODE=pixels` and `follow` both resolve through `dt_imgpix` -- can this
+display place a bitmap at all -- and when it cannot, the player quietly drew
+half blocks. The status bar said `follow:half`, which reads as the setting
+being ignored rather than as the terminal not offering one. It says
+`follow:half, no pixels here` now, and only where pixels were actually
+wanted: a person who chose `half` is not told their choice happened.
+
+### What the measurement said, which is why this is all that changed
+
+The report was "does not render except blocks even in pixel mode, and it
+blinks like mad", on a held session with a picture wallpaper. Both halves
+were driven here first.
+
+**Held and unheld are the same.** The same clip, the same session file, once
+under `Term` directly and once inside `hold new` with a client that reports
+what a cell measures -- the comparison the ticket asked for, built out of
+`tests/youtube.py`'s own session and `tests/holdpix.py`'s own holding:
+
+```
+unheld  (images, placed, deleted, half blocks)
+        (22, 22, 0, False)  (36, 36, 0, False)  (51, 51, 0, False)  (65, 65, 0, False)
+held
+        (28, 28, 0, False)  (46, 46, 0, False)  (63, 63, 0, False)  (78, 78, 0, False)
+```
+
+About fifteen pictures a second either way, **no deletes at all**, and no
+half block anywhere. So the pixel path works through `hold`, and nothing is
+being placed and dropped and placed again, which is what a blink would look
+like.
+
+**And the player's own path was already right**, measured at three levels on
+a local desktop: the app chooses the mode and sizes for it (`md=pixels`,
+`sized=78 19 pixels`, 594 of 636 draws returning 0), the module's clipping
+guard passes (`fit=1`), and the display places it (`image=1`).
+
+So what is left is the display the report came from. `DT_IMGMODE=auto` and
+`YT_MODE=follow` there, so both questions become "can this terminal place
+pixels right now" -- and the one thing that makes that false is a terminal
+that reports no cell size, which is a thing this desktop already knows
+happens on one of the owner's. That is what the new words on the bar are
+for: they turn an invisible fallback into an answer, in the one place
+somebody is already looking.
+
+`tests/youtube.py` is 30 checks to 31. The held comparison above is **not**
+in the suite: it was measured rather than guarded, because held pictures are
+`tests/holdpix.py`'s subject and a player inside a held session is a second
+copy of that machinery for a case this release did not change. Said here
+rather than left as a gap nobody wrote down.
+
+
 ## 0.99.160
 
 **Nothing had ever driven the YouTube player's pixel path** (Gitea #199),

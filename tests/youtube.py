@@ -308,6 +308,14 @@ try:
     check("and the player says which it is drawing", "pixels" in s[2].text(),
           s[2])
 
+    # The same session on a terminal that says nothing about its cells: the
+    # player wanted pixels, cannot have them, and until 0.99.161 drew blocks
+    # without saying why -- which reads as the setting being ignored rather
+    # than the terminal not offering one (Gitea #199).
+    s = yrun([([], "A test pattern"), ([b"\r"], playing)])
+    check("where the terminal can place none, it says so beside the mode",
+          "no pixels here" in s[1].text() and s[1].find("▀") is not None, s[1])
+
     t.quit(b"q", 1.0)
     check("Control Panel > YouTube holds the picture, the quality, the frames "
           "and the detail", sc.find("Quality Fetched") is not None and
@@ -318,4 +326,4 @@ finally:
     srv.wait()
     shutil.rmtree(D, True)
 
-report(30)
+report(31)
