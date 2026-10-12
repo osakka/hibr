@@ -768,20 +768,29 @@ int m_term(sh *s, int ac, char **av)
 		if (ac == 4 && !strcmp(av[3], "off")) {
 			m->hasrgb = 0;
 			m->nobg = 0;
+			m->nofg = 0;
 			return HIBR_OK;
 		}
-		if (ac < 5 || !tm_hex(av[3], &m->rgbfg)) {
-			lg(HIBR_LERR, "usage: term colors id #rrggbb #rrggbb|- | off");
+		/* Either half may be `-`, meaning "leave it the terminal's
+		   own", and they answer two different needs. A background of
+		   `-` paints the text in the colour given and leaves every
+		   cell nothing coloured default, which is what a translucent
+		   window needs so the display can put the wallpaper there
+		   (Gitea #184). A foreground of `-` keeps the terminal's own
+		   ink and names a background, which is what a window drawn in
+		   the real terminal's colours needs over a picture wallpaper:
+		   a cell with no background is precisely what the picture is
+		   composited below, so a program's own untouched cells were
+		   see-through (Gitea #194). */
+		if (ac < 5 || (strcmp(av[3], "-") && !tm_hex(av[3], &m->rgbfg))) {
+			lg(HIBR_LERR, "usage: term colors id #rrggbb|- #rrggbb|- | off");
 			return 2;
 		}
-		/* A background of `-` is "leave it the terminal's own": the
-		   text is painted in the colour given and every cell nothing
-		   coloured stays default, which is what a translucent window
-		   needs so the display can put the wallpaper there. */
+		m->nofg = !strcmp(av[3], "-");
 		if (!strcmp(av[4], "-")) {
 			m->nobg = 1;
 		} else if (!tm_hex(av[4], &m->rgbbg)) {
-			lg(HIBR_LERR, "usage: term colors id #rrggbb #rrggbb|- | off");
+			lg(HIBR_LERR, "usage: term colors id #rrggbb|- #rrggbb|- | off");
 			return 2;
 		} else {
 			m->nobg = 0;

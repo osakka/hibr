@@ -4652,6 +4652,51 @@ check("asked for blocks it is cells, with nothing sent as a bitmap",
       not sc.images and sc.find("┤ Hello ├") is not None, (sc.images, sc))
 
 
+# A terminal window over that wallpaper, with a program in it that paints a
+# block in its own background colour and then puts the background back to the
+# terminal's own (Gitea #194). Here rather than in tests/apps.py because the
+# fault needs a picture wallpaper and a pty that says what a cell measures,
+# which is this file's own harness; what it checks is the terminal app.
+#
+# "terminal" colours mean a cell nothing coloured is the real terminal's own,
+# which the kitty protocol composites the picture *below* -- so a program's
+# own untouched cells were see-through, and the window had no background at
+# all where the program had not painted one. The ink stays the terminal's and
+# the background becomes the window's face.
+PAINT = (r"""printf '\033[48;2;0;0;200m\033[2J\033[H'; printf 'PAINTED\r\n';"""
+         r"""printf '\033[49m'; printf 'PLAINBG\r\n'; sleep 30""")
+
+
+def wallterm(colours):
+    path = os.path.join(WPD, "t.hibr")
+    open(path, "w").write(
+        "%s. %s\nDT_APPDIRS+=(\"%s\")\ndt_apps\n"
+        "DT_IMGMODE=pixels\nDT_WALLIMG=%s\nDT_WALLMODE=stretch\n"
+        "DT_TERMCOLOURS=%s\nDT_TERMTRANS=0\nDT_INK='#cbd5e0'\nDT_FACE='#101820'\n"
+        "dt_open\nTW_CMD=(/bin/sh -c '%s')\ndt_launch term\ndt_run\ndt_close\n"
+        % (load(MOD, "build/mods/img.so"), WM, tree("examples/desktop/apps"),
+           WALL, colours, PAINT.replace("'", "'\\''")))
+    t = Term(path, env={"DT_TICK": "60", "HIBR_GFX": "kitty"}, rows=ROWS,
+             cols=COLS, settle=1.0, cellw=8, cellh=16)
+    t.until(lambda s: s.find("PLAINBG") is not None, tries=60)
+    sc = t.screen()
+    t.quit(b"qy", 1.0)
+    return sc
+
+
+for colours, what in (("terminal", "the terminal's own colours"),
+                      ("theme", "the theme's colours")):
+    sc = wallterm(colours)
+    at, plain = sc.find("PAINTED"), sc.find("PLAINBG")
+    bg = sc.style(plain[0], plain[1] + 2)["bg"] if plain else None
+    own = sc.style(at[0], at[1] + 2)["bg"] if at else None
+    check("with %s over a picture wallpaper, a cell the program leaves "
+          "default is the window's face" % what, bg == "#101820",
+          (bg, sc))
+    check("and with %s the program's own background is still its own" % what,
+          own == "#0000c8", (own, sc))
+
+
 # A picture under the text is kept only while its caller places it again, so
 # the frame that stops placing it is the frame it goes. dt_wall is allowed to
 # paint nothing when nothing it paints has changed, and from 0.99.83 that
@@ -4926,4 +4971,4 @@ check("and a desktop that is not held has no session to be old",
       r == "FRESH", r)
 shutil.rmtree(SESSD, ignore_errors=True)
 
-report(588)
+report(592)

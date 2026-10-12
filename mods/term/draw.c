@@ -58,8 +58,10 @@ unsigned tm_paint(tm_t *t, unsigned v, int bg)
 		return v;
 	/* A caller that gave no background wants the cell left default, which
 	   is how a translucent window asks the display for the wallpaper's own
-	   colour there instead of a flat one (Gitea #184). */
-	if (bg && t->nobg)
+	   colour there instead of a flat one (Gitea #184); one that gave no
+	   foreground wants the terminal's own ink kept while the background
+	   is named (Gitea #194). */
+	if (bg ? t->nobg : t->nofg)
 		return v;
 	return DP_RGB | (bg ? t->rgbbg : t->rgbfg);
 }

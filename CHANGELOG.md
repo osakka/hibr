@@ -1,5 +1,81 @@
 # Changelog
 
+## 0.99.155
+
+**A terminal window in the real terminal's colours was see-through over a
+picture wallpaper** (Gitea #194). Reported from a live desktop:
+
+> when I start aptitude, or ncurses apps, the background is transparent? and
+> does not honour the theme settings theme/terminal or the opacity?
+
+Three different questions wearing one sentence, and the way to tell them
+apart was to stop using aptitude. The probe is a program that does what a
+curses application does and nothing else: paint a block in its own
+background colour, then put the background back to the terminal's own.
+Then read the **pens**, because a background is a colour and no glyph
+comparison can see one. Over a picture wallpaper, in each combination:
+
+| colours | shade | the program's own background | a cell it left default |
+|---|---|---|---|
+| theme | 0 | `#0000c8` | `#101820`, the window's face |
+| theme | 60 | `#0000c8` | `#73013a`, the wallpaper dimmed |
+| **terminal** | **0** | `#0000c8` | **none at all** |
+| terminal | 60 | `#0000c8` | `#73013a`, the wallpaper dimmed |
+
+The third row is the fault, and it is the whole of it. `DT_TERMCOLOURS=terminal`
+hands the emulator `off`, so `tm_paint` leaves every cell the program never
+coloured at `DP_DEFAULT` -- and the kitty protocol composites an under-text
+picture **below cells with no background of their own** (`CN_ZUNDER`, Gitea
+#175). So the picture came through the program's own window wherever the
+program had not painted something, which is most of a curses screen.
+
+What the owner's own settings say matters here: `theme` and `0`, which is
+row one and correct. So the report was against one of the other three, and
+only one of them is a defect. **Row two and four are the rule working:** a
+program that paints its own panels stays opaque at any percentage while the
+cells it leaves alone go translucent, which is half a window following the
+setting and half ignoring it. That is a design question rather than a bug,
+and it is left open deliberately.
+
+### What "the terminal's own colours" can mean over a picture
+
+Nothing. The real terminal's background is behind the wallpaper and
+invisible, so honouring it literally is what produced the fault. The ink can
+still be honoured, and is: `term colors` takes `-` for **either** half now.
+A background of `-` has meant "leave it the terminal's own" since 0.99.150,
+which is what a translucent window needs; a **foreground** of `-` is the
+other way round -- keep the terminal's ink, name a background -- and
+`tw_colours` answers `- $DT_FACE` when the colours are the terminal's, a
+picture wallpaper will be real pixels (`dt_imgwill`) and the shade is off.
+Without a picture nothing changes: `terminal` still means the real
+terminal's colours, which is the whole point of the setting and is correct
+when there is nothing composited underneath.
+
+`$DT_FACE` rather than some other colour because the desktop already has an
+opinion about this exact question: `console darkdefault "$DT_INK" "$DT_FACE"`
+is what a cell left at the terminal's own colour should darken toward. One
+answer, in two places, rather than two answers.
+
+OSC 10 goes unanswered where the foreground was left that way, as OSC 11
+already did for the background: there is no one colour to name.
+
+### The checks
+
+`tests/desktop.py` is 588 to 592 -- the probe above, in both colour
+settings, asserting the untouched cell is the window's face **and** that the
+program's own background is still its own, which is the half that would
+catch a fix that flattened everything. It is in that file rather than
+`tests/apps.py` because the fault needs a picture wallpaper and a pty that
+says what a cell measures, which is that file's own harness.
+`tests/term_diff.py` is 66 to 68 for the two OSC answers.
+
+The saved-state format grew `nofg` **appended**, never inserted, and both
+directions were run rather than reasoned about: this build saved a terminal
+and the installed 0.99.154 adopted it and read the screen back, and 0.99.154
+saved one (refusing the new form with its own usage message, which is the
+other half of the proof) and this build adopted it.
+
+
 ## 0.99.154
 
 **How much wallpaper shows through a terminal is a slider now** (Gitea

@@ -60,6 +60,11 @@ int tm_fields(tm_t *t, tm_fld *f)
 	f[n++] = (tm_fld){ "rgbfg", &t->rgbfg, 1 };
 	f[n++] = (tm_fld){ "rgbbg", &t->rgbbg, 1 };
 	f[n++] = (tm_fld){ "sbmax", &t->sbmax, 0 };
+	/* Appended, never inserted: a field added at the end lets a new build
+	   read an old session's state and an old build read a new one, each
+	   skipping what it does not know (the rule Gitea #157 wrote down for
+	   the mail account file, and the reason this list is in this order). */
+	f[n++] = (tm_fld){ "nofg", &t->nofg, 0 };
 	for (k = 0; k < 2; k++) {
 		f[n++] = (tm_fld){ sv[k][0], &t->sv[k].set, 0 };
 		f[n++] = (tm_fld){ sv[k][1], &t->sv[k].r, 0 };

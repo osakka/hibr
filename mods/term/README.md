@@ -59,7 +59,7 @@ same underlying grid, not the interface itself.
     term row   t n               # one row of what is shown, as text
     term cells t n               # the same row as cells: column, fg, bg, attributes, text
     term focus t 1|0             # tell a program that asked (mode 1004) it gained or lost focus
-    term colors t #fg #bg|-|off  # paint the default colours in these, and answer OSC 10/11 with them
+    term colors t #fg|- #bg|-|off # paint the default colours in these, and answer OSC 10/11 with them
     term scroll t [n|top|bottom] # move the view back n lines, or ask where it is
     term mouse t [act [button] row col]  # send a mouse event, or ask the mode
     term screen t                # main or alt
@@ -105,8 +105,15 @@ follows from it:
   gives the text a colour and leaves every cell the program never coloured
   at the terminal's own default, which is how a window the wallpaper shows
   through asks for one: the display puts the picture's own colour in each
-  of those cells, which one colour here could never say (Gitea #184). OSC
-  11 goes unanswered then, since there is no one background to name; DECRQSS
+  of those cells, which one colour here could never say (Gitea #184). A
+  **foreground** of `-` is the other way round and answers the opposite
+  need: the terminal's own ink is kept and a background is named, which is
+  what a window drawn in the real terminal's colours needs over a picture
+  wallpaper -- a cell with no background is exactly what the picture is
+  composited below, so a program's own untouched cells were see-through
+  (Gitea #194). OSC 11 goes unanswered where the background was left that
+  way and OSC 10 where the foreground was, since there is no one colour to
+  name; DECRQSS
   (`DCS $ q`) answers for the scroll region, cursor shape and pen; XTGETTCAP
   (`DCS + q`) says it has nothing, which is still an answer.
 - Parameters keep their `:` sub-parameters, so `38:2::r:g:b`, `4:3` (curly

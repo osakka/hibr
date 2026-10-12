@@ -155,9 +155,23 @@ tw_colours() {
 		else
 			ret "$DT_INK $DT_FACE"
 		fi
-	else
-		ret off
 	fi
+	# "terminal" colours mean a cell nothing coloured is the real
+	# terminal's own -- true and right on a desktop with no picture
+	# behind it, and impossible over one: the kitty protocol composites
+	# an under-text picture below exactly the cells with no background
+	# of their own, so a program's own untouched cells showed the
+	# wallpaper through them (Gitea #194). The ink stays the terminal's;
+	# the background becomes this window's face, which is the same
+	# answer `console darkdefault` is already given for the same
+	# question -- what a cell left at the terminal's own colour should
+	# be taken to be.
+	if dt_has dt_imgwill && [ -n "$DT_WALLIMG" ] && dt_imgwill &&
+	   [ "${DT_TERMTRANS:-0}" = 0 ] &&
+	   match "$DT_FACE" '^#[0-9a-fA-F]{6}$'; then
+		ret "- $DT_FACE"
+	fi
+	ret off
 }
 
 # Start the program the first time there is a window to put it in, and keep

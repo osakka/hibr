@@ -109,10 +109,15 @@ struct tm_t {
 	tm_cell *frz;
 	int fcr, fcc;
 	int hasrgb;
-	/* The background is the caller's own only when it gave one: a
-	   translucent window leaves it default on purpose, so the display
-	   can put the wallpaper's own colour there (Gitea #184). */
+	/* Each half is the caller's own only when it gave one. A translucent
+	   window leaves the background default on purpose, so the display
+	   can put the wallpaper's own colour there (Gitea #184); a window
+	   drawn in the real terminal's colours over a picture wallpaper
+	   leaves the foreground default and names a background, because a
+	   cell with no background is exactly what the picture is composited
+	   below (Gitea #194). */
 	int nobg;
+	int nofg;
 	unsigned rgbfg, rgbbg;
 	tm_line **sb;
 	int sbcap, sbn, sbh, sbmax, view;

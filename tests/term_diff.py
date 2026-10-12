@@ -402,14 +402,25 @@ def hibr_only():
     # emulator was given, and not at all without them -- through a real
     # pty, since a reply goes to the program.
     d = tempfile.mkdtemp(prefix="hibr-osc-")
-    q = os.path.join(d, "q.sh")
-    open(q, "w").write("stty raw -echo\nsleep 0.3\n"
-                       "printf '\\033]11;?\\033\\\\'\n"
-                       "r=$(dd bs=1 count=25 2>/dev/null)\n"
-                       "printf 'got:%s' \"$(printf %s \"$r\" | tr '\\033\\\\' EB)\"\n"
-                       "sleep 0.5\n")
-    for setting, want in (("'#cbd5e0' '#101820'", "got:E]11;rgb:1010/1818/2020EB"),
-                          ("off", "")):
+    # Either half may be `-`, meaning "leave it the terminal's own", and a
+    # half left that way is not answered either: a translucent window gives
+    # no background (Gitea #184) and a window over a picture wallpaper drawn
+    # in the terminal's own colours gives no foreground (Gitea #194), and in
+    # both cases the emulator has nothing true to say about it.
+    for which, setting, want, why in (
+            (11, "'#cbd5e0' '#101820'", "got:E]11;rgb:1010/1818/2020EB",
+             "is answered with the colours given"),
+            (11, "off", "", "goes unanswered with none given"),
+            (11, "'-' '#101820'", "got:E]11;rgb:1010/1818/2020EB",
+             "is answered when only the foreground was left to the terminal"),
+            (10, "'-' '#101820'", "",
+             "goes unanswered when the foreground was left to the terminal")):
+        q = os.path.join(d, "q%d.sh" % which)
+        open(q, "w").write("stty raw -echo\nsleep 0.3\n"
+                           "printf '\\033]%d;?\\033\\\\'\n"
+                           "r=$(dd bs=1 count=25 2>/dev/null)\n"
+                           "printf 'got:%%s' \"$(printf %%s \"$r\" | tr '\\033\\\\' EB)\"\n"
+                           "sleep 0.5\n" % which)
         script = ("mod load %s/pty.so; mod load %s/term.so\n"
                   "t := term open -r 4 -c 70 /bin/sh %s\n"
                   "term colors $t %s\n"
@@ -418,9 +429,7 @@ def hibr_only():
                   % (MODS, MODS, q, setting))
         out = subprocess.run([screen.HIBR, "-c", script], capture_output=True,
                              text=True).stdout
-        check("OSC 11 %s" % ("is answered with the colours given" if want
-                             else "goes unanswered with none given"),
-              "ROW[%s]" % want in out, out)
+        check("OSC %d %s" % (which, why), "ROW[%s]" % want in out, out)
     shutil.rmtree(d, True)
 
     # A program on this terminal is given a UTF-8 locale when the one it
@@ -464,4 +473,4 @@ for name in sorted(PROGRAMS):
         ran += 1
 
 hibr_only()
-report(ran + len(HIBR_ONLY) + 6)
+report(ran + len(HIBR_ONLY) + 8)
