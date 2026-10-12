@@ -138,8 +138,12 @@ drawing in the wrong place. The calls:
 | `_resume` | `id` -- after a restart, once the maps named by `dt_keepstate` are back |
 
 A Control Panel pane is called with its own set -- `_draw id h w x`,
-`_key id key`, `_click id r c`, `_drop id r c key`, `_wheel id dir` -- and a
-Control Strip module with `_draw row col` and `_click row col`. A function
+`_key id key`, `_click id r c`, `_drop id r c key`, `_wheel id dir`,
+`_slide id key value` -- and a Control Strip module with `_draw row col`
+and `_click row col`. `_slide` is a `wtype=slider` row being set where its
+track was clicked or dragged: the value is already in the row's own
+`min`..`max`, and the pane clamps and snaps it to whatever step the setting
+has, because the step is the setting's business and not the track's. A function
 that takes a list ends in one, as `fn dt_row(tick, dim, lb, k, ...rest)`
 does; the old `name() { local id=$1 ...` form still works for an app of
 your own, unchecked.

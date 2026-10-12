@@ -769,6 +769,7 @@ This window: every key goes to the program
 Thu
 Thursday
 Tick Task
+Tiled Main
 Tiled: the layout sizes this window
 Time Zone
 Time for %s

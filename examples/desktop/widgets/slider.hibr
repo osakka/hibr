@@ -28,3 +28,18 @@ fn dt_slider(int id, int r, int c, int w, int value, int min, int max, tag) {
 	console put -p "w$id" "$r" "$c" "$t"
 	dt_wreg "$id" "$r" "$c" "$w" "$tag"
 }
+
+# The value a click at column c means, for a track of w columns that starts
+# at c0 and runs from min to max: the inverse of the position above, and in
+# this file beside it so the two cannot drift. A caller clamps and snaps to
+# its own step, because the step is the setting's business and not the
+# track's -- a track eleven columns wide has eleven positions whatever the
+# range is.
+fn dt_slidepos(int c, int c0, int w, int min, int max) {
+	local v=$min
+
+	[ "$w" -gt 1 ] && v=$((min + (c - c0) * (max - min) / (w - 1)))
+	[ "$v" -lt "$min" ] && v=$min
+	[ "$v" -gt "$max" ] && v=$max
+	ret "$v"
+}

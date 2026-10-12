@@ -404,8 +404,14 @@ dt_load() {
 				DT_KEYS["close"]="alt-w"
 			fi
 		fi
+		# 0.99.154 turned the terminal shade from a list of five
+		# values into a slider in tens, so a saved 85, 75 or 65 is
+		# snapped to the nearest position it can actually sit on.
+		if [ "${DT_SETVER:-0}" -lt 10 ] && dt_has cp_setver10; then
+			cp_setver10
+		fi
 	fi
-	DT_SETVER=9
+	DT_SETVER=10
 	dt_keyfix
 	dt_keydups
 	dt_glyphs "$DT_GLYPHSET"

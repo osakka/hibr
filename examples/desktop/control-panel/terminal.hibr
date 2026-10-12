@@ -18,14 +18,36 @@ fn cp_set_cursor(int? id = "", value = "") { DT_CURSOR=$value; cp_save; }
 CP_TERMCOLOURS=(theme terminal)
 fn cp_set_termcolours(int? id = "", value = "") { DT_TERMCOLOURS=$value; cp_save; }
 # How much of a picture wallpaper shows through a terminal window -- see
-# DT_TERMTRANS in examples/desktop/apps/term.hibr. Off is an opaque window;
-# the numbers are how much of the picture's own brightness is kept, so the
-# smaller ones are darker and easier to read over a busy photograph.
-CP_TERMTRANS=(off 85 75 65 50)
-fn cp_set_termtrans(int? id = "", value = "") {
-	DT_TERMTRANS=0
-	[ "$value" != off ] && DT_TERMTRANS=$value
+# DT_TERMTRANS in examples/desktop/apps/term.hibr. It is a percentage of
+# the picture's own brightness, so 0 is an opaque window and the small
+# numbers are dark and easy to read over a busy photograph.
+#
+# It was a dropdown of five values until 0.99.154 and is a slider, which is
+# what a percentage wants (Gitea #193): any of the hundred values rather
+# than five somebody chose, set where it is clicked, and -- since
+# panel_click never offers a slider to a pane's _drop -- with no second
+# place to forget, which is what #186 was.
+DT_TERMTRANS="${DT_TERMTRANS-0}"
+
+# A value saved by the dropdown is 85, 75 or 65, which would leave the dot
+# between two of the eleven positions for ever and make an arrow key look
+# as though it had done nothing. Snapped once, on the first load that knows
+# about the slider.
+fn cp_setver10() {
+	local v=${DT_TERMTRANS:-0}
+
+	[ "$v" != 0 ] && DT_TERMTRANS=$(((v + 5) / 10 * 10))
+	return 0
+}
+
+# Every tenth from 0 to 100, clamped: the step belongs to the setting, not
+# to the track, which has eleven positions whatever the range is.
+fn cp_termtrans(int v) {
+	[ "$v" -lt 0 ] && v=0
+	[ "$v" -gt 100 ] && v=100
+	DT_TERMTRANS=$(((v + 5) / 10 * 10))
 	cp_save
+	return 0
 }
 CP_TERMENDS=(success always never)
 fn cp_set_termend(int? id = "", value = "") { DT_TERMEND=$value; cp_save; }
@@ -67,8 +89,13 @@ fn terminal_rows(int w) {
 	CP[$w][$n]["val"]="$DT_TERMCOLOURS"
 	CP[$w][$n]["key"]=termcolours; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Wallpaper Shows Through"
-	CP[$w][$n]["val"]=off
-	[ "${DT_TERMTRANS:-0}" != 0 ] && CP[$w][$n]["val"]="$DT_TERMTRANS"
+	CP[$w][$n]["wtype"]=slider
+	CP[$w][$n]["val"]="${DT_TERMTRANS:-0}"
+	CP[$w][$n]["min"]=0; CP[$w][$n]["max"]=100
+	# The number lives beside the label rather than inside it, so the
+	# label itself is still one string a catalogue can hold. 0% is what
+	# "off" was: nothing shows through.
+	CP[$w][$n]["after"]="(${DT_TERMTRANS:-0}%)"
 	CP[$w][$n]["key"]=termtrans; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Cursor"
 	CP[$w][$n]["val"]="$DT_CURSOR"; CP[$w][$n]["key"]=cursor; n=$((n + 1))
@@ -92,13 +119,7 @@ fn terminal_do(int w, k, int dir) {
 		DT_CURSOR=$v ;;
 	termend) v := cp_next "$DT_TERMEND" "$dir" "${CP_TERMENDS[@]}"
 		DT_TERMEND=$v ;;
-	termtrans)
-		v=off
-		[ "${DT_TERMTRANS:-0}" != 0 ] && v=$DT_TERMTRANS
-		v := cp_next "$v" "$dir" "${CP_TERMTRANS[@]}"
-		DT_TERMTRANS=0
-		[ "$v" != off ] && DT_TERMTRANS=$v
-		;;
+	termtrans) cp_termtrans $(((${DT_TERMTRANS:-0} + 5) / 10 * 10 + dir * 10)) ;;
 	termrows) v := cp_next "$DT_TERMROWS" "$dir" "${CP_TERMROWS[@]}"
 		DT_TERMROWS=$v ;;
 	termcols) v := cp_next "$DT_TERMCOLS" "$dir" "${CP_TERMCOLS[@]}"
@@ -115,9 +136,15 @@ fn terminal_drop(int? w = "", int? r = "", int? c = "", k = "") {
 	termend) dt_droplist "$w" "$r" "$c" cp_set_termend "${CP_TERMENDS[@]}" ;;
 	termrows) dt_droplist "$w" "$r" "$c" cp_set_termrows "${CP_TERMROWS[@]}" ;;
 	termcols) dt_droplist "$w" "$r" "$c" cp_set_termcols "${CP_TERMCOLS[@]}" ;;
-	# Every set row that is not a checkbox or a slider needs its case
-	# here, or it draws and works and simply never opens (Gitea #186).
-	termtrans) dt_droplist "$w" "$r" "$c" cp_set_termtrans \
-		"${CP_TERMTRANS[@]}" ;;
 	esac
+}
+
+# Where a click on the shade's track lands, which panel_click works out
+# from the column and hands over: the pane keeps the value, the track only
+# says which one was pointed at.
+fn terminal_slide(int w, k, int value) {
+	case $k in
+	termtrans) cp_termtrans "$value" ;;
+	esac
+	return 0
 }

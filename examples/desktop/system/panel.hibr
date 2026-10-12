@@ -96,6 +96,10 @@ declare -gA CP
 # dragged (widgets/split.hibr), and where it was left is kept.
 CP_DIVCOL="${CP_DIVCOL-19}"
 command -v dt_keep > /dev/null && dt_keep CP_DIVCOL
+# How wide a slider's track is, in one place: the draw and the click that
+# works out which value a column means both read it, and a rule kept in two
+# places is a rule kept in one of them.
+CP_SLIDEW=11
 
 fn panel_open(int w, arg) {
 	PW[$w]["pane"]=0
@@ -365,6 +369,15 @@ fn cp_rowsdraw(int id, pane, int h, int w, int bx) {
 		if [ "$i" -lt "$n" ]; then
 			t=${CP[$id][$i]["text"]}
 			case $DT_LANG in ?*) t := dt_tr "$t" ;; esac
+			# A row that carries a number in its own label --
+			# a slider's percentage -- keeps it apart from the
+			# label, and it is appended after the catalogue has
+			# been asked: "Tiled Main ($DT_TILEMAIN%)" as one
+			# string is a string tools/strings.py cannot see
+			# and no catalogue can hold.
+			case ${CP[$id][$i]["after"]} in
+			?*) t="$t ${CP[$id][$i]["after"]}" ;;
+			esac
 			v=${CP[$id][$i]["val"]}
 			kind=${CP[$id][$i]["kind"]}
 			wtype=${CP[$id][$i]["wtype"]}
@@ -431,7 +444,7 @@ fn cp_rowsdraw(int id, pane, int h, int w, int bx) {
 				dt_check "$id" "$r" "$wc" "$on" "" \
 					"${CP[$id][$i]["key"]}"
 			elif [ "$wtype" = slider ]; then
-				dt_slider "$id" "$r" "$wc" 11 "$v" \
+				dt_slider "$id" "$r" "$wc" "$CP_SLIDEW" "$v" \
 					"${CP[$id][$i]["min"]:-0}" \
 					"${CP[$id][$i]["max"]:-10}" \
 					"${CP[$id][$i]["key"]}"
@@ -697,6 +710,21 @@ fn panel_click(int w, int r, int c, btn = "") {
 	i=$((top + r - 1))
 	[ "$r" -lt 1 ] || [ "$i" -ge "$n" ] && return 0
 	tag := dt_hit "$w" "$r" "$c"
+	# A slider is set where it is clicked, which is what a slider is for
+	# and what a dropdown of five chosen values could not do (Gitea
+	# #193). The value is the pane's to keep, so it goes through
+	# <pane>_slide; a pane without one is untouched -- its slider still
+	# selects on a click and steps on the arrows, exactly as before.
+	if [ "${CP[$w][$i]["kind"]}" = set ] &&
+	   [ "${CP[$w][$i]["wtype"]}" = slider ] && [ -n "$tag" ] &&
+	   dt_has "${pane}_slide"; then
+		wc := dt_wcol "$w" "$r" "$tag"
+		PW[$w]["sel"]=$i
+		PW[$w]["last"]=$i
+		CP_MSLIDE[$w]="$i $wc"
+		cp_slide "$w" "$c"
+		return 0
+	fi
 	case $tag in
 	clear:*)
 		dt_keyclear "${CP[$w][${tag#clear:}]["key"]}"
@@ -748,6 +776,28 @@ fn panel_click(int w, int r, int c, btn = "") {
 # never a bare global, for the same reason every other per-window pane
 # state here is.
 declare -gA CP_MDRAG
+# The slider a press landed on, as "row column", so a drag goes on setting
+# it: keyed by window id, never a bare global, for the same reason every
+# other per-window pane state here is -- two Control Panels are two
+# sliders.
+declare -gA CP_MSLIDE
+
+# Set the slider CP_MSLIDE names to whatever column c is over.
+fn cp_slide(int w, int c) {
+	local pane i wc v
+	local -a at
+
+	read -ra at <<< "${CP_MSLIDE[$w]}"
+	[ "${#at[@]}" -ge 2 ] || return 0
+	i=${at[0]}
+	wc=${at[1]}
+	pane := panel_pane "$w"
+	[ -n "$pane" ] && dt_has "${pane}_slide" || return 0
+	v := dt_slidepos "$c" "$wc" "$CP_SLIDEW" "${CP[$w][$i]["min"]:-0}" \
+		"${CP[$w][$i]["max"]:-10}"
+	"${pane}_slide" "$w" "${CP[$w][$i]["key"]}" "$v"
+	return 0
+}
 
 fn panel_mouse(int id, act, button, int r, int c, mods) {
 	local pane
@@ -763,6 +813,7 @@ fn panel_mouse(int id, act, button, int r, int c, mods) {
 	fi
 	if [ "$act" = press ]; then
 		CP_MDRAG[$id]=
+		CP_MSLIDE[$id]=
 		if [ "$c" = "${PW[$id]["dv"]:-${PW[$id]["lw"]}}" ] && [ "$r" -ge 1 ]; then
 			PW[$id]["split"]=1
 			return 0
@@ -775,6 +826,14 @@ fn panel_mouse(int id, act, button, int r, int c, mods) {
 			return 0
 		fi
 		panel_click "$id" "$r" "$c"
+		return 0
+	fi
+	# A drag that began on a slider keeps setting it, which is the other
+	# half of clicking one: a value a person is choosing by eye is chosen
+	# by moving, not by pressing eleven times.
+	if [ -n "${CP_MSLIDE[$id]}" ]; then
+		cp_slide "$id" "$c"
+		[ "$act" = release ] && CP_MSLIDE[$id]=
 		return 0
 	fi
 	pane=${CP_MDRAG[$id]}

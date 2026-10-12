@@ -563,6 +563,63 @@ for pane, extra, i, text, val in DROPS:
     check("%s's %s dropdown chooses a new value" % (TITLE[pane], text),
           now != "" and val not in now, sc)
 
+
+def panerow(pane, key, extra=()):
+    """One row of a pane's own _rows, by key: the fields panefull does not
+    read -- which widget it is and what range it has -- and where it sits,
+    since a row's index is what a click has to be aimed at."""
+    src = "".join(". %s/%s.hibr\n" % (appdir(a), a) for a in extra)
+    out = subprocess.run(
+        [sx.HIBR, "-c", CPLOAD + src +
+         'n := %s_rows 1; i=0; while [ "$i" -lt "$n" ]; do '
+         'echo "${CP[1][$i]["key"]}|${CP[1][$i]["wtype"]}|${CP[1][$i]["min"]}|'
+         '${CP[1][$i]["max"]}|${CP[1][$i]["after"]}|$i"; i=$((i + 1)); done'
+         % pane], capture_output=True, text=True,
+        env=dict(os.environ, XDG_CONFIG_HOME=PANEHOME,
+                 HIBR_DAV_CONF=os.path.join(PANEHOME, "dav"))).stdout
+    for l in out.splitlines():
+        f = l.split("|")
+        if len(f) >= 6 and f[0] == key:
+            return dict(zip(("key", "wtype", "min", "max", "after", "i"), f))
+    return {}
+
+
+# A percentage wants a slider rather than five values somebody chose out of
+# a hundred (Gitea #193). Two things fall out of it: any of the hundred can
+# be reached, and a slider never reaches a pane's _drop at all -- so the
+# "it draws, it works on return, and the list never opens" of #186 cannot
+# come back for this row. The number is kept beside the label rather than
+# inside it, or the label stops being a string any catalogue can hold.
+tt = panerow("terminal", "termtrans", ("term",))
+check("the terminal shade is a slider over the whole range, its percentage "
+      "beside the label",
+      tt.get("wtype") == "slider" and tt.get("min") == "0"
+      and tt.get("max") == "100" and tt.get("after") == "(0%)", tt)
+tti = int(tt.get("i") or 0)
+sc = cprun([b"\x1b[B"] * downs("terminal") +
+           [press(R0 + tti, VALCOL + 7)], extra=("term",))
+# Read off the screen rather than through brow, which matches a label
+# followed by two spaces and so cannot see a row whose own number is part
+# of what is drawn.
+check("a click on its track sets the value that column stands for",
+      sc.find("Wallpaper Shows Through (70%)") is not None, sc)
+# The other half of clicking one: a value chosen by eye is chosen by
+# moving, not by pressing the same cell eleven times.
+sc = cprun([b"\x1b[B"] * downs("terminal") +
+           [press(R0 + tti, VALCOL + 7), drag(R0 + tti, VALCOL + 2)],
+           extra=("term",))
+check("and a drag across it goes on setting it",
+      sc.find("Wallpaper Shows Through (20%)") is not None, sc)
+# The other slider, whose own value is in tens of a 30-70 range rather than
+# a plain percentage -- and which runs dt_tile on the way, so this drives
+# the one _slide that does something besides store a number.
+tm = panerow("windows", "tilemain")
+sc = cprun([b"\x1b[B"] * downs("windows") +
+           [press(R0 + int(tm.get("i") or 0), VALCOL + 5)])
+check("the tiled main pane's share is clickable too, in its own units",
+      tm.get("wtype") == "slider"
+      and sc.find("Tiled Main (50%)") is not None, sc)
+
 # Shortcuts (with only panel.hibr loaded here, Control Panel is the only app
 # it lists) -- rebinding a shortcut, and the
 # self-cancelling-click bug reported live as "I tried ctrl-l, alt-ctrl-l
@@ -1083,17 +1140,17 @@ OLDKEYS = ('DT_KEYS["close"]=alt-f4\nDT_KEYS["cycle"]=tab\n'
            'DT_KEYS["quit"]=q\nDT_TERMBAR=0\nDT_DRAGMOD=0\n')
 out = loadconf("DT_TERMKEEP=0\n" + OLDKEYS)
 check("a settings file from before 0.72 is brought up to 0.73's defaults",
-      out == "9 1 1 1 alt-w alt-tab []", out)
+      out == "10 1 1 1 alt-w alt-tab []", out)
 out = loadconf("DT_SETVER=1\nDT_TERMKEEP=0\n" + OLDKEYS)
 check("one from 0.72 keeps its Shortcuts Win and gets the rest",
-      out == "9 0 1 1 alt-w alt-tab []", out)
+      out == "10 0 1 1 alt-w alt-tab []", out)
 out = loadconf('DT_SETVER=1\nDT_KEYS["close"]=alt-x\nDT_KEYS["cycle"]=f6\n'
                'DT_KEYS["quit"]=ctrl-q\n')
 check("a key changed from its old default is not touched",
       out.endswith("alt-x f6 [ctrl-q]"), out)
 out = loadconf("DT_SETVER=2\nDT_TERMBAR=0\nDT_DRAGMOD=0\n")
 check("and a 0.73 file is read as it is, choices and all",
-      out.startswith("9 1 0 0 "), out)
+      out.startswith("10 1 0 0 "), out)
 
 
 # 0.99.80 holds an output-driven frame 70 ms from the last rather than 33
@@ -1283,9 +1340,9 @@ def loadlook(conf):
 
 
 out = loadlook("DT_SETVER=3\nCP_THEME=slate\n")
-check("an old file's CP_THEME, a colour scheme, becomes its colours", out == "[] slate 9", out)
+check("an old file's CP_THEME, a colour scheme, becomes its colours", out == "[] slate 10", out)
 out = loadlook("DT_SETVER=4\nCP_THEME=meadow\nCP_COLOURS=paper\n")
-check("and a file written since is read as it is", out == "[meadow] paper 9", out)
+check("and a file written since is read as it is", out == "[meadow] paper 10", out)
 
 
 # 0.99.77 has the YouTube player follow Control Panel > Pictures, so the one
@@ -1306,9 +1363,9 @@ def loadtube(conf):
 
 out = loadtube("DT_SETVER=6\nYT_MODE=half\n")
 check("an old file's YouTube picture follows the Pictures setting now",
-      out == "follow 9", out)
+      out == "follow 10", out)
 out = loadtube("DT_SETVER=6\nYT_MODE=ascii\n")
-check("and one it was given of its own is kept", out == "ascii 9", out)
+check("and one it was given of its own is kept", out == "ascii 10", out)
 
 # A solid title bar is the frame's colour, the title on it in DT_SELINK,
 # with no tee marks around it.
@@ -4071,4 +4128,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(587)
+report(590)

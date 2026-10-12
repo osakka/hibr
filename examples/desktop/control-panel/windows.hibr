@@ -36,7 +36,8 @@ fn windows_rows(int w) {
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Placement"
 	CP[$w][$n]["val"]="$DT_PLACE"; CP[$w][$n]["key"]=place
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Tiled Main ($DT_TILEMAIN%)"
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Tiled Main"
+	CP[$w][$n]["after"]="($DT_TILEMAIN%)"
 	CP[$w][$n]["wtype"]=slider
 	CP[$w][$n]["val"]=$((DT_TILEMAIN / 10)); CP[$w][$n]["min"]=3
 	CP[$w][$n]["max"]=7
@@ -69,6 +70,22 @@ fn windows_do(int w, k, int dir) {
 		;;
 	esac
 	cp_save
+}
+
+# The tiled main pane's share, set where its track is clicked. Its own
+# value is in tens, which is why this multiplies: the track has eleven
+# positions and this setting has five.
+fn windows_slide(int w, k, int value) {
+	case $k in
+	tilemain)
+		DT_TILEMAIN=$((value * 10))
+		[ "$DT_TILEMAIN" -lt 30 ] && DT_TILEMAIN=30
+		[ "$DT_TILEMAIN" -gt 70 ] && DT_TILEMAIN=70
+		dt_tile
+		cp_save
+		;;
+	esac
+	return 0
 }
 
 fn windows_drop(int w, int r, int c, k) {

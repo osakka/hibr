@@ -1,5 +1,70 @@
 # Changelog
 
+## 0.99.154
+
+**How much wallpaper shows through a terminal is a slider now** (Gitea
+#193). Asked for directly:
+
+> the drop down for the background opacity does not work and can we make it
+> a slider from 0 to 100? it'll work better
+
+Two things in that sentence, and the first was already fixed: a set row
+opens its popup through the pane's own `_drop`, 0.99.150 added the row
+without a case there, and 0.99.151 added the case (#186). It had not
+reached the machine it was reported from -- installed at 0.99.150, and the
+apt repository's own published copy stale at 0.99.149 because the Gitea to
+GitHub mirror cannot resolve the name.
+
+A slider is better anyway, and it also makes that whole class of bug
+impossible here: `panel_click` never offers a slider to a pane's `_drop`,
+so there is no second place to forget. `CP_TERMTRANS=(off 85 75 65 50)` was
+five points somebody picked out of the hundred the console actually takes.
+
+It is **set where it is clicked, and dragged**, which is what a slider is
+for and the only thing that makes a hundred values usable: pressing a
+stepper eleven times is worse than a list of five. `dt_slidepos` in
+`widgets/slider.hibr` is the inverse of the position the same file draws,
+so the two cannot drift, and `panel_click` hands the value to a new pane
+callback, `<pane>_slide id key value`. A pane without one is untouched: its
+slider still selects on a click and steps on the arrows exactly as before.
+Both existing sliders have one -- the shade, and Windows' own Tiled Main,
+which had never been clickable either.
+
+Three details that are not details:
+
+- **The value is clamped and snapped by the pane, not by the track.** A
+  track eleven columns wide has eleven positions whatever its range is, and
+  the step belongs to the setting: the shade moves in tens, Tiled Main in
+  tens of a 30-70 range.
+- **A number beside the label, not inside it.** `Tiled Main
+  ($DT_TILEMAIN%)` as one string is a string `tools/strings.py` cannot see
+  and no catalogue can hold, so that row has been untranslatable since it
+  was written. A row carries `after` now, appended once the catalogue has
+  been asked, and "Tiled Main" is a translatable string for the first time.
+- **A value saved by the dropdown is snapped once.** 85, 75 and 65 would
+  leave the dot between two of the eleven positions for ever, so an arrow
+  key would look as though it had done nothing. `DT_SETVER` is 10 and
+  `cp_setver10` rounds it, which is the mechanism this project already has
+  for a default that must reach a file somebody has already saved.
+
+0 is what `off` was -- nothing shows through -- and it is drawn as `(0%)`
+rather than as a word, which keeps the label free of a term needing
+translation and says the true thing: the setting is a percentage of the
+picture's own brightness.
+
+### The checks
+
+`tests/apps.py` is 587 to 590 and the panel part's plan follows: that the
+row is a slider over 0 to 100 with its percentage beside the label, that a
+click on the track sets the value that column stands for, that a drag
+across it goes on setting it, and that Windows' own Tiled Main is clickable
+in its own units -- the one `_slide` that does something besides store a
+number, since it retiles. The dropdown walk loses the row it gained in
+0.99.151, since there is no dropdown there to walk any more.
+`tests/540-examples.t` learns `_slide`'s arity, so a pane that declares one
+with too few names fails the way every other callback does.
+
+
 ## 0.99.153
 
 **Mail now connects** (Gitea #191, #192). 0.99.152 made the client able to
