@@ -1,5 +1,51 @@
 # Changelog
 
+## 0.99.160
+
+**Nothing had ever driven the YouTube player's pixel path** (Gitea #199),
+which is how "it does not render except blocks even in pixel mode" could be
+reported against code no suite had asked a question of.
+
+`tests/youtube.py` ran every one of its twenty-eight checks on a terminal
+that reports no cell size, so the player could only ever draw cells -- and
+its own `playing()` said so outright:
+
+```python
+return "playing" in sc.text() and sc.find("▀") is not None
+```
+
+A half block is what the **cell** modes draw. A picture is a bitmap and the
+cells under it are left blank on purpose (ADR 0037), so there is no glyph to
+find at all: the check asked about the mechanism rather than the outcome,
+and asking for pixels would have hung it on an assertion that could never
+come true. It asks for either now -- a half block **or** a picture on the
+screen model -- and `yrun` takes a cell size and an environment, so a check
+can say what the terminal can do.
+
+Two checks added with it: on a terminal that can place pixels the frame goes
+out as **one picture and no half block anywhere**, and the player says which
+it is drawing. Both were watched failing first, from a run where the cell
+size was given and the protocol was not: `images` empty, `▀▀▀` on screen --
+the player correctly falling back to cells, and the check correctly refusing
+it.
+
+### What that settles, and what it does not
+
+On a local desktop with a terminal that can place pixels, the player **is**
+drawing pixels: measured through the module as well as the screen, with the
+display's own `image` call answering 1 and the placement going out. So the
+report is not about the pixel path being broken in general.
+
+What is left is the owner's own arrangement, which this harness does not
+have: a **held** session, where hold re-emits every picture to each client
+from the emulator in its server process, and a **picture wallpaper** under
+the text at the same time. Both are on the path and neither is covered by
+`tests/youtube.py`; `tests/holdpix.py` is where a picture through hold is
+checked, and it drives no player. The measurement that splits them is to run
+the same clip in an unheld desktop and in a held one, which needs the
+machine it was reported from.
+
+
 ## 0.99.159
 
 **A session can be taken onto the new hibr without ending it**

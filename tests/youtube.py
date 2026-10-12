@@ -67,7 +67,8 @@ DATA = os.path.join(D, "data")
 SLOW = 4 if os.environ.get("ASAN_OPTIONS") else 1
 
 
-def yrun(phases, arg="pattern", rows=28, cols=90, extra="", autonext=False):
+def yrun(phases, arg="pattern", rows=28, cols=90, extra="", autonext=False,
+         cell=None, env=None):
     """A desktop with the YouTube app open on a search; then each phase:
     keys to send (a callable gets the screen and gives them) and what to
     wait for on the screen. The next video does not play by itself unless
@@ -80,9 +81,10 @@ def yrun(phases, arg="pattern", rows=28, cols=90, extra="", autonext=False):
         % (load("console", "web", "media"), tree("examples/desktop/desktop.hibr"),
            tree("examples/desktop/apps/Internet/youtube.hibr"), extra, arg))
     t = Term(sess, rows=rows, cols=cols, settle=2.0,
-             env={"YT_BASE": BASE, "HIBR_WEB_PROFILE": PROF, "HIBR_MEDIA_AUDIO": "none",
+             cellw=cell[0] if cell else 0, cellh=cell[1] if cell else 0,
+             env=dict({"YT_BASE": BASE, "HIBR_WEB_PROFILE": PROF, "HIBR_MEDIA_AUDIO": "none",
                   "YT_DATA": DATA, "YT_RESUME": "3", "YT_ENDED": "1",
-                  "YT_AUTONEXT": "1" if autonext else "0"})
+                  "YT_AUTONEXT": "1" if autonext else "0"}, **(env or {})))
     shots = []
     for phase in phases:
         feed, until = phase[0], phase[1]
@@ -103,7 +105,12 @@ def yrun(phases, arg="pattern", rows=28, cols=90, extra="", autonext=False):
 
 
 def playing(sc):
-    return "playing" in sc.text() and sc.find("▀") is not None
+    """Playing, with something of the frame on screen. A half block is what
+    the cell modes draw and a bitmap has no glyph at all -- the cells under
+    a picture are deliberately blank -- so asking only for the half block
+    asked about the mechanism rather than the outcome, and no suite could
+    then drive the pixel path at all (Gitea #199)."""
+    return "playing" in sc.text() and (sc.find("▀") is not None or sc.images)
 
 
 def at(sc):
@@ -286,6 +293,21 @@ try:
            tree("examples/desktop/system/panel.hibr"), tree("examples/desktop/control-panel")))
     t = Term(sess, rows=28, cols=90, settle=1.5)
     sc = t.screen()
+    # Every check above runs on a terminal that reports no cell size, so the
+    # player can only ever have drawn cells: until this one, nothing had
+    # driven its pixel path at all, which is how "blocks even in pixel mode"
+    # could be reported against code no suite had asked (Gitea #199). Here
+    # the terminal says what a cell measures, so `follow` resolves to pixels
+    # and the frame goes out as a bitmap -- one placement, and no half block
+    # anywhere, since the cells under a picture are left blank on purpose.
+    s = yrun([([], "A test pattern"), ([b"\r"], playing),
+              ([], lambda sc: at(sc) >= 1)], cell=(8, 16),
+             env={"HIBR_GFX": "kitty"})
+    check("on a terminal that can place pixels the frame is a picture, not "
+          "cells", s[1].images and s[1].find("▀") is None, (s[1].images, s[1]))
+    check("and the player says which it is drawing", "pixels" in s[2].text(),
+          s[2])
+
     t.quit(b"q", 1.0)
     check("Control Panel > YouTube holds the picture, the quality, the frames "
           "and the detail", sc.find("Quality Fetched") is not None and
@@ -296,4 +318,4 @@ finally:
     srv.wait()
     shutil.rmtree(D, True)
 
-report(28)
+report(30)
