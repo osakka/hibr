@@ -110,7 +110,7 @@ dt_open() {
 	# event carries its own position) and by keyboard once given
 	# attention with its own shortcut; only hovering it with the mouse
 	# and getting no click at all is gone.
-	console mouse drag
+	dt_mouseset drag
 	console cursor off
 	# mkdir is a process, and startup should not pay for one per folder
 	# every time: only when the folder is not there yet.
@@ -167,7 +167,7 @@ dt_close() {
 		exec 2>&$DT_ERR {DT_ERR}>&-
 		DT_ERR=
 	fi
-	console mouse off
+	dt_mouseset off
 	console signals on
 	console close
 }
@@ -252,6 +252,51 @@ DT_RSTILL=150
 # a time long enough on a slow day.
 DT_TESTIDLE=${HIBR_TESTIDLE-}
 
+# What the desktop wants mouse reporting to be, and how many components
+# have borrowed it. The mode is the window manager's, not whoever touched
+# it last: a saver, a dialog or an app cannot know what it should be when
+# they are done, only what it was when they started, and one that is killed
+# -- or that simply forgets -- never puts it back at all (Gitea #197). So
+# the desktop keeps its own answer and puts it back.
+#
+# Not DT_MOUSE, which wm/state.hibr already owns for the window the mouse
+# is down on: a global declared without grepping the desktop for the name
+# first is this file's own recorded trap, and it cost a run of the suite
+# here -- every drag broke, because input.hibr's "a window has the mouse"
+# test was suddenly true for ever.
+DT_MOUSEWANT=off
+DT_MOUSEHELD=0
+
+# Set the mode the desktop wants, which is what dt_mousecheck restores to.
+fn dt_mouseset(mode) {
+	DT_MOUSEWANT=$mode
+	console mouse "$mode"
+	return 0
+}
+
+# Nothing in this process borrows the mode today: About only reads it to say
+# what it is, and the saver, standby and the login screen each own the
+# console of a process of their own. DT_MOUSEHELD is the seam for the
+# component that one day wants its own mode for its own duration -- raise it
+# around the borrow, or the check below puts the desktop's answer back
+# within a frame. The pair of helpers for that is not written until
+# something needs one: an interface with no user is designed from a guess.
+
+# Once a frame, put the mode back when it is not what the desktop asked for
+# and nobody is holding it. A read costs 2 us against a frame budget of
+# about 700, measured before this was written -- which is what makes the
+# backstop affordable, and a backstop is the only version that survives a
+# component which never reaches a restore line.
+fn dt_mousecheck() {
+	local m
+
+	[ "$DT_MOUSEHELD" = 0 ] || return 0
+	m := console mouse 2> /dev/null || return 0
+	[ "$m" = "$DT_MOUSEWANT" ] && return 0
+	console mouse "$DT_MOUSEWANT"
+	return 0
+}
+
 dt_run() {
 	local k rsz=0 last now pk= skipn=0 frames=0 lastdraw=0
 
@@ -287,6 +332,7 @@ dt_run() {
 			dt_saverinput "$k"
 			continue
 		fi
+		dt_mousecheck
 		if [ "$rsz" = 0 ]; then
 			if [ "$DT_LASTMOVE" = 1 ] && console waiting; then
 				:

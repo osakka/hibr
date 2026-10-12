@@ -1,5 +1,71 @@
 # Changelog
 
+## 0.99.158
+
+**The mouse mode is the window manager's, and it puts its own back**
+(Gitea #197).
+
+Every place that changed a console mode set it to a literal on exit rather
+than restoring what it found, so whichever component ran last would win.
+Measuring the premise first narrowed it, and changed which fix is right:
+
+- `savers/saver.hibr`'s `console mouse click` / `off` are inside `sv_main`,
+  which that file runs **only when it is the program**
+  (`[ "${BASH_SOURCE}" = "$0" ]`); a desktop's saver goes through
+  `sv_begin`, which touches no mode;
+- `wm/standby.hibr`'s two are inside `dt_sbjoin` and `dt_standby`, and
+  `dt_standby`'s one caller is `wm/hold.hibr` under `--standby`: its own
+  process;
+- `login/login.hibr` is the login screen, also its own process, ending
+  before the window manager starts.
+
+Each owns the console it is setting, so none of them can reach a running
+desktop, and `system/about.hibr` -- the only thing in the desktop's own
+process that touches the mode -- merely **reads** it to say what it is.
+There was no live instance, which rules out the two cheap answers: a
+convention or a helper binds only the code written to follow it, and the
+component this has to survive is the one that is not.
+
+So the window manager owns it. `DT_MOUSEWANT` is what the desktop asked
+for, `dt_mouseset` is the one place that changes it, and `dt_mousecheck`
+reads the console once a frame and puts it back when it differs and nobody
+has borrowed it. A read costs **2 us** against a frame budget of about 700,
+measured before this was chosen, which is what makes a backstop affordable
+-- and a backstop is the only version that survives a component killed
+between its set and its restore.
+
+Watched failing and then passing, with a window that clears the mode behind
+the desktop's back on its second frame:
+
+```
+without                          with
+draw 2 console=off want=drag     draw 2 console=off want=drag
+draw 3 console=off want=drag     draw 3 console=drag want=drag
+draw 4 console=off want=drag     draw 4 console=drag want=drag
+```
+
+`DT_MOUSEHELD` is the seam for a component that one day wants its own mode
+for its own duration; no helpers are written for it, because nothing needs
+one yet and an interface with no user is designed from a guess.
+
+### The name cost a suite run, and the rule was already in CLAUDE.md
+
+The first version called it `DT_MOUSE`, which `wm/state.hibr` has owned all
+along for **the window the mouse is down on**. Setting it to `off` at file
+level made `input.hibr`'s "a window already has the mouse" test true for
+ever: **forty checks failed, every one of them a drag**, and the fix looked
+innocent. "Before declaring a new `-gA`, grep the desktop for the name as a
+whole word" is this file's own recorded trap, from Contacts naming its
+window table `PW`; it applies to a plain global just as much, and the
+control run that found it -- the same suite with the change reverted --
+should have been the first thing run rather than the fourth.
+
+`tests/desktop.py` is 595 checks to 597. The second of them asserts on a
+frame the loop actually drew: the frame drawn inside the quit path never
+goes round the loop, so the first version of this check was testing the
+quit.
+
+
 ## 0.99.157
 
 **Mail saves drafts** (Gitea #74), which has been open since the Mail

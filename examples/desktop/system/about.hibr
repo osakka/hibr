@@ -291,9 +291,9 @@ about_colour() {
 
 # Whether mouse reports are asked for, and in which mode. That is all
 # anything can know: a terminal never says whether it obeyed. The screen
-# saver and standby turn reporting off while they run, so this is true for
-# the frame it is drawn on and no longer -- which is the other reason it is
-# read at draw time.
+# saver and standby do not reach this process -- each owns the console of a
+# process of its own (Gitea #197) -- so what this reads is the window
+# manager's own mode, put back by dt_mousecheck when anything disturbs it.
 about_pointer() {
 	local m t
 

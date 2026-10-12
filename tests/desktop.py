@@ -4993,4 +4993,48 @@ check("and a desktop that is not held has no session to be old",
       r == "FRESH", r)
 shutil.rmtree(SESSD, ignore_errors=True)
 
-report(595)
+
+
+# The mouse mode is the window manager's, not whoever touched it last
+# (Gitea #197). A component -- a dialog, an app, a saver run in this
+# process -- cannot know what the mode should be when it is done, only what
+# it was when it started, and one that is killed or simply forgets never
+# puts anything back at all. So the desktop keeps its own answer and puts
+# it back once a frame, which is the only version that survives a component
+# that never reaches a restore line.
+MOUT = scratch("desktop-mouse.txt")
+try:
+    os.unlink(MOUT)
+except OSError:
+    pass
+MOUSEAPP = (
+    'MT_N=0\n'
+    'dt_app mt "Mouse" 4 20 many "" "" hidden\n'
+    'fn mt_draw(int id, int h, int w, int row, int col) {\n'
+    '\tlocal m\n'
+    '\tMT_N=$((MT_N + 1))\n'
+    # The second frame clears it behind the window manager's back, which is
+    # exactly what a component that forgets does.
+    '\t[ "$MT_N" = 2 ] && console mouse off\n'
+    '\tm := console mouse\n'
+    '\tprintf "%%s %%s\\n" "$MT_N" "$m" >> "%s"\n'
+    '\tdt_want 40\n'
+    '\treturn 0\n'
+    '}\n' % MOUT)
+# Two inert keys after it, because the frame drawn inside the quit path does
+# not go round the loop -- asserting on that one tests the quit, not the
+# backstop, which is what the first version of this check did.
+sc, _ = run('dt_launch mt', feed=[b"z", b"z"], wait=1.6, pre=MOUSEAPP)
+rows = [l.split() for l in open(MOUT).read().splitlines()] if os.path.exists(MOUT) else []
+seen = [b for a, b in rows if len(a)]
+check("the desktop asks for drag reporting, and says so from its first frame",
+      seen[:1] == ["drag"], rows)
+check("a component that clears the mode has the desktop's own put back",
+      "off" in seen and seen[seen.index("off") + 1:seen.index("off") + 2] == ["drag"],
+      rows)
+try:
+    os.unlink(MOUT)
+except OSError:
+    pass
+
+report(597)
