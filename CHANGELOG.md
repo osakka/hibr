@@ -1,5 +1,67 @@
 # Changelog
 
+## 0.99.156
+
+**A notification's full text and its action are reachable again**
+(Gitea #195). Asked for directly:
+
+> when I double click on a notification, it should popup with the full text
+> right, and any associated action buttons/text/input should be available?
+
+Two things were missing and the second is the one that mattered.
+
+**The text.** A row in the Notifications window is the time, the priority,
+the sender and then `w - 30` columns of the message, cut there. The only way
+to read the rest of a long one was Copy and the clipboard.
+
+**The action.** `dt_notify` has taken an action since it was written -- the
+words after the message, kept as argv words rather than a string, for
+`DT_OPENCMD`'s own reason -- and clicking the *live* note runs it. The
+history copy kept the text, the priority, the sender and the time, and threw
+the action away. So a note that came and went stacked behind something else
+lost the one thing it was for, which is exactly the case a history exists
+for.
+
+`dt_notehist_add` keeps `argvn` and `arg0..argN-1` now, and `dt_notehist_run`
+runs them. A record is a record: running the action does **not** clear the
+note, where a live note's click dismisses it.
+
+Enter on the selected row, or a second click on it (`dt_isdbl`), opens the
+note in a window of its own -- who sent it, when, its priority, the whole
+text wrapped by `dt_notewrap`, which is the same helper a live note is laid
+out with, so a note reads the same in both places, and the action as a
+button named after itself:
+
+```
+┌─┤ Notification ├────────────────────────────────┤_ x├┐
+│ Desktop                    Mon 12 Oct 16:52  normal  │
+│                                                      │
+│ A message long enough that one row of a list         │
+│ cannot hold it: the rest of what it says lives       │
+│ past the thirtieth column and used to be             │
+│ unreachable.                                         │
+│                                                      │
+│  dt_note ▄                                 Close ▄   │
+└──────────────────────────────────────────────────────┘
+```
+
+**Input is a third thing and is not here**, because nothing in this desktop
+makes a notification carrying a field to type into: there is nothing for a
+window to show. That would be a new kind of note -- a prompt whose answer is
+handed to the action -- and wants its own ticket once something needs one.
+
+The opener is `nh_show`, never `notedetail_open`: `dt_new` calls
+`<prefix>_open` on the window it is making, so an opener of that name opens
+its own kind until the stack runs out, which `tests/540-examples.t` has
+checked since 0.99.147.
+
+`tests/desktop.py` is 592 checks to 595: that Enter opens the note with the
+end of its text, that the action is offered as a button named after itself,
+and that running it closes the window and leaves the note in the history --
+the last of which is the half that would catch an action treated like a live
+note's click.
+
+
 ## 0.99.155
 
 **A terminal window in the real terminal's colours was see-through over a

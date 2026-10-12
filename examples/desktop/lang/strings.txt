@@ -514,6 +514,7 @@ Nothing matches.
 Nothing on this day. Enter makes an event.
 Nothing to %s
 Nothing yet
+Notification
 Notification Icon
 Notifications
 Nov
@@ -764,6 +765,7 @@ This Computer
 This Desktop
 This Terminal
 This account has no address to answer from
+This notification has been cleared.
 This window: desktop shortcuts work again
 This window: every key goes to the program
 Thu

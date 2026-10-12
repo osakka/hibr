@@ -123,16 +123,37 @@ fn notifications_key(int? id = "", key = "") {
 	home) NHW[$id]["sel"]=0 ;;
 	end) NHW[$id]["sel"]=${#DT_NOTEHIST_ORDER[@]} ;;
 	delete | backspace) nh_clearsel "$id" ;;
+	enter | return) nh_show "$id" ;;
 	*) return 1 ;;
 	esac
 	nh_fit "$id"
 	return 0
 }
 
-# A click selects the note on that row.
+# A click selects the note on that row, and a second one on the same row
+# opens it: a row is 30 columns of a message that may be any length, and
+# until 0.99.156 the only way to read the rest of one was Copy.
 fn notifications_click(int id, int r, int c, btn) {
+	local was=${NHW[$id]["sel"]:-0}
+
 	NHW[$id]["sel"]=$((${NHW[$id]["top"]:-0} + r - 1))
 	nh_fit "$id"
+	if dt_isdbl "$id" && [ "$was" = "${NHW[$id]["sel"]}" ]; then
+		nh_show "$id"
+	fi
+	return 0
+}
+
+# Open the selected note in a window of its own. An opener is never named
+# <prefix>_open: dt_new calls that on the window it is making, so a
+# notedetail_open that opened a notedetail window would call itself until
+# the stack ran out (Gitea #157's own lesson, checked by 540-examples.t).
+fn nh_show(int id) {
+	local hid
+
+	hid := nh_at "${NHW[$id]["sel"]:-0}" || return 1
+	dt_launch notedetail "$hid"
+	return 0
 }
 
 # The wheel moves the selection by one notch, DT_SCROLLWHEEL rows, the same
@@ -194,4 +215,105 @@ fn notifications_cut(int id) {
 	dt_notehist_del "$hid"
 	nh_fit "$id"
 	ret "$t"
+}
+
+# --- the note itself -------------------------------------------------------
+
+# A row in the list is 30 columns of a message that may be any length, and
+# the action a note carried was thrown away when it reached the history --
+# so a note that came and went behind something else lost both the rest of
+# its words and the one thing it was for (Gitea #195). This window is a
+# note as it was: who sent it, when, the whole text wrapped, and its action
+# as a button.
+#
+# Registered here rather than in a file of its own because it is the same
+# concern as the list, the way Files registers its own dialogs.
+command -v dt_app > /dev/null && dt_app notedetail "Notification" 12 56 \
+	many "◉" fixed hidden
+
+declare -gA NDW
+
+fn notedetail_open(int id, arg) {
+	NDW[$id]["hid"]=$arg
+	NDW[$id]["sel"]=0
+}
+
+fn notedetail_close(int? id = "") {
+	unset "NDW[$id]"
+}
+
+# The note's own lines, wrapped to the window -- dt_notewrap fills
+# DT_NOTELINES, which is what a live note is laid out with, so a note reads
+# the same in both places.
+fn notedetail_draw(int id, int h, int w, int row, int col) {
+	local hid r at t p f act line
+	local -a lines
+
+	hid=${NDW[$id]["hid"]}
+	console pen "$DT_INK" "$DT_FACE"
+	if [ -z "${DT_NOTEHIST[$hid]["text"]+x}" ]; then
+		dt_tput "$id" 1 2 "This notification has been cleared."
+		return 0
+	fi
+	at=${DT_NOTEHIST[$hid]["at"]}
+	printf -v t "%(%a %d %b %H:%M)T" $((at / 1000))
+	f=${DT_NOTEHIST[$hid]["from"]:-Desktop}
+	p=${DT_NOTEHIST[$hid]["prio"]:-normal}
+	console pen "$DT_DIM" "$DT_FACE" bold
+	dt_tput "$id" 1 2 "$f"
+	console pen "$DT_DIM" "$DT_FACE"
+	line="$t  $p"
+	dt_tput "$id" 1 $((w - ${#line} - 1)) "$line"
+	dt_notewrap "${DT_NOTEHIST[$hid]["text"]}" $((w - 4))
+	lines=("${DT_NOTELINES[@]}")
+	console pen "$DT_INK" "$DT_FACE"
+	r=3
+	for line in "${lines[@]}"; do
+		[ "$r" -ge $((h - 2)) ] && break
+		dt_tput "$id" "$r" 2 "$line"
+		r=$((r + 1))
+	done
+	# The action as a button, where there is one. Its own first word is
+	# what it is called: a notification's action is kept as argv words,
+	# so there is a command to name rather than a line to re-split.
+	if act := dt_notehist_what "$hid"; then
+		dt_button "$id" $((h - 1)) 2 "$act" 0 ndact
+	fi
+	dt_button "$id" $((h - 1)) $((w - 10)) "Close" 0 ndclose
+	return 0
+}
+
+fn notedetail_click(int id, int r, int c, btn) {
+	local tag
+
+	tag := dt_hit "$id" "$r" "$c" || return 0
+	case $tag in
+	ndact) nd_do "$id" ;;
+	ndclose) dt_wantclose "$id" ;;
+	esac
+	return 0
+}
+
+fn notedetail_key(int? id = "", key = "") {
+	case $key in
+	escape | q) dt_wantclose "$id" ;;
+	enter | return) nd_do "$id" ;;
+	*) return 1 ;;
+	esac
+	return 0
+}
+
+# Run the note's action and close the window, which is what clicking the
+# live note did: the note itself stays in the history, since a record is a
+# record.
+fn nd_do(int id) {
+	dt_notehist_run "${NDW[$id]["hid"]}" || return 0
+	dt_wantclose "$id"
+	return 0
+}
+
+notedetail_menus() {
+	dt_menu "File"
+	dt_item "Close" w dt_close_focused
+	dt_editmenu
 }

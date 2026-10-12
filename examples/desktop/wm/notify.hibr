@@ -168,6 +168,7 @@ fn dt_notehist_add(int id) {
 	DT_NOTEHIST[$hid]["prio"]=${DT_NOTEQ[$id]["prio"]:-normal}
 	DT_NOTEHIST[$hid]["from"]=${DT_NOTEQ[$id]["from"]:-Desktop}
 	DT_NOTEHIST[$hid]["at"] := dt_ms
+	dt_notehist_act "$hid" "$id"
 	DT_NOTEHIST_ORDER+=("$hid")
 	lv := dt_notelevel "${DT_NOTEHIST[$hid]["prio"]}"
 	min := dt_notelevel "$DT_NOTECOUNT"
@@ -332,6 +333,46 @@ fn dt_note_click(int id) {
 	done
 	DT_NOTEQ_ORDER=("${keep[@]}")
 	[ "$n" -gt 0 ] && "${args[@]}"
+}
+
+# Copy a note's action into its history record. Clicking the *live* note has
+# run it since dt_notify was written, and the history kept the words and
+# the sender and threw the action away -- so a note that came and went
+# behind something else lost the one thing it was for, which is exactly the
+# case a history exists for (Gitea #195).
+fn dt_notehist_act(int hid, int id) {
+	local n=${DT_NOTEQ[$id]["argvn"]:-0}
+	local i=0
+
+	DT_NOTEHIST[$hid]["argvn"]=$n
+	while [ "$i" -lt "$n" ]; do
+		DT_NOTEHIST[$hid]["arg$i"]=${DT_NOTEQ[$id]["arg$i"]}
+		i=$((i + 1))
+	done
+	return 0
+}
+
+# What a note's action is called, for a window offering it as a button --
+# the first word, which is the command, rather than the whole line.
+fn dt_notehist_what(int hid) {
+	[ "${DT_NOTEHIST[$hid]["argvn"]:-0}" -gt 0 ] || return 1
+	ret "${DT_NOTEHIST[$hid]["arg0"]}"
+}
+
+# Run the action a history record kept. Nothing is dismissed: a record is a
+# record, where a live note's click takes the note away with it.
+fn dt_notehist_run(int hid) {
+	local n=${DT_NOTEHIST[$hid]["argvn"]:-0}
+	local i=0
+	local -a args
+
+	[ "$n" -gt 0 ] || return 1
+	while [ "$i" -lt "$n" ]; do
+		args+=("${DT_NOTEHIST[$hid]["arg$i"]}")
+		i=$((i + 1))
+	done
+	"${args[@]}"
+	return 0
 }
 
 # Forget one note from the history.

@@ -2947,6 +2947,28 @@ check("and a click on either of its cells opens the history",
       sc.find("┤ Notifications ├") is not None, sc)
 t.quit(None, 0.5); shutil.rmtree(d, True)
 
+# A row in the history is thirty columns of a message that may be any length,
+# and the action a note carried was thrown away on the way in -- so a note
+# that came and went behind something else lost both the rest of its words
+# and the one thing it was for (Gitea #195). Enter, or a second click on the
+# row, opens it as it was.
+LONG = ("A message far longer than one row of the history can hold, "
+        "whose ending is a good way past the thirtieth column.")
+t, d = dotrun('dt_notify "%s" dt_note RANIT\ndt_launch notifications' % LONG,
+              keys=[b"\r"])
+sc = t.screen()
+check("enter on a note in the history opens it with the whole of its text",
+      sc.find("┤ Notification ├") is not None
+      and sc.find("thirtieth column.") is not None, sc)
+check("and the action it carried is offered as a button, named after itself",
+      sc.find("dt_note") is not None, sc)
+t.keys([b"\r"], settle=0.8)
+sc = t.screen()
+check("and running it closes the window and leaves the note in the history",
+      sc.find("┤ Notification ├") is None and sc.find("RANIT") is not None
+      and sc.find("thirtieth column") is not None, sc)
+t.quit(None, 0.5); shutil.rmtree(d, True)
+
 # DT_BARTIME: the clock's own strftime format. A wider one moves the clock
 # and the dot left, and their clicks follow them.
 t, d = dotrun("", env={"DT_BARTIME": "%a %H:%M:%S"})
@@ -4971,4 +4993,4 @@ check("and a desktop that is not held has no session to be old",
       r == "FRESH", r)
 shutil.rmtree(SESSD, ignore_errors=True)
 
-report(592)
+report(595)
