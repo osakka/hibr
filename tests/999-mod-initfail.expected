@@ -1,0 +1,9 @@
+0
+hibr: mod: modfail: init failed
+hibr: mod: modfail: init failed
+hibr: need: modfail: nothing offers it
+need rc=1
+the display its init loaded: 1
+the one whose init failed: 0
+the list is still walkable
+and still droppable

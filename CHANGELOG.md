@@ -1,5 +1,56 @@
 # Changelog
 
+## 0.99.164
+
+**A module whose init loads another module and then fails crashed the shell**
+(Gitea #201). `m_load` adds the record, calls the init, and on failure took
+the record out by **position**:
+
+```c
+	v_add(&s->mods, m);
+	if (d->ini && d->ini(s) != HIBR_OK) {
+		s->mods.n--;
+		dlclose(h);
+		free(m->path);
+		free(m);
+```
+
+That names this module's record only while nothing else was added in
+between, and an init that calls `hibr_require` adds one: hold's asks for
+`pty` and then for `terminal`, so with pty present and term missing the list
+is `[... hold, pty]` by the time the init fails. The `n--` dropped *pty's*
+record; hold's stayed, was freed, and its object unmapped. The next walk of
+that list dereferenced it -- `m_need`'s own tail walk first, which is why
+`need` is where it landed:
+
+```
+$ mkdir /tmp/d && cp build/mods/hold.so build/mods/pty.so /tmp/d/
+$ HIBR_MODPATH=/tmp/d ./build/hibr -c 'need hold; hold list'
+hibr: hold: needs the term module
+hibr: mod: hold: init failed
+Segmentation fault
+```
+
+Three runs out of three, and `m_need` at `src/mod.c:940` under gdb. The
+record goes by identity now -- the swap-with-last `m_drop` and
+`hibr_unprovide` already use. The module the failing init loaded stays
+loaded, which is right: it initialised fine and is nobody else's to unload.
+
+It is this tree's own trap in a second costume -- *a descriptor lives inside
+the object, so read it before dlclose* -- except that here it is the record
+that outlives the object.
+
+`tests/999-mod-initfail.t` is the guard, with `tests/modfail.c`: a module of
+the suite's own whose init loads another through the same `m_need` that
+`need` uses, then fails. A fixture rather than hold.so and pty.so on
+purpose, since a check built from real modules passes vacuously wherever
+`HIBR_MODDIR` happens to hold a `term.so` -- which is how 0.59's lint check
+came to pass for the wrong reason. It exits 139 against the shell before the
+fix and is clean after.
+
+Found while measuring what `hold upgrade` does when a module cannot be
+loaded, which is #198's own question and is answered there.
+
 ## 0.99.163
 
 **The Edit menu's items can be translated** (Gitea #200), and the shortcut

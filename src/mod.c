@@ -154,7 +154,17 @@ int m_load(sh *s, const char *path)
 	v_add(&s->mods, m);
 	if (d->ini && d->ini(s) != HIBR_OK) {
 		lg(HIBR_LERR, "mod: %s: init failed", d->nm);
-		s->mods.n--;
+		/* This record goes by identity, never by position: an init
+		   may load a module of its own -- hold asks hibr_require for
+		   pty and term -- so by now this one is not the last, and
+		   `s->mods.n--` dropped *that* module's record and left this
+		   one, freed below, for every later walk of the list to
+		   dereference. */
+		for (i = 0; i < s->mods.n; i++)
+			if (s->mods.p[i] == m) {
+				s->mods.p[i] = s->mods.p[--s->mods.n];
+				break;
+			}
 		dlclose(h);
 		free(m->path);
 		free(m);

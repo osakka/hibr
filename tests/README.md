@@ -218,6 +218,17 @@ a real packfile with `OFS_DELTA` and `REF_DELTA` entries, real index files in
 versions 2 and 4 — generated once and committed as part of the test. No `git`
 binary is involved, and the bytes are the same on every machine.
 
+A fixture may need a *compiler*, which is different from needing a program:
+this tree is built with one, so `710-sysinfo-id.t` compiles
+`tests/sysinfo-id.c` to check logo selection in C, and
+`999-mod-initfail.t` compiles `tests/modfail.c` into a module whose init
+loads another module and then fails. Both say what they skipped when there
+is no compiler. The module one is a fixture rather than two real modules on
+purpose: a check assembled from `hold.so` and `pty.so` without a `term.so`
+reproduces the crash here and passes vacuously on any machine whose
+`HIBR_MODDIR` holds a `term.so`, which is the way 0.59's lint check came to
+pass for the wrong reason.
+
 ## In `self.hibr`
 
 Assert on `"${a[*]}"`, never `"${a[@]}"`. The latter splits into several

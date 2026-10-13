@@ -432,6 +432,21 @@ went in the shell.
 - **A descriptor lives inside the object, so read it before dlclose.**
   `mod drop all` logged `m->m->nm` after unmapping the module and segfaulted.
   Take a copy of anything needed from the descriptor first.
+- **And the record can outlive the object the same way: a list entry is
+  taken out by identity, never by position.** `m_load` adds the record,
+  calls the init, and on failure did `s->mods.n--` -- which names its own
+  record only while nothing was added in between, and **an init that calls
+  `hibr_require` adds one**: hold's asks for `pty` and then `terminal`, so
+  with pty present and term missing the list is `[... hold, pty]` by the
+  time the init fails. The `n--` dropped *pty's* record, hold's stayed, and
+  it was then freed with its object unmapped -- so every later walk of
+  `s->mods` dereferenced it, `m_need`'s own tail walk first (Gitea #201,
+  0.99.164). `mod load hold` from a directory holding `hold.so` and
+  `pty.so` and no `term.so` was a SIGSEGV, three runs of three. The
+  swap-with-last `m_drop` and `hibr_unprovide` already use is the shape;
+  anything that undoes a `v_add` after running somebody else's code wants
+  it. The module the failing init loaded stays loaded, deliberately: it
+  initialised fine and is nobody else's to unload.
 - **A script says what it needs; a module says what it offers.** `need <name>`
   is `hibr_require` with a status instead of a pointer, so a script can reach
   the autoloader too. It does not check the version -- present is enough, and
