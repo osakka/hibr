@@ -5029,6 +5029,37 @@ check("but one whose server runs an image the desktop's own is not, is",
 r = sessold(SESSOLD, held=False)
 check("and a desktop that is not held has no session to be old",
       r == "FRESH", r)
+# And what it says when the session is old, which is the whole of this
+# ticket: the note used to ask for the session to be thrown away, and since
+# 0.99.159 the server can take it onto the new hibr itself (Gitea #198). The
+# check reads the sentence rather than the state. Three stubs are what the
+# note's path needs here -- dt_tr's own untranslated branch, which is a
+# printf; the note queue; and the frame request -- and dt_sessionold is the
+# real one, true because the parent is an image the desktop's own is not.
+open(os.path.join(SESSD, "note.hibr"), "w").write(
+    ". %s\n"
+    "declare -g DT_MENUIN=\n"
+    "fn dt_want(int ms) { return 0; }\n"
+    "fn dt_tr(key, ...rest) {\n"
+    "\tlocal t=$key\n"
+    "\t[ \"${#rest[@]}\" -gt 0 ] && printf -v t \"$key\" \"${rest[@]}\"\n"
+    "\tret \"$t\"\n"
+    "}\n"
+    "dt_noteq() { echo \"$2\"; }\n"
+    "DT_UPDT=0\n"
+    "dt_updcheck\n"
+    % tree("examples/desktop/wm/restart.hibr"))
+open(os.path.join(SESSD, "outern.hibr"), "w").write(
+    'title -s "hold:t" "hold t"\n"%s" %s\n'
+    % (screen.HIBR, os.path.join(SESSD, "note.hibr")))
+r = subprocess.run([SESSOLD, os.path.join(SESSD, "outern.hibr")],
+                   capture_output=True, text=True,
+                   env=dict(os.environ, DT_ROWS="1", HIBR_HOLD="t")).stdout.strip()
+check("a stale session is told the command that takes it onto the new hibr",
+      "hold upgrade t" in r, r)
+check("and why a restart will not do it, without asking for the session to go",
+      "Restart Desktop cannot" in r and "quit and start" not in r, r)
+
 shutil.rmtree(SESSD, ignore_errors=True)
 
 
@@ -5075,4 +5106,4 @@ try:
 except OSError:
     pass
 
-report(601)
+report(603)

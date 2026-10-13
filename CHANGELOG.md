@@ -1,5 +1,148 @@
 # Changelog
 
+## 0.99.165
+
+**A program spawned on a pty could read its size as 0x0 and lay itself out
+for eighty columns** (Gitea #203), which is in this release because it is
+what the release's own gate found.
+
+`tt_spawn` set the window size **after** the fork, so a child that reached
+its own `ioctl(TIOCGWINSZ)` first read `0x0` and `ed_cols()` answered its
+fallback of 80. Its callers are the line editor's layout -- a shell's first
+prompt, wrapped for the wrong width in a narrower window -- `select`'s
+display, `mod list`'s fitting, and the console's size where there is no
+terminal, which retries and heals where the other three do not. Everything
+spawned on a hibr pty is reached, which is every terminal window in the
+desktop and every held session, since `hold` spawns through the same
+`py_api`.
+
+The gate is what caught it, as `090-module` under `asan --quick`'s 32
+suites:
+
+```
+FAIL 090-module         (recorded)
+  -36 columns: fits
+  +36 columns: TOO WIDE 71
+```
+
+It passed 8 of 8 alone under the sanitizer build and 16 of 16 under six
+spinners, so rather than wait for the load, the window was made certain:
+an 80 ms `usleep` standing in for the scheduling that normally loses this
+race.
+
+```
+widest 71   widest 71   widest 71      3 of 3, the size set after the fork
+widest 35   widest 35   widest 35      3 of 3, the same delay, set before it
+```
+
+The size goes on the **master** before the fork -- which needs no slave
+open -- and the post-fork `tt_resize` goes with it, since `p->rows` and
+`p->cols` are already assigned there and the record is memset, so it was
+only re-sending the same size and a SIGWINCH with it. That removes the
+dependency on scheduling rather than narrowing the window.
+
+**A stale session is told what to do about it, and a failed upgrade no
+longer half-serves** (Gitea #198).
+
+The note a session with an older server shows said this:
+
+> this session still runs the older hibr: quit and start the desktop again
+> to take the new one. Restart Desktop cannot, and it keeps your terminals'
+> programs where a new session will not
+
+Every clause was true when it was written and the first one has been false
+since 0.99.159, which gave the server a way to replace its own image and
+take the session with it. It now says:
+
+> this session still runs the older hibr: `hold upgrade desktop` takes it
+> onto the new one without losing your windows or your terminals' programs.
+> Restart Desktop cannot, since it re-execs the desktop inside this session
+
+It names a command rather than offering a gesture on purpose: wiring it into
+Restart Desktop is one line and a decision about a live session, which is
+the owner's to make. The sentence is also the first version of it that can
+be **translated** -- the format is the key and the session's name is an
+argument (`dt_tr`, then `dt_noteq`, which does not look a finished sentence
+up again) -- and Arabic has it.
+
+**`dt_notify` and `dt_notifyp` were missing from `tools/strings.py`'s sink
+list** for as long as they have existed, which is the `dt_mark` omission of
+#137 again: both translate their text at runtime, so a literal note would
+have been translatable and was simply never collected to be translated.
+Every call today passes interpolated text, so adding them brings one key and
+**six more templates** -- strings that carry a value and therefore cannot be
+catalogue keys, counted and listed in #202.
+
+**A server that is older than the verb now says so, which is the first
+thing this will say to anybody.** `hold upgrade` sent its request and asked
+for no reply, and a server from before 0.99.159 has no case for that request
+and closes the connection without answering -- so against the session you
+are most likely to try it on, the command **reported success and did
+nothing**. It asks for the reply now and tells the two refusals apart with
+`HD_INFO`, the oldest question in this protocol, because they are different
+things to be told:
+
+```
+$ hold upgrade old
+hibr: hold: old: this session's server is older than `hold upgrade` and
+cannot take itself onto a new hibr: end this session once and the next one can
+$ hold upgrade nosuch
+hibr: hold: nosuch: no such session
+```
+
+Measured against a real 0.99.158 server built from the tag, not reasoned
+about. This matters more than it looks: every session running today was
+started before the verb existed, so the one-time cost of a session ended is
+owed once per session, and nothing could have told you that before.
+
+**And the half-served session.** `hd_upgrade` releases the pty before the
+`execl` so the new image can adopt it, and when the exec does not happen the
+loop carried on with an id the pty module no longer knew. Measured with a
+`$HIBR` that is present but not executable:
+
+```
+hold list before:  u detached 383913 0x0
+hold list after:   u detached -1 0x0
+```
+
+The session still drew and still relayed, which is what made it look fine,
+but `hold list` answered a pid of `-1`, a client attaching at 24x80 never
+resized the program again, and its exit would never have been noticed -- for
+a desktop, also no cell size, so no pictures, for ever. The comment above it
+claimed a failure "costs a log line"; that was half true. `hd_upgrade`
+answers the id to carry on with now and takes the terminal back
+(`hd_pty->adopt`) when the exec fails, so a refusal really does leave the
+session as it was, twice over.
+
+`tests/936-hold-upgrade.t` is the guard and it fails against 0.99.164 on
+exactly those two lines. It checks the other direction too, which had no
+check at all: the modules are copied so they can be replaced underneath a
+running session, and a replaced mapping reads `(deleted)` in
+`/proc/<server>/maps` until the server has loaded the new file at the same
+path -- 9 such mappings before the upgrade and 0 after, with the program's
+pid unchanged. **The pid alone is not evidence**, since it is the same
+whether the exec happened or not, which is what made an earlier
+verification of this feature worth nothing; and `/proc/<pid>/environ` is
+worse than useless here, because `pt_rename` overwrites the environment
+block, so the server's own `HIBR_HOLD_RESUME` is absent even when the exec
+plainly happened. Three readings of "it did not happen" came from that.
+
+`mods/hold/README.md` gains the verb, which was missing from its table, and
+what the failure modes cost: a module that is **replaced** is safe, which is
+what apt and `make` do; one that is **removed** with nothing in its place
+loses the session unrecoverably, since the exec has already happened by the
+time `mod load` fails.
+
+The ticket's own smaller suggestion -- comparing module inodes so the mark
+means "a fix you want is not in this session" rather than "something was
+upgraded" -- was measured and **refused**: a deb gives every file it ships a
+new inode on every install, every module relinks on every release in a build
+tree since `HIBR_VER` lives in a header they all include, and the old
+mapped file's content cannot be compared at all, because
+`/proc/<pid>/map_files` is `Operation not permitted` without
+`CAP_SYS_ADMIN`. An inode test answers "something was installed", which one
+`-ef` already answers.
+
 ## 0.99.164
 
 **A module whose init loads another module and then fails crashed the shell**

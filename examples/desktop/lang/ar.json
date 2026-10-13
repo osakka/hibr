@@ -919,6 +919,7 @@
   "sets a place, or the time zone gives one.": "تحدّد مكانًا، أو تأتي به المنطقة الزمنية.",
   "text": "نص",
   "there is no account to test yet": "لا يوجد حساب لاختباره بعد",
+  "this session still runs the older hibr: 'hold upgrade %s' takes it onto the new one without losing your windows or your terminals' programs. Restart Desktop cannot, since it re-execs the desktop inside this session": "لا تزال هذه الجلسة تعمل بإصدار hibr الأقدم: الأمر 'hold upgrade %s' ينقلها إلى الإصدار الجديد دون فقدان نوافذك أو البرامج العاملة في الطرفيات. إعادة تشغيل سطح المكتب لا تفعل ذلك، لأنها تعيد تنفيذ سطح المكتب داخل هذه الجلسة",
   "yes, %s displays attached": "نعم، %s شاشات متصلة",
   "yes, 1 display attached": "نعم، شاشة واحدة متصلة"
  }

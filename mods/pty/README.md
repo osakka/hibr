@@ -30,7 +30,7 @@ driven through a terminal of its own.
 
 | form | does |
 |---|---|
-| `pty spawn [-r rows] [-c cols] cmd [args…]` | start it; the id lands in `$RET` |
+| `pty spawn [-r rows] [-c cols] cmd [args…]` | start it; the id lands in `$RET`. The size is on the terminal **before** the program is forked, so what it reads of its own width on its first line is already right (Gitea #203) |
 | `pty read <id> [ms]` | what is there now, waiting up to `ms` for the first byte |
 | `pty drain <id> [ms]` | keep reading until it stops, or `ms` passes with nothing |
 | `pty write <id> text…` | send bytes, as if typed |

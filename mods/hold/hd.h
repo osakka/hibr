@@ -129,8 +129,8 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 void hd_keepexec(int fd);
 int hd_selfmod(const char *name, str *out);
 int hd_resume(sh *s);
-void hd_upgrade(sh *s, const char *path, vec *cls, int id, int tid, int m,
-		int l);
+int hd_upgrade(sh *s, const char *path, vec *cls, int id, int tid, int m,
+	       int l);
 int hd_attach(const char *name, const char *path, int multi, int row,
 	      int col, const char *dname);
 

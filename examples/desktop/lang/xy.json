@@ -905,6 +905,7 @@
   "sets a place, or the time zone gives one.": "⟪sets a place, or the time zone gives one.⟫",
   "text": "⟪text⟫",
   "there is no account to test yet": "⟪there is no account to test yet⟫",
+  "this session still runs the older hibr: 'hold upgrade %s' takes it onto the new one without losing your windows or your terminals' programs. Restart Desktop cannot, since it re-execs the desktop inside this session": "⟪this session still runs the older hibr: 'hold upgrade %s' takes it onto the new one without losing your windows or your terminals' programs. Restart Desktop cannot, since it re-execs the desktop inside this session⟫",
   "yes, %s displays attached": "⟪yes, %s displays attached⟫",
   "yes, 1 display attached": "⟪yes, 1 display attached⟫"
  }

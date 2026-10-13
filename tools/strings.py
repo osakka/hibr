@@ -28,6 +28,13 @@ SINKS = {
     "dt_menu": [1], "dt_item": [1], "dt_sub": [1], "dt_dim": [1],
     "dt_mark": [1],
     "dt_row": [3], "dt_app": [2], "cp_pane": [2], "dt_note": [1],
+    # dt_notify and dt_notifyp were missing for as long as they have
+    # existed, which is the dt_mark omission again (Gitea #137): both
+    # translate their text at runtime, so a literal note would have been
+    # translatable and was simply never collected to be translated. Every
+    # call today passes interpolated text, so they add no key here and
+    # fourteen templates to #202's count instead.
+    "dt_notify": [1], "dt_notifyp": [2],
     "dt_notep": [2], "dt_confirm": [1], "dt_button": [4],
     "dt_buttons": "pairs:6", "dt_dlgbtns": "pairs:6", "dt_check": [5],
     "dt_new": [1], "dt_retitle": [2], "dt_iconadd": [3],

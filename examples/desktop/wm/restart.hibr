@@ -339,7 +339,7 @@ dt_sessionold() {
 
 DT_UPMS=60000
 dt_updcheck() {
-	local v
+	local t v
 
 	[ -e /proc/$$/exe ] && [ -n "$HIBR" ] || return 0
 	# Once it is known, it is not news, so the check can be cheap and
@@ -357,16 +357,24 @@ dt_updcheck() {
 	if [ -z "$DT_UPSESSION" ] && dt_sessionold; then
 		DT_UPSESSION=1
 		DT_MENUIN=
-		# Say what to do, and what it costs. Naming only what will not
-		# work reads as a failure to whoever has just done it: "I can
-		# no longer restart successfully" was the report, against
-		# three restarts that had each succeeded and kept every window
+		# Say what to do. Naming only what will not work reads as a
+		# failure to whoever has just done it: "I can no longer
+		# restart successfully" was the report, against three
+		# restarts that had each succeeded and kept every window
 		# (Gitea #190). A restart re-execs the desktop *inside* this
 		# server, so it can never replace the server's own image --
-		# and it keeps the programs in terminal windows, which a new
-		# session does not. That trade is the whole reason to put it
-		# off, so it belongs in the sentence.
-		dt_notify "this session still runs the older hibr: quit and start the desktop again to take the new one. Restart Desktop cannot, and it keeps your terminals' programs where a new session will not"
+		# and until 0.99.159 the only remedy was to throw the session
+		# away, which is what this sentence used to ask for. The
+		# server can now replace its own image and take the session
+		# with it, so the sentence names that instead (Gitea #198).
+		# It names a *command* deliberately: wiring it into Restart
+		# Desktop is one line and a decision about a live session,
+		# which is the owner's to make rather than this code's.
+		# dt_noteq rather than dt_notify, which would look the
+		# finished sentence up in the catalogue: the format is the
+		# key, which is what dt_tr's own arguments are for.
+		t := dt_tr "this session still runs the older hibr: 'hold upgrade %s' takes it onto the new one without losing your windows or your terminals' programs. Restart Desktop cannot, since it re-execs the desktop inside this session" "${HIBR_HOLD##*/}"
+		dt_noteq normal "$t"
 		dt_want 10
 	fi
 	[ /proc/$$/exe -ef "$HIBR" ] && return 0

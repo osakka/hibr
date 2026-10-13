@@ -70,6 +70,7 @@ int tt_resize(tt_p *p, int rows, int cols)
    behave differently in a pipe. */
 tt_p *tt_spawn(sh *s, int rows, int cols, char **av)
 {
+	struct winsize w;
 	tt_p *p;
 	int m, sl;
 	char *nm;
@@ -92,6 +93,17 @@ tt_p *tt_spawn(sh *s, int rows, int cols, char **av)
 		return 0;
 	}
 	nm = xs(nm);
+	/* The size goes on the master before the fork, never after it: a
+	   program reads its own winsize the moment it execs -- the line
+	   editor's first prompt, `select`, `mod list` -- and a parent
+	   descheduled between the fork and the resize had not set it yet,
+	   so the child read 0x0 and ed_cols fell back to 80. Measured with
+	   an 80 ms delay standing in for that scheduling: `mod list` on a
+	   36-column pty drew 71 columns wide, 3 runs of 3 (Gitea #203). */
+	memset(&w, 0, sizeof w);
+	w.ws_row = (unsigned short)rows;
+	w.ws_col = (unsigned short)cols;
+	ioctl(m, TIOCSWINSZ, &w);
 	fflush(0);
 	pid = (long)fork();
 	if (pid < 0) {
@@ -134,7 +146,6 @@ tt_p *tt_spawn(sh *s, int rows, int cols, char **av)
 	p->rows = rows;
 	p->cols = cols;
 	v_add(&tt_list, p);
-	tt_resize(p, rows, cols);
 	lg(HIBR_LINF, "pty %d is pid %ld running %s", p->id, pid, av[0]);
 	return p;
 }

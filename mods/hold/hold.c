@@ -390,14 +390,36 @@ int m_hold(sh *s, int ac, char **av)
 	   (Gitea #198). Restart Desktop cannot do this, because it re-execs
 	   the desktop *inside* the server this replaces. */
 	if (!strcmp(sub, "upgrade")) {
+		str rep;
+
 		if (!hd_which(ac > 2 ? av[2] : 0, &path)) {
 			s_free(&path);
 			return 2;
 		}
-		r = hd_ask(path.p, HD_UPGRADE, 0);
-		if (!r)
-			lg(HIBR_LERR, "hold: %s: no such session",
-			   ac > 2 ? av[2] : path.p);
+		s_init(&rep);
+		r = hd_ask(path.p, HD_UPGRADE, &rep);
+		/* A reply is asked for so that the two refusals can be told
+		   apart, and they are different things to be told: a server
+		   from before this verb has no case for the request and
+		   closes without answering, where a session that is not
+		   there cannot be dialled at all. One is a session that has
+		   to be ended once, the other is a typo. HD_INFO is the
+		   probe, being the oldest question in this protocol -- and
+		   the owner's own session predated the verb by a day, so
+		   this is the first thing it will say to anybody. */
+		if (!r) {
+			if (hd_ask(path.p, HD_INFO, &rep))
+				lg(HIBR_LERR,
+				   "hold: %s: this session's server is older "
+				   "than `hold upgrade` and cannot take "
+				   "itself onto a new hibr: end this session "
+				   "once and the next one can",
+				   ac > 2 ? av[2] : path.p);
+			else
+				lg(HIBR_LERR, "hold: %s: no such session",
+				   ac > 2 ? av[2] : path.p);
+		}
+		s_free(&rep);
 		s_free(&path);
 		return r ? HIBR_OK : HIBR_FAIL;
 	}

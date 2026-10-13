@@ -554,10 +554,12 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 				hd_conn(c, &cls, id, tid, m, &quit, &upg);
 			}
 			if (upg) {
-				hd_upgrade(s, path, &cls, id, tid, m, l);
-				/* Only reached when the exec did not
+				/* Only returns when the exec did not
 				   happen: nothing was closed and the
-				   session is still here, so carry on. */
+				   session is still here, with the pty
+				   taken back under the id it answers. */
+				id = hd_upgrade(s, path, &cls, id, tid, m,
+						l);
 				upg = 0;
 			}
 		}
@@ -658,18 +660,21 @@ int hd_selfmod(const char *name, str *out)
    a new build reads an old file.
    Returns only when the exec did not happen, and then the session is
    untouched and still serving: nothing here closes anything or ends the
-   program, so a failure costs a log line. */
-void hd_upgrade(sh *s, const char *path, vec *cls, int id, int tid, int m,
-		int l)
+   program. It answers the id to carry on with, which is a new one when the
+   exec did not happen and the terminal had to be taken back. */
+int hd_upgrade(sh *s, const char *path, vec *cls, int id, int tid, int m,
+	       int l)
 {
 	const char *hibr = hibr_get(s, "HIBR");
+	long pid = hd_pty->pid(id);
+	int rows = hd_tm->rows(tid), cols = hd_tm->cols(tid), nid;
 	str st, rp, cmd, mp;
 	FILE *f;
 	size_t i;
 
 	if (!hibr || !*hibr) {
 		lg(HIBR_LERR, "hold upgrade: $HIBR names no shell to exec");
-		return;
+		return id;
 	}
 	s_init(&mp);
 	s_init(&st);
@@ -688,8 +693,7 @@ void hd_upgrade(sh *s, const char *path, vec *cls, int id, int tid, int m,
 		goto out;
 	}
 	fprintf(f, "listen %d\n", l);
-	fprintf(f, "pty %d %ld %d %d\n", m, hd_pty->pid(id),
-		hd_tm->rows(tid), hd_tm->cols(tid));
+	fprintf(f, "pty %d %ld %d %d\n", m, pid, rows, cols);
 	fprintf(f, "state %s\n", st.p);
 	for (i = 0; i < cls->n; i++) {
 		struct hd_cli *cn = cls->p[i];
@@ -733,10 +737,27 @@ void hd_upgrade(sh *s, const char *path, vec *cls, int id, int tid, int m,
 	execl(hibr, "hibr", "-c", cmd.p, (char *)0);
 	lg(HIBR_LERR, "hold upgrade: cannot exec %s: carrying on", hibr);
 	unsetenv("HIBR_HOLD_RESUME");
+	unlink(st.p);
+	unlink(rp.p);
+	s_free(&cmd);
+	/* Take the terminal back, or carrying on means carrying on without
+	   one: the release above has already happened, so this process would
+	   go on drawing and relaying a session whose pty it no longer has a
+	   record of -- `hold list` answering a pid of -1, no client's size
+	   ever reaching the program again, and its exit never noticed. That
+	   is worse than either working or stopping, and it is what a $HIBR
+	   that is there but not executable used to leave behind. */
+	nid = hd_pty->adopt(m, pid, rows, cols);
+	if (nid)
+		id = nid;
+	else
+		lg(HIBR_LERR, "hold upgrade: cannot take the terminal back: "
+			      "this session can no longer be resized");
 out:
 	s_free(&st);
 	s_free(&rp);
 	s_free(&mp);
+	return id;
 }
 
 /* The other side of it: a server that has just been exec'd takes the

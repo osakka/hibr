@@ -905,6 +905,24 @@ went in the shell.
   is one character in two of them. See `docs/adr/0021`. The byte-based version
   drew a box border nine characters long with half a character on the end.
   Anything new that measures text has to pick one of the two on purpose.
+- **A pty's size goes on the master before the fork, never after it.**
+  `tt_spawn` set it after, so a child that reached its own
+  `ioctl(TIOCGWINSZ)` before the parent got to `tt_resize` read **0x0**,
+  and `ed_cols()` answered its fallback of 80 -- the line editor's first
+  prompt laid out for the wrong width, `select`'s display and `mod list`'s
+  fitting with it (the console's own `cn_size` retries and heals, which is
+  why only the other three showed it). It reaches every terminal window in
+  the desktop and every held session, since `hold` spawns through the same
+  `py_api`. Found by a **gate**, not by a person: `090-module` under
+  `asan --quick`'s 32 suites read `36 columns: TOO WIDE 71`, where it
+  passed 8 of 8 alone and 16 of 16 under six spinners -- the parent's path
+  after a fork is a `free`, an `fcntl`, a `malloc` and a `v_add`, so it
+  normally wins by milliseconds. **An 80 ms `usleep` in place of the
+  scheduling is what made it certain** (71 columns, 3 of 3; 35 with the
+  same delay once the order was fixed), which is this file's own rule about
+  adding a knob rather than leaving a guard to luck -- and the knob was
+  temporary, since the fix is an ordering and nothing is left to time
+  (Gitea #203, 0.99.165).
 - **A child needs a session and a controlling terminal, not just the fds.**
   Without `setsid` and `TIOCSCTTY` a shell started on a pty has no terminal,
   runs no line editor and calls itself non-interactive — which reads as the

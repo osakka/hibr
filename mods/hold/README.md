@@ -21,6 +21,7 @@ nothing has to be saved and restored.
 | `hold drop name display` | detach a named client, server-side -- "switch off" a display from the panel |
 | `hold primary name display` | make a named client the session's primary; every other client stops being it |
 | `hold kill name` | end the program and the session |
+| `hold upgrade name` | re-exec the server on the hibr that is on disk now and take the session back: the program, every attached display and what is on screen all survive |
 
 While attached, **ctrl-\\** detaches. Everything else, ctrl-c included, goes
 to the program. A second plain `hold attach` takes the session over and
@@ -174,12 +175,35 @@ paths they were loaded from**, read out of `/proc/self/maps`, rather than
 by name through the module path: a session started with `mod load
 ./build/mods/hold.so` has no module path at all, and a resumed server that
 could not find `pty` would lose the session at the exec -- which is exactly
-what happened the first time this was run. Nothing is closed and the
-program is not released until the moment before `execl`, so a failure
-anywhere earlier leaves the session as it was and costs a line in the log.
-And no client's `front` is carried: each is sent the whole screen again,
-which is what an attach already does, where a stale front is the one thing
-that would leave it wrong.
+what happened the first time this was run. The ` (deleted)` the kernel
+appends to a replaced mapping is dropped, so what is loaded is the new file
+at the same name, which is what apt leaves behind. And no client's `front`
+is carried: each is sent the whole screen again, which is what an attach
+already does, where a stale front is the one thing that would leave it
+wrong.
+
+A server **older than this verb** -- anything before 0.99.159 -- has no case
+for the request and closes the connection without answering, so the client
+asks for a reply and says which refusal it met: `this session's server is
+older than hold upgrade` against one of those, `no such session` against a
+name nothing answers to. Asking for no reply, as the first version did, made
+the command report success and do nothing on exactly the sessions anybody
+would first try it on.
+
+What it costs when it goes wrong, measured rather than reasoned about. A
+module that is **replaced** is the safe case and the common one. A module
+that is **removed** with nothing in its place -- `apt remove`, a `make
+clean`, a file moved aside -- loses the session, and there is no way back
+once the exec has happened: `mod load <path> || exit 1` fails, the new
+image exits, the master descriptor it was keeping closes with it, and the
+program on the pty dies. And an exec that **cannot happen** -- a `$HIBR`
+that is there but not executable -- leaves the session exactly as it was,
+but only since 0.99.165: the pty is released before the exec so the new
+image can adopt it, and until then the loop carried on with an id the
+module no longer knew, so `hold list` answered a pid of `-1`, no client's
+size ever reached the program again and its exit would never have been
+noticed, while the screen went on being drawn. It is taken back now
+(`tests/936-hold-upgrade.t`, which fails against 0.99.164).
 
 ## Files
 
