@@ -1,5 +1,85 @@
 # Changelog
 
+## 0.99.180
+
+**The display asks the terminal what colour it is, so a cell can be
+painted a shade off it** (Gitea #215), reported as *"when I open aptitude
+or other ncurses apps in terminal, their background is transparent, so
+the wallpaper shows through (of course this is only in wallpaper pixel
+mode)"*.
+
+Measured on the owner's own running session rather than reproduced,
+which is what settled it: a second display attached read only (`hold
+attach -m -n probe`, the technique #175 cost six refuted mechanisms to
+learn), at the session's own size and with no cell size of its own so
+nothing about the session changed. Every cell of their aptitude window
+arrives at a client with a background of its own -- 414 of 630 cells
+`48;5;0`, the rest `48;5;4` and the window's own `DT_FACE` -- and the
+wallpaper arrives at `z=-1073741825`, the layer below a cell's
+background. So hold was not dropping it, the emulator was not dropping
+it, and the `z` was the right one: hibr sends exactly what the protocol
+says makes a cell opaque.
+
+What is left is the terminal's own test for "has this cell a background",
+and kitty's is in its own shader:
+
+    uint bg_as_uint = resolve_color(colors[bg_index], default_colors[bg_index]);
+    float cell_has_default_bg = 1.f - step(1.f, abs(float(bg_as_uint - crd.bg_colors0)));
+
+a comparison of the cell's **resolved value** against the window's own
+background colour, not of its attribute. Palette 0 resolves to black, the
+owner's kitty background is black, so those cells count as having no
+background and the picture is composited through them -- while palette 4
+differs and stays solid, which is exactly what they see. It is why
+*ncurses* programs and nothing else showed it: they paint indexed black,
+where every window hibr draws paints a theme's own RGB.
+
+A cell meant to be opaque therefore has to carry a colour that is not the
+terminal's, and the display has never known what that is. It asks now:
+OSC 11 for the background and OSC 4 for the sixteen palette entries an
+index can name, at open and again after any resize -- which is also how a
+session reattached from another machine arrives, and how the first ask of
+all is recovered, since a held program opens its display before any
+client exists. The replies come back as input and are swallowed by the
+key decoder, where before this every one would have been typed in as
+`alt-]` and its own text. `console termbg` answers what was learned and
+whether it was answered or assumed; black is the assumption, because the
+cost of being wrong is a cell drawn a shade off rather than a cell that
+disappears.
+
+Then one cell in a frame changes: over a picture drawn under the text, a
+background that resolves to exactly the terminal's own is written with
+one in the last channel -- the same colour to look at, and not the one
+being compared against. Everything else is written exactly as it was
+asked for, including an index, which keeps a themed terminal's own
+colours; a cell with no background at all is still let through, which is
+what the wallpaper's own cells rely on.
+
+A **translucent** write goes through the same test, which is the half
+that would have been easy to leave out: its colour is the picture's own
+at that cell, scaled, so it can land on the terminal's background by
+arithmetic rather than by anybody choosing it -- a black patch of a
+photograph under a window's shadow scales to black. One cell of a frame,
+and it would have shown as the picture at full strength exactly where a
+shadow was meant to be.
+
+`mods/term` carries the question: an emulator with no colours of its own
+passes a colour query on instead of dropping it, and hold already sends
+what the emulator passes to every client. So the query leaves a held
+session, the real terminal answers it, and the answer arrives back the
+way a keystroke does -- no new message anywhere, and a terminal window's
+own program still gets its window's colours from `term colors` as before.
+
+Twelve checks in `tests/kitgfx.py` and two in `tests/holdpix.py`, eight
+and one of which fail against 0.99.179; the four that pass there are the
+ones asserting nothing changed. `tests/screen.py`'s terminal model
+answers a colour query now, given one, which is what makes the held pair
+possible at all -- a model that could only ever parse an OSC is a model a
+display can ask and never hear. One existing check was this release's to
+fix: `tests/console.py` tested that a bare bell survives having every
+OSC string taken out of the stream, with a pattern that knew only the
+BEL ending, so the ST-terminated queries made it swallow the bell too.
+
 ## 0.99.179
 
 **Redraw Skip says what its number counts** (Gitea #212), which is the

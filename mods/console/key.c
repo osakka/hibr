@@ -380,6 +380,112 @@ int cn_paste(const char *p, size_t n, str *o, size_t *used)
 	return 0;
 }
 
+/* One component of an `rgb:` colour specification: one to four hex digits,
+   scaled to eight bits the way xterm's own parser does, so `f` and `ffff`
+   are both white. */
+static int cn_hexpart(const char *p, size_t n, size_t *i, unsigned *out)
+{
+	unsigned v = 0, d, w = 0;
+
+	while (*i < n && w < 4) {
+		d = (unsigned char)p[*i];
+		if (d >= '0' && d <= '9')
+			d -= '0';
+		else if (d >= 'a' && d <= 'f')
+			d = d - 'a' + 10;
+		else if (d >= 'A' && d <= 'F')
+			d = d - 'A' + 10;
+		else
+			break;
+		v = v * 16 + d;
+		w++;
+		(*i)++;
+	}
+	if (!w)
+		return 0;
+	while (w < 4) {
+		v = v * 16 + (v & 15);
+		w++;
+	}
+	*out = v >> 8;
+	return 1;
+}
+
+/* An operating system command arriving as *input* is an answer to
+   something this display asked: the terminal's own background (OSC 11) or
+   one of its palette entries (OSC 4), each as `rgb:RRRR/GGGG/BBBB`. It is
+   consumed and reported, never handed on as a key -- before this, every
+   such reply was decoded as `alt-]` followed by its own text typed into
+   whatever had focus, which is the reason the display never asked anything
+   (Gitea #215).
+
+   2 means "taken, and no key to report". An OSC that has not finished yet
+   is 0 even once the Alt window has run out, as long as it still looks
+   like one and is shorter than any reply could be -- a reply split across
+   two reads over a slow link would otherwise be typed in as text -- and
+   anything longer or holding an escape of its own is refused as unknown.*/
+static int cn_osc(const char *p, size_t n, size_t *used)
+{
+	size_t i = 2, end = 0, skip = 0;
+	long which, idx = -1;
+	unsigned r, g, b;
+
+	for (i = 2; i < n; i++) {
+		if ((unsigned char)p[i] == 7) {
+			end = i;
+			skip = 1;
+			break;
+		}
+		if ((unsigned char)p[i] == 27) {
+			if (i + 1 >= n)
+				return 0;
+			if (p[i + 1] != '\\')
+				return -1;
+			end = i;
+			skip = 2;
+			break;
+		}
+	}
+	if (!skip)
+		return n < CN_OSCMAX ? 0 : -1;
+	*used = end + skip;
+	i = 2;
+	which = 0;
+	while (i < end && p[i] >= '0' && p[i] <= '9')
+		which = which * 10 + (p[i++] - '0');
+	if (i >= end || p[i] != ';')
+		return 2;
+	i++;
+	if (which == 4) {
+		idx = 0;
+		while (i < end && p[i] >= '0' && p[i] <= '9')
+			idx = idx * 10 + (p[i++] - '0');
+		if (i >= end || p[i] != ';')
+			return 2;
+		i++;
+	}
+	if (end - i > 4 && !memcmp(p + i, "rgb:", 4))
+		i += 4;
+	else if (end - i > 5 && !memcmp(p + i, "rgba:", 5))
+		i += 5;
+	else if (i < end && p[i] == '#')
+		i++;
+	else
+		return 2;
+	if (!cn_hexpart(p, end, &i, &r))
+		return 2;
+	if (i < end && p[i] == '/')
+		i++;
+	if (!cn_hexpart(p, end, &i, &g))
+		return 2;
+	if (i < end && p[i] == '/')
+		i++;
+	if (!cn_hexpart(p, end, &i, &b))
+		return 2;
+	cn_gotcolour((int)which, (int)idx, (r << 16) | (g << 8) | b);
+	return 2;
+}
+
 /* Turn the front of the buffer into one key name; 0 means need more bytes. */
 int cn_dec(const char *p, size_t n, str *o, size_t *used, int last)
 {
@@ -414,6 +520,8 @@ int cn_dec(const char *p, size_t n, str *o, size_t *used, int last)
 		return cn_mouse(p, n, o, used);
 	if (p[1] == '[' && n >= 6 && !memcmp(p + 2, "200~", 4))
 		return cn_paste(p, n, o, used);
+	if (p[1] == ']')
+		return cn_osc(p, n, used);
 	if (p[1] == 'O' || p[1] == '[') {
 		for (i = 0; i < 4; i++)
 			par[i] = 0;
@@ -486,6 +594,10 @@ int cn_key(int ms, str *out)
 		lg(HIBR_LERR, "console: not open");
 		return -1;
 	}
+	/* Asked here as well as at a flush, since a program that only waits
+	   for keys never flushes: either way the terminal is asked again
+	   once a resize says it may not be the one that was asked before. */
+	cn_askmaybe();
 	for (;;) {
 		if (cn_pend.n > (size_t)cn_pendo) {
 			r = cn_dec(cn_pend.p + cn_pendo,
@@ -494,6 +606,14 @@ int cn_key(int ms, str *out)
 			if (r == 1) {
 				cn_eat(used);
 				return 1;
+			}
+			if (r == 2) {
+				cn_eat(used);
+				out->n = 0;
+				if (out->p)
+					out->p[0] = 0;
+				armed = 0;
+				continue;
 			}
 			if (r < 0) {
 				lg(HIBR_LDBG, "console: unknown sequence, "

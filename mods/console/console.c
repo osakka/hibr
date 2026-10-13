@@ -766,6 +766,31 @@ int m_console(sh *s, int ac, char **av)
 		cn_translucent(!strcmp(m, "off") ? 0 : atoi(m), fg);
 		return HIBR_OK;
 	}
+	/* What the terminal said its own background is, and whether it said
+	   it at all -- `#rrggbb answered` or `#000000 assumed`. A colour
+	   that equals this one is the one colour a cell cannot be painted
+	   over a picture drawn under the text (Gitea #215), so this is what
+	   a test asks to know the display learned it. */
+	if (!strcmp(sub, "termbg")) {
+		int i;
+		str o;
+
+		s_init(&o);
+		s_ch(&o, '#');
+		for (i = 16; i >= 0; i -= 8) {
+			static const char hx[] = "0123456789abcdef";
+			unsigned v = (cn_termbg() >> i) & 0xFF;
+
+			s_ch(&o, hx[v >> 4]);
+			s_ch(&o, hx[v & 15]);
+		}
+		s_cat(&o, cn_termbgok() ? " answered" : " assumed");
+		hibr_ret(s, o.p);
+		if (!s->bind)
+			printf("%s\n", o.p);
+		s_free(&o);
+		return HIBR_OK;
+	}
 	if (!strcmp(sub, "darkdefault")) {
 		if (ac < 4) {
 			lg(HIBR_LERR, "usage: console darkdefault fg bg");

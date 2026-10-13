@@ -250,8 +250,13 @@ check("and a flush with nothing new still sends nothing", b"SECOND 0" in o)
 
 o, _ = run('console open\nconsole flush\nconsole bell\n'
            'console notify "done: all green"\nconsole close\n')
+# The bell is a bare 0x07, which is also how an OSC string ends, so every
+# OSC has to come out of the stream before a bare one means anything --
+# both endings of one, since the display's own colour queries end with ST
+# (Gitea #215) and a pattern that knew only BEL swallowed the bell itself
+# along with everything between.
 check("console bell rings, and console notify asks for a notification",
-      b"\x07" in re.sub(rb"\x1b\][^\x07]*\x07", b"", o) and
+      b"\x07" in re.sub(rb"\x1b\][^\x07\x1b]*(\x07|\x1b\\\\)", b"", o) and
       b"\x1b]9;done: all green\x07" in o)
 
 

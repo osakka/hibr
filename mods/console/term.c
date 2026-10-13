@@ -28,6 +28,149 @@ struct sigaction cn_ofatal[sizeof cn_fatals / sizeof cn_fatals[0]];
    or arrive as keys for the program to use. */
 int cn_isig = 1;
 
+/* What the terminal says its own colours are, asked for with OSC 11 and
+   OSC 4 and answered into cn_gotcolour by the key decoder.
+
+   Why the display wants to know: a terminal compositing a picture drawn
+   under the text decides per cell whether that cell has a background of
+   its own, and kitty decides it by comparing the cell's *resolved* value
+   with the window's own background colour --
+   `cell_has_default_bg = 1 - step(1, abs(bg_as_uint - bg_colors0))` in its
+   own shader. So a cell a program painted an explicit black, on a terminal
+   whose background is black, counts as having no background and the
+   picture is let through it: an ncurses program in a window over a picture
+   wallpaper was see-through, where every window drawn in a theme's own RGB
+   was not (Gitea #215). Nothing hibr computes is wrong there, so the only
+   way to keep such a cell opaque is to paint it a colour that is not the
+   terminal's own -- which means knowing what that is. */
+void cn_wr(int fd, const char *p, size_t n);
+
+static int cn_askgen = -1;
+static unsigned cn_tbgv;
+static int cn_tbgok;
+static unsigned cn_tpal[16];
+static int cn_tpalok[16];
+
+/* The queries, asked once at open and again on every resize -- a resize is
+   also how a session reattached from somewhere else arrives, and that
+   somewhere else is a different terminal with its own colours. Sent with
+   ST rather than BEL, and never answered by anything that has colours of
+   its own to report (a hibr terminal window answers for its own window);
+   an emulator that cannot answer passes them on to whoever is watching,
+   which is what carries them out of a held session. */
+static const char cn_askbg[] = "\033]11;?\033\\";
+
+/* The sixteen colours a program may name instead of an RGB value, as the
+   standard palette has them -- what an index resolves to while the
+   terminal has not said otherwise. Only these are themeable in practice;
+   the cube and the greys above 15 are computed. */
+static const unsigned cn_palstd[16] = {
+	0x000000, 0x800000, 0x008000, 0x808000, 0x000080, 0x800080, 0x008080,
+	0xc0c0c0, 0x808080, 0xff0000, 0x00ff00, 0xffff00, 0x0000ff, 0xff00ff,
+	0x00ffff, 0xffffff
+};
+
+/* Ask the terminal what its background and its sixteen palette entries
+   are. The replies arrive as input and are swallowed by the decoder, so
+   nothing a program reads is disturbed; a terminal that answers neither
+   leaves the assumptions in place. */
+void cn_askcolours(void)
+{
+	str q;
+	int i;
+
+	if (cn_fd < 0)
+		return;
+	cn_askgen = (int)cn_wgen;
+	s_init(&q);
+	s_cat(&q, cn_askbg);
+	for (i = 0; i < 16; i++) {
+		s_cat(&q, "\033]4;");
+		s_num(&q, i);
+		s_cat(&q, ";?\033\\");
+	}
+	cn_wr(cn_fd, q.p, q.n);
+	s_free(&q);
+	lg(HIBR_LDBG, "console: asked the terminal for its colours");
+}
+
+/* Ask again when the terminal may not be the one that was asked: a resize
+   is also how a session reattached from somewhere else arrives, and the
+   first ask of all reaches nobody when a held program opens its display
+   before any client has attached. Called from every flush rather than left
+   to the program: a bare program never calls cn_reassert, and the one that
+   needs this most -- anything inside `hold` -- is exactly the one whose
+   first ask was thrown away. */
+void cn_askmaybe(void)
+{
+	if (cn_askgen != (int)cn_wgen)
+		cn_askcolours();
+}
+
+/* One answer: which is 11 for the background, 4 for a palette entry, and
+   idx is the entry. A later answer replaces an earlier one, which is what
+   several attached displays each answering comes to -- the last one to say
+   is the one believed, the same choice hd_cellpx makes about a cell's
+   size. */
+void cn_gotcolour(int which, int idx, unsigned rgb)
+{
+	if (which == 11) {
+		cn_tbgv = rgb & 0xFFFFFF;
+		cn_tbgok = 1;
+		lg(HIBR_LDBG, "console: the terminal's background is #%06x",
+		   cn_tbgv);
+		return;
+	}
+	if (which == 4 && idx >= 0 && idx < 16) {
+		cn_tpal[idx] = rgb & 0xFFFFFF;
+		cn_tpalok[idx] = 1;
+		lg(HIBR_LDBG, "console: the terminal's colour %d is #%06x",
+		   idx, cn_tpal[idx]);
+	}
+}
+
+/* The terminal's own background. Black while it has not said: every
+   terminal anybody has reported this from has a dark one, and the cost of
+   assuming wrong is one cell drawn a shade off rather than a cell that
+   disappears. cn_termbgok says which of the two it is. */
+unsigned cn_termbg(void)
+{
+	return cn_tbgok ? cn_tbgv : 0;
+}
+
+/* Whether that was answered or assumed. */
+int cn_termbgok(void)
+{
+	return cn_tbgok;
+}
+
+/* What a colour resolves to on this terminal, as 24 bits: an RGB value is
+   itself, an index below sixteen is what the terminal said it is (or the
+   standard palette, which is what it almost certainly is), and the rest is
+   the cube and the greys, which are defined rather than themed. */
+unsigned cn_rgbof(unsigned v)
+{
+	unsigned n, r, g, b;
+
+	if (v & DP_RGB)
+		return v & 0xFFFFFF;
+	n = v & 0xFF;
+	if (n < 16)
+		return cn_tpalok[n] ? cn_tpal[n] : cn_palstd[n];
+	if (n < 232) {
+		n -= 16;
+		r = n / 36;
+		g = (n / 6) % 6;
+		b = n % 6;
+		r = r ? 55 + r * 40 : 0;
+		g = g ? 55 + g * 40 : 0;
+		b = b ? 55 + b * 40 : 0;
+		return (r << 16) | (g << 8) | b;
+	}
+	n = 8 + (n - 232) * 10;
+	return (n << 16) | (n << 8) | n;
+}
+
 static const char cn_leave[] = "\033[?25h\033[0m\033[?1002l\033[?1006l"
 			       "\033[?2004l\033[?1049l";
 static const char cn_enter[] = "\033[?1049h\033[?25l\033[?2004h\033[2J";
@@ -156,6 +299,7 @@ void cn_reassert(void)
 	cn_wr(cn_fd, cn_enter, sizeof cn_enter - 1);
 	if (cn_mousemode)
 		cn_mouseon(cn_mousemode);
+	cn_askcolours();
 	cn_inval();
 	lg(HIBR_LDBG, "resized: terminal modes asserted again");
 }
@@ -461,6 +605,7 @@ int cn_open(sh *s)
 		cn_mouseon(m);
 	}
 	cn_winch = 0;
+	cn_askcolours();
 	cn_size(&rows, &cols);
 	lg(HIBR_LDBG, "screen open, %d rows by %d columns", rows, cols);
 	cn_clear();

@@ -3433,6 +3433,14 @@ went in the shell.
   the mapping is the honest signal, and its one blind spot is a file
   **rewritten in place**, which keeps its inode -- no package manager does
   that and a build might (Gitea #198, #42, 0.99.170).
+- **`/proc/<pid>/environ` of a process this shell has renamed is not its
+  environment.** `pt_rename` memsets from `av[0]` to the end of the
+  environment block, which is where the variables still are, so every part
+  of a desktop reads back as 2,360 lines of nothing -- a grep for `TERM`
+  finds no match at all, which reads as the process having no environment
+  rather than as the rename having overwritten it. Read the **parent's**
+  instead: the shell that started it is not renamed, and that is where
+  `TERM=xterm-kitty` and `SSH_CONNECTION` were found while settling #215.
 - **Diagnose a live session by attaching a second display to it, not by
   building a reproduction -- and `hold attach` without `-m` takes the
   owner's display away.** #175 cost six refuted mechanisms before anything
@@ -3703,6 +3711,44 @@ went in the shell.
   `console translucent` ends at the next flush as well as on `off`, so a
   caller cannot leak it into whatever is drawn next: a guard that makes
   forgetting impossible rather than a list somebody maintains.
+- **A terminal decides whether a cell has a background of its own by
+  comparing the colour, not the attribute, and that makes one colour
+  unusable** (Gitea #215, 0.99.180). kitty's own shader is
+  `cell_has_default_bg = 1 - step(1, abs(bg_as_uint - bg_colors0))` -- the
+  cell's **resolved** value against the window's own background -- so a
+  cell a program painted an explicit black, on a terminal whose background
+  is black, counts as having none and a picture drawn under the text is
+  composited through it. That is why *ncurses* programs and nothing else
+  were see-through over a pixel wallpaper: they paint indexed black, where
+  every window hibr draws paints a theme's own RGB. **Nothing hibr computed
+  was wrong**, which is the shape to recognise -- the `z` was the lower one
+  (#175), hold carried the cells, the emulator kept them, and 414 of 630
+  cells of the owner's own aptitude window arrived at a client wearing
+  `48;5;0`. The only fix is to paint such a cell a colour that is *not* the
+  terminal's, which means knowing what that is, which means **asking**:
+  OSC 11 for the background, OSC 4 for the sixteen entries an index can
+  name, and one in the last channel for any cell that resolves to the
+  answer. Three things fell out of it, each a trap in its own right.
+  **An OSC arriving as input was being decoded as a key** -- `alt-]` and
+  then its own text typed into whatever had focus -- which is the reason
+  the display had never asked anything in the first place; a decoder needs
+  a third answer beside "a key" and "need more bytes": *taken, and nothing
+  to report*. **A re-ask gated on the caller's own resize handling is a
+  re-ask most programs never make**: the first version asked at open and in
+  `cn_reassert`, and a held program opens its display before any client
+  exists, so its one ask reached nobody and nothing asked again -- a bare
+  program never calls `cn_reassert`, and the program that needs this most
+  is exactly the one inside `hold`. It is asked from `cn_flush` **and**
+  `cn_key`, gated on the size generation, so whichever a program does
+  covers it. And **the harness had no answer to give**: `tests/screen.py`'s
+  model has always skipped an OSC, so a display could ask and never hear,
+  which is indistinguishable from a terminal that does not answer --
+  `Term(bg=...)` answers now, and the held pair of checks is only possible
+  because it does.
+  The check for the swallowing is this file's own absence trap again: "the
+  answer was never typed in as a key" **passes against a release that
+  never asked**, since nothing would have answered it. It reads both
+  halves -- the colour was learned *and* nothing of it is on screen.
 - **One capture serving two consumers with opposite needs must be told
   which one it is for.** `mods/web`'s screenshot is taken with the page's
   text made `color: transparent`, because the **cells** path draws that

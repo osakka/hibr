@@ -219,6 +219,24 @@ static void cn_imgcells(cn_img *im, const unsigned char *rgb, int iw,
 	}
 }
 
+/* Whether a picture drawn under the text covers this cell, with no
+   interest in its colour there. */
+int cn_imgunderat(int row, int col)
+{
+	size_t i;
+
+	for (i = 0; i < cn_nimg; i++) {
+		cn_img *im = &cn_imgs[i];
+
+		if (!im->over)
+			continue;
+		if (row >= im->row && row < im->row + im->h &&
+		    col >= im->col && col < im->col + im->w)
+			return 1;
+	}
+	return 0;
+}
+
 /* The picture's own colour at a cell, for anything that has to paint over
    an under-text picture in a colour that looks like the picture. 0 when no
    such picture covers it, which is every cell on a desktop whose wallpaper

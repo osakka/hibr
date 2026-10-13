@@ -263,6 +263,34 @@ unsigned cn_bgtrans(int row, int col)
 	return cn_dim1(pic, cn_transpct, 0);
 }
 
+/* The background a cell is written with, which is its own except in the
+   one case the terminal cannot tell from "no background at all": kitty
+   decides whether a cell has one by comparing its *resolved* value with
+   the window's own background colour, so a cell painted an explicit black
+   on a black terminal is a cell a picture drawn under the text is let
+   through -- an ncurses program in a window over a picture wallpaper was
+   see-through where every window in a theme's own RGB was not (Gitea
+   #215). One in the last channel is the whole substitution: the same
+   colour to look at, and not the one the terminal is comparing against.
+   Asked of every cell written, and of a translucent write's own computed
+   colour as well: that is the picture's colour at the cell, scaled, so a
+   black patch of a photograph under a shadow can land on exactly the
+   terminal's background by arithmetic rather than by anybody's choice.
+   The order is the cheap questions first -- a default background is the
+   wallpaper's own and must stay let through, and resolving a colour is
+   arithmetic where asking which pictures cover a cell is a walk. */
+unsigned cn_opaque(int row, int col, unsigned bg)
+{
+	unsigned v;
+
+	if (bg == DP_DEFAULT)
+		return bg;
+	v = cn_rgbof(bg);
+	if (v != cn_termbg() || !cn_imgunderat(row, col))
+		return bg;
+	return DP_RGB | (v ^ 1);
+}
+
 /* How translucent the next writes are, and what it was before: a caller
    saves and restores around its own drawing, the way cn_behind is used. A
    negative percentage reads the current one without changing it, so asking
@@ -406,8 +434,9 @@ int cn_put(int row, int col, const char *t)
 		c->w = (unsigned char)w;
 		c->cont = 0;
 		c->fg = cn_fg;
-		c->bg = cn_transpct && cn_bg == DP_DEFAULT ?
-			cn_bgtrans(row, col) : cn_bg;
+		c->bg = cn_opaque(row, col,
+				  cn_transpct && cn_bg == DP_DEFAULT ?
+					  cn_bgtrans(row, col) : cn_bg);
 		c->attr = cn_penat;
 		c->link = cn_plink;
 		if (w == 2) {
@@ -464,8 +493,11 @@ void cn_fill(int row, int col, int h, int w, const char *t)
 				p->w = 1;
 				p->cont = 0;
 				p->fg = cn_fg;
-				p->bg = cn_transpct && cn_bg == DP_DEFAULT ?
-					cn_bgtrans(r, c) : cn_bg;
+				p->bg = cn_opaque(r, c,
+						  cn_transpct &&
+						  cn_bg == DP_DEFAULT ?
+							  cn_bgtrans(r, c) :
+							  cn_bg);
 				p->attr = cn_penat;
 				p->link = cn_plink;
 			}
@@ -668,6 +700,7 @@ long cn_flush(void)
 		return 0;
 	if (cn_fit() != HIBR_OK)
 		return 0;
+	cn_askmaybe();
 	/* Translucency lasts for the drawing, not for ever: a frame ends
 	   here, so an app that sets it and never says otherwise cannot leak
 	   it into whatever is drawn next. Each caller still turns it off

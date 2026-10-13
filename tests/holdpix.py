@@ -125,7 +125,7 @@ def inner(body, settle=12000, nm="p"):
 
 
 def run(body, attach="hold attach %s\n", cell=CELL, settle=12000, wait=40,
-        gfx="kitty", until="HELD"):
+        gfx="kitty", until="HELD", bg=None):
     """Hold that program, attach to it from a pty that says what a cell
     measures, and give back the client's own screen. HIBR_GFX stands in for
     the terminal's own name, which the harness scrubs on purpose: the held
@@ -140,7 +140,7 @@ def run(body, attach="hold attach %s\n", cell=CELL, settle=12000, wait=40,
         + "sleep 0.6\n"
         + (attach % nm if "%s" in attach else attach))
     t = Term(outer, rows=24, cols=60, settle=1.0, cellw=cell[0],
-             cellh=cell[1], env={"HIBR_GFX": gfx, "TMPDIR": D})
+             cellh=cell[1], env={"HIBR_GFX": gfx, "TMPDIR": D}, bg=bg)
     for _ in range(wait):
         t.collect(0.25)
         if until in t.text:
@@ -355,5 +355,40 @@ check("a held program asking for the mouse makes its client enable reporting",
       b"\x1b[?1002h" in rawm and b"\x1b[?1006h" in rawm and "HELD MOUSE" in tm.text,
       (rawm[-200:], tm.text[-120:]))
 
+# What the terminal's own background is has to reach a held display too,
+# and it is the held case that matters: every desktop is held, and a cell
+# painted exactly that colour is the one cell a picture drawn under the
+# text is let through (Gitea #215). The emulator in the middle cannot
+# answer a colour query -- it has no colours of its own -- so it passes it
+# on, hold sends it to every client, and the reply comes back the way a
+# keystroke does. The query at open reaches nobody, since a held program
+# has no client for its first moment; the one the attach's own resize asks
+# again is what is answered here, which is the same path a session
+# reattached from another machine takes.
+BGQ = ("i=0\n"
+       "while [ $i -lt 60 ]; do\n"
+       "  console flush\n"
+       "  b := console termbg\n"
+       "  case $b in *answered*) break ;; esac\n"
+       "  k := console key 100\n"
+       '  case $k in "") ;; *) echo "key [$k]" >> ' + LOG + " ;; esac\n"
+       "  i=$((i + 1))\n"
+       "done\n"
+       "b := console termbg\n"
+       'echo "bg $b" >> ' + LOG + "\n"
+       "console put 0 0 'HELD BG'\n"
+       "console flush\n")
+sc, log = run(BGQ, until="HELD BG", bg="#101418")
+check("a held display learns its client terminal's own background",
+      "bg #101418 answered" in log, log)
+# And it arrives as an answer rather than as input: the program read every
+# key while it waited and was handed none, where before this an OSC reply
+# was decoded as `alt-]` and the rest of its own text typed in. Only worth
+# anything beside the check above -- a release that asked nothing would be
+# sent no reply to mistake for keys -- so it reads both halves.
+check("and the reply reaches it as an answer rather than as keys",
+      "answered" in log and "key [" not in log
+      and sc.find("HELD BG") is not None, log)
+
 shutil.rmtree(D, True)
-report(17)
+report(19)

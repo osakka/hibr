@@ -69,18 +69,22 @@ GRAD = png("grad.png", 48, 48, lambda x, y: (x * 5 % 256, y * 5 % 256, 90))
 FLAT = png("flat.png", 16, 16, lambda x, y: (10, 200, 10))
 
 
-def run(body, cell=CELL, gfx="kitty", rows=24, cols=60, settle=1.0):
-    """Run a console script on a pty that says what a cell measures."""
+def run(body, cell=CELL, gfx="kitty", rows=24, cols=60, settle=1.0,
+        bg=None, pal=None, raw=False):
+    """Run a console script on a pty that says what a cell measures -- and,
+    given bg, on one that answers a colour query the way a real terminal
+    does. raw answers the bytes as well as the screen."""
     p = os.path.join(D, "s.hibr")
     open(p, "w").write("%sconsole open\n%sconsole close\n"
                        % (load("console", "img"), body))
     env = {} if gfx is None else {"HIBR_GFX": gfx}
     t = Term(p, rows=rows, cols=cols, settle=settle,
-             cellw=cell[0], cellh=cell[1], env=env)
+             cellw=cell[0], cellh=cell[1], env=env, bg=bg, pal=pal)
     t.collect(0.8)
     sc = t.screen()
+    out = t.out
     t.quit(None, 0.5)
-    return sc
+    return (sc, out) if raw else sc
 
 
 def key(ctrl, k):
@@ -579,5 +583,115 @@ sc = run(FB)
 check("with no picture a translucent write takes the fallback colour",
       bg(sc, 5, 5) == (16, 24, 32), bg(sc, 5, 5))
 
+# What the terminal says its own background is, and the one cell that has to
+# be painted a shade off it (Gitea #215). kitty decides whether a cell has a
+# background of its own by comparing the cell's *resolved* value with the
+# window's own background colour, so a cell a program painted an explicit
+# black, on a black terminal, is a cell the picture is let through -- which
+# is what made every ncurses program in a window over a picture wallpaper
+# see-through while every window in a theme's own RGB stayed solid. The
+# display cannot know that colour, so it asks.
+ASK = ("console flush\n"
+       "console key 400 > /dev/null\n")
+sc, out = run(ASK, bg="#101418", raw=True)
+check("the display asks the terminal what its background is",
+      b"\x1b]11;?" in out)
+check("and asks for the palette entries an index can name",
+      b"\x1b]4;0;?" in out and b"\x1b]4;15;?" in out)
+# And this one only means anything beside the two above: a release that
+# never asked would pass it for nothing, since nothing would answer. So it
+# reads both halves -- the answer arrived (the display knows the colour)
+# and no part of it reached the screen as text.
+sc = run("console key 400 > /dev/null\n"
+         "b := console termbg\n"
+         "console put 1 1 \"$b\"\n"
+         "console flush\n", bg="#101418")
+check("the answer is taken as an answer, never typed in as a key",
+      "answered" in sc.row(1) and "rgb" not in sc.text()
+      and "]11" not in sc.text(), sc.row(1))
+
+# The answer is what it then compares a cell's background against.
+TBG = ("console key 400 > /dev/null\n"
+       "b := console termbg\n"
+       "console put 1 1 \"$b\"\n"
+       "console flush\n")
+sc = run(TBG, bg="#101418")
+check("and it keeps what the terminal answered",
+      sc.row(1).strip() == "#101418 answered", sc.row(1))
+sc = run(TBG)
+check("a terminal that answers nothing leaves black assumed",
+      sc.row(1).strip() == "#000000 assumed", sc.row(1))
+
+# So over a picture drawn under the text, that one colour is written a shade
+# off -- the same colour to look at, and not the one the terminal compares
+# against. Everything else is left exactly as it was asked for.
+SAME = ("console key 400 > /dev/null\n"
+        "img draw %s 2 2 10 20 -m pixels -u\n"
+        "console pen \"#ffffff\" \"#101418\"\n"
+        "console put 5 5 \"hi\"\n"
+        "console pen \"#ffffff\" \"#202428\"\n"
+        "console put 6 5 \"hi\"\n"
+        "console flush\n" % FLAT)
+sc = run(SAME, bg="#101418")
+check("a cell painted the terminal's own colour over a picture is a shade off",
+      bg(sc, 5, 5) == (16, 20, 25), bg(sc, 5, 5))
+check("and any other colour is written exactly as asked",
+      bg(sc, 6, 5) == (32, 36, 40), bg(sc, 6, 5))
+
+# Only over a picture: with nothing under it the cell is the colour it was
+# given, since there is nothing for the terminal to let through.
+NOPIC215 = ("console key 400 > /dev/null\n"
+            "console pen \"#ffffff\" \"#101418\"\n"
+            "console put 5 5 \"hi\"\n"
+            "console flush\n")
+sc = run(NOPIC215, bg="#101418")
+check("with no picture under it the same colour is left alone",
+      bg(sc, 5, 5) == (16, 20, 24), bg(sc, 5, 5))
+
+# And a cell with no background at all is still let through, which is the
+# whole reason the wallpaper is drawn with one.
+THRU = ("console key 400 > /dev/null\n"
+        "img draw %s 2 2 10 20 -m pixels -u\n"
+        "console pen default default\n"
+        "console put 5 5 \"hi\"\n"
+        "console flush\n" % FLAT)
+sc = run(THRU, bg="#101418")
+check("a cell with no background of its own is still let through",
+      bg(sc, 5, 5) is None, bg(sc, 5, 5))
+
+# An index is the case that was reported: an ncurses program paints palette
+# 0, not an RGB value, and what that resolves to is the terminal's own
+# business -- so the comparison is against what *it* said the index is.
+IDX = ("console key 400 > /dev/null\n"
+       "img draw %s 2 2 10 20 -m pixels -u\n"
+       "console pen white black\n"
+       "console put 5 5 \"hi\"\n"
+       "console flush\n" % FLAT)
+pal = ["#101418"] + ["#800000"] * 15
+sc = run(IDX, bg="#101418", pal=pal)
+check("an index the terminal resolves to its own background is a shade off",
+      bg(sc, 5, 5) == (16, 20, 25), bg(sc, 5, 5))
+pal = ["#2b2b2b"] + ["#800000"] * 15
+sc = run(IDX, bg="#101418", pal=pal)
+check("and one it resolves to anything else is left an index",
+      bg(sc, 5, 5) is None and "48;5;0" in (sc.p[5][5] or ""), sc.p[5][5])
+
+# And a translucent write's own colour is the picture's, scaled, so it can
+# land on the terminal's background by arithmetic rather than by anybody
+# choosing it -- a black patch of a photograph under a window's shadow
+# scales to black. FLAT is (10, 200, 10) and 75% of it is (8, 150, 8), so a
+# terminal whose background is exactly that is the case, and the cell has to
+# come out a shade off rather than let the picture through at full strength.
+TRANSSAME = ("console key 400 > /dev/null\n"
+             "img draw %s 2 2 10 20 -m pixels -u\n"
+             "console translucent 75\n"
+             "console pen default default\n"
+             "console put 5 5 \"hi\"\n"
+             "console translucent off\n"
+             "console flush\n" % FLAT)
+sc = run(TRANSSAME, bg="#089608")
+check("a translucent write that lands on the terminal's colour is a shade off",
+      bg(sc, 5, 5) == (8, 150, 9), bg(sc, 5, 5))
+
 shutil.rmtree(D, True)
-report(54)
+report(66)

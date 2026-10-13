@@ -113,6 +113,10 @@ size_t cn_imgdels(str *b);
 void cn_imgclear(void);
 int cn_imgat(int row, int col);
 int cn_imgcellat(int row, int col, unsigned *out);
+/* Whether a picture drawn under the text covers this cell at all, asked
+   without wanting its colour there -- what decides whether a cell's
+   background has to be kept distinguishable from the terminal's own. */
+int cn_imgunderat(int row, int col);
 unsigned cn_bgtrans(int row, int col);
 int cn_translucent(int pct, unsigned fb);
 size_t cn_imgn(void);
@@ -123,6 +127,23 @@ int cn_gfx(sh *s);
 const char *cn_gfxname(int k);
 extern volatile sig_atomic_t cn_wgen;
 unsigned cn_dim1(unsigned v, int pct, unsigned deflt);
+/* What the terminal says its own colours are, and what a colour resolves
+   to on it -- see the comment on cn_tbgv in term.c for why a display that
+   places a picture under the text has to know. The longest reply worth
+   waiting for the end of. */
+#ifndef CN_OSCMAX
+#define CN_OSCMAX 64
+#endif
+void cn_askcolours(void);
+void cn_askmaybe(void);
+void cn_gotcolour(int which, int idx, unsigned rgb);
+unsigned cn_termbg(void);
+int cn_termbgok(void);
+unsigned cn_rgbof(unsigned v);
+/* The background a cell is actually written with: its own, unless that is
+   exactly the terminal's and a picture drawn under the text would be let
+   through it. */
+unsigned cn_opaque(int row, int col, unsigned bg);
 void cn_darken(int row, int col, int h, int w, int pct);
 void cn_darken1(int row, int col, int h, int w, int pct, int once);
 void cn_setdim(unsigned fg, unsigned bg);

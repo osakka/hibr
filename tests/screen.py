@@ -292,8 +292,14 @@ class Term:
     timer. Anything that never says it is idle keeps the fixed timings."""
 
     def __init__(self, *argv, rows=ROWS, cols=COLS, env=None, settle=0.4,
-                 size=True, cellw=0, cellh=0):
+                 size=True, cellw=0, cellh=0, bg=None, pal=None):
         self.rows, self.cols = rows, cols
+        # What this terminal answers a colour query with, and how far the
+        # output has been scanned for one. None answers nothing, as a
+        # terminal that does not implement the queries does.
+        self.bg = bg
+        self.pal = pal or ["#000000"] * 16
+        self.asked = 0
         self.out = b""
         self.status = None
         self.exited = False
@@ -364,6 +370,45 @@ class Term:
         fcntl.ioctl(self.fd, termios.TIOCSWINSZ,
                     struct.pack("HHHH", rows, cols, cols * cellw, rows * cellh))
 
+    def answer(self):
+        """Answer the colour queries a display asks, if this Term was told
+        what its colours are -- OSC 11 for the background and OSC 4 for a
+        palette entry, in the `rgb:RRRR/GGGG/BBBB` form xterm replies with.
+        A real terminal answers these; nothing in the model did, so a
+        display could ask and never hear, which is indistinguishable from
+        a terminal that does not answer (Gitea #215). Each query is
+        answered once: the scan carries on from where it left off."""
+        if self.bg is None:
+            return
+        while True:
+            i = self.out.find(b"\x1b]", self.asked)
+            if i < 0 or b"\x1b\\" not in self.out[i:] and \
+                    b"\x07" not in self.out[i:]:
+                return
+            j = self.out.find(b"\x1b\\", i)
+            k = self.out.find(b"\x07", i)
+            if j < 0 or (0 <= k < j):
+                j = k
+            body = self.out[i + 2:j].decode("latin1")
+            self.asked = j + 1
+            a = body.split(";")
+            if len(a) == 2 and a[0] == "11" and a[1] == "?":
+                self.reply(11, None, self.bg)
+            elif len(a) == 3 and a[0] == "4" and a[2] == "?" \
+                    and a[1].isdigit():
+                n = int(a[1])
+                self.reply(4, n, self.pal[n] if n < len(self.pal)
+                           else "#000000")
+
+    def reply(self, which, idx, colour):
+        """One colour answer, written back as the terminal would."""
+        r, g, b = (int(colour[1 + 2 * i:3 + 2 * i], 16) for i in range(3))
+        s = "\x1b]%d;" % which
+        if idx is not None:
+            s += "%d;" % idx
+        s += "rgb:%02x%02x/%02x%02x/%02x%02x\x1b\\" % (r, r, g, g, b, b)
+        os.write(self.fd, s.encode())
+
     def collect(self, t=0.3):
         end = time.time() + t
         while time.time() < end:
@@ -376,6 +421,7 @@ class Term:
             if not d:
                 return self
             self.out += d
+            self.answer()
         return self
 
     def idled(self):
@@ -431,6 +477,7 @@ class Term:
             if not d:
                 return False
             self.out += d
+            self.answer()
         return self.idled()
 
     def send(self, data, settle=None, collect=None):

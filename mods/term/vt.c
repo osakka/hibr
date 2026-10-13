@@ -766,6 +766,27 @@ void tm_oscend(tm_t *t)
 		s_free(&r);
 		return;
 	}
+	/* A colour query this terminal cannot answer is passed on to
+	   whoever runs it rather than dropped, which is what carries it out
+	   of a held session to the real terminal -- and the reply comes back
+	   the way a keystroke does, since the client is reading that
+	   terminal anyway. Without this a display inside `hold` could not
+	   ask what the terminal's own background is, and a cell painted
+	   exactly that colour is one a picture drawn under the text is let
+	   through (Gitea #215). A terminal with colours of its own has
+	   already answered above. */
+	if ((which == 4 || which == 10 || which == 11 || which == 12) && *p &&
+	    p[strlen(p) - 1] == '?') {
+		s_init(&r);
+		s_cat(&r, "\033]");
+		s_cat(&r, t->os.p ? t->os.p : "");
+		s_cat(&r, t->obel ? "\a" : "\033\\");
+		tm_pass(t, r.p, r.n);
+		s_free(&r);
+		lg(HIBR_LDBG, "terminal %d passed on OSC %ld, which it cannot "
+			      "answer", t->id, which);
+		return;
+	}
 	lg(HIBR_LTRC, "terminal %d ignored OSC %ld", t->id, which);
 }
 
