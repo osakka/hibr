@@ -1,0 +1,7 @@
+0
+list binds its own rows: 1
+and prints nothing while bound: 0
+avail binds the tab form: loaded
+and prints nothing while bound: 0
+unbound still prints: 1
+unbound avail still prints: loaded

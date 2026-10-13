@@ -3390,6 +3390,20 @@ went in the shell.
   this tree that opens a path with `fopen` or `open` instead of through a
   redirection has the same blindness**, and whether it should is a decision
   each time rather than a tidy-up.
+- **And the sweep for that has one cheap form: `hibr_ret` or `->bind`
+  appears in every module file and the count in `src/mod.c` was zero.**
+  `mod list` and `mod avail` printed unconditionally, so `x := mod list`
+  was empty with status 0 and the table went to standard output -- the
+  same two-part failure, found while building a Control Panel pane that
+  wanted that answer in a variable (Gitea #205, 0.99.167). `m_putln`
+  writes a listing's line to the screen or into a string and `m_bound`
+  hands it over without its last newline; the **plain** form is what binds
+  whatever stdout is, since the fitted one is laid out for a terminal
+  nobody is reading there. `mod avail` prints two calls down, so the
+  string is threaded through `m_scan` and `m_probe` with NULL meaning
+  "print as before". **Before adding a verb that answers something, grep
+  the file it lives in for `bind`** -- a file with no mention of it has
+  every verb wrong rather than one.
 - **A builtin that answers something fills the result slot and goes quiet
   while one is bound; a bare `printf` is the bug, and it hides by working
   perfectly on a terminal** (Gitea #167, fixed in 0.99.141). `json get` had

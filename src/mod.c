@@ -1,6 +1,7 @@
 #include "pri.h"
 #include <dirent.h>
 #include <dlfcn.h>
+#include <stdarg.h>
 
 #ifndef HIBR_MODDIR
 #define HIBR_MODDIR "/usr/local/lib/hibr"
@@ -246,22 +247,67 @@ int m_cmpnm(const void *a, const void *b)
    version actually present; the abi said once in the heading, because a
    module whose abi does not match the shell's is refused at load, so every
    loaded one has the same; and the description cut to what is left. */
+/* One line of a listing, to the screen or into a result slot: `out` is set
+   only while a slot is bound, and then nothing is printed at all. A builtin
+   that answers something has to go quiet when its answer is being captured
+   -- `x := mod list` used to leave x empty and write the table into the
+   middle of whatever was on screen, which is #167's shape (Gitea #205). */
+void m_putln(str *out, const char *fmt, ...)
+{
+	va_list ap;
+	char *b;
+	int n;
+
+	va_start(ap, fmt);
+	n = vsnprintf(0, 0, fmt, ap);
+	va_end(ap);
+	if (n < 0)
+		return;
+	b = xm((size_t)n + 1);
+	va_start(ap, fmt);
+	vsnprintf(b, (size_t)n + 1, fmt, ap);
+	va_end(ap);
+	if (out)
+		s_cat(out, b);
+	else
+		fputs(b, stdout);
+	free(b);
+}
+
+/* Hand a built listing over: the slot gets it without its last newline,
+   the way every other answer is bound, and the screen gets it whole. */
+void m_bound(sh *s, str *o)
+{
+	if (o->n && o->p[o->n - 1] == '\n')
+		o->p[--o->n] = 0;
+	hibr_set(s, "RET", o->p ? o->p : "", 0);
+}
+
 void m_list(sh *s)
 {
 	size_t i;
 	mod *m;
 	mod **srt;
+	str o;
 	int nw = 6, vw = 7, cols, dw;
 
 	if (!s->mods.n)
 		return;
-	if (!isatty(1)) {
+	/* The plain form is what a bound slot gets, whatever stdout is: the
+	   fitted one is laid out for a terminal nobody is reading here, and
+	   the columns of this one are what tests/090-module.t reads. */
+	if (s->bind || !isatty(1)) {
+		s_init(&o);
 		for (i = 0; i < s->mods.n; i++) {
 			m = (mod *)s->mods.p[i];
-			printf("%-12s %-8s abi %u  %s\n", m->m->nm,
-			       m->m->ver ? m->m->ver : "-", m->m->abi,
-			       m->m->dsc ? m->m->dsc : "");
+			m_putln(s->bind ? &o : 0,
+				"%-12s %-8s abi %u  %s\n", m->m->nm,
+				m->m->ver ? m->m->ver : "-", m->m->abi,
+				m->m->dsc ? m->m->dsc : "");
 		}
+		if (s->bind)
+			m_bound(s, &o);
+		s_free(&o);
 		return;
 	}
 	srt = xm(s->mods.n * sizeof *srt);
@@ -334,14 +380,14 @@ int m_isload(sh *s, const char *nm, const char *path)
    table, the same rule mod list already follows. Every branch writes all
    eight, `-` or empty where there is nothing, or a reader's own fields
    would silently shift on the first object that will not open. */
-void m_probe(sh *s, const char *path, const char *file)
+void m_probe(sh *s, const char *path, const char *file, str *out)
 {
 	void *h;
 	const hibr_mod *d;
 	const hibr_bi *b;
 	const char *state;
 	str ab, bl;
-	int i, tty = isatty(1);
+	int i, tty = out ? 0 : isatty(1);
 
 	s_init(&ab);
 	s_init(&bl);
@@ -350,11 +396,11 @@ void m_probe(sh *s, const char *path, const char *file)
 		lg(HIBR_LDBG, "mod avail: %s: %s", path, dlerror());
 		s_cat(&ab, "-");
 		if (tty)
-			printf("%-12s %-8s %-8s %-10s %s\n", file, "-", ab.p,
-			       "unreadable", path);
+			m_putln(out, "%-12s %-8s %-8s %-10s %s\n", file, "-",
+				ab.p, "unreadable", path);
 		else
-			printf("%s\t-\t-\tunreadable\t%s\t-\t-\t-\n", file,
-			       path);
+			m_putln(out, "%s\t-\t-\tunreadable\t%s\t-\t-\t-\n",
+				file, path);
 		s_free(&ab);
 		s_free(&bl);
 		return;
@@ -363,11 +409,11 @@ void m_probe(sh *s, const char *path, const char *file)
 	if (!d) {
 		s_cat(&ab, "-");
 		if (tty)
-			printf("%-12s %-8s %-8s %-10s %s\n", file, "-", ab.p,
-			       "no descr", path);
+			m_putln(out, "%-12s %-8s %-8s %-10s %s\n", file, "-",
+				ab.p, "no descr", path);
 		else
-			printf("%s\t-\t-\tno descr\t%s\t-\t-\t-\n", file,
-			       path);
+			m_putln(out, "%s\t-\t-\tno descr\t%s\t-\t-\t-\n",
+				file, path);
 		dlclose(h);
 		s_free(&ab);
 		s_free(&bl);
@@ -393,10 +439,10 @@ void m_probe(sh *s, const char *path, const char *file)
 		/* `-` where there is nothing, never an empty field: tab is
 		   IFS whitespace, so a reader splitting on it loses an empty
 		   one and every field after shifts along. */
-		printf("%s\t%s\t%u\t%s\t%s\t%s\t%s\t%s\n", d->nm,
-		       d->ver ? d->ver : "-", d->abi, state, path,
-		       d->prov ? d->prov : "-", bl.n ? bl.p : "-",
-		       d->dsc ? d->dsc : "-");
+		m_putln(out, "%s\t%s\t%u\t%s\t%s\t%s\t%s\t%s\n", d->nm,
+			d->ver ? d->ver : "-", d->abi, state, path,
+			d->prov ? d->prov : "-", bl.n ? bl.p : "-",
+			d->dsc ? d->dsc : "-");
 		dlclose(h);
 		s_free(&ab);
 		s_free(&bl);
@@ -408,10 +454,10 @@ void m_probe(sh *s, const char *path, const char *file)
 		s_cat(&bl, "offers ");
 		s_cat(&bl, d->prov);
 	}
-	printf("%-12s %-8s %-8s %-10s %s\n", d->nm, d->ver ? d->ver : "-",
-	       ab.p, state, path);
+	m_putln(out, "%-12s %-8s %-8s %-10s %s\n", d->nm,
+		d->ver ? d->ver : "-", ab.p, state, path);
 	if (bl.n)
-		printf("             %s\n", bl.p);
+		m_putln(out, "             %s\n", bl.p);
 	dlclose(h);
 	s_free(&ab);
 	s_free(&bl);
@@ -424,7 +470,7 @@ int m_cmp(const void *a, const void *b)
 }
 
 /* Probe every shared object in one directory. */
-void m_scan(sh *s, const char *dir, vec *seen)
+void m_scan(sh *s, const char *dir, vec *seen, str *out)
 {
 	DIR *dp = opendir(dir);
 	struct dirent *de;
@@ -461,7 +507,7 @@ void m_scan(sh *s, const char *dir, vec *seen)
 		if (full.n && full.p[full.n - 1] != '/')
 			s_ch(&full, '/');
 		s_cat(&full, (char *)names.p[i]);
-		m_probe(s, full.p, (char *)names.p[i]);
+		m_probe(s, full.p, (char *)names.p[i], out);
 		s_free(&full);
 		free(names.p[i]);
 	}
@@ -474,32 +520,42 @@ void m_avail(sh *s)
 	const char *mp = hibr_get(s, "HIBR_MODPATH");
 	vec seen;
 	size_t i;
+	str o;
+	str *out = 0;
 
+	s_init(&o);
+	if (s->bind)
+		out = &o;
 	seen.p = 0;
 	seen.n = 0;
 	seen.cap = 0;
-	if (isatty(1))
+	/* No heading in the bound form, which is the tab-separated one a
+	   script reads field by field. */
+	if (!out && isatty(1))
 		printf("%-12s %-8s %-8s %-10s %s\n", "NAME", "VERSION", "ABI",
 		       "STATE", "PATH");
 	if (geteuid() == 0) {
 		lg(HIBR_LDBG, "root: listing only %s", HIBR_MODDIR);
 		mp = 0;
 	} else if (!m_nodot(s)) {
-		m_scan(s, ".", &seen);
+		m_scan(s, ".", &seen, out);
 	}
 	while (mp && *mp) {
 		const char *e = strchr(mp, ':');
 		size_t n = e ? (size_t)(e - mp) : strlen(mp);
 		if (n) {
 			char *d = ar_dup(s->xa, mp, n);
-			m_scan(s, d, &seen);
+			m_scan(s, d, &seen, out);
 		}
 		mp = e ? e + 1 : mp + n;
 	}
-	m_scan(s, HIBR_MODDIR, &seen);
+	m_scan(s, HIBR_MODDIR, &seen, out);
 	for (i = 0; i < seen.n; i++)
 		free(seen.p[i]);
 	v_free(&seen);
+	if (out)
+		m_bound(s, &o);
+	s_free(&o);
 }
 
 struct api {

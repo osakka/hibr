@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.99.167
+
+**`mod list` and `mod avail` printed instead of filling the result slot**
+(Gitea #205), so `x := mod list` left `x` empty with status 0 and wrote the
+table to standard output -- in a full-screen program, into the middle of the
+screen under the console's own cell drawing:
+
+```
+$ hibr -c 'r := mod list; printf "bound=[%s]\n" "$r"'
+console      1.0      abi 16  a text display: cells, panes and decoded keys
+bound=[]
+```
+
+That is #167 exactly -- `json emit`, `keys`, `len` and `type`, fixed in
+0.99.141 -- and the `:=`-took-nothing-from-a-program trap of 0.99.89 before
+it: a silently empty variable *and* output where nobody asked for it.
+
+The whole family was tried rather than the one verb, which is what this
+tree's own rule asks for: `lang info`, `hcal list`, `pty list`, `hold list`,
+`dav servers`, `email accounts`, `db query`, `csv read` and `json` all honour
+the slot. **Every module does, and the shell's own `mod` builtin was the only
+thing that did not** -- visible in one grep, since `hibr_ret` or `->bind`
+appears in all thirty module files and nowhere in `src/mod.c`.
+
+`m_putln` writes a listing's line to the screen or into a string, and
+`m_bound` hands a built listing over without its last newline, the way every
+other answer is bound. `m_list` binds the **plain** form whatever stdout is,
+since the fitted one is laid out for a terminal nobody is reading there --
+and it is the form with stable columns that `tests/090-module.t` already
+reads. `mod avail` prints from two calls down (`m_avail` -> `m_scan` ->
+`m_probe`), so the string is threaded through both, NULL meaning "print as
+before"; nothing in the ABI moves, since both are internal.
+
+`tests/207-mod-bind.t` reads both halves for each verb separately -- it binds
+its own rows, and it prints nothing while bound -- because one verb binding
+correctly says nothing about the other, and a check that only read the
+variable would pass a version that still printed. It fails against 0.99.166
+with the entire `mod avail` table in the diff.
+
+Found building a Control Panel pane for #42, which wants `mod list`'s answer
+in a variable and would have had the module table across the screen and
+nothing in the variable.
+
 ## 0.99.166
 
 **Restart Desktop takes the session's own server with it** (Gitea #198),
