@@ -14,7 +14,7 @@ DK_CYCLES=(workspace all)
 fn cp_set_cycle(int? id = "", value = "") { DT_CYCLE=$value; cp_save; }
 
 fn desktop_rows(int w) {
-	local n=0 d=$DT_SHOTDIR
+	local n=0 d=$DT_SHOTDIR sk
 
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Icons"
 	CP[$w][$n]["wtype"]=bool
@@ -31,7 +31,20 @@ fn desktop_rows(int w) {
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Cycle Windows On"
 	CP[$w][$n]["val"]="$DT_CYCLE"; CP[$w][$n]["key"]=cycle
 	n=$((n + 1))
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Redraw Skip ($DT_DRAWSKIP)"
+	# The number with what it counts, the same as Frames For Output's own
+	# `(70ms)` on the next row. `Redraw Skip (1)` cannot be read: 1 could
+	# be a count of frames skipped or a mode, and that is not a small
+	# thing here -- the ambiguity is what let its own off-by-one live (the
+	# loop compared against `DT_DRAWSKIP - 1`, so the shipped default of 1
+	# skipped none and the label was wrong rather than the mechanism), and
+	# it is what later made a saved 1 impossible to tell from a chosen one
+	# without reading the history of the default (Gitea #212).
+	case ${DT_DRAWSKIP:-0} in
+	0) sk=none ;;
+	1) sk="1 frame" ;;
+	*) sk="$DT_DRAWSKIP frames" ;;
+	esac
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Redraw Skip ($sk)"
 	CP[$w][$n]["wtype"]=slider
 	CP[$w][$n]["val"]=$DT_DRAWSKIP; CP[$w][$n]["min"]=0; CP[$w][$n]["max"]=9
 	CP[$w][$n]["key"]=drawskip; n=$((n + 1))

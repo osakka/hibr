@@ -1609,18 +1609,27 @@ check("a command with a space in it is not scrambled by what is typed "
 # none), no popup to open (unlike a dropdown, right/enter on it just cycles
 # the value in place, the same as a dropdown's own second right already
 # does).
+# The row says what its number counts rather than only the number, the
+# same as Frames For Output's own `(70ms)` below it: `Redraw Skip (1)`
+# can be read as a count of frames or as a mode, and that ambiguity is
+# what let its own off-by-one live -- the loop compared against
+# `DT_DRAWSKIP - 1`, so the shipped default of 1 skipped none and it was
+# the label that was wrong (Gitea #212).
 RSKIP = reach("desktop", "Redraw Skip")
 sc = cprun(RSKIP)
-skiprow = sc.find("Redraw Skip (0)")
+skiprow = sc.find("Redraw Skip (none)")
 check("the redraw-skip row draws as a slider, not a dropdown or checkbox",
       skiprow is not None and "●" in sc.row(skiprow[0]) and
       "▾" not in sc.row(skiprow[0]), sc)
+sc = cprun(RSKIP + [b"\x1b[C"])
+check("one frame says so in the singular, so the number cannot be read as "
+      "a mode", sc.find("Redraw Skip (1 frame)") is not None, sc)
 sc = cprun(RSKIP + [b"\x1b[C", b"\x1b[C"])
 check("right arrow on it increases the value, the marker moving with it",
-      sc.find("Redraw Skip (2)") is not None, sc)
+      sc.find("Redraw Skip (2 frames)") is not None, sc)
 sc = cprun(RSKIP + [b"\x1b[C"] * 20)
 check("it stops at the reasonable maximum rather than climbing forever",
-      sc.find("Redraw Skip (9)") is not None, sc)
+      sc.find("Redraw Skip (9 frames)") is not None, sc)
 
 # Task Manager's own pane: Refresh, Scrollbar, and the order a new window
 # starts in -- rows that appear only once Task Manager itself is loaded.
@@ -4292,4 +4301,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(605)
+report(606)

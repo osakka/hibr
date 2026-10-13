@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.99.179
+
+**Redraw Skip says what its number counts** (Gitea #212), which is the
+part of that ticket that turned out to be real.
+
+The ticket said `DT_DRAWSKIP` had been renumbered without a `DT_SETVER`
+migration, so every saved `1` now meant "skip one drag frame" where it
+had meant "skip none". Two measurements refuted the premise:
+
+- the default went **1 to 0 in 0.23**, the same release that introduced
+  the setting, and the loop's own off-by-one was fixed in **0.25** --
+  both of them 47 releases *before* `DT_SETVER` existed at all (0.72), so
+  there was never a version to bump;
+- and a sweep of **every** setting's default at `v0.72` against its
+  default now found **two** that changed -- `DT_DRAGMOD` and
+  `DT_TERMBAR` -- and both are already named in `dt_load`'s own
+  migration. The mechanism has no gaps since it arrived.
+
+So nothing is migrated. The owner's own `DT_DRAWSKIP=1` was a deliberate
+choice, asked rather than assumed: with the default at 0 for 155
+releases, a `1` in a file is far more likely chosen than stale, and
+nothing in the file can tell the two apart -- a migration would have
+reset somebody's own setting on a guess.
+
+What is worth fixing is why it needed archaeology at all. The row read
+`Redraw Skip (1)`, where the neighbouring one reads `Frames For Output
+(70ms)`: a number with no unit, which can be read as a count of frames or
+as a mode. That ambiguity is not incidental -- it is what let the
+off-by-one live, since `Redraw Skip (1)` looked right while the loop
+skipped nothing, and what later made a saved 1 unreadable without
+`git log`. It is `Redraw Skip (none)`, `(1 frame)` and `(4 frames)` now.
+
 ## 0.99.178
 
 **A text field has a clipboard whether or not its app wrote one**

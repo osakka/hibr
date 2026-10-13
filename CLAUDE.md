@@ -1381,6 +1381,25 @@ went in the shell.
   off-by-one found only because a real user asked "shouldn't this start
   from zero?" and was right. Renumbered 0-9, default 0, so the mechanism
   and the label finally agree.
+  **And a number with no unit is what let that live.** `Redraw Skip (1)`
+  can be read as a count of frames or as a mode, so it looked right while
+  the loop skipped nothing -- where the row below it has always read
+  `Frames For Output (70ms)` and could not be misread. It says `(none)`,
+  `(1 frame)` and `(4 frames)` now (Gitea #212, 0.99.179). The same
+  ambiguity later made a *saved* 1 unreadable: with the default at 0 for
+  155 releases, nothing in a settings file can tell a stale default from a
+  deliberate choice, and the only honest way to find out was to **ask the
+  person whose file it was** rather than migrate on a guess.
+- **Before adding a `DT_SETVER` branch, measure whether one is owed.**
+  #212 was filed claiming a default had changed with no migration, and the
+  premise was wrong twice over: that change landed in **0.23**, 47
+  releases before `DT_SETVER` existed, so there was never a version to
+  bump; and a sweep of every setting's default at `v0.72` (when the
+  mechanism arrived) against its default now found **two** that had moved,
+  `DT_DRAGMOD` and `DT_TERMBAR`, both already named in `dt_load`. The
+  sweep is twenty lines and worth re-running rather than reasoned about:
+  read each `NAME="${NAME-default}"` out of `git show v0.72:<file>` and
+  out of the tree, diff them, and grep `dt_load` for each name that moved.
 - **A process substitution's child is only reaped if the first `WNOHANG`
   wait happens to catch it already dead, and the record was discarded
   either way.** `xpsub_done` closes the descriptor and calls

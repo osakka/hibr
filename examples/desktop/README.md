@@ -1387,7 +1387,14 @@ The Desktop pane's **Redraw Skip** (0-9, `DT_DRAWSKIP`) leaves out that many
 frames of a window drag between each one drawn. A drag is already drawn only
 once it has caught up with the mouse -- while the next report is waiting,
 the frame is skipped -- so the window never trails behind the pointer;
-Redraw Skip thins what is left, for a terminal that draws slowly.
+Redraw Skip thins what is left, for a terminal that draws slowly. The row
+names what the number counts -- `Redraw Skip (none)`, `(1 frame)`,
+`(4 frames)` -- rather than showing the bare number, which reads as either
+a count or a mode: that ambiguity is what let its own off-by-one live (the
+loop compared against `DT_DRAWSKIP - 1`, so the shipped default of 1
+skipped none and it was the label that was wrong), and what later made a
+saved 1 impossible to tell from a chosen one without reading the history
+of the default.
 
 Control Strip's own pane carries only `CS_SIDE` and `CS_SHADOW` -- which
 side it docks to, and whether it casts its own shadow. Its position,
