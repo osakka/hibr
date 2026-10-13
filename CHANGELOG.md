@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.99.162
+
+**Every checkmark item in every menu was untranslatable** (Gitea #137).
+
+`dt_mark` puts its label through `dt_row`, which translates it like any
+other menu item -- and `tools/strings.py`'s list of functions whose first
+argument is text named `dt_menu`, `dt_item`, `dt_sub` and `dt_dim`, and not
+`dt_mark`. So no checkmark label was ever in `examples/desktop/lang/
+strings.txt`, `dt_tr` found nothing, and every one of them stayed English in
+a translated desktop: Desktop Icons, Hidden Files, Tile Workspace, Pass
+Every Key, Full Command Line, Blank, Everyone, Mine, Trust This Sheet.
+
+**And nothing could notice**, which is the part worth keeping: `992-strings`
+asks whether every string the scraper *found* is in the catalogue, not
+whether everything that reaches `dt_tr` was found. A sink missing from that
+table is invisible to the check built on it.
+
+One line in `tools/strings.py`, nine strings into the catalogue and the two
+pseudo-locales, nine into Arabic. The pseudo-locale is the proof rather than
+the catalogue: `xx.json` wraps every string the catalogue holds, and
+`"Desktop Icons": "⟦Desktop Icons⟧"` was not in it before this release and
+is now.
+
+`tests/desktop.py` is 597 checks to 598: the View menu under `DT_LANG=xx`,
+asserting the checkmark item's own label comes out wrapped. That is the
+check the ticket was missing -- a label that reaches the screen rather than
+a line in a file.
+
+**Found while there, and filed rather than fixed** (Gitea #200): the Edit
+menu's five items cannot be translated either, for a different reason.
+`dt_editmenu` pads the shortcut into the label (`printf -v lu '%-11s%s' Undo
+"${DT_KEYS["undo"]}"`), so what reaches `dt_tr` is `Undo       alt-z` and no
+catalogue can hold it -- the `Tiled Main ($DT_TILEMAIN%)` trap of 0.99.154
+from the other end. Under `xx` the Edit menu shows five plain items and one
+wrapped `⟦Select All⟧`, which is the one built from a literal. The fix is
+the same shape as that one and touches the menu widget every app draws
+through, so it is its own ticket rather than a passenger here.
+
+
 ## 0.99.161
 
 **The player drew blocks and never said why** (Gitea #199).

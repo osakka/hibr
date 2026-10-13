@@ -116,6 +116,7 @@ Back 10 Seconds
 Back 30 Seconds
 Backspace
 Bar Shadow
+Blank
 Bold
 Bookmark removed
 Bookmarked %s
@@ -259,6 +260,7 @@ Deleted the theme %s
 Delete…
 Deleting…
 Desktop
+Desktop Icons
 Detach
 Detect
 Dhu al-Hijjah
@@ -300,6 +302,7 @@ End Task (force)
 Evaluate
 Event
 Every (minutes)
+Everyone
 Export CSV…
 Exported %s
 Exporting CSV needs the csv module
@@ -338,6 +341,7 @@ Freeze Top Row
 Fri
 Friday
 From:
+Full Command Line
 Full Player
 Game
 Get Info
@@ -352,6 +356,7 @@ Heading 2
 Heading 3
 Held: %s
 Help
+Hidden Files
 Hide
 High Latitudes
 Highly Intuitive Bash-like Runtime
@@ -434,6 +439,7 @@ Message
 Message sent
 Method
 Midnight
+Mine
 Mines
 Mini Player
 Minutes Added
@@ -556,6 +562,7 @@ Owner:
 Owner:  %s
 PID:    %s
 PIN
+Pass Every Key
 Password
 Paste
 Pasted as %s
@@ -774,6 +781,7 @@ This window: every key goes to the program
 Thu
 Thursday
 Tick Task
+Tile Workspace
 Tiled Main
 Tiled: the layout sizes this window
 Time Zone
@@ -791,6 +799,7 @@ Top
 Tour
 Trash
 Trust %s? Its formulas will run as you: write files, start programs, use the network.
+Trust This Sheet…
 Tue
 Tuesday
 Turns off automatic time (NTP) first

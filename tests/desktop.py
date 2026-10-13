@@ -3940,6 +3940,18 @@ check("and the menus and the desktop's icons",
       sc.find("⟦Screen Saver⟧") is not None
       and sc.find("⟦Home⟧") is not None, sc)
 
+# A checkmark item is a menu item like any other and goes through the same
+# dt_row -- but tools/strings.py did not scrape dt_mark, so none of their
+# labels was ever in the catalogue and every one stayed English in a
+# translated desktop, with nothing able to notice: 992-strings.t asks
+# whether every string the scraper found is listed, not whether everything
+# reaching dt_tr was found (Gitea #137). View > Desktop Icons is one.
+# F10 opens the bar on the hibr menu; File, Edit, then View.
+sc, raw = run("", feed=[b"\x1b[21~", b"\x1b[C", b"\x1b[C", b"\x1b[C"], pre=APPS,
+              env={"DT_LANG": "xx"})
+check("a checkmark item's own label is translated too",
+      sc.find("⟦Desktop Icons⟧") is not None, sc)
+
 # Text an app draws itself goes through dt_tput: in xx it is marked too.
 sc, raw = run('dt_new "About This Computer" 16 56 2 2 about', pre=APPS,
               env={"DT_LANG": "xx"})
@@ -5037,4 +5049,4 @@ try:
 except OSError:
     pass
 
-report(597)
+report(598)

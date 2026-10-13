@@ -20,7 +20,13 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # The text arguments of each sink: positions (1-based), or "pairs:N" for
 # label/tag pairs from N on, or "last".
 SINKS = {
+    # dt_mark was missing until 0.99.162, so every checkmark item in every
+    # menu stayed English in a translated desktop -- and nothing could
+    # notice, because 992-strings.t asks whether every string found here is
+    # listed, not whether everything that reaches dt_tr was found
+    # (Gitea #137).
     "dt_menu": [1], "dt_item": [1], "dt_sub": [1], "dt_dim": [1],
+    "dt_mark": [1],
     "dt_row": [3], "dt_app": [2], "cp_pane": [2], "dt_note": [1],
     "dt_notep": [2], "dt_confirm": [1], "dt_button": [4],
     "dt_buttons": "pairs:6", "dt_dlgbtns": "pairs:6", "dt_check": [5],
