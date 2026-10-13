@@ -4973,8 +4973,15 @@ nt.quit(b"qy", 1.0)
 os.unlink(npath)
 check("the desktop's own short name is its role, with no brackets to nest "
       "when it dies", own == "desktop", own)
+# The long name leads with what the process is and then says which window
+# of which session: `term [work::1:Files]` held, `term [1:Files]` not --
+# and this fixture is not held, so there is no session to name and the
+# form leaves it out rather than standing a placeholder in for one. It
+# said `desktop [Files 1]` before, which named the role of whatever
+# started it (Gitea #213). The short name is unchanged: it is the kernel's
+# fifteen bytes and was already right.
 check("a terminal window's shell says which window it is, in both places",
-      byargv.get("desktop [Files 1]") == "term:Files:1", (byargv, kids))
+      byargv.get("term [1:Files]") == "term:Files:1", (byargv, kids))
 check("and a title too long for the kernel's 15 bytes keeps the window id, "
       "which is the handle, rather than being cut after the role",
       any(c.startswith("term:A-very") and c.endswith(":2") and len(c) <= 15

@@ -1,5 +1,63 @@
 # Changelog
 
+## 0.99.177
+
+**Every process a desktop runs says which session it belongs to and what
+it is within it** (Gitea #213), asked for as *"we have a process called
+desktop, but I am not sure that makes sense to me, it should be desktop
+[session::session_name] and terminal should be term
+[session_name::5:terminal_name]"*.
+
+What `ps` showed before, on the owner's own machine:
+
+```
+hold:desktop       hibr [hold: desktop]        the hold server
+supervisor         desktop [supervisor]        the supervisor
+desktop            desktop                     the desktop itself
+term:Terminal:5    desktop [Terminal 5]        a window's shell
+desktop            desktop                     ← a dav job
+```
+
+and now:
+
+```
+desktop:work       desktop [session::work]
+supervisor:work    supervisor [session::work]
+term:Files:1       term [work::1:Files]
+sync:dav.home.a    job [work::sync:dav.home.arpa]
+```
+
+Three separate things, and the last is the one the report was really
+about. **A job the desktop forks wore the desktop's own name**, so a dav
+sync alive for hours with two sockets open was a second process called
+`desktop` with nothing to tell them apart -- `pe_job`, Mail's jobs, the
+remote transfers, the vault sync and the Mail pane's own Test and Detect
+all forked anonymously. `dt_jobname` names each from inside its own
+subshell, leading with what the job *does*, since the word "job" would be
+the same for every one of them.
+
+**The desktop names its session even when that is the default.** The old
+code left it off deliberately -- `desktop [desktop]` is a word twice --
+and that was the wrong call once there was more than one session on a
+machine: `desktop:desktop` is fifteen bytes exactly, so even the stutter
+fits, and a stutter that says something beats a word that says nothing.
+An **unheld** desktop says `desktop [not held]` rather than naming a
+session it does not have, and the inner forms drop the session part
+entirely rather than stand a placeholder in for one: `term [1:Files]`.
+
+**And the format lives in one place.** `dt_procfull role sess handle
+detail` builds all four, because it was written out at each call site and
+a sixth site would have invented a sixth spelling. The two-name rule is
+unchanged and is the reason the long form can be a sentence at all: the
+argv region is as long as the command line it overwrites, where
+`/proc/<pid>/comm` is fifteen usable bytes and is what `top`, `pgrep` and
+`killall` read.
+
+Verified by having each process report its own two names rather than by
+racing `ps` against a child that may exec in place -- which is also how
+`tests/apps.py` checks the job, since a `ps` snapshot of a subshell is a
+bet on timing.
+
 ## 0.99.176
 
 **Closing a terminal that still has something running in it asks first,

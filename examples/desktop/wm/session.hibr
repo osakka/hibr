@@ -71,17 +71,19 @@ dt_open() {
 	# process's name in brackets of its own, so a name with brackets in
 	# it reads as `[desktop [x]] <defunct>`.
 	#
-	# And the instance is left off when it *is* the role: the session is
-	# called `desktop` by default, so `desktop [desktop]` is what the
-	# owner saw every day, a word twice for no reason.
+	# The session is named whatever it is called, the default included:
+	# a process called plain `desktop` beside its own supervisor, its
+	# windows' shells and its jobs is the one thing in the tree that does
+	# not say which session it belongs to, which is what was reported
+	# (Gitea #213). `desktop:desktop` is fifteen bytes exactly, so even
+	# the stutter fits -- and a stutter that says something beats a word
+	# that says nothing twice over, now that there is more than one
+	# session on a machine.
 	sess := dt_holdsess
-	local pn
-	if [ -n "$sess" ] && [ "$sess" != desktop ]; then
-		pn := dt_shortname desktop "$sess"
-		title -s "$pn" "desktop [$sess]"
-	else
-		title -s desktop "desktop"
-	fi
+	local pn pf
+	pn := dt_shortname desktop "$sess"
+	pf := dt_procfull desktop "$sess"
+	title -s "$pn" "$pf"
 	dt_load
 	console open || return 1
 	dt_tstamp "console"

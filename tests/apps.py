@@ -2041,13 +2041,25 @@ check("what is typed reaches it and what it says comes back",
 # window running something else is left alone. TW_CMD names *this* build,
 # since the title is read by the shell being started and the installed one
 # may be older.
+# A job the desktop forks reports its own two names into a file, because
+# that is the one way to read them without racing `ps` against a child
+# that may exec in place: the subshell writes what the kernel and the argv
+# region actually say about itself.
+PSJOB = os.path.join(S, "jobnames")
 pspath = os.path.join(S, "session.hibr")
 open(pspath, "w").write(
     "%s. %s\n. %s\nTW_CMD=(%s)\ndt_open\n"
     "dt_new \"Terminal\" 12 40 2 2 term\ndt_new \"Terminal\" 12 40 2 44 term\n"
+    "(\n"
+    "\tdt_jobname sync dav.example.org\n"
+    "\tpsc=\n\tread -r psc < /proc/self/comm\n"
+    "\tpsl=\n\tread -r -d '' psl < /proc/self/cmdline 2> /dev/null\n"
+    "\tprintf '%%s\\n%%s\\n' \"$psc\" \"$psl\" > %s\n"
+    "\tsleep 3\n"
+    ") &\n"
     "dt_run\ndt_close\n"
     % (load("console", "pty", "term"), WM, appdir("term") + "/term.hibr",
-       sx.HIBR))
+       sx.HIBR, PSJOB))
 pst = Term(pspath, env={"DT_TICK": "60"}, settle=0.8)
 pst.collect(1.0)
 psout = subprocess.run(["ps", "-eo", "ppid=,pid=,args="], capture_output=True,
@@ -2062,9 +2074,26 @@ psmine = sorted(psrow.split(None, 2)[2] for psrow in psout.splitlines()
                 psrow.split(None, 2)[0] == str(pst.pid))
 pst.quit(b"q", 1.0)
 os.unlink(pspath)
+# The long name leads with what the process *is* and then says which
+# window of which session, where it used to lead with the role of whatever
+# started it: `desktop [Terminal 1]` named the desktop (Gitea #213). This
+# fixture is not held, so there is no session to name and the form leaves
+# it out rather than standing a placeholder in for one.
+# Only the terminals: this session also forks the job below, which is a
+# child of the desktop too and is checked on its own terms right after.
 check("each terminal window's own shell is named for its window in ps, "
       "where every one of them used to read a bare hibr",
-      psmine == ["desktop [Terminal 1]", "desktop [Terminal 2]"], psmine)
+      [x for x in psmine if x.startswith("term [")] ==
+      ["term [1:Terminal]", "term [2:Terminal]"], psmine)
+# And a job says what it is. It wore the desktop's own name before, so a
+# dav sync alive for hours was a second process called `desktop` with
+# nothing to tell them apart (Gitea #213). The short one leads with what
+# the job does and is cut to the kernel's fifteen bytes; the long one is
+# the sentence.
+psjob = open(PSJOB).read().splitlines() if os.path.exists(PSJOB) else []
+check("a job the desktop forks is named for the work it is doing",
+      psjob[:1] == ["sync:dav.exampl"] and
+      psjob[1:2] == ["job [sync:dav.example.org]"], psjob)
 
 # Closing a terminal that still has something running in it asks first
 # (Gitea #209): closing one kills whatever holds the pty, which may be an
@@ -4220,4 +4249,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(601)
+report(602)

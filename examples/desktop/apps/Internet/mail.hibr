@@ -211,6 +211,7 @@ fn ml_job(what, acct, then, ...rest) {
 	MLJ[$n]["then"]=$then
 	MLJ[$n]["dir"]=$d/jobs
 	(
+		command -v dt_jobname > /dev/null && dt_jobname "mail:$what" "$acct"
 		"${rest[@]}" > "$d/jobs/$n.out" 2> "$d/jobs/$n.err"
 		printf '%s\n' "$?" > "$d/jobs/$n.st"
 	) &

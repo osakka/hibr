@@ -214,7 +214,13 @@ fn tw_fit(int id, int h, int w) {
 	# `desktop ctl windows` lists the window under, so it is the part that
 	# identifies it even when the title has to be cut to fit.
 	pn := dt_shortname term "$pt" "$id"
-	pt="desktop [$pt $id]"
+	# The long one leads with the session, then which window of it this
+	# is and what that window is called: `term [work::5:Files]`. It said
+	# `desktop [Files 5]` before, which named the role of the process
+	# that *started* it rather than what it is (Gitea #213).
+	local tsess
+	tsess := dt_holdsess
+	pt := dt_procfull term "$tsess" "$id" "$pt"
 	if [ -z "${TW[$id]["t"]}" ]; then
 		if [ -n "${TW[$id]["argvn"]}" ]; then
 			n=${TW[$id]["argvn"]}

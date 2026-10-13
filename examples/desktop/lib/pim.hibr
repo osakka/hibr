@@ -66,6 +66,7 @@ fn pe_job(what, srv, then, ...rest) {
 	PEJ[$n]["then"]=$then
 	PEJ[$n]["dir"]=$d/jobs
 	(
+		command -v dt_jobname > /dev/null && dt_jobname "$what" "$srv"
 		"${rest[@]}" > "$d/jobs/$n.out" 2> "$d/jobs/$n.err"
 		printf '%s\n' "$?" > "$d/jobs/$n.st"
 	) &

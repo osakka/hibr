@@ -47,6 +47,56 @@ fn dt_shortname(role, inst = "", handle = "") {
 	ret "${out:0:$max}"
 }
 
+# The long name a process wears in `ps`, where the whole sentence fits.
+#
+# One builder, because the format was written out at each call site and a
+# sixth site would have invented a sixth spelling (Gitea #213) -- which is
+# this file's own rule about a rule living in three places being kept in
+# one of them.
+#
+#     desktop [session::work]
+#     supervisor [session::work]
+#     term [work::5:Files]
+#     job [work::sync:dav.home.arpa]
+#
+# The desktop and its supervisor name the session with the word, since
+# being that session is all they are; anything *inside* one leads with the
+# session's own name and then says which part of it this is. An unheld
+# desktop says so rather than naming a session it does not have.
+fn dt_procfull(role, sess = "", handle = "", detail = "") {
+	local s=$sess
+
+	if [ -z "$handle" ] && [ -z "$detail" ]; then
+		[ -n "$s" ] || { ret "$role [not held]"; return 0; }
+		ret "$role [session::$s]"
+		return 0
+	fi
+	# An unheld desktop has no session to name, so the inner form leaves
+	# it out rather than standing a placeholder where a name should be:
+	# `term [1:Files]` says everything true about it.
+	[ -n "$s" ] || { ret "$role [$handle${detail:+:$detail}]"; return 0; }
+	ret "$role [$s::$handle${detail:+:$detail}]"
+}
+
+# Name the process a job runs in, from inside its own subshell.
+#
+# A fork of the desktop wears the desktop's name, so every job it starts
+# was a second process called `desktop` with nothing to say what it was:
+# a dav sync alive for hours, two sockets open, indistinguishable in `ps`
+# from the desktop itself (Gitea #213). The short name leads with what the
+# job *does*, because that is what a person scanning `top` wants of a job
+# -- the role "job" would be the same word for every one of them.
+fn dt_jobname(what, detail = "") {
+	local sess pn pf
+
+	command -v title > /dev/null || return 0
+	sess := dt_holdsess
+	pn := dt_shortname "$what" "$detail"
+	pf := dt_procfull job "$sess" "$what" "$detail"
+	title -s "$pn" "$pf"
+	return 0
+}
+
 # The longest beginning of t that fits in n display columns.
 #
 # Columns, not characters, and that is the whole point: `${t:0:n}` counts

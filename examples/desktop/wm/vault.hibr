@@ -269,6 +269,7 @@ fn dt_vwsyncnow(int hand = 0) {
 	DT_VWHAND=$hand
 	DT_VWSYNCED=$EPOCHSECONDS
 	(
+		dt_jobname vault sync
 		VW_STDIN=1 "$HIBR" "$DT_VWCMD" sync > /dev/null 2> "$DT_VWRUN/desk.syncerr" < /dev/null
 		printf '%s\n' "$?" > "$DT_VWRUN/desk.sync"
 	) &

@@ -80,6 +80,7 @@ fn ms_test(acct) {
 	: > "$f"
 	rm -f "$f.st"
 	(
+		command -v dt_jobname > /dev/null && dt_jobname mailtest "$acct"
 		"$HIBR" "$MS_LIB/mailtest.hibr" "$acct" > "$f" 2>&1
 		printf '%s\n' "$?" > "$f.st"
 	) &
@@ -119,6 +120,7 @@ fn ms_detect(int id) {
 	: > "${MS_DET["file"]}"
 	rm -f "${MS_DET["file"]}.st"
 	(
+		command -v dt_jobname > /dev/null && dt_jobname maildetect "$host"
 		"$HIBR" "$MS_LIB/mailtest.hibr" --detect "$host" "${MLAD[$id]["kind"]}" "$shost" \
 			> "${MS_DET["file"]}" 2>&1
 		printf '%s\n' "$?" > "${MS_DET["file"]}.st"

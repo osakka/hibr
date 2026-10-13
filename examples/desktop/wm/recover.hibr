@@ -70,13 +70,10 @@ dt_supervise() {
 	# what a person scanning `top` wants to know is which of these is
 	# watching and which is the desktop (Gitea #168).
 	sess := dt_holdsess
-	local pn
-	if [ -n "$sess" ] && [ "$sess" != desktop ]; then
-		pn := dt_shortname supervisor "$sess"
-		title -s "$pn" "desktop [$sess: supervisor]"
-	else
-		title -s supervisor "desktop [supervisor]"
-	fi
+	local pn pf
+	pn := dt_shortname supervisor "$sess"
+	pf := dt_procfull supervisor "$sess"
+	title -s "$pn" "$pf"
 	while :; do
 		t0=$EPOCHSECONDS
 		"$HIBR" "$DT_SELF0" "${DT_SELFARGS[@]}"

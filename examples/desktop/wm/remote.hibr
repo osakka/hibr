@@ -99,6 +99,7 @@ fn dt_davjob(what, then, ...cmd) {
 	DR[$n]["what"]=$what
 	DR[$n]["then"]=$then
 	(
+		dt_jobname "dav:$what"
 		"$@" > "$DR_JOBS/$n.out" 2> "$DR_JOBS/$n.err"
 		printf '%s\n' "$?" > "$DR_JOBS/$n.st"
 	) &
