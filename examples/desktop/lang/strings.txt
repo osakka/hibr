@@ -608,6 +608,7 @@ Record %s added
 Record No. %s -- enter after the last field adds it, escape stops
 Recorded in your calendar
 Records
+Redo
 Refresh
 Refresh Desktop
 Refreshed
@@ -805,6 +806,7 @@ Tuesday
 Turns off automatic time (NTP) first
 Type what to look for, or a playlist's or a channel's address, and enter.
 Type: %s
+Undo
 Unfreeze
 Unload
 Unloaded %s

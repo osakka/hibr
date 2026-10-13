@@ -1106,8 +1106,13 @@ check("Copy moved to f5 copies on f5, and alt-c no longer does",
 shutil.rmtree(CB, True)
 sc = run("stickies", "8 30 14 48", pre='DT_KEYS["copy"]="f5"',
          feed=[b"\x1b[21~", b"\x1b[C", b"\x1b[C"], env=stenv(stdir()), end=None)
+# The row, not the spacing between the two: the shortcut is a field of its
+# own and is right-aligned to the menu's own width now, so a check on the
+# exact gap was a check on the padding rather than on what it says
+# (Gitea #200).
+row = [sc.row(r) for r in range(sc.rows) if "Copy" in sc.row(r)]
 check("the Edit menu shows the key Copy has now",
-      sc.find("Copy       f5") is not None, sc)
+      bool(row) and "f5" in row[0], row or sc)
 sc = run("clock", "9 24 3 20", pre='DT_KEYS["menu"]="f9"',
          feed=[b"\x1b[20~"], end=None)
 check("the Menu Bar key can move too: f9 opens the menu bar",

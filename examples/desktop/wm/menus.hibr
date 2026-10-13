@@ -174,6 +174,28 @@ fn dt_row(tick, int dim, lb, k, ...rest) {
 	dt_wide "$m" $((${#lb} + 8))
 }
 
+# The keyboard shortcut a row stands for, shown right-aligned and kept out
+# of the label. A label with the shortcut padded into it -- which is how the
+# Edit menu was built -- is a string no catalogue can hold, since it carries
+# the person's own key in it, so every one of those items stayed English in
+# a translated desktop (Gitea #200). It is the same trap as a percentage
+# inside a Control Panel row's own text (0.99.154), and the same answer:
+# beside the label, never inside it.
+#
+# Set on the row just added, so it reads under whichever builder made it --
+# dt_item, dt_dim or dt_mark -- rather than being a fourth builder with the
+# same body.
+fn dt_rowaccel(text) {
+	local m n
+
+	m=${MB_CUR:-$((MB_N - 1))}
+	n=$((${MB[$m]["n"]} - 1))
+	[ "$n" -ge 0 ] || return 0
+	MI[$m][$n]["accel"]=$text
+	dt_wide "$m" $((${#MI[$m][$n]["label"]} + ${#text} + 10))
+	return 0
+}
+
 # Add a dividing line.
 dt_sep() {
 	local m=${MB_CUR:-$((MB_N - 1))} n
@@ -593,44 +615,48 @@ fn dtabout_close(int id) {
 # dimmed where the focused app cannot do them, so it never changes shape,
 # each showing the key it is set to now. Once a bar: an app that placed it
 # after its File menu has it there and nowhere else.
+# Every item here is a plain label with its shortcut beside it, never padded
+# into it: `printf -v lu '%-11s%s' Undo "${DT_KEYS["undo"]}"` made a string
+# holding the person's own key, which no catalogue can hold, so none of
+# these five was ever translated (Gitea #200).
 dt_editmenu() {
-	local who=${DT_FOCUS:-} lc lt lp lu lr
+	local who=${DT_FOCUS:-}
 
 	[ "$MB_EDITED" = 1 ] && return 0
 	MB_EDITED=1
 	dt_menu "Edit"
-	printf -v lu '%-11s%s' Undo "${DT_KEYS["undo"]}"
-	printf -v lr '%-11s%s' Redo "${DT_KEYS["redo"]}"
 	if [ -n "$who" ] && [ -n "${DT[$who]["undo"]}" ]; then
-		dt_item "$lu" u dt_editdo undo
+		dt_item "Undo" u dt_editdo undo
 	else
-		dt_dim "$lu"
+		dt_dim "Undo"
 	fi
+	dt_rowaccel "${DT_KEYS["undo"]}"
 	if [ -n "$who" ] && [ -n "${DT[$who]["redo"]}" ]; then
-		dt_item "$lr" r dt_editdo redo
+		dt_item "Redo" r dt_editdo redo
 	else
-		dt_dim "$lr"
+		dt_dim "Redo"
 	fi
+	dt_rowaccel "${DT_KEYS["redo"]}"
 	dt_sep
-	printf -v lc '%-11s%s' Copy "${DT_KEYS["copy"]}"
-	printf -v lt '%-11s%s' Cut "${DT_KEYS["cut"]}"
-	printf -v lp '%-11s%s' Paste "${DT_KEYS["paste"]}"
 	if [ -n "$who" ] && [ -n "${DT[$who]["copy"]}" ]; then
-		dt_item "$lc" c dt_edit copy
+		dt_item "Copy" c dt_edit copy
 	else
-		dt_dim "$lc"
+		dt_dim "Copy"
 	fi
+	dt_rowaccel "${DT_KEYS["copy"]}"
 	if [ -n "$who" ] && [ -n "${DT[$who]["cut"]}" ]; then
-		dt_item "$lt" t dt_edit cut
+		dt_item "Cut" t dt_edit cut
 	else
-		dt_dim "$lt"
+		dt_dim "Cut"
 	fi
+	dt_rowaccel "${DT_KEYS["cut"]}"
 	if [ -n "$who" ] && [ -n "${DT[$who]["paste"]}" ] &&
 	   [ -n "$DT_CLIP" ]; then
-		dt_item "$lp" v dt_edit paste
+		dt_item "Paste" v dt_edit paste
 	else
-		dt_dim "$lp"
+		dt_dim "Paste"
 	fi
+	dt_rowaccel "${DT_KEYS["paste"]}"
 	dt_sep
 	if [ -n "$who" ] && [ -n "${DT[$who]["selall"]}" ]; then
 		dt_item "Select All" a dt_editdo selall
@@ -788,6 +814,7 @@ dt_drop() {
 # occupies so it can sit beside it rather than on top of it.
 fn dt_menu_draw(int m, int? px, int parent) {
 	local i=0 r=1 x w n lb k t sub rowfg rowbg rowbold pos full pre hl post
+	local ac aw
 
 	x=${MB[$m]["x"]}
 	w=${MB[$m]["w"]}
@@ -838,6 +865,11 @@ fn dt_menu_draw(int m, int? px, int parent) {
 		k=${MI[$m][$i]["key"]}
 		t=${MI[$m][$i]["tick"]}
 		sub=${MI[$m][$i]["sub"]}
+		# The shortcut this row stands for, right before the three
+		# columns the menu's own letter always owns.
+		ac=${MI[$m][$i]["accel"]}
+		aw=0
+		[ -n "$ac" ] && aw := str width "$ac"
 		if [ -n "$sub" ]; then
 			k="${GL[sright]}"
 			pos=-1
@@ -852,6 +884,7 @@ fn dt_menu_draw(int m, int? px, int parent) {
 			lb := str pad "" "$w"
 			console put "$r" "$x" "$lb"
 			console put "$r" "$x" " $k "
+			[ -n "$ac" ] && console put "$r" $((x + 3)) "$ac"
 			console put "$r" $((x + w - 2)) "$t"
 			pos := str width "${MI[$m][$i]["label"]}"
 			console put "$r" $((x + w - 3 - pos)) "${MI[$m][$i]["label"]}"
@@ -870,7 +903,8 @@ fn dt_menu_draw(int m, int? px, int parent) {
 			# the label, so the label's own position shifts by 2.
 			pos=$((pos + 2))
 			full="$t $lb"
-			full := str pad "$full" $((w - 3))
+			full := str pad "$full" $((w - 3 - aw))
+			full="$full$ac"
 			pre=${full:0:$pos}
 			hl=${full:$pos:1}
 			post=${full:$((pos + 1))}
@@ -903,7 +937,8 @@ fn dt_menu_draw(int m, int? px, int parent) {
 			# number past 9 on Move to Workspace -- went a column
 			# the other way, over the edge. str pad counts display
 			# columns, which is what the field is measured in.
-			lb := str pad "$t $lb" $((w - 3))
+			lb := str pad "$t $lb" $((w - 3 - aw))
+			lb="$lb$ac"
 			console put "$r" "$x" "$lb"
 			local kf
 			kf := str pad " $k" 3

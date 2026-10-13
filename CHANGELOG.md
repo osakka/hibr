@@ -1,5 +1,57 @@
 # Changelog
 
+## 0.99.163
+
+**The Edit menu's items can be translated** (Gitea #200), and the shortcut
+beside them lines up whatever it is.
+
+`dt_editmenu` built each label by padding the shortcut into it:
+
+```sh
+printf -v lu '%-11s%s' Undo "${DT_KEYS["undo"]}"
+dt_item "$lu" u dt_editdo undo
+```
+
+So what reached `dt_tr` was `Undo       alt-z` -- a string no catalogue can
+hold, since it carries the person's own key. Undo, Redo, Copy, Cut and Paste
+all stayed English in a translated desktop, and `Select All`, the one built
+from a literal, was the only one of the six that did not. Measured under the
+pseudo-locale, which wraps every string the catalogue holds.
+
+**Padding was not the answer, and the fix does not keep it.** A row carries
+its shortcut as a field of its own now (`dt_rowaccel`, set on the row just
+added, so it reads under `dt_item`, `dt_dim` or `dt_mark` alike). The label
+is padded to `w - 3 - str width "$accel"` and the shortcut appended, so every
+row's shortcut ends in the same column whatever its length, and the menu's
+own width grows by the longest `label + accel`. Nothing is a fixed eleven
+columns any more:
+
+```
+as shipped                  paste rebound to ctrl-alt-shift-v
+  Undo      alt-z             Undo                 alt-z
+  Redo      alt-y             Redo                 alt-y
+  Copy      alt-c             Copy                 alt-c
+  Cut       alt-x             Cut                  alt-x
+  Paste     alt-v             Paste     ctrl-alt-shift-v
+  Select All                  Select All
+```
+
+The menu goes 20 columns to 31, every shortcut still ends together, and a
+row with none is untouched. The mirrored layout puts it on the left, where
+that layout's own right-hand side is.
+
+One check elsewhere was asserting the padding rather than what it says:
+`tests/apps.py` looked for the literal `Copy       f5`, the `%-11s` spelling
+exactly. It reads the Edit row and asks whether `f5` is on it now -- the
+same lesson as a check that asserts a half block where a bitmap is drawn.
+
+`tests/desktop.py` is 598 checks to 601: that the Edit menu's items come out
+translated, that each still says which key it is, and that a longer chord
+widens the menu with every row still ending in one column -- which is the
+question a fixed `%-11s` could not have answered, and is the one a reader
+asked when this fix was proposed.
+
+
 ## 0.99.162
 
 **Every checkmark item in every menu was untranslatable** (Gitea #137).

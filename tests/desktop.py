@@ -3952,6 +3952,32 @@ sc, raw = run("", feed=[b"\x1b[21~", b"\x1b[C", b"\x1b[C", b"\x1b[C"], pre=APPS,
 check("a checkmark item's own label is translated too",
       sc.find("⟦Desktop Icons⟧") is not None, sc)
 
+# The Edit menu built its labels by padding the shortcut into them, so what
+# reached dt_tr was "Undo       alt-z" -- a string no catalogue can hold,
+# since it carries the person's own key (Gitea #200). The label and the
+# shortcut are two things now, and both have to be on screen: translated,
+# and still saying which key.
+sc, raw = run("", feed=[b"\x1b[21~", b"\x1b[C", b"\x1b[C"], pre=APPS,
+              env={"DT_LANG": "xx"})
+check("the Edit menu's items are translated, shortcut and all",
+      sc.find("⟦Undo⟧") is not None and sc.find("⟦Paste⟧") is not None, sc)
+check("and each still says which key it is",
+      sc.find("alt-z") is not None and sc.find("alt-v") is not None, sc)
+
+# The shortcut is a field of its own, so the column it ends in is worked out
+# from the shortcut actually bound rather than from a padding somebody chose:
+# a longer chord widens the menu and every row still lines up, which is the
+# question a fixed `%-11s` could not answer.
+sc, raw = run("", feed=[b"\x1b[21~", b"\x1b[C", b"\x1b[C"],
+              pre=APPS + 'DT_KEYS["paste"]=ctrl-alt-shift-v\n')
+rows = [sc.row(r) for r in range(1, 10)]
+ends = sorted({r.rstrip().rfind(k) + len(k) for r, k in
+               ((x, y) for x in rows for y in ("alt-z", "alt-y", "alt-c",
+                                               "alt-x", "ctrl-alt-shift-v"))
+               if k in r})
+check("a longer shortcut widens the menu and every row still ends together",
+      len(ends) == 1 and any("ctrl-alt-shift-v" in r for r in rows), rows)
+
 # Text an app draws itself goes through dt_tput: in xx it is marked too.
 sc, raw = run('dt_new "About This Computer" 16 56 2 2 about', pre=APPS,
               env={"DT_LANG": "xx"})
@@ -5049,4 +5075,4 @@ try:
 except OSError:
     pass
 
-report(598)
+report(601)
