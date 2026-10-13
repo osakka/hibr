@@ -489,6 +489,14 @@ it reaches the desktop and every attached machine; Control Panel >
 Terminal > Programs Set Clipboard switches that off. A program asking to
 *read* the clipboard is never answered.
 
+Closing a Terminal window that still has a command running in it asks
+first, since closing one kills whatever holds the pty -- an editor with an
+hour in it, a build half done. Sitting at the shell's own prompt is not
+"something running": the question is whether the pty's foreground process
+group is still the shell's, which an idle prompt leaves it and a command
+does not, so a window with nothing going closes without a word. Control
+Panel > Terminal > Ask Before Closing turns the question off.
+
 Control Panel > Terminal > Copy on Select copies a terminal's text the
 moment the mouse lets go of it, as xterm does, without alt-c. What was
 copied stays lit, and the next key only puts the highlight out -- it is not

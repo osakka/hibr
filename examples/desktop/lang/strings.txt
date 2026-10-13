@@ -108,6 +108,7 @@ April
 Archive
 Arrange Icons
 As It Is
+Ask Before Closing
 Asked %s to join
 Asking %s what it keeps…
 Asr
@@ -727,6 +728,7 @@ Signature, put under every message you write:
 Size: %s
 Snake
 Snap
+Something is still running here. Close it?
 Something may be using what %s offers
 Sort By
 Sort by CPU

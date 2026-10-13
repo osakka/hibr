@@ -107,6 +107,21 @@ command -v dt_keep > /dev/null && dt_keep DT_TERMCLIP
 DT_TERMSELCOPY="${DT_TERMSELCOPY-0}"
 command -v dt_keep > /dev/null && dt_keep DT_TERMSELCOPY
 
+# Ask before closing a terminal that still has a command running in it:
+# closing one kills whatever holds the pty, which may be an editor with an
+# hour in it or a build half done. On by default, because a terminal is the
+# one window whose close can lose work that is nowhere else; off for
+# whoever would rather it never asked. A window whose program has already
+# ended, or that is only sitting at its shell's prompt, closes without a
+# word either way -- the question is never "is there a process", since the
+# shell itself always is.
+DT_TERMASK="${DT_TERMASK-1}"
+command -v dt_keep > /dev/null && dt_keep DT_TERMASK
+
+# The window a confirmed close belongs to: dt_confirm runs a function of no
+# arguments, so the id waits here rather than in the command.
+TW_CLOSEID=
+
 
 # Whose colours a terminal window's default text and background are:
 # "theme" paints them in the desktop's own ink and face, like every other
@@ -675,6 +690,67 @@ fn term_idle(int id) {
 		TW[$id]["fd"]=
 	fi
 	return 0
+}
+
+# Whether a command is running in this window, rather than just the shell
+# it was opened with.
+#
+# The pty's foreground process group is the program's own pid while nothing
+# else holds the terminal, and a child's group while something does.
+# Measured on a real pty rather than reasoned: an idle shell reads its own
+# pid, a `sleep 5` reads the sleep's own group, and it goes back to the
+# shell's when that ends. "Is there a process at all" is the wrong question
+# -- the shell is always one.
+#
+# Read from /proc where there is one and asked of ps where there is not.
+# Either way it runs only when a window is being closed, so the fork costs
+# nothing a frame could notice. A background job leaves the shell in the
+# foreground and so does not count, which is deliberate: what this guards
+# is the thing that would lose work by being killed.
+fn tw_busy(int id) {
+	local t=${TW[$id]["t"]} pid fg line rest
+	local -a f
+
+	[ -n "$t" ] || return 1
+	term alive "$t" || return 1
+	pid := term pid "$t"
+	[ -n "$pid" ] || return 1
+	if [ -r "/proc/$pid/stat" ]; then
+		read -r line 2> /dev/null < "/proc/$pid/stat"
+		# comm is in brackets and may hold blanks and brackets of its
+		# own, so the fields are taken from past the *last* one.
+		rest=${line##*") "}
+		read -ra f <<< "$rest"
+		fg=${f[5]}
+	else
+		# Quoted because the checker for globals reads a bare word
+		# with an = in it as an assignment, and this one is ps's own
+		# option: "the tpgid column, with no heading".
+		fg := ps -o "tpgid=" -p "$pid" 2> /dev/null
+		fg=${fg// /}
+	fi
+	case $fg in "" | *[!0-9-]*) return 1 ;; esac
+	[ "$fg" -gt 0 ] || return 1
+	[ "$fg" != "$pid" ]
+}
+
+# A terminal with something still running in it asks before it goes. The
+# window manager calls this from dt_closereq -- the close button, Close on
+# a menu, the Close Window key -- and takes a refusal as "the app has it",
+# so the box below is what closes the window if told to.
+fn term_canclose(int id) {
+	[ "$DT_TERMASK" = 1 ] || return 0
+	tw_busy "$id" || return 0
+	TW_CLOSEID=$id
+	dt_confirm "Something is still running here. Close it?" tw_closeyes
+	return 1
+}
+
+tw_closeyes() {
+	local id=$TW_CLOSEID
+
+	TW_CLOSEID=
+	[ -n "$id" ] && [ -n "${DT[$id]["title"]}" ] && dt_del "$id"
 }
 
 # Restart Desktop: the program keeps running, so write down its pty's

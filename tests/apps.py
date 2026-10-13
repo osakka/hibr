@@ -2066,6 +2066,40 @@ check("each terminal window's own shell is named for its window in ps, "
       "where every one of them used to read a bare hibr",
       psmine == ["desktop [Terminal 1]", "desktop [Terminal 2]"], psmine)
 
+# Closing a terminal that still has something running in it asks first
+# (Gitea #209): closing one kills whatever holds the pty, which may be an
+# editor with an hour in it. The question is never "is there a process" --
+# the shell itself always is one -- it is whether the pty's foreground
+# process group is still the shell's own, which an idle prompt leaves it
+# and a running command does not.
+ASKSH = "TW_CMD=(/bin/sh -c 'PS1=\"sh> \"; export PS1; exec /bin/sh')"
+sc = run("term", "10 40 2 2", feed=[b"s", b"l", b"e", b"e", b"p", b" ",
+         b"3", b"0", b"\r", 0.6, b"\x1bw"], pre=ASKSH, wait=1.2, end=None,
+         until=lambda sc: sc.find("Close it?") is not None)
+# The box is drawn over the screen at an absolute position, the window's
+# own title bar included, so "the window is still there" cannot be read
+# from its border here -- the next check reads it from the window being
+# gone once Yes is pressed, which is the same claim from the other side.
+check("a terminal with a command still running asks before it closes",
+      sc.find("Close it?") is not None and sc.find("Yes") is not None, sc)
+sc = run("term", "10 40 2 2", feed=[b"s", b"l", b"e", b"e", b"p", b" ",
+         b"3", b"0", b"\r", 0.6, b"\x1bw", 0.4, b"y"], pre=ASKSH, wait=1.2,
+         end=None, until=lambda sc: sc.find("┤ Terminal") is None)
+check("and Yes is what closes it", sc.find("┤ Terminal") is None, sc)
+# Nothing running: the prompt is the shell's own foreground group, so the
+# window goes without a word. The wait is for the prompt, since a shell
+# that has not drawn one yet has not reached its own foreground either.
+sc = run("term", "10 40 2 2", feed=[0.6, b"\x1bw"], pre=ASKSH, wait=1.2,
+         end=None, until=lambda sc: sc.find("┤ Terminal") is None)
+check("a terminal sitting at its prompt closes without asking",
+      sc.find("┤ Terminal") is None and sc.find("Close it?") is None, sc)
+# And the setting turns it off, which is the half that was asked for.
+sc = run("term", "10 40 2 2", feed=[b"s", b"l", b"e", b"e", b"p", b" ",
+         b"3", b"0", b"\r", 0.6, b"\x1bw"], pre=ASKSH + "\nDT_TERMASK=0",
+         wait=1.2, end=None, until=lambda sc: sc.find("┤ Terminal") is None)
+check("Ask Before Closing off closes it with something running",
+      sc.find("┤ Terminal") is None and sc.find("Close it?") is None, sc)
+
 # Two terminals are two sessions: each its own pty and its own shell, and a
 # key typed into one never reaches the other.
 TWO = "TW_CMD=(/bin/sh -c 'tty; PS1=\"sh> \"; export PS1; exec /bin/sh')"
@@ -4186,4 +4220,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(597)
+report(601)

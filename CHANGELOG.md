@@ -1,5 +1,57 @@
 # Changelog
 
+## 0.99.176
+
+**Closing a terminal that still has something running in it asks first,
+with a Control Panel switch to turn that off** (Gitea #209), asked for as:
+
+> we need to make sure that we have a setting to on/off closing a
+> terminal. if something is running, it should ask are you sure? if not it
+> can exit, but this should be a setting in the control panel.
+
+Almost all of it was already there, which is the part worth writing down.
+`dt_closereq` -- the close button, Close on a menu, the Close Window key,
+the context menu -- has called `DT[$id]["canclose"]` since it was written,
+documented for exactly this ("an editor with unsaved changes asks first,
+and closes it itself if told to"), and `dt_confirm` is Quit's own box.
+Write was the only app that had ever used either. So this release is a
+callback, a test and a row, not a mechanism -- the same shape as #157,
+where `email account set` had taken a login all along and the desktop
+simply could not say it.
+
+**"Is something running" is not "is there a process".** The shell in a
+terminal window always is one. The question is whether the pty's
+*foreground process group* is still the program hibr started, which an
+idle prompt leaves it and a running command does not. Measured on a real
+pty rather than reasoned:
+
+```
+idle shell:         tpgid=879108 pid=879108
+with sleep running: tpgid=879113
+after it finished:  tpgid=879108
+```
+
+`tw_busy` reads that from `/proc/<pid>/stat` where there is one and asks
+`ps -o tpgid=` where there is not -- and only when a window is being
+closed, so the fork costs nothing a frame could notice. `comm` is in
+brackets and may hold blanks and brackets of its own, so the fields are
+taken from past the **last** `") "`. A background job leaves the shell in
+the foreground and so does not count, deliberately: what this guards is
+the thing that would lose work by being killed.
+
+`DT_TERMASK` is on by default -- a terminal is the one window whose close
+can lose work that is nowhere else -- and Control Panel > Terminal > Ask
+Before Closing turns it off. A new setting needs no `DT_SETVER` branch: a
+file written before it existed simply has no value for it and takes the
+default, where a *changed* default is what cannot reach a saved file.
+
+Four checks in `tests/apps.py`: a terminal with `sleep 30` running asks,
+Yes closes it, one at its prompt closes without a word, and the setting
+off closes it with something running. The first reads the box and its
+buttons rather than the window's own title, because the box is drawn over
+the screen at an absolute position and the title bar is under it -- which
+is the same claim the second check makes from the other side.
+
 ## 0.99.175
 
 **`dt_imgpix` answered "yes, pixels" for a terminal that names a protocol

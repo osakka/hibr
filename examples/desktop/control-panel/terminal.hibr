@@ -51,6 +51,13 @@ fn cp_termtrans(int v) {
 }
 CP_TERMENDS=(success always never)
 fn cp_set_termend(int? id = "", value = "") { DT_TERMEND=$value; cp_save; }
+
+# Repeated from the app, as every pane must: the panel's own tests load a
+# pane without its app, and under strict vars a setter assigning a global
+# the file never declared is refused -- so the dropdown "chose" and nothing
+# changed. dt_keep skips a name it already has.
+DT_TERMASK="${DT_TERMASK-1}"
+command -v dt_keep > /dev/null && dt_keep DT_TERMASK
 CP_TERMROWS=(24 30 36 40 50)
 CP_TERMCOLS=(80 100 120 132)
 fn cp_set_termrows(int? id = "", value = "") { DT_TERMROWS=$value; cp_save; }
@@ -68,6 +75,10 @@ fn terminal_rows(int w) {
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_TERMTITLE" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=DT_TERMTITLE; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Ask Before Closing"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$DT_TERMASK" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=DT_TERMASK; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Programs Set Clipboard"
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_TERMCLIP" = 1 ] && CP[$w][$n]["val"]=on
@@ -110,7 +121,7 @@ fn terminal_do(int w, k, int dir) {
 	local v
 
 	case $k in
-	DT_TERMBAR | DT_TERMTITLE | DT_TERMCLIP | DT_TERMSELCOPY | DT_CURSOR_BLINK) cp_toggle "$k" ;;
+	DT_TERMBAR | DT_TERMTITLE | DT_TERMCLIP | DT_TERMSELCOPY | DT_TERMASK | DT_CURSOR_BLINK) cp_toggle "$k" ;;
 	termcolours)
 		v := cp_next "$DT_TERMCOLOURS" "$dir" "${CP_TERMCOLOURS[@]}"
 		DT_TERMCOLOURS=$v
