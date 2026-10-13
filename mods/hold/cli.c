@@ -102,7 +102,9 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 #endif
 	s = hd_dial(path);
 	if (s < 0) {
-		lg(HIBR_LERR, "hold: %s: no such session", name);
+		lg(HIBR_LERR, "hold: %s: %s", name,
+		   errno == ETIMEDOUT ? "there and not answering"
+				      : "no such session");
 		return 1;
 	}
 	if (!isatty(0) || tcgetattr(0, &sv) < 0) {

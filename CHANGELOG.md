@@ -1,5 +1,58 @@
 # Changelog
 
+## 0.99.171
+
+**One held session in trouble stopped everything that asked after it, a
+desktop's own startup first** (Gitea #204, and Gitea #170 with it).
+
+`hold list` dials every socket in the session directory in turn, and
+`dt_holdnames` calls it from `dt_autohold` -- which runs at
+`session.hibr`'s line 63, where `dt_open` and with it `desktop.log` arrive
+at line 100. The dial was a plain blocking `connect` and the reply a plain
+`hd_rall`, so one socket that was **listening with a full accept queue and
+nobody accepting** was a desktop that printed its name and hung for ever,
+with no error, no log and nothing to look at. That is exactly how #170 was
+reported from a Mac -- *"no output, no log, indefinitely"*, and it started
+fine once the sessions were killed -- and it stayed unreproducible for
+twenty-nine releases because reproducing it needs a listener that fills its
+own queue from inside itself and then stays alive. With one of those
+planted, a 0.99.170 desktop drew **0 non-blank rows in eight seconds and
+wrote no `desktop.log`**; with the bound in, 24 and one.
+
+Every request to a session is bounded now: the dial 1000 ms, the reply
+5000 ms, and `HIBR_CONNTIMEO` overrides both. That is a **default** where
+`net_conn`'s own knob is opt-in, and the asymmetry is the point -- a
+`/dev/tcp` script may mean to wait, and nothing asking a local session a
+question does, so an opt-in bound would have shipped without reaching the
+one caller that was hanging. The receive bound is `SO_RCVTIMEO` on the ask
+socket and nowhere else: `hd_rall` already answers `EAGAIN` as an error, so
+that is enough to end a read on a server that accepted and went quiet,
+while the server's own reads and an attached client's stream go through the
+same function and must still wait for ever.
+
+A timeout is not a refusal, and two callers had to learn the difference
+before the bound was safe to add. `hd_serve` **unlinks the path before it
+binds**, so a `hold new` that read a timeout as "that name is free" would
+take a running server's only socket away and leave it alive and
+unreachable -- it refuses now, by name. And `hd_list` removes a socket it
+gets no answer from, which is right for one that is gone and would be
+deleting a live session for one that is merely busy, so it is narrowed to a
+refusal. `hd_dial` leaves `errno` saying which it was.
+
+The shape is **not** `net_conn`'s, and that was measured rather than
+reasoned: a non-blocking AF_UNIX connect against a full backlog answers
+`EAGAIN` -- nothing is in progress -- and a poll for writable then returns
+at once with `POLLOUT|POLLHUP` and `SO_ERROR` **0**, which by TCP's rules
+reads as a successful connect and hands back a descriptor connected to
+nothing. So the connect itself is what is retried, against a
+`CLOCK_MONOTONIC` deadline, since only a connect can learn whether the
+queue has room; and each try that fails this way enqueues nothing, where
+the blocking call left another connection on the queue every time anything
+retried.
+
+`tests/937-hold-dial.t` is the guard and fails against 0.99.170 three
+times over.
+
 ## 0.99.170
 
 **A Versions pane, so which image each part is running is one glance rather

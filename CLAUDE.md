@@ -2227,6 +2227,34 @@ went in the shell.
   then sleeps in a loop no signal can end is what reproduces it -- and
   `time.sleep(60)` alone does *not*, since something on this box interrupts
   it and Python then exits 0, which reads as the listener having crashed.
+- **And that shape does not transfer to AF_UNIX, which is where it was
+  needed next.** `hd_dial` was given `net_conn`'s pattern for #204 and
+  measured against a wedged Unix listener before being believed: a
+  non-blocking `connect` to a **full backlog** answers **`EAGAIN`**, not
+  `EINPROGRESS` -- nothing is in progress, the queue is simply full -- and
+  a `poll` for writable then returns **at once** with `POLLOUT|POLLHUP`
+  and **`SO_ERROR` 0**. So by TCP's rules it reads as a successful connect
+  and hands back a descriptor connected to nothing; the `SO_ERROR` check
+  that saves the TCP case cannot save this one, and a path with no socket
+  at all answers identically. What works is retrying **the connect
+  itself** against a `CLOCK_MONOTONIC` deadline, since only a connect can
+  learn that the queue has room -- and it is kinder to the wedged server
+  too, because a try that fails this way enqueues nothing, where the
+  blocking call left another connection on the queue every time anything
+  retried. **Two address families, two shapes; measure the one you are
+  about to use.**
+- **A timeout is not a refusal, and the callers that could not tell before
+  have to learn it the moment a bound is added.** Adding one to `hold`
+  (#204, 0.99.171) made two existing lines wrong rather than merely
+  slower. `hd_serve` **unlinks the socket path before it binds**, so
+  `hold new`'s "`hd_dial` failed, that name is free" would have taken a
+  live server's only socket away and left it running and unreachable; and
+  `hd_list` unlinks a socket it gets no answer from, which is right for a
+  server that has gone and is *deleting a live session* for one that is
+  merely busy -- from any terminal's `hold list`. Both read `errno` now,
+  `ETIMEDOUT` against `ECONNREFUSED`/`ENOENT`. The general form: **a
+  bound turns one failure into two, and every caller that branched on the
+  old one is a place to read.**
 - **A socket redirection honours `{var}` like a file's.** The `/dev/unix`,
   `/dev/tcp` branch of `rd_do` went straight to `dup2` onto the
   redirection's own descriptor and never looked at `r->var`, so `exec

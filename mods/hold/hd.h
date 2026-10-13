@@ -31,6 +31,22 @@ enum {
 	HD_UPGRADE = 'u'
 };
 
+/* How long a request to a session may wait. A control request to a local
+   socket that does not answer promptly is a session in trouble, never a
+   caller waiting on purpose -- which is why these are defaults rather than
+   opt-in, where net_conn's own bound is the other way about (a /dev/tcp
+   script may mean to wait). HIBR_CONNTIMEO overrides both. The dial is the
+   short one: an AF_UNIX connect completes at once unless the backlog is
+   full, which means nobody is accepting. The reply is the generous one: the
+   server answers between frames, and a frame under load is tens of
+   milliseconds. */
+#ifndef HD_DIALMS
+#define HD_DIALMS 1000
+#endif
+#ifndef HD_REPLYMS
+#define HD_REPLYMS 5000
+#endif
+
 extern const py_api *hd_pty;
 extern const tm_api *hd_tm;
 
@@ -114,7 +130,9 @@ int hd_wall(int fd, const char *p, size_t n);
 int hd_rall(int fd, char *p, size_t n);
 int hd_send(int fd, int type, const char *p, size_t n);
 int hd_recv(int fd, int *type, str *out);
+long hd_timeo(long dflt);
 int hd_dial(const char *path);
+int hd_askfd(int fd, int type, const char *p, size_t n, str *reply);
 int hd_ask(const char *path, int type, str *reply);
 int hd_askp(const char *path, int type, const char *p, size_t n, str *reply);
 void hd_size(int *sz);

@@ -82,6 +82,16 @@ int hd_new(sh *s, int ac, char **av)
 		s_free(&path);
 		return HIBR_FAIL;
 	}
+	/* A socket that is listening and not accepting is a session in
+	   trouble, never a free name: hd_serve unlinks the path before it
+	   binds, so starting here would take a live server's socket away
+	   and leave it running and unreachable. */
+	if (errno == ETIMEDOUT) {
+		lg(HIBR_LERR, "hold: %s: a session is there and not answering",
+		   name);
+		s_free(&path);
+		return HIBR_FAIL;
+	}
 	if (ioctl(0, TIOCGWINSZ, &w) == 0 && w.ws_row && w.ws_col) {
 		sz[0] = w.ws_row;
 		sz[1] = w.ws_col;
@@ -165,12 +175,26 @@ int hd_list(sh *s)
 		s_ch(&p, '/');
 		s_cat(&p, e->d_name);
 		if (lstat(p.p, &st) == 0 && S_ISSOCK(st.st_mode)) {
-			if (hd_ask(p.p, HD_INFO, &r)) {
-				if (o.n)
-					s_ch(&o, '\n');
-				s_cat(&o, e->d_name);
-				s_ch(&o, ' ');
-				s_cat(&o, r.p ? r.p : "");
+			int fd = hd_dial(p.p);
+
+			if (fd >= 0) {
+				if (hd_askfd(fd, HD_INFO, 0, 0, &r)) {
+					if (o.n)
+						s_ch(&o, '\n');
+					s_cat(&o, e->d_name);
+					s_ch(&o, ' ');
+					s_cat(&o, r.p ? r.p : "");
+				} else {
+					lg(HIBR_LDBG, "hold: %s: accepted and "
+					   "did not answer", p.p);
+				}
+				close(fd);
+			} else if (errno == ETIMEDOUT) {
+				/* Listening, not accepting: alive and in
+				   trouble. Removing its socket would be
+				   removing a running session's only name. */
+				lg(HIBR_LDBG, "hold: %s: not answering, left "
+				   "alone", p.p);
 			} else {
 				unlink(p.p);
 				lg(HIBR_LDBG, "hold: removed stale %s", p.p);

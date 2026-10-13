@@ -8,7 +8,9 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <sys/un.h>
+#include <time.h>
 #include <unistd.h>
 
 /* Where sessions live: a directory of our own under TMPDIR, which is where
@@ -213,11 +215,54 @@ int hd_recv(int fd, int *type, str *out)
 	return 1;
 }
 
-/* Connect to a session's socket; -1 when nothing answers there. */
+/* How long to wait, in milliseconds: what HIBR_CONNTIMEO says, or the
+   default the caller names. Zero or less means no bound at all, which is
+   what the shell's own knob means and is kept here so one value can turn
+   every one of these back into the call it used to be. */
+long hd_timeo(long dflt)
+{
+	const char *e = getenv("HIBR_CONNTIMEO");
+	char *end;
+	long v;
+
+	if (!e || !*e)
+		return dflt;
+	v = strtol(e, &end, 10);
+	return *end ? dflt : v;
+}
+
+/* Milliseconds on the monotonic clock, for a deadline no signal and no
+   clock change can move. */
+static long hd_now(void)
+{
+	struct timespec t;
+
+	clock_gettime(CLOCK_MONOTONIC, &t);
+	return (long)t.tv_sec * 1000 + t.tv_nsec / 1000000;
+}
+
+/* Connect to a session's socket; -1 when nothing answers there, with errno
+   saying which kind of nothing -- ENOENT or ECONNREFUSED for a socket that
+   is gone or unlistened, and ETIMEDOUT for one that is listening and not
+   accepting. Every caller has to tell those apart: `hold new` must refuse
+   rather than unlink a live session's socket and bind its own, and
+   `hold list` must not remove as stale a server that is merely busy.
+
+   The shape is *not* net_conn's. A non-blocking AF_UNIX connect against a
+   full backlog answers EAGAIN -- "try again", nothing is in progress -- and
+   measured on this box a poll for writable then returns at once with
+   POLLOUT|POLLHUP and SO_ERROR **0**: by TCP's rules that reads as a
+   successful connect, and hands back a descriptor that is not connected to
+   anything. So the connect itself is what is retried, against a wall-clock
+   deadline, since only a connect can learn that the queue has room. Each
+   try that fails this way enqueues nothing, which is also why this is
+   kinder to a wedged server than the blocking call was: that one left
+   another connection on the queue every time anything retried. */
 int hd_dial(const char *path)
 {
 	struct sockaddr_un a;
-	int fd;
+	long ms = hd_timeo(HD_DIALMS), end;
+	int fd, fl, e;
 
 	fd = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (fd < 0)
@@ -226,25 +271,80 @@ int hd_dial(const char *path)
 	memset(&a, 0, sizeof a);
 	a.sun_family = AF_UNIX;
 	strncpy(a.sun_path, path, sizeof a.sun_path - 1);
-	if (connect(fd, (struct sockaddr *)&a, sizeof a) < 0) {
-		close(fd);
-		return -1;
+	if (ms <= 0) {
+		if (connect(fd, (struct sockaddr *)&a, sizeof a) < 0) {
+			e = errno;
+			close(fd);
+			errno = e;
+			return -1;
+		}
+		return fd;
 	}
-	return fd;
+	fl = fcntl(fd, F_GETFL, 0);
+	fcntl(fd, F_SETFL, fl | O_NONBLOCK);
+	end = hd_now() + ms;
+	for (;;) {
+		if (connect(fd, (struct sockaddr *)&a, sizeof a) == 0) {
+			fcntl(fd, F_SETFL, fl);
+			return fd;
+		}
+		e = errno;
+		if (e == EINTR)
+			continue;
+		if (e == EISCONN) {
+			fcntl(fd, F_SETFL, fl);
+			return fd;
+		}
+		if (e != EAGAIN && e != EINPROGRESS && e != EALREADY) {
+			close(fd);
+			errno = e;
+			return -1;
+		}
+		if (hd_now() >= end) {
+			lg(HIBR_LDBG, "hold: %s: no answer in %ld ms", path,
+			   ms);
+			close(fd);
+			errno = ETIMEDOUT;
+			return -1;
+		}
+		usleep(20000);
+	}
+}
+
+/* Send one request on a socket already connected and, if a reply is
+   wanted, wait for it. The receive bound goes here and nowhere else:
+   hd_rall answers EAGAIN as an error, so SO_RCVTIMEO is enough to end a
+   read on a server that accepted and then went quiet -- and the server's
+   own reads and an attached client's stream go through that same hd_rall
+   and must wait for ever, which they do because this is the one socket the
+   option is ever set on. */
+int hd_askfd(int fd, int type, const char *p, size_t n, str *reply)
+{
+	long ms = hd_timeo(HD_REPLYMS);
+	struct timeval tv;
+	int t = 0, r = 1;
+
+	if (ms > 0) {
+		tv.tv_sec = ms / 1000;
+		tv.tv_usec = (ms % 1000) * 1000;
+		setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
+	}
+	if (!hd_send(fd, type, p, n))
+		r = 0;
+	else if (reply)
+		r = hd_recv(fd, &t, reply) > 0 && t == type;
+	return r;
 }
 
 /* Send a session one request with a payload and, if a reply is wanted,
    wait for it. */
 int hd_askp(const char *path, int type, const char *p, size_t n, str *reply)
 {
-	int fd = hd_dial(path), t = 0, r = 1;
+	int fd = hd_dial(path), r;
 
 	if (fd < 0)
 		return 0;
-	if (!hd_send(fd, type, p, n))
-		r = 0;
-	else if (reply)
-		r = hd_recv(fd, &t, reply) > 0 && t == type;
+	r = hd_askfd(fd, type, p, n, reply);
 	close(fd);
 	return r;
 }

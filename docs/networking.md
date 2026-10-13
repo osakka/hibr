@@ -69,6 +69,17 @@ hibr: connect 127.0.0.1:9: Connection refused
 status 1
 ```
 
+`hold` reads the same variable and is the one place where **unset does not
+mean unbounded**: a request to a session is a control request to a local
+socket a moment away, and no caller of it waits on purpose, where a
+`/dev/tcp` script may. So the dial and the reply each have a default
+(1000 ms and 5000 ms), which this variable overrides for both. Before that
+(0.99.171, Gitea #204), one session that was listening and not accepting
+stopped everything that asked after it -- `hold list` dials *every* socket
+in the directory, and a desktop runs it from `dt_autohold` before
+`desktop.log` exists, so the session hung with nothing drawn and no error
+anywhere (Gitea #170).
+
 Descriptors come back above 9, so a redirection cannot tread on one. A failure
 says what went wrong and returns non-zero, and a descriptor that is not a
 number is refused rather than taken as 0:

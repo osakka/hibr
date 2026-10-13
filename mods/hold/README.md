@@ -205,6 +205,40 @@ size ever reached the program again and its exit would never have been
 noticed, while the screen went on being drawn. It is taken back now
 (`tests/936-hold-upgrade.t`, which fails against 0.99.164).
 
+## A session in trouble is not everybody's problem
+
+Every request to a session is bounded: the dial 1000 ms, the reply 5000 ms,
+both overridden by `HIBR_CONNTIMEO`. That is a default where the shell's own
+knob is opt-in, and deliberately: a `/dev/tcp` script may mean to wait, and
+nothing asking a local session a question does. Until 0.99.171 (Gitea #204)
+one socket that was **listening with a full accept queue and nobody
+accepting** stopped everything that asked after it -- `hold list` dials each
+socket in the directory in turn, and a desktop calls it from `dt_autohold`
+*before* `dt_open` redirects stderr, so the desktop printed its name and
+hung with no error and no `desktop.log`: measured at 0 rows drawn in eight
+seconds with one wedged socket present, and 24 with the bound in (Gitea
+#170, reported from a Mac and not reproducible until the mechanism was
+found).
+
+A timeout is not a refusal, and two places have to tell them apart. `hold
+new` refuses a name whose socket is there and not answering, because
+`hd_serve` unlinks the path before it binds and would otherwise take a
+running server's only name away and leave it alive and unreachable; and
+`hold list` removes a socket it got no answer from, which must stay narrowed
+to a refusal, or a busy server would be deleted by anybody's listing.
+`hd_dial` leaves `errno` saying which it was, `ETIMEDOUT` for the one and
+`ECONNREFUSED`/`ENOENT` for the other.
+
+The shape is **not** `net_conn`'s, and that was measured rather than
+assumed: a non-blocking AF_UNIX connect against a full backlog answers
+`EAGAIN` -- nothing is in progress -- and a poll for writable then returns
+at once with `POLLOUT|POLLHUP` and `SO_ERROR` **0**, which by TCP's rules
+reads as a successful connect and hands back a descriptor connected to
+nothing. So the connect itself is retried against a wall-clock deadline,
+since only a connect can learn that the queue has room. It is also kinder
+to the wedged server than the blocking call was, which left another
+connection on its queue every time anything retried.
+
 ## Files
 
 | file | role |
@@ -239,6 +273,14 @@ and a bad display name being an error rather than a crash are all checked
 against `hold clients`'s own plain text output. `tests/desktop.py` holds
 a whole desktop, detaches it, reattaches from a new terminal and checks
 the full frame is drawn again. Both are clean under ASan and UBSan.
+
+`tests/937-hold-dial.t` is the bound: a stand-in that fills its own accept
+queue from inside itself and then stays alive -- a listener that has exited
+is refused in a millisecond and proves nothing -- and against it `hold
+list` comes back with nothing set, leaves that socket alone, `hold new`
+refuses the name rather than binding over it, and a socket with no listener
+at all is still removed as stale. It fails against 0.99.170 three times
+over, each one a `status 124`.
 
 ## What it does not do
 

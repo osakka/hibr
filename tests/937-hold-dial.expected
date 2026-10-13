@@ -1,0 +1,19 @@
+0
+the session directory is ours
+--- hold list comes back, with nothing set
+status 0
+and the default bound is what stopped it waiting
+--- and the session it could not reach is left exactly as it was
+its socket is still there
+and it is not listed as a session that answered
+--- hold new refuses that name rather than binding over it
+hibr: hold: wedged: a session is there and not answering
+status 1
+and the socket is still a socket
+servers started on that name: 0
+--- a socket with no listener at all is still removed as stale
+planted one nobody listens on
+and that one hold list did remove
+--- HIBR_CONNTIMEO is honoured, and still tells a timeout from a refusal
+status 0
+the wedged session survived a tighter bound too
