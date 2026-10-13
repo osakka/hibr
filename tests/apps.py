@@ -303,12 +303,12 @@ check("panes register and sort by title within their group, not load order",
                 "aboutme", "abouthibr", "appearance", "cliphist",
                 "control_strip", "desktop", "filetypes", "language",
                 "network", "notify", "pictures", "screensaver", "shortcuts",
-                "taskmgr", "windows",
+                "taskmgr", "versions", "windows",
                 "pimset", "filesview", "mailset", "prayerset", "notes",
                 "terminal", "vaultset", "tube"], out)
 check("Hardware first, then the desktop's own panes, then one per app",
       [GROUP[n] for n in ORDER] ==
-      ["hardware"] * 4 + ["system"] * 15 + ["app"] * 8, out)
+      ["hardware"] * 4 + ["system"] * 16 + ["app"] * 8, out)
 
 PW = "22 70 2 2"
 PANEL = ("panel", PW)
@@ -336,7 +336,7 @@ TITLE = {"aboutme": "About Me", "appearance": "Appearance", "control_strip": "Co
          "shortcuts": "Shortcuts", "notify": "Notifications",
          "windows": "Windows", "abouthibr": "About This",
          "filesview": "Files", "mailset": "Mail", "pimset": "Calendar &", "taskmgr": "Task Manager",
-         "terminal": "Terminal", "tube": "YouTube"}
+         "terminal": "Terminal", "tube": "YouTube", "versions": "Versions"}
 
 
 def prow(name):
@@ -1743,6 +1743,59 @@ check("alt-ctrl-t opens a terminal, even with another app focused",
 sc3 = run("files", FW, feed=[b"\x1b\x10"], pre=PRE, extra=("tasks",))
 check("alt-ctrl-p opens the task manager",
       sc3.find("┤ Task Manager ├") is not None, sc3)
+
+# The Versions pane answers the question About This Computer cannot
+# (Gitea #42): About draws $HIBR_VERSION, which is the desktop process's
+# own, and a restart replaces that process and every module it loads while
+# leaving the hold server's image as old as the session. Three states, each
+# asked separately here because they move independently.
+
+
+def vprows(held=""):
+    """The Versions pane's rows, with HIBR_HOLD given rather than inherited.
+    A helper that runs hibr outside Term inherits the environment of
+    whoever started the suite, so a machine inside a held session and one
+    outside it would read differently -- the trap this file already carries
+    about panefull and the owner's own config."""
+    out = subprocess.run(
+        [sx.HIBR, "-c", CPLOAD +
+         'n := versions_rows 1; i=0; while [ "$i" -lt "$n" ]; do '
+         'echo "${CP[1][$i]["kind"]}|${CP[1][$i]["text"]}|${CP[1][$i]["val"]}"; '
+         'i=$((i + 1)); done'],
+        capture_output=True, text=True,
+        env=dict(os.environ, HIBR_HOLD=held)).stdout
+    return [tuple(l.split("|", 2)) for l in out.splitlines() if l.count("|") >= 2]
+
+
+vp = vprows()
+check("the Versions pane names each part the desktop is made of",
+      [t for k, t, v in vp if k == "head"] ==
+      ["This Desktop", "This Session", "Modules"], vp)
+check("and gives the running shell's own version with its module ABI",
+      any(t == "Shell" and re.match(r"^\d+\.\d+\.\d+ \(abi \d+\)$", v)
+          for k, t, v in vp), vp)
+check("a session that is not held says so rather than naming one",
+      ("info", "Held", "no") in vp, vp)
+vph = vprows("/tmp/nowhere/scratch")
+check("and a held one is named, its server's image asked on its own",
+      ("info", "Name", "scratch") in vph
+      and any(t == "Server Image" for k, t, v in vph), vph)
+vpm = vp[[t for k, t, v in vp].index("Modules") + 1:]
+check("every module loaded is listed with the version mod list gives it",
+      len(vpm) >= 1 and all(re.match(r"^\d+\.\d+", v) for k, t, v in vpm), vpm)
+# A module replaced on disk is read from this process's own mappings: the
+# kernel appends " (deleted)" to a replaced inode, which is what apt and
+# make leave behind. vp_scan takes the maps file rather than reading one,
+# so this needs no module of the real tree replaced underneath it.
+VPMAPS = sx.scratch("versions-maps.txt")
+open(VPMAPS, "w").write(
+    "7f0000000000-7f0000001000 r-xp 00000000 fc:47 11   /x/mods/term.so (deleted)\n"
+    "7f0000002000-7f0000003000 r-xp 00000000 fc:47 12   /x/mods/pty.so\n")
+vpg = subprocess.run(
+    [sx.HIBR, "-c", CPLOAD + 'g := vp_scan %s; printf "[%%s]\\n" "$g"' % VPMAPS],
+    capture_output=True, text=True).stdout.strip()
+check("and a mapping the file no longer backs is what marks it replaced",
+      "term.so" in vpg and "pty.so" not in vpg, vpg)
 
 # --- the desk accessories --------------------------------------------------
 #
@@ -4133,4 +4186,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(591)
+report(597)

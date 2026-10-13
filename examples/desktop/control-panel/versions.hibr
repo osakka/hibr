@@ -1,0 +1,122 @@
+#!/usr/bin/env hibr
+#
+# versions -- which image each part of this desktop is actually running.
+# About This Computer cannot answer that: it draws $HIBR_VERSION, which is
+# the *desktop process's* own version, and a restart replaces that process
+# and every module it loads while leaving the hold server's image exactly
+# as old as the session (Gitea #42, #198). Three states, asked and named
+# separately, because they move independently.
+
+strict
+
+command -v cp_pane > /dev/null && cp_pane versions "Versions" "⌗"
+
+VP_AT=
+VP_MODS=
+VP_GONE=
+
+# Which of this process's mapped files are no longer the file they came
+# from. The kernel appends " (deleted)" to a replaced inode, which is what
+# apt and `make` leave behind, so this answers "replaced since it was
+# loaded" without an inode the shell cannot read: /proc/<pid>/map_files is
+# refused without CAP_SYS_ADMIN, and `stat` would be a fork per module. A
+# file rewritten in place keeps its inode and is invisible here, which is
+# worth knowing rather than worth that fork. Takes the maps file rather
+# than reading one, so a check can hand it the shape without a module of
+# the real tree being replaced underneath it.
+fn vp_scan(maps) {
+	local line p b g=""
+
+	while read -r line; do
+		case $line in
+		*" (deleted)") ;;
+		*) continue ;;
+		esac
+		p=/${line#* /}
+		p=${p% (deleted)}
+		b=${p##*/}
+		case " $g " in
+		*" $b "*) continue ;;
+		esac
+		g="$g $b"
+	done 2> /dev/null < "$maps"
+	ret "$g"
+}
+
+# Once a second rather than once a frame: a pane is drawn on every frame it
+# is open, and the maps of a desktop with modules loaded is tens of
+# kilobytes to read and walk.
+fn vp_read() {
+	[ "$VP_AT" = "$EPOCHSECONDS" ] && return 0
+	VP_AT=$EPOCHSECONDS
+	VP_MODS := mod list
+	VP_GONE := vp_scan "/proc/$$/maps"
+	return 0
+}
+
+fn versions_rows(int w) {
+	local n=0 v nm ver
+
+	vp_read
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="This Desktop"
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Shell"
+	CP[$w][$n]["val"]="$HIBR_VERSION (abi ${HIBR_ABI:-?})"
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Desktop"
+	CP[$w][$n]["val"]="${DT_VER:-?}"
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Running Image"
+	if [ -n "$DT_UPNEW" ]; then
+		v := dt_tr "replaced on disk"
+	else
+		v := dt_tr "current"
+	fi
+	CP[$w][$n]["val"]=$v
+	n=$((n + 1))
+
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="This Session"
+	n=$((n + 1))
+	if [ -z "$HIBR_HOLD" ]; then
+		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Held"
+		v := dt_tr "no"
+		CP[$w][$n]["val"]=$v
+		n=$((n + 1))
+	else
+		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Name"
+		CP[$w][$n]["val"]="${HIBR_HOLD##*/}"
+		n=$((n + 1))
+		# The server renders every display from its own emulator, so
+		# its image is a third state: a restart takes it along since
+		# 0.99.166, and only a session started on 0.99.159 or later
+		# has a server that can be asked at all.
+		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Server Image"
+		if [ -n "$DT_UPSESSION" ]; then
+			v := dt_tr "older than the hibr on disk"
+		else
+			v := dt_tr "current"
+		fi
+		CP[$w][$n]["val"]=$v
+		n=$((n + 1))
+	fi
+
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Modules"
+	n=$((n + 1))
+	while read -r nm ver _; do
+		case $nm in '') continue ;; esac
+		CP[$w][$n]["kind"]=info
+		# A module's own name is data, not a label: it reaches dt_tr
+		# as a miss and comes back unchanged, which is what should
+		# happen to it.
+		CP[$w][$n]["text"]=$nm
+		case " $VP_GONE " in
+		*" $nm.so "*)
+			v := dt_tr "replaced on disk"
+			CP[$w][$n]["val"]="$ver -- $v"
+			;;
+		*) CP[$w][$n]["val"]=$ver ;;
+		esac
+		n=$((n + 1))
+	done <<< "$VP_MODS"
+	ret "$n"
+}

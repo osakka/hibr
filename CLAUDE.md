@@ -3291,6 +3291,18 @@ went in the shell.
   process at all is only possible because 0.99.131 gave it a real name:
   `HIBR_HOLD` carries the session's *name* and `hold list` answers a
   **client's** pid, so neither finds the server.
+  **The exact comparison is not available, which is worth knowing before
+  anyone tries to improve on that marker.** `/proc/<pid>/map_files` is
+  `Operation not permitted` without `CAP_SYS_ADMIN` even to `stat`, so the
+  content of an inode a process still has mapped cannot be read or hashed
+  at all -- measured as the owner's own uid against their own process. And
+  an inode comparison answers "was this file replaced", never "did this
+  module change": a deb gives every file it ships a new inode on every
+  install, and in a build tree every module relinks on a release anyway,
+  since `HIBR_VER` lives in a header they all include. So ` (deleted)` in
+  the mapping is the honest signal, and its one blind spot is a file
+  **rewritten in place**, which keeps its inode -- no package manager does
+  that and a build might (Gitea #198, #42, 0.99.170).
 - **Diagnose a live session by attaching a second display to it, not by
   building a reproduction -- and `hold attach` without `-m` takes the
   owner's display away.** #175 cost six refuted mechanisms before anything

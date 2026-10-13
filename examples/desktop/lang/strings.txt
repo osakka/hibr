@@ -358,6 +358,7 @@ Group:
 Heading 1
 Heading 2
 Heading 3
+Held
 Held: %s
 Help
 Hidden Files
@@ -653,6 +654,7 @@ Rows
 Rule
 Rule…
 Run in a terminal
+Running Image
 STATE
 Safar
 Sat
@@ -690,6 +692,7 @@ Sep
 September
 Sequence
 Server
+Server Image
 Servers
 Session at Login
 Set (sudo)
@@ -786,6 +789,7 @@ There is no file %s
 There is no folder %s
 This Computer
 This Desktop
+This Session
 This Terminal
 This account has no address to answer from
 This notification has been cleared.
@@ -837,6 +841,7 @@ Username
 Users: %s
 VERSION
 Vault
+Versions
 View
 View Details
 View History
@@ -885,6 +890,7 @@ blocks only: it does not say what a cell measures
 case does not matter
 clicks
 clicks and drags
+current
 dBASE
 dBASE Help
 email
@@ -904,10 +910,12 @@ no
 no reason given
 not reported
 note
+older than the hibr on disk
 order they need each other; one needing itself says #CYCLE.
 over a range, row by row
 phone
 range A1_B9 an array of its values, worked out in the
+replaced on disk
 resizing — arrows, then enter
 says #REFUSED, one that loops says #TIME. Trust This Sheet
 server to keep its vault here, readable offline.

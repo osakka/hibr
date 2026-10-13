@@ -1,5 +1,67 @@
 # Changelog
 
+## 0.99.170
+
+**A Versions pane, so which image each part is running is one glance rather
+than six commands** (Gitea #42, the half of it that was asked for first:
+*"show the versions of the different components"*).
+
+About This Computer cannot answer that question, and today made the cost of
+it plain: it draws `hibr v%s` from `$HIBR_VERSION`, which is the **desktop
+process's** own version, and a restart replaces that process and every
+module it loads while leaving the hold server's image exactly as old as the
+session. Three states that move independently, so the pane asks and names
+them separately:
+
+```
+This Desktop
+  Shell            0.99.169 (abi 16)
+  Desktop          0.66
+  Running Image    current
+This Session
+  Name             desktop
+  Server Image     current
+Modules
+  console          1.0
+  ...
+```
+
+**How a replaced file is seen, and why not by its inode.** The kernel
+appends ` (deleted)` to a mapping whose file has been unlinked, which is
+what apt and `make` leave behind -- so one read of `/proc/$$/maps` says
+which of this process's own images are no longer the file they came from.
+The exact comparison was measured and refused: `/proc/<pid>/map_files` is
+`Operation not permitted` without `CAP_SYS_ADMIN` even to `stat`, so the
+old inode's content cannot be reached at all, and `stat` per module would
+be a fork per module on a pane drawn every frame. The cost of the cheap
+answer is named rather than hidden: **a file rewritten in place keeps its
+inode and is invisible here**, which no package manager does and a
+build might.
+
+`mod list`'s answer reaches the pane at all only because of 0.99.167: until
+then it printed instead of filling the result slot, so `r := mod list` was
+empty and the module table went to standard output -- in a pane, across the
+middle of the screen.
+
+Read once a second rather than once a frame, since a pane is drawn on every
+frame it is open and a desktop's maps are tens of kilobytes. `vp_scan`
+takes the maps file rather than reading one, so the "replaced" path is
+checkable without a module of the real tree being replaced underneath the
+suite.
+
+`tests/apps.py` is 591 checks to 597, six in the Control Panel's own
+section: the three headings, the shell's version with its ABI, a session
+that is not held saying so, a held one named with its server asked
+separately, every loaded module carrying the version `mod list` gives it,
+and a mapping its file no longer backs being what marks one replaced. The
+two that come with any new pane moved with it -- the picker's order (by
+title within its group, so Versions sits between Task Manager and Windows)
+and the system group's count.
+
+#42 stays open for the other half of what was asked: a button to refresh or
+update, which is the live reload the ticket's own open questions have to be
+answered first.
+
 ## 0.99.169
 
 **The Vault's two-factor login could not be completed: every emailed code
