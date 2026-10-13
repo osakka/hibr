@@ -2514,6 +2514,25 @@ went in the shell.
   the hibr menu for six releases, where `c` opened it in a test meant to
   open Control Panel. Count them -- `many "" "" hidden` -- and copy a
   hidden app's line from one that is known to be hidden.
+- **A one-shot code is killed by asking for another one, so the ask and the
+  send cannot both be unconditional.** `vw`'s two-factor path mailed an
+  emailed code on *every* attempt and then read the code off standard
+  input -- and the desktop runs `vw login` as a fresh child per attempt,
+  so the second attempt mailed a new code, killing the one the person had
+  just read, submitted the dead one, got a 401, and the dialog asked
+  again: a loop that ends in the server's own rate limit, reported as
+  "pings the otp endpoint multiple times, then too many failures"
+  (Gitea #206, 0.99.169). Where a code may already be waiting the code is
+  **read first** and the send happens only when there is none to use; on a
+  terminal the order has to stay send-then-prompt, since nothing is
+  waiting there. **And the stand-in is what hid it**: `tests/vw.py` drove
+  provider 1 with a code and passed, because the mailed code was a
+  constant that never expired -- a stand-in whose one-shot code is not
+  one-shot cannot catch a client that re-sends. `STATS["code"]` is now the
+  code valid *now* and `/stats` carries it, so a check reads it the way a
+  person reads their inbox. Same shape as #185, where the stand-in replied
+  200 without reading the body: **whatever a stand-in accepts
+  unconditionally is a hole exactly the size of that request.**
 - **A key that arrives in the reply you are trying to get cannot encrypt the
   thing that gets it.** The vault's two-factor work (Gitea #156, 0.99.146)
   keeps a *remembered device* token so a later login asks nothing -- and the

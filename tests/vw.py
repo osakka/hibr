@@ -207,8 +207,27 @@ try:
           rc != 0 and "email" in err.lower() and stats(p4)["mailed"] == before + 1,
           (err, before, stats(p4)["mailed"]))
 
-    out, rc, err = vw("login", "pat@example.com", stdin=PW + "\n123456\n", env=E4)
-    check("and the emailed code logs in", rc == 0 and "unlocked" in err, (out, err))
+    # The code the server actually mailed, read the way a person reads their
+    # inbox -- not a constant. A constant is what let the client mail a
+    # *second* code and then submit the first for as long as provider 1 has
+    # existed: the real server had already replaced it, so every attempt was
+    # a 401, the dialog asked again, each attempt mailed again, and
+    # Vaultwarden ended it with too many failures (Gitea #206).
+    code = stats(p4)["code"]
+    mailed = stats(p4)["mailed"]
+    out, rc, err = vw("login", "pat@example.com", stdin=PW + "\n%s\n" % code, env=E4)
+    check("and the code the server mailed logs in", rc == 0 and "unlocked" in err,
+          (out, err))
+    check("without mailing another one, which would have killed the code in hand",
+          stats(p4)["mailed"] == mailed, (mailed, stats(p4)["mailed"]))
+
+    # The terminal path -- mail first, then prompt -- is deliberately not
+    # checked here and cannot be from this harness: without VW_STDIN the
+    # *password* is read from a tty too, so a run with it unset dies at
+    # "the password could not be read" long before two factor. What pins
+    # the behaviour that matters is the pair above: a mail when there is no
+    # code to use, and no mail when there is one. The terminal branch is
+    # the order that was already there.
 finally:
     srv4.kill()
 
@@ -225,4 +244,4 @@ finally:
     srv3.kill()
 
 shutil.rmtree(D, True)
-report(32)
+report(33)

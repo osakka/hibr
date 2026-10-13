@@ -1,5 +1,62 @@
 # Changelog
 
+## 0.99.169
+
+**The Vault's two-factor login could not be completed: every emailed code
+was dead by the time it was submitted** (Gitea #206). Reported from a live
+Vaultwarden:
+
+> I tried to login to vault, I get a ask for otp, when I provide it asks
+> again, pings the otp endpoint multiple times, then gets back saying too
+> many failures.
+
+Every part of that is one ordering mistake. The desktop runs `vw login` as
+a **fresh child per attempt**, handing it `password\ncode` on standard
+input, so each attempt is a whole login from the start: the grant goes
+without a code, the server answers 400 with `TwoFactorProviders`, provider
+1 is email, and **vw mailed a code** -- *then* read the code off standard
+input and submitted it. On the second attempt that mail issues a new code,
+which is the moment the one the person has just read dies: `401 Two-step
+token is invalid`, the dialog asks again, that attempt mails again, and
+Vaultwarden ends it with too many failures.
+
+Measured against `tests/bwserve.py`, before and after:
+
+```
+run 1 (no code):       rc=4 mailed=1     asks, mails a code -- correct
+run 2 (code supplied): rc=1 mailed=2     401: Two-step token is invalid
+run 2, with the fix:   rc=0 mailed=1     unlocked
+```
+
+Where a code may already be waiting (`VW_STDIN`, which is how the desktop
+runs it) the code is **read first** and the mail goes only when there is
+none to use. On a terminal the order stays mail-then-prompt and has to:
+nothing is waiting to be read there.
+
+**And a passing check sat on top of it.** `tests/vw.py` did drive provider
+1 with a code and assert that it logs in -- because the stand-in's emailed
+code was the constant `123456` and nothing ever invalidated it. **A
+stand-in whose mailed code never expires cannot catch a client that mails
+a fresh one before submitting the old.** That is #185's lesson in a second
+costume: there the stand-in replied 200 without reading the body, here it
+accepted a code the real server had already replaced. `STATS["code"]` is
+the code valid *now*, each send issues the next one, and `/stats` carries
+it so a check reads it the way a person reads their inbox. With the
+ordering put back, the two new checks fail and nothing else does.
+
+The terminal path is deliberately unguarded and cannot be driven from that
+harness: with `VW_STDIN` unset the *password* is read from a tty too, so
+such a run dies at "the password could not be read" long before two
+factor. What pins the behaviour is the pair that can be driven -- a mail
+when there is no code to use, and no mail when there is one.
+
+One thing to know: a retry that carries a code now never mails, which is
+the point, so a code that has **expired** cannot be replaced by submitting
+again. Emptying the Code field and submitting asks for a fresh one. That
+is correct and not discoverable, so the dialog may want to say so or to
+grow a button -- a change to what the desktop shows rather than to the
+protocol, and left out of this release deliberately.
+
 ## 0.99.168
 
 **Every window title and nine messages were built by interpolation, so a

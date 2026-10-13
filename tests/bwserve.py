@@ -44,7 +44,14 @@ from cryptography.hazmat.primitives import padding
 EMAIL, PW = "pat@example.com", "correct horse battery staple"
 IT = 5000
 KDF = "argon2" if "--kdf" in sys.argv and sys.argv[sys.argv.index("--kdf") + 1] == "argon2" else "pbkdf2"
-STATS = {"token": 0, "refresh": 0, "sync": 0, "twofa": 0, "mailed": 0}
+# "code" is the emailed code that is valid *now*: each send issues a new one
+# and the one before it stops working, which is what Vaultwarden does and
+# what a constant could not model. A client that mails a fresh code and then
+# submits the one the person already read gets a 401 here, as it would in
+# life -- and a check that read a constant passed over exactly that for as
+# long as provider 1 has existed (Gitea #206).
+STATS = {"token": 0, "refresh": 0, "sync": 0, "twofa": 0, "mailed": 0,
+         "code": None}
 TFA = (int(sys.argv[sys.argv.index("--2fa") + 1]) if "--2fa" in sys.argv else None)
 CODE = "123456"            # what provider 0, 1 and 3 accept
 RECOVERY = "0123456789abcdef0123456789abcdef"
@@ -173,6 +180,7 @@ class H(BaseHTTPRequestHandler):
                     "message": "Username or password is incorrect. Try again.",
                     "object": "error"})
             STATS["mailed"] += 1
+            STATS["code"] = "%06d" % (100000 + STATS["mailed"])
             return self.reply(200, {})
         if self.path == "/identity/connect/token":
             f = urllib.parse.parse_qs(b)
@@ -197,7 +205,9 @@ class H(BaseHTTPRequestHandler):
                 elif prov == "8":
                     ok = tok == RECOVERY
                 elif tok and prov == str(TFA):
-                    ok = tok == CODE
+                    # An emailed code is the last one mailed, and nothing
+                    # before it; everything else keeps the fixed one.
+                    ok = tok == (STATS["code"] if TFA == 1 else CODE)
                 if not ok:
                     if not tok:
                         STATS["twofa"] += 1

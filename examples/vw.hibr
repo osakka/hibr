@@ -390,14 +390,33 @@ fn vw_cmd(cmd = "", ...rest) {
 				vw_die "this account wants $VW_TFAWANT, which needs a browser that vw does not have. An authenticator code, an emailed code or a YubiKey can be typed, and --recovery takes a recovery code"
 			fi
 			# An emailed code is only sent when it is asked for: the
-			# refusal above does not send it.
-			if [ "$prov" = 1 ]; then
+			# refusal above does not send it. **And never when a code
+			# is already in hand**, which is an ordering that cost a
+			# loop nobody could get out of (Gitea #206): a caller
+			# with a code hands it over on standard input -- the
+			# desktop does, which is how a dialog with a Code field
+			# works -- and mailing first issues a *new* code, so the
+			# one the person has just read is dead by the time it is
+			# submitted. The server answers 401, the dialog asks
+			# again, that attempt mails again, and Vaultwarden ends
+			# it with too many failures. So where a code may already
+			# be waiting it is read first, and the mail goes only
+			# when there is none to use.
+			code=
+			if [ -n "${VW_STDIN-}" ]; then
+				code := vw_codeline "${VW_TFA[$prov]:-provider $prov}"
+			fi
+			if [ -z "$code" ] && [ "$prov" = 1 ]; then
 				em := vw_url api /two-factor/send-email-login
 				vw_req POST "$em" \
 					"{\"deviceIdentifier\":\"$t\",\"email\":\"${VA["email"]}\",\"masterPasswordHash\":\"$h\"}" \
 					"Content-Type: application/json" > /dev/null
 			fi
-			code := vw_codeline "${VW_TFA[$prov]:-provider $prov}"
+			# On a terminal the prompt comes after the mail, and has
+			# to: there is nothing waiting to be read there.
+			if [ -z "$code" ] && [ -z "${VW_STDIN-}" ]; then
+				code := vw_codeline "${VW_TFA[$prov]:-provider $prov}"
+			fi
 			# Status 4 is "a code is wanted and none came", which is how
 			# the desktop knows to grow a second field rather than having
 			# to read this sentence. 1 is anything else going wrong, 2 a
