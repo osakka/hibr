@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.99.173
+
+**A page drawn as pixels had no words in it** (Gitea #210), reported as
+*"the browser shows pictures and proper rendering ... Interestingly, the
+browser does not have text, so pictures without any other content :) that
+makes it useless."*
+
+One line, and the two halves of the module disagreeing about what a
+screenshot is for. `wb_pixels` took it like this:
+
+    wb_hidetext(t, 1);
+    r = wb_call("Page.captureScreenshot", b, t->session);
+
+`wb_hidetext(t, 1)` makes every letter on the page `color: transparent`,
+and it ran for **both** of the paths below it. For the **cells** path that
+is the whole design -- the picture carries the backgrounds and the images
+and the text is drawn again over it as real cells, which is what
+`mods/web/README.md` describes. For the **pixels** path it is the bug: that
+branch keeps the picture whole and says in its own comment that there is no
+text layer to build, so the page a terminal was handed was its backgrounds
+and its images with no words anywhere in it. `wb_hidetext(t, !t->pixels)`
+is the fix -- hide the text only for the path that draws it again.
+
+Measured both ways on a page of black words on white: **0** of its 161,024
+pixels are dark against 0.99.172, and 7,602 with the fix.
+
+The reason no check caught it is worth more than the fix. `tests/web.py`
+asserted that in pixels mode the page's text is **not in the cells** --
+which is correct, is still correct, and is satisfied exactly as well by a
+picture with no text in it at all. A check on an absence passes for the
+wrong reason as soon as something else goes missing too. The new one reads
+the picture: the harness keeps a kitty payload for exactly this purpose
+(`Screen.imgdata`, from Gitea #129), so the page is decoded and its dark
+pixels counted. kitty rather than sixel, because a DCS's bytes are counted
+and dropped where an APC's are kept.
+
 ## 0.99.172
 
 **The Mail pane's Detect covered the only way out of the dialog, and its

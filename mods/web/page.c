@@ -316,9 +316,17 @@ void wb_pixels(wb_tab *t)
 	snprintf(b, sizeof b, "{\"format\":\"png\",\"clip\":{\"x\":%ld,\"y\":%ld,"
 		 "\"width\":%d,\"height\":%d,\"scale\":%.6f}}", t->sx, t->sy,
 		 t->cols * WB_CW, t->rows * WB_CH, t->pixels ? 1.0 : 1.0 / WB_CW);
-	wb_hidetext(t, 1);
+	/* Hidden only for the path that draws the text again. A page drawn
+	   as cells is this picture with its letters put back as real cells
+	   over it, so they must not be in it twice; a page drawn as pixels
+	   *is* the page -- nothing is drawn over it at all -- and hiding
+	   its text leaves a picture of backgrounds and images with no words
+	   anywhere in it, which is a browser that renders beautifully and
+	   says nothing (Gitea #210). */
+	wb_hidetext(t, !t->pixels);
 	r = wb_call("Page.captureScreenshot", b, t->session);
-	wb_hidetext(t, 0);
+	if (!t->pixels)
+		wb_hidetext(t, 0);
 	if (!r)
 		return;
 	s_init(&png);

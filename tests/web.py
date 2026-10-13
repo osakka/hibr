@@ -6,7 +6,7 @@ Needs Chromium or Chrome; without one every check is skipped, and the
 suite says so rather than failing. Pages are files in a folder of their
 own, so nothing here touches the network.
 """
-import os, shutil, subprocess, sys, tempfile
+import base64, os, shutil, subprocess, sys, tempfile, zlib
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
@@ -39,9 +39,19 @@ open(os.path.join(D, "s.html"), "w").write(
     "<html><head><title>Page S</title>"
     "<script>const e = Date.now() + 800; while (Date.now() < e);</script>"
     "</head><body><p>The slow page.</p></body></html>")
+# Black words on white and nothing else: a page whose picture can only have
+# more than one colour in it if the words are *in* the picture. Everything
+# else in a.html -- a blue box, a red paragraph -- gives a second colour
+# whether the text is there or not, so it cannot answer this.
+open(os.path.join(D, "t.html"), "w").write(
+    "<html><head><title>Words page</title></head>"
+    "<body style='background:#ffffff;margin:0'>"
+    "<div style='color:#000000;font-size:38px;font-family:sans-serif'>"
+    "WORDS WORDS WORDS<br>WORDS WORDS WORDS</div></body></html>")
 A = "file://" + os.path.join(D, "a.html")
 B = "file://" + os.path.join(D, "b.html")
 S = "file://" + os.path.join(D, "s.html")
+W = "file://" + os.path.join(D, "t.html")
 ENV = dict(os.environ, HIBR_WEB_PROFILE=PROF,
            HIBR_MODPATH=tree("build/mods"))
 
@@ -226,10 +236,38 @@ check("where the terminal can paint pixels the page is a picture, the chrome tex
 sc = brun([2.0], ready="Hello hibr", cell=(8, 16), env={"DT_IMGMODE": "half"})
 check("and asked for blocks it is text over colours, with no picture sent",
       not sc.images and sc.find("Hello hibr") is not None, (sc.images, sc))
+# And the words are *in* that picture. The screenshot is deliberately taken
+# with the page's text made transparent, because the cells path draws it
+# again over the top -- and until 0.99.173 that happened for the pixels
+# path too, which draws nothing over it: a page of backgrounds and images
+# with no words anywhere in it (Gitea #210). The check above asserts the
+# text is not in the *cells*, which is right, stays right, and is satisfied
+# just as well by a picture with no text in it at all -- so this one reads
+# the picture itself. Black words on white: 7602 of its 161024 pixels are
+# dark with the fix and **0** without, which is the whole bug as a number.
+#
+# kitty rather than sixel, because the harness keeps the payload only for
+# an APC -- a DCS's bytes are counted and dropped. The page is sent raw
+# (`f=24`), since cn_image compresses the wallpaper alone, but the inflate
+# is attempted anyway so a change of that gate cannot quietly blind this.
+sc = brun([2.0], arg=W, ready="Words page", cell=(8, 16),
+          env={"HIBR_GFX": "kitty", "DT_IMGMODE": "pixels"})
+dark = 0
+for d in sc.imgdata:
+    raw = base64.b64decode(d + "=" * (-len(d) % 4))
+    try:
+        raw = zlib.decompress(raw)
+    except zlib.error:
+        pass
+    for i in range(0, len(raw) - 2, 3):
+        if raw[i] < 110 and raw[i + 1] < 110 and raw[i + 2] < 110:
+            dark += 1
+check("and the page's own words are in the picture, not made transparent",
+      len(sc.images) == 1 and dark > 500, (dark, len(sc.imgdata), sc.apc[:1]))
 
 sc = brun([], env={"HIBR_WEB_BROWSER": "/nonexistent/chromium"})
 check("without a browser to drive, the window says what is missing",
       sc.find("No Chromium or Chrome") is not None, sc)
 
 shutil.rmtree(D, True)
-report(19)
+report(20)

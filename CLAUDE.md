@@ -3633,6 +3633,23 @@ went in the shell.
   `console translucent` ends at the next flush as well as on `off`, so a
   caller cannot leak it into whatever is drawn next: a guard that makes
   forgetting impossible rather than a list somebody maintains.
+- **One capture serving two consumers with opposite needs must be told
+  which one it is for.** `mods/web`'s screenshot is taken with the page's
+  text made `color: transparent`, because the **cells** path draws that
+  text again over the picture as real cells and it must not be in it
+  twice -- and the same call served the **pixels** path, which draws
+  nothing over it, so a page handed to a terminal as a bitmap was its
+  backgrounds and its images with **no words anywhere in it** (Gitea
+  #210, 0.99.173). `wb_hidetext(t, !t->pixels)` is the whole fix. The
+  shape: a transformation applied *before* a branch, where only one arm
+  of the branch wants it. And the check that let it through is the other
+  half of the lesson -- `tests/web.py` asserted the page's text was
+  **not in the cells**, which is true, stays true, and is satisfied just
+  as well by a picture with nothing in it: **a check on an absence
+  passes for the wrong reason the moment something else goes missing.**
+  Assert on the thing that should be there, which here meant decoding
+  the payload the harness already keeps and counting the dark pixels --
+  0 of 161,024 against 7,602.
 - **A flag cleared after the work it describes loses whatever that work
   learned.** `wb_render` ended with `t->dirty = 0`, and a render's own
   `Runtime.evaluate` waits for its reply by pumping the CDP pipe --
