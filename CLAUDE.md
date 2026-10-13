@@ -3973,6 +3973,22 @@ went in the shell.
   walk sixty characters a line to do it. And the module stays free of the
   theme -- it names tones, the app picks colours -- which is also what lets
   the terminal form keep the palette entries the pictures were drawn with.
+- **`console gfx`'s `kitty 0 0` is not "no pictures here", it is "a
+  terminal that could and has stopped saying".** `cn_gfx` answers
+  `none 0 0` for one that never gave a cell size and **keeps the
+  protocol's name once it has seen one**, so that state is reached only
+  by a resize or a reattach losing the pixel size -- which is what a
+  second machine joining a held session does. `dt_imgpix` read the first
+  word alone and called it pixels, where `img draw`'s own gate is
+  `cw > 1 && chh > 1`: one question, two rules, and the desktop's was
+  wrong (Gitea #211, 0.99.175). Four callers read that answer and two of
+  them pick their entire drawing mode from it -- the Browser and the
+  YouTube player -- so both were asking for pixels that cannot be
+  placed. **A check for this has to be driven as a sequence**: a first
+  pair written from a standing start passed against the bug, because
+  starting with no cell size gives `none 0 0`, which was never the
+  wrong case. `Term.resize(rows, cols, 0, 0)` after a size is what
+  reproduces it.
 - **A role is not a colour: check what a theme actually gives it.** The
   ticket for the above asked for `DT_INFO` and `DT_WELL` for the two tones,
   and `DT_WELL` is the *surface* colour a key or a cell sits in (`#2d3748`

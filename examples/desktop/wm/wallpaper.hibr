@@ -71,14 +71,29 @@ dt_imggfx() {
 	ret "$g"
 }
 
-# Whether this terminal places pixels, whichever protocol it speaks. The
-# first word of dt_imggfx is the name of one, or "none".
+# Whether this terminal places pixels, whichever protocol it speaks.
+#
+# The cell size is part of the question, not decoration. `console gfx`
+# names the protocol from the terminal whether or not a size is to be had,
+# so it answers `kitty 0 0` for one that speaks kitty and says nothing
+# about its cells -- and this read the first word alone and called that
+# "yes, pixels". `img draw`'s own gate is `cw > 1 && chh > 1`, so the two
+# disagreed exactly there, and this is the side that was wrong: `dt_wall`
+# blanked the rectangle it was about to put a bitmap in and img then drew
+# cells into it, and the Browser and the YouTube player were each told to
+# place pixels that cannot be placed (Gitea #211). One question, one rule,
+# and the rule belongs to the module that draws.
 dt_imgpix() {
-	local g
+	local g w h
+	local -a p
 
 	g := dt_imggfx
-	case $g in
-	kitty* | sixel*) return 0 ;;
+	read -ra p <<< "$g"
+	w=${p[1]:-0}
+	h=${p[2]:-0}
+	case $w$h in *[!0-9]*) return 1 ;; esac
+	case ${p[0]} in
+	kitty | sixel) [ "$w" -gt 1 ] && [ "$h" -gt 1 ] && return 0 ;;
 	esac
 	return 1
 }

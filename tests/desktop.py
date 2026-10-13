@@ -30,13 +30,19 @@ WM = tree("examples/desktop/desktop.hibr")
 ROWS, COLS = 24, 80
 
 
-def run(session, feed=(), wait=1.2, env=None, pre=""):
-    """Run a session on top of the window manager and return the last screen."""
+def run(session, feed=(), wait=1.2, env=None, pre="", cell=(0, 0)):
+    """Run a session on top of the window manager and return the last screen.
+
+    cell is the pixel size of a cell, as a terminal fills in ws_xpixel and
+    ws_ypixel: (0, 0), the default, is a terminal that says nothing about
+    its cells, which is what every check here wanted until one needed to
+    ask what the desktop makes of a terminal that does say.
+    """
     path = "/tmp/hibr-desktop-%d.hibr" % os.getpid()
     open(path, "w").write("%s. %s\n%s\ndt_open\n%s\ndt_run\ndt_close\n"
                           % (load(MOD), WM, pre, session))
     t = Term(path, env=dict({"DT_TICK": "60"}, **(env or {})), rows=ROWS,
-             cols=COLS, settle=0.5)
+             cols=COLS, settle=0.5, cellw=cell[0], cellh=cell[1])
     t.keys(feed)
     t.quit(b"qy", wait)
     os.unlink(path)
@@ -5191,9 +5197,49 @@ check("the desktop asks for drag reporting, and says so from its first frame",
 check("a component that clears the mode has the desktop's own put back",
       "off" in seen and seen[seen.index("off") + 1:seen.index("off") + 2] == ["drag"],
       rows)
+
+# What the desktop makes of a terminal that *names* a picture protocol and
+# measures no cell. `console gfx` answers the protocol from the terminal
+# whether or not a size is to be had, so it says `kitty 0 0` -- and
+# dt_imgpix read the first word alone and called that "yes, pixels", where
+# `img draw`'s own gate is `cw > 1 && chh > 1`. The two disagreed exactly
+# there, and four things read the desktop's answer: the wallpaper, the
+# Pictures pane, the Browser and the YouTube player, the last two choosing
+# `pixels` from it (Gitea #211). The answer rides in a window's title
+# because that is the one place a session can put a value where a check
+# can read it without drawing anything of its own.
+# And it has to be driven as a *sequence*, because the wrong answer is not
+# reachable from a standing start: cn_gfx says `none 0 0` for a terminal
+# that never gave a cell size, and keeps the protocol's name once it has
+# seen one -- so `kitty 0 0` is what a terminal that **had** a cell size
+# and lost it looks like, which is what a reattach from another machine
+# does. The answer is drawn every frame rather than put in the title, so
+# the frame after the resize carries the new one.
+GFXAPP = ('fn gq_draw(int id, int h, int w, int row, int col) {\n'
+          '\tlocal g p\n'
+          '\tg := dt_imggfx\n'
+          '\tif dt_imgpix; then p=yes; else p=no; fi\n'
+          '\tconsole put -p "w$id" 1 1 "gfx $g pix=$p       "\n'
+          '\tdt_want 200\n'
+          '\treturn 0\n}\n')
+gpath = "/tmp/hibr-desktop-gfx-%d.hibr" % os.getpid()
+open(gpath, "w").write("%s. %s\n%s\ndt_open\ndt_new GFX 6 60 4 4 gq\n"
+                       "dt_run\ndt_close\n" % (load(MOD), WM, GFXAPP))
+gt = Term(gpath, env={"DT_TICK": "60", "HIBR_GFX": "kitty"}, rows=ROWS,
+          cols=COLS, settle=0.6, cellw=8, cellh=16)
+gt.collect(0.6)
+check("a terminal that measures a cell can place pixels",
+      gt.screen().find("gfx kitty 8 16 pix=yes") is not None, gt.screen())
+gt.resize(ROWS, COLS, 0, 0)
+gt.collect(1.0)
+check("and one that stops measuring one cannot, though it still names the "
+      "protocol", gt.screen().find("gfx kitty 0 0 pix=no") is not None,
+      gt.screen())
+gt.quit(b"qy", 1.2)
+os.unlink(gpath)
 try:
     os.unlink(MOUT)
 except OSError:
     pass
 
-report(609)
+report(611)

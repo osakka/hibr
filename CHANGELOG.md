@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.99.175
+
+**`dt_imgpix` answered "yes, pixels" for a terminal that names a protocol
+and measures no cell** (Gitea #211), decided on the first word of
+`console gfx` and nothing else:
+
+```sh
+case $g in
+kitty* | sixel*) return 0 ;;
+esac
+```
+
+`img draw`'s own gate is `cw > 1 && chh > 1`. So the desktop and the
+module it is predicting answered one question by two rules, and where
+they disagreed the desktop was wrong: `dt_wall` blanked the rectangle it
+was about to put a bitmap in -- with the *default* pen, deliberately,
+since a cell with a background colour paints over a picture the terminal
+composites below the glyphs -- and `img draw` then drew half blocks into
+it. Four things read that answer, and two of them are apps that choose
+their whole drawing mode from it: `browser.hibr` (`dt_imgpix && bwm=pixels`)
+and `youtube.hibr`, whose own comment notes that `media` has no `auto` of
+its own, so the answer is final there. Both were being told to place
+pixels that cannot be placed.
+
+It requires the cell size now, which is the module's rule rather than a
+second one.
+
+**The state is narrower than it looks, and that is the useful part.**
+`cn_gfx` answers `none 0 0` for a terminal that never gave a cell size,
+and keeps the protocol's name once it has seen one -- so `kitty 0 0` is
+not "a terminal that cannot do pictures", it is **a terminal that could
+and has stopped saying**, which is what a resize or a reattach from
+another machine produces. Measured as a sequence rather than from a
+standing start, which is why a first pair of checks written the obvious
+way passed against the bug and had to be thrown away: driven through
+`Term.resize`, `tests/desktop.py` reads `gfx kitty 8 16 pix=yes` and then
+`gfx kitty 0 0 pix=no`, where 0.99.174 reads `pix=yes` for the second.
+
 ## 0.99.174
 
 **`console fill` never took `-p`, so five callers were filling rectangles
