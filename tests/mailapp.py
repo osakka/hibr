@@ -478,4 +478,84 @@ check("a message left alone saves itself after DT_MAILDRAFT seconds",
       [m.raw[-60:] for m in box7.folders["Drafts"]])
 t.quit(b"qy", 1.5)
 
-report(64)
+# --- the Control Panel's Test, in a window of its own (Gitea #207) --------
+#
+# The pane drew the ladder as its own rows with each rung's detail in the
+# value column, which is a word wide -- and what a failing rung has to say
+# is a sentence from the server. Driven here rather than in apps.py because
+# it needs servers to say something: a wrong password is the case the
+# window exists for, since its message is the one nobody could read.
+box8 = ms.Box()
+box8.add("INBOX", msg("Bo <bo@example.net>", "Hi", "x", "Sat, 3 Oct 2026 08:00:00 +0000"))
+p8 = ms.serve("imap", box8)
+s8 = ms.serve("smtp", box8)
+conf8 = os.path.join(D, "test8.conf")
+subprocess.run([sx.HIBR, "-c", "need email; email account set 'Home Email' -h 127.0.0.1 "
+                "-p %d -S plain -u pat -w WRONG -e pat@example.com -o 127.0.0.1 -q %d -T plain"
+                % (p8, s8)],
+               env=dict(os.environ, HIBR_MAIL_CONF=conf8,
+                        HIBR_MODPATH=tree("build/mods")), check=True)
+sess8 = os.path.join(D, "mstest.hibr")
+open(sess8, "w").write(
+    "%s. %s\n. %s\nCP_PANEDIRS+=(\"%s\")\ncp_panes\ndt_open\n"
+    "ms_testshow \"Home Email\"\ndt_run\ndt_close\n"
+    % (load("console", "email", "db", "html", "img"),
+       tree("examples/desktop/desktop.hibr"),
+       tree("examples/desktop/system/panel.hibr"),
+       tree("examples/desktop/control-panel")))
+t = Term(sess8, rows=30, cols=100, settle=1.5,
+         env={"HIBR_MAIL_CONF": conf8, "HIBR_MAIL_TIMEOUT": "5"})
+# A title prefix, not the whole border: the account's name is in it, and a
+# long one is truncated by dt_win before any exact match could land.
+sc = waitfor(t, "┤ Mail Test [")
+check("the Test opens a window of its own, named for the account",
+      sc.find("┤ Mail Test [") is not None, sc)
+sc = waitfor(t, "step failed")
+rows = [sc.row(i).rstrip() for i in range(sc.rows)]
+rung = [r for r in rows if "incoming auth" in r]
+check("a rung carries its mark, and the failing one is marked as failed",
+      any("✓" in r for r in rows if "incoming name" in r)
+      and any("✕" in r for r in rung), rows)
+# The server's own sentence is longer than the window, so it has to be on
+# more than one row -- and every row of it has to stay inside the frame,
+# which is the whole reason it wraps on `str width` and not on a character
+# count. Both halves are asserted: the tail is on a *later* row (so it
+# really wrapped rather than being cut) and the window's own right border
+# is still there on each of them (so nothing was drawn over the frame).
+det = [i for i, r in enumerate(rows) if "refused the login" in r]
+edge = [r for r in rows if "┤ Mail Test [" in r][0].index("┐")
+check("and its sentence is wrapped under it rather than cut",
+      bool(det) and "Invalid credentials" in "".join(rows[det[0]:det[0] + 3])
+      and "Invalid credentials" not in rows[det[0]]
+      and all(len(r) > edge and r[edge] == "│"
+              for r in rows[det[0]:det[0] + 2]), rows)
+check("the footer counts what failed and says how to run it again",
+      any("step" in r and "failed" in r and "r tests again" in r for r in rows), rows)
+t.quit(b"qy", 1.5)
+
+# And the Detect's answer is a notification rather than a line written over
+# the dialog's own buttons. mlad_draw drew MLAD[$id]["dnote"] at row h-1,
+# which is the row dt_dlgbtns had just put Save, Cancel and Detect on, and
+# after them -- so a note of any length covered the only way out of the
+# dialog. The no-host case needs no typing at all, which also keeps this
+# clear of the tab-order trap that cost #157 seven checks.
+sessd = os.path.join(D, "mdet.hibr")
+open(sessd, "w").write(
+    "%s. %s\n. %s\nCP_PANEDIRS+=(\"%s\")\ncp_panes\ndt_open\nmlad_show\ndt_run\ndt_close\n"
+    % (load("console", "email", "db", "html", "img"),
+       tree("examples/desktop/desktop.hibr"),
+       tree("examples/desktop/system/panel.hibr"),
+       tree("examples/desktop/control-panel")))
+t = Term(sessd, rows=30, cols=100, settle=1.5,
+         env={"HIBR_MAIL_CONF": os.path.join(D, "det.conf")})
+sc = waitfor(t, "Detect")
+click(t, sc, "Detect")
+sc = waitfor(t, "type a server or an address first")
+btn = [i for i, r in enumerate(sc.row(j).rstrip() for j in range(sc.rows))
+       if "Save" in r and "Cancel" in r and "Detect" in r]
+note = sc.find("type a server or an address first")
+check("the Detect answers with a notification, not a line over the buttons",
+      note is not None and bool(btn) and note[0] < btn[0], sc)
+t.quit(b"qy", 1.5)
+
+report(69)

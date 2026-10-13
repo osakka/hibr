@@ -382,6 +382,18 @@ st, raw = ladder("laddead")
 check("and a port with nothing on it fails once, the rest saying they were skipped",
       st.get("in name") == "ok" and st.get("in port") == "fail"
       and st.get("in tls") == "skip" and st.get("in auth") == "skip", raw)
+# And it carries the reason, which until 0.99.172 it did not: the capture
+# was written `err=$(exec {fd}<>... 2>&1 >&-)`, and redirections are made
+# left to right, so the failing connect reported itself while stderr was
+# still the real one -- `err` came back empty, the rung read `fail` with
+# nothing after it, and the message went past the script to whoever was
+# reading its stderr. In the Control Panel's Test that landed in the same
+# file as the ladder and was drawn as a rung of its own called
+# "hibr: connect" (Gitea #207). The reason is the whole point of the rung,
+# so it is asserted rather than left to the status.
+check("and the reason the connect gave is in the rung, not on stderr",
+      "Connection refused" in [l.split(None, 3)[3] for l in raw.splitlines()
+                               if l.startswith("in port ")][0], raw)
 
 # Detect: probe the candidates and take the pairing that answers, the
 # encrypted one first (Gitea #189). The usual ports are privileged, so the
@@ -429,4 +441,4 @@ pk, raw = detect("127.0.0.1", "imap", "127.0.0.1",
 check("a plain pick warns that nothing on it is encrypted",
       pk.get("in") == "%d plain" % p and "can be read on the way" in raw, raw)
 
-report(46)
+report(47)

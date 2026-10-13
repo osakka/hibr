@@ -2,6 +2,10 @@
  Search:
 "%s" is not here
 %H %M %S %l %p %a %d %b %Y, as strftime
+%d step failed
+%d step failed -- r tests again
+%d steps failed
+%d steps failed -- r tests again
 %s %s items%s
 %s %s items…
 %s %s; %s
@@ -430,6 +434,7 @@ Made if it is not there; ~ is your home.
 Maghrib
 Mail
 Mail Account
+Mail Test
 Mail is not here to write with
 Make Main
 Mar
@@ -883,6 +888,9 @@ a number, worked out
 and it is kept to come back to.
 any command you can run
 arithmetic
+asking
+asking %s
+asking the servers
 blocks only, no cell size given
 blocks only, no pixels
 blocks only: it does not draw pixels
@@ -896,13 +904,17 @@ dBASE Help
 email
 escape closes
 every movement
+every step passed
+every step passed -- r tests again
 file
 folder
+found %s for incoming and %s for outgoing
 from the Network Servers list.
 hibr %s is installed -- click to restart the desktop
 hibr %s — a desktop written in the shell it runs on
 hibr desktop v%s
 hibr v%s, module ABI %s
+incoming
 integers only
 lifts that for one sheet, here only.
 moving — arrows, then enter
@@ -910,8 +922,12 @@ no
 no reason given
 not reported
 note
+nothing answered on the usual ports
+nothing came back
+nothing came back -- r tests again
 older than the hibr on disk
 order they need each other; one needing itself says #CYCLE.
+outgoing
 over a range, row by row
 phone
 range A1_B9 an array of its values, worked out in the
@@ -923,5 +939,6 @@ sets a place, or the time zone gives one.
 text
 there is no account to test yet
 this session still runs the older hibr: 'hold upgrade %s' takes it onto the new one without losing your windows or your terminals' programs. Restart Desktop cannot, since it re-execs the desktop inside this session
+type a server or an address first
 yes, %s displays attached
 yes, 1 display attached

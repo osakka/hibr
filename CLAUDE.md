@@ -1661,6 +1661,38 @@ went in the shell.
   `read x < /proc/$pid/stat 2> /dev/null` applies left to right, so the
   failing `<` prints its error before stderr is redirected -- bash does the
   same. Put the error redirection first: `read x 2> /dev/null < file`.
+  **Found a second time where the error was the whole point of the
+  command** (Gitea #207, 0.99.172): `lib/mailtest.hibr` captured a
+  connect's reason as `err=$(exec {fd}<>"/dev/tcp/$host/$port" 2>&1 >&-)`,
+  so the failing `{fd}<>` reported itself while stderr was still the real
+  one -- `err` came back **empty**, the ladder's port rung read `fail` with
+  nothing after it, and the message went past the script to whatever was
+  reading its stderr. `err=$(exec 2>&1 >&- {fd}<>...)` is the order, and
+  `>&-` has to stay *after* `2>&1` or there is no stdout left to dup from.
+  The shape to watch for: a command substitution whose only purpose is to
+  catch a diagnostic, with the thing that fails written first.
+- **A job's standard error shares the file its output goes to, so a parser
+  that filters on field count will read a shell error as a record.** The
+  Control Panel's mail Test runs the ladder with `> file 2>&1` on purpose --
+  a shell error there is often the answer -- and
+  `hibr: connect 127.0.0.1:9: Connection refused` has four fields, so a
+  filter of "at least three fields" accepted it: it was drawn as a rung
+  called `hibr: connect`, wearing the dot that means a skip, and counted as
+  neither passed nor failed (Gitea #207). Filter on what a record **is** --
+  here, a first field of `in` or `out` -- and show the rest as what it is
+  rather than dropping it, since it is the diagnosis often enough to be
+  worth a row of its own.
+- **A window's pane has the frame at row 0 and column 0, so content starts
+  at row 1, column 1** -- and `h`/`w` already exclude both borders (the
+  `dt_win` trap above). A new window drawn from `0 0` comes out one row up
+  and two columns left with each row's own first columns clipped away, and
+  the symptom is not "the window is offset": it is that **every row lost
+  whatever it began with**, so a ladder lost the mark on each rung, each
+  detail line lost its indent, and the footer lost the number it opens
+  with -- three unrelated-looking bugs in composing text, none of them real
+  (Gitea #207). The tell is that a *count* at the start of a line goes
+  missing as well as a glyph; before chasing the composition, print what is
+  handed to `console put` and compare it with the row on screen.
 - **A pty suite's count is counted, not assumed.** `report(N)` used to print
   N minus the failures, so a check never reached still read as a pass.
   `tests/screen.py` counts checks as they are made and fails a suite whose

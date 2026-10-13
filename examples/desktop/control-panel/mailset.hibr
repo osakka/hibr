@@ -55,22 +55,33 @@ MS_LIB=${BASH_SOURCE%/*}/../lib
 declare -gA MS_TEST
 MS_TEST["acct"]=
 MS_TEST["file"]=
-MS_TEST["live"]=
 
-# Start one, replacing whatever was shown before.
-fn ms_test(acct) {
+# Where one account's ladder is written. Named after the account rather
+# than being one file called `out`, because MS_TEST is a single slot: two
+# dialogs testing two accounts had the second overwrite the first, and a
+# window opened on the first would then have drawn the second's ladder
+# under its own title. The window keeps this path under its own id, so a
+# later test of another account cannot move it.
+fn ms_testfile(acct) {
 	local d=${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/hibr-mailtest-$UID
 
 	mkdir -p "$d" 2> /dev/null
 	chmod 700 "$d" 2> /dev/null
+	ret "$d/out-${acct//[!A-Za-z0-9._-]/_}"
+}
+
+# Start one, replacing whatever was shown before.
+fn ms_test(acct) {
+	local f
+
+	f := ms_testfile "$acct"
 	MS_TEST["acct"]=$acct
-	MS_TEST["file"]=$d/out
-	MS_TEST["live"]=1
-	: > "${MS_TEST["file"]}"
-	rm -f "${MS_TEST["file"]}.st"
+	MS_TEST["file"]=$f
+	: > "$f"
+	rm -f "$f.st"
 	(
-		"$HIBR" "$MS_LIB/mailtest.hibr" "$acct" > "${MS_TEST["file"]}" 2>&1
-		printf '%s\n' "$?" > "${MS_TEST["file"]}.st"
+		"$HIBR" "$MS_LIB/mailtest.hibr" "$acct" > "$f" 2>&1
+		printf '%s\n' "$?" > "$f.st"
 	) &
 	dt_want 200
 	return 0
@@ -87,7 +98,7 @@ MS_DET["win"]=
 MS_DET["file"]=
 fn ms_detect(int id) {
 	local host=${MLAD[$id]["host"]} d=${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/hibr-mailtest-$UID
-	local shost=${MLAD[$id]["shost"]}
+	local shost=${MLAD[$id]["shost"]} t
 
 	# No host typed: the address's own domain is the only other thing
 	# that could be meant, and it is what a provider's settings are
@@ -95,14 +106,16 @@ fn ms_detect(int id) {
 	[ -n "$host" ] || host=${MLAD[$id]["email"]#*@}
 	[ -n "$shost" ] || shost=$host
 	if [ -z "$host" ]; then
-		MLAD[$id]["dnote"]="type a server or an address first"
+		dt_notify "type a server or an address first"
 		return 0
 	fi
 	mkdir -p "$d" 2> /dev/null
 	chmod 700 "$d" 2> /dev/null
 	MS_DET["win"]=$id
 	MS_DET["file"]=$d/detect
-	MLAD[$id]["dnote"]="asking $host${GL[ellipsis]}"
+	t := dt_tr "asking %s" "$host"
+	t="$t${GL[ellipsis]}"
+	dt_notify "$t"
 	: > "${MS_DET["file"]}"
 	rm -f "${MS_DET["file"]}.st"
 	(
@@ -118,7 +131,7 @@ fn ms_detect(int id) {
 # dialog draws, so the answer lands whenever it arrives without the dialog
 # waiting for it.
 fn ms_detread(int id) {
-	local f=${MS_DET["file"]} line warn=
+	local f=${MS_DET["file"]} line warn= t a
 	local -a part
 
 	[ "${MS_DET["win"]}" = "$id" ] || return 0
@@ -141,12 +154,250 @@ fn ms_detread(int id) {
 		*" note") warn="${warn:+$warn; }${line#* note warn }" ;;
 		esac
 	done < "$f"
+	# Two answers, not one, and they want different lifetimes. What it
+	# picked is already in the fields above, so that note is only
+	# confirmation and a plain one will do. A warning is the opposite:
+	# it is the reason not to trust what was just filled in, it is a
+	# sentence rather than a word, and what it asks for is a Test -- so
+	# it goes at a priority with the Test window as its action, which
+	# makes the note the way to the thing it is telling you to do.
 	if [ -n "${MLAD[$id]["port"]}" ]; then
-		MLAD[$id]["dnote"]="found ${MLAD[$id]["port"]}/${MLAD[$id]["sec"]} and ${MLAD[$id]["sport"]:-?}/${MLAD[$id]["ssec"]}${warn:+ -- $warn}"
+		t := dt_tr "found %s for incoming and %s for outgoing" \
+			"${MLAD[$id]["port"]}/${MLAD[$id]["sec"]}" \
+			"${MLAD[$id]["sport"]:-?}/${MLAD[$id]["ssec"]}"
 	else
-		MLAD[$id]["dnote"]="nothing answered on the usual ports${warn:+ -- $warn}"
+		t := dt_tr "nothing answered on the usual ports"
+	fi
+	dt_notify "$t"
+	if [ -n "$warn" ]; then
+		a=${MLAD[$id]["name"]}
+		[ -n "$a" ] || a=${MLAD[$id]["email"]}
+		dt_notifyp warn "$warn" ms_testshow "$a"
 	fi
 	dt_want 50
+	return 0
+}
+
+# --- the Test window ------------------------------------------------------
+#
+# The ladder in a window of its own (Gitea #207). The pane held it as rows
+# with the detail in the value column, which is a word wide -- and the
+# answer to "why will this account not log in" is a sentence from the
+# server: `imap.home.arpa refused the login for osakka: NO
+# [AUTHENTICATIONFAILED] Authentication failed.` is the whole diagnosis and
+# none of it fits. A window with no `dt_app` of its own, the same
+# dt_new-with-no-registration the Control Panel's small dialogs use, so
+# dt_menus gives it File > Close and it is on nobody's menu.
+declare -gA MST
+# The rows as drawn, built by ms_testlines for the window being drawn: one
+# per rung plus its detail wrapped, each entry prefixed `h` for a rung's
+# own line and `d` for a continuation, since the two are drawn in different
+# pens. A single array rather than one per window because only the window
+# being drawn ever holds it.
+declare -ga MST_L
+
+# Open one on an account, starting the job if it is not already going.
+fn ms_testshow(acct = "") {
+	local h=18 w=70 r c id f t a
+
+	[ -n "$acct" ] || acct=${MS_TEST["acct"]}
+	if [ -z "$acct" ] && r := email accounts 2> /dev/null; then
+		for a in "${!r[@]}"; do acct=$a; break; done
+	fi
+	if [ -z "$acct" ]; then
+		dt_note "there is no account to test yet"
+		return 0
+	fi
+	ms_test "$acct"
+	[ "$h" -gt $((DT_ROWS - 4)) ] && h=$((DT_ROWS - 4))
+	[ "$w" -gt $((DT_COLS - 4)) ] && w=$((DT_COLS - 4))
+	[ "$h" -lt 6 ] && h=6
+	[ "$w" -lt 24 ] && w=24
+	r=$((DT_ROWS / 2 - h / 2))
+	c=$(((DT_COLS - w) / 2))
+	[ "$r" -lt 1 ] && r=1
+	[ "$c" -lt 0 ] && c=0
+	t := dt_wintitle "Mail Test" "$acct"
+	id := dt_new "$t" "$h" "$w" "$r" "$c" mst
+	f := ms_testfile "$acct"
+	MST[$id]["acct"]=$acct
+	MST[$id]["file"]=$f
+	MST[$id]["top"]=0
+	MST[$id]["n"]=0
+	MST[$id]["vis"]=1
+	dt_want 50
+	return 0
+}
+
+# The file as rows at this width, and how many rungs failed.
+#
+# Measured with `str width` and not `${#s}`: the marks are glyphs wider
+# than a cell, and so is a translated "incoming" in a script that has no
+# narrow forms -- counting characters would drift the right edge a column
+# for every row carrying one. A cut that landed inside a word keeps the
+# whole word, so the remainder starts where the text did and no character
+# is eaten by assuming a space was there.
+fn ms_testlines(int id, int w) {
+	local f=${MST[$id]["file"]} line d st how what pre k n bad=0 room
+	local -a part
+
+	MST_L=()
+	room=$((w - 4))
+	[ "$room" -lt 8 ] && room=8
+	MST[$id]["bad"]=0
+	[ -n "$f" ] && [ -r "$f" ] || return 0
+	while IFS= read -r line; do
+		read -ra part <<< "$line"
+		[ -n "$line" ] || continue
+		# Only `in` and `out` lines are rungs. The job's standard
+		# error lands in the same file, deliberately -- a shell
+		# error there is often the answer -- and one of those has
+		# four fields too, so a count of them is not the test:
+		# `hibr: connect 127.0.0.1:9: Connection refused` was drawn
+		# as a rung called "hibr: connect", marked with the dot that
+		# means a skip, and counted as neither passed nor failed.
+		# It is shown as what it is instead, where it happened.
+		case "${part[0]} ${#part[@]}" in
+		"in "[3-9]* | "out "[3-9]* | "in "[1-9][0-9]* | "out "[1-9][0-9]*) ;;
+		*)
+			MST_L+=("o$line")
+			continue
+			;;
+		esac
+		d=${part[0]}
+		st=${part[1]}
+		how := ms_mark "${part[2]}"
+		what=${line#"$d $st ${part[2]} "}
+		[ "${part[2]}" = fail ] && bad=$((bad + 1))
+		case $d in
+		in) d := dt_tr "incoming" ;;
+		out) d := dt_tr "outgoing" ;;
+		esac
+		MST_L+=("h$how $d $st")
+		while [ -n "$what" ]; do
+			n := str width "$what"
+			if [ "$n" -le "$room" ]; then
+				MST_L+=("d$what")
+				break
+			fi
+			k=$room
+			while [ "$k" -gt 1 ]; do
+				pre=${what:0:$k}
+				n := str width "$pre"
+				[ "$n" -le "$room" ] && break
+				k=$((k - 1))
+			done
+			pre=${what:0:$k}
+			case $pre in
+			*" "*) pre=${pre% *} ;;
+			esac
+			[ -n "$pre" ] || break
+			MST_L+=("d$pre")
+			if [ "$pre" = "${what:0:$k}" ]; then
+				what=${what:${#pre}}
+			else
+				what=${what:$((${#pre} + 1))}
+			fi
+		done
+	done < "$f"
+	MST[$id]["bad"]=$bad
+	return 0
+}
+
+fn mst_draw(int id, int h, int w, int row, int col) {
+	local f=${MST[$id]["file"]} top=${MST[$id]["top"]} vis n i r t
+	local kind text live=
+
+	dt_wclear "$id"
+	ms_testlines "$id" "$w"
+	n=${#MST_L[@]}
+	# The frame owns row 0 and column 0 of a window's pane, so content
+	# runs from row 1 and column 1 -- and h and w already exclude both
+	# borders. Row h is the footer's, leaving h-1 for the ladder. Drawn
+	# from 0,0 instead, every row came out one up and two left with its
+	# own first columns clipped away: each rung lost its mark, each
+	# detail its indent, and the footer the number it opens with, which
+	# reads as three separate bugs in composing the text.
+	vis=$((h - 1))
+	[ "$vis" -lt 1 ] && vis=1
+	top := dt_scrollfit "$top" "$n" "$vis"
+	MST[$id]["top"]=$top
+	MST[$id]["n"]=$n
+	MST[$id]["vis"]=$vis
+	r=1
+	i=$top
+	while [ "$r" -le "$vis" ] && [ "$i" -lt "$n" ]; do
+		text=${MST_L[$i]}
+		kind=${text:0:1}
+		text=${text:1}
+		if [ "$kind" = h ]; then
+			console pen "$DT_INK" "$DT_FACE"
+			console put -p "w$id" "$r" 1 "$text"
+		elif [ "$kind" = o ]; then
+			console pen "$DT_WARN" "$DT_FACE"
+			console put -p "w$id" "$r" 1 "${text:0:$((w - 1))}"
+		else
+			console pen "$DT_DIM" "$DT_FACE"
+			console put -p "w$id" "$r" 3 "$text"
+		fi
+		r=$((r + 1))
+		i=$((i + 1))
+	done
+	[ "$n" -gt "$vis" ] && dt_scrollbar "$id" 1 "$w" "$vis" "$n" "$vis" "$top"
+	# Live while the job has not written its status file: asked of this
+	# window's own file, so one window finishing says nothing about
+	# another's. A finished ladder asks for no more frames, which is
+	# what dt_want's one-frame contract wants of anything calling it.
+	[ -n "$f" ] && [ ! -s "$f.st" ] && live=1
+	if [ -n "$live" ]; then
+		console pen "$DT_INFO" "$DT_FACE"
+		t := dt_tr "asking the servers"
+		t="$t${GL[ellipsis]}"
+		dt_want 300
+	elif [ "${MST[$id]["bad"]}" -gt 0 ]; then
+		console pen "$DT_BAD" "$DT_FACE"
+		t := dt_trn "${MST[$id]["bad"]}" "%d step failed -- r tests again" "%d steps failed -- r tests again" "${MST[$id]["bad"]}"
+	elif [ "$n" -gt 0 ]; then
+		console pen "$DT_GOOD" "$DT_FACE"
+		t := dt_tr "every step passed -- r tests again"
+	else
+		console pen "$DT_DIM" "$DT_FACE"
+		t := dt_tr "nothing came back -- r tests again"
+	fi
+	console put -p "w$id" "$h" 1 "$t"
+	return 0
+}
+
+fn mst_key(int id, key) {
+	local t
+
+	case $key in
+	r|R)
+		ms_test "${MST[$id]["acct"]}"
+		MST[$id]["top"]=0
+		dt_want 50
+		return 0
+		;;
+	esac
+	t := dt_scrollmove "$key" "${MST[$id]["top"]}" "${MST[$id]["n"]}" \
+		"${MST[$id]["vis"]}" || return 1
+	MST[$id]["top"]=$t
+	dt_want 20
+	return 0
+}
+
+fn mst_wheel(int id, dir, int r = 0, int c = 0) {
+	local t
+
+	t := dt_scrollmove "$dir" "${MST[$id]["top"]}" "${MST[$id]["n"]}" \
+		"${MST[$id]["vis"]}" "$DT_SCROLLWHEEL" || return 1
+	MST[$id]["top"]=$t
+	dt_want 20
+	return 0
+}
+
+fn mst_close(int id) {
+	unset MST["$id"]
 	return 0
 }
 
@@ -206,82 +457,57 @@ fn mailset_rows(int w) {
 	ret "$n"
 }
 
-# The Test's own rows: the button, and a rung per line the job has written
-# so far. Read from the file every time the pane draws, which costs a read
-# of a few hundred bytes and means the ladder fills in as it answers --
-# accessibility and authentication are different questions, and watching
-# which rung stops is the whole point of asking them separately.
-fn ms_testrows(int w, int n) {
-	local f=${MS_TEST["file"]} line d st how what seen=
+# How the last test went, in a few words, for the pane's own row. The
+# rungs themselves are the Test window's (Gitea #207): the pane's value
+# column is a word wide, and what a failing rung has to say is a sentence
+# from the server.
+fn ms_testverdict(f) {
+	local line bad=0 seen=0 t
 	local -a part
 
-	if [ -z "${MS_TEST["acct"]}" ]; then
-		CP[$w][$n]["kind"]=action
-		CP[$w][$n]["text"]="Test Connection${GL[ellipsis]}"
-		CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=test
-		ret $((n + 1))
-		return 0
+	[ -n "$f" ] && [ -r "$f" ] || { ret ""; return 0; }
+	while IFS= read -r line; do
+		read -ra part <<< "$line"
+		[ "${#part[@]}" -ge 3 ] || continue
+		seen=1
+		[ "${part[2]}" = fail ] && bad=$((bad + 1))
+	done < "$f"
+	if [ "$seen" = 0 ]; then
+		t := dt_tr "nothing came back"
+	elif [ "$bad" -gt 0 ]; then
+		t := dt_trn "$bad" "%d step failed" "%d steps failed" "$bad"
+	else
+		t := dt_tr "every step passed"
 	fi
-	CP[$w][$n]["kind"]=head
-	CP[$w][$n]["text"]="Test: ${MS_TEST["acct"]}"
-	n=$((n + 1))
-	if [ -n "$f" ] && [ -r "$f" ]; then
-		while IFS= read -r line; do
-			read -ra part <<< "$line"
-			[ "${#part[@]}" -ge 3 ] || continue
-			d=${part[0]}
-			st=${part[1]}
-			how := ms_mark "${part[2]}"
-			what=${line#"$d $st ${part[2]} "}
-			case $d in
-			in) d=incoming ;;
-			out) d=outgoing ;;
-			esac
-			CP[$w][$n]["kind"]=info
-			CP[$w][$n]["text"]="  $how $d $st"
-			CP[$w][$n]["val"]=$what
-			n=$((n + 1))
-			seen=1
-		done < "$f"
-	fi
-	if [ "${MS_TEST["live"]}" = 1 ]; then
-		if [ -s "$f.st" ]; then
-			MS_TEST["live"]=
-		else
-			[ -n "$seen" ] || {
-				CP[$w][$n]["kind"]=info
-				CP[$w][$n]["text"]="  asking${GL[ellipsis]}"
-				CP[$w][$n]["val"]=""
-				n=$((n + 1))
-			}
-			# Only while one is running: a finished ladder asks for
-			# no more frames, which is what dt_want's one-frame
-			# contract wants of anything that calls it.
-			dt_want 300
-		fi
-	fi
+	ret "$t"
+}
+
+# The Test's own row: the button, and what the last one said. Opening the
+# window is what the button does now.
+fn ms_testrows(int w, int n) {
+	local f=${MS_TEST["file"]} a=${MS_TEST["acct"]} v
+
 	CP[$w][$n]["kind"]=action
-	CP[$w][$n]["text"]="Test Again${GL[ellipsis]}"
-	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=test
-	n=$((n + 1))
-	ret "$n"
+	CP[$w][$n]["text"]="Test Connection${GL[ellipsis]}"
+	CP[$w][$n]["val"]=""
+	if [ -n "$a" ]; then
+		if [ -n "$f" ] && [ ! -s "$f.st" ]; then
+			v := dt_tr "asking"
+			dt_want 300
+		else
+			v := ms_testverdict "$f"
+		fi
+		CP[$w][$n]["val"]="$a: $v"
+	fi
+	CP[$w][$n]["key"]=test
+	ret $((n + 1))
 }
 
 fn mailset_do(int? w = "", k = "", int? dir = "") {
-	local v cur r a
+	local v cur
 
 	case $k in
-	test)
-		a=${MS_TEST["acct"]}
-		if [ -z "$a" ] && r := email accounts 2> /dev/null; then
-			for a in "${!r[@]}"; do break; done
-		fi
-		if [ -n "$a" ]; then
-			ms_test "$a"
-		else
-			dt_note "there is no account to test yet"
-		fi
-		;;
+	test) ms_testshow ;;
 	acct:*) mlad_show "${k#acct:}" ;;
 	add) mlad_show ;;
 	max) v := cp_next "${DT_MAILMAX:-1000}" "$dir" "${MS_KEEPS[@]}"; DT_MAILMAX=$v ;;
@@ -439,12 +665,6 @@ fn mlad_draw(int id, int h, int w, int row, int col) {
 		dt_dlgbtns "$id" "$h" "$w" "$f" ok Save del Remove cancel Cancel detect Detect
 	else
 		dt_dlgbtns "$id" "$h" "$w" "$f" ok Save cancel Cancel detect Detect
-	fi
-	# What the last detect said, under the buttons: what it picked, and
-	# the warnings, which are the part a person needs before trusting it.
-	if [ -n "${MLAD[$id]["dnote"]}" ]; then
-		console pen "$DT_WARN" "$DT_FACE"
-		dt_tput "$id" $((h - 1)) 1 "${MLAD[$id]["dnote"]:0:$((w - 2))}"
 	fi
 }
 

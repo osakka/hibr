@@ -69,7 +69,16 @@ fn mt_one(dir, acct, kind, host, port, sec, noverify = "", login = "", addr = ""
 	# questions underneath everything else -- does the name resolve and is
 	# anything listening -- and on a port that is TLS throughout it still
 	# connects, it simply will not greet.
-	err=$(exec {fd}<>"/dev/tcp/$host/$port" 2>&1 >&-) && plain=1
+	# The redirections are made left to right, so 2>&1 has to come
+	# *before* the connect that may fail: written the other way about,
+	# the failing {fd}<> reported itself while stderr was still the real
+	# one, so `err` was empty and the reason -- the whole point of the
+	# rung -- went past this script to whatever was reading its stderr.
+	# The port rung then said `fail` with nothing after it. The same
+	# trap as `read x < f 2> /dev/null`, which CLAUDE.md already
+	# records; >&- comes after 2>&1 for the same reason, or there is no
+	# stdout left to dup from.
+	err=$(exec 2>&1 >&- {fd}<>"/dev/tcp/$host/$port") && plain=1
 	if [ -z "$plain" ]; then
 		case $err in
 		*"Name or service not known"* | *"Temporary failure in name resolution"*)

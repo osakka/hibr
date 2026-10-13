@@ -1,5 +1,63 @@
 # Changelog
 
+## 0.99.172
+
+**The Mail pane's Detect covered the only way out of the dialog, and its
+Test had nowhere to put the one sentence that answers the question**
+(Gitea #207, both asked for from a live session while setting an account
+up).
+
+`mlad_draw` wrote `MLAD[$id]["dnote"]` at row `h - 1` -- the row
+`dt_dlgbtns` had just put Save, Cancel and Detect on, and *after* them, so
+a note of any length drew over them. It is a notification now, and two of
+them rather than one, because the two answers want different lifetimes:
+what Detect picked is already in the fields above, so that is a plain
+`dt_notify` and confirmation is all it is; a **warning** -- "this upgrades
+to TLS with the same certificate that was refused above, so Test it before
+trusting it" -- is the reason not to trust what was just filled in, so it
+goes at a priority with the Test window as its click action, which makes
+the note the way to the thing it is telling you to do.
+
+The Test opens a window of its own. The pane drew the ladder as rows with
+each rung's detail in the **value** column, which is a word wide, and what
+a failing rung has to say is a sentence from the server:
+`imap.example.com refused the login for pat: NO [AUTHENTICATIONFAILED]
+Authentication failed.` is the whole diagnosis and none of it fitted. The
+window wraps it under its own rung, measured with `str width` rather than
+`${#s}` -- the marks are glyphs wider than a cell and so is a translated
+"incoming" -- and the pane keeps the button with a verdict beside it.
+
+Three faults found in the building of it, each worth more than the feature:
+
+- **The ladder's own reason never reached the rung.** `mt_one` captured the
+  connect's error as `err=$(exec {fd}<>"/dev/tcp/$host/$port" 2>&1 >&-)`,
+  and redirections are made left to right: the failing `{fd}<>` reported
+  itself while stderr was still the real one, so `err` came back **empty**,
+  the port rung read `fail` with nothing after it, and the message went
+  past the script to whoever was reading its stderr. `in port fail` with no
+  reason is the rung a person needs most. `2>&1` comes first now. The same
+  trap this file already records for `read x < f 2> /dev/null`, found a
+  second time.
+- **A shell error in the job's output was parsed as a rung.** The job
+  redirects stderr into the same file deliberately, and
+  `hibr: connect 127.0.0.1:9: Connection refused` has four fields, so a
+  filter on "at least three fields" accepted it: it was drawn as a rung
+  called `hibr: connect`, wearing the dot that means a skip, counted as
+  neither passed nor failed. Only `in` and `out` lines are rungs now;
+  anything else is shown as what it is, where it happened, which is often
+  the answer.
+- **A window's pane has the frame at row 0 and column 0.** The new window
+  drew from `0 0`, so every row came out one up and two left with its own
+  first columns clipped: each rung lost its mark, each detail its indent,
+  and the footer lost the number it opens with -- which reads as three
+  separate bugs in composing the text rather than one wrong origin.
+
+`tests/mailapp.py` drives the window against a stand-in that refuses the
+password -- the case it exists for -- and asserts the mark, that the
+sentence is on a later row *and* that the frame survives it, the footer,
+and that the Detect's own answer arrives above an intact row of buttons.
+`tests/mail.py` asserts the port rung carries its reason.
+
 ## 0.99.171
 
 **One held session in trouble stopped everything that asked after it, a
