@@ -3216,6 +3216,25 @@ went in the shell.
   client at all and every desktop is held. `CN_ZUNDER` is the constant; a
   picture that **owns** its cells still carries no z, since it is drawn over
   the text by rights and a z would put it under the very cells it owns.
+- **Restart Desktop takes the session's server with it since 0.99.166, and
+  the gate that matters is not an identity but a depth.** `dt_restart`
+  calls `dt_upsession`, which upgrades the session's own server when it is
+  stale (Gitea #198) -- and the hard part was refusing the case that looks
+  identical: a desktop opened from a terminal window **inside** another
+  session inherits that session's `HIBR_HOLD`, so its name, its program
+  (`hold list`'s pid) and the server above it all agree with the real
+  thing, and upgrading would act on somebody else's session. What tells
+  them apart is how far this process sits below the server -- one hop when
+  it is the program, two when the supervisor is, three or four when it is
+  a window inside another desktop -- so `dt_holdsrv` leaves both
+  `DT_HOLDPROG` and `DT_HOLDHOPS` behind and the gate reads the hops.
+  **Before adding a "is this mine" check, ask what the wrong case looks
+  like rather than what the right one does**: three of the four gates here
+  were refutable by thinking the inherited case through, and only the
+  fourth was not. The other one worth keeping: the only unrecoverable
+  failure is a module that is **gone** rather than replaced, because the
+  exec has already happened when `mod load` fails -- a `(deleted)` mapping
+  is apt and is fine, a missing path is `make clean` and is refused.
 - **A session outlives the desktop inside it, and keeps the modules it
   started with.** `hold` renders every client from the emulator in its
   **server** process, so a fix in `mods/hold`, `mods/term` or `mods/pty`

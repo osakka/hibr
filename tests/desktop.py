@@ -5060,6 +5060,85 @@ check("a stale session is told the command that takes it onto the new hibr",
 check("and why a restart will not do it, without asking for the session to go",
       "Restart Desktop cannot" in r and "quit and start" not in r, r)
 
+# Restart Desktop takes the session's own server with it since 0.99.166
+# (Gitea #198): the desktop re-execs *inside* that server, so without this
+# the three modules every display is rendered through stay as old as the
+# session however many times the desktop restarts. What is checked is the
+# gates, because each is a case where upgrading would be wrong -- and stubs
+# stand in for the session, so nothing here touches a real one.
+UPSTUB = (
+    ". %s\n"
+    "declare -g DT_HOLDPROG= DT_HOLDHOPS=\n"
+    "dt_rslog() { return 0; }\n"
+    "need() { return 0; }\n"
+    "hold() {\n"
+    "\tcase $1 in\n"
+    "\tlist) printf '%%s detached %%s 0x0\\n' t \"$DT_HOLDPROG\" ;;\n"
+    "\tupgrade) echo \"UPGRADE $2\" ;;\n"
+    "\tesac\n"
+    "\treturn 0\n"
+    "}\n"
+    "fn dt_upmods(maps) { return 0; }\n"
+    "dt_holdsrv() { DT_HOLDPROG=$$; DT_HOLDHOPS=${HOPS:-1}; ret 1; }\n"
+    % tree("examples/desktop/wm/restart.hibr"))
+
+
+def upsess(stale, hops=1):
+    """dt_upsession with its first gate forced either way."""
+    f = os.path.join(SESSD, "ups%d%d.hibr" % (stale, hops))
+    open(f, "w").write(UPSTUB
+                       + "dt_sessionold() { return %d; }\n" % (0 if stale else 1)
+                       + 'dt_upsession\necho "rc=$?"\n')
+    return subprocess.run([screen.HIBR, f], capture_output=True, text=True,
+                          env=dict(os.environ, HIBR_HOLD="/tmp/nowhere/t",
+                                   HOPS=str(hops),
+                                   DT_ROWS="1")).stdout.strip()
+
+
+r = upsess(True)
+check("a restart takes a stale session's own server onto the new hibr",
+      "UPGRADE t" in r, r)
+r = upsess(False)
+check("and a restart with nothing stale leaves the session alone",
+      "UPGRADE" not in r and "rc=1" in r, r)
+# A desktop opened from a terminal window inside another session inherits
+# that session's HIBR_HOLD, and its program and name both still agree --
+# how far down this process sits is the only thing that tells the two
+# apart, so it is the gate that keeps a restart from upgrading somebody
+# else's session.
+r = upsess(True, hops=3)
+check("and a desktop inside somebody else's session upgrades nothing",
+      "UPGRADE" not in r and "rc=1" in r, r)
+
+# The one failure there is no way back from: the exec has happened by the
+# time a module cannot be loaded, so the paths are read while they can
+# still be refused. A real maps file is a dozen lines per mapping, so what
+# the test hands it is the shape, not a copy.
+MD = os.path.join(SESSD, "mods")
+os.makedirs(MD, exist_ok=True)
+for m in ("pty.so", "term.so", "hold.so"):
+    open(os.path.join(MD, m), "w").write("x")
+
+
+def upmods(text):
+    f = os.path.join(SESSD, "maps")
+    open(f, "w").write(text)
+    g = os.path.join(SESSD, "upm.hibr")
+    open(g, "w").write(". %s\ndt_upmods %s\necho \"rc=$?\"\n"
+                       % (tree("examples/desktop/wm/restart.hibr"), f))
+    return subprocess.run([screen.HIBR, g], capture_output=True,
+                          text=True).stdout.strip()
+
+
+MAPS = "".join("7f0000000000-7f0000001000 r-xp 00000000 fc:47 11   %s/%s\n"
+               % (MD, m) for m in ("pty.so", "term.so", "hold.so"))
+r = upmods(MAPS + "7f0000002000-7f0000003000 r-xp 00000000 fc:47 12   %s/term.so (deleted)\n" % MD)
+check("a module replaced under a running session is still loadable",
+      r == "rc=0", r)
+r = upmods(MAPS.replace("%s/term.so" % MD, "%s/gone/term.so" % MD))
+check("and one that is no longer on disk at all refuses the upgrade",
+      r == "rc=1", r)
+
 shutil.rmtree(SESSD, ignore_errors=True)
 
 
@@ -5106,4 +5185,4 @@ try:
 except OSError:
     pass
 
-report(603)
+report(608)

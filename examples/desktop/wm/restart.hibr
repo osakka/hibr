@@ -103,6 +103,10 @@ dt_restart() {
 		return 1
 	fi
 	dt_rslog "restarting into $HIBR: ${#DT[@]} windows kept in $f"
+	# Here rather than any later: stderr is still this desktop's log at
+	# this point, and after the `exec 2>&$DT_ERR` below it is the real
+	# terminal, where a message would be drawn over the screen.
+	dt_upsession || true
 	dt_ctlclose
 	console close
 	if [ -n "$DT_ERR" ]; then
@@ -302,21 +306,40 @@ DT_UPSESSION=
 # name is in HIBR_HOLD, but the server is a process, and `hold list` answers
 # a client's pid rather than the server's.
 #
+# The same walk leaves two more answers behind. DT_HOLDPROG is the pid one
+# step below the server, which is the session's own *program*: the
+# supervisor where a held desktop has one (wm/recover.hibr), and the
+# desktop itself where it does not -- and it is what `hold list` names.
+# DT_HOLDHOPS is how far this process sits below the server, which is 1
+# when it is the program and 2 when the supervisor is. Both are needed to
+# ask "is this session mine": the pid ties the session's *name* to a
+# process, and the hops tie that process to *this* one -- a desktop
+# started from a terminal window inside another session inherits that
+# session's HIBR_HOLD and sits three or four hops down, where every
+# identity comparison on its own still agrees.
+#
 # /proc/<pid>/stat's own trap: the command is in brackets and may itself
 # contain brackets, so it is read from the *last* `)`, and the state letter
 # before the ppid is why a loop that skips fields by reading numbers gets
 # nothing.
+DT_HOLDPROG=
+DT_HOLDHOPS=
 dt_holdsrv() {
-	local p=$$ line comm rest st ppid n=0
+	local p=$$ prev=$$ line comm rest st ppid n=0
 
+	DT_HOLDPROG=
+	DT_HOLDHOPS=
 	while [ "$n" -lt 8 ]; do
 		read -r line 2> /dev/null < "/proc/$p/stat" || return 1
 		comm=${line#*\(}
 		comm=${comm%)*}
 		rest=${line##*)}
 		read -r st ppid _ <<< "$rest"
-		case $comm in hold:*) ret "$p"; return 0 ;; esac
+		case $comm in
+		hold:*) DT_HOLDPROG=$prev; DT_HOLDHOPS=$n; ret "$p" ;;
+		esac
 		case $ppid in '' | 0 | 1) return 1 ;; esac
+		prev=$p
 		p=$ppid
 		n=$((n + 1))
 	done
@@ -334,6 +357,92 @@ dt_sessionold() {
 	srv := dt_holdsrv || return 1
 	[ -e "/proc/$srv/exe" ] || return 1
 	[ /proc/$srv/exe -ef "$HIBR" ] && return 1
+	return 0
+}
+
+# Whether every module the resumed server would load again is still at the
+# path it was mapped from. The ` (deleted)` the kernel appends to a replaced
+# inode is stripped, because a replaced file is what apt and `make` leave
+# behind and is the case this whole thing is for; a path with *nothing* at
+# it is the one there is no way back from, since the exec has happened by
+# the time `mod load` fails and the master closes with the image that
+# failed. A `make clean` in a build tree is that case. Takes the maps file
+# rather than a pid, so a test can hand it one.
+fn dt_upmods(maps) {
+	local line p ok=1
+
+	[ -r "$maps" ] || return 1
+	while read -r line; do
+		case $line in
+		*" /"*) ;;
+		*) continue ;;
+		esac
+		p=/${line#* /}
+		p=${p% (deleted)}
+		case $p in
+		*/pty.so | */term.so | */hold.so) [ -e "$p" ] || ok=0 ;;
+		esac
+	done < "$maps"
+	[ "$ok" = 1 ] || return 1
+	return 0
+}
+
+# Take this session's own server onto the hibr that is on disk now, which is
+# the one thing a restart cannot do for itself: the desktop re-execs
+# *inside* that server, so the modules every display is rendered through --
+# hold, term, pty -- stay as old as the session however many times the
+# desktop restarts (Gitea #198). Answers 0 when the session was upgraded.
+#
+# Four gates, and each one is a case where upgrading would be wrong rather
+# than merely unnecessary:
+#
+#   nothing is stale, so an ordinary restart must not touch the session at
+#   all -- which is almost every restart;
+#
+#   HIBR_HOLD names no session, so there is nothing to ask;
+#
+#   the session HIBR_HOLD names is not this desktop's own -- its program
+#   (DT_HOLDPROG) must be this process or the supervisor above it, which is
+#   DT_HOLDHOPS of 1 or 2. HIBR_HOLD is inherited by everything a held
+#   terminal starts, so a desktop opened from a terminal window inside
+#   another session would otherwise upgrade *that* session, which is
+#   somebody else's: it names the same session and sits three hops down,
+#   which is the only thing that tells them apart;
+#
+#   and a module the resumed server would load is missing, which is the
+#   only failure here that cannot be recovered from.
+# Every call here blocks: hold's own client dials its socket and waits for
+# the answer with no timeout of its own (`hd_dial`, `hd_recv`), where the
+# shell's `/dev/unix` has `HIBR_CONNTIMEO`. That is safe in *this* one
+# place, and the reason is worth writing down rather than rediscovering: a
+# wedged server is a server whose loop has stopped, and input reaches this
+# function only through that same loop, so a restart cannot be asked for
+# at all once it could hang. A caller from outside the session has no such
+# argument, which is its own ticket.
+fn dt_upsession() {
+	local name r nm st p sz pid srv
+
+	dt_sessionold || return 1
+	name=${HIBR_HOLD##*/}
+	[ -n "$name" ] || return 1
+	srv := dt_holdsrv || return 1
+	need hold 2> /dev/null || return 1
+	r := hold list 2> /dev/null || return 1
+	pid=
+	while read -r nm st p sz; do
+		[ "$nm" = "$name" ] && pid=$p
+	done <<< "$r"
+	[ -n "$pid" ] && [ "$pid" = "$DT_HOLDPROG" ] || return 1
+	[ "${DT_HOLDHOPS:-9}" -le 2 ] || return 1
+	if ! dt_upmods "/proc/$srv/maps"; then
+		dt_rslog "session $name not upgraded: a module it maps is gone"
+		return 1
+	fi
+	if ! hold upgrade "$name"; then
+		dt_rslog "session $name could not be upgraded"
+		return 1
+	fi
+	dt_rslog "session $name taken onto $HIBR"
 	return 0
 }
 

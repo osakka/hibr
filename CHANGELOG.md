@@ -1,5 +1,80 @@
 # Changelog
 
+## 0.99.166
+
+**Restart Desktop takes the session's own server with it** (Gitea #198),
+which is what the owner had always understood it to do and what it had
+never quite done.
+
+Asked what had changed, the honest answer was: the reporting. About draws
+`hibr v%s` from `$HIBR_VERSION`, the *desktop process's* own, and a restart
+re-execs the desktop on whatever `$HIBR` is now -- so that number has
+incremented on every restart since restarts existed, which is what was
+watched happening. What a restart has never done, in any release (`git
+log -S` over `wm/restart.hibr` finds no commit), is replace the **hold
+server's** image: the server is the parent, it owns the pty and runs the
+emulator every display is rendered from, and the restart happens *inside*
+it. 0.99.137 began saying so, with a mark a restart cannot clear, nine
+releases after the gap itself. So the complaint was right about the
+experience and the reporting was right about the facts, and what was left
+was to close the gap rather than describe it better.
+
+`dt_restart` calls `dt_upsession` now, before `dt_ctlclose` -- where
+stderr is still the desktop's own log, since after the `exec 2>&$DT_ERR`
+below it is the real terminal and a message there would be drawn over the
+screen.
+
+**Four gates, and each is a case where upgrading would be wrong rather
+than merely unnecessary.**
+
+Nothing stale (`dt_sessionold`), which is almost every restart: an
+ordinary one must not touch the session at all.
+
+`HIBR_HOLD` names no session, so there is nothing to ask.
+
+**The session named is not this desktop's own.** `HIBR_HOLD` is inherited
+by everything a held terminal starts, so a desktop opened from a terminal
+window inside another session names that session, and its program, its
+name and its server all still agree -- every identity comparison passes.
+What tells them apart is **how far down this process sits**: the session's
+program is the desktop itself (one hop below the server) or the supervisor
+above it (two), where a desktop inside somebody else's session is three or
+four. `dt_holdsrv`'s own walk leaves both answers behind now
+(`DT_HOLDPROG`, `DT_HOLDHOPS`), so there is still one walk.
+
+**A module the resumed server would load is gone.** That is the only
+failure here with no way back: the exec has happened by the time `mod
+load` fails, and the master closes with the image that failed. The
+` (deleted)` the kernel appends to a *replaced* inode is stripped, because
+a replaced file is what apt and `make` leave behind and is the case this
+whole thing is for; a path with nothing at it is a `make clean` in a build
+tree, and it is refused while it still can be.
+
+Measured in a real held session, not reasoned about:
+
+```
+server=487413 program=487414 self=487414
+stale before: yes
+deleted mappings before: 11
+desktop: session dsk taken onto .../bin/hibr
+dt_upsession rc=0
+deleted mappings after: 0
+stale after: no
+still running as 487414
+```
+
+`tests/desktop.py` is 603 checks to 608: a stale session's server is taken
+onto the new hibr, a restart with nothing stale leaves it alone, a desktop
+inside somebody else's session upgrades nothing, a module replaced under a
+running session is still loadable, and one that is no longer on disk
+refuses the upgrade. The stubs stand in for the session, so none of it
+touches a real one.
+
+**One cost, once.** Only a session started on 0.99.159 or later has a
+server that understands the request at all, so a session older than that
+restarts exactly as it did and says why in its log. Every session from
+here on upgrades on a click.
+
 ## 0.99.165
 
 **A program spawned on a pty could read its size as 0x0 and lay itself out
