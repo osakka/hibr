@@ -1007,6 +1007,49 @@ check("escape clears it, and every pane is back",
       sc.find("Search") is not None and sc.find("Date & Time") is not None,
       sc)
 
+# Copy, cut and paste in a one-line field whose own window offers no
+# clipboard at all (Gitea #214). The three keys are taken by dt_event
+# before any app's _key is called and act through the focused window's own
+# _copy/_cut/_paste, so a field had a clipboard only if its app had
+# written one: eleven of the twenty files that draw a field could paste,
+# none could copy or cut, and the Control Panel -- which hosts more fields
+# than anything else -- offered none of the three. Its own picker search
+# box is one of them, which is why this is driven here: `dsv`, the Network
+# Servers dialog, already had all three and would prove nothing.
+#
+# The field's value belongs to its app, so the write is done by typing:
+# every one of those files routes keys through dt_textkey, and a cut is
+# ctrl-u then ctrl-k, which that function already means as "to the start"
+# and "to the end".
+# Each check reads the box itself rather than the note beside it: a note
+# times out, so asserting on one makes the check a bet on how long the
+# teardown takes.
+def sbox(sc):
+    return sc.row(R0)[3:20].strip()
+
+
+sc = cprun([c.encode() for c in "mail"] + [b"\x1bc", 0.4, b"\x1bv", 0.8])
+check("a field whose window has no clipboard of its own can still be "
+      "copied, and pasted", sbox(sc) == "mailmail", sc)
+sc = cprun([c.encode() for c in "mail"] + [b"\x1bx", 0.6])
+check("and cut, which empties it -- a one-line field has no selection, so "
+      "copy and cut are the whole of it", sbox(sc) != "mail", sc)
+# Pasting into an **empty** field is the case that needs the *window* to be
+# remembered rather than the field: several apps draw a placeholder in
+# place of the field while it is empty -- the picker says `Search…` -- so
+# dt_textdraw is not called at all on the frame after a cut, and clearing
+# the remembered window with the text would make this impossible.
+# A typed `x` between the cut and the paste, so the box can only read
+# `xmail` if both happened and in that order. Asserting the box is back to
+# `mail` would have passed against the old code for the wrong reason --
+# the cut did nothing, so nothing had to be put back -- which is this
+# file's own rule about a check on an absence, caught here by running the
+# new check against the previous release before trusting it.
+sc = cprun([c.encode() for c in "mail"] + [b"\x1bx", 0.4, b"x", b"\x1bv",
+                                           0.8])
+check("and pasted back, though an empty field draws a placeholder and not "
+      "a field at all", sbox(sc) == "xmail", sc)
+
 # Change Wallpaper… on the desktop's own menu opens the Control Panel at
 # Appearance, where the wallpaper is chosen.
 sc = cprun(feed=[press(20, 76, 2), b"w", 0.5])
@@ -4249,4 +4292,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(602)
+report(605)

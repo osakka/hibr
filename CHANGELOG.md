@@ -1,5 +1,62 @@
 # Changelog
 
+## 0.99.178
+
+**A text field has a clipboard whether or not its app wrote one**
+(Gitea #214), reported as *"not all text boxes have copy/paste/cut... as
+an example in control panel, when I was filling fields for the servers, I
+could not copy/paste, and I am sure it's a common all rounder. Can we
+root cause fix this?"*
+
+It was not the widget and not a key binding. `wm/input.hibr` takes the
+three keys **before any app sees them** and `dt_edit` acts only through
+the focused window's own `_copy`/`_cut`/`_paste`, so no callback meant a
+note saying the window cannot. Which window happened to host a field
+therefore decided whether it had a clipboard: twenty files draw one with
+`dt_textdraw`, **eleven** had ever called `dt_textpaste`, **none** could
+copy or cut -- the widget has no selection, so every app that offered
+`_copy` had written its own -- and `system/panel.hibr`, the Control
+Panel, offered none of the three. The window with the most fields in the
+desktop was the one that could not copy into them.
+
+**The write path is typing.** A field's value belongs to its app, by
+design -- the same as a checkbox's does -- so there is no way for the
+desktop to write into one, and it turns out not to need one: every one of
+those twenty routes keys through `dt_textkey`, so a paste is the
+clipboard's own characters handed to the focused window's `_key`, exactly
+as a person pasting by hand would, and a cut is ctrl-u then ctrl-k, which
+`dt_textkey` already means as "to the start" and "to the end". No new
+per-app contract, no `eval`, no signature change, and all twenty gain the
+three operations at once.
+
+Two things that had to be got right, and the second was wrong first:
+
+- **The record of which field has focus is the widget's**, since an app
+  keeps its own value and only tells `dt_textdraw` which field to draw
+  inverted. `DT_FIELD` holds the window, the text and the cursor.
+- **Its text is cleared every frame and its window is not.** Several apps
+  draw a **placeholder** in place of the field while it is empty -- the
+  Control Panel's picker says `Search…` -- so a field that has just been
+  cut calls `dt_textdraw` not at all, and clearing the window with the
+  text made pasting into an empty field impossible, which is the
+  commonest paste there is. The window is dropped the moment focus moves
+  elsewhere, so one that never had a field focused is never typed into.
+
+A one-line field has no selection, so Copy is the whole of it and Cut is
+the whole of it and empty -- stated rather than apologised for, since
+every other Copy in the desktop copies a selection. A paste longer than
+`DT_FIELDMAX` (1024) is cut to it and says so.
+
+Three checks in `tests/apps.py`'s panel part, driven on the Control
+Panel's own picker search box -- `dsv`, the Network Servers dialog, had
+all three already and would have proved nothing. Each reads the box
+rather than the note beside it, since a note times out. And the third
+had to be rewritten after being run against the previous release: "the
+box is back to `mail`" **passed** there for the wrong reason, because the
+cut had done nothing and so nothing needed putting back. It types an `x`
+between the cut and the paste now, so `xmail` can only mean both
+happened, in that order.
+
 ## 0.99.177
 
 **Every process a desktop runs says which session it belongs to and what

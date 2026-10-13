@@ -11,9 +11,40 @@ strict
 # here: a field's own tag is for dt_hit to say a click landed on it, which
 # an app's _click uses to move the cursor there and give it focus, not to
 # fire an action the way a checkbox or a dropdown's arrow does.
+# The one-line field that has focus, as this frame drew it: which window,
+# its text and its cursor.
+#
+# The widget is the only thing that knows which field is focused -- an app
+# keeps its own value and tells dt_textdraw which one to draw inverted --
+# so this is what lets the desktop's own Copy, Cut and Paste reach a field
+# whose app offers no clipboard of its own (Gitea #214). It is cleared at
+# the top of every frame by dt_draw and filled again by whichever field
+# draws itself focused, so it describes what is on the screen now rather
+# than whatever had focus last.
+#
+# Declared here rather than beside the clear, because a pane sourced on
+# its own in a fixture has the widget and not the window manager, and
+# under `strict vars` the first dt_textdraw would be refused for creating
+# a global its file never declared.
+declare -gA DT_FIELD
+DT_FIELD["id"]=
+DT_FIELD["text"]=
+DT_FIELD["cur"]=0
+
+# The most characters a paste puts into a one-line field. DT_CLIP can hold
+# Files' own list of paths or a whole selection from Write, and a field
+# that holds thousands of characters is no use to anybody -- but a paste
+# that silently drops the rest is worse, so the cut is said out loud.
+DT_FIELDMAX=1024
+
 fn dt_textdraw(int id, int r, int c, int w, text, int cur, int focused) {
 	local shown t ch
 
+	if [ "$focused" = 1 ]; then
+		DT_FIELD["id"]=$id
+		DT_FIELD["text"]=$text
+		DT_FIELD["cur"]=$cur
+	fi
 	shown="$text"
 	[ ${#shown} -gt "$w" ] && shown="${shown:0:$w}"
 	console pen "$DT_INK" "$DT_FACE"

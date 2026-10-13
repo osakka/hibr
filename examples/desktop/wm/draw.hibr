@@ -281,6 +281,23 @@ dt_draw() {
 	local -a ls
 
 	DT_WANT=
+	# Whichever one-line field draws itself focused this frame fills this
+	# again (widgets/text.hibr), so the desktop's own Copy acts on a
+	# field that is on the screen now rather than on one some earlier
+	# frame had (Gitea #214).
+	#
+	# The *text* is cleared every frame and the **window** is not, and
+	# the asymmetry is the point: several apps draw a placeholder instead
+	# of the field while it is empty -- the Control Panel's own picker
+	# says `Search…` -- so a field that has just been cut, or has not
+	# been typed in yet, calls dt_textdraw not at all. Clearing the id
+	# with it would make pasting into an empty field impossible, which
+	# is the commonest paste there is. It is dropped the moment focus
+	# moves to another window, so a window that never had a field
+	# focused is never pasted into.
+	DT_FIELD["text"]=
+	DT_FIELD["cur"]=0
+	[ "${DT_FIELD["id"]}" = "$DT_FOCUS" ] || DT_FIELD["id"]=
 	CS_SIDEX=$CS_SIDE
 	DT_NOTEPOSX=$DT_NOTEPOS
 	case $DT_MIRRORON in 1) dt_mirrorx ;; esac

@@ -272,6 +272,84 @@ dt_trash() {
 	[ "$bad" = 0 ]
 }
 
+# Copy, cut or paste in the focused one-line field, for a window whose app
+# offers no clipboard of its own. Status 1 when there is no field to act
+# on, so dt_edit goes on to say the window cannot do it.
+#
+# Twenty files draw a field with dt_textdraw; eleven had ever called
+# dt_textpaste, none could copy or cut, and the Control Panel -- which
+# hosts more fields than anything else in the desktop -- offered none of
+# the three, so whether a text box had a clipboard depended on which
+# window happened to host it (Gitea #214). This cannot live in dt_textkey:
+# dt_event takes those three keys before any app's own _key is called, so
+# nothing would ever reach it.
+#
+# There is deliberately no write path to an app's own value -- a field's
+# value belongs to its app, the same as a checkbox's does -- so the write
+# is done by **typing**. Every one of those twenty routes keys through
+# dt_textkey, so handing the app's own _key the characters of the
+# clipboard is exactly what a person pasting by hand does, and a cut is
+# ctrl-u then ctrl-k, which dt_textkey already means as "to the start" and
+# "to the end". Nothing per app to implement, and no second rule to keep
+# in step.
+#
+# A one-line field has no selection, so Copy is the whole of it and Cut is
+# the whole of it and empty: that is a rule to state rather than a
+# limitation to apologise for, since every other Copy in the desktop
+# copies a selection.
+fn dt_fieldedit(op) {
+	local cb=${DT[$DT_FOCUS]["key"]} t i c n
+	local -a part
+
+	[ -n "$cb" ] || return 1
+	[ "${DT_FIELD["id"]}" = "$DT_FOCUS" ] || return 1
+	case $op in
+	copy | cut)
+		t=${DT_FIELD["text"]}
+		if [ -z "$t" ]; then
+			dt_notep low "There is nothing in that field"
+			return 0
+		fi
+		dt_clipset "$t" "$op" text
+		if [ "$op" = cut ]; then
+			# Both, so the whole field goes wherever the cursor
+			# happens to be: ctrl-u takes what is before it and
+			# ctrl-k what is after. A key the app does not handle
+			# answers 1, which is not a failure here.
+			$cb "$DT_FOCUS" ctrl-u || true
+			$cb "$DT_FOCUS" ctrl-k || true
+			dt_notep low "Cut %s characters" "${#t}"
+		else
+			dt_notep low "Copied %s characters" "${#t}"
+		fi
+		return 0
+		;;
+	paste)
+		t=$DT_CLIP
+		[ -n "$t" ] || return 0
+		# One line: what was copied across several becomes one, the
+		# same normalisation dt_textpaste makes.
+		t=${t//$'\r'/}
+		t=${t//$'\n'/ }
+		t=${t//$'\t'/ }
+		n=${#t}
+		if [ "$n" -gt "$DT_FIELDMAX" ]; then
+			t=${t:0:$DT_FIELDMAX}
+			dt_notep low "Pasted the first %s characters of %s" \
+				"$DT_FIELDMAX" "$n"
+		fi
+		i=0
+		while [ "$i" -lt "${#t}" ]; do
+			c=${t:$i:1}
+			$cb "$DT_FOCUS" "$c" || true
+			i=$((i + 1))
+		done
+		return 0
+		;;
+	esac
+	return 1
+}
+
 # Copy or cut from the focused window, or paste into it.
 #
 # An app offers <app>_copy and, if it can move rather than only duplicate
@@ -302,6 +380,7 @@ fn dt_edit(op) {
 	fi
 	cb=${DT[$DT_FOCUS]["$op"]}
 	if [ -z "$cb" ]; then
+		dt_fieldedit "$op" && return 0
 		dt_notep low "%s cannot %s" "${DT[$DT_FOCUS]["title"]}" "$op"
 		return 0
 	fi

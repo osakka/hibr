@@ -2337,6 +2337,35 @@ went in the shell.
   does belong in a sentence, `dt_note`/`dt_notep` already take format
   arguments; a **clickable** note does not, since its own trailing
   arguments are the action, so it pre-translates and passes the result.
+- **A capability the desktop reaches through a per-app callback is a
+  capability most apps will not have, and the count is the measurement.**
+  `wm/input.hibr` takes Copy, Cut and Paste before any app's `_key` is
+  called and `dt_edit` acts only through the focused window's own
+  `_copy`/`_cut`/`_paste`, so whether a text box had a clipboard depended
+  on which window hosted it: twenty files draw a one-line field with
+  `dt_textdraw`, **eleven** had ever called `dt_textpaste`, **none** could
+  copy or cut, and the Control Panel -- which holds more fields than
+  anything else -- offered none of the three (Gitea #214, 0.99.178).
+  **Before adding a twenty-first app to such a contract, count how many of
+  the twenty kept it.**
+  What fixed it is worth copying: **the write path was typing.** A field's
+  value belongs to its app and the desktop cannot write into one, but all
+  twenty route keys through `dt_textkey`, so a paste is the clipboard's
+  characters handed to the window's own `_key` and a cut is ctrl-u then
+  ctrl-k, which that function already means as "to the start" and "to the
+  end" -- no new contract, no `eval`, no signature change. **When a
+  mechanism is missing, look for one the same twenty callers already
+  share.** And the asymmetry that makes it work: the remembered field's
+  **text is cleared every frame and its window is not**, because several
+  apps draw a *placeholder* instead of the field while it is empty (the
+  picker says `Search…`), so a field just cut calls `dt_textdraw` not at
+  all -- clearing the window with the text made pasting into an empty
+  field impossible, which is the commonest paste there is.
+  The check for it was wrong first, in this file's own recorded way: "the
+  box is back to `mail`" **passed against the previous release**, since
+  the cut had done nothing and so nothing needed putting back. A typed
+  `x` between the cut and the paste makes `xmail` the only reading that
+  means both happened.
 - **A pen names a theme colour or role.** `$DT_SELECT` existed nowhere and
   drew the YouTube list's selection dark on black; `tests/540-examples.t`
   now fails on any `console pen` naming a `DT_` colour settings.hibr does

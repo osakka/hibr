@@ -453,6 +453,23 @@ most modern ones do and some ask about first. A held desktop sends it to
 every terminal attached, so with a second machine joined (`--join`) a copy
 lands on both machines' clipboards.
 
+**A one-line text field has all three whether or not its app wrote them.**
+A field's value belongs to its app, so there is no way for the desktop to
+write into one -- and the answer is that it does not need one: every field
+in the desktop is drawn with the same widget and applies keys with the same
+`dt_textkey`, so a paste is the clipboard's own characters handed to the
+focused window as keys, and a cut is ctrl-u then ctrl-k, which that widget
+already means as "to the start" and "to the end". Nothing per app, and
+nothing extra to keep in step. Until 0.99.178 a text box had a clipboard
+only if its app had written one -- eleven of the twenty files that draw a
+field could paste, none could copy or cut, and the Control Panel, which
+holds more fields than anything else, had none of the three.
+
+Such a field has no selection, so **Copy is the whole of it** and Cut is
+the whole of it and empty. A paste longer than a thousand characters is cut
+to that and says so, since a one-line field holding a copied document is no
+use and losing the rest quietly is worse.
+
 What each app copies and takes:
 
 | app | copies | a paste |

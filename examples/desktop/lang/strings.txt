@@ -581,6 +581,7 @@ Pass Every Key
 Password
 Paste
 Pasted as %s
+Pasted the first %s characters of %s
 Pattern
 Pause
 Pause or Play
@@ -794,6 +795,7 @@ Theme
 There is a theme called %s already
 There is no file %s
 There is no folder %s
+There is nothing in that field
 This Computer
 This Desktop
 This Session
