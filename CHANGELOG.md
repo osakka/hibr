@@ -1,5 +1,62 @@
 # Changelog
 
+## 0.99.174
+
+**`console fill` never took `-p`, so five callers were filling rectangles
+at the top left of the screen with their own arguments** (Gitea #208),
+reported as:
+
+> why is the contacts menu 20202020202020202020202020 (it's broken, and
+> somehow corrupted the menubar) ... it's the contacts app, when it's
+> opened, it overwrites the menubar with that, even when it's not the
+> foreground application, but if I click on the menubar, I get the actual
+> menu entries!
+
+`console put` has handled `-p pane` since panes existed. `console fill`
+never did -- and its usage line did not mention one either, so nothing
+said no. Every caller that passed one therefore read its positions two
+words late:
+
+| what was meant | what was read |
+|---|---|
+| row `1` | `-p`, through `atoi` → **0** |
+| col `34` | `w2`, the pane's name → **0** |
+| h `16` | `1` |
+| w `1` | `34` |
+| glyph `│` | **`16`** |
+
+So Contacts' list divider, asked for as
+`console fill -p w2 1 34 16 1 "│"`, was one row of 34 columns at row 0,
+column 0, filled with the text `16`. Which is a window writing over the
+menu bar -- and **staying** there, because the bar repaints only when its
+own key changes, so a click was what put it back. The digits are the
+fill's own `h - 2`: a 20-row Contacts window says `16`, and the owner's
+24-row one says `20`.
+
+Reproduced in five lines, which is what named it after the menus, the
+wallpaper, the icons, the Control Strip, the `MB` table and printed output
+had each been measured and cleared:
+
+```sh
+console pane w2 14 4 20 70
+console pen '#718096' '#120428'
+console fill -p w2 1 34 16 1 '│'
+```
+
+`cn_pfill` is the paned fill, in `cn_pput`'s own shape: clipped to the
+pane, in the pane's coordinates, with `cn_behind` turned off for the write
+because a pane's own drawing must land even while the wallpaper is
+painting behind the windows. All five callers were already written against
+those semantics, so none of them changed -- three in Contacts (the search
+box's background and both list dividers) and two in **Mail**, where an
+inline image's row had the same fault and nobody had reported it.
+
+`tests/console.py` gains four checks, all four of which fail against
+0.99.173: the fill lands in the pane's own coordinates, a rectangle larger
+than the pane is clipped rather than refused, **nothing it does reaches
+the top left of the screen**, and a pane that is not there is an error
+rather than an absolute write.
+
 ## 0.99.173
 
 **A page drawn as pixels had no words in it** (Gitea #210), reported as

@@ -1248,6 +1248,28 @@ went in the shell.
   a call already knows it is re-lexing text that began inside a quoted
   string -- never to `lx_word`'s two ordinary top-level callers, which do
   not exist inside anything.
+- **A flag a verb does not implement is a flag nothing refuses.**
+  `console put` has taken `-p pane` since panes existed; `console fill`
+  never did, and its usage line did not mention one either -- so five
+  callers passing `-p` read their own positions **two words late**: the
+  row from the literal `-p` (`atoi`, so 0), the column from the pane's
+  *name* (0), the height from the column, and the **glyph from the
+  height**. Contacts' list divider, `fill -p w2 1 34 16 1 "│"`, was
+  therefore one row of 34 columns at the top left of the screen filled
+  with the text `16`, which is a window drawing over the menu bar -- and
+  staying there, since the bar repaints only when its own key changes
+  (Gitea #208, 0.99.174). Two things to copy. **The sweep is one
+  command**: `grep -rho "console [a-z]* -p"` against the verbs that
+  actually handle `-p` in `console.c` says in one line whether any other
+  verb is being passed a flag it ignores. And the symptom named
+  everything except the cause: the menu table was dumped and was
+  perfect, the bar's own writes were logged and were correct, the
+  wallpaper, the icons and the Control Strip were each turned off and it
+  survived, and the script's stdout was redirected to a file and caught
+  nothing -- what found it was the **pens** (`DT_DIM` on `DT_FACE`, a
+  *window's* colours in the bar's row) and then five lines of console
+  calls with no desktop at all. **When a draw lands where no code could
+  have put it, read the pen: it names the caller.**
 - **A window's own content is drawn through its pane, never straight at
   screen coordinates.** Every window's `_draw` writes through
   `console put -p "w$id" ...`, a named offscreen buffer the console module

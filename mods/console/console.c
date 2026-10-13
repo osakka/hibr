@@ -222,6 +222,37 @@ int cn_pput(sh *s, const cn_pane *p, int row, int col, const char *t)
 	return adv;
 }
 
+/* Fill inside a pane, clipped to it, in the pane's own coordinates -- the
+   same shape as cn_pput, and for the same reason: a pane's own drawing must
+   land even while the wallpaper is painting behind the windows. */
+int cn_pfill(const cn_pane *p, int row, int col, int h, int w, const char *t)
+{
+	int was;
+
+	if (!p || h <= 0 || w <= 0 || row >= p->h || col >= p->w)
+		return 0;
+	if (row < 0) {
+		h += row;
+		row = 0;
+	}
+	if (col < 0) {
+		w += col;
+		col = 0;
+	}
+	if (h <= 0 || w <= 0)
+		return 0;
+	if (row + h > p->h)
+		h = p->h - row;
+	if (col + w > p->w)
+		w = p->w - col;
+	if (h <= 0 || w <= 0)
+		return 0;
+	was = cn_behind(0);
+	cn_fill(p->row + row, p->col + col, h, w, t);
+	cn_behind(was);
+	return 1;
+}
+
 /* Read a colour: a name, a palette number, or #rrggbb. */
 int cn_colour(const char *t, unsigned *out)
 {
@@ -518,8 +549,36 @@ int m_console(sh *s, int ac, char **av)
 	if (!strcmp(sub, "fill")) {
 		if (!cn_need())
 			return HIBR_FAIL;
+		/* -p, like put's. It was missing until 0.99.174 and the usage
+		   line did not mention it either, so every `console fill -p
+		   pane ...` in this tree -- three in Contacts, two in Mail --
+		   read its own positions two words late: the row came from the
+		   literal "-p" (atoi, so 0), the column from the pane's name
+		   (0), and the *glyph* from what was meant to be the height.
+		   A list divider asked for as `fill -p w2 1 34 16 1 "|"` was
+		   therefore one row of 34 columns at the top left of the
+		   screen filled with the text "16", which is a window writing
+		   over the menu bar (Gitea #208). */
+		if (ac > 3 && !strcmp(av[2], "-p")) {
+			cn_pane *p = cn_pfind(av[3]);
+
+			if (!p) {
+				lg(HIBR_LERR, "console fill: %s: no such pane",
+				   av[3]);
+				return HIBR_FAIL;
+			}
+			if (ac < 8) {
+				lg(HIBR_LERR, "usage: console fill -p pane row"
+					      " col h w [char]");
+				return 2;
+			}
+			cn_pfill(p, atoi(av[4]), atoi(av[5]), atoi(av[6]),
+				 atoi(av[7]), ac > 8 ? av[8] : " ");
+			return HIBR_OK;
+		}
 		if (ac < 6) {
-			lg(HIBR_LERR, "usage: console fill row col h w [char]");
+			lg(HIBR_LERR, "usage: console fill [-p pane] row col h"
+				      " w [char]");
 			return 2;
 		}
 		cn_fill(atoi(av[2]), atoi(av[3]), atoi(av[4]), atoi(av[5]),

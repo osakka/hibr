@@ -89,6 +89,37 @@ check("a pane clips what is too wide for it", b"\x1b[6;11Habcdef" in d)
 check("it clips from the pane's own origin", b"\x1b[7;15Hzz" in d)
 check("a row outside the pane draws nothing", b"offpane" not in d)
 
+# `console fill` took no -p until 0.99.174, and its usage line did not
+# mention one either -- so every caller that passed one read its positions
+# two words late: the row came from the literal "-p" (atoi, 0), the column
+# from the pane's name (0), and the glyph from what was meant to be the
+# height. Contacts' list divider, `fill -p w2 1 34 16 1 "|"`, was therefore
+# one row of 34 columns at the **top left of the screen** filled with the
+# text "16" -- a window writing over the menu bar, and staying there,
+# since the bar only repaints when its own key changes (Gitea #208).
+o, _ = run('console open\nconsole flush\nconsole pane box 5 10 3 6\n'
+           'console fill -p box 1 2 1 3 "x"\n'
+           'console fill -p nosuch 0 0 1 1 "q" 2> /dev/null\n'
+           'echo "ST[$?]"\n'
+           'console flush\nconsole close\n')
+d = drawn(o)
+check("a pane's own fill lands inside it, in the pane's coordinates",
+      b"\x1b[7;13Hxxx" in d)
+# A rectangle larger than the pane is clipped to it rather than refused:
+# the pane is 3 rows of 6 at 5,10, so o's reach rows 6-8 and columns
+# 11-16 of the screen and not a cell more.
+o2, _ = run('console open\nconsole flush\nconsole pane box 5 10 3 6\n'
+            'console fill -p box 0 0 9 99 "o"\n'
+            'console flush\nconsole close\n')
+d2 = drawn(o2)
+check("and a fill wider and taller than the pane is clipped to it",
+      b"oooooo" in d2 and b"ooooooo" not in d2
+      and b"\x1b[6;11H" in d2 and b"\x1b[9;" not in d2 and b"\x1b[5;" not in d2)
+check("nothing a paned fill does reaches the top left of the screen",
+      b"\x1b[1;1H" not in d and b"16" not in d)
+check("a fill naming a pane that is not there says so and fails",
+      b"ST[1]" in o)
+
 o, _ = run('console open\nconsole flush\n'
            'console pane a 5 10 3 20\nconsole pane b 6 15 3 20\n'
            'l := console pane list\necho "L[$l]"\n'
@@ -290,4 +321,4 @@ check("a cell written again loses the mark, so its shadow is cast afresh",
             'console fill 0 0 3 8 " "\nconsole darken -s 1 1 1 4 55\n')
       == one, one)
 
-report(len(WANT) + len(MWANT) + 49)
+report(len(WANT) + len(MWANT) + 53)
