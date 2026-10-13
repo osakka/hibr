@@ -2237,6 +2237,24 @@ went in the shell.
   /dev/null {fd}<>...` to quiet a failing connect silenced the rest of the
   script; save stderr first (`exec {e}>&2 2> /dev/null`), then restore it.
 
+- **A string that carries a value cannot be a catalogue key, and the count
+  of them is the check.** `dt_retitle "$id" "Mail [$acct]"` makes a key
+  holding somebody's own account name, so every app whose title says what
+  it holds read English in a translated desktop, with nine sentences and
+  four `${VAR:-a literal}` defaults beside them (Gitea #202, 0.99.168).
+  `tools/strings.py` had called them `template` and counted 37 from the
+  beginning; `--check` **fails** on one now, naming the file, the line,
+  the text and the fix, and the 11 that remain are a `VALUEONLY` list with
+  a reason each. Two things to know before adding a string. The tool sees
+  an expansion **at the sink call**, so `t="x $v"; dt_note "$t"` slips
+  past it. And **punctuation is not translatable**: the first version made
+  `%s [%s]` a key and `993-lang-ar` refused an Arabic translation
+  identical to its English, which is the right refusal -- a frame with no
+  words has nothing to translate, so `dt_wintitle` joins the brackets
+  itself and only the app's own name goes through `dt_tr`. Where a value
+  does belong in a sentence, `dt_note`/`dt_notep` already take format
+  arguments; a **clickable** note does not, since its own trailing
+  arguments are the action, so it pre-translates and passes the result.
 - **A pen names a theme colour or role.** `$DT_SELECT` existed nowhere and
   drew the YouTube list's selection dark on black; `tests/540-examples.t`
   now fails on any `console pen` naming a `DT_` colour settings.hibr does

@@ -38,8 +38,34 @@ SINKS = {
     "dt_notep": [2], "dt_confirm": [1], "dt_button": [4],
     "dt_buttons": "pairs:6", "dt_dlgbtns": "pairs:6", "dt_check": [5],
     "dt_new": [1], "dt_retitle": [2], "dt_iconadd": [3],
+    # dt_wintitle's first argument is the app's own name, which is a key it
+    # already has from its dt_app line; its second is a detail with no words
+    # of ours in it (Gitea #202).
+    "dt_wintitle": [1],
     "console": "put", "dt_tr": [1], "dt_trn": [2, 3], "dt_tally": [3], "dt_tput": [4],
 }
+# Templates that carry no words of ours, each with the reason it is one: a
+# filename, a letter, a value a dropdown shows, a server's own message, a
+# title that was already made. Everything *else* that reaches a sink with an
+# expansion in it is a string no catalogue can hold -- the key would carry
+# somebody's own account name or file -- so this list is the check rather
+# than a count: a new one fails tests/992-strings.t instead of quietly
+# reading English for ever (Gitea #202). Add to it only with a reason.
+VALUEONLY = {
+    '${IV[$id][path]##*/}',  # the picture's own filename
+    '${c^}',  # one letter of a note's own text
+    '${BW_MARKT[$i]:0:40}',  # the bookmark's own title
+    '${v^}',  # a value a dropdown is showing
+    '${f^^}',  # a column's own name
+    '${d#dav://}: $DT_WHY',  # a server's address and the server's own words
+    '${GL[bullet]} ${DT[$id][title]}',  # a glyph and a title already made
+    '${DT[$id][title]#${GL[bullet]} }',  # the same title with the glyph taken off
+    '${n:0:24}',  # the program's own name, cut to fit
+    '${t%% [*}',  # a window title with its bracket part cut
+    '$a [$detail]',  # dt_wintitle's own brackets: the app name above is the key
+    '$what $last',  # a word already translated, and a filename
+}
+
 SEP = {";", "&&", "||", "|", "{", "}", "(", ")", "then", "do", "else", "elif", "!"}
 
 
@@ -212,8 +238,15 @@ if __name__ == "__main__":
             print("new string, not in lang/strings.txt: %s" % k)
         for k in gone:
             print("in lang/strings.txt, no longer drawn: %s" % k)
+        bad = [r for r in rows if r[2] == "template" and r[3] not in VALUEONLY]
+        for r in bad:
+            print("a string with an expansion cannot be a catalogue key, so it "
+                  "will never be translated: %s:%d %s" % (r[0], r[1], r[3]))
+        if bad:
+            print("make it a format and pass the value: dt_tr \"...%s...\" \"$v\"")
         if new or gone:
             print("tools/strings.py --write brings the catalogue up to date")
+        if new or gone or bad:
             sys.exit(1)
         print("every string drawn is in the catalogue (%d)" % len(want))
         sys.exit(0)

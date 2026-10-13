@@ -526,7 +526,11 @@ fn ss_retitle(int id) {
 	t=${p##*/}
 	t=${t%.hsheet}
 	[[ $t == untitled-* ]] && t=Untitled
-	command -v dt_retitle > /dev/null && dt_retitle "$id" "Sheet [$t]"
+	if command -v dt_retitle > /dev/null; then
+		local wt
+		wt := dt_wintitle Sheet "$t"
+		dt_retitle "$id" "$wt"
+	fi
 }
 
 # --- working the formulas out ---------------------------------------------
@@ -2055,7 +2059,11 @@ fn ss_tour(int id) {
 	[ -n "$nid" ] || return 1
 	ss_importcsv "$nid" "$p"
 	t := dt_tr "Tour"
-	command -v dt_retitle > /dev/null && dt_retitle "$nid" "Sheet [$t]"
+	if command -v dt_retitle > /dev/null; then
+		local wt
+		wt := dt_wintitle Sheet "$t"
+		dt_retitle "$nid" "$wt"
+	fi
 	return 0
 }
 

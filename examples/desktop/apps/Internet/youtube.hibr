@@ -863,7 +863,11 @@ fn yt_mmss(t) {
 fn yt_drawplay(int id, int h, int w) {
 	local p=${YT[$id]["p"]} ph=$((h - 3)) i pos dur lab fill st a b mk="" md pm
 
-	command -v dt_retitle > /dev/null && dt_retitle "$id" "YouTube [${YT[$id]["title"]:0:40}]"
+	if command -v dt_retitle > /dev/null; then
+		local wt
+		wt := dt_wintitle YouTube "${YT[$id]["title"]:0:40}"
+		dt_retitle "$id" "$wt"
+	fi
 	console pen "$DT_INK" "$DT_FACE" bold
 	[ -n "${YTF["${YT[$id]["vid"]}"]}" ] && mk="${GL[star]} "
 	lab="$mk${YT[$id]["title"]}"

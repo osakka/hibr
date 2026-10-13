@@ -124,7 +124,7 @@ fn dt_tally(int done, int bad, what, last, why, detail = "") {
 			dt_notep high "%s, and %s more could not go" "$why" "$((bad - 1))"
 		fi
 	else
-		dt_notep high "$what $done; $why"
+		dt_notep high "%s %s; %s" "$what" "$done" "$why"
 	fi
 }
 
@@ -254,13 +254,17 @@ dt_trash() {
 		fi
 	done
 	if [ "$n" -gt 0 ] && [ "$bad" = 0 ]; then
+		local tnote
 		if [ "$n" = 1 ]; then
-			dt_notify "Moved $last to the trash" \
-				dt_launch files "$DT_TRASH/files"
+			tnote := dt_tr "Moved %s to the trash" "$last"
 		else
-			dt_notify "Moved $n items to the trash" \
-				dt_launch files "$DT_TRASH/files"
+			# dt_trn rather than one message: Arabic has a dual as
+			# well as a plural, and this branch is every count
+			# above one.
+			tnote := dt_trn "$n" "Moved %s item to the trash" \
+				"Moved %s items to the trash" "$n"
 		fi
+		dt_notify "$tnote" dt_launch files "$DT_TRASH/files"
 	else
 		dt_tally "$n" "$bad" "Moved" "$last to the trash" "$why"
 	fi

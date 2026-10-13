@@ -259,7 +259,9 @@ fn dt_shot_take(int r, int c, int h, int w) {
 	fi
 	DT_SHOTFILE=$f
 	dt_changed
-	dt_notify "Screenshot saved: ${f##*/}" dt_shot_show
+	local tnote
+	tnote := dt_tr "Screenshot saved: %s" "${f##*/}"
+	dt_notify "$tnote" dt_shot_show
 }
 
 # Show the last screenshot -- in the Image Viewer when it is ANSI, which

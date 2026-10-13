@@ -264,7 +264,8 @@ fn dt_keytake(what, key) {
 		return 0
 	fi
 	dt_keyset "$what" "$key"
-	dt_notify "$l is now $key" dt_launch panel
+	DT_T := dt_tr "%s is now %s" "$l" "$key"
+	dt_notify "$DT_T" dt_launch panel
 }
 
 # Yes to dt_keytake's question: the key leaves the action that had it.
@@ -274,7 +275,8 @@ dt_keymove() {
 	dt_keyset "$DT_KEYPEND_FROM" ""
 	dt_keyset "$DT_KEYPEND_WHAT" "$DT_KEYPEND_KEY"
 	l := dt_keylabel "$DT_KEYPEND_WHAT"
-	dt_notify "$l is now $DT_KEYPEND_KEY" dt_launch panel
+	DT_T := dt_tr "%s is now %s" "$l" "$DT_KEYPEND_KEY"
+	dt_notify "$DT_T" dt_launch panel
 }
 
 # Take an action's shortcut away: the Keyboard pane's clear button, and

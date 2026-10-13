@@ -153,7 +153,11 @@ fn fb_rscan(int id, d) {
 	local -A rank
 
 	if ! dt_has dt_davok || ! dt_davok; then
-		dt_notep high "${DT_WHY:-Remote folders need the desktop}"
+		local why=$DT_WHY
+		if [ -z "$why" ]; then
+			why := dt_tr "Remote folders need the desktop"
+		fi
+		dt_notep high "$why"
 		return 1
 	fi
 	if ! r := dav ls "$d" 2> "$DR_ERRF"; then
@@ -565,7 +569,11 @@ fn fb_retitle(int id, t) {
 	"$HOME") t="~" ;;
 	"$HOME"/*) t="~${t#$HOME}" ;;
 	esac
-	command -v dt_retitle > /dev/null && dt_retitle "$id" "Files [$t]"
+	if command -v dt_retitle > /dev/null; then
+		local wt
+		wt := dt_wintitle Files "$t"
+		dt_retitle "$id" "$wt"
+	fi
 }
 
 # Go somewhere, keeping the path absolute and without a trailing slash.

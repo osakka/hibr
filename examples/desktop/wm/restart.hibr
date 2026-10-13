@@ -493,7 +493,11 @@ dt_updcheck() {
 	[ -n "$DT_UPNOTED" ] && return 0
 	DT_UPNOTED=1
 	v=$("$HIBR" -c 'echo "$HIBR_VERSION"' 2> /dev/null)
-	dt_notify "hibr ${v:-update} is installed -- click to restart the desktop" \
-		dt_restart
+	if [ -n "$v" ]; then
+		t := dt_tr "hibr %s is installed -- click to restart the desktop" "$v"
+	else
+		t := dt_tr "a new hibr is installed -- click to restart the desktop"
+	fi
+	dt_notify "$t" dt_restart
 	dt_want 10
 }

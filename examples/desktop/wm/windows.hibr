@@ -372,6 +372,30 @@ fn dt_retitle(int id, title) {
 	DT[$id]["title"]="$title"
 }
 
+# A title that says which app and what it holds: `Mail [Home Email]`,
+# `Terminal [bash]`, `Files [~]`. Eight apps built that string themselves
+# with the detail interpolated into it -- `dt_retitle "$id" "Mail [$acct]"`
+# -- which no catalogue can hold, since the key would carry the person's
+# own account name, so every window frame in a translated desktop read
+# English (Gitea #202). Here the app's own name is a key it already has
+# from its `dt_app` line, the brackets are one key of punctuation, and a
+# detail with no words in it is never looked up at all. An empty detail is
+# the app's name alone, which is what a browser with no page open wants.
+fn dt_wintitle(app, detail = "") {
+	local a=$app t
+
+	case $DT_LANG in ?*) a := dt_tr "$app" ;; esac
+	if [ -z "$detail" ]; then
+		ret "$a"
+		return 0
+	fi
+	# The brackets are punctuation and not a key: 993-lang-ar refuses a
+	# translation identical to its English, and rightly -- a frame with
+	# no words in it has nothing to translate, where the app's own name
+	# above does.
+	ret "$a [$detail]"
+}
+
 dt_close_focused() { [ -n "$DT_FOCUS" ] && dt_closereq "$DT_FOCUS"; }
 
 # Quit the focused window's app: every window it has, not only the one in

@@ -1,5 +1,61 @@
 # Changelog
 
+## 0.99.168
+
+**Every window title and nine messages were built by interpolation, so a
+translated desktop read them in English** (Gitea #202).
+
+`dt_retitle "$id" "Mail [$acct]"` cannot be a catalogue key: the key would
+carry the person's own account name. So every app whose title says what it
+holds -- Mail, Sheet, Write, Files, Terminal, Task Manager, YouTube,
+Browser -- had an English frame in an Arabic desktop, and nine sentences
+with it: `Sync failed:`, `Open With:`, `About`, `Screenshot saved:`, the
+trash notes, the shortcut notes, and four `${VAR:-a literal}` defaults
+whose fallback was a string nobody could translate.
+
+`tools/strings.py` had counted them from the beginning and nothing failed
+on the count: `template 37`, its own word for "text with an expansion in
+it". **The count is the check now.** 37 went to 11, and the 11 that remain
+are a `VALUEONLY` list with a written reason each -- a filename, a letter,
+a value a dropdown shows, a server's own words -- so a *new* interpolated
+string fails `992-strings.t` with the file, the line, the text and the fix
+rather than reading English for ever:
+
+```
+a string with an expansion cannot be a catalogue key, so it will never be
+translated: examples/desktop/wm/shot.hibr:262 Screenshot saved: ${f##*/}
+make it a format and pass the value: dt_tr "...%s..." "$v"
+```
+
+That was run against this release's own `before` -- the guard fires on
+exactly the line it was written for, and is clean once the line is a
+format. Its boundary is worth knowing: the tool sees an expansion **at the
+sink call**, so `t="x $v"; dt_note "$t"` still slips past it.
+
+**One helper rather than eight keys.** `dt_wintitle app [detail]` is what
+the titles go through: the app's own name is a key it already has from its
+`dt_app` line, the detail is left alone, and an empty detail is the app's
+name by itself -- which is what a Browser with no page open wants, and
+what `Browser${tt:+ [$tt]}` was doing by hand.
+
+**And the brackets are not a key.** The first version made `%s [%s]` one,
+and `993-lang-ar` refused the Arabic for being byte-identical to its
+English -- correctly: a frame with no words has nothing to translate.
+`dt_wintitle` builds `"$a [$detail]"` directly, `%s %s` went back to
+interpolation with a reason in the allowlist, and `%s %s; %s` stayed a key
+because Arabic's semicolon is its own character (`؛`).
+
+Seventeen new keys, all seventeen with Arabic, including a `dt_trn` pair
+for the trash note -- Arabic has a dual as well as a plural, and that
+branch is every count above one. `dt_note` and `dt_notep` already took
+format arguments; a *clickable* note does not, since its own arguments are
+the action, so those pre-translate with `dt_tr` and pass the result, which
+is what `dt_confirm` next to one of them already did.
+
+`tests/desktop.py` is 608 checks to 609: a window's own title comes out
+translated with the detail in it left alone, in a run of its own because
+the F10 in the check above it drops the hibr menu over the title bar.
+
 ## 0.99.167
 
 **`mod list` and `mod avail` printed instead of filling the result slot**

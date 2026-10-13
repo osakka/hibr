@@ -301,7 +301,11 @@ fn term_draw(int id, int h, int w, int row, int col) {
 		n := term title "$t"
 		if [ -n "$n" ] && [ "$n" != "${TW[$id]["ptitle"]}" ]; then
 			TW[$id]["ptitle"]="$n"
-			command -v dt_retitle > /dev/null && dt_retitle "$id" "Terminal [$n]"
+			if command -v dt_retitle > /dev/null; then
+				local wt
+				wt := dt_wintitle Terminal "$n"
+				dt_retitle "$id" "$wt"
+			fi
 		fi
 	fi
 	if c := term clip "$t" && [ "$DT_TERMCLIP" = 1 ]; then
@@ -583,9 +587,10 @@ fn term_open(int id, arg) {
 	TW[$id]["shell"]=$DT_OPENSHELL
 	DT_OPENSELF=
 	DT_OPENSHELL=
-	if [ -n "$arg" ]; then
-		command -v dt_retitle > /dev/null &&
-			dt_retitle "$id" "Terminal [${arg##*/}]"
+	if [ -n "$arg" ] && command -v dt_retitle > /dev/null; then
+		local wt
+		wt := dt_wintitle Terminal "${arg##*/}"
+		dt_retitle "$id" "$wt"
 	fi
 	return 0
 }

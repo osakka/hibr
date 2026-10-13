@@ -239,7 +239,11 @@ fn dt_vwcopy(field, id) {
 	local v
 
 	if ! dt_vw "" get "$field" "$id"; then
-		dt_note "${DT_VWERR:-Could not read it}"
+		local why=$DT_VWERR
+		if [ -z "$why" ]; then
+			why := dt_tr "Could not read it"
+		fi
+		dt_note "$why"
 		return 1
 	fi
 	v=$DT_VWOUT
@@ -284,7 +288,13 @@ dt_vwsyncdone() {
 		while IFS= read -r l; do
 			[ -n "$l" ] && DT_VWERR := dt_vwwhy "$l"
 		done 2> /dev/null < "$DT_VWRUN/desk.syncerr"
-		[ "$DT_VWHAND" = 1 ] && dt_note "Sync failed: ${DT_VWERR:-no reason given}"
+		if [ "$DT_VWHAND" = 1 ]; then
+			local why=$DT_VWERR
+			if [ -z "$why" ]; then
+				why := dt_tr "no reason given"
+			fi
+			dt_note "Sync failed: %s" "$why"
+		fi
 	fi
 	rm -f "$DT_VWRUN/desk.sync" "$DT_VWRUN/desk.syncerr"
 }

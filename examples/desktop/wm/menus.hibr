@@ -554,7 +554,9 @@ fn dt_aboutapp(ap) {
 		"${own}_about"
 		return 0
 	fi
-	id := dt_new "About ${DT_ABOUT["$ap"]["title"]}" "$h" "$w" $(((DT_ROWS - h) / 2)) $(((DT_COLS - w) / 2)) dtabout
+	local wt
+	wt := dt_tr "About %s" "${DT_ABOUT["$ap"]["title"]}"
+	id := dt_new "$wt" "$h" "$w" $(((DT_ROWS - h) / 2)) $(((DT_COLS - w) / 2)) dtabout
 	DTAB[$id]["app"]=$ap
 	return 0
 }

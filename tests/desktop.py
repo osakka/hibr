@@ -3939,6 +3939,17 @@ check("in a language the menu bar is translated, item by item",
 check("and the menus and the desktop's icons",
       sc.find("⟦Screen Saver⟧") is not None
       and sc.find("⟦Home⟧") is not None, sc)
+# A window's own title said which app and what it held by building the
+# string itself -- `dt_retitle "$id" "Files [$t]"` -- so the key would have
+# carried the person's own folder and no catalogue could hold it: every
+# window frame in a translated desktop read English (Gitea #202). The app's
+# name is the key it already has from its dt_app line, and the detail is
+# left alone, being a path.
+# Its own run, with no menu open: F10 above drops the hibr menu over the
+# window's title bar, so the frame this reads is not on screen there.
+sct, _ = run('dt_new Files 12 40 3 4 files', pre=APPS, env={"DT_LANG": "xx"})
+check("a window's own title is translated, and the detail in it is not",
+      sct.find("⟦Files⟧ [") is not None, sct)
 
 # A checkmark item is a menu item like any other and goes through the same
 # dt_row -- but tools/strings.py did not scrape dt_mark, so none of their
@@ -5185,4 +5196,4 @@ try:
 except OSError:
     pass
 
-report(608)
+report(609)

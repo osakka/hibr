@@ -319,7 +319,8 @@ fn browser_draw(int id, int h, int w, int row, int col) {
 	bw_status "$id" "$h" "$w" "$st"
 	command -v dt_retitle > /dev/null && {
 		tt := web title "$t" 2> /dev/null
-		dt_retitle "$id" "Browser${tt:+ [$tt]}"
+		tt := dt_wintitle Browser "$tt"
+		dt_retitle "$id" "$tt"
 	}
 }
 

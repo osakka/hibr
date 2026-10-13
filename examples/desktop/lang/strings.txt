@@ -4,6 +4,7 @@
 %H %M %S %l %p %a %d %b %Y, as strftime
 %s %s items%s
 %s %s items…
+%s %s; %s
 %s %s…
 %s already has a %s
 %s at %s
@@ -26,6 +27,7 @@
 %s is in use again
 %s is loaded already
 %s is not loaded
+%s is now %s
 %s is on every workspace
 %s is on workspace %s only
 %s is sandboxed again
@@ -69,6 +71,7 @@ A message was not sent: %s
 A rule is an operator, a number and a colour: < 0 bad
 A terminal cannot start in a folder on a server
 A theme's name is letters, digits, spaces, dots and dashes
+About %s
 About %s…
 About Me
 About This Computer
@@ -223,6 +226,7 @@ Could not make the contact: %s
 Could not make the event: %s
 Could not make the message to %s
 Could not open %s: %s
+Could not read it
 Could not record the answer
 Could not rename %s
 Could not rename it
@@ -460,6 +464,9 @@ Move to Trash
 Move to Workspace
 Move to…
 Moved
+Moved %s item to the trash
+Moved %s items to the trash
+Moved %s to the trash
 Muharram
 Name
 Name:
@@ -550,6 +557,7 @@ Open Screenshots
 Open Terminal Here
 Open With
 Open With in Menu
+Open With: .%s
 Open the Tour
 Open…
 Order
@@ -613,6 +621,7 @@ Refresh
 Refresh Desktop
 Refreshed
 Reload
+Remote folders need the desktop
 Remove
 Remove %s from your address book?
 Remove %s, every time it repeats?
@@ -664,6 +673,7 @@ Screenshot Folder
 Screenshot Format
 Screenshot Starts On
 Screenshot could not be written to %s
+Screenshot saved: %s
 Screenshot: %s cannot be made
 Screenshot…
 Scroll To Bottom
@@ -729,6 +739,7 @@ Sunday
 Sunrise
 Sync Every
 Sync Now
+Sync failed: %s
 Syncing
 Syncing calendars and contacts…
 Syncing calendars…
@@ -760,6 +771,7 @@ The mermaid module is not loaded
 The record could not be added
 The remote file cache is empty
 The time is HH:MM or HH:MM:SS
+The timeout could not be set
 The tour is not installed
 The vault has locked
 The vault is empty.
@@ -861,6 +873,7 @@ Your answer is sent to %s
 Zoom
 [exited %s — close this window]
 a command; the file goes after it, in a terminal
+a new hibr is installed -- click to restart the desktop
 a number, worked out
 and it is kept to come back to.
 any command you can run
@@ -880,6 +893,7 @@ every movement
 file
 folder
 from the Network Servers list.
+hibr %s is installed -- click to restart the desktop
 hibr %s — a desktop written in the shell it runs on
 hibr desktop v%s
 hibr v%s, module ABI %s
@@ -887,6 +901,7 @@ integers only
 lifts that for one sheet, here only.
 moving — arrows, then enter
 no
+no reason given
 not reported
 note
 order they need each other; one needing itself says #CYCLE.

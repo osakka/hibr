@@ -112,7 +112,9 @@ fn wr_retitle(int id) {
 	t=${p##*/}
 	[ -n "$t" ] || t=Untitled
 	wr_dirty "$id" && t="$t ${GL[bullet]}"
-	[ "Write [$t]" = "${DT[$id]["title"]}" ] || dt_retitle "$id" "Write [$t]"
+	local wt
+	wt := dt_wintitle Write "$t"
+	[ "$wt" = "${DT[$id]["title"]}" ] || dt_retitle "$id" "$wt"
 }
 
 # A window with unsaved changes asks before it goes.

@@ -659,8 +659,10 @@ fn ml_use(int id, acct) {
 	ml_load "$acct"
 	ml_folderroles "$acct"
 	ml_views "$id"
+	local wt
 	ml_go "$id" inbox
-	dt_retitle "$id" "Mail [$acct]"
+	wt := dt_wintitle Mail "$acct"
+	dt_retitle "$id" "$wt"
 	[ -n "$(ml_running sync "$acct")" ] || ml_sync "$acct"
 }
 
@@ -1709,7 +1711,11 @@ fn mlc_new(int? from = "", mode = new, toaddr = "") {
 	# A signature belongs to a message being started, never to one being
 	# taken up again -- a draft already has whatever it was given.
 	[ -n "$DT_MAILSIG" ] && [ "$mode" != draft ] && body+=$'\n\n'"-- "$'\n'"$DT_MAILSIG"
-	id := dt_new "${subj:-New Message}" "$h" "$w" $(((DT_ROWS - h) / 2)) $(((DT_COLS - w) / 2)) mailc
+	local wt=$subj
+	if [ -z "$wt" ]; then
+		wt := dt_tr "New Message"
+	fi
+	id := dt_new "$wt" "$h" "$w" $(((DT_ROWS - h) / 2)) $(((DT_COLS - w) / 2)) mailc
 	MC[$id]["acct"]=$acct
 	MC[$id]["from"]=$me
 	[ -n "$full" ] && MC[$id]["from"]="$full <$me>"
@@ -1887,7 +1893,13 @@ fn mailc_key(int id, key) {
 	MC[$id]["$f"]=${res% *}
 	MC[$id]["${f}cur"]=${res##* }
 	MC[$id]["dirty"]=1
-	[ "$f" = subj ] && dt_retitle "$id" "${MC[$id]["subj"]:-New Message}"
+	if [ "$f" = subj ]; then
+		local wt=${MC[$id]["subj"]}
+		if [ -z "$wt" ]; then
+			wt := dt_tr "New Message"
+		fi
+		dt_retitle "$id" "$wt"
+	fi
 	mlc_suggest "$id"
 	return 0
 }

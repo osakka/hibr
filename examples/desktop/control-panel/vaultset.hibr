@@ -56,7 +56,13 @@ fn cp_set_vwlock(int? id = "", value = "") {
 	local n
 
 	n := cp_vwnum locktime "$value"
-	dt_vw "" timeout "$n" || dt_note "${DT_VWERR:-The timeout could not be set}"
+	if ! dt_vw "" timeout "$n"; then
+		local why=$DT_VWERR
+		if [ -z "$why" ]; then
+			why := dt_tr "The timeout could not be set"
+		fi
+		dt_note "$why"
+	fi
 }
 fn cp_set_vwsyncevery(int? id = "", value = "") {
 	DT_VWSYNC := cp_vwnum syncevery "$value"

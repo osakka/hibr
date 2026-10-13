@@ -394,7 +394,8 @@ fn tasks_retitle(int id) {
 	fi
 	lb := tasks_filterlabel "$TK_FILTER"
 	case $DT_LANG in ?*) lb := dt_tr "$lb" ;; esac
-	dt_retitle "$id" "Task Manager [$lb]"
+	lb := dt_wintitle "Task Manager" "$lb"
+	dt_retitle "$id" "$lb"
 }
 
 # Choose whose processes to show. Every window's scan time is cleared, so

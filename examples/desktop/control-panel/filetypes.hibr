@@ -346,7 +346,9 @@ fn owt_dialog(ext) {
 	cand=("${DT_OWLIST[@]}")
 	r=$((DT_ROWS / 2 - h / 2))
 	c=$(((DT_COLS - w) / 2))
-	rid := dt_new "Open With: .$ext" "$h" "$w" "$r" "$c" owt
+	local wt
+	wt := dt_tr "Open With: .%s" "$ext"
+	rid := dt_new "$wt" "$h" "$w" "$r" "$c" owt
 	OWT[$rid]["ext"]=$ext
 	for o in "${cand[@]}"; do
 		OWT[$rid]["o$i"]=$o
