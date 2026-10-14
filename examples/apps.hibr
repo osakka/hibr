@@ -14,7 +14,7 @@
 # The shape is ADR 0041's, and that record is this program's specification:
 # **an app is a folder of plain files, and a bundle is only how it travels.**
 # Installing is placing a file where a scan already looks -- every one of the
-# desktop's five scan lists begins with a folder of the person's own and now
+# desktop's eight scan lists begins with a folder of the person's own and now
 # has a data folder after it, so a file you wrote shadows a fetched app of
 # the same name and an update cannot overwrite your copy.
 #
@@ -58,9 +58,20 @@ AP_STATE=$AP_DATA/apps.json
 # catalogue. Overridden by `apps index URL` or HIBR_APPS_URL.
 AP_URL_DEFAULT=https://osakka.github.io/hibr-apps/index.json
 AP_URL=
-# The kinds a bundle may install into, which are the desktop's own five scan
-# lists. Anything else in an app.json is refused rather than guessed at.
-AP_KINDS=(apps system control-panel control-strip savers)
+# The kinds a bundle may install into, which are the desktop's own scan
+# roots -- and what a file is called in each. Five of them are scripts and
+# three are data: a theme, a colour scheme and a translation catalogue are
+# JSON (ADR 0028, ADR 0032), read from `$XDG_CONFIG_HOME/hibr/<kind>`
+# exactly as a script is, so installing one is placing a file where the
+# desktop already looks. The extension is the kind's, not the bundle's
+# guess: `ap_dest` appended `.hibr` to everything, so a theme had nowhere
+# to land at all (Gitea #224).
+AP_KINDS=(apps system control-panel control-strip savers themes colours lang)
+declare -gA AP_KEXT=(
+	[apps]=.hibr [system]=.hibr [control-panel]=.hibr
+	[control-strip]=.hibr [savers]=.hibr
+	[themes]=.json [colours]=.json [lang]=.json
+)
 declare -gA AP_IX
 declare -gA AP_ST
 declare -gA AP_ENT
@@ -71,7 +82,7 @@ declare -gA AP_ENT
 AP_PLACED=()
 # Which section of the index is in force: `entries`, keyed by an id of
 # kind/name, where one exists, and the older `apps`, keyed by name, where it
-# does not. The desktop has five namespaces and a name is only unique inside
+# does not. The desktop has eight namespaces and a name is only unique inside
 # one of them -- `clock` is an application and a screen saver -- so a
 # catalogue keyed by name alone loses one of any pair (Gitea #222).
 AP_SECT=apps
@@ -248,11 +259,39 @@ fn ap_entry(id) {
 	# installed app would read as not installed (Gitea #222).
 	[ -n "${AP_ENT["name"]}" ] || AP_ENT["name"]=${key##*/}
 	[ -n "${AP_ENT["kind"]}" ] || AP_ENT["kind"]=apps
+	# The name decides a **filename**, so it is checked here -- the one
+	# place an index entry becomes the record every verb reads -- rather
+	# than where each path is built. A part's path has been checked since
+	# bundles could carry one (`ap_partok`) and the entry's own name never
+	# was: `"name": "../../../climbed"` with kind `apps` wrote
+	# `$AP_DATA/apps/../../../climbed.hibr`, measured as a file three
+	# folders above the data directory, with the sha256 matching -- which
+	# says the bytes were not changed on the way and nothing at all about
+	# where they land. `../../.hibrc` is the same hole with the shell's own
+	# startup file on the end of it. The entry is refused rather than the
+	# run ended, so one bad entry is missing from a list instead of taking
+	# the catalogue with it, the way a bad theme is (Gitea #225).
+	if ! ap_nameok "${AP_ENT["name"]}"; then
+		printf 'apps: %s: the index gives a name that is not one a file can be called, so it is left out\n' \
+			"${AP_ENT["kind"]}/${AP_ENT["name"]}" >&2
+		AP_ENT=()
+		return 1
+	fi
 	AP_ENT["id"]=${AP_ENT["kind"]}/${AP_ENT["name"]}
 	return 0
 }
 
-# Is this one of the five kinds a bundle may install into?
+# A name a file may be called: one path component, no climbing, nothing
+# hidden. The same characters a part's filename may hold, less the
+# extension, which the kind supplies.
+fn ap_nameok(name) {
+	case $name in
+	"" | .* | */* | *[!a-z0-9._-]* | *..*) return 1 ;;
+	esac
+	return 0
+}
+
+# Is this one of the eight kinds a bundle may install into?
 fn ap_kindok(kind) {
 	local k
 
@@ -263,8 +302,17 @@ fn ap_kindok(kind) {
 }
 
 # Where an app's own file goes, and where its folder of resources does.
+# What a kind calls its files. A kind nothing knows is a script, which is
+# what every kind was before this.
+fn ap_kext(kind) {
+	ret "${AP_KEXT["$kind"]:-.hibr}"
+}
+
 fn ap_dest(kind, name) {
-	ret "$AP_DATA/$kind/$name.hibr"
+	local e
+
+	e := ap_kext "$kind"
+	ret "$AP_DATA/$kind/$name$e"
 }
 
 fn ap_destdir(kind, name) {
@@ -478,26 +526,40 @@ Refused. A bundle that does not match was changed in transit or on a mirror."
 
 # Place a single-file bundle: the app itself, which is most apps.
 fn ap_putone(kind, name, src) {
-	local dest
+	local dest e
 
 	dest := ap_dest "$kind" "$name"
+	e := ap_kext "$kind"
 	mkdir -p "$AP_DATA/$kind" || ap_die "cannot make $AP_DATA/$kind"
 	mv -f "$src" "$dest" || ap_die "cannot put $dest in place"
-	AP_PLACED=("$kind/$name.hibr")
+	AP_PLACED=("$kind/$name$e")
 	ap_say "installed $name as $dest"
 	return 0
 }
 
 # A part of a bundle that is not the app: a Control Panel pane, a Control
-# Strip module, a saver. Named in the bundle's own app.json, because the
-# index has no business knowing a bundle's layout, and checked here rather
-# than trusted -- a part decides a *destination*, so the rules the member
-# paths already follow (no climbing, no absolute, no .so) have to hold for
-# where it lands as well as for where it came from.
-fn ap_partok(kind, name) {
+# Strip module, a saver, or the picture a theme is drawn with. Named in the
+# bundle's own app.json, because the index has no business knowing a
+# bundle's layout, and checked here rather than trusted -- a part decides a
+# *destination*, so the rules the member paths already follow (no climbing,
+# no absolute, no .so) have to hold for where it lands as well as for where
+# it came from.
+#
+# The name is a **filename**: `mailset.hibr`, `construction.png`. A part
+# used to name a bare name and have `.hibr` appended, which a theme's own
+# picture could not express -- it has to land beside the theme's JSON, in
+# the same kind, under another extension (Gitea #224). `app.json` says `as`
+# for the filename and the older `name` still means "with this kind's own
+# extension", so every bundle published before this installs unchanged.
+# The set holds the underscore because a part is a **filename the desktop
+# already reads**: the retro car theme's picture is `retro_car.png`.
+# `addapp` in the catalogue repository was the stricter of the two and
+# refused that theme outright until Gitea #224.
+fn ap_partok(kind, file) {
 	ap_kindok "$kind" || return 1
-	case $name in
-	"" | *[!a-z0-9-]*) return 1 ;;
+	case $file in
+	"" | .* | *[!a-z0-9._-]* | *..* ) return 1 ;;
+	*.so | *.so.*) return 1 ;;
 	esac
 	return 0
 }
@@ -525,7 +587,7 @@ fn ap_partok(kind, name) {
 # belongs, DT_SRC is the app's real file so dt_aboutinfo reads its own
 # header comment, and its resources are at "${DT_SRC%.hibr}/".
 fn ap_puttar(kind, name, src) {
-	local l k path app= dest dir n=0 j i pk pn pf
+	local l k path app= dest dir n=0 j i pk pn pf pe ext
 	local -A m
 	local -a pfile pkind pname
 
@@ -579,31 +641,42 @@ Refused. A member path may not be absolute and may not climb with '..'."
 		for i in "${!m["parts"][@]}"; do
 			pf=${m["parts"]["$i"]["file"]}
 			pk=${m["parts"]["$i"]["kind"]}
-			pn=${m["parts"]["$i"]["name"]}
-			[ -n "$pn" ] || pn=${pf##*/}
-			pn=${pn%.hibr}
+			# `as` is the filename to write; `name` is the older
+			# form, which means "with this kind's own extension".
+			pn=${m["parts"]["$i"]["as"]}
+			if [ -z "$pn" ]; then
+				pn=${m["parts"]["$i"]["name"]}
+				[ -n "$pn" ] || pn=${pf##*/}
+				pe := ap_kext "$pk"
+				pn=${pn%"$pe"}$pe
+			fi
 			if ! ap_partok "$pk" "$pn"; then
 				archive close ap
 				rm -f "$src" 2> /dev/null
 				ap_die "$name: the bundle names a part as $pk/$pn
-Refused. A part's kind is one of ${AP_KINDS[*]} and its name is lower case
-letters, digits and dashes -- a part decides where a file lands."
+Refused. A part's kind is one of ${AP_KINDS[*]} and its own name is a plain
+filename -- a part decides where a file lands."
 			fi
 			pfile+=("$pf")
 			pkind+=("$pk")
 			pname+=("$pn")
 		done
 	fi
+	# Which member is the thing itself: what app.json says, else
+	# NAME with this kind's extension, else the only member that has it.
+	# The extension is the kind's, so a theme's bundle is searched for a
+	# .json and an app's for a .hibr (Gitea #224).
+	ext := ap_kext "$kind"
 	if [ -z "$app" ]; then
 		for l in "${AP_MEM[@]}"; do
-			[ "${l#*	}" = "$name.hibr" ] && app=$name.hibr
+			[ "${l#*	}" = "$name$ext" ] && app=$name$ext
 		done
 	fi
 	if [ -z "$app" ]; then
 		for l in "${AP_MEM[@]}"; do
 			path=${l#*	}
 			case $path in
-			*.hibr) if [ -z "$app" ]; then app=$path; else app=; break; fi ;;
+			*"$ext") if [ -z "$app" ]; then app=$path; else app=; break; fi ;;
 			esac
 		done
 	fi
@@ -615,13 +688,13 @@ letters, digits and dashes -- a part decides where a file lands."
 	if [ -z "$app" ]; then
 		archive close ap
 		rm -f "$src" 2> /dev/null
-		ap_die "$name: the bundle does not say which file is the app, and holds no $name.hibr"
+		ap_die "$name: the bundle does not say which file is the app, and holds no $name$ext"
 	fi
 	dest := ap_dest "$kind" "$name"
 	dir := ap_destdir "$kind" "$name"
 	mkdir -p "$AP_DATA/$kind" || ap_die "cannot make $AP_DATA/$kind"
 	rm -rf "$dir" 2> /dev/null
-	AP_PLACED=("$kind/$name.hibr")
+	AP_PLACED=("$kind/$name$ext")
 	for l in "${AP_MEM[@]}"; do
 		k=${l%%	*}
 		path=${l#*	}
@@ -657,10 +730,10 @@ letters, digits and dashes -- a part decides where a file lands."
 		pk=${pkind["$i"]}
 		pn=${pname["$i"]}
 		mkdir -p "$AP_DATA/$pk" || ap_die "cannot make $AP_DATA/$pk"
-		archive cat ap "${pfile["$i"]}" > "$AP_DATA/$pk/$pn.hibr" ||
+		archive cat ap "${pfile["$i"]}" > "$AP_DATA/$pk/$pn" ||
 			ap_die "$name: the bundle has no ${pfile["$i"]} to place as $pk/$pn"
-		AP_PLACED+=("$pk/$pn.hibr")
-		ap_say "installed $pk/$pn.hibr, which $name brings with it"
+		AP_PLACED+=("$pk/$pn")
+		ap_say "installed $pk/$pn, which $name brings with it"
 	done
 	archive close ap
 	rm -f "$src" 2> /dev/null
@@ -714,7 +787,7 @@ A module comes with hibr itself, not from here: a bundle may not carry one
 }
 
 fn ap_install(...names) {
-	local name want tmp kind i
+	local name want tmp kind i ext
 
 	[ "${#names[@]}" -gt 0 ] || ap_die "usage: apps install NAME..."
 	# The index again, always: installing against a stale one is how a
@@ -733,8 +806,13 @@ fn ap_install(...names) {
 		ap_needs "$name"
 		tmp := ap_getbundle "${AP_ENT["name"]}" "${AP_ENT["bundle"]}" \
 				    "${AP_ENT["sha256"]}"
+		# A bundle that is the file itself, or a tarball: decided by
+		# the **kind's** own extension rather than by `.hibr`, so a
+		# theme or a colour scheme (which are JSON) is placed as
+		# itself instead of being opened as an archive (Gitea #224).
+		ext := ap_kext "$kind"
 		case ${AP_ENT["bundle"]} in
-		*.hibr) ap_putone "$kind" "${AP_ENT["name"]}" "$tmp" ;;
+		*"$ext") ap_putone "$kind" "${AP_ENT["name"]}" "$tmp" ;;
 		*) ap_puttar "$kind" "${AP_ENT["name"]}" "$tmp" ;;
 		esac
 		name=${AP_ENT["id"]}

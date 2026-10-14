@@ -130,6 +130,26 @@ h_nopart = tar("bundles/nopart.tar.gz", {
         {"file": "missing.hibr", "kind": "control-panel", "name": "paneof"}]}).encode(),
     "nopart.hibr": APP.replace(b"demo", b"nopart"),
 })
+# The three kinds that are data rather than scripts (Gitea #224). A theme
+# is JSON, and one with a picture is **two files that land beside each
+# other** -- `cp_themeread`'s own `image` reads it from the themes folder --
+# which is why a part names a filename now rather than a name with .hibr
+# appended.
+THEME = json.dumps({"title": "Under Test", "about": "a theme the suite made",
+                    "colours": "midnight"}).encode()
+SCHEME = json.dumps({"title": "Under Test", "about": "a scheme the suite made",
+                     "wall": "#101010", "dot": "#202020", "bar": "#151515",
+                     "active": "#63b3ed", "idle": "#4a5568", "face": "#101820",
+                     "ink": "#cbd5e0"}).encode()
+h_theme = put("bundles/plain.json", THEME)
+h_scheme = put("bundles/scheme.json", SCHEME)
+h_picture = tar("bundles/picture.tar.gz", {
+    "app.json": json.dumps({"app": "picture.json", "kind": "themes", "parts": [
+        {"file": "shot.png", "kind": "themes", "as": "picture.png"}]}).encode(),
+    "picture.json": json.dumps({"title": "With A Picture", "about": "and its own image",
+                                "colours": "midnight", "image": "picture.png"}).encode(),
+    "shot.png": b"\x89PNG\r\n\x1a\nnot really a png, and nothing here decodes it\n",
+})
 h_climb = tar("bundles/climb.tar.gz", {"../escaped.hibr": APP})
 h_abs = tar("bundles/abs.tar.gz", {"/etc/hibr-escaped.hibr": APP})
 h_so = tar("bundles/mod.tar.gz", {"mod.hibr": APP, "evil.so": b"\x7fELF fake\n"})
@@ -169,6 +189,17 @@ INDEX = {"apps": {
                  "abi": "999", "bundle": "bundles/demo.hibr", "sha256": h_one},
     "needshibr": {"title": "Needs A Newer hibr", "version": "1.0", "kind": "apps",
                   "hibr": "99.0", "bundle": "bundles/demo.hibr", "sha256": h_one},
+    "plain": {"title": "Plain Theme", "version": "1.0", "kind": "themes",
+              "about": "a theme, which is JSON and not a script",
+              "bundle": "bundles/plain.json", "sha256": h_theme},
+    "scheme": {"title": "A Scheme", "version": "1.0", "kind": "colours",
+               "bundle": "bundles/scheme.json", "sha256": h_scheme},
+    "picture": {"title": "With A Picture", "version": "1.0", "kind": "themes",
+                "bundle": "bundles/picture.tar.gz", "sha256": h_picture},
+    # A .json offered as an application: the extension is the kind's, so
+    # this would land where nothing looks.
+    "crossed": {"title": "Crossed", "version": "1.0", "kind": "apps",
+                "bundle": "bundles/plain.json", "sha256": h_theme},
     "needsok": {"title": "Needs What Is Here", "version": "1.0", "kind": "apps",
                 "modules": "db, archive", "abi": None, "bundle": "bundles/demo.hibr",
                 "sha256": h_one},
@@ -465,6 +496,11 @@ try:
                               "kind": "savers", "name": "clock",
                               "about": "the clock saver",
                               "bundle": "bundles/demo.hibr", "sha256": h_one},
+             # The kinds that are data rather than scripts (Gitea #224).
+             "themes/plain": dict(INDEX["apps"]["plain"], name="plain"),
+             "colours/scheme": dict(INDEX["apps"]["scheme"], name="scheme"),
+             "themes/picture": dict(INDEX["apps"]["picture"], name="picture"),
+             "apps/crossed": dict(INDEX["apps"]["crossed"], name="crossed"),
          }}
     put("index2.json", json.dumps(E, indent=1))
     E2 = {"HIBR_APPS_URL": "http://127.0.0.1:%d/index2.json" % PORT,
@@ -508,6 +544,76 @@ try:
                                           "clock.hibr")),
           (rc, out, err))
 
+    # The three kinds that are data (Gitea #224): a theme, a colour scheme
+    # and a translation catalogue are JSON, read from the same
+    # $XDG_CONFIG_HOME/hibr/<kind> a script is, so installing one is placing
+    # a file where the desktop already looks. `ap_dest` appended `.hibr` to
+    # everything, so a theme had nowhere to land at all.
+    rc, out, err = apps("install", "themes/plain", env=E2)
+    th = os.path.join(HOME, "d3", "hibr", "themes", "plain.json")
+    check("a theme lands as JSON in the themes folder",
+          rc == 0 and os.path.exists(th)
+          and json.load(open(th))["colours"] == "midnight", (rc, out, err))
+    rc, out, err = apps("install", "colours/scheme", env=E2)
+    check("and a colour scheme in its own",
+          rc == 0 and os.path.exists(os.path.join(HOME, "d3", "hibr",
+                                                  "colours", "scheme.json")),
+          (rc, out, err))
+    # A theme with a picture is two files beside each other, which is what a
+    # part naming a filename buys: `name` would have appended .hibr to it.
+    rc, out, err = apps("install", "themes/picture", env=E2)
+    tdir = os.path.join(HOME, "d3", "hibr", "themes")
+    check("a theme brings its own picture, beside it rather than under it",
+          rc == 0 and os.path.exists(os.path.join(tdir, "picture.json"))
+          and os.path.exists(os.path.join(tdir, "picture.png")),
+          (rc, out, err, sorted(os.listdir(tdir))
+           if os.path.isdir(tdir) else "no themes folder"))
+    rc, out, err = apps("remove", "themes/picture", env=E2)
+    check("and removing it takes the picture too",
+          rc == 0 and not os.path.exists(os.path.join(tdir, "picture.png")),
+          (rc, out, err, sorted(os.listdir(tdir))
+           if os.path.isdir(tdir) else "no themes folder"))
+    # The extension belongs to the kind, so it cannot be crossed: a .json
+    # offered as an application is a file nothing would ever read. This one
+    # guards the invariant rather than the change -- it passes against
+    # 0.99.185 too, where a .json bundle was opened as a tarball and failed
+    # that way instead. The four above it fail there.
+    rc, out, err = apps("install", "apps/crossed", env=E2)
+    check("a bundle whose extension is not the kind's is not placed as itself",
+          not os.path.exists(os.path.join(HOME, "d3", "hibr", "apps",
+                                          "crossed.hibr")),
+          (rc, out, err))
+
+    # The entry's own **name** decides a filename, and nothing checked it
+    # until 0.99.186: `"name": "../../../climbed"` with kind `apps` wrote
+    # `$AP_DATA/apps/../../../climbed.hibr` -- three folders above the data
+    # directory, with the sha256 matching, since that says the bytes were
+    # not changed on the way and nothing about where they land. Measured
+    # before the fix as a real file; `../../.hibrc` is the same hole with
+    # the shell's own startup file on the end of it. A part's path has been
+    # checked since bundles could carry one, and the entry's name is the
+    # other half of the same question (Gitea #225).
+    E3 = {"entries": {
+        "apps/demo": dict(INDEX["apps"]["demo"], name="demo"),
+        "apps/climber": dict(INDEX["apps"]["demo"], name="../../../climbed"),
+    }}
+    put("index3.json", json.dumps(E3, indent=1))
+    E4 = {"HIBR_APPS_URL": "http://127.0.0.1:%d/index3.json" % PORT,
+          "XDG_CACHE_HOME": os.path.join(HOME, "c4"),
+          "XDG_DATA_HOME": os.path.join(HOME, "d4")}
+    climbed = os.path.join(HOME, "climbed.hibr")
+    rc, out, err = apps("install", "apps/climber", env=E4)
+    check("an entry whose name climbs out of the data folder is refused",
+          rc != 0 and not os.path.exists(climbed),
+          (rc, out, err, sorted(os.listdir(HOME))))
+    # Refused rather than fatal: one bad entry is missing from the list, the
+    # way a theme with a bad value is missing from Appearance's, instead of
+    # taking the whole catalogue with it.
+    rc, out, err = apps("list", env=E4)
+    check("and the list leaves it out rather than ending there",
+          rc == 0 and "apps/demo" in out and "climbed" not in out,
+          (rc, out, err))
+
     # A state written before this was keyed by name, and everything in it was
     # an application, since the catalogue published nothing else: a bare key
     # means apps/<key> exactly.
@@ -524,4 +630,4 @@ finally:
     srv.wait()
     shutil.rmtree(D, True)
 
-report(50)
+report(57)

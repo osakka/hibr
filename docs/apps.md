@@ -57,24 +57,32 @@ weather          Weather                    installed 0.9, 1.1 available
 
 ## Where a file lands, and why yours wins
 
-The desktop scans five places, and each begins with a folder of **yours**
+The desktop scans eight places, and each begins with a folder of **yours**
 followed by a data folder the manager writes to:
 
-| what it is | your folder |
-|---|---|
-| applications | `~/.config/hibr/apps` |
-| the desktop's own apps | `~/.config/hibr/system` |
-| Control Panel panes | `~/.config/hibr/control-panel` |
-| Control Strip modules | `~/.config/hibr/control-strip` |
-| screen savers | `~/.config/hibr/savers` |
+| what it is | your folder | a file is |
+|---|---|---|
+| applications | `~/.config/hibr/apps` | `.hibr` |
+| the desktop's own apps | `~/.config/hibr/system` | `.hibr` |
+| Control Panel panes | `~/.config/hibr/control-panel` | `.hibr` |
+| Control Strip modules | `~/.config/hibr/control-strip` | `.hibr` |
+| screen savers | `~/.config/hibr/savers` | `.hibr` |
+| themes | `~/.config/hibr/themes` | `.json` |
+| colour schemes | `~/.config/hibr/colours` | `.json` |
+| languages | `~/.config/hibr/lang` | `.json` |
 
 Your folder is scanned **first**, so a file you wrote shadows a fetched app
 of the same name, and `apps update` cannot overwrite your copy. That is the
 whole protection: there is no lock and no database, only the order of two
 directories.
 
-An app's `kind` in the index decides which of the five it goes to. A kind
-that is not one of them is refused rather than guessed at.
+An entry's `kind` decides which of the eight it goes to, and **the kind
+decides the extension**: a theme is JSON, not a script
+([ADR 0028](adr/0028-a-theme-is-data.md)), and a translation catalogue is
+too ([ADR 0032](adr/0032-the-desktop-is-translated-at-its-widgets.md)).
+A kind that is not one of the eight is refused rather than guessed at, and
+a bundle whose own extension is not its kind's is not placed as itself —
+it would be a file nothing ever reads.
 
 ## What it trusts, and what it does not
 
@@ -100,8 +108,11 @@ Each refused outright rather than half-done, and each names what it found:
 - **a member whose path is absolute or climbs out of its own folder** —
   `../escaped.hibr` and `/etc/x` are both refused, naming the path;
 - **a symbolic link**, which a bundle has no business carrying;
-- **a part whose kind is not one of the five, or whose name is anything but
-  lower case letters, digits and dashes** — a part decides a destination;
+- **a part whose kind is not one of the eight, or whose name is anything
+  but a plain filename** — a part decides a destination;
+- **an entry whose own name is not a plain filename** — the name decides
+  where the file lands, so `../../../climbed` is refused, and that one
+  entry is left out of the list rather than the catalogue being abandoned;
 - **an app whose `abi`, `hibr` or `modules` this hibr cannot satisfy**,
   before the bundle is fetched rather than after it is placed;
 - **removing an app with a window open**, which it learns by asking the
@@ -138,7 +149,7 @@ rewrite of every entry.
 
 ### Why an id and not a name
 
-The desktop has **five** scan roots, and a name only has to be unique
+The desktop has **eight** scan roots, and a name only has to be unique
 inside one of them: `clock` is an application *and* a screen saver, and
 both are installable. So an entry is identified by `kind/name`, and `name`
 is what the file is called where it lands — a destination is never built
@@ -183,10 +194,20 @@ each is placed in the root it names:
  "parts": [{"file": "mailset.hibr", "kind": "control-panel", "name": "mailset"}]}
 ```
 
-A part's `kind` must be one of the five and its `name` lower case letters,
-digits and dashes — a part decides where a file lands, so the rules the
-member paths follow hold for the destination too, and a bundle with a bad
-part is refused whole.
+A part names the **filename** it lands as, with `as`:
+
+```json
+{"app": "construction.json", "kind": "themes",
+ "parts": [{"file": "shot.png", "kind": "themes", "as": "construction.png"}]}
+```
+
+which is what a theme with a picture needs — `cp_themeread`'s `image` reads
+it from beside the theme, in the same kind under another extension. The
+older `name` still means "with this kind's own extension", so a bundle
+published before this installs unchanged. A part's `kind` must be one of
+the eight and its own name a plain filename: a part decides where a file
+lands, so the rules the member paths follow hold for the destination too,
+and a bundle with a bad part is refused whole.
 
 The state records **every path placed**, not only the app's own, because a
 folder on disk cannot say what it came with; `apps remove` takes those away

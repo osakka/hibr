@@ -1,5 +1,76 @@
 # Changelog
 
+## 0.99.186
+
+**Themes, colour schemes and languages can be published: a kind knows its
+own extension** (Gitea #224), **and an entry's own name is checked before
+it becomes a path** (Gitea #225).
+
+The catalogue carried the five kinds that are *scripts*. The desktop scans
+three more that are **data** -- `themes`, `colours` and `lang`, each read
+from `$XDG_CONFIG_HOME/hibr/<kind>` before the shipped copy exactly as a
+script is -- and none of them could be published, because `ap_dest`
+appended `.hibr` to everything. A theme is `midnight.json`: there was
+nowhere for it to land.
+
+A kind now says what its files are called (`AP_KEXT`), and four things
+follow it: the destination, the choice between "the bundle is the file
+itself" and "the bundle is a tarball", the search for which member is the
+thing, and the refusal of a bundle whose own extension is not its kind's --
+which would be a file nothing ever reads.
+
+**A theme can be two files**, which is what made this more than a table: a
+theme's picture has to land *beside* its JSON, in the same kind under
+another extension, because `cp_themeread`'s own `image` reads it from
+there. A part named a bare name and had `.hibr` appended, so it could not
+say that at all. A part names the **filename** now, with `as` -- and `name`
+still means "with this kind's own extension", so every bundle in the
+published catalogue installs unchanged on 0.99.183 and 0.99.184.
+
+And the looks say what they are. `classic.json` was `{"colours":
+"midnight"}` and nothing else, so a catalogue of nineteen looks would have
+been nineteen rows of a filename. Both readers were checked rather than
+assumed -- `cp_themeread` reads `colours` and then each key of `CP_THDEF`,
+`cp_colourread` each of `CP_COKEYS` and `CP_COROLES`, and **neither refuses
+a key it does not know** -- so every theme and colour scheme gained a
+`title` and an `about` written from its own colours, and all 16 still read
+with none refused. *"An amber monochrome on near-black, after a VT220 at
+night"* rather than `amber`; the Appearance pane can show the same words
+whenever somebody wants them to.
+
+**And an entry's own name was never checked, which is how this release
+became a security fix as well.** A part's path has been checked since a
+bundle could carry one -- no climbing, nothing absolute, no `.so`, the
+whole bundle refused rather than the bad member skipped -- and the thing
+those rules exist for, the *name the file lands as*, went straight into
+`ap_dest` from the index. Measured, not reasoned: an index saying
+`"name": "../../../climbed"` with kind `apps` left a real file three
+folders above the data directory, `installed ../../../climbed as
+.../data/hibr/apps/../../../climbed.hibr`, with the **sha256 matching** --
+which says the bytes were not changed on the way and nothing whatever
+about where they go. `../../.hibrc` is the same hole with the shell's own
+startup file on the end of it, so the cost of a wrong index was running
+somebody's code at the next prompt.
+
+`ap_nameok` is the rule, in `ap_entry` -- the one place an index entry
+becomes the record every verb reads, so no path can be built from a name
+that was never checked. The entry is **refused rather than the run
+ended**: a bad one is missing from the list, the way a theme with a bad
+value is missing from Appearance's, instead of taking the catalogue with
+it. Gitea #225, found while reading this family end to end because a
+theme's picture made a part's filename matter -- the shape is this file's
+own: the rules were written for a part's filename and the *same question*
+about the entry itself was never asked.
+
+Seven checks in `tests/appmgr.py`, six of which fail against 0.99.185 --
+the fifth guards the invariant rather than the change, and says so, since a
+`.json` bundle was refused there too by failing to open as a tarball. And
+the control needed the same fix as last time first: a `show` argument is
+evaluated whether or not its check failed, so listing a folder that was
+never made killed the run and took the checks below it with it. Twice now,
+in the same suite, which is why it is written down in the test rather than
+remembered.
+
 ## 0.99.185
 
 **The TLS relay read OpenSSL once per `select`, so the tail of a reply was

@@ -1,6 +1,8 @@
 {
+  "title": "Meadow",
+  "about": "The late nineties: warm grey, rounded frames, bracketed buttons and a photograph behind it.",
   "colours": "meadow",
-  "wallpaper": "░",
+  "wallpaper": "\u2591",
   "image": "meadow.png",
   "mode": "zoom",
   "frame": "rounded",
