@@ -69,6 +69,12 @@ declare -gA AP_ENT
 # now that a bundle can carry a Control Panel pane or a Control Strip module
 # of its own (Gitea #217), and a folder on disk cannot say what it came with.
 AP_PLACED=()
+# Which section of the index is in force: `entries`, keyed by an id of
+# kind/name, where one exists, and the older `apps`, keyed by name, where it
+# does not. The desktop has five namespaces and a name is only unique inside
+# one of them -- `clock` is an application and a screen saver -- so a
+# catalogue keyed by name alone loses one of any pair (Gitea #222).
+AP_SECT=apps
 # Set by the dav module after each request; a strict file declares it.
 DAV_CODE=
 
@@ -132,19 +138,84 @@ fn ap_load(int force = 0) {
 	# Counted, not asked with ${..+x}: an entry that holds only a map is
 	# not "set" by that test, which is a trap CLAUDE.md records in as many
 	# words -- and every entry here holds only a map.
-	[ "${#AP_IX["apps"][@]}" -gt 0 ] ||
+	# An index from 0.99.184 on carries both: `entries` for anything that
+	# reads it, and `apps` for an older client, which gets every entry
+	# whose name is unique and misses only the one it could not have
+	# named anyway.
+	AP_SECT=apps
+	[ "${#AP_IX["entries"][@]}" -gt 0 ] && AP_SECT=entries
+	[ "${#AP_IX["$AP_SECT"][@]}" -gt 0 ] ||
 		ap_die "the index has no apps in it"
 	return 0
+}
+
+# What a name the person typed means. An id (`savers/clock`) is itself; a
+# bare name is the one entry that carries it, and **several is a refusal
+# rather than a choice** -- whichever the index happened to hold is not an
+# answer to "install clock".
+fn ap_resolve(want) {
+	local id hit= n=0 all=
+
+	[ "${#AP_IX["$AP_SECT"]["$want"][@]}" -gt 0 ] && { ret "$want"; return 0; }
+	# An id against a name-keyed catalogue: `apps/demo` is `demo` there,
+	# which is what lets anything holding an id -- the state, an update --
+	# read an older index as well as a new one.
+	[ "${#AP_IX["$AP_SECT"]["${want##*/}"][@]}" -gt 0 ] &&
+		{ ret "${want##*/}"; return 0; }
+	for id in "${!AP_IX["$AP_SECT"][@]}"; do
+		[ "${id##*/}" = "$want" ] || continue
+		hit=$id
+		all="$all${all:+, }$id"
+		n=$((n + 1))
+	done
+	if [ "$n" -gt 1 ]; then
+		ap_die "$want: the catalogue has more than one -- $all
+Name the one you mean."
+	fi
+	[ "$n" = 1 ] || return 1
+	ret "$hit"
 }
 
 # What is installed here, as name -> version/kind/where, kept beside the
 # files rather than derived from them: a folder on disk cannot say which
 # version it is or which index it came from.
 ap_state() {
+	local k f i
+
 	AP_ST=()
 	[ -r "$AP_STATE" ] || return 0
 	json parse AP_ST < "$AP_STATE" 2> /dev/null || AP_ST=()
+	# A state written before 0.99.184 is keyed by name, and every entry
+	# in it is an application -- the catalogue published nothing else --
+	# so a bare key means `apps/<key>` exactly (Gitea #222). Migrated on
+	# the way in, and the next save writes it as an id.
+	for k in "${!AP_ST["installed"][@]}"; do
+		case $k in
+		*/*) continue ;;
+		esac
+		for f in version kind sha256; do
+			AP_ST["installed"]["apps/$k"]["$f"]=${AP_ST["installed"]["$k"]["$f"]}
+		done
+		for i in "${!AP_ST["installed"]["$k"]["paths"][@]}"; do
+			AP_ST["installed"]["apps/$k"]["paths"]["$i"]=${AP_ST["installed"]["$k"]["paths"]["$i"]}
+		done
+		unset AP_ST["installed"]["$k"]
+	done
 	return 0
+}
+
+# What a typed name means among the things installed here: an id as it
+# stands, else the one installed entry whose name it is.
+fn ap_insresolve(want) {
+	local id
+
+	[ -n "${AP_ST["installed"]["$want"]["kind"]}" ] && { ret "$want"; return 0; }
+	for id in "${!AP_ST["installed"][@]}"; do
+		[ "${id##*/}" = "$want" ] || continue
+		ret "$id"
+		return 0
+	done
+	return 1
 }
 
 ap_statesave() {
@@ -158,15 +229,26 @@ ap_statesave() {
 
 # One app's entry from the index, into AP_ENT; fails when there is no such
 # app, which every verb reports in its own words.
-fn ap_entry(name) {
+fn ap_entry(id) {
+	local k key
+
 	AP_ENT=()
-	[ "${#AP_IX["apps"]["$name"][@]}" -gt 0 ] || return 1
-	AP_ENT["name"]=$name
-	local k
-	for k in title version about author licence hibr abi bundle sha256 kind modules; do
-		AP_ENT["$k"]=${AP_IX["apps"]["$name"]["$k"]}
+	# Either shape: an id in an `entries` index, and the bare name in an
+	# `apps` one, so a caller holding an id reads an older catalogue too.
+	key=$id
+	[ "${#AP_IX["$AP_SECT"]["$key"][@]}" -gt 0 ] || key=${id##*/}
+	[ "${#AP_IX["$AP_SECT"]["$key"][@]}" -gt 0 ] || return 1
+	for k in title version about author licence hibr abi bundle sha256 kind modules name; do
+		AP_ENT["$k"]=${AP_IX["$AP_SECT"]["$key"]["$k"]}
 	done
+	# The *name* is what a file is called where it lands; the **id** is
+	# always `kind/name`, computed rather than taken from the key, so the
+	# state is keyed the same way whichever catalogue this read -- without
+	# that, a name-keyed index and the state would disagree and every
+	# installed app would read as not installed (Gitea #222).
+	[ -n "${AP_ENT["name"]}" ] || AP_ENT["name"]=${key##*/}
 	[ -n "${AP_ENT["kind"]}" ] || AP_ENT["kind"]=apps
+	AP_ENT["id"]=${AP_ENT["kind"]}/${AP_ENT["name"]}
 	return 0
 }
 
@@ -286,15 +368,15 @@ fn ap_list(want = "") {
 
 	ap_load
 	ap_state
-	for name in "${!AP_IX["apps"][@]}"; do
+	for name in "${!AP_IX["$AP_SECT"][@]}"; do
 		ap_entry "$name" || continue
 		if [ -n "$want" ]; then
-			case ${AP_ENT["name"]}${AP_ENT["title"]}${AP_ENT["about"]} in
+			case ${AP_ENT["id"]}${AP_ENT["title"]}${AP_ENT["about"]} in
 			*"$want"*) ;;
 			*) continue ;;
 			esac
 		fi
-		v=${AP_ST["installed"]["$name"]["version"]}
+		v=${AP_ST["installed"]["${AP_ENT["id"]}"]["version"]}
 		if [ -n "$v" ]; then
 			if [ "$v" = "${AP_ENT["version"]}" ]; then
 				v="installed"
@@ -304,7 +386,7 @@ fn ap_list(want = "") {
 		else
 			v=${AP_ENT["version"]}
 		fi
-		printf '%-16s %-26s %s\n' "$name" "${AP_ENT["title"]}" "$v"
+		printf '%-24s %-24s %s\n' "${AP_ENT["id"]}" "${AP_ENT["title"]}" "$v"
 		n=$((n + 1))
 	done
 	[ "$n" = 0 ] && ap_say "nothing in the index${want:+ matches $want}"
@@ -325,11 +407,12 @@ ap_installed() {
 	return 0
 }
 
-fn ap_info(name) {
-	local u
+fn ap_info(want) {
+	local u name
 
 	ap_load
 	ap_state
+	name := ap_resolve "$want" || ap_die "$want: no such app in the index"
 	ap_entry "$name" || ap_die "$name: no such app in the index"
 	u := ap_url
 	printf '%s\n' "${AP_ENT["name"]} -- ${AP_ENT["title"]}"
@@ -631,14 +714,16 @@ A module comes with hibr itself, not from here: a bundle may not carry one
 }
 
 fn ap_install(...names) {
-	local name tmp kind i
+	local name want tmp kind i
 
 	[ "${#names[@]}" -gt 0 ] || ap_die "usage: apps install NAME..."
 	# The index again, always: installing against a stale one is how a
 	# sha256 mismatch gets blamed on the mirror.
 	ap_load 1
 	ap_state
-	for name in "${names[@]}"; do
+	for want in "${names[@]}"; do
+		name := ap_resolve "$want" ||
+			ap_die "$want: no such app in the index"
 		ap_entry "$name" || ap_die "$name: no such app in the index"
 		kind=${AP_ENT["kind"]}
 		ap_kindok "$kind" ||
@@ -646,11 +731,13 @@ fn ap_install(...names) {
 		# Before fetching, not after: refusing an app this hibr
 		# cannot run should cost nothing and leave nothing behind.
 		ap_needs "$name"
-		tmp := ap_getbundle "$name" "${AP_ENT["bundle"]}" "${AP_ENT["sha256"]}"
+		tmp := ap_getbundle "${AP_ENT["name"]}" "${AP_ENT["bundle"]}" \
+				    "${AP_ENT["sha256"]}"
 		case ${AP_ENT["bundle"]} in
-		*.hibr) ap_putone "$kind" "$name" "$tmp" ;;
-		*) ap_puttar "$kind" "$name" "$tmp" ;;
+		*.hibr) ap_putone "$kind" "${AP_ENT["name"]}" "$tmp" ;;
+		*) ap_puttar "$kind" "${AP_ENT["name"]}" "$tmp" ;;
 		esac
+		name=${AP_ENT["id"]}
 		AP_ST["installed"]["$name"]["version"]=${AP_ENT["version"]}
 		AP_ST["installed"]["$name"]["kind"]=$kind
 		AP_ST["installed"]["$name"]["sha256"]=${AP_ENT["sha256"]}
@@ -685,7 +772,7 @@ fn ap_claimed(path, except) {
 }
 
 fn ap_remove(...names) {
-	local name kind dest dir n force=0 i p np
+	local name w base kind dest dir n force=0 i p np
 	local -a want
 
 	for name in "${names[@]}"; do
@@ -696,13 +783,15 @@ fn ap_remove(...names) {
 	done
 	[ "${#want[@]}" -gt 0 ] || ap_die "usage: apps remove [-f] NAME..."
 	ap_state
-	for name in "${want[@]}"; do
+	for w in "${want[@]}"; do
+		name := ap_insresolve "$w" || ap_die "$w: not installed here"
 		kind=${AP_ST["installed"]["$name"]["kind"]}
-		[ -n "$kind" ] || ap_die "$name: not installed here"
-		n := ap_windows "$name"
+		[ -n "$kind" ] || ap_die "$w: not installed here"
+		base=${name##*/}
+		n := ap_windows "$base"
 		if [ "$n" -gt 0 ] && [ "$force" = 0 ]; then
-			ap_die "$name: $n window(s) of it are open ($AP_WINS)
-Close them first, or `apps remove -f $name`. Removing it frees the folder
+			ap_die "$w: $n window(s) of it are open ($AP_WINS)
+Close them first, or `apps remove -f $w`. Removing it frees the folder
 its code is read from, and the desktop would be left calling functions with
 nothing behind them."
 		fi
@@ -714,8 +803,8 @@ nothing behind them."
 			# Installed before 0.99.183, when nothing recorded
 			# what it placed: the kind and the name are all there
 			# is, which is what this always did.
-			dest := ap_dest "$kind" "$name"
-			dir := ap_destdir "$kind" "$name"
+			dest := ap_dest "$kind" "$base"
+			dir := ap_destdir "$kind" "$base"
 			rm -f "$dest" 2> /dev/null
 			rm -rf "$dir" 2> /dev/null
 		else
@@ -739,7 +828,7 @@ nothing behind them."
 }
 
 fn ap_update(...names) {
-	local name n=0
+	local name w n=0
 	local -a want
 
 	ap_load 1
@@ -749,10 +838,21 @@ fn ap_update(...names) {
 	else
 		for name in "${!AP_ST["installed"][@]}"; do want+=("$name"); done
 	fi
-	for name in "${want[@]}"; do
+	for w in "${want[@]}"; do
+		# Either an id from the state or a name somebody typed:
+		# ap_entry takes both, and ap_resolve is for the ambiguous
+		# bare name it cannot.
+		if ! ap_entry "$w"; then
+			name := ap_resolve "$w" ||
+				ap_die "$w: no such app in the index"
+			ap_entry "$name" ||
+				ap_die "$name: no such app in the index"
+		fi
+		# The state is keyed by the id, which is the entry's own and
+		# not whatever the index key happened to be.
+		name=${AP_ENT["id"]}
 		[ -n "${AP_ST["installed"]["$name"]["kind"]}" ] ||
-			ap_die "$name: not installed here"
-		ap_entry "$name" || ap_die "$name: no such app in the index"
+			ap_die "$w: not installed here"
 		if [ "${AP_ENT["version"]}" = "${AP_ST["installed"]["$name"]["version"]}" ]; then
 			continue
 		fi

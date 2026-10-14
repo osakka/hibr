@@ -1,5 +1,53 @@
 # Changelog
 
+## 0.99.184
+
+**The catalogue has five namespaces now, because the desktop always had**
+(Gitea #222).
+
+Found by publishing the whole ecosystem rather than one kind of it: **54
+bundles went in and 53 entries came out.** `clock` is an application
+(`apps/Accessories/clock.hibr`) and a screen saver (`savers/clock.hibr`),
+both installable, both called `clock` -- and the index was keyed by name, so
+the second one written silently replaced the first. One collision today is
+not the measure of it: `wallpaper`, `theme`, `cursor` and `shadow` are
+Control Strip modules with names a pane or an app could easily want.
+
+An entry is identified by an **id**, `kind/name`, in a new `entries`
+section. `apps install clock` still installs it where the name means one
+thing; where it means two it is **refused and both are named**, because
+whichever the index happened to hold is not an answer to "install clock".
+`apps list` shows the id, so the ambiguity is visible before it bites, and
+both clocks can be installed at once -- which is the whole point, since the
+desktop has always been able to hold them.
+
+Three things that are not decoration:
+
+- the id is **computed** as `kind/name` rather than taken from the index's
+  key, so the state is keyed the same way whichever catalogue was read.
+  Without that, a name-keyed index and an id-keyed state disagree and every
+  installed app reads as not installed -- which is exactly what the suite
+  caught when the first version inherited the key;
+- an index keyed by name is still read, and everything above this in
+  `tests/appmgr.py` runs against one, so that compatibility is **proved
+  rather than asserted**. A new index also carries the old `apps` section
+  for an older client, which then gets the 52 entries whose names are
+  unique and misses only the two it could not have named;
+- and the state is migrated on the way in: a key with no `/` can only have
+  been an application, because the catalogue published nothing else until
+  0.99.182.
+
+`mkindex` refuses to build an index with two bundles of the same id, and
+says which two. A silent overwrite is how this arrived, and it was only
+found by counting 54 against 53.
+
+Eight checks in `tests/appmgr.py`, six of which fail against 0.99.183. One
+existing check was adapted rather than kept: `remove` says `removed
+apps/demo` now, the id the catalogue calls it. And the control for the new
+ones needed a fix of its own first -- the suite died at a state edit whose
+key shape differs by release, taking the eight checks below it with it,
+which is a control that proves nothing.
+
 ## 0.99.183
 
 **An app can bring its own Control Panel pane, and what an entry says it

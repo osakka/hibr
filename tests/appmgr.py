@@ -334,8 +334,10 @@ try:
     # Removing. The window check needs a desktop, so what is checked here is
     # the half that does not: it goes, and the state forgets it.
     rc, out, err = apps("remove", "demo")
+    # The id, not the bare name: a catalogue with five namespaces calls this
+    # apps/demo, and `apps list` shows the same thing (Gitea #222).
     check("remove takes the app away and says so",
-          rc == 0 and "removed demo" in out and not os.path.exists(one),
+          rc == 0 and "removed apps/demo" in out and not os.path.exists(one),
           (rc, out, err))
     rc, out, err = apps("remove", "demo")
     check("and removing it twice says it is not installed rather than lying",
@@ -432,16 +434,94 @@ try:
     # state has no paths for it, and the kind and the name are all there is.
     st = os.path.join(DATA, "hibr", "apps.json")
     d = json.load(open(st))
-    del d["installed"]["needsok"]["paths"]
+    # The state is keyed by the id since 0.99.184 (Gitea #222), and by the
+    # bare name before it. Written to survive either, so this suite can be
+    # run against an older apps as the control for those checks -- the first
+    # version died here and took the eight checks below it with it, which is
+    # a control that proves nothing.
+    k = "apps/needsok" if "apps/needsok" in d["installed"] else "needsok"
+    del d["installed"][k]["paths"]
     json.dump(d, open(st, "w"))
     rc, out, err = apps("remove", "needsok")
     check("an app installed before the paths were recorded still removes",
           rc == 0 and not os.path.exists(os.path.join(DATA, "hibr", "apps",
                                                       "needsok.hibr")),
           (rc, out, err))
+    # A catalogue with five namespaces (Gitea #222). The desktop's scan
+    # roots are five, a name is only unique inside one of them -- `clock` is
+    # an application and a screen saver -- and an index keyed by name alone
+    # silently kept one of any pair: 54 bundles went in and 53 entries came
+    # out. So an index carries `entries`, keyed by kind/name, and keeps
+    # `apps` for an older client. Everything above this point runs against
+    # the name-keyed index, which is that compatibility proved rather than
+    # asserted.
+    E = {"apps": dict(INDEX["apps"]),
+         "entries": {
+             "apps/demo": dict(INDEX["apps"]["demo"], name="demo"),
+             "apps/clock": {"title": "Clock", "version": "1.0", "kind": "apps",
+                            "name": "clock", "about": "the desk clock",
+                            "bundle": "bundles/demo.hibr", "sha256": h_one},
+             "savers/clock": {"title": "Clock", "version": "1.0",
+                              "kind": "savers", "name": "clock",
+                              "about": "the clock saver",
+                              "bundle": "bundles/demo.hibr", "sha256": h_one},
+         }}
+    put("index2.json", json.dumps(E, indent=1))
+    E2 = {"HIBR_APPS_URL": "http://127.0.0.1:%d/index2.json" % PORT,
+          "XDG_CACHE_HOME": os.path.join(HOME, "c3"),
+          "XDG_DATA_HOME": os.path.join(HOME, "d3")}
+    rc, out, err = apps("list", env=E2)
+    check("an index keyed by kind/name is read, and the list shows the id",
+          rc == 0 and "apps/clock" in out and "savers/clock" in out, out + err)
+    rc, out, err = apps("install", "demo", env=E2)
+    check("a bare name that means one thing still installs it",
+          rc == 0 and os.path.exists(os.path.join(HOME, "d3", "hibr", "apps",
+                                                  "demo.hibr")),
+          (rc, out, err))
+    rc, out, err = apps("install", "clock", env=E2)
+    check("a bare name that means two is refused, naming both",
+          rc != 0 and "apps/clock" in err and "savers/clock" in err,
+          (rc, err))
+    rc, out, err = apps("install", "savers/clock", env=E2)
+    check("and the id installs the one it names, in its own scan root",
+          rc == 0 and os.path.exists(os.path.join(HOME, "d3", "hibr", "savers",
+                                                  "clock.hibr"))
+          and not os.path.exists(os.path.join(HOME, "d3", "hibr", "apps",
+                                              "clock.hibr")),
+          (rc, out, err))
+    rc, out, err = apps("install", "apps/clock", env=E2)
+    check("both can be installed at once, which is the whole point",
+          rc == 0 and os.path.exists(os.path.join(HOME, "d3", "hibr", "apps",
+                                                  "clock.hibr"))
+          and os.path.exists(os.path.join(HOME, "d3", "hibr", "savers",
+                                          "clock.hibr")),
+          (rc, out, err))
+    rc, out, err = apps("installed", env=E2)
+    check("and the state tells them apart",
+          rc == 0 and "apps/clock" in out and "savers/clock" in out,
+          (rc, out, err))
+    rc, out, err = apps("remove", "savers/clock", env=E2)
+    check("removing one leaves the other",
+          rc == 0 and not os.path.exists(os.path.join(HOME, "d3", "hibr",
+                                                      "savers", "clock.hibr"))
+          and os.path.exists(os.path.join(HOME, "d3", "hibr", "apps",
+                                          "clock.hibr")),
+          (rc, out, err))
+
+    # A state written before this was keyed by name, and everything in it was
+    # an application, since the catalogue published nothing else: a bare key
+    # means apps/<key> exactly.
+    st3 = os.path.join(HOME, "d3", "hibr", "apps.json")
+    d = json.load(open(st3))
+    d["installed"]["demo"] = d["installed"].pop("apps/demo")
+    json.dump(d, open(st3, "w"))
+    rc, out, err = apps("list", env=E2)
+    check("a state keyed by name is read as the apps it can only have been",
+          rc == 0 and "installed" in out.split("apps/demo")[1].split("\n")[0],
+          (rc, out))
 finally:
     srv.terminate()
     srv.wait()
     shutil.rmtree(D, True)
 
-report(42)
+report(50)

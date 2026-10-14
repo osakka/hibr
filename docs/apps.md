@@ -113,18 +113,19 @@ rather than on a line of listing output.
 
 ## Publishing an app
 
-An index is one JSON document. Each entry is a name and what is needed to
-fetch and place it:
+An index is one JSON document. Each entry is an **id** — `kind/name` — and
+what is needed to fetch and place it:
 
 ```json
-{"apps": {
-  "clock": {
+{"entries": {
+  "apps/clock": {
     "title":   "Clock",
     "version": "1.2",
     "about":   "a clock for the desk",
     "author":  "someone",
     "licence": "MIT",
     "kind":    "apps",
+    "name":    "clock",
     "bundle":  "bundles/clock.hibr",
     "sha256":  "f1e2…"
   }
@@ -134,6 +135,28 @@ fetch and place it:
 `bundle` may be a full address or, as here, a path **relative to the index's
 own** — which is what lets a mirror be a copy of one folder rather than a
 rewrite of every entry.
+
+### Why an id and not a name
+
+The desktop has **five** scan roots, and a name only has to be unique
+inside one of them: `clock` is an application *and* a screen saver, and
+both are installable. So an entry is identified by `kind/name`, and `name`
+is what the file is called where it lands — a destination is never built
+from an id.
+
+`apps install clock` still works where a name means one thing. Where it
+means two, it is **refused and both are named**, because whichever the
+index happened to hold is not an answer:
+
+```text
+apps: clock: the catalogue has more than one -- apps/clock, savers/clock
+Name the one you mean.
+```
+
+An index may also carry an `apps` section keyed by name, which is what an
+`apps` older than 0.99.184 reads: it then gets every entry whose name is
+unique and misses only the ones it could not have named. hibr's own
+catalogue publishes both.
 
 `hibr`, `abi` and `modules` say what an entry needs, and are **checked
 before anything is fetched**: an exact module ABI, a minimum hibr version,
