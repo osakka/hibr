@@ -23,10 +23,8 @@ app appstore "The application catalogue: browse, install, update and remove" 1.0
 
 # Not called "Applications": the hibr menu already has a submenu of that
 # name -- every app you can open -- and two rows called the same thing on
-# one menu is a menu nobody can learn. This one is where they come from,
-# so it says so, and it sorts to just under the submenu.
-command -v dt_app > /dev/null &&
-	dt_app appstore "Applications Catalogue" 24 88 once "⌘"
+# one menu is a menu nobody can learn.
+command -v dt_app > /dev/null && dt_app appstore "Catalogue" 24 88 once "⌘"
 
 declare -gA AS
 AS_JOBS=
@@ -239,17 +237,25 @@ fn as_filter(int id) {
 			continue
 		fi
 		i=0
+		local lastrow=
 		while [ "$i" -lt "$n" ]; do
 			if [ "${AS[$id]["e"][$i]["kind"]}" = "$k" ]; then
 				hay="${AS[$id]["e"][$i]["id"]} ${AS[$id]["e"][$i]["title"]} ${AS[$id]["e"][$i]["about"]}"
 				if [ -z "$q" ] || [[ ${hay,,} == *"${q,,}"* ]]; then
 					AS[$id]["r"][$m]["t"]=entry
 					AS[$id]["r"][$m]["e"]=$i
+					AS[$id]["r"][$m]["last"]=0
+					lastrow=$m
 					m=$((m + 1))
 				fi
 			fi
 			i=$((i + 1))
 		done
+		# Which row ends this branch, so the tree can draw its
+		# corner there rather than another tee. Recorded as the
+		# rows are made, because the loop above is the only place
+		# that knows which of them came last.
+		[ -n "$lastrow" ] && AS[$id]["r"][$lastrow]["last"]=1
 	done
 	AS[$id]["m"]=$m
 	[ "${AS[$id]["sel"]:-0}" -ge "$m" ] && AS[$id]["sel"]=$((m > 0 ? m - 1 : 0))
@@ -413,16 +419,19 @@ fn appstore_draw(int id, int h, int w, int row, int col) {
 				# called, and how many are under it -- the
 				# count is why a shut group is still worth
 				# reading.
-				local kk kn
+				local kk kn kopen=0
 				kk=${AS[$id]["r"][$i]["k"]}
 				kn := as_kindname "$kk"
 				kn := dt_tr "$kn"
 				if [ "${AS[$id]["open"]["$kk"]}" = 1 ] ||
 				   [ -n "${AS[$id]["q"]}" ]; then
-					mark=${GL["down"]}
-				else
-					mark=${GL["rarr"]}
+					kopen=1
 				fi
+				# A branch at the root: the widget decides
+				# what an open and a shut one look like, and
+				# the setting decides which marks those are
+				# (widgets/tree.hibr).
+				mark := dt_treepre 0 1 "$kopen" 0 ""
 				# The count goes against the list's own right
 				# edge rather than into the VERSION column: a
 				# branch has no version, and a 3 sitting under
@@ -440,16 +449,20 @@ fn appstore_draw(int id, int h, int w, int row, int col) {
 					console pen "$DT_ACTIVE" "$DT_FACE" bold
 				fi
 			else
+				local lead
 				e=${AS[$id]["r"][$i]["e"]}
 				mark=" "
 				[ -n "${AS[$id]["e"][$e]["installed"]}" ] && mark="${GL[check]}"
 				[ "${AS[$id]["e"][$e]["update"]}" = 1 ] && mark="${GL[reload]}"
-				# Indented under its heading, and by its own
-				# name rather than its id: the kind is the
-				# line above it, so repeating it in every row
-				# is noise.
+				# A leaf one level in, joined to its branch by
+				# the widget -- a tee, or a corner for the
+				# last of them. By its own name rather than
+				# its id: the kind is the line above it, so
+				# repeating it in every row is noise.
+				lead := dt_treelead 1 \
+					"${AS[$id]["r"][$i]["last"]:-0}" "0"
 				t := dt_cut "${AS[$id]["e"][$e]["name"]}" "$idw"
-				t := str pad "   $mark $t" $((listw - 8))
+				t := str pad "$lead$mark $t" $((listw - 8))
 				line="$t${AS[$id]["e"][$e]["version"]}"
 				if [ "$i" = "$sel" ] && [ "${AS[$id]["focus"]}" = list ]; then
 					console pen "$DT_SELINK" "$DT_ACTIVE"
@@ -560,8 +573,11 @@ fn as_right(int id, int r, int w, int fw, text) {
 	return 0
 }
 
-# Install, or Update, or Remove: one of the three, by what this entry is,
-# rather than three buttons two of which do nothing.
+# **One button, and it flips.** Install when you do not have it,
+# Uninstall when you do: the same place, the same key, saying what
+# pressing it will do rather than offering two of which one is always
+# wrong. Update is a second button only while there is one to take --
+# it is a different act from either, and it is not always there.
 fn as_btns(int id, int h, int w) {
 	local e
 
@@ -573,13 +589,28 @@ fn as_btns(int id, int h, int w) {
 	}
 	if [ "${AS[$id]["e"][$e]["update"]}" = 1 ]; then
 		dt_buttons "$id" $((h - 1)) 2 "" asupdate Update \
-			asremove Remove asread "Read It" asrefresh Refresh
+			asgo Uninstall asread "Read It" asrefresh Refresh
 	elif [ -n "${AS[$id]["e"][$e]["installed"]}" ]; then
-		dt_buttons "$id" $((h - 1)) 2 "" asremove Remove \
+		dt_buttons "$id" $((h - 1)) 2 "" asgo Uninstall \
 			asread "Read It" asrefresh Refresh
 	else
-		dt_buttons "$id" $((h - 1)) 2 "" asinstall Install \
+		dt_buttons "$id" $((h - 1)) 2 "" asgo Install \
 			asread "Read It" asrefresh Refresh
+	fi
+	return 0
+}
+
+# What that one button does, by what the selected entry is. The key `i`
+# and the App menu's own row go through here too, so the three ways of
+# asking cannot drift apart.
+fn as_go(int id) {
+	local e
+
+	e := as_at "$id" || { dt_note "Nothing is selected"; return 0; }
+	if [ -n "${AS[$id]["e"][$e]["installed"]}" ]; then
+		as_act "$id" remove
+	else
+		as_act "$id" install
 	fi
 	return 0
 }
@@ -701,7 +732,7 @@ fn appstore_key(int id, key) {
 	right) as_fold "$id" open; return 0 ;;
 	left) as_fold "$id" shut; return 0 ;;
 	enter | " ") as_fold "$id" toggle || return 1; return 0 ;;
-	i) as_install "$id"; return 0 ;;
+	i) as_go "$id"; return 0 ;;
 	u) as_update "$id"; return 0 ;;
 	x) as_remove "$id"; return 0 ;;
 	r) as_read "$id"; return 0 ;;
@@ -724,9 +755,8 @@ fn appstore_click(int id, int r, int? c = "", btn = "") {
 
 	tag := dt_hit "$id" "$r" "$c" && {
 		case $tag in
-		asinstall) as_install "$id" ;;
+		asgo) as_go "$id" ;;
 		asupdate) as_update "$id" ;;
-		asremove) as_remove "$id" ;;
 		asread) as_read "$id" ;;
 		asrefresh) as_refresh "$id" ;;
 		esac
@@ -771,6 +801,16 @@ fn appstore_wheel(int id, dir, int? r = "", int? c = "") {
 # frame* died and the window drew nothing at all.
 appstore_menus() {
 	local id=$DT_FOCUS
+	local e got=
+
+	# The row says what choosing it will do, the same as the button
+	# does, because they are the same act: a menu offering both
+	# Install and Uninstall is a menu where one of the two is always
+	# the wrong one to read. Written as two calls with a literal each
+	# rather than one with a variable, because a label that is a
+	# variable cannot be found by `tools/strings.py` and would not be
+	# in the catalogue to translate (Gitea #202).
+	e := as_at "$id" && [ -n "${AS[$id]["e"][$e]["installed"]}" ] && got=1
 
 	dt_menu "File"
 	dt_item "Refresh" r as_refresh "$id"
@@ -779,9 +819,12 @@ appstore_menus() {
 	dt_end
 	dt_editmenu
 	dt_menu "App"
-	dt_item "Install" i as_install "$id"
+	if [ -n "$got" ]; then
+		dt_item "Uninstall" i as_go "$id"
+	else
+		dt_item "Install" i as_go "$id"
+	fi
 	dt_item "Update" u as_update "$id"
-	dt_item "Remove" x as_remove "$id"
 	dt_sep
 	dt_item "Read It" e as_read "$id"
 	dt_end

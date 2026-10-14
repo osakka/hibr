@@ -103,7 +103,6 @@ And Minutes Before
 App
 Appearance
 Append
-Applications Catalogue
 Apply
 Apps
 Apps: %s available
@@ -164,6 +163,7 @@ Cannot restart: no hibr at %s, or no %s
 Cannot restart: the state could not be written
 Cannot write %s
 Cannot write in %s
+Catalogue
 Center
 Change Wallpaper…
 Check Every (minutes)
@@ -838,6 +838,8 @@ Today  Month  Agenda
 Top
 Tour
 Trash
+Tree Rules
+Tree Style
 Trust %s? Its formulas will run as you: write files, start programs, use the network.
 Trust This Sheet…
 Tue
@@ -847,6 +849,7 @@ Type what to look for, or a playlist's or a channel's address, and enter.
 Type: %s
 Undo
 Unfreeze
+Uninstall
 Unload
 Unloaded %s
 Unlock

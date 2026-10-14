@@ -39,6 +39,9 @@ fn dt_glyphs(set = "unicode") {
 		GL["rtl"]="."; GL["rtr"]="."; GL["rbl"]="'"; GL["rbr"]="'"
 		GL["diamond"]="*"; GL["minus"]="-"
 		GL["teel"]="["; GL["teer"]="]"
+		# A tree's own two, kept apart from the frame's tees so that
+		# changing one cannot move the other: ascii has no corner.
+		GL["ttee"]="+"; GL["tend"]="\`"
 		GL["dashh"]="-"; GL["dashv"]=":"
 		GL["grow"]="/"
 		GL["block"]="#"; GL["light"]="."; GL["medium"]=":"
@@ -81,6 +84,8 @@ fn dt_glyphs(set = "unicode") {
 		GL["dbr"]=$'╝'       # BOX DRAWINGS DOUBLE UP AND LEFT
 		GL["teel"]=$'┤'      # BOX DRAWINGS LIGHT VERTICAL AND LEFT
 		GL["teer"]=$'├'      # BOX DRAWINGS LIGHT VERTICAL AND RIGHT
+		GL["ttee"]=$'├'      # BOX DRAWINGS LIGHT VERTICAL AND RIGHT
+		GL["tend"]=$'└'      # BOX DRAWINGS LIGHT UP AND RIGHT
 		GL["dashh"]=$'┄'     # BOX DRAWINGS LIGHT TRIPLE DASH HORIZONTAL
 		GL["dashv"]=$'┆'     # BOX DRAWINGS LIGHT TRIPLE DASH VERTICAL
 		GL["grow"]=$'◢'      # BLACK LOWER RIGHT TRIANGLE

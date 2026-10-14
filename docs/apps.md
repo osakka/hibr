@@ -288,32 +288,32 @@ screen saver, a window of any shape — and is described in
 
 ## From the desktop
 
-**Applications Catalogue**, on the hibr menu, is this command with a
-window around it — `examples/desktop/system/appstore.hibr`, the way the
-Vault accessory is a window around `vw`. Anything one can do the other
-can, because there is one implementation: the window runs `apps` as a
-child and never has a catalogue of its own. It is not called
-*Applications*: that is already the submenu of every app you can open, and
-two rows of one name on one menu is a menu nobody can learn.
+**Catalogue**, on the hibr menu, is this command with a window around
+it — `examples/desktop/system/appstore.hibr`, the way the Vault accessory
+is a window around `vw`. Anything one can do the other can, because there
+is one implementation: the window runs `apps` as a child and never has a
+catalogue of its own. It is not called *Applications*: that is already the
+submenu of every app you can open, and two rows of one name on one menu is
+a menu nobody can learn.
 
 ```text
-┌─┤ Applications Catalogue ├────────────────────────────────────────┤_ □ x├┐
+┌─┤ Catalogue ├─────────────────────────────────────────────────────┤_ □ x├┐
 │ Search                                               5 in the catalogue  │
 │ ITEM                            VERSION│ Snake                           │
-│▼ Applications                        3 │ apps/snake                      │
-│   ✓ snake                      1.0     │ installed 1.0                   │
-│     retro_car                  1.2     │                                 │
-│   ↻ mines                      1.1     │ A snake that grows as it eats,  │
-│→ Control Strip modules               1 │ on a board of your window's own │
-│→ Themes                              1 │ size.                           │
+│[-] Applications                      3 │ apps/snake                      │
+│├─ ✓ snake                      1.0     │ installed 1.0                   │
+│├─   retro_car                  1.2     │                                 │
+│└─ ↻ mines                      1.1     │ A snake that grows as it eats,  │
+│[+] Control Strip modules             1 │ on a board of your window's own │
+│[+] Themes                            1 │ size.                           │
 │                                        │                                 │
 │                                        │                                 │
 │                                        │                                 │
 │                                        │                                 │
 │                                        │                                 │
 │                                        │                                 │
-│  Remove ▄  Read It ▄  Refresh ▄                                          │
-│  ▀▀▀▀▀▀▀▀  ▀▀▀▀▀▀▀▀▀  ▀▀▀▀▀▀▀▀▀                                          │
+│  Uninstall ▄  Read It ▄  Refresh ▄                                       │
+│  ▀▀▀▀▀▀▀▀▀▀▀  ▀▀▀▀▀▀▀▀▀  ▀▀▀▀▀▀▀▀▀                                       │
 └──────────────────────────────────────────────────────────────────────────◢
 ```
 
@@ -326,6 +326,13 @@ A tick marks an entry you already have and `↻` one with a newer version
 waiting; the pane on the right is what the selected entry says about
 itself, paragraphs kept.
 
+The marks it is drawn with are the desktop's, not this window's
+(`widgets/tree.hibr`): Control Panel ▸ Windows ▸ **Tree Style** picks
+between `[+]`, arrows, triangles and dots, and **Tree Rules** turns the
+lines joining a child to its branch off. Every mark is three columns wide
+whichever style is chosen, so changing it never moves the columns beside
+it.
+
 `tab` or `/` moves to the search box and `tab`, `enter` or `escape` comes
 back. Typing narrows the list as you type, against an entry's id, its title
 and its prose, and the count beside the box says how many **entries**
@@ -334,15 +341,17 @@ A branch with a match in it opens itself.
 
 | key | what it does |
 |---|---|
-| `i` | install the selected entry |
+| `i` | install the selected entry, or uninstall it if you have it |
 | `u` | update it |
-| `x` | remove it |
+| `x` | uninstall it |
 | `r` | read its page in a window |
 | `f5` | fetch the index again |
 
-The same four are on the **App** menu, and the buttons along the bottom
-change with what is selected: Install for an entry that is not here yet,
-Update and Remove for one that is, Refresh always.
+**One button, and it flips**: Install when you have not got it, Uninstall
+when you have — the same place and the same key, saying what pressing it
+will do rather than offering two of which one is always wrong. Update is a
+second button only while there is one to take. The App menu's own row
+flips with it, for the same reason.
 
 Every fetch is a **job**. `apps install` is seconds of network, and a
 desktop that stops drawing while it waits is a desktop that looks broken,

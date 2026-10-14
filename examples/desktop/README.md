@@ -1423,7 +1423,7 @@ In `examples/desktop/apps/`, each one also a file you can read in a sitting:
 | `mail` | mail, laid out like Gmail and kept offline: IMAP with push and labels, POP3, SMTP -- see Mail above |
 | `tasks` | every process, name, CPU% and memory, sorted by either (`c`, `m`); Task > Show, or `w`, lists everyone's, only yours or only this desktop's -- the desktop and what it has started, which is its terminals' shells and their programs; `x` ends the selected one, `shift-x` forces it |
 | `modman` | **Modules**: every module the module path can offer, loaded or not -- its version, whether it is loaded, the interface it offers and the builtins it adds, with the selected one's description and path below, which is what a list has no room for. Enter loads or unloads, `l` and `u` do one each, `r` scans again. Two things it refuses, and says why on that same line before anything is pressed: the console, pty, term and hold, because the desktop is drawn and held through them; and any loaded module that offers an interface, because another module may be holding its table and `mod drop` would leave it pointing into an unloaded object. It reads `mod avail`'s own answer, which names and describes a module without ever running its init |
-| `appstore` | **Applications Catalogue**: the catalogue in a window, `apps` with a window around it the way the Vault accessory is a window around `vw`. A tree, one branch per kind, each saying how many it holds; a tick marks what you already have and the reload glyph what has a newer version waiting. `tab` or `/` searches, `i`, `u` and `x` install, update and remove, `r` reads an entry's own page, `f5` fetches the index again. Every fetch is a job, so the desktop goes on drawing while the network takes its time. It reads `apps list -j`, never the columns `apps` prints for a person: one answer, rather than one of them parsing the other's layout. Not called *Applications*, which is already the submenu of every app you can open |
+| `appstore` | **Catalogue**: the catalogue in a window, `apps` with a window around it the way the Vault accessory is a window around `vw`. A tree, one branch per kind, each saying how many it holds; a tick marks what you already have and the reload glyph what has a newer version waiting. `tab` or `/` searches, `i`, `u` and `x` install, update and remove, `r` reads an entry's own page, `f5` fetches the index again. Every fetch is a job, so the desktop goes on drawing while the network takes its time. It reads `apps list -j`, never the columns `apps` prints for a person: one answer, rather than one of them parsing the other's layout. Not called *Applications*, which is already the submenu of every app you can open |
 
 ## System apps and Applications
 
@@ -1434,8 +1434,7 @@ desktop. Everything else is an application, however small: it opens, shows
 or edits something of yours, and would make sense on any desktop.**
 
 So the hibr menu reads: About This Computer, then **Applications** and
-the desktop's own apps in one sorted list -- Applications Catalogue,
-Clipboard, Control Panel, Modules, Screenshot, Task Manager -- then
+the desktop's own apps in one sorted list -- Catalogue, Clipboard, Control Panel, Modules, Screenshot, Task Manager -- then
 Screen Saver, Lock, Restart, Detach, Quit.
 
 Both kinds are the same kind of file: `dt_app` and nothing else. What

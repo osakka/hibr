@@ -524,10 +524,19 @@ class Term:
     def keys(self, ks, settle=None, collect=None):
         """Send each key; a number among them is a pause of that many
         seconds, output collected meanwhile -- for a game or a clock, which
-        moves on time passing rather than on keys."""
+        moves on time passing rather than on keys.
+
+        A *callable* among them is given the screen as it stands and
+        answers the bytes to send, which is how a click lands on a glyph
+        rather than on a column somebody worked out while writing the
+        test: `lambda s: press(*s.find("widget"))`. The same lesson as
+        tests/web.py's own tab close, where a title two characters short
+        moved the box and the click reached nothing."""
         for k in ks:
             if isinstance(k, (int, float)):
                 self.collect(k)
+            elif callable(k):
+                self.send(k(self.screen()), settle, collect)
             else:
                 self.send(k, settle, collect)
         return self

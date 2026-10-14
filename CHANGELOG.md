@@ -1,5 +1,75 @@
 # Changelog
 
+## 0.99.192
+
+**The mouse had never worked anywhere `dt_hit` was asked and told no**,
+and the Catalogue is where that finally showed.
+
+Reported as "the mouse does not work in the application catalogue". It
+was one line in a widget every app shares: `dt_hit`'s miss path was
+`ret ""` with no `return 1` after it, and **`ret` ends a function with
+status 0** -- so for the life of the file it reported a hit for every
+click ever made. An app whose `_click` is written
+
+    tag := dt_hit "$id" "$r" "$c" && { case $tag in ...; esac; return 0; }
+
+therefore swallowed every click that was not on a widget, which in the
+Catalogue is the whole list: a click on a row did nothing at all,
+measured. The two apps written `|| return 0` were luckier and still
+wrong -- the Vault answered a click on empty space with "Nothing is
+selected", because an empty tag reached `vault_do`, and the contact
+editor cleared the focused field for one. Both stop now.
+
+This is the trap this project's own notes already carry, in the widget
+that every app asks: *a miss needs a bare `return 1` and nothing else --
+`:=` has already cleared the slot before the call.*
+
+**The window is called Catalogue**, which is what it was asked to be
+called; it was *Applications Catalogue* for one release because it could
+not be *Applications*, and the shorter name says as much.
+
+**One button, and it flips.** Install when you have not got it,
+Uninstall when you have: the same place, the same key, saying what
+pressing it will do rather than offering two of which one is always
+wrong. Update is a second button only while there is one to take, since
+it is a different act and is not always there, and the App menu's own
+row flips with the button -- written as two calls with a literal label
+each rather than one with a variable, because a label that is a variable
+cannot be found by `tools/strings.py` and would never be translated.
+
+**A tree is a widget now** (`widgets/tree.hibr`), and it looks like one:
+
+```text
+[-] Applications                      3
+├─ ✓ snake                      1.0
+├─   retro_car                  1.2
+└─ ↻ mines                      1.1
+[+] Control Strip modules             1
+```
+
+The Catalogue drew its own `▼` and `→` before, which is two glyphs
+nobody chose together and no way to change either. An app still owns its
+rows -- what they are, what order they come in, which are open, because
+that is its data -- and the widget answers one question: **what goes in
+front of this row**. Control Panel > Windows > **Tree Style** picks
+between `[+]`, arrows, triangles and dots, the same shape the window
+buttons' own styles already are, and **Tree Rules** turns the lines
+joining a child to its branch off.
+
+Every style's mark is **three columns wide**, on purpose: a list lays its
+other columns out from a fixed left edge, so a style that was two columns
+in one and three in another would move every column in the window when it
+was changed.
+
+Two things in the harness, both the same lesson. `Term.keys` takes a
+**callable** among its keys now, given the screen and answering the bytes
+to send, so a click lands on a glyph rather than on a column somebody
+worked out while writing the check. And the first use of it got that
+wrong in the other direction: `sc.find("widget")` found `apps/widget` in
+the **detail pane**, on the same line as the heading, so the click folded
+the branch instead of selecting a row -- the search is bounded to the
+list half now, and says why.
+
 ## 0.99.191
 
 **A module can be installed from the catalogue, and the autoload index is

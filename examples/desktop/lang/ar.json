@@ -7,6 +7,10 @@
  "strings": {
   " %s Compose ": " %s إنشاء ",
   " Search:": " بحث:",
+  "Catalogue": "الفهرس",
+  "Tree Rules": "خطوط الشجرة",
+  "Tree Style": "نمط الشجرة",
+  "Uninstall": "إزالة التثبيت",
   "\"%s\" is not here": "«%s» غير موجود هنا",
   "%H %M %S %l %p %a %d %b %Y, as strftime": "%H %M %S %l %p %a %d %b %Y، كما في strftime",
   "%d step failed": {
@@ -122,7 +126,6 @@
   "App": "تطبيق",
   "Appearance": "المظهر",
   "Append": "إلحاق",
-  "Applications Catalogue": "فهرس التطبيقات",
   "Apply": "تطبيق",
   "Apps": "التطبيقات",
   "Apps: %s available": "التطبيقات: %s متاحة",

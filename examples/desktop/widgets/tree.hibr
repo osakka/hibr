@@ -1,0 +1,147 @@
+# widgets/tree -- the marks a collapsible tree is drawn with.
+#
+# Part of the widget library; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+#
+# An app owns its own rows -- what they are, what order they come in, which
+# are open -- because that is the app's data. What it does not own is how a
+# tree *looks*, and before this each one drew its own arrow: the catalogue
+# had `▼` and `→`, which is two glyphs nobody chose together and no way to
+# change either.
+#
+# So this answers one question -- **what goes in front of this row** -- and
+# the answer is a string the caller puts at the left of the line. Everything
+# else, including whether the row is a branch at all, stays with the app.
+#
+# Every style's mark is **three columns wide**, on purpose: a list lays its
+# other columns out from a fixed left edge, so a style that was two columns
+# in one and three in another would move every column in the window when it
+# was changed. `[+]` is three; the arrows are padded to three.
+
+strict
+
+# Which marks a tree wears. The default is the one that says what it does
+# without being learned -- a `+` to open and a `-` to close is older than
+# every desktop here and is still the clearest.
+DT_TREESTYLE="${DT_TREESTYLE-plus}"
+DT_TREESTYLES=(plus arrows triangles dots)
+command -v dt_keep > /dev/null && dt_keep DT_TREESTYLE
+# Whether the rules joining a child to its parent are drawn at all. They
+# cost two columns of depth each and read as clutter in a tree two levels
+# deep, which is why this is a setting and not a style.
+DT_TREELINES="${DT_TREELINES-1}"
+command -v dt_keep > /dev/null && dt_keep DT_TREELINES
+
+TR_OPEN=
+TR_SHUT=
+TR_LEAF=
+
+# The three marks a style gives: an open branch, a shut one, and a leaf.
+# The same shape dt_btnspec is for the window buttons, so a fifth style is
+# a branch here and nothing else changes.
+fn dt_treespec(style = "") {
+	[ -n "$style" ] || style=$DT_TREESTYLE
+	case $style in
+	arrows)
+		TR_OPEN=" ${GL[down]} "; TR_SHUT=" ${GL[rarr]} " ;;
+	triangles)
+		TR_OPEN=" ${GL[sdown]} "; TR_SHUT=" ${GL[sright]} " ;;
+	dots)
+		TR_OPEN=" ${GL[disk]} "; TR_SHUT=" ${GL[circle]} " ;;
+	*)
+		# Plain ASCII, not GL[minus]: that is BOX DRAWINGS HEAVY
+		# HORIZONTAL in the unicode set, and `[━]` beside `[+]`
+		# reads as two different widgets rather than one open and
+		# one shut. A plus and a hyphen are punctuation, which this
+		# project's own rule leaves literal.
+		TR_OPEN="[-]"; TR_SHUT="[+]" ;;
+	esac
+	TR_LEAF="   "
+	return 0
+}
+
+# The rules joining a row to its branch, without a mark of its own: what
+# an app that draws its **own** mark per row wants, so the mark goes where
+# the widget's leaf blank would have been rather than after it. Three
+# columns at depth 1, two more per level, and empty at the root.
+fn dt_treelead(int depth, int? last = 0, bars = "") {
+	local i=0 out= c
+
+	[ "$depth" -gt 0 ] || { ret ""; return 0; }
+	if [ "$DT_TREELINES" != 1 ]; then
+		out := str repeat "  " "$depth"
+		ret "$out "
+		return 0
+	fi
+	while [ "$i" -lt "$depth" ]; do
+		c=${bars:$i:1}
+		if [ $((i + 1)) = "$depth" ]; then
+			if [ "$last" = 1 ]; then
+				out="$out${GL[tend]}${GL[hline]}"
+			else
+				out="$out${GL[ttee]}${GL[hline]}"
+			fi
+		elif [ "$c" = 1 ]; then
+			out="$out${GL[vline]} "
+		else
+			out="$out  "
+		fi
+		i=$((i + 1))
+	done
+	ret "$out "
+	return 0
+}
+
+# What goes in front of one row.
+#
+#   depth  how far in it is, 0 for a root
+#   branch 1 if it has children, 0 if it is a leaf
+#   open   1 if it is a branch and is open
+#   last   1 if it is the last of its parent's children
+#   bars   one character per *ancestor* level, 1 where that ancestor has
+#          more children after it and so wants a rule carried down past
+#          this row, 0 where it does not
+#
+# `bars` is what makes a tree deeper than two levels come out right, and
+# it is the caller's because only the caller knows its own order. A tree
+# two deep -- which is every tree here today -- passes "" and "1".
+fn dt_treepre(int depth, int branch, int? open = 0, int? last = 0, bars = "") {
+	local i=0 out= c
+
+	[ -n "$TR_OPEN" ] || dt_treespec
+	if [ "$DT_TREELINES" = 1 ]; then
+		while [ "$i" -lt "$depth" ]; do
+			c=${bars:$i:1}
+			# The last level is this row's own join; the ones
+			# above it are a rule carried down, or blank where
+			# that ancestor has nothing left below.
+			if [ $((i + 1)) = "$depth" ]; then
+				if [ "$last" = 1 ]; then
+					out="$out${GL[tend]}${GL[hline]}"
+				else
+					out="$out${GL[ttee]}${GL[hline]}"
+				fi
+			elif [ "$c" = 1 ]; then
+				out="$out${GL[vline]} "
+			else
+				out="$out  "
+			fi
+			i=$((i + 1))
+		done
+	else
+		[ "$depth" -gt 0 ] && out := str repeat "  " "$depth"
+	fi
+	if [ "$branch" = 1 ]; then
+		[ "$open" = 1 ] && { ret "$out$TR_OPEN"; return 0; }
+		ret "$out$TR_SHUT"
+		return 0
+	fi
+	ret "$out$TR_LEAF"
+	return 0
+}
+
+# How many columns dt_treepre answers with at this depth, so a caller can
+# lay the rest of its row out without measuring the string it just built.
+fn dt_treew(int depth) {
+	ret $((3 + depth * 2))
+}

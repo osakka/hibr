@@ -4453,6 +4453,52 @@ check("Install asks the command to install the selected id, by id",
       "install apps/gadget" in asked() or "install apps/widget" in asked(),
       asked())
 
+def asrow(sc, name):
+    """Where a name sits **in the list**, as a click position.
+
+    Not `sc.find(name)`: the detail pane shows the selected entry's id on
+    the same rows the list uses, so a plain search for `widget` finds
+    `apps/widget` in the right-hand pane first -- and a click there lands
+    on whatever list row shares that line, which for the first attempt at
+    this was the heading, folding the branch instead of selecting
+    anything. The list is the left half, so the search is too."""
+    for r in range(sc.rows):
+        c = "".join(sc.g[r])[:44].find(name)
+        if c >= 0:
+            return r, c
+    raise AssertionError("no %r in the list half" % name)
+
+
+# The mouse. `dt_hit` answered its miss with `ret ""` and no return, and
+# `ret` ends a function with status 0 -- so it reported a hit for every
+# click ever made, and this window's own `_click`, written
+# `tag := dt_hit ... && { case ...; return 0; }`, swallowed the lot.
+# Measured as a click on a row doing nothing at all.
+asstub()
+sc = run("appstore", "21 76 2 2", env=ASENV, tries=150,
+         ready=lambda s: s.find("widget") is not None,
+         feed=[lambda s: press(*asrow(s, "widget"))],
+         until=lambda s: s.find("A widget") is not None)
+check("a click on a row selects it, and the detail pane follows",
+      sc.find("A widget") is not None, sc)
+
+# The tree's marks come from widgets/tree.hibr, so every tree in the
+# desktop has the same ones and a setting changes all of them at once.
+check("a branch wears the open mark and its children the rules below it",
+      sc.find("[-]") is not None and sc.find("\u251c\u2500") is not None, sc)
+
+# One button, and it flips: Install when you have not got it, Uninstall
+# when you have. The stub's gadget is installed and its widget is not.
+check("the button says Install for what is not here and Uninstall for what is",
+      sc.find("Install") is not None and sc.find("Uninstall") is None,
+      (sc, "selection is widget, which is not installed"))
+sc = run("appstore", "21 76 2 2", env=ASENV, tries=150,
+         ready=lambda s: s.find("gadget") is not None,
+         feed=[lambda s: press(*asrow(s, "gadget"))],
+         until=lambda s: s.find("Uninstall") is not None)
+check("and the other way round for one that is installed",
+      sc.find("Uninstall") is not None and sc.find("Install") is None, sc)
+
 # A heading is not a thing to install, and the lint rule found that it
 # was being treated as one: `as_at`'s three misses each ended in
 # `ret ""; return 1`, where `ret` ends the function with status 0, so
@@ -4491,4 +4537,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(615)
+report(621)

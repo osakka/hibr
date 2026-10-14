@@ -19,6 +19,18 @@ fn cp_set_side(int? id = "", value = "") { DT_BTNSIDE=$value; cp_save; }
 fn cp_set_align(int? id = "", value = "") { DT_TITLEALIGN=$value; cp_save; }
 fn cp_set_btnstyle(int? id = "", value = "") { DT_BTNSTYLE=$value; cp_save; }
 fn cp_set_place(int? id = "", value = "") { DT_PLACE=$value; cp_save; }
+# A tree is not a window, and it is here because it is the same kind of
+# choice as the button style above it -- what the desktop's own
+# furniture is drawn with, in one place rather than per app.
+fn cp_set_treestyle(int? id = "", value = "") { DT_TREESTYLE=$value; cp_save; }
+fn cp_set_treelines(int? id = "", value = "") {
+	case $value in Off) DT_TREELINES=0 ;; *) DT_TREELINES=1 ;; esac
+	cp_save
+}
+CP_TREELINES=(On Off)
+fn cp_treelinename() {
+	case $DT_TREELINES in 0) ret "Off" ;; *) ret "On" ;; esac
+}
 
 fn windows_rows(int w) {
 	local n=0
@@ -34,6 +46,14 @@ fn windows_rows(int w) {
 	n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Button Style"
 	CP[$w][$n]["val"]="$DT_BTNSTYLE"; CP[$w][$n]["key"]=btnstyle
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Tree Style"
+	CP[$w][$n]["val"]="$DT_TREESTYLE"; CP[$w][$n]["key"]=treestyle
+	n=$((n + 1))
+	local tl
+	tl := cp_treelinename
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Tree Rules"
+	CP[$w][$n]["val"]=$tl; CP[$w][$n]["key"]=treelines
 	n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Placement"
 	CP[$w][$n]["val"]="$DT_PLACE"; CP[$w][$n]["key"]=place
@@ -61,6 +81,13 @@ fn windows_do(int w, k, int dir) {
 	       DT_TITLEALIGN=$v ;;
 	btnstyle) v := cp_next "$DT_BTNSTYLE" "$dir" "${WS_STYLES[@]}"
 	          DT_BTNSTYLE=$v ;;
+	treestyle) v := cp_next "$DT_TREESTYLE" "$dir" "${DT_TREESTYLES[@]}"
+	           DT_TREESTYLE=$v ;;
+	treelines)
+		v := cp_treelinename
+		v := cp_next "$v" "$dir" "${CP_TREELINES[@]}"
+		cp_set_treelines "" "$v"
+		;;
 	place) v := cp_next "$DT_PLACE" "$dir" "${DT_PLACES[@]}"
 	       DT_PLACE=$v ;;
 	tilemain)
@@ -99,5 +126,9 @@ fn windows_drop(int w, int r, int c, k) {
 	align) dt_droplist "$w" "$r" "$c" cp_set_align "${WS_ALIGNS[@]}" ;;
 	btnstyle) dt_droplist "$w" "$r" "$c" cp_set_btnstyle \
 		"${WS_STYLES[@]}" ;;
+	treestyle) dt_droplist "$w" "$r" "$c" cp_set_treestyle \
+		"${DT_TREESTYLES[@]}" ;;
+	treelines) dt_droplist "$w" "$r" "$c" cp_set_treelines \
+		"${CP_TREELINES[@]}" ;;
 	esac
 }
