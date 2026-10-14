@@ -6,6 +6,8 @@
 
 strict
 
+
+app pipes "Pipes growing across the screen a joint at a time" 1.0
 command -v sv_saver > /dev/null && sv_saver pipes "Pipes" 40
 
 PP_COLOURS=("#f56565" "#68d391" "#63b3ed" "#f6e05e" "#b794f4" "#4fd1c5" "#f6ad55")

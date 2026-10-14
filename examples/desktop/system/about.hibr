@@ -12,7 +12,7 @@
 
 strict
 
-app about "About this computer: the machine, and the desktop running on it"
+app about "About this computer: the machine, and the desktop running on it" 1.0
 # part: control-panel/abouthibr.hibr
 
 # 20 by 52, the same as about_size, which is what dt_launch actually asks

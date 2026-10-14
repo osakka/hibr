@@ -21,6 +21,8 @@
 # moment the release this same drag ends in reaches the server.
 strict
 
+
+app displays "Control Panel's own picture of a multi-monitor arrangement" 1.0
 command -v cp_pane > /dev/null && cp_pane displays "Displays" "▦" hardware
 
 declare -gA DPY

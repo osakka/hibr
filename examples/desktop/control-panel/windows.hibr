@@ -9,6 +9,8 @@
 
 strict
 
+
+app windows "The Control Panel pane for how a window looks and where it opens" 1.0
 command -v cp_pane > /dev/null && cp_pane windows "Windows" "▭"
 
 fn cp_set_frame(int? id = "", value = "") { DT_FRAME=$value; cp_save; }

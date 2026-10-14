@@ -9,6 +9,8 @@ a module by name rc=0 loaded=3
 unmet rc=1
 one unmet in a list rc=1
 no arguments rc=2
-app rc=0 name=[calc] desc=[A calculator]
+app rc=0 name=[calc] desc=[A calculator] ver=[]
+with a version: ver=[1.4]
+name only: name=[plain] desc=[] ver=[]
 app with no name rc=2
 dropped

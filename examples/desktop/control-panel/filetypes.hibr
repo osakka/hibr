@@ -8,6 +8,8 @@
 
 strict
 
+
+app filetypes "Which program opens which kind of file" 1.0
 command -v cp_pane > /dev/null && cp_pane filetypes "File Types" "◈"
 command -v dt_app > /dev/null && dt_app ft "File Type" 9 54 "" "" fixed hidden
 command -v dt_app > /dev/null && dt_app owt "Open With" 14 50 "" "" fixed hidden

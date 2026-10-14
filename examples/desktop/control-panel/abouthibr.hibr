@@ -6,6 +6,8 @@
 
 strict
 
+
+app abouthibr "The Control Panel pane for About This Computer" 1.0
 command -v cp_pane > /dev/null && cp_pane abouthibr "About This Computer" "ⓘ"
 
 CP_ABTICKS=(1000 2000 3000 5000 10000)

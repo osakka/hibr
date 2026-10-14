@@ -7,6 +7,8 @@
 
 strict
 
+
+app screensaver "The Control Panel pane for the screen saver" 1.0
 command -v cp_pane > /dev/null && cp_pane screensaver "Screen Saver" "◌"
 
 SS_IDLES=(never 1 2 5 10 15 30 60)

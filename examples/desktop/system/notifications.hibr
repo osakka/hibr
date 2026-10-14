@@ -20,7 +20,7 @@
 
 strict
 
-app notifications "A read-only look back at recent notifications"
+app notifications "A read-only look back at recent notifications" 1.0
 # part: control-panel/notifications.hibr
 
 command -v dt_app > /dev/null && dt_app notifications "Notifications" 16 66 \

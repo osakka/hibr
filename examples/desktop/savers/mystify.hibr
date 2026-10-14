@@ -6,6 +6,8 @@
 
 strict
 
+
+app mystify "Two four-cornered shapes bouncing about the screen" 1.0
 command -v sv_saver > /dev/null && sv_saver mystify "Mystify" 90
 
 MY_TRAIL=2

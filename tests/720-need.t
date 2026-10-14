@@ -21,8 +21,12 @@ need teleporter 2>/dev/null; echo "unmet rc=$?"
 need display teleporter 2>/dev/null; echo "one unmet in a list rc=$?"
 need 2>/dev/null; echo "no arguments rc=$?"
 
-# app is a declaration and nothing more
-app calc "A calculator"; echo "app rc=$? name=[$APP_NAME] desc=[$APP_DESC]"
+# app is a declaration and nothing more. The third word is the app's own
+# version, and an app that declares none gets an empty one rather than a
+# number nobody chose (Gitea #218).
+app calc "A calculator"; echo "app rc=$? name=[$APP_NAME] desc=[$APP_DESC] ver=[$APP_VER]"
+app snake "Eat, grow" 1.4; echo "with a version: ver=[$APP_VER]"
+app plain; echo "name only: name=[$APP_NAME] desc=[$APP_DESC] ver=[$APP_VER]"
 app 2>/dev/null; echo "app with no name rc=$?"
 
 mod drop all > /dev/null && echo "dropped"

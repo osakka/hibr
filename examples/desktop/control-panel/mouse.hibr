@@ -8,6 +8,8 @@
 
 strict
 
+
+app mouse "The Control Panel pane for what the mouse does to a window" 1.0
 command -v cp_pane > /dev/null && cp_pane mouse "Mouse" "◎" hardware
 
 MS_DRAGKEYS=(alt ctrl shift)

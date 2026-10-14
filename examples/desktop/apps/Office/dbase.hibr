@@ -24,7 +24,7 @@
 
 strict
 
-app dbase "A little dBASE III: dot prompt, BROWSE, APPEND"
+app dbase "A little dBASE III: dot prompt, BROWSE, APPEND" 1.0
 
 command -v dt_app > /dev/null && dt_app dbase "dBASE" 20 72 many "▦"
 

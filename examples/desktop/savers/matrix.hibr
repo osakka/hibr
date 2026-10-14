@@ -7,6 +7,8 @@
 
 strict
 
+
+app matrix "Green rain: glyphs falling down every column of the screen" 1.0
 command -v sv_saver > /dev/null && sv_saver matrix "Matrix" 60
 
 MX_GLYPHS=(ｱ ｲ ｳ ｴ ｵ ｶ ｷ ｸ ｹ ｺ ｻ ｼ ｽ ｾ ｿ ﾀ ﾁ ﾂ ﾃ ﾄ ﾅ ﾆ ﾇ ﾈ ﾉ ﾊ ﾋ ﾌ ﾍ ﾎ ﾏ ﾐ ﾑ ﾒ ﾓ ﾔ ﾕ ﾖ ﾗ ﾘ ﾙ ﾚ ﾛ ﾜ ﾝ 0 1 2 3 4 5 7 8 9 Z :)

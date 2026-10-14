@@ -1,6 +1,7 @@
 {
   "title": "Hazard",
   "about": "Black on hazard yellow: the highest contrast here, and the loudest.",
+  "version": "1.0",
   "wall": "#0d0d0d",
   "dot": "#f2c300",
   "bar": "#f2c300",

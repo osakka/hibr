@@ -9,7 +9,7 @@
 
 strict
 
-app clipboard "The clipboard's history: copy something back, pin it, keep it"
+app clipboard "The clipboard's history: copy something back, pin it, keep it" 1.0
 # part: control-panel/cliphist.hibr
 
 command -v dt_app > /dev/null && dt_app clipboard "Clipboard" 16 52 once "⎘"

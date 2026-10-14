@@ -7,6 +7,8 @@
 
 strict
 
+
+app keyboard "The Control Panel pane for how keys reach a terminal window" 1.0
 command -v cp_pane > /dev/null && cp_pane keyboard "Keyboard" "⌨" hardware
 
 fn keyboard_rows(int w) {

@@ -6,6 +6,8 @@
 
 strict
 
+
+app clock "The time in big digits, moving to a new place every minute" 1.0
 command -v sv_saver > /dev/null && sv_saver clock "Clock" 1000
 
 # Each digit's five rows, a mark where # is, separated by bars.

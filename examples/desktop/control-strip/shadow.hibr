@@ -8,6 +8,8 @@
 
 strict
 
+
+app shadow "A Control Strip module toggling window shadows" 1.0
 command -v cs_module > /dev/null && cs_module shadow Shadow
 
 fn shadow_draw(int row, int col) {

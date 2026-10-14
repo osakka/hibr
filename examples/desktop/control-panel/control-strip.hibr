@@ -9,6 +9,8 @@
 
 strict
 
+
+app control_strip "The Control Panel pane for the strip itself" 1.0
 command -v cp_pane > /dev/null && cp_pane control_strip "Control Strip" "▤"
 
 CP_CS_SIDES=(left right)

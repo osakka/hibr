@@ -9,6 +9,8 @@
 
 strict
 
+
+app versions "Which image each part of this desktop is actually running" 1.0
 command -v cp_pane > /dev/null && cp_pane versions "Versions" "⌗"
 
 VP_AT=

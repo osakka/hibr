@@ -584,6 +584,59 @@ try:
                                           "crossed.hibr")),
           (rc, out, err))
 
+    # Parts named by the **index** rather than carried in a tarball
+    # (Gitea #231). A .tar.gz held an app.json saying where each member
+    # went, which is a manifest of files -- what the index already is --
+    # and a binary blob in a git repository that nothing can diff. Every
+    # file is plain now and the index says what belongs with what.
+    PANEBYTES = PANE
+    hp_app = put("bundles/ixparts.hibr", APP.replace(b"demo", b"ixparts"))
+    hp_pane = put("bundles/ixpane.hibr", PANEBYTES)
+    E5 = {"entries": {
+        "apps/ixparts": {
+            "title": "Index Parts", "version": "2.1", "kind": "apps",
+            "name": "ixparts", "about": "an app whose parts the index names",
+            "bundle": "bundles/ixparts.hibr", "sha256": hp_app,
+            "parts": [{"kind": "control-panel", "as": "ixpane.hibr",
+                       "path": "bundles/ixpane.hibr", "sha256": hp_pane}]},
+        # The same pane, with a sha256 that is not what is served: the
+        # whole entry must be refused, and the *app* file -- already
+        # fetched and verified by then -- must not be placed either.
+        "apps/ixbad": {
+            "title": "Index Parts Bad", "version": "1.0", "kind": "apps",
+            "name": "ixbad", "about": "a part the index describes wrongly",
+            "bundle": "bundles/ixparts.hibr", "sha256": hp_app,
+            "parts": [{"kind": "control-panel", "as": "ixpane.hibr",
+                       "path": "bundles/ixpane.hibr", "sha256": "0" * 64}]},
+    }}
+    put("index5.json", json.dumps(E5, indent=1))
+    E5ENV = {"HIBR_APPS_URL": "http://127.0.0.1:%d/index5.json" % PORT,
+             "XDG_CACHE_HOME": os.path.join(HOME, "c5"),
+             "XDG_DATA_HOME": os.path.join(HOME, "d5")}
+    d5 = os.path.join(HOME, "d5", "hibr")
+    rc, out, err = apps("install", "apps/ixparts", env=E5ENV)
+    check("an entry whose parts the index names installs them, each in its "
+          "own scan root",
+          rc == 0 and os.path.exists(os.path.join(d5, "apps", "ixparts.hibr"))
+          and os.path.exists(os.path.join(d5, "control-panel", "ixpane.hibr")),
+          (rc, out, err))
+    rc, out, err = apps("install", "apps/ixbad", env=E5ENV)
+    check("a part whose sha256 is not what arrived refuses the whole entry, "
+          "and the app's own file is not placed either",
+          rc != 0 and "control-panel/ixpane.hibr" in err
+          and not os.path.exists(os.path.join(d5, "apps", "ixbad.hibr")),
+          (rc, err, sorted(os.listdir(os.path.join(d5, "apps")))
+           if os.path.isdir(os.path.join(d5, "apps")) else "no apps folder"))
+    # This one passes against 0.99.188 as well, and says so: there the
+    # install placed no part, so removing it had nothing to leave behind.
+    # It is here because the claim counting is what must keep working now
+    # that the manifest moved, not to prove the change.
+    rc, out, err = apps("remove", "apps/ixparts", env=E5ENV)
+    check("and removing it takes the part the index named with it",
+          rc == 0 and not os.path.exists(os.path.join(d5, "apps", "ixparts.hibr"))
+          and not os.path.exists(os.path.join(d5, "control-panel", "ixpane.hibr")),
+          (rc, out, err))
+
     # The entry's own **name** decides a filename, and nothing checked it
     # until 0.99.186: `"name": "../../../climbed"` with kind `apps` wrote
     # `$AP_DATA/apps/../../../climbed.hibr` -- three folders above the data
@@ -630,4 +683,4 @@ finally:
     srv.wait()
     shutil.rmtree(D, True)
 
-report(57)
+report(60)

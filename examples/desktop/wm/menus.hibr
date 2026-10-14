@@ -518,8 +518,14 @@ fn dt_appline(f) {
 	return 1
 }
 
+# An app's own line, read rather than run -- the desktop never sources an
+# app to put its About box up. The description is quoted and the version,
+# where there is one, is the word after it (Gitea #218), so the line is
+# matched rather than trimmed: stripping a leading and a trailing quote
+# gave `Eat, grow" 1.0` the moment a third word existed, which is the
+# shape of every parse that trims instead of matching.
 fn dt_aboutinfo(ap) {
-	local f l own desc=
+	local f l own desc= ver=
 
 	[ -n "${DT_ABOUT["$ap"]["title"]+x}" ] && { [ -n "${DT_ABOUT["$ap"]["title"]}" ]; return; }
 	DT_ABOUT["$ap"]["title"]=
@@ -527,17 +533,20 @@ fn dt_aboutinfo(ap) {
 	[ -n "$f" ] || return 1
 	own=$ap
 	if l := dt_appline "$f"; [ -n "$l" ]; then
-		l=${l#app }
-		own=${l%% *}
-		desc=${l#"$own"}
-		desc=${desc# }
-		desc=${desc#\"}
-		desc=${desc%\"}
+		if match "$l" '^app[ 	]+([A-Za-z0-9_]+)[ 	]+"([^"]*)"([ 	]+([0-9][0-9A-Za-z.+~-]*))?'; then
+			own=${M[1]}
+			desc=${M[2]}
+			ver=${M[4]}
+		else
+			l=${l#app }
+			own=${l%% *}
+		fi
 	fi
 	[ -n "${DT_APPS["$own"]["title"]+x}" ] || own=$ap
 	DT_ABOUT["$ap"]["title"]=${DT_APPS["$own"]["title"]:-$ap}
 	DT_ABOUT["$ap"]["icon"]=${DT_APPS["$own"]["icon"]}
 	DT_ABOUT["$ap"]["desc"]=$desc
+	DT_ABOUT["$ap"]["version"]=$ver
 	DT_ABOUT["$ap"]["file"]=$f
 	DT_ABOUT["$ap"]["own"]=$own
 	return 0
@@ -565,15 +574,29 @@ fn dt_aboutapp(ap) {
 # it came from, and the shell it runs on.
 declare -gA DTAB
 fn dtabout_draw(int id, int h, int w, int row, int col) {
-	local ap=${DTAB[$id]["app"]} t d f line r=4
+	local ap=${DTAB[$id]["app"]} t d f line r=4 head ver
 	local -a words
 
 	dt_wclear "$id"
 	t=${DT_ABOUT["$ap"]["title"]}
 	d=${DT_ABOUT["$ap"]["desc"]}
 	f=${DT_ABOUT["$ap"]["file"]}
+	ver=${DT_ABOUT["$ap"]["version"]}
+	head="${DT_ABOUT["$ap"]["icon"]}  $t"
 	console pen "$DT_ACTIVE" "$DT_FACE" bold
-	console put -p "w$id" 1 2 "${DT_ABOUT["$ap"]["icon"]}  $t"
+	console put -p "w$id" 1 2 "$head"
+	# The app's own version, after its name and dimmed, so it reads as a
+	# fact about the app rather than as part of what it is called. An app
+	# that declares none shows none: this says what the app says, and a
+	# made-up 1.0 would be the hibr release all over again (Gitea #218).
+	# Placed by display columns, since an icon is one character and two
+	# columns wide.
+	if [ -n "$ver" ]; then
+		local hw
+		hw := str width "$head"
+		console pen "$DT_DIM" "$DT_FACE"
+		console put -p "w$id" 1 $((2 + hw + 2)) "$ver"
+	fi
 	console pen "$DT_INK" "$DT_FACE"
 	read -ra words <<< "$d"
 	line=

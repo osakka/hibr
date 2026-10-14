@@ -11,6 +11,8 @@
 
 strict
 
+
+app shortcuts "The Control Panel pane for every shortcut in one list" 1.0
 command -v cp_pane > /dev/null && cp_pane shortcuts "Shortcuts" "⌘"
 
 # One row for an action: its label, marked if its key is shared.

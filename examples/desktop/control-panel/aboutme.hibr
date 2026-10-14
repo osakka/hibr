@@ -9,6 +9,8 @@
 
 strict
 
+
+app aboutme "The Control Panel pane for About Me" 1.0
 command -v cp_pane > /dev/null && cp_pane aboutme "About Me" "☺"
 command -v dt_app > /dev/null && dt_app abm "About Me" 11 60 "" "" fixed hidden
 

@@ -78,12 +78,23 @@ when the window manager calls its callbacks.
 **An app is a folder of plain files. A bundle is how it travels, and
 nothing reads an app out of one.**
 
-1. **Transport is a `.tar.gz`; the installation is a folder.** The manager
-   fetches a bundle, verifies it, and unpacks it into a folder of plain
-   files you can read, diff and patch. That is not a preference about
-   taste: `source` cannot read a scheme, so it is the only form the
-   desktop can load — and it keeps the property that every app on this
-   desktop is a script you can open.
+1. **Transport is plain files; the installation is plain files.** The
+   manager fetches each file, verifies it, and places it where the desktop
+   already looks — readable, diffable and patchable at both ends. That is
+   not a preference about taste: it keeps the property that every app on
+   this desktop is a script you can open.
+
+   **Amended in 0.99.189 (Gitea #231).** This said *"transport is a
+   `.tar.gz`"*, and for an app of one file that was already untrue — a
+   bare `.hibr` was its own bundle. For an app with parts the tarball
+   carried an `app.json` saying where each member went, and a manifest of
+   files is what the **index** is: so the blob was a container for
+   something that belonged there, and a binary in a git repository that
+   nothing could diff. The index names each part with its own path and
+   `sha256`, and the one thing the tarball gave structurally is now
+   explicit — **every part is fetched and verified before any is placed**,
+   so an entry with one bad part installs nothing at all. A catalogue that
+   still serves a tarball is still read; what is gone is the need for one.
 
 2. **Installed apps live under `$XDG_DATA_HOME`, and a person's own files
    win.** Each scan list gains
@@ -99,11 +110,14 @@ nothing reads an app out of one.**
    its own parts.** One `index.json` in the repository carries, per app:
    name, title, version, a one-line description, the author, the licence,
    the `hibr` and ABI it needs, the modules it needs, the bundle's path and
-   its `sha256`. A **single `.hibr` file is its own bundle** and needs no
-   manifest — most apps are one file. A bundle with several files carries
-   `app.json` naming which file is the app, which the pane, which the strip
-   module, which the saver, and where its resources are, because the index
-   has no business knowing a bundle's internal layout.
+   its `sha256`. Every bundle is a **single plain file**, and an entry that
+   brings more says so in the index: each part with its kind, the filename
+   it lands as, the path to fetch it from and its own `sha256`. This said
+   the index "has no business knowing a bundle's internal layout", which
+   was right about a *tarball's* layout and wrong about the parts: where a
+   pane lands is not internal to anything, it is the whole fact anybody
+   needs, and keeping it inside a blob is what let eight applications
+   install half of themselves (Gitea #217, #231).
 
 4. **Everything is data, never a script.** The index and `app.json` are
    JSON, for the reason ADR 0028 gives for themes: they are what people

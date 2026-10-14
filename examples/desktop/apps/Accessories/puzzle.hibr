@@ -14,7 +14,7 @@
 
 strict
 
-app puzzle "The sliding tile puzzle"
+app puzzle "The sliding tile puzzle" 1.0
 
 command -v dt_app > /dev/null && dt_app puzzle "Puzzle" 13 22 once "▦" fixed
 

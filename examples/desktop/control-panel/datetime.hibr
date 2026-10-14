@@ -14,6 +14,8 @@
 
 strict
 
+
+app datetime "The Control Panel pane for the time, the date and the time zone" 1.0
 command -v cp_pane > /dev/null && cp_pane datetime "Date & Time" "◷" hardware
 
 # The pane's own dialogs, named so the application menu reads "Time Zone"

@@ -174,40 +174,49 @@ before anything is fetched**: an exact module ABI, a minimum hibr version,
 and a module that must already be there. A module never comes from here —
 see [What it refuses](#what-it-refuses).
 
-A bundle is either the app's single `.hibr` file, which is most of them, or a
-`.tar.gz` carrying `app.json` beside the files:
-
-```json
-{"app": "multi.hibr", "kind": "apps"}
-```
+A bundle is a **plain file** — the app's own `.hibr`, a theme's `.json` —
+at a path the index names. `version` is the entry's own, declared by the
+thing itself and not the hibr release it last changed in.
 
 ### An app that is more than one file
 
 A Control Panel pane and a Control Strip module are files in **other** scan
 roots, so they cannot travel as resources under the app's own: eight of the
 applications hibr ships have a pane, and installing one without it leaves
-the app with nowhere to keep its settings. `app.json` names those parts, and
-each is placed in the root it names:
+the app with nowhere to keep its settings. The index names those parts, each
+with the path to fetch it from and its own `sha256`:
 
 ```json
-{"app": "mail.hibr", "kind": "apps",
- "parts": [{"file": "mailset.hibr", "kind": "control-panel", "name": "mailset"}]}
+"apps/mail": {
+  "bundle": "bundles/apps/mail.hibr", "sha256": "…", "version": "1.0",
+  "parts": [{"kind": "control-panel", "as": "mailset.hibr",
+             "path": "bundles/control-panel/mailset.hibr", "sha256": "…"}]
+}
 ```
 
-A part names the **filename** it lands as, with `as`:
+`as` is the **filename it lands as**, which is what a theme with a picture
+needs — `cp_themeread`'s `image` reads it from beside the theme, in the same
+kind under another extension:
 
 ```json
-{"app": "construction.json", "kind": "themes",
- "parts": [{"file": "shot.png", "kind": "themes", "as": "construction.png"}]}
+"themes/construction": {
+  "bundle": "bundles/themes/construction.json", "sha256": "…",
+  "parts": [{"kind": "themes", "as": "construction.png",
+             "path": "bundles/themes/construction.png", "sha256": "…"}]
+}
 ```
 
-which is what a theme with a picture needs — `cp_themeread`'s `image` reads
-it from beside the theme, in the same kind under another extension. The
-older `name` still means "with this kind's own extension", so a bundle
-published before this installs unchanged. A part's `kind` must be one of
-the eight and its own name a plain filename: a part decides where a file
-lands, so the rules the member paths follow hold for the destination too,
-and a bundle with a bad part is refused whole.
+A part's `kind` must be one of the eight and its own name a plain filename:
+a part decides where a file lands, so the rules a path follows hold for the
+destination too. **Every part is fetched and verified before any is
+placed**, so an entry with one bad part installs nothing at all — not even
+its own file, which by then has been fetched and checked.
+
+There were tarballs here until 0.99.189: a `.tar.gz` carrying an `app.json`
+that said which member was the app and where each part went. That is a
+manifest of files, which is what an index is, and it put a binary in a
+repository that nothing could diff. A catalogue that still serves one is
+still read, so an older bundle installs unchanged.
 
 The state records **every path placed**, not only the app's own, because a
 folder on disk cannot say what it came with; `apps remove` takes those away

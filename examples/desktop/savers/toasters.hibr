@@ -7,6 +7,8 @@
 
 strict
 
+
+app toasters "Flying toasters, in the old After Dark way" 1.0
 command -v sv_saver > /dev/null && sv_saver toasters "Flying Toasters" 90
 
 TS_WING=('\  __  /' '-- __ --' '/  __  \' '-- __ --')

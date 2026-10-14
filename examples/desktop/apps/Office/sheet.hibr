@@ -49,7 +49,7 @@
 
 strict
 
-app sheet "A spreadsheet whose formulas are hibr"
+app sheet "A spreadsheet whose formulas are hibr" 1.0
 
 command -v dt_app > /dev/null && dt_app sheet "Sheet" 24 84 many "⊞"
 command -v dt_opener > /dev/null && dt_opener sheet "Sheet" "hsheet csv" app sheet

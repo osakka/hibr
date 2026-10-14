@@ -25,6 +25,8 @@
 
 strict
 
+app modman "What this shell can load, what it has loaded, and a way to change either" 1.0
+
 declare -gA MM
 MM_FLOOR="console pty term hold"
 

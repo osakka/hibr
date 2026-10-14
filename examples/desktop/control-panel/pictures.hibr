@@ -16,6 +16,8 @@
 
 strict
 
+
+app pictures "The Control Panel pane for how a picture is drawn" 1.0
 command -v cp_pane > /dev/null && cp_pane pictures "Pictures" "▦"
 
 CP_IMGMODES=("Automatic" "Half Blocks" "Grey Blocks" "Characters" "Pixels")

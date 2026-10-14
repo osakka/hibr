@@ -8,7 +8,7 @@
 
 strict
 
-app imgview "A picture in a window"
+app imgview "A picture in a window" 1.0
 
 command -v dt_app > /dev/null && dt_app imgview "Image Viewer" 16 40 "" "◧"
 

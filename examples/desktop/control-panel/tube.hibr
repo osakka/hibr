@@ -9,6 +9,8 @@
 
 strict
 
+
+app tube "The Control Panel pane for the YouTube app" 1.0
 command -v cp_pane > /dev/null && cp_pane tube "YouTube" "▶" app
 
 # follow is Control Panel > Pictures, which is the one setting meant to

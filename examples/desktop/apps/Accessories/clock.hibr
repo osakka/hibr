@@ -6,7 +6,7 @@
 
 strict
 
-app clock "The time and the date"
+app clock "The time and the date" 1.0
 
 command -v dt_app > /dev/null && dt_app clock "Clock" 7 26 once "◷"
 

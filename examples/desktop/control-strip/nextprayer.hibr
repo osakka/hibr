@@ -7,6 +7,8 @@
 
 strict
 
+
+app nextprayer "A Control Strip module: the next prayer and its time" 1.0
 command -v cs_module > /dev/null && cs_module nextprayer Prayer 14
 
 # Shown only when asked for, in Control Panel > Prayer Times.

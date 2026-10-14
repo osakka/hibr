@@ -1,5 +1,123 @@
 # Changelog
 
+## 0.99.189
+
+**An app says which version of itself it is, the version leaves the
+filename, and the tarball goes** (Gitea #218, #230, #231).
+
+Three tickets, one change: the catalogue said `snake 0.99.93` -- the hibr
+release that file last changed in -- in the filename, in the index and in
+`apps list`, and asked, reasonably, *"versioning is all 0.99.xyz, i am not
+sure what that means, does not each script/app have a real version?"*
+
+**The thing declares it.** `app` takes a third word, so the declaration
+stays one line and one concept:
+
+    app snake "Eat, grow, and do not bite yourself" 1.0
+
+`APP_VER` beside `APP_NAME` and `APP_DESC`, and the desktop's About box
+shows it after the name, dimmed, placed by display columns since an icon
+is one character and two columns wide. An app that declares none shows
+none: this says what the app says, where a 1.0 nobody chose would be the
+hibr release all over again.
+
+All 28 applications and system apps say so, and **so do the 39 Control
+Panel panes, Control Strip modules and screen savers**, which the ticket
+did not account for: not one of them had an `app` line at all. They
+register with `cp_pane`, `cs_module` and `sv_saver`, and a version could
+have gone on those -- but `cp_pane(pane, title, icon, group = "system")`
+already takes four, so a fifth positional would let a four-argument call
+set *group* to the version, which is the `dt_app` trap this file records.
+`app` is a declaration and those are registrations; nothing in the desktop
+reads `APP_*`, so a pane declaring itself changes nothing and needs no
+signature to move. Their descriptions are their own header prose, one
+clause each. The three files that are helpers rather than installable
+things -- `screenshots.hibr`, `control-panel/wallpaper.hibr` and
+`savers/saver.hibr`, which *defines* `sv_saver` -- declare nothing, and
+`addapp` refuses them for it, which turned out to be the publishing rule:
+**publish what can say what it is.**
+
+A theme, a colour scheme and a language have no line to put it on -- JSON
+has no comments -- so they carry `"version"`, beside the `title` and
+`about` they gained in 0.99.186. All 16, plus Arabic, and all of them
+still read: `cp_themeread` and `cp_colourread` refuse a file whole on a
+bad value, so a theme with an unknown key would be *missing from the
+list*, and the count was measured rather than assumed.
+
+**The version left the path, which was the owner's actual objection.** A
+bundle was `bundles/apps/snake/snake-0.99.93.hibr`, and the question was
+why, when git already versions a file. The answer that mattered is not
+about history: nothing that installs has git -- `apps` fetches over HTTPS
+from a static host -- and a versioned path is what makes an index entry
+name an immutable thing. But the pool it kept was unreachable: `apps
+install` takes no version argument, so **every older file was storage for
+a feature that does not exist**. The path is stable now and git holds the
+history, which is where anybody reverting would look.
+
+The cost is named rather than hidden, and it was measured rather than
+reasoned about. GitHub Pages caches the index and each bundle
+independently for ten minutes:
+
+    index.json                             cache-control: max-age=600  age: 384
+    bundles/apps/snake/snake-0.99.93.hibr  cache-control: max-age=600  age: 0
+
+so for a few minutes after a publish a client can pair an index from
+before it with a bundle from after it, and the hashes cannot agree. The
+first plan was to re-fetch the index and retry -- and that cannot work
+here: three distinct query strings all answered `x-cache: HIT` on the same
+cached object, so a query is not part of the cache key, and
+`Cache-Control: no-cache` and `Pragma: no-cache` were both served from the
+cache too. **No client can ask that host for a fresh index.** So the
+mismatch is accepted and *explained*: the message names the cache first,
+because saying only "changed in transit or on a mirror" reads as tampering
+for what is a cache being a cache.
+
+**And the tarball had no use left.** It existed only to carry an entry's
+parts with an `app.json` saying where each went -- a manifest of files,
+which is what the index already is, and a binary in a git repository that
+nothing can diff. Every file is plain now:
+
+    bundles/apps/mail.hibr
+    bundles/control-panel/mailset.hibr
+    bundles/themes/construction.json
+    bundles/themes/construction.png
+
+and the index names each part with its kind, the filename it lands as, its
+path and its own `sha256`. `app.json` stops existing. The archive module is
+no longer needed to read a catalogue. And the reproducible-tar dance the
+drift check had just needed -- `--sort=name --mtime=@0` and `gzip -n`,
+because `tar -czf` of identical content hashes differently every run --
+went with it.
+
+What the tarball gave *structurally* is now explicit: **every part is
+fetched and verified before any is placed.** Measured with a part tampered
+with on the server:
+
+    $ apps install apps/mail
+    apps: control-panel/mailset.hibr: the bundle is not what the index describes
+    Refused, and nothing was written.
+    $ find data/hibr -type f
+    data/hibr: No such file or directory
+
+Not even the app's own file, which had been fetched and verified by then.
+A catalogue that still serves a tarball is still read -- `ap_puttar` stays,
+since an index may be anybody's -- so this removes the need for one, not
+the ability.
+
+Three checks in `tests/appmgr.py` (60), two of which fail against
+0.99.188; the third says in the file that it passes there, since an
+install that placed no part had nothing to leave behind. `720-need.t`
+covers a declaration with a version, without one, and name-only. ADR 0041
+is amended where it said transport is a `.tar.gz` and that the index "has
+no business knowing a bundle's internal layout" -- right about a tarball's
+layout, wrong about the parts, since where a pane lands is the whole fact
+anybody needs and keeping it inside a blob is what let eight applications
+install half of themselves.
+
+The catalogue is **84 entries from 87 files**, the three extra being theme
+pictures: only a file with its kind's own extension is an entry, and the
+rest are what an entry brings.
+
 ## 0.99.188
 
 **Every picture the desktop did not take a palette from was sent at a

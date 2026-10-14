@@ -1,6 +1,7 @@
 {
   "title": "Phosphor",
   "about": "Green on black, the glow of a phosphor tube, accents and all.",
+  "version": "1.0",
   "wall": "#000a00",
   "dot": "#002a08",
   "bar": "#001a04",

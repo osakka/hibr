@@ -9,6 +9,8 @@
 
 strict
 
+
+app appearance "The Control Panel pane for how the desktop looks" 1.0
 command -v cp_pane > /dev/null && cp_pane appearance "Appearance" "◐"
 
 CP_THEME="${CP_THEME-classic}"

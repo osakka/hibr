@@ -8,6 +8,8 @@
 
 strict
 
+
+app notes "The Control Panel pane for Stickies" 1.0
 command -v cp_pane > /dev/null && cp_pane notes "Stickies" "▤" app
 
 fn cp_set_stickycolor(int? id = "", value = "") { DT_STICKYCOLOR=$value; cp_save; }

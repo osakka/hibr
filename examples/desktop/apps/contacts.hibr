@@ -16,7 +16,7 @@
 
 strict
 
-app contacts "The people in your address books, kept offline from CardDAV"
+app contacts "The people in your address books, kept offline from CardDAV" 1.0
 # part: control-panel/pimset.hibr
 
 command -v dt_app > /dev/null && dt_app contacts "Contacts" 24 92 once "☺"

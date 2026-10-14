@@ -8,7 +8,7 @@
 
 strict
 
-app vault "The Bitwarden or Vaultwarden vault's items, found by typing"
+app vault "The Bitwarden or Vaultwarden vault's items, found by typing" 1.0
 # part: control-panel/vaultset.hibr
 
 command -v dt_app > /dev/null && dt_app vault "Vault" 20 64 once "⚿"

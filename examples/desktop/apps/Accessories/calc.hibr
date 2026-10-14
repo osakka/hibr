@@ -16,7 +16,7 @@
 
 strict
 
-app calc "A calculator"
+app calc "A calculator" 1.0
 
 # What the hibr menu shows, how big a new window is, and whether a second
 # launch opens another window or brings this one forward.

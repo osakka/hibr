@@ -9,6 +9,8 @@
 
 strict
 
+
+app vaultset "The Control Panel pane for the Bitwarden or Vaultwarden vault" 1.0
 command -v cp_pane > /dev/null && cp_pane vaultset "Vault" "⚿" app
 
 # Each setting's choices, "name=number" -- a number of minutes or seconds.

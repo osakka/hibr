@@ -8,6 +8,8 @@
 
 strict
 
+
+app terminal "The Control Panel pane for how a terminal window behaves" 1.0
 command -v cp_pane > /dev/null && cp_pane terminal "Terminal" "▸" app
 
 CP_CURSORS=(block underline bar)

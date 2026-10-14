@@ -19,7 +19,7 @@
 
 strict
 
-app mines "Clear the field"
+app mines "Clear the field" 1.0
 
 # What the hibr menu shows, how big a new window is, and whether a second
 # launch opens another window or brings this one forward.

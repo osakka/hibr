@@ -7,7 +7,7 @@
 
 strict
 
-app prayer "Today's prayer times for where you are, the next one lit"
+app prayer "Today's prayer times for where you are, the next one lit" 1.0
 # part: control-panel/prayerset.hibr
 # part: control-strip/nextprayer.hibr
 

@@ -278,6 +278,10 @@ fn ap_entry(id) {
 		return 1
 	fi
 	AP_ENT["id"]=${AP_ENT["kind"]}/${AP_ENT["name"]}
+	# The key this entry was found under, so whatever needs the entry's
+	# *nested* fields -- its parts -- can reach them: AP_ENT holds the
+	# scalars only.
+	AP_ENT["key"]=$key
 	return 0
 }
 
@@ -504,7 +508,10 @@ fn ap_getbundle(name, bundle, want) {
 
 	u := ap_bundleurl "$bundle"
 	mkdir -p "$AP_CACHE" || ap_die "cannot make $AP_CACHE"
-	tmp="$AP_CACHE/$name.part"
+	# The name is what a message calls this -- an id like
+	# `control-panel/mailset.hibr` for a part -- so the temporary file
+	# cannot be named after it directly.
+	tmp="$AP_CACHE/${name//\//-}.part"
 	rm -f "$tmp" 2> /dev/null
 	need dav 2> /dev/null || ap_die "the dav module is needed to fetch a bundle"
 	dav get "$u" "$tmp" 2> /dev/null ||
@@ -516,12 +523,93 @@ fn ap_getbundle(name, bundle, want) {
 	got := ap_sha "$tmp"
 	if [ "$got" != "$want" ]; then
 		rm -f "$tmp" 2> /dev/null
+		# Two things cause this and the common one is harmless, so it
+		# is named first. A bundle's path is stable -- it is
+		# overwritten when a new version is published (Gitea #230) --
+		# and a static host caches the index and each bundle
+		# **independently**: GitHub Pages holds each for ten minutes
+		# and a client cannot ask for a fresh one. Measured: three
+		# distinct query strings all answered `x-cache: HIT` on the
+		# same cached object, and `Cache-Control: no-cache` and
+		# `Pragma: no-cache` both answered from the cache too. So for
+		# a few minutes after a publish an index from before it can be
+		# paired with a bundle from after it, and the hashes cannot
+		# agree. Saying only "changed in transit or on a mirror" there
+		# reads as tampering for what is a cache being a cache.
 		ap_die "$name: the bundle is not what the index describes
   the index says $want
   what arrived is $got
-Refused. A bundle that does not match was changed in transit or on a mirror."
+Refused, and nothing was written. Most often this means the catalogue was
+published in the last few minutes: a static host serves the index and the
+bundle from its cache independently, so an index from before the publish
+can be paired with a bundle from after it. Wait a few minutes and try
+again. If it keeps happening, the bundle really was changed in transit or
+on a mirror, and refusing is the right answer."
 	fi
 	ret "$tmp"
+}
+
+# Place an entry whose parts the **index** names: the file itself, and each
+# part it brings as a plain file of its own. There were tarballs here until
+# 0.99.189 -- a .tar.gz carrying an app.json saying where each member went
+# -- and that was a container for a manifest of files, which is what the
+# index already is, plus a binary blob in a git repository that nothing
+# could diff (Gitea #231).
+#
+# What the tarball gave for free and this has to do deliberately: **every
+# part is fetched and verified before any is written**. A bundle with one
+# bad member is not a bundle to install the rest of, and that promise was
+# structural when the bundle was one object.
+#
+# `ap_puttar` is still here for a catalogue that serves one, since an index
+# may be anybody's.
+fn ap_putparts(kind, name, src, key) {
+	local i pk pn pp psha dest e t n=0
+	local -a ptmp pkind pname
+
+	e := ap_kext "$kind"
+	for i in "${!AP_IX["$AP_SECT"]["$key"]["parts"][@]}"; do
+		pk=${AP_IX["$AP_SECT"]["$key"]["parts"]["$i"]["kind"]}
+		pn=${AP_IX["$AP_SECT"]["$key"]["parts"]["$i"]["as"]}
+		pp=${AP_IX["$AP_SECT"]["$key"]["parts"]["$i"]["path"]}
+		psha=${AP_IX["$AP_SECT"]["$key"]["parts"]["$i"]["sha256"]}
+		if ! ap_partok "$pk" "$pn"; then
+			rm -f "$src" "${ptmp[@]}" 2> /dev/null
+			ap_die "$name: the index names a part as $pk/$pn
+Refused. A part's kind is one of ${AP_KINDS[*]} and its own name is a plain
+filename -- a part decides where a file lands."
+		fi
+		[ -n "$pp" ] || {
+			rm -f "$src" "${ptmp[@]}" 2> /dev/null
+			ap_die "$name: the index names the part $pk/$pn with no path to fetch it from"
+		}
+		# Verified here, one at a time, and nothing placed until the
+		# loop has finished without dying. Bound with `:=` and not
+		# captured with `$( )`: ap_getbundle refuses a bad part by
+		# calling ap_die, and in a command substitution that would
+		# exit the subshell and let the install carry on with a part
+		# it could not verify.
+		t := ap_getbundle "$pk/$pn" "$pp" "$psha"
+		ptmp+=("$t")
+		pkind+=("$pk")
+		pname+=("$pn")
+		n=$((n + 1))
+	done
+	dest := ap_dest "$kind" "$name"
+	mkdir -p "$AP_DATA/$kind" || ap_die "cannot make $AP_DATA/$kind"
+	mv -f "$src" "$dest" || ap_die "cannot put $dest in place"
+	AP_PLACED=("$kind/$name$e")
+	for i in "${!ptmp[@]}"; do
+		pk=${pkind["$i"]}
+		pn=${pname["$i"]}
+		mkdir -p "$AP_DATA/$pk" || ap_die "cannot make $AP_DATA/$pk"
+		mv -f "${ptmp["$i"]}" "$AP_DATA/$pk/$pn" ||
+			ap_die "$name: cannot put $pk/$pn in place"
+		AP_PLACED+=("$pk/$pn")
+		ap_say "installed $pk/$pn, which $name brings with it"
+	done
+	ap_say "installed $name as $dest"
+	return 0
 }
 
 # Place a single-file bundle: the app itself, which is most apps.
@@ -812,7 +900,16 @@ fn ap_install(...names) {
 		# itself instead of being opened as an archive (Gitea #224).
 		ext := ap_kext "$kind"
 		case ${AP_ENT["bundle"]} in
-		*"$ext") ap_putone "$kind" "${AP_ENT["name"]}" "$tmp" ;;
+		*"$ext")
+			# An entry that brings parts is placed with them, each
+			# fetched and verified first (Gitea #231); one that
+			# brings none is the file itself, which is most.
+			if [ "${#AP_IX["$AP_SECT"]["${AP_ENT["key"]}"]["parts"][@]}" -gt 0 ]; then
+				ap_putparts "$kind" "${AP_ENT["name"]}" "$tmp" \
+					    "${AP_ENT["key"]}"
+			else
+				ap_putone "$kind" "${AP_ENT["name"]}" "$tmp"
+			fi ;;
 		*) ap_puttar "$kind" "${AP_ENT["name"]}" "$tmp" ;;
 		esac
 		name=${AP_ENT["id"]}

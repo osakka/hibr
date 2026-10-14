@@ -1387,15 +1387,20 @@ int b_need(sh *s, int ac, char **av)
 	return HIBR_OK;
 }
 
-/* Name this script to whatever is running it, and say what it is for. */
+/* Name this script to whatever is running it, say what it is for, and say
+   which version of itself it is. The version is the app's own, not the
+   release of hibr it last changed in -- the catalogue carried the latter
+   and nobody could tell from `0.99.126` whether an app was new, mature or
+   abandoned (Gitea #218). */
 int b_app(sh *s, int ac, char **av)
 {
 	if (ac < 2) {
-		lg(HIBR_LERR, "usage: app name [description]");
+		lg(HIBR_LERR, "usage: app name [description] [version]");
 		return 2;
 	}
 	hibr_set(s, "APP_NAME", av[1], 0);
 	hibr_set(s, "APP_DESC", ac > 2 ? av[2] : "", 0);
+	hibr_set(s, "APP_VER", ac > 3 ? av[3] : "", 0);
 	lg(HIBR_LDBG, "app %s declared", av[1]);
 	return HIBR_OK;
 }

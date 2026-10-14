@@ -7,6 +7,8 @@
 
 strict
 
+
+app classicmac "A compact Macintosh drifting slowly about a dark screen" 1.0
 command -v sv_saver > /dev/null && sv_saver classicmac "Classic Mac" 120
 
 CM_R=0

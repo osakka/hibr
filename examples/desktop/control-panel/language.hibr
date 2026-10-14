@@ -7,6 +7,8 @@
 
 strict
 
+
+app language "The language the desktop speaks, and right-to-left ordering" 1.0
 command -v cp_pane > /dev/null && cp_pane language "Language" "A"
 
 declare -ga CP_LANGCODES CP_LANGNAMES CP_BIDIS

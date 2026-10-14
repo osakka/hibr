@@ -7,7 +7,7 @@
 
 strict
 
-app screenshot "Take a screenshot of the screen, a window or an area"
+app screenshot "Take a screenshot of the screen, a window or an area" 1.0
 
 command -v dt_app > /dev/null && dt_app screenshot "Screenshot…" 3 20 "" "▣"
 

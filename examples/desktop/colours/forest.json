@@ -1,6 +1,7 @@
 {
   "title": "Forest",
   "about": "Pale green on deep pine, accented the green of new growth.",
+  "version": "1.0",
   "wall": "#0b1f16",
   "dot": "#14342a",
   "bar": "#14432f",

@@ -1,5 +1,6 @@
 {
   "title": "Classic",
   "about": "The desktop as it ships: Midnight colours and nothing else changed.",
+  "version": "1.0",
   "colours": "midnight"
 }

@@ -1,6 +1,7 @@
 {
   "title": "Ember",
   "about": "Warm parchment on a dark brown, accented the orange of a low fire.",
+  "version": "1.0",
   "wall": "#1f1410",
   "dot": "#3a241c",
   "bar": "#4a2c1e",
