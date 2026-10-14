@@ -68,6 +68,49 @@ own that sits over an under-text picture is darkened from **the picture's own
 colour there**, which is what a shadow on a photograph looks like; everywhere
 else `darkdefault` still decides.
 
+One colour is the display's to change rather than the caller's, and only
+over a picture drawn under the text. A terminal compositing such a picture
+decides *per cell* whether that cell has a background of its own, and kitty
+decides it by comparing the cell's **resolved** value with the window's own
+background colour -- `cell_has_default_bg = 1 - step(1, abs(bg_as_uint -
+bg_colors0))` in its own shader. So a cell a program painted an explicit
+black, on a terminal whose background is black, counts as having no
+background and the picture is let through it: every ncurses program in a
+terminal window over a picture wallpaper was see-through, while every window
+drawn in a theme's own RGB stayed solid (Gitea #215). Nothing the display
+computes is wrong there, so the only way to keep such a cell opaque is to
+paint it a colour that is not the terminal's own -- one in the last channel,
+the same colour to look at and not the one being compared against. That
+needs knowing what the terminal's background is, so the display **asks**:
+OSC 11 for the background and OSC 4 for each of the sixteen palette entries
+an index can name, at open and again whenever a resize says the terminal may
+not be the one that was asked. The replies arrive as input and are swallowed
+by the key decoder (`cn_osc`), never handed on as keys. `console termbg`
+answers what it learned, and whether it was answered or assumed -- black is
+the assumption, since every terminal this was reported from has a dark
+background and the cost of assuming wrong is a cell a shade off rather than
+a cell that disappears. A **translucent** write goes through the same test,
+since its colour is the picture's own scaled and can land there by
+arithmetic rather than by anybody's choice.
+
+Which of the two protocols is in force is asked of the terminal rather than
+read off its name (Gitea #216). A name answers what a *family* usually
+does, and inside `hold` it is the **session's own** name, frozen when the
+session was started -- so a session begun in kitty went on sending kitty
+escapes to whatever terminal it was later attached from, and one begun
+anywhere nameless went on drawing half blocks to a terminal that can place
+pixels. Both capabilities answer for themselves: the kitty protocol has a
+query of its own (one pixel, `a=q`, no `q=` so the reply is not suppressed)
+which kitty answers `OK` and a terminal that does not speak it answers not
+at all, and sixel is in the primary device attributes reply, whose
+parameters carry 4 where it is supported. The queries go out beside the
+colour ones, in that order -- kitty's first, since a terminal answers in
+the order it was asked, which is what makes *"answered what it is without
+answering kitty's query"* a real no rather than a silence. A positive is
+kept across a re-ask, so a plain resize never drops to the name list for a
+frame; `HIBR_GFX` still wins over everything, being a person's own choice.
+A terminal that answers neither query is read by name exactly as before.
+
 `console translucent pct [colour]` is the same substitution for a *write*
 rather than a darken: while it is set, a cell written with no background of
 its own takes the picture's colour at that cell scaled to `pct`, or `colour`

@@ -121,7 +121,12 @@ int tm_api_pass(int id, str *out)
 {
 	tm_t *t = tm_find(id);
 
-	if (!t || !t->out.n)
+	if (!t)
+		return 0;
+	/* Asked even when nothing is waiting: an ask is still somebody
+	   downstream who carries what this emulator cannot answer itself. */
+	t->relayed = 1;
+	if (!t->out.n)
 		return 0;
 	s_add(out, t->out.p, t->out.n);
 	t->out.n = 0;

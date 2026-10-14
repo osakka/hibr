@@ -486,6 +486,69 @@ static int cn_osc(const char *p, size_t n, size_t *used)
 	return 2;
 }
 
+/* An application programming command arriving as *input* is an answer
+   too: the kitty graphics protocol replies `Gi=<id>;OK` to a query of its
+   own, which is how a terminal that speaks it says so rather than being
+   recognised by name (Gitea #216). Taken and reported, never a key -- an
+   APC decoded as one came out as `alt-_` and then its text. */
+static int cn_apc(const char *p, size_t n, size_t *used)
+{
+	size_t i, end = 0;
+
+	for (i = 2; i < n; i++) {
+		if ((unsigned char)p[i] != 27)
+			continue;
+		if (i + 1 >= n)
+			return 0;
+		if (p[i + 1] != '\\')
+			return -1;
+		end = i;
+		break;
+	}
+	if (!end)
+		return n < CN_OSCMAX ? 0 : -1;
+	*used = end + 2;
+	if (end > 2 && p[2] == 'G' && memmem(p + 2, end - 2, ";OK", 3))
+		cn_gotcap(CN_GFX_KITTY, 1);
+	return 2;
+}
+
+/* A control sequence with the private `?` prefix arriving as input is a
+   report, never a key -- every key the decoder knows arrives without one.
+   Primary device attributes (final `c`) is the one being asked for: a
+   reply carrying 4 among its parameters says the terminal draws sixels,
+   and one without it says it does not, which is the only negative answer
+   either capability query can give (Gitea #216). */
+static int cn_report(const char *p, size_t n, size_t *used)
+{
+	size_t i;
+	int sixel = 0, v = -1;
+
+	for (i = 3; i < n; i++) {
+		if (p[i] >= '0' && p[i] <= '9') {
+			v = (v < 0 ? 0 : v * 10) + (p[i] - '0');
+			continue;
+		}
+		if (p[i] == ';') {
+			if (v == 4)
+				sixel = 1;
+			v = -1;
+			continue;
+		}
+		if (p[i] >= '@' && p[i] <= '~')
+			break;
+		if (p[i] == ':' || p[i] == '$' || p[i] == ' ')
+			continue;
+		return -1;
+	}
+	if (i >= n)
+		return n < CN_OSCMAX ? 0 : -1;
+	*used = i + 1;
+	if (p[i] == 'c')
+		cn_gotcap(CN_GFX_SIXEL, sixel || v == 4);
+	return 2;
+}
+
 /* Turn the front of the buffer into one key name; 0 means need more bytes. */
 int cn_dec(const char *p, size_t n, str *o, size_t *used, int last)
 {
@@ -522,6 +585,10 @@ int cn_dec(const char *p, size_t n, str *o, size_t *used, int last)
 		return cn_paste(p, n, o, used);
 	if (p[1] == ']')
 		return cn_osc(p, n, used);
+	if (p[1] == '_')
+		return cn_apc(p, n, used);
+	if (p[1] == '[' && n >= 3 && p[2] == '?')
+		return cn_report(p, n, used);
 	if (p[1] == 'O' || p[1] == '[') {
 		for (i = 0; i < 4; i++)
 			par[i] = 0;

@@ -74,7 +74,7 @@ and the flush cost shown live. Run it and press things.
 | `console open` | take the terminal: alternate screen, raw mode, no cursor, and a descriptor of its own for it -- so a redirection on a later `console` command cannot reach the display |
 | `console close` | give it back exactly as it was found |
 | `console size` | rows and columns, as two words |
-| `console gfx` | what this terminal does with a picture, and the pixel size of a cell: `kitty 10 20`, `sixel 8 16`, or `none 0 0`. `HIBR_GFX=kitty`, `sixel` or `off` says outright |
+| `console gfx` | what this terminal does with a picture, and the pixel size of a cell: `kitty 10 20`, `sixel 8 16`, or `none 0 0`. Asked of the terminal itself -- the kitty protocol's own query and primary device attributes, re-asked after any resize, so a reattached session follows the terminal it is actually drawing on -- then read from its name, and `HIBR_GFX=kitty`, `sixel` or `off` says outright |
 | `console imgdetail [full\|half]` | whether a picture drawn *under* the text -- a wallpaper -- is sent at half the pixels in each direction for the terminal to scale back up, which is a quarter of the bytes and what a background wants. `half` by default; with no argument it says which is in force |
 | `console imgcomp [zlib\|png\|off]` | how a still picture's payload is compressed: `zlib` is the kitty protocol's own `o=z`, `png` is `f=100` and smaller again, `off` sends the pixels. `zlib` by default, because a terminal that takes `f=24` and not `f=100` draws nothing and `q=2` means it cannot say so. A film's frame is never compressed, whatever this says: there the cost would be encoding rather than bytes |
 | `console resized` | true once after the terminal changed size |

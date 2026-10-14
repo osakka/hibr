@@ -217,6 +217,21 @@ void tm_apcend(tm_t *t)
 	} else if (t->imgon && !act) {
 		/* A chunk after the first carries no action of its own. */
 		tm_apcraw(t, &t->imgb);
+	} else if (act == 'q' && t->relayed) {
+		/* A query about the protocol itself, which only the real
+		   terminal can answer -- passed on where somebody is
+		   carrying for us, dropped where this emulator is the
+		   terminal, since it draws no picture of a program's own
+		   (Gitea #216). */
+		str r;
+
+		s_init(&r);
+		s_cat(&r, "\033_");
+		s_cat(&r, t->os.p ? t->os.p : "");
+		s_cat(&r, "\033\\");
+		tm_pass(t, r.p, r.n);
+		s_free(&r);
+		return;
 	} else {
 		return;
 	}

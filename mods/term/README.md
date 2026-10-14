@@ -113,7 +113,22 @@ follows from it:
   composited below, so a program's own untouched cells were see-through
   (Gitea #194). OSC 11 goes unanswered where the background was left that
   way and OSC 10 where the foreground was, since there is no one colour to
-  name; DECRQSS
+  name -- and a colour query this emulator cannot answer is **passed on**
+  (`term pass`) rather than dropped, which is what carries it out of a held
+  session to the real terminal, whose reply comes back the way a keystroke
+  does. A display that places a picture under the text has to know what the
+  terminal's own background is, because a cell painted exactly that colour
+  is the one cell such a picture is let through (Gitea #215); OSC 4's
+  palette queries go the same way, since the palette an index resolves to
+  is the real terminal's. **Primary device attributes** (`CSI c`) and the
+  kitty protocol's own `a=q` query are passed on for the same reason, but
+  only where this emulator is a relay rather than the terminal -- which it
+  knows by whether anybody drains what it passes on (`term pass`): `hold`
+  does, every frame, and a window of the desktop never does. So a program
+  in a window is still told what this emulator is (`CSI ?62;22c`), and a
+  display inside a held session is told what the terminal it is really
+  drawing on can do, which is the only honest answer to that question
+  (Gitea #216). DECRQSS
   (`DCS $ q`) answers for the scroll region, cursor shape and pen; XTGETTCAP
   (`DCS + q`) says it has nothing, which is still an answer.
 - Parameters keep their `:` sub-parameters, so `38:2::r:g:b`, `4:3` (curly

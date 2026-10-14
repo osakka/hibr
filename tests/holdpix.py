@@ -125,7 +125,7 @@ def inner(body, settle=12000, nm="p"):
 
 
 def run(body, attach="hold attach %s\n", cell=CELL, settle=12000, wait=40,
-        gfx="kitty", until="HELD", bg=None):
+        gfx="kitty", until="HELD", bg=None, caps=None, term=None):
     """Hold that program, attach to it from a pty that says what a cell
     measures, and give back the client's own screen. HIBR_GFX stands in for
     the terminal's own name, which the harness scrubs on purpose: the held
@@ -139,8 +139,13 @@ def run(body, attach="hold attach %s\n", cell=CELL, settle=12000, wait=40,
         + 'hold new -d %s "$HIBR" %s\n' % (nm, inner(body, settle, nm))
         + "sleep 0.6\n"
         + (attach % nm if "%s" in attach else attach))
+    env = {"TMPDIR": D}
+    if gfx is not None:
+        env["HIBR_GFX"] = gfx
+    if term:
+        env["TERM"] = term
     t = Term(outer, rows=24, cols=60, settle=1.0, cellw=cell[0],
-             cellh=cell[1], env={"HIBR_GFX": gfx, "TMPDIR": D}, bg=bg)
+             cellh=cell[1], env=env, bg=bg, caps=caps)
     for _ in range(wait):
         t.collect(0.25)
         if until in t.text:
@@ -179,7 +184,8 @@ check("with the text around it still text",
 
 sc, log = run(PIC, gfx="sixel")
 check("a sixel goes through the same way",
-      len(sc.images) == 1 and sc.images[0][:2] == (2, 2) and not sc.apc,
+      len(sc.images) == 1 and sc.images[0][:2] == (2, 2)
+      and not [a for a in sc.apc if "a=T" in a],
       (sc.images, sc.apc, log))
 
 # A picture drawn *under* the text is the wallpaper's own path, and it is the
@@ -390,5 +396,39 @@ check("and the reply reaches it as an answer rather than as keys",
       "answered" in log and "key [" not in log
       and sc.find("HELD BG") is not None, log)
 
+# And what the client's terminal can *draw* has to reach the session too,
+# which until 0.99.181 nothing did (Gitea #216): `cn_gfx` read the picture
+# protocol off `$TERM`, and inside `hold` that is the session's own name,
+# frozen when it was started -- so a session begun in kitty went on sending
+# kitty escapes to whatever it was later attached from, and one begun
+# anywhere nameless went on drawing half blocks to a terminal that can place
+# pixels. Both directions, driven here as a reattach is: the session's own
+# environment says one thing and the client answers another.
+#
+# `settle=100` rather than the usual wait for a non-`none` gfx: that wait is
+# exactly what is in question here, so the body polls instead.
+CAPQ = ("i=0\n"
+        "while [ $i -lt 60 ]; do\n"
+        "  console flush\n"
+        "  g := console gfx\n"
+        "  case $g in %s) break ;; esac\n"
+        "  console key 100 > /dev/null\n"
+        "  i=$((i + 1))\n"
+        "done\n"
+        "g := console gfx\n"
+        'echo "gfx $g" >> ' + LOG + "\n"
+        "console put 0 0 'HELD CAP'\n"
+        "console flush\n")
+
+sc, log = run(CAPQ % "sixel*", until="HELD CAP", gfx=None, settle=100,
+              term="xterm-kitty", caps=["sixel"])
+check("a held session whose own name says kitty follows a sixel client's "
+      "answer", "gfx sixel" in log, log)
+
+sc, log = run(CAPQ % "kitty*", until="HELD CAP", gfx=None, settle=100,
+              caps=["kitty"])
+check("and one whose name says nothing draws pixels once a client says it "
+      "can", "gfx kitty" in log, log)
+
 shutil.rmtree(D, True)
-report(19)
+report(21)

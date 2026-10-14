@@ -116,6 +116,14 @@ struct tm_t {
 	   leaves the foreground default and names a background, because a
 	   cell with no background is exactly what the picture is composited
 	   below (Gitea #194). */
+	/* Whether anybody downstream drains what this emulator passes on
+	   (tm_api_pass), which is what tells a relay from the terminal: a
+	   device query about the real terminal is passed to them rather
+	   than answered here, since the answer is theirs to give and not
+	   ours to guess (Gitea #216). Observed rather than declared -- the
+	   one thing that distinguishes `hold`, which drains every frame,
+	   from a window of the desktop, which never does. */
+	int relayed;
 	int nobg;
 	int nofg;
 	unsigned rgbfg, rgbbg;

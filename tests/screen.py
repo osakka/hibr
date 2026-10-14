@@ -281,6 +281,15 @@ def expect(pattern):
     EXPECTED.append(re.compile(pattern))
 
 
+# What a display asks its terminal about itself, as it arrives in the
+# output: an OSC string (either ending), an APC string, and the bare
+# primary device attributes request. One pattern so the scan stays a single
+# pass over what has not been read yet.
+QUERY = re.compile(rb"\x1b(?:\](?P<osc>[^\x07\x1b]*)(?:\x07|\x1b\\)"
+                   rb"|_(?P<apc>[^\x1b]*)\x1b\\"
+                   rb"|(?P<da>\[c))")
+
+
 class Term:
     """A pty with hibr running on it.
 
@@ -292,13 +301,14 @@ class Term:
     timer. Anything that never says it is idle keeps the fixed timings."""
 
     def __init__(self, *argv, rows=ROWS, cols=COLS, env=None, settle=0.4,
-                 size=True, cellw=0, cellh=0, bg=None, pal=None):
+                 size=True, cellw=0, cellh=0, bg=None, pal=None, caps=None):
         self.rows, self.cols = rows, cols
         # What this terminal answers a colour query with, and how far the
         # output has been scanned for one. None answers nothing, as a
         # terminal that does not implement the queries does.
         self.bg = bg
         self.pal = pal or ["#000000"] * 16
+        self.caps = caps
         self.asked = 0
         self.out = b""
         self.status = None
@@ -371,27 +381,40 @@ class Term:
                     struct.pack("HHHH", rows, cols, cols * cellw, rows * cellh))
 
     def answer(self):
-        """Answer the colour queries a display asks, if this Term was told
-        what its colours are -- OSC 11 for the background and OSC 4 for a
-        palette entry, in the `rgb:RRRR/GGGG/BBBB` form xterm replies with.
-        A real terminal answers these; nothing in the model did, so a
-        display could ask and never hear, which is indistinguishable from
-        a terminal that does not answer (Gitea #215). Each query is
-        answered once: the scan carries on from where it left off."""
-        if self.bg is None:
+        """Answer the queries a display asks about its terminal, if this
+        Term was told what to answer -- the colours with `bg` and `pal`
+        (OSC 11 and OSC 4, in the `rgb:RRRR/GGGG/BBBB` form xterm replies
+        with) and what it can draw with `caps` (the kitty graphics
+        protocol's own `a=q`, answered `OK`, and primary device attributes,
+        whose parameters carry 4 for sixel).
+
+        A real terminal answers all of these; nothing in the model did, so
+        a display could ask and never hear, which is indistinguishable
+        from a terminal that does not answer (Gitea #215, #216) -- and
+        `caps=[]` is how a suite says "a terminal that answers, and draws
+        neither", which is a different thing again from `caps=None`,
+        "a terminal that says nothing at all". Each query is answered
+        once: the scan carries on from where it left off."""
+        if self.bg is None and self.caps is None:
             return
         while True:
-            i = self.out.find(b"\x1b]", self.asked)
-            if i < 0 or b"\x1b\\" not in self.out[i:] and \
-                    b"\x07" not in self.out[i:]:
+            m = QUERY.search(self.out, self.asked)
+            if not m:
                 return
-            j = self.out.find(b"\x1b\\", i)
-            k = self.out.find(b"\x07", i)
-            if j < 0 or (0 <= k < j):
-                j = k
-            body = self.out[i + 2:j].decode("latin1")
-            self.asked = j + 1
-            a = body.split(";")
+            self.asked = m.end()
+            if m.group("apc") is not None:
+                if self.caps is not None and "kitty" in self.caps and \
+                        "a=q" in m.group("apc").decode("latin1"):
+                    os.write(self.fd, b"\x1b_Gi=4201;OK\x1b\\")
+                continue
+            if m.group("da") is not None:
+                if self.caps is not None:
+                    os.write(self.fd, b"\x1b[?62;4;22c"
+                             if "sixel" in self.caps else b"\x1b[?62;22c")
+                continue
+            if self.bg is None:
+                continue
+            a = m.group("osc").decode("latin1").split(";")
             if len(a) == 2 and a[0] == "11" and a[1] == "?":
                 self.reply(11, None, self.bg)
             elif len(a) == 3 and a[0] == "4" and a[2] == "?" \

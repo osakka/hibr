@@ -70,7 +70,7 @@ FLAT = png("flat.png", 16, 16, lambda x, y: (10, 200, 10))
 
 
 def run(body, cell=CELL, gfx="kitty", rows=24, cols=60, settle=1.0,
-        bg=None, pal=None, raw=False):
+        bg=None, pal=None, raw=False, caps=None, term=None):
     """Run a console script on a pty that says what a cell measures -- and,
     given bg, on one that answers a colour query the way a real terminal
     does. raw answers the bytes as well as the screen."""
@@ -78,8 +78,11 @@ def run(body, cell=CELL, gfx="kitty", rows=24, cols=60, settle=1.0,
     open(p, "w").write("%sconsole open\n%sconsole close\n"
                        % (load("console", "img"), body))
     env = {} if gfx is None else {"HIBR_GFX": gfx}
+    if term:
+        env["TERM"] = term
     t = Term(p, rows=rows, cols=cols, settle=settle,
-             cellw=cell[0], cellh=cell[1], env=env, bg=bg, pal=pal)
+             cellw=cell[0], cellh=cell[1], env=env, bg=bg, pal=pal,
+             caps=caps)
     t.collect(0.8)
     sc = t.screen()
     out = t.out
@@ -227,12 +230,15 @@ check("closing the display deletes everything it was holding",
       any("d=A" in a for a in deletes(sc)), sc.apc)
 
 sc = run(TEXT + PIC % "-m pixels" + "console flush\nconsole key 400\n", cell=(0, 0))
+# A picture, not any APC: the display asks the terminal what it draws with
+# one of its own now (Gitea #216), so "nothing was sent" is about
+# placements rather than about the control strings in the stream.
 check("a terminal that does not say what a cell measures gets cells instead",
-      not sc.apc and not sc.images and "▀" in sc.row(3),
+      not places(sc) and not sc.images and "▀" in sc.row(3),
       (sc.apc, repr(sc.row(3))))
 sc = run(TEXT + PIC % "-m pixels" + "console flush\nconsole key 400\n", gfx="off")
 check("and one told not to draw pictures gets cells too",
-      not sc.apc and "▀" in sc.row(3), (sc.apc, repr(sc.row(3))))
+      not places(sc) and "▀" in sc.row(3), (sc.apc, repr(sc.row(3))))
 
 # Only the delete-all on the way out is left, which every session sends.
 sc = run(TEXT + PIC % "-m mono" + "console flush\nconsole key 400\n")
@@ -693,5 +699,57 @@ sc = run(TRANSSAME, bg="#089608")
 check("a translucent write that lands on the terminal's colour is a shade off",
       bg(sc, 5, 5) == (8, 150, 9), bg(sc, 5, 5))
 
+# What the terminal can *draw*, asked rather than read off its name (Gitea
+# #216). A name list answers what a family usually does, where the question
+# is what this terminal does -- and inside `hold` the name is the session's
+# own, frozen when it was started, so a client reattaching from another
+# machine could never change it.
+GFX = ("console key 400 > /dev/null\n"
+       "console flush\n"
+       "g := console gfx\n"
+       "console put 1 1 \"$g\"\n"
+       "console flush\n")
+
+
+def gfxof(**kw):
+    """What `console gfx` answers once the terminal has had its say."""
+    return run(GFX, gfx=None, **kw).row(1).strip()
+
+
+sc, out = run(GFX, gfx=None, caps=["kitty"], raw=True)
+check("the display asks the terminal what it draws, both ways",
+      b"a=q" in out and b"\x1b[c" in out, out[:0])
+check("a terminal that answers kitty's own query draws kitty pictures, "
+      "whatever its name says", sc.row(1).strip().startswith("kitty"),
+      sc.row(1))
+# Both halves, or a release that asked nothing would pass this for nothing:
+# the answer was taken as an answer (the protocol followed it) and no part
+# of it reached the screen as text.
+check("and nothing of the answer is typed in as a key",
+      sc.row(1).strip().startswith("kitty") and "OK" not in sc.text()
+      and "62;" not in sc.text(), sc.row(1))
+check("one that answers device attributes with 4 draws sixels",
+      gfxof(caps=["sixel"]).startswith("sixel"))
+# The negative is the half a name list cannot give, and it is what stops a
+# session following the terminal it was started from into a terminal that
+# draws nothing: an attributes reply with no 4, and no kitty OK ahead of it,
+# is a terminal that draws neither -- said by the terminal rather than
+# guessed.
+check("one that answers and draws neither is believed over its own name",
+      gfxof(caps=[], term="xterm-kitty") == "none 8 16",
+      gfxof(caps=[], term="xterm-kitty"))
+check("and over a name that claims sixel",
+      gfxof(caps=[], term="foot") == "none 8 16",
+      gfxof(caps=[], term="foot"))
+# A terminal that says nothing at all is still read by name, which is what
+# the name list is for now -- and HIBR_GFX is a person's own choice and wins
+# over anything a terminal says about itself.
+check("a terminal that answers nothing is still read by its name",
+      gfxof(caps=None, term="xterm-kitty").startswith("kitty"),
+      gfxof(caps=None, term="xterm-kitty"))
+check("and an explicit HIBR_GFX wins over what the terminal answered",
+      run(GFX, gfx="sixel", caps=["kitty"]).row(1).strip().startswith("sixel"),
+      run(GFX, gfx="sixel", caps=["kitty"]).row(1))
+
 shutil.rmtree(D, True)
-report(66)
+report(74)

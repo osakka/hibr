@@ -937,8 +937,20 @@ void tm_csi(tm_t *t, int f)
 			tm_glyph(t, t->last);
 		break;
 	case 'c':
-		if (tm_par(t, 0, 0) == 0)
+		if (tm_par(t, 0, 0) != 0)
+			break;
+		/* What this emulator is, when it is the terminal; and the
+		   real terminal's own answer when it is only carrying for
+		   one -- a display inside `hold` asks this to learn whether
+		   the terminal it is actually drawing on draws sixels, and
+		   an answer of ours would be about us (Gitea #216). */
+		if (t->relayed) {
+			tm_pass(t, "\033[c", 3);
+			lg(HIBR_LDBG, "terminal %d passed on a device "
+				      "attributes request", t->id);
+		} else {
 			tm_reply(t, "\033[?62;22c");
+		}
 		break;
 	case 'g':
 		n = (int)tm_par(t, 0, 0);

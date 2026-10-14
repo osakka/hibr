@@ -46,6 +46,22 @@ int cn_isig = 1;
 void cn_wr(int fd, const char *p, size_t n);
 
 static int cn_askgen = -1;
+/* The picture protocol in force, and what the terminal has said it can
+   draw: -1 is "not decided" and "has not said", which are different
+   questions with the same spelling and both have to stay askable. */
+static int cn_gfxk = -1;
+static int cn_capkit = -1;
+static int cn_capsix = -1;
+/* And whether each has been answered since the last ask, which is what
+   makes a *negative* possible for a protocol that can only ever answer
+   yes: the kitty query goes out before the device attributes request, and
+   a terminal answers in the order it was asked, so an attributes reply
+   with no `OK` ahead of it is a terminal that does not speak kitty's
+   protocol. Positives are kept across an ask rather than forgotten, or a
+   plain window resize would drop to the name list for a frame and draw
+   the wrong thing on the way back. */
+static int cn_saidkit;
+static int cn_saidsix;
 static unsigned cn_tbgv;
 static int cn_tbgok;
 static unsigned cn_tpal[16];
@@ -59,6 +75,24 @@ static int cn_tpalok[16];
    an emulator that cannot answer passes them on to whoever is watching,
    which is what carries them out of a held session. */
 static const char cn_askbg[] = "\033]11;?\033\\";
+
+/* And what it can *draw*, asked rather than guessed from its name (Gitea
+   #216). A name list answers what a family usually does, where the
+   question is what this terminal, right now, actually does -- and inside
+   `hold` the name is the session's own, frozen when it was started, so a
+   client reattaching from another machine could never change it: a session
+   begun in kitty went on sending kitty escapes to a terminal that drops
+   them, and one begun anywhere nameless went on drawing half blocks to a
+   terminal that can place pixels.
+
+   Both capabilities answer for themselves. The kitty protocol has a query
+   of its own -- one pixel, `a=q`, no `q=` so the answer is not suppressed
+   -- which kitty replies `OK` to and a terminal that does not speak it
+   replies nothing to. Sixel is in the primary device attributes: a reply
+   carrying 4 among its parameters says so, and one without it says the
+   opposite, which is the one *negative* either query can give. */
+static const char cn_askkit[] = "\033_Gi=4201,s=1,v=1,a=q,t=d,f=24;AAAA\033\\";
+static const char cn_askda[] = "\033[c";
 
 /* The sixteen colours a program may name instead of an RGB value, as the
    standard palette has them -- what an index resolves to while the
@@ -82,6 +116,8 @@ void cn_askcolours(void)
 	if (cn_fd < 0)
 		return;
 	cn_askgen = (int)cn_wgen;
+	cn_saidkit = 0;
+	cn_saidsix = 0;
 	s_init(&q);
 	s_cat(&q, cn_askbg);
 	for (i = 0; i < 16; i++) {
@@ -89,9 +125,41 @@ void cn_askcolours(void)
 		s_num(&q, i);
 		s_cat(&q, ";?\033\\");
 	}
+	s_cat(&q, cn_askkit);
+	s_cat(&q, cn_askda);
 	cn_wr(cn_fd, q.p, q.n);
 	s_free(&q);
-	lg(HIBR_LDBG, "console: asked the terminal for its colours");
+	lg(HIBR_LDBG, "console: asked the terminal what it is and what it draws");
+}
+
+/* What the terminal answered about pictures: 1 yes, 0 no, -1 it has not
+   said. Silence is never a no -- a query can be eaten by a terminal in the
+   middle (GNU screen forwards no APC) and a held program asks before any
+   client exists at all, which is the trap cn_gfx's own comment already
+   records about a cell size (Gitea #103). Only a device attributes reply
+   that came *without* 4 is a real no, and only about sixel. */
+void cn_gotcap(int kind, int yes)
+{
+	int *p = kind == CN_GFX_KITTY ? &cn_capkit : &cn_capsix;
+
+	if (kind == CN_GFX_KITTY) {
+		cn_saidkit = 1;
+	} else {
+		cn_saidsix = 1;
+		if (!cn_saidkit && cn_capkit != 0) {
+			cn_capkit = 0;
+			cn_gfxk = -1;
+			lg(HIBR_LDBG, "console: the terminal answered what it "
+				      "is without answering kitty's query, so "
+				      "it does not speak it");
+		}
+	}
+	if (*p == yes)
+		return;
+	*p = yes;
+	cn_gfxk = -1;
+	lg(HIBR_LDBG, "console: the terminal %s %s", yes ? "draws" : "does not draw",
+	   cn_gfxname(kind));
 }
 
 /* Ask again when the terminal may not be the one that was asked: a resize
@@ -406,8 +474,6 @@ void cn_cellpx(int *w, int *h)
 	}
 }
 
-static int cn_gfxk = -1;
-
 /* What a kind of pixel drawing is called, for a log line and `console gfx`. */
 const char *cn_gfxname(int k)
 {
@@ -469,6 +535,18 @@ int cn_gfx(sh *s)
 		   cn_gfxname(cn_gfxk), w, h);
 		return cn_gfxk;
 	}
+	/* What the terminal said about itself beats what its name suggests,
+	   and kitty's own protocol is preferred where both are offered --
+	   the same choice the name list made for the terminals that do both
+	   (Gitea #216). An answer is only ever positive except for sixel,
+	   where a device attributes reply without 4 is a real no and is
+	   what stops the name list claiming it. */
+	if (cn_capkit == 1 || cn_capsix == 1) {
+		cn_gfxk = cn_capkit == 1 ? CN_GFX_KITTY : CN_GFX_SIXEL;
+		lg(HIBR_LDBG, "gfx: %s, as the terminal answered; cell %dx%d",
+		   cn_gfxname(cn_gfxk), w, h);
+		return cn_gfxk;
+	}
 	t = hibr_get(s, "TERM");
 	if (t && (strstr(t, "foot") || strstr(t, "mlterm") ||
 		  strstr(t, "contour") || strstr(t, "yaft")))
@@ -482,6 +560,28 @@ int cn_gfx(sh *s)
 		cn_gfxk = CN_GFX_KITTY;
 	if (cn_gfxk == CN_GFX_NONE && hibr_get(s, "KITTY_WINDOW_ID"))
 		cn_gfxk = CN_GFX_KITTY;
+	/* A name contradicted by the terminal's own answer loses: this is
+	   the half a name list could never give, and the half that stops a
+	   session following the terminal it was *started* from into one
+	   that draws nothing at all. */
+	if ((cn_gfxk == CN_GFX_SIXEL && cn_capsix == 0) ||
+	    (cn_gfxk == CN_GFX_KITTY && cn_capkit == 0)) {
+		lg(HIBR_LDBG, "gfx: the name says %s and the terminal says it "
+			      "draws none", cn_gfxname(cn_gfxk));
+		cn_gfxk = CN_GFX_NONE;
+		return cn_gfxk;
+	}
+	/* Not remembered while the terminal has said nothing yet, for the
+	   same reason an absent cell size is not: a held program asks before
+	   any client exists, and an answer may still be on its way. */
+	if (cn_capkit < 0 && cn_capsix < 0) {
+		int k = cn_gfxk;
+
+		cn_gfxk = -1;
+		lg(HIBR_LDBG, "gfx: %s by name; cell %dx%d, nothing answered "
+			      "yet", cn_gfxname(k), w, h);
+		return k;
+	}
 	lg(HIBR_LDBG, "gfx: %s; cell %dx%d", cn_gfxname(cn_gfxk), w, h);
 	return cn_gfxk;
 }

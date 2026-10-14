@@ -1,5 +1,86 @@
 # Changelog
 
+## 0.99.181
+
+**A reattached client's terminal is asked what it can draw, instead of the
+session being stuck with the name of the terminal it was started from**
+(Gitea #216), asked from a live session:
+
+> when i reattach, the term capabilities are not checked, and you can get a
+> hibr desktop thinking it supports pixels, but the terminal emulator cannot
+> and vice versa?
+
+Both directions, and the code said how far it went. `hd_cellpx` makes the
+**cell size** the primary client's and pushes it into the program's pty on
+every attach, so that much did follow whoever was watching -- which is why a
+reattach could turn pixels off (`console gfx` answering `kitty 0 0`, the
+state #211 taught `dt_imgpix` to read). The **protocol** followed nobody:
+`cn_gfx` decided it once per process from `HIBR_GFX` and then `$TERM`,
+`$TERM_PROGRAM` and `$KITTY_WINDOW_ID` -- every one of them an environment
+variable of the program's own process, which inside `hold` is whatever the
+shell that ran `hold new` had, frozen for the life of the session. `grep TERM
+mods/hold/*.c` finds `SIGTERM` and nothing else. So three things were live:
+
+1. started in kitty, reattached from a sixel-only terminal: kitty escapes
+   into a terminal that drops them, in cells the console has already skipped
+   in its diff -- blank rectangles;
+2. started in a sixel terminal, reattached from kitty: sixels, which kitty
+   has never drawn and says so -- the 0.99.72 bug, reachable by reattaching
+   rather than by a wrong name list;
+3. started anywhere whose name says nothing -- a plain `xterm-256color`, a
+   shell inside `screen`, or a terminal window of another hibr desktop,
+   which sets `TERM=xterm-256color` deliberately -- and `CN_GFX_NONE` was
+   decided and kept: attach from kitty afterwards and every picture was half
+   blocks for the session's whole life.
+
+A name list cannot answer this. It says what a *family* usually does, where
+the question is what this terminal, right now, actually does -- so the
+display asks, through the path 0.99.180 built for the colours: the kitty
+protocol's own query (one pixel, `a=q`, no `q=` so the reply is not
+suppressed), which kitty answers `OK` and a terminal that does not speak it
+answers not at all, and primary device attributes, whose parameters carry 4
+where sixel is supported. Re-asked after any resize, which is exactly what a
+reattach is.
+
+Three details are the whole design:
+
+- **the kitty query goes out first**, and a terminal answers in the order it
+  was asked, so an attributes reply with no `OK` ahead of it is a terminal
+  that does not speak kitty's protocol. That is the only *negative* either
+  query can give, and without it a session could follow the terminal it was
+  started from into one that draws nothing;
+- **a positive is kept across a re-ask** rather than forgotten, or a plain
+  window resize would drop to the name list for a frame and draw the wrong
+  thing on the way back;
+- and **the emulator in the middle knows it is a relay** by whether anybody
+  drains what it passes on (`term pass`): `hold` does, every frame, and a
+  window of the desktop never does. So a program in a window is still told
+  what the emulator is (`CSI ?62;22c`), and a display inside a held session
+  is told what the terminal it is really drawing on can do. Observed rather
+  than declared, and rather than overloading `hasrgb`, which answers a
+  different question.
+
+`HIBR_GFX` still wins over everything, being a person's own choice, and a
+terminal that answers neither query is read by name exactly as before.
+
+Eight checks in `tests/kitgfx.py` and two in `tests/holdpix.py`, seven and
+two of which fail against 0.99.180. `tests/screen.py`'s terminal model
+answers these queries too, given `caps` -- and `caps=[]`, "a terminal that
+answers and draws neither", is a different thing from `caps=None`, "a
+terminal that says nothing at all", which is the distinction the negative
+rests on.
+
+Three existing assertions were wrong the moment the display sent an APC of
+its own: they read "no APC at all" where they meant "no picture was sent as
+a bitmap". They ask about placements now.
+
+And two paragraphs of 0.99.180's own documentation are restored here. The
+control run that proved #215's checks fail against the release before it did
+`git checkout HEAD -- mods/console mods/term`, which reverted the READMEs in
+those directories along with the code; restoring afterwards put back only
+the files the compiler cares about. The code and `docs/display.md` shipped
+correctly, the two README paragraphs did not.
+
 ## 0.99.180
 
 **The display asks the terminal what colour it is, so a cell can be

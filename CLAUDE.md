@@ -3711,6 +3711,56 @@ went in the shell.
   `console translucent` ends at the next flush as well as on `off`, so a
   caller cannot leak it into whatever is drawn next: a guard that makes
   forgetting impossible rather than a list somebody maintains.
+- **A name list says what a family usually does; what is being asked is
+  what *this* terminal does, and inside `hold` the name is the session's
+  own** (Gitea #216, 0.99.181). `cn_gfx` decided the picture protocol once
+  per process from `HIBR_GFX`, `$TERM`, `$TERM_PROGRAM` and
+  `$KITTY_WINDOW_ID` -- all environment variables of the program's own
+  process, which inside a held session is whatever the shell that ran
+  `hold new` had, frozen for the session's life, while `grep TERM
+  mods/hold/*.c` finds `SIGTERM` and nothing else. The **size** follows
+  the primary client (`hd_cellpx`, pushed through the pty on every
+  attach); the **protocol** followed nobody, so a session begun in kitty
+  went on sending APCs to a terminal that drops them, one begun in a sixel
+  terminal sent sixels to kitty (the 0.99.72 bug, reachable by
+  reattaching), and one begun anywhere nameless -- a plain
+  `xterm-256color`, a shell inside `screen`, a terminal window of another
+  hibr desktop -- kept `CN_GFX_NONE` for ever however capable the client
+  was. Both capabilities answer for themselves, so they are **asked**: the
+  kitty protocol's own `a=q` query, and primary device attributes for
+  sixel. Three details are the design rather than decoration. **The kitty
+  query goes first**, since a terminal answers in the order it was asked,
+  which is what makes "answered what it is without answering kitty's
+  query" a real *no* -- and without a no, a session follows the terminal
+  it was started from into one that draws nothing. **A positive is kept
+  across a re-ask**, or an ordinary window resize drops to the name list
+  for a frame and draws the wrong thing on the way back. And **an
+  emulator knows it is a relay by whether anybody drains what it passes
+  on** (`tm_api_pass` sets the flag, asked even when nothing is waiting):
+  `hold` drains every frame and a window of the desktop never does, so a
+  program in a window is still told what the emulator is and a display
+  inside a held session is told what the real terminal can do. That was
+  nearly done by overloading `hasrgb` -- "nobody told me my colours" --
+  which is the one-value-two-questions trap this file already records
+  twice.
+- **"No APC at all" is not "no picture".** Three assertions across two
+  suites read `not sc.apc` meaning "nothing was drawn as a bitmap", and
+  broke the moment the display sent an APC **query** of its own. A
+  placement is `a=T`; the control strings in the stream are a different
+  question. The same shape as the check that read the absence of text and
+  passed for the wrong reason (#210): say what should be there.
+- **A control run that reverts a directory reverts its documentation too.**
+  Proving #215's checks failed against the release before it meant
+  `git checkout HEAD -- mods/console mods/term`, and restoring afterwards
+  put back the list of files the *compiler* cares about -- so two README
+  paragraphs written for that release were silently reverted before the
+  commit, and `git add` added them unchanged. The code and `docs/` were
+  fine, which is why nothing failed. Restore from `git status`, not from
+  memory, and after a release `git log --oneline -1 -- <path>` says
+  whether a file actually moved. This is the same lesson as the `git
+  stash push` that stashed nothing and the `cp` back that did not take:
+  **check the file after restoring it**, which this file already says and
+  which still cost a release's documentation.
 - **A terminal decides whether a cell has a background of its own by
   comparing the colour, not the attribute, and that makes one colour
   unusable** (Gitea #215, 0.99.180). kitty's own shader is

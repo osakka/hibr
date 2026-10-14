@@ -121,7 +121,11 @@ unsigned cn_bgtrans(int row, int col);
 int cn_translucent(int pct, unsigned fb);
 size_t cn_imgn(void);
 /* Whether pictures can be drawn as pixels, and how: CN_GFX_NONE, CN_GFX_SIXEL
-   or CN_GFX_KITTY. Decided once, from HIBR_GFX and then the terminal's name.
+   or CN_GFX_KITTY. From HIBR_GFX, then from what the terminal itself
+   answered (cn_gotcap), and only then from its name -- a name says what a
+   family usually does, and inside `hold` it is the session's own name,
+   frozen when it was started, so a client reattaching from another machine
+   could never change it (Gitea #216).
    The name of the one in force, for `console gfx`. */
 int cn_gfx(sh *s);
 const char *cn_gfxname(int k);
@@ -136,6 +140,9 @@ unsigned cn_dim1(unsigned v, int pct, unsigned deflt);
 #endif
 void cn_askcolours(void);
 void cn_askmaybe(void);
+/* What the terminal answered about drawing pictures: kind is CN_GFX_KITTY
+   or CN_GFX_SIXEL, yes 1 or 0. */
+void cn_gotcap(int kind, int yes);
 void cn_gotcolour(int which, int idx, unsigned rgb);
 unsigned cn_termbg(void);
 int cn_termbgok(void);
