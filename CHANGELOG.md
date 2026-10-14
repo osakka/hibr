@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.99.182
+
+**The catalogue exists, so `apps` points at it and the page stops saying it
+does not.**
+
+<https://osakka.github.io/hibr-apps> is published: twenty-one applications,
+each a hibr script, each with the description its own `app` line declares.
+The index is derived from the bundles rather than written -- the title from
+the app's own `dt_app` line, the prose from its `app` line and header
+comment, the kind from whichever registration it makes, the sha256 from the
+bytes as they will be fetched -- so the catalogue cannot drift from the code
+it offers. It is a git repository served as a page, the same arrangement as
+the apt repository beside it, and a bundle's address in the index is
+relative, so any copy of that one folder is a catalogue.
+
+`AP_URL_DEFAULT` was
+`raw.githubusercontent.com/osakka/hibr-apps/main/index.json`, which answered
+404 for every release since ADR 0041: a fresh install's `apps list` has
+never found anything. It is the page now. Measured end to end against the
+real host before the default moved -- `apps list`, `apps info`,
+`apps install` with the sha256 verified, `apps installed`, `apps update`
+from an aged state -- in a scratch home, since an install otherwise lands in
+the desktop of whoever ran it.
+
+`docs/apps.md` opened with a section headed *"Before anything: there is no
+public index yet"*, which is now false, and it twice described an
+**Applications** window -- down to how it would run the command as a child,
+the way the Vault accessory runs `vw` -- that nothing in
+`examples/desktop/system/` has ever done. The first is replaced by the
+catalogue; the second says plainly that there is no window yet and names
+the ticket for it (Gitea #219). **Documentation describing what was never
+built is worse than silence, because it is the evidence somebody would
+trust** -- the mirror image of Sheet's lesson, where the work existed and
+the documentation did not.
+
+Four things the first catalogue made visible are filed rather than fixed
+here, in the order they will be done: an app is more than one file and
+eight of the twenty-one install only half of themselves (#217), an app has
+no version of its own (#218), there is no Applications window (#219), and
+installing hibr installs every application (#220).
+
 ## 0.99.181
 
 **A reattached client's terminal is asked what it can draw, instead of the

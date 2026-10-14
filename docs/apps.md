@@ -2,8 +2,7 @@
 
 `apps` fetches, verifies and places desktop applications. It is installed as
 a command of its own, the way `vw` is, so it works for somebody who never
-starts the desktop; the desktop's own **Applications** window runs this as a
-child.
+starts the desktop.
 
 The whole of it rests on one fact, which is why there is so little machinery
 here: **an app is a folder of plain files, and installing one is placing a
@@ -13,17 +12,20 @@ nothing restarts. A bundle is only how it travels. The reasoning is
 [ADR 0041](adr/0041-an-app-is-a-folder-of-files-a-bundle-is-how-it-travels.md),
 which is this program's specification.
 
-## Before anything: there is no public index yet
+## The catalogue
 
-`apps` fetches a catalogue — an **index** — over HTTPS. The address it
-defaults to is not published at the time of writing: it answers 404, so a
-fresh install has nothing to list. Point it at one of your own and everything
-below works:
+`apps` fetches a catalogue — an **index** — over HTTPS, and defaults to the
+one at <https://osakka.github.io/hibr-apps>: twenty-one applications, each a
+hibr script, each with the description its own `app` line declares. It is a
+git repository ([osakka/hibr-apps](https://github.com/osakka/hibr-apps))
+served as a page, so it can be read in a browser before anything is fetched,
+and a bundle's address in it is relative — which means any copy of that one
+folder is a catalogue:
 
-<!-- not run: needs an index over HTTPS, and the default one is not published -->
+<!-- not run: fetches an index over HTTPS -->
 ```sh
-apps index https://example.invalid/hibr-apps/index.json
 apps list
+apps index https://your.host/hibr-apps/index.json
 ```
 
 `apps index` with no argument says which address is in force. An `http://`
@@ -143,9 +145,16 @@ screen saver, a window of any shape — and is described in
 
 ## From the desktop
 
-The **Applications** window is this command with a window around it, the way
-the Vault accessory runs `vw`. Anything it can do, the command can do, and
-the reverse — there is one implementation.
+There is no window for this yet, and this page said there was for several
+releases — an **Applications** window described down to how it would run
+the command as a child, which nothing in `examples/desktop/system/` ever
+did. It is Gitea #219, and
+documentation that describes what was never built is worse than silence,
+because it is the evidence somebody would trust.
+
+When it exists it will be this command with a window around it, the way the
+Vault accessory runs `vw`: anything it can do the command can do, and the
+reverse, because there is one implementation.
 
 ---
 

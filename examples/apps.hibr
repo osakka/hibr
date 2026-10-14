@@ -50,10 +50,13 @@ AP_DATA=${XDG_DATA_HOME:-$HOME/.local/share}/hibr
 AP_CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/hibr
 AP_INDEX=$AP_CACHE/index.json
 AP_STATE=$AP_DATA/apps.json
-# Where the index is fetched from. A raw static URL on purpose: it is a git
-# repository with a JSON index, so it can be browsed, mirrored by anyone and
-# served by any static host. Overridden by `apps index URL` or HIBR_APPS_URL.
-AP_URL_DEFAULT=https://raw.githubusercontent.com/osakka/hibr-apps/main/index.json
+# Where the index is fetched from. A static URL on purpose: the catalogue is
+# a git repository with a JSON index in it, so it can be browsed, mirrored
+# by anyone and served by any static host -- github.com/osakka/hibr-apps is
+# the repository and this is the same folder as a page. A bundle's own
+# address in the index is relative, so a copy of that folder anywhere is a
+# catalogue. Overridden by `apps index URL` or HIBR_APPS_URL.
+AP_URL_DEFAULT=https://osakka.github.io/hibr-apps/index.json
 AP_URL=
 # The kinds a bundle may install into, which are the desktop's own five scan
 # lists. Anything else in an app.json is refused rather than guessed at.
