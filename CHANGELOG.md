@@ -1,5 +1,108 @@
 # Changelog
 
+## 0.99.191
+
+**A module can be installed from the catalogue, and the autoload index is
+where the line is drawn** (Gitea #221).
+
+[ADR 0041](docs/adr/0041-an-app-is-a-folder-of-files-a-bundle-is-how-it-travels.md)
+rests on one sentence -- *an app is a script you can read before you run
+it* -- and that sentence does not survive a `.so`, which is why `apps` has
+refused one by name since it was written. The owner asked for modules in
+the catalogue anyway, and was right to: a module is how hibr grows.
+Three things stood in the way and the third settled the design.
+
+**There was no user module directory at all.** `m_open`, `mod list`,
+`mod avail`, `mod find` and `hibr_require` each walked the current
+directory, `$HIBR_MODPATH` and the compiled-in `HIBR_MODDIR` -- five
+copies of the same colon-splitting -- and nothing looked in
+`$XDG_DATA_HOME/hibr/mods`, so "install a module" could not work whatever
+the catalogue said. It is on the path now, after `$HIBR_MODPATH` and
+before `HIBR_MODDIR`, through **one walk** (`m_wstart`/`m_wnext`) that all
+five share. Root's rule has not moved an inch: `HIBR_MODDIR` and nothing
+else, verified by running `mod avail` as root and counting zero.
+
+**And the obvious version of that was wrong, which a measurement said and
+the ticket did not.** The argument for putting the folder on the path was
+*"no stronger than `~/.hibrc`, which hibr already runs"*. `m_bixbuild`
+walks the whole path and `dlopen`s every candidate to read its descriptor
+-- hibr's init is not called, the object's ELF constructors are -- and it
+is built by any command that is not a builtin, not a function and not on
+`PATH`. Measured here:
+
+    $ cat /tmp/t.hibr
+    typoooo 2>/dev/null; true
+    $ strace -f -e trace=openat hibr /tmp/t.hibr 2>&1 | grep -c 'hibr/.*\.so'
+    35
+
+Thirty-five objects opened for one typo, in a **non-interactive script**,
+on a box with **no `~/.hibrc` at all**. `.hibrc` is read by interactive
+shells; this happens in a cron job. So the folder is searched when
+something asks for a module **by name** and is left out of the index a
+missing command builds. A bare `csv` says `command not found`; `need csv`
+then `csv` runs it; the same object on `$HIBR_MODPATH` autoloads, which is
+what says this is the folder's rule and not the module's.
+[ADR 0044](docs/adr/0044-a-module-can-be-installed.md) is the reasoning,
+and `tests/691-usermods.t` is the three-line demonstration.
+
+**A module install is refused unless the index is signed.** The catalogue
+now carries a detached signature over `index.json`, made with the key that
+already signs the apt repository -- and since the index holds every
+bundle's `sha256`, one signature covers every kind. `apps` verifies it
+against a pinned fingerprint and refuses to install a **module** from a
+catalogue that does not check out, where a **script** is installed with
+one warning: there is a file to read and the hash says you are reading
+what the publisher hashed. A host with no `gpg` is the same case. Without
+this the rest would be decoration and `apps info` would be claiming a
+check nothing makes; `apps info` prints which of the three holds.
+
+**`arch` and `abi` are checked before the fetch**, as an app's `hibr` and
+`modules` already were -- and `arch` *silently did nothing* on the first
+try, because `ap_entry` copies a fixed list of fields out of the index and
+`arch` was not on it. Measured, not reasoned about: a `darwin-arm64`
+module installed on `linux-x86_64` and nothing said a word. That is this
+project's own "an index field nothing enforces reads as a promise" in a
+third costume, and the list has a note on it now.
+
+Beside them, `apps show NAME` fetches a bundle, verifies it exactly as an
+install does, and writes it to standard output without placing anything --
+read an app before you run it, which is what a catalogue of scripts can
+offer and a package manager cannot.
+
+The whole path was driven end to end against a real signed catalogue
+before any of this was written down: a module published with `addapp`,
+indexed and signed by `mkindex`, served, installed, used, and removed.
+
+    $ apps install mods/greet
+    installed greet as /tmp/home221/data/hibr/mods/greet.so
+    $ hibr -c 'need greet; greet Omar'
+    hello, Omar
+    $ hibr -c 'greet Omar'
+    hibr: greet: command not found
+
+and each refusal measured rather than assumed: an unsigned catalogue
+(module refused, script installed with a warning), a tampered index
+(refused), a module for another machine (refused, naming both), another
+module ABI (refused).
+
+`tests/appmgr.py` is 71 checks, six of them this, with a signing key of
+its own -- which is possible because `HIBR_APPS_KEYFP` pins a different
+fingerprint, for somebody serving a catalogue of their own. And
+`tests/run.sh` gives every test an `XDG_DATA_HOME` of its own now, for the
+same reason `tests/screen.py` already did: without it every test would
+search whatever the person running it happens to have installed.
+
+The catalogue side moved with it: `addapp` and `mkindex` take a `mods`
+bundle, read its version, ABI and description out of the **descriptor**
+(`mod avail` reads one without calling its init) and its machine out of
+the object's own ELF or Mach-O header, so a module's entry is derived from
+the bundle like every other kind's. `mkindex` signs the index when the
+secret key is on the machine and says so when it is not.
+
+Beside it, the Arabic catalogue is **1.1**: its strings have grown over
+several releases with its declared version standing still, so nobody who
+had 1.0 would ever have been offered them.
+
 ## 0.99.190
 
 **The Applications window, promised by the documentation in 0.99.138 and

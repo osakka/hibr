@@ -268,6 +268,7 @@ install: all
 	sed 's|@SHAREDIR@|$(SHAREDIR)|' tools/vw-launcher.in \
 		> $(DESTDIR)$(PREFIX)/bin/vw
 	chmod 755 $(DESTDIR)$(PREFIX)/bin/vw
+	install -m 644 packaging/hibr-apps.gpg $(DESTDIR)$(SHAREDIR)/keyring.gpg
 	install -m 644 examples/apps.hibr $(DESTDIR)$(SHAREDIR)/apps.hibr
 	sed 's|@SHAREDIR@|$(SHAREDIR)|' tools/apps-launcher.in \
 		> $(DESTDIR)$(PREFIX)/bin/apps

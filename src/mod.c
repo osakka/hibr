@@ -71,12 +71,102 @@ int m_nodot(sh *s)
 	return geteuid() == 0 || (s->sopt & O_PLAN);
 }
 
+/* Where a module the person installed lands: $XDG_DATA_HOME/hibr/mods, or
+   $HOME/.local/share/hibr/mods when that is unset -- the same shape the
+   application manager already uses for every other kind. Nothing for root,
+   whose rule is HIBR_MODDIR and nothing else (ADR 0016), and nothing with
+   no home to put it in. Fills `out` and answers 1 when there is one. */
+int m_udir(sh *s, str *out)
+{
+	const char *d;
+
+	if (geteuid() == 0)
+		return 0;
+	d = hibr_get(s, "XDG_DATA_HOME");
+	if (d && *d) {
+		s_cat(out, d);
+		s_cat(out, "/hibr/mods");
+		return 1;
+	}
+	d = hibr_get(s, "HOME");
+	if (!d || !*d)
+		return 0;
+	s_cat(out, d);
+	s_cat(out, "/.local/share/hibr/mods");
+	return 1;
+}
+
+/* One walk of the module search path, so the five places that search it
+   cannot drift apart: the current directory unless root or planning,
+   each entry of $HIBR_MODPATH, the folder above, then HIBR_MODDIR. The
+   directory returned is valid until the next call.
+
+   `bix` leaves the user's own folder out, and that asymmetry is the whole
+   of ADR 0044: the autoload index is built by **any** command that is not
+   a builtin, not a function and not on PATH -- a typo, in a cron job as
+   much as at a prompt -- and building it dlopens every candidate to read
+   its descriptor, which runs that object's ELF constructors. A module you
+   installed is one you can ask for by name; it is never loaded because
+   you mistyped something. */
+void m_wstart(sh *s, struct mwalk *w, int bix)
+{
+	w->s = s;
+	w->mp = geteuid() == 0 ? 0 : hibr_get(s, "HIBR_MODPATH");
+	w->step = 0;
+	w->bix = bix;
+	s_init(&w->d);
+}
+
+const char *m_wnext(struct mwalk *w)
+{
+	sh *s = w->s;
+	const char *e;
+	size_t n;
+
+	switch (w->step) {
+	case 0:
+		w->step = 1;
+		if (!m_nodot(s))
+			return ".";
+		/* fall through */
+	case 1:
+		while (w->mp && *w->mp) {
+			e = strchr(w->mp, ':');
+			n = e ? (size_t)(e - w->mp) : strlen(w->mp);
+			w->d.n = 0;
+			if (n)
+				s_add(&w->d, w->mp, n);
+			w->mp = e ? e + 1 : w->mp + n;
+			if (n)
+				return w->d.p;
+		}
+		w->step = 2;
+		/* fall through */
+	case 2:
+		w->step = 3;
+		w->d.n = 0;
+		if (!w->bix && m_udir(s, &w->d))
+			return w->d.p;
+		/* fall through */
+	case 3:
+		w->step = 4;
+		return HIBR_MODDIR;
+	}
+	return 0;
+}
+
+void m_wend(struct mwalk *w)
+{
+	s_free(&w->d);
+}
+
 /* Search the module path for a bare name, or open a given path. */
 void *m_open(sh *s, const char *path, str *p)
 {
-	const char *mp = hibr_get(s, "HIBR_MODPATH");
 	int so = m_hasso(path);
 	void *h = 0;
+	struct mwalk w;
+	const char *d;
 
 	if (strchr(path, '/')) {
 		h = m_try(p, 0, path, 0);
@@ -84,30 +174,16 @@ void *m_open(sh *s, const char *path, str *p)
 			h = m_try(p, 0, path, 1);
 		return h;
 	}
-	if (geteuid() == 0) {
+	if (geteuid() == 0)
 		lg(HIBR_LDBG, "root: searching only %s for %s", HIBR_MODDIR,
 		   path);
-		mp = 0;
-	} else if (!m_nodot(s)) {
-		h = m_try(p, ".", path, 0);
+	m_wstart(s, &w, 0);
+	while (!h && (d = m_wnext(&w))) {
+		h = m_try(p, d, path, 0);
 		if (!h && !so)
-			h = m_try(p, ".", path, 1);
+			h = m_try(p, d, path, 1);
 	}
-	while (!h && mp && *mp) {
-		const char *e = strchr(mp, ':');
-		size_t n = e ? (size_t)(e - mp) : strlen(mp);
-		char *d = ar_dup(s->xa, mp, n);
-		if (n) {
-			h = m_try(p, d, path, 0);
-			if (!h && !so)
-				h = m_try(p, d, path, 1);
-		}
-		mp = e ? e + 1 : mp + n;
-	}
-	if (!h)
-		h = m_try(p, HIBR_MODDIR, path, 0);
-	if (!h && !so)
-		h = m_try(p, HIBR_MODDIR, path, 1);
+	m_wend(&w);
 	return h;
 }
 
@@ -517,7 +593,8 @@ void m_scan(sh *s, const char *dir, vec *seen, str *out)
 /* List every module that could be loaded, in the order a bare name finds. */
 void m_avail(sh *s)
 {
-	const char *mp = hibr_get(s, "HIBR_MODPATH");
+	struct mwalk w;
+	const char *d;
 	vec seen;
 	size_t i;
 	str o;
@@ -534,22 +611,12 @@ void m_avail(sh *s)
 	if (!out && isatty(1))
 		printf("%-12s %-8s %-8s %-10s %s\n", "NAME", "VERSION", "ABI",
 		       "STATE", "PATH");
-	if (geteuid() == 0) {
+	if (geteuid() == 0)
 		lg(HIBR_LDBG, "root: listing only %s", HIBR_MODDIR);
-		mp = 0;
-	} else if (!m_nodot(s)) {
-		m_scan(s, ".", &seen, out);
-	}
-	while (mp && *mp) {
-		const char *e = strchr(mp, ':');
-		size_t n = e ? (size_t)(e - mp) : strlen(mp);
-		if (n) {
-			char *d = ar_dup(s->xa, mp, n);
-			m_scan(s, d, &seen, out);
-		}
-		mp = e ? e + 1 : mp + n;
-	}
-	m_scan(s, HIBR_MODDIR, &seen, out);
+	m_wstart(s, &w, 0);
+	while ((d = m_wnext(&w)))
+		m_scan(s, d, &seen, out);
+	m_wend(&w);
 	for (i = 0; i < seen.n; i++)
 		free(seen.p[i]);
 	v_free(&seen);
@@ -775,21 +842,14 @@ void m_bixdir(sh *s, const char *dir)
    else (ADR 0016). */
 void m_bixbuild(sh *s)
 {
-	const char *mp = geteuid() == 0 ? 0 : hibr_get(s, "HIBR_MODPATH");
+	struct mwalk w;
+	const char *d;
 
 	m_bixok = 1;
-	if (geteuid() != 0 && !m_nodot(s))
-		m_bixdir(s, ".");
-	while (mp && *mp) {
-		const char *e = strchr(mp, ':');
-		size_t n = e ? (size_t)(e - mp) : strlen(mp);
-		if (n) {
-			char *d = ar_dup(s->xa, mp, n);
-			m_bixdir(s, d);
-		}
-		mp = e ? e + 1 : mp + n;
-	}
-	m_bixdir(s, HIBR_MODDIR);
+	m_wstart(s, &w, 1);
+	while ((d = m_wnext(&w)))
+		m_bixdir(s, d);
+	m_wend(&w);
 	if (m_bixn > 1)
 		qsort(m_bix, m_bixn, sizeof *m_bix, m_bixcmp);
 	lg(HIBR_LDBG, "indexed %zu builtins on the module path", m_bixn);
@@ -910,40 +970,37 @@ int m_seekbi(sh *s, const char *dir, const char *nm)
 }
 
 /* Find and load whichever module on the module path registers a builtin
-   by this exact name -- what the command_not_found autoloader in .hibrc
-   is built on. Already loaded is checked first and is free; everything
-   past that is the same search hibr_require/need already walk: the
-   current directory unless root, $HIBR_MODPATH, then HIBR_MODDIR. */
+   by this exact name -- `mod find`, which somebody types. Already loaded
+   is checked first and is free; everything past that is the same walk
+   hibr_require and `need` make, the user's own folder included, because
+   asking for a builtin by name is an explicit act. The *index* that a
+   missing command builds is the one walk that leaves that folder out --
+   see m_wstart and ADR 0044. */
 int m_findbi(sh *s, const char *nm)
 {
-	const char *mp;
+	struct mwalk w;
+	const char *d;
 
 	if (m_find(s, nm))
 		return HIBR_OK;
-	mp = geteuid() == 0 ? 0 : hibr_get(s, "HIBR_MODPATH");
-	if (!m_nodot(s) && m_seekbi(s, ".", nm))
-		return HIBR_OK;
-	while (mp && *mp) {
-		const char *e = strchr(mp, ':');
-		size_t n = e ? (size_t)(e - mp) : strlen(mp);
-		if (n) {
-			char *d = ar_dup(s->xa, mp, n);
-			if (m_seekbi(s, d, nm))
-				return HIBR_OK;
+	m_wstart(s, &w, 0);
+	while ((d = m_wnext(&w)))
+		if (m_seekbi(s, d, nm)) {
+			m_wend(&w);
+			return HIBR_OK;
 		}
-		mp = e ? e + 1 : mp + n;
-	}
-	if (m_seekbi(s, HIBR_MODDIR, nm))
-		return HIBR_OK;
+	m_wend(&w);
 	return HIBR_FAIL;
 }
+
 
 /* Ask for a table another module offered. When nothing has offered it yet,
    look along the module path for one that says it would, and load that --
    so a tool asks for what it needs rather than for the module that has it. */
 void *hibr_require(sh *s, const char *nm, unsigned ver)
 {
-	const char *mp;
+	struct mwalk w;
+	const char *d;
 	void *p;
 	int wrong;
 
@@ -951,21 +1008,13 @@ void *hibr_require(sh *s, const char *nm, unsigned ver)
 	if (p || wrong)
 		return p;
 	lg(HIBR_LDBG, "no loaded module offers %s; looking for one", nm);
-	mp = geteuid() == 0 ? 0 : hibr_get(s, "HIBR_MODPATH");
-	if (!m_nodot(s) && m_seek(s, ".", nm))
-		return m_offered(s, nm, ver, &wrong);
-	while (mp && *mp) {
-		const char *e = strchr(mp, ':');
-		size_t n = e ? (size_t)(e - mp) : strlen(mp);
-		if (n) {
-			char *d = ar_dup(s->xa, mp, n);
-			if (m_seek(s, d, nm))
-				return m_offered(s, nm, ver, &wrong);
+	m_wstart(s, &w, 0);
+	while ((d = m_wnext(&w)))
+		if (m_seek(s, d, nm)) {
+			m_wend(&w);
+			return m_offered(s, nm, ver, &wrong);
 		}
-		mp = e ? e + 1 : mp + n;
-	}
-	if (m_seek(s, HIBR_MODDIR, nm))
-		return m_offered(s, nm, ver, &wrong);
+	m_wend(&w);
 	lg(HIBR_LDBG, "nothing on the module path offers %s", nm);
 	return 0;
 }

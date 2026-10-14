@@ -50,6 +50,15 @@ os.makedirs(WWW)
 os.makedirs(HOME)
 APPS = tree("examples/apps.hibr")
 
+# This machine as the catalogue spells it, and the shell's own module ABI
+# -- both read from the shell under test rather than written down, since
+# a number here would go stale the first time either moved.
+ARCH = subprocess.run([sx.HIBR, "-c",
+                       'u := uname -sm; u=${u,,}; echo "${u% *}-${u#* }"'],
+                      capture_output=True, text=True).stdout.strip()
+ABI = subprocess.run([sx.HIBR, "-c", 'echo "$HIBR_ABI"'],
+                     capture_output=True, text=True).stdout.strip()
+
 
 def sha(path):
     h = hashlib.sha256()
@@ -257,8 +266,12 @@ try:
     rc, out, err = apps("info", "demo")
     check("info says the version, the licence and where the index came from",
           rc == 0 and "1.0" in out and "MIT" in out and URL in out, out + err)
+    # Since 0.99.191 that paragraph says which of the two it is, and the
+    # `signed` line above it says why: this catalogue has no signature
+    # beside it, so nothing says who wrote the app (ADR 0044).
     check("and says outright that nothing identifies the author",
-          "no" in out and "signatures" in out, out)
+          "signed    no" in out and "not signed" in out
+          and "reading the file, which you can" in out, out)
     rc, out, err = apps("info", "nosuch")
     check("info on something the index has never heard of says so",
           rc != 0 and "no such app" in err, (rc, err))
@@ -718,9 +731,109 @@ try:
     check("a state keyed by name is read as the apps it can only have been",
           rc == 0 and "installed" in out.split("apps/demo")[1].split("\n")[0],
           (rc, out))
+
+    # --- a module from the catalogue (Gitea #221, ADR 0044) -------------
+    #
+    # The one kind that is native code, and the three things that differ
+    # for it: it lands in the module directory a non-root shell searches
+    # by name, it is refused unless the index is signed, and its `arch`
+    # and `abi` are checked before the fetch rather than discovered after
+    # it. The key here is the suite's own -- HIBR_APPS_KEYFP is how a
+    # mirror pins its own, which is what makes this testable at all
+    # without the project's secret key.
+    GPG = shutil.which("gpg")
+    GH = os.path.join(D, "gnupg")
+    SOBYTES = open(tree("build/mods/csv.so"), "rb").read()
+    h_mod = put("bundles/greet.so", SOBYTES)
+    MIX = {"entries": {
+        "mods/greet": {"title": "greet", "version": "1.3", "kind": "mods",
+                       "name": "greet", "about": "a module, for the suite",
+                       "arch": ARCH, "abi": ABI,
+                       "bundle": "bundles/greet.so", "sha256": h_mod},
+        "mods/elsewhere": {"title": "elsewhere", "version": "1.0",
+                           "kind": "mods", "name": "elsewhere",
+                           "arch": "darwin-arm64", "abi": ABI,
+                           "bundle": "bundles/greet.so", "sha256": h_mod},
+        "mods/oldabi": {"title": "oldabi", "version": "1.0", "kind": "mods",
+                        "name": "oldabi", "arch": ARCH, "abi": "1",
+                        "bundle": "bundles/greet.so", "sha256": h_mod},
+        "apps/demo": {"title": "Demo", "version": "1.0", "kind": "apps",
+                      "name": "demo", "bundle": "bundles/demo.hibr",
+                      "sha256": h_one},
+    }}
+    put("index221.json", json.dumps(MIX, indent=1))
+    D221 = os.path.join(HOME, "d221")
+    E221 = {"HIBR_APPS_URL": "http://127.0.0.1:%d/index221.json" % PORT,
+            "XDG_DATA_HOME": D221,
+            "XDG_CACHE_HOME": os.path.join(HOME, "c221")}
+
+    # Unsigned first, which is the state every catalogue was in until now.
+    rc, out, err = apps("install", "mods/greet", env=E221)
+    check("a module is refused from a catalogue with no signature on it",
+          rc != 0 and "cannot verify" in err and "no signature" in err
+          and not os.path.exists(os.path.join(D221, "hibr", "mods")),
+          (rc, err))
+    rc, out, err = apps("install", "apps/demo", env=E221)
+    check("and a script from the same catalogue installs, saying so once",
+          rc == 0 and "not verified" in out
+          and os.path.exists(os.path.join(D221, "hibr", "apps", "demo.hibr")),
+          (rc, out, err))
+
+    if GPG:
+        os.makedirs(GH, mode=0o700, exist_ok=True)
+        subprocess.run([GPG, "--batch", "--pinentry-mode", "loopback",
+                        "--passphrase", "", "--quick-generate-key",
+                        "hibr suite <suite@example.invalid>", "ed25519",
+                        "sign", "never"],
+                       env=dict(os.environ, GNUPGHOME=GH),
+                       capture_output=True, timeout=120)
+        fp = subprocess.run([GPG, "--batch", "--with-colons", "--list-keys"],
+                            env=dict(os.environ, GNUPGHOME=GH),
+                            capture_output=True, text=True).stdout
+        FP = [l.split(":")[9] for l in fp.split("\n") if l.startswith("fpr:")][0]
+        KR = os.path.join(D, "suite.gpg")
+        with open(KR, "wb") as f:
+            f.write(subprocess.run([GPG, "--batch", "--export", FP],
+                                   env=dict(os.environ, GNUPGHOME=GH),
+                                   capture_output=True).stdout)
+        subprocess.run([GPG, "--batch", "--yes", "--pinentry-mode", "loopback",
+                        "--passphrase", "", "--local-user", FP, "--armor",
+                        "--detach-sign", "-o",
+                        os.path.join(WWW, "index221.json.asc"),
+                        os.path.join(WWW, "index221.json")],
+                       env=dict(os.environ, GNUPGHOME=GH), capture_output=True)
+        E221S = dict(E221, HIBR_APPS_KEYRING=KR, HIBR_APPS_KEYFP=FP)
+        rc, out, err = apps("install", "mods/greet", env=E221S)
+        check("and installs from a signed one, into the module directory",
+              rc == 0 and os.path.exists(
+                  os.path.join(D221, "hibr", "mods", "greet.so")),
+              (rc, out, err))
+        # The two the index declares and nothing read before: a module is
+        # built for one machine and one ABI, and neither is a thing to
+        # find out after fetching it.
+        rc, out, err = apps("install", "mods/elsewhere", env=E221S)
+        check("a module built for another machine is named and declined",
+              rc != 0 and "darwin-arm64" in err and ARCH in err, (rc, err))
+        rc, out, err = apps("install", "mods/oldabi", env=E221S)
+        check("and one built for another module ABI as well",
+              rc != 0 and "ABI 1 " in err.replace("\n", " "), (rc, err))
+        # A signature made by somebody else's key is not this key's.
+        rc, out, err = apps("install", "mods/greet",
+                            env=dict(E221S, HIBR_APPS_KEYFP="0" * 40))
+        check("a signature by a key this does not pin is not a signature",
+              rc != 0 and "cannot verify" in err, (rc, err))
+    else:
+        for name in ("and installs from a signed one, into the module directory",
+                     "a module built for another machine is named and declined",
+                     "and one built for another module ABI as well",
+                     "a signature by a key this does not pin is not a signature"):
+            rc, out, err = apps("install", "mods/greet", env=E221)
+            check(name + " [no gpg here: the refusal says so]",
+                  rc != 0 and "no gpg" in err, (rc, err))
+
 finally:
     srv.terminate()
     srv.wait()
     shutil.rmtree(D, True)
 
-report(65)
+report(71)

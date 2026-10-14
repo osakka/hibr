@@ -4,4 +4,11 @@
 # @SHAREDIR@ is filled in at install time (see the Makefile's own install
 # target); this file is a template, not run directly.
 
+# Where hibr's own copy of the catalogue's signing key was installed. The
+# manager pins the fingerprint and this only says where to look, so a
+# wrong path means "cannot verify" rather than "verified by the wrong
+# key" -- see ADR 0044.
+HIBR_APPS_KEYRING=${HIBR_APPS_KEYRING:-@SHAREDIR@/keyring.gpg}
+export HIBR_APPS_KEYRING
+
 exec hibr "@SHAREDIR@/apps.hibr" "$@"

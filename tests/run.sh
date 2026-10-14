@@ -35,6 +35,18 @@ if [ ! -x "$HIBR" ]; then
 	exit 1
 fi
 
+# A folder of its own to find data in. Since 0.99.191 a non-root shell
+# searches `$XDG_DATA_HOME/hibr/mods` for modules, so without this every
+# test would search whatever the person running it has installed -- the
+# same reason tests/screen.py gives each pty session its own. It is made
+# empty and left empty: a test that wants something there makes it.
+HIBR_TESTDATA=${TMPDIR:-/tmp}/hibr-testdata-$$
+rm -rf "$HIBR_TESTDATA"
+mkdir -p "$HIBR_TESTDATA" || exit 1
+XDG_DATA_HOME=$HIBR_TESTDATA
+export XDG_DATA_HOME
+trap 'rm -rf "$HIBR_TESTDATA"' EXIT INT TERM
+
 pass=0
 fail=0
 skip=0

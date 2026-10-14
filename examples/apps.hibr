@@ -49,6 +49,7 @@ AP_CONF=${XDG_CONFIG_HOME:-$HOME/.config}/hibr/apps.json
 AP_DATA=${XDG_DATA_HOME:-$HOME/.local/share}/hibr
 AP_CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/hibr
 AP_INDEX=$AP_CACHE/index.json
+AP_SIG=$AP_CACHE/index.json.asc
 AP_STATE=$AP_DATA/apps.json
 # Where the index is fetched from. A static URL on purpose: the catalogue is
 # a git repository with a JSON index in it, so it can be browsed, mirrored
@@ -66,12 +67,38 @@ AP_URL=
 # desktop already looks. The extension is the kind's, not the bundle's
 # guess: `ap_dest` appended `.hibr` to everything, so a theme had nowhere
 # to land at all (Gitea #224).
-AP_KINDS=(apps system control-panel control-strip savers themes colours lang)
+#
+# The ninth is `mods`, and it is the one that is not a scan root of the
+# desktop's: `$XDG_DATA_HOME/hibr/mods` is a **module** search directory a
+# non-root shell walks when something asks for a module by name (ADR 0044,
+# Gitea #221). It is native code, so three things that are advisory for a
+# script are refusals for it -- the signature, the ABI and the machine --
+# and it is the only kind whose files may end in `.so`.
+AP_KINDS=(apps system control-panel control-strip savers themes colours lang
+	  mods)
 declare -gA AP_KEXT=(
 	[apps]=.hibr [system]=.hibr [control-panel]=.hibr
 	[control-strip]=.hibr [savers]=.hibr
 	[themes]=.json [colours]=.json [lang]=.json
+	[mods]=.so
 )
+# What signs the catalogue. The apt repository's own key: one key for the
+# two things this project publishes, rather than a second to lose. The
+# *fingerprint* is the check and the keyring is only where to look -- a
+# swapped keyring verifies nothing unless it holds a key with these forty
+# characters, which is the point of pinning one.
+#
+# HIBR_APPS_KEYFP names a different one, because a catalogue is a folder
+# anybody may copy and serve (`apps index URL`) and somebody running their
+# own signs it with their own key. That is a real need and not only a
+# test hook, and it is not a hole in the model: what this defends against
+# is **a catalogue or a mirror that has been changed**, not an attacker
+# who can already set your environment -- one who can do that can put
+# their own `gpg` on your PATH, or their own `apps` for that matter.
+AP_KEYFP=${HIBR_APPS_KEYFP:-A1E3CA788A8FB02052DA22B413035BE1B1674431}
+AP_SIGOK=
+AP_SIGWHY=
+AP_SIGSAID=
 declare -gA AP_IX
 declare -gA AP_ST
 declare -gA AP_ENT
@@ -135,6 +162,94 @@ fn ap_fetch(int force = 0) {
 		ap_die "$u: the index could not be fetched${DAV_CODE:+ ($DAV_CODE)}"
 	fi
 	mv -f "$tmp" "$AP_INDEX" || ap_die "cannot put the index in place"
+	# The signature travels beside the index and is fetched with it. A
+	# catalogue that has none is not an error here -- it is a state
+	# `ap_verify` reads and every caller decides about, because the
+	# answer differs by kind (ADR 0044).
+	rm -f "$AP_SIG" 2> /dev/null
+	dav get "$u.asc" "$AP_SIG" 2> /dev/null ||
+		rm -f "$AP_SIG" 2> /dev/null
+	return 0
+}
+
+# Where the key that signs the catalogue is kept. Not in the data folder,
+# which is writable: beside the shell that was installed, which is the
+# same place `apps.hibr` itself came from. The launcher fills
+# HIBR_APPS_KEYRING in; the two standard prefixes are for a shell run from
+# a build tree, and `$HIBR` is this shell's own absolute path.
+fn ap_keyring() {
+	local p
+
+	for p in "$HIBR_APPS_KEYRING" \
+		 "${HIBR%/bin/hibr}/share/hibr/keyring.gpg" \
+		 /usr/share/hibr/keyring.gpg \
+		 /usr/local/share/hibr/keyring.gpg; do
+		[ -n "$p" ] && [ -r "$p" ] && { ret "$p"; return 0; }
+	done
+	return 1
+}
+
+# Whether the index this is about to read was signed by the key pinned
+# above. Three outcomes, not two, and the third is the one that matters:
+# **verified**, **not signed by that key**, and **nothing here can tell**
+# -- a host with no gpg. The last two are the same answer for a module
+# (refuse) and the same answer for a script (say so once and go on), but
+# they are different sentences, and a person debugging one wants to know
+# which it was.
+#
+# The fingerprint is the check. gpg's own exit status says "a good
+# signature by somebody in this keyring", which is a different question,
+# so the status line is read and VALIDSIG's own fingerprint is compared --
+# first field, and the last, which is the primary key when the signature
+# was made by a subkey.
+fn ap_verify() {
+	local kr out tag word fp rest
+
+	[ -n "$AP_SIGOK" ] && return 0
+	AP_SIGOK=0
+	# The catalogue's own fault before this machine's: a catalogue that
+	# offers no signature is the answer whatever is or is not installed
+	# here, and saying "the key is not installed" about one would send a
+	# person to fix the wrong end.
+	if [ ! -r "$AP_SIG" ]; then
+		AP_SIGWHY="the catalogue offers no signature"
+		return 0
+	fi
+	if ! command -v gpg > /dev/null 2>&1; then
+		AP_SIGWHY="there is no gpg on this machine to check it with"
+		return 0
+	fi
+	if ! kr := ap_keyring; then
+		AP_SIGWHY="hibr's own copy of the catalogue key is not installed"
+		return 0
+	fi
+	out=$(command gpg --batch --no-default-keyring --keyring "$kr" \
+		--status-fd 1 --verify "$AP_SIG" "$AP_INDEX" 2> /dev/null)
+	while read -r tag word fp rest; do
+		[ "$tag" = "[GNUPG:]" ] || continue
+		[ "$word" = VALIDSIG ] || continue
+		if [ "$fp" = "$AP_KEYFP" ] || [ "${rest##* }" = "$AP_KEYFP" ]; then
+			AP_SIGOK=1
+			return 0
+		fi
+		AP_SIGWHY="it is signed by $fp, not by $AP_KEYFP"
+		return 0
+	done <<< "$out"
+	AP_SIGWHY="the signature does not check out against $AP_KEYFP"
+	return 0
+}
+
+# Said once per run, and only where it is the truth a person needs: before
+# something is placed. A script goes on -- TLS said who answered and the
+# sha256 said the payload arrived whole, which is ADR 0041's stated model
+# and a script is a file you can open. A module does not, and that refusal
+# is ap_install's, not this.
+fn ap_sigsay() {
+	ap_verify
+	[ "$AP_SIGOK" = 1 ] && return 0
+	[ -n "$AP_SIGSAID" ] && return 0
+	AP_SIGSAID=1
+	ap_say "warning: this catalogue is not verified -- $AP_SIGWHY"
 	return 0
 }
 
@@ -249,7 +364,13 @@ fn ap_entry(id) {
 	key=$id
 	[ "${#AP_IX["$AP_SECT"]["$key"][@]}" -gt 0 ] || key=${id##*/}
 	[ "${#AP_IX["$AP_SECT"]["$key"][@]}" -gt 0 ] || return 1
-	for k in title version about author licence hibr abi bundle sha256 kind modules name; do
+	# `arch` is in this list, and the fact that it had to be added is the
+	# whole argument for the list: an index field that nothing copies
+	# here is a field nothing can check, and `ap_needs` read an empty
+	# string and let a darwin-arm64 module install on linux-x86_64 --
+	# measured, not reasoned about. Anything added to the index that a
+	# verb reads goes here too.
+	for k in title version about author licence hibr abi arch bundle sha256 kind modules name; do
 		AP_ENT["$k"]=${AP_IX["$AP_SECT"]["$key"]["$k"]}
 	done
 	# The *name* is what a file is called where it lands; the **id** is
@@ -355,16 +476,22 @@ fn ap_walk(nm, prefix = "", int depth = 0) {
 # written. This is the one security boundary in this program: a bundle that
 # can write outside its own folder can write anywhere this runs. Absolute
 # paths, any `..` component and an empty name are refused, each naming the
-# path -- and a `.so` anywhere in the tree is refused with that word, since
-# native code has no sandbox of any kind and is a different class of risk
-# from a script a person can read (ADR 0041, ADR 0016).
-fn ap_pathok(p) {
+# path.
+#
+# A `.so` is refused everywhere **except** in a bundle of kind `mods`,
+# which is the one kind that exists to carry one (ADR 0044). The kind is
+# passed in rather than read from a global for the usual reason: a part
+# decides its own destination, so the check has to be asked about the kind
+# the file is going to, not the kind the bundle happens to be.
+fn ap_pathok(p, kind = "") {
 	local part
 	local -a parts
 
 	case $p in
 	"" | /*) return 1 ;;
-	*.so | *.so.*) return 1 ;;
+	esac
+	case $p in
+	*.so | *.so.*) [ "$kind" = mods ] || return 1 ;;
 	esac
 	IFS=/ read -ra parts <<< "$p"
 	for part in "${parts[@]}"; do
@@ -580,18 +707,37 @@ fn ap_info(want, int j = 0) {
 	printf '\nversion   %s\n' "${AP_ENT["version"]}"
 	printf 'author    %s\n' "${AP_ENT["author"]:-not said}"
 	printf 'licence   %s\n' "${AP_ENT["licence"]:-not said}"
-	printf 'needs     hibr %s, module ABI %s%s\n' \
+	printf 'needs     hibr %s, module ABI %s%s%s\n' \
 		"${AP_ENT["hibr"]:-any}" "${AP_ENT["abi"]:-any}" \
-		"${AP_ENT["modules"]:+, modules: ${AP_ENT["modules"]}}"
+		"${AP_ENT["modules"]:+, modules: ${AP_ENT["modules"]}}" \
+		"${AP_ENT["arch"]:+, machine: ${AP_ENT["arch"]}}"
 	printf 'kind      %s\n' "${AP_ENT["kind"]}"
 	printf 'bundle    %s\n' "${AP_ENT["bundle"]}"
 	printf 'sha256    %s\n' "${AP_ENT["sha256"]:-none given}"
 	printf 'index     %s\n' "$u"
+	ap_verify
+	if [ "$AP_SIGOK" = 1 ]; then
+		printf 'signed    yes, by %s\n' "$AP_KEYFP"
+	else
+		printf 'signed    no -- %s\n' "$AP_SIGWHY"
+	fi
 	[ -n "${AP_ST["installed"]["$name"]["version"]}" ] &&
 		printf 'installed %s\n' "${AP_ST["installed"]["$name"]["version"]}"
-	printf '\n%s\n' "Nothing here says who wrote this app: there are no"
-	printf '%s\n' "signatures. TLS says which server the index came from and"
-	printf '%s\n' "the sha256 says the bundle was not changed on the way."
+	if [ "$AP_SIGOK" = 1 ]; then
+		printf '\n%s\n' "The index is signed by the key above, and it holds"
+		printf '%s\n' "every bundle's sha256 -- so the signature covers this"
+		printf '%s\n' "bundle as well. What it says is that the catalogue is"
+		printf '%s\n' "the one that key publishes, not that the app is good."
+	elif [ "${AP_ENT["kind"]}" = mods ]; then
+		printf '\n%s\n' "This is a module -- native code, with no sandbox, that"
+		printf '%s\n' "runs as you. It will not be installed from a catalogue"
+		printf '%s\n' "this cannot verify, and it cannot verify this one."
+	else
+		printf '\n%s\n' "Nothing here says who wrote this app: this catalogue"
+		printf '%s\n' "is not signed. TLS says which server the index came"
+		printf '%s\n' "from and the sha256 says the bundle was not changed on"
+		printf '%s\n' "the way; the rest is reading the file, which you can."
+	fi
 	return 0
 }
 
@@ -755,7 +901,12 @@ fn ap_partok(kind, file) {
 	ap_kindok "$kind" || return 1
 	case $file in
 	"" | .* | *[!a-z0-9._-]* | *..* ) return 1 ;;
-	*.so | *.so.*) return 1 ;;
+	esac
+	# A `.so` only where a `.so` belongs, which is a part of kind `mods`
+	# -- the same rule ap_pathok keeps about where a member may come
+	# from, asked here about where it is going (ADR 0044).
+	case $file in
+	*.so | *.so.*) [ "$kind" = mods ] || return 1 ;;
 	esac
 	return 0
 }
@@ -808,13 +959,15 @@ fn ap_puttar(kind, name, src) {
 			ap_die "$name: the bundle holds a symbolic link, $path
 Refused. A link in a bundle can point anywhere on this machine."
 		fi
-		ap_pathok "$path" && continue
+		ap_pathok "$path" "$kind" && continue
 		rm -f "$src" 2> /dev/null
 		case $path in
 		*.so | *.so.*)
 			ap_die "$name: the bundle holds a module, $path
-Refused. A .so is native code with no sandbox of any kind, and root loads
-modules only from the folder compiled into the binary (ADR 0016)." ;;
+Refused. A .so is native code with no sandbox of any kind. Only a bundle
+of kind 'mods' may carry one, and it lands where a non-root shell looks
+for a module asked for by name -- never where root looks (ADR 0016,
+ADR 0044)." ;;
 		esac
 		ap_die "$name: the bundle holds $path, which is outside its own folder
 Refused. A member path may not be absolute and may not climb with '..'."
@@ -950,10 +1103,33 @@ filename -- a part decides where a file lands."
 # happily on a machine without it and failed at its first call, in a window,
 # as a shell error in desktop.log. An index field nothing enforces reads as
 # a promise (Gitea #217).
+# This machine, as the catalogue spells it: the system and the machine,
+# lowercased and joined -- `linux-x86_64`, `darwin-arm64`. One fork, on
+# the install path only, and `uname` is a program `--plan` already knows
+# only reads. Not a shell variable: `HIBR_ARCH` is taken, and means the
+# arena's chunk size.
+fn ap_arch() {
+	local u
+
+	u := uname -sm
+	u=${u,,}
+	ret "${u% *}-${u#* }"
+}
+
 fn ap_needs(name) {
-	local abi hv m oldest
+	local abi hv m oldest arch here
 	local -a mods
 
+	# A module is built for one ABI and one machine, and neither is a
+	# thing to find out after fetching it (ADR 0044). An entry that
+	# names no arch is a script, and says nothing about machines.
+	arch=${AP_ENT["arch"]}
+	if [ -n "$arch" ]; then
+		here := ap_arch
+		[ "$arch" = "$here" ] ||
+			ap_die "$name: is built for $arch and this is $here
+A module is native code: it cannot be loaded on another machine."
+	fi
 	abi=${AP_ENT["abi"]}
 	if [ -n "$abi" ] && [ "$abi" != "$HIBR_ABI" ]; then
 		ap_die "$name: needs module ABI $abi and this hibr has $HIBR_ABI
@@ -975,8 +1151,8 @@ A module's ABI must match exactly, so this app's own module could not load."
 			[ -n "$m" ] || continue
 			need "$m" 2> /dev/null && continue
 			ap_die "$name: needs the $m module, which this hibr does not have
-A module comes with hibr itself, not from here: a bundle may not carry one
-(ADR 0016), so there is nothing this command can install to answer it."
+A module comes with hibr, or from this catalogue as a bundle of kind
+'mods' -- try: apps install mods/$m"
 		done
 	fi
 	return 0
@@ -997,6 +1173,24 @@ fn ap_install(...names) {
 		kind=${AP_ENT["kind"]}
 		ap_kindok "$kind" ||
 			ap_die "$name: the index says kind $kind, which is not one an app installs into"
+		# Where the two kinds part. A script says what it is on the
+		# screen; its reader is the backstop, so an unverified
+		# catalogue is a sentence and the install goes on. A module
+		# has no reader and runs as you, so an unverified catalogue
+		# is the end of it -- without this the signature is
+		# decoration and `apps info` would be claiming a check
+		# nothing makes (ADR 0044).
+		if [ "$kind" = mods ]; then
+			ap_verify
+			[ "$AP_SIGOK" = 1 ] ||
+				ap_die "$name: refusing to install a module from a catalogue this cannot verify
+$AP_SIGWHY.
+A module is native code and runs as you: a signature is not optional for
+one, where for a script the sha256 and TLS are the stated trust model and
+you can read the file (ADR 0041, ADR 0044)."
+		else
+			ap_sigsay
+		fi
 		# Before fetching, not after: refusing an app this hibr
 		# cannot run should cost nothing and leave nothing behind.
 		ap_needs "$name"
@@ -1195,6 +1389,7 @@ ap_help() {
 	"  anything that is not a person: the desktop's Applications window" \
 	"  reads that rather than parsing these columns, so the window and the" \
 	"  command read one answer instead of one parsing the other's layout." \
+	"" \
 	"  apps install NAME...   fetch, verify and place" \
 	"  apps remove [-f] NAME  take one away; -f even if a window is open" \
 	"  apps update [NAME...]  everything with a newer version, or these" \
@@ -1208,12 +1403,23 @@ ap_help() {
 	"overwrite it." \
 	"" \
 	"TLS says which server the index came from and the sha256 says the" \
-	"bundle was not changed on the way. Nothing here says who wrote an app:" \
-	"there are no signatures. See docs/apps.md and docs/adr/0041."
+	"bundle was not changed on the way. Who wrote it is the signature on" \
+	"the index, which covers every bundle through those hashes:" \
+	"'apps info NAME' says whether this catalogue has one that checks out." \
+	"" \
+	"A module -- kind 'mods' -- is the one thing here that is native code" \
+	"rather than a file you can read, so it is refused outright from a" \
+	"catalogue that cannot be verified, where a script is installed with a" \
+	"warning. It lands in \$XDG_DATA_HOME/hibr/mods, which a non-root shell" \
+	"searches when something asks for a module by name: 'need NAME' finds" \
+	"one installed here, and a mistyped command never loads it." \
+	"" \
+	"See docs/apps.md, docs/adr/0041 and docs/adr/0044."
 }
 
 ap_usage() {
 	echo "usage: apps [-j] list [TEXT] | [-j] installed | [-j] info NAME |" >&2
+	echo "       (kinds: ${AP_KINDS[*]})" >&2
 	echo "       show NAME | install NAME... | remove [-f] NAME... |" >&2
 	echo "       update [NAME...] | index [URL] | refresh | help" >&2
 	exit 2

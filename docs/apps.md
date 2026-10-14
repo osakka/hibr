@@ -40,6 +40,7 @@ answered; anything that is not an address is refused.
 | `apps installed` | what is installed here, and from where |
 | `apps info NAME` | everything the index says about one |
 | `apps show NAME` | fetch it, verify it, and print it — without placing it |
+| `apps install mods/NAME` | a module, into `$XDG_DATA_HOME/hibr/mods` |
 | `apps install NAME...` | fetch, verify and place |
 | `apps remove [-f] NAME...` | take one away; `-f` even if a window is open |
 | `apps update [NAME...]` | everything with a newer version, or just these |
@@ -66,8 +67,8 @@ weather          Weather                    installed 0.9, 1.1 available
 
 ## Where a file lands, and why yours wins
 
-The desktop scans eight places, and each begins with a folder of **yours**
-followed by a data folder the manager writes to:
+Eight of the nine kinds are places the **desktop** scans, and each begins
+with a folder of **yours** followed by a data folder the manager writes to:
 
 | what it is | your folder | a file is |
 |---|---|---|
@@ -85,13 +86,24 @@ of the same name, and `apps update` cannot overwrite your copy. That is the
 whole protection: there is no lock and no database, only the order of two
 directories.
 
-An entry's `kind` decides which of the eight it goes to, and **the kind
+The ninth is `mods`, and it belongs to the **shell** rather than the
+desktop: a module lands in `$XDG_DATA_HOME/hibr/mods`, which a non-root
+shell searches when something asks for a module by name — `need NAME`,
+`mod load NAME`, `mod avail`. It is the one kind that is native code, so
+three things differ for it, each a refusal rather than a note: it is not
+installed at all from a catalogue whose signature does not check out, and
+its `arch` and `abi` are compared with this machine's before the bundle is
+fetched. A module installed there is never loaded by a *mistyped command*,
+which is deliberate and is the subject of
+[ADR 0044](adr/0044-a-module-can-be-installed.md).
+
+An entry's `kind` decides which of the nine it goes to, and **the kind
 decides the extension**: a theme is JSON, not a script
-([ADR 0028](adr/0028-a-theme-is-data.md)), and a translation catalogue is
-too ([ADR 0032](adr/0032-the-desktop-is-translated-at-its-widgets.md)).
-A kind that is not one of the eight is refused rather than guessed at, and
-a bundle whose own extension is not its kind's is not placed as itself —
-it would be a file nothing ever reads.
+([ADR 0028](adr/0028-a-theme-is-data.md)), a translation catalogue is too
+([ADR 0032](adr/0032-the-desktop-is-translated-at-its-widgets.md)), and a
+module is a `.so`. A kind that is not one of the nine is refused rather
+than guessed at, and a bundle whose own extension is not its kind's is not
+placed as itself — it would be a file nothing ever reads.
 
 ## What it trusts, and what it does not
 
@@ -102,22 +114,50 @@ things and because claiming more would be a lie:
 |---|---|
 | **TLS** | the identity of the **server** the index came from. Certificates are verified by default; nothing here turns that off |
 | **sha256** | the integrity of the **payload**. A bundle changed in transit or on a mirror is refused |
-| **nothing** | the identity of the **author**. There are no signatures |
+| **a signature on the index** | the identity of the **publisher**. A detached OpenPGP signature over `index.json`, by the same key the apt repository uses — and since the index carries every bundle's `sha256`, one signature covers every bundle |
 
-`apps info` says the third one in as many words rather than implying
-otherwise. If you need to know who wrote an app, this cannot tell you.
+`apps info` says which of these hold for the catalogue in force, including
+when the third does not:
+
+<!-- not run: fetches an index over HTTPS -->
+```sh
+apps info snake
+```
+
+```text
+signed    yes, by A1E3CA788A8FB02052DA22B413035BE1B1674431
+```
+
+What a verified signature says is that this is the catalogue that key
+publishes. It does not say the app is good, and nothing here does.
+
+A **script** from a catalogue that cannot be verified is installed with a
+warning, because you can read the file and the `sha256` says you are
+reading what the publisher hashed. A **module** is refused: there is
+nothing to read and the object runs as you. A machine with no `gpg` on it
+is the same case — scripts unaffected, modules refused.
+
+`HIBR_APPS_KEYFP` pins a different fingerprint, for somebody serving a
+catalogue of their own; the keyring `apps` reads is
+`$PREFIX/share/hibr/keyring.gpg`, installed beside the shell, and
+`HIBR_APPS_KEYRING` points elsewhere.
 
 ## What it refuses
 
 Each refused outright rather than half-done, and each names what it found:
 
-- **a bundle carrying a `.so`** — native code has no sandbox here, and root
-  loads modules only from the directory compiled in
+- **a bundle carrying a `.so`**, unless it is a bundle of kind `mods` —
+  native code has no sandbox here, and root loads modules only from the
+  directory compiled in
   ([ADR 0016](adr/0016-privileges-are-dropped-never-gained.md));
+- **a module from a catalogue whose signature does not check out**, and
+  **a module built for another machine or another module ABI**, both
+  before the bundle is fetched
+  ([ADR 0044](adr/0044-a-module-can-be-installed.md));
 - **a member whose path is absolute or climbs out of its own folder** —
   `../escaped.hibr` and `/etc/x` are both refused, naming the path;
 - **a symbolic link**, which a bundle has no business carrying;
-- **a part whose kind is not one of the eight, or whose name is anything
+- **a part whose kind is not one of the nine, or whose name is anything
   but a plain filename** — a part decides a destination;
 - **an entry whose own name is not a plain filename** — the name decides
   where the file lands, so `../../../climbed` is refused, and that one

@@ -32,9 +32,28 @@ hibr -c 'mod load ./build/mods/hello.so; mod list; mod drop hello'
 
 A name containing a `/` is a path and is opened directly. Everything else is
 searched for: the current directory, then each entry of `HIBR_MODPATH`, then
-the install directory. A shell running as root skips the first two and consults
-only the install directory — see
+`$XDG_DATA_HOME/hibr/mods` (`~/.local/share/hibr/mods` when that is unset),
+then the install directory. A shell running as root skips every one of those
+and consults only the install directory — see
 [0016](adr/0016-privileges-are-dropped-never-gained.md).
+
+`$XDG_DATA_HOME/hibr/mods` is where `apps install` puts a module, and it is
+searched **only when something asks for a module by name** — `mod load`,
+`mod find`, `need`, `mod list`, `mod avail`. It is deliberately left out of
+the index that lets a *command* load the module declaring it, because that
+index is built by anything that is not a builtin, not a function and not on
+`PATH` — a typo, in a script as much as at a prompt — and building it opens
+every candidate to read its descriptor, which runs that object's own
+constructors. So a module you installed is one you can ask for, and is never
+loaded because you mistyped something:
+
+<!-- not run: needs a module installed in the data folder -->
+```sh
+csv                 # command not found: nothing autoloads from there
+need csv; csv       # asked for by name, and it is there
+```
+
+The reasoning is [0044](adr/0044-a-module-can-be-installed.md).
 
 `mod avail` walks that same search order and reports what it finds, one line
 per module plus its builtins:
