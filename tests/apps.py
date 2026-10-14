@@ -1373,6 +1373,49 @@ check("Save Current Look as Theme writes the look as it is, and it comes back th
       out[5] == "Mine Too paper rounded solid center" and "Mine Too" in out[6], out)
 shutil.rmtree(TD, True)
 
+# `apps install` places a theme or a colour scheme in
+# $XDG_DATA_HOME/hibr/<kind>, exactly as it places an application, and
+# until 0.99.187 **neither list looked there at all**: a theme could be
+# published, fetched, its sha256 verified and its picture put beside it,
+# and the Appearance pane would never show it -- which is half a feature,
+# and the half nobody would have noticed from the install's own output
+# (Gitea #224). The order is the one every scan list keeps, so the check
+# reads both halves: a fetched file is listed, and a file of the person's
+# own with that name wins over it.
+CD = tempfile.mkdtemp(prefix="hibr-conf-")
+DD = tempfile.mkdtemp(prefix="hibr-data-")
+for k in ("themes", "colours"):
+    os.makedirs(os.path.join(DD, "hibr", k))
+    os.makedirs(os.path.join(CD, "hibr", k))
+# Fetched: a theme and a colour scheme of names nothing bundles.
+open(os.path.join(DD, "hibr", "themes", "fetched.json"), "w").write(
+    '{"title":"Fetched","colours":"paper","frame":"double"}')
+open(os.path.join(DD, "hibr", "colours", "fetchco.json"), "w").write(GOOD)
+# And one of each whose name the person has taken for themselves.
+open(os.path.join(DD, "hibr", "themes", "mine.json"), "w").write(
+    '{"colours":"paper","frame":"double"}')
+open(os.path.join(CD, "hibr", "themes", "mine.json"), "w").write(
+    '{"colours":"dracula","frame":"rounded"}')
+out = subprocess.run(
+    [sx.HIBR, "-c", CPLOAD + 'echo "${CP_THEMES[*]}"\n'
+     'echo "${CP_COLOURLIST[*]}"\n'
+     'cp_theme mine; echo "$CP_COLOURS $DT_FRAME"'],
+    env=dict(os.environ, XDG_CONFIG_HOME=CD, XDG_DATA_HOME=DD),
+    capture_output=True, text=True).stdout.split("\n")
+check("a theme and a colour scheme installed from the catalogue are listed, "
+      "beside the bundled ones",
+      "fetched" in out[0].split() and "mine" in out[0].split()
+      and "fetchco" in out[1].split() and "classic" in out[0].split(), out)
+# This one guards the invariant rather than the change, and says so: with
+# no data folder in the list at all it passes against 0.99.186 too, since
+# `mine` could only ever have resolved to the person's own copy. It is here
+# because the entry that was added is the one that could break it.
+check("and a file of the person's own wins over a fetched one of that name, "
+      "so an update cannot overwrite their copy",
+      out[2] == "dracula rounded", out)
+shutil.rmtree(CD, True)
+shutil.rmtree(DD, True)
+
 # Before 0.99.33 the colour scheme's name was kept as CP_THEME; a file that
 # old has it moved to CP_COLOURS once, and a theme chosen since is kept.
 def loadlook(conf):
@@ -4301,4 +4344,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(606)
+report(608)

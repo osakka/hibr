@@ -1,5 +1,77 @@
 # Changelog
 
+## 0.99.187
+
+**`${#m["k"]}` counted bytes where `${#x}` counts characters, so every
+length the desktop takes of its own text was wrong for a wide glyph**
+(Gitea #226).
+
+ADR 0021 settled this years ago: `${#s}`, `${s:i:n}`, `str len`, `str
+slice` and `str index` count **characters**, and `str pad` and `str width`
+count display columns, because padding exists to line columns up. The
+plain form obeyed it; a **subscripted** one did not.
+
+    plain      3
+    map key    9
+    array idx  9
+    nested     9
+    str len    3
+    slice map  [日本]
+
+bash answers 3 for all of its three. The tell that this was one missing
+call rather than a design question is in that table: the plain form is
+right, `str len` is right, and **slicing a subscripted value is right** --
+only the length of one fell through to `strlen`. `xvar`'s own subscripted
+branch had `strlen(v_getp(...))` where `xvar2` five hundred lines below it
+has `u8n(v, strlen(v))`, which is the rule.
+
+It is not academic, and the measurement is why: **81 places** in
+`examples/desktop`, `mods` and `examples/*.hibr` measure a subscripted
+value with `${#...}`, and an app's state lives under its window id by
+rule, so that is where the desktop keeps all of its text. The clearest are
+the text area's own `${#TB[$id][$i]}` -- a line of a document -- so a
+cursor position or an end-of-line computed from one was out by two per
+wide character, in Write, Note Pad, Stickies, Sheet, Mail's compose and
+every one-line field that routes through `dt_textdraw`. This is the bar's
+own "measured its own titles two different ways" trap, in the core rather
+than in one widget.
+
+Found by checking that a theme's `"wallpaper": "░"` reads back as the
+literal glyph it replaced (it does -- same character, same three bytes,
+equal) and noticing that `${#j["wallpaper"]}` answered 3.
+
+`tests/198-len-subscript.t` is compared against bash and fails against
+0.99.186 on four of its nine lines -- the map, a mixed-width string, a
+dashed key and an array index -- while the slice and the `[@]`/`[*]`
+counts beside them are unchanged, which is what says the fix is the length
+and nothing else. The nested-map form is hibr's own, so it is asserted in
+`tests/self.hibr` (92 now) rather than compared.
+
+**And the other half of 0.99.186: the desktop did not look where an
+installed theme lands** (Gitea #224 again).
+
+`apps install` places a theme, a colour scheme or a language in
+`$XDG_DATA_HOME/hibr/<kind>`, exactly as it places an application --
+`examples/apps.hibr`'s own header says every one of the desktop's eight
+scan lists has that folder after the person's own -- and it was true of
+the five kinds that are **scripts** and false of the three that are
+**data**: `CP_THEMEDIRS`, `CP_COLOURDIRS` and both of `wm/lang.hibr`'s
+scan sites (one for a language by code, one for the list) named the
+config folder and the bundled one and nothing in between. So the whole of
+0.99.186 worked and the pane would never have shown what it fetched: the
+bundle verified, the file placed, the theme's picture put beside it, and
+nothing anywhere to see. Half a feature, and the half the install's own
+output cannot reveal -- it says `installed retro_car as .../themes/retro_car.json`,
+which is true.
+
+Found by asking the Appearance pane for its list rather than by reading
+the install, which is the only question that was ever in doubt. Four
+entries added, in the order every other list keeps -- the person's own
+folder first, so a file of theirs shadows a fetched one of the same name
+and an update cannot overwrite their copy -- and two checks in
+`tests/apps.py`, the first of which fails against 0.99.186 and the second
+of which says in the file that it does not.
+
 ## 0.99.186
 
 **Themes, colour schemes and languages can be published: a kind knows its

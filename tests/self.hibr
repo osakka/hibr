@@ -44,7 +44,7 @@ fn status_is(int got, int want, str what) {
 
 fn section(str name) { echo "== $name"; }
 
-plan 91
+plan 92
 
 section "expansion"
 x=hello
@@ -76,6 +76,10 @@ is "${!a[*]}" "0 1 2 7" "sparse keys"
 h[x][y][z]=deep
 is "${h[x][y][z]}" "deep" "nested autovivify"
 is "${!h[x][*]}" "y" "nested keys"
+# A length counts characters wherever the value is held, which bash cannot
+# be compared against for a nested map because it has none (Gitea #226).
+h[x][y][w]=$'日本語'
+is "${#h[x][y][w]}" "3" "a nested map's length counts characters"
 cfg=([host]=srv [port]=80)
 is "${cfg[host]}:${cfg[port]}" "srv:80" "map literal"
 hd["content-type"]=app/json

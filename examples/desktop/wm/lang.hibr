@@ -114,11 +114,18 @@ fn dt_tput(int id, int r, int c, text, ...rest) {
 	console put -p "w$id" "$r" "$c" "$text"
 }
 
-# Where a language's catalogue is: the person's own folder first, then the bundled one.
+# Where a language's catalogue is: the person's own folder first, then the
+# data folder `apps install` writes into, then the bundled one -- the order
+# every one of the desktop's scan lists keeps, so a catalogue of your own
+# shadows a fetched one and an update cannot overwrite your copy. Without
+# that middle entry a language could be published and installed and nothing
+# would ever read it (Gitea #224).
 fn dt_langfile(code) {
 	local f
 
-	for f in "${XDG_CONFIG_HOME:-$HOME/.config}/hibr/lang/$code.json" "$DT_HERE/lang/$code.json"; do
+	for f in "${XDG_CONFIG_HOME:-$HOME/.config}/hibr/lang/$code.json" \
+		 "${XDG_DATA_HOME:-$HOME/.local/share}/hibr/lang/$code.json" \
+		 "$DT_HERE/lang/$code.json"; do
 		if [ -r "$f" ]; then
 			ret "$f"
 			return 0
@@ -327,7 +334,9 @@ dt_mirrorx() {
 dt_langs() {
 	local f c n seen=" " out="" l
 
-	for f in "${XDG_CONFIG_HOME:-$HOME/.config}"/hibr/lang/*.json "$DT_HERE"/lang/*.json; do
+	for f in "${XDG_CONFIG_HOME:-$HOME/.config}"/hibr/lang/*.json \
+		 "${XDG_DATA_HOME:-$HOME/.local/share}"/hibr/lang/*.json \
+		 "$DT_HERE"/lang/*.json; do
 		[ -r "$f" ] || continue
 		c=${f##*/}
 		c=${c%.json}

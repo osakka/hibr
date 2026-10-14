@@ -553,11 +553,11 @@ void xvar(sh *s, part *p, str *b, str *m)
 		char **ks;
 		int all, nk = xkeys(s, p, &ks, &all);
 		if (p->op == V_LEN) {
-			char *c = xnum(s, (long)(all ? v_count(s, p->t, ks, nk) :
-						 (long)strlen(v_getp(s, p->t, ks,
-								     nk) ?
-							      v_getp(s, p->t, ks,
-								     nk) : "")));
+			const char *lv = all ? 0 : v_getp(s, p->t, ks, nk);
+			char *c = xnum(s, all ?
+				       (long)v_count(s, p->t, ks, nk) :
+				       (long)u8n(lv ? lv : "",
+						 lv ? strlen(lv) : 0));
 			xput(b, m, c, strlen(c), 1);
 			return;
 		}
