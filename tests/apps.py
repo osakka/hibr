@@ -9,7 +9,7 @@ proves a real program in a window (two of them, as two sessions), and the
 games prove animation on the clock.
 Run it directly:  python3 tests/apps.py [path-to-hibr]
 """
-import os, re, shutil, subprocess, sys, tempfile
+import json, os, re, shutil, subprocess, sys, tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
@@ -49,7 +49,7 @@ def appdir(a):
 
 
 def run(app, win, feed=(), pre="", wait=1.0, also=(), end=b"qy", extra=(),
-        env=None, until=None):
+        env=None, until=None, tries=40, ready=None):
     """Open one app in a window at a known place and drive it.
 
     `also` adds further windows after it, as (title, geometry, app) triples,
@@ -103,9 +103,25 @@ def run(app, win, feed=(), pre="", wait=1.0, also=(), end=b"qy", extra=(),
     # the old fixed start used to give everything.
     if "term" in mods:
         t.collect(0.8)
+    # `ready` is what must be true **before** the keys are sent, where
+    # `until` is what must be true after. An app that fetches its own
+    # content -- the Applications window runs `apps` as a child -- has
+    # nothing for a key to act on until that answer is in, so a key sent
+    # on the first frame is a key pressed at an empty window. `until`'s
+    # docstring has the other half of this: a key is never early, and
+    # what a key *causes* can be.
+    if ready is not None:
+        t.until(ready, tries)
     t.keys(feed)
     if until is not None:
-        t.until(until)
+        # `tries` because `until`'s own four seconds is a budget, not a
+        # promise: a window that forks a child and polls for its answer
+        # needs longer than one that redraws from what it already has,
+        # and a gate runs eighty pty sessions at once. until() gives up
+        # **quietly** and returns whatever is on screen, so a budget too
+        # small reads as the window never drawing rather than as the
+        # test being early.
+        t.until(until, tries)
     t.quit(end, wait)
     sc = t.screen()
     sc.out = t.out
@@ -2186,6 +2202,14 @@ check("each terminal window's own shell is named for its window in ps, "
 # the job does and is cut to the kernel's fifteen bytes; the long one is
 # the sentence.
 psjob = open(PSJOB).read().splitlines() if os.path.exists(PSJOB) else []
+# Taken away again: the teardown ends with os.rmdir(S), which refuses a
+# directory holding anything, and this file is the only thing besides
+# session.hibr ever written there. Left behind, apps.py run **whole**
+# died in its own teardown with "Directory not empty" after every check
+# had passed -- so it never printed report(), and the four parts hid it
+# because no one of them holds both this section and the teardown.
+if os.path.exists(PSJOB):
+    os.unlink(PSJOB)
 check("a job the desktop forks is named for the work it is doing",
       psjob[:1] == ["sync:dav.exampl"] and
       psjob[1:2] == ["job [sync:dav.example.org]"], psjob)
@@ -4334,6 +4358,129 @@ check("a hibr replaced on disk is noticed, and the restart offered",
       sc.find("is installed") is not None, sc)
 os.unlink(HCOPY)
 
+# --- the Applications window -------------------------------------------------
+#
+# `apps` is the whole implementation and this window is a window around it
+# (Gitea #219), so what is tested here is the *window*: a stub `apps` on
+# PATH answers the JSON and records what it was asked, which needs no
+# network and no catalogue, and makes "did the window ask for the right
+# thing" a fact rather than an inference.
+
+ASBIN = tempfile.mkdtemp(prefix="hibr-asbin-")
+ASLOG = os.path.join(ASBIN, "asked")
+AS_JSON = json.dumps({"entries": {
+    "apps/widget": {"id": "apps/widget", "name": "widget", "kind": "apps",
+                    "title": "Widget", "version": "2.0", "installed": "",
+                    "update": "0", "about": "A widget\n\nthe second paragraph."},
+    "apps/gadget": {"id": "apps/gadget", "name": "gadget", "kind": "apps",
+                    "title": "Gadget", "version": "1.0", "installed": "1.0",
+                    "update": "0", "about": "A gadget"},
+}})
+
+
+def asstub(answer=AS_JSON, rc=0):
+    """A stand-in `apps` that answers one thing and writes down every call.
+
+    The answer goes in a file the stub cats, rather than into a `printf`
+    in the script: JSON needs a literal backslash-n inside a string and
+    printf turns one into a real newline, which is invalid JSON -- so the
+    first version of this handed the window something that could not
+    parse and every check failed for a reason that had nothing to do with
+    the window."""
+    open(os.path.join(ASBIN, "answer"), "w").write(answer)
+    open(os.path.join(ASBIN, "apps"), "w").write(
+        '#!/bin/sh\n'
+        'printf "%%s\\n" "$*" >> %s\n'
+        'case "$*" in *-j*) cat %s ;; esac\n'
+        'exit %d\n' % (ASLOG, os.path.join(ASBIN, "answer"), rc))
+    os.chmod(os.path.join(ASBIN, "apps"), 0o755)
+    if os.path.exists(ASLOG):
+        os.unlink(ASLOG)
+
+
+def asked():
+    return open(ASLOG).read() if os.path.exists(ASLOG) else ""
+
+
+asstub()
+ASENV = {"PATH": ASBIN + ":" + os.environ["PATH"]}
+sc = run("appstore", "21 76 2 2", env=ASENV, tries=150,
+         until=lambda s: s.find("apps/widget") is not None)
+check("the Applications window lists what `apps -j` answered, under a "
+      "heading for its kind, and asks for JSON rather than parsing columns",
+      sc.find("Applications") is not None and sc.find("widget") is not None
+      and sc.find("gadget") is not None and "list -j" in asked(),
+      ("heading=%s widget=%s gadget=%s asked=%r"
+       % (sc.find("Applications"), sc.find("widget"), sc.find("gadget"),
+          asked()), sc))
+check("and the detail pane shows the entry's own prose, paragraphs kept",
+      sc.find("A widget") is not None
+      and sc.find("the second paragraph.") is not None, sc)
+# A kind folds away, and a folded one still says how many are under it --
+# which is the whole reason a shut group is worth reading. The entries go
+# by their own name, since the kind is the line above them.
+sc = run("appstore", "21 76 2 2", env=ASENV, tries=150,
+         ready=lambda s: s.find("widget") is not None,
+         feed=[b"\x1b[D", b"\x1b[D"],
+         until=lambda s: s.find("widget") is None)
+check("a kind folds away, and the fold still says how many it holds",
+      sc.find("Applications") is not None and sc.find("widget") is None, sc)
+
+# Typing in the search narrows the list; the window does the filtering,
+# since asking the command again per keystroke would be a fetch per
+# keystroke.
+# `end=None`: the search field has the keyboard at this point, so the
+# teardown's own `qy` is *typed into it* -- the field read "gadqy" and
+# matched nothing, which looks exactly like the search being broken. The
+# same trap as a terminal window eating the quitting key, in a text box.
+# The log is written down by every session, so it is cleared first: the
+# count below is "this window asked once", and without the reset it would
+# be counting what the two sessions before it asked as well.
+asstub()
+sc = run("appstore", "21 76 2 2", env=ASENV, tries=150, end=None,
+         ready=lambda s: s.find("widget") is not None, feed=[b"\t", b"gad"],
+         until=lambda s: s.find("widget") is None)
+check("typing in the search narrows the list without asking again",
+      sc.find("gadget") is not None and sc.find("widget") is None
+      and asked().count("list -j") == 1, (sc, asked()))
+
+# And the buttons ask the command for the thing the selection is on.
+asstub()
+sc = run("appstore", "21 76 2 2", env=ASENV, tries=150,
+         ready=lambda s: s.find("widget") is not None, feed=[b"i"],
+         until=lambda s: "install" in asked())
+check("Install asks the command to install the selected id, by id",
+      "install apps/gadget" in asked() or "install apps/widget" in asked(),
+      asked())
+
+# A heading is not a thing to install, and the lint rule found that it
+# was being treated as one: `as_at`'s three misses each ended in
+# `ret ""; return 1`, where `ret` ends the function with status 0, so
+# every caller's `|| ...` was dead. Measured against the old lines, the
+# buttons on a heading read `Install  Read It  Refresh` and `i` asked the
+# command `install ` -- an empty id. The window opens on the first entry,
+# so `up` is what reaches a heading at all.
+asstub()
+sc = run("appstore", "21 76 2 2", env=ASENV, tries=150,
+         ready=lambda s: s.find("widget") is not None,
+         feed=[b"\x1b[A", b"i"],
+         until=lambda s: s.find("Nothing is selected") is not None)
+check("a heading offers nothing to install, and says so when asked anyway",
+      sc.find("Install") is None and sc.find("Refresh") is not None
+      and "install" not in asked(), (sc, asked()))
+
+# An `apps` older than this window has no -j, reads it as the text to
+# search for, and succeeds while answering prose. Saying "it did not say
+# why" there is true and useless.
+asstub(answer="nothing in the index matches -j")
+sc = run("appstore", "21 76 2 2", env=ASENV, tries=150,
+         until=lambda s: s.find("did not answer JSON") is not None)
+check("an `apps` too old to know -j is named as the likely cause, rather "
+      "than an empty list with no reason",
+      sc.find("did not answer JSON") is not None, sc)
+shutil.rmtree(ASBIN, True)
+
+
 for f in os.listdir(D):
     p = os.path.join(D, f)
     if os.path.isdir(p):
@@ -4344,4 +4491,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(608)
+report(615)

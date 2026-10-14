@@ -1,5 +1,103 @@
 # Changelog
 
+## 0.99.190
+
+**The Applications window, promised by the documentation in 0.99.138 and
+built now** (Gitea #219).
+
+`docs/apps.md` has had a *From the desktop* section since the day the
+application manager was first documented, and `examples/desktop/system/`
+has never had such a file. 0.99.182 replaced the claim with the honest
+holding note -- *"there is no window for this yet, and this page said
+there was for several releases ... documentation that describes what was
+never built is worse than silence, because it is the evidence somebody
+would trust"* -- which stops the lie and is not a fix. Fifty-two releases
+after the promise, this is the window.
+
+**`apps` is the whole implementation and this is a window around it**, the
+way the Vault accessory is a window around `vw`: anything one can do the
+other can, because there is only one of them. The window runs `apps` as a
+child and has no catalogue, no index reader and no verification of its
+own.
+
+**It reads JSON, never the columns.** `apps list`, `installed` and `info`
+take `-j` now and answer the same walk as a document, so the window and
+the command read one answer instead of one parsing the other's layout --
+which is how a window comes to disagree with its own command. Each fact
+is a field of its own: a window wants to know *whether* there is an
+update, not to read "installed 1.0, 1.1 available" and work it out again.
+What the ticket asked for was the result slot, and that is not available
+here: `apps` is a separate program, so `:=` captures its standard output
+(ADR 0038) and a child cannot fill its parent's slot. A builtin like
+`mod list` can; the honest version of "one answer" for a command is a
+machine-readable one.
+
+**`apps show NAME`** fetches a bundle, verifies its `sha256` exactly as an
+install does, and writes it to standard output without placing anything.
+That is the thing a catalogue of *scripts* can offer and a package manager
+cannot: read an app before you run it, which is what an app being a file
+you can open is for (ADR 0041). `Read It` in the window is a window around
+that.
+
+**The list is a tree**, asked for directly: one branch per kind --
+Applications, Control Strip modules, Control Panel panes, Themes, Colours
+and the rest -- each saying how many it holds, `right` and `left` opening
+and shutting, a branch with nothing in it left out rather than drawn
+empty, and a branch with a search match in it opening itself. A tick marks
+what you already have and the reload glyph what has a newer version
+waiting. `tab` or `/` searches; `i`, `u`, `x` install, update and remove;
+`r` reads an entry; `f5` fetches the index again.
+
+**Every fetch is a job.** `apps install` is seconds of network and a
+desktop that stops drawing while it waits is a desktop that looks broken,
+so the command runs in a `( ... ) &` with its output in a file of its own
+and the next frame picks up the status -- the shape `wm/remote.hibr` uses
+for transfers, polled from `_draw` *and* `_idle`, because a window nobody
+is looking at still has a job running in it.
+
+Three things were found by the checks rather than by reading, and each is
+a trap this project already records in other clothes.
+
+**The window could not be called Applications.** The hibr menu already has
+a submenu of that name -- every app you can open -- so a system app
+called the same thing put two rows of one name on one menu, and `down`
+from About This Computer landed on the wrong one: six checks in
+`tests/desktop.py` failed at once, none of them about this window. It is
+**Applications Catalogue**, which sorts to just under the submenu and
+says what it is. That is the Control Panel picker's row-arithmetic trap
+again: adding a row moves everything a check counts past it.
+
+**`ret ""` before a `return 1` is a return that never runs**, and the lint
+rule said so three times in one function. `as_at` answers "the entry the
+selection is on, or nothing when it is on a heading", and each of its
+three misses ended in `ret ""; return 1` -- `ret` ends the function on the
+spot with status 0, so every caller's `|| ...` was dead code. The symptom
+was not cosmetic, and was measured against the old lines rather than
+reasoned about: with the selection on a *heading* the buttons read
+`Install  Read It  Refresh`, and `i` asked the command `install ` -- an
+empty id. They now read `Refresh` alone and `i` says "Nothing is
+selected". A bare `return 1` is the form, because `:=` has already
+cleared the slot before the call.
+
+**A status line counted rows where a person counts entries.** Searching
+`gad` in a catalogue of two drew one entry under one heading and said
+`2 of 2`. The tree made "how many are shown" and "how many rows are
+drawn" two different numbers for the first time, and the status was
+reading the second.
+
+And one found by running the suite whole: **`tests/apps.py` has been dying
+in its own teardown**, after every check passed, because a check writes a
+`jobnames` file into the session directory that `os.rmdir(S)` then refuses
+to remove -- so it printed a traceback instead of `report()`. The four
+parts hid it, since no one of them holds both that section and the
+teardown. The check takes its own file away now.
+
+`tests/apps.py` is 615 checks, seven of them this window's, with a stub
+`apps` on PATH that answers the JSON and writes down what it was asked, so
+"did the window ask for the right thing" is a fact rather than an
+inference. `docs/apps.md` says what is there, with the window rendered
+through the pty harness rather than drawn by hand.
+
 ## 0.99.189
 
 **An app says which version of itself it is, the version leaves the

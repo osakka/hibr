@@ -415,8 +415,19 @@ AP_WINS=
 
 # --- the verbs ------------------------------------------------------------
 
-fn ap_list(want = "") {
+# `-j` answers the same walk as JSON, for anything that is not a person:
+# the desktop's Applications window reads this rather than parsing the
+# columns below it, so the window and the command read **one** answer
+# instead of one parsing the other's layout (Gitea #219).
+#
+# Not the result slot, which is what that ticket asked for: `apps` is a
+# separate program and the desktop runs it as a child, so `:=` captures
+# its standard output (ADR 0038) and a child cannot fill its parent's
+# slot. A builtin like `mod list` can; a command can only print, and the
+# honest version of "one answer" for a command is a machine-readable one.
+fn ap_list(want = "", int j = 0) {
 	local name n=0 v
+	local -A out
 
 	ap_load
 	ap_state
@@ -429,6 +440,24 @@ fn ap_list(want = "") {
 			esac
 		fi
 		v=${AP_ST["installed"]["${AP_ENT["id"]}"]["version"]}
+		if [ "$j" = 1 ]; then
+			# Each fact in a field of its own, rather than the
+			# sentence the column holds: a window wants to know
+			# *whether* there is an update, not to read "installed
+			# 1.0, 1.1 available" and work it out again.
+			out["entries"]["${AP_ENT["id"]}"]["id"]=${AP_ENT["id"]}
+			out["entries"]["${AP_ENT["id"]}"]["name"]=${AP_ENT["name"]}
+			out["entries"]["${AP_ENT["id"]}"]["kind"]=${AP_ENT["kind"]}
+			out["entries"]["${AP_ENT["id"]}"]["title"]=${AP_ENT["title"]}
+			out["entries"]["${AP_ENT["id"]}"]["version"]=${AP_ENT["version"]}
+			out["entries"]["${AP_ENT["id"]}"]["about"]=${AP_ENT["about"]}
+			out["entries"]["${AP_ENT["id"]}"]["installed"]=$v
+			out["entries"]["${AP_ENT["id"]}"]["update"]=0
+			[ -n "$v" ] && [ "$v" != "${AP_ENT["version"]}" ] &&
+				out["entries"]["${AP_ENT["id"]}"]["update"]=1
+			n=$((n + 1))
+			continue
+		fi
 		if [ -n "$v" ]; then
 			if [ "$v" = "${AP_ENT["version"]}" ]; then
 				v="installed"
@@ -441,32 +470,111 @@ fn ap_list(want = "") {
 		printf '%-24s %-24s %s\n' "${AP_ENT["id"]}" "${AP_ENT["title"]}" "$v"
 		n=$((n + 1))
 	done
+	if [ "$j" = 1 ]; then
+		# An empty answer is an empty `entries`, not nothing at all:
+		# a reader that has to branch on "did I get JSON" is a reader
+		# that will forget to. Written out rather than built, because
+		# an element cannot be assigned an empty map -- `out["x"]=()`
+		# is a syntax error, in bash as well as here.
+		local js
+		if [ "$n" = 0 ]; then
+			printf '{"entries":{}}\n'
+			return 0
+		fi
+		js := json emit out
+		printf '%s\n' "$js"
+		return 0
+	fi
 	[ "$n" = 0 ] && ap_say "nothing in the index${want:+ matches $want}"
 	return 0
 }
 
-ap_installed() {
-	local name n=0
+fn ap_installed(int j = 0) {
+	local name n=0 js i
+	local -A out
 
 	ap_state
 	for name in "${!AP_ST["installed"][@]}"; do
+		if [ "$j" = 1 ]; then
+			out["installed"]["$name"]["id"]=$name
+			out["installed"]["$name"]["version"]=${AP_ST["installed"]["$name"]["version"]}
+			out["installed"]["$name"]["kind"]=${AP_ST["installed"]["$name"]["kind"]}
+			# Every path it placed, which is what a window needs to
+			# say what removing it would take away.
+			for i in "${!AP_ST["installed"]["$name"]["paths"][@]}"; do
+				out["installed"]["$name"]["paths"]["$i"]=${AP_ST["installed"]["$name"]["paths"]["$i"]}
+			done
+			n=$((n + 1))
+			continue
+		fi
 		printf '%-16s %-10s %s\n' "$name" \
 			"${AP_ST["installed"]["$name"]["version"]}" \
 			"${AP_ST["installed"]["$name"]["kind"]}"
 		n=$((n + 1))
 	done
+	if [ "$j" = 1 ]; then
+		if [ "$n" = 0 ]; then
+			printf '{"installed":{}}\n'
+			return 0
+		fi
+		js := json emit out
+		printf '%s\n' "$js"
+		return 0
+	fi
 	[ "$n" = 0 ] && ap_say "nothing installed"
 	return 0
 }
 
-fn ap_info(want) {
-	local u name
+# Fetch a bundle, verify it exactly as an install verifies it, and write
+# it to standard output without placing anything. This is the thing a
+# catalogue of **scripts** can offer that a package manager cannot: read
+# it before you run it, which is the whole point of an app being a file
+# you can open (ADR 0041). The desktop's Applications window is a window
+# around this (Gitea #219).
+#
+# Only the entry's own file: a part is its own entry and is read by
+# asking for it by name, rather than this deciding what else you meant.
+fn ap_show(want) {
+	local name tmp ext
+
+	ap_load
+	name := ap_resolve "$want" || ap_die "$want: no such app in the index"
+	ap_entry "$name" || ap_die "$name: no such app in the index"
+	ext := ap_kext "${AP_ENT["kind"]}"
+	case ${AP_ENT["bundle"]} in
+	*"$ext") ;;
+	*) ap_die "${AP_ENT["id"]}: its bundle is not a ${ext} -- there is no single file to read" ;;
+	esac
+	tmp := ap_getbundle "${AP_ENT["id"]}" "${AP_ENT["bundle"]}" "${AP_ENT["sha256"]}"
+	command cat -- "$tmp" || ap_die "${AP_ENT["id"]}: cannot read what was fetched"
+	rm -f "$tmp" 2> /dev/null
+	return 0
+}
+
+fn ap_info(want, int j = 0) {
+	local u name k js i
+	local -A out
 
 	ap_load
 	ap_state
 	name := ap_resolve "$want" || ap_die "$want: no such app in the index"
 	ap_entry "$name" || ap_die "$name: no such app in the index"
 	u := ap_url
+	if [ "$j" = 1 ]; then
+		for k in id name kind title version about author licence \
+			 hibr abi modules bundle sha256; do
+			out["$k"]=${AP_ENT["$k"]}
+		done
+		out["index"]=$u
+		out["installed"]=${AP_ST["installed"]["$name"]["version"]}
+		for i in "${!AP_IX["$AP_SECT"]["${AP_ENT["key"]}"]["parts"][@]}"; do
+			out["parts"]["$i"]["kind"]=${AP_IX["$AP_SECT"]["${AP_ENT["key"]}"]["parts"]["$i"]["kind"]}
+			out["parts"]["$i"]["as"]=${AP_IX["$AP_SECT"]["${AP_ENT["key"]}"]["parts"]["$i"]["as"]}
+		done
+		js := json emit out
+		printf '%s\n' "$js"
+		return 0
+	fi
 	printf '%s\n' "${AP_ENT["name"]} -- ${AP_ENT["title"]}"
 	[ -n "${AP_ENT["about"]}" ] && printf '\n%s\n' "${AP_ENT["about"]}"
 	printf '\nversion   %s\n' "${AP_ENT["version"]}"
@@ -1078,6 +1186,15 @@ ap_help() {
 	"  apps list [TEXT]       what the index offers, or what matches TEXT" \
 	"  apps installed         what is installed here, and from where" \
 	"  apps info NAME         everything the index says about one" \
+	"  apps show NAME         fetch it, verify it, and print it -- read an" \
+	"                         app before you install it, which a catalogue" \
+	"                         of scripts can offer and a package manager" \
+	"                         cannot" \
+	"" \
+	"  -j on list, installed or info answers JSON instead of columns, for" \
+	"  anything that is not a person: the desktop's Applications window" \
+	"  reads that rather than parsing these columns, so the window and the" \
+	"  command read one answer instead of one parsing the other's layout." \
 	"  apps install NAME...   fetch, verify and place" \
 	"  apps remove [-f] NAME  take one away; -f even if a window is open" \
 	"  apps update [NAME...]  everything with a newer version, or these" \
@@ -1096,16 +1213,29 @@ ap_help() {
 }
 
 ap_usage() {
-	echo "usage: apps list [TEXT] | installed | info NAME | install NAME... |" >&2
-	echo "       remove [-f] NAME... | update [NAME...] | index [URL] |" >&2
-	echo "       refresh | help" >&2
+	echo "usage: apps [-j] list [TEXT] | [-j] installed | [-j] info NAME |" >&2
+	echo "       show NAME | install NAME... | remove [-f] NAME... |" >&2
+	echo "       update [NAME...] | index [URL] | refresh | help" >&2
 	exit 2
 }
 
+# `-j` anywhere in the arguments of a verb that answers something: the
+# desktop reads JSON where a person reads columns.
+AP_J=0
+ap_args=()
+for a in "$@"; do
+	case $a in
+	-j | --json) AP_J=1 ;;
+	*) ap_args+=("$a") ;;
+	esac
+done
+set -- "${ap_args[@]}"
+
 case ${1-} in
-list) shift; ap_list "${1-}" ;;
-installed) ap_installed ;;
-info) [ -n "${2-}" ] || ap_usage; ap_info "$2" ;;
+list) shift; ap_list "${1-}" "$AP_J" ;;
+installed) ap_installed "$AP_J" ;;
+info) [ -n "${2-}" ] || ap_usage; ap_info "$2" "$AP_J" ;;
+show | read) [ -n "${2-}" ] || ap_usage; ap_show "$2" ;;
 install) shift; ap_install "$@" ;;
 remove | uninstall) shift; ap_remove "$@" ;;
 update | upgrade) shift; ap_update "$@" ;;

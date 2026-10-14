@@ -23,6 +23,7 @@
 %s in %s h %s min
 %s in %s min
 %s in %s minutes
+%s in the catalogue
 %s is %s's: give it to %s?
 %s is a database, not a sheet
 %s is a number
@@ -45,6 +46,7 @@
 %s modules on the path
 %s moved to workspace %s
 %s moves around the Control Panel, so it cannot be a shortcut
+%s of %s
 %s of %s rows
 %s pixels, a cell is %s by %s
 %s selected
@@ -98,8 +100,10 @@ Align
 All Mail
 An event stays in its calendar; make a new one in the other
 And Minutes Before
+App
 Appearance
 Append
+Applications Catalogue
 Apply
 Apps
 Apps: %s available
@@ -148,8 +152,10 @@ Calendar needs the pim and db modules, which are not installed.
 Cancel
 Cancelled
 Cannot hold the pasted text to send it
+Cannot keep a copy to read
 Cannot lock: no PAM to check a password with
 Cannot make %s
+Cannot make a folder for jobs
 Cannot open %s as a sheet
 Cannot open the folder %s
 Cannot read %s
@@ -377,6 +383,7 @@ History cleared
 Home
 Hostname: %s
 How Formulas Work
+ITEM
 Icons
 Identify
 Image
@@ -392,6 +399,7 @@ Insert Column Left
 Insert Column Right
 Insert Row Above
 Insert Row Below
+Install
 Inviting people needs a mail account to send from
 Isha
 Italic
@@ -621,6 +629,7 @@ Rabi' al-Awwal
 Rabi' al-Thani
 Rajab
 Ramadan
+Read It
 Record %s added
 Record No. %s -- enter after the last field adds it, escape stops
 Recorded in your calendar
@@ -689,6 +698,7 @@ Screenshot…
 Scroll To Bottom
 Scroll To Top
 Scrollbar
+Search
 Search…
 Select All
 Send
@@ -743,6 +753,7 @@ Starred
 Start After (minutes)
 Stickies
 Sticky
+Still working
 Stop
 Strikethrough
 Sum
@@ -773,6 +784,7 @@ The PIN is set
 The Trash is empty: %d items deleted
 The Trash is empty: 1 item deleted
 The YouTube history is empty
+The apps command did not answer JSON. It may be older than this window.
 The colours are good, warn, bad, info and dim
 The date is YYYY-MM-DD
 The date is YYYY-MM-DD, the time HH:MM
@@ -797,6 +809,7 @@ There is a theme called %s already
 There is no file %s
 There is no folder %s
 There is nothing in that field
+There was nothing to read
 This Computer
 This Desktop
 This Session
@@ -843,6 +856,7 @@ Unlock with the PIN
 Unlocked until %s
 Unlock…
 Unregistered extension .%s -- open in hvi anyway?
+Update
 Upload Edits on Save
 Uptime: %s
 Use
@@ -919,6 +933,8 @@ hibr %s — a desktop written in the shell it runs on
 hibr desktop v%s
 hibr v%s, module ABI %s
 incoming
+installed %s
+installed %s, %s available
 integers only
 lifts that for one sheet, here only.
 moving — arrows, then enter
@@ -935,6 +951,7 @@ outgoing
 over a range, row by row
 phone
 range A1_B9 an array of its values, worked out in the
+reading the catalogue
 replaced on disk
 resizing — arrows, then enter
 says #REFUSED, one that loops says #TIME. Trust This Sheet
@@ -944,5 +961,7 @@ text
 there is no account to test yet
 this session still runs the older hibr: 'hold upgrade %s' takes it onto the new one without losing your windows or your terminals' programs. Restart Desktop cannot, since it re-execs the desktop inside this session
 type a server or an address first
+version %s
+working: %s
 yes, %s displays attached
 yes, 1 display attached

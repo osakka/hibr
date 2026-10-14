@@ -39,12 +39,21 @@ answered; anything that is not an address is refused.
 | `apps list [TEXT]` | what the index offers, or what matches TEXT |
 | `apps installed` | what is installed here, and from where |
 | `apps info NAME` | everything the index says about one |
+| `apps show NAME` | fetch it, verify it, and print it — without placing it |
 | `apps install NAME...` | fetch, verify and place |
 | `apps remove [-f] NAME...` | take one away; `-f` even if a window is open |
 | `apps update [NAME...]` | everything with a newer version, or just these |
 | `apps index [URL]` | the index this fetches from, or set it |
 | `apps refresh` | fetch the index again now |
 | `apps help` | the list above |
+
+`-j` on `list`, `installed` or `info` answers JSON instead of columns, for
+anything that is not a person — the Applications window below reads that,
+so the window and the command read one answer instead of one parsing the
+other's layout. `apps show` is the thing a catalogue of **scripts** can
+offer and a package manager cannot: read an app before you run it, which
+is what an app being a file you can open is for. It verifies the bundle's
+`sha256` exactly as an install does, and places nothing.
 
 `apps list` marks what you already have, and says when the index has
 something newer:
@@ -239,16 +248,77 @@ screen saver, a window of any shape — and is described in
 
 ## From the desktop
 
-There is no window for this yet, and this page said there was for several
-releases — an **Applications** window described down to how it would run
-the command as a child, which nothing in `examples/desktop/system/` ever
-did. It is Gitea #219, and
-documentation that describes what was never built is worse than silence,
-because it is the evidence somebody would trust.
+**Applications Catalogue**, on the hibr menu, is this command with a
+window around it — `examples/desktop/system/appstore.hibr`, the way the
+Vault accessory is a window around `vw`. Anything one can do the other
+can, because there is one implementation: the window runs `apps` as a
+child and never has a catalogue of its own. It is not called
+*Applications*: that is already the submenu of every app you can open, and
+two rows of one name on one menu is a menu nobody can learn.
 
-When it exists it will be this command with a window around it, the way the
-Vault accessory runs `vw`: anything it can do the command can do, and the
-reverse, because there is one implementation.
+```text
+┌─┤ Applications Catalogue ├────────────────────────────────────────┤_ □ x├┐
+│ Search                                               5 in the catalogue  │
+│ ITEM                            VERSION│ Snake                           │
+│▼ Applications                        3 │ apps/snake                      │
+│   ✓ snake                      1.0     │ installed 1.0                   │
+│     retro_car                  1.2     │                                 │
+│   ↻ mines                      1.1     │ A snake that grows as it eats,  │
+│→ Control Strip modules               1 │ on a board of your window's own │
+│→ Themes                              1 │ size.                           │
+│                                        │                                 │
+│                                        │                                 │
+│                                        │                                 │
+│                                        │                                 │
+│                                        │                                 │
+│                                        │                                 │
+│  Remove ▄  Read It ▄  Refresh ▄                                          │
+│  ▀▀▀▀▀▀▀▀  ▀▀▀▀▀▀▀▀▀  ▀▀▀▀▀▀▀▀▀                                          │
+└──────────────────────────────────────────────────────────────────────────◢
+```
+
+The list is a **tree**, one branch per kind, each saying how many it holds
+against the list's own right edge — a branch has no version, and a count
+under that heading would read as one. `right` and `left` open and shut a
+branch, `enter` and space toggle one, and a click on a heading does the
+same. A branch with nothing in it is left out rather than drawn empty.
+A tick marks an entry you already have and `↻` one with a newer version
+waiting; the pane on the right is what the selected entry says about
+itself, paragraphs kept.
+
+`tab` or `/` moves to the search box and `tab`, `enter` or `escape` comes
+back. Typing narrows the list as you type, against an entry's id, its title
+and its prose, and the count beside the box says how many **entries**
+matched — not how many rows are drawn, which would count the headings too.
+A branch with a match in it opens itself.
+
+| key | what it does |
+|---|---|
+| `i` | install the selected entry |
+| `u` | update it |
+| `x` | remove it |
+| `r` | read its page in a window |
+| `f5` | fetch the index again |
+
+The same four are on the **App** menu, and the buttons along the bottom
+change with what is selected: Install for an entry that is not here yet,
+Update and Remove for one that is, Refresh always.
+
+Every fetch is a **job**. `apps install` is seconds of network, and a
+desktop that stops drawing while it waits is a desktop that looks broken,
+so the command runs in the background with its output in a file of its own
+and the next frame picks up the status — the shape `wm/remote.hibr` uses
+for transfers. It is polled from the window's `_draw` *and* its `_idle`,
+because a window nobody is looking at still has a job running in it. The
+status line says what is happening while one runs, and what the command
+said when it failed.
+
+What the window reads is `apps list -j`, never the columns `apps` prints
+for a person. The command answers JSON for exactly this, so the two read
+one answer instead of one parsing the other's layout — which is how a
+window comes to disagree with its own command. An `apps` too old to know
+`-j` is named as the likely cause rather than drawn as an empty list with
+no reason.
 
 ---
 

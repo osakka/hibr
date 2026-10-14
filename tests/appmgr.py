@@ -584,6 +584,46 @@ try:
                                           "crossed.hibr")),
           (rc, out, err))
 
+    # `-j` is the answer anything that is not a person reads: the
+    # desktop's Applications window reads this rather than parsing the
+    # columns, so the two read one answer instead of one parsing the
+    # other's layout (Gitea #219). Not the result slot the ticket asked
+    # for -- `apps` is a separate program the desktop runs as a child, so
+    # `:=` captures its standard output and a child cannot fill its
+    # parent's slot. A builtin can; a command can only print.
+    rc, out, err = apps("list", "-j")
+    j = json.loads(out)
+    check("`apps list -j` answers JSON, every fact in a field of its own",
+          rc == 0 and j["entries"]["apps/demo"]["id"] == "apps/demo"
+          and j["entries"]["apps/demo"]["title"]
+          and "update" in j["entries"]["apps/demo"], out[:200])
+    rc, out, err = apps("install", "demo")
+    rc, out, err = apps("list", "-j")
+    j = json.loads(out)["entries"]["apps/demo"]
+    # Strings, as every other field in the index is: a reader in hibr
+    # compares strings whatever the type, and one document with two
+    # conventions is worse than either.
+    check("and it says what is installed and whether that is behind, "
+          "rather than a sentence to read twice",
+          j["installed"] == j["version"] and j["update"] == "0", j)
+    rc, out, err = apps("installed", "-j")
+    j = json.loads(out)["installed"]
+    check("`apps installed -j` answers every path an install placed, which "
+          "is what says the cost of removing it",
+          rc == 0 and "apps/demo" in j
+          and "apps/demo.hibr" in j["apps/demo"]["paths"], out[:200])
+    rc, out, err = apps("info", "demo", "-j")
+    j = json.loads(out)
+    check("`apps info NAME -j` answers one entry, with where the index "
+          "itself came from",
+          rc == 0 and j["id"] == "apps/demo" and j["index"].startswith("http"),
+          out[:200])
+    rc, out, err = apps("list", "-j", "nosuchthingatall")
+    check("and an empty answer is still JSON, so a reader never has to ask "
+          "whether it got any",
+          rc == 0 and json.loads(out) == {"entries": {}}, out[:120])
+    rc, out, err = apps("remove", "demo")
+
     # Parts named by the **index** rather than carried in a tarball
     # (Gitea #231). A .tar.gz held an app.json saying where each member
     # went, which is a manifest of files -- what the index already is --
@@ -683,4 +723,4 @@ finally:
     srv.wait()
     shutil.rmtree(D, True)
 
-report(60)
+report(65)
