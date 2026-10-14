@@ -100,6 +100,10 @@ Each refused outright rather than half-done, and each names what it found:
 - **a member whose path is absolute or climbs out of its own folder** —
   `../escaped.hibr` and `/etc/x` are both refused, naming the path;
 - **a symbolic link**, which a bundle has no business carrying;
+- **a part whose kind is not one of the five, or whose name is anything but
+  lower case letters, digits and dashes** — a part decides a destination;
+- **an app whose `abi`, `hibr` or `modules` this hibr cannot satisfy**,
+  before the bundle is fetched rather than after it is placed;
 - **removing an app with a window open**, which it learns by asking the
   running desktop over its control socket. `-f` overrides that.
 
@@ -131,11 +135,48 @@ fetch and place it:
 own** — which is what lets a mirror be a copy of one folder rather than a
 rewrite of every entry.
 
+`hibr`, `abi` and `modules` say what an entry needs, and are **checked
+before anything is fetched**: an exact module ABI, a minimum hibr version,
+and a module that must already be there. A module never comes from here —
+see [What it refuses](#what-it-refuses).
+
 A bundle is either the app's single `.hibr` file, which is most of them, or a
 `.tar.gz` carrying `app.json` beside the files:
 
 ```json
 {"app": "multi.hibr", "kind": "apps"}
+```
+
+### An app that is more than one file
+
+A Control Panel pane and a Control Strip module are files in **other** scan
+roots, so they cannot travel as resources under the app's own: eight of the
+applications hibr ships have a pane, and installing one without it leaves
+the app with nowhere to keep its settings. `app.json` names those parts, and
+each is placed in the root it names:
+
+```json
+{"app": "mail.hibr", "kind": "apps",
+ "parts": [{"file": "mailset.hibr", "kind": "control-panel", "name": "mailset"}]}
+```
+
+A part's `kind` must be one of the five and its `name` lower case letters,
+digits and dashes — a part decides where a file lands, so the rules the
+member paths follow hold for the destination too, and a bundle with a bad
+part is refused whole.
+
+The state records **every path placed**, not only the app's own, because a
+folder on disk cannot say what it came with; `apps remove` takes those away
+and keeps any that another installed app brings too. One pane serves
+Calendar and Contacts both, so removing one of the two leaves the other's
+pane where it is, and says so.
+
+In hibr's own tree an app declares its parts in its own file, under the
+`app` line that gives its description, which is what the publisher reads:
+
+```text
+app mail "Email, offline, labels and conversations as Gmail has them"
+# part: control-panel/mailset.hibr
 ```
 
 What an app may then do is a contract the desktop already had — menus, an

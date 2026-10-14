@@ -94,6 +94,42 @@ h_multi = tar("bundles/multi.tar.gz", {
     "multi.hibr": APP.replace(b"demo", b"multi"),
     "art/logo.txt": b"a resource\n",
 })
+# An app that brings a Control Panel pane of its own, which is what eight of
+# the twenty-one real ones do (Gitea #217): the pane is a file in another of
+# the desktop's scan roots, so it cannot be a resource under the app's own.
+PANE = (b"#!/usr/bin/env hibr\n#\n# paneof -- the Control Panel pane for it.\n"
+        b"command -v cp_pane > /dev/null && cp_pane paneof \"Pane\" \"P\" app\n")
+h_parts = tar("bundles/parts.tar.gz", {
+    "app.json": json.dumps({"app": "parts.hibr", "kind": "apps", "parts": [
+        {"file": "paneof.hibr", "kind": "control-panel", "name": "paneof"}]}).encode(),
+    "parts.hibr": APP.replace(b"demo", b"parts"),
+    "paneof.hibr": PANE,
+})
+# A second app bringing the *same* pane -- one pane serves Calendar and
+# Contacts both, so removing one of the two must leave the other's alone.
+h_parts2 = tar("bundles/parts2.tar.gz", {
+    "app.json": json.dumps({"app": "parts2.hibr", "kind": "apps", "parts": [
+        {"file": "paneof.hibr", "kind": "control-panel", "name": "paneof"}]}).encode(),
+    "parts2.hibr": APP.replace(b"demo", b"parts2"),
+    "paneof.hibr": PANE,
+})
+h_badpart = tar("bundles/badpart.tar.gz", {
+    "app.json": json.dumps({"app": "badpart.hibr", "kind": "apps", "parts": [
+        {"file": "paneof.hibr", "kind": "etc", "name": "paneof"}]}).encode(),
+    "badpart.hibr": APP.replace(b"demo", b"badpart"),
+    "paneof.hibr": PANE,
+})
+h_climbpart = tar("bundles/climbpart.tar.gz", {
+    "app.json": json.dumps({"app": "climbpart.hibr", "kind": "apps", "parts": [
+        {"file": "paneof.hibr", "kind": "control-panel", "name": "../../escaped"}]}).encode(),
+    "climbpart.hibr": APP.replace(b"demo", b"climbpart"),
+    "paneof.hibr": PANE,
+})
+h_nopart = tar("bundles/nopart.tar.gz", {
+    "app.json": json.dumps({"app": "nopart.hibr", "kind": "apps", "parts": [
+        {"file": "missing.hibr", "kind": "control-panel", "name": "paneof"}]}).encode(),
+    "nopart.hibr": APP.replace(b"demo", b"nopart"),
+})
 h_climb = tar("bundles/climb.tar.gz", {"../escaped.hibr": APP})
 h_abs = tar("bundles/abs.tar.gz", {"/etc/hibr-escaped.hibr": APP})
 h_so = tar("bundles/mod.tar.gz", {"mod.hibr": APP, "evil.so": b"\x7fELF fake\n"})
@@ -114,7 +150,30 @@ INDEX = {"apps": {
             "bundle": "bundles/mod.tar.gz", "sha256": h_so},
     "wrongkind": {"title": "Wrong Kind", "version": "1.0", "kind": "etc",
                   "bundle": "bundles/demo.hibr", "sha256": h_one},
+    "parts": {"title": "Parts", "version": "1.0", "kind": "apps",
+              "about": "an app with a pane of its own",
+              "bundle": "bundles/parts.tar.gz", "sha256": h_parts},
+    "parts2": {"title": "Parts Two", "version": "1.0", "kind": "apps",
+               "bundle": "bundles/parts2.tar.gz", "sha256": h_parts2},
+    "badpart": {"title": "Bad Part", "version": "1.0", "kind": "apps",
+                "bundle": "bundles/badpart.tar.gz", "sha256": h_badpart},
+    "climbpart": {"title": "Climbing Part", "version": "1.0", "kind": "apps",
+                  "bundle": "bundles/climbpart.tar.gz", "sha256": h_climbpart},
+    "nopart": {"title": "Missing Part", "version": "1.0", "kind": "apps",
+               "bundle": "bundles/nopart.tar.gz", "sha256": h_nopart},
+    # What an entry says it needs, which nothing read until 0.99.183.
+    "needsmod": {"title": "Needs A Module", "version": "1.0", "kind": "apps",
+                 "modules": "nosuchmodule", "bundle": "bundles/demo.hibr",
+                 "sha256": h_one},
+    "needsabi": {"title": "Needs An ABI", "version": "1.0", "kind": "apps",
+                 "abi": "999", "bundle": "bundles/demo.hibr", "sha256": h_one},
+    "needshibr": {"title": "Needs A Newer hibr", "version": "1.0", "kind": "apps",
+                  "hibr": "99.0", "bundle": "bundles/demo.hibr", "sha256": h_one},
+    "needsok": {"title": "Needs What Is Here", "version": "1.0", "kind": "apps",
+                "modules": "db, archive", "abi": None, "bundle": "bundles/demo.hibr",
+                "sha256": h_one},
 }}
+del INDEX["apps"]["needsok"]["abi"]
 put("index.json", json.dumps(INDEX, indent=1))
 
 srv = subprocess.Popen(
@@ -306,9 +365,83 @@ try:
     check("an index that is not there says so in one line, naming it",
           rc != 0 and "could not be fetched" in err and "nope.json" in err,
           (rc, err))
+
+    # An app is more than one file: eight of the real twenty-one bring a
+    # Control Panel pane, which lives in another of the desktop's five scan
+    # roots and so cannot travel as a resource under the app's own
+    # (Gitea #217). app.json names the parts; the state records every path
+    # placed, because a folder on disk cannot say what it came with.
+    pane = os.path.join(DATA, "hibr", "control-panel", "paneof.hibr")
+    rc, out, err = apps("install", "parts")
+    check("a bundle's part is placed in the scan root it names",
+          rc == 0 and os.path.exists(os.path.join(DATA, "hibr", "apps", "parts.hibr"))
+          and os.path.exists(pane), (rc, out, err))
+    check("and the install says so, rather than placing it silently",
+          "control-panel/paneof.hibr" in out, out)
+    rc, out, err = apps("remove", "parts")
+    check("removing the app takes its part away too",
+          rc == 0 and not os.path.exists(pane)
+          and not os.path.exists(os.path.join(DATA, "hibr", "apps", "parts.hibr")),
+          (rc, out, err, os.path.exists(pane)))
+
+    # One pane serves two apps -- pimset is Calendar's and Contacts' both --
+    # so removing one of the two must leave the other's where it is. The
+    # state is what makes that answerable rather than a guess.
+    apps("install", "parts")
+    apps("install", "parts2")
+    rc, out, err = apps("remove", "parts")
+    check("a part another installed app brings too is kept, and says so",
+          rc == 0 and os.path.exists(pane) and "kept" in out, (rc, out, err))
+    rc, out, err = apps("remove", "parts2")
+    check("and goes once the last app that brings it is gone",
+          rc == 0 and not os.path.exists(pane), (rc, out, err))
+
+    # A part decides a destination, so the rules the member paths already
+    # follow have to hold for where it lands as well.
+    for name, why in (("badpart", "a kind that is not one"),
+                      ("climbpart", "a name that climbs")):
+        rc, out, err = apps("install", name)
+        check("a part with %s is refused, and nothing is placed" % why,
+              rc != 0 and "Refused" in err
+              and not os.path.exists(os.path.join(DATA, "hibr", "apps",
+                                                  name + ".hibr")),
+              (rc, err))
+    rc, out, err = apps("install", "nopart")
+    check("a part naming a member the bundle does not have is refused",
+          rc != 0 and "nopart" in err, (rc, err))
+
+    # And what an entry says it needs, which `apps info` printed from the
+    # beginning and nothing ever read: an app needing a module installed
+    # happily without it and failed at its first call, in a window.
+    for name, want in (("needsmod", "nosuchmodule"), ("needsabi", "ABI"),
+                       ("needshibr", "newer")):
+        rc, out, err = apps("install", name)
+        check("an app needing %s this hibr lacks is refused before fetching"
+              % want.lower(),
+              rc != 0 and want in err
+              and not os.path.exists(os.path.join(DATA, "hibr", "apps",
+                                                  name + ".hibr")),
+              (rc, err))
+    rc, out, err = apps("install", "needsok")
+    check("and one whose needs are met installs",
+          rc == 0 and os.path.exists(os.path.join(DATA, "hibr", "apps",
+                                                  "needsok.hibr")),
+          (rc, out, err))
+
+    # An app installed before any of this was recorded still removes: the
+    # state has no paths for it, and the kind and the name are all there is.
+    st = os.path.join(DATA, "hibr", "apps.json")
+    d = json.load(open(st))
+    del d["installed"]["needsok"]["paths"]
+    json.dump(d, open(st, "w"))
+    rc, out, err = apps("remove", "needsok")
+    check("an app installed before the paths were recorded still removes",
+          rc == 0 and not os.path.exists(os.path.join(DATA, "hibr", "apps",
+                                                      "needsok.hibr")),
+          (rc, out, err))
 finally:
     srv.terminate()
     srv.wait()
     shutil.rmtree(D, True)
 
-report(29)
+report(42)

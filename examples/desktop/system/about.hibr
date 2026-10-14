@@ -13,6 +13,7 @@
 strict
 
 app about "About this computer: the machine, and the desktop running on it"
+# part: control-panel/abouthibr.hibr
 
 # 20 by 52, the same as about_size, which is what dt_launch actually asks
 # for -- these two numbers are only reached by a caller that opens the app

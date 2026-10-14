@@ -13,6 +13,7 @@
 strict
 
 app tasks "What is running, and a way to end one"
+# part: control-panel/taskmgr.hibr
 
 # 64 columns rather than the 50 it opened at until 0.99.133: the names are
 # whole now (see tasks_fullname) and 50 could not show one -- Name got 15

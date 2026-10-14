@@ -1,5 +1,99 @@
 # Changelog
 
+## 0.99.183
+
+**An app can bring its own Control Panel pane, and what an entry says it
+needs is checked** (Gitea #217), asked after the first catalogue went up:
+*"we should have mods and we should have control panel and control strip
+components all part of the hibr catalogue, right? why a half baked
+solution?"*
+
+Eight of the twenty-one published applications installed **half of
+themselves**. A Control Panel pane is a file in another of the desktop's
+five scan roots -- `filesview`, `mailset`, `notes`, `pimset`, `prayerset`,
+`terminal`, `tube`, `vaultset`, and Prayer Times has a Control Strip module
+as well -- and `ap_puttar` placed every member of a bundle under the app's
+*own* kind, so a pane shipped with an app landed where nothing looks.
+Install Mail and there was no Mail pane: no accounts, no offline setting, no
+signature. It failed quietly, because `cp_pane` sits behind a `command -v`.
+
+`app.json` names the parts now:
+
+    {"app": "mail.hibr", "kind": "apps",
+     "parts": [{"file": "mailset.hibr", "kind": "control-panel",
+                "name": "mailset"}]}
+
+and each is placed in the root it names. A part's `kind` must be one of the
+five and its `name` lower case letters, digits and dashes, because **a part
+decides a destination** -- the rules the member paths already followed had
+to hold for where a file lands as well, and a bundle with a bad part is
+refused whole rather than placed in part.
+
+Two consequences, and the second is the interesting one. The state records
+**every path placed**, not just the app's own, since a folder on disk cannot
+say what it came with -- so `apps remove` takes away what was installed
+rather than what the kind and the name imply, and an app installed before
+this still removes the old way. And one pane serves **Calendar and Contacts
+both**, so removing one of the two must leave the other's pane alone: the
+state answers that by counting claims, and the removal says `kept
+control-panel/pimset.hibr, which another installed app brings too`.
+
+**And what an entry says it needs is no longer decoration.** `apps info` has
+printed `needs hibr X, module ABI Y, modules: Z` since the command was
+written, and `grep 'ENT\["modules"\]'` found exactly one reader: that
+`printf`. So an app needing the db module installed happily on a machine
+without it and failed at its first call, in a window, as a shell error in
+`desktop.log`. All three are checked **before the bundle is fetched** --
+`$HIBR_ABI` exactly, `$HIBR_VERSION` as a minimum through `sort -V`, and
+`need` for each module named -- and the module refusal says outright that a
+module comes with hibr rather than from a catalogue (ADR 0016), so there is
+nothing the command could offer to install instead. An index field nothing
+enforces reads as a promise.
+
+In hibr's own tree an app declares its parts under the `app` line that gives
+its description, which is what a publisher reads:
+
+    app mail "Email, offline, labels and conversations as Gmail has them"
+    # part: control-panel/mailset.hibr
+
+Thirteen apps carry those lines now, including the four `system/` ones whose
+panes are `abouthibr`, `cliphist`, `taskmgr` and `notifications`. Vault and
+Prayer Times gained an `app` line at the same time: they were the two
+without one, so the catalogue had been reading a paragraph of their header
+comment where every other app offers a sentence somebody wrote.
+
+Thirteen checks in `tests/appmgr.py`, nine of which fail against 0.99.182 --
+the four that pass there assert a refusal that already happened for another
+reason, or the removal path that has not changed.
+
+**And a reason that had expired.** Asked, on seeing the first multi-part
+bundle: *"why are we using a tarball? We have an archive module, which
+mounts a tar as a directory, right?"* -- which splits in two, and only one
+half was ever open. Transport, how several files travel together, is what
+the tarball is for. **Residence** -- unpacked on disk, or mounted and
+sourced through `/dev/archive` -- was decided in ADR 0041 on the measurement
+*"`source` cannot read a scheme"*, and that stopped being true in
+**0.99.140**: ADR 0043 taught `b_src` to ask `net_sch`, so
+`. /dev/archive/b/app.hibr` sources today and `BASH_SOURCE` is the scheme
+path. The premise had been dead for 43 releases, in a code comment and in
+the decision record, and nobody had revisited it.
+
+Re-examined, and unpacking kept -- on a different measurement:
+
+    img size /tmp/x.png              ->  4 4
+    img size /dev/archive/b/x.png    ->  hibr: cannot open /dev/archive/b/x.png
+
+An app's resources live at `"${DT_SRC%.hibr}/"`, and a module that opens
+its own path cannot see a scheme: `mods/img` calls `fopen` in three places,
+and media and web read the same way. A `read` or a `source` through a
+mounted bundle works and a **picture** in one does not, so mounting is not
+one change but four modules' file handling -- and the app that broke would
+be the one with a picture in it. The comment in `ap_puttar` and ADR 0041
+both say this now, with the numbers, so the next person does not
+rediscover it; nothing about the behaviour changed, which is why a green
+gate was not re-run for the two of them -- `tests/run.sh`, which owns the
+documentation checks, was.
+
 ## 0.99.182
 
 **The catalogue exists, so `apps` points at it and the page stops saying it

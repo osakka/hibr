@@ -4,7 +4,14 @@ Status: accepted (the scan list below was `DA_DIRS`/`desk-accessories` when
 this was written; 0.99.126 replaced it with `DT_SYSDIRS`/`system` and put
 every application under one Applications submenu. The decisions here are
 unaffected -- what travels, what it becomes on disk, and the trust model --
-and the manager installs into the same five roots, one of them renamed.)
+and the manager installs into the same five roots, one of them renamed.
+**And the first of the two measurements below is no longer true:** the
+shell change it names as "its own decision" was made in 0.99.140 by
+[ADR 0043](0043-source-honours-a-local-scheme.md),
+so `source` does read a scheme now. The decision was re-examined for that
+in 0.99.183 and kept, on a different measurement -- see
+**Mounting, re-examined** below. A bundle also carries **parts** since
+0.99.183, so an app's Control Panel pane travels with it: Gitea #217.)
 
 ## Context
 
@@ -39,7 +46,9 @@ code someone else wrote.**
 
 Two measurements decided most of it.
 
-**`source` cannot read a scheme.** The archive module makes a tarball a
+**`source` cannot read a scheme.** *(True when this was written, false
+since 0.99.140 -- read the note under "Mounting, re-examined".)* The
+archive module makes a tarball a
 folder — `/dev/archive/NAME/path` is a filename anywhere a filename goes
 (Gitea #102, `mods/archive/README.md`) — and that works for *resources*:
 
@@ -152,6 +161,46 @@ nothing reads an app out of one.**
    them through `dt_closereq` first, so an app that asks before closing
    still asks. Replacing an app that is running is hot reload, which is
    Gitea #42 and not this.
+
+## Mounting, re-examined (0.99.183)
+
+The first measurement above expired. ADR 0043 taught `source` to honour a
+scheme that reads something already here, so the thing this record called
+"a shell change, which is its own decision" happened in 0.99.140:
+
+```text
+. /dev/archive/b/inner.hibr    →  sourced, and BASH_SOURCE is the scheme path
+```
+
+Which reopens the question the owner asked when the first catalogue went
+up: *"why are we using a tarball? We have an archive module, which mounts a
+tar as a directory, right?"* Two readings, and only one was ever at issue.
+**Transport** -- how several files travel together -- is what the tarball
+is for, and it was never in question. **Residence** -- unpacked on disk, or
+mounted and sourced through `/dev/archive` -- is what ADR 0043 reopened.
+
+Residence stays unpacked, on this measurement instead:
+
+```text
+img size /tmp/x.png                 →  4 4
+img size /dev/archive/b/x.png       →  hibr: cannot open /dev/archive/b/x.png
+```
+
+An app's resources live at `"${DT_SRC%.hibr}/"`, and a module that opens
+its own path cannot see a scheme at all: `mods/img` calls `fopen` in three
+places, and media and web read the same way. A `read` or a `source`
+through a mounted bundle works; a **picture** in one does not. So mounting
+is not one change but four modules' file handling -- and the app that
+broke would be the one with a picture in it, which is the kind of failure
+this record exists to avoid. Two smaller costs beside it: the desktop's
+scans glob `*.hibr`, so it would have to `archive open` every bundle at
+startup and hold a handle for the session's life; and "read it before you
+run it" is weaker for a tarball on disk than for a file you can `cat`.
+
+If the `fopen` callers are ever made scheme-aware -- a decision per caller,
+which CLAUDE.md already records as not a tidy-up -- this is worth asking
+again. Until then the reason unpacking survives is the one above, not the
+one it was decided on.
 
 ## Consequences
 

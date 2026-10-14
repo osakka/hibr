@@ -18,6 +18,7 @@
 strict
 
 app stickies "Notes stuck on the desktop, each its own colour"
+# part: control-panel/notes.hibr
 
 command -v dt_app > /dev/null &&
 	dt_app stickies "Stickies" 10 34 "" "▤" "" "" bare

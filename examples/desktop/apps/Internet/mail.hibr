@@ -22,6 +22,7 @@
 strict
 
 app mail "Email, offline, labels and conversations as Gmail has them"
+# part: control-panel/mailset.hibr
 
 command -v dt_app > /dev/null && dt_app mail "Mail" 26 100 many "✉"
 command -v dt_app > /dev/null && dt_app mailc "New Message" 22 76 many "" "" hidden

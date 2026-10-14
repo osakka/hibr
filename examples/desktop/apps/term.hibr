@@ -14,6 +14,7 @@
 strict
 
 app term "A shell in a window"
+# part: control-panel/terminal.hibr
 
 # What the hibr menu shows, how big a new window is, and whether a second
 # launch opens another window or brings this one forward.

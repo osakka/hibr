@@ -32,6 +32,7 @@
 strict
 
 app youtube "YouTube, in a window"
+# part: control-panel/tube.hibr
 
 command -v dt_app > /dev/null && dt_app youtube "YouTube" 24 84 many "▶"
 

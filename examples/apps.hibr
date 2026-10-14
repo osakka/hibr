@@ -64,6 +64,11 @@ AP_KINDS=(apps system control-panel control-strip savers)
 declare -gA AP_IX
 declare -gA AP_ST
 declare -gA AP_ENT
+# Every path a placement wrote, relative to AP_DATA, filled by ap_putone and
+# ap_puttar for whoever called them: an app may place more than its own file
+# now that a bundle can carry a Control Panel pane or a Control Strip module
+# of its own (Gitea #217), and a folder on disk cannot say what it came with.
+AP_PLACED=()
 # Set by the dav module after each request; a strict file declares it.
 DAV_CODE=
 
@@ -395,13 +400,39 @@ fn ap_putone(kind, name, src) {
 	dest := ap_dest "$kind" "$name"
 	mkdir -p "$AP_DATA/$kind" || ap_die "cannot make $AP_DATA/$kind"
 	mv -f "$src" "$dest" || ap_die "cannot put $dest in place"
+	AP_PLACED=("$kind/$name.hibr")
 	ap_say "installed $name as $dest"
 	return 0
 }
 
-# Place a tarball: every member read out of it and written as a plain file,
-# because `source` cannot read a scheme -- an app's own code has to be a
-# file on disk, which is the measurement ADR 0041 turns on.
+# A part of a bundle that is not the app: a Control Panel pane, a Control
+# Strip module, a saver. Named in the bundle's own app.json, because the
+# index has no business knowing a bundle's layout, and checked here rather
+# than trusted -- a part decides a *destination*, so the rules the member
+# paths already follow (no climbing, no absolute, no .so) have to hold for
+# where it lands as well as for where it came from.
+fn ap_partok(kind, name) {
+	ap_kindok "$kind" || return 1
+	case $name in
+	"" | *[!a-z0-9-]*) return 1 ;;
+	esac
+	return 0
+}
+
+# Place a tarball: every member read out of it and written as a plain file.
+#
+# ADR 0041 gave the reason as "`source` cannot read a scheme", and that
+# stopped being true in 0.99.140: ADR 0043 taught `b_src` to ask `net_sch`,
+# so `. /dev/archive/b/app.hibr` sources fine today and `BASH_SOURCE` is
+# the scheme path. Re-examined for that in 0.99.183 and unpacking kept, on
+# a different measurement: an app's resources live at "${DT_SRC%.hibr}/",
+# and a module that opens its own path cannot see a scheme at all --
+# `img size /tmp/x.png` answers `4 4` where `img size
+# /dev/archive/b/x.png` is `cannot open`, and media and web read the same
+# way. Mounting a bundle is therefore not one change but four modules'
+# file handling, and an app with a picture in it would be the one that
+# broke. The desktop's own scans glob `*.hibr` as well, so it would have
+# to open every bundle at startup and hold a handle for its life.
 #
 # The app's own file goes to <kind>/NAME.hibr and everything else under
 # <kind>/NAME/, rather than the whole bundle into a folder. Measured, not
@@ -411,8 +442,9 @@ fn ap_putone(kind, name, src) {
 # belongs, DT_SRC is the app's real file so dt_aboutinfo reads its own
 # header comment, and its resources are at "${DT_SRC%.hibr}/".
 fn ap_puttar(kind, name, src) {
-	local l k path app= dest dir n=0 j
+	local l k path app= dest dir n=0 j i pk pn pf
 	local -A m
+	local -a pfile pkind pname
 
 	need archive 2> /dev/null || ap_die "the archive module is needed to unpack a bundle"
 	archive open ap "$src" 2> /dev/null ||
@@ -455,6 +487,29 @@ Refused. A member path may not be absolute and may not climb with '..'."
 	   json parse m <<< "$j" 2> /dev/null; then
 		app=${m["app"]}
 		[ -n "${m["kind"]}" ] && kind=${m["kind"]}
+		# The parts: one object each of file, kind and name, saying
+		# which member goes to which of the desktop's scan roots.
+		# Without this an app's own Control Panel pane could not
+		# travel at all -- a bundle placed everything under the
+		# app's own kind, and a pane is scanned from another
+		# (Gitea #217).
+		for i in "${!m["parts"][@]}"; do
+			pf=${m["parts"]["$i"]["file"]}
+			pk=${m["parts"]["$i"]["kind"]}
+			pn=${m["parts"]["$i"]["name"]}
+			[ -n "$pn" ] || pn=${pf##*/}
+			pn=${pn%.hibr}
+			if ! ap_partok "$pk" "$pn"; then
+				archive close ap
+				rm -f "$src" 2> /dev/null
+				ap_die "$name: the bundle names a part as $pk/$pn
+Refused. A part's kind is one of ${AP_KINDS[*]} and its name is lower case
+letters, digits and dashes -- a part decides where a file lands."
+			fi
+			pfile+=("$pf")
+			pkind+=("$pk")
+			pname+=("$pn")
+		done
 	fi
 	if [ -z "$app" ]; then
 		for l in "${AP_MEM[@]}"; do
@@ -483,10 +538,17 @@ Refused. A member path may not be absolute and may not climb with '..'."
 	dir := ap_destdir "$kind" "$name"
 	mkdir -p "$AP_DATA/$kind" || ap_die "cannot make $AP_DATA/$kind"
 	rm -rf "$dir" 2> /dev/null
+	AP_PLACED=("$kind/$name.hibr")
 	for l in "${AP_MEM[@]}"; do
 		k=${l%%	*}
 		path=${l#*	}
 		[ "$path" = "app.json" ] && continue
+		# A part is placed below, in its own kind's folder, so it is
+		# not also a resource of this app's own.
+		for i in "${!pfile[@]}"; do
+			[ "$path" = "${pfile["$i"]}" ] && { path=; break ; }
+		done
+		[ -n "$path" ] || continue
 		if [ "$k" = d ]; then
 			mkdir -p "$dir/$path" || ap_die "cannot make $dir/$path"
 			continue
@@ -505,10 +567,23 @@ Refused. A member path may not be absolute and may not climb with '..'."
 			ap_die "cannot write $dir/$path"
 		n=$((n + 1))
 	done
+	# And every part into the scan root it named. Each is a file of its
+	# own there, not a folder: a pane is read exactly as one the person
+	# wrote, which is the whole of ADR 0041's model.
+	for i in "${!pfile[@]}"; do
+		pk=${pkind["$i"]}
+		pn=${pname["$i"]}
+		mkdir -p "$AP_DATA/$pk" || ap_die "cannot make $AP_DATA/$pk"
+		archive cat ap "${pfile["$i"]}" > "$AP_DATA/$pk/$pn.hibr" ||
+			ap_die "$name: the bundle has no ${pfile["$i"]} to place as $pk/$pn"
+		AP_PLACED+=("$pk/$pn.hibr")
+		ap_say "installed $pk/$pn.hibr, which $name brings with it"
+	done
 	archive close ap
 	rm -f "$src" 2> /dev/null
 	# A bundle of only the app leaves no folder behind to confuse anyone.
 	[ "$n" = 0 ] && rm -rf "$dir" 2> /dev/null
+	[ "$n" = 0 ] || AP_PLACED+=("$kind/$name")
 	if [ "$n" = 0 ]; then
 		ap_say "installed $name as $dest"
 	else
@@ -517,8 +592,46 @@ Refused. A member path may not be absolute and may not climb with '..'."
 	return 0
 }
 
+# What an entry says it needs, checked rather than printed. `apps info` has
+# shown `needs hibr X, module ABI Y, modules: Z` from the beginning and
+# nothing ever read those fields, so an app needing the db module installed
+# happily on a machine without it and failed at its first call, in a window,
+# as a shell error in desktop.log. An index field nothing enforces reads as
+# a promise (Gitea #217).
+fn ap_needs(name) {
+	local abi hv m oldest
+	local -a mods
+
+	abi=${AP_ENT["abi"]}
+	if [ -n "$abi" ] && [ "$abi" != "$HIBR_ABI" ]; then
+		ap_die "$name: needs module ABI $abi and this hibr has $HIBR_ABI
+A module's ABI must match exactly, so this app's own module could not load."
+	fi
+	hv=${AP_ENT["hibr"]}
+	if [ -n "$hv" ]; then
+		# The older of the two: if that is not the one asked for,
+		# this hibr is older than the app needs.
+		oldest=$(printf '%s\n%s\n' "$hv" "$HIBR_VERSION" |
+			 command sort -V | command head -1) ||
+			ap_die "sort is needed to compare versions"
+		[ "$oldest" = "$hv" ] ||
+			ap_die "$name: needs hibr $hv or newer, and this is $HIBR_VERSION"
+	fi
+	if [ -n "${AP_ENT["modules"]}" ]; then
+		IFS=', ' read -ra mods <<< "${AP_ENT["modules"]}"
+		for m in "${mods[@]}"; do
+			[ -n "$m" ] || continue
+			need "$m" 2> /dev/null && continue
+			ap_die "$name: needs the $m module, which this hibr does not have
+A module comes with hibr itself, not from here: a bundle may not carry one
+(ADR 0016), so there is nothing this command can install to answer it."
+		done
+	fi
+	return 0
+}
+
 fn ap_install(...names) {
-	local name tmp kind
+	local name tmp kind i
 
 	[ "${#names[@]}" -gt 0 ] || ap_die "usage: apps install NAME..."
 	# The index again, always: installing against a stale one is how a
@@ -530,6 +643,9 @@ fn ap_install(...names) {
 		kind=${AP_ENT["kind"]}
 		ap_kindok "$kind" ||
 			ap_die "$name: the index says kind $kind, which is not one an app installs into"
+		# Before fetching, not after: refusing an app this hibr
+		# cannot run should cost nothing and leave nothing behind.
+		ap_needs "$name"
 		tmp := ap_getbundle "$name" "${AP_ENT["bundle"]}" "${AP_ENT["sha256"]}"
 		case ${AP_ENT["bundle"]} in
 		*.hibr) ap_putone "$kind" "$name" "$tmp" ;;
@@ -538,13 +654,38 @@ fn ap_install(...names) {
 		AP_ST["installed"]["$name"]["version"]=${AP_ENT["version"]}
 		AP_ST["installed"]["$name"]["kind"]=$kind
 		AP_ST["installed"]["$name"]["sha256"]=${AP_ENT["sha256"]}
+		# Every path this placed, so removing takes away what was
+		# installed rather than what the kind and the name imply: a
+		# bundle may bring a pane or a strip module with it, and
+		# nothing on disk says so (Gitea #217).
+		unset AP_ST["installed"]["$name"]["paths"]
+		for i in "${!AP_PLACED[@]}"; do
+			AP_ST["installed"]["$name"]["paths"]["$i"]=${AP_PLACED["$i"]}
+		done
 		ap_statesave
 	done
 	return 0
 }
 
+# Whether any *other* installed app brings this same path. One Control Panel
+# pane serves Calendar and Contacts both, so removing one of the two must
+# leave the other's pane where it is -- which is bookkeeping, not a guess:
+# the state says what each app placed (Gitea #217).
+fn ap_claimed(path, except) {
+	local other i
+
+	for other in "${!AP_ST["installed"][@]}"; do
+		[ "$other" = "$except" ] && continue
+		for i in "${!AP_ST["installed"]["$other"]["paths"][@]}"; do
+			[ "${AP_ST["installed"]["$other"]["paths"]["$i"]}" = "$path" ] &&
+				return 0
+		done
+	done
+	return 1
+}
+
 fn ap_remove(...names) {
-	local name kind dest dir n force=0
+	local name kind dest dir n force=0 i p np
 	local -a want
 
 	for name in "${names[@]}"; do
@@ -565,10 +706,31 @@ Close them first, or `apps remove -f $name`. Removing it frees the folder
 its code is read from, and the desktop would be left calling functions with
 nothing behind them."
 		fi
-		dest := ap_dest "$kind" "$name"
-		dir := ap_destdir "$kind" "$name"
-		rm -f "$dest" 2> /dev/null
-		rm -rf "$dir" 2> /dev/null
+		np=0
+		for i in "${!AP_ST["installed"]["$name"]["paths"][@]}"; do
+			np=$((np + 1))
+		done
+		if [ "$np" = 0 ]; then
+			# Installed before 0.99.183, when nothing recorded
+			# what it placed: the kind and the name are all there
+			# is, which is what this always did.
+			dest := ap_dest "$kind" "$name"
+			dir := ap_destdir "$kind" "$name"
+			rm -f "$dest" 2> /dev/null
+			rm -rf "$dir" 2> /dev/null
+		else
+			for i in "${!AP_ST["installed"]["$name"]["paths"][@]}"; do
+				p=${AP_ST["installed"]["$name"]["paths"]["$i"]}
+				if ap_claimed "$p" "$name"; then
+					ap_say "kept $p, which another installed app brings too"
+					continue
+				fi
+				case $p in
+				*.hibr) rm -f "$AP_DATA/$p" 2> /dev/null ;;
+				*) rm -rf "$AP_DATA/$p" 2> /dev/null ;;
+				esac
+			done
+		fi
 		unset AP_ST["installed"]["$name"]
 		ap_statesave
 		ap_say "removed $name"
