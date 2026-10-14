@@ -530,6 +530,11 @@ long dv_fill(dv_conn *c)
 	while (n < 0 && errno == EINTR);
 	if (n > 0)
 		c->rb.n += (size_t)n;
+	/* SO_RCVTIMEO answers a read that waited too long with EAGAIN, which
+	   is a timeout and not a dead peer -- told apart so the diagnostic
+	   can say which it was. */
+	else if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
+		c->timedout = 1;
 	return (long)n;
 }
 
@@ -1302,6 +1307,7 @@ int dv_do(sh *s, dv_req *rq, dv_res *rs)
 lost:
 		{
 			int reused = c->reused, relay = c->relay;
+			int timedout = c->timedout;
 			int st = 0;
 			pid_t rp = c->relay;
 
@@ -1330,6 +1336,12 @@ lost:
 			if (relay && !got && WIFEXITED(st) && WEXITSTATUS(st))
 				lg(HIBR_LERR, "dav: the secure connection to %s "
 					      "failed (its certificate?)", u.host.p);
+			else if (timedout)
+				lg(HIBR_LERR, "dav: %s stopped part way through "
+					      "its answer to %s: nothing more "
+					      "arrived within %d seconds "
+					      "(HIBR_DAV_TIMEOUT)",
+				   u.host.p, rq->method, dv_timeout(s));
 			else
 				lg(HIBR_LERR, "dav: %s did not answer %s",
 				   u.host.p, rq->method);

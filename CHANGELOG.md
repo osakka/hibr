@@ -1,5 +1,58 @@
 # Changelog
 
+## 0.99.185
+
+**The TLS relay read OpenSSL once per `select`, so the tail of a reply was
+stranded whenever the peer kept the connection open** (Gitea #223).
+
+Found by the catalogue growing. `apps list` against the published index
+stopped working the moment it reached 87 kB, and took **30.7 seconds** to
+say `the index could not be fetched (0)` -- which is `DV_TIMEOUT` exactly.
+
+A TLS record carries up to 16 kB of plaintext and `SSL_read` answers at most
+what it was asked for, so the rest of the record stays inside OpenSSL --
+where `select` on the socket can never report it, because those bytes have
+already arrived. Measured with the relay instrumented:
+
+    PROBE relay read 4096, pending 1386
+    dav: PROBE fill read -1 (errno 11), buf 0/8192 rp 0
+    dav: PROBE body gave up with 1386 left
+
+The last 1386 bytes of the reply were sitting in the relay's own process
+while `dav` waited its whole receive timeout for them.
+
+**A peer that closes hides it**, which is what made this look like anything
+but what it was: the next `select` then fires on the end of file and the
+buffer drains by luck. The same 87402 bytes fetched whole through
+`/dev/tls` by hand, because that probe sent `Connection: close`; `dav` keeps
+connections and never saw them. And it is size-dependent only in that the
+final record has to leave a remainder after a 4 kB read -- a 60 kB bundle
+and a 264 kB `Packages` both arrived from the same host, and that one never
+did, which cost an hour of looking at the content rather than the framing.
+
+The relay drains what the library holds now, on **both** buffers:
+`SSL_pending` counts plaintext already decrypted, and `SSL_has_pending` also
+counts bytes taken from the socket and not yet made into a record -- either
+leaves data `select` cannot see, and the second is the same trap one layer
+down. Both bound with `dlsym` and optional, like the error strings. 87402
+bytes in **0.358 s** where it used to time out in 30.7.
+
+This reaches everything that speaks TLS through the relay -- `dav`, the
+`http` module, `/dev/tls` in any script -- wherever the peer keeps the
+connection open, which is every HTTP/1.1 server by default.
+
+Two things beside it. `dav` reported a receive timeout (`EAGAIN` from
+`SO_RCVTIMEO`) as *"did not answer"*, which is what sent an hour of hunting
+at the server for a reply that was already here; a timeout is told apart
+from a dead peer now and says so, with the number and the variable that
+sets it. And the guard is `tests/999-tlsdrain.t` rather than the large-fetch
+check added to `tests/dav.py`: **that one passes against the unfixed
+relay**, because the test server's records drain evenly. The guard sends one
+write of a size deliberately not a multiple of 4096 and keeps the
+connection open -- `86016 of 90067` before, `90067 of 90067` after. A check
+that cannot fail against its own bug is coverage, not a guard, and the two
+say which they are.
+
 ## 0.99.184
 
 **The catalogue has five namespaces now, because the desktop always had**

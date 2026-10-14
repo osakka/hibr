@@ -113,6 +113,30 @@ try:
           out.split("\n")[0] == "a.txt" and "b c.txt\n" in out and
           out.rstrip().endswith('"') and os.path.exists(os.path.join(ROOT, "sp ace.txt")),
           out + err)
+    # A body whose last TLS record leaves a remainder, over a **kept**
+    # connection. The relay read OpenSSL's buffer once per select, and a
+    # record carries up to 16 kB of plaintext where SSL_read answers at most
+    # what it was asked for -- so the tail sat in the library's own buffer,
+    # which select on the socket can never report, and the fetch waited its
+    # whole receive timeout for bytes that had already arrived (Gitea #223).
+    # A peer that closes hides it: the next select fires on the end of file
+    # and the buffer drains by luck. 90001 is not a multiple of the 4 kB the
+    # relay reads, which is what leaves the remainder: a round size arrives
+    # even unfixed, which is why a 60 kB file and a 264 kB file both did.
+    open(os.path.join(ROOT, "big.bin"), "wb").write(b"L" * 90001)
+    out, err = hb("export HIBR_DAV_TIMEOUT=3\n"
+                  "dav server set s https://localhost:%d/remote.php/dav/files/u -k;"
+                  " dav get dav://s/big.bin big.out; echo st $?;"
+                  " sys stat -c %%s big.out 2> /dev/null || wc -c < big.out" % p)
+    # This covers the path end to end and is **not** the guard for #223: it
+    # passes against the unfixed relay, because this server's records happen
+    # to drain evenly. `tests/999-tlsdrain.t` is the guard -- it sends one
+    # write of a size that leaves a remainder and keeps the connection, and
+    # it fails against the release before the fix. A check that cannot fail
+    # against the bug it was written for is coverage, not a guard, and
+    # saying which is which is the point.
+    check("a large reply over a kept TLS connection arrives whole",
+          "st 0" in out and "90001" in out.replace(" ", ""), out + err)
     out, err = hb("dav server set s https://localhost:%d/remote.php/dav/files/u -u u -p no;"
                   " dav ls dav://s/; echo st $? $DAV_CODE; dav test s; echo t $?" % p)
     check("a wrong password is a refused login, and test says so",
@@ -330,4 +354,4 @@ finally:
         s.wait()
     shutil.rmtree(D, True)
 
-report(30)
+report(31)

@@ -50,6 +50,11 @@ struct dv_conn {
 	str rb;
 	size_t rp;
 	int reused;
+	/* Set when a read gave up on the receive timeout rather than on the
+	   peer going away: the two were reported as one ("did not answer"),
+	   which sent an hour of hunting at the server for a reply that was
+	   on its way (Gitea #223). */
+	int timedout;
 };
 
 /* What a server asked to be told about who we are, per place and user. */

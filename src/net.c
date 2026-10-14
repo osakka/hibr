@@ -39,6 +39,8 @@ struct tlsapi {
 	int (*connect)(void *);
 	long (*verify_result)(const void *);
 	int (*read)(void *, void *, int);
+	int (*pending)(const void *);
+	int (*haspending)(const void *);
 	int (*write)(void *, const void *, int);
 	int (*shutdown)(void *);
 	unsigned long (*err_get)(void);
@@ -113,6 +115,8 @@ int tls_load(void)
 	tls.connect = tls_sym(tls_lib, "SSL_connect", &bad);
 	tls.verify_result = tls_sym(tls_lib, "SSL_get_verify_result", &bad);
 	tls.read = tls_sym(tls_lib, "SSL_read", &bad);
+	tls.pending = dlsym(tls_lib, "SSL_pending");
+	tls.haspending = dlsym(tls_lib, "SSL_has_pending");
 	tls.write = tls_sym(tls_lib, "SSL_write", &bad);
 	tls.shutdown = tls_sym(tls_lib, "SSL_shutdown", &bad);
 	/* Optional, like the error strings. It has been in libssl since long
@@ -506,13 +510,51 @@ void tls_relay(int plain, int sock, const char *host)
 				break;
 		}
 		if (FD_ISSET(sock, &rd)) {
-			n = tls.read(ssl, buf, HIBR_IOCH);
-			if (n <= 0)
+			/* Drain what the library already holds, rather than
+			   one read of it. A TLS record carries up to 16 kB
+			   of plaintext and SSL_read answers at most what it
+			   was asked for, so the remainder sits in OpenSSL's
+			   own buffer -- where select on the socket can never
+			   see it, because the bytes have already arrived.
+			   A peer that closes hides this: the next select
+			   fires on the end of file and the buffer drains by
+			   luck. A **kept** connection does not, and nothing
+			   wakes this loop again: the tail is stranded for
+			   ever. That is what left `dav get` waiting its
+			   whole 30-second receive timeout for the last 1386
+			   bytes of an 87 kB index, and reporting it as a
+			   server that did not answer (Gitea #223). It is
+			   size-dependent only in that the last record has to
+			   leave a remainder, which is why a 60 kB file and a
+			   264 kB file both arrived and this one never did.
+			   SSL_pending is bound optionally, like the error
+			   strings: without it this is the single read it
+			   always was, and a library that old has other
+			   problems. */
+			for (;;) {
+				n = tls.read(ssl, buf, HIBR_IOCH);
+				if (n <= 0)
+					goto done;
+				if (write(plain, buf, (size_t)n) != n)
+					goto done;
+				/* Two buffers, not one: SSL_pending counts
+				   plaintext already decrypted, and
+				   SSL_has_pending also counts bytes read
+				   from the socket and not yet made into a
+				   record. Either leaves data select on the
+				   socket can never report, so both have to
+				   be drained -- the first is what stranded
+				   1386 bytes of a real reply, the second is
+				   the same trap one layer down. */
+				if (tls.pending && tls.pending(ssl) > 0)
+					continue;
+				if (tls.haspending && tls.haspending(ssl))
+					continue;
 				break;
-			if (write(plain, buf, (size_t)n) != n)
-				break;
+			}
 		}
 	}
+done:
 	free(buf);
 	tls.shutdown(ssl);
 	_exit(0);
