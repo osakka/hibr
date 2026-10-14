@@ -410,8 +410,16 @@ dt_load() {
 		if [ "${DT_SETVER:-0}" -lt 10 ] && dt_has cp_setver10; then
 			cp_setver10
 		fi
+		# 0.99.188: one flag named for the wallpaper in fact halved
+		# every picture whose caller had not chosen a palette, so a
+		# video was always sent at a quarter of the area it covers.
+		# It is DT_IMGDETAIL now, three-state, and a saved choice
+		# carries over (Gitea #228).
+		if [ "${DT_SETVER:-0}" -lt 11 ] && dt_has cp_setver11; then
+			cp_setver11
+		fi
 	fi
-	DT_SETVER=10
+	DT_SETVER=11
 	dt_keyfix
 	dt_keydups
 	dt_glyphs "$DT_GLYPHSET"

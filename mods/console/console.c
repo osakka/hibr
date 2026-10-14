@@ -614,7 +614,9 @@ int m_console(sh *s, int ac, char **av)
 		const char *m = ac > 2 ? av[2] : "";
 
 		if (!*m) {
-			const char *now = cn_imghalf ? "half" : "full";
+			const char *now = cn_imghalf == CN_DETAIL_HALF ? "half" :
+					  cn_imghalf == CN_DETAIL_FULL ? "full" :
+					  "auto";
 
 			hibr_ret(s, now);
 			if (!s->bind)
@@ -622,11 +624,13 @@ int m_console(sh *s, int ac, char **av)
 			return HIBR_OK;
 		}
 		if (!strcmp(m, "half"))
-			cn_imghalf = 1;
+			cn_imghalf = CN_DETAIL_HALF;
 		else if (!strcmp(m, "full"))
-			cn_imghalf = 0;
+			cn_imghalf = CN_DETAIL_FULL;
+		else if (!strcmp(m, "auto"))
+			cn_imghalf = CN_DETAIL_AUTO;
 		else {
-			lg(HIBR_LERR, "usage: console imgdetail full|half");
+			lg(HIBR_LERR, "usage: console imgdetail auto|full|half");
 			return 2;
 		}
 		return HIBR_OK;

@@ -96,7 +96,7 @@ dt_open() {
 	# output -- a shell prompt, ls of regular files, most of what
 	# actually appears on screen -- showed no visible darkening at all.
 	console darkdefault "$DT_INK" "$DT_FACE"
-	console imgdetail "$DT_WALLDETAIL"
+	console imgdetail "$DT_IMGDETAIL"
 	console imgcomp "$DT_IMGCOMP"
 	console signals off
 	# Click and drag only, not motion: reporting every movement with no

@@ -396,6 +396,35 @@ check("a picture under the text is sent at half the pixels each way",
 check("and at every pixel when asked for full detail, four times the bytes",
       full == (96 * 96 * 3 + 2) // 3 * 4 and full == half * 4, (full, half))
 
+# And a picture that is *looked at* -- a film's frame, a page, a photograph
+# -- is the opposite case, which the one flag got wrong for the life of it:
+# the condition halved anything whose caller had not set DP_IMG_CHOSEN, and
+# that flag means "a palette was taken from this picture", not "this is the
+# wallpaper". The media module passes no flags, so every video frame went
+# out at a quarter of the area its cells cover and the terminal upscaled it
+# -- measured on the owner's own session as 408x209 px into a rectangle of
+# 816x418, every frame, which is what "pixels still show blocks" was
+# (Gitea #228). `auto` is each kind's own answer now.
+sc = run("console imgcomp off\nconsole imgdetail auto\n" + PIC % "-m pixels"
+         + "console flush\nconsole key 400\n")
+look = sc.images[0][2] if sc.images else 0
+check("a picture that is looked at goes out at the cell's own resolution",
+      look == (96 * 96 * 3 + 2) // 3 * 4, look)
+sc = run("console imgcomp off\nconsole imgdetail auto\n" + PIC % "-m pixels -u"
+         + "console flush\nconsole key 400\n")
+under = sc.images[0][2] if sc.images else 0
+check("while the wallpaper beside it is still halved, which is what auto means",
+      under == (48 * 48 * 3 + 2) // 3 * 4 and under * 4 == look, (under, look))
+# This one guards the invariant rather than the change and says so: half
+# was what every picture got before, so it passes against 0.99.187 too.
+# It is here because the knob has to keep a way back for a link that
+# cannot carry full frames.
+sc = run("console imgcomp off\nconsole imgdetail half\n" + PIC % "-m pixels"
+         + "console flush\nconsole key 400\n")
+check("and `imgdetail half` reaches it, so a slow link has a way back",
+      (sc.images[0][2] if sc.images else 0) == (48 * 48 * 3 + 2) // 3 * 4,
+      sc.images)
+
 # And compressed, which is what a reattach over a link costs (Gitea #129).
 # Three encodings of one picture, each asserted to describe the same pixels:
 # that is the only check worth making here, since q=2 means a terminal that
@@ -752,4 +781,4 @@ check("and an explicit HIBR_GFX wins over what the terminal answered",
       run(GFX, gfx="sixel", caps=["kitty"]).row(1))
 
 shutil.rmtree(D, True)
-report(74)
+report(77)

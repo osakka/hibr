@@ -260,7 +260,16 @@ int cn_mousemode;
    pixels in each direction for the terminal to scale back up. On by default:
    it is four times fewer bytes to every client that attaches, and nobody
    looks at a background. `console imgdetail full` turns it off. */
-int cn_imghalf = 1;
+/* How much resolution a picture is sent at: CN_DETAIL_AUTO halves one drawn
+   *under* the text and sends every other at the cell's own resolution,
+   CN_DETAIL_FULL sends everything whole, CN_DETAIL_HALF halves everything.
+   Auto is the default because the two kinds want opposite answers: a
+   wallpaper sits behind text as a background, is re-sent to every client
+   that attaches and is never looked at closely, where a film's frame and a
+   page are the thing being looked at and halving them is what made a video
+   read as blocks (Gitea #228). The knob reaches both so a slow link has a
+   way back. */
+int cn_imghalf = CN_DETAIL_AUTO;
 
 /* And whether its payload is compressed before it goes out, which is worth
    more than the halving and composes with it: the owner's own wallpaper,

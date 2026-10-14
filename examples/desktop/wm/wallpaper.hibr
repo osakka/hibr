@@ -29,16 +29,23 @@ DT_IMGARG=()
 # 8x16 cell that is 1856x1136x3 raw -- 8.04 MB of base64, free on a local
 # terminal and thirteen seconds of an ssh session at 5 Mbit/s (Gitea #129).
 # Half is 2.01 MB and the terminal scales it back up, which is what a
-# background wants rather than what a picture being looked at wants, so it
-# is the default. Nothing else is affected: the Image Viewer, a film and
-# the browser all draw pictures that own their cells.
-DT_WALLDETAIL="${DT_WALLDETAIL-half}"
-dt_keep DT_WALLDETAIL
+# background wants rather than what a picture being looked at wants.
+#
+# "Nothing else is affected" is what this said, and it was wrong: the
+# console's own condition halved every picture whose caller had not chosen
+# a palette, which is the media module's every frame -- so a video was
+# always sent at a quarter of the area the cells cover and kitty upscaled
+# it, which is what "pixels still look like blocks" was (Gitea #228). The
+# setting is three-state now and named for what it governs: `auto` is each
+# kind's own answer, and `full`/`half` are one rule for everything, for a
+# link that cannot carry full frames.
+DT_IMGDETAIL="${DT_IMGDETAIL-auto}"
+dt_keep DT_IMGDETAIL
 
 # And how a still picture's payload is compressed before it is sent, which
 # dt_open hands to `console imgcomp` (Gitea #129). Declared **here** as well
 # as in the Pictures pane, which is where the setter lives, for the reason
-# DT_WALLDETAIL is: the pane is loaded from CP_PANEDIRS and the window
+# DT_IMGDETAIL is: the pane is loaded from CP_PANEDIRS and the window
 # manager is not, so a desktop whose control-panel folder is missing -- a
 # half-finished install -- would leave this empty, and `console imgcomp ""`
 # does not do nothing: with an empty argument the verb *answers*, printing

@@ -586,6 +586,7 @@ Pattern
 Pause
 Pause or Play
 Picture
+Picture Detail
 Pictures
 Pictures: %s
 Pie
@@ -856,7 +857,6 @@ View Details
 View History
 Wait for the transfers running to finish first
 Wallpaper
-Wallpaper Detail
 Wallpaper Shows Through
 Wallpaper set
 Wed

@@ -1,5 +1,89 @@
 # Changelog
 
+## 0.99.188
+
+**Every picture the desktop did not take a palette from was sent at a
+quarter of the area its cells cover, so a film read as blocks** (Gitea
+#228).
+
+`cn_image` ends by working out how many pixels to send:
+
+    tw = w * cw;
+    th = h * chh;
+    if (im->id && tw > 2 && th > 2 &&
+        (!(flags & DP_IMG_CHOSEN) || (im->over && cn_imghalf))) {
+            tw /= 2;
+            th /= 2;
+    }
+
+The comment above it says what was meant: halve **the wallpaper**, because
+it sits behind text as a background, is re-sent to every client that
+attaches and is never looked at closely -- and `console imgdetail full`
+turns that off. What the condition says is "halve anything whose caller did
+not set `DP_IMG_CHOSEN`", and that flag means **"a palette was taken from
+this picture"**. This file already records that those are different
+questions, in as many words, from the release that got it wrong the other
+way round. The media module passes no flags at all, so every frame of every
+film, on every terminal, had always gone out at half the resolution in each
+axis.
+
+Measured on the owner's own session with a probe attached to it -- `hold
+attach -m -n probe`, the window on the visible workspace, the video
+playing:
+
+    131 placements in 14.1 s, every one of them
+    a=T f=24 408x209 px  into 68x19 cells  i=1269547038
+
+and the client's own pty, read rather than assumed, gives the cell:
+
+    /dev/pts/5  64 rows x 213 cols, 2556x1408 px -> cell 12x22
+
+68 by 19 cells at 12x22 is **816x418** device pixels, and 408x209 is
+exactly half of it in each axis. Then reproduced with no desktop, no
+`hold`, no ssh and no YouTube in it -- a bare player on a pty told its cell
+is 12x22 -- which is the version that can be fixed and checked:
+
+    before   sent 444x209 px into 74x19 cells -> the rectangle is 888x418 px
+    after    sent 888x418 px into 74x19 cells -> the rectangle is 888x418 px
+
+**The setting is three-state now, because the two kinds of picture want
+opposite answers.** `console imgdetail auto|full|half`, `auto` by default:
+a picture drawn *under* the text is halved and every other is sent at the
+cell's own resolution. The knob reaches both rather than only the
+wallpaper, which is what gives a slow link a way back -- full frames are
+four times the bytes, and on that session the halved ones were already
+3.3 MB/s.
+
+| `imgdetail` | a picture looked at | the wallpaper |
+|---|---|---|
+| `auto` | 480x440 -- full | 240x220 -- half |
+| `full` | 480x440 | 480x440 |
+| `half` | 240x220 | 240x220 |
+
+Control Panel > Pictures calls it **Picture Detail** and says which
+pictures each value reaches, rather than a bare `Half`. `DT_WALLDETAIL` was
+named for the wallpaper and had not governed only the wallpaper for as long
+as it existed; it is `DT_IMGDETAIL`, and `DT_SETVER` 11 carries a saved
+choice over -- `full` stays `full`, and `half`, which was the default,
+becomes `auto`, since that leaves the wallpaper halved exactly as before.
+
+Three checks in `tests/kitgfx.py` (77 now). The first fails against
+0.99.187; the third passes there and says so in the file, because `half`
+is what every picture used to get and it is in the suite to keep the way
+back rather than to prove the change.
+
+**What this release does not fix.** The same report says the picture
+"shivers (blinks) on each refresh", and that is not settled: the ids are
+*reused* for all 131 frames and the only `a=d` in the sample is the
+probe's own attach, so it is not the placement being removed between
+frames, which was the obvious theory. The player was also emitting 2
+frames in 10 seconds at one point, so a "refresh" there is a discrete
+event rather than a 13 fps flicker. `tools/` is not where it belongs yet;
+the isolation test written for it is three passes over one picture in a
+real terminal -- full and moving, half and moving, full and alternating in
+place -- which separates the size from the replacing from the changing.
+Whatever it turns out to be, it is its own ticket.
+
 ## 0.99.187
 
 **`${#m["k"]}` counted bytes where `${#x}` counts characters, so every

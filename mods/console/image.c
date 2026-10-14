@@ -528,7 +528,8 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	tw = w * cw;
 	th = h * chh;
 	if (im->id && tw > 2 && th > 2 &&
-	    (!(flags & DP_IMG_CHOSEN) || (im->over && cn_imghalf))) {
+	    (cn_imghalf == CN_DETAIL_HALF ||
+	     (cn_imghalf == CN_DETAIL_AUTO && im->over))) {
 		tw /= 2;
 		th /= 2;
 	}

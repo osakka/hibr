@@ -19,23 +19,54 @@ strict
 command -v cp_pane > /dev/null && cp_pane pictures "Pictures" "▦"
 
 CP_IMGMODES=("Automatic" "Half Blocks" "Grey Blocks" "Characters" "Pixels")
-CP_WALLDETAILS=("Half" "Full")
+# Three states, because the two kinds of picture want opposite answers: a
+# wallpaper sits behind text and is re-sent to every client that attaches,
+# where a film's frame and a page are the thing being looked at. Automatic
+# is each kind's own answer; the other two are one rule for everything, for
+# a link that cannot carry full frames (Gitea #228).
+CP_IMGDETAILS=("Automatic" "Full" "Half")
 CP_IMGCOMPS=("Zlib" "PNG" "Off")
 
 # Repeated here because a pane is loaded without its own app under the panel
 # tests, and a strict file may not create a global it has not declared.
-DT_WALLDETAIL="${DT_WALLDETAIL-half}"
-command -v dt_keep > /dev/null && dt_keep DT_WALLDETAIL
+DT_IMGDETAIL="${DT_IMGDETAIL-auto}"
+command -v dt_keep > /dev/null && dt_keep DT_IMGDETAIL
 DT_IMGCOMP="${DT_IMGCOMP-zlib}"
 command -v dt_keep > /dev/null && dt_keep DT_IMGCOMP
 
-fn cp_set_walldetail(int? id = "", value = "") {
+fn cp_set_imgdetail(int? id = "", value = "") {
 	case $value in
-	Full) DT_WALLDETAIL=full ;;
-	*) DT_WALLDETAIL=half ;;
+	Full) DT_IMGDETAIL=full ;;
+	Half) DT_IMGDETAIL=half ;;
+	*) DT_IMGDETAIL=auto ;;
 	esac
-	command -v console > /dev/null && console imgdetail "$DT_WALLDETAIL"
+	command -v console > /dev/null && console imgdetail "$DT_IMGDETAIL"
 	cp_save
+}
+
+# What that setting is called in the list, with what it does rather than
+# only its name: "Automatic" alone says nothing about which pictures are
+# halved, and a value with no unit is what let Redraw Skip mean nothing
+# for 155 releases.
+fn cp_detailname(m) {
+	case $m in
+	full) ret "Full (every picture)" ;;
+	half) ret "Half (every picture)" ;;
+	*) ret "Automatic (wallpaper half, the rest full)" ;;
+	esac
+}
+
+# 0.99.187 and before had one flag, named for the wallpaper, that in fact
+# halved every picture whose caller had not chosen a palette -- which is
+# why a video read as blocks. A saved `full` meant "do not halve", so it
+# becomes `full`; a saved `half` was the default and meant "halve the
+# wallpaper", which is what `auto` does now (Gitea #228).
+fn cp_setver11() {
+	case ${DT_WALLDETAIL-} in
+	full) DT_IMGDETAIL=full ;;
+	half) DT_IMGDETAIL=auto ;;
+	esac
+	return 0
 }
 
 # How a still picture's payload is compressed before it is sent (Gitea
@@ -92,8 +123,8 @@ fn pictures_rows(int w) {
 	g := dt_imggfx
 	read -r kind cw ch <<< "$g"
 	# In its own variable, not in v: it used to be worked out into v and
-	# then overwritten by the Wallpaper Detail value two lines later, so
-	# the This Terminal row read "Half" or "Full" -- what the terminal can
+	# then overwritten by the detail row's value two lines later, so the
+	# This Terminal row read "Half" or "Full" -- what the terminal can
 	# actually do had never once been shown there.
 	if [ "$kind" = sixel ] || [ "$kind" = kitty ]; then
 		term := dt_tr "%s pixels, a cell is %s by %s" "$kind" "$cw" "$ch"
@@ -102,10 +133,9 @@ fn pictures_rows(int w) {
 	else
 		term := dt_tr "blocks only: it does not draw pixels"
 	fi
-	v=Half
-	[ "$DT_WALLDETAIL" = full ] && v=Full
-	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Wallpaper Detail"
-	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=walldetail; n=$((n + 1))
+	v := cp_detailname "$DT_IMGDETAIL"
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Picture Detail"
+	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=imgdetail; n=$((n + 1))
 	v := cp_compname "$DT_IMGCOMP"
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Compress Pictures"
 	CP[$w][$n]["val"]=$v; CP[$w][$n]["key"]=imgcomp; n=$((n + 1))
@@ -127,11 +157,14 @@ fn pictures_do(int? w = "", k = "", int? dir = "") {
 		v := cp_next "$nm" "$dir" "${CP_IMGMODES[@]}"
 		cp_set_imgmode "" "$v"
 		;;
-	walldetail)
-		nm=Half
-		[ "$DT_WALLDETAIL" = full ] && nm=Full
-		v := cp_next "$nm" "$dir" "${CP_WALLDETAILS[@]}"
-		cp_set_walldetail "" "$v"
+	imgdetail)
+		case $DT_IMGDETAIL in
+		full) nm=Full ;;
+		half) nm=Half ;;
+		*) nm=Automatic ;;
+		esac
+		v := cp_next "$nm" "$dir" "${CP_IMGDETAILS[@]}"
+		cp_set_imgdetail "" "$v"
 		;;
 	imgcomp)
 		nm := cp_compname "$DT_IMGCOMP"
@@ -145,8 +178,8 @@ fn pictures_do(int? w = "", k = "", int? dir = "") {
 fn pictures_drop(int? w = "", int? r = "", int? c = "", k = "") {
 	case $k in
 	mode) dt_droplist "$w" "$r" "$c" cp_set_imgmode "${CP_IMGMODES[@]}" ;;
-	walldetail) dt_droplist "$w" "$r" "$c" cp_set_walldetail \
-		"${CP_WALLDETAILS[@]}" ;;
+	imgdetail) dt_droplist "$w" "$r" "$c" cp_set_imgdetail \
+		"${CP_IMGDETAILS[@]}" ;;
 	imgcomp) dt_droplist "$w" "$r" "$c" cp_set_imgcomp \
 		"${CP_IMGCOMPS[@]}" ;;
 	esac
