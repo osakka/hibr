@@ -60,19 +60,25 @@ unknown command, median of 7:
 | 15 | 2450 µs |
 | 35 | 4202 µs |
 
-So the twenty modules this record moves out are worth about **1.75 ms**
-off that, paid once per shell on its first unknown command — `m_bixok` is
-a flag on the process, not a file on disk. How often that happens depends
+So twenty fewer modules on the path would be worth about **1.75 ms** off
+that, paid once per shell on its first unknown command — `m_bixok` is a
+flag on the process, not a file on disk. How often that happens depends
 entirely on who is typing; the table is the cost when it does, not a
-claim about how often.
+claim about how often. It is also **durable**: a module fetched into
+`$XDG_DATA_HOME/hibr/mods` is kept off that index on purpose (ADR 0044),
+so fetching them all back would not put the cost back.
 
 **And the disk:**
 
 | | |
 |---|---|
 | all 35 modules | 2055 kB |
-| shipped (15, below) | 807 kB |
-| published (20) | 1247 kB, **37%** of a 3353 kB package |
+| the bootstrap set (15, below) | 807 kB |
+| the rest (20) | 1247 kB, **37%** of a 3353 kB package |
+
+Those two numbers — 1247 kB and 1.75 ms — are what publishing twenty of
+hibr's own modules would have bought. The Decision keeps them in the
+package anyway, and the Alternatives say what outweighed them.
 
 ## Decision
 
@@ -120,17 +126,55 @@ the administrator installed is reported as **defunct** rather than
 merely shadowing, with the command that frees the space, since it is
 the one way into that state and nothing else would say so.
 
-**The shipped scope is as small as it can be, and that is what the
-measurements are for.** It holds the shell, the window manager, the
-desktop's own `system/` apps, the Control Panel panes that are nobody's
-`part`, the Control Strip modules, the savers, the login screen, and
-fifteen modules:
+**The line between the package and the catalogue is the file's own
+kind, and nothing else.**
+
+| | arch-free? | where it lives |
+|---|---|---|
+| a script, a theme, a colour scheme, a language | yes — one file serves every machine | **published** |
+| a module | no — it is bytes, built for one architecture | **shipped** |
+
+Everything hibr builds as a `.so` is in the package, in **every**
+packaging of it, and the catalogue never carries one of ours. Everything
+hibr writes as a script or a JSON file is published, and travels under
+exactly the rules anybody else's does: an index, a `sha256`, a
+signature, and ADR 0044's refusal of an unverified module.
+
+That rule is the whole of it. There is no list of which modules ship —
+the answer is all of them — and so no judgement to revisit, no set to
+keep in step with what the desktop happens to need this month, and no
+per-architecture build for this project to own. The Alternatives record
+the split that was decided here first, the fifteen-module set it would
+have shipped, and why drawing that line lost to not drawing one.
+
+The reason is uniformity, and it is the owner's: a module is bytes, and
+a source install compiles its own. `brew install hibr` has no bottle and
+runs `make`; the AUR `PKGBUILD` runs `make`; `make install` places every
+module the build produced. So a split is uniform across packagings only
+if the catalogue carries a build per architecture — which means a
+machine, a cross toolchain or an emulator this project does not have,
+and in practice a compile on the owner's own Mac every release. Three
+outcomes exist and there is no fourth: **diverge** (a deb box fetches
+`pim`, a Mac already has it, and every bug report starts with "how did
+you install hibr?"), **chore**, or **do not split**. 1247 kB and 1.75 ms
+do not buy a divergence.
+
+What that costs is named rather than hidden: the 1.75 ms stays. Its
+remedy is to make `m_bixbuild` cheap — an index cached on disk against
+the module directory's own mtime, instead of `dlopen`ing thirty-five
+objects to rebuild what did not change — which helps every
+configuration, including a machine with third-party modules installed,
+where shipping fewer of ours would not have helped at all. Not built
+here; it answers none of the shell's four priorities urgently enough to
+precede them.
+
+**The bootstrap set is still worth recording**, because it is what a
+split would have had to ship and because four of its members were
+missed on a first count, each for a reason that would have shipped a
+broken package:
 
     archive auth console dav hcal hold img lang media
     prompt pty salat sys term uni
-
-Read out of the tree rather than remembered, and four of them are there
-for reasons worth writing down because each was missed on a first count:
 
 - **`term`**, which nothing in the window manager names. `hold`'s own
   init calls `hibr_require` for `pty` and then `terminal`, and
@@ -149,10 +193,16 @@ for reasons worth writing down because each was missed on a first count:
   have published it and made somebody with no desktop at all fetch their
   own prompt.
 
-Everything else hibr builds — twenty modules, every application, theme,
-colour scheme and language — is **published**, and travels under exactly
-the rules anybody else's does: an index, a `sha256`, a signature, and
-ADR 0044's refusal of an unverified module.
+Everything else hibr builds — every application, theme, colour scheme
+and language, all of them scripts or JSON — is **published**.
+
+**The `mods` kind stays, and it is for somebody else's module.** That
+is what it was for before any of hibr's own were considered for it, and
+it is the one place the arch question is answerable: a third party
+publishes the builds they have, for the machines they have, and a
+client on any other one is refused by name rather than handed bytes it
+cannot load. Nothing of ours is ever published this way, so no release
+of hibr owes the catalogue a module.
 
 **A published module is published per architecture.** Nothing is ever
 compiled on the machine it runs on: hibr's dependencies are libc and
@@ -167,14 +217,19 @@ naming which `(arch, abi)` pairs exist and the client choosing its own:
 Until 0.99.195 an entry carried a single `bundle` with one `arch` and
 one `abi` beside it, so the catalogue could hold exactly one build of a
 module and `ap_needs` refused every other machine by name. Honest, and
-useless to anybody not on that machine — which is tolerable while a
-module is somebody else's and fatal once twenty of hibr's own are
-published this way.
+useless to anybody not on that machine. The matrix was built while
+publishing hibr's own modules was still the plan, and it is kept
+although that was refused: a third party with two machines has exactly
+this problem, and the schema is the only part of the split that was
+worth keeping.
 
 The cost is the publisher's, and it is **per ABI bump, not per
 release** — which is worth stating carefully, because the first draft of
 this record got it wrong in the expensive direction and the owner caught
-it.
+it. It no longer falls on this project, since none of hibr's modules are
+published; it is written down because anybody who publishes one needs to
+know it, and because it is the measured answer to a question that is
+easy to get wrong by reasoning.
 
 A module is republished when its own source changed, or when
 `HIBR_ABI` moved. It is **not** republished because the release number
@@ -186,18 +241,20 @@ every one of them, since `HIBR_MODULE_P` puts `HIBR_ABI` in the
 descriptor struct itself: the same three went to `6f161616…`,
 `d3c18781…`, `8dd1f3d8…`.
 
-So the arithmetic is twenty modules times the architectures published,
-**once every twenty releases or so** (13 ABI bumps in 275), plus
-whichever individual modules a release actually changed. A typical
-release republishes **none**, and `./stale` compares bytes, so it names
-exactly which — nothing has to be remembered or assumed.
+So for a third-party publisher the arithmetic is their modules times the
+architectures they publish, **once every twenty releases or so** (13 ABI
+bumps in 275), plus whichever of their own a release of theirs changed.
 
-What this decision does still need is a build for each architecture — a
-machine, a cross toolchain, or an emulator — and this project has none
-of the three today (`aarch64-linux-gnu-gcc`, `zig` and the mingw
-toolchain are all absent; only native `gcc`, `tcc` and `clang`). That,
-rather than the republishing, is why publishing the modules is the last
-step of the work.
+And the obligation that would have fallen on this project does not:
+hibr's own releases republish nothing, because hibr publishes no module.
+That matters more than the arithmetic, because the thing this project
+lacks is not the patience to republish but the **machines** — a build
+per architecture needs hardware, a cross toolchain or an emulator, and
+there are none of the three here (`aarch64-linux-gnu-gcc`, `zig` and the
+mingw toolchain are all absent; only native `gcc`, `tcc` and `clang`).
+A decision that cannot be carried out on the machines the project has is
+not a decision, which is the second reason the split was refused and the
+first one anybody would have hit.
 
 An entry says what it **needs** and the catalogue resolves it: already
 loadable → satisfied; in the catalogue as `mods/NAME` → fetched; neither
@@ -270,26 +327,32 @@ than writing the path out eight times, for the same reason.
 
 ## Consequences
 
-**A release that moves `HIBR_ABI` must republish the catalogue's modules
-in the same pass.** This is the price of publishing twenty of them and it
-is not optional. `HIBR_ABI` has moved **13 times in 275 releases** — the
-fourteenth `+#define` in the file's history is its own birth at ABI 3,
-not a bump — and a module built against the old one is refused by
-`m_load`. The index records the ABI and the architecture and declines a
-mismatch by name (ADR 0044), so the failure says what it is rather than
-crashing; to a person it still reads as *"Mail stopped opening after I
-upgraded the shell"*. The rule belongs in the release ritual beside the
-catalogue's own staleness check, and `./stale` is what answers "are they
-current".
+**The release ritual gains nothing.** An earlier draft of this record
+decided to publish twenty modules and therefore owed a new rule: a
+release that moves `HIBR_ABI` must republish them all, per architecture,
+in the same pass — not optional, because `HIBR_ABI` has moved **13 times
+in 275 releases** (the fourteenth `+#define` in the file's history is its
+own birth at ABI 3, not a bump) and a module built against the old one is
+refused by `m_load`. The index records the ABI and the architecture and
+declines a mismatch by name (ADR 0044), so the failure would have said
+what it was rather than crashing; to a person it still reads as *"Mail
+stopped opening after I upgraded the shell"*.
+
+Shipping every module deletes that rule before it is ever kept: an ABI
+bump rebuilds the package, the package carries the modules, and the two
+cannot drift apart because they are one artefact. `./stale` goes on
+answering the question it was written for — are the catalogue's
+**scripts** current — and nothing new has to be remembered on a release.
 
 **A release republishes no module unless it changed one.** An earlier
 draft of this record claimed the opposite — that every module relinks
 every release because `HIBR_VER` is in a header they all include — and
 it is false: `make` does relink them, and the bytes come out identical,
-because no module references that macro. The measurement is above. The
-rule that survives is narrow and cheap to keep: republish a module when
-its source changed or when `HIBR_ABI` moved, and let `./stale` say which
-by comparing bytes.
+because no module references that macro. The measurement is above. It is
+kept here although hibr now publishes no module, because it is the
+measured answer to a question that is easy to get wrong by reasoning,
+and because a third-party publisher needs it: republish a module when
+its source changed or when `HIBR_ABI` moved, and nothing else.
 
 **ADR 0016 is widened, deliberately and visibly.** It says root loads
 modules only from `HIBR_MODDIR`, because a writable directory on root's
@@ -327,29 +390,33 @@ that is a published `part` is not shipped; `addapp` already knows which
 those are, so the check is mechanical.
 
 **The desktop itself is a catalogue entry, and this record said
-otherwise.** The Decision above lists "the window manager, the desktop's
-own `system/` apps, the Control Panel panes ... and fifteen modules" as
-shipped, and the reason given was the bootstrap argument now refuted
-under Alternatives. Read correctly, the rule puts almost none of that in
-the package: `catalogue` needs `dav` and `archive`, the **shell** needs
-`prompt` and `sys`, and every other module in that list of fifteen —
-`console hold pty term img lang uni hcal salat media auth` — is wanted
-by the *desktop* and by nothing else. They become what the desktop
-entry `needs`, which is the mechanism this release already built.
+otherwise.** The Decision above once listed "the window manager, the
+desktop's own `system/` apps, the Control Panel panes ..." as shipped,
+on the bootstrap argument refuted under Alternatives. Read correctly,
+the rule puts none of those **scripts** in the package: they are
+arch-free files, which is exactly what the catalogue is for, and the
+`catalogue` command needs only `dav` and `archive` to fetch them.
 
-What that buys is the thing the owner asked for and this record talked
-itself out of: **one story.** hibr is a shell; everything above it comes
-from the catalogue, by one route, with one vocabulary. A package of
-about 1.6 MB instead of 3.4, and `catalogue install desktop` as the
-first thing somebody types.
+What that buys is the thing the owner asked for: **one story.** hibr is
+a shell and its modules; every script above them comes from the
+catalogue, by one route, with one vocabulary. `catalogue install
+desktop` as the first thing somebody types.
 
-Four things have to be true and none is hard: the `desktop` launcher
+Three things have to be true and none is hard: the `desktop` launcher
 must look where a fetched desktop lands rather than only at
-`@DESKDIR@`; the desktop entry carries its modules as `needs`; the login
-screen (`hibr-login@.service`, which runs as root) installs at **system**
-scope, which is what that scope is for; and the per-architecture matrix
-grows from twenty modules to about thirty, which is the real cost and
-belongs in the same breath as the saving.
+`@DESKDIR@`; the login screen (`hibr-login@.service`, which runs as
+root) installs at **system** scope, which is what that scope is for;
+and a desktop entry that is only scripts needs nothing of the modules
+it uses, because they are already there.
+
+That last point is the kind rule paying for itself. Written while the
+split was still the plan, this consequence cost "a per-architecture
+matrix growing from twenty modules to about thirty" and said so as the
+real price of the saving. Under the rule actually decided the matrix is
+**empty**: the desktop's `console hold pty term img lang uni hcal salat
+media auth` ship with hibr like every other module, so moving the
+desktop's scripts to the catalogue is cheaper than the record that
+proposed it believed, and the disk it saves is the scripts' alone.
 
 It is a release of its own, after the one this record was written for.
 Nothing already shipped is reversed by it: a desktop that is in the
@@ -365,13 +432,44 @@ is kept off it for the same reason.
 
 ## Alternatives refused
 
-**Everything stays in the package.** What the project did, and what this
-record's author recommended, on the argument that an unloaded module
-costs nothing. The first table says that is true of startup; the second
-says it is false of the autoload index, which is the measurement that
-changed the recommendation. 1.75 ms per shell and 1247 kB on every
-machine that will only ever open a terminal is a real price for keeping
-twenty modules where they are not needed.
+**Publish twenty of hibr's own modules, and ship fifteen.** Decided
+here first, and reversed by the owner on 2026-10-15 before any module
+was published. The measurements that argued for it stand and are kept
+above: 1247 kB, 37% of the package, and 1.75 ms off the first unknown
+command — the second durable, since a fetched module is kept off the
+autoload index.
+
+What was never priced is what the owner asked in one sentence: *"why do
+we want to support divergent paths, meaning deb installs behave
+different than brew, than aur?"* A module is bytes and a source install
+compiles its own — `brew` has no bottle and runs `make`, the AUR
+`PKGBUILD` runs `make`, and `make install` places every module the build
+produced. So the split is uniform only with a catalogue build per
+architecture, which this project cannot make and which in practice means
+the owner compiling on their Mac every release. Diverge, chore, or do
+not split; there is no fourth.
+
+Divergence is the one that nearly shipped, because it costs nothing
+visible on the machine the work is done on. It costs it everywhere else:
+the same `catalogue install contacts` does different work depending on
+how hibr arrived, "is `pim` installed" has a different answer per
+packaging, and every report begins by asking which. 1247 kB and 1.75 ms
+do not buy that, and the 1.75 ms has a remedy of its own that costs no
+uniformity at all (a cached autoload index, named in the Decision).
+
+The fifteen-module bootstrap set is kept above rather than deleted,
+because four of its members were missed on a first count and each
+would have shipped a broken package — which is the smaller argument
+for not drawing this line: it was hard to draw correctly, and it would
+have had to be redrawn every time the desktop's needs moved.
+
+**Everything stays in the package.** What the project did, what this
+record's author first recommended, what it then talked itself out of,
+and what the owner restored. The rule it becomes is sharper than the
+original habit: not "we never got round to splitting" but **a module
+ships because it is bytes, and a script is published because it is
+not** — a line drawn by the file's kind, which needs no list and no
+judgement.
 
 **Everything moves to the catalogue.** Refused here at first, on a
 bootstrap argument that does not survive reading: *"the shipped content

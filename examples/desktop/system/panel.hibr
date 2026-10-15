@@ -11,7 +11,7 @@
 
 strict
 
-app panel "Control Panel, a picker of panes, and the window list" 1.1
+app panel "Control Panel, a picker of panes, and the window list" 1.2
 
 command -v dt_app > /dev/null && dt_app panel "Control Panel" 26 70 once "≡"
 

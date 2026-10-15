@@ -1,5 +1,65 @@
 # Changelog
 
+## 0.99.198
+
+**A module ships because it is bytes; the split is refused.**
+
+Gitea #234 §1, reversed before a single module was published, by one
+question from the owner: *"why do we want to support divergent paths,
+meaning deb installs behave different than brew, than aur? it's clunky
+or am I missing something?"*
+
+They were not missing anything. The numbers that argued for publishing
+twenty of hibr's own modules were right — 1247 kB, 37% of the package,
+and 1.75 ms off the first unknown command. What was never priced is
+uniformity, and checking rather than assuming is what settles it: the
+Homebrew formula has no `bottle` block and its `install` runs `make`,
+the AUR `PKGBUILD` runs `make`, and `make install` places every module
+the build produced. **A module is bytes, and a source install compiles
+its own.** So a Mac and an Arch box already hold all thirty-five before
+a catalogue is ever asked, and only the deb would have fetched.
+
+That leaves three outcomes and no fourth: **diverge** — the same
+`catalogue install contacts` doing different work depending on how hibr
+arrived, and every report beginning with "how did you install it?";
+**chore** — the owner compiling on their Mac every release; or **do not
+split**. There was also a blocker already recorded as a "last step"
+rather than as a wall: a build per architecture needs hardware, a cross
+toolchain or an emulator, and this project has none of the three.
+
+**The rule that replaces it draws the line at the file's own kind.** A
+script, a theme, a colour scheme and a language are arch-free, so they
+are published. A module is not, so it ships — all of them, in every
+packaging. There is no list of fifteen to keep in step with what the
+desktop needs this month, no per-architecture matrix for this project
+to own, and no new release rule: an ABI bump rebuilds the package and
+the package carries the modules, so the two cannot drift apart.
+
+The `mods` kind stays, for **somebody else's** module, which is what it
+was for before any of hibr's were considered. The per-architecture
+`builds` schema in the index is kept with it, because a third party
+with two machines has exactly the problem it solves.
+
+One planned piece of work got cheaper rather than dearer. Moving the
+desktop itself into the catalogue was costed in ADR 0045 at "the
+per-architecture matrix grows from twenty modules to about thirty".
+Under this rule that matrix is **empty**: the desktop's `console hold
+pty term img lang uni hcal salat media auth` ship with hibr like every
+other module, and only its scripts are published.
+
+The residual cost is named rather than hidden. The 1.75 ms stays, and
+its remedy is to make `m_bixbuild` cheap — an index cached against the
+module directory's own mtime instead of `dlopen`ing thirty-five objects
+to rebuild what did not change — which helps every configuration,
+including a machine carrying third-party modules, where shipping fewer
+of ours would not have helped at all. Not built here.
+
+No code changed. ADR 0045's Decision, Consequences and Alternatives are
+rewritten with the measurements kept and the reversal visible, CLAUDE.md
+records the scan order and the `mods` rule, and the Control Panel pane
+and the Control Panel itself go to 1.2 — 0.99.197 changed both and the
+version bump the catalogue needs to offer an update was owed.
+
 ## 0.99.197
 
 **One copy for everybody: the system scope.**
