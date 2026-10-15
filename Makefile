@@ -66,6 +66,16 @@ HOLD_SRC = $(wildcard mods/hold/*.c)
 CAT_SRC = $(wildcard mods/cat/*.c)
 
 PREFIX ?= /usr/local
+# Which applications `make install` places. **None by default** since
+# 0.99.194 (Gitea #220): the desktop is the window manager and what
+# manages it, and nothing you open -- not Terminal and not Files. They
+# come from the catalogue, `apps install apps/`, which is the one route,
+# so what a package holds and what a source install holds cannot drift
+# and there is no second copy to keep in step.
+#
+# APPS=all puts them in anyway, for a machine that will never reach a
+# catalogue; `make install-apps` is the same thing on its own.
+APPS ?= none
 MODDIR ?= $(PREFIX)/lib/hibr
 SHAREDIR ?= $(PREFIX)/share/hibr
 MANDIR ?= $(PREFIX)/share/man
@@ -247,6 +257,14 @@ check-all: all
 next-version:
 	tools/next-version.sh $(FROM)
 
+# Just the applications, into the same folder `make install APPS=all`
+# would have placed them in. Nothing ships them any more -- the
+# catalogue is the route -- so this is for a machine that will never
+# reach one, and for the suite that checks the two halves add up.
+install-apps:
+	install -d $(DESTDIR)$(DESKDIR)/apps
+	cp -R examples/desktop/apps/. $(DESTDIR)$(DESKDIR)/apps/
+
 install: all
 	install -d $(DESTDIR)$(PREFIX)/bin $(DESTDIR)$(MODDIR) $(DESTDIR)$(PREFIX)/include/hibr
 	install -m 755 $(BIN) $(DESTDIR)$(PREFIX)/bin/hibr
@@ -261,6 +279,18 @@ install: all
 	rm -rf $(DESTDIR)$(DESKDIR)
 	install -d $(DESTDIR)$(DESKDIR)
 	cp -R examples/desktop/. $(DESTDIR)$(DESKDIR)/
+# APPS=none leaves the applications out: the window manager, the desktop's
+# own system apps, the Control Panel panes, the Control Strip modules and
+# the savers, and nothing you open -- not Terminal and not Files either,
+# which is the line the owner chose (Gitea #220). They come from the
+# catalogue -- one package, one route -- or, on a machine that will never
+# reach one, from this same tree's `install-apps`. `dt_apps` globs the
+# folder and skips a pattern
+# that matched nothing, so a desktop with no apps folder at all starts
+# normally and has an empty Applications menu.
+ifneq ($(APPS),all)
+	rm -rf $(DESTDIR)$(DESKDIR)/apps
+endif
 	sed 's|@DESKDIR@|$(DESKDIR)|' tools/desktop-launcher.in \
 		> $(DESTDIR)$(PREFIX)/bin/desktop
 	chmod 755 $(DESTDIR)$(PREFIX)/bin/desktop
@@ -285,4 +315,4 @@ uninstall:
 clean:
 	rm -rf $(B)
 
-.PHONY: all clean strip check check-all census asan next-version install uninstall FORCE
+.PHONY: all clean strip check check-all census asan next-version install install-apps uninstall FORCE

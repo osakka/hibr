@@ -1,5 +1,98 @@
 # Changelog
 
+## 0.99.194
+
+**The desktop ships bare, and one command puts the applications back.**
+
+Gitea #220. A `hibr` package placed the window manager and twenty-one
+applications, and the catalogue placed the same twenty-one from a
+different route -- two copies of one thing, free to drift, with nothing
+anywhere saying which was the real one. From this release there is **one
+package and one route**: the package is the window manager, the
+desktop's own `system/` apps, the Control Panel panes, the Control Strip
+modules and the savers, and nothing you open -- not Terminal and not
+Files, which is the line the owner drew when asked where to stop.
+
+`APPS ?= none` is the Makefile's default, so a source install matches the
+package by construction rather than by a flag somebody remembers;
+`make install APPS=all` is what one `make install` did before, for a
+machine that will never reach a catalogue, and `make install-apps` is the
+same thing on its own. A second **`hibr-desktop-apps`** package was built
+and then dropped on the owner's own call -- *"drop hibr-desktop-apps,
+catalogue only"* -- because a package of applications is the second route
+again wearing a different hat, and `Recommends:` would not have reached
+anyone upgrading anyway: **apt installs a new `Recommends:` on a fresh
+install and never on an upgrade**, so every existing desktop would have
+lost its applications silently and no new dependency would have put them
+back.
+
+What makes a bare default liveable is that restoring is **one command,
+not twenty-one**: `apps install apps/` -- a kind with a trailing slash --
+fetches, verifies and places every application in the catalogue, and
+`apps install themes/` every theme. `ap_ofkind` is the whole of it.
+Measured against the live catalogue: 21 applications and the 8 Control
+Panel panes they bring with them, from one command.
+
+The catalogue was **ten bundles behind** this tree, which is the thing
+that would have made the transition a downgrade rather than a move: the
+four apps the search sweep rewrote (Contacts, Files, Mail, YouTube), the
+Control Panel and its Appearance pane, the three themes that gained a
+tree style and the Arabic catalogue. All ten are republished with their
+own versions bumped, so `apps update` offers them to anyone who already
+had the old ones. **A bare package and a stale catalogue is worse than
+neither**, and nothing in either repository's ritual would have caught
+it. The check is `cmp` between every bundle and the file it was copied
+from, and it is `./stale` in the catalogue now -- run before a release
+that touches anything the catalogue carries, and checked against a
+deliberately altered bundle before being believed.
+
+Known, and its own ticket: an application installed from the catalogue
+lands **flat** in `apps/`, so a restored desktop lists all twenty-one
+under Applications rather than in the Accessories, Office, Internet and
+Games submenus the shipped tree arranged them in. The index records a
+kind and not a folder; that has always been true and was invisible while
+the package shipped the folders too. Gitea #233.
+
+Three things beside it.
+
+**A module is in the Catalogue window now, and there is one list of
+kinds rather than two.** 0.99.191 taught `apps` the `mods` kind and
+nothing taught the window, so for three releases a module could be
+fetched by hand and was invisible in the one place a person goes
+looking -- `AS_KINDS` was written out again there and still said eight.
+Adding `mods` to it would have fixed the symptom and left the cause, so
+the list is gone: `apps list -j` sends the kinds it declares, in its own
+order, and the window groups by those. A kind the answer does not name
+but an entry claims is put on the end, which is what an `apps` older
+than the window gets -- the same groups, in the index's order instead of
+the declared one, rather than an empty window with no error in it.
+
+The catalogue publishes no module yet, since every module hibr builds
+ships in the package and the kind is there for somebody else's. That is
+exactly why nothing noticed: the gap cost nothing visible and nothing
+would have said so.
+
+**And a heading says `Applications (21)`.** The count was right-aligned
+against the list's own right edge, which is the column every version
+below it fills, so a lone number there read as a version of the group.
+In brackets beside the name it can only be a count. The brackets are
+drawn rather than translated -- `%s (%d)` is a catalogue key with no
+words in it. The check that was already named *"the fold still says how
+many it holds"* asserted only that the heading was still on screen, so a
+fold that lost its number would have passed; it reads the number now.
+
+**Refresh Desktop is a key** (`ctrl-alt-r`), from #232's investigation.
+The desktop's context menu has had that item since it existed and
+`View > Refresh` with it -- but that bar is the *desktop's*, and with a
+window focused it is the app's, with no Refresh on it. So the one moment
+it is wanted, a screen gone stale where you cannot see what you are
+clicking, let alone right-click the wallpaper behind a window, is the
+moment it cannot be reached. A key can be pressed blind. It was called
+`Refresh Screen` first, which `992-strings` refused as a catalogue entry
+nothing draws -- rightly: a second name for one act is a second thing to
+translate and a second thing to learn, and the context menu's own name
+was already there.
+
 ## 0.99.193
 
 **Six searches became one, and it is not drawn until you ask for it.**

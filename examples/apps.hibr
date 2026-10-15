@@ -99,6 +99,10 @@ AP_KEYFP=${HIBR_APPS_KEYFP:-A1E3CA788A8FB02052DA22B413035BE1B1674431}
 AP_SIGOK=
 AP_SIGWHY=
 AP_SIGSAID=
+# Where the desktop was installed, for the one question this asks of
+# it: does it already ship this app. Overridable so a test can point
+# at a tree of its own.
+HIBR_DESKTOP="${HIBR_DESKTOP-}"
 declare -gA AP_IX
 declare -gA AP_ST
 declare -gA AP_ENT
@@ -603,9 +607,29 @@ fn ap_list(want = "", int j = 0) {
 		# that will forget to. Written out rather than built, because
 		# an element cannot be assigned an empty map -- `out["x"]=()`
 		# is a syntax error, in bash as well as here.
+		# The kinds travel with the answer, in the order they are
+		# declared here, so a window grouping by kind reads this
+		# list rather than keeping one of its own. The Catalogue
+		# kept a second copy until 0.99.194 and it was three
+		# releases behind -- `mods` arrived in `apps` in 0.99.191
+		# and the window could not show one (Gitea #220). A reader
+		# that wants the kinds and the entries makes one call, so
+		# this costs no fork.
+		# A map keyed by kind rather than a list, because hibr's maps
+		# keep the order they were filled in and a reader then gets
+		# the order and the membership from one thing.
+		local ki kl=
+		for ki in "${AP_KINDS[@]}"; do
+			kl="$kl${kl:+,}\"$ki\":1"
+			out["kinds"]["$ki"]=1
+		done
 		local js
 		if [ "$n" = 0 ]; then
-			printf '{"entries":{}}\n'
+			# Written out rather than built: an element cannot be
+			# assigned an empty map, and the kinds are a fact
+			# about this program rather than about the index, so
+			# an empty catalogue still answers with them.
+			printf '{"entries":{},"kinds":{%s}}\n' "$kl"
 			return 0
 		fi
 		js := json emit out
@@ -616,16 +640,54 @@ fn ap_list(want = "", int j = 0) {
 	return 0
 }
 
+# The desktop as it was **shipped**, which is a different folder from
+# the one this writes into: `$PREFIX/share/hibr/desktop`, worked out from
+# the running shell's own path the way the catalogue's keyring is. Empty
+# when there is none to find, which is every case but an installed hibr.
+fn ap_deskdir() {
+	local p
+
+	for p in "$HIBR_DESKTOP" "${HIBR%/bin/hibr}/share/hibr/desktop" \
+		 /usr/share/hibr/desktop /usr/local/share/hibr/desktop; do
+		[ -n "$p" ] && [ -d "$p" ] && { ret "$p"; return 0; }
+	done
+	return 1
+}
+
+# Whether this kind and name is **also** one the desktop ships. The
+# `hibr` package carries no applications since 0.99.194, but a source
+# install with `APPS=all`, or an upgrade from before it that has not
+# been reconfigured, still can -- so somebody may hold both a fetched
+# copy and a shipped one, and the fetched one wins, because
+# every scan list reads the data folder before the shipped one. That is
+# the right answer and an invisible one, so it is said out loud here
+# (Gitea #220).
+fn ap_shipped(kind, name) {
+	local d e f
+
+	d := ap_deskdir || return 1
+	e := ap_kext "$kind"
+	for f in "$d/$kind/$name$e" "$d/$kind"/*/"$name$e" \
+		 "$d/$kind"/*/*/"$name$e"; do
+		[ -r "$f" ] && return 0
+	done
+	return 1
+}
+
 fn ap_installed(int j = 0) {
-	local name n=0 js i
+	local name n=0 js i sh
 	local -A out
 
 	ap_state
 	for name in "${!AP_ST["installed"][@]}"; do
+		sh=
+		ap_shipped "${AP_ST["installed"]["$name"]["kind"]}" \
+			"${name##*/}" && sh=1
 		if [ "$j" = 1 ]; then
 			out["installed"]["$name"]["id"]=$name
 			out["installed"]["$name"]["version"]=${AP_ST["installed"]["$name"]["version"]}
 			out["installed"]["$name"]["kind"]=${AP_ST["installed"]["$name"]["kind"]}
+			out["installed"]["$name"]["shadows"]=${sh:-0}
 			# Every path it placed, which is what a window needs to
 			# say what removing it would take away.
 			for i in "${!AP_ST["installed"]["$name"]["paths"][@]}"; do
@@ -634,9 +696,10 @@ fn ap_installed(int j = 0) {
 			n=$((n + 1))
 			continue
 		fi
-		printf '%-16s %-10s %s\n' "$name" \
+		printf '%-16s %-10s %-14s %s\n' "$name" \
 			"${AP_ST["installed"]["$name"]["version"]}" \
-			"${AP_ST["installed"]["$name"]["kind"]}"
+			"${AP_ST["installed"]["$name"]["kind"]}" \
+			"${sh:+shadows the one hibr ships}"
 		n=$((n + 1))
 	done
 	if [ "$j" = 1 ]; then
@@ -1158,15 +1221,50 @@ A module comes with hibr, or from this catalogue as a bundle of kind
 	return 0
 }
 
+# Every entry of one kind, for `apps install apps/` -- a trailing slash
+# and nothing after it means the whole of that kind. The desktop ships no
+# applications since 0.99.194 (Gitea #220), so putting a full desktop
+# back is one command rather than twenty-one, and that is the difference
+# between a policy and a chore. Unambiguous because a real id always has
+# a name after the slash.
+fn ap_ofkind(kind) {
+	local k n=0
+	local -a out
+
+	ap_kindok "$kind" ||
+		ap_die "$kind: not a kind -- one of ${AP_KINDS[*]}"
+	for k in "${!AP_IX["$AP_SECT"][@]}"; do
+		ap_entry "$k" || continue
+		[ "${AP_ENT["kind"]}" = "$kind" ] || continue
+		out+=("${AP_ENT["id"]}")
+		n=$((n + 1))
+	done
+	[ "$n" -gt 0 ] || ap_die "nothing of kind $kind in the index"
+	ret "${out[*]}"
+}
+
 fn ap_install(...names) {
-	local name want tmp kind i ext
+	local name want tmp kind i ext all
+	local -a wants
 
 	[ "${#names[@]}" -gt 0 ] || ap_die "usage: apps install NAME..."
 	# The index again, always: installing against a stale one is how a
 	# sha256 mismatch gets blamed on the mirror.
 	ap_load 1
 	ap_state
+	# `KIND/` expanded first, so what follows is one loop over ids and
+	# every refusal reads the same whichever way the name was given.
 	for want in "${names[@]}"; do
+		case $want in
+		*/)
+			all := ap_ofkind "${want%/}"
+			read -ra wants <<< "$all"
+			names+=("${wants[@]}")
+			;;
+		esac
+	done
+	for want in "${names[@]}"; do
+		case $want in */) continue ;; esac
 		name := ap_resolve "$want" ||
 			ap_die "$want: no such app in the index"
 		ap_entry "$name" || ap_die "$name: no such app in the index"
@@ -1391,6 +1489,10 @@ ap_help() {
 	"  command read one answer instead of one parsing the other's layout." \
 	"" \
 	"  apps install NAME...   fetch, verify and place" \
+	"  apps install KIND/     every app of one kind, so a bare desktop" \
+	"                         comes back in one command: 'apps install" \
+	"                         apps/' places every application, and" \
+	"                         'apps install themes/' every theme" \
 	"  apps remove [-f] NAME  take one away; -f even if a window is open" \
 	"  apps update [NAME...]  everything with a newer version, or these" \
 	"  apps index [URL]       the index this fetches from, or set it" \
@@ -1420,7 +1522,7 @@ ap_help() {
 ap_usage() {
 	echo "usage: apps [-j] list [TEXT] | [-j] installed | [-j] info NAME |" >&2
 	echo "       (kinds: ${AP_KINDS[*]})" >&2
-	echo "       show NAME | install NAME... | remove [-f] NAME... |" >&2
+	echo "       show NAME | install NAME...|KIND/ | remove [-f] NAME... |" >&2
 	echo "       update [NAME...] | index [URL] | refresh | help" >&2
 	exit 2
 }

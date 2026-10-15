@@ -154,6 +154,24 @@ fn as_loaded(int id, int st, int n, what = "") {
 		return 0
 	fi
 	AS[$id]["err"]=
+	# The kinds this window groups by are the kinds the answer holds,
+	# in `apps`' own declared order when it sends one (`AP_KINDS`, in
+	# `list -j` since 0.99.194). It keeps no list of its own to fall
+	# behind -- which it did: `mods` arrived in `apps` in 0.99.191 and
+	# could not be shown here until 0.99.194, because the list was
+	# written out in two places and one of them was changed.
+	#
+	# An older `apps` sends no `kinds`, and the fallback is the
+	# entries themselves, first seen first shown. That is the same set
+	# -- a kind with nothing in it is left out of the rows either way
+	# -- so all the declared order buys is that the groups come in the
+	# order the catalogue's own page uses rather than the index's.
+	# Deriving it is what makes an old `apps` show a list rather than
+	# an empty window with no error in it.
+	AS_KINDS=()
+	for k in "${!j["kinds"][@]}"; do
+		AS_KINDS+=("$k")
+	done
 	for k in "${!j["entries"][@]}"; do
 		AS[$id]["e"][$i]["id"]=${j["entries"]["$k"]["id"]}
 		AS[$id]["e"][$i]["name"]=${j["entries"]["$k"]["name"]}
@@ -166,6 +184,7 @@ fn as_loaded(int id, int st, int n, what = "") {
 		i=$((i + 1))
 	done
 	AS[$id]["n"]=$i
+	as_kindsfrom "$id"
 	as_filter "$id"
 	as_first "$id"
 	return 0
@@ -185,11 +204,35 @@ fn as_first(int id) {
 	return 0
 }
 
-# The kinds, in the order the desktop presents them, and what each is
-# called. The same eight scan roots `apps` installs into, and the same
-# names the catalogue's own page uses, so a person reading both sees one
-# vocabulary.
-AS_KINDS=(apps system control-panel control-strip savers themes colours lang)
+# The kinds the catalogue holds, in the order `apps` declares them --
+# filled by as_load from the answer, never written out here. What stays
+# this window's own is what each kind is *called*, which is a word on a
+# screen rather than a fact about the catalogue, and a kind added later
+# shows under its own short name until somebody gives it one.
+AS_KINDS=()
+
+# Any kind an entry claims that the answer's own list did not name, put
+# on the end in the order they were read. This is the whole of what an
+# `apps` too old to send `kinds` gets, and it is also the guard for the
+# other direction: an index holding a kind the installed `apps` has
+# never heard of would otherwise be fetched, counted and shown nowhere.
+fn as_kindsfrom(int id) {
+	local i n k s seen
+
+	n=${AS[$id]["n"]:-0}
+	i=0
+	while [ "$i" -lt "$n" ]; do
+		k=${AS[$id]["e"][$i]["kind"]}
+		i=$((i + 1))
+		[ -n "$k" ] || continue
+		seen=
+		for s in "${AS_KINDS[@]}"; do
+			[ "$s" = "$k" ] && { seen=1; break; }
+		done
+		[ -n "$seen" ] || AS_KINDS+=("$k")
+	done
+	return 0
+}
 
 fn as_kindname(k) {
 	case $k in
@@ -201,6 +244,7 @@ fn as_kindname(k) {
 	themes) ret "Themes" ;;
 	colours) ret "Colour schemes" ;;
 	lang) ret "Languages" ;;
+	mods) ret "Modules" ;;
 	*) ret "$k" ;;
 	esac
 }
@@ -465,15 +509,20 @@ fn appstore_draw(int id, int h, int w, int row, int col) {
 				# the setting decides which marks those are
 				# (widgets/tree.hibr).
 				mark := dt_treepre 0 1 "$kopen" 0 ""
-				# The count goes against the list's own right
-				# edge rather than into the VERSION column: a
-				# branch has no version, and a 3 sitting under
-				# that heading reads as one.
+				# The count sits against the name, in
+				# brackets, rather than out at the list's
+				# right edge: a branch has no version, and a
+				# lone number right-aligned in the column the
+				# versions below it fill reads as one however
+				# far from the heading it is put. `(21)` next
+				# to `Applications` can only be a count.
+				# The brackets are drawn here and are not
+				# part of any catalogue key -- punctuation is
+				# not translatable, and `%s (%d)` would be a
+				# string with no words in it.
 				local cnt=${AS[$id]["r"][$i]["cnt"]}
-				t := dt_cut "$kn" $((listw - 8))
-				line="$mark $t"
-				t := str pad "$line" $((listw - 1 - ${#cnt}))
-				line="$t$cnt"
+				t := dt_cut "$kn" $((listw - 7 - ${#cnt}))
+				line="$mark $t ($cnt)"
 				if [ "$i" = "$sel" ] && ! dt_searchon "$id"; then
 					console pen "$DT_SELINK" "$DT_ACTIVE" bold
 				elif [ "$i" = "$sel" ]; then

@@ -327,3 +327,27 @@ grep -rhoE 'console pen( -p [^ ]+)? "\$DT_[A-Z_]+"( "\$DT_[A-Z_]+")?' \
 			echo "a pen uses $v, which no theme defines"
 	done
 echo "every pen names a theme colour"
+
+# The Catalogue window does not keep its own list of kinds -- `apps`
+# sends them with `list -j` and as_load takes them (Gitea #220, after
+# three releases in which `mods` existed in one list and not the other).
+# What the window still owns is what each kind is *called*, so the check
+# that is left is that every kind `apps` declares has a name here. A
+# kind with none falls back to its own short word, which is legible and
+# is not English anybody chose, so this names it rather than failing the
+# build.
+#
+# AP_KINDS is wrapped over two lines, so the file is flattened first and
+# the list taken from `AP_KINDS=(` to the first `)`. A sed line range
+# cannot do it: `/NAME=(/,/)/` never ends on its own opening line, so a
+# list written on one line swallows whatever follows it.
+apk=$(tr '\n\t' '  ' < examples/apps.hibr |
+	sed 's/.*AP_KINDS=(//; s/).*//; s/  */ /g; s/^ //; s/ $//')
+[ -n "$apk" ] || echo "could not read AP_KINDS"
+grep -q '^AS_KINDS=()$' examples/desktop/system/appstore.hibr ||
+	echo "the Catalogue keeps a kind list of its own again"
+for k in $apk; do
+	grep -q "^	$k) ret " examples/desktop/system/appstore.hibr ||
+		echo "the Catalogue has no name for the kind $k"
+done
+echo "every kind apps declares has a name in the Catalogue"

@@ -28,6 +28,19 @@ at `$PREFIX/bin/desktop`:
 running `session.hibr` directly does -- the wrapper forwards its own
 arguments straight through, it does nothing else.
 
+An install -- and the package -- is **bare** since 0.99.194 (Gitea #220):
+the window manager, the desktop's own `system/` apps, the Control Panel
+panes, the Control Strip modules and the savers, and nothing you open,
+not Terminal and not Files. Applications come from the catalogue, which
+is the one route, and a whole desktop is one command:
+
+    apps install apps/
+
+`make install APPS=all` places them from this tree instead, for a machine
+that will never reach a catalogue, and `make install-apps` is the same
+thing on its own. A checkout run with `session.hibr`, as above, has
+everything in it either way -- it reads this directory, not the install.
+
 Drag a title bar to move a window, and any of its four corners to resize
 it -- the `◢` at the bottom-right is the one this always had; the other
 three work the same way, whichever one is dragged staying opposite a

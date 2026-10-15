@@ -632,9 +632,24 @@ try:
           rc == 0 and j["id"] == "apps/demo" and j["index"].startswith("http"),
           out[:200])
     rc, out, err = apps("list", "-j", "nosuchthingatall")
+    j = json.loads(out)
     check("and an empty answer is still JSON, so a reader never has to ask "
           "whether it got any",
-          rc == 0 and json.loads(out) == {"entries": {}}, out[:120])
+          rc == 0 and j["entries"] == {}, out[:120])
+    # The kinds travel with the answer and are a fact about this program
+    # rather than about the index, so they are there when nothing matched
+    # too -- and the two paths emit them separately (the empty one writes
+    # its JSON out by hand, since an element cannot be assigned an empty
+    # map), which is exactly the pair that drifts. The Catalogue window
+    # groups by this list instead of keeping one of its own, after three
+    # releases in which `mods` was in one copy and not the other
+    # (Gitea #220).
+    rc2, out2, err2 = apps("list", "-j")
+    k2 = list(json.loads(out2)["kinds"])
+    check("`list -j` carries the kinds it installs into, in its declared "
+          "order, whether or not anything matched",
+          list(j["kinds"]) == k2 and k2[0] == "apps" and "mods" in k2,
+          (list(j["kinds"]), k2))
     rc, out, err = apps("remove", "demo")
 
     # Parts named by the **index** rather than carried in a tarball
@@ -836,4 +851,4 @@ finally:
     srv.wait()
     shutil.rmtree(D, True)
 
-report(71)
+report(72)

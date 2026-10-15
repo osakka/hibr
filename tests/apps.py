@@ -4455,8 +4455,45 @@ sc = run("appstore", "21 76 2 2", env=ASENV, tries=150,
          ready=lambda s: s.find("widget") is not None,
          feed=[b"\x1b[D", b"\x1b[D"],
          until=lambda s: s.find("widget") is None)
+# The count is read, not merely assumed: this check was named for it from
+# the beginning and asserted only that the heading was still there, so a
+# fold that lost its number would have passed. It sits in brackets beside
+# the name since 0.99.194 -- out at the list's right edge it was a bare
+# number in the column the versions below it fill, and read as a version
+# (Gitea #220).
 check("a kind folds away, and the fold still says how many it holds",
-      sc.find("Applications") is not None and sc.find("widget") is None, sc)
+      sc.find("Applications (2)") is not None and sc.find("widget") is None,
+      ("heading=%s" % (sc.find("Applications"),), sc))
+
+# The window keeps no list of kinds of its own: `apps list -j` sends them
+# in its own declared order and the window groups by those. Both halves
+# are read here at once, because one fixture can say both -- the entries
+# arrive themes-first and `kinds` says apps-first, so Applications above
+# Themes can only have come from the list; and `mods` is in it, which the
+# window could not show at all until 0.99.194 (the kind reached `apps` in
+# 0.99.191 and a second copy of the list here never heard, Gitea #220).
+asstub(json.dumps({
+    "entries": {
+        "themes/meadow": {"id": "themes/meadow", "name": "meadow",
+                          "kind": "themes", "title": "Meadow",
+                          "version": "1.1", "installed": "", "update": "0",
+                          "about": "A green theme"},
+        "apps/widget": {"id": "apps/widget", "name": "widget",
+                        "kind": "apps", "title": "Widget", "version": "2.0",
+                        "installed": "", "update": "0", "about": "A widget"},
+        "mods/hello": {"id": "mods/hello", "name": "hello", "kind": "mods",
+                       "title": "Hello", "version": "0.3", "installed": "",
+                       "update": "0", "about": "A module"}},
+    "kinds": {"apps": 1, "themes": 1, "mods": 1}}))
+sc = run("appstore", "21 76 2 2", env=ASENV, tries=150,
+         until=lambda s: s.find("Modules") is not None)
+kr = [sc.find(x) for x in ("Applications (1)", "Themes (1)", "Modules (1)")]
+check("the kinds and their order come from `apps`, and a module is one of "
+      "them",
+      all(x is not None for x in kr)
+      and kr[0][0] < kr[1][0] < kr[2][0],
+      ("rows=%r" % (kr,), sc))
+asstub()
 
 # Typing in the search narrows the list; the window does the filtering,
 # since asking the command again per keystroke would be a fetch per
@@ -4569,6 +4606,32 @@ sc = run("appstore", "21 76 2 2", env=ASENV, tries=150,
 check("and the Edit menu every window has carries Find, naming the key",
       sc.find("Find") is not None and "/" in sc.row(sc.find("Find")[0]), sc)
 
+# The split of Gitea #220, from the desktop's own side: `hibr` ships no
+# applications at all, so the folder `dt_apps` globs may not exist -- and
+# an app you fetched into the data folder, which `apps install` writes
+# to, has to be found anyway. That is the sharp edge the ticket named: a
+# package that stops shipping a file must not take away the one somebody
+# fetched. It falls out of the scan order, and the ticket asked for a
+# check rather than a hope.
+ADATA = tempfile.mkdtemp(prefix="hibr-bareapps-")
+os.makedirs(os.path.join(ADATA, "hibr", "apps"))
+open(os.path.join(ADATA, "hibr", "apps", "fetched.hibr"), "w").write(
+    'app fetched "An app somebody fetched" 1.0\n'
+    'dt_app fetched "Fetched" 6 24 once "F"\n'
+    'fn fetched_draw(id, h, w, row, col) {\n'
+    '\tconsole put -p "w$id" 1 1 "from the catalogue"\n'
+    '}\n')
+sc = run("appstore", "21 76 2 2", env=dict(ASENV, XDG_DATA_HOME=ADATA),
+         tries=150,
+         pre='DT_APPDIRS=("%s/hibr/apps" "/nonexistent/shipped/apps")\ndt_apps'
+             % ADATA,
+         feed=[b"\x1b[21~", b"\x1b[B", b"\x1b[C"],
+         until=lambda s: s.find("Fetched") is not None)
+check("a desktop that ships no applications still finds one you fetched, "
+      "with no shipped folder there at all",
+      sc.find("Fetched") is not None, sc)
+shutil.rmtree(ADATA, True)
+
 # A heading is not a thing to install, and the lint rule found that it
 # was being treated as one: `as_at`'s three misses each ended in
 # `ret ""; return 1`, where `ret` ends the function with status 0, so
@@ -4607,4 +4670,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(623)
+report(625)

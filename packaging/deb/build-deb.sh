@@ -8,6 +8,15 @@
 # source install would -- writes the control file, and packs it with
 # dpkg-deb. Nothing here needs root: fakeroot gives the files root as owner.
 #
+# **The package carries no applications** since 0.99.194 (Gitea #220): the
+# shell, the modules, the window manager, the desktop's own system apps,
+# the Control Panel panes, the Control Strip modules and the savers, and
+# nothing you open -- not Terminal and not Files. They come from the
+# catalogue, which is the one route: `apps install apps/` takes the lot.
+# A second package was built first and the owner refused it -- two places
+# a thing can come from is two versions of it to keep in step, and the
+# catalogue is the one that can be updated without a release.
+#
 # The package depends on libc, at least the newest symbol version the
 # binary and its modules actually use (read from them, not guessed), and
 # suggests libssl and libpng, which hibr loads only when TLS or an image is
@@ -31,7 +40,7 @@ trap 'make -s > /dev/null' EXIT
 rm -rf "$STAGE"
 mkdir -p "$STAGE/DEBIAN"
 make -s PREFIX=/usr > /dev/null
-make -s PREFIX=/usr DESTDIR="$STAGE" install > /dev/null
+make -s PREFIX=/usr APPS=none DESTDIR="$STAGE" install > /dev/null
 
 glibc=$(for f in "$STAGE/usr/bin/hibr" "$STAGE"/usr/lib/hibr/*.so; do
 	objdump -T "$f"
@@ -133,6 +142,10 @@ Description: small, fast shell that runs the bash you already write
  command-line arguments, native TCP, TLS and Unix sockets, and modules
  loaded on demand. It includes a lint (--explain), a dry run (--plan), an
  agent mode, and a text-mode desktop with its own apps.
+ .
+ The desktop here is everything that manages or reports on it and
+ nothing that opens anything of yours: the applications come from the
+ catalogue, and \`apps install apps/\` fetches all of them at once.
 EOF
 
 cat > "$STAGE/DEBIAN/postinst" <<'EOF'
@@ -140,6 +153,20 @@ cat > "$STAGE/DEBIAN/postinst" <<'EOF'
 set -e
 if [ "$1" = configure ] && command -v add-shell > /dev/null; then
 	add-shell /usr/bin/hibr
+fi
+# An **upgrade** does not pull in a Recommends that is new -- apt only
+# installs recommended packages on a fresh install -- so somebody who had
+# the applications before 0.99.194 and upgrades gets the desktop without
+# them and nothing anywhere saying why. This says why, once, and names
+# the one command that puts them back. It is a notice rather than a
+# Depends on purpose: a bare desktop is the point of the split, and a
+# Depends would make it impossible.
+if [ "$1" = configure ] && [ ! -d /usr/share/hibr/desktop/apps ]; then
+	echo "hibr: the desktop's applications come from the catalogue now."
+	echo "hibr:   apps install apps/"
+	echo "hibr: fetches every one of them; \`apps list\` shows what there"
+	echo "hibr: is. An upgrade from before 0.99.194 has just taken the"
+	echo "hibr: shipped copies away, so this is how they come back."
 fi
 EOF
 cat > "$STAGE/DEBIAN/postrm" <<'EOF'
@@ -154,3 +181,5 @@ chmod 755 "$STAGE/DEBIAN/postinst" "$STAGE/DEBIAN/postrm"
 fakeroot dpkg-deb --build --root-owner-group "$STAGE" "$OUT/$PKG.deb" > /dev/null
 rm -rf "$STAGE"
 echo "== $OUT/$PKG.deb"
+
+

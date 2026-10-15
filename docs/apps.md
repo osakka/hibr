@@ -4,6 +4,21 @@
 a command of its own, the way `vw` is, so it works for somebody who never
 starts the desktop.
 
+Since 0.99.194 it is also the **only** route (Gitea #220): a hibr install
+is the window manager and what manages it, and no applications at all --
+not Terminal and not Files. One command puts them back:
+
+<!-- not run: fetches bundles over HTTPS -->
+```sh
+apps install apps/
+```
+
+A kind with a trailing slash is every entry of that kind, so
+`apps install themes/` is every theme and `apps install apps/` is a
+desktop. The nine kinds are the scan roots the desktop reads: `apps`,
+`system`, `control-panel`, `control-strip`, `savers`, `themes`,
+`colours`, `lang` and `mods`.
+
 The whole of it rests on one fact, which is why there is so little machinery
 here: **an app is a folder of plain files, and installing one is placing a
 file where the desktop already looks.** A hibr script in
@@ -42,6 +57,7 @@ answered; anything that is not an address is refused.
 | `apps show NAME` | fetch it, verify it, and print it — without placing it |
 | `apps install mods/NAME` | a module, into `$XDG_DATA_HOME/hibr/mods` |
 | `apps install NAME...` | fetch, verify and place |
+| `apps install KIND/` | every one of a kind -- `apps install apps/` is a whole desktop |
 | `apps remove [-f] NAME...` | take one away; `-f` even if a window is open |
 | `apps update [NAME...]` | everything with a newer version, or just these |
 | `apps index [URL]` | the index this fetches from, or set it |
@@ -49,9 +65,13 @@ answered; anything that is not an address is refused.
 | `apps help` | the list above |
 
 `-j` on `list`, `installed` or `info` answers JSON instead of columns, for
-anything that is not a person — the Applications window below reads that,
+anything that is not a person — the Catalogue window below reads that,
 so the window and the command read one answer instead of one parsing the
-other's layout. `apps show` is the thing a catalogue of **scripts** can
+other's layout. `list -j` carries the **kinds** beside the entries, in the
+order this program declares them, so a window grouping by kind keeps no
+list of its own: the Catalogue kept a second copy until 0.99.194 and it
+was three releases behind, which is why a module could be installed from
+here and not seen there. `apps show` is the thing a catalogue of **scripts** can
 offer and a package manager cannot: read an app before you run it, which
 is what an app being a file you can open is for. It verifies the bundle's
 `sha256` exactly as an install does, and places nothing.

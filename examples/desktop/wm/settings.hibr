@@ -45,6 +45,15 @@ done
 [ -n "${DT_KEYS["cycle"]+x}" ] || DT_KEYS["cycle"]="alt-tab"
 [ -n "${DT_KEYS["strip"]+x}" ] || DT_KEYS["strip"]="alt-s"
 [ -n "${DT_KEYS["shot"]+x}" ] || DT_KEYS["shot"]="ctrl-alt-g"
+# Draw the whole screen again. The desktop's own context menu has had
+# `Refresh Desktop` since it existed, and `View > Refresh` with it -- but
+# that bar is the **desktop's**, and with a window focused it is the
+# app's, with no Refresh on it. So the one moment it is wanted -- a
+# screen gone stale, where you cannot see what you are clicking, let
+# alone right-click the wallpaper behind a window -- is the moment it
+# cannot be reached. A key can be pressed blind. It wears the context
+# menu's own name rather than a second one for the same act.
+[ -n "${DT_KEYS["refresh"]+x}" ] || DT_KEYS["refresh"]="ctrl-alt-r"
 [ -n "${DT_KEYS["lock"]+x}" ] || DT_KEYS["lock"]="ctrl-alt-l"
 [ -n "${DT_KEYS["undo"]+x}" ] || DT_KEYS["undo"]="alt-z"
 [ -n "${DT_KEYS["save"]+x}" ] || DT_KEYS["save"]="ctrl-s"
