@@ -1062,7 +1062,7 @@ fn ap_partok(kind, file) {
 # belongs, DT_SRC is the app's real file so dt_aboutinfo reads its own
 # header comment, and its resources are at "${DT_SRC%.hibr}/".
 fn ap_puttar(kind, name, src) {
-	local l k path app= dest dir n=0 j i pk pn pf pe ext
+	local l k path app= dest dir rel n=0 j i pk pn pf pe ext
 	local -A m
 	local -a pfile pkind pname
 
@@ -1167,11 +1167,19 @@ filename -- a part decides where a file lands."
 		rm -f "$src" 2> /dev/null
 		ap_die "$name: the bundle does not say which file is the app, and holds no $name$ext"
 	fi
-	dest := ap_dest "$kind" "$name"
-	dir := ap_destdir "$kind" "$name"
-	mkdir -p "$AP_DATA/$kind" || ap_die "cannot make $AP_DATA/$kind"
+	# The entry's own folder, the same as every other placement path:
+	# a tarball bundle is only a different wrapper, not a different
+	# destination. Left flat here it would be worse than merely
+	# inconsistent -- `ap_update` compares where an entry *would* land
+	# with where the state says it is, so an entry with a `dir` and a
+	# tarball would be reinstalled, placed flat again, and reported as
+	# moving on every single update, for ever.
+	dest := ap_dest "$kind" "$name" "${AP_ENT["dir"]}"
+	dir := ap_destdir "$kind" "$name" "${AP_ENT["dir"]}"
+	rel := ap_rel "$kind" "$name" "${AP_ENT["dir"]}"
+	mkdir -p "${dest%/*}" || ap_die "cannot make ${dest%/*}"
 	rm -rf "$dir" 2> /dev/null
-	AP_PLACED=("$kind/$name$ext")
+	AP_PLACED=("$rel$ext")
 	for l in "${AP_MEM[@]}"; do
 		k=${l%%	*}
 		path=${l#*	}
@@ -1216,7 +1224,7 @@ filename -- a part decides where a file lands."
 	rm -f "$src" 2> /dev/null
 	# A bundle of only the app leaves no folder behind to confuse anyone.
 	[ "$n" = 0 ] && rm -rf "$dir" 2> /dev/null
-	[ "$n" = 0 ] || AP_PLACED+=("$kind/$name")
+	[ "$n" = 0 ] || AP_PLACED+=("$rel")
 	if [ "$n" = 0 ]; then
 		ap_say "installed $name as $dest"
 	else
@@ -1382,6 +1390,17 @@ $AP_SIGWHY.
 A module is native code and runs as you: a signature is not optional for
 one (ADR 0044). Nothing was installed."
 	ap_needs "$mid"
+	# `mkindex` writes no `modules` for a module -- what a module needs
+	# is `hibr_require`'s business, resolved when it loads -- so this
+	# is empty for every entry this catalogue publishes. A hand-written
+	# index could say otherwise, and silently not installing what it
+	# asked for is the worst of the three possible answers: refusing
+	# says what happened, and installing would mean recursion with no
+	# bound on it.
+	[ "${#AP_WANT[@]}" = 0 ] ||
+		ap_die "$mid: the index says this module needs ${AP_WANT[*]}
+A module's own requirements are resolved when it loads, not by this
+catalogue, so nothing here can satisfy that. Nothing was installed."
 	tmp := ap_getbundle "${AP_ENT["name"]}" "${AP_ENT["bundle"]}" \
 			    "${AP_ENT["sha256"]}"
 	ap_putone mods "${AP_ENT["name"]}" "$tmp"
@@ -1666,8 +1685,16 @@ fn ap_remove(...names) {
 		kind=${AP_ST["installed"]["$name"]["kind"]}
 		[ -n "$kind" ] || ap_die "$w: not installed here"
 		base=${name##*/}
-		n := ap_windows "$base"
-		if [ "$n" -gt 0 ] && [ "$force" = 0 ]; then
+		# Only when the answer can change what happens. `ap_windows`
+		# asks a running desktop over its control socket, and a
+		# desktop wedged mid-request is a connect that neither fails
+		# nor completes (Gitea #180) -- so under `-f`, where the
+		# answer is discarded, asking it is a question whose only
+		# possible effect is to hang. `catalogue purge -y` in an
+		# image build is exactly that case.
+		n=0
+		[ "$force" = 0 ] && n := ap_windows "$base"
+		if [ "$n" -gt 0 ]; then
 			ap_die "$w: $n window(s) of it are open ($AP_WINS)
 Close them first, or `catalogue remove -f $w`. Removing it frees the folder
 its code is read from, and the desktop would be left calling functions with
@@ -1706,7 +1733,7 @@ nothing behind them."
 }
 
 fn ap_update(...names) {
-	local name w n=0
+	local name w n=0 kind where ext moved i np
 	local -a want
 
 	ap_load 1
@@ -1729,12 +1756,46 @@ fn ap_update(...names) {
 		# The state is keyed by the id, which is the entry's own and
 		# not whatever the index key happened to be.
 		name=${AP_ENT["id"]}
-		[ -n "${AP_ST["installed"]["$name"]["kind"]}" ] ||
-			ap_die "$w: not installed here"
-		if [ "${AP_ENT["version"]}" = "${AP_ST["installed"]["$name"]["version"]}" ]; then
+		kind=${AP_ST["installed"]["$name"]["kind"]}
+		[ -n "$kind" ] || ap_die "$w: not installed here"
+		# Up to date is not only "the same version". An entry can
+		# move without changing version -- `dir` arrived in 0.99.195
+		# and put every application in a folder, which is a new
+		# **path** for the same bytes -- and an update that compares
+		# versions alone leaves it where it was for ever. Found by
+		# upgrading and watching twenty-one applications stay flat
+		# while the index said they belonged in four folders
+		# (Gitea #233).
+		#
+		# Asked of the path rather than of the version, so it needs
+		# no second thing to keep in step: where would this land
+		# now, and is that where the state says it is.
+		where := ap_rel "$kind" "${AP_ENT["name"]}" "${AP_ENT["dir"]}"
+		ext := ap_kext "$kind"
+		moved=1
+		np=0
+		for i in "${!AP_ST["installed"]["$name"]["paths"][@]}"; do
+			np=$((np + 1))
+			[ "${AP_ST["installed"]["$name"]["paths"]["$i"]}" = "$where$ext" ] &&
+				{ moved=; break ; }
+		done
+		if [ "${AP_ENT["version"]}" = "${AP_ST["installed"]["$name"]["version"]}" ] &&
+		   [ -z "$moved" ]; then
 			continue
 		fi
-		ap_say "$name: ${AP_ST["installed"]["$name"]["version"]} -> ${AP_ENT["version"]}"
+		# Three different things, and each says which it is. An
+		# entry installed before 0.99.183 recorded no paths at all,
+		# so there is nothing to compare and it is reinstalled once
+		# to write them down -- which is not a move, and calling it
+		# one would be this release's own complaint about a sentence
+		# that says a false thing.
+		if [ -n "$moved" ] && [ "$np" = 0 ]; then
+			ap_say "$name: records where it is"
+		elif [ -n "$moved" ]; then
+			ap_say "$name: moves to $where$ext"
+		else
+			ap_say "$name: ${AP_ST["installed"]["$name"]["version"]} -> ${AP_ENT["version"]}"
+		fi
 		ap_install "$name"
 		n=$((n + 1))
 	done

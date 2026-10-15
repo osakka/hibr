@@ -1,5 +1,49 @@
 # Changelog
 
+## 0.99.196
+
+**Four defects in 0.99.195, three of them found by using it.**
+
+**An app that moved never moved.** `dir` shipped in 0.99.195 and put
+every application in the folder it belongs to -- and `catalogue update`
+compared **versions**, so for anybody who already had the applications
+installed it said *"everything is up to date"* and left all twenty-one
+flat. The one thing #233 was for reached nobody who was already here.
+Found by upgrading this machine and looking, not by a test.
+
+`ap_update` asks the question the feature is about: *where would this
+land now, and is that where the state says it is.* A path, not a
+version, so nothing has to be kept in step -- and an entry whose
+recorded paths predate 0.99.183 has none to compare, which reinstalls
+it once and records them.
+
+**And the fix had a worse defect inside it.** `ap_puttar`, the path for
+a bundle that is a tarball, placed flat and recorded flat. Give such an
+entry a `dir` and the new check would see it in the wrong place,
+reinstall it, place it flat again, and report *"moves to"* on **every
+update, for ever**. No catalogue serves tarballs today, which is
+exactly why it would have sat there until one did. It honours the
+folder now, like every other placement path.
+
+**`catalogue purge -y` could hang where it had nothing to ask.**
+`ap_remove` calls `ap_windows` -- which asks a running desktop over its
+control socket -- *before* testing `-f`, so under force the answer was
+computed and thrown away. A desktop wedged mid-request is a connect
+that neither fails nor completes (#180), so for `purge -y` in an image
+build the only possible effect of that question was to hang. It is
+asked only when the answer can change what happens.
+
+**A module that declared needs was silently ignored.** `mkindex` writes
+no `modules` for a module -- what a module needs is `hibr_require`'s
+business, resolved when it loads -- so the field is empty for every
+entry this catalogue publishes. A hand-written index could say
+otherwise, and `ap_getmod` collected the answer and dropped it on the
+floor: the module installed, the thing it asked for did not, and
+nothing said so. Refusing by name is the honest answer of the three,
+since installing would mean recursion with no bound.
+
+Nothing else changed. `tests/appmgr.py` is 83 checks.
+
 ## 0.99.195
 
 **What an app needs, where it lands, and what the command is called.**

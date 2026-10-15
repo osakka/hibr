@@ -960,6 +960,28 @@ try:
                                                   "inner.hibr"))
               and "took away apps/inner.hibr" in out,
               (rc, out, err))
+
+        # And `update` has to *notice* a move on its own. An entry can
+        # change folder without changing version -- `dir` arrived in
+        # 0.99.195 and put every application in one, same bytes, new
+        # path -- so an update that compares versions alone leaves it
+        # where it was for ever. It shipped that way: twenty-one
+        # applications stayed flat on the owner's own machine while the
+        # index said they belonged in four folders. Here the state's
+        # version is left matching the index, so only the path can
+        # trigger it.
+        inner_g = os.path.join(DW, "hibr", "apps", "Games", "inner.hibr")
+        inner_f = os.path.join(DW, "hibr", "apps", "inner.hibr")
+        st = json.load(open(os.path.join(DW, "hibr", "apps.json")))
+        st["installed"]["apps/inner"]["paths"] = {"0": "apps/inner.hibr"}
+        json.dump(st, open(os.path.join(DW, "hibr", "apps.json"), "w"))
+        os.rename(inner_g, inner_f)
+        rc, out, err = apps("update", env=EW)
+        check("`update` moves an entry whose folder changed even though "
+              "its version did not",
+              rc == 0 and "moves to" in out
+              and os.path.exists(inner_g) and not os.path.exists(inner_f),
+              (rc, out, err))
     else:
         for name in ("and installs from a signed one, into the module directory",
                      "a module built for another machine is named and declined",
@@ -983,7 +1005,9 @@ try:
                      "return",
                      "and -y takes it away",
                      "a module installed by name is never purged, however "
-                     "little needs it"):
+                     "little needs it",
+                     "`update` moves an entry whose folder changed even "
+                     "though its version did not"):
             rc, out, err = apps("install", "mods/greet", env=E221)
             check(name + " [no gpg here: the refusal says so]",
                   rc != 0 and "no gpg" in err, (rc, err))
@@ -993,4 +1017,4 @@ finally:
     srv.wait()
     shutil.rmtree(D, True)
 
-report(82)
+report(83)
