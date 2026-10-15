@@ -77,10 +77,18 @@ PREFIX ?= /usr/local
 # catalogue; `make install-apps` is the same thing on its own.
 APPS ?= none
 MODDIR ?= $(PREFIX)/lib/hibr
+# Where an administrator's catalogue installs for every user of the
+# machine (ADR 0045). Not under PREFIX on purpose: `make install` does
+# `rm -rf $(DESTDIR)$(DESKDIR)`, so a system scope under the install
+# prefix would be deleted by the next source install, silently -- and
+# $(MODDIR) is the package's, so a catalogue writing there would put two
+# package managers in one directory. /var/lib is the FHS place for state
+# a program maintains, which is what a catalogue's store is.
+SYSDIR ?= /var/lib/hibr
 SHAREDIR ?= $(PREFIX)/share/hibr
 MANDIR ?= $(PREFIX)/share/man
 DESKDIR = $(SHAREDIR)/desktop
-SHCFLAGS = $(CFLAGS) -DHIBR_MODDIR=\"$(MODDIR)\"
+SHCFLAGS = $(CFLAGS) -DHIBR_MODDIR=\"$(MODDIR)\" -DHIBR_SYSDIR=\"$(SYSDIR)\"
 
 all: $(BIN) $(MODS) $(B)/hibr.1
 
@@ -93,10 +101,12 @@ $(B)/hibr.1: docs/hibr.1.in include/hibr.h $(B)/.moddir | $(B)/mods
 $(B)/mods:
 	@mkdir -p $@
 
-# The module directory is compiled into the shell, so a change of PREFIX or
-# MODDIR has to force a rebuild; this stamp only changes when the value does.
+# The module directory and the system scope are compiled into the shell, so
+# a change of PREFIX, MODDIR or SYSDIR has to force a rebuild; this stamp
+# only changes when one of the values does.
 $(B)/.moddir: FORCE | $(B)/mods
-	@echo '$(MODDIR)' | cmp -s - $@ 2>/dev/null || echo '$(MODDIR)' > $@
+	@echo '$(MODDIR) $(SYSDIR)' | cmp -s - $@ 2>/dev/null || \
+		echo '$(MODDIR) $(SYSDIR)' > $@
 FORCE:
 
 $(BIN): $(SRC) include/hibr.h include/pri.h mods/lint.h $(B)/.moddir | $(B)/mods
@@ -304,6 +314,12 @@ endif
 # source upgrade leaves `bin/apps` behind pointing at a `share/hibr/apps.hibr`
 # that is gone, which is a command that exists and fails. Worse than absent.
 	rm -f $(DESTDIR)$(PREFIX)/bin/apps $(DESTDIR)$(SHAREDIR)/apps.hibr
+# The system scope's root, made here so `catalogue --system` has somewhere
+# to write and so the ownership the module search insists on is set by the
+# thing that creates it rather than hoped for later: root-owned, and not
+# writable by anybody else (ADR 0045). 0755 rather than 0700 because every
+# user of the machine reads it.
+	install -d -m 755 $(DESTDIR)$(SYSDIR)
 	install -m 644 examples/catalogue.hibr $(DESTDIR)$(SHAREDIR)/catalogue.hibr
 	sed 's|@SHAREDIR@|$(SHAREDIR)|' tools/catalogue-launcher.in \
 		> $(DESTDIR)$(PREFIX)/bin/catalogue
@@ -318,6 +334,10 @@ uninstall:
 		$(DESTDIR)$(MANDIR)/man1/hibr.1
 	rm -rf $(DESTDIR)$(MODDIR) $(DESTDIR)$(PREFIX)/include/hibr \
 		$(DESTDIR)$(DESKDIR)
+# Only if nothing was installed into it. What a catalogue put there is an
+# administrator's, not this Makefile's to delete -- `catalogue --system
+# remove` is how that goes.
+	-rmdir $(DESTDIR)$(SYSDIR) 2> /dev/null
 
 clean:
 	rm -rf $(B)

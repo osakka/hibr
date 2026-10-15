@@ -143,6 +143,7 @@ void m_wstart(sh *s, struct mwalk *w, int bix);
 const char *m_wnext(struct mwalk *w);
 void m_wend(struct mwalk *w);
 int m_udir(sh *s, str *out);
+int m_sysdir(sh *s, str *out);
 #ifndef HIBR_JKEEP
 #define HIBR_JKEEP 256
 #endif

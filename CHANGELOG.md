@@ -1,5 +1,102 @@
 # Changelog
 
+## 0.99.197
+
+**One copy for everybody: the system scope.**
+
+Gitea #234, ADR 0045. Until now a catalogue install went into
+`$XDG_DATA_HOME` and nowhere else, so a machine where the desktop *is*
+the system -- Blit's images, a shared workstation -- had to install
+twenty-one applications per account or seed a skeleton and hope.
+`catalogue --system install apps/term apps/files` does it once:
+
+    yours            $XDG_DATA_HOME/hibr          catalogue install
+    the machine's    $HIBR_SYSDIR, /var/lib/hibr  catalogue --system, root
+    shipped          $PREFIX/share/hibr/desktop   the package
+
+read in that order, with `~/.config/hibr` above all three as yours by
+hand. **An administrator's install is authoritative**: it is read
+before anybody's own, so a copy of yours cannot override it.
+
+That order was written the other way round first -- a person's own
+scope above the machine's, by analogy with the config-then-data chain
+hibr already had -- and it is wrong for the machine this exists for.
+On a managed desktop it means somebody who installed Mail last year
+goes on running last year's copy after the administrator installs a
+current one: their folder is read first, the update never reaches
+them, and nothing says why. The scope exists so an administrator can
+decide what the machine runs; an order that lets any account quietly
+opt out does not deliver that.
+
+What a person keeps is `~/.config/hibr`, above everything, and it is
+not the same thing: a file you **wrote**, not a copy of somebody
+else's, which is where patching an installed app has always happened
+and which no update overwrites.
+
+Two things follow. Installing into your own scope something the
+machine already has is **refused**, whatever the versions say -- a
+newer copy in a folder nothing reads is worth less than no copy at
+all. And a copy that was already yours when the administrator
+installed theirs is reported as **defunct** rather than merely
+shadowing, with the command that frees the space, since that is the
+one way into the state and nothing else would mention it.
+
+`/var/lib` is deliberately not under the install prefix: `make install`
+does `rm -rf $(DESTDIR)$(DESKDIR)`, so a system scope there would be
+deleted by the next source install, and `$(MODDIR)` is the package's --
+a catalogue writing into it would put two package managers in one
+directory.
+
+**One variable, not two, and that is the part worth reading.** A script
+needs to know where the system scope is and the module search needs to
+look there, and writing `/var/lib/hibr` into both is exactly the
+parallel ADR 0045 exists to refuse. So `$HIBR_SYSDIR` is both: the
+shell sets it at startup from the compiled value unless the environment
+already did, `catalogue --system` reads it to know where to write, and
+`m_sysdir` reads it to know where to look. What makes one variable safe
+for both jobs is a single rule -- **the default is checked and a path
+you chose is yours**. The compiled path is used only when it is
+root-owned and writable by nobody else; an overridden one is trusted
+exactly as `$HIBR_MODPATH` already is, because it reaches only the
+shell whose environment holds it; and **root never reads the
+environment's at all**, which is what keeps this from widening ADR 0016
+into a way in. Measured in all four states, including a `chmod 777` on
+the compiled path, which is refused.
+
+The desktop's **eight** scan lists -- applications, the desktop's own
+apps, Control Panel panes, Control Strip modules, savers, colour
+schemes, themes and languages -- ask `dt_sysdir` for the folder rather
+than writing the path out eight times, and each is built with the
+machine's entry in the right place rather than appended to, since
+appending puts it last where nothing reads it.
+
+That call is guarded the way every app already guards `dt_app`
+(`command -v dt_sysdir > /dev/null && ...`), which the gate insisted
+on rather than a reading: a pane or a saver sourced **on its own** in
+a fixture has no window manager behind it, and the first version died
+with `dt_sysdir: command not found` in a check about something else
+entirely.
+
+**Two things are stricter at system scope**, both for one reason: the
+people who will run what you install are not the person who read it.
+An **unsigned catalogue is refused**, where for your own scope it is a
+warning -- ADR 0041's "you can read it before you run it" is an
+argument about your own account and does not survive everybody's. And
+a module directory must be **root-owned and private** or the shell does
+not treat it as a system scope at all.
+
+`catalogue installed` names the scope rather than leaving it to be read
+off a path, because `/var/lib` is not where anybody would look -- the
+price of the choice, named where it is paid. `catalogue --system purge`
+says that it reads the system scope only and cannot see what somebody
+has installed in their own home: a real limit rather than a safe one,
+so it is stated rather than implied.
+
+`make install` creates the root at 0755, which is where the ownership
+the module search insists on comes from; `make uninstall` removes it
+only if it is empty, since what a catalogue put there is an
+administrator's and not the Makefile's to delete.
+
 ## 0.99.196
 
 **Four defects in 0.99.195, three of them found by using it.**

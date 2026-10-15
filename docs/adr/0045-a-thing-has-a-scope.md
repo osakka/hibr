@@ -1,6 +1,6 @@
 # 0045 — A thing has a scope, and the scope says where it lives
 
-Status: accepted
+Status: accepted; the system scope is built as of 0.99.197
 
 ## Context
 
@@ -83,19 +83,42 @@ desktop's scan order already had two of them.
 | scope | written by | lives in | serves |
 |---|---|---|---|
 | **shipped** | the package, or `make install` | `$PREFIX/share/hibr/desktop`, `$PREFIX/lib/hibr` | everyone, and cannot be changed |
-| **system** | an administrator, through the catalogue | a root of its own (see below) | every user of this machine |
-| **user** | you, through the catalogue | `$XDG_DATA_HOME/hibr` | you |
+| **system** | an administrator, through the catalogue | `/var/lib/hibr` (see below) | every user of this machine, and it wins over theirs |
+| **user** | you, through the catalogue | `$XDG_DATA_HOME/hibr` | you, where the machine has no copy |
 
 Above all three sits `~/.config/hibr`, which is **yours, by hand** — the
 folder you drop a script into, which has always come first and is not a
 scope the catalogue writes.
 
-**Precedence is user, then system, then shipped**, which is the order the
-scan lists already read in and the order that makes the arrangement
-useful: an administrator installs Mail for everyone, and a user who wants
-a changed copy still wins. Each of the desktop's five scan lists gains
-one entry; `session.hibr` already composes them, so it is one `+=` a
-list.
+**Precedence is `~/.config`, then system, then user, then shipped**, and
+the middle pair is the decision worth stating: **an administrator's
+install is authoritative and a person's own catalogue install does not
+override it.**
+
+The other order was written here first -- user above system, by analogy
+with the existing config-then-data chain -- and it is wrong for the
+machine this scope exists for. On a managed desktop it means somebody
+who installed Mail last year goes on running last year's copy after the
+administrator installs a current one, silently, for ever: their folder
+is read first, so the update never reaches them and nothing says why.
+The scope exists so an administrator can decide what the machine runs,
+and an order that lets any account quietly opt out of that decision
+does not deliver it.
+
+What a person keeps is `~/.config/hibr/apps`, which stays above
+everything. That is deliberate and is not the same thing: it holds a
+file somebody **wrote**, not one a catalogue placed, it is where
+patching an installed app has always happened (ADR 0041), and no update
+overwrites it. So the escape hatch is a file of your own, not a second
+copy of the administrator's.
+
+Two things follow and both are built. A catalogue install into a
+person's own scope of something the machine already has is **refused**,
+whatever the versions say -- a newer copy in a folder nothing reads is
+worth less than no copy at all. And a copy that was already there when
+the administrator installed is reported as **defunct** rather than
+merely shadowing, with the command that frees the space, since it is
+the one way into that state and nothing else would say so.
 
 **The shipped scope is as small as it can be, and that is what the
 measurements are for.** It holds the shell, the window manager, the
@@ -226,6 +249,24 @@ refused, each for a concrete reason rather than a taste:
 The price of `/var/lib` is that it is not where somebody would think to
 look, so `catalogue installed` has to say which scope each entry is in
 rather than leaving it to be inferred from a path.
+
+**Built in 0.99.197, and one thing in it is worth recording because it
+was nearly two knobs.** A script needs to know where the system scope
+is, and the module search needs to look there; writing `/var/lib/hibr`
+into both is the parallel this record exists to refuse. So there is one
+variable, `$HIBR_SYSDIR`: the shell sets it at startup from the
+compiled value unless the environment already did, `catalogue --system`
+reads it to know where to write, and `m_sysdir` reads it to know where
+to look. What makes one variable safe for both is a single rule --
+**the default is checked and a path you chose is yours**. The compiled
+path is used only if it is root-owned and writable by nobody else; an
+overridden one is trusted exactly as `$HIBR_MODPATH` already is, since
+it affects only the shell whose environment holds it; and root never
+reads the environment's at all, which is what keeps ADR 0016's
+widening from being a way in.
+
+The desktop's eight scan lists ask `dt_sysdir` for the folder rather
+than writing the path out eight times, for the same reason.
 
 ## Consequences
 

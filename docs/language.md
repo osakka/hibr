@@ -85,7 +85,7 @@ keepgoing` it, and an arithmetic error, fail only the command.
 
 **Special variables.** `$@ $* $# $? $$ $! $- $0–$9 $RANDOM $SECONDS $EPOCHSECONDS
 $EPOCHREALTIME $LINENO $PPID $UID $EUID $HOSTNAME $OSTYPE $HOSTTYPE $MACHTYPE
-$HIBR_VERSION $HIBR_ABI $HIBR`, plus `$RET`, `$ERRMSG`, `$ERR`, `$ERRSTATUS`,
+$HIBR_VERSION $HIBR_ABI $HIBR $HIBR_SYSDIR`, plus `$RET`, `$ERRMSG`, `$ERR`, `$ERRSTATUS`,
 `$REMOTE` and `$M`, and `$BASH_SOURCE`: the file the running code came from --
 the script, a file being sourced, or, inside a function, the file the
 function was defined in, which is how a sourced file finds its own directory
@@ -108,6 +108,18 @@ prints `linux-gnu x86_64 x86_64-pc-linux-gnu`. Elsewhere `$HOSTTYPE` is
 whichever triple its own build machine had, so the two agree on a
 `darwin*` test and not on an exact comparison. They are ordinary
 variables once set: a script may assign one and nothing recomputes it.
+`$HIBR_SYSDIR` is where an administrator's catalogue installs for every
+user of the machine, `/var/lib/hibr` unless the build said otherwise
+(`make SYSDIR=...`). The shell sets it from that compiled value unless
+the environment already did, so a script reads one name either way --
+and because the module search reads the same variable, the place a
+thing is installed to and the place it is looked for in cannot drift
+apart. What keeps one variable safe for both jobs is that **the default
+is checked and a path you chose is yours**: the compiled path is used
+only if it is root-owned and writable by nobody else, an overridden one
+is trusted the way `$HIBR_MODPATH` is, and root never reads the
+environment's at all. See
+[ADR 0045](adr/0045-a-thing-has-a-scope.md).
 `tests/198-machine.t` is compared against bash rather than recorded, for
 the obvious reason. Only `${BASH_SOURCE[0]}` is kept, not the stack of
 callers' files beneath it. `$$` is fixed at startup, so it is the same inside every

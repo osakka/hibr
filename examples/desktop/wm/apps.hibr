@@ -73,8 +73,17 @@ fn dt_app(name, title, int h, int w, once = "", icon = "", fixed = "", hidden = 
 # and can fetch again. So ~/.config/hibr/apps/calc.hibr shadows a fetched
 # calc, which is how patching an installed app works -- copy it to your own
 # folder and edit it there -- and why an update cannot overwrite your copy.
+dt_appsys=
+command -v dt_sysdir > /dev/null && dt_appsys := dt_sysdir apps
+# The machine's scope sits **above** the person's own: an app an
+# administrator installed for everybody is authoritative and a user
+# does not override it (ADR 0045). Only ~/.config, which is a file
+# somebody wrote by hand rather than anything a catalogue placed,
+# is read before it. Empty on a hibr with no system scope, and a
+# scan already skips a folder that is not there.
 DT_APPDIRS=("${XDG_CONFIG_HOME:-$HOME/.config}/hibr/apps"
-	    "${XDG_DATA_HOME:-$HOME/.local/share}/hibr/apps")
+	${dt_appsys:+"$dt_appsys"}
+	"${XDG_DATA_HOME:-$HOME/.local/share}/hibr/apps")
 declare -gA DT_SRC
 
 # Load every app in the folders.  Each file declares itself with dt_app, so
@@ -123,8 +132,17 @@ dt_apps() {
 #
 # A flat scan, not dt_apps' recursive one: the desktop's own menu is one
 # list, and a folder of system apps would be a category inside a category.
+dt_syssys=
+command -v dt_sysdir > /dev/null && dt_syssys := dt_sysdir system
+# The machine's scope sits **above** the person's own: an app an
+# administrator installed for everybody is authoritative and a user
+# does not override it (ADR 0045). Only ~/.config, which is a file
+# somebody wrote by hand rather than anything a catalogue placed,
+# is read before it. Empty on a hibr with no system scope, and a
+# scan already skips a folder that is not there.
 DT_SYSDIRS=("${XDG_CONFIG_HOME:-$HOME/.config}/hibr/system"
-	    "${XDG_DATA_HOME:-$HOME/.local/share}/hibr/system")
+	${dt_syssys:+"$dt_syssys"}
+	"${XDG_DATA_HOME:-$HOME/.local/share}/hibr/system")
 
 dt_sysapps() {
 	local d f b

@@ -7,6 +7,23 @@
 
 strict
 
+# Where an administrator's catalogue installed something for every user
+# of this machine, for one kind: `apps`, `control-panel`, `savers` and
+# the rest (ADR 0045). Empty when this hibr has no system scope, which
+# is every shell before 0.99.197 and is why every caller appends rather
+# than assigns -- an empty entry in a scan list is a folder that does
+# not exist, and the scans already skip those.
+#
+# `$HIBR_SYSDIR` is the shell's own compiled-in value, the same one the
+# module search uses, so the place a thing is installed to and the place
+# it is looked for in cannot drift apart. The eight scan lists ask this
+# rather than each writing the path out, which is the difference between
+# one rule and eight copies of it.
+fn dt_sysdir(kind) {
+	[ -n "${HIBR_SYSDIR-}" ] || { ret ""; return 0 ; }
+	ret "$HIBR_SYSDIR/$kind"
+}
+
 # The session's own arguments, captured here at the top level where $@ is
 # still theirs: a function sees its own, and dt_autohold needs to hand these
 # back to a fresh copy of itself.  $0 needs no such capture -- it is one

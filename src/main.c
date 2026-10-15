@@ -603,6 +603,14 @@ int main(int ac, char **av)
 	hibr_set(&s, "HIBR_VERSION", HIBR_VER, 0);
 	sh_self(&s, av[0]);
 	sh_machine(&s);
+	/* Where an administrator's catalogue installs for every user
+	   (ADR 0045). Set from the compiled value unless the environment
+	   already said otherwise, so a script reads one name whether or
+	   not anybody overrode it -- and `m_sysdir` checks the ownership
+	   of the compiled path and trusts a chosen one, which is what
+	   makes one variable safe to serve both purposes. */
+	if (!hibr_get(&s, "HIBR_SYSDIR"))
+		hibr_set(&s, "HIBR_SYSDIR", HIBR_SYSDIR, 0);
 	{
 		str b;
 		char *hn = xm(256);

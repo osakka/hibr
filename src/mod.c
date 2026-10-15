@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 struct mod {
@@ -96,6 +97,52 @@ int m_udir(sh *s, str *out)
 	return 1;
 }
 
+/* The system module directory: where an administrator's catalogue has
+   installed for every user of this machine (ADR 0045). It sits between
+   the person's own folder and HIBR_MODDIR, so a user's copy still wins
+   and the package's is still the floor.
+
+   This widens ADR 0016, which says root loads modules only from
+   HIBR_MODDIR, and the widening is paid for rather than assumed. Root
+   gets the compiled-in path and nothing else -- an environment variable
+   that could redirect root's module search is a way in, which is why
+   HIBR_MODPATH is already refused for root a few lines above. And the
+   directory has to look like the system's: owned by root, writable by
+   nobody else. A path that fails either test is not an error, it is
+   simply not a system scope, so the walk goes on to HIBR_MODDIR.
+
+   `$HIBR_SYSDIR` is both how a script learns the path and how a person
+   changes it, which is one knob rather than two for one idea: the shell
+   sets it at startup from the compiled value unless the environment
+   already did, so `catalogue --system` can read where to write without
+   a second copy of `/var/lib/hibr` living in a script. The rule that
+   keeps that safe is one sentence -- **the default is checked, a path
+   you chose is yours** -- so the ownership test applies exactly when
+   the value is the compiled one, and root never reads the environment's
+   at all. */
+int m_sysdir(sh *s, str *out)
+{
+	const char *d = 0;
+	struct stat st;
+	int own;
+
+	if (geteuid() != 0)
+		d = hibr_get(s, "HIBR_SYSDIR");
+	if (!d || !*d)
+		d = HIBR_SYSDIR;
+	own = strcmp(d, HIBR_SYSDIR) == 0;
+	s_cat(out, d);
+	s_cat(out, "/mods");
+	if (stat(out->p, &st) != 0 || !S_ISDIR(st.st_mode))
+		return 0;
+	if (own && (st.st_uid != 0 || (st.st_mode & (S_IWGRP | S_IWOTH)))) {
+		lg(HIBR_LDBG, "%s is not root-owned and private; not a system "
+		   "module directory", out->p);
+		return 0;
+	}
+	return 1;
+}
+
 /* One walk of the module search path, so the five places that search it
    cannot drift apart: the current directory unless root or planning,
    each entry of $HIBR_MODPATH, the folder above, then HIBR_MODDIR. The
@@ -150,6 +197,12 @@ const char *m_wnext(struct mwalk *w)
 		/* fall through */
 	case 3:
 		w->step = 4;
+		w->d.n = 0;
+		if (!w->bix && m_sysdir(s, &w->d))
+			return w->d.p;
+		/* fall through */
+	case 4:
+		w->step = 5;
 		return HIBR_MODDIR;
 	}
 	return 0;

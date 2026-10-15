@@ -277,6 +277,73 @@ places"*), so an app that moves into a folder leaves no copy behind on
 the scan path. A path another installed entry also brings is kept, by
 the same count `catalogue remove` asks.
 
+### One copy for everybody
+
+`--system` installs into the machine's own scope instead of yours — one
+copy every user of the machine reads, which is what an image build or a
+shared workstation wants:
+
+<!-- not run: writes outside the home directory and needs root -->
+```sh
+sudo catalogue --system install apps/term apps/files system/panel
+```
+
+There are three scopes and they are read in this order
+([ADR 0045](adr/0045-a-thing-has-a-scope.md)):
+
+| read | | | |
+|---|---|---|---|
+| 1st | **yours, by hand** | `~/.config/hibr` | you write the file; no catalogue touches it |
+| 2nd | **the machine's** | `$HIBR_SYSDIR`, `/var/lib/hibr` by default | `catalogue --system install`, root only |
+| 3rd | **yours** | `$XDG_DATA_HOME/hibr` | `catalogue install` |
+| 4th | **shipped** | `$PREFIX/share/hibr/desktop` | the package |
+
+**An administrator's install is authoritative**: it is read before your
+own, so a copy of yours cannot override it. That is the point of the
+scope — on a managed machine the administrator decides what runs, and
+an order that let any account quietly opt out would not deliver that.
+
+Two things follow. Installing something into your own scope that the
+machine already has is **refused**, whatever the versions say: a newer
+copy in a folder nothing reads is worth less than no copy at all. And
+a copy that was already yours when the administrator installed theirs
+is reported as **defunct**, with the command that frees the space:
+
+```text
+apps/snake       1.0        apps           user    defunct: the machine has this
+1 of these is defunct: the machine has its own, which is read first --
+`catalogue remove NAME` frees the space
+```
+
+What you keep is `~/.config/hibr`, which stays above everything — a
+file you **wrote**, not a copy of somebody else's, which is where
+patching an installed app has always happened and which no update
+overwrites.
+
+`/var/lib` is the FHS place for state a program maintains, and it is
+deliberately not under the install prefix: `make install` does
+`rm -rf $(DESTDIR)$(DESKDIR)`, so a system scope there would be deleted
+by the next source install, and `$(MODDIR)` is the package's, so a
+catalogue writing into it would put two package managers in one
+directory. The price is that it is not where anybody would think to
+look, which is why `catalogue installed` names the scope rather than
+leaving it to be read off a path.
+
+Two things differ at system scope, both because the people who will run
+what you install are not the person who read it:
+
+- **An unsigned catalogue is refused**, where for your own scope it is a
+  warning. A script you can read before you run it is ADR 0041's whole
+  argument, and it does not survive installing into everybody's account.
+- **A module's directory must be root-owned and private**, or the shell
+  does not treat it as a system scope at all. The rule is *the default
+  is checked and a path you chose is yours*: `$HIBR_SYSDIR` set by you
+  affects only your own shell, the way `$HIBR_MODPATH` already does, and
+  root never reads it.
+
+`catalogue --system purge` reads the system scope only, and says so — it
+cannot see what any individual has installed in their own home.
+
 ### What an entry needs
 
 A bundle's own header says it, beside the `# part:` lines that say what

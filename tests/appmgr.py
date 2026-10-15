@@ -961,6 +961,69 @@ try:
               and "took away apps/inner.hibr" in out,
               (rc, out, err))
 
+        # The system scope: an administrator's install, for every user of
+        # the machine (ADR 0045). $HIBR_SYSDIR is a path chosen by the
+        # person running this, so the root-owned test that guards the
+        # compiled-in default does not apply to it -- which is what makes
+        # it reachable from a suite at all.
+        SYS = os.path.join(HOME, "sysroot")
+        ES = dict(EW, HIBR_SYSDIR=SYS)
+        rc, out, err = apps("--system", "install", "apps/demo", env=ES)
+        check("--system installs into the machine's own scope and leaves "
+              "the person's alone",
+              rc == 0
+              and os.path.exists(os.path.join(SYS, "apps", "demo.hibr"))
+              and not os.path.exists(os.path.join(DW, "hibr", "apps",
+                                                  "demo.hibr")),
+              (rc, out, err))
+        rc, out, err = apps("--system", "installed", env=ES)
+        rc2, out2, err2 = apps("installed", env=ES)
+        check("and each scope lists its own and says which it is, since "
+              "/var/lib is not where anybody would look",
+              rc == 0 and "apps/demo" in out and "system" in out
+              and "apps/demo" not in out2,
+              (out, out2))
+        # A script is installed from an unverified catalogue with a
+        # warning because you can read it first (ADR 0041). That holds
+        # for your own home and fails for everybody's: the people who
+        # run it are not the person who read it.
+        rc, out, err = apps("--system", "install", "apps/demo",
+                            env=dict(ES, HIBR_APPS_KEYFP="0" * 40))
+        check("an unsigned catalogue is refused at system scope, where "
+              "the same script is only warned about at user scope",
+              rc != 0 and "every user of this machine" in err, (rc, err))
+
+        # An administrator's install is authoritative: it is read before
+        # a person's own, so a copy there could never run. Refused
+        # whatever the versions say, and a copy that was already there
+        # when the administrator installed is reported as defunct with
+        # the command that frees the space (ADR 0045).
+        rc, out, err = apps("install", "apps/demo", env=ES)
+        check("a copy of your own is refused once the machine has one, "
+              "since the machine's is read first and yours could not run",
+              rc != 0 and "the machine already has this" in err
+              and not os.path.exists(os.path.join(DW, "hibr", "apps",
+                                                  "demo.hibr")),
+              (rc, err))
+        # The one way into a defunct copy: yours first, the
+        # administrator's after. Asked of the paths the install
+        # recorded, not of a path rebuilt from kind and name -- an app
+        # lives in a folder of its own now, and the first version of
+        # this looked for apps/inner.hibr while the file sat at
+        # apps/Games/inner.hibr, so the column was blank for exactly
+        # the entries it exists to mark.
+        apps("--system", "remove", "-f", "apps/demo", env=ES)
+        apps("install", "apps/demo", env=ES)
+        apps("--system", "install", "apps/demo", env=ES)
+        rc, out, err = apps("installed", env=ES)
+        rc2, out2, err2 = apps("installed", "-j", env=ES)
+        j2 = json.loads(out2)["installed"]
+        check("and one that was yours before the administrator installed "
+              "is named defunct, with what to do about it",
+              rc == 0 and "defunct" in out and "catalogue remove" in out
+              and j2["apps/demo"]["defunct"] == "1",
+              (out, j2.get("apps/demo")))
+
         # And `update` has to *notice* a move on its own. An entry can
         # change folder without changing version -- `dir` arrived in
         # 0.99.195 and put every application in one, same bytes, new
@@ -1007,7 +1070,20 @@ try:
                      "a module installed by name is never purged, however "
                      "little needs it",
                      "`update` moves an entry whose folder changed even "
-                     "though its version did not"):
+                     "though its version did not",
+                     "--system installs into the machine's own scope and "
+                     "leaves the person's alone",
+                     "and each scope lists its own and says which it is, "
+                     "since /var/lib is not where anybody would look",
+                     "an unsigned catalogue is refused at system scope, "
+                     "where the same script is only warned about at user "
+                     "scope",
+                     "a copy of your own is refused once the machine has "
+                     "one, since the machine's is read first and yours "
+                     "could not run",
+                     "and one that was yours before the administrator "
+                     "installed is named defunct, with what to do about "
+                     "it"):
             rc, out, err = apps("install", "mods/greet", env=E221)
             check(name + " [no gpg here: the refusal says so]",
                   rc != 0 and "no gpg" in err, (rc, err))
@@ -1017,4 +1093,4 @@ finally:
     srv.wait()
     shutil.rmtree(D, True)
 
-report(83)
+report(88)

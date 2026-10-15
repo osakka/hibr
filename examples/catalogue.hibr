@@ -53,6 +53,36 @@ AP_CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/hibr
 AP_INDEX=$AP_CACHE/index.json
 AP_SIG=$AP_CACHE/index.json.asc
 AP_STATE=$AP_DATA/apps.json
+# Which scope an install writes into (ADR 0045). `user` is yours and is
+# the default; `system` is an administrator's, for every user of the
+# machine, and `--system` chooses it.
+#
+# The path comes from the shell rather than from a second copy of
+# `/var/lib/hibr` kept here: `$HIBR_SYSDIR` is the compiled-in value the
+# module search itself uses, so the place a module is installed to and
+# the place it is looked for in cannot drift apart. A shell too old to
+# set it has no system scope at all, which is the honest answer rather
+# than a guess at where one would be.
+AP_SCOPE=user
+AP_SYSROOT=${HIBR_SYSDIR-}
+
+# Point everything at one scope. Called once, before anything reads a
+# path, so there is no moment where half the program is writing to one
+# place and half to another.
+fn ap_scope(which) {
+	case $which in
+	user) return 0 ;;
+	system) ;;
+	*) ap_die "$which: a scope is user or system" ;;
+	esac
+	[ -n "$AP_SYSROOT" ] ||
+		ap_die "this hibr has no system scope: it does not set \$HIBR_SYSDIR.
+A system install needs hibr 0.99.197 or newer."
+	AP_SCOPE=system
+	AP_DATA=$AP_SYSROOT
+	AP_STATE=$AP_DATA/apps.json
+	return 0
+}
 # Where the index is fetched from. A static URL on purpose: the catalogue is
 # a git repository with a JSON index in it, so it can be browsed, mirrored
 # by anyone and served by any static host -- github.com/osakka/hibr-apps is
@@ -257,6 +287,20 @@ fn ap_verify() {
 fn ap_sigsay() {
 	ap_verify
 	[ "$AP_SIGOK" = 1 ] && return 0
+	# A script is installed from an unverified catalogue with a warning
+	# because you can read it before you run it -- that is ADR 0041's
+	# whole sentence and it holds for an install into your own home.
+	# It does not hold for an install into everybody's: the people who
+	# will run this are not the person who read it, and most of them
+	# will never know it was fetched. So at system scope the warning
+	# becomes the refusal a module already gets (ADR 0045).
+	if [ "$AP_SCOPE" = system ]; then
+		ap_die "refusing to install into the system scope from a catalogue this cannot verify
+$AP_SIGWHY.
+A script installed here runs for every user of this machine, and they
+are not the person who read it. Install it into your own scope, or
+publish a signed catalogue."
+	fi
 	[ -n "$AP_SIGSAID" ] && return 0
 	AP_SIGSAID=1
 	ap_say "warning: this catalogue is not verified -- $AP_SIGWHY"
@@ -732,20 +776,73 @@ fn ap_shipped(kind, name) {
 	return 1
 }
 
+# What version of this the **machine's** scope has, if any -- an
+# administrator's copy, for every user. Empty when there is none, when
+# this hibr has no system scope, or when we are installing into that
+# scope ourselves.
+#
+# Read from the system scope's own state file rather than from the
+# disk, because the question is "which version is installed there" and
+# only the state knows that; a file on disk says a name and nothing
+# else.
+fn ap_sysver(id) {
+	local f v
+	local -A j
+
+	[ -n "$AP_SYSROOT" ] || return 1
+	[ "$AP_SCOPE" = system ] && return 1
+	f=$AP_SYSROOT/apps.json
+	[ -r "$f" ] || return 1
+	json parse j < "$f" 2> /dev/null || return 1
+	v=${j["installed"]["$id"]["version"]}
+	[ -n "$v" ] || return 1
+	ret "$v"
+}
+
+# Is there a copy in the machine's scope at all, for the defunct column.
+#
+# Asked of the **paths this install recorded**, not of a path rebuilt
+# from the kind and the name: an application lives in a folder of its
+# own now (`apps/Internet/mail.hibr`), and a rebuilt path missed every
+# one of them -- the first version of this looked for
+# `apps/snake.hibr` while the thing sat at `apps/Games/snake.hibr`, so
+# the column was blank for exactly the entries it exists to mark. The
+# state already knows where each file went; there is no second way to
+# work it out that cannot be wrong.
+fn ap_insys(name) {
+	local i p
+
+	[ -n "$AP_SYSROOT" ] || return 1
+	[ "$AP_SCOPE" = system ] && return 1
+	for i in "${!AP_ST["installed"]["$name"]["paths"][@]}"; do
+		p=${AP_ST["installed"]["$name"]["paths"]["$i"]}
+		[ -r "$AP_SYSROOT/$p" ] && return 0
+	done
+	return 1
+}
+
 fn ap_installed(int j = 0) {
-	local name n=0 js i sh
+	local name n=0 nd=0 js i sh sy what
 	local -A out
 
 	ap_state
 	for name in "${!AP_ST["installed"][@]}"; do
 		sh=
+		sy=
 		ap_shipped "${AP_ST["installed"]["$name"]["kind"]}" \
 			"${name##*/}" && sh=1
+		ap_insys "$name" && sy=1
 		if [ "$j" = 1 ]; then
 			out["installed"]["$name"]["id"]=$name
 			out["installed"]["$name"]["version"]=${AP_ST["installed"]["$name"]["version"]}
 			out["installed"]["$name"]["kind"]=${AP_ST["installed"]["$name"]["kind"]}
 			out["installed"]["$name"]["shadows"]=${sh:-0}
+			out["installed"]["$name"]["defunct"]=${sy:-0}
+			# Named rather than inferred from the path: the
+			# system scope is /var/lib/hibr, which is not where
+			# anybody would think to look (ADR 0045 says so in
+			# as many words), so it has to be said.
+			out["installed"]["$name"]["scope"]=$AP_SCOPE
 			# Every path it placed, which is what a window needs to
 			# say what removing it would take away.
 			for i in "${!AP_ST["installed"]["$name"]["paths"][@]}"; do
@@ -754,10 +851,20 @@ fn ap_installed(int j = 0) {
 			n=$((n + 1))
 			continue
 		fi
-		printf '%-16s %-10s %-14s %s\n' "$name" \
+		# A copy of somebody's own that the machine also has is
+		# **defunct**, not merely shadowing: the machine's is read
+		# first, so this one takes space and runs never. It can
+		# only come from having installed it before the
+		# administrator did, since an install is refused once the
+		# machine has it.
+		what=
+		[ -n "$sy" ] && { what="defunct: the machine has this"; nd=$((nd + 1)) ; }
+		[ -z "$what" ] && [ -n "$sh" ] && what="shadows the one hibr ships"
+		printf '%-16s %-10s %-14s %-7s %s\n' "$name" \
 			"${AP_ST["installed"]["$name"]["version"]}" \
 			"${AP_ST["installed"]["$name"]["kind"]}" \
-			"${sh:+shadows the one hibr ships}"
+			"$AP_SCOPE" \
+			"$what"
 		n=$((n + 1))
 	done
 	if [ "$j" = 1 ]; then
@@ -770,6 +877,8 @@ fn ap_installed(int j = 0) {
 		return 0
 	fi
 	[ "$n" = 0 ] && ap_say "nothing installed"
+	[ "$nd" -gt 0 ] &&
+		ap_say "$nd of these is defunct: the machine has its own, which is read first -- \`catalogue remove NAME\` frees the space"
 	return 0
 }
 
@@ -1452,7 +1561,7 @@ fn ap_stale(name) {
 }
 
 fn ap_install(...names) {
-	local name want tmp kind i ext all mid
+	local name want tmp kind i ext all mid sysv
 	local -a wants
 
 	[ "${#names[@]}" -gt 0 ] || ap_die "usage: catalogue install NAME..."
@@ -1497,6 +1606,26 @@ you can read the file (ADR 0041, ADR 0044)."
 		else
 			ap_sigsay
 		fi
+		# Already there for the whole machine? Then there is
+		# nothing a copy in one person's home could do. An
+		# administrator's install is **authoritative** -- the
+		# machine's scope is read before anybody's own data folder
+		# (ADR 0045) -- so a second copy would not be a newer
+		# version winning, it would be a file that is never read,
+		# taking space and drifting out of date in silence.
+		#
+		# Refused whatever the versions say, for that reason: a
+		# newer one in a folder nothing reads is worth less than
+		# no copy at all. The way to run something the machine does
+		# not provide is ~/.config/hibr/apps, which is a file you
+		# wrote rather than one a catalogue placed, and is the one
+		# thing read before the machine's.
+		sysv := ap_sysver "$name" &&
+			ap_die "$name: the machine already has this, at $sysv
+An install for the whole machine is authoritative: it is read before
+your own, so a copy here would never run. To change what you get, put
+a file of your own in ~/.config/hibr/apps, which is read before either
+and which no update overwrites."
 		# Before fetching, not after: refusing an app this hibr
 		# cannot run should cost nothing and leave nothing behind.
 		ap_needs "$name"
@@ -1642,6 +1771,13 @@ fn ap_purge(...args) {
 		ap_say "nothing to purge: every module here was asked for by name, or something still needs it"
 		return 0
 	fi
+	# What it can see is one scope's state. A user's purge cannot reach
+	# a system install and must not, which falls out of AP_STATE moving
+	# with the scope; a **system** purge cannot see what any individual
+	# has installed in their own home, and that one is a real limit
+	# rather than a safe one, so it is said rather than implied.
+	[ "$AP_SCOPE" = system ] &&
+		ap_say "this reads the system scope only; a module some user's own app needs is not visible here"
 	printf 'fetched for something that is gone, and nothing installed needs now:\n'
 	for name in "${gone[@]}"; do
 		printf '  %-22s was needed by %s\n' "$name" \
@@ -1859,6 +1995,14 @@ ap_help() {
 	"                         apps/' places every application, and" \
 	"                         'catalogue install themes/' every theme" \
 	"  catalogue remove [-f] NAME  take one away; -f even if a window is open" \
+	"  --system on any of them installs into, removes from or lists" \
+	"  the machine's own scope rather than your own: one copy for" \
+	"  every user, in \$HIBR_SYSDIR, which only root can write. Your" \
+	"  own copy of a thing still wins over the machine's, and the" \
+	"  machine's over what hibr shipped. An unsigned catalogue is" \
+	"  refused there, where for your own scope it is a warning: the" \
+	"  people who run it are not the person who read it." \
+	"" \
 	"  catalogue purge        take away modules that were fetched for" \
 	"                         something that is gone and that nothing" \
 	"                         installed needs now; -y to skip the ask," \
@@ -1895,20 +2039,26 @@ ap_usage() {
 	echo "       (kinds: ${AP_KINDS[*]})" >&2
 	echo "       show NAME | install NAME...|KIND/ | remove [-f] NAME... |" >&2
 	echo "       update [NAME...] | purge [-y] | index [URL] | refresh | help" >&2
+	echo "       --system on any of them: the machine's scope, not yours" >&2
 	exit 2
 }
 
 # `-j` anywhere in the arguments of a verb that answers something: the
 # desktop reads JSON where a person reads columns.
 AP_J=0
+AP_WANTSYS=0
 ap_args=()
 for a in "$@"; do
 	case $a in
 	-j | --json) AP_J=1 ;;
+	--system) AP_WANTSYS=1 ;;
 	*) ap_args+=("$a") ;;
 	esac
 done
 set -- "${ap_args[@]}"
+# Before any verb runs, so nothing reads a path from one scope and
+# writes to another.
+[ "$AP_WANTSYS" = 1 ] && ap_scope system
 
 case ${1-} in
 list) shift; ap_list "${1-}" "$AP_J" ;;

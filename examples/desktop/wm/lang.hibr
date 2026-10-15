@@ -121,9 +121,16 @@ fn dt_tput(int id, int r, int c, text, ...rest) {
 # that middle entry a language could be published and installed and nothing
 # would ever read it (Gitea #224).
 fn dt_langfile(code) {
-	local f
+	local f sysl
 
+	# The machine's own above the person's own data folder. Built with
+	# ${x:+..} rather than written into the list, because an empty
+	# value there is not an empty word: `""/hibr/lang/*.json` is the
+	# absolute path `/hibr/lang/*.json`, which is a real place to go
+	# looking and not the one anybody meant (ADR 0045).
+	sysl := dt_sysdir lang
 	for f in "${XDG_CONFIG_HOME:-$HOME/.config}/hibr/lang/$code.json" \
+		 ${sysl:+"$sysl/$code.json"} \
 		 "${XDG_DATA_HOME:-$HOME/.local/share}/hibr/lang/$code.json" \
 		 "$DT_HERE/lang/$code.json"; do
 		if [ -r "$f" ]; then
@@ -332,9 +339,11 @@ dt_mirrorx() {
 
 # The languages there are, code TAB name, for Control Panel.
 dt_langs() {
-	local f c n seen=" " out="" l
+	local f c n seen=" " out="" l sysl
 
+	sysl := dt_sysdir lang
 	for f in "${XDG_CONFIG_HOME:-$HOME/.config}"/hibr/lang/*.json \
+		 ${sysl:+"$sysl"/*.json} \
 		 "${XDG_DATA_HOME:-$HOME/.local/share}"/hibr/lang/*.json \
 		 "$DT_HERE"/lang/*.json; do
 		[ -r "$f" ] || continue

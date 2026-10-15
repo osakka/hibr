@@ -23,8 +23,17 @@ strict
 
 declare -gA SV
 SV_LIST=()
+sv_sysd=
+command -v dt_sysdir > /dev/null && sv_sysd := dt_sysdir savers
+# The machine's scope sits **above** the person's own: an app an
+# administrator installed for everybody is authoritative and a user
+# does not override it (ADR 0045). Only ~/.config, which is a file
+# somebody wrote by hand rather than anything a catalogue placed,
+# is read before it. Empty on a hibr with no system scope, and a
+# scan already skips a folder that is not there.
 SV_DIRS=("${XDG_CONFIG_HOME:-$HOME/.config}/hibr/savers"
-	 "${XDG_DATA_HOME:-$HOME/.local/share}/hibr/savers")
+	${sv_sysd:+"$sv_sysd"}
+	"${XDG_DATA_HOME:-$HOME/.local/share}/hibr/savers")
 SV_LAST=
 SV_NAME=
 SV_ROWS=0

@@ -40,8 +40,16 @@ fn cp_set_checks(int? id = "", value = "") { DT_CHECKS=$value; cp_save; }
 # keeps (`DT_APPDIRS` is the shape). Without that entry a colour scheme
 # could be published and installed and the pane would never see it, which
 # is what 0.99.186 shipped (Gitea #224).
+# The machine's own goes above the person's own data folder and below
+# ~/.config, which is why these two are built rather than appended to:
+# an administrator's install is authoritative and a user does not
+# override it, and appending would have put it last where nothing would
+# ever read it (ADR 0045).
+cp_syscol=
+command -v dt_sysdir > /dev/null && cp_syscol := dt_sysdir colours
 CP_COLOURDIRS=("${XDG_CONFIG_HOME:-$HOME/.config}/hibr/colours"
 	"${XDG_CONFIG_HOME:-$HOME/.config}/hibr/themes"
+	${cp_syscol:+"$cp_syscol"}
 	"${XDG_DATA_HOME:-$HOME/.local/share}/hibr/colours"
 	"${BASH_SOURCE%/*}/../colours")
 CP_COLOURLIST=()
@@ -152,7 +160,10 @@ fn cp_colours(t) {
 # one -- the same order every scan list keeps, and the reason a theme's
 # own picture has to land *beside* its JSON rather than under it, since
 # `image` is read from the folder the theme was found in (Gitea #224).
+cp_systh=
+command -v dt_sysdir > /dev/null && cp_systh := dt_sysdir themes
 CP_THEMEDIRS=("${XDG_CONFIG_HOME:-$HOME/.config}/hibr/themes"
+	${cp_systh:+"$cp_systh"}
 	"${XDG_DATA_HOME:-$HOME/.local/share}/hibr/themes"
 	"${BASH_SOURCE%/*}/../themes")
 CP_THEMES=()

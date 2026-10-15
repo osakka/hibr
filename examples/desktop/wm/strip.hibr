@@ -14,8 +14,17 @@ strict
 # the real Control Strip sat at the bottom and only ever slid left and
 # right along it; this one docks to either side and slides up and down
 # instead, a deliberate choice over period accuracy.
+cs_sys=
+command -v dt_sysdir > /dev/null && cs_sys := dt_sysdir control-strip
+# The machine's scope sits **above** the person's own: an app an
+# administrator installed for everybody is authoritative and a user
+# does not override it (ADR 0045). Only ~/.config, which is a file
+# somebody wrote by hand rather than anything a catalogue placed,
+# is read before it. Empty on a hibr with no system scope, and a
+# scan already skips a folder that is not there.
 CS_MODDIRS=("${XDG_CONFIG_HOME:-$HOME/.config}/hibr/control-strip"
-	    "${XDG_DATA_HOME:-$HOME/.local/share}/hibr/control-strip")
+	${cs_sys:+"$cs_sys"}
+	"${XDG_DATA_HOME:-$HOME/.local/share}/hibr/control-strip")
 declare -gA CS_MODS
 CS_MOD_LIST=()
 # Every module loaded, in file order; CS_MOD_LIST is the ones shown now --
