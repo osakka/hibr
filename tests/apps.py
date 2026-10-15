@@ -4406,7 +4406,17 @@ AS_JSON = json.dumps({"entries": {
                     "update": "0", "about": "A widget\n\nthe second paragraph."},
     "apps/gadget": {"id": "apps/gadget", "name": "gadget", "kind": "apps",
                     "title": "Gadget", "version": "1.0", "installed": "1.0",
-                    "update": "0", "about": "A gadget"},
+                    "update": "0", "about": "A gadget",
+                    "parts": ["control-panel/gadgetset.hibr"]},
+    # A copy the machine also has: read second, so it can never run. The
+    # command has said so in its own column since 0.99.197 and the window
+    # showed a healthy row until 0.99.202 (Gitea #244).
+    "apps/doomed": {"id": "apps/doomed", "name": "doomed", "kind": "apps",
+                    "title": "Doomed", "version": "1.0", "installed": "1.0",
+                    "update": "0", "about": "A doomed one", "defunct": "1"},
+    "apps/shady": {"id": "apps/shady", "name": "shady", "kind": "apps",
+                   "title": "Shady", "version": "1.0", "installed": "1.0",
+                   "update": "0", "about": "A shadowing one", "shadows": "1"},
 }})
 
 
@@ -4448,6 +4458,38 @@ check("the Applications window lists what `apps -j` answered, under a "
 check("and the detail pane shows the entry's own prose, paragraphs kept",
       sc.find("A widget") is not None
       and sc.find("the second paragraph.") is not None, sc)
+# What `catalogue installed` has said in its own columns since 0.99.197
+# and this window showed none of: a copy the machine also has is read
+# second and can never run, one that hides the shipped copy is not the
+# same as a clean install, and an entry brings files with it that go when
+# it does. Two views of one state that disagree about what is true is
+# Gitea #237 one level up; this is #244.
+def asmark(scr, name):
+    """The mark on a row, read rather than spelled: the glyph set is the
+    person's choice (DT_GLYPHSET) and a test that writes one in is a test
+    of the default."""
+    at = scr.find(" " + name + " ")
+    if at is None:
+        return None
+    return scr.row(at[0])[:at[1]].rstrip()[-1:]
+
+
+check("a copy the machine also has wears a different mark from one that "
+      "works, since it is read second and can never run",
+      asmark(sc, "doomed") is not None
+      and asmark(sc, "gadget") == asmark(sc, "shady")
+      and asmark(sc, "doomed") != asmark(sc, "gadget"),
+      ("doomed=%r gadget=%r shady=%r" % (asmark(sc, "doomed"),
+                                         asmark(sc, "gadget"),
+                                         asmark(sc, "shady")), sc))
+sc = run("appstore", "21 76 2 2", env=ASENV, tries=150,
+         ready=lambda s: s.find("gadget") is not None,
+         feed=[b"\x1b[B"],
+         until=lambda s: s.find("files with it") is not None
+         or s.find("file with it") is not None)
+check("and the detail pane says what an entry brought with it, so what "
+      "removing it would take away is readable before you press it",
+      sc.find("file with it") is not None, sc)
 # A kind folds away, and a folded one still says how many are under it --
 # which is the whole reason a shut group is worth reading. The entries go
 # by their own name, since the kind is the line above them.
@@ -4461,9 +4503,15 @@ sc = run("appstore", "21 76 2 2", env=ASENV, tries=150,
 # the name since 0.99.194 -- out at the list's right edge it was a bare
 # number in the column the versions below it fill, and read as a version
 # (Gitea #220).
+# Counted from the fixture rather than written in: this check was a
+# literal "(2)" until an entry was added to the stub for another check
+# and broke it, which is the same brittleness one level along.
+NAPPS = len([e for e in json.loads(AS_JSON)["entries"].values()
+             if e["kind"] == "apps"])
 check("a kind folds away, and the fold still says how many it holds",
-      sc.find("Applications (2)") is not None and sc.find("widget") is None,
-      ("heading=%s" % (sc.find("Applications"),), sc))
+      sc.find("Applications (%d)" % NAPPS) is not None
+      and sc.find("widget") is None,
+      ("want (%d), heading=%s" % (NAPPS, sc.find("Applications")), sc))
 
 # The window keeps no list of kinds of its own: `apps list -j` sends them
 # in its own declared order and the window groups by those. Both halves
@@ -4670,4 +4718,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(625)
+report(627)

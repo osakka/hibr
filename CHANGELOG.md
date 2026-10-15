@@ -1,5 +1,47 @@
 # Changelog
 
+## 0.99.202
+
+**The Catalogue window shows what the command knows.**
+
+Gitea #244, from the catalogue audit. `catalogue installed -j` has
+answered `defunct`, `shadows`, `scope` and `paths` since 0.99.197, and
+the window read **none** of them -- grep found zero occurrences of each
+in `appstore.hibr`. The JSON was built for it: `ap_installed`'s own
+comment on `paths` says it is *"what a window needs to say what removing
+it would take away"*, and the window never asked.
+
+So in the window a **defunct** copy -- one the machine also has, read
+before yours, which therefore can never run -- looked exactly like a
+working app; one that **shadows** the shipped copy was unmarked; and
+removing an app took its Control Panel pane with it with nothing having
+said so. Two views over one state that disagree about what is true, which
+is #237 one level up.
+
+The window reads `list -j` rather than `installed -j`, so the fields went
+there: `defunct`, `shadows`, `scope` and the list of `parts`, computed
+only for an entry that is actually installed -- `ap_shipped` globs the
+desktop's folders and there is no sense paying that for the eighty an
+entry the person does not have. An entry now wears **⚠** where it wore a
+tick, and the detail pane says *"shadows the one hibr ships"* and
+*"2 files with it"*.
+
+**Showing only, deliberately.** Acting at system scope from the window is
+a privilege question rather than a display one -- the window runs as the
+person and an install for the whole machine needs root -- so it stays
+`sudo catalogue --system install` at a terminal, which is what an image
+build does anyway.
+
+Two things in the suite are worth keeping. The new marks are read off the
+screen rather than spelled out, because the glyph set is the person's
+choice (`DT_GLYPHSET`) and a check that writes `⚠` in is a check of the
+default. And the fold-count check next door, which asserted a literal
+`Applications (2)`, broke the moment the fixture grew an entry -- it
+counts the fixture now, which is the same brittleness one level along.
+
+`tests/apps.py` goes 625 checks to 627, both of which fail against
+0.99.201.
+
 ## 0.99.201
 
 **`catalogue check`: the record against the files, both ways.**

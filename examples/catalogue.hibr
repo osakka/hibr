@@ -780,7 +780,7 @@ AP_WINS=
 # slot. A builtin like `mod list` can; a command can only print, and the
 # honest version of "one answer" for a command is a machine-readable one.
 fn ap_list(want = "", int j = 0) {
-	local name n=0 v here
+	local name n=0 v here i
 	local -A out
 
 	ap_load
@@ -820,6 +820,30 @@ fn ap_list(want = "", int j = 0) {
 			out["entries"]["${AP_ENT["id"]}"]["update"]=0
 			[ -n "$v" ] && [ "$v" != "${AP_ENT["version"]}" ] &&
 				out["entries"]["${AP_ENT["id"]}"]["update"]=1
+			# What `installed` has said in its own columns since
+			# 0.99.197 and the window could not see, so a copy
+			# that can never run looked like a working one
+			# (Gitea #244). Only asked about an entry that is
+			# installed: `ap_shipped` globs the desktop's folders
+			# and there is no sense paying that for the eighty
+			# the person does not have.
+			out["entries"]["${AP_ENT["id"]}"]["defunct"]=0
+			out["entries"]["${AP_ENT["id"]}"]["shadows"]=0
+			out["entries"]["${AP_ENT["id"]}"]["scope"]=
+			if [ -n "$v" ]; then
+				out["entries"]["${AP_ENT["id"]}"]["scope"]=$AP_SCOPE
+				ap_insys "${AP_ENT["id"]}" &&
+					out["entries"]["${AP_ENT["id"]}"]["defunct"]=1
+				ap_shipped "${AP_ENT["kind"]}" "${AP_ENT["name"]}" &&
+					out["entries"]["${AP_ENT["id"]}"]["shadows"]=1
+				# The files it brought, so a window can say
+				# what removing it would take away rather
+				# than asking afterwards.
+				ap_parts "${AP_ENT["id"]}"
+				for i in "${!AP_PARTS[@]}"; do
+					out["entries"]["${AP_ENT["id"]}"]["parts"]["$i"]=${AP_PARTS["$i"]}
+				done
+			fi
 			n=$((n + 1))
 			continue
 		fi

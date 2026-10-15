@@ -1002,6 +1002,16 @@
   "version %s": "الإصدار %s",
   "working: %s": "جارٍ: %s",
   "yes, %s displays attached": "نعم، %s شاشات متصلة",
-  "yes, 1 display attached": "نعم، شاشة واحدة متصلة"
+  "yes, 1 display attached": "نعم، شاشة واحدة متصلة",
+  "%s file with it": {
+   "one": "ومعه ملف واحد",
+   "two": "ومعه ملفان",
+   "few": "ومعه %s ملفات",
+   "many": "ومعه %s ملفًا",
+   "other": "ومعه %s ملف"
+  },
+  "%s files with it": "ومعه %s ملف",
+  "shadows the one hibr ships": "يحجب النسخة التي يشحنها hibr",
+  "the machine has this, and its copy is read first": "الجهاز يملك نسخة منه، وتُقرأ قبل نسختك"
  }
 }

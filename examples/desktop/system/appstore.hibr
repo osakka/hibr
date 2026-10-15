@@ -132,7 +132,7 @@ fn as_reload(int id) {
 # The index as the command answered it. Every fact in its own field, so
 # nothing here works out from a sentence what the command already knew.
 fn as_loaded(int id, int st, int n, what = "") {
-	local f k i=0 why
+	local f k i=0 why p
 	local -A j
 
 	AS[$id]["loading"]=
@@ -182,6 +182,15 @@ fn as_loaded(int id, int st, int n, what = "") {
 		AS[$id]["e"][$i]["update"]=${j["entries"]["$k"]["update"]}
 		AS[$id]["e"][$i]["about"]=${j["entries"]["$k"]["about"]}
 		AS[$id]["e"][$i]["kind"]=${j["entries"]["$k"]["kind"]}
+		# What the command has said in its own columns since
+		# 0.99.197 and this window could not see, so a copy that can
+		# never run looked exactly like a working one (Gitea #244).
+		AS[$id]["e"][$i]["defunct"]=${j["entries"]["$k"]["defunct"]}
+		AS[$id]["e"][$i]["shadows"]=${j["entries"]["$k"]["shadows"]}
+		AS[$id]["e"][$i]["np"]=${#j["entries"]["$k"]["parts"][@]}
+		for p in "${!j["entries"]["$k"]["parts"][@]}"; do
+			AS[$id]["e"][$i]["parts"]["$p"]=${j["entries"]["$k"]["parts"]["$p"]}
+		done
 		i=$((i + 1))
 	done
 	AS[$id]["n"]=$i
@@ -537,6 +546,13 @@ fn appstore_draw(int id, int h, int w, int row, int col) {
 				mark=" "
 				[ -n "${AS[$id]["e"][$e]["installed"]}" ] && mark="${GL[check]}"
 				[ "${AS[$id]["e"][$e]["update"]}" = 1 ] && mark="${GL[reload]}"
+				# A copy the machine also has is read second
+				# and can never run, which is worth more than
+				# a tick: the mark that means "look at this"
+				# rather than the one that means "you have
+				# it" (Gitea #244).
+				[ "${AS[$id]["e"][$e]["defunct"]}" = 1 ] &&
+					mark="${GL[warn]}"
 				# A leaf one level in, joined to its branch by
 				# the widget -- a tee, or a corner for the
 				# last of them. By its own name rather than
@@ -604,6 +620,24 @@ fn appstore_draw(int id, int h, int w, int row, int col) {
 		else
 			t := dt_tr "version %s" "${AS[$id]["e"][$e]["version"]}"
 		fi
+		# What the columns of `catalogue installed` say, which this
+		# window showed none of until 0.99.202: a copy that can
+		# never run, one that hides the shipped copy, and what the
+		# entry brought with it (Gitea #244).
+		if [ "${AS[$id]["e"][$e]["defunct"]}" = 1 ]; then
+			st := dt_tr "the machine has this, and its copy is read first"
+			t="$t -- $st"
+		elif [ "${AS[$id]["e"][$e]["shadows"]}" = 1 ]; then
+			st := dt_tr "shadows the one hibr ships"
+			t="$t -- $st"
+		fi
+		if [ "${AS[$id]["e"][$e]["np"]:-0}" -gt 0 ]; then
+			st := dt_trn "${AS[$id]["e"][$e]["np"]}" \
+				"%s file with it" "%s files with it" \
+				"${AS[$id]["e"][$e]["np"]}"
+			t="$t, $st"
+		fi
+		t := dt_cut "$t" "$dw"
 		console put -p "w$id" 3 $((listw + 3)) "$t"
 		console pen "$DT_INK" "$DT_FACE"
 		# Paragraph by paragraph, keeping the blank line between: an

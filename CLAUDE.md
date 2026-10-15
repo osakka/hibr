@@ -3668,6 +3668,17 @@ went in the shell.
   not prove is the fix: that failure did not reproduce on demand (0 of 10
   alone, 0 of 6 under spinners, 0 of 8 concurrent copies), so only the
   assumption is gone.
+- **A recorded test run on its own always passes, because the comparison
+  is not in it.** `./build/hibr tests/993-lang-ar.t` exits 0 whatever it
+  prints: `run.sh` is what diffs the output against `993-lang-ar.expected`.
+  So `./build/hibr tests/NNN.t > /dev/null && echo ok` is a check of
+  nothing for any test with a `.expected` beside it -- it was used to
+  confirm a language catalogue was current, said ok, and the release gate
+  then failed on that very test minutes later. Run `tests/run.sh` (it
+  takes 90 s and can be grepped for the one name), or diff the output
+  against the recording by hand. The same goes for believing a recorded
+  test is fixed: the fix is proven by the harness, not by the test
+  exiting 0.
 - **The `.expected` file is named after the test, not the test file.**
   `tests/830-img.t`'s own recorded file is `tests/830-img.expected` --
   `tests/830-img.t.expected` does not error, it just never matches

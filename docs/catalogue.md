@@ -651,10 +651,23 @@ screen saver, a window of any shape — and is described in
 **Catalogue**, on the hibr menu, is this command with a window around
 it — `examples/desktop/system/appstore.hibr`, the way the Vault accessory
 is a window around `vw`. Anything one can do the other can, because there
-is one implementation: the window runs `apps` as a child and never has a
-catalogue of its own. It is not called *Applications*: that is already the
-submenu of every app you can open, and two rows of one name on one menu is
-a menu nobody can learn.
+is one implementation: the window runs `catalogue` as a child and never
+has a catalogue of its own. It is not called *Applications*: that is
+already the submenu of every app you can open, and two rows of one name on
+one menu is a menu nobody can learn.
+
+It shows what the command's own columns show, which until 0.99.202 it did
+not: an entry wears **✓** when it is installed, **↻** when there is a
+newer version, and **⚠** when the machine has its own copy — read before
+yours, so yours can never run, which is worth more than a tick. The detail
+pane says when an entry **shadows the one hibr ships**, and how many files
+an entry brought with it, so what removing it would take away is readable
+before you press it rather than afterwards.
+
+The window acts in **your own scope only**. An install for the whole
+machine needs root, which the window does not have and should not ask
+for; that is `sudo catalogue --system install` at a terminal, and it is
+what an image build does anyway.
 
 ```text
 ┌─┤ Catalogue ├─────────────────────────────────────────────────────┤_ □ x├┐
