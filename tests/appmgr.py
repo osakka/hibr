@@ -668,6 +668,50 @@ try:
           rc == 0 and not os.path.exists(os.path.join(APPDIR, "demo.hibr")),
           (rc, out, err))
 
+    # `show` is how somebody reads a script before running it, which is
+    # the whole of ADR 0041's promise -- fetch it, verify it, print it,
+    # place nothing. It had no check at all: install was driven 46 times
+    # and show not once, so nothing would have caught it breaking
+    # (Gitea #248).
+    before = sorted(os.listdir(APPDIR))
+    rc, out, err = apps("show", "demo")
+    check("show prints the bundle's own bytes",
+          rc == 0 and "demo" in out, (rc, out, err))
+    check("and places nothing, which is the point of reading it first",
+          sorted(os.listdir(APPDIR)) == before,
+          (before, sorted(os.listdir(APPDIR))))
+    rc, out, err = apps("show", "nosuchthing")
+    check("show of a name the index does not have fails rather than "
+          "printing nothing and succeeding",
+          rc != 0 and "no such app" in err, (rc, out, err))
+
+    # A bundle whose bytes are not what the index promised must not be
+    # printed either: `show` verifies before it prints, or reading a
+    # script first is worth nothing.
+    # Tamper with whatever bundle the index names for it *now*: an
+    # earlier section repoints demo at demo-2.hibr to drive `update`, so
+    # a hard-coded filename here tampers with a file show no longer
+    # fetches and the check passes for the wrong reason.
+    served = json.load(open(os.path.join(WWW, "index.json")))
+    sec = served.get("entries") or served.get("apps")
+    bun = (sec.get("apps/demo") or sec.get("demo"))["bundle"]
+    bp = os.path.join(WWW, bun)
+    good = open(bp, "rb").read()
+    open(bp, "wb").write(good + b'\necho tampered\n')
+    rc, out, err = apps("show", "demo")
+    check("and one whose bytes are not what the index promised is "
+          "refused rather than printed",
+          rc != 0 and "tampered" not in out, (rc, out, err, bun))
+    open(bp, "wb").write(good)
+
+    rc, out, err = apps("refresh")
+    check("refresh fetches the index again and says so",
+          rc == 0 and "up to date" in out + err, (rc, out, err))
+    rc, out, err = apps("help")
+    check("help lists the verbs, including the ones added since",
+          rc == 0 and "check" in out + err and "owns" in out + err,
+          (rc, out, err))
+
     # A part decides a destination, so the rules the member paths already
     # follow have to hold for where it lands as well.
     for name, why in (("badpart", "a kind that is not one"),
@@ -1346,4 +1390,4 @@ finally:
     srv.wait()
     shutil.rmtree(D, True)
 
-report(115)
+report(121)

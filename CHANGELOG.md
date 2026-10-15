@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.99.203
+
+**`show` had no check at all, and it is the verb the trust rests on.**
+
+Gitea #248, from the catalogue audit. `tests/appmgr.py` drove `install`
+46 times, `installed` 25 and `remove` 16; it drove `show` **zero** times,
+`refresh` zero and `help` zero.
+
+`show` fetches a bundle, verifies it and prints it **without placing
+anything** -- it is how somebody reads a script before running it, which
+is the whole of ADR 0041's promise that an app is a script you can read
+first. Nothing would have caught it breaking.
+
+Seven checks: it prints the bundle's own bytes; it places nothing, which
+is the point; a name the index does not have fails rather than printing
+nothing and succeeding; and **a bundle whose bytes are not what the index
+promised is refused rather than printed**, which is the property that
+makes reading-first worth anything. Plus `refresh` and `help`.
+
+Nothing changed in the manager: these are checks for behaviour that was
+already correct, so unlike the rest of the audit they do not fail against
+the release before. What they buy is that it stays correct.
+
+The tamper check is worth a note, because the first version passed for
+the wrong reason. It rewrote `bundles/demo.hibr` -- and an earlier
+section of the suite repoints `demo` at `demo-2.hibr` to drive `update`,
+so it was tampering with a file `show` no longer fetches and watching it
+print happily. It resolves the bundle from the **served index** now, and
+the transition from that false pass to a real refusal is what says the
+check has teeth.
+
+Also here: `lang/ar.json` to 1.4 and `system/appstore.hibr` to 1.3, the
+version bumps 0.99.202 owed the catalogue. `./stale` is what said so --
+and it said so only because this same pass taught it to notice, which is
+the other half of the audit (#245, fixed in the catalogue repository: an
+app found by name matches in any folder, so comparing bytes alone could
+not see one that had **moved** between submenus while the index went on
+naming the folder it had left).
+
 ## 0.99.202
 
 **The Catalogue window shows what the command knows.**
