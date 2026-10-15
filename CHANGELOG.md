@@ -1,5 +1,92 @@
 # Changelog
 
+## 0.99.193
+
+**Six searches became one, and it is not drawn until you ask for it.**
+
+Reported plainly: *"your search is inconsistent, the contacts is in the
+title bar, and so on ... I see search in control panel, and in catalogue,
+and in contacts, and all."* The survey behind that:
+
+| | where it was | what it said |
+|---|---|---|
+| Mail | the **title bar** | `/ Search mail` |
+| Contacts | the **title bar** | `/ Search contacts` |
+| Files | row 1, right-aligned | `Search  /` |
+| YouTube | row 1, left | `Search:` |
+| Control Panel | inside its own list, dimmed | `Search…` |
+| Catalogue | a label beside a field | `Search` |
+
+Four placeholders, three places, the slash shown three different ways and
+typed into in two different ways -- so knowing how to search one window
+taught you nothing about the next.
+
+`widgets/search.hibr` is the one search now, and the owner chose its
+shape: **nothing is drawn until `/` is pressed**, then a bar on the
+window's own bottom row, gone again on escape. No window spends a row on
+a search nobody is making, which is what decided it over a permanent
+first row -- a list is what the window is for. Enter closes and keeps the
+query; the bar stays up while a query is still in force, because a
+filtered list with nothing on screen to say so is a window lying about
+what it is showing.
+
+The cost of an invisible feature is that nobody finds it, and the answer
+is the **Edit menu**, which every bar already carries: an app that
+defines `<app>_find` gets a Find row there naming the key, and one that
+does not gets it dimmed -- the same contract and the same dimming Copy
+and Undo already follow, so no new mechanism.
+
+What each window gave back: Mail and Contacts their title bars, Files the
+sixteen columns its box reserved on the path row, YouTube its whole
+` Search:` row, the Control Panel the row its permanently empty `Search…`
+sat in, and the Catalogue the row its label and field took -- all of it
+to the list, and the bar only there while searching.
+
+**A key the desktop holds is not text, and that rule is the widget's
+now.** Files and the Control Panel each had their own loop refusing a key
+bound in `DT_KEYS`; the widget has one, so every window gets it. Without
+it a search swallows the quit key, which the suites found at once: a
+teardown's `qy` landed in the box and the check read `FILE1qy`.
+
+**Mail and YouTube act when the bar is left, not on every keystroke**,
+because one asks a mailbox and the other a server. Same widget, same
+keys; only *when* the search is acted on differs, and it differs for a
+reason.
+
+Beside the sweep, the Catalogue and the tree:
+
+- **The divider is yours to drag, and it is the list's scrollbar.** A
+  scrollbar's track is the same vertical line a divider is, so one column
+  does both rather than two side by side (`widgets/split.hibr`, which the
+  Control Panel and the file dialog already used).
+- **The detail pane scrolls**, with a bar of its own and the wheel over
+  that half. Prose longer than the pane used to be cut with nothing
+  saying so -- and a reader cannot scroll what was never laid out, so it
+  is wrapped into lines first and drawn from a top.
+- **A child sits under its parent's mark**: `[-]` at column 1 and `├─` at
+  column 1 read as two things in a list. The connectors are one column
+  in, which is what was asked for.
+- **The tree is themeable the way the window buttons are.** It was a
+  Control Panel setting in 0.99.192 and nothing more; a theme carries
+  `tree` and `treelines` now, the bundled themes each pick their own, and
+  the rows moved from Windows to **Appearance**, where a look belongs.
+- **And a style change had done nothing at all**, which was reported and
+  was a real bug in 0.99.192: the marks were computed once, lazily, and
+  never read again. They carry the style and glyph set they were built
+  for and rebuild when either moves, so nothing has to remember to ask.
+- The `dots` style drew `▥`, which is a shaded square: `GL[disk]` is not
+  a dot. It is a hollow box open and a filled circle shut.
+
+Two things the checks taught, both this file's own lessons in new
+clothes. **`sc.find("/gad")` found `apps/gadget`** in the detail pane
+before the search bar -- a string search is a computed column wearing a
+different hat, so the bar is found by the window's own edge. And
+**adding two rows to the longest pane made it scroll**, which spends its
+last column on a bar, which cut `construction` to `constructio` and
+failed four checks about themes and shadows: a pane that outgrows its
+window is a real consequence, and those checks get a window tall enough
+to hold it.
+
 ## 0.99.192
 
 **The mouse had never worked anywhere `dt_hit` was asked and told no**,

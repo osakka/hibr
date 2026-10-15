@@ -9,5 +9,7 @@
   "frame": "rounded",
   "titlebar": "solid",
   "buttons": "brackets",
+  "tree": "triangles",
+  "treelines": true,
   "checks": "box"
 }

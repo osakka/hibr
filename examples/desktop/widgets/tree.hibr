@@ -35,19 +35,29 @@ command -v dt_keep > /dev/null && dt_keep DT_TREELINES
 TR_OPEN=
 TR_SHUT=
 TR_LEAF=
+# Which style and glyph set the three above were built for, so a change
+# to either takes effect on the next frame without anything having to
+# remember to call dt_treespec. A theme sets DT_TREESTYLE and a Control
+# Panel row sets it too; a flag each of them had to set is the list this
+# project's own notes say not to make.
+TR_FOR=
 
 # The three marks a style gives: an open branch, a shut one, and a leaf.
 # The same shape dt_btnspec is for the window buttons, so a fifth style is
 # a branch here and nothing else changes.
 fn dt_treespec(style = "") {
 	[ -n "$style" ] || style=$DT_TREESTYLE
+	TR_FOR="$style/$DT_GLYPHSET"
 	case $style in
 	arrows)
 		TR_OPEN=" ${GL[down]} "; TR_SHUT=" ${GL[rarr]} " ;;
 	triangles)
 		TR_OPEN=" ${GL[sdown]} "; TR_SHUT=" ${GL[sright]} " ;;
 	dots)
-		TR_OPEN=" ${GL[disk]} "; TR_SHUT=" ${GL[circle]} " ;;
+		# A filled dot shut and a hollow one open, which is the way
+		# round a person reads them: `GL[disk]` is a shaded square
+		# here, not a dot at all.
+		TR_OPEN=" ${GL[box]} "; TR_SHUT=" ${GL[circle]} " ;;
 	*)
 		# Plain ASCII, not GL[minus]: that is BOX DRAWINGS HEAVY
 		# HORIZONTAL in the unicode set, and `[━]` beside `[+]`
@@ -65,12 +75,16 @@ fn dt_treespec(style = "") {
 # the widget's leaf blank would have been rather than after it. Three
 # columns at depth 1, two more per level, and empty at the root.
 fn dt_treelead(int depth, int? last = 0, bars = "") {
-	local i=0 out= c
+	local i=0 out=" " c
 
+	# One column in, so a child's own join sits **under its parent's
+	# mark** rather than hard against the same edge: `[-]` at column 1
+	# and `├─` at column 1 read as two things in a list, where `[-]`
+	# and ` ├─` read as a branch and what is under it.
 	[ "$depth" -gt 0 ] || { ret ""; return 0; }
 	if [ "$DT_TREELINES" != 1 ]; then
 		out := str repeat "  " "$depth"
-		ret "$out "
+		ret " $out"
 		return 0
 	fi
 	while [ "$i" -lt "$depth" ]; do
@@ -108,7 +122,7 @@ fn dt_treelead(int depth, int? last = 0, bars = "") {
 fn dt_treepre(int depth, int branch, int? open = 0, int? last = 0, bars = "") {
 	local i=0 out= c
 
-	[ -n "$TR_OPEN" ] || dt_treespec
+	[ "$TR_FOR" = "$DT_TREESTYLE/$DT_GLYPHSET" ] || dt_treespec
 	if [ "$DT_TREELINES" = 1 ]; then
 		while [ "$i" -lt "$depth" ]; do
 			c=${bars:$i:1}
@@ -143,5 +157,6 @@ fn dt_treepre(int depth, int branch, int? open = 0, int? last = 0, bars = "") {
 # How many columns dt_treepre answers with at this depth, so a caller can
 # lay the rest of its row out without measuring the string it just built.
 fn dt_treew(int depth) {
-	ret $((3 + depth * 2))
+	[ "$depth" -gt 0 ] && { ret $((2 + depth * 2)); return 0; }
+	ret 3
 }

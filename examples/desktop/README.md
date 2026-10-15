@@ -151,6 +151,8 @@ A theme is a JSON file too:
   "frame": "double",
   "titlebar": "solid",
   "buttons": "squares",
+  "tree": "plus",
+  "treelines": true,
   "checks": "block",
   "dialog": "filled"
 }
@@ -162,7 +164,11 @@ and `mode` (a picture, its path relative to the theme's own folder so a
 theme can carry it, and how it is fitted), `frame` (`single`, `double`,
 `rounded`, `none`), `titlebar` (`line`, or `solid` -- the top row a bar of
 the frame's colour), `buttons` (`brackets`, `circles`, `squares`,
-`diamonds`, `dashes`), `side` (`right`, `left`), `align` (`left`,
+`diamonds`, `dashes`), `tree` (`plus`, `arrows`, `triangles`, `dots` --
+the marks a collapsible tree wears, so a theme that draws its windows one
+way does not leave every tree looking like the one before it) and
+`treelines` (`true` or `false`, the rules joining a child to its branch),
+`side` (`right`, `left`), `align` (`left`,
 `center`, `right`), `checks` (`theme`, `box`, `knob`, `block`), `dialog`
 (`filled`, `brackets`), `glyphs` (`unicode`, `ascii`), and `windowshadow`,
 `menushadow`, `barshadow` and `buttonshadow` (`true` or `false`). What a

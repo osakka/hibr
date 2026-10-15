@@ -688,6 +688,18 @@ dt_editmenu() {
 	else
 		dt_dim "Select All"
 	fi
+	# The one place a search can be found with nothing on screen saying
+	# so: widgets/search.hibr draws nothing until `/` is pressed, which
+	# is what the owner chose, and this is how the feature stays
+	# discoverable. Dimmed for a window whose app has no _find, exactly
+	# as Copy and Undo already are.
+	dt_sep
+	if [ -n "$who" ] && [ -n "${DT[$who]["find"]}" ]; then
+		dt_item "Find" f dt_editdo find
+	else
+		dt_dim "Find"
+	fi
+	dt_rowaccel "/"
 }
 
 # Undo, Redo or Select All in the focused window, through its own _undo,

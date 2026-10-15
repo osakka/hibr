@@ -28,6 +28,16 @@ command -v dt_app > /dev/null && dt_app appstore "Catalogue" 24 88 once "⌘"
 
 declare -gA AS
 AS_JOBS=
+# The detail pane's prose, wrapped into lines by appstore_draw so it can
+# be scrolled -- a list the drawing passes to itself, declared here
+# because a strict file's globals are declared at file level.
+AS_DLINES=()
+# Where the divider between the list and the detail sits, kept so it
+# is where it was left. State rather than a choice anybody makes in
+# the Control Panel, which is why it is named in 540-examples' own
+# list of those beside CP_DIVCOL and DIA_SPLIT.
+AS_SPLIT="${AS_SPLIT-}"
+command -v dt_keep > /dev/null && dt_keep AS_SPLIT
 AS_N=0
 AS_LIVE=0
 AS_READY=
@@ -157,9 +167,16 @@ fn as_loaded(int id, int st, int n, what = "") {
 	done
 	AS[$id]["n"]=$i
 	as_filter "$id"
-	# Onto the first entry rather than the first heading, so the detail
-	# pane has something in it the moment the window opens: a pane that
-	# is blank until you press down reads as a pane that is broken.
+	as_first "$id"
+	return 0
+}
+
+# Onto the first entry rather than the first heading, so the detail pane
+# has something in it: a pane that is blank until you press down reads as
+# a pane that is broken. Asked when the window loads and again after
+# every search, which is the same moment for the same reason -- a search
+# that narrows to one app should show you that app.
+fn as_first(int id) {
 	if [ "${AS[$id]["sel"]:-0}" = 0 ] && [ "${AS[$id]["m"]:-0}" -gt 1 ] &&
 	   [ "${AS[$id]["r"][0]["t"]}" = kind ] &&
 	   [ "${AS[$id]["r"][1]["t"]}" = entry ]; then
@@ -200,7 +217,7 @@ fn as_filter(int id) {
 	local -a cnt
 
 	n=${AS[$id]["n"]:-0}
-	q=${AS[$id]["q"]}
+	q := dt_searchq "$id"
 	AS[$id]["shown"]=0
 	for ki in "${!AS_KINDS[@]}"; do
 		k=${AS_KINDS[$ki]}
@@ -325,9 +342,7 @@ fn as_fold(int id, how) {
 fn appstore_open(int id, arg = "") {
 	AS[$id]["sel"]=0
 	AS[$id]["top"]=0
-	AS[$id]["q"]=
-	AS[$id]["qcur"]=0
-	AS[$id]["focus"]=list
+	dt_searchclear "$id"
 	# Applications open and the rest shut: the structure is visible at a
 	# glance and the group most people came for is already there, where
 	# everything open is the wall this tree exists to avoid and
@@ -339,6 +354,7 @@ fn appstore_open(int id, arg = "") {
 
 fn appstore_close(int id) {
 	unset AS["$id"]
+	dt_searchfree "$id"
 	return 0
 }
 
@@ -353,45 +369,58 @@ fn appstore_idle(int id) {
 # about their own app.
 fn appstore_draw(int id, int h, int w, int row, int col) {
 	local n m sel top vis i r e idw listw dw line t mark st about blank
+	local srows q
 	local -a words
 
 	dt_wclear "$id"
 	as_poll "$id"
-	listw=40
-	[ "$w" -lt 70 ] && listw=$((w / 2))
-	dw=$((w - listw - 3))
+	# The divider is the person's, dragged where they want it
+	# (widgets/split.hibr) -- and it is the list's scrollbar as well,
+	# because a scrollbar's track is the same vertical line a divider
+	# is: one column doing both rather than two columns side by side.
+	listw := dt_split AS_SPLIT "$w" 16 40
+	# One column short of the room left, always: the detail has a
+	# scrollbar of its own when the prose is longer than the pane, and
+	# a text width that changed as you moved between entries would
+	# reflow every line for the sake of one column.
+	dw=$((w - listw - 4))
 	m=${AS[$id]["m"]:-0}
 	n=${AS[$id]["n"]:-0}
-	vis=$((h - 5))
+	# The search takes the window's own bottom row, and only while
+	# there is one (widgets/search.hibr): nothing is drawn until `/`,
+	# so a window nobody is searching keeps the row for its list.
+	srows := dt_searchrows "$id"
+	vis=$((h - 3 - srows))
 	[ "$vis" -lt 1 ] && vis=1
 
-	# The search field, and what it is a search of.
-	console pen "$DT_INK" "$DT_FACE"
-	t := dt_tr "Search"
-	console put -p "w$id" 1 2 "$t"
-	dt_textdraw "$id" 1 $((2 + ${#t} + 1)) 24 "${AS[$id]["q"]}" \
-		"${AS[$id]["qcur"]:-0}" \
-		"$([ "${AS[$id]["focus"]}" = search ] && echo 1 || echo 0)"
+	# What this is a list of, and how much of it is shown.
 	console pen "$DT_DIM" "$DT_FACE"
 	if [ -n "${AS[$id]["busy"]}" ]; then
 		t := dt_tr "working: %s" "${AS[$id]["busy"]}"
 	elif [ -n "${AS[$id]["loading"]}" ]; then
 		t := dt_tr "reading the catalogue"
-	elif [ -n "${AS[$id]["q"]}" ]; then
+	elif q := dt_searchq "$id"; [ -n "$q" ]; then
 		t := dt_tr "%s of %s" "${AS[$id]["shown"]:-0}" "$n"
 	else
 		t := dt_tr "%s in the catalogue" "$n"
 	fi
+	# On the buttons' own row, right-aligned, which is where a status
+	# belongs and the one row nothing else reaches: it used to share
+	# row 1 with the search field, and when the search left (it draws
+	# nothing until asked, widgets/search.hibr) that row went to the
+	# list's headings -- where the detail pane's own blanking wiped the
+	# count on every frame.
+	#
 	# Right-aligned inside a field of its own width, and the field is
 	# padded: `dt_wclear` clears a window's clickable *regions*, not its
 	# cells, so a shorter line drawn where a longer one was leaves the
 	# tail of the old one on screen -- which is why this read
 	# "working: list" long after the work had finished.
-	as_right "$id" 1 "$w" 34 "$t"
+	AS[$id]["status"]=$t
 
 	if [ -n "${AS[$id]["err"]}" ]; then
 		console pen "$DT_BAD" "$DT_FACE"
-		console put -p "w$id" 3 2 "${AS[$id]["err"]}"
+		console put -p "w$id" 2 2 "${AS[$id]["err"]}"
 		dt_buttons "$id" $((h - 1)) 2 "" asrefresh Refresh
 		return 0
 	fi
@@ -402,17 +431,21 @@ fn appstore_draw(int id, int h, int w, int row, int col) {
 	AS[$id]["top"]=$top
 	AS[$id]["vis"]=$vis
 
+	# The headings share row 1 with the count, which is where the
+	# search field used to be: the row is free now that the search
+	# draws nothing until it is asked for, and giving it back to the
+	# list is the whole point of that choice.
 	console pen "$DT_INK" "$DT_FACE" bold
 	t := dt_tr "ITEM"
-	console put -p "w$id" 2 2 "$t"
+	console put -p "w$id" 1 2 "$t"
 	t := dt_tr "VERSION"
-	console put -p "w$id" 2 $((listw - ${#t} + 1)) "$t"
+	console put -p "w$id" 1 $((listw - ${#t} + 1)) "$t"
 
 	i=$top
-	r=3
+	r=2
 	idw=$((listw - 14))
 	[ "$idw" -lt 10 ] && idw=10
-	while [ "$r" -lt $((3 + vis)) ]; do
+	while [ "$r" -lt $((2 + vis)) ]; do
 		if [ "$i" -lt "$m" ]; then
 			if [ "${AS[$id]["r"][$i]["t"]}" = kind ]; then
 				# A heading: which way it folds, what it is
@@ -424,7 +457,7 @@ fn appstore_draw(int id, int h, int w, int row, int col) {
 				kn := as_kindname "$kk"
 				kn := dt_tr "$kn"
 				if [ "${AS[$id]["open"]["$kk"]}" = 1 ] ||
-				   [ -n "${AS[$id]["q"]}" ]; then
+				   [ -n "$q" ]; then
 					kopen=1
 				fi
 				# A branch at the root: the widget decides
@@ -441,7 +474,7 @@ fn appstore_draw(int id, int h, int w, int row, int col) {
 				line="$mark $t"
 				t := str pad "$line" $((listw - 1 - ${#cnt}))
 				line="$t$cnt"
-				if [ "$i" = "$sel" ] && [ "${AS[$id]["focus"]}" = list ]; then
+				if [ "$i" = "$sel" ] && ! dt_searchon "$id"; then
 					console pen "$DT_SELINK" "$DT_ACTIVE" bold
 				elif [ "$i" = "$sel" ]; then
 					console pen "$DT_INK" "$DT_WELL" bold
@@ -464,7 +497,7 @@ fn appstore_draw(int id, int h, int w, int row, int col) {
 				t := dt_cut "${AS[$id]["e"][$e]["name"]}" "$idw"
 				t := str pad "$lead$mark $t" $((listw - 8))
 				line="$t${AS[$id]["e"][$e]["version"]}"
-				if [ "$i" = "$sel" ] && [ "${AS[$id]["focus"]}" = list ]; then
+				if [ "$i" = "$sel" ] && ! dt_searchon "$id"; then
 					console pen "$DT_SELINK" "$DT_ACTIVE"
 				elif [ "$i" = "$sel" ]; then
 					console pen "$DT_INK" "$DT_WELL"
@@ -490,15 +523,16 @@ fn appstore_draw(int id, int h, int w, int row, int col) {
 	# A rule between the two, because without one the detail's own
 	# heading sits on the same row as ITEM and VERSION and reads as a
 	# third column of the list rather than the top of a second pane.
-	console pen "$DT_DIM" "$DT_FACE"
-	console fill -p "w$id" 2 $((listw + 1)) $((h - 3)) 1 "${GL[vline]}"
+	dt_splitbar "$id" $((listw + 1)) 1 $((h - 2 - srows)) \
+		"${AS[$id]["drag"]:-0}"
+	dt_scrollbar "$id" 2 $((listw + 1)) "$vis" "$m" "$vis" "$top"
 
 	# The detail: what this one says about itself. Blanked first, for
 	# the same reason the list rows are: a shorter entry after a longer
 	# one would otherwise be read against the tail of the one before.
 	blank := str repeat " " "$dw"
-	r=2
-	while [ "$r" -lt $((h - 1)) ]; do
+	r=1
+	while [ "$r" -lt $((h - 1 - srows)) ]; do
 		console put -p "w$id" "$r" $((listw + 3)) "$blank"
 		r=$((r + 1))
 	done
@@ -506,11 +540,11 @@ fn appstore_draw(int id, int h, int w, int row, int col) {
 	if [ -n "$e" ]; then
 		console pen "$DT_ACTIVE" "$DT_FACE" bold
 		t := dt_cut "${AS[$id]["e"][$e]["title"]}" "$dw"
-		console put -p "w$id" 2 $((listw + 3)) "$t"
+		console put -p "w$id" 1 $((listw + 3)) "$t"
 		console pen "$DT_DIM" "$DT_FACE"
 		st=${AS[$id]["e"][$e]["id"]}
 		t := dt_cut "$st" "$dw"
-		console put -p "w$id" 3 $((listw + 3)) "$t"
+		console put -p "w$id" 2 $((listw + 3)) "$t"
 		if [ "${AS[$id]["e"][$e]["update"]}" = 1 ]; then
 			t := dt_tr "installed %s, %s available" \
 				"${AS[$id]["e"][$e]["installed"]}" \
@@ -520,7 +554,7 @@ fn appstore_draw(int id, int h, int w, int row, int col) {
 		else
 			t := dt_tr "version %s" "${AS[$id]["e"][$e]["version"]}"
 		fi
-		console put -p "w$id" 4 $((listw + 3)) "$t"
+		console put -p "w$id" 3 $((listw + 3)) "$t"
 		console pen "$DT_INK" "$DT_FACE"
 		# Paragraph by paragraph, keeping the blank line between: an
 		# `about` is the app's own one-line summary and then the
@@ -529,32 +563,55 @@ fn appstore_draw(int id, int h, int w, int row, int col) {
 		# paragraph are flattened because `read -ra` of a here-string
 		# reads **one line** -- without that the detail showed the
 		# first line and silently dropped the rest.
-		r=6
-		local para
+		# Wrapped into lines first and drawn from `dtop`, rather
+		# than drawn as it is read: prose longer than the pane used
+		# to be cut off with nothing saying so, and a reader cannot
+		# scroll what was never laid out. The bar on the right says
+		# there is more, and the wheel over this half moves it.
+		local para dtop dvis dn
+		AS_DLINES=()
 		while IFS= read -r para; do
-			[ "$r" -ge $((h - 2)) ] && break
 			if [ -z "$para" ]; then
-				r=$((r + 1))
+				AS_DLINES+=("")
 				continue
 			fi
 			read -ra words <<< "$para"
 			line=
 			for t in "${words[@]}"; do
 				if [ $((${#line} + ${#t} + 1)) -gt "$dw" ]; then
-					console put -p "w$id" "$r" $((listw + 3)) "$line"
+					AS_DLINES+=("$line")
 					line=$t
-					r=$((r + 1))
-					[ "$r" -ge $((h - 2)) ] && break
 				else
 					line="${line:+$line }$t"
 				fi
 			done
-			[ "$r" -lt $((h - 2)) ] && [ -n "$line" ] &&
-				console put -p "w$id" "$r" $((listw + 3)) "$line"
-			r=$((r + 1))
+			[ -n "$line" ] && AS_DLINES+=("$line")
 		done <<< "${AS[$id]["e"][$e]["about"]}"
+		dn=${#AS_DLINES[@]}
+		dvis=$((h - 7 - srows))
+		[ "$dvis" -lt 1 ] && dvis=1
+		AS[$id]["dvis"]=$dvis
+		AS[$id]["dn"]=$dn
+		dtop=${AS[$id]["dtop"]:-0}
+		dtop := dt_scrollfit "$dtop" "$dn" "$dvis"
+		AS[$id]["dtop"]=$dtop
+		r=5
+		i=0
+		while [ "$i" -lt "$dvis" ]; do
+			line=${AS_DLINES[$((dtop + i))]-}
+			line := str pad "$line" "$dw"
+			console put -p "w$id" "$r" $((listw + 3)) "$line"
+			r=$((r + 1))
+			i=$((i + 1))
+		done
+		[ "$dn" -gt "$dvis" ] &&
+			dt_scrollbar "$id" 5 $((w - 1)) "$dvis" "$dn" \
+				"$dvis" "$dtop"
 	fi
-	as_btns "$id" "$h" "$w"
+	as_btns "$id" $((h - srows)) "$w"
+	console pen "$DT_DIM" "$DT_FACE"
+	as_right "$id" $((h - 1 - srows)) "$w" 34 "${AS[$id]["status"]}"
+	dt_searchdraw "$id" "$h" "$w"
 	return 0
 }
 
@@ -707,28 +764,29 @@ fn as_readit(int id, int st, int n, what = "") {
 
 # --- keys and clicks --------------------------------------------------
 
-fn appstore_key(int id, key) {
-	local r
+# `/` and the Edit menu's Find both come here, which is the whole of this
+# window's search now: widgets/search.hibr holds the text, the keys and
+# the bar, and this only re-filters when they change something.
+fn appstore_find(int id) {
+	dt_searchopen "$id"
+	return 0
+}
 
-	if [ "${AS[$id]["focus"]}" = search ]; then
-		case $key in
-		escape | tab)
-			AS[$id]["focus"]=list
-			return 0 ;;
-		enter)
-			AS[$id]["focus"]=list
-			return 0 ;;
-		esac
-		r := dt_textkey "${AS[$id]["q"]}" "${AS[$id]["qcur"]:-0}" "$key" || return 1
-		AS[$id]["q"]=${r% *}
-		AS[$id]["qcur"]=${r##* }
-		AS[$id]["sel"]=0
-		AS[$id]["top"]=0
-		as_filter "$id"
+fn appstore_key(int id, key) {
+	local r q0 q1
+
+	q0 := dt_searchq "$id"
+	if dt_searchkey "$id" "$key"; then
+		q1 := dt_searchq "$id"
+		if [ "$q0" != "$q1" ]; then
+			AS[$id]["sel"]=0
+			AS[$id]["top"]=0
+			as_filter "$id"
+			as_first "$id"
+		fi
 		return 0
 	fi
 	case $key in
-	tab | "/") AS[$id]["focus"]=search; return 0 ;;
 	right) as_fold "$id" open; return 0 ;;
 	left) as_fold "$id" shut; return 0 ;;
 	enter | " ") as_fold "$id" toggle || return 1; return 0 ;;
@@ -747,6 +805,35 @@ fn appstore_key(int id, key) {
 	down) [ "${AS[$id]["sel"]:-0}" -lt $((${AS[$id]["m"]:-0} - 1)) ] &&
 		AS[$id]["sel"]=$((${AS[$id]["sel"]} + 1)) ;;
 	esac
+	# A different entry's prose starts at its own beginning, not where
+	# the last one was left.
+	AS[$id]["dtop"]=0
+	return 0
+}
+
+# A press on the divider begins a drag of it; anything else is an
+# ordinary click. An app with a `_mouse` never gets `_click`, so this
+# passes on what it does not want, the shape panel_mouse and fpick_mouse
+# already use.
+fn appstore_mouse(int id, act, btn, int r, int c, mods = "") {
+	local listw
+
+	listw := dt_split AS_SPLIT "${DT[$id]["w"]:-80}" 16 40
+	case $act in
+	press)
+		if [ "$c" = $((listw + 1)) ]; then
+			AS[$id]["drag"]=1
+			return 0
+		fi
+		AS[$id]["drag"]=
+		appstore_click "$id" "$r" "$c" "$btn"
+		;;
+	drag)
+		[ "${AS[$id]["drag"]}" = 1 ] || return 0
+		dt_splitmove AS_SPLIT $((c - 1)) "${DT[$id]["w"]:-80}" 16
+		;;
+	release) AS[$id]["drag"]= ;;
+	esac
 	return 0
 }
 
@@ -755,6 +842,7 @@ fn appstore_click(int id, int r, int? c = "", btn = "") {
 
 	tag := dt_hit "$id" "$r" "$c" && {
 		case $tag in
+		dtsearch) dt_searchopen "$id" ;;
 		asgo) as_go "$id" ;;
 		asupdate) as_update "$id" ;;
 		asread) as_read "$id" ;;
@@ -762,14 +850,11 @@ fn appstore_click(int id, int r, int? c = "", btn = "") {
 		esac
 		return 0
 	}
-	if [ "$r" = 1 ]; then
-		AS[$id]["focus"]=search
-		return 0
-	fi
-	if [ "$r" -ge 3 ]; then
-		i=$((${AS[$id]["top"]:-0} + r - 3))
+	if [ "$r" -ge 2 ]; then
+		i=$((${AS[$id]["top"]:-0} + r - 2))
 		if [ "$i" -lt "${AS[$id]["m"]:-0}" ]; then
-			AS[$id]["focus"]=list
+			dt_searchshut "$id"
+			AS[$id]["dtop"]=0
 			# A click on a heading folds it, which is what a
 			# click on a heading does everywhere; a click on one
 			# already selected folds it too, rather than doing
@@ -785,9 +870,19 @@ fn appstore_click(int id, int r, int? c = "", btn = "") {
 	return 0
 }
 
+# The wheel moves whichever half it is over: the list on the left, the
+# entry's own prose on the right. A window cut in two scrolls in two.
 fn appstore_wheel(int id, dir, int? r = "", int? c = "") {
-	local t
+	local t listw
 
+	listw := dt_split AS_SPLIT "${DT[$id]["w"]:-80}" 16 40
+	if [ -n "$c" ] && [ "$c" -gt $((listw + 1)) ]; then
+		t := dt_scrollmove "$dir" "${AS[$id]["dtop"]:-0}" \
+				   "${AS[$id]["dn"]:-0}" \
+				   "${AS[$id]["dvis"]:-1}" || return 1
+		AS[$id]["dtop"]=$t
+		return 0
+	fi
 	t := dt_scrollmove "$dir" "${AS[$id]["top"]:-0}" "${AS[$id]["m"]:-0}" \
 			   "${AS[$id]["vis"]:-1}" || return 1
 	AS[$id]["top"]=$t

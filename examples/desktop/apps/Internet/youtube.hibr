@@ -150,7 +150,7 @@ fn yt_load(int id, kind, arg, head = "", push = 1) {
 	YT[$id]["head"]=$head
 	YT[$id]["err"]=
 	YT[$id]["view"]=list
-	YT[$id]["qon"]=
+	dt_searchshut "$id"
 	YT[$id]["n"]=0
 	YT[$id]["sel"]=0
 	YT[$id]["top"]=0
@@ -194,7 +194,7 @@ fn yt_back(int id) {
 	local -a f
 
 	if [ -z "$st" ]; then
-		YT[$id]["qon"]=1
+		dt_searchopen "$id"
 		return 0
 	fi
 	st=${st%$'\n'}
@@ -676,9 +676,8 @@ fn youtube_open(int id, arg = "") {
 	YT[$id]["head"]=
 	YT[$id]["stack"]=
 	YT[$id]["q"]=
-	YT[$id]["qbuf"]=
-	YT[$id]["qcur"]=0
-	YT[$id]["qon"]=1
+	dt_searchclear "$id"
+	dt_searchopen "$id"
 	YT[$id]["n"]=0
 	YT[$id]["sel"]=0
 	YT[$id]["top"]=0
@@ -690,10 +689,14 @@ fn youtube_open(int id, arg = "") {
 	yt_favload
 	yt_need "$id" || return 0
 	if [ -n "$arg" ]; then
-		YT[$id]["qbuf"]=$arg
-		YT[$id]["qcur"]=${#arg}
+		dt_searchset "$id" "$arg"
 		yt_search "$id" "$arg"
 	fi
+	return 0
+}
+
+fn youtube_find(int id) {
+	dt_searchopen "$id"
 	return 0
 }
 
@@ -775,32 +778,34 @@ fn youtube_draw(int id, int h, int w, int row, int col) {
 # of list it opens -- the chosen one lit.
 fn yt_drawlist(int id, int h, int w) {
 	local n=${YT[$id]["n"]} sel=${YT[$id]["sel"]} top=${YT[$id]["top"]}
-	local r=3 i lab tail vis=$((h - 3)) on=0 hd mk len star=${GL[star]}
+	local r=2 i lab tail vis on=0 hd mk len star=${GL[star]} srows
 
 	command -v dt_retitle > /dev/null && dt_retitle "$id" "YouTube"
+	# The ` Search:` row is gone: the search is the desktop's one
+	# search now (widgets/search.hibr), on this window's bottom row
+	# and drawn only once `/` has asked for it.
+	srows := dt_searchrows "$id"
+	vis=$((h - 2 - srows))
+	[ "$vis" -lt 1 ] && vis=1
 	console pen "$DT_INK" "$DT_FACE"
-	dt_tput "$id" 1 1 " Search:"
-	[ "${YT[$id]["qon"]}" = 1 ] && on=1
-	dt_textdraw "$id" 1 10 $((w - 10)) "${YT[$id]["qbuf"]}" "${YT[$id]["qcur"]}" "$on"
-	dt_wreg "$id" 1 10 $((w - 10)) search
 	hd := yt_heading "$id"
 	console pen "$DT_ACTIVE" "$DT_FACE" bold
 	if [ "$DT_MIRRORON" = 1 ]; then
 		lab := dt_rpad "${hd:0:$((w - 3))}" $((w - 2))
-		console put -p "w$id" 2 1 "$lab"
+		console put -p "w$id" 1 1 "$lab"
 	else
-		console put -p "w$id" 2 2 "${hd:0:$((w - 3))}"
+		console put -p "w$id" 1 2 "${hd:0:$((w - 3))}"
 	fi
 	if [ -n "${YT[$id]["searching"]}" ]; then
 		console pen "$DT_DIM" "$DT_FACE"
-		console put -p "w$id" 3 2 "Looking${GL[ellipsis]}"
+		console put -p "w$id" 2 2 "Looking${GL[ellipsis]}"
 		n=0
 	elif [ -n "${YT[$id]["err"]}" ]; then
 		console pen "$DT_BAD" "$DT_FACE"
-		console put -p "w$id" 3 2 "${YT[$id]["err"]:0:$((w - 3))}"
+		console put -p "w$id" 2 2 "${YT[$id]["err"]:0:$((w - 3))}"
 	elif [ "$n" = 0 ]; then
 		console pen "$DT_DIM" "$DT_FACE"
-		dt_tput "$id" 3 2 "Type what to look for, or a playlist's or a channel's address, and enter."
+		dt_tput "$id" 2 2 "Type what to look for, or a playlist's or a channel's address, and enter."
 	fi
 	[ "$sel" -lt "$top" ] && top=$sel
 	[ "$sel" -ge $((top + vis)) ] && top=$((sel - vis + 1))
@@ -827,7 +832,7 @@ fn yt_drawlist(int id, int h, int w) {
 		else
 			lab := str pad "$lab" $((w - ${#tail}))
 		fi
-		if [ "$i" = "$sel" ] && [ "${YT[$id]["qon"]}" != 1 ]; then
+		if [ "$i" = "$sel" ] && ! dt_searchon "$id"; then
 			console pen "$DT_SELINK" "$DT_ACTIVE" bold
 		elif [ "$i" = "$sel" ]; then
 			console pen "$DT_INK" "$DT_WELL"
@@ -841,10 +846,11 @@ fn yt_drawlist(int id, int h, int w) {
 	done
 	r=$w
 	[ "$DT_MIRRORON" = 1 ] && r=1
-	dt_scrollbar "$id" 3 "$r" "$vis" "$n" "$vis" "$top"
+	dt_scrollbar "$id" 2 "$r" "$vis" "$n" "$vis" "$top"
 	console pen "$DT_DIM" "$DT_FACE"
 	lab := str pad " enter open ${GL[dot]} f favourite ${GL[dot]} h history ${GL[dot]} v favourites ${GL[dot]} / search ${GL[dot]} esc back" "$w"
-	console put -p "w$id" "$h" 1 "${lab:0:$w}"
+	console put -p "w$id" $((h - srows)) 1 "${lab:0:$w}"
+	dt_searchdraw "$id" "$h" "$w"
 }
 
 # Minutes and seconds, with hours in front of an hour or more.
@@ -935,6 +941,7 @@ fn yt_drawplay(int id, int h, int w) {
 
 fn youtube_key(int id, key) {
 	local r n=${YT[$id]["n"]} sel=${YT[$id]["sel"]} p=${YT[$id]["p"]} v k
+	local q0
 
 	if [ "${YT[$id]["view"]}" = play ]; then
 		case $key in
@@ -968,21 +975,19 @@ fn youtube_key(int id, key) {
 		esac
 		return 1
 	fi
-	if [ "${YT[$id]["qon"]}" = 1 ]; then
-		case $key in
-		enter) yt_search "$id" "${YT[$id]["qbuf"]}"; return 0 ;;
-		escape | down | tab) [ "$n" -gt 0 ] && YT[$id]["qon"]=; return 0 ;;
-		esac
-		for k in "${!DT_KEYS[@]}"; do
-			[ "${DT_KEYS["$k"]}" = "$key" ] && return 1
-		done
-		r := dt_textkey "${YT[$id]["qbuf"]}" "${YT[$id]["qcur"]}" "$key" || return 1
-		YT[$id]["qbuf"]=${r% *}
-		YT[$id]["qcur"]=${r##* }
+	# YouTube asks a server, so like Mail it acts when the bar is
+	# **left** rather than on every keystroke: enter searches.
+	if dt_searchon "$id" && [ "$key" = enter ]; then
+		q0 := dt_searchq "$id"
+		dt_searchshut "$id"
+		yt_search "$id" "$q0"
+		return 0
+	fi
+	if dt_searchkey "$id" "$key"; then
 		return 0
 	fi
 	case $key in
-	up) [ "$sel" -gt 0 ] && YT[$id]["sel"]=$((sel - 1)) || YT[$id]["qon"]=1 ;;
+	up) [ "$sel" -gt 0 ] && YT[$id]["sel"]=$((sel - 1)) || dt_searchopen "$id" ;;
 	down) [ "$sel" -lt $((n - 1)) ] && YT[$id]["sel"]=$((sel + 1)) ;;
 	pageup) sel=$((sel - ${YT[$id]["vis"]:-10})); [ "$sel" -lt 0 ] && sel=0; YT[$id]["sel"]=$sel ;;
 	pagedown) sel=$((sel + ${YT[$id]["vis"]:-10})); [ "$sel" -ge "$n" ] && sel=$((n - 1)); YT[$id]["sel"]=$sel ;;
@@ -993,7 +998,7 @@ fn youtube_key(int id, key) {
 	h) yt_load "$id" history "" ;;
 	v) yt_load "$id" favourites "" ;;
 	escape | backspace) yt_back "$id" ;;
-	/ | tab) YT[$id]["qon"]=1 ;;
+	tab) dt_searchopen "$id" ;;
 	*) return 1 ;;
 	esac
 	return 0
@@ -1048,13 +1053,13 @@ fn youtube_click(int id, int r, int c, btn = "") {
 		return 0
 	fi
 	case $tag in
-	search) YT[$id]["qon"]=1 ;;
+	dtsearch) dt_searchopen "$id" ;;
 	row:*)
-		if [ "${YT[$id]["sel"]}" = "${tag#row:}" ] && [ "${YT[$id]["qon"]}" != 1 ]; then
+		if [ "${YT[$id]["sel"]}" = "${tag#row:}" ] && ! dt_searchon "$id"; then
 			yt_choose "$id" "${tag#row:}"
 		else
 			YT[$id]["sel"]=${tag#row:}
-			YT[$id]["qon"]=
+			dt_searchshut "$id"
 		fi
 		;;
 	bar)
@@ -1084,8 +1089,9 @@ fn youtube_wheel(int id, dir, int r = 0, int c = 0) {
 fn youtube_copy(int id) {
 	local i=${YT[$id]["sel"]}
 
-	if [ "${YT[$id]["qon"]}" = 1 ]; then
-		ret "${YT[$id]["qbuf"]}"
+	if dt_searchon "$id"; then
+		i := dt_searchq "$id"
+		ret "$i"
 		return 0
 	fi
 	if [ "${YT[$id]["view"]}" = play ] && [ -n "${YT[$id]["vid"]}" ]; then
@@ -1103,10 +1109,12 @@ fn youtube_copy(int id) {
 fn youtube_paste(int id, text, op = "") {
 	local r
 
-	YT[$id]["qon"]=1
-	r := dt_textpaste "${YT[$id]["qbuf"]}" "${YT[$id]["qcur"]}" "$text"
-	YT[$id]["qbuf"]=${r% *}
-	YT[$id]["qcur"]=${r##* }
+	local q
+
+	dt_searchopen "$id"
+	q := dt_searchq "$id"
+	r := dt_textpaste "$q" "${#q}" "$text"
+	dt_searchset "$id" "${r% *}"
 }
 
 youtube_menus() {

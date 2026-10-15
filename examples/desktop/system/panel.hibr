@@ -150,8 +150,10 @@ fn panel_pane(int w) {
 # Worked out again only when the text changes, since asking every pane
 # for its rows is not free; each pane's rows are built under a window id
 # no window has, and thrown away.
-fn panel_find(int id) {
-	local q=${PW[$id]["q"]} i=0 n k t hit out= scratch=999999
+fn panel_filter(int id) {
+	local q i=0 n k t hit out= scratch=999999
+
+	q := dt_searchq "$id"
 
 	q=${q,,}
 	[ "${PW[$id]["mq"]}" = "$q" ] && [ -n "${PW[$id]["mq"]+x}" ] && return 0
@@ -187,7 +189,7 @@ fn panel_shown(int id, int i) {
 }
 
 fn panel_draw(int id, int h, int w, int row, int col) {
-	local i n r t lw side pane bx bw g sel at=0 lt vis on lx=0 dv
+	local i n r t lw side pane bx bw g sel at=0 lt vis on lx=0 dv srows
 	local -a lines m
 
 	dt_wclear "$id"
@@ -205,7 +207,7 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 	# scrolled on its own, apart from the pane beside it: the selected
 	# pane is brought into view when the selection moves, and otherwise
 	# the wheel puts the list where it likes.
-	panel_find "$id"
+	panel_filter "$id"
 	read -ra m <<< "${PW[$id]["m"]}"
 	if [ "${#m[@]}" -gt 0 ] && ! panel_shown "$id" "${PW[$id]["pane"]}"; then
 		PW[$id]["pane"]=${m[0]}
@@ -214,24 +216,19 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 		PW[$id]["last"]=-1
 		pane := panel_pane "$id"
 	fi
-	on=0
-	[ "$side" = list ] && [ "$DT_FOCUS" = "$id" ] && on=1
-	if [ -z "${PW[$id]["q"]}" ]; then
-		console pen "$DT_DIM" "$DT_FACE"
-		t := str pad "Search${GL[ellipsis]}" $((lw - 3))
-		console put -p "w$id" 1 $((lx + 2)) "$t"
-		if [ "$on" = 1 ]; then
-			console pen "$DT_FACE" "$DT_INK"
-			console put -p "w$id" 1 $((lx + 2)) "S"
-		fi
-	else
-		dt_textdraw "$id" 1 $((lx + 2)) $((lw - 3)) "${PW[$id]["q"]}" \
-			"${#PW[$id]["q"]}" "$on"
-	fi
-	dt_wreg "$id" 1 $((lx + 1)) $((lw - 1)) search
+	# No box of its own: the search is the desktop's one search now
+	# (widgets/search.hibr), drawn on this window's bottom row only
+	# once `/` has asked for it, so the list keeps the row it used to
+	# spend on a permanently empty `Search…`.
+	srows := dt_searchrows "$id"
+	# Drawn here rather than at the end: this function returns early
+	# when nothing matches the search, and a search bar that vanishes
+	# exactly when the search found nothing is the one moment it is
+	# most needed.
+	dt_searchdraw "$id" "$h" "$w"
 	sel=${PW[$id]["pane"]}
 	lt=${PW[$id]["ltop"]:-0}
-	vis=$((h - 1))
+	vis=$((h - srows))
 	i=0
 	g=
 	for n in "${CP_PANE_LIST[@]}"; do
@@ -259,9 +256,9 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 	PW[$id]["ltop"]=$lt
 	PW[$id]["lvis"]=$vis
 	PW[$id]["ln"]=${#lines[@]}
-	r=2
-	while [ "$r" -le "$h" ]; do
-		t=${lines[$((lt + r - 2))]}
+	r=1
+	while [ "$r" -le $((h - srows)) ]; do
+		t=${lines[$((lt + r - 1))]}
 		case $t in
 		h:*)
 			console pen "$DT_DIM" "$DT_FACE" bold
@@ -318,9 +315,9 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 	bw=$((w - lw - 1))
 	case $DT_MIRRORON in 1) bx=2 ;; esac
 	if dt_has "${pane}_draw"; then
-		"${pane}_draw" "$id" $((h - 1)) "$bw" "$bx"
+		"${pane}_draw" "$id" $((h - 1 - srows)) "$bw" "$bx"
 	else
-		cp_rowsdraw "$id" "$pane" $((h - 1)) "$bw" "$bx"
+		cp_rowsdraw "$id" "$pane" $((h - 1 - srows)) "$bw" "$bx"
 	fi
 }
 
@@ -599,38 +596,31 @@ cp_save() {
 	return 0
 }
 
+fn panel_find(int w) {
+	dt_searchopen "$w"
+	PW[$w]["side"]=list
+	return 0
+}
+
 fn panel_key(int w, key) {
 	local pane k q r
 
+	# The search first, wherever the keyboard is: `/` opens it and the
+	# keys go into it while it is open, the same in this window as in
+	# every other. It used to be type-to-find in the list -- any letter
+	# added to a query -- which is a good picker and a seventh way of
+	# searching, and the seventh was the problem.
+	if dt_searchkey "$w" "$key"; then
+		PW[$w]["side"]=list
+		return 0
+	fi
 	if [ "${PW[$w]["side"]}" = list ]; then
-		q=${PW[$w]["q"]}
 		case $key in
-		" ")
-			if [ -z "$q" ]; then
-				PW[$w]["side"]=pane
-			else
-				PW[$w]["q"]="$q "
-			fi
-			;;
-		tab | right | enter) [ -n "${PW[$w]["m"]}" ] && PW[$w]["side"]=pane ;;
+		" " | tab | right | enter)
+			[ -n "${PW[$w]["m"]}" ] && PW[$w]["side"]=pane ;;
 		up) panel_move "$w" -1 ;;
 		down) panel_move "$w" 1 ;;
-		escape)
-			[ -n "$q" ] || return 1
-			PW[$w]["q"]=
-			;;
-		backspace | ctrl-u)
-			[ -n "$q" ] || return 1
-			r := dt_textkey "$q" "${#q}" "$key"
-			PW[$w]["q"]=${r% *}
-			;;
-		*)
-			[ "${#key}" = 1 ] || return 1
-			for k in "${!DT_KEYS[@]}"; do
-				[ "${DT_KEYS["$k"]}" = "$key" ] && return 1
-			done
-			PW[$w]["q"]="$q$key"
-			;;
+		*) return 1 ;;
 		esac
 		return 0
 	fi
@@ -684,12 +674,17 @@ fn panel_inlist(int w, int c) {
 fn panel_click(int w, int r, int c, btn = "") {
 	local pane i n top tag k wc
 
+	# Before the list/pane split, because the search bar runs the
+	# window's whole width and a click on its right half is not a
+	# click in the list.
+	tag := dt_hit "$w" "$r" "$c"
+	if [ "$tag" = dtsearch ]; then
+		dt_searchopen "$w"
+		PW[$w]["side"]=list
+		return 0
+	fi
 	if panel_inlist "$w" "$c"; then
 		tag := dt_hit "$w" "$r" "$c"
-		if [ "$tag" = search ]; then
-			PW[$w]["side"]=list
-			return 0
-		fi
 		case $tag in pane:*) ;; *) return 0 ;; esac
 		PW[$w]["pane"]=${tag#pane:}
 		PW[$w]["side"]=list

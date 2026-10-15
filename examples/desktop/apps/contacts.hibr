@@ -268,9 +268,7 @@ fn contacts_open(int id, arg = "") {
 	PCW[$id]["sel"]=0
 	PCW[$id]["top"]=0
 	PCW[$id]["q"]=
-	PCW[$id]["qbuf"]=
-	PCW[$id]["qcur"]=0
-	PCW[$id]["qon"]=
+	dt_searchclear "$id"
 	pe_load
 	pe_filter "$id"
 	pe_sync
@@ -278,12 +276,13 @@ fn contacts_open(int id, arg = "") {
 
 fn contacts_close(int id) {
 	unset PCW["$id"]
+	dt_searchfree "$id"
 	return 0
 }
 
 fn contacts_draw(int id, int h, int w, int row, int col) {
 	local nl=${PCW[$id]["nl"]:-0} sel=${PCW[$id]["sel"]:-0} top=${PCW[$id]["top"]:-0}
-	local vis=$((h - 3)) r=2 k i nm em st s lw=32 m=0 lx=0 sx=1 dx
+	local vis r=2 k i nm em st s lw=32 m=0 lx=0 sx=1 dx srows q
 
 	[ "$w" -gt 70 ] || lw=$((w / 2))
 	dx=$((lw + 2))
@@ -292,15 +291,14 @@ fn contacts_draw(int id, int h, int w, int row, int col) {
 	case $DT_MIRRORON in 1) m=1; lx=$((w - lw)); sx=$((w - lw + 1)); dx=1 ;; esac
 
 	dt_wclear "$id"
-	if [ "${PCW[$id]["qon"]}" = 1 ] || [ -n "${PCW[$id]["qbuf"]}" ]; then
-		dt_textdraw "$id" 0 "$sx" $((lw - 2)) "${PCW[$id]["qbuf"]}" "${PCW[$id]["qcur"]}" "$([ "${PCW[$id]["qon"]}" = 1 ] && echo 1 || echo 0)"
-	else
-		console pen "$DT_DIM" "$DT_WELL"
-		console fill -p "w$id" 0 "$sx" 1 $((lw - 2)) " "
-		k=$((sx + 1))
-		dt_tput "$id" 0 "$k" "/ Search contacts"
-	fi
-	dt_wreg "$id" 0 "$sx" $((lw - 2)) search
+	# The search is the desktop's one search now
+	# (widgets/search.hibr), on this window's bottom row and only once
+	# `/` has asked for it. It used to live in the **title bar**, which
+	# is one of the six places the desktop put a search before they
+	# were made one.
+	srows := dt_searchrows "$id"
+	vis=$((h - 3 - srows))
+	[ "$vis" -lt 1 ] && vis=1
 	if ! pe_servers; then
 		console pen "$DT_DIM" "$DT_FACE"
 		dt_tput "$id" 3 2 "No server chosen for contacts yet."
@@ -331,7 +329,7 @@ fn contacts_draw(int id, int h, int w, int row, int col) {
 		else
 			nm := str pad " ${nm:0:$((lw - 3))}" $((lw - 1))
 		fi
-		if [ "$k" = "$sel" ] && [ "${PCW[$id]["qon"]}" != 1 ]; then
+		if [ "$k" = "$sel" ] && ! dt_searchon "$id"; then
 			console pen "$DT_SELINK" "$DT_ACTIVE"
 		else
 			console pen "$DT_INK" "$DT_FACE"
@@ -371,7 +369,8 @@ fn contacts_draw(int id, int h, int w, int row, int col) {
 	else
 		st := str pad " $PE_N people${st:+ ${GL[dot]} $st}" "$w"
 	fi
-	console put -p "w$id" $((h - 1)) 0 "${st:0:$w}"
+	console put -p "w$id" $((h - 1 - srows)) 0 "${st:0:$w}"
+	dt_searchdraw "$id" "$h" "$w"
 }
 
 # The person chosen, on the right: name large, then each email -- a click
@@ -507,27 +506,22 @@ fn pe_mail(int i, int k) {
 	fi
 }
 
-fn contacts_key(int id, key) {
-	local nl=${PCW[$id]["nl"]:-0} sel=${PCW[$id]["sel"]:-0} r i
+fn contacts_find(int id) {
+	dt_searchopen "$id"
+	return 0
+}
 
-	if [ "${PCW[$id]["qon"]}" = 1 ]; then
-		case $key in
-		enter | down | tab) PCW[$id]["qon"]=; return 0 ;;
-		escape)
-			PCW[$id]["qon"]=
-			PCW[$id]["q"]=
-			PCW[$id]["qbuf"]=
-			PCW[$id]["qcur"]=0
+fn contacts_key(int id, key) {
+	local nl=${PCW[$id]["nl"]:-0} sel=${PCW[$id]["sel"]:-0} r i q0 q1
+
+	q0 := dt_searchq "$id"
+	if dt_searchkey "$id" "$key"; then
+		q1 := dt_searchq "$id"
+		if [ "$q0" != "$q1" ]; then
+			PCW[$id]["q"]=$q1
+			PCW[$id]["sel"]=0
 			pe_filter "$id"
-			return 0
-			;;
-		esac
-		r := dt_textkey "${PCW[$id]["qbuf"]}" "${PCW[$id]["qcur"]}" "$key" || return 1
-		PCW[$id]["qbuf"]=${r% *}
-		PCW[$id]["qcur"]=${r##* }
-		PCW[$id]["q"]=${PCW[$id]["qbuf"]}
-		PCW[$id]["sel"]=0
-		pe_filter "$id"
+		fi
 		return 0
 	fi
 	case $key in
@@ -537,7 +531,6 @@ fn contacts_key(int id, key) {
 	pagedown) sel=$((sel + ${PCW[$id]["vis"]:-10})); [ "$sel" -ge "$nl" ] && sel=$((nl > 0 ? nl - 1 : 0)); PCW[$id]["sel"]=$sel ;;
 	home) PCW[$id]["sel"]=0 ;;
 	end) PCW[$id]["sel"]=$((nl > 0 ? nl - 1 : 0)) ;;
-	/) PCW[$id]["qon"]=1; PCW[$id]["qcur"]=${#PCW[$id]["qbuf"]} ;;
 	n) pedit_show "" ;;
 	e | enter) i := pe_at "$id" "$sel" && pedit_show "$i" ;;
 	m) i := pe_at "$id" "$sel" && pe_mail "$i" 0 ;;
@@ -553,9 +546,9 @@ fn contacts_click(int? id = "", int? r = "", int? c = "", btn = "") {
 
 	tag := dt_hit "$id" "$r" "$c" || return 0
 	case $tag in
-	search) PCW[$id]["qon"]=1; PCW[$id]["qcur"]=${#PCW[$id]["qbuf"]} ;;
+	dtsearch) dt_searchopen "$id" ;;
 	row:*)
-		PCW[$id]["qon"]=
+		dt_searchshut "$id"
 		if [ "${PCW[$id]["sel"]}" = "${tag#row:}" ] && [ "$btn" = double ]; then
 			i := pe_at "$id" "${tag#row:}" && pedit_show "$i"
 		fi

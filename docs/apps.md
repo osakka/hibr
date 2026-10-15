@@ -327,7 +327,7 @@ waiting; the pane on the right is what the selected entry says about
 itself, paragraphs kept.
 
 The marks it is drawn with are the desktop's, not this window's
-(`widgets/tree.hibr`): Control Panel ▸ Windows ▸ **Tree Style** picks
+(`widgets/tree.hibr`): Control Panel ▸ Appearance ▸ **Tree Style** picks
 between `[+]`, arrows, triangles and dots, and **Tree Rules** turns the
 lines joining a child to its branch off. Every mark is three columns wide
 whichever style is chosen, so changing it never moves the columns beside

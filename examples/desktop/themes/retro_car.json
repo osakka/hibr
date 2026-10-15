@@ -9,6 +9,8 @@
   "frame": "none",
   "titlebar": "line",
   "buttons": "dashes",
+  "tree": "dots",
+  "treelines": false,
   "side": "right",
   "align": "center",
   "checks": "knob",

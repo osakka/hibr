@@ -1,5 +1,4 @@
  %s Compose 
- Search:
 "%s" is not here
 %H %M %S %l %p %a %d %b %Y, as strftime
 %d step failed
@@ -60,8 +59,6 @@
 (from the address)
 (none yet)
 (unchanged)
-/ Search contacts
-/ Search mail
 24-bit sent; COLORTERM unset
 24-bit sent; COLORTERM=%s
 < <= > >= = !=, a number, then good, warn, bad,
@@ -698,7 +695,6 @@ Screenshot…
 Scroll To Bottom
 Scroll To Top
 Scrollbar
-Search
 Search…
 Select All
 Send

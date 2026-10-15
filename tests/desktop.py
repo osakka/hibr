@@ -4090,7 +4090,11 @@ CPAN = (APPS + 'CP_PANEDIRS+=("%s")\ncp_panes\n'
         % tree("examples/desktop/control-panel"))
 XYPANEL = 'dt_new Panel 22 70 1 4 panel'
 sc, _ = run(XYPANEL, env=XY, pre=CPAN)
-srch = sc.find("Search")
+# A pane's own title rather than the word Search: the Control Panel had a
+# `Search…` box of its own at the top of this list until 0.99.193, and the
+# search is the desktop's one search now -- drawn on the window's bottom
+# row and only once `/` has asked for it (widgets/search.hibr).
+srch = sc.find("Displays")
 bar = [c for c in range(COLS) if sc.at(5, c) == "\u2502"][1]
 check("Control Panel's list of panes is on the right, its body on the left",
       srch is not None and srch[1] > 50 and
@@ -4114,7 +4118,7 @@ check("and its dropdown opens from where it is drawn",
 sc, _ = run(XYPANEL, feed=[press(5, bar), drag(5, bar - 8), release(5, bar - 8)],
             env=XY, pre=CPAN)
 check("dragging its divider left widens the list, as it is on the right",
-      sc.find("Search") is not None and sc.find("Search")[1] < srch[1] - 4,
+      sc.find("Displays") is not None and sc.find("Displays")[1] < srch[1] - 4,
       sc)
 
 # Files mirrored: names at the right in each view, the icon grid from the

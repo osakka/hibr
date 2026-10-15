@@ -194,7 +194,7 @@ for v in $kept; do
   # which sheets this machine trusts (never in a sheet, so one cannot
   # arrive trusted), the wallpaper picker's last folder, and the settings
   # file's own version.
-  case $v in CS_Y | CS_LEN | CS_COLLAPSED | CP_DIVCOL | FP_LISTW | DIA_SPLIT | SS_TRUST | WPK_DIR | DT_SETVER) continue ;; esac
+  case $v in CS_Y | CS_LEN | CS_COLLAPSED | CP_DIVCOL | FP_LISTW | DIA_SPLIT | AS_SPLIT | SS_TRUST | WPK_DIR | DT_SETVER) continue ;; esac
   grep -qw "$v" $panes || echo "kept but in no Control Panel pane: $v"
 done
 echo "every kept preference is in the Control Panel"

@@ -50,7 +50,7 @@ fn dt_hooks(int id, ap = "") {
 	local f
 
 	for f in draw key click mouse wheel open close copy cut paste drop \
-		refresh idle undo redo selall canclose savefile; do
+		refresh idle undo redo selall canclose savefile find; do
 		if [ -n "$ap" ] && dt_has "${ap}_$f"; then
 			DT[$id]["$f"]="${ap}_$f"
 		else
@@ -62,6 +62,12 @@ fn dt_hooks(int id, ap = "") {
 # Close a window and forget it.
 fn dt_del(int id) {
 	local ws=${DT[$id]["ws"]:-1}
+
+	# Whatever the search widget was holding for this window, centrally
+	# rather than in each app's own `_close`: an app that has no
+	# `_close` at all -- Files has none -- would otherwise leak its
+	# query for the life of the desktop.
+	command -v dt_searchfree > /dev/null && dt_searchfree "$id"
 
 	DT_NOTEWIN=$id
 	[ -n "${DT[$id]["close"]}" ] && ${DT[$id]["close"]} "$id"

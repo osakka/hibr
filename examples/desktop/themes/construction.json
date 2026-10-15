@@ -9,6 +9,8 @@
   "frame": "double",
   "titlebar": "solid",
   "buttons": "squares",
+  "tree": "plus",
+  "treelines": true,
   "checks": "block",
   "dialog": "filled"
 }

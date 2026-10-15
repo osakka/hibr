@@ -1,0 +1,147 @@
+# widgets/search -- one search, in every window that has one.
+#
+# Part of the widget library; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+#
+# Before this there were six searches in six shapes: Mail and Contacts put
+# theirs in the **title bar** (`/ Search mail`), Files right-aligned on its
+# first row (`Search  /`), YouTube left on its first row (`Search:`), the
+# Control Panel a dimmed `Search…` inside its own list, and the Catalogue a
+# label beside a field. Four placeholders, three places, and the slash
+# shown in three different ways -- so knowing how to search one window
+# taught you nothing about the next.
+#
+# **Nothing is drawn until `/` is pressed.** Then a bar on the window's own
+# bottom row, vi- and less-style, gone again on escape. No window loses a
+# row of its content while nobody is searching, which is what decided it
+# over a permanent first row: a list is what the window is for.
+#
+# The cost of an invisible feature is that nobody finds it, and the answer
+# is the **Edit menu**, which every bar already has: an app that defines
+# `<app>_find` gets a Find row there naming the key, and one that does not
+# gets it dimmed -- the same contract, and the same dimming, as Copy and
+# Undo already follow (`dt_hooks`).
+#
+# The bar stays up while a query is still in force even after the keyboard
+# has left it, because a filtered list with nothing on screen to say so is
+# a window lying about what it is showing. Escape clears the query and
+# closes; enter closes and keeps it.
+
+strict
+
+declare -gA SQ
+
+# Open the search on this window and give it the keyboard. What
+# `<app>_find` calls, and what `/` does.
+fn dt_searchopen(int id) {
+	SQ[$id]["on"]=1
+	SQ[$id]["cur"]=${#SQ[$id]["q"]}
+	return 0
+}
+
+# Shut it, keeping whatever was typed: the list stays filtered and the bar
+# stays drawn to say so.
+fn dt_searchshut(int id) {
+	SQ[$id]["on"]=
+	return 0
+}
+
+# Shut it and throw the query away, which is what escape means.
+fn dt_searchclear(int id) {
+	SQ[$id]["on"]=
+	SQ[$id]["q"]=
+	SQ[$id]["cur"]=0
+	return 0
+}
+
+# Put a query in from outside, for a paste: the clipboard's characters
+# reach an app's own `_paste`, not this, so the app sets what it worked
+# out and the bar shows it.
+fn dt_searchset(int id, q) {
+	SQ[$id]["q"]=$q
+	SQ[$id]["cur"]=${#q}
+	return 0
+}
+
+fn dt_searchfree(int id) {
+	unset SQ["$id"]
+	return 0
+}
+
+# What is being searched for, empty when nothing is.
+fn dt_searchq(int id) {
+	ret "${SQ[$id]["q"]}"
+}
+
+# Whether the bar has the keyboard -- which an app asks before drawing its
+# own selection, since a list whose row is highlighted while the keyboard
+# is somewhere else is two cursors.
+fn dt_searchon(int id) {
+	[ "${SQ[$id]["on"]}" = 1 ] && return 0
+	return 1
+}
+
+# How many rows of its own height the bar is taking: one while it is
+# drawn, none while it is not. An app subtracts this from the rows it has
+# to work with, which is what makes "no row lost while not searching"
+# true rather than merely said.
+fn dt_searchrows(int id) {
+	{ [ "${SQ[$id]["on"]}" = 1 ] || [ -n "${SQ[$id]["q"]}" ]; } &&
+		{ ret 1; return 0; }
+	ret 0
+}
+
+# One key offered to the search. Status 0 when it took it, 1 when it did
+# not and the app should go on to its own handling -- the same shape
+# `dt_scrollmove` already answers in.
+fn dt_searchkey(int id, key) {
+	local r
+
+	if [ "${SQ[$id]["on"]}" != 1 ]; then
+		case $key in
+		"/") dt_searchopen "$id"; return 0 ;;
+		esac
+		return 1
+	fi
+	case $key in
+	escape) dt_searchclear "$id"; return 0 ;;
+	enter | tab) dt_searchshut "$id"; return 0 ;;
+	esac
+	# A key the desktop itself holds is not text, even with the bar
+	# open: `q` is a quit key in the suites and alt-c is Copy, and a
+	# search that swallows them is a window nothing can be quit from.
+	# Files and the Control Panel each had this loop of their own
+	# before the searches were made one; it belongs here now, where
+	# every window gets it.
+	for r in "${!DT_KEYS[@]}"; do
+		[ "${DT_KEYS["$r"]}" = "$key" ] && return 1
+	done
+	r := dt_textkey "${SQ[$id]["q"]}" "${SQ[$id]["cur"]:-0}" "$key" ||
+		return 1
+	SQ[$id]["q"]=${r% *}
+	SQ[$id]["cur"]=${r##* }
+	return 0
+}
+
+# The bar itself, on row `r` -- which an app passes as its own last row,
+# the one dt_searchrows told it to keep clear. Drawn only when there is
+# something to draw.
+fn dt_searchdraw(int id, int r, int w) {
+	local n q on=0
+
+	n := dt_searchrows "$id"
+	[ "$n" = 1 ] || return 0
+	q=${SQ[$id]["q"]}
+	[ "${SQ[$id]["on"]}" = 1 ] && on=1
+	console pen "$DT_DIM" "$DT_FACE"
+	console put -p "w$id" "$r" 1 "/"
+	# Registered like any other widget, so a click reaches it through
+	# the `dt_hit` an app's own `_click` already begins with: its tag is
+	# `dtsearch`, and the app answers it with dt_searchopen. One
+	# mechanism, rather than a click helper of this widget's own.
+	dt_wreg "$id" "$r" 1 "$w" dtsearch
+	console pen "$DT_INK" "$DT_FACE"
+	dt_textdraw "$id" "$r" 2 $((w - 3)) "$q" "${SQ[$id]["cur"]:-0}" "$on"
+	return 0
+}
+

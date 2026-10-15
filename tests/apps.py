@@ -327,6 +327,13 @@ check("Hardware first, then the desktop's own panes, then one per app",
       ["hardware"] * 4 + ["system"] * 16 + ["app"] * 8, out)
 
 PW = "22 70 2 2"
+# Appearance is the longest pane and got two rows longer in 0.99.193
+# (Tree Style and Tree Rules), so in a 22-row window it now scrolls --
+# and a scrolling pane spends its last column on a bar, which cut
+# `construction` to `constructio` and failed four checks that are
+# about themes and shadows rather than about scrolling. They get a
+# window tall enough to hold the pane whole.
+PWTALL = "26 70 2 2"
 PANEL = ("panel", PW)
 TICK = "DT_TICK=200"
 CPANES = 'CP_PANEDIRS+=("%s")\ncp_panes' % CP
@@ -359,7 +366,10 @@ def prow(name):
     """Which screen row a pane's own name sits at in the picker list: under
     the Hardware heading, and under Desktop and Apps as well further down."""
     heads = ["hardware", "system", "app"]
-    return R0 + 2 + ORDER.index(name) + heads.index(GROUP[name])
+    # One row higher since 0.99.193: the list used to begin under a
+    # `Search…` box of its own, and the search is the desktop's one search
+    # now -- on the window's bottom row, drawn only once `/` asks for it.
+    return R0 + 1 + ORDER.index(name) + heads.index(GROUP[name])
 
 
 def downs(name):
@@ -407,7 +417,7 @@ def brow(sc, label):
 
 
 def cprun(feed=(), also=(), extra=(), tz=None, env=None, pre="", end=b"qy",
-          post=""):
+          post="", geom=None):
     """Run Control Panel from a config directory of its own.
 
     tests/screen.py gives the whole suite one shared $HOME, so without this
@@ -431,7 +441,8 @@ def cprun(feed=(), also=(), extra=(), tz=None, env=None, pre="", end=b"qy",
     """
     d = tempfile.mkdtemp(prefix="hibr-cp-")
     tzline = "export TZ=%s\n" % tz if tz else ""
-    sc = run(*PANEL, feed=feed, pre="%sexport XDG_CONFIG_HOME=%s\n%s%s\n%s\n%s"
+    sc = run("panel", geom or PW, feed=feed,
+             pre="%sexport XDG_CONFIG_HOME=%s\n%s%s\n%s\n%s"
              % (pre, d, tzline, TICK, CPANES, post), also=also, extra=extra,
              env=env, end=end)
     shutil.rmtree(d, True)
@@ -443,7 +454,7 @@ check("the picker lists every pane it has room for, sorted by title",
       all(TITLE[n] in sc.row(prow(n)) for n in ORDER if prow(n) < R0 + 19),
       sc)
 check("under a Hardware heading, then Desktop, then Apps",
-      "Hardware" in sc.row(R0 + 1) and
+      "Hardware" in sc.row(R0) and
       "Desktop" in sc.row(prow("aboutme") - 1) and
       (prow("pimset") - 1 >= R0 + 19 or
        "Apps" in sc.row(prow("pimset") - 1)), sc)
@@ -570,9 +581,12 @@ for pane in ORDER:
             DROPS.append((pane, extra, i, text, val))
 for pane, extra, i, text, val in DROPS:
     for step in (1, 2):
+        # Tall enough for the longest pane: this drives every dropdown
+        # by the row it sits on, so a pane that outgrows the window puts
+        # its last rows out of reach and the click lands on nothing.
         sc = cprun([b"\x1b[B"] * downs(pane) +
                    [press(R0 + i, VALCOL)] + [b"\x1b[B"] * step + [b"\r"],
-                   extra=extra)
+                   extra=extra, geom=PWTALL)
         now = brow(sc, text)
         if now != "" and val not in now:
             break
@@ -777,7 +791,7 @@ sc = cprun(DOWN_APP)
 check("down on the picker moves pane by pane, showing each one's rows",
       sc.find("Theme") is not None and sc.find("midnight") is not None, sc)
 
-sc = cprun(DOWN_APP + [b"\x1b[C", b"\x1b[C"])
+sc = cprun(DOWN_APP + [b"\x1b[C", b"\x1b[C"], geom=PWTALL)
 check("right enters the pane, and a second right cycles its first row",
       "construction" in brow(sc, "Theme") and sc.find("classic") is None, sc)
 sc = cprun(DOWN_APP + [b"\t"] + [b"\x1b[D"])
@@ -791,7 +805,8 @@ check("a second tab leaves the pane, back to moving the picker",
 sc = cprun(DOWN_APP + [press(R0 + 1, VALCOL)])
 check("clicking the dropdown's own cell opens a real popup of choices",
       sc.find("construction") is not None and sc.find("meadow") is not None, sc)
-sc = cprun(DOWN_APP + [press(R0 + 1, VALCOL), press(R0 + 3, VALCOL + 3)])
+sc = cprun(DOWN_APP + [press(R0 + 1, VALCOL), press(R0 + 3, VALCOL + 3)],
+           geom=PWTALL)
 check("choosing one there applies it, the same as cycling would",
       "construction" in brow(sc, "Theme") and "hazard" in brow(sc, "Colours"), sc)
 sc = cprun(DOWN_APP + [press(R0 + 2, VALCOL)])
@@ -834,7 +849,11 @@ check("Rename moves the file and keeps it chosen",
       os.path.exists(os.path.join(TD, "hibr", "themes", "ours.json")), out)
 shutil.rmtree(TD, True)
 
-sc = cprun(DOWN_APP + [b"\x1b[C", b"\x1b[B", b"\x1b[B", b"\x1b[B", b"\x1b[C"])
+# Two more downs than before: Tree Style and Tree Rules sit between
+# Glyphs and the Wallpaper heading now, so the Pattern row is two further
+# down the pane. A check that walks a pane by counting downs is only right
+# for the pane it was written against.
+sc = cprun(DOWN_APP + [b"\x1b[C"] + [b"\x1b[B"] * 5 + [b"\x1b[C"])
 check("the wallpaper glyph changes, and the desktop follows",
       sc.at(0, 78) != "·" and sc.at(23, 76) == "░", sc)
 
@@ -1009,18 +1028,21 @@ check("and Close closes the picker, leaving the Control Panel",
       cl is not None and sc.find("┤ Wallpaper ├") is None and
       sc.find("┤ Panel ├") is not None, sc)
 
-# A search at the top of the list: typing finds panes by their titles and
-# by their rows, so "wall" finds Appearance; escape clears it.
-sc = cprun([c.encode() for c in "wall"] + [0.3])
+# The search finds panes by their titles and by their rows, so "wall"
+# finds Appearance; escape clears it. Reached with `/` since 0.99.193 and
+# drawn on the window's own bottom row: it used to be a box at the top of
+# this list that typing went into, which was one of the six shapes the
+# desktop's searches had before they were made one.
+sc = cprun([b"/"] + [c.encode() for c in "wall"] + [0.3])
 check("the Control Panel's search finds a pane by a row inside it",
-      "wall" in sc.row(R0) and "Appearance" in sc.row(R0 + 2) and
+      "/wall" in sc.text() and "Appearance" in sc.row(R0 + 1) and
       sc.find("Date & Time") is None and sc.find("Mouse") is None, sc)
-sc = cprun([c.encode() for c in "zzzx"] + [0.3])
+sc = cprun([b"/"] + [c.encode() for c in "zzzx"] + [0.3])
 check("and says when nothing matches", sc.find("Nothing found") is not None,
       sc)
-sc = cprun([c.encode() for c in "wall"] + [b"\x1b", 0.6])
+sc = cprun([b"/"] + [c.encode() for c in "wall"] + [b"\x1b", 0.6])
 check("escape clears it, and every pane is back",
-      sc.find("Search") is not None and sc.find("Date & Time") is not None,
+      sc.find("/wall") is None and sc.find("Date & Time") is not None,
       sc)
 
 # Copy, cut and paste in a one-line field whose own window offers no
@@ -1041,13 +1063,22 @@ check("escape clears it, and every pane is back",
 # times out, so asserting on one makes the check a bet on how long the
 # teardown takes.
 def sbox(sc):
-    return sc.row(R0)[3:20].strip()
+    """What the search bar holds. It is the window's own bottom row and
+    opens with `/` (widgets/search.hibr), so the text is what follows --
+    read by finding the bar rather than by a row number, since the bar is
+    only there while there is a search to show."""
+    for row in sc.text().split("\n"):
+        m = re.search(r"\u2502/(\S*)\s*\u2502", row)
+        if m:
+            return m.group(1)
+    return ""
 
 
-sc = cprun([c.encode() for c in "mail"] + [b"\x1bc", 0.4, b"\x1bv", 0.8])
+sc = cprun([b"/"] + [c.encode() for c in "mail"] +
+           [b"\x1bc", 0.4, b"\x1bv", 0.8])
 check("a field whose window has no clipboard of its own can still be "
       "copied, and pasted", sbox(sc) == "mailmail", sc)
-sc = cprun([c.encode() for c in "mail"] + [b"\x1bx", 0.6])
+sc = cprun([b"/"] + [c.encode() for c in "mail"] + [b"\x1bx", 0.6])
 check("and cut, which empties it -- a one-line field has no selection, so "
       "copy and cut are the whole of it", sbox(sc) != "mail", sc)
 # Pasting into an **empty** field is the case that needs the *window* to be
@@ -1061,7 +1092,7 @@ check("and cut, which empties it -- a one-line field has no selection, so "
 # the cut did nothing, so nothing had to be put back -- which is this
 # file's own rule about a check on an absence, caught here by running the
 # new check against the previous release before trusting it.
-sc = cprun([c.encode() for c in "mail"] + [b"\x1bx", 0.4, b"x", b"\x1bv",
+sc = cprun([b"/"] + [c.encode() for c in "mail"] + [b"\x1bx", 0.4, b"x", b"\x1bv",
                                            0.8])
 check("and pasted back, though an empty field draws a placeholder and not "
       "a field at all", sbox(sc) == "xmail", sc)
@@ -1108,7 +1139,7 @@ check("the icons can be switched off, and the panel shows an unchecked box",
 
 # The shadows, each its own setting, under a heading in Appearance; the
 # button shadow is with the rest of the dialog buttons' settings.
-sc = cprun(DOWN_APP)
+sc = cprun(DOWN_APP, geom=PWTALL)
 check("Appearance lists three shadows under Shadows and the buttons' under "
       "Dialog Buttons, all on",
       sc.find("Shadows") is not None and sc.find("Dialog Buttons") is not None
@@ -1830,7 +1861,8 @@ sc = cprun([press(prow(ORDER[0]), LISTCOL), press(prow(ORDER[0]), LISTCOL)])
 check("clicking the same pane twice in the picker is harmless",
       sc.find(TITLE[ORDER[0]]) is not None, sc)
 
-sc = cprun(DOWN_APP + [press(R0 + 1, VALCOL - 10), press(R0 + 1, VALCOL - 10)])
+sc = cprun(DOWN_APP + [press(R0 + 1, VALCOL - 10), press(R0 + 1, VALCOL - 10)],
+           geom=PWTALL)
 check("a click in the pane's own body selects and a second click acts",
       "construction" in brow(sc, "Theme"), sc)
 
@@ -1844,7 +1876,7 @@ check("clicking below the last pane in the picker does nothing",
 sc = cprun([press(prow("language"), LISTCOL)])
 check("clicking a pane in the picker shows it, the headings counted",
       brow(sc, "Digits") != "", sc)
-sc = cprun([press(R0, LISTCOL)])
+sc = cprun([press(R0 - 1, LISTCOL)])
 check("and clicking a heading shows nothing new",
       sc.find("Change…") is not None, sc)
 
@@ -4429,7 +4461,9 @@ check("a kind folds away, and the fold still says how many it holds",
 # Typing in the search narrows the list; the window does the filtering,
 # since asking the command again per keystroke would be a fetch per
 # keystroke.
-# `end=None`: the search field has the keyboard at this point, so the
+# `/` rather than tab since 0.99.193: the search is the desktop's one
+# search and `/` is how every window reaches it (widgets/search.hibr).
+# `end=None`: the search bar has the keyboard at this point, so the
 # teardown's own `qy` is *typed into it* -- the field read "gadqy" and
 # matched nothing, which looks exactly like the search being broken. The
 # same trap as a terminal window eating the quitting key, in a text box.
@@ -4438,7 +4472,7 @@ check("a kind folds away, and the fold still says how many it holds",
 # be counting what the two sessions before it asked as well.
 asstub()
 sc = run("appstore", "21 76 2 2", env=ASENV, tries=150, end=None,
-         ready=lambda s: s.find("widget") is not None, feed=[b"\t", b"gad"],
+         ready=lambda s: s.find("widget") is not None, feed=[b"/", b"gad"],
          until=lambda s: s.find("widget") is None)
 check("typing in the search narrows the list without asking again",
       sc.find("gadget") is not None and sc.find("widget") is None
@@ -4499,6 +4533,42 @@ sc = run("appstore", "21 76 2 2", env=ASENV, tries=150,
 check("and the other way round for one that is installed",
       sc.find("Uninstall") is not None and sc.find("Install") is None, sc)
 
+# The search itself (widgets/search.hibr), driven here because the
+# Catalogue is the smallest window that has one. Nothing is drawn until
+# `/` is pressed -- which is what the whole sweep is for -- and the Edit
+# menu every bar carries is where the feature stays findable with
+# nothing on screen saying so.
+asstub()
+sc = run("appstore", "21 76 2 2", env=ASENV, tries=150,
+         until=lambda s: s.find("widget") is not None)
+def barrow(sc):
+    """Which row the search bar is on, or None. Anchored on the window's
+    own edge: a bare search for `/gad` finds `apps/gadget` in the detail
+    pane first, which is the click-at-a-computed-column trap wearing a
+    string."""
+    for i, row in enumerate(sc.text().split("\n")):
+        if re.search(r"\u2502/", row):
+            return i
+    return None
+
+
+nobar = barrow(sc) is None
+sc = run("appstore", "21 76 2 2", env=ASENV, tries=150,
+         ready=lambda s: s.find("widget") is not None, feed=[b"/", b"gad"],
+         end=None, until=lambda s: s.find("widget") is None)
+check("no search is drawn until `/` asks for one, and then it is a bar on "
+      "the window's own bottom row",
+      nobar and barrow(sc) is not None
+      and "/gad" in sc.row(barrow(sc))
+      and barrow(sc) > sc.find("gadget")[0], (nobar, barrow(sc), sc))
+# F10 opens the bar, right moves to Edit, and its last row is Find.
+sc = run("appstore", "21 76 2 2", env=ASENV, tries=150,
+         ready=lambda s: s.find("widget") is not None,
+         feed=[b"\x1b[21~", b"\x1b[C", b"\x1b[C"],
+         until=lambda s: s.find("Find") is not None)
+check("and the Edit menu every window has carries Find, naming the key",
+      sc.find("Find") is not None and "/" in sc.row(sc.find("Find")[0]), sc)
+
 # A heading is not a thing to install, and the lint rule found that it
 # was being treated as one: `as_at`'s three misses each ended in
 # `ret ""; return 1`, where `ret` ends the function with status 0, so
@@ -4537,4 +4607,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(621)
+report(623)

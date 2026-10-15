@@ -1,7 +1,7 @@
 # `widgets/` — what an app draws with
 
 The desktop's widget library: the controls an app puts in its own window —
-a checkbox, a dropdown, a slider, a text field, a scrollbar, a button, a tree — and the hit
+a checkbox, a dropdown, a slider, a text field, a scrollbar, a button, a tree, a search — and the hit
 regions that tell it which one a click landed on. `desktop.hibr` sources every
 file here, in no particular order, before any app is loaded.
 
@@ -17,7 +17,8 @@ file here, in no particular order, before any app is loaded.
 | `bidi.hibr` | `bd_row`, `bd_col`, `bd_at`, `bd_glyph`, `bd_put`: one row of a line holding right-to-left text in display order, through `uni map` -- the line one paragraph, each row reordered on its own -- with where each character went, so a cursor or a click stays logical; fails at once for plain text or with bidi off, so a caller keeps its plain path. The textarea and Write draw through it |
 | `split.hibr` | `dt_split`, `dt_splitbar`, `dt_splitmove`: a window cut in two at a divider the mouse drags, its column kept in a variable the app names so it can be kept as a setting |
 | `button.hibr` | `dt_button`, `dt_buttons`, `dt_dlgbtns`: filled push buttons with a Turbo Vision shadow, one or a row of them, or a dialog's centred along its bottom; `dt_focus` and `dt_focuskey`: moving focus through fields and buttons with tab, shift-tab and the arrows |
-| `tree.hibr` | `dt_treespec`, `dt_treepre`, `dt_treelead`, `dt_treew`: what goes in front of a row of a collapsible tree -- `[+]` and `[-]` by default, arrows, triangles or dots by `DT_TREESTYLE`, with the rules joining a child to its branch unless `DT_TREELINES` is off. An app keeps its own rows, their order and which are open, because that is its data; this is only how they look, so every tree in the desktop looks the same and one setting changes all of them. Every style is **three columns wide**, so changing it never moves the columns beside it |
+| `search.hibr` | `dt_searchopen`, `dt_searchkey`, `dt_searchdraw`, `dt_searchq`, `dt_searchon`, `dt_searchrows`, `dt_searchshut`, `dt_searchclear`, `dt_searchset`, `dt_searchfree`: one search, in every window that has one. **Nothing is drawn until `/` is pressed**, and then a bar on the window's own bottom row, gone again on escape -- so no window spends a row on a search nobody is making. An app asks `dt_searchrows` for how many rows to keep clear, offers each key to `dt_searchkey` first, filters on `dt_searchq`, and defines `<app>_find` so the Edit menu's Find row is not dimmed. Before it there were six searches in six shapes: two in the title bar, one right-aligned, one left, one grey inside a list and one a label beside a field |
+| `tree.hibr` | `dt_treespec`, `dt_treepre`, `dt_treelead`, `dt_treew`: what goes in front of a row of a collapsible tree -- `[+]` and `[-]` by default, arrows, triangles or dots by `DT_TREESTYLE`, with the rules joining a child to its branch unless `DT_TREELINES` is off -- both of them theme fields (`tree`, `treelines`) as well as Control Panel ▸ Appearance rows, beside the theme and the glyph set -- a tree is a look, not a window. An app keeps its own rows, their order and which are open, because that is its data; this is only how they look, so every tree in the desktop looks the same and one setting changes all of them. Every style is **three columns wide**, so changing it never moves the columns beside it |
 
 ## The contract
 

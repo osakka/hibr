@@ -699,9 +699,7 @@ fn mail_open(int id, arg = "") {
 	MW[$id]["top"]=0
 	MW[$id]["open"]=
 	MW[$id]["q"]=
-	MW[$id]["qbuf"]=
-	MW[$id]["qcur"]=0
-	MW[$id]["qon"]=
+	dt_searchclear "$id"
 	MW[$id]["focus"]=list
 	MW[$id]["g"]=
 	MW[$id]["acct"]=
@@ -714,6 +712,11 @@ fn mail_open(int id, arg = "") {
 	return 0
 }
 
+fn mail_find(int id) {
+	dt_searchopen "$id"
+	return 0
+}
+
 fn mail_close(int id) {
 	unset MW["$id"] MLT["$id"] MLV["$id"] MLR["$id"]
 	return 0
@@ -722,9 +725,10 @@ fn mail_close(int id) {
 fn mail_idle(int id) { ml_tick "$id"; }
 
 fn mail_draw(int id, int h, int w, int row, int col) {
-	local acct=${MW[$id]["acct"]} side=0 lw st lx sx
+	local acct=${MW[$id]["acct"]} side=0 lw st lx sx srows
 
 	dt_wclear "$id"
+	srows := dt_searchrows "$id"
 	ml_tick "$id"
 	console pen "$DT_INK" "$DT_FACE"
 	if [ -n "${MW[$id]["err"]}" ]; then
@@ -742,11 +746,11 @@ fn mail_draw(int id, int h, int w, int row, int col) {
 	lx=$side
 	sx=0
 	case $DT_MIRRORON in 1) lx=0; sx=$lw ;; esac
-	[ "$side" -gt 0 ] && ml_drawside "$id" "$h" "$side" "$sx"
+	[ "$side" -gt 0 ] && ml_drawside "$id" $((h - srows)) "$side" "$sx"
 	if [ -n "${MW[$id]["open"]}" ]; then
-		ml_drawread "$id" "$h" "$lw" "$lx"
+		ml_drawread "$id" $((h - srows)) "$lw" "$lx"
 	else
-		ml_drawlist "$id" "$h" "$lw" "$lx"
+		ml_drawlist "$id" $((h - srows)) "$lw" "$lx"
 	fi
 	st=${MW["status$acct"]}
 	if ml_running sync "$acct" > /dev/null; then
@@ -766,26 +770,19 @@ fn mail_draw(int id, int h, int w, int row, int col) {
 	1) st := dt_rpad "${st:0:$((w - 2))} " "$w" ;;
 	*) st := str pad " ${st:0:$((w - 2))}" "$w" ;;
 	esac
-	console put -p "w$id" "$((h - 1))" 0 "$st"
+	console put -p "w$id" "$((h - 1 - srows))" 0 "$st"
+	dt_searchdraw "$id" "$h" "$w"
 }
 
-# The bar along the top: the search field, the account.
+# The bar along the top: the account. The search used to be here too --
+# in the **title bar**, one of the six places the desktop put a search
+# before they were made one -- and is now the desktop's own, on this
+# window's bottom row, drawn only once `/` has asked for it
+# (widgets/search.hibr).
 fn ml_drawbar(int id, int w) {
-	local q=${MW[$id]["qbuf"]} fw=$((w - 4 - ${#MW[$id]["acct"]} - 4)) on=0
-	local fx=1 ax=$((w - ${#MW[$id]["acct"]} - 2)) tx
+	local ax=$((w - ${#MW[$id]["acct"]} - 2))
 
-	[ "${MW[$id]["qon"]}" = 1 ] && on=1
-	[ "$fw" -lt 10 ] && fw=10
-	case $DT_MIRRORON in 1) fx=$((w - fw - 1)); ax=2 ;; esac
-	if [ "$on" = 0 ] && [ -z "$q" ]; then
-		console pen "$DT_DIM" "$DT_WELL"
-		console fill -p "w$id" 0 "$fx" 1 "$fw" " "
-		tx=$((fx + 1))
-		dt_tput "$id" 0 "$tx" "/ Search mail"
-	else
-		dt_textdraw "$id" 0 "$fx" "$fw" "$q" "${MW[$id]["qcur"]}" "$on"
-	fi
-	dt_wreg "$id" 0 "$fx" "$fw" search
+	case $DT_MIRRORON in 1) ax=2 ;; esac
 	console pen "$DT_DIM" "$DT_FACE"
 	console put -p "w$id" 0 "$ax" "${MW[$id]["acct"]}"
 	dt_wreg "$id" 0 "$ax" "${#MW[$id]["acct"]}" accts
@@ -870,7 +867,7 @@ fn ml_drawlist(int id, int h, int w, int x0) {
 		[ "${MLT[$id][$t]["unread"]}" -gt 0 ] && bold=bold
 		if [ "$DT_MIRRORON" = 1 ]; then
 			ml_drawrowm "$id" "$r" "$x0" "$w" "$pos" "$t" "$ww" "$sw" "$dw" "$star" "$bold" "$d"
-		elif [ "$pos" = "$sel" ] && [ "${MW[$id]["qon"]}" != 1 ]; then
+		elif [ "$pos" = "$sel" ] && ! dt_searchon "$id"; then
 			console pen "$DT_SELINK" "$DT_ACTIVE" $bold
 			console put -p "w$id" "$r" "$x0" " $star $who $rest $d"
 		else
@@ -909,7 +906,7 @@ fn ml_drawrowm(int id, int r, int x0, int w, int pos, t, int ww, int sw, int dw,
 	rw := str width "$rest"
 	pad=""
 	[ "$rw" -lt "$sw" ] && pad := str repeat " " $((sw - rw))
-	if [ "$pos" = "${MW[$id]["sel"]:-0}" ] && [ "${MW[$id]["qon"]}" != 1 ]; then
+	if [ "$pos" = "${MW[$id]["sel"]:-0}" ] && ! dt_searchon "$id"; then
 		console pen "$DT_SELINK" "$DT_ACTIVE" $bold
 		console put -p "w$id" "$r" "$x0" " $d $pad$rest $who $star"
 		return 0
@@ -1328,33 +1325,24 @@ fn ml_attsaved(id = "", path = "", type = "") {
 
 fn mail_key(int id, key) {
 	local nt=${MW[$id]["nt"]:-0} sel=${MW[$id]["sel"]:-0} r k g=${MW[$id]["g"]}
+	local q0
 
 	[ -n "${MW[$id]["err"]}" ] && return 1
-	if [ "${MW[$id]["qon"]}" = 1 ]; then
-		case $key in
-		enter)
-			MW[$id]["q"]=${MW[$id]["qbuf"]}
-			MW[$id]["qon"]=
-			MW[$id]["open"]=
-			MW[$id]["sel"]=0
-			ml_threads "$id"
-			return 0
-			;;
-		escape)
-			MW[$id]["qon"]=
-			if [ -n "${MW[$id]["q"]}" ]; then
-				MW[$id]["q"]=
-				MW[$id]["qbuf"]=
-				MW[$id]["qcur"]=0
+	# Mail searches a mailbox, which is dearer than filtering a list,
+	# so it alone acts when the bar is **left** rather than on every
+	# keystroke: type freely, and enter or escape commits or clears.
+	# The widget's own keys are the same as everyone else's; only when
+	# the search is acted on differs, and it differs for a reason.
+	if dt_searchkey "$id" "$key"; then
+		if ! dt_searchon "$id"; then
+			q0 := dt_searchq "$id"
+			if [ "$q0" != "${MW[$id]["q"]}" ]; then
+				MW[$id]["q"]=$q0
+				MW[$id]["open"]=
+				MW[$id]["sel"]=0
 				ml_threads "$id"
 			fi
-			return 0
-			;;
-		down | tab) MW[$id]["qon"]=; return 0 ;;
-		esac
-		r := dt_textkey "${MW[$id]["qbuf"]}" "${MW[$id]["qcur"]}" "$key" || return 1
-		MW[$id]["qbuf"]=${r% *}
-		MW[$id]["qcur"]=${r##* }
+		fi
 		return 0
 	fi
 	MW[$id]["g"]=
@@ -1392,7 +1380,6 @@ fn mail_key(int id, key) {
 		esac
 	fi
 	case $key in
-	/) MW[$id]["qon"]=1; MW[$id]["qcur"]=${#MW[$id]["qbuf"]} ;;
 	g) MW[$id]["g"]=1 ;;
 	e | y) [ "$nt" -gt 0 ] && ml_act "$id" archive ;;
 	"#" | delete) [ "$nt" -gt 0 ] && ml_act "$id" trash ;;
@@ -1418,12 +1405,12 @@ fn mail_click(int? id = "", int? r = "", int? c = "", btn = "") {
 	tag := dt_hit "$id" "$r" "$c" || return 0
 	case $tag in
 	setup) dt_launch panel mailset ;;
-	search) MW[$id]["qon"]=1 ;;
+	dtsearch) dt_searchopen "$id" ;;
 	compose) mlc_new "$id" new ;;
 	back) MW[$id]["open"]= ;;
 	accts) ml_acctmenu "$id" "$r" "$c" ;;
-	view:*) MW[$id]["qon"]=; ml_go "$id" "${tag#view:}" ;;
-	row:*) MW[$id]["qon"]=; ml_openat "$id" "${tag#row:}" ;;
+	view:*) dt_searchshut "$id"; ml_go "$id" "${tag#view:}" ;;
+	row:*) dt_searchshut "$id"; ml_openat "$id" "${tag#row:}" ;;
 	att:*) ml_saveatt "$id" "${tag#att:}" ;;
 	rsvp:*)
 		tag=${tag#rsvp:}
