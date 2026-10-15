@@ -1,6 +1,9 @@
 #!/usr/bin/env hibr
 #
-# apps -- the hibr desktop's application manager, wherever it was installed.
+# catalogue -- hibr's catalogue of applications, themes, languages and
+# modules, wherever it was installed. Called `apps` until 0.99.195: the
+# window has been Catalogue since 0.99.192 and one thing with two names
+# is the parallel this release exists to remove.
 # @SHAREDIR@ is filled in at install time (see the Makefile's own install
 # target); this file is a template, not run directly.
 
@@ -11,4 +14,4 @@
 HIBR_APPS_KEYRING=${HIBR_APPS_KEYRING:-@SHAREDIR@/keyring.gpg}
 export HIBR_APPS_KEYRING
 
-exec hibr "@SHAREDIR@/apps.hibr" "$@"
+exec hibr "@SHAREDIR@/catalogue.hibr" "$@"

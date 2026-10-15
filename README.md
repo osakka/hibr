@@ -84,7 +84,7 @@ sudo make install          # to /usr/local; PREFIX=$HOME/.local for yours alone
 `make install` rebuilds by itself when it is given a different one from the
 build before it. The desktop it installs is the window manager and what
 manages it, with **no applications**: they come from the catalogue, and
-`apps install apps/` places all of them (`make install APPS=all` places
+`catalogue install apps/` places all of them (`make install APPS=all` places
 them from this tree instead). `make TLS=0` leaves TLS out
 entirely. [`deploy.sh`](docs/deployment.md) does the same install but also
 runs every suite first, keeps the previous version to roll back to, and can

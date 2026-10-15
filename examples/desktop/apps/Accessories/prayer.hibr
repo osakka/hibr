@@ -10,6 +10,7 @@ strict
 app prayer "Today's prayer times for where you are, the next one lit" 1.0
 # part: control-panel/prayerset.hibr
 # part: control-strip/nextprayer.hibr
+# modules: salat
 
 command -v dt_app > /dev/null && dt_app prayer "Prayer Times" 15 40 once "☾"
 command -v dt_app > /dev/null && dt_app pyloc "Prayer Location" 9 50 many "" "" hidden

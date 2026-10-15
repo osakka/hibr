@@ -279,7 +279,27 @@ fn dt_appwin(app) {
 fn dt_launch(n, arg = "") {
 	local h w sz id pl r c
 
-	[ -z "${DT_APPS[$n]["title"]}" ] && return 1
+	# An app that is not here. Since 0.99.194 the package ships none,
+	# so this is the ordinary state of a fresh desktop rather than a
+	# corner -- and the window manager itself names **ten** apps by
+	# `dt_launch`, four of which are fetched: `term` at nine call
+	# sites, `files` at seven, `vault` and `imgview` at one each. A
+	# bare desktop therefore had a Home icon that did nothing when
+	# double-clicked, a trash that did nothing, a New Terminal on the
+	# wallpaper's own menu that did nothing, and a file that opened
+	# nowhere -- no window, no message, nothing in the log, because
+	# this returned 1 and every one of those callers ignores it
+	# (Gitea #233).
+	#
+	# Saying so here rather than at each of them is the point: the
+	# list of places that launch something is exactly the list nobody
+	# can be relied on to keep. A caller that has already checked
+	# (`dt_has <app>_draw && dt_launch ...`, which the clipboard, the
+	# notifications and the clock all do) never reaches this.
+	if [ -z "${DT_APPS[$n]["title"]}" ]; then
+		dt_notep high "%s is not installed. Find it in the Catalogue." "$n"
+		return 1
+	fi
 	# An app that does something rather than showing a window -- the
 	# Screenshot desk accessory -- gives <app>_launch, and that is all.
 	if dt_has "${n}_launch"; then

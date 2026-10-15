@@ -11,6 +11,7 @@ strict
 
 
 app mailset "The Control Panel pane for Mail" 1.0
+# modules: email
 command -v cp_pane > /dev/null && cp_pane mailset "Mail" "✉" app
 command -v dt_app > /dev/null && dt_app mlad "Mail Account" 20 66 "" "" fixed hidden
 

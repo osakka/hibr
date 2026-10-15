@@ -9,6 +9,7 @@ strict
 
 
 app prayerset "The Control Panel pane for prayer times" 1.0
+# modules: salat
 command -v cp_pane > /dev/null && cp_pane prayerset "Prayer Times" "☾" app
 
 declare -ga CP_PMETHODS CP_PMNAMES

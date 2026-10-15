@@ -21,6 +21,7 @@
 strict
 
 app browser "The web, in a window" 1.0
+# modules: web
 
 command -v dt_app > /dev/null && dt_app browser "Browser" 26 96 many "◎"
 

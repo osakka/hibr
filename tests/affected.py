@@ -200,7 +200,7 @@ def suites_for(path, req, prov, where):
             return set(), "a tool, not a suite"
     if path == "examples/vw.hibr":
         return {"vw", "vault", "run.sh"}, "the vw command"
-    if path == "examples/apps.hibr":
+    if path == "examples/catalogue.hibr":
         return {"appmgr", "run.sh"}, "the application manager"
     if path.startswith(("docs/", "examples/")):
         return {"run.sh"}, "documentation or an example (530/540)"

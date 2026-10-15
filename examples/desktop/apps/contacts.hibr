@@ -18,6 +18,7 @@ strict
 
 app contacts "The people in your address books, kept offline from CardDAV" 1.1
 # part: control-panel/pimset.hibr
+# modules: dav db pim
 
 command -v dt_app > /dev/null && dt_app contacts "Contacts" 24 92 once "☺"
 command -v dt_app > /dev/null && dt_app pedit "Contact" 16 64 many "" "" hidden

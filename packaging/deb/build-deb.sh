@@ -12,7 +12,8 @@
 # shell, the modules, the window manager, the desktop's own system apps,
 # the Control Panel panes, the Control Strip modules and the savers, and
 # nothing you open -- not Terminal and not Files. They come from the
-# catalogue, which is the one route: `apps install apps/` takes the lot.
+# catalogue, which is the one route: `catalogue install apps/` takes the
+# lot.
 # A second package was built first and the owner refused it -- two places
 # a thing can come from is two versions of it to keep in step, and the
 # catalogue is the one that can be updated without a release.
@@ -145,7 +146,7 @@ Description: small, fast shell that runs the bash you already write
  .
  The desktop here is everything that manages or reports on it and
  nothing that opens anything of yours: the applications come from the
- catalogue, and \`apps install apps/\` fetches all of them at once.
+ catalogue, and \`catalogue install apps/\` fetches all of them at once.
 EOF
 
 cat > "$STAGE/DEBIAN/postinst" <<'EOF'
@@ -161,12 +162,19 @@ fi
 # the one command that puts them back. It is a notice rather than a
 # Depends on purpose: a bare desktop is the point of the split, and a
 # Depends would make it impossible.
+# And the command that does it is called `catalogue` since 0.99.195,
+# where 0.99.194 called it `apps` -- 194's own postinst printed
+# `apps install apps/`, so anybody upgrading from it has that sentence
+# on their screen or in their scrollback and would find no such command.
+# Naming both, once, is the whole of what that costs.
 if [ "$1" = configure ] && [ ! -d /usr/share/hibr/desktop/apps ]; then
 	echo "hibr: the desktop's applications come from the catalogue now."
-	echo "hibr:   apps install apps/"
-	echo "hibr: fetches every one of them; \`apps list\` shows what there"
-	echo "hibr: is. An upgrade from before 0.99.194 has just taken the"
-	echo "hibr: shipped copies away, so this is how they come back."
+	echo "hibr:   catalogue install apps/"
+	echo "hibr: fetches every one of them; \`catalogue list\` shows what"
+	echo "hibr: there is. An upgrade from before 0.99.194 has just taken"
+	echo "hibr: the shipped copies away, so this is how they come back."
+	echo "hibr: The command was called \`apps\` in 0.99.194 and is"
+	echo "hibr: \`catalogue\` now; there is no \`apps\` any more."
 fi
 EOF
 cat > "$STAGE/DEBIAN/postrm" <<'EOF'

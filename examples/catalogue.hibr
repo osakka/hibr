@@ -1,15 +1,17 @@
 #!/usr/bin/env hibr
 #
-# apps -- install, remove and update desktop applications (Gitea #159).
+# catalogue -- install, remove and update what the desktop runs: its
+# applications, themes, colour schemes, languages and modules
+# (Gitea #159, renamed from `apps` in 0.99.195).
 #
-#   apps list [TEXT]            what the index offers, or what matches TEXT
-#   apps installed              what is installed here, and from where
-#   apps info NAME              everything the index says about one
-#   apps install NAME...        fetch, verify and place
-#   apps remove NAME...         take one away
-#   apps update [NAME...]       everything with a newer version, or these
-#   apps index [URL]            the index this fetches from, or set it
-#   apps refresh                fetch the index again now
+#   catalogue list [TEXT]            what the index offers, or what matches TEXT
+#   catalogue installed              what is installed here, and from where
+#   catalogue info NAME              everything the index says about one
+#   catalogue install NAME...        fetch, verify and place
+#   catalogue remove NAME...         take one away
+#   catalogue update [NAME...]       everything with a newer version, or these
+#   catalogue index [URL]            the index this fetches from, or set it
+#   catalogue refresh                fetch the index again now
 #
 # The shape is ADR 0041's, and that record is this program's specification:
 # **an app is a folder of plain files, and a bundle is only how it travels.**
@@ -27,7 +29,7 @@
 #            on a mirror is refused. This forks `sha256sum`, which the shell
 #            has no equivalent of; `--plan` already knows it only reads.
 #   nothing  the identity of the *author*. There are no signatures, and
-#            `apps info` says so in as many words rather than implying it.
+#            `catalogue info` says so in as many words rather than implying it.
 #
 # What it will not do, each refused rather than half-done: a bundle holding
 # a `.so` is refused with that word (native code has no sandbox, and root
@@ -56,7 +58,7 @@ AP_STATE=$AP_DATA/apps.json
 # by anyone and served by any static host -- github.com/osakka/hibr-apps is
 # the repository and this is the same folder as a page. A bundle's own
 # address in the index is relative, so a copy of that folder anywhere is a
-# catalogue. Overridden by `apps index URL` or HIBR_APPS_URL.
+# catalogue. Overridden by `catalogue index URL` or HIBR_APPS_URL.
 AP_URL_DEFAULT=https://osakka.github.io/hibr-apps/index.json
 AP_URL=
 # The kinds a bundle may install into, which are the desktop's own scan
@@ -89,7 +91,7 @@ declare -gA AP_KEXT=(
 # characters, which is the point of pinning one.
 #
 # HIBR_APPS_KEYFP names a different one, because a catalogue is a folder
-# anybody may copy and serve (`apps index URL`) and somebody running their
+# anybody may copy and serve (`catalogue index URL`) and somebody running their
 # own signs it with their own key. That is a real need and not only a
 # test hook, and it is not a hole in the model: what this defends against
 # is **a catalogue or a mirror that has been changed**, not an attacker
@@ -111,6 +113,10 @@ declare -gA AP_ENT
 # now that a bundle can carry a Control Panel pane or a Control Strip module
 # of its own (Gitea #217), and a folder on disk cannot say what it came with.
 AP_PLACED=()
+# The modules an entry needs that are not loadable here and *are* in this
+# catalogue, left by ap_needs for ap_install to place first. Empty is the
+# ordinary case, since everything hibr ships is loadable already.
+AP_WANT=()
 # Which section of the index is in force: `entries`, keyed by an id of
 # kind/name, where one exists, and the older `apps`, keyed by name, where it
 # does not. The desktop has eight namespaces and a name is only unique inside
@@ -122,7 +128,7 @@ DAV_CODE=
 
 # A complaint, and the status to leave with.
 fn ap_die(text, int st = 1) {
-	echo "apps: $text" >&2
+	echo "catalogue: $text" >&2
 	exit "$st"
 }
 
@@ -178,7 +184,7 @@ fn ap_fetch(int force = 0) {
 
 # Where the key that signs the catalogue is kept. Not in the data folder,
 # which is writable: beside the shell that was installed, which is the
-# same place `apps.hibr` itself came from. The launcher fills
+# same place `catalogue.hibr` itself came from. The launcher fills
 # HIBR_APPS_KEYRING in; the two standard prefixes are for a shell run from
 # a build tree, and `$HIBR` is this shell's own absolute path.
 fn ap_keyring() {
@@ -374,7 +380,7 @@ fn ap_entry(id) {
 	# string and let a darwin-arm64 module install on linux-x86_64 --
 	# measured, not reasoned about. Anything added to the index that a
 	# verb reads goes here too.
-	for k in title version about author licence hibr abi arch bundle sha256 kind modules name; do
+	for k in title version about author licence hibr abi arch bundle sha256 kind modules name dir; do
 		AP_ENT["$k"]=${AP_IX["$AP_SECT"]["$key"]["$k"]}
 	done
 	# The *name* is what a file is called where it lands; the **id** is
@@ -397,7 +403,7 @@ fn ap_entry(id) {
 	# run ended, so one bad entry is missing from a list instead of taking
 	# the catalogue with it, the way a bad theme is (Gitea #225).
 	if ! ap_nameok "${AP_ENT["name"]}"; then
-		printf 'apps: %s: the index gives a name that is not one a file can be called, so it is left out\n' \
+		printf 'catalogue: %s: the index gives a name that is not one a file can be called, so it is left out\n' \
 			"${AP_ENT["kind"]}/${AP_ENT["name"]}" >&2
 		AP_ENT=()
 		return 1
@@ -437,15 +443,56 @@ fn ap_kext(kind) {
 	ret "${AP_KEXT["$kind"]:-.hibr}"
 }
 
-fn ap_dest(kind, name) {
+# The folder inside a kind that an entry lands in, when the index names
+# one -- `Internet` for Mail, so it lands as `apps/Internet/mail.hibr`
+# and `dt_apps` gives it the submenu it has in a shipped desktop. Without
+# it every fetched application landed flat and a restored desktop listed
+# twenty-one under Applications where the tree has four submenus
+# (Gitea #233).
+#
+# It decides a **destination**, so it is checked here rather than
+# trusted, exactly as a part's own path is: a segment is letters,
+# digits, dashes, underscores and spaces -- `Desk Accessories` is a real
+# folder -- and nothing else, so there is no climbing out, no absolute
+# path and no empty segment. An index that says otherwise has the dir
+# dropped rather than the install refused: the entry is still a perfectly
+# good app and the worst that happens is the flat placement everybody had
+# before this existed.
+fn ap_dirok(dir) {
+	local IFS=/ seg
+
+	[ -n "$dir" ] || return 1
+	case $dir in
+	/* | */ | *//*) return 1 ;;
+	esac
+	for seg in $dir; do
+		case $seg in
+		"" | . | ..) return 1 ;;
+		*[!a-zA-Z0-9_\ -]*) return 1 ;;
+		esac
+	done
+	return 0
+}
+
+fn ap_dest(kind, name, dir = "") {
 	local e
 
 	e := ap_kext "$kind"
-	ret "$AP_DATA/$kind/$name$e"
+	ap_dirok "$dir" || dir=
+	ret "$AP_DATA/$kind/${dir:+$dir/}$name$e"
 }
 
-fn ap_destdir(kind, name) {
-	ret "$AP_DATA/$kind/$name"
+fn ap_destdir(kind, name, dir = "") {
+	ap_dirok "$dir" || dir=
+	ret "$AP_DATA/$kind/${dir:+$dir/}$name"
+}
+
+# The same, relative, for AP_PLACED and the state -- which is what
+# removal walks, so it has to carry the folder too or an app installed
+# into one could never be taken away.
+fn ap_rel(kind, name, dir = "") {
+	ap_dirok "$dir" || dir=
+	ret "$kind/${dir:+$dir/}$name"
 }
 
 # Every member of an open archive, depth first, as "kind<TAB>path" lines in
@@ -521,7 +568,7 @@ fn ap_sha(path) {
 # Which windows a running desktop has open for this app, as a count and
 # their titles. Nothing open, or no desktop at all, is zero -- asked over
 # the desktop's own control socket rather than guessed, because somebody
-# running `apps remove` from a terminal inside the desktop is exactly who
+# running `catalogue remove` from a terminal inside the desktop is exactly who
 # this protects (ADR 0041, item 9).
 fn ap_windows(name) {
 	local out t n=0
@@ -557,13 +604,24 @@ AP_WINS=
 # slot. A builtin like `mod list` can; a command can only print, and the
 # honest version of "one answer" for a command is a machine-readable one.
 fn ap_list(want = "", int j = 0) {
-	local name n=0 v
+	local name n=0 v here
 	local -A out
 
 	ap_load
 	ap_state
+	here := ap_arch
 	for name in "${!AP_IX["$AP_SECT"][@]}"; do
 		ap_entry "$name" || continue
+		# A module built for another machine is not something to
+		# choose between: this shell knows what it is running on, so
+		# listing one it could never load is asking a person to do
+		# arithmetic the program has already done. It is hidden from
+		# the list and from `-j`, which is what the Catalogue window
+		# reads -- and `catalogue info NAME` still answers for it, because
+		# somebody who asks by name is asking a different question
+		# and deserves the reason rather than a silence.
+		[ -n "${AP_ENT["arch"]}" ] && [ "${AP_ENT["arch"]}" != "$here" ] &&
+			continue
 		if [ -n "$want" ]; then
 			case ${AP_ENT["id"]}${AP_ENT["title"]}${AP_ENT["about"]} in
 			*"$want"*) ;;
@@ -881,7 +939,7 @@ on a mirror, and refusing is the right answer."
 # `ap_puttar` is still here for a catalogue that serves one, since an index
 # may be anybody's.
 fn ap_putparts(kind, name, src, key) {
-	local i pk pn pp psha dest e t n=0
+	local i pk pn pp psha dest e t rel n=0
 	local -a ptmp pkind pname
 
 	e := ap_kext "$kind"
@@ -912,10 +970,16 @@ filename -- a part decides where a file lands."
 		pname+=("$pn")
 		n=$((n + 1))
 	done
-	dest := ap_dest "$kind" "$name"
-	mkdir -p "$AP_DATA/$kind" || ap_die "cannot make $AP_DATA/$kind"
+	dest := ap_dest "$kind" "$name" "${AP_ENT["dir"]}"
+	rel := ap_rel "$kind" "$name" "${AP_ENT["dir"]}"
+	mkdir -p "${dest%/*}" || ap_die "cannot make ${dest%/*}"
 	mv -f "$src" "$dest" || ap_die "cannot put $dest in place"
-	AP_PLACED=("$kind/$name$e")
+	# The app's own file carries the entry's folder; a **part** never
+	# does. A part names its own kind and filename and lands at the
+	# root of that kind -- a Control Panel pane is found by one flat
+	# scan, where only `apps` recurses -- so a folder under `apps` is
+	# the app's alone (Gitea #233).
+	AP_PLACED=("$rel$e")
 	for i in "${!ptmp[@]}"; do
 		pk=${pkind["$i"]}
 		pn=${pname["$i"]}
@@ -931,13 +995,14 @@ filename -- a part decides where a file lands."
 
 # Place a single-file bundle: the app itself, which is most apps.
 fn ap_putone(kind, name, src) {
-	local dest e
+	local dest e rel
 
-	dest := ap_dest "$kind" "$name"
+	dest := ap_dest "$kind" "$name" "${AP_ENT["dir"]}"
+	rel := ap_rel "$kind" "$name" "${AP_ENT["dir"]}"
 	e := ap_kext "$kind"
-	mkdir -p "$AP_DATA/$kind" || ap_die "cannot make $AP_DATA/$kind"
+	mkdir -p "${dest%/*}" || ap_die "cannot make ${dest%/*}"
 	mv -f "$src" "$dest" || ap_die "cannot put $dest in place"
-	AP_PLACED=("$kind/$name$e")
+	AP_PLACED=("$rel$e")
 	ap_say "installed $name as $dest"
 	return 0
 }
@@ -1160,20 +1225,37 @@ filename -- a part decides where a file lands."
 	return 0
 }
 
-# What an entry says it needs, checked rather than printed. `apps info` has
+# What an entry says it needs, checked rather than printed. `catalogue info` has
 # shown `needs hibr X, module ABI Y, modules: Z` from the beginning and
 # nothing ever read those fields, so an app needing the db module installed
 # happily on a machine without it and failed at its first call, in a window,
 # as a shell error in desktop.log. An index field nothing enforces reads as
 # a promise (Gitea #217).
 # This machine, as the catalogue spells it: the system and the machine,
-# lowercased and joined -- `linux-x86_64`, `darwin-arm64`. One fork, on
-# the install path only, and `uname` is a program `--plan` already knows
-# only reads. Not a shell variable: `HIBR_ARCH` is taken, and means the
-# arena's chunk size.
+# lowercased and joined -- `linux-x86_64`, `darwin-arm64`.
+#
+# From the shell's own `$OSTYPE` and `$HOSTTYPE` since 0.99.195, which
+# hibr sets at startup from `uname()` the way bash does, so this is a
+# string operation where it used to be a fork -- and a fork per entry
+# that declares an arch, which `catalogue install apps/` makes twenty-one of.
+# They are bash's names rather than one of ours on purpose: every script
+# already knows them, and `HIBR_ARCH` is taken -- it means the arena's
+# chunk size.
+#
+# `$OSTYPE` is bash's spelling, not the catalogue's: `linux-gnu` where
+# a bundle path says `linux`, and `darwin23` where it says `darwin`. So
+# the first `-` and any trailing digits come off, which is the whole
+# difference between the two vocabularies. A shell too old to set it at
+# all falls back to the fork rather than guessing.
 fn ap_arch() {
-	local u
+	local u o
 
+	if [ -n "${OSTYPE-}" ] && [ -n "${HOSTTYPE-}" ]; then
+		o=${OSTYPE%%-*}
+		o=${o%%[0-9]*}
+		ret "${o,,}-${HOSTTYPE,,}"
+		return 0
+	fi
 	u := uname -sm
 	u=${u,,}
 	ret "${u% *}-${u#* }"
@@ -1208,20 +1290,49 @@ A module's ABI must match exactly, so this app's own module could not load."
 		[ "$oldest" = "$hv" ] ||
 			ap_die "$name: needs hibr $hv or newer, and this is $HIBR_VERSION"
 	fi
+	# What the entry needs loaded before it can run. Three answers in
+	# order, and only the third is a refusal (ADR 0045).
+	#
+	# **Already loadable** is satisfied, and covers everything hibr
+	# ships -- `need` resolves an interface as well as a module name,
+	# so `terminal` finds `term.so` the way the app itself does.
+	#
+	# **In this catalogue as `mods/NAME`** is collected into AP_WANT for
+	# the caller to install first. It is not installed from here: this
+	# function runs before anything is fetched, on purpose, so that an
+	# entry this hibr cannot satisfy costs nothing and leaves nothing
+	# behind -- and an install that started placing modules from inside
+	# a check would break that promise.
+	#
+	# **Neither** is the end of it. An entry naming a module that is
+	# nowhere is a broken entry, not a machine that is missing
+	# something, and installing an app that cannot work is worse than
+	# saying so.
+	AP_WANT=()
 	if [ -n "${AP_ENT["modules"]}" ]; then
 		IFS=', ' read -ra mods <<< "${AP_ENT["modules"]}"
 		for m in "${mods[@]}"; do
 			[ -n "$m" ] || continue
 			need "$m" 2> /dev/null && continue
-			ap_die "$name: needs the $m module, which this hibr does not have
-A module comes with hibr, or from this catalogue as a bundle of kind
-'mods' -- try: apps install mods/$m"
+			if ap_entry "mods/$m" > /dev/null 2>&1; then
+				AP_WANT+=("mods/$m")
+				continue
+			fi
+			ap_die "$name: needs the $m module, which neither hibr
+nor this catalogue provides. Nothing was installed."
 		done
 	fi
+	# `ap_entry` above overwrote AP_ENT with whichever module it last
+	# looked at, and every caller of this reads AP_ENT afterwards --
+	# the bundle, the sha256, the name it installs under. Put it back.
+	# Without this an app that needs a fetchable module is installed
+	# *as that module*, which is a silent wrong file rather than an
+	# error, and only shows up as the app being missing.
+	[ "${#AP_WANT[@]}" -gt 0 ] && ap_entry "$name"
 	return 0
 }
 
-# Every entry of one kind, for `apps install apps/` -- a trailing slash
+# Every entry of one kind, for `catalogue install apps/` -- a trailing slash
 # and nothing after it means the whole of that kind. The desktop ships no
 # applications since 0.99.194 (Gitea #220), so putting a full desktop
 # back is one command rather than twenty-one, and that is the difference
@@ -1243,11 +1354,89 @@ fn ap_ofkind(kind) {
 	ret "${out[*]}"
 }
 
+# One module, fetched because an entry said it needed it. A module is
+# never a `part` -- a part is removed with its owner, and `pim` serves
+# Calendar, Contacts and anybody's script (ADR 0045) -- so it is
+# installed as an entry of its own and the state remembers *why*, which
+# is the whole of what a later `purge` reads.
+#
+# A module entry declares no modules of its own: `mkindex` writes the
+# field only for a script, so this cannot recurse. That is deliberate
+# rather than lucky -- what a module needs is `hibr_require`'s business,
+# resolved when it loads, and a catalogue second-guessing it would be
+# two answers to one question.
+fn ap_getmod(mid, why) {
+	local tmp i
+	local -a placed
+
+	ap_entry "$mid" ||
+		ap_die "$why: needs $mid, which went missing from the index between the check and the fetch"
+	# The same refusal an explicit `catalogue install mods/x` gets, for the
+	# same reason: a module is native code and runs as you, so an
+	# unverifiable catalogue is the end of it (ADR 0044). Coming here
+	# by way of an app's own declaration changes nothing about that.
+	ap_verify
+	[ "$AP_SIGOK" = 1 ] ||
+		ap_die "$why needs the ${AP_ENT["name"]} module, and this catalogue cannot be verified
+$AP_SIGWHY.
+A module is native code and runs as you: a signature is not optional for
+one (ADR 0044). Nothing was installed."
+	ap_needs "$mid"
+	tmp := ap_getbundle "${AP_ENT["name"]}" "${AP_ENT["bundle"]}" \
+			    "${AP_ENT["sha256"]}"
+	ap_putone mods "${AP_ENT["name"]}" "$tmp"
+	ap_say "  -- which $why needs"
+	AP_ST["installed"]["$mid"]["version"]=${AP_ENT["version"]}
+	AP_ST["installed"]["$mid"]["kind"]=mods
+	AP_ST["installed"]["$mid"]["sha256"]=${AP_ENT["sha256"]}
+	# Why it is here, which is what tells a later `purge` that nobody
+	# asked for this one by name. An explicit `catalogue install mods/pim`
+	# does not set it, so purge leaves that one alone.
+	AP_ST["installed"]["$mid"]["auto"]=$why
+	unset AP_ST["installed"]["$mid"]["paths"]
+	placed=("${AP_PLACED[@]}")
+	for i in "${!placed[@]}"; do
+		AP_ST["installed"]["$mid"]["paths"]["$i"]=${placed["$i"]}
+	done
+	ap_statesave
+	return 0
+}
+
+# What the previous install of this entry left that the one just placed
+# does not include, removed. Called after the files are in place and
+# before the state is rewritten, which is the only moment both lists
+# exist.
+fn ap_stale(name) {
+	local i p keep
+	local -a old
+
+	for i in "${!AP_ST["installed"]["$name"]["paths"][@]}"; do
+		old+=("${AP_ST["installed"]["$name"]["paths"]["$i"]}")
+	done
+	[ "${#old[@]}" -gt 0 ] || return 0
+	for p in "${old[@]}"; do
+		keep=
+		for i in "${AP_PLACED[@]}"; do
+			[ "$i" = "$p" ] && { keep=1; break ; }
+		done
+		[ -n "$keep" ] && continue
+		ap_claimed "$p" "$name" && continue
+		[ -e "$AP_DATA/$p" ] || continue
+		case $p in
+		*/) rm -rf "$AP_DATA/$p" 2> /dev/null ;;
+		*.hibr | *.json | *.so | *.png) rm -f "$AP_DATA/$p" 2> /dev/null ;;
+		*) rm -rf "$AP_DATA/$p" 2> /dev/null ;;
+		esac
+		ap_say "took away $p, which this version no longer places"
+	done
+	return 0
+}
+
 fn ap_install(...names) {
-	local name want tmp kind i ext all
+	local name want tmp kind i ext all mid
 	local -a wants
 
-	[ "${#names[@]}" -gt 0 ] || ap_die "usage: apps install NAME..."
+	[ "${#names[@]}" -gt 0 ] || ap_die "usage: catalogue install NAME..."
 	# The index again, always: installing against a stale one is how a
 	# sha256 mismatch gets blamed on the mirror.
 	ap_load 1
@@ -1276,7 +1465,7 @@ fn ap_install(...names) {
 		# catalogue is a sentence and the install goes on. A module
 		# has no reader and runs as you, so an unverified catalogue
 		# is the end of it -- without this the signature is
-		# decoration and `apps info` would be claiming a check
+		# decoration and `catalogue info` would be claiming a check
 		# nothing makes (ADR 0044).
 		if [ "$kind" = mods ]; then
 			ap_verify
@@ -1292,6 +1481,19 @@ you can read the file (ADR 0041, ADR 0044)."
 		# Before fetching, not after: refusing an app this hibr
 		# cannot run should cost nothing and leave nothing behind.
 		ap_needs "$name"
+		# Whatever it needs that is not loadable here and is in this
+		# catalogue, placed before the thing that needs it -- so an
+		# app is never on disk in a state where its first `need`
+		# fails. ap_needs has already refused anything that is in
+		# neither place, before a byte was fetched.
+		if [ "${#AP_WANT[@]}" -gt 0 ]; then
+			for mid in "${AP_WANT[@]}"; do
+				ap_getmod "$mid" "$name"
+			done
+			# ap_getmod walked AP_ENT onto each module in turn;
+			# every line below reads it for *this* entry.
+			ap_entry "$name" || ap_die "$name: no such app in the index"
+		fi
 		tmp := ap_getbundle "${AP_ENT["name"]}" "${AP_ENT["bundle"]}" \
 				    "${AP_ENT["sha256"]}"
 		# A bundle that is the file itself, or a tarball: decided by
@@ -1313,6 +1515,20 @@ you can read the file (ADR 0041, ADR 0044)."
 		*) ap_puttar "$kind" "${AP_ENT["name"]}" "$tmp" ;;
 		esac
 		name=${AP_ENT["id"]}
+		# Whatever the last install of this entry placed and this
+		# one did not. Reinstalling has always written the new paths
+		# over the old record and left the old *files*, so an entry
+		# that stopped bringing a part left it behind for ever --
+		# invisible, since nothing on disk says who put it there.
+		# `dir` made that reachable rather than merely untidy: an
+		# app that used to land as `apps/mail.hibr` now lands as
+		# `apps/Internet/mail.hibr`, and without this both are on
+		# the scan path at once (Gitea #233).
+		#
+		# A path another installed entry also brings is kept, the
+		# same refcount `ap_remove` asks -- `ap_claimed` is the one
+		# place that question is answered.
+		ap_stale "$name"
 		AP_ST["installed"]["$name"]["version"]=${AP_ENT["version"]}
 		AP_ST["installed"]["$name"]["kind"]=$kind
 		AP_ST["installed"]["$name"]["sha256"]=${AP_ENT["sha256"]}
@@ -1346,6 +1562,93 @@ fn ap_claimed(path, except) {
 	return 1
 }
 
+# Is any installed entry still asking for this module? Read from each
+# one's own `modules`, which is the index's answer rather than a second
+# list kept here -- so an app whose declaration changed is believed at
+# its current version, not at the one it was installed from.
+#
+# It reads the state this process has, which today is the user's own.
+# When a **system** scope lands (ADR 0045) there is a second state above
+# this one, and a user's purge must not take a module a system-installed
+# app needs: this is the one function that has to learn about it, and
+# the seam is left visible rather than generalised in advance.
+fn ap_wanted(mod) {
+	local name m
+	local -a mods
+
+	for name in "${!AP_ST["installed"][@]}"; do
+		[ "${AP_ST["installed"]["$name"]["kind"]}" = mods ] && continue
+		ap_entry "$name" || continue
+		[ -n "${AP_ENT["modules"]}" ] || continue
+		IFS=', ' read -ra mods <<< "${AP_ENT["modules"]}"
+		for m in "${mods[@]}"; do
+			[ "$m" = "$mod" ] && return 0
+		done
+	done
+	return 1
+}
+
+# Modules that were fetched **because something needed them** and that
+# nothing installed needs now. A module installed by name is never here:
+# `auto` is set only by ap_getmod, so asking for `mods/pim` yourself
+# makes it yours and purge leaves it alone for ever.
+#
+# Native code is never removed as a side effect of removing something
+# else, which is why this is a verb and not a step inside `remove`: the
+# refcount can only see what this catalogue installed, and a script of
+# your own that calls `need pim` is invisible to it. Deleting it behind
+# that script's back is a worse failure than leaving a megabyte on disk.
+fn ap_purge(...args) {
+	local a yes=0 dry=0 name base n=0 ans
+	local -a gone
+
+	for a in "${args[@]}"; do
+		case $a in
+		-y | --yes) yes=1 ;;
+		-n | --dry-run) dry=1 ;;
+		*) ap_die "usage: catalogue purge [-y] [--dry-run]" ;;
+		esac
+	done
+	ap_load
+	ap_state
+	for name in "${!AP_ST["installed"][@]}"; do
+		[ "${AP_ST["installed"]["$name"]["kind"]}" = mods ] || continue
+		[ -n "${AP_ST["installed"]["$name"]["auto"]}" ] || continue
+		base=${name##*/}
+		ap_wanted "$base" && continue
+		gone+=("$name")
+		n=$((n + 1))
+	done
+	if [ "$n" = 0 ]; then
+		ap_say "nothing to purge: every module here was asked for by name, or something still needs it"
+		return 0
+	fi
+	printf 'fetched for something that is gone, and nothing installed needs now:\n'
+	for name in "${gone[@]}"; do
+		printf '  %-22s was needed by %s\n' "$name" \
+		       "${AP_ST["installed"]["$name"]["auto"]}"
+	done
+	[ "$dry" = 1 ] && return 0
+	# A desktop runs this as a child with no terminal, so there is
+	# nobody to answer: refusing is the only honest thing, and it names
+	# the flag rather than hanging on a read that can never return.
+	if [ "$yes" = 0 ]; then
+		if [ ! -t 0 ]; then
+			ap_die "nothing was removed: there is no terminal to ask on.
+Run it with -y to remove these without being asked, or --dry-run to
+list them and stop."
+		fi
+		printf 'remove these? [y/N] '
+		read -r ans
+		case $ans in
+		y | Y | yes) ;;
+		*) ap_say "nothing was removed"; return 0 ;;
+		esac
+	fi
+	ap_remove -f "${gone[@]}"
+	return 0
+}
+
 fn ap_remove(...names) {
 	local name w base kind dest dir n force=0 i p np
 	local -a want
@@ -1356,7 +1659,7 @@ fn ap_remove(...names) {
 		*) want+=("$name") ;;
 		esac
 	done
-	[ "${#want[@]}" -gt 0 ] || ap_die "usage: apps remove [-f] NAME..."
+	[ "${#want[@]}" -gt 0 ] || ap_die "usage: catalogue remove [-f] NAME..."
 	ap_state
 	for w in "${want[@]}"; do
 		name := ap_insresolve "$w" || ap_die "$w: not installed here"
@@ -1366,7 +1669,7 @@ fn ap_remove(...names) {
 		n := ap_windows "$base"
 		if [ "$n" -gt 0 ] && [ "$force" = 0 ]; then
 			ap_die "$w: $n window(s) of it are open ($AP_WINS)
-Close them first, or `apps remove -f $w`. Removing it frees the folder
+Close them first, or `catalogue remove -f $w`. Removing it frees the folder
 its code is read from, and the desktop would be left calling functions with
 nothing behind them."
 		fi
@@ -1451,7 +1754,7 @@ fn ap_setindex(url = "") {
 	case $url in
 	https://*) ;;
 	http://*)
-		echo "apps: $url is not https, so nothing says which server answered" >&2
+		echo "catalogue: $url is not https, so nothing says which server answered" >&2
 		;;
 	*) ap_die "$url: an index is an http:// or https:// address" ;;
 	esac
@@ -1473,12 +1776,13 @@ fn ap_setindex(url = "") {
 # handed over.
 ap_help() {
 	printf '%s\n' \
-	"apps -- install, remove and update desktop applications" \
+	"catalogue -- what the desktop runs: applications, themes, colour" \
+	"schemes, languages and modules, fetched from an index over HTTPS" \
 	"" \
-	"  apps list [TEXT]       what the index offers, or what matches TEXT" \
-	"  apps installed         what is installed here, and from where" \
-	"  apps info NAME         everything the index says about one" \
-	"  apps show NAME         fetch it, verify it, and print it -- read an" \
+	"  catalogue list [TEXT]       what the index offers, or what matches TEXT" \
+	"  catalogue installed         what is installed here, and from where" \
+	"  catalogue info NAME         everything the index says about one" \
+	"  catalogue show NAME         fetch it, verify it, and print it -- read an" \
 	"                         app before you install it, which a catalogue" \
 	"                         of scripts can offer and a package manager" \
 	"                         cannot" \
@@ -1488,16 +1792,21 @@ ap_help() {
 	"  reads that rather than parsing these columns, so the window and the" \
 	"  command read one answer instead of one parsing the other's layout." \
 	"" \
-	"  apps install NAME...   fetch, verify and place" \
-	"  apps install KIND/     every app of one kind, so a bare desktop" \
-	"                         comes back in one command: 'apps install" \
+	"  catalogue install NAME...   fetch, verify and place" \
+	"  catalogue install KIND/     every app of one kind, so a bare desktop" \
+	"                         comes back in one command: 'catalogue install" \
 	"                         apps/' places every application, and" \
-	"                         'apps install themes/' every theme" \
-	"  apps remove [-f] NAME  take one away; -f even if a window is open" \
-	"  apps update [NAME...]  everything with a newer version, or these" \
-	"  apps index [URL]       the index this fetches from, or set it" \
-	"  apps refresh           fetch the index again now" \
-	"  apps help              this" \
+	"                         'catalogue install themes/' every theme" \
+	"  catalogue remove [-f] NAME  take one away; -f even if a window is open" \
+	"  catalogue purge        take away modules that were fetched for" \
+	"                         something that is gone and that nothing" \
+	"                         installed needs now; -y to skip the ask," \
+	"                         --dry-run to list them and stop. A module" \
+	"                         you asked for by name is never purged" \
+	"  catalogue update [NAME...]  everything with a newer version, or these" \
+	"  catalogue index [URL]       the index this fetches from, or set it" \
+	"  catalogue refresh           fetch the index again now" \
+	"  catalogue help              this" \
 	"" \
 	"An app is a folder of plain files and a bundle is only how it travels;" \
 	"installing is placing a file where the desktop already looks. Your own" \
@@ -1507,7 +1816,7 @@ ap_help() {
 	"TLS says which server the index came from and the sha256 says the" \
 	"bundle was not changed on the way. Who wrote it is the signature on" \
 	"the index, which covers every bundle through those hashes:" \
-	"'apps info NAME' says whether this catalogue has one that checks out." \
+	"'catalogue info NAME' says whether this catalogue has one that checks out." \
 	"" \
 	"A module -- kind 'mods' -- is the one thing here that is native code" \
 	"rather than a file you can read, so it is refused outright from a" \
@@ -1516,14 +1825,15 @@ ap_help() {
 	"searches when something asks for a module by name: 'need NAME' finds" \
 	"one installed here, and a mistyped command never loads it." \
 	"" \
-	"See docs/apps.md, docs/adr/0041 and docs/adr/0044."
+	"See docs/catalogue.md, docs/adr/0041, docs/adr/0044 and" \
+	"docs/adr/0045."
 }
 
 ap_usage() {
-	echo "usage: apps [-j] list [TEXT] | [-j] installed | [-j] info NAME |" >&2
+	echo "usage: catalogue [-j] list [TEXT] | [-j] installed | [-j] info NAME |" >&2
 	echo "       (kinds: ${AP_KINDS[*]})" >&2
 	echo "       show NAME | install NAME...|KIND/ | remove [-f] NAME... |" >&2
-	echo "       update [NAME...] | index [URL] | refresh | help" >&2
+	echo "       update [NAME...] | purge [-y] | index [URL] | refresh | help" >&2
 	exit 2
 }
 
@@ -1546,6 +1856,7 @@ info) [ -n "${2-}" ] || ap_usage; ap_info "$2" "$AP_J" ;;
 show | read) [ -n "${2-}" ] || ap_usage; ap_show "$2" ;;
 install) shift; ap_install "$@" ;;
 remove | uninstall) shift; ap_remove "$@" ;;
+purge) shift; ap_purge "$@" ;;
 update | upgrade) shift; ap_update "$@" ;;
 index) ap_setindex "${2-}" ;;
 refresh) ap_load 1; ap_say "the index is up to date" ;;

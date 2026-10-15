@@ -341,7 +341,7 @@ echo "every pen names a theme colour"
 # the list taken from `AP_KINDS=(` to the first `)`. A sed line range
 # cannot do it: `/NAME=(/,/)/` never ends on its own opening line, so a
 # list written on one line swallows whatever follows it.
-apk=$(tr '\n\t' '  ' < examples/apps.hibr |
+apk=$(tr '\n\t' '  ' < examples/catalogue.hibr |
 	sed 's/.*AP_KINDS=(//; s/).*//; s/  */ /g; s/^ //; s/ $//')
 [ -n "$apk" ] || echo "could not read AP_KINDS"
 grep -q '^AS_KINDS=()$' examples/desktop/system/appstore.hibr ||

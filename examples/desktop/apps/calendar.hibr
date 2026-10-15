@@ -21,6 +21,7 @@ strict
 
 app calendar "Your calendars, a month at a time, kept offline from CalDAV" 1.0
 # part: control-panel/pimset.hibr
+# modules: dav db email pim
 
 command -v dt_app > /dev/null && dt_app calendar "Calendar" 28 98 once "▦"
 command -v dt_app > /dev/null && dt_app cedit "Event" 23 70 many "" "" hidden

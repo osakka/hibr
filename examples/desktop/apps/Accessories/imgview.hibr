@@ -9,6 +9,7 @@
 strict
 
 app imgview "A picture in a window" 1.0
+# modules: img term
 
 command -v dt_app > /dev/null && dt_app imgview "Image Viewer" 16 40 "" "◧"
 

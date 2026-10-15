@@ -1,5 +1,100 @@
 # Changelog
 
+## 0.99.195
+
+**What an app needs, where it lands, and what the command is called.**
+
+Gitea #234, #233 and #235, which are one question asked four ways:
+*how do I install Contacts, with its Control Panel pane and maybe a
+module?*
+
+**`apps` is `catalogue`.** The window has been called Catalogue since
+0.99.192 and the command was still `apps`; one thing with two names is
+the parallel this release exists to remove. A clean break, no alias --
+with two things done so the break does not cut anybody. `make install`
+removes a `bin/apps` it finds, because dpkg takes a file the new package
+no longer ships and a **source** upgrade does not, which would otherwise
+leave a command that exists and fails. And the postinst names both
+names once: 0.99.194's own postinst printed `apps install apps/`, so
+anybody upgrading from it has that sentence in their scrollback.
+
+**An entry says what it needs.** A `# modules:` line in a bundle's own
+header, beside the `# part:` lines, carried into the index and resolved
+at install: already loadable -> satisfied; in this catalogue as
+`mods/NAME` -> fetched **before** the thing that needs it, so an app is
+never on disk in a state where its first `need` fails; neither -> the
+app is refused by name and nothing is placed.
+
+The field it fills is `modules`, which `ap_entry` has copied and
+`ap_needs` has checked since `apps` was written, and which **nothing had
+ever filled in** -- 0 of 85 entries. The same shape as #157: the layer
+below already understood a thing the layer above had no way to say. A
+part and a module are different relations and that is why they get
+different words -- a part is a file an entry *owns and brings*, removed
+with its owner; a module is owned by nobody, and `pim` serves Calendar,
+Contacts and anybody's script.
+
+**`catalogue purge`** is the other end of it. Removing an app says
+nothing about its modules: the count this program keeps can only see
+what it installed, and a script of your own that calls `need pim` is
+invisible to it, so deleting native code behind that script's back is a
+worse failure than leaving a megabyte on disk. Purge lists what was
+fetched *for* something now gone, says which app wanted it, and takes it
+away on a yes. A module installed **by name** is never listed. Run from
+a desktop window there is no terminal to answer on, so it refuses and
+names the flag rather than hanging on a read that cannot return.
+
+**An app lands where it belongs** (#233). `bundles/apps/Internet/mail.hibr`
+carries `dir: Internet` -- read from the bundle path exactly as the kind
+already is, so the two cannot disagree -- and installs as
+`apps/Internet/mail.hibr`, which `dt_apps` turns into a submenu because
+it already recursed. A restored desktop is now `diff`-identical to
+`examples/desktop/apps`: Accessories, Games, Internet, Office, where
+0.99.194 gave twenty-one applications in one list.
+
+That found an older wart. Reinstalling has always written the new paths
+over the old record and left the old **files**, so an entry that stopped
+bringing a part orphaned it for ever, invisibly. `dir` made it reachable
+rather than merely untidy -- an app that used to land flat now lands in a
+folder, and both would be on the scan path. An install now takes away
+what the last one placed and this one did not, keeping anything another
+installed entry also brings.
+
+**OSTYPE, HOSTTYPE and MACHTYPE** (#235). hibr set none of bash's three
+machine variables, so `case $OSTYPE in darwin*)` -- the idiom `bashbug`,
+`gawkbug` and `gcore` use on this box -- read an empty string and took
+the wrong branch. They are set at startup from `uname()` and on Linux
+agree with bash character for character. They are bash's names rather
+than one of ours because every script already knows them, and
+`HIBR_ARCH` was taken: it is the arena's chunk size.
+
+The catalogue reads them, which is the other half of #234's question
+about architectures: `ap_arch` is a string operation where it was a fork
+-- and a fork per entry declaring an arch, which `catalogue install
+apps/` makes twenty-one of. Measured: **zero** `uname` executions. And a
+module built for another machine is no longer listed, nor in `-j`, which
+is what the Catalogue window reads; `catalogue info NAME` still answers
+for one and says which machine it is for, because asking by name is a
+different question from browsing.
+
+**And a missing app says so.** `dt_launch` returned 1 in silence for an
+app that is not installed -- which since 0.99.194 is the ordinary state
+of a fresh desktop, and the window manager launches **ten** apps by
+name, four of them fetched: `term` at nine call sites, `files` at seven,
+`vault` and `imgview` at one each. So a bare desktop had a Home icon
+that did nothing when double-clicked, a trash that did nothing, a New
+Terminal on the wallpaper's own menu that did nothing, and a file that
+opened nowhere. One note names the app and the Catalogue, in the one
+place rather than at sixteen call sites -- and it *removed* a message
+as well: the Date & Time pane's own "No terminal app to run it in",
+which would have been a second note for one failure and said less.
+
+Known, and its own release: the applications still live under
+`examples/`, which holds three products and nine samples and is
+therefore lying about what it contains. They move to `programs/` with
+the desktop in 0.99.196 (Gitea #236), so the 305 paths that name
+`examples/desktop` change once rather than twice.
+
 ## 0.99.194
 
 **The desktop ships bare, and one command puts the applications back.**

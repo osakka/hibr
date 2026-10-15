@@ -84,14 +84,32 @@ stops at three quarters of the stack whether it is set or not. Under `set -o
 keepgoing` it, and an arithmetic error, fail only the command.
 
 **Special variables.** `$@ $* $# $? $$ $! $- $0–$9 $RANDOM $SECONDS $EPOCHSECONDS
-$EPOCHREALTIME $LINENO $PPID $UID $EUID $HOSTNAME $HIBR_VERSION $HIBR_ABI $HIBR`, plus `$RET`, `$ERRMSG`, `$ERR`, `$ERRSTATUS`,
+$EPOCHREALTIME $LINENO $PPID $UID $EUID $HOSTNAME $OSTYPE $HOSTTYPE $MACHTYPE
+$HIBR_VERSION $HIBR_ABI $HIBR`, plus `$RET`, `$ERRMSG`, `$ERR`, `$ERRSTATUS`,
 `$REMOTE` and `$M`, and `$BASH_SOURCE`: the file the running code came from --
 the script, a file being sourced, or, inside a function, the file the
 function was defined in, which is how a sourced file finds its own directory
 (`${BASH_SOURCE%/*}`). As in bash, `RANDOM=5` seeds the generator, `SECONDS=5`
 restarts the count from 5, and an assignment to `$EPOCHSECONDS` or
 `$EPOCHREALTIME` is ignored; `${RANDOM[0]}` and the like read the value, as
-`[0]` of any scalar does. Only `${BASH_SOURCE[0]}` is kept, not the stack of
+`[0]` of any scalar does. `$OSTYPE`, `$HOSTTYPE` and `$MACHTYPE` are set at
+startup from `uname()` and are bash's, not names of ours — every script
+already knows them, and `HIBR_ARCH` was taken (it is the arena's chunk
+size). On Linux all three are what bash reports exactly:
+
+<!-- not run: the values are this machine's -->
+```sh
+echo "$OSTYPE $HOSTTYPE $MACHTYPE"
+```
+
+prints `linux-gnu x86_64 x86_64-pc-linux-gnu`. Elsewhere `$HOSTTYPE` is
+`uname -m` and the other two are built from the system's name — on macOS
+`darwin` and the running kernel's major version, where bash reports
+whichever triple its own build machine had, so the two agree on a
+`darwin*` test and not on an exact comparison. They are ordinary
+variables once set: a script may assign one and nothing recomputes it.
+`tests/198-machine.t` is compared against bash rather than recorded, for
+the obvious reason. Only `${BASH_SOURCE[0]}` is kept, not the stack of
 callers' files beneath it. `$$` is fixed at startup, so it is the same inside every
 subshell. `$-` is the letters of the short options this shell has on, then
 `i` when it is interactive and `c` or `s` for how it was started -- which is

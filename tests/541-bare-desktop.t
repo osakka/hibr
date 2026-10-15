@@ -12,6 +12,16 @@
 # because what it tests is the *packaging*, which no running desktop can
 # see.
 #
+# **It covers every route, and that is why `APPS ?= none` is a default
+# rather than a flag.** `packaging/deb/build-deb.sh` passes `APPS=none`
+# explicitly, but the Homebrew formula is `make install PREFIX=#{prefix}`
+# and the AUR `PKGBUILD` is `make ... PREFIX=/usr DESTDIR="$pkgdir"
+# install` -- neither says anything about APPS, so both get whatever the
+# default is. Had the bare install been a flag the packager remembers,
+# two of the three routes would have gone on shipping applications and
+# nothing here would have noticed. The first check below is the guard
+# for all three.
+#
 # **PREFIX is left alone on purpose.** The module directory is compiled
 # into the shell, so the Makefile forces a rebuild whenever PREFIX or
 # MODDIR changes (`$(B)/.moddir`) -- and the first version of this test

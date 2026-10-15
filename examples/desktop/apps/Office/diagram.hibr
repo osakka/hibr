@@ -23,6 +23,7 @@
 strict
 
 app diagram "A Mermaid diagram editor: the text, and the diagram" 1.0
+# modules: mermaid
 
 command -v dt_app > /dev/null && dt_app diagram "Diagram" 24 86 many "◈"
 

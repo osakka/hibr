@@ -5253,4 +5253,42 @@ try:
 except OSError:
     pass
 
-report(611)
+# Launching an app that is not installed. Since 0.99.194 the package
+# ships none, so this is the ordinary state of a fresh desktop -- and the
+# window manager names ten apps by `dt_launch`, four of them fetched:
+# `term` at nine call sites, `files` at seven. Every one ignored the
+# status, so a Home icon double-clicked, a New Terminal on the
+# wallpaper's menu and a file opened from anywhere each did **nothing**:
+# no window, no message, nothing in the log (Gitea #233).
+#
+# Driven through the one callback the window manager already hands keys
+# to, rather than through an icon, because what is under test is
+# `dt_launch`'s own contract and not where somebody clicked.
+MISSING = ('declare -gA MC\n'
+           'ms_open() { MC[$1]=0; return 0; }\n'
+           'ms_draw() { console put -p "w$1" 2 3 "x"; return 0; }\n'
+           'ms_key()  { case $2 in L) dt_launch files; return 0 ;; esac\n'
+           '            return 1; }\n'
+           'dt_new "Probe" 7 30 4 8 ms\n')
+# Driven with a Term of its own rather than through run(), which ends
+# in `t.quit(b"qy", wait)` and screenshots *after* -- and `q` opens
+# Quit's own confirm box, which draws over the note. The first two
+# attempts at this check read that as the note having expired and
+# pinned DT_NOTEMS, which changed nothing: the screen was right all
+# along and the screenshot was of a later frame. This file's own trap
+# about a last screen being whatever was drawn before the quitting key,
+# with the box on top instead of under.
+mpath = "/tmp/hibr-missing-%d.hibr" % os.getpid()
+open(mpath, "w").write("%s. %s\n%s\ndt_open\n%s\ndt_run\ndt_close\n"
+                       % (load(MOD), WM, "", MISSING))
+mt = Term(mpath, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.5)
+mt.keys([b"L"])
+sc = mt.screen()
+mt.quit(b"qy", 1.2)
+os.unlink(mpath)
+check("launching an app that is not installed says which one and where "
+      "to find it, rather than doing nothing at all",
+      sc.find("files is not installed") is not None
+      and sc.find("Catalogue") is not None, sc)
+
+report(612)

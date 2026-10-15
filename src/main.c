@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/utsname.h>
 #include <time.h>
 #include <unistd.h>
 #ifdef __APPLE__
@@ -536,6 +537,47 @@ void sh_self(sh *s, const char *a0)
 	free(p);
 }
 
+/* Set OSTYPE, HOSTTYPE and MACHTYPE, the way bash does, from uname(). */
+void sh_machine(sh *s)
+{
+	struct utsname u;
+	str o, m;
+#if !defined(__linux__)
+	char *p;
+#endif
+
+	if (uname(&u) < 0) {
+		lg(HIBR_LDBG, "uname failed; OSTYPE and friends left unset");
+		return;
+	}
+	hibr_set(s, "HOSTTYPE", u.machine, 0);
+	s_init(&o);
+#if defined(__linux__)
+	s_cat(&o, "linux-gnu");
+#elif defined(__APPLE__)
+	s_cat(&o, "darwin");
+	for (p = u.release; *p && *p != '.'; p++)
+		s_ch(&o, *p);
+#else
+	for (p = u.sysname; *p; p++)
+		s_ch(&o, *p >= 'A' && *p <= 'Z' ? *p + 32 : *p);
+#endif
+	hibr_set(s, "OSTYPE", o.p, 0);
+	s_init(&m);
+	s_cat(&m, u.machine);
+#if defined(__linux__)
+	s_cat(&m, "-pc-");
+#elif defined(__APPLE__)
+	s_cat(&m, "-apple-");
+#else
+	s_ch(&m, '-');
+#endif
+	s_cat(&m, o.p);
+	hibr_set(s, "MACHTYPE", m.p, 0);
+	s_free(&m);
+	s_free(&o);
+}
+
 int main(int ac, char **av)
 {
 	sh s;
@@ -560,6 +602,7 @@ int main(int ac, char **av)
 	srand((unsigned)(s.t0 ^ (long)getpid()));
 	hibr_set(&s, "HIBR_VERSION", HIBR_VER, 0);
 	sh_self(&s, av[0]);
+	sh_machine(&s);
 	{
 		str b;
 		char *hn = xm(256);

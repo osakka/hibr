@@ -299,14 +299,21 @@ endif
 		> $(DESTDIR)$(PREFIX)/bin/vw
 	chmod 755 $(DESTDIR)$(PREFIX)/bin/vw
 	install -m 644 packaging/hibr-apps.gpg $(DESTDIR)$(SHAREDIR)/keyring.gpg
-	install -m 644 examples/apps.hibr $(DESTDIR)$(SHAREDIR)/apps.hibr
-	sed 's|@SHAREDIR@|$(SHAREDIR)|' tools/apps-launcher.in \
-		> $(DESTDIR)$(PREFIX)/bin/apps
-	chmod 755 $(DESTDIR)$(PREFIX)/bin/apps
+# `apps` was this command's name until 0.99.195. dpkg takes a file the new
+# package no longer ships, but `make install` does not -- so without this a
+# source upgrade leaves `bin/apps` behind pointing at a `share/hibr/apps.hibr`
+# that is gone, which is a command that exists and fails. Worse than absent.
+	rm -f $(DESTDIR)$(PREFIX)/bin/apps $(DESTDIR)$(SHAREDIR)/apps.hibr
+	install -m 644 examples/catalogue.hibr $(DESTDIR)$(SHAREDIR)/catalogue.hibr
+	sed 's|@SHAREDIR@|$(SHAREDIR)|' tools/catalogue-launcher.in \
+		> $(DESTDIR)$(PREFIX)/bin/catalogue
+	chmod 755 $(DESTDIR)$(PREFIX)/bin/catalogue
 
 uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/bin/hibr $(DESTDIR)$(PREFIX)/bin/desktop \
 		$(DESTDIR)$(PREFIX)/bin/vw $(DESTDIR)$(SHAREDIR)/vw.hibr \
+		$(DESTDIR)$(PREFIX)/bin/catalogue \
+		$(DESTDIR)$(SHAREDIR)/catalogue.hibr \
 		$(DESTDIR)$(PREFIX)/bin/apps $(DESTDIR)$(SHAREDIR)/apps.hibr \
 		$(DESTDIR)$(MANDIR)/man1/hibr.1
 	rm -rf $(DESTDIR)$(MODDIR) $(DESTDIR)$(PREFIX)/include/hibr \

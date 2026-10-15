@@ -4411,7 +4411,7 @@ AS_JSON = json.dumps({"entries": {
 
 
 def asstub(answer=AS_JSON, rc=0):
-    """A stand-in `apps` that answers one thing and writes down every call.
+    """A stand-in `catalogue` that answers one thing and writes down every call.
 
     The answer goes in a file the stub cats, rather than into a `printf`
     in the script: JSON needs a literal backslash-n inside a string and
@@ -4420,12 +4420,12 @@ def asstub(answer=AS_JSON, rc=0):
     parse and every check failed for a reason that had nothing to do with
     the window."""
     open(os.path.join(ASBIN, "answer"), "w").write(answer)
-    open(os.path.join(ASBIN, "apps"), "w").write(
+    open(os.path.join(ASBIN, "catalogue"), "w").write(
         '#!/bin/sh\n'
         'printf "%%s\\n" "$*" >> %s\n'
         'case "$*" in *-j*) cat %s ;; esac\n'
         'exit %d\n' % (ASLOG, os.path.join(ASBIN, "answer"), rc))
-    os.chmod(os.path.join(ASBIN, "apps"), 0o755)
+    os.chmod(os.path.join(ASBIN, "catalogue"), 0o755)
     if os.path.exists(ASLOG):
         os.unlink(ASLOG)
 

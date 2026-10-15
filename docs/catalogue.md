@@ -1,7 +1,7 @@
-# Installing desktop applications
+# The catalogue
 
-`apps` fetches, verifies and places desktop applications. It is installed as
-a command of its own, the way `vw` is, so it works for somebody who never
+`catalogue` fetches, verifies and places what the desktop runs. It is
+installed as a command of its own, the way `vw` is, so it works for somebody who never
 starts the desktop.
 
 Since 0.99.194 it is also the **only** route (Gitea #220): a hibr install
@@ -10,11 +10,11 @@ not Terminal and not Files. One command puts them back:
 
 <!-- not run: fetches bundles over HTTPS -->
 ```sh
-apps install apps/
+catalogue install apps/
 ```
 
 A kind with a trailing slash is every entry of that kind, so
-`apps install themes/` is every theme and `apps install apps/` is a
+`catalogue install themes/` is every theme and `catalogue install apps/` is a
 desktop. The nine kinds are the scan roots the desktop reads: `apps`,
 `system`, `control-panel`, `control-strip`, `savers`, `themes`,
 `colours`, `lang` and `mods`.
@@ -39,11 +39,11 @@ folder is a catalogue:
 
 <!-- not run: fetches an index over HTTPS -->
 ```sh
-apps list
-apps index https://your.host/hibr-apps/index.json
+catalogue list
+catalogue index https://your.host/hibr-apps/index.json
 ```
 
-`apps index` with no argument says which address is in force. An `http://`
+`catalogue index` with no argument says which address is in force. An `http://`
 address is accepted with a warning, because nothing then says which server
 answered; anything that is not an address is refused.
 
@@ -51,18 +51,19 @@ answered; anything that is not an address is refused.
 
 | | |
 |---|---|
-| `apps list [TEXT]` | what the index offers, or what matches TEXT |
-| `apps installed` | what is installed here, and from where |
-| `apps info NAME` | everything the index says about one |
-| `apps show NAME` | fetch it, verify it, and print it — without placing it |
-| `apps install mods/NAME` | a module, into `$XDG_DATA_HOME/hibr/mods` |
-| `apps install NAME...` | fetch, verify and place |
-| `apps install KIND/` | every one of a kind -- `apps install apps/` is a whole desktop |
-| `apps remove [-f] NAME...` | take one away; `-f` even if a window is open |
-| `apps update [NAME...]` | everything with a newer version, or just these |
-| `apps index [URL]` | the index this fetches from, or set it |
-| `apps refresh` | fetch the index again now |
-| `apps help` | the list above |
+| `catalogue list [TEXT]` | what the index offers, or what matches TEXT |
+| `catalogue installed` | what is installed here, and from where |
+| `catalogue info NAME` | everything the index says about one |
+| `catalogue show NAME` | fetch it, verify it, and print it — without placing it |
+| `catalogue install mods/NAME` | a module, into `$XDG_DATA_HOME/hibr/mods` |
+| `catalogue install NAME...` | fetch, verify and place |
+| `catalogue install KIND/` | every one of a kind -- `catalogue install apps/` is a whole desktop |
+| `catalogue remove [-f] NAME...` | take one away; `-f` even if a window is open |
+| `catalogue purge [-y]` | take away modules nothing needs any more; `--dry-run` lists them |
+| `catalogue update [NAME...]` | everything with a newer version, or just these |
+| `catalogue index [URL]` | the index this fetches from, or set it |
+| `catalogue refresh` | fetch the index again now |
+| `catalogue help` | the list above |
 
 `-j` on `list`, `installed` or `info` answers JSON instead of columns, for
 anything that is not a person — the Catalogue window below reads that,
@@ -71,12 +72,18 @@ other's layout. `list -j` carries the **kinds** beside the entries, in the
 order this program declares them, so a window grouping by kind keeps no
 list of its own: the Catalogue kept a second copy until 0.99.194 and it
 was three releases behind, which is why a module could be installed from
-here and not seen there. `apps show` is the thing a catalogue of **scripts** can
+here and not seen there. `catalogue show` is the thing a catalogue of **scripts** can
 offer and a package manager cannot: read an app before you run it, which
 is what an app being a file you can open is for. It verifies the bundle's
 `sha256` exactly as an install does, and places nothing.
 
-`apps list` marks what you already have, and says when the index has
+A module built for another machine is **not listed**: the shell knows
+what it is running on, so offering a choice it could never load is
+asking a person to do arithmetic the program has already done. `apps
+info NAME` still answers for one, and says which machine it is for —
+somebody asking by name is asking a different question.
+
+`catalogue list` marks what you already have, and says when the index has
 something newer:
 
 ```text
@@ -102,7 +109,7 @@ with a folder of **yours** followed by a data folder the manager writes to:
 | languages | `~/.config/hibr/lang` | `.json` |
 
 Your folder is scanned **first**, so a file you wrote shadows a fetched app
-of the same name, and `apps update` cannot overwrite your copy. That is the
+of the same name, and `catalogue update` cannot overwrite your copy. That is the
 whole protection: there is no lock and no database, only the order of two
 directories.
 
@@ -136,12 +143,12 @@ things and because claiming more would be a lie:
 | **sha256** | the integrity of the **payload**. A bundle changed in transit or on a mirror is refused |
 | **a signature on the index** | the identity of the **publisher**. A detached OpenPGP signature over `index.json`, by the same key the apt repository uses — and since the index carries every bundle's `sha256`, one signature covers every bundle |
 
-`apps info` says which of these hold for the catalogue in force, including
+`catalogue info` says which of these hold for the catalogue in force, including
 when the third does not:
 
 <!-- not run: fetches an index over HTTPS -->
 ```sh
-apps info snake
+catalogue info snake
 ```
 
 ```text
@@ -224,7 +231,7 @@ both are installable. So an entry is identified by `kind/name`, and `name`
 is what the file is called where it lands — a destination is never built
 from an id.
 
-`apps install clock` still works where a name means one thing. Where it
+`catalogue install clock` still works where a name means one thing. Where it
 means two, it is **refused and both are named**, because whichever the
 index happened to hold is not an answer:
 
@@ -237,6 +244,94 @@ An index may also carry an `apps` section keyed by name, which is what an
 `apps` older than 0.99.184 reads: it then gets every entry whose name is
 unique and misses only the ones it could not have named. hibr's own
 catalogue publishes both.
+
+### Where an entry lands
+
+An application in a folder of hibr's own tree is published into the same
+folder and installed into it again, so a fetched desktop has the
+submenus a shipped one has — `Accessories`, `Office`, `Internet`,
+`Games` — instead of twenty-one applications in one list:
+
+```text
+bundles/apps/Internet/mail.hibr   ->  dir: "Internet"
+                                  ->  ~/.local/share/hibr/apps/Internet/mail.hibr
+```
+
+`addapp` takes the folder from where the file lives, `mkindex` reads it
+back out of the bundle's path exactly as it already reads the `kind`, so
+the two cannot disagree, and `dt_apps` turns it into a submenu because
+it already recursed. Only `apps` has folders; every other scan root is
+read flat, and a **part** never carries one — a Control Panel pane is
+found by one flat scan, so a folder under `apps` is the app's alone.
+
+A `dir` decides a destination, so it is checked rather than trusted: a
+segment is letters, digits, dashes, underscores and spaces, which is
+what makes `Desk Accessories` a folder and `../../etc` not one. An index
+that says otherwise has the folder **dropped**, not the install refused —
+the entry is still a perfectly good app, and the worst that happens is
+the flat placement everything had before this existed.
+
+Installing over a version that placed a file somewhere else takes the
+old one away (*"took away apps/snake.hibr, which this version no longer
+places"*), so an app that moves into a folder leaves no copy behind on
+the scan path. A path another installed entry also brings is kept, by
+the same count `catalogue remove` asks.
+
+### What an entry needs
+
+A bundle's own header says it, beside the `# part:` lines that say what
+it brings:
+
+```text
+app contacts "The people in your address books, kept offline from CardDAV" 1.1
+# part: control-panel/pimset.hibr
+# modules: dav db pim
+```
+
+A **part** and a **module** are different relations, which is why they
+are different words. A part is a file the entry *owns and brings* — a
+Control Panel pane, a Control Strip module, a theme's picture —
+published as a file of its own and removed with its owner, refcounted so
+a pane two apps both bring survives the removal of one. A module is
+owned by nobody: `pim` serves Calendar, Contacts and anybody's script,
+and one that came with hibr is not an app's to delete.
+
+`mkindex` reads that line into the index's `modules` field, and `apps
+install` resolves it three ways, in order:
+
+| | |
+|---|---|
+| already loadable | satisfied — this covers everything hibr ships, and `need` resolves an interface as well as a module name |
+| in this catalogue as `mods/NAME` | fetched and placed **before** the thing that needs it, so an app is never on disk in a state where its first `need` fails |
+| neither | the app is refused by name and **nothing is placed** — the check runs before a byte is fetched |
+
+The state records which app a module was fetched for, so nothing has to
+guess later whether anybody asked for it by name.
+
+### Taking a module away again
+
+Removing an app says **nothing** about its modules. `pim` serves
+Calendar, Contacts and anybody's script, and the count this program
+keeps can only see what it installed itself — a script of your own that
+calls `need pim` is invisible to it. Deleting native code behind that
+script's back is a worse failure than leaving a megabyte on disk, so it
+is a verb you ask for rather than a step inside `remove`:
+
+<!-- not run: reads an index over HTTPS and removes files -->
+```sh
+catalogue purge --dry-run
+```
+
+```text
+fetched for something that is gone, and nothing installed needs now:
+  mods/mermaid           was needed by apps/diagram
+```
+
+`-y` removes them without asking. A module you installed **by name** is
+never listed, however little needs it: the state marks only what was
+pulled in for something else. And run from a desktop window there is no
+terminal to answer on, so it refuses and names the flag rather than
+hanging on a read that can never return.
 
 `hibr`, `abi` and `modules` say what an entry needs, and are **checked
 before anything is fetched**: an exact module ABI, a minimum hibr version,
@@ -288,7 +383,7 @@ repository that nothing could diff. A catalogue that still serves one is
 still read, so an older bundle installs unchanged.
 
 The state records **every path placed**, not only the app's own, because a
-folder on disk cannot say what it came with; `apps remove` takes those away
+folder on disk cannot say what it came with; `catalogue remove` takes those away
 and keeps any that another installed app brings too. One pane serves
 Calendar and Contacts both, so removing one of the two leaves the other's
 pane where it is, and says so.
@@ -373,7 +468,7 @@ will do rather than offering two of which one is always wrong. Update is a
 second button only while there is one to take. The App menu's own row
 flips with it, for the same reason.
 
-Every fetch is a **job**. `apps install` is seconds of network, and a
+Every fetch is a **job**. `catalogue install` is seconds of network, and a
 desktop that stops drawing while it waits is a desktop that looks broken,
 so the command runs in the background with its output in a file of its own
 and the next frame picks up the status — the shape `wm/remote.hibr` uses
@@ -382,7 +477,7 @@ because a window nobody is looking at still has a job running in it. The
 status line says what is happening while one runs, and what the command
 said when it failed.
 
-What the window reads is `apps list -j`, never the columns `apps` prints
+What the window reads is `catalogue list -j`, never the columns `apps` prints
 for a person. The command answers JSON for exactly this, so the two read
 one answer instead of one parsing the other's layout — which is how a
 window comes to disagree with its own command. An `apps` too old to know

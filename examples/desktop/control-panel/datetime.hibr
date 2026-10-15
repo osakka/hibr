@@ -15,7 +15,7 @@
 strict
 
 
-app datetime "The Control Panel pane for the time, the date and the time zone" 1.0
+app datetime "The Control Panel pane for the time, the date and the time zone" 1.1
 command -v cp_pane > /dev/null && cp_pane datetime "Date & Time" "◷" hardware
 
 # The pane's own dialogs, named so the application menu reads "Time Zone"
@@ -394,9 +394,10 @@ dtp_run() {
 	DT_OPENCMD=("$@")
 	DT_OPENSELF=1
 	dt_launch term && return 0
+	# dt_launch says which app is missing and where to find it since
+	# 0.99.195, so a second note here would be two for one failure.
 	DT_OPENCMD=()
 	DT_OPENSELF=
-	dt_notep low "No terminal app to run it in"
 }
 
 # --- the time zone ---------------------------------------------------------

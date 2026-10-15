@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The application manager: examples/apps.hibr, against a stand-in index.
+"""The catalogue: examples/catalogue.hibr, against a stand-in index.
 
     python3 tests/appmgr.py [path-to-hibr]
 
@@ -48,7 +48,7 @@ WWW = os.path.join(D, "www")
 HOME = os.path.join(D, "home")
 os.makedirs(WWW)
 os.makedirs(HOME)
-APPS = tree("examples/apps.hibr")
+APPS = tree("examples/catalogue.hibr")
 
 # This machine as the catalogue spells it, and the shell's own module ABI
 # -- both read from the shell under test rather than written down, since
@@ -775,6 +775,26 @@ try:
         "apps/demo": {"title": "Demo", "version": "1.0", "kind": "apps",
                       "name": "demo", "bundle": "bundles/demo.hibr",
                       "sha256": h_one},
+        # An app that needs a module the catalogue has. `greet` is not
+        # loadable here -- it is `csv.so` under another name, and `need
+        # greet` finds nothing -- so this exercises the fetch rather
+        # than the already-satisfied path (Gitea #234).
+        "apps/wantsmod": {"title": "Wants A Module", "version": "1.0",
+                          "kind": "apps", "name": "wantsmod",
+                          "modules": "greet", "bundle": "bundles/demo.hibr",
+                          "sha256": h_one},
+        # Where inside its kind it lands, so a fetched desktop has the
+        # submenus a shipped one has (Gitea #233).
+        "apps/inner": {"title": "Inner", "version": "1.0", "kind": "apps",
+                       "name": "inner", "dir": "Games",
+                       "bundle": "bundles/demo.hibr", "sha256": h_one},
+        # A dir decides a destination, so it is checked and not trusted.
+        # The entry is still a perfectly good app, so the folder is
+        # dropped rather than the install refused -- the worst that
+        # happens is the flat placement everybody had before it existed.
+        "apps/climber": {"title": "Climber", "version": "1.0", "kind": "apps",
+                         "name": "climber", "dir": "../../../etc",
+                         "bundle": "bundles/demo.hibr", "sha256": h_one},
     }}
     put("index221.json", json.dumps(MIX, indent=1))
     D221 = os.path.join(HOME, "d221")
@@ -837,11 +857,133 @@ try:
                             env=dict(E221S, HIBR_APPS_KEYFP="0" * 40))
         check("a signature by a key this does not pin is not a signature",
               rc != 0 and "cannot verify" in err, (rc, err))
+
+        # What an app declares it needs is fetched before the app, so the
+        # app is never on disk in a state where its first `need` fails.
+        # The index field has been read since `apps` was written and
+        # nothing had ever written it; mkindex fills it from a bundle's
+        # own `# modules:` line now (Gitea #234).
+        DW = os.path.join(HOME, "dwant")
+        EW = dict(E221S, XDG_DATA_HOME=DW,
+                  XDG_CACHE_HOME=os.path.join(HOME, "cwant"))
+        rc, out, err = apps("install", "apps/wantsmod", env=EW)
+        check("a module an app needs is fetched first, and the app says "
+              "which app wanted it",
+              rc == 0
+              and os.path.exists(os.path.join(DW, "hibr", "mods", "greet.so"))
+              and os.path.exists(os.path.join(DW, "hibr", "apps",
+                                              "wantsmod.hibr"))
+              and "which apps/wantsmod needs" in out,
+              (rc, out, err))
+        # Why it is here, which is the whole of what a later purge reads:
+        # nobody asked for greet by name.
+        st = json.load(open(os.path.join(DW, "hibr", "apps.json")))["installed"]
+        check("and the state remembers which app it was fetched for",
+              st.get("mods/greet", {}).get("auto") == "apps/wantsmod"
+              and not st.get("apps/wantsmod", {}).get("auto"),
+              {k: v.get("auto", "") for k, v in st.items()})
+        # A module for another machine is not a choice to offer: the shell
+        # knows what it is running on. Hidden from the list and from -j,
+        # which is what the Catalogue window reads -- but `info` still
+        # answers, because asking by name is a different question.
+        rc, out, err = apps("list", env=EW)
+        rc2, out2, err2 = apps("info", "mods/elsewhere", env=EW)
+        check("a module built for another machine is not listed, and "
+              "`info` still says why",
+              rc == 0 and "mods/greet" in out and "elsewhere" not in out
+              and rc2 == 0 and "darwin-arm64" in out2,
+              (out, out2))
+
+        # The folder an entry declares, and the folder it may not.
+        rc, out, err = apps("install", "apps/inner", env=EW)
+        rc2, out2, err2 = apps("install", "apps/climber", env=EW)
+        esc = os.path.realpath(os.path.join(DW, "..", "..", "..", "etc",
+                                            "climber.hibr"))
+        check("an entry lands in the folder the index names, and a folder "
+              "that climbs is dropped rather than followed",
+              rc == 0 and os.path.exists(
+                  os.path.join(DW, "hibr", "apps", "Games", "inner.hibr"))
+              and rc2 == 0 and os.path.exists(
+                  os.path.join(DW, "hibr", "apps", "climber.hibr"))
+              and not os.path.exists(esc),
+              (rc, out, rc2, out2))
+        # Reinstalling has always written the new paths over the old
+        # record and left the old files; `dir` made that reachable, since
+        # an app that used to land flat now lands in a folder and both
+        # would be on the scan path at once.
+        st = json.load(open(os.path.join(DW, "hibr", "apps.json")))
+        st["installed"]["apps/inner"]["paths"] = {"0": "apps/inner.hibr"}
+        st["installed"]["apps/inner"]["version"] = "0.9"
+        json.dump(st, open(os.path.join(DW, "hibr", "apps.json"), "w"))
+        os.rename(os.path.join(DW, "hibr", "apps", "Games", "inner.hibr"),
+                  os.path.join(DW, "hibr", "apps", "inner.hibr"))
+        # purge: a module fetched *for* something, once nothing needs it.
+        # Four cases and they must each behave differently, which is the
+        # whole of the design -- native code is never removed as a side
+        # effect of removing something else (Gitea #234).
+        gso = os.path.join(DW, "hibr", "mods", "greet.so")
+        rc, out, err = apps("purge", "--dry-run", env=EW)
+        check("purge lists nothing while the app that needed the module "
+              "is still installed",
+              rc == 0 and "greet" not in out and os.path.exists(gso),
+              (rc, out))
+        apps("remove", "-f", "apps/wantsmod", env=EW)
+        rc, out, err = apps("purge", "--dry-run", env=EW)
+        check("and lists it once that app is gone, saying which app it "
+              "was fetched for",
+              rc == 0 and "mods/greet" in out and "apps/wantsmod" in out
+              and os.path.exists(gso), (rc, out))
+        rc, out, err = apps("purge", env=EW)
+        check("asked with no terminal to ask on it refuses and names the "
+              "flag, rather than hanging on a read that cannot return",
+              rc != 0 and "no terminal" in err and os.path.exists(gso),
+              (rc, out, err))
+        rc, out, err = apps("purge", "-y", env=EW)
+        check("and -y takes it away", rc == 0 and not os.path.exists(gso),
+              (rc, out, err))
+        # Asked for by name, it is yours: `auto` is set only when
+        # something else pulled it in, so purge leaves this one for ever.
+        apps("install", "mods/greet", env=EW)
+        rc, out, err = apps("purge", "--dry-run", env=EW)
+        check("a module installed by name is never purged, however little "
+              "needs it",
+              rc == 0 and "greet" not in out and os.path.exists(gso),
+              (rc, out))
+
+        rc, out, err = apps("update", "apps/inner", env=EW)
+        check("and an app that moves into a folder leaves no copy behind "
+              "at the path it used to have",
+              rc == 0
+              and os.path.exists(os.path.join(DW, "hibr", "apps", "Games",
+                                              "inner.hibr"))
+              and not os.path.exists(os.path.join(DW, "hibr", "apps",
+                                                  "inner.hibr"))
+              and "took away apps/inner.hibr" in out,
+              (rc, out, err))
     else:
         for name in ("and installs from a signed one, into the module directory",
                      "a module built for another machine is named and declined",
                      "and one built for another module ABI as well",
-                     "a signature by a key this does not pin is not a signature"):
+                     "a signature by a key this does not pin is not a signature",
+                     "a module an app needs is fetched first, and the app says "
+                     "which app wanted it",
+                     "and the state remembers which app it was fetched for",
+                     "a module built for another machine is not listed, and "
+                     "`info` still says why",
+                     "an entry lands in the folder the index names, and a "
+                     "folder that climbs is dropped rather than followed",
+                     "and an app that moves into a folder leaves no copy "
+                     "behind at the path it used to have",
+                     "purge lists nothing while the app that needed the "
+                     "module is still installed",
+                     "and lists it once that app is gone, saying which app "
+                     "it was fetched for",
+                     "asked with no terminal to ask on it refuses and names "
+                     "the flag, rather than hanging on a read that cannot "
+                     "return",
+                     "and -y takes it away",
+                     "a module installed by name is never purged, however "
+                     "little needs it"):
             rc, out, err = apps("install", "mods/greet", env=E221)
             check(name + " [no gpg here: the refusal says so]",
                   rc != 0 and "no gpg" in err, (rc, err))
@@ -851,4 +993,4 @@ finally:
     srv.wait()
     shutil.rmtree(D, True)
 
-report(72)
+report(82)

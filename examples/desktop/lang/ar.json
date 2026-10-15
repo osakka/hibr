@@ -1,11 +1,12 @@
 {
  "dir": "rtl",
- "version": "1.2",
+ "version": "1.3",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
  "strings": {
   " %s Compose ": " %s إنشاء ",
+  "%s is not installed. Find it in the Catalogue.": "%s غير مثبّت. ابحث عنه في الفهرس.",
   "Catalogue": "الفهرس",
   "Tree Rules": "خطوط الشجرة",
   "Tree Style": "نمط الشجرة",
@@ -553,7 +554,6 @@
   "No records.": "لا سجلات.",
   "No server chosen for calendars yet.": "لم يُختر خادم للتقاويم بعد.",
   "No server chosen for contacts yet.": "لم يُختر خادم لجهات الاتصال بعد.",
-  "No terminal app to run it in": "لا تطبيق طرفية لتشغيله فيه",
   "No vault yet. Log in to a Bitwarden or Vaultwarden": "لا توجد خزنة بعد. سجّل الدخول إلى خادم Bitwarden أو",
   "No zone matches": "لا منطقة زمنية مطابقة",
   "None": "لا شيء",
@@ -822,7 +822,7 @@
    "zero": "المهملات فارغة: لم يُحذف شيء"
   },
   "The YouTube history is empty": "سجل YouTube فارغ",
-  "The apps command did not answer JSON. It may be older than this window.": "أمر apps لم يُجب بصيغة JSON. قد يكون أقدم من هذه النافذة.",
+  "The catalogue command did not answer JSON. It may be older than this window.": "أمر apps لم يُجب بصيغة JSON. قد يكون أقدم من هذه النافذة.",
   "The colours are good, warn, bad, info and dim": "الألوان هي good وwarn وbad وinfo وdim",
   "The date is YYYY-MM-DD": "التاريخ بصيغة YYYY-MM-DD",
   "The date is YYYY-MM-DD, the time HH:MM": "التاريخ بصيغة YYYY-MM-DD والوقت HH:MM",
