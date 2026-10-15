@@ -221,6 +221,8 @@ fn dt_blank(nm) {
 		DT_BLANK=${out# }
 		dt_notep low "%s is in use again" "$nm"
 	else
+		local ptop
+		ptop := dt_ptop
 		lst := hold clients
 		while IFS=' ' read -r n2 row col rows cols pri; do
 			[ "$n2" = "$nm" ] || continue
@@ -232,7 +234,12 @@ fn dt_blank(nm) {
 				[ -n "${DT[$id]["title"]}" ] || continue
 				if [ "${DT[$id]["col"]}" -ge "$col" ] &&
 				   [ "${DT[$id]["col"]}" -lt $((col + cols)) ]; then
-					dt_movewin "$id" 1 "$DT_PRIMARY_COL" "$DT_ROWS" \
+					# Onto the primary's own rectangle,
+					# which is not the whole union once
+					# it is a stacked pane (Gitea #240).
+					dt_movewin "$id" "$ptop" \
+						"$DT_PRIMARY_COL" \
+						"${DT_PRIMARY_H:-$DT_ROWS}" \
 						"${DT_PRIMARY_W:-$DT_COLS}"
 				fi
 			done

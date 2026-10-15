@@ -144,12 +144,20 @@ dt_size() {
 	DT_MENUIN=
 	DT_PRIMARY_W=$DT_COLS
 	DT_PRIMARY_COL=0
+	DT_PRIMARY_H=$DT_ROWS
+	DT_PRIMARY_ROW=0
 	if [ -n "$HIBR_HOLD" ] && need hold; then
 		lst := hold clients
 		while IFS=' ' read -r nm row col rows cols pri; do
 			if [ "$pri" = 1 ]; then
 				DT_PRIMARY_COL=$col
 				DT_PRIMARY_W=$cols
+				# The row and height were read here and
+				# dropped until 0.99.205 (Gitea #240), which
+				# is what made a union horizontal-only in
+				# practice however hold described it.
+				DT_PRIMARY_ROW=$row
+				DT_PRIMARY_H=$rows
 				break
 			fi
 		done <<< "$lst"

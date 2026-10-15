@@ -96,8 +96,13 @@ cs_modules() {
 # The row the strip sits on -- computed once, the first time it is needed,
 # so "80% down" means 80% of the real screen rather than of the 24-row
 # default DT_ROWS still holds when this file is only just being sourced.
+#
+# 80% down the **primary**, not the union: the strip belongs on the
+# display the bar is on, and 80% of a stacked union is somebody else's
+# pane (Gitea #240).
 cs_y() {
-	[ -z "$CS_Y" ] && CS_Y=$((DT_ROWS * 8 / 10))
+	[ -z "$CS_Y" ] &&
+		CS_Y=$((DT_PRIMARY_ROW + ${DT_PRIMARY_H:-$DT_ROWS} * 8 / 10))
 	ret "$CS_Y"
 }
 
@@ -109,9 +114,13 @@ cs_y() {
 # again. A never-set CS_Y is left alone; cs_y's own default already
 # accounts for whatever DT_ROWS turns out to be.
 cs_clamp() {
+	local top bot
+
 	[ -z "$CS_Y" ] && return 0
-	[ "$CS_Y" -lt 1 ] && CS_Y=1
-	[ "$CS_Y" -ge "$DT_ROWS" ] && CS_Y=$((DT_ROWS - 1))
+	top := dt_ptop
+	bot := dt_pbot
+	[ "$CS_Y" -lt "$top" ] && CS_Y=$top
+	[ "$CS_Y" -ge "$bot" ] && CS_Y=$((bot - 1))
 }
 
 # How many modules are actually shown -- every one of them, unless the

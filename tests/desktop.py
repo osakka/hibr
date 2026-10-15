@@ -3198,6 +3198,38 @@ sc = t.screen()
 check("attached from a new terminal, the whole desktop is drawn again",
       sc.g[6][10] == "┌" and sc.find("Held") is not None and
       sc.find("✎") == (0, 2), sc)
+
+# A union can be stacked, not only side by side: a display server that
+# puts the primary *below* a join gives it a non-zero row, and until
+# 0.99.205 the desktop read the primary's column off `hold clients` and
+# threw its row away -- so the bar went to union row 0, inside the
+# join's rectangle, and the primary display showed no bar at all
+# (Gitea #240). Measured against v0.99.204: `barpane=[0 80]` and no bar
+# on the primary; with the row kept, `barpane=[10 0 80]` and the bar on
+# the primary's own top row.
+#
+# The session name has to match what `hold new` called it, or
+# dt_autohold sees a HIBR_HOLD whose basename is not the session it was
+# asked for, re-execs into a session of its own called `desktop`, and
+# the client is left watching the one it left -- which is a desktop that
+# looks dead for a reason that has nothing to do with this.
+VTOP = os.path.join(HOLD, "vtop")
+vheld = os.path.join(VTOP, "session.hibr")
+shutil.copytree(tree("examples/desktop"), VTOP, dirs_exist_ok=True)
+subprocess.run([screen.HIBR, "-c", HOLDC + "hold new -d vt %s %s --session vt"
+                % (screen.HIBR, vheld)],
+               env=dict(os.environ, **HENV), capture_output=True)
+time.sleep(1.5)
+# The primary occupies union rows 10 onward: a stacked lower pane.
+vt = Term("-c", HOLDC + "hold attach -n lower vt 10 0", env=HENV, settle=3.0)
+time.sleep(2.0)
+vsc = vt.screen()
+check("a primary at a non-zero row puts the bar on the primary, not at "
+      "the top of the union where a joined display is",
+      vsc.find("File") is not None and vsc.find("File")[0] == 0, vsc)
+vt.close()
+subprocess.run([screen.HIBR, "-c", HOLDC + "hold kill vt"],
+               env=dict(os.environ, **HENV), capture_output=True)
 t.send(b"\x1b[21~", settle=0.4)
 t.send(b"d", settle=0.8)
 check("Detach on the hibr menu detaches too",
@@ -5291,4 +5323,4 @@ check("launching an app that is not installed says which one and where "
       sc.find("files is not installed") is not None
       and sc.find("Catalogue") is not None, sc)
 
-report(612)
+report(613)

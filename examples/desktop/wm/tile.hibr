@@ -68,8 +68,11 @@ fn dt_tilelist(int n) {
 # Lay out workspace n, the current one unless named: give every tiled
 # window its place. A workspace that is not tiled is left alone.
 fn dt_tile(int? n = "") {
-	local top=1 left=${DT_PRIMARY_COL:-0} pw=${DT_PRIMARY_W:-$DT_COLS}
-	local ph=$((DT_ROWS - 1)) mw sh r i k l id oc
+	local top left=${DT_PRIMARY_COL:-0} pw=${DT_PRIMARY_W:-$DT_COLS}
+	# The primary's first content row, which is 1 only while the primary
+	# starts at the top of the union (Gitea #240).
+	top := dt_ptop
+	local ph=$((${DT_PRIMARY_H:-$DT_ROWS} - 1)) mw sh r i k l id oc
 	local -a ids
 
 	[ -n "$n" ] || n=$DT_WS

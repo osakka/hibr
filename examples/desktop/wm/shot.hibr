@@ -43,7 +43,10 @@ dt_shot() {
 dt_shot_geom() {
 	local w=40 h=7 y0 x0
 
-	y0=$((DT_ROWS / 2 - h / 2))
+	# Centred on the **primary**, in both directions: DT_ROWS is the
+	# whole union, so half of it is the middle of somebody else's
+	# display when the primary is a stacked pane (Gitea #240).
+	y0=$((DT_PRIMARY_ROW + (${DT_PRIMARY_H:-$DT_ROWS} - h) / 2))
 	x0=$((DT_PRIMARY_COL + (${DT_PRIMARY_W:-$DT_COLS} - w) / 2))
 	ret "$y0 $x0 $w $h"
 }

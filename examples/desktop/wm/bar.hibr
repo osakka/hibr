@@ -199,7 +199,8 @@ dt_barkey() {
 
 	k="$MB_OPEN|$MB_PAR|$MB_APP|$MB_N|$MB_AX|$DT_NOTEUNSEEN|$DT_UPNEW|$DT_UPSESSION"
 	k="$k|$DT_CLOCKWAS|$DT_WS|$DT_WSN|$DT_MIRRORON|$DT_PRIMARY_W"
-	k="$k|$DT_PRIMARY_COL|$DT_BARGAP|$DT_BELLICON|$DT_PBAR"
+	k="$k|$DT_PRIMARY_COL|$DT_PRIMARY_ROW|$DT_PRIMARY_H"
+	k="$k|$DT_BARGAP|$DT_BELLICON|$DT_PBAR"
 	k="$k|$DT_BARTIME|$DT_BARSHADOW|$DT_INK|$DT_BAR|$DT_ACTIVE|$DT_IDLE"
 	k="$k|$DT_GLYPHSET|$DT_LANG|$DT_DIGITS|$DT_SHADOW_PCT|$DT_MENUIN"
 	# The items are not in here: dt_baritem clears the gate itself, which
@@ -232,12 +233,15 @@ dt_bar() {
 	# Its own pane, made once and then only when the screen changes shape.
 	# cn_pset throws the pane-ownership map away on every call, so this is
 	# gated rather than set every frame.
-	# Row 0 always: the bar's row is the one piece of its geometry that is
-	# not a variable, which is also why putting it in a pane is what makes
-	# a bar somewhere else possible later rather than being that change.
-	if [ "$DT_BARPANE" != "$DT_PRIMARY_COL $w" ]; then
-		console pane bar 0 "$DT_PRIMARY_COL" 1 "$w"
-		DT_BARPANE="$DT_PRIMARY_COL $w"
+	# The primary display's own top row, which is 0 for every desktop
+	# that is not part of a stacked union -- and was written as a literal
+	# 0 until 0.99.205, with a comment saying the bar's row was the one
+	# piece of its geometry that is not a variable. It is one now
+	# (Gitea #240): a primary below a join starts partway down the union,
+	# and a bar at row 0 there is a bar drawn on somebody else's display.
+	if [ "$DT_BARPANE" != "$DT_PRIMARY_ROW $DT_PRIMARY_COL $w" ]; then
+		console pane bar "$DT_PRIMARY_ROW" "$DT_PRIMARY_COL" 1 "$w"
+		DT_BARPANE="$DT_PRIMARY_ROW $DT_PRIMARY_COL $w"
 		DT_BARWAS=
 	fi
 	# The shadow is cast before the gate, on every frame, because it falls
@@ -254,7 +258,8 @@ dt_bar() {
 	# each time. Pairing it to "a frame that painted the wallpaper"
 	# instead made this very strip pulse once a second.
 	[ "$DT_BARSHADOW" = 1 ] &&
-		console darken -s 1 "$DT_PRIMARY_COL" 1 "$w" "$DT_SHADOW_PCT"
+		console darken -s $((DT_PRIMARY_ROW + 1)) "$DT_PRIMARY_COL" \
+			1 "$w" "$DT_SHADOW_PCT"
 	# The clock next, because its rendered text is part of the key: it is
 	# cached against everything it depends on and costs nothing to ask.
 	now := dt_clocktext "$DT_BARTIME" -1

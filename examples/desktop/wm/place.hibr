@@ -23,8 +23,11 @@ DT_PLACES=(smart cascade center)
 # Where a window of h rows and w columns goes, as "row col h w" -- h and w
 # shrunk to fit the display if they must.
 fn dt_place(int h, int w) {
-	local top=1 left=${DT_PRIMARY_COL:-0} pw=${DT_PRIMARY_W:-$DT_COLS}
-	local ph=$((DT_ROWS - 1)) n=0 i r c ov best=-1 br bc id x0 x1 y0 y1
+	local top left=${DT_PRIMARY_COL:-0} pw=${DT_PRIMARY_W:-$DT_COLS}
+	# The primary's first content row, which is 1 only while the primary
+	# starts at the top of the union (Gitea #240).
+	top := dt_ptop
+	local ph=$((${DT_PRIMARY_H:-$DT_ROWS} - 1)) n=0 i r c ov best=-1 br bc id x0 x1 y0 y1
 	local sr sw scol dr=0 dc=0
 	local -a R C H W
 

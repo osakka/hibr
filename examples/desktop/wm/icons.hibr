@@ -129,7 +129,9 @@ dt_diskscan() {
 dt_iconlay() {
 	local i=0 slot=0 per p k r c cl
 
-	per=$(((DT_ROWS - 2) / 3))
+	# Per the primary's own height, not the union's: icons belong on the
+	# display the bar is on (Gitea #240).
+	per=$(((${DT_PRIMARY_H:-$DT_ROWS} - 2) / 3))
 	[ "$per" -lt 1 ] && per=1
 	while [ "$i" -lt "$DI_N" ]; do
 		k=${DI[$i]["key"]}
@@ -448,8 +450,12 @@ fn dt_iconopen(int i) {
 # A row and column pulled onto the screen an icon is twelve columns wide and
 # three rows tall on, its top-left corner kept below the menu bar.
 fn dt_iconclamp(int r, int c) {
-	[ "$r" -lt 1 ] && r=1
-	[ "$r" -gt $((DT_ROWS - 3)) ] && r=$((DT_ROWS - 3))
+	local top bot
+
+	top := dt_ptop
+	bot := dt_pbot
+	[ "$r" -lt "$top" ] && r=$top
+	[ "$r" -gt $((bot - 3)) ] && r=$((bot - 3))
 	[ "$c" -lt "$DT_PRIMARY_COL" ] && c=$DT_PRIMARY_COL
 	[ "$c" -gt $((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - DT_ICONW)) ] &&
 		c=$((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS} - DT_ICONW))

@@ -87,15 +87,44 @@ DT_DNDICON=
 DT_DNDS=()
 DT_PATHS=()
 
-# The primary display's own width and column offset within the union --
-# read from `hold clients`'s own primary-flagged row when this desktop is
-# held, so the bar, wallpaper and icon grid stay confined to that display
-# instead of spreading across every one a terminal has joined beside it
-# with `hold attach -m`. Not held (or hold not loaded): the whole screen,
-# at column 0, same as always. Window placement is unaffected: it already
-# uses the full DT_COLS/DT_ROWS.
+# The primary display's own rectangle within the union -- read from `hold
+# clients`'s own primary-flagged row when this desktop is held, so the
+# bar, wallpaper and icon grid stay confined to that display instead of
+# spreading across every one a terminal has joined beside it with `hold
+# attach -m`. Not held (or hold not loaded): the whole screen, at the
+# origin, same as always.
+#
+# The row and height were read off that same line and thrown away until
+# 0.99.205 (Gitea #240): a union could only be horizontal in practice,
+# because every placement here began at row 1 and ran to DT_ROWS however
+# far down the union the primary actually started. A display server that
+# stacks two panes -- the primary **below** a join -- had no way to say
+# so, and had to project its physical coordinates horizontally, which
+# puts every window and context menu somewhere that is not where the
+# pointer is.
+#
+# `dt_ptop` and `dt_pbot` are the two anybody placing something should
+# reach for: the first content row of the primary (below its bar) and
+# the row after its last. Reading DT_PRIMARY_ROW directly is right only
+# where the bar itself is meant.
 DT_PRIMARY_W=
 DT_PRIMARY_COL=0
+DT_PRIMARY_H=
+DT_PRIMARY_ROW=0
+
+# The first content row of the primary display: its own top, plus the bar
+# that sits on it. Everything that used to start at a literal 1 starts
+# here, which is the whole of making a stacked union work -- 1 is only
+# right while the primary begins at the top of the union.
+fn dt_ptop() {
+	ret "$((DT_PRIMARY_ROW + 1))"
+}
+
+# One past the primary's last row, so a bound is `< dt_pbot` exactly as it
+# used to be `< DT_ROWS`.
+fn dt_pbot() {
+	ret "$((DT_PRIMARY_ROW + ${DT_PRIMARY_H:-$DT_ROWS}))"
+}
 
 # Whether the event dt_event just handled was a drag report -- dt_run's
 # own signal for whether this is a turn it may skip drawing, set there

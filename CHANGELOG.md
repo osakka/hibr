@@ -1,5 +1,63 @@
 # Changelog
 
+## 0.99.205
+
+**The primary display is a rectangle, not a column.**
+
+Gitea #240, part 2, asked for by a display server that stacks two panes
+with the primary **below** a join. `hold clients` has answered `name row
+col rows cols primary` all along, and `dt_size` read that line, kept the
+column and the width, and **threw the row and the height away**. Every
+placement in the desktop then began at a literal row 1 and ran to
+`DT_ROWS`, however far down the union the primary actually started.
+
+So a stacked arrangement could not work, and the measurement is blunt.
+With the primary occupying union rows 10 onward, against 0.99.204:
+
+    DT_PRIMARY_ROW  does not exist
+    bar pane        [0 80]        <- union row 0, inside the join
+    bar on the primary: none
+
+and with the row kept:
+
+    DT_PRIMARY_ROW  10
+    bar pane        [10 0 80]
+    bar on the primary: its own row 0
+
+The bar was being drawn on somebody else's display and the primary
+showed none at all.
+
+`DT_PRIMARY_ROW` and `DT_PRIMARY_H` join the two that were already
+there, and `dt_ptop` and `dt_pbot` are what anything placing something
+reaches for -- the primary's first content row, and one past its last.
+Fifteen call sites across thirteen files stopped assuming the top of the
+union: the bar's pane and its shadow, window placement and tiling,
+`dt_place`'s centring, the confirm box and the screenshot chooser
+(centred on the primary in **both** directions now -- half of `DT_ROWS`
+is the middle of another display when the primary is a stacked pane),
+the icon grid and its clamp, the Control Strip's "80% down" and its
+clamp, menu drops and their two `dy` fallbacks, and the wallpaper's
+cache key.
+
+Nothing changes for a desktop that is not part of a stacked union: the
+primary is the whole screen at the origin, `dt_ptop` is 1 and `dt_pbot`
+is `DT_ROWS`, exactly as the literals were. The 612 existing desktop
+checks pass unchanged.
+
+The new check is worth its own note, because building it found two
+things that had nothing to do with the fix and would have wasted a day
+each. A copy of `session.hibr` outside the desktop tree dies instantly,
+because it finds the window manager with `d=${0%/*}`. And a held desktop
+whose session name does not match what `hold new` called it **re-execs
+into a session of its own**: `dt_autohold` compares `HIBR_HOLD`'s
+basename against the name it was asked for, so the client is left
+watching the session the desktop walked out of -- which looks exactly
+like a desktop that will not draw. `--session` has to match, and the
+check says so where somebody will read it.
+
+`tests/desktop.py` goes 612 checks to 613; the new one fails against
+0.99.204.
+
 ## 0.99.204
 
 **The last two from the catalogue audit: a reason that could go stale,

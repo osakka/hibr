@@ -39,7 +39,13 @@ panel to draw a picture of the arrangement and let it be rearranged: `hold
 clients` to list it, `hold move` to reposition one of them, `hold drop` to
 switch one off (a server-side detach, indistinguishable to the program from
 that client's own `ctrl-\\`), `hold primary` to change which anchors a
-desktop's own bar and menu. All three also send the program's foreground
+desktop's own bar and menu. The primary is a **rectangle**, not a column:
+its `row` and `rows` are as real as its `col` and `cols`, so a client
+attached at `hold attach name 10 0` is a lower pane in a stacked
+arrangement and a desktop anchors its bar to row 10. The desktop read the
+column and dropped the row until hibr 0.99.205, which is what made a union
+horizontal-only in practice however this described it (Gitea #240). All
+three also send the program's foreground
 `SIGWINCH`, the same nudge a fresh attach already gets, so a program that
 reads `hold clients` on a resize -- the desktop's own bar and icon grid do
 -- notices the change live rather than on its own next unrelated redraw.

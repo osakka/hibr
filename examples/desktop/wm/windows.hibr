@@ -300,8 +300,11 @@ fn dt_move(int id, int r, int c) {
 # center. Snapping the same way again puts it back where it was. A fixed
 # window can only be centred: its size is not the desktop's to change.
 fn dt_snap(int id, dir) {
-	local top=1 left=${DT_PRIMARY_COL:-0} pw=${DT_PRIMARY_W:-$DT_COLS}
-	local ph=$((DT_ROWS - 1)) r c h w
+	local top left=${DT_PRIMARY_COL:-0} pw=${DT_PRIMARY_W:-$DT_COLS}
+	# The primary's first content row, which is 1 only while the primary
+	# starts at the top of the union (Gitea #240).
+	top := dt_ptop
+	local ph=$((${DT_PRIMARY_H:-$DT_ROWS} - 1)) r c h w
 
 	if [ "${DT[$id]["snap"]}" = "$dir" ] && [ -n "${DT[$id]["sh"]}" ]; then
 		r=${DT[$id]["sr"]}

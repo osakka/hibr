@@ -850,26 +850,33 @@ dt_drop() {
 # Draw one menu at its own place.  A submenu is given the column its parent
 # occupies so it can sit beside it rather than on top of it.
 fn dt_menu_draw(int m, int? px, int parent) {
-	local i=0 r=1 x w n lb k t sub rowfg rowbg rowbold pos full pre hl post
-	local ac aw
+	local i=0 r x w n lb k t sub rowfg rowbg rowbold pos full pre hl post
+	local ac aw ptop pbot
 
+	# A bar menu drops from the row under the bar, which is the
+	# primary's own first content row rather than a literal 1 once the
+	# primary is a stacked pane (Gitea #240). A context menu overrides
+	# it with the pointer's row below.
+	ptop := dt_ptop
+	pbot := dt_pbot
+	r=$ptop
 	x=${MB[$m]["x"]}
 	w=${MB[$m]["w"]}
 	n=${MB[$m]["n"]}
 	[ "$w" -lt 14 ] && w=14
 	if [ -n "$px" ]; then
 		x=$px
-		r=${MB[$m]["py"]:-1}
+		r=${MB[$m]["py"]:-$ptop}
 	elif [ -n "$MB_CX" ]; then
 		x=$MB_CX
-		r=${MB_CY:-1}
+		r=${MB_CY:-$ptop}
 	else
 		case $DT_MIRRORON in 1) x=$((x + ${MB[$m]["tw"]:-0} - w)) ;; esac
 	fi
 	[ "$x" -lt 0 ] && x=0
 	[ $((x + w)) -gt "$DT_COLS" ] && x=$((DT_COLS - w))
-	[ $((r + n + 1)) -gt "$DT_ROWS" ] && r=$((DT_ROWS - n - 1))
-	[ "$r" -lt 1 ] && r=1
+	[ $((r + n + 1)) -gt "$pbot" ] && r=$((pbot - n - 1))
+	[ "$r" -lt "$ptop" ] && r=$ptop
 	MB[$m]["dy"]=$r
 	MB[$m]["dx"]=$x
 	MB[$m]["dw"]=$w
@@ -1101,7 +1108,9 @@ dt_mdown() {
 		MB[$sub]["px"]=$((${MB[$MB_OPEN]["dx"]} - w + 1))
 		;;
 	esac
-	MB[$sub]["py"]=$((${MB[$MB_OPEN]["dy"]:-1} + MB_SEL))
+	local ptop
+	ptop := dt_ptop
+	MB[$sub]["py"]=$((${MB[$MB_OPEN]["dy"]:-$ptop} + MB_SEL))
 	MB_PAR=$MB_OPEN
 	MB_OPEN=$sub
 	MB_SEL=0
@@ -1171,7 +1180,8 @@ fn dt_mpick(int r, int c) {
 		# narrow menu were drawn and did not answer a click.
 		w=${MB[$MB_OPEN]["dw"]:-${MB[$MB_OPEN]["w"]}}
 		[ "$w" -lt 14 ] && w=14
-		dy=${MB[$MB_OPEN]["dy"]:-1}
+		dy := dt_ptop
+		dy=${MB[$MB_OPEN]["dy"]:-$dy}
 	fi
 	rel=$((r - dy + 1))
 	[ "$rel" -lt 1 ] || [ "$rel" -gt "$n" ] && return 1
