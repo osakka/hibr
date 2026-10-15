@@ -83,6 +83,42 @@ A system install needs hibr 0.99.197 or newer."
 	AP_STATE=$AP_DATA/apps.json
 	return 0
 }
+
+# A verb that writes, at a scope this account cannot write to, says so in a
+# sentence of its own rather than letting `mkdir` say it from the middle of
+# the work (Gitea #238): the owner met
+# `mkdir: cannot create directory '/var/lib/hibr/apps': Permission denied`,
+# which names the symptom, not the thing to do about it.
+#
+# An ordinary account asking for `--system` is the **expected** case rather
+# than an odd one: ADR 0045 makes that root root-owned and 0755 exactly so
+# every user of the machine reads it and none can change what they all run.
+# So the answer is the command they meant to type.
+#
+# Reading is never gated -- `--system list` and `--system installed` are
+# what somebody checks *before* reaching for sudo -- so this is called from
+# the verbs that write and nowhere else.
+fn ap_needwrite(verb) {
+	local d
+
+	# The root may not exist yet, which is the ordinary case at user
+	# scope on a fresh account, so what has to be writable is the
+	# nearest parent that does exist.
+	d=$AP_DATA
+	while [ -n "$d" ] && [ ! -e "$d" ]; do
+		d=${d%/*}
+	done
+	[ -n "$d" ] || d=/
+	[ -w "$d" ] && return 0
+	[ "$AP_SCOPE" = system ] &&
+		ap_die "catalogue $verb --system writes $AP_DATA, which is root's.
+That is deliberate: it is root-owned so every user of this machine reads the
+same copy and nobody else can change what they all run (ADR 0045). Run it as
+root instead:
+
+  sudo catalogue $verb --system ..."
+	ap_die "catalogue $verb writes $AP_DATA, which this account cannot write to."
+}
 # Where the index is fetched from. A static URL on purpose: the catalogue is
 # a git repository with a JSON index in it, so it can be browsed, mirrored
 # by anyone and served by any static host -- github.com/osakka/hibr-apps is
@@ -143,6 +179,8 @@ declare -gA AP_ENT
 # now that a bundle can carry a Control Panel pane or a Control Strip module
 # of its own (Gitea #217), and a folder on disk cannot say what it came with.
 AP_PLACED=()
+# The parts of one installed entry, left by ap_parts for its caller.
+AP_PARTS=()
 # The modules an entry needs that are not loadable here and *are* in this
 # catalogue, left by ap_needs for ap_install to place first. Empty is the
 # ordinary case, since everything hibr ships is loadable already.
@@ -821,9 +859,35 @@ fn ap_insys(name) {
 	return 1
 }
 
+# The files an installed entry brought that are not its own: a `part`, in
+# another scan root, owned by this entry and refcounted so a pane two apps
+# both bring survives one of them going. Left in AP_PARTS, since a strict
+# file passes a list back through a global.
+#
+# Derived rather than recorded, so no state written before this release has
+# to be migrated. `paths` is the entry's own file first, then each part,
+# and -- when the bundle carried resources of its own -- the resource
+# **folder** last, which is `paths[0]` without its extension and is a
+# directory rather than a part. Counting `paths` minus one would report
+# that folder as a part, which is the one thing this has to get right.
+fn ap_parts(name) {
+	local i p own res
+
+	AP_PARTS=()
+	own=${AP_ST["installed"]["$name"]["paths"]["0"]}
+	res=${own%.*}
+	for i in "${!AP_ST["installed"]["$name"]["paths"][@]}"; do
+		[ "$i" = 0 ] && continue
+		p=${AP_ST["installed"]["$name"]["paths"]["$i"]}
+		[ "$p" = "$res" ] && continue
+		AP_PARTS+=("$p")
+	done
+	return 0
+}
+
 fn ap_installed(int j = 0) {
-	local name n=0 nd=0 js i sh sy what
-	local -A out
+	local name n=0 nd=0 js i sh sy what np auto
+	local -A out seen
 
 	ap_state
 	for name in "${!AP_ST["installed"][@]}"; do
@@ -860,11 +924,32 @@ fn ap_installed(int j = 0) {
 		what=
 		[ -n "$sy" ] && { what="defunct: the machine has this"; nd=$((nd + 1)) ; }
 		[ -z "$what" ] && [ -n "$sh" ] && what="shadows the one hibr ships"
+		# Why this is here, which is a different question from what it
+		# is and the one a person asks of a folder they did not fill.
+		# A module fetched to satisfy somebody's `needs` says whose;
+		# everything else in this list was asked for by name, which is
+		# what makes the absence of a word mean "you installed this".
+		auto=${AP_ST["installed"]["$name"]["auto"]}
+		[ -z "$what" ] && [ -n "$auto" ] &&
+			what="automatic: needed by $auto"
+		# And what it brought with it. The count rather than the names,
+		# so twenty-one entries stay a list somebody can read; `info`
+		# and `owns` have the names.
+		ap_parts "$name"
+		np=${#AP_PARTS[@]}
+		if [ -z "$what" ] && [ "$np" -gt 0 ]; then
+			what="+$np part"
+			[ "$np" = 1 ] || what="$what"s
+		fi
 		printf '%-16s %-10s %-14s %-7s %s\n' "$name" \
 			"${AP_ST["installed"]["$name"]["version"]}" \
 			"${AP_ST["installed"]["$name"]["kind"]}" \
 			"$AP_SCOPE" \
 			"$what"
+		seen["${AP_ST["installed"]["$name"]["paths"]["0"]}"]=1
+		for i in "${AP_PARTS[@]}"; do
+			seen["$i"]=1
+		done
 		n=$((n + 1))
 	done
 	if [ "$j" = 1 ]; then
@@ -877,6 +962,13 @@ fn ap_installed(int j = 0) {
 		return 0
 	fi
 	[ "$n" = 0 ] && ap_say "nothing installed"
+	# The two numbers a person can check against the folder, said
+	# together because apart they do not reconcile: twenty-one entries
+	# put thirty files in a scope, and until this line the other nine
+	# had nothing anywhere to account for them (Gitea #237). Distinct
+	# files, so a pane two apps both bring is one of them.
+	[ "$n" -gt 0 ] &&
+		printf '\n%s entries, %s files\n' "$n" "${#seen[@]}"
 	[ "$nd" -gt 0 ] &&
 		ap_say "$nd of these is defunct: the machine has its own, which is read first -- \`catalogue remove NAME\` frees the space"
 	return 0
@@ -908,14 +1000,109 @@ fn ap_show(want) {
 	return 0
 }
 
+# "What is this file, and who put it here?" -- the reverse of the listing,
+# and the question somebody actually asks of a folder they did not fill
+# (Gitea #237). Until this verb the only way to answer it was to read
+# apps.json by hand.
+#
+# A path can be in four places and ADR 0045's whole point is that the same
+# name can be in all of them with exactly one running, so every answer
+# names the scope rather than leaving it to be inferred from a path that
+# does not say.
+fn ap_owns(...args) {
+	local path name own i n=0 d c s hit scope
+	local -a by kind
+
+	[ "${#args[@]}" = 1 ] || ap_die "usage: catalogue owns PATH"
+	path=${args[0]}
+	# An absolute path inside this scope's own root is taken as the path
+	# it is; anything else is read as relative to that root, which is
+	# how the state records it and how `installed` prints it.
+	case $path in
+	"$AP_DATA"/*) path=${path#"$AP_DATA"/} ;;
+	/*) ;;
+	esac
+	ap_state
+	scope := ap_scopesay
+	for name in "${!AP_ST["installed"][@]}"; do
+		own=${AP_ST["installed"]["$name"]["paths"]["0"]}
+		hit=
+		[ "$path" = "$own" ] && hit=own
+		if [ -z "$hit" ]; then
+			ap_parts "$name"
+			for i in "${AP_PARTS[@]}"; do
+				[ "$i" = "$path" ] && { hit=part; break ; }
+			done
+		fi
+		[ -n "$hit" ] || continue
+		by+=("$name")
+		kind+=("$hit")
+		n=$((n + 1))
+	done
+	if [ "$n" -gt 0 ]; then
+		printf '%s\n' "$path"
+		for i in "${!by[@]}"; do
+			name=${by["$i"]}
+			if [ "${kind["$i"]}" = own ]; then
+				printf '  %s %s itself, in %s\n' "$name" \
+					"${AP_ST["installed"]["$name"]["version"]}" \
+					"$scope"
+			else
+				printf '  a part of %s %s, in %s\n' "$name" \
+					"${AP_ST["installed"]["$name"]["version"]}" \
+					"$scope"
+			fi
+		done
+		# A part two entries both bring is refcounted, so saying
+		# "removed when X is" of either one would be false.
+		if [ "$n" -gt 1 ]; then
+			printf '  kept until every one of those is removed\n'
+		elif [ "${kind["0"]}" = part ]; then
+			printf '  removed when %s is\n' "${by["0"]}"
+		fi
+		return 0
+	fi
+	# Not the catalogue's. Which of the other three it is still matters,
+	# because each is removed a different way or not at all.
+	c=${AP_CONF%/apps.json}
+	[ -e "$c/$path" ] &&
+		{ ap_say "$path: yours, by hand, in $c -- the catalogue never wrote it and no update will touch it"; return 0 ; }
+	if [ -n "$AP_SYSROOT" ] && [ "$AP_SCOPE" != system ] &&
+	   [ -e "$AP_SYSROOT/$path" ]; then
+		ap_say "$path: installed for the whole machine, in $AP_SYSROOT -- an administrator put it there, and it is read before your own"
+		return 0
+	fi
+	d := ap_deskdir
+	[ -n "$d" ] && [ -e "$d/$path" ] &&
+		{ ap_say "$path: not the catalogue's -- this is the copy hibr ships, in $d"; return 0 ; }
+	s=$AP_DATA/$path
+	[ -e "$s" ] &&
+		{ ap_say "$path: it is in $AP_DATA and nothing here claims it -- the catalogue did not place it"; return 1 ; }
+	ap_say "$path: nothing here knows about it, and there is no such file in any scope"
+	return 1
+}
+
+# Which scope this run is acting on, as a person would say it.
+fn ap_scopesay() {
+	[ "$AP_SCOPE" = system ] && { ret "the machine's scope"; return 0 ; }
+	ret "your own scope"
+}
+
 fn ap_info(want, int j = 0) {
-	local u name k js i
+	local u name k js i pn pk pa id
 	local -A out
 
 	ap_load
 	ap_state
 	name := ap_resolve "$want" || ap_die "$want: no such app in the index"
 	ap_entry "$name" || ap_die "$name: no such app in the index"
+	# The state is keyed by the **id**, always `kind/name`, and in a
+	# catalogue serving only the older `apps` section a resolved name is
+	# the bare one -- so asking the state with it silently finds nothing
+	# and `info` says a thing is not installed when it is. Found by
+	# #237's own check for the `brings` row, which missed for the same
+	# reason the `installed` row had been missing all along.
+	id=${AP_ENT["id"]:-$name}
 	u := ap_url
 	if [ "$j" = 1 ]; then
 		for k in id name kind title version about author licence \
@@ -923,7 +1110,7 @@ fn ap_info(want, int j = 0) {
 			out["$k"]=${AP_ENT["$k"]}
 		done
 		out["index"]=$u
-		out["installed"]=${AP_ST["installed"]["$name"]["version"]}
+		out["installed"]=${AP_ST["installed"]["$id"]["version"]}
 		for i in "${!AP_IX["$AP_SECT"]["${AP_ENT["key"]}"]["parts"][@]}"; do
 			out["parts"]["$i"]["kind"]=${AP_IX["$AP_SECT"]["${AP_ENT["key"]}"]["parts"]["$i"]["kind"]}
 			out["parts"]["$i"]["as"]=${AP_IX["$AP_SECT"]["${AP_ENT["key"]}"]["parts"]["$i"]["as"]}
@@ -942,6 +1129,38 @@ fn ap_info(want, int j = 0) {
 		"${AP_ENT["modules"]:+, modules: ${AP_ENT["modules"]}}" \
 		"${AP_ENT["arch"]:+, machine: ${AP_ENT["arch"]}}"
 	printf 'kind      %s\n' "${AP_ENT["kind"]}"
+	# What it places besides itself (Gitea #237). Two places know, and
+	# which one does depends on how the bundle is served: a catalogue of
+	# plain files -- what `addapp` makes -- names every part in the
+	# index, so this answers *before* an install, which is the more
+	# useful moment; a tarball keeps them in its own `app.json`, which
+	# nothing can read without fetching it. So the index is asked first
+	# and the state second, and for a tarball that is not installed the
+	# honest answer is to say nothing rather than to claim none.
+	# A part is refcounted, so one two apps both bring outlives the
+	# removal of either.
+	pn=0
+	for i in "${!AP_IX["$AP_SECT"]["${AP_ENT["key"]}"]["parts"][@]}"; do
+		pk=${AP_IX["$AP_SECT"]["${AP_ENT["key"]}"]["parts"]["$i"]["kind"]}
+		pa=${AP_IX["$AP_SECT"]["${AP_ENT["key"]}"]["parts"]["$i"]["as"]}
+		if [ "$pn" = 0 ]; then
+			printf 'brings    %s/%s\n' "$pk" "$pa"
+		else
+			printf '          %s/%s\n' "$pk" "$pa"
+		fi
+		pn=$((pn + 1))
+	done
+	if [ "$pn" = 0 ] && [ -n "${AP_ST["installed"]["$id"]["version"]}" ]; then
+		ap_parts "$id"
+		for i in "${AP_PARTS[@]}"; do
+			if [ "$pn" = 0 ]; then
+				printf 'brings    %s\n' "$i"
+			else
+				printf '          %s\n' "$i"
+			fi
+			pn=$((pn + 1))
+		done
+	fi
 	printf 'bundle    %s\n' "${AP_ENT["bundle"]}"
 	printf 'sha256    %s\n' "${AP_ENT["sha256"]:-none given}"
 	printf 'index     %s\n' "$u"
@@ -951,8 +1170,8 @@ fn ap_info(want, int j = 0) {
 	else
 		printf 'signed    no -- %s\n' "$AP_SIGWHY"
 	fi
-	[ -n "${AP_ST["installed"]["$name"]["version"]}" ] &&
-		printf 'installed %s\n' "${AP_ST["installed"]["$name"]["version"]}"
+	[ -n "${AP_ST["installed"]["$id"]["version"]}" ] &&
+		printf 'installed %s\n' "${AP_ST["installed"]["$id"]["version"]}"
 	if [ "$AP_SIGOK" = 1 ]; then
 		printf '\n%s\n' "The index is signed by the key above, and it holds"
 		printf '%s\n' "every bundle's sha256 -- so the signature covers this"
@@ -1977,7 +2196,13 @@ ap_help() {
 	"schemes, languages and modules, fetched from an index over HTTPS" \
 	"" \
 	"  catalogue list [TEXT]       what the index offers, or what matches TEXT" \
-	"  catalogue installed         what is installed here, and from where" \
+	"  catalogue installed         what is installed here, and from where;" \
+	"                              '+N parts' is what an entry brought with" \
+	"                              it, and the last line reconciles entries" \
+	"                              against files" \
+	"  catalogue owns PATH         what a file is and who put it there --" \
+	"                              yours, an app's part, the machine's, or" \
+	"                              the copy hibr ships" \
 	"  catalogue info NAME         everything the index says about one" \
 	"  catalogue show NAME         fetch it, verify it, and print it -- read an" \
 	"                         app before you install it, which a catalogue" \
@@ -2038,7 +2263,8 @@ ap_usage() {
 	echo "usage: catalogue [-j] list [TEXT] | [-j] installed | [-j] info NAME |" >&2
 	echo "       (kinds: ${AP_KINDS[*]})" >&2
 	echo "       show NAME | install NAME...|KIND/ | remove [-f] NAME... |" >&2
-	echo "       update [NAME...] | purge [-y] | index [URL] | refresh | help" >&2
+	echo "       update [NAME...] | owns PATH | purge [-y] | index [URL] |" >&2
+	echo "       refresh | help" >&2
 	echo "       --system on any of them: the machine's scope, not yours" >&2
 	exit 2
 }
@@ -2060,6 +2286,13 @@ set -- "${ap_args[@]}"
 # writes to another.
 [ "$AP_WANTSYS" = 1 ] && ap_scope system
 
+# A verb that writes asks first, so a scope this account cannot write to is
+# a sentence rather than a half-done install (Gitea #238). Reading is never
+# gated: `--system list` is what somebody runs before reaching for sudo.
+case ${1-} in
+install | remove | uninstall | update | upgrade | purge) ap_needwrite "$1" ;;
+esac
+
 case ${1-} in
 list) shift; ap_list "${1-}" "$AP_J" ;;
 installed) ap_installed "$AP_J" ;;
@@ -2067,6 +2300,7 @@ info) [ -n "${2-}" ] || ap_usage; ap_info "$2" "$AP_J" ;;
 show | read) [ -n "${2-}" ] || ap_usage; ap_show "$2" ;;
 install) shift; ap_install "$@" ;;
 remove | uninstall) shift; ap_remove "$@" ;;
+owns | owner) shift; ap_owns "$@" ;;
 purge) shift; ap_purge "$@" ;;
 update | upgrade) shift; ap_update "$@" ;;
 index) ap_setindex "${2-}" ;;

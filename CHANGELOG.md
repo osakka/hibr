@@ -1,5 +1,77 @@
 # Changelog
 
+## 0.99.199
+
+**Twenty-one entries, thirty files, and nothing said where the other nine
+came from.**
+
+Gitea #237 and #239, both reported by the owner looking at their own
+machine: *"check what's installed in the catalogue, it's untrue, themes,
+control panels, apps are all installed? ... do we have a mark that does
+what's been installed explicitly vs what's automatically installed?"*
+
+No theme was installed. What they saw was
+`~/.local/share/hibr/control-panel/` with eight files in it, and inferred
+that Control Panel panes had been installed as entries. They are `part`s,
+brought by the apps that own them -- and the state knew exactly that:
+walking the scope and resolving every path against it found **30 of 30
+claimed, 0 orphaned**. The bookkeeping was right and the only
+human-readable view of it answered a different question from the one the
+folder raises.
+
+Three things can put a file in a scope -- you asked for it, an app brought
+it, something needed it -- and `installed` showed the first alone. So it
+says what each entry brought, and ends with the two numbers that let a
+person check the folder against the command:
+
+    apps/prayer      1.0        apps           user    +2 parts
+    apps/snake       1.0        apps           user
+
+    21 entries, 30 files
+
+A module fetched for somebody's `needs` says whose on the same line, which
+finally shows the `auto` mark that `purge` has read since it was written
+and nothing ever displayed. `info` gains a `brings` row, from the index
+where the catalogue is one of plain files -- so it answers *before* an
+install, which is the more useful moment -- and from the state for a
+tarball, whose parts nothing can read without fetching it.
+
+And `catalogue owns PATH` answers the other direction, which is the
+question actually asked and which nothing could answer before short of
+reading `apps.json` by hand:
+
+    control-panel/pimset.hibr
+      a part of apps/calendar 1.0, in your own scope
+      a part of apps/contacts 1.1, in your own scope
+      kept until every one of those is removed
+
+It names every owner of a shared part, because removing any single one of
+them leaves it where it is; and it answers for a path in any of the four
+scopes, since the same name can be in all of them with one of them running.
+
+**#239: `--system` without root said `mkdir: cannot create directory
+'/var/lib/hibr/apps': Permission denied`.** The symptom rather than the
+thing to do about it, and from the middle of the work -- after the index
+had been fetched and a bundle verified. An ordinary account asking for
+`--system` is the *expected* way to find out it needs root, since ADR 0045
+makes that directory root-owned on purpose, so it is answered with the
+command they meant to type. Reading stays ungated: `--system list` and
+`--system installed` are what somebody runs before reaching for sudo, so
+the check is on the verbs that write and nowhere else.
+
+Two things found while checking it, both pre-existing. `info` never showed
+the `installed` row for a catalogue serving only the older `apps` section,
+because the state is keyed by the canonical `kind/name` and a resolved
+name there is the bare one -- three lookups in that function asked with the
+wrong key. And the parts count cannot be `paths` minus one: a bundle
+carrying resources of its own records its resource **folder** last, which
+is a directory rather than a part.
+
+`tests/appmgr.py` goes 88 checks to 100. The totals are checked against the
+JSON the Catalogue window reads rather than against literals, since the
+suite has other entries installed by the time that section runs and a
+hard-coded total would be a check of whatever ran before it.
+
 ## 0.99.198
 
 **A module ships because it is bytes; the split is refused.**

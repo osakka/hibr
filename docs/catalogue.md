@@ -52,7 +52,8 @@ answered; anything that is not an address is refused.
 | | |
 |---|---|
 | `catalogue list [TEXT]` | what the index offers, or what matches TEXT |
-| `catalogue installed` | what is installed here, and from where |
+| `catalogue installed` | what is installed here, from where, and what each brought with it |
+| `catalogue owns PATH` | what a file is and who put it there |
 | `catalogue info NAME` | everything the index says about one |
 | `catalogue show NAME` | fetch it, verify it, and print it — without placing it |
 | `catalogue install mods/NAME` | a module, into `$XDG_DATA_HOME/hibr/mods` |
@@ -288,6 +289,22 @@ shared workstation wants:
 sudo catalogue --system install apps/term apps/files system/panel
 ```
 
+The `sudo` is not optional and the refusal says so before anything is
+fetched, rather than letting `mkdir` complain from the middle of the work:
+
+```text
+catalogue: catalogue install --system writes /var/lib/hibr, which is root's.
+That is deliberate: it is root-owned so every user of this machine reads the
+same copy and nobody else can change what they all run (ADR 0045). Run it as
+root instead:
+
+  sudo catalogue install --system ...
+```
+
+**Reading that scope needs nothing.** `catalogue --system list` and
+`catalogue --system installed` answer for any account, which is what you
+run before reaching for root; only the verbs that write ask.
+
 There are three scopes and they are read in this order
 ([ADR 0045](adr/0045-a-thing-has-a-scope.md)):
 
@@ -454,6 +471,70 @@ folder on disk cannot say what it came with; `catalogue remove` takes those away
 and keeps any that another installed app brings too. One pane serves
 Calendar and Contacts both, so removing one of the two leaves the other's
 pane where it is, and says so.
+
+### Where a file came from
+
+Three things can put a file in a scope, and they are undone differently:
+
+- **you asked for it** — an entry, removed by name;
+- **an app brought it** — a `part`, removed with its owner, and refcounted
+  so one two apps both bring outlives the removal of either;
+- **something needed it** — a module fetched for a `needs`, which only
+  `purge` takes away.
+
+So `catalogue installed` says what each entry brought, and ends with the
+two numbers that let you check a folder against it — twenty-one entries
+put thirty files in a scope, and the nine that are parts are the
+difference:
+
+<!-- not run: reads the state of whatever machine it runs on -->
+```sh
+catalogue installed
+```
+
+```text
+apps/files       1.1        apps           user    +1 part
+apps/mail        1.1        apps           user    +1 part
+apps/prayer      1.0        apps           user    +2 parts
+apps/snake       1.0        apps           user
+
+21 entries, 30 files
+```
+
+A module fetched for something else says so on the same line, which is the
+only place that reason is ever shown:
+
+```text
+mods/pim         1.0        mods           user    automatic: needed by apps/contacts
+```
+
+And `catalogue owns` answers the other direction — the question a folder
+you did not fill actually raises:
+
+<!-- not run: reads the state of whatever machine it runs on -->
+```sh
+catalogue owns control-panel/mailset.hibr
+```
+
+```text
+control-panel/mailset.hibr
+  a part of apps/mail 1.1, in your own scope
+  removed when apps/mail is
+```
+
+A shared one names every owner, since removing any single one of them
+would leave it where it is:
+
+```text
+control-panel/pimset.hibr
+  a part of apps/calendar 1.0, in your own scope
+  a part of apps/contacts 1.1, in your own scope
+  kept until every one of those is removed
+```
+
+It answers for a path in any scope, which matters because the same name
+can be in four of them and only one of them runs: a file of your own in
+`~/.config/hibr`, the machine's copy, yours, and the one hibr ships.
 
 In hibr's own tree an app declares its parts in its own file, under the
 `app` line that gives its description, which is what the publisher reads:

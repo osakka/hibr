@@ -29,6 +29,7 @@ still shadows a fetched app of the same name.
 """
 import hashlib
 import json
+import re
 import os
 import shutil
 import subprocess
@@ -441,6 +442,78 @@ try:
     rc, out, err = apps("remove", "parts2")
     check("and goes once the last app that brings it is gone",
           rc == 0 and not os.path.exists(pane), (rc, out, err))
+
+    # Twenty-one entries put thirty files in the owner's own scope and
+    # nothing said where the other nine came from, which read as "themes,
+    # control panels and apps are all installed" (Gitea #237). The state
+    # always knew; only the listing did not say. Three reasons a file is
+    # in a scope -- you asked, an app brought it, something needed it --
+    # and until this release the listing showed the first alone.
+    apps("install", "parts")
+    apps("install", "demo")
+    rc, out, err = apps("installed")
+    partsrow = [l for l in out.splitlines() if l.startswith("apps/parts ")]
+    demorow = [l for l in out.splitlines() if l.startswith("apps/demo ")]
+    check("installed says what an entry brought with it",
+          len(partsrow) == 1 and "+1 part" in partsrow[0], (out,))
+    check("and says nothing of the kind for one that brought nothing",
+          len(demorow) == 1 and "part" not in demorow[0], (out,))
+    # The two numbers are the whole point: apart they do not reconcile,
+    # and a person counting files in the folder is owed the second one.
+    # Checked against the JSON the desktop window reads rather than
+    # against literals -- the suite has other entries installed by now,
+    # so a hard-coded total is a check of what ran before it.
+    m = re.search(r"^(\d+) entries, (\d+) files$", out, re.M)
+    rc2, js, err2 = apps("-j", "installed")
+    st = json.loads(js)["installed"]
+    files = set()
+    for e in st.values():
+        ps = e["paths"]
+        ps = ps if isinstance(ps, list) else [ps[k] for k in sorted(ps)]
+        res = ps[0].rsplit(".", 1)[0]
+        files.add(ps[0])
+        files.update(x for x in ps[1:] if x != res)
+    check("and the totals reconcile entries against files",
+          m is not None and int(m.group(1)) == len(st)
+          and int(m.group(2)) == len(files), (out, js))
+    # A pane two apps both bring is one file, so installing the second
+    # adds an entry and only its own file -- which is the property, where
+    # a literal total would only have been this run's arithmetic.
+    e1, f1 = int(m.group(1)), int(m.group(2))
+    apps("install", "parts2")
+    rc, out, err = apps("installed")
+    m = re.search(r"^(\d+) entries, (\d+) files$", out, re.M)
+    check("a part two entries share is one file in the total, not two",
+          m is not None and int(m.group(1)) == e1 + 1
+          and int(m.group(2)) == f1 + 1, (e1, f1, out))
+
+    # The reverse question, which is the one actually asked of a folder
+    # somebody did not fill, and which nothing could answer before.
+    rc, out, err = apps("owns", "control-panel/paneof.hibr")
+    check("owns names every entry a shared part belongs to",
+          rc == 0 and "apps/parts" in out and "apps/parts2" in out,
+          (rc, out, err))
+    check("and says a shared one outlives the removal of any one of them",
+          "kept until" in out, out)
+    rc, out, err = apps("remove", "parts2")
+    rc, out, err = apps("owns", "control-panel/paneof.hibr")
+    check("with one owner left it says what removing that one would do",
+          rc == 0 and "a part of apps/parts" in out
+          and "removed when apps/parts is" in out, (rc, out, err))
+    rc, out, err = apps("owns", "apps/parts.hibr")
+    check("owns tells an entry's own file from a part it brought",
+          rc == 0 and "itself" in out and "a part of" not in out,
+          (rc, out, err))
+    rc, out, err = apps("owns", "control-panel/nosuch.hibr")
+    check("and a path nothing claims fails rather than inventing an owner",
+          rc != 0 and "nothing here knows about it" in out + err,
+          (rc, out, err))
+    rc, out, err = apps("info", "parts")
+    check("info says what an entry brings, read from the index",
+          rc == 0 and "brings" in out and "control-panel/paneof.hibr" in out,
+          (rc, out, err))
+    apps("remove", "parts")
+    apps("remove", "demo")
 
     # A part decides a destination, so the rules the member paths already
     # follow have to hold for where it lands as well.
@@ -993,6 +1066,33 @@ try:
               "the same script is only warned about at user scope",
               rc != 0 and "every user of this machine" in err, (rc, err))
 
+        # An ordinary account asking for --system is the expected way to
+        # find out it needs root, since ADR 0045 makes that root
+        # root-owned on purpose. Until 0.99.199 it met mkdir's own
+        # `Permission denied` from the middle of the work, after the
+        # index had been fetched and a bundle verified (Gitea #239).
+        RO = os.path.join(HOME, "roroot")
+        os.makedirs(RO, exist_ok=True)
+        os.chmod(RO, 0o555)
+        ERO = dict(EW, HIBR_SYSDIR=RO)
+        try:
+            rc, out, err = apps("--system", "install", "apps/demo", env=ERO)
+            check("a --system install this account cannot write refuses "
+                  "with the command to use, not mkdir's own complaint",
+                  rc != 0 and "sudo catalogue install --system" in err
+                  and "Permission denied" not in err
+                  and not os.path.exists(os.path.join(RO, "apps")),
+                  (rc, out, err))
+            # Reading is what somebody does before reaching for sudo, and
+            # the directory is world-readable by design, so gating it in
+            # ap_scope rather than on the write verbs would have been
+            # wrong in the direction nobody would have noticed.
+            rc, out, err = apps("--system", "installed", env=ERO)
+            check("and reading that same scope is not gated at all",
+                  rc == 0, (rc, out, err))
+        finally:
+            os.chmod(RO, 0o755)
+
         # An administrator's install is authoritative: it is read before
         # a person's own, so a copy there could never run. Refused
         # whatever the versions say, and a copy that was already there
@@ -1093,4 +1193,4 @@ finally:
     srv.wait()
     shutil.rmtree(D, True)
 
-report(88)
+report(100)
