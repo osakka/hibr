@@ -3230,6 +3230,40 @@ check("a primary at a non-zero row puts the bar on the primary, not at "
 vt.close()
 subprocess.run([screen.HIBR, "-c", HOLDC + "hold kill vt"],
                env=dict(os.environ, **HENV), capture_output=True)
+
+# And the wallpaper reaches both panes. hold forwards a picture only to a
+# client whose rectangle *contains* it, because a bitmap cannot be clipped
+# -- so one wallpaper spanning a stacked union was contained by neither
+# client and reached neither of them: measured at 0 images on both against
+# v0.99.205, where the ticket had only claimed the join was missing it
+# (Gitea #238). The desktop places one picture per display now, each
+# contained by construction, which keeps that rule rather than reversing
+# it. HIBR_GFX and a cell size are what make pixels happen at all here;
+# without them the console answers "no pictures" and both counts are 0 for
+# a reason that has nothing to do with this.
+WCFG = os.path.join(HOLD, "wcfg")
+os.makedirs(os.path.join(WCFG, "hibr"), exist_ok=True)
+open(os.path.join(WCFG, "hibr", "desktop.hibr"), "w").write(
+    "DT_WALLIMG=%s\nDT_WALLMODE=stretch\n" % tree("tests/img-2x2.png"))
+WENV = dict(HENV, XDG_CONFIG_HOME=WCFG, HIBR_GFX="kitty")
+subprocess.run([screen.HIBR, "-c", HOLDC + "hold new -d wp %s %s --session wp"
+                % (screen.HIBR, vheld)],
+               env=dict(os.environ, **WENV), capture_output=True)
+time.sleep(1.5)
+wlo = Term("-c", HOLDC + "hold attach -n lower wp 10 0", env=WENV,
+           cellw=8, cellh=16, settle=3.0)
+time.sleep(1.0)
+wup = Term("-c", HOLDC + "hold attach -m -n upper wp 0 0", env=WENV,
+           cellw=8, cellh=16, settle=3.0)
+time.sleep(2.5)
+nlo, nup = len(wlo.screen().images), len(wup.screen().images)
+check("a wallpaper reaches both panes of a stacked union, one picture "
+      "per display rather than one across it that neither contains",
+      nlo > 0 and nup > 0, ("lower=%d upper=%d" % (nlo, nup),))
+wup.close()
+wlo.close()
+subprocess.run([screen.HIBR, "-c", HOLDC + "hold kill wp"],
+               env=dict(os.environ, **WENV), capture_output=True)
 t.send(b"\x1b[21~", settle=0.4)
 t.send(b"d", settle=0.8)
 check("Detach on the hibr menu detaches too",
@@ -5323,4 +5357,4 @@ check("launching an app that is not installed says which one and where "
       sc.find("files is not installed") is not None
       and sc.find("Catalogue") is not None, sc)
 
-report(613)
+report(614)

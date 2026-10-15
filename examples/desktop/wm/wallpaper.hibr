@@ -134,64 +134,69 @@ dt_imgwill() {
 # runs every frame: a frame where none of the three changed reads the last
 # answer instead of asking img size -- a full decode with no result but
 # two numbers -- again for nothing.
-DT_WALLFITFOR=
-DT_WALLFITMODE=
-DT_WALLFITROWS=
-DT_WALLFITCOLS=
+# Cached on the image alone, because that is the only expensive part:
+# `img size` is a full decode to learn two numbers. The arithmetic below
+# is free, so it is done per display rather than cached -- a desktop
+# spanning two panes fits the picture to each of them, and one cached
+# answer keyed on "the screen size" would thrash between them (#238).
+DT_WALLSRCFOR=
+DT_WALLSRCW=0
+DT_WALLSRCH=0
 
-dt_wallfit() {
-	local sw sh out fitr fitc
+# The picture's own pixel size, asked once per image.
+fn dt_wallsrc() {
+	local out
+
+	[ "$DT_WALLSRCFOR" = "$DT_WALLIMG" ] && return 0
+	DT_WALLSRCFOR=$DT_WALLIMG
+	DT_WALLSRCW=0
+	DT_WALLSRCH=0
+	out := img size "$DT_WALLIMG"
+	[ -n "$out" ] || return 0
+	DT_WALLSRCW=${out% *}
+	DT_WALLSRCH=${out#* }
+	return 0
+}
+
+fn dt_wallfit(int dr, int dc, int drows, int dcols) {
+	local sw sh fitr fitc
 
 	if [ "$DT_WALLMODE" = stretch ]; then
-		DT_WALLR=0
-		DT_WALLC=0
-		DT_WALLH=$DT_ROWS
-		DT_WALLW=$DT_COLS
+		DT_WALLR=$dr
+		DT_WALLC=$dc
+		DT_WALLH=$drows
+		DT_WALLW=$dcols
 		return 0
 	fi
-	if [ "$DT_WALLFITFOR" = "$DT_WALLIMG" ] &&
-	   [ "$DT_WALLFITMODE" = "$DT_WALLMODE" ] &&
-	   [ "$DT_WALLFITROWS" = "$DT_ROWS" ] &&
-	   [ "$DT_WALLFITCOLS" = "$DT_COLS" ]; then
-		return 0
-	fi
-	DT_WALLR=0
-	DT_WALLC=0
-	DT_WALLH=$DT_ROWS
-	DT_WALLW=$DT_COLS
-	out := img size "$DT_WALLIMG"
-	if [ -n "$out" ]; then
-		sw=${out% *}
-		sh=${out#* }
-		if [ "$sw" -gt 0 ] && [ "$sh" -gt 0 ]; then
-			if [ "$DT_WALLMODE" = center ]; then
-				fitc=$sw
-				fitr=$((sh / 2))
-			else
-				fitc=$DT_COLS
-				fitr=$((fitc * sh / (2 * sw)))
-				if [ "$DT_WALLMODE" = scale ] &&
-				   [ "$fitr" -gt "$DT_ROWS" ]; then
-					fitr=$DT_ROWS
-					fitc=$((fitr * 2 * sw / sh))
-				elif [ "$DT_WALLMODE" = zoom ] &&
-				     [ "$fitr" -lt "$DT_ROWS" ]; then
-					fitr=$DT_ROWS
-					fitc=$((fitr * 2 * sw / sh))
-				fi
-			fi
-			[ "$fitc" -lt 1 ] && fitc=1
-			[ "$fitr" -lt 1 ] && fitr=1
-			DT_WALLH=$fitr
-			DT_WALLW=$fitc
-			DT_WALLR=$(((DT_ROWS - fitr) / 2))
-			DT_WALLC=$(((DT_COLS - fitc) / 2))
+	DT_WALLR=$dr
+	DT_WALLC=$dc
+	DT_WALLH=$drows
+	DT_WALLW=$dcols
+	dt_wallsrc
+	sw=$DT_WALLSRCW
+	sh=$DT_WALLSRCH
+	[ "$sw" -gt 0 ] && [ "$sh" -gt 0 ] || return 0
+	if [ "$DT_WALLMODE" = center ]; then
+		fitc=$sw
+		fitr=$((sh / 2))
+	else
+		fitc=$dcols
+		fitr=$((fitc * sh / (2 * sw)))
+		if [ "$DT_WALLMODE" = scale ] && [ "$fitr" -gt "$drows" ]; then
+			fitr=$drows
+			fitc=$((fitr * 2 * sw / sh))
+		elif [ "$DT_WALLMODE" = zoom ] && [ "$fitr" -lt "$drows" ]; then
+			fitr=$drows
+			fitc=$((fitr * 2 * sw / sh))
 		fi
 	fi
-	DT_WALLFITFOR=$DT_WALLIMG
-	DT_WALLFITMODE=$DT_WALLMODE
-	DT_WALLFITROWS=$DT_ROWS
-	DT_WALLFITCOLS=$DT_COLS
+	[ "$fitc" -lt 1 ] && fitc=1
+	[ "$fitr" -lt 1 ] && fitr=1
+	DT_WALLH=$fitr
+	DT_WALLW=$fitc
+	DT_WALLR=$((dr + (drows - fitr) / 2))
+	DT_WALLC=$((dc + (dcols - fitc) / 2))
+	return 0
 }
 
 # Everything that decides what the wallpaper's own cells should hold: what
@@ -242,7 +247,7 @@ fn dt_wallkeep() {
 # Paint the wallpaper.  The bar is drawn afterwards, over the windows, so a
 # drop-down menu covers them.
 dt_wall() {
-	local drawn= sig ms
+	local drawn= sig ms dsp dr dc drows dcols
 
 	# The icons' own rescan, and the frame it asks for, happen whether or
 	# not anything is painted: inside the gate below they would stop the
@@ -283,34 +288,51 @@ dt_wall() {
 			need img
 		fi
 		if dt_has img; then
-			dt_wallfit
 			case $DT_WALLMODE in
 			scale | center)
 				console pen "$DT_DOT" "$DT_WALL"
 				console fill 0 0 "$DT_ROWS" "$DT_COLS" "$DT_GLYPH"
 				;;
 			esac
-			# Where a picture of real pixels is going, the cells it
-			# covers are blanked with no colours of their own
-			# first: a bitmap writes no cells, so last frame's
-			# text would otherwise stay on top of it -- and a cell
-			# with a background colour paints over a picture the
-			# terminal is compositing below the text, which is how
-			# a kitty wallpaper would be invisible under the very
-			# fill that used to stand in for it.
-			if dt_imgwill; then
-				console pen default default
-				console fill "$DT_WALLR" "$DT_WALLC" \
-					"$DT_WALLH" "$DT_WALLW" " "
-			fi
 			dt_imgm
-			# -u: text is drawn over the wallpaper in this same
-			# frame -- the bar, every window, the icons -- and a
-			# picture that owns its cells would be dropped before
-			# it was ever sent (ADR 0037, Gitea #104).
-			img draw "$DT_WALLIMG" "$DT_WALLR" "$DT_WALLC" \
-				"$DT_WALLH" "$DT_WALLW" "${DT_IMGARG[@]}" -u \
-				&& drawn=1
+			# One picture per attached display, not one across
+			# the union. hold forwards a picture only to a client
+			# whose rectangle **contains** it, because a bitmap
+			# cannot be clipped -- so a single wallpaper spanning
+			# two stacked panes was contained by neither and
+			# reached neither (Gitea #238). Fitted to each
+			# display, each one is contained by construction, and
+			# that rule stays true rather than being reversed.
+			#
+			# Not held, or one display: exactly one placement, the
+			# same as before.
+			for dsp in "${DT_DISPLAYS[@]}"; do
+				IFS=' ' read -r dr dc drows dcols <<< "$dsp"
+				dt_wallfit "$dr" "$dc" "$drows" "$dcols"
+				# Where a picture of real pixels is going,
+				# the cells it covers are blanked with no
+				# colours of their own first: a bitmap writes
+				# no cells, so last frame's text would stay
+				# on top of it -- and a cell with a
+				# background colour paints over a picture the
+				# terminal composites below the text, which
+				# is how a kitty wallpaper would be invisible
+				# under the very fill that used to stand in
+				# for it.
+				if dt_imgwill; then
+					console pen default default
+					console fill "$DT_WALLR" "$DT_WALLC" \
+						"$DT_WALLH" "$DT_WALLW" " "
+				fi
+				# -u: text is drawn over the wallpaper in
+				# this same frame -- the bar, every window,
+				# the icons -- and a picture that owns its
+				# cells would be dropped before it was ever
+				# sent (ADR 0037, Gitea #104).
+				img draw "$DT_WALLIMG" "$DT_WALLR" \
+					"$DT_WALLC" "$DT_WALLH" "$DT_WALLW" \
+					"${DT_IMGARG[@]}" -u && drawn=1
+			done
 		fi
 	fi
 	if [ -z "$drawn" ]; then

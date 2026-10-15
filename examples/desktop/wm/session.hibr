@@ -146,9 +146,23 @@ dt_size() {
 	DT_PRIMARY_COL=0
 	DT_PRIMARY_H=$DT_ROWS
 	DT_PRIMARY_ROW=0
+	# One entry per attached display, for whoever has to place
+	# something on each of them rather than once across the union --
+	# the wallpaper, today (Gitea #238). Read here, with the primary,
+	# because `hold clients` is a round trip to the server and a frame
+	# must not pay for one: dt_size runs on open and on every resize,
+	# and a client attaching or leaving is a resize.
+	DT_DISPLAYS=("0 0 $DT_ROWS $DT_COLS")
 	if [ -n "$HIBR_HOLD" ] && need hold; then
 		lst := hold clients
+		DT_DISPLAYS=()
+		# No `break` on finding the primary: every display is wanted,
+		# and the primary is not always the first line. Breaking there
+		# is what the version before this did, when the primary was
+		# all anybody read.
 		while IFS=' ' read -r nm row col rows cols pri; do
+			[ -n "$nm" ] || continue
+			DT_DISPLAYS+=("$row $col $rows $cols")
 			if [ "$pri" = 1 ]; then
 				DT_PRIMARY_COL=$col
 				DT_PRIMARY_W=$cols
@@ -158,9 +172,11 @@ dt_size() {
 				# practice however hold described it.
 				DT_PRIMARY_ROW=$row
 				DT_PRIMARY_H=$rows
-				break
 			fi
 		done <<< "$lst"
+		# Held but nothing attached: the screen is still a screen.
+		[ "${#DT_DISPLAYS[@]}" -gt 0 ] ||
+			DT_DISPLAYS=("0 0 $DT_ROWS $DT_COLS")
 	fi
 	dt_has dt_blankregions && dt_blankregions
 	dt_iconlay

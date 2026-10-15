@@ -112,6 +112,17 @@ DT_PRIMARY_COL=0
 DT_PRIMARY_H=
 DT_PRIMARY_ROW=0
 
+# Every attached display's own rectangle, one "row col rows cols" to an
+# entry, filled by dt_size from `hold clients` and falling back to the
+# whole screen when this desktop is not held. The wallpaper places one
+# picture per entry rather than one across the union: hold forwards a
+# picture only to a client whose rectangle *contains* it, because a
+# bitmap cannot be clipped -- so a wallpaper spanning two stacked panes
+# reached neither of them (Gitea #238). A picture per display is
+# contained by construction, which keeps that rule true instead of
+# reversing it.
+DT_DISPLAYS=()
+
 # The first content row of the primary display: its own top, plus the bar
 # that sits on it. Everything that used to start at a literal 1 starts
 # here, which is the whole of making a stacked union work -- 1 is only

@@ -1,5 +1,74 @@
 # Changelog
 
+## 0.99.206
+
+**One wallpaper per display, so a stacked union has one at all.**
+
+Gitea #238, which is #240 part 3. hold forwards a picture only to a
+client whose rectangle **contains** it, because a bitmap cannot be
+clipped -- so a wallpaper drawn across a stacked union is held whole by
+neither client. Measured against 0.99.205, primary below a join:
+
+    primary (lower, rows 10+)  images: 0
+    joined  (upper, rows 0-9)  images: 0
+
+and after:
+
+    primary  images: 1
+    joined   images: 1
+
+Worse than the ticket claimed, which was that the *join* was missing the
+wallpaper: at a stacked union **neither** display had one.
+
+**The rule is kept rather than reversed.** The ticket asked hold to clip
+per client; the owner chose the other answer, and it is the better one.
+A picture fitted to each display is contained by its own client **by
+construction**, so nothing is clipped anywhere and `render.c`'s
+containment test is right as written. Clipping in hold would have put
+image encoding inside its renderer, which has never done any: a sixel is
+paint with no placement and must be re-encoded per client, and while the
+kitty protocol can crop a placement, `mods/console/kitty.c` emits no such
+parameters -- new encoder code either way, plus a per-client image-id
+space.
+
+`DT_DISPLAYS` carries every client's rectangle, filled by `dt_size`
+beside the primary -- `hold clients` is a round trip and a frame must not
+pay for one, and a client attaching or leaving is a resize, which is when
+`dt_size` runs. `dt_wallfit` takes a display rectangle now instead of
+reading `DT_ROWS`/`DT_COLS`, and `dt_wall` loops. A desktop with one
+display places exactly one picture, as before.
+
+Two things found on the way. `dt_size`'s loop **broke** on finding the
+primary, which was right while the primary was all anybody read and
+silently drops every display after it; it collects them all now. And the
+version before this cached the fit on "the image, the mode and the screen
+size" -- one answer, which two displays would have thrashed. The
+expensive part is `img size`, a full decode to learn two numbers, and
+that depends on the **image alone**; it is cached on the path and the
+per-display arithmetic is free.
+
+**The pixel cache grows.** `mods/img` kept one entry on purpose, because
+a screenful is 6.3 MB where a cell grid is 130 kB. One is wrong the
+moment a desktop spans two displays: they alternate and miss every time,
+which is the 330 ms resample the cache exists to stop. It is a slot per
+`(path, w, h)` actually being placed now, and a slot nothing has asked
+for in `IM_PIXIDLE` calls is freed -- "one per display in use" without a
+number anybody has to pick, falling back to one on every desktop that is
+not stacked. The cost is named rather than hidden: 6.3 MB per
+screen-sized display, paid only while that display is attached and
+placing.
+
+And the module gained a finaliser. It had none, so both caches leaked on
+`mod drop`; a fixed array leaking its contents is one thing, and a
+growing allocation introduced here is worth freeing rather than matching
+the old habit of.
+
+`tests/desktop.py` goes 613 checks to 614. The new one needs `HIBR_GFX`
+and a cell size, without which the console answers "no pictures" and both
+counts are 0 for a reason that has nothing to do with this -- which is
+how the first version of it passed against the fix and the control
+alike.
+
 ## 0.99.205
 
 **The primary display is a rectangle, not a column.**

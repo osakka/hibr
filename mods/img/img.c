@@ -413,15 +413,32 @@ static void im_cache_store(const char *path, int rows, int cols, cell *grid)
    releases: `img draw -m pixels` of a 3840x2160 photograph onto a 232x71
    screen decoded and resampled it every single call, 330 ms, so a desktop
    in Pixels spent 93% of a core to draw 2.7 frames a second (Gitea #108).
-   One entry, not IM_CACHEN of them, because the sizes are not comparable:
+   It was one entry until 0.99.206, because the sizes are not comparable:
    that screen's pixels are 1856x1136x3, 6.3 MB, where its cell grid is
-   130 kB -- four slots would cost more resident memory than the shell. */
-static struct {
+   130 kB -- four fixed slots would cost more resident memory than the
+   shell. One is wrong the moment a desktop spans two displays, though:
+   since Gitea #238 the wallpaper places a picture **per display** rather
+   than one across the union, so two panes alternate and miss every time
+   -- which is exactly the 330 ms resample this cache exists to stop.
+
+   So it grows instead of being sized: a slot per (path, w, h) actually
+   being placed, and a slot nothing has asked for in IM_PIXIDLE calls is
+   freed. That is "one per display in use" without a number anybody has
+   to pick, and it falls back to one on a desktop with one display --
+   which is every desktop that is not held across panes. Resident memory
+   is this project's first priority, and the cost is named in the release
+   that spends it: 6.3 MB per screen-sized display, paid only while that
+   display is attached and placing. */
+#define IM_PIXIDLE 120
+struct im_pixslot {
 	char *path;
 	int w, h;
+	unsigned idle;
 	time_t mtime;
 	unsigned char *px;
-} im_pix;
+};
+static struct im_pixslot *im_pix;
+static size_t im_pixn;
 
 /* What was last placed under the text, and where. The display keeps such a
    picture only while its caller places it again, and a placement hands over
@@ -480,13 +497,29 @@ static void im_placed(const char *path, int iw, int ih, int row, int col,
 static unsigned char *im_pixget(const char *path, int w, int h)
 {
 	struct stat st;
+	size_t i;
 
-	if (!im_pix.px || !im_pix.path || strcmp(im_pix.path, path) ||
-	    im_pix.w != w || im_pix.h != h)
-		return 0;
-	if (stat(path, &st) != 0 || im_pix.mtime != st.st_mtime)
-		return 0;
-	return im_pix.px;
+	/* Every slot ages on every look, so one nothing asks for goes.
+	   Done here rather than on a timer: a desktop that has stopped
+	   placing has stopped calling, and a cache nobody reads costs
+	   nothing to leave until it is read again. */
+	for (i = 0; i < im_pixn; i++)
+		if (im_pix[i].px && im_pix[i].idle++ > IM_PIXIDLE) {
+			free(im_pix[i].path);
+			free(im_pix[i].px);
+			memset(&im_pix[i], 0, sizeof im_pix[i]);
+		}
+	for (i = 0; i < im_pixn; i++) {
+		if (!im_pix[i].px || !im_pix[i].path ||
+		    strcmp(im_pix[i].path, path) ||
+		    im_pix[i].w != w || im_pix[i].h != h)
+			continue;
+		if (stat(path, &st) != 0 || im_pix[i].mtime != st.st_mtime)
+			return 0;
+		im_pix[i].idle = 0;
+		return im_pix[i].px;
+	}
+	return 0;
 }
 
 /* Keep these scaled pixels, freeing whatever was kept before; the buffer
@@ -494,14 +527,38 @@ static unsigned char *im_pixget(const char *path, int w, int h)
 static void im_pixput(const char *path, int w, int h, unsigned char *px)
 {
 	struct stat st;
+	struct im_pixslot *ns;
+	size_t i, slot = (size_t)-1;
 
-	free(im_pix.path);
-	free(im_pix.px);
-	im_pix.path = strdup(path);
-	im_pix.w = w;
-	im_pix.h = h;
-	im_pix.px = px;
-	im_pix.mtime = stat(path, &st) == 0 ? st.st_mtime : 0;
+	/* This exact picture at this exact size, else a free slot, else one
+	   more. Replacing a slot that holds a *different* size is what the
+	   single entry used to do and is the thrash this release is for. */
+	for (i = 0; i < im_pixn; i++) {
+		if (im_pix[i].px && im_pix[i].path &&
+		    !strcmp(im_pix[i].path, path) &&
+		    im_pix[i].w == w && im_pix[i].h == h) {
+			slot = i;
+			break;
+		}
+		if (!im_pix[i].px && slot == (size_t)-1)
+			slot = i;
+	}
+	if (slot == (size_t)-1) {
+		/* xr exits on failure rather than answering NULL, so there
+		   is no out-of-memory branch to write here. */
+		ns = xr(im_pix, sizeof *ns * (im_pixn + 1));
+		im_pix = ns;
+		slot = im_pixn++;
+		memset(&im_pix[slot], 0, sizeof im_pix[slot]);
+	}
+	free(im_pix[slot].path);
+	free(im_pix[slot].px);
+	im_pix[slot].path = strdup(path);
+	im_pix[slot].w = w;
+	im_pix[slot].h = h;
+	im_pix[slot].px = px;
+	im_pix[slot].idle = 0;
+	im_pix[slot].mtime = stat(path, &st) == 0 ? st.st_mtime : 0;
 }
 
 /* img draw file row col h w [-g] [-p pane] -- blit directly into the open
@@ -876,5 +933,30 @@ const hibr_bi img_bi[] = {
 	HIBR_BI_END
 };
 
+/* Both caches given back when the module is dropped. The cell cache is a
+   fixed array and leaked its contents here for as long as it existed; the
+   pixel cache grows since 0.99.206, one slot per display actually placing,
+   and an allocation that grows is one worth freeing rather than one worth
+   matching the old habit of. */
+void im_fini(sh *s)
+{
+	size_t i;
+
+	(void)s;
+	for (i = 0; i < IM_CACHEN; i++) {
+		free(im_cache[i].path);
+		free(im_cache[i].grid);
+		im_cache[i].path = 0;
+		im_cache[i].grid = 0;
+	}
+	for (i = 0; i < im_pixn; i++) {
+		free(im_pix[i].path);
+		free(im_pix[i].px);
+	}
+	free(im_pix);
+	im_pix = 0;
+	im_pixn = 0;
+}
+
 HIBR_MODULE("img", "1.0", "decode an image and draw it as terminal cells",
-	    img_bi, 0, 0);
+	    img_bi, 0, im_fini);

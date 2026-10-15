@@ -102,6 +102,18 @@ because a bitmap cannot be clipped. A region goes when something writes a
 cell inside it, which is how a window that closed or moved takes its
 picture with it.
 
+That rule means **one picture spanning a union reaches nobody**: at a
+stacked arrangement a wallpaper drawn across both panes is held whole by
+neither client, so neither is sent it (measured at 0 images on both, hibr
+Gitea #238). The answer is not to clip it here -- a sixel is paint and
+would have to be re-encoded per client, and the kitty id space would have
+to become per-client too. It is for the thing placing the picture to place
+**one per display**, each of which is then held whole by its own client by
+construction. The desktop does that from 0.99.206: `DT_DISPLAYS` carries
+every client's rectangle from `hold clients`, and `dt_wall` fits the
+wallpaper to each. Anything else that wants a picture on every display of
+a union does the same, and this rule stays as it is.
+
 The other half is that a program can only draw pixels at all if it knows
 what a cell measures, and it learns that from `ws_xpixel`/`ws_ypixel` on its
 own terminal -- which, for a held program, is a pty hold made and nobody
