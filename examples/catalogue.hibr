@@ -1182,6 +1182,202 @@ fn ap_scopesay() {
 	ret "your own scope"
 }
 
+# The record against the files, both ways (Gitea #243). Two things can be
+# wrong and neither was visible before: a path the record claims that is
+# not on disk, and a file in the scope that nothing claims.
+#
+# The second is what #241 and #242 produced -- a half-written record, or
+# one install erasing another's entry -- and the person it happened to had
+# no way to see it. `installed` reads the record and believes it; this is
+# the only thing that asks the disk.
+#
+# It needs no network: the comparison is state against files. The index is
+# consulted only to recognise an orphan, and only when it is already
+# cached, so a check still works on a machine that cannot reach the
+# catalogue -- which is exactly the machine something has gone wrong on.
+fn ap_check(...args) {
+	local a repair=0 name i p rel k f under sha id ent own
+	local nm=0 no=0 nf=0 fixed=0 left=0
+	local -A claim dirs bysha partof adopt
+	local -a miss orph keepp
+
+	for a in "${args[@]}"; do
+		case $a in
+		-r | --repair) repair=1 ;;
+		*) ap_die "usage: catalogue check [--repair]" ;;
+		esac
+	done
+	if [ "$repair" = 1 ]; then
+		ap_needwrite check
+		ap_lock
+	fi
+	ap_state
+	for name in "${!AP_ST["installed"][@]}"; do
+		for i in "${!AP_ST["installed"]["$name"]["paths"][@]}"; do
+			p=${AP_ST["installed"]["$name"]["paths"]["$i"]}
+			claim["$p"]=$name
+			[ -d "$AP_DATA/$p" ] && dirs["$p"]=$name
+		done
+	done
+	for p in "${!claim[@]}"; do
+		[ -e "$AP_DATA/$p" ] && continue
+		miss+=("$p")
+		nm=$((nm + 1))
+	done
+	# Every file in the scope's own roots. A resource folder is claimed
+	# as a folder, so what is inside it is claimed with it rather than
+	# one file at a time.
+	for k in "${AP_KINDS[@]}"; do
+		[ -d "$AP_DATA/$k" ] || continue
+		for f in "$AP_DATA/$k"/**; do
+			[ -f "$f" ] || continue
+			nf=$((nf + 1))
+			rel=${f#"$AP_DATA/"}
+			[ -n "${claim["$rel"]+x}" ] && continue
+			under=
+			for p in "${!dirs[@]}"; do
+				case $rel in
+				"$p"/*) under=1; break ;;
+				esac
+			done
+			[ -n "$under" ] && continue
+			orph+=("$rel")
+			no=$((no + 1))
+		done
+	done
+	if [ "$nm" = 0 ] && [ "$no" = 0 ]; then
+		p=path
+		[ "${#claim[@]}" = 1 ] || p=paths
+		ap_say "the record and the files agree: ${#claim[@]} $p, all of them there"
+		return 0
+	fi
+	# What an orphan *is*, when the index can say. A bundle of plain
+	# files -- what `addapp` publishes -- stores the installed file
+	# itself, so its sha256 names the entry it came from; a tarball's
+	# sha256 is the tarball's, so an orphan from one cannot be
+	# recognised and is reported as unknown rather than guessed at.
+	if [ "$no" -gt 0 ] && [ -r "$AP_INDEX" ]; then
+		ap_load
+		for k in "${!AP_IX["$AP_SECT"][@]}"; do
+			ap_entry "$k" || continue
+			[ -n "${AP_ENT["sha256"]}" ] &&
+				bysha["${AP_ENT["sha256"]}"]=${AP_ENT["id"]}
+			for i in "${!AP_IX["$AP_SECT"]["$k"]["parts"][@]}"; do
+				sha=${AP_IX["$AP_SECT"]["$k"]["parts"]["$i"]["sha256"]}
+				[ -n "$sha" ] &&
+					partof["$sha"]=${AP_ENT["id"]}
+			done
+		done
+	fi
+	printf '%s\n' "$AP_DATA"
+	for p in "${miss[@]}"; do
+		printf '  missing  %-34s claimed by %s\n' "$p" "${claim["$p"]}"
+	done
+	for rel in "${orph[@]}"; do
+		id=
+		ent=
+		if [ "${#bysha[@]}" -gt 0 ]; then
+			sha := ap_sha "$AP_DATA/$rel"
+			id=${bysha["$sha"]}
+			[ -z "$id" ] && ent=${partof["$sha"]}
+		fi
+		if [ -n "$id" ]; then
+			printf '  orphan   %-34s is %s, which the record has lost\n' "$rel" "$id"
+			adopt["$id"]=1
+		elif [ -n "$ent" ]; then
+			printf '  orphan   %-34s a part of %s, which the record has lost\n' "$rel" "$ent"
+			adopt["$ent"]=1
+		else
+			printf '  orphan   %-34s nothing in the index matches it\n' "$rel"
+		fi
+	done
+	if [ "$repair" = 0 ]; then
+		printf '\n%s claimed and missing, %s present and unclaimed, of %s files\n' \
+			"$nm" "$no" "$nf"
+		ap_say "\`catalogue check --repair\` makes the record true: it drops a claim on a file that is gone and takes back one it can recognise. It removes nothing -- the paths above are yours to delete."
+		return 1
+	fi
+	# Repair the **record**, never the files. A claim on a file that is
+	# gone is dropped; an entry with no paths left goes with it. An
+	# orphan the index recognises is claimed again, which is the whole
+	# of recovering from #242 -- the files were always right, it was the
+	# record that forgot them.
+	printf '\n'
+	for name in "${!AP_ST["installed"][@]}"; do
+		# An entry's **own** file is what says it is installed. With
+		# that gone the entry is gone, whatever is left of its
+		# parts: a pane on its own is not an app. Those part files
+		# are then unclaimed and the next check names them, which is
+		# the honest answer -- removing the app would have taken
+		# them, and something else took the app instead. Nothing
+		# loops, because adopting an entry needs its own file back.
+		own=${AP_ST["installed"]["$name"]["paths"]["0"]}
+		if [ ! -e "$AP_DATA/$own" ]; then
+			unset AP_ST["installed"]["$name"]
+			printf '  dropped %s, whose own file is gone\n' "$name"
+			fixed=$((fixed + 1))
+			continue
+		fi
+		keepp=()
+		for i in "${!AP_ST["installed"]["$name"]["paths"][@]}"; do
+			p=${AP_ST["installed"]["$name"]["paths"]["$i"]}
+			[ -e "$AP_DATA/$p" ] && keepp+=("$p")
+		done
+		[ "${#keepp[@]}" = "${#AP_ST["installed"]["$name"]["paths"][@]}" ] &&
+			continue
+		unset AP_ST["installed"]["$name"]["paths"]
+		i=0
+		for p in "${keepp[@]}"; do
+			AP_ST["installed"]["$name"]["paths"]["$i"]=$p
+			i=$((i + 1))
+		done
+		printf '  %s: dropped a claim on a part that is gone\n' "$name"
+		fixed=$((fixed + 1))
+	done
+	for id in "${!adopt[@]}"; do
+		ap_entry "$id" || continue
+		ap_adopt "$id" || continue
+		printf '  took back %s %s, which the record had lost\n' \
+			"$id" "${AP_ENT["version"]}"
+		fixed=$((fixed + 1))
+	done
+	[ "$fixed" -gt 0 ] && ap_statesave
+	for rel in "${orph[@]}"; do
+		[ -e "$AP_DATA/$rel" ] || continue
+		left=$((left + 1))
+	done
+	ap_say "the record is true about what it claims now; anything still listed above is a file to keep or delete yourself"
+	return 0
+}
+
+# Claim an entry's own file and whichever of its parts are on disk, for a
+# record that lost them. The paths are worked out the way an install works
+# them out, so a repaired entry is indistinguishable from an installed one.
+fn ap_adopt(id) {
+	local rel e pk pa i n=0
+	local -a got
+
+	e := ap_kext "${AP_ENT["kind"]}"
+	rel := ap_rel "${AP_ENT["kind"]}" "${AP_ENT["name"]}" "${AP_ENT["dir"]}"
+	[ -e "$AP_DATA/$rel$e" ] || return 1
+	got=("$rel$e")
+	for i in "${!AP_IX["$AP_SECT"]["${AP_ENT["key"]}"]["parts"][@]}"; do
+		pk=${AP_IX["$AP_SECT"]["${AP_ENT["key"]}"]["parts"]["$i"]["kind"]}
+		pa=${AP_IX["$AP_SECT"]["${AP_ENT["key"]}"]["parts"]["$i"]["as"]}
+		[ -e "$AP_DATA/$pk/$pa" ] && got+=("$pk/$pa")
+	done
+	AP_ST["installed"]["$id"]["version"]=${AP_ENT["version"]}
+	AP_ST["installed"]["$id"]["kind"]=${AP_ENT["kind"]}
+	AP_ST["installed"]["$id"]["sha256"]=${AP_ENT["sha256"]}
+	unset AP_ST["installed"]["$id"]["paths"]
+	for i in "${!got[@]}"; do
+		AP_ST["installed"]["$id"]["paths"]["$i"]=${got["$i"]}
+		n=$((n + 1))
+	done
+	[ "$n" -gt 0 ] || return 1
+	return 0
+}
+
 fn ap_info(want, int j = 0) {
 	local u name k js i pn pk pa id
 	local -A out
@@ -2308,6 +2504,10 @@ ap_help() {
 	"  catalogue owns PATH         what a file is and who put it there --" \
 	"                              yours, an app's part, the machine's, or" \
 	"                              the copy hibr ships" \
+	"  catalogue check [--repair]  the record against the files: a claim" \
+	"                              with no file, and a file nothing claims." \
+	"                              --repair makes the record true and" \
+	"                              removes nothing" \
 	"  catalogue info NAME         everything the index says about one" \
 	"  catalogue show NAME         fetch it, verify it, and print it -- read an" \
 	"                         app before you install it, which a catalogue" \
@@ -2368,8 +2568,8 @@ ap_usage() {
 	echo "usage: catalogue [-j] list [TEXT] | [-j] installed | [-j] info NAME |" >&2
 	echo "       (kinds: ${AP_KINDS[*]})" >&2
 	echo "       show NAME | install NAME...|KIND/ | remove [-f] NAME... |" >&2
-	echo "       update [NAME...] | owns PATH | purge [-y] | index [URL] |" >&2
-	echo "       refresh | help" >&2
+	echo "       update [NAME...] | owns PATH | check [--repair] |" >&2
+	echo "       purge [-y] | index [URL] | refresh | help" >&2
 	echo "       --system on any of them: the machine's scope, not yours" >&2
 	exit 2
 }
@@ -2413,6 +2613,7 @@ show | read) [ -n "${2-}" ] || ap_usage; ap_show "$2" ;;
 install) shift; ap_install "$@" ;;
 remove | uninstall) shift; ap_remove "$@" ;;
 owns | owner) shift; ap_owns "$@" ;;
+check) shift; ap_check "$@" ;;
 purge) shift; ap_purge "$@" ;;
 update | upgrade) shift; ap_update "$@" ;;
 index) ap_setindex "${2-}" ;;

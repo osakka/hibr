@@ -600,6 +600,74 @@ try:
     shutil.rmtree(LOCK, True)
     apps("remove", "parts")
 
+    # The record and the files can disagree in two directions and nothing
+    # asked the disk until now: `installed` reads the record and believes
+    # it. Both directions are what #241 and #242 produced -- a damaged
+    # record, and one install erasing another's entry (Gitea #243).
+    APPDIR = os.path.join(DATA, "hibr", "apps")
+    apps("install", "parts")
+    rc, out, err = apps("check")
+    check("check says so when the record and the files agree",
+          rc == 0 and "agree" in out + err, (rc, out, err))
+
+    # A claim whose file has gone.
+    os.remove(os.path.join(APPDIR, "parts.hibr"))
+    rc, out, err = apps("check")
+    check("a claim on a file that is not there is named, and check fails",
+          rc != 0 and "missing" in out and "apps/parts" in out,
+          (rc, out, err))
+
+    # A file the record has lost -- which is what a lost update leaves.
+    apps("install", "demo")
+    st = os.path.join(DATA, "hibr", "apps.json")
+    d = json.load(open(st))
+    d["installed"].pop("apps/demo")
+    json.dump(d, open(st, "w"))
+    rc, out, err = apps("check")
+    check("a file nothing claims is named as the entry it is, read from "
+          "the index rather than guessed",
+          rc != 0 and "orphan" in out and "apps/demo" in out
+          and "record has lost" in out, (rc, out, err))
+
+    # Something nobody published: recognised as unknown, and never
+    # removed -- deleting a file nothing claims is how you lose a file
+    # somebody put there by hand.
+    mine = os.path.join(APPDIR, "mine.hibr")
+    open(mine, "w").write('app mine "mine" 1.0\n')
+    rc, out, err = apps("check")
+    check("and one the index does not know is named as unknown rather "
+          "than guessed at",
+          "mine.hibr" in out and "nothing in the index matches it" in out,
+          (rc, out, err))
+
+    rc, out, err = apps("check", "--repair")
+    check("--repair drops the dead claim and takes back the lost entry",
+          rc == 0 and "dropped apps/parts" in out
+          and "took back apps/demo" in out, (rc, out, err))
+    check("and removes nothing: a file it could not recognise is still "
+          "there",
+          os.path.exists(mine), mine)
+    os.remove(mine)
+    # Dropping apps/parts leaves its pane behind, and check says so
+    # rather than quietly keeping an entry alive on the strength of a
+    # part: an entry's own file is what says it is installed, and a pane
+    # on its own is not an app.
+    PANE = os.path.join(DATA, "hibr", "control-panel", "paneof.hibr")
+    rc, out, err = apps("check")
+    check("the part of a dropped entry becomes an orphan, rather than "
+          "keeping the entry alive without its own file",
+          rc != 0 and "paneof.hibr" in out and os.path.exists(PANE),
+          (rc, out, err))
+    os.remove(PANE)
+    rc, out, err = apps("check")
+    check("after a repair the record and the files agree",
+          rc == 0 and "agree" in out + err, (rc, out, err))
+    # The entry it took back is a real one again, not a row in a list.
+    rc, out, err = apps("remove", "demo")
+    check("and an entry taken back can be removed like any other",
+          rc == 0 and not os.path.exists(os.path.join(APPDIR, "demo.hibr")),
+          (rc, out, err))
+
     # A part decides a destination, so the rules the member paths already
     # follow have to hold for where it lands as well.
     for name, why in (("badpart", "a kind that is not one"),
@@ -1278,4 +1346,4 @@ finally:
     srv.wait()
     shutil.rmtree(D, True)
 
-report(106)
+report(115)

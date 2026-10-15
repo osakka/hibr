@@ -1,5 +1,60 @@
 # Changelog
 
+## 0.99.201
+
+**`catalogue check`: the record against the files, both ways.**
+
+Gitea #243, from the catalogue audit. Everything the manager offered read
+the record and believed it, so the two ways a scope can be wrong were
+both invisible: a path the record claims that is not on disk, and a file
+in the scope that nothing claims. The second is what 0.99.200 fixed the
+causes of -- a damaged record, and one install erasing another's entry --
+and the person either had happened to had no way to see it.
+
+    /home/you/.local/share/hibr
+      missing  apps/beta.hibr     claimed by apps/beta
+      orphan   apps/alpha.hibr    is apps/alpha, which the record has lost
+      orphan   apps/mine.hibr     nothing in the index matches it
+
+    1 claimed and missing, 2 present and unclaimed, of 4 files
+
+It exits non-zero when anything is wrong, and **needs no network**: the
+comparison is the record against the files, and the index is consulted
+only to recognise an orphan and only when it is already cached. A check
+that could not run without the catalogue would be useless on exactly the
+machine something had gone wrong on.
+
+An orphan is recognised by its `sha256`. A catalogue of plain files --
+what `addapp` publishes -- stores the installed file itself, so its hash
+names the entry it came from; a tarball's hash is the tarball's, so an
+orphan from one is reported as unknown rather than guessed at.
+
+**`--repair` makes the record true and never touches a file.** It drops a
+claim on a file that has gone and takes back one it can recognise, which
+is the whole of recovering from a lost update: the files were always
+right, it was the record that forgot them. Taking an entry back claims
+its parts too, so a whole install comes back whole -- measured on an
+entry with a Control Panel pane, where `installed` showed `+1 part` again
+and `owns` resolved the pane to its owner.
+
+One rule fell out of building it and is worth stating, because the first
+version got it wrong. **An entry's own file is what says it is
+installed.** An entry whose own file has gone is dropped even when a part
+of it is still there -- a pane on its own is not an app -- and the next
+check names that pane as an orphan, rather than keeping a dead entry
+alive on the strength of it. Nothing loops, because taking an entry back
+needs its own file present.
+
+What it will not do is delete. A file nothing recognises may be one
+somebody wrote, and `check` has already said where it is.
+
+This also makes 0.99.199's `21 entries, 30 files` honest. That line counts
+what the record claims, which equals the disk only while nothing has
+drifted; `check` is what turns it into something anybody can verify in
+one command.
+
+`tests/appmgr.py` goes 106 checks to 115.
+
 ## 0.99.200
 
 **One manager writes at a time, and the record is replaced rather than

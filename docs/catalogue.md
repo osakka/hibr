@@ -54,6 +54,7 @@ answered; anything that is not an address is refused.
 | `catalogue list [TEXT]` | what the index offers, or what matches TEXT |
 | `catalogue installed` | what is installed here, from where, and what each brought with it |
 | `catalogue owns PATH` | what a file is and who put it there |
+| `catalogue check [--repair]` | the record against the files, both ways |
 | `catalogue info NAME` | everything the index says about one |
 | `catalogue show NAME` | fetch it, verify it, and print it — without placing it |
 | `catalogue install mods/NAME` | a module, into `$XDG_DATA_HOME/hibr/mods` |
@@ -584,6 +585,53 @@ were; it is the record of them that is damaged.
 
 An **empty** file is still an empty scope rather than damage, which is
 what a fresh account has.
+
+### Asking the disk, not the record
+
+Everything above reads the record and believes it. `catalogue check` is
+the one thing that asks the files, and it answers in both directions:
+
+<!-- not run: reads the state of whatever machine it runs on -->
+```sh
+catalogue check
+```
+
+```text
+/home/you/.local/share/hibr
+  missing  apps/beta.hibr                     claimed by apps/beta
+  orphan   apps/alpha.hibr                    is apps/alpha, which the record has lost
+  orphan   apps/mine.hibr                     nothing in the index matches it
+
+1 claimed and missing, 2 present and unclaimed, of 4 files
+```
+
+It exits non-zero when anything is wrong. It needs **no network**: the
+comparison is the record against the files, and the index is read only to
+recognise an orphan, only when it is already cached — a check that could
+not run without the catalogue would be useless on the machine something
+had gone wrong on.
+
+An orphan is recognised by its `sha256`. A catalogue of plain files, which
+is what `addapp` publishes, stores the installed file itself, so its hash
+names the entry it came from; a **tarball**'s hash is the tarball's, so an
+orphan from one is reported as unknown rather than guessed at.
+
+`--repair` makes the **record** true and never touches a file:
+
+```text
+  dropped apps/beta, whose own file is gone
+  took back apps/alpha 1.0, which the record had lost
+```
+
+Taking one back claims its parts too, so a whole install the record lost
+comes back whole. An entry's **own** file is what says it is installed, so
+one whose own file has gone is dropped even if a part of it is still
+there — a Control Panel pane on its own is not an app, and the next check
+names that pane as an orphan rather than keeping a dead entry alive on the
+strength of it.
+
+What it will not do is delete. A file nothing recognises may be one you
+wrote, and `check` has already told you its path.
 
 In hibr's own tree an app declares its parts in its own file, under the
 `app` line that gives its description, which is what the publisher reads:
