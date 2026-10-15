@@ -225,6 +225,24 @@ what is needed to fetch and place it:
 own** — which is what lets a mirror be a copy of one folder rather than a
 rewrite of every entry.
 
+A full address may name **any host**, and the fetch says so once per run
+when it is not the host the index came from, or when it is plaintext
+`http`:
+
+```text
+warning: this index fetches its bundles from files.example.net, which is
+not osakka.github.io, where the index itself came from. What arrives is
+still checked against the sha256 in the index.
+```
+
+It is a warning rather than a refusal, and the last sentence is the
+reason: the `sha256` lives in the index and the index is signed, so what
+arrives is verified wherever it came from. What an absolute address
+costs is **privacy** — a host you did not choose learns your address and
+what you install — and **availability**, since your install now depends
+on its uptime. Those are worth saying and not worth refusing over: a
+mirror legitimately gives absolute addresses.
+
 ### Why an id and not a name
 
 The desktop has **eight** scan roots, and a name only has to be unique
@@ -502,12 +520,20 @@ apps/snake       1.0        apps           user
 21 entries, 30 files
 ```
 
-A module fetched for something else says so on the same line, which is the
-only place that reason is ever shown:
+A module fetched for something else says so on the same line:
 
 ```text
-mods/pim         1.0        mods           user    automatic: needed by apps/contacts
+mods/pim         1.0        mods           user    automatic, not asked for by name
 ```
+
+It does **not** name who wanted it, though the record remembers one. That
+name is written once, when the module is fetched, and never updated — so
+with two apps needing one module, where the second finds it already
+loadable and fetches nothing, removing the first would leave the line
+naming an app that is no longer installed. `catalogue purge` answers that
+question properly instead, computing it from each installed entry's own
+`modules` at the moment it matters, and it may name the app because it
+lists only what nothing needs **now**.
 
 And `catalogue owns` answers the other direction — the question a folder
 you did not fill actually raises:

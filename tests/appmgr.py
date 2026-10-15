@@ -712,6 +712,42 @@ try:
           rc == 0 and "check" in out + err and "owns" in out + err,
           (rc, out, err))
 
+    # An index may send a fetch to any host, and over plaintext, and
+    # nothing said so -- where the index's *own* address is checked
+    # and warned about. The two halves of one question were treated
+    # differently (Gitea #247). It warns rather than refuses: a
+    # mirror legitimately gives absolute addresses, and what arrives
+    # is checked against the index's sha256 wherever it came from.
+    rc, out, err = apps("install", "demo")
+    check("a bundle fetched from the index's own host says nothing "
+          "about hosts, since there is nothing to say",
+          "fetches its bundles" not in out + err, (out, err))
+    apps("remove", "demo")
+    # Against the ordinary index, deliberately: rewriting the signed
+    # index221.json breaks its signature and takes five unrelated checks
+    # with it, which is what the first version of this did.
+    IXP = os.path.join(WWW, "index.json")
+    ix = json.load(open(IXP))
+    sec = ix.get("entries") or ix["apps"]
+    key = "apps/demo" if "apps/demo" in sec else "demo"
+    was = sec[key]["bundle"]
+    sec[key]["bundle"] = URL.rsplit("/", 1)[0] + "/" + was
+    json.dump(ix, open(IXP, "w"))
+    # The index is cached and ap_fetch returns early when it is, so
+    # without this the install reads the old relative address and the
+    # check passes for having changed nothing.
+    apps("refresh")
+    rc, out, err = apps("install", "demo")
+    check("and one named as an absolute http address is warned about, "
+          "naming the host and saying the sha256 still holds",
+          rc == 0 and "fetches its bundles" in out + err
+          and "sha256" in out + err, (rc, out, err))
+    check("said once for the run, not once for every bundle",
+          (out + err).count("fetches its bundles") == 1, (out, err))
+    sec[key]["bundle"] = was
+    json.dump(ix, open(IXP, "w"))
+    apps("refresh")
+    apps("remove", "demo")
     # A part decides a destination, so the rules the member paths already
     # follow have to hold for where it lands as well.
     for name, why in (("badpart", "a kind that is not one"),
@@ -1152,6 +1188,35 @@ try:
               st.get("mods/greet", {}).get("auto") == "apps/wantsmod"
               and not st.get("apps/wantsmod", {}).get("auto"),
               {k: v.get("auto", "") for k, v in st.items()})
+        # And the listing says it was automatic **without naming who
+        # wanted it**: `auto` is set once and never updated, so with two
+        # apps needing one module -- the second finds it loadable and
+        # fetches nothing -- removing the first would leave the line
+        # naming an app that is no longer installed. Keeping a list of
+        # needers in step is what this project has already decided
+        # nobody can be relied on to do; `purge` answers it properly,
+        # from each installed entry's own `modules` (Gitea #246).
+        rc, out, err = apps("installed", env=EW)
+        mrow = [l for l in out.splitlines() if l.startswith("mods/greet ")]
+        check("installed says a module was automatic without naming a "
+              "needer that may since have gone",
+              len(mrow) == 1 and "automatic" in mrow[0]
+              and "wantsmod" not in mrow[0], (out,))
+        apps("remove", "wantsmod", env=EW)
+        rc, out, err = apps("installed", env=EW)
+        mrow = [l for l in out.splitlines() if l.startswith("mods/greet ")]
+        check("and still says so once the app that wanted it is gone, "
+              "rather than naming it",
+              len(mrow) == 1 and "automatic" in mrow[0]
+              and "wantsmod" not in mrow[0], (out,))
+        # purge is the one that names it, and may: it lists only what
+        # nothing needs **now**, so "was needed by" is past tense about
+        # an app that really did.
+        rc, out, err = apps("purge", "--dry-run", env=EW)
+        check("purge names the app it was fetched for, which it can "
+              "because it lists only what nothing needs now",
+              "apps/wantsmod" in out, (rc, out, err))
+        apps("install", "wantsmod", env=EW)
         # A module for another machine is not a choice to offer: the shell
         # knows what it is running on. Hidden from the list and from -j,
         # which is what the Catalogue window reads -- but `info` still
@@ -1390,4 +1455,4 @@ finally:
     srv.wait()
     shutil.rmtree(D, True)
 
-report(121)
+report(127)

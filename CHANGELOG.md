@@ -1,5 +1,60 @@
 # Changelog
 
+## 0.99.204
+
+**The last two from the catalogue audit: a reason that could go stale,
+and a fetch that could go anywhere unsaid.**
+
+**#246 -- `installed` named a needer that may have gone.** A module
+fetched to satisfy somebody's `needs` records why, and 0.99.199 started
+displaying it as *"automatic: needed by apps/contacts"*. That name is
+written once by `ap_getmod` and never updated: with two apps needing one
+module -- the second finds it already loadable and fetches nothing --
+removing the first leaves the line naming an app that is no longer
+installed.
+
+It says `automatic, not asked for by name` now, which is true whatever
+happens afterwards. Making `auto` a maintained *list* of needers was the
+other option and is the one this project has already argued against in as
+many words: *"prefer a count the console takes to a flag each caller
+sets: the list of overlays is the thing nobody can be relied on to
+maintain."* `catalogue purge` answers the question properly instead,
+computing it from each installed entry's own `modules` at the moment it
+matters -- and it may still name the app, because it lists only what
+nothing needs **now**, so "was needed by" is past tense about one that
+really did.
+
+Nothing was ever removed wrongly: `ap_wanted` has always read the index
+rather than this field, so only the line was false.
+
+**#247 -- a bundle could be fetched from any host, over plaintext, with
+nothing said.** `ap_bundleurl` hands back an absolute address verbatim,
+so an index may send the fetch anywhere -- while `ap_setindex` warns when
+the **index's own** address is `http://`. The two halves of one question
+were treated differently.
+
+Said once per run, naming the host, when it is not the host the index
+came from or when it is plaintext. It is a warning and not a refusal, and
+the message carries the reason: the `sha256` is in the index, the index
+is signed, so what arrives is verified wherever it came from. What an
+absolute address costs is privacy -- a host you did not choose learns
+your address and what you install -- and availability. A mirror
+legitimately gives absolute addresses, so refusing them would break the
+thing the relative form exists to make easy.
+
+`tests/appmgr.py` goes 121 checks to 127; four of the six fail against
+0.99.203, and the two that do not are the guards that the new behaviour
+does not over-reach.
+
+Three detours worth recording, all the same shape -- a check that passed
+for the wrong reason. The host checks first rewrote the **signed**
+`index221.json`, which broke its signature and took five unrelated checks
+with it. Moved to the ordinary index, they then read a **cached** one, so
+the install used the old relative address and the check passed for having
+changed nothing. And the move itself cut at the first `remove demo` of
+three, carrying a third of the block and silently dropping two checks --
+caught only because the suite counts what it plans against what it made.
+
 ## 0.99.203
 
 **`show` had no check at all, and it is the verb the trust rests on.**

@@ -181,6 +181,10 @@ declare -gA AP_ENT
 AP_PLACED=()
 # The parts of one installed entry, left by ap_parts for its caller.
 AP_PARTS=()
+# Whether the run has already said where its bundles are coming from. An
+# index may name any host, and saying so once is a warning; saying it per
+# bundle is a wall of text nobody reads (Gitea #247).
+AP_SAIDHOST=0
 # The state is one file that two catalogues can want at once, so a verb
 # that writes it holds a lock across read-modify-write (Gitea #242). The
 # mutex is a **directory**: `mkdir` is one syscall that either creates or
@@ -1042,14 +1046,25 @@ fn ap_installed(int j = 0) {
 		what=
 		[ -n "$sy" ] && { what="defunct: the machine has this"; nd=$((nd + 1)) ; }
 		[ -z "$what" ] && [ -n "$sh" ] && what="shadows the one hibr ships"
-		# Why this is here, which is a different question from what it
-		# is and the one a person asks of a folder they did not fill.
-		# A module fetched to satisfy somebody's `needs` says whose;
-		# everything else in this list was asked for by name, which is
-		# what makes the absence of a word mean "you installed this".
+		# Why this is here, which is a different question from what
+		# it is and the one a person asks of a folder they did not
+		# fill. Everything else in this list was asked for by name,
+		# which is what makes the absence of a word mean "you
+		# installed this".
+		#
+		# It does **not** name who needed it, though the state
+		# remembers one (Gitea #246). `auto` is set once by
+		# ap_getmod and never updated, so with two apps needing one
+		# module -- the second finds it loadable and fetches
+		# nothing -- removing the first leaves it naming an app that
+		# is no longer installed. Keeping a list of needers in step
+		# is the thing this project already decided nobody can be
+		# relied on to maintain; `purge` answers the question
+		# properly instead, computing it from each installed entry's
+		# own `modules` at the moment it matters.
 		auto=${AP_ST["installed"]["$name"]["auto"]}
 		[ -z "$what" ] && [ -n "$auto" ] &&
-			what="automatic: needed by $auto"
+			what="automatic, not asked for by name"
 		# And what it brought with it. The count rather than the names,
 		# so twenty-one entries stay a list somebody can read; `info`
 		# and `owns` have the names.
@@ -1511,10 +1526,50 @@ fn ap_bundleurl(bundle) {
 	local u
 
 	case $bundle in
-	http://* | https://*) ret "$bundle"; return 0 ;;
+	http://* | https://*)
+		ap_hostwarn "$bundle"
+		ret "$bundle"
+		return 0
+		;;
 	esac
 	u := ap_url
 	ret "${u%/*}/$bundle"
+}
+
+# An index may send a fetch to any host, and over plaintext, and nothing
+# said so -- where the **index's own** address is checked and warned
+# about (`ap_setindex`). The two halves of one question were treated
+# differently (Gitea #247).
+#
+# What this is not: a way to run unverified code. The `sha256` is in the
+# index, the index is signed with the pinned key, and the bundle is
+# checked against it -- so what arrives is verified wherever it came
+# from. What it costs is privacy, since a host you did not choose learns
+# your address and what you install, and availability, since your
+# install now depends on its uptime.
+#
+# So it warns rather than refuses: a mirror legitimately gives absolute
+# addresses, and refusing them would break the thing the relative form
+# exists to make easy. Once per run, not once per bundle.
+fn ap_hostwarn(url) {
+	local u ih bh
+	[ "$AP_SAIDHOST" = 1 ] && return 0
+	u := ap_url
+	ih=${u#*://}
+	ih=${ih%%/*}
+	bh=${url#*://}
+	bh=${bh%%/*}
+	case $url in
+	http://*)
+		AP_SAIDHOST=1
+		ap_say "warning: this index fetches its bundles from $bh over http, so nothing says which server answered. What arrives is still checked against the sha256 in the index."
+		return 0
+		;;
+	esac
+	[ "$bh" = "$ih" ] && return 0
+	AP_SAIDHOST=1
+	ap_say "warning: this index fetches its bundles from $bh, which is not $ih, where the index itself came from. What arrives is still checked against the sha256 in the index."
+	return 0
 }
 
 # Fetch a bundle and check it against what the index said. The temporary
