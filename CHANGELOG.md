@@ -1,5 +1,61 @@
 # Changelog
 
+## 0.99.200
+
+**One manager writes at a time, and the record is replaced rather than
+rewritten.**
+
+Gitea #242 and #241, both from the end-to-end audit of the catalogue the
+owner asked for. They are one write path and are fixed together: a lock
+without an atomic write still truncates, and an atomic write without a
+lock still loses the update.
+
+**#242 -- two installs at once kept only one of them.** Each run read the
+whole record at its start and wrote the whole record back at its end,
+with no lock: a plain read-modify-write race. Both placed their files and
+whichever finished last erased the other's entry, leaving a file on disk
+that `installed` could not see and `remove` could not take away.
+
+Measured rather than argued, on two installs started 0.3 s apart:
+**10 rounds out of 10 lost one** before the fix and **0 out of 10** after.
+
+A verb that writes now takes a lock **before** it reads, which is the
+part that matters -- taken after the read it would serialise the writes
+and lose the update all the same. The mutex is a directory, because
+`mkdir` either creates or fails in one syscall and leaves no gap to race
+in. A lock whose owner has died is taken over and says so; one whose
+owner is alive is waited for and then named, rather than written over.
+`AP_LOCKWAIT` is the wait, ninety seconds by default since an install
+holds the lock while it fetches, and it is read from the environment so
+it can be turned down. **Reading takes no lock and never waits**:
+`list`, `installed`, `info` and `owns` answer while an install runs,
+which the rename is what makes safe.
+
+**#241 -- a crash during a write erased the whole record, silently.** The
+state was written with `printf > "$AP_STATE"`, which truncates in place,
+and read with `json parse ... || AP_ST=()`. So a Ctrl-C, a crash or a
+full disk in that moment left a partial file that the next run reported
+as *nothing installed*, with exit 0, while every installed file was still
+on disk and owned by nobody. Recovering meant installing everything
+again, and nothing anywhere said so.
+
+It is written to a temporary file beside the real one and renamed over
+it, so what is on disk is always the whole of one record or the whole of
+the other. And the silent half is gone too: a record that will not parse
+is **damaged**, which is a different answer from an empty scope, and it
+now refuses, changes nothing, and says what to do about it. An empty file
+is still an empty scope, which is what a fresh account has -- a check that
+could not tell those apart would stop anybody installing anything.
+
+The settings file is written the same way, for the same reason: half of
+it would lose the index address and let the default quietly take over.
+
+`tests/appmgr.py` goes 100 checks to 106, and five of the six fail
+against 0.99.199 -- including the race, run four rounds per suite run.
+The sixth is the guard that the new refusal does not over-reach, and it
+passes against both, as it should. The suite grew a runner for several
+managers at once, which is the only way the race can be driven at all.
+
 ## 0.99.199
 
 **Twenty-one entries, thirty files, and nothing said where the other nine

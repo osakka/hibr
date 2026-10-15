@@ -181,6 +181,19 @@ declare -gA AP_ENT
 AP_PLACED=()
 # The parts of one installed entry, left by ap_parts for its caller.
 AP_PARTS=()
+# The state is one file that two catalogues can want at once, so a verb
+# that writes it holds a lock across read-modify-write (Gitea #242). The
+# mutex is a **directory**: `mkdir` is one syscall that either creates or
+# fails, with no check-then-act in between to lose a race in.
+AP_LOCK=
+AP_LOCKED=0
+# How many tenths of a second to wait for somebody else to finish before
+# saying so. An install fetches over the network while it holds this, so
+# the wait is generous: `catalogue install apps/` is twenty-one bundles.
+# Taken from the environment when it is there, so a suite can make the
+# timeout happen in a moment instead of waiting a minute and a half for
+# it -- and so anybody scripting this can decide for themselves.
+AP_LOCKWAIT=${AP_LOCKWAIT:-900}
 # The modules an entry needs that are not loadable here and *are* in this
 # catalogue, left by ap_needs for ap_install to place first. Empty is the
 # ordinary case, since everything hibr ships is loadable already.
@@ -402,7 +415,24 @@ ap_state() {
 
 	AP_ST=()
 	[ -r "$AP_STATE" ] || return 0
-	json parse AP_ST < "$AP_STATE" 2> /dev/null || AP_ST=()
+	# A state that will not parse is **damaged**, which is not the same
+	# answer as "nothing is installed" and must never be given as one
+	# (Gitea #241). Reading it as empty is what turned a half-written
+	# file into a silent, total loss of the record: every installed file
+	# stayed on disk, owned by nobody, and the next install would have
+	# written a fresh state over the top of it. An empty file is still
+	# fine -- that is a scope nothing has been installed into yet.
+	if [ -s "$AP_STATE" ] && ! json parse AP_ST < "$AP_STATE" 2> /dev/null; then
+		AP_ST=()
+		ap_die "$AP_STATE will not read as JSON, so what is installed here
+cannot be known. Nothing has been changed. The files are still where they
+were; it is the record of them that is damaged.
+
+Move it aside to start a fresh one -- the files already installed stay, and
+\`catalogue install\` will place them again over the top:
+
+  mv $AP_STATE $AP_STATE.damaged"
+	fi
 	# A state written before 0.99.184 is keyed by name, and every entry
 	# in it is an application -- the catalogue published nothing else --
 	# so a bare key means `apps/<key>` exactly (Gitea #222). Migrated on
@@ -436,12 +466,76 @@ fn ap_insresolve(want) {
 	return 1
 }
 
-ap_statesave() {
-	local j
-
+# Take the state's lock, or say who has it (Gitea #242). Idempotent: the
+# dispatch takes it before a writing verb reads anything, which is the
+# point -- a lock taken after the read would serialise the writes and
+# still lose the update. ap_statesave asks again in case a path reaches
+# it another way, and a second ask is free.
+fn ap_lock() {
+	local n=0 who
+	[ "$AP_LOCKED" = 1 ] && return 0
 	mkdir -p "$AP_DATA" || ap_die "cannot make $AP_DATA"
+	AP_LOCK=$AP_DATA/.lock
+	while :; do
+		mkdir "$AP_LOCK" 2> /dev/null && break
+		# Whoever holds it may be gone: a crash leaves the
+		# directory behind, and a lock nothing can break is a
+		# catalogue nothing can ever write again. Broken only on a
+		# pid we positively read and that is positively dead --
+		# an empty read means the holder is mid-write, which is
+		# the live case and the one that must never be broken.
+		who=
+		read -r who 2> /dev/null < "$AP_LOCK/pid" || who=
+		if [ -n "$who" ] && ! kill -0 "$who" 2> /dev/null; then
+			ap_say "taking over a lock left by $who, which is gone"
+			rm -rf "$AP_LOCK" 2> /dev/null
+			continue
+		fi
+		n=$((n + 1))
+		[ "$n" -gt "$AP_LOCKWAIT" ] &&
+			ap_die "another catalogue is writing $AP_DATA${who:+, as pid $who}.
+Only one at a time may change the state: two at once and one of them is
+lost. Try again when it has finished."
+		sleep 0.1
+	done
+	printf '%s\n' "$$" > "$AP_LOCK/pid" 2> /dev/null
+	AP_LOCKED=1
+	trap 'ap_unlock' EXIT
+	return 0
+}
+
+# Give it back. Never changes the status: it runs from an EXIT trap, and
+# a trap that fails there would replace whatever the verb was reporting.
+fn ap_unlock() {
+	[ "$AP_LOCKED" = 1 ] || return 0
+	rm -rf "$AP_LOCK" 2> /dev/null
+	AP_LOCKED=0
+	return 0
+}
+
+# Written to a temporary file beside the real one and renamed over it, so
+# the state on disk is always either the whole of the old one or the whole
+# of the new (Gitea #241). It used to be `printf > "$AP_STATE"`, which
+# truncates in place: a Ctrl-C, a crash or a full disk during that write
+# left a partial file, and the next run read it as "nothing installed"
+# with every file still on disk and no longer claimed by anything.
+#
+# The rename is within one directory, so it is rename(2) and atomic. A
+# reader takes no lock and needs none: it sees one file or the other.
+ap_statesave() {
+	local j tmp
+
+	ap_lock
 	j := json emit AP_ST || ap_die "cannot emit the state"
-	printf '%s\n' "$j" > "$AP_STATE" || ap_die "cannot write $AP_STATE"
+	tmp=$AP_STATE.$$
+	printf '%s\n' "$j" > "$tmp" || {
+		rm -f "$tmp" 2> /dev/null
+		ap_die "cannot write $tmp"
+	}
+	mv -f "$tmp" "$AP_STATE" || {
+		rm -f "$tmp" 2> /dev/null
+		ap_die "cannot replace $AP_STATE"
+	}
 	return 0
 }
 
@@ -2176,9 +2270,20 @@ fn ap_setindex(url = "") {
 	esac
 	mkdir -p "${AP_CONF%/*}" || ap_die "cannot make ${AP_CONF%/*}"
 	c["url"]=$url
-	local j
+	local j tmp
 	j=$(json emit c) || ap_die "cannot emit the setting"
-	printf '%s\n' "$j" > "$AP_CONF" || ap_die "cannot write $AP_CONF"
+	# Renamed into place for the same reason the state is: a half-written
+	# settings file would lose the index address, and the default would
+	# then quietly take over (Gitea #241).
+	tmp=$AP_CONF.$$
+	printf '%s\n' "$j" > "$tmp" || {
+		rm -f "$tmp" 2> /dev/null
+		ap_die "cannot write $tmp"
+	}
+	mv -f "$tmp" "$AP_CONF" || {
+		rm -f "$tmp" 2> /dev/null
+		ap_die "cannot replace $AP_CONF"
+	}
 	AP_URL=$url
 	rm -f "$AP_INDEX" 2> /dev/null
 	ap_say "the index is $url"
@@ -2289,8 +2394,15 @@ set -- "${ap_args[@]}"
 # A verb that writes asks first, so a scope this account cannot write to is
 # a sentence rather than a half-done install (Gitea #238). Reading is never
 # gated: `--system list` is what somebody runs before reaching for sudo.
+# A verb that writes takes the lock **before** it reads, since a lock
+# taken after the read serialises the writes and loses the update all the
+# same (Gitea #242). Reading verbs take none and need none: the state is
+# renamed into place, so a reader sees one whole file or the other.
 case ${1-} in
-install | remove | uninstall | update | upgrade | purge) ap_needwrite "$1" ;;
+install | remove | uninstall | update | upgrade | purge)
+	ap_needwrite "$1"
+	ap_lock
+	;;
 esac
 
 case ${1-} in

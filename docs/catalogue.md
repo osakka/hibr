@@ -536,6 +536,55 @@ It answers for a path in any scope, which matters because the same name
 can be in four of them and only one of them runs: a file of your own in
 `~/.config/hibr`, the machine's copy, yours, and the one hibr ships.
 
+### The record, and the two ways it used to be lost
+
+What is installed is kept in one file per scope — `apps.json` beside the
+files it describes. Two things protect it, and both were added after an
+audit found they were missing.
+
+**One manager writes at a time.** A verb that changes anything takes a
+lock before it reads, because a lock taken after the read would serialise
+the writes and lose the update anyway: each run read the whole record at
+its start and wrote the whole record back at its end, so two that
+overlapped left both sets of files on disk and only one of them in the
+record. Measured at **10 rounds out of 10** before the lock.
+
+The mutex is a directory, since `mkdir` either creates or fails in one
+syscall with no gap to race in. A lock whose owner has died is taken over
+and says so; one whose owner is alive is waited for and then named:
+
+```text
+catalogue: another catalogue is writing /var/lib/hibr, as pid 4213.
+Only one at a time may change the state: two at once and one of them is
+lost. Try again when it has finished.
+```
+
+`AP_LOCKWAIT` is how many tenths of a second to wait first — ninety
+seconds by default, because an install holds the lock while it fetches.
+**Reading takes no lock and never waits**: `list`, `installed`, `info`
+and `owns` answer while an install is running.
+
+**The record is replaced, never rewritten in place.** It is written to a
+temporary file beside the real one and renamed over it, so what is on disk
+is always the whole of the old record or the whole of the new. It used to
+be truncated in place, and a crash, a full disk or a Ctrl-C in that moment
+left a partial file — which the next run read as *nothing installed*, with
+every file still on disk and no longer claimed by anything.
+
+That reading is also gone. A record that will not parse is **damaged**,
+which is a different answer from an empty scope, and saying the second
+when the first is true is how a half-written file became a silent total
+loss. It now refuses, changes nothing, and says what to do:
+
+```text
+catalogue: …/apps.json will not read as JSON, so what is installed here
+cannot be known. Nothing has been changed. The files are still where they
+were; it is the record of them that is damaged.
+```
+
+An **empty** file is still an empty scope rather than damage, which is
+what a fresh account has.
+
 In hibr's own tree an app declares its parts in its own file, under the
 `app` line that gives its description, which is what the publisher reads:
 

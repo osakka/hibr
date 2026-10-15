@@ -256,6 +256,23 @@ def apps(*args, env=None):
     return r.returncode, r.stdout, r.stderr
 
 
+def appsx(*runs, env=None):
+    """Several managers at once, into one scope. Two that overlap used to
+    lose one of them: each read the whole state at its start and wrote the
+    whole state back at its end, so whichever finished last erased the
+    other's entry while leaving its files on disk (Gitea #242)."""
+    os.makedirs(TMP, exist_ok=True)
+    e = dict(os.environ, XDG_CONFIG_HOME=CONF, XDG_DATA_HOME=DATA,
+             XDG_CACHE_HOME=CACHE, HIBR_APPS_URL=URL,
+             HIBR_MODPATH=tree("build/mods"), TMPDIR=TMP)
+    e.pop("HIBR_HOLD", None)
+    e.update(env or {})
+    ps = [subprocess.Popen([sx.HIBR, APPS] + list(a), stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE, text=True, env=e)
+          for a in runs]
+    return [(p.wait(timeout=120), ) + p.communicate() for p in ps]
+
+
 try:
     rc, out, err = apps("list")
     check("list says what the index offers, with each one's version",
@@ -514,6 +531,74 @@ try:
           (rc, out, err))
     apps("remove", "parts")
     apps("remove", "demo")
+
+    # The state is one file two managers can want at once. Each used to
+    # read the whole of it at its start and write the whole of it back at
+    # its end, so two that overlapped lost one: both placed their files and
+    # whichever finished last erased the other's entry, leaving a file on
+    # disk that `installed` could not see and `remove` could not take away.
+    # Measured at 10 of 10 rounds against the release before this one
+    # (Gitea #242).
+    STATE = os.path.join(DATA, "hibr", "apps.json")
+    lost = 0
+    for _ in range(4):
+        for n in ("demo", "parts"):
+            apps("remove", n)
+        appsx(("install", "demo"), ("install", "parts"))
+        rc, out, err = apps("installed")
+        if not ("apps/demo" in out and "apps/parts" in out):
+            lost += 1
+    check("two managers installing at once keep both, rather than one "
+          "erasing the other's entry and orphaning its files",
+          lost == 0, (lost, out))
+    for n in ("demo", "parts"):
+        apps("remove", n)
+
+    # A state that will not parse is damaged, which is a different answer
+    # from "nothing is installed" and was given as one: `printf > file`
+    # truncates in place, so a crash mid-write left a partial file that the
+    # next run read as an empty scope -- with every installed file still on
+    # disk and no longer claimed (Gitea #241).
+    apps("install", "demo")
+    good = open(STATE).read()
+    open(STATE, "w").write('{"installed":{"apps/demo":{"ver')
+    rc, out, err = apps("installed")
+    check("a damaged state is refused rather than read as nothing "
+          "installed",
+          rc != 0 and "will not read as JSON" in err, (rc, out, err))
+    rc, out, err = apps("install", "parts")
+    check("and a write refuses too, rather than starting a fresh record "
+          "over the top of files that are still there",
+          rc != 0 and not os.path.exists(os.path.join(DATA, "hibr", "apps",
+                                                      "parts.hibr")),
+          (rc, out, err))
+    open(STATE, "w").write(good)
+    # An empty file is a scope nothing has been installed into, which is
+    # not damage -- the check has to tell those apart or a fresh account
+    # cannot install anything.
+    open(STATE, "w").write("")
+    rc, out, err = apps("installed")
+    check("an empty state is an empty scope, not a damaged one",
+          rc == 0 and "nothing installed" in out + err, (rc, out, err))
+    open(STATE, "w").write(good)
+
+    # A lock nothing can break is a catalogue nothing can write again, and
+    # a lock broken too eagerly is the race coming back.
+    LOCK = os.path.join(DATA, "hibr", ".lock")
+    os.makedirs(LOCK, exist_ok=True)
+    open(os.path.join(LOCK, "pid"), "w").write("999999\n")
+    rc, out, err = apps("install", "parts")
+    check("a lock left behind by a process that is gone is taken over, "
+          "and says so",
+          rc == 0 and "taking over a lock" in out + err, (rc, out, err))
+    os.makedirs(LOCK, exist_ok=True)
+    open(os.path.join(LOCK, "pid"), "w").write("%d\n" % os.getpid())
+    rc, out, err = apps("install", "demo", env={"AP_LOCKWAIT": "3"})
+    check("and one held by a process that is alive is waited for and then "
+          "named, rather than written over",
+          rc != 0 and "another catalogue is writing" in err, (rc, err))
+    shutil.rmtree(LOCK, True)
+    apps("remove", "parts")
 
     # A part decides a destination, so the rules the member paths already
     # follow have to hold for where it lands as well.
@@ -1193,4 +1278,4 @@ finally:
     srv.wait()
     shutil.rmtree(D, True)
 
-report(100)
+report(106)
