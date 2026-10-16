@@ -971,6 +971,7 @@
   "hibr desktop v%s": "سطح مكتب hibr الإصدار %s",
   "hibr v%s, module ABI %s": "hibr الإصدار %s، واجهة الوحدات %s",
   "incoming": "الوارد",
+  "installed on this machine for everyone": "مثبّت على هذا الجهاز للجميع",
   "installed %s": "مثبّت %s",
   "installed %s, %s available": "مثبّت %s، %s متاح",
   "integers only": "أعداد صحيحة فقط",
@@ -1011,6 +1012,7 @@
    "other": "ومعه %s ملف"
   },
   "%s files with it": "ومعه %s ملف",
+  "shipped with hibr": "يأتي مع hibr",
   "shadows the one hibr ships": "يحجب النسخة التي يشحنها hibr",
   "the machine has this, and its copy is read first": "الجهاز يملك نسخة منه، وتُقرأ قبل نسختك"
  }

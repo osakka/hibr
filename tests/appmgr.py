@@ -1313,10 +1313,18 @@ try:
               (rc, out, err))
         rc, out, err = apps("--system", "installed", env=ES)
         rc2, out2, err2 = apps("installed", env=ES)
+        # Each scope lists its own as its own -- and since 0.99.212 the
+        # person's listing **also shows the machine's**, marked `system`
+        # rather than hidden. Hiding it was the old behaviour and the
+        # complaint: somebody asking what they have, on a desktop whose
+        # things were installed for everybody, was told nothing at all
+        # (Gitea #254). The mark is what keeps ownership honest -- their
+        # own `remove` still cannot touch it.
+        o2 = [l for l in out2.splitlines() if l.startswith("apps/demo ")]
         check("and each scope lists its own and says which it is, since "
               "/var/lib is not where anybody would look",
               rc == 0 and "apps/demo" in out and "system" in out
-              and "apps/demo" not in out2,
+              and len(o2) == 1 and "system" in o2[0],
               (out, out2))
         # A script is installed from an unverified catalogue with a
         # warning because you can read it first (ADR 0041). That holds
@@ -1450,9 +1458,59 @@ try:
             check(name + " [no gpg here: the refusal says so]",
                   rc != 0 and "no gpg" in err, (rc, err))
 
+    # The package is the floor every desktop stands on, and neither verb
+    # could see it: the catalogue is a ledger of what it *placed*, the
+    # package is nobody's install, so `list` marked a theme sitting in
+    # /usr/share/hibr/desktop as one you did not have. Reported from a
+    # real desktop whose four shipped themes and twelve shipped colours
+    # all read as missing, with `installed` showing only apps -- which
+    # read as the scope work never having been done (Gitea #254).
+    #
+    # `ap_deskdir` honours $HIBR_DESKTOP, so a scratch tree is the whole
+    # fixture -- holding the kind's **own** extension, since `ap_shipped`
+    # globs `themes/<name>.json`.
+    #
+    # In a scope of its own, deliberately: by this point in the suite the
+    # shared ledger has entries, and a check that happened to name one of
+    # them would be asserting about `installed` rather than about
+    # `shipped`.
+    SHIP = os.path.join(D, "shipped")
+    FRESH = os.path.join(D, "freshscope")
+    os.makedirs(os.path.join(SHIP, "themes"), exist_ok=True)
+    open(os.path.join(SHIP, "themes", "plain.json"), "w").write("{}\n")
+    ES = {"HIBR_DESKTOP": SHIP, "XDG_DATA_HOME": FRESH,
+          "XDG_CONFIG_HOME": FRESH}
+    rc, out, err = apps("list", env=ES)
+    rows = [l for l in out.splitlines() if l.startswith("themes/plain ")]
+    check("a theme the package ships reads `shipped` in list, rather than "
+          "as one you do not have",
+          rc == 0 and len(rows) == 1 and rows[0].rstrip().endswith("shipped"),
+          (rc, rows, err))
+    rows = [l for l in out.splitlines() if l.startswith("themes/picture ")]
+    check("and one the package does not ship still shows its version alone",
+          len(rows) == 1 and rows[0].rstrip().endswith("1.0"), rows)
+    # And `installed` shows it, which is the half that matters: the
+    # question a person types this to ask is "what do I have", and
+    # answering it with the ledger alone -- twenty-one apps, on a desktop
+    # carrying thirty panes, twelve colours, four themes and six savers
+    # that the package shipped -- is not half an answer but a misleading
+    # one. The scope column is what keeps ownership honest: `remove`
+    # still refuses what the catalogue did not place.
+    rc, out, err = apps("installed", env=ES)
+    rows = [l for l in out.splitlines() if l.startswith("themes/plain ")]
+    check("`installed` shows a shipped thing too, marked shipped, because "
+          "what you have is what the question means",
+          rc == 0 and len(rows) == 1 and "shipped" in rows[0], (rc, out))
+    check("and counts what it did not place and cannot remove",
+          "1 more came with hibr" in out, out)
+    rc, out, err = apps("remove", "themes/plain", env=ES)
+    check("removing one it did not place is still refused, so showing it "
+          "costs no ownership",
+          rc != 0, (rc, out, err))
+
 finally:
     srv.terminate()
     srv.wait()
     shutil.rmtree(D, True)
 
-report(127)
+report(132)

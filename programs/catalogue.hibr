@@ -784,7 +784,7 @@ AP_WINS=
 # slot. A builtin like `mod list` can; a command can only print, and the
 # honest version of "one answer" for a command is a machine-readable one.
 fn ap_list(want = "", int j = 0) {
-	local name n=0 v here i
+	local name n=0 v here i w
 	local -A out
 
 	ap_load
@@ -834,6 +834,17 @@ fn ap_list(want = "", int j = 0) {
 			out["entries"]["${AP_ENT["id"]}"]["defunct"]=0
 			out["entries"]["${AP_ENT["id"]}"]["shadows"]=0
 			out["entries"]["${AP_ENT["id"]}"]["scope"]=
+			# Where it is, for every entry rather than only an
+			# installed one: the window drew its tick from
+			# `installed` alone, so a shipped theme showed
+			# unticked there exactly as it read as missing on
+			# the command line (Gitea #254). `installed`,
+			# `scope`, `defunct` and `shadows` keep their
+			# meanings beside it, so a reader written against
+			# 0.99.211 still works.
+			w := ap_where "${AP_ENT["id"]}" "${AP_ENT["kind"]}" \
+				"${AP_ENT["name"]}" || w=
+			out["entries"]["${AP_ENT["id"]}"]["where"]=$w
 			if [ -n "$v" ]; then
 				out["entries"]["${AP_ENT["id"]}"]["scope"]=$AP_SCOPE
 				ap_insys "${AP_ENT["id"]}" &&
@@ -858,7 +869,17 @@ fn ap_list(want = "", int j = 0) {
 				v="installed $v, ${AP_ENT["version"]} available"
 			fi
 		else
-			v=${AP_ENT["version"]}
+			# Not in this scope's ledger is not "you do not have
+			# it": the machine's scope and the shipped package
+			# are both places it can already be, and saying
+			# nothing about them is what made four themes that
+			# are on disk read as missing (Gitea #254).
+			w := ap_where "${AP_ENT["id"]}" "${AP_ENT["kind"]}" \
+				"${AP_ENT["name"]}" || w=
+			case $w in
+			system | shipped) v=$w ;;
+			*) v=${AP_ENT["version"]} ;;
+			esac
 		fi
 		printf '%-24s %-24s %s\n' "${AP_ENT["id"]}" "${AP_ENT["title"]}" "$v"
 		n=$((n + 1))
@@ -959,6 +980,35 @@ fn ap_sysver(id) {
 	ret "$v"
 }
 
+# Where this entry is, across the scopes that can be answered with what
+# is already here (Gitea #254).
+#
+# The catalogue is a ledger of what it placed, so `installed` has always
+# meant "in the ledger" -- and the **shipped package is never in the
+# ledger**, because nobody placed it: it is the floor every desktop
+# stands on. `list` rendered that invisibility as *you do not have this*,
+# so the four themes and twelve colours sitting in
+# /usr/share/hibr/desktop read as missing. One value answering two
+# questions, the third time this tree has paid for it.
+#
+# Three mechanisms, all of which already existed and none of which `list`
+# called: the ledger this scope reads, `ap_sysver` for the machine's own,
+# and `ap_shipped` for the package. **No new glob is introduced here**, on
+# purpose: a fourth would be a second encoding of where a kind lives,
+# beside the desktop's own scan lists, and that is the parallel this is
+# avoiding rather than adding to.
+#
+# What it therefore cannot see is `~/.config/hibr/<kind>`, yours-by-hand,
+# which wins over all four -- marking it needs exactly that new glob. It
+# stays blank, and the ticket says so rather than leaving it to be
+# discovered.
+fn ap_where(id, kind, name) {
+	[ -n "${AP_ST["installed"]["$id"]["version"]}" ] && ret installed
+	ap_sysver "$id" && ret system
+	ap_shipped "$kind" "$name" && ret shipped
+	return 1
+}
+
 # Is there a copy in the machine's scope at all, for the defunct column.
 #
 # Asked of the **paths this install recorded**, not of a path rebuilt
@@ -1008,7 +1058,7 @@ fn ap_parts(name) {
 }
 
 fn ap_installed(int j = 0) {
-	local name n=0 nd=0 js i sh sy what np auto
+	local name n=0 nd=0 js i sh sy what np auto w nh=0
 	local -A out seen
 
 	ap_state
@@ -1074,7 +1124,7 @@ fn ap_installed(int j = 0) {
 			what="+$np part"
 			[ "$np" = 1 ] || what="$what"s
 		fi
-		printf '%-16s %-10s %-14s %-7s %s\n' "$name" \
+		printf '%-28s %-10s %-14s %-7s %s\n' "$name" \
 			"${AP_ST["installed"]["$name"]["version"]}" \
 			"${AP_ST["installed"]["$name"]["kind"]}" \
 			"$AP_SCOPE" \
@@ -1085,8 +1135,53 @@ fn ap_installed(int j = 0) {
 		done
 		n=$((n + 1))
 	done
+	# And everything else this desktop **has**, which until 0.99.212 this
+	# verb said nothing about at all (Gitea #254).
+	#
+	# The ledger above is what the catalogue placed, and that is the
+	# right scope for `remove`, `update` and `purge`. It is the wrong
+	# answer to the question a person types this to ask, which is "what
+	# do I have" -- and answering it with twenty-one apps, on a desktop
+	# carrying thirty panes, twelve colours, four themes and six savers
+	# that the package shipped, is not a half of an answer but a
+	# misleading one.
+	#
+	# The index is the enumeration and `ap_where` is the per-entry
+	# answer; both already existed, so no folder is walked here that
+	# was not walked before. An index that cannot be read -- offline,
+	# never fetched -- simply adds no rows, which is the old behaviour
+	# and is honest rather than empty.
+	#
+	# What is still invisible: something present that the index does not
+	# name, which today is the two panes nobody published, and anything
+	# in `~/.config/hibr/<kind>`, which no mechanism here can see.
+	if ap_load 2> /dev/null; then
+		for name in "${!AP_IX["$AP_SECT"][@]}"; do
+			ap_entry "$name" || continue
+			[ -n "${AP_ST["installed"]["${AP_ENT["id"]}"]["version"]}" ] &&
+				continue
+			w := ap_where "${AP_ENT["id"]}" "${AP_ENT["kind"]}" \
+				"${AP_ENT["name"]}" || continue
+			case $w in installed | "") continue ;; esac
+			nh=$((nh + 1))
+			if [ "$j" = 1 ]; then
+				out["installed"]["${AP_ENT["id"]}"]["id"]=${AP_ENT["id"]}
+				out["installed"]["${AP_ENT["id"]}"]["version"]=${AP_ENT["version"]}
+				out["installed"]["${AP_ENT["id"]}"]["kind"]=${AP_ENT["kind"]}
+				out["installed"]["${AP_ENT["id"]}"]["scope"]=$w
+				out["installed"]["${AP_ENT["id"]}"]["where"]=$w
+				out["installed"]["${AP_ENT["id"]}"]["shadows"]=0
+				out["installed"]["${AP_ENT["id"]}"]["defunct"]=0
+				continue
+			fi
+			printf '%-28s %-10s %-14s %-7s %s\n' \
+				"${AP_ENT["id"]}" "${AP_ENT["version"]}" \
+				"${AP_ENT["kind"]}" "$w" \
+				"$([ "$w" = shipped ] && echo "came with hibr")"
+		done
+	fi
 	if [ "$j" = 1 ]; then
-		if [ "$n" = 0 ]; then
+		if [ "$n" = 0 ] && [ "$nh" = 0 ]; then
 			printf '{"installed":{}}\n'
 			return 0
 		fi
@@ -1094,7 +1189,7 @@ fn ap_installed(int j = 0) {
 		printf '%s\n' "$js"
 		return 0
 	fi
-	[ "$n" = 0 ] && ap_say "nothing installed"
+	[ "$n" = 0 ] && [ "$nh" = 0 ] && ap_say "nothing installed"
 	# The two numbers a person can check against the folder, said
 	# together because apart they do not reconcile: twenty-one entries
 	# put thirty files in a scope, and until this line the other nine
@@ -1104,6 +1199,20 @@ fn ap_installed(int j = 0) {
 		printf '\n%s entries, %s files\n' "$n" "${#seen[@]}"
 	[ "$nd" -gt 0 ] &&
 		ap_say "$nd of these is defunct: the machine has its own, which is read first -- \`catalogue remove NAME\` frees the space"
+	# What this list is **not**, said once rather than left to be
+	# discovered (Gitea #254). This is a ledger of what the catalogue
+	# placed -- which is exactly what `remove`, `update` and `purge`
+	# act on, and a theme the package ships is none of their business.
+	# But the package ships a great many themes, colours, panes and
+	# savers, nobody placed them, so they appear nowhere here, and a
+	# person reading this reasonably concluded they had none.
+	#
+	# No count: counting them needs either the index, which this verb
+	# does not load, or a walk of the shipped folders, which would be a
+	# second encoding of where a kind lives. The sentence points at the
+	# verb that does know.
+	[ "$nh" -gt 0 ] &&
+		printf '%s more came with hibr or were installed for the whole machine, which this did not place and cannot remove\n' "$nh"
 	return 0
 }
 

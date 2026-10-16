@@ -936,6 +936,7 @@ hibr v%s, module ABI %s
 incoming
 installed %s
 installed %s, %s available
+installed on this machine for everyone
 integers only
 lifts that for one sheet, here only.
 moving — arrows, then enter
@@ -959,6 +960,7 @@ says #REFUSED, one that loops says #TIME. Trust This Sheet
 server to keep its vault here, readable offline.
 sets a place, or the time zone gives one.
 shadows the one hibr ships
+shipped with hibr
 text
 the machine has this, and its copy is read first
 there is no account to test yet

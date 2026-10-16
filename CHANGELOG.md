@@ -1,5 +1,77 @@
 # Changelog
 
+## 0.99.212
+
+**A thing the package ships is one you have, and the catalogue said
+nothing about it.**
+
+Gitea #254, reported live:
+
+> *"when I catalogue list and catalogue installed, I see all apps
+> installed, but no themes, control panels, and and and ... but they are
+> all there? didn't we differentiate between user installed vs system
+> installed? where is all that good work?"*
+
+**Nothing was lost.** The ledger was right, the four scopes of ADR 0045
+were right, and the desktop was loading everything. Two verbs answered a
+question nobody asked and did not say so.
+
+The catalogue is a **ledger of what it placed**. `installed` reads the
+ledger; `list`'s mark was "is this name in the ledger". The **shipped
+package is never in the ledger** -- nobody placed it, it is the floor
+every desktop stands on -- so `list` rendered that invisibility as *you
+do not have this*:
+
+    themes/classic    Classic    1.0     <- sitting in /usr/share/hibr/desktop
+
+Four themes, twelve colours, thirty panes, seven savers. One value
+answering two questions, the third time this tree has paid for it after
+`MLME` (#157) and "default background" (#184). The tell is the same each
+time: a name that states a fact rather than answering a question.
+
+**And the Catalogue window inherited it** -- `system/appstore.hibr` drew
+its tick from `entries[].installed`, so a shipped theme showed unticked
+there too, which is most likely where this was seen.
+
+`ap_where(id, kind, name)` answers where a thing is, out of three
+mechanisms that **already existed and `list` never called**: this scope's
+ledger, `ap_sysver` for the machine's own, and `ap_shipped` for the
+package. **No new glob**, on purpose: a fourth would be a second encoding
+of where a kind lives, beside the desktop's own scan lists, which is the
+parallel this is avoiding rather than adding to.
+
+- `list` marks `installed`, `system` or `shipped`, and `list -j` carries
+  the same `where` field, which the window now reads. `installed`,
+  `scope`, `defunct` and `shadows` keep their meanings beside it, so a
+  reader written against 0.99.211 still works.
+- **`installed` answers the question it is typed to ask**: what do I
+  have. It lists everything present, each with its scope -- `user`,
+  `system`, `shipped` -- rather than only what the catalogue placed. 21
+  entries became 85 on the owner's own machine, the other 64 being the
+  package's own panes, themes, colours and savers.
+  The first version of this fix left `installed` alone and added a line
+  pointing at `list`. That was a consolation prize, not a fix, and the
+  owner said so: *"that's not met, that's a half baked solution,
+  right?"* -- correctly. A command that answers a different question
+  from the one it is asked does not get better by admitting it.
+  **Ownership stays exactly where it was**: `remove`, `update` and
+  `purge` still act only on what the catalogue placed, and still refuse
+  what they did not, which the suite now checks beside the listing. The
+  scope column is what carries the difference, instead of absence.
+  This also means the person's own listing **shows what an administrator
+  installed for the whole machine**, marked `system`, where before it
+  was hidden from them entirely.
+
+**What it still cannot see, named rather than left to be discovered:**
+`~/.config/hibr/<kind>`, yours-by-hand, which wins over all four. Marking
+it needs exactly the new glob this avoids.
+
+`tests/appmgr.py` drives it against a scratch `$HIBR_DESKTOP`, in a scope
+of its own so the assertion is about `shipped` and not about whatever the
+suite installed earlier. Two of the three checks fail against 0.99.211;
+the third passes both ways deliberately, as the arm proving the mark is
+not applied indiscriminately.
+
 ## 0.99.211
 
 **`examples/` held three products and nine samples; the products move to

@@ -3902,6 +3902,44 @@ went in the shell.
   suite -- reaching something that is not a file: a session name, and
   anything else a test looks for by name in a namespace it shares with
   every other process on the box.
+- **A ledger of what a program placed is not an inventory of what the
+  machine has, and naming it `installed` makes it read as one**
+  (Gitea #254, 0.99.212). The catalogue records what it placed, so
+  `remove`, `update` and `purge` have something to act on; the **shipped
+  package is never in that ledger**, because nobody placed it -- it is
+  the floor every desktop stands on. `list`'s mark was "is this name in
+  the ledger", so it rendered that invisibility as *you do not have
+  this*, and four themes and twelve colours sitting in
+  `/usr/share/hibr/desktop` read as missing. The Catalogue window drew
+  its tick from the same field and showed them unticked. Reported as
+  *"where is all that good work? was it not done?"* -- the scope work
+  was done and correct, and the words on top of it were wrong, which is
+  indistinguishable from outside.
+  **One value, two questions, for the third time** after `MLME` (#157)
+  and "default background" (#184); the tell is always a name that states
+  a fact rather than answering a question.
+  Three things worth keeping. **The fix called what already existed**:
+  `ap_shipped`, `ap_deskdir` and the system-ledger read were all there
+  and `list` had never called one of them -- before designing a scan,
+  grep for whether the answer is already computed somewhere that does
+  not surface it. **A fourth mechanism would have been a parallel**: the
+  shipped-root glob is already a second encoding of where a kind lives,
+  beside the desktop's own eight scan lists, so `~/.config/hibr/<kind>`
+  is deliberately *still* unmarked and the ticket says so, rather than
+  buying one scope at the price of a third encoding. And **the verb that
+  owns a thing and the verb that finds it are different verbs**:
+  `installed` keeps meaning ownership because that is what removal acts
+  on -- but it **lists** everything present with its scope, because
+  what a person types `installed` to ask is *what do I have*, and the
+  ledger is the wrong answer to that question however correct it is
+  about ownership.
+  The first fix kept `installed` as the ledger and added a line pointing
+  at `list`. The owner's verdict was *"that's not met, that's a half
+  baked solution"*, and it was right: **a command that answers a
+  different question from the one it is asked does not become correct by
+  admitting it in a footer.** Ownership did not need absence to protect
+  it -- a scope column carries it, and `remove` refusing what it did not
+  place is what actually enforces it.
 - **"No APC at all" is not "no picture".** Three assertions across two
   suites read `not sc.apc` meaning "nothing was drawn as a bitmap", and
   broke the moment the display sent an APC **query** of its own. A

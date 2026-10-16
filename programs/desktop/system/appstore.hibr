@@ -179,6 +179,13 @@ fn as_loaded(int id, int st, int n, what = "") {
 		AS[$id]["e"][$i]["title"]=${j["entries"]["$k"]["title"]}
 		AS[$id]["e"][$i]["version"]=${j["entries"]["$k"]["version"]}
 		AS[$id]["e"][$i]["installed"]=${j["entries"]["$k"]["installed"]}
+		# Where it is, which is not the same question as whether the
+		# catalogue placed it: the shipped package is nobody's
+		# install, so this window drew an unticked row for four
+		# themes and twelve colours that were on disk (Gitea #254).
+		# Empty from a catalogue older than 0.99.212, which then
+		# behaves exactly as it did.
+		AS[$id]["e"][$i]["where"]=${j["entries"]["$k"]["where"]}
 		AS[$id]["e"][$i]["update"]=${j["entries"]["$k"]["update"]}
 		AS[$id]["e"][$i]["about"]=${j["entries"]["$k"]["about"]}
 		AS[$id]["e"][$i]["kind"]=${j["entries"]["$k"]["kind"]}
@@ -545,6 +552,13 @@ fn appstore_draw(int id, int h, int w, int row, int col) {
 				e=${AS[$id]["r"][$i]["e"]}
 				mark=" "
 				[ -n "${AS[$id]["e"][$e]["installed"]}" ] && mark="${GL[check]}"
+				# A tick means "you have this", so the
+				# package's own copy earns one too -- what
+				# differs is the line beside it, which says
+				# where it came from (Gitea #254).
+				case ${AS[$id]["e"][$e]["where"]} in
+				shipped | system) mark="${GL[check]}" ;;
+				esac
 				[ "${AS[$id]["e"][$e]["update"]}" = 1 ] && mark="${GL[reload]}"
 				# A copy the machine also has is read second
 				# and can never run, which is worth more than
@@ -617,6 +631,10 @@ fn appstore_draw(int id, int h, int w, int row, int col) {
 				"${AS[$id]["e"][$e]["version"]}"
 		elif [ -n "${AS[$id]["e"][$e]["installed"]}" ]; then
 			t := dt_tr "installed %s" "${AS[$id]["e"][$e]["installed"]}"
+		elif [ "${AS[$id]["e"][$e]["where"]}" = shipped ]; then
+			t := dt_tr "shipped with hibr"
+		elif [ "${AS[$id]["e"][$e]["where"]}" = system ]; then
+			t := dt_tr "installed on this machine for everyone"
 		else
 			t := dt_tr "version %s" "${AS[$id]["e"][$e]["version"]}"
 		fi
