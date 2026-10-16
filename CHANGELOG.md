@@ -1,5 +1,53 @@
 # Changelog
 
+## 0.99.218
+
+**Every screenshot in the documentation was corrupt, and there was no
+recipe to remake them with.**
+
+First of three passes over the documentation, asked for directly: *"I
+want a full update on our documentation ... especially our guides on
+desktop with screenshots, think of anyone visiting."*
+
+`tools/screenshot.py` corrupted its own output until 0.99.148, and the
+eight pictures under `programs/desktop/img/` were made before that and
+never regenerated — sixty-nine releases. `tools/README.md` recorded it
+as *"missing the word File"*. It was worse: `desktop-strip.png` had lost
+**File**, **View** and **Special**, the workspace switcher and the
+notification flag. A visitor's first picture of the desktop showed a
+menu bar with three of its five menus gone.
+
+They were never remade because **no recipe existed anywhere**. Each was
+made by hand, once, so there was nothing to re-run.
+`tools/docshots.py` is that recipe now, one place beside the renderer.
+
+**Writing it found three faults, each of which made a picture quietly
+wrong rather than failing:**
+
+- **`--apps` was flat where the desktop globs `**`.** It resolved
+  `programs/desktop/apps/<name>.hibr` only, so the calculator — which
+  lives in `Accessories/` — sourced nothing and its window photographed
+  as an empty box with a correct title. A glob list is where coverage
+  goes to hide, wearing another hat.
+- **`--wait` is a settle timeout, not a dwell.** It returns the moment
+  the desktop first goes idle, which is long before a program inside a
+  window has started: a terminal rendered blank however large `--wait`
+  was made, and raising it could never have helped. `--until TEXT` waits
+  for the thing, which is the rule the suites already follow.
+- **A pane and a strip module are scan roots of their own.** Loading the
+  Control Panel app without `CP_PANEDIRS` photographs *"Nothing found"*,
+  and `CS_ON=1` with no `CS_MODDIRS` photographs a desktop that simply
+  has no Control Strip. Both are true pictures of a desktop nobody runs.
+
+**And four of the eight captions were false**, which is the half no
+renderer can check. The hibr menu does not say *"About hibr, Clean Up
+Icons"* — it says About This Computer, Screen Saver, Lock Screen,
+Restart Desktop, Detach and Quit. The context menu has gained Next
+Wallpaper and Refresh Desktop. The Control Strip shows five modules, not
+four. Control Panel opens on Date & Time, and its picker holds nineteen
+panes in two groups. A caption is a claim, and the tool proves the
+pixels, not the sentence under them.
+
 ## 0.99.217
 
 **The documentation says what the code does.**

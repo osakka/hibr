@@ -55,6 +55,7 @@ import base64
 import io
 import os
 import sys
+import time
 import zlib
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -325,6 +326,26 @@ def encode_key(k):
     return k.encode()
 
 
+def appfile(name):
+    """Where <name>.hibr is, searched the way the desktop itself scans.
+
+    This used to be `programs/desktop/apps/<name>.hibr` and nothing else,
+    which is flat where `dt_apps` globs `**` -- so every application in a
+    submenu was unreachable. `--apps calc` silently sourced nothing, and
+    the window opened with no app behind it: an empty box with a correct
+    title, which reads as the app being broken rather than as never
+    having been loaded. The desktop's own apps live a folder across
+    again, so both roots are searched. A glob list is where coverage
+    goes to hide, and this is one wearing a different hat."""
+    for base in ("programs/desktop/apps", "programs/desktop/system"):
+        root = os.path.join(ROOT, base)
+        for d, _dirs, fs in os.walk(root):
+            if name + ".hibr" in fs:
+                return os.path.join(d, name + ".hibr")
+    raise SystemExit("screenshot.py: no app called %s under "
+                     "programs/desktop/apps or /system" % name)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                   formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -348,8 +369,15 @@ def main():
                      help="comma-separated modules to mod-load before "
                           "sourcing (default: console)")
     ap.add_argument("--apps", default="",
-                     help="comma-separated programs/desktop/apps/<name>.hibr files "
-                          "to source first")
+                     help="comma-separated app names to source first, found "
+                          "anywhere under programs/desktop/apps or "
+                          "programs/desktop/system")
+    ap.add_argument("--until", default="",
+                     help="wait for this text to appear before the shot -- "
+                          "what a program in a window needs, since --wait is "
+                          "a settle timeout and the desktop idles first")
+    ap.add_argument("--untilmax", type=float, default=20.0,
+                     help="how long --until may wait (default 20s)")
     args = ap.parse_args()
     # nargs="*" here would greedily swallow the session positional that
     # follows on the command line -- a comma-separated string sidesteps the
@@ -362,8 +390,7 @@ def main():
         cleanup = False
     else:
         wm = tree("programs/desktop/desktop.hibr")
-        apps_src = "".join(". %s/programs/desktop/apps/%s.hibr\n" % (ROOT, a)
-                            for a in args.apps)
+        apps_src = "".join(". %s\n" % appfile(a) for a in args.apps)
         content = ("%s. %s\n%s%s\ndt_open\n%s\ndt_run\ndt_close\n"
                    % (load(*args.modules), wm, apps_src, "", args.session))
         path = os.path.join(ROOT, "tools", ".screenshot-tmp.hibr")
@@ -380,6 +407,25 @@ def main():
               settle=args.wait, cellw=cw, cellh=ch)
     for k in args.keys:
         t.send(encode_key(k), settle=0.3)
+    # --until waits for the thing, because --wait cannot.
+    #
+    # `settle` is a *timeout* for the desktop to go idle, not a dwell: it
+    # returns the moment the first idle marker arrives, which is long
+    # before a program inside a window has started, let alone printed
+    # anything. So a terminal window rendered as an empty box however
+    # large --wait was made, and raising it did nothing at all -- the
+    # desktop was already idle. Same rule as the suites' own
+    # `Term.until`: wait for the text, not for the clock.
+    if args.until:
+        end = time.time() + args.untilmax
+        while time.time() < end:
+            t.collect(0.2)
+            if args.until in t.text:
+                break
+        else:
+            print("screenshot.py: %r never appeared in %gs"
+                  % (args.until, args.untilmax), file=sys.stderr)
+            sys.exit(1)
     cs = ColourScreen(args.rows, args.cols)
     cs.feed(t.raw.decode("utf-8", errors="replace"))
     t.quit(b"qy", 1.0)

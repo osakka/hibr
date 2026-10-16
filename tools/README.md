@@ -28,10 +28,34 @@ nothing: its escape skip advanced two bytes whatever the escape was, so an
 APC's base64 was fed to the grid as text and the harness's own idle marker
 (`ESC ] 7777;idle;N;M BEL`) was written across whatever window the cursor
 was in — shifting every cell written after it in that run. `tests/shots.py`
-is the guard, and the images under `programs/desktop/img/` were made before
-it: `desktop-strip.png` is missing the word **File** from its menu bar for
-exactly this reason, which is what a corrupted screenshot looks like when
-nobody is checking.
+is the guard. The images under `programs/desktop/img/` were made before it
+and stayed shipped for sixty-nine releases: `desktop-strip.png` had lost
+**File**, **View** and **Special** from its menu bar, the workspace
+switcher and the notification flag — a visitor's first picture of the
+desktop showed a menu bar with three of its five menus missing.
+
+They were never regenerated because **no recipe for them existed
+anywhere**: each was made by hand, once, so when the tool turned out to be
+corrupting its own output there was nothing to re-run. `tools/docshots.py`
+is that recipe now — one place that makes every picture the documentation
+shows, next to the tool that renders them, so a corrupted or stale image
+is one command away from being correct:
+
+```text
+python3 tools/docshots.py                 # all of them
+python3 tools/docshots.py desktop-strip   # one
+```
+
+Writing it found two more faults in this tool, both of which made a
+picture quietly wrong rather than failing. `--apps` resolved
+`programs/desktop/apps/<name>.hibr` and nothing else, where the desktop
+globs `**`, so an application in a submenu — the calculator, in
+`Accessories/` — sourced nothing and its window photographed as an empty
+box with a correct title. And `--wait` is a *settle timeout*, not a
+dwell: it returns the moment the desktop first goes idle, which is well
+before a program inside a window has started, so a terminal rendered
+blank however large `--wait` was made. `--until TEXT` waits for the
+thing, which is the rule the suites already follow.
 
 ```text
 tools/screenshot.py docs/img/hello.png 'dt_new "Hello" 8 30 6 10'

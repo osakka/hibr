@@ -1527,7 +1527,7 @@ Strip sat at the bottom of the screen and only ever slid left and right
 along it; this one docks to either side instead and slides up and down, a
 deliberate choice over period accuracy.
 
-![The Control Strip docked left, four named modules in brackets ending in its own arrow](img/desktop-strip.png)
+![The Control Strip along the bottom: Cursor, Prayer, Shadow, Theme and Wallpaper in brackets, ending in its own arrow, with the strip's shadow under it](img/desktop-strip.png)
 
 The arrow at the end is the strip's own handle, for three different
 gestures: drag it up or down to move the whole strip along its docked
