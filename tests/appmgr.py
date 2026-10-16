@@ -304,13 +304,24 @@ try:
     check("installing a one-file app puts it where dt_apps will find it",
           rc == 0 and os.path.exists(one)
           and open(one, "rb").read() == APP, (rc, out, err))
+    # The scope rather than the kind: the kind column was dropped once
+    # the scope arrived, because the id already begins with it and a row
+    # read `savers/pipes 1.0 savers shipped came with hibr` -- the kind
+    # twice and the scope twice. `"apps" in out` passed off the id all
+    # along, so it was checking the thing it names by accident.
     rc, out, err = apps("installed")
-    check("and installed says so, with its version and kind",
-          rc == 0 and "demo" in out and "1.0" in out and "apps" in out,
-          out + err)
+    row = [l for l in out.splitlines() if l.startswith("apps/demo ")]
+    check("and installed says so, with its version and scope",
+          rc == 0 and len(row) == 1 and "1.0" in row[0]
+          and row[0].rstrip().endswith("user"), out + err)
+    # `user`, not `installed`: one word for one state across both verbs.
+    # They said `installed` here and `user` there, which is half of what
+    # made two views of one state read as two different programs.
     rc, out, err = apps("list")
-    check("and list marks it installed rather than offering it again",
-          rc == 0 and "installed" in out, out)
+    row = [l for l in out.splitlines() if l.startswith("apps/demo ")]
+    check("and list marks it as yours rather than offering it again",
+          rc == 0 and len(row) == 1 and row[0].rstrip().endswith("user"),
+          out)
 
     # A bundle of several files: the app at <kind>/NAME.hibr and the rest
     # under <kind>/NAME/, so dt_apps does not give it a submenu of its own.
@@ -1050,7 +1061,7 @@ try:
     json.dump(d, open(st3, "w"))
     rc, out, err = apps("list", env=E2)
     check("a state keyed by name is read as the apps it can only have been",
-          rc == 0 and "installed" in out.split("apps/demo")[1].split("\n")[0],
+          rc == 0 and "user" in out.split("apps/demo")[1].split("\n")[0],
           (rc, out))
 
     # --- a module from the catalogue (Gitea #221, ADR 0044) -------------

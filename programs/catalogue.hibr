@@ -784,7 +784,7 @@ AP_WINS=
 # slot. A builtin like `mod list` can; a command can only print, and the
 # honest version of "one answer" for a command is a machine-readable one.
 fn ap_list(want = "", int j = 0) {
-	local name n=0 v here i w
+	local name n=0 v here i w pid pti
 	local -A out
 
 	ap_load
@@ -863,10 +863,14 @@ fn ap_list(want = "", int j = 0) {
 			continue
 		fi
 		if [ -n "$v" ]; then
+			# The same word `installed` uses for the same thing.
+			# These two listed one state under two names --
+			# `installed` here and `user` there -- which is half
+			# of what made them read as different programs.
 			if [ "$v" = "${AP_ENT["version"]}" ]; then
-				v="installed"
+				v=$AP_SCOPE
 			else
-				v="installed $v, ${AP_ENT["version"]} available"
+				v="$AP_SCOPE ($v, ${AP_ENT["version"]} available)"
 			fi
 		else
 			# Not in this scope's ledger is not "you do not have
@@ -881,7 +885,14 @@ fn ap_list(want = "", int j = 0) {
 			*) v=${AP_ENT["version"]} ;;
 			esac
 		fi
-		printf '%-24s %-24s %s\n' "${AP_ENT["id"]}" "${AP_ENT["title"]}" "$v"
+		# str pad, not printf's own width: `%-24s` counts **bytes**,
+		# so a title holding one glyph wider than a byte -- the
+		# ellipsis in `Screenshot…` -- came out two columns short and
+		# the whole column stopped lining up. str pad counts display
+		# columns, which is what a column is (ADR 0021).
+		pid := str pad "${AP_ENT["id"]}" 28
+		pti := str pad "${AP_ENT["title"]}" 26
+		printf '%s%s%s\n' "$pid" "$pti" "$v"
 		n=$((n + 1))
 	done
 	if [ "$j" = 1 ]; then
@@ -1058,7 +1069,7 @@ fn ap_parts(name) {
 }
 
 fn ap_installed(int j = 0) {
-	local name n=0 nd=0 js i sh sy what np auto w nh=0
+	local name n=0 nd=0 js i sh sy what np auto w nh=0 pid pve pwh
 	local -A out seen
 
 	ap_state
@@ -1124,11 +1135,20 @@ fn ap_installed(int j = 0) {
 			what="+$np part"
 			[ "$np" = 1 ] || what="$what"s
 		fi
-		printf '%-28s %-10s %-14s %-7s %s\n' "$name" \
-			"${AP_ST["installed"]["$name"]["version"]}" \
-			"${AP_ST["installed"]["$name"]["kind"]}" \
-			"$AP_SCOPE" \
-			"$what"
+		# No kind column: the id already begins with it, so a row
+		# read `savers/pipes 1.0 savers shipped came with hibr` --
+		# the kind twice and the scope twice, which the owner called
+		# a rubbish experience and was right about. Id, version,
+		# scope, and a note only when there is one, with no trailing
+		# blanks when there is not.
+		pid := str pad "$name" 28
+		pve := str pad "${AP_ST["installed"]["$name"]["version"]}" 10
+		if [ -n "$what" ]; then
+			pwh := str pad "$AP_SCOPE" 9
+			printf '%s%s%s%s\n' "$pid" "$pve" "$pwh" "$what"
+		else
+			printf '%s%s%s\n' "$pid" "$pve" "$AP_SCOPE"
+		fi
 		seen["${AP_ST["installed"]["$name"]["paths"]["0"]}"]=1
 		for i in "${AP_PARTS[@]}"; do
 			seen["$i"]=1
@@ -1174,10 +1194,9 @@ fn ap_installed(int j = 0) {
 				out["installed"]["${AP_ENT["id"]}"]["defunct"]=0
 				continue
 			fi
-			printf '%-28s %-10s %-14s %-7s %s\n' \
-				"${AP_ENT["id"]}" "${AP_ENT["version"]}" \
-				"${AP_ENT["kind"]}" "$w" \
-				"$([ "$w" = shipped ] && echo "came with hibr")"
+			pid := str pad "${AP_ENT["id"]}" 28
+			pve := str pad "${AP_ENT["version"]}" 10
+			printf '%s%s%s\n' "$pid" "$pve" "$w"
 		done
 	fi
 	if [ "$j" = 1 ]; then

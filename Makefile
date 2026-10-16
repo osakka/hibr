@@ -84,7 +84,19 @@ MODDIR ?= $(PREFIX)/lib/hibr
 # $(MODDIR) is the package's, so a catalogue writing there would put two
 # package managers in one directory. /var/lib is the FHS place for state
 # a program maintains, which is what a catalogue's store is.
-SYSDIR ?= /var/lib/hibr
+# ...when the program is installed where the FHS expects one. A
+# **prefixed** install is self-contained by convention and has no
+# business creating a directory outside its own prefix -- which is
+# exactly what `make install PREFIX=/opt/homebrew` did: `install -d
+# /var/lib/hibr`, which on a Mac is root-owned and not Homebrew's to
+# touch, so every `brew install hibr` failed with permission denied.
+# That is a hibr bug and not a Homebrew one; every other path here has
+# always derived from PREFIX and this one did not.
+#
+# `/usr/local` is deliberately **not** in the FHS list: Homebrew's own
+# prefix on an Intel Mac is exactly that, so putting it there would fix
+# Apple Silicon and leave Intel broken in the same way.
+SYSDIR ?= $(if $(filter /usr,$(PREFIX)),/var/lib/hibr,$(PREFIX)/var/lib/hibr)
 SHAREDIR ?= $(PREFIX)/share/hibr
 MANDIR ?= $(PREFIX)/share/man
 DESKDIR = $(SHAREDIR)/desktop

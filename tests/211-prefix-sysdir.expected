@@ -1,0 +1,4 @@
+0
+/usr           /var/lib/hibr
+/usr/local     /usr/local/var/lib/hibr
+/opt/homebrew  /opt/homebrew/var/lib/hibr

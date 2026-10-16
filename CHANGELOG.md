@@ -1,5 +1,71 @@
 # Changelog
 
+## 0.99.215
+
+**A prefixed install creates nothing outside its own prefix, so
+`brew install hibr` works again.**
+
+Gitea #256, reported from the owner's Mac: *"We broke homebrew? it now
+says /var/lib/hibr (permission denied) ... I broke my installation."*
+
+**Ours, not Homebrew's.** Every path in the Makefile derives from
+`PREFIX` except one -- `SYSDIR ?= /var/lib/hibr`, written out when the
+system scope arrived in 0.99.197 -- and `make install` creates it. The
+formula runs `make install PREFIX=#{prefix}` with no `DESTDIR`, so on a
+Mac it tried `install -d /var/lib/hibr`: outside the prefix, root-owned,
+and none of Homebrew's business.
+
+`/var/lib` is the FHS place for state a program maintains **when the
+program is installed where the FHS expects one**. A prefixed install is
+self-contained by convention, which that line forgot.
+
+    PREFIX=/usr            /var/lib/hibr              (the deb, unchanged)
+    PREFIX=/usr/local      /usr/local/var/lib/hibr
+    PREFIX=/opt/homebrew   /opt/homebrew/var/lib/hibr
+
+**`/usr/local` is deliberately not an FHS prefix here**, which is the
+detail that matters: Homebrew's prefix on an Intel Mac is exactly
+`/usr/local`, so treating it as one would have fixed Apple Silicon and
+left Intel broken in the same way.
+
+Nothing else needed changing. There is no hard root-owned gate on the
+system scope -- ADR 0045 describes that as what a distribution's install
+looks like, and `ap_needwrite` refuses a write the account cannot make
+and names the command to use. A Homebrew prefix is user-owned by design,
+so `catalogue --system` there simply works, which is right for a
+single-user prefix.
+
+`tests/211-prefix-sysdir.t` checks all three with `make -n`, a dry run
+costing a fraction of a second, and names the fault precisely against
+the old Makefile: *"/opt/homebrew creates /var/lib/hibr, which is
+outside its own prefix"*.
+
+**And the catalogue's two listings stop reading as two programs.**
+Reported in the same breath:
+
+> *"savers/pipes 1.0 savers shipped came with hibr (this is a rubbish
+> experience), why is savers twice, why shipped came with why not just
+> shipped?"* and *"catalogue list is inconsistent and so on... why?"*
+
+Three faults, all mine, all from adding the scope without re-reading the
+row it went into:
+
+- **the kind twice** -- the id already begins with it, so the kind
+  column was pure repetition. Dropped.
+- **the scope twice** -- `shipped` in its column and `came with hibr`
+  beside it. The note is gone; a row with nothing to note now ends after
+  the scope, with no trailing blanks either.
+- **one state under two names** -- `list` said `installed` where
+  `installed` said `user`. It is `user` in both now, beside `system` and
+  `shipped`, so the three words mean the same thing wherever they are
+  read.
+
+And the columns line up: both listings measure with `str pad` rather
+than `printf`'s own `%-24s`, which counts **bytes**. `Screenshot…` holds
+an ellipsis that is three bytes and one column, so that row came out two
+columns short and took the rest of the column with it -- the lengths-and-
+slices rule of ADR 0021, in the one place nobody had applied it.
+
 ## 0.99.214
 
 **The Catalogue window says which scope a thing is in, and its group
