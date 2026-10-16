@@ -1,5 +1,58 @@
 # Changelog
 
+## 0.99.213
+
+**A kind the catalogue offers must be a folder the desktop reads.**
+
+Gitea #255. The catalogue and the desktop both know where a kind lives
+and **cannot be made to know it once**: the desktop declares a scan list
+per kind, in the file that owns that kind, and each appends roots of its
+own at session time -- so a shared table could only ever describe the
+four standard scopes and every list would still have to add to it. The
+catalogue is installed as its own command and must run with no desktop
+present, so it cannot read the desktop's declarations at all.
+
+A refactor was considered and refused for a measured reason rather than
+a taste: those six files are deliberately sourceable **standalone in
+fixtures**, so hoisting a helper into `wm/` would buy a benign
+duplication at the price of a load-order dependency across files that
+are sourced several different ways.
+
+So the duplication stays and the **drift** is what gets closed.
+`tests/210-kind-folders.t` fails when the catalogue offers a kind no
+desktop scan list reads. The two agree today only because every folder
+happens to be named after its kind -- a coincidence of naming, not a
+construction -- and this is what makes the coincidence enforced.
+Verified by adding a tenth kind nothing reads:
+
+    the catalogue offers widgets and no desktop scan list reads hibr/widgets
+
+`mods` is exempt, deliberately: a module is found on the module search
+path, which is the shell's and not a scan list of the desktop's. The
+check also refuses to pass when it read too few kinds to be reading the
+list at all, which is the guard against the check quietly becoming
+vacuous.
+
+**And the catalogue's own staleness check gained the direction it never
+had.** `./stale` walked `bundles/**` and nothing else, so it could only
+ever be wrong about something the catalogue already carried: a pane
+added to the desktop and never published was invisible to it, and it
+printed *"every bundle matches the tree"* while two panes sat
+unpublished. It now walks the tree as well and reports `never`, with the
+five deliberate exemptions named and reasoned in place -- the savers'
+shared library is not a saver, `strings.txt` is not a language, `xx` and
+`xy` are the pseudo-locales `tools/strings.py` writes, and a theme's
+picture travels inside that theme's own bundle.
+
+It found `control-panel/screenshots` and `control-panel/wallpaper`,
+never published since they were written, and two bundles left behind by
+0.99.212 -- `system/appstore.hibr`, which learned to read `where`, and
+`lang/ar.json`, which gained two strings. Both are real changes rather
+than comments, so both are **version bumps** rather than a `--same`
+republish: appstore 1.3 to 1.4, the Arabic catalogue 1.4 to 1.5. That
+0.99.212 shipped without running `./stale` first is the miss this new
+direction exists to make impossible.
+
 ## 0.99.212
 
 **A thing the package ships is one you have, and the catalogue said

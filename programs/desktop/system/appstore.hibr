@@ -19,7 +19,7 @@
 
 strict
 
-app appstore "The application catalogue: browse, install, update and remove" 1.3
+app appstore "The application catalogue: browse, install, update and remove" 1.4
 
 # Not called "Applications": the hibr menu already has a submenu of that
 # name -- every app you can open -- and two rows called the same thing on
