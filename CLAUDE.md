@@ -2184,7 +2184,7 @@ went in the shell.
   whatever desktop the machine is running.** `tests/appmgr.py` runs `apps` as
   a plain subprocess, so it inherited `HIBR_HOLD` from the shell it was
   started from -- and `apps remove` asks a running desktop whether any of its
-  windows belong to the app (`ap_windows` -> `desktop ctl windows`), which
+  windows belong to the app (`cat_windows` -> `desktop ctl windows`), which
   looks for its socket at `$TMPDIR/hibr-ctl-$UID/<session>.ctl`. With a held
   session whose control socket was still **listening but no longer
   accepting**, the connect blocked -- `desktop ctl` bounds the answer with
@@ -3954,7 +3954,7 @@ went in the shell.
   and "default background" (#184); the tell is always a name that states
   a fact rather than answering a question.
   Three things worth keeping. **The fix called what already existed**:
-  `ap_shipped`, `ap_deskdir` and the system-ledger read were all there
+  `cat_shipped`, `cat_deskdir` and the system-ledger read were all there
   and `list` had never called one of them -- before designing a scan,
   grep for whether the answer is already computed somewhere that does
   not surface it. **A fourth mechanism would have been a parallel**: the

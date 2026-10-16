@@ -21,7 +21,7 @@
 # path, which is the shell's and not a scan list of the desktop's.
 
 cd "${0%/*}/.." || exit 1
-read -ra kinds <<< "$(sed -n '/^AP_KINDS=(/,/)/p' programs/catalogue.hibr | tr -d '()' | sed 's/AP_KINDS=//')"
+read -ra kinds <<< "$(sed -n '/^CAT_KINDS=(/,/)/p' programs/catalogue.hibr | tr -d '()' | sed 's/CAT_KINDS=//')"
 bad=0
 n=0
 for k in "${kinds[@]}"; do

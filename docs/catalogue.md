@@ -602,7 +602,7 @@ Only one at a time may change the state: two at once and one of them is
 lost. Try again when it has finished.
 ```
 
-`AP_LOCKWAIT` is how many tenths of a second to wait first — ninety
+`CAT_LOCKWAIT` is how many tenths of a second to wait first — ninety
 seconds by default, because an install holds the lock while it fetches.
 **Reading takes no lock and never waits**: `list`, `installed`, `info`
 and `owns` answer while an install is running.

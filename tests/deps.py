@@ -32,7 +32,7 @@ something that is there in every scope. Three rules, each a check here:
    integration rather than a dependency nothing resolves: a person can
    install or remove either, and the other does less rather than breaking.
 
-Which kinds are installable is read from the catalogue's own AP_KEXT --
+Which kinds are installable is read from the catalogue's own CAT_KEXT --
 every kind whose files end in .hibr -- so a kind added later is covered
 without an edit here. It reads, it does not parse: a function begins at a
 `name(` in column 0 and a guard covers the calls after it in that
@@ -60,7 +60,7 @@ MARK = re.compile(r"^[A-Z][A-Z0-9]*_LIBDONE=1$")
 def kinds():
     """The script kinds, from the catalogue's own table of extensions."""
     src = open(os.path.join(ROOT, "programs", "catalogue.hibr")).read()
-    m = re.search(r"declare -gA AP_KEXT=\((.*?)\n\)", src, re.S)
+    m = re.search(r"declare -gA CAT_KEXT=\((.*?)\n\)", src, re.S)
     return sorted(k for k, e in re.findall(r"\[([a-z-]+)\]=(\S+)", m.group(1))
                   if e == ".hibr")
 

@@ -51,7 +51,7 @@ MOD = tree("build/mods/console.so")
 SRC = open(tree("programs/catalogue.hibr")).read()
 KINDS = sorted(k for k, e in re.findall(
     r"\[([a-z-]+)\]=(\S+)",
-    re.search(r"declare -gA AP_KEXT=\((.*?)\n\)", SRC, re.S).group(1))
+    re.search(r"declare -gA CAT_KEXT=\((.*?)\n\)", SRC, re.S).group(1))
     if e == ".hibr")
 APP = re.compile(r"\bdt_app\s+([a-z][a-z0-9_]*)\b")
 PANE = re.compile(r"\bcp_pane\s+([a-z][a-z0-9_]*)\b")

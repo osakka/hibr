@@ -16,7 +16,7 @@ The owner asked for modules in the catalogue anyway, and was right to: a
 module is how hibr grows, and *"tools are modules"* is the project's own
 rule. Three things stood in the way, and the third is the interesting one.
 
-- `ap_pathok` refuses any member path ending in `.so`.
+- `cat_pathok` refuses any member path ending in `.so`.
 - The index has an `abi` field and no `arch` field, and **neither is
   enforced**: a module must match `HIBR_ABI` exactly and be built for the
   machine, and nothing checked either.

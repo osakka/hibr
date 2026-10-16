@@ -234,7 +234,7 @@ def apps(*args, env=None):
     """Run the manager with a config, data and cache folder of its own."""
     # And a TMPDIR of its own, which is not tidiness: `apps remove` asks a
     # running desktop whether any of its windows belong to the app
-    # (ap_windows -> `desktop ctl windows`), and that client finds its
+    # (cat_windows -> `desktop ctl windows`), and that client finds its
     # socket at $TMPDIR/hibr-ctl-$UID/<session>.ctl -- defaulting to the
     # session named in HIBR_HOLD, or to one called `desktop`. So a suite run
     # from a shell inside a held desktop, which is how this machine is used,
@@ -620,7 +620,7 @@ try:
           rc == 0 and "taking over a lock" in out + err, (rc, out, err))
     os.makedirs(LOCK, exist_ok=True)
     open(os.path.join(LOCK, "pid"), "w").write("%d\n" % os.getpid())
-    rc, out, err = apps("install", "demo", env={"AP_LOCKWAIT": "3"})
+    rc, out, err = apps("install", "demo", env={"CAT_LOCKWAIT": "3"})
     check("and one held by a process that is alive is waited for and then "
           "named, rather than written over",
           rc != 0 and "another catalogue is writing" in err, (rc, err))
@@ -760,7 +760,7 @@ try:
     was = sec[key]["bundle"]
     sec[key]["bundle"] = URL.rsplit("/", 1)[0] + "/" + was
     json.dump(ix, open(IXP, "w"))
-    # The index is cached and ap_fetch returns early when it is, so
+    # The index is cached and cat_fetch returns early when it is, so
     # without this the install reads the old relative address and the
     # check passes for having changed nothing.
     apps("refresh")
@@ -894,7 +894,7 @@ try:
     # The three kinds that are data (Gitea #224): a theme, a colour scheme
     # and a translation catalogue are JSON, read from the same
     # $XDG_CONFIG_HOME/hibr/<kind> a script is, so installing one is placing
-    # a file where the desktop already looks. `ap_dest` appended `.hibr` to
+    # a file where the desktop already looks. `cat_dest` appended `.hibr` to
     # everything, so a theme had nowhere to land at all.
     rc, out, err = apps("install", "themes/plain", env=E2)
     th = os.path.join(HOME, "d3", "hibr", "themes", "plain.json")
@@ -1068,7 +1068,7 @@ try:
 
     # The entry's own **name** decides a filename, and nothing checked it
     # until 0.99.186: `"name": "../../../climbed"` with kind `apps` wrote
-    # `$AP_DATA/apps/../../../climbed.hibr` -- three folders above the data
+    # `$CAT_DATA/apps/../../../climbed.hibr` -- three folders above the data
     # directory, with the sha256 matching, since that says the bytes were
     # not changed on the way and nothing about where they land. Measured
     # before the fix as a real file; `../../.hibrc` is the same hole with
@@ -1410,7 +1410,7 @@ try:
                   (rc, out, err))
             # Reading is what somebody does before reaching for sudo, and
             # the directory is world-readable by design, so gating it in
-            # ap_scope rather than on the write verbs would have been
+            # cat_scope rather than on the write verbs would have been
             # wrong in the direction nobody would have noticed.
             rc, out, err = apps("--system", "installed", env=ERO)
             check("and reading that same scope is not gated at all",
@@ -1521,8 +1521,8 @@ try:
     # all read as missing, with `installed` showing only apps -- which
     # read as the scope work never having been done (Gitea #254).
     #
-    # `ap_deskdir` honours $HIBR_DESKTOP, so a scratch tree is the whole
-    # fixture -- holding the kind's **own** extension, since `ap_shipped`
+    # `cat_deskdir` honours $HIBR_DESKTOP, so a scratch tree is the whole
+    # fixture -- holding the kind's **own** extension, since `cat_shipped`
     # globs `themes/<name>.json`.
     #
     # In a scope of its own, deliberately: by this point in the suite the

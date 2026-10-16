@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.99.225
+
+**The catalogue command and its window now share one prefix.**
+
+Spotted by the owner: *"is the prefix ap and AP still used in catalogue? I
+thought we moved to cat and CAT?"* -- and they read it right. The
+`appstore` -> `catalogue` rename in 0.99.216 converted the desktop
+**window** to `cat_`/`CAT_` and left the **command** on `ap_`/`AP_`:
+390 functions and calls and 592 globals, left over from when the command
+was called `apps`, until 0.99.195. Anybody grepping for one prefix found
+half of the catalogue.
+
+All 1,009 identifiers are `cat_`/`CAT_` now -- in the command, the
+window's one comment, four tests, `tests/deps.py` and `tests/scopes.py`
+(which read `CAT_KEXT` and `CAT_KINDS` out of the file), three ADRs,
+`docs/catalogue.md` and CLAUDE.md -- and in the catalogue repository's
+`mkindex`. Renamed by identifier rather than by a pattern with a word
+boundary, because that is what missed `declare -gA AS` and
+`appstore_draw` last time; a grep for the old prefix across `programs/`,
+`tests/`, `docs/`, `tools/` and the C finds nothing outside this file.
+
+**One interface moved with it:** the lock wait read from the environment
+is **`CAT_LOCKWAIT`**, no longer `AP_LOCKWAIT` (`docs/catalogue.md`). It is
+a tuning knob a suite sets to make a lock timeout happen in a moment.
+
+`tests/540-examples.t` fails if the old prefix comes back in the command
+or the window -- checked by putting one name back and watching it fire.
+The window is a catalogue entry itself, so it is `system/catalogue` 2.2.
+
+Gitea #266.
+
 ## 0.99.224
 
 **An installed app could not load, because it only worked where the

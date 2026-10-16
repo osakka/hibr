@@ -47,12 +47,12 @@
 
 strict
 
-AP_CONF=${XDG_CONFIG_HOME:-$HOME/.config}/hibr/apps.json
-AP_DATA=${XDG_DATA_HOME:-$HOME/.local/share}/hibr
-AP_CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/hibr
-AP_INDEX=$AP_CACHE/index.json
-AP_SIG=$AP_CACHE/index.json.asc
-AP_STATE=$AP_DATA/apps.json
+CAT_CONF=${XDG_CONFIG_HOME:-$HOME/.config}/hibr/apps.json
+CAT_DATA=${XDG_DATA_HOME:-$HOME/.local/share}/hibr
+CAT_CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/hibr
+CAT_INDEX=$CAT_CACHE/index.json
+CAT_SIG=$CAT_CACHE/index.json.asc
+CAT_STATE=$CAT_DATA/apps.json
 # Which scope an install writes into (ADR 0045). `user` is yours and is
 # the default; `system` is an administrator's, for every user of the
 # machine, and `--system` chooses it.
@@ -63,27 +63,27 @@ AP_STATE=$AP_DATA/apps.json
 # the place it is looked for in cannot drift apart. A shell too old to
 # set it has no system scope at all, which is the honest answer rather
 # than a guess at where one would be.
-AP_SCOPE=user
-AP_SHIPF=
-AP_HAVE=
-declare -ga AP_SHIPW
-AP_SYSROOT=${HIBR_SYSDIR-}
+CAT_SCOPE=user
+CAT_SHIPF=
+CAT_HAVE=
+declare -ga CAT_SHIPW
+CAT_SYSROOT=${HIBR_SYSDIR-}
 
 # Point everything at one scope. Called once, before anything reads a
 # path, so there is no moment where half the program is writing to one
 # place and half to another.
-fn ap_scope(which) {
+fn cat_scope(which) {
 	case $which in
 	user) return 0 ;;
 	system) ;;
-	*) ap_die "$which: a scope is user or system" ;;
+	*) cat_die "$which: a scope is user or system" ;;
 	esac
-	[ -n "$AP_SYSROOT" ] ||
-		ap_die "this hibr has no system scope: it does not set \$HIBR_SYSDIR.
+	[ -n "$CAT_SYSROOT" ] ||
+		cat_die "this hibr has no system scope: it does not set \$HIBR_SYSDIR.
 A system install needs hibr 0.99.197 or newer."
-	AP_SCOPE=system
-	AP_DATA=$AP_SYSROOT
-	AP_STATE=$AP_DATA/apps.json
+	CAT_SCOPE=system
+	CAT_DATA=$CAT_SYSROOT
+	CAT_STATE=$CAT_DATA/apps.json
 	return 0
 }
 
@@ -101,26 +101,26 @@ A system install needs hibr 0.99.197 or newer."
 # Reading is never gated -- `--system list` and `--system installed` are
 # what somebody checks *before* reaching for sudo -- so this is called from
 # the verbs that write and nowhere else.
-fn ap_needwrite(verb) {
+fn cat_needwrite(verb) {
 	local d
 
 	# The root may not exist yet, which is the ordinary case at user
 	# scope on a fresh account, so what has to be writable is the
 	# nearest parent that does exist.
-	d=$AP_DATA
+	d=$CAT_DATA
 	while [ -n "$d" ] && [ ! -e "$d" ]; do
 		d=${d%/*}
 	done
 	[ -n "$d" ] || d=/
 	[ -w "$d" ] && return 0
-	[ "$AP_SCOPE" = system ] &&
-		ap_die "catalogue $verb --system writes $AP_DATA, which is root's.
+	[ "$CAT_SCOPE" = system ] &&
+		cat_die "catalogue $verb --system writes $CAT_DATA, which is root's.
 That is deliberate: it is root-owned so every user of this machine reads the
 same copy and nobody else can change what they all run (ADR 0045). Run it as
 root instead:
 
   sudo catalogue $verb --system ..."
-	ap_die "catalogue $verb writes $AP_DATA, which this account cannot write to."
+	cat_die "catalogue $verb writes $CAT_DATA, which this account cannot write to."
 }
 # Where the index is fetched from. A static URL on purpose: the catalogue is
 # a git repository with a JSON index in it, so it can be browsed, mirrored
@@ -128,15 +128,15 @@ root instead:
 # the repository and this is the same folder as a page. A bundle's own
 # address in the index is relative, so a copy of that folder anywhere is a
 # catalogue. Overridden by `catalogue index URL` or HIBR_APPS_URL.
-AP_URL_DEFAULT=https://osakka.github.io/hibr-apps/index.json
-AP_URL=
+CAT_URL_DEFAULT=https://osakka.github.io/hibr-apps/index.json
+CAT_URL=
 # The kinds a bundle may install into, which are the desktop's own scan
 # roots -- and what a file is called in each. Five of them are scripts and
 # three are data: a theme, a colour scheme and a translation catalogue are
 # JSON (ADR 0028, ADR 0032), read from `$XDG_CONFIG_HOME/hibr/<kind>`
 # exactly as a script is, so installing one is placing a file where the
 # desktop already looks. The extension is the kind's, not the bundle's
-# guess: `ap_dest` appended `.hibr` to everything, so a theme had nowhere
+# guess: `cat_dest` appended `.hibr` to everything, so a theme had nowhere
 # to land at all (Gitea #224).
 #
 # The ninth is `mods`, and it is the one that is not a scan root of the
@@ -145,9 +145,9 @@ AP_URL=
 # Gitea #221). It is native code, so three things that are advisory for a
 # script are refusals for it -- the signature, the ABI and the machine --
 # and it is the only kind whose files may end in `.so`.
-AP_KINDS=(apps system control-panel control-strip savers themes colours lang
+CAT_KINDS=(apps system control-panel control-strip savers themes colours lang
 	  mods)
-declare -gA AP_KEXT=(
+declare -gA CAT_KEXT=(
 	[apps]=.hibr [system]=.hibr [control-panel]=.hibr
 	[control-strip]=.hibr [savers]=.hibr
 	[themes]=.json [colours]=.json [lang]=.json
@@ -166,107 +166,107 @@ declare -gA AP_KEXT=(
 # is **a catalogue or a mirror that has been changed**, not an attacker
 # who can already set your environment -- one who can do that can put
 # their own `gpg` on your PATH, or their own `apps` for that matter.
-AP_KEYFP=${HIBR_APPS_KEYFP:-A1E3CA788A8FB02052DA22B413035BE1B1674431}
-AP_SIGOK=
-AP_SIGWHY=
-AP_SIGSAID=
+CAT_KEYFP=${HIBR_APPS_KEYFP:-A1E3CA788A8FB02052DA22B413035BE1B1674431}
+CAT_SIGOK=
+CAT_SIGWHY=
+CAT_SIGSAID=
 # Where the desktop was installed, for the one question this asks of
 # it: does it already ship this app. Overridable so a test can point
 # at a tree of its own.
 HIBR_DESKTOP="${HIBR_DESKTOP-}"
-declare -gA AP_IX
-declare -gA AP_ST
-declare -gA AP_ENT
-# Every path a placement wrote, relative to AP_DATA, filled by ap_putone and
-# ap_puttar for whoever called them: an app may place more than its own file
+declare -gA CAT_IX
+declare -gA CAT_ST
+declare -gA CAT_ENT
+# Every path a placement wrote, relative to CAT_DATA, filled by cat_putone and
+# cat_puttar for whoever called them: an app may place more than its own file
 # now that a bundle can carry a Control Panel pane or a Control Strip module
 # of its own (Gitea #217), and a folder on disk cannot say what it came with.
-AP_PLACED=()
-# The parts of one installed entry, left by ap_parts for its caller.
-AP_PARTS=()
+CAT_PLACED=()
+# The parts of one installed entry, left by cat_parts for its caller.
+CAT_PARTS=()
 # Whether the run has already said where its bundles are coming from. An
 # index may name any host, and saying so once is a warning; saying it per
 # bundle is a wall of text nobody reads (Gitea #247).
-AP_SAIDHOST=0
+CAT_SAIDHOST=0
 # The state is one file that two catalogues can want at once, so a verb
 # that writes it holds a lock across read-modify-write (Gitea #242). The
 # mutex is a **directory**: `mkdir` is one syscall that either creates or
 # fails, with no check-then-act in between to lose a race in.
-AP_LOCK=
-AP_LOCKED=0
+CAT_LOCK=
+CAT_LOCKED=0
 # How many tenths of a second to wait for somebody else to finish before
 # saying so. An install fetches over the network while it holds this, so
 # the wait is generous: `catalogue install apps/` is twenty-one bundles.
 # Taken from the environment when it is there, so a suite can make the
 # timeout happen in a moment instead of waiting a minute and a half for
 # it -- and so anybody scripting this can decide for themselves.
-AP_LOCKWAIT=${AP_LOCKWAIT:-900}
+CAT_LOCKWAIT=${CAT_LOCKWAIT:-900}
 # The modules an entry needs that are not loadable here and *are* in this
-# catalogue, left by ap_needs for ap_install to place first. Empty is the
+# catalogue, left by cat_needs for cat_install to place first. Empty is the
 # ordinary case, since everything hibr ships is loadable already.
-AP_WANT=()
+CAT_WANT=()
 # Which section of the index is in force: `entries`, keyed by an id of
 # kind/name, where one exists, and the older `apps`, keyed by name, where it
 # does not. The desktop has eight namespaces and a name is only unique inside
 # one of them -- `clock` is an application and a screen saver -- so a
 # catalogue keyed by name alone loses one of any pair (Gitea #222).
-AP_SECT=apps
+CAT_SECT=apps
 # Set by the dav module after each request; a strict file declares it.
 DAV_CODE=
 
 # A complaint, and the status to leave with.
-fn ap_die(text, int st = 1) {
+fn cat_die(text, int st = 1) {
 	echo "catalogue: $text" >&2
 	exit "$st"
 }
 
-fn ap_say(text) {
+fn cat_say(text) {
 	echo "$text"
 }
 
 # The index's address: what was set, else the environment, else the default.
-ap_url() {
+cat_url() {
 	local -A c
 
-	[ -n "$AP_URL" ] && { ret "$AP_URL"; return 0; }
+	[ -n "$CAT_URL" ] && { ret "$CAT_URL"; return 0; }
 	if [ -n "$HIBR_APPS_URL" ]; then
-		AP_URL=$HIBR_APPS_URL
-	elif [ -r "$AP_CONF" ] && json parse c < "$AP_CONF" 2> /dev/null &&
+		CAT_URL=$HIBR_APPS_URL
+	elif [ -r "$CAT_CONF" ] && json parse c < "$CAT_CONF" 2> /dev/null &&
 	     [ -n "${c["url"]}" ]; then
-		AP_URL=${c["url"]}
+		CAT_URL=${c["url"]}
 	else
-		AP_URL=$AP_URL_DEFAULT
+		CAT_URL=$CAT_URL_DEFAULT
 	fi
-	ret "$AP_URL"
+	ret "$CAT_URL"
 }
 
 # Fetch the index. Kept in the cache folder, so `list` and `info` cost
 # nothing after the first; `refresh` and every `install` fetch it again,
 # because installing against a stale index is how a sha256 mismatch gets
 # blamed on the mirror.
-fn ap_fetch(int force = 0) {
+fn cat_fetch(int force = 0) {
 	local u tmp
 
-	u := ap_url
-	if [ "$force" = 0 ] && [ -r "$AP_INDEX" ]; then
+	u := cat_url
+	if [ "$force" = 0 ] && [ -r "$CAT_INDEX" ]; then
 		return 0
 	fi
-	need dav 2> /dev/null || ap_die "the dav module is needed to fetch the index"
-	mkdir -p "$AP_CACHE" || ap_die "cannot make $AP_CACHE"
-	tmp=$AP_INDEX.new
+	need dav 2> /dev/null || cat_die "the dav module is needed to fetch the index"
+	mkdir -p "$CAT_CACHE" || cat_die "cannot make $CAT_CACHE"
+	tmp=$CAT_INDEX.new
 	rm -f "$tmp" 2> /dev/null
 	if ! dav get "$u" "$tmp" 2> /dev/null; then
 		rm -f "$tmp" 2> /dev/null
-		ap_die "$u: the index could not be fetched${DAV_CODE:+ ($DAV_CODE)}"
+		cat_die "$u: the index could not be fetched${DAV_CODE:+ ($DAV_CODE)}"
 	fi
-	mv -f "$tmp" "$AP_INDEX" || ap_die "cannot put the index in place"
+	mv -f "$tmp" "$CAT_INDEX" || cat_die "cannot put the index in place"
 	# The signature travels beside the index and is fetched with it. A
 	# catalogue that has none is not an error here -- it is a state
-	# `ap_verify` reads and every caller decides about, because the
+	# `cat_verify` reads and every caller decides about, because the
 	# answer differs by kind (ADR 0044).
-	rm -f "$AP_SIG" 2> /dev/null
-	dav get "$u.asc" "$AP_SIG" 2> /dev/null ||
-		rm -f "$AP_SIG" 2> /dev/null
+	rm -f "$CAT_SIG" 2> /dev/null
+	dav get "$u.asc" "$CAT_SIG" 2> /dev/null ||
+		rm -f "$CAT_SIG" 2> /dev/null
 	return 0
 }
 
@@ -275,7 +275,7 @@ fn ap_fetch(int force = 0) {
 # same place `catalogue.hibr` itself came from. The launcher fills
 # HIBR_APPS_KEYRING in; the two standard prefixes are for a shell run from
 # a build tree, and `$HIBR` is this shell's own absolute path.
-fn ap_keyring() {
+fn cat_keyring() {
 	local p
 
 	for p in "$HIBR_APPS_KEYRING" \
@@ -300,40 +300,40 @@ fn ap_keyring() {
 # so the status line is read and VALIDSIG's own fingerprint is compared --
 # first field, and the last, which is the primary key when the signature
 # was made by a subkey.
-fn ap_verify() {
+fn cat_verify() {
 	local kr out tag word fp rest
 
-	[ -n "$AP_SIGOK" ] && return 0
-	AP_SIGOK=0
+	[ -n "$CAT_SIGOK" ] && return 0
+	CAT_SIGOK=0
 	# The catalogue's own fault before this machine's: a catalogue that
 	# offers no signature is the answer whatever is or is not installed
 	# here, and saying "the key is not installed" about one would send a
 	# person to fix the wrong end.
-	if [ ! -r "$AP_SIG" ]; then
-		AP_SIGWHY="the catalogue offers no signature"
+	if [ ! -r "$CAT_SIG" ]; then
+		CAT_SIGWHY="the catalogue offers no signature"
 		return 0
 	fi
 	if ! command -v gpg > /dev/null 2>&1; then
-		AP_SIGWHY="there is no gpg on this machine to check it with"
+		CAT_SIGWHY="there is no gpg on this machine to check it with"
 		return 0
 	fi
-	if ! kr := ap_keyring; then
-		AP_SIGWHY="hibr's own copy of the catalogue key is not installed"
+	if ! kr := cat_keyring; then
+		CAT_SIGWHY="hibr's own copy of the catalogue key is not installed"
 		return 0
 	fi
 	out=$(command gpg --batch --no-default-keyring --keyring "$kr" \
-		--status-fd 1 --verify "$AP_SIG" "$AP_INDEX" 2> /dev/null)
+		--status-fd 1 --verify "$CAT_SIG" "$CAT_INDEX" 2> /dev/null)
 	while read -r tag word fp rest; do
 		[ "$tag" = "[GNUPG:]" ] || continue
 		[ "$word" = VALIDSIG ] || continue
-		if [ "$fp" = "$AP_KEYFP" ] || [ "${rest##* }" = "$AP_KEYFP" ]; then
-			AP_SIGOK=1
+		if [ "$fp" = "$CAT_KEYFP" ] || [ "${rest##* }" = "$CAT_KEYFP" ]; then
+			CAT_SIGOK=1
 			return 0
 		fi
-		AP_SIGWHY="it is signed by $fp, not by $AP_KEYFP"
+		CAT_SIGWHY="it is signed by $fp, not by $CAT_KEYFP"
 		return 0
 	done <<< "$out"
-	AP_SIGWHY="the signature does not check out against $AP_KEYFP"
+	CAT_SIGWHY="the signature does not check out against $CAT_KEYFP"
 	return 0
 }
 
@@ -341,10 +341,10 @@ fn ap_verify() {
 # something is placed. A script goes on -- TLS said who answered and the
 # sha256 said the payload arrived whole, which is ADR 0041's stated model
 # and a script is a file you can open. A module does not, and that refusal
-# is ap_install's, not this.
-fn ap_sigsay() {
-	ap_verify
-	[ "$AP_SIGOK" = 1 ] && return 0
+# is cat_install's, not this.
+fn cat_sigsay() {
+	cat_verify
+	[ "$CAT_SIGOK" = 1 ] && return 0
 	# A script is installed from an unverified catalogue with a warning
 	# because you can read it before you run it -- that is ADR 0041's
 	# whole sentence and it holds for an install into your own home.
@@ -352,27 +352,27 @@ fn ap_sigsay() {
 	# will run this are not the person who read it, and most of them
 	# will never know it was fetched. So at system scope the warning
 	# becomes the refusal a module already gets (ADR 0045).
-	if [ "$AP_SCOPE" = system ]; then
-		ap_die "refusing to install into the system scope from a catalogue this cannot verify
-$AP_SIGWHY.
+	if [ "$CAT_SCOPE" = system ]; then
+		cat_die "refusing to install into the system scope from a catalogue this cannot verify
+$CAT_SIGWHY.
 A script installed here runs for every user of this machine, and they
 are not the person who read it. Install it into your own scope, or
 publish a signed catalogue."
 	fi
-	[ -n "$AP_SIGSAID" ] && return 0
-	AP_SIGSAID=1
-	ap_say "warning: this catalogue is not verified -- $AP_SIGWHY"
+	[ -n "$CAT_SIGSAID" ] && return 0
+	CAT_SIGSAID=1
+	cat_say "warning: this catalogue is not verified -- $CAT_SIGWHY"
 	return 0
 }
 
 # The index, parsed. Its shape is one object per app under "apps", keyed by
 # name, which is what makes a lookup a lookup rather than a walk.
-fn ap_load(int force = 0) {
-	ap_fetch "$force"
-	[ "${#AP_IX[@]}" -gt 0 ] && [ "$force" = 0 ] && return 0
-	AP_IX=()
-	json parse AP_IX < "$AP_INDEX" 2> /dev/null ||
-		ap_die "$AP_INDEX does not parse as JSON"
+fn cat_load(int force = 0) {
+	cat_fetch "$force"
+	[ "${#CAT_IX[@]}" -gt 0 ] && [ "$force" = 0 ] && return 0
+	CAT_IX=()
+	json parse CAT_IX < "$CAT_INDEX" 2> /dev/null ||
+		cat_die "$CAT_INDEX does not parse as JSON"
 	# Counted, not asked with ${..+x}: an entry that holds only a map is
 	# not "set" by that test, which is a trap CLAUDE.md records in as many
 	# words -- and every entry here holds only a map.
@@ -380,10 +380,10 @@ fn ap_load(int force = 0) {
 	# reads it, and `apps` for an older client, which gets every entry
 	# whose name is unique and misses only the one it could not have
 	# named anyway.
-	AP_SECT=apps
-	[ "${#AP_IX["entries"][@]}" -gt 0 ] && AP_SECT=entries
-	[ "${#AP_IX["$AP_SECT"][@]}" -gt 0 ] ||
-		ap_die "the index has no apps in it"
+	CAT_SECT=apps
+	[ "${#CAT_IX["entries"][@]}" -gt 0 ] && CAT_SECT=entries
+	[ "${#CAT_IX["$CAT_SECT"][@]}" -gt 0 ] ||
+		cat_die "the index has no apps in it"
 	return 0
 }
 
@@ -391,23 +391,23 @@ fn ap_load(int force = 0) {
 # bare name is the one entry that carries it, and **several is a refusal
 # rather than a choice** -- whichever the index happened to hold is not an
 # answer to "install clock".
-fn ap_resolve(want) {
+fn cat_resolve(want) {
 	local id hit= n=0 all=
 
-	[ "${#AP_IX["$AP_SECT"]["$want"][@]}" -gt 0 ] && { ret "$want"; return 0; }
+	[ "${#CAT_IX["$CAT_SECT"]["$want"][@]}" -gt 0 ] && { ret "$want"; return 0; }
 	# An id against a name-keyed catalogue: `apps/demo` is `demo` there,
 	# which is what lets anything holding an id -- the state, an update --
 	# read an older index as well as a new one.
-	[ "${#AP_IX["$AP_SECT"]["${want##*/}"][@]}" -gt 0 ] &&
+	[ "${#CAT_IX["$CAT_SECT"]["${want##*/}"][@]}" -gt 0 ] &&
 		{ ret "${want##*/}"; return 0; }
-	for id in "${!AP_IX["$AP_SECT"][@]}"; do
+	for id in "${!CAT_IX["$CAT_SECT"][@]}"; do
 		[ "${id##*/}" = "$want" ] || continue
 		hit=$id
 		all="$all${all:+, }$id"
 		n=$((n + 1))
 	done
 	if [ "$n" -gt 1 ]; then
-		ap_die "$want: the catalogue has more than one -- $all
+		cat_die "$want: the catalogue has more than one -- $all
 Name the one you mean."
 	fi
 	[ "$n" = 1 ] || return 1
@@ -417,11 +417,11 @@ Name the one you mean."
 # What is installed here, as name -> version/kind/where, kept beside the
 # files rather than derived from them: a folder on disk cannot say which
 # version it is or which index it came from.
-ap_state() {
+cat_state() {
 	local k f i
 
-	AP_ST=()
-	[ -r "$AP_STATE" ] || return 0
+	CAT_ST=()
+	[ -r "$CAT_STATE" ] || return 0
 	# A state that will not parse is **damaged**, which is not the same
 	# answer as "nothing is installed" and must never be given as one
 	# (Gitea #241). Reading it as empty is what turned a half-written
@@ -429,43 +429,43 @@ ap_state() {
 	# stayed on disk, owned by nobody, and the next install would have
 	# written a fresh state over the top of it. An empty file is still
 	# fine -- that is a scope nothing has been installed into yet.
-	if [ -s "$AP_STATE" ] && ! json parse AP_ST < "$AP_STATE" 2> /dev/null; then
-		AP_ST=()
-		ap_die "$AP_STATE will not read as JSON, so what is installed here
+	if [ -s "$CAT_STATE" ] && ! json parse CAT_ST < "$CAT_STATE" 2> /dev/null; then
+		CAT_ST=()
+		cat_die "$CAT_STATE will not read as JSON, so what is installed here
 cannot be known. Nothing has been changed. The files are still where they
 were; it is the record of them that is damaged.
 
 Move it aside to start a fresh one -- the files already installed stay, and
 \`catalogue install\` will place them again over the top:
 
-  mv $AP_STATE $AP_STATE.damaged"
+  mv $CAT_STATE $CAT_STATE.damaged"
 	fi
 	# A state written before 0.99.184 is keyed by name, and every entry
 	# in it is an application -- the catalogue published nothing else --
 	# so a bare key means `apps/<key>` exactly (Gitea #222). Migrated on
 	# the way in, and the next save writes it as an id.
-	for k in "${!AP_ST["installed"][@]}"; do
+	for k in "${!CAT_ST["installed"][@]}"; do
 		case $k in
 		*/*) continue ;;
 		esac
 		for f in version kind sha256; do
-			AP_ST["installed"]["apps/$k"]["$f"]=${AP_ST["installed"]["$k"]["$f"]}
+			CAT_ST["installed"]["apps/$k"]["$f"]=${CAT_ST["installed"]["$k"]["$f"]}
 		done
-		for i in "${!AP_ST["installed"]["$k"]["paths"][@]}"; do
-			AP_ST["installed"]["apps/$k"]["paths"]["$i"]=${AP_ST["installed"]["$k"]["paths"]["$i"]}
+		for i in "${!CAT_ST["installed"]["$k"]["paths"][@]}"; do
+			CAT_ST["installed"]["apps/$k"]["paths"]["$i"]=${CAT_ST["installed"]["$k"]["paths"]["$i"]}
 		done
-		unset AP_ST["installed"]["$k"]
+		unset CAT_ST["installed"]["$k"]
 	done
 	return 0
 }
 
 # What a typed name means among the things installed here: an id as it
 # stands, else the one installed entry whose name it is.
-fn ap_insresolve(want) {
+fn cat_insresolve(want) {
 	local id
 
-	[ -n "${AP_ST["installed"]["$want"]["kind"]}" ] && { ret "$want"; return 0; }
-	for id in "${!AP_ST["installed"][@]}"; do
+	[ -n "${CAT_ST["installed"]["$want"]["kind"]}" ] && { ret "$want"; return 0; }
+	for id in "${!CAT_ST["installed"][@]}"; do
 		[ "${id##*/}" = "$want" ] || continue
 		ret "$id"
 		return 0
@@ -476,15 +476,15 @@ fn ap_insresolve(want) {
 # Take the state's lock, or say who has it (Gitea #242). Idempotent: the
 # dispatch takes it before a writing verb reads anything, which is the
 # point -- a lock taken after the read would serialise the writes and
-# still lose the update. ap_statesave asks again in case a path reaches
+# still lose the update. cat_statesave asks again in case a path reaches
 # it another way, and a second ask is free.
-fn ap_lock() {
+fn cat_lock() {
 	local n=0 who
-	[ "$AP_LOCKED" = 1 ] && return 0
-	mkdir -p "$AP_DATA" || ap_die "cannot make $AP_DATA"
-	AP_LOCK=$AP_DATA/.lock
+	[ "$CAT_LOCKED" = 1 ] && return 0
+	mkdir -p "$CAT_DATA" || cat_die "cannot make $CAT_DATA"
+	CAT_LOCK=$CAT_DATA/.lock
 	while :; do
-		mkdir "$AP_LOCK" 2> /dev/null && break
+		mkdir "$CAT_LOCK" 2> /dev/null && break
 		# Whoever holds it may be gone: a crash leaves the
 		# directory behind, and a lock nothing can break is a
 		# catalogue nothing can ever write again. Broken only on a
@@ -492,117 +492,117 @@ fn ap_lock() {
 		# an empty read means the holder is mid-write, which is
 		# the live case and the one that must never be broken.
 		who=
-		read -r who 2> /dev/null < "$AP_LOCK/pid" || who=
+		read -r who 2> /dev/null < "$CAT_LOCK/pid" || who=
 		if [ -n "$who" ] && ! kill -0 "$who" 2> /dev/null; then
-			ap_say "taking over a lock left by $who, which is gone"
-			rm -rf "$AP_LOCK" 2> /dev/null
+			cat_say "taking over a lock left by $who, which is gone"
+			rm -rf "$CAT_LOCK" 2> /dev/null
 			continue
 		fi
 		n=$((n + 1))
-		[ "$n" -gt "$AP_LOCKWAIT" ] &&
-			ap_die "another catalogue is writing $AP_DATA${who:+, as pid $who}.
+		[ "$n" -gt "$CAT_LOCKWAIT" ] &&
+			cat_die "another catalogue is writing $CAT_DATA${who:+, as pid $who}.
 Only one at a time may change the state: two at once and one of them is
 lost. Try again when it has finished."
 		sleep 0.1
 	done
-	printf '%s\n' "$$" > "$AP_LOCK/pid" 2> /dev/null
-	AP_LOCKED=1
-	trap 'ap_unlock' EXIT
+	printf '%s\n' "$$" > "$CAT_LOCK/pid" 2> /dev/null
+	CAT_LOCKED=1
+	trap 'cat_unlock' EXIT
 	return 0
 }
 
 # Give it back. Never changes the status: it runs from an EXIT trap, and
 # a trap that fails there would replace whatever the verb was reporting.
-fn ap_unlock() {
-	[ "$AP_LOCKED" = 1 ] || return 0
-	rm -rf "$AP_LOCK" 2> /dev/null
-	AP_LOCKED=0
+fn cat_unlock() {
+	[ "$CAT_LOCKED" = 1 ] || return 0
+	rm -rf "$CAT_LOCK" 2> /dev/null
+	CAT_LOCKED=0
 	return 0
 }
 
 # Written to a temporary file beside the real one and renamed over it, so
 # the state on disk is always either the whole of the old one or the whole
-# of the new (Gitea #241). It used to be `printf > "$AP_STATE"`, which
+# of the new (Gitea #241). It used to be `printf > "$CAT_STATE"`, which
 # truncates in place: a Ctrl-C, a crash or a full disk during that write
 # left a partial file, and the next run read it as "nothing installed"
 # with every file still on disk and no longer claimed by anything.
 #
 # The rename is within one directory, so it is rename(2) and atomic. A
 # reader takes no lock and needs none: it sees one file or the other.
-ap_statesave() {
+cat_statesave() {
 	local j tmp
 
-	ap_lock
-	j := json emit AP_ST || ap_die "cannot emit the state"
-	tmp=$AP_STATE.$$
+	cat_lock
+	j := json emit CAT_ST || cat_die "cannot emit the state"
+	tmp=$CAT_STATE.$$
 	printf '%s\n' "$j" > "$tmp" || {
 		rm -f "$tmp" 2> /dev/null
-		ap_die "cannot write $tmp"
+		cat_die "cannot write $tmp"
 	}
-	mv -f "$tmp" "$AP_STATE" || {
+	mv -f "$tmp" "$CAT_STATE" || {
 		rm -f "$tmp" 2> /dev/null
-		ap_die "cannot replace $AP_STATE"
+		cat_die "cannot replace $CAT_STATE"
 	}
 	return 0
 }
 
-# One app's entry from the index, into AP_ENT; fails when there is no such
+# One app's entry from the index, into CAT_ENT; fails when there is no such
 # app, which every verb reports in its own words.
-fn ap_entry(id) {
+fn cat_entry(id) {
 	local k key
 
-	AP_ENT=()
+	CAT_ENT=()
 	# Either shape: an id in an `entries` index, and the bare name in an
 	# `apps` one, so a caller holding an id reads an older catalogue too.
 	key=$id
-	[ "${#AP_IX["$AP_SECT"]["$key"][@]}" -gt 0 ] || key=${id##*/}
-	[ "${#AP_IX["$AP_SECT"]["$key"][@]}" -gt 0 ] || return 1
+	[ "${#CAT_IX["$CAT_SECT"]["$key"][@]}" -gt 0 ] || key=${id##*/}
+	[ "${#CAT_IX["$CAT_SECT"]["$key"][@]}" -gt 0 ] || return 1
 	# `arch` is in this list, and the fact that it had to be added is the
 	# whole argument for the list: an index field that nothing copies
-	# here is a field nothing can check, and `ap_needs` read an empty
+	# here is a field nothing can check, and `cat_needs` read an empty
 	# string and let a darwin-arm64 module install on linux-x86_64 --
 	# measured, not reasoned about. Anything added to the index that a
 	# verb reads goes here too.
 	for k in title version about author licence hibr abi arch bundle sha256 kind modules name dir; do
-		AP_ENT["$k"]=${AP_IX["$AP_SECT"]["$key"]["$k"]}
+		CAT_ENT["$k"]=${CAT_IX["$CAT_SECT"]["$key"]["$k"]}
 	done
 	# The *name* is what a file is called where it lands; the **id** is
 	# always `kind/name`, computed rather than taken from the key, so the
 	# state is keyed the same way whichever catalogue this read -- without
 	# that, a name-keyed index and the state would disagree and every
 	# installed app would read as not installed (Gitea #222).
-	[ -n "${AP_ENT["name"]}" ] || AP_ENT["name"]=${key##*/}
-	[ -n "${AP_ENT["kind"]}" ] || AP_ENT["kind"]=apps
+	[ -n "${CAT_ENT["name"]}" ] || CAT_ENT["name"]=${key##*/}
+	[ -n "${CAT_ENT["kind"]}" ] || CAT_ENT["kind"]=apps
 	# The name decides a **filename**, so it is checked here -- the one
 	# place an index entry becomes the record every verb reads -- rather
 	# than where each path is built. A part's path has been checked since
-	# bundles could carry one (`ap_partok`) and the entry's own name never
+	# bundles could carry one (`cat_partok`) and the entry's own name never
 	# was: `"name": "../../../climbed"` with kind `apps` wrote
-	# `$AP_DATA/apps/../../../climbed.hibr`, measured as a file three
+	# `$CAT_DATA/apps/../../../climbed.hibr`, measured as a file three
 	# folders above the data directory, with the sha256 matching -- which
 	# says the bytes were not changed on the way and nothing at all about
 	# where they land. `../../.hibrc` is the same hole with the shell's own
 	# startup file on the end of it. The entry is refused rather than the
 	# run ended, so one bad entry is missing from a list instead of taking
 	# the catalogue with it, the way a bad theme is (Gitea #225).
-	if ! ap_nameok "${AP_ENT["name"]}"; then
+	if ! cat_nameok "${CAT_ENT["name"]}"; then
 		printf 'catalogue: %s: the index gives a name that is not one a file can be called, so it is left out\n' \
-			"${AP_ENT["kind"]}/${AP_ENT["name"]}" >&2
-		AP_ENT=()
+			"${CAT_ENT["kind"]}/${CAT_ENT["name"]}" >&2
+		CAT_ENT=()
 		return 1
 	fi
-	AP_ENT["id"]=${AP_ENT["kind"]}/${AP_ENT["name"]}
+	CAT_ENT["id"]=${CAT_ENT["kind"]}/${CAT_ENT["name"]}
 	# The key this entry was found under, so whatever needs the entry's
-	# *nested* fields -- its parts -- can reach them: AP_ENT holds the
+	# *nested* fields -- its parts -- can reach them: CAT_ENT holds the
 	# scalars only.
-	AP_ENT["key"]=$key
+	CAT_ENT["key"]=$key
 	return 0
 }
 
 # A name a file may be called: one path component, no climbing, nothing
 # hidden. The same characters a part's filename may hold, less the
 # extension, which the kind supplies.
-fn ap_nameok(name) {
+fn cat_nameok(name) {
 	case $name in
 	"" | .* | */* | *[!a-z0-9._-]* | *..*) return 1 ;;
 	esac
@@ -610,10 +610,10 @@ fn ap_nameok(name) {
 }
 
 # Is this one of the eight kinds a bundle may install into?
-fn ap_kindok(kind) {
+fn cat_kindok(kind) {
 	local k
 
-	for k in "${AP_KINDS[@]}"; do
+	for k in "${CAT_KINDS[@]}"; do
 		[ "$k" = "$kind" ] && return 0
 	done
 	return 1
@@ -622,8 +622,8 @@ fn ap_kindok(kind) {
 # Where an app's own file goes, and where its folder of resources does.
 # What a kind calls its files. A kind nothing knows is a script, which is
 # what every kind was before this.
-fn ap_kext(kind) {
-	ret "${AP_KEXT["$kind"]:-.hibr}"
+fn cat_kext(kind) {
+	ret "${CAT_KEXT["$kind"]:-.hibr}"
 }
 
 # The folder inside a kind that an entry lands in, when the index names
@@ -641,7 +641,7 @@ fn ap_kext(kind) {
 # dropped rather than the install refused: the entry is still a perfectly
 # good app and the worst that happens is the flat placement everybody had
 # before this existed.
-fn ap_dirok(dir) {
+fn cat_dirok(dir) {
 	local IFS=/ seg
 
 	[ -n "$dir" ] || return 1
@@ -657,41 +657,41 @@ fn ap_dirok(dir) {
 	return 0
 }
 
-fn ap_dest(kind, name, dir = "") {
+fn cat_dest(kind, name, dir = "") {
 	local e
 
-	e := ap_kext "$kind"
-	ap_dirok "$dir" || dir=
-	ret "$AP_DATA/$kind/${dir:+$dir/}$name$e"
+	e := cat_kext "$kind"
+	cat_dirok "$dir" || dir=
+	ret "$CAT_DATA/$kind/${dir:+$dir/}$name$e"
 }
 
-fn ap_destdir(kind, name, dir = "") {
-	ap_dirok "$dir" || dir=
-	ret "$AP_DATA/$kind/${dir:+$dir/}$name"
+fn cat_destdir(kind, name, dir = "") {
+	cat_dirok "$dir" || dir=
+	ret "$CAT_DATA/$kind/${dir:+$dir/}$name"
 }
 
-# The same, relative, for AP_PLACED and the state -- which is what
+# The same, relative, for CAT_PLACED and the state -- which is what
 # removal walks, so it has to carry the folder too or an app installed
 # into one could never be taken away.
-fn ap_rel(kind, name, dir = "") {
-	ap_dirok "$dir" || dir=
+fn cat_rel(kind, name, dir = "") {
+	cat_dirok "$dir" || dir=
 	ret "$kind/${dir:+$dir/}$name"
 }
 
 # Every member of an open archive, depth first, as "kind<TAB>path" lines in
-# AP_MEM. `archive ls` lists one folder at a time -- it is a folder view of a
+# CAT_MEM. `archive ls` lists one folder at a time -- it is a folder view of a
 # tarball, not a flat listing -- and it *implies* a folder the tarball never
 # declared from its members' names. Which is also how a member called
 # `../escaped.hibr` arrives: as a folder named `..` at the top level, with
 # the file inside it. So the path a check sees has to be the one this walk
 # builds, not a line of `archive ls` output, which is
 # `kind TAB size TAB mtime TAB name`.
-AP_MEM=()
-fn ap_walk(nm, prefix = "", int depth = 0) {
+CAT_MEM=()
+fn cat_walk(nm, prefix = "", int depth = 0) {
 	local l kind size mt name path
 
 	[ "$depth" -lt 16 ] ||
-		ap_die "the bundle nests folders deeper than 16, which nothing needs"
+		cat_die "the bundle nests folders deeper than 16, which nothing needs"
 	if [ -n "$prefix" ]; then
 		l=$(archive ls "$nm" "$prefix" 2> /dev/null) || return 0
 	else
@@ -700,8 +700,8 @@ fn ap_walk(nm, prefix = "", int depth = 0) {
 	while IFS=$'\t' read -r kind size mt name; do
 		[ -n "$name" ] || continue
 		path=${prefix:+$prefix/}$name
-		AP_MEM+=("$kind	$path")
-		[ "$kind" = d ] && ap_walk "$nm" "$path" $((depth + 1))
+		CAT_MEM+=("$kind	$path")
+		[ "$kind" = d ] && cat_walk "$nm" "$path" $((depth + 1))
 	done <<< "$l"
 	return 0
 }
@@ -717,7 +717,7 @@ fn ap_walk(nm, prefix = "", int depth = 0) {
 # passed in rather than read from a global for the usual reason: a part
 # decides its own destination, so the check has to be asked about the kind
 # the file is going to, not the kind the bundle happens to be.
-fn ap_pathok(p, kind = "") {
+fn cat_pathok(p, kind = "") {
 	local part
 	local -a parts
 
@@ -738,13 +738,13 @@ fn ap_pathok(p, kind = "") {
 
 # The sha256 of a file. Forks sha256sum: the shell has no hash of its own,
 # and this is the seam signing would later use.
-fn ap_sha(path) {
+fn cat_sha(path) {
 	local line h
 
 	line=$(command sha256sum "$path" 2> /dev/null) ||
-		ap_die "sha256sum is needed to verify a bundle"
+		cat_die "sha256sum is needed to verify a bundle"
 	h=${line%% *}
-	[ -n "$h" ] || ap_die "$path: sha256sum said nothing"
+	[ -n "$h" ] || cat_die "$path: sha256sum said nothing"
 	ret "$h"
 }
 
@@ -753,7 +753,7 @@ fn ap_sha(path) {
 # the desktop's own control socket rather than guessed, because somebody
 # running `catalogue remove` from a terminal inside the desktop is exactly who
 # this protects (ADR 0041, item 9).
-fn ap_windows(name) {
+fn cat_windows(name) {
 	local out t n=0
 	local -A w
 	local i
@@ -769,10 +769,10 @@ fn ap_windows(name) {
 		fi
 		i=$((i + 1))
 	done
-	AP_WINS=$t
+	CAT_WINS=$t
 	ret "$n"
 }
-AP_WINS=
+CAT_WINS=
 
 # --- the verbs ------------------------------------------------------------
 
@@ -786,15 +786,15 @@ AP_WINS=
 # its standard output (ADR 0038) and a child cannot fill its parent's
 # slot. A builtin like `mod list` can; a command can only print, and the
 # honest version of "one answer" for a command is a machine-readable one.
-fn ap_list(want = "", int j = 0) {
+fn cat_list(want = "", int j = 0) {
 	local name n=0 v here i w pki pna pti pve scp
 	local -A out
 
-	ap_load
-	ap_state
-	here := ap_arch
-	for name in "${!AP_IX["$AP_SECT"][@]}"; do
-		ap_entry "$name" || continue
+	cat_load
+	cat_state
+	here := cat_arch
+	for name in "${!CAT_IX["$CAT_SECT"][@]}"; do
+		cat_entry "$name" || continue
 		# A module built for another machine is not something to
 		# choose between: this shell knows what it is running on, so
 		# listing one it could never load is asking a person to do
@@ -803,40 +803,40 @@ fn ap_list(want = "", int j = 0) {
 		# reads -- and `catalogue info NAME` still answers for it, because
 		# somebody who asks by name is asking a different question
 		# and deserves the reason rather than a silence.
-		[ -n "${AP_ENT["arch"]}" ] && [ "${AP_ENT["arch"]}" != "$here" ] &&
+		[ -n "${CAT_ENT["arch"]}" ] && [ "${CAT_ENT["arch"]}" != "$here" ] &&
 			continue
 		if [ -n "$want" ]; then
-			case ${AP_ENT["id"]}${AP_ENT["title"]}${AP_ENT["about"]} in
+			case ${CAT_ENT["id"]}${CAT_ENT["title"]}${CAT_ENT["about"]} in
 			*"$want"*) ;;
 			*) continue ;;
 			esac
 		fi
-		v=${AP_ST["installed"]["${AP_ENT["id"]}"]["version"]}
+		v=${CAT_ST["installed"]["${CAT_ENT["id"]}"]["version"]}
 		if [ "$j" = 1 ]; then
 			# Each fact in a field of its own, rather than the
 			# sentence the column holds: a window wants to know
 			# *whether* there is an update, not to read "installed
 			# 1.0, 1.1 available" and work it out again.
-			out["entries"]["${AP_ENT["id"]}"]["id"]=${AP_ENT["id"]}
-			out["entries"]["${AP_ENT["id"]}"]["name"]=${AP_ENT["name"]}
-			out["entries"]["${AP_ENT["id"]}"]["kind"]=${AP_ENT["kind"]}
-			out["entries"]["${AP_ENT["id"]}"]["title"]=${AP_ENT["title"]}
-			out["entries"]["${AP_ENT["id"]}"]["version"]=${AP_ENT["version"]}
-			out["entries"]["${AP_ENT["id"]}"]["about"]=${AP_ENT["about"]}
-			out["entries"]["${AP_ENT["id"]}"]["installed"]=$v
-			out["entries"]["${AP_ENT["id"]}"]["update"]=0
-			[ -n "$v" ] && [ "$v" != "${AP_ENT["version"]}" ] &&
-				out["entries"]["${AP_ENT["id"]}"]["update"]=1
+			out["entries"]["${CAT_ENT["id"]}"]["id"]=${CAT_ENT["id"]}
+			out["entries"]["${CAT_ENT["id"]}"]["name"]=${CAT_ENT["name"]}
+			out["entries"]["${CAT_ENT["id"]}"]["kind"]=${CAT_ENT["kind"]}
+			out["entries"]["${CAT_ENT["id"]}"]["title"]=${CAT_ENT["title"]}
+			out["entries"]["${CAT_ENT["id"]}"]["version"]=${CAT_ENT["version"]}
+			out["entries"]["${CAT_ENT["id"]}"]["about"]=${CAT_ENT["about"]}
+			out["entries"]["${CAT_ENT["id"]}"]["installed"]=$v
+			out["entries"]["${CAT_ENT["id"]}"]["update"]=0
+			[ -n "$v" ] && [ "$v" != "${CAT_ENT["version"]}" ] &&
+				out["entries"]["${CAT_ENT["id"]}"]["update"]=1
 			# What `installed` has said in its own columns since
 			# 0.99.197 and the window could not see, so a copy
 			# that can never run looked like a working one
 			# (Gitea #244). Only asked about an entry that is
-			# installed: `ap_shipped` globs the desktop's folders
+			# installed: `cat_shipped` globs the desktop's folders
 			# and there is no sense paying that for the eighty
 			# the person does not have.
-			out["entries"]["${AP_ENT["id"]}"]["defunct"]=0
-			out["entries"]["${AP_ENT["id"]}"]["shadows"]=0
-			out["entries"]["${AP_ENT["id"]}"]["scope"]=
+			out["entries"]["${CAT_ENT["id"]}"]["defunct"]=0
+			out["entries"]["${CAT_ENT["id"]}"]["shadows"]=0
+			out["entries"]["${CAT_ENT["id"]}"]["scope"]=
 			# Where it is, for every entry rather than only an
 			# installed one: the window drew its tick from
 			# `installed` alone, so a shipped theme showed
@@ -845,25 +845,25 @@ fn ap_list(want = "", int j = 0) {
 			# `scope`, `defunct` and `shadows` keep their
 			# meanings beside it, so a reader written against
 			# 0.99.211 still works.
-			w := ap_where "${AP_ENT["id"]}" "${AP_ENT["kind"]}" \
-				"${AP_ENT["name"]}" || w=
-			out["entries"]["${AP_ENT["id"]}"]["where"]=$w
+			w := cat_where "${CAT_ENT["id"]}" "${CAT_ENT["kind"]}" \
+				"${CAT_ENT["name"]}" || w=
+			out["entries"]["${CAT_ENT["id"]}"]["where"]=$w
 			# Which version is actually there, so a reader can
 			# tell "you have this" from "a newer one is on
 			# offer" without asking a second time.
-			out["entries"]["${AP_ENT["id"]}"]["have"]=$AP_HAVE
+			out["entries"]["${CAT_ENT["id"]}"]["have"]=$CAT_HAVE
 			if [ -n "$v" ]; then
-				out["entries"]["${AP_ENT["id"]}"]["scope"]=$AP_SCOPE
-				ap_insys "${AP_ENT["id"]}" &&
-					out["entries"]["${AP_ENT["id"]}"]["defunct"]=1
-				ap_shipped "${AP_ENT["kind"]}" "${AP_ENT["name"]}" &&
-					out["entries"]["${AP_ENT["id"]}"]["shadows"]=1
+				out["entries"]["${CAT_ENT["id"]}"]["scope"]=$CAT_SCOPE
+				cat_insys "${CAT_ENT["id"]}" &&
+					out["entries"]["${CAT_ENT["id"]}"]["defunct"]=1
+				cat_shipped "${CAT_ENT["kind"]}" "${CAT_ENT["name"]}" &&
+					out["entries"]["${CAT_ENT["id"]}"]["shadows"]=1
 				# The files it brought, so a window can say
 				# what removing it would take away rather
 				# than asking afterwards.
-				ap_parts "${AP_ENT["id"]}"
-				for i in "${!AP_PARTS[@]}"; do
-					out["entries"]["${AP_ENT["id"]}"]["parts"]["$i"]=${AP_PARTS["$i"]}
+				cat_parts "${CAT_ENT["id"]}"
+				for i in "${!CAT_PARTS[@]}"; do
+					out["entries"]["${CAT_ENT["id"]}"]["parts"]["$i"]=${CAT_PARTS["$i"]}
 				done
 			fi
 			n=$((n + 1))
@@ -878,21 +878,21 @@ fn ap_list(want = "", int j = 0) {
 		# is nothing to say.
 		scp=
 		if [ -n "$v" ]; then
-			scp=$AP_SCOPE
-			[ "$v" = "${AP_ENT["version"]}" ] ||
-				v="$v→${AP_ENT["version"]}"
+			scp=$CAT_SCOPE
+			[ "$v" = "${CAT_ENT["version"]}" ] ||
+				v="$v→${CAT_ENT["version"]}"
 		else
 			# Not in this scope's ledger is not "you do not have
 			# it": the machine's scope and the shipped package
 			# are both places it can already be, and saying
 			# nothing about them is what made four themes that
 			# are on disk read as missing (Gitea #254).
-			w := ap_where "${AP_ENT["id"]}" "${AP_ENT["kind"]}" \
-				"${AP_ENT["name"]}" || w=
+			w := cat_where "${CAT_ENT["id"]}" "${CAT_ENT["kind"]}" \
+				"${CAT_ENT["name"]}" || w=
 			case $w in
 			system | shipped) scp=$w ;;
 			esac
-			v=${AP_ENT["version"]}
+			v=${CAT_ENT["version"]}
 		fi
 		# str pad, not printf's own width: `%-24s` counts **bytes**,
 		# so a title holding one glyph wider than a byte -- the
@@ -903,10 +903,10 @@ fn ap_list(want = "", int j = 0) {
 		# is the kind and the name jammed together, which is the
 		# same mistake as putting the version and the scope in one
 		# cell -- and it was in every row of every listing.
-		[ "$n" = 0 ] && ap_head "15 14 26 9" "KIND" "NAME" "TITLE" "VERSION" "SCOPE"
-		pki := str pad "${AP_ENT["kind"]}" 15
-		pna := str pad "${AP_ENT["name"]}" 14
-		pti := str pad "${AP_ENT["title"]}" 26
+		[ "$n" = 0 ] && cat_head "15 14 26 9" "KIND" "NAME" "TITLE" "VERSION" "SCOPE"
+		pki := str pad "${CAT_ENT["kind"]}" 15
+		pna := str pad "${CAT_ENT["name"]}" 14
+		pti := str pad "${CAT_ENT["title"]}" 26
 		pve := str pad "$v" 9
 		printf '%s%s%s%s%s\n' "$pki" "$pna" "$pti" "$pve" "$scp"
 		n=$((n + 1))
@@ -929,7 +929,7 @@ fn ap_list(want = "", int j = 0) {
 		# keep the order they were filled in and a reader then gets
 		# the order and the membership from one thing.
 		local ki kl=
-		for ki in "${AP_KINDS[@]}"; do
+		for ki in "${CAT_KINDS[@]}"; do
 			kl="$kl${kl:+,}\"$ki\":1"
 			out["kinds"]["$ki"]=1
 		done
@@ -946,7 +946,7 @@ fn ap_list(want = "", int j = 0) {
 		printf '%s\n' "$js"
 		return 0
 	fi
-	[ "$n" = 0 ] && ap_say "nothing in the index${want:+ matches $want}"
+	[ "$n" = 0 ] && cat_say "nothing in the index${want:+ matches $want}"
 	return 0
 }
 
@@ -954,7 +954,7 @@ fn ap_list(want = "", int j = 0) {
 # the one this writes into: `$PREFIX/share/hibr/desktop`, worked out from
 # the running shell's own path the way the catalogue's keyring is. Empty
 # when there is none to find, which is every case but an installed hibr.
-fn ap_deskdir() {
+fn cat_deskdir() {
 	local p
 
 	for p in "$HIBR_DESKTOP" "${HIBR%/bin/hibr}/share/hibr/desktop" \
@@ -972,15 +972,15 @@ fn ap_deskdir() {
 # every scan list reads the data folder before the shipped one. That is
 # the right answer and an invisible one, so it is said out loud here
 # (Gitea #220).
-fn ap_shipped(kind, name) {
+fn cat_shipped(kind, name) {
 	local d e f
 
-	AP_SHIPF=
-	d := ap_deskdir || return 1
-	e := ap_kext "$kind"
+	CAT_SHIPF=
+	d := cat_deskdir || return 1
+	e := cat_kext "$kind"
 	for f in "$d/$kind/$name$e" "$d/$kind"/*/"$name$e" \
 		 "$d/$kind"/*/*/"$name$e"; do
-		[ -r "$f" ] && { AP_SHIPF=$f; return 0; }
+		[ -r "$f" ] && { CAT_SHIPF=$f; return 0; }
 	done
 	return 1
 }
@@ -995,26 +995,26 @@ fn ap_shipped(kind, name) {
 # `addapp` reads it; a theme, a colour scheme or a language declares it
 # in its JSON. Empty when the file says nothing, which is honest --
 # the caller then knows only that a copy exists.
-fn ap_shipver(kind, name) {
+fn cat_shipver(kind, name) {
 	local l v
 
-	ap_shipped "$kind" "$name" || return 1
-	case $AP_SHIPF in
+	cat_shipped "$kind" "$name" || return 1
+	case $CAT_SHIPF in
 	*.json)
 		local -A j
-		json parse j < "$AP_SHIPF" 2> /dev/null || return 1
+		json parse j < "$CAT_SHIPF" 2> /dev/null || return 1
 		v=${j["version"]}
 		;;
 	*)
 		while IFS= read -r l; do
 			case $l in
 			"app "*)
-				read -ra AP_SHIPW <<< "$l"
-				v=${AP_SHIPW[-1]}
+				read -ra CAT_SHIPW <<< "$l"
+				v=${CAT_SHIPW[-1]}
 				break
 				;;
 			esac
-		done < "$AP_SHIPF"
+		done < "$CAT_SHIPF"
 		;;
 	esac
 	[ -n "$v" ] || return 1
@@ -1030,13 +1030,13 @@ fn ap_shipver(kind, name) {
 # disk, because the question is "which version is installed there" and
 # only the state knows that; a file on disk says a name and nothing
 # else.
-fn ap_sysver(id) {
+fn cat_sysver(id) {
 	local f v
 	local -A j
 
-	[ -n "$AP_SYSROOT" ] || return 1
-	[ "$AP_SCOPE" = system ] && return 1
-	f=$AP_SYSROOT/apps.json
+	[ -n "$CAT_SYSROOT" ] || return 1
+	[ "$CAT_SCOPE" = system ] && return 1
+	f=$CAT_SYSROOT/apps.json
 	[ -r "$f" ] || return 1
 	json parse j < "$f" 2> /dev/null || return 1
 	v=${j["installed"]["$id"]["version"]}
@@ -1047,7 +1047,7 @@ fn ap_sysver(id) {
 # One header line for a listing, in the columns the rows use. Dim, so
 # the eye goes to the rows; a header that competes with its own table is
 # noise.
-fn ap_head(widths, ...cols) {
+fn cat_head(widths, ...cols) {
 	local w out= i=0
 	local -a wd
 
@@ -1086,8 +1086,8 @@ fn ap_head(widths, ...cols) {
 # questions, the third time this tree has paid for it.
 #
 # Three mechanisms, all of which already existed and none of which `list`
-# called: the ledger this scope reads, `ap_sysver` for the machine's own,
-# and `ap_shipped` for the package. **No new glob is introduced here**, on
+# called: the ledger this scope reads, `cat_sysver` for the machine's own,
+# and `cat_shipped` for the package. **No new glob is introduced here**, on
 # purpose: a fourth would be a second encoding of where a kind lives,
 # beside the desktop's own scan lists, and that is the parallel this is
 # avoiding rather than adding to.
@@ -1096,20 +1096,20 @@ fn ap_head(widths, ...cols) {
 # which wins over all four -- marking it needs exactly that new glob. It
 # stays blank, and the ticket says so rather than leaving it to be
 # discovered.
-fn ap_where(id, kind, name) {
-	# AP_HAVE is the version of the copy that is actually there, which
+fn cat_where(id, kind, name) {
+	# CAT_HAVE is the version of the copy that is actually there, which
 	# is a different question from whether one is -- and answering only
 	# the second is what let the window offer Install on something the
 	# package already provides at the same version.
-	AP_HAVE=
-	if [ -n "${AP_ST["installed"]["$id"]["version"]}" ]; then
-		AP_HAVE=${AP_ST["installed"]["$id"]["version"]}
+	CAT_HAVE=
+	if [ -n "${CAT_ST["installed"]["$id"]["version"]}" ]; then
+		CAT_HAVE=${CAT_ST["installed"]["$id"]["version"]}
 		ret installed
 	fi
-	if AP_HAVE := ap_sysver "$id"; then ret system; fi
-	if AP_HAVE := ap_shipver "$kind" "$name"; then ret shipped; fi
-	AP_HAVE=
-	ap_shipped "$kind" "$name" && ret shipped
+	if CAT_HAVE := cat_sysver "$id"; then ret system; fi
+	if CAT_HAVE := cat_shipver "$kind" "$name"; then ret shipped; fi
+	CAT_HAVE=
+	cat_shipped "$kind" "$name" && ret shipped
 	return 1
 }
 
@@ -1123,21 +1123,21 @@ fn ap_where(id, kind, name) {
 # the column was blank for exactly the entries it exists to mark. The
 # state already knows where each file went; there is no second way to
 # work it out that cannot be wrong.
-fn ap_insys(name) {
+fn cat_insys(name) {
 	local i p
 
-	[ -n "$AP_SYSROOT" ] || return 1
-	[ "$AP_SCOPE" = system ] && return 1
-	for i in "${!AP_ST["installed"]["$name"]["paths"][@]}"; do
-		p=${AP_ST["installed"]["$name"]["paths"]["$i"]}
-		[ -r "$AP_SYSROOT/$p" ] && return 0
+	[ -n "$CAT_SYSROOT" ] || return 1
+	[ "$CAT_SCOPE" = system ] && return 1
+	for i in "${!CAT_ST["installed"]["$name"]["paths"][@]}"; do
+		p=${CAT_ST["installed"]["$name"]["paths"]["$i"]}
+		[ -r "$CAT_SYSROOT/$p" ] && return 0
 	done
 	return 1
 }
 
 # The files an installed entry brought that are not its own: a `part`, in
 # another scan root, owned by this entry and refcounted so a pane two apps
-# both bring survives one of them going. Left in AP_PARTS, since a strict
+# both bring survives one of them going. Left in CAT_PARTS, since a strict
 # file passes a list back through a global.
 #
 # Derived rather than recorded, so no state written before this release has
@@ -1146,47 +1146,47 @@ fn ap_insys(name) {
 # **folder** last, which is `paths[0]` without its extension and is a
 # directory rather than a part. Counting `paths` minus one would report
 # that folder as a part, which is the one thing this has to get right.
-fn ap_parts(name) {
+fn cat_parts(name) {
 	local i p own res
 
-	AP_PARTS=()
-	own=${AP_ST["installed"]["$name"]["paths"]["0"]}
+	CAT_PARTS=()
+	own=${CAT_ST["installed"]["$name"]["paths"]["0"]}
 	res=${own%.*}
-	for i in "${!AP_ST["installed"]["$name"]["paths"][@]}"; do
+	for i in "${!CAT_ST["installed"]["$name"]["paths"][@]}"; do
 		[ "$i" = 0 ] && continue
-		p=${AP_ST["installed"]["$name"]["paths"]["$i"]}
+		p=${CAT_ST["installed"]["$name"]["paths"]["$i"]}
 		[ "$p" = "$res" ] && continue
-		AP_PARTS+=("$p")
+		CAT_PARTS+=("$p")
 	done
 	return 0
 }
 
-fn ap_installed(int j = 0) {
+fn cat_installed(int j = 0) {
 	local name n=0 nd=0 js i sh sy what np auto w nh=0 pki pna pve pwh
 	local -A out seen
 
-	ap_state
-	for name in "${!AP_ST["installed"][@]}"; do
+	cat_state
+	for name in "${!CAT_ST["installed"][@]}"; do
 		sh=
 		sy=
-		ap_shipped "${AP_ST["installed"]["$name"]["kind"]}" \
+		cat_shipped "${CAT_ST["installed"]["$name"]["kind"]}" \
 			"${name##*/}" && sh=1
-		ap_insys "$name" && sy=1
+		cat_insys "$name" && sy=1
 		if [ "$j" = 1 ]; then
 			out["installed"]["$name"]["id"]=$name
-			out["installed"]["$name"]["version"]=${AP_ST["installed"]["$name"]["version"]}
-			out["installed"]["$name"]["kind"]=${AP_ST["installed"]["$name"]["kind"]}
+			out["installed"]["$name"]["version"]=${CAT_ST["installed"]["$name"]["version"]}
+			out["installed"]["$name"]["kind"]=${CAT_ST["installed"]["$name"]["kind"]}
 			out["installed"]["$name"]["shadows"]=${sh:-0}
 			out["installed"]["$name"]["defunct"]=${sy:-0}
 			# Named rather than inferred from the path: the
 			# system scope is /var/lib/hibr, which is not where
 			# anybody would think to look (ADR 0045 says so in
 			# as many words), so it has to be said.
-			out["installed"]["$name"]["scope"]=$AP_SCOPE
+			out["installed"]["$name"]["scope"]=$CAT_SCOPE
 			# Every path it placed, which is what a window needs to
 			# say what removing it would take away.
-			for i in "${!AP_ST["installed"]["$name"]["paths"][@]}"; do
-				out["installed"]["$name"]["paths"]["$i"]=${AP_ST["installed"]["$name"]["paths"]["$i"]}
+			for i in "${!CAT_ST["installed"]["$name"]["paths"][@]}"; do
+				out["installed"]["$name"]["paths"]["$i"]=${CAT_ST["installed"]["$name"]["paths"]["$i"]}
 			done
 			n=$((n + 1))
 			continue
@@ -1208,7 +1208,7 @@ fn ap_installed(int j = 0) {
 		#
 		# It does **not** name who needed it, though the state
 		# remembers one (Gitea #246). `auto` is set once by
-		# ap_getmod and never updated, so with two apps needing one
+		# cat_getmod and never updated, so with two apps needing one
 		# module -- the second finds it loadable and fetches
 		# nothing -- removing the first leaves it naming an app that
 		# is no longer installed. Keeping a list of needers in step
@@ -1216,14 +1216,14 @@ fn ap_installed(int j = 0) {
 		# relied on to maintain; `purge` answers the question
 		# properly instead, computing it from each installed entry's
 		# own `modules` at the moment it matters.
-		auto=${AP_ST["installed"]["$name"]["auto"]}
+		auto=${CAT_ST["installed"]["$name"]["auto"]}
 		[ -z "$what" ] && [ -n "$auto" ] &&
 			what="automatic, not asked for by name"
 		# And what it brought with it. The count rather than the names,
 		# so twenty-one entries stay a list somebody can read; `info`
 		# and `owns` have the names.
-		ap_parts "$name"
-		np=${#AP_PARTS[@]}
+		cat_parts "$name"
+		np=${#CAT_PARTS[@]}
 		if [ -z "$what" ] && [ "$np" -gt 0 ]; then
 			what="+$np part"
 			[ "$np" = 1 ] || what="$what"s
@@ -1234,18 +1234,18 @@ fn ap_installed(int j = 0) {
 		# a rubbish experience and was right about. Id, version,
 		# scope, and a note only when there is one, with no trailing
 		# blanks when there is not.
-		[ "$n" = 0 ] && ap_head "15 14 9 9" "KIND" "NAME" "VERSION" "SCOPE" "NOTE"
-		pki := str pad "${AP_ST["installed"]["$name"]["kind"]}" 15
+		[ "$n" = 0 ] && cat_head "15 14 9 9" "KIND" "NAME" "VERSION" "SCOPE" "NOTE"
+		pki := str pad "${CAT_ST["installed"]["$name"]["kind"]}" 15
 		pna := str pad "${name##*/}" 14
-		pve := str pad "${AP_ST["installed"]["$name"]["version"]}" 9
+		pve := str pad "${CAT_ST["installed"]["$name"]["version"]}" 9
 		if [ -n "$what" ]; then
-			pwh := str pad "$AP_SCOPE" 9
+			pwh := str pad "$CAT_SCOPE" 9
 			printf '%s%s%s%s%s\n' "$pki" "$pna" "$pve" "$pwh" "$what"
 		else
-			printf '%s%s%s%s\n' "$pki" "$pna" "$pve" "$AP_SCOPE"
+			printf '%s%s%s%s\n' "$pki" "$pna" "$pve" "$CAT_SCOPE"
 		fi
-		seen["${AP_ST["installed"]["$name"]["paths"]["0"]}"]=1
-		for i in "${AP_PARTS[@]}"; do
+		seen["${CAT_ST["installed"]["$name"]["paths"]["0"]}"]=1
+		for i in "${CAT_PARTS[@]}"; do
 			seen["$i"]=1
 		done
 		n=$((n + 1))
@@ -1261,7 +1261,7 @@ fn ap_installed(int j = 0) {
 	# that the package shipped, is not a half of an answer but a
 	# misleading one.
 	#
-	# The index is the enumeration and `ap_where` is the per-entry
+	# The index is the enumeration and `cat_where` is the per-entry
 	# answer; both already existed, so no folder is walked here that
 	# was not walked before. An index that cannot be read -- offline,
 	# never fetched -- simply adds no rows, which is the old behaviour
@@ -1270,30 +1270,30 @@ fn ap_installed(int j = 0) {
 	# What is still invisible: something present that the index does not
 	# name, which today is the two panes nobody published, and anything
 	# in `~/.config/hibr/<kind>`, which no mechanism here can see.
-	if ap_load 2> /dev/null; then
-		for name in "${!AP_IX["$AP_SECT"][@]}"; do
-			ap_entry "$name" || continue
-			[ -n "${AP_ST["installed"]["${AP_ENT["id"]}"]["version"]}" ] &&
+	if cat_load 2> /dev/null; then
+		for name in "${!CAT_IX["$CAT_SECT"][@]}"; do
+			cat_entry "$name" || continue
+			[ -n "${CAT_ST["installed"]["${CAT_ENT["id"]}"]["version"]}" ] &&
 				continue
-			w := ap_where "${AP_ENT["id"]}" "${AP_ENT["kind"]}" \
-				"${AP_ENT["name"]}" || continue
+			w := cat_where "${CAT_ENT["id"]}" "${CAT_ENT["kind"]}" \
+				"${CAT_ENT["name"]}" || continue
 			case $w in installed | "") continue ;; esac
 			nh=$((nh + 1))
 			if [ "$j" = 1 ]; then
-				out["installed"]["${AP_ENT["id"]}"]["id"]=${AP_ENT["id"]}
-				out["installed"]["${AP_ENT["id"]}"]["version"]=${AP_ENT["version"]}
-				out["installed"]["${AP_ENT["id"]}"]["kind"]=${AP_ENT["kind"]}
-				out["installed"]["${AP_ENT["id"]}"]["scope"]=$w
-				out["installed"]["${AP_ENT["id"]}"]["where"]=$w
-				out["installed"]["${AP_ENT["id"]}"]["shadows"]=0
-				out["installed"]["${AP_ENT["id"]}"]["defunct"]=0
+				out["installed"]["${CAT_ENT["id"]}"]["id"]=${CAT_ENT["id"]}
+				out["installed"]["${CAT_ENT["id"]}"]["version"]=${CAT_ENT["version"]}
+				out["installed"]["${CAT_ENT["id"]}"]["kind"]=${CAT_ENT["kind"]}
+				out["installed"]["${CAT_ENT["id"]}"]["scope"]=$w
+				out["installed"]["${CAT_ENT["id"]}"]["where"]=$w
+				out["installed"]["${CAT_ENT["id"]}"]["shadows"]=0
+				out["installed"]["${CAT_ENT["id"]}"]["defunct"]=0
 				continue
 			fi
 			[ "$n" = 0 ] && [ "$nh" = 1 ] &&
-				ap_head "15 14 9 9" "KIND" "NAME" "VERSION" "SCOPE" "NOTE"
-			pki := str pad "${AP_ENT["kind"]}" 15
-			pna := str pad "${AP_ENT["name"]}" 14
-			pve := str pad "${AP_ENT["version"]}" 9
+				cat_head "15 14 9 9" "KIND" "NAME" "VERSION" "SCOPE" "NOTE"
+			pki := str pad "${CAT_ENT["kind"]}" 15
+			pna := str pad "${CAT_ENT["name"]}" 14
+			pve := str pad "${CAT_ENT["version"]}" 9
 			printf '%s%s%s%s\n' "$pki" "$pna" "$pve" "$w"
 		done
 	fi
@@ -1306,7 +1306,7 @@ fn ap_installed(int j = 0) {
 		printf '%s\n' "$js"
 		return 0
 	fi
-	[ "$n" = 0 ] && [ "$nh" = 0 ] && ap_say "nothing installed"
+	[ "$n" = 0 ] && [ "$nh" = 0 ] && cat_say "nothing installed"
 	# The two numbers a person can check against the folder, said
 	# together because apart they do not reconcile: twenty-one entries
 	# put thirty files in a scope, and until this line the other nine
@@ -1315,7 +1315,7 @@ fn ap_installed(int j = 0) {
 	[ "$n" -gt 0 ] &&
 		printf '\n%s entries, %s files\n' "$n" "${#seen[@]}"
 	[ "$nd" -gt 0 ] &&
-		ap_say "$nd of these is defunct: the machine has its own, which is read first -- \`catalogue remove NAME\` frees the space"
+		cat_say "$nd of these is defunct: the machine has its own, which is read first -- \`catalogue remove NAME\` frees the space"
 	# What this list is **not**, said once rather than left to be
 	# discovered (Gitea #254). This is a ledger of what the catalogue
 	# placed -- which is exactly what `remove`, `update` and `purge`
@@ -1345,19 +1345,19 @@ fn ap_installed(int j = 0) {
 #
 # Only the entry's own file: a part is its own entry and is read by
 # asking for it by name, rather than this deciding what else you meant.
-fn ap_show(want) {
+fn cat_show(want) {
 	local name tmp ext
 
-	ap_load
-	name := ap_resolve "$want" || ap_die "$want: no such app in the index"
-	ap_entry "$name" || ap_die "$name: no such app in the index"
-	ext := ap_kext "${AP_ENT["kind"]}"
-	case ${AP_ENT["bundle"]} in
+	cat_load
+	name := cat_resolve "$want" || cat_die "$want: no such app in the index"
+	cat_entry "$name" || cat_die "$name: no such app in the index"
+	ext := cat_kext "${CAT_ENT["kind"]}"
+	case ${CAT_ENT["bundle"]} in
 	*"$ext") ;;
-	*) ap_die "${AP_ENT["id"]}: its bundle is not a ${ext} -- there is no single file to read" ;;
+	*) cat_die "${CAT_ENT["id"]}: its bundle is not a ${ext} -- there is no single file to read" ;;
 	esac
-	tmp := ap_getbundle "${AP_ENT["id"]}" "${AP_ENT["bundle"]}" "${AP_ENT["sha256"]}"
-	command cat -- "$tmp" || ap_die "${AP_ENT["id"]}: cannot read what was fetched"
+	tmp := cat_getbundle "${CAT_ENT["id"]}" "${CAT_ENT["bundle"]}" "${CAT_ENT["sha256"]}"
+	command cat -- "$tmp" || cat_die "${CAT_ENT["id"]}: cannot read what was fetched"
 	rm -f "$tmp" 2> /dev/null
 	return 0
 }
@@ -1371,28 +1371,28 @@ fn ap_show(want) {
 # name can be in all of them with exactly one running, so every answer
 # names the scope rather than leaving it to be inferred from a path that
 # does not say.
-fn ap_owns(...args) {
+fn cat_owns(...args) {
 	local path name own i n=0 d c s hit scope
 	local -a by kind
 
-	[ "${#args[@]}" = 1 ] || ap_die "usage: catalogue owns PATH"
+	[ "${#args[@]}" = 1 ] || cat_die "usage: catalogue owns PATH"
 	path=${args[0]}
 	# An absolute path inside this scope's own root is taken as the path
 	# it is; anything else is read as relative to that root, which is
 	# how the state records it and how `installed` prints it.
 	case $path in
-	"$AP_DATA"/*) path=${path#"$AP_DATA"/} ;;
+	"$CAT_DATA"/*) path=${path#"$CAT_DATA"/} ;;
 	/*) ;;
 	esac
-	ap_state
-	scope := ap_scopesay
-	for name in "${!AP_ST["installed"][@]}"; do
-		own=${AP_ST["installed"]["$name"]["paths"]["0"]}
+	cat_state
+	scope := cat_scopesay
+	for name in "${!CAT_ST["installed"][@]}"; do
+		own=${CAT_ST["installed"]["$name"]["paths"]["0"]}
 		hit=
 		[ "$path" = "$own" ] && hit=own
 		if [ -z "$hit" ]; then
-			ap_parts "$name"
-			for i in "${AP_PARTS[@]}"; do
+			cat_parts "$name"
+			for i in "${CAT_PARTS[@]}"; do
 				[ "$i" = "$path" ] && { hit=part; break ; }
 			done
 		fi
@@ -1407,11 +1407,11 @@ fn ap_owns(...args) {
 			name=${by["$i"]}
 			if [ "${kind["$i"]}" = own ]; then
 				printf '  %s %s itself, in %s\n' "$name" \
-					"${AP_ST["installed"]["$name"]["version"]}" \
+					"${CAT_ST["installed"]["$name"]["version"]}" \
 					"$scope"
 			else
 				printf '  a part of %s %s, in %s\n' "$name" \
-					"${AP_ST["installed"]["$name"]["version"]}" \
+					"${CAT_ST["installed"]["$name"]["version"]}" \
 					"$scope"
 			fi
 		done
@@ -1426,27 +1426,27 @@ fn ap_owns(...args) {
 	fi
 	# Not the catalogue's. Which of the other three it is still matters,
 	# because each is removed a different way or not at all.
-	c=${AP_CONF%/apps.json}
+	c=${CAT_CONF%/apps.json}
 	[ -e "$c/$path" ] &&
-		{ ap_say "$path: yours, by hand, in $c -- the catalogue never wrote it and no update will touch it"; return 0 ; }
-	if [ -n "$AP_SYSROOT" ] && [ "$AP_SCOPE" != system ] &&
-	   [ -e "$AP_SYSROOT/$path" ]; then
-		ap_say "$path: installed for the whole machine, in $AP_SYSROOT -- an administrator put it there, and it is read before your own"
+		{ cat_say "$path: yours, by hand, in $c -- the catalogue never wrote it and no update will touch it"; return 0 ; }
+	if [ -n "$CAT_SYSROOT" ] && [ "$CAT_SCOPE" != system ] &&
+	   [ -e "$CAT_SYSROOT/$path" ]; then
+		cat_say "$path: installed for the whole machine, in $CAT_SYSROOT -- an administrator put it there, and it is read before your own"
 		return 0
 	fi
-	d := ap_deskdir
+	d := cat_deskdir
 	[ -n "$d" ] && [ -e "$d/$path" ] &&
-		{ ap_say "$path: not the catalogue's -- this is the copy hibr ships, in $d"; return 0 ; }
-	s=$AP_DATA/$path
+		{ cat_say "$path: not the catalogue's -- this is the copy hibr ships, in $d"; return 0 ; }
+	s=$CAT_DATA/$path
 	[ -e "$s" ] &&
-		{ ap_say "$path: it is in $AP_DATA and nothing here claims it -- the catalogue did not place it"; return 1 ; }
-	ap_say "$path: nothing here knows about it, and there is no such file in any scope"
+		{ cat_say "$path: it is in $CAT_DATA and nothing here claims it -- the catalogue did not place it"; return 1 ; }
+	cat_say "$path: nothing here knows about it, and there is no such file in any scope"
 	return 1
 }
 
 # Which scope this run is acting on, as a person would say it.
-fn ap_scopesay() {
-	[ "$AP_SCOPE" = system ] && { ret "the machine's scope"; return 0 ; }
+fn cat_scopesay() {
+	[ "$CAT_SCOPE" = system ] && { ret "the machine's scope"; return 0 ; }
 	ret "your own scope"
 }
 
@@ -1463,7 +1463,7 @@ fn ap_scopesay() {
 # consulted only to recognise an orphan, and only when it is already
 # cached, so a check still works on a machine that cannot reach the
 # catalogue -- which is exactly the machine something has gone wrong on.
-fn ap_check(...args) {
+fn cat_check(...args) {
 	local a repair=0 name i p rel k f under sha id ent own
 	local nm=0 no=0 nf=0 fixed=0 left=0
 	local -A claim dirs bysha partof adopt
@@ -1472,35 +1472,35 @@ fn ap_check(...args) {
 	for a in "${args[@]}"; do
 		case $a in
 		-r | --repair) repair=1 ;;
-		*) ap_die "usage: catalogue check [--repair]" ;;
+		*) cat_die "usage: catalogue check [--repair]" ;;
 		esac
 	done
 	if [ "$repair" = 1 ]; then
-		ap_needwrite check
-		ap_lock
+		cat_needwrite check
+		cat_lock
 	fi
-	ap_state
-	for name in "${!AP_ST["installed"][@]}"; do
-		for i in "${!AP_ST["installed"]["$name"]["paths"][@]}"; do
-			p=${AP_ST["installed"]["$name"]["paths"]["$i"]}
+	cat_state
+	for name in "${!CAT_ST["installed"][@]}"; do
+		for i in "${!CAT_ST["installed"]["$name"]["paths"][@]}"; do
+			p=${CAT_ST["installed"]["$name"]["paths"]["$i"]}
 			claim["$p"]=$name
-			[ -d "$AP_DATA/$p" ] && dirs["$p"]=$name
+			[ -d "$CAT_DATA/$p" ] && dirs["$p"]=$name
 		done
 	done
 	for p in "${!claim[@]}"; do
-		[ -e "$AP_DATA/$p" ] && continue
+		[ -e "$CAT_DATA/$p" ] && continue
 		miss+=("$p")
 		nm=$((nm + 1))
 	done
 	# Every file in the scope's own roots. A resource folder is claimed
 	# as a folder, so what is inside it is claimed with it rather than
 	# one file at a time.
-	for k in "${AP_KINDS[@]}"; do
-		[ -d "$AP_DATA/$k" ] || continue
-		for f in "$AP_DATA/$k"/**; do
+	for k in "${CAT_KINDS[@]}"; do
+		[ -d "$CAT_DATA/$k" ] || continue
+		for f in "$CAT_DATA/$k"/**; do
 			[ -f "$f" ] || continue
 			nf=$((nf + 1))
-			rel=${f#"$AP_DATA/"}
+			rel=${f#"$CAT_DATA/"}
 			[ -n "${claim["$rel"]+x}" ] && continue
 			under=
 			for p in "${!dirs[@]}"; do
@@ -1516,7 +1516,7 @@ fn ap_check(...args) {
 	if [ "$nm" = 0 ] && [ "$no" = 0 ]; then
 		p=path
 		[ "${#claim[@]}" = 1 ] || p=paths
-		ap_say "the record and the files agree: ${#claim[@]} $p, all of them there"
+		cat_say "the record and the files agree: ${#claim[@]} $p, all of them there"
 		return 0
 	fi
 	# What an orphan *is*, when the index can say. A bundle of plain
@@ -1524,20 +1524,20 @@ fn ap_check(...args) {
 	# itself, so its sha256 names the entry it came from; a tarball's
 	# sha256 is the tarball's, so an orphan from one cannot be
 	# recognised and is reported as unknown rather than guessed at.
-	if [ "$no" -gt 0 ] && [ -r "$AP_INDEX" ]; then
-		ap_load
-		for k in "${!AP_IX["$AP_SECT"][@]}"; do
-			ap_entry "$k" || continue
-			[ -n "${AP_ENT["sha256"]}" ] &&
-				bysha["${AP_ENT["sha256"]}"]=${AP_ENT["id"]}
-			for i in "${!AP_IX["$AP_SECT"]["$k"]["parts"][@]}"; do
-				sha=${AP_IX["$AP_SECT"]["$k"]["parts"]["$i"]["sha256"]}
+	if [ "$no" -gt 0 ] && [ -r "$CAT_INDEX" ]; then
+		cat_load
+		for k in "${!CAT_IX["$CAT_SECT"][@]}"; do
+			cat_entry "$k" || continue
+			[ -n "${CAT_ENT["sha256"]}" ] &&
+				bysha["${CAT_ENT["sha256"]}"]=${CAT_ENT["id"]}
+			for i in "${!CAT_IX["$CAT_SECT"]["$k"]["parts"][@]}"; do
+				sha=${CAT_IX["$CAT_SECT"]["$k"]["parts"]["$i"]["sha256"]}
 				[ -n "$sha" ] &&
-					partof["$sha"]=${AP_ENT["id"]}
+					partof["$sha"]=${CAT_ENT["id"]}
 			done
 		done
 	fi
-	printf '%s\n' "$AP_DATA"
+	printf '%s\n' "$CAT_DATA"
 	for p in "${miss[@]}"; do
 		printf '  missing  %-34s claimed by %s\n' "$p" "${claim["$p"]}"
 	done
@@ -1545,7 +1545,7 @@ fn ap_check(...args) {
 		id=
 		ent=
 		if [ "${#bysha[@]}" -gt 0 ]; then
-			sha := ap_sha "$AP_DATA/$rel"
+			sha := cat_sha "$CAT_DATA/$rel"
 			id=${bysha["$sha"]}
 			[ -z "$id" ] && ent=${partof["$sha"]}
 		fi
@@ -1562,7 +1562,7 @@ fn ap_check(...args) {
 	if [ "$repair" = 0 ]; then
 		printf '\n%s claimed and missing, %s present and unclaimed, of %s files\n' \
 			"$nm" "$no" "$nf"
-		ap_say "\`catalogue check --repair\` makes the record true: it drops a claim on a file that is gone and takes back one it can recognise. It removes nothing -- the paths above are yours to delete."
+		cat_say "\`catalogue check --repair\` makes the record true: it drops a claim on a file that is gone and takes back one it can recognise. It removes nothing -- the paths above are yours to delete."
 		return 1
 	fi
 	# Repair the **record**, never the files. A claim on a file that is
@@ -1571,7 +1571,7 @@ fn ap_check(...args) {
 	# of recovering from #242 -- the files were always right, it was the
 	# record that forgot them.
 	printf '\n'
-	for name in "${!AP_ST["installed"][@]}"; do
+	for name in "${!CAT_ST["installed"][@]}"; do
 		# An entry's **own** file is what says it is installed. With
 		# that gone the entry is gone, whatever is left of its
 		# parts: a pane on its own is not an app. Those part files
@@ -1579,67 +1579,67 @@ fn ap_check(...args) {
 		# the honest answer -- removing the app would have taken
 		# them, and something else took the app instead. Nothing
 		# loops, because adopting an entry needs its own file back.
-		own=${AP_ST["installed"]["$name"]["paths"]["0"]}
-		if [ ! -e "$AP_DATA/$own" ]; then
-			unset AP_ST["installed"]["$name"]
+		own=${CAT_ST["installed"]["$name"]["paths"]["0"]}
+		if [ ! -e "$CAT_DATA/$own" ]; then
+			unset CAT_ST["installed"]["$name"]
 			printf '  dropped %s, whose own file is gone\n' "$name"
 			fixed=$((fixed + 1))
 			continue
 		fi
 		keepp=()
-		for i in "${!AP_ST["installed"]["$name"]["paths"][@]}"; do
-			p=${AP_ST["installed"]["$name"]["paths"]["$i"]}
-			[ -e "$AP_DATA/$p" ] && keepp+=("$p")
+		for i in "${!CAT_ST["installed"]["$name"]["paths"][@]}"; do
+			p=${CAT_ST["installed"]["$name"]["paths"]["$i"]}
+			[ -e "$CAT_DATA/$p" ] && keepp+=("$p")
 		done
-		[ "${#keepp[@]}" = "${#AP_ST["installed"]["$name"]["paths"][@]}" ] &&
+		[ "${#keepp[@]}" = "${#CAT_ST["installed"]["$name"]["paths"][@]}" ] &&
 			continue
-		unset AP_ST["installed"]["$name"]["paths"]
+		unset CAT_ST["installed"]["$name"]["paths"]
 		i=0
 		for p in "${keepp[@]}"; do
-			AP_ST["installed"]["$name"]["paths"]["$i"]=$p
+			CAT_ST["installed"]["$name"]["paths"]["$i"]=$p
 			i=$((i + 1))
 		done
 		printf '  %s: dropped a claim on a part that is gone\n' "$name"
 		fixed=$((fixed + 1))
 	done
 	for id in "${!adopt[@]}"; do
-		ap_entry "$id" || continue
-		ap_adopt "$id" || continue
+		cat_entry "$id" || continue
+		cat_adopt "$id" || continue
 		printf '  took back %s %s, which the record had lost\n' \
-			"$id" "${AP_ENT["version"]}"
+			"$id" "${CAT_ENT["version"]}"
 		fixed=$((fixed + 1))
 	done
-	[ "$fixed" -gt 0 ] && ap_statesave
+	[ "$fixed" -gt 0 ] && cat_statesave
 	for rel in "${orph[@]}"; do
-		[ -e "$AP_DATA/$rel" ] || continue
+		[ -e "$CAT_DATA/$rel" ] || continue
 		left=$((left + 1))
 	done
-	ap_say "the record is true about what it claims now; anything still listed above is a file to keep or delete yourself"
+	cat_say "the record is true about what it claims now; anything still listed above is a file to keep or delete yourself"
 	return 0
 }
 
 # Claim an entry's own file and whichever of its parts are on disk, for a
 # record that lost them. The paths are worked out the way an install works
 # them out, so a repaired entry is indistinguishable from an installed one.
-fn ap_adopt(id) {
+fn cat_adopt(id) {
 	local rel e pk pa i n=0
 	local -a got
 
-	e := ap_kext "${AP_ENT["kind"]}"
-	rel := ap_rel "${AP_ENT["kind"]}" "${AP_ENT["name"]}" "${AP_ENT["dir"]}"
-	[ -e "$AP_DATA/$rel$e" ] || return 1
+	e := cat_kext "${CAT_ENT["kind"]}"
+	rel := cat_rel "${CAT_ENT["kind"]}" "${CAT_ENT["name"]}" "${CAT_ENT["dir"]}"
+	[ -e "$CAT_DATA/$rel$e" ] || return 1
 	got=("$rel$e")
-	for i in "${!AP_IX["$AP_SECT"]["${AP_ENT["key"]}"]["parts"][@]}"; do
-		pk=${AP_IX["$AP_SECT"]["${AP_ENT["key"]}"]["parts"]["$i"]["kind"]}
-		pa=${AP_IX["$AP_SECT"]["${AP_ENT["key"]}"]["parts"]["$i"]["as"]}
-		[ -e "$AP_DATA/$pk/$pa" ] && got+=("$pk/$pa")
+	for i in "${!CAT_IX["$CAT_SECT"]["${CAT_ENT["key"]}"]["parts"][@]}"; do
+		pk=${CAT_IX["$CAT_SECT"]["${CAT_ENT["key"]}"]["parts"]["$i"]["kind"]}
+		pa=${CAT_IX["$CAT_SECT"]["${CAT_ENT["key"]}"]["parts"]["$i"]["as"]}
+		[ -e "$CAT_DATA/$pk/$pa" ] && got+=("$pk/$pa")
 	done
-	AP_ST["installed"]["$id"]["version"]=${AP_ENT["version"]}
-	AP_ST["installed"]["$id"]["kind"]=${AP_ENT["kind"]}
-	AP_ST["installed"]["$id"]["sha256"]=${AP_ENT["sha256"]}
-	unset AP_ST["installed"]["$id"]["paths"]
+	CAT_ST["installed"]["$id"]["version"]=${CAT_ENT["version"]}
+	CAT_ST["installed"]["$id"]["kind"]=${CAT_ENT["kind"]}
+	CAT_ST["installed"]["$id"]["sha256"]=${CAT_ENT["sha256"]}
+	unset CAT_ST["installed"]["$id"]["paths"]
 	for i in "${!got[@]}"; do
-		AP_ST["installed"]["$id"]["paths"]["$i"]=${got["$i"]}
+		CAT_ST["installed"]["$id"]["paths"]["$i"]=${got["$i"]}
 		n=$((n + 1))
 	done
 	[ "$n" -gt 0 ] || return 1
@@ -1659,71 +1659,71 @@ fn ap_adopt(id) {
 # such rule (Gitea #262). A bundle that is a tarball carries the hash of
 # the tarball and not of anything placed, so it is left to the version,
 # as before.
-fn ap_current(kind) {
+fn cat_current(kind) {
 	local where ext key i pk pa want got
 
-	key=${AP_ENT["key"]}
-	want=${AP_ENT["sha256"]}
-	case ${AP_ENT["bundle"]} in *.tar.gz | *.tgz | *.tar) return 0 ;; esac
+	key=${CAT_ENT["key"]}
+	want=${CAT_ENT["sha256"]}
+	case ${CAT_ENT["bundle"]} in *.tar.gz | *.tgz | *.tar) return 0 ;; esac
 	[ -n "$want" ] || return 0
-	where := ap_rel "$kind" "${AP_ENT["name"]}" "${AP_ENT["dir"]}"
-	ext := ap_kext "$kind"
-	[ -r "$AP_DATA/$where$ext" ] || return 1
-	got := ap_sha "$AP_DATA/$where$ext"
+	where := cat_rel "$kind" "${CAT_ENT["name"]}" "${CAT_ENT["dir"]}"
+	ext := cat_kext "$kind"
+	[ -r "$CAT_DATA/$where$ext" ] || return 1
+	got := cat_sha "$CAT_DATA/$where$ext"
 	[ "$got" = "$want" ] || return 1
-	for i in "${!AP_IX["$AP_SECT"]["$key"]["parts"][@]}"; do
-		pk=${AP_IX["$AP_SECT"]["$key"]["parts"]["$i"]["kind"]}
-		pa=${AP_IX["$AP_SECT"]["$key"]["parts"]["$i"]["as"]}
-		want=${AP_IX["$AP_SECT"]["$key"]["parts"]["$i"]["sha256"]}
+	for i in "${!CAT_IX["$CAT_SECT"]["$key"]["parts"][@]}"; do
+		pk=${CAT_IX["$CAT_SECT"]["$key"]["parts"]["$i"]["kind"]}
+		pa=${CAT_IX["$CAT_SECT"]["$key"]["parts"]["$i"]["as"]}
+		want=${CAT_IX["$CAT_SECT"]["$key"]["parts"]["$i"]["sha256"]}
 		[ -n "$want" ] || continue
-		[ -r "$AP_DATA/$pk/$pa" ] || return 1
-		got := ap_sha "$AP_DATA/$pk/$pa"
+		[ -r "$CAT_DATA/$pk/$pa" ] || return 1
+		got := cat_sha "$CAT_DATA/$pk/$pa"
 		[ "$got" = "$want" ] || return 1
 	done
 	return 0
 }
 
-fn ap_info(want, int j = 0) {
+fn cat_info(want, int j = 0) {
 	local u name k js i pn pk pa id
 	local -A out
 
-	ap_load
-	ap_state
-	name := ap_resolve "$want" || ap_die "$want: no such app in the index"
-	ap_entry "$name" || ap_die "$name: no such app in the index"
+	cat_load
+	cat_state
+	name := cat_resolve "$want" || cat_die "$want: no such app in the index"
+	cat_entry "$name" || cat_die "$name: no such app in the index"
 	# The state is keyed by the **id**, always `kind/name`, and in a
 	# catalogue serving only the older `apps` section a resolved name is
 	# the bare one -- so asking the state with it silently finds nothing
 	# and `info` says a thing is not installed when it is. Found by
 	# #237's own check for the `brings` row, which missed for the same
 	# reason the `installed` row had been missing all along.
-	id=${AP_ENT["id"]:-$name}
-	u := ap_url
+	id=${CAT_ENT["id"]:-$name}
+	u := cat_url
 	if [ "$j" = 1 ]; then
 		for k in id name kind title version about author licence \
 			 hibr abi modules bundle sha256; do
-			out["$k"]=${AP_ENT["$k"]}
+			out["$k"]=${CAT_ENT["$k"]}
 		done
 		out["index"]=$u
-		out["installed"]=${AP_ST["installed"]["$id"]["version"]}
-		for i in "${!AP_IX["$AP_SECT"]["${AP_ENT["key"]}"]["parts"][@]}"; do
-			out["parts"]["$i"]["kind"]=${AP_IX["$AP_SECT"]["${AP_ENT["key"]}"]["parts"]["$i"]["kind"]}
-			out["parts"]["$i"]["as"]=${AP_IX["$AP_SECT"]["${AP_ENT["key"]}"]["parts"]["$i"]["as"]}
+		out["installed"]=${CAT_ST["installed"]["$id"]["version"]}
+		for i in "${!CAT_IX["$CAT_SECT"]["${CAT_ENT["key"]}"]["parts"][@]}"; do
+			out["parts"]["$i"]["kind"]=${CAT_IX["$CAT_SECT"]["${CAT_ENT["key"]}"]["parts"]["$i"]["kind"]}
+			out["parts"]["$i"]["as"]=${CAT_IX["$CAT_SECT"]["${CAT_ENT["key"]}"]["parts"]["$i"]["as"]}
 		done
 		js := json emit out
 		printf '%s\n' "$js"
 		return 0
 	fi
-	printf '%s\n' "${AP_ENT["name"]} -- ${AP_ENT["title"]}"
-	[ -n "${AP_ENT["about"]}" ] && printf '\n%s\n' "${AP_ENT["about"]}"
-	printf '\nversion   %s\n' "${AP_ENT["version"]}"
-	printf 'author    %s\n' "${AP_ENT["author"]:-not said}"
-	printf 'licence   %s\n' "${AP_ENT["licence"]:-not said}"
+	printf '%s\n' "${CAT_ENT["name"]} -- ${CAT_ENT["title"]}"
+	[ -n "${CAT_ENT["about"]}" ] && printf '\n%s\n' "${CAT_ENT["about"]}"
+	printf '\nversion   %s\n' "${CAT_ENT["version"]}"
+	printf 'author    %s\n' "${CAT_ENT["author"]:-not said}"
+	printf 'licence   %s\n' "${CAT_ENT["licence"]:-not said}"
 	printf 'needs     hibr %s, module ABI %s%s%s\n' \
-		"${AP_ENT["hibr"]:-any}" "${AP_ENT["abi"]:-any}" \
-		"${AP_ENT["modules"]:+, modules: ${AP_ENT["modules"]}}" \
-		"${AP_ENT["arch"]:+, machine: ${AP_ENT["arch"]}}"
-	printf 'kind      %s\n' "${AP_ENT["kind"]}"
+		"${CAT_ENT["hibr"]:-any}" "${CAT_ENT["abi"]:-any}" \
+		"${CAT_ENT["modules"]:+, modules: ${CAT_ENT["modules"]}}" \
+		"${CAT_ENT["arch"]:+, machine: ${CAT_ENT["arch"]}}"
+	printf 'kind      %s\n' "${CAT_ENT["kind"]}"
 	# What it places besides itself (Gitea #237). Two places know, and
 	# which one does depends on how the bundle is served: a catalogue of
 	# plain files -- what `addapp` makes -- names every part in the
@@ -1735,9 +1735,9 @@ fn ap_info(want, int j = 0) {
 	# A part is refcounted, so one two apps both bring outlives the
 	# removal of either.
 	pn=0
-	for i in "${!AP_IX["$AP_SECT"]["${AP_ENT["key"]}"]["parts"][@]}"; do
-		pk=${AP_IX["$AP_SECT"]["${AP_ENT["key"]}"]["parts"]["$i"]["kind"]}
-		pa=${AP_IX["$AP_SECT"]["${AP_ENT["key"]}"]["parts"]["$i"]["as"]}
+	for i in "${!CAT_IX["$CAT_SECT"]["${CAT_ENT["key"]}"]["parts"][@]}"; do
+		pk=${CAT_IX["$CAT_SECT"]["${CAT_ENT["key"]}"]["parts"]["$i"]["kind"]}
+		pa=${CAT_IX["$CAT_SECT"]["${CAT_ENT["key"]}"]["parts"]["$i"]["as"]}
 		if [ "$pn" = 0 ]; then
 			printf 'brings    %s/%s\n' "$pk" "$pa"
 		else
@@ -1745,9 +1745,9 @@ fn ap_info(want, int j = 0) {
 		fi
 		pn=$((pn + 1))
 	done
-	if [ "$pn" = 0 ] && [ -n "${AP_ST["installed"]["$id"]["version"]}" ]; then
-		ap_parts "$id"
-		for i in "${AP_PARTS[@]}"; do
+	if [ "$pn" = 0 ] && [ -n "${CAT_ST["installed"]["$id"]["version"]}" ]; then
+		cat_parts "$id"
+		for i in "${CAT_PARTS[@]}"; do
 			if [ "$pn" = 0 ]; then
 				printf 'brings    %s\n' "$i"
 			else
@@ -1756,23 +1756,23 @@ fn ap_info(want, int j = 0) {
 			pn=$((pn + 1))
 		done
 	fi
-	printf 'bundle    %s\n' "${AP_ENT["bundle"]}"
-	printf 'sha256    %s\n' "${AP_ENT["sha256"]:-none given}"
+	printf 'bundle    %s\n' "${CAT_ENT["bundle"]}"
+	printf 'sha256    %s\n' "${CAT_ENT["sha256"]:-none given}"
 	printf 'index     %s\n' "$u"
-	ap_verify
-	if [ "$AP_SIGOK" = 1 ]; then
-		printf 'signed    yes, by %s\n' "$AP_KEYFP"
+	cat_verify
+	if [ "$CAT_SIGOK" = 1 ]; then
+		printf 'signed    yes, by %s\n' "$CAT_KEYFP"
 	else
-		printf 'signed    no -- %s\n' "$AP_SIGWHY"
+		printf 'signed    no -- %s\n' "$CAT_SIGWHY"
 	fi
-	[ -n "${AP_ST["installed"]["$id"]["version"]}" ] &&
-		printf 'installed %s\n' "${AP_ST["installed"]["$id"]["version"]}"
-	if [ "$AP_SIGOK" = 1 ]; then
+	[ -n "${CAT_ST["installed"]["$id"]["version"]}" ] &&
+		printf 'installed %s\n' "${CAT_ST["installed"]["$id"]["version"]}"
+	if [ "$CAT_SIGOK" = 1 ]; then
 		printf '\n%s\n' "The index is signed by the key above, and it holds"
 		printf '%s\n' "every bundle's sha256 -- so the signature covers this"
 		printf '%s\n' "bundle as well. What it says is that the catalogue is"
 		printf '%s\n' "the one that key publishes, not that the app is good."
-	elif [ "${AP_ENT["kind"]}" = mods ]; then
+	elif [ "${CAT_ENT["kind"]}" = mods ]; then
 		printf '\n%s\n' "This is a module -- native code, with no sandbox, that"
 		printf '%s\n' "runs as you. It will not be installed from a catalogue"
 		printf '%s\n' "this cannot verify, and it cannot verify this one."
@@ -1788,23 +1788,23 @@ fn ap_info(want, int j = 0) {
 # The bundle's address, resolved against the index's own: a relative path in
 # the index means "beside the index", which is what makes a mirror a copy of
 # one folder rather than a rewrite of every entry.
-fn ap_bundleurl(bundle) {
+fn cat_bundleurl(bundle) {
 	local u
 
 	case $bundle in
 	http://* | https://*)
-		ap_hostwarn "$bundle"
+		cat_hostwarn "$bundle"
 		ret "$bundle"
 		return 0
 		;;
 	esac
-	u := ap_url
+	u := cat_url
 	ret "${u%/*}/$bundle"
 }
 
 # An index may send a fetch to any host, and over plaintext, and nothing
 # said so -- where the **index's own** address is checked and warned
-# about (`ap_setindex`). The two halves of one question were treated
+# about (`cat_setindex`). The two halves of one question were treated
 # differently (Gitea #247).
 #
 # What this is not: a way to run unverified code. The `sha256` is in the
@@ -1817,48 +1817,48 @@ fn ap_bundleurl(bundle) {
 # So it warns rather than refuses: a mirror legitimately gives absolute
 # addresses, and refusing them would break the thing the relative form
 # exists to make easy. Once per run, not once per bundle.
-fn ap_hostwarn(url) {
+fn cat_hostwarn(url) {
 	local u ih bh
-	[ "$AP_SAIDHOST" = 1 ] && return 0
-	u := ap_url
+	[ "$CAT_SAIDHOST" = 1 ] && return 0
+	u := cat_url
 	ih=${u#*://}
 	ih=${ih%%/*}
 	bh=${url#*://}
 	bh=${bh%%/*}
 	case $url in
 	http://*)
-		AP_SAIDHOST=1
-		ap_say "warning: this index fetches its bundles from $bh over http, so nothing says which server answered. What arrives is still checked against the sha256 in the index."
+		CAT_SAIDHOST=1
+		cat_say "warning: this index fetches its bundles from $bh over http, so nothing says which server answered. What arrives is still checked against the sha256 in the index."
 		return 0
 		;;
 	esac
 	[ "$bh" = "$ih" ] && return 0
-	AP_SAIDHOST=1
-	ap_say "warning: this index fetches its bundles from $bh, which is not $ih, where the index itself came from. What arrives is still checked against the sha256 in the index."
+	CAT_SAIDHOST=1
+	cat_say "warning: this index fetches its bundles from $bh, which is not $ih, where the index itself came from. What arrives is still checked against the sha256 in the index."
 	return 0
 }
 
 # Fetch a bundle and check it against what the index said. The temporary
 # file is in the cache folder rather than /tmp: it can be large, and a
 # fetch interrupted leaves it where the next one will overwrite it.
-fn ap_getbundle(name, bundle, want) {
+fn cat_getbundle(name, bundle, want) {
 	local u tmp got
 
-	u := ap_bundleurl "$bundle"
-	mkdir -p "$AP_CACHE" || ap_die "cannot make $AP_CACHE"
+	u := cat_bundleurl "$bundle"
+	mkdir -p "$CAT_CACHE" || cat_die "cannot make $CAT_CACHE"
 	# The name is what a message calls this -- an id like
 	# `control-panel/mailset.hibr` for a part -- so the temporary file
 	# cannot be named after it directly.
-	tmp="$AP_CACHE/${name//\//-}.part"
+	tmp="$CAT_CACHE/${name//\//-}.part"
 	rm -f "$tmp" 2> /dev/null
-	need dav 2> /dev/null || ap_die "the dav module is needed to fetch a bundle"
+	need dav 2> /dev/null || cat_die "the dav module is needed to fetch a bundle"
 	dav get "$u" "$tmp" 2> /dev/null ||
-		ap_die "$u: could not be fetched${DAV_CODE:+ ($DAV_CODE)}"
+		cat_die "$u: could not be fetched${DAV_CODE:+ ($DAV_CODE)}"
 	if [ -z "$want" ]; then
 		rm -f "$tmp" 2> /dev/null
-		ap_die "$name: the index gives no sha256, so the bundle cannot be verified"
+		cat_die "$name: the index gives no sha256, so the bundle cannot be verified"
 	fi
-	got := ap_sha "$tmp"
+	got := cat_sha "$tmp"
 	if [ "$got" != "$want" ]; then
 		rm -f "$tmp" 2> /dev/null
 		# Two things cause this and the common one is harmless, so it
@@ -1874,7 +1874,7 @@ fn ap_getbundle(name, bundle, want) {
 		# paired with a bundle from after it, and the hashes cannot
 		# agree. Saying only "changed in transit or on a mirror" there
 		# reads as tampering for what is a cache being a cache.
-		ap_die "$name: the bundle is not what the index describes
+		cat_die "$name: the bundle is not what the index describes
   the index says $want
   what arrived is $got
 Refused, and nothing was written. Most often this means the catalogue was
@@ -1899,74 +1899,74 @@ on a mirror, and refusing is the right answer."
 # bad member is not a bundle to install the rest of, and that promise was
 # structural when the bundle was one object.
 #
-# `ap_puttar` is still here for a catalogue that serves one, since an index
+# `cat_puttar` is still here for a catalogue that serves one, since an index
 # may be anybody's.
-fn ap_putparts(kind, name, src, key) {
+fn cat_putparts(kind, name, src, key) {
 	local i pk pn pp psha dest e t rel n=0
 	local -a ptmp pkind pname
 
-	e := ap_kext "$kind"
-	for i in "${!AP_IX["$AP_SECT"]["$key"]["parts"][@]}"; do
-		pk=${AP_IX["$AP_SECT"]["$key"]["parts"]["$i"]["kind"]}
-		pn=${AP_IX["$AP_SECT"]["$key"]["parts"]["$i"]["as"]}
-		pp=${AP_IX["$AP_SECT"]["$key"]["parts"]["$i"]["path"]}
-		psha=${AP_IX["$AP_SECT"]["$key"]["parts"]["$i"]["sha256"]}
-		if ! ap_partok "$pk" "$pn"; then
+	e := cat_kext "$kind"
+	for i in "${!CAT_IX["$CAT_SECT"]["$key"]["parts"][@]}"; do
+		pk=${CAT_IX["$CAT_SECT"]["$key"]["parts"]["$i"]["kind"]}
+		pn=${CAT_IX["$CAT_SECT"]["$key"]["parts"]["$i"]["as"]}
+		pp=${CAT_IX["$CAT_SECT"]["$key"]["parts"]["$i"]["path"]}
+		psha=${CAT_IX["$CAT_SECT"]["$key"]["parts"]["$i"]["sha256"]}
+		if ! cat_partok "$pk" "$pn"; then
 			rm -f "$src" "${ptmp[@]}" 2> /dev/null
-			ap_die "$name: the index names a part as $pk/$pn
-Refused. A part's kind is one of ${AP_KINDS[*]} and its own name is a plain
+			cat_die "$name: the index names a part as $pk/$pn
+Refused. A part's kind is one of ${CAT_KINDS[*]} and its own name is a plain
 filename -- a part decides where a file lands."
 		fi
 		[ -n "$pp" ] || {
 			rm -f "$src" "${ptmp[@]}" 2> /dev/null
-			ap_die "$name: the index names the part $pk/$pn with no path to fetch it from"
+			cat_die "$name: the index names the part $pk/$pn with no path to fetch it from"
 		}
 		# Verified here, one at a time, and nothing placed until the
 		# loop has finished without dying. Bound with `:=` and not
-		# captured with `$( )`: ap_getbundle refuses a bad part by
-		# calling ap_die, and in a command substitution that would
+		# captured with `$( )`: cat_getbundle refuses a bad part by
+		# calling cat_die, and in a command substitution that would
 		# exit the subshell and let the install carry on with a part
 		# it could not verify.
-		t := ap_getbundle "$pk/$pn" "$pp" "$psha"
+		t := cat_getbundle "$pk/$pn" "$pp" "$psha"
 		ptmp+=("$t")
 		pkind+=("$pk")
 		pname+=("$pn")
 		n=$((n + 1))
 	done
-	dest := ap_dest "$kind" "$name" "${AP_ENT["dir"]}"
-	rel := ap_rel "$kind" "$name" "${AP_ENT["dir"]}"
-	mkdir -p "${dest%/*}" || ap_die "cannot make ${dest%/*}"
-	mv -f "$src" "$dest" || ap_die "cannot put $dest in place"
+	dest := cat_dest "$kind" "$name" "${CAT_ENT["dir"]}"
+	rel := cat_rel "$kind" "$name" "${CAT_ENT["dir"]}"
+	mkdir -p "${dest%/*}" || cat_die "cannot make ${dest%/*}"
+	mv -f "$src" "$dest" || cat_die "cannot put $dest in place"
 	# The app's own file carries the entry's folder; a **part** never
 	# does. A part names its own kind and filename and lands at the
 	# root of that kind -- a Control Panel pane is found by one flat
 	# scan, where only `apps` recurses -- so a folder under `apps` is
 	# the app's alone (Gitea #233).
-	AP_PLACED=("$rel$e")
+	CAT_PLACED=("$rel$e")
 	for i in "${!ptmp[@]}"; do
 		pk=${pkind["$i"]}
 		pn=${pname["$i"]}
-		mkdir -p "$AP_DATA/$pk" || ap_die "cannot make $AP_DATA/$pk"
-		mv -f "${ptmp["$i"]}" "$AP_DATA/$pk/$pn" ||
-			ap_die "$name: cannot put $pk/$pn in place"
-		AP_PLACED+=("$pk/$pn")
-		ap_say "installed $pk/$pn, which $name brings with it"
+		mkdir -p "$CAT_DATA/$pk" || cat_die "cannot make $CAT_DATA/$pk"
+		mv -f "${ptmp["$i"]}" "$CAT_DATA/$pk/$pn" ||
+			cat_die "$name: cannot put $pk/$pn in place"
+		CAT_PLACED+=("$pk/$pn")
+		cat_say "installed $pk/$pn, which $name brings with it"
 	done
-	ap_say "installed $name as $dest"
+	cat_say "installed $name as $dest"
 	return 0
 }
 
 # Place a single-file bundle: the app itself, which is most apps.
-fn ap_putone(kind, name, src) {
+fn cat_putone(kind, name, src) {
 	local dest e rel
 
-	dest := ap_dest "$kind" "$name" "${AP_ENT["dir"]}"
-	rel := ap_rel "$kind" "$name" "${AP_ENT["dir"]}"
-	e := ap_kext "$kind"
-	mkdir -p "${dest%/*}" || ap_die "cannot make ${dest%/*}"
-	mv -f "$src" "$dest" || ap_die "cannot put $dest in place"
-	AP_PLACED=("$rel$e")
-	ap_say "installed $name as $dest"
+	dest := cat_dest "$kind" "$name" "${CAT_ENT["dir"]}"
+	rel := cat_rel "$kind" "$name" "${CAT_ENT["dir"]}"
+	e := cat_kext "$kind"
+	mkdir -p "${dest%/*}" || cat_die "cannot make ${dest%/*}"
+	mv -f "$src" "$dest" || cat_die "cannot put $dest in place"
+	CAT_PLACED=("$rel$e")
+	cat_say "installed $name as $dest"
 	return 0
 }
 
@@ -1988,13 +1988,13 @@ fn ap_putone(kind, name, src) {
 # already reads**: the retro car theme's picture is `retro_car.png`.
 # `addapp` in the catalogue repository was the stricter of the two and
 # refused that theme outright until Gitea #224.
-fn ap_partok(kind, file) {
-	ap_kindok "$kind" || return 1
+fn cat_partok(kind, file) {
+	cat_kindok "$kind" || return 1
 	case $file in
 	"" | .* | *[!a-z0-9._-]* | *..* ) return 1 ;;
 	esac
 	# A `.so` only where a `.so` belongs, which is a part of kind `mods`
-	# -- the same rule ap_pathok keeps about where a member may come
+	# -- the same rule cat_pathok keeps about where a member may come
 	# from, asked here about where it is going (ADR 0044).
 	case $file in
 	*.so | *.so.*) [ "$kind" = mods ] || return 1 ;;
@@ -2024,47 +2024,47 @@ fn ap_partok(kind, file) {
 # with one item in it. This way the app is on the Applications menu where it
 # belongs, DT_SRC is the app's real file so dt_aboutinfo reads its own
 # header comment, and its resources are at "${DT_SRC%.hibr}/".
-fn ap_puttar(kind, name, src) {
+fn cat_puttar(kind, name, src) {
 	local l k path app= dest dir rel n=0 j i pk pn pf pe ext
 	local -A m
 	local -a pfile pkind pname
 
-	need archive 2> /dev/null || ap_die "the archive module is needed to unpack a bundle"
+	need archive 2> /dev/null || cat_die "the archive module is needed to unpack a bundle"
 	archive open ap "$src" 2> /dev/null ||
-		ap_die "$name: the bundle does not open as a tarball"
-	AP_MEM=()
-	ap_walk ap
+		cat_die "$name: the bundle does not open as a tarball"
+	CAT_MEM=()
+	cat_walk ap
 	archive close ap
-	[ "${#AP_MEM[@]}" -gt 0 ] || {
+	[ "${#CAT_MEM[@]}" -gt 0 ] || {
 		rm -f "$src" 2> /dev/null
-		ap_die "$name: the bundle is empty"
+		cat_die "$name: the bundle is empty"
 	}
 	# Every member checked before anything is written, and the whole
 	# bundle refused rather than the bad member skipped: a bundle with one
 	# hostile path in it is not a bundle to install the rest of.
-	for l in "${AP_MEM[@]}"; do
+	for l in "${CAT_MEM[@]}"; do
 		k=${l%%	*}
 		path=${l#*	}
 		if [ "$k" = l ]; then
 			rm -f "$src" 2> /dev/null
-			ap_die "$name: the bundle holds a symbolic link, $path
+			cat_die "$name: the bundle holds a symbolic link, $path
 Refused. A link in a bundle can point anywhere on this machine."
 		fi
-		ap_pathok "$path" "$kind" && continue
+		cat_pathok "$path" "$kind" && continue
 		rm -f "$src" 2> /dev/null
 		case $path in
 		*.so | *.so.*)
-			ap_die "$name: the bundle holds a module, $path
+			cat_die "$name: the bundle holds a module, $path
 Refused. A .so is native code with no sandbox of any kind. Only a bundle
 of kind 'mods' may carry one, and it lands where a non-root shell looks
 for a module asked for by name -- never where root looks (ADR 0016,
 ADR 0044)." ;;
 		esac
-		ap_die "$name: the bundle holds $path, which is outside its own folder
+		cat_die "$name: the bundle holds $path, which is outside its own folder
 Refused. A member path may not be absolute and may not climb with '..'."
 	done
 	archive open ap "$src" 2> /dev/null ||
-		ap_die "$name: the bundle does not open as a tarball"
+		cat_die "$name: the bundle does not open as a tarball"
 	# Which file is the app: what app.json says, else NAME.hibr, else the
 	# only .hibr there is. The index has no business knowing a bundle's
 	# own layout, which is why this is read from inside it.
@@ -2087,14 +2087,14 @@ Refused. A member path may not be absolute and may not climb with '..'."
 			if [ -z "$pn" ]; then
 				pn=${m["parts"]["$i"]["name"]}
 				[ -n "$pn" ] || pn=${pf##*/}
-				pe := ap_kext "$pk"
+				pe := cat_kext "$pk"
 				pn=${pn%"$pe"}$pe
 			fi
-			if ! ap_partok "$pk" "$pn"; then
+			if ! cat_partok "$pk" "$pn"; then
 				archive close ap
 				rm -f "$src" 2> /dev/null
-				ap_die "$name: the bundle names a part as $pk/$pn
-Refused. A part's kind is one of ${AP_KINDS[*]} and its own name is a plain
+				cat_die "$name: the bundle names a part as $pk/$pn
+Refused. A part's kind is one of ${CAT_KINDS[*]} and its own name is a plain
 filename -- a part decides where a file lands."
 			fi
 			pfile+=("$pf")
@@ -2106,44 +2106,44 @@ filename -- a part decides where a file lands."
 	# NAME with this kind's extension, else the only member that has it.
 	# The extension is the kind's, so a theme's bundle is searched for a
 	# .json and an app's for a .hibr (Gitea #224).
-	ext := ap_kext "$kind"
+	ext := cat_kext "$kind"
 	if [ -z "$app" ]; then
-		for l in "${AP_MEM[@]}"; do
+		for l in "${CAT_MEM[@]}"; do
 			[ "${l#*	}" = "$name$ext" ] && app=$name$ext
 		done
 	fi
 	if [ -z "$app" ]; then
-		for l in "${AP_MEM[@]}"; do
+		for l in "${CAT_MEM[@]}"; do
 			path=${l#*	}
 			case $path in
 			*"$ext") if [ -z "$app" ]; then app=$path; else app=; break; fi ;;
 			esac
 		done
 	fi
-	if ! ap_kindok "$kind"; then
+	if ! cat_kindok "$kind"; then
 		archive close ap
 		rm -f "$src" 2> /dev/null
-		ap_die "$name: $kind is not a kind an app installs into"
+		cat_die "$name: $kind is not a kind an app installs into"
 	fi
 	if [ -z "$app" ]; then
 		archive close ap
 		rm -f "$src" 2> /dev/null
-		ap_die "$name: the bundle does not say which file is the app, and holds no $name$ext"
+		cat_die "$name: the bundle does not say which file is the app, and holds no $name$ext"
 	fi
 	# The entry's own folder, the same as every other placement path:
 	# a tarball bundle is only a different wrapper, not a different
 	# destination. Left flat here it would be worse than merely
-	# inconsistent -- `ap_update` compares where an entry *would* land
+	# inconsistent -- `cat_update` compares where an entry *would* land
 	# with where the state says it is, so an entry with a `dir` and a
 	# tarball would be reinstalled, placed flat again, and reported as
 	# moving on every single update, for ever.
-	dest := ap_dest "$kind" "$name" "${AP_ENT["dir"]}"
-	dir := ap_destdir "$kind" "$name" "${AP_ENT["dir"]}"
-	rel := ap_rel "$kind" "$name" "${AP_ENT["dir"]}"
-	mkdir -p "${dest%/*}" || ap_die "cannot make ${dest%/*}"
+	dest := cat_dest "$kind" "$name" "${CAT_ENT["dir"]}"
+	dir := cat_destdir "$kind" "$name" "${CAT_ENT["dir"]}"
+	rel := cat_rel "$kind" "$name" "${CAT_ENT["dir"]}"
+	mkdir -p "${dest%/*}" || cat_die "cannot make ${dest%/*}"
 	rm -rf "$dir" 2> /dev/null
-	AP_PLACED=("$rel$ext")
-	for l in "${AP_MEM[@]}"; do
+	CAT_PLACED=("$rel$ext")
+	for l in "${CAT_MEM[@]}"; do
 		k=${l%%	*}
 		path=${l#*	}
 		[ "$path" = "app.json" ] && continue
@@ -2154,21 +2154,21 @@ filename -- a part decides where a file lands."
 		done
 		[ -n "$path" ] || continue
 		if [ "$k" = d ]; then
-			mkdir -p "$dir/$path" || ap_die "cannot make $dir/$path"
+			mkdir -p "$dir/$path" || cat_die "cannot make $dir/$path"
 			continue
 		fi
 		if [ "$path" = "$app" ]; then
 			archive cat ap "$path" > "$dest" ||
-				ap_die "cannot write $dest"
+				cat_die "cannot write $dest"
 			continue
 		fi
 		case $path in
 		*/*) mkdir -p "$dir/${path%/*}" ||
-			ap_die "cannot make $dir/${path%/*}" ;;
-		*) mkdir -p "$dir" || ap_die "cannot make $dir" ;;
+			cat_die "cannot make $dir/${path%/*}" ;;
+		*) mkdir -p "$dir" || cat_die "cannot make $dir" ;;
 		esac
 		archive cat ap "$path" > "$dir/$path" ||
-			ap_die "cannot write $dir/$path"
+			cat_die "cannot write $dir/$path"
 		n=$((n + 1))
 	done
 	# And every part into the scan root it named. Each is a file of its
@@ -2177,21 +2177,21 @@ filename -- a part decides where a file lands."
 	for i in "${!pfile[@]}"; do
 		pk=${pkind["$i"]}
 		pn=${pname["$i"]}
-		mkdir -p "$AP_DATA/$pk" || ap_die "cannot make $AP_DATA/$pk"
-		archive cat ap "${pfile["$i"]}" > "$AP_DATA/$pk/$pn" ||
-			ap_die "$name: the bundle has no ${pfile["$i"]} to place as $pk/$pn"
-		AP_PLACED+=("$pk/$pn")
-		ap_say "installed $pk/$pn, which $name brings with it"
+		mkdir -p "$CAT_DATA/$pk" || cat_die "cannot make $CAT_DATA/$pk"
+		archive cat ap "${pfile["$i"]}" > "$CAT_DATA/$pk/$pn" ||
+			cat_die "$name: the bundle has no ${pfile["$i"]} to place as $pk/$pn"
+		CAT_PLACED+=("$pk/$pn")
+		cat_say "installed $pk/$pn, which $name brings with it"
 	done
 	archive close ap
 	rm -f "$src" 2> /dev/null
 	# A bundle of only the app leaves no folder behind to confuse anyone.
 	[ "$n" = 0 ] && rm -rf "$dir" 2> /dev/null
-	[ "$n" = 0 ] || AP_PLACED+=("$rel")
+	[ "$n" = 0 ] || CAT_PLACED+=("$rel")
 	if [ "$n" = 0 ]; then
-		ap_say "installed $name as $dest"
+		cat_say "installed $name as $dest"
 	else
-		ap_say "installed $name as $dest, with $n file(s) in $dir"
+		cat_say "installed $name as $dest, with $n file(s) in $dir"
 	fi
 	return 0
 }
@@ -2218,7 +2218,7 @@ filename -- a part decides where a file lands."
 # the first `-` and any trailing digits come off, which is the whole
 # difference between the two vocabularies. A shell too old to set it at
 # all falls back to the fork rather than guessing.
-fn ap_arch() {
+fn cat_arch() {
 	local u o
 
 	if [ -n "${OSTYPE-}" ] && [ -n "${HOSTTYPE-}" ]; then
@@ -2232,34 +2232,34 @@ fn ap_arch() {
 	ret "${u% *}-${u#* }"
 }
 
-fn ap_needs(name) {
+fn cat_needs(name) {
 	local abi hv m oldest arch here
 	local -a mods
 
 	# A module is built for one ABI and one machine, and neither is a
 	# thing to find out after fetching it (ADR 0044). An entry that
 	# names no arch is a script, and says nothing about machines.
-	arch=${AP_ENT["arch"]}
+	arch=${CAT_ENT["arch"]}
 	if [ -n "$arch" ]; then
-		here := ap_arch
+		here := cat_arch
 		[ "$arch" = "$here" ] ||
-			ap_die "$name: is built for $arch and this is $here
+			cat_die "$name: is built for $arch and this is $here
 A module is native code: it cannot be loaded on another machine."
 	fi
-	abi=${AP_ENT["abi"]}
+	abi=${CAT_ENT["abi"]}
 	if [ -n "$abi" ] && [ "$abi" != "$HIBR_ABI" ]; then
-		ap_die "$name: needs module ABI $abi and this hibr has $HIBR_ABI
+		cat_die "$name: needs module ABI $abi and this hibr has $HIBR_ABI
 A module's ABI must match exactly, so this app's own module could not load."
 	fi
-	hv=${AP_ENT["hibr"]}
+	hv=${CAT_ENT["hibr"]}
 	if [ -n "$hv" ]; then
 		# The older of the two: if that is not the one asked for,
 		# this hibr is older than the app needs.
 		oldest=$(printf '%s\n%s\n' "$hv" "$HIBR_VERSION" |
 			 command sort -V | command head -1) ||
-			ap_die "sort is needed to compare versions"
+			cat_die "sort is needed to compare versions"
 		[ "$oldest" = "$hv" ] ||
-			ap_die "$name: needs hibr $hv or newer, and this is $HIBR_VERSION"
+			cat_die "$name: needs hibr $hv or newer, and this is $HIBR_VERSION"
 	fi
 	# What the entry needs loaded before it can run. Three answers in
 	# order, and only the third is a refusal (ADR 0045).
@@ -2268,7 +2268,7 @@ A module's ABI must match exactly, so this app's own module could not load."
 	# ships -- `need` resolves an interface as well as a module name,
 	# so `terminal` finds `term.so` the way the app itself does.
 	#
-	# **In this catalogue as `mods/NAME`** is collected into AP_WANT for
+	# **In this catalogue as `mods/NAME`** is collected into CAT_WANT for
 	# the caller to install first. It is not installed from here: this
 	# function runs before anything is fetched, on purpose, so that an
 	# entry this hibr cannot satisfy costs nothing and leaves nothing
@@ -2279,27 +2279,27 @@ A module's ABI must match exactly, so this app's own module could not load."
 	# nowhere is a broken entry, not a machine that is missing
 	# something, and installing an app that cannot work is worse than
 	# saying so.
-	AP_WANT=()
-	if [ -n "${AP_ENT["modules"]}" ]; then
-		IFS=', ' read -ra mods <<< "${AP_ENT["modules"]}"
+	CAT_WANT=()
+	if [ -n "${CAT_ENT["modules"]}" ]; then
+		IFS=', ' read -ra mods <<< "${CAT_ENT["modules"]}"
 		for m in "${mods[@]}"; do
 			[ -n "$m" ] || continue
 			need "$m" 2> /dev/null && continue
-			if ap_entry "mods/$m" > /dev/null 2>&1; then
-				AP_WANT+=("mods/$m")
+			if cat_entry "mods/$m" > /dev/null 2>&1; then
+				CAT_WANT+=("mods/$m")
 				continue
 			fi
-			ap_die "$name: needs the $m module, which neither hibr
+			cat_die "$name: needs the $m module, which neither hibr
 nor this catalogue provides. Nothing was installed."
 		done
 	fi
-	# `ap_entry` above overwrote AP_ENT with whichever module it last
-	# looked at, and every caller of this reads AP_ENT afterwards --
+	# `cat_entry` above overwrote CAT_ENT with whichever module it last
+	# looked at, and every caller of this reads CAT_ENT afterwards --
 	# the bundle, the sha256, the name it installs under. Put it back.
 	# Without this an app that needs a fetchable module is installed
 	# *as that module*, which is a silent wrong file rather than an
 	# error, and only shows up as the app being missing.
-	[ "${#AP_WANT[@]}" -gt 0 ] && ap_entry "$name"
+	[ "${#CAT_WANT[@]}" -gt 0 ] && cat_entry "$name"
 	return 0
 }
 
@@ -2309,19 +2309,19 @@ nor this catalogue provides. Nothing was installed."
 # back is one command rather than twenty-one, and that is the difference
 # between a policy and a chore. Unambiguous because a real id always has
 # a name after the slash.
-fn ap_ofkind(kind) {
+fn cat_ofkind(kind) {
 	local k n=0
 	local -a out
 
-	ap_kindok "$kind" ||
-		ap_die "$kind: not a kind -- one of ${AP_KINDS[*]}"
-	for k in "${!AP_IX["$AP_SECT"][@]}"; do
-		ap_entry "$k" || continue
-		[ "${AP_ENT["kind"]}" = "$kind" ] || continue
-		out+=("${AP_ENT["id"]}")
+	cat_kindok "$kind" ||
+		cat_die "$kind: not a kind -- one of ${CAT_KINDS[*]}"
+	for k in "${!CAT_IX["$CAT_SECT"][@]}"; do
+		cat_entry "$k" || continue
+		[ "${CAT_ENT["kind"]}" = "$kind" ] || continue
+		out+=("${CAT_ENT["id"]}")
 		n=$((n + 1))
 	done
-	[ "$n" -gt 0 ] || ap_die "nothing of kind $kind in the index"
+	[ "$n" -gt 0 ] || cat_die "nothing of kind $kind in the index"
 	ret "${out[*]}"
 }
 
@@ -2336,23 +2336,23 @@ fn ap_ofkind(kind) {
 # rather than lucky -- what a module needs is `hibr_require`'s business,
 # resolved when it loads, and a catalogue second-guessing it would be
 # two answers to one question.
-fn ap_getmod(mid, why) {
+fn cat_getmod(mid, why) {
 	local tmp i
 	local -a placed
 
-	ap_entry "$mid" ||
-		ap_die "$why: needs $mid, which went missing from the index between the check and the fetch"
+	cat_entry "$mid" ||
+		cat_die "$why: needs $mid, which went missing from the index between the check and the fetch"
 	# The same refusal an explicit `catalogue install mods/x` gets, for the
 	# same reason: a module is native code and runs as you, so an
 	# unverifiable catalogue is the end of it (ADR 0044). Coming here
 	# by way of an app's own declaration changes nothing about that.
-	ap_verify
-	[ "$AP_SIGOK" = 1 ] ||
-		ap_die "$why needs the ${AP_ENT["name"]} module, and this catalogue cannot be verified
-$AP_SIGWHY.
+	cat_verify
+	[ "$CAT_SIGOK" = 1 ] ||
+		cat_die "$why needs the ${CAT_ENT["name"]} module, and this catalogue cannot be verified
+$CAT_SIGWHY.
 A module is native code and runs as you: a signature is not optional for
 one (ADR 0044). Nothing was installed."
-	ap_needs "$mid"
+	cat_needs "$mid"
 	# `mkindex` writes no `modules` for a module -- what a module needs
 	# is `hibr_require`'s business, resolved when it loads -- so this
 	# is empty for every entry this catalogue publishes. A hand-written
@@ -2360,27 +2360,27 @@ one (ADR 0044). Nothing was installed."
 	# asked for is the worst of the three possible answers: refusing
 	# says what happened, and installing would mean recursion with no
 	# bound on it.
-	[ "${#AP_WANT[@]}" = 0 ] ||
-		ap_die "$mid: the index says this module needs ${AP_WANT[*]}
+	[ "${#CAT_WANT[@]}" = 0 ] ||
+		cat_die "$mid: the index says this module needs ${CAT_WANT[*]}
 A module's own requirements are resolved when it loads, not by this
 catalogue, so nothing here can satisfy that. Nothing was installed."
-	tmp := ap_getbundle "${AP_ENT["name"]}" "${AP_ENT["bundle"]}" \
-			    "${AP_ENT["sha256"]}"
-	ap_putone mods "${AP_ENT["name"]}" "$tmp"
-	ap_say "  -- which $why needs"
-	AP_ST["installed"]["$mid"]["version"]=${AP_ENT["version"]}
-	AP_ST["installed"]["$mid"]["kind"]=mods
-	AP_ST["installed"]["$mid"]["sha256"]=${AP_ENT["sha256"]}
+	tmp := cat_getbundle "${CAT_ENT["name"]}" "${CAT_ENT["bundle"]}" \
+			    "${CAT_ENT["sha256"]}"
+	cat_putone mods "${CAT_ENT["name"]}" "$tmp"
+	cat_say "  -- which $why needs"
+	CAT_ST["installed"]["$mid"]["version"]=${CAT_ENT["version"]}
+	CAT_ST["installed"]["$mid"]["kind"]=mods
+	CAT_ST["installed"]["$mid"]["sha256"]=${CAT_ENT["sha256"]}
 	# Why it is here, which is what tells a later `purge` that nobody
 	# asked for this one by name. An explicit `catalogue install mods/pim`
 	# does not set it, so purge leaves that one alone.
-	AP_ST["installed"]["$mid"]["auto"]=$why
-	unset AP_ST["installed"]["$mid"]["paths"]
-	placed=("${AP_PLACED[@]}")
+	CAT_ST["installed"]["$mid"]["auto"]=$why
+	unset CAT_ST["installed"]["$mid"]["paths"]
+	placed=("${CAT_PLACED[@]}")
 	for i in "${!placed[@]}"; do
-		AP_ST["installed"]["$mid"]["paths"]["$i"]=${placed["$i"]}
+		CAT_ST["installed"]["$mid"]["paths"]["$i"]=${placed["$i"]}
 	done
-	ap_statesave
+	cat_statesave
 	return 0
 }
 
@@ -2388,47 +2388,47 @@ catalogue, so nothing here can satisfy that. Nothing was installed."
 # does not include, removed. Called after the files are in place and
 # before the state is rewritten, which is the only moment both lists
 # exist.
-fn ap_stale(name) {
+fn cat_stale(name) {
 	local i p keep
 	local -a old
 
-	for i in "${!AP_ST["installed"]["$name"]["paths"][@]}"; do
-		old+=("${AP_ST["installed"]["$name"]["paths"]["$i"]}")
+	for i in "${!CAT_ST["installed"]["$name"]["paths"][@]}"; do
+		old+=("${CAT_ST["installed"]["$name"]["paths"]["$i"]}")
 	done
 	[ "${#old[@]}" -gt 0 ] || return 0
 	for p in "${old[@]}"; do
 		keep=
-		for i in "${AP_PLACED[@]}"; do
+		for i in "${CAT_PLACED[@]}"; do
 			[ "$i" = "$p" ] && { keep=1; break ; }
 		done
 		[ -n "$keep" ] && continue
-		ap_claimed "$p" "$name" && continue
-		[ -e "$AP_DATA/$p" ] || continue
+		cat_claimed "$p" "$name" && continue
+		[ -e "$CAT_DATA/$p" ] || continue
 		case $p in
-		*/) rm -rf "$AP_DATA/$p" 2> /dev/null ;;
-		*.hibr | *.json | *.so | *.png) rm -f "$AP_DATA/$p" 2> /dev/null ;;
-		*) rm -rf "$AP_DATA/$p" 2> /dev/null ;;
+		*/) rm -rf "$CAT_DATA/$p" 2> /dev/null ;;
+		*.hibr | *.json | *.so | *.png) rm -f "$CAT_DATA/$p" 2> /dev/null ;;
+		*) rm -rf "$CAT_DATA/$p" 2> /dev/null ;;
 		esac
-		ap_say "took away $p, which this version no longer places"
+		cat_say "took away $p, which this version no longer places"
 	done
 	return 0
 }
 
-fn ap_install(...names) {
+fn cat_install(...names) {
 	local name want tmp kind i ext all mid sysv
 	local -a wants
 
-	[ "${#names[@]}" -gt 0 ] || ap_die "usage: catalogue install NAME..."
+	[ "${#names[@]}" -gt 0 ] || cat_die "usage: catalogue install NAME..."
 	# The index again, always: installing against a stale one is how a
 	# sha256 mismatch gets blamed on the mirror.
-	ap_load 1
-	ap_state
+	cat_load 1
+	cat_state
 	# `KIND/` expanded first, so what follows is one loop over ids and
 	# every refusal reads the same whichever way the name was given.
 	for want in "${names[@]}"; do
 		case $want in
 		*/)
-			all := ap_ofkind "${want%/}"
+			all := cat_ofkind "${want%/}"
 			read -ra wants <<< "$all"
 			names+=("${wants[@]}")
 			;;
@@ -2436,12 +2436,12 @@ fn ap_install(...names) {
 	done
 	for want in "${names[@]}"; do
 		case $want in */) continue ;; esac
-		name := ap_resolve "$want" ||
-			ap_die "$want: no such app in the index"
-		ap_entry "$name" || ap_die "$name: no such app in the index"
-		kind=${AP_ENT["kind"]}
-		ap_kindok "$kind" ||
-			ap_die "$name: the index says kind $kind, which is not one an app installs into"
+		name := cat_resolve "$want" ||
+			cat_die "$want: no such app in the index"
+		cat_entry "$name" || cat_die "$name: no such app in the index"
+		kind=${CAT_ENT["kind"]}
+		cat_kindok "$kind" ||
+			cat_die "$name: the index says kind $kind, which is not one an app installs into"
 		# Where the two kinds part. A script says what it is on the
 		# screen; its reader is the backstop, so an unverified
 		# catalogue is a sentence and the install goes on. A module
@@ -2450,15 +2450,15 @@ fn ap_install(...names) {
 		# decoration and `catalogue info` would be claiming a check
 		# nothing makes (ADR 0044).
 		if [ "$kind" = mods ]; then
-			ap_verify
-			[ "$AP_SIGOK" = 1 ] ||
-				ap_die "$name: refusing to install a module from a catalogue this cannot verify
-$AP_SIGWHY.
+			cat_verify
+			[ "$CAT_SIGOK" = 1 ] ||
+				cat_die "$name: refusing to install a module from a catalogue this cannot verify
+$CAT_SIGWHY.
 A module is native code and runs as you: a signature is not optional for
 one, where for a script the sha256 and TLS are the stated trust model and
 you can read the file (ADR 0041, ADR 0044)."
 		else
-			ap_sigsay
+			cat_sigsay
 		fi
 		# Already there for the whole machine? Then there is
 		# nothing a copy in one person's home could do. An
@@ -2474,49 +2474,49 @@ you can read the file (ADR 0041, ADR 0044)."
 		# not provide is ~/.config/hibr/apps, which is a file you
 		# wrote rather than one a catalogue placed, and is the one
 		# thing read before the machine's.
-		sysv := ap_sysver "$name" &&
-			ap_die "$name: the machine already has this, at $sysv
+		sysv := cat_sysver "$name" &&
+			cat_die "$name: the machine already has this, at $sysv
 An install for the whole machine is authoritative: it is read before
 your own, so a copy here would never run. To change what you get, put
 a file of your own in ~/.config/hibr/apps, which is read before either
 and which no update overwrites."
 		# Before fetching, not after: refusing an app this hibr
 		# cannot run should cost nothing and leave nothing behind.
-		ap_needs "$name"
+		cat_needs "$name"
 		# Whatever it needs that is not loadable here and is in this
 		# catalogue, placed before the thing that needs it -- so an
 		# app is never on disk in a state where its first `need`
-		# fails. ap_needs has already refused anything that is in
+		# fails. cat_needs has already refused anything that is in
 		# neither place, before a byte was fetched.
-		if [ "${#AP_WANT[@]}" -gt 0 ]; then
-			for mid in "${AP_WANT[@]}"; do
-				ap_getmod "$mid" "$name"
+		if [ "${#CAT_WANT[@]}" -gt 0 ]; then
+			for mid in "${CAT_WANT[@]}"; do
+				cat_getmod "$mid" "$name"
 			done
-			# ap_getmod walked AP_ENT onto each module in turn;
+			# cat_getmod walked CAT_ENT onto each module in turn;
 			# every line below reads it for *this* entry.
-			ap_entry "$name" || ap_die "$name: no such app in the index"
+			cat_entry "$name" || cat_die "$name: no such app in the index"
 		fi
-		tmp := ap_getbundle "${AP_ENT["name"]}" "${AP_ENT["bundle"]}" \
-				    "${AP_ENT["sha256"]}"
+		tmp := cat_getbundle "${CAT_ENT["name"]}" "${CAT_ENT["bundle"]}" \
+				    "${CAT_ENT["sha256"]}"
 		# A bundle that is the file itself, or a tarball: decided by
 		# the **kind's** own extension rather than by `.hibr`, so a
 		# theme or a colour scheme (which are JSON) is placed as
 		# itself instead of being opened as an archive (Gitea #224).
-		ext := ap_kext "$kind"
-		case ${AP_ENT["bundle"]} in
+		ext := cat_kext "$kind"
+		case ${CAT_ENT["bundle"]} in
 		*"$ext")
 			# An entry that brings parts is placed with them, each
 			# fetched and verified first (Gitea #231); one that
 			# brings none is the file itself, which is most.
-			if [ "${#AP_IX["$AP_SECT"]["${AP_ENT["key"]}"]["parts"][@]}" -gt 0 ]; then
-				ap_putparts "$kind" "${AP_ENT["name"]}" "$tmp" \
-					    "${AP_ENT["key"]}"
+			if [ "${#CAT_IX["$CAT_SECT"]["${CAT_ENT["key"]}"]["parts"][@]}" -gt 0 ]; then
+				cat_putparts "$kind" "${CAT_ENT["name"]}" "$tmp" \
+					    "${CAT_ENT["key"]}"
 			else
-				ap_putone "$kind" "${AP_ENT["name"]}" "$tmp"
+				cat_putone "$kind" "${CAT_ENT["name"]}" "$tmp"
 			fi ;;
-		*) ap_puttar "$kind" "${AP_ENT["name"]}" "$tmp" ;;
+		*) cat_puttar "$kind" "${CAT_ENT["name"]}" "$tmp" ;;
 		esac
-		name=${AP_ENT["id"]}
+		name=${CAT_ENT["id"]}
 		# Whatever the last install of this entry placed and this
 		# one did not. Reinstalling has always written the new paths
 		# over the old record and left the old *files*, so an entry
@@ -2528,21 +2528,21 @@ and which no update overwrites."
 		# the scan path at once (Gitea #233).
 		#
 		# A path another installed entry also brings is kept, the
-		# same refcount `ap_remove` asks -- `ap_claimed` is the one
+		# same refcount `cat_remove` asks -- `cat_claimed` is the one
 		# place that question is answered.
-		ap_stale "$name"
-		AP_ST["installed"]["$name"]["version"]=${AP_ENT["version"]}
-		AP_ST["installed"]["$name"]["kind"]=$kind
-		AP_ST["installed"]["$name"]["sha256"]=${AP_ENT["sha256"]}
+		cat_stale "$name"
+		CAT_ST["installed"]["$name"]["version"]=${CAT_ENT["version"]}
+		CAT_ST["installed"]["$name"]["kind"]=$kind
+		CAT_ST["installed"]["$name"]["sha256"]=${CAT_ENT["sha256"]}
 		# Every path this placed, so removing takes away what was
 		# installed rather than what the kind and the name imply: a
 		# bundle may bring a pane or a strip module with it, and
 		# nothing on disk says so (Gitea #217).
-		unset AP_ST["installed"]["$name"]["paths"]
-		for i in "${!AP_PLACED[@]}"; do
-			AP_ST["installed"]["$name"]["paths"]["$i"]=${AP_PLACED["$i"]}
+		unset CAT_ST["installed"]["$name"]["paths"]
+		for i in "${!CAT_PLACED[@]}"; do
+			CAT_ST["installed"]["$name"]["paths"]["$i"]=${CAT_PLACED["$i"]}
 		done
-		ap_statesave
+		cat_statesave
 	done
 	return 0
 }
@@ -2551,13 +2551,13 @@ and which no update overwrites."
 # pane serves Calendar and Contacts both, so removing one of the two must
 # leave the other's pane where it is -- which is bookkeeping, not a guess:
 # the state says what each app placed (Gitea #217).
-fn ap_claimed(path, except) {
+fn cat_claimed(path, except) {
 	local other i
 
-	for other in "${!AP_ST["installed"][@]}"; do
+	for other in "${!CAT_ST["installed"][@]}"; do
 		[ "$other" = "$except" ] && continue
-		for i in "${!AP_ST["installed"]["$other"]["paths"][@]}"; do
-			[ "${AP_ST["installed"]["$other"]["paths"]["$i"]}" = "$path" ] &&
+		for i in "${!CAT_ST["installed"]["$other"]["paths"][@]}"; do
+			[ "${CAT_ST["installed"]["$other"]["paths"]["$i"]}" = "$path" ] &&
 				return 0
 		done
 	done
@@ -2574,15 +2574,15 @@ fn ap_claimed(path, except) {
 # this one, and a user's purge must not take a module a system-installed
 # app needs: this is the one function that has to learn about it, and
 # the seam is left visible rather than generalised in advance.
-fn ap_wanted(mod) {
+fn cat_wanted(mod) {
 	local name m
 	local -a mods
 
-	for name in "${!AP_ST["installed"][@]}"; do
-		[ "${AP_ST["installed"]["$name"]["kind"]}" = mods ] && continue
-		ap_entry "$name" || continue
-		[ -n "${AP_ENT["modules"]}" ] || continue
-		IFS=', ' read -ra mods <<< "${AP_ENT["modules"]}"
+	for name in "${!CAT_ST["installed"][@]}"; do
+		[ "${CAT_ST["installed"]["$name"]["kind"]}" = mods ] && continue
+		cat_entry "$name" || continue
+		[ -n "${CAT_ENT["modules"]}" ] || continue
+		IFS=', ' read -ra mods <<< "${CAT_ENT["modules"]}"
 		for m in "${mods[@]}"; do
 			[ "$m" = "$mod" ] && return 0
 		done
@@ -2592,7 +2592,7 @@ fn ap_wanted(mod) {
 
 # Modules that were fetched **because something needed them** and that
 # nothing installed needs now. A module installed by name is never here:
-# `auto` is set only by ap_getmod, so asking for `mods/pim` yourself
+# `auto` is set only by cat_getmod, so asking for `mods/pim` yourself
 # makes it yours and purge leaves it alone for ever.
 #
 # Native code is never removed as a side effect of removing something
@@ -2600,7 +2600,7 @@ fn ap_wanted(mod) {
 # refcount can only see what this catalogue installed, and a script of
 # your own that calls `need pim` is invisible to it. Deleting it behind
 # that script's back is a worse failure than leaving a megabyte on disk.
-fn ap_purge(...args) {
+fn cat_purge(...args) {
 	local a yes=0 dry=0 name base n=0 ans
 	local -a gone
 
@@ -2608,34 +2608,34 @@ fn ap_purge(...args) {
 		case $a in
 		-y | --yes) yes=1 ;;
 		-n | --dry-run) dry=1 ;;
-		*) ap_die "usage: catalogue purge [-y] [--dry-run]" ;;
+		*) cat_die "usage: catalogue purge [-y] [--dry-run]" ;;
 		esac
 	done
-	ap_load
-	ap_state
-	for name in "${!AP_ST["installed"][@]}"; do
-		[ "${AP_ST["installed"]["$name"]["kind"]}" = mods ] || continue
-		[ -n "${AP_ST["installed"]["$name"]["auto"]}" ] || continue
+	cat_load
+	cat_state
+	for name in "${!CAT_ST["installed"][@]}"; do
+		[ "${CAT_ST["installed"]["$name"]["kind"]}" = mods ] || continue
+		[ -n "${CAT_ST["installed"]["$name"]["auto"]}" ] || continue
 		base=${name##*/}
-		ap_wanted "$base" && continue
+		cat_wanted "$base" && continue
 		gone+=("$name")
 		n=$((n + 1))
 	done
 	if [ "$n" = 0 ]; then
-		ap_say "nothing to purge: every module here was asked for by name, or something still needs it"
+		cat_say "nothing to purge: every module here was asked for by name, or something still needs it"
 		return 0
 	fi
 	# What it can see is one scope's state. A user's purge cannot reach
-	# a system install and must not, which falls out of AP_STATE moving
+	# a system install and must not, which falls out of CAT_STATE moving
 	# with the scope; a **system** purge cannot see what any individual
 	# has installed in their own home, and that one is a real limit
 	# rather than a safe one, so it is said rather than implied.
-	[ "$AP_SCOPE" = system ] &&
-		ap_say "this reads the system scope only; a module some user's own app needs is not visible here"
+	[ "$CAT_SCOPE" = system ] &&
+		cat_say "this reads the system scope only; a module some user's own app needs is not visible here"
 	printf 'fetched for something that is gone, and nothing installed needs now:\n'
 	for name in "${gone[@]}"; do
 		printf '  %-22s was needed by %s\n' "$name" \
-		       "${AP_ST["installed"]["$name"]["auto"]}"
+		       "${CAT_ST["installed"]["$name"]["auto"]}"
 	done
 	[ "$dry" = 1 ] && return 0
 	# A desktop runs this as a child with no terminal, so there is
@@ -2643,7 +2643,7 @@ fn ap_purge(...args) {
 	# the flag rather than hanging on a read that can never return.
 	if [ "$yes" = 0 ]; then
 		if [ ! -t 0 ]; then
-			ap_die "nothing was removed: there is no terminal to ask on.
+			cat_die "nothing was removed: there is no terminal to ask on.
 Run it with -y to remove these without being asked, or --dry-run to
 list them and stop."
 		fi
@@ -2651,14 +2651,14 @@ list them and stop."
 		read -r ans
 		case $ans in
 		y | Y | yes) ;;
-		*) ap_say "nothing was removed"; return 0 ;;
+		*) cat_say "nothing was removed"; return 0 ;;
 		esac
 	fi
-	ap_remove -f "${gone[@]}"
+	cat_remove -f "${gone[@]}"
 	return 0
 }
 
-fn ap_remove(...names) {
+fn cat_remove(...names) {
 	local name w base kind dest dir n force=0 i p np
 	local -a want
 
@@ -2668,14 +2668,14 @@ fn ap_remove(...names) {
 		*) want+=("$name") ;;
 		esac
 	done
-	[ "${#want[@]}" -gt 0 ] || ap_die "usage: catalogue remove [-f] NAME..."
-	ap_state
+	[ "${#want[@]}" -gt 0 ] || cat_die "usage: catalogue remove [-f] NAME..."
+	cat_state
 	for w in "${want[@]}"; do
-		name := ap_insresolve "$w" || ap_die "$w: not installed here"
-		kind=${AP_ST["installed"]["$name"]["kind"]}
-		[ -n "$kind" ] || ap_die "$w: not installed here"
+		name := cat_insresolve "$w" || cat_die "$w: not installed here"
+		kind=${CAT_ST["installed"]["$name"]["kind"]}
+		[ -n "$kind" ] || cat_die "$w: not installed here"
 		base=${name##*/}
-		# Only when the answer can change what happens. `ap_windows`
+		# Only when the answer can change what happens. `cat_windows`
 		# asks a running desktop over its control socket, and a
 		# desktop wedged mid-request is a connect that neither fails
 		# nor completes (Gitea #180) -- so under `-f`, where the
@@ -2683,71 +2683,71 @@ fn ap_remove(...names) {
 		# possible effect is to hang. `catalogue purge -y` in an
 		# image build is exactly that case.
 		n=0
-		[ "$force" = 0 ] && n := ap_windows "$base"
+		[ "$force" = 0 ] && n := cat_windows "$base"
 		if [ "$n" -gt 0 ]; then
-			ap_die "$w: $n window(s) of it are open ($AP_WINS)
+			cat_die "$w: $n window(s) of it are open ($CAT_WINS)
 Close them first, or `catalogue remove -f $w`. Removing it frees the folder
 its code is read from, and the desktop would be left calling functions with
 nothing behind them."
 		fi
 		np=0
-		for i in "${!AP_ST["installed"]["$name"]["paths"][@]}"; do
+		for i in "${!CAT_ST["installed"]["$name"]["paths"][@]}"; do
 			np=$((np + 1))
 		done
 		if [ "$np" = 0 ]; then
 			# Installed before 0.99.183, when nothing recorded
 			# what it placed: the kind and the name are all there
 			# is, which is what this always did.
-			dest := ap_dest "$kind" "$base"
-			dir := ap_destdir "$kind" "$base"
+			dest := cat_dest "$kind" "$base"
+			dir := cat_destdir "$kind" "$base"
 			rm -f "$dest" 2> /dev/null
 			rm -rf "$dir" 2> /dev/null
 		else
-			for i in "${!AP_ST["installed"]["$name"]["paths"][@]}"; do
-				p=${AP_ST["installed"]["$name"]["paths"]["$i"]}
-				if ap_claimed "$p" "$name"; then
-					ap_say "kept $p, which another installed app brings too"
+			for i in "${!CAT_ST["installed"]["$name"]["paths"][@]}"; do
+				p=${CAT_ST["installed"]["$name"]["paths"]["$i"]}
+				if cat_claimed "$p" "$name"; then
+					cat_say "kept $p, which another installed app brings too"
 					continue
 				fi
 				case $p in
-				*.hibr) rm -f "$AP_DATA/$p" 2> /dev/null ;;
-				*) rm -rf "$AP_DATA/$p" 2> /dev/null ;;
+				*.hibr) rm -f "$CAT_DATA/$p" 2> /dev/null ;;
+				*) rm -rf "$CAT_DATA/$p" 2> /dev/null ;;
 				esac
 			done
 		fi
-		unset AP_ST["installed"]["$name"]
-		ap_statesave
-		ap_say "removed $name"
+		unset CAT_ST["installed"]["$name"]
+		cat_statesave
+		cat_say "removed $name"
 	done
 	return 0
 }
 
-fn ap_update(...names) {
+fn cat_update(...names) {
 	local name w n=0 kind where ext moved i np same
 	local -a want
 
-	ap_load 1
-	ap_state
+	cat_load 1
+	cat_state
 	if [ "${#names[@]}" -gt 0 ]; then
 		want=("${names[@]}")
 	else
-		for name in "${!AP_ST["installed"][@]}"; do want+=("$name"); done
+		for name in "${!CAT_ST["installed"][@]}"; do want+=("$name"); done
 	fi
 	for w in "${want[@]}"; do
 		# Either an id from the state or a name somebody typed:
-		# ap_entry takes both, and ap_resolve is for the ambiguous
+		# cat_entry takes both, and cat_resolve is for the ambiguous
 		# bare name it cannot.
-		if ! ap_entry "$w"; then
-			name := ap_resolve "$w" ||
-				ap_die "$w: no such app in the index"
-			ap_entry "$name" ||
-				ap_die "$name: no such app in the index"
+		if ! cat_entry "$w"; then
+			name := cat_resolve "$w" ||
+				cat_die "$w: no such app in the index"
+			cat_entry "$name" ||
+				cat_die "$name: no such app in the index"
 		fi
 		# The state is keyed by the id, which is the entry's own and
 		# not whatever the index key happened to be.
-		name=${AP_ENT["id"]}
-		kind=${AP_ST["installed"]["$name"]["kind"]}
-		[ -n "$kind" ] || ap_die "$w: not installed here"
+		name=${CAT_ENT["id"]}
+		kind=${CAT_ST["installed"]["$name"]["kind"]}
+		[ -n "$kind" ] || cat_die "$w: not installed here"
 		# Up to date is not only "the same version". An entry can
 		# move without changing version -- `dir` arrived in 0.99.195
 		# and put every application in a folder, which is a new
@@ -2760,19 +2760,19 @@ fn ap_update(...names) {
 		# Asked of the path rather than of the version, so it needs
 		# no second thing to keep in step: where would this land
 		# now, and is that where the state says it is.
-		where := ap_rel "$kind" "${AP_ENT["name"]}" "${AP_ENT["dir"]}"
-		ext := ap_kext "$kind"
+		where := cat_rel "$kind" "${CAT_ENT["name"]}" "${CAT_ENT["dir"]}"
+		ext := cat_kext "$kind"
 		moved=1
 		np=0
-		for i in "${!AP_ST["installed"]["$name"]["paths"][@]}"; do
+		for i in "${!CAT_ST["installed"]["$name"]["paths"][@]}"; do
 			np=$((np + 1))
-			[ "${AP_ST["installed"]["$name"]["paths"]["$i"]}" = "$where$ext" ] &&
+			[ "${CAT_ST["installed"]["$name"]["paths"]["$i"]}" = "$where$ext" ] &&
 				{ moved=; break ; }
 		done
 		same=
-		[ "${AP_ENT["version"]}" = "${AP_ST["installed"]["$name"]["version"]}" ] &&
+		[ "${CAT_ENT["version"]}" = "${CAT_ST["installed"]["$name"]["version"]}" ] &&
 			same=1
-		[ -n "$same" ] && [ -z "$moved" ] && ap_current "$kind" && continue
+		[ -n "$same" ] && [ -z "$moved" ] && cat_current "$kind" && continue
 		# Three different things, and each says which it is. An
 		# entry installed before 0.99.183 recorded no paths at all,
 		# so there is nothing to compare and it is reinstalled once
@@ -2780,28 +2780,28 @@ fn ap_update(...names) {
 		# one would be this release's own complaint about a sentence
 		# that says a false thing.
 		if [ -n "$moved" ] && [ "$np" = 0 ]; then
-			ap_say "$name: records where it is"
+			cat_say "$name: records where it is"
 		elif [ -n "$moved" ]; then
-			ap_say "$name: moves to $where$ext"
+			cat_say "$name: moves to $where$ext"
 		elif [ -n "$same" ]; then
-			ap_say "$name: ${AP_ENT["version"]} changed in the catalogue; fetched again"
+			cat_say "$name: ${CAT_ENT["version"]} changed in the catalogue; fetched again"
 		else
-			ap_say "$name: ${AP_ST["installed"]["$name"]["version"]} -> ${AP_ENT["version"]}"
+			cat_say "$name: ${CAT_ST["installed"]["$name"]["version"]} -> ${CAT_ENT["version"]}"
 		fi
-		ap_install "$name"
+		cat_install "$name"
 		n=$((n + 1))
 	done
-	[ "$n" = 0 ] && ap_say "everything is up to date"
+	[ "$n" = 0 ] && cat_say "everything is up to date"
 	return 0
 }
 
-fn ap_setindex(url = "") {
+fn cat_setindex(url = "") {
 	local u
 	local -A c
 
 	if [ -z "$url" ]; then
-		u := ap_url
-		ap_say "$u"
+		u := cat_url
+		cat_say "$u"
 		return 0
 	fi
 	case $url in
@@ -2809,27 +2809,27 @@ fn ap_setindex(url = "") {
 	http://*)
 		echo "catalogue: $url is not https, so nothing says which server answered" >&2
 		;;
-	*) ap_die "$url: an index is an http:// or https:// address" ;;
+	*) cat_die "$url: an index is an http:// or https:// address" ;;
 	esac
-	mkdir -p "${AP_CONF%/*}" || ap_die "cannot make ${AP_CONF%/*}"
+	mkdir -p "${CAT_CONF%/*}" || cat_die "cannot make ${CAT_CONF%/*}"
 	c["url"]=$url
 	local j tmp
-	j=$(json emit c) || ap_die "cannot emit the setting"
+	j=$(json emit c) || cat_die "cannot emit the setting"
 	# Renamed into place for the same reason the state is: a half-written
 	# settings file would lose the index address, and the default would
 	# then quietly take over (Gitea #241).
-	tmp=$AP_CONF.$$
+	tmp=$CAT_CONF.$$
 	printf '%s\n' "$j" > "$tmp" || {
 		rm -f "$tmp" 2> /dev/null
-		ap_die "cannot write $tmp"
+		cat_die "cannot write $tmp"
 	}
-	mv -f "$tmp" "$AP_CONF" || {
+	mv -f "$tmp" "$CAT_CONF" || {
 		rm -f "$tmp" 2> /dev/null
-		ap_die "cannot replace $AP_CONF"
+		cat_die "cannot replace $CAT_CONF"
 	}
-	AP_URL=$url
-	rm -f "$AP_INDEX" 2> /dev/null
-	ap_say "the index is $url"
+	CAT_URL=$url
+	rm -f "$CAT_INDEX" 2> /dev/null
+	cat_say "the index is $url"
 	return 0
 }
 
@@ -2838,7 +2838,7 @@ fn ap_setindex(url = "") {
 # got two lines on standard error and there was no way to ask at all, which
 # is the Sheet lesson in another costume -- work already paid for and never
 # handed over.
-ap_help() {
+cat_help() {
 	printf '%s\n' \
 	"catalogue -- what the desktop runs: applications, themes, colour" \
 	"schemes, languages and modules, fetched from an index over HTTPS" \
@@ -2911,9 +2911,9 @@ ap_help() {
 	"docs/adr/0045."
 }
 
-ap_usage() {
+cat_usage() {
 	echo "usage: catalogue [-j] list [TEXT] | [-j] installed | [-j] info NAME |" >&2
-	echo "       (kinds: ${AP_KINDS[*]})" >&2
+	echo "       (kinds: ${CAT_KINDS[*]})" >&2
 	echo "       show NAME | install NAME...|KIND/ | remove [-f] NAME... |" >&2
 	echo "       update [NAME...] | owns PATH | check [--repair] |" >&2
 	echo "       purge [-y] | index [URL] | refresh | help" >&2
@@ -2923,20 +2923,20 @@ ap_usage() {
 
 # `-j` anywhere in the arguments of a verb that answers something: the
 # desktop reads JSON where a person reads columns.
-AP_J=0
-AP_WANTSYS=0
-ap_args=()
+CAT_J=0
+CAT_WANTSYS=0
+cat_args=()
 for a in "$@"; do
 	case $a in
-	-j | --json) AP_J=1 ;;
-	--system) AP_WANTSYS=1 ;;
-	*) ap_args+=("$a") ;;
+	-j | --json) CAT_J=1 ;;
+	--system) CAT_WANTSYS=1 ;;
+	*) cat_args+=("$a") ;;
 	esac
 done
-set -- "${ap_args[@]}"
+set -- "${cat_args[@]}"
 # Before any verb runs, so nothing reads a path from one scope and
 # writes to another.
-[ "$AP_WANTSYS" = 1 ] && ap_scope system
+[ "$CAT_WANTSYS" = 1 ] && cat_scope system
 
 # A verb that writes asks first, so a scope this account cannot write to is
 # a sentence rather than a half-done install (Gitea #238). Reading is never
@@ -2947,24 +2947,24 @@ set -- "${ap_args[@]}"
 # renamed into place, so a reader sees one whole file or the other.
 case ${1-} in
 install | remove | uninstall | update | upgrade | purge)
-	ap_needwrite "$1"
-	ap_lock
+	cat_needwrite "$1"
+	cat_lock
 	;;
 esac
 
 case ${1-} in
-list) shift; ap_list "${1-}" "$AP_J" ;;
-installed) ap_installed "$AP_J" ;;
-info) [ -n "${2-}" ] || ap_usage; ap_info "$2" "$AP_J" ;;
-show | read) [ -n "${2-}" ] || ap_usage; ap_show "$2" ;;
-install) shift; ap_install "$@" ;;
-remove | uninstall) shift; ap_remove "$@" ;;
-owns | owner) shift; ap_owns "$@" ;;
-check) shift; ap_check "$@" ;;
-purge) shift; ap_purge "$@" ;;
-update | upgrade) shift; ap_update "$@" ;;
-index) ap_setindex "${2-}" ;;
-refresh) ap_load 1; ap_say "the index is up to date" ;;
-help | --help | -h) ap_help ;;
-*) ap_usage ;;
+list) shift; cat_list "${1-}" "$CAT_J" ;;
+installed) cat_installed "$CAT_J" ;;
+info) [ -n "${2-}" ] || cat_usage; cat_info "$2" "$CAT_J" ;;
+show | read) [ -n "${2-}" ] || cat_usage; cat_show "$2" ;;
+install) shift; cat_install "$@" ;;
+remove | uninstall) shift; cat_remove "$@" ;;
+owns | owner) shift; cat_owns "$@" ;;
+check) shift; cat_check "$@" ;;
+purge) shift; cat_purge "$@" ;;
+update | upgrade) shift; cat_update "$@" ;;
+index) cat_setindex "${2-}" ;;
+refresh) cat_load 1; cat_say "the index is up to date" ;;
+help | --help | -h) cat_help ;;
+*) cat_usage ;;
 esac

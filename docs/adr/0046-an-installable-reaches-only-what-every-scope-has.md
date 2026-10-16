@@ -100,7 +100,7 @@ Each rule has a check, and each check is derived from the tree, so a new
 application, pane, strip module or saver is covered with no edit to a test:
 
 - **`tests/deps.py`** reads every file of every script kind the catalogue
-  knows (its own `AP_KEXT`), and fails on a path built from a file's own
+  knows (its own `CAT_KEXT`), and fails on a path built from a file's own
   location, a sourced library without the mark, and a call into another
   installable with no guard in its function. Against the tree before this
   decision it reports 167 failures; against the tree after, none.

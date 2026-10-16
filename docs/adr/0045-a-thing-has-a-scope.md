@@ -216,7 +216,7 @@ naming which `(arch, abi)` pairs exist and the client choosing its own:
 
 Until 0.99.195 an entry carried a single `bundle` with one `arch` and
 one `abi` beside it, so the catalogue could hold exactly one build of a
-module and `ap_needs` refused every other machine by name. Honest, and
+module and `cat_needs` refused every other machine by name. Honest, and
 useless to anybody not on that machine. The matrix was built while
 publishing hibr's own modules was still the plan, and it is kept
 although that was refused: a third party with two machines has exactly
@@ -370,7 +370,7 @@ reasoning holds for a person installing into their own home and fails for
 an administrator installing into everyone's: the people who will run it
 are not the person who read it.
 
-**State and `purge` are per scope.** `AP_ST` lives in the user's data
+**State and `purge` are per scope.** `CAT_ST` lives in the user's data
 folder; the system scope needs its own, `catalogue installed` must say
 which scope each entry is in, and a user's `purge` must never reach a
 system one.

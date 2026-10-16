@@ -19,7 +19,7 @@
 
 strict
 
-app catalogue "The application catalogue: browse, install, update and remove" 2.1
+app catalogue "The application catalogue: browse, install, update and remove" 2.2
 
 # Not called "Applications": the hibr menu already has a submenu of that
 # name -- every app you can open -- and two rows called the same thing on
@@ -156,7 +156,7 @@ fn cat_loaded(int id, int st, int n, what = "") {
 	fi
 	CAT[$id]["err"]=
 	# The kinds this window groups by are the kinds the answer holds,
-	# in `apps`' own declared order when it sends one (`AP_KINDS`, in
+	# in `apps`' own declared order when it sends one (`CAT_KINDS`, in
 	# `list -j` since 0.99.194). It keeps no list of its own to fall
 	# behind -- which it did: `mods` arrived in `apps` in 0.99.191 and
 	# could not be shown here until 0.99.194, because the list was

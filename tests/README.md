@@ -133,7 +133,7 @@ Four more tools sit around it:
   only the ones a suite reaches. A suite in `all.py`; it takes under a
   second.
 - **`tests/deps.py`** -- reads every file of every script kind the
-  catalogue installs (taken from its own `AP_KEXT`) and fails on what would
+  catalogue installs (taken from its own `CAT_KEXT`) and fails on what would
   break once the file is installed somewhere other than this tree: a path
   built from the file's own location, a sourced library the desktop does
   not load, and a call into another installable with no `dt_has`,

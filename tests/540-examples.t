@@ -37,6 +37,16 @@ cat programs/desktop/desktop.hibr programs/desktop/wm/*.hibr \
   while read -r f; do echo "defined twice across the desktop's parts: $f"; done
 echo "no function is defined twice"
 
+# The catalogue command and its window share one prefix, cat_ and CAT_.
+# The appstore -> catalogue rename in 0.99.216 converted the window and
+# left the command on ap_/AP_ -- 982 identifiers, from when it was
+# called `apps` -- so anyone grepping for one prefix found half of it
+# (Gitea #266). The old one must not come back in either file.
+grep -nE '\b(ap|AP)_[A-Za-z0-9_]+' programs/catalogue.hibr \
+     programs/desktop/system/catalogue.hibr |
+  while read -r l; do echo "the catalogue's old ap_ prefix is back: $l"; done
+echo "the catalogue uses one prefix"
+
 # local id=$1 b=${ARR[$id]...} looks right and often runs right: a local
 # statement's own words are all expanded before local assigns any of
 # them, so a later word reading an earlier word's name in the same
@@ -343,13 +353,13 @@ echo "every pen names a theme colour"
 # is not English anybody chose, so this names it rather than failing the
 # build.
 #
-# AP_KINDS is wrapped over two lines, so the file is flattened first and
-# the list taken from `AP_KINDS=(` to the first `)`. A sed line range
+# CAT_KINDS is wrapped over two lines, so the file is flattened first and
+# the list taken from `CAT_KINDS=(` to the first `)`. A sed line range
 # cannot do it: `/NAME=(/,/)/` never ends on its own opening line, so a
 # list written on one line swallows whatever follows it.
 apk=$(tr '\n\t' '  ' < programs/catalogue.hibr |
-	sed 's/.*AP_KINDS=(//; s/).*//; s/  */ /g; s/^ //; s/ $//')
-[ -n "$apk" ] || echo "could not read AP_KINDS"
+	sed 's/.*CAT_KINDS=(//; s/).*//; s/  */ /g; s/^ //; s/ $//')
+[ -n "$apk" ] || echo "could not read CAT_KINDS"
 grep -q '^CAT_KINDS=()$' programs/desktop/system/catalogue.hibr ||
 	echo "the Catalogue keeps a kind list of its own again"
 for k in $apk; do
