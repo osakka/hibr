@@ -211,10 +211,24 @@ check("the same picture again costs nothing: one placement for three flushes",
 sc = run(TEXT + PIC % "-m pixels" + "console flush\n"
          "img draw %s 2 2 6 12 -m pixels\nconsole flush\nconsole key 400\n" % FLAT)
 p = places(sc)
-check("a different picture in the same rectangle replaces it, keeping the id",
-      len(p) == 2 and key(p[0], "i") == key(p[1], "i"), p)
-check("so nothing is deleted for the replacement",
-      len(deletes(sc)) == 1 and "d=A" in deletes(sc)[0], deletes(sc))
+# A new id, not the one it replaces. Re-using it reads as the cheap
+# replacement and the protocol says otherwise in as many words: "When
+# re-transmitting image data for a specific id, the existing image and
+# all its placements must be deleted. The new data replaces the old
+# image data but is not actually displayed until a placement for it is
+# created." So the terminal is *required* to blank the rectangle first,
+# which at one frame nobody sees and at a video's rate is a flicker on
+# every one of them -- reported as "we blank then draw, every frame ...
+# only in pixel mode" (Gitea #199). These two checks held the old
+# contract and are the contract now.
+check("a different picture in the same rectangle takes a new id, since "
+      "re-using one makes the terminal blank the rectangle first",
+      len(p) == 2 and key(p[0], "i") != key(p[1], "i"), p)
+check("and the one it replaced is deleted behind it, never before it",
+      [("place" if "a=T" in a else "delete")
+       for a in sc.apc if "a=T" in a or ("a=d" in a and "d=I" in a)]
+      == ["place", "place", "delete"],
+      [a for a in sc.apc if "a=T" in a or "a=d" in a])
 
 sc = run(TEXT + PIC % "-m pixels" + "console flush\n"
          "console put 3 3 'THROUGH'\nconsole flush\nconsole key 400\n")
@@ -307,6 +321,34 @@ check("and the frame that stops placing it is what takes it away",
 sc = run(TEXT + UPIC + "console flush\nconsole flush\nconsole key 400\n")
 check("a second flush with nothing drawn between it keeps the picture",
       len(places(sc)) == 1 and not any("d=I" in a for a in sc.apc), sc.apc)
+
+# A different picture in the same rectangle -- which is every frame of a
+# film -- must go out under a **new** id, with the old one deleted behind
+# it. Re-using the id reads as the cheap replacement, and the protocol
+# says otherwise in as many words: "When re-transmitting image data for a
+# specific id, the existing image and all its placements must be deleted.
+# The new data replaces the old image data but is not actually displayed
+# until a placement for it is created." So the terminal is *required* to
+# blank the rectangle first, which at one frame is invisible and at a
+# video's rate is a flicker on every one of them -- reported as "we blank
+# then draw, every frame ... only in pixel mode" (Gitea #199).
+#
+# The order is the whole check: a delete before its replacement is the
+# bug wearing a different hat.
+# And over a run of frames, which is what a film is: every placement a
+# new id, every delete behind the placement that superseded it, and
+# never a moment with no placement in the rectangle.
+sc = run(TEXT + PIC % "-m pixels" + "console flush\n"
+         + "img draw %s 2 2 6 12 -m pixels\nconsole flush\n" % FLAT
+         + PIC % "-m pixels" + "console flush\nconsole key 400\n")
+ev = [(("place" if "a=T" in a else "delete"), key(a, "i"))
+      for a in sc.apc if "a=T" in a or ("a=d" in a and "d=I" in a)]
+pl = [e for e in ev if e[0] == "place"]
+check("over a run of frames every one takes an id of its own",
+      len(pl) == 3 and len({e[1] for e in pl}) == 3, ev)
+check("and the deletes trail the placements rather than leading them",
+      [e[0] for e in ev] == ["place", "place", "delete", "place", "delete"],
+      ev)
 
 # The scaled pixels are kept (Gitea #108). The cell path has had a cache for
 # releases and the pixel path had none at all, so a wallpaper -- which must
@@ -733,7 +775,17 @@ check("a translucent write that lands on the terminal's colour is a shade off",
 # is what this terminal does -- and inside `hold` the name is the session's
 # own, frozen when it was started, so a client reattaching from another
 # machine could never change it.
-GFX = ("console key 400 > /dev/null\n"
+# Ten short waits rather than one of 400ms, and the reason is the thing
+# this suite is about: the terminal's answer arrives when the *harness*
+# is next scheduled to scan and reply, not on this script's clock. One
+# wait of 400ms asks a Python process under a full gate's load to get
+# a turn inside it, and when it does not, `console gfx` falls back to
+# the name list and the check reads the guess -- which failed a release
+# gate at 78 of 79 and passed three concurrent runs under spinners. A
+# loop rather than one longer wait because `console key` returns early
+# on a resize, so a single wait can be cut short and a loop cannot.
+GFX = ("i=0\n"
+       "while [ $i -lt 10 ]; do console key 200 > /dev/null; i=$((i + 1)); done\n"
        "console flush\n"
        "g := console gfx\n"
        "console put 1 1 \"$g\"\n"
@@ -781,4 +833,4 @@ check("and an explicit HIBR_GFX wins over what the terminal answered",
       run(GFX, gfx="sixel", caps=["kitty"]).row(1))
 
 shutil.rmtree(D, True)
-report(77)
+report(79)

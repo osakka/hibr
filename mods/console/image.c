@@ -53,6 +53,7 @@ typedef struct cn_img {
 static cn_img *cn_imgs;
 static size_t cn_nimg, cn_imgcap;
 static str cn_kdel;
+static str cn_kdlate;
 
 /* A kitty picture that has gone owes the terminal a delete. */
 void cn_imgowe(unsigned id)
@@ -60,6 +61,43 @@ void cn_imgowe(unsigned id)
 	if (!id)
 		return;
 	kt_del(&cn_kdel, id);
+}
+
+/* And one a *newer* picture has taken the place of owes one too -- but
+   after the new one has gone out, never before it.
+   
+   The protocol's own words: "When re-transmitting image data for a
+   specific id, the existing image and all its placements must be
+   deleted. The new data replaces the old image data but is not
+   actually displayed until a placement for it is created." So
+   re-using an id for a changing picture is not the cheap replacement
+   this file used to claim it was -- it is a delete and a place, with
+   the delete first and the terminal showing whatever is under the
+   cells in between. At one frame it is invisible; at a video's rate it
+   is a flicker on every frame, reported as "we blank then draw, every
+   frame ... only in pixel mode" (Gitea #199).
+   
+   So a replacement takes a new id and the old one is deleted behind
+   it: there is never an instant with no placement. The cost is one
+   extra escape of about thirty bytes a frame, against a payload of
+   hundreds of kilobytes, and at most two images live for a region
+   rather than one. */
+void cn_imgowelate(unsigned id)
+{
+	if (!id)
+		return;
+	kt_del(&cn_kdlate, id);
+}
+
+/* The deletes owed by pictures that have been superseded this frame. */
+size_t cn_imgdlate(str *b)
+{
+	size_t n = cn_kdlate.n;
+
+	if (n)
+		s_add(b, cn_kdlate.p, n);
+	cn_kdlate.n = 0;
+	return n;
 }
 
 /* FNV-1a, for "is this the same picture" and "are the cells under it still
@@ -438,10 +476,14 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 				im->under = cn_imgunder(im);
 			return 1;
 		}
-		/* A different picture in the same rectangle keeps the id: a
-		   kitty transmission with an id that is already taken replaces
-		   what was there, which is one escape rather than a delete and
-		   a place -- and it is what a film does every frame. */
+		/* A different picture in the same rectangle takes a **new**
+		   id, and the one it replaces is deleted after it has gone
+		   out (cn_imgowelate). Keeping the id was tried first and
+		   is what the protocol calls a re-transmission, which it
+		   requires the terminal to serve by deleting the existing
+		   image and all its placements before the new data is even
+		   complete -- a blank frame every frame, at a video's rate.
+		   Placing first and deleting behind leaves no such gap. */
 		reuse = im->id;
 		im->id = 0;
 		cn_imgdrop(i);
@@ -510,7 +552,9 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	im->live = im->over;
 	if (im->over)
 		cn_imgcells(im, rgb, iw, sx, sy, sw, sh);
-	im->id = k == CN_GFX_KITTY ? (reuse ? reuse : kt_id()) : 0;
+	im->id = k == CN_GFX_KITTY ? kt_id() : 0;
+	if (reuse)
+		cn_imgowelate(reuse);
 	s_init(&im->data);
 	/* The rectangle in pixels is what a sixel will paint 1:1, so the bitmap
 	   is scaled to exactly that: a cell short either way and the picture

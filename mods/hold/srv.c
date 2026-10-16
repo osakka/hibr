@@ -785,6 +785,15 @@ int hd_upgrade(sh *s, const char *path, vec *cls, int id, int tid, int m,
 	fprintf(f, "listen %d\n", l);
 	fprintf(f, "pty %d %ld %d %d\n", m, pid, rows, cols);
 	fprintf(f, "state %s\n", st.p);
+	/* How far the origin has been normalised, carried across the exec.
+	   It is what the program translates its own content by, and the
+	   counter is this process's -- so without this line an upgrade
+	   answers 0 to a program that was last told 12, and the program
+	   moves every window back by twelve rows for a shift that never
+	   came undone. A line the older reader does not know is skipped
+	   by it, so a new server can still resume an old file and the
+	   other way about. */
+	fprintf(f, "shift %d %d\n", hd_shiftr, hd_shiftc);
 	for (i = 0; i < cls->n; i++) {
 		struct hd_cli *cn = cls->p[i];
 
@@ -882,7 +891,7 @@ int hd_resume(sh *s)
 	sa.sa_handler = hd_onterm;
 	sigaction(SIGTERM, &sa, 0);
 	while (fgets(line, sizeof line, f)) {
-		int fd, row, col, crows, ccols, prim, xp, yp;
+		int fd, row, col, crows, ccols, prim, xp, yp, shr, shc;
 
 		if (sscanf(line, "listen %d", &l) == 1)
 			continue;
@@ -891,6 +900,11 @@ int hd_resume(sh *s)
 			continue;
 		if (sscanf(line, "state %255s", stpath) == 1)
 			continue;
+		if (sscanf(line, "shift %d %d", &shr, &shc) == 2) {
+			hd_shiftr = shr;
+			hd_shiftc = shc;
+			continue;
+		}
 		if (sscanf(line, "client %d %d %d %d %d %d %d %d %127s", &fd,
 			   &row, &col, &crows, &ccols, &prim, &xp, &yp,
 			   name) >= 8) {
@@ -930,6 +944,18 @@ int hd_resume(sh *s)
 	if (stpath[0] && !hd_tm->load(tid, stpath))
 		lg(HIBR_LINF, "hold resume: starting from a blank screen");
 	unlink(stpath);
+	/* The arrangement came back out of a file, so it is the first
+	   thing this process has that nothing has checked. Normalising
+	   runs from hd_union, and hd_union runs when a client attaches,
+	   moves, drops or resizes -- none of which an upgrade is. So a
+	   session that was already in a negative arrangement when its
+	   server was replaced kept it, with the new code sitting there
+	   unreached: `hold shift` answered 0 0 while `hold clients` still
+	   read `client-6 -66 3`, and the display above the primary went
+	   on drawing nothing. The whole point of upgrading a session is
+	   to get the fix, so this is where it has to be applied
+	   (Gitea #257, found live right after 0.99.220 shipped). */
+	hd_union(&cls, id, tid);
 	/* Every client is sent the whole screen again rather than a
 	   difference from a front this process never had. */
 	hd_rensend(&cls, tid);

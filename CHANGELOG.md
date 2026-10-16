@@ -1,5 +1,82 @@
 # Changelog
 
+## 0.99.223
+
+**Every frame of a video asked the terminal to blank the rectangle
+before drawing it, and the protocol says so in as many words.**
+
+Reported precisely: *"the text below once it overlaps bleeds through,
+and the blinking every frame, it seems we blank then draw, every frame?
+... only in pixel mode, half block and other modes seem to be 100%
+fine. This is a pixel rendering issue I think that affects all our
+pixel rendering?"* -- and that last guess is right.
+
+The stream was read rather than reasoned about. Before each
+transmission the console sends 25 to 169 bytes: one cursor move, **no
+erases, no printable text**. hibr does not blank anything. The blanking
+is the terminal's, and it is required:
+
+> When re-transmitting image data for a specific id, the existing image
+> and all its placements **must be deleted**. The new data replaces the
+> old image data but is not actually displayed until a placement for it
+> is created.
+>
+> -- kitty's graphics protocol
+
+So re-using an id, which `image.c` described as *"one escape rather
+than a delete and a place"*, is exactly a delete and a place, with the
+delete first and whatever is under the cells showing in between. At one
+frame nobody sees it. At a video's rate it is a flicker on every frame,
+and anything drawn under the picture shows through the gap -- both
+symptoms, one cause.
+
+A replacement takes a **new** id now and the old one is deleted
+**behind** it, after the new placement has gone out, so there is never
+an instant without one. The stream before and after, over five seconds
+of playback:
+
+```
+before:  31 placements, 1 id, 0 deletes
+after:   31 placements, 31 ids, 30 deletes
+         p:5589 d:5588  p:5590 d:5589  p:5591 d:5590 ...
+```
+
+Zero deletes with no newer placement already ahead of them. The cost is
+one escape of about thirty bytes a frame against a payload of hundreds
+of kilobytes, and two live images per region instead of one.
+
+It is general to pixel rendering, as reported -- a still picture simply
+never showed it, because the gap lasts one frame and a still has only
+one. Two checks in `tests/kitgfx.py` held the old contract and now hold
+this one; two more drive a run of frames.
+
+**And the display work's own gap, found the same day.** Normalising a
+negative arrangement runs from `hd_union`, which runs when a client
+attaches, moves, drops or resizes -- an upgrade is none of those, so
+`hd_resume` restored a session's clients straight out of a file and
+went to the serving loop with the fix unreached. Measured live:
+`hold shift` answering (so the server was new) beside
+`client-6 -66 3` (so nothing had normalised it). That is why a session
+upgraded to 0.99.220 still drew nothing above the primary, and why
+detaching the secondary cured it.
+
+It is normalised on resume, and the shift counter is carried across the
+exec in the resume file -- without that an upgraded server answers `0`
+to a desktop last told `12`, and the desktop moves every window back by
+a shift that never came undone. A reader that does not know the line
+skips it, so either server reads either file. Checked in
+`tests/790-hold.t`; against this release without the carry it reads
+`0 0` where it should read `10 4`.
+
+And a check in `tests/kitgfx.py` that waited 400ms for an answer which
+arrives when the *harness* is next scheduled to reply, not on the
+script's clock -- it read the name-list guess at 78 of 79 in a release
+gate and passed three concurrent runs under spinners. Ten short waits
+instead of one, because `console key` returns early on a resize and a
+single wait can be cut short where a loop cannot.
+
+Gitea #199, #257.
+
 ## 0.99.222
 
 **A picture was magnified before it was sent, and the magnification

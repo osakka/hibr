@@ -363,6 +363,17 @@ echo "nothing is left at a negative row or column: $(hold clients t14 | awk '$2 
 # merely picks a different primary, and one display's own movement
 # cannot be told from that display having been the one dragged.
 echo "and it says how far it moved everything: $(hold shift t14)"
+# And both survive the server being replaced. Normalising runs from
+# hd_union, which runs when a client attaches, moves, drops or resizes
+# -- an upgrade is none of those, so a session already in a negative
+# arrangement kept it with the new code sitting there unreached. The
+# counter is this process's, too, so without carrying it the upgraded
+# server answers 0 to a program that was last told 10,4 and the
+# program moves everything back by a shift that never came undone.
+hold upgrade t14; echo "upgrade: $?"
+sleep 1.2
+echo "the arrangement came through: $(hold clients t14 | sort | awk '{printf "%s %s,%s ", $1, $2, $3}')"
+echo "and so did how far it had moved: $(hold shift t14)"
 echo "the arrangement is kept: $(hold clients t14 | sort | awk '{printf "%s %s,%s ", $1, $2, $3}')"
 echo "and the union grew to hold it: $(hold list | awk '$1 == "t14" { print $4 }')"
 hold kill t14

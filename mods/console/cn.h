@@ -110,6 +110,8 @@ size_t cn_imgsend(str *b, int over);
 /* The deletes owed to the terminal for pictures that have gone, emitted
    before the diff so the text underneath is painted in the same frame. */
 size_t cn_imgdels(str *b);
+size_t cn_imgdlate(str *b);
+void cn_imgowelate(unsigned id);
 void cn_imgclear(void);
 int cn_imgat(int row, int col);
 int cn_imgcellat(int row, int col, unsigned *out);

@@ -796,6 +796,12 @@ long cn_flush(void)
 		cc = -9;
 		cn_lset = 0;
 	}
+	/* And only now the deletes owed by whatever those replaced: the new
+	   placement is already on the wire, so there is no instant with
+	   nothing in the rectangle. Before the diff is where an *ordinary*
+	   delete belongs -- the text underneath has to paint in the same
+	   frame -- and it is the wrong place for this one (Gitea #199). */
+	cn_imgdlate(&b);
 	if (cn_cvis) {
 		cn_goto(&b, cn_crow, cn_ccol, cr, cc);
 		if (cn_lvis != 1)
