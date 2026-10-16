@@ -35,11 +35,22 @@ if ! mod load "$d/mods/hold.so" 2> /dev/null; then
 fi
 
 # The server is a fork of this shell, so it maps the copies above.
-hold new -d v /bin/sh -c 'echo hi; sleep 60' > /dev/null
+#
+# Named after this process, not `v`: the scan below is of the whole of
+# /proc, which no TMPDIR of our own can narrow, so a session of that name
+# left by any other run -- this test's server outlives a failure for its
+# own `sleep 60` -- is indistinguishable from ours. And `/proc/[0-9]*`
+# globs as *text*, so the last match is the lexicographically greatest
+# rather than the newest: pid 998000 beats pid 1002000. The failure that
+# costs is "nothing was replaced [0]", which reads as the upgrade being
+# broken and is this test holding the wrong process. Same rule as
+# screen.scratch's own pid-named files.
+vs=v$$
+hold new -d "$vs" /bin/sh -c 'echo hi; sleep 60' > /dev/null
 srv=
 for p in /proc/[0-9]*; do
 	read -r c 2> /dev/null < "$p/comm" || continue
-	if [ "$c" = "hold:v" ]; then srv=$p; fi
+	if [ "$c" = "hold:$vs" ]; then srv=$p; break; fi
 done
 if [ -n "$srv" ]; then echo "the server names itself"; else echo "no server found"; fi
 
@@ -59,7 +70,7 @@ fi
 r := hold list
 read -r nm st was sz <<< "$r"
 
-hold upgrade v
+hold upgrade "$vs"
 # The server answers an upgrade before it execs and serves nothing while it
 # is at it, so the next answer it gives is necessarily after the attempt:
 # this needs no waiting, and a wait would hide a server that never got there.
@@ -76,7 +87,7 @@ if [ "${n:-1}" = 0 ]; then
 else
 	echo "still stale: $n"
 fi
-hold kill v > /dev/null 2>&1
+hold kill "$vs" > /dev/null 2>&1
 
 # The other way about: an exec that cannot happen must leave the session
 # whole. hd_upgrade releases the pty first so the new image can adopt it,
@@ -88,7 +99,8 @@ hold kill v > /dev/null 2>&1
 # when it forks.
 keep=$HIBR
 HIBR=$d/not-a-shell
-hold new -d u /bin/sh -c 'echo hi; sleep 60' > /dev/null
+us=u$$
+hold new -d "$us" /bin/sh -c 'echo hi; sleep 60' > /dev/null
 HIBR=$keep
 r := hold list
 read -r nm st was sz <<< "$r"
@@ -96,7 +108,7 @@ case $was in
 '' | -*) echo "the program is not known [$r]" ;;
 *) echo "the program is known" ;;
 esac
-hold upgrade u
+hold upgrade "$us"
 r := hold list
 read -r nm st pid sz <<< "$r"
 if [ "$pid" = "$was" ]; then
@@ -106,7 +118,7 @@ else
 fi
 # And twice, since taking it back has to leave it as it was rather than
 # merely once-recoverable.
-hold upgrade u
+hold upgrade "$us"
 r := hold list
 read -r nm st pid sz <<< "$r"
 if [ "$pid" = "$was" ]; then
@@ -119,7 +131,7 @@ if kill -0 "$was" 2> /dev/null; then
 else
 	echo "the program went"
 fi
-hold kill u > /dev/null 2>&1
+hold kill "$us" > /dev/null 2>&1
 
 # A name nothing answers to is told so rather than being confused with the
 # other refusal: a server from before this verb closes the connection

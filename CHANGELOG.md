@@ -1,5 +1,66 @@
 # Changelog
 
+## 0.99.210
+
+**`cd` in a strict function is the shell's own bookkeeping, not a global
+the script created.**
+
+Gitea #251, split out of #229, where it was four lines in the owner's
+own `desktop.log`:
+
+    hibr: .../apps/Office/sheet.hibr:685: OLDPWD is not declared
+          -- local OLDPWD, or declare -g OLDPWD (strict vars)     (x4)
+
+`v_shellvar` is the list of names the shell manages for a script, and
+`strict vars` passes every one of them: `RET`, `M`, `BASH_REMATCH`,
+`PIPESTATUS`, `REPLY`, `OPTARG`, `MAPFILE` and five more. **`PWD` and
+`OLDPWD` were not on it**, and `cd` and `pushd` set both.
+
+It does not merely log. The refusal **fails the `cd`**, so
+
+    out=$(cd "$tmp" && env -i ... "$HIBR" ... )
+
+short-circuits and `out` comes back **empty** -- and that is how
+`ss_recalc` runs every formula in Sheet. On any desktop whose session
+had no `OLDPWD`, **every formula in the spreadsheet was empty, always**,
+with the reason only in a log. A desktop started from the **login
+screen** has none: PAM makes a fresh environment, and `OLDPWD` is
+something a shell's own `cd` creates.
+
+Measured, with the name stripped:
+
+    cd:    []        before          cd:    [ran]     after
+    pushd: []                        pushd: [ran]
+
+and `getopts a v` still refuses `v`, so the exemption corrected strict
+vars rather than blunting it. A sweep of the rest -- `source`, `read`,
+`=~`, `&`, `SECONDS`, `LINENO`, `PIPESTATUS` -- found them all already
+exempt, so these two were the whole family.
+
+**Why nothing caught it.** Every suite inherits the shell it was started
+from, and a developer's shell has `OLDPWD`; `Term`'s `env` could only
+ever *add* a name, so a bug that needs one to be **absent** was
+untestable. It takes `None` to remove one now, and `tests/apps.py`'s
+Sheet section works a formula out in a session that has none.
+`tests/209-strict-cd.t` records `cd` and `pushd` in a strict function
+beside a global the script really does create, and fails against
+0.99.209.
+
+**And a test the gate caught on the way**, unrelated to the fix:
+`936-hold-upgrade` named its held session `v` and found the server by
+scanning the whole of `/proc` for a `comm` of `hold:v`, keeping the
+**last** match. No `TMPDIR` of its own can narrow a scan of `/proc`, the
+server outlives a failed run for its own `sleep 60`, and `/proc/[0-9]*`
+globs as *text* -- so the last match is the lexicographically greatest
+rather than the newest, and pid 998000 beats pid 1002000. It then
+measures the wrong process and says `nothing was replaced [0]`, which
+reads as `hold upgrade` being broken. The session is named after the
+process now, and the scan stops at its own: **3 of 4 concurrent copies
+fail with the old name, 4 of 4 pass with the new**, and the recording is
+byte-identical, which is what says the conversion changed nothing but
+the hazard. Whether that is what failed the gate is **not** proven --
+only that the weakness is real and is gone.
+
 ## 0.99.209
 
 **Pasting into a terminal window does something.**

@@ -1,0 +1,7 @@
+0
+cd: [ran]
+pushd: [ran]
+status 0
+hibr: g.hibr:3: mine is not declared -- local mine, or declare -g mine (strict vars)
+made: 
+status 0

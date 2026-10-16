@@ -159,7 +159,7 @@ int v_shellvar(const char *k)
 	static const char *nm[] = { "RET", "M", "REPLY", "OPTARG", "OPTIND",
 				    "ERR", "ERRMSG", "ERRSTATUS", "CMD",
 				    "REMOTE", "PIPESTATUS", "MAPFILE",
-				    "BASH_REMATCH", 0 };
+				    "BASH_REMATCH", "PWD", "OLDPWD", 0 };
 	int i;
 
 	for (i = 0; nm[i]; i++)
@@ -170,7 +170,15 @@ int v_shellvar(const char *k)
 
 /* Whether strict vars refuses creating k here: in a function, from a file
    that asked, outside a declaration, and not a name the shell manages --
-   nor a special parameter such as $!, which & sets. */
+   nor a special parameter such as $!, which & sets.
+
+   PWD and OLDPWD are the shell's own bookkeeping, set by cd and pushd, and
+   leaving them off that list did not merely log: the refusal *fails* the
+   cd, so `out=$(cd "$d" && thing)` short-circuits and comes back empty.
+   Sheet evaluates every formula that way, so on a desktop whose session
+   had no OLDPWD -- a fresh PAM one from the login screen has none -- every
+   formula in the spreadsheet was empty, always, and only the log said why
+   (Gitea #251). A script that calls cd is not creating a global. */
 int v_strict(sh *s, const char *k)
 {
 	if (!(s->sfl & SF_VAR) || s->decl || s->scope.n <= s->srcdep ||

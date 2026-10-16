@@ -3848,6 +3848,60 @@ went in the shell.
   error check caught it independently**: the new check and "no session
   printed a shell error" both failed against the old code, which is what
   a missing-argument refusal looks like from two directions.
+- **A name the shell sets on a script's behalf is not a global the script
+  created, and `v_shellvar` is the list that says so -- `PWD` and
+  `OLDPWD` were missing from it** (Gitea #251, 0.99.210). `strict vars`
+  already passed `RET`, `M`, `BASH_REMATCH`, `PIPESTATUS`, `REPLY` and
+  seven more; `cd` and `pushd` set `PWD` and `OLDPWD`, which were not
+  there. **And the refusal is not a log line, it fails the command**: so
+  `out=$(cd "$d" && thing)` short-circuited and came back **empty**,
+  which is how `ss_recalc` runs every formula -- **every formula in Sheet
+  was empty, always**, on any desktop whose session had no `OLDPWD`. A
+  desktop started from the **login screen** has none, because PAM makes a
+  fresh environment and `OLDPWD` is something a shell's own `cd` creates.
+  Three things worth keeping. **Sweep the family**: `source`, `read`,
+  `=~`, `&`, `SECONDS`, `LINENO` and `PIPESTATUS` were all already
+  exempt and `pushd` was not, so the answer was two names rather than
+  one -- and `getopts a v` still refusing `v` is the check that the
+  exemption corrected strict vars rather than blunting it. **The fix
+  belongs in the list, not in the caller**: telling every author to
+  `declare -g PWD OLDPWD` beside each `cd` is a rule nobody keeps, and
+  `v_shellvar`'s own comment already said what it was for.
+  And **a suite cannot see a bug that needs a variable to be absent, if
+  it inherits that variable** -- every one of them inherits the shell it
+  was started from, and a developer's shell has `OLDPWD`. `Term`'s `env`
+  could only add a name; `None` removes one now. That is the
+  `DT_SUPERVISED` leak in reverse: there a variable's *presence* leaked
+  in and broke the suites, here its presence hid a bug from them.
+- **Adding a check means bumping `apps.py`'s `report(N)` and the right
+  row of `appslice.PLAN`, and the sum being right is not enough.** The
+  Sheet section lives inside *"what nothing reached before 0.56"*, not
+  in `more` where a section with no named part goes -- so a check added
+  to it raised `reach` and I raised `more`, and the two errors cancelled
+  in `sum(PLAN)`, which is what `appslice` compares against apps.py's own
+  plan. The per-part number is still checked, by each part's own
+  `report(PLAN[part])` printing `planned 141 checks, made 140` and
+  exiting 1 -- which a `grep` for `passed,` hides and a `for` loop's exit
+  status swallows. **Read the whole tail of a part, not the line with the
+  count in it.**
+- **A `/proc`-wide scan cannot be narrowed by a `TMPDIR` of one's own, so
+  a test that scans it needs a name of its own instead.**
+  `936-hold-upgrade` named its held session `v`, found the server by
+  walking `/proc/[0-9]*` for a `comm` of `hold:v`, and kept the **last**
+  match -- and that glob sorts as *text*, so the last is the
+  lexicographically greatest rather than the newest: pid 998000 beats pid
+  1002000. Its own server also outlives a failed run for its `sleep 60`.
+  Hold the wrong process and the count of replaced mappings is zero, which
+  prints `nothing was replaced [0]` and reads as `hold upgrade` being
+  broken rather than as the test measuring somebody else. Named after the
+  process now, with the scan stopping at its own: **3 of 4 concurrent
+  copies fail with the fixed name and 4 of 4 pass with the pid one**, and
+  the **recording is byte-identical**, which is what says the conversion
+  changed nothing but the hazard. This is `screen.scratch`'s rule --
+  a suite's scratch file is named after this process, not after the
+  suite -- reaching something that is not a file: a session name, and
+  anything else a test looks for by name in a namespace it shares with
+  every other process on the box.
 - **"No APC at all" is not "no picture".** Three assertions across two
   suites read `not sc.apc` meaning "nothing was drawn as a bitmap", and
   broke the moment the display sent an APC **query** of its own. A

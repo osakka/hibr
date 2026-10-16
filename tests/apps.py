@@ -4007,6 +4007,24 @@ sc = shrun(shk("5") + [b"\r"] + shk("7") + [b"\r"] +
 check("Sheet takes numbers and a formula, and math works it out",
       "15.5" in shcells(sc, 3) and "5" in shcells(sc, 1), sc)
 check("its formula bar names the cell", shname(sc) == "A4", sc)
+
+# And with no OLDPWD in the session's environment, which is what a
+# desktop started from the login screen has: PAM makes a fresh one, and
+# OLDPWD is a thing a shell's own `cd` creates. `ss_recalc` runs every
+# formula as `out=$(cd "$tmp" && env -i ... )`, and `strict vars` refused
+# PWD and OLDPWD as globals the function was creating -- which does not
+# merely log, it *fails* the cd, so the `&&` short-circuited and `out`
+# came back empty: every formula in the spreadsheet, always (Gitea #251).
+# No suite could see it, because every suite inherits the shell it was
+# started from and a developer's shell has OLDPWD.
+os.remove(SHEET)
+sc = shrun(shk("5") + [b"\r"] + shk("7") + [b"\r"] +
+           shk('=math "A1+A2*1.5"') + [b"\r"], env={"OLDPWD": None})
+check("and it works a formula out in a session that has no OLDPWD",
+      "15.5" in shcells(sc, 3), sc)
+os.remove(SHEET)
+sc = shrun(shk("5") + [b"\r"] + shk("7") + [b"\r"] +
+           shk('=math "A1+A2*1.5"') + [b"\r"])
 sc = shrun([], arg=SHEET)
 check("what was typed is in the file, there when it is opened again",
       "15.5" in shcells(sc, 3) and "Sheet [Untitled]" in sc.text(), sc)
@@ -4733,4 +4751,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(628)
+report(629)

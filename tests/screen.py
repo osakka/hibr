@@ -360,8 +360,18 @@ class Term:
             os.environ["XDG_CONFIG_HOME"] = os.path.join(own, "config")
             os.environ["XDG_STATE_HOME"] = os.path.join(own, "state")
             os.environ["XDG_DATA_HOME"] = os.path.join(own, "data")
+            # A value of None *removes* the name, which is how a suite
+            # says "this session has none of that" -- `env` could only
+            # ever add, so a bug that needs a variable to be absent was
+            # untestable here. Every suite inherits the shell it was
+            # started from, and a developer's shell has OLDPWD, which is
+            # exactly why nothing caught `cd` failing in a strict desktop
+            # function without one (Gitea #251).
             for k, v in (env or {}).items():
-                os.environ[k] = v
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
             os.execv(HIBR, ["hibr"] + [str(a) for a in argv])
         if size:
             self.resize(rows, cols, cellw, cellh)
