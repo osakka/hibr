@@ -1,6 +1,6 @@
 #!/usr/bin/env hibr
 #
-# appstore -- Applications: the catalogue in a window. `apps` is the whole
+# catalogue -- Applications: the catalogue in a window. `apps` is the whole
 # implementation and this is a window around it, the way the Vault
 # accessory is a window around `vw` -- anything one can do the other can,
 # because there is only one of them (Gitea #219).
@@ -19,88 +19,88 @@
 
 strict
 
-app appstore "The application catalogue: browse, install, update and remove" 1.5
+app catalogue "The application catalogue: browse, install, update and remove" 2.0
 
 # Not called "Applications": the hibr menu already has a submenu of that
 # name -- every app you can open -- and two rows called the same thing on
 # one menu is a menu nobody can learn.
-command -v dt_app > /dev/null && dt_app appstore "Catalogue" 24 88 once "⌘"
+command -v dt_app > /dev/null && dt_app catalogue "Catalogue" 24 88 once "⌘"
 
-declare -gA AS
-AS_JOBS=
-# The detail pane's prose, wrapped into lines by appstore_draw so it can
+declare -gA CAT
+CAT_JOBS=
+# The detail pane's prose, wrapped into lines by catalogue_draw so it can
 # be scrolled -- a list the drawing passes to itself, declared here
 # because a strict file's globals are declared at file level.
-AS_DLINES=()
+CAT_DLINES=()
 # Where the divider between the list and the detail sits, kept so it
 # is where it was left. State rather than a choice anybody makes in
 # the Control Panel, which is why it is named in 540-examples' own
 # list of those beside CP_DIVCOL and DIA_SPLIT.
-AS_SPLIT="${AS_SPLIT-}"
-command -v dt_keep > /dev/null && dt_keep AS_SPLIT
-AS_N=0
-AS_LIVE=0
-AS_READY=
+CAT_SPLIT="${CAT_SPLIT-}"
+command -v dt_keep > /dev/null && dt_keep CAT_SPLIT
+CAT_N=0
+CAT_LIVE=0
+CAT_READY=
 
 # Somewhere for a job's output and status, once a session.
-fn as_ready() {
-	[ -n "$AS_READY" ] && return 0
-	AS_JOBS="${XDG_CACHE_HOME:-$HOME/.cache}/hibr/appstore-jobs"
-	command rm -rf -- "$AS_JOBS" 2> /dev/null
-	command mkdir -p -- "$AS_JOBS" 2> /dev/null || return 1
-	AS_READY=1
+fn cat_ready() {
+	[ -n "$CAT_READY" ] && return 0
+	CAT_JOBS="${XDG_CACHE_HOME:-$HOME/.cache}/hibr/catalogue-jobs"
+	command rm -rf -- "$CAT_JOBS" 2> /dev/null
+	command mkdir -p -- "$CAT_JOBS" 2> /dev/null || return 1
+	CAT_READY=1
 	return 0
 }
 
 # Start one: the command runs in the background with its output and its
 # errors in files of their own, and the next frame reads the status.
-fn as_job(int id, what, then, ...cmd) {
+fn cat_job(int id, what, then, ...cmd) {
 	local n
 
-	as_ready || { dt_note "Cannot make a folder for jobs"; return 1; }
-	AS_N=$((AS_N + 1))
-	n=$AS_N
-	AS[$id]["job"]["$n"]["what"]=$what
-	AS[$id]["job"]["$n"]["then"]=$then
+	cat_ready || { dt_note "Cannot make a folder for jobs"; return 1; }
+	CAT_N=$((CAT_N + 1))
+	n=$CAT_N
+	CAT[$id]["job"]["$n"]["what"]=$what
+	CAT[$id]["job"]["$n"]["then"]=$then
 	(
 		dt_jobname "apps:$what"
-		"${cmd[@]}" > "$AS_JOBS/$n.out" 2> "$AS_JOBS/$n.err"
-		printf '%s\n' "$?" > "$AS_JOBS/$n.st"
+		"${cmd[@]}" > "$CAT_JOBS/$n.out" 2> "$CAT_JOBS/$n.err"
+		printf '%s\n' "$?" > "$CAT_JOBS/$n.st"
 	) &
-	AS_LIVE=$((AS_LIVE + 1))
-	AS[$id]["busy"]=$what
+	CAT_LIVE=$((CAT_LIVE + 1))
+	CAT[$id]["busy"]=$what
 	dt_want 120
 	return 0
 }
 
 # Hand every finished job to its callback. Costs one test while none is
 # running, which is the usual state.
-fn as_poll(int id) {
+fn cat_poll(int id) {
 	local n st then what
 	local -a done
 
-	[ "$AS_LIVE" -gt 0 ] || return 0
-	# Ask for the frame that will look again. `as_job` asks for one 120
+	[ "$CAT_LIVE" -gt 0 ] || return 0
+	# Ask for the frame that will look again. `cat_job` asks for one 120
 	# ms out, and a job that is not finished by then would never be
 	# collected: nothing else re-arms, so the window sits on "working"
 	# for ever while its answer waits in a file. This is the trap this
 	# desktop records about `dt_want` -- one frame is all it asks for --
 	# and the condition here is sound, because it stops the moment
-	# AS_LIVE reaches zero rather than asking "am I the kind of thing
+	# CAT_LIVE reaches zero rather than asking "am I the kind of thing
 	# that sometimes needs a frame".
 	dt_want 120
-	for n in "${!AS[$id]["job"][@]}"; do
-		[ -s "$AS_JOBS/$n.st" ] || continue
-		read -r st < "$AS_JOBS/$n.st"
-		then=${AS[$id]["job"]["$n"]["then"]}
-		what=${AS[$id]["job"]["$n"]["what"]}
+	for n in "${!CAT[$id]["job"][@]}"; do
+		[ -s "$CAT_JOBS/$n.st" ] || continue
+		read -r st < "$CAT_JOBS/$n.st"
+		then=${CAT[$id]["job"]["$n"]["then"]}
+		what=${CAT[$id]["job"]["$n"]["what"]}
 		done+=("$n")
-		AS_LIVE=$((AS_LIVE - 1))
-		AS[$id]["busy"]=
+		CAT_LIVE=$((CAT_LIVE - 1))
+		CAT[$id]["busy"]=
 		# Marked done before the callback runs, or a callback that
 		# starts the next job sees this one still live -- the trap
 		# Mail's own poll was written with.
-		unset AS[$id]["job"]["$n"]
+		unset CAT[$id]["job"]["$n"]
 		"$then" "$id" "$st" "$n" "$what"
 		dt_want 60
 	done
@@ -108,39 +108,39 @@ fn as_poll(int id) {
 }
 
 # What a job printed, and what it complained about.
-fn as_out(int n) {
-	[ -r "$AS_JOBS/$n.out" ] || { ret ""; return 0; }
-	ret "$AS_JOBS/$n.out"
+fn cat_out(int n) {
+	[ -r "$CAT_JOBS/$n.out" ] || { ret ""; return 0; }
+	ret "$CAT_JOBS/$n.out"
 }
 
-fn as_why(int n) {
+fn cat_why(int n) {
 	local l=
 
-	[ -s "$AS_JOBS/$n.err" ] && read -r l < "$AS_JOBS/$n.err"
+	[ -s "$CAT_JOBS/$n.err" ] && read -r l < "$CAT_JOBS/$n.err"
 	l=${l#apps: }
 	ret "${l:-it did not say why}"
 }
 
 # --- reading the catalogue -------------------------------------------
 
-fn as_reload(int id) {
-	AS[$id]["loading"]=1
-	as_job "$id" list as_loaded catalogue list -j
+fn cat_reload(int id) {
+	CAT[$id]["loading"]=1
+	cat_job "$id" list cat_loaded catalogue list -j
 	return 0
 }
 
 # The index as the command answered it. Every fact in its own field, so
 # nothing here works out from a sentence what the command already knew.
-fn as_loaded(int id, int st, int n, what = "") {
+fn cat_loaded(int id, int st, int n, what = "") {
 	local f k i=0 why p
 	local -A j
 
-	AS[$id]["loading"]=
-	f := as_out "$n"
+	CAT[$id]["loading"]=
+	f := cat_out "$n"
 	if [ "$st" != 0 ]; then
-		why := as_why "$n"
-		AS[$id]["err"]=$why
-		AS[$id]["n"]=0
+		why := cat_why "$n"
+		CAT[$id]["err"]=$why
+		CAT[$id]["n"]=0
 		return 0
 	fi
 	# It succeeded and what came back is not JSON, which has one likely
@@ -150,11 +150,11 @@ fn as_loaded(int id, int st, int n, what = "") {
 	# just not in JSON. (The command was called `apps` until 0.99.195,
 	# and one that old is exactly the case this message is for.)
 	if [ -z "$f" ] || ! json parse j < "$f" 2> /dev/null; then
-		AS[$id]["err"] := dt_tr "The catalogue command did not answer JSON. It may be older than this window."
-		AS[$id]["n"]=0
+		CAT[$id]["err"] := dt_tr "The catalogue command did not answer JSON. It may be older than this window."
+		CAT[$id]["n"]=0
 		return 0
 	fi
-	AS[$id]["err"]=
+	CAT[$id]["err"]=
 	# The kinds this window groups by are the kinds the answer holds,
 	# in `apps`' own declared order when it sends one (`AP_KINDS`, in
 	# `list -j` since 0.99.194). It keeps no list of its own to fall
@@ -169,41 +169,41 @@ fn as_loaded(int id, int st, int n, what = "") {
 	# order the catalogue's own page uses rather than the index's.
 	# Deriving it is what makes an old `apps` show a list rather than
 	# an empty window with no error in it.
-	AS_KINDS=()
+	CAT_KINDS=()
 	for k in "${!j["kinds"][@]}"; do
-		AS_KINDS+=("$k")
+		CAT_KINDS+=("$k")
 	done
 	for k in "${!j["entries"][@]}"; do
-		AS[$id]["e"][$i]["id"]=${j["entries"]["$k"]["id"]}
-		AS[$id]["e"][$i]["name"]=${j["entries"]["$k"]["name"]}
-		AS[$id]["e"][$i]["title"]=${j["entries"]["$k"]["title"]}
-		AS[$id]["e"][$i]["version"]=${j["entries"]["$k"]["version"]}
-		AS[$id]["e"][$i]["installed"]=${j["entries"]["$k"]["installed"]}
+		CAT[$id]["e"][$i]["id"]=${j["entries"]["$k"]["id"]}
+		CAT[$id]["e"][$i]["name"]=${j["entries"]["$k"]["name"]}
+		CAT[$id]["e"][$i]["title"]=${j["entries"]["$k"]["title"]}
+		CAT[$id]["e"][$i]["version"]=${j["entries"]["$k"]["version"]}
+		CAT[$id]["e"][$i]["installed"]=${j["entries"]["$k"]["installed"]}
 		# Where it is, which is not the same question as whether the
 		# catalogue placed it: the shipped package is nobody's
 		# install, so this window drew an unticked row for four
 		# themes and twelve colours that were on disk (Gitea #254).
 		# Empty from a catalogue older than 0.99.212, which then
 		# behaves exactly as it did.
-		AS[$id]["e"][$i]["where"]=${j["entries"]["$k"]["where"]}
-		AS[$id]["e"][$i]["update"]=${j["entries"]["$k"]["update"]}
-		AS[$id]["e"][$i]["about"]=${j["entries"]["$k"]["about"]}
-		AS[$id]["e"][$i]["kind"]=${j["entries"]["$k"]["kind"]}
+		CAT[$id]["e"][$i]["where"]=${j["entries"]["$k"]["where"]}
+		CAT[$id]["e"][$i]["update"]=${j["entries"]["$k"]["update"]}
+		CAT[$id]["e"][$i]["about"]=${j["entries"]["$k"]["about"]}
+		CAT[$id]["e"][$i]["kind"]=${j["entries"]["$k"]["kind"]}
 		# What the command has said in its own columns since
 		# 0.99.197 and this window could not see, so a copy that can
 		# never run looked exactly like a working one (Gitea #244).
-		AS[$id]["e"][$i]["defunct"]=${j["entries"]["$k"]["defunct"]}
-		AS[$id]["e"][$i]["shadows"]=${j["entries"]["$k"]["shadows"]}
-		AS[$id]["e"][$i]["np"]=${#j["entries"]["$k"]["parts"][@]}
+		CAT[$id]["e"][$i]["defunct"]=${j["entries"]["$k"]["defunct"]}
+		CAT[$id]["e"][$i]["shadows"]=${j["entries"]["$k"]["shadows"]}
+		CAT[$id]["e"][$i]["np"]=${#j["entries"]["$k"]["parts"][@]}
 		for p in "${!j["entries"]["$k"]["parts"][@]}"; do
-			AS[$id]["e"][$i]["parts"]["$p"]=${j["entries"]["$k"]["parts"]["$p"]}
+			CAT[$id]["e"][$i]["parts"]["$p"]=${j["entries"]["$k"]["parts"]["$p"]}
 		done
 		i=$((i + 1))
 	done
-	AS[$id]["n"]=$i
-	as_kindsfrom "$id"
-	as_filter "$id"
-	as_first "$id"
+	CAT[$id]["n"]=$i
+	cat_kindsfrom "$id"
+	cat_filter "$id"
+	cat_first "$id"
 	return 0
 }
 
@@ -212,46 +212,46 @@ fn as_loaded(int id, int st, int n, what = "") {
 # a pane that is broken. Asked when the window loads and again after
 # every search, which is the same moment for the same reason -- a search
 # that narrows to one app should show you that app.
-fn as_first(int id) {
-	if [ "${AS[$id]["sel"]:-0}" = 0 ] && [ "${AS[$id]["m"]:-0}" -gt 1 ] &&
-	   [ "${AS[$id]["r"][0]["t"]}" = kind ] &&
-	   [ "${AS[$id]["r"][1]["t"]}" = entry ]; then
-		AS[$id]["sel"]=1
+fn cat_first(int id) {
+	if [ "${CAT[$id]["sel"]:-0}" = 0 ] && [ "${CAT[$id]["m"]:-0}" -gt 1 ] &&
+	   [ "${CAT[$id]["r"][0]["t"]}" = kind ] &&
+	   [ "${CAT[$id]["r"][1]["t"]}" = entry ]; then
+		CAT[$id]["sel"]=1
 	fi
 	return 0
 }
 
 # The kinds the catalogue holds, in the order `apps` declares them --
-# filled by as_load from the answer, never written out here. What stays
+# filled by cat_load from the answer, never written out here. What stays
 # this window's own is what each kind is *called*, which is a word on a
 # screen rather than a fact about the catalogue, and a kind added later
 # shows under its own short name until somebody gives it one.
-AS_KINDS=()
+CAT_KINDS=()
 
 # Any kind an entry claims that the answer's own list did not name, put
 # on the end in the order they were read. This is the whole of what an
 # `apps` too old to send `kinds` gets, and it is also the guard for the
 # other direction: an index holding a kind the installed `apps` has
 # never heard of would otherwise be fetched, counted and shown nowhere.
-fn as_kindsfrom(int id) {
+fn cat_kindsfrom(int id) {
 	local i n k s seen
 
-	n=${AS[$id]["n"]:-0}
+	n=${CAT[$id]["n"]:-0}
 	i=0
 	while [ "$i" -lt "$n" ]; do
-		k=${AS[$id]["e"][$i]["kind"]}
+		k=${CAT[$id]["e"][$i]["kind"]}
 		i=$((i + 1))
 		[ -n "$k" ] || continue
 		seen=
-		for s in "${AS_KINDS[@]}"; do
+		for s in "${CAT_KINDS[@]}"; do
 			[ "$s" = "$k" ] && { seen=1; break; }
 		done
-		[ -n "$seen" ] || AS_KINDS+=("$k")
+		[ -n "$seen" ] || CAT_KINDS+=("$k")
 	done
 	return 0
 }
 
-fn as_kindname(k) {
+fn cat_kindname(k) {
 	case $k in
 	apps) ret "Applications" ;;
 	system) ret "Desktop" ;;
@@ -273,26 +273,26 @@ fn as_kindname(k) {
 # A search opens every kind that matches, because a match hidden inside a
 # collapsed group is a search that answers "nothing" while holding
 # something -- the one behaviour a tree must not have.
-fn as_filter(int id) {
+fn cat_filter(int id) {
 	local i n q m=0 hay k ki shown
 	local -a cnt
 
-	n=${AS[$id]["n"]:-0}
+	n=${CAT[$id]["n"]:-0}
 	q := dt_searchq "$id"
-	AS[$id]["shown"]=0
-	for ki in "${!AS_KINDS[@]}"; do
-		k=${AS_KINDS[$ki]}
+	CAT[$id]["shown"]=0
+	for ki in "${!CAT_KINDS[@]}"; do
+		k=${CAT_KINDS[$ki]}
 		# Which of this kind survive the search, counted first so the
 		# heading can say how many and an empty kind can be left out
 		# altogether.
 		shown=0
 		i=0
 		while [ "$i" -lt "$n" ]; do
-			if [ "${AS[$id]["e"][$i]["kind"]}" = "$k" ]; then
+			if [ "${CAT[$id]["e"][$i]["kind"]}" = "$k" ]; then
 				if [ -z "$q" ]; then
 					shown=$((shown + 1))
 				else
-					hay="${AS[$id]["e"][$i]["id"]} ${AS[$id]["e"][$i]["title"]} ${AS[$id]["e"][$i]["about"]}"
+					hay="${CAT[$id]["e"][$i]["id"]} ${CAT[$id]["e"][$i]["title"]} ${CAT[$id]["e"][$i]["about"]}"
 					case ${hay,,} in
 					*"${q,,}"*) shown=$((shown + 1)) ;;
 					esac
@@ -304,25 +304,25 @@ fn as_filter(int id) {
 		# Entries, not rows: the status line says "1 of 84" and a row
 		# count would include the headings and say "2 of 84" for one
 		# match.
-		AS[$id]["shown"]=$((${AS[$id]["shown"]:-0} + shown))
-		AS[$id]["r"][$m]["t"]=kind
-		AS[$id]["r"][$m]["k"]=$k
-		AS[$id]["r"][$m]["cnt"]=$shown
+		CAT[$id]["shown"]=$((${CAT[$id]["shown"]:-0} + shown))
+		CAT[$id]["r"][$m]["t"]=kind
+		CAT[$id]["r"][$m]["k"]=$k
+		CAT[$id]["r"][$m]["cnt"]=$shown
 		m=$((m + 1))
 		# Open by the person's own choice, or by a search having
 		# found something in here.
-		if [ -z "$q" ] && [ "${AS[$id]["open"]["$k"]}" != 1 ]; then
+		if [ -z "$q" ] && [ "${CAT[$id]["open"]["$k"]}" != 1 ]; then
 			continue
 		fi
 		i=0
 		local lastrow=
 		while [ "$i" -lt "$n" ]; do
-			if [ "${AS[$id]["e"][$i]["kind"]}" = "$k" ]; then
-				hay="${AS[$id]["e"][$i]["id"]} ${AS[$id]["e"][$i]["title"]} ${AS[$id]["e"][$i]["about"]}"
+			if [ "${CAT[$id]["e"][$i]["kind"]}" = "$k" ]; then
+				hay="${CAT[$id]["e"][$i]["id"]} ${CAT[$id]["e"][$i]["title"]} ${CAT[$id]["e"][$i]["about"]}"
 				if [ -z "$q" ] || [[ ${hay,,} == *"${q,,}"* ]]; then
-					AS[$id]["r"][$m]["t"]=entry
-					AS[$id]["r"][$m]["e"]=$i
-					AS[$id]["r"][$m]["last"]=0
+					CAT[$id]["r"][$m]["t"]=entry
+					CAT[$id]["r"][$m]["e"]=$i
+					CAT[$id]["r"][$m]["last"]=0
 					lastrow=$m
 					m=$((m + 1))
 				fi
@@ -333,17 +333,17 @@ fn as_filter(int id) {
 		# corner there rather than another tee. Recorded as the
 		# rows are made, because the loop above is the only place
 		# that knows which of them came last.
-		[ -n "$lastrow" ] && AS[$id]["r"][$lastrow]["last"]=1
+		[ -n "$lastrow" ] && CAT[$id]["r"][$lastrow]["last"]=1
 	done
-	AS[$id]["m"]=$m
-	[ "${AS[$id]["sel"]:-0}" -ge "$m" ] && AS[$id]["sel"]=$((m > 0 ? m - 1 : 0))
+	CAT[$id]["m"]=$m
+	[ "${CAT[$id]["sel"]:-0}" -ge "$m" ] && CAT[$id]["sel"]=$((m > 0 ? m - 1 : 0))
 	return 0
 }
 
 # The entry the selection is on, or nothing when it is on a heading --
 # which is what makes the buttons fall back to Refresh there rather than
 # offering to install a kind.
-fn as_at(int id) {
+fn cat_at(int id) {
 	local m sel
 
 	# A bare `return 1` for each miss, never `ret ""` before it: `ret`
@@ -351,76 +351,76 @@ fn as_at(int id) {
 	# one never runs and every caller's `|| e=` was dead. The slot is
 	# already cleared by `:=` before the call, so there is nothing to
 	# put back.
-	m=${AS[$id]["m"]:-0}
+	m=${CAT[$id]["m"]:-0}
 	[ "$m" -gt 0 ] || return 1
-	sel=${AS[$id]["sel"]:-0}
+	sel=${CAT[$id]["sel"]:-0}
 	[ "$sel" -lt "$m" ] || return 1
-	[ "${AS[$id]["r"][$sel]["t"]}" = entry ] || return 1
-	ret "${AS[$id]["r"][$sel]["e"]}"
+	[ "${CAT[$id]["r"][$sel]["t"]}" = entry ] || return 1
+	ret "${CAT[$id]["r"][$sel]["e"]}"
 	return 0
 }
 
 # Open or shut the kind the selection is on, or the kind an entry belongs
 # to when the selection is on one -- left on an entry goes to its heading,
 # which is what a tree does everywhere else.
-fn as_fold(int id, how) {
+fn cat_fold(int id, how) {
 	local sel k e
 
-	sel=${AS[$id]["sel"]:-0}
-	[ "${AS[$id]["m"]:-0}" -gt 0 ] || return 1
-	if [ "${AS[$id]["r"][$sel]["t"]}" = kind ]; then
-		k=${AS[$id]["r"][$sel]["k"]}
+	sel=${CAT[$id]["sel"]:-0}
+	[ "${CAT[$id]["m"]:-0}" -gt 0 ] || return 1
+	if [ "${CAT[$id]["r"][$sel]["t"]}" = kind ]; then
+		k=${CAT[$id]["r"][$sel]["k"]}
 	else
-		e=${AS[$id]["r"][$sel]["e"]}
-		k=${AS[$id]["e"][$e]["kind"]}
+		e=${CAT[$id]["r"][$sel]["e"]}
+		k=${CAT[$id]["e"][$e]["kind"]}
 		# From an entry, left means "take me to the heading", and
 		# only a second left shuts it.
 		if [ "$how" = shut ]; then
 			while [ "$sel" -gt 0 ]; do
 				sel=$((sel - 1))
-				[ "${AS[$id]["r"][$sel]["t"]}" = kind ] && break
+				[ "${CAT[$id]["r"][$sel]["t"]}" = kind ] && break
 			done
-			AS[$id]["sel"]=$sel
+			CAT[$id]["sel"]=$sel
 			return 0
 		fi
 	fi
 	# Enter on a leaf is not "install it": a key that installs software
 	# by being the obvious key to press is a key somebody presses by
 	# accident. It is unhandled there, so the desktop gets it.
-	[ "$how" = toggle ] && [ "${AS[$id]["r"][$sel]["t"]}" != kind ] && return 1
+	[ "$how" = toggle ] && [ "${CAT[$id]["r"][$sel]["t"]}" != kind ] && return 1
 	case $how in
-	open) AS[$id]["open"]["$k"]=1 ;;
-	shut) AS[$id]["open"]["$k"]=0 ;;
-	*) [ "${AS[$id]["open"]["$k"]}" = 1 ] &&
-		AS[$id]["open"]["$k"]=0 || AS[$id]["open"]["$k"]=1 ;;
+	open) CAT[$id]["open"]["$k"]=1 ;;
+	shut) CAT[$id]["open"]["$k"]=0 ;;
+	*) [ "${CAT[$id]["open"]["$k"]}" = 1 ] &&
+		CAT[$id]["open"]["$k"]=0 || CAT[$id]["open"]["$k"]=1 ;;
 	esac
-	as_filter "$id"
+	cat_filter "$id"
 	return 0
 }
 
 # --- the window -------------------------------------------------------
 
-fn appstore_open(int id, arg = "") {
-	AS[$id]["sel"]=0
-	AS[$id]["top"]=0
+fn catalogue_open(int id, arg = "") {
+	CAT[$id]["sel"]=0
+	CAT[$id]["top"]=0
 	dt_searchclear "$id"
 	# Applications open and the rest shut: the structure is visible at a
 	# glance and the group most people came for is already there, where
 	# everything open is the wall this tree exists to avoid and
 	# everything shut is a window that looks empty.
-	AS[$id]["open"]["apps"]=1
-	as_reload "$id"
+	CAT[$id]["open"]["apps"]=1
+	cat_reload "$id"
 	return 0
 }
 
-fn appstore_close(int id) {
-	unset AS["$id"]
+fn catalogue_close(int id) {
+	unset CAT["$id"]
 	dt_searchfree "$id"
 	return 0
 }
 
-fn appstore_idle(int id) {
-	as_poll "$id"
+fn catalogue_idle(int id) {
+	cat_poll "$id"
 	return 0
 }
 
@@ -428,25 +428,25 @@ fn appstore_idle(int id) {
 # itself on the right. The prose is the app's own, out of the index, which
 # is why this reads better than a package synopsis -- somebody wrote it
 # about their own app.
-fn appstore_draw(int id, int h, int w, int row, int col) {
+fn catalogue_draw(int id, int h, int w, int row, int col) {
 	local n m sel top vis i r e idw listw dw line t mark st about blank
 	local srows q
 	local -a words
 
 	dt_wclear "$id"
-	as_poll "$id"
+	cat_poll "$id"
 	# The divider is the person's, dragged where they want it
 	# (widgets/split.hibr) -- and it is the list's scrollbar as well,
 	# because a scrollbar's track is the same vertical line a divider
 	# is: one column doing both rather than two columns side by side.
-	listw := dt_split AS_SPLIT "$w" 16 40
+	listw := dt_split CAT_SPLIT "$w" 16 40
 	# One column short of the room left, always: the detail has a
 	# scrollbar of its own when the prose is longer than the pane, and
 	# a text width that changed as you moved between entries would
 	# reflow every line for the sake of one column.
 	dw=$((w - listw - 4))
-	m=${AS[$id]["m"]:-0}
-	n=${AS[$id]["n"]:-0}
+	m=${CAT[$id]["m"]:-0}
+	n=${CAT[$id]["n"]:-0}
 	# The search takes the window's own bottom row, and only while
 	# there is one (widgets/search.hibr): nothing is drawn until `/`,
 	# so a window nobody is searching keeps the row for its list.
@@ -456,12 +456,12 @@ fn appstore_draw(int id, int h, int w, int row, int col) {
 
 	# What this is a list of, and how much of it is shown.
 	console pen "$DT_DIM" "$DT_FACE"
-	if [ -n "${AS[$id]["busy"]}" ]; then
-		t := dt_tr "working: %s" "${AS[$id]["busy"]}"
-	elif [ -n "${AS[$id]["loading"]}" ]; then
+	if [ -n "${CAT[$id]["busy"]}" ]; then
+		t := dt_tr "working: %s" "${CAT[$id]["busy"]}"
+	elif [ -n "${CAT[$id]["loading"]}" ]; then
 		t := dt_tr "reading the catalogue"
 	elif q := dt_searchq "$id"; [ -n "$q" ]; then
-		t := dt_tr "%s of %s" "${AS[$id]["shown"]:-0}" "$n"
+		t := dt_tr "%s of %s" "${CAT[$id]["shown"]:-0}" "$n"
 	else
 		t := dt_tr "%s in the catalogue" "$n"
 	fi
@@ -477,20 +477,20 @@ fn appstore_draw(int id, int h, int w, int row, int col) {
 	# cells, so a shorter line drawn where a longer one was leaves the
 	# tail of the old one on screen -- which is why this read
 	# "working: list" long after the work had finished.
-	AS[$id]["status"]=$t
+	CAT[$id]["status"]=$t
 
-	if [ -n "${AS[$id]["err"]}" ]; then
+	if [ -n "${CAT[$id]["err"]}" ]; then
 		console pen "$DT_BAD" "$DT_FACE"
-		console put -p "w$id" 2 2 "${AS[$id]["err"]}"
+		console put -p "w$id" 2 2 "${CAT[$id]["err"]}"
 		dt_buttons "$id" $((h - 1)) 2 "" asrefresh Refresh
 		return 0
 	fi
 
-	sel=${AS[$id]["sel"]:-0}
-	top=${AS[$id]["top"]:-0}
+	sel=${CAT[$id]["sel"]:-0}
+	top=${CAT[$id]["top"]:-0}
 	top := dt_scrollfit "$top" "$m" "$vis" "$sel"
-	AS[$id]["top"]=$top
-	AS[$id]["vis"]=$vis
+	CAT[$id]["top"]=$top
+	CAT[$id]["vis"]=$vis
 
 	# The headings share row 1 with the count, which is where the
 	# search field used to be: the row is free now that the search
@@ -508,16 +508,16 @@ fn appstore_draw(int id, int h, int w, int row, int col) {
 	[ "$idw" -lt 10 ] && idw=10
 	while [ "$r" -lt $((2 + vis)) ]; do
 		if [ "$i" -lt "$m" ]; then
-			if [ "${AS[$id]["r"][$i]["t"]}" = kind ]; then
+			if [ "${CAT[$id]["r"][$i]["t"]}" = kind ]; then
 				# A heading: which way it folds, what it is
 				# called, and how many are under it -- the
 				# count is why a shut group is still worth
 				# reading.
 				local kk kn kopen=0
-				kk=${AS[$id]["r"][$i]["k"]}
-				kn := as_kindname "$kk"
+				kk=${CAT[$id]["r"][$i]["k"]}
+				kn := cat_kindname "$kk"
 				kn := dt_tr "$kn"
-				if [ "${AS[$id]["open"]["$kk"]}" = 1 ] ||
+				if [ "${CAT[$id]["open"]["$kk"]}" = 1 ] ||
 				   [ -n "$q" ]; then
 					kopen=1
 				fi
@@ -537,7 +537,7 @@ fn appstore_draw(int id, int h, int w, int row, int col) {
 				# part of any catalogue key -- punctuation is
 				# not translatable, and `%s (%d)` would be a
 				# string with no words in it.
-				local cnt=${AS[$id]["r"][$i]["cnt"]}
+				local cnt=${CAT[$id]["r"][$i]["cnt"]}
 				t := dt_cut "$kn" $((listw - 7 - ${#cnt}))
 				line="$mark $t ($cnt)"
 				if [ "$i" = "$sel" ] && ! dt_searchon "$id"; then
@@ -549,23 +549,23 @@ fn appstore_draw(int id, int h, int w, int row, int col) {
 				fi
 			else
 				local lead
-				e=${AS[$id]["r"][$i]["e"]}
+				e=${CAT[$id]["r"][$i]["e"]}
 				mark=" "
-				[ -n "${AS[$id]["e"][$e]["installed"]}" ] && mark="${GL[check]}"
+				[ -n "${CAT[$id]["e"][$e]["installed"]}" ] && mark="${GL[check]}"
 				# A tick means "you have this", so the
 				# package's own copy earns one too -- what
 				# differs is the line beside it, which says
 				# where it came from (Gitea #254).
-				case ${AS[$id]["e"][$e]["where"]} in
+				case ${CAT[$id]["e"][$e]["where"]} in
 				shipped | system) mark="${GL[check]}" ;;
 				esac
-				[ "${AS[$id]["e"][$e]["update"]}" = 1 ] && mark="${GL[reload]}"
+				[ "${CAT[$id]["e"][$e]["update"]}" = 1 ] && mark="${GL[reload]}"
 				# A copy the machine also has is read second
 				# and can never run, which is worth more than
 				# a tick: the mark that means "look at this"
 				# rather than the one that means "you have
 				# it" (Gitea #244).
-				[ "${AS[$id]["e"][$e]["defunct"]}" = 1 ] &&
+				[ "${CAT[$id]["e"][$e]["defunct"]}" = 1 ] &&
 					mark="${GL[warn]}"
 				# A leaf one level in, joined to its branch by
 				# the widget -- a tee, or a corner for the
@@ -573,8 +573,8 @@ fn appstore_draw(int id, int h, int w, int row, int col) {
 				# its id: the kind is the line above it, so
 				# repeating it in every row is noise.
 				lead := dt_treelead 1 \
-					"${AS[$id]["r"][$i]["last"]:-0}" "0"
-				t := dt_cut "${AS[$id]["e"][$e]["name"]}" "$idw"
+					"${CAT[$id]["r"][$i]["last"]:-0}" "0"
+				t := dt_cut "${CAT[$id]["e"][$e]["name"]}" "$idw"
 				t := str pad "$lead$mark $t" $((listw - 8))
 				# The right-hand column says **which scope**
 				# rather than a version, for anything that is
@@ -585,8 +585,8 @@ fn appstore_draw(int id, int h, int w, int row, int col) {
 				# (Gitea #254). The same three words the
 				# command line uses, so there is one
 				# vocabulary rather than two.
-				local vcol=${AS[$id]["e"][$e]["version"]}
-				case ${AS[$id]["e"][$e]["where"]} in
+				local vcol=${CAT[$id]["e"][$e]["version"]}
+				case ${CAT[$id]["e"][$e]["where"]} in
 				shipped) vcol := dt_tr "shipped" ;;
 				system) vcol := dt_tr "system" ;;
 				esac
@@ -618,7 +618,7 @@ fn appstore_draw(int id, int h, int w, int row, int col) {
 	# heading sits on the same row as ITEM and VERSION and reads as a
 	# third column of the list rather than the top of a second pane.
 	dt_splitbar "$id" $((listw + 1)) 1 $((h - 2 - srows)) \
-		"${AS[$id]["drag"]:-0}"
+		"${CAT[$id]["drag"]:-0}"
 	dt_scrollbar "$id" 2 $((listw + 1)) "$vis" "$m" "$vis" "$top"
 
 	# The detail: what this one says about itself. Blanked first, for
@@ -630,43 +630,43 @@ fn appstore_draw(int id, int h, int w, int row, int col) {
 		console put -p "w$id" "$r" $((listw + 3)) "$blank"
 		r=$((r + 1))
 	done
-	e := as_at "$id" || e=
+	e := cat_at "$id" || e=
 	if [ -n "$e" ]; then
 		console pen "$DT_ACTIVE" "$DT_FACE" bold
-		t := dt_cut "${AS[$id]["e"][$e]["title"]}" "$dw"
+		t := dt_cut "${CAT[$id]["e"][$e]["title"]}" "$dw"
 		console put -p "w$id" 1 $((listw + 3)) "$t"
 		console pen "$DT_DIM" "$DT_FACE"
-		st=${AS[$id]["e"][$e]["id"]}
+		st=${CAT[$id]["e"][$e]["id"]}
 		t := dt_cut "$st" "$dw"
 		console put -p "w$id" 2 $((listw + 3)) "$t"
-		if [ "${AS[$id]["e"][$e]["update"]}" = 1 ]; then
+		if [ "${CAT[$id]["e"][$e]["update"]}" = 1 ]; then
 			t := dt_tr "installed %s, %s available" \
-				"${AS[$id]["e"][$e]["installed"]}" \
-				"${AS[$id]["e"][$e]["version"]}"
-		elif [ -n "${AS[$id]["e"][$e]["installed"]}" ]; then
-			t := dt_tr "installed %s" "${AS[$id]["e"][$e]["installed"]}"
-		elif [ "${AS[$id]["e"][$e]["where"]}" = shipped ]; then
+				"${CAT[$id]["e"][$e]["installed"]}" \
+				"${CAT[$id]["e"][$e]["version"]}"
+		elif [ -n "${CAT[$id]["e"][$e]["installed"]}" ]; then
+			t := dt_tr "installed %s" "${CAT[$id]["e"][$e]["installed"]}"
+		elif [ "${CAT[$id]["e"][$e]["where"]}" = shipped ]; then
 			t := dt_tr "shipped with hibr"
-		elif [ "${AS[$id]["e"][$e]["where"]}" = system ]; then
+		elif [ "${CAT[$id]["e"][$e]["where"]}" = system ]; then
 			t := dt_tr "installed on this machine for everyone"
 		else
-			t := dt_tr "version %s" "${AS[$id]["e"][$e]["version"]}"
+			t := dt_tr "version %s" "${CAT[$id]["e"][$e]["version"]}"
 		fi
 		# What the columns of `catalogue installed` say, which this
 		# window showed none of until 0.99.202: a copy that can
 		# never run, one that hides the shipped copy, and what the
 		# entry brought with it (Gitea #244).
-		if [ "${AS[$id]["e"][$e]["defunct"]}" = 1 ]; then
+		if [ "${CAT[$id]["e"][$e]["defunct"]}" = 1 ]; then
 			st := dt_tr "the machine has this, and its copy is read first"
 			t="$t -- $st"
-		elif [ "${AS[$id]["e"][$e]["shadows"]}" = 1 ]; then
+		elif [ "${CAT[$id]["e"][$e]["shadows"]}" = 1 ]; then
 			st := dt_tr "shadows the one hibr ships"
 			t="$t -- $st"
 		fi
-		if [ "${AS[$id]["e"][$e]["np"]:-0}" -gt 0 ]; then
-			st := dt_trn "${AS[$id]["e"][$e]["np"]}" \
+		if [ "${CAT[$id]["e"][$e]["np"]:-0}" -gt 0 ]; then
+			st := dt_trn "${CAT[$id]["e"][$e]["np"]}" \
 				"%s file with it" "%s files with it" \
-				"${AS[$id]["e"][$e]["np"]}"
+				"${CAT[$id]["e"][$e]["np"]}"
 			t="$t, $st"
 		fi
 		t := dt_cut "$t" "$dw"
@@ -685,36 +685,36 @@ fn appstore_draw(int id, int h, int w, int row, int col) {
 		# scroll what was never laid out. The bar on the right says
 		# there is more, and the wheel over this half moves it.
 		local para dtop dvis dn
-		AS_DLINES=()
+		CAT_DLINES=()
 		while IFS= read -r para; do
 			if [ -z "$para" ]; then
-				AS_DLINES+=("")
+				CAT_DLINES+=("")
 				continue
 			fi
 			read -ra words <<< "$para"
 			line=
 			for t in "${words[@]}"; do
 				if [ $((${#line} + ${#t} + 1)) -gt "$dw" ]; then
-					AS_DLINES+=("$line")
+					CAT_DLINES+=("$line")
 					line=$t
 				else
 					line="${line:+$line }$t"
 				fi
 			done
-			[ -n "$line" ] && AS_DLINES+=("$line")
-		done <<< "${AS[$id]["e"][$e]["about"]}"
-		dn=${#AS_DLINES[@]}
+			[ -n "$line" ] && CAT_DLINES+=("$line")
+		done <<< "${CAT[$id]["e"][$e]["about"]}"
+		dn=${#CAT_DLINES[@]}
 		dvis=$((h - 7 - srows))
 		[ "$dvis" -lt 1 ] && dvis=1
-		AS[$id]["dvis"]=$dvis
-		AS[$id]["dn"]=$dn
-		dtop=${AS[$id]["dtop"]:-0}
+		CAT[$id]["dvis"]=$dvis
+		CAT[$id]["dn"]=$dn
+		dtop=${CAT[$id]["dtop"]:-0}
 		dtop := dt_scrollfit "$dtop" "$dn" "$dvis"
-		AS[$id]["dtop"]=$dtop
+		CAT[$id]["dtop"]=$dtop
 		r=5
 		i=0
 		while [ "$i" -lt "$dvis" ]; do
-			line=${AS_DLINES[$((dtop + i))]-}
+			line=${CAT_DLINES[$((dtop + i))]-}
 			line := str pad "$line" "$dw"
 			console put -p "w$id" "$r" $((listw + 3)) "$line"
 			r=$((r + 1))
@@ -724,9 +724,9 @@ fn appstore_draw(int id, int h, int w, int row, int col) {
 			dt_scrollbar "$id" 5 $((w - 1)) "$dvis" "$dn" \
 				"$dvis" "$dtop"
 	fi
-	as_btns "$id" $((h - srows)) "$w"
+	cat_btns "$id" $((h - srows)) "$w"
 	console pen "$DT_DIM" "$DT_FACE"
-	as_right "$id" $((h - 1 - srows)) "$w" 34 "${AS[$id]["status"]}"
+	cat_right "$id" $((h - 1 - srows)) "$w" 34 "${CAT[$id]["status"]}"
 	dt_searchdraw "$id" "$h" "$w"
 	return 0
 }
@@ -735,7 +735,7 @@ fn appstore_draw(int id, int h, int w, int row, int col) {
 # was there before is written over. Nothing clears a window's cells
 # between frames -- only what a frame writes is replaced -- so every
 # varying piece of text here is drawn over its own full width.
-fn as_right(int id, int r, int w, int fw, text) {
+fn cat_right(int id, int r, int w, int fw, text) {
 	local tw pad s=""
 
 	tw := str width "$text"
@@ -751,19 +751,19 @@ fn as_right(int id, int r, int w, int fw, text) {
 # pressing it will do rather than offering two of which one is always
 # wrong. Update is a second button only while there is one to take --
 # it is a different act from either, and it is not always there.
-fn as_btns(int id, int h, int w) {
+fn cat_btns(int id, int h, int w) {
 	local e
 
 	# A pair is **tag then label**, which is the order dt_buttons reads:
 	# it compares the tag against the focus and translates the label.
-	e := as_at "$id" || {
+	e := cat_at "$id" || {
 		dt_buttons "$id" $((h - 1)) 2 "" asrefresh Refresh
 		return 0
 	}
-	if [ "${AS[$id]["e"][$e]["update"]}" = 1 ]; then
+	if [ "${CAT[$id]["e"][$e]["update"]}" = 1 ]; then
 		dt_buttons "$id" $((h - 1)) 2 "" asupdate Update \
 			asgo Uninstall asread "Read It" asrefresh Refresh
-	elif [ -n "${AS[$id]["e"][$e]["installed"]}" ]; then
+	elif [ -n "${CAT[$id]["e"][$e]["installed"]}" ]; then
 		dt_buttons "$id" $((h - 1)) 2 "" asgo Uninstall \
 			asread "Read It" asrefresh Refresh
 	else
@@ -776,14 +776,14 @@ fn as_btns(int id, int h, int w) {
 # What that one button does, by what the selected entry is. The key `i`
 # and the App menu's own row go through here too, so the three ways of
 # asking cannot drift apart.
-fn as_go(int id) {
+fn cat_go(int id) {
 	local e
 
-	e := as_at "$id" || { dt_note "Nothing is selected"; return 0; }
-	if [ -n "${AS[$id]["e"][$e]["installed"]}" ]; then
-		as_act "$id" remove
+	e := cat_at "$id" || { dt_note "Nothing is selected"; return 0; }
+	if [ -n "${CAT[$id]["e"][$e]["installed"]}" ]; then
+		cat_act "$id" remove
 	else
-		as_act "$id" install
+		cat_act "$id" install
 	fi
 	return 0
 }
@@ -793,22 +793,22 @@ fn as_go(int id) {
 # Each of these starts a job and returns at once. The callback says what
 # happened and reloads, so the list tells the truth afterwards rather
 # than what it believed before.
-fn as_act(int id, what, ...rest) {
+fn cat_act(int id, what, ...rest) {
 	local e wid
 
-	e := as_at "$id" || { dt_note "Nothing is selected"; return 0; }
-	[ -z "${AS[$id]["busy"]}" ] || { dt_note "Still working"; return 0; }
-	wid=${AS[$id]["e"][$e]["id"]}
-	AS[$id]["on"]=$wid
+	e := cat_at "$id" || { dt_note "Nothing is selected"; return 0; }
+	[ -z "${CAT[$id]["busy"]}" ] || { dt_note "Still working"; return 0; }
+	wid=${CAT[$id]["e"][$e]["id"]}
+	CAT[$id]["on"]=$wid
 	case $what in
-	install) as_job "$id" "install $wid" as_acted catalogue install "$wid" ;;
-	update) as_job "$id" "update $wid" as_acted catalogue update "$wid" ;;
-	remove) as_job "$id" "remove $wid" as_acted catalogue remove "$wid" ;;
+	install) cat_job "$id" "install $wid" cat_acted catalogue install "$wid" ;;
+	update) cat_job "$id" "update $wid" cat_acted catalogue update "$wid" ;;
+	remove) cat_job "$id" "remove $wid" cat_acted catalogue remove "$wid" ;;
 	esac
 	return 0
 }
 
-fn as_acted(int id, int st, int n, what = "") {
+fn cat_acted(int id, int st, int n, what = "") {
 	local why
 
 	# The value alone, with no sentence around it: what `apps` said, and
@@ -816,27 +816,27 @@ fn as_acted(int id, int st, int n, what = "") {
 	# catalogue as a key, and a key with no words in it is one no
 	# translation can differ from.
 	if [ "$st" != 0 ]; then
-		why := as_why "$n"
+		why := cat_why "$n"
 		dt_notep high "$why"
 	else
 		dt_note "$what"
 	fi
-	as_reload "$id"
+	cat_reload "$id"
 	return 0
 }
 
-fn as_install(int id) { as_act "$id" install; }
-fn as_update(int id) { as_act "$id" update; }
-fn as_remove(int id) { as_act "$id" remove; }
+fn cat_install(int id) { cat_act "$id" install; }
+fn cat_update(int id) { cat_act "$id" update; }
+fn cat_remove(int id) { cat_act "$id" remove; }
 
-fn as_refresh(int id) {
-	[ -z "${AS[$id]["busy"]}" ] || return 0
-	as_job "$id" refresh as_refreshed catalogue refresh
+fn cat_refresh(int id) {
+	[ -z "${CAT[$id]["busy"]}" ] || return 0
+	cat_job "$id" refresh cat_refreshed catalogue refresh
 	return 0
 }
 
-fn as_refreshed(int id, int st, int n, what = "") {
-	as_reload "$id"
+fn cat_refreshed(int id, int st, int n, what = "") {
+	cat_reload "$id"
 	return 0
 }
 
@@ -844,31 +844,31 @@ fn as_refreshed(int id, int st, int n, what = "") {
 # can offer and a package manager cannot: the bundle is fetched, verified
 # against the index exactly as an install verifies it, and opened in Write
 # without being placed anywhere.
-fn as_read(int id) {
+fn cat_read(int id) {
 	local e wid
 
-	e := as_at "$id" || { dt_note "Nothing is selected"; return 0; }
-	[ -z "${AS[$id]["busy"]}" ] || { dt_note "Still working"; return 0; }
-	wid=${AS[$id]["e"][$e]["id"]}
-	AS[$id]["on"]=$wid
-	as_job "$id" "read $wid" as_readit catalogue show "$wid"
+	e := cat_at "$id" || { dt_note "Nothing is selected"; return 0; }
+	[ -z "${CAT[$id]["busy"]}" ] || { dt_note "Still working"; return 0; }
+	wid=${CAT[$id]["e"][$e]["id"]}
+	CAT[$id]["on"]=$wid
+	cat_job "$id" "read $wid" cat_readit catalogue show "$wid"
 	return 0
 }
 
-fn as_readit(int id, int st, int n, what = "") {
+fn cat_readit(int id, int st, int n, what = "") {
 	local f why dest
 
 	if [ "$st" != 0 ]; then
-		why := as_why "$n"
+		why := cat_why "$n"
 		dt_notep high "$why"
 		return 0
 	fi
-	f := as_out "$n"
+	f := cat_out "$n"
 	[ -s "$f" ] || { dt_note "There was nothing to read"; return 0; }
 	# Copied out of the job's own folder, which the next job would
 	# overwrite, and named after what it is so the window's title says
 	# so.
-	dest="${XDG_CACHE_HOME:-$HOME/.cache}/hibr/${AS[$id]["on"]//\//-}"
+	dest="${XDG_CACHE_HOME:-$HOME/.cache}/hibr/${CAT[$id]["on"]//\//-}"
 	command cp -f "$f" "$dest" 2> /dev/null ||
 		{ dt_note "Cannot keep a copy to read"; return 0; }
 	# Opened the way the desktop opens anything, so whatever the person
@@ -883,47 +883,47 @@ fn as_readit(int id, int st, int n, what = "") {
 # `/` and the Edit menu's Find both come here, which is the whole of this
 # window's search now: widgets/search.hibr holds the text, the keys and
 # the bar, and this only re-filters when they change something.
-fn appstore_find(int id) {
+fn catalogue_find(int id) {
 	dt_searchopen "$id"
 	return 0
 }
 
-fn appstore_key(int id, key) {
+fn catalogue_key(int id, key) {
 	local r q0 q1
 
 	q0 := dt_searchq "$id"
 	if dt_searchkey "$id" "$key"; then
 		q1 := dt_searchq "$id"
 		if [ "$q0" != "$q1" ]; then
-			AS[$id]["sel"]=0
-			AS[$id]["top"]=0
-			as_filter "$id"
-			as_first "$id"
+			CAT[$id]["sel"]=0
+			CAT[$id]["top"]=0
+			cat_filter "$id"
+			cat_first "$id"
 		fi
 		return 0
 	fi
 	case $key in
-	right) as_fold "$id" open; return 0 ;;
-	left) as_fold "$id" shut; return 0 ;;
-	enter | " ") as_fold "$id" toggle || return 1; return 0 ;;
-	i) as_go "$id"; return 0 ;;
-	u) as_update "$id"; return 0 ;;
-	x) as_remove "$id"; return 0 ;;
-	r) as_read "$id"; return 0 ;;
-	f5) as_refresh "$id"; return 0 ;;
+	right) cat_fold "$id" open; return 0 ;;
+	left) cat_fold "$id" shut; return 0 ;;
+	enter | " ") cat_fold "$id" toggle || return 1; return 0 ;;
+	i) cat_go "$id"; return 0 ;;
+	u) cat_update "$id"; return 0 ;;
+	x) cat_remove "$id"; return 0 ;;
+	r) cat_read "$id"; return 0 ;;
+	f5) cat_refresh "$id"; return 0 ;;
 	esac
-	r := dt_scrollmove "$key" "${AS[$id]["top"]:-0}" "${AS[$id]["m"]:-0}" \
-			   "${AS[$id]["vis"]:-1}" || return 1
-	AS[$id]["top"]=$r
+	r := dt_scrollmove "$key" "${CAT[$id]["top"]:-0}" "${CAT[$id]["m"]:-0}" \
+			   "${CAT[$id]["vis"]:-1}" || return 1
+	CAT[$id]["top"]=$r
 	case $key in
-	up) [ "${AS[$id]["sel"]:-0}" -gt 0 ] &&
-		AS[$id]["sel"]=$((${AS[$id]["sel"]} - 1)) ;;
-	down) [ "${AS[$id]["sel"]:-0}" -lt $((${AS[$id]["m"]:-0} - 1)) ] &&
-		AS[$id]["sel"]=$((${AS[$id]["sel"]} + 1)) ;;
+	up) [ "${CAT[$id]["sel"]:-0}" -gt 0 ] &&
+		CAT[$id]["sel"]=$((${CAT[$id]["sel"]} - 1)) ;;
+	down) [ "${CAT[$id]["sel"]:-0}" -lt $((${CAT[$id]["m"]:-0} - 1)) ] &&
+		CAT[$id]["sel"]=$((${CAT[$id]["sel"]} + 1)) ;;
 	esac
 	# A different entry's prose starts at its own beginning, not where
 	# the last one was left.
-	AS[$id]["dtop"]=0
+	CAT[$id]["dtop"]=0
 	return 0
 }
 
@@ -931,55 +931,55 @@ fn appstore_key(int id, key) {
 # ordinary click. An app with a `_mouse` never gets `_click`, so this
 # passes on what it does not want, the shape panel_mouse and fpick_mouse
 # already use.
-fn appstore_mouse(int id, act, btn, int r, int c, mods = "") {
+fn catalogue_mouse(int id, act, btn, int r, int c, mods = "") {
 	local listw
 
-	listw := dt_split AS_SPLIT "${DT[$id]["w"]:-80}" 16 40
+	listw := dt_split CAT_SPLIT "${DT[$id]["w"]:-80}" 16 40
 	case $act in
 	press)
 		if [ "$c" = $((listw + 1)) ]; then
-			AS[$id]["drag"]=1
+			CAT[$id]["drag"]=1
 			return 0
 		fi
-		AS[$id]["drag"]=
-		appstore_click "$id" "$r" "$c" "$btn"
+		CAT[$id]["drag"]=
+		catalogue_click "$id" "$r" "$c" "$btn"
 		;;
 	drag)
-		[ "${AS[$id]["drag"]}" = 1 ] || return 0
-		dt_splitmove AS_SPLIT $((c - 1)) "${DT[$id]["w"]:-80}" 16
+		[ "${CAT[$id]["drag"]}" = 1 ] || return 0
+		dt_splitmove CAT_SPLIT $((c - 1)) "${DT[$id]["w"]:-80}" 16
 		;;
-	release) AS[$id]["drag"]= ;;
+	release) CAT[$id]["drag"]= ;;
 	esac
 	return 0
 }
 
-fn appstore_click(int id, int r, int? c = "", btn = "") {
+fn catalogue_click(int id, int r, int? c = "", btn = "") {
 	local tag i
 
 	tag := dt_hit "$id" "$r" "$c" && {
 		case $tag in
 		dtsearch) dt_searchopen "$id" ;;
-		asgo) as_go "$id" ;;
-		asupdate) as_update "$id" ;;
-		asread) as_read "$id" ;;
-		asrefresh) as_refresh "$id" ;;
+		asgo) cat_go "$id" ;;
+		asupdate) cat_update "$id" ;;
+		asread) cat_read "$id" ;;
+		asrefresh) cat_refresh "$id" ;;
 		esac
 		return 0
 	}
 	if [ "$r" -ge 2 ]; then
-		i=$((${AS[$id]["top"]:-0} + r - 2))
-		if [ "$i" -lt "${AS[$id]["m"]:-0}" ]; then
+		i=$((${CAT[$id]["top"]:-0} + r - 2))
+		if [ "$i" -lt "${CAT[$id]["m"]:-0}" ]; then
 			dt_searchshut "$id"
-			AS[$id]["dtop"]=0
+			CAT[$id]["dtop"]=0
 			# A click on a heading folds it, which is what a
 			# click on a heading does everywhere; a click on one
 			# already selected folds it too, rather than doing
 			# nothing twice.
-			if [ "${AS[$id]["r"][$i]["t"]}" = kind ]; then
-				AS[$id]["sel"]=$i
-				as_fold "$id" toggle
+			if [ "${CAT[$id]["r"][$i]["t"]}" = kind ]; then
+				CAT[$id]["sel"]=$i
+				cat_fold "$id" toggle
 			else
-				AS[$id]["sel"]=$i
+				CAT[$id]["sel"]=$i
 			fi
 		fi
 	fi
@@ -988,20 +988,20 @@ fn appstore_click(int id, int r, int? c = "", btn = "") {
 
 # The wheel moves whichever half it is over: the list on the left, the
 # entry's own prose on the right. A window cut in two scrolls in two.
-fn appstore_wheel(int id, dir, int? r = "", int? c = "") {
+fn catalogue_wheel(int id, dir, int? r = "", int? c = "") {
 	local t listw
 
-	listw := dt_split AS_SPLIT "${DT[$id]["w"]:-80}" 16 40
+	listw := dt_split CAT_SPLIT "${DT[$id]["w"]:-80}" 16 40
 	if [ -n "$c" ] && [ "$c" -gt $((listw + 1)) ]; then
-		t := dt_scrollmove "$dir" "${AS[$id]["dtop"]:-0}" \
-				   "${AS[$id]["dn"]:-0}" \
-				   "${AS[$id]["dvis"]:-1}" || return 1
-		AS[$id]["dtop"]=$t
+		t := dt_scrollmove "$dir" "${CAT[$id]["dtop"]:-0}" \
+				   "${CAT[$id]["dn"]:-0}" \
+				   "${CAT[$id]["dvis"]:-1}" || return 1
+		CAT[$id]["dtop"]=$t
 		return 0
 	fi
-	t := dt_scrollmove "$dir" "${AS[$id]["top"]:-0}" "${AS[$id]["m"]:-0}" \
-			   "${AS[$id]["vis"]:-1}" || return 1
-	AS[$id]["top"]=$t
+	t := dt_scrollmove "$dir" "${CAT[$id]["top"]:-0}" "${CAT[$id]["m"]:-0}" \
+			   "${CAT[$id]["vis"]:-1}" || return 1
+	CAT[$id]["top"]=$t
 	return 0
 }
 
@@ -1010,7 +1010,7 @@ fn appstore_wheel(int id, dir, int? r = "", int? c = "") {
 # does. Declared with one, this refused every call -- and a declared
 # function that refuses an argument never runs its body, so the *whole
 # frame* died and the window drew nothing at all.
-appstore_menus() {
+catalogue_menus() {
 	local id=$DT_FOCUS
 	local e got=
 
@@ -1021,23 +1021,23 @@ appstore_menus() {
 	# rather than one with a variable, because a label that is a
 	# variable cannot be found by `tools/strings.py` and would not be
 	# in the catalogue to translate (Gitea #202).
-	e := as_at "$id" && [ -n "${AS[$id]["e"][$e]["installed"]}" ] && got=1
+	e := cat_at "$id" && [ -n "${CAT[$id]["e"][$e]["installed"]}" ] && got=1
 
 	dt_menu "File"
-	dt_item "Refresh" r as_refresh "$id"
+	dt_item "Refresh" r cat_refresh "$id"
 	dt_sep
 	dt_item "Close" c dt_wantclose "$id"
 	dt_end
 	dt_editmenu
 	dt_menu "App"
 	if [ -n "$got" ]; then
-		dt_item "Uninstall" i as_go "$id"
+		dt_item "Uninstall" i cat_go "$id"
 	else
-		dt_item "Install" i as_go "$id"
+		dt_item "Install" i cat_go "$id"
 	fi
-	dt_item "Update" u as_update "$id"
+	dt_item "Update" u cat_update "$id"
 	dt_sep
-	dt_item "Read It" e as_read "$id"
+	dt_item "Read It" e cat_read "$id"
 	dt_end
 	return 0
 }

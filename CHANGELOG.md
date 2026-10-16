@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.99.216
+
+**The Catalogue window is called the Catalogue all the way down.**
+
+Asked for directly: *"don't use appstore right? It's Catalogue? We
+should probably update all the naming, the internal variables, and
+everything to do with the catalogue to reflect its correct name?"*
+
+Right. The window has shown **Catalogue** since the command was renamed
+from `apps` in 0.99.195, and everything underneath still said
+`appstore`: the file, the nine window callbacks, twenty-five helpers,
+seven globals and the window's own map.
+
+    programs/desktop/system/appstore.hibr -> system/catalogue.hibr
+    appstore_draw, _open, _key ...        -> catalogue_*
+    as_job, as_kindname ...               -> cat_*
+    AS_JOBS, AS_KINDS, AS_LIVE ...        -> CAT_*
+    AS[...]                               -> CAT[...]
+
+350 sites across five files. `CHANGELOG.md` is left as written: its
+entries describe the tree as it was at each release.
+
+Checked free before taking them: `catalogue_`, `cat_`, `CAT_` and `CAT`
+were all unused, which matters because the callback contract is the
+prefix -- a collision would have had the window manager calling somebody
+else's function.
+
+**Two things a word-boundary sweep gets wrong, both found by running
+it.** `\bappstore\b` does not match `appstore_draw`, because `_` is a
+word character and there is no boundary before it -- so the nine
+callbacks, the one contract that must match the prefix, were the only
+things it skipped. And `\bAS\[` renamed every *use* of the window's map
+and left `declare -gA AS` alone, so the map was declared under one name
+and written under another: under `strict vars` every write is refused,
+and the window drew **nothing at all** while the command behind it ran
+correctly and answered. A rename that misses a declaration does not
+error; it produces an app that opens and is empty.
+
+The published bundle moves with it: `system/appstore` becomes
+`system/catalogue`, a clean break like `apps` to `catalogue` was.
+
 ## 0.99.215
 
 **A prefixed install creates nothing outside its own prefix, so

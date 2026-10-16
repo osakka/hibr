@@ -4433,7 +4433,7 @@ os.unlink(HCOPY)
 
 ASBIN = tempfile.mkdtemp(prefix="hibr-asbin-")
 ASLOG = os.path.join(ASBIN, "asked")
-AS_JSON = json.dumps({"entries": {
+CAT_JSON = json.dumps({"entries": {
     "apps/widget": {"id": "apps/widget", "name": "widget", "kind": "apps",
                     "title": "Widget", "version": "2.0", "installed": "",
                     "update": "0", "about": "A widget\n\nthe second paragraph."},
@@ -4453,7 +4453,7 @@ AS_JSON = json.dumps({"entries": {
 }})
 
 
-def asstub(answer=AS_JSON, rc=0):
+def asstub(answer=CAT_JSON, rc=0):
     """A stand-in `catalogue` that answers one thing and writes down every call.
 
     The answer goes in a file the stub cats, rather than into a `printf`
@@ -4479,7 +4479,7 @@ def asked():
 
 asstub()
 ASENV = {"PATH": ASBIN + ":" + os.environ["PATH"]}
-sc = run("appstore", "21 76 2 2", env=ASENV, tries=150,
+sc = run("catalogue", "21 76 2 2", env=ASENV, tries=150,
          until=lambda s: s.find("apps/widget") is not None)
 check("the Applications window lists what `apps -j` answered, under a "
       "heading for its kind, and asks for JSON rather than parsing columns",
@@ -4515,7 +4515,7 @@ check("a copy the machine also has wears a different mark from one that "
       ("doomed=%r gadget=%r shady=%r" % (asmark(sc, "doomed"),
                                          asmark(sc, "gadget"),
                                          asmark(sc, "shady")), sc))
-sc = run("appstore", "21 76 2 2", env=ASENV, tries=150,
+sc = run("catalogue", "21 76 2 2", env=ASENV, tries=150,
          ready=lambda s: s.find("gadget") is not None,
          feed=[b"\x1b[B"],
          until=lambda s: s.find("files with it") is not None
@@ -4526,7 +4526,7 @@ check("and the detail pane says what an entry brought with it, so what "
 # A kind folds away, and a folded one still says how many are under it --
 # which is the whole reason a shut group is worth reading. The entries go
 # by their own name, since the kind is the line above them.
-sc = run("appstore", "21 76 2 2", env=ASENV, tries=150,
+sc = run("catalogue", "21 76 2 2", env=ASENV, tries=150,
          ready=lambda s: s.find("widget") is not None,
          feed=[b"\x1b[D", b"\x1b[D"],
          until=lambda s: s.find("widget") is None)
@@ -4539,7 +4539,7 @@ sc = run("appstore", "21 76 2 2", env=ASENV, tries=150,
 # Counted from the fixture rather than written in: this check was a
 # literal "(2)" until an entry was added to the stub for another check
 # and broke it, which is the same brittleness one level along.
-NAPPS = len([e for e in json.loads(AS_JSON)["entries"].values()
+NAPPS = len([e for e in json.loads(CAT_JSON)["entries"].values()
              if e["kind"] == "apps"])
 check("a kind folds away, and the fold still says how many it holds",
       sc.find("Applications (%d)" % NAPPS) is not None
@@ -4566,7 +4566,7 @@ asstub(json.dumps({
                        "title": "Hello", "version": "0.3", "installed": "",
                        "update": "0", "about": "A module"}},
     "kinds": {"apps": 1, "themes": 1, "mods": 1}}))
-sc = run("appstore", "21 76 2 2", env=ASENV, tries=150,
+sc = run("catalogue", "21 76 2 2", env=ASENV, tries=150,
          until=lambda s: s.find("Modules") is not None)
 kr = [sc.find(x) for x in ("Applications (1)", "Themes (1)", "Modules (1)")]
 check("the kinds and their order come from `apps`, and a module is one of "
@@ -4589,7 +4589,7 @@ asstub()
 # count below is "this window asked once", and without the reset it would
 # be counting what the two sessions before it asked as well.
 asstub()
-sc = run("appstore", "21 76 2 2", env=ASENV, tries=150, end=None,
+sc = run("catalogue", "21 76 2 2", env=ASENV, tries=150, end=None,
          ready=lambda s: s.find("widget") is not None, feed=[b"/", b"gad"],
          until=lambda s: s.find("widget") is None)
 check("typing in the search narrows the list without asking again",
@@ -4598,7 +4598,7 @@ check("typing in the search narrows the list without asking again",
 
 # And the buttons ask the command for the thing the selection is on.
 asstub()
-sc = run("appstore", "21 76 2 2", env=ASENV, tries=150,
+sc = run("catalogue", "21 76 2 2", env=ASENV, tries=150,
          ready=lambda s: s.find("widget") is not None, feed=[b"i"],
          until=lambda s: "install" in asked())
 check("Install asks the command to install the selected id, by id",
@@ -4627,7 +4627,7 @@ def asrow(sc, name):
 # `tag := dt_hit ... && { case ...; return 0; }`, swallowed the lot.
 # Measured as a click on a row doing nothing at all.
 asstub()
-sc = run("appstore", "21 76 2 2", env=ASENV, tries=150,
+sc = run("catalogue", "21 76 2 2", env=ASENV, tries=150,
          ready=lambda s: s.find("widget") is not None,
          feed=[lambda s: press(*asrow(s, "widget"))],
          until=lambda s: s.find("A widget") is not None)
@@ -4644,7 +4644,7 @@ check("a branch wears the open mark and its children the rules below it",
 check("the button says Install for what is not here and Uninstall for what is",
       sc.find("Install") is not None and sc.find("Uninstall") is None,
       (sc, "selection is widget, which is not installed"))
-sc = run("appstore", "21 76 2 2", env=ASENV, tries=150,
+sc = run("catalogue", "21 76 2 2", env=ASENV, tries=150,
          ready=lambda s: s.find("gadget") is not None,
          feed=[lambda s: press(*asrow(s, "gadget"))],
          until=lambda s: s.find("Uninstall") is not None)
@@ -4657,7 +4657,7 @@ check("and the other way round for one that is installed",
 # menu every bar carries is where the feature stays findable with
 # nothing on screen saying so.
 asstub()
-sc = run("appstore", "21 76 2 2", env=ASENV, tries=150,
+sc = run("catalogue", "21 76 2 2", env=ASENV, tries=150,
          until=lambda s: s.find("widget") is not None)
 def barrow(sc):
     """Which row the search bar is on, or None. Anchored on the window's
@@ -4671,7 +4671,7 @@ def barrow(sc):
 
 
 nobar = barrow(sc) is None
-sc = run("appstore", "21 76 2 2", env=ASENV, tries=150,
+sc = run("catalogue", "21 76 2 2", env=ASENV, tries=150,
          ready=lambda s: s.find("widget") is not None, feed=[b"/", b"gad"],
          end=None, until=lambda s: s.find("widget") is None)
 check("no search is drawn until `/` asks for one, and then it is a bar on "
@@ -4680,7 +4680,7 @@ check("no search is drawn until `/` asks for one, and then it is a bar on "
       and "/gad" in sc.row(barrow(sc))
       and barrow(sc) > sc.find("gadget")[0], (nobar, barrow(sc), sc))
 # F10 opens the bar, right moves to Edit, and its last row is Find.
-sc = run("appstore", "21 76 2 2", env=ASENV, tries=150,
+sc = run("catalogue", "21 76 2 2", env=ASENV, tries=150,
          ready=lambda s: s.find("widget") is not None,
          feed=[b"\x1b[21~", b"\x1b[C", b"\x1b[C"],
          until=lambda s: s.find("Find") is not None)
@@ -4702,7 +4702,7 @@ open(os.path.join(ADATA, "hibr", "apps", "fetched.hibr"), "w").write(
     'fn fetched_draw(id, h, w, row, col) {\n'
     '\tconsole put -p "w$id" 1 1 "from the catalogue"\n'
     '}\n')
-sc = run("appstore", "21 76 2 2", env=dict(ASENV, XDG_DATA_HOME=ADATA),
+sc = run("catalogue", "21 76 2 2", env=dict(ASENV, XDG_DATA_HOME=ADATA),
          tries=150,
          pre='DT_APPDIRS=("%s/hibr/apps" "/nonexistent/shipped/apps")\ndt_apps'
              % ADATA,
@@ -4714,14 +4714,14 @@ check("a desktop that ships no applications still finds one you fetched, "
 shutil.rmtree(ADATA, True)
 
 # A heading is not a thing to install, and the lint rule found that it
-# was being treated as one: `as_at`'s three misses each ended in
+# was being treated as one: `cat_at`'s three misses each ended in
 # `ret ""; return 1`, where `ret` ends the function with status 0, so
 # every caller's `|| ...` was dead. Measured against the old lines, the
 # buttons on a heading read `Install  Read It  Refresh` and `i` asked the
 # command `install ` -- an empty id. The window opens on the first entry,
 # so `up` is what reaches a heading at all.
 asstub()
-sc = run("appstore", "21 76 2 2", env=ASENV, tries=150,
+sc = run("catalogue", "21 76 2 2", env=ASENV, tries=150,
          ready=lambda s: s.find("widget") is not None,
          feed=[b"\x1b[A", b"i"],
          until=lambda s: s.find("Nothing is selected") is not None)
@@ -4733,7 +4733,7 @@ check("a heading offers nothing to install, and says so when asked anyway",
 # search for, and succeeds while answering prose. Saying "it did not say
 # why" there is true and useless.
 asstub(answer="nothing in the index matches -j")
-sc = run("appstore", "21 76 2 2", env=ASENV, tries=150,
+sc = run("catalogue", "21 76 2 2", env=ASENV, tries=150,
          until=lambda s: s.find("did not answer JSON") is not None)
 check("an `apps` too old to know -j is named as the likely cause, rather "
       "than an empty list with no reason",

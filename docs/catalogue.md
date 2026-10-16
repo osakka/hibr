@@ -675,7 +675,7 @@ screen saver, a window of any shape — and is described in
 ## From the desktop
 
 **Catalogue**, on the hibr menu, is this command with a window around
-it — `programs/desktop/system/appstore.hibr`, the way the Vault accessory
+it — `programs/desktop/system/catalogue.hibr`, the way the Vault accessory
 is a window around `vw`. Anything one can do the other can, because there
 is one implementation: the window runs `catalogue` as a child and never
 has a catalogue of its own. It is not called *Applications*: that is

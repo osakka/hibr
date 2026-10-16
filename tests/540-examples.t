@@ -200,7 +200,7 @@ for v in $kept; do
   # which sheets this machine trusts (never in a sheet, so one cannot
   # arrive trusted), the wallpaper picker's last folder, and the settings
   # file's own version.
-  case $v in CS_Y | CS_LEN | CS_COLLAPSED | CP_DIVCOL | FP_LISTW | DIA_SPLIT | AS_SPLIT | SS_TRUST | WPK_DIR | DT_SETVER) continue ;; esac
+  case $v in CS_Y | CS_LEN | CS_COLLAPSED | CP_DIVCOL | FP_LISTW | DIA_SPLIT | CAT_SPLIT | SS_TRUST | WPK_DIR | DT_SETVER) continue ;; esac
   grep -qw "$v" $panes || echo "kept but in no Control Panel pane: $v"
 done
 echo "every kept preference is in the Control Panel"
@@ -335,7 +335,7 @@ grep -rhoE 'console pen( -p [^ ]+)? "\$DT_[A-Z_]+"( "\$DT_[A-Z_]+")?' \
 echo "every pen names a theme colour"
 
 # The Catalogue window does not keep its own list of kinds -- `apps`
-# sends them with `list -j` and as_load takes them (Gitea #220, after
+# sends them with `list -j` and cat_load takes them (Gitea #220, after
 # three releases in which `mods` existed in one list and not the other).
 # What the window still owns is what each kind is *called*, so the check
 # that is left is that every kind `apps` declares has a name here. A
@@ -350,10 +350,10 @@ echo "every pen names a theme colour"
 apk=$(tr '\n\t' '  ' < programs/catalogue.hibr |
 	sed 's/.*AP_KINDS=(//; s/).*//; s/  */ /g; s/^ //; s/ $//')
 [ -n "$apk" ] || echo "could not read AP_KINDS"
-grep -q '^AS_KINDS=()$' programs/desktop/system/appstore.hibr ||
+grep -q '^CAT_KINDS=()$' programs/desktop/system/catalogue.hibr ||
 	echo "the Catalogue keeps a kind list of its own again"
 for k in $apk; do
-	grep -q "^	$k) ret " programs/desktop/system/appstore.hibr ||
+	grep -q "^	$k) ret " programs/desktop/system/catalogue.hibr ||
 		echo "the Catalogue has no name for the kind $k"
 done
 echo "every kind apps declares has a name in the Catalogue"

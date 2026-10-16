@@ -3940,6 +3940,27 @@ went in the shell.
   admitting it in a footer.** Ownership did not need absence to protect
   it -- a scope column carries it, and `remove` refusing what it did not
   place is what actually enforces it.
+- **A regex rename that misses a declaration produces an app that opens
+  and is empty, and nothing errors** (Gitea #255's sibling, 0.99.216).
+  Renaming the Catalogue window's own map with `\bAS\[` caught every
+  *use* -- `AS[$id]["sel"]` and its hundred and seventy siblings -- and
+  left `declare -gA AS` untouched, because the declaration has no `[`.
+  The map was then declared under one name and written under another,
+  and a desktop file is `strict`: every write is refused as creating a
+  global, the window draws no rows, and the command behind it runs
+  correctly and answers correctly the whole time. The suite said
+  `rows=[None, None, None]`, which reads as the window being broken
+  rather than as two names for one map.
+  **The other half of the same sweep**: `\bappstore\b` does **not**
+  match `appstore_draw`, since `_` is a word character and there is no
+  boundary before it -- so the nine window callbacks, which are the one
+  thing that *must* match the prefix, were precisely what the pattern
+  skipped. A word boundary is the right tool for a bare word and the
+  wrong one for an identifier prefix.
+  So after any mechanical rename, grep for the **old** name with no
+  boundary at all (`grep -n oldname`) and for the new one as a
+  declaration (`declare -gA NEW`), and run the suite that opens the
+  thing -- a parse check passes either mistake.
 - **"No APC at all" is not "no picture".** Three assertions across two
   suites read `not sc.apc` meaning "nothing was drawn as a bitmap", and
   broke the moment the display sent an APC **query** of its own. A
