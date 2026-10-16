@@ -1,5 +1,59 @@
 # Changelog
 
+## 0.99.207
+
+**A bitmap is never committed on a guess.**
+
+Gitea #249, reported live: a desktop resumed with `-r` from a kitty
+session onto a plain xterm had a **black wallpaper for the whole
+session**, with the window shadows still in colour, and About This
+Computer saying `xterm-kitty ... pictures blocks only, no pixels`.
+
+Both halves were telling the truth about different moments. `cn_gfx`
+decides the picture protocol from `HIBR_GFX`, then from what the
+terminal **answered**, then from a **list of terminal names** -- and a
+held session's `$TERM` is the one the shell that ran `hold new` had,
+frozen for the session's life. So in the window before the terminal's
+reply arrives, the stale `xterm-kitty` wins the name list and a kitty
+bitmap goes to a terminal that draws none. Measured, holding a session
+named `xterm-kitty` and attaching a client that answers device
+attributes without sixel and never answers kitty's query:
+
+    gfx at once: kitty 6 13
+    gfx later  : none 6 13
+    kitty payloads the xterm was sent: 1
+
+One is enough. The console claims the cells that region covers and skips
+them in the diff, the xterm drops the payload, and an under-text region
+is kept for as long as its caller places it again (ADR 0037) -- which a
+wallpaper does on every frame. Nothing ever repaints those cells.
+
+Every symptom follows from it: the shadows are ordinary cells and
+outside the region; half blocks cure it because forcing cells changes
+`dt_wallsig` and drops the region; and About asks *later*, after the
+answer has arrived.
+
+`cn_gfxsure` is the state that was missing -- whether the protocol
+`cn_gfx` names was **answered** or **forced with `HIBR_GFX`**, as
+against read off a name. `cn_image` refuses while it is not sure, and
+`img draw` falls through to the cells path every caller of `dp->image`
+already keeps. A frame or two of half blocks at startup costs nothing; a
+wallpaper that is black until the session ends costs everything.
+
+`console gfx` is unchanged: it is asked what a terminal most likely
+draws, and a name is a fair answer to that. What changed is only what
+may be put on the wire.
+
+`tests/holdpix.py` gained the check, beside the two capability checks
+from #216: zero `a=T` payloads at a client that answered it draws
+neither, with the picture placed on *every* pass so the window cannot be
+missed. 22 passed and 1 failed against 0.99.206; 23 and 0 with the fix.
+
+The same family as #112, #118, #165, #172, #175, #184, #215 and #216 --
+and #216 most of all, which made the capabilities be asked and left the
+answer's own latency unexamined. **Asking is not knowing, and the gap
+between them is a state the code has to have a name for.**
+
 ## 0.99.206
 
 **One wallpaper per display, so a stacked union has one at all.**

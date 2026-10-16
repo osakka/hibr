@@ -128,6 +128,7 @@ size_t cn_imgn(void);
    could never change it (Gitea #216).
    The name of the one in force, for `console gfx`. */
 int cn_gfx(sh *s);
+int cn_gfxsure(sh *s);
 const char *cn_gfxname(int k);
 extern volatile sig_atomic_t cn_wgen;
 unsigned cn_dim1(unsigned v, int pct, unsigned deflt);

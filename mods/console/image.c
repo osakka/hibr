@@ -350,6 +350,13 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 	k = cn_gfx(s);
 	if (k != CN_GFX_SIXEL && k != CN_GFX_KITTY)
 		return 0;
+	/* And only when that is known rather than guessed from a name
+	   (Gitea #249). A bitmap committed on a guess claims its cells and
+	   is dropped by the terminal, which leaves a black rectangle no
+	   repaint reaches; the caller falls back to cells for the frame or
+	   two until the terminal has answered, which costs nothing. */
+	if (!cn_gfxsure(s))
+		return 0;
 	cn_cellpx(&cw, &chh);
 	if (cw < 2 || chh < 2)
 		return 0;

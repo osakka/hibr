@@ -111,6 +111,22 @@ kept across a re-ask, so a plain resize never drops to the name list for a
 frame; `HIBR_GFX` still wins over everything, being a person's own choice.
 A terminal that answers neither query is read by name exactly as before.
 
+**A name is enough to decide how to draw text and not enough to commit a
+bitmap** (Gitea #249). Between a display opening and the terminal's reply
+arriving, nothing has answered and the name list is all there is -- so a
+held session whose frozen name says kitty placed a kitty bitmap on a plain
+xterm, once, in that window. The console claims the cells a region covers
+and skips them in the diff, the terminal drops the payload, and an
+under-text region is kept for as long as its caller places it again, which
+a wallpaper does on every frame: a black rectangle nothing repaints, for
+the life of the session. `cn_gfxsure` is that distinction -- a protocol
+*answered*, or forced with `HIBR_GFX`, as against one read off a name --
+and `cn_image` places nothing while it is not sure, so `img draw` falls
+through to the cells path every caller of `dp->image` already keeps. A
+frame or two of half blocks at startup costs nothing. `console gfx` itself
+is unchanged: it is asked what a terminal most likely draws, and a name is
+a fair answer to that question.
+
 `console translucent pct [colour]` is the same substitution for a *write*
 rather than a darken: while it is set, a cell written with no background of
 its own takes the picture's colour at that cell scaled to `pct`, or `colour`

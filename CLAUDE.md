@@ -3754,6 +3754,37 @@ went in the shell.
   nearly done by overloading `hasrgb` -- "nobody told me my colours" --
   which is the one-value-two-questions trap this file already records
   twice.
+- **Asking is not knowing, and the gap between them is a state the code has
+  to have a name for** (Gitea #249, 0.99.207). #216 made the picture
+  capabilities be *asked* and left the **latency of the answer**
+  unexamined: between a display opening and the terminal's reply arriving,
+  nothing has answered and `cn_gfx` falls back to the name list, which
+  inside `hold` is the session's own frozen `$TERM`. So a desktop begun
+  under kitty and resumed with `-r` on a plain xterm placed a kitty bitmap
+  on it **once**, in that window -- and once is enough: the console claims
+  the cells that region covers and skips them in the diff, the terminal
+  drops the payload, and an under-text region is kept for as long as its
+  caller places it again (ADR 0037), which a wallpaper does every frame.
+  **A black rectangle nothing repaints, for the life of the session.**
+  Measured as `gfx at once: kitty 6 13`, `gfx later: none 6 13`, and one
+  `a=T` payload sent in between. `cn_gfxsure` is the missing state --
+  answered, or forced with `HIBR_GFX`, as against guessed -- and
+  `cn_image` commits nothing while it is false, so `img draw` falls to the
+  cells path every caller of `dp->image` already keeps.
+  Three things worth keeping. **The symptoms each described a different
+  moment and all of them were true**: the wallpaper was black (the window),
+  the shadows were coloured (ordinary cells, outside the region), half
+  blocks cured it (forcing cells changes `dt_wallsig` and drops the
+  region), and About said `pictures blocks only, no pixels` because About
+  asks *later* -- so "there seem to be a mismatch somewhere" was a report
+  about time, not about two components disagreeing. **A guess is fine for
+  text and never for a payload**: `console gfx` is unchanged, because what
+  it is asked is "what does this terminal most likely draw", and only what
+  goes on the wire needed the stricter question. And **the check has to
+  place the picture on every pass**, since the window is a fraction of a
+  second: a placement that only happens after the answer cannot tell a
+  fixed version from a broken one, which is this file's own rule about an
+  oracle that never makes the gate fire.
 - **"No APC at all" is not "no picture".** Three assertions across two
   suites read `not sc.apc` meaning "nothing was drawn as a bitmap", and
   broke the moment the display sent an APC **query** of its own. A

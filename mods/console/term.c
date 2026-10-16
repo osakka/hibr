@@ -514,6 +514,36 @@ const char *cn_gfxname(int k)
    picture the terminal keeps rather than one repainted. foot, mlterm, yaft,
    contour, iTerm2 and mintty do sixel only. HIBR_GFX says outright:
    kitty, sixel, or off. */
+/* Whether the protocol cn_gfx names is *known* rather than guessed. A
+   name list is enough to decide how to draw text; it is not enough to
+   commit a bitmap, and that difference is the whole of Gitea #249.
+
+   A held session's TERM is the one the shell that ran `hold new` had,
+   frozen for the session's life -- so a desktop started under kitty and
+   resumed on a plain xterm still says `xterm-kitty`, the name list reads
+   "kitty" out of it, and every picture placed before the real terminal's
+   answer arrives is a payload that terminal drops. The cells are claimed
+   by the region all the same and skipped in the diff, so what is left is
+   a black rectangle that nothing repaints: a wallpaper keeps placing the
+   same picture, so the region is never retired either.
+
+   Measured: TERM=xterm-kitty on a terminal answering device attributes
+   without kitty's query gives `gfx at once: kitty 6 13` and
+   `gfx later: none 6 13`, with one kitty payload already sent in between.
+
+   An explicit HIBR_GFX is not a guess -- somebody said so on purpose --
+   and an answer of either kind is not a guess. Everything else is, and
+   waits. A frame or two of half blocks at startup costs nothing; a
+   wallpaper that is black until the session ends costs everything. */
+int cn_gfxsure(sh *s)
+{
+	const char *v = hibr_get(s, "HIBR_GFX");
+
+	if (v && (!strcmp(v, "sixel") || !strcmp(v, "kitty")))
+		return 1;
+	return cn_capkit == 1 || cn_capsix == 1;
+}
+
 int cn_gfx(sh *s)
 {
 	const char *v, *t;

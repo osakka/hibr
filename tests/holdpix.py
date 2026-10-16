@@ -430,5 +430,47 @@ sc, log = run(CAPQ % "kitty*", until="HELD CAP", gfx=None, settle=100,
 check("and one whose name says nothing draws pixels once a client says it "
       "can", "gfx kitty" in log, log)
 
+# The window before that answer arrives is its own bug, and it is the one a
+# person actually meets (Gitea #249): `cn_gfx` falls back to the name list
+# while nothing has answered, a held session's name is the frozen
+# `xterm-kitty` of whatever started it, and so the first frames of a
+# `desktop -r` onto a plain xterm place a *kitty bitmap* on a terminal that
+# draws none. The console claims those cells and skips them in the diff, the
+# terminal drops the payload, and the wallpaper -- which keeps placing the
+# same picture, so the region is never retired -- leaves a black rectangle
+# that nothing repaints, for the life of the session. Measured on stock
+# 0.99.206 as one `a=T` payload sent to a client that answered it draws
+# neither, with `console gfx` ending at `none` in the same run.
+#
+# So a bitmap is committed only on a protocol that was *answered* or forced
+# with HIBR_GFX, never on one read off a name: `cn_gfxsure`. A frame or two
+# of half blocks at startup costs nothing, and the picture is placed for
+# real the moment a client that can draw it says so, which is the pair of
+# checks above.
+#
+# The picture is placed on every pass rather than once, because the window
+# is short: a placement that happens only after the answer cannot tell a
+# fixed version from a broken one.
+GUESS = ("i=0\n"
+         "while [ $i -lt 20 ]; do\n"
+         "  console put 0 0 'HELD GUESS'\n"
+         "  img draw %s 2 2 6 12 -u\n"
+         "  console flush\n"
+         "  console key 100 > /dev/null\n"
+         "  i=$((i + 1))\n"
+         "done\n"
+         "g := console gfx\n"
+         'echo "gfx $g" >> ' + LOG + "\n"
+         "console put 1 0 'HELD DONE'\n"
+         "console flush\n") % GRAD
+
+sc, log = run(GUESS, until="HELD DONE", gfx=None, settle=100,
+              term="xterm-kitty", caps=[])
+check("a session named kitty sends no bitmap to a client that answers it "
+      "draws neither, not even before the answer arrives",
+      not [a for a in sc.apc if "a=T" in a] and not sc.images
+      and "gfx none" in log, (sc.apc[:4], sc.images, log))
+check("and it drew blocks there instead", "▀" in sc.row(2), repr(sc.row(2)))
+
 shutil.rmtree(D, True)
-report(21)
+report(23)
