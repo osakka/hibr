@@ -960,7 +960,9 @@ says #REFUSED, one that loops says #TIME. Trust This Sheet
 server to keep its vault here, readable offline.
 sets a place, or the time zone gives one.
 shadows the one hibr ships
+shipped
 shipped with hibr
+system
 text
 the machine has this, and its copy is read first
 there is no account to test yet

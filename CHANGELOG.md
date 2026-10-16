@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.99.214
+
+**The Catalogue window says which scope a thing is in, and its group
+names stop explaining themselves.**
+
+Asked for directly, looking at the window after 0.99.212:
+
+> *"how can I distinguish system installed vs user installed? everything
+> seems installed, but how can I distinguish between them?"*
+
+A fair question, and the answer was: you could not. 0.99.212 gave the
+package's own copies a tick, which was right -- you do have them -- and
+left twenty-one things the person installed and sixty-four the package
+shipped looking identical in the list. The detail line said which, one
+row at a time, which is not what a list is for.
+
+The right-hand column now says **which scope** rather than a version,
+for anything that is not the person's own: `shipped` or `system`,
+against a version for one they installed. Same three words the command
+line uses, so there is one vocabulary rather than two, and a tick plus
+a version now means "yours, and removable" where a tick plus `shipped`
+means "the package's".
+
+And the group headings say what they are rather than describing
+themselves: **Desktop**, **Control Panel** and **Control Strip**, where
+they read *"The desktop's own"*, *"Control Panel panes"* and *"Control
+Strip modules"*.
+
+`appstore` 1.4 to 1.5 and the Arabic catalogue 1.5 to 1.6, both
+republished -- `./stale` is what says so now, in the direction it
+gained in 0.99.213.
+
 ## 0.99.213
 
 **A kind the catalogue offers must be a folder the desktop reads.**

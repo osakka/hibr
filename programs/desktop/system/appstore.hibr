@@ -19,7 +19,7 @@
 
 strict
 
-app appstore "The application catalogue: browse, install, update and remove" 1.4
+app appstore "The application catalogue: browse, install, update and remove" 1.5
 
 # Not called "Applications": the hibr menu already has a submenu of that
 # name -- every app you can open -- and two rows called the same thing on
@@ -254,9 +254,9 @@ fn as_kindsfrom(int id) {
 fn as_kindname(k) {
 	case $k in
 	apps) ret "Applications" ;;
-	system) ret "The desktop's own" ;;
-	control-panel) ret "Control Panel panes" ;;
-	control-strip) ret "Control Strip modules" ;;
+	system) ret "Desktop" ;;
+	control-panel) ret "Control Panel" ;;
+	control-strip) ret "Control Strip" ;;
 	savers) ret "Screen savers" ;;
 	themes) ret "Themes" ;;
 	colours) ret "Colour schemes" ;;
@@ -576,7 +576,21 @@ fn appstore_draw(int id, int h, int w, int row, int col) {
 					"${AS[$id]["r"][$i]["last"]:-0}" "0"
 				t := dt_cut "${AS[$id]["e"][$e]["name"]}" "$idw"
 				t := str pad "$lead$mark $t" $((listw - 8))
-				line="$t${AS[$id]["e"][$e]["version"]}"
+				# The right-hand column says **which scope**
+				# rather than a version, for anything that is
+				# not the person's own: a tick alone made
+				# twenty-one apps they installed and
+				# sixty-four the package shipped look
+				# identical, which is what they asked about
+				# (Gitea #254). The same three words the
+				# command line uses, so there is one
+				# vocabulary rather than two.
+				local vcol=${AS[$id]["e"][$e]["version"]}
+				case ${AS[$id]["e"][$e]["where"]} in
+				shipped) vcol := dt_tr "shipped" ;;
+				system) vcol := dt_tr "system" ;;
+				esac
+				line="$t$vcol"
 				if [ "$i" = "$sel" ] && ! dt_searchon "$id"; then
 					console pen "$DT_SELINK" "$DT_ACTIVE"
 				elif [ "$i" = "$sel" ]; then

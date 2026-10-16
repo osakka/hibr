@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "1.5",
+ "version": "1.6",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -993,6 +993,8 @@
   "reading the catalogue": "قراءة الفهرس",
   "replaced on disk": "استُبدل على القرص",
   "resizing — arrows, then enter": "تغيير الحجم — الأسهم ثم Enter",
+  "system": "للجهاز",
+  "shipped": "مع hibr",
   "says #REFUSED, one that loops says #TIME. Trust This Sheet": "يقول #REFUSED، وما يدور يقول #TIME. «ثق بهذه الورقة»",
   "server to keep its vault here, readable offline.": "Vaultwarden لحفظ خزنته هنا، ولقراءته دون اتصال.",
   "sets a place, or the time zone gives one.": "تحدّد مكانًا، أو تأتي به المنطقة الزمنية.",
