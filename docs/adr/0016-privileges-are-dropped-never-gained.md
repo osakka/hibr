@@ -67,7 +67,7 @@ So privilege in hibr only ever goes one way.
 
 ## Later: the login screen (0.99.22)
 
-The login screen (`examples/desktop/login/`) is a third shape of the same
+The login screen (`programs/desktop/login/`) is a third shape of the same
 rule. systemd starts it as root on a terminal; it gives root up only by
 forking a child that drops for good -- to read a person's own About Me and
 picture before they log in, and to run their session once they have

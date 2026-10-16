@@ -23,7 +23,7 @@ import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DESK = os.path.join(os.path.dirname(HERE), "examples", "desktop")
+DESK = os.path.join(os.path.dirname(HERE), "programs", "desktop")
 SHELL = {"RET", "M", "REPLY", "IFS", "OPTIND", "OPTARG", "RANDOM", "SECONDS",
          "PWD", "OLDPWD", "HOME", "PATH", "COLUMNS", "LINES", "LC_ALL", "_"}
 NAME = r"[A-Za-z_][A-Za-z0-9_]*"

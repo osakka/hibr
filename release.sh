@@ -27,7 +27,7 @@ set -eu
 
 SRC=$(cd "$(dirname "$0")" && pwd)
 HDR="$SRC/include/hibr.h"
-DESKTOP="$SRC/examples/desktop/desktop.hibr"
+DESKTOP="$SRC/programs/desktop/desktop.hibr"
 FORMULA="$SRC/packaging/homebrew/hibr.rb"
 CHANGELOG="$SRC/CHANGELOG.md"
 REPO_SLUG=osakka/hibr

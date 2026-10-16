@@ -159,8 +159,8 @@ Sheets live in `SS_DIR`, `~/.local/share/hibr/sheets` unless you set it.
 
 ## Where this is written down
 
-The app is `examples/desktop/apps/Office/sheet.hibr`, the example is
-`examples/desktop/examples/tour.csv`, and the checks are in
+The app is `programs/desktop/apps/Office/sheet.hibr`, the example is
+`programs/desktop/examples/tour.csv`, and the checks are in
 `tests/apps.py`. Until 0.99.120 every word of this page lived in that
 file's own header comment, where no one using the app would ever find it
 (Gitea #150).

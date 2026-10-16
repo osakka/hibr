@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Drive the window manager through a pty and read the screen it draws.
 
-examples/desktop/desktop.hibr is a hibr script, so none of this can be reached from
+programs/desktop/desktop.hibr is a hibr script, so none of this can be reached from
 a .t file: it needs a terminal for the console to open and a mouse to click
 with.  Run it directly:  python3 tests/desktop.py [path-to-hibr]
 
@@ -26,7 +26,7 @@ WARN = "#f6ad55"
 if len(sys.argv) > 1:
     screen.HIBR = os.path.abspath(sys.argv[1])
 MOD = tree("build/mods/console.so")
-WM = tree("examples/desktop/desktop.hibr")
+WM = tree("programs/desktop/desktop.hibr")
 ROWS, COLS = 24, 80
 
 
@@ -526,7 +526,7 @@ check("DT_DBLACTION=none turns that off",
 # --- window chrome: frame, button side, title alignment, icon style -------
 #
 # DT_FRAME, DT_BTNSIDE, DT_TITLEALIGN and DT_BTNSTYLE are the Windows pane's
-# pane's own four settings (examples/desktop/control-panel/window-style.hibr);
+# pane's own four settings (programs/desktop/control-panel/window-style.hibr);
 # tests/apps.py checks the pane itself, this checks what each value actually
 # draws. Every button style is 5 (fixed) or 7 (movable) characters wide, the
 # same as the original brackets, so a style change alone never moves where a
@@ -833,8 +833,8 @@ shutil.rmtree(CORNER, True)
 # even ones already gone -- the "center" a notification center needs.
 BELL = tempfile.mkdtemp(prefix="hibr-notebell-")
 p = os.path.join(BELL, "session.hibr")
-bellapps = ('DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/desktop/apps")
-            + 'DT_SYSDIRS+=("%s")\ndt_sysapps\n' % tree("examples/desktop/system"))
+bellapps = ('DT_APPDIRS+=("%s")\ndt_apps\n' % tree("programs/desktop/apps")
+            + 'DT_SYSDIRS+=("%s")\ndt_sysapps\n' % tree("programs/desktop/system"))
 open(p, "w").write(
     "%s. %s\n%sdt_open\ndt_note \"Remembered\"\ndt_run\ndt_close\n"
     % (load(MOD), WM, bellapps)
@@ -859,8 +859,8 @@ shutil.rmtree(BELL, True)
 def idle_wakes(env, session, act=None):
     d = tempfile.mkdtemp(prefix="hibr-idle-")
     p = os.path.join(d, "session.hibr")
-    apps = ('DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/desktop/apps")
-            + 'DT_SYSDIRS+=("%s")\ndt_sysapps\n' % tree("examples/desktop/system"))
+    apps = ('DT_APPDIRS+=("%s")\ndt_apps\n' % tree("programs/desktop/apps")
+            + 'DT_SYSDIRS+=("%s")\ndt_sysapps\n' % tree("programs/desktop/system"))
     open(p, "w").write("%s. %s\n%sdt_open\n%s\ndt_run\ndt_close\n"
                        % (load(MOD), WM, apps, session))
     t = Term(p, env=env, rows=ROWS, cols=COLS, settle=1.5)
@@ -1215,8 +1215,8 @@ check("one registered hidden is not, though it is still a real app",
 # desktop's own on the hibr menu itself. Most fixtures want both, which is
 # what "the apps that come with hibr" means; the three checks about the
 # split itself name one root on purpose.
-SYSAPPSRC = 'DT_SYSDIRS+=("%s")\ndt_sysapps\n' % tree("examples/desktop/system")
-REALAPPS = ('DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/desktop/apps")
+SYSAPPSRC = 'DT_SYSDIRS+=("%s")\ndt_sysapps\n' % tree("programs/desktop/system")
+REALAPPS = ('DT_APPDIRS+=("%s")\ndt_apps\n' % tree("programs/desktop/apps")
             + SYSAPPSRC)
 sc, _ = run(REALAPPS, [b"\x1b[21~"])
 check("Rename and Get Info do not leak onto the real hibr menu",
@@ -1455,7 +1455,7 @@ check("and so does a click anywhere",
 # A launched window goes to the first spot on the display that overlaps
 # nothing -- scanning from the top left, below the bar, room left for each
 # window's shadow -- and where there is none, to the spot of least overlap.
-ACC = tree("examples/desktop/apps/Accessories")
+ACC = tree("programs/desktop/apps/Accessories")
 PLACEAPPS = (". %s/calc.hibr\n. %s/clock.hibr\n. %s/imgview.hibr\n"
              ". %s/puzzle.hibr\nDT_ICONS=0" % (ACC, ACC, ACC, ACC))
 sc, _ = run("dt_launch calc\ndt_launch clock\ndt_launch imgview", pre=PLACEAPPS)
@@ -1475,7 +1475,7 @@ check("and a once-app launched again is brought forward, not placed twice",
       len([r for r in range(24) if "┤ Clock ├" in sc.row(r)]) == 1, sc)
 TERMLOAD = ("mod load %s\nmod load %s\n. %s/term.hibr\nDT_ICONS=0"
             % (tree("build/mods/pty.so"), tree("build/mods/term.so"),
-               tree("examples/desktop/apps")))
+               tree("programs/desktop/apps")))
 sc, _ = run("dt_launch term", pre=TERMLOAD)
 check("a terminal opens at 24 by 80 by default, shrunk to fit a smaller "
       "screen", sc.at(1, 0) == "┌" and sc.at(23, 79) == "◢", sc)
@@ -1600,7 +1600,7 @@ tc = Term(cpath, rows=ROWS, cols=COLS, settle=1.0)
 
 
 def uctl(*a):
-    r = subprocess.run([screen.HIBR, tree("examples/desktop/lib/ctl.hibr"), "--socket", CTS] + list(a),
+    r = subprocess.run([screen.HIBR, tree("programs/desktop/lib/ctl.hibr"), "--socket", CTS] + list(a),
                        capture_output=True, text=True, timeout=10)
     try:
         return r.returncode, json.loads(r.stdout)
@@ -1782,7 +1782,7 @@ check("the Window menu shows Tile Workspace ticked, and Make Main",
 # the trash.  One column at column 67: Home at row 2, the first disk at 5,
 # the second at 8, the trash at 11 -- or at 5, with disks off.
 
-APPS = ('DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/desktop/apps")
+APPS = ('DT_APPDIRS+=("%s")\ndt_apps\n' % tree("programs/desktop/apps")
         + SYSAPPSRC)
 
 import base64
@@ -2139,7 +2139,7 @@ open(os.path.join(UCONF, "hibr", "apps", "hello.hibr"), "w").write(
     'hello_draw() { console put -p "w$1" 1 1 "hi there"; }\n')
 open(os.path.join(UCONF, "hibr", "apps", "calc.hibr"), "w").write(
     'dt_app calc "My Sums" 6 20 once "±"\n')
-APPS = ('DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/desktop/apps")
+APPS = ('DT_APPDIRS+=("%s")\ndt_apps\n' % tree("programs/desktop/apps")
         + SYSAPPSRC)
 # Calculator is in Applications > Accessories, which dt_apps finds by its
 # own recursive scan -- and DT_SRC is one shared registry, so a user's own
@@ -2236,7 +2236,7 @@ shutil.rmtree(DACONF, True)
 # DT[] window -- docked to a side and dragged up and down, hibr's own take
 # rather than the bottom-only strip the real one was.
 
-CSSRC = 'CS_MODDIRS+=("%s")\ncs_modules\n' % tree("examples/desktop/control-strip")
+CSSRC = 'CS_MODDIRS+=("%s")\ncs_modules\n' % tree("programs/desktop/control-strip")
 
 
 def csrun(feed=()):
@@ -2423,8 +2423,8 @@ check("and its shadow is cast on every one of them, never twice over",
 
 IMGMOD = 'mod load %s\n' % tree("build/mods/img.so")
 IMGFIX = tree("tests/img-2x2.png")
-DASRC = ('DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/desktop/apps")
-         + 'DT_SYSDIRS+=("%s")\ndt_sysapps\n' % tree("examples/desktop/system"))
+DASRC = ('DT_APPDIRS+=("%s")\ndt_apps\n' % tree("programs/desktop/apps")
+         + 'DT_SYSDIRS+=("%s")\ndt_sysapps\n' % tree("programs/desktop/system"))
 
 sc, raw = run("", env={"DT_WALLIMG": IMGFIX}, pre=IMGMOD)
 check("a real image can be the desktop's own wallpaper",
@@ -2737,7 +2737,7 @@ check("and so does the mouse: a sideways wheel, and shift with an "
       mw.find("Hostname: ") == aboutbase.find("Hostname: ") and
       mw.find("hibr v") is not None, (mw, sw))
 
-# Clock is a desk accessory now, not in examples/desktop/apps -- the bar's own
+# Clock is a desk accessory now, not in programs/desktop/apps -- the bar's own
 # click handler only asks dt_has clock_draw, so it works regardless of
 # which loader found it, but the test has to load it from where it is.
 sc, _ = run("", feed=[press(0, 63)],
@@ -2767,7 +2767,7 @@ def stripdrop(col):
     sc, _ = run("", feed=[press(STRIPROW, col), b"\x1b[B", b"\r"],
                 env={"XDG_CONFIG_HOME": d},
                 pre=CSSRC + "\n. %s\n" % tree(
-                    "examples/desktop/control-panel/appearance.hibr"))
+                    "programs/desktop/control-panel/appearance.hibr"))
     saved = os.path.join(d, "hibr", "desktop.hibr")
     text = open(saved).read() if os.path.exists(saved) else ""
     shutil.rmtree(d, True)
@@ -2818,13 +2818,13 @@ check("shift-click selects the run of icons from the last one clicked",
       copied(raw) == home + "\n" + backup, sc)
 shutil.rmtree(d, True)
 
-# Control Panel is a pane picker, panes loaded from examples/desktop/control-panel:
+# Control Panel is a pane picker, panes loaded from programs/desktop/control-panel:
 # the desktop's own first, then one per app, each group sorted by title.
 # tests/apps.py verifies this order directly against cp_panes; ORDER here
 # just names it, so a real change to it breaks an assertion instead of a
 # silent miscount.
 PANEL = ('. %s/panel.hibr\nCP_PANEDIRS+=("%s")\ncp_panes'
-         % (tree("examples/desktop/system"), tree("examples/desktop/control-panel")))
+         % (tree("programs/desktop/system"), tree("programs/desktop/control-panel")))
 # Hardware, then the desktop's own, then the apps', each group sorted by its
 # own title -- read out of cp_panes itself rather than hand-sorted, which is
 # what 0.99.126's regrouping made necessary: About This Computer and Task
@@ -2844,9 +2844,9 @@ DOWN_KB = [b"\x1b[B"] * ORDER.index("shortcuts")
 def dotrun(session, env=None, pre="", keys=(), cols=COLS):
     d = tempfile.mkdtemp(prefix="hibr-dot-")
     p = os.path.join(d, "session.hibr")
-    apps = ('DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/desktop/apps")
-            + 'DT_SYSDIRS+=("%s")\ndt_sysapps\n' % tree("examples/desktop/system"))
-    cp = 'CP_PANEDIRS+=("%s")\ncp_panes\n' % tree("examples/desktop/control-panel")
+    apps = ('DT_APPDIRS+=("%s")\ndt_apps\n' % tree("programs/desktop/apps")
+            + 'DT_SYSDIRS+=("%s")\ndt_sysapps\n' % tree("programs/desktop/system"))
+    cp = 'CP_PANEDIRS+=("%s")\ncp_panes\n' % tree("programs/desktop/control-panel")
     open(p, "w").write("%s. %s\n%s%s%sdt_open\n%s\ndt_run\ndt_close\n"
                        % (load(MOD), WM, apps, cp, pre, session))
     e = {"XDG_CONFIG_HOME": os.path.join(d, "config")}
@@ -3073,7 +3073,7 @@ shutil.rmtree(CONF, True)
 # lands on its first row that is not a heading, Menu Bar. The rows follow
 # DT_KEYORDER, read from wm/keys.hibr rather than counted here.
 KEYORDER = re.search(r"DT_KEYORDER=\(([^)]*)\)",
-                     open(tree("examples/desktop/wm/keys.hibr")).read()
+                     open(tree("programs/desktop/wm/keys.hibr")).read()
                      ).group(1).split()
 NKEYS = len(KEYORDER)
 CONF2 = tempfile.mkdtemp(prefix="hibr-conf2-")
@@ -3094,7 +3094,7 @@ shutil.rmtree(CONF2, True)
 # names, read from wm/keys.hibr rather than counted here -- Calculator is the
 # first app, since it sorts before Control Panel.
 
-CALCSRC = '. %s/calc.hibr' % tree("examples/desktop/apps/Accessories")
+CALCSRC = '. %s/calc.hibr' % tree("programs/desktop/apps/Accessories")
 CONF3 = tempfile.mkdtemp(prefix="hibr-conf3-")
 sc, _ = run('dt_new "Control Panel" 22 58 2 2 panel',
             feed=DOWN_KB + [b"\r"] + [b"\x1b[B"] * NKEYS,
@@ -3146,7 +3146,7 @@ open(p, "w").write(
     'DT_APPKEY[term]="ctrl-alt-t"\n'
     "dt_open\ndt_run\ndt_close\n"
     % (load(MOD, "build/mods/pty.so", "build/mods/term.so"), WM,
-       tree("examples/desktop/apps"))
+       tree("programs/desktop/apps"))
 )
 t = Term(p, env={"DT_TICK": "60"}, rows=ROWS, cols=COLS, settle=0.6)
 t.send(b"\x1b\x14", settle=0.4, collect=0.4)  # ESC ctrl-T: alt-ctrl-t
@@ -3167,7 +3167,7 @@ open(held, "w").write("%s. %s\nDT_SYSDIRS+=(\"%s\")\ndt_sysapps\n"
                       "dt_run\ndt_close\n"
                       % (load(MOD, "build/mods/pty.so", "build/mods/term.so",
                               "build/mods/hold.so"), WM,
-                         tree("examples/desktop/system")))
+                         tree("programs/desktop/system")))
 HENV = {"TMPDIR": HOLD, "DT_TICK": "60"}
 HOLDC = load("build/mods/pty.so", "build/mods/term.so", "build/mods/hold.so")
 
@@ -3215,7 +3215,7 @@ check("attached from a new terminal, the whole desktop is drawn again",
 # looks dead for a reason that has nothing to do with this.
 VTOP = os.path.join(HOLD, "vtop")
 vheld = os.path.join(VTOP, "session.hibr")
-shutil.copytree(tree("examples/desktop"), VTOP, dirs_exist_ok=True)
+shutil.copytree(tree("programs/desktop"), VTOP, dirs_exist_ok=True)
 subprocess.run([screen.HIBR, "-c", HOLDC + "hold new -d vt %s %s --session vt"
                 % (screen.HIBR, vheld)],
                env=dict(os.environ, **HENV), capture_output=True)
@@ -3284,7 +3284,7 @@ open(rzs, "w").write("%s. %s\n%s%s\nDT_WALLMODE=stretch\n"
                      % (load(MOD, "build/mods/pty.so", "build/mods/term.so",
                              "build/mods/hold.so"), WM, CSSRC,
                         'DT_SAVERDIRS+=("%s")\ndt_savers\n'
-                        % tree("examples/desktop/savers")))
+                        % tree("programs/desktop/savers")))
 RZENV = {"TMPDIR": RZ, "DT_TICK": "60", "XDG_CONFIG_HOME": RZ}
 RZC = load("build/mods/pty.so", "build/mods/term.so", "build/mods/hold.so")
 atexit.register(lambda: shutil.rmtree(RZ, True))
@@ -3410,7 +3410,7 @@ subprocess.run([screen.HIBR, "-c", HOLDC + "hold kill signals"],
 
 # --- the shipped session holds itself, and --resume comes back to it -----
 #
-# examples/desktop/session.hibr calls dt_autohold on its own, so running it
+# programs/desktop/session.hibr calls dt_autohold on its own, so running it
 # plainly makes it detachable without anyone asking hold for that by hand;
 # running it again without --resume must not start a second, independent
 # one under the same name, and --resume is how you get back to it.
@@ -3420,7 +3420,7 @@ RENV = {"HOME": RESUME, "TMPDIR": RESUME,
         "XDG_CONFIG_HOME": os.path.join(RESUME, "config"),
         "XDG_STATE_HOME": os.path.join(RESUME, "state"),
         "XDG_DATA_HOME": os.path.join(RESUME, "data")}
-SESSION = tree("examples/desktop/session.hibr")
+SESSION = tree("programs/desktop/session.hibr")
 
 
 def unresume():
@@ -3643,7 +3643,7 @@ check("choosing one moves the window there",
 # and windows as JSON, and a window moved with the same dt_movewin the
 # menu uses, the joined screen drawing it.
 def ctl(*a):
-    r = subprocess.run([screen.HIBR, tree("examples/desktop/lib/ctl.hibr"), "--session", "desktop"] + list(a),
+    r = subprocess.run([screen.HIBR, tree("programs/desktop/lib/ctl.hibr"), "--session", "desktop"] + list(a),
                        env=dict(os.environ, **JENV), capture_output=True, text=True, timeout=20)
     try:
         return r.returncode, json.loads(r.stdout)
@@ -4019,7 +4019,7 @@ LAYOUT=$'left 0 0 40 60 1\\nright 0 60 40 60 0'
 DT[1]["row"]=2 DT[1]["col"]=61
 x := dt_ctlresize 1 38 59; echo "$x"
 x := dt_ctlresize 1 38 60; echo "$x"
-""" % tree("examples/desktop/wm/ctl.hibr")
+""" % tree("programs/desktop/wm/ctl.hibr")
 geo = [json.loads(l) for l in subprocess.run([screen.HIBR, "-c", GEO], capture_output=True,
                                               text=True, timeout=20).stdout.splitlines()]
 check("a window moved to a display joined beside a 128-column primary resizes there",
@@ -4188,7 +4188,7 @@ check("a tiled workspace's main window is on the right, the stack on the left",
       one is not None and two is not None and one[0] == 1 and
       one[1] > COLS // 2 and two[1] < COLS // 2, sc)
 CPAN = (APPS + 'CP_PANEDIRS+=("%s")\ncp_panes\n'
-        % tree("examples/desktop/control-panel"))
+        % tree("programs/desktop/control-panel"))
 XYPANEL = 'dt_new Panel 22 70 1 4 panel'
 sc, _ = run(XYPANEL, env=XY, pre=CPAN)
 # A pane's own title rather than the word Search: the Control Panel had a
@@ -4283,7 +4283,7 @@ check("neither is there unless asked for",
 # Prayer times (#70, ADR 0035): the window lists the day's six in order,
 # the next lit with a countdown; the bar shows the next when asked; and a
 # moment passed since the last look gives a note.
-DA = 'DT_APPDIRS+=("%s")\ndt_apps\n' % tree("examples/desktop/apps/Accessories")
+DA = 'DT_APPDIRS+=("%s")\ndt_apps\n' % tree("programs/desktop/apps/Accessories")
 LDN = {"DT_PLAT": "51.5074", "DT_PLON": "-0.1278"}
 sc, _ = run('dt_new "Prayer Times" 15 40 2 4 prayer', env=LDN, pre=DA)
 rows = [sc.row(r) for r in range(ROWS)]
@@ -4443,7 +4443,7 @@ s, _ = saverrun([3.5], {"DT_SAVERSECS": "2", "DT_SAVER": "mine",
                         "XDG_CONFIG_HOME": MINE})
 check("a saver of one's own, in the config folder, runs as any other",
       s[0].find("MY OWN SAVER") is not None and s[0].find("Hello") is None, s[0])
-t = Term(tree("examples/desktop/savers/saver.hibr"), MYSAVER, rows=ROWS, cols=COLS,
+t = Term(tree("programs/desktop/savers/saver.hibr"), MYSAVER, rows=ROWS, cols=COLS,
          settle=0.8, env={"HIBR_MODPATH": tree("build/mods")})
 sc = t.screen()
 t.quit(b"x", 1.0)
@@ -4517,7 +4517,7 @@ open(path, "w").write(
     "%s. %s\n. %s\nTW_CMD=(/bin/sh -c 'while :; do echo x; sleep 0.02; done')"
     "\ndt_open\ndt_new Term 14 44 2 2 term\ndt_run\ndt_close\n"
     % (load(MOD, tree("build/mods/pty.so"), tree("build/mods/term.so")), WM,
-       tree("examples/desktop/apps/term.hibr")))
+       tree("programs/desktop/apps/term.hibr")))
 t = Term(path, env={"DT_SAVERSECS": "1", "DT_SAVER": "clock"}, rows=ROWS,
          cols=COLS, settle=0.6)
 t.collect(3.0)
@@ -4607,7 +4607,7 @@ def loginrun(feed, env=None):
          "LG_ONCE": "1", "LG_SESSIONCMD": LGSTUB, "XDG_CONFIG_HOME": LGCFG,
          "LG_TITLE": "testbox", "LG_CONFFILE": "/nonexistent"}
     e.update(env or {})
-    t = Term(tree("examples/desktop/login/login.hibr"), env=e, rows=ROWS,
+    t = Term(tree("programs/desktop/login/login.hibr"), env=e, rows=ROWS,
              cols=COLS, settle=0.8)
     shots = []
     for f in feed:
@@ -4672,7 +4672,7 @@ check("an About Me that is a pipe nobody writes to does not hang the screen",
 # becomes it; a shell starts as a login shell, its name with a dash.
 open(os.path.join(LGCFG, "hibr", "me.json"), "w").write(
     '{"name": "Test Person", "session": "desktop"}')
-r = subprocess.run([tree("build/hibr"), tree("examples/desktop/login/start.hibr"),
+r = subprocess.run([tree("build/hibr"), tree("programs/desktop/login/start.hibr"),
                     "shell"], input=b'echo "name=$0"\nexit\n', capture_output=True,
                    env=dict(os.environ, XDG_CONFIG_HOME=LGCFG, SHELL="/bin/sh",
                             ENV="", HOME=LGDIR), timeout=20)
@@ -4856,7 +4856,7 @@ def wallterm(colours):
         "DT_IMGMODE=pixels\nDT_WALLIMG=%s\nDT_WALLMODE=stretch\n"
         "DT_TERMCOLOURS=%s\nDT_TERMTRANS=0\nDT_INK='#cbd5e0'\nDT_FACE='#101820'\n"
         "dt_open\nTW_CMD=(/bin/sh -c '%s')\ndt_launch term\ndt_run\ndt_close\n"
-        % (load(MOD, "build/mods/img.so"), WM, tree("examples/desktop/apps"),
+        % (load(MOD, "build/mods/img.so"), WM, tree("programs/desktop/apps"),
            WALL, colours, PAINT.replace("'", "'\\''")))
     t = Term(path, env={"DT_TICK": "60", "HIBR_GFX": "kitty"}, rows=ROWS,
              cols=COLS, settle=1.0, cellw=8, cellh=16)
@@ -5135,7 +5135,7 @@ else:
 os.chmod(SESSOLD, 0o755)
 open(os.path.join(SESSD, "inner.hibr"), "w").write(
     ". %s\ndt_sessionold && echo STALE || echo FRESH\n"
-    % tree("examples/desktop/wm/restart.hibr"))
+    % tree("programs/desktop/wm/restart.hibr"))
 open(os.path.join(SESSD, "outer.hibr"), "w").write(
     'title -s "hold:t" "hold t"\n"%s" %s\n'
     % (screen.HIBR, os.path.join(SESSD, "inner.hibr")))
@@ -5177,7 +5177,7 @@ open(os.path.join(SESSD, "note.hibr"), "w").write(
     "dt_noteq() { echo \"$2\"; }\n"
     "DT_UPDT=0\n"
     "dt_updcheck\n"
-    % tree("examples/desktop/wm/restart.hibr"))
+    % tree("programs/desktop/wm/restart.hibr"))
 open(os.path.join(SESSD, "outern.hibr"), "w").write(
     'title -s "hold:t" "hold t"\n"%s" %s\n'
     % (screen.HIBR, os.path.join(SESSD, "note.hibr")))
@@ -5209,7 +5209,7 @@ UPSTUB = (
     "}\n"
     "fn dt_upmods(maps) { return 0; }\n"
     "dt_holdsrv() { DT_HOLDPROG=$$; DT_HOLDHOPS=${HOPS:-1}; ret 1; }\n"
-    % tree("examples/desktop/wm/restart.hibr"))
+    % tree("programs/desktop/wm/restart.hibr"))
 
 
 def upsess(stale, hops=1):
@@ -5254,7 +5254,7 @@ def upmods(text):
     open(f, "w").write(text)
     g = os.path.join(SESSD, "upm.hibr")
     open(g, "w").write(". %s\ndt_upmods %s\necho \"rc=$?\"\n"
-                       % (tree("examples/desktop/wm/restart.hibr"), f))
+                       % (tree("programs/desktop/wm/restart.hibr"), f))
     return subprocess.run([screen.HIBR, g], capture_output=True,
                           text=True).stdout.strip()
 

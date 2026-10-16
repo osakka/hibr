@@ -78,8 +78,8 @@ def yrun(phases, arg="pattern", rows=28, cols=90, extra="", autonext=False,
     open(sess, "w").write(
         "%s. %s\n. %s\n%s\ndt_open\ndt_new \"YouTube\" 24 80 1 2 youtube \"%s\"\n"
         "dt_run\ndt_close\n"
-        % (load("console", "web", "media"), tree("examples/desktop/desktop.hibr"),
-           tree("examples/desktop/apps/Internet/youtube.hibr"), extra, arg))
+        % (load("console", "web", "media"), tree("programs/desktop/desktop.hibr"),
+           tree("programs/desktop/apps/Internet/youtube.hibr"), extra, arg))
     t = Term(sess, rows=rows, cols=cols, settle=2.0,
              cellw=cell[0] if cell else 0, cellh=cell[1] if cell else 0,
              env=dict({"YT_BASE": BASE, "HIBR_WEB_PROFILE": PROF, "HIBR_MEDIA_AUDIO": "none",
@@ -288,9 +288,9 @@ try:
     open(sess, "w").write(
         "%s. %s\n. %s\n. %s\nCP_PANEDIRS+=(\"%s\")\ncp_panes\ndt_open\n"
         "dt_new \"Control Panel\" 24 76 1 1 panel tube\ndt_run\ndt_close\n"
-        % (load("console"), tree("examples/desktop/desktop.hibr"),
-           tree("examples/desktop/apps/Internet/youtube.hibr"),
-           tree("examples/desktop/system/panel.hibr"), tree("examples/desktop/control-panel")))
+        % (load("console"), tree("programs/desktop/desktop.hibr"),
+           tree("programs/desktop/apps/Internet/youtube.hibr"),
+           tree("programs/desktop/system/panel.hibr"), tree("programs/desktop/control-panel")))
     t = Term(sess, rows=28, cols=90, settle=1.5)
     sc = t.screen()
     # Every check above runs on a terminal that reports no cell size, so the

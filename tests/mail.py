@@ -328,7 +328,7 @@ check("the outgoing check delivered nothing", len(box.sent) == SENTN, len(box.se
 # it needs a server and no desktop at all -- it is a script somebody can
 # run in a terminal too.
 def ladder(acct):
-    r = subprocess.run([sx.HIBR, tree("examples/desktop/lib/mailtest.hibr"), acct],
+    r = subprocess.run([sx.HIBR, tree("programs/desktop/lib/mailtest.hibr"), acct],
                        env=dict(os.environ, HIBR_MAIL_CONF=CONF, HIBR_MODPATH=MODS,
                                 HIBR_MAIL_TIMEOUT="5"),
                        capture_output=True, text=True, timeout=90, cwd=D)
@@ -400,7 +400,7 @@ check("and the reason the connect gave is in the rung, not on stderr",
 # candidates are named here -- which is the same option a server on an
 # unusual port needs.
 def detect(host, *args):
-    r = subprocess.run([sx.HIBR, tree("examples/desktop/lib/mailtest.hibr"),
+    r = subprocess.run([sx.HIBR, tree("programs/desktop/lib/mailtest.hibr"),
                         "--detect", host] + list(args),
                        env=dict(os.environ, HIBR_MAIL_CONF=CONF, HIBR_MODPATH=MODS,
                                 HIBR_MAIL_TIMEOUT="5"),

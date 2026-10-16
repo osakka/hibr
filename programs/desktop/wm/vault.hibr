@@ -4,7 +4,7 @@
 # #71, ADR 0036): unlocked once for the whole desktop, synced while it is,
 # and what is copied from it gone from the clipboard after a while.
 #
-# Everything is done by the vw command (examples/vw.hibr, installed beside
+# Everything is done by the vw command (programs/vw.hibr, installed beside
 # the desktop's folder), run as a child: the keys stay in its vw module and
 # never in the desktop. Unlocking hands back a session key, which the
 # desktop exports as VW_SESSION, so a Terminal opened after it can use vw

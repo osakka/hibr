@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The catalogue: examples/catalogue.hibr, against a stand-in index.
+"""The catalogue: programs/catalogue.hibr, against a stand-in index.
 
     python3 tests/appmgr.py [path-to-hibr]
 
@@ -49,7 +49,7 @@ WWW = os.path.join(D, "www")
 HOME = os.path.join(D, "home")
 os.makedirs(WWW)
 os.makedirs(HOME)
-APPS = tree("examples/catalogue.hibr")
+APPS = tree("programs/catalogue.hibr")
 
 # This machine as the catalogue spells it, and the shell's own module ABI
 # -- both read from the shell under test rather than written down, since
@@ -387,7 +387,7 @@ try:
         [sx.HIBR, "-c",
          ". %s\nDT_APPDIRS=(\"%s/hibr/apps\" \"%s/hibr/apps\")\ndt_apps\n"
          'printf "%%s\\n" "${DT_SRC["demo"]}"'
-         % (tree("examples/desktop/desktop.hibr"), CONF, DATA)],
+         % (tree("programs/desktop/desktop.hibr"), CONF, DATA)],
         capture_output=True, text=True,
         env=dict(os.environ, HIBR_MODPATH=tree("build/mods"))).stdout.strip()
     check("a file of your own in the config folder shadows the fetched app",

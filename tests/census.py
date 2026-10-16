@@ -8,7 +8,7 @@
 
 Builds build/hibr.census (`make census`: the shell, logging every function
 call to $HIBR_CENSUS), runs the suites under it side by side through
-tests/all.py, and lists every function defined under examples/desktop that
+tests/all.py, and lists every function defined under programs/desktop that
 no run called, file by file, with the count. At 0.44 that count was 71, and
 it was where 0.44.1's thirteen bugs lived: a function no test reaches is
 one nothing has checked. Watch the count fall; the last one is kept in
@@ -32,7 +32,7 @@ from collections import Counter, defaultdict
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-DESK = os.path.join(ROOT, "examples", "desktop")
+DESK = os.path.join(ROOT, "programs", "desktop")
 BIN = os.path.join(ROOT, "build", "hibr.census")
 LAST = os.path.join(ROOT, "build", "census.last")
 LOGS = os.path.join(ROOT, "build", "census-logs")
@@ -41,7 +41,7 @@ DEFS = [re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\(\)\s*\{"),
 
 
 def defined():
-    """name -> the desktop file defining it, relative to examples/desktop."""
+    """name -> the desktop file defining it, relative to programs/desktop."""
     out = {}
     for d, _, fs in os.walk(DESK):
         for f in sorted(fs):

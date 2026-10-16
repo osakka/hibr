@@ -2,7 +2,7 @@
 #
 # aboutme -- the Control Panel pane for About Me: the name, the line under
 # it and the picture the login screen shows for you
-# (examples/desktop/login/), and which session it starts. They live in
+# (programs/desktop/login/), and which session it starts. They live in
 # ~/.config/hibr/me.json -- data, never run, since the login screen reads
 # it before anyone has logged in (as you, never as root). The picture is a
 # PNG or JPEG anywhere you can read it; the file keeps its path.

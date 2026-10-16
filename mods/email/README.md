@@ -5,7 +5,7 @@ file, sessions to IMAP and POP3 servers, sending over SMTP, and the MIME
 work every message needs — headers decoded from RFC 2047, bodies from
 quoted-printable and base64, text into UTF-8 from whatever charset it came
 in, parts taken out to files, and new messages built. Mail, the desktop's
-mail app, is a script on top of it: `examples/desktop/lib/mailsync.hibr`
+mail app, is a script on top of it: `programs/desktop/lib/mailsync.hibr`
 keeps an account offline with it, and the app reads what that keeps.
 
 The module is called `email` because `mail` is a command (`mailx`), and a
@@ -137,7 +137,7 @@ failure fails too -- the read, the greeting with nothing to read, the write
 after it -- and each saying so buried the one line that named the cause
 under three that were its consequences. The rest go to the debug log.
 
-`examples/desktop/lib/mailtest.hibr` is the ladder built on these: a line
+`programs/desktop/lib/mailtest.hibr` is the ladder built on these: a line
 per step (name, port, TLS, greeting, login) for each direction, and with
 `--detect` a probe of the candidate ports that says which pairing answers.
 

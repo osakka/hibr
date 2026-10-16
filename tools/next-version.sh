@@ -30,7 +30,7 @@ set -eu
 
 SRC=$(cd "$(dirname "$0")/.." && pwd)
 HDR="$SRC/include/hibr.h"
-DESKTOP="$SRC/examples/desktop/desktop.hibr"
+DESKTOP="$SRC/programs/desktop/desktop.hibr"
 cd "$SRC"
 
 FROM=${1:-}
@@ -80,8 +80,8 @@ changed() {
 echo "next-version: from $FROM to HEAD"
 echo
 
-# -- core: everything except examples/desktop/** --------------------------
-CORE_PATHS=". :!examples/desktop"
+# -- core: everything except programs/desktop/** --------------------------
+CORE_PATHS=". :!programs/desktop"
 if changed "$CORE_PATHS"; then
 	cur=$(sed -n 's/^#define HIBR_VER "\(.*\)"/\1/p' "$HDR")
 	abi_then=$(git show "$FROM:include/hibr.h" 2>/dev/null |
@@ -99,12 +99,12 @@ if changed "$CORE_PATHS"; then
 		echo "  suggest: HIBR_VER $cur -> $(bump "$cur" minor)"
 	fi
 else
-	echo "core: nothing changed outside examples/desktop -- no bump"
+	echo "core: nothing changed outside programs/desktop -- no bump"
 fi
 echo
 
-# -- desktop: examples/desktop/** only --------------------------------------
-DT_PATHS="examples/desktop"
+# -- desktop: programs/desktop/** only --------------------------------------
+DT_PATHS="programs/desktop"
 if changed "$DT_PATHS"; then
 	cur=$(sed -n 's/^DT_VER=\(.*\)/\1/p' "$DESKTOP")
 	trailer=$(breaking_trailer "$DT_PATHS")
@@ -116,5 +116,5 @@ if changed "$DT_PATHS"; then
 		echo "  suggest: DT_VER $cur -> $(bump "$cur" minor)"
 	fi
 else
-	echo "desktop: nothing changed under examples/desktop -- no bump"
+	echo "desktop: nothing changed under programs/desktop -- no bump"
 fi

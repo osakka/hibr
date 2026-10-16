@@ -58,7 +58,7 @@ produces.
 
 What is given up is the ability to write `x := prog` and have the program's
 output go to the terminal. No script in this tree did that — a census of all
-295 distinct `:=` command words in `examples/desktop/`, classified against the
+295 distinct `:=` command words in `programs/desktop/`, classified against the
 builtin table with every module loaded and against the desktop's own 1,715
 functions, found **no** `:=` on a program anywhere, and the two comments that
 mention one are warnings about the old behaviour at the call sites where it

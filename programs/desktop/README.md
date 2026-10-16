@@ -11,12 +11,12 @@ describe them:
 | X | here | what it is |
 |---|---|---|
 | the server | the `console` module | owns the terminal, the grid, the mouse, stacking, hit testing |
-| the window manager | `examples/desktop/desktop.hibr`, sourcing `wm/` and `widgets/` | the event loop, focus, dragging, title bars; the widgets apps draw with |
+| the window manager | `programs/desktop/desktop.hibr`, sourcing `wm/` and `widgets/` | the event loop, focus, dragging, title bars; the widgets apps draw with |
 | `~/.xinitrc` | your own session file | which windows open, and where |
 
 Try it, from a checkout:
 
-    ./build/hibr examples/desktop/session.hibr
+    ./build/hibr programs/desktop/session.hibr
 
 Or, once `make install` has put this whole directory at
 `$PREFIX/share/hibr/desktop` (`/usr/local` by default) and a small wrapper
@@ -191,7 +191,7 @@ list whole.
 
 A colour scheme is a JSON file of seven colours and a shadow strength, one
 file to a scheme and named for it. The twelve that come with the desktop
-are in `examples/desktop/colours/` (installed under
+are in `programs/desktop/colours/` (installed under
 `share/hibr/desktop/colours`); your own go in `~/.config/hibr/colours/`,
 which is read first, so a file there named `paper.json` replaces the
 bundled paper and any other name adds a scheme. A colour file in
@@ -655,7 +655,7 @@ finished -- the same window Compose uses, filled with its own addresses,
 subject and words -- rather than opening it to read. Discard throws away
 both the window and anything already filed for it.
 
-It works offline. A job of its own (`examples/desktop/lib/mailsync.hibr`,
+It works offline. A job of its own (`programs/desktop/lib/mailsync.hibr`,
 on the `email` and `db` modules) keeps each account in
 `~/.local/share/hibr/mail/<account>/`: a row a message in a `db` file, and
 the newest messages' whole text beside it. What you do -- read, star,
@@ -703,11 +703,11 @@ well, since a Nextcloud or Fastmail account is one address and one login for
 files, calendars and contacts; PIM asks each server once what it keeps and
 lists a plain file server as files only, so only servers with calendars or
 contacts can be switched on. Add Server… there opens Network Servers. A background job
-(`examples/desktop/lib/pimsync.hibr`) finds the address books from the
+(`programs/desktop/lib/pimsync.hibr`) finds the address books from the
 server's `.well-known` address, keeps each up to date with its sync token,
 and is the only thing that writes the copy in
 `~/.local/share/hibr/pim/SERVER/`. It runs every so often whether or not
-Contacts or Calendar is open (`examples/desktop/lib/pim.hibr`, which both
+Contacts or Calendar is open (`programs/desktop/lib/pim.hibr`, which both
 share). An edit or a new contact happens in the
 list at once and goes to the server at the next sync -- only if the
 server's copy is still the one it was read from; if someone changed it
@@ -772,8 +772,8 @@ They run on their own too, by name or a saver file by its path -- the way
 to try one while writing it:
 
 ```text
-hibr examples/desktop/savers/saver.hibr matrix
-hibr examples/desktop/savers/saver.hibr ~/.config/hibr/savers/mine.hibr
+hibr programs/desktop/savers/saver.hibr matrix
+hibr programs/desktop/savers/saver.hibr ~/.config/hibr/savers/mine.hibr
 ```
 
 ## Locking the screen
@@ -853,7 +853,7 @@ To try the screen without root, run it as yourself -- it can then only log
 in as you, and starts your session in the same terminal:
 
 ```text
-hibr examples/desktop/login/login.hibr
+hibr programs/desktop/login/login.hibr
 ```
 
 ## Application handlers
@@ -1020,13 +1020,13 @@ named them.
 
 The shipped session holds itself, so this is already detachable:
 
-    hibr examples/desktop/session.hibr
+    hibr programs/desktop/session.hibr
 
 **ctrl-\\** detaches, and so does **Detach** on the hibr menu; the desktop
 keeps running, terminal windows and whatever runs in them included. Log off,
 log in somewhere else, and
 
-    hibr examples/desktop/session.hibr --resume
+    hibr programs/desktop/session.hibr --resume
 
 comes back to it exactly as it was, redrawn in full -- the same command,
 with one flag, from anywhere. Closing the terminal or losing an ssh
@@ -1069,7 +1069,7 @@ rather manage that yourself, under a name of your own.
 
 A second terminal joins the same desktop instead of starting its own:
 
-    hibr examples/desktop/session.hibr --join
+    hibr programs/desktop/session.hibr --join
 
 It attaches beside the first at the union's current width -- another
 monitor for the same desktop, not a session of its own -- and refuses,
@@ -1095,7 +1095,7 @@ answers directly:
 A terminal that should always be a screen of this desktop waits for it
 instead of joining once:
 
-    hibr examples/desktop/session.hibr --standby --name right
+    hibr programs/desktop/session.hibr --standby --name right
 
 It shows its name on a quiet screen until the desktop is running, then
 joins on its own -- unless Control Panel > Displays > **Standby displays
@@ -1114,8 +1114,8 @@ leaves them so. The primary cannot be blanked; make another primary first.
 A display's name is whatever `hold attach -n NAME` gave it, or
 `client-<fd>` if nothing did -- `--name` gives it one directly:
 
-    hibr examples/desktop/session.hibr --name left
-    hibr examples/desktop/session.hibr --join --name right
+    hibr programs/desktop/session.hibr --name left
+    hibr programs/desktop/session.hibr --join --name right
 
 See [`mods/hold/README.md`](../../mods/hold/README.md) for the rest of
 what a held session can do.
@@ -1281,7 +1281,7 @@ backspace and delete all do what they say, any other single character is
 inserted at the cursor, and anything else -- enter, escape, tab -- comes
 back unhandled (status 1, text and cursor unchanged), for the app's own
 `_key` to decide instead. The Files app's Rename and Get Info windows
-(`examples/desktop/apps/files.hibr`) are the bundled example: a name typed there
+(`programs/desktop/apps/files.hibr`) are the bundled example: a name typed there
 is not applied until enter, unlike a checkbox, which always acts the
 moment it is clicked.
 
@@ -1331,7 +1331,7 @@ one long scrolling list -- which is also what Date & Time's own small world
 map needs room for that a shared list of rows never could.
 
 Each pane is its own file, found in `CP_PANEDIRS` the same way apps are
-found in `DT_APPDIRS`: a session adds `examples/desktop/control-panel` (and its own
+found in `DT_APPDIRS`: a session adds `programs/desktop/control-panel` (and its own
 `~/.config/hibr/control-panel`, the default) and calls `cp_panes`, which
 sources every file and sorts the result by title -- the same trick
 `dt_appnames` uses for the hibr menu, so load order and file names never
@@ -1369,7 +1369,7 @@ The bundled panes -- Date & Time, Displays, Keyboard and Mouse under
 Hardware; Appearance, Control Strip, Desktop, File Types, Notifications,
 Shortcuts and Windows under Desktop; and About This Computer, Files, Task Manager and
 Terminal under Apps -- are ordinary files under
-`examples/desktop/control-panel` themselves, not special-cased in
+`programs/desktop/control-panel` themselves, not special-cased in
 `panel.hibr`: a file of your own with the same pane name replaces one, the
 same rule `DT_APPDIRS` already has for apps. `cp_pane name "Title" icon`
 registers one under Desktop; a fourth word, `hardware` or `app`, lists it
@@ -1423,7 +1423,7 @@ than from a settings row elsewhere.
 
 ## The apps
 
-In `examples/desktop/apps/`, each one also a file you can read in a sitting:
+In `programs/desktop/apps/`, each one also a file you can read in a sitting:
 
 | app | what it is |
 |---|---|
@@ -1475,7 +1475,7 @@ already let any number of apps run at once, so "accessory" was only ever a
 *name* for the small ones. It still is: **Applications > Accessories** is a
 folder like Office, Internet and Games, not a kind of thing.
 
-The bundled accessories live in `examples/desktop/apps/Accessories/`:
+The bundled accessories live in `programs/desktop/apps/Accessories/`:
 
 | app | what it is |
 |---|---|
@@ -1598,7 +1598,7 @@ long as the vault is unlocked, and nothing while it is shut.
 Earlier versions drew a single letter or glyph per module -- clever, but
 nothing anyone could read without already knowing what it meant. Every
 bundled module now draws its own name instead: `[Cursor][Shadow][Theme]
-[Wallpaper]`, in `examples/desktop/control-strip/`, each a few lines reusing a
+[Wallpaper]`, in `programs/desktop/control-strip/`, each a few lines reusing a
 setting Control Panel already has. `shadow` toggles `DT_SHADOW` on click,
 bold in the active colour when on and dimmed when off; `cursor`, `theme`
 and `wallpaper` -- each with more than two values -- open a dropdown of

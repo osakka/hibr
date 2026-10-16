@@ -28,7 +28,7 @@ nothing: its escape skip advanced two bytes whatever the escape was, so an
 APC's base64 was fed to the grid as text and the harness's own idle marker
 (`ESC ] 7777;idle;N;M BEL`) was written across whatever window the cursor
 was in — shifting every cell written after it in that run. `tests/shots.py`
-is the guard, and the images under `examples/desktop/img/` were made before
+is the guard, and the images under `programs/desktop/img/` were made before
 it: `desktop-strip.png` is missing the word **File** from its menu bar for
 exactly this reason, which is what a corrupted screenshot looks like when
 nobody is checking.

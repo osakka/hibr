@@ -5,7 +5,7 @@
     python3 tools/strings.py --list     # every string, file:line kind text
     python3 tools/strings.py --keys     # the sorted catalogue keys
 
-Reads examples/desktop/**/*.hibr as the shell would: quote state is carried
+Reads programs/desktop/**/*.hibr as the shell would: quote state is carried
 across lines (a quoted string may span several), commands are split at
 newlines, ;, &&, ||, | and the braces, and a call to one of the functions
 that draw text a person reads (SINKS) has its text arguments taken:
@@ -186,7 +186,7 @@ ROWTEXT = re.compile(r'\["text"\]="([^"$`\\]*[A-Za-z][^"$`\\]*)"')
 
 def collect():
     rows = []
-    for f in sorted(glob.glob(os.path.join(ROOT, "examples/desktop/**/*.hibr"),
+    for f in sorted(glob.glob(os.path.join(ROOT, "programs/desktop/**/*.hibr"),
                               recursive=True)):
         rel = os.path.relpath(f, ROOT)
         if "/login/" in rel:
@@ -215,7 +215,7 @@ def keys(rows):
 
 if __name__ == "__main__":
     rows = collect()
-    lang = os.path.join(ROOT, "examples/desktop/lang")
+    lang = os.path.join(ROOT, "programs/desktop/lang")
     if "--write" in sys.argv:
         import json
         os.makedirs(lang, exist_ok=True)

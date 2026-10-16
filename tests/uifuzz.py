@@ -43,9 +43,9 @@ import screen as sx  # noqa: E402
 from screen import (Term, check, report, press, release, drag, wheel,  # noqa
                     load, tree, ERRS)
 
-WM = tree("examples/desktop/desktop.hibr")
-DESK = tree("examples/desktop")
-CP = tree("examples/desktop/control-panel")
+WM = tree("programs/desktop/desktop.hibr")
+DESK = tree("programs/desktop")
+CP = tree("programs/desktop/control-panel")
 UNSAFE_PANES = ("datetime.hibr",)
 GEOM = (18, 60, 2, 2)
 PANEL_GEOM = (20, 58, 2, 2)

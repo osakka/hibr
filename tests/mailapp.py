@@ -50,8 +50,8 @@ def session(conf, tag, extra=None):
     data = os.path.join(D, tag)
     sess = os.path.join(D, tag + ".hibr")
     open(sess, "w").write("%s. %s\n. %s\ndt_open\ndt_new Mail 26 100 1 2 mail\ndt_run\ndt_close\n" % (
-        load("console", "email", "db", "html", "img"), tree("examples/desktop/desktop.hibr"),
-        tree("examples/desktop/apps/Internet/mail.hibr")))
+        load("console", "email", "db", "html", "img"), tree("programs/desktop/desktop.hibr"),
+        tree("programs/desktop/apps/Internet/mail.hibr")))
     return Term(sess, rows=30, cols=104, settle=1.5,
                 env=dict({"HIBR_MAIL_CONF": conf, "XDG_DATA_HOME": data}, **(extra or {})))
 
@@ -269,8 +269,8 @@ t.quit(b"qy", 1.5)
 conf4 = os.path.join(D, "dialog.conf")
 sess = os.path.join(D, "dialog.hibr")
 open(sess, "w").write("%s. %s\n. %s\nCP_PANEDIRS+=(\"%s\")\ncp_panes\ndt_open\nmlad_show\ndt_run\ndt_close\n" % (
-    load("console", "email", "db"), tree("examples/desktop/desktop.hibr"),
-    tree("examples/desktop/system/panel.hibr"), tree("examples/desktop/control-panel")))
+    load("console", "email", "db"), tree("programs/desktop/desktop.hibr"),
+    tree("programs/desktop/system/panel.hibr"), tree("programs/desktop/control-panel")))
 t = Term(sess, rows=30, cols=100, settle=1.5, env={"HIBR_MAIL_CONF": conf4, "XDG_DATA_HOME": D})
 sc = waitfor(t, "Add a Mail Account")
 check("Add Account opens its dialog, and the desktop lives", sc.find("Account name:") and sc.find("Password:"), sc)
@@ -311,8 +311,8 @@ t.quit(b"qy", 1.5)
 sess5 = os.path.join(D, "dialog2.hibr")
 open(sess5, "w").write("%s. %s\n. %s\nCP_PANEDIRS+=(\"%s\")\ncp_panes\ndt_open\n"
                        "mlad_show 'Home Email'\ndt_run\ndt_close\n" % (
-    load("console", "email", "db"), tree("examples/desktop/desktop.hibr"),
-    tree("examples/desktop/system/panel.hibr"), tree("examples/desktop/control-panel")))
+    load("console", "email", "db"), tree("programs/desktop/desktop.hibr"),
+    tree("programs/desktop/system/panel.hibr"), tree("programs/desktop/control-panel")))
 t = Term(sess5, rows=30, cols=100, settle=1.5,
          env={"HIBR_MAIL_CONF": conf4, "XDG_DATA_HOME": D})
 sc = waitfor(t, "Mail Account")
@@ -329,8 +329,8 @@ subprocess.run([sx.HIBR, "-c", "need email; email account set plain -h h.example
 sess6 = os.path.join(D, "dialog3.hibr")
 open(sess6, "w").write("%s. %s\n. %s\nCP_PANEDIRS+=(\"%s\")\ncp_panes\ndt_open\n"
                        "mlad_show plain\ndt_run\ndt_close\n" % (
-    load("console", "email", "db"), tree("examples/desktop/desktop.hibr"),
-    tree("examples/desktop/system/panel.hibr"), tree("examples/desktop/control-panel")))
+    load("console", "email", "db"), tree("programs/desktop/desktop.hibr"),
+    tree("programs/desktop/system/panel.hibr"), tree("programs/desktop/control-panel")))
 t = Term(sess6, rows=30, cols=100, settle=1.5,
          env={"HIBR_MAIL_CONF": conf5, "XDG_DATA_HOME": D})
 sc = waitfor(t, "Mail Account")
@@ -341,8 +341,8 @@ check("an account that never had one still reads as following the address",
 t.quit(b"qy", 1.5)
 out = subprocess.run([sx.HIBR, "-c", "%s. %s\n. %s\nCP_PANEDIRS+=(\"%s\")\ncp_panes\n"
                       "n := mailset_rows 1; i=0; while [ $i -lt $n ]; do echo \"${CP[1][$i][\"text\"]}|${CP[1][$i][\"val\"]}\"; i=$((i + 1)); done"
-                      % (load("email"), tree("examples/desktop/desktop.hibr"), tree("examples/desktop/system/panel.hibr"),
-                         tree("examples/desktop/control-panel"))],
+                      % (load("email"), tree("programs/desktop/desktop.hibr"), tree("programs/desktop/system/panel.hibr"),
+                         tree("programs/desktop/control-panel"))],
                      capture_output=True, text=True,
                      env=dict(os.environ, HIBR_MAIL_CONF=conf4, XDG_CONFIG_HOME=os.path.join(D, "cfg"),
                               HIBR_MODPATH=tree("build/mods")))
@@ -396,8 +396,8 @@ out = subprocess.run([sx.HIBR, "-c",
                       "%s. %s\n. %s\nml_accounts\n"
                       "echo \"many=[${MLADDR[Aliased]}]\"\n"
                       "echo \"mine=${#MLMINE[@]}\"\n"
-                      % (load("email", "db"), tree("examples/desktop/desktop.hibr"),
-                         tree("examples/desktop/apps/Internet/mail.hibr"))],
+                      % (load("email", "db"), tree("programs/desktop/desktop.hibr"),
+                         tree("programs/desktop/apps/Internet/mail.hibr"))],
                      capture_output=True, text=True,
                      env=dict(os.environ, HIBR_MAIL_CONF=conf6,
                               HIBR_MODPATH=tree("build/mods")))
@@ -500,9 +500,9 @@ open(sess8, "w").write(
     "%s. %s\n. %s\nCP_PANEDIRS+=(\"%s\")\ncp_panes\ndt_open\n"
     "ms_testshow \"Home Email\"\ndt_run\ndt_close\n"
     % (load("console", "email", "db", "html", "img"),
-       tree("examples/desktop/desktop.hibr"),
-       tree("examples/desktop/system/panel.hibr"),
-       tree("examples/desktop/control-panel")))
+       tree("programs/desktop/desktop.hibr"),
+       tree("programs/desktop/system/panel.hibr"),
+       tree("programs/desktop/control-panel")))
 t = Term(sess8, rows=30, cols=100, settle=1.5,
          env={"HIBR_MAIL_CONF": conf8, "HIBR_MAIL_TIMEOUT": "5"})
 # A title prefix, not the whole border: the account's name is in it, and a
@@ -543,9 +543,9 @@ sessd = os.path.join(D, "mdet.hibr")
 open(sessd, "w").write(
     "%s. %s\n. %s\nCP_PANEDIRS+=(\"%s\")\ncp_panes\ndt_open\nmlad_show\ndt_run\ndt_close\n"
     % (load("console", "email", "db", "html", "img"),
-       tree("examples/desktop/desktop.hibr"),
-       tree("examples/desktop/system/panel.hibr"),
-       tree("examples/desktop/control-panel")))
+       tree("programs/desktop/desktop.hibr"),
+       tree("programs/desktop/system/panel.hibr"),
+       tree("programs/desktop/control-panel")))
 t = Term(sessd, rows=30, cols=100, settle=1.5,
          env={"HIBR_MAIL_CONF": os.path.join(D, "det.conf")})
 sc = waitfor(t, "Detect")

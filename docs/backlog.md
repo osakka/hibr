@@ -138,7 +138,7 @@ feature into something bigger than "ultra small" meant.
 Raised by the owner (2026-10-01): where a new window lands, snapping one to
 a half of the screen, virtual workspaces, and a path to a tiling window
 manager. All of it is the window manager's -- scripts in
-`examples/desktop/wm/`, nothing in the core. Four releases, each built on
+`programs/desktop/wm/`, nothing in the core. Four releases, each built on
 the one before:
 
 1. **Smart placement.** `dt_launch` cascades from a counter and never looks
@@ -388,21 +388,21 @@ caught up with it: see step 6 in decision 0020.
 
 Draggable, closable, minimisable windows on a text terminal, with apps
 written as hibr functions. [Decision 0020](adr/0020-windows-are-drawn-not-composited.md)
-records the design and the build order; [the guide](../examples/desktop/README.md) is how to use
+records the design and the build order; [the guide](../programs/desktop/README.md) is how to use
 it.
 
 Built: stacking and hit testing in the console (`console pane raise|lower|drop|list`
 and `console hit row col`), the window manager itself
-(`examples/desktop/desktop.hibr`, a script), a session that opens three windows on it
-(`examples/desktop/session.hibr`), and 34 tests driving both through a pty.
+(`programs/desktop/desktop.hibr`, a script), a session that opens three windows on it
+(`programs/desktop/session.hibr`), and 34 tests driving both through a pty.
 Dragging, focus, minimise, zoom, close, tab cycling, and keys and clicks
 reaching the focused app all work.
 
-Step 4 is built too: `examples/desktop/desk-accessories/calc.hibr` and `examples/desktop/apps/files.hibr`,
+Step 4 is built too: `programs/desktop/desk-accessories/calc.hibr` and `programs/desktop/apps/files.hibr`,
 each also a program on its own. The wheel now goes to the window under the
 pointer, and a click is reported in the coordinates the app draws in.
 
-Step 5 is built: `examples/desktop/apps/panel.hibr`, which changes the theme, the
+Step 5 is built: `programs/desktop/apps/panel.hibr`, which changes the theme, the
 wallpaper and the refresh rate. The window manager grew a small surface for
 apps that manage other windows — `dt_ids`, `dt_title`, `dt_hidden`,
 `dt_raise` — so that one never reads `DT` directly.
@@ -414,7 +414,7 @@ declares `_draw` through. F10 or escape opens the bar; there are no modifier
 shortcuts, because ctrl collides with everything a terminal window will need.
 
 **The terminal is built.** `mods/term/` parses what a program writes into
-cells and paints them into a window, and `examples/desktop/apps/term.hibr` is a shell
+cells and paints them into a window, and `programs/desktop/apps/term.hibr` is a shell
 in a window. Every window is its own pty and its own session, so two
 terminals are two shells; `tests/apps.py` checks that typing in one does not
 reach the other. It is also what would let the test harness be hibr rather
@@ -422,7 +422,7 @@ than Python, see below.
 
 **And three games**, because they were asked for and because each one tests
 something the other apps do not: `snake`, `mines` and `bricks` in
-`examples/desktop/apps/`. Two of them animate, which is what `$EPOCHREALTIME` (bash
+`programs/desktop/apps/`. Two of them animate, which is what `$EPOCHREALTIME` (bash
 5's, now in the core) and `dt_want` (a window asking for its next frame
 sooner, for one frame only) are for. A frame with two windows costs 2.4 ms,
 so a game stepping every 60 ms costs about 4% of a core while it is played

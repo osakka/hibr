@@ -66,9 +66,14 @@ echo "status $?"
 echo "--- standard input"
 echo 'rm $f' | "$h" --explain 2>&1
 
+# Both folders, since the products moved to programs/ (Gitea #252):
+# `find examples` alone would lint the nine samples and silently stop
+# linting the whole desktop, the catalogue and the vault client -- a
+# glob list is where coverage goes to hide, which this tree has paid
+# for twice.
 echo "--- hibr's own examples are clean"
 n=0
-for f in $(find "$root/examples" -name '*.hibr'); do
+for f in $(find "$root/examples" "$root/programs" -name '*.hibr'); do
   n=$((n + 1))
   "$h" --explain "$f" || echo "findings in ${f#"$root"/}"
 done

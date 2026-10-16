@@ -192,9 +192,9 @@ try:
             "%s. %s\n. %s\n. %s\n"
             "dt_openfile() { printf '%%s\\n' \"$1\" > %s; }\n"
             "dt_open\n%s\ndt_run\ndt_close\n"
-            % (load("console", "dav"), tree("examples/desktop/desktop.hibr"),
-               tree("examples/desktop/apps/files.hibr"),
-               tree("examples/desktop/system/panel.hibr"), OPENED, body))
+            % (load("console", "dav"), tree("programs/desktop/desktop.hibr"),
+               tree("programs/desktop/apps/files.hibr"),
+               tree("programs/desktop/system/panel.hibr"), OPENED, body))
         t = Term(sess, env={"HIBR_DAV_CONF": CONF, "XDG_CACHE_HOME": CACHE},
                  settle=1.0, rows=rows, cols=cols)
         shots = []
@@ -333,7 +333,7 @@ try:
           ["nc\thttp://127.0.0.1:%d/\tu\tp\tk" % p], open(CONF).read())
     sc = drun('CP_PANEDIRS+=("%s")\ncp_panes\n'
               'dt_new "Control Panel" 26 76 1 1 panel network'
-              % tree("examples/desktop/control-panel"),
+              % tree("programs/desktop/control-panel"),
               [([], "Upload Edits on Save")])[0]
     check("Control Panel lists the servers and the settings for files on them",
           sc.find("Network Serve") is not None and sc.find("nc") is not None and
@@ -341,7 +341,7 @@ try:
           and sc.find("Clear Cache") is not None, sc)
     out, err = hb("mod load %s; . %s; dav server set far http://localhost:%d/ -u u -p p; dt_davok;"
                   " dt_davbatch copy dav://far/sub dav://t/a.txt; dt_davbatch copy dav://t dav://far/sub"
-                  % (tree("build/mods/console.so"), tree("examples/desktop/desktop.hibr"), p),
+                  % (tree("build/mods/console.so"), tree("programs/desktop/desktop.hibr"), p),
                   env={"XDG_CACHE_HOME": CACHE})
     check("between two servers a file and a folder go through a copy here, and the "
           "batch says only how it went",

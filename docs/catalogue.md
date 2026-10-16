@@ -670,12 +670,12 @@ app mail "Email, offline, labels and conversations as Gmail has them"
 What an app may then do is a contract the desktop already had — menus, an
 About box, a Control Panel pane, a Control Strip module, notifications, a
 screen saver, a window of any shape — and is described in
-[the desktop's README](../examples/desktop/README.md).
+[the desktop's README](../programs/desktop/README.md).
 
 ## From the desktop
 
 **Catalogue**, on the hibr menu, is this command with a window around
-it — `examples/desktop/system/appstore.hibr`, the way the Vault accessory
+it — `programs/desktop/system/appstore.hibr`, the way the Vault accessory
 is a window around `vw`. Anything one can do the other can, because there
 is one implementation: the window runs `catalogue` as a child and never
 has a catalogue of its own. It is not called *Applications*: that is

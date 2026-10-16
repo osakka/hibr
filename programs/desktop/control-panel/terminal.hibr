@@ -16,11 +16,11 @@ CP_CURSORS=(block underline bar)
 fn cp_set_cursor(int? id = "", value = "") { DT_CURSOR=$value; cp_save; }
 
 # Theme or terminal colours for a terminal window -- see DT_TERMCOLOURS in
-# examples/desktop/apps/term.hibr.
+# programs/desktop/apps/term.hibr.
 CP_TERMCOLOURS=(theme terminal)
 fn cp_set_termcolours(int? id = "", value = "") { DT_TERMCOLOURS=$value; cp_save; }
 # How much of a picture wallpaper shows through a terminal window -- see
-# DT_TERMTRANS in examples/desktop/apps/term.hibr. It is a percentage of
+# DT_TERMTRANS in programs/desktop/apps/term.hibr. It is a percentage of
 # the picture's own brightness, so 0 is an opaque window and the small
 # numbers are dark and easy to read over a busy photograph.
 #

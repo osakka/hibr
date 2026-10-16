@@ -105,7 +105,7 @@ Image.new("RGB", (64, 40), (200, 40, 90)).save(wall)
 sess = os.path.join(D, "shots-sess.hibr")
 open(sess, "w").write("%s. %s\nDT_WALLIMG=%s\nDT_WALLMODE=stretch\nDT_IMGMODE=pixels\n"
                       "dt_open\ndt_new \"Hello\" 6 20 4 4\ndt_run\ndt_close\n"
-                      % (load("console", "img"), tree("examples/desktop/desktop.hibr"), wall))
+                      % (load("console", "img"), tree("programs/desktop/desktop.hibr"), wall))
 t = Term(sess, env={"DT_TICK": "60", "HIBR_GFX": "kitty"}, rows=20, cols=60,
          cellw=9, cellh=18, settle=1.2)
 cs = shot.ColourScreen(20, 60)

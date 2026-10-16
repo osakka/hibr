@@ -3,7 +3,7 @@
 A client for a Bitwarden-compatible server -- Vaultwarden, self-hosted,
 first -- in two halves (Gitea #71, ADR 0036): the `vw` module keeps the
 vault's keys and does its crypto, and `vw`, a hibr script
-(`examples/vw.hibr`, installed as the `vw` command), logs in, syncs and
+(`programs/vw.hibr`, installed as the `vw` command), logs in, syncs and
 reads the vault, with the requests going through the dav module's HTTP
 client (`dav request`).
 
@@ -84,7 +84,7 @@ against `tests/bwserve.py`, a stand-in server.
 ## On the desktop
 
 The **Vault** desk accessory and **Control Panel > Passwords** are built on
-this command, not on the module: `examples/desktop/wm/vault.hibr` runs `vw`
+this command, not on the module: `programs/desktop/wm/vault.hibr` runs `vw`
 as a child, so the keys stay where they are. The desktop is unlocked once
 for all of it -- the session key is exported, so a Terminal window opened
 afterwards can use `vw` too -- and what is copied from the vault leaves the

@@ -61,7 +61,7 @@ Options: `--prefix DIR` (default `/usr/local`), `--yes`, `--quiet`,
 install time and does nothing if they match. That checksum covers every module
 directory, not just `mods/*.c` — a module living in its own directory, as the
 prompt, console, cat and trace modules do, would otherwise change without the
-update noticing — and every file under `examples/desktop`, since the desktop
+update noticing — and every file under `programs/desktop`, since the desktop
 is installed too. If the tree is a git checkout with
 a remote, it fast-forwards first. Then it repeats the sequence above, tests
 included, so an update can never install a tree that fails its own tests.

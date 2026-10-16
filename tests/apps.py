@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Drive the desktop's apps through a pty: every one in examples/desktop/apps/.
+"""Drive the desktop's apps through a pty: every one in programs/desktop/apps/.
 
 tests/desktop.py checks the window manager with apps small enough to fit in
 the test file. This checks the real ones: the calculator proves keys and
@@ -17,9 +17,9 @@ from screen import Term, check, report, press, release, drag, wheel, load, tree,
 
 if len(sys.argv) > 1:
     sx.HIBR = os.path.abspath(sys.argv[1])
-WM = tree("examples/desktop/desktop.hibr")
-APPS = tree("examples/desktop/apps")
-SYS = tree("examples/desktop/system")
+WM = tree("programs/desktop/desktop.hibr")
+APPS = tree("programs/desktop/apps")
+SYS = tree("programs/desktop/system")
 D = tempfile.mkdtemp(prefix="hibr-apps-")
 S = tempfile.mkdtemp(prefix="hibr-apps-session-")
 
@@ -296,7 +296,7 @@ check("a click after scrolling lands on the row that is there",
 #
 # Control Panel is a picker now, not one scrolling list: a pane down the
 # left, the selected pane's own rows on the right (System 7's Control
-# Panels folder). Panes are loaded from examples/desktop/control-panel and
+# Panels folder). Panes are loaded from programs/desktop/control-panel and
 # listed in two groups under headings -- the desktop's own under System,
 # then one pane per app under Apps -- each sorted by title without regard
 # to case, the same trick dt_appnames uses for apps. Verified once below,
@@ -306,7 +306,7 @@ rc, out, err = cli("panel")
 check("with no panes loaded, it says so rather than pretending",
       rc == 0 and out == "no panes registered", out)
 
-CP = tree("examples/desktop/control-panel")
+CP = tree("programs/desktop/control-panel")
 CPLOAD = ('. %s\n. %s/panel.hibr\nCP_PANEDIRS+=("%s")\ncp_panes\n'
           % (WM, SYS, CP))
 out = subprocess.run([sx.HIBR, "-c", CPLOAD + 'for p in "${CP_PANE_LIST[@]}"; '
@@ -962,7 +962,7 @@ WPWHEEL = (
     'wallpick_wheel 1 down; echo "d6=${FB[1]["top"]}"\n'
     'i=0; while [ "$i" -lt 9 ]; do wallpick_wheel 1 up; i=$((i + 1)); done\n'
     'echo "u9=${FB[1]["top"]}"\n'
-    % (tree("examples/desktop/widgets/scrollbar.hibr"), CP)
+    % (tree("programs/desktop/widgets/scrollbar.hibr"), CP)
 )
 out = subprocess.run([sx.HIBR, "-c", WPWHEEL], capture_output=True, text=True,
                      env=dict(os.environ, DT_ROWS="1")).stdout
@@ -1942,7 +1942,7 @@ check("and a mapping the file no longer backs is what marks it replaced",
 
 # --- the desk accessories --------------------------------------------------
 #
-# Ordinary apps, kept in examples/desktop/apps/Accessories rather than at the top of apps
+# Ordinary apps, kept in programs/desktop/apps/Accessories rather than at the top of apps
 # only so the hibr menu groups them (see tests/desktop.py for that part);
 # nothing about running one is different, which is the point of #32.
 
@@ -3533,7 +3533,7 @@ THEAD = (
     'i=0; while [ $i -lt 20 ]; do tasks_wheel 1 down; i=$((i + 1)); done\n'
     'echo "end=${TK[1]["top"]}"\n'
     'tasks_wheel 1 up 5 10; echo "wm=$? ${TK[1]["top"]}"\n'
-    % (tree("examples/desktop/widgets/scrollbar.hibr"),
+    % (tree("programs/desktop/widgets/scrollbar.hibr"),
        appdir("tasks") + "/tasks.hibr")
 )
 out = subprocess.run([sx.HIBR, "-c", THEAD], capture_output=True, text=True,
@@ -4163,12 +4163,12 @@ os.remove(SHEET)
 # nothing, and is the trap a sweep of these pauses has to avoid (Gitea #163).
 sc = shrun([b"\x1b[21~"] + [b"\x1b[C"] * 5 + [b"t", 0.4] +
            [b"\x1b[B", b"\r"],
-           pre='DT_HERE=%s' % tree("examples/desktop"),
+           pre='DT_HERE=%s' % tree("programs/desktop"),
            until=lambda s: "Sheet [Tour]" in s.text() and "2026" in s.text())
 check("Help > Open the Tour opens a sheet of worked examples, worked out",
       "Sheet [Tour]" in sc.text() and "42" in sc.text() and
       "2026" in sc.text(), sc)
-tourcsv = open(tree("examples/desktop/examples") + "/tour.csv").read()
+tourcsv = open(tree("programs/desktop/examples") + "/tour.csv").read()
 check("and the example it ships has a cell the sandbox refuses, so the "
       "refusal can be seen rather than only described",
       "=touch " in tourcsv and "#REFUSED" in tourcsv, tourcsv[:80])

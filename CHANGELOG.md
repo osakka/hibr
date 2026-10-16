@@ -1,5 +1,50 @@
 # Changelog
 
+## 0.99.211
+
+**`examples/` held three products and nine samples; the products move to
+`programs/`.**
+
+Gitea #252, split out of #236 whose rename was declined.
+
+    programs/desktop/         the desktop
+    programs/catalogue.hibr   the catalogue
+    programs/vw.hibr          the vault client
+    examples/                 the nine samples, honestly named at last
+
+`make install` already treated them as two kinds of thing -- it places
+those three and none of the other nine -- so the folder name had been
+lying, and `540-examples.t` linted products and samples in one loop
+because they shared a folder rather than because they are alike.
+
+**Nothing user-visible changes.** `DESKDIR` derives from `PREFIX`, never
+from the source path, so `make install` into a scratch prefix produces an
+identical tree: `bin/{catalogue,desktop,hibr,vw}` and
+`share/hibr/desktop/...`, the same before and after. No settings
+migration, nothing for a running desktop to notice.
+
+298 path references across 59 files. `CHANGELOG.md` is deliberately left
+alone: its entries describe the tree as it was at each release, and
+rewriting them would make the record false.
+
+**Three things a straight sweep would have broken**, each caught by
+measuring rather than by reading:
+
+- `850-lint.t` would have gone from **141 files to 8** -- `find
+  "$root/examples"` would have linted the nine samples and silently
+  stopped linting the whole desktop. Its own `n > 60` floor would have
+  failed the build, which is what such a floor is for.
+- `540-examples.t` would have stopped linting `vw.hibr` and
+  `catalogue.hibr`, which `examples/*.hibr` used to catch.
+- **The path has two spellings**: `os.path.join(ROOT, "examples",
+  "desktop")` in four test files is invisible to a search for
+  `examples/desktop`.
+
+And a measurement that had to be corrected: 68 published bundles appeared
+to have changed, which was a `git mv` artifact. Comparing **content**
+rather than paths, 9 files changed and 5 of them are published bundles,
+each by exactly one comment line naming the path.
+
 ## 0.99.210
 
 **`cd` in a strict function is the shell's own bookkeeping, not a global

@@ -273,7 +273,7 @@ next-version:
 # reach one, and for the suite that checks the two halves add up.
 install-apps:
 	install -d $(DESTDIR)$(DESKDIR)/apps
-	cp -R examples/desktop/apps/. $(DESTDIR)$(DESKDIR)/apps/
+	cp -R programs/desktop/apps/. $(DESTDIR)$(DESKDIR)/apps/
 
 install: all
 	install -d $(DESTDIR)$(PREFIX)/bin $(DESTDIR)$(MODDIR) $(DESTDIR)$(PREFIX)/include/hibr
@@ -288,7 +288,7 @@ install: all
 	install -m 644 mods/salat/methods/*.json $(DESTDIR)$(SHAREDIR)/salat
 	rm -rf $(DESTDIR)$(DESKDIR)
 	install -d $(DESTDIR)$(DESKDIR)
-	cp -R examples/desktop/. $(DESTDIR)$(DESKDIR)/
+	cp -R programs/desktop/. $(DESTDIR)$(DESKDIR)/
 # APPS=none leaves the applications out: the window manager, the desktop's
 # own system apps, the Control Panel panes, the Control Strip modules and
 # the savers, and nothing you open -- not Terminal and not Files either,
@@ -304,7 +304,7 @@ endif
 	sed 's|@DESKDIR@|$(DESKDIR)|' tools/desktop-launcher.in \
 		> $(DESTDIR)$(PREFIX)/bin/desktop
 	chmod 755 $(DESTDIR)$(PREFIX)/bin/desktop
-	install -m 644 examples/vw.hibr $(DESTDIR)$(SHAREDIR)/vw.hibr
+	install -m 644 programs/vw.hibr $(DESTDIR)$(SHAREDIR)/vw.hibr
 	sed 's|@SHAREDIR@|$(SHAREDIR)|' tools/vw-launcher.in \
 		> $(DESTDIR)$(PREFIX)/bin/vw
 	chmod 755 $(DESTDIR)$(PREFIX)/bin/vw
@@ -320,7 +320,7 @@ endif
 # writable by anybody else (ADR 0045). 0755 rather than 0700 because every
 # user of the machine reads it.
 	install -d -m 755 $(DESTDIR)$(SYSDIR)
-	install -m 644 examples/catalogue.hibr $(DESTDIR)$(SHAREDIR)/catalogue.hibr
+	install -m 644 programs/catalogue.hibr $(DESTDIR)$(SHAREDIR)/catalogue.hibr
 	sed 's|@SHAREDIR@|$(SHAREDIR)|' tools/catalogue-launcher.in \
 		> $(DESTDIR)$(PREFIX)/bin/catalogue
 	chmod 755 $(DESTDIR)$(PREFIX)/bin/catalogue

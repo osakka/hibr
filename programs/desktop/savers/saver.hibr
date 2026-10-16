@@ -17,7 +17,7 @@
 # login screens run one behind everything; and this file runs one on its
 # own -- by name, or a saver file by its path, to try one being written:
 #
-#     hibr examples/desktop/savers/saver.hibr [name|random|path]
+#     hibr programs/desktop/savers/saver.hibr [name|random|path]
 
 strict
 

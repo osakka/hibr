@@ -159,7 +159,7 @@ not only what is written.
 It is also runnable, which is what to reach for instead of a throwaway script:
 
 ```text
-python3 tests/screen.py examples/desktop/session.hibr
+python3 tests/screen.py programs/desktop/session.hibr
 python3 tests/screen.py -c 'mod load build/mods/mon.so; mon'
 ```
 

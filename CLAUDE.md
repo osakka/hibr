@@ -49,7 +49,7 @@ releases).
     python3 tests/asan.py        # every suite, pty ones too, under ASan and UBSan
     python3 tests/asan.py --quick    # the release gate: core, C modules, what changed
     python3 tests/strictvars.py  # every global a strict desktop function would create
-    python3 tests/screen.py examples/desktop/session.hibr
+    python3 tests/screen.py programs/desktop/session.hibr
                                  # the same harness, to look rather than assert
     python3 tests/diff.py --shell ./build/hibr 250   # snippets, diffed against bash
     python3 tests/corpus.py --list <file>        # real scripts, run under both shells
@@ -153,7 +153,7 @@ whenever a replacement writes one.
 | `src/fs.c` | `mkdir`, `rm` and `mv` as builtins, GNU-compatible, anything else to the program (ADR 0029) |
 | `src/mod.c` | module loading |
 | `mods/*.c` | reference modules: `sys`, `http` (scheme), `ls`, `math` (floating point; one of the two modules `--plan` may load, see `pl_pure`), `darwin` (macOS-only: `cpu`, `mem`, native `host_statistics`, no fork) |
-| `examples/desktop/` | the window manager (`desktop.hibr`, a table of contents sourcing `wm/`, one concern to a file, and `widgets/`, the widget library apps draw with) and everything built on it — `apps/`, every **application**, listed under one Applications submenu with a folder inside it becoming a submenu of its own (file browser, terminal, Vault, Calendar, Contacts; `Accessories/` for the calculator, clock, image viewer, note pad, sliding puzzle, and `Office/`, `Internet/` and `Games/`), `system/`, the desktop's **own** apps, listed on the hibr menu itself because they manage or report on the desktop rather than opening anything of yours (About This Computer, Control Panel, Task Manager, Modules, Notifications, Clipboard, Screenshot, Catalogue), `control-panel/` panes, `control-strip/` modules — see `examples/desktop/README.md` for how to use it and `examples/desktop/ARCHITECTURE.md` for how it is built |
+| `programs/desktop/` | the window manager (`desktop.hibr`, a table of contents sourcing `wm/`, one concern to a file, and `widgets/`, the widget library apps draw with) and everything built on it — `apps/`, every **application**, listed under one Applications submenu with a folder inside it becoming a submenu of its own (file browser, terminal, Vault, Calendar, Contacts; `Accessories/` for the calculator, clock, image viewer, note pad, sliding puzzle, and `Office/`, `Internet/` and `Games/`), `system/`, the desktop's **own** apps, listed on the hibr menu itself because they manage or report on the desktop rather than opening anything of yours (About This Computer, Control Panel, Task Manager, Modules, Notifications, Clipboard, Screenshot, Catalogue), `control-panel/` panes, `control-strip/` modules — see `programs/desktop/README.md` for how to use it and `programs/desktop/ARCHITECTURE.md` for how it is built |
 | `tests/screen.py` | **the** pty harness and terminal model, shared by every full-screen suite |
 | `mods/prompt/` | the prompt module, including a native reader for git's object store — see `mods/README.md` for the file-by-file breakdown |
 | `mods/console/` | the text display: alternate screen, cell grid with damage-based redraw, panes, decoded keys — see `mods/console/README.md` |
@@ -169,28 +169,28 @@ whenever a replacement writes one.
 | `mods/hold/` | sessions that outlive their terminal: detach, log off, attach again; it carries what the emulator draws nothing for -- the clipboard, the bell, a notification, a title, a link, and since 0.99.77 the pictures (Gitea #103) -- and tells the program what a cell measures on the client's own terminal, without which nothing in a held desktop can be pixels. See `mods/hold/README.md` |
 | `mods/img/` | decode an image and draw it as terminal cells, jp2a-alike: PNG through libpng and JPEG through libturbojpeg, both dlopen'd on first use, chosen by the file's first bytes, EXIF orientation honoured — see `mods/img/README.md` |
 | `mods/db/` | a small column store: typed columns in one mmap'd file, appended rows changed with `set`/`update` and deleted by a per-group mark (`compact` renumbers), filters and aggregates, zone maps per 1024-row group -- see `mods/db/README.md` |
-| `mods/web/` | a browser: headless Chromium over `--remote-debugging-pipe` (CDP, no WebSocket), each page as cells -- its text placed where laid out, over a half-block screenshot taken with the text made transparent; the Browser app in `examples/desktop/apps/Internet/` is built on it -- see `mods/web/README.md` |
+| `mods/web/` | a browser: headless Chromium over `--remote-debugging-pipe` (CDP, no WebSocket), each page as cells -- its text placed where laid out, over a half-block screenshot taken with the text made transparent; the Browser app in `programs/desktop/apps/Internet/` is built on it -- see `mods/web/README.md` |
 | `mods/dav/` | a WebDAV client: own HTTP/1.1 (kept connections, chunked, redirects), Basic and Digest (MD5), TLS through the shell's `tls_relay` forked by the module so it can reap it, RFC 4918 multistatus; servers in `~/.config/hibr/dav` (0600, refused otherwise); `tests/davserve.py` is the suite's own server -- see `mods/dav/README.md` |
 | `mods/media/` | video and sound: libavformat/libavcodec dlopen'd (59-62, FFmpeg 5.1-8), the few struct fields it reads located per release by `tools/mvoffsets.sh`; decode and sound threads, ALSA/AudioQueue/none/wav out, frames as half blocks or ASCII -- see `mods/media/README.md` |
 | `mods/md/` | markdown: CommonMark and GFM, every spec example passing byte for byte (`tests/md_spec.py`); `md html` and `md lines`, the per-character styles Write draws from -- see `mods/md/README.md` |
-| `mods/auth.c` | password checks through PAM, libpam `dlopen`ed: `auth check [-s svc] [-c confdir] user pw`, run as the user with no privilege (PAM's own `unix_chkpwd` is setgid, hibr never is); the desktop's lock (`wm/lock.hibr`) is built on it; `auth open`/`run`/`close` are a PAM session and a command run in it as the user, for the login screen (`examples/desktop/login/`, root under systemd, `hibr-login@.service` shipped off); the Debian package installs `/etc/pam.d/hibr` and `hibr-login` |
+| `mods/auth.c` | password checks through PAM, libpam `dlopen`ed: `auth check [-s svc] [-c confdir] user pw`, run as the user with no privilege (PAM's own `unix_chkpwd` is setgid, hibr never is); the desktop's lock (`wm/lock.hibr`) is built on it; `auth open`/`run`/`close` are a PAM session and a command run in it as the user, for the login screen (`programs/desktop/login/`, root under systemd, `hibr-login@.service` shipped off); the Debian package installs `/etc/pam.d/hibr` and `hibr-login` |
 | `mods/lint/` | the rules behind `hibr --explain`: walks the parsed tree and names mistakes, runs nothing; offers `"lint"` (`mods/lint.h`) and adds no builtin |
 | `mods/html/` | HTML as the WHATWG standard parses it, our own tokenizer and tree builder, all 1792 html5lib tree-construction cases passing (`tests/html_tree.py`); CSS selectors, and `html lines`, the layout Mail reads messages through -- see `mods/html/README.md` |
 | `mods/pim/` | calendars and contacts: iCalendar and vCard parse and build, RRULE expansion checked rule by rule against python-dateutil on RFC 5545's examples (`tests/pim_rrule.py`, its answers kept in `tests/pim/rrule.txt`), zones through zoneinfo with TZ put back, iTIP replies -- see `mods/pim/README.md`; the dav module carries them (`propfind`, `report`, `sync`) |
-| `examples/desktop/wm/ctl.hibr` | the desktop's control socket, for Blit and tests: displays, windows, move/resize/focus as JSON, one request per connection, served between frames; `desktop ctl` (`lib/ctl.hibr`) is the client -- see the desktop README's Controlling a running desktop |
+| `programs/desktop/wm/ctl.hibr` | the desktop's control socket, for Blit and tests: displays, windows, move/resize/focus as JSON, one request per connection, served between frames; `desktop ctl` (`lib/ctl.hibr`) is the client -- see the desktop README's Controlling a running desktop |
 | `mods/csv.c` | CSV as RFC 4180 says: `csv read` (a map, built in one pass -- `hibr_setp` per field was quadratic, 50,000 rows took 3.5 minutes, now 0.24 s), `open`/`row`/`close` streaming, `line`, `split`; Sheet's CSV goes through it |
-| `examples/catalogue.hibr` | `catalogue`, which installs what the desktop runs -- applications, themes, colour schemes, languages and modules -- installed as a command the way `vw` is (ADR 0041, ADR 0045, Gitea #159); called `apps` until 0.99.195, and it moves to `programs/catalogue.hibr` with the desktop (Gitea #236): an index over HTTPS with `dav get` (binary-safe to a file, where `dav request` NUL-terminates its answer), a bundle's `sha256` verified, `archive` to look inside before anything is unpacked, and `mkdir`/`rm`/`mv` to place it. No C, so no module. Each of the desktop's **eight** scan lists reads `~/.config/hibr`, then the **system** scope (`$HIBR_SYSDIR`, `/var/lib/hibr`), then the user's `$XDG_DATA_HOME`, then the shipped copy -- so an administrator's install wins over anybody's own, and a file you wrote by hand still wins over both (ADR 0045). The `mods` kind is for **somebody else's** module only: hibr ships every module it builds, in every packaging, because a module is bytes and a source install compiles its own -- see ADR 0045's Alternatives for the split that was decided and then refused |
+| `programs/catalogue.hibr` | `catalogue`, which installs what the desktop runs -- applications, themes, colour schemes, languages and modules -- installed as a command the way `vw` is (ADR 0041, ADR 0045, Gitea #159); called `apps` until 0.99.195, and it moves to `programs/catalogue.hibr` with the desktop (Gitea #236): an index over HTTPS with `dav get` (binary-safe to a file, where `dav request` NUL-terminates its answer), a bundle's `sha256` verified, `archive` to look inside before anything is unpacked, and `mkdir`/`rm`/`mv` to place it. No C, so no module. Each of the desktop's **eight** scan lists reads `~/.config/hibr`, then the **system** scope (`$HIBR_SYSDIR`, `/var/lib/hibr`), then the user's `$XDG_DATA_HOME`, then the shipped copy -- so an administrator's install wins over anybody's own, and a file you wrote by hand still wins over both (ADR 0045). The `mods` kind is for **somebody else's** module only: hibr ships every module it builds, in every packaging, because a module is bytes and a source install compiles its own -- see ADR 0045's Alternatives for the split that was decided and then refused |
 | `mods/lines.c` | `lines show|grep|count|edit`: slicing, tree search and exact multi-line edits, so work on this tree needs no sed, grep or python -- see Editing this tree |
 | `mods/uni/` | bidi (UAX #9, both Unicode conformance suites passing), Arabic shaping (checked against FriBidi), mirroring and widths, tables generated by `tools/unigen.py` from one UCD version -- ADR 0030, Gitea #68 |
 | `mods/hcal/` | calendar systems as data: Umm al-Qura (ICU's table, `tools/hcalgen.py`), the tabular Hijri calendars, any added as a JSON file in a folder; `hcal date|greg|month|name|list`, checked against ICU day by day (`tests/hcal_icu.py`) -- ADR 0034, Gitea #69 |
 | `mods/salat/` | prayer times: the sun's place computed (Meeus), methods as JSON files in a folder, checked against adhan-js to the minute through the year and into the polar circle (`tests/salat_adhan.py`) -- ADR 0035, Gitea #70 |
 | `mods/lang.c` | translation catalogues with CLDR plurals; the desktop translates at its widgets (`dt_tr`, `wm/lang.hibr`, `lang/`), `tools/strings.py` keeps the list -- ADR 0032 |
-| `mods/email/` | IMAP (IDLE, Gmail's labels), POP3, SMTP and MIME; accounts in a 0600 file; `tests/mailserve.py` is the suites' stand-in server; the Mail app (`apps/Internet/mail.hibr`) keeps accounts offline through `examples/desktop/lib/mailsync.hibr` -- see `mods/email/README.md` |
+| `mods/email/` | IMAP (IDLE, Gmail's labels), POP3, SMTP and MIME; accounts in a 0600 file; `tests/mailserve.py` is the suites' stand-in server; the Mail app (`apps/Internet/mail.hibr`) keeps accounts offline through `programs/desktop/lib/mailsync.hibr` -- see `mods/email/README.md` |
 | `mods/console/sixel.c`, `mods/console/kitty.c`, `mods/console/image.c` | pictures as pixels, in either of the two protocols a terminal might speak -- sixel (fixed 6x6x6 palette, or median cut per picture) and the kitty graphics protocol, which kitty alone accepts since it has never drawn a sixel -- and the regions the console owns: placed through `dp_api`'s `image`, kept until their cells are drawn through, emitted once, and for kitty deleted from the terminal when they go (ADR 0037); `console gfx` names the one in force |
 | `mods/archive/` | a tarball as a folder (Gitea #102): `.tar` and `.tar.gz` indexed at open, `archive ls|stat|cat`, and a `/dev/archive/NAME/path` scheme so a member is a filename anywhere one goes; folders the archive never declared are implied from the names; reading only. Not called `tar`, which would shadow the program -- see `mods/archive/README.md` |
 | `mods/mermaid/` | Mermaid diagrams as cells (Gitea #140): flowcharts laid out the way dagre does it -- cycles broken, ranks by longest path, bend points on long edges, the median heuristic for ordering, and a track per edge in each gutter so two never merge into one line -- plus sequence diagrams (columns and rows, no layout) and pies as proportional bars; `mermaid render` answers rows **and the style of every character** as runs, the shape `md lines` and `sysinfo` use, which is the only way a module's colours reach a window, since a window draws cells through its pane and not bytes at the screen; everything it does not understand is named rather than half-drawn -- see `mods/mermaid/README.md` |
 | `mods/inflate.c`, `mods/deflate.c`, `mods/inftab.c`, `mods/png.c` | deflate and its wrappers (zlib, gzip), both directions, written here rather than linked against libz, and shared: the prompt module reads git's objects and packs with it, the archive module a `.tar.gz`, and the console *writes* one to compress a still picture's payload before sending it -- `o=z` or a PNG, `console imgcomp` (Gitea #129). `inftab.c` is the tables both directions read, its own file so a module that only compresses does not carry the decoder; `png.c` is chunks, CRC-32 and per-scanline filter selection around `def_zlib` |
-| `mods/vw/` | Bitwarden and Vaultwarden: `vwk` holds the vault's keys and does its crypto (libcrypto, libargon2 `dlopen`ed), never printing a key; `vw` (`examples/vw.hibr`, installed as a command) logs in, syncs and reads the vault -- kept encrypted, so offline works -- through `dav request`; the desktop's Vault accessory and Passwords pane run that command as a child (`wm/vault.hibr`); `tests/bwserve.py` is the suites' stand-in server -- see `mods/vw/README.md`, ADR 0036 |
+| `mods/vw/` | Bitwarden and Vaultwarden: `vwk` holds the vault's keys and does its crypto (libcrypto, libargon2 `dlopen`ed), never printing a key; `vw` (`programs/vw.hibr`, installed as a command) logs in, syncs and reads the vault -- kept encrypted, so offline works -- through `dav request`; the desktop's Vault accessory and Passwords pane run that command as a child (`wm/vault.hibr`); `tests/bwserve.py` is the suites' stand-in server -- see `mods/vw/README.md`, ADR 0036 |
 
 Each directory carries its own `README.md` with the detail: `src/`, `include/`,
 `mods/`, `tests/`, `examples/`. User-facing documentation is under `docs/`, and
@@ -1511,7 +1511,7 @@ went in the shell.
   0.17% on a loop with no functions at all, measured against the same build
   without it; the desktop's loop runs 2.2 times faster.
 - **The desktop declares its parameters, and that closes the `local` trap
-  above.** Every function in `examples/desktop/` that takes arguments is
+  above.** Every function in `programs/desktop/` that takes arguments is
   `fn name(a, b = "", ...rest)` now, not `name() { local a=$1 ...`, so a
   parameter is bound before the body's first `local` runs and `local
   b=${M[$id]}` can see `id`. It is also cheaper -- binding is C, where the
@@ -1520,7 +1520,7 @@ went in the shell.
   stricter: a declared function *refuses* an argument it has no name for and
   one it is missing without a default, and the body never runs. So a
   callback declares the whole of what it is called with (`fn x_draw(id, h, w,
-  row, col)`, the table in `examples/desktop/ARCHITECTURE.md`) even when it
+  row, col)`, the table in `programs/desktop/ARCHITECTURE.md`) even when it
   uses only `id`, and anything taking a list ends in `...rest`. The
   conversion was made from a census of every call's argument count across
   the suites, not from reading call sites, and a parameter the suites never
@@ -1600,7 +1600,7 @@ went in the shell.
   which is how `tests/screen.py`'s `load()` gives every suite `q` to quit
   with now that the desktop has none.
 - **A theme and a colour scheme are JSON files, not scripts**
-  (`examples/desktop/themes/`, `examples/desktop/colours/`, ADR 0028). They
+  (`programs/desktop/themes/`, `programs/desktop/colours/`, ADR 0028). They
   are the one thing a person configures that is not hibr, because they are
   what people hand each other: a script would run as whoever applied it.
   `cp_colourread` and `cp_themeread` refuse a file whole on any bad value,
@@ -2426,7 +2426,7 @@ went in the shell.
 - **A Python test named after a stdlib module shadows it.** `tests/email.py`
   hid the `email` package from everything the suite imported; the Mail
   suites are `mail.py` and `mailapp.py`.
-- **A helper script a desktop app runs goes in `examples/desktop/lib/`.**
+- **A helper script a desktop app runs goes in `programs/desktop/lib/`.**
   Everything under `apps/` is sourced as an app at startup, so a script
   put there would run inside the desktop, with no arguments, every time it
   starts. Code several apps share goes there too, as a library each
@@ -3043,7 +3043,7 @@ went in the shell.
   loads the window manager and the widgets; `DT_APPDIRS`/`dt_apps`,
   `DT_SYSDIRS`/`dt_sysapps` and `CS_MODDIRS`/`cs_modules` are the
   *session*'s,
-  which is why `examples/desktop/session.hibr` has them. A test session
+  which is why `programs/desktop/session.hibr` has them. A test session
   without them opens a window titled "Terminal" that is an empty box: no
   program, no output, no frames, and nothing anywhere saying why. Three
   separate attempts to reproduce a CPU problem measured an idle desktop

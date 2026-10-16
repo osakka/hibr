@@ -6,12 +6,12 @@ mkdir -p "$tmp"
 printf '[server]\nhost = example.com\nport = 8080\n\n[auth]\ntoken = abc123\n' > "$tmp/app.ini"
 printf 'xx\n' > "$tmp/one"; printf 'yyy\n' > "$tmp/two"
 
-for e in examples/*.hibr examples/desktop/*.hibr examples/desktop/apps/*.hibr \
-         examples/desktop/apps/*/*.hibr examples/desktop/control-panel/*.hibr \
-         examples/desktop/system/*.hibr examples/desktop/control-strip/*.hibr \
-         examples/desktop/wm/*.hibr examples/desktop/widgets/*.hibr \
-         examples/desktop/savers/*.hibr examples/desktop/login/*.hibr \
-         examples/desktop/lib/*.hibr; do
+for e in examples/*.hibr programs/*.hibr programs/desktop/*.hibr programs/desktop/apps/*.hibr \
+         programs/desktop/apps/*/*.hibr programs/desktop/control-panel/*.hibr \
+         programs/desktop/system/*.hibr programs/desktop/control-strip/*.hibr \
+         programs/desktop/wm/*.hibr programs/desktop/widgets/*.hibr \
+         programs/desktop/savers/*.hibr programs/desktop/login/*.hibr \
+         programs/desktop/lib/*.hibr; do
   case "$e" in *hibrc) continue ;; esac
   ./build/hibr -n "$e" || echo "does not parse: $e"
 done
@@ -22,17 +22,17 @@ echo "every example parses"
 # open menu. No example, and no app, defines one name twice.
 # Both ways of defining one count: name() { and fn name(...) {.
 defs='s/^\([A-Za-z_][A-Za-z0-9_]*\)() *{.*/\1/p; s/^fn \([A-Za-z_][A-Za-z0-9_]*\)(.*/\1/p'
-for e in examples/*.hibr examples/desktop/*.hibr examples/desktop/apps/*.hibr \
-         examples/desktop/apps/*/*.hibr examples/desktop/control-panel/*.hibr \
-         examples/desktop/system/*.hibr examples/desktop/control-strip/*.hibr; do
+for e in examples/*.hibr programs/*.hibr programs/desktop/*.hibr programs/desktop/apps/*.hibr \
+         programs/desktop/apps/*/*.hibr programs/desktop/control-panel/*.hibr \
+         programs/desktop/system/*.hibr programs/desktop/control-strip/*.hibr; do
   sed -n "$defs" "$e" | sort | uniq -d |
     while read -r f; do echo "defined twice in $e: $f"; done
 done
 # The desktop is desktop.hibr and every file it sources, so a name must be
 # unique across all of them together, not only within each: two parts that
 # each define it once still leave only the second one standing.
-cat examples/desktop/desktop.hibr examples/desktop/wm/*.hibr \
-    examples/desktop/widgets/*.hibr |
+cat programs/desktop/desktop.hibr programs/desktop/wm/*.hibr \
+    programs/desktop/widgets/*.hibr |
   sed -n "$defs" | sort | uniq -d |
   while read -r f; do echo "defined twice across the desktop's parts: $f"; done
 echo "no function is defined twice"
@@ -48,10 +48,10 @@ echo "no function is defined twice"
 # around. Cheap and approximate (whitespace-split, so a quoted value with
 # a space in it is not read correctly), not exhaustive -- see CLAUDE.md's
 # own trap entry for the pattern in full.
-for e in examples/*.hibr examples/desktop/*.hibr examples/desktop/apps/*.hibr \
-         examples/desktop/apps/*/*.hibr examples/desktop/control-panel/*.hibr \
-         examples/desktop/system/*.hibr examples/desktop/control-strip/*.hibr \
-         examples/desktop/wm/*.hibr examples/desktop/widgets/*.hibr; do
+for e in examples/*.hibr programs/*.hibr programs/desktop/*.hibr programs/desktop/apps/*.hibr \
+         programs/desktop/apps/*/*.hibr programs/desktop/control-panel/*.hibr \
+         programs/desktop/system/*.hibr programs/desktop/control-strip/*.hibr \
+         programs/desktop/wm/*.hibr programs/desktop/widgets/*.hibr; do
   awk '
   /^[[:space:]]*local[[:space:]]/ {
     line = $0
@@ -85,7 +85,7 @@ echo "no local reads a name assigned earlier in the same statement"
 # on paths the suites never reached. Which prefix is a window, a pane or a
 # strip module is read from the desktop's own dt_app, dt_new, cp_pane and
 # cs_module calls.
-desk=$(find examples/desktop -name '*.hibr' | sort)
+desk=$(find programs/desktop -name '*.hibr' | sort)
 awk '
   FNR == 1 { if (!first) first = FILENAME; if (FILENAME == first) pass++ }
   pass == 1 && !/^[[:space:]]*#/ {
@@ -187,10 +187,10 @@ echo "every app's bar begins File, then Edit"
 # sheets are trusted by the Sheet menu's own switch,
 # WPK_DIR is only where the wallpaper picker was last left, and DT_SETVER
 # is which version of the settings wrote the file.
-panes=$(grep -l '^command -v cp_pane' examples/desktop/control-panel/*.hibr)
-kept=$( (grep -rhoE 'dt_keep( [A-Z_][A-Z0-9_]*)+' examples/desktop \
+panes=$(grep -l '^command -v cp_pane' programs/desktop/control-panel/*.hibr)
+kept=$( (grep -rhoE 'dt_keep( [A-Z_][A-Z0-9_]*)+' programs/desktop \
           --include='*.hibr' | sed 's/^dt_keep//'
-        sed -n '/^DT_KEEP=(/,/)/p' examples/desktop/wm/settings.hibr |
+        sed -n '/^DT_KEEP=(/,/)/p' programs/desktop/wm/settings.hibr |
           tr -d '()' | sed 's/DT_KEEP=//') | tr ' \t' '\n\n' |
         grep -E '^[A-Z_][A-Z0-9_]*$' | sort -u)
 for v in $kept; do
@@ -243,14 +243,14 @@ echo "every dropdown row has its popup"
 # forgotten local and an expansion that splits are each refused rather than
 # silently wrong. Anything that splits a list does it explicitly, with
 # read -ra into an array.
-for f in examples/desktop/desktop.hibr \
-         examples/desktop/wm/*.hibr examples/desktop/widgets/*.hibr \
-         examples/desktop/apps/*.hibr examples/desktop/apps/*/*.hibr \
-         examples/desktop/system/*.hibr \
-         examples/desktop/control-panel/*.hibr \
-         examples/desktop/control-strip/*.hibr \
-         examples/desktop/savers/*.hibr examples/desktop/login/*.hibr \
-         examples/desktop/lib/*.hibr; do
+for f in programs/desktop/desktop.hibr \
+         programs/desktop/wm/*.hibr programs/desktop/widgets/*.hibr \
+         programs/desktop/apps/*.hibr programs/desktop/apps/*/*.hibr \
+         programs/desktop/system/*.hibr \
+         programs/desktop/control-panel/*.hibr \
+         programs/desktop/control-strip/*.hibr \
+         programs/desktop/savers/*.hibr programs/desktop/login/*.hibr \
+         programs/desktop/lib/*.hibr; do
   grep -qx 'strict' "$f" || echo "not under every strict check: $f"
 done
 echo "the desktop is strict"
@@ -264,9 +264,9 @@ echo "the desktop is strict"
 # control-strip/*.hibr and desktop.hibr itself: the control strip, the
 # wallpaper, the menu bar, dt_note and dt_confirm are the desktop's own root
 # overlay, not a window's content, and have no pane of their own to target.
-for e in examples/desktop/apps/*.hibr examples/desktop/apps/*/*.hibr \
-         examples/desktop/control-panel/*.hibr \
-         examples/desktop/system/*.hibr; do
+for e in programs/desktop/apps/*.hibr programs/desktop/apps/*/*.hibr \
+         programs/desktop/control-panel/*.hibr \
+         programs/desktop/system/*.hibr; do
   sed -e :a -e '/\\$/N; s/\\\n[[:space:]]*/ /; ta' "$e" | awk -v f="$e" '
     /^[[:space:]]*#/ { next }
     # -p may come after other flags: `console put -r -p "w$id"` is paned,
@@ -289,8 +289,8 @@ echo "no window content draws at absolute screen coordinates"
 # icon, a menu's or a note's own words (an ellipsis, a dash), and lists
 # that are themselves a choice of characters -- the wallpaper's, the
 # bell's.
-for e in examples/desktop/*.hibr examples/desktop/*/*.hibr \
-         examples/desktop/*/*/*.hibr; do
+for e in programs/desktop/*.hibr programs/desktop/*/*.hibr \
+         programs/desktop/*/*/*.hibr; do
   case $e in */wm/glyphs.hibr) continue ;; esac
   sed -e :a -e '/\\$/N; s/\\\n[[:space:]]*/ /; ta' "$e" | LC_ALL=C awk -v f="$e" '
     /^[[:space:]]*#/ { next }
@@ -324,10 +324,10 @@ rm -rf "$tmp"
 # which nothing defines, and drew dark text on an empty -- black --
 # background. Every $DT_ name a console pen uses must be one settings.hibr
 # gives a default.
-roles=$(grep -oE '^DT_[A-Z_]+="\$\{DT_[A-Z_]+-#' examples/desktop/wm/settings.hibr |
+roles=$(grep -oE '^DT_[A-Z_]+="\$\{DT_[A-Z_]+-#' programs/desktop/wm/settings.hibr |
 	sed 's/=.*//' | sort -u)
 grep -rhoE 'console pen( -p [^ ]+)? "\$DT_[A-Z_]+"( "\$DT_[A-Z_]+")?' \
-	--include=*.hibr examples/desktop | grep -oE 'DT_[A-Z_]+' | sort -u |
+	--include=*.hibr programs/desktop | grep -oE 'DT_[A-Z_]+' | sort -u |
 	while read -r v; do
 		printf '%s\n' "$roles" | grep -qx "$v" ||
 			echo "a pen uses $v, which no theme defines"
@@ -347,13 +347,13 @@ echo "every pen names a theme colour"
 # the list taken from `AP_KINDS=(` to the first `)`. A sed line range
 # cannot do it: `/NAME=(/,/)/` never ends on its own opening line, so a
 # list written on one line swallows whatever follows it.
-apk=$(tr '\n\t' '  ' < examples/catalogue.hibr |
+apk=$(tr '\n\t' '  ' < programs/catalogue.hibr |
 	sed 's/.*AP_KINDS=(//; s/).*//; s/  */ /g; s/^ //; s/ $//')
 [ -n "$apk" ] || echo "could not read AP_KINDS"
-grep -q '^AS_KINDS=()$' examples/desktop/system/appstore.hibr ||
+grep -q '^AS_KINDS=()$' programs/desktop/system/appstore.hibr ||
 	echo "the Catalogue keeps a kind list of its own again"
 for k in $apk; do
-	grep -q "^	$k) ret " examples/desktop/system/appstore.hibr ||
+	grep -q "^	$k) ret " programs/desktop/system/appstore.hibr ||
 		echo "the Catalogue has no name for the kind $k"
 done
 echo "every kind apps declares has a name in the Catalogue"

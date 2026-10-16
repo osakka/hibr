@@ -86,7 +86,7 @@ suites, and `tests/pim.py` drives these commands against it.
 
 Files browses `dav://` locations, the Control Panel's Network Servers
 pane keeps the list, and opened files go back on save -- see
-[Folders on servers](../../examples/desktop/README.md#folders-on-servers).
+[Folders on servers](../../programs/desktop/README.md#folders-on-servers).
 A script under `strict vars` that calls `dav` in a function declares
 `DAV_CODE` at file level, as the desktop's `wm/remote.hibr` does, since
 the module sets it.

@@ -27,7 +27,7 @@ A theme is a JSON file, one to a theme, named for it:
 }
 ```
 
-The bundled ones are in `examples/desktop/themes/`, installed beside the
+The bundled ones are in `programs/desktop/themes/`, installed beside the
 desktop; `~/.config/hibr/themes/` is searched first, so a file there with a
 bundled theme's name replaces it and a new name adds one. Each file is
 checked whole when the Appearance pane loads -- every colour `#rrggbb`, the
@@ -65,7 +65,7 @@ defaulting to the dark themes' value.
 ## Since 0.99.33: colours, and themes that are the whole look
 
 What this record calls a theme became a **colour scheme**: the same file,
-the same checks, moved to `examples/desktop/colours/` and
+the same checks, moved to `programs/desktop/colours/` and
 `~/.config/hibr/colours/` (a colour file left in `~/.config/hibr/themes/`
 is still read as one). A **theme** is now the whole look -- a colour
 scheme by name and the wallpaper, frame, title bar, buttons, checkboxes,

@@ -38,7 +38,7 @@ hibr.
 The session positional is sourced after the window manager and console
 module, then dt_open/dt_run/dt_close wrap it the same way tests/desktop.py
 does. --session-file runs a session file directly instead (nothing is
-wrapped around it). --apps is a comma-separated list of examples/desktop/apps/*.hibr
+wrapped around it). --apps is a comma-separated list of programs/desktop/apps/*.hibr
 files to source first. --keys sends one key or one click before the
 screenshot is taken; repeat --keys for more than one. click:row:col,
 rclick:row:col, and mclick:row:col press the left, right, or middle button
@@ -348,7 +348,7 @@ def main():
                      help="comma-separated modules to mod-load before "
                           "sourcing (default: console)")
     ap.add_argument("--apps", default="",
-                     help="comma-separated examples/desktop/apps/<name>.hibr files "
+                     help="comma-separated programs/desktop/apps/<name>.hibr files "
                           "to source first")
     args = ap.parse_args()
     # nargs="*" here would greedily swallow the session positional that
@@ -361,8 +361,8 @@ def main():
         path = args.session_file
         cleanup = False
     else:
-        wm = tree("examples/desktop/desktop.hibr")
-        apps_src = "".join(". %s/examples/desktop/apps/%s.hibr\n" % (ROOT, a)
+        wm = tree("programs/desktop/desktop.hibr")
+        apps_src = "".join(". %s/programs/desktop/apps/%s.hibr\n" % (ROOT, a)
                             for a in args.apps)
         content = ("%s. %s\n%s%s\ndt_open\n%s\ndt_run\ndt_close\n"
                    % (load(*args.modules), wm, apps_src, "", args.session))

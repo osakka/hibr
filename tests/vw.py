@@ -30,7 +30,7 @@ PW = "correct horse battery staple"
 ENV = dict(os.environ, XDG_CONFIG_HOME=os.path.join(D, "c"), XDG_DATA_HOME=os.path.join(D, "d"),
            XDG_RUNTIME_DIR=os.path.join(D, "r"), VW_STDIN="1",
            HIBR_MODPATH=os.environ.get("HIBR_TESTMODS") or tree("build/mods"))
-VW = tree("examples/vw.hibr")
+VW = tree("programs/vw.hibr")
 
 
 def vw(*args, stdin="", env=None):

@@ -6,7 +6,7 @@
 # counts and the wording are hibr's own.
 
 mod load build/mods/lang.so 2> /dev/null || mod load lang
-lang load examples/desktop/lang/ar.json || echo "ar.json does not load"
+lang load programs/desktop/lang/ar.json || echo "ar.json does not load"
 # The count moves whenever a string is added, and that is 992-strings's own
 # business, so it is not recorded here.
 i := lang info
@@ -19,9 +19,9 @@ import json
 LATIN = {"YouTube", "dBASE", "ETag: %s", "PID:    %s", "%s %s…",
          "Highly Intuitive Bash-like Runtime",
          "Nextcloud: https://HOST/remote.php/dav/files/USER"}
-d = json.load(open("examples/desktop/lang/ar.json"))
+d = json.load(open("programs/desktop/lang/ar.json"))
 s = d["strings"]
-want = [l.rstrip("\n") for l in open("examples/desktop/lang/strings.txt") if l.strip()]
+want = [l.rstrip("\n") for l in open("programs/desktop/lang/strings.txt") if l.strip()]
 miss = [k for k in want if k not in s]
 dead = [k for k in s if k not in want]
 flat = [k for k, v in s.items() if not v or (v == k and k not in LATIN)]

@@ -13,8 +13,8 @@ not a mockup.
 | X | here | what it is |
 |---|---|---|
 | the server | the `console` module | owns the terminal, the grid, the mouse, stacking, hit testing |
-| the window manager | `examples/desktop/desktop.hibr`, sourcing `wm/` | the event loop, focus, dragging, title bars, menus — one concern to a file, see [`wm/README.md`](wm/README.md) |
-| the widget library | `examples/desktop/widgets/` | checkbox, dropdown, slider, text field, scrollbar — see [`widgets/README.md`](widgets/README.md) |
+| the window manager | `programs/desktop/desktop.hibr`, sourcing `wm/` | the event loop, focus, dragging, title bars, menus — one concern to a file, see [`wm/README.md`](wm/README.md) |
+| the widget library | `programs/desktop/widgets/` | checkbox, dropdown, slider, text field, scrollbar — see [`widgets/README.md`](widgets/README.md) |
 | `~/.xinitrc` | your own session file | which windows open, and where |
 
 None of it is C beyond the display module itself. The window manager is a
@@ -208,7 +208,7 @@ and so on), so a change takes effect the moment it is written, in every
 window at once, without anything being told to refresh. `panel.hibr`, the
 Control Panel app, is what edits it interactively — not with settings of
 its own, but as a host for panes, each an ordinary file under
-`examples/desktop/control-panel`, System 7's Control Panels folder rather than one
+`programs/desktop/control-panel`, System 7's Control Panels folder rather than one
 long scrolling list:
 
 ![Control Panel's picker, Appearance selected and its Theme row cycled to slate](img/desktop-controlpanel.png)

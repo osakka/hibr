@@ -99,7 +99,7 @@ check docs/tutorial.md 9
 # first line of this file says every page is. The four above keep their own
 # minimum and are skipped here rather than checked twice.
 for page in docs/*.md docs/adr/*.md README.md examples/README.md \
-            examples/desktop/README.md examples/desktop/ARCHITECTURE.md \
+            programs/desktop/README.md programs/desktop/ARCHITECTURE.md \
             mods/README.md mods/*/README.md tests/README.md tools/README.md \
             include/README.md src/README.md; do
   case $page in

@@ -13,7 +13,7 @@ reaching a module through a string it builds -- it does not know about.
 
 What a suite reaches is worked out, not listed. Each suite names the modules
 it loads directly (SUITE_MODS below; the desktop suites also take every
-`need`/`mod load` in examples/desktop). Each module's own `hibr_require`
+`need`/`mod load` in programs/desktop). Each module's own `hibr_require`
 calls are read from its source and resolved through the `hibr_provide`
 calls of the others, so a change to mods/console reaches hvi.py because hvi
 requires "display" and console provides it. The shell itself, include/,
@@ -128,7 +128,7 @@ def resolve(name, prov):
 def desktop_mods(req, prov):
     """Every module the desktop's scripts ask for by name, anywhere on a line."""
     out = set()
-    for d, _, fs in os.walk(os.path.join(ROOT, "examples", "desktop")):
+    for d, _, fs in os.walk(os.path.join(ROOT, "programs", "desktop")):
         for f in fs:
             if f.endswith(".hibr"):
                 t = open(os.path.join(d, f), errors="replace").read()
@@ -184,7 +184,7 @@ def suites_for(path, req, prov, where):
             return set(SUITES), "a mods/ file nothing includes by name"
         hit = {s for s, r in where.items() if r & mods}
         return hit | {"run.sh"}, "module " + ", ".join(sorted(mods))
-    if path.startswith("examples/desktop/"):
+    if path.startswith("programs/desktop/"):
         return set(DESKTOP) | {"run.sh"}, "the desktop"
     if path.startswith("tests/"):
         n = os.path.basename(path)
@@ -198,12 +198,12 @@ def suites_for(path, req, prov, where):
         if n in ("affected.py", "census.py", "asan.py", "diff.py",
                  "corpus.py", "fuzz.py"):
             return set(), "a tool, not a suite"
-    if path == "examples/vw.hibr":
+    if path == "programs/vw.hibr":
         return {"vw", "vault", "run.sh"}, "the vw command"
-    if path == "examples/catalogue.hibr":
+    if path == "programs/catalogue.hibr":
         return {"appmgr", "run.sh"}, "the application manager"
-    if path.startswith(("docs/", "examples/")):
-        return {"run.sh"}, "documentation or an example (530/540)"
+    if path.startswith(("docs/", "examples/", "programs/")):
+        return {"run.sh"}, "documentation, an example or a program (530/540)"
     if path.startswith(("packaging/", "tools/", ".git")) or path in (
             "LICENSE", ".gitignore"):
         return set(), "outside what the suites run"

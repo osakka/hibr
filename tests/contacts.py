@@ -76,8 +76,8 @@ sess = os.path.join(D, "s.hibr")
 open(sess, "w").write(
     "%s. %s\n. %s\n. %s\nneed dav\ndav server set home http://127.0.0.1:%d -u u -p p\n"
     "DT_PIMSERVERS=home\ndt_open\ndt_new Contacts 24 92 1 2 contacts\ndt_run\ndt_close\n"
-    % (load("console", "email", "db", "html", "pim", "dav"), tree("examples/desktop/desktop.hibr"),
-       tree("examples/desktop/apps/contacts.hibr"), tree("examples/desktop/apps/Internet/mail.hibr"), PORT))
+    % (load("console", "email", "db", "html", "pim", "dav"), tree("programs/desktop/desktop.hibr"),
+       tree("programs/desktop/apps/contacts.hibr"), tree("programs/desktop/apps/Internet/mail.hibr"), PORT))
 t = Term(sess, rows=30, cols=104, settle=1.5,
          env={"HIBR_MAIL_CONF": CONF, "XDG_DATA_HOME": os.path.join(D, "data")})
 try:
@@ -175,9 +175,9 @@ try:
         "%s. %s\n. %s\n. %s/panel.hibr\nCP_PANEDIRS+=(\"%s\")\ncp_panes\nneed dav\n"
         "dav server set home http://127.0.0.1:%d -u u -p p\ndav server set files http://127.0.0.1:%d -u u -p p\n"
         "dt_open\ndt_new \"Control Panel\" 24 80 1 1 panel pimset\ndt_run\ndt_close\n"
-        % (load("console", "db", "pim", "dav"), tree("examples/desktop/desktop.hibr"),
-           tree("examples/desktop/apps/contacts.hibr"), tree("examples/desktop/system"),
-           tree("examples/desktop/control-panel"), PORT, P2))
+        % (load("console", "db", "pim", "dav"), tree("programs/desktop/desktop.hibr"),
+           tree("programs/desktop/apps/contacts.hibr"), tree("programs/desktop/system"),
+           tree("programs/desktop/control-panel"), PORT, P2))
     t = Term(sess2, rows=30, cols=104, settle=1.5, env={"XDG_DATA_HOME": os.path.join(D, "data2")})
     sc = waitfor(t, "files only")
     sc = waitfor(t, "(calendars, contacts)")

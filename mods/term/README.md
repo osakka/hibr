@@ -69,7 +69,7 @@ same underlying grid, not the interface itself.
     term close t
 
 Each `term open` is its own terminal, its own session and its own program.
-Two windows of `examples/desktop/apps/term.hibr` are two shells on two ptys, and
+Two windows of `programs/desktop/apps/term.hibr` are two shells on two ptys, and
 `tests/apps.py` checks exactly that. The program is given `TERM=xterm-256color`
 and `COLORTERM=truecolor` whatever the desktop itself runs in: that is the
 terminal this module implements, and a program told it is on tmux or kitty

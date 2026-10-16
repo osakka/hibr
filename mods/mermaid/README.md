@@ -60,7 +60,7 @@ That is the only way to get these colours into a window. A window draws
 cells through its pane rather than bytes at the screen, so an escape
 sequence would be no use to it, and `$(mermaid render)` is a pipe. The
 module names parts and the caller picks its own theme's colours for them:
-`examples/desktop/lib/diagram.hibr` holds the desktop's own mapping, which
+`programs/desktop/lib/diagram.hibr` holds the desktop's own mapping, which
 the Diagram editor and Write both draw through `widgets/putruns.hibr`.
 
 Counted in **characters**, which is what a shell slice counts, where the

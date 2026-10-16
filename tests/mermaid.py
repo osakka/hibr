@@ -213,10 +213,10 @@ os.unlink(scratch("mm-two.mmd"))
 from screen import Term, load, tree, press
 import screen as _sc
 
-WM = os.path.join(ROOT, "examples", "desktop", "desktop.hibr")
+WM = os.path.join(ROOT, "programs", "desktop", "desktop.hibr")
 APPS = 'DT_APPDIRS+=("%s")\n%s\ndt_apps\n' % (
-    tree(os.path.join(ROOT, "examples", "desktop", "apps")),
-    'CP_PANEDIRS+=("%s")' % tree(os.path.join(ROOT, "examples", "desktop",
+    tree(os.path.join(ROOT, "programs", "desktop", "apps")),
+    'CP_PANEDIRS+=("%s")' % tree(os.path.join(ROOT, "programs", "desktop",
                                               "control-panel")))
 
 

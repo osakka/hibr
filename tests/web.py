@@ -141,8 +141,8 @@ def brun(feed, arg=A, env=None, wait=1.5, until=None, gone=None, ready=None,
     p = os.path.join(s, "session.hibr")
     open(p, "w").write("%s\n. %s\n. %s\ndt_open\n"
                        'dt_new Browser 22 76 1 2 browser %s\ndt_run\ndt_close\n'
-                       % (load("console"), tree("examples/desktop/desktop.hibr"),
-                          tree("examples/desktop/apps/Internet/browser.hibr"), arg))
+                       % (load("console"), tree("programs/desktop/desktop.hibr"),
+                          tree("programs/desktop/apps/Internet/browser.hibr"), arg))
     e = {"HIBR_WEB_PROFILE": PROF, "XDG_DATA_HOME": os.path.join(D, "data")}
     e.update(env or {})
     t = Term(p, env=e, settle=3.0, rows=26, cols=80, cellw=cell[0], cellh=cell[1])

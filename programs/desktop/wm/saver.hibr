@@ -1,7 +1,7 @@
 #!/usr/bin/env hibr
 #
 # saver -- the screen saver: after DT_SAVERIDLE minutes with no key and
-# no click, the screen is given to a saver (examples/desktop/savers/) --
+# no click, the screen is given to a saver (programs/desktop/savers/) --
 # DT_SAVER by name, or one at random -- until the next key or click, which
 # ends it and goes nowhere else. Waiting costs nothing: the loop is told
 # to wake when the idle time is up, the same as any other dt_want.
