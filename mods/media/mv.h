@@ -164,6 +164,20 @@ struct mv_pl {
 	int quit, paused, eof, seekreq, ended, failed;
 	double seekto, skipto;
 	int tcols, trows, mode, detail, gen, sgen, sw, sh, sfw, sfh, vfmt;
+	/* What the last draw actually put on screen: 1 a bitmap, 0 cells.
+	   `mode` is what was *asked for*, and the two differ whenever the
+	   pixel path is refused -- by the display having no answer about
+	   pictures yet, by the terminal not drawing them, or by the frame
+	   not fitting the rectangle it was clipped to. The player then
+	   draws cells and says nothing, which reads as the mode being
+	   ignored (Gitea #199). A caller that shows the mode should show
+	   this instead, or it reports an intention as a fact. */
+	int drew;
+	/* What a cell measures on the terminal, from the display, or 0
+	   before any draw has asked it. A bitmap is drawn at the
+	   terminal's own pixels, so it is what the frame is decoded at
+	   for the pixel mode -- see mv_fitpx. */
+	int cw, ch;
 	int agen, aflush;
 	double alast;
 	mv_vf vq[MV_VQ];
@@ -205,7 +219,8 @@ double mv_clock(mv_pl *p);
 int mv_frame(mv_pl *p);
 void mv_size(mv_pl *p, int cols, int rows, int mode);
 long mv_next(mv_pl *p);
-void mv_fit(mv_pl *p, int *w, int *h);
+void mv_fit(mv_pl *p, int mode, int *w, int *h);
+void mv_fitpx(mv_pl *p, int *w, int *h);
 
 int mv_draw(sh *s, const dp_api *dp, mv_pl *p, int row, int col, int prow, int pcol,
 	    int ph, int pw);

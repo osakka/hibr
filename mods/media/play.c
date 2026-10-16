@@ -10,8 +10,13 @@
 /* The size a frame is scaled to for the cells it fills: the whole picture
    inside the grid, its shape kept. A half-block cell holds two square-ish
    pixels one above the other; an ASCII cell is one pixel twice as tall as
-   wide, so its height is halved after fitting. */
-void mv_fit(mv_pl *p, int *w, int *h)
+   wide, so its height is halved after fitting.
+   
+   The mode is passed rather than read off the player, because a frame
+   the display refuses to place as a bitmap is drawn as half blocks
+   instead, and that wants the half-block grid rather than the one the
+   bitmap was going to use. */
+void mv_fit(mv_pl *p, int mode, int *w, int *h)
 {
 	int cols = p->tcols > 0 ? p->tcols : 80, rows = p->trows > 0 ? p->trows : 24;
 	double a = p->vh > 0 ? (double)p->vw / p->vh : 16.0 / 9;
@@ -28,8 +33,32 @@ void mv_fit(mv_pl *p, int *w, int *h)
 		*w = 1;
 	if (*h < 2)
 		*h = 2;
-	if (p->mode != 0)
+	if (mode != 0)
 		*h = (*h + 1) / 2;
+}
+
+/* The size a frame is **decoded** at, which is not the size of the grid
+   it fills.
+   
+   For the cell modes the two are the same: a cell can show one source
+   pixel, or two for a half block, and decoding finer would be thrown
+   away. For **pixels** they are not, and conflating them is why that
+   mode looked worse than the one below it: the frame was scaled to the
+   *cell count* -- one source pixel per character cell -- and the
+   terminal then blew it back up by the whole size of a cell, so a
+   picture asked for in pixels had a quarter of the detail of the same
+   picture in half blocks, which is the opposite of what the setting
+   promises (Gitea #199). A bitmap is drawn at the terminal's own
+   pixels, so that is what it is decoded at. Before any draw has asked
+   the display what a cell measures there is nothing to multiply by,
+   and the grid's own size stands until the next frame. */
+void mv_fitpx(mv_pl *p, int *w, int *h)
+{
+	mv_fit(p, p->mode, w, h);
+	if (p->mode == 3 && p->cw > 1 && p->ch > 1) {
+		*w *= p->cw;
+		*h *= p->ch;
+	}
 }
 
 /* Wake whoever waits on the player. */
@@ -96,7 +125,7 @@ void mv_vframe(mv_pl *p, void *fr, double t)
 	static const uint8_t masks[] = { 0xF0, 0xF8, 0xFC, 0xFF };
 
 	pthread_mutex_lock(&p->mu);
-	mv_fit(p, &w, &h);
+	mv_fitpx(p, &w, &h);
 	gen = p->sgen;
 	mask = masks[p->detail & 3];
 	pthread_mutex_unlock(&p->mu);

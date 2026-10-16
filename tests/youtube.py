@@ -68,7 +68,7 @@ SLOW = 4 if os.environ.get("ASAN_OPTIONS") else 1
 
 
 def yrun(phases, arg="pattern", rows=28, cols=90, extra="", autonext=False,
-         cell=None, env=None):
+         cell=None, env=None, caps=None):
     """A desktop with the YouTube app open on a search; then each phase:
     keys to send (a callable gets the screen and gives them) and what to
     wait for on the screen. The next video does not play by itself unless
@@ -80,7 +80,7 @@ def yrun(phases, arg="pattern", rows=28, cols=90, extra="", autonext=False,
         "dt_run\ndt_close\n"
         % (load("console", "web", "media"), tree("programs/desktop/desktop.hibr"),
            tree("programs/desktop/apps/Internet/youtube.hibr"), extra, arg))
-    t = Term(sess, rows=rows, cols=cols, settle=2.0,
+    t = Term(sess, rows=rows, cols=cols, settle=2.0, caps=caps,
              cellw=cell[0] if cell else 0, cellh=cell[1] if cell else 0,
              env=dict({"YT_BASE": BASE, "HIBR_WEB_PROFILE": PROF, "HIBR_MEDIA_AUDIO": "none",
                   "YT_DATA": DATA, "YT_RESUME": "3", "YT_ENDED": "1",
@@ -308,6 +308,17 @@ try:
     check("and the player says which it is drawing", "pixels" in s[2].text(),
           s[2])
 
+    # The same, on the path every real session takes: nothing forced, and a
+    # terminal that *answers* the kitty capability query. HIBR_GFX skips
+    # that question entirely, so every pixel check here had been driving
+    # the one path no desktop is on -- and the owner's report was from the
+    # other one (Gitea #199).
+    s = yrun([([], "A test pattern"), ([b"\r"], playing),
+              ([], lambda sc: at(sc) >= 1)], cell=(8, 16), caps=["kitty"])
+    check("and the same where the terminal answers for itself rather than "
+          "being told, which is the path a real session is on",
+          s[1].images and s[1].find("▀") is None, (s[1].images, s[1]))
+
     # The same session on a terminal that says nothing about its cells: the
     # player wanted pixels, cannot have them, and until 0.99.161 drew blocks
     # without saying why -- which reads as the setting being ignored rather
@@ -315,6 +326,21 @@ try:
     s = yrun([([], "A test pattern"), ([b"\r"], playing)])
     check("where the terminal can place none, it says so beside the mode",
           "no pixels here" in s[1].text() and s[1].find("▀") is not None, s[1])
+
+    # And the case that reads as the player ignoring the setting: a cell
+    # size is known, so `dt_imgpix`'s own gate passes and the mode resolves
+    # to **pixels**, and the display then declines because nothing has
+    # answered about pictures -- so the pixel path falls through to cells
+    # and the bar said `pixels` over a screen of blocks. `mode` is what was
+    # asked for; `media info`'s `drawn` is what happened, and the bar shows
+    # that now. This is the reading that tells the four layers apart, and
+    # not having it is why this ticket outlived a hundred releases.
+    s = yrun([([], "A test pattern"), ([b"\r"], playing)], cell=(8, 16),
+             env={"DT_IMGMODE": "pixels"})
+    check("and where pixels were resolved but the display declined, the bar "
+          "says what was drawn rather than what was asked for",
+          "drawn as blocks" in s[1].text() and s[1].find("▀") is not None
+          and not s[1].images, s[1])
 
     t.quit(b"q", 1.0)
     check("Control Panel > YouTube holds the picture, the quality, the frames "
@@ -326,4 +352,4 @@ finally:
     srv.wait()
     shutil.rmtree(D, True)
 
-report(31)
+report(33)

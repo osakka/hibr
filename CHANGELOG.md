@@ -1,5 +1,65 @@
 # Changelog
 
+## 0.99.221
+
+**Pixel mode had the lowest resolution of all four picture modes, and
+when it was refused it fell back to the worst cells rather than the
+best.**
+
+Reported from a live desktop and then again directly: *"youtube still
+does not render except blocks even pixel mode"*, and *"the browser in
+pixel with a pixel wallpaper displays pixel graphics and text
+correctly. The YouTube player behaves differently."* The second
+sentence is what made this findable -- the wallpaper and the Browser
+place bitmaps in the same session, so the capability, the terminal and
+`hold` are all out, and what is left is the player's own path.
+
+Two faults in it, both the same shape: **pixel mode was worse than the
+mode below it.**
+
+**The frame was decoded at the cell count.** `mv_fit` answers the size
+of the *grid* a picture fills -- in cells for the character modes,
+half-cells for half blocks -- and `play.c` used that same answer as the
+**scaler's output size**. For half blocks that is right: a cell shows
+two pixels, so two is all it is worth decoding. For pixels it is not:
+the console resamples the frame up to the rectangle's own pixel size,
+so a picture asked for in *pixels* was decoded at roughly **one source
+pixel per character cell** and then magnified by the whole size of a
+cell -- about a hundredfold on an 8x16 terminal. It arrived as large
+soft squares, which is what "renders as blocks even in pixel mode"
+looks like. `mv_fitpx` is the decode size and `mv_fit` is the grid;
+they were one function answering two questions.
+
+**And a refused bitmap drew the brightness ramp.** `mv_cellof` renders
+half blocks only for mode 0; mode 3 fell through to the one-character-
+per-cell ASCII ramp. So whenever the display declined -- it has no
+answer about pictures yet, the terminal draws none, the frame does not
+fit its rectangle -- asking for pixels gave a *worse* picture than
+asking for half blocks. It falls back to half blocks now, the best
+cells there are, with the grid refitted for them (without that the
+lower half reads off the end and comes back black).
+
+**And it said nothing about either.** The player's bar showed `pixels`
+over a screen of blocks, because it reported the mode it *asked for*.
+`media info` carries `drawn` now -- what the last draw actually did --
+and the bar says `(drawn as blocks: the display declined)` when the two
+differ. That reading is what tells the four layers apart, and not
+having it is why this ticket outlived a hundred releases; a debug line
+in `mv_draw` prints the rectangle arithmetic under `hibr -d 3` for the
+case where it is the fit.
+
+Three checks in `tests/youtube.py`, and one of them closes a coverage
+hole worth naming: **every pixel check in that file forced `HIBR_GFX`**,
+which skips the capability question entirely -- so the suite had only
+ever driven the one path no real session is on. The new one lets the
+terminal answer for itself (`Term(caps=["kitty"])`), which is what a
+desktop actually does.
+
+What is **not** claimed: this was not reproduced from the owner's own
+session, which could not be driven from here. It is two defects found
+by reading the arithmetic in the path their report points at, each
+fixed and each checked.
+
 ## 0.99.220
 
 **A display put above the primary was outside the union, so it drew

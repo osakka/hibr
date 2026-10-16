@@ -925,6 +925,16 @@ fn yt_drawplay(int id, int h, int w) {
 		half | ascii | mono) ;;
 		*) pm="$pm, no pixels here" ;;
 		esac
+	# `md` is what was *asked for*, and the pixel path falls through to
+	# cells on its own whenever the display declines -- it has no answer
+	# about pictures yet, the terminal draws none, or the frame does not
+	# fit the rectangle it is clipped to. The bar said `pixels` over a
+	# screen full of blocks, which is a report of an intention dressed
+	# as a fact, and it is why this has been unresolvable from outside:
+	# the one reading anybody could take could not tell the four layers
+	# apart. `media info`'s own `drawn` says what happened (#199).
+	[ "$md" = pixels ] && [ "${i["drawn"]}" = cells ] &&
+		pm="$pm (drawn as blocks: the display declined)"
 	lab=" $a / $b  $st  vol ${i["volume"]}  ${pm}"
 	fill=0
 	[ "${dur%.*}" -gt 0 ] 2> /dev/null && fill=$(( ${pos%.*} * w / ${dur%.*} ))

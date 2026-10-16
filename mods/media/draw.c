@@ -39,7 +39,7 @@ unsigned mv_px(mv_vf *f, int x, int y)
 
 /* What one cell of the picture is: two pixels as a half block, or one as
    a character chosen by its brightness. */
-void mv_cellof(mv_pl *p, mv_vf *f, int x, int y, mv_cell *c)
+void mv_cellof(mv_pl *p, int mode, mv_vf *f, int x, int y, mv_cell *c)
 {
 	static const char *const ch[] = { " ", ".", ":", "-", "=", "+", "*", "#",
 					  "%", "@" };
@@ -47,7 +47,7 @@ void mv_cellof(mv_pl *p, mv_vf *f, int x, int y, mv_cell *c)
 	int lum;
 	uint8_t *q;
 
-	if (p->mode == 0) {
+	if (mode == 0) {
 		a = mv_px(f, x, y * 2);
 		b = mv_px(f, x, y * 2 + 1);
 		c->bg = b;
@@ -62,14 +62,14 @@ void mv_cellof(mv_pl *p, mv_vf *f, int x, int y, mv_cell *c)
 	}
 	q = mv_at(f, x, y);
 	if (!q) {
-		c->fg = p->mode == 1 ? DP_RGB : DP_DEFAULT;
+		c->fg = mode == 1 ? DP_RGB : DP_DEFAULT;
 		c->bg = c->fg;
 		c->t = " ";
 		return;
 	}
 	lum = (q[0] * 299 + q[1] * 587 + q[2] * 114) / 1000;
 	c->t = ch[lum * 9 / 255];
-	if (p->mode == 1) {
+	if (mode == 1) {
 		c->fg = DP_RGB | (unsigned)q[0] << 16 | (unsigned)q[1] << 8 | q[2];
 		c->bg = DP_RGB;
 	} else {
@@ -87,14 +87,22 @@ int mv_draw(sh *s, const dp_api *dp, mv_pl *p, int row, int col, int prow, int p
 {
 	mv_vf *f = &p->cur;
 	int cols = p->tcols > 0 ? p->tcols : 80, rows = p->trows > 0 ? p->trows : 24;
-	int fh, ox, oy, r, c, c0, sr, sc;
+	int fh, ox, oy, r, c, c0, sr, sc, cm;
 	mv_cell a, k;
 	str run;
 
 	if (!f->rgb)
 		return HIBR_FAIL;
+	/* The cells to draw when a bitmap is not what happens. For the
+	   pixel mode that is **half blocks**, the best cells there are --
+	   it used to fall through to this function's own brightness ramp,
+	   one character per cell, so asking for pixels and not getting
+	   them gave a worse picture than asking for half blocks, which is
+	   the wrong way round for a setting that promises the best
+	   (Gitea #199). */
+	cm = p->mode == 3 ? 0 : p->mode;
 	pthread_mutex_lock(&p->mu);
-	mv_fit(p, &mv_tw, &mv_th);
+	mv_fit(p, p->mode, &mv_tw, &mv_th);
 	pthread_mutex_unlock(&p->mu);
 	fh = p->mode == 0 ? (mv_th + 1) / 2 : mv_th;
 	ox = (cols - mv_tw) / 2;
@@ -107,12 +115,33 @@ int mv_draw(sh *s, const dp_api *dp, mv_pl *p, int row, int col, int prow, int p
 	if (p->mode == 3 && dp->image) {
 		int ir = row + (oy > 0 ? oy : 0), ic = col + (ox > 0 ? ox : 0);
 		int ih = fh < rows ? fh : rows, iwc = mv_tw < cols ? mv_tw : cols;
+		int fits = ih > 0 && iwc > 0 && ir >= prow && ic >= pcol &&
+			   ir + ih <= prow + ph && ic + iwc <= pcol + pw;
 
-		if (ih > 0 && iwc > 0 && ir >= prow && ic >= pcol &&
-		    ir + ih <= prow + ph && ic + iwc <= pcol + pw &&
-		    dp->image(s, 0, ir, ic, ih, iwc, f->rgb, f->w, f->h, 0))
+		lg(HIBR_LDBG, "media: pixels grid %dx%d fit %dx%d at %d,%d "
+			      "rect %d,%d %dx%d clip %d,%d %dx%d fits %d",
+		   cols, rows, mv_tw, mv_th, row, col, ir, ic, ih, iwc,
+		   prow, pcol, ph, pw, fits);
+		if (fits && dp->image(s, 0, ir, ic, ih, iwc, f->rgb, f->w,
+				      f->h, 0)) {
+			p->drew = 1;
 			return HIBR_OK;
+		}
+		if (fits)
+			lg(HIBR_LDBG, "media: the display refused the picture");
+		/* Refused: the grid was fitted for a bitmap, and half
+		   blocks want their own -- twice the rows, since a cell
+		   holds two of them. Without this the lower half of the
+		   picture reads off the end of the grid and comes back
+		   black. */
+		pthread_mutex_lock(&p->mu);
+		mv_fit(p, cm, &mv_tw, &mv_th);
+		pthread_mutex_unlock(&p->mu);
+		fh = cm == 0 ? (mv_th + 1) / 2 : mv_th;
+		ox = (cols - mv_tw) / 2;
+		oy = (rows - fh) / 2;
 	}
+	p->drew = 0;
 	s_init(&run);
 	for (r = 0; r < rows; r++) {
 		sr = row + r;
@@ -121,10 +150,10 @@ int mv_draw(sh *s, const dp_api *dp, mv_pl *p, int row, int col, int prow, int p
 		c = 0;
 		while (c < cols) {
 			c0 = c;
-			mv_cellof(p, f, c - ox, r - oy, &a);
+			mv_cellof(p, cm, f, c - ox, r - oy, &a);
 			run.n = 0;
 			while (c < cols) {
-				mv_cellof(p, f, c - ox, r - oy, &k);
+				mv_cellof(p, cm, f, c - ox, r - oy, &k);
 				if (k.fg != a.fg || k.bg != a.bg || strcmp(k.t, a.t))
 					break;
 				sc = col + c;

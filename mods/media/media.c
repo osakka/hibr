@@ -125,6 +125,13 @@ int mv_info(sh *s, mv_pl *p)
 	mv_field(s, "output", p->ai >= 0 ? p->ao.name : "");
 	mv_field(s, "mode", p->mode == 1 ? "ascii" : p->mode == 2 ? "mono" :
 		 p->mode == 3 ? "sixel" : "half");
+	/* What the last draw actually did, which is not the same question
+	   as what was asked for: the pixel path falls through to cells
+	   whenever the display has no answer about pictures yet, the
+	   terminal does not draw them, or the frame does not fit the
+	   rectangle it is clipped to -- and said nothing, so a player
+	   showing `mode` was reporting an intention as a fact (#199). */
+	mv_field(s, "drawn", p->drew ? "pixels" : "cells");
 	mv_field(s, "error", p->err ? p->err : "");
 	pthread_mutex_unlock(&p->mu);
 	s_free(&b);
@@ -155,6 +162,14 @@ int mv_drawcmd(sh *s, mv_pl *p, int ac, char **av)
 		lg(HIBR_LERR, "media draw: no display open");
 		return HIBR_FAIL;
 	}
+	/* What a cell measures, for the pixel mode's own decode size: a
+	   bitmap is drawn at the terminal's pixels, not at the cell count
+	   (mv_fitpx). Asked here rather than kept, since a client
+	   attaching to a held session can change it. The decode thread
+	   rebuilds its scaler when the size it is given moves, so the
+	   next frame is the right one. */
+	if (mv_dp->cellpx)
+		mv_dp->cellpx(&p->cw, &p->ch);
 	if (pane) {
 		if (!mv_dp->prect || !mv_dp->prect(pane, &prow, &pcol, &ph, &pw)) {
 			lg(HIBR_LERR, "media draw: no such pane: %s", pane);
