@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.99.209
+
+**Pasting into a terminal window does something.**
+
+Gitea #250, split out of #229, where it was ten lines in the owner's own
+`desktop.log`:
+
+    hibr: term_paste: missing argument op                     (x6)
+
+`<app>_paste` was called from two places with **different argument
+counts**: `wm/files.hibr`'s Copy/Cut/Paste path passes three -- the text
+and, third, `cut` or `copy`, which is what its own comment says the
+contract is -- and `wm/input.hibr`, where a **bracketed paste from the
+host terminal** arrives, passed two.
+
+Twenty-two of the twenty-three `_paste` callbacks survive that, because
+they are declared `op = ""`. **`term_paste` was the one with a bare
+`op`** -- and a declared function refuses an argument it is missing
+without a default, so its body never ran. Pasting into a terminal
+window did nothing at all, silently, and the terminal is the thing
+anybody actually pastes into.
+
+Both halves are fixed, because the contract should be kept by the caller
+*and* no callback should be the only one of twenty-three that cannot
+take the short form: `wm/input.hibr` passes `copy` as the third argument
+(the line above it has just said so to `dt_clipset`), and `term_paste`
+takes `op = ""`.
+
+`tests/apps.py` drives it, in the terminal section, next to the check
+that typing reaches the shell -- Stickies, Files and the calculator were
+already driven with a bracketed paste and the terminal was not. It fails
+against 0.99.208 **twice**: the paste check, and "no session printed a
+shell error" catching the refusal in the log.
+
+`tests/540-examples.t` gained `paste`, `copy` and `cut` in its callback
+arity table, which had never named them; with it, a `_paste` that names
+two of three fails the build.
+
 ## 0.99.208
 
 **A write to a peer that has gone no longer kills the desktop.**

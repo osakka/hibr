@@ -547,7 +547,7 @@ fn term_copy(int id) {
 
 # Paste as the terminal's own paste arrives: bracketed, when the program
 # asked for that, so a shell does not run each line as it lands.
-fn term_paste(int id, text, op) {
+fn term_paste(int id, text, op = "") {
 	[ -n "${TW[$id]["t"]}" ] && term key "${TW[$id]["t"]}" "paste $text"
 	return 0
 }

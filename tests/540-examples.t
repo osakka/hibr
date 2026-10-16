@@ -112,6 +112,12 @@ awk '
     W["open"] = 2; W["close"] = 1; W["draw"] = 5; W["key"] = 2; W["click"] = 4
     W["mouse"] = 6; W["wheel"] = 4; W["drop"] = 5; W["context"] = 1
     W["stash"] = 2; W["resume"] = 1; W["idle"] = 1
+    # Copy, Cut and Paste, which had no entry here until Gitea #250: a
+    # paste is the text and, third, cut or copy, and `term_paste` was
+    # declared `op` rather than `op = ""` -- the one of twenty-three
+    # that could not take the short call wm/input.hibr was making, so a
+    # paste from the host terminal into a terminal window did nothing.
+    W["paste"] = 3; W["copy"] = 1; W["cut"] = 1
     P["draw"] = 4; P["key"] = 2; P["click"] = 3; P["drop"] = 4; P["wheel"] = 2
     P["slide"] = 3
     S["draw"] = 2; S["click"] = 2

@@ -3823,6 +3823,31 @@ went in the shell.
   socket -- which nobody had suspected -- is the path that reproduces.
   **Before naming which writer killed it, check whether that writer asks
   first.**
+- **Two call sites of one callback that pass different numbers of
+  arguments is a bug in whichever of them the table does not know about,
+  and the twenty-two that survive it are what hide it** (Gitea #250,
+  0.99.209). `<app>_paste` is called with **three** arguments by
+  `dt_edit`'s Copy/Cut/Paste path and was called with **two** by
+  `wm/input.hibr`, where a bracketed paste from the *host* terminal
+  arrives. Twenty-two of the twenty-three implementations declare
+  `op = ""` and so take either; `term_paste` declared a bare `op`, a
+  declared function refuses an argument it is missing without a default,
+  and **its body never ran** -- so pasting into a terminal window did
+  nothing, silently, with the reason only in the desktop's log. The
+  terminal is the window a person pastes into most.
+  Three things worth keeping. **Fix both halves**: the caller, because
+  `wm/files.hibr`'s own comment states the contract, and the callback,
+  because being the only one of twenty-three that cannot take the short
+  call is itself the defect. **The suffix namespace is not a contract** --
+  a first attempt at a general rule ("a parameter any implementation makes
+  optional must be optional in all") reported 20 of 47 `_click`s, because
+  `_click` is shared by windows, panes, strip modules and private helpers
+  that have nothing to do with each other; the rule that works is the one
+  `540-examples.t` already had, a table of arities per registered kind,
+  which simply had no row for `paste`, `copy` or `cut`. And **the shell
+  error check caught it independently**: the new check and "no session
+  printed a shell error" both failed against the old code, which is what
+  a missing-argument refusal looks like from two directions.
 - **"No APC at all" is not "no picture".** Three assertions across two
   suites read `not sc.apc` meaning "nothing was drawn as a bitmap", and
   broke the moment the display sent an APC **query** of its own. A

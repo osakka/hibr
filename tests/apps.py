@@ -2176,6 +2176,21 @@ sc = run(*TERM, feed=[b"e", b"c", b"h", b"o", b" ", b"h", b"i", b"\r"],
 check("what is typed reaches it and what it says comes back",
       sc.find("echo hi") is not None and "│hi " in sc.row(4), sc)
 
+# And a paste from the *host* terminal reaches it too (Gitea #250). That
+# arrives as one `paste <text>` key, which wm/input.hibr hands to the
+# window's own `_paste` with **two** arguments, where dt_edit's Copy/Cut/
+# Paste path passes three -- and `term_paste` was the one `_paste` of
+# twenty-three declared with a bare `op` rather than `op = ""`, so it
+# refused the short call and its body never ran: pasting into a terminal
+# window did nothing at all, and said so only in the desktop's own log.
+# Three apps were already driven this way here -- Stickies, Files, the
+# calculator -- and the terminal, which is what anybody actually pastes
+# into, was not.
+sc = run(*TERM, feed=[b"\x1b[200~echo pasted\x1b[201~", b"\r"], pre=SH,
+         wait=1.6, until=lambda sc: "│pasted " in sc.row(4))
+check("and a paste from the host terminal reaches it as well as typing does",
+      sc.find("echo pasted") is not None and "│pasted " in sc.row(4), sc)
+
 # A terminal window's own shell says which window it is, in ps: four shells
 # in four windows all read a bare `hibr` before 0.99.110, so there was no
 # way to tell which process was which window, or to end one by hand without
@@ -4718,4 +4733,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(627)
+report(628)
