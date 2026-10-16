@@ -506,7 +506,13 @@ int wb_req(const char *method, const char *params, const char *session)
 	s_cat(&m, "}");
 	s_add(&m, "", 1);
 	while (off < m.n) {
-		w = write(wb.in, m.p + off, m.n - off);
+		/* hibr_wrall rather than write: Chromium is a separate
+		   program that exits, crashes and is picked by the OOM
+		   killer, and a plain write to its pipe once it has gone
+		   killed the whole desktop with SIGPIPE -- so the EPIPE
+		   handling just below was correct and unreachable
+		   (Gitea #229). */
+		w = hibr_wrall(wb.in, m.p + off, m.n - off);
 		if (w < 0 && errno == EINTR)
 			continue;
 		if (w <= 0) {

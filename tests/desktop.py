@@ -3674,6 +3674,41 @@ check("a window that is not there is refused, saying so", rc == 1 and j.get("err
 rc, j = ctl("move", fid, "nosuch")
 check("and so is a display that is not", rc == 1 and j.get("error") == "no-display", j)
 
+# A client that gives up before the answer lands must not take the desktop
+# with it (Gitea #229). The reply went out through `printf ... >&"$c"`, an
+# ordinary redirection, so a write to a socket whose peer had gone raised
+# SIGPIPE -- whose default ends the process, and the process is the whole
+# desktop: every window and every terminal's shell with it. The supervisor
+# then restarts it, which is what "crashes multiple times when being used"
+# looked like from outside, and what two `the desktop died on signal 13`
+# lines in the owner's own log were.
+#
+# shutdown(SHUT_RD) rather than close() makes it certain rather than a
+# race: the request already sent stays readable, so the desktop still gets
+# as far as answering, and the answer has nowhere to land. With close()
+# alone the desktop's own read and the client's exit are in a race, and a
+# run where the read came first would pass against the broken code.
+import socket as _sock
+
+_p = os.path.join(JOIN, "hibr-ctl-%d" % os.getuid(), "desktop.ctl")
+_gave = False
+try:
+    _c = _sock.socket(_sock.AF_UNIX, _sock.SOCK_STREAM)
+    _c.settimeout(5)
+    _c.connect(_p)
+    _c.sendall(b'{"op":"windows"}\n')
+    _c.shutdown(_sock.SHUT_RD)
+    time.sleep(1.0)
+    _c.close()
+    _gave = True
+except OSError as _e:
+    _gave = str(_e)
+t1.collect(0.5)
+rc, j = ctl("windows")
+check("a client that gives up before the answer lands does not kill the desktop",
+      _gave is True and not t1.exited and rc == 0 and "windows" in j,
+      (_gave, t1.exited, rc, j))
+
 # The Control Panel gets a "Displays" pane (Slice D): every attached
 # display drawn to scale from hold clients, dragged to reposition it
 # (hold move on release); a "Primary:" dropdown to choose which one is
@@ -5357,4 +5392,4 @@ check("launching an app that is not installed says which one and where "
       sc.find("files is not installed") is not None
       and sc.find("Catalogue") is not None, sc)
 
-report(614)
+report(615)

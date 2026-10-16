@@ -225,7 +225,7 @@ fn mt_upgrades(kind, host, port, line) {
 		[[ ${line^^} == *STARTTLS* ]] && return 0
 		exec {fd}<>"/dev/tcp/$host/$port" 2> /dev/null || return 1
 		read -r -t "$MT_TMO" got <&"$fd" 2> /dev/null
-		printf 'a CAPABILITY\r\n' >&"$fd" 2> /dev/null
+		send -r "$fd" "a CAPABILITY" 2> /dev/null
 		got=
 		while read -r -t "$MT_TMO" o <&"$fd" 2> /dev/null; do
 			got+=$o
@@ -237,13 +237,13 @@ fn mt_upgrades(kind, host, port, line) {
 	smtp)
 		exec {fd}<>"/dev/tcp/$host/$port" 2> /dev/null || return 1
 		read -r -t "$MT_TMO" got <&"$fd" 2> /dev/null
-		printf 'EHLO hibr\r\n' >&"$fd" 2> /dev/null
+		send -r "$fd" "EHLO hibr" 2> /dev/null
 		got=
 		while read -r -t "$MT_TMO" o <&"$fd" 2> /dev/null; do
 			got+=$o
 			[[ $o == 250\ * ]] && break
 		done
-		printf 'QUIT\r\n' >&"$fd" 2> /dev/null
+		send -r "$fd" "QUIT" 2> /dev/null
 		exec {fd}>&-
 		[[ ${got^^} == *STARTTLS* ]]
 		;;

@@ -3785,6 +3785,44 @@ went in the shell.
   second: a placement that only happens after the answer cannot tell a
   fixed version from a broken one, which is this file's own rule about an
   oracle that never makes the gate fire.
+- **A write to anything that can go away must not be able to kill the
+  shell, and the list of what can go away is longer than it looks**
+  (Gitea #229, 0.99.208). A plain `write()` to a socket or pipe whose far
+  end has closed raises **SIGPIPE**, whose default ends the process -- and
+  for the desktop the process is every window and every terminal's shell
+  with it: two `the desktop died on signal 13` lines sat in the owner's
+  own `desktop.log` while the report was chased through probes for an
+  afternoon, which is this file's own rule about reading that log first.
+  The handling written around such a write is then **correct and
+  unreachable** -- `mods/web/cdp.c` reads `EPIPE` and says the browser has
+  gone, and the signal fires before there is anything to read. Reproduced
+  in six lines against a server shaped like `wm/ctl.hibr`: a client that
+  gives up mid-answer, and `server exit 141`.
+  `hibr_wrall` is the shape -- write everything to a descriptor the caller
+  owns, `MSG_NOSIGNAL` for a socket and SIGPIPE **blocked** around the
+  write otherwise, with a pending one drained before the mask goes back.
+  Three things in it are each a trap from elsewhere in this file.
+  **Blocked, never ignored**: an ignored signal survives `exec`, so every
+  program the desktop starts would inherit it and `yes | head` would stop
+  ending -- the hold SIGHUP trap again; and a block is not a disposition,
+  so `tr_wasign`'s lazy cache cannot mistake it for the parent's.
+  **Drain, or the second write dies**: a signal left pending lands the
+  moment the mask is restored, so the check has to write *twice* -- one
+  that writes once passes against a version that never drains. And **one
+  already pending when we arrive is somebody else's** and is left alone.
+  **What must not change is the default**, and that is half the test: an
+  ordinary redirection still raises it, because `hibr script | head -3`
+  has to end when `head` does. So this is for a descriptor the shell or a
+  module *owns* -- `send`, the TLS relay, the web module's pipes, http's
+  request, dav's sink -- and never for a script's own redirection.
+  **And the attribution was wrong where it was obvious.** The ticket
+  blamed the Browser and the YouTube player, and a probe that kills
+  Chromium under a live page then drives six `web` verbs survives on the
+  *broken* build too: every one of those verbs asks `wb_alive()` first,
+  which closes the pipe before anything writes to it. The control
+  socket -- which nobody had suspected -- is the path that reproduces.
+  **Before naming which writer killed it, check whether that writer asks
+  first.**
 - **"No APC at all" is not "no picture".** Three assertions across two
   suites read `not sc.apc` meaning "nothing was drawn as a bitmap", and
   broke the moment the display sent an APC **query** of its own. A

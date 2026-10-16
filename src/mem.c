@@ -6,6 +6,9 @@
 #include <stdarg.h>
 #include <unistd.h>
 #include <errno.h>
+#include <signal.h>
+#include <sys/types.h>
+#include <sys/socket.h>
 
 int hibr_lv = HIBR_LWRN;
 sh *lg_sh;
@@ -458,4 +461,84 @@ ssize_t io_rdall(int fd, void *buf, size_t n)
 		if (r >= 0 || errno != EINTR)
 			return r;
 	}
+}
+
+/* write everything, and never let a peer that has gone kill the shell.
+
+   A plain write() to a socket or pipe whose far end has closed raises
+   SIGPIPE, whose default is to end the process -- and for the desktop the
+   process is every window and every terminal's shell with it, which is what
+   `the desktop died on signal 13` in its own log was (Gitea #229). The
+   handling written around such a write is then correct and unreachable:
+   mods/web/cdp.c reads EPIPE and says the browser has gone, and the signal
+   fires before there is anything to read.
+
+   The disposition is never changed, because an ignored signal survives exec
+   and every program the shell starts would inherit it -- `yes | head` would
+   stop ending, which is this file's own SIGHUP trap in other clothes. A
+   socket is told per send (MSG_NOSIGNAL); anything else has SIGPIPE blocked
+   for the write alone, and a pending one drained before the mask goes back,
+   so nothing is left for a later wait to find. One already pending when we
+   arrive is somebody else's and is left where it is.
+
+   This is for a descriptor the shell or a module owns and knows can go
+   away. An ordinary redirection still raises the signal, deliberately:
+   `hibr script | head -3` has to end when head does. */
+ssize_t hibr_wrall(int fd, const void *p, size_t n)
+{
+	const char *b = (const char *)p;
+	size_t off = 0;
+	sigset_t one, old, pend;
+	int blocked = 0, wasp = 0;
+	ssize_t w;
+
+	while (off < n) {
+#ifdef MSG_NOSIGNAL
+		if (!blocked) {
+			w = send(fd, b + off, n - off, MSG_NOSIGNAL);
+			if (w >= 0) {
+				off += (size_t)w;
+				continue;
+			}
+			if (errno == EINTR)
+				continue;
+			if (errno != ENOTSOCK)
+				return off ? (ssize_t)off : -1;
+		}
+#endif
+		if (!blocked) {
+			sigemptyset(&one);
+			sigaddset(&one, SIGPIPE);
+			if (sigprocmask(SIG_BLOCK, &one, &old) != 0)
+				return off ? (ssize_t)off : -1;
+			sigemptyset(&pend);
+			sigpending(&pend);
+			wasp = sigismember(&pend, SIGPIPE) == 1;
+			blocked = 1;
+		}
+		w = write(fd, b + off, n - off);
+		if (w < 0 && errno == EINTR)
+			continue;
+		if (w <= 0)
+			break;
+		off += (size_t)w;
+	}
+	if (blocked) {
+		int e = errno;
+
+		if (!wasp) {
+			sigemptyset(&pend);
+			sigpending(&pend);
+			if (sigismember(&pend, SIGPIPE) == 1) {
+				int got;
+
+				sigwait(&one, &got);
+			}
+		}
+		sigprocmask(SIG_SETMASK, &old, NULL);
+		errno = e;
+	}
+	if (off < n)
+		return off ? (ssize_t)off : -1;
+	return (ssize_t)n;
 }

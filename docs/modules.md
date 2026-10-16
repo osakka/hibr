@@ -104,8 +104,17 @@ A module can reach everything the language can:
 | `hibr_fail` | `$ERRMSG`, as `fail` sets it |
 | `hibr_run` | run shell source |
 | `hibr_dial` | open a TCP or UDP connection |
+| `hibr_wrall` | write all of a buffer to a descriptor the module owns, without a peer that has gone killing the process |
 | `hibr_scheme`, `hibr_schemef`, `hibr_unscheme` | register a `/dev/<name>/` protocol |
 | `lg`, arenas, `str`, `vec` | the shell's own utilities |
+
+**Write with `hibr_wrall`, not `write`**, for a socket or a pipe the module
+holds. A plain write to one whose far end has closed raises SIGPIPE, whose
+default ends the process -- and for anything inside the desktop the process
+is every window at once, so the `EPIPE` handling written around such a write
+is correct and never reached. `hibr_wrall` answers the failure instead. An
+ordinary redirection a *script* writes through is left alone, deliberately:
+`hibr script | head -3` has to end when `head` does.
 
 **Schemes** let a module add a protocol rather than a command: once registered,
 `/dev/<name>/…` works anywhere a file does — `<`, `exec 3<`, `while … done <`,

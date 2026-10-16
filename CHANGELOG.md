@@ -1,5 +1,71 @@
 # Changelog
 
+## 0.99.208
+
+**A write to a peer that has gone no longer kills the desktop.**
+
+Gitea #229. Two lines in the owner's own `desktop.log`, there the whole
+time:
+
+    desktop: the desktop died on signal 13 after 93205s
+    desktop: the desktop died on signal 13 after 86122s
+
+**Signal 13 is SIGPIPE**, and its default ends the process -- which for
+the desktop is every window and every terminal's shell with it. The
+supervisor then starts it again, which is what "it crashes multiple
+times when being used" looks like from outside.
+
+Reproduced in six lines, against a server shaped exactly like
+`wm/ctl.hibr`: a client connects, sends a request, and gives up before
+the answer lands.
+
+    reply through a redirection   server exit 141   (killed by SIGPIPE)
+    reply through `send`          server exit 0     ("status 1", carries on)
+
+So **the desktop's control socket could be killed by any client that
+gave up mid-answer** -- and `desktop ctl` is what Blit, `catalogue
+remove` and the test harness all use.
+
+`hibr_wrall` is the fix: write everything to a descriptor the caller
+owns, with SIGPIPE held off for that write and a pending one drained
+before the mask goes back, so nothing is left for a later wait to find.
+A socket is told per send with `MSG_NOSIGNAL`; anything else has the
+signal blocked. The **disposition is never changed**, because an ignored
+signal survives `exec` and every program the desktop starts would
+inherit it -- `yes | head` would stop ending.
+
+Now used by `send` (so `wm/ctl.hibr` answers that way rather than with a
+redirection), the TLS relay, `mods/web`'s pipe to Chromium and its tap's
+pipes to the player, `mods/http`'s request and `mods/dav`'s `dv_sink`.
+Each already had the `EPIPE` handling written around it; each was
+correct and unreachable, because the signal fired first.
+
+**What is deliberately unchanged**, and measured to be so: an ordinary
+redirection still raises the signal, so `hibr ... | head -3` still ends
+with 141 and a pipeline stage still dies when its reader goes.
+`tests/208-send-epipe.t` records all of it side by side, and fails
+against 0.99.207.
+
+**What is not claimed.** The report that prompted this ticket was the
+Browser and the YouTube player being unstable, and that attribution is
+**not** confirmed. A probe that kills Chromium under a live page and
+then drives six `web` verbs survives on 0.99.207 as well as on this
+release -- every one of those verbs asks `wb_alive()` first, which closes
+the pipe before anything writes to it. What is left in `mods/web` is a
+real race (`wb_req` checks only `wb.in < 0`, so a browser that dies
+between the check and the write still reaches it) and the tap's writes
+to the *player's* pipes, which ask nothing at all. Both are covered by
+construction. The control socket is the path that is proven.
+
+`tests/desktop.py` gained the end-to-end check: a client that
+`shutdown(SHUT_RD)`s -- so the request stays readable and the answer has
+nowhere to land, which makes it certain rather than a race -- leaves the
+desktop alive and answering. It fails against 0.99.207, and takes the
+rest of that section with it, because the desktop is gone.
+
+`hibr_wrall` is additive, so `HIBR_ABI` has not moved; the package ships
+the shell and its modules together, as it did for `hibr_schemef`.
+
 ## 0.99.207
 
 **A bitmap is never committed on a guess.**

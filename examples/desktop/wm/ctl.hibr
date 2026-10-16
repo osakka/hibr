@@ -196,7 +196,7 @@ fn dt_ctlserve(int c) {
 
 	if [ "$REMOTE" != "uid:$UID" ]; then
 		out := dt_ctlerr unauthorized "only the desktop's own user may control it"
-		printf '%s\n' "$out" >&"$c" 2> /dev/null
+		send "$c" "$out" 2> /dev/null
 		return 0
 	fi
 	if ! read -r -t 1 line <&"$c" || [ -z "$line" ]; then
@@ -217,7 +217,7 @@ fn dt_ctlserve(int c) {
 		*) out := dt_ctlerr unknown-op "$op" ;;
 		esac
 	fi
-	printf '%s\n' "$out" >&"$c" 2> /dev/null
+	send "$c" "$out" 2> /dev/null
 	return 0
 }
 

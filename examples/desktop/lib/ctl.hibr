@@ -106,7 +106,7 @@ if [ -z "$fd" ]; then
 	fi
 	exit 2
 fi
-printf '%s\n' "$req" >&"$fd"
+send "$fd" "$req"
 answer=
 read -r -t 5 answer <&"$fd"
 exec {fd}>&-

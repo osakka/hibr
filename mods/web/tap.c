@@ -91,7 +91,7 @@ int wb_wall(int fd, const char *p, size_t n)
 	ssize_t w;
 
 	while (n) {
-		w = write(fd, p, n);
+		w = hibr_wrall(fd, p, n);
 		if (w < 0 && errno == EINTR)
 			continue;
 		if (w <= 0)

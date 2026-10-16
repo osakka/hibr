@@ -41,7 +41,10 @@ int http_open(sh *s, const char *rest)
 	s_cat(&req, " HTTP/1.0\r\nHost: ");
 	s_cat(&req, host.p);
 	s_cat(&req, "\r\nConnection: close\r\n\r\n");
-	if (write(fd, req.p, req.n) != (ssize_t)req.n) {
+	/* hibr_wrall: a server that closed the connection must come back as
+	   the failure below, not as a SIGPIPE that ends the script that
+	   opened /dev/http/... (Gitea #229). */
+	if (hibr_wrall(fd, req.p, req.n) != (ssize_t)req.n) {
 		lg(HIBR_LERR, "http: request write failed");
 		close(fd);
 		fd = -1;

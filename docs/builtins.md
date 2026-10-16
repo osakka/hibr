@@ -325,13 +325,27 @@ the next entry, `~-1` the one before last, and `~+` and `~-` are `$PWD` and
 | `listen [-f] [-n count] port handler` | **[hibr]** serve connections with a handler |
 | `listen -b port [var]` | **[hibr]** bind only, and hand back the descriptor; a port with a `/` is a Unix socket, owner-only |
 | `accept [-t secs] listenfd [var]` | **[hibr]** wait for one connection, at most secs with `-t`; `$REMOTE` is `uid:N` for a Unix socket |
-| `send [-n\|-r] fd text…` | **[hibr]** write to a descriptor; `-r` ends CRLF |
+| `send [-n\|-r] fd text…` | **[hibr]** write to a descriptor; `-r` ends CRLF; a peer that has gone is a failing status, never a signal |
 | `recv [-a\|-n bytes] fd [var]` | **[hibr]** read one line, all of it, or `n` bytes |
 
 Descriptors come back above 9, so a redirection cannot tread on one. `send`
 and `recv` take a descriptor as a number and refuse anything else, with
-status 2, rather than reading an empty one as descriptor 0. `listen -b`
-is what lets a daemon bind a privileged port as root and then stop being root:
+status 2, rather than reading an empty one as descriptor 0.
+
+**`send` answers a peer that has gone; a redirection still raises
+SIGPIPE.** Writing to a socket or pipe whose far end has closed raises that
+signal, whose default ends the process -- which is right for a pipeline,
+since `hibr script | head -3` has to end when `head` does, and that is left
+exactly as it was. It is wrong for a server answering one client among
+many: the desktop's control socket replied through a redirection, so one
+client that gave up mid-answer killed every window
+([#229](https://github.com/osakka/hibr/issues/229)). `send` holds the
+signal off for its own write and reports `Broken pipe` with status 1
+instead, so the script decides. A `PIPE` trap does not fire for a `send`,
+deliberately: the write answered for itself.
+
+`listen -b` is what lets a daemon bind a privileged port as root and then
+stop being root:
 
 <!-- not run: needs root, and serves until stopped -->
 ```sh

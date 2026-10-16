@@ -2,12 +2,13 @@
 #define HIBR_H
 
 #include <stddef.h>
+#include <sys/types.h>
 
 #ifndef HIBR_ABI
 #define HIBR_ABI 16u
 #endif
 #ifndef HIBR_VER
-#define HIBR_VER "0.99.207"
+#define HIBR_VER "0.99.208"
 #endif
 #ifndef HIBR_OK
 #define HIBR_OK 0
@@ -364,6 +365,12 @@ int hibr_scheme(sh *s, const char *nm, hibr_open_fn fn);
 #define HIBR_SCH_LOCAL 1u
 #endif
 int hibr_schemef(sh *s, const char *nm, hibr_open_fn fn, unsigned f);
+
+/* Write everything to a descriptor the caller owns, without a vanished peer
+   killing the process with SIGPIPE: a module writing to a pipe or socket of
+   its own uses this rather than write(), so its own EPIPE handling is
+   reachable (Gitea #229). Answers n, or -1 with errno set. */
+ssize_t hibr_wrall(int fd, const void *p, size_t n);
 
 /* Rename the running process, the way the `title` builtin renames a
    script's: what ps prints and /proc/pid/comm. For a module process that

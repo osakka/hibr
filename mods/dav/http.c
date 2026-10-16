@@ -570,10 +570,13 @@ int dv_sink(dv_res *rs, int out, const char *p, size_t n)
 {
 	if (out >= 0) {
 		while (n) {
-			ssize_t w = write(out, p, n);
+			/* hibr_wrall rather than write: the descriptor is
+			   the caller's, so it may be a pipe whose reader has
+			   gone -- which must be the failure below rather
+			   than a signal that ends the script (Gitea #229).
+			   It retries EINTR itself. */
+			ssize_t w = hibr_wrall(out, p, n);
 
-			if (w < 0 && errno == EINTR)
-				continue;
 			if (w <= 0) {
 				lg(HIBR_LERR, "dav: cannot write what arrived: %s",
 				   strerror(errno));

@@ -535,7 +535,7 @@ void tls_relay(int plain, int sock, const char *host)
 				n = tls.read(ssl, buf, HIBR_IOCH);
 				if (n <= 0)
 					goto done;
-				if (write(plain, buf, (size_t)n) != n)
+				if (hibr_wrall(plain, buf, (size_t)n) != n)
 					goto done;
 				/* Two buffers, not one: SSL_pending counts
 				   plaintext already decrypted, and
@@ -1159,7 +1159,12 @@ int b_send(sh *s, int ac, char **av)
 		s_cat(&b, "\r\n");
 	else if (nl)
 		s_ch(&b, '\n');
-	if (write(fd, b.p ? b.p : "", b.n) != (ssize_t)b.n) {
+	/* hibr_wrall, not write: a peer that has gone must come back as
+	   EPIPE for this builtin to report, never as a signal that ends the
+	   script -- which is what `send` is for, and is why wm/ctl.hibr
+	   answers a request this way rather than with a redirection
+	   (Gitea #229). A redirection stays lethal, deliberately. */
+	if (hibr_wrall(fd, b.p ? b.p : "", b.n) != (ssize_t)b.n) {
 		lg(HIBR_LERR, "send: %s", strerror(errno));
 		s_free(&b);
 		return HIBR_FAIL;
