@@ -256,6 +256,22 @@ def apps(*args, env=None):
     return r.returncode, r.stdout, r.stderr
 
 
+def lsrows(out, id):
+    """Every row of a `list` or `installed` listing that is this id.
+
+    The kind and the name have been columns of their own since
+    0.99.219: `colours/dracula` in one cell is two facts jammed
+    together, the same mistake the version and the scope were making
+    in the cell beside it. So a listing no longer holds an id as a
+    string anywhere, and eight checks here were matching one. Every
+    *message* the manager prints still names the id -- `removed
+    apps/demo`, `a part of apps/parts` -- which is why only the
+    listings wanted this.
+    """
+    kind, _, name = id.partition("/")
+    return [l for l in out.splitlines() if l.split()[:2] == [kind, name]]
+
+
 def appsx(*runs, env=None):
     """Several managers at once, into one scope. Two that overlap used to
     lose one of them: each read the whole state at its start and wrote the
@@ -310,7 +326,7 @@ try:
     # twice and the scope twice. `"apps" in out` passed off the id all
     # along, so it was checking the thing it names by accident.
     rc, out, err = apps("installed")
-    row = [l for l in out.splitlines() if l.startswith("apps/demo ")]
+    row = lsrows(out, "apps/demo")
     check("and installed says so, with its version and scope",
           rc == 0 and len(row) == 1 and "1.0" in row[0]
           and row[0].rstrip().endswith("user"), out + err)
@@ -318,7 +334,7 @@ try:
     # They said `installed` here and `user` there, which is half of what
     # made two views of one state read as two different programs.
     rc, out, err = apps("list")
-    row = [l for l in out.splitlines() if l.startswith("apps/demo ")]
+    row = lsrows(out, "apps/demo")
     check("and list marks it as yours rather than offering it again",
           rc == 0 and len(row) == 1 and row[0].rstrip().endswith("user"),
           out)
@@ -480,8 +496,8 @@ try:
     apps("install", "parts")
     apps("install", "demo")
     rc, out, err = apps("installed")
-    partsrow = [l for l in out.splitlines() if l.startswith("apps/parts ")]
-    demorow = [l for l in out.splitlines() if l.startswith("apps/demo ")]
+    partsrow = lsrows(out, "apps/parts")
+    demorow = lsrows(out, "apps/demo")
     check("installed says what an entry brought with it",
           len(partsrow) == 1 and "+1 part" in partsrow[0], (out,))
     check("and says nothing of the kind for one that brought nothing",
@@ -557,7 +573,7 @@ try:
             apps("remove", n)
         appsx(("install", "demo"), ("install", "parts"))
         rc, out, err = apps("installed")
-        if not ("apps/demo" in out and "apps/parts" in out):
+        if not (lsrows(out, "apps/demo") and lsrows(out, "apps/parts")):
             lost += 1
     check("two managers installing at once keep both, rather than one "
           "erasing the other's entry and orphaning its files",
@@ -838,7 +854,8 @@ try:
           "XDG_DATA_HOME": os.path.join(HOME, "d3")}
     rc, out, err = apps("list", env=E2)
     check("an index keyed by kind/name is read, and the list shows the id",
-          rc == 0 and "apps/clock" in out and "savers/clock" in out, out + err)
+          rc == 0 and lsrows(out, "apps/clock") and lsrows(out, "savers/clock"),
+          out + err)
     rc, out, err = apps("install", "demo", env=E2)
     check("a bare name that means one thing still installs it",
           rc == 0 and os.path.exists(os.path.join(HOME, "d3", "hibr", "apps",
@@ -864,7 +881,7 @@ try:
           (rc, out, err))
     rc, out, err = apps("installed", env=E2)
     check("and the state tells them apart",
-          rc == 0 and "apps/clock" in out and "savers/clock" in out,
+          rc == 0 and lsrows(out, "apps/clock") and lsrows(out, "savers/clock"),
           (rc, out, err))
     rc, out, err = apps("remove", "savers/clock", env=E2)
     check("removing one leaves the other",
@@ -1049,7 +1066,7 @@ try:
     # taking the whole catalogue with it.
     rc, out, err = apps("list", env=E4)
     check("and the list leaves it out rather than ending there",
-          rc == 0 and "apps/demo" in out and "climbed" not in out,
+          rc == 0 and lsrows(out, "apps/demo") and "climbed" not in out,
           (rc, out, err))
 
     # A state written before this was keyed by name, and everything in it was
@@ -1060,9 +1077,9 @@ try:
     d["installed"]["demo"] = d["installed"].pop("apps/demo")
     json.dump(d, open(st3, "w"))
     rc, out, err = apps("list", env=E2)
+    dr = lsrows(out, "apps/demo")
     check("a state keyed by name is read as the apps it can only have been",
-          rc == 0 and "user" in out.split("apps/demo")[1].split("\n")[0],
-          (rc, out))
+          rc == 0 and len(dr) == 1 and "user" in dr[0], (rc, out))
 
     # --- a module from the catalogue (Gitea #221, ADR 0044) -------------
     #
@@ -1208,14 +1225,14 @@ try:
         # nobody can be relied on to do; `purge` answers it properly,
         # from each installed entry's own `modules` (Gitea #246).
         rc, out, err = apps("installed", env=EW)
-        mrow = [l for l in out.splitlines() if l.startswith("mods/greet ")]
+        mrow = lsrows(out, "mods/greet")
         check("installed says a module was automatic without naming a "
               "needer that may since have gone",
               len(mrow) == 1 and "automatic" in mrow[0]
               and "wantsmod" not in mrow[0], (out,))
         apps("remove", "wantsmod", env=EW)
         rc, out, err = apps("installed", env=EW)
-        mrow = [l for l in out.splitlines() if l.startswith("mods/greet ")]
+        mrow = lsrows(out, "mods/greet")
         check("and still says so once the app that wanted it is gone, "
               "rather than naming it",
               len(mrow) == 1 and "automatic" in mrow[0]
@@ -1236,7 +1253,7 @@ try:
         rc2, out2, err2 = apps("info", "mods/elsewhere", env=EW)
         check("a module built for another machine is not listed, and "
               "`info` still says why",
-              rc == 0 and "mods/greet" in out and "elsewhere" not in out
+              rc == 0 and lsrows(out, "mods/greet") and "elsewhere" not in out
               and rc2 == 0 and "darwin-arm64" in out2,
               (out, out2))
 
@@ -1331,10 +1348,10 @@ try:
         # things were installed for everybody, was told nothing at all
         # (Gitea #254). The mark is what keeps ownership honest -- their
         # own `remove` still cannot touch it.
-        o2 = [l for l in out2.splitlines() if l.startswith("apps/demo ")]
+        o2 = lsrows(out2, "apps/demo")
         check("and each scope lists its own and says which it is, since "
               "/var/lib is not where anybody would look",
-              rc == 0 and "apps/demo" in out and "system" in out
+              rc == 0 and lsrows(out, "apps/demo") and "system" in out
               and len(o2) == 1 and "system" in o2[0],
               (out, out2))
         # A script is installed from an unverified catalogue with a
@@ -1492,12 +1509,12 @@ try:
     ES = {"HIBR_DESKTOP": SHIP, "XDG_DATA_HOME": FRESH,
           "XDG_CONFIG_HOME": FRESH}
     rc, out, err = apps("list", env=ES)
-    rows = [l for l in out.splitlines() if l.startswith("themes/plain ")]
+    rows = lsrows(out, "themes/plain")
     check("a theme the package ships reads `shipped` in list, rather than "
           "as one you do not have",
           rc == 0 and len(rows) == 1 and rows[0].rstrip().endswith("shipped"),
           (rc, rows, err))
-    rows = [l for l in out.splitlines() if l.startswith("themes/picture ")]
+    rows = lsrows(out, "themes/picture")
     check("and one the package does not ship still shows its version alone",
           len(rows) == 1 and rows[0].rstrip().endswith("1.0"), rows)
     # And `installed` shows it, which is the half that matters: the
@@ -1508,12 +1525,16 @@ try:
     # one. The scope column is what keeps ownership honest: `remove`
     # still refuses what the catalogue did not place.
     rc, out, err = apps("installed", env=ES)
-    rows = [l for l in out.splitlines() if l.startswith("themes/plain ")]
+    rows = lsrows(out, "themes/plain")
     check("`installed` shows a shipped thing too, marked shipped, because "
           "what you have is what the question means",
           rc == 0 and len(rows) == 1 and "shipped" in rows[0], (rc, out))
+    # The footer says what cannot be removed and no longer explains what
+    # `shipped` means: the word already says it, and spelling it out on
+    # every row read as the kind being printed twice ("savers/pipes 1.0
+    # savers shipped came with hibr").
     check("and counts what it did not place and cannot remove",
-          "1 more came with hibr" in out, out)
+          "1 more is shipped or system-wide" in out, out)
     rc, out, err = apps("remove", "themes/plain", env=ES)
     check("removing one it did not place is still refused, so showing it "
           "costs no ownership",

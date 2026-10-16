@@ -1,5 +1,54 @@
 # Changelog
 
+## 0.99.219
+
+**One column cannot hold two facts, and the catalogue was doing it
+twice over.**
+
+Reported in four parts, all of them the same shape: *"catalogue list
+does not have versions"*, *"catalogue installed still says shipped came
+with hibr"*, *"when it's user, it does not say user, only a version
+number"*, *"why does it say shipped and allow me to install?"* -- and
+then *"why colours/dracula ... it should be different columns"*.
+
+Four facts about a row -- what kind of thing it is, what it is called,
+which version, and where that version is -- were being carried in two
+columns. `colours/dracula` is a kind and a name jammed together, and
+the version cell held **either** a version **or** a scope word
+depending on the row, so a column meant one thing on some lines and
+another on others. That is the one-value-two-questions trap this file
+records for `MLME` (#157), the default background (#184) and
+`installed` (#254) -- walked into for a fourth time *while fixing the
+third*.
+
+Both listings are four and five columns now, with a heading when
+standard output is a terminal and none in a pipe:
+
+```
+KIND           NAME          TITLE                     VERSION  SCOPE
+apps           vault         Vault                     1.0      user
+colours        dracula       Dracula                   1.0      shipped
+```
+
+`installed` lists everything present with its scope rather than the
+ledger alone, and says `shipped` -- the footer explaining that shipped
+means it came with hibr is gone, because the word already says so.
+
+The Catalogue window had the same two bugs and one of its own. A row
+now carries VERSION and WHERE as two columns; and the button branches
+on what pressing it would actually do, so a theme the package already
+provides **at the same version** offers no Install, and one the
+catalogue has newer offers Update. `ap_shipver` is what makes that
+possible: "do you have one" and "which one have you got" are different
+questions, and only the first was ever asked.
+
+Four checks in `tests/apps.py`, each failing against 0.99.218, and
+eight in `tests/appmgr.py` that had been reading a listing by looking
+for the id as a string -- which the listing no longer holds anywhere,
+since the id *is* the two columns. `lsrows` reads a row by its kind
+and name; every **message** the manager prints still names the id, so
+only the listings wanted it.
+
 ## 0.99.218
 
 **Every screenshot in the documentation was corrupt, and there was no

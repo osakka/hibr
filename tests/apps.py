@@ -4437,6 +4437,23 @@ CAT_JSON = json.dumps({"entries": {
     "apps/widget": {"id": "apps/widget", "name": "widget", "kind": "apps",
                     "title": "Widget", "version": "2.0", "installed": "",
                     "update": "0", "about": "A widget\n\nthe second paragraph."},
+    # The package's own copy, at the version the catalogue offers. The
+    # window drew a tick and a *word where the version goes* for one of
+    # these, so a thing you installed showed a number and a shipped one
+    # showed a word -- one column meaning two things -- and it offered
+    # **Install** for something already present at the same version.
+    "themes/slate": {"id": "themes/slate", "name": "slate", "kind": "themes",
+                     "title": "Slate", "version": "1.0", "installed": "",
+                     "where": "shipped", "have": "1.0",
+                     "update": "0", "about": "A shipped theme"},
+    # And one the package has at an older version than the catalogue
+    # offers: installing over it is a real act, because a copy of your
+    # own is read before the package's (ADR 0045), so the button is
+    # there and says Update.
+    "themes/older": {"id": "themes/older", "name": "older", "kind": "themes",
+                     "title": "Older", "version": "2.0", "installed": "",
+                     "where": "shipped", "have": "1.0",
+                     "update": "0", "about": "A shipped theme, behind"},
     "apps/gadget": {"id": "apps/gadget", "name": "gadget", "kind": "apps",
                     "title": "Gadget", "version": "1.0", "installed": "1.0",
                     "update": "0", "about": "A gadget",
@@ -4596,6 +4613,48 @@ check("typing in the search narrows the list without asking again",
       sc.find("gadget") is not None and sc.find("widget") is None
       and asked().count("list -j") == 1, (sc, asked()))
 
+# A row carries the version **and** where it is, in two columns, for
+# every kind of row. The first version of the scope column put the word
+# in the version's own cell for anything that was not the person's own,
+# so a column meant "version" on some rows and "where" on others -- the
+# one-value-two-questions trap, walked into while fixing an instance of
+# it, and reported as "when it's user, it does not say user, only a
+# version number".
+# Only the first kind group is open when the window draws, so the
+# Themes heading is pressed first: a check that asserted on `slate`
+# without opening it was asserting on a row nothing had drawn.
+asstub()
+sc = run("catalogue", "24 84 2 2", env=ASENV, tries=150,
+         ready=lambda s: s.find("Themes") is not None,
+         feed=[lambda s: press(*s.find("Themes"))],
+         until=lambda s: s.find("slate") is not None)
+srow = [sc.row(r) for r in range(sc.rows) if "slate" in sc.row(r)]
+check("a shipped row carries its version and the word, not one in place "
+      "of the other",
+      len(srow) == 1 and "1.0" in srow[0] and "shipped" in srow[0], srow)
+check("and the column headings name both",
+      sc.find("VERSION") is not None and sc.find("WHERE") is not None, sc)
+
+# Install is offered only when pressing it would do something. What the
+# package already provides at the very same version is not yours to
+# install again, which is what "why does it say shipped and allow me to
+# install?" was about; one the catalogue has *newer* is a real act,
+# because a copy of your own is read before the package's (ADR 0045).
+sc = run("catalogue", "24 84 2 2", env=ASENV, tries=150,
+         ready=lambda s: s.find("Themes") is not None,
+         feed=[lambda s: press(*s.find("Themes")),
+               lambda s: press(*s.find("slate"))],
+         until=lambda s: s.find("Read It") is not None)
+check("a shipped thing at the same version offers no Install",
+      sc.find("Install") is None and sc.find("Read It") is not None, sc)
+sc = run("catalogue", "24 84 2 2", env=ASENV, tries=150,
+         ready=lambda s: s.find("Themes") is not None,
+         feed=[lambda s: press(*s.find("Themes")),
+               lambda s: press(*s.find("older"))],
+         until=lambda s: s.find("Update") is not None)
+check("and one the catalogue has newer offers Update instead",
+      sc.find("Update") is not None and sc.find("Install") is None, sc)
+
 # And the buttons ask the command for the thing the selection is on.
 asstub()
 sc = run("catalogue", "21 76 2 2", env=ASENV, tries=150,
@@ -4751,4 +4810,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(629)
+report(633)

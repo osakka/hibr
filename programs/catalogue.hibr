@@ -64,6 +64,9 @@ AP_STATE=$AP_DATA/apps.json
 # set it has no system scope at all, which is the honest answer rather
 # than a guess at where one would be.
 AP_SCOPE=user
+AP_SHIPF=
+AP_HAVE=
+declare -ga AP_SHIPW
 AP_SYSROOT=${HIBR_SYSDIR-}
 
 # Point everything at one scope. Called once, before anything reads a
@@ -784,7 +787,7 @@ AP_WINS=
 # slot. A builtin like `mod list` can; a command can only print, and the
 # honest version of "one answer" for a command is a machine-readable one.
 fn ap_list(want = "", int j = 0) {
-	local name n=0 v here i w pid pti
+	local name n=0 v here i w pki pna pti pve scp
 	local -A out
 
 	ap_load
@@ -845,6 +848,10 @@ fn ap_list(want = "", int j = 0) {
 			w := ap_where "${AP_ENT["id"]}" "${AP_ENT["kind"]}" \
 				"${AP_ENT["name"]}" || w=
 			out["entries"]["${AP_ENT["id"]}"]["where"]=$w
+			# Which version is actually there, so a reader can
+			# tell "you have this" from "a newer one is on
+			# offer" without asking a second time.
+			out["entries"]["${AP_ENT["id"]}"]["have"]=$AP_HAVE
 			if [ -n "$v" ]; then
 				out["entries"]["${AP_ENT["id"]}"]["scope"]=$AP_SCOPE
 				ap_insys "${AP_ENT["id"]}" &&
@@ -862,16 +869,18 @@ fn ap_list(want = "", int j = 0) {
 			n=$((n + 1))
 			continue
 		fi
+		# Version and scope are two facts about every row, and a
+		# column that holds one of them holds neither reliably: the
+		# first version of this put the scope *in place of* the
+		# version, so `list` stopped saying what any entry offered
+		# -- the one-value-two-questions trap, walked into while
+		# fixing an instance of it. Both, always, blank where there
+		# is nothing to say.
+		scp=
 		if [ -n "$v" ]; then
-			# The same word `installed` uses for the same thing.
-			# These two listed one state under two names --
-			# `installed` here and `user` there -- which is half
-			# of what made them read as different programs.
-			if [ "$v" = "${AP_ENT["version"]}" ]; then
-				v=$AP_SCOPE
-			else
-				v="$AP_SCOPE ($v, ${AP_ENT["version"]} available)"
-			fi
+			scp=$AP_SCOPE
+			[ "$v" = "${AP_ENT["version"]}" ] ||
+				v="$v→${AP_ENT["version"]}"
 		else
 			# Not in this scope's ledger is not "you do not have
 			# it": the machine's scope and the shipped package
@@ -881,18 +890,25 @@ fn ap_list(want = "", int j = 0) {
 			w := ap_where "${AP_ENT["id"]}" "${AP_ENT["kind"]}" \
 				"${AP_ENT["name"]}" || w=
 			case $w in
-			system | shipped) v=$w ;;
-			*) v=${AP_ENT["version"]} ;;
+			system | shipped) scp=$w ;;
 			esac
+			v=${AP_ENT["version"]}
 		fi
 		# str pad, not printf's own width: `%-24s` counts **bytes**,
 		# so a title holding one glyph wider than a byte -- the
 		# ellipsis in `Screenshot…` -- came out two columns short and
 		# the whole column stopped lining up. str pad counts display
 		# columns, which is what a column is (ADR 0021).
-		pid := str pad "${AP_ENT["id"]}" 28
+		# Four facts, four columns. `colours/dracula` in one column
+		# is the kind and the name jammed together, which is the
+		# same mistake as putting the version and the scope in one
+		# cell -- and it was in every row of every listing.
+		[ "$n" = 0 ] && ap_head "15 14 26 9" "KIND" "NAME" "TITLE" "VERSION" "SCOPE"
+		pki := str pad "${AP_ENT["kind"]}" 15
+		pna := str pad "${AP_ENT["name"]}" 14
 		pti := str pad "${AP_ENT["title"]}" 26
-		printf '%s%s%s\n' "$pid" "$pti" "$v"
+		pve := str pad "$v" 9
+		printf '%s%s%s%s%s\n' "$pki" "$pna" "$pti" "$pve" "$scp"
 		n=$((n + 1))
 	done
 	if [ "$j" = 1 ]; then
@@ -959,13 +975,50 @@ fn ap_deskdir() {
 fn ap_shipped(kind, name) {
 	local d e f
 
+	AP_SHIPF=
 	d := ap_deskdir || return 1
 	e := ap_kext "$kind"
 	for f in "$d/$kind/$name$e" "$d/$kind"/*/"$name$e" \
 		 "$d/$kind"/*/*/"$name$e"; do
-		[ -r "$f" ] && return 0
+		[ -r "$f" ] && { AP_SHIPF=$f; return 0; }
 	done
 	return 1
+}
+
+# Which version the shipped copy is, read from the file itself.
+#
+# "Do you have one" and "which one do you have" are different
+# questions, and answering only the first is what made the Catalogue
+# window offer **Install** on a theme the package already provides at
+# the very same version: it knew the thing was there and not what it
+# was. A script declares its version on its own `app` line, the way
+# `addapp` reads it; a theme, a colour scheme or a language declares it
+# in its JSON. Empty when the file says nothing, which is honest --
+# the caller then knows only that a copy exists.
+fn ap_shipver(kind, name) {
+	local l v
+
+	ap_shipped "$kind" "$name" || return 1
+	case $AP_SHIPF in
+	*.json)
+		local -A j
+		json parse j < "$AP_SHIPF" 2> /dev/null || return 1
+		v=${j["version"]}
+		;;
+	*)
+		while IFS= read -r l; do
+			case $l in
+			"app "*)
+				read -ra AP_SHIPW <<< "$l"
+				v=${AP_SHIPW[-1]}
+				break
+				;;
+			esac
+		done < "$AP_SHIPF"
+		;;
+	esac
+	[ -n "$v" ] || return 1
+	ret "$v"
 }
 
 # What version of this the **machine's** scope has, if any -- an
@@ -991,6 +1044,36 @@ fn ap_sysver(id) {
 	ret "$v"
 }
 
+# One header line for a listing, in the columns the rows use. Dim, so
+# the eye goes to the rows; a header that competes with its own table is
+# noise.
+fn ap_head(widths, ...cols) {
+	local w out= i=0
+	local -a wd
+
+	# Not in a pipe: a header helps a person read a table and is noise
+	# to `grep`, which is this tree's own rule for anything that writes
+	# to standard output.
+	[ -t 1 ] || return 0
+	read -ra wd <<< "$widths"
+	for w in "${cols[@]}"; do
+		# The widths come from the caller, because the two listings
+		# do not have the same columns: hard-coding `list`'s gave
+		# `installed` a VERSION heading padded to the width of a
+		# TITLE it does not have, and a header that does not line up
+		# with its own table is worse than none.
+		if [ -z "${wd[$i]}" ]; then
+			out="$out$w"
+		else
+			local p
+			p := str pad "$w" "${wd[$i]}"
+			out="$out$p"
+		fi
+		i=$((i + 1))
+	done
+	printf '%s\n' "$out"
+}
+
 # Where this entry is, across the scopes that can be answered with what
 # is already here (Gitea #254).
 #
@@ -1014,8 +1097,18 @@ fn ap_sysver(id) {
 # stays blank, and the ticket says so rather than leaving it to be
 # discovered.
 fn ap_where(id, kind, name) {
-	[ -n "${AP_ST["installed"]["$id"]["version"]}" ] && ret installed
-	ap_sysver "$id" && ret system
+	# AP_HAVE is the version of the copy that is actually there, which
+	# is a different question from whether one is -- and answering only
+	# the second is what let the window offer Install on something the
+	# package already provides at the same version.
+	AP_HAVE=
+	if [ -n "${AP_ST["installed"]["$id"]["version"]}" ]; then
+		AP_HAVE=${AP_ST["installed"]["$id"]["version"]}
+		ret installed
+	fi
+	if AP_HAVE := ap_sysver "$id"; then ret system; fi
+	if AP_HAVE := ap_shipver "$kind" "$name"; then ret shipped; fi
+	AP_HAVE=
 	ap_shipped "$kind" "$name" && ret shipped
 	return 1
 }
@@ -1069,7 +1162,7 @@ fn ap_parts(name) {
 }
 
 fn ap_installed(int j = 0) {
-	local name n=0 nd=0 js i sh sy what np auto w nh=0 pid pve pwh
+	local name n=0 nd=0 js i sh sy what np auto w nh=0 pki pna pve pwh
 	local -A out seen
 
 	ap_state
@@ -1141,13 +1234,15 @@ fn ap_installed(int j = 0) {
 		# a rubbish experience and was right about. Id, version,
 		# scope, and a note only when there is one, with no trailing
 		# blanks when there is not.
-		pid := str pad "$name" 28
-		pve := str pad "${AP_ST["installed"]["$name"]["version"]}" 10
+		[ "$n" = 0 ] && ap_head "15 14 9 9" "KIND" "NAME" "VERSION" "SCOPE" "NOTE"
+		pki := str pad "${AP_ST["installed"]["$name"]["kind"]}" 15
+		pna := str pad "${name##*/}" 14
+		pve := str pad "${AP_ST["installed"]["$name"]["version"]}" 9
 		if [ -n "$what" ]; then
 			pwh := str pad "$AP_SCOPE" 9
-			printf '%s%s%s%s\n' "$pid" "$pve" "$pwh" "$what"
+			printf '%s%s%s%s%s\n' "$pki" "$pna" "$pve" "$pwh" "$what"
 		else
-			printf '%s%s%s\n' "$pid" "$pve" "$AP_SCOPE"
+			printf '%s%s%s%s\n' "$pki" "$pna" "$pve" "$AP_SCOPE"
 		fi
 		seen["${AP_ST["installed"]["$name"]["paths"]["0"]}"]=1
 		for i in "${AP_PARTS[@]}"; do
@@ -1194,9 +1289,12 @@ fn ap_installed(int j = 0) {
 				out["installed"]["${AP_ENT["id"]}"]["defunct"]=0
 				continue
 			fi
-			pid := str pad "${AP_ENT["id"]}" 28
-			pve := str pad "${AP_ENT["version"]}" 10
-			printf '%s%s%s\n' "$pid" "$pve" "$w"
+			[ "$n" = 0 ] && [ "$nh" = 1 ] &&
+				ap_head "15 14 9 9" "KIND" "NAME" "VERSION" "SCOPE" "NOTE"
+			pki := str pad "${AP_ENT["kind"]}" 15
+			pna := str pad "${AP_ENT["name"]}" 14
+			pve := str pad "${AP_ENT["version"]}" 9
+			printf '%s%s%s%s\n' "$pki" "$pna" "$pve" "$w"
 		done
 	fi
 	if [ "$j" = 1 ]; then
@@ -1230,8 +1328,11 @@ fn ap_installed(int j = 0) {
 	# does not load, or a walk of the shipped folders, which would be a
 	# second encoding of where a kind lives. The sentence points at the
 	# verb that does know.
-	[ "$nh" -gt 0 ] &&
-		printf '%s more came with hibr or were installed for the whole machine, which this did not place and cannot remove\n' "$nh"
+	if [ "$nh" = 1 ]; then
+		printf '1 more is shipped or system-wide; this cannot remove it\n'
+	elif [ "$nh" -gt 1 ]; then
+		printf '%s more are shipped or system-wide; this cannot remove them\n' "$nh"
+	fi
 	return 0
 }
 

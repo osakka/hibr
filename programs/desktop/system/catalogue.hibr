@@ -186,6 +186,7 @@ fn cat_loaded(int id, int st, int n, what = "") {
 		# Empty from a catalogue older than 0.99.212, which then
 		# behaves exactly as it did.
 		CAT[$id]["e"][$i]["where"]=${j["entries"]["$k"]["where"]}
+		CAT[$id]["e"][$i]["have"]=${j["entries"]["$k"]["have"]}
 		CAT[$id]["e"][$i]["update"]=${j["entries"]["$k"]["update"]}
 		CAT[$id]["e"][$i]["about"]=${j["entries"]["$k"]["about"]}
 		CAT[$id]["e"][$i]["kind"]=${j["entries"]["$k"]["kind"]}
@@ -499,8 +500,14 @@ fn catalogue_draw(int id, int h, int w, int row, int col) {
 	console pen "$DT_INK" "$DT_FACE" bold
 	t := dt_tr "ITEM"
 	console put -p "w$id" 1 2 "$t"
+	# Two headings, because the rows now carry two facts. VERSION sits
+	# over the version column and WHERE over the scope, at the same
+	# offsets the rows use -- a header that does not line up with its
+	# own table is worse than none.
 	t := dt_tr "VERSION"
-	console put -p "w$id" 1 $((listw - ${#t} + 1)) "$t"
+	console put -p "w$id" 1 $((listw - 16)) "$t"
+	t := dt_tr "WHERE"
+	console put -p "w$id" 1 $((listw - 7)) "$t"
 
 	i=$top
 	r=2
@@ -574,23 +581,27 @@ fn catalogue_draw(int id, int h, int w, int row, int col) {
 				# repeating it in every row is noise.
 				lead := dt_treelead 1 \
 					"${CAT[$id]["r"][$i]["last"]:-0}" "0"
-				t := dt_cut "${CAT[$id]["e"][$e]["name"]}" "$idw"
-				t := str pad "$lead$mark $t" $((listw - 8))
-				# The right-hand column says **which scope**
-				# rather than a version, for anything that is
-				# not the person's own: a tick alone made
-				# twenty-one apps they installed and
-				# sixty-four the package shipped look
-				# identical, which is what they asked about
-				# (Gitea #254). The same three words the
-				# command line uses, so there is one
-				# vocabulary rather than two.
+				t := dt_cut "${CAT[$id]["e"][$e]["name"]}" $((idw - 9))
+				t := str pad "$lead$mark $t" $((listw - 17))
+				# The version **and** the scope, on every row.
+				# The first version of this put the scope in
+				# the version's cell for anything that was
+				# not the person's own, so a column meant
+				# "version" on some rows and "where" on
+				# others, and an app you installed showed a
+				# number where a shipped one showed a word:
+				# one cell answering two questions, which is
+				# the very trap this window was changed to
+				# fix. Both, always.
 				local vcol=${CAT[$id]["e"][$e]["version"]}
+				local scol=
 				case ${CAT[$id]["e"][$e]["where"]} in
-				shipped) vcol := dt_tr "shipped" ;;
-				system) vcol := dt_tr "system" ;;
+				shipped) scol := dt_tr "shipped" ;;
+				system) scol := dt_tr "system" ;;
+				installed) scol := dt_tr "user" ;;
 				esac
-				line="$t$vcol"
+				vcol := str pad "$vcol" 9
+				line="$t$vcol$scol"
 				if [ "$i" = "$sel" ] && ! dt_searchon "$id"; then
 					console pen "$DT_SELINK" "$DT_ACTIVE"
 				elif [ "$i" = "$sel" ]; then
@@ -760,12 +771,29 @@ fn cat_btns(int id, int h, int w) {
 		dt_buttons "$id" $((h - 1)) 2 "" asrefresh Refresh
 		return 0
 	}
+	# What the package or the machine already provides is not yours to
+	# install again at the same version, and offering it was the
+	# complaint: "why does it say shipped and allow me to install?".
+	# Installing over one *is* meaningful when the catalogue has
+	# something newer -- a copy of your own is read before the
+	# package's (ADR 0045) -- so the button appears exactly then, and
+	# says Update, because that is what pressing it does.
+	local wh=${CAT[$id]["e"][$e]["where"]}
+	local hv=${CAT[$id]["e"][$e]["have"]}
 	if [ "${CAT[$id]["e"][$e]["update"]}" = 1 ]; then
 		dt_buttons "$id" $((h - 1)) 2 "" asupdate Update \
 			asgo Uninstall asread "Read It" asrefresh Refresh
 	elif [ -n "${CAT[$id]["e"][$e]["installed"]}" ]; then
 		dt_buttons "$id" $((h - 1)) 2 "" asgo Uninstall \
 			asread "Read It" asrefresh Refresh
+	elif [ "$wh" = shipped ] || [ "$wh" = system ]; then
+		if [ -n "$hv" ] && [ "$hv" = "${CAT[$id]["e"][$e]["version"]}" ]; then
+			dt_buttons "$id" $((h - 1)) 2 "" \
+				asread "Read It" asrefresh Refresh
+		else
+			dt_buttons "$id" $((h - 1)) 2 "" asgo Update \
+				asread "Read It" asrefresh Refresh
+		fi
 	else
 		dt_buttons "$id" $((h - 1)) 2 "" asgo Install \
 			asread "Read It" asrefresh Refresh

@@ -870,6 +870,7 @@ Versions
 View
 View Details
 View History
+WHERE
 Wait for the transfers running to finish first
 Wallpaper
 Wallpaper Shows Through
@@ -968,6 +969,7 @@ the machine has this, and its copy is read first
 there is no account to test yet
 this session still runs the older hibr: 'hold upgrade %s' takes it onto the new one without losing your windows or your terminals' programs. Restart Desktop cannot, since it re-execs the desktop inside this session
 type a server or an address first
+user
 version %s
 working: %s
 yes, %s displays attached
