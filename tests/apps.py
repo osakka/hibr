@@ -2379,6 +2379,25 @@ check("DT_CURSOR sets a new terminal's cursor, drawn only where focused",
       sc.row(3).count("▏") == 1 and
       sum(sc.row(r).count("▏") for r in range(24)) == 1, sc)
 
+# And changing it reaches a terminal that is *already open*. A terminal
+# was told its cursor style when it opened and when a restart adopted it,
+# nowhere else, so Control Panel > Terminal > Cursor changed only the
+# windows opened after it -- Restart Desktop was the only way to see it on
+# the rest (Gitea #261). The setter itself is driven, the pane's own
+# cp_set_cursor, by a ticker that fires once two seconds in, after the
+# terminal is up and drawing its block cursor.
+CURSET = (SH + "\n. %s\n. %s\n"
+          "CZ_AT=$((EPOCHSECONDS + 2))\n"
+          "cz_tick() { [ -n \"$CZ_AT\" ] || return 0\n"
+          "  if [ \"$EPOCHSECONDS\" -lt \"$CZ_AT\" ]; then dt_want 200; return 0; fi\n"
+          "  CZ_AT=; cp_set_cursor \"\" bar; }\n"
+          "dt_ticker cz_tick\n"
+          % (tree("programs/desktop/system/panel.hibr"),
+             tree("programs/desktop/control-panel/terminal.hibr")))
+sc = run(*TERM, pre=CURSET, wait=1.6, feed=[3.5], end=None)
+check("changing Cursor reaches a terminal that is already open",
+      sum(sc.row(r).count("▏") for r in range(24)) == 1, sc)
+
 sc = run(*TERM, feed=[b"\x1b[21~"],
          pre=SH,
          wait=1.2)
@@ -4810,4 +4829,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(633)
+report(634)

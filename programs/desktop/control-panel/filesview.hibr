@@ -9,7 +9,7 @@
 strict
 
 
-app filesview "The Control Panel pane for Files" 1.0
+app filesview "The Control Panel pane for Files" 1.1
 command -v cp_pane > /dev/null && cp_pane filesview "Files" "◫" app
 
 fn cp_set_fileview(int? id = "", value = "") { FB_DEFAULTVIEW=$value; cp_save; }
@@ -47,7 +47,7 @@ fn filesview_do(int w, k, int dir) {
 	case $k in
 	fileview) v := cp_next "${FB_DEFAULTVIEW:-list}" "$dir" "${FILES_VIEWS[@]}"
 		FB_DEFAULTVIEW=$v ;;
-	resetviews) fb_reset_views ;;
+	resetviews) dt_needs files fb_reset_views && fb_reset_views ;;
 	DT_FBOPENWITH | DT_FBTERMHERE) cp_toggle "$k" ;;
 	termhere) v := cp_next "$DT_TERMHERE" "$dir" "${FV_SHELLS[@]}"
 		DT_TERMHERE=$v ;;

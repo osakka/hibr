@@ -1,5 +1,119 @@
 # Changelog
 
+## 0.99.224
+
+**An installed app could not load, because it only worked where the
+shipped tree had put it -- and nothing checked what an installed file
+reaches.**
+
+Reported from a desktop that would not start:
+
+```
+hibr: source: /home/osakka/.local/share/hibr/apps/../lib/pim.hibr: No such file or directory
+hibr: pe_onsync: command not found
+hibr: source: .../apps/Office/../../lib/diagram.hibr: No such file or directory
+```
+
+and then the question that mattered more than the bug: *"what if nothing
+was installed? is our desktop really dynamic or is it broken? what guards
+us against it being broken and asking for things it does not have?"*
+
+Calendar found its library at `${BASH_SOURCE%/*}/../lib/pim.hibr`. In
+this tree that is `programs/desktop/lib/pim.hibr`; once the catalogue
+has put Calendar in `~/.local/share/hibr/apps/` it is nothing. The user
+scope is read **before** the shipped copy (ADR 0045), so installing
+Calendar replaced a working app with one that could not load -- and its
+own ticker then called the missing `pe_servers` once a frame, which is
+**1.78 million lines** in the reporting desktop's log.
+
+**Measured before anything was changed**, the same root was in more than
+one file: eleven paths built from a file's own location (Calendar,
+Contacts, Diagram, Write, Sheet, Mail, and the PIM, Mail and Appearance
+panes -- Mail's sync job and the mail account test failing *silently*,
+with no error, only no mail), and **220 calls from one installable into
+another, 156 with no guard**.
+
+### The rule (ADR 0046)
+
+An installable reaches only what every scope has:
+
+- **the platform** -- the core, the shared libraries, and a file whose
+  header says `# platform:`. The Control Panel (every pane is built on
+  it) and the saver framework (every saver is) say so now, and the
+  catalogue refuses to publish them, so neither is ever installed apart
+  from what runs on it;
+- **shipped files, through `$DT_HERE`**, never `${BASH_SOURCE%/*}/..`;
+- **another installable only behind a guard in the same function** --
+  `dt_has`, or the new `dt_needs APP FN`, which says *"APP is not
+  installed. Find it in the Catalogue."*, the words `dt_launch` already
+  used. Every link between two apps is an optional integration rather
+  than a dependency: Mail without Calendar shows an invitation's actions
+  under their own names; the wallpaper picker without Files says it
+  needs Files.
+
+**Libraries are the desktop's to load.** `dt_libs` sources every file in
+the shipped `lib/` that marks itself `*_LIBDONE=1`, before any app and
+only from there, so a stray copy cannot shadow the package's. The files
+there without the mark are programs run as jobs and are never sourced.
+This is what repairs **installs already out there without touching their
+files**: each old copy's own guarded source line is now never reached.
+
+### What guards it
+
+- **`tests/deps.py`** reads every file of every script kind the catalogue
+  installs and fails on an own-location path, a sourced library the
+  desktop does not load, and an unguarded call into another installable.
+  Against the tree before this release: **167 failures**. After: none.
+- **`tests/scopes.py`** starts the desktop with the platform alone; as
+  the package ships it (no applications -- every fresh install); with
+  each of the 69 installables alone over the platform, *used* -- launched,
+  opened, started; and with all of them over the shipped desktop,
+  shadowing it. Any shell error fails it, naming the installable. Before:
+  Calendar, Contacts, Diagram, Write and everything-over-shipped failed.
+  After: **73 of 73**.
+
+They see different things, which is why there are two: no scratch
+desktop has a mail account, so only reading catches Mail's sync path.
+
+### Three more found on the way
+
+- **`catalogue update` decides by the bytes.** It asked only whether the
+  version had moved, so a part that changed under an unchanged app -- the
+  Notes pane under Stickies 1.0 -- reached nobody who had installed the
+  app. Every file an entry placed must now match the `sha256` the index
+  gives it. Keeping versions in step by hand is a rule the author of this
+  release broke the same day: YouTube's catalogue copy was never
+  republished after 0.99.221, so anybody who installed it from the
+  catalogue never saw that release's player changes.
+- **The core assumed the saver framework and every ticker existed.**
+  `dt_saverstart` called `sv_begin` unguarded and cleared `SV_NAME`,
+  which only the framework declares; `dt_tickers` called every
+  registered ticker every frame whether or not it was defined. A
+  desktop now starts without the framework and simply has no saver, and
+  a ticker that is not defined is dropped with one line in the log.
+- **Cursor and Cursor Blink apply at once** (Gitea #261). A terminal was
+  told its cursor style when it opened and when a restart adopted it,
+  nowhere else; and turning Blink on asked for no frame. And the check
+  for it found a second half: a window was judged clean on everything but
+  the cursor, so the frame the change asked for came and skipped it.
+
+### And the tests were writing into the developer's own folders (#263)
+
+`tests/desktop.py`'s held fixtures started desktops with `subprocess.run`
+and no state folder of their own, so they wrote snapshots into the real
+`~/.local/state/hibr` -- and the reporting desktop restored windows out
+of a test's snapshot on restart. Every gate that day did it again, and so
+did the scratch probes written to diagnose it. `tests/screen.py` now
+points every XDG folder at scratch for the whole suite, which covers any
+helper written later as well as these.
+
+Not reproduced: the reporting desktop **ending** at start. Its own
+installed set, its own settings and its own saved windows, held, on the
+installed hibr, keep running -- with the source errors and the per-frame
+`pe_servers` flood, both of which are gone now.
+
+Gitea #262, #261, #263.
+
 ## 0.99.223
 
 **Every frame of a video asked the terminal to blank the rectangle

@@ -132,6 +132,19 @@ Four more tools sit around it:
   what `strict vars` refuses at run time, found on every path rather than
   only the ones a suite reaches. A suite in `all.py`; it takes under a
   second.
+- **`tests/deps.py`** -- reads every file of every script kind the
+  catalogue installs (taken from its own `AP_KEXT`) and fails on what would
+  break once the file is installed somewhere other than this tree: a path
+  built from the file's own location, a sourced library the desktop does
+  not load, and a call into another installable with no `dt_has`,
+  `dt_needs` or `command -v` in its function (ADR 0046). A suite in
+  `all.py`; under a second.
+- **`tests/scopes.py`** -- starts the desktop with the platform alone, as
+  the package ships it, with each installable alone in an empty data folder
+  over the platform (and then launched, opened or started, so its callbacks
+  run), and with every installable over the shipped desktop; any shell
+  error fails it, naming the installable. Derived from the tree, so a new
+  app is covered with no edit. A suite in `all.py`; about two minutes.
 - **`tests/uifuzz.py`** -- random keys, clicks, drags and wheel turns inside
   one app's window, then: still running, still answering, nothing printed.
   A suite in `all.py` at the fixed `SEED=1`; `SEED=random` explores, and a

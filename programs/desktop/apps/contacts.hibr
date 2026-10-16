@@ -16,14 +16,14 @@
 
 strict
 
-app contacts "The people in your address books, kept offline from CardDAV" 1.1
+app contacts "The people in your address books, kept offline from CardDAV" 1.2
 # part: control-panel/pimset.hibr
 # modules: dav db pim
 
 command -v dt_app > /dev/null && dt_app contacts "Contacts" 24 92 once "☺"
 command -v dt_app > /dev/null && dt_app pedit "Contact" 16 64 many "" "" hidden
 
-[ -n "${PE_LIBDONE-}" ] || . "${BASH_SOURCE%/*}/../lib/pim.hibr"
+[ -n "${PE_LIBDONE-}" ] || . "$DT_HERE/lib/pim.hibr"
 
 declare -gA PCW
 declare -gA PE

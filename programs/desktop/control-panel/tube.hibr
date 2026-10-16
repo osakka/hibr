@@ -10,7 +10,7 @@
 strict
 
 
-app tube "The Control Panel pane for the YouTube app" 1.0
+app tube "The Control Panel pane for the YouTube app" 1.1
 command -v cp_pane > /dev/null && cp_pane tube "YouTube" "▶" app
 
 # follow is Control Panel > Pictures, which is the one setting meant to
@@ -74,7 +74,7 @@ fn tube_do(int? w = "", k = "", int? dir = "") {
 	fps) v := cp_next "$YT_FPS" "$dir" "${TB_FPS[@]}"; YT_FPS=$v ;;
 	detail) v := cp_next "$YT_DETAIL" "$dir" "${TB_DETAIL[@]}"; YT_DETAIL=$v ;;
 	YT_AUTONEXT) cp_toggle "$k" ;;
-	histclear) yt_histclear ;;
+	histclear) dt_needs youtube yt_histclear && yt_histclear ;;
 	esac
 	cp_save
 }

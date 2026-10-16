@@ -10,7 +10,7 @@
 strict
 
 
-app appearance "The Control Panel pane for how the desktop looks" 1.3
+app appearance "The Control Panel pane for how the desktop looks" 1.4
 command -v cp_pane > /dev/null && cp_pane appearance "Appearance" "◐"
 
 CP_THEME="${CP_THEME-classic}"
@@ -51,7 +51,7 @@ CP_COLOURDIRS=("${XDG_CONFIG_HOME:-$HOME/.config}/hibr/colours"
 	"${XDG_CONFIG_HOME:-$HOME/.config}/hibr/themes"
 	${cp_syscol:+"$cp_syscol"}
 	"${XDG_DATA_HOME:-$HOME/.local/share}/hibr/colours"
-	"${BASH_SOURCE%/*}/../colours")
+	"$DT_HERE/colours")
 CP_COLOURLIST=()
 declare -gA CP_CO
 CP_COKEYS=(wall dot bar active idle face ink)
@@ -165,7 +165,7 @@ command -v dt_sysdir > /dev/null && cp_systh := dt_sysdir themes
 CP_THEMEDIRS=("${XDG_CONFIG_HOME:-$HOME/.config}/hibr/themes"
 	${cp_systh:+"$cp_systh"}
 	"${XDG_DATA_HOME:-$HOME/.local/share}/hibr/themes"
-	"${BASH_SOURCE%/*}/../themes")
+	"$DT_HERE/themes")
 CP_THEMES=()
 declare -gA CP_TH
 declare -gA CP_THDEF
@@ -581,7 +581,10 @@ fn appearance_do(int w, k, int dir) {
 		[ "$v" -gt 4 ] && v=4
 		DT_BARGAP=$v
 		;;
-	wallimg) wp_dialog; return 0 ;;
+	# The picker browses folders with the Files app's own model, so it
+	# says so when Files is absent rather than opening nothing.
+	wallimg) dt_needs files fb_scan && dt_has wp_dialog && wp_dialog
+		return 0 ;;
 	wallmode) v := cp_next "$DT_WALLMODE" "$dir" "${WP_MODES[@]}"
 		DT_WALLMODE=$v ;;
 	glyphset) v := cp_next "$DT_GLYPHSET" "$dir" "${DT_GLYPHSETS[@]}"
@@ -603,7 +606,8 @@ fn appearance_drop(int w, int r, int c, k) {
 		"${DT_TREESTYLES[@]}" ;;
 	treelines) dt_droplist "$w" "$r" "$c" cp_set_treelines \
 		"${CP_TREELINES[@]}" ;;
-	wallmode) dt_droplist "$w" "$r" "$c" wp_setmode "${WP_MODES[@]}" ;;
+	wallmode) dt_has wp_setmode &&
+		dt_droplist "$w" "$r" "$c" wp_setmode "${WP_MODES[@]}" ;;
 	glyphset) dt_droplist "$w" "$r" "$c" cp_set_glyphset "${DT_GLYPHSETS[@]}" ;;
 	dlgbtn) dt_droplist "$w" "$r" "$c" cp_set_dlgbtn "${DT_DLGBTNS[@]}" ;;
 	bellicon)

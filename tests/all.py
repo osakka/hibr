@@ -30,7 +30,7 @@ LOGS = (os.environ.get("HIBR_TESTLOGS")
 ENV = dict(os.environ)
 ENV.setdefault("V", "1")
 SUITES = ["run.sh", "desktop", "apps_panel", "apps_reach", "apps_core", "apps_more", "most", "hvi", "console", "cat",
-          "mon", "mtr", "editor", "term_diff", "uifuzz", "strictvars",
+          "mon", "mtr", "editor", "term_diff", "uifuzz", "strictvars", "deps", "scopes",
           "md_spec", "html_tree", "mail", "mailapp", "contacts", "calapp", "pim", "pim_rrule", "web", "dav", "media", "youtube",
           "uni_bidi", "uni_shape", "hcal_icu", "salat_adhan", "vw_crypto", "vw", "vault", "sixel", "kitgfx", "holdpix", "archive", "mermaid",
           "appmgr", "shots"]

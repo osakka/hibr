@@ -1029,6 +1029,33 @@ try:
           and not os.path.exists(os.path.join(d5, "apps", "ixbad.hibr")),
           (rc, err, sorted(os.listdir(os.path.join(d5, "apps")))
            if os.path.isdir(os.path.join(d5, "apps")) else "no apps folder"))
+    # A part that changes while its app's version does not still reaches
+    # whoever installed the app. `update` asked only whether the version
+    # had moved, so the Notes pane changing under Stickies 1.0 reached
+    # nobody who had installed Stickies -- keeping every owning app's
+    # version in step by hand is a rule a person forgets, and this
+    # release's author forgot one the same day (Gitea #262). It decides by
+    # the bytes now: every file an entry placed must match the sha256 the
+    # index gives it. Same version, new pane, and update fetches it.
+    NEWPANE = (PANEBYTES if isinstance(PANEBYTES, bytes) else PANEBYTES.encode()) + b"# a later revision of the pane\n"
+    hp_pane2 = put("bundles/ixpane2.hibr", NEWPANE)
+    E5B = json.loads(json.dumps(E5))
+    E5B["entries"]["apps/ixparts"]["parts"][0].update(
+        path="bundles/ixpane2.hibr", sha256=hp_pane2)
+    put("index5b.json", json.dumps(E5B, indent=1))
+    rc, out, err = apps("update", env=dict(
+        E5ENV, HIBR_APPS_URL="http://127.0.0.1:%d/index5b.json" % PORT))
+    got = open(os.path.join(d5, "control-panel", "ixpane.hibr"), "rb").read() \
+        if os.path.exists(os.path.join(d5, "control-panel", "ixpane.hibr")) else b""
+    check("a part that changed while its app's version did not is fetched "
+          "by update, because it decides by the bytes and not the version",
+          rc == 0 and got == NEWPANE and "changed in the catalogue" in out,
+          (rc, out, err, got[-40:]))
+    rc, out, err = apps("update", env=dict(
+        E5ENV, HIBR_APPS_URL="http://127.0.0.1:%d/index5b.json" % PORT))
+    check("and once it matches, update leaves it alone",
+          rc == 0 and "up to date" in out, (rc, out, err))
+
     # This one passes against 0.99.188 as well, and says so: there the
     # install placed no part, so removing it had nothing to leave behind.
     # It is here because the claim counting is what must keep working now
@@ -1545,4 +1572,4 @@ finally:
     srv.wait()
     shutil.rmtree(D, True)
 
-report(132)
+report(134)

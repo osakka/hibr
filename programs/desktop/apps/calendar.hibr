@@ -19,14 +19,14 @@
 
 strict
 
-app calendar "Your calendars, a month at a time, kept offline from CalDAV" 1.0
+app calendar "Your calendars, a month at a time, kept offline from CalDAV" 1.1
 # part: control-panel/pimset.hibr
 # modules: dav db email pim
 
 command -v dt_app > /dev/null && dt_app calendar "Calendar" 28 98 once "▦"
 command -v dt_app > /dev/null && dt_app cedit "Event" 23 70 many "" "" hidden
 
-[ -n "${PE_LIBDONE-}" ] || . "${BASH_SOURCE%/*}/../lib/pim.hibr"
+[ -n "${PE_LIBDONE-}" ] || . "$DT_HERE/lib/pim.hibr"
 
 declare -gA CVW
 declare -gA CVI

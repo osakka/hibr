@@ -9,7 +9,7 @@
 strict
 
 
-app cursor "A Control Strip module for a new terminal's cursor style" 1.0
+app cursor "A Control Strip module for a new terminal's cursor style" 1.1
 command -v cs_module > /dev/null && cs_module cursor Cursor
 
 CURSOR_STYLES=(block underline bar)
@@ -27,4 +27,7 @@ fn cursor_click(int row, int col) {
 fn cursor_pick(style) {
 	DT_CURSOR=$style
 	dt_save
+	# The windows already open as well as the next one (Gitea #261).
+	dt_has term_cursorapply && term_cursorapply
+	return 0
 }

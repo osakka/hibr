@@ -1233,6 +1233,31 @@ is clicked at row 4. There is no separate body coordinate system to convert
 between; the window manager deals with row 0 itself, so an app never sees a
 click on its own title bar.
 
+**An app reaches only what every scope has** ([ADR 0046](../../docs/adr/0046-an-installable-reaches-only-what-every-scope-has.md)).
+The catalogue installs an app into `~/.local/share/hibr/apps/`, which is read
+before the shipped copy, so an app has to work wherever it lands -- not only
+in this tree, where `apps/` and `lib/` happen to be siblings. Three rules,
+each checked on every gate by `tests/deps.py` and `tests/scopes.py`:
+
+- Anything the desktop ships is reached through **`$DT_HERE`**, its own
+  directory -- `"$DT_HERE/lib/pim.hibr"`, `"$DT_HERE/themes"` -- and never
+  through `${BASH_SOURCE%/*}/..`, which is right in exactly one of four
+  places. The app's own files are under **`${DT_SRC%.hibr}/`**.
+- A **library** several apps share lives in `lib/` and marks itself with a
+  line `NAME_LIBDONE=1`; the desktop loads every marked library before any
+  app. An app may still guard its own source of it, for when it is sourced
+  on its own.
+- **Another app** is reached only behind a check in the same function:
+  `dt_has fb_scan && fb_scan ...` when the app can simply do less, or
+  `dt_needs files fb_scan || return 0` when it cannot, which tells the person
+  *"files is not installed. Find it in the Catalogue."* Links between apps
+  are optional integrations, never dependencies: either side can be
+  installed or removed and the other keeps working.
+
+The Control Panel and the saver framework are the exception: every pane and
+every saver is built on them, so they say `# platform:` in their headers,
+count as part of the desktop, and are never installed apart from it.
+
 **A window that animates asks for its next frame.** The desktop redraws on
 every key, resize and terminal output, and otherwise sleeps: there is no
 refresh rate. Anything that shows the time or moves on its own must ask, or

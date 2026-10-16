@@ -8,6 +8,13 @@
 #
 # Run on its own it does nothing -- there is no pane to show without a
 # desktop around it, unlike calc or panel's own former self.
+#
+# platform: every Control Panel pane calls this file's cp_save, cp_next,
+# cp_toggle and cp_absent, so it is part of the desktop and not something
+# installed apart from it -- a copy at another version would be the
+# framework every pane runs on, mismatched with the panes (Gitea #262).
+# The catalogue refuses to publish a file that says this, and
+# tests/deps.py treats what it defines as the desktop's own.
 
 strict
 

@@ -11,12 +11,12 @@
 strict
 
 
-app pimset "The Control Panel pane for calendars and contacts" 1.0
+app pimset "The Control Panel pane for calendars and contacts" 1.1
 # modules: dav
 command -v cp_pane > /dev/null && cp_pane pimset "Calendar & Contacts" "☺" app
 
-if [ -z "${PE_LIBDONE-}" ] && [ -r "${BASH_SOURCE%/*}/../lib/pim.hibr" ]; then
-	. "${BASH_SOURCE%/*}/../lib/pim.hibr"
+if [ -z "${PE_LIBDONE-}" ] && [ -r "$DT_HERE/lib/pim.hibr" ]; then
+	. "$DT_HERE/lib/pim.hibr"
 fi
 declare -gA PIMS_ASKED
 DT_PIMSERVERS="${DT_PIMSERVERS-}"

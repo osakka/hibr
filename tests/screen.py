@@ -257,6 +257,22 @@ os.environ["HIBR_MODPATH"] = tree("build/mods") + (
 os.environ["HIBR_CALENDARS"] = tree("mods/hcal/calendars")
 os.environ["HIBR_SALAT"] = tree("mods/salat/methods")
 
+# And nothing a suite starts can reach the developer's own folders --
+# not only what Term starts. Term gives each session a config, state and
+# data folder of its own, inside the child; a suite that starts a desktop
+# itself, with subprocess.run, inherited the real ones. tests/desktop.py's
+# held fixtures did exactly that, and the owner's desktop then restored
+# windows out of a test's snapshot (`restored 2 windows from
+# .../restart/snap-vt.json.taken`, Gitea #263) -- after every gate that
+# day. This file has recorded the read half of it twice (panefull,
+# appmgr.py); this was the write half. Setting them here, once, for the
+# whole process tree, means the next helper cannot repeat it by
+# forgetting: Term still gives each session its own beneath these.
+for _v, _d in (("XDG_CONFIG_HOME", "config"), ("XDG_STATE_HOME", "state"),
+               ("XDG_DATA_HOME", "data"), ("XDG_CACHE_HOME", "cache")):
+    os.environ[_v] = os.path.join(HOME, "suite", _d)
+    os.makedirs(os.environ[_v], exist_ok=True)
+
 # What the desktop prints, when HIBR_TESTIDLE is set, each time a frame is on
 # screen and it is about to wait for input -- an OSC a terminal ignores,
 # carrying how many bytes of input it has read by then.

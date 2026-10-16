@@ -264,12 +264,27 @@ fn dt_ticker(name) {
 	case " ${DT_TICKERS[*]} " in *" $name "*) return 0 ;; esac
 	DT_TICKERS+=("$name")
 }
+# Every frame. A ticker whose function is not there -- registered by a
+# file whose library failed to load, or by an app since removed -- is
+# taken off the list with one line in the log saying so, rather than
+# called on every frame for as long as the desktop runs: that is how one
+# missing library put 1.78 million `pe_servers: command not found` lines
+# into the owner's desktop.log (Gitea #262). The check costs one lookup
+# per ticker per frame, and there are a handful.
 dt_tickers() {
 	local f
+	local -a keep=()
 
 	for f in "${DT_TICKERS[@]}"; do
+		if ! dt_has "$f"; then
+			printf 'desktop: ticker %s is not defined; taken off the list\n' \
+				"$f" >&2
+			continue
+		fi
+		keep+=("$f")
 		"$f"
 	done
+	[ "${#keep[@]}" = "${#DT_TICKERS[@]}" ] || DT_TICKERS=("${keep[@]}")
 	return 0
 }
 

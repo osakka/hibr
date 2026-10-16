@@ -8,7 +8,7 @@
 strict
 
 
-app desktop "The Control Panel pane for the bare desktop" 1.0
+app desktop "The Control Panel pane for the bare desktop" 1.1
 command -v cp_pane > /dev/null && cp_pane desktop "Desktop" "▣"
 
 DK_CYCLES=(workspace all)
@@ -86,7 +86,7 @@ fn desktop_do(int w, k, int dir) {
 		DT_SHOTFMT=$v ;;
 	shotlast) v := cp_next "$DT_SHOTLAST" "$dir" "${SH_STARTS[@]}"
 		DT_SHOTLAST=$v ;;
-	shotdir) shd_dialog ;;
+	shotdir) dt_has shd_dialog && shd_dialog ;;
 	shotopen)
 		[ -d "$DT_SHOTDIR" ] || mkdir -p "$DT_SHOTDIR" 2> /dev/null
 		dt_has files_draw && dt_launch files "$DT_SHOTDIR"
@@ -110,7 +110,9 @@ fn desktop_do(int w, k, int dir) {
 fn desktop_drop(int w, int r, int c, k) {
 	case $k in
 	cycle) dt_droplist "$w" "$r" "$c" cp_set_cycle "${DK_CYCLES[@]}" ;;
-	shotfmt) dt_droplist "$w" "$r" "$c" cp_set_shotfmt "${SH_FMTS[@]}" ;;
-	shotlast) dt_droplist "$w" "$r" "$c" cp_set_shotlast "${SH_STARTS[@]}" ;;
+	shotfmt) dt_has cp_set_shotfmt &&
+		dt_droplist "$w" "$r" "$c" cp_set_shotfmt "${SH_FMTS[@]}" ;;
+	shotlast) dt_has cp_set_shotlast &&
+		dt_droplist "$w" "$r" "$c" cp_set_shotlast "${SH_STARTS[@]}" ;;
 	esac
 }

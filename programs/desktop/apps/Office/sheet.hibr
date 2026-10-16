@@ -49,7 +49,7 @@
 
 strict
 
-app sheet "A spreadsheet whose formulas are hibr" 1.0
+app sheet "A spreadsheet whose formulas are hibr" 1.1
 # modules: csv db math
 
 command -v dt_app > /dev/null && dt_app sheet "Sheet" 24 84 many "⊞"
@@ -2053,7 +2053,7 @@ fn ss_tour(int id) {
 	# DT_HERE is the desktop's own directory, which is where the examples
 	# are installed beside it -- not this file's, which is two levels
 	# down in apps/Office/.
-	p=${DT_HERE:-${BASH_SOURCE%/*}/../..}/examples/tour.csv
+	p=$DT_HERE/examples/tour.csv
 	[ -r "$p" ] ||
 		{ dt_notep high "The tour is not installed"; return 1; }
 	nid := dt_launch sheet

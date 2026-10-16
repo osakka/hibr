@@ -10,7 +10,7 @@
 strict
 
 
-app mailset "The Control Panel pane for Mail" 1.0
+app mailset "The Control Panel pane for Mail" 1.1
 # modules: email
 command -v cp_pane > /dev/null && cp_pane mailset "Mail" "✉" app
 command -v dt_app > /dev/null && dt_app mlad "Mail Account" 20 66 "" "" fixed hidden
@@ -54,7 +54,7 @@ MLAD_ORDER=(name email alias user full pass kind host port sec shost sport ssec 
 # said so far is read as the pane draws, which is also what makes the
 # ladder appear a rung at a time rather than all at once at the end
 # (Gitea #188).
-MS_LIB=${BASH_SOURCE%/*}/../lib
+MS_LIB=$DT_HERE/lib
 declare -gA MS_TEST
 MS_TEST["acct"]=
 MS_TEST["file"]=
@@ -818,7 +818,7 @@ fn mlad_refresh(acct) {
 		[[ $id == [0-9]* ]] || continue
 		if [ -n "${MW[$id]["err"]}" ]; then
 			MW[$id]["err"]=
-			ml_accounts && ml_use "$id" "$acct"
+			dt_has ml_accounts && ml_accounts && ml_use "$id" "$acct"
 		fi
 	done
 }

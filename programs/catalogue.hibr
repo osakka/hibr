@@ -1646,6 +1646,43 @@ fn ap_adopt(id) {
 	return 0
 }
 
+# Whether what an installed entry placed is what the index says now, byte
+# for byte -- the entry's own file and every part, each by the sha256 the
+# index gives it.
+#
+# `update` used to ask only whether the version had moved, so a part that
+# changed under an app whose version did not -- the Notes pane, which
+# Stickies brings, changing while Stickies stayed at 1.0 -- reached nobody
+# who had installed Stickies. Keeping every owning app's version in step
+# by hand is a rule a person forgets: this release's own author published
+# a player and never republished its catalogue copy. The bytes need no
+# such rule (Gitea #262). A bundle that is a tarball carries the hash of
+# the tarball and not of anything placed, so it is left to the version,
+# as before.
+fn ap_current(kind) {
+	local where ext key i pk pa want got
+
+	key=${AP_ENT["key"]}
+	want=${AP_ENT["sha256"]}
+	case ${AP_ENT["bundle"]} in *.tar.gz | *.tgz | *.tar) return 0 ;; esac
+	[ -n "$want" ] || return 0
+	where := ap_rel "$kind" "${AP_ENT["name"]}" "${AP_ENT["dir"]}"
+	ext := ap_kext "$kind"
+	[ -r "$AP_DATA/$where$ext" ] || return 1
+	got := ap_sha "$AP_DATA/$where$ext"
+	[ "$got" = "$want" ] || return 1
+	for i in "${!AP_IX["$AP_SECT"]["$key"]["parts"][@]}"; do
+		pk=${AP_IX["$AP_SECT"]["$key"]["parts"]["$i"]["kind"]}
+		pa=${AP_IX["$AP_SECT"]["$key"]["parts"]["$i"]["as"]}
+		want=${AP_IX["$AP_SECT"]["$key"]["parts"]["$i"]["sha256"]}
+		[ -n "$want" ] || continue
+		[ -r "$AP_DATA/$pk/$pa" ] || return 1
+		got := ap_sha "$AP_DATA/$pk/$pa"
+		[ "$got" = "$want" ] || return 1
+	done
+	return 0
+}
+
 fn ap_info(want, int j = 0) {
 	local u name k js i pn pk pa id
 	local -A out
@@ -2686,7 +2723,7 @@ nothing behind them."
 }
 
 fn ap_update(...names) {
-	local name w n=0 kind where ext moved i np
+	local name w n=0 kind where ext moved i np same
 	local -a want
 
 	ap_load 1
@@ -2732,10 +2769,10 @@ fn ap_update(...names) {
 			[ "${AP_ST["installed"]["$name"]["paths"]["$i"]}" = "$where$ext" ] &&
 				{ moved=; break ; }
 		done
-		if [ "${AP_ENT["version"]}" = "${AP_ST["installed"]["$name"]["version"]}" ] &&
-		   [ -z "$moved" ]; then
-			continue
-		fi
+		same=
+		[ "${AP_ENT["version"]}" = "${AP_ST["installed"]["$name"]["version"]}" ] &&
+			same=1
+		[ -n "$same" ] && [ -z "$moved" ] && ap_current "$kind" && continue
 		# Three different things, and each says which it is. An
 		# entry installed before 0.99.183 recorded no paths at all,
 		# so there is nothing to compare and it is reinstalled once
@@ -2746,6 +2783,8 @@ fn ap_update(...names) {
 			ap_say "$name: records where it is"
 		elif [ -n "$moved" ]; then
 			ap_say "$name: moves to $where$ext"
+		elif [ -n "$same" ]; then
+			ap_say "$name: ${AP_ENT["version"]} changed in the catalogue; fetched again"
 		else
 			ap_say "$name: ${AP_ST["installed"]["$name"]["version"]} -> ${AP_ENT["version"]}"
 		fi

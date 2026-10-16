@@ -19,7 +19,7 @@
 
 strict
 
-app write "A word processor for markdown, shown as it reads" 1.0
+app write "A word processor for markdown, shown as it reads" 1.1
 # modules: md mermaid
 
 command -v dt_app > /dev/null && dt_app write "Write" 22 78 many "¶"
@@ -196,7 +196,7 @@ need md 2> /dev/null || WR_NOMD=1
 # A ```mermaid block in a document is drawn as the diagram, in the same
 # pens the Diagram editor uses: lib/diagram.hibr, shared so that a diagram
 # reads the same in a document as it does in the editor.
-[ -n "${DG_LIBDONE-}" ] || . "${BASH_SOURCE%/*}/../../lib/diagram.hibr"
+[ -n "${DG_LIBDONE-}" ] || . "$DT_HERE/lib/diagram.hibr"
 
 # Every line's style string, parsed again only when the text has changed.
 fn wr_parse(int id) {

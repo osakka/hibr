@@ -22,7 +22,7 @@
 
 strict
 
-app diagram "A Mermaid diagram editor: the text, and the diagram" 1.0
+app diagram "A Mermaid diagram editor: the text, and the diagram" 1.1
 # modules: mermaid
 
 command -v dt_app > /dev/null && dt_app diagram "Diagram" 24 86 many "◈"
@@ -37,7 +37,7 @@ DIA_TYPES="Mermaid:mmd mermaid|Text:txt"
 
 # The pens the diagram is drawn in are shared with Write, which draws one
 # inside a document: lib/diagram.hibr, so the two cannot drift apart.
-[ -n "${DG_LIBDONE-}" ] || . "${BASH_SOURCE%/*}/../../lib/diagram.hibr"
+[ -n "${DG_LIBDONE-}" ] || . "$DT_HERE/lib/diagram.hibr"
 
 # What a new diagram starts as. A blank window with a cursor in it says
 # nothing about what may be typed, and this app's whole difficulty is that

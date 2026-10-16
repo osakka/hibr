@@ -2,6 +2,12 @@
 #
 # saver -- screen savers, and what runs them.
 #
+# platform: every saver calls this file's sv_saver and is run by its
+# sv_begin and sv_frame, so it is part of the desktop and not something
+# installed apart from it (Gitea #262). The catalogue refuses to publish
+# a file that says this, and tests/deps.py treats what it defines as the
+# desktop's own.
+#
 # A saver is a file beside this one that names itself with sv_saver and
 # gives two functions: <name>_start rows cols, to begin on a clear screen,
 # and <name>_frame rows cols, to draw the next frame. The screen is the

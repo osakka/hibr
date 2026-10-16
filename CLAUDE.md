@@ -49,6 +49,8 @@ releases).
     python3 tests/asan.py        # every suite, pty ones too, under ASan and UBSan
     python3 tests/asan.py --quick    # the release gate: core, C modules, what changed
     python3 tests/strictvars.py  # every global a strict desktop function would create
+    python3 tests/deps.py        # what an installable reaches outside itself (ADR 0046)
+    python3 tests/scopes.py      # every installable alone and over the shipped desktop
     python3 tests/screen.py programs/desktop/session.hibr
                                  # the same harness, to look rather than assert
     python3 tests/diff.py --shell ./build/hibr 250   # snippets, diffed against bash
@@ -3902,6 +3904,39 @@ went in the shell.
   suite -- reaching something that is not a file: a session name, and
   anything else a test looks for by name in a namespace it shares with
   every other process on the box.
+- **A file the catalogue installs works wherever it lands, or it is
+  broken for everyone who installs it** (ADR 0046, Gitea #262,
+  0.99.224). Calendar found its library at
+  `${BASH_SOURCE%/*}/../lib/pim.hibr` -- right in this tree, where
+  `apps/` and `lib/` are siblings, and nothing at all in
+  `~/.local/share/hibr/apps/`. The user scope is read before the
+  shipped copy, so **installing Calendar replaced a working app with one
+  that could not load**, and its own ticker then logged
+  `pe_servers: command not found` once a frame: 1.78 million lines in
+  the owner's log. The survey found eleven own-location paths (Mail's
+  sync job among them, which fails *silently*: no error, only no mail)
+  and 156 unguarded calls from one installable into another.
+  The rule: an installable reaches **the platform** (core, `lib/`, and a
+  file whose header says `# platform:` -- the Control Panel and the
+  saver framework), **shipped files through `$DT_HERE`**, and **another
+  installable only behind `dt_has`/`dt_needs`/`command -v` in the same
+  function**. Libraries are loaded by `dt_libs` from the shipped `lib/`
+  only, chosen by their own `*_LIBDONE=1` line, which is also what
+  repairs old installed copies without touching them: their guarded
+  source line is never reached. Two checks, and they see different
+  things: `tests/deps.py` reads (it catches Mail's path, which no
+  scratch desktop can reach without a mail account), `tests/scopes.py`
+  runs every installable alone over the platform and all of them over
+  the shipped desktop. Against the tree before: 167 and 6 failures.
+  And `catalogue update` decides **by the bytes** -- a part that changed
+  under an unchanged app version never reached anyone, and keeping every
+  owning app's version in step is a rule this file's own author broke
+  the same day. **A test that starts a desktop with `subprocess.run`
+  inherits the developer's real folders**: `tests/desktop.py`'s held
+  fixtures wrote snapshots into the owner's state folder and the owner's
+  desktop restored windows out of them (#263). `tests/screen.py` now
+  points every XDG folder at scratch for the whole suite, so the next
+  helper cannot repeat it by forgetting.
 - **A ledger of what a program placed is not an inventory of what the
   machine has, and naming it `installed` makes it read as one**
   (Gitea #254, 0.99.212). The catalogue records what it placed, so

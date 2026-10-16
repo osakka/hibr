@@ -100,9 +100,52 @@ declare -gA DT_SRC
 # says `Applications`, one in `Office/` says `Applications/Office` -- which
 # is why the menu needed no new mechanism for the split, only a different
 # answer to this one question.
+# The libraries several apps share, loaded by the desktop rather than by
+# the apps, and only ever from the shipped desktop's own lib/.
+#
+# An app used to find its own: `. "${BASH_SOURCE%/*}/../lib/pim.hibr"`,
+# right in the shipped tree, where apps/ and lib/ are siblings, and wrong
+# in all three other scopes (ADR 0045). A catalogue install puts the app
+# in `$XDG_DATA_HOME/hibr/apps/` with no lib/ beside it, and the user scope
+# is read *before* the shipped copy -- so installing Calendar replaced a
+# working app with one that could not load, and the desktop came up on
+# `source: .../apps/../lib/pim.hibr: No such file or directory`
+# (Gitea #262).
+#
+# A library is not a kind and has one home. Searching the scopes for it
+# would let a stray copy in a person's own folder shadow the package's,
+# which is the drift this exists to prevent. Loading it here also repairs
+# every install already out there without touching a file: each app's own
+# source is guarded on the library's *_LIBDONE, so once it is set here
+# that line -- the wrong path in an old copy -- is never reached.
+#
+# Which files are libraries is read from the files, not from a list kept
+# here: a library sets its own *_LIBDONE=1 on a line of its own. lib/
+# also holds programs the apps run as jobs -- mailsync, pimsync, mailtest,
+# ctl -- which act the moment they are read and must never be sourced, and
+# carry no such line.
+#
+# Read in the shell rather than with grep, which would be a fork per file
+# on every start; and the source happens after the read loop, never inside
+# it, or the library would run with its own file as standard input.
+dt_libs() {
+	local f l lib
+
+	for f in "$DT_HERE"/lib/*.hibr; do
+		[ -r "$f" ] || continue
+		lib=
+		while IFS= read -r l; do
+			case $l in [A-Z]*_LIBDONE=1) lib=1; break ;; esac
+		done < "$f"
+		[ -n "$lib" ] && . "$f"
+	done
+	return 0
+}
+
 dt_apps() {
 	local d f b rel
 
+	dt_libs
 	for d in "${DT_APPDIRS[@]}"; do
 		for f in "$d"/**/*.hibr; do
 			[ -r "$f" ] || continue
@@ -294,6 +337,22 @@ fn dt_appwin(app) {
 # depends on a setting); otherwise its dt_app size. An app declared `once`
 # has one window at most: launching it again brings that one forward,
 # shown if it was hidden.  Anything after the name goes to its _open.
+# Whether another installed thing is here, for a caller about to use one
+# of its functions -- and when it is not, the same message dt_launch
+# gives, so a person learns what to fetch rather than seeing nothing.
+#
+# An installable may call the platform freely and another installable
+# only behind a check like this one, in the same function (Gitea #262):
+# that is what keeps every link between two apps an optional integration
+# rather than a dependency nothing resolves, and tests/deps.py fails a
+# call that has none. `dt_has` is the quiet form, for an integration
+# that simply does less when the other side is absent.
+fn dt_needs(app, f) {
+	dt_has "$f" && return 0
+	dt_notep high "%s is not installed. Find it in the Catalogue." "$app"
+	return 1
+}
+
 fn dt_launch(n, arg = "") {
 	local h w sz id pl r c
 

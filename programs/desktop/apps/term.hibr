@@ -13,7 +13,7 @@
 
 strict
 
-app term "A shell in a window" 1.0
+app term "A shell in a window" 1.1
 # part: control-panel/terminal.hibr
 # modules: pty term
 
@@ -399,6 +399,7 @@ fn term_draw(int id, int h, int w, int row, int col) {
 	TW[$id]["drawnh"]=${DT[$id]["h"]}
 	TW[$id]["drawnw"]=${DT[$id]["w"]}
 	TW[$id]["drawntrans"]="${DT_TERMTRANS:-0} $DT_FACE"
+	TW[$id]["drawncur"]=$DT_CURSOR
 	sb := term scroll "$t"
 	TW[$id]["drawnview"]=$sb
 	view=${sb% *}
@@ -679,7 +680,36 @@ fn term_dirty(int id) {
 	# program: the setting moving, or the theme's face under it. The
 	# wallpaper's own picture changing forces a full frame of its own.
 	[ "${TW[$id]["drawntrans"]}" = "${DT_TERMTRANS:-0} $DT_FACE" ] || return 0
+	# And the cursor's shape, which changes with no byte from the program
+	# either: Control Panel > Terminal > Cursor and the Control Strip set
+	# it on every open terminal (term_cursorapply), and a window called
+	# clean here kept drawing the old shape until something else dirtied
+	# it -- the frame that change asked for came and skipped it (#261).
+	[ "${TW[$id]["drawncur"]}" = "$DT_CURSOR" ] || return 0
 	return 1
+}
+
+# Put the cursor settings on every terminal already open, and ask for a
+# frame so they show.
+#
+# A terminal is told its cursor style when it opens and when a restart
+# adopts it -- nowhere else -- so changing Cursor in Control Panel >
+# Terminal, or on the Control Strip, reached only windows opened after
+# it, and Restart Desktop (which re-adopts every window) was the only way
+# to see it on the rest. Cursor Blink is read on every frame already, but
+# turning it on asked for no frame, so on a settled desktop nothing
+# happened until something else woke it (Gitea #261). Whatever changes
+# either setting calls this, guarded, since this file may not be here.
+term_cursorapply() {
+	local id
+
+	for id in "${!TW[@]}"; do
+		[[ $id == [0-9]* ]] || continue
+		[ -n "${TW[$id]["t"]}" ] || continue
+		[ -n "$DT_CURSOR" ] && term cursor "${TW[$id]["t"]}" "$DT_CURSOR"
+	done
+	dt_want 30
+	return 0
 }
 
 fn term_idle(int id) {

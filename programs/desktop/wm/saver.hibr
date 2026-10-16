@@ -18,24 +18,37 @@ DT_SAVERSECS="${DT_SAVERSECS-}"
 DT_SAVING=
 DT_SAVERREADY=
 DT_IDLEFROM=$EPOCHSECONDS
+# The saver running, which savers/saver.hibr also sets -- declared here as
+# well because the branch below that finds no saver to run clears it, and
+# when the framework itself could not be read nothing else had declared it:
+# a strict desktop refused the assignment, every time the idle time came
+# round (`saver.hibr:41: SV_NAME is not declared`).
+SV_NAME="${SV_NAME-}"
 
 # The savers, loaded the first time one is wanted rather than with the
 # desktop, so a desktop that never idles that long pays nothing for them.
+# The framework is part of the desktop, but a desktop is still expected to
+# start without it -- and then simply has no saver, rather than calling
+# sv_load and sv_begin, which do not exist, on every idle (Gitea #262).
 dt_saverload() {
 	[ -n "$DT_SAVERREADY" ] && return 0
+	[ -r "$DT_HERE/savers/saver.hibr" ] || return 1
 	. "$DT_HERE/savers/saver.hibr"
+	dt_has sv_load || return 1
 	sv_load
 	DT_SAVERREADY=1
 }
 
 # Give the screen to a saver now -- "preview" for a look that never locks.
 fn dt_saverstart(how = "") {
-	dt_saverload
+	local have=0
+
+	dt_saverload && have=1
 	dt_mclose
 	DT_SAVERFROM=$EPOCHSECONDS
 	DT_SAVERPREVIEW=
 	[ "$how" = preview ] && DT_SAVERPREVIEW=1
-	if sv_begin "$DT_SAVER"; then
+	if [ "$have" = 1 ] && sv_begin "$DT_SAVER"; then
 		DT_SAVING=1
 	else
 		SV_NAME=

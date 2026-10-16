@@ -21,7 +21,7 @@
 
 strict
 
-app mail "Email, offline, labels and conversations as Gmail has them" 1.1
+app mail "Email, offline, labels and conversations as Gmail has them" 1.2
 # part: control-panel/mailset.hibr
 # modules: db email html img
 
@@ -29,7 +29,7 @@ command -v dt_app > /dev/null && dt_app mail "Mail" 26 100 many "✉"
 command -v dt_app > /dev/null && dt_app mailc "New Message" 22 76 many "" "" hidden
 
 ML_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/hibr/mail"
-ML_LIB=${BASH_SOURCE%/*}/../../lib
+ML_LIB=$DT_HERE/lib
 DT_MAILMAX="${DT_MAILMAX-1000}"
 DT_MAILBODIES="${DT_MAILBODIES-500}"
 DT_MAILEVERY="${DT_MAILEVERY-5}"
@@ -1242,7 +1242,9 @@ fn ml_drawrsvp(int id, int r, int c, int i) {
 
 	read -ra acts <<< "${MLR[$id][$i]["t"]}"
 	for a in "${acts[@]}"; do
-		l := cv_actlabel "$a"
+		# Calendar names the action; without it the action is its own
+		# label, since an invitation still has to be answerable.
+		if dt_has cv_actlabel; then l := cv_actlabel "$a"; else l=$a; fi
 		if [ "$a" = "${MLR[$id][$i]["ps"]}" ]; then
 			console pen "$DT_SELINK" "$DT_ACTIVE" bold
 		else

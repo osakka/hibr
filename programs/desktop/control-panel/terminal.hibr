@@ -9,11 +9,16 @@
 strict
 
 
-app terminal "The Control Panel pane for how a terminal window behaves" 1.0
+app terminal "The Control Panel pane for how a terminal window behaves" 1.1
 command -v cp_pane > /dev/null && cp_pane terminal "Terminal" "▸" app
 
 CP_CURSORS=(block underline bar)
-fn cp_set_cursor(int? id = "", value = "") { DT_CURSOR=$value; cp_save; }
+fn cp_set_cursor(int? id = "", value = "") {
+	DT_CURSOR=$value
+	cp_save
+	dt_has term_cursorapply && term_cursorapply
+	return 0
+}
 
 # Theme or terminal colours for a terminal window -- see DT_TERMCOLOURS in
 # programs/desktop/apps/term.hibr.
@@ -123,13 +128,18 @@ fn terminal_do(int w, k, int dir) {
 	local v
 
 	case $k in
-	DT_TERMBAR | DT_TERMTITLE | DT_TERMCLIP | DT_TERMSELCOPY | DT_TERMASK | DT_CURSOR_BLINK) cp_toggle "$k" ;;
+	DT_TERMBAR | DT_TERMTITLE | DT_TERMCLIP | DT_TERMSELCOPY | DT_TERMASK) cp_toggle "$k" ;;
+	# Blink is read every frame, but turning it on asks for none, so on a
+	# settled desktop it waited for something else to wake it (#261).
+	DT_CURSOR_BLINK) cp_toggle "$k"
+		dt_has term_cursorapply && term_cursorapply ;;
 	termcolours)
 		v := cp_next "$DT_TERMCOLOURS" "$dir" "${CP_TERMCOLOURS[@]}"
 		DT_TERMCOLOURS=$v
 		;;
 	cursor) v := cp_next "$DT_CURSOR" "$dir" "${CP_CURSORS[@]}"
-		DT_CURSOR=$v ;;
+		DT_CURSOR=$v
+		dt_has term_cursorapply && term_cursorapply ;;
 	termend) v := cp_next "$DT_TERMEND" "$dir" "${CP_TERMENDS[@]}"
 		DT_TERMEND=$v ;;
 	termtrans) cp_termtrans $(((${DT_TERMTRANS:-0} + 5) / 10 * 10 + dir * 10)) ;;

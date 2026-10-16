@@ -37,6 +37,9 @@ command -v dt_keep > /dev/null && dt_keep WPK_DIR
 wp_dialog() {
 	local h=20 w=64 r c
 
+	# The picker is built on the Files app's folder model (fb_scan,
+	# fb_go, fb_path), so it cannot run without it -- and says so.
+	dt_needs files fb_scan || return 0
 	r=$((DT_ROWS / 2 - h / 2))
 	c=$(((DT_COLS - w) / 2))
 	dt_new "Wallpaper" "$h" "$w" "$r" "$c" wallpick
@@ -63,6 +66,7 @@ fn wp_init(int id) {
 	fi
 	FB[$id]["dir"]=$WPK_DIR
 	FB[$id]["hidden"]=
+	dt_has fb_scan || return 1
 	fb_scan "$id"
 	WPK[$id]["previewfor"]=
 }
@@ -71,6 +75,7 @@ fn wp_init(int id) {
 # shared by backspace, entering a directory from the keyboard, and a
 # double-click on one from the mouse, so all three ways in keep it current.
 fn wp_goto(int id, dir) {
+	dt_has fb_go || return 1
 	fb_go "$id" "$dir"
 	WPK_DIR=${FB[$id]["dir"]}
 	command -v dt_save > /dev/null && dt_save
@@ -118,6 +123,7 @@ fn wp_refresh(int id) {
 		WPK[$id]["previewfor"]=
 		return 0
 	fi
+	dt_has fb_path || return 1
 	path := fb_path "$id" "$sel"
 	if wp_isimage "$path" && wp_preview "$id" "$path"; then
 		wp_fitcache "$id" "$path" "${WPK[$id]["prevh"]}" "${WPK[$id]["prevw"]}"

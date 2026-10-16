@@ -10,7 +10,7 @@
 strict
 
 
-app theme "A Control Strip module cycling the desktop's colour theme" 1.0
+app theme "A Control Strip module cycling the desktop's colour theme" 1.1
 command -v cs_module > /dev/null && cs_module theme Theme
 
 fn theme_draw(int row, int col) {
@@ -25,5 +25,6 @@ fn theme_click(int? row = "", int? col = "") {
 }
 
 fn theme_pick(theme = "") {
+	command -v cp_theme > /dev/null || return 0
 	cp_theme "$theme" && dt_save
 }

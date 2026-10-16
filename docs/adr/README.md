@@ -55,6 +55,7 @@ downside is usually a decision nobody had to make.
 | [0043](0043-source-honours-a-local-scheme.md) | `source` honours a scheme that says it is local | accepted |
 | [0044](0044-a-module-can-be-installed.md) | A module can be installed, and the index is where the line is drawn | accepted |
 | [0045](0045-a-thing-has-a-scope.md) | A thing has a scope, and the scope says where it lives | accepted |
+| [0046](0046-an-installable-reaches-only-what-every-scope-has.md) | An installable reaches only what every scope has | accepted |
 
 ---
 
