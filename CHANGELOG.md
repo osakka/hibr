@@ -1,5 +1,91 @@
 # Changelog
 
+## 0.99.220
+
+**A display put above the primary was outside the union, so it drew
+nothing at all.**
+
+Reported from a two-display session: *"I want to setup the secondary
+(on top) of the primary as I've done. Interestingly, I get no wallpaper
+or context menu when I place it up there, and I cannot move windows to
+it ... the panel/display sizes seem incorrect on the display control
+panel, so when I align them, they overlap."*
+
+Both halves are one bug, and it was measured on the owner's own live
+session before anything was touched:
+
+```
+$ hold clients desktop
+client-4    0  0  64 213  1
+client-6  -68  3  64 213  0
+$ hold list
+desktop attached 1746537 64x216
+```
+
+`hd_ubox` measured the union **from 0,0 to the furthest edge any client
+reached** and never looked at a minimum, so the client at row −68
+contributed nothing to it: the pty and the emulator were sized without
+it, and `hd_render` then read rows −68 to −5, for which `tm_at` answers
+null. Nothing crashed and nothing was logged. The display was simply
+blank for as long as it was there — no wallpaper, no menu could open on
+it, no window could be dragged onto it — and the mouse had the mirror of
+it, reporting a negative row for every click. The three phantom columns
+on the right of that union are the secondary's `col 3` with no left-hand
+space to match.
+
+The Control Panel looked wrong for the same reason: it shifts its **own**
+picture so nothing falls off its canvas, so it drew a correct arrangement
+hold was not in, and aligning two edges there aligned nothing. It had
+deliberately stopped clamping a release to zero — its own comment says
+*"this clamp was the bug"* — and that was right; the other half was never
+done, and the negatives went to a server that had never handled one.
+
+**hold normalises the origin now.** On any change, every client is moved
+by the same amount so the arrangement's top-left corner is the union's
+0,0: nothing moves relative to anything else, and the program gets one
+screen big enough for all of it. A **positive** minimum is left alone,
+which is a decision rather than a shortcut — attaching at an offset with
+nothing above or left of it is how space is *reserved* for a display that
+has not joined yet, which is how `desktop --join` and `tests/desktop.py`
+both stack a union.
+
+**And the desktop moves its content with it**, because normalising moves
+the primary out from under everything already placed on it. Anything
+recomputed from the primary's rectangle each frame — the bar, the menus,
+the icon layout, the Control Strip's default, dialogs, `dt_place`,
+`dt_tile` — follows on its own; a window a person put somewhere is stored
+in the union's coordinates and does not.
+
+The amount is **asked for**, not inferred, and `hold shift` exists
+because both ways of inferring it were tried and were wrong. Where the
+primary is moves by a whole display's width when somebody merely picks a
+different primary, with nothing having moved at all — which slid every
+window eighty columns sideways and failed two checks that had nothing to
+do with this. And how far one display moved cannot be told from that
+display having been the one dragged, which is the case that causes a
+shift in the first place.
+
+Checks: a new section in `tests/790-hold.t` — every geometry check in
+that file used non-negative offsets, which is the coverage hole this
+lived in — failing against 0.99.219 with `nothing is left at a negative
+row or column: 1` and a union of `24x80` where it should be `34x84`; and
+three in `tests/desktop.py` driving a real held two-display desktop
+through `desktop ctl`, comparing the window's movement against the
+primary's rather than asserting a row, because what matters is that the
+window did **not** move relative to the display it is on. **The whole of
+790's existing recording is unchanged**, which is what says the
+normalisation changes nothing for every arrangement that already worked.
+
+Three catalogue bundles were behind the tree and are republished with
+their versions bumped: `system/catalogue` 2.1, `control-panel/appearance`
+1.3, `lang/ar` 1.7.
+
+Gitea #257. #258 (a picture wallpaper going black when a second display
+joins in pixel mode) and #259 (what is drawn over a screen saver showing
+it through) are open and deliberately not folded in: neither is proven to
+share this cause, and a fix that can only be tested after this one says
+nothing about which change mattered.
+
 ## 0.99.219
 
 **One column cannot hold two facts, and the catalogue was doing it

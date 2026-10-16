@@ -3879,6 +3879,82 @@ sc = t1.screen()
 close = sc.find("x├")
 t1.send(press(close[0], close[1]))
 
+# A display put *above* the primary can only say so with a negative row,
+# and the Displays pane sends exactly that. hold measured the union from
+# 0,0 to the furthest edge any client reached and never looked at a
+# minimum, so such a client was outside the union altogether: `tm_at`
+# answers null for every row it covers, so it drew nothing at all -- no
+# wallpaper, no menu could open on it, and no window could be moved onto
+# it. Measured on the owner's own two-display session as
+# `client-6 -68 3 64 213 0` beside a union of 64x216 (Gitea #257).
+#
+# hold normalises a negative origin away now, and that moves the
+# **primary** -- so the other half is the desktop moving what a person
+# arranged along with it, or every window would keep its union row and
+# end up straddling the join. The two deltas are compared rather than
+# the window's own row asserted, because what matters is that the
+# window did not move *relative to the display it is on*.
+
+
+def holdrun(*a):
+    """A hold command against this session's own server."""
+    return subprocess.run([screen.HIBR, "-c", HOLDC + " ".join(a)],
+                          env=dict(os.environ, **JENV), capture_output=True,
+                          text=True, timeout=20)
+
+
+rc, j = ctl("move", fid, primary)
+t1.collect(1.0)
+rc, dw0 = ctl("displays")
+rc, ww0 = ctl("windows")
+# Where the join actually sits, so it goes back there afterwards: the
+# sections below are written against a side-by-side arrangement, and
+# putting it back at 0,0 would stack it on the primary instead.
+jwas = next((r[1] + " " + r[2] for r in
+             [ln.split() for ln in holdrun("hold clients desktop").stdout.splitlines()
+              if ln.split()] if r[0] == joined), "0 0")
+holdrun("hold move desktop %s -12 0" % joined)
+time.sleep(2.5)
+t1.collect(1.0)
+cl = [ln.split() for ln in holdrun("hold clients desktop").stdout.splitlines()
+      if ln.split()]
+check("a display moved above the primary is taken into the union rather "
+      "than left outside it",
+      bool(cl) and all(int(r[1]) >= 0 and int(r[2]) >= 0 for r in cl), cl)
+rc, dw1 = ctl("displays")
+rc, ww1 = ctl("windows")
+
+
+def dpyrow(d, nm):
+    return next((x["row"] for x in d.get("displays", []) if x["name"] == nm), None)
+
+
+def winrow(w, i):
+    return next((x["row"] for x in w.get("windows", []) if str(x["id"]) == i), None)
+
+
+pd = None
+if dpyrow(dw0, primary) is not None and dpyrow(dw1, primary) is not None:
+    pd = dpyrow(dw1, primary) - dpyrow(dw0, primary)
+wd = None
+if winrow(ww0, fid) is not None and winrow(ww1, fid) is not None:
+    wd = winrow(ww1, fid) - winrow(ww0, fid)
+check("and the primary moved down by the room it made for it",
+      pd == 12, (pd, dw0, dw1))
+check("so the window on it moved with it, rather than staying at its own "
+      "union row and straddling the join",
+      wd is not None and wd == pd, (wd, pd, ww0, ww1))
+# Both go back, and the primary first: hold only takes a *negative*
+# minimum out, so moving the join alone would leave the primary at the
+# row the shift put it on, and every section below is written against
+# the primary being at the union's own top-left.
+holdrun("hold move desktop %s 0 0" % primary)
+time.sleep(1.0)
+holdrun("hold move desktop %s %s" % (joined, jwas))
+time.sleep(2.0)
+t1.collect(1.0)
+t2.collect(1.0)
+
 # The panel can change which display is primary, live: hold primary
 # nudges the program to notice (hd_poke, the same SIGWINCH a fresh attach
 # already gets), and dt_size re-reads hold clients rather than a
@@ -5392,4 +5468,4 @@ check("launching an app that is not installed says which one and where "
       sc.find("files is not installed") is not None
       and sc.find("Catalogue") is not None, sc)
 
-report(615)
+report(618)

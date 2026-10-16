@@ -123,6 +123,31 @@ DT_PRIMARY_ROW=0
 # reversing it.
 DT_DISPLAYS=()
 
+# What `hold shift` answered when dt_size last asked -- "row col",
+# empty until the first read, and only ever read when held.
+#
+# A display put above or to the left of the others needs a negative
+# corner to say so, and hold answers by moving every display together
+# so the arrangement's own top-left is the union's own 0,0 (Gitea
+# #257). That is what gives the new display rows that exist; what it
+# also does is move the primary out from under everything already
+# placed on it. Whatever is recomputed from DT_PRIMARY_ROW/COL every
+# frame -- the bar, the menus, the icon layout, the Control Strip's
+# own default, dialogs, dt_place, dt_tile -- follows on its own. A
+# window a person put somewhere is stored in the union's coordinates
+# and does not, so it is moved by the same amount or it ends up
+# straddling the join.
+#
+# The amount is **asked for** rather than worked out here, and both
+# ways of working it out were tried and were wrong. The primary's own
+# corner moves by a whole display's width when somebody merely picks a
+# different primary, with nothing having moved at all -- which slid
+# every window eighty columns sideways and failed two checks that had
+# nothing to do with this. And one display's own movement cannot tell
+# a shift from that display having been the one dragged, which is the
+# case that causes the shift in the first place.
+DT_SHIFTWAS=
+
 # The first content row of the primary display: its own top, plus the bar
 # that sits on it. Everything that used to start at a literal 1 starts
 # here, which is the whole of making a stacked union work -- 1 is only

@@ -337,6 +337,38 @@ case $(cat "$TMPDIR/where") in */hibr-hold-*/t4) echo "HIBR_HOLD names t4" ;; es
 # That the server's *modules* are the new ones is not checked here: it
 # would mean replacing build/mods while the rest of the gate is loading
 # from it. It is measured by hand instead, and the changelog records it.
+# A display placed above or to the left of whoever is at hold's own
+# origin needs a negative row or column to say so, and the control
+# panel sends exactly that. The union was measured from 0,0 to the
+# furthest edge any client reached, so such a client contributed
+# nothing to it and its whole viewport read rows the emulator does
+# not have: no wallpaper, no menus, and no window could be moved
+# there. Measured live on the owner's own session as
+# `client-6 -68 3 64 213 0` against a union of 64x216 (Gitea #257).
+# The origin is normalised instead -- every client shifted together so
+# the top-left of the arrangement is 0,0 -- which keeps what the
+# person arranged and gives the program one screen big enough for it.
+echo "--- a display above or left of the origin is taken into the union, not left outside it"
+hold new -d t14 /bin/sh -c 'sleep 120'
+a := pty spawn -r 24 -c 80 $H -c "$L; hold attach -n main t14; echo \"back rc=\$?\""
+sleep 0.6
+b := pty spawn -r 10 -c 40 $H -c "$L; hold attach -m -n above t14; echo \"back rc=\$?\""
+sleep 0.6
+echo "nothing has moved anything yet: $(hold shift t14)"
+hold move t14 above -10 -4
+echo "nothing is left at a negative row or column: $(hold clients t14 | awk '$2 < 0 || $3 < 0' | wc -l)"
+# A program drawing on the union has to know how far the ground moved
+# under what it has already placed, and nothing else it can read says
+# so: where the primary is changes by a whole display when somebody
+# merely picks a different primary, and one display's own movement
+# cannot be told from that display having been the one dragged.
+echo "and it says how far it moved everything: $(hold shift t14)"
+echo "the arrangement is kept: $(hold clients t14 | sort | awk '{printf "%s %s,%s ", $1, $2, $3}')"
+echo "and the union grew to hold it: $(hold list | awk '$1 == "t14" { print $4 }')"
+hold kill t14
+pty close $a
+pty close $b
+
 echo "--- upgrade takes the session onto the hibr on disk now"
 hold new -d t6 /bin/sh -c 'echo UPGRADE-MARKER; sleep 120'
 sleep 0.5

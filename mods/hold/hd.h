@@ -25,6 +25,18 @@ enum {
 	HD_DROP = 'o',
 	/* Make a named client the primary; every other client stops being it. */
 	HD_PRIMARY = 'p',
+	/* How far the origin has been normalised since this server started,
+	   as "row col". A display put above or to the left of the others
+	   needs a negative corner to say so, and hold answers by moving
+	   every client together so the arrangement's own top-left is 0,0
+	   (Gitea #257) -- which moves the program's idea of where each
+	   display is, under content the program has already placed. Asking
+	   the primary where it is cannot tell that apart from the primary
+	   simply *changing*, and asking one client how far it moved cannot
+	   tell a shift from that client having been dragged: both were
+	   tried. This is the one unambiguous answer, so hold keeps it
+	   rather than leaving the program to infer it. */
+	HD_SHIFT = 'n',
 	/* Re-exec the server on the hibr that is on disk now, taking the
 	   session with it: the one thing a Restart Desktop cannot do, since
 	   that re-execs the desktop *inside* this process (Gitea #198). */
@@ -49,6 +61,9 @@ enum {
 
 extern const py_api *hd_pty;
 extern const tm_api *hd_tm;
+
+/* The running total of what hd_unorm has moved every client by. */
+extern int hd_shiftr, hd_shiftc;
 
 /* One cell as this client was last sent it -- hold's own copy, not term's:
    hold must not include tm.h just to name tm_cell, and the two have no
@@ -114,9 +129,10 @@ struct hd_cli *hd_cfind(vec *cls, int fd);
 struct hd_cli *hd_cfindname(vec *cls, const char *name);
 int hd_chas(vec *cls, int fd);
 int hd_anyprimary(vec *cls);
+int hd_unorm(vec *cls);
 void hd_ubox(vec *cls, int *rows, int *cols);
 void hd_cellpx(vec *cls, int *w, int *h);
-void hd_union(vec *cls, int id, int tid);
+int hd_union(vec *cls, int id, int tid);
 void hd_cclear(vec *cls, const char *why, size_t n);
 void hd_rensend1(vec *cls, struct hd_cli *cn, int tid);
 void hd_passsend(vec *cls, int tid);

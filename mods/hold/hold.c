@@ -251,6 +251,42 @@ int hd_clients(sh *s, int ac, char **av)
 	return HIBR_OK;
 }
 
+/* How far this session's origin has been normalised since the server
+   started, as "row col".
+
+   A program drawing on a union needs this because a display put above
+   or to the left of the others moves *every* display, the program's
+   own content included -- and nothing the program can read tells it
+   apart from an ordinary rearrangement. Asking where the primary is
+   cannot: switching which display is primary moves that answer by a
+   whole display's width with nothing having moved at all, which is
+   exactly what made the desktop slide every window 80 columns sideways
+   the first time this was inferred rather than asked. Asking how far
+   one client moved cannot either: the client being *dragged* is the
+   one that moved for a different reason (Gitea #257). */
+int hd_shift(sh *s, int ac, char **av)
+{
+	str path, r;
+	int ok;
+
+	s_init(&path);
+	if (!hd_which(ac > 2 ? av[2] : 0, &path)) {
+		s_free(&path);
+		return 2;
+	}
+	s_init(&r);
+	ok = hd_ask(path.p, HD_SHIFT, &r);
+	s_free(&path);
+	if (!ok) {
+		s_free(&r);
+		lg(HIBR_LERR, "hold: no such session");
+		return HIBR_FAIL;
+	}
+	hd_ret(s, r.p ? r.p : "0 0");
+	s_free(&r);
+	return HIBR_OK;
+}
+
 /* Turn a request-with-a-name's own reply into a builtin's status: the
    session answers "ok" or names the problem, and hd_askp itself failing
    means it never answered at all. */
@@ -358,6 +394,8 @@ int m_hold(sh *s, int ac, char **av)
 		return hd_list(s);
 	if (!strcmp(sub, "clients"))
 		return hd_clients(s, ac, av);
+	if (!strcmp(sub, "shift"))
+		return hd_shift(s, ac, av);
 	if (!strcmp(sub, "move"))
 		return hd_move(s, ac, av);
 	if (!strcmp(sub, "drop"))
@@ -456,7 +494,7 @@ int m_hold(sh *s, int ac, char **av)
 	}
 	s_free(&path);
 	lg(HIBR_LERR,
-	   "usage: hold new|attach|detach|list|kill|clients|move|drop|primary|upgrade ...");
+	   "usage: hold new|attach|detach|list|kill|clients|shift|move|drop|primary|upgrade ...");
 	return 2;
 }
 

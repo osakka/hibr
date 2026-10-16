@@ -19,7 +19,7 @@
 
 strict
 
-app catalogue "The application catalogue: browse, install, update and remove" 2.0
+app catalogue "The application catalogue: browse, install, update and remove" 2.1
 
 # Not called "Applications": the hibr menu already has a submenu of that
 # name -- every app you can open -- and two rows called the same thing on

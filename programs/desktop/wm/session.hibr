@@ -130,13 +130,63 @@ dt_open() {
 	dt_tstamp "open"
 }
 
+# Move everything a person has arranged by however far hold has moved
+# the session's own origin, and remember where it stands now.
+#
+# hold keeps the arrangement's top-left corner at the union's 0,0, so a
+# display joined *above* or to the *left* of the others shifts every
+# display -- the primary with them (Gitea #257). That is what gives the
+# new display rows that exist, and it is also what moves the ground out
+# from under every window already placed: a window's row and column are
+# the union's, stored, so without this each one would keep its old row
+# and end up straddling the join. Whatever is recomputed from the
+# primary's rectangle each frame needs none of this; it is only for
+# what is remembered.
+#
+# Nothing happens on the first call -- there is no previous reading to
+# have moved from -- nor when the reading is unchanged, which is every
+# ordinary resize and every change of which display is primary.
+fn dt_shiftorigin(shift) {
+	local was dr dc id r c k
+
+	was=$DT_SHIFTWAS
+	DT_SHIFTWAS=$shift
+	[ -z "$was" ] && return 0
+	[ "$was" = "$shift" ] && return 0
+	dr=$((${shift%% *} - ${was%% *}))
+	dc=$((${shift##* } - ${was##* }))
+	[ "$dr" = 0 ] && [ "$dc" = 0 ] && return 0
+	for id in "${!DT[@]}"; do
+		r=${DT["$id"]["row"]}
+		c=${DT["$id"]["col"]}
+		[ -n "$r" ] && DT["$id"]["row"]=$((r + dr))
+		[ -n "$c" ] && DT["$id"]["col"]=$((c + dc))
+	done
+	# An icon's own saved place is the union's too, and dt_iconlay
+	# clamps rather than moves -- so without this every icon would be
+	# squashed against whichever edge the primary now begins at.
+	for k in "${!DT_ICONPOS[@]}"; do
+		r=${DT_ICONPOS["$k"]%% *}
+		c=${DT_ICONPOS["$k"]##* }
+		DT_ICONPOS["$k"]="$((r + dr)) $((c + dc))"
+	done
+	# The Control Strip keeps one absolute row. Left alone it would be
+	# clamped to the primary's new top, which is not where it was. A
+	# never-set one is left alone, the same as cs_clamp leaves it: its
+	# default is computed from the primary and so follows already.
+	[ -n "${CS_Y-}" ] && CS_Y=$((CS_Y + dr))
+	printf 'desktop: displays moved by %s,%s; windows, icons and the strip with them\n' \
+		"$dr" "$dc" >&2
+	return 0
+}
+
 # Re-read the screen size after a resize, and this desktop's own primary
 # viewport from hold's own per-client data. Not held, or hold not loaded,
 # or nobody has attached yet (the moment right after `hold new -d` starts
 # this script, before the first `hold attach` lands): primary is the whole
 # screen, at column 0, the same fallback as a lone terminal always was.
 dt_size() {
-	local sz lst nm row col rows cols pri
+	local sz lst nm row col rows cols pri sft
 
 	sz := console size
 	DT_ROWS=${sz% *}
@@ -177,6 +227,12 @@ dt_size() {
 		# Held but nothing attached: the screen is still a screen.
 		[ "${#DT_DISPLAYS[@]}" -gt 0 ] ||
 			DT_DISPLAYS=("0 0 $DT_ROWS $DT_COLS")
+		# A second round trip, and only here: dt_size runs on open
+		# and on every resize, and a client attaching, leaving or
+		# being moved is a resize, so this is asked exactly when the
+		# answer can have changed.
+		sft := hold shift
+		dt_shiftorigin "${sft:-0 0}"
 	fi
 	dt_has dt_blankregions && dt_blankregions
 	dt_iconlay

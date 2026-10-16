@@ -148,6 +148,74 @@ void hd_cellpx(vec *cls, int *w, int *h)
 	}
 }
 
+/* Shift every client together so the top-left corner of the arrangement
+   is the union's own 0,0, and say whether anything moved.
+
+   A display placed above or to the left of whoever happens to sit at
+   hold's origin can only say so with a negative row or column, and the
+   control panel sends exactly that -- deliberately, since clamping it
+   to zero was its own bug. What was never done is the other half: the
+   union was measured from 0,0 to the furthest edge any client reached,
+   so a client at a negative row contributed *nothing* to it and its
+   whole viewport then read rows `tm_at` answers null for. Nothing
+   crashes and nothing is logged; the display simply shows an empty
+   screen, no window can be moved onto it, and the control panel's
+   picture -- which shifts its own drawing to fit, and so looks right --
+   disagrees with where hold actually put things. Measured live on the
+   owner's own two-display session as `client-6 -68 3 64 213 0` beside
+   a union of 64x216 (Gitea #257).
+
+   Normalising keeps the arrangement a person made -- every client moves
+   by the same amount, so none of them moves relative to another -- and
+   gives the program one screen big enough for all of it. A shifted
+   client's front buffer is dropped, because what it is looking at has
+   changed under it; the program's own content does not move with the
+   shift, which is the half the desktop has to handle (dt_size).
+
+   Only a **negative** minimum is taken out, never a positive one, and
+   that is a decision rather than a shortcut. Attaching at a positive
+   offset with nothing to the left of or above it is how space is
+   *reserved* for a display that has not joined yet -- `hold attach -n
+   lower vt 10 0` is how tests/desktop.py stacks a union, and
+   `desktop --join` does the same -- so pulling the arrangement up to
+   the corner would land the next client straight on top of the first.
+   Leading space a person asked for is theirs; a negative is not space
+   at all, it is a corner the union has no room for. */
+int hd_shiftr;
+int hd_shiftc;
+
+int hd_unorm(vec *cls)
+{
+	size_t i;
+	struct hd_cli *cn;
+	int mr = 0, mc = 0;
+
+	if (!cls->n)
+		return 0;
+	for (i = 0; i < cls->n; i++) {
+		cn = cls->p[i];
+		if (cn->row < mr)
+			mr = cn->row;
+		if (cn->col < mc)
+			mc = cn->col;
+	}
+	if (!mr && !mc)
+		return 0;
+	for (i = 0; i < cls->n; i++) {
+		cn = cls->p[i];
+		cn->row -= mr;
+		cn->col -= mc;
+		free(cn->front);
+		cn->front = 0;
+		cn->imgen = 0;
+	}
+	hd_shiftr -= mr;
+	hd_shiftc -= mc;
+	lg(HIBR_LDBG, "hold: origin normalised, every display moved %d,%d"
+	   " (%d,%d in all)", -mr, -mc, hd_shiftr, hd_shiftc);
+	return 1;
+}
+
 /* The pty's own size, and the emulator's: sized to the union, so the
    program always sees one screen big enough for everyone at their own
    place, not just the largest single client. The pixel size goes with it,
@@ -155,12 +223,13 @@ void hd_cellpx(vec *cls, int *w, int *h)
    every picture as blocks -- which is what every held desktop did until
    0.99.77 (Gitea #103). Left alone with nobody attached -- there is
    nothing to size it from. */
-void hd_union(vec *cls, int id, int tid)
+int hd_union(vec *cls, int id, int tid)
 {
-	int rows, cols, cw = 0, ch = 0;
+	int rows, cols, cw = 0, ch = 0, moved;
 
 	if (!cls->n)
-		return;
+		return 0;
+	moved = hd_unorm(cls);
 	hd_ubox(cls, &rows, &cols);
 	hd_cellpx(cls, &cw, &ch);
 	if (hd_pty->resizepx)
@@ -172,6 +241,7 @@ void hd_union(vec *cls, int id, int tid)
 		hd_tm->cellpx(tid, cw, ch);
 	lg(HIBR_LDBG, "hold: union %dx%d cells, a cell %dx%d pixels", rows,
 	   cols, cw, ch);
+	return moved;
 }
 
 /* Detach every attached client, telling each one why, and empty the list. */
@@ -249,7 +319,17 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit, int *upg)
 		if (!hd_anyprimary(cls))
 			cn->primary = 1;
 		v_add(cls, cn);
-		hd_union(cls, id, tid);
+		/* A normalised origin moves everyone, so everyone is
+		   repainted rather than only the client that arrived. */
+		if (hd_union(cls, id, tid)) {
+			lg(HIBR_LDBG, "hold: attached at %d,%d size %dx%d (%lu now)",
+			   cn->row, cn->col, cn->rows, cn->cols,
+			   (unsigned long)cls->n);
+			hd_rensend(cls, tid);
+			hd_poke(m);
+			s_free(&in);
+			return;
+		}
 		lg(HIBR_LDBG, "hold: attached at %d,%d size %dx%d (%lu now)",
 		   cn->row, cn->col, cn->rows, cn->cols,
 		   (unsigned long)cls->n);
@@ -338,9 +418,11 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit, int *upg)
 			cn2->col = ncol;
 			free(cn2->front);
 			cn2->front = 0;
-			hd_union(cls, id, tid);
-			/* cn2 may be freed by a failed send below. */
-			hd_rensend1(cls, cn2, tid);
+			if (hd_union(cls, id, tid))
+				hd_rensend(cls, tid);
+			else
+				/* cn2 may be freed by a failed send. */
+				hd_rensend1(cls, cn2, tid);
 			/* A moved display may be the primary one: nudge the
 			   program to notice, same as a fresh attach does. */
 			hd_poke(m);
@@ -349,6 +431,14 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit, int *upg)
 		hd_send(c, HD_MOVE, rep, strlen(rep));
 		break;
 	}
+	case HD_SHIFT:
+		s_init(&o);
+		s_num(&o, hd_shiftr);
+		s_ch(&o, ' ');
+		s_num(&o, hd_shiftc);
+		hd_send(c, HD_SHIFT, o.p, o.n);
+		s_free(&o);
+		break;
 	case HD_DROP: {
 		struct hd_cli *cn2 = in.n ? hd_cfindname(cls, in.p) : 0;
 		int wasp = cn2 ? cn2->primary : 0;

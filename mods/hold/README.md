@@ -17,7 +17,8 @@ nothing has to be saved and restored.
 | `hold detach [name]` | detach whoever is attached; with no name, the session this shell is running in |
 | `hold list` | each session, attached or detached, the program's pid, and the union's own size (rows x cols) |
 | `hold clients [name]` | one line per attached client of a session (with no name, the one this shell runs in): `name row col rows cols primary` -- what a control panel draws its rectangles from |
-| `hold move name display row col` | reposition a named client within the session's own virtual space |
+| `hold shift [name]` | how far the session's origin has been normalised since the server started, as `row col` -- what a program drawing on the union translates its own content by |
+| `hold move name display row col` | reposition a named client within the session's own virtual space; `row` and `col` may be negative, and the whole arrangement is then shifted so its top-left corner is the union's own 0,0 |
 | `hold drop name display` | detach a named client, server-side -- "switch off" a display from the panel |
 | `hold primary name display` | make a named client the session's primary; every other client stops being it |
 | `hold kill name` | end the program and the session |
@@ -101,6 +102,37 @@ nothing, and only to a client whose own rectangle holds the whole picture,
 because a bitmap cannot be clipped. A region goes when something writes a
 cell inside it, which is how a window that closed or moved takes its
 picture with it.
+
+## Where the origin is
+
+A client's `row` and `col` place it in the session's own space, and a
+display above or to the left of whoever is at the origin can only say so
+with a **negative** one. The union used to be measured from 0,0 to the
+furthest edge any client reached, so such a client contributed nothing to
+it at all: the pty and the emulator were sized without it, and its whole
+viewport then read rows `tm_at` answers null for. Nothing crashed and
+nothing was logged -- the display was simply blank for as long as it was
+there, no menu could open on it and no window could be moved onto it, and
+the control panel, which shifts its *own* picture to fit, drew a correct
+arrangement hold was not in. Measured on a real two-display session as
+`client-6 -68 3 64 213 0` beside a union of 64x216 (Gitea #257).
+
+So a negative minimum is **normalised away**: every client is moved by the
+same amount, which keeps the arrangement exactly as it was made and puts
+its top-left corner at the union's 0,0. A positive minimum is left alone,
+which is a decision rather than an oversight -- attaching at an offset with
+nothing above or left of it is how space is *reserved* for a display that
+has not joined yet, which is how `desktop --join` and `tests/desktop.py`
+both stack a union.
+
+The program is told, because it cannot work it out. `hold shift` is the
+running total, and the two things a program might infer it from are each
+wrong: where the **primary** is moves by a whole display when somebody
+merely picks a different primary, with nothing having moved; and how far
+**one** client moved cannot be told from that client having been the one
+dragged, which is the case that causes a shift in the first place. The
+desktop reads it in `dt_size` and translates every window, icon and the
+Control Strip by the difference.
 
 That rule means **one picture spanning a union reaches nobody**: at a
 stacked arrangement a wallpaper drawn across both panes is held whole by
