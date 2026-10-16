@@ -58,6 +58,16 @@ void mv_fitpx(mv_pl *p, int *w, int *h)
 	if (p->mode == 3 && p->cw > 1 && p->ch > 1) {
 		*w *= p->cw;
 		*h *= p->ch;
+		/* And never past the source. Decoding a 640x360 stream to
+		   a 1200x480 rectangle invents nothing -- the scaler has no
+		   more detail to give than arrived -- and every one of those
+		   pixels is then resampled and sent. The display caps the
+		   same way; doing it here as well keeps the work out of the
+		   decode thread rather than only off the wire. */
+		if (p->vw > 0 && *w > p->vw)
+			*w = p->vw;
+		if (p->vh > 0 && *h > p->vh)
+			*h = p->vh;
 	}
 }
 

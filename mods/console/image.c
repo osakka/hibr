@@ -540,6 +540,26 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 		tw /= 2;
 		th /= 2;
 	}
+	/* And never larger than the source. The kitty protocol is given the
+	   rectangle in cells and scales a picture into it, so magnifying one
+	   here first adds no detail whatever and costs the magnification in
+	   bytes -- every one of them down a pty, through `hold`, and out to
+	   each attached client. A 640x360 video in a 150x30 window is 1.7 MB
+	   a frame scaled up to the rectangle and 691 kB sent as it is, for
+	   the same picture on screen; a player paying that per frame is a
+	   player the wire cannot keep up with, measured at 1.5 frames a
+	   second against 14 in half blocks (Gitea #199).
+
+	   Sixel is left alone on purpose: it paints 1:1 and has no rectangle
+	   to scale into, so a cell short either way spills or leaves a gap --
+	   which is what the paragraph above is about. `im->id` is the one
+	   flag that tells the two apart. */
+	if (im->id) {
+		if (tw > sw)
+			tw = sw;
+		if (th > sh)
+			th = sh;
+	}
 	if (sx || sy || sw != iw || sh != ih || tw != sw || th != sh) {
 		px = xm((size_t)tw * th * 3);
 		if (tw == sw && th == sh) {

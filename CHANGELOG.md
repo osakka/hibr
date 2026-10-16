@@ -1,5 +1,65 @@
 # Changelog
 
+## 0.99.222
+
+**A picture was magnified before it was sent, and the magnification
+was the whole cost.**
+
+Reported straight after 0.99.221 fixed pixel mode itself: *"I think
+you've fixed it! with one exception, it blinks between frame
+refreshes."*
+
+Measured first, which is what named it. With the player open, the
+desktop's own frame rate:
+
+| mode | frames a second |
+|---|---|
+| half blocks | 14.1 |
+| pixels | 1.5 |
+
+Same clip, same window, and **the same on 0.99.220** -- so the blink
+was not the previous release, it is what pixel-mode video has always
+cost. A picture that updates one and a half times a second while the
+clock runs in real time is a slideshow, and that is what "blinks
+between frame refreshes" is.
+
+The cost is bytes. `cn_image` scales a bitmap to the rectangle it will
+occupy **in the terminal's own pixels** -- which is right for sixel,
+which paints 1:1 and would spill or leave a gap otherwise, and is
+pure waste for kitty, which is *given* the rectangle in cells (`c=`,
+`r=`) and scales the picture into it itself. So a 320x180 video in a
+160x46-cell window was resampled up to 1280x736 here, 2.8 MB a frame,
+and sent -- every byte down a pty, through `hold`, and out to each
+attached client -- for a picture the terminal then drew at exactly the
+size it would have drawn the original.
+
+Never larger than the source, then, for kitty; `im->id` is the one flag
+that tells it from sixel. And the same bound in `mv_fitpx`, so the
+decode thread does not invent the pixels in the first place -- a scaler
+has no more detail to give than arrived.
+
+The same measurement, 320x180 into a 160x46 window:
+
+| | frames a second |
+|---|---|
+| magnified before sending | **0.3** |
+| sent as it is | **4.3** |
+
+**Fourteen times**, for an identical picture on screen. It is the
+owner's own case exactly: a 216-column screen at an 8x16 cell is a
+1728x960 rectangle, 4.9 MB of raw pixels a frame, for a stream fetched
+at a fraction of that.
+
+What this does **not** do is make pixel-mode video as cheap as half
+blocks; 4.3 against 14.1 is still the wire. The remaining lever is
+compression, which `console imgcomp` applies to the wallpaper alone --
+deliberately, because deflating a page cost about 100 ms against a
+0.7 ms frame budget (#129). That trade is worth re-measuring now the
+frame is bytes-bound rather than budget-bound, and it is its own
+ticket rather than this one.
+
+Gitea #199.
+
 ## 0.99.221
 
 **Pixel mode had the lowest resolution of all four picture modes, and
