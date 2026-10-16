@@ -115,7 +115,7 @@ fn dt_tput(int id, int r, int c, text, ...rest) {
 }
 
 # Where a language's catalogue is: the person's own folder first, then the
-# data folder `apps install` writes into, then the bundled one -- the order
+# data folder `catalogue install` writes into, then the bundled one -- the order
 # every one of the desktop's scan lists keeps, so a catalogue of your own
 # shadows a fetched one and an update cannot overwrite your copy. Without
 # that middle entry a language could be published and installed and nothing

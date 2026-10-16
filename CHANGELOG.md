@@ -1,5 +1,47 @@
 # Changelog
 
+## 0.99.217
+
+**The documentation says what the code does.**
+
+Asked for directly: *"Can we please update all the hibr-apps
+repository? And the documentation, it should be 100% accurate right?"*
+
+It was not. The catalogue's command was renamed from `apps` in 0.99.195
+and the sweep stopped at the code:
+
+- **`docs/catalogue.md` showed a transcript the code cannot produce** --
+  bare names where ids are printed, the old column widths, and
+  `installed` where the word has been `user` since 0.99.215. That is the
+  thing this tree's own standard forbids: *every claim run before it was
+  written down, and the output pasted back*. Both blocks are re-run
+  output now, checked cell by cell against a real row, and the page says
+  what `list` and `installed` each answer rather than implying they
+  answer the same thing differently.
+- **nine `apps <verb>` in docs and comments** -- two ADRs, `docs/modules.md`,
+  and five desktop files -- naming a command that has not existed for
+  twenty-two releases. Swept on the backticked form alone, so
+  `wm/bar.hibr`'s *"the number of apps installed"*, which is prose about
+  applications and not about a command, is untouched.
+
+**And the catalogue repository, where the worst of it was public.**
+`index.html` -- the page <https://osakka.github.io/hibr-apps> is served
+from -- told every reader to run `apps list` and `apps install snake`.
+Its generator said so too, so regenerating would have put it straight
+back.
+
+Two more there, neither cosmetic. `mkindex`'s minimum-hibr map was keyed
+by **entry id**, so `ENTHIBR["system/appstore"]` stopped applying the
+moment that entry became `system/catalogue` in 0.99.216: a desktop too
+old to draw the window would have been offered it without a word. And
+the README said `--system` installs into `/var/lib/hibr`, which stopped
+being true in 0.99.215 -- it is `$HIBR_SYSDIR`, the FHS path only where
+hibr is installed the way a distribution installs one, and inside its
+own prefix otherwise.
+
+`stale`'s own row in that README described one of the four things it
+checks, and not the direction it gained in 0.99.213.
+
 ## 0.99.216
 
 **The Catalogue window is called the Catalogue all the way down.**

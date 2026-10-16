@@ -74,7 +74,7 @@ fi
 fd=
 # A desktop that is listening but no longer accepting -- wedged, or stopped
 # mid-frame -- leaves a connect waiting for as long as anybody will wait, and
-# `apps remove` asks this question before it removes an app, so it hung for
+# `catalogue remove` asks this question before it removes an app, so it hung for
 # two minutes on a desktop nothing was wrong with except that one (Gitea
 # #180). The answer below is already bounded (`read -t 5`); this bounds the
 # connect. It is exported rather than set as a prefix, because `exec` with

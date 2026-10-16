@@ -52,7 +52,7 @@ answered; anything that is not an address is refused.
 | | |
 |---|---|
 | `catalogue list [TEXT]` | what the index offers, or what matches TEXT |
-| `catalogue installed` | what is installed here, from where, and what each brought with it |
+| `catalogue installed` | everything you have and which scope it is in — what the catalogue placed, what an administrator installed for the machine, and what the package shipped — with what each brought with it |
 | `catalogue owns PATH` | what a file is and who put it there |
 | `catalogue check [--repair]` | the record against the files, both ways |
 | `catalogue info NAME` | everything the index says about one |
@@ -81,18 +81,34 @@ is what an app being a file you can open is for. It verifies the bundle's
 
 A module built for another machine is **not listed**: the shell knows
 what it is running on, so offering a choice it could never load is
-asking a person to do arithmetic the program has already done. `apps
+asking a person to do arithmetic the program has already done. `catalogue
 info NAME` still answers for one, and says which machine it is for —
 somebody asking by name is asking a different question.
 
-`catalogue list` marks what you already have, and says when the index has
-something newer:
+`catalogue list` says **where** each thing is rather than merely whether
+you have it — `user` for one you installed, `system` for one an
+administrator installed for the whole machine, `shipped` for one the
+package carries, and the version alone for one you do not have — and it
+says when the index has something newer:
 
 ```text
-clock            Clock                      1.2
-notes            Sticky Notes               installed
-weather          Weather                    installed 0.9, 1.1 available
+apps/clock                  Clock                     1.2
+apps/notes                  Sticky Notes              user
+apps/weather                Weather                   user (0.9, 1.1 available)
+themes/classic              Classic                   shipped
 ```
+
+`catalogue installed` answers the same question the other way round,
+listing only what is here, with its version and scope:
+
+```text
+apps/notes                  1.0       user     +1 part
+themes/classic              1.0       shipped
+```
+
+The three words mean the same thing in both, which they did not until
+0.99.215: `list` said `installed` where `installed` said `user`, and the
+two read as different programs.
 
 ## Where a file lands, and why yours wins
 

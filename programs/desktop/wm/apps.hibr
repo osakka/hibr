@@ -69,7 +69,7 @@ fn dt_app(name, title, int h, int w, once = "", icon = "", fixed = "", hidden = 
 # bundled app of the same name; a session adds its own folders after.
 # Config first, then data, and the order is the whole point (ADR 0041): the
 # first list entry to claim a name wins, by the DT_SRC check below. Config is
-# what a person wrote and would back up; data is what `apps install` placed
+# what a person wrote and would back up; data is what `catalogue install` placed
 # and can fetch again. So ~/.config/hibr/apps/calc.hibr shadows a fetched
 # calc, which is how patching an installed app works -- copy it to your own
 # folder and edit it there -- and why an update cannot overwrite your copy.

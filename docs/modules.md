@@ -37,7 +37,7 @@ then the install directory. A shell running as root skips every one of those
 and consults only the install directory — see
 [0016](adr/0016-privileges-are-dropped-never-gained.md).
 
-`$XDG_DATA_HOME/hibr/mods` is where `apps install` puts a module, and it is
+`$XDG_DATA_HOME/hibr/mods` is where `catalogue install` puts a module, and it is
 searched **only when something asks for a module by name** — `mod load`,
 `mod find`, `need`, `mod list`, `mod avail`. It is deliberately left out of
 the index that lets a *command* load the module declaring it, because that

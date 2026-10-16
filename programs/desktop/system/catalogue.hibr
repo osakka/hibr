@@ -10,7 +10,7 @@
 # read one answer instead of one parsing the other's layout. Parsing a
 # layout is how a window comes to disagree with its own command.
 #
-# Every fetch is a **job**: `apps install` is seconds of network, and a
+# Every fetch is a **job**: `catalogue install` is seconds of network, and a
 # desktop that stops drawing while it waits is a desktop that looks
 # broken. The job writes its status to a file and the next frame picks it
 # up, the shape wm/remote.hibr uses for transfers. Polled from `_draw`

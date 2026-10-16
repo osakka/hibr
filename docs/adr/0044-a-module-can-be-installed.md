@@ -91,7 +91,7 @@ fingerprint. A **script** install warns once and goes on, because `sha256`
 and TLS are its stated trust model and a reader is the backstop; a
 **module** install stops, because there is no reader and the object runs as
 you. A host with no `gpg` is the same case: scripts unaffected, modules
-refused. Without this the rest is decoration, and `apps info` would be
+refused. Without this the rest is decoration, and `catalogue info` would be
 claiming a check nothing makes.
 
 The key is pinned by **fingerprint**, and the keyring is only where to
@@ -109,7 +109,7 @@ named and declined rather than downloaded and found wanting.
 
 ## Consequences
 
-A module from the catalogue is a real install: `apps install
+A module from the catalogue is a real install: `catalogue install
 mods/<name>` places it and `need <name>` finds it. Nothing new runs on a
 typo. Root is where it was.
 

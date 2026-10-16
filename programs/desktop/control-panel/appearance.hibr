@@ -34,7 +34,7 @@ fn cp_set_checks(int? id = "", value = "") { DT_CHECKS=$value; cp_save; }
 # and nothing else (docs/adr/0028). The person's own folder is searched
 # first, so a file there replaces the bundled one of that name -- and their
 # themes folder after it, where every colour file lived before 0.99.33 --
-# then the data folder `apps install` writes into, so a scheme of your own
+# then the data folder `catalogue install` writes into, so a scheme of your own
 # shadows a fetched one of the same name and an update cannot overwrite
 # your copy, which is the order every one of the desktop's scan lists
 # keeps (`DT_APPDIRS` is the shape). Without that entry a colour scheme
@@ -156,7 +156,7 @@ fn cp_colours(t) {
 # left out whole, like a colour file. Applying one sets each of these
 # settings, which can still be changed one by one afterwards. The person's
 # own folder is searched first, and Save Current Look as Theme writes
-# there; then the data folder `apps install` writes into, then the bundled
+# there; then the data folder `catalogue install` writes into, then the bundled
 # one -- the same order every scan list keeps, and the reason a theme's
 # own picture has to land *beside* its JSON rather than under it, since
 # `image` is read from the folder the theme was found in (Gitea #224).
