@@ -258,6 +258,11 @@ went in the shell.
 1. **errexit is scoped.** Exemption applies only to the tested pipeline, not to
    bodies of functions it calls. Any failing pipeline stage fails the pipeline
    for errexit (no `pipefail` flag). Interactive shells abandon the line.
+   A pipeline stage, a `( )` and a background job keep errexit, and a
+   stage or subshell is exempt exactly when its status is tested; a child
+   that stops is quiet (`errx` 2) and its parent reports once. `!` never
+   trips it. A stage ran with errexit off from 0.21 to 0.99.230 (Gitea
+   #270), which no test noticed because the outcome looked like success.
 2. **`((expr))` never trips `set -e`** — its status is a value, not a failure.
 3. **`=~` and `match` capture into `M`**; `=~` fills `BASH_REMATCH` as well
    (since 0.65, ADR 0004), because every model that wrote hibr without the

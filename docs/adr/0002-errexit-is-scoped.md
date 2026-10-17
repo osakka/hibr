@@ -17,6 +17,18 @@ functions it calls. Any failing stage of a pipeline fails the pipeline, so
 there is no separate `pipefail` option to remember. An interactive shell
 abandons the current line rather than exiting.
 
+**Forked children keep it** (0.99.231, Gitea #270). A pipeline stage, a
+`( )` subshell and a background job run with errexit as the shell that
+forked them has it, and a stage or a subshell is exempt exactly when its
+status is tested; only a command substitution drops it, unless
+`inherit_errexit` is on, as in bash. A stage used to run with errexit off,
+so `{ false; echo X; } | cat` printed `X` -- the one place `set -e` quietly
+meant nothing, which is the failure this decision exists to prevent. A
+child that stops says nothing, and the shell that forked it reports its
+status once; each child used to print the errexit line again. And **`!`
+never trips errexit**, as POSIX says: an inverted status is a test the
+script wrote on purpose.
+
 ## Consequences
 
 `set -e` means what it appears to mean, and a function called from inside `if`

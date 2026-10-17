@@ -959,6 +959,8 @@ char *xcap(sh *s, const char *src)
 		if (!(s->sopt & O_INHERITERR)) {
 			lg(HIBR_LDBG, "substitution runs without errexit");
 			s->errx = 0;
+		} else if (s->errx) {
+			s->errx = 2;
 		}
 		tr_fork(s);
 		hibr_run(s, src);
@@ -1718,14 +1720,19 @@ out:
 	return st;
 }
 
-/* Stop the shell, or the current input unit, when errexit is armed. */
+/* Stop the shell, or the current input unit, when errexit is armed. A
+   child forked for a pipeline stage, a ( ), a background job or an
+   inheriting $( ) has errx 2: it stops the same way and says nothing,
+   because the shell that started it sees its status -- at once, or at
+   `wait` -- and says it once. Each used to print the line again. */
 int ex_chk(sh *s, int st, int tested)
 {
 	if (st && !tested && !s->stop)
 		tr_err(s, st);
 	if (!st || !s->errx || tested || s->stop || s->intry || s->quit)
 		return st;
-	lg(HIBR_LERR, "errexit: command failed with status %d", st);
+	if (s->errx == 1)
+		lg(HIBR_LERR, "errexit: command failed with status %d", st);
 	s->stop = 1;
 	s->st = st;
 	if (!s->it)
@@ -1745,7 +1752,10 @@ void pflat(node *n, vec *v)
 }
 
 /* Execute a pipeline, one process per stage. */
-int ex_pipe(sh *s, node *n)
+/* t is whether the pipeline's status is being tested, which each stage
+   inherits: a stage keeps errexit, as bash's does (Gitea #270), and is
+   exempt from it exactly when the pipeline is. */
+int ex_pipe(sh *s, node *n, int t)
 {
 	vec st = { 0, 0, 0 }, pids = { 0, 0, 0 };
 	int in = -1, pf[2], w, rc = 0;
@@ -1789,10 +1799,12 @@ int ex_pipe(sh *s, node *n)
 			}
 			signal(SIGINT, SIG_DFL);
 			s->it = 0;
-			s->errx = 0;
+			if (s->errx)
+				s->errx = 2;
 			tr_fork(s);
 			if (q->k == N_CMD)
 				s->nofork = 1;
+			s->tst = t;
 			rc = ex(s, q);
 			tr_exit(s);
 			fflush(0);
@@ -1858,6 +1870,8 @@ int ex_bg(sh *s, node *n)
 		signal(SIGTTIN, SIG_DFL);
 		signal(SIGTTOU, SIG_DFL);
 		s->it = 0;
+		if (s->errx)
+			s->errx = 2;
 		tr_fork(s);
 		if (n->l && n->l->k == N_CMD)
 			s->nofork = 1;
@@ -1876,7 +1890,9 @@ int ex_bg(sh *s, node *n)
 }
 
 /* Run a command list inside a subshell process. */
-int ex_sub(sh *s, node *n)
+/* t is whether the subshell's status is being tested: what runs inside is
+   exempt from errexit exactly when a { } group there would be. */
+int ex_sub(sh *s, node *n, int t)
 {
 	pid_t pid;
 	int w;
@@ -1891,10 +1907,13 @@ int ex_sub(sh *s, node *n)
 	if (pid == 0) {
 		signal(SIGINT, SIG_DFL);
 		s->it = 0;
+		if (s->errx)
+			s->errx = 2;
 		tr_fork(s);
 		ex_loops = 0;
 		if (rd_do(s, n->rd, 0) != HIBR_OK)
 			_exit(HIBR_FAIL);
+		s->tst = t;
 		w = ex(s, n->l);
 		tr_exit(s);
 		fflush(0);
@@ -2458,17 +2477,18 @@ int ex(sh *s, node *n)
 		st = ex(s, n->l);
 		if (s->quit || s->stop || s->ret)
 			return s->st = st;
-		return ex_chk(s, s->st = st ? 0 : 1, t);
+		lg(HIBR_LDBG, "an inverted status never trips errexit");
+		return s->st = st ? 0 : 1;
 	case N_PIPE:
 		s->ln = n->ln;
-		st = ex_pipe(s, n);
+		st = ex_pipe(s, n, t);
 		ex_chk(s, st ? st : s->pfs, t);
 		return st;
 	case N_BG:
 		return ex_bg(s, n);
 	case N_SUB:
 		s->ln = n->ln;
-		return ex_chk(s, ex_sub(s, n), t);
+		return ex_chk(s, ex_sub(s, n, t), t);
 	case N_GRP:
 		s->ln = n->ln;
 		if (rd_do(s, n->rd, &sv) != HIBR_OK) {

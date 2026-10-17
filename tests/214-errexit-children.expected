@@ -1,0 +1,37 @@
+0
+-- set -e; { false; echo X; } | cat; echo after
+hibr: errexit: command failed with status 1
+status 1
+-- set -e; f() { false; echo F; }; f | cat; echo after
+hibr: errexit: command failed with status 1
+status 1
+-- set -e; set -o | grep "^errexit "
+errexit         on
+status 0
+-- set -e; if { false; echo X; } | cat; then echo tested; fi
+tested
+status 0
+-- set -e; if false | false; then :; else echo "tested, else"; fi
+tested, else
+status 0
+-- set -e; ! true; echo "after !"
+after !
+status 0
+-- set -e; ! { false; echo X; } | cat; echo "after ! pipeline"
+after ! pipeline
+status 0
+-- set -e; ( false; echo X ); echo after
+hibr: errexit: command failed with status 1
+status 1
+-- set -e; shopt -s inherit_errexit; v=$(false; echo X); echo "after [$v]"
+hibr: errexit: command failed with status 1
+status 1
+-- set -e; v=$(false; echo X); echo "without inherit_errexit [$v]"
+without inherit_errexit [X]
+status 0
+-- set -e; true | false; echo after
+hibr: errexit: command failed with status 1
+status 1
+-- set -e; false & wait; echo "a background job is not this shell"
+hibr: errexit: command failed with status 1
+status 1

@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.99.231
+
+**errexit holds inside a pipeline stage** (Gitea #270).
+
+`set -e; { false; echo X; } | cat` printed `X`: every pipeline stage ran
+with errexit off, which it had since the first commit, so a compound
+command or a function in a pipeline ran on past a failure that would have
+stopped it anywhere else -- the one place `set -e` quietly meant nothing,
+which is what ADR 0002 exists to prevent. bash keeps errexit in a stage
+and drops it only in `$( )`, and so does hibr now. A stage, a `( )` and a
+background job keep it; a stage or subshell is exempt exactly when its
+status is tested; `$( )` drops it unless `inherit_errexit` is on.
+
+Two more in the same place. **A child that stopped printed the errexit
+line, and then its parent printed it again** -- a `( )`, an inheriting
+`$( )` and a waited-for background job each said it twice. The child
+stops quietly now and the shell that forked it reports once. And **`!`
+tripped errexit** when the status it inverted came out as a failure,
+which POSIX says it never does: `set -e; ! true; echo after` stopped, and
+goes on now.
+
+What changes for a script: under ADR 0002 a failing stage fails the
+pipeline, so `f | cat` where `f` fails partway now stops the script, as
+`false | cat` always did here. In bash it goes on, because bash looks at
+the last stage only.
+
+`tests/214-errexit-children.t` covers each case and fails against
+0.99.230.
+
 ## 0.99.230
 
 **What the package ships is one list, and an app's pane comes with its

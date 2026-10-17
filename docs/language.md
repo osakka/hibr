@@ -559,9 +559,13 @@ hibr: r: readonly variable
 status 1
 ```
 
-**[hibr]** `set -e` is scoped to the tested pipeline and does not reach into the
-bodies of functions it calls, and there is no `pipefail` —
-[0002](adr/0002-errexit-is-scoped.md).
+**[hibr]** `set -e` is scoped to the tested pipeline: its exemption does not
+reach into the bodies of functions that pipeline calls, and there is no
+`pipefail`, because any failing stage fails the pipeline —
+[0002](adr/0002-errexit-is-scoped.md). A pipeline stage, a `( )` and a
+background job each keep errexit, as bash's do, so `{ false; echo X; } |
+cat` stops at `false`; only `$( )` drops it, unless `inherit_errexit` is on.
+`!` never trips it, as POSIX says.
 
 ## Strict expansion
 
