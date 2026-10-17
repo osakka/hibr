@@ -190,10 +190,11 @@ int b_exp(sh *s, int ac, char **av)
 		}
 	}
 	if (i >= ac) {
-		for (j = 0; j < s->tsz; j++)
-			for (v = s->tab[j]; v; v = v->nx)
-				if (v->ex)
-					b_decl1(s, v);
+		str o;
+		s_init(&o);
+		b_vlist(s, &o, 1, 0);
+		b_out(s, &o);
+		s_free(&o);
 		return HIBR_OK;
 	}
 	for (; i < ac; i++) {
@@ -429,6 +430,15 @@ int b_set(sh *s, int ac, char **av)
 	int i = 1, on;
 	const char *p;
 
+	if (ac == 1) {
+		str o;
+		s_init(&o);
+		b_vlist(s, &o, 0, 1);
+		b_declf(s, 1, 0, 0, 0, &o);
+		b_out(s, &o);
+		s_free(&o);
+		return HIBR_OK;
+	}
 	for (; i < ac; i++) {
 		if (!strcmp(av[i], "--")) {
 			i++;
@@ -448,7 +458,7 @@ int b_set(sh *s, int ac, char **av)
 		if (av[i][1] == 'o' && !av[i][2]) {
 			on = av[i][0] == '-';
 			if (i + 1 >= ac) {
-				sh_optlist(s, 1);
+				sh_optlist(s, on ? 0 : 1);
 				continue;
 			}
 			if (sh_optset(s, av[++i], on) != HIBR_OK)
@@ -1405,13 +1415,112 @@ int b_app(sh *s, int ac, char **av)
 	return HIBR_OK;
 }
 
-/* Print one variable the way declare would state it. */
-void b_decl1(sh *s, var *v)
+/* Quote a value to read back as itself: as declare -p writes it, "..."
+   with a backslash before " $ ` and \, or as set writes it, bare when
+   every byte is safe and '...' when not; $'...' either way for a control
+   character. */
+void b_qval(sh *s, str *o, const char *v, int set)
+{
+	const char *p;
+
+	for (p = v; *p; p++)
+		if ((unsigned char)*p < 32 || (unsigned char)*p == 127)
+			break;
+	if (*p) {
+		s_cat(o, xquote(s, v, 0));
+		return;
+	}
+	if (set) {
+		for (p = v; *p && xqsafe((unsigned char)*p, p == v); p++)
+			;
+		s_cat(o, !*p ? v : xquote(s, v, 0));
+		return;
+	}
+	s_ch(o, '"');
+	for (p = v; *p; p++) {
+		if (strchr("\"$`\\", *p))
+			s_ch(o, '\\');
+		s_ch(o, *p);
+	}
+	s_ch(o, '"');
+}
+
+/* A key inside [...]: a word bare in a -A map, digits bare in either, and
+   anything else quoted, since an unquoted word under -a is arithmetic
+   everywhere but inside (...). */
+void b_qkey(sh *s, str *o, const char *k, int assoc)
+{
+	const char *p;
+
+	for (p = k; *p; p++)
+		if (assoc ? !xqsafe((unsigned char)*p, p == k)
+			  : !isdigit((unsigned char)*p))
+			break;
+	if (*k && !*p)
+		s_cat(o, k);
+	else
+		b_qval(s, o, k, 0);
+}
+
+/* True for an entry that is a map, an empty one included. */
+int b_emap(ent *e)
+{
+	return e->map || e->ty == J_OBJ || e->ty == J_ARR;
+}
+
+/* A map with no map in it, as one (...) list. bash ends a -A list with a
+   space before the parenthesis, and so does this, so a one-key listing is
+   bash's byte for byte. */
+void b_mflat(sh *s, str *o, ent *m, int assoc)
+{
+	ent *e;
+
+	s_ch(o, '(');
+	for (e = m; e; e = e->nx) {
+		s_ch(o, '[');
+		b_qkey(s, o, e->k, assoc);
+		s_cat(o, "]=");
+		b_qval(s, o, e->s ? e->s : "", 0);
+		if (e->nx || assoc)
+			s_ch(o, ' ');
+	}
+	s_ch(o, ')');
+}
+
+/* A map holding maps has no (...) form, so each value under it is one
+   assignment a line, m["a"]["b"]="v", which hibr reads back. An empty map
+   inside one has no assignment at all and is left out. */
+void b_mleaf(sh *s, str *o, str *path, ent *m, int set)
+{
+	size_t n = path->n;
+	ent *e;
+
+	for (e = m; e; e = e->nx) {
+		s_ch(path, '[');
+		b_qval(s, path, e->k, 0);
+		s_ch(path, ']');
+		if (b_emap(e)) {
+			b_mleaf(s, o, path, e->map, set);
+		} else {
+			s_add(o, path->p, path->n);
+			s_ch(o, '=');
+			b_qval(s, o, e->s ? e->s : "", set);
+			s_ch(o, '\n');
+		}
+		path->n = n;
+		path->p[n] = 0;
+	}
+}
+
+/* One variable the way declare -p states it, attributes and all, or with
+   set the way set lists it, name=value and nothing else. */
+void b_decl1(sh *s, var *v, str *o, int set)
 {
 	const char *ty = v_tyname(v->at);
-	str f;
+	str f, path;
+	ent *e;
+	int nest = 0;
 
-	(void)s;
 	s_init(&f);
 	if (v->at & A_REF)
 		s_ch(&f, 'n');
@@ -1427,15 +1536,77 @@ void b_decl1(sh *s, var *v)
 		s_ch(&f, 'x');
 	if (v->am)
 		s_ch(&f, v->at & A_ASSOC ? 'A' : 'a');
-	if (*ty)
-		printf("declare %s%s%s ", f.n ? "-" : "", f.n ? f.p : "", ty);
-	else
-		printf("declare -%s ", f.n ? f.p : "-");
-	if (v->am)
-		printf("%s=(...)\n", v->k);
-	else
-		printf("%s=\"%s\"\n", v->k, v->v ? v->v : "");
+	if (!set && *ty) {
+		s_cat(o, "declare ");
+		if (f.n) {
+			s_ch(o, '-');
+			s_cat(o, f.p);
+			s_ch(o, ' ');
+		}
+		s_cat(o, ty);
+		s_ch(o, ' ');
+	} else if (!set) {
+		s_cat(o, "declare -");
+		s_cat(o, f.n ? f.p : "-");
+		s_ch(o, ' ');
+	}
 	s_free(&f);
+	s_cat(o, v->k);
+	s_ch(o, '=');
+	if (!v->am) {
+		b_qval(s, o, v->v ? v->v : "", set);
+		s_ch(o, '\n');
+		return;
+	}
+	for (e = v->map; e && !nest; e = e->nx)
+		nest = b_emap(e);
+	if (!nest) {
+		b_mflat(s, o, v->map, (v->at & A_ASSOC) != 0);
+		s_ch(o, '\n');
+		return;
+	}
+	s_cat(o, "()\n");
+	s_init(&path);
+	s_cat(&path, v->k);
+	b_mleaf(s, o, &path, v->map, set);
+	s_free(&path);
+}
+
+/* Order two variables by name, for every listing of them. */
+int b_vcmp(const void *a, const void *b)
+{
+	return strcmp((*(var *const *)a)->k, (*(var *const *)b)->k);
+}
+
+/* Every variable, or every one exported (1) or readonly (2), sorted by
+   name as bash lists them; the table's own order is its hash's. */
+void b_vlist(sh *s, str *o, int which, int set)
+{
+	vec l;
+	size_t j;
+	var *v;
+
+	memset(&l, 0, sizeof l);
+	for (j = 0; j < s->tsz; j++)
+		for (v = s->tab[j]; v; v = v->nx)
+			if (!(which == 1 && !v->ex) && !(which == 2 && !v->ro))
+				v_add(&l, v);
+	if (l.n)
+		qsort(l.p, l.n, sizeof *l.p, b_vcmp);
+	for (j = 0; j < l.n; j++)
+		b_decl1(s, (var *)l.p[j], o, set);
+	v_free(&l);
+}
+
+/* A listing goes to the screen, or into a bound slot and nowhere else --
+   printed while a slot was bound, it landed in the middle of a full-screen
+   program and left the variable empty (Gitea #167, #269). */
+void b_out(sh *s, str *o)
+{
+	if (s->bind)
+		m_bound(s, o);
+	else if (o->n)
+		fputs(o->p, stdout);
 }
 
 /* Declare variables, with bash's flags or one of our own type names. */
@@ -1447,7 +1618,7 @@ int fn_cmp(const void *a, const void *b)
 
 /* Print functions: their definitions as written (-f), or declare -f lines
    naming them (-F); every one, sorted, or just those named. */
-int b_declf(sh *s, int full, int ac, char **av, int i)
+int b_declf(sh *s, int full, int ac, char **av, int i, str *o)
 {
 	vec l;
 	node *f;
@@ -1472,11 +1643,13 @@ int b_declf(sh *s, int full, int ac, char **av, int i)
 	for (j = 0; j < l.n; j++) {
 		f = (node *)l.p[j];
 		if (full)
-			printf("%s\n", f->tx ? f->tx : f->s);
-		else if (all)
-			printf("declare -f %s\n", f->s);
-		else
-			printf("%s\n", f->s);
+			s_cat(o, f->tx ? f->tx : f->s);
+		else if (all) {
+			s_cat(o, "declare -f ");
+			s_cat(o, f->s);
+		} else
+			s_cat(o, f->s);
+		s_ch(o, '\n');
 	}
 	v_free(&l);
 	return rc;
@@ -1492,6 +1665,10 @@ int b_decl(sh *s, int ac, char **av)
 
 	for (; i < ac && av[i][0] == '-' && av[i][1]; i++) {
 		char *f;
+		if (!strcmp(av[i], "--")) {
+			i++;
+			break;
+		}
 		for (f = av[i] + 1; *f; f++) {
 			switch (*f) {
 			case 'i': at |= A_INT; break;
@@ -1513,19 +1690,23 @@ int b_decl(sh *s, int ac, char **av)
 			}
 		}
 	}
-	if (fn)
-		return b_declf(s, fn == 1, ac, av, i);
+	if (fn) {
+		str o;
+		s_init(&o);
+		n = b_declf(s, fn == 1, ac, av, i, &o);
+		b_out(s, &o);
+		s_free(&o);
+		return n;
+	}
 	if (i < ac && (code = v_tycode(av[i]))) {
 		at |= code << A_TYSH;
 		i++;
 	}
 	if (pr || i >= ac) {
-		if (i >= ac) {
-			for (j = 0; j < s->tsz; j++)
-				for (v = s->tab[j]; v; v = v->nx)
-					b_decl1(s, v);
-			return HIBR_OK;
-		}
+		str o;
+		s_init(&o);
+		if (i >= ac)
+			b_vlist(s, &o, 0, 0);
 		for (; i < ac; i++) {
 			v = v_find(s, av[i]);
 			if (!v) {
@@ -1533,8 +1714,10 @@ int b_decl(sh *s, int ac, char **av)
 				n = 1;
 				continue;
 			}
-			b_decl1(s, v);
+			b_decl1(s, v, &o, 0);
 		}
+		b_out(s, &o);
+		s_free(&o);
 		return n ? HIBR_FAIL : HIBR_OK;
 	}
 	for (; i < ac; i++) {
@@ -1591,13 +1774,16 @@ int b_ro(sh *s, int ac, char **av)
 	var *v;
 	size_t j;
 
-	if (ac > 1 && !strcmp(av[1], "-p"))
+	if (i < ac && !strcmp(av[i], "-p"))
+		i++;
+	if (i < ac && !strcmp(av[i], "--"))
 		i++;
 	if (i >= ac) {
-		for (j = 0; j < s->tsz; j++)
-			for (v = s->tab[j]; v; v = v->nx)
-				if (v->ro)
-					b_decl1(s, v);
+		str o;
+		s_init(&o);
+		b_vlist(s, &o, 2, 0);
+		b_out(s, &o);
+		s_free(&o);
 		return HIBR_OK;
 	}
 	for (; i < ac; i++) {

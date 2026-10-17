@@ -1,5 +1,56 @@
 # Changelog
 
+## 0.99.229
+
+**`set` lists the shell, and `declare -p` prints what reads back in**
+(Gitea #269).
+
+Asked: *"in bash, we do `set` to see all the variables and functions ...
+what do we have in hibr for the same?"* Measured against bash 5.2.15, the
+answer was a gap and three bugs:
+
+- **`set` with no arguments printed nothing.** It lists every variable and
+  then every function now, as bash's does -- a value bare when it is safe,
+  `'…'` when it is not, `$'…'` for a control character. Aliases are
+  `alias`'s, in both shells.
+- **`declare -p` did not escape a value.** `x='q"$z'` printed as
+  `x="q"$z"`, so `eval "$(declare -p x)"` gave something else. It quotes as
+  bash does now: `"…"` with `\"`, `\$`, `` \` `` and `\\` escaped, or
+  `$'…'`.
+- **An array or a map printed as `(...)`.** Its contents print now:
+  `([0]="1" [1]="two words")`, and `([k]="v" )` for `-A`, with bash's own
+  space before the parenthesis. A key that is not a plain word is quoted,
+  and every non-numeric key under `-a` is, since an unquoted word there is
+  arithmetic outside `(…)`.
+- **`declare -x int n` printed as `declare -xint n`**, which reads back as
+  `-x -i -n -t` and makes `n` a nameref. There is a space before the type
+  now. And `declare --` was refused, so hibr could not read its own
+  `declare -- x=…` lines; `declare --` and `readonly --` end the options,
+  as `export` and `local` already did.
+
+**[hibr]** A map holding maps has no bash syntax, so `declare -p` writes
+the declaration and then one assignment a line, `n["a"]["b"]="v"`, which
+hibr reads back. An empty map inside a map has no assignment and is left
+out, and the JSON types `json parse` gave values are written as text;
+`json emit` keeps both.
+
+The listings -- `set`, `declare -p`, `export -p`, `readonly -p` -- come
+out **sorted by name**, where they were in the order of the variable
+table's hash. **`set +o`** prints the `set -o`/`set +o` lines that put the
+options back (its two branches had always printed the same table), **`shopt
+-p`** prints `shopt -s`/`-u` lines, and `hibr +o` does what `set +o` does.
+Each listing fills a bound slot rather than printing, so `s := declare -p m`
+holds it, which none of them did.
+
+`tests/212-declare-p.t` compares the quoting, an indexed array and `set
++o` against bash; `tests/213-declare-p-maps.t` puts every shape through
+`eval` in the same shell and in a fresh one. Both fail against 0.99.228.
+
+Writing the checks found that hibr drops `errexit` inside a pipeline stage,
+where bash keeps it: `set -e; { false; echo X; } | cat` prints `X` here.
+That changes what scripts do rather than what a listing prints, so it is
+Gitea #270 of its own.
+
 ## 0.99.228
 
 **A wallpaper image can be chosen without the Files app** (Gitea #265).

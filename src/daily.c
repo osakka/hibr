@@ -890,27 +890,53 @@ char *sh_dash(sh *s)
 	return r;
 }
 
-/* Print every option and whether it is on. */
-void sh_optlist(sh *s, int setstyle)
+/* One option, as a table row (0), or as the command that puts it back:
+   set -o/+o (1), the form `set +o` prints, or shopt -s/-u (2), the form
+   `shopt -p` prints. Both commands reach one namespace (ADR 0017), so
+   either restores every option. */
+void sh_opt1(sh *s, str *o, const char *nm, int style)
 {
-	int i, v;
+	int v = sh_optget(s, nm);
+	size_t w;
 
-	for (i = 0; sh_optnames[i]; i++) {
-		v = sh_optget(s, sh_optnames[i]);
-		if (setstyle)
-			printf("%-16s%s\n", sh_optnames[i], v ? "on" : "off");
-		else
-			printf("%-16s%s\n", sh_optnames[i], v ? "on" : "off");
+	if (style == 1)
+		s_cat(o, v ? "set -o " : "set +o ");
+	else if (style == 2)
+		s_cat(o, v ? "shopt -s " : "shopt -u ");
+	if (style) {
+		s_cat(o, nm);
+	} else {
+		s_cat(o, nm);
+		for (w = strlen(nm); w < 16; w++)
+			s_ch(o, ' ');
+		s_cat(o, v ? "on" : "off");
 	}
+	s_ch(o, '\n');
+}
+
+/* Every option, in one of sh_opt1's three forms. */
+void sh_optlist(sh *s, int style)
+{
+	str o;
+	int i;
+
+	s_init(&o);
+	for (i = 0; sh_optnames[i]; i++)
+		sh_opt1(s, &o, sh_optnames[i], style);
+	b_out(s, &o);
+	s_free(&o);
 }
 
 /* One namespace of options, reached by shopt or by set -o alike. */
 int b_shopt(sh *s, int ac, char **av)
 {
-	int i = 1, on = -1, quiet = 0, n = 0, v;
+	int i = 1, on = -1, quiet = 0, n = 0, v, pr = 0;
+	str o;
 
 	for (; i < ac && av[i][0] == '-' && av[i][1]; i++) {
-		if (!strcmp(av[i], "-s"))
+		if (!strcmp(av[i], "-p"))
+			pr = 1;
+		else if (!strcmp(av[i], "-s"))
 			on = 1;
 		else if (!strcmp(av[i], "-u"))
 			on = 0;
@@ -925,8 +951,23 @@ int b_shopt(sh *s, int ac, char **av)
 	}
 	if (i >= ac) {
 		if (on < 0)
-			sh_optlist(s, 0);
+			sh_optlist(s, pr ? 2 : 0);
 		return HIBR_OK;
+	}
+	if (pr && on < 0) {
+		s_init(&o);
+		for (; i < ac; i++) {
+			if (sh_optget(s, av[i]) < 0) {
+				lg(HIBR_LERR, "shopt: %s: no such option",
+				   av[i]);
+				n = 1;
+				continue;
+			}
+			sh_opt1(s, &o, av[i], 2);
+		}
+		b_out(s, &o);
+		s_free(&o);
+		return n ? HIBR_FAIL : HIBR_OK;
 	}
 	for (; i < ac; i++) {
 		if (on < 0) {

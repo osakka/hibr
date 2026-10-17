@@ -100,13 +100,15 @@ hibr: source: /dev/tcp/example.com/80: No such file or directory
 | `declare [-aAgilnprux] [type] [name[=v]…]` | declare variables and attributes |
 | `declare -f [name…]` / `declare -F [name…]` | print functions as written, or list their names |
 | `typeset …` | the same builtin under its other name |
-| `readonly [-p] [name[=v]…]` | make variables readonly, or list the ones that are |
+| `readonly [-p] [--] [name[=v]…]` | make variables readonly, or list the ones that are |
 | `local name[=v]…` | declare function-local variables |
 | `export [-p] [-n] [name[=v]…]` | mark variables for export; `-p` lists them; `-n` takes them out of the environment and keeps their values |
 | `unset [-f] name…` | remove variables, array elements or functions |
 | | `unset a[1]`, `a[-1]` and `h["a-b"]` all reach what they name |
 | `set [-/+flags] [--] [args…]` | set options, or replace the positional parameters; letters bundle (`set -ex`) and `hibr` takes the same ones on its command line |
-| `shopt [-s\|-u\|-q] [name…]` | read or set shell options |
+| `set` | list every variable, then every function, in a form that reads back in |
+| `set -o` / `set +o` | every option as a table, or as the `set -o`/`set +o` lines that put it back |
+| `shopt [-s\|-u\|-q\|-p] [name…]` | read or set shell options; `-p` prints the `shopt -s`/`-u` lines that put them back |
 | `strict [off] [functions\|vars\|expansion…]` / `strict -p` | **[hibr]** refuse, in the file that runs it, what is usually a mistake: a function defined twice in it, a function creating a global without `local`, an expansion that splits -- see [0023](adr/0023-strict-is-per-file.md) |
 | `shift [n]` | drop the first `n` positional parameters |
 | `read [-rs] [-p s] [-n k] [-N k] [-d c] [-t s] [-u fd] [-a arr] [name…]` | read one line; `-n` stops at `k` characters *or* the delimiter, whichever comes first, and `-N` takes exactly `k` and splits nothing; a name may be subscripted, as in `read h[k]` |
@@ -134,6 +136,42 @@ hibr: m: declared int, got 'abc'
 A flagged `-i` coerces; a declared type *validates*, with the same check that
 guards typed function parameters. Inside a function `declare` is local unless
 `-g` is given.
+
+`set` with no arguments, `declare -p`, `export -p` and `readonly -p` list
+variables **sorted by name**, each in a form that reads back in, as bash's
+do. That form is bash's own quoting: `declare -p` writes `"…"` with `\"`,
+`\$`, `` \` `` and `\\` escaped, `set` writes a value bare when it is safe
+and `'…'` when it is not, and either writes `$'…'` for a control character.
+An array or a map shows its contents. **[hibr]** A map holding maps has no
+bash syntax, so it is the declaration and then one assignment a line, which
+hibr reads back:
+
+```sh
+a=(1 "two words")
+declare -A m=([k]=v)
+declare -A n=(); n["a"]["b"]="deep"
+x='q"$z'
+declare -p a m n x
+set | grep -E '^(a|x)='
+```
+
+```output
+declare -a a=([0]="1" [1]="two words")
+declare -A m=([k]="v" )
+declare -A n=()
+n["a"]["b"]="deep"
+declare -- x="q\"\$z"
+a=([0]="1" [1]="two words")
+x='q"$z'
+```
+
+So `eval "$(declare -p m)"` puts a variable back, attributes and all, in
+this shell or a new one. Two things do not come back: an **empty** map
+inside a map, which has no assignment to be written as and is left out,
+and the JSON types of values `json parse` made, which `declare -p` writes
+as text -- `json emit` is the form that keeps them. `set` does not list
+aliases, as bash's does not; `alias` does. Each listing fills a bound slot
+instead of printing, so `s := declare -p m` holds it.
 
 **[hibr]** `shopt` and `set -o` are **one namespace**: `set -o nullglob` and
 `shopt -s errexit` both work, where bash rejects each. `shopt` alone lists

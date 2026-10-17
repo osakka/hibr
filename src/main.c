@@ -727,7 +727,7 @@ int main(int ac, char **av)
 		if (av[i][1] == 'o' && !av[i][2]) {
 			on = av[i][0] == '-';
 			if (i + 1 >= ac) {
-				sh_optlist(&s, 1);
+				sh_optlist(&s, on ? 0 : 1);
 				continue;
 			}
 			if (sh_optset(&s, av[++i], on) != HIBR_OK) {

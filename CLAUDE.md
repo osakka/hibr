@@ -3956,6 +3956,21 @@ went in the shell.
   tree before using it** -- `540-examples.t` catches it at the gate, but
   the symptom before that was a rescan silently running somebody else's
   code.
+- **A builtin that prints its own re-input form must read it back, and
+  the test is `eval` in a fresh shell** (Gitea #269, 0.99.229).
+  `declare -p` printed `declare -- x="…"` and `declare` refused `--`; it
+  printed `declare -xint n` for an exported int, which reads back as
+  `-x -i -n -t` and makes `n` a nameref; it wrote a value inside `"…"`
+  unescaped; and it printed `(...)` for every array. Every one of those
+  passed a glance at the output, and every one failed `eval "$(declare -p
+  x)"`. `tests/213-declare-p-maps.t` runs each shape through a new
+  `"$HIBR" -c`, because a listing read back into the shell that printed it
+  can lean on what that shell already holds. Two smaller things it turned
+  up: **a listing of the variable table is in hash order** unless it is
+  sorted, which reads as random to anyone comparing with bash; and **`sh_optlist`
+  had two branches that printed the same thing**, so `set +o` -- whose whole
+  point is output to restore from -- printed `set -o`'s table. A branch
+  whose arms are identical is a feature that was meant and never written.
 - **`${dir%/*}` of a folder just under the root is empty, not `/`.** The
   Open dialog went up a folder with `fp_go "${dir%/*}"`, so from `/tmp` or
   `/home` it was handed an empty name, said *Cannot open the folder*, and

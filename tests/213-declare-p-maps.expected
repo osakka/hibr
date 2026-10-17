@@ -1,0 +1,43 @@
+0
+declare -A m=([k]="v" ["a b"]="q\"\$z" [c-d]=$'l1\nl2' [e]="" )
+declare -a s=(["word"]="x")
+declare -A n=()
+n["a"]["b"]="v"
+n["a"]["c"]["d"]="deep spaced"
+n["z"]="1"
+declare -a j=()
+j["a"]["b"]="v"
+j["z"]="1"
+declare -x int t="3"
+== a fresh shell reads it back
+same
+== so does this one
+q"$z deep spaced 4
+== sorted by name
+declare -- vaa="1"
+declare -- vab="1"
+declare -- vkk="1"
+declare -- vmm="1"
+declare -- vqz="1"
+declare -- vzz="1"
+declare -x vexa="1"
+declare -x vexb="1"
+== -- ends the options
+1 2
+declare -r rr="2"
+== shopt -p and set +o restore the options
+shopt -s nullglob
+shopt -s extglob
+shopt -u dotglob
+nullglob        on
+hibr: shopt: nosuch: no such option
+st=1
+noclobber       on
+set +o noclobber
+== a bound slot takes the listing and prints nothing
+[declare -x int t="3"]
+export bound
+set bound
+[shopt -s nullglob]
+set +o bound
+[f1() { :; }]
