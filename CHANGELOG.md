@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.99.233
+
+**A note has a smallest and a largest size, and says when it was cut**
+(Gitea #227).
+
+A note was as wide as its own text up to the screen, so the *"this session
+still runs the older hibr"* note, or any program's one-line message, was a
+box across the whole screen. As the owner set it out:
+
+- **Four sizes, in Control Panel > Notifications**: Smallest Width and
+  Largest Width in columns, Smallest Height and Largest Height in rows, the
+  whole box with its border -- 24 to 52 columns and 3 to 8 rows unless set.
+  Moving a smallest past its largest moves the largest with it, so the pair
+  can never describe a box that cannot be drawn.
+- **A note longer than its largest is cut there and marked with ▾** on its
+  bottom edge, and it does not time out: it waits to be clicked, or the
+  mark would be gone before anybody could use it. A click on the ▾ opens it
+  to its full length, up to the screen, and ▴ shuts it again.
+- **A double click opens the note in a window of its own**, the history's
+  detail window, which **scrolls** now -- with a scrollbar, the arrows, the
+  page keys and the wheel -- where it stopped at about nine lines and said
+  nothing about the rest.
+- A single click does what it always did -- runs the note's action and
+  dismisses it -- but `DT_DBLMS` (400 ms) later, once a second click has
+  had its chance to make it a double.
+
+The layout is a widget, **`widgets/textfit.hibr`** (`dt_textwrap`,
+`dt_textfit`, `dt_fitmark`): text between a smallest and a largest size,
+marked when it was cut or opened. It knows nothing of notes, so the next
+place that cuts text off to fit a space -- About This Computer, the
+Catalogue's descriptions -- can say so the same way. `dt_notewrap` was the
+wrapper inside it and is now `dt_textwrap`.
+
+Notifications 1.1 and the Notifications pane 1.1 in the catalogue, and
+Arabic 1.9 for the four new labels.
+
 ## 0.99.232
 
 **A Homebrew install keeps the system scope where an upgrade leaves it, and its modules are found**

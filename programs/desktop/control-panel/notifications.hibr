@@ -16,15 +16,37 @@
 strict
 
 
-app notify "The Control Panel pane for the corner-stacked notes" 1.0
+app notify "The Control Panel pane for the corner-stacked notes" 1.1
 command -v cp_pane > /dev/null && cp_pane notify "Notifications" "◉"
 
 CP_NOTEPOS=(top-right top-left bottom-right bottom-left)
 CP_NOTETICKS=(1000 1500 2500 4000 6000 10000)
+# A note's box, border included (Gitea #227): the widths in columns and the
+# heights in rows a note may be, from the smallest it is drawn at to the
+# largest before it is cut and marked.
+CP_NOTEWIDTHS=(16 20 24 32 40 52 64 80 100)
+CP_NOTEHEIGHTS=(3 4 5 6 8 10 12 16)
 
 fn cp_set_notepos(int? id = "", value = "") { DT_NOTEPOS=$value; cp_save; }
 fn cp_set_notems(int? id = "", int? value = "") { DT_NOTEMS=$value; cp_save; }
 fn cp_set_notecount(int? id = "", value = "") { DT_NOTECOUNT=$value; cp_save; }
+
+# A size, with the smallest and the largest of a pair kept in order: moving
+# one past the other moves the other with it, so the two can never describe
+# a box that cannot be drawn.
+fn cp_set_notesize(which, int v) {
+	case $which in
+	notewmin) DT_NOTEWMIN=$v; [ "$DT_NOTEWMAX" -lt "$v" ] && DT_NOTEWMAX=$v ;;
+	notewmax) DT_NOTEWMAX=$v; [ "$DT_NOTEWMIN" -gt "$v" ] && DT_NOTEWMIN=$v ;;
+	notehmin) DT_NOTEHMIN=$v; [ "$DT_NOTEHMAX" -lt "$v" ] && DT_NOTEHMAX=$v ;;
+	notehmax) DT_NOTEHMAX=$v; [ "$DT_NOTEHMIN" -gt "$v" ] && DT_NOTEHMIN=$v ;;
+	esac
+	cp_save
+}
+fn cp_set_notewmin(int? id = "", int? value = "") { cp_set_notesize notewmin "$value"; }
+fn cp_set_notewmax(int? id = "", int? value = "") { cp_set_notesize notewmax "$value"; }
+fn cp_set_notehmin(int? id = "", int? value = "") { cp_set_notesize notehmin "$value"; }
+fn cp_set_notehmax(int? id = "", int? value = "") { cp_set_notesize notehmax "$value"; }
 
 # Empties the in-memory-only history log -- what is currently stacked and
 # showing is untouched, since that lives in DT_NOTEQ, a separate array.
@@ -51,6 +73,22 @@ fn notify_rows(int w) {
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Count From"
 	CP[$w][$n]["val"]="$DT_NOTECOUNT"; CP[$w][$n]["key"]=notecount
 	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Smallest Width"
+	CP[$w][$n]["val"] := dt_tr "%s columns" "$DT_NOTEWMIN"
+	CP[$w][$n]["key"]=notewmin
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Largest Width"
+	CP[$w][$n]["val"] := dt_tr "%s columns" "$DT_NOTEWMAX"
+	CP[$w][$n]["key"]=notewmax
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Smallest Height"
+	CP[$w][$n]["val"] := dt_tr "%s rows" "$DT_NOTEHMIN"
+	CP[$w][$n]["key"]=notehmin
+	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Largest Height"
+	CP[$w][$n]["val"] := dt_tr "%s rows" "$DT_NOTEHMAX"
+	CP[$w][$n]["key"]=notehmax
+	n=$((n + 1))
 	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="View History"
 	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=history
 	n=$((n + 1))
@@ -70,6 +108,14 @@ fn notify_do(int? w = "", k = "", int? dir = "") {
 	        DT_NOTEMS=$v ;;
 	notecount) v := cp_next "$DT_NOTECOUNT" "$dir" "${DT_NOTELEVELS[@]}"
 	        DT_NOTECOUNT=$v ;;
+	notewmin) v := cp_next "$DT_NOTEWMIN" "$dir" "${CP_NOTEWIDTHS[@]}"
+	        cp_set_notesize notewmin "$v" ;;
+	notewmax) v := cp_next "$DT_NOTEWMAX" "$dir" "${CP_NOTEWIDTHS[@]}"
+	        cp_set_notesize notewmax "$v" ;;
+	notehmin) v := cp_next "$DT_NOTEHMIN" "$dir" "${CP_NOTEHEIGHTS[@]}"
+	        cp_set_notesize notehmin "$v" ;;
+	notehmax) v := cp_next "$DT_NOTEHMAX" "$dir" "${CP_NOTEHEIGHTS[@]}"
+	        cp_set_notesize notehmax "$v" ;;
 	history) dt_has notifications_draw && dt_launch notifications ;;
 	clearhist) cp_clearhist ;;
 	esac
@@ -82,5 +128,9 @@ fn notify_drop(int? w = "", int? r = "", int? c = "", k = "") {
 	notems) dt_droplist "$w" "$r" "$c" cp_set_notems "${CP_NOTETICKS[@]}" ;;
 	notecount) dt_droplist "$w" "$r" "$c" cp_set_notecount \
 		"${DT_NOTELEVELS[@]}" ;;
+	notewmin) dt_droplist "$w" "$r" "$c" cp_set_notewmin "${CP_NOTEWIDTHS[@]}" ;;
+	notewmax) dt_droplist "$w" "$r" "$c" cp_set_notewmax "${CP_NOTEWIDTHS[@]}" ;;
+	notehmin) dt_droplist "$w" "$r" "$c" cp_set_notehmin "${CP_NOTEHEIGHTS[@]}" ;;
+	notehmax) dt_droplist "$w" "$r" "$c" cp_set_notehmax "${CP_NOTEHEIGHTS[@]}" ;;
 	esac
 }

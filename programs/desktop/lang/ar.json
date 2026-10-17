@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "1.8",
+ "version": "1.9",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1019,6 +1019,12 @@
   "%s files with it": "ومعه %s ملف",
   "shipped with hibr": "يأتي مع hibr",
   "shadows the one hibr ships": "يحجب النسخة التي يشحنها hibr",
-  "the machine has this, and its copy is read first": "الجهاز يملك نسخة منه، وتُقرأ قبل نسختك"
+  "the machine has this, and its copy is read first": "الجهاز يملك نسخة منه، وتُقرأ قبل نسختك",
+  "Largest Height": "أقصى ارتفاع",
+  "Largest Width": "أقصى عرض",
+  "Smallest Height": "أدنى ارتفاع",
+  "Smallest Width": "أدنى عرض",
+  "%s columns": "%s أعمدة",
+  "%s rows": "%s صفوف"
  }
 }

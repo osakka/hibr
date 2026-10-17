@@ -3707,6 +3707,19 @@ check("the Control Strip's shadow is switched from its pane",
 sc = cprun(reach("notify", "Position") + [b"\x1b[C"])
 check("right on Notifications' Position steps it",
       "top-right" not in brow(sc, "Position"), sc)
+# A note's box sizes, border included (Gitea #227), each with its unit; and
+# the smallest moved past the largest takes the largest with it, so the two
+# can never describe a box that cannot be drawn.
+sc = cprun(reach("notify", "Largest Width"))
+check("Notifications sets a note's largest width, in columns, and its "
+      "smallest and largest height, in rows",
+      "52 columns" in brow(sc, "Largest Width")
+      and "3 rows" in brow(sc, "Smallest Height")
+      and "8 rows" in brow(sc, "Largest Height"), sc)
+sc = cprun(reach("notify", "Smallest Width") + [b"\x1b[C"] * 6)
+check("and a smallest width moved past the largest moves the largest too",
+      "100 columns" in brow(sc, "Smallest Width")
+      and "100 columns" in brow(sc, "Largest Width"), sc)
 sc = cprun(reach("notify", "Clear History") + [b"\r"], end=None)
 check("Clear History runs and says so",
       sc.find("History cleared") is not None, sc)
@@ -4873,4 +4886,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(636)
+report(642)

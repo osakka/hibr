@@ -789,7 +789,9 @@ hit = sc.find("Click me")
 check("a dt_notify note is on screen before it is clicked",
       hit is not None, sc)
 t.keys([press(hit[0], hit[1] + 1)])
-sc = t.screen()
+# A click waits DT_DBLMS before it acts, since a second press in that time
+# opens the note in a window instead (Gitea #227).
+sc = t.until(lambda s: s.find("Click me") is None)
 check("clicking it runs its own action", os.path.exists(mark), sc)
 check("and dismisses the note", sc.find("Click me") is None, sc)
 t.quit(None, 1.0)
@@ -808,11 +810,68 @@ hit = sc.find("Dismiss me")
 check("a plain dt_note is on screen before it is clicked",
       hit is not None, sc)
 t.keys([press(hit[0], hit[1] + 1)])
-sc = t.screen()
+sc = t.until(lambda s: s.find("Dismiss me") is None)
 check("clicking a plain note with no action just dismisses it",
       sc.find("Dismiss me") is None, sc)
 t.quit(None, 1.0)
 shutil.rmtree(DISMISS, True)
+
+# A note has a largest size, and one past it is cut and says so (Gitea
+# #227): it used to be as wide as its text up to the screen, so a program's
+# one-line message was a note two hundred columns wide. The ▾ sits on the
+# bottom edge; a click there opens the note to its full length, and a
+# double click on it opens the whole of it in a window of its own, which
+# scrolls. A note that was cut does not time out, or the ▾ would be gone
+# before anybody could use it. Each check reads past the cut, since a
+# check that the ▾ is merely there passes against a note that wrapped and
+# was never cut.
+NOTECUT = tempfile.mkdtemp(prefix="hibr-notecut-")
+p = os.path.join(NOTECUT, "session.hibr")
+LONGNOTE = "This note is longer than a note may be. " + "word " * 60 + "THE-END"
+open(p, "w").write(
+    "%s. %s\n. %s\ndt_open\ndt_note \"%s\"\ndt_note \"Short one\"\ndt_run\n"
+    "dt_close\n" % (load(MOD), WM, tree("programs/desktop/system/notifications.hibr"),
+                    LONGNOTE))
+t = Term(p, env={"DT_TICK": "300", "DT_NOTEMS": "700"}, rows=ROWS, cols=COLS,
+         settle=0.5)
+sc = t.screen()
+top = sc.find("This note is longer")
+box = [r for r in range(sc.rows) if top and sc.row(r).find("└") >= 0
+       and r > top[0]]
+bottom = box[0] if box else None
+check("a note longer than its largest size is cut there, its bottom edge "
+      "marked with ▾ and what follows the cut not drawn",
+      top is not None and bottom is not None and bottom - top[0] <= 7
+      and "▾" in sc.row(bottom) and sc.find("THE-END") is None, sc)
+short = sc.find("Short one")
+check("and a note that fits has no mark",
+      short is not None and "▾" not in sc.row(short[0] + 1), sc)
+t.collect(1.5)
+sc = t.screen()
+check("a cut note stays past its timeout, waiting to be opened, where a "
+      "short one goes",
+      sc.find("This note is longer") is not None
+      and sc.find("Short one") is None, sc)
+mark = sc.row(bottom).find("▾") if bottom is not None else -1
+t.keys([press(bottom, mark), release(bottom, mark)])
+sc = t.screen()
+check("a click on its mark opens it to its full length, marked ▴ to shut",
+      sc.find("THE-END") is not None and any("▴" in sc.row(r)
+                                             for r in range(sc.rows)), sc)
+t.keys([press(top[0], top[1] + 2), release(top[0], top[1] + 2),
+        press(top[0], top[1] + 2), release(top[0], top[1] + 2)])
+sc = t.until(lambda s: s.find("┤ Notification ├") is not None)
+check("a double click opens the note in a window of its own",
+      sc.find("┤ Notification ├") is not None, sc)
+check("which shows its start and not yet its end, with a scrollbar",
+      sc.find("This note is longer") is not None
+      and sc.find("THE-END") is None, sc)
+t.keys([b"\x1b[6~", b"\x1b[6~", b"\x1b[6~", b"\x1b[6~"])
+sc = t.screen()
+check("and scrolls to the rest of it with the page keys",
+      sc.find("THE-END") is not None, sc)
+t.quit(None, 1.0)
+shutil.rmtree(NOTECUT, True)
 
 # DT_NOTEPOS moves which corner new notes stack from.
 CORNER = tempfile.mkdtemp(prefix="hibr-notecorner-")
@@ -5468,4 +5527,4 @@ check("launching an app that is not installed says which one and where "
       sc.find("files is not installed") is not None
       and sc.find("Catalogue") is not None, sc)
 
-report(618)
+report(625)

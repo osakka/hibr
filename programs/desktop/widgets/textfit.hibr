@@ -1,0 +1,100 @@
+#!/usr/bin/env hibr
+#
+# widgets/textfit -- text in a box with a smallest and a largest size:
+# wrapped to fit, and marked when it does not, so what was cut off is never
+# silently gone (Gitea #227).
+#
+# The box is the caller's -- its border, its title, its colours and where
+# it goes; this knows nothing of notes. It lays a text out between two
+# sizes and draws the one mark that says the rest is there: GL[sdown] on a
+# box that was cut, GL[sup] on one that was opened past its usual size.
+# A notification is its first user; anything else that cuts text off to fit
+# a space can say so the same way.
+#
+# Part of the widget library apps draw with -- see widgets/README.md.
+
+strict
+
+# The rows a text takes at width w: the textarea widget's own wrapper,
+# which breaks after the last space that fits and at w for a word longer
+# than a row. A note used to be *cut* at the screen's width, which is fine
+# for "Saved" and loses the point of anything that has one (Gitea #190).
+DT_WRAPLINES=()
+fn dt_textwrap(t, int w) {
+	local starts i s e
+	local -a ss
+
+	DT_WRAPLINES=()
+	[ "$w" -lt 8 ] && w=8
+	starts := tb_wrap "$t" "$w"
+	read -ra ss <<< "$starts"
+	i=0
+	while [ "$i" -lt "${#ss[@]}" ]; do
+		s=${ss[$i]}
+		if [ $((i + 1)) -lt "${#ss[@]}" ]; then
+			e=$((${ss[$((i + 1))]} - s))
+			DT_WRAPLINES+=("${t:$s:$e}")
+		else
+			DT_WRAPLINES+=("${t:$s}")
+		fi
+		i=$((i + 1))
+	done
+	[ "${#DT_WRAPLINES[@]}" = 0 ] && DT_WRAPLINES=("$t")
+	return 0
+}
+
+# Lay a text out in a text area at least wmin by hmin and at most wmax by
+# hmax: DT_FITLINES the rows to show, DT_FITW and DT_FITH the area's size,
+# DT_FITCUT how many rows did not fit (0 when all did). A smallest size
+# larger than the largest is the largest, so a setting changed past the
+# other cannot make a negative box.
+DT_FITLINES=()
+DT_FITW=0
+DT_FITH=0
+DT_FITCUT=0
+fn dt_textfit(t, int wmin, int wmax, int hmin, int hmax) {
+	local l lw w=0 n
+
+	[ "$wmax" -lt 1 ] && wmax=1
+	[ "$hmax" -lt 1 ] && hmax=1
+	[ "$wmin" -gt "$wmax" ] && wmin=$wmax
+	[ "$hmin" -gt "$hmax" ] && hmin=$hmax
+	dt_textwrap "$t" "$wmax"
+	for l in "${DT_WRAPLINES[@]}"; do
+		lw := str width "$l"
+		[ "$lw" -gt "$w" ] && w=$lw
+	done
+	[ "$w" -lt "$wmin" ] && w=$wmin
+	[ "$w" -gt "$wmax" ] && w=$wmax
+	n=${#DT_WRAPLINES[@]}
+	DT_FITW=$w
+	if [ "$n" -gt "$hmax" ]; then
+		DT_FITLINES=("${DT_WRAPLINES[@]:0:$hmax}")
+		DT_FITCUT=$((n - hmax))
+		DT_FITH=$hmax
+	else
+		DT_FITLINES=("${DT_WRAPLINES[@]}")
+		DT_FITCUT=0
+		DT_FITH=$n
+		[ "$DT_FITH" -lt "$hmin" ] && DT_FITH=$hmin
+	fi
+	return 0
+}
+
+# The mark on a box's bottom edge, three columns in from its right end:
+# GL[sdown] when it was cut, GL[sup] when it was opened. The pen is the
+# caller's, set for the edge it sits on; pane names the window's pane, and
+# none draws at screen coordinates, as a note does. DT_FITMARKC is the
+# column it went in, for a caller's own hit test.
+DT_FITMARKC=0
+fn dt_fitmark(int row, int c0, int w, open = "", pane = "") {
+	local g=${GL[sdown]}
+
+	[ -n "$open" ] && g=${GL[sup]}
+	DT_FITMARKC=$((c0 + w - 3))
+	if [ -n "$pane" ]; then
+		console put -p "$pane" "$row" "$DT_FITMARKC" "$g"
+	else
+		console put "$row" "$DT_FITMARKC" "$g"
+	fi
+}

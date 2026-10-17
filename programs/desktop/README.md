@@ -1402,6 +1402,17 @@ unless set) or above raise the count, so the count stays worth reading. The
 history lists each with its time and priority; up and down select one,
 delete clears it, and its History menu clears the low ones or all.
 
+**A note has a smallest and a largest size**, set in Control Panel >
+Notifications as four rows -- Smallest Width and Largest Width in columns,
+Smallest Height and Largest Height in rows, each the whole box with its
+border. A note longer than its largest is cut there and marked with ▾ on
+its bottom edge, and it stays until you click it rather than timing out. A
+click on the ▾ opens it to its full length (▴ shuts it again); a double
+click anywhere on a note opens it in a window of its own, which scrolls
+for a note longer than the window; and a single click does what it always
+did -- runs the note's action, if it has one, and dismisses it -- a moment
+later, once a second click has had its chance to make it a double.
+
 The menus belong to the active application, so they change when you click a
 different window, and when nothing has focus they are the desktop's own.
 

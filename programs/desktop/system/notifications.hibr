@@ -20,7 +20,7 @@
 
 strict
 
-app notifications "A read-only look back at recent notifications" 1.0
+app notifications "A read-only look back at recent notifications" 1.1
 # part: control-panel/notifications.hibr
 
 command -v dt_app > /dev/null && dt_app notifications "Notifications" 16 66 \
@@ -243,11 +243,13 @@ fn notedetail_close(int? id = "") {
 	unset "NDW[$id]"
 }
 
-# The note's own lines, wrapped to the window -- dt_notewrap fills
-# DT_NOTELINES, which is what a live note is laid out with, so a note reads
-# the same in both places.
+# The note's own lines, wrapped to the window by the textfit widget's
+# dt_textwrap, which is what a live note is laid out with, so a note reads
+# the same in both places. A note longer than the window scrolls, with a
+# scrollbar, the arrows, the page keys and the wheel; it used to stop at
+# about nine lines and say nothing about the rest (Gitea #227).
 fn notedetail_draw(int id, int h, int w, int row, int col) {
-	local hid r at t p f act line
+	local hid r at t p f act line vis top i
 	local -a lines
 
 	hid=${NDW[$id]["hid"]}
@@ -265,15 +267,24 @@ fn notedetail_draw(int id, int h, int w, int row, int col) {
 	console pen "$DT_DIM" "$DT_FACE"
 	line="$t  $p"
 	dt_tput "$id" 1 $((w - ${#line} - 1)) "$line"
-	dt_notewrap "${DT_NOTEHIST[$hid]["text"]}" $((w - 4))
-	lines=("${DT_NOTELINES[@]}")
+	dt_textwrap "${DT_NOTEHIST[$hid]["text"]}" $((w - 5))
+	lines=("${DT_WRAPLINES[@]}")
+	vis=$((h - 5))
+	[ "$vis" -lt 1 ] && vis=1
+	top := dt_scrollfit "${NDW[$id]["top"]:-0}" "${#lines[@]}" "$vis"
+	NDW[$id]["top"]=$top
+	NDW[$id]["vis"]=$vis
+	NDW[$id]["n"]=${#lines[@]}
 	console pen "$DT_INK" "$DT_FACE"
+	i=$top
 	r=3
-	for line in "${lines[@]}"; do
-		[ "$r" -ge $((h - 2)) ] && break
-		dt_tput "$id" "$r" 2 "$line"
+	while [ "$r" -lt $((3 + vis)) ] && [ "$i" -lt "${#lines[@]}" ]; do
+		console pen "$DT_INK" "$DT_FACE"
+		dt_tput "$id" "$r" 2 "${lines[$i]}"
 		r=$((r + 1))
+		i=$((i + 1))
 	done
+	dt_scrollbar "$id" 3 $((w - 1)) "$vis" "${#lines[@]}" "$vis" "$top"
 	# The action as a button, where there is one. Its own first word is
 	# what it is called: a notification's action is kept as argv words,
 	# so there is a command to name rather than a line to re-split.
@@ -296,11 +307,27 @@ fn notedetail_click(int id, int r, int c, btn) {
 }
 
 fn notedetail_key(int? id = "", key = "") {
+	local top
+
 	case $key in
 	escape | q) dt_wantclose "$id" ;;
 	enter | return) nd_do "$id" ;;
-	*) return 1 ;;
+	*)
+		top := dt_scrollmove "$key" "${NDW[$id]["top"]:-0}" \
+			"${NDW[$id]["n"]:-0}" "${NDW[$id]["vis"]:-1}" || return 1
+		NDW[$id]["top"]=$top
+		;;
 	esac
+	return 0
+}
+
+# The wheel scrolls a long note, DT_SCROLLWHEEL rows a notch.
+fn notedetail_wheel(int id, dir, int? r = "", int? c = "") {
+	local top
+
+	top := dt_scrollmove "$dir" "${NDW[$id]["top"]:-0}" \
+		"${NDW[$id]["n"]:-0}" "${NDW[$id]["vis"]:-1}" "$DT_SCROLLWHEEL" || return 0
+	NDW[$id]["top"]=$top
 	return 0
 }
 

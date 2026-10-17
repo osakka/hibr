@@ -37,6 +37,17 @@ DT_NOTEHISTMAX=50
 DT_NOTEMS="${DT_NOTEMS-2500}"
 DT_NOTEPOS="${DT_NOTEPOS-top-right}"
 
+# How small and how large a note's box may be, border included, in columns
+# and rows (Gitea #227). A note had no maximum but the screen, so a
+# one-line message from a program was a note two hundred columns wide.
+# Past the largest it is cut, says so with GL[sdown] on its bottom edge,
+# and stays until it is clicked rather than vanishing before anybody could
+# open it. Each is a Control Panel > Notifications row.
+DT_NOTEWMIN="${DT_NOTEWMIN-24}"
+DT_NOTEWMAX="${DT_NOTEWMAX-52}"
+DT_NOTEHMIN="${DT_NOTEHMIN-3}"
+DT_NOTEHMAX="${DT_NOTEHMAX-8}"
+
 # Notes that have arrived since the history was last looked at: the bar's
 # dot is filled while this is above zero, hollow once it has been read.
 DT_NOTEUNSEEN=0
@@ -168,6 +179,7 @@ fn dt_notehist_add(int id) {
 	DT_NOTEHIST[$hid]["prio"]=${DT_NOTEQ[$id]["prio"]:-normal}
 	DT_NOTEHIST[$hid]["from"]=${DT_NOTEQ[$id]["from"]:-Desktop}
 	DT_NOTEHIST[$hid]["at"] := dt_ms
+	DT_NOTEQ[$id]["hid"]=$hid
 	dt_notehist_act "$hid" "$id"
 	DT_NOTEHIST_ORDER+=("$hid")
 	lv := dt_notelevel "${DT_NOTEHIST[$hid]["prio"]}"
@@ -191,55 +203,40 @@ fn dt_notehist_add(int id) {
 # DT_NOTERECT in the same pass that draws it, so dt_note_hit's own
 # point-in-rect test can never drift from what is actually on screen --
 # the same discipline dt_confirm_hit/dt_confirm_geom already follow.
-# The rows a note's text takes at width w: the textarea widget's own
-# wrapper, which breaks after the last space that fits and at w for a word
-# longer than a row. A note used to be *cut* at the screen's width, which
-# is fine for "Saved" and loses the point of anything that has one -- the
-# session-is-older note says what to do and what it costs, and on an
-# 80-column desktop the advice was the half that fell off (Gitea #190).
-DT_NOTELINES=()
-fn dt_notewrap(t, int w) {
-	local starts i s e
-	local -a ss
-
-	DT_NOTELINES=()
-	[ "$w" -lt 8 ] && w=8
-	starts := tb_wrap "$t" "$w"
-	read -ra ss <<< "$starts"
-	i=0
-	while [ "$i" -lt "${#ss[@]}" ]; do
-		s=${ss[$i]}
-		if [ $((i + 1)) -lt "${#ss[@]}" ]; then
-			e=$((${ss[$((i + 1))]} - s))
-			DT_NOTELINES+=("${t:$s:$e}")
-		else
-			DT_NOTELINES+=("${t:$s}")
-		fi
-		i=$((i + 1))
-	done
-	[ "${#DT_NOTELINES[@]}" = 0 ] && DT_NOTELINES=("$t")
-	return 0
-}
-
+# A note's box is laid out by the textfit widget between DT_NOTEWMIN by
+# DT_NOTEHMIN and DT_NOTEWMAX by DT_NOTEHMAX, each held to the screen, and
+# one that was opened (its mark clicked) may grow to the screen's height.
+# A note that was cut, or opened, does not time out: it waits to be
+# clicked, or its mark would be gone before anybody could use it.
 dt_note_draw() {
-	local id now age w h r c t maxw n=0 top bar f fw used=0 i lw
+	local id now age w h r c t n=0 top bar f used=0 i
+	local wmin wmax hmin hmax hopen
 	local -a keep
 
 	now := dt_ms
 	for id in "${DT_NOTEQ_ORDER[@]}"; do
 		age=$((now - ${DT_NOTEQ[$id]["created"]}))
-		if [ "$age" -ge "$DT_NOTEMS" ]; then
+		if [ -z "${DT_NOTEQ[$id]["cut"]}${DT_NOTEQ[$id]["open"]}" ] &&
+		   [ "$age" -ge "$DT_NOTEMS" ]; then
 			unset "DT_NOTEQ[$id]"
 			continue
 		fi
 		keep+=("$id")
-		dt_want $((DT_NOTEMS - age))
+		[ "$age" -lt "$DT_NOTEMS" ] && dt_want $((DT_NOTEMS - age))
 	done
 	DT_NOTEQ_ORDER=("${keep[@]}")
 	for id in "${!DT_NOTERECT[@]}"; do unset DT_NOTERECT["$id"]; done
 	[ "${#DT_NOTEQ_ORDER[@]}" = 0 ] && return 0
 
-	maxw=$((DT_COLS - 6))
+	wmax=$DT_NOTEWMAX
+	[ "$wmax" -gt $((DT_COLS - 2)) ] && wmax=$((DT_COLS - 2))
+	wmin=$DT_NOTEWMIN
+	[ "$wmin" -gt "$wmax" ] && wmin=$wmax
+	hmax=$DT_NOTEHMAX
+	[ "$hmax" -gt $((DT_ROWS - 2)) ] && hmax=$((DT_ROWS - 2))
+	hmin=$DT_NOTEHMIN
+	[ "$hmin" -gt "$hmax" ] && hmin=$hmax
+	hopen=$((DT_ROWS - 2))
 	case $DT_NOTEPOSX in
 	*bottom*) top=0 ;;
 	*) top=1 ;;
@@ -247,17 +244,16 @@ dt_note_draw() {
 	for id in "${DT_NOTEQ_ORDER[@]}"; do
 		t=${DT_NOTEQ[$id]["text"]}
 		f=${DT_NOTEQ[$id]["from"]}
-		[ ${#f} -gt $((maxw - 2)) ] && f="${f:0:$((maxw - 2))}"
-		dt_notewrap "$t" $((maxw - 4))
-		w=0
-		for i in "${DT_NOTELINES[@]}"; do
-			lw := str width "$i"
-			[ "$lw" -gt "$w" ] && w=$lw
-		done
-		w=$((w + 4))
-		fw=$((${#f} + 6))
-		[ "$fw" -gt "$w" ] && w=$fw
-		h=$((2 + ${#DT_NOTELINES[@]}))
+		if [ -n "${DT_NOTEQ[$id]["open"]}" ]; then
+			dt_textfit "$t" $((wmin - 4)) $((wmax - 4)) $((hmin - 2)) $((hopen - 2))
+		else
+			dt_textfit "$t" $((wmin - 4)) $((wmax - 4)) $((hmin - 2)) $((hmax - 2))
+		fi
+		DT_NOTEQ[$id]["cut"]=
+		[ "$DT_FITCUT" -gt 0 ] && DT_NOTEQ[$id]["cut"]=1
+		w=$((DT_FITW + 4))
+		[ ${#f} -gt $((w - 6)) ] && f="${f:0:$((w - 6))}"
+		h=$((2 + DT_FITH))
 		case $DT_NOTEPOSX in
 		*left*) c=1 ;;
 		*) c=$((DT_COLS - w - 1)) ;;
@@ -283,12 +279,17 @@ dt_note_draw() {
 		bar := dt_rep $((w - 2)) "${GL[hline]}"
 		console put "$r" "$c" "${GL[tl]}$bar${GL[tr]}"
 		console put $((r + h - 1)) "$c" "${GL[bl]}$bar${GL[br]}"
+		if [ -n "${DT_NOTEQ[$id]["cut"]}" ]; then
+			dt_fitmark $((r + h - 1)) "$c" "$w"
+		elif [ -n "${DT_NOTEQ[$id]["open"]}" ]; then
+			dt_fitmark $((r + h - 1)) "$c" "$w" open
+		fi
 		console pen "$DT_INK" "$DT_FACE" bold
 		[ -n "$f" ] && console put "$r" $((c + 2)) " $f "
 		console pen "$DT_INK" "$DT_FACE" bold
 		i=0
-		for t in "${DT_NOTELINES[@]}"; do
-			t := str pad "$t" $((w - 4))
+		while [ "$i" -lt "$DT_FITH" ]; do
+			t := str pad "${DT_FITLINES[$i]-}" $((w - 4))
 			console put $((r + 1 + i)) "$c" "${GL[vline]} $t ${GL[vline]}"
 			i=$((i + 1))
 		done
@@ -316,10 +317,82 @@ fn dt_note_hit(int mr, int mc) {
 	return 1
 }
 
-# Run a clicked note's own action, if it has one, and dismiss it either
-# way -- called from dt_mouse's own press dispatch once dt_note_hit
-# names which one.
-fn dt_note_click(int id) {
+# A press on a note, from dt_mouse once dt_note_hit has named which, at
+# screen row r. On the bottom edge of a note that was cut or opened it
+# opens or shuts it. Otherwise it waits DT_DBLMS before it acts, because a
+# second press in that time is a double click, which opens the note in a
+# window of its own (Gitea #227); a single click then does what a click on
+# a note always did, from dt_notetick -- after the frame, not inside it.
+DT_NOTEDBLID=
+DT_NOTEDBLT=0
+fn dt_note_click(int id, int? r = "") {
+	local now hid
+
+	if [ -n "$r" ] && [ "$r" = $((${DT_NOTERECT[$id]["r"]} + ${DT_NOTERECT[$id]["h"]} - 1)) ] &&
+	   [ -n "${DT_NOTEQ[$id]["cut"]}${DT_NOTEQ[$id]["open"]}" ]; then
+		if [ -n "${DT_NOTEQ[$id]["open"]}" ]; then
+			DT_NOTEQ[$id]["open"]=
+		else
+			DT_NOTEQ[$id]["open"]=1
+		fi
+		DT_NOTEQ[$id]["clicked"]=
+		DT_NOTEDBLID=
+		return 0
+	fi
+	now := dt_ms
+	if [ "$DT_NOTEDBLID" = "$id" ] && [ $((now - DT_NOTEDBLT)) -lt "$DT_DBLMS" ]; then
+		DT_NOTEDBLID=
+		hid=${DT_NOTEQ[$id]["hid"]}
+		dt_note_drop "$id"
+		[ -n "$hid" ] && dt_has notedetail_draw && dt_launch notedetail "$hid"
+		return 0
+	fi
+	DT_NOTEDBLID=$id
+	DT_NOTEDBLT=$now
+	DT_NOTEQ[$id]["clicked"]=$now
+	dt_want "$DT_DBLMS"
+}
+
+# Take a note off the screen. Its record in the history stays.
+fn dt_note_drop(int id) {
+	local o
+	local -a keep
+
+	unset "DT_NOTEQ[$id]"
+	for o in "${DT_NOTEQ_ORDER[@]}"; do
+		[ "$o" != "$id" ] && keep+=("$o")
+	done
+	DT_NOTEQ_ORDER=("${keep[@]}")
+}
+
+# After each frame: a note clicked once, DT_DBLMS ago, with no second click
+# since, does what a click on a note does -- runs its action, if it has
+# one, and goes either way.
+dt_notetick() {
+	local id now
+	local -a due
+
+	[ "${#DT_NOTEQ_ORDER[@]}" = 0 ] && return 0
+	now := dt_ms
+	for id in "${DT_NOTEQ_ORDER[@]}"; do
+		[ -n "${DT_NOTEQ[$id]["clicked"]-}" ] || continue
+		if [ $((now - ${DT_NOTEQ[$id]["clicked"]})) -ge "$DT_DBLMS" ]; then
+			due+=("$id")
+		else
+			dt_want $((DT_DBLMS - (now - ${DT_NOTEQ[$id]["clicked"]})))
+		fi
+	done
+	for id in "${due[@]}"; do
+		dt_note_act "$id"
+		dt_want 30
+	done
+	return 0
+}
+command -v dt_ticker > /dev/null && dt_ticker dt_notetick
+
+# Run a note's own action, if it has one, and take it off the screen
+# either way.
+fn dt_note_act(int id) {
 	local n=${DT_NOTEQ[$id]["argvn"]:-0} i=0 o
 	local -a args keep
 

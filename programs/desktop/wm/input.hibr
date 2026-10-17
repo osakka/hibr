@@ -92,7 +92,7 @@ dt_mouse() {
 			fi
 			return 0
 		fi
-		id := dt_note_hit "$mr" "$mc" && { dt_note_click "$id"; return 0; }
+		id := dt_note_hit "$mr" "$mc" && { dt_note_click "$id" "$mr"; return 0; }
 		cs_press "$mr" "$mc" && return 0
 		id := console hit "$mr" "$mc"
 		if [ -z "$id" ]; then
