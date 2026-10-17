@@ -10,7 +10,7 @@
 strict
 
 
-app tube "The Control Panel pane for the YouTube app" 1.1
+app tube "The Control Panel pane for the YouTube app" 1.2
 command -v cp_pane > /dev/null && cp_pane tube "YouTube" "▶" app
 
 # follow is Control Panel > Pictures, which is the one setting meant to
@@ -59,6 +59,11 @@ fn tube_rows(int w) {
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$YT_AUTONEXT" = 1 ] && CP[$w][$n]["val"]=on
 	CP[$w][$n]["key"]=YT_AUTONEXT; n=$((n + 1))
+	CP[$w][$n]["kind"]=set
+	CP[$w][$n]["text"]="Keep the Screen Saver Away While Playing"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "${YT_SAVERHOLD:-1}" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=YT_SAVERHOLD; n=$((n + 1))
 	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Clear History"
 	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=histclear
 	n=$((n + 1))
@@ -73,7 +78,7 @@ fn tube_do(int? w = "", k = "", int? dir = "") {
 	quality) v := cp_next "$YT_QUALITY" "$dir" "${TB_QUALITY[@]}"; YT_QUALITY=$v ;;
 	fps) v := cp_next "$YT_FPS" "$dir" "${TB_FPS[@]}"; YT_FPS=$v ;;
 	detail) v := cp_next "$YT_DETAIL" "$dir" "${TB_DETAIL[@]}"; YT_DETAIL=$v ;;
-	YT_AUTONEXT) cp_toggle "$k" ;;
+	YT_AUTONEXT | YT_SAVERHOLD) cp_toggle "$k" ;;
 	histclear) dt_needs youtube yt_histclear && yt_histclear ;;
 	esac
 	cp_save

@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "1.9",
+ "version": "2.0",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1025,6 +1025,7 @@
   "Smallest Height": "أدنى ارتفاع",
   "Smallest Width": "أدنى عرض",
   "%s columns": "%s أعمدة",
-  "%s rows": "%s صفوف"
+  "%s rows": "%s صفوف",
+  "Keep the Screen Saver Away While Playing": "أبعد شاشة التوقف أثناء التشغيل"
  }
 }

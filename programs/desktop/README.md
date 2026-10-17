@@ -769,7 +769,10 @@ nowhere else, so the key that wakes the screen never lands in a window.
 Control Panel > Screen Saver picks which (or one at random) and how many
 idle minutes, never included, and shows one now; so does Screen Saver on
 the hibr menu. Waiting costs nothing: the desktop is told to wake when
-the time is up, as it is for anything else it waits for.
+the time is up, as it is for anything else it waits for. A video playing
+in the YouTube player keeps the saver -- and so the lock, which follows
+it -- away until it is paused, stopped, finished or minimised; Control
+Panel > YouTube > Keep the Screen Saver Away While Playing turns that off.
 
 There are six: **Matrix** rain, **Flying Toasters**, a **Classic Mac**
 drifting about with its little screen going from the happy face to a

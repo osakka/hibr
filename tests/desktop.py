@@ -4699,6 +4699,51 @@ check("and it opens as any lock does", s[2].find("Hello") is not None, s[2])
 s, _ = saverrun([3.5, b"x"], dict(LOCKENV, DT_SAVERSECS="2"))
 check("with Lock After at never, a key just ends the saver",
       s[1].find("Hello") is not None, s[1])
+
+# A window may hold the screen saver off -- a video playing is someone
+# watching with no key pressed (Gitea #277) -- and the lock with it, since
+# the lock's own timer starts with the saver. A hold is the window's: it
+# goes when the window frees it or when the window closes, whichever is
+# first, so an app that forgets cannot keep the screen lit for ever.
+HELD = ('hd_draw() { console put -p "w$1" 1 1 "Held"; }\n'
+        'hd_key() { case $2 in h) dt_saverhold "$1" ;; f) dt_saverfree "$1" ;;'
+        ' c) dt_wantclose "$1" ;; *) return 1 ;; esac; return 0; }\n'
+        'dt_new "Held" 6 20 4 4 hd\n')
+
+
+def heldrun(feed, env):
+    """saverrun's shape, over a window that holds the saver on h, frees it
+    on f and closes on c."""
+    path = "/tmp/hibr-saverhold-%d.hibr" % os.getpid()
+    open(path, "w").write("%s. %s\ndt_open\n%s\ndt_run\ndt_close\n"
+                          % (load(MOD), WM, HELD))
+    t = Term(path, env=dict({"DT_SAVER": "clock"}, **env), rows=ROWS,
+             cols=COLS, settle=0.5)
+    shots = []
+    for f in feed:
+        if isinstance(f, float):
+            t.collect(f)
+        else:
+            t.send(f)
+            t.collect(0.4)
+        shots.append(t.screen())
+    t.quit(b"qy", 1.2)
+    os.unlink(path)
+    return shots
+
+
+s = heldrun([b"h", 3.5, b"f", 3.5], {"DT_SAVERSECS": "2"})
+check("a window holding the screen saver off keeps it away past its idle time",
+      s[1].find("Held") is not None and "█" not in s[1].text(), s[1])
+check("and once it lets go, the saver comes after the idle time as usual",
+      s[3].find("Held") is None and "█" in s[3].text(), s[3])
+s = heldrun([b"h", b"c", 3.5], {"DT_SAVERSECS": "2"})
+check("a window that closes still holding lets the saver come anyway",
+      "█" in s[2].text(), s[2])
+s = heldrun([b"h", 4.5, b"x"], dict(LOCKENV, DT_SAVERSECS="2", DT_LOCKSECS="1"))
+check("and while it holds, the lock does not come either",
+      s[2].find("Enter your password") is None and s[2].find("Held")
+      is not None, s[2])
 shutil.rmtree(PAMDIR, True)
 
 # A terminal's program goes on writing behind the saver, and its pty,
@@ -5620,4 +5665,4 @@ check("launching an app that is not installed says which one and where "
       sc.find("files is not installed") is not None
       and sc.find("Catalogue") is not None, sc)
 
-report(632)
+report(636)

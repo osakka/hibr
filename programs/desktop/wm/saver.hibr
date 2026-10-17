@@ -142,6 +142,35 @@ dt_saverseen() {
 	DT_IDLEFROM=$EPOCHSECONDS
 }
 
+# Windows holding the screen saver off, by id: a video playing is someone
+# watching, though no key is pressed (Gitea #277). While any window holds,
+# the desktop counts as in use, so neither the saver nor the lock -- whose
+# own timer starts with the saver -- comes on. A hold is a window's own, so
+# two players hold for themselves, and it goes with the window: dt_del
+# frees it, and one whose window has gone is dropped here, so an app that
+# forgets cannot keep the screen lit for ever.
+declare -gA DT_SAVERHOLDS
+fn dt_saverhold(int id) {
+	DT_SAVERHOLDS["$id"]=1
+}
+fn dt_saverfree(int id) {
+	unset "DT_SAVERHOLDS[$id]"
+}
+
+# Whether any window that still exists holds the saver off.
+dt_saverheld() {
+	local id held=1
+
+	for id in "${!DT_SAVERHOLDS[@]}"; do
+		if [ -z "${DT[$id]["title"]+x}" ]; then
+			unset "DT_SAVERHOLDS[$id]"
+			continue
+		fi
+		held=0
+	done
+	return "$held"
+}
+
 # After each frame: start the saver once the idle time is up, or ask to be
 # woken when it will be.
 dt_saverwait() {
@@ -150,6 +179,11 @@ dt_saverwait() {
 	[ -z "$DT_SAVING" ] && [ -z "$DT_LOCKED" ] || return 0
 	[ -n "$secs" ] || secs=$(( ${DT_SAVERIDLE:-0} * 60 ))
 	[ "$secs" -gt 0 ] 2> /dev/null || return 0
+	if dt_saverheld; then
+		DT_IDLEFROM=$EPOCHSECONDS
+		dt_want $(( secs * 1000 ))
+		return 0
+	fi
 	left=$(( secs - (EPOCHSECONDS - DT_IDLEFROM) ))
 	if [ "$left" -le 0 ]; then
 		dt_saverstart

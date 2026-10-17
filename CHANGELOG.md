@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.99.238
+
+**A playing video keeps the screen saver and the lock away** (Gitea #277).
+
+Asked for: an option in the YouTube player to stop the screen saver while a
+video plays. Nothing but a key or a click held the saver off, so a video
+longer than the idle time was covered halfway through, and then locked.
+
+- **Any window can hold the saver off**: `dt_saverhold id` and
+  `dt_saverfree id`. A hold is the window's own, so two players hold for
+  themselves, and closing the window frees it -- `dt_del` does, and a hold
+  whose window has gone is dropped -- so a forgotten hold cannot keep the
+  screen lit for ever. While any window holds, the desktop counts as in
+  use. **The lock is held off too**, as the owner chose: its own timer
+  starts with the saver, so a saver that never starts never locks.
+- **The YouTube player holds while a video is playing** and lets go when
+  it is paused, stopped, finished or minimised. It asks every frame from
+  what its player says now, rather than setting and clearing at each change,
+  so no path through play, pause and the end can leave a hold behind.
+- **Control Panel > YouTube > Keep the Screen Saver Away While Playing**,
+  on by default as the owner chose.
+
+Four checks in the desktop suite drive a window that holds: the saver stays
+away while it holds, comes once it frees, comes when the window closes still
+holding, and the lock does not come while it holds. Two in the YouTube
+suite: a playing video keeps the saver away past its idle time, and a paused
+one lets it come. YouTube 1.3 (with its pane) and Arabic 2.0 in the
+catalogue.
+
 ## 0.99.237
 
 **The wallpaper has a Picture setting of its own** (Gitea #275).

@@ -143,6 +143,17 @@ try:
           at(s[3]) == at(s[4]), (s[3].text()[-300:], s[4].text()[-300:]))
     check("and space plays it again", "playing" in s[5].text(), s[5])
 
+    # A playing video keeps the screen saver away, as Control Panel >
+    # YouTube says by default, and a paused one does not (Gitea #277): two
+    # seconds of idle time, four of playing with no key, then a pause.
+    s = yrun([([], "A test pattern"), ([b"\r"], playing), ([4.0], None),
+              ([b" "], "paused"), ([3.5], None)],
+             env={"DT_SAVERSECS": "2", "DT_SAVER": "clock"})
+    check("a playing video keeps the screen saver away past its idle time",
+          "playing" in s[2].text() and "█" not in s[2].text(), s[2])
+    check("and a paused one lets it come",
+          "█" in s[4].text() and "paused" not in s[4].text(), s[4])
+
     s = yrun([([], "A test pattern"), ([b"\r"], playing), ([1.0], None),
               ([b"\x1b[C"], lambda sc: at(sc) >= 6), ([1.5], None)])
     check("right goes five seconds on, and the picture goes on from there",
@@ -352,4 +363,4 @@ finally:
     srv.wait()
     shutil.rmtree(D, True)
 
-report(33)
+report(35)
