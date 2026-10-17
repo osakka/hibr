@@ -43,7 +43,7 @@ fn dt_ondrop(int mr, int mc, mods) {
 	DT_DND=
 	DT_DNDS=()
 	case $mods in *ctrl*) op=copy ;; esac
-	[ "$mr" = 0 ] && return 0
+	dt_onbar "$mr" "$mc" && return 0
 	id := console hit "$mr" "$mc"
 	if [ -n "$id" ]; then
 		id=${id#w}

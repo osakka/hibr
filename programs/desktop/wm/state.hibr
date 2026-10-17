@@ -156,6 +156,16 @@ fn dt_ptop() {
 	ret "$((DT_PRIMARY_ROW + 1))"
 }
 
+# Whether a screen row and column is on the menu bar: the primary's own top
+# row, inside its own columns. Clicks asked `row = 0`, which is the bar only
+# while the primary is the top display -- with a joined display stacked
+# above it, the bar was drawn on the primary and answered on the display
+# above, in the same place (Gitea #240).
+fn dt_onbar(int r, int c) {
+	[ "$r" = "$DT_PRIMARY_ROW" ] && [ "$c" -ge "$DT_PRIMARY_COL" ] &&
+		[ "$c" -lt $((DT_PRIMARY_COL + ${DT_PRIMARY_W:-$DT_COLS})) ]
+}
+
 # One past the primary's last row, so a bound is `< dt_pbot` exactly as it
 # used to be `< DT_ROWS`.
 fn dt_pbot() {

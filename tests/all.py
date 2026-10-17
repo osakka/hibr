@@ -29,6 +29,12 @@ LOGS = (os.environ.get("HIBR_TESTLOGS")
 # still turns it off.
 ENV = dict(os.environ)
 ENV.setdefault("V", "1")
+# The shell's own variables from whoever started the gate are not the
+# suites': each sets what it needs, and one inherited is a module found
+# that should be gone, or a suite talking to the owner's held desktop
+# (Gitea #253, #180).
+for _v in ("HIBR_MODPATH", "HIBR_MODULES", "HIBR_HOLD", "HIBR_SYSDIR"):
+    ENV.pop(_v, None)
 SUITES = ["run.sh", "desktop", "apps_panel", "apps_reach", "apps_core", "apps_more", "most", "hvi", "console", "cat",
           "mon", "mtr", "editor", "term_diff", "uifuzz", "strictvars", "deps", "scopes",
           "md_spec", "html_tree", "mail", "mailapp", "contacts", "calapp", "pim", "pim_rrule", "web", "dav", "media", "youtube",

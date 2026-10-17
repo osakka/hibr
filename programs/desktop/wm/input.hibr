@@ -46,7 +46,7 @@ dt_mouse() {
 
 	case $act in
 	press)
-		if [ "$mr" = 0 ]; then
+		if dt_onbar "$mr" "$mc"; then
 			if [ "$1" != right ] && wsn := dt_wshit "$mc"; then
 				dt_mclose
 				dt_wsgo "$wsn"
@@ -354,7 +354,7 @@ dt_mouse() {
 	release)
 		# Let go over a workspace's number on the bar: the window goes to
 		# that workspace, where it was before the drag began.
-		if [ -n "$DT_DRAG" ] && [ "$mr" = 0 ] && wsn := dt_wshit "$mc"; then
+		if [ -n "$DT_DRAG" ] && dt_onbar "$mr" "$mc" && wsn := dt_wshit "$mc"; then
 			dt_move "$DT_DRAG" "$DT_DRAGR0" "$DT_DRAGC0"
 			dt_wsmove "$DT_DRAG" "$wsn"
 			DT_DRAG=

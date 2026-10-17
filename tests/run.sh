@@ -45,6 +45,13 @@ rm -rf "$HIBR_TESTDATA"
 mkdir -p "$HIBR_TESTDATA" || exit 1
 XDG_DATA_HOME=$HIBR_TESTDATA
 export XDG_DATA_HOME
+
+# And none of the shell's own variables from whoever started this: a test
+# that wants a module path, an autoload mode, a held session or a system
+# scope sets its own, and one inherited makes a module that should be gone
+# be found -- `HIBR_MODPATH=build/mods` in the starting shell fails
+# 090-module and 450-drop exactly as one gate did (Gitea #253).
+unset HIBR_MODPATH HIBR_MODULES HIBR_HOLD HIBR_SYSDIR
 trap 'rm -rf "$HIBR_TESTDATA"' EXIT INT TERM
 
 pass=0

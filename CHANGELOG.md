@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.99.234
+
+**With the displays stacked, the bar answers on the primary, and the icons
+are there** (Gitea #273), and **the test harness no longer inherits the
+shell's own variables from whoever started it** (Gitea #253).
+
+Asked by the owner, from two displays stacked with the primary at the
+bottom: are the bar and the icons on the primary? The bar was drawn there
+-- #240 taught the desktop the primary's row in 0.99.205 -- but **a press
+was a bar click only at row 0 of the whole screen**, which is the display
+*above* a stacked primary: the bar drew on the bottom display and took its
+clicks on the top one, in the same place. A drag let go over a workspace
+number and a drop onto the bar asked the same thing. And **an icon that had
+not been dragged was laid out from row 2 of the whole screen**, so it drew
+on the display above as well; a dragged one was already held to the
+primary. `dt_onbar` answers "is this the bar" as the primary's own top row
+inside its own columns -- which also stops the top row of a display *beside*
+the primary counting as the bar -- and the icons start below the primary's
+bar. Two checks in the stacked-display section, both failing against
+0.99.233.
+
+#253 recorded one gate where `090-module`, `199-sysmods` and `450-drop`
+failed together, each finding a module that should have been gone, and the
+next gate passing. **`tests/run.sh` passed on whatever environment it was
+started from**, and `HIBR_MODPATH=build/mods` there reproduces the first
+and the last exactly, diff for diff. The harness and `tests/all.py` now
+clear `HIBR_MODPATH`, `HIBR_MODULES`, `HIBR_HOLD` and `HIBR_SYSDIR` -- every
+test that wants one sets its own -- and `tests/215-test-env.t` fails if one
+gets through, as it does against the old harness. `199-sysmods` sets its
+own module path and is not reproduced by this; #253 stays open for its
+next occurrence.
+
 ## 0.99.233
 
 **A note has a smallest and a largest size, and says when it was cut**

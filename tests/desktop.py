@@ -3286,6 +3286,20 @@ vsc = vt.screen()
 check("a primary at a non-zero row puts the bar on the primary, not at "
       "the top of the union where a joined display is",
       vsc.find("File") is not None and vsc.find("File")[0] == 0, vsc)
+# And it answers there. A press was a bar click only at the union's row 0,
+# which is the display *above* a stacked primary -- so the bar drew on the
+# primary and took its clicks on the other display, in the same place
+# (reported by the owner, Gitea #240). The desktop's icons were laid out
+# from row 2 of the union for the same reason, and drew on the display
+# above too.
+check("the desktop's icons are on the primary as well",
+      vsc.find("Home") is not None and vsc.find("Trash") is not None, vsc)
+hm = vsc.find("✎")
+vt.send(press(0, hm[1] if hm else 2) + release(0, hm[1] if hm else 2),
+        settle=0.5)
+vsc = vt.until("About This Computer")
+check("a click on the bar of a primary below a join opens its menu there",
+      vsc.find("About This Computer") is not None, vsc)
 vt.close()
 subprocess.run([screen.HIBR, "-c", HOLDC + "hold kill vt"],
                env=dict(os.environ, **HENV), capture_output=True)
@@ -5527,4 +5541,4 @@ check("launching an app that is not installed says which one and where "
       sc.find("files is not installed") is not None
       and sc.find("Catalogue") is not None, sc)
 
-report(625)
+report(627)
