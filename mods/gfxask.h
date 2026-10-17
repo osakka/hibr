@@ -1,0 +1,54 @@
+#ifndef HIBR_GFXASK_H
+#define HIBR_GFXASK_H
+
+#include "hibr.h"
+
+/* Asking a terminal which pictures it draws, and reading what it says --
+   one parser for the two places that ask (Gitea #258). The console asks
+   the terminal it draws on, as answers arrive among the keys; hold's
+   attaching client asks its own terminal once, before it joins a session,
+   so the server knows what each display can be sent.
+
+   Both capabilities answer for themselves. The kitty protocol has a query
+   of its own -- one pixel, `a=q`, no `q=` so the answer is not suppressed
+   -- which kitty replies `OK` to and a terminal that does not speak it
+   replies nothing to. Sixel is in the primary device attributes: a reply
+   carrying 4 among its parameters says so, and one without it says the
+   opposite, which is the one *negative* either query can give. They are
+   asked in that order, so a device-attributes reply with no kitty answer
+   before it is a real no to kitty as well (Gitea #216). */
+
+#ifndef GX_UNKNOWN
+#define GX_UNKNOWN 0
+#define GX_NONE 1
+#define GX_SIXEL 2
+#define GX_KITTY 3
+#endif
+
+/* The two questions, kitty's first, as one string to write. */
+extern const char gx_ask[];
+
+/* An APC at the front of p: 0 when more bytes are needed, -1 when it is not
+   one (or is longer than max), 2 when it was taken, with *used its length
+   and *kit 1 when it was kitty's `OK`. */
+int gx_apc(const char *p, size_t n, size_t max, size_t *used, int *kit);
+
+/* A control sequence with the private `?` prefix at the front of p -- a
+   report, never a key: the same three answers as gx_apc, with *da 1 when it
+   was the device attributes (final `c`) and *sixel 1 when 4 was among its
+   parameters. */
+int gx_report(const char *p, size_t n, size_t max, size_t *used, int *da,
+	      int *sixel);
+
+/* Ask the terminal on in/out, wait up to ms for its answers, and say what it
+   draws: GX_KITTY, GX_SIXEL, GX_NONE, or GX_UNKNOWN when nothing answered.
+   HIBR_GFX, when set, is the answer without asking, as it is for the
+   console. Anything else read meanwhile -- a key pressed while it waited --
+   is appended to rest, for the caller to pass on. */
+int gx_probe(int in, int out, long ms, str *rest);
+
+/* A capability as the word `hold clients` prints, and back. */
+const char *gx_name(int g);
+int gx_byname(const char *s);
+
+#endif

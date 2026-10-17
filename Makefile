@@ -59,10 +59,10 @@ PROMPT_SRC = $(wildcard mods/prompt/*.c) mods/inflate.c mods/inftab.c
 # read, rather than the whole of inflate.c: it never expands anything, and
 # the decoder is six kilobytes of code it would not call.
 CONSOLE_SRC = $(wildcard mods/console/*.c) mods/deflate.c mods/inftab.c \
-	      mods/png.c
+	      mods/png.c mods/gfxask.c
 PTY_SRC = $(wildcard mods/pty/*.c)
 TERM_SRC = $(wildcard mods/term/*.c)
-HOLD_SRC = $(wildcard mods/hold/*.c)
+HOLD_SRC = $(wildcard mods/hold/*.c) mods/gfxask.c
 CAT_SRC = $(wildcard mods/cat/*.c)
 
 PREFIX ?= /usr/local
@@ -133,10 +133,10 @@ $(B)/mods/pty.so: $(PTY_SRC) include/hibr.h mods/pty/tt.h | $(B)/mods
 $(B)/mods/term.so: $(TERM_SRC) include/hibr.h mods/term/tm.h mods/pty.h mods/display.h mods/term.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(TERM_SRC)
 
-$(B)/mods/hold.so: $(HOLD_SRC) include/hibr.h mods/hold/hd.h mods/pty.h mods/term.h mods/display.h | $(B)/mods
+$(B)/mods/hold.so: $(HOLD_SRC) include/hibr.h mods/hold/hd.h mods/pty.h mods/term.h mods/display.h mods/gfxask.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(HOLD_SRC)
 
-$(B)/mods/console.so: $(CONSOLE_SRC) include/hibr.h mods/console/cn.h mods/display.h mods/inflate.h mods/png.h | $(B)/mods
+$(B)/mods/console.so: $(CONSOLE_SRC) include/hibr.h mods/console/cn.h mods/display.h mods/inflate.h mods/png.h mods/gfxask.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(CONSOLE_SRC)
 
 $(B)/mods/cat.so: $(CAT_SRC) include/hibr.h mods/cat/ct.h | $(B)/mods

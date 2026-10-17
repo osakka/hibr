@@ -90,9 +90,9 @@ static const char cn_askbg[] = "\033]11;?\033\\";
    -- which kitty replies `OK` to and a terminal that does not speak it
    replies nothing to. Sixel is in the primary device attributes: a reply
    carrying 4 among its parameters says so, and one without it says the
-   opposite, which is the one *negative* either query can give. */
-static const char cn_askkit[] = "\033_Gi=4201,s=1,v=1,a=q,t=d,f=24;AAAA\033\\";
-static const char cn_askda[] = "\033[c";
+   opposite, which is the one *negative* either query can give. The two
+   questions and the reading of their answers are mods/gfxask.c's, shared
+   with hold's attaching client (Gitea #258). */
 
 /* The sixteen colours a program may name instead of an RGB value, as the
    standard palette has them -- what an index resolves to while the
@@ -125,8 +125,7 @@ void cn_askcolours(void)
 		s_num(&q, i);
 		s_cat(&q, ";?\033\\");
 	}
-	s_cat(&q, cn_askkit);
-	s_cat(&q, cn_askda);
+	s_cat(&q, gx_ask);
 	cn_wr(cn_fd, q.p, q.n);
 	s_free(&q);
 	lg(HIBR_LDBG, "console: asked the terminal what it is and what it draws");

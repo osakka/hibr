@@ -135,7 +135,9 @@ with the Classic theme and two schemes, Midnight and the light Paper, and
 the Catalogue has more of each. The wallpaper can be a
 pattern of characters or a picture -- on a terminal that can show pixels
 (kitty, or one that speaks sixel) it is the picture itself, and anywhere
-else it is drawn in coloured half blocks. Every change applies at once
+else it is drawn in coloured half blocks -- decided per display, so a
+second screen joined from a terminal that cannot show pixels gets half
+blocks while the first keeps its picture. Every change applies at once
 and is kept for next time.
 
 The **Control Strip** along the bottom holds small controls of its own:

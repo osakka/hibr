@@ -89,6 +89,19 @@ the reply arrives in the same stream the key decoder owns, racing a
 keystroke, and that stream already has a trap record (the Alt/Escape
 window). A name and a setting cost nobody a lost keypress.
 
+That rejection did not survive contact with `hold`. Gitea #216 (0.99.181)
+made the console **ask** after all, because inside a held session the
+name is the session's own frozen `$TERM` and says nothing about whichever
+terminal is attached now; the decoder learned a third answer, "taken, and
+nothing to report", so a reply is never a key. And Gitea #258 (0.99.235)
+carried the question to **each display**: a session with two displays
+drew pixels the moment one of them could, and the other was sent a bitmap
+it could not draw, over cells left blank for it -- black. Each attaching
+client asks its own terminal before it joins (`mods/gfxask.c`, the one
+parser both modules use), hold sends a picture only to a display whose
+terminal draws that kind, and the desktop draws each display's wallpaper
+as pixels or half blocks by what that display said.
+
 ## Consequences
 
 - `console gfx` names the protocol in force and what a cell measures

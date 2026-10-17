@@ -64,6 +64,18 @@ unsigned hd_hash(const char *p, size_t n)
 	return h;
 }
 
+/* Whether a client's own terminal draws this picture: a kitty transmission
+   (ESC _ G) for a terminal that said kitty, a sixel (ESC P) for one that
+   said sixel, and nothing for one that said neither or has not said. */
+int hd_canshow(const struct hd_cli *cn, const char *p, size_t n)
+{
+	if (n >= 3 && p[0] == '\033' && p[1] == '_' && p[2] == 'G')
+		return cn->gfx == GX_KITTY;
+	if (n >= 2 && p[0] == '\033' && p[1] == 'P')
+		return cn->gfx == GX_SIXEL;
+	return 0;
+}
+
 /* The kitty image id inside a picture's own escape, 0 for a sixel (which has
    none) or for anything without one: the bytes begin ESC _ G <control>, and
    the control data carries i=<id>. Read here rather than asked of the
@@ -299,6 +311,15 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 			if (ir < cn->row || ic < cn->col ||
 			    ir + irows > cn->row + cn->rows ||
 			    ic + icols > cn->col + cn->cols)
+				continue;
+			/* And only a picture this client's own terminal
+			   said it draws: a kitty transmission to a kitty
+			   terminal, a sixel to a sixel one. A bitmap sent
+			   anywhere else is a black rectangle nothing
+			   repaints, and a client that has not said --
+			   one from before 0.99.235 -- is sent none (Gitea
+			   #258). */
+			if (!hd_canshow(cn, pic.p, pic.n))
 				continue;
 			id = hd_imgid(pic.p, pic.n);
 			h = hd_hash(pic.p, pic.n);

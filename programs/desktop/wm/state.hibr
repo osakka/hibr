@@ -112,7 +112,7 @@ DT_PRIMARY_COL=0
 DT_PRIMARY_H=
 DT_PRIMARY_ROW=0
 
-# Every attached display's own rectangle, one "row col rows cols" to an
+# Every attached display's own rectangle and what it draws, one to an
 # entry, filled by dt_size from `hold clients` and falling back to the
 # whole screen when this desktop is not held. The wallpaper places one
 # picture per entry rather than one across the union: hold forwards a
@@ -120,7 +120,10 @@ DT_PRIMARY_ROW=0
 # bitmap cannot be clipped -- so a wallpaper spanning two stacked panes
 # reached neither of them (Gitea #238). A picture per display is
 # contained by construction, which keeps that rule true instead of
-# reversing it.
+# reversing it. Each entry is "row col rows cols gfx", gfx being what that
+# display's own terminal draws -- kitty, sixel, none, unknown, or self when
+# nothing is held -- so a display that cannot show pixels is drawn in half
+# blocks rather than sent a bitmap it cannot draw (Gitea #258).
 DT_DISPLAYS=()
 
 # What `hold shift` answered when dt_size last asked -- "row col",

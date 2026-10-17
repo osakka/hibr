@@ -472,5 +472,93 @@ check("a session named kitty sends no bitmap to a client that answers it "
       and "gfx none" in log, (sc.apc[:4], sc.images, log))
 check("and it drew blocks there instead", "▀" in sc.row(2), repr(sc.row(2)))
 
+# Two displays that disagree about pictures (Gitea #258). A primary whose
+# terminal draws none was sent a bitmap the moment one that draws kitty
+# joined -- the session switched to pixels for everyone -- and its
+# wallpaper went black, since the cells under a picture are left blank for
+# it. And with two that both draw pictures, the first display's wallpaper
+# was deleted and sent again on every frame that only kept it, because
+# one record and one kept rectangle served both displays. Each attaching
+# client now asks its own terminal before it joins, hold sends a picture
+# only to a terminal that said it draws that kind, and the desktop draws
+# each display's wallpaper as pixels or half blocks by what that display
+# said. A real held desktop, a picture wallpaper, two ptys.
+def pair(cap1, cap2, fast=False):
+    """A held desktop with a picture wallpaper, one display attached and a
+    second joining beside it. Each cap is kitty (answers kitty's query and
+    has a cell size) or none (answers the device attributes without sixel,
+    and has no cell size). What each display was sent, counted from its own
+    control strings after the join and again once settled, how many rows of
+    half blocks each shows, and what `hold gfx` names each one."""
+    nm = name()
+    sess = os.path.join(D, "desk%s.hibr" % nm)
+    open(sess, "w").write(
+        load("console") + ". %s\n" % sx.tree("programs/desktop/desktop.hibr")
+        + "DT_WALLIMG=%s\nDT_IMGMODE=auto\nDT_WALLMODE=stretch\n"
+        % sx.tree("tests/img-quad.jpg")
+        + ("busyf() { dt_want 50; }\ndt_ticker busyf\n" if fast else "")
+        + "dt_open || exit 1\ndt_run\ndt_close\n")
+    one = os.path.join(D, "one%s.hibr" % nm)
+    two = os.path.join(D, "two%s.hibr" % nm)
+    open(one, "w").write(load("hold") + 'hold new -d %s "$HIBR" %s\n' % (nm, sess)
+                         + "sleep 0.8\nhold attach -m -n one %s 0 0\n" % nm)
+    open(two, "w").write(load("hold") + "hold attach -m -n two %s 0 80\n" % nm)
+
+    def term(path, cap):
+        cw, ch = (8, 16) if cap == "kitty" else (0, 0)
+        return Term(path, rows=24, cols=80, settle=1.0, cellw=cw, cellh=ch,
+                    env={"TMPDIR": D}, caps=["kitty"] if cap == "kitty" else [])
+
+    def sent(t, a=0):
+        r = t.raw[a:]
+        return r.count(b"a=T"), r.count(b"a=d")
+
+    def half(sc):
+        return sum(1 for r in range(2, 20) if "▀" in sc.row(r) or "▄" in sc.row(r))
+
+    t1 = term(one, cap1)
+    for _ in range(int(32 * SLOW)):
+        t1.collect(0.25)
+    m1 = len(t1.raw)
+    t2 = term(two, cap2)
+    for _ in range(int(20 * SLOW)):
+        t2.collect(0.25)
+        t1.collect(0.05)
+    t1.collect(2.0)
+    t2.collect(1.0)
+    a1, a2 = len(t1.raw), len(t2.raw)
+    for _ in range(20):
+        t1.collect(0.2)
+        t2.collect(0.05)
+    r = {"one": sent(t1, m1), "two": sent(t2), "one_settled": sent(t1, a1),
+         "two_settled": sent(t2, a2), "one_half": half(t1.screen()),
+         "two_half": half(t2.screen())}
+    g = os.path.join(D, "g%s.hibr" % nm)
+    open(g, "w").write(load("hold") + "hold gfx %s\n" % nm)
+    r["gfx"] = os.popen("TMPDIR=%s %s %s 2>&1" % (D, sx.HIBR, g)).read().split("\n")
+    t2.quit(None, 0.5)
+    t1.quit(None, 0.5)
+    kill(nm)
+    return r
+
+
+r = pair("none", "kitty")
+check("a display whose terminal draws no pictures is sent none when one that "
+      "does joins, and keeps its wallpaper in half blocks",
+      r["one"][0] == 0 and r["one_half"] > 10, r)
+check("while the one that joined is sent its own picture",
+      r["two"][0] == 1 and r["two_half"] == 0, r)
+check("and hold gfx names what each display's own terminal said",
+      "one none" in r["gfx"] and "two kitty" in r["gfx"], r["gfx"])
+r = pair("kitty", "none")
+check("a display that draws none joining one that does is sent no picture, "
+      "and draws its wallpaper in half blocks",
+      r["two"][0] == 0 and r["two_half"] > 10 and r["one_half"] == 0, r)
+r = pair("kitty", "kitty", fast=True)
+check("two displays that both draw pictures each keep theirs on a busy "
+      "desktop, rather than the first being deleted and sent again",
+      r["one_settled"] == (0, 0) and r["two_settled"] == (0, 0)
+      and r["two"][0] == 1, r)
+
 shutil.rmtree(D, True)
-report(23)
+report(28)

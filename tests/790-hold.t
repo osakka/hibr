@@ -395,9 +395,17 @@ now=$(hold list | awk '$1 == "t6" { print $3 }')
 # What was on screen before the exec is still on screen after it: the
 # emulator was written out and read back, which is the whole of what a
 # client is rendered from.
+# Read until the marker arrives rather than once after a pause: an
+# attaching client first asks its own terminal what pictures it draws, and
+# a test pty answers nothing, so the attach waits out that question's
+# deadline first (Gitea #258).
 c := pty spawn $H -c "$L; hold attach -m -n probe t6"
-sleep 0.8
-out := pty read $c 400
+out=
+for i in 1 2 3 4 5 6 7 8 9 10; do
+	got := pty read $c 300
+	out+=$got
+	case $out in *UPGRADE-MARKER*) break ;; esac
+done
 case $out in *UPGRADE-MARKER*) echo "the screen came through the exec" ;;
 	*) echo "the screen did not come through" ;; esac
 pty close $c

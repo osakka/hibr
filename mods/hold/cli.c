@@ -81,10 +81,10 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 	struct sigaction a, oa;
 	struct pollfd q[2];
 	const char *why = "detached";
-	int s, sz[4], px[4], t, st = 0, ended = 0, lost = 0;
+	int s, sz[4], px[4], t, st = 0, ended = 0, lost = 0, gx;
 	ssize_t k;
 	char *p;
-	str rb, in, pay;
+	str rb, in, pay, early;
 
 #ifdef __APPLE__
 	/* The desktop always auto-holds (dt_autohold), so on a fresh launch
@@ -112,6 +112,18 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 		lg(HIBR_LERR, "hold attach: not on a terminal");
 		return 2;
 	}
+	/* Ask this terminal what pictures it draws, before joining, so its
+	   answer cannot be mixed with anything the session sends and nothing
+	   on the far side has to pick it out of the keys (Gitea #258). Raw for
+	   the asking, or the reply would wait for a newline and echo; a key
+	   pressed meanwhile is kept and sent once attached. */
+	raw = sv;
+	cfmakeraw(&raw);
+	tcsetattr(0, TCSANOW, &raw);
+	s_init(&early);
+	gx = gx_probe(0, 1, HD_GFXMS, &early);
+	tcsetattr(0, TCSANOW, &sv);
+	lg(HIBR_LDBG, "hold attach: this terminal draws %s", gx_name(gx));
 	hd_size(sz);
 	sz[2] = row;
 	sz[3] = col;
@@ -121,13 +133,21 @@ int hd_attach(const char *name, const char *path, int multi, int row,
 		s_add(&pay, dname, strlen(dname));
 	if (!hd_send(s, multi ? HD_MATTACH : HD_ATTACH, pay.p, pay.n)) {
 		s_free(&pay);
+		s_free(&early);
 		close(s);
 		lg(HIBR_LERR, "hold: %s: the session did not answer", name);
 		return 1;
 	}
 	s_free(&pay);
+	/* Before the pixel size, which is what makes the server work out the
+	   union and nudge the program: by then it knows what this display
+	   can be sent. */
+	hd_send(s, HD_GFX, (const char *)&gx, sizeof gx);
 	hd_sizepx(px);
 	hd_send(s, HD_SIZE, (const char *)px, 4 * sizeof(int));
+	if (early.n)
+		hd_send(s, HD_DATA, early.p, early.n);
+	s_free(&early);
 	hd_selftitle("attached", path);
 	fflush(0);
 	raw = sv;

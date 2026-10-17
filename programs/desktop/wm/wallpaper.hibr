@@ -213,6 +213,9 @@ fn dt_wallsig() {
 	# moving between them, changes every cell of it.
 	s="$s|$DT_ICONS|$DI_SCANT|$DT_ROWS|$DT_COLS|$DT_WS|$DT_MIRRORON"
 	s="$s|$DT_PRIMARY_COL|$DT_PRIMARY_W|$DT_PRIMARY_ROW|$DT_PRIMARY_H"
+	# And every display with what it draws, so one whose terminal's
+	# answer arrives, or changes, is painted the right way at once.
+	s="$s|${DT_DISPLAYS[*]}"
 	s="$s|$MB_OPEN|$MB_CTXWHO|$DT_DND|$DT_DNDR|$DT_DNDN|$DT_DNDG"
 	s="$s|${#DT_NOTEQ_ORDER[@]}|$DT_IDNAME|$DT_BLANK|${#DT_BLANKR[@]}"
 	s="$s|$DT_CONFIRM|$DT_SHOT|$DT_SAVING|$DT_LOCKED"
@@ -234,20 +237,64 @@ fn dt_wallsig() {
 # which on this path, outside `console behind on`, would land on top of every
 # window and stay there until something else made them dirty. keep draws
 # nothing whatever happens, and fails when there was nothing to keep.
+#
+# Every display the last paint placed pixels on, not only the last one:
+# keeping one rectangle let the console retire the others on every frame
+# that only kept the wallpaper, and the first display's picture was
+# deleted and sent again over and over -- ten times in six seconds -- which
+# is a primary going black (Gitea #258).
+DT_WALLPIX=()
 fn dt_wallkeep() {
+	local p r c h w
+
 	[ -n "$DT_WALLIMG" ] || return 0
 	dt_has img || return 0
-	dt_imgwill || return 0
+	[ "${#DT_WALLPIX[@]}" -gt 0 ] || return 0
 	dt_imgm
-	img keep "$DT_WALLIMG" "$DT_WALLR" "$DT_WALLC" "$DT_WALLH" \
-		"$DT_WALLW" "${DT_IMGARG[@]}" || return 0
+	for p in "${DT_WALLPIX[@]}"; do
+		IFS=' ' read -r r c h w <<< "$p"
+		img keep "$DT_WALLIMG" "$r" "$c" "$h" "$w" "${DT_IMGARG[@]}" ||
+			true
+	done
 	return 0
 }
+
+# Whether the wallpaper goes to a display as pixels: when a picture drawn
+# now would be pixels at all, and that display's own terminal draws the
+# protocol the session draws in. A display that draws another, or none, or
+# has not said, gets half blocks instead -- hold sends it no bitmap, and a
+# picture's cells waiting for one would be a black rectangle (Gitea #258).
+# `self` is a desktop that is not held, whose one display is the
+# console's own terminal.
+fn dt_wallpixon(gx) {
+	local g
+
+	dt_imgwill || return 1
+	case $gx in
+	self) return 0 ;;
+	kitty | sixel)
+		g := dt_imggfx
+		[ "${g%% *}" = "$gx" ]
+		return
+		;;
+	esac
+	return 1
+}
+
+# The img draw arguments for half blocks where pixels are not to be had:
+# the chosen cell mode when the setting names one, half blocks otherwise.
+fn dt_wallcells() {
+	case $DT_IMGMODE in
+	half | mono | ascii) DT_WALLCARG=(-m "$DT_IMGMODE") ;;
+	*) DT_WALLCARG=(-m half) ;;
+	esac
+}
+DT_WALLCARG=()
 
 # Paint the wallpaper.  The bar is drawn afterwards, over the windows, so a
 # drop-down menu covers them.
 dt_wall() {
-	local drawn= sig ms dsp dr dc drows dcols
+	local drawn= sig ms dsp dr dc drows dcols dgx
 
 	# The icons' own rescan, and the frame it asks for, happen whether or
 	# not anything is painted: inside the gate below they would stop the
@@ -295,6 +342,8 @@ dt_wall() {
 				;;
 			esac
 			dt_imgm
+			dt_wallcells
+			DT_WALLPIX=()
 			# One picture per attached display, not one across
 			# the union. hold forwards a picture only to a client
 			# whose rectangle **contains** it, because a bitmap
@@ -307,8 +356,17 @@ dt_wall() {
 			# Not held, or one display: exactly one placement, the
 			# same as before.
 			for dsp in "${DT_DISPLAYS[@]}"; do
-				IFS=' ' read -r dr dc drows dcols <<< "$dsp"
+				IFS=' ' read -r dr dc drows dcols dgx <<< "$dsp"
 				dt_wallfit "$dr" "$dc" "$drows" "$dcols"
+				# A display that cannot show the session's
+				# pixels gets half blocks in its own
+				# rectangle (Gitea #258).
+				if ! dt_wallpixon "$dgx"; then
+					img draw "$DT_WALLIMG" "$DT_WALLR" \
+						"$DT_WALLC" "$DT_WALLH" "$DT_WALLW" \
+						"${DT_WALLCARG[@]}" && drawn=1
+					continue
+				fi
 				# Where a picture of real pixels is going,
 				# the cells it covers are blanked with no
 				# colours of their own first: a bitmap writes
@@ -329,9 +387,12 @@ dt_wall() {
 				# the icons -- and a picture that owns its
 				# cells would be dropped before it was ever
 				# sent (ADR 0037, Gitea #104).
-				img draw "$DT_WALLIMG" "$DT_WALLR" \
+				if img draw "$DT_WALLIMG" "$DT_WALLR" \
 					"$DT_WALLC" "$DT_WALLH" "$DT_WALLW" \
-					"${DT_IMGARG[@]}" -u && drawn=1
+					"${DT_IMGARG[@]}" -u; then
+					drawn=1
+					DT_WALLPIX+=("$DT_WALLR $DT_WALLC $DT_WALLH $DT_WALLW")
+				fi
 			done
 		fi
 	fi

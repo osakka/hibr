@@ -493,24 +493,11 @@ static int cn_osc(const char *p, size_t n, size_t *used)
    APC decoded as one came out as `alt-_` and then its text. */
 static int cn_apc(const char *p, size_t n, size_t *used)
 {
-	size_t i, end = 0;
+	int kit, r = gx_apc(p, n, CN_OSCMAX, used, &kit);
 
-	for (i = 2; i < n; i++) {
-		if ((unsigned char)p[i] != 27)
-			continue;
-		if (i + 1 >= n)
-			return 0;
-		if (p[i + 1] != '\\')
-			return -1;
-		end = i;
-		break;
-	}
-	if (!end)
-		return n < CN_OSCMAX ? 0 : -1;
-	*used = end + 2;
-	if (end > 2 && p[2] == 'G' && memmem(p + 2, end - 2, ";OK", 3))
+	if (r == 2 && kit)
 		cn_gotcap(CN_GFX_KITTY, 1);
-	return 2;
+	return r;
 }
 
 /* A control sequence with the private `?` prefix arriving as input is a
@@ -521,32 +508,11 @@ static int cn_apc(const char *p, size_t n, size_t *used)
    either capability query can give (Gitea #216). */
 static int cn_report(const char *p, size_t n, size_t *used)
 {
-	size_t i;
-	int sixel = 0, v = -1;
+	int da, sixel, r = gx_report(p, n, CN_OSCMAX, used, &da, &sixel);
 
-	for (i = 3; i < n; i++) {
-		if (p[i] >= '0' && p[i] <= '9') {
-			v = (v < 0 ? 0 : v * 10) + (p[i] - '0');
-			continue;
-		}
-		if (p[i] == ';') {
-			if (v == 4)
-				sixel = 1;
-			v = -1;
-			continue;
-		}
-		if (p[i] >= '@' && p[i] <= '~')
-			break;
-		if (p[i] == ':' || p[i] == '$' || p[i] == ' ')
-			continue;
-		return -1;
-	}
-	if (i >= n)
-		return n < CN_OSCMAX ? 0 : -1;
-	*used = i + 1;
-	if (p[i] == 'c')
-		cn_gotcap(CN_GFX_SIXEL, sixel || v == 4);
-	return 2;
+	if (r == 2 && da)
+		cn_gotcap(CN_GFX_SIXEL, sixel);
+	return r;
 }
 
 /* Turn the front of the buffer into one key name; 0 means need more bytes. */

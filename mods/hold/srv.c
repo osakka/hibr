@@ -127,7 +127,13 @@ void hd_ubox(vec *cls, int *rows, int *cols)
    primary client's, or the first one that knows. A bitmap is drawn 1:1, so
    there is no second size to draw it at -- clients that disagree all get
    the primary's, and one whose cells are a different size sees a picture
-   the wrong size rather than nothing, which is the honest trade. */
+   the wrong size rather than nothing, which is the honest trade. A client
+   whose terminal draws no pictures at all is the case that trade did not
+   price -- it saw a black rectangle -- and it is no longer sent one: each
+   client says what its own terminal draws (HD_GFX), the picture loop sends
+   only what that terminal draws, and the desktop draws half blocks there.
+   So borrowing a capable client's size is safe, and keeps the pixels on
+   the display that can show them (Gitea #258). */
 void hd_cellpx(vec *cls, int *w, int *h)
 {
 	size_t i;
@@ -396,6 +402,23 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit, int *upg)
 		s_free(&o);
 		break;
 	}
+	case HD_GFXLIST: {
+		size_t ci;
+
+		s_init(&o);
+		for (ci = 0; ci < cls->n; ci++) {
+			struct hd_cli *cn2 = cls->p[ci];
+
+			if (o.n)
+				s_ch(&o, '\n');
+			s_cat(&o, cn2->name.p ? cn2->name.p : "");
+			s_ch(&o, ' ');
+			s_cat(&o, gx_name(cn2->gfx));
+		}
+		hd_send(c, HD_GFXLIST, o.p, o.n);
+		s_free(&o);
+		break;
+	}
 	case HD_MOVE: {
 		struct hd_cli *cn2 = 0;
 		char *sp1, *sp2;
@@ -633,6 +656,23 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 					}
 					hd_union(&cls, id, tid);
 				}
+			} else if (t == HD_GFX && in.n == sizeof(int)) {
+				struct hd_cli *cn = hd_cfind(&cls, fd);
+				int g;
+
+				memcpy(&g, in.p, sizeof g);
+				if (g < GX_UNKNOWN || g > GX_KITTY)
+					g = GX_UNKNOWN;
+				/* A changed answer may change what this
+				   display is sent, and what the program
+				   draws for it: send its pictures afresh
+				   and have the program read the displays
+				   again. */
+				if (cn && cn->gfx != g) {
+					cn->gfx = g;
+					cn->imgen = 0;
+					hd_poke(m);
+				}
 			} else if (t == HD_DETACH) {
 				hd_cdrop(&cls, fd);
 			}
@@ -803,6 +843,12 @@ int hd_upgrade(sh *s, const char *path, vec *cls, int id, int tid, int m,
 		fprintf(f, "client %d %d %d %d %d %d %d %d %s\n", cn->fd,
 			cn->row, cn->col, cn->rows, cn->cols, cn->primary,
 			cn->xpix, cn->ypix, cn->name.p ? cn->name.p : "");
+		/* Its own line, after the client it belongs to: an older
+		   reader skips a line it does not know, so both directions of
+		   an upgrade still read. A display carried from a server older
+		   than this has no line and is GX_UNKNOWN until it attaches
+		   again, which draws half blocks rather than black. */
+		fprintf(f, "gfx %d %d\n", cn->fd, cn->gfx);
 		hd_keepexec(cn->fd);
 	}
 	fclose(f);
@@ -903,6 +949,13 @@ int hd_resume(sh *s)
 		if (sscanf(line, "shift %d %d", &shr, &shc) == 2) {
 			hd_shiftr = shr;
 			hd_shiftc = shc;
+			continue;
+		}
+		if (sscanf(line, "gfx %d %d", &fd, &prim) == 2) {
+			struct hd_cli *cg = hd_cfind(&cls, fd);
+
+			if (cg && prim >= GX_UNKNOWN && prim <= GX_KITTY)
+				cg->gfx = prim;
 			continue;
 		}
 		if (sscanf(line, "client %d %d %d %d %d %d %d %d %127s", &fd,

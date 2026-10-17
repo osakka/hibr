@@ -458,39 +458,76 @@ static size_t im_pixn;
    was, so a file replaced in place within one second at the same path and
    the same fitted size is a false hit; the Wallpaper pane picks a path
    rather than rewriting one, so nothing in the desktop reaches it. */
-static struct {
+/* One record per rectangle, not one: a held desktop places its wallpaper
+   once per attached display, and a single record let each display's
+   placement overwrite the other's, so a keep for the first never matched
+   and the console retired that display's picture on every frame that only
+   kept it -- ten deletes and retransmissions in six seconds on the primary,
+   none on the display placed last (Gitea #258). A record for a rectangle
+   already held is replaced; past IM_UNDERN the oldest goes. */
+#ifndef IM_UNDERN
+#define IM_UNDERN 8
+#endif
+struct im_under {
 	char *path;
 	int iw, ih, row, col, rows, cols;
 	time_t mtime;
-} im_lastu;
+};
+static struct im_under *im_lastu;
+static size_t im_lastn;
 
 static int im_same(const char *path, int iw, int ih, int row, int col,
 		   int rows, int cols)
 {
 	struct stat st;
+	size_t i;
 
-	if (!im_lastu.path || strcmp(im_lastu.path, path) ||
-	    im_lastu.iw != iw || im_lastu.ih != ih || im_lastu.row != row ||
-	    im_lastu.col != col || im_lastu.rows != rows ||
-	    im_lastu.cols != cols)
-		return 0;
-	return stat(path, &st) == 0 && im_lastu.mtime == st.st_mtime;
+	for (i = 0; i < im_lastn; i++) {
+		struct im_under *u = &im_lastu[i];
+
+		if (u->row != row || u->col != col || u->rows != rows ||
+		    u->cols != cols)
+			continue;
+		if (strcmp(u->path, path) || u->iw != iw || u->ih != ih)
+			return 0;
+		return stat(path, &st) == 0 && u->mtime == st.st_mtime;
+	}
+	return 0;
 }
 
 static void im_placed(const char *path, int iw, int ih, int row, int col,
 		      int rows, int cols)
 {
 	struct stat st;
+	struct im_under *u = 0;
+	size_t i;
 
-	free(im_lastu.path);
-	im_lastu.path = strdup(path);
-	im_lastu.mtime = stat(path, &st) == 0 ? st.st_mtime : 0;
-	im_lastu.iw = iw;
-	im_lastu.ih = ih;
-	im_lastu.row = row;
-	im_lastu.col = col;
-	im_lastu.rows = rows;
-	im_lastu.cols = cols;
+	for (i = 0; i < im_lastn; i++)
+		if (im_lastu[i].row == row && im_lastu[i].col == col &&
+		    im_lastu[i].rows == rows && im_lastu[i].cols == cols) {
+			u = &im_lastu[i];
+			free(u->path);
+			break;
+		}
+	if (!u) {
+		if (im_lastn >= IM_UNDERN) {
+			free(im_lastu[0].path);
+			memmove(im_lastu, im_lastu + 1,
+				(im_lastn - 1) * sizeof *im_lastu);
+			im_lastn--;
+		}
+		im_lastu = xr(im_lastu, (im_lastn + 1) * sizeof *im_lastu);
+		u = &im_lastu[im_lastn++];
+	}
+	memset(u, 0, sizeof *u);
+	u->path = xs(path);
+	u->mtime = stat(path, &st) == 0 ? st.st_mtime : 0;
+	u->iw = iw;
+	u->ih = ih;
+	u->row = row;
+	u->col = col;
+	u->rows = rows;
+	u->cols = cols;
 }
 
 /* The scaled pixels for this picture at this size, or nothing. */
@@ -956,6 +993,11 @@ void im_fini(sh *s)
 	free(im_pix);
 	im_pix = 0;
 	im_pixn = 0;
+	for (i = 0; i < im_lastn; i++)
+		free(im_lastu[i].path);
+	free(im_lastu);
+	im_lastu = 0;
+	im_lastn = 0;
 }
 
 HIBR_MODULE("img", "1.0", "decode an image and draw it as terminal cells",

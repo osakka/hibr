@@ -5,6 +5,7 @@
 #include "../display.h"
 #include "../pty.h"
 #include "../term.h"
+#include "../gfxask.h"
 
 enum {
 	HD_ATTACH = 'a',
@@ -19,6 +20,14 @@ enum {
 	HD_MATTACH = 'm',
 	/* One line per attached client: name row col rows cols primary. */
 	HD_CLIENTS = 'c',
+	/* One line per attached client: name, then what its own terminal
+	   draws -- kitty, sixel, none or unknown (Gitea #258). Its own request
+	   rather than a seventh field of HD_CLIENTS, which ten readers take
+	   with the primary flag last: a desktop still running beside an
+	   upgraded server would have read the flag as "1 kitty" and lost its
+	   primary. A server without it closes the request unanswered, at once,
+	   which the reader takes as unknown. */
+	HD_GFXLIST = 'l',
 	/* Reposition a named client: name row col. */
 	HD_MOVE = 'v',
 	/* Detach a named client, server-side, by name rather than by fd. */
@@ -40,8 +49,21 @@ enum {
 	/* Re-exec the server on the hibr that is on disk now, taking the
 	   session with it: the one thing a Restart Desktop cannot do, since
 	   that re-execs the desktop *inside* this process (Gitea #198). */
-	HD_UPGRADE = 'u'
+	HD_UPGRADE = 'u',
+	/* What this client's own terminal draws, as one int (GX_KITTY,
+	   GX_SIXEL, GX_NONE or GX_UNKNOWN), asked by the client itself before
+	   it joins (Gitea #258). A server that does not know the message
+	   ignores it, and a client that never sends it is GX_UNKNOWN, which
+	   is sent no pictures. */
+	HD_GFX = 'g'
 };
+
+/* How long an attaching client waits for its terminal to say what it
+   draws. Nearly every terminal answers the device attributes at once; one
+   that answers nothing costs this, once, at attach. */
+#ifndef HD_GFXMS
+#define HD_GFXMS 1000
+#endif
 
 /* How long a request to a session may wait. A control request to a local
    socket that does not answer promptly is a session in trouble, never a
@@ -117,6 +139,12 @@ struct hd_cli {
 	   the first client to attach, until the panel picks another. */
 	str name;
 	int primary;
+	/* What this client's own terminal said it draws, which decides
+	   whether a picture is sent to it at all: a bitmap sent to a terminal
+	   that cannot draw one is a black rectangle nothing repaints, and once
+	   any one display could show pictures the session sent them to every
+	   display (Gitea #258). */
+	int gfx;
 	/* The title last sent to this client's terminal (OSC 2), so it is
 	   sent again only when the program changes it. */
 	str title;
@@ -124,6 +152,7 @@ struct hd_cli {
 
 unsigned hd_hash(const char *p, size_t n);
 unsigned hd_imgid(const char *p, size_t n);
+int hd_canshow(const struct hd_cli *cn, const char *p, size_t n);
 void hd_cdrop(vec *cls, int fd);
 struct hd_cli *hd_cfind(vec *cls, int fd);
 struct hd_cli *hd_cfindname(vec *cls, const char *name);

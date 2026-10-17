@@ -251,6 +251,33 @@ int hd_clients(sh *s, int ac, char **av)
 	return HIBR_OK;
 }
 
+/* What each attached display's own terminal draws, one per line: name, then
+   kitty, sixel, none or unknown -- asked by each client of its own terminal
+   before it joined, and what decides whether a picture is sent to it
+   (Gitea #258). A session whose server predates it answers nothing, and
+   this fails quietly, which a caller reads as every display unknown. */
+int hd_gfxlist(sh *s, int ac, char **av)
+{
+	str path, r;
+	int ok;
+
+	s_init(&path);
+	if (!hd_which(ac > 2 ? av[2] : 0, &path)) {
+		s_free(&path);
+		return 2;
+	}
+	s_init(&r);
+	ok = hd_ask(path.p, HD_GFXLIST, &r);
+	s_free(&path);
+	if (!ok) {
+		s_free(&r);
+		return HIBR_FAIL;
+	}
+	hd_ret(s, r.p ? r.p : "");
+	s_free(&r);
+	return HIBR_OK;
+}
+
 /* How far this session's origin has been normalised since the server
    started, as "row col".
 
@@ -394,6 +421,8 @@ int m_hold(sh *s, int ac, char **av)
 		return hd_list(s);
 	if (!strcmp(sub, "clients"))
 		return hd_clients(s, ac, av);
+	if (!strcmp(sub, "gfx"))
+		return hd_gfxlist(s, ac, av);
 	if (!strcmp(sub, "shift"))
 		return hd_shift(s, ac, av);
 	if (!strcmp(sub, "move"))
@@ -494,7 +523,7 @@ int m_hold(sh *s, int ac, char **av)
 	}
 	s_free(&path);
 	lg(HIBR_LERR,
-	   "usage: hold new|attach|detach|list|kill|clients|shift|move|drop|primary|upgrade ...");
+	   "usage: hold new|attach|detach|list|kill|clients|gfx|shift|move|drop|primary|upgrade ...");
 	return 2;
 }
 

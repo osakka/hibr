@@ -17,6 +17,7 @@ nothing has to be saved and restored.
 | `hold detach [name]` | detach whoever is attached; with no name, the session this shell is running in |
 | `hold list` | each session, attached or detached, the program's pid, and the union's own size (rows x cols) |
 | `hold clients [name]` | one line per attached client of a session (with no name, the one this shell runs in): `name row col rows cols primary` -- what a control panel draws its rectangles from |
+| `hold gfx [name]` | one line per attached client: `name` and what its own terminal draws -- `kitty`, `sixel`, `none`, or `unknown` for a client that never said. Fails, quietly, against a server older than 0.99.235, which a caller reads as every display unknown |
 | `hold shift [name]` | how far the session's origin has been normalised since the server started, as `row col` -- what a program drawing on the union translates its own content by |
 | `hold move name display row col` | reposition a named client within the session's own virtual space; `row` and `col` may be negative, and the whole arrangement is then shifted so its top-left corner is the union's own 0,0 |
 | `hold drop name display` | detach a named client, server-side -- "switch off" a display from the panel |
@@ -155,6 +156,26 @@ and sets it on the pty. Before 0.99.77 `console gfx` answered `none 0 0`
 inside every held program, so every picture in a desktop -- and
 `dt_autohold` holds them all -- was half blocks whatever the terminal could
 do. Gitea #103, ADR 0037.
+
+And a picture goes only to a client whose own terminal draws it (Gitea
+#258). Before 0.99.235 one display that could show pictures made the
+session draw pixels, and every display whose rectangle held a picture was
+sent it -- so a terminal that draws none got a bitmap it dropped, over
+cells the program had left blank for it: black. Each attaching client now
+asks **its own** terminal, before it joins, the same two questions the
+console asks (kitty's `a=q` and the device attributes, from
+`mods/gfxask.c`, which both modules build in), against a one-second
+deadline, and sends the answer as `HD_GFX`. Asking on the client rather
+than reading the replies out of what each client types keeps a parser out
+of the relay, and means the answer is in hand before anything is drawn.
+The picture loop sends a kitty transmission only to a client that said
+kitty and a sixel only to one that said sixel; a client that never said --
+one older than this -- is sent none. `hold gfx` reports what each said,
+and the desktop draws its wallpaper as pixels on a display that draws the
+session's protocol and as half blocks on every other. The answer travels
+across `hold upgrade` on a `gfx` line of its own; a client carried from an
+older server has none and draws half blocks until it attaches again. A
+terminal that answers nothing at all costs the deadline, once, at attach.
 
 ## How it works
 

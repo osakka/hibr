@@ -3966,6 +3966,32 @@ went in the shell.
   tree before using it** -- `540-examples.t` catches it at the gate, but
   the symptom before that was a rescan silently running somebody else's
   code.
+- **Anything kept once for "the display" is wrong the day there are two,
+  and a capability decided for the session is not a fact about each
+  display** (Gitea #258, 0.99.235). Reported as *"when a display joins in
+  pixel mode the wallpaper goes black, and half blocks bring it back on the
+  primary"*, and it was two bugs. `img` kept **one** record of what it had
+  placed under the text and `dt_wallkeep` kept **one** rectangle, the last
+  display's, so with two displays every frame that only kept the wallpaper
+  let the console retire the first display's picture: ten deletes and
+  retransmissions in six seconds on the primary, none on the display placed
+  last. And once **any** display could show pictures, the session drew
+  pixels and hold sent the bitmap to every display whose rectangle held it,
+  including a terminal that draws none -- over cells left blank for it.
+  Measured, not reasoned: a two-pty probe counting each client's own `a=T`
+  and `a=d`, with steady frames forced by a ticker, since an idle desktop
+  never reaches the keep path at all. Three design rules came out of it.
+  **Ask on the client, before it joins**: each attaching client asks its
+  own terminal (`mods/gfxask.c`, shared with the console rather than
+  written twice) and sends `HD_GFX`, instead of hold reading replies out of
+  the stream every client types into. **Unknown draws nothing**: a client
+  that never said is sent no bitmap, and the desktop draws half blocks
+  there. **Extend a line format with a new request, not a new last
+  field**: ten desktop parsers read `hold clients` with the primary flag
+  last, so a seventh field would have made a desktop running beside an
+  upgraded server read the flag as `1 kitty` and lose its primary --
+  `hold gfx` is its own request. And `Screen.images` in the harness never
+  drops a placement on `a=d`, so count control strings, not that list.
 - **Being in a folder says where a file lands, not who it belongs to**
   (Gitea #271, ADR 0047, 0.99.230). The Makefile copied
   `programs/desktop/` whole and took out `apps/`, so eight panes of apps

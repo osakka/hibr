@@ -1,5 +1,52 @@
 # Changelog
 
+## 0.99.235
+
+**A display that cannot show pictures is never sent one, and two displays
+keep their wallpapers** (Gitea #258).
+
+Reported from two displays: *"when I did a join, and the display is in
+pixel mode, the wallpaper went black; when I changed it to half block, it
+drew again."* Measured with a held desktop driven through two ptys, it was
+two bugs.
+
+**The first display's wallpaper was deleted and sent again over and
+over.** `img` kept one record of what it had placed under the text, and
+`dt_wallkeep` kept one rectangle, the last display's. So with two displays,
+every frame that only kept the wallpaper let the console retire the first
+display's picture: ten deletes and retransmissions in six seconds, against
+none for one display alone. `img` keeps a record per rectangle now, and the
+keep covers every display that has pixels.
+
+**One display that could show pictures made every display get them.** The
+session drew pixels once any display could, and hold sent the bitmap to
+every display whose rectangle held it -- so a terminal that draws none got
+a bitmap it dropped, over cells left blank for it: black, beside and
+stacked alike. Now:
+
+- **each attaching client asks its own terminal** what it draws, before it
+  joins -- kitty's query and the device attributes, the two questions the
+  console asks, from one parser both modules build in (`mods/gfxask.c`) --
+  and tells the server. hold reads no replies out of what clients type;
+- **hold sends a picture only to a display whose terminal draws that
+  kind**, and one that never said -- a client older than this -- is sent
+  none;
+- **the desktop draws each display's wallpaper by what that display said**:
+  pixels where its terminal draws the session's protocol, half blocks
+  everywhere else. `hold gfx` names what each display said.
+
+`hold clients` is unchanged, on purpose: ten readers take it with the
+primary flag last, and a seventh field would have made a desktop running
+beside an upgraded server lose its primary.
+
+Two costs. A terminal that answers neither question waits a second, once,
+at attach. And a display carried across `hold upgrade` from an older server
+has not said, so it draws half blocks until it attaches again -- run
+`desktop -r` after the upgrade the bar asks for.
+
+Five checks in `tests/holdpix.py` drive a real held desktop through two
+displays; four fail against 0.99.234.
+
 ## 0.99.234
 
 **With the displays stacked, the bar answers on the primary, and the icons

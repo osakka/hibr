@@ -2,6 +2,7 @@
 #define DP_H
 
 #include "../display.h"
+#include "../gfxask.h"
 #include <termios.h>
 #include <signal.h>
 

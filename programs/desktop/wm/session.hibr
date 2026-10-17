@@ -186,7 +186,8 @@ fn dt_shiftorigin(shift) {
 # this script, before the first `hold attach` lands): primary is the whole
 # screen, at column 0, the same fallback as a lone terminal always was.
 dt_size() {
-	local sz lst nm row col rows cols pri sft
+	local sz lst nm row col rows cols pri sft gl gnm gv
+	local -A dgfx
 
 	sz := console size
 	DT_ROWS=${sz% *}
@@ -202,9 +203,19 @@ dt_size() {
 	# because `hold clients` is a round trip to the server and a frame
 	# must not pay for one: dt_size runs on open and on every resize,
 	# and a client attaching or leaving is a resize.
-	DT_DISPLAYS=("0 0 $DT_ROWS $DT_COLS")
+	#
+	# Each entry ends in what that display's own terminal draws (Gitea
+	# #258): kitty, sixel, none or unknown, from `hold gfx`, or `self`
+	# when nothing is held and the console's own answer is the display's.
+	# A server too old to say answers nothing, and every display is then
+	# unknown -- half blocks, never a bitmap it may not be able to draw.
+	DT_DISPLAYS=("0 0 $DT_ROWS $DT_COLS self")
 	if [ -n "$HIBR_HOLD" ] && need hold; then
 		lst := hold clients
+		gl := hold gfx 2> /dev/null || gl=
+		while IFS=' ' read -r gnm gv _; do
+			[ -n "$gnm" ] && dgfx["$gnm"]=$gv
+		done <<< "$gl"
 		DT_DISPLAYS=()
 		# No `break` on finding the primary: every display is wanted,
 		# and the primary is not always the first line. Breaking there
@@ -212,7 +223,7 @@ dt_size() {
 		# all anybody read.
 		while IFS=' ' read -r nm row col rows cols pri; do
 			[ -n "$nm" ] || continue
-			DT_DISPLAYS+=("$row $col $rows $cols")
+			DT_DISPLAYS+=("$row $col $rows $cols ${dgfx["$nm"]:-unknown}")
 			if [ "$pri" = 1 ]; then
 				DT_PRIMARY_COL=$col
 				DT_PRIMARY_W=$cols
@@ -226,7 +237,7 @@ dt_size() {
 		done <<< "$lst"
 		# Held but nothing attached: the screen is still a screen.
 		[ "${#DT_DISPLAYS[@]}" -gt 0 ] ||
-			DT_DISPLAYS=("0 0 $DT_ROWS $DT_COLS")
+			DT_DISPLAYS=("0 0 $DT_ROWS $DT_COLS unknown")
 		# A second round trip, and only here: dt_size runs on open
 		# and on every resize, and a client attaching, leaving or
 		# being moved is a resize, so this is asked exactly when the
