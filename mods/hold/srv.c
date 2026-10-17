@@ -52,6 +52,36 @@ void hd_relay(int tid)
 	s_free(&o);
 }
 
+/* A client that has said nothing about what it draws in HD_GFXWAITMS is
+   from before the asking: unasked, sent what it was sent before (Gitea
+   #279), and the program nudged to read the displays again. How long the
+   loop may wait before the next such deadline, -1 when there is none. */
+int hd_gfxdue(vec *cls, int m)
+{
+	size_t i;
+	long now = gx_now(), left, best = -1;
+	struct hd_cli *cn;
+
+	for (i = 0; i < cls->n; i++) {
+		cn = cls->p[i];
+		if (!cn->gfxwait)
+			continue;
+		left = cn->gfxwait - now;
+		if (left <= 0) {
+			cn->gfxwait = 0;
+			cn->gfx = GX_UNASKED;
+			cn->imgen = 0;
+			lg(HIBR_LDBG, "hold: %s said nothing of pictures: unasked",
+			   cn->name.p ? cn->name.p : "a client");
+			hd_poke(m);
+			continue;
+		}
+		if (best < 0 || left < best)
+			best = left;
+	}
+	return (int)best;
+}
+
 /* Remove a client by fd, closing it.  A no-op if it is not (or no longer)
    in the list: a poll() snapshot taken at the top of the loop can still
    name a client that an earlier part of the same pass already dropped. */
@@ -321,6 +351,15 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit, int *upg)
 	case HD_MATTACH:
 		cn = xm(sizeof *cn);
 		memset(cn, 0, sizeof *cn);
+		/* Unknown -- sent no picture -- while it has HD_GFXWAITMS to
+		   say what it draws, and unasked after that (hd_gfxdue): a
+		   current client's HD_GFX follows on the same socket within
+		   milliseconds, while one older than the asking never sends
+		   one, and was unknown for the whole of its attach where it
+		   had been sent pictures before (Gitea #279). Not unasked
+		   from the start, because this client is rendered below
+		   before its HD_GFX is read. */
+		cn->gfxwait = gx_now() + HD_GFXWAITMS;
 		s_init(&cn->title);
 		cn->fd = c;
 		if (in.n >= 4 * sizeof(int)) {
@@ -608,7 +647,7 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 			q[2 + i].fd = ((struct hd_cli *)cls.p[i])->fd;
 			q[2 + i].events = POLLIN;
 		}
-		if (poll(q, (nfds_t)(2 + nc), -1) < 0) {
+		if (poll(q, (nfds_t)(2 + nc), hd_gfxdue(&cls, m)) < 0) {
 			if (errno == EINTR)
 				continue;
 			break;
@@ -688,6 +727,8 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 				   draws for it: send its pictures afresh
 				   and have the program read the displays
 				   again. */
+				if (cn)
+					cn->gfxwait = 0;
 				if (cn && cn->gfx != g) {
 					cn->gfx = g;
 					cn->imgen = 0;

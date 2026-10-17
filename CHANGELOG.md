@@ -1,5 +1,47 @@
 # Changelog
 
+## 0.99.242
+
+**A display attached from an older hibr is sent pictures again** (Gitea
+#279), and **`desktop ctl displays` says what decides a picture on each
+display**.
+
+- A client older than 0.99.235 never says what its terminal draws, and
+  hold started every new client as `unknown`, which is sent no picture.
+  So a machine still on an older package saw its wallpaper in half blocks
+  for the whole of its attach, where it had been sent pictures before.
+  That is #274's shape, never asked read as answered nothing, for a live
+  client rather than a carried one. A new client now has half a second to
+  say what it draws (a current one says within milliseconds) and is
+  `unasked` after that, the same default a carried client has. It is not
+  `unasked` from the start, because hold renders a new client before it
+  reads that client's next message, so a current client on a terminal
+  that draws nothing would have been sent the session's bitmap.
+- `desktop ctl displays` gains each display's `gfx`, what the desktop has
+  recorded that terminal draws, and `wallpaper`, `pixels` or `cells`,
+  beside a top-level `console` with the session's own answer. On Blit the
+  wallpaper stays in half blocks while YouTube and the image viewer draw
+  pixels in the same process, and these three are what can say why.
+
+Two new checks. `tests/holdpix.py` plays a client that speaks the old
+protocol (attach and size, nothing about pictures): `hold gfx` lists it as
+`unasked` and it is sent the picture. Against the release before it was
+`unknown` and sent nothing. `tests/desktop.py` reads the new fields.
+
+Also: the YouTube suite's screen saver check failed in two gates, and the
+cause was the check. The saver's two seconds counted from the session's
+start, and under load the search results took longer than that to arrive,
+so the saver came on before anything was played, which was correct with
+nothing playing. The Enter meant to play the video only dismissed the
+saver, so the video never started. Reproduced 2 runs in 3 under load by
+logging what the desktop asked the window: an empty state at every
+deadline. The check now presses Home first, which does nothing on the
+first result or dismisses a saver already showing, so Enter always plays
+the video. Up was tried first and is wrong: on the first result it opens
+the search, so with no saver showing Enter searched instead of playing,
+which the next gate caught. 0.99.241's change for a loading video was not
+this, as its entry said; it stays, on its own merits.
+
 ## 0.99.241
 
 **A new held desktop draws its pictures as pixels** (Gitea #278).

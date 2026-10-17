@@ -146,13 +146,28 @@ try:
     # A playing video keeps the screen saver away, as Control Panel >
     # YouTube says by default, and a paused one does not (Gitea #277): two
     # seconds of idle time, four of playing with no key, then a pause.
-    s = yrun([([], "A test pattern"), ([b"\r"], playing), ([4.0], None),
+    #
+    # The home key before enter is not decoration. Two seconds is from the
+    # session's start, and under a full gate the results took longer than
+    # that to arrive, so the saver came on before anything was played --
+    # rightly, with nothing playing -- and the enter that was meant to play
+    # the video only dismissed it: the video never started, and the check
+    # read as a playing video letting the saver in. Home does nothing on the
+    # first result, or dismisses a saver already showing, so enter always
+    # reaches the list. Not up, which was tried first: on the first result
+    # up opens the search, and enter then searched instead of playing --
+    # the opposite case, when the saver had not come on, and the one the
+    # loaded runs could not show. Reproduced 2 runs in 3 under a spinner per core and
+    # the desktop suite beside it, by logging what the desktop asked the
+    # window: an empty state at every deadline in the failing runs.
+    s = yrun([([], "A test pattern"), ([b"\x1b[H"], None), ([b"\r"], playing),
+              ([4.0], None),
               ([b" "], "paused"), ([3.5], None)],
              env={"DT_SAVERSECS": "2", "DT_SAVER": "clock"})
     check("a playing video keeps the screen saver away past its idle time",
-          "playing" in s[2].text() and "█" not in s[2].text(), s[2])
+          "playing" in s[3].text() and "█" not in s[3].text(), s[3])
     check("and a paused one lets it come",
-          "█" in s[4].text() and "paused" not in s[4].text(), s[4])
+          "█" in s[5].text() and "paused" not in s[5].text(), s[5])
 
     s = yrun([([], "A test pattern"), ([b"\r"], playing), ([1.0], None),
               ([b"\x1b[C"], lambda sc: at(sc) >= 6), ([1.5], None)])

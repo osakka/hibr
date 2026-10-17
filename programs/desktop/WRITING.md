@@ -493,7 +493,7 @@ of typing keys at it. `desktop ctl` is the client:
 <!-- not run: needs a running held desktop -->
 ```text
 $ desktop ctl displays
-{"ok":true,"displays":[{"name":"left","row":1,"col":0,"rows":47,"cols":160,"primary":true},{"name":"right","row":1,"col":160,"rows":47,"cols":120,"primary":false}]}
+{"ok":true,"console":"kitty 8 16","displays":[{"name":"left","row":1,"col":0,"rows":47,"cols":160,"primary":true,"gfx":"kitty","wallpaper":"pixels"},{"name":"right","row":1,"col":160,"rows":47,"cols":120,"primary":false,"gfx":"none","wallpaper":"cells"}]}
 $ desktop ctl windows
 {"ok":true,"windows":[{"id":3,"title":"Files [~]","app":"files","row":4,"col":10,"h":20,"w":60,"workspace":1,"sticky":false,"hidden":false,"focused":true}]}
 $ desktop ctl move 3 right
@@ -501,6 +501,15 @@ $ desktop ctl move 3 right
 $ desktop ctl move 3 nowhere
 {"ok":false,"error":"no-display","detail":"no display called nowhere"}
 ```
+
+`displays` says, for each display, what the desktop has recorded its
+terminal draws (`gfx`: `kitty`, `sixel`, `none`, `unknown` for one that
+did not answer, `unasked` for one from before displays were asked, `self`
+for a desktop that is not held) and whether the wallpaper goes to it as
+`pixels` or `cells`; `console` is the session's own console's answer, the
+protocol and the pixel size of a cell. Those are the three things that
+decide a picture, so a wallpaper in half blocks says here which one is the
+reason.
 
 The socket is `${TMPDIR:-/tmp}/hibr-ctl-<uid>/<session>.ctl`, beside hold's
 own and outlasting a logout the same way, in a folder only its owner can

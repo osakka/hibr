@@ -64,6 +64,9 @@ int gx_report(const char *p, size_t n, size_t max, size_t *used, int *da,
    is appended to rest, for the caller to pass on. */
 int gx_probe(int in, int out, long ms, str *rest);
 
+/* Milliseconds on a clock that only goes forward. */
+long gx_now(void);
+
 /* A capability as the word `hold clients` prints, and back. */
 const char *gx_name(int g);
 int gx_byname(const char *s);

@@ -591,5 +591,71 @@ check("a new session started on a terminal that draws kitty pictures shows "
 t.quit(None, 0.5)
 kill(nm)
 
+# A display attached from a hibr older than the asking never sends HD_GFX.
+# It started unknown and stayed so for its whole attach -- sent no picture,
+# its wallpaper half blocks, where before 0.99.235 it was sent them. It has
+# HD_GFXWAITMS to say now, and is unasked after that, the default #274
+# gave a carried one (Gitea #279). Played here by a client that speaks the
+# old protocol: attach and size, and nothing about pictures.
+import socket
+import time
+
+
+def oldclient(path, name, rows, cols, row, col, secs, mid):
+    """Attach as a client from before the asking, read what it is sent for
+    secs, and call mid once half way, while it is still attached."""
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    s.connect(path)
+
+    def msg(t, p):
+        s.sendall(t + struct.pack("=I", len(p)) + p)
+    msg(b"m", struct.pack("=4i", rows, cols, row, col) + name.encode())
+    msg(b"w", struct.pack("=4i", rows, cols, cols * 8, rows * 16))
+    got, t0 = b"", time.time()
+    end, said = t0 + secs, None
+    s.settimeout(0.2)
+    while time.time() < end:
+        if said is None and time.time() > t0 + secs / 2:
+            said = mid()
+        try:
+            b = s.recv(65536)
+        except socket.timeout:
+            continue
+        if not b:
+            break
+        got += b
+    s.close()
+    return got, said
+
+
+nm = name()
+sess = os.path.join(D, "old%s.hibr" % nm)
+open(sess, "w").write(
+    load("console") + ". %s\n" % sx.tree("programs/desktop/desktop.hibr")
+    + "DT_WALLIMG=%s\nDT_IMGMODE=auto\nDT_WALLMODE=stretch\n"
+    % sx.tree("tests/img-quad.jpg")
+    + "dt_open || exit 1\ndt_run\ndt_close\n")
+first = os.path.join(D, "oldf%s.hibr" % nm)
+open(first, "w").write(load("hold") + 'hold new -d %s "$HIBR" %s\n' % (nm, sess)
+                       + "sleep 0.8\nhold attach -m -n one %s 0 0\n" % nm)
+t = Term(first, rows=24, cols=80, settle=1.0, cellw=8, cellh=16,
+         env={"TMPDIR": D}, caps=["kitty"])
+for _ in range(int(32 * SLOW)):
+    t.collect(0.25)
+    if t.raw.count(b"a=T"):
+        break
+sock = os.path.join(D, "hibr-hold-%d" % os.getuid(), nm)
+g = os.path.join(D, "og%s.hibr" % nm)
+open(g, "w").write(load("hold") + "hold gfx %s\n" % nm)
+got, gfx = oldclient(sock, "old", 24, 80, 0, 80, 4.0 * SLOW, lambda: os.popen(
+    "TMPDIR=%s %s %s 2>&1" % (D, sx.HIBR, g)).read().split("\n"))
+t.collect(0.5)
+check("a display from a hibr that never says what it draws is unasked, not "
+      "unknown, and is sent the session's picture as before 0.99.235",
+      "old unasked" in gfx and got.count(b"a=T") >= 1,
+      (gfx, got.count(b"a=T"), len(got)))
+t.quit(None, 0.5)
+kill(nm)
+
 shutil.rmtree(D, True)
-report(29)
+report(30)

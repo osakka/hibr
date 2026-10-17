@@ -61,6 +61,9 @@ enum {
 /* How long an attaching client waits for its terminal to say what it
    draws. Nearly every terminal answers the device attributes at once; one
    that answers nothing costs this, once, at attach. */
+#ifndef HD_GFXWAITMS
+#define HD_GFXWAITMS 500
+#endif
 #ifndef HD_GFXMS
 #define HD_GFXMS 1000
 #endif
@@ -143,8 +146,10 @@ struct hd_cli {
 	   whether a picture is sent to it at all: a bitmap sent to a terminal
 	   that cannot draw one is a black rectangle nothing repaints, and once
 	   any one display could show pictures the session sent them to every
-	   display (Gitea #258). */
+	   display (Gitea #258). gfxwait is when a client that has not said
+	   becomes unasked, 0 once it has (Gitea #279). */
 	int gfx;
+	long gfxwait;
 	/* The title last sent to this client's terminal (OSC 2), so it is
 	   sent again only when the program changes it. */
 	str title;
@@ -154,6 +159,7 @@ unsigned hd_hash(const char *p, size_t n);
 unsigned hd_imgid(const char *p, size_t n);
 int hd_canshow(const struct hd_cli *cn, const char *p, size_t n);
 void hd_relay(int tid);
+int hd_gfxdue(vec *cls, int m);
 void hd_cdrop(vec *cls, int fd);
 struct hd_cli *hd_cfind(vec *cls, int fd);
 struct hd_cli *hd_cfindname(vec *cls, const char *name);

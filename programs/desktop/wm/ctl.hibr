@@ -256,8 +256,14 @@ dt_ctlsession() {
 	ret "{\"ok\":true,\"session\":$nm,\"held\":$held,\"focus\":${DT_FOCUS:-null},\"workspace\":$DT_WS,\"workspaces\":$DT_WSN,\"rows\":$DT_ROWS,\"cols\":$DT_COLS}"
 }
 
+# Each display with what the desktop has recorded it draws (`gfx`: kitty,
+# sixel, none, unknown, unasked or self) and how the wallpaper goes to it
+# now (`wallpaper`: pixels or cells), beside the session's own console
+# answer -- the three things that decide a picture, readable from outside,
+# since a wallpaper in half blocks on one machine and pixels on another had
+# no way to say which of them was the reason.
 dt_ctldisplays() {
-	local lst out= nm row col rows cols pri j
+	local lst out= nm row col rows cols pri j g wp e con
 
 	lst := dt_ctldlist
 	while IFS=' ' read -r nm row col rows cols pri; do
@@ -265,9 +271,19 @@ dt_ctldisplays() {
 		DT_CTLSEEN["$nm"]=1
 		j := dt_jstr "$nm"
 		[ "$pri" = 1 ] && pri=true || pri=false
-		out+="${out:+,}{\"name\":$j,\"row\":$row,\"col\":$col,\"rows\":$rows,\"cols\":$cols,\"primary\":$pri}"
+		g=
+		for e in "${DT_DISPLAYS[@]}"; do
+			[[ $e == "$row $col $rows $cols "* ]] && g=${e##* } && break
+		done
+		[ -z "$g" ] && [ "${#DT_DISPLAYS[@]}" = 1 ] && g=${DT_DISPLAYS[0]##* }
+		wp=cells
+		dt_has dt_wallpixon && dt_wallpixon "${g:-unknown}" && wp=pixels
+		g := dt_jstr "${g:-unknown}"
+		out+="${out:+,}{\"name\":$j,\"row\":$row,\"col\":$col,\"rows\":$rows,\"cols\":$cols,\"primary\":$pri,\"gfx\":$g,\"wallpaper\":\"$wp\"}"
 	done <<< "$lst"
-	ret "{\"ok\":true,\"displays\":[$out]}"
+	con := dt_imggfx
+	con := dt_jstr "$con"
+	ret "{\"ok\":true,\"console\":$con,\"displays\":[$out]}"
 }
 
 dt_ctlwindows() {

@@ -3792,6 +3792,19 @@ names = sorted(d["name"] for d in j.get("displays", []))
 check("desktop ctl displays lists both attached displays, one primary",
       rc == 0 and names == sorted([primary, joined]) and
       [d["primary"] for d in j["displays"]].count(True) == 1, j)
+# And what decides a picture on each, readable from outside: a wallpaper in
+# half blocks on one machine and pixels on another had no way to say which
+# of the three was the reason -- what the display said it draws, what the
+# desktop does with that, or the session's own console.
+ds = j.get("displays", [])
+check("and says what each display draws, whether its wallpaper is pixels, "
+      "and what the console itself answers",
+      rc == 0 and "console" in j and len(ds) == 2 and
+      all(d.get("gfx") in ("kitty", "sixel", "none", "unknown", "unasked",
+                           "self") and d.get("wallpaper") in ("pixels", "cells")
+          and (d["wallpaper"] == "cells" or
+               d["gfx"] in ("kitty", "sixel", "unasked", "self"))
+          for d in ds), j)
 rc, j = ctl("windows")
 fw = [w for w in j.get("windows", []) if w["title"].startswith("Files")]
 check("desktop ctl windows lists the Files window with its place and size",
@@ -5686,4 +5699,4 @@ check("launching an app that is not installed says which one and where "
       sc.find("files is not installed") is not None
       and sc.find("Catalogue") is not None, sc)
 
-report(636)
+report(637)
