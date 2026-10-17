@@ -31,7 +31,7 @@
 
 strict
 
-app youtube "YouTube, in a window" 1.5
+app youtube "YouTube, in a window" 1.6
 # part: control-panel/tube.hibr
 # modules: media web
 
@@ -771,8 +771,15 @@ fn youtube_awake(int id) {
 	local i
 
 	[ "${YT_SAVERHOLD:-1}" = 1 ] || return 1
-	[ "${YT[$id]["state"]}" = playing ] && [ -n "${YT[$id]["p"]}" ] || return 1
 	dt_hidden "$id" && return 1
+	# Loading is still watching: the start of a video, the next one in a
+	# list, or the page's player being brought back after it gave up. A
+	# deadline landing in that moment should not let the saver in.
+	case ${YT[$id]["state"]} in
+	loading) return 0 ;;
+	playing) [ -n "${YT[$id]["p"]}" ] || return 1 ;;
+	*) return 1 ;;
+	esac
 	i := media info "${YT[$id]["p"]}" 2> /dev/null
 	[ "${i["paused"]}" != 1 ] && [ "${i["ended"]}" != 1 ]
 }

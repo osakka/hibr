@@ -4004,6 +4004,14 @@ went in the shell.
   `hold gfx <session>` shows it; the cure is `desktop -r`, once per such
   display, and no migration was added, since a file cannot tell that
   record from a terminal that really did not answer.
+  **And a new session's first questions were answered by hold's own
+  emulator** (Gitea #278, 0.99.241): it relays a picture question only
+  once it knows it is a relay, and it learned that at the first drain,
+  after the first feed -- the feed that carries a new desktop's questions.
+  It answered "no sixel", dropped kitty's query, and the console took a
+  wrong no for the session's life, while `hold gfx` said kitty. `hd_relay`
+  marks it at creation, both sites. A flag set by the first use of a path
+  is a flag the first use of that path cannot see.
 - **Being in a folder says where a file lands, not who it belongs to**
   (Gitea #271, ADR 0047, 0.99.230). The Makefile copied
   `programs/desktop/` whole and took out `apps/`, so eight panes of apps

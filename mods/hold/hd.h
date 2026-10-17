@@ -153,6 +153,7 @@ struct hd_cli {
 unsigned hd_hash(const char *p, size_t n);
 unsigned hd_imgid(const char *p, size_t n);
 int hd_canshow(const struct hd_cli *cn, const char *p, size_t n);
+void hd_relay(int tid);
 void hd_cdrop(vec *cls, int fd);
 struct hd_cli *hd_cfind(vec *cls, int fd);
 struct hd_cli *hd_cfindname(vec *cls, const char *name);

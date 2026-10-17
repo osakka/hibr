@@ -1,5 +1,54 @@
 # Changelog
 
+## 0.99.241
+
+**A new held desktop draws its pictures as pixels** (Gitea #278).
+
+Reported by the owner: a new session's wallpaper was always half blocks
+and became pixels after a restart, and on another machine (Blit) it stayed
+half blocks even across restarts, while YouTube drew in pixels and
+`hold gfx` said `kitty` throughout.
+
+The cause was in hold. Its terminal emulator passes a picture question
+(kitty's `a=q`, the device attributes) on to the real terminal only once
+it knows it is a relay, and it learned that at hold's first drain of what
+it passes on, which came just after the program's first output had been
+fed. A new desktop asks in its very first output. So the emulator answered
+for itself, a terminal with no sixel, and dropped kitty's query. The
+console took that for a real no and drew every picture as cells for the
+life of the session. A restart inside an existing session asked after the
+relay was on, which is why that worked. Restart Desktop also upgrades a
+stale session's server, and a new server has a new emulator, which fits
+Blit, where each restart followed an install.
+
+hold's emulator is a relay from the moment it is made now, both for a new
+session and for one resumed by `hold upgrade`. A question asked before any
+display has attached reaches nobody, which leaves the console unsure
+rather than wrong, and the attach asks again.
+
+One new check in `tests/holdpix.py`: a new session started on a terminal
+that draws kitty pictures sends its wallpaper as one and draws no half
+blocks. Run against the release before, it sent nothing and drew 18 rows
+of half blocks. The resumed path was driven by hand: a session whose
+emulator was already a relay, upgraded, then a fresh console inside it
+was sent its picture with the fix and nothing without it.
+
+Also:
+
+- **A YouTube video that is loading keeps the screen saver away too**, as
+  well as one that is playing. That covers the start of a video, the next
+  one in a list, and the page's player being loaded again after it gave
+  up. The release gate saw the saver start under a playing video once.
+  That failure has not been reproduced (the suite passed alone), so this
+  is not shown to be its cause, but a deadline landing in a reload
+  should not let the saver in either way. YouTube 1.6.
+- Two of the desktop suite's idle CPU checks waited a fixed second after
+  minimising or switching away before measuring. Under a full gate the
+  desktop acted on the click late, the terminal was still drawn for part
+  of the six seconds measured, and the check read 11% of a core where it
+  measures 0.5% alone and under a CPU spinner per core. They wait for the
+  window to be gone now.
+
 ## 0.99.240
 
 **Control Panel > Browser** (Gitea #276).

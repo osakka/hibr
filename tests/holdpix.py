@@ -560,5 +560,36 @@ check("two displays that both draw pictures each keep theirs on a busy "
       r["one_settled"] == (0, 0) and r["two_settled"] == (0, 0)
       and r["two"][0] == 1, r)
 
+# A new session, attached at once, the way `desktop` starts one: the
+# desktop asks its terminal what it draws in its very first output, and
+# hold's emulator used to become a relay only at its first drain, which
+# comes after that output was fed -- so it answered "no sixel" itself,
+# dropped kitty's query, and the console took that for a real no. Every
+# new session then drew its wallpaper in half blocks while `hold gfx` said
+# kitty, and a restart inside the session fixed it (Gitea #278).
+nm = name()
+sess = os.path.join(D, "fresh%s.hibr" % nm)
+open(sess, "w").write(
+    load("console") + ". %s\n" % sx.tree("programs/desktop/desktop.hibr")
+    + "DT_WALLIMG=%s\nDT_IMGMODE=auto\nDT_WALLMODE=stretch\n"
+    % sx.tree("tests/img-quad.jpg")
+    + "dt_open || exit 1\ndt_run\ndt_close\n")
+fresh = os.path.join(D, "freshc%s.hibr" % nm)
+open(fresh, "w").write(load("hold") + 'hold new %s "$HIBR" %s\n' % (nm, sess))
+t = Term(fresh, rows=24, cols=80, settle=1.0, cellw=8, cellh=16,
+         env={"TMPDIR": D}, caps=["kitty"])
+for _ in range(int(32 * SLOW)):
+    t.collect(0.25)
+    if t.raw.count(b"a=T"):
+        break
+t.collect(1.0)
+sc = t.screen()
+fh = sum(1 for r in range(2, 20) if "▀" in sc.row(r) or "▄" in sc.row(r))
+check("a new session started on a terminal that draws kitty pictures shows "
+      "its wallpaper as one, not half blocks",
+      t.raw.count(b"a=T") >= 1 and fh == 0, (t.raw.count(b"a=T"), fh, sc))
+t.quit(None, 0.5)
+kill(nm)
+
 shutil.rmtree(D, True)
-report(28)
+report(29)

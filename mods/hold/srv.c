@@ -33,6 +33,25 @@ void hd_poke(int m)
 		kill(-g, SIGWINCH);
 }
 
+/* Make the emulator a relay before it is fed anything: a question about
+   the terminal -- kitty's `a=q`, the device attributes -- is passed on to
+   whoever is attached rather than answered by the emulator as itself. It
+   used to become one only at the first drain, which comes after the first
+   feed, and a new desktop asks in its first output: the emulator answered
+   "no sixel" and dropped kitty's query, the console took that for a real
+   no, and a new session drew every picture as cells for its whole life
+   (Gitea #278). Asked with nobody attached, the question reaches nobody,
+   which leaves the console unsure rather than wrong, and an attach's own
+   SIGWINCH asks again. */
+void hd_relay(int tid)
+{
+	str o;
+
+	s_init(&o);
+	hd_tm->pass(tid, &o);
+	s_free(&o);
+}
+
 /* Remove a client by fd, closing it.  A no-op if it is not (or no longer)
    in the list: a poll() snapshot taken at the top of the loop can still
    name a client that an earlier part of the same pass already dropped. */
@@ -550,6 +569,7 @@ void hd_serve(sh *s, const char *path, int rows, int cols, char **av,
 	}
 	m = hd_pty->fd(id);
 	tid = hd_tm->new(rows, cols);
+	hd_relay(tid);
 	{
 		vec cls;
 
@@ -998,6 +1018,7 @@ int hd_resume(sh *s)
 		return HIBR_FAIL;
 	}
 	tid = hd_tm->new(rows, cols);
+	hd_relay(tid);
 	if (stpath[0] && !hd_tm->load(tid, stpath))
 		lg(HIBR_LINF, "hold resume: starting from a blank screen");
 	unlink(stpath);

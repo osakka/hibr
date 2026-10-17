@@ -970,16 +970,30 @@ CHATTY = ("TW_CMD=(sh -c 'while :; do echo tick; sleep 0.2; done')\n"
           "dt_launch term")
 
 
+# Each waits until the window has gone before the measurement starts: a
+# fixed second after the click was a bet that the desktop had acted on it,
+# and under a full gate it lost -- the terminal was still drawn, five
+# frames a second, for part of the six measured, and read as 11% of a
+# core where it measures 0.5% alone and under a spinner per core.
+def gone(t):
+    for _ in range(40):
+        if t.screen().find("_ □ x") is None:
+            return
+        t.collect(0.25)
+
+
 def minimise(t):
     sc = t.screen()
     b = sc.find("_ □ x")
     if b:
         t.send(press(b[0], b[1]))
         t.send(release(b[0], b[1]))
+    gone(t)
 
 
 def away(t):
     t.send(b"\x1b2")
+    gone(t)
 
 
 rate, sc = idle_wakes({"DT_CURSOR_BLINK": "0"}, CHATTY, minimise)
