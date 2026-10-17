@@ -67,6 +67,11 @@ from PIL import Image, ImageDraw, ImageFont  # noqa: E402
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"
 FONT_BOLD_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf"
+# Where a glyph DejaVu lacks is looked for, in order. A real terminal falls
+# back to whatever font has the character; without this the picture drew
+# the missing-glyph box for three Control Panel icons a terminal shows.
+FALLBACK_PATHS = ["/usr/share/fonts/truetype/noto/NotoSansSymbols-Regular.ttf",
+                  "/usr/share/fonts/truetype/noto/NotoSansSymbols2-Regular.ttf"]
 CELL_W, CELL_H = 9, 18
 
 DEFAULT_FG = (203, 213, 224)
@@ -264,9 +269,21 @@ class ColourScreen:
         return out
 
 
+def missing(font, ch, memo={}):
+    """Whether a font draws its missing-glyph box for this character,
+    found by comparing its mask with that of a code point no font has."""
+    key = (font.path, ch)
+    if key not in memo:
+        nd = font.getmask("\U0010fffd")
+        m = font.getmask(ch)
+        memo[key] = m.size == nd.size and bytes(m) == bytes(nd)
+    return memo[key]
+
+
 def render(cs, path):
     font = ImageFont.truetype(FONT_PATH, 15)
     bold_font = ImageFont.truetype(FONT_BOLD_PATH, 15)
+    falls = [ImageFont.truetype(p, 14) for p in FALLBACK_PATHS if os.path.exists(p)]
     img = Image.new("RGB", (cs.cols * CELL_W, cs.rows * CELL_H), DEFAULT_BG)
     # Pictures first, in z order, and the text over them: a cell with no
     # background colour of its own is left alone below, so the picture shows
@@ -290,6 +307,8 @@ def render(cs, path):
                 if cell.dim:
                     fg = tuple(max(0, int(v * 0.6)) for v in fg)
                 f = bold_font if cell.bold else font
+                if ord(cell.ch) > 0x2000 and missing(f, cell.ch):
+                    f = next((g for g in falls if not missing(g, cell.ch)), f)
                 draw.text((x0, y0 - 2), cell.ch, font=f, fill=fg)
     img.save(path)
 
@@ -378,6 +397,10 @@ def main():
                           "a settle timeout and the desktop idles first")
     ap.add_argument("--untilmax", type=float, default=20.0,
                      help="how long --until may wait (default 20s)")
+    ap.add_argument("--env", action="append", default=[],
+                     help="NAME=VALUE for the session, repeatable -- a data "
+                          "folder with apps placed in it, or a catalogue to "
+                          "read, so a picture can show an install as it is")
     args = ap.parse_args()
     # nargs="*" here would greedily swallow the session positional that
     # follows on the command line -- a comma-separated string sidesteps the
@@ -401,12 +424,13 @@ def main():
     if args.cell:
         cw, ch = (int(v) for v in args.cell.lower().split("x", 1))
     env = {"DT_TICK": args.tick}
+    for kv in args.env:
+        k, _, v = kv.partition("=")
+        env[k] = v
     if cw and ch:
         env["HIBR_GFX"] = "kitty"
     t = Term(path, env=env, rows=args.rows, cols=args.cols,
               settle=args.wait, cellw=cw, cellh=ch)
-    for k in args.keys:
-        t.send(encode_key(k), settle=0.3)
     # --until waits for the thing, because --wait cannot.
     #
     # `settle` is a *timeout* for the desktop to go idle, not a dwell: it
@@ -426,6 +450,10 @@ def main():
             print("screenshot.py: %r never appeared in %gs"
                   % (args.until, args.untilmax), file=sys.stderr)
             sys.exit(1)
+    # Keys after --until, not before: a key sent while what it acts on is
+    # still loading lands on nothing, or on the wrong row once it loads.
+    for k in args.keys:
+        t.send(encode_key(k), settle=0.3)
     cs = ColourScreen(args.rows, args.cols)
     cs.feed(t.raw.decode("utf-8", errors="replace"))
     t.quit(b"qy", 1.0)

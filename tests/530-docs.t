@@ -17,6 +17,9 @@ for f in docs/*.md docs/adr/*.md; do
 done
 echo "every link resolves"
 
+python3 tools/mdanchors.py . | grep -v '^0 broken$'
+echo "every anchor resolves"
+
 for a in docs/adr/0*.md; do
   n=$(basename "$a" | cut -c1-4)
   grep -qF "($(basename "$a"))" docs/adr/README.md || echo "ADR $n not in the index"

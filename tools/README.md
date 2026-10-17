@@ -74,6 +74,29 @@ terminal size and timing.
 Regenerate a doc's screenshots whenever the thing they show changes; a stale
 screenshot is worse than none, since it reads as current when it is not.
 
+The tour in `docs/desktop.md` shows the desktop as the package installs
+it, which has no applications, so its pictures cannot read the tree's
+`apps/` the way the others do. `docshots.py` serves a copy of the real
+catalogue (`~/hibr-apps`, or `CATALOGUE_DIR`) with the suites' own
+`tests/davserve.py`, installs Calculator and Files from it with the real
+`catalogue` command into a data folder of its own, and hands that folder
+to the shots that come after the install with `--env`. Nothing is fetched
+from anywhere and nothing published changes. Every shot is given a home
+folder that is nobody's, `/tmp/visitor`, made fresh and removed after, so
+no picture of Files shows the home of whoever ran it. A glyph DejaVu Sans
+Mono lacks is drawn from Noto Sans Symbols, as a terminal would fall back,
+where it used to be drawn as the missing-glyph box.
+
+## mdanchors.py
+
+Every `](page.md#anchor)` in a tracked page names a heading that page
+has. `tests/530-docs.t` already checked the page exists; this checks the
+part after the `#`, and 530 runs it.
+
+```text
+python3 tools/mdanchors.py
+```
+
 ## llm-measure/
 
 What `docs/llm.md` is worth to a model writing hibr. Thirteen tasks in three

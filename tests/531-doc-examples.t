@@ -100,6 +100,7 @@ check docs/tutorial.md 9
 # minimum and are skipped here rather than checked twice.
 for page in docs/*.md docs/adr/*.md README.md examples/README.md \
             programs/desktop/README.md programs/desktop/ARCHITECTURE.md \
+            programs/desktop/WRITING.md \
             mods/README.md mods/*/README.md tests/README.md tools/README.md \
             include/README.md src/README.md; do
   case $page in

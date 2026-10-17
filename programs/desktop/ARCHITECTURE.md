@@ -189,13 +189,13 @@ Clock, Control Panel, About This Computer, Screenshot, and every dialog --
 is given `File > Close` and Edit by the window manager, so the two menus a
 person reaches for most never move.
 
-![The hibr menu open: About This Computer, Screen Saver, Lock Screen, Restart Desktop, Detach dimmed because this session is not held, and Quit](img/desktop-menu.png)
+![The hibr menu open: About This Computer, the desktop's own programs from Catalogue to Task Manager, Screen Saver, Lock Screen, Restart Desktop, Detach dimmed because this session is not held, and Quit](img/desktop-menu.png)
 
 A right-click gets a different menu, specific to what was clicked rather
 than to what has focus — the desktop background, a title bar, or an app's
 own `<app>_context` if it defines one:
 
-![A right-click on the desktop background: Arrange Icons, Change Wallpaper dimmed with no picture set, Next Wallpaper, and Refresh Desktop](img/desktop-context.png)
+![A right-click on the desktop background: Arrange Icons, Change Wallpaper, Next Wallpaper, and Refresh Desktop](img/desktop-context.png)
 
 ## Control Panel settings are a script, not a format
 
@@ -211,7 +211,7 @@ its own, but as a host for panes, each an ordinary file under
 `programs/desktop/control-panel`, System 7's Control Panels folder rather than one
 long scrolling list:
 
-![Control Panel: nineteen panes in two groups down the left, Appearance open on its Look, Wallpaper, Menu Bar, Shadows and Controls rows](img/desktop-controlpanel.png)
+![Control Panel: its panes in groups down the left, Appearance open on its Look, Wallpaper, Menu Bar, Shadows and Controls rows](img/desktop-controlpanel.png)
 
 A pane down the left, its own rows on the right — arrows move the picker,
 tab or right or enter steps into the selected pane, and the same keys then
@@ -237,7 +237,7 @@ instead of rows — the clock, the date, and a small
 world map with a mark near the machine's own time zone, reusing
 `examples/traceroute.hibr`'s own map and zone1970.tab lookup rather than a
 second copy of either. See
-[Control Panel panes](README.md#control-panel-panes) for the two shapes a
+[Control Panel panes](WRITING.md#control-panel-panes) for the two shapes a
 pane can take and how `CP_PANEDIRS` finds them.
 
 ## A real app, for scale

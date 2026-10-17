@@ -1,5 +1,57 @@
 # Changelog
 
+## 0.99.226
+
+**The desktop has a tour, its guide is in two halves, and every picture
+was made again.**
+
+The documentation sweep asked for earlier. A visitor reading about the
+desktop met a 1,888-line page that opened on X's three layers and went
+straight from where windows land to `dt_menu`'s arguments. Three changes:
+
+- **`docs/desktop.md`, your first hour with the desktop**: start it,
+  detach and come back, the hibr menu, the Catalogue, a Restart Desktop to
+  see what it installed, the keys worth learning, Appearance and the
+  Control Strip, and which of your two folders is which. Five pictures,
+  linked from the project README and the docs index.
+- **The guide is split**: `programs/desktop/README.md` is how to use the
+  desktop, and the new `programs/desktop/WRITING.md` is how to write for
+  it -- sessions, apps, widgets, menus, managing other windows, Control
+  Panel panes, strip modules and the control socket -- opening with a
+  table of what goes in which folder. The split was made by a script and
+  checked paragraph by paragraph: all 287 of the old page's paragraphs are
+  in one of the two files. WRITING.md is checked for its examples like
+  every other page.
+- **Every picture is new, and none of them shows a desktop nobody has.**
+  The package installs no applications, and the tour's first pictures
+  were rendered with the tree's `apps/` loaded -- an Applications menu no
+  install has. `tools/docshots.py` now serves a copy of the real catalogue
+  on this machine, installs Calculator and Files from it with the real
+  `catalogue` command, and photographs the desktop before and after. Two
+  of the reference pictures were rendered with no system apps and no
+  Control Panel, so the hibr menu showed an empty group between two rules
+  and Change Wallpaper was dimmed; both are a real session now. And every
+  picture of Files showed the home folder of whoever ran the tool; they
+  show `/tmp/visitor`, made fresh for the run.
+
+Two things the pictures found in the tool. **A glyph DejaVu Sans Mono
+lacks was drawn as the missing-glyph box** -- three Control Panel icons in
+every picture of it -- where a terminal falls back to another font;
+`tools/screenshot.py` falls back to Noto Sans Symbols now, and
+`tests/shots.py` checks it. And `--env` passes a variable to the session,
+which is how a picture is taken over a data folder of its own.
+
+**Anchors are checked.** `tests/530-docs.t` checked a linked page exists
+and never the part after the `#`, so moving eight sections would have
+left links landing at the top of the wrong page with nothing failing.
+`tools/mdanchors.py` slugs every heading the way GitHub does and checks
+every `page.md#anchor` in a tracked page; 530 runs it. The one link into
+a moved section, from ARCHITECTURE.md, was fixed by it.
+
+One gap the tour had to admit rather than paper over: **an install from
+the Catalogue window is not seen until Restart Desktop**, because the
+desktop reads its application folders when it starts. The tour says so.
+
 ## 0.99.225
 
 **The catalogue command and its window now share one prefix.**

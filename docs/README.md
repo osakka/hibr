@@ -21,7 +21,9 @@ exists. These pages are the detail.
 | [Interactive use](interactive.md) | Prompts including right-hand and transient, line editing, history, completion, jobs |
 | [The prompt](prompt.md) | The prompt hook, the segment module, and its git support |
 | [Full-screen programs](display.md) | The console display: cells, panes, colour, decoded keys |
-| [Windows on a console](../programs/desktop/README.md) | Draggable windows, and apps written as hibr functions |
+| [Your first hour with the desktop](desktop.md) | **The desktop, start here.** A tour in five pictures: starting it, the Catalogue, windows, making it yours |
+| [Windows on a console](../programs/desktop/README.md) | The desktop's full guide: windows, menus, mail, calendars, servers, more than one screen |
+| [Writing for the desktop](../programs/desktop/WRITING.md) | Applications, Control Panel panes, strip modules and sessions, each a hibr script |
 | [The desktop's architecture](../programs/desktop/ARCHITECTURE.md) | The three layers, the event loop, damage-based redraw, and the app contract, with real screenshots |
 | [Installing desktop applications](catalogue.md) | `catalogue`: an index over HTTPS, what it trusts, what it refuses, and how to publish one |
 

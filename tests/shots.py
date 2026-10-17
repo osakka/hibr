@@ -124,4 +124,16 @@ rows = ["".join(c.ch for c in cs.g[r]).rstrip() for r in range(20)]
 check("with none of its payload anywhere in the text",
       not any("a=T" in r or "7777" in r for r in rows), rows[:3])
 
-report(10)
+# A glyph the main font lacks is drawn from a fallback, as a terminal
+# would, rather than as the missing-glyph box: three Control Panel icons
+# were boxes in every picture of it.
+from PIL import ImageFont
+mono = ImageFont.truetype(shot.FONT_PATH, 15)
+falls = [ImageFont.truetype(p, 14) for p in shot.FALLBACK_PATHS if os.path.exists(p)]
+check("a glyph DejaVu has is not taken for a missing one",
+      not shot.missing(mono, "A") and not shot.missing(mono, "│"))
+check("one it lacks is found in a fallback font, where there is one to look in",
+      not falls or (shot.missing(mono, "ⓘ") and
+                    any(not shot.missing(f, "ⓘ") for f in falls)), len(falls))
+
+report(12)

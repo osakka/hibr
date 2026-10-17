@@ -157,6 +157,7 @@ args "$@"
 | [The language](docs/language.md) | The whole language, and every place it differs from bash |
 | [Builtins](docs/builtins.md) | All 73, what each takes and what it gives back |
 | [hibr, for a language model](docs/llm.md) | The whole language on one page, for a model to read; `llms.txt` points to it |
+| [The desktop](docs/desktop.md) | Windows, menus and applications in a terminal, all of it hibr: a first hour, in five pictures |
 | [Everything else](docs/README.md) | Data, networking, the prompt, interactive use, full-screen programs, the desktop, modules, deployment, testing |
 | `man hibr` | Every flag, environment variable, file and exit status |
 
