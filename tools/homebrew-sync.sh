@@ -21,6 +21,14 @@
 # a tag too new to have synced yet simply is not seen here, and the next
 # scheduled run tries again. No special-casing needed for that ordering.
 #
+# The formula itself is packaging/homebrew/hibr.rb in this tree -- that
+# is the copy to edit. Each run takes it out of the release's own tarball,
+# fills in that release's url, version and sha256, and pushes it if the
+# tap's differs. It used to rewrite only those three lines of the tap's
+# copy, so a change to the body never left this tree: `depends_on
+# "jpeg-turbo"` was added here and the formula people install never had it
+# (Gitea #256).
+#
 #   tools/homebrew-sync.sh            check once, update if behind, quietly
 #   tools/homebrew-sync.sh -v         same, but say so either way
 #   tools/homebrew-sync.sh --install  install a timer that runs this
@@ -117,26 +125,35 @@ git clone --quiet --depth 50 "$FORMULA_REPO" "$tmp/repo" 2>/dev/null ||
 	die "could not clone $FORMULA_REPO"
 current_ver=$(sed -n 's/^[[:space:]]*version "\(.*\)"/\1/p' "$tmp/repo/Formula/hibr.rb")
 
-if [ "$current_ver" = "$latest_ver" ]; then
-	say "up to date: formula already at $current_ver"
-	exit 0
-fi
-
-say "formula at $current_ver, hibr's latest tag is $latest_tag -- updating"
 url="$HIBR_GH/archive/refs/tags/$latest_tag.tar.gz"
 tarball="$tmp/hibr-$latest_tag.tar.gz"
 curl -fsSL "$url" -o "$tarball" ||
 	die "could not fetch $url"
 sha=$(sha256sum "$tarball" | cut -d' ' -f1)
 
+tar -xzOf "$tarball" --wildcards '*/packaging/homebrew/hibr.rb' \
+	> "$tmp/hibr.rb" 2>/dev/null && [ -s "$tmp/hibr.rb" ] ||
+	die "$latest_tag carries no packaging/homebrew/hibr.rb"
 sed -i \
 	-e "s#^\(  url \"\).*#\1$url\"#" \
 	-e "s/^\(  version \"\).*/\1$latest_ver\"/" \
 	-e "s/^\(  sha256 \"\).*/\1$sha\"/" \
-	"$tmp/repo/Formula/hibr.rb"
+	"$tmp/hibr.rb"
 
+if cmp -s "$tmp/hibr.rb" "$tmp/repo/Formula/hibr.rb"; then
+	say "up to date: formula already at $current_ver"
+	exit 0
+fi
+
+if [ "$current_ver" = "$latest_ver" ]; then
+	msg="hibr $latest_ver: the formula as $latest_tag ships it"
+else
+	msg="hibr $latest_ver"
+fi
+say "formula at $current_ver, hibr's latest tag is $latest_tag -- updating"
+cp "$tmp/hibr.rb" "$tmp/repo/Formula/hibr.rb"
 git -C "$tmp/repo" add Formula/hibr.rb
 git -C "$tmp/repo" -c user.email="osakka@gmail.com" -c user.name="osakka" \
-	commit --quiet -m "hibr $latest_ver"
+	commit --quiet -m "$msg"
 git -C "$tmp/repo" push --quiet origin main
 say "pushed: formula now at $latest_ver"

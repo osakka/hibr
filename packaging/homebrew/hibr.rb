@@ -1,9 +1,13 @@
+# The copy to edit. tools/homebrew-sync.sh takes this file out of each
+# release's tarball, fills in the three lines below for that release, and
+# pushes it to osakka/homebrew-hibr, so what they say here is only the
+# release it was last brought up to date with.
 class Hibr < Formula
   desc "Small, fast bash-flavoured shell with nested maps, JSON, and native networking"
   homepage "https://github.com/osakka/hibr"
-  url "https://github.com/osakka/hibr/archive/refs/tags/v0.99.150.tar.gz"
-  version "0.99.150"
-  sha256 "865153d65fc15f6de15d4f8f0f8a4182a95581675f4ae55c935655f4290f35fa"
+  url "https://github.com/osakka/hibr/archive/refs/tags/v0.99.227.tar.gz"
+  version "0.99.227"
+  sha256 "be0b185369dca953717c87e0b63ef9c5cce2dc0e27be69d4393ff7aced37ba74"
   license "MIT"
   head "https://github.com/osakka/hibr.git", branch: "main"
 
