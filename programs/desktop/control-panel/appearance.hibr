@@ -10,7 +10,7 @@
 strict
 
 
-app appearance "The Control Panel pane for how the desktop looks" 1.5
+app appearance "The Control Panel pane for how the desktop looks" 1.6
 command -v cp_pane > /dev/null && cp_pane appearance "Appearance" "◐"
 
 CP_THEME="${CP_THEME-classic}"
@@ -22,6 +22,10 @@ CP_GLYPHS=("·" "░" "▒" "⋅" "+" "╱" "▞")
 # block or a tick -- see DT_CHECKS in wm/settings.hibr.
 CP_CHECKS=(theme box knob block tick)
 fn cp_set_checks(int? id = "", value = "") { DT_CHECKS=$value; cp_save; }
+# How the wallpaper is drawn, the same five values and order as YouTube's
+# Picture row (Gitea #275): follow is Control Panel > Pictures.
+CP_WALLPICS=(follow half ascii mono pixels)
+fn cp_set_wallpic(int? id = "", value = "") { DT_WALLIMGMODE=$value; cp_save; }
 
 # A colour scheme is a JSON file, one to a scheme, named for it: seven
 # colours -- wall, dot, bar, active, idle, face, ink -- seven optional roles
@@ -500,6 +504,14 @@ fn appearance_rows(int w) {
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Mode"
 	CP[$w][$n]["val"]="$DT_WALLMODE"; CP[$w][$n]["key"]=wallmode
 	n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Picture"
+	CP[$w][$n]["val"]="$DT_WALLIMGMODE"; CP[$w][$n]["key"]=wallpic
+	n=$((n + 1))
+	if [ "$DT_WALLIMGMODE" = follow ] && dt_has dt_walldrawn; then
+		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Drawn Now"
+		CP[$w][$n]["val"] := dt_walldrawn
+		n=$((n + 1))
+	fi
 	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Menu Bar"; n=$((n + 1))
 	CP[$w][$n]["kind"]=set
 	CP[$w][$n]["text"]="Spacing (${DT_BARGAP:-2})"
@@ -585,6 +597,8 @@ fn appearance_do(int w, k, int dir) {
 		return 0 ;;
 	wallmode) v := cp_next "$DT_WALLMODE" "$dir" "${WP_MODES[@]}"
 		DT_WALLMODE=$v ;;
+	wallpic) v := cp_next "$DT_WALLIMGMODE" "$dir" "${CP_WALLPICS[@]}"
+		DT_WALLIMGMODE=$v ;;
 	glyphset) v := cp_next "$DT_GLYPHSET" "$dir" "${DT_GLYPHSETS[@]}"
 		cp_set_glyphset "" "$v"; return 0 ;;
 	dlgbtn) v := cp_next "$DT_DLGBTN" "$dir" "${DT_DLGBTNS[@]}"
@@ -606,6 +620,7 @@ fn appearance_drop(int w, int r, int c, k) {
 		"${CP_TREELINES[@]}" ;;
 	wallmode) dt_has wp_setmode &&
 		dt_droplist "$w" "$r" "$c" wp_setmode "${WP_MODES[@]}" ;;
+	wallpic) dt_droplist "$w" "$r" "$c" cp_set_wallpic "${CP_WALLPICS[@]}" ;;
 	glyphset) dt_droplist "$w" "$r" "$c" cp_set_glyphset "${DT_GLYPHSETS[@]}" ;;
 	dlgbtn) dt_droplist "$w" "$r" "$c" cp_set_dlgbtn "${DT_DLGBTNS[@]}" ;;
 	bellicon)

@@ -2489,6 +2489,23 @@ sc, raw = run("", env={"DT_WALLIMG": IMGFIX}, pre=IMGMOD)
 check("a real image can be the desktop's own wallpaper",
       b"38;2;255;0;0" in raw and b"48;2;0;0;255" in raw, raw)
 
+# The wallpaper's own Picture setting (Gitea #275): half blocks for the
+# wallpaper while Pictures says pixels for everything else, on a terminal
+# that could place pixels. The control is the same terminal and setting
+# with the wallpaper following, which does place one.
+WPIX = {"DT_WALLIMG": tree("tests/img-quad.jpg"), "DT_IMGMODE": "pixels",
+        "HIBR_GFX": "kitty"}
+sc, raw = run("", env=dict(WPIX, DT_WALLIMGMODE="half"), pre=IMGMOD,
+              cell=(8, 16))
+check("a wallpaper set to half blocks is drawn in half blocks while "
+      "Pictures says pixels",
+      b"a=T" not in raw and any("▀" in sc.row(r) for r in range(2, 20)),
+      (raw.count(b"a=T"), sc.dump()))
+sc, raw = run("", env=dict(WPIX, DT_WALLIMGMODE="follow"), pre=IMGMOD,
+              cell=(8, 16))
+check("and one that follows Pictures is drawn in pixels there",
+      b"a=T" in raw, raw.count(b"a=T"))
+
 sc, raw = run("", env={"DT_WALLIMG": tree("tests/img-quad.jpg")}, pre=IMGMOD)
 check("and so can a JPEG",
       sc.style(4, 10)["bg"] and sc.style(4, 10)["bg"].startswith("#f") and
@@ -5603,4 +5620,4 @@ check("launching an app that is not installed says which one and where "
       sc.find("files is not installed") is not None
       and sc.find("Catalogue") is not None, sc)
 
-report(630)
+report(632)

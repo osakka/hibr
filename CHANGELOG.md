@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.99.237
+
+**The wallpaper has a Picture setting of its own** (Gitea #275).
+
+Asked for: the same choice YouTube's player has, for the wallpaper. The
+wallpaper drew by Control Panel > Pictures, the one setting every picture
+in the desktop follows, so a wallpaper in half blocks meant every picture in
+half blocks. Appearance > Wallpaper now has a **Picture** row -- Follow,
+Half Blocks, Characters, Grey Blocks, Pixels, the same values in the same
+order as YouTube's -- with a **Drawn Now** row saying what Follow comes to
+on this terminal. It starts at Follow, so no wallpaper changes until
+somebody chooses. Pixels on a display whose terminal cannot show them is
+still half blocks there (#258); the setting says what is wanted.
+
+`dt_imgm` and `dt_imgwill` take the mode as an optional argument, which the
+wallpaper and the terminal's own wallpaper check pass and every other
+caller leaves out, so nothing else moved. Appearance is 1.6 and Terminal
+1.2 in the catalogue.
+
+The checks that read the whole Appearance pane run on a taller terminal
+now: their 26-row window had been clipped on a 24-row terminal all along,
+and fitted only until these two rows were added below Shadows.
+
 ## 0.99.236
 
 **A kitty display whose session predates 0.99.235 shows its picture

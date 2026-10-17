@@ -24,6 +24,38 @@ DT_IMGMODE="${DT_IMGMODE-auto}"
 dt_keep DT_IMGMODE
 DT_IMGARG=()
 
+# How the wallpaper itself is drawn: follow, the Pictures setting above, or
+# half, ascii, mono or pixels of its own -- the same five YouTube's player
+# offers, so a wallpaper in half blocks no longer means every picture in
+# half blocks (Gitea #275). Control Panel > Appearance > Wallpaper >
+# Picture. Pixels on a display whose terminal cannot show them is still
+# half blocks there (#258): this says what is wanted, dt_wallpixon where it
+# can be had.
+DT_WALLIMGMODE="${DT_WALLIMGMODE-follow}"
+dt_keep DT_WALLIMGMODE
+
+# The mode the wallpaper is drawn in now, in DT_IMGMODE's own words.
+dt_wallimgmode() {
+	case $DT_WALLIMGMODE in
+	follow | "") ret "${DT_IMGMODE:-auto}" ;;
+	*) ret "$DT_WALLIMGMODE" ;;
+	esac
+}
+
+# What the wallpaper comes to on this terminal: pixels, or the cell mode it
+# is drawn in -- for the Drawn Now row, as YouTube's player has.
+dt_walldrawn() {
+	local m
+
+	m := dt_wallimgmode
+	case $m in
+	pixels | sixel) ret pixels ;;
+	half | mono | ascii) ret "$m" ;;
+	esac
+	dt_imgpix && ret pixels
+	ret half
+}
+
 # How many pixels the wallpaper is sent with. A picture under the text is
 # the one every attaching client is handed in full, and at 232x71 with an
 # 8x16 cell that is 1856x1136x3 raw -- 8.04 MB of base64, free on a local
@@ -55,12 +87,16 @@ DT_IMGCOMP="${DT_IMGCOMP-zlib}"
 dt_keep DT_IMGCOMP
 
 # The -m argument for the mode chosen, as an array since it is two words or
-# none, and a strict file cannot split a string into them.
-dt_imgm() {
+# none, and a strict file cannot split a string into them. mode is the
+# Pictures setting unless a caller names another -- the wallpaper names
+# its own.
+fn dt_imgm(mode = "") {
+	local m=${mode:-$DT_IMGMODE}
+
 	DT_IMGARG=()
-	case $DT_IMGMODE in
+	case $m in
 	auto | "") ;;
-	*) DT_IMGARG=(-m "$DT_IMGMODE") ;;
+	*) DT_IMGARG=(-m "$m") ;;
 	esac
 	return 0
 }
@@ -109,8 +145,8 @@ dt_imgpix() {
 # setting says so outright, or it says auto and the terminal can. What a
 # caller needs when the two cases want different cells around the picture --
 # the wallpaper blanks what it is about to put a bitmap over.
-dt_imgwill() {
-	case $DT_IMGMODE in
+fn dt_imgwill(mode = "") {
+	case ${mode:-$DT_IMGMODE} in
 	pixels | sixel) return 0 ;;
 	auto | "") dt_imgpix && return 0 ;;
 	esac
@@ -207,7 +243,7 @@ fn dt_wallfit(int dr, int dc, int drows, int dcols) {
 fn dt_wallsig() {
 	local s
 
-	s="$DT_WALLIMG|$DT_WALLMODE|$DT_IMGMODE|$DT_GLYPH|$DT_WALL|$DT_DOT"
+	s="$DT_WALLIMG|$DT_WALLMODE|$DT_IMGMODE|$DT_WALLIMGMODE|$DT_GLYPH|$DT_WALL|$DT_DOT"
 	# The displays too: the wallpaper, the bar and the icons are confined
 	# to the primary one, so a display joining or leaving, or the primary
 	# moving between them, changes every cell of it.
@@ -245,12 +281,13 @@ fn dt_wallsig() {
 # is a primary going black (Gitea #258).
 DT_WALLPIX=()
 fn dt_wallkeep() {
-	local p r c h w
+	local p r c h w m
 
 	[ -n "$DT_WALLIMG" ] || return 0
 	dt_has img || return 0
 	[ "${#DT_WALLPIX[@]}" -gt 0 ] || return 0
-	dt_imgm
+	m := dt_wallimgmode
+	dt_imgm "$m"
 	for p in "${DT_WALLPIX[@]}"; do
 		IFS=' ' read -r r c h w <<< "$p"
 		img keep "$DT_WALLIMG" "$r" "$c" "$h" "$w" "${DT_IMGARG[@]}" ||
@@ -269,9 +306,10 @@ fn dt_wallkeep() {
 # were asked, which hold goes on sending pictures as it did before, so it
 # follows the session's own answer the same way (Gitea #274).
 fn dt_wallpixon(gx) {
-	local g
+	local g m
 
-	dt_imgwill || return 1
+	m := dt_wallimgmode
+	dt_imgwill "$m" || return 1
 	case $gx in
 	self | unasked) return 0 ;;
 	kitty | sixel)
@@ -286,8 +324,11 @@ fn dt_wallpixon(gx) {
 # The img draw arguments for half blocks where pixels are not to be had:
 # the chosen cell mode when the setting names one, half blocks otherwise.
 fn dt_wallcells() {
-	case $DT_IMGMODE in
-	half | mono | ascii) DT_WALLCARG=(-m "$DT_IMGMODE") ;;
+	local m
+
+	m := dt_wallimgmode
+	case $m in
+	half | mono | ascii) DT_WALLCARG=(-m "$m") ;;
 	*) DT_WALLCARG=(-m half) ;;
 	esac
 }
@@ -296,7 +337,7 @@ DT_WALLCARG=()
 # Paint the wallpaper.  The bar is drawn afterwards, over the windows, so a
 # drop-down menu covers them.
 dt_wall() {
-	local drawn= sig ms dsp dr dc drows dcols dgx
+	local drawn= sig ms dsp dr dc drows dcols dgx wm
 
 	# The icons' own rescan, and the frame it asks for, happen whether or
 	# not anything is painted: inside the gate below they would stop the
@@ -343,7 +384,8 @@ dt_wall() {
 				console fill 0 0 "$DT_ROWS" "$DT_COLS" "$DT_GLYPH"
 				;;
 			esac
-			dt_imgm
+			wm := dt_wallimgmode
+			dt_imgm "$wm"
 			dt_wallcells
 			DT_WALLPIX=()
 			# One picture per attached display, not one across
@@ -379,7 +421,7 @@ dt_wall() {
 				# is how a kitty wallpaper would be invisible
 				# under the very fill that used to stand in
 				# for it.
-				if dt_imgwill; then
+				if dt_imgwill "$wm"; then
 					console pen default default
 					console fill "$DT_WALLR" "$DT_WALLC" \
 						"$DT_WALLH" "$DT_WALLW" " "

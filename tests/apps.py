@@ -49,7 +49,7 @@ def appdir(a):
 
 
 def run(app, win, feed=(), pre="", wait=1.0, also=(), end=b"qy", extra=(),
-        env=None, until=None, tries=40, ready=None):
+        env=None, until=None, tries=40, ready=None, rows=None):
     """Open one app in a window at a known place and drive it.
 
     `also` adds further windows after it, as (title, geometry, app) triples,
@@ -96,7 +96,8 @@ def run(app, win, feed=(), pre="", wait=1.0, also=(), end=b"qy", extra=(),
         "dt_run\ndt_close\n"
         % (load(*mods), WM, src, pre, app.title(), win, app,
            more + ("dt_raise 1\n" if also else "")))
-    t = Term(p, env=dict({"DT_TICK": "60"}, **(env or {})), settle=0.6)
+    t = Term(p, env=dict({"DT_TICK": "60"}, **(env or {})), settle=0.6,
+             rows=rows or sx.ROWS)
     # The desktop says when its frame is drawn, but a terminal window's
     # program starts on its own time: a key sent the moment the window is
     # up can reach a shell that has not yet set its trap. Give it the time
@@ -332,8 +333,13 @@ PW = "22 70 2 2"
 # and a scrolling pane spends its last column on a bar, which cut
 # `construction` to `constructio` and failed four checks that are
 # about themes and shadows rather than about scrolling. They get a
-# window tall enough to hold the pane whole.
-PWTALL = "26 70 2 2"
+# window tall enough to hold the pane whole, on a terminal tall enough
+# to hold the window: 26 rows at row 2 on a 24-row terminal was already
+# clipped, and only fitted while nothing was added below Shadows. The
+# wallpaper's Picture and Drawn Now rows (0.99.237, Gitea #275) were the
+# two that made it not fit.
+PWTALL = "30 70 2 2"
+TALLROWS = 34
 PANEL = ("panel", PW)
 TICK = "DT_TICK=200"
 CPANES = 'CP_PANEDIRS+=("%s")\ncp_panes' % CP
@@ -444,7 +450,7 @@ def cprun(feed=(), also=(), extra=(), tz=None, env=None, pre="", end=b"qy",
     sc = run("panel", geom or PW, feed=feed,
              pre="%sexport XDG_CONFIG_HOME=%s\n%s%s\n%s\n%s"
              % (pre, d, tzline, TICK, CPANES, post), also=also, extra=extra,
-             env=env, end=end)
+             env=env, end=end, rows=TALLROWS if geom == PWTALL else None)
     shutil.rmtree(d, True)
     return sc
 
@@ -885,6 +891,16 @@ check("and the way an image fills the screen, stretch by default",
 sc = cprun(reach("appearance", "Mode") + [b"\x1b[C"])
 check("which cycles to scale",
       "scale" in brow(sc, "Mode"), sc)
+# The wallpaper's own Picture row, as YouTube's player has one (Gitea #275):
+# follow, the Pictures setting, until somebody chooses, with a Drawn Now
+# row saying what that comes to; and it cycles through the same five.
+sc = cprun(reach("appearance", "Picture"))
+check("Appearance draws the wallpaper by a Picture setting of its own, "
+      "following Pictures until chosen, and says what that comes to",
+      "follow" in brow(sc, "Picture") and brow(sc, "Drawn Now") != "", sc)
+sc = cprun(reach("appearance", "Picture") + [b"\x1b[C"])
+check("which steps to half blocks",
+      "half" in brow(sc, "Picture") and brow(sc, "Drawn Now") == "", sc)
 
 sc = cprun(DOWN_WP + [b"\r"], env={"HOME": AWHOME})
 check("with no Files app installed, it lists the home directory's folders "
@@ -4886,4 +4902,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(642)
+report(645)

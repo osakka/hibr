@@ -314,6 +314,14 @@ Wallpaper" from its own **Image** menu. If the file cannot be decoded --
 moved, deleted, not actually a PNG -- `dt_wall` falls back to the glyph
 rather than leaving the screen blank.
 
+How a picture wallpaper is drawn is its own setting, Appearance >
+Wallpaper > **Picture** (`DT_WALLIMGMODE`): Follow, which is whatever
+Control Panel > Pictures says for every other picture, or Half Blocks,
+Characters, Grey Blocks or Pixels for the wallpaper alone -- the same five
+YouTube's player offers -- with a Drawn Now row saying what Follow comes to
+on this terminal. Pixels on a display whose terminal cannot show them is
+half blocks there, never a bitmap it cannot draw.
+
 ## Icons on the desktop
 
 A clean desktop, down from the top right: **Home**, the mounted **disks** if
