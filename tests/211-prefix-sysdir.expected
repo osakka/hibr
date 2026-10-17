@@ -1,4 +1,5 @@
 0
+the formula's install makes no system folder: 0
 /usr           /var/lib/hibr
 /usr/local     /usr/local/var/lib/hibr
 /opt/homebrew  /opt/homebrew/var/lib/hibr

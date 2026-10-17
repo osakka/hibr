@@ -58,13 +58,10 @@ control-strip/shadow.hibr
 control-strip/theme.hibr
 control-strip/wallpaper.hibr
 
-# The screen savers.
-savers/classicmac.hibr
-savers/clock.hibr
-savers/matrix.hibr
+# One screen saver, the owner's choice of 2026-10-17; the rest are in the
+# catalogue. A saved choice that is not installed falls back to a random
+# one of those that are.
 savers/mystify.hibr
-savers/pipes.hibr
-savers/toasters.hibr
 
 # The theme and colour schemes a desktop starts with: Classic, Midnight,
 # and Paper, the one light scheme. The rest are in the catalogue.
@@ -72,7 +69,7 @@ themes/classic.json
 colours/midnight.json
 colours/paper.json
 
-# Arabic, and the two pseudo-languages a translator checks a layout with.
-lang/ar.json
-lang/xx.json
-lang/xy.json
+# No language beyond English, which needs no file: Arabic is in the
+# catalogue, and a desktop set to a language it does not have says so in
+# its log and draws in English. The pseudo-languages xx and xy are for
+# checking this tree's layouts, and the suites read them from the tree.

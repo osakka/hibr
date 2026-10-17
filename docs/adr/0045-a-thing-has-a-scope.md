@@ -318,7 +318,10 @@ compiled value unless the environment already did, `catalogue --system`
 reads it to know where to write, and `m_sysdir` reads it to know where
 to look. What makes one variable safe for both is a single rule --
 **the default is checked and a path you chose is yours**. The compiled
-path is used only if it is root-owned and writable by nobody else; an
+path is used only if it is owned by root -- or, since 0.99.232, by
+whoever owns the running `hibr` binary (Gitea #268: a Homebrew prefix is
+its user's, and anyone who can write that folder can rewrite the binary
+beside it) -- and writable by nobody else; an
 overridden one is trusted exactly as `$HIBR_MODPATH` already is, since
 it affects only the shell whose environment holds it; and root never
 reads the environment's at all, which is what keeps ADR 0016's

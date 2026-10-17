@@ -37,9 +37,9 @@ arguments straight through, it does nothing else.
 An install -- and the package -- holds what `packaging/ships`
 names, and what each of those brings (ADR 0047, Gitea #271): the window
 manager, the desktop's own `system/` apps, its own Control Panel panes,
-the Control Strip modules, the savers and the languages, **Files,
-Terminal, Stickies, Calculator, Clock, Puzzle and Image Viewer**, and the
-Classic theme with the Midnight and Paper colours. An app's pane comes
+the Control Strip modules, the Mystify screen saver, **Files, Terminal,
+Stickies, Calculator, Clock, Puzzle and Image Viewer**, and the Classic
+theme with the Midnight and Paper colours, in English. An app's pane comes
 with its app and goes when it goes. Everything else comes from the
 catalogue, and all of it is one command:
 

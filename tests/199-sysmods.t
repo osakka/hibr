@@ -8,11 +8,10 @@
 # index, like the user's own folder and for a stronger reason -- an
 # administrator installing a module for everybody should not thereby
 # change what a mistyped command does on that machine (ADR 0044). And
-# the compiled-in default is checked for being root-owned and private
-# before it is used at all, which this cannot exercise without being
-# root: the rule is that **the default is checked and a path you chose
-# is yours**, so $HIBR_SYSDIR here is a path chosen by the person
-# running it and is trusted the way $HIBR_MODPATH already is.
+# the compiled-in default is checked before it is used at all: **the
+# default is checked and a path you chose is yours**, so $HIBR_SYSDIR
+# here is a path chosen by the person running it and is trusted the way
+# $HIBR_MODPATH already is. The check itself is at the end.
 d=${TMPDIR:-/tmp}/hibr-sysmods-$$
 mkdir -p "$d/mods" "$d/empty"
 cp ./build/mods/csv.so "$d/mods/"
@@ -36,4 +35,21 @@ HIBR_MODPATH=$d/mods $HIBR -c 'csv' 2>&1 | head -1
 # And the shell says where it is, so a script needs no second copy of
 # the path: `catalogue --system` reads exactly this.
 echo "the shell names it: $([ "$HIBR_SYSDIR" = "$d" ] && echo yes)"
+
+# The compiled-in default must be as trusted as the shell itself: owned
+# by root or by whoever owns the hibr binary, and writable by nobody else
+# (Gitea #268). Root-only made every module a Homebrew install put there
+# a file nothing loaded, since a Homebrew prefix -- binary and var/ alike
+# -- is its user's. A shell built here with the default pointing at a
+# folder this account owns is exactly that case, and tcc builds one in a
+# fraction of a second; B= keeps it out of build/, so the tree's own shell
+# is never rebuilt with somebody else's path in it.
+make -s B="$d/b" SYSDIR="$d/sys" "$d/b/hibr" > /dev/null 2>&1
+mkdir -p "$d/sys/mods"
+cp ./build/mods/csv.so "$d/sys/mods/"
+chmod 755 "$d/sys" "$d/sys/mods"
+unset HIBR_SYSDIR
+"$d/b/hibr" -c 'mod load csv > /dev/null 2>&1' && echo "a default owned by the binary's owner is searched: yes"
+chmod 775 "$d/sys/mods"
+"$d/b/hibr" -c 'mod load csv > /dev/null 2>&1' || echo "and one others may write is not: refused"
 rm -rf "$d"

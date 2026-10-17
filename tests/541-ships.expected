@@ -7,12 +7,17 @@ ships apps/Accessories/calc.hibr
 ships control-panel/filesview.hibr
 ships themes/classic.json
 ships colours/paper.json
+ships savers/mystify.hibr
+ships savers/saver.hibr
+ships lang/strings.txt
 leaves out apps/Internet/youtube.hibr
 leaves out control-panel/tube.hibr
 leaves out control-strip/nextprayer.hibr
 leaves out themes/meadow.json
 leaves out themes/meadow.png
 leaves out colours/dracula.json
+leaves out savers/matrix.hibr
+leaves out lang/ar.json
 no empty folder is left behind: 0
 install-extras places exactly the rest
 the default plus the extras is the whole desktop

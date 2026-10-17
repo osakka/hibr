@@ -114,8 +114,9 @@ A package installs under `/usr`: the shell in `/usr/bin`, its modules in
 The desktop in it is what `packaging/ships` lists and what those bring
 ([ADR 0047](adr/0047-what-the-package-ships.md)): the window manager, the
 desktop's own `system/` apps, its own Control Panel panes, the Control
-Strip modules, the savers and the languages, Files, Terminal and five
-accessories, and the Classic theme with the Midnight and Paper colours.
+Strip modules, the Mystify screen saver, Files, Terminal and five
+accessories, and the Classic theme with the Midnight and Paper colours, in
+English.
 There is one package and one route for the rest -- `catalogue install
 apps/` places every application in the catalogue, `catalogue install
 themes/` every theme. A

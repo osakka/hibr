@@ -19,6 +19,16 @@
 # touches nothing.
 
 cd "${0%/*}/.." || exit 1
+
+# What the Homebrew formula really passes (Gitea #268): its `prefix` is the
+# versioned keg, so a system scope derived from it would be inside the keg
+# and gone at the next `brew upgrade` and `brew cleanup`. The formula names
+# Homebrew's own var/ instead and says MKSYSDIR=no, so the install makes no
+# folder outside the keg and the catalogue makes it on first use.
+n=$(make -s -n PREFIX=/opt/homebrew/Cellar/hibr/9 SYSDIR=/opt/homebrew/var/lib/hibr \
+	MKSYSDIR=no DESTDIR=/tmp/hibr-prefix-check install 2>/dev/null |
+	grep -c 'install -d -m 755 /tmp/hibr-prefix-check[^ ]*var/lib/hibr')
+echo "the formula's install makes no system folder: $n"
 for p in /usr /usr/local /opt/homebrew; do
 	out=$(make -s -n PREFIX="$p" DESTDIR=/tmp/hibr-prefix-check install 2>/dev/null |
 		grep -o 'install -d -m 755 /tmp/hibr-prefix-check[^ ]*var/lib/hibr' | head -1)

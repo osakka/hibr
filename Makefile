@@ -334,7 +334,15 @@ endif
 # thing that creates it rather than hoped for later: root-owned, and not
 # writable by anybody else (ADR 0045). 0755 rather than 0700 because every
 # user of the machine reads it.
+#
+# MKSYSDIR=no leaves it to the catalogue, which makes it the first time a
+# `--system` install writes there: the Homebrew formula puts the system
+# scope in Homebrew's own var/, which outlives an upgrade where its keg
+# does not, and an install step writing outside the keg is not one its
+# build sandbox can be counted on to allow (Gitea #268).
+ifneq ($(MKSYSDIR),no)
 	install -d -m 755 $(DESTDIR)$(SYSDIR)
+endif
 	install -m 644 programs/catalogue.hibr $(DESTDIR)$(SHAREDIR)/catalogue.hibr
 	sed 's|@SHAREDIR@|$(SHAREDIR)|' tools/catalogue-launcher.in \
 		> $(DESTDIR)$(PREFIX)/bin/catalogue

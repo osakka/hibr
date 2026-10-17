@@ -5,3 +5,5 @@ need by interface: ok
 hibr: csv: command not found
 hibr: usage: csv read|split|line|open|row|close ...
 the shell names it: yes
+a default owned by the binary's owner is searched: yes
+and one others may write is not: refused

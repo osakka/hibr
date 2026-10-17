@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.99.232
+
+**A Homebrew install keeps the system scope where an upgrade leaves it, and its modules are found**
+(Gitea #268), and **the package ships one screen saver and English only**
+(Gitea #271, the owner's second pass).
+
+Homebrew's `prefix` is the versioned keg, `Cellar/hibr/<version>`, and the
+Makefile derived the system scope from it -- so everything `catalogue
+--system` placed on a Mac was inside one version's keg, looked gone the
+moment `brew upgrade` built the next, and was deleted by `brew cleanup`
+after it. The formula now passes `SYSDIR=#{var}/lib/hibr`, Homebrew's own
+`var/`, to both make steps, and `MKSYSDIR=no` to the install: the folder
+is the catalogue's to make on first use, which it already does, so the
+install writes nothing outside the keg. Anything a Mac installed with
+`--system` on 0.99.215 to 0.99.231 is in the old keg and needs installing
+again. Measured here by running the formula's two steps as an unprivileged
+user into a keg-shaped prefix; what Homebrew's own sandbox makes of it
+wants `brew upgrade hibr` on a Mac.
+
+**And a module installed there is found.** The shell trusted the
+compiled-in system modules folder only when root owned it, so every
+module `catalogue --system` put in a Homebrew prefix -- which is its
+user's, binary and `var/` alike -- was a file nothing loaded. The rule is
+now that the folder be as trusted as the shell itself: owned by root **or
+by whoever owns the running `hibr` binary**, and writable by nobody else.
+That adds nothing an attacker lacked, since anyone who can write the folder
+can already rewrite the binary beside it. The owner's choice of two;
+the other was refusing such an install with a sentence. `tests/199` builds
+a second shell whose default points at a folder this account owns -- the
+Homebrew shape exactly -- and checks it is searched, and that it is not
+once others may write it; the first fails against 0.99.231.
+
+The package now ships **Mystify** and no other screen saver, and **no
+language beyond English**. Classic Mac, Clock, Matrix, Pipes and Flying
+Toasters, and Arabic, are in the catalogue. A desktop whose saved saver is
+not installed picks a random one of those that are, and one set to a
+language it does not have says so in its log and draws in English. The
+pseudo-languages `xx` and `xy` stay in the tree, for checking its layouts.
+
 ## 0.99.231
 
 **errexit holds inside a pipeline stage** (Gitea #270).

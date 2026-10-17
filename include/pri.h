@@ -353,6 +353,7 @@ int sh_optset(sh *s, const char *nm, int on);
 const char *sh_optltr(int c);
 int sh_optch(sh *s, int c, int on);
 char *sh_dash(sh *s);
+char *sh_exe(void);
 void sh_optlist(sh *s, int style);
 void sh_opt1(sh *s, str *o, const char *nm, int style);
 int b_builtin(sh *s, int ac, char **av);

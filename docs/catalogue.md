@@ -390,8 +390,11 @@ what you install are not the person who read it:
 - **An unsigned catalogue is refused**, where for your own scope it is a
   warning. A script you can read before you run it is ADR 0041's whole
   argument, and it does not survive installing into everybody's account.
-- **A module's directory must be root-owned and private**, or the shell
-  does not treat it as a system scope at all. The rule is *the default
+- **A module's directory must be as trusted as the shell itself** --
+  owned by root or by whoever owns the `hibr` binary, and writable by
+  nobody else -- or the shell does not treat it as a system scope at all.
+  On a Debian install that is root; on Homebrew, whose prefix is its
+  user's, it is that user, who could rewrite the binary anyway. The rule is *the default
   is checked and a path you chose is yours*: `$HIBR_SYSDIR` set by you
   affects only your own shell, the way `$HIBR_MODPATH` already does, and
   root never reads it.

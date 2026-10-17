@@ -107,9 +107,14 @@ int m_udir(sh *s, str *out)
    gets the compiled-in path and nothing else -- an environment variable
    that could redirect root's module search is a way in, which is why
    HIBR_MODPATH is already refused for root a few lines above. And the
-   directory has to look like the system's: owned by root, writable by
-   nobody else. A path that fails either test is not an error, it is
-   simply not a system scope, so the walk goes on to HIBR_MODDIR.
+   directory has to be as trusted as the shell itself: owned by root or
+   by whoever owns the running hibr binary, and writable by nobody else.
+   A Homebrew prefix is its user's, binary and var/ alike, and anyone who
+   can write that folder can already rewrite the binary beside it, so
+   trusting it adds nothing an attacker lacked; root-only made every
+   `--system` module there a file nothing loaded (Gitea #268). A path
+   that fails the test is not an error, it is simply not a system scope,
+   so the walk goes on to HIBR_MODDIR.
 
    `$HIBR_SYSDIR` is both how a script learns the path and how a person
    changes it, which is one knob rather than two for one idea: the shell
@@ -125,6 +130,9 @@ int m_sysdir(sh *s, str *out)
 	const char *d = 0;
 	struct stat st;
 	int own;
+	uid_t trust = 0;
+	char *exe;
+	struct stat be;
 
 	if (geteuid() != 0)
 		d = hibr_get(s, "HIBR_SYSDIR");
@@ -135,10 +143,18 @@ int m_sysdir(sh *s, str *out)
 	s_cat(out, "/mods");
 	if (stat(out->p, &st) != 0 || !S_ISDIR(st.st_mode))
 		return 0;
-	if (own && (st.st_uid != 0 || (st.st_mode & (S_IWGRP | S_IWOTH)))) {
-		lg(HIBR_LDBG, "%s is not root-owned and private; not a system "
-		   "module directory", out->p);
-		return 0;
+	if (own) {
+		exe = sh_exe();
+		if (exe && stat(exe, &be) == 0)
+			trust = be.st_uid;
+		free(exe);
+		if ((st.st_uid != 0 && st.st_uid != trust) ||
+		    (st.st_mode & (S_IWGRP | S_IWOTH))) {
+			lg(HIBR_LDBG, "%s is owned by neither root nor the shell's "
+			   "own owner, or others may write it; not a system "
+			   "module directory", out->p);
+			return 0;
+		}
 	}
 	return 1;
 }

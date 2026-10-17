@@ -38,11 +38,13 @@ want=$("$HIBR" tools/ships.hibr)
 	diff <(echo "$want") <(echo "$got")
 echo "and still has the window manager: $(find "$desk/wm" -name '*.hibr' | wc -l | awk '$1 > 10 { print "yes"; exit } { print "no" }')"
 for f in apps/files.hibr apps/Accessories/calc.hibr control-panel/filesview.hibr \
-	 themes/classic.json colours/paper.json; do
+	 themes/classic.json colours/paper.json savers/mystify.hibr savers/saver.hibr \
+	 lang/strings.txt; do
 	[ -f "$desk/$f" ] && echo "ships $f"
 done
 for f in apps/Internet/youtube.hibr control-panel/tube.hibr control-strip/nextprayer.hibr \
-	 themes/meadow.json themes/meadow.png colours/dracula.json; do
+	 themes/meadow.json themes/meadow.png colours/dracula.json savers/matrix.hibr \
+	 lang/ar.json; do
 	[ -f "$desk/$f" ] || echo "leaves out $f"
 done
 echo "no empty folder is left behind: $(find "$desk/apps" -type d -empty | wc -l)"

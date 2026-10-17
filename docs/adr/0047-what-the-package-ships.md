@@ -59,8 +59,12 @@ and is not listed. The owner's choice, 2026-10-17:
   Clipboard, Modules, Notifications, Screenshot and Task Manager;
 - **Files, Terminal and Stickies; Calculator, Clock, Puzzle and Image
   Viewer** -- which reverses #220's "nothing you open";
-- the desktop's own panes, the Control Strip's modules that belong to no
-  app, the screen savers and the languages;
+- the desktop's own panes and the Control Strip's modules that belong to
+  no app;
+- **one screen saver, Mystify**, and **no language beyond English** --
+  the other savers, Arabic and any language added later are in the
+  catalogue (0.99.232: these two lines were the owner's second pass,
+  after 0.99.230 had shipped every saver and Arabic);
 - **the Classic theme and two colour schemes, Midnight and Paper**, the one
   light scheme;
 - and every part of any of those.
