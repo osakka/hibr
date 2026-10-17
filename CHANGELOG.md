@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.99.239
+
+**The screen saver asks a playing window, once, instead of being told every
+frame** (Gitea #277, second part).
+
+The owner asked whether 0.99.238 had to ask every frame, and it did more
+than it needed to. The YouTube player asked its player twice a frame for
+one fact: once for its clock, and once more to take or free a hold. The
+hold was also state to clean up in three places: the app, `dt_del` and the
+saver's own sweep for windows that had gone.
+
+- **`<app>_awake id` replaces `dt_saverhold` and `dt_saverfree`.** The
+  desktop asks it only when the saver is due, and only of windows that
+  still exist. A yes puts the idle clock back a whole period, so the lock,
+  whose timer starts with the saver, waits too. Nothing is kept, so nothing
+  can be left behind.
+- **A playing video costs nothing extra.** The player is asked once per
+  idle period rather than once per frame. The answer is also fresher than
+  before: it is what the player says at the moment it matters, not what it
+  said a frame earlier.
+- `dt_saverhold` and `dt_saverfree` are gone rather than kept unused.
+  WRITING.md and ARCHITECTURE.md describe the callback, and
+  `tests/540-examples.t` checks its arity.
+
+The same six checks pass unchanged: four in the desktop suite, now driving a
+window that answers `_awake`, and two in the YouTube suite. YouTube 1.4 in
+the catalogue.
+
 ## 0.99.238
 
 **A playing video keeps the screen saver and the lock away** (Gitea #277).

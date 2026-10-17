@@ -142,33 +142,25 @@ dt_saverseen() {
 	DT_IDLEFROM=$EPOCHSECONDS
 }
 
-# Windows holding the screen saver off, by id: a video playing is someone
-# watching, though no key is pressed (Gitea #277). While any window holds,
-# the desktop counts as in use, so neither the saver nor the lock -- whose
-# own timer starts with the saver -- comes on. A hold is a window's own, so
-# two players hold for themselves, and it goes with the window: dt_del
-# frees it, and one whose window has gone is dropped here, so an app that
-# forgets cannot keep the screen lit for ever.
-declare -gA DT_SAVERHOLDS
-fn dt_saverhold(int id) {
-	DT_SAVERHOLDS["$id"]=1
-}
-fn dt_saverfree(int id) {
-	unset "DT_SAVERHOLDS[$id]"
-}
+# Whether a window is keeping the screen awake -- a video playing is
+# someone watching though no key is pressed (Gitea #277). Asked only at the
+# moment the saver would start, of each window whose app offers
+# `<app>_awake id`, which answers from what it is doing now; one that says
+# yes counts as someone being here, so neither the saver nor the lock,
+# whose own timer starts with the saver, comes on. The first version had
+# apps take and free a hold every frame, which made the YouTube player ask
+# its player twice a frame for one fact and left state to clean up in three
+# places; asking at the one moment the answer matters costs nothing while
+# a video plays and has nothing to leave behind (the owner's question).
+dt_saverawake() {
+	local id ap
 
-# Whether any window that still exists holds the saver off.
-dt_saverheld() {
-	local id held=1
-
-	for id in "${!DT_SAVERHOLDS[@]}"; do
-		if [ -z "${DT[$id]["title"]+x}" ]; then
-			unset "DT_SAVERHOLDS[$id]"
-			continue
-		fi
-		held=0
+	for id in "${!DT[@]}"; do
+		ap=${DT[$id]["app"]}
+		[ -n "$ap" ] && dt_has "${ap}_awake" && "${ap}_awake" "$id" &&
+			return 0
 	done
-	return "$held"
+	return 1
 }
 
 # After each frame: start the saver once the idle time is up, or ask to be
@@ -179,12 +171,11 @@ dt_saverwait() {
 	[ -z "$DT_SAVING" ] && [ -z "$DT_LOCKED" ] || return 0
 	[ -n "$secs" ] || secs=$(( ${DT_SAVERIDLE:-0} * 60 ))
 	[ "$secs" -gt 0 ] 2> /dev/null || return 0
-	if dt_saverheld; then
-		DT_IDLEFROM=$EPOCHSECONDS
-		dt_want $(( secs * 1000 ))
-		return 0
-	fi
 	left=$(( secs - (EPOCHSECONDS - DT_IDLEFROM) ))
+	if [ "$left" -le 0 ] && dt_saverawake; then
+		DT_IDLEFROM=$EPOCHSECONDS
+		left=$secs
+	fi
 	if [ "$left" -le 0 ]; then
 		dt_saverstart
 		dt_want 10

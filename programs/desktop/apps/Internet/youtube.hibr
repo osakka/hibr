@@ -31,7 +31,7 @@
 
 strict
 
-app youtube "YouTube, in a window" 1.3
+app youtube "YouTube, in a window" 1.4
 # part: control-panel/tube.hibr
 # modules: media web
 
@@ -456,7 +456,6 @@ fn yt_play(int id, int i) {
 fn yt_stop(int id) {
 	local p=${YT[$id]["p"]} t=${YT[$id]["pt"]}
 
-	dt_has dt_saverfree && dt_saverfree "$id"
 	[ -n "$p" ] && [ "${YT[$id]["state"]}" = playing ] && yt_histput "$id"
 	[ -n "$p" ] && media close "$p" 2> /dev/null
 	[ -n "$t" ] && web go "$t" about:blank 2> /dev/null
@@ -761,36 +760,29 @@ fn youtube_resume(int id) {
 
 # A window not drawn still carries what the page fetches, or the pipes and
 # the page would fall behind; it is drawn again when it is seen.
-# Hold the screen saver off while a video is playing in a window that is
-# not minimised, and let it go otherwise -- paused, ended, stopped, set off
-# in Control Panel > YouTube, or minimised (Gitea #277). Asked every frame
-# from what the player says now, rather than set and cleared at each
-# change, so no path through play, pause and the end can leave a hold
-# behind; dt_del frees one when the window closes.
-fn yt_holdsaver(int id) {
+# Whether this window is keeping the screen awake: a video playing, not
+# paused or finished, in a window that is not minimised, with Control Panel
+# > YouTube's Keep the Screen Saver Away While Playing on (Gitea #277). The
+# desktop asks only at the moment its screen saver would start, so this
+# reads the player once then, rather than every frame, and holds nothing
+# that could be left behind.
+fn youtube_awake(int id) {
 	local i
 
-	dt_has dt_saverhold || return 0
-	if [ "${YT_SAVERHOLD:-1}" = 1 ] && [ "${YT[$id]["state"]}" = playing ] &&
-	   [ -n "${YT[$id]["p"]}" ] && ! dt_hidden "$id"; then
-		i := media info "${YT[$id]["p"]}" 2> /dev/null
-		if [ "${i["paused"]}" != 1 ] && [ "${i["ended"]}" != 1 ]; then
-			dt_saverhold "$id"
-			return 0
-		fi
-	fi
-	dt_saverfree "$id"
+	[ "${YT_SAVERHOLD:-1}" = 1 ] || return 1
+	[ "${YT[$id]["state"]}" = playing ] && [ -n "${YT[$id]["p"]}" ] || return 1
+	dt_hidden "$id" && return 1
+	i := media info "${YT[$id]["p"]}" 2> /dev/null
+	[ "${i["paused"]}" != 1 ] && [ "${i["ended"]}" != 1 ]
 }
 
 fn youtube_idle(int id) {
 	[ "${YT[$id]["view"]}" = play ] && yt_tick "$id"
-	yt_holdsaver "$id"
 	return 0
 }
 
 fn youtube_draw(int id, int h, int w, int row, int col) {
 	dt_wclear "$id"
-	yt_holdsaver "$id"
 	[ -n "${YT[$id]["searching"]}" ] && yt_results "$id"
 	if [ "${YT[$id]["mini"]}" = 1 ]; then
 		yt_drawmini "$id" "$h" "$w"

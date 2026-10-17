@@ -128,17 +128,17 @@ stops asking and the desktop goes back to idling. Step on the clock, not on
 frames: frames also come with every key, and a snake that moved once per
 frame would sprint while an arrow is held. `$EPOCHREALTIME` is the clock.
 
-**A window that plays something keeps the screen saver away with
-`dt_saverhold id`, and lets go with `dt_saverfree id`.** Watching is not
-typing, so a video would otherwise be covered by the saver halfway through,
-and then locked under it. A hold is the window's own: two players each hold
-for themselves, one stopping frees only its own, and closing the window
-frees it, so a hold forgotten cannot keep the screen lit for ever. The
-YouTube player asks every frame from what its player says now -- playing,
-not paused, not minimised -- and holds or frees to match, which is the
-shape to copy: a hold set and cleared at each change of state is one path
-away from being left behind. Control Panel > YouTube > Keep the Screen
-Saver Away While Playing turns its use off.
+**A window that plays something keeps the screen saver away by answering
+`<app>_awake id`.** Watching is not typing, so a video would otherwise be
+covered by the saver halfway through, and then locked under it. The desktop
+asks only at the moment the saver is due, and only windows that still
+exist: one that succeeds puts the idle clock back a whole period, and the
+lock waits with it, since the lock's own timer starts with the saver. So
+answer from what is true now -- the YouTube player asks its player whether
+it is playing, not paused and not minimised -- and keep nothing: there is
+no hold to set and no hold to forget, and a frame costs nothing while a
+video plays. Control Panel > YouTube > Keep the Screen Saver Away While
+Playing makes its answer always no.
 
 **A window that is done asks to be closed, from its own `_draw`, with
 `dt_wantclose id`.** The terminal calls it once the program inside has

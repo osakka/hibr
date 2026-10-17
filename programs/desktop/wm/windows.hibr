@@ -68,8 +68,6 @@ fn dt_del(int id) {
 	# `_close` at all -- Files has none -- would otherwise leak its
 	# query for the life of the desktop.
 	command -v dt_searchfree > /dev/null && dt_searchfree "$id"
-	# And any hold it had on the screen saver (Gitea #277).
-	command -v dt_saverfree > /dev/null && dt_saverfree "$id"
 
 	DT_NOTEWIN=$id
 	[ -n "${DT[$id]["close"]}" ] && ${DT[$id]["close"]} "$id"

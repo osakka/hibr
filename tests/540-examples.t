@@ -127,7 +127,7 @@ awk '
     # declared `op` rather than `op = ""` -- the one of twenty-three
     # that could not take the short call wm/input.hibr was making, so a
     # paste from the host terminal into a terminal window did nothing.
-    W["paste"] = 3; W["copy"] = 1; W["cut"] = 1
+    W["paste"] = 3; W["copy"] = 1; W["cut"] = 1; W["awake"] = 1
     P["draw"] = 4; P["key"] = 2; P["click"] = 3; P["drop"] = 4; P["wheel"] = 2
     P["slide"] = 3
     S["draw"] = 2; S["click"] = 2
