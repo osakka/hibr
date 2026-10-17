@@ -157,7 +157,10 @@ void wb_usage(void)
 {
 	lg(HIBR_LERR, "usage: web open [url] | close|back|forward|reload|render|"
 		      "url|title|text|links|loading|dirty|focus T | go T url | "
-		      "wait T [ms] | size T rows cols | mode T cells|pixels | "
+		      "wait T [ms] | size T rows cols | mode T cells|pixels|text | "
+		      "set T js|images|dark on|off | set T zoom pct | set T ua text | "
+		      "config browser|profile|args value | "
+		      "clear cookies|cache|history [T...] | "
 		      "draw T row col [h w] "
 		      "[-p pane] | click T row col | wheel T rows | key T name | "
 		      "type T text | eval T js | tap|tapseek T | take T "
@@ -219,6 +222,15 @@ int m_web(sh *s, int ac, char **av)
 		wb_stop();
 		return HIBR_OK;
 	}
+	if (!strcmp(sub, "config")) {
+		if (ac < 3) {
+			wb_usage();
+			return 2;
+		}
+		return wb_config(av[2], ac > 3 ? av[3] : "");
+	}
+	if (!strcmp(sub, "clear"))
+		return wb_clear(ac, av);
 	if (ac < 3) {
 		wb_usage();
 		return 2;
@@ -267,6 +279,10 @@ int m_web(sh *s, int ac, char **av)
 			lg(HIBR_LERR, "web mode: cells or pixels, not %s", av[3]);
 			return 2;
 		}
+		if (t->textonly != !strcmp(av[3], "text")) {
+			t->textonly = !t->textonly;
+			t->dirty = 1;
+		}
 		if (t->pixels != px) {
 			t->pixels = px;
 			free(t->shot);
@@ -275,6 +291,13 @@ int m_web(sh *s, int ac, char **av)
 			t->dirty = 1;
 		}
 		return HIBR_OK;
+	}
+	if (!strcmp(sub, "set")) {
+		if (ac < 5) {
+			wb_usage();
+			return 2;
+		}
+		return wb_set(t, av[3], av[4]);
 	}
 	if (!strcmp(sub, "render")) {
 		wb_events();

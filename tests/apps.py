@@ -321,11 +321,11 @@ check("panes register and sort by title within their group, not load order",
                 "control_strip", "desktop", "filetypes", "language",
                 "network", "notify", "pictures", "screensaver", "shortcuts",
                 "taskmgr", "versions", "windows",
-                "pimset", "filesview", "mailset", "prayerset", "notes",
-                "terminal", "vaultset", "tube"], out)
+                "browserset", "pimset", "filesview", "mailset", "prayerset",
+                "notes", "terminal", "vaultset", "tube"], out)
 check("Hardware first, then the desktop's own panes, then one per app",
       [GROUP[n] for n in ORDER] ==
-      ["hardware"] * 4 + ["system"] * 16 + ["app"] * 8, out)
+      ["hardware"] * 4 + ["system"] * 16 + ["app"] * 9, out)
 
 PW = "22 70 2 2"
 # Appearance is the longest pane and got two rows longer in 0.99.193
@@ -365,7 +365,8 @@ TITLE = {"aboutme": "About Me", "appearance": "Appearance", "control_strip": "Co
          "shortcuts": "Shortcuts", "notify": "Notifications",
          "windows": "Windows", "abouthibr": "About This",
          "filesview": "Files", "mailset": "Mail", "pimset": "Calendar &", "taskmgr": "Task Manager",
-         "terminal": "Terminal", "tube": "YouTube", "versions": "Versions"}
+         "terminal": "Terminal", "tube": "YouTube", "versions": "Versions",
+         "browserset": "Browser"}
 
 
 def prow(name):
@@ -517,7 +518,8 @@ check("the first pane's own rows show on the right without entering it",
 # dropdowns is read from each pane's own _drop, and where each row sits from
 # its own _rows. Date & Time is left out: its dialogs run sudo.
 PANE_APPS = {"abouthibr": ("about",), "filesview": ("files",),
-             "taskmgr": ("tasks",), "terminal": ("term",)}
+             "taskmgr": ("tasks",), "terminal": ("term",),
+             "browserset": ("browser",)}
 
 
 PANEHOME = tempfile.mkdtemp(prefix="hibr-pane-conf-")
@@ -4902,4 +4904,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(645)
+report(647)

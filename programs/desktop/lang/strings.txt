@@ -115,6 +115,7 @@ Archive
 Arrange Icons
 As It Is
 Ask Before Closing
+Ask Sites for Dark Pages
 Asked %s to join
 Asking %s what it keeps…
 Asr
@@ -140,12 +141,14 @@ Bottom
 Bricks
 Browse
 Browser
+Browser Setting
 Bulleted List
 Button Shadow
 Button Style
 Buttons
 By Kind
 CPU:    %s%%       Memory: %s
+Cache cleared
 Calc
 Calculator
 Calendar
@@ -179,6 +182,7 @@ Clean Up Desktop
 Clear
 Clear All
 Clear Cache
+Clear Cookies
 Clear History
 Clear Low
 Clear Selected
@@ -219,6 +223,7 @@ Conversation archived
 Conversation marked as spam
 Conversation moved to %s
 Conversation moved to Trash
+Cookies cleared
 Copied
 Copied %s characters
 Copied the paths of what is selected
@@ -313,6 +318,11 @@ Edit as Plain Text
 Edit…
 Email
 Empty Trash…
+Empty finds Chromium or Chrome. Used at the next start.
+Empty is hibr's own. Used at the next start.
+Empty is what the browser says it is.
+Empty makes words typed in the address an address.
+Empty opens a blank page, ready to type in.
 Empty the Trash? The %d items in it are deleted for good.
 Empty the Trash? The one item in it is deleted for good.
 End Task
@@ -326,6 +336,8 @@ Exported %s
 Exporting CSV needs the csv module
 Export…
 Extension:
+Extra Flags
+Extra flags for the browser:
 Fajr
 Favourite
 Favourites
@@ -343,10 +355,12 @@ Find Next
 Find:
 Find…
 Flowchart
+Folder for cookies, the cache and history:
 Folder, %s items
 Folder:
 Follow Program Title
 For Fajr
+Forget
 Format
 Format:
 Formulas run as a dry run: one that would write or connect
@@ -384,6 +398,8 @@ History
 History Size
 History cleared
 Home
+Home Page
+Home page, opened by a new window or tab:
 Hostname: %s
 How Formulas Work
 ITEM
@@ -391,6 +407,7 @@ Icons
 Identify
 Image
 Image Viewer
+Images
 Import CSV…
 Imported %s rows from %s
 Importing CSV needs the csv module
@@ -409,6 +426,7 @@ Italic
 Item
 Jan
 January
+JavaScript
 Jul
 July
 Jumada al-Akhirah
@@ -514,6 +532,7 @@ Next Month
 Next Prayer in the Menu Bar
 Next Wallpaper
 Nextcloud: https://HOST/remote.php/dav/files/USER
+No Chromium or Chrome to clear
 No Picture
 No Rule
 No calendar yet: choose a server in Control Panel > PIM, then sync
@@ -590,6 +609,8 @@ Owner:
 Owner:  %s
 PID:    %s
 PIN
+Page Zoom
+Pages
 Pass Every Key
 Password
 Paste
@@ -620,6 +641,9 @@ Preview
 Previous
 Previous Month
 Process Details
+Profile Folder
+Program
+Program to run as the browser:
 Programs Set Clipboard
 Puzzle
 Quality Fetched
@@ -703,6 +727,8 @@ Screenshot…
 Scroll To Bottom
 Scroll To Top
 Scrollbar
+Search With
+Search address; what is searched for goes at the end:
 Search…
 Select All
 Send
@@ -711,6 +737,7 @@ Send Interrupt
 Sending…
 Sent
 Sep
+Separated by spaces. Used at the next start.
 September
 Sequence
 Server
@@ -810,6 +837,7 @@ The vault is locked.
 The vault is synced
 The vault is unlocked
 The vw command is not installed.
+The web module is not installed
 Theme
 There is a theme called %s already
 There is no file %s
@@ -870,6 +898,8 @@ Upload Edits on Save
 Uptime: %s
 Use
 Use Answer
+User Agent
+User agent the pages are told:
 Username
 Users: %s
 VERSION
@@ -887,6 +917,7 @@ Wed
 Wednesday
 Week
 What it prints is the cell's value:
+When Chromium Next Starts
 Where are you? Control Panel > Prayer Times
 Where:
 Wider Column

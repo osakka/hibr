@@ -17,11 +17,19 @@
 # tab between (~/.local/share/hibr/bookmarks.tsv): Bookmarks > Add Bookmark
 # keeps the page, and the rest of that menu goes to one. A restart brings
 # every tab back. Without Chromium or Chrome installed the window says so.
+#
+# Control Panel > Browser (Gitea #276) sets the home page a new window and
+# tab open at, the search, how a page is drawn -- following Pictures, half
+# blocks, pixels, or text only, the page's words wrapped to the window with
+# each link numbered -- and what each tab is told: JavaScript, images, dark
+# pages, zoom, the user agent. The program, the profile and extra flags
+# are read when Chromium next starts.
 
 strict
 
-app browser "The web, in a window" 1.0
+app browser "The web, in a window" 1.1
 # modules: web
+# part: control-panel/browserset.hibr
 
 command -v dt_app > /dev/null && dt_app browser "Browser" 26 96 many "◎"
 
@@ -30,6 +38,18 @@ command -v dt_keepstate > /dev/null && dt_keepstate browser BW
 
 BW_SEARCH="${BW_SEARCH-https://lite.duckduckgo.com/lite/?q=}"
 BW_HOME="${BW_HOME-https://lite.duckduckgo.com/lite/}"
+BW_MODE="${BW_MODE-follow}"
+BW_JS="${BW_JS-1}"
+BW_IMAGES="${BW_IMAGES-1}"
+BW_DARK="${BW_DARK-0}"
+BW_ZOOM="${BW_ZOOM-100}"
+BW_UA="${BW_UA-}"
+BW_PROGRAM="${BW_PROGRAM-}"
+BW_PROFILE="${BW_PROFILE-}"
+BW_ARGS="${BW_ARGS-}"
+command -v dt_keep > /dev/null && dt_keep BW_HOME BW_SEARCH BW_MODE BW_JS \
+	BW_IMAGES BW_DARK BW_ZOOM BW_UA BW_PROGRAM BW_PROFILE BW_ARGS
+declare -gA BWX
 BW_MARKS="${BW_MARKS-${XDG_DATA_HOME:-$HOME/.local/share}/hibr/bookmarks.tsv}"
 BW_FD=
 BW_TABS=()
@@ -51,6 +71,7 @@ fn bw_addr(t) {
 		return 0
 	fi
 	q=${t// /+}
+	[ -n "$BW_SEARCH" ] || { ret "https://$q"; return 0; }
 	ret "$BW_SEARCH$q"
 }
 
@@ -71,14 +92,64 @@ bw_watch() {
 	return 0
 }
 
-# Open a tab in a window, at an address or blank, and make it the one shown.
+# What Chromium is started with, for whichever window starts it -- the
+# YouTube player asks for this too, since the two share one browser.
+bw_cfg() {
+	web config browser "$BW_PROGRAM" 2> /dev/null
+	web config profile "$BW_PROFILE" 2> /dev/null
+	web config args "$BW_ARGS" 2> /dev/null
+	return 0
+}
+
+# What one tab is told: the browser keeps each per page, so the YouTube
+# player's own tabs are left as they are.
+fn bw_apply(t) {
+	local on=on
+
+	[ "$BW_JS" = 1 ] || on=off
+	web set "$t" js "$on" 2> /dev/null
+	on=on
+	[ "$BW_IMAGES" = 1 ] || on=off
+	web set "$t" images "$on" 2> /dev/null
+	on=off
+	[ "$BW_DARK" = 1 ] && on=on
+	web set "$t" dark "$on" 2> /dev/null
+	web set "$t" zoom "${BW_ZOOM:-100}" 2> /dev/null
+	web set "$t" ua "$BW_UA" 2> /dev/null
+	return 0
+}
+
+# A setting changed: every Browser tab is told again, and loaded again when
+# what was changed only reaches a page as it loads (JavaScript, images, the
+# user agent).
+fn bw_reapply(again = "") {
+	local id t
+
+	for id in "${!BW[@]}"; do
+		[ -n "${BW[$id]["tabs"]+x}" ] || continue
+		bw_tabs "$id"
+		for t in "${BW_TABS[@]}"; do
+			bw_apply "$t"
+			[ -n "$again" ] && web reload "$t" 2> /dev/null
+		done
+		BW[$id]["tdone"]=
+	done
+	return 0
+}
+
+# Open a tab in a window, at an address or the home page, and make it the
+# one shown; with no home page it is blank and the keyboard in the address.
 fn bw_newtab(int id, url = "") {
 	local t
 
-	t := web open "$url" 2> /dev/null || {
+	[ -z "$url" ] && [ -n "$BW_HOME" ] && url := bw_addr "$BW_HOME"
+	bw_cfg
+	t := web open 2> /dev/null || {
 		BW[$id]["err"]="No Chromium or Chrome to show pages with -- install one, or set HIBR_WEB_BROWSER"
 		return 1
 	}
+	bw_apply "$t"
+	[ -n "$url" ] && web go "$t" "$url" 2> /dev/null
 	bw_watch
 	BW[$id]["tabs"]="${BW[$id]["tabs"]:+${BW[$id]["tabs"]} }$t"
 	BW[$id]["cur"]=$t
@@ -136,6 +207,9 @@ fn browser_close(int id) {
 	bw_tabs "$id"
 	for t in "${BW_TABS[@]}"; do web close "$t" 2> /dev/null; done
 	unset "BW[$id]"
+	for t in "${!BWX[@]}"; do
+		[[ $t == "$id:"* ]] && unset BWX["$t"]
+	done
 	ids := dt_ids
 	read -ra il <<< "$ids"
 	for o in "${il[@]}"; do
@@ -288,20 +362,26 @@ fn browser_draw(int id, int h, int w, int row, int col) {
 	# paint them: the page is then the page, with no text layer of its own
 	# (ADR 0037), so nothing is drawn over it. Set once per tab, and again
 	# when the setting changes.
-	bwm=cells
-	case $DT_IMGMODE in
-	pixels | sixel) bwm=pixels ;;
-	auto | "")
-		dt_imgpix && bwm=pixels
-		;;
-	esac
-	if [ "${BW[$id]["pixels"]}" != "$bwm" ]; then
+	bw_drawmode
+	bwm=$BW_DRAWN
+	if [ "${BW[$id]["pixels"]}" != "$t $bwm" ]; then
 		web mode "$t" "$bwm" 2> /dev/null
-		BW[$id]["pixels"]=$bwm
+		BW[$id]["pixels"]="$t $bwm"
 	fi
 	web poll > /dev/null 2>&1
 	st=
 	web loading "$t" 2> /dev/null && st=loading
+	if [ "$bwm" = text ]; then
+		bw_text "$id" "$t" "$ph" "$w"
+		[ "$st" = loading ] && dt_want 400
+		bw_status "$id" "$h" "$w" "$st"
+		command -v dt_retitle > /dev/null && {
+			tt := web title "$t" 2> /dev/null
+			tt := dt_wintitle Browser "$tt"
+			dt_retitle "$id" "$tt"
+		}
+		return 0
+	fi
 	if web dirty "$t" 2> /dev/null || [ "${BW[$id]["drawn"]}" != "$t" ]; then
 		web render "$t" 2> /dev/null && BW[$id]["drawn"]=$t
 	fi
@@ -325,12 +405,139 @@ fn browser_draw(int id, int h, int w, int row, int col) {
 	}
 }
 
+# How a page is drawn now, into BW_DRAWN: text, pixels or cells. Follow is
+# Control Panel > Pictures, pixels where it asks for them and the terminal
+# can paint them; Half Blocks and Pixels say outright.
+BW_DRAWN=cells
+bw_drawmode() {
+	BW_DRAWN=cells
+	case $BW_MODE in
+	text) BW_DRAWN=text ;;
+	pixels) BW_DRAWN=pixels ;;
+	half) ;;
+	*)
+		case $DT_IMGMODE in
+		pixels | sixel) BW_DRAWN=pixels ;;
+		auto | "") dt_imgpix && BW_DRAWN=pixels ;;
+		esac
+		;;
+	esac
+	return 0
+}
+
+# What the Control Panel says a page is drawn as now, for its Drawn Now row.
+bw_drawnname() {
+	bw_drawmode
+	case $BW_DRAWN in
+	text) ret "text only" ;;
+	pixels) ret "pixels" ;;
+	*) ret "half blocks" ;;
+	esac
+}
+
+# The page's words, each link followed by its number in brackets, and the
+# addresses after a record separator, one a line. Read with the page's own
+# DOM -- the browser runs this whether or not the page may run scripts.
+BW_READER="(()=>{const l=[],m=[];document.querySelectorAll('a[href]').forEach(a=>{if(!a.innerText.trim())return;l.push(a.href);const s=document.createElement('span');s.textContent='['+l.length+']';a.after(s);m.push(s)});const t=document.body?document.body.innerText:'';m.forEach(s=>s.remove());return t+String.fromCharCode(30)+l.join(String.fromCharCode(10))})()"
+
+# Read the page again as text and wrap it to w columns, into BWX under the
+# window: n lines, l<i> each, u<n> each link's address.
+fn bw_textread(int id, t, int w) {
+	local r body links line seg cut n=0 k=0 rs=$'\x1e'
+	local -a ls us
+
+	r := web eval "$t" "$BW_READER" 2> /dev/null || r=
+	body=${r%%"$rs"*}
+	links=
+	[[ $r == *"$rs"* ]] && links=${r#*"$rs"}
+	for k in "${!BWX[@]}"; do
+		[[ $k == "$id:"* ]] && unset BWX["$k"]
+	done
+	mapfile -t ls <<< "$body"
+	for line in "${ls[@]}"; do
+		line=${line%$'\r'}
+		while [ "${#line}" -gt "$w" ]; do
+			seg=${line:0:$w}
+			cut=${seg% *}
+			[ "$cut" = "$seg" ] || [ -z "$cut" ] && cut=$seg
+			BWX["$id:l$n"]=$cut
+			n=$((n + 1))
+			line=${line:${#cut}}
+			line=${line# }
+		done
+		BWX["$id:l$n"]=$line
+		n=$((n + 1))
+	done
+	BWX["$id:n"]=$n
+	k=0
+	mapfile -t us <<< "$links"
+	for line in "${us[@]}"; do
+		[ -n "$line" ] || continue
+		k=$((k + 1))
+		BWX["$id:u$k"]=$line
+	done
+	BW[$id]["tdone"]="$t $w"
+}
+
+# Text only: the page's words, scrolled from ttop, each [n] a link to click.
+fn bw_text(int id, t, int ph, int w) {
+	local n top r=0 line rest pre num x vis=$((ph - 1)) tw=$((w - 2))
+
+	if web dirty "$t" 2> /dev/null || [ "${BW[$id]["tdone"]}" != "$t $tw" ]; then
+		web render "$t" 2> /dev/null
+		bw_textread "$id" "$t" "$tw"
+		BW[$id]["ttop"]=0
+	fi
+	n=${BWX["$id:n"]:-0}
+	top := dt_scrollfit "${BW[$id]["ttop"]:-0}" "$n" "$vis"
+	BW[$id]["ttop"]=$top
+	BW[$id]["tvis"]=$vis
+	console pen "$DT_INK" "$DT_FACE"
+	while [ "$r" -lt "$vis" ]; do
+		line=${BWX["$id:l$((top + r))"]-}
+		console put -p "w$id" $((r + 3)) 2 "$line"
+		rest=$line
+		x=2
+		while [[ $rest == *"["[0-9]*"]"* ]]; do
+			pre=${rest%%"["[0-9]*}
+			rest=${rest:${#pre}}
+			num=${rest#"["}
+			num=${num%%"]"*}
+			if [[ $num == +([0-9]) ]] && [ -n "${BWX["$id:u$num"]+x}" ]; then
+				console pen "$DT_ACTIVE" "$DT_FACE"
+				console put -p "w$id" $((r + 3)) $((x + ${#pre})) "[$num]"
+				dt_wreg "$id" $((r + 3)) $((x + ${#pre})) $((${#num} + 2)) "link:$num"
+				console pen "$DT_INK" "$DT_FACE"
+			fi
+			x=$((x + ${#pre} + 1))
+			rest=${rest:1}
+		done
+		r=$((r + 1))
+	done
+	[ "$n" -gt "$vis" ] && command -v dt_scrollbar > /dev/null &&
+		dt_scrollbar "$id" 3 "$w" "$vis" "$n" "$vis" "$top"
+	return 0
+}
+
+# Scroll the text a key's or a wheel's worth; status 1 for a key it does
+# not take.
+fn bw_textmove(int id, k) {
+	local n=${BWX["$id:n"]:-0} vis top
+
+	vis=${BW[$id]["tvis"]:-10}
+	top := dt_scrollmove "$k" "${BW[$id]["ttop"]:-0}" "$n" "$vis" || return 1
+	BW[$id]["ttop"]=$top
+	return 0
+}
+
 # The bottom line: loading, or the page's address.
 fn bw_status(int id, int h, int w, st = "") {
 	local t
 
 	if [ "$st" = loading ]; then
 		t="Loading${GL[ellipsis]}"
+	elif [ "$BW_MODE" = text ]; then
+		t="Text only ${GL[dot]} f6 address ${GL[dot]} click a [number] to follow it"
 	else
 		t="f6 address ${GL[dot]} alt-b back ${GL[dot]} alt-f forward"
 	fi
@@ -367,6 +574,11 @@ fn browser_key(int id, key) {
 	alt-f) [ -n "$t" ] && web forward "$t" 2> /dev/null; return 0 ;;
 	f5) [ -n "$t" ] && web reload "$t" 2> /dev/null; return 0 ;;
 	esac
+	bw_drawmode
+	if [ "$BW_DRAWN" = text ]; then
+		bw_textmove "$id" "$key" && return 0
+		[ "$key" = " " ] && bw_textmove "$id" pagedown && return 0
+	fi
 	for k in "${!DT_KEYS[@]}"; do
 		[ "${DT_KEYS["$k"]}" = "$key" ] && return 1
 	done
@@ -392,8 +604,15 @@ fn browser_click(int id, int r, int c, btn = "") {
 	forward) [ -n "$t" ] && web forward "$t" 2> /dev/null; return 0 ;;
 	reload) [ -n "$t" ] && web reload "$t" 2> /dev/null; return 0 ;;
 	addr) bw_editaddr "$id"; return 0 ;;
+	link:*)
+		[ -n "$t" ] && [ -n "${BWX["$id:u${tag#link:}"]+x}" ] &&
+			web go "$t" "${BWX["$id:u${tag#link:}"]}" 2> /dev/null
+		return 0
+		;;
 	esac
 	BW[$id]["aed"]=
+	bw_drawmode
+	[ "$BW_DRAWN" = text ] && return 0
 	[ -n "$t" ] && [ "$r" -ge 3 ] && web click "$t" $((r - 3)) $((c - 1)) 2> /dev/null
 	return 0
 }
@@ -402,6 +621,15 @@ fn browser_wheel(int id, dir, int r = 0, int c = 0) {
 	local t=${BW[$id]["cur"]}
 
 	[ -n "$t" ] || return 0
+	bw_drawmode
+	if [ "$BW_DRAWN" = text ]; then
+		local top
+
+		top := dt_scrollmove "$dir" "${BW[$id]["ttop"]:-0}" \
+			"${BWX["$id:n"]:-0}" "${BW[$id]["tvis"]:-10}" "$DT_SCROLLWHEEL"
+		BW[$id]["ttop"]=$top
+		return 0
+	fi
 	case $dir in
 	up) web wheel "$t" -3 2> /dev/null ;;
 	down) web wheel "$t" 3 2> /dev/null ;;
@@ -486,6 +714,7 @@ fn bw_unmark(int id) {
 fn bw_open(int id, url) {
 	local t=${BW[$id]["cur"]}
 
+	[ -n "$url" ] && url := bw_addr "$url"
 	if [ -n "$t" ]; then
 		web go "$t" "$url" 2> /dev/null
 	else

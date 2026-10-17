@@ -467,6 +467,9 @@ int wb_render(wb_tab *t)
 	   Browser window then kept a blank new document for ever (Gitea
 	   #182). A failed render puts it back; nothing else would. */
 	t->dirty = 0;
+	if (t->textonly)
+		return HIBR_OK;
+	wb_zoomapply(t);
 	js = xm(sizeof wb_extract + 32);
 	snprintf(js, sizeof wb_extract + 32, wb_extract, WB_CW, WB_CH);
 	s_init(&out);

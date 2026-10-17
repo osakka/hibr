@@ -3998,6 +3998,12 @@ went in the shell.
   owner's kitty display within the hour. `unasked` is its own state, gets
   exactly what it got before, and is only ever a default -- the table of
   all five, with both sides of hold, is in `mods/gfxask.h`.
+  **A display carried through a 0.99.235 restart keeps `unknown` in the
+  session file until it reattaches**: that server wrote its default down
+  as an answer, and every server since reads the line back faithfully.
+  `hold gfx <session>` shows it; the cure is `desktop -r`, once per such
+  display, and no migration was added, since a file cannot tell that
+  record from a terminal that really did not answer.
 - **Being in a folder says where a file lands, not who it belongs to**
   (Gitea #271, ADR 0047, 0.99.230). The Makefile copied
   `programs/desktop/` whole and took out `apps/`, so eight panes of apps

@@ -6,7 +6,8 @@ Needs Chromium or Chrome; without one every check is skipped, and the
 suite says so rather than failing. Pages are files in a folder of their
 own, so nothing here touches the network.
 """
-import base64, os, shutil, subprocess, sys, tempfile, zlib
+import base64, functools, http.server, os, shutil, struct, subprocess
+import sys, tempfile, threading, zlib
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
@@ -48,6 +49,50 @@ open(os.path.join(D, "t.html"), "w").write(
     "<body style='background:#ffffff;margin:0'>"
     "<div style='color:#000000;font-size:38px;font-family:sans-serif'>"
     "WORDS WORDS WORDS<br>WORDS WORDS WORDS</div></body></html>")
+# Pages for Control Panel > Browser (Gitea #276), one a setting: a line a
+# script rewrites, a black picture on white, a dark scheme the page only
+# shows when asked, a word placed a known distance from the left, and a page
+# served over HTTP so a cookie can be set and forgotten.
+open(os.path.join(D, "j.html"), "w").write(
+    "<html><head><title>JS page</title></head><body><p id=x>STATICLINE</p>"
+    "<script>document.getElementById('x').textContent='SCRIPTEDLINE'</script>"
+    "</body></html>")
+
+
+def blackpng(w, h):
+    raw = b"".join(b"\x00" + b"\x00\x00\x00" * w for _ in range(h))
+
+    def ch(t, d):
+        return (struct.pack(">I", len(d)) + t + d +
+                struct.pack(">I", zlib.crc32(t + d) & 0xffffffff))
+    return (b"\x89PNG\r\n\x1a\n" +
+            ch(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)) +
+            ch(b"IDAT", zlib.compress(raw)) + ch(b"IEND", b""))
+
+
+open(os.path.join(D, "black"), "wb").write(blackpng(320, 160))
+open(os.path.join(D, "i.html"), "w").write(
+    "<html><head><title>Image page</title></head>"
+    "<body style='background:#fff;margin:0'><p>IMGPAGE</p>"
+    "<img src='black'></body></html>")
+open(os.path.join(D, "k.html"), "w").write(
+    "<html><head><title>Dark page</title><style>"
+    "body{background:#ffffff;color:#000}"
+    "@media (prefers-color-scheme: dark){body{background:#000000;color:#fff}}"
+    "</style></head><body><p>DARKTEST</p></body></html>")
+open(os.path.join(D, "z.html"), "w").write(
+    "<html><head><title>Zoom page</title></head><body style='margin:0'>"
+    "<div style='margin-left:160px;font-family:monospace'>ZMARK</div>"
+    "</body></html>")
+class Quiet(http.server.SimpleHTTPRequestHandler):
+    def log_message(self, *a):
+        pass
+
+
+SRV = http.server.ThreadingHTTPServer(
+    ("127.0.0.1", 0), functools.partial(Quiet, directory=D))
+threading.Thread(target=SRV.serve_forever, daemon=True).start()
+HTTPB = "http://127.0.0.1:%d/b.html" % SRV.server_address[1]
 A = "file://" + os.path.join(D, "a.html")
 B = "file://" + os.path.join(D, "b.html")
 S = "file://" + os.path.join(D, "s.html")
@@ -143,7 +188,8 @@ def brun(feed, arg=A, env=None, wait=1.5, until=None, gone=None, ready=None,
                        'dt_new Browser 22 76 1 2 browser %s\ndt_run\ndt_close\n'
                        % (load("console"), tree("programs/desktop/desktop.hibr"),
                           tree("programs/desktop/apps/Internet/browser.hibr"), arg))
-    e = {"HIBR_WEB_PROFILE": PROF, "XDG_DATA_HOME": os.path.join(D, "data")}
+    e = {"HIBR_WEB_PROFILE": PROF, "XDG_DATA_HOME": os.path.join(D, "data"),
+         "BW_HOME": ""}
     e.update(env or {})
     t = Term(p, env=e, settle=3.0, rows=26, cols=80, cellw=cell[0], cellh=cell[1])
     # Chromium's own start-up is what a fixed settle cannot bound: under a
@@ -269,5 +315,88 @@ sc = brun([], env={"HIBR_WEB_BROWSER": "/nonexistent/chromium"})
 check("without a browser to drive, the window says what is missing",
       sc.find("No Chromium or Chrome") is not None, sc)
 
+# --- Control Panel > Browser (Gitea #276) --------------------------------------
+
+J = "file://" + os.path.join(D, "j.html")
+IM = "file://" + os.path.join(D, "i.html")
+K = "file://" + os.path.join(D, "k.html")
+Z = "file://" + os.path.join(D, "z.html")
+
+sc = brun([], arg="", env={"BW_HOME": B}, until="This is page B.")
+check("a new window opens at the home page",
+      sc.find("This is page B.") is not None, sc)
+on = brun([], arg=J, until="SCRIPTEDLINE")
+off = brun([], arg=J, env={"BW_JS": "0"}, until="STATICLINE")
+check("JavaScript off: the page's own script does not run",
+      on.find("SCRIPTEDLINE") is not None and
+      off.find("STATICLINE") is not None and off.find("SCRIPTEDLINE") is None,
+      (on, off))
+
+
+def darkcells(sc):
+    n = 0
+    for r in range(3, 24):
+        for c in range(1, 79):
+            bg = sc.style(r, c).get("bg") or ""
+            if bg.startswith("#") and len(bg) == 7 and \
+               max(int(bg[1:3], 16), int(bg[3:5], 16), int(bg[5:7], 16)) < 0x10:
+                n += 1
+    return n
+
+
+on = brun([2.0], arg=IM, until="IMGPAGE", env={"DT_IMGMODE": "half"})
+off = brun([2.0], arg=IM, until="IMGPAGE",
+           env={"DT_IMGMODE": "half", "BW_IMAGES": "0"})
+check("Images off: the page lays out without its pictures",
+      darkcells(on) > 50 and darkcells(off) == 0,
+      (darkcells(on), darkcells(off)))
+light = brun([1.0], arg=K, until="DARKTEST", env={"DT_IMGMODE": "half"})
+dark = brun([1.0], arg=K, until="DARKTEST",
+            env={"DT_IMGMODE": "half", "BW_DARK": "1"})
+pl, pd = light.find("DARKTEST"), dark.find("DARKTEST")
+check("Ask Sites for Dark Pages: a page's dark scheme is what is drawn",
+      pl is not None and pd is not None and
+      light.style(pl[0], pl[1])["bg"] == "#ffffff" and
+      dark.style(pd[0], pd[1])["bg"] == "#000000",
+      (light.style(*pl) if pl else light, dark.style(*pd) if pd else dark))
+z1 = brun([1.0], arg=Z, until="ZMARK", env={"DT_IMGMODE": "half"})
+z2 = brun([1.0], arg=Z, until="ZMARK",
+          env={"DT_IMGMODE": "half", "BW_ZOOM": "200"})
+p1, p2 = z1.find("ZMARK"), z2.find("ZMARK")
+check("Page Zoom: the page is laid out larger, its words further in",
+      p1 is not None and p2 is not None and p2[1] - p1[1] >= 15,
+      (p1, p2))
+sc = brun([], arg=A, env={"BW_MODE": "text"}, until="link to b[1]")
+check("Text only: the page's words, each link numbered, and no picture",
+      sc.find("Hello hibr") is not None and sc.find("link to b[1]") is not None
+      and not sc.images, sc)
+sc = brun([1.0], arg=A, env={"BW_MODE": "text"}, ready="link to b[1]",
+          click=("[1]", 1), until="This is page B.")
+check("and a click on a link's number follows it",
+      sc.find("This is page B.") is not None, sc)
+out, err = hb("t := web open; web set $t ua hibr-test/1; web go $t %s;"
+              " web wait $t 10000; web eval $t navigator.userAgent" % A)
+check("a tab's user agent is the one it is told",
+      out.strip() == "hibr-test/1", out + err)
+out, err = hb("t := web open %s; web wait $t 10000;"
+              " web eval $t \"document.cookie='k=v; max-age=3600'\" > /dev/null;"
+              " a := web eval $t document.cookie; web clear cookies;"
+              " web reload $t; web wait $t 10000;"
+              " b := web eval $t document.cookie; echo \"[$a] [$b]\"" % HTTPB)
+check("Clear Cookies forgets what a site set",
+      "[k=v] []" in out, out + err)
+out, err = hb("t := web open %s; web wait $t 10000; web go $t %s;"
+              " web wait $t 10000; web clear cache; echo \"cache $?\";"
+              " web clear history $t; web back $t; echo \"back $?\";"
+              " web title $t" % (A, B))
+check("Clear Cache asks the browser to forget; Clear History empties back",
+      "cache 0" in out and "back 1" in out and "Page B" in out, out + err)
+out, err = hb("t := web open; web set $t js maybe; echo \"st $?\";"
+              " web set $t zoom 5; echo \"st $?\"; web clear nothing;"
+              " echo \"st $?\"")
+check("web set and web clear refuse what they do not know",
+      out.split() == ["st", "2", "st", "2", "st", "2"], out + err)
+
+SRV.shutdown()
 shutil.rmtree(D, True)
-report(20)
+report(31)

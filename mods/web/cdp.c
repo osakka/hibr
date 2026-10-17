@@ -50,7 +50,8 @@ char *wb_find(void)
 	static const char *mac[] = {
 		"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
 		"/Applications/Chromium.app/Contents/MacOS/Chromium", 0 };
-	const char *e = getenv("HIBR_WEB_BROWSER"), *path = getenv("PATH");
+	const char *e = wb.cfbin ? wb.cfbin : getenv("HIBR_WEB_BROWSER");
+	const char *path = getenv("PATH");
 	const char *p, *q;
 	str c;
 	int i;
@@ -98,7 +99,7 @@ void wb_mkdirs(const char *d)
 /* The profile the browser keeps its cookies and history in. */
 char *wb_profdir(void)
 {
-	const char *e = getenv("HIBR_WEB_PROFILE"), *x, *h;
+	const char *e = wb.cfprof ? wb.cfprof : getenv("HIBR_WEB_PROFILE"), *x, *h;
 	str p;
 
 	if (e && *e)
@@ -159,7 +160,7 @@ void wb_useragent(void)
 int wb_spawn(const char *bin, const char *prof)
 {
 	int toc[2], fromc[2], i, n;
-	const char *extra = getenv("HIBR_WEB_ARGS");
+	const char *extra = wb.cfargs ? wb.cfargs : getenv("HIBR_WEB_ARGS");
 	vec av = { 0, 0, 0 };
 	str ud;
 	char *xa = 0, *t;
@@ -412,6 +413,8 @@ void wb_event(jv *m)
 		   !strcmp(meth, "Page.navigatedWithinDocument") ||
 		   !strcmp(meth, "Page.frameNavigated")) {
 		t->dirty = 1;
+	} else if (!strcmp(meth, "Fetch.requestPaused")) {
+		wb_imgpaused(t, m);
 	} else if (!strcmp(meth, "Page.javascriptDialogOpening")) {
 		wb_send("Page.handleJavaScriptDialog", "{\"accept\":true}",
 			t->session);

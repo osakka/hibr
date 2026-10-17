@@ -34,7 +34,7 @@ PARTS = {
              "the terminal window", "glyphs", "what a frame redraws"],
     "more": None,
 }
-PLAN = {"panel": 259, "reach": 130, "core": 114, "more": 145}
+PLAN = {"panel": 261, "reach": 130, "core": 114, "more": 145}
 SLOW = {"run", "cprun", "wrrun", "shrun", "check", "Term", "report", "run_img"}
 
 

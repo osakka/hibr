@@ -2758,9 +2758,14 @@ diff = [(r, c) for r in range(plain.rows) for c in range(plain.cols)
         if plain.at(r, c) != forced.at(r, c)
         or plain.style(r, c) != forced.style(r, c)]
 # The clock in the bar and the two meters are readings, not drawings: a
-# second between the runs legitimately moves them.
-diff = [(r, c) for (r, c) in diff if r not in (0, plain.rows - 2,
-                                               plain.rows - 3)]
+# second between the runs legitimately moves them. The meters are found by
+# their own labels: this used to leave out the terminal's last rows but
+# two, which the meters are not on, and passed only while the machine's
+# memory held still between the two runs -- under a full gate it moved a
+# point, and MEM's 10% against 11% failed a release.
+meters = [r for r in range(plain.rows)
+          if " CPU " in plain.row(r) or " MEM " in plain.row(r)]
+diff = [(r, c) for (r, c) in diff if r != 0 and r not in meters]
 check("and About with its own _dirty draws what a forced redraw would",
       not diff, (diff[:12], plain, forced))
 # And the other half of offering a _dirty: about_draw is where

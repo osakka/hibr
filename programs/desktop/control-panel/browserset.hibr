@@ -1,0 +1,260 @@
+#!/usr/bin/env hibr
+#
+# browserset -- the Control Panel pane for the Browser (Gitea #276): the
+# home page and the search, how a page is drawn, what each tab is told --
+# JavaScript, images, dark pages, zoom, the user agent -- what Chromium is
+# started with, and forgetting cookies, the cache and the back and forward
+# lists. Named browserset, not browser, because the app owns the browser_
+# prefix. The words are typed in a small window of their own, bwfield.
+
+strict
+
+app browserset "The Control Panel pane for the Browser" 1.0
+command -v cp_pane > /dev/null && cp_pane browserset "Browser" "◎" app
+command -v dt_app > /dev/null &&
+	dt_app bwfield "Browser Setting" 8 64 "" "" fixed hidden
+
+BW_SEARCH="${BW_SEARCH-https://lite.duckduckgo.com/lite/?q=}"
+BW_HOME="${BW_HOME-https://lite.duckduckgo.com/lite/}"
+BW_MODE="${BW_MODE-follow}"
+BW_JS="${BW_JS-1}"
+BW_IMAGES="${BW_IMAGES-1}"
+BW_DARK="${BW_DARK-0}"
+BW_ZOOM="${BW_ZOOM-100}"
+BW_UA="${BW_UA-}"
+BW_PROGRAM="${BW_PROGRAM-}"
+BW_PROFILE="${BW_PROFILE-}"
+BW_ARGS="${BW_ARGS-}"
+command -v dt_keep > /dev/null && dt_keep BW_HOME BW_SEARCH BW_MODE BW_JS \
+	BW_IMAGES BW_DARK BW_ZOOM BW_UA BW_PROGRAM BW_PROFILE BW_ARGS
+
+# follow is Control Panel > Pictures; text draws the page's words alone.
+BS_MODES=(follow half pixels text)
+BS_ZOOMS=(50 67 75 80 90 100 110 125 150 175 200)
+declare -gA BSF
+
+# Tell every open Browser tab again; again loads each page again too.
+fn bs_tell(again = "") {
+	dt_needs browser bw_reapply && bw_reapply "$again"
+	return 0
+}
+
+fn cp_set_bwmode(int? id = "", value = "") { BW_MODE=$value; cp_save; }
+fn cp_set_bwzoom(int? id = "", int? value = "") {
+	BW_ZOOM=$value
+	cp_save
+	bs_tell
+}
+
+# One typed row: the words it holds, and the dialog that types them. Its
+# name is written where it is called, so the catalogue finds it.
+fn bs_row(int w, int n, var) {
+	CP[$w][$n]["kind"]=action; CP[$w][$n]["val"]="${!var}"
+	CP[$w][$n]["key"]="field:$var"
+}
+
+fn browserset_rows(int w) {
+	local n=0 md
+
+	dt_has browser_draw || { cp_absent "$w" Browser; ret 1; }
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Pages"; n=$((n + 1))
+	CP[$w][$n]["text"]="Home Page"; bs_row "$w" "$n" BW_HOME; n=$((n + 1))
+	CP[$w][$n]["text"]="Search With"; bs_row "$w" "$n" BW_SEARCH; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Picture"
+	CP[$w][$n]["val"]="$BW_MODE"; CP[$w][$n]["key"]=mode
+	n=$((n + 1))
+	if [ "$BW_MODE" = follow ]; then
+		md := bw_drawnname
+		CP[$w][$n]["kind"]=info; CP[$w][$n]["text"]="Drawn Now"
+		CP[$w][$n]["val"]=$md; n=$((n + 1))
+	fi
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="JavaScript"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$BW_JS" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=BW_JS; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Images"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$BW_IMAGES" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=BW_IMAGES; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Ask Sites for Dark Pages"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "$BW_DARK" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=BW_DARK; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Page Zoom"
+	CP[$w][$n]["val"]="$BW_ZOOM"; CP[$w][$n]["key"]=zoom
+	n=$((n + 1))
+	CP[$w][$n]["text"]="User Agent"; bs_row "$w" "$n" BW_UA; n=$((n + 1))
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="When Chromium Next Starts"
+	n=$((n + 1))
+	CP[$w][$n]["text"]="Program"; bs_row "$w" "$n" BW_PROGRAM; n=$((n + 1))
+	CP[$w][$n]["text"]="Profile Folder"; bs_row "$w" "$n" BW_PROFILE; n=$((n + 1))
+	CP[$w][$n]["text"]="Extra Flags"; bs_row "$w" "$n" BW_ARGS; n=$((n + 1))
+	CP[$w][$n]["kind"]=head; CP[$w][$n]["text"]="Forget"; n=$((n + 1))
+	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Clear Cookies"
+	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=cookies; n=$((n + 1))
+	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Clear Cache"
+	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=cache; n=$((n + 1))
+	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Clear History"
+	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=history; n=$((n + 1))
+	ret "$n"
+}
+
+# Forget one kind of thing the browser keeps, and say so.
+fn bs_clear(what) {
+	need web 2> /dev/null || { dt_notep high "The web module is not installed"; return 0; }
+	dt_needs browser bw_cfg && bw_cfg
+	if web clear "$what" 2> /dev/null; then
+		case $what in
+		cookies) dt_note "Cookies cleared" ;;
+		cache) dt_note "Cache cleared" ;;
+		history) dt_note "History cleared" ;;
+		esac
+	else
+		dt_notep high "No Chromium or Chrome to clear"
+	fi
+}
+
+fn browserset_do(int? w = "", k = "", int? dir = "") {
+	local v
+
+	case $k in
+	mode) v := cp_next "$BW_MODE" "$dir" "${BS_MODES[@]}"; BW_MODE=$v ;;
+	zoom)
+		v := cp_next "$BW_ZOOM" "$dir" "${BS_ZOOMS[@]}"
+		BW_ZOOM=$v
+		bs_tell
+		;;
+	BW_DARK) cp_toggle "$k"; bs_tell ;;
+	BW_JS | BW_IMAGES) cp_toggle "$k"; bs_tell again ;;
+	field:*) bs_dialog "${k#field:}" ;;
+	cookies | cache | history) bs_clear "$k" ;;
+	esac
+	cp_save
+}
+
+fn browserset_drop(int? w = "", int? r = "", int? c = "", k = "") {
+	case $k in
+	mode) dt_droplist "$w" "$r" "$c" cp_set_bwmode "${BS_MODES[@]}" ;;
+	zoom) dt_droplist "$w" "$r" "$c" cp_set_bwzoom "${BS_ZOOMS[@]}" ;;
+	esac
+}
+
+# --- the field dialog ---------------------------------------------------------
+
+# Type one of the words: a small window with the field, Save and Cancel.
+fn bs_dialog(var) {
+	local h=8 w=64 r c rid v
+
+	r=$((DT_ROWS / 2 - h / 2))
+	c=$(((DT_COLS - w) / 2))
+	rid := dt_new "Browser Setting" "$h" "$w" "$r" "$c" bwfield
+	BSF[$rid]["var"]=$var
+	BSF[$rid]["buf"]=${!var}
+	v=${!var}
+	BSF[$rid]["cur"]=${#v}
+	BSF[$rid]["focus"]=text
+}
+
+fn bwfield_draw(int id, int h, int w, int row, int col) {
+	local f=${BSF[$id]["focus"]} on=0 var=${BSF[$id]["var"]}
+
+	dt_wclear "$id"
+	[ "$f" = text ] && on=1
+	console pen "$DT_INK" "$DT_FACE"
+	case $var in
+	BW_HOME) dt_tput "$id" 1 2 "Home page, opened by a new window or tab:" ;;
+	BW_SEARCH) dt_tput "$id" 1 2 "Search address; what is searched for goes at the end:" ;;
+	BW_UA) dt_tput "$id" 1 2 "User agent the pages are told:" ;;
+	BW_PROGRAM) dt_tput "$id" 1 2 "Program to run as the browser:" ;;
+	BW_PROFILE) dt_tput "$id" 1 2 "Folder for cookies, the cache and history:" ;;
+	BW_ARGS) dt_tput "$id" 1 2 "Extra flags for the browser:" ;;
+	esac
+	dt_textdraw "$id" 2 2 $((w - 4)) "${BSF[$id]["buf"]}" \
+		"${BSF[$id]["cur"]}" "$on"
+	dt_wreg "$id" 2 2 $((w - 4)) text
+	console pen "$DT_DIM" "$DT_FACE"
+	case $var in
+	BW_HOME) dt_tput "$id" 4 2 "Empty opens a blank page, ready to type in." ;;
+	BW_SEARCH) dt_tput "$id" 4 2 "Empty makes words typed in the address an address." ;;
+	BW_UA) dt_tput "$id" 4 2 "Empty is what the browser says it is." ;;
+	BW_PROGRAM) dt_tput "$id" 4 2 "Empty finds Chromium or Chrome. Used at the next start." ;;
+	BW_PROFILE) dt_tput "$id" 4 2 "Empty is hibr's own. Used at the next start." ;;
+	BW_ARGS) dt_tput "$id" 4 2 "Separated by spaces. Used at the next start." ;;
+	esac
+	dt_dlgbtns "$id" "$h" "$w" "$f" ok Save cancel Cancel
+}
+
+# Keep what was typed, and tell the tabs when it is theirs.
+fn bwfield_ok(int id) {
+	local var=${BSF[$id]["var"]} v=${BSF[$id]["buf"]}
+
+	case $var in
+	BW_PROFILE) case $v in "~") v=$HOME ;; "~/"*) v="$HOME/${v#"~/"}" ;; esac ;;
+	esac
+	printf -v "$var" '%s' "$v"
+	cp_save
+	[ "$var" = BW_UA ] && bs_tell again
+	dt_del "$id"
+}
+
+fn bwfield_click(int id, int r, int c, btn = "") {
+	local tag
+
+	tag := dt_hit "$id" "$r" "$c"
+	case $tag in
+	text) BSF[$id]["focus"]=text ;;
+	ok) bwfield_ok "$id" ;;
+	cancel) dt_del "$id" ;;
+	esac
+	return 0
+}
+
+fn bwfield_key(int id, key) {
+	local res f=${BSF[$id]["focus"]} d onb=1
+
+	[ "$f" = text ] && onb=0
+	if d := dt_focuskey "$key" "$onb"; then
+		BSF[$id]["focus"] := dt_focus "$f" "$d" text ok cancel
+		return 0
+	fi
+	case $key in
+	escape) dt_del "$id"; return 0 ;;
+	enter)
+		if [ "$f" = cancel ]; then dt_del "$id"; else bwfield_ok "$id"; fi
+		return 0
+		;;
+	esac
+	[ "$f" = text ] || return 0
+	res := dt_textkey "${BSF[$id]["buf"]}" "${BSF[$id]["cur"]}" "$key" ||
+		return 1
+	BSF[$id]["buf"]=${res% *}
+	BSF[$id]["cur"]=${res##* }
+	return 0
+}
+
+fn bwfield_close(int id) {
+	unset "BSF[$id]"
+}
+
+fn bwfield_copy(int id) {
+	[ "${BSF[$id]["focus"]}" = text ] || return 1
+	ret "${BSF[$id]["buf"]}"
+}
+
+fn bwfield_cut(int id) {
+	[ "${BSF[$id]["focus"]}" = text ] || return 1
+	local t=${BSF[$id]["buf"]}
+
+	BSF[$id]["buf"]=
+	BSF[$id]["cur"]=0
+	ret "$t"
+}
+
+fn bwfield_paste(int id, text, op = "") {
+	local r
+
+	BSF[$id]["focus"]=text
+	r := dt_textpaste "${BSF[$id]["buf"]}" "${BSF[$id]["cur"]}" "$text"
+	BSF[$id]["buf"]=${r% *}
+	BSF[$id]["cur"]=${r##* }
+}

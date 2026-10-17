@@ -31,7 +31,7 @@
 
 strict
 
-app youtube "YouTube, in a window" 1.4
+app youtube "YouTube, in a window" 1.5
 # part: control-panel/tube.hibr
 # modules: media web
 
@@ -103,6 +103,7 @@ fn yt_tab(int id, which) {
 	local t=${YT[$id]["$which"]}
 
 	if [ -z "$t" ]; then
+		dt_has bw_cfg && bw_cfg
 		t := web open 2> /dev/null || {
 			YT[$id]["err"]="No Chromium or Chrome to reach YouTube with -- install one, or set HIBR_WEB_BROWSER"
 			return 1

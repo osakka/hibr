@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.99.240
+
+**Control Panel > Browser** (Gitea #276).
+
+Asked for: a Browser pane with the home page, how pages are drawn, text
+only, and what Chromium's DevTools protocol lets the Browser set. Until now
+the Browser kept nothing a person chose, and its only settings were
+environment variables nobody sees. The first release is what the owner
+picked: everything the app or the module already had, plus JavaScript,
+Images, Dark Pages, Zoom and the three Clear actions.
+
+- **Pages.** Home Page is what a new window and a new tab open at, typed
+  like an address (empty is a blank page with the keyboard in the address).
+  Search With is the address words are searched at; empty makes them an
+  address.
+- **Picture**: Follow (Control Panel > Pictures, as before), Half Blocks,
+  Pixels, or **Text Only**. Text Only is the page's words wrapped to the
+  window, with each link followed by its number in brackets; clicking the
+  number follows the link, and the arrows, the page keys, space and the
+  wheel scroll. It is read from the page's own DOM, so it works with
+  JavaScript off.
+- **JavaScript**, **Images**, **Ask Sites for Dark Pages**, **Page Zoom**
+  and **User Agent** are told to each Browser tab, and to every open one
+  when changed. Scripts and pictures already loaded go when the page loads
+  again, which the pane does for them. They are per tab, so the YouTube
+  player sharing the same Chromium keeps its own. Images are refused by
+  resource type, which catches a picture with no file extension.
+- **When Chromium Next Starts**: Program, Profile Folder and Extra Flags,
+  over `HIBR_WEB_BROWSER`, `HIBR_WEB_PROFILE` and `HIBR_WEB_ARGS`. The
+  YouTube player asks for these too when it starts the browser, since there
+  is one browser for both.
+- **Forget**: Clear Cookies and Clear Cache for the whole profile, and
+  Clear History for the back and forward lists.
+
+The web module gains `web set T js|images|dark|zoom|ua`, `web config
+browser|profile|args`, `web clear cookies|cache|history` and `web mode T
+text`. Eleven new checks in `tests/web.py`, against pages of its own and a
+local HTTP server for the cookie. Each compares the page with the setting
+against the page without it, so each fails if the setting does nothing. Two
+more in the Control Panel part of `tests/apps.py` drive the pane's two
+dropdowns. Browser 1.1 (with its new pane), YouTube 1.5 and Arabic 2.1 in
+the catalogue.
+
 ## 0.99.239
 
 **The screen saver asks a playing window, once, instead of being told every

@@ -40,7 +40,13 @@ web close $t; web quit
 | `web size T rows cols` | lay the page out for that many cells |
 | `web render T` | take a frame: the text, the fields and the picture |
 | `web draw T row col [h w] [-p pane]` | draw the last frame on the display, into a pane if named |
-| `web mode T cells\|pixels` | how a page is drawn: text over the colours behind it, or the page itself as pixels where the terminal can paint them |
+| `web mode T cells\|pixels\|text` | how a page is drawn: text over the colours behind it, the page itself as pixels where the terminal can paint them, or nothing at all -- `text` makes a render read nothing, for a caller drawing the page's words itself |
+| `web set T js\|images\|dark on\|off` | what this tab's pages may do: run their scripts, fetch their pictures (refused by resource type, so an image with no extension is caught too), and be asked for their dark scheme (`prefers-color-scheme`). Per tab, so another program's tabs in the same browser keep theirs; scripts and pictures already loaded stay until the page loads again |
+| `web set T zoom PCT` | lay the page out PCT percent larger or smaller, 25 to 500; the extraction, the picture and the text all follow |
+| `web set T ua TEXT` | the user agent this tab's pages are told; empty puts back the module's own |
+| `web config browser\|profile\|args VALUE` | what the browser is started with next, over `HIBR_WEB_BROWSER`, `HIBR_WEB_PROFILE` and `HIBR_WEB_ARGS`; empty puts the environment's back |
+| `web clear cookies\|cache` | forget the whole profile's cookies, or its cache, starting the browser if it is not running |
+| `web clear history [T...]` | empty the back and forward lists of the tabs named, or of every tab |
 | `web click T row col` | press and release at a cell |
 | `web wheel T rows` | scroll, down with a positive number |
 | `web key T name` | a key by the console's name for it: `enter`, `backspace`, `tab`, `up`, `pagedown`, `shift-tab`, `ctrl-a`, a letter |
@@ -112,6 +118,8 @@ profile of its own, removed when it stops. `HIBR_WEB_BROWSER` names the
 browser to run, else the first of `chromium`, `chromium-browser`,
 `google-chrome`, `google-chrome-stable`, `chrome` on `PATH`, else Chrome or
 Chromium in `/Applications` on macOS; `HIBR_WEB_ARGS` adds flags to it.
+`web config` sets any of the three for the next start, ahead of the
+environment, which is how Control Panel > Browser names them.
 
 It is started without Chromium's automation flag, and every tab says it is
 the browser's own Chrome rather than "HeadlessChrome" (`HIBR_WEB_UA` gives

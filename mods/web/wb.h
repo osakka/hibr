@@ -61,6 +61,11 @@ struct wb_tab {
 	int pixels;
 	unsigned char *shot;
 	int shotw, shoth;
+	/* Set by `web set` and `web mode`: the page's zoom in percent (0 is
+	   100), whether a zoom style is on the page now, whether image
+	   requests are refused, and text only -- a render that reads nothing,
+	   since the caller draws the page's text itself. */
+	int zoom, zoomed, noimg, textonly;
 };
 
 /* The browser: one Chromium for the whole shell, driven over a pipe. */
@@ -74,6 +79,8 @@ struct wb_br {
 	char *profile;
 	int tmpprofile;
 	char *ua;
+	/* `web config`: what the next start runs, over the environment. */
+	char *cfbin, *cfprof, *cfargs;
 };
 
 extern wb_br wb;
@@ -115,5 +122,11 @@ int wb_b64(const char *in, size_t n, str *out);
 int wb_tap(wb_tab *t);
 int wb_tapseek(wb_tab *t);
 int wb_take(sh *s, wb_tab *t, int vfd, int afd);
+int wb_set(wb_tab *t, const char *k, const char *v);
+int wb_setua(wb_tab *t, const char *ua);
+void wb_imgpaused(wb_tab *t, jv *m);
+void wb_zoomapply(wb_tab *t);
+int wb_config(const char *k, const char *v);
+int wb_clear(int ac, char **av);
 
 #endif
