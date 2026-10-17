@@ -3992,6 +3992,12 @@ went in the shell.
   upgraded server read the flag as `1 kitty` and lose its primary --
   `hold gfx` is its own request. And `Screen.images` in the harness never
   drops a placement on `a=d`, so count control strings, not that list.
+  **Never asked is not the same as answered nothing** (#274, 0.99.236):
+  the first version read an old server's silence, and a display carried
+  across `hold upgrade` from one, as `unknown` and drew half blocks on the
+  owner's kitty display within the hour. `unasked` is its own state, gets
+  exactly what it got before, and is only ever a default -- the table of
+  all five, with both sides of hold, is in `mods/gfxask.h`.
 - **Being in a folder says where a file lands, not who it belongs to**
   (Gitea #271, ADR 0047, 0.99.230). The Makefile copied
   `programs/desktop/` whole and took out `apps/`, so eight panes of apps

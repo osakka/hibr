@@ -954,7 +954,7 @@ int hd_resume(sh *s)
 		if (sscanf(line, "gfx %d %d", &fd, &prim) == 2) {
 			struct hd_cli *cg = hd_cfind(&cls, fd);
 
-			if (cg && prim >= GX_UNKNOWN && prim <= GX_KITTY)
+			if (cg && prim >= GX_UNKNOWN && prim <= GX_UNASKED)
 				cg->gfx = prim;
 			continue;
 		}
@@ -975,6 +975,10 @@ int hd_resume(sh *s)
 			cn->primary = prim;
 			cn->xpix = xp;
 			cn->ypix = yp;
+			/* Unasked until a gfx line below says otherwise: a file
+			   from a server older than the asking has none, and its
+			   clients go on being sent what they were (Gitea #274). */
+			cn->gfx = GX_UNASKED;
 			s_cat(&cn->name, name);
 			v_add(&cls, cn);
 		}

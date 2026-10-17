@@ -76,6 +76,7 @@ primary nosuch: 1
 HIBR_HOLD names t4
 detach outside a session: 2
 --- a display above or left of the origin is taken into the union, not left outside it
+each display says what it draws: above none main kitty 
 nothing has moved anything yet: 0 0
 nothing is left at a negative row or column: 0
 and it says how far it moved everything: 10 4
@@ -84,6 +85,7 @@ the arrangement came through: above 0,0 main 10,4
 and so did how far it had moved: 10 4
 the arrangement is kept: above 0,0 main 10,4 
 and the union grew to hold it: 34x84
+and so did what each display draws: above none main kitty 
 --- upgrade takes the session onto the hibr on disk now
 upgrade: 0
 still listed: 1

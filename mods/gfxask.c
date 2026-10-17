@@ -175,6 +175,7 @@ const char *gx_name(int g)
 	case GX_KITTY: return "kitty";
 	case GX_SIXEL: return "sixel";
 	case GX_NONE: return "none";
+	case GX_UNASKED: return "unasked";
 	}
 	return "unknown";
 }
@@ -190,5 +191,7 @@ int gx_byname(const char *s)
 		return GX_SIXEL;
 	if (!strcmp(s, "none"))
 		return GX_NONE;
+	if (!strcmp(s, "unasked"))
+		return GX_UNASKED;
 	return GX_UNKNOWN;
 }

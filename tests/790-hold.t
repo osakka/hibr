@@ -350,10 +350,13 @@ case $(cat "$TMPDIR/where") in */hibr-hold-*/t4) echo "HIBR_HOLD names t4" ;; es
 # person arranged and gives the program one screen big enough for it.
 echo "--- a display above or left of the origin is taken into the union, not left outside it"
 hold new -d t14 /bin/sh -c 'sleep 120'
-a := pty spawn -r 24 -c 80 $H -c "$L; hold attach -n main t14; echo \"back rc=\$?\""
+a := pty spawn -r 24 -c 80 $H -c "$L; export HIBR_GFX=kitty; hold attach -n main t14; echo \"back rc=\$?\""
 sleep 0.6
-b := pty spawn -r 10 -c 40 $H -c "$L; hold attach -m -n above t14; echo \"back rc=\$?\""
+b := pty spawn -r 10 -c 40 $H -c "$L; export HIBR_GFX=none; hold attach -m -n above t14; echo \"back rc=\$?\""
 sleep 0.6
+# What each display's terminal said it draws -- here forced, so neither
+# waits on a question a test pty cannot answer (Gitea #258).
+echo "each display says what it draws: $(hold gfx t14 | sort | awk '{printf "%s %s ", $1, $2}')"
 echo "nothing has moved anything yet: $(hold shift t14)"
 hold move t14 above -10 -4
 echo "nothing is left at a negative row or column: $(hold clients t14 | awk '$2 < 0 || $3 < 0' | wc -l)"
@@ -376,6 +379,9 @@ echo "the arrangement came through: $(hold clients t14 | sort | awk '{printf "%s
 echo "and so did how far it had moved: $(hold shift t14)"
 echo "the arrangement is kept: $(hold clients t14 | sort | awk '{printf "%s %s,%s ", $1, $2, $3}')"
 echo "and the union grew to hold it: $(hold list | awk '$1 == "t14" { print $4 }')"
+# And what each display said, which decides what it is sent: dropped, a
+# kitty display would come back unasked (Gitea #274).
+echo "and so did what each display draws: $(hold gfx t14 | sort | awk '{printf "%s %s ", $1, $2}')"
 hold kill t14
 pty close $a
 pty close $b

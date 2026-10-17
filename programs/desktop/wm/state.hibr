@@ -121,9 +121,11 @@ DT_PRIMARY_ROW=0
 # reached neither of them (Gitea #238). A picture per display is
 # contained by construction, which keeps that rule true instead of
 # reversing it. Each entry is "row col rows cols gfx", gfx being what that
-# display's own terminal draws -- kitty, sixel, none, unknown, or self when
-# nothing is held -- so a display that cannot show pixels is drawn in half
-# blocks rather than sent a bitmap it cannot draw (Gitea #258).
+# display's own terminal draws -- kitty, sixel, none, unknown, unasked, or
+# self when nothing is held -- so a display that cannot show pixels is drawn
+# in half blocks rather than sent a bitmap it cannot draw (Gitea #258), and
+# one never asked is drawn as it was before the asking (Gitea #274). The
+# table of what each means is in mods/gfxask.h.
 DT_DISPLAYS=()
 
 # What `hold shift` answered when dt_size last asked -- "row col",

@@ -66,9 +66,15 @@ unsigned hd_hash(const char *p, size_t n)
 
 /* Whether a client's own terminal draws this picture: a kitty transmission
    (ESC _ G) for a terminal that said kitty, a sixel (ESC P) for one that
-   said sixel, and nothing for one that said neither or has not said. */
+   said sixel, and nothing for one that said neither or answered nothing. A
+   client that was never asked -- carried across an upgrade from a server
+   older than the asking -- is sent what it was sent before, every picture
+   it contains (Gitea #274); only the resume path makes one, never an
+   attach, so the gate stays shut for every client that could have said. */
 int hd_canshow(const struct hd_cli *cn, const char *p, size_t n)
 {
+	if (cn->gfx == GX_UNASKED)
+		return 1;
 	if (n >= 3 && p[0] == '\033' && p[1] == '_' && p[2] == 'G')
 		return cn->gfx == GX_KITTY;
 	if (n >= 2 && p[0] == '\033' && p[1] == 'P')

@@ -3304,6 +3304,33 @@ vt.close()
 subprocess.run([screen.HIBR, "-c", HOLDC + "hold kill vt"],
                env=dict(os.environ, **HENV), capture_output=True)
 
+# What the desktop makes of each display's answer (Gitea #258, #274), with
+# `hold` stubbed: a server that answers `hold gfx` decides per display, and
+# one too old to answer -- every session until `hold upgrade` -- leaves
+# every display `unasked`, drawn as it was before the asking. 0.99.235 read
+# an unanswered `hold gfx` as unknown and drew half blocks on a kitty
+# display whose server still sent it the picture.
+GSTUB = os.path.join(HOLD, "gstub.hibr")
+open(GSTUB, "w").write(
+    "%s. %s\n" % (load(MOD), WM)
+    + 'hold() {\n\tcase $1 in\n\tclients) ret "main 0 0 24 80 1\nside 0 80 24 80 0" ;;\n'
+    '\tgfx) [ -n "$NEWSERVER" ] || return 1; ret "main kitty\nside none" ;;\n'
+    '\tshift) ret "0 0" ;;\n\t*) return 1 ;;\n\tesac\n}\n'
+    'need() { return 0; }\ndt_imggfx() { ret "kitty 8 16"; }\nDT_IMGMODE=auto\n'
+    'dt_size\nfor d in "${DT_DISPLAYS[@]}"; do\n'
+    '\tread -r a b c e g <<< "$d"\n'
+    '\tdt_wallpixon "$g" && echo "$g pixels" || echo "$g blocks"\ndone\n')
+old = subprocess.run([screen.HIBR, GSTUB], capture_output=True, text=True,
+                     env=dict(os.environ, HIBR_HOLD="/nonexistent")).stdout
+new = subprocess.run([screen.HIBR, GSTUB], capture_output=True, text=True,
+                     env=dict(os.environ, HIBR_HOLD="/nonexistent",
+                              NEWSERVER="1")).stdout
+check("a server too old to say what each display draws leaves every display "
+      "unasked, and its wallpaper is drawn as before",
+      old.split("\n")[:2] == ["unasked pixels", "unasked pixels"], old)
+check("and one that says is followed display by display",
+      new.split("\n")[:2] == ["kitty pixels", "none blocks"], new)
+
 # And the wallpaper reaches both panes. hold forwards a picture only to a
 # client whose rectangle *contains* it, because a bitmap cannot be clipped
 # -- so one wallpaper spanning a stacked union was contained by neither
@@ -4830,6 +4857,41 @@ check("start.hibr keeps the session chosen in About Me, and keeps the rest",
       '"session": "shell"' in me and "Test Person" in me, me)
 check("and Shell is the person's own shell, started as a login shell",
       b"name=-sh" in r.stdout, r.stdout + r.stderr)
+
+# The box over a moving saver never shows the saver through it (Gitea
+# #259). sv_frame flushed the saver's frame on its own, before the box was
+# drawn over it and flushed again, so every frame reached the terminal
+# twice and the saver was on screen inside the box between the two --
+# measured as a toaster on the box's corner in 40 samples of 40, and five
+# of six savers bleeding. Sampled across several seconds rather than once,
+# since a single screen read after the last flush shows the box whole
+# either way: what is checked is every state the terminal is shown.
+t = Term(tree("programs/desktop/login/login.hibr"),
+         env={"LG_SERVICE": "nosuch", "LG_SAVER": "toasters",
+              "XDG_CONFIG_HOME": LGCFG, "LG_TITLE": "testbox",
+              "LG_CONFFILE": "/nonexistent"},
+         rows=ROWS, cols=COLS, settle=0.8)
+t.collect(1.0)
+t.send(b"x")
+t.collect(0.8)
+bw, bh = min(56, COLS - 2), 14
+br, bc = (ROWS - bh) // 2, (COLS - bw) // 2
+bled = []
+face = None
+for i in range(30):
+    t.collect(0.15)
+    sc = t.screen()
+    if face is None:
+        face = sc.style(br + 3, bc + 2)["bg"]
+    edge = [sc.at(br, bc), sc.at(br + bh - 1, bc + bw - 1)] + \
+        [sc.at(r, c) for r in range(br + 1, br + bh - 1) for c in (bc, bc + bw - 1)]
+    if edge[:2] != ["┌", "┘"] or set(edge[2:]) != {"│"} or any(
+            sc.style(r, c)["bg"] not in (face, "#2d3748")
+            for r in range(br + 1, br + bh - 1) for c in range(bc + 1, bc + bw - 1)):
+        bled.append(i)
+t.quit(b"", 1.0)
+check("the login box over a moving saver never shows the saver through it, "
+      "in any frame the terminal is sent", not bled, bled)
 shutil.rmtree(LGDIR, True)
 
 # --- recovering ------------------------------------------------------------
@@ -5541,4 +5603,4 @@ check("launching an app that is not installed says which one and where "
       sc.find("files is not installed") is not None
       and sc.find("Catalogue") is not None, sc)
 
-report(627)
+report(630)

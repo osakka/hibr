@@ -265,13 +265,15 @@ fn dt_wallkeep() {
 # has not said, gets half blocks instead -- hold sends it no bitmap, and a
 # picture's cells waiting for one would be a black rectangle (Gitea #258).
 # `self` is a desktop that is not held, whose one display is the
-# console's own terminal.
+# console's own terminal; `unasked` is a display attached before displays
+# were asked, which hold goes on sending pictures as it did before, so it
+# follows the session's own answer the same way (Gitea #274).
 fn dt_wallpixon(gx) {
 	local g
 
 	dt_imgwill || return 1
 	case $gx in
-	self) return 0 ;;
+	self | unasked) return 0 ;;
 	kitty | sixel)
 		g := dt_imggfx
 		[ "${g%% *}" = "$gx" ]

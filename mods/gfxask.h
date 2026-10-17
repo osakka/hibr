@@ -18,11 +18,28 @@
    asked in that order, so a device-attributes reply with no kitty answer
    before it is a real no to kitty as well (Gitea #216). */
 
+/* What a display's terminal draws, and what each answer means on either
+   side of hold:
+
+     answer    hold sends pictures             the desktop draws pixels
+     kitty     a kitty transmission            if the session draws kitty
+     sixel     a sixel                         if the session draws sixel
+     none      never                           never
+     unknown   never                           never
+     unasked   any it contains, as before      by the session's own answer
+
+   none is a terminal that answered and draws neither; unknown, one asked
+   that answered nothing. unasked is a display attached before displays
+   were asked at all -- carried across `hold upgrade` from an older server,
+   or seen by a desktop whose server cannot answer `hold gfx` -- and gets
+   what it got before 0.99.235 (Gitea #274). gx_probe never returns it,
+   and no client can declare it: it is only ever a default. */
 #ifndef GX_UNKNOWN
 #define GX_UNKNOWN 0
 #define GX_NONE 1
 #define GX_SIXEL 2
 #define GX_KITTY 3
+#define GX_UNASKED 4
 #endif
 
 /* The two questions, kitty's first, as one string to write. */

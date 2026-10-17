@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.99.236
+
+**A kitty display whose session predates 0.99.235 shows its picture
+wallpaper again** (Gitea #274), and **nothing shows through the box over a
+screen saver** (Gitea #259).
+
+0.99.235 drew each display's wallpaper by what that display's terminal had
+said, read with `hold gfx`, and drew half blocks for a display that had not
+said. Reported by the owner within the hour: a PNG wallpaper in kitty had
+become half blocks. Their session's server predated 0.99.235, so it could
+not answer `hold gfx`, and every display read as unknown -- while that
+server was still sending every picture to every display, as it always had.
+A display carried across `hold upgrade` from such a server had the same
+fault the other way: its old client never asked its terminal anything, and
+the new server stopped sending it pictures. Both are a display **never
+asked**, which is not the same fact as one that answered nothing. It has a
+state of its own now, `unasked`, and gets what it got before: hold sends it
+every picture it contains, and the desktop draws it by the session's own
+answer. `unknown` keeps its meaning -- a new client whose terminal answered
+nothing -- and still draws half blocks. A display's answer is carried
+across `hold upgrade` too, which `790-hold` now checks, and the desktop
+suite stubs a server that cannot answer and checks every display comes out
+`unasked`, drawn as before; that check fails against 0.99.235.
+
+**The screen saver showed through the login box, and the lock's.**
+`sv_frame` flushed the saver's frame itself, before the box was drawn over
+it and flushed again, so every frame reached the terminal twice and the
+saver was on screen inside the box between the two -- "the bottom shows
+through at times", as reported. Measured on the login screen: five of six
+savers bled into the box, a toaster sat on its corner in 40 samples of 40.
+`sv_frame` no longer flushes; whoever draws over it flushes once, and the
+stand-alone saver flushes its own frames. The desktop suite samples the
+login box over Flying Toasters for several seconds, every state the
+terminal is sent, and fails against 0.99.235.
+
 ## 0.99.235
 
 **A display that cannot show pictures is never sent one, and two displays

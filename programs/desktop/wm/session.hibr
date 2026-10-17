@@ -205,17 +205,23 @@ dt_size() {
 	# and a client attaching or leaving is a resize.
 	#
 	# Each entry ends in what that display's own terminal draws (Gitea
-	# #258): kitty, sixel, none or unknown, from `hold gfx`, or `self`
+	# #258): kitty, sixel, none, unknown or unasked, from `hold gfx`, or `self`
 	# when nothing is held and the console's own answer is the display's.
-	# A server too old to say answers nothing, and every display is then
-	# unknown -- half blocks, never a bitmap it may not be able to draw.
+	# A server too old to answer `hold gfx` still sends every display every
+	# picture, as it always did, so every display is then `unasked` and is
+	# drawn as before rather than in half blocks (Gitea #274) -- which is
+	# what 0.99.235 did, and a kitty display lost its picture for it.
 	DT_DISPLAYS=("0 0 $DT_ROWS $DT_COLS self")
 	if [ -n "$HIBR_HOLD" ] && need hold; then
 		lst := hold clients
-		gl := hold gfx 2> /dev/null || gl=
-		while IFS=' ' read -r gnm gv _; do
-			[ -n "$gnm" ] && dgfx["$gnm"]=$gv
-		done <<< "$gl"
+		if gl := hold gfx 2> /dev/null; then
+			while IFS=' ' read -r gnm gv _; do
+				[ -n "$gnm" ] && dgfx["$gnm"]=$gv
+			done <<< "$gl"
+			gv=unknown
+		else
+			gv=unasked
+		fi
 		DT_DISPLAYS=()
 		# No `break` on finding the primary: every display is wanted,
 		# and the primary is not always the first line. Breaking there
@@ -223,7 +229,7 @@ dt_size() {
 		# all anybody read.
 		while IFS=' ' read -r nm row col rows cols pri; do
 			[ -n "$nm" ] || continue
-			DT_DISPLAYS+=("$row $col $rows $cols ${dgfx["$nm"]:-unknown}")
+			DT_DISPLAYS+=("$row $col $rows $cols ${dgfx["$nm"]:-$gv}")
 			if [ "$pri" = 1 ]; then
 				DT_PRIMARY_COL=$col
 				DT_PRIMARY_W=$cols

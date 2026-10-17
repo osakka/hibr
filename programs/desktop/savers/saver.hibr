@@ -100,13 +100,17 @@ sv_size() {
 }
 
 # Draw the next frame, starting the saver again on a new size; the time
-# until the one after is the result.
+# until the one after is the result. It does not flush: the lock's box and
+# the login screen's are drawn over the frame and flushed with it, once. It
+# flushed on its own until 0.99.236, so every frame reached the terminal
+# twice -- the saver's cells over the box, then the box -- and the saver
+# showed through the box between the two, more often the more it moved
+# (Gitea #259).
 sv_frame() {
 	if console resized; then
 		sv_begin "$SV_NAME"
 	fi
 	"${SV_NAME}_frame" "$SV_ROWS" "$SV_COLS"
-	console flush
 	ret "${SV[$SV_NAME]["ms"]}"
 }
 
@@ -129,6 +133,7 @@ fn sv_main(name = "random") {
 	fi
 	while :; do
 		ms := sv_frame
+		console flush
 		k := console key "$ms"
 		[ -n "$k" ] && break
 	done
