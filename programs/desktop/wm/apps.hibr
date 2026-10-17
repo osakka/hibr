@@ -9,6 +9,12 @@ strict
 # Globals the functions below share, declared here so strict vars knows
 # they are meant to be.
 DT_APPDIR_CUR=
+# The file being sourced by one of the loaders, so whatever it registers
+# -- an app, a pane, a strip module -- remembers which file it came from,
+# and a rescan can take back everything a file registered once the file
+# has gone. One file may register several: Mail its compose window, the
+# Date & Time pane two dialogs.
+DT_LOADING=
 
 # What runs once when the desktop starts, after any restart has put its
 # windows back: an app registers a function of its own with dt_atstart
@@ -62,6 +68,7 @@ fn dt_app(name, title, int h, int w, once = "", icon = "", fixed = "", hidden = 
 	# Set by dt_apps while it sources this file, from where it found it --
 	# empty for one sourced any other way, which stays a flat item.
 	DT_APPS[$name]["dir"]="$DT_APPDIR_CUR"
+	DT_APPS[$name]["src"]="$DT_LOADING"
 }
 
 # Where apps are found: every .hibr in each of these, at any depth, in this
@@ -88,7 +95,8 @@ declare -gA DT_SRC
 
 # Load every app in the folders.  Each file declares itself with dt_app, so
 # the folder is the whole configuration: drop a script in, in a subfolder of
-# your own if you like, and it is on the menu at the next start -- globstar
+# your own if you like, and it is on the menu at the next start or the next
+# rescan (dt_rescan, below) -- globstar
 # is always on, which is what makes ** reach into them. A file whose name
 # was already loaded from an earlier folder is skipped. An app in a
 # subfolder gets a submenu of its own on the hibr menu, named after it --
@@ -143,9 +151,17 @@ dt_libs() {
 }
 
 dt_apps() {
+	dt_libs
+	dt_scanstamp
+	dt_appscan
+}
+
+# The scan itself, which a rescan runs again without the libraries: a
+# file already in DT_SRC is skipped, so a second pass sources only what
+# has arrived since.
+dt_appscan() {
 	local d f b rel
 
-	dt_libs
 	for d in "${DT_APPDIRS[@]}"; do
 		for f in "$d"/**/*.hibr; do
 			[ -r "$f" ] || continue
@@ -158,7 +174,9 @@ dt_apps() {
 			*/*) DT_APPDIR_CUR="Applications/${rel%/*}" ;;
 			*) DT_APPDIR_CUR="Applications" ;;
 			esac
+			DT_LOADING=$f
 			. "$f"
+			DT_LOADING=
 		done
 	done
 	DT_APPDIR_CUR=
@@ -198,18 +216,238 @@ dt_sysapps() {
 			[ -n "${DT_SRC["$b"]}" ] && continue
 			DT_SRC["$b"]=$f
 			DT_APPDIR_CUR=
+			DT_LOADING=$f
 			. "$f"
+			DT_LOADING=
 		done
 	done
 	DT_APPDIR_CUR=
 	# Someone's own accessories used to be scanned from a folder that no
 	# longer is, and a file quietly missing from a menu is worse than a
-	# line in the log saying where it went.
+	# line in the log saying where it went -- once, not on every rescan.
 	d="${XDG_CONFIG_HOME:-$HOME/.config}/hibr/desk-accessories"
-	if [ -d "$d" ]; then
+	if [ -z "$DT_RESCANS" ] && [ -d "$d" ]; then
 		printf '%s\n' "desktop: $d is no longer scanned -- move its files to ${XDG_CONFIG_HOME:-$HOME/.config}/hibr/apps/Accessories" >&2
 	fi
 	return 0
+}
+
+# --- what is installed while the desktop runs (Gitea #267) ----------------
+#
+# The loaders above read their folders once, at the start, so something the
+# catalogue placed afterwards was not on any menu until Restart Desktop --
+# and the tour had to say so. dt_rescan reads the folders again, and is
+# told to rather than looking: the control socket's `rescan`, which
+# `catalogue` sends after any verb that changed a file; the Catalogue
+# window, after its own job; and Refresh Desktop, which is what covers a
+# file somebody put in a folder by hand. Nothing polls, because an idle
+# desktop's budget is a hundredth of a core and a rescan is a few hundred
+# globs. The Catalogue window and the command it runs both ask, for one
+# install: the second finds nothing new and costs a scan, which is cheaper
+# than either of them having to know about the other.
+#
+# What a rescan does with each name:
+#
+# - **New**: sourced, by the loaders themselves, which already skip every
+#   file they have loaded.
+# - **Gone**, with no copy left in any scope: everything its file
+#   registered is taken off the menus, and kept. Its functions stay
+#   defined, so a window that is open keeps working; launching it again
+#   says it is not installed.
+# - **Changed** -- a newer file at the same path, a copy in another scope
+#   now winning the name, or a name that went and has come back: **not
+#   sourced again.** Apps run code at the top of their file that resets
+#   their state (`PE_N=0`, `PE_HITS=()`, `SNAKE_BEST=0`) and register hooks
+#   (`pe_onsync pe_reload`), so swapping one under its open windows, its
+#   tickers or a sync in flight is not safe -- and a desktop file is
+#   `strict`, which refuses a second definition of a function from the same
+#   file outright. It is a state instead: the bar's reload mark, which
+#   Restart Desktop clears by construction, and a note naming what changed.
+#   A name that comes back gets the registration it went with, so it is on
+#   the menu again at once, running what was loaded.
+#
+# "Newer" is against a stamp file rotated by each rescan -- `-nt` compares
+# to the nanosecond and costs no fork. It is per session, in the state
+# folder, so two desktops never move each other's.
+DT_SCANSTAMP=
+DT_SCANPREV=
+DT_RESCANS=
+DT_UPAPPS=
+DT_STALENEW=()
+declare -gA DT_STALE
+# What a gone file had registered, by app name, and the path each name's
+# file was loaded from, so a file of that name coming back is given its
+# registration again rather than sourced a second time.
+declare -gA DT_GONE
+declare -gA DT_GONEB
+
+# Note when the desktop read its folders, the first time it does.
+dt_scanstamp() {
+	local d
+
+	[ -n "$DT_SCANSTAMP" ] && return 0
+	d=${DT_LOG%/*}
+	DT_SCANSTAMP="$d/scan-${HIBR_HOLD##*/}"
+	[ -n "${HIBR_HOLD-}" ] || DT_SCANSTAMP="$d/scan-desktop"
+	mkdir -p "$d" 2> /dev/null
+	: > "$DT_SCANSTAMP" 2> /dev/null || DT_SCANSTAMP=-
+	return 0
+}
+
+# Whether a file loaded at the last scan has been written since.
+fn dt_scanold(f) {
+	[ -n "$DT_SCANPREV" ] && [ "$f" -nt "$DT_SCANPREV" ]
+}
+
+# A loaded file that changed: shown, never sourced again (see above).
+fn dt_stale(f, title = "") {
+	[ -n "${DT_STALE["$f"]+x}" ] && return 0
+	DT_STALE["$f"]=$title
+	DT_UPAPPS=1
+	DT_MENUIN=
+	[ -n "$title" ] && DT_STALENEW+=("$title")
+	return 0
+}
+
+# The titles of what a file registered, for a note.
+fn dt_srctitles(f) {
+	local n t=
+
+	for n in "${!DT_APPS[@]}"; do
+		[ "${DT_APPS[$n]["src"]}" = "$f" ] || continue
+		[ "${DT_APPS[$n]["hidden"]}" = 1 ] && continue
+		t="$t${t:+, }${DT_APPS[$n]["title"]}"
+	done
+	ret "$t"
+}
+
+# Take off the menus every app a file registered, keeping what each said.
+# A pane or a strip module it registered is the panel's and the strip's to
+# take back.
+fn dt_unload(f) {
+	local n k
+
+	for n in "${!DT_APPS[@]}"; do
+		[ "${DT_APPS[$n]["src"]}" = "$f" ] || continue
+		for k in "${!DT_APPS[$n][@]}"; do
+			DT_GONE[$n]["$k"]=${DT_APPS[$n]["$k"]}
+		done
+		unset DT_APPS["$n"]
+	done
+	DT_APPPLANK=
+	DT_MENUIN=
+	return 0
+}
+
+# Put back what dt_unload kept for a file, the reverse of it.
+fn dt_reinstate(f) {
+	local n k
+
+	for n in "${!DT_GONE[@]}"; do
+		[ "${DT_GONE[$n]["src"]}" = "$f" ] || continue
+		for k in "${!DT_GONE[$n][@]}"; do
+			DT_APPS[$n]["$k"]=${DT_GONE[$n]["$k"]}
+		done
+		unset DT_GONE["$n"]
+	done
+	DT_APPPLANK=
+	DT_MENUIN=
+	return 0
+}
+
+# Read every folder again. Answers how many names arrived, went and
+# changed, as "added removed changed", for the control socket to report.
+dt_rescan() {
+	local d f b w before added gone=0 changed=0 t
+	local -A win
+
+	DT_RESCANS=$((DT_RESCANS + 1))
+	DT_STALENEW=()
+	dt_scanstamp
+	DT_SCANPREV=
+	if [ "$DT_SCANSTAMP" != - ]; then
+		if [ -e "$DT_SCANSTAMP" ] && mv -f "$DT_SCANSTAMP" "$DT_SCANSTAMP.prev" 2> /dev/null; then
+			DT_SCANPREV=$DT_SCANSTAMP.prev
+		fi
+		: > "$DT_SCANSTAMP" 2> /dev/null
+	fi
+	# Who wins each name now, in the order the loaders claim them:
+	# applications, at any depth, then the desktop's own, flat.
+	for d in "${DT_APPDIRS[@]}"; do
+		for f in "$d"/**/*.hibr; do
+			[ -r "$f" ] || continue
+			b=${f##*/}
+			b=${b%.hibr}
+			[ -n "${win["$b"]}" ] || win["$b"]=$f
+		done
+	done
+	for d in "${DT_SYSDIRS[@]}"; do
+		for f in "$d"/*.hibr; do
+			[ -r "$f" ] || continue
+			b=${f##*/}
+			b=${b%.hibr}
+			[ -n "${win["$b"]}" ] || win["$b"]=$f
+		done
+	done
+	for b in "${!DT_SRC[@]}"; do
+		f=${DT_SRC["$b"]}
+		w=${win["$b"]}
+		if [ -z "$w" ]; then
+			dt_unload "$f"
+			DT_GONEB["$b"]=$f
+			unset DT_SRC["$b"]
+			gone=$((gone + 1))
+		elif [ "$w" != "$f" ] || dt_scanold "$f"; then
+			if [ -z "${DT_STALE["$f"]+x}" ]; then
+				t := dt_srctitles "$f"
+				dt_stale "$f" "${t:-$b}"
+				changed=$((changed + 1))
+			fi
+		fi
+	done
+	# A name that went and is back: its registration again, and the mark,
+	# rather than the loaders sourcing it a second time.
+	for b in "${!win[@]}"; do
+		[ -z "${DT_SRC["$b"]}" ] && [ -n "${DT_GONEB["$b"]}" ] || continue
+		f=${DT_GONEB["$b"]}
+		unset DT_GONEB["$b"]
+		DT_SRC["$b"]=$f
+		dt_reinstate "$f"
+		t := dt_srctitles "$f"
+		dt_stale "$f" "${t:-$b}"
+		changed=$((changed + 1))
+	done
+	before=${#DT_SRC[@]}
+	dt_appscan
+	dt_sysapps
+	added=$((${#DT_SRC[@]} - before))
+	# The Control Panel's panes and the Control Strip's modules, each read
+	# by its own owner, which answers the same three counts.
+	if dt_has cp_rescan; then
+		cp_rescan
+		read -r d f w <<< "$RET"
+		added=$((added + d)); gone=$((gone + f)); changed=$((changed + w))
+	fi
+	if dt_has cs_rescan; then
+		cs_rescan
+		read -r d f w <<< "$RET"
+		added=$((added + d)); gone=$((gone + f)); changed=$((changed + w))
+	fi
+	# Savers are read when one is first wanted, so the next one wanted
+	# reads them again; themes and colour schemes are lists Appearance
+	# keeps, and languages are read each time the list is shown.
+	[ -z "$DT_SAVING" ] && DT_SAVERREADY=
+	dt_has cp_themes && cp_themes
+	dt_has cp_colourlist && cp_colourlist
+	DT_APPPLANK=
+	DT_MENUIN=
+	if [ "${#DT_STALENEW[@]}" -gt 0 ]; then
+		t=
+		for w in "${DT_STALENEW[@]}"; do t="$t${t:+, }$w"; done
+		dt_notep normal "%s was updated: Restart Desktop to use the new version" "$t"
+	fi
+	dt_changed
+	ret "$added $gone $changed"
 }
 
 # Every registered app, sorted by title without regard to case, as names --

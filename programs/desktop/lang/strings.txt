@@ -52,6 +52,7 @@
 %s of %s rows
 %s pixels, a cell is %s by %s
 %s selected
+%s was updated: Restart Desktop to use the new version
 %s would not load
 %s would not unload
 %s x %s cells

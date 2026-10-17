@@ -179,7 +179,7 @@ whenever a replacement writes one.
 | `mods/lint/` | the rules behind `hibr --explain`: walks the parsed tree and names mistakes, runs nothing; offers `"lint"` (`mods/lint.h`) and adds no builtin |
 | `mods/html/` | HTML as the WHATWG standard parses it, our own tokenizer and tree builder, all 1792 html5lib tree-construction cases passing (`tests/html_tree.py`); CSS selectors, and `html lines`, the layout Mail reads messages through -- see `mods/html/README.md` |
 | `mods/pim/` | calendars and contacts: iCalendar and vCard parse and build, RRULE expansion checked rule by rule against python-dateutil on RFC 5545's examples (`tests/pim_rrule.py`, its answers kept in `tests/pim/rrule.txt`), zones through zoneinfo with TZ put back, iTIP replies -- see `mods/pim/README.md`; the dav module carries them (`propfind`, `report`, `sync`) |
-| `programs/desktop/wm/ctl.hibr` | the desktop's control socket, for Blit and tests: displays, windows, move/resize/focus as JSON, one request per connection, served between frames; `desktop ctl` (`lib/ctl.hibr`) is the client -- see Controlling a running desktop in `programs/desktop/WRITING.md` |
+| `programs/desktop/wm/ctl.hibr` | the desktop's control socket, for Blit and tests: displays, windows, move/resize/focus as JSON, one request per connection, served between frames; `desktop ctl` (`lib/ctl.hibr`) is the client, and `rescan` is how the catalogue tells a desktop what it installed -- see Controlling a running desktop in `programs/desktop/WRITING.md` |
 | `mods/csv.c` | CSV as RFC 4180 says: `csv read` (a map, built in one pass -- `hibr_setp` per field was quadratic, 50,000 rows took 3.5 minutes, now 0.24 s), `open`/`row`/`close` streaming, `line`, `split`; Sheet's CSV goes through it |
 | `programs/catalogue.hibr` | `catalogue`, which installs what the desktop runs -- applications, themes, colour schemes, languages and modules -- installed as a command the way `vw` is (ADR 0041, ADR 0045, Gitea #159); called `apps` until 0.99.195, and it moves to `programs/catalogue.hibr` with the desktop (Gitea #236): an index over HTTPS with `dav get` (binary-safe to a file, where `dav request` NUL-terminates its answer), a bundle's `sha256` verified, `archive` to look inside before anything is unpacked, and `mkdir`/`rm`/`mv` to place it. No C, so no module. Each of the desktop's **eight** scan lists reads `~/.config/hibr`, then the **system** scope (`$HIBR_SYSDIR`, `/var/lib/hibr`), then the user's `$XDG_DATA_HOME`, then the shipped copy -- so an administrator's install wins over anybody's own, and a file you wrote by hand still wins over both (ADR 0045). The `mods` kind is for **somebody else's** module only: hibr ships every module it builds, in every packaging, because a module is bytes and a source install compiles its own -- see ADR 0045's Alternatives for the split that was decided and then refused |
 | `mods/lines.c` | `lines show|grep|count|edit`: slicing, tree search and exact multi-line edits, so work on this tree needs no sed, grep or python -- see Editing this tree |
@@ -3937,6 +3937,25 @@ went in the shell.
   desktop restored windows out of them (#263). `tests/screen.py` now
   points every XDG folder at scratch for the whole suite, so the next
   helper cannot repeat it by forgetting.
+- **A desktop file is sourced once per desktop, and a rescan must not
+  source it again** (Gitea #267, 0.99.227). `dt_rescan` -- the control
+  socket's `rescan`, which `catalogue` sends after every change, the
+  Catalogue window's own call, and Refresh Desktop -- loads names that are
+  new and takes off those whose file has gone from every scope. A name
+  already loaded whose file **changed**, a copy in another scope now
+  winning it, or one that went and came back is **marked, never
+  re-sourced**: apps reset their state at top level (`PE_N=0`) and
+  register hooks, and `strict` refuses a second definition of a function
+  from the same file outright -- the first run of the checks printed
+  thirteen such refusals for one calculator. One that came back gets its
+  kept registration (`dt_reinstate`). Every loader sets `DT_LOADING`, and
+  `dt_app`, `cp_pane` and `cs_module` record it as `["src"]`, which is how a
+  file's registrations are found again. And the first name for that
+  restore was `dt_restore`, which `wm/restart.hibr` already defines for a
+  restart's windows: **check a new desktop function name against the whole
+  tree before using it** -- `540-examples.t` catches it at the gate, but
+  the symptom before that was a rescan silently running somebody else's
+  code.
 - **A ledger of what a program placed is not an inventory of what the
   machine has, and naming it `installed` makes it read as one**
   (Gitea #254, 0.99.212). The catalogue records what it placed, so

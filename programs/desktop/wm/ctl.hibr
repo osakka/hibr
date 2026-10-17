@@ -20,6 +20,7 @@
 #     {"op":"move","id":7,"display":"left"}
 #     {"op":"resize","id":7,"h":20,"w":60}
 #     {"op":"focus","id":7}            ("raise" is the same)
+#     {"op":"rescan"}                  (read the app folders again)
 #
 # An answer is {"ok":true,...} or {"ok":false,"error":"...","detail":"..."},
 # the errors bad-request, unknown-op, no-window, no-display, detached,
@@ -213,6 +214,7 @@ fn dt_ctlserve(int c) {
 		move) out := dt_ctlmove "${q["id"]}" "${q["display"]}" ;;
 		resize) out := dt_ctlresize "${q["id"]}" "${q["h"]}" "${q["w"]}" ;;
 		focus | raise) out := dt_ctlfocus "${q["id"]}" ;;
+		rescan) out := dt_ctlrescan ;;
 		"") out := dt_ctlerr bad-request "no op" ;;
 		*) out := dt_ctlerr unknown-op "$op" ;;
 		esac
@@ -232,6 +234,18 @@ dt_ctldlist() {
 		return 0
 	fi
 	ret "main 1 0 $((DT_ROWS - 1)) $DT_COLS 1"
+}
+
+# Read the folders again, for whatever just installed, removed or updated
+# something (Gitea #267): `catalogue` sends this after any verb that
+# changed a file. The answer counts what arrived, what went, and what
+# changed and waits for a restart.
+dt_ctlrescan() {
+	local a g c
+
+	dt_rescan
+	read -r a g c <<< "$RET"
+	ret "{\"ok\":true,\"added\":${a:-0},\"removed\":${g:-0},\"changed\":${c:-0}}"
 }
 
 dt_ctlsession() {

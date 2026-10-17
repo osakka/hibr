@@ -711,6 +711,19 @@ machine needs root, which the window does not have and should not ask
 for; that is `sudo catalogue --system install` at a terminal, and it is
 what an image build does anyway.
 
+**What is installed is on the menus at once** (Gitea #267). After any
+verb that placed or took away a file, `catalogue` sends `rescan` to every
+desktop of the account that ran it, over each one's control socket, and
+the window asks its own desktop directly too. The desktop loads what is
+new and takes off the menus what has gone; a window still open on
+something removed keeps working until it is closed. Something already
+loaded that **changed** -- an update, or a copy in another scope now
+winning its name -- is not sourced again under its open windows: it keeps
+running what it started with, the bar shows ↻, and a note names it until
+Restart Desktop. A `--system` install reaches only the desktops of
+whoever ran it; anybody else's picks it up at their Refresh Desktop or
+their next start.
+
 ```text
 ┌─┤ Catalogue ├─────────────────────────────────────────────────────┤_ □ x├┐
 │ Search                                               5 in the catalogue  │

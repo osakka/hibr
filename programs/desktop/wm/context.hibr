@@ -93,10 +93,12 @@ fn dt_panelpane(pane) {
 
 # Draw the whole screen again from nothing -- for a terminal something else
 # wrote over, or one that never showed what it was sent -- and look again
-# at what is on disk, for the desktop's icons and every window of files.
+# at what is on disk: the desktop's icons, every window of files, and the
+# folders apps, panes and strip modules are found in, for one somebody put
+# there by hand (Gitea #267).
 dt_refresh() {
 	console reassert
-	dt_changed
+	dt_rescan
 	dt_notep low "Refreshed"
 }
 

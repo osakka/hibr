@@ -197,7 +197,7 @@ fn dt_barput(int col, t) {
 dt_barkey() {
 	local k
 
-	k="$MB_OPEN|$MB_PAR|$MB_APP|$MB_N|$MB_AX|$DT_NOTEUNSEEN|$DT_UPNEW|$DT_UPSESSION"
+	k="$MB_OPEN|$MB_PAR|$MB_APP|$MB_N|$MB_AX|$DT_NOTEUNSEEN|$DT_UPNEW|$DT_UPAPPS|$DT_UPSESSION"
 	k="$k|$DT_CLOCKWAS|$DT_WS|$DT_WSN|$DT_MIRRORON|$DT_PRIMARY_W"
 	k="$k|$DT_PRIMARY_COL|$DT_PRIMARY_ROW|$DT_PRIMARY_H"
 	k="$k|$DT_BARGAP|$DT_BELLICON|$DT_PBAR"
@@ -334,7 +334,10 @@ dt_bar() {
 	# until the desktop is restarted: a desktop running an old image has
 	# to say so for as long as it is, or the bugs it is reported for are
 	# reported against code that no longer exists (dt_updcheck).
-	[ -n "$DT_UPNEW" ] && bell="${GL[reload]} $bell"
+	# An app, pane or strip module that changed on disk asks for the same
+	# thing -- a restart, which clears this by construction -- so it wears
+	# the same mark rather than a second one (dt_rescan, Gitea #267).
+	[ -n "$DT_UPNEW$DT_UPAPPS" ] && bell="${GL[reload]} $bell"
 	# A different mark, because it asks for a different thing: the reload
 	# above is cleared by a restart and this one is not -- only a new
 	# session reloads what hold renders from (Gitea #174).

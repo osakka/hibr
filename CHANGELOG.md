@@ -1,5 +1,59 @@
 # Changelog
 
+## 0.99.227
+
+**A running desktop picks up what the catalogue installs, without a
+restart** (Gitea #267).
+
+An app installed from the Catalogue window, or with `catalogue install`
+at a terminal, reached the Applications menu only after Restart Desktop,
+because the desktop read its folders once, when it started. The tour
+released yesterday had to tell visitors so. Now:
+
+- **`dt_rescan`** reads the folders again. The four loaders already
+  skipped any file they had loaded, so a second pass sources only what is
+  new; a name whose file has gone from every scope is taken off the menus
+  (a window still open on it keeps working); and the Control Panel's panes
+  and the Control Strip's modules are read again by their own owners. Each
+  open Control Panel is put back on the pane it was showing, by name, since
+  the list is sorted again.
+- **It is told, never polling**, because an idle desktop's budget is a
+  hundredth of a core. `catalogue` sends `{"op":"rescan"}` to every control
+  socket of the account after any verb that wrote its state, and nothing
+  after one that only reads; the Catalogue window asks its own desktop
+  directly as well; and **Refresh Desktop** rescans, which covers a file
+  somebody put in a folder by hand. `desktop ctl rescan` answers how many
+  names arrived, went and changed.
+- **Something already loaded that changes is not sourced again.** Apps run
+  code at the top of their file that resets their state and registers
+  hooks, and a desktop file is `strict`, which refuses a second definition
+  of a function from the same file -- the first run of the new checks
+  printed thirteen such refusals for one calculator. An update, a copy in
+  another scope now winning the name, or a name that went and came back
+  keeps running what was loaded; the bar shows ↻ beside the bell and a note
+  names it until Restart Desktop. A name that comes back is given the
+  registration it went with, so it is on the menu again at once.
+
+A `--system` install reaches only the desktops of whoever ran it; anybody
+else's picks it up at Refresh Desktop or its next start.
+
+`tests/scopes.py` drives one desktop through all of it -- an app placed,
+changed, removed, a pane and a strip module placed, and a file returned
+by hand and picked up by Refresh Desktop -- and reads the result from the
+menus and the bar. `tests/apps.py` installs through the Catalogue window
+and finds the app on the menu; that check fails with the window's own
+rescan taken out. `tests/appmgr.py` checks that `catalogue` tells a
+desktop after an install and a removal and says nothing after `list`.
+
+One collision on the way, caught before it shipped: the first name for
+putting back a gone app's registration was `dt_restore`, which is
+`wm/restart.hibr`'s function for putting back a restart's windows. The
+later definition won, so the rescan quietly ran the restart's restore.
+`tests/540-examples.t` already fails on a name defined twice across the
+desktop's parts; it is `dt_reinstate`.
+
+The Catalogue window is `system/catalogue` 2.3.
+
 ## 0.99.226
 
 **The desktop has a tour, its guide is in two halves, and every picture

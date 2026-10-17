@@ -19,7 +19,7 @@
 
 strict
 
-app catalogue "The application catalogue: browse, install, update and remove" 2.2
+app catalogue "The application catalogue: browse, install, update and remove" 2.3
 
 # Not called "Applications": the hibr menu already has a submenu of that
 # name -- every app you can open -- and two rows called the same thing on
@@ -849,6 +849,11 @@ fn cat_acted(int id, int st, int n, what = "") {
 	else
 		dt_note "$what"
 	fi
+	# What it placed or took away is on the menus now, not at the next
+	# start (Gitea #267). The command this job ran has told every desktop
+	# over its control socket as well; asking here too is for a desktop
+	# with no socket, and a second scan that finds nothing new is cheap.
+	dt_has dt_rescan && dt_rescan
 	cat_reload "$id"
 	return 0
 }

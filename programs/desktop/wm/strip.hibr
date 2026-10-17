@@ -60,6 +60,7 @@ CS_PRESSC=0
 fn cs_module(name, title, w = "") {
 	CS_MODS[$name]["title"]="$title"
 	CS_MODS[$name]["w"]="${w:-${#2}}"
+	CS_MODS[$name]["src"]="${DT_LOADING-}"
 	CS_MOD_ALL+=("$name")
 	CS_MOD_LIST+=("$name")
 }
@@ -88,9 +89,86 @@ cs_modules() {
 			b=${f##*/}
 			[ -n "${CS_SRC["$b"]}" ] && continue
 			CS_SRC["$b"]=$f
+			DT_LOADING=$f
 			. "$f"
+			DT_LOADING=
 		done
 	done
+}
+
+# What cs_rescan kept of a module whose file went, and that file's path.
+declare -gA CS_GONE
+declare -gA CS_GONEB
+
+# Read the module folders again, for dt_rescan (Gitea #267), with the same
+# three answers it gives for apps: "added removed changed", and the same
+# rule for one that went and has come back.
+cs_rescan() {
+	local d f b w m k before added gone=0 changed=0 t
+	local -A win
+	local -a all
+
+	for d in "${CS_MODDIRS[@]}"; do
+		for f in "$d"/*.hibr; do
+			[ -r "$f" ] || continue
+			b=${f##*/}
+			[ -n "${win["$b"]}" ] || win["$b"]=$f
+		done
+	done
+	for b in "${!CS_SRC[@]}"; do
+		f=${CS_SRC["$b"]}
+		w=${win["$b"]}
+		if [ -z "$w" ]; then
+			all=()
+			for m in "${CS_MOD_ALL[@]}"; do
+				if [ "${CS_MODS[$m]["src"]}" = "$f" ]; then
+					for k in "${!CS_MODS[$m][@]}"; do
+						CS_GONE[$m]["$k"]=${CS_MODS[$m]["$k"]}
+					done
+					unset CS_MODS["$m"]
+				else
+					all+=("$m")
+				fi
+			done
+			CS_MOD_ALL=("${all[@]}")
+			dt_unload "$f"
+			CS_GONEB["$b"]=$f
+			unset CS_SRC["$b"]
+			gone=$((gone + 1))
+		elif [ "$w" != "$f" ] || dt_scanold "$f"; then
+			[ -n "${DT_STALE["$f"]+x}" ] && continue
+			t=
+			for m in "${CS_MOD_ALL[@]}"; do
+				[ "${CS_MODS[$m]["src"]}" = "$f" ] && t=${CS_MODS[$m]["title"]}
+			done
+			dt_stale "$f" "${t:-${b%.hibr}}"
+			changed=$((changed + 1))
+		fi
+	done
+	for b in "${!win[@]}"; do
+		[ -z "${CS_SRC["$b"]}" ] && [ -n "${CS_GONEB["$b"]}" ] || continue
+		f=${CS_GONEB["$b"]}
+		unset CS_GONEB["$b"]
+		CS_SRC["$b"]=$f
+		t=
+		for m in "${!CS_GONE[@]}"; do
+			[ "${CS_GONE[$m]["src"]}" = "$f" ] || continue
+			for k in "${!CS_GONE[$m][@]}"; do
+				CS_MODS[$m]["$k"]=${CS_GONE[$m]["$k"]}
+			done
+			unset CS_GONE["$m"]
+			CS_MOD_ALL+=("$m")
+			t=${CS_MODS[$m]["title"]}
+		done
+		dt_reinstate "$f"
+		dt_stale "$f" "${t:-${b%.hibr}}"
+		changed=$((changed + 1))
+	done
+	before=${#CS_SRC[@]}
+	cs_modules
+	added=$((${#CS_SRC[@]} - before))
+	cs_relist
+	ret "$added $gone $changed"
 }
 
 # The row the strip sits on -- computed once, the first time it is needed,

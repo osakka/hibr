@@ -44,7 +44,7 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
-from screen import Term, check, report, load, tree
+from screen import Term, check, report, load, tree, press, release
 
 DESK = tree("programs/desktop")
 MOD = tree("build/mods/console.so")
@@ -197,8 +197,129 @@ errs, bar, sc = start("everything", session(SHIPPED), everything)
 check("every installable over the shipped desktop, shadowing its copies, "
       "starts and prints no error", bar and not errs, (errs[:3], sc))
 
+# --- picked up while it runs (Gitea #267) ---------------------------------
+#
+# One desktop, as the package ships it, over a data folder that starts
+# empty, told to read its folders again the two ways it can be: over its
+# control socket, which is what `catalogue` sends after a change, and by
+# Refresh Desktop, which covers a file put there by hand. What it must do
+# with each name -- load what is new, take off what has gone, and leave
+# alone what changed, saying so -- is read from the menus and the bar,
+# where a person would see it.
+import subprocess
+import threading
+
+live = os.path.join(D, "live")
+lhome = os.path.join(D, "run-live")
+os.makedirs(lhome)
+lpath = os.path.join(lhome, "session.hibr")
+lctl = os.path.join(lhome, "ctl.sock")
+open(lpath, "w").write(session(SHIPPED))
+lt = Term(lpath, rows=40, cols=140, settle=1.5,
+          env={"XDG_DATA_HOME": live, "DT_CTL": "1", "DT_CTLPATH": lctl,
+               "XDG_CONFIG_HOME": os.path.join(lhome, "config"),
+               "XDG_STATE_HOME": os.path.join(lhome, "state")})
+lt.collect(0.5)
+
+
+def lrescan():
+    """Ask the desktop to read its folders again, as `catalogue` does, and
+    answer what it said. Run beside the pty rather than before it, so a
+    frame the desktop draws while answering is read and never blocks it."""
+    got = {}
+
+    def ask():
+        r = subprocess.run([sx.HIBR, tree("programs/desktop/lib/ctl.hibr"),
+                            "-S", lctl, "-j", '{"op":"rescan"}'],
+                           capture_output=True, text=True, timeout=20)
+        got["out"] = r.stdout.strip() or r.stderr.strip()
+
+    th = threading.Thread(target=ask)
+    th.start()
+    while th.is_alive():
+        lt.collect(0.1)
+    lt.collect(0.3)
+    return got.get("out", "")
+
+
+def lmenu():
+    """The hibr menu open, with Applications > Accessories open under it
+    when there is one -- the calculator is an accessory -- and every menu
+    shut again after by a click on the bare desktop, which shuts however
+    many are open. Escape would not do: once they are all shut it opens
+    the bar again."""
+    lt.keys([b"\x1b[21~", b"\x1b[B", b"\x1b[C", b"\x1b[C"])
+    sc = lt.screen()
+    lt.keys([press(30, 60), release(30, 60)])
+    return sc
+
+
+def lcalc(sc):
+    """Whether the menu shows Calculator: on the Accessories row, where its
+    submenu opens. Not anywhere on the screen, since the note a change
+    raises names it too."""
+    a = sc.find("Accessories")
+    return a is not None and "Calculator" in sc.row(a[0])[a[1]:]
+
+
+CALC = os.path.join(DESK, "apps", "Accessories", "calc.hibr")
+sc = lmenu()
+check("a desktop as shipped has no Applications on its menu",
+      sc.find("Applications") is None and sc.find("Calculator") is None, sc)
+place(live, "apps", "Accessories/calc.hibr", CALC)
+out = lrescan()
+sc = lmenu()
+check("an app placed while it runs is on the menu once it is told, with no "
+      "restart, and the socket says one arrived",
+      '"added":1' in out and lcalc(sc), (out, sc))
+
+# Changed: a newer file at the same path. Not sourced again, so the menu
+# keeps the title it was loaded with, and the bar says a restart is owed.
+lcalcf = os.path.join(live, "hibr", "apps", "Accessories", "calc.hibr")
+src = open(lcalcf).read().replace('"Calculator"', '"Abacus"', 1)
+open(lcalcf, "w").write(src)
+out = lrescan()
+sc = lmenu()
+check("an app that changed on disk is not sourced again under the running "
+      "desktop -- the menu keeps what was loaded -- and the bar asks for a "
+      "restart",
+      '"changed":1' in out and lcalc(sc)
+      and sc.find("Abacus") is None and "↻" in sc.row(0), (out, sc))
+
+# Gone: the file removed. Off the menu, and the socket says so.
+os.unlink(lcalcf)
+out = lrescan()
+sc = lmenu()
+check("an app removed while it runs leaves the menu once it is told",
+      '"removed":1' in out and not lcalc(sc)
+      and sc.find("Applications") is None, (out, sc))
+
+# A pane and a strip module, which their own owners read again.
+os.makedirs(os.path.join(live, "hibr", "control-panel"), exist_ok=True)
+open(os.path.join(live, "hibr", "control-panel", "probe.hibr"), "w").write(
+    'command -v cp_pane > /dev/null && cp_pane probe "Probe Pane" "P"\n'
+    'fn probe_rows(int w) { ret 0; }\n')
+os.makedirs(os.path.join(live, "hibr", "control-strip"), exist_ok=True)
+open(os.path.join(live, "hibr", "control-strip", "stprobe.hibr"), "w").write(
+    'command -v cs_module > /dev/null && cs_module stprobe "Probe"\n'
+    'fn stprobe_draw(int row, int col) { console put "$row" "$col" Probe; }\n'
+    'fn stprobe_click(int row, int col) { :; }\n')
+out = lrescan()
+check("a Control Panel pane and a strip module placed while it runs are read "
+      "too", '"added":2' in out, out)
+
+# Refresh Desktop, for a file put there by hand: the same scan, from a key.
+place(live, "apps", "Accessories/calc.hibr", CALC)
+lt.keys([b"\x1b\x12"])
+lt.collect(0.3)
+sc = lmenu()
+check("Refresh Desktop reads the folders again, for a file nothing "
+      "announced -- and a name that went and came back is on the menu again "
+      "without being sourced twice", lcalc(sc), sc)
+lt.close()
+
 print("%d installable files in %s, %d of them platform%s"
       % (len(ITEMS), " ".join(KINDS), len(PLAT),
          "; broken alone: " + " ".join(broken) if broken else ""))
 shutil.rmtree(D, True)
-report(len(INST) + 4)
+report(len(INST) + 10)

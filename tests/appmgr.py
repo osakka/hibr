@@ -1567,9 +1567,57 @@ try:
           "costs no ownership",
           rc != 0, (rc, out, err))
 
+    # A running desktop is told when something changed, so what was placed
+    # is on its menus at once (Gitea #267): after any verb that wrote the
+    # state, `rescan` goes to every control socket in the account's own
+    # folder, and a verb that only reads sends nothing. A stand-in socket
+    # records what arrives; `desktop` on PATH is this tree's client, since
+    # the installed one may be older.
+    import socket
+    import threading
+    tbin = os.path.join(D, "tellbin")
+    os.makedirs(tbin, exist_ok=True)
+    open(os.path.join(tbin, "desktop"), "w").write(
+        '#!/bin/sh\n[ "$1" = ctl ] && shift\nexec %s %s "$@"\n'
+        % (sx.HIBR, tree("programs/desktop/lib/ctl.hibr")))
+    os.chmod(os.path.join(tbin, "desktop"), 0o755)
+    cdir = os.path.join(TMP, "hibr-ctl-%d" % os.getuid())
+    os.makedirs(cdir, mode=0o700, exist_ok=True)
+    cpath = os.path.join(cdir, "other.ctl")
+    told = []
+    ls = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    ls.bind(cpath)
+    ls.listen(4)
+
+    def tellserve():
+        while True:
+            try:
+                c, _ = ls.accept()
+            except OSError:
+                return
+            with c:
+                told.append(c.makefile().readline().strip())
+                c.sendall(b'{"ok":true,"added":0,"removed":0,"changed":0}\n')
+
+    threading.Thread(target=tellserve, daemon=True).start()
+    TELL = {"PATH": tbin + ":" + os.environ["PATH"]}
+    apps("remove", "apps/demo", env=TELL)
+    del told[:]
+    rc, out, err = apps("install", "apps/demo", env=TELL)
+    check("an install tells every running desktop to read its folders again",
+          rc == 0 and told == ['{"op":"rescan"}'], (rc, told, out, err))
+    rc, out, err = apps("list", env=TELL)
+    check("and a verb that only reads tells nobody anything",
+          rc == 0 and told == ['{"op":"rescan"}'], (rc, told))
+    rc, out, err = apps("remove", "apps/demo", env=TELL)
+    check("and a removal tells them too",
+          rc == 0 and told == ['{"op":"rescan"}'] * 2, (rc, told, out, err))
+    ls.close()
+    os.unlink(cpath)
+
 finally:
     srv.terminate()
     srv.wait()
     shutil.rmtree(D, True)
 
-report(134)
+report(137)

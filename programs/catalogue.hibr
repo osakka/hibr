@@ -507,7 +507,7 @@ lost. Try again when it has finished."
 	done
 	printf '%s\n' "$$" > "$CAT_LOCK/pid" 2> /dev/null
 	CAT_LOCKED=1
-	trap 'cat_unlock' EXIT
+	trap 'cat_unlock; cat_tell' EXIT
 	return 0
 }
 
@@ -543,6 +543,7 @@ cat_statesave() {
 		rm -f "$tmp" 2> /dev/null
 		cat_die "cannot replace $CAT_STATE"
 	}
+	CAT_CHANGED=1
 	return 0
 }
 
@@ -773,6 +774,31 @@ fn cat_windows(name) {
 	ret "$n"
 }
 CAT_WINS=
+
+# Tell every desktop this account is running that something changed, so
+# what was placed is on its menus now rather than at its next start
+# (Gitea #267). Run from the exit trap, once the lock is given back, and
+# only after the state was written -- which every verb that places or
+# takes away a file does, and nothing that only reads. Best effort, as
+# cat_windows is: no desktop, no socket, or one that does not answer is
+# nothing to report, and `desktop ctl` bounds its own connect. Every
+# socket in the control folder rather than the default session's, since a
+# person may run more than one; a machine-wide install reaches only the
+# desktops of whoever ran it, and the others' at their Refresh Desktop.
+# Never changes the status, for the same reason cat_unlock does not.
+fn cat_tell() {
+	local p
+
+	[ "$CAT_CHANGED" = 1 ] || return 0
+	CAT_CHANGED=0
+	command -v desktop > /dev/null || return 0
+	for p in "${TMPDIR:-/tmp}/hibr-ctl-$UID"/*.ctl; do
+		[ -S "$p" ] || continue
+		command desktop ctl -S "$p" -j '{"op":"rescan"}' > /dev/null 2>&1
+	done
+	return 0
+}
+CAT_CHANGED=0
 
 # --- the verbs ------------------------------------------------------------
 

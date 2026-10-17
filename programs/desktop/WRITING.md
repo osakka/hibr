@@ -17,8 +17,9 @@ needs root.
 | a theme or a colour scheme | `~/.config/hibr/themes/`, `~/.config/hibr/colours/` | [Themes and colours](README.md#themes-and-colours) |
 | the whole session | anywhere; run it with `hibr` | [Writing a session](#writing-a-session) |
 
-A file there is found the next time the desktop starts, and one with the
-same name as an installed or shipped file replaces it, which is the easiest
+A file there is found at the next Refresh Desktop -- the desktop's
+right-click menu -- or the next start, and one with the same name as an
+installed or shipped file replaces it, which is the easiest
 way to change something the desktop came with: copy it there and edit the
 copy ([ADR 0045](../../docs/adr/0045-a-thing-has-a-scope.md)). Anything you
 write may be shared through a catalogue later, so it follows the one rule
@@ -319,7 +320,9 @@ DT_APPDIRS+=("$d/apps")     # after ~/.config/hibr/apps, which is always first
 dt_apps
 ```
 
-A script dropped in `~/.config/hibr/apps` is on the menu at the next start,
+A script dropped in `~/.config/hibr/apps` is on the menu at the next Refresh
+Desktop or the next start (`dt_rescan`, which the catalogue also triggers
+through the control socket's `rescan` after every install),
 in a subfolder of your own if you like -- `dt_apps` looks at every depth, not
 just the top -- and one there with the same file name as a bundled app
 replaces it, wherever in the tree either one sits. An app file is sourced
@@ -492,7 +495,8 @@ own and outlasting a logout the same way, in a folder only its owner can
 enter; a connection from another user is refused. One request per
 connection, a line of JSON -- `{"op":"displays"}`, `{"op":"windows"}`,
 `{"op":"session"}`, `{"op":"move","id":3,"display":"right"}`,
-`{"op":"resize","id":3,"h":20,"w":60}`, `{"op":"focus","id":3}` -- and one
+`{"op":"resize","id":3,"h":20,"w":60}`, `{"op":"focus","id":3}`,
+`{"op":"rescan"}` -- and one
 line back, `{"ok":true,...}` or `{"ok":false,"error":...,"detail":...}`
 with the errors `bad-request`, `unknown-op`, `no-window`, `no-display`,
 `detached`, `bad-geometry` and `unauthorized`. `desktop ctl -j '{...}'`

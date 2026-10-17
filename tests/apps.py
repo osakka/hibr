@@ -4683,6 +4683,41 @@ check("Install asks the command to install the selected id, by id",
       "install apps/gadget" in asked() or "install apps/widget" in asked(),
       asked())
 
+# And what it installed is on the hibr menu at once, not at the next
+# start (Gitea #267). The stand-in places a real app where the catalogue
+# would, in the session's own data folder, and the window's own call to
+# dt_rescan is the only thing that can find it: this session has no
+# control socket, so the command telling the desktop reaches nothing.
+# Driven a step at a time, since the menu is opened only once the window
+# has listed again -- the reload that follows a finished job.
+open(os.path.join(ASBIN, "catalogue"), "w").write(
+    '#!/bin/sh\n'
+    'printf "%%s\\n" "$*" >> %s\n'
+    'case "$*" in *install*)\n'
+    '  mkdir -p "$XDG_DATA_HOME/hibr/apps"\n'
+    "  echo 'command -v dt_app > /dev/null && dt_app probe \"Widget Probe\" 8 30'"
+    ' > "$XDG_DATA_HOME/hibr/apps/probe.hibr" ;;\n'
+    'esac\n'
+    'case "$*" in *-j*) cat %s ;; esac\n'
+    'exit 0\n' % (ASLOG, os.path.join(ASBIN, "answer")))
+if os.path.exists(ASLOG):
+    os.unlink(ASLOG)
+rsp = os.path.join(S, "session.hibr")
+open(rsp, "w").write("%s. %s\n. %s\ndt_open\ndt_new \"Catalogue\" 21 76 2 2 catalogue\n"
+                   "dt_run\ndt_close\n" % (load("console"), WM, appdir("catalogue")
+                                         + "/catalogue.hibr"))
+rst = Term(rsp, env=dict({"DT_TICK": "60"}, **ASENV), settle=0.6)
+rst.until(lambda s: s.find("widget") is not None, 150)
+rst.keys([b"i"])
+rst.until(lambda s: asked().count("list -j") >= 2, 150)
+rst.keys([b"\x1b[21~", b"\x1b[B", b"\x1b[C"])
+rst.until(lambda s: s.find("Widget Probe") is not None, 60)
+sc = rst.screen()
+rst.quit(b"\x1bqy", 1.0)
+check("what Install placed is on the Applications menu without a restart",
+      sc.find("Widget Probe") is not None, (asked(), sc))
+asstub()
+
 def asrow(sc, name):
     """Where a name sits **in the list**, as a click position.
 
@@ -4829,4 +4864,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(634)
+report(635)

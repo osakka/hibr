@@ -92,10 +92,10 @@ and how to run a catalogue of your own.
 
 ## 4. Open some windows
 
-What the Catalogue installs is read when the desktop starts, so choose
-**Restart Desktop** from the hibr menu once you have what you want. The
-windows you had come back; the hibr menu now has an Applications submenu
-with your new programs in it.
+What the Catalogue installs is on the menus the moment it is installed:
+the hibr menu now has an Applications submenu with your new programs in
+it, and the same goes for something installed with `catalogue install`
+from a terminal, which tells every desktop you are running.
 
 ![Calculator and Files side by side, Files showing a home folder with Documents, Downloads, Music, Pictures and Projects](../programs/desktop/img/tour-4-windows.png)
 
@@ -148,8 +148,16 @@ is to know about how the desktop finds anything:
   installed` lists it, and `catalogue remove NAME` takes something out
   again, with everything it brought.
 - **`~/.config/hibr/`** is for files you write yourself. A script you put
-  in `~/.config/hibr/apps/` is an application the next time the desktop
-  starts, and a file there with the same name as an installed one wins.
+  in `~/.config/hibr/apps/` is an application as soon as you right-click
+  the desktop and choose **Refresh Desktop**, and a file there with the
+  same name as an installed one wins.
+
+One thing waits for a restart: a program that is **already loaded** and
+then changes -- an update, or a copy of your own replacing it. Swapping
+it under its open windows is not safe, so it keeps running what it
+started with, the bar shows ↻ beside the bell, and a note names it;
+**Restart Desktop** on the hibr menu loads the new one and keeps your
+windows.
 
 So nothing you write is ever overwritten by an install or an update.
 [ADR 0045](adr/0045-a-thing-has-a-scope.md)

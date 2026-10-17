@@ -65,6 +65,7 @@ fn cp_pane(pane, title, icon, group = "system") {
 	CP_PANES[$pane]["title"]="$title"
 	CP_PANES[$pane]["icon"]="${icon:-◆}"
 	CP_PANES[$pane]["group"]=$group
+	CP_PANES[$pane]["src"]="${DT_LOADING-}"
 	CP_PANE_LIST+=("$pane")
 }
 
@@ -82,7 +83,9 @@ cp_panes() {
 			b=${f##*/}
 			[ -n "${CPSRC["$b"]}" ] && continue
 			CPSRC["$b"]=$f
+			DT_LOADING=$f
 			. "$f"
+			DT_LOADING=
 		done
 	done
 	for b in "${CP_PANE_LIST[@]}"; do
@@ -97,6 +100,99 @@ cp_panes() {
 	CP_PANE_LIST=()
 	for l in "${all[@]}"; do CP_PANE_LIST+=("${l#*	}"); done
 }
+
+# Read the pane folders again, for dt_rescan (Gitea #267): a pane whose
+# file has gone leaves the list, a new one joins it, and one whose file
+# changed is marked rather than sourced again -- the same three answers
+# the desktop gives for its apps, as "added removed changed". Each open
+# Control Panel is put back on the pane it was showing, by name, because
+# the list is sorted again and an index kept from before would name
+# another pane.
+cp_rescan() {
+	local d f b w p i k before added gone=0 changed=0 t
+	local -A win keep
+	local -a list
+
+	for w in "${!PW[@]}"; do
+		keep["$w"] := panel_pane "$w"
+	done
+	for d in "${CP_PANEDIRS[@]}"; do
+		for f in "$d"/*.hibr; do
+			[ -r "$f" ] || continue
+			b=${f##*/}
+			[ -n "${win["$b"]}" ] || win["$b"]=$f
+		done
+	done
+	for b in "${!CPSRC[@]}"; do
+		f=${CPSRC["$b"]}
+		w=${win["$b"]}
+		if [ -z "$w" ]; then
+			list=()
+			for p in "${CP_PANE_LIST[@]}"; do
+				if [ "${CP_PANES[$p]["src"]}" = "$f" ]; then
+					for k in "${!CP_PANES[$p][@]}"; do
+						CP_GONE[$p]["$k"]=${CP_PANES[$p]["$k"]}
+					done
+					unset CP_PANES["$p"]
+				else
+					list+=("$p")
+				fi
+			done
+			CP_PANE_LIST=("${list[@]}")
+			dt_unload "$f"
+			CP_GONEB["$b"]=$f
+			unset CPSRC["$b"]
+			gone=$((gone + 1))
+		elif [ "$w" != "$f" ] || dt_scanold "$f"; then
+			[ -n "${DT_STALE["$f"]+x}" ] && continue
+			t=
+			for p in "${CP_PANE_LIST[@]}"; do
+				[ "${CP_PANES[$p]["src"]}" = "$f" ] && t=${CP_PANES[$p]["title"]}
+			done
+			dt_stale "$f" "${t:-${b%.hibr}}"
+			changed=$((changed + 1))
+		fi
+	done
+	# A pane that went and is back is given its registration again and
+	# marked, as dt_rescan does for an app, never sourced a second time.
+	for b in "${!win[@]}"; do
+		[ -z "${CPSRC["$b"]}" ] && [ -n "${CP_GONEB["$b"]}" ] || continue
+		f=${CP_GONEB["$b"]}
+		unset CP_GONEB["$b"]
+		CPSRC["$b"]=$f
+		t=
+		for p in "${!CP_GONE[@]}"; do
+			[ "${CP_GONE[$p]["src"]}" = "$f" ] || continue
+			for k in "${!CP_GONE[$p][@]}"; do
+				CP_PANES[$p]["$k"]=${CP_GONE[$p]["$k"]}
+			done
+			unset CP_GONE["$p"]
+			CP_PANE_LIST+=("$p")
+			t=${CP_PANES[$p]["title"]}
+		done
+		dt_reinstate "$f"
+		dt_stale "$f" "${t:-${b%.hibr}}"
+		changed=$((changed + 1))
+	done
+	before=${#CPSRC[@]}
+	cp_panes
+	added=$((${#CPSRC[@]} - before))
+	for w in "${!keep[@]}"; do
+		i=0
+		for p in "${CP_PANE_LIST[@]}"; do
+			if [ "$p" = "${keep["$w"]}" ]; then
+				PW[$w]["pane"]=$i
+				break
+			fi
+			i=$((i + 1))
+		done
+	done
+	ret "$added $gone $changed"
+}
+
+# What cp_rescan kept of a pane whose file went, and that file's path.
+declare -gA CP_GONE
+declare -gA CP_GONEB
 
 # Per window: which pane is selected (an index into CP_PANE_LIST), and
 # whether the arrows move the pane list or the selected pane's own rows --
